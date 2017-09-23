@@ -340,7 +340,7 @@ void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 
 	descrl = (base << 16) | (limit & 0xffff);
 
-	gdt = (void *)*(u32 *)&syspage->gdtr[2];
+	gdt = (u32 *)syspage->gdtr.addr;
 
 	gdt[idx * 2] = descrl;
 	gdt[idx * 2 + 1] = descrh;

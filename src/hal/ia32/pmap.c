@@ -269,15 +269,15 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	}
 
 	/* Check addr according GDT parameters */
-	hal_memcpy(&ta, &syspage->gdtr[2], 4);
-	hal_memcpy(&tl, syspage->gdtr, 2);
+	ta = syspage->gdtr.addr;
+	tl = syspage->gdtr.limit;
 	if ((page->addr >= ta - VADDR_KERNEL) && (page->addr < ta - VADDR_KERNEL + tl)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
 	}
 
-	hal_memcpy(&ta, &syspage->idtr[2], 4);
-	hal_memcpy(&tl, syspage->idtr, 2);
+	ta = syspage->idtr.addr;
+	tl = syspage->idtr.limit;
 	if ((page->addr >= ta - VADDR_KERNEL) && (page->addr < ta - VADDR_KERNEL + tl)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);

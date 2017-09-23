@@ -191,7 +191,8 @@ __attribute__ ((section (".init"))) void _exceptions_setIDTStub(unsigned int n, 
 	w0 |= IGBITS_DPL3 | IGBITS_PRES | IGBITS_SYSTEM | IGBITS_IRQEXC;
 	w1 |= (SEL_KCODE << 16);
 
-	idtr = *(u32 **)&syspage->idtr[2];
+	idtr = (u32 *)syspage->idtr.addr;
+
 	idtr[n * 2 + 1] = w0;
 	idtr[n * 2] = w1;
 

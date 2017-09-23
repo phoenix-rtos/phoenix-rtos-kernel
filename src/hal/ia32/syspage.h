@@ -45,9 +45,16 @@ typedef struct syspage_program_t {
 } syspage_program_t;
 
 
+typedef struct {
+	u16 limit;
+	u32 addr;
+	u16 pad;
+} syspage_ia32_tr_t;
+
+
 typedef struct _syspage_t {
-	u8 gdtr[8];
-	u8 idtr[8];
+	syspage_ia32_tr_t gdtr;
+	syspage_ia32_tr_t idtr;
 
 	u32 pdir;
 	u32 ptable;

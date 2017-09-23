@@ -67,10 +67,8 @@ void *_multiboot_init(multiboot_info_t *mbi)
 	relsyspage = (void *)&multiboot_common.syspage - VADDR_KERNEL;
 
 	/* Initialize GDT */
-	v = SIZE_PAGE / 2;
-	hal_memcpy(relsyspage->gdtr, &v, 2);
-	v = (u32)multiboot_common.gdt - VADDR_KERNEL;
-	hal_memcpy(&relsyspage->gdtr[2], &v, 4);
+	relsyspage->gdtr.limit = SIZE_PAGE / 2;
+	relsyspage->gdtr.addr = v = (u32)multiboot_common.gdt - VADDR_KERNEL;
 
 	dt = (u32 *)v;
 	dt[0] = 0;
@@ -85,10 +83,8 @@ void *_multiboot_init(multiboot_info_t *mbi)
 	dt[5] = 0x00cf9200;
 
 	/* Initialize IDT */
-	v = SIZE_PAGE / 2;
-	hal_memcpy(relsyspage->idtr, &v, 2);
-	v = (u32)multiboot_common.idt - VADDR_KERNEL;
-	hal_memcpy(&relsyspage->idtr[2], &v, 4);
+	relsyspage->idtr.limit = SIZE_PAGE / 2;
+	relsyspage->idtr.addr = (u32)multiboot_common.idt - VADDR_KERNEL;
 
 	/* Initialize page dir and table addresses */
 	relsyspage->pdir = (u32)multiboot_common.pdir - VADDR_KERNEL;
