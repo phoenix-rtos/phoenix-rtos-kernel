@@ -52,6 +52,7 @@ typedef struct {
 	u16 fs;
 	u16 es;
 	u16 ds;
+	u32 exc_id;
 	u32 err;
 	u32 eip;
 	u32 cs;
