@@ -128,3 +128,17 @@ _exception_handler:
 .irp i, 29, 28, 27, 26, 25, 24, 23, 22, 21
 EXCSTUB \i
 .endr
+
+
+.section .init
+
+.globl _exception_stub_table
+.align 4
+.type _exception_stub_table, @object
+_exception_stub_table:
+
+.irp i, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+	.long _exceptions_exc\i
+.endr
+
+.size _exception_stub_table, .-_exception_stub_table

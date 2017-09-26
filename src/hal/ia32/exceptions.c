@@ -169,7 +169,7 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 
 
 /* Function setups interrupt stub in IDT */
-__attribute__ ((section (".init"))) void _exceptions_setIDTStub(unsigned int n, void *addr)
+static __attribute__ ((section (".init"))) void _exceptions_setIDTStub(unsigned int n, const void *addr)
 {
 	u32 w0, w1;
 	u32 *idtr;
@@ -191,46 +191,15 @@ __attribute__ ((section (".init"))) void _exceptions_setIDTStub(unsigned int n, 
 /* Function initializes exception handling */
 __attribute__ ((section (".init"))) void _hal_exceptionsInit(void)
 {
+	extern const void *const _exception_stub_table[SIZE_EXCHANDLERS];
 	unsigned int k;
 
 	hal_spinlockCreate(&exceptions.lock, "exceptions.lock");
 	exceptions.defaultHandler = (void *)exceptions_defaultHandler;
 
-	_exceptions_setIDTStub(0,  _exceptions_exc0);
-	_exceptions_setIDTStub(1,  _exceptions_exc1);
-	_exceptions_setIDTStub(2,  _exceptions_exc2);
-	_exceptions_setIDTStub(3,  _exceptions_exc3);
-	_exceptions_setIDTStub(4,  _exceptions_exc4);
-	_exceptions_setIDTStub(5,  _exceptions_exc5);
-	_exceptions_setIDTStub(6,  _exceptions_exc6);
-	_exceptions_setIDTStub(7,  _exceptions_exc7);
-	_exceptions_setIDTStub(8,  _exceptions_exc8);
-	_exceptions_setIDTStub(9,  _exceptions_exc9);
-	_exceptions_setIDTStub(10, _exceptions_exc10);
-	_exceptions_setIDTStub(11, _exceptions_exc11);
-	_exceptions_setIDTStub(12, _exceptions_exc12);
-	_exceptions_setIDTStub(13, _exceptions_exc13);
-	_exceptions_setIDTStub(14, _exceptions_exc14);
-	_exceptions_setIDTStub(15, _exceptions_exc15);
-	_exceptions_setIDTStub(16, _exceptions_exc16);
-	_exceptions_setIDTStub(17, _exceptions_exc17);
-	_exceptions_setIDTStub(18, _exceptions_exc18);
-	_exceptions_setIDTStub(19, _exceptions_exc19);
-	_exceptions_setIDTStub(20, _exceptions_exc20);
-	_exceptions_setIDTStub(21, _exceptions_exc21);
-	_exceptions_setIDTStub(22, _exceptions_exc22);
-	_exceptions_setIDTStub(23, _exceptions_exc23);
-	_exceptions_setIDTStub(24, _exceptions_exc24);
-	_exceptions_setIDTStub(25, _exceptions_exc25);
-	_exceptions_setIDTStub(26, _exceptions_exc26);
-	_exceptions_setIDTStub(27, _exceptions_exc27);
-	_exceptions_setIDTStub(28, _exceptions_exc28);
-	_exceptions_setIDTStub(29, _exceptions_exc29);
-	_exceptions_setIDTStub(30, _exceptions_exc30);
-	_exceptions_setIDTStub(31, _exceptions_exc31);
+	for (k = 0; k < SIZE_EXCHANDLERS; k++)
+		_exceptions_setIDTStub(k, _exception_stub_table[k]);
 
 	for (k = 0; k < SIZE_EXCHANDLERS; k++)
 		exceptions.handlers[k] = exceptions_trampoline;
-
-	return;
 }
