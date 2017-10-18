@@ -78,16 +78,11 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 		"24 #",   "25 #",   "26 #",   "27 #",       "28 #",   "29 #",   "30 #SE", "31 #" };
 
 	size_t i = 0;
-	u32 ss;
+	int unpriv = ctx->cs & 3;
+	u16 ss;
+	u32 cr;
 
-	__asm__ volatile
-	(" \
-		xorl %%eax, %%eax; \
-		movw %%ss, %%ax; \
-		movl %%eax, %0"
-	:"=r" (ss)
-	:
-	:"eax");
+	__asm__ ("movw %%ss, %0" : "=r" (ss));
 
 	hal_strcpy(buff, "\nException: ");
 	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
@@ -100,8 +95,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" eflgs=", &buff[i], ctx->eflags, 16, 1);
 
 	i += hal_i2s("\nebx=", &buff[i], ctx->ebx, 16, 1);
-	i += hal_i2s("  ss=", &buff[i], /*ss != (u32)ctx->ss ? ss : */(u32)ctx->ss, 16, 1);
-	i += hal_i2s(" esp=", &buff[i], /*ss != (u32)ctx->ss ? (u32)&ctx->eflags + 4 : */ctx->esp, 16, 1);
+	i += hal_i2s("  ss=", &buff[i], unpriv ? ctx->ss : ss, 16, 1);
+	i += hal_i2s(" esp=", &buff[i], unpriv ? ctx->esp : (u32)&ctx->esp, 16, 1);
 	i += hal_i2s(" ebp=", &buff[i], ctx->ebp, 16, 1);
 
 	i += hal_i2s("\necx=", &buff[i], ctx->ecx, 16, 1);
@@ -121,16 +116,9 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s("\ndr4=", &buff[i], ctx->dr4, 16, 1);
 	i += hal_i2s(" dr5=", &buff[i], ctx->dr5, 16, 1);
 
-	__asm__ volatile
-	(" \
-		xorl %%eax, %%eax; \
-		movl %%cr2, %%eax; \
-		movl %%eax, %0"
-	:"=r" (ss)
-	:
-	:"eax");
+	__asm__ ("movl %%cr2, %0" : "=r" (cr));
 
-	i += hal_i2s(" cr2=", &buff[i], ss, 16, 1);
+	i += hal_i2s(" cr2=", &buff[i], cr, 16, 1);
 	/* i += hal_i2s(" thr=", &buff[i], _proc_current(), 16, 1); */
 
 	buff[i] = 0;
