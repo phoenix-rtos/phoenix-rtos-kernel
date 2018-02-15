@@ -43,8 +43,13 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 
 	if (p != NULL) {
 		r->inth->pmap = &p->mapp->pmap;
-		if (cond > 0 && ((t = resource_get(p, cond)) != NULL))
+		if (cond > 0) {
+			if ((t = resource_get(p, cond)) == NULL) {
+				resource_free(r);
+				return -EINVAL;
+			}
 			r->inth->cond = &t->waitq;
+		}
 	}
 
 	if ((res = hal_interruptsSetHandler(r->inth)) != EOK) {
