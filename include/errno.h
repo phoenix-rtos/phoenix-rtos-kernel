@@ -53,6 +53,7 @@
 #define ERANGE       34      /* Math result not representable */
 
 #define ENOSYS       35      /* Function not supported */
+#define ENAMETOOLONG 36      /* Name too long */
 #define ETIME        37
 #define EWOULDBLOCK  EAGAIN  /* Operation would block */
 
