@@ -79,7 +79,7 @@ void main_initthr(void *unused)
 
 				*argend = 0;
 			}
-			argv[i] = NULL;
+			argv[i++] = NULL;
 
 			if (i == sizeof(argv) / sizeof(*argv))
 				lib_printf("main: truncated arguments for command '%s'\n", argv[0]);
