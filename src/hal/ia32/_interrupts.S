@@ -130,17 +130,45 @@ INTERRUPT(_interrupts_unexpected, 255, _interrupts_unexpected)
 .type _interrupts_syscall, @function
 .align 4, 0x90
 _interrupts_syscall:
+	.cfi_startproc
+	.cfi_signal_frame
+	// FIXME: deduplicate this:
+	.cfi_escape /* esp = CFA + 8; if (*CFA & 3 != 0) esp = *esp */ \
+		0x16, 4, 13,    /* DW_CFA_val_expression esp, block: */ \
+		0x12,                   /* DW_OP_dup                    | cfa, cfa */ \
+		0x23, 8,                /* DW_OP_plus_uconst 8          | esp=cfa+8, cfa */ \
+		0x16,                   /* DW_OP_swap                   | cfa, esp */ \
+		0x06,                   /* DW_OP_deref                  | cs, esp */ \
+		0x33,                   /* DW_OP_lit3                   | 3, cs, esp */ \
+		0x1a,                   /* DW_OP_and                    | cs & 3, esp */ \
+		0x30,                   /* DW_OP_lit0                   | 0, cs & 3, esp */ \
+		0x29,                   /* DW_OP_eq                     | cs & 3 == 0, esp */ \
+		0x28, 1, 0,             /* DW_OP_bra +1                 | esp */ \
+		0x06                    /* DW_OP_deref                  | *esp */
+
 	call interrupts_pushContext
+	.cfi_adjust_cfa_offset CTXPUSHL * 4
+	.cfi_rel_offset eax, (CTXPUSHL - 3) * 4
+	.cfi_rel_offset ebx, (CTXPUSHL - 4) * 4
+	.cfi_rel_offset ecx, (CTXPUSHL - 5) * 4
+	.cfi_rel_offset edx, (CTXPUSHL - 6) * 4
+	.cfi_rel_offset ebp, (CTXPUSHL - 7) * 4
+	.cfi_rel_offset esi, (CTXPUSHL - 8) * 4
+	.cfi_rel_offset edi, (CTXPUSHL - 9) * 4
 	movl $SEL_KDATA, %edx
 	movw %dx, %ds
 	movw %dx, %es
 	movl (4 * CTXPUSHL + 12)(%esp), %edx
 	pushl %edx
+	.cfi_adjust_cfa_offset 4
 	pushl %eax
+	.cfi_adjust_cfa_offset 4
 	sti
 	call syscalls_dispatch
 	cli
 	addl $8, %esp
+	.cfi_adjust_cfa_offset -8
 	movl %eax, (4 * CTXPUSHL - 12)(%esp)
 	jmp interrupts_popContext
+	.cfi_endproc
 .size _interrupts_syscall, .-_interrupts_syscall
