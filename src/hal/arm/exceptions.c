@@ -80,7 +80,7 @@ static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 {
-	const char *mnemonics[] = {
+	static const char *const mnemonics[] = {
 		"0 #Reset",       "1 #Undef",    "2 #Syscall",    "3 #Prefetch",
 		"4 #Abort",       "5 #Reserved", "6 #FIRQ",       "7 #IRQ"
 	};
