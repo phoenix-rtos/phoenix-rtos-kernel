@@ -109,6 +109,7 @@ typedef struct _msg_t {
 			/* CREATE */
 			struct {
 				oid_t oid;
+				int err;
 			} create;
 
 			/* LOOKUP */

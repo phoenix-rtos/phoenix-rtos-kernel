@@ -68,10 +68,10 @@ enum {
 	pctl_gpr_dmareq18, pctl_gpr_dmareq19, pctl_gpr_dmareq20, pctl_gpr_dmareq21, pctl_gpr_dmareq22,
 
 	/* IOMUXC_GPR_GPR1 */
-	pctl_gpr_act_cs0 = 32, pctl_gpr_addrs0, pctl_gpr_act_cs1, pctl_gpr_addrs1, pctl_gpr_act_cs2, pctl_gpr_addrs2,
-	pctl_gpr_act_cs3, pctl_gpr_addrs3, pctl_gpr_gint, pctl_gpr_enet1_clk, pctl_gpr_enet2_clk, pctl_gpr_usb_exp,
-	pctl_gpr_add_ds, pctl_gpr_enet1_tx, pctl_gpr_enet2_tx, pctl_gpr_sai1_mclk, pctl_gpr_sai2_mclk,
-	pctl_gpr_sai3_mclk, pctl_gpr_exc_mon, pctl_gpr_tzasc1, pctl_gpr_arma7_atb, pctl_gpr_armv7_ahb,
+	pctl_gpr_act_cs0 = 32, pctl_gpr_addrs0, pctl_gpr_act_cs1 = 35, pctl_gpr_addrs1, pctl_gpr_act_cs2 = 38,
+	pctl_gpr_addrs2, pctl_gpr_act_cs3 = 41, pctl_gpr_addrs3, pctl_gpr_gint = 44, pctl_gpr_enet1_clk,
+	pctl_gpr_enet2_clk, pctl_gpr_usb_exp, pctl_gpr_add_ds, pctl_gpr_enet1_tx, pctl_gpr_enet2_tx, pctl_gpr_sai1_mclk,
+	pctl_gpr_sai2_mclk, pctl_gpr_sai3_mclk, pctl_gpr_exc_mon, pctl_gpr_tzasc1, pctl_gpr_arma7_atb, pctl_gpr_armv7_ahb,
 
 	/* IOMUXC_GPR_GPR2 */
 	pctl_gpr_pxp_powersaving = 64, pctl_gpr_pxp_shutdown, pctl_gpr_pxp_deepsleep, pctl_gpr_pxp_lightsleep,
@@ -149,17 +149,19 @@ enum {
 	pctl_pad_uart3_rx, pctl_pad_uart3_cts, pctl_pad_uart3_rts, pctl_pad_uart4_tx, pctl_pad_uart4_rx,
 	pctl_pad_uart5_tx, pctl_pad_uart5_rx, pctl_pad_enet1_rx0, pctl_pad_enet1_rx1, pctl_pad_enet1_rxen,
 	pctl_pad_enet1_tx0, pctl_pad_enet1_tx1, pctl_pad_enet1_txen, pctl_pad_enet1_txclk, pctl_pad_enet1_rxer,
-	pctl_pad_lcd_clk, pctl_pad_lcd_en, pctl_pad_lcd_hsync, pctl_pad_lcd_vsync, pctl_pad_lcd_rst, pctl_pad_lcd_d0,
-	pctl_pad_lcd_d1, pctl_pad_lcd_d2, pctl_pad_lcd_d3, pctl_pad_lcd_d4, pctl_pad_lcd_d5, pctl_pad_lcd_d6,
-	pctl_pad_lcd_d7, pctl_pad_lcd_d8, pctl_pad_lcd_d9, pctl_pad_lcd_d10, pctl_pad_lcd_d11, pctl_pad_lcd_d12,
-	pctl_pad_lcd_d13, pctl_pad_lcd_d14, pctl_pad_lcd_d15, pctl_pad_lcd_d16, pctl_pad_lcd_d17, pctl_pad_lcd_d18,
-	pctl_pad_lcd_d19, pctl_pad_lcd_d20, pctl_pad_lcd_d21, pctl_pad_lcd_d22, pctl_pad_lcd_d23, pctl_pad_nand_re,
-	pctl_pad_nand_we, pctl_pad_nand_d0, pctl_pad_nand_d1, pctl_pad_nand_d2, pctl_pad_nand_d3, pctl_pad_nand_d4,
-	pctl_pad_nand_d5, pctl_pad_nand_d6, pctl_pad_nand_d7, pctl_pad_nand_ale, pctl_pad_nand_wp, pctl_pad_nand_rdy,
-	pctl_pad_nand_ce0, pctl_pad_nand_ce1, pctl_pad_nand_cle, pctl_pad_nand_dqs, pctl_pad_sd1_cmd, pctl_pad_sd1_clk,
-	pctl_pad_sd1_d0, pctl_pad_sd1_d1, pctl_pad_sd1_d2, pctl_pad_sd1_d3, pctl_pad_csi_mclk, pctl_pad_csi_pclk,
-	pctl_pad_csi_vsync, pctl_pad_csi_hsync, pctl_pad_csi_d0, pctl_pad_csi_d1, pctl_pad_csi_d2, pctl_pad_csi_d3,
-	pctl_pad_csi_d4, pctl_pad_csi_d5, pctl_pad_csi_d6, pctl_pad_csi_d7
+	pctl_pad_enet2_rx0, pctl_pad_enet2_rx1, pctl_pad_enet2_rxen, pctl_pad_enet2_tx0, pctl_pad_enet2_tx1,
+	pctl_pad_enet2_txen, pctl_pad_enet2_txclk, pctl_pad_enet2_rxer, pctl_pad_lcd_clk, pctl_pad_lcd_en,
+	pctl_pad_lcd_hsync, pctl_pad_lcd_vsync, pctl_pad_lcd_rst, pctl_pad_lcd_d0, pctl_pad_lcd_d1, pctl_pad_lcd_d2,
+	pctl_pad_lcd_d3, pctl_pad_lcd_d4, pctl_pad_lcd_d5, pctl_pad_lcd_d6, pctl_pad_lcd_d7, pctl_pad_lcd_d8,
+	pctl_pad_lcd_d9, pctl_pad_lcd_d10, pctl_pad_lcd_d11, pctl_pad_lcd_d12, pctl_pad_lcd_d13, pctl_pad_lcd_d14,
+	pctl_pad_lcd_d15, pctl_pad_lcd_d16, pctl_pad_lcd_d17, pctl_pad_lcd_d18, pctl_pad_lcd_d19, pctl_pad_lcd_d20,
+	pctl_pad_lcd_d21, pctl_pad_lcd_d22, pctl_pad_lcd_d23, pctl_pad_nand_re, pctl_pad_nand_we, pctl_pad_nand_d0,
+	pctl_pad_nand_d1, pctl_pad_nand_d2, pctl_pad_nand_d3, pctl_pad_nand_d4, pctl_pad_nand_d5, pctl_pad_nand_d6,
+	pctl_pad_nand_d7, pctl_pad_nand_ale, pctl_pad_nand_wp, pctl_pad_nand_rdy, pctl_pad_nand_ce0, pctl_pad_nand_ce1,
+	pctl_pad_nand_cle, pctl_pad_nand_dqs, pctl_pad_sd1_cmd, pctl_pad_sd1_clk, pctl_pad_sd1_d0, pctl_pad_sd1_d1,
+	pctl_pad_sd1_d2, pctl_pad_sd1_d3, pctl_pad_csi_mclk, pctl_pad_csi_pclk, pctl_pad_csi_vsync, pctl_pad_csi_hsync,
+	pctl_pad_csi_d0, pctl_pad_csi_d1, pctl_pad_csi_d2, pctl_pad_csi_d3, pctl_pad_csi_d4, pctl_pad_csi_d5,
+	pctl_pad_csi_d6, pctl_pad_csi_d7
 };
 
 
@@ -177,19 +179,20 @@ enum {
 	pctl_isel_ecspi4_sclk, pctl_isel_ecspi4_miso, pctl_isel_ecspi4_mosi, pctl_isel_ecspi4_ss0,
 	pctl_isel_enet1_refclk1, pctl_isel_enet1_mac0mdio, pctl_isel_enet2_refclk2, pctl_isel_enet2_mac0mdio,
 	pctl_isel_flexcan1_rx, pctl_isel_flexcan2_rx, pctl_isel_gpt1_cap1, pctl_isel_gpt1_cap2, pctl_isel_gpt1_clksel,
-	pctl_isel_i2c1_scl, pctl_isel_i2c1_sda, pctl_isel_i2c2_scl, pctl_isel_i2c2_sda, pctl_isel_i2c3_scl,
-	pctl_isel_i2c3_sda, pctl_isel_i2c4_scl, pctl_isel_i2c4_sda, pctl_isel_kpp_col0, pctl_isel_kpp_col1,
-	pctl_isel_kpp_col2, pctl_isel_kpp_row0, pctl_isel_kpp_row1, pctl_isel_kpp_row2, pctl_isel_lcd_busy,
-	pctl_isel_sai1_mclk, pctl_isel_sai1_rx, pctl_isel_sai1_txclk, pctl_isel_sai1_txsync, pctl_isel_sai2_mclk,
-	pctl_isel_sai2_rx, pctl_isel_sai2_txclk, pctl_isel_sai2_txsync, pctl_isel_sai3_mclk, pctl_isel_sai3_rx,
-	pctl_isel_sai3_txclk, pctl_isel_sai3_txsync, pctl_isel_sdma_ev0, pctl_isel_sdma_ev1, pctl_isel_spdif_in,
-	pctl_isel_spdif_clk, pctl_isel_uart1_rts, pctl_isel_uart1_rx, pctl_isel_uart2_rts, pctl_isel_uart2_rx,
-	pctl_isel_uart3_rts, pctl_isel_uart3_rx, pctl_isel_uart4_rts, pctl_isel_uart4_rx, pctl_isel_uart5_rts,
-	pctl_isel_uart5_rx, pctl_isel_uart6_rts, pctl_isel_uart6_rx, pctl_isel_uart7_rts, pctl_isel_uart7_rx,
-	pctl_isel_uart8_rts, pctl_isel_uart8_rx, pctl_isel_usb_otg2oc, pctl_isel_usb_otgoc, pctl_isel_usdhc1_cd,
-	pctl_isel_usdhc1_wp, pctl_isel_usdhc2_clk, pctl_isel_usdhc2_cd, pctl_isel_usdhc2_cmd, pctl_isel_usdhc2_d0,
-	pctl_isel_usdhc2_d1, pctl_isel_usdhc2_d2, pctl_isel_usdhc2_d3, pctl_isel_usdhc2_d4, pctl_isel_usdhc2_d5,
-	pctl_isel_usdhc2_d6, pctl_isel_usdhc2_d7, pctl_isel_usdhc2_wp
+	pctl_isel_gpt2_cap1, pctl_isel_gpt2_cap2, pctl_isel_gpt2_clksel, pctl_isel_i2c1_scl, pctl_isel_i2c1_sda,
+	pctl_isel_i2c2_scl, pctl_isel_i2c2_sda, pctl_isel_i2c3_scl, pctl_isel_i2c3_sda, pctl_isel_i2c4_scl,
+	pctl_isel_i2c4_sda, pctl_isel_kpp_col0, pctl_isel_kpp_col1, pctl_isel_kpp_col2, pctl_isel_kpp_row0,
+	pctl_isel_kpp_row1, pctl_isel_kpp_row2, pctl_isel_lcd_busy, pctl_isel_sai1_mclk, pctl_isel_sai1_rx,
+	pctl_isel_sai1_txclk, pctl_isel_sai1_txsync, pctl_isel_sai2_mclk, pctl_isel_sai2_rx, pctl_isel_sai2_txclk,
+	pctl_isel_sai2_txsync, pctl_isel_sai3_mclk, pctl_isel_sai3_rx, pctl_isel_sai3_txclk, pctl_isel_sai3_txsync,
+	pctl_isel_sdma_ev0, pctl_isel_sdma_ev1, pctl_isel_spdif_in, pctl_isel_spdif_clk, pctl_isel_uart1_rts,
+	pctl_isel_uart1_rx, pctl_isel_uart2_rts, pctl_isel_uart2_rx, pctl_isel_uart3_rts, pctl_isel_uart3_rx,
+	pctl_isel_uart4_rts, pctl_isel_uart4_rx, pctl_isel_uart5_rts, pctl_isel_uart5_rx, pctl_isel_uart6_rts,
+	pctl_isel_uart6_rx, pctl_isel_uart7_rts, pctl_isel_uart7_rx, pctl_isel_uart8_rts, pctl_isel_uart8_rx,
+	pctl_isel_usb_otg2oc, pctl_isel_usb_otgoc, pctl_isel_usdhc1_cd, pctl_isel_usdhc1_wp, pctl_isel_usdhc2_clk,
+	pctl_isel_usdhc2_cd, pctl_isel_usdhc2_cmd, pctl_isel_usdhc2_d0, pctl_isel_usdhc2_d1, pctl_isel_usdhc2_d2,
+	pctl_isel_usdhc2_d3, pctl_isel_usdhc2_d4, pctl_isel_usdhc2_d5, pctl_isel_usdhc2_d6, pctl_isel_usdhc2_d7,
+	pctl_isel_usdhc2_wp
 };
 
 

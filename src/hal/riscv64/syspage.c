@@ -3,20 +3,18 @@
  *
  * Operating system kernel
  *
- * Signals
+ * System information page (prepared by kernel loader)
  *
  * Copyright 2018 Phoenix Systems
- * Author: Jan Sikorski
+ * Author: Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
+#include "syspage.h"
 
-#ifndef _PHOENIX_SIGNAL_H_
-#define _PHOENIX_SIGNAL_H_
 
-enum { signal_kill = 0, signal_segv, signal_illegal };
-
-#endif
+/* Syspage */
+syspage_t * const syspage;

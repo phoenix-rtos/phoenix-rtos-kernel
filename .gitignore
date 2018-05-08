@@ -1,0 +1,14 @@
+*.o
+*.a
+*.elf
+*.img
+*.flash
+*.cmd
+*.hex
+*~
+.depend
+.DS_Store
+CMakeLists.txt
+.idea/
+cmake-build-debug/
+toolchain/
