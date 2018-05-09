@@ -32,7 +32,7 @@ shift
 SIZE_PAGE=$((0x100))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
 FLASH_START=$((0x08000000))
-APP_START=$((0x08014000))
+APP_START=$((0x08010000))
 
 declare -i i
 declare -i k
@@ -50,9 +50,7 @@ rm -f *.img
 rm -f syspage.hex syspage.bin
 rm -f $OUTPUT
 
-printf "%08x %08x\n" $i 0 >> syspage.hex #stack
-i=$i+4
-printf "%08x %08x\n" $i 0 >> syspage.hex #stacksize
+printf "%08x %08x\n" $i 0 >> syspage.hex #arg
 i=$i+4
 printf "%08x %08x\n" $i $((`echo $@ | wc -w`)) >> syspage.hex #progssz
 i=$i+4
@@ -87,17 +85,21 @@ for app in $@; do
 	k=$k+4
 
 	printf "%08x " $i >> syspage.hex
-	echo `readelf -S $app | grep ".got" | awk '{ print $5 }'` >> syspage.hex
+	echo `readelf -S $app | grep ".got" | awk '{ print $5 }'` >> syspage.hex #got
 	i=$i+4
 	k=$k+4
 
 	printf "%08x " $i >> syspage.hex
 	echo -n "00" >> syspage.hex
-	echo `readelf -S $app | grep ".got" | awk '{ print $7 }'` >> syspage.hex
+	echo `readelf -S $app | grep ".got" | awk '{ print $7 }'` >> syspage.hex #gotsz
 	i=$i+4
 	k=$k+4
 
-	printf "%08x %08x\n" $i $(($OFFSET-$APP_START-$(($i-$k)))) >> syspage.hex
+	printf "%08x %08x\n" $i $(($OFFSET-$APP_START-$(($i-$k)))) >> syspage.hex #offset
+	i=$i+4
+	k=$k+4
+
+	printf "%08x %08x\n" $i 0 >> syspage.hex #cmdline
 	i=$i+4
 	k=$k+4
 

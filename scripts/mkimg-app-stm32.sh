@@ -82,6 +82,10 @@ for app in $@; do
 	i=$i+4
 	k=$k+4
 
+	printf "%08x %08x\n" $i 0 >> syspage.hex #cmdline
+	i=$i+4
+	k=$k+4
+
 	for (( j=1; j<=$SEGMENTS; j++ )); do
 		LINE=`readelf -l $app | grep "LOAD" | sed -n ${j}p`
 

@@ -101,10 +101,11 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 int hal_cpuReschedule(spinlock_t *spinlock)
 {
-	if (spinlock == NULL)
+	_hal_invokePendSV();
+
+	if (spinlock != NULL)
 		hal_spinlockClear(spinlock);
 
-	_hal_invokePendSV();
 	return EOK;
 }
 

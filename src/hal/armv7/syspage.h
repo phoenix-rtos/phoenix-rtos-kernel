@@ -43,8 +43,6 @@ typedef struct syspage_program_t {
 
 typedef struct _syspage_t {
 	char *arg;
-	u32 stack;
-	u32 stacksize;
 
 	u32 progssz;
 	syspage_program_t progs[0];

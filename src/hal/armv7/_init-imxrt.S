@@ -239,11 +239,9 @@ _start:
 	/* No syspage support yet */
 //	and r1, r1, #-2
 //	add r1, r1, #0x18000
-//	ldr r0, _start_syspage
+//	ldr r0, =syspage
 //	str r1, [r0]
 	bl main
-_start_syspage:
-.word syspage
 .size _start, .-_start
 
 .globl _syscall_dispatch
@@ -261,7 +259,7 @@ _syscall_dispatch:
 	push {lr}
 
 	/* Get syscall number and its function pointer */
-	ldr r1, _syscallsptr
+	ldr r1, =syscalls
 	ldr r2, [r0, #24]
 	ldrb r2, [r2, #-2]
 	lsl r2, #2
@@ -311,8 +309,6 @@ _syscallend:
 	pop {r12}
 	pop {lr}
 	ldr pc, [sp], #8
-_syscallsptr:
-.word syscalls
 .size _syscall_dispatch, .-_syscall_dispatch
 
 .globl _exceptions_dispatch
@@ -348,7 +344,7 @@ _interrupts_dispatch:
 	cmp r0, #14
 	bne _intd0
 
-	ldr r5, _intd2
+	ldr r5, =_cpu_nctx
 	ldr r6, [r5]
 	cmp r6, #0
 	beq _intd0
@@ -377,6 +373,4 @@ _intd1:
 
 	cpsie if
 	bx lr
-_intd2:
-.word _cpu_nctx
 .size _interrupts_dispatch, .-_interrupts_dispatch

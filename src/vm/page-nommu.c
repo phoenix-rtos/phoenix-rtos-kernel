@@ -106,8 +106,10 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attr)
 
 	proc_lockSet(&pages.lock);
 	if (pmap_enter(pmap, pa, vaddr, attr, NULL) < 0) {
-		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL) {
+			proc_lockClear(&pages.lock);
 			return -ENOMEM;
+		}
 		pmap_enter(pmap, pa, vaddr, attr, ap);
 	}
 	proc_lockClear(&pages.lock);
