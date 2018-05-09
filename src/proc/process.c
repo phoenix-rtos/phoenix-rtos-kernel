@@ -103,13 +103,13 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->ports = NULL;*/
 
 	process->ports = NULL;
-	process->lazy = 0;
 
 	process->sigpend = 0;
 	process->sigmask = 0;
 	process->sighandler = NULL;
 
 #ifndef NOMMU
+	process->lazy = 0;
 	process->mapp = &process->map;
 	process->amap = NULL;
 
@@ -121,6 +121,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	pmap_create(&process->mapp->pmap, &process_common.kmap->pmap, p, process->pmapv);
 #else
+	process->lazy = 1;
 	process->mapp = process_common.kmap;
 	process->amap = NULL;
 	//stack = (void *)VADDR_MIN;
@@ -299,7 +300,10 @@ int proc_vfork(void)
 	}
 
 #ifdef NOMMU
+	process->lazy = 1;
 	process->entries = NULL;
+#else
+	process->lazy = 0;
 #endif
 
 	process->id = -(long)process;
@@ -315,7 +319,6 @@ int proc_vfork(void)
 	process->waitpid = 0;
 
 	process->ports = NULL;
-	process->lazy = 0;
 
 	/* Use memory map of parent process until execl or exist are executed */
 	process->mapp = parent->mapp;
