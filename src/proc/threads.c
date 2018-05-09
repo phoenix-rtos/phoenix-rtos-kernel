@@ -1023,29 +1023,34 @@ static void threads_idlethr(void *arg)
 	process_t *zombie;
 
 	for (;;) {
-		do {
-			hal_spinlockSet(&threads_common.spinlock);
-			if ((ghost = threads_common.ghosts) != NULL)
-				LIST_REMOVE(&threads_common.ghosts, ghost);
-			hal_spinlockClear(&threads_common.spinlock);
+		/* Don't grab spinlocks unless there is something to clean up */
+		if (threads_common.ghosts != NULL) {
+			do {
+				hal_spinlockSet(&threads_common.spinlock);
+				if ((ghost = threads_common.ghosts) != NULL)
+					LIST_REMOVE(&threads_common.ghosts, ghost);
+				hal_spinlockClear(&threads_common.spinlock);
 
-			if (ghost != NULL)
-				proc_cleanupGhost(ghost);
+				if (ghost != NULL)
+					proc_cleanupGhost(ghost);
+			}
+			while (ghost != NULL);
 		}
-		while (ghost != NULL);
 
-		do {
-			hal_spinlockSet(&threads_common.spinlock);
-			if ((zombie = threads_common.zombies) != NULL && zombie->threads == NULL && zombie->ports == NULL)
-				LIST_REMOVE(&threads_common.zombies, zombie);
-			else
-				zombie = NULL;
-			hal_spinlockClear(&threads_common.spinlock);
+		if (threads_common.zombies != NULL) {
+			do {
+				hal_spinlockSet(&threads_common.spinlock);
+				if ((zombie = threads_common.zombies) != NULL && zombie->threads == NULL && zombie->ports == NULL)
+					LIST_REMOVE(&threads_common.zombies, zombie);
+				else
+					zombie = NULL;
+				hal_spinlockClear(&threads_common.spinlock);
 
-			if (zombie != NULL)
-				proc_cleanupZombie(zombie);
+				if (zombie != NULL)
+					proc_cleanupZombie(zombie);
+			}
+			while (zombie != NULL);
 		}
-		while (zombie != NULL);
 
 		wakeup = proc_nextWakeup();
 
