@@ -96,20 +96,20 @@ int hal_platformctl(void *ptr)
 	hal_spinlockSet(&stm32_common.pltctlSp);
 
 	switch (data->type) {
-	case PLATCTL_DEVCLOCK:
-		if (data->action == PLATCTL_SET)
-			ret = _stm32_rccSetDevClock(data->devclock.dev, data->devclock.state);
-		else if (data->action == PLATCTL_GET)
-			ret = _stm32_rccGetDevClock(data->devclock.dev, &data->devclock.state);
+	case pctl_devclk:
+		if (data->action == pctl_set)
+			ret = _stm32_rccSetDevClock(data->devclk.dev, data->devclk.state);
+		else if (data->action == pctl_get)
+			ret = _stm32_rccGetDevClock(data->devclk.dev, &data->devclk.state);
 
 		break;
-	case PLATCTL_CPUCLOCK:
-		if (data->action == PLATCTL_SET) {
-			ret = _stm32_rccSetCPUClock(data->cpuclock.hz);
+	case pctl_cpuclk:
+		if (data->action == pctl_set) {
+			ret = _stm32_rccSetCPUClock(data->cpuclk.hz);
 			_stm32_systickInit(1000);
 		}
-		else if (data->action == PLATCTL_GET) {
-			data->cpuclock.hz = _stm32_rccGetCPUClock();
+		else if (data->action == pctl_get) {
+			data->cpuclk.hz = _stm32_rccGetCPUClock();
 			ret = EOK;
 		}
 
@@ -200,9 +200,9 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 	hz = !!hz;
 
 	if (d <= ahb_end) {
-		if (d == gpiof || d == gpiog)
+		if (d == pctl_gpiof || d == pctl_gpiog)
 			d += 1;
-		else if (d == gpioh)
+		else if (d == pctl_gpioh)
 			d -= 2;
 
 		t = *(stm32_common.rcc + rcc_ahbenr) & ~(1 << d);
@@ -216,14 +216,14 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 		t = *(stm32_common.rcc + rcc_apb1enr) & ~(1 << (d - apb1_begin));
 		*(stm32_common.rcc + rcc_apb1enr) = t | (hz << (d - apb1_begin));
 	}
-	else if (d == rtc) {
+	else if (d == pctl_rtc) {
 		t = *(stm32_common.rcc + rcc_csr) & ~(1 << 22);
 		*(stm32_common.rcc + rcc_csr) = t | (hz << 22);
 	}
-	else if (d == msi) {
+	else if (d == pctl_msi) {
 		_stm32_rccSetMSI(hz);
 	}
-	else if (d == hsi) {
+	else if (d == pctl_hsi) {
 		_stm32_rccSetHSI(hz);
 	}
 	else
@@ -238,9 +238,9 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
 {
 	if (d <= ahb_end) {
-		if (d == gpiof || d == gpiog)
+		if (d == pctl_gpiof || d == pctl_gpiog)
 			d += 1;
-		else if (d == gpioh)
+		else if (d == pctl_gpioh)
 			d -= 2;
 
 		*hz = !!(*(stm32_common.rcc + rcc_ahbenr) & (1 << d));
@@ -251,13 +251,13 @@ int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
 	else if (d <= apb1_end) {
 		*hz = !!(*(stm32_common.rcc + rcc_apb1enr) & (1 << (d - apb1_begin)));
 	}
-	else if (d == rtc) {
+	else if (d == pctl_rtc) {
 		*hz = !!(*(stm32_common.rcc + rcc_csr) & (1 << 22));
 	}
-	else if (d == msi) {
+	else if (d == pctl_msi) {
 		*hz = !!(*(stm32_common.rcc + rcc_cr) & 0x100);
 	}
-	else if (d == hsi) {
+	else if (d == pctl_hsi) {
 		*hz = !!(*(stm32_common.rcc + rcc_cr) & 1);
 	}
 	else {
@@ -822,10 +822,10 @@ int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospee
 	volatile u32 *base;
 	u32 t;
 
-	if (d > gpioh || pin > 15)
+	if (d > pctl_gpioh || pin > 15)
 		return -EINVAL;
 
-	base = stm32_common.gpio[d - gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 
 	t = *(base + gpio_moder) & ~(0x3 << (pin << 1));
 	*(base + gpio_moder) = t | (mode & 0x3) << (pin << 1);
@@ -857,10 +857,10 @@ int _stm32_gpioSet(unsigned int d, u8 pin, u8 val)
 	volatile u32 *base;
 	u32 t;
 
-	if (d > gpioh || pin > 15)
+	if (d > pctl_gpioh || pin > 15)
 		return -EINVAL;
 
-	base = stm32_common.gpio[d - gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 
 	t = *(base + gpio_odr) & ~(!(u32)val << pin);
 	*(base + gpio_odr) = t | !!(u32)val << pin;
@@ -873,10 +873,10 @@ int _stm32_gpioSetPort(unsigned int d, u16 val)
 {
 	volatile u32 *base;
 
-	if (d > gpioh)
+	if (d > pctl_gpioh)
 		return -EINVAL;
 
-	base = stm32_common.gpio[d - gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 	*(base + gpio_odr) = val;
 
 	return EOK;
@@ -887,10 +887,10 @@ int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val)
 {
 	volatile u32 *base;
 
-	if (d > gpioh || pin > 15)
+	if (d > pctl_gpioh || pin > 15)
 		return -EINVAL;
 
-	base = stm32_common.gpio[d - gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 	*val = !!(*(base + gpio_idr) & (1 << pin));
 
 	return EOK;
@@ -901,10 +901,10 @@ int _stm32_gpioGetPort(unsigned int d, u16 *val)
 {
 	volatile u32 *base;
 
-	if (d > gpioh)
+	if (d > pctl_gpioh)
 		return -EINVAL;
 
-	base = stm32_common.gpio[d - gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 	*val = *(base + gpio_idr);
 
 	return EOK;
@@ -983,10 +983,10 @@ void _stm32_init(void)
 	hal_cpuDataBarrier();
 
 	/* Enable System configuration controller */
-	_stm32_rccSetDevClock(syscfg, 1);
+	_stm32_rccSetDevClock(pctl_syscfg, 1);
 
 	/* Enable power module */
-	_stm32_rccSetDevClock(pwr, 1);
+	_stm32_rccSetDevClock(pctl_pwr, 1);
 
 	/* Disable all interrupts */
 	*(stm32_common.rcc + rcc_cir) = 0;
@@ -994,15 +994,15 @@ void _stm32_init(void)
 	hal_cpuDataBarrier();
 
 	/* Rescue */
-	_stm32_rccSetDevClock(gpiob, 1);
-	_stm32_gpioConfig(gpiob, 8, 0, 0, 0, 0, 1);
+	_stm32_rccSetDevClock(pctl_gpiob, 1);
+	_stm32_gpioConfig(pctl_gpiob, 8, 0, 0, 0, 0, 1);
 	u8 val;
-	_stm32_gpioGet(gpiob, 8, &val);
+	_stm32_gpioGet(pctl_gpiob, 8, &val);
 
 	while (!val)
-		_stm32_gpioGet(gpiob, 8, &val);
+		_stm32_gpioGet(pctl_gpiob, 8, &val);
 
-	_stm32_rccSetDevClock(gpiob, 0);
+	_stm32_rccSetDevClock(pctl_gpiob, 0);
 
 	/* GPIO LP init */
 #ifdef NDEBUG
@@ -1010,12 +1010,12 @@ void _stm32_init(void)
 #else
 	/* Don't change setting for debug pins (needed for JTAG) */
 	/* Turn off for production to reduce power consumption */
-	_stm32_rccSetDevClock(gpioa, 1);
+	_stm32_rccSetDevClock(pctl_gpioa, 1);
 	*(stm32_common.gpio[0] + gpio_moder) = 0xabffffff;
-	_stm32_rccSetDevClock(gpioa, 0);
-	_stm32_rccSetDevClock(gpiob, 1);
+	_stm32_rccSetDevClock(pctl_gpioa, 0);
+	_stm32_rccSetDevClock(pctl_gpiob, 1);
 	*(stm32_common.gpio[1] + gpio_moder) = 0xfffffebf;
-	_stm32_rccSetDevClock(gpiob, 0);
+	_stm32_rccSetDevClock(pctl_gpiob, 0);
 
 	/* Enable debug in stop mode */
 	*((u32*)0xE0042004) |= 3;
@@ -1024,11 +1024,11 @@ void _stm32_init(void)
 #endif
 
 	/* Init all GPIOs to Ain mode to lower power consumption */
-	for (; i <= gpioh - gpioa; ++i) {
-		_stm32_rccSetDevClock(gpioa + i, 1);
+	for (; i <= pctl_gpioh - pctl_gpioa; ++i) {
+		_stm32_rccSetDevClock(pctl_gpioa + i, 1);
 		*(stm32_common.gpio[i] + gpio_moder) = 0xffffffff;
 		*(stm32_common.gpio[i] + gpio_pupdr) = 0;
-		_stm32_rccSetDevClock(gpioa + i, 0);
+		_stm32_rccSetDevClock(pctl_gpioa + i, 0);
 	}
 
 	/* Set the internal regulator output voltage to 1.5V */
@@ -1059,7 +1059,7 @@ void _stm32_init(void)
 	_stm32_rtcUnlockRegs();
 
 	/* Turn on RTC */
-	_stm32_rccSetDevClock(rtc, 1);
+	_stm32_rccSetDevClock(pctl_rtc, 1);
 
 	/* Set INIT bit */
 	*(stm32_common.rtc + rtc_isr) |= 1 << 7;

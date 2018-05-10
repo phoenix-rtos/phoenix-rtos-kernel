@@ -76,15 +76,15 @@ void _hal_consoleInit(void)
 		void *base;
 		u8 uart;
 	} uarts[] = {
-		{ (void *)0x40013800, usart1 }, /* USART1 */
-		{ (void *)0x40004400, usart2 }, /* USART2 */
-		{ (void *)0x40004800, usart3 }, /* USART3 */
-		{ (void *)0x40004c00, uart4 }, /* UART4 */
-		{ (void *)0x40005000, uart5 }  /* UART5 */
+		{ (void *)0x40013800, pctl_usart1 }, /* USART1 */
+		{ (void *)0x40004400, pctl_usart2 }, /* USART2 */
+		{ (void *)0x40004800, pctl_usart3 }, /* USART3 */
+		{ (void *)0x40004c00, pctl_uart4 }, /* UART4 */
+		{ (void *)0x40005000, pctl_uart5 }  /* UART5 */
 	};
 
 	const int uart = 3;
-	port = gpioc;
+	port = pctl_gpioc;
 	txpin = 10;
 	rxpin = 11;
 	af = 8;

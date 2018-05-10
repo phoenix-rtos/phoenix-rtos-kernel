@@ -19,28 +19,11 @@
 #include "cpu.h"
 #include "pmap.h"
 #include "spinlock.h"
+#include "../../../include/arch/stm32l1.h"
 
 
-/* STM32 peripherals */
-enum {
-	/* AHB */
-	gpioa = 0, gpiob, gpioc, gpiod, gpioe, gpiof, gpiog, gpioh, crc = 12, flash = 15,
-	dma1 = 24, dma2, aes = 27, fsmc = 30,
-
-	/* APB2 */
-	syscfg = 32, tim9 = 34, tim10, tim11, acd1 = 41, sdio = 43, spi1, usart1 = 46,
-
-	/* APB1 */
-	tim2 = 64, tim3, tim4, tim5, tim6, tim7, lcd = 73, wwd = 75, spi2 = 78, spi3,
-	usart2 = 81, usart3, uart4, uart5, i2c1, i2c2, usb, pwr = 92, dac, comp = 95,
-
-	/* MISC */
-	rtc = 96, msi, hsi
-};
-
-
-enum { ahb_begin = gpioa, ahb_end = fsmc, apb2_begin = syscfg, apb2_end = usart1,
-	apb1_begin = tim2, apb1_end = comp, misc_begin = rtc, misc_end = hsi };
+enum { ahb_begin = pctl_gpioa, ahb_end = pctl_fsmc, apb2_begin = pctl_syscfg, apb2_end = pctl_usart1,
+	apb1_begin = pctl_tim2, apb1_end = pctl_comp, misc_begin = pctl_rtc, misc_end = pctl_hsi };
 
 
 /* STM32 Interrupt numbers */
@@ -53,22 +36,6 @@ enum { wwdq_irq = 16, pvd_irq, tamper_stamp_irq, rtc_wkup_irq, flash_irq, rcc_ir
 	rtc_alrm_irq, usb_fs_wkup_irq, tim6_irq, tim7_irq, sdio_irq, tim5_irq, spi3_irq,
 	uart4_irq, uart5_irq, dma2ch1_irq, dma2ch2_irq, dma2ch3_irq, dma2ch4_irq, dma2ch5_irq,
 	comp_acq_irq = 72 };
-
-
-typedef struct {
-	enum { PLATCTL_SET = 0, PLATCTL_GET } action;
-	enum { PLATCTL_DEVCLOCK = 0, PLATCTL_CPUCLOCK } type;
-
-	union {
-		struct {
-			unsigned dev, state;
-		} devclock;
-
-		struct {
-			unsigned hz;
-		} cpuclock;
-	};
-} __attribute__((packed)) platformctl_t;
 
 
 /* platformctl syscall */
