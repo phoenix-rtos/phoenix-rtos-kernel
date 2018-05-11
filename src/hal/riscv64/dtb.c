@@ -187,10 +187,12 @@ void dtb_parse(void *arg, void *dtb)
 			d--;
 			if (state == stateInterruptController)
 				state = stateCPU;
-			if (state == stateCPU) {
+			else if (state == stateCPU) {
 				dtb_common.ncpus++;
 				state = stateSystem;
 			}
+			else
+				state = stateIdle;
 		}
 		else if (token == 9)
 			break;

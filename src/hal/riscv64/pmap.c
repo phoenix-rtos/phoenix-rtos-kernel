@@ -103,7 +103,6 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
 	
 	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
-//	__asm__ ("sfence.vma"::);
 	hal_cpuFlushTLB(va);
 
 	if (!pmap_common.ptable[pdi1]) {
@@ -112,23 +111,18 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | 1);
 	}
 
-
 	/* Map next level pdir */
 	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
 
 	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) % 512] = (((addr >> 12) << 10) | 0xcf);
 	
 	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
-//	__asm__ ("sfence.vma"::);
 	hal_cpuFlushTLB(va);
 
 	hal_spinlockSet(&pmap_common.lock);
 
-
 	/* And at last map page or only changle attributes of map entry */
 	pmap_common.ptable[pti] = (((pa >> 12) << 10) | 0xcf);
-
-//	__asm__ ("sfence.vma"::);
 	hal_cpuFlushTLB(va);
 
 	hal_spinlockClear(&pmap_common.lock);
@@ -162,10 +156,9 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	/* Test address ranges */
 	hal_spinlockSet(&pmap_common.lock);
 
-pmap_common.minAddr = 0x80200000;
-
-	if (a < pmap_common.minAddr)
-		a = pmap_common.minAddr;
+	/* Ignore bbl area */
+	if (((a >= 0x80000000) && (a < 0x80200000)) || (a < pmap_common.minAddr))
+		a = 0x80200000;
 
 	if (a >= pmap_common.maxAddr) {
 		hal_spinlockClear(&pmap_common.lock);
@@ -188,6 +181,7 @@ pmap_common.minAddr = 0x80200000;
 	}
 	else if ((page->addr >= pmap_common.dtb) && (page->addr < pmap_common.dtb + pmap_common.dtbsz))
 		page->flags |= PAGE_OWNER_BOOT;
+
 	else
 		page->flags |= PAGE_FREE;
 
@@ -243,6 +237,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	for (i = 0; i < n; i++) {
 		a = ntoh64(m[i].addr);
 		l = ntoh64(m[i].limit);
+
 		if (a + l > pmap_common.maxAddr)
 			pmap_common.maxAddr = a + l;
 		if (a < pmap_common.minAddr)
