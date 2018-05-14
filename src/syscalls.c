@@ -30,7 +30,7 @@
  */
 
 
-void syscalls_klog(char *ustack)
+void syscalls_klog(void *ustack)
 {
 	char *s;
 
@@ -44,7 +44,7 @@ void syscalls_klog(char *ustack)
  */
 
 
-void *syscalls_mmap(char *ustack)
+void *syscalls_mmap(void *ustack)
 {
 	void *vaddr;
 	size_t size;
@@ -78,7 +78,7 @@ void *syscalls_mmap(char *ustack)
 }
 
 
-void syscalls_munmap(char *ustack)
+void syscalls_munmap(void *ustack)
 {
 	void *vaddr;
 	size_t size;
@@ -95,13 +95,13 @@ void syscalls_munmap(char *ustack)
  */
 
 
-int syscalls_vfork(char *ustack)
+int syscalls_vfork(void *ustack)
 {
 	return proc_vfork();
 }
 
 
-int syscalls_fork(char *ustack)
+int syscalls_fork(void *ustack)
 {
 	int pid;
 
@@ -114,7 +114,7 @@ int syscalls_fork(char *ustack)
 }
 
 
-void syscalls_execle(char *ustack)
+void syscalls_execle(void *ustack)
 {
 	char *path;
 	char *argv0;
@@ -126,7 +126,7 @@ void syscalls_execle(char *ustack)
 }
 
 
-int syscalls_execve(char *ustack)
+int syscalls_execve(void *ustack)
 {
 	char *path;
 	char **argv;
@@ -204,7 +204,7 @@ int syscalls_endthread(void *ustack)
 }
 
 
-int syscalls_usleep(char *ustack)
+int syscalls_usleep(void *ustack)
 {
 	unsigned int us;
 
@@ -218,7 +218,7 @@ int syscalls_usleep(char *ustack)
  */
 
 
-int syscalls_threadsinfo(char *ustack)
+int syscalls_threadsinfo(void *ustack)
 {
 	int n;
 	threadinfo_t *info;
@@ -230,7 +230,7 @@ int syscalls_threadsinfo(char *ustack)
 }
 
 
-void syscalls_meminfo(char *ustack)
+void syscalls_meminfo(void *ustack)
 {
 	meminfo_t *info;
 
@@ -240,7 +240,7 @@ void syscalls_meminfo(char *ustack)
 }
 
 
-int syscalls_syspageprog(char *ustack)
+int syscalls_syspageprog(void *ustack)
 {
 #ifndef NOMMU
 	int i;
@@ -402,7 +402,7 @@ int syscalls_interrupt(void *ustack)
  */
 
 
-int syscalls_portCreate(char *ustack)
+int syscalls_portCreate(void *ustack)
 {
 	u32 *port;
 
@@ -412,7 +412,7 @@ int syscalls_portCreate(char *ustack)
 }
 
 
-void syscalls_portDestroy(char *ustack)
+void syscalls_portDestroy(void *ustack)
 {
 	u32 port;
 
@@ -422,7 +422,7 @@ void syscalls_portDestroy(char *ustack)
 }
 
 
-u32 syscalls_portRegister(char *ustack)
+u32 syscalls_portRegister(void *ustack)
 {
 	unsigned int port;
 	char *name;
@@ -436,7 +436,7 @@ u32 syscalls_portRegister(char *ustack)
 }
 
 
-int syscalls_send(char *ustack)
+int syscalls_send(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
@@ -461,7 +461,7 @@ int syscalls_send(char *ustack)
 }
 
 
-int syscalls_recv(char *ustack)
+int syscalls_recv(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
@@ -480,7 +480,7 @@ int syscalls_recv(char *ustack)
 }
 
 
-int syscalls_respond(char *ustack)
+int syscalls_respond(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
@@ -494,7 +494,7 @@ int syscalls_respond(char *ustack)
 }
 
 
-int syscalls_lookup(char *ustack)
+int syscalls_lookup(void *ustack)
 {
 	char *name;
 	oid_t *oid;
@@ -511,7 +511,7 @@ int syscalls_lookup(char *ustack)
  */
 
 
-int syscalls_gettime(char *ustack)
+int syscalls_gettime(void *ustack)
 {
 	time_t *tp;
 
@@ -527,9 +527,9 @@ int syscalls_gettime(char *ustack)
  */
 
 
-void syscalls_keepidle(char *ustack)
+void syscalls_keepidle(void *ustack)
 {
-#ifdef NOMMU
+#ifdef CPU_STM32
 	int t;
 
 	GETFROMSTACK(ustack, int, t, 0);
@@ -543,7 +543,7 @@ void syscalls_keepidle(char *ustack)
  */
 
 
-void syscalls_mmdump(char *ustack)
+void syscalls_mmdump(void *ustack)
 {
 	vm_mapDump(NULL);
 }
@@ -554,7 +554,7 @@ void syscalls_mmdump(char *ustack)
  */
 
 
-int syscalls_platformctl(char *ustack)
+int syscalls_platformctl(void *ustack)
 {
 	void *ptr;
 	GETFROMSTACK(ustack, void *, ptr, 0);
@@ -567,7 +567,7 @@ int syscalls_platformctl(char *ustack)
  */
 
 
-void syscalls_wdgReload(char *ustack)
+void syscalls_wdgReload(void *ustack)
 {
 	hal_wdgReload();
 }
@@ -578,7 +578,7 @@ void syscalls_wdgReload(char *ustack)
  */
 
 
-int syscalls_fileAdd(char *ustack)
+int syscalls_fileAdd(void *ustack)
 {
 	unsigned int *h;
 	oid_t *oid;
@@ -590,7 +590,7 @@ int syscalls_fileAdd(char *ustack)
 }
 
 
-int syscalls_fileSet(char *ustack)
+int syscalls_fileSet(void *ustack)
 {
 	unsigned int h;
 	char flags;
@@ -606,7 +606,7 @@ int syscalls_fileSet(char *ustack)
 }
 
 
-int syscalls_fileGet(char *ustack)
+int syscalls_fileGet(void *ustack)
 {
 	unsigned int h;
 	int flags;
@@ -622,7 +622,7 @@ int syscalls_fileGet(char *ustack)
 }
 
 
-int syscalls_fileRemove(char *ustack)
+int syscalls_fileRemove(void *ustack)
 {
 	unsigned int h;
 
@@ -632,7 +632,7 @@ int syscalls_fileRemove(char *ustack)
 }
 
 
-addr_t syscalls_va2pa(char *ustack)
+addr_t syscalls_va2pa(void *ustack)
 {
 	void *va;
 
@@ -642,7 +642,7 @@ addr_t syscalls_va2pa(char *ustack)
 }
 
 
-void syscalls_signalHandle(char *ustack)
+void syscalls_signalHandle(void *ustack)
 {
 	void *handler;
 	unsigned mask, mmask;
@@ -658,7 +658,7 @@ void syscalls_signalHandle(char *ustack)
 }
 
 
-int syscalls_signalPost(char *ustack)
+int syscalls_signalPost(void *ustack)
 {
 	int pid, signal, err;
 	process_t *proc;
@@ -675,7 +675,7 @@ int syscalls_signalPost(char *ustack)
 }
 
 
-void syscalls_signalReturn(char *ustack)
+void syscalls_signalReturn(void *ustack)
 {
 	int signal;
 	GETFROMSTACK(ustack, int, signal, 0);
@@ -683,7 +683,7 @@ void syscalls_signalReturn(char *ustack)
 }
 
 
-void syscalls_signalMask(char *ustack)
+void syscalls_signalMask(void *ustack)
 {
 	unsigned mask, mmask;
 	thread_t *t;
