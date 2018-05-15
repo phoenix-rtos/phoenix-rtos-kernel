@@ -24,6 +24,8 @@ ifneq (, $(findstring arm-, $(TARGET)))
 		-fomit-frame-pointer -ffreestanding -mno-unaligned-access\
 		-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" -DHAL=\"hal//arm//hal.h\"
 
+	CFLAGS += -fdata-sections -ffunction-sections
+
 	ifneq (, $(findstring imx, $(TARGET)))
 		CFLAGS += -DCPU_IMX
 	endif
@@ -34,6 +36,10 @@ ifneq (, $(findstring arm-, $(TARGET)))
 	LD = $(CROSS)ld
 
 	LDFLAGS = -nostdlib -e _start --section-start .init=$(VADDR) -z max-page-size=0x1000
+	LDFLAGS += --gc-sections
+
+	# uncomment to print out data/functions removed by linker
+	# LDFLAGS += --print-gc-sections
 
 	GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
 	LIBS = $(GCCLIB)
