@@ -8,42 +8,40 @@
 # %LICENSE%
 #
 
-ifneq (, $(findstring arm-, $(TARGET)))
-	CROSS ?= arm-phoenix-
-	SUBDIRS = hal/arm $(SUBSYSTEMS)
+CROSS ?= arm-phoenix-
+SUBDIRS = hal/arm $(SUBSYSTEMS)
 
-	VADDR = c0000000
+VADDR = c0000000
 
-	MKDEP = $(CROSS)gcc -MM
-	MKDEPFLAGS = $(CFLAGS)
+MKDEP = $(CROSS)gcc -MM
+MKDEPFLAGS = $(CFLAGS)
 
-	CC = $(CROSS)gcc
+CC = $(CROSS)gcc
 
-	CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
-		-mcpu=cortex-a7 -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -mthumb -mthumb-interwork\
-		-fomit-frame-pointer -ffreestanding -mno-unaligned-access\
-		-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" -DHAL=\"hal//arm//hal.h\"
+CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
+	-mcpu=cortex-a7 -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -mthumb -mthumb-interwork\
+	-fomit-frame-pointer -ffreestanding -mno-unaligned-access\
+	-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" -DHAL=\"hal//arm//hal.h\"
 
-	CFLAGS += -fdata-sections -ffunction-sections
+CFLAGS += -fdata-sections -ffunction-sections
 
-	ifneq (, $(findstring imx, $(TARGET)))
-		CFLAGS += -DCPU_IMX
-	endif
-
-	AR = $(CROSS)ar
-	ARFLAGS = -r
-
-	LD = $(CROSS)ld
-
-	LDFLAGS = -nostdlib -e _start --section-start .init=$(VADDR) -z max-page-size=0x1000
-	LDFLAGS += --gc-sections
-
-	# uncomment to print out data/functions removed by linker
-	# LDFLAGS += --print-gc-sections
-
-	GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
-	LIBS = $(GCCLIB)
-
-	OBJCOPY = $(CROSS)objcopy
-	OBJDUMP = $(CROSS)objdump
+ifneq (, $(findstring imx, $(TARGET)))
+	CFLAGS += -DCPU_IMX
 endif
+
+AR = $(CROSS)ar
+ARFLAGS = -r
+
+LD = $(CROSS)ld
+
+LDFLAGS = -nostdlib -e _start --section-start .init=$(VADDR) -z max-page-size=0x1000
+LDFLAGS += --gc-sections
+
+# uncomment to print out data/functions removed by linker
+# LDFLAGS += --print-gc-sections
+
+GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
+LIBS = $(GCCLIB)
+
+OBJCOPY = $(CROSS)objcopy
+OBJDUMP = $(CROSS)objdump

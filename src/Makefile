@@ -33,10 +33,8 @@ else
 endif
 
 # Compliation options for various architectures
-include Makefile.ia32
-include Makefile.armv7
-include Makefile.arm
-include Makefile.riscv64
+TARGET_FAMILY = $(firstword $(subst -, ,$(TARGET)-))
+include Makefile.$(TARGET_FAMILY)
 
 ARCH = code.a
 ARCHS := $(shell for i in $(SUBDIRS); do echo "$$i/$(ARCH)"; done)
