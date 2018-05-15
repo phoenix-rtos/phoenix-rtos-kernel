@@ -25,6 +25,7 @@ MAKEOPTS="-j9 -s"
 
 # Download packages
 mkdir -p "${TOOLCHAIN_PREFIX}"
+cp ./*.patch "${BUILD_ROOT}"
 cd "${BUILD_ROOT}"
 
 [[ ! -f ${BINUTILS}.tar.bz2 ]] && wget "http://ftp.gnu.org/gnu/binutils/${BINUTILS}.tar.bz2"
@@ -76,12 +77,15 @@ make ${MAKEOPTS} install
 
 cd -
 
+# patch GCC with multilib configuration
+patch -d ${GCC} -p1 < gcc-phoenix-multilib.patch
+
 # Build GCC
 cd "${GCC}/build"
 
 ../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}" \
              --with-gmp="${TOOLCHAIN_PREFIX}" --with-mpfr="${TOOLCHAIN_PREFIX}" --with-mpc="${TOOLCHAIN_PREFIX}" \
-             --enable-languages=c --with-arch=armv7-m --with-mode=thumb --with-abi=aapcs --with-newlib \
+             --enable-languages=c --with-abi=aapcs --with-newlib \
              --disable-libssp --disable-nls
 
 make ${MAKEOPTS} all-gcc all-target-libgcc
