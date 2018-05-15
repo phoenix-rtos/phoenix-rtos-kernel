@@ -22,6 +22,8 @@ ifneq (, $(findstring armv7, $(TARGET)))
 		-fomit-frame-pointer -ffreestanding -Wno-bool-operation \
 		-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" -DHAL=\"hal//armv7//hal.h\" -DNOMMU
 
+	CFLAGS += -fdata-sections -ffunction-sections
+
 	ifneq (, $(findstring stm32, $(TARGET)))
 		CFLAGS += -DCPU_STM32 -DRAM_SIZE=48
 	else ifneq (, $(findstring imxrt, $(TARGET)))
@@ -38,6 +40,8 @@ ifneq (, $(findstring armv7, $(TARGET)))
 	else ifneq (, $(findstring imxrt, $(TARGET)))
 		LDFLAGS = -nostdlib -e _start --section-start .init=60002000 -Tbss=20000000 -z max-page-size=0x10
 	endif
+
+	LDFLAGS += --gc-sections
 
 	GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
 	LIBS = $(GCCLIB)
