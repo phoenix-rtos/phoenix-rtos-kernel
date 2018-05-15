@@ -18,7 +18,7 @@ TARGET = riscv64
 VERSION = 2.80
 CORE_VERSION = 1.0
 SRCDIR := $(CURDIR)
-MAKEFLAGS += --no-print-directory
+MAKEFLAGS += --no-print-directory --output-sync
 
 SUBSYSTEMS = lib vm proc test
 
@@ -66,18 +66,13 @@ all: subsystems main.o syscalls.o $(EMBED) $(BIN)
 	printf " data=%-5d  text=%-5d  rodata=%-5d\n" $$datasz $$textsz $$rodatasz)
 
 
-subsystems:
-	@for i in $(SUBDIRS); do\
-		d=`pwd`;\
-		echo "\033[1;32mCOMPILE $$i\033[0m";\
-		if ! cd $$i; then\
-			exit 1;\
-		fi;\
-		if ! make; then\
-			exit 1;\
-		fi;\
-		cd $$d;\
-	done;
+subsystems: $(ARCHS)
+
+%/$(ARCH):
+	@+echo "\033[1;32mCOMPILE $(@D)\033[0m";\
+	if ! make -C "$(@D)"; then\
+		exit 1;\
+	fi;\
 
 
 $(BIN): $(ARCHS) $(EMBED)
@@ -109,7 +104,7 @@ depend:
 		if ! cd $$i; then\
 			exit 1;\
 		fi;\
-		if ! make -s depend; then\
+		if ! $(MAKE) -s depend; then\
 			exit 1;\
 		fi;\
 		cd $$d;\
@@ -125,7 +120,7 @@ clean:
 		if ! cd $$i; then\
 			exit 1;\
 		fi;\
-		if ! make clean; then\
+		if ! $(MAKE) clean; then\
 			exit 1;\
 		fi;\
 		cd $$d;\
