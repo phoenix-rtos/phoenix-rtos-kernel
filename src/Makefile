@@ -48,7 +48,7 @@ all: subsystems main.o syscalls.o $(EMBED) $(BIN)
 .c.o:
 	@(printf "CC  %-24s  " "$<"; $(CC) -c $(CFLAGS) $<)
 
-	@(file=`echo $< | sed "s/\.c/\.o/"`; \
+	@(file="$@"; \
 	datasz=0;\
 	textsz=0;\
 	rodatasz=0;\
