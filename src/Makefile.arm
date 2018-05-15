@@ -20,7 +20,7 @@ ifneq (, $(findstring arm-, $(TARGET)))
 	CC = $(CROSS)gcc
 
 	CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
-		-mcpu=cortex-a7 -mtune=cortex-a7 -mfloat-abi=hard -mthumb -mthumb-interwork\
+		-mcpu=cortex-a7 -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -mthumb -mthumb-interwork\
 		-fomit-frame-pointer -ffreestanding -mno-unaligned-access\
 		-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" -DHAL=\"hal//arm//hal.h\"
 
