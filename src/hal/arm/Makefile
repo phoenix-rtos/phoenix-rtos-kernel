@@ -12,8 +12,7 @@ ifneq (, $(findstring imx, $(TARGET)))
 endif
 
 
-ASMS += _memtest.S
-SRCS += hal.c pmap.c spinlock.c syspage.c cpu.c interrupts.c exceptions.c timer.c memtest.c
+SRCS += hal.c pmap.c spinlock.c syspage.c cpu.c interrupts.c exceptions.c timer.c
 OBJS = $(ASMS:.S=.o) $(SRCS:.c=.o)
 
 
