@@ -8,31 +8,29 @@
 # %LICENSE%
 #
 
-ifneq (, $(findstring riscv64, $(TARGET)))
-	CROSS ?= riscv64-unknown-elf-
-	SUBDIRS = hal/riscv64 $(SUBSYSTEMS)
+CROSS ?= riscv64-unknown-elf-
+SUBDIRS = hal/riscv64 $(SUBSYSTEMS)
 
-	VADDR = 0000003fc0000000
+VADDR = 0000003fc0000000
 
-	MKDEP = $(CROSS)gcc -MM
-	MKDEPFLAGS = $(CFLAGS)
+MKDEP = $(CROSS)gcc -MM
+MKDEPFLAGS = $(CFLAGS)
 
-	CC = $(CROSS)gcc
+CC = $(CROSS)gcc
 
-	CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
-		-fomit-frame-pointer -ffreestanding \
-		-DVERSION=\"$(VERSION)\" -DHAL=\"hal//riscv64//hal.h\" -mcmodel=medany
+CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
+	-fomit-frame-pointer -ffreestanding \
+	-DVERSION=\"$(VERSION)\" -DHAL=\"hal//riscv64//hal.h\" -mcmodel=medany
 
-	AR = $(CROSS)ar
-	ARFLAGS = -r
+AR = $(CROSS)ar
+ARFLAGS = -r
 
-	LD = $(CROSS)ld
+LD = $(CROSS)ld
 
-	LDFLAGS = -nostdlib -e _start --section-start .init=$(VADDR)
+LDFLAGS = -nostdlib -e _start --section-start .init=$(VADDR)
 
-	GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
-	LIBS = $(GCCLIB)
+GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
+LIBS = $(GCCLIB)
 
-	OBJCOPY = $(CROSS)objcopy
-	OBJDUMP = $(CROSS)objdump
-endif
+OBJCOPY = $(CROSS)objcopy
+OBJDUMP = $(CROSS)objdump
