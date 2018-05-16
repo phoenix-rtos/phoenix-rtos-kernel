@@ -41,6 +41,14 @@ cd "${BUILD_ROOT}"
 [[ ! -d ${MPC} ]] && tar xf ${MPC}.tar.gz && mkdir "${MPC}/build"
 [[ ! -d ${GCC} ]] && tar jxf ${GCC}.tar.bz2 && mkdir "${GCC}/build"
 
+# patch Binutils
+for patchfile in binutils-*.patch; do
+    if [ ! -f "${BINUTILS}/build/$patchfile.applied" ]; then
+        patch -d ${BINUTILS} -p1 < "$patchfile"
+    touch "${BINUTILS}/build/$patchfile.applied"
+    fi
+done
+
 # Build Binutils
 cd "${BINUTILS}/build"
 
@@ -77,16 +85,26 @@ make ${MAKEOPTS} install
 
 cd -
 
-# patch GCC with multilib configuration
-patch -d ${GCC} -p1 < gcc-phoenix-multilib.patch
+# patch GCC
+for patchfile in gcc-*.patch; do
+    if [ ! -f "${GCC}/build/$patchfile.applied" ]; then
+        patch -d ${GCC} -p1 < "$patchfile"
+    touch "${GCC}/build/$patchfile.applied"
+    fi
+done
 
 # Build GCC
 cd "${GCC}/build"
 
+if [[ "$TARGET" = *"arm-" ]]; then
+    GCC_CONFIG_PARAMS="--with-abi=aapcs"
+fi
+
+
 ../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}" \
              --with-gmp="${TOOLCHAIN_PREFIX}" --with-mpfr="${TOOLCHAIN_PREFIX}" --with-mpc="${TOOLCHAIN_PREFIX}" \
-             --enable-languages=c --with-abi=aapcs --with-newlib \
-             --disable-libssp --disable-nls
+             --enable-languages=c --with-newlib \
+             --disable-libssp --disable-nls $GCC_CONFIG_PARAMS
 
 make ${MAKEOPTS} all-gcc all-target-libgcc
 make ${MAKEOPTS} install-gcc install-target-libgcc
