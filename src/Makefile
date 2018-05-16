@@ -39,6 +39,15 @@ include Makefile.$(TARGET_FAMILY)
 ARCH = code.a
 ARCHS := $(shell for i in $(SUBDIRS); do echo "$$i/$(ARCH)"; done)
 
+EXTERNAL_HEADERS_DIR := ../include
+EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
+
+SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
+HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
+ifeq (/,$(SYSROOT))
+$(error Sysroot is not supported by Your toolchain. Use cross-toolchain to compile)
+endif
+
 export SIL CC CFLAGS MKDEP MKDEPFLAGS AR ARFLAGS ARCH TARGET OBJDUMP CONSOLE OBJCOPY
 
 
@@ -93,6 +102,17 @@ ifneq (, $(findstring armv7-stm32, $(TARGET)))
 	fi;\
 	openocd -f $$ocddir/scripts/interface/jlink.cfg -f $$ocddir/scripts/target/stm32l1.cfg -c "program $(BIN).elf verify reset exit";
 endif
+
+
+install-headers: $(EXTERNAL_HEADERS)
+	@mkdir -p "$(HEADERS_INSTALL_DIR)"; \
+	for file in $(EXTERNAL_HEADERS); do\
+		install -m 644 -D $${file} "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
+	done
+
+
+uninstall-headers:
+	rm -rf "$(HEADERS_INSTALL_DIR)"/*
 
 
 depend:
