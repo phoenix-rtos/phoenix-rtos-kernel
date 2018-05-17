@@ -132,12 +132,10 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	hal_spinlockSet(&threads_common.spinlock);
 
 #ifdef HPTIMER_IRQ
-	threads_common.jiffies = hal_getTimer();
+	now = threads_common.jiffies = hal_getTimer();
 #else
-	threads_common.jiffies += 1000;
+	now = threads_common.jiffies += 1000;
 #endif
-
-	now = _threads_getTimer();
 
 	for (;; i++) {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
