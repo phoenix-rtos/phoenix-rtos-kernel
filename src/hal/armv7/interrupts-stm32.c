@@ -84,7 +84,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do {
 			if (h->pmap != NULL)
-				userintr_dispatch(n, h);
+				userintr_dispatch(h);
 			else
 				h->f(n, ctx, h->data);
 		} while ((h = h->next) != interrupts.handlers[n]);
@@ -102,19 +102,36 @@ void _hal_invokePendSV(void)
 }
 
 
-int hal_interruptsSetHandler(unsigned int n, intr_handler_t *h)
+int hal_interruptsSetHandler(intr_handler_t *h)
 {
-	if (n >= SIZE_INTERRUPTS || h == NULL || h->f == NULL)
+	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
 	hal_spinlockSet(&interrupts.spinlock);
-	_intr_add(&interrupts.handlers[n], h);
+	_intr_add(&interrupts.handlers[h->n], h);
+
+	if (h->n >= 0x10) {
+		_stm32_nvicSetIRQ(h->n - 0x10, 1);
+		_stm32_nvicSetPriority(h->n, 0xf);
+	}
 	hal_spinlockClear(&interrupts.spinlock);
 
-	if (n >= 0x10) {
-		_stm32_nvicSetIRQ(n - 0x10, 1);
-		_stm32_nvicSetPriority(n, 0xf);
-	}
+	return EOK;
+}
+
+
+int hal_interruptsDeleteHandler(intr_handler_t *h)
+{
+	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
+		return -EINVAL;
+
+	hal_spinlockSet(&interrupts.spinlock);
+	_intr_remove(&interrupts.handlers[h->n], h);
+
+	if (interrupts.handlers[h->n] == NULL)
+		_stm32_nvicSetIRQ(h->n, 0);
+
+	hal_spinlockClear(&interrupts.spinlock);
 
 	return EOK;
 }

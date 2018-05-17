@@ -19,10 +19,10 @@
 #include HAL
 
 
-extern int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, unsigned int cond);
+extern int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, unsigned int cond, unsigned int *h);
 
 
-extern int userintr_dispatch(unsigned int n, intr_handler_t *h);
+extern int userintr_dispatch(intr_handler_t *h);
 
 
 #endif

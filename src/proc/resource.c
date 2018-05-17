@@ -159,6 +159,17 @@ int resource_free(resource_t *r)
 		return -EBUSY;
 	}
 
+	switch (r->type) {
+	case rtLock:
+		proc_lockDone(&r->lock);
+		break;
+	case rtInth:
+		hal_interruptsDeleteHandler(&r->inth);
+		break;
+	default:
+		break;
+	}
+
 	lib_rbRemove(&process->resources, &r->linkage);
 	proc_lockClear(&process->lock);
 
@@ -183,6 +194,9 @@ void proc_resourcesFree(process_t *proc)
 		switch (r->type) {
 		case rtLock:
 			proc_lockDone(&r->lock);
+			break;
+		case rtInth:
+			hal_interruptsDeleteHandler(&r->inth);
 			break;
 		default:
 			break;
@@ -225,6 +239,9 @@ int proc_resourcesCopy(process_t *src)
 				return err;
 			}
 			proc_fileSet(id, 2, NULL, r->offs);
+			break;
+		case rtInth:
+			/* Don't copy interrupt handler */
 			break;
 		}
 	}

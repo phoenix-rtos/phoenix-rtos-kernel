@@ -28,6 +28,7 @@
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;
 	struct _intr_handler_t *prev;
+	unsigned int n;
 	int (*f)(unsigned int, cpu_context_t *, void *);
 	void *data;
 	pmap_t *pmap;
@@ -36,7 +37,10 @@ typedef struct _intr_handler_t {
 
 
 /* Function installs new handler for interrupt given by n */
-extern int hal_interruptsSetHandler(unsigned int n, intr_handler_t *h);
+extern int hal_interruptsSetHandler(intr_handler_t *h);
+
+
+extern int hal_interruptsDeleteHandler(intr_handler_t *h);
 
 
 /* Function initializes interrupt handling */

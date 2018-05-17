@@ -101,17 +101,19 @@ void _timer_init(u32 interval)
 
 	timer_common.wakeuph.cond = NULL;
 	timer_common.wakeuph.data = NULL;
+	timer_common.wakeuph.n = HPTIMER_IRQ;
 	timer_common.wakeuph.f = timer_wakeupIrqHandler;
 	timer_common.wakeuph.pmap = NULL;
 
-	hal_interruptsSetHandler(HPTIMER_IRQ, &timer_common.wakeuph);
+	hal_interruptsSetHandler(&timer_common.wakeuph);
 
 	timer_common.timerh.cond = NULL;
 	timer_common.timerh.data = NULL;
+	timer_common.timerh.n = 87;
 	timer_common.timerh.f = timer_overflowIrqHandler;
 	timer_common.timerh.pmap = NULL;
 
-	hal_interruptsSetHandler(87, &timer_common.timerh);
+	hal_interruptsSetHandler(&timer_common.timerh);
 
 	/* Input clock 66 MHz, both timers are prescaled by 66 */
 

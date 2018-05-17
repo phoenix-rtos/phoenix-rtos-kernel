@@ -40,6 +40,7 @@
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;
 	struct _intr_handler_t *prev;
+	unsigned int n;
 	int (*f)(unsigned int, cpu_context_t *, void *);
 	void *data;
 	pmap_t *pmap;
@@ -52,7 +53,10 @@ extern void _hal_invokePendSV(void);
 
 
 /* Function installs new handler for interrupt given by n */
-extern int hal_interruptsSetHandler(unsigned int n, intr_handler_t *h);
+extern int hal_interruptsSetHandler(intr_handler_t *h);
+
+
+extern int hal_interruptsDeleteHandler(intr_handler_t *h);
 
 
 extern int hal_interruptsSetGpioInterrupt(unsigned char port, unsigned char pin, char state, char edge);
