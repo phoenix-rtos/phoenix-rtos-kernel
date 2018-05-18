@@ -391,7 +391,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 	thread_t *current;
 	map_entry_t *e;
 
-	if (!size)
+	if (!size || (size & (SIZE_PAGE - 1)))
 		return NULL;
 
 	/* NULL page indicates that proc sybsystem is ready */
