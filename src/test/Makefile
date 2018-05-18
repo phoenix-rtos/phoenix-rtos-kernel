@@ -8,11 +8,6 @@
 SRCS = test.c vm.c rb.c proc.c
 #msg.c proc.c
 
-ifneq (, $(findstring -tiramisu, $(TARGET)))
-	SRCS += gpiodrv.c uartdrv.c i2cdrv.c lcddrv.c adcdrv.c metersrv.c
-endif
-
-
 OBJS = $(SRCS:.c=.o)
 
 
