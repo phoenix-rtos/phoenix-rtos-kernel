@@ -19,6 +19,8 @@ VERSION = 2.80
 CORE_VERSION = 1.0
 SRCDIR := $(CURDIR)
 MAKEFLAGS += --no-print-directory --output-sync
+SRCS := main.c syscalls.c
+OBJS = $(SRCS:.c=.o)
 
 SUBSYSTEMS = lib vm proc test
 
@@ -51,7 +53,7 @@ endif
 export SIL CC CFLAGS MKDEP MKDEPFLAGS AR ARFLAGS ARCH TARGET OBJDUMP CONSOLE OBJCOPY
 
 
-all: subsystems main.o syscalls.o $(EMBED) $(BIN)
+all: subsystems $(OBJS) $(EMBED) $(BIN)
 
 
 .c.o:
@@ -82,10 +84,10 @@ subsystems: $(ARCHS)
 	fi;\
 
 
-$(BIN): $(ARCHS) $(EMBED)
+$(BIN): $(ARCHS) $(EMBED) $(OBJS)
 	@echo "\033[1;34mLD $@\033[0m"
 
-	$(LD) $(LDFLAGS) -o $(BIN).elf main.o syscalls.o $(EMBED)  -\( $(ARCHS) $(LIBS) -\)
+	$(LD) $(LDFLAGS) -o $(BIN).elf $(OBJS)  $(EMBED)  -\( $(ARCHS) $(LIBS) -\)
 #	$(LD) $(LDFLAGS) -o $(BIN).elf $(EMBED)  main.o -\( $(ARCHS) $(LIBS) -\)
 	$(SIL)$(OBJCOPY) -O binary $(BIN).elf $(BIN).img
 
