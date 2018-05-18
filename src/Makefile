@@ -75,11 +75,14 @@ all: subsystems $(OBJS) $(EMBED) $(BIN)
 	printf " data=%-5d  text=%-5d  rodata=%-5d\n" $$datasz $$textsz $$rodatasz)
 
 
+
+$(OBJS): $(filter clean,$(MAKECMDGOALS))
+
 subsystems: $(ARCHS)
 
-%/$(ARCH):
+%/$(ARCH): $(filter clean,$(MAKECMDGOALS))
 	@+echo "\033[1;32mCOMPILE $(@D)\033[0m";\
-	if ! make -C "$(@D)"; then\
+	if ! $(MAKE) -C "$(@D)"; then\
 		exit 1;\
 	fi;\
 
@@ -135,15 +138,10 @@ clean:
 	@rm -f core *.o $(BIN)
 	@rm -f $(BIN).elf $(BIN).img $(BIN).hex
 	@for i in $(SUBDIRS); do\
-		d=`pwd`;\
 		echo "CLEAN $$i";\
-		if ! cd $$i; then\
+		if ! $(MAKE) -C "$$i" clean; then\
 			exit 1;\
 		fi;\
-		if ! $(MAKE) clean; then\
-			exit 1;\
-		fi;\
-		cd $$d;\
 	done;
 
 
