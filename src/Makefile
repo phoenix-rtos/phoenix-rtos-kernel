@@ -1,7 +1,7 @@
 #
 # Makefile for Phoenix-RTOS 3.0 kernel
 #
-# Copyright 2012-2015, 2016 Phoenix Systems
+# Copyright 2012-2015, 2016-2018 Phoenix Systems
 # Copyright 2001, 2005-2007, 2011 Pawel Pisarczyk
 #
 # %LICENSE%
@@ -78,9 +78,11 @@ all: subsystems $(OBJS) $(EMBED) $(BIN)
 
 $(OBJS): $(filter clean,$(MAKECMDGOALS))
 
+
 subsystems: $(ARCHS)
 
-%/$(ARCH): $(filter clean,$(MAKECMDGOALS))
+
+%/$(ARCH): .FORCE
 	@+echo "\033[1;32mCOMPILE $(@D)\033[0m";\
 	if ! $(MAKE) -C "$(@D)"; then\
 		exit 1;\
@@ -143,6 +145,9 @@ clean:
 			exit 1;\
 		fi;\
 	done;
+
+
+.FORCE:
 
 
 .PHONY: clean
