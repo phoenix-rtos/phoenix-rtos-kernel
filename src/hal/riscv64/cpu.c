@@ -46,6 +46,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 int hal_cpuReschedule(spinlock_t *lock)
 {
+	for (;;);
 	return EOK;
 }
 

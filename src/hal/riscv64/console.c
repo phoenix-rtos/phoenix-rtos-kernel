@@ -17,6 +17,7 @@
 #include "cpu.h"
 #include "syspage.h"
 #include "spinlock.h"
+#include "sbi.h"
 
 
 struct {
@@ -24,46 +25,11 @@ struct {
 } console_common;
 
 
-u64 sbi_call(u64 n, u64 arg0, void *arg1, void *arg2)
-{
-	register u64 a0 asm ("a0") = (arg0);
-	register void *a1 asm ("a1") = (arg1);
-	register void *a2 asm ("a2") = (arg2);
-	register void *a7 asm ("a7") = (void *)n;
-
-	__asm__ volatile ("ecall" \
-		: "+r" (a0) \
-		: "r" (a1), "r" (a2), "r" (a7) \
-		: "memory");
-
-	return a0;
-}
-
-
 static void _console_print(const char *s)
 {
 
 	for (; *s; s++)
 		sbi_call(1, *s, 0, 0);
-
-#if 0
-	u32 t;
-	register void *a0 asm ("a0") = (uintptr_t)(arg0);
-
-	__asm__ volatile (" \
-		la s0, %0; \
-	1: \
-		lbu a0, (s0); \
-		beqz a0, 1f; \
-		li a7, 1; \
-		ecall; \
-		add s0, s0, 1; \
-		j 1b; \
-	1:"
-	:
-	: "r" (t)
-	: "s0");
-#endif
 }
 
 

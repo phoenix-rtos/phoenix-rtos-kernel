@@ -74,12 +74,83 @@ typedef struct _oid_t {
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
 typedef struct {
+	u64 sstatus;
 	u64 pc;
-	u64 savesp;
-	u64 esp;
+	u64 ra;
+	u64 gp;
+	u64 tp;
+	u64 t0;    /* x5 */
+	u64 t1;    /* x6 */
+	u64 t2;    /* x7 */
+	u64 s0;    /* x8 */
+	u64 s1;    /* x9 */
+	u64 a0;    /* x10 */
+	u64 a1;    /* x11 */
+	u64 a2;    /* x12 */
+	u64 a3;    /* x13 */
+	u64 a4;    /* x14 */
+	u64 a5;    /* x15 */
+	u64 a6;    /* x16 */
+	u64 a7;    /* x17 */
+	u64 s2;    /* x18 */
+	u64 s3;    /* x19 */
+	u64 s4;    /* x20 */
+	u64 s5;    /* x21 */
+	u64 s6;    /* x22 */
+	u64 s7;    /* x23 */
+	u64 s8;    /* x24 */
+	u64 s9;    /* x25 */
+	u64 s10;   /* x26 */
+	u64 s11;   /* x27 */
+	u64 t3;    /* x28 */
+	u64 t4;    /* x29 */
+	u64 t5;    /* x30 */
+	u64 t6;    /* x31 */
+	u64 sp;
+
 } cpu_context_t;
 
 #pragma pack(8)
+
+
+/* CSR routines */
+
+
+#define SR_SIE	0x00000002UL /* Supervisor Interrupt Enable */
+#define SR_SPIE	0x00000020UL /* Previous Supervisor IE */
+#define SR_SPP	0x00000100UL /* Previously Supervisor */
+#define SR_SUM	0x00040000UL /* Supervisor may access User Memory */
+
+#define SIE_STIE 0x00000020UL
+
+
+#define csr_set(csr, val)					\
+({								\
+	unsigned long __v = (unsigned long)(val);		\
+	__asm__ __volatile__ ("csrs " #csr ", %0"		\
+			      : : "rK" (__v)			\
+			      : "memory");			\
+	__v;							\
+})
+
+
+#define csr_write(csr, val)					\
+({								\
+	unsigned long __v = (unsigned long)(val);		\
+	__asm__ __volatile__ ("csrw " #csr ", %0"		\
+			      : : "rK" (__v)			\
+			      : "memory");			\
+})
+
+
+#define csr_read(csr)						\
+({								\
+	register unsigned long __v;				\
+	__asm__ __volatile__ ("csrr %0, " #csr			\
+			      : "=r" (__v) :			\
+			      : "memory");			\
+	__v;							\
+})
 
 
 /* platform specific syscall */
@@ -98,6 +169,7 @@ static inline void hal_cpuDisableInterrupts(void)
 
 static inline void hal_cpuEnableInterrupts(void)
 {
+	csr_set(sstatus, SR_SIE);
 }
 
 
@@ -118,6 +190,17 @@ static inline void hal_cpuHalt(void)
 static inline void hal_cpuGetCycles(void *cb)
 {
 	return;
+}
+
+
+static inline cycles_t hal_cpuGetCycles2(void)
+{
+	register cycles_t n;
+
+	__asm__ __volatile__ (
+		"rdtime %0"
+		: "=r" (n));
+	return n;
 }
 
 
@@ -275,7 +358,7 @@ static inline void *hal_cpuGetSP(cpu_context_t *ctx)
 
 static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 {
-	return (void *)ctx->esp;
+	return (void *)ctx->sp;
 }
 
 
@@ -295,11 +378,6 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 
 
 /* core management */
-
-
-static inline void hal_cpuid(u32 leaf, u32 index, u32 *ra, u32 *rb, u32 *rc, u32 *rd)
-{
-}
 
 
 static inline unsigned int hal_cpuGetCount(void)

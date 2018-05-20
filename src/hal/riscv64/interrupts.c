@@ -18,6 +18,7 @@
 #include "syspage.h"
 #include "cpu.h"
 #include "pmap.h"
+#include "sbi.h"
 
 #include "../../proc/userintr.h"
 
@@ -93,6 +94,18 @@ int hal_interruptsSetHandler(unsigned int n, intr_handler_t *h)
 }
 
 
+
+__attribute__((aligned(4))) void handler(void) 
+{
+	lib_printf("tick\n");
+
+	cycles_t c = hal_cpuGetCycles2();
+	sbi_call(SBI_SETTIMER, c + 100000, 0, 0);
+//	csr_set(sie, SIE_STIE);
+
+	asm volatile ("sret"::);
+}
+
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int k;
@@ -102,6 +115,11 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 		interrupts.counters[k] = 0;
 		hal_spinlockCreate(&interrupts.spinlocks[k], "interrupts.spinlocks[]");
 	}
+
+	/* Enable HART interrupts */
+csr_write(sscratch, 0);
+//	csr_write(sie, -1);
+	csr_write(stvec, handler);
 	
 	return;
 }

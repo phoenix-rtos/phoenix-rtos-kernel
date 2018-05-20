@@ -16,10 +16,10 @@
 #include "spinlock.h"
 #include "console.h"
 //#include "exceptions.h"
-//#include "interrupts.h"
+#include "interrupts.h"
 #include "cpu.h"
 #include "pmap.h"
-//#include "timer.h"
+#include "timer.h"
 
 
 struct {
@@ -41,14 +41,14 @@ void _hal_start(void)
 
 __attribute__ ((section (".init"))) void _hal_init(void)
 {
-/*	_hal_spinlockInit();
+	_hal_spinlockInit();
 	_hal_consoleInit();
 	
-	_hal_exceptionsInit();
+	/*_hal_exceptionsInit();*/
 	_hal_interruptsInit();
 
 	_timer_init(1000);
-	_hal_cpuInit();*/
+/*	_hal_cpuInit();*/
 
 	hal_common.started = 0;
 	return;
