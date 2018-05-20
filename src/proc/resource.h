@@ -16,6 +16,7 @@
 #ifndef _PROC_RESOURCE_H_
 #define _PROC_RESOURCE_H_
 
+#include HAL
 #include "cond.h"
 
 
@@ -28,7 +29,7 @@ typedef struct _resource_t {
 	unsigned int lmaxgap;
 	unsigned int rmaxgap;
 
-	enum { rtLock = 0, rtCond, rtFile } type;
+	enum { rtLock = 0, rtCond, rtFile, rtInth } type;
 
 	union {
 		lock_t lock;
@@ -40,6 +41,8 @@ typedef struct _resource_t {
 			oid_t oid;
 			offs_t offs;
 		};
+
+		intr_handler_t inth;
 	};
 } resource_t;
 

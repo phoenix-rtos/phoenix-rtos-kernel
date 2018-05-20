@@ -132,12 +132,10 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	hal_spinlockSet(&threads_common.spinlock);
 
 #ifdef HPTIMER_IRQ
-	threads_common.jiffies = hal_getTimer();
+	now = threads_common.jiffies = hal_getTimer();
 #else
-	threads_common.jiffies += 1000;
+	now = threads_common.jiffies += 1000;
 #endif
-
-	now = _threads_getTimer();
 
 	for (;; i++) {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
@@ -1174,7 +1172,8 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 #ifdef PENDSV_IRQ
 	hal_memset(&threads_common.pendsvHandler, NULL, sizeof(threads_common.pendsvHandler));
 	threads_common.pendsvHandler.f = threads_schedule;
-	hal_interruptsSetHandler(PENDSV_IRQ, &threads_common.pendsvHandler);
+	threads_common.pendsvHandler.n = PENDSV_IRQ;
+	hal_interruptsSetHandler(&threads_common.pendsvHandler);
 #endif
 
 	hal_memset(&threads_common.timeintrHandler, NULL, sizeof(threads_common.timeintrHandler));
@@ -1184,12 +1183,15 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.scheduleHandler.f = threads_schedule;
 
 #ifdef HPTIMER_IRQ
-	hal_interruptsSetHandler(HPTIMER_IRQ, &threads_common.timeintrHandler);
-	hal_interruptsSetHandler(HPTIMER_IRQ, &threads_common.scheduleHandler);
+	threads_common.timeintrHandler.n = HPTIMER_IRQ;
+	threads_common.scheduleHandler.n = HPTIMER_IRQ;
 #else
-	hal_interruptsSetHandler(SYSTICK_IRQ, &threads_common.timeintrHandler);
-	hal_interruptsSetHandler(SYSTICK_IRQ, &threads_common.scheduleHandler);
+	threads_common.timeintrHandler.n = SYSTICK_IRQ;
+	threads_common.scheduleHandler.n = SYSTICK_IRQ;
 #endif
+
+	hal_interruptsSetHandler(&threads_common.timeintrHandler);
+	hal_interruptsSetHandler(&threads_common.scheduleHandler);
 
 	return EOK;
 }

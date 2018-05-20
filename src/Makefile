@@ -9,16 +9,18 @@
 
 SIL ?= @
 
-#TARGET = ia32
-#TARGET = armv7-stm32
-#TARGET = armv7-imxrt
-#TARGET = arm-imx
-TARGET = riscv64
+#TARGET ?= ia32
+#TARGET ?= armv7-stm32
+#TARGET ?= armv7-imxrt
+#TARGET ?= arm-imx
+TARGET ?= riscv64
 
 VERSION = 2.80
 CORE_VERSION = 1.0
 SRCDIR := $(CURDIR)
-MAKEFLAGS += --no-print-directory
+MAKEFLAGS += --no-print-directory --output-sync
+SRCS := main.c syscalls.c
+OBJS = $(SRCS:.c=.o)
 
 SUBSYSTEMS = lib vm proc test
 
@@ -33,24 +35,31 @@ else
 endif
 
 # Compliation options for various architectures
-include Makefile.ia32
-include Makefile.armv7
-include Makefile.arm
-include Makefile.riscv64
+TARGET_FAMILY = $(firstword $(subst -, ,$(TARGET)-))
+include Makefile.$(TARGET_FAMILY)
 
 ARCH = code.a
 ARCHS := $(shell for i in $(SUBDIRS); do echo "$$i/$(ARCH)"; done)
 
+EXTERNAL_HEADERS_DIR := ../include
+EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
+
+SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
+HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
+ifeq (/,$(SYSROOT))
+$(error Sysroot is not supported by Your toolchain. Use cross-toolchain to compile)
+endif
+
 export SIL CC CFLAGS MKDEP MKDEPFLAGS AR ARFLAGS ARCH TARGET OBJDUMP CONSOLE OBJCOPY
 
 
-all: subsystems main.o syscalls.o $(EMBED) $(BIN)
+all: subsystems $(OBJS) $(EMBED) $(BIN)
 
 
 .c.o:
 	@(printf "CC  %-24s  " "$<"; $(CC) -c $(CFLAGS) $<)
 
-	@(file=`echo $< | sed "s/\.c/\.o/"`; \
+	@(file="$@"; \
 	datasz=0;\
 	textsz=0;\
 	rodatasz=0;\
@@ -66,24 +75,22 @@ all: subsystems main.o syscalls.o $(EMBED) $(BIN)
 	printf " data=%-5d  text=%-5d  rodata=%-5d\n" $$datasz $$textsz $$rodatasz)
 
 
-subsystems:
-	@for i in $(SUBDIRS); do\
-		d=`pwd`;\
-		echo "\033[1;32mCOMPILE $$i\033[0m";\
-		if ! cd $$i; then\
-			exit 1;\
-		fi;\
-		if ! make; then\
-			exit 1;\
-		fi;\
-		cd $$d;\
-	done;
+
+$(OBJS): $(filter clean,$(MAKECMDGOALS))
+
+subsystems: $(ARCHS)
+
+%/$(ARCH): $(filter clean,$(MAKECMDGOALS))
+	@+echo "\033[1;32mCOMPILE $(@D)\033[0m";\
+	if ! $(MAKE) -C "$(@D)"; then\
+		exit 1;\
+	fi;\
 
 
-$(BIN): $(ARCHS) $(EMBED)
+$(BIN): $(ARCHS) $(EMBED) $(OBJS)
 	@echo "\033[1;34mLD $@\033[0m"
 
-	$(LD) $(LDFLAGS) -o $(BIN).elf main.o syscalls.o $(EMBED)  -\( $(ARCHS) $(LIBS) -\)
+	$(LD) $(LDFLAGS) -o $(BIN).elf $(OBJS)  $(EMBED)  -\( $(ARCHS) $(LIBS) -\)
 #	$(LD) $(LDFLAGS) -o $(BIN).elf $(EMBED)  main.o -\( $(ARCHS) $(LIBS) -\)
 	$(SIL)$(OBJCOPY) -O binary $(BIN).elf $(BIN).img
 
@@ -102,6 +109,17 @@ ifneq (, $(findstring armv7-stm32, $(TARGET)))
 endif
 
 
+install-headers: $(EXTERNAL_HEADERS)
+	@mkdir -p "$(HEADERS_INSTALL_DIR)"; \
+	for file in $(EXTERNAL_HEADERS); do\
+		install -m 644 -D $${file} "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
+	done
+
+
+uninstall-headers:
+	rm -rf "$(HEADERS_INSTALL_DIR)"/*
+
+
 depend:
 	@for i in $(SUBDIRS); do\
 		d=`pwd`;\
@@ -109,7 +127,7 @@ depend:
 		if ! cd $$i; then\
 			exit 1;\
 		fi;\
-		if ! make -s depend; then\
+		if ! $(MAKE) -s depend; then\
 			exit 1;\
 		fi;\
 		cd $$d;\
@@ -120,15 +138,10 @@ clean:
 	@rm -f core *.o $(BIN)
 	@rm -f $(BIN).elf $(BIN).img $(BIN).hex
 	@for i in $(SUBDIRS); do\
-		d=`pwd`;\
 		echo "CLEAN $$i";\
-		if ! cd $$i; then\
+		if ! $(MAKE) -C "$$i" clean; then\
 			exit 1;\
 		fi;\
-		if ! make clean; then\
-			exit 1;\
-		fi;\
-		cd $$d;\
 	done;
 
 

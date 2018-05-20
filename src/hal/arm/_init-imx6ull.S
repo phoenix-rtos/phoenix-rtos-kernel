@@ -275,6 +275,17 @@ aipstzl:
 	subs r2, r2, #1
 	bne aipstzl
 
+	/* Enable ENETn PLL (both 50 MHz) */
+	ldr r0, =0x020c80e0
+//	ldr r1, =0x386005
+	ldr r1, =0x2005
+	str r1, [r0]
+
+enet_pll:
+	ldr r1, [r0]
+	ands r1, #(1 << 31)
+	beq enet_pll
+
 	ldr r7, =(ADDR_OCRAM)
 	ldr r8, =(ADDR_DDR)
 	ldr r9, =(SIZE_PAGE - 1)

@@ -1,0 +1,38 @@
+diff -Naur gcc-7.1.0/fixincludes/mkfixinc.sh gcc-7.1.0-phoenix/fixincludes/mkfixinc.sh
+--- gcc-7.1.0/fixincludes/mkfixinc.sh	2016-06-21 23:57:20.000000000 +0200
++++ gcc-7.1.0-phoenix/fixincludes/mkfixinc.sh	2018-05-16 12:03:52.085863282 +0200
+@@ -11,6 +11,7 @@
+ 
+ # Check for special fix rules for particular targets
+ case $machine in
++    *-phoenix* | \
+     i?86-*-cygwin* | \
+     i?86-*-mingw32* | \
+     x86_64-*-mingw32* | \
+diff -Naur gcc-7.1.0/gcc/config.gcc gcc-7.1.0-phoenix/gcc/config.gcc
+--- gcc-7.1.0/gcc/config.gcc	2017-03-24 14:59:51.000000000 +0100
++++ gcc-7.1.0-phoenix/gcc/config.gcc	2018-05-16 12:05:03.578856038 +0200
+@@ -1444,6 +1444,9 @@
+ i[34567]86-*-elf*)
+ 	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h newlib-stdint.h i386/i386elf.h"
+ 	;;
++i[34567]86-*-phoenix*)
++	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h newlib-stdint.h i386/i386elf.h phoenix.h"
++	;;
+ x86_64-*-elf*)
+ 	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h newlib-stdint.h i386/i386elf.h i386/x86-64.h"
+ 	;;
+diff -Naur gcc-7.1.0/libgcc/config.host gcc-7.1.0-phoenix/libgcc/config.host
+--- gcc-7.1.0/libgcc/config.host	2017-03-10 20:33:27.000000000 +0100
++++ gcc-7.1.0-phoenix/libgcc/config.host	2018-05-16 12:06:19.387910627 +0200
+@@ -640,6 +640,10 @@
+ 	;;
+ i[34567]86-*-lynxos*)
+ 	;;
++i[34567]86-*-phoenix*)
++	extra_parts="$extra_parts crti.o crtbegin.o crtend.o crtn.o"
++	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic"
++	;;
+ i[34567]86-*-nto-qnx*)
+ 	tmake_file="$tmake_file i386/t-nto t-libgcc-pic"
+ 	extra_parts=crtbegin.o

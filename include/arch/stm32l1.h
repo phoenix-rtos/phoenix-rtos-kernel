@@ -24,7 +24,7 @@ enum {
 	pctl_gpioh, pctl_crc = 12, pctl_flash = 15, pctl_dma1 = 24, pctl_dma2, pctl_aes = 27, pctl_fsmc = 30,
 
 	/* APB2 */
-	pctl_syscfg = 32, pctl_tim9 = 34, pctl_tim10, pctl_tim11, pctl_acd1 = 41, pctl_sdio = 43,
+	pctl_syscfg = 32, pctl_tim9 = 34, pctl_tim10, pctl_tim11, pctl_adc1 = 41, pctl_sdio = 43,
 	pctl_spi1, pctl_usart1 = 46,
 
 	/* APB1 */

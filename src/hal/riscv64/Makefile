@@ -11,7 +11,7 @@ SRCS = syspage.c hal.c spinlock.c console.c interrupts.c cpu.c pmap.c dtb.c time
 #watchdog.c
 
 
-OBJS = $(ASMS:.S=.o) $(SRCS:.c=.o) 
+OBJS = $(ASMS:.S=.o) $(SRCS:.c=.o)
 
 
 all: check $(ARCH)
@@ -27,7 +27,7 @@ check:
 .c.o:
 	@(printf " CC  %-24s  " "$<"; $(CC) -c $(CFLAGS) $<)
 
-	@(file=`echo $< | sed "s/\.c/\.o/"`; \
+	@(file="$@"; \
 	datasz=0;\
 	textsz=0;\
 	rodatasz=0;\
@@ -46,7 +46,7 @@ check:
 .S.o:
 	@(printf " ASM %-24s  " "$<"; $(CC) -c $(CFLAGS) $<)
 
-	@(file=`echo $< | sed "s/\.S/\.o/"`; \
+	@(file="$@"; \
 	datasz=0;\
 	textsz=0;\
 	for i in `$(OBJDUMP) -t $$file | grep -e "O" | awk '{ print $$5 }'`; do \
