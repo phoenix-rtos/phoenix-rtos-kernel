@@ -20,6 +20,9 @@
 
 #include "cpu.h"
 
+#define TIMER_US2CYC(x) (x)
+#define TIMER_CYC2US(x) (x)
+
 
 extern void _timer_init(u32 interval);
 

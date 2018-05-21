@@ -102,11 +102,11 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 			wakeup = t->wakeup - now;
 	}
 	else {
-		wakeup = 1000;
+		wakeup = TIMER_US2CYC(1000);
 	}
 
-	if (wakeup > 1000)
-		wakeup = 1000;
+	if (wakeup > TIMER_US2CYC(1200))
+		wakeup = TIMER_US2CYC(1000);
 
 	hal_setWakeup(wakeup);
 #endif
@@ -134,7 +134,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 #ifdef HPTIMER_IRQ
 	now = threads_common.jiffies = hal_getTimer();
 #else
-	now = threads_common.jiffies += 1000;
+	now = threads_common.jiffies += TIMER_US2CYC(1000);
 #endif
 
 	for (;; i++) {
@@ -202,7 +202,7 @@ thread_t *threads_getNextThread(thread_t *prev)
 static void threads_findCurrBucket(cpu_load_t *load, time_t jiffies)
 {
 	int steps, i;
-	const time_t step = 1000;
+	const time_t step = TIMER_US2CYC(1000);
 
 	steps = (jiffies - load->jiffiesptr) / step;
 	if (steps)
@@ -648,7 +648,7 @@ int proc_threadSleep(unsigned int us)
 	current = threads_common.current[hal_cpuGetID()];
 	current->state = SLEEP;
 	current->wait = NULL;
-	current->wakeup = now + us;
+	current->wakeup = now + TIMER_US2CYC(us);
 
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 
@@ -760,7 +760,7 @@ time_t proc_uptime(void)
 	time = _threads_getTimer();
 	hal_spinlockClear(&threads_common.spinlock);
 
-	return time;
+	return TIMER_CYC2US(time);
 }
 
 
@@ -1052,8 +1052,8 @@ static void threads_idlethr(void *arg)
 
 		wakeup = proc_nextWakeup();
 
-		if (wakeup > 2000) {
-			wakeup = hal_cpuLowPower((wakeup + 500) / 1000);
+		if (wakeup > TIMER_US2CYC(2000)) {
+			wakeup = hal_cpuLowPower((wakeup + TIMER_US2CYC(500)) / 1000);
 #ifdef CPU_STM32
 			hal_spinlockSet(&threads_common.spinlock);
 			threads_common.jiffies += wakeup * 1000;

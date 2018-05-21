@@ -27,6 +27,7 @@
 #include "interrupts.h"
 #include "timer.h"
 #include "exceptions.h"
+#include "timer.h"
 
 
 extern int hal_started(void);

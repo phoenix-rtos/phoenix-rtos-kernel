@@ -20,6 +20,9 @@
 
 #include "cpu.h"
 
+#define TIMER_US2CYC(x) (x)
+#define TIMER_CYC2US(x) (x)
+
 
 extern int timer_reschedule(unsigned int n, cpu_context_t *ctx, void *arg);
 

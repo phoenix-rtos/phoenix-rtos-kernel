@@ -25,6 +25,7 @@
 #include "spinlock.h"
 #include "interrupts.h"
 #include "exceptions.h"
+#include "timer.h"
 
 #ifdef CPU_STM32
 #include "stm32.h"

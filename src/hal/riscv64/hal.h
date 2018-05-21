@@ -26,6 +26,7 @@
 #include "spinlock.h"
 #include "interrupts.h"
 #include "exceptions.h"
+#include "timer.h"
 
 
 extern int hal_started(void);

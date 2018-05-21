@@ -115,7 +115,7 @@ void _timer_init(u32 interval)
 
 	hal_interruptsSetHandler(&timer_common.timerh);
 
-	/* Input clock 66 MHz, both timers are prescaled by 66 */
+	/* Input clock 66 MHz, prescaler for both timers is set to 1 */
 
 	*(timer_common.epit1 + epit_cr) |= 1 << 16;
 	while (*(timer_common.epit1 + epit_cr) & (1 << 16));
@@ -123,12 +123,12 @@ void _timer_init(u32 interval)
 	*(timer_common.epit1 + epit_cr) |= (1 << 17) | 1;
 	*(timer_common.epit1 + epit_lr) = (1000 * 1000) / interval;
 	*(timer_common.epit1 + epit_cr) &= ~1;
-	*(timer_common.epit1 + epit_cr) = 0x016a041e;
+	*(timer_common.epit1 + epit_cr) = 0x016a000e;
 	*(timer_common.epit1 + epit_cr) |= 1;
 
 	*(timer_common.gpt1 + gpt_cr) &= ~1;
 	*(timer_common.gpt1 + gpt_ir) &= ~0x3f;
-	*(timer_common.gpt1 + gpt_pr) = 0x41;
+	*(timer_common.gpt1 + gpt_pr) = 0x00;
 	*(timer_common.gpt1 + gpt_sr) = 0x1f;
 	*(timer_common.gpt1 + gpt_ir) |= 1 << 5;
 	*(timer_common.gpt1 + gpt_cr) = (1 << 9) | (1 << 6) | (0x7 << 3);
