@@ -24,6 +24,11 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 	resource_t *r, *t;
 	process_t *p = proc_current()->process;
 	int res;
+	unsigned int th;
+
+	/* Pass temporary variable to resource_alloc if no handle storage is provided */
+	if (h == NULL)
+		h = &th;
 
 	if ((r = resource_alloc(p, h)) == NULL)
 		return -ENOMEM;
