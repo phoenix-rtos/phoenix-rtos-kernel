@@ -82,7 +82,7 @@ $(OBJS): $(filter clean,$(MAKECMDGOALS))
 subsystems: $(ARCHS)
 
 
-%/$(ARCH): .FORCE
+%/$(ARCH): .FORCE $(filter clean,$(MAKECMDGOALS))
 	@+echo "\033[1;32mCOMPILE $(@D)\033[0m";\
 	if ! $(MAKE) -C "$(@D)"; then\
 		exit 1;\
