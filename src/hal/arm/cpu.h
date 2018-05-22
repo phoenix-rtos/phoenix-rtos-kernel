@@ -54,7 +54,7 @@
 	do { \
 		ustack = (void *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
 		(v) = *(t *)ustack; \
-		ustack += sizeof(t); \
+		ustack += (sizeof(t) + 3) & ~0x3; \
 	} while (0)
 
 
