@@ -96,7 +96,7 @@
 
 #define PUTONSTACK(kstack, t, v) \
 	do { \
-		(kstack) -= sizeof(t); \
+		(kstack) -= ((sizeof(t) + 3) & ~3);	\
 		*((t *)kstack) = (v); \
 	} while (0)
 
@@ -106,7 +106,7 @@
 		if (n == 0) \
 			ustack += 4; \
 		v = *(t *)ustack; \
-		ustack += sizeof(t); \
+		ustack += ((sizeof(t) + 3) & ~3); \
 	} while (0)
 
 
