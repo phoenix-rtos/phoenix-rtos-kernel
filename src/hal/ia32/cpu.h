@@ -569,39 +569,8 @@ static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 }
 
 
-static inline void hal_longjmp(cpu_context_t *ctx)
-{
-	__asm__ volatile
-	(" \
-		cli; \
-		movl %0, %%eax;\
-		addl $4, %%eax;\
-		movl %%eax, %%esp;"
-#ifndef NDEBUG
-		"popl %%eax;\
-		movl %%eax, %%dr0;\
-		popl %%eax;\
-		movl %%eax, %%dr1;\
-		popl %%eax;\
-		movl %%eax, %%dr2;\
-		popl %%eax;\
-		movl %%eax, %%dr3;"
-#endif
-		"popl %%edi;\
-		popl %%esi;\
-		popl %%ebp;\
-		popl %%edx;\
-		popl %%ecx;\
-		popl %%ebx;\
-		popl %%eax;\
-		popw %%gs;\
-		popw %%fs;\
-		popw %%es;\
-		popw %%ds;\
-		iret"
-	:
-	:"g" (ctx));
-}
+__attribute__((noreturn,regparm(1)))
+void hal_longjmp(cpu_context_t *ctx);
 
 
 static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)

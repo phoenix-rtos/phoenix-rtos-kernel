@@ -501,6 +501,43 @@ int hal_platformctl(void *ptr)
 }
 
 
+__attribute__((regparm(1)))
+void hal_longjmp(cpu_context_t *ctx)
+{
+	__asm__ volatile
+	(" \
+		cli; \
+		addl $4, %%eax;\
+		movl %%eax, %%esp;"
+#ifndef NDEBUG
+		"popl %%eax;\
+		movl %%eax, %%dr0;\
+		popl %%eax;\
+		movl %%eax, %%dr1;\
+		popl %%eax;\
+		movl %%eax, %%dr2;\
+		popl %%eax;\
+		movl %%eax, %%dr3;"
+#endif
+		"popl %%edi;\
+		popl %%esi;\
+		popl %%ebp;\
+		popl %%edx;\
+		popl %%ecx;\
+		popl %%ebx;\
+		popl %%eax;\
+		popw %%gs;\
+		popw %%fs;\
+		popw %%es;\
+		popw %%ds;\
+		iret"
+	:
+	:"a" (ctx)
+	:"memory");
+	__builtin_unreachable();
+}
+
+
 void _hal_cpuInit(void)
 {
 	_hal_cpuInitCores();
