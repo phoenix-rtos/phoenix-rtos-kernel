@@ -97,10 +97,10 @@ page_t *vm_pageAlloc(size_t size, u8 flags)
 }
 
 
-void _page_free(page_t *lh)
+void _page_free(page_t *p)
 {
-	unsigned int idx, i, sidx;
-	page_t *rh;
+	unsigned int idx, i;
+	page_t *lh = p, *rh = p;
 
 #if 1
 	if (lh->flags & PAGE_FREE) {
@@ -111,29 +111,41 @@ void _page_free(page_t *lh)
 	}
 #endif
 
-	idx = lh->idx;
-	sidx = idx;
-	rh = lh + (1 << idx) / SIZE_PAGE;
+	idx = p->idx;
 
-	while ((rh < pages.pages + (pages.allocsz + pages.freesz) / SIZE_PAGE) && (rh->flags & PAGE_FREE) && (lh->idx == rh->idx) && (idx < SIZE_VM_SIZES)) {
+	/* Mark free pages */
+	for (i = 0; i < (1 << idx) / SIZE_PAGE; i++) {
+		(p + i)->flags |= PAGE_FREE;
+		pages.freesz += SIZE_PAGE;
+		pages.allocsz -= SIZE_PAGE;
+	}
 
-		LIST_REMOVE(&pages.sizes[idx], rh);
+	if (p->addr & ((1 << (idx + 1)) - 1))
+		lh = p - (1 << idx) / SIZE_PAGE;
+	else
+		rh = p + (1 << idx) / SIZE_PAGE;
+
+	while (lh >= pages.pages && (rh < pages.pages + (pages.allocsz + pages.freesz) / SIZE_PAGE) && (lh->flags & PAGE_FREE) && (rh->flags & PAGE_FREE) && (lh->idx == rh->idx) && (lh->addr + (1 << lh->idx) == rh->addr) && (idx < SIZE_VM_SIZES)) {
+
+		if (p == lh)
+			LIST_REMOVE(&pages.sizes[idx], rh);
+		else
+			LIST_REMOVE(&pages.sizes[idx], lh);
 
 		rh->idx = hal_cpuGetFirstBit(SIZE_PAGE);
 		lh->idx++;
 		idx++;
 
-		rh = lh + (1 << idx) / SIZE_PAGE;
+		p = lh;
+
+		if (p->addr & ((1 << (idx + 1)) - 1))
+			lh = p - (1 << idx) / SIZE_PAGE;
+		else
+			rh = p + (1 << idx) / SIZE_PAGE;
 	}
 
-	LIST_ADD(&pages.sizes[idx], lh);
+	LIST_ADD(&pages.sizes[idx], p);
 
-	/* Mark free pages */
-	for (i = 0; i < (1 << sidx) / SIZE_PAGE; i++) {
-		(lh + i)->flags |= PAGE_FREE;
-		pages.freesz += SIZE_PAGE;
-		pages.allocsz -= SIZE_PAGE;
-	}
 	return;
 }
 
