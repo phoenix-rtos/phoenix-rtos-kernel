@@ -4,7 +4,7 @@
 # Copyright 2018 Phoenix Systems
 #
 
-ASMS = _init.S string.S
+ASMS = _init.S string.S _interrupts.S
 #_exceptions.S _interrupts.S
 SRCS = syspage.c hal.c spinlock.c console.c interrupts.c cpu.c pmap.c dtb.c timer.c
 #exceptions.c timer.c

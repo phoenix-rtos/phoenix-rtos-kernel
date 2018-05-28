@@ -130,8 +130,8 @@ __attribute__((aligned(4))) void handler(void)
 	lib_printf("tick\n");
 
 	cycles_t c = hal_cpuGetCycles2();
-	sbi_call(SBI_SETTIMER, c + 100000, 0, 0);
-//	csr_set(sie, SIE_STIE);
+	sbi_call(SBI_SETTIMER, c + 200000, 0, 0);
+	csr_set(sie, SIE_STIE);
 
 	asm volatile ("sret"::);
 }
@@ -147,8 +147,8 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	}
 
 	/* Enable HART interrupts */
-csr_write(sscratch, 0);
-//	csr_write(sie, -1);
+	csr_write(sscratch, 0);
+	csr_write(sie, -1);
 	csr_write(stvec, handler);
 	
 	return;

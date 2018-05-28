@@ -20,53 +20,53 @@
 
 .text
 
-.macro SAVE_ALL
-//	LOCAL _restore_kernel_tpsp
-//	LOCAL _save_context
+.macro SAVE
 
-	/*
-	 * If coming from userspace, preserve the user thread pointer and load
-	 * the kernel thread pointer.  If we came from the kernel, sscratch
-	 * will contain 0, and we should continue on the current TP.
-	 */
-/*	csrrw tp, sscratch, tp
-	bnez tp, _save_context
+	/* If coming from userspace sscratch register holds kernel stack */
+	csrrw tp, sscratch, tp
+	beqz tp, save_fromkernelf
 
-_restore_kernel_tpsp:
-	csrr tp, sscratch
-	REG_S sp, TASK_TI_KERNEL_SP(tp)
-_save_context:*/
-	sd sp, (sp)
-//	addi sp, sp, -(PT_SIZE_ON_STACK)
-	sd x1, (sp)
-	sd x3, 8(sp)
-	sd x5, 16(sp)
-	sd x6, 24(sp)
-	sd x7, 32(sp)
-	sd x8, 40(sp)
-	sd x9, 48(sp)
-	sd x10, 56(sp)
-	sd x11, 64(sp)
-	sd x12, 72(sp)
-	sd x13, 80(sp)
-	sd x14, 88(sp)
-	sd x15, 96(sp)
-	sd x16, 104(sp)
-	sd x17, 112(sp)
-	sd x18, 120(sp)
-	sd x19, 128(sp)
-	sd x20, 136(sp)
-	sd x21, 144(sp)
-	sd x22, 152(sp)
-	sd x23, 160(sp)
-	sd x24, 168(sp)
-	sd x25, 176(sp)
-	sd x26, 184(sp)
-	sd x27, 192(sp)
-	sd x28, 200(sp)
-	sd x29, 208(sp)
-	sd x30, 216(sp)
-	sd x31, 224(sp)
+.local save_fromuser
+save_fromuser:
+
+	/* save user stack and task register */
+	sd sp, (tp)
+	csrr sp, sscratch
+	sd sp, -8(tp)
+	ld sp, tp
+	addi sp, sp, -16
+
+.local save_fromkernel
+save_fromkernel:
+	sd x1, (sp)           /* ra */
+	sd x3, -8(sp)         /* gp */
+	sd x5, -16(sp)        /* t0 */
+	sd x6, -24(sp)        /* t1 */
+	sd x7, -32(sp)        /* t2 */
+	sd x8, -40(sp)        /* s0 */
+	sd x9, -48(sp)        /* s1 */
+	sd x10, -56(sp)       /* a0 */
+	sd x11, -64(sp)       /* a1 */
+	sd x12, -72(sp)       /* a2 */
+	sd x13, -80(sp)       /* a3 */
+	sd x14, -88(sp)       /* a4 */
+	sd x15, -96(sp)       /* a5 */
+	sd x16, -104(sp)      /* a6 */
+	sd x17, -112(sp)      /* a7 */
+	sd x18, -120(sp)      /* s2 */
+	sd x19, -128(sp)      /* s3 */
+	sd x20, -136(sp)      /* s4 */
+	sd x21, -144(sp)      /* s5 */
+	sd x22, -152(sp)      /* s6 */
+	sd x23, -160(sp)      /* s7 */
+	sd x24, -168(sp)      /* s8 */
+	sd x25, -176(sp)      /* s9 */
+	sd x26, -184(sp)      /* s10 */
+	sd x27, -192(sp)      /* s11 */
+	sd x28, -200(sp)      /* t3 */
+	sd x29, -208(sp)      /* t4 */
+	sd x30, -216(sp)      /* t5 */
+	sd x31, -224(sp)      /* t6 */
 
 	/*
 	 * Disable user-mode memory access as it should only be set in the
@@ -75,22 +75,28 @@ _save_context:*/
 	 * Disable the FPU to detect illegal usage of floating point in kernel
 	 * space.
 	 */
-	li t0, SR_SUM | SR_FS
+	ld s0, 8(sp)
 
-	ld s0, TASK_TI_USER_SP(tp)
+//	li t0, SR_SUM | 0x6000
 	csrrc s1, sstatus, t0
+
 	csrr s2, sepc
 	csrr s3, sbadaddr
 	csrr s4, scause
 	csrr s5, sscratch
-	sd s0, 232(sp)
-	sd s1, 240(sp)
-	sd s2, 248(sp)
-	sd s3, 256(sp)
-	sd s4, 264(sp)
-	sd s5, 272(sp)
+	sd s0, -232(sp)
+	sd s1, -240(sp)
+	sd s2, -248(sp)
+	sd s3, -256(sp)
+	sd s4, -264(sp)
+	sd s5, -272(sp)
 .endm
 
+
+.global interrupts_handleintexc
+interrupts_handleintexc:
+	SAVE
+.size interrupts_handleintexc, .-interrupts_handleintexc
 
 #if 0
 /*
