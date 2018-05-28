@@ -448,7 +448,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 #endif
 
 	if (process != NULL) {
-		hal_cpuSetGot(t->context, process->got);
+		hal_cpuSetCtxGot(t->context, process->got);
 	}
 
 	/* Insert thread to scheduler queue */

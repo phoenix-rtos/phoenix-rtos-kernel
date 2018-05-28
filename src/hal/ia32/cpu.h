@@ -487,7 +487,7 @@ static inline void hal_cpuGuard(cpu_context_t *ctx, void *addr)
 /* context management */
 
 
-static inline void hal_cpuSetGot(cpu_context_t *ctx, void *got)
+static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 {
 }
 

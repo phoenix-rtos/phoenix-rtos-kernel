@@ -45,6 +45,7 @@ typedef struct _intr_handler_t {
 	void *data;
 	pmap_t *pmap;
 	void *cond;
+	void *got;
 } intr_handler_t;
 
 

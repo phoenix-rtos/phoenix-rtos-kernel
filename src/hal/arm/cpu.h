@@ -221,7 +221,7 @@ static inline unsigned int hal_cpuGetFirstBit(const u32 v)
 /* context management */
 
 
-static inline void hal_cpuSetGot(cpu_context_t *ctx, void *got)
+static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 {
 }
 
