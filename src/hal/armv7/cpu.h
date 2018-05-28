@@ -19,7 +19,7 @@
 #define NULL 0
 
 /* Size of thread kernel stack */
-#define SIZE_KSTACK 2 * 512
+#define SIZE_KSTACK 3 * 512
 
 #define RET_HANDLER_MSP		0xfffffff1
 #define RET_THREAD_MSP		0xfffffff9
@@ -49,7 +49,7 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
-typedef char s8;
+typedef signed char s8;
 typedef short s16;
 typedef int s32;
 typedef long long s64;
@@ -163,7 +163,26 @@ static inline unsigned int hal_cpuGetFirstBit(const u32 v)
 /* context management */
 
 
-extern void hal_cpuSetGot(cpu_context_t *ctx, void *got);
+static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
+{
+	ctx->r9 = (u32)got;
+}
+
+
+static inline void hal_cpuSetGot(void *got)
+{
+	__asm__ volatile ("mov r9, %0" :: "r" (got));
+}
+
+
+static inline void *hal_cpuGetGot(void)
+{
+	void *got;
+
+	__asm__ volatile ("mov %0, r9" : "=r" (got));
+
+	return got;
+}
 
 
 extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg);

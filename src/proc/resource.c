@@ -19,6 +19,7 @@
 #include "threads.h"
 #include "file.h"
 #include "resource.h"
+#include "name.h"
 
 
 static int resource_cmp(rbnode_t *n1, rbnode_t *n2)
@@ -120,10 +121,12 @@ resource_t *resource_alloc(process_t *process, unsigned int *id)
 		t.id = *id;
 		r = lib_treeof(resource_t, linkage, lib_rbFindEx(process->resources.root, &t.linkage, resource_gapcmp));
 		if (r != NULL) {
-			if (r->lmaxgap > 0)
-				*id = r->id - 1;
-			else
-				*id = r->id + 1;
+			if (!(r->id < *id && (r->rmaxgap >= *id - r->id)) && !(r->id > *id && (r->lmaxgap >= r->id - *id))) {
+				if (r->lmaxgap > 0)
+					*id = r->id - 1;
+				else
+					*id = r->id + 1;
+			}
 		}
 		else {
 			proc_lockClear(&process->lock);
@@ -192,6 +195,9 @@ void proc_resourcesFree(process_t *proc)
 		proc_lockClear(&proc->lock);
 
 		switch (r->type) {
+		case rtFile:
+			proc_close(r->oid);
+			break;
 		case rtLock:
 			proc_lockDone(&r->lock);
 			break;
@@ -238,6 +244,7 @@ int proc_resourcesCopy(process_t *src)
 				proc_lockClear(&src->lock);
 				return err;
 			}
+			proc_open(r->oid);
 			proc_fileSet(id, 2, NULL, r->offs);
 			break;
 		case rtInth:

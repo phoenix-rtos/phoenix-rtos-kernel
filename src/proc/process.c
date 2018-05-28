@@ -103,6 +103,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->ports = NULL;*/
 
 	process->ports = NULL;
+	process->zombies = NULL;
 
 	process->sigpend = 0;
 	process->sigmask = 0;
@@ -150,20 +151,15 @@ void proc_kill(process_t *proc)
 	lib_rbRemove(&process_common.id, &proc->idlinkage);
 	proc_lockClear(&process_common.lock);
 
-	if (proc->parent != NULL) {
-		proc_lockSet(&proc->parent->lock);
-		LIST_REMOVE(&proc->parent->childs, proc);
-		proc_lockClear(&proc->parent->lock);
-	}
-	proc_zombie(proc);
 	proc_threadsDestroy(proc);
+	proc_zombie(proc);
 
 	if (proc == proc_current()->process)
 		proc_threadDestroy();
 }
 
 
-static void process_exception(unsigned int n, exc_context_t *ctx)
+void process_exception(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
@@ -327,6 +323,7 @@ int proc_vfork(void)
 	process->sigpend = 0;
 	process->sigmask = 0;
 	process->sighandler = NULL;
+	process->zombies = NULL;
 
 //	vm_mapCreate(&process->map, (void *)VADDR_MIN, process_common.kmap->start);
 //	vm_mapCopy(&parent->mapp, process->mapp);

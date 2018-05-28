@@ -292,7 +292,7 @@ void proc_portDestroy(u32 port)
 	port_put(p, 1);
 }
 
-
+#ifndef NOMMU
 void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
 {
 	void *w = NULL, *vaddr;
@@ -394,41 +394,6 @@ void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, p
 }
 
 
-int proc_send(u32 port, kmsg_t *kmsg)
-{
-	port_t *p;
-	int responded = 0;
-	int err = EOK;
-
-
-	if ((p = proc_portGet(port)) == NULL)
-		return -EINVAL;
-
-	kmsg->threads = NULL;
-	kmsg->src = proc_current()->process;
-	kmsg->responded = 0;
-
-	hal_spinlockSet(&p->spinlock);
-
-	if (p->closed) {
-		err = -EINVAL;
-	}
-	else {
-		LIST_ADD(&p->kmessages, kmsg);
-
-		proc_threadWakeup(&p->threads);
-
-		while (!(responded = kmsg->responded))
-			err = proc_threadWait(&kmsg->threads, &p->spinlock, 0);
-	}
-
-	hal_spinlockClear(&p->spinlock);
-	port_put(p, 0);
-
-	return responded < 0 ? -EINVAL : err;
-}
-
-
 static void msg_release(kmsg_t *kmsg)
 {
 	process_t *process;
@@ -473,12 +438,49 @@ static void msg_release(kmsg_t *kmsg)
 		kmsg->o.w = NULL;
 	}
 }
+#endif
+
+int proc_send(u32 port, kmsg_t *kmsg)
+{
+	port_t *p;
+	int responded = 0;
+	int err = EOK;
+
+
+	if ((p = proc_portGet(port)) == NULL)
+		return -EINVAL;
+
+	kmsg->threads = NULL;
+	kmsg->src = proc_current()->process;
+	kmsg->responded = 0;
+
+	hal_spinlockSet(&p->spinlock);
+
+	if (p->closed) {
+		err = -EINVAL;
+	}
+	else {
+		LIST_ADD(&p->kmessages, kmsg);
+
+		proc_threadWakeup(&p->threads);
+
+		while (!(responded = kmsg->responded))
+			err = proc_threadWait(&kmsg->threads, &p->spinlock, 0);
+	}
+
+	hal_spinlockClear(&p->spinlock);
+	port_put(p, 0);
+
+	return responded < 0 ? -EINVAL : err;
+}
 
 
 int proc_recv(u32 port, kmsg_t **kmsg, unsigned int *rid)
 {
 	port_t *p;
+#ifndef NOMMU
 	int closed;
+#endif
 
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
@@ -513,6 +515,7 @@ int proc_recv(u32 port, kmsg_t **kmsg, unsigned int *rid)
 	/* (MOD) */
 	(*rid) = (unsigned long)(*kmsg);
 
+#ifndef NOMMU
 	(*kmsg)->i.bvaddr = NULL;
 	(*kmsg)->i.boffs = 0;
 	(*kmsg)->i.w = NULL;
@@ -549,7 +552,7 @@ int proc_recv(u32 port, kmsg_t **kmsg, unsigned int *rid)
 
 		return closed ? -EINVAL : -ENOMEM;
 	}
-
+#endif
 	port_put(p, 0);
 	return EOK;
 }
@@ -563,7 +566,7 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
-
+#ifndef NOMMU
 	/* Copy shadow pages */
 	if (kmsg->i.bp != NULL)
 		hal_memcpy(kmsg->i.bvaddr + kmsg->i.boffs, kmsg->i.w + kmsg->i.boffs, min(SIZE_PAGE - kmsg->i.boffs, kmsg->msg.i.size));
@@ -578,8 +581,9 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, kmsg->o.eoffs);
 
 	msg_release(kmsg);
-	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
 
+	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
+#endif
 	hal_spinlockSet(&p->spinlock);
 	kmsg->responded = 1;
 	kmsg->src = proc_current()->process;

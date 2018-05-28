@@ -81,6 +81,8 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do {
+			hal_cpuSetGot(h->got);
+
 			if (h->pmap != NULL)
 				userintr_dispatch(h);
 			else
@@ -106,6 +108,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 		return -EINVAL;
 
 	hal_spinlockSet(&interrupts.spinlocks[h->n]);
+	h->got = hal_cpuGetGot();
+
 	_intr_add(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10) {

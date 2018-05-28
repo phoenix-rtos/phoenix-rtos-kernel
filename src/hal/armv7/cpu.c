@@ -40,12 +40,6 @@ volatile cpu_context_t *_cpu_nctx;
 /* context management */
 
 
-void hal_cpuSetGot(cpu_context_t *ctx, void *got)
-{
-	ctx->r9 = (u32)got;
-}
-
-
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;

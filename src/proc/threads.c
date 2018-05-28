@@ -448,7 +448,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 #endif
 
 	if (process != NULL) {
-		hal_cpuSetGot(t->context, process->got);
+		hal_cpuSetCtxGot(t->context, process->got);
 	}
 
 	/* Insert thread to scheduler queue */
@@ -545,16 +545,22 @@ void proc_threadsDestroy(process_t *proc)
 
 void proc_zombie(process_t *proc)
 {
+	process_t *parent = proc->parent;
+
 	proc_portsDestroy(proc);
 
-	hal_spinlockSet(&threads_common.spinlock);
-	LIST_ADD(&threads_common.zombies, proc);
-	hal_spinlockClear(&threads_common.spinlock);
+	if (parent != NULL) {
+		proc_lockSet(&parent->lock);
+		LIST_REMOVE(&parent->childs, proc);
+		proc_lockClear(&parent->lock);
 
-	if (proc->parent != NULL) {
-		hal_spinlockSet(&proc->parent->waitsl);
-		proc_threadWakeup(&proc->parent->waitq);
-		hal_spinlockClear(&proc->parent->waitsl);
+		hal_spinlockSet(&parent->waitsl);
+		LIST_ADD(&parent->zombies, proc);
+
+		if (parent->waitpid == -1 || (unsigned)parent->waitpid == proc->id)
+			proc_threadWakeup(&parent->waitq);
+
+		hal_spinlockClear(&parent->waitsl);
 	}
 }
 
@@ -732,18 +738,43 @@ void proc_threadWakeup(thread_t **queue)
 
 int proc_waitpid(int pid, int *stat, int options)
 {
-	int err;
-	process_t *proc = proc_current()->process;
-
-	/* TODO: WNOHANG */
-	if (options & 1) {
-		return EOK;
-	}
+	int err = 0;
+	process_t *z, *proc = proc_current()->process;
 
 	proc_threadUnprotect();
 	hal_spinlockSet(&proc->waitsl);
 	proc->waitpid = pid;
-	err = proc_threadWait(&proc->waitq, &proc->waitsl, 0);
+
+	for (;;) {
+		if ((z = proc->zombies) != NULL) {
+			do {
+				if (pid == -1 || z->id == pid) {
+					err = z->id;
+					break;
+				}
+
+				z = z->next;
+			} while (z != proc->zombies);
+
+			if (!err)
+				z = NULL;
+		}
+
+		if (err || (options & 1) || (err = proc_threadWait(&proc->waitq, &proc->waitsl, 0)))
+			break;
+	}
+
+
+	if (z != NULL) {
+		err = z->id;
+		if (stat != NULL)
+			*stat = z->exit;
+		LIST_REMOVE(&proc->zombies, z);
+		hal_spinlockSet(&threads_common.spinlock);
+		LIST_ADD(&threads_common.zombies, z);
+		hal_spinlockClear(&threads_common.spinlock);
+	}
+
 	proc->waitpid = 0;
 	hal_spinlockClear(&proc->waitsl);
 	proc_threadProtect();
@@ -1038,7 +1069,7 @@ static void threads_idlethr(void *arg)
 		if (threads_common.zombies != NULL) {
 			do {
 				hal_spinlockSet(&threads_common.spinlock);
-				if ((zombie = threads_common.zombies) != NULL && zombie->threads == NULL && zombie->ports == NULL)
+				if ((zombie = threads_common.zombies) != NULL && zombie->threads == NULL)
 					LIST_REMOVE(&threads_common.zombies, zombie);
 				else
 					zombie = NULL;

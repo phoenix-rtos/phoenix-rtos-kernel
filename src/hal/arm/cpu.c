@@ -88,40 +88,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-#if 0
-int hal_cpuGetFault(const hal_cpuFault_t type, void **fault_addr)
-{
-	int fault_src;
-	
-	switch (type) {
-		case FAULT_INST:
-			/* Read IFAR */
-			__asm__ volatile ("MRC p15, 0, %0, c6, c0, 2" : "=r" (*fault_addr));
-			/* Read IFSR */
-			__asm__ volatile ("MRC p15, 0, %0, c5, c0, 1" : "=r" (fault_src));
-			break;
-
-		case FAULT_DATA:
-			/* Read DFAR */
-			__asm__ volatile ("MRC p15, 0, %0, c6, c0, 0" : "=r" (*fault_addr));
-			/* Read DFSR */
-			__asm__ volatile ("MRC p15, 0, %0, c5, c0, 0" : "=r" (fault_src));
-			break;
-
-		case FAULT_AUX:
-			/* Read DFAR */
-			__asm__ volatile ("MRC p15, 0, %0, c6, c0, 0" : "=r" (*fault_addr));
-			/* Read DFSR */
-			__asm__ volatile ("MRC p15, 0, %0, c5, c0, 0" : "=r" (fault_src));
-			return fault_src;
-
-		default:
-			return -EINVAL;
-	}
-	return (fault_src & 0xf) | ((fault_src >> 6) & 0x10);
-}
-#endif
-
 char *hal_cpuInfo(char *info)
 {
 	size_t n = 0;
