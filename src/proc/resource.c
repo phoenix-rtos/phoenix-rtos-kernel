@@ -120,10 +120,12 @@ resource_t *resource_alloc(process_t *process, unsigned int *id)
 		t.id = *id;
 		r = lib_treeof(resource_t, linkage, lib_rbFindEx(process->resources.root, &t.linkage, resource_gapcmp));
 		if (r != NULL) {
-			if (r->lmaxgap > 0)
-				*id = r->id - 1;
-			else
-				*id = r->id + 1;
+			if (!(r->id < *id && (r->rmaxgap > *id - r->id)) || !(r->id > *id && (r->lmaxgap > r->id - *id))) {
+				if (r->lmaxgap > 0)
+					*id = r->id - 1;
+				else
+					*id = r->id + 1;
+			}
 		}
 		else {
 			proc_lockClear(&process->lock);
