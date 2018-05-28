@@ -19,6 +19,7 @@
 #include "threads.h"
 #include "file.h"
 #include "resource.h"
+#include "name.h"
 
 
 static int resource_cmp(rbnode_t *n1, rbnode_t *n2)
@@ -194,6 +195,9 @@ void proc_resourcesFree(process_t *proc)
 		proc_lockClear(&proc->lock);
 
 		switch (r->type) {
+		case rtFile:
+			proc_close(r->oid);
+			break;
 		case rtLock:
 			proc_lockDone(&r->lock);
 			break;
@@ -240,6 +244,7 @@ int proc_resourcesCopy(process_t *src)
 				proc_lockClear(&src->lock);
 				return err;
 			}
+			proc_open(r->oid);
 			proc_fileSet(id, 2, NULL, r->offs);
 			break;
 		case rtInth:
