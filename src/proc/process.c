@@ -150,20 +150,15 @@ void proc_kill(process_t *proc)
 	lib_rbRemove(&process_common.id, &proc->idlinkage);
 	proc_lockClear(&process_common.lock);
 
-	if (proc->parent != NULL) {
-		proc_lockSet(&proc->parent->lock);
-		LIST_REMOVE(&proc->parent->childs, proc);
-		proc_lockClear(&proc->parent->lock);
-	}
-	proc_zombie(proc);
 	proc_threadsDestroy(proc);
+	proc_zombie(proc);
 
 	if (proc == proc_current()->process)
 		proc_threadDestroy();
 }
 
 
-static void process_exception(unsigned int n, exc_context_t *ctx)
+void process_exception(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;

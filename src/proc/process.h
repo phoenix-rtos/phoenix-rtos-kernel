@@ -38,6 +38,7 @@ typedef struct _process_t {
 	unsigned int id;
 	rbnode_t idlinkage;
 
+	struct _process_t *zombies;
 	struct _thread_t *waitq;
 	spinlock_t waitsl;
 	int waitpid;
