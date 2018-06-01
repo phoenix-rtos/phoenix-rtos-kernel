@@ -36,6 +36,9 @@ extern int _proc_lockSet(lock_t *lock);
 extern int proc_lockSet(lock_t *lock);
 
 
+extern int proc_lockTry(lock_t *lock);
+
+
 extern void _proc_lockClear(lock_t *lock);
 
 

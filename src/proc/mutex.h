@@ -20,6 +20,9 @@
 extern int proc_mutexLock(unsigned int h);
 
 
+extern int proc_mutexTry(unsigned int h);
+
+
 extern int proc_mutexUnlock(unsigned int h);
 
 

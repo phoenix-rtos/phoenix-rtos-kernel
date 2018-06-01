@@ -58,6 +58,26 @@ int proc_mutexLock(unsigned int h)
 }
 
 
+int proc_mutexTry(unsigned int h)
+{
+	process_t *process;
+	resource_t *r;
+	int err;
+
+	process = proc_current()->process;
+
+	if ((r = resource_get(process, h)) == NULL)
+		return -EINVAL;
+
+	proc_threadUnprotect();
+	err = proc_lockTry(&r->lock);
+	proc_threadProtect();
+	resource_put(process, r);
+
+	return err;
+}
+
+
 int proc_mutexUnlock(unsigned int h)
 {
 	process_t *process;

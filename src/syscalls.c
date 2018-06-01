@@ -289,6 +289,15 @@ int syscalls_mutexLock(void *ustack)
 }
 
 
+int syscalls_mutexTry(void *ustack)
+{
+	unsigned int h;
+
+	GETFROMSTACK(ustack, unsigned int, h, 0);
+	return proc_mutexTry(h);
+}
+
+
 int syscalls_mutexUnlock(void *ustack)
 {
 	unsigned int h;

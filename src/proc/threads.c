@@ -1001,6 +1001,24 @@ int proc_lockSet(lock_t *lock)
 }
 
 
+int proc_lockTry(lock_t *lock)
+{
+	int err = EOK;
+
+	if (!hal_started())
+		return -EINVAL;
+
+	hal_spinlockSet(&lock->spinlock);
+	if (lock->v == 0)
+		err = -EBUSY;
+
+	lock->v = 0;
+	hal_spinlockClear(&lock->spinlock);
+
+	return err;
+}
+
+
 void _proc_lockClear(lock_t *lock)
 {
 	lock->v = 1;
