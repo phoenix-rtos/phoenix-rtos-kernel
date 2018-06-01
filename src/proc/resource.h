@@ -5,8 +5,8 @@
  *
  * Process resources
  *
- * Copyright 2017 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2017, 2018 Phoenix Systems
+ * Author: Pawel Pisarczyk, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -18,6 +18,7 @@
 
 #include HAL
 #include "cond.h"
+#include "semaphore.h"
 
 
 typedef struct _resource_t {
@@ -29,10 +30,12 @@ typedef struct _resource_t {
 	unsigned int lmaxgap;
 	unsigned int rmaxgap;
 
-	enum { rtLock = 0, rtCond, rtFile, rtInth } type;
+	enum { rtLock = 0, rtSemaphore, rtCond, rtFile, rtInth } type;
 
 	union {
 		lock_t lock;
+
+		semaphore_t semaphore;
 
 		thread_t *waitq;
 

@@ -5,9 +5,9 @@
  *
  * Semaphores
  *
- * Copyright 2012, 2017 Phoenix Systems
+ * Copyright 2012, 2017, 2018 Phoenix Systems
  * Copyright 2006 Pawel Pisarczyk
- * Author: Pawel Pisarczyk
+ * Author: Pawel Pisarczyk, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -18,90 +18,84 @@
 #include "../../include/errno.h"
 #include "threads.h"
 #include "semaphore.h"
+#include "resource.h"
 
 
-static void semaphore_p(semaphore_t *semaphore)
+int proc_semaphoreP(unsigned int sh, time_t timeout)
 {
-	hal_spinlockSet(&semaphore->spinlock);
+	process_t *process;
+	resource_t *r;
+	int err;
+
+	process = proc_current()->process;
+
+	if ((r = resource_get(process, sh)) == NULL)
+		return -EINVAL;
+
+	proc_threadUnprotect();
+	hal_spinlockSet(&r->semaphore.spinlock);
 	for (;;) {
 
-		if (semaphore->v > 0) {
-			semaphore->v--;
+		if (r->semaphore.v > 0) {
+			r->semaphore.v--;
 			break;
 		}
-		proc_threadWait(&semaphore->queue, &semaphore->spinlock, 0);
+
+		if ((err = proc_threadWait(&r->semaphore.queue, &r->semaphore.spinlock, timeout)) != EOK)
+			break;
 	}
-	hal_spinlockClear(&semaphore->spinlock);
+	hal_spinlockClear(&r->semaphore.spinlock);
+	proc_threadProtect();
+	resource_put(process, r);
 
-	return;
-}
-
-
-static void semaphore_v(semaphore_t *semaphore)
-{
-	hal_spinlockSet(&semaphore->spinlock);	
-	semaphore->v++;
-	proc_threadWakeup(&semaphore->queue);
-	hal_spinlockClear(&semaphore->spinlock);
-
-	return;
-}
-
-
-static int semaphore_init(semaphore_t *semaphore, unsigned int v)
-{
-	semaphore->v = v;
-	semaphore->queue = NULL;
-	hal_spinlockCreate(&semaphore->spinlock, "semaphore.spinlock");
-
-	return EOK;
-}
-
-
-static int semaphore_done(semaphore_t *semaphore)
-{
-	hal_spinlockDestroy(&semaphore->spinlock);
-	return EOK;
-}
-
-
-int proc_semaphoreP(unsigned int sh)
-{
-	semaphore_t *s;
-
-	s = NULL;
-	semaphore_p(s);
-	return EOK; 
+	return err;
 }
 
 
 int proc_semaphoreV(unsigned int sh)
 {
-	semaphore_t *s;
+	process_t *process;
+	resource_t *r;
 
-	s = NULL;
-	semaphore_v(s);
+	process = proc_current()->process;
+
+	if ((r = resource_get(process, sh)) == NULL)
+		return -EINVAL;
+
+	hal_spinlockSet(&r->semaphore.spinlock);
+	r->semaphore.v++;
+	proc_threadWakeup(&r->semaphore.queue);
+	hal_spinlockClear(&r->semaphore.spinlock);
+
+	resource_put(process, r);
+
 	return EOK;
 }
 
 
 int proc_semaphoreCreate(unsigned int *sh, unsigned int v)
 {
-	semaphore_t *s;
+	process_t *process;
+	resource_t *r;;
 
-	s = NULL;
+	process = proc_current()->process;
 
-	semaphore_init(s, v);
+	if ((r = resource_alloc(process, sh)) == NULL)
+		return -ENOMEM;
+
+	r->semaphore.v = v;
+	r->semaphore.queue = NULL;
+	hal_spinlockCreate(&r->semaphore.spinlock, "semaphore.spinlock");
+
+	r->type = rtSemaphore;
+	resource_put(process, r);
+
 	return EOK;
 }
 
 
-int proc_semaphoreDestroy(unsigned int *sh)
+int proc_semaphoreDone(semaphore_t *semaphore)
 {
-	semaphore_t *s;
-
-	s = NULL;
-
-	semaphore_done(s);
+	hal_spinlockDestroy(&semaphore->spinlock);
 	return EOK;
 }
