@@ -128,7 +128,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	//stack = (void *)VADDR_MIN;
 #endif
 
-	/* Initialize resources tree for mutex, cond, semaphores handles */
+	/* Initialize resources tree for mutex and cond handles */
 	resource_init(process);
 
 	if (proc_threadCreate(process, (void *)initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
@@ -332,7 +332,7 @@ int proc_vfork(void)
 	LIST_ADD(&process->parent->childs, process);
 	proc_lockClear(&process->parent->lock);
 
-	/* Initialize resources tree for mutex, cond, semaphore and file handles */
+	/* Initialize resources tree for mutex, cond and file handles */
 	resource_init(process);
 
 	current->execwaitq = NULL;

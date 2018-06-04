@@ -308,43 +308,6 @@ int syscalls_mutexUnlock(void *ustack)
 
 
 /*
- * Semaphores
- */
-
-
-int syscalls_semaphoreCreate(void *ustack)
-{
-	unsigned int *h;
-	unsigned int v;
-
-	GETFROMSTACK(ustack, unsigned int *, h, 0);
-	GETFROMSTACK(ustack, unsigned int, v, 1);
-
-	return proc_semaphoreCreate(h, v);
-}
-
-
-int syscalls_semaphoreDown(void *ustack)
-{
-	unsigned int h;
-	time_t t;
-
-	GETFROMSTACK(ustack, unsigned int, h, 0);
-	GETFROMSTACK(ustack, time_t, t, 0);
-	return proc_semaphoreP(h, t);
-}
-
-
-int syscalls_semaphoreUp(void *ustack)
-{
-	unsigned int h;
-
-	GETFROMSTACK(ustack, unsigned int, h, 0);
-	return proc_semaphoreV(h);
-}
-
-
-/*
  * Conditional variables
  */
 

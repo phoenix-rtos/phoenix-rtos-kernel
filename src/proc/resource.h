@@ -18,7 +18,6 @@
 
 #include HAL
 #include "cond.h"
-#include "semaphore.h"
 
 
 typedef struct _resource_t {
@@ -30,12 +29,10 @@ typedef struct _resource_t {
 	unsigned int lmaxgap;
 	unsigned int rmaxgap;
 
-	enum { rtLock = 0, rtSemaphore, rtCond, rtFile, rtInth } type;
+	enum { rtLock = 0, rtCond, rtFile, rtInth } type;
 
 	union {
 		lock_t lock;
-
-		semaphore_t semaphore;
 
 		thread_t *waitq;
 

@@ -166,9 +166,6 @@ int resource_free(resource_t *r)
 	case rtLock:
 		proc_lockDone(&r->lock);
 		break;
-	case rtSemaphore:
-		proc_semaphoreDone(&r->semaphore);
-		break;
 	case rtInth:
 		hal_interruptsDeleteHandler(&r->inth);
 		break;
@@ -204,9 +201,6 @@ void proc_resourcesFree(process_t *proc)
 		case rtLock:
 			proc_lockDone(&r->lock);
 			break;
-		case rtSemaphore:
-			proc_semaphoreDone(&r->semaphore);
-			break;
 		case rtInth:
 			hal_interruptsDeleteHandler(&r->inth);
 			break;
@@ -239,11 +233,6 @@ int proc_resourcesCopy(process_t *src)
 				return err;
 			}
 			break;
-		case rtSemaphore:
-			if ((err = proc_semaphoreCreate(&id, r->semaphore.v))) {
-				proc_lockClear(&src->lock);
-				return err;
-			}
 		case rtCond:
 			if ((err = proc_condCreate(&id)) < 0){
 				proc_lockClear(&src->lock);

@@ -5,7 +5,7 @@
 # Copyright 2001, 2005-2006 Pawel Pisarczyk
 #
 
-SRCS = proc.c threads.c process.c msg.c name.c resource.c mutex.c cond.c semaphore.c userintr.c file.c
+SRCS = proc.c threads.c process.c msg.c name.c resource.c mutex.c cond.c userintr.c file.c
 
 OBJS = $(SRCS:.c=.o)
 

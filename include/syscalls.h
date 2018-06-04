@@ -32,35 +32,32 @@
 	ID(15, syscalls_mutexLock, mutexLock) \
 	ID(16, syscalls_mutexTry, mutexTry) \
 	ID(17, syscalls_mutexUnlock, mutexUnlock) \
-	ID(18, syscalls_semaphoreCreate, semaphoreCreate) \
-	ID(19, syscalls_semaphoreDown, semaphoreDown) \
-	ID(20, syscalls_semaphoreUp, semaphoreUp) \
-	ID(21, syscalls_condCreate, condCreate) \
-	ID(22, syscalls_condWait, condWait) \
-	ID(23, syscalls_condSignal, condSignal) \
-	ID(24, syscalls_destroy, resourceDestroy) \
-	ID(25, syscalls_interrupt, interrupt) \
-	ID(26, syscalls_portCreate, portCreate) \
-	ID(27, syscalls_portDestroy, portDestroy) \
-	ID(28, syscalls_portRegister, portRegister) \
-	ID(29, syscalls_send, msgSend) \
-	ID(30, syscalls_recv, msgRecv) \
-	ID(31, syscalls_respond, msgRespond) \
-	ID(32, syscalls_lookup, lookup) \
-	ID(33, syscalls_gettime, gettime) \
-	ID(34, syscalls_keepidle, keepidle) \
-	ID(35, syscalls_mmdump, mmdump) \
-	ID(36, syscalls_platformctl, platformctl) \
-	ID(37, syscalls_wdgReload, wdgreload) \
-	ID(38, syscalls_fileAdd, fileAdd) \
-	ID(39, syscalls_fileSet, fileSet) \
-	ID(40, syscalls_fileGet, fileGet) \
-	ID(41, syscalls_fileRemove, fileRemove) \
-	ID(42, syscalls_threadsinfo, threadsinfo) \
-	ID(43, syscalls_meminfo, meminfo) \
-	ID(44, syscalls_syspageprog, syspageprog) \
-	ID(45, syscalls_va2pa, va2pa) \
-	ID(46, syscalls_signalHandle, signalHandle) \
-	ID(47, syscalls_signalPost, signalPost) \
-	ID(48, syscalls_signalReturn, signalReturn) \
-	ID(49, syscalls_signalMask, signalMask)
+	ID(18, syscalls_condCreate, condCreate) \
+	ID(19, syscalls_condWait, condWait) \
+	ID(20, syscalls_condSignal, condSignal) \
+	ID(21, syscalls_destroy, resourceDestroy) \
+	ID(22, syscalls_interrupt, interrupt) \
+	ID(23, syscalls_portCreate, portCreate) \
+	ID(24, syscalls_portDestroy, portDestroy) \
+	ID(25, syscalls_portRegister, portRegister) \
+	ID(26, syscalls_send, msgSend) \
+	ID(27, syscalls_recv, msgRecv) \
+	ID(28, syscalls_respond, msgRespond) \
+	ID(29, syscalls_lookup, lookup) \
+	ID(30, syscalls_gettime, gettime) \
+	ID(31, syscalls_keepidle, keepidle) \
+	ID(32, syscalls_mmdump, mmdump) \
+	ID(33, syscalls_platformctl, platformctl) \
+	ID(34, syscalls_wdgReload, wdgreload) \
+	ID(35, syscalls_fileAdd, fileAdd) \
+	ID(36, syscalls_fileSet, fileSet) \
+	ID(37, syscalls_fileGet, fileGet) \
+	ID(38, syscalls_fileRemove, fileRemove) \
+	ID(39, syscalls_threadsinfo, threadsinfo) \
+	ID(40, syscalls_meminfo, meminfo) \
+	ID(41, syscalls_syspageprog, syspageprog) \
+	ID(42, syscalls_va2pa, va2pa) \
+	ID(43, syscalls_signalHandle, signalHandle) \
+	ID(44, syscalls_signalPost, signalPost) \
+	ID(45, syscalls_signalReturn, signalReturn) \
+	ID(46, syscalls_signalMask, signalMask)
