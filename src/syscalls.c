@@ -179,6 +179,12 @@ int syscalls_getppid(void *ustack)
  */
 
 
+int syscalls_gettid(void *ustack)
+{
+	return (int)proc_current()->id;
+}
+
+
 int syscalls_beginthreadex(void *ustack)
 {
 	void (*start)(void *);
