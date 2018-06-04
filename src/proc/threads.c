@@ -145,7 +145,6 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
 		t->state = READY;
-		t->wakeup = 0;
 
 		if (t->wait != NULL) {
 			LIST_REMOVE(t->wait, t);
