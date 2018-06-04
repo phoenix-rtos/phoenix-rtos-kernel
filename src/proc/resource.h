@@ -17,7 +17,7 @@
 #define _PROC_RESOURCE_H_
 
 #include HAL
-#include "cond.h"
+#include "threads.h"
 
 
 typedef struct _resource_t {

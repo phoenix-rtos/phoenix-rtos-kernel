@@ -49,13 +49,24 @@ int proc_condWait(unsigned int c, unsigned int m, time_t timeout)
 
 	if ((rl = resource_get(process, m)) == NULL)
 		return -EINVAL;
-	lock = &rl->lock;
+
+	if (rl->type != rtLock) {
+		resource_put(process, rl);
+		return -EINVAL;
+	}
 
 	if ((rc = resource_get(process, c)) == NULL) {
 		resource_put(process, rl);
 		return -EINVAL;
 	}
 
+	if (rc->type != rtCond) {
+		resource_put(process, rl);
+		resource_put(process, rc);
+		return -EINVAL;
+	}
+
+	lock = &rl->lock;
 	proc_threadUnprotect();
 
 	hal_spinlockSet(&lock->spinlock);
@@ -83,7 +94,21 @@ int proc_condSignal(process_t *process, unsigned int c)
 	if ((rc =  resource_get(process, c)) == NULL)
 		return -EINVAL;
 
+	if (rc->type != rtCond) {
+		resource_put(process, rc);
+		return -EINVAL;
+	}
+
 	proc_threadWakeup(&rc->waitq);
 
 	return err;
+}
+
+
+int proc_condCopy(resource_t *dst, resource_t *src)
+{
+	dst->waitq = NULL;
+	dst->type = rtCond;
+
+	return EOK;
 }

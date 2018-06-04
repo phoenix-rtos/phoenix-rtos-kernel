@@ -18,6 +18,7 @@
 #include "mutex.h"
 #include "threads.h"
 #include "file.h"
+#include "cond.h"
 #include "resource.h"
 #include "name.h"
 
@@ -67,19 +68,17 @@ static int resource_gapcmp(rbnode_t *n1, rbnode_t *n2)
 static void resource_augment(rbnode_t *node)
 {
 	rbnode_t *it;
-	rbnode_t *parent = node->parent;
 	resource_t *n = lib_treeof(resource_t, linkage, node);
-	resource_t *p = lib_treeof(resource_t, linkage, parent);
-	resource_t *pp = (parent != NULL) ? lib_treeof(resource_t, linkage, parent->parent) : NULL;
-	resource_t *l, *r;
+	resource_t *p = n, *r, *l;
 
 	if (node->left == NULL) {
-		if (parent != NULL && parent->right == node)
-			n->lmaxgap = n->id - p->id - 1;
-		else if (parent != NULL && parent->parent != NULL && parent->parent->right == parent)
-			n->lmaxgap = n->id - pp->id - 1;
-		else
-			n->lmaxgap = n->id;
+		for (it = node; it->parent != NULL; it = it->parent) {
+			p = lib_treeof(resource_t, linkage, it->parent);
+			if (it->parent->right == it)
+				break;
+		}
+
+		n->lmaxgap = (n->id <= p->id) ? n->id : n->id - p->id - 1;
 	}
 	else {
 		l = lib_treeof(resource_t, linkage, node->left);
@@ -87,12 +86,13 @@ static void resource_augment(rbnode_t *node)
 	}
 
 	if (node->right == NULL) {
-		if (parent != NULL && parent->left == node)
-			n->rmaxgap = p->id - n->id - 1;
-		else if (parent != NULL && parent->parent != NULL && parent->parent->left == parent)
-			n->rmaxgap = pp->id - n->id - 1;
-		else
-			n->rmaxgap = (unsigned int)-1 - n->id - 1;
+		for (it = node; it->parent != NULL; it = it->parent) {
+			p = lib_treeof(resource_t, linkage, it->parent);
+			if (it->parent->left == it)
+				break;
+		}
+
+		n->rmaxgap = (n->id >= p->id) ? (unsigned)-1 - n->id - 1 : p->id - n->id - 1;
 	}
 	else {
 		r = lib_treeof(resource_t, linkage, node->right);
@@ -118,15 +118,13 @@ resource_t *resource_alloc(process_t *process, unsigned int *id)
 	proc_lockSet(&process->lock);
 
 	if (process->resources.root != NULL) {
-		t.id = *id;
+		t.id = 0;
 		r = lib_treeof(resource_t, linkage, lib_rbFindEx(process->resources.root, &t.linkage, resource_gapcmp));
 		if (r != NULL) {
-			if (!(r->id < *id && (r->rmaxgap >= *id - r->id)) && !(r->id > *id && (r->lmaxgap >= r->id - *id))) {
-				if (r->lmaxgap > 0)
-					*id = r->id - 1;
-				else
-					*id = r->id + 1;
-			}
+			if (r->lmaxgap > 0)
+				*id = r->id - 1;
+			else
+				*id = r->id + 1;
 		}
 		else {
 			proc_lockClear(&process->lock);
@@ -146,6 +144,65 @@ resource_t *resource_alloc(process_t *process, unsigned int *id)
 	proc_lockClear(&process->lock);
 
 	return r;
+}
+
+
+int proc_resourcesCopy(process_t *src)
+{
+	rbnode_t *n;
+	resource_t *r, *d = NULL;
+	process_t *process;
+	int err = EOK;
+
+	process = proc_current()->process;
+
+	proc_lockSet(&src->lock);
+	for (n = lib_rbMinimum(src->resources.root); n != NULL; n = lib_rbNext(n)) {
+		r = lib_treeof(resource_t, linkage, n);
+
+		if (d == NULL && (d = vm_kmalloc(sizeof(resource_t))) == NULL) {
+			err = -ENOMEM;
+			break;
+		}
+
+		d->id = r->id;
+		d->refs = 0;
+
+		switch (r->type) {
+		case rtLock:
+			err = proc_mutexCopy(d, r);
+			break;
+		case rtCond:
+			err = proc_condCopy(d, r);
+			break;
+		case rtFile:
+			err = proc_fileCopy(d, r);
+			if (!err)
+				proc_open(d->oid);
+			break;
+		case rtInth:
+			err = 1; /* Don't copy interrupt handlers */
+			break;
+		}
+
+		if (err == EOK) {
+			lib_rbInsert(&process->resources, &d->linkage);
+			d = NULL;
+		}
+		else if (err > 0) {
+			err = EOK;
+			continue;
+		}
+		else {
+			break;
+		}
+	}
+	proc_lockClear(&src->lock);
+
+	if (d != NULL)
+		vm_kfree(d);
+
+	return err;
 }
 
 
@@ -211,49 +268,6 @@ void proc_resourcesFree(process_t *proc)
 		vm_kfree(r);
 	}
 	proc_lockClear(&proc->lock);
-}
-
-
-int proc_resourcesCopy(process_t *src)
-{
-	rbnode_t *n;
-	resource_t *r;
-	unsigned id;
-	int err = EOK;
-
-	proc_lockSet(&src->lock);
-	for (n = lib_rbMinimum(src->resources.root); n != NULL; n = lib_rbNext(n)) {
-		r = lib_treeof(resource_t, linkage, n);
-		id = r->id;
-
-		switch (r->type) {
-		case rtLock:
-			if ((err = proc_mutexCreate(&id)) < 0) {
-				proc_lockClear(&src->lock);
-				return err;
-			}
-			break;
-		case rtCond:
-			if ((err = proc_condCreate(&id)) < 0){
-				proc_lockClear(&src->lock);
-				return err;
-			}
-			break;
-		case rtFile:
-			if ((err = proc_fileAdd(&id, &r->oid)) < 0) {
-				proc_lockClear(&src->lock);
-				return err;
-			}
-			proc_open(r->oid);
-			proc_fileSet(id, 2, NULL, r->offs);
-			break;
-		case rtInth:
-			/* Don't copy interrupt handler */
-			break;
-		}
-	}
-	proc_lockClear(&src->lock);
-	return EOK;
 }
 
 
