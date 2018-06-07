@@ -152,6 +152,7 @@ void proc_kill(process_t *proc)
 	proc_lockClear(&process_common.lock);
 
 	proc_threadsDestroy(proc);
+	proc_resourcesFree(proc);
 	proc_zombie(proc);
 
 	if (proc == proc_current()->process)

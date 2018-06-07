@@ -571,8 +571,6 @@ static void proc_cleanupZombie(process_t *proc)
 	addr_t a;
 #endif
 
-	proc_resourcesFree(proc);
-
 	if (proc->mapp != NULL)
 		vm_mapDestroy(proc, proc->mapp);
 
