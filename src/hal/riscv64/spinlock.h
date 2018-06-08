@@ -31,39 +31,38 @@ typedef struct _spinlock_t {
 	struct _spinlock_t *next;
 	struct _spinlock_t *prev;
 
-	u32 lock;
-	u32 eflags;
-		
+	u64 lock;
+	u64 sstatus;
 } spinlock_t;
 
 
 static inline void hal_spinlockSet(spinlock_t *spinlock)
 {
-/*	__asm__ volatile
+	__asm__ volatile
 	(" \
-		pushf; \
-		popl %%ebx; \
-		cli; \
-	1: \
-		xorl %%eax, %%eax; \
-		xchgl %1, %%eax; \
-		cmp $0, %%eax; \
-		jz 1b; \
-		movl %%ebx, %0"
+		csrrc t0, sstatus, 2; \
+		sd t0, %0; \
+		mv t0, zero; \
+1: \
+		amoswap.w.aq t0, t0, %1; \
+		beqz t0, 1b"
 	:
-	: "m" (spinlock->eflags), "m" (spinlock->lock)
-	: "eax", "ebx", "memory");
+	: "m" (spinlock->sstatus), "A" (spinlock->lock)
+	: "t0", "memory");
 	
-	hal_cpuGetCycles((void *)&spinlock->b);	*/
+	hal_cpuGetCycles((void *)&spinlock->b);
 }
+
+
+		
 
 
 static inline void hal_spinlockClear(spinlock_t *spinlock)
 {
-//	hal_cpuGetCycles((void *)&spinlock->e);
+	hal_cpuGetCycles((void *)&spinlock->e);
 	
 	/* Calculate maximum and minimum lock time */	
-/*	if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
+	if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
 		spinlock->dmax = spinlock->e - spinlock->b;
 
 	if (spinlock->e - spinlock->b < spinlock->dmin)
@@ -71,15 +70,13 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 
 	__asm__ volatile
 	(" \
-		movl %1, %%eax; \
-		pushl %%eax; \
-		xorl %%eax, %%eax; \
-		incl %%eax; \
-		xchgl %0, %%eax; \
-		popf"
+		li t1, 1; \
+		amoswap.w.rl t1, t1, %0; \
+		ld t0, %1; \
+		csrw sstatus, t0"
 	:
-	: "m" (spinlock->lock), "m" (spinlock->eflags)
-	: "eax", "memory");*/
+	: "A" (spinlock->lock), "m" (spinlock->sstatus)
+	: "t0", "t1", "memory");
 
 	return;
 }

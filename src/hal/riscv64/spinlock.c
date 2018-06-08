@@ -31,7 +31,6 @@ static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 	spinlock->dmin = (cycles_t)-1;
 	spinlock->dmax = (cycles_t)0;
 
-
 	if (spinlocks.first != NULL) {
 		spinlocks.first->prev->next = spinlock;
 		spinlock->prev = spinlocks.first->prev;

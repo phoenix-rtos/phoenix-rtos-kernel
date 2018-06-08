@@ -18,7 +18,7 @@
 
 
 /* Size of thread kernel stack */
-#define SIZE_KSTACK 4 * 512
+#define SIZE_KSTACK  16 * 512
 
 
 #define NULL 0
@@ -74,11 +74,9 @@ typedef struct _oid_t {
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
 typedef struct {
-	u64 sstatus;
 	u64 pc;
-	u64 ra;
-	u64 gp;
-	u64 tp;
+	u64 gp;    /* x3 */
+
 	u64 t0;    /* x5 */
 	u64 t1;    /* x6 */
 	u64 t2;    /* x7 */
@@ -106,6 +104,15 @@ typedef struct {
 	u64 t4;    /* x29 */
 	u64 t5;    /* x30 */
 	u64 t6;    /* x31 */
+
+	u64 ksp;
+	u64 sstatus;
+	u64 sepc;
+	u64 sbadaddr;
+	u64 scause;
+	u64 sscratch;
+
+	u64 tp;
 	u64 sp;
 
 } cpu_context_t;
@@ -164,12 +171,13 @@ extern int hal_platformctl(void *ptr);
 
 static inline void hal_cpuDisableInterrupts(void)
 {
+	__asm__ ("csrc sstatus, 2");
 }
 
 
 static inline void hal_cpuEnableInterrupts(void)
 {
-	csr_set(sstatus, SR_SIE);
+	__asm__ ("csrs sstatus, 2");
 }
 
 
@@ -337,7 +345,7 @@ extern int hal_cpuReschedule(struct _spinlock_t *lock);
 
 static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 {
-//	curr->savesp = (u32)next + sizeof(u32);
+	curr->ksp = (u64)next;
 }
 
 

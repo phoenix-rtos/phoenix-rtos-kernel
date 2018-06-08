@@ -31,7 +31,7 @@ __attribute__ ((section (".init"))) void _timer_init(u32 interval)
 
 	timer.interval = interval;
 
-	sbi_call(SBI_SETTIMER, c + 1000000L, 0, 0);
+	sbi_call(SBI_SETTIMER, c + 1000L, 0, 0);
 	csr_set(sie, SIE_STIE);
 
 	return;

@@ -39,6 +39,7 @@
 _start:
 	/* Mask all interrupts */
 	csrw sie, zero
+	csrw sscratch, zero
 
 	/* Load the global pointer */
 //.option push

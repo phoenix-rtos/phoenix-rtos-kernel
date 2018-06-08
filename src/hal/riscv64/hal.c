@@ -42,10 +42,17 @@ void _hal_start(void)
 __attribute__ ((section (".init"))) void _hal_init(void)
 {
 	_hal_spinlockInit();
+
+
 	_hal_consoleInit();
+
+
 	
 	/*_hal_exceptionsInit();*/
 	_hal_interruptsInit();
+
+//lib_printf("ssss2\n");
+//for (;;);
 
 	_timer_init(1000);
 /*	_hal_cpuInit();*/

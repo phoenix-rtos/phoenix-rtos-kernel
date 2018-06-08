@@ -33,6 +33,8 @@ int hal_platformctl(void *ptr)
 
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
+	cpu_context_t *ctx;
+
 	*nctx = NULL;
 	if (kstack == NULL)
 		return -EINVAL;
@@ -40,15 +42,35 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	if (kstacksz < sizeof(cpu_context_t))
 		return -EINVAL;
 
+	ctx = (cpu_context_t *)(kstack + kstacksz - 2 * sizeof(cpu_context_t));
+
+	ctx->pc = start;
+	ctx->sepc = start;
+	ctx->ksp = ctx;
+	ctx->sstatus = csr_read(sstatus) | SR_SPIE;
+	ctx->sscratch = ctx;
+
+	ctx->s0 = ctx;
+	ctx->s1 = 0;
+
+	ctx->sp = ctx;
+	ctx->a0 = arg;
+
+	*nctx = ctx;
+
 	return EOK;
 }
 
 
-int hal_cpuReschedule(spinlock_t *lock)
+/*int hal_cpuReschedule(spinlock_t *lock)
 {
-	for (;;);
+//	for (;;);
 	return EOK;
-}
+}*/
+
+
+
+
 
 
 void _hal_cpuSetKernelStack(void *kstack)

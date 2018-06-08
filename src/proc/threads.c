@@ -5,7 +5,7 @@
  *
  * Thread manager
  *
- * Copyright 2012-2015, 2017 Phoenix Systems
+ * Copyright 2012-2015, 2017, 2018 Phoenix Systems
  * Copyright 2001, 2005-2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Jacek Popko, Jan Sikorski
  *
@@ -155,6 +155,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		/* MOD - test presence for all cores */
 		if (t != threads_common.current[hal_cpuGetID()])
 			LIST_ADD(&threads_common.ready[t->priority], t);
+
 	}
 
 	_threads_updateWakeup(now, t);
@@ -333,17 +334,13 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	threads_cpuTimeCalc(current, selected);
 #endif
 
-	hal_spinlockClear(&threads_common.spinlock);
-
 	/* Test stack usage */
 	if (selected != NULL && !selected->execfl && ((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
-#ifdef CPU_IA32
-		lib_printf("proc: Stack limit exceeded, sp=%p %p pc=%p %p\n", &selected, selected->kstack, selected->id, selected->context->eip);
+		lib_printf("proc: Stack limit exceeded, sp=%p\n", selected->context);
 		for (;;);
-#else
-		lib_printf("proc: Stack limit exceeded, sp=%p %p pc=%p %p\n", &selected, selected->kstack, selected->id, selected->context->pc);
-#endif
 	}
+
+	hal_spinlockClear(&threads_common.spinlock);
 
 	return EOK;
 }
@@ -596,6 +593,7 @@ static void proc_cleanupZombie(process_t *proc)
 	vm_kfree(proc);
 }
 
+
 static void proc_cleanupGhost(thread_t *thr)
 {
 	proc_lockSet(&threads_common.lock);
@@ -659,7 +657,9 @@ int proc_threadSleep(unsigned int us)
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 
 	_threads_updateWakeup(now, NULL);
+
 	err = hal_cpuReschedule(&threads_common.spinlock);
+
 	proc_threadProtect();
 
 	return err;
@@ -1052,6 +1052,7 @@ static void threads_idlethr(void *arg)
 	process_t *zombie;
 
 	for (;;) {
+
 		/* Don't grab spinlocks unless there is something to clean up */
 		if (threads_common.ghosts != NULL) {
 			do {

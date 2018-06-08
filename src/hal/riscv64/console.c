@@ -21,7 +21,7 @@
 
 
 struct {
-	spinlock_t lock;
+	spinlock_t spinlock;
 } console_common;
 
 
@@ -35,6 +35,8 @@ static void _console_print(const char *s)
 
 void hal_consolePrint(int attr, const char *s)
 {
+	hal_spinlockSet(&console_common.spinlock);
+
 	if (attr == ATTR_BOLD) {
 		_console_print("\033[1m");
 		_console_print(s);
@@ -47,11 +49,14 @@ void hal_consolePrint(int attr, const char *s)
 	}
 	else
 		_console_print(s);
+
+	hal_spinlockClear(&console_common.spinlock);
 }
 
 
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
+	hal_spinlockCreate(&console_common.spinlock, "console.spinlock");
 
 	return;
 }

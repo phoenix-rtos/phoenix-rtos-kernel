@@ -37,8 +37,7 @@ static void test_proc_indthr(void *arg)
 	char *indicator = "o|/-\\|/-\\";
 
 	lib_printf("test: [proc.threads] Starting indicating thread\n");
-
-	lib_printf("\033[?25l");
+	hal_consolePrint(ATTR_USER, "\033[?25l");
 
 	for (;;) {
 		lib_printf("\rtest: [proc.threads] %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d",
@@ -111,16 +110,16 @@ void test_proc_threads1(void)
 	for (i = 0; i < 8; i++)
 		test_proc_common.rotations[i] = 0;
 
-	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 512, NULL, 0, NULL);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, 512, NULL, 0, (void *)1);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, 512, NULL, 0, (void *)2);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, 512, NULL, 0, (void *)3);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, 512, NULL, 0, (void *)4);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, 512, NULL, 0, (void *)5);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, 512, NULL, 0, (void *)6);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, 512, NULL, 0, (void *)7);
+	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 1024, NULL, 0, NULL);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, 1024, NULL, 0, (void *)1);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, 1024, NULL, 0, (void *)2);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, 1024, NULL, 0, (void *)3);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, 1024, NULL, 0, (void *)4);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, 1024, NULL, 0, (void *)5);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, 1024, NULL, 0, (void *)6);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, 1024, NULL, 0, (void *)7);
 
-	proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 512, NULL, 0, NULL);
+	proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 1024, NULL, 0, NULL);
 }
 
 

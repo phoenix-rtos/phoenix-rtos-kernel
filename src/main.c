@@ -144,14 +144,12 @@ int main(void)
 	/* Start tests */
 
 	/*
+	test_proc_threads1();
 	test_vm_kmallocsim();
-	test_proc_threads2();
 	test_proc_conditional();
-
 	test_vm_alloc();
 	test_vm_kmalloc();
 	test_proc_exit();
-
 	*/
 
 	proc_start(main_initthr, NULL, (const char *)"init");

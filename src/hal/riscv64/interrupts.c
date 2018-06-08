@@ -78,6 +78,7 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 		return;
 
 	hal_spinlockSet(&interrupts.spinlocks[n]);
+//lib_printf("a\n");
 
 	interrupts.counters[n]++;
 
@@ -91,7 +92,6 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 		} while ((h = h->next) != interrupts.handlers[n]);
 	}
 
-//	_interrupts_apicACK(n);
 	hal_spinlockClear(&interrupts.spinlocks[n]);
 
 	return;
@@ -125,16 +125,19 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 
 
-__attribute__((aligned(4))) void handler(void) 
+//__attribute__((aligned(4))) void handler(cpu_context_t *ctx) 
+__attribute__((aligned(4))) void handler(cpu_context_t *ctx) 
 {
-	lib_printf("tick\n");
+//	lib_printf("tick: %p\n", ctx);
 
 	cycles_t c = hal_cpuGetCycles2();
-	sbi_call(SBI_SETTIMER, c + 200000, 0, 0);
+	sbi_call(SBI_SETTIMER, c + 1000, 0, 0);
 	csr_set(sie, SIE_STIE);
-
-	asm volatile ("sret"::);
+//	__asm__ ("sret");
 }
+
+
+extern void interrupts_handleintexc(void *);
 
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
@@ -149,7 +152,7 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	/* Enable HART interrupts */
 	csr_write(sscratch, 0);
 	csr_write(sie, -1);
-	csr_write(stvec, handler);
+	csr_write(stvec, interrupts_handleintexc);
 	
 	return;
 }
