@@ -57,7 +57,7 @@ typedef struct _msg_t {
 				oid_t dir;
 				int type;
 				u32 mode;
-				u32 port;
+				oid_t dev;
 			} create;
 
 			/* DESTROY */
