@@ -307,7 +307,8 @@ int proc_create(int port, oid_t *oid, int type)
 	kmsg->msg.type = mtCreate;
 	kmsg->msg.i.create.type = type;
 	kmsg->msg.i.create.mode = 0;
-	kmsg->msg.i.create.port = 0;
+	kmsg->msg.i.create.dev.port = 0;
+	kmsg->msg.i.create.dev.id = 0;
 
 	err = proc_send(port, kmsg);
 

@@ -61,4 +61,5 @@
 	ID(44, syscalls_signalHandle, signalHandle) \
 	ID(45, syscalls_signalPost, signalPost) \
 	ID(46, syscalls_signalReturn, signalReturn) \
-	ID(47, syscalls_signalMask, signalMask)
+	ID(47, syscalls_signalMask, signalMask) \
+	ID(48, syscalls_priority, priority)

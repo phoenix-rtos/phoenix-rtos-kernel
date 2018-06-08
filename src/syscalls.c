@@ -219,6 +219,24 @@ int syscalls_usleep(void *ustack)
 }
 
 
+int syscalls_priority(void *ustack)
+{
+	int priority;
+	thread_t *thread;
+
+	GETFROMSTACK(ustack, int, priority, 0);
+
+	thread = proc_current();
+
+	if (priority == -1)
+		return thread->priority;
+	else if (priority >= 0 && priority <= 7)
+		return thread->priority = priority;
+
+	return -EINVAL;
+}
+
+
 /*
  * System state info
  */
