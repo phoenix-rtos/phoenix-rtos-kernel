@@ -179,6 +179,12 @@ int syscalls_getppid(void *ustack)
  */
 
 
+int syscalls_gettid(void *ustack)
+{
+	return (int)proc_current()->id;
+}
+
+
 int syscalls_beginthreadex(void *ustack)
 {
 	void (*start)(void *);
@@ -289,35 +295,21 @@ int syscalls_mutexLock(void *ustack)
 }
 
 
+int syscalls_mutexTry(void *ustack)
+{
+	unsigned int h;
+
+	GETFROMSTACK(ustack, unsigned int, h, 0);
+	return proc_mutexTry(h);
+}
+
+
 int syscalls_mutexUnlock(void *ustack)
 {
 	unsigned int h;
 
 	GETFROMSTACK(ustack, unsigned int, h, 0);
 	return proc_mutexUnlock(h);
-}
-
-
-/*
- * Semaphores
- */
-
-
-int syscalls_semaphoreCreate(void *ustack)
-{
-	return EOK;
-}
-
-
-int syscalls_semaphoreDown(void *ustack)
-{
-	return EOK;
-}
-
-
-int syscalls_semaphoreUp(void *ustack)
-{
-	return EOK;
 }
 
 

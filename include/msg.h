@@ -54,6 +54,7 @@ typedef struct _msg_t {
 
 			/* CREATE */
 			struct {
+				oid_t dir;
 				int type;
 				u32 mode;
 				u32 port;

@@ -104,4 +104,6 @@ extern void proc_exit(int code);
 extern int _process_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
+extern void process_dumpException(unsigned int n, exc_context_t *exc);
+
 #endif

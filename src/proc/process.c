@@ -128,7 +128,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	//stack = (void *)VADDR_MIN;
 #endif
 
-	/* Initialize resources tree for mutex, cond, semaphores handles */
+	/* Initialize resources tree for mutex and cond handles */
 	resource_init(process);
 
 	if (proc_threadCreate(process, (void *)initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
@@ -152,6 +152,7 @@ void proc_kill(process_t *proc)
 	proc_lockClear(&process_common.lock);
 
 	proc_threadsDestroy(proc);
+	proc_resourcesFree(proc);
 	proc_zombie(proc);
 
 	if (proc == proc_current()->process)
@@ -159,7 +160,7 @@ void proc_kill(process_t *proc)
 }
 
 
-void process_exception(unsigned int n, exc_context_t *ctx)
+void process_dumpException(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
@@ -169,13 +170,23 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 	hal_consolePrint(ATTR_BOLD, buff);
 	hal_consolePrint(ATTR_BOLD, "\n");
 
-	if (process == NULL) {
+	if (process == NULL)
 		lib_printf("in kernel thread %x\n", thread->id);
-		hal_cpuHalt();
-	}
+	else
+		lib_printf("in thread %x, process \"%s\" (%x)\n", thread->id, process->path, process->id);
+}
 
-	lib_printf("in thread %x, process \"%s\" (%x)\n", thread->id, process->path, process->id);
-	proc_sigpost(process, thread, signal_kill);
+
+void process_exception(unsigned int n, exc_context_t *ctx)
+{
+	thread_t *thread = proc_current();
+
+	process_dumpException(n, ctx);
+
+	if (thread->process == NULL)
+		hal_cpuHalt();
+
+	proc_sigpost(thread->process, thread, signal_kill);
 	hal_cpuReschedule(NULL);
 }
 
@@ -332,7 +343,7 @@ int proc_vfork(void)
 	LIST_ADD(&process->parent->childs, process);
 	proc_lockClear(&process->parent->lock);
 
-	/* Initialize resources tree for mutex, cond, semaphore and file handles */
+	/* Initialize resources tree for mutex, cond and file handles */
 	resource_init(process);
 
 	current->execwaitq = NULL;

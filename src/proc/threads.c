@@ -145,7 +145,6 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
 		t->state = READY;
-		t->wakeup = 0;
 
 		if (t->wait != NULL) {
 			LIST_REMOVE(t->wait, t);
@@ -568,8 +567,6 @@ static void proc_cleanupZombie(process_t *proc)
 	int i = 0;
 	addr_t a;
 #endif
-
-	proc_resourcesFree(proc);
 
 	if (proc->mapp != NULL)
 		vm_mapDestroy(proc, proc->mapp);
@@ -997,6 +994,24 @@ int proc_lockSet(lock_t *lock)
 	hal_spinlockSet(&lock->spinlock);
 	err = _proc_lockSet(lock);
 	hal_spinlockClear(&lock->spinlock);
+	return err;
+}
+
+
+int proc_lockTry(lock_t *lock)
+{
+	int err = EOK;
+
+	if (!hal_started())
+		return -EINVAL;
+
+	hal_spinlockSet(&lock->spinlock);
+	if (lock->v == 0)
+		err = -EBUSY;
+
+	lock->v = 0;
+	hal_spinlockClear(&lock->spinlock);
+
 	return err;
 }
 

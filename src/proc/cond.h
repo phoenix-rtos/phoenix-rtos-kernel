@@ -19,6 +19,7 @@
 
 #include HAL
 #include "threads.h"
+#include "resource.h"
 
 
 extern int proc_condCreate(unsigned int *h);
@@ -29,5 +30,7 @@ extern int proc_condWait(unsigned int c, unsigned int m, time_t timeout);
 
 extern int proc_condSignal(process_t *process, unsigned int c);
 
+
+extern int proc_condCopy(resource_t *dst, resource_t *src);
 
 #endif

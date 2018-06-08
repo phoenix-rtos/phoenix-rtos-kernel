@@ -5,8 +5,8 @@
  *
  * Process resources
  *
- * Copyright 2017 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2017, 2018 Phoenix Systems
+ * Author: Pawel Pisarczyk, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -17,7 +17,7 @@
 #define _PROC_RESOURCE_H_
 
 #include HAL
-#include "cond.h"
+#include "threads.h"
 
 
 typedef struct _resource_t {

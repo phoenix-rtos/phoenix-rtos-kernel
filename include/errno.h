@@ -53,7 +53,6 @@
 #define ERANGE       34      /* Math result not representable */
 
 #define ENOSYS       35      /* Function not supported */
-#define EAFNOSUPPORT 36      /* Address family not supported. */
 #define ETIME        37
 #define EWOULDBLOCK  EAGAIN  /* Operation would block */
 

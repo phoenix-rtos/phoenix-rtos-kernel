@@ -112,3 +112,13 @@ int proc_fileRemove(unsigned int h)
 
 	return EOK;
 }
+
+
+int proc_fileCopy(resource_t *dst, resource_t *src)
+{
+	dst->type = rtFile;
+	hal_memcpy(&dst->oid, &src->oid, sizeof(oid_t));
+	dst->offs = src->offs;
+
+	return EOK;
+}
