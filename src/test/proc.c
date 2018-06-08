@@ -105,19 +105,19 @@ static void test_proc_rotthr1(void *arg)
 
 void test_proc_threads1(void)
 {
-	unsigned int i;
+	unsigned int i, stacksz = 1384;
 
 	for (i = 0; i < 8; i++)
 		test_proc_common.rotations[i] = 0;
 
-	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 1024, NULL, 0, NULL);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, 1024, NULL, 0, (void *)1);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, 1024, NULL, 0, (void *)2);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, 1024, NULL, 0, (void *)3);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, 1024, NULL, 0, (void *)4);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, 1024, NULL, 0, (void *)5);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, 1024, NULL, 0, (void *)6);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, 1024, NULL, 0, (void *)7);
+	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, stacksz, NULL, 0, NULL);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, stacksz, NULL, 0, (void *)1);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, stacksz, NULL, 0, (void *)2);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, stacksz, NULL, 0, (void *)3);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, stacksz, NULL, 0, (void *)4);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, stacksz, NULL, 0, (void *)5);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, stacksz, NULL, 0, (void *)6);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, stacksz, NULL, 0, (void *)7);
 
 	proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 1024, NULL, 0, NULL);
 }

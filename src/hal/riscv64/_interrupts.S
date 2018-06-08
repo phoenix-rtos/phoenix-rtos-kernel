@@ -5,9 +5,8 @@
  *
  * Interrupt stubs
  *
- * Copyright 2012, 2016 Phoenix Systems
- * Copyright 2001, 2005 Pawel Pisarczyk
- * Author; Pawel Pisarczyk, Jan Sikorski
+ * Copyright 2018 Phoenix Systems
+ * Author; Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -204,6 +203,7 @@ hal_cpuReschedule:
 	ori t0, t0, 0x100
 	andi t1, t0, 0x2
 	sll t1, t1, 4
+	andi t0, t0, ~2
 	or t0, t0, t1
 	sd t0, 240(sp)
 

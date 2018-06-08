@@ -133,7 +133,6 @@ __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 	cycles_t c = hal_cpuGetCycles2();
 	sbi_call(SBI_SETTIMER, c + 1000, 0, 0);
 	csr_set(sie, SIE_STIE);
-//	__asm__ ("sret");
 }
 
 

@@ -54,9 +54,6 @@ static inline void hal_spinlockSet(spinlock_t *spinlock)
 }
 
 
-		
-
-
 static inline void hal_spinlockClear(spinlock_t *spinlock)
 {
 	hal_cpuGetCycles((void *)&spinlock->e);
