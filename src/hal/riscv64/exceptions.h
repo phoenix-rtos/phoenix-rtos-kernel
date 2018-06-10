@@ -22,8 +22,8 @@
 
 #define EXC_DEFAULT    128
 
-#define EXC_UNDEFINED  0
-//#define EXC_PAGEFAULT  0
+#define EXC_UNDEFINED  2
+#define EXC_PAGEFAULT  7
 
 
 typedef cpu_context_t exc_context_t;

@@ -28,6 +28,7 @@
 
 struct {
 	void (*handlers[SIZE_EXCEPTIONS])(unsigned int, exc_context_t *);
+	void (*defaultHandler)(unsigned int, exc_context_t *);
 	spinlock_t spinlock;
 } exceptions_common;
 
@@ -118,6 +119,12 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 }
 
 
+static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
+{
+	exceptions_common.defaultHandler(n, ctx);
+}
+
+
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	void (*h)(unsigned int, exc_context_t *);
@@ -125,7 +132,7 @@ void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (n >= SIZE_EXCEPTIONS)
 		return;
 
-n = 5;
+//n = 5;
 	hal_spinlockSet(&exceptions_common.spinlock);
 	h = exceptions_common.handlers[n];
 	hal_spinlockClear(&exceptions_common.spinlock);
@@ -138,6 +145,13 @@ n = 5;
 
 int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
 {
+	if (n == EXC_DEFAULT) {
+		hal_spinlockSet(&exceptions_common.spinlock);
+		exceptions_common.defaultHandler = handler;
+		hal_spinlockClear(&exceptions_common.spinlock);
+
+		return EOK;
+	}
 
 	if (n >= SIZE_EXCEPTIONS)
 		return -EINVAL;
@@ -156,9 +170,10 @@ __attribute__ ((section (".init"))) void _hal_exceptionsInit(void)
 	unsigned int k;
 
 	hal_spinlockCreate(&exceptions_common.spinlock, "exceptions_common.spinlock");
+	exceptions_common.defaultHandler = (void *)exceptions_defaultHandler;
 
 	for (k = 0; k < SIZE_EXCEPTIONS; k++)
-		exceptions_common.handlers[k] = exceptions_defaultHandler;
+		exceptions_common.handlers[k] = exceptions_trampoline;
 
 	return;
 }
