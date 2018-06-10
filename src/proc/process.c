@@ -164,7 +164,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
-	char buff[512];
+	char buff[SIZE_CTXDUMP];
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);

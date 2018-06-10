@@ -26,6 +26,9 @@
 #define EXC_PAGEFAULT  7
 
 
+#define SIZE_CTXDUMP   1024     /* Size of dumped context */
+
+
 typedef cpu_context_t exc_context_t;
 
 

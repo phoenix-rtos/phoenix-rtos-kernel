@@ -18,7 +18,7 @@
 
 
 /* Size of thread kernel stack */
-#define SIZE_KSTACK  16 * 512
+#define SIZE_KSTACK  8 * 512
 
 
 #define NULL 0

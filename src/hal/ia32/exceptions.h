@@ -29,6 +29,8 @@
 #define EXC_UNDEFINED  6
 #define EXC_PAGEFAULT  14
 
+#define SIZE_CTXDUMP   512    /* Size of dumped context */
+
 
 #pragma pack(1)
 
