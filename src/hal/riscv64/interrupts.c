@@ -78,7 +78,6 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 		return;
 
 	hal_spinlockSet(&interrupts.spinlocks[n]);
-//lib_printf("a\n");
 
 	interrupts.counters[n]++;
 
@@ -124,12 +123,8 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
-
-//__attribute__((aligned(4))) void handler(cpu_context_t *ctx) 
 __attribute__((aligned(4))) void handler(cpu_context_t *ctx) 
 {
-//	lib_printf("tick: %p\n", ctx);
-
 	cycles_t c = hal_cpuGetCycles2();
 	sbi_call(SBI_SETTIMER, c + 1000, 0, 0);
 	csr_set(sie, SIE_STIE);
@@ -137,6 +132,7 @@ __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 
 
 extern void interrupts_handleintexc(void *);
+
 
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {

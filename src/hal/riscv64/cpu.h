@@ -192,6 +192,7 @@ static inline time_t hal_cpuLowPower(time_t ms)
 
 static inline void hal_cpuHalt(void)
 {
+	__asm__ ("wfi");
 }
 
 

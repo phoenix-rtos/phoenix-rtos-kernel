@@ -6,7 +6,7 @@
  * Exception handling
  *
  * Copyright 2018 Phoenix Systems
- * Author: Jan Sikorski
+ * Author: Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -23,12 +23,10 @@
 #define EXC_DEFAULT    128
 
 #define EXC_UNDEFINED  0
-#define EXC_PAGEFAULT  0
+//#define EXC_PAGEFAULT  0
 
 
-typedef struct {
-
-} exc_context_t;
+typedef cpu_context_t exc_context_t;
 
 
 static inline int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
@@ -43,14 +41,13 @@ static inline void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 }
 
 
-static inline void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
-{
-}
+extern void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n);
 
 
-static inline int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
-{
-	return 0;
-}
+extern int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *));
+
+
+extern void _hal_exceptionsInit(void);
+
 
 #endif

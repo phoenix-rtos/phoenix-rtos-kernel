@@ -23,7 +23,7 @@
 	csrc sstatus, 2
 	addi sp, sp, -16
 
-	j 11f
+	j 1f
 
 	/* If coming from userspace sscratch register holds kernel stack */
 	csrrw tp, sscratch, tp
@@ -35,7 +35,7 @@
 	ld sp, -8(tp)
 	mv sp, tp
 	addi sp, sp, -16
-11:
+1:
 	addi sp, sp, -272
 	sd x1, (sp)          /* ra */
 	sd x3, 8(sp)         /* gp */
@@ -138,14 +138,14 @@
 
 //	csrr s0, sstatus
 	addi sp, sp, 272
-	j 111f
+	j 1f
 
-	beqz tp, 111f
+	beqz tp, 1f
 	addi sp, sp, 16
 	ld tp, -8(sp)
 	ld sp, (sp)
 
-111:
+1:
 	addi sp, sp, 16
 //	li tp, 0
 .endm
@@ -170,6 +170,10 @@ interrupts_handleintexc:
 
 //	call interrupts_checkSignal
 2:
+	mv a0, s4
+	andi a0, a0, 0xf
+	mv a1, sp
+	call exceptions_dispatch
 	j 2b
 3:
 	RESTORE

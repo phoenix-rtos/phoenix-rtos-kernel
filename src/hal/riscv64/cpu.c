@@ -44,33 +44,22 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	ctx = (cpu_context_t *)(kstack + kstacksz - 2 * sizeof(cpu_context_t));
 
-	ctx->pc = start;
-	ctx->sepc = start;
-	ctx->ksp = ctx;
+	ctx->pc = (u64)start;
+	ctx->sepc = (u64)start;
+	ctx->ksp = (u64)ctx;
 	ctx->sstatus = csr_read(sstatus) | SR_SPIE;
-	ctx->sscratch = ctx;
+	ctx->sscratch = (u64)ctx;
 
-	ctx->s0 = ctx;
+	ctx->s0 = (u64)ctx;
 	ctx->s1 = 0;
 
-	ctx->sp = ctx;
-	ctx->a0 = arg;
+	ctx->sp = (u64)ctx;
+	ctx->a0 = (u64)arg;
 
 	*nctx = ctx;
 
 	return EOK;
 }
-
-
-/*int hal_cpuReschedule(spinlock_t *lock)
-{
-//	for (;;);
-	return EOK;
-}*/
-
-
-
-
 
 
 void _hal_cpuSetKernelStack(void *kstack)
