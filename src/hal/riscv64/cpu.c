@@ -45,16 +45,48 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx = (cpu_context_t *)(kstack + kstacksz - 2 * sizeof(cpu_context_t));
 
 	ctx->pc = (u64)start;
+	ctx->sp = (u64)ctx;
+
+	ctx->t0 = 0;
+	ctx->t1 = 0x0101010101010101;
+	ctx->t2 = 0x0202020202020202;
+
+	ctx->s0 = (u64)ctx;
+	ctx->s1 = 0x0404040404040404;
+	ctx->a0 = (u64)arg;
+	ctx->a1 = 0x0606060606060606;
+
+	ctx->a2 = 0x0707070707070707;
+	ctx->a3 = 0x0808080808080808;
+	ctx->a4 = 0x0909090909090909;
+	ctx->a5 = 0x0a0a0a0a0a0a0a0a;
+
+	ctx->a6 = 0x0b0b0b0b0b0b0b0b;
+	ctx->a7 = 0x0c0c0c0c0c0c0c0c;
+	ctx->s2 = 0x0d0d0d0d0d0d0d0d;
+	ctx->s3 = 0x0e0e0e0e0e0e0e0e;
+
+	ctx->s4 = 0x0f0f0f0f0f0f0f0f;
+	ctx->s5 = 0x1010101010101010;
+	ctx->s6 = 0x1111111111111111;
+	ctx->s7 = 0x1212121212121212;
+
+	ctx->s8 = 0x1313131313131313;
+	ctx->s9 = 0x1414141414141414;
+	ctx->s10 = 0x1515151515151515;
+	ctx->s11 = 0x1616161616161616;
+
+	ctx->t3 = 0x1717171717171717;
+	ctx->t4 = 0x1818181818181818;
+	ctx->t5 = 0x1919191919191919;
+	ctx->t6 = 0x1a1a1a1a1a1a1a1a;
+
 	ctx->sepc = (u64)start;
 	ctx->ksp = (u64)ctx;
 	ctx->sstatus = csr_read(sstatus) | SR_SPIE;
 	ctx->sscratch = (u64)ctx;
 
-	ctx->s0 = (u64)ctx;
-	ctx->s1 = 0;
 
-	ctx->sp = (u64)ctx;
-	ctx->a0 = (u64)arg;
 
 	*nctx = ctx;
 
