@@ -299,10 +299,10 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 }
 
 
-void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags)
+void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
 {
 	proc_lockSet(&map->lock);
-	vaddr = _map_map(map, vaddr, NULL, size, PROT_NONE, map_common.kernel, -1, flags, NULL);
+	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, -1, flags, NULL);
 	proc_lockClear(&map->lock);
 
 	return vaddr;
@@ -710,7 +710,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 		f->object = vm_objectRef(e->object);
 		_map_add(proc, dst, f);
 
-		if (e->prot & PROT_WRITE) {
+		if ((e->prot & PROT_WRITE) && !(e->flags & MAP_DEVICE)) {
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 

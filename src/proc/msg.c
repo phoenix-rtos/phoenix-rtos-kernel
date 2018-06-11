@@ -297,7 +297,7 @@ void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, p
 {
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
-	unsigned int n = 0, i, attr;
+	unsigned int n = 0, i, attr, prot;
 	page_t *ep = NULL, *nep = NULL, *bp = NULL, *nbp = NULL, *p;
 	vm_map_t *srcmap, *dstmap;
 	struct _kmsg_layout_t *ml = dir ? &kmsg->o : &kmsg->i;
@@ -306,12 +306,17 @@ void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, p
 		return EOK;
 
 	attr = PGHD_PRESENT;
+	prot = PROT_READ;
 
-	if (dir)
+	if (dir) {
 		attr |= PGHD_WRITE;
+		prot |= PROT_WRITE;
+	}
 
-	if (to != NULL)
+	if (to != NULL) {
 		attr |= PGHD_USER;
+		prot |= PROT_USER;
+	}
 
 	boffs = (unsigned long)data & (SIZE_PAGE - 1);
 
@@ -330,7 +335,7 @@ void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, p
 	if (srcmap == dstmap)
 		return data;
 
-	if ((ml->w = w = vm_mapFind(dstmap, (void *)0, (!!boffs + !!eoffs + n) * SIZE_PAGE, MAP_NOINHERIT)) == NULL)
+	if ((ml->w = w = vm_mapFind(dstmap, (void *)0, (!!boffs + !!eoffs + n) * SIZE_PAGE, MAP_NOINHERIT, prot)) == NULL)
 		return NULL;
 
 	if (boffs > 0) {
