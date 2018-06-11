@@ -37,7 +37,7 @@ typedef struct syspage_program_t {
 		u32 vaddr;
 		u32 filesz;
 		u32 align;
-	} hdrs[1];
+	} hdrs[3];
 } syspage_program_t;
 
 
