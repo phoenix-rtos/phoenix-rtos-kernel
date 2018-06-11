@@ -40,6 +40,13 @@
 })
 
 
+#define swap(a, b) ({ \
+	__typeof__ (a) tmp = (a); \
+	(a) = (b); \
+	(b) = (tmp); \
+})
+
+
 static inline int abs(int val)
 {
 	return (val < 0 ? -val : val);

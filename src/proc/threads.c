@@ -1037,6 +1037,24 @@ int proc_lockClear(lock_t *lock)
 }
 
 
+int proc_lockSet2(lock_t *l1, lock_t *l2)
+{
+	int err;
+
+	if ((err = proc_lockSet(l1)) < 0)
+		return err;
+
+	while (proc_lockTry(l2) < 0) {
+		proc_lockClear(l1);
+		if ((err = proc_lockSet(l2)) < 0)
+			return err;
+		swap(l1, l2);
+	}
+	return EOK;
+}
+
+
+
 int proc_lockInit(lock_t *lock)
 {
 	lock->owner = NULL;

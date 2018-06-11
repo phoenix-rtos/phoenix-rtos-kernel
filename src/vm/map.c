@@ -689,8 +689,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 	map_entry_t *e, *f;
 	int offs;
 
-	proc_lockSet(&src->lock);
-	proc_lockSet(&dst->lock);
+	proc_lockSet2(&src->lock, &dst->lock);
 
 	for (n = lib_rbMinimum(src->tree.root); n != NULL; n = lib_rbNext(n)) {
 		e = lib_treeof(map_entry_t, linkage, n);
@@ -699,6 +698,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			continue;
 
 		if ((f = map_alloc()) == NULL) {
+			proc_lockClear(&dst->lock);
 			proc_lockClear(&src->lock);
 			vm_mapDestroy(proc, dst);
 			return -ENOMEM;
