@@ -586,9 +586,9 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, kmsg->o.eoffs);
 
 	msg_release(kmsg);
-
-	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
 #endif
+	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
+
 	hal_spinlockSet(&p->spinlock);
 	kmsg->responded = 1;
 	kmsg->src = proc_current()->process;
