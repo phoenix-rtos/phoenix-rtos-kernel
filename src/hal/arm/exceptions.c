@@ -193,7 +193,8 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 	}
 
 	if (status != EXC_ACCESS_SECTION && status != EXC_ACCESS_PAGE &&
-		status != EXC_PERM_SECTION && status != EXC_PERM_PAGE)
+		status != EXC_PERM_SECTION && status != EXC_PERM_PAGE &&
+		status != EXC_TRANSLATION_PAGE)
 		return NULL;
 
 	return addr;
