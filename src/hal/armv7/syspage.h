@@ -21,7 +21,7 @@
 
 #ifndef __ASSEMBLY__
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 typedef struct syspage_program_t {
 	void *entry;
@@ -48,7 +48,7 @@ typedef struct _syspage_t {
 	syspage_program_t progs[0];
 } syspage_t;
 
-#pragma pack(4)
+#pragma pack(pop)
 
 
 /* Syspage */

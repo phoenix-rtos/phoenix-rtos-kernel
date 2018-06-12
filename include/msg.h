@@ -34,6 +34,9 @@ enum {
 } type;
 
 
+#pragma pack(push, 8)
+
+
 typedef struct _msg_t {
 	int type;
 	
@@ -127,6 +130,9 @@ typedef struct _msg_t {
 	} o;
 
 } msg_t;
+
+
+#pragma pack(pop)
 
 
 #endif

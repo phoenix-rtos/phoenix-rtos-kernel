@@ -70,7 +70,7 @@ typedef struct _oid_t {
 } oid_t;
 
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
 typedef struct {
@@ -123,7 +123,7 @@ typedef struct {
 
 } cpu_context_t;
 
-#pragma pack(8)
+#pragma pack(pop)
 
 
 /* CSR routines */

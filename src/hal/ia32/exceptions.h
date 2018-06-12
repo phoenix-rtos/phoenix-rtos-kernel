@@ -32,7 +32,7 @@
 #define SIZE_CTXDUMP   512    /* Size of dumped context */
 
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 typedef struct {
 	u32 dr0;
@@ -60,7 +60,7 @@ typedef struct {
 	u32 ss;
 } exc_context_t;
 
-#pragma pack(4)
+#pragma pack(pop)
 
 
 static inline int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)

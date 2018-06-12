@@ -49,7 +49,7 @@ typedef int            Elf32_Sword;
 #define PF_W          0x2
 #define PF_R          0x4
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 typedef struct {
 	unsigned char e_ident[EI_NIDENT];
@@ -95,7 +95,7 @@ typedef struct {
 } Elf32_Phdr;
 
 
-#pragma pack(4)
+#pragma pack(pop)
 
 
 #endif

@@ -136,7 +136,7 @@ typedef struct _oid_t {
 	id_t id;
 } oid_t;
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
 typedef struct {
@@ -198,7 +198,7 @@ typedef struct {
 	u16 iomap;
 } tss_t;
 
-#pragma pack(4)
+#pragma pack(pop)
 
 
 /* platform specific syscall */
