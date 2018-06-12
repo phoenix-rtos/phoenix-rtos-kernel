@@ -17,7 +17,7 @@
 #define _PHOENIX_SYSINFO_H_
 
 #ifndef HAL
-#include ARCH
+#include <arch.h>
 #endif
 
 
