@@ -64,10 +64,22 @@ void hal_consolePrint(int attr, const char *s)
 
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
-
 	console_common.uart1 = (void *)(((u32)_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	console_common.uart2 = (void *)(((u32)_end + (2 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
 	console_common.speed = 115200;
+
+	*(console_common.UART + ucr2) &= ~0x1;
+	while (*(console_common.UART + uts) & 0x1);
+
+	*(console_common.UART + ucr1) = 0x1;
+	*(console_common.UART + ucr2) = 0x4026;
+	*(console_common.UART + ucr3) = 0x704;
+	*(console_common.UART + ucr4) = 0x8000;
+	*(console_common.UART + ufcr) = 0x901;
+	*(console_common.UART + uesc) = 0x2b;
+	*(console_common.UART + utim) = 0x0;
+	*(console_common.UART + ubir) = 0x11ff;
+	*(console_common.UART + ubmr) = 0xc34f;
 
 	_console_print("\033[2J");
 	_console_print("\033[0;0f");

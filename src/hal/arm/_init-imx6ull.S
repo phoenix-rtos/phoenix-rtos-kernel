@@ -512,7 +512,7 @@ kernel_ttl2:
 	str r1, [r0]
 
 	/* Enable UART1 clock */
-	ldr r0, =0x020c4000
+	ldr r0, =0x020c407c
 	ldr r1, [r0]
 	orr r1, r1, #(3 << 24)
 	str r1, [r0]
