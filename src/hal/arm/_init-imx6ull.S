@@ -888,17 +888,6 @@ hal_cpuGetCycles:
 .size hal_cpuGetCycles, .-hal_cpuGetCycles
 
 
-.globl hal_cpuCleanDataCache
-.type hal_cpuCleanDataCache, %function
-hal_cpuCleanDataCache:
-	ldr r1, =SIZE_CACHE_LINE - 1
-	bic r0, r0, r1
-	mcr p15, 0, r0, c7, c11, 1
-	isb
-	bx lr
-.size hal_cpuCleanDataCache, .-hal_cpuCleanDataCache
-
-
 .globl hal_cpuFlushDataCache
 .type hal_cpuFlushDataCache, %function
 hal_cpuFlushDataCache:

@@ -17,7 +17,6 @@
 #include "cpu.h"
 #include "spinlock.h"
 #include "string.h"
-#include "lib/lib.h"
 
 #include "../../../include/errno.h"
 #include "../../../include/mman.h"
@@ -124,12 +123,15 @@ static void _pmap_asidAlloc(pmap_t *pmap)
 static void _pmap_asidDealloc(pmap_t *pmap)
 {
 	pmap_t *last;
+	addr_t tmp;
 
 	if (pmap->asid_ix != 0) {
 		if (pmap->asid_ix != pmap_common.asidptr) {
 			pmap_common.asid_map[pmap->asid_ix] = last = pmap_common.asid_map[pmap_common.asidptr];
 			last->asid_ix = pmap->asid_ix;
-			swap(pmap_common.asids[last->asid_ix], pmap_common.asids[pmap_common.asidptr]);
+			tmp = pmap_common.asids[last->asid_ix];
+			pmap_common.asids[last->asid_ix] = pmap_common.asids[pmap_common.asidptr];
+			pmap_common.asids[pmap_common.asidptr] = tmp;
 		}
 
 		pmap_common.asid_map[pmap_common.asidptr] = NULL;
