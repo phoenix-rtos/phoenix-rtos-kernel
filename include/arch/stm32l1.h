@@ -20,8 +20,8 @@
 /* STM32 peripherals */
 enum {
 	/* AHB */
-	pctl_gpioa = 0, pctl_gpiob, pctl_gpioc, pctl_gpiod, pctl_gpioe, pctl_gpiof, pctl_gpiog,
-	pctl_gpioh, pctl_crc = 12, pctl_flash = 15, pctl_dma1 = 24, pctl_dma2, pctl_aes = 27, pctl_fsmc = 30,
+	pctl_gpioa = 0, pctl_gpiob, pctl_gpioc, pctl_gpiod, pctl_gpioe, pctl_gpioh, pctl_gpiof,
+	pctl_gpiog, pctl_crc = 12, pctl_flash = 15, pctl_dma1 = 24, pctl_dma2, pctl_aes = 27, pctl_fsmc = 30,
 
 	/* APB2 */
 	pctl_syscfg = 32, pctl_tim9 = 34, pctl_tim10, pctl_tim11, pctl_adc1 = 41, pctl_sdio = 43,
