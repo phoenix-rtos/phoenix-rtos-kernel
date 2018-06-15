@@ -92,6 +92,11 @@ extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
 extern addr_t pmap_destroy(pmap_t *pmap, int *i);
 
 
+static inline void pmap_moved(pmap_t *pmap)
+{
+}
+
+
 extern void pmap_switch(pmap_t *pmap);
 
 

@@ -90,6 +90,11 @@ static inline int pmap_belongs(pmap_t *pmap, void *addr)
 extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
 
 
+static inline void pmap_moved(pmap_t *pmap)
+{
+}
+
+
 extern addr_t pmap_destroy(pmap_t *pmap, int *i);
 
 
