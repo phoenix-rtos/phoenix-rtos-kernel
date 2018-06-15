@@ -41,6 +41,7 @@ void _hal_start(void)
 __attribute__ ((section (".init"))) void _hal_init(void)
 {
 	_hal_spinlockInit();
+	_hal_platformInit();
 	_hal_consoleInit();
 
 	_hal_exceptionsInit();
@@ -48,7 +49,6 @@ __attribute__ ((section (".init"))) void _hal_init(void)
 
 	_timer_init(1000);
 	_hal_cpuInit();
-	_hal_platformInit();
 
 	hal_common.started = 0;
 	return;
