@@ -747,6 +747,7 @@ void vm_mapMove(vm_map_t *dst, vm_map_t *src)
 	proc_lockSet(&src->lock);
 	proc_lockDone(&src->lock);
 	hal_memcpy(dst, src, sizeof(vm_map_t));
+	pmap_moved(&dst->pmap);
 	proc_lockInit(&dst->lock);
 	proc_lockSet(&dst->lock);
 

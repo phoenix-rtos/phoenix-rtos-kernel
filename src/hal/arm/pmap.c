@@ -17,6 +17,7 @@
 #include "cpu.h"
 #include "spinlock.h"
 #include "string.h"
+#include "lib/lib.h"
 
 #include "../../../include/errno.h"
 #include "../../../include/mman.h"
@@ -51,6 +52,7 @@ struct {
 	u32 sptab[0x400];
 	u8 heap[SIZE_PAGE];
 	pmap_t *asid_map[256];
+	u8 asids[256];
 	addr_t minAddr;
 	addr_t maxAddr;
 	u32 start;
@@ -99,36 +101,44 @@ static const u16 attrMap[] = {
 };
 
 
-static void pmap_asidAlloc(pmap_t *pmap)
+static void _pmap_asidAlloc(pmap_t *pmap)
 {
-	hal_spinlockSet(&pmap_common.lock);
+	pmap_t *evicted = NULL;
 
-	if (pmap_common.asidptr == 0)
-		++pmap_common.asidptr;
-
-	if ((hal_cpuGetContextId() && 0xff) == pmap_common.asidptr)
-		++pmap_common.asidptr;
-
-	if (pmap_common.asid_map[pmap_common.asidptr] != NULL)
-		pmap_common.asid_map[pmap_common.asidptr]->asid = 0;
+	while (!++pmap_common.asidptr || (evicted = pmap_common.asid_map[pmap_common.asidptr]) != NULL) {
+		if (evicted != NULL) {
+			if ((hal_cpuGetContextId() & 0xff) == pmap_common.asids[evicted->asid_ix])
+				continue;
+			evicted->asid_ix = 0;
+			break;
+		}
+	}
 
 	pmap_common.asid_map[pmap_common.asidptr] = pmap;
-	pmap->asid = pmap_common.asidptr++;
-
-	hal_spinlockClear(&pmap_common.lock);
+	pmap->asid_ix = pmap_common.asidptr;
+	hal_cpuInvalASID(pmap_common.asids[pmap->asid_ix]);
+	hal_cpuDataSyncBarrier();
 }
 
 
-static void pmap_asidDealloc(pmap_t *pmap)
+static void _pmap_asidDealloc(pmap_t *pmap)
 {
-	hal_spinlockSet(&pmap_common.lock);
+	pmap_t *last;
 
-	if (pmap->asid != 0) {
-		pmap_common.asid_map[pmap->asid] = NULL;
-		pmap->asid = 0;
+	if (pmap->asid_ix != 0) {
+		if (pmap->asid_ix != pmap_common.asidptr) {
+			pmap_common.asid_map[pmap->asid_ix] = last = pmap_common.asid_map[pmap_common.asidptr];
+			last->asid_ix = pmap->asid_ix;
+			swap(pmap_common.asids[last->asid_ix], pmap_common.asids[pmap_common.asidptr]);
+		}
+
+		pmap_common.asid_map[pmap_common.asidptr] = NULL;
+
+		if (!--pmap_common.asidptr)
+			pmap_common.asidptr--;
+
+		pmap->asid_ix = 0;
 	}
-
-	hal_spinlockClear(&pmap_common.lock);
 }
 
 
@@ -141,21 +151,36 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 	hal_memset(pmap->pdir, 0, (VADDR_KERNEL) >> 18);
 	hal_memcpy(&pmap->pdir[VADDR_KERNEL >> 20], &kpmap->pdir[VADDR_KERNEL >> 20], (VADDR_MAX - VADDR_KERNEL + 1) >> 18);
 
-	pmap_asidAlloc(pmap);
+	hal_spinlockSet(&pmap_common.lock);
+	_pmap_asidAlloc(pmap);
+	hal_spinlockClear(&pmap_common.lock);
 
 	return EOK;
 }
 
 
+void pmap_moved(pmap_t *pmap)
+{
+	hal_spinlockSet(&pmap_common.lock);
+	pmap_common.asid_map[pmap->asid_ix] = pmap;
+	hal_spinlockClear(&pmap_common.lock);
+}
+
+
 addr_t pmap_destroy(pmap_t *pmap, int *i)
 {
-	int kernel = ((VADDR_KERNEL + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) >> 20;
+	int max = ((VADDR_USR_MAX + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) >> 20;
 
-	pmap_asidDealloc(pmap);
+	hal_spinlockSet(&pmap_common.lock);
+	if (pmap->asid_ix != 0)
+		_pmap_asidDealloc(pmap);
+	hal_spinlockClear(&pmap_common.lock);
 
-	while (*i < kernel) {
-		if (pmap->pdir[*i] != NULL)
-			return pmap->pdir[(*i) += 4] & ~0xfff;
+	while (*i < max) {
+		if (pmap->pdir[*i] != NULL) {
+			*i += 4;
+			return pmap->pdir[*i - 4] & ~0xfff;
+		}
 		(*i) += 4;
 	}
 
@@ -165,19 +190,25 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 
 void pmap_switch(pmap_t *pmap)
 {
-	if (hal_cpuGetUserTT() == pmap->addr)
+	hal_spinlockSet(&pmap_common.lock);
+	if (pmap->asid_ix == 0) {
+		_pmap_asidAlloc(pmap);
+	}
+	else if (hal_cpuGetUserTT() == pmap->addr) {
+		hal_spinlockClear(&pmap_common.lock);
 		return;
+	}
 
 	hal_cpuSetContextId(0);
 	hal_cpuSetUserTT(pmap->addr);
-	hal_cpuSetContextId((u32)pmap->pdir | pmap->asid);
+	hal_cpuSetContextId((u32)pmap->pdir | pmap_common.asids[pmap->asid_ix]);
 
 	hal_cpuDataSyncBarrier();
-
 	hal_cpuBranchInval();
 	hal_cpuICacheInval();
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
+	hal_spinlockClear(&pmap_common.lock);
 }
 
 
@@ -186,7 +217,8 @@ static void _pmap_mapScratch(addr_t pa)
 	addr_t *ptable = pmap_common.kptab;
 
 	hal_cpuDataSyncBarrier();
-	ptable[((u32)pmap_common.sptab >> 12) & 0xff] = (pa & ~0xfff) | attrMap[PGHD_WRITE | PGHD_NOT_CACHED];
+	ptable[((u32)pmap_common.sptab >> 12) & 0x3ff] = (pa & ~0xfff) | attrMap[PGHD_WRITE | PGHD_NOT_CACHED];
+
 	hal_cpuInvalVA((addr_t)pmap_common.sptab);
 	hal_cpuDataSyncBarrier();
 }
@@ -481,10 +513,12 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	void *v;
 
 	pmap_common.asidptr = 0;
-	pmap->asid = 0;
+	pmap->asid_ix = 0;
 
-	for (i = 0; i < sizeof(pmap_common.asid_map) / sizeof(pmap_common.asid_map[0]); ++i)
+	for (i = 0; i < sizeof(pmap_common.asid_map) / sizeof(pmap_common.asid_map[0]); ++i) {
 		pmap_common.asid_map[i] = NULL;
+		pmap_common.asids[i] = i;
+	}
 
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");
 

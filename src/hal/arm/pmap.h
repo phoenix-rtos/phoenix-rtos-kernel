@@ -68,7 +68,7 @@ typedef struct _page_t {
 
 
 typedef struct _pmap_t {
-	u8 asid;
+	u8 asid_ix;
 	u32 *pdir;
 	addr_t addr;   /* physical address of pdir */
 	void *start;
@@ -83,6 +83,9 @@ static inline int pmap_belongs(pmap_t *pmap, void *addr)
 
 
 extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
+
+
+extern void pmap_moved(pmap_t *pmap);
 
 
 extern addr_t pmap_destroy(pmap_t *pmap, int *i);

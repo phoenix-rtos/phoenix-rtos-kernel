@@ -389,7 +389,7 @@ set_loop:
 	/* Init TTL1 */
 	ldr r5, =ADDR_TTL1
 	mov r1, #0
-	mov r2, #(4095 * 4)
+	mov r2, #(4096 * 6 - 4)
 clear_ttl1:
 	str r1, [r5, r2]
 	subs r2, #4
@@ -446,6 +446,9 @@ kernel_ttl2:
 	add r1, r1, r8
 	orr r1, r1, #0x53
 	mov r2, #0x1000
+	bl _cpy4
+	bl _cpy4
+	bl _cpy4
 	bl _cpy4
 
 	/* Kernel page tables as well */
@@ -885,6 +888,17 @@ hal_cpuGetCycles:
 .size hal_cpuGetCycles, .-hal_cpuGetCycles
 
 
+.globl hal_cpuCleanDataCache
+.type hal_cpuCleanDataCache, %function
+hal_cpuCleanDataCache:
+	ldr r1, =SIZE_CACHE_LINE - 1
+	bic r0, r0, r1
+	mcr p15, 0, r0, c7, c11, 1
+	isb
+	bx lr
+.size hal_cpuCleanDataCache, .-hal_cpuCleanDataCache
+
+
 .globl hal_cpuFlushDataCache
 .type hal_cpuFlushDataCache, %function
 hal_cpuFlushDataCache:
@@ -894,6 +908,29 @@ hal_cpuFlushDataCache:
 	isb
 	bx lr
 .size hal_cpuFlushDataCache, .-hal_cpuFlushDataCache
+
+
+.globl hal_cpuInvalASID
+.type hal_cpuInvalASID, %function
+hal_cpuInvalASID:
+	and r0, r0, #0xff
+	mcr p15, 0, r0, c8, c5, 2
+	mcr p15, 0, r0, c8, c6, 2
+	mcr p15, 0, r0, c8, c7, 2
+	isb
+	bx lr
+.size hal_cpuInvalASID, .-hal_cpuInvalASID
+
+
+.globl hal_cpuInvalTLB
+.type hal_cpuInvalTLB, %function
+hal_cpuInvalTLB:
+	mcr p15, 0, r0, c8, c5, 0
+	mcr p15, 0, r0, c8, c6, 0
+	mcr p15, 0, r0, c8, c7, 0
+	isb
+	bx lr
+.size hal_cpuInvalTLB, .-hal_cpuInvalTLB
 
 
 .globl hal_cpuInvalVA
@@ -963,6 +1000,7 @@ hal_cpuGetContextId:
 .type _hal_cpuSetKernelStack, %function
 _hal_cpuSetKernelStack:
 	mcr p15, 0, r0, c13, c0, 4
+	isb
 	bx lr
 .size _hal_cpuSetKernelStack, .-_hal_cpuSetKernelStack
 

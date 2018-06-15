@@ -167,7 +167,13 @@ extern void hal_cpuGetCycles(cycles_t *cb);
 extern void hal_cpuFlushDataCache(addr_t vaddr);
 
 
+extern void hal_cpuInvalASID(u8 asid);
+
+
 extern void hal_cpuInvalVA(addr_t vaddr);
+
+
+extern void hal_cpuInvalTLB(void);
 
 
 extern void hal_cpuBranchInval(void);
@@ -175,12 +181,6 @@ extern void hal_cpuBranchInval(void);
 
 extern void hal_cpuICacheInval(void);
 
-/*
-static inline void *hal_cpuGetFaultAddr(void)
-{
-	return NULL;
-}
-*/
 
 extern addr_t hal_cpuGetUserTT(void);
 
