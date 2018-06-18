@@ -670,7 +670,7 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		vm_mapDestroy(process, &map);
 		while ((a = pmap_destroy(&map.pmap, &i)))
 			vm_pageFree(_page_get(a));
-		vm_munmap(process_common.kmap, v, SIZE_PAGE);
+		vm_munmap(process_common.kmap, v, SIZE_PDIR);
 		vm_pageFree(p);
 		return err;
 	}
@@ -682,7 +682,7 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		vm_mapDestroy(process, &process->map);
 		while ((a = pmap_destroy(&process->map.pmap, &i)))
 			vm_pageFree(_page_get(a));
-		vm_munmap(process_common.kmap, process->pmapv, SIZE_PAGE);
+		vm_munmap(process_common.kmap, process->pmapv, SIZE_PDIR);
 		vm_pageFree(process->pmapp);
 		vm_kfree(current->execkstack);
 		current->execkstack = NULL;

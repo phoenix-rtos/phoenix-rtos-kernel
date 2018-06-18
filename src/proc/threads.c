@@ -576,7 +576,7 @@ static void proc_cleanupZombie(process_t *proc)
 		while ((a = pmap_destroy(&proc->map.pmap, &i)))
 			vm_pageFree(_page_get(a));
 
-		vm_munmap(threads_common.kmap, proc->pmapv, SIZE_PAGE);
+		vm_munmap(threads_common.kmap, proc->pmapv, SIZE_PDIR);
 		vm_pageFree(proc->pmapp);
 	}
 #endif
