@@ -443,14 +443,14 @@ int process_load(process_t *process, thread_t *current, syspage_program_t *prog,
 	}
 
 	/* Allocate and map user stack */
-	stack = vm_mmap(process->mapp, (void *)(VADDR_KERNEL - SIZE_PAGE), NULL, 3 * SIZE_PAGE, 0, NULL, -1, MAP_NONE);
+	stack = vm_mmap(process->mapp, (void *)(VADDR_KERNEL - 2 * SIZE_PAGE), NULL, 2 * SIZE_PAGE, 0, NULL, -1, MAP_NONE);
 
 	pmap_switch(&process->mapp->pmap);
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 	/* Copy data from kernel stack */
 
-	stack += 3 * SIZE_PAGE;
+	stack += 2 * SIZE_PAGE;
 
 	/* Put on stack .got base address. hal_jmp will use it to set r9 */
 	PUTONSTACK(stack, void *, data);
