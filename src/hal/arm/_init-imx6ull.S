@@ -894,7 +894,7 @@ hal_cpuFlushDataCache:
 	ldr r1, =SIZE_CACHE_LINE - 1
 	bic r0, r0, r1
 	mcr p15, 0, r0, c7, c14, 1
-	isb
+	dsb
 	bx lr
 .size hal_cpuFlushDataCache, .-hal_cpuFlushDataCache
 
@@ -906,7 +906,7 @@ hal_cpuInvalASID:
 	mcr p15, 0, r0, c8, c5, 2
 	mcr p15, 0, r0, c8, c6, 2
 	mcr p15, 0, r0, c8, c7, 2
-	isb
+	dsb
 	bx lr
 .size hal_cpuInvalASID, .-hal_cpuInvalASID
 
@@ -917,7 +917,7 @@ hal_cpuInvalTLB:
 	mcr p15, 0, r0, c8, c5, 0
 	mcr p15, 0, r0, c8, c6, 0
 	mcr p15, 0, r0, c8, c7, 0
-	isb
+	dsb
 	bx lr
 .size hal_cpuInvalTLB, .-hal_cpuInvalTLB
 
@@ -928,7 +928,7 @@ hal_cpuInvalVA:
 	ldr r1, =SIZE_PAGE - 1
 	bic r0, r0, r1
 	mcr p15, 0, r0, c8, c7, 3
-	isb
+	dsb
 	bx lr
 .size hal_cpuInvalVA, .-hal_cpuInvalVA
 
@@ -937,7 +937,7 @@ hal_cpuInvalVA:
 .type hal_cpuBranchInval, %function
 hal_cpuBranchInval:
 	mcr p15, 0, r0, c7, c5, 6
-	isb
+	dsb
 	bx lr
 .size hal_cpuBranchInval, .-hal_cpuBranchInval
 
@@ -946,6 +946,7 @@ hal_cpuBranchInval:
 .type hal_cpuICacheInval, %function
 hal_cpuICacheInval:
 	mcr p15, 0, r0, c7, c5, 0
+	dsb
 	isb
 	bx lr
 .size hal_cpuICacheInval, .-hal_cpuICacheInval
@@ -963,7 +964,7 @@ hal_cpuGetUserTT:
 .type hal_cpuSetUserTT, %function
 hal_cpuSetUserTT:
 	mcr p15, 0, r0, c2, c0, 0
-	isb
+	dsb
 	bx lr
 .size hal_cpuSetUserTT, .-hal_cpuSetUserTT
 
@@ -972,7 +973,7 @@ hal_cpuSetUserTT:
 .type hal_cpuSetContextId, %function
 hal_cpuSetContextId:
 	mcr p15, 0, r0, c13, c0, 1
-	isb
+	dsb
 	bx lr
 .size hal_cpuSetContextId, .-hal_cpuSetContextId
 
@@ -989,7 +990,7 @@ hal_cpuGetContextId:
 .type _hal_cpuSetKernelStack, %function
 _hal_cpuSetKernelStack:
 	mcr p15, 0, r0, c13, c0, 4
-	isb
+	dsb
 	bx lr
 .size _hal_cpuSetKernelStack, .-_hal_cpuSetKernelStack
 
