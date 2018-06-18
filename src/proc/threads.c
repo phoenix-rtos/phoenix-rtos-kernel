@@ -687,7 +687,7 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
 
 	if (timeout) {
 		now = _threads_getTimer();
-		current->wakeup = now + timeout;
+		current->wakeup = now + TIMER_US2CYC(timeout);
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 		_threads_updateWakeup(now, NULL);
 	}
