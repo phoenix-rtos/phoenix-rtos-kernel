@@ -131,7 +131,7 @@ enum {
 	pctl_mux_nand_d6, pctl_mux_nand_d7, pctl_mux_nand_ale, pctl_mux_nand_wp, pctl_mux_nand_rdy,
 	pctl_mux_nand_ce0, pctl_mux_nand_ce1, pctl_mux_nand_cle, pctl_mux_nand_dqs, pctl_mux_sd1_cmd,
 	pctl_mux_sd1_clk, pctl_mux_sd1_d0, pctl_mux_sd1_d1, pctl_mux_sd1_d2, pctl_mux_sd1_d3, pctl_mux_csi_mclk,
-	pctl_mux_csi_pclk, pctl_mux_csi_hsync, pctl_mux_csi_vsync, pctl_mux_csi_d0, pctl_mux_csi_d1,
+	pctl_mux_csi_pclk, pctl_mux_csi_vsync, pctl_mux_csi_hsync, pctl_mux_csi_d0, pctl_mux_csi_d1,
 	pctl_mux_csi_d2, pctl_mux_csi_d3, pctl_mux_csi_d4, pctl_mux_csi_d5, pctl_mux_csi_d6, pctl_mux_csi_d7
 };
 
