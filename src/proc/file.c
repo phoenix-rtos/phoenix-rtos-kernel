@@ -27,12 +27,11 @@ int proc_fileAdd(unsigned int *h, oid_t *oid)
 
 	process = proc_current()->process;
 
-	if ((r = resource_alloc(process, h)) == NULL)
+	if ((r = resource_alloc(process, h, rtFile)) == NULL)
 		return -ENOMEM;
 
-	r->type = rtFile;
-	hal_memcpy(&r->oid, oid, sizeof(oid_t));
-	r->offs = 0;
+	hal_memcpy(&r->fd->oid, oid, sizeof(oid_t));
+	r->fd->offs = 0;
 	resource_put(process, r);
 
 	return EOK;
@@ -55,9 +54,9 @@ int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs)
 	}
 
 	if (flags & 1)
-		hal_memcpy(&r->oid, oid, sizeof(oid_t));
+		hal_memcpy(&r->fd->oid, oid, sizeof(oid_t));
 	if (flags & 2)
-		r->offs = offs;
+		r->fd->offs = offs;
 
 	resource_put(process, r);
 
@@ -81,10 +80,10 @@ int proc_fileGet(unsigned int h, char flags, oid_t *oid, offs_t *offs)
 	}
 
 	if (flags & 1)
-		hal_memcpy(oid, &r->oid, sizeof(oid_t));
+		hal_memcpy(oid, &r->fd->oid, sizeof(oid_t));
 
 	if (flags & 2)
-		*offs = r->offs;
+		*offs = r->fd->offs;
 
 
 	resource_put(process, r);
@@ -117,8 +116,8 @@ int proc_fileRemove(unsigned int h)
 int proc_fileCopy(resource_t *dst, resource_t *src)
 {
 	dst->type = rtFile;
-	hal_memcpy(&dst->oid, &src->oid, sizeof(oid_t));
-	dst->offs = src->offs;
+	hal_memcpy(&dst->fd->oid, &src->fd->oid, sizeof(oid_t));
+	dst->fd->offs = src->fd->offs;
 
 	return EOK;
 }

@@ -20,6 +20,12 @@
 #include "threads.h"
 
 
+typedef struct {
+	oid_t oid;
+	offs_t offs;
+} fd_t;
+
+
 typedef struct _resource_t {
 	rbnode_t linkage;
 
@@ -32,22 +38,15 @@ typedef struct _resource_t {
 	enum { rtLock = 0, rtCond, rtFile, rtInth } type;
 
 	union {
-		lock_t lock;
-
+		lock_t *lock;
 		thread_t *waitq;
-
-		/* file descriptor */
-		struct {
-			oid_t oid;
-			offs_t offs;
-		};
-
-		intr_handler_t inth;
+		fd_t *fd;
+		intr_handler_t *inth;
 	};
 } resource_t;
 
 
-extern resource_t *resource_alloc(process_t *process, unsigned int *id);
+extern resource_t *resource_alloc(process_t *process, unsigned int *id, int type);
 
 
 extern int resource_free(resource_t *r);
