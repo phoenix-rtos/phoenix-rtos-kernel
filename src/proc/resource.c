@@ -223,6 +223,7 @@ int proc_resourcesCopy(process_t *src)
 			break;
 		case rtInth:
 			err = 1; /* Don't copy interrupt handlers */
+			d->inth = NULL;
 			break;
 		}
 
