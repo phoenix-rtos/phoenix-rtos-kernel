@@ -1030,6 +1030,7 @@ hal_longjmp:
 .globl hal_jmp
 .type hal_jmp, %function
 hal_jmp:
+	cpsid if
 	mov r4, r0
 	mov r5, r1
 	mov r6, r2
@@ -1049,7 +1050,8 @@ hal_jmp:
 	subs r7, #1
 	bmi 1f
 	pop {r3}
-1:	blx r4
+1:	cpsie if
+	blx r4
 2:	mov sp, r6
 	subs r7, #1
 	bmi 3f
