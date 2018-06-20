@@ -29,7 +29,7 @@ typedef struct _kmsg_t {
 	thread_t *threads;
 	process_t *src;
 	volatile int responded;
-
+#ifndef NOMMU
 	struct _kmsg_layout_t {
 		void *bvaddr;
 		u64 boffs;
@@ -40,6 +40,7 @@ typedef struct _kmsg_t {
 		u64 eoffs;
 		page_t *ep;
 	} i, o;
+#endif
 } kmsg_t;
 
 
