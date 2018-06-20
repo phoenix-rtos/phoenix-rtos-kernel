@@ -219,7 +219,7 @@ int proc_resourcesCopy(process_t *src)
 			if ((d->fd = vm_kmalloc(sizeof(fd_t))) == NULL)
 				err = -ENOMEM;
 			else if (!(err = proc_fileCopy(d, r)))
-				proc_open(d->fd->oid);
+				proc_open(d->fd->oid, d->fd->mode);
 			break;
 		case rtInth:
 			err = 1; /* Don't copy interrupt handlers */
@@ -309,7 +309,7 @@ void proc_resourcesFree(process_t *proc)
 
 		switch (r->type) {
 		case rtFile:
-			proc_close(r->fd->oid);
+			proc_close(r->fd->oid, r->fd->mode);
 			vm_kfree(r->fd);
 			break;
 		case rtLock:

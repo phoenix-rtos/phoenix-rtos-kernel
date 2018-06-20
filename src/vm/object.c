@@ -138,29 +138,29 @@ static page_t *object_fetch(oid_t oid, offs_t offs)
 	page_t *p;
 	void *v;
 
-	if (proc_open(oid) < 0)
+	if (proc_open(oid, 0) < 0)
 		return NULL;
 
 	if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL) {
-		proc_close(oid);
+		proc_close(oid, 0);
 		return NULL;
 	}
 
 	if ((v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE)) == NULL) {
 		vm_pageFree(p);
-		proc_close(oid);
+		proc_close(oid, 0);
 		return NULL;
 	}
 
 	if (proc_read(oid, offs, v, SIZE_PAGE) < 0) {
 		vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
-		proc_close(oid);
+		proc_close(oid, 0);
 		return NULL;
 	}
 
 	vm_munmap(object_common.kmap, v, SIZE_PAGE);
-	proc_close(oid);
+	proc_close(oid, 0);
 
 	return p;
 }

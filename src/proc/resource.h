@@ -23,6 +23,7 @@
 typedef struct {
 	oid_t oid;
 	offs_t offs;
+	unsigned mode;
 } fd_t;
 
 

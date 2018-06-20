@@ -20,7 +20,7 @@
 #include "resource.h"
 
 
-int proc_fileAdd(unsigned int *h, oid_t *oid)
+int proc_fileAdd(unsigned int *h, oid_t *oid, unsigned mode)
 {
 	process_t *process;
 	resource_t *r;
@@ -32,13 +32,14 @@ int proc_fileAdd(unsigned int *h, oid_t *oid)
 
 	hal_memcpy(&r->fd->oid, oid, sizeof(oid_t));
 	r->fd->offs = 0;
+	r->fd->mode = mode;
 	resource_put(process, r);
 
 	return EOK;
 }
 
 
-int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs)
+int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs, unsigned mode)
 {
 	process_t *process;
 	resource_t *r;
@@ -57,6 +58,8 @@ int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs)
 		hal_memcpy(&r->fd->oid, oid, sizeof(oid_t));
 	if (flags & 2)
 		r->fd->offs = offs;
+	if (flags & 4)
+		r->fd->mode = mode;
 
 	resource_put(process, r);
 
@@ -64,7 +67,7 @@ int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs)
 }
 
 
-int proc_fileGet(unsigned int h, char flags, oid_t *oid, offs_t *offs)
+int proc_fileGet(unsigned int h, char flags, oid_t *oid, offs_t *offs, unsigned *mode)
 {
 	process_t *process;
 	resource_t *r;
@@ -85,6 +88,8 @@ int proc_fileGet(unsigned int h, char flags, oid_t *oid, offs_t *offs)
 	if (flags & 2)
 		*offs = r->fd->offs;
 
+	if (flags & 4)
+		*mode = r->fd->mode;
 
 	resource_put(process, r);
 
@@ -118,6 +123,7 @@ int proc_fileCopy(resource_t *dst, resource_t *src)
 	dst->type = rtFile;
 	hal_memcpy(&dst->fd->oid, &src->fd->oid, sizeof(oid_t));
 	dst->fd->offs = src->fd->offs;
+	dst->fd->mode = src->fd->mode;
 
 	return EOK;
 }

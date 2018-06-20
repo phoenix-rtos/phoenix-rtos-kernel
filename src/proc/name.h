@@ -76,10 +76,10 @@ extern int proc_link(oid_t dir, oid_t oid, char *name);
 extern int proc_create(int port, oid_t *oid, int type);
 
 
-extern int proc_close(oid_t oid);
+extern int proc_close(oid_t oid, unsigned mode);
 
 
-extern int proc_open(oid_t oid);
+extern int proc_open(oid_t oid, unsigned mode);
 
 
 extern int proc_size(oid_t oid);
