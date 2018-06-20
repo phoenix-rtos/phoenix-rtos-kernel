@@ -551,12 +551,18 @@ void proc_zombie(process_t *proc)
 		proc_lockClear(&parent->lock);
 
 		hal_spinlockSet(&parent->waitsl);
+		proc->state = ZOMBIE;
 		LIST_ADD(&parent->zombies, proc);
 
 		if (parent->waitpid == -1 || (unsigned)parent->waitpid == proc->id)
 			proc_threadWakeup(&parent->waitq);
 
 		hal_spinlockClear(&parent->waitsl);
+	}
+	else {
+		hal_spinlockSet(&threads_common.spinlock);
+		LIST_ADD(&threads_common.zombies, proc);
+		hal_spinlockClear(&threads_common.spinlock);
 	}
 }
 
@@ -757,15 +763,19 @@ int proc_waitpid(int pid, int *stat, int options)
 				z = NULL;
 		}
 
+		if (z == NULL && proc->childs == NULL) {
+			err = -ECHILD;
+			break;
+		}
+
 		if (err || (options & 1) || (err = proc_threadWait(&proc->waitq, &proc->waitsl, 0)))
 			break;
 	}
 
-
 	if (z != NULL) {
 		err = z->id;
 		if (stat != NULL)
-			*stat = z->exit;
+			*stat = z->exit & 0xff;
 		LIST_REMOVE(&proc->zombies, z);
 		hal_spinlockSet(&threads_common.spinlock);
 		LIST_ADD(&threads_common.zombies, z);
