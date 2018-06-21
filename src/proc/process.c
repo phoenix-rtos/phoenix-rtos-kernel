@@ -42,7 +42,13 @@ static int proc_idcmp(rbnode_t *n1, rbnode_t *n2)
 	process_t *p1 = lib_treeof(process_t, idlinkage, n1);
 	process_t *p2 = lib_treeof(process_t, idlinkage, n2);
 
-	return (p1->id - p2->id);
+	if (p1->id < p2->id)
+		return -1;
+
+	else if (p1->id > p2->id)
+		return 1;
+
+	return 0;
 }
 
 

@@ -61,12 +61,19 @@ static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
 	thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
 	thread_t *t2 = lib_treeof(thread_t, sleeplinkage, n2);
 
-	time_t t = t1->wakeup - t2->wakeup;
+	if (t1->wakeup > t2->wakeup)
+		return 1;
 
-	if (t == 0)
-		return (int)(t1->id - t2->id);
+	else if (t1->wakeup < t2->wakeup)
+		return -1;
 
-	return t;
+	else if (t1->id < t2->id)
+		return -1;
+
+	else if (t1->id > t2->id)
+		return 1;
+
+	return 0;
 }
 
 
@@ -75,7 +82,13 @@ static int threads_idcmp(rbnode_t *n1, rbnode_t *n2)
 	thread_t *t1 = lib_treeof(thread_t, idlinkage, n1);
 	thread_t *t2 = lib_treeof(thread_t, idlinkage, n2);
 
-	return (t1->id - t2->id);
+	if (t1->id < t2->id)
+		return -1;
+
+	else if (t1->id > t2->id)
+		return 1;
+
+	return 0;
 }
 
 
