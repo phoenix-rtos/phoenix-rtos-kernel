@@ -207,7 +207,8 @@ static inline char *hal_strcpy(char *dest, const char *src)
 	1: \
 		strb r1, [r2], #1; \
 		cmp r1, #0; \
-		ldrb r1, [r3], #1; \
+		itt ne; \
+		ldrbne r1, [r3], #1; \
 		bne 1b"
 	:
 	: "r" (dest), "r" (src)
@@ -231,7 +232,8 @@ static inline char *hal_strncpy(char *dest, const char *src, size_t n)
 		sub r2, #1; \
 		strb r1, [r3], #1; \
 		cmp r1, #0; \
-		ldrb r1, [r4], #1; \
+		itt ne; \
+		ldrbne r1, [r4], #1; \
 		bne 1b; \
 	2:"
 	:
