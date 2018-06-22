@@ -114,19 +114,7 @@ int syscalls_fork(void *ustack)
 }
 
 
-void syscalls_execle(void *ustack)
-{
-	char *path;
-	char *argv0;
-
-	GETFROMSTACK(ustack, char *, path, 0);
-	GETFROMSTACK(ustack, char *, argv0, 1);
-
-	proc_execle(NULL, path, argv0, NULL, NULL);
-}
-
-
-int syscalls_execve(void *ustack)
+int syscalls_exec(void *ustack)
 {
 	char *path;
 	char **argv;
