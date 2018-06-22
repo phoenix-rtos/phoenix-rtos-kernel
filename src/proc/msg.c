@@ -332,7 +332,7 @@ void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, p
 	srcmap = (from == NULL) ? msg_common.kmap : from->mapp;
 	dstmap = (to == NULL) ? msg_common.kmap : to->mapp;
 
-	if (srcmap == dstmap)
+	if (srcmap == dstmap && pmap_belongs(&dstmap->pmap, data))
 		return data;
 
 	if ((ml->w = w = vm_mapFind(dstmap, (void *)0, (!!boffs + !!eoffs + n) * SIZE_PAGE, MAP_NOINHERIT, prot)) == NULL)
