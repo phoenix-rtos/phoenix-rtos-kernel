@@ -1022,6 +1022,7 @@ hal_cpuGetPFR1:
 .globl hal_longjmp
 .type hal_longjmp, %function
 hal_longjmp:
+	cpsid if
 	add sp, r0, #8
 	b _hal_cpuRestoreCtx
 .size hal_longjmp, .-hal_longjmp
