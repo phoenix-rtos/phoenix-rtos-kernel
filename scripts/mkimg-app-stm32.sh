@@ -19,7 +19,7 @@
 CROSS="arm-phoenix-"
 
 OUTPUT="../app.flash"
-SIZE_PAGE=$((0x100))
+SIZE_PAGE=$((0x200))
 APP_START=$((0))
 
 declare -i i
