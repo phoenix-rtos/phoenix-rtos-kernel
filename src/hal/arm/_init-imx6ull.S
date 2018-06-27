@@ -199,26 +199,6 @@ dcd_ddr:
 	.word SWAP(0x82180000)
 	.word SWAP(0x021b0890)
 	.word SWAP(0x00400000)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x02008032)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00008033)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00048031)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x15208030)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x04008040)
-	.word SWAP(0x021b0020)
-	.word SWAP(0x00000800)
-	.word SWAP(0x021b0818)
-	.word SWAP(0x00000227)
-	.word SWAP(0x021b0004)
-	.word SWAP(0x0002552d)
-	.word SWAP(0x021b0404)
-	.word SWAP(0x00011006)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00000000)
 dcd_end:
 
 
@@ -234,6 +214,41 @@ _cpy4:
 /* startup code */
 _start:
 	cpsid aif, #SYS_MODE
+
+	/* check if reset was caused by watch dog */
+	ldr r1, =0x20d8008
+	ldr r0, [r1]
+	tst r0, #0x10
+	/* skip mdscr register config */
+	bne mdscr_skip
+	ldr r1, =0x21b001c
+	ldr r0, =0x2008032
+	str r0, [r1]
+	ldr r0, =0x8033
+	str r0, [r1]
+	ldr r0, =0x48031
+	str r0, [r1]
+	ldr r0, =0x15208030
+	str r0, [r1]
+	ldr r0, =0x4008040
+	str r0, [r1]
+	ldr r1, =0x21b0020
+	ldr r0, =0x800
+	str r0, [r1]
+
+mdscr_skip:
+	ldr r1, =0x21b0818
+	ldr r0, =0x227
+	str r0, [r1]
+	ldr r1, =0x21b0004
+	ldr r0, =0x2552d
+	str r0, [r1]
+	ldr r1, =0x21b0404
+	ldr r0, =0x11006
+	str r0, [r1]
+	ldr r1, =0x21b001c
+	ldr r0, =0x0
+	str r0, [r1]
 
 	/* Enable PMU cycle counter */
 	mrc p15, 0, r0, c9, c12, 0
