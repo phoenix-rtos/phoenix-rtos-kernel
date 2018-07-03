@@ -576,7 +576,7 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 		if (filesz && (prot & PROT_WRITE))
 			flags |= MAP_NEEDSCOPY;
 
-		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs + misalign, flags) == NULL) {
+		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL) {
 			vm_munmap(process_common.kmap, ehdr, osize);
 			vm_objectPut(o);
 			return -ENOMEM;
