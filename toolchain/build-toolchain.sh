@@ -2,6 +2,8 @@
 # $1 - toolchain target (e.g. arm-phoenix)
 # $2 - toolchain install path
 
+set -e
+
 if [ -z "$1" ]; then
     echo "No toolchain target provided! Abort."
     exit 1
