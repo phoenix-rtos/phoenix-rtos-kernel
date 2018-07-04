@@ -23,14 +23,14 @@
 #include "proc/proc.h"
 #include "vm/object.h"
 
-#define SYSCALLS_KERNEL(n, kernel, libc) kernel,
+#define SYSCALLS_NAME(name) syscalls_##name,
 
 /*
  * Kernel
  */
 
 
-void syscalls_klog(void *ustack)
+void syscalls_debug(void *ustack)
 {
 	char *s;
 
@@ -95,7 +95,7 @@ void syscalls_munmap(void *ustack)
  */
 
 
-int syscalls_vfork(void *ustack)
+int syscalls_vforksvc(void *ustack)
 {
 	return proc_vfork();
 }
@@ -364,7 +364,7 @@ int syscalls_condSignal(void *ustack)
  */
 
 
-int syscalls_destroy(void *ustack)
+int syscalls_resourceDestroy(void *ustack)
 {
 	unsigned int h;
 
@@ -436,7 +436,7 @@ u32 syscalls_portRegister(void *ustack)
 }
 
 
-int syscalls_send(void *ustack)
+int syscalls_msgSend(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
@@ -461,7 +461,7 @@ int syscalls_send(void *ustack)
 }
 
 
-int syscalls_recv(void *ustack)
+int syscalls_msgRecv(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
@@ -480,7 +480,7 @@ int syscalls_recv(void *ustack)
 }
 
 
-int syscalls_respond(void *ustack)
+int syscalls_msgRespond(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
@@ -567,7 +567,7 @@ int syscalls_platformctl(void *ustack)
  */
 
 
-void syscalls_wdgReload(void *ustack)
+void syscalls_wdgreload(void *ustack)
 {
 	hal_wdgReload();
 }
@@ -713,7 +713,7 @@ int syscalls_notimplemented(void)
 }
 
 
-const void * const syscalls[] = { SYSCALLS(SYSCALLS_KERNEL) };
+const void * const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
 
 
 void *syscalls_dispatch(int n, char *ustack)
