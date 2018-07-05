@@ -200,11 +200,6 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 	hz = !!hz;
 
 	if (d <= ahb_end) {
-		if (d == pctl_gpiof || d == pctl_gpiog)
-			d += 1;
-		else if (d == pctl_gpioh)
-			d -= 2;
-
 		t = *(stm32_common.rcc + rcc_ahbenr) & ~(1 << d);
 		*(stm32_common.rcc + rcc_ahbenr) = t | (hz << d);
 	}

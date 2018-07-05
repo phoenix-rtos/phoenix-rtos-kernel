@@ -21,6 +21,7 @@
 #include "cond.h"
 #include "resource.h"
 #include "name.h"
+#include "userintr.h"
 
 
 static int resource_cmp(rbnode_t *n1, rbnode_t *n2)
@@ -111,7 +112,7 @@ static void resource_augment(rbnode_t *node)
 }
 
 
-resource_t *resource_alloc(process_t *process, unsigned int *id)
+resource_t *resource_alloc(process_t *process, unsigned int *id, int type)
 {
 	resource_t *r, t;
 
@@ -137,8 +138,44 @@ resource_t *resource_alloc(process_t *process, unsigned int *id)
 		return NULL;
 	}
 
+	switch (type) {
+	case rtLock:
+		if ((r->lock = vm_kmalloc(sizeof(lock_t))) == NULL) {
+			vm_kfree(r);
+			proc_lockClear(&process->lock);
+			return NULL;
+		}
+		break;
+
+	case rtCond:
+		r->waitq = NULL;
+		break;
+
+	case rtFile:
+		if ((r->fd = vm_kmalloc(sizeof(fd_t))) == NULL) {
+			vm_kfree(r);
+			proc_lockClear(&process->lock);
+			return NULL;
+		}
+		break;
+
+	case rtInth:
+		if ((r->inth = vm_kmalloc(sizeof(intr_handler_t))) == NULL) {
+			vm_kfree(r);
+			proc_lockClear(&process->lock);
+			return NULL;
+		}
+		break;
+
+	default:
+		vm_kfree(r);
+		proc_lockClear(&process->lock);
+		return NULL;
+	}
+
 	r->id = *id;
 	r->refs = 1;
+	r->type = type;
 
 	lib_rbInsert(&process->resources, &r->linkage);
 	proc_lockClear(&process->lock);
@@ -170,18 +207,23 @@ int proc_resourcesCopy(process_t *src)
 
 		switch (r->type) {
 		case rtLock:
-			err = proc_mutexCopy(d, r);
+			if ((d->lock = vm_kmalloc(sizeof(lock_t))) == NULL)
+				err = -ENOMEM;
+			else
+				err = proc_mutexCopy(d, r);
 			break;
 		case rtCond:
 			err = proc_condCopy(d, r);
 			break;
 		case rtFile:
-			err = proc_fileCopy(d, r);
-			if (!err)
-				proc_open(d->oid);
+			if ((d->fd = vm_kmalloc(sizeof(fd_t))) == NULL)
+				err = -ENOMEM;
+			else if (!(err = proc_fileCopy(d, r)))
+				proc_open(d->fd->oid, d->fd->mode);
 			break;
 		case rtInth:
 			err = 1; /* Don't copy interrupt handlers */
+			d->inth = NULL;
 			break;
 		}
 
@@ -199,8 +241,16 @@ int proc_resourcesCopy(process_t *src)
 	}
 	proc_lockClear(&src->lock);
 
-	if (d != NULL)
+	if (d != NULL) {
+		if (d->type == rtLock && d->lock != NULL)
+			vm_kfree(d->lock);
+		else if (d->type == rtFile && d->fd != NULL)
+			vm_kfree(d->fd);
+		else if (d->type == rtInth && d->inth != NULL)
+			vm_kfree(d->inth);
+
 		vm_kfree(d);
+	}
 
 	return err;
 }
@@ -221,10 +271,16 @@ int resource_free(resource_t *r)
 
 	switch (r->type) {
 	case rtLock:
-		proc_lockDone(&r->lock);
+		proc_lockDone(r->lock);
+		vm_kfree(r->lock);
+		break;
+	case rtFile:
+		/* proc_close? */
+		vm_kfree(r->fd);
 		break;
 	case rtInth:
-		hal_interruptsDeleteHandler(&r->inth);
+		hal_interruptsDeleteHandler(r->inth);
+		vm_kfree(r->inth);
 		break;
 	default:
 		break;
@@ -253,13 +309,16 @@ void proc_resourcesFree(process_t *proc)
 
 		switch (r->type) {
 		case rtFile:
-			proc_close(r->oid);
+			proc_close(r->fd->oid, r->fd->mode);
+			vm_kfree(r->fd);
 			break;
 		case rtLock:
-			proc_lockDone(&r->lock);
+			proc_lockDone(r->lock);
+			vm_kfree(r->lock);
 			break;
 		case rtInth:
-			hal_interruptsDeleteHandler(&r->inth);
+			hal_interruptsDeleteHandler(r->inth);
+			vm_kfree(r->inth);
 			break;
 		default:
 			break;

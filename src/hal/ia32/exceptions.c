@@ -71,7 +71,7 @@ struct {
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 {
-	const char *mnemonics[] = {
+	static const char *const mnemonics[] = {
 		"0 #DE",  "1 #DB",  "2 #NMI", "3 #BP",      "4 #OF",  "5 #BR",  "6 #UD",  "7 #NM",
 		"8 #BF",  "9 #",    "10 #TS", "11 #NP",     "12 #SS", "13 #GP", "14 #PF", "15 #",
 		"16 #MF", "17 #AC", "18 #MC", "19 #XM/#XF", "20 #VE", "21 #",   "22 #",   "23 #",

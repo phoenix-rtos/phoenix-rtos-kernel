@@ -61,7 +61,7 @@ struct {
 } __attribute__((aligned(0x4000))) pmap_common;
 
 
-static const char *marksets[4] = { "BBBBBBBBBBBBBBBB", "KYCPMSHKKKKKKKKK", "AAAAAAAAAAAAAAAA", "UUUUUUUUUUUUUUUU" };
+static const char *const marksets[4] = { "BBBBBBBBBBBBBBBB", "KYCPMSHKKKKKKKKK", "AAAAAAAAAAAAAAAA", "UUUUUUUUUUUUUUUU" };
 
 
 static const u16 attrMap[] = {
@@ -147,15 +147,20 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 /* Function creates empty page table */
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
+	int i;
+
 	pmap->pdir = vaddr;
 	pmap->addr = p->addr;
+	pmap->asid_ix = 0;
+
+	for (i = 0; i < SIZE_PDIR / SIZE_CACHE_LINE; ++i)
+		hal_cpuFlushDataCache((addr_t)pmap->pdir + i * SIZE_CACHE_LINE);
 
 	hal_memset(pmap->pdir, 0, (VADDR_KERNEL) >> 18);
 	hal_memcpy(&pmap->pdir[VADDR_KERNEL >> 20], &kpmap->pdir[VADDR_KERNEL >> 20], (VADDR_MAX - VADDR_KERNEL + 1) >> 18);
 
-	hal_spinlockSet(&pmap_common.lock);
-	_pmap_asidAlloc(pmap);
-	hal_spinlockClear(&pmap_common.lock);
+	for (i = 0; i < SIZE_PDIR / SIZE_CACHE_LINE; ++i)
+		hal_cpuFlushDataCache((addr_t)pmap->pdir + i * SIZE_CACHE_LINE);
 
 	return EOK;
 }
@@ -217,10 +222,15 @@ void pmap_switch(pmap_t *pmap)
 static void _pmap_mapScratch(addr_t pa)
 {
 	addr_t *ptable = pmap_common.kptab;
+	int i;
+
+	for (i = 0; i < SIZE_PAGE / SIZE_CACHE_LINE; ++i)
+		hal_cpuFlushDataCache((addr_t)pmap_common.sptab + i * SIZE_CACHE_LINE);
 
 	hal_cpuDataSyncBarrier();
 	ptable[((u32)pmap_common.sptab >> 12) & 0x3ff] = (pa & ~0xfff) | attrMap[PGHD_WRITE | PGHD_NOT_CACHED];
 
+	hal_cpuFlushDataCache((addr_t)&ptable[((u32)pmap_common.sptab >> 12) & 0x3ff]);
 	hal_cpuInvalVA((addr_t)pmap_common.sptab);
 	hal_cpuDataSyncBarrier();
 }
@@ -235,6 +245,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	pti = ((u32)va >> 12) & 0x3ff;
 
 	hal_spinlockSet(&pmap_common.lock);
+
 	/* If no page table is allocated add new one */
 	if (!pmap->pdir[pdi]) {
 		if (alloc == NULL) {
@@ -244,9 +255,18 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 
 		/* Clear new ptable */
 		_pmap_mapScratch(alloc->addr);
+
+		for (i = 0; i < SIZE_PAGE / SIZE_CACHE_LINE; ++i)
+			hal_cpuFlushDataCache((addr_t)pmap_common.sptab + i * SIZE_CACHE_LINE);
+
 		hal_memset(pmap_common.sptab, 0, SIZE_PAGE);
 
+		hal_cpuDataBarrier();
 		hal_cpuDataSyncBarrier();
+
+		for (i = 0; i < SIZE_PAGE / SIZE_CACHE_LINE; ++i)
+			hal_cpuFlushDataCache((addr_t)pmap_common.sptab + i * SIZE_CACHE_LINE);
+
 		hal_cpuInstrBarrier();
 
 		pmap->pdir[pdi & ~0x3] = ((alloc->addr & ~0xfff)) | 1;
@@ -256,10 +276,13 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 
 		hal_cpuDataSyncBarrier();
 		hal_cpuInstrBarrier();
+		hal_cpuFlushDataCache((addr_t)&pmap->pdir[pdi & ~0x3]);
 	}
 	else {
 		_pmap_mapScratch(pmap->pdir[pdi] & ~0x3ff);
 	}
+
+	hal_cpuFlushDataCache((addr_t)&pmap_common.sptab[pti]);
 
 	if (hal_cpuGetUserTT() != pmap->addr && va < (void *)0x80000000) {
 		if (attr & PGHD_PRESENT)
@@ -267,6 +290,10 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 		else
 			pmap_common.sptab[pti] = 0;
 
+		hal_cpuFlushDataCache((addr_t)&pmap_common.sptab[pti]);
+		hal_cpuDataBarrier();
+		hal_cpuICacheInval();
+		hal_cpuInstrBarrier();
 		hal_spinlockClear(&pmap_common.lock);
 
 		return EOK;
@@ -299,10 +326,12 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInvalVA((addr_t)va);
+	hal_cpuFlushDataCache((addr_t)&pmap_common.sptab[pti]);
 	hal_cpuBranchInval();
 	hal_cpuDataSyncBarrier();
+	hal_cpuDataBarrier();
+	hal_cpuICacheInval();
 	hal_cpuInstrBarrier();
-
 	hal_spinlockClear(&pmap_common.lock);
 
 	return EOK;
@@ -333,6 +362,7 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 
 	if (hal_cpuGetUserTT() != pmap->addr && vaddr < (void *)0x80000000) {
 		pmap_common.sptab[pti] = 0;
+		hal_cpuFlushDataCache((addr_t)&pmap_common.sptab[pti]);
 		hal_spinlockClear(&pmap_common.lock);
 		return EOK;
 	}
@@ -348,8 +378,8 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	pmap_common.sptab[pti] = 0;
 
 	hal_cpuDataSyncBarrier();
+	hal_cpuFlushDataCache((addr_t)&pmap_common.sptab[pti]);
 	hal_cpuInstrBarrier();
-
 	hal_cpuInvalVA((addr_t)vaddr);
 	hal_spinlockClear(&pmap_common.lock);
 

@@ -277,8 +277,7 @@ aipstzl:
 
 	/* Enable ENETn PLL (both 50 MHz) */
 	ldr r0, =0x020c80e0
-//	ldr r1, =0x386005
-	ldr r1, =0x2005
+	ldr r1, =0x102005
 	str r1, [r0]
 
 enet_pll:
@@ -894,7 +893,7 @@ hal_cpuFlushDataCache:
 	ldr r1, =SIZE_CACHE_LINE - 1
 	bic r0, r0, r1
 	mcr p15, 0, r0, c7, c14, 1
-	isb
+	dsb
 	bx lr
 .size hal_cpuFlushDataCache, .-hal_cpuFlushDataCache
 
@@ -906,7 +905,7 @@ hal_cpuInvalASID:
 	mcr p15, 0, r0, c8, c5, 2
 	mcr p15, 0, r0, c8, c6, 2
 	mcr p15, 0, r0, c8, c7, 2
-	isb
+	dsb
 	bx lr
 .size hal_cpuInvalASID, .-hal_cpuInvalASID
 
@@ -917,7 +916,7 @@ hal_cpuInvalTLB:
 	mcr p15, 0, r0, c8, c5, 0
 	mcr p15, 0, r0, c8, c6, 0
 	mcr p15, 0, r0, c8, c7, 0
-	isb
+	dsb
 	bx lr
 .size hal_cpuInvalTLB, .-hal_cpuInvalTLB
 
@@ -928,7 +927,7 @@ hal_cpuInvalVA:
 	ldr r1, =SIZE_PAGE - 1
 	bic r0, r0, r1
 	mcr p15, 0, r0, c8, c7, 3
-	isb
+	dsb
 	bx lr
 .size hal_cpuInvalVA, .-hal_cpuInvalVA
 
@@ -937,7 +936,7 @@ hal_cpuInvalVA:
 .type hal_cpuBranchInval, %function
 hal_cpuBranchInval:
 	mcr p15, 0, r0, c7, c5, 6
-	isb
+	dsb
 	bx lr
 .size hal_cpuBranchInval, .-hal_cpuBranchInval
 
@@ -946,6 +945,7 @@ hal_cpuBranchInval:
 .type hal_cpuICacheInval, %function
 hal_cpuICacheInval:
 	mcr p15, 0, r0, c7, c5, 0
+	dsb
 	isb
 	bx lr
 .size hal_cpuICacheInval, .-hal_cpuICacheInval
@@ -963,7 +963,7 @@ hal_cpuGetUserTT:
 .type hal_cpuSetUserTT, %function
 hal_cpuSetUserTT:
 	mcr p15, 0, r0, c2, c0, 0
-	isb
+	dsb
 	bx lr
 .size hal_cpuSetUserTT, .-hal_cpuSetUserTT
 
@@ -972,7 +972,7 @@ hal_cpuSetUserTT:
 .type hal_cpuSetContextId, %function
 hal_cpuSetContextId:
 	mcr p15, 0, r0, c13, c0, 1
-	isb
+	dsb
 	bx lr
 .size hal_cpuSetContextId, .-hal_cpuSetContextId
 
@@ -989,7 +989,7 @@ hal_cpuGetContextId:
 .type _hal_cpuSetKernelStack, %function
 _hal_cpuSetKernelStack:
 	mcr p15, 0, r0, c13, c0, 4
-	isb
+	dsb
 	bx lr
 .size _hal_cpuSetKernelStack, .-_hal_cpuSetKernelStack
 
@@ -1021,6 +1021,7 @@ hal_cpuGetPFR1:
 .globl hal_longjmp
 .type hal_longjmp, %function
 hal_longjmp:
+	cpsid if
 	add sp, r0, #8
 	b _hal_cpuRestoreCtx
 .size hal_longjmp, .-hal_longjmp
@@ -1029,6 +1030,7 @@ hal_longjmp:
 .globl hal_jmp
 .type hal_jmp, %function
 hal_jmp:
+	cpsid if
 	mov r4, r0
 	mov r5, r1
 	mov r6, r2
@@ -1048,7 +1050,8 @@ hal_jmp:
 	subs r7, #1
 	bmi 1f
 	pop {r3}
-1:	blx r4
+1:	cpsie if
+	blx r4
 2:	mov sp, r6
 	subs r7, #1
 	bmi 3f

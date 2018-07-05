@@ -245,7 +245,7 @@ int proc_lookup(const char *name, oid_t *oid)
 }
 
 
-int proc_open(oid_t oid)
+int proc_open(oid_t oid, unsigned mode)
 {
 	int err;
 	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
@@ -260,7 +260,7 @@ int proc_open(oid_t oid)
 
 	kmsg->msg.type = mtOpen;
 	hal_memcpy(&kmsg->msg.i.openclose.oid, &oid, sizeof(oid_t));
-	kmsg->msg.i.openclose.flags = 0;
+	kmsg->msg.i.openclose.flags = mode;
 
 	err = proc_send(oid.port, kmsg);
 	vm_kfree(kmsg);
@@ -268,7 +268,7 @@ int proc_open(oid_t oid)
 }
 
 
-int proc_close(oid_t oid)
+int proc_close(oid_t oid, unsigned mode)
 {
 	int err;
 	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
@@ -283,7 +283,7 @@ int proc_close(oid_t oid)
 
 	kmsg->msg.type = mtClose;
 	hal_memcpy(&kmsg->msg.i.openclose.oid, &oid, sizeof(oid_t));
-	kmsg->msg.i.openclose.flags = 0;
+	kmsg->msg.i.openclose.flags = mode;
 
 	err = proc_send(oid.port, kmsg);
 	vm_kfree(kmsg);

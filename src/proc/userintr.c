@@ -30,25 +30,29 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 	if (h == NULL)
 		h = &th;
 
-	if ((r = resource_alloc(p, h)) == NULL)
+	if ((r = resource_alloc(p, h, rtInth)) == NULL)
 		return -ENOMEM;
 
-	r->type = rtInth;
-	r->inth.next = NULL;
-	r->inth.prev = NULL;
-	r->inth.f = (int (*)(unsigned int, cpu_context_t *, void *))f;
-	r->inth.data = arg;
-	r->inth.pmap = NULL;
-	r->inth.cond = NULL;
-	r->inth.n = n;
+	r->inth->next = NULL;
+	r->inth->prev = NULL;
+	r->inth->f = (int (*)(unsigned int, cpu_context_t *, void *))f;
+	r->inth->data = arg;
+	r->inth->pmap = NULL;
+	r->inth->cond = NULL;
+	r->inth->n = n;
 
 	if (p != NULL) {
-		r->inth.pmap = &p->mapp->pmap;
-		if (cond > 0 && ((t = resource_get(p, cond)) != NULL))
-			r->inth.cond = &t->waitq;
+		r->inth->pmap = &p->mapp->pmap;
+		if (cond > 0) {
+			if ((t = resource_get(p, cond)) == NULL) {
+				resource_free(r);
+				return -EINVAL;
+			}
+			r->inth->cond = &t->waitq;
+		}
 	}
 
-	if ((res = hal_interruptsSetHandler(&r->inth)) != EOK) {
+	if ((res = hal_interruptsSetHandler(r->inth)) != EOK) {
 		resource_free(r);
 		return res;
 	}

@@ -61,12 +61,19 @@ static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
 	thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
 	thread_t *t2 = lib_treeof(thread_t, sleeplinkage, n2);
 
-	time_t t = t1->wakeup - t2->wakeup;
+	if (t1->wakeup > t2->wakeup)
+		return 1;
 
-	if (t == 0)
-		return (int)(t1->id - t2->id);
+	else if (t1->wakeup < t2->wakeup)
+		return -1;
 
-	return t;
+	else if (t1->id < t2->id)
+		return -1;
+
+	else if (t1->id > t2->id)
+		return 1;
+
+	return 0;
 }
 
 
@@ -75,7 +82,13 @@ static int threads_idcmp(rbnode_t *n1, rbnode_t *n2)
 	thread_t *t1 = lib_treeof(thread_t, idlinkage, n1);
 	thread_t *t2 = lib_treeof(thread_t, idlinkage, n2);
 
-	return (t1->id - t2->id);
+	if (t1->id < t2->id)
+		return -1;
+
+	else if (t1->id > t2->id)
+		return 1;
+
+	return 0;
 }
 
 
@@ -551,12 +564,18 @@ void proc_zombie(process_t *proc)
 		proc_lockClear(&parent->lock);
 
 		hal_spinlockSet(&parent->waitsl);
+		proc->state = ZOMBIE;
 		LIST_ADD(&parent->zombies, proc);
 
 		if (parent->waitpid == -1 || (unsigned)parent->waitpid == proc->id)
 			proc_threadWakeup(&parent->waitq);
 
 		hal_spinlockClear(&parent->waitsl);
+	}
+	else {
+		hal_spinlockSet(&threads_common.spinlock);
+		LIST_ADD(&threads_common.zombies, proc);
+		hal_spinlockClear(&threads_common.spinlock);
 	}
 }
 
@@ -576,7 +595,7 @@ static void proc_cleanupZombie(process_t *proc)
 		while ((a = pmap_destroy(&proc->map.pmap, &i)))
 			vm_pageFree(_page_get(a));
 
-		vm_munmap(threads_common.kmap, proc->pmapv, SIZE_PAGE);
+		vm_munmap(threads_common.kmap, proc->pmapv, SIZE_PDIR);
 		vm_pageFree(proc->pmapp);
 	}
 #endif
@@ -687,7 +706,7 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
 
 	if (timeout) {
 		now = _threads_getTimer();
-		current->wakeup = now + timeout;
+		current->wakeup = now + TIMER_US2CYC(timeout);
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 		_threads_updateWakeup(now, NULL);
 	}
@@ -757,15 +776,19 @@ int proc_waitpid(int pid, int *stat, int options)
 				z = NULL;
 		}
 
+		if (z == NULL && proc->childs == NULL) {
+			err = -ECHILD;
+			break;
+		}
+
 		if (err || (options & 1) || (err = proc_threadWait(&proc->waitq, &proc->waitsl, 0)))
 			break;
 	}
 
-
 	if (z != NULL) {
 		err = z->id;
 		if (stat != NULL)
-			*stat = z->exit;
+			*stat = z->exit & 0xff;
 		LIST_REMOVE(&proc->zombies, z);
 		hal_spinlockSet(&threads_common.spinlock);
 		LIST_ADD(&threads_common.zombies, z);

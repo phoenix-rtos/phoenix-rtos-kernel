@@ -59,9 +59,9 @@ void main_initthr(void *unused)
 	vm_pageFree(p);*/
 
 	/* Set stdin, stdout, stderr ports */
-	proc_fileAdd(&h, &oid);
-	proc_fileAdd(&h, &oid);
-	proc_fileAdd(&h, &oid);
+	proc_fileAdd(&h, &oid, 0);
+	proc_fileAdd(&h, &oid, 0);
+	proc_fileAdd(&h, &oid, 0);
 
 	argv[0] = NULL;
 
@@ -86,7 +86,7 @@ void main_initthr(void *unused)
 
 				*argend = 0;
 			}
-			argv[i] = NULL;
+			argv[i++] = NULL;
 
 			if (i == sizeof(argv) / sizeof(*argv))
 				lib_printf("main: truncated arguments for command '%s'\n", argv[0]);
@@ -117,9 +117,9 @@ void main_initthr(void *unused)
 	/* Reopen stdin, stdout, stderr */
 	proc_lookup("/dev/console", &oid);
 
-	proc_fileSet(0, 3, &oid, 0);
-	proc_fileSet(1, 3, &oid, 0);
-	proc_fileSet(2, 3, &oid, 0);
+	proc_fileSet(0, 3, &oid, 0, 0);
+	proc_fileSet(1, 3, &oid, 0, 0);
+	proc_fileSet(2, 3, &oid, 0, 0);
 
 	if (last != NULL)
 		proc_execve(last, last->cmdline, argv, NULL);

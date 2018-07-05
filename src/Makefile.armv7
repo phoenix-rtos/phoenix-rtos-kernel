@@ -17,9 +17,9 @@ MKDEPFLAGS = $(CFLAGS)
 CC = $(CROSS)gcc
 
 CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
-	-mcpu=cortex-m3 -mthumb -ffixed-r9 \
-	-fomit-frame-pointer -ffreestanding -Wno-bool-operation \
-	-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" -DHAL=\"hal//armv7//hal.h\" -DNOMMU
+	-mcpu=cortex-m3 -mthumb -ffixed-r9 -fomit-frame-pointer -ffreestanding -Wno-bool-operation \
+	-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" \
+	-DHAL=\"hal//armv7//hal.h\" -DNOMMU
 
 CFLAGS += -fdata-sections -ffunction-sections
 
@@ -27,6 +27,10 @@ ifneq (, $(findstring stm32, $(TARGET)))
 	CFLAGS += -DCPU_STM32 -DRAM_SIZE=48
 else ifneq (, $(findstring imxrt, $(TARGET)))
 	CFLAGS += -DCPU_IMXRT -DRAM_SIZE=128
+endif
+
+ifneq ($(DEBUG), 1)
+	CFLAGS += -DWATCHDOG
 endif
 
 AR = $(CROSS)ar

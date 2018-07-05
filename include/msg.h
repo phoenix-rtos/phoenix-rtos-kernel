@@ -53,6 +53,7 @@ typedef struct _msg_t {
 				oid_t oid;
 				offs_t offs;
 				size_t len;
+				unsigned mode;
 			} io;
 
 			/* CREATE */

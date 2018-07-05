@@ -42,7 +42,13 @@ static int proc_idcmp(rbnode_t *n1, rbnode_t *n2)
 	process_t *p1 = lib_treeof(process_t, idlinkage, n1);
 	process_t *p2 = lib_treeof(process_t, idlinkage, n2);
 
-	return (p1->id - p2->id);
+	if (p1->id < p2->id)
+		return -1;
+
+	else if (p1->id > p2->id)
+		return 1;
+
+	return 0;
 }
 
 
@@ -443,14 +449,14 @@ int process_load(process_t *process, thread_t *current, syspage_program_t *prog,
 	}
 
 	/* Allocate and map user stack */
-	stack = vm_mmap(process->mapp, (void *)(VADDR_KERNEL - SIZE_PAGE), NULL, 3 * SIZE_PAGE, 0, NULL, -1, MAP_NONE);
+	stack = vm_mmap(process->mapp, (void *)(VADDR_KERNEL - 2 * SIZE_PAGE), NULL, 2 * SIZE_PAGE, 0, NULL, -1, MAP_NONE);
 
 	pmap_switch(&process->mapp->pmap);
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 	/* Copy data from kernel stack */
 
-	stack += 3 * SIZE_PAGE;
+	stack += 2 * SIZE_PAGE;
 
 	/* Put on stack .got base address. hal_jmp will use it to set r9 */
 	PUTONSTACK(stack, void *, data);
@@ -570,7 +576,7 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 		if (filesz && (prot & PROT_WRITE))
 			flags |= MAP_NEEDSCOPY;
 
-		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs + misalign, flags) == NULL) {
+		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL) {
 			vm_munmap(process_common.kmap, ehdr, osize);
 			vm_objectPut(o);
 			return -ENOMEM;
@@ -670,7 +676,7 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		vm_mapDestroy(process, &map);
 		while ((a = pmap_destroy(&map.pmap, &i)))
 			vm_pageFree(_page_get(a));
-		vm_munmap(process_common.kmap, v, SIZE_PAGE);
+		vm_munmap(process_common.kmap, v, SIZE_PDIR);
 		vm_pageFree(p);
 		return err;
 	}
@@ -682,7 +688,7 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		vm_mapDestroy(process, &process->map);
 		while ((a = pmap_destroy(&process->map.pmap, &i)))
 			vm_pageFree(_page_get(a));
-		vm_munmap(process_common.kmap, process->pmapv, SIZE_PAGE);
+		vm_munmap(process_common.kmap, process->pmapv, SIZE_PDIR);
 		vm_pageFree(process->pmapp);
 		vm_kfree(current->execkstack);
 		current->execkstack = NULL;

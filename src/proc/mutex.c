@@ -27,11 +27,10 @@ int proc_mutexCreate(unsigned int *h)
 
 	process = proc_current()->process;
 
-	if ((r = resource_alloc(process, h)) == NULL)
+	if ((r = resource_alloc(process, h, rtLock)) == NULL)
 		return -ENOMEM;
 
-	proc_lockInit(&r->lock);
-	r->type = rtLock;
+	proc_lockInit(r->lock);
 	resource_put(process, r);
 
 	return EOK;
@@ -55,7 +54,7 @@ int proc_mutexLock(unsigned int h)
 	}
 
 	proc_threadUnprotect();
-	err = proc_lockSet(&r->lock);
+	err = proc_lockSet(r->lock);
 	proc_threadProtect();
 	resource_put(process, r);
 
@@ -80,7 +79,7 @@ int proc_mutexTry(unsigned int h)
 	}
 
 	proc_threadUnprotect();
-	err = proc_lockTry(&r->lock);
+	err = proc_lockTry(r->lock);
 	proc_threadProtect();
 	resource_put(process, r);
 
@@ -103,7 +102,7 @@ int proc_mutexUnlock(unsigned int h)
 		return -EINVAL;
 	}
 
-	proc_lockClear(&r->lock);
+	proc_lockClear(r->lock);
 	resource_put(process, r);
 
 	return EOK;
@@ -112,12 +111,12 @@ int proc_mutexUnlock(unsigned int h)
 
 int proc_mutexCopy(resource_t *dst, resource_t *src)
 {
-	proc_lockInit(&dst->lock);
+	proc_lockInit(dst->lock);
 	dst->type = rtLock;
 
 	if (src != NULL) {
-		dst->lock.v = src->lock.v;
-		dst->lock.priority = src->lock.priority;
+		dst->lock->v = src->lock->v;
+		dst->lock->priority = src->lock->priority;
 	}
 
 	return EOK;

@@ -29,7 +29,7 @@ shift
 OUTPUT=$1
 shift
 
-SIZE_PAGE=$((0x100))
+SIZE_PAGE=$((0x200))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
 FLASH_START=$((0x08000000))
 APP_START=$((0x08010000))

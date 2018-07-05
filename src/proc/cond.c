@@ -27,11 +27,10 @@ int proc_condCreate(unsigned int *h)
 
 	process = proc_current()->process;
 
-	if ((r = resource_alloc(process, h)) == NULL)
+	if ((r = resource_alloc(process, h, rtCond)) == NULL)
 		return -ENOMEM;
 
 	r->waitq = NULL;
-	r->type = rtCond;
 	resource_put(process, r);
 
 	return EOK;
@@ -66,7 +65,7 @@ int proc_condWait(unsigned int c, unsigned int m, time_t timeout)
 		return -EINVAL;
 	}
 
-	lock = &rl->lock;
+	lock = rl->lock;
 	proc_threadUnprotect();
 
 	hal_spinlockSet(&lock->spinlock);
