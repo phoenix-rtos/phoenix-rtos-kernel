@@ -114,12 +114,24 @@ void main_initthr(void *unused)
 	proc_fileSet(1, 3, &oid, 0, 0);
 	proc_fileSet(2, 3, &oid, 0, 0);
 
-	if (last != NULL)
-		proc_execve(last, last->cmdline, argv, NULL);
+	if (last != NULL) {
+		if (!proc_vfork())
+			proc_execve(last, last->cmdline, argv, NULL);
+	}
+
+	proc_fileGet(0, 1, &oid, 0, NULL);
+	while (proc_write(oid, 0, "", 1) < 0) {
+		proc_fileGet(0, 1, &oid, 0, NULL);
+		proc_threadSleep(10000);
+	}
+
+	while (proc_lookup("/", &oid) < 0)
+		proc_threadSleep(10000);
 
 	/* Initialize system */
-//	proc_execle(NULL, "/bin/init", "init", NULL, NULL);
-//	proc_execle(NULL, "/bin/sh", "sh", NULL, NULL);
+	proc_execle(NULL, "/bin/init", "init", NULL, NULL);
+	proc_execle(NULL, "/sbin/busybox", "/sbin/busybox", "ash", NULL, NULL);
+	proc_execle(NULL, "/bin/psh", "/bin/psh", NULL, NULL);
 
 	for (;;)
 		proc_threadSleep(2000000);
