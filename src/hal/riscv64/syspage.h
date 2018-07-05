@@ -24,8 +24,8 @@
 /* This structures are used in asm code in _init-imx6ull.S */
 
 typedef struct syspage_program_t {
-	u32 start;
-	u32 end;
+	u64 start;
+	u64 end;
 
 	char cmdline[16];
 } syspage_program_t;
@@ -44,7 +44,7 @@ typedef struct _syspage_t {
 	char arg[256];
 
 	u32 progssz;
-	syspage_program_t progs[0];
+	syspage_program_t progs[16];
 } syspage_t;
 
 

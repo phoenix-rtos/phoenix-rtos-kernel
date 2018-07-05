@@ -21,6 +21,7 @@
 #include "proc/proc.h"
 #include "syscalls.h"
 #include "test/test.h"
+#include "programs.h"
 
 
 struct {
@@ -45,7 +46,13 @@ void main_initthr(void *unused)
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 
-	lib_printf("main: Starting syspage programs (%d) and init\n", syspage->progssz);
+	lib_printf("main: Decoding programs from data segment\n");
+	programs_decode(&main_common.kmap, &main_common.kernel);
+
+	lib_printf("main: Starting syspage programs:");
+	for (i = 0; i < syspage->progssz; i++)
+		lib_printf(" '%s',", syspage->progs[i].cmdline);
+	lib_printf("\b \n");
 
 	/* Free memory used by initial stack */
 	/*vm_munmap(&main_common.kmap, main_common.stack, main_common.stacksz);

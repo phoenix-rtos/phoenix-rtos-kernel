@@ -19,7 +19,7 @@ VERSION = 2.80
 CORE_VERSION = 1.0
 SRCDIR := $(CURDIR)
 MAKEFLAGS += --no-print-directory --output-sync
-SRCS := main.c syscalls.c
+SRCS := main.c syscalls.c programs.c
 OBJS = $(SRCS:.c=.o)
 
 SUBSYSTEMS = lib vm proc test
@@ -45,7 +45,7 @@ EXTERNAL_HEADERS_DIR := ../include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
 
 SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
-HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
+HEADERS_INSTALL_DIR := $(SYSROOT)/usr/local/include/phoenix
 ifeq (/,$(SYSROOT))
 $(error Sysroot is not supported by Your toolchain. Use cross-toolchain to compile)
 endif
@@ -90,11 +90,14 @@ subsystems: $(ARCHS)
 
 
 $(BIN): $(ARCHS) $(EMBED) $(OBJS)
-	@echo "\033[1;34mLD $@\033[0m"
+	@echo "\033[1;34mEMBED programs.cpio\033[0m"
+	$(SIL)$(OBJCOPY) --update-section .data=/tmp/programs programs.o --add-symbol programs=.data:0
 
-	$(LD) $(LDFLAGS) -o $(BIN).elf $(OBJS)  $(EMBED)  -\( $(ARCHS) $(LIBS) -\)
-#	$(LD) $(LDFLAGS) -o $(BIN).elf $(EMBED)  main.o -\( $(ARCHS) $(LIBS) -\)
+	@echo "\033[1;34mLD $@\033[0m"
+	$(LD) $(LDFLAGS) -o $(BIN).elf $(OBJS) $(EMBED) -\( $(ARCHS) $(LIBS) -\)
 	$(SIL)$(OBJCOPY) -O binary $(BIN).elf $(BIN).img
+	
+	@rm ./programs.o
 
 	@(echo "";\
 	echo "=> Phoenix-RTOS kernel binary for [$(TARGET)] has been created";\
@@ -114,7 +117,7 @@ endif
 install-headers: $(EXTERNAL_HEADERS)
 	@mkdir -p "$(HEADERS_INSTALL_DIR)"; \
 	for file in $(EXTERNAL_HEADERS); do\
-		install -m 644 -D $${file} "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
+		install -m 644  $${file}  "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
 	done
 
 

@@ -151,6 +151,17 @@
 .endm
 
 
+.macro CHECKSIGNAL
+	mv a0, zero
+	call _proc_sigwant
+	beqz a0, 1f
+	mv a0, sp
+	call proc_sighandle
+	/* Not reached */
+1:
+.endm
+
+
 .global interrupts_handleintexc
 .type interrupts_handleintexc, @function
 interrupts_handleintexc:
@@ -176,6 +187,7 @@ interrupts_handleintexc:
 	call exceptions_dispatch
 	j 2b
 3:
+	CHECKSIGNAL
 	RESTORE
 	sret
 
@@ -220,25 +232,7 @@ hal_cpuReschedule:
 	mv a2, zero
 	call threads_schedule
 
+	CHECKSIGNAL
 	RESTORE
 	sret
 .size hal_cpuReschedule, .-hal_cpuReschedule
-
-#if 0
-.globl _interrupts_syscall
-.type _interrupts_syscall, @function
-.align 4, 0x90
-_interrupts_syscall:
-	call interrupts_pushContext
-	movl $SEL_KDATA, %edx
-	movw %dx, %ds
-	movw %dx, %es
-	movl (4 * CTXPUSHL + 12)(%esp), %edx
-	pushl %edx
-	pushl %eax
-	call syscalls_dispatch
-	addl $8, %esp
-	movl %eax, (4 * CTXPUSHL - 12)(%esp)
-	jmp interrupts_popContext
-.size _interrupts_syscall, .-_interrupts_syscall
-#endif

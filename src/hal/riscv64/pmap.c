@@ -299,6 +299,9 @@ void _pmap_preinit(void)
 {
 	unsigned int i;
 
+	/* Initialize syspage with zeros */
+	hal_memset(&pmap_common.pmap_syspage, 0, sizeof(syspage_t));
+
 	syspage->kernel = (u64)_start;
 	syspage->kernelsize = (u64)_end - (u64)_start;
 
@@ -306,7 +309,7 @@ void _pmap_preinit(void)
 	syspage->stack = (u64)pmap_common.stack;
 	syspage->stacksz = SIZE_PAGE;
 
-//	pmap_common.pdir2[(VADDR_KERNEL >> 30) % 512] = ((((u64)_start >> 30) << 28) | 0xcf);
+	/* pmap_common.pdir2[(VADDR_KERNEL >> 30) % 512] = ((((u64)_start >> 30) << 28) | 0xcf); */
 
 	hal_memset(pmap_common.pdir2, 0, SIZE_PAGE);
 

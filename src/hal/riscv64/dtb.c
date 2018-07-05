@@ -128,7 +128,7 @@ void dtb_parse(void *arg, void *dtb)
 	hal_memcpy(_end, dtb, ntoh32(dtb_common.fdth->totalsize));
 	dtb_common.fdth = (struct _fdt_header_t *)_end;
 
-//	lib_printf("fdt_header.magic: %x\n", ntoh32(dtb_common.fdth->magic));
+	/* lib_printf("fdt_header.magic: %x\n", ntoh32(dtb_common.fdth->magic)); */
 
 	dtb = (void *)dtb_common.fdth + ntoh32(dtb_common.fdth->off_dt_struct);
 
