@@ -19,7 +19,7 @@
 
 
 /* Size of thread kernel stack */
-#define SIZE_KSTACK (4 * 512)
+#define SIZE_KSTACK (8 * 512)
 
 
 /* Bitfields used to construct interrupt descriptors */

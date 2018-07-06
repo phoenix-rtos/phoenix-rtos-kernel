@@ -442,23 +442,19 @@ int syscalls_msgSend(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
-	kmsg_t *kmsg;
+	kmsg_t kmsg;
 	int err;
 
 	GETFROMSTACK(ustack, u32, port, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 
-	if ((kmsg = vm_kmalloc(sizeof(kmsg_t))) == NULL)
-		return -ENOMEM;
+	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
+	kmsg.threads = NULL;
+	kmsg.responded = 0;
 
-	hal_memcpy(&kmsg->msg, msg, sizeof(msg_t));
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
+	err = proc_send(port, &kmsg);
 
-	err = proc_send(port, kmsg);
-
-	hal_memcpy(msg->o.raw, kmsg->msg.o.raw, sizeof(msg->o.raw));
-	vm_kfree(kmsg);
+	hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
 	return err;
 }
 
