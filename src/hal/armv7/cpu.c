@@ -115,7 +115,7 @@ time_t hal_cpuLowPower(time_t ms)
 		_stm32_rtcSetAlarm(ms);
 
 		/* Don't increment jiffies if sleep was unsuccessful */
-		if (!_stm32_pwrEnterLPStop(&cpu_common.busySp))
+		if (!_stm32_pwrEnterLPStop())
 			ms = 0;
 
 		hal_spinlockClear(&cpu_common.busySp);

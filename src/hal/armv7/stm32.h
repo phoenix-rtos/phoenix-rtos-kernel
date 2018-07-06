@@ -87,7 +87,7 @@ extern void _stm32_pwrSetCPUVolt(u8 range);
 extern void _stm32_pwrEnterLPRun(u32 state);
 
 
-extern int _stm32_pwrEnterLPStop(spinlock_t *spinlock);
+extern int _stm32_pwrEnterLPStop(void);
 
 
 extern void _stm32_rtcUnlockRegs(void);
