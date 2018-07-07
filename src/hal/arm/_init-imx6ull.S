@@ -38,6 +38,10 @@
 #define VADDR_CCM     (VADDR_GPT + SIZE_PAGE)
 #define SWAP(x)       (((x >> 24) & 0xff) | ((x << 8) & (0xff << 16)) | ((x >> 8) & (0xff << 8)) | ((x << 24) & (0xff << 24)))
 
+/* API vectors */
+#define HAB_API_VEC   0x100
+#define ROM_API_VEC   0x180
+
 .arm
 
 .section .init, "ax"
@@ -54,24 +58,72 @@
 	ldr pc, =_interrupts_dispatch
 	ldr pc, =_interrupts_dispatch
 
-.org 0x400, 0xff
+.org 0x400, 0x0
 
-/* program image header */
-ivt:
-	.word 0x402000d1                              /* hdr */
-	.word _start - VADDR_KERNEL + ADDR_OCRAM      /* entry */
-	.word 0                                       /* reserved 1 */
-	.word dcd - VADDR_KERNEL + ADDR_OCRAM         /* dcd */
-	.word boot_data - VADDR_KERNEL + ADDR_OCRAM   /* boot_data */
-	.word ivt - VADDR_KERNEL + ADDR_OCRAM         /* self */
-	.word 0                                       /* csf */
-	.word 0                                       /* reserved 2 */
+plugin_ivt:
+	.word 0x402000d1                                    /* hdr */
+	.word plugin - VADDR_KERNEL + ADDR_OCRAM            /* entry */
+	.word 0                                             /* reserved 1 */
+	.word dcd - VADDR_KERNEL + ADDR_OCRAM               /* dcd */
+	.word plugin_boot_data - VADDR_KERNEL + ADDR_OCRAM  /* boot_data */
+	.word plugin_ivt - VADDR_KERNEL + ADDR_OCRAM        /* self */
+	.word 0                                             /* csf */
+	.word 0                                             /* reserved 2 */
 
-boot_data:
-	.word ADDR_OCRAM                              /* load address */
-	.word __bss_start__ - ivt                     /* size - will be changed during image creation */
-	.word 0                                       /* plugin */
-	.word 0                                       /* reserved */
+plugin_boot_data:
+	.word ADDR_OCRAM                                    /* load address */
+	.word dcd_end + 0x30 - VADDR_KERNEL                 /* plugin size */
+	.word 1                                             /* plugin */
+	.word 0                                             /* reserved */
+
+plugin:
+	stmdb sp!, {r4, r5, r6, r7, r8, lr}
+
+	/* check first argument's address - anything below OCRAM means it is a serial download boot */
+	ldr r4, =#0x900000
+	cmp r0, r4
+	bmi failsafe
+	mov r4, r0
+	mov r5, r1
+	mov r6, r2
+	ldr r1, =(boot_data - VADDR_KERNEL + ADDR_OCRAM)
+	ldmia r1, {r2, r3, r7, r8}
+	str r8, [sp, #-4]!
+	str r7, [sp, #-4]!
+	str r3, [sp, #-4]!
+	str r2, [sp, #-4]!
+	mov r1, #0
+	stmdb sp!, {r1, r2}
+	add r2, sp, #8
+	add r1, sp, #4
+	add r0, sp, #0
+	ldr r8, =(ROM_API_VEC + 0x8) /* (void **dest_address, u32 *load_size, boot_data_t *boot_data) */
+	ldr r8, [r8]
+	blx r8
+
+	/* check if image was loaded correctly */
+	ldr r0, [sp, #4]
+	ldr r2, [sp, #12]
+	cmp r0, r2
+	addne sp, #24
+	bne failsafe
+
+	/* set output values for boot ROM*/
+	ldmia sp!, {r2, r3} /* start address and size */
+	str r2, [r4]
+	str r3, [r5]
+	ldr r2, =(ivt - VADDR_KERNEL) /* ivt offset */
+	str r2, [r6]
+	add sp, #16
+	mov r0, #1
+	ldmia sp!, {r4, r5, r6, r7, r8, pc}
+
+failsafe:
+	ldr r4, =(HAB_API_VEC + 0x28) /* suppress sending error to host app */
+	ldr r4, [r4]
+	blx r4
+	mov r0, #0x0
+	ldmia sp!, {r4, r5, r6, r7, r8, pc}
 
 dcd:
 	.byte 0xd2                                    /* Tag */
@@ -221,6 +273,21 @@ dcd_ddr:
 	.word SWAP(0x00000000)
 dcd_end:
 
+ivt:
+	.word 0x402000d1                                    /* hdr */
+	.word _start - VADDR_KERNEL + ADDR_DDR              /* entry */
+	.word 0                                             /* reserved 1 */
+	.word 0                                             /* dcd */
+	.word boot_data - VADDR_KERNEL + ADDR_DDR           /* boot_data */
+	.word ivt - VADDR_KERNEL + ADDR_DDR                 /* self */
+	.word 0                                             /* csf */
+	.word 0                                             /* reserved 2 */
+
+boot_data:
+	.word ADDR_DDR                                      /* load address */
+	.word __bss_start__ - ivt                           /* size - will be changed during image creation */
+	.word 0                                             /* plugin */
+	.word 0
 
 _cpy4:
 	mov r3, #4
@@ -285,28 +352,14 @@ enet_pll:
 	ands r1, #(1 << 31)
 	beq enet_pll
 
-	ldr r7, =(ADDR_OCRAM)
+	/* Copy applications and update syspage */
 	ldr r8, =(ADDR_DDR)
 	ldr r9, =(SIZE_PAGE - 1)
 
-	add r0, r7, #0x20 /* Syspage address */
+	add r0, r8, #0x20 /* Syspage address */
 	ldr r4, [r0, #0x8] /* Kernel offset */
-	add r1, r7, r4
-	ldr r2, [r0, #0xc] /* Kernel size */
+	add r0, r0, r4 /* add kernel offset */
 
-	/* Copy kernel to DDR RAM */
-	add r3, r8, r4
-
-kernel_copy:
-	subs r2, #4
-	ldr r5, [r1, r2]
-	str r5, [r3, r2]
-	bne kernel_copy
-
-	add r0, r8, #0x20
-	add r0, r0, r4
-
-	/* Copy applications and update syspage */
 	ldr r1, [r0, #0x114] /* Number of programs */
 	add r0, r0, #0x118 /* Now points to syspage->progs */
 	add r2, r8, #0x400000 /* Destination */
@@ -335,16 +388,12 @@ app_copy:
 	add r0, r0, #24
 
 	/* Align destination to SIZE_PAGE */
-	add r2, r2, r6
-	bic r2, r2, r6
+	add r2, r2, r9
+	bic r2, r2, r9
 
 	b apps_copy
 
 apps_copy_end:
-
-	/* Jump to DDR RAM */
-	ldr pc, =(l_jmp - VADDR_KERNEL + ADDR_DDR)
-l_jmp:
 
 	/* Disable caches */
 	mrc p15, 0, r1, c1, c0, 0

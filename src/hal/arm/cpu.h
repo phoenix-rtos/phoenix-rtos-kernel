@@ -21,7 +21,7 @@
 #define SIZE_CACHE_LINE 64
 
 /* Size of thread kernel stack */
-#define SIZE_KSTACK     4 * 512
+#define SIZE_KSTACK     8 * 512
 
 #define NULL 0
 

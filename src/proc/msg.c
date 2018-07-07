@@ -451,7 +451,6 @@ int proc_send(u32 port, kmsg_t *kmsg)
 	int responded = 0;
 	int err = EOK;
 
-
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
