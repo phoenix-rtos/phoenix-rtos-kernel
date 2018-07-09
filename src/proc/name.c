@@ -131,7 +131,7 @@ int proc_portLookup(const char *name, oid_t *oid)
 {
 	int err;
 	dcache_entry_t *entry;
-	kmsg_t *kmsg;
+	msg_t *msg;
 	size_t len, i;
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
@@ -195,28 +195,25 @@ int proc_portLookup(const char *name, oid_t *oid)
 	if (!name_common.root_registered && !i)
 		return -EINVAL;
 
-	if ((kmsg = vm_kmalloc(sizeof(kmsg_t))) == NULL)
+	if ((msg = vm_kmalloc(sizeof(msg_t))) == NULL)
 		return -ENOMEM;
 
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
-
-	hal_memset(&kmsg->msg, 0, sizeof(msg_t));
-	kmsg->msg.type = mtLookup;
+	hal_memset(msg, 0, sizeof(msg_t));
+	msg->type = mtLookup;
 
 	/* Query servers */
 	do {
-		kmsg->msg.i.lookup.dir = srv;
-		kmsg->msg.i.size = len - i;
+		msg->i.lookup.dir = srv;
+		msg->i.size = len - i;
 		hal_memcpy(pptr, name + i + 1, len - i);
-		kmsg->msg.i.data = pptr;
+		msg->i.data = pptr;
 
-		if ((err = proc_send(srv.port, kmsg)) < 0)
+		if ((err = proc_send(srv.port, msg)) < 0)
 			break;
 
-		srv = kmsg->msg.o.lookup.res;
+		srv = msg->o.lookup.res;
 
-		if ((err = kmsg->msg.o.lookup.err) < 0)
+		if ((err = msg->o.lookup.err) < 0)
 			break;
 
 		if (i + err > len) {
@@ -228,9 +225,9 @@ int proc_portLookup(const char *name, oid_t *oid)
 	}
 	while (i != len);
 
-	*oid = kmsg->msg.o.lookup.res;
+	*oid = msg->o.lookup.res;
 
-	vm_kfree(kmsg);
+	vm_kfree(msg);
 	return err < 0 ? err : EOK;
 #endif
 
@@ -248,22 +245,19 @@ int proc_lookup(const char *name, oid_t *oid)
 int proc_open(oid_t oid, unsigned mode)
 {
 	int err;
-	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (kmsg == NULL)
+	if (msg == NULL)
 		return -ENOMEM;
 
-	hal_memset(kmsg, 0, sizeof(kmsg_t));
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
+	msg->type = mtOpen;
+	hal_memcpy(&msg->i.openclose.oid, &oid, sizeof(oid_t));
+	msg->i.openclose.flags = mode;
 
-	kmsg->msg.type = mtOpen;
-	hal_memcpy(&kmsg->msg.i.openclose.oid, &oid, sizeof(oid_t));
-	kmsg->msg.i.openclose.flags = mode;
-
-	err = proc_send(oid.port, kmsg);
-	vm_kfree(kmsg);
+	err = proc_send(oid.port, msg);
+	vm_kfree(msg);
 	return err;
 }
 
@@ -271,22 +265,19 @@ int proc_open(oid_t oid, unsigned mode)
 int proc_close(oid_t oid, unsigned mode)
 {
 	int err;
-	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (kmsg == NULL)
+	if (msg == NULL)
 		return -ENOMEM;
 
-	hal_memset(kmsg, 0, sizeof(kmsg_t));
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
+	msg->type = mtClose;
+	hal_memcpy(&msg->i.openclose.oid, &oid, sizeof(oid_t));
+	msg->i.openclose.flags = mode;
 
-	kmsg->msg.type = mtClose;
-	hal_memcpy(&kmsg->msg.i.openclose.oid, &oid, sizeof(oid_t));
-	kmsg->msg.i.openclose.flags = mode;
-
-	err = proc_send(oid.port, kmsg);
-	vm_kfree(kmsg);
+	err = proc_send(oid.port, msg);
+	vm_kfree(msg);
 	return err;
 }
 
@@ -294,26 +285,23 @@ int proc_close(oid_t oid, unsigned mode)
 int proc_create(int port, oid_t *oid, int type)
 {
 	int err;
-	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (kmsg == NULL)
+	if (msg == NULL)
 		return -ENOMEM;
 
-	hal_memset(kmsg, 0, sizeof(kmsg_t));
+	hal_memset(msg, 0, sizeof(kmsg_t));
 
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
+	msg->type = mtCreate;
+	msg->i.create.type = type;
+	msg->i.create.mode = 0;
+	msg->i.create.dev.port = 0;
+	msg->i.create.dev.id = 0;
 
-	kmsg->msg.type = mtCreate;
-	kmsg->msg.i.create.type = type;
-	kmsg->msg.i.create.mode = 0;
-	kmsg->msg.i.create.dev.port = 0;
-	kmsg->msg.i.create.dev.id = 0;
+	err = proc_send(port, msg);
 
-	err = proc_send(port, kmsg);
-
-	hal_memcpy(oid, &kmsg->msg.o.create.oid, sizeof(oid_t));
-	vm_kfree(kmsg);
+	hal_memcpy(oid, &msg->o.create.oid, sizeof(oid_t));
+	vm_kfree(msg);
 	return err;
 }
 
@@ -321,25 +309,22 @@ int proc_create(int port, oid_t *oid, int type)
 int proc_link(oid_t dir, oid_t oid, char *name)
 {
 	int err;
-	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (kmsg == NULL)
+	if (msg == NULL)
 		return -ENOMEM;
 
-	hal_memset(kmsg, 0, sizeof(kmsg_t));
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
+	msg->type = mtLink;
+	hal_memcpy(&msg->i.ln.dir, &dir, sizeof(oid_t));
+	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
-	kmsg->msg.type = mtLink;
-	hal_memcpy(&kmsg->msg.i.ln.dir, &dir, sizeof(oid_t));
-	hal_memcpy(&kmsg->msg.i.ln.oid, &oid, sizeof(oid_t));
+	msg->i.size = hal_strlen(name) + 1;
+	msg->i.data = name;
 
-	kmsg->msg.i.size = hal_strlen(name) + 1;
-	kmsg->msg.i.data = name;
-
-	err = proc_send(dir.port, kmsg);
-	vm_kfree(kmsg);
+	err = proc_send(dir.port, msg);
+	vm_kfree(msg);
 	return err;
 }
 
@@ -347,30 +332,27 @@ int proc_link(oid_t dir, oid_t oid, char *name)
 int proc_read(oid_t oid, size_t offs, void *buf, size_t sz)
 {
 	int err;
-	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (kmsg == NULL)
+	if (msg == NULL)
 		return -ENOMEM;
 
-	hal_memset(kmsg, 0, sizeof(kmsg_t));
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
+	msg->type = mtRead;
+	hal_memcpy(&msg->i.io.oid, &oid, sizeof(oid_t));
+	msg->i.io.offs = offs;
+	msg->i.io.len = 0;
 
-	kmsg->msg.type = mtRead;
-	hal_memcpy(&kmsg->msg.i.io.oid, &oid, sizeof(oid_t));
-	kmsg->msg.i.io.offs = offs;
-	kmsg->msg.i.io.len = 0;
+	msg->o.size = sz;
+	msg->o.data = buf;
 
-	kmsg->msg.o.size = sz;
-	kmsg->msg.o.data = buf;
-
-	err = proc_send(oid.port, kmsg);
+	err = proc_send(oid.port, msg);
 
 	if (err >= 0)
-		err = kmsg->msg.o.io.err;
+		err = msg->o.io.err;
 
-	vm_kfree(kmsg);
+	vm_kfree(msg);
 	return err;
 }
 
@@ -378,30 +360,27 @@ int proc_read(oid_t oid, size_t offs, void *buf, size_t sz)
 int proc_write(oid_t oid, size_t offs, void *buf, size_t sz)
 {
 	int err;
-	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (kmsg == NULL)
+	if (msg == NULL)
 		return -ENOMEM;
 
-	hal_memset(kmsg, 0, sizeof(kmsg_t));
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
+	msg->type = mtWrite;
+	hal_memcpy(&msg->i.io.oid, &oid, sizeof(oid_t));
+	msg->i.io.offs = offs;
+	msg->i.io.len = 0;
 
-	kmsg->msg.type = mtWrite;
-	hal_memcpy(&kmsg->msg.i.io.oid, &oid, sizeof(oid_t));
-	kmsg->msg.i.io.offs = offs;
-	kmsg->msg.i.io.len = 0;
+	msg->i.size = sz;
+	msg->i.data = buf;
 
-	kmsg->msg.i.size = sz;
-	kmsg->msg.i.data = buf;
-
-	err = proc_send(oid.port, kmsg);
+	err = proc_send(oid.port, msg);
 
 	if (err >= 0)
-		err = kmsg->msg.o.io.err;
+		err = msg->o.io.err;
 
-	vm_kfree(kmsg);
+	vm_kfree(msg);
 	return err;
 }
 
@@ -409,26 +388,23 @@ int proc_write(oid_t oid, size_t offs, void *buf, size_t sz)
 int proc_size(oid_t oid)
 {
 	int err;
-	kmsg_t *kmsg = vm_kmalloc(sizeof(kmsg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (kmsg == NULL)
+	if (msg == NULL)
 		return -ENOMEM;
 
-	hal_memset(kmsg, 0, sizeof(kmsg_t));
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	kmsg->threads = NULL;
-	kmsg->responded = 0;
+	msg->type = mtGetAttr;
+	hal_memcpy(&msg->i.attr.oid, &oid, sizeof(oid_t));
+	msg->i.attr.type = 3; /* atSize */
 
-	kmsg->msg.type = mtGetAttr;
-	hal_memcpy(&kmsg->msg.i.attr.oid, &oid, sizeof(oid_t));
-	kmsg->msg.i.attr.type = 3; /* atSize */
-
-	err = proc_send(oid.port, kmsg);
+	err = proc_send(oid.port, msg);
 
 	if (err >= 0)
-		err = kmsg->msg.o.attr.val;
+		err = msg->o.attr.val;
 
-	vm_kfree(kmsg);
+	vm_kfree(msg);
 	return err;
 }
 

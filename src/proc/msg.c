@@ -443,20 +443,131 @@ static void msg_release(kmsg_t *kmsg)
 		kmsg->o.w = NULL;
 	}
 }
+
+
+static void msg_ipack(kmsg_t *kmsg)
+{
+	size_t offset;
+
+	if (kmsg->msg.i.data != NULL) {
+		switch (kmsg->msg.type) {
+			case mtOpen:
+			case mtClose:
+				offset = sizeof(kmsg->msg.i.openclose);
+				break;
+
+			case mtRead:
+			case mtWrite:
+			case mtTruncate:
+				offset = sizeof(kmsg->msg.i.io);
+				break;
+
+			case mtCreate:
+				offset = sizeof(kmsg->msg.i.create);
+				break;
+
+			case mtDestroy:
+				offset = sizeof(kmsg->msg.i.destroy);
+				break;
+
+			case mtSetAttr:
+			case mtGetAttr:
+				offset = sizeof(kmsg->msg.i.attr);
+				break;
+
+			case mtLookup:
+				offset = sizeof(kmsg->msg.i.lookup);
+				break;
+
+			case mtLink:
+			case mtUnlink:
+				offset = sizeof(kmsg->msg.i.ln);
+				break;
+
+			case mtReaddir:
+				offset = sizeof(kmsg->msg.i.readdir);
+				break;
+
+			case mtDevCtl:
+			default:
+				return;
+		}
+
+		if (kmsg->msg.i.size > sizeof(kmsg->msg.i.raw) - offset)
+			return;
+
+		hal_memcpy(kmsg->msg.i.raw + offset, kmsg->msg.i.data, kmsg->msg.i.size);
+		kmsg->msg.i.data = kmsg->msg.i.raw + offset;
+	}
+}
+
+
+static int msg_opack(kmsg_t *kmsg)
+{
+	size_t offset;
+
+	if (kmsg->msg.o.data == NULL)
+		return 0;
+
+	switch (kmsg->msg.type) {
+		case mtOpen:
+		case mtClose:
+		case mtRead:
+		case mtWrite:
+		case mtTruncate:
+		case mtDestroy:
+		case mtLink:
+		case mtUnlink:
+		case mtReaddir:
+			offset = sizeof(kmsg->msg.o.io);
+			break;
+
+		case mtCreate:
+			offset = sizeof(kmsg->msg.o.create);
+			break;
+
+		case mtSetAttr:
+		case mtGetAttr:
+			offset = sizeof(kmsg->msg.o.attr);
+			break;
+
+		case mtLookup:
+			offset = sizeof(kmsg->msg.o.lookup);
+			break;
+
+		case mtDevCtl:
+		default:
+			return 0;
+	}
+
+	if (kmsg->msg.o.size > sizeof(kmsg->msg.o.raw) - offset)
+		return 0;
+
+	kmsg->msg.o.data = kmsg->msg.o.raw + offset;
+
+	return 1;
+}
+
 #endif
 
-int proc_send(u32 port, kmsg_t *kmsg)
+int proc_send(u32 port, msg_t *msg)
 {
 	port_t *p;
 	int responded = 0;
 	int err = EOK;
+	kmsg_t kmsg;
 
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
-	kmsg->threads = NULL;
-	kmsg->src = proc_current()->process;
-	kmsg->responded = 0;
+	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
+	kmsg.src = proc_current()->process;
+	kmsg.threads = NULL;
+	kmsg.responded = 0;
+
+#ifndef NOMMU
+	msg_ipack(&kmsg);
+#endif
 
 	hal_spinlockSet(&p->spinlock);
 
@@ -464,24 +575,33 @@ int proc_send(u32 port, kmsg_t *kmsg)
 		err = -EINVAL;
 	}
 	else {
-		LIST_ADD(&p->kmessages, kmsg);
+		LIST_ADD(&p->kmessages, &kmsg);
 
 		proc_threadWakeup(&p->threads);
 
-		while (!(responded = kmsg->responded))
-			err = proc_threadWait(&kmsg->threads, &p->spinlock, 0);
+		while (!(responded = kmsg.responded))
+			err = proc_threadWait(&kmsg.threads, &p->spinlock, 0);
 	}
 
 	hal_spinlockClear(&p->spinlock);
+
 	port_put(p, 0);
+
+	hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
+
+	/* If msg.o.data has been packed to msg.o.raw */
+	if ((kmsg.msg.o.data > (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw)))
+		hal_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
 
 	return responded < 0 ? -EINVAL : err;
 }
 
 
-int proc_recv(u32 port, kmsg_t **kmsg, unsigned int *rid)
+int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 {
 	port_t *p;
+	kmsg_t *kmsg;
+	int ipacked = 0, opacked = 0;
 #ifndef NOMMU
 	int closed;
 #endif
@@ -495,14 +615,14 @@ int proc_recv(u32 port, kmsg_t **kmsg, unsigned int *rid)
 	while (p->kmessages == NULL && !p->closed)
 		proc_threadWait(&p->threads, &p->spinlock, 0);
 
-	(*kmsg) = p->kmessages;
+	kmsg = p->kmessages;
 
 	if (p->closed) {
 		/* Port is being removed */
-		if (*kmsg != NULL) {
-			(*kmsg)->responded = -1;
-			LIST_REMOVE(&p->kmessages, (*kmsg));
-			proc_threadWakeup(&(*kmsg)->threads);
+		if (kmsg != NULL) {
+			kmsg->responded = -1;
+			LIST_REMOVE(&p->kmessages, kmsg);
+			proc_threadWakeup(&kmsg->threads);
 		}
 
 		hal_spinlockClear(&p->spinlock);
@@ -511,45 +631,52 @@ int proc_recv(u32 port, kmsg_t **kmsg, unsigned int *rid)
 		return -EINVAL;
 	}
 
-	LIST_REMOVE(&p->kmessages, (*kmsg));
-	LIST_ADD(&p->received, (*kmsg));
+	LIST_REMOVE(&p->kmessages, kmsg);
+	LIST_ADD(&p->received, kmsg);
 	hal_spinlockClear(&p->spinlock);
 	proc_threadProtect();
 
 	/* (MOD) */
-	(*rid) = (unsigned long)(*kmsg);
+	(*rid) = (unsigned long)(kmsg);
 
 #ifndef NOMMU
-	(*kmsg)->i.bvaddr = NULL;
-	(*kmsg)->i.boffs = 0;
-	(*kmsg)->i.w = NULL;
-	(*kmsg)->i.bp = NULL;
-	(*kmsg)->i.evaddr = NULL;
-	(*kmsg)->i.eoffs = 0;
-	(*kmsg)->i.ep = NULL;
+	kmsg->i.bvaddr = NULL;
+	kmsg->i.boffs = 0;
+	kmsg->i.w = NULL;
+	kmsg->i.bp = NULL;
+	kmsg->i.evaddr = NULL;
+	kmsg->i.eoffs = 0;
+	kmsg->i.ep = NULL;
 
-	(*kmsg)->o.bvaddr = NULL;
-	(*kmsg)->o.boffs = 0;
-	(*kmsg)->o.w = NULL;
-	(*kmsg)->o.bp = NULL;
-	(*kmsg)->o.evaddr = NULL;
-	(*kmsg)->o.eoffs = 0;
-	(*kmsg)->o.ep = NULL;
+	kmsg->o.bvaddr = NULL;
+	kmsg->o.boffs = 0;
+	kmsg->o.w = NULL;
+	kmsg->o.bp = NULL;
+	kmsg->o.evaddr = NULL;
+	kmsg->o.eoffs = 0;
+	kmsg->o.ep = NULL;
+
+	if ((kmsg->msg.i.data > (void *)kmsg->msg.i.raw) && (kmsg->msg.i.data < (void *)kmsg->msg.i.raw + sizeof(kmsg->msg.i.raw)))
+		ipacked = 1;
 
 	/* Map data in receiver space */
-	(*kmsg)->msg.i.data = msg_map(0, (*kmsg), (*kmsg)->msg.i.data, (*kmsg)->msg.i.size, (*kmsg)->src, proc_current()->process);
-	(*kmsg)->msg.o.data = msg_map(1, (*kmsg), (*kmsg)->msg.o.data, (*kmsg)->msg.o.size, (*kmsg)->src, proc_current()->process);
+	/* Don't map if msg is packed */
+	if (!ipacked)
+		kmsg->msg.i.data = msg_map(0, kmsg, kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 
-	if (((*kmsg)->msg.i.size && (*kmsg)->msg.i.data == NULL) ||
-		((*kmsg)->msg.o.size && (*kmsg)->msg.o.data == NULL) ||
+	if (!(opacked = msg_opack(kmsg)))
+		kmsg->msg.o.data = msg_map(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);
+
+	if ((kmsg->msg.i.size && kmsg->msg.i.data == NULL) ||
+		(kmsg->msg.o.size && kmsg->msg.o.data == NULL) ||
 		p->closed) {
 		closed = p->closed;
-		msg_release(*kmsg);
+		msg_release(kmsg);
 
 		hal_spinlockSet(&p->spinlock);
-		LIST_REMOVE(&p->received, (*kmsg));
-		(*kmsg)->responded = -1;
-		proc_threadWakeup(&(*kmsg)->threads);
+		LIST_REMOVE(&p->received, kmsg);
+		kmsg->responded = -1;
+		proc_threadWakeup(&kmsg->threads);
 		hal_spinlockClear(&p->spinlock);
 
 		port_put(p, 0);
@@ -557,6 +684,14 @@ int proc_recv(u32 port, kmsg_t **kmsg, unsigned int *rid)
 		return closed ? -EINVAL : -ENOMEM;
 	}
 #endif
+	hal_memcpy(msg, &kmsg->msg, sizeof(*msg));
+
+	if (ipacked)
+		msg->i.data = msg->i.raw + (kmsg->msg.i.data - (void *)kmsg->msg.i.raw);
+
+	if (opacked)
+		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
+
 	port_put(p, 0);
 	return EOK;
 }
