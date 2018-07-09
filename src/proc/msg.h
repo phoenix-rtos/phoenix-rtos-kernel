@@ -72,10 +72,10 @@ extern void proc_portsDestroy(process_t *proc);
  */
 
 
-extern int proc_send(u32 port, kmsg_t *kmsg);
+extern int proc_send(u32 port, msg_t *msg);
 
 
-extern int proc_recv(u32 port, kmsg_t **kmsg, unsigned int *rid);
+extern int proc_recv(u32 port, msg_t *msg, unsigned int *rid);
 
 
 extern int proc_respond(u32 port, msg_t *msg, unsigned int rid);
