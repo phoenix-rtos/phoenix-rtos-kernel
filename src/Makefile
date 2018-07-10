@@ -103,7 +103,7 @@ $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 	@echo "\033[1;34mLD $@\033[0m"
 	$(LD) $(LDFLAGS) -o $(BIN).elf $(OBJS) $(EMBED) -\( $(ARCHS) $(LIBS) -\)
 	$(SIL)$(OBJCOPY) -O binary $(BIN).elf $(BIN).img
-	
+
 	@rm ./programs.o
 
 	@(echo "";\

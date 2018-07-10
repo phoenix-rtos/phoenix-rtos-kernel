@@ -62,7 +62,6 @@ int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs, unsigned m
 		r->fd->mode = mode;
 
 	resource_put(process, r);
-
 	return EOK;
 }
 
@@ -92,7 +91,6 @@ int proc_fileGet(unsigned int h, char flags, oid_t *oid, offs_t *offs, unsigned 
 		*mode = r->fd->mode;
 
 	resource_put(process, r);
-
 	return EOK;
 }
 
@@ -113,7 +111,6 @@ int proc_fileRemove(unsigned int h)
 	}
 
 	resource_free(r);
-
 	return EOK;
 }
 
@@ -124,6 +121,5 @@ int proc_fileCopy(resource_t *dst, resource_t *src)
 	hal_memcpy(&dst->fd->oid, &src->fd->oid, sizeof(oid_t));
 	dst->fd->offs = src->fd->offs;
 	dst->fd->mode = src->fd->mode;
-
 	return EOK;
 }

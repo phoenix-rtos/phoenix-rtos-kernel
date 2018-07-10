@@ -282,7 +282,7 @@ int proc_close(oid_t oid, unsigned mode)
 }
 
 
-int proc_create(int port, oid_t *oid, int type)
+int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -294,9 +294,11 @@ int proc_create(int port, oid_t *oid, int type)
 
 	msg->type = mtCreate;
 	msg->i.create.type = type;
-	msg->i.create.mode = 0;
-	msg->i.create.dev.port = 0;
-	msg->i.create.dev.id = 0;
+	msg->i.create.mode = mode;
+	msg->i.create.dev = dev;
+	msg->i.create.dir = dir;
+	msg->i.data = name;
+	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
 
 	err = proc_send(port, msg);
 
@@ -329,7 +331,7 @@ int proc_link(oid_t dir, oid_t oid, char *name)
 }
 
 
-int proc_read(oid_t oid, size_t offs, void *buf, size_t sz)
+int proc_read(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -343,6 +345,7 @@ int proc_read(oid_t oid, size_t offs, void *buf, size_t sz)
 	hal_memcpy(&msg->i.io.oid, &oid, sizeof(oid_t));
 	msg->i.io.offs = offs;
 	msg->i.io.len = 0;
+	msg->i.io.mode = mode;
 
 	msg->o.size = sz;
 	msg->o.data = buf;
@@ -357,7 +360,7 @@ int proc_read(oid_t oid, size_t offs, void *buf, size_t sz)
 }
 
 
-int proc_write(oid_t oid, size_t offs, void *buf, size_t sz)
+int proc_write(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -371,6 +374,7 @@ int proc_write(oid_t oid, size_t offs, void *buf, size_t sz)
 	hal_memcpy(&msg->i.io.oid, &oid, sizeof(oid_t));
 	msg->i.io.offs = offs;
 	msg->i.io.len = 0;
+	msg->i.io.mode = mode;
 
 	msg->i.size = sz;
 	msg->i.data = buf;

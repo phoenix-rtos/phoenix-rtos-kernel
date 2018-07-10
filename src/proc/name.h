@@ -67,13 +67,13 @@ extern int proc_portLookup(const char *name, oid_t *oid);
 extern int proc_lookup(const char *name, oid_t *oid);
 
 
-extern int proc_read(oid_t oid, size_t offs, void *buf, size_t sz);
+extern int proc_read(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode);
 
 
 extern int proc_link(oid_t dir, oid_t oid, char *name);
 
 
-extern int proc_create(int port, oid_t *oid, int type);
+extern int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid);
 
 
 extern int proc_close(oid_t oid, unsigned mode);
@@ -85,7 +85,7 @@ extern int proc_open(oid_t oid, unsigned mode);
 extern int proc_size(oid_t oid);
 
 
-extern int proc_write(oid_t oid, size_t offs, void *buf, size_t sz);
+extern int proc_write(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode);
 
 
 extern void _name_init(void);

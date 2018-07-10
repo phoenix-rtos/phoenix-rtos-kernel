@@ -25,12 +25,14 @@
 enum {
 	/* File operations */
 	mtOpen = 0, mtClose, mtRead, mtWrite, mtTruncate, mtDevCtl,
-		
+
 	/* Object operations */
 	mtCreate, mtDestroy, mtSetAttr, mtGetAttr,
 
 	/* Directory operations */
 	mtLookup, mtLink, mtUnlink, mtReaddir,
+
+	mtCount
 } type;
 
 
@@ -39,7 +41,7 @@ enum {
 
 typedef struct _msg_t {
 	int type;
-	
+
 	struct {
 		union {
 			/* OPEN/CLOSE */

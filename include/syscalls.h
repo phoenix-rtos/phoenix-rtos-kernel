@@ -61,4 +61,17 @@
 	ID(signalPost) \
 	ID(signalReturn) \
 	ID(signalMask) \
-	ID(priority)
+	ID(priority) \
+	\
+	ID(read) \
+	ID(write) \
+	ID(open_absolute) \
+	ID(close) \
+	ID(link) \
+	ID(unlink) \
+	ID(fcntl) \
+	ID(ftruncate) \
+	ID(lseek) \
+	ID(dup) \
+	ID(dup2) \
+	ID(pipe)
