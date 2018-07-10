@@ -86,8 +86,8 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 		hal_memcpy(vaddr, cpio, fs);
 //		vm_munmap(kmap, vaddr, sz);
 
-		pr->start = (u64)vaddr;
-		pr->end = (u64)vaddr + fs;
+		pr->start = (typeof(pr->start))vaddr;
+		pr->end = (typeof(pr->end))vaddr + fs;
 
 		cpio = (void *)cpio + fs;
 	}

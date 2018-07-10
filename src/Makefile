@@ -91,6 +91,7 @@ subsystems: $(ARCHS)
 
 $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 	@echo "\033[1;34mEMBED programs.cpio\033[0m"
+	@touch /tmp/programs
 	$(SIL)$(OBJCOPY) --update-section .data=/tmp/programs programs.o --add-symbol programs=.data:0
 
 	@echo "\033[1;34mLD $@\033[0m"
