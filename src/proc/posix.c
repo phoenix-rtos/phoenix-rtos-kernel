@@ -28,6 +28,8 @@
 #define TRACE(str, ...)
 
 
+enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };
+
 enum { pxBufferedPipe, pxPipe, pxPTY };
 
 
@@ -94,6 +96,26 @@ static void splitname(char *path, char **base, char **dir)
 		*dir = path;
 		*base = slash + 1;
 		*slash = 0;
+	}
+}
+
+
+static inline unsigned posix_fileType(unsigned status)
+{
+	return (status & (0xff << 16)) >> 16;
+}
+
+
+static void posix_fileDeref(open_file_t *f)
+{
+	while (proc_lockSet(&f->lock) < 0);
+	if (!--f->refs) {
+		proc_close(f->oid, f->status);
+		proc_lockDone(&f->lock);
+		vm_kfree(f);
+	}
+	else {
+		proc_lockClear(&f->lock);
 	}
 }
 
@@ -229,15 +251,8 @@ int posix_exec(void)
 	proc_lockSet(&p->lock);
 	for (fd = 0; fd <= p->maxfd; ++fd) {
 		if ((f = p->fds[fd].file) != NULL && p->fds[fd].flags & O_CLOEXEC) {
-			proc_lockSet(&f->lock);
-			if (!--f->refs) {
-				proc_close(f->oid, f->status);
-				proc_lockDone(&f->lock);
-				vm_kfree(f);
-			}
-			else {
-				proc_lockClear(&f->lock);
-			}
+			posix_fileDeref(f);
+			p->fds[fd].file = NULL;
 		}
 	}
 	proc_lockClear(&p->lock);
@@ -259,17 +274,8 @@ int posix_exit(process_t *process)
 
 	proc_lockSet(&p->lock);
 	for (fd = 0; fd <= p->maxfd; ++fd) {
-		if ((f = p->fds[fd].file) != NULL) {
-			proc_lockSet(&f->lock);
-			if (!--f->refs) {
-				proc_close(f->oid, f->status);
-				proc_lockDone(&f->lock);
-				vm_kfree(f);
-			}
-			else {
-				proc_lockClear(&f->lock);
-			}
-		}
+		if ((f = p->fds[fd].file) != NULL)
+			posix_fileDeref(f);
 	}
 
 	proc_lockSet(&posix_common.lock);
@@ -407,16 +413,7 @@ int posix_close(int fildes)
 		if ((f = p->fds[fildes].file) == NULL)
 			break;
 
-		proc_lockSet(&f->lock);
-		if (!--f->refs) {
-			proc_close(f->oid, f->status);
-			proc_lockDone(&f->lock);
-			vm_kfree(f);
-		}
-		else {
-			proc_lockClear(&f->lock);
-		}
-
+		posix_fileDeref(f);
 		p->fds[fildes].file = NULL;
 		proc_lockClear(&p->lock);
 		return 0;
@@ -555,21 +552,8 @@ int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 		return -1;
 
 	if ((f2 = p->fds[fildes2].file) != NULL) {
-		proc_lockSet(&f2->lock);
-		if (!--f2->refs) {
-			p->fds[fildes2].file = NULL;
-
-			if (proc_close(f2->oid, f2->status) < 0) {
-				proc_lockClear(&f2->lock);
-				return -1;
-			}
-
-			proc_lockDone(&f2->lock);
-			vm_kfree(f2);
-		}
-		else {
-			proc_lockClear(&f2->lock);
-		}
+		p->fds[fildes2].file = NULL;
+		posix_fileDeref(f2);
 	}
 
 	p->fds[fildes2].file = f;
@@ -701,7 +685,6 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 	proc_lockClear(&p->lock);
 	return -1;
 }
-
 
 
 int posix_link(const char *path1, const char *path2)
