@@ -62,6 +62,19 @@ struct {
 /* Function creates empty page table */
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
+	int i, pages;
+
+	pmap->pdir2 = vaddr;
+	pmap->satp = p->addr;
+
+	/* Copy kernel page tables */
+	hal_memset(pmap->pdir2, 0, 4096);
+	vaddr = (void *)((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1));
+
+	pages = (kpmap->end - vaddr) / (SIZE_PAGE << 9);
+/*	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 9), ++i)
+		pmap->pdir[(u32) vaddr >> 22] = kpmap->pdir[(u32) vaddr >> 22];*/
+
 	return EOK;
 }
 
@@ -88,7 +101,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	pdi1 = ((u64)va >> 21) & 0x1ff;
 	pti = ((u64)va >> 12) & 0x000001ff;
 
-//	lib_printf("va=%p, pdi2=%d pdi1=%d pti=%d %p\n", va, pdi2, pdi1, pti, pmap->pdir2);
+	/* lib_printf("va=%p, pdi2=%d pdi1=%d pti=%d %p\n", va, pdi2, pdi1, pti, pmap->pdir2); */
 
 	/* If no page table is allocated add new one */
 	if (!pmap->pdir2[pdi2]) {

@@ -83,10 +83,9 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	ctx->sepc = (u64)start;
 	ctx->ksp = (u64)ctx;
-	ctx->sstatus = csr_read(sstatus) | SR_SPIE;
+
+	ctx->sstatus = csr_read(sstatus) | SR_SPIE | SR_SPP;
 	ctx->sscratch = (u64)ctx;
-
-
 
 	*nctx = ctx;
 
