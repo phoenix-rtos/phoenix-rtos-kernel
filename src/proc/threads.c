@@ -21,6 +21,7 @@
 #include "../lib/lib.h"
 #include "resource.h"
 #include "msg.h"
+#include "ports.h"
 
 
 struct {

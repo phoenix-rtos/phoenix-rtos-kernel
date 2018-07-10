@@ -118,7 +118,7 @@ endif
 install-headers: $(EXTERNAL_HEADERS)
 	@mkdir -p "$(HEADERS_INSTALL_DIR)"; \
 	for file in $(EXTERNAL_HEADERS); do\
-		install -m 644  $${file}  "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
+		install -m 644 -D $${file} "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
 	done
 
 

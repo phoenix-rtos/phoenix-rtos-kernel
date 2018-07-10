@@ -25,6 +25,7 @@
 #include "resource.h"
 #include "name.h"
 #include "msg.h"
+#include "ports.h"
 
 
 struct {
