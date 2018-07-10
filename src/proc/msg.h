@@ -3,10 +3,10 @@
  *
  * Operating system kernel
  *
- * Ports and messages
+ * Messages
  *
- * Copyright 2017 Phoenix Systems
- * Author: Pawel Pisarczyk, Jakub Sejdak
+ * Copyright 2017, 2018 Phoenix Systems
+ * Author: Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -19,6 +19,7 @@
 #include HAL
 #include "../../include/errno.h"
 #include "../../include/msg.h"
+#include "threads.h"
 
 
 typedef struct _kmsg_t {
@@ -42,29 +43,6 @@ typedef struct _kmsg_t {
 	} i, o;
 #endif
 } kmsg_t;
-
-
-/*
- * Port management
- */
-
-
-extern int proc_portCreate(u32 *port);
-
-
-extern void proc_portDestroy(u32 port);
-
-
-/*extern int proc_portRegister(u32 port, char *name);
-
-
-extern void proc_portUnregister(char *name);
-
-
-extern int proc_portLookup(char *name, unsigned int *port);*/
-
-
-extern void proc_portsDestroy(process_t *proc);
 
 
 /*

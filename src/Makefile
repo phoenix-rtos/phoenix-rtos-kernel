@@ -34,6 +34,12 @@ else
 	CFLAGS = -O2 -DNDEBUG
 endif
 
+ifeq ($(shell uname),Darwin)
+	INSTALLCMD = install
+else
+	INSTALLCMD = install -D
+endif
+
 # Compliation options for various architectures
 TARGET_FAMILY = $(firstword $(subst -, ,$(TARGET)-))
 include Makefile.$(TARGET_FAMILY)
@@ -91,6 +97,7 @@ subsystems: $(ARCHS)
 
 $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 	@echo "\033[1;34mEMBED programs.cpio\033[0m"
+	@touch /tmp/programs
 	$(SIL)$(OBJCOPY) --update-section .data=/tmp/programs programs.o --add-symbol programs=.data:0
 
 	@echo "\033[1;34mLD $@\033[0m"
@@ -117,7 +124,7 @@ endif
 install-headers: $(EXTERNAL_HEADERS)
 	@mkdir -p "$(HEADERS_INSTALL_DIR)"; \
 	for file in $(EXTERNAL_HEADERS); do\
-		install -m 644  $${file}  "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
+		$(INSTALLCMD) -m 644 $${file} "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
 	done
 
 

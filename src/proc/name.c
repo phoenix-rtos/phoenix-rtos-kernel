@@ -290,7 +290,7 @@ int proc_create(int port, oid_t *oid, int type)
 	if (msg == NULL)
 		return -ENOMEM;
 
-	hal_memset(msg, 0, sizeof(kmsg_t));
+	hal_memset(msg, 0, sizeof(msg_t));
 
 	msg->type = mtCreate;
 	msg->i.create.type = type;

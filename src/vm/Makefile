@@ -7,7 +7,7 @@
 
 SRCS = vm.c map.c zone.c kmalloc.c object.c amap.c
 
-ifneq (, $(findstring armv7, $(TARGET)))
+ifneq (, $(findstring NOMMU, $(CFLAGS)))
 	SRCS += page-nommu.c
 else
 	SRCS += page.c

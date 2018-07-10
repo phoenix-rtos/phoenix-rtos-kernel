@@ -23,6 +23,7 @@ int _proc_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	_threads_init(kmap, kernel);
 	_process_init(kmap, kernel);
+	_port_init();
 	_msg_init(kmap, kernel);
 	_name_init();
 

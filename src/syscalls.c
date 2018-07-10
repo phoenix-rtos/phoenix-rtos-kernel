@@ -442,14 +442,11 @@ int syscalls_msgSend(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
-	int err;
 
 	GETFROMSTACK(ustack, u32, port, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 
-	err = proc_send(port, msg);
-
-	return err;
+	return proc_send(port, msg);
 }
 
 
