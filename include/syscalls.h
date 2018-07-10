@@ -74,4 +74,5 @@
 	ID(lseek) \
 	ID(dup) \
 	ID(dup2) \
-	ID(pipe)
+	ID(pipe) \
+	ID(mkfifo_absolute)

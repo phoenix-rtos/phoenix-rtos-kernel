@@ -823,6 +823,18 @@ int syscalls_pipe(char *ustack)
 }
 
 
+int syscalls_mkfifo_absolute(char *ustack)
+{
+	const char *path;
+	mode_t mode;
+
+	GETFROMSTACK(ustack, const char *, path, 0);
+	GETFROMSTACK(ustack, mode_t, mode, 1);
+
+	return posix_mkfifo(path, mode);
+}
+
+
 /*
  * Empty syscall
  */

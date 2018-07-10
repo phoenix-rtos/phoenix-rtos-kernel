@@ -206,10 +206,7 @@ int posix_fork()
 {
 	int pid;
 
-//	ppid = proc_current()->process->id;
-
 	if (!(pid = proc_vfork())) {
-//		posix_clone(ppid);
 		proc_copyexec();
 		/* Not reached */
 	}
@@ -288,12 +285,12 @@ int posix_exit(process_t *process)
 }
 
 
-static int posix_create(const char *filename, mode_t mode, oid_t *oid)
+static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, oid_t *oid)
 {
 	TRACE("posix_create(%s, %d)", filename, mode);
 
 	int err;
-	oid_t dev = {0, 0}, dir;
+	oid_t dir;
 	char *name, *basename, *dirname;
 	int namelen;
 
@@ -307,7 +304,7 @@ static int posix_create(const char *filename, mode_t mode, oid_t *oid)
 		if ((err = proc_lookup(dirname, &dir)) < 0)
 			break;
 
-		if ((err = proc_create(dir.port, 1 /* otFile */, mode, dev, dir, basename, oid)) < 0)
+		if ((err = proc_create(dir.port, type, mode, dev, dir, basename, oid)) < 0)
 			break;
 
 		return EOK;
@@ -322,7 +319,7 @@ static int posix_create(const char *filename, mode_t mode, oid_t *oid)
 int posix_open(const char *filename, int oflag, char *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag, mode);
-	oid_t oid;
+	oid_t oid, dev = {0, 0};
 	int fd = 0, err;
 	process_info_t *p;
 	open_file_t *f;
@@ -351,7 +348,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			else if (oflag & O_CREAT) {
 				GETFROMSTACK(ustack, mode_t, mode, 2);
 
-				if (posix_create(filename, mode, &oid) < 0)
+				if (posix_create(filename, 1 /* otFile */, mode, dev, &oid) < 0)
 					break;
 			}
 			else {
@@ -667,6 +664,44 @@ int posix_pipe(int fildes[2])
 	proc_lockClear(&p->lock);
 	return -1;
 }
+
+
+int posix_mkfifo(const char *pathname, mode_t mode)
+{
+	TRACE("mkfifo(%s, %x)", pathname, mode);
+
+	process_info_t *p;
+	oid_t oid = {0, 0}, file;
+	oid_t pipesrv;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	proc_lockSet(&p->lock);
+
+	do {
+		if ((proc_lookup("/dev/posix/pipes", &pipesrv)) < 0)
+			break;
+
+		if (proc_create(pipesrv.port, pxPipe, 0, oid, pipesrv, NULL, &oid) < 0)
+			break;
+
+		/* link pipe in posix server */
+		if (proc_link(oid, oid, pathname) < 0)
+			break;
+
+		/* create pipe in filesystem */
+		if (posix_create(pathname, 2 /* otDev */, mode, oid, &file) < 0)
+			break;
+
+		proc_lockClear(&p->lock);
+		return 0;
+	} while (0);
+
+	proc_lockClear(&p->lock);
+	return -1;
+}
+
 
 
 int posix_link(const char *path1, const char *path2)

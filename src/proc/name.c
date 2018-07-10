@@ -308,7 +308,7 @@ int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, 
 }
 
 
-int proc_link(oid_t dir, oid_t oid, char *name)
+int proc_link(oid_t dir, oid_t oid, const char *name)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -323,7 +323,7 @@ int proc_link(oid_t dir, oid_t oid, char *name)
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
 	msg->i.size = hal_strlen(name) + 1;
-	msg->i.data = name;
+	msg->i.data = (char *)name;
 
 	err = proc_send(dir.port, msg);
 	vm_kfree(msg);
