@@ -46,6 +46,7 @@ unsigned int programs_a2i(char *s)
 
 int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 {
+#if defined(STM32) || defined(IMXRT)
 	cpio_newc_t *cpio = (void *)&programs;
 	unsigned int fs, ns, sz, k;
 	page_t *p;
@@ -91,6 +92,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 
 		cpio = (void *)cpio + fs;
 	}
+#endif
 
 	return EOK;
 }
