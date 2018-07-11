@@ -31,6 +31,7 @@ struct {
 	thread_t *ready[8];
 	thread_t **current;
 	volatile time_t jiffies;
+	time_t utcoffs;
 
 	unsigned int executions;
 
@@ -813,6 +814,25 @@ time_t proc_uptime(void)
 	hal_spinlockClear(&threads_common.spinlock);
 
 	return TIMER_CYC2US(time);
+}
+
+
+void proc_gettime(time_t *raw, time_t *offs)
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	(*raw) = TIMER_CYC2US(_threads_getTimer());
+	(*offs) = threads_common.utcoffs;
+	hal_spinlockClear(&threads_common.spinlock);
+}
+
+
+int proc_settime(time_t offs)
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	threads_common.utcoffs = offs;
+	hal_spinlockClear(&threads_common.spinlock);
+
+	return EOK;
 }
 
 

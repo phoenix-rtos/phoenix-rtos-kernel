@@ -37,7 +37,6 @@ void main_initthr(void *unused)
 {
 	int i;
 	syspage_program_t *prog, *last = NULL;
-	unsigned int h = 0;
 	oid_t oid = { 0, 0 };
 	int xcount = 0;
 	char *cmdline = syspage->arg, *end;
@@ -55,14 +54,17 @@ void main_initthr(void *unused)
 		lib_printf(" '%s',", syspage->progs[i].cmdline);
 	lib_printf("\b \n");
 
+	posix_init();
+	posix_clone(-1);
+
 	/* Free memory used by initial stack */
 	/*vm_munmap(&main_common.kmap, main_common.stack, main_common.stacksz);
 	vm_pageFree(p);*/
 
 	/* Set stdin, stdout, stderr ports */
-	proc_fileAdd(&h, &oid, 0);
-	proc_fileAdd(&h, &oid, 0);
-	proc_fileAdd(&h, &oid, 0);
+//	proc_fileAdd(&h, &oid, 0);
+//	proc_fileAdd(&h, &oid, 0);
+//	proc_fileAdd(&h, &oid, 0);
 
 	argv[0] = NULL;
 
@@ -116,11 +118,11 @@ void main_initthr(void *unused)
 	}
 
 	/* Reopen stdin, stdout, stderr */
-	proc_lookup("/dev/console", &oid);
+//	proc_lookup("/dev/console", &oid);
 
-	proc_fileSet(0, 3, &oid, 0, 0);
-	proc_fileSet(1, 3, &oid, 0, 0);
-	proc_fileSet(2, 3, &oid, 0, 0);
+//	proc_fileSet(0, 3, &oid, 0, 0);
+//	proc_fileSet(1, 3, &oid, 0, 0);
+//	proc_fileSet(2, 3, &oid, 0, 0);
 
 	if (last != NULL) {
 		if (!proc_vfork())
@@ -129,7 +131,7 @@ void main_initthr(void *unused)
 
 	sleep = 10000;
 	proc_fileGet(0, 1, &oid, 0, NULL);
-	while (proc_write(oid, 0, "", 1) < 0) {
+	while (proc_write(oid, 0, "", 1, 0) < 0) {
 		proc_fileGet(0, 1, &oid, 0, NULL);
 		proc_threadSleep(sleep);
 

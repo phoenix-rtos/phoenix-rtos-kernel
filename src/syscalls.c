@@ -103,14 +103,7 @@ int syscalls_vforksvc(void *ustack)
 
 int syscalls_fork(void *ustack)
 {
-	int pid;
-
-	if (!(pid = proc_vfork())) {
-		proc_copyexec();
-		/* Not reached */
-	}
-
-	return pid;
+	return posix_fork();
 }
 
 
@@ -497,12 +490,30 @@ int syscalls_lookup(void *ustack)
 
 int syscalls_gettime(void *ustack)
 {
-	time_t *tp;
+	time_t *praw, *poffs, raw, offs;
 
-	GETFROMSTACK(ustack, time_t *, tp, 0);
-	*tp = proc_uptime();
+	GETFROMSTACK(ustack, time_t *, praw, 0);
+	GETFROMSTACK(ustack, time_t *, poffs, 1);
+
+	proc_gettime(&raw, &offs);
+
+	if (praw != NULL)
+		(*praw) = raw;
+
+	if (poffs != NULL)
+		(*poffs) = offs;
 
 	return EOK;
+}
+
+
+int syscalls_settime(void *ustack)
+{
+	time_t offs;
+
+	GETFROMSTACK(ustack, time_t *, offs, 0);
+
+	return proc_settime(offs);
 }
 
 
@@ -683,6 +694,162 @@ void syscalls_signalMask(void *ustack)
 
 	t = proc_current();
 	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
+}
+
+
+/* POSIX compatibility syscalls */
+
+int syscalls_open_absolute(char *ustack)
+{
+	const char *filename;
+	int oflag;
+
+	GETFROMSTACK(ustack, const char *, filename, 0);
+	GETFROMSTACK(ustack, int, oflag, 1);
+
+	return posix_open(filename, oflag, ustack);
+}
+
+
+int syscalls_close(char *ustack)
+{
+	int fildes;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+
+	return posix_close(fildes);
+}
+
+
+int syscalls_read(char *ustack)
+{
+	int fildes;
+	void *buf;
+	size_t nbyte;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, void *, buf, 1);
+	GETFROMSTACK(ustack, size_t, nbyte, 2);
+
+	return posix_read(fildes, buf, nbyte);
+}
+
+
+int syscalls_write(char *ustack)
+{
+	int fildes;
+	void *buf;
+	size_t nbyte;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, void *, buf, 1);
+	GETFROMSTACK(ustack, size_t, nbyte, 2);
+
+	return posix_write(fildes, buf, nbyte);
+}
+
+
+int syscalls_dup(char *ustack)
+{
+	int fildes;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+
+	return posix_dup(fildes);
+}
+
+
+int syscalls_dup2(char *ustack)
+{
+	int fildes;
+	int fildes2;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, int, fildes2, 1);
+
+	return posix_dup2(fildes, fildes2);
+}
+
+
+int syscalls_link_absolute(char *ustack)
+{
+	const char *path1;
+	const char *path2;
+
+	GETFROMSTACK(ustack, const char *, path1, 0);
+	GETFROMSTACK(ustack, const char *, path2, 1);
+
+	return posix_link(path1, path2);
+}
+
+
+int syscalls_unlink_absolute(char *ustack)
+{
+	const char *pathname;
+
+	GETFROMSTACK(ustack, const char *, pathname, 0);
+
+	return posix_unlink(pathname);
+}
+
+
+off_t syscalls_lseek(char *ustack)
+{
+	int fildes;
+	off_t offset;
+	int whence;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, off_t, offset, 1);
+	GETFROMSTACK(ustack, int, whence, 2);
+
+	return posix_lseek(fildes, offset, whence);
+}
+
+
+int syscalls_ftruncate(char *ustack)
+{
+	int fildes;
+	off_t length;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, off_t, length, 1);
+
+	return posix_ftruncate(fildes, length);
+}
+
+
+int syscalls_fcntl(char *ustack)
+{
+	unsigned int fd;
+	unsigned int cmd;
+
+	GETFROMSTACK(ustack, unsigned int, fd, 0);
+	GETFROMSTACK(ustack, unsigned int, cmd, 1);
+
+	return posix_fcntl(fd, cmd, ustack);
+}
+
+
+int syscalls_pipe(char *ustack)
+{
+	int *fildes;
+
+	GETFROMSTACK(ustack, int *, fildes, 0);
+
+	return posix_pipe(fildes);
+}
+
+
+int syscalls_mkfifo_absolute(char *ustack)
+{
+	const char *path;
+	mode_t mode;
+
+	GETFROMSTACK(ustack, const char *, path, 0);
+	GETFROMSTACK(ustack, mode_t, mode, 1);
+
+	return posix_mkfifo(path, mode);
 }
 
 

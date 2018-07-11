@@ -45,6 +45,7 @@
 	ID(msgRespond) \
 	ID(lookup) \
 	ID(gettime) \
+	ID(settime) \
 	ID(keepidle) \
 	ID(mmdump) \
 	ID(platformctl) \
@@ -61,4 +62,18 @@
 	ID(signalPost) \
 	ID(signalReturn) \
 	ID(signalMask) \
-	ID(priority)
+	ID(priority) \
+	\
+	ID(read) \
+	ID(write) \
+	ID(open_absolute) \
+	ID(close) \
+	ID(link_absolute) \
+	ID(unlink_absolute) \
+	ID(fcntl) \
+	ID(ftruncate) \
+	ID(lseek) \
+	ID(dup) \
+	ID(dup2) \
+	ID(pipe) \
+	ID(mkfifo_absolute)

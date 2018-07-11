@@ -152,7 +152,7 @@ static page_t *object_fetch(oid_t oid, offs_t offs)
 		return NULL;
 	}
 
-	if (proc_read(oid, offs, v, SIZE_PAGE) < 0) {
+	if (proc_read(oid, offs, v, SIZE_PAGE, 0) < 0) {
 		vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
 		proc_close(oid, 0);

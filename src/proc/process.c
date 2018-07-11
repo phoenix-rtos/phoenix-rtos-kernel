@@ -26,6 +26,7 @@
 #include "name.h"
 #include "msg.h"
 #include "ports.h"
+#include "posix.h"
 
 
 struct {
@@ -160,6 +161,7 @@ void proc_kill(process_t *proc)
 
 	proc_threadsDestroy(proc);
 	proc_resourcesFree(proc);
+	posix_exit(proc);
 	proc_zombie(proc);
 
 	if (proc == proc_current()->process)
@@ -271,6 +273,8 @@ static void process_vforkthr(void *arg)
 
 	current->execparent = parent;
 	hal_spinlockClear(&parent->execwaitsl);
+
+	posix_clone(parent->process->id);
 
 	/* Copy parent's files, locks etc. */
 	if (proc_resourcesCopy(parent->process) < 0) {
@@ -598,10 +602,10 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 	vm_objectPut(o);
 
 	/* Allocate and map user stack */
-	if ((stack = vm_mmap(map, map->pmap.end - SIZE_PAGE, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
+	if ((stack = vm_mmap(map, map->pmap.end - 4 * SIZE_PAGE, NULL, 4 * SIZE_PAGE, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
 		return -ENOMEM;
 
-	stack += SIZE_PAGE;
+	stack += 4 * SIZE_PAGE;
 
 	/* Copy data from kernel stack */
 	for (i = 0; i < argc; ++i) {
