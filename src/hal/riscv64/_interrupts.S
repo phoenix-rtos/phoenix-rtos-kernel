@@ -236,3 +236,12 @@ hal_cpuReschedule:
 	RESTORE
 	sret
 .size hal_cpuReschedule, .-hal_cpuReschedule
+
+
+.global hal_longjmp
+hal_longjmp:
+	mv sp, a0
+	sd a0, 232(sp)
+	RESTORE
+	sret
+.size hal_longjmp, .-hal_longjmp

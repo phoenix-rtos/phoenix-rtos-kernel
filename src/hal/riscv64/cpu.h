@@ -382,9 +382,7 @@ static inline void hal_cpuGuard(cpu_context_t *ctx, void *addr)
 }
 
 
-static inline void hal_longjmp(cpu_context_t *ctx)
-{
-}
+extern void hal_longjmp(cpu_context_t *ctx);
 
 
 static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
