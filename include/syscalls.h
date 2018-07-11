@@ -45,6 +45,7 @@
 	ID(msgRespond) \
 	ID(lookup) \
 	ID(gettime) \
+	ID(settime) \
 	ID(keepidle) \
 	ID(mmdump) \
 	ID(platformctl) \

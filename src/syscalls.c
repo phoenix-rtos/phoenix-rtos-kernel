@@ -490,12 +490,30 @@ int syscalls_lookup(void *ustack)
 
 int syscalls_gettime(void *ustack)
 {
-	time_t *tp;
+	time_t *praw, *poffs, raw, offs;
 
-	GETFROMSTACK(ustack, time_t *, tp, 0);
-	*tp = proc_uptime();
+	GETFROMSTACK(ustack, time_t *, praw, 0);
+	GETFROMSTACK(ustack, time_t *, poffs, 1);
+
+	proc_gettime(&raw, &offs);
+
+	if (praw != NULL)
+		(*praw) = raw;
+
+	if (poffs != NULL)
+		(*poffs) = offs;
 
 	return EOK;
+}
+
+
+int syscalls_settime(void *ustack)
+{
+	time_t offs;
+
+	GETFROMSTACK(ustack, time_t *, offs, 0);
+
+	return proc_settime(offs);
 }
 
 

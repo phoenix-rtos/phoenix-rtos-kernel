@@ -142,6 +142,12 @@ extern thread_t *threads_getNextThread(thread_t *prev);
 extern time_t proc_uptime(void);
 
 
+extern void proc_gettime(time_t *raw, time_t *offs);
+
+
+extern int proc_settime(time_t offs);
+
+
 extern int proc_nextWakeup(void);
 
 
