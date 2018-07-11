@@ -331,6 +331,29 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 }
 
 
+int proc_unlink(oid_t dir, oid_t oid, const char *name)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL)
+		return -ENOMEM;
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtUnlink;
+	hal_memcpy(&msg->i.ln.dir, &dir, sizeof(oid_t));
+	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
+
+	msg->i.size = hal_strlen(name) + 1;
+	msg->i.data = (char *)name;
+
+	err = proc_send(dir.port, msg);
+	vm_kfree(msg);
+	return err;
+}
+
+
 int proc_read(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode)
 {
 	int err;

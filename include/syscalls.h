@@ -67,8 +67,8 @@
 	ID(write) \
 	ID(open_absolute) \
 	ID(close) \
-	ID(link) \
-	ID(unlink) \
+	ID(link_absolute) \
+	ID(unlink_absolute) \
 	ID(fcntl) \
 	ID(ftruncate) \
 	ID(lseek) \

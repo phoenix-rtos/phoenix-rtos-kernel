@@ -753,7 +753,7 @@ int syscalls_dup2(char *ustack)
 }
 
 
-int syscalls_link(char *ustack)
+int syscalls_link_absolute(char *ustack)
 {
 	const char *path1;
 	const char *path2;
@@ -765,7 +765,7 @@ int syscalls_link(char *ustack)
 }
 
 
-int syscalls_unlink(char *ustack)
+int syscalls_unlink_absolute(char *ustack)
 {
 	const char *pathname;
 

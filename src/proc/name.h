@@ -73,6 +73,9 @@ extern int proc_read(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode
 extern int proc_link(oid_t dir, oid_t oid, const char *name);
 
 
+extern int proc_unlink(oid_t dir, oid_t oid, const char *name);
+
+
 extern int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid);
 
 

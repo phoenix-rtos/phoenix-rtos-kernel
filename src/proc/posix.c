@@ -39,6 +39,7 @@ typedef struct {
 	off_t offset;
 	unsigned status;
 	lock_t lock;
+	char type;
 } open_file_t;
 
 
@@ -97,12 +98,6 @@ static void splitname(char *path, char **base, char **dir)
 		*base = slash + 1;
 		*slash = 0;
 	}
-}
-
-
-static inline unsigned posix_fileType(unsigned status)
-{
-	return (status & (0xff << 16)) >> 16;
 }
 
 
@@ -207,6 +202,7 @@ int posix_clone(int ppid)
 			proc_lockInit(&f->lock);
 			f->refs = 1;
 			f->offset = 0;
+			f->type = ftTty;
 			p->fds[i].flags = 0;
 			hal_memcpy(&f->oid, &console, sizeof(oid_t));
 		}
@@ -325,11 +321,14 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 int posix_open(const char *filename, int oflag, char *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag, mode);
-	oid_t oid, dev = {0, 0};
+	oid_t oid, dev = {0, 0}, pipesrv;
 	int fd = 0, err;
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
+
+	if ((proc_lookup("/dev/posix/pipes", &pipesrv)) < 0)
+		return -1;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
@@ -378,6 +377,8 @@ int posix_open(const char *filename, int oflag, char *ustack)
 
 			f->refs = 1;
 			f->offset = 0;
+			/* TODO: check for other types */
+			f->type = oid.port == pipesrv.port ? ftPipe : ftRegular;
 			f->status = oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
 
 			proc_lockClear(&p->lock);
@@ -625,6 +626,7 @@ int posix_pipe(int fildes[2])
 		hal_memcpy(&fo->oid, &oid, sizeof(oid));
 		fo->refs = 1;
 		fo->offset = 0;
+		fo->type = ftPipe;
 		fo->status = O_RDONLY;
 
 		if ((fi = p->fds[fildes[1]].file = vm_kmalloc(sizeof(open_file_t))) == NULL) {
@@ -639,6 +641,7 @@ int posix_pipe(int fildes[2])
 		hal_memcpy(&fi->oid, &oid, sizeof(oid));
 		fi->refs = 1;
 		fi->offset = 0;
+		fi->type = ftPipe;
 		fi->status = O_WRONLY;
 
 		proc_lockClear(&p->lock);
@@ -689,13 +692,91 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 
 int posix_link(const char *path1, const char *path2)
 {
-	return -1;
+	process_info_t *p;
+	oid_t oid, dir;
+	int err;
+	char *name, *basename, *dirname;
+	int namelen;
+
+	namelen = hal_strlen(path2);
+	name = vm_kmalloc(namelen + 1);
+	hal_memcpy(name, path2, namelen + 1);
+
+	splitname(name, &basename, &dirname);
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	proc_lockSet(&p->lock);
+
+	do {
+		if ((err = proc_lookup(dirname, &dir)) < 0)
+			break;
+
+		if ((err = proc_lookup(path1, &oid)) < 0)
+			break;
+
+		if ((err = proc_link(dir, oid, basename)) < 0)
+			break;
+
+		if (dir.port != oid.port) {
+			/* Signal link to device */
+			/* FIXME: refcount here? */
+			if ((err = proc_link(oid, oid, path2)) < 0)
+				break;
+		}
+
+		err = EOK;
+	} while (0);
+
+	vm_kfree(name);
+	proc_lockClear(&p->lock);
+	return err;
 }
 
 
 int posix_unlink(const char *pathname)
 {
-	return -1;
+	process_info_t *p;
+	oid_t oid, dir;
+	int err;
+	char *name, *basename, *dirname;
+	int namelen;
+
+	namelen = hal_strlen(pathname);
+	name = vm_kmalloc(namelen + 1);
+	hal_memcpy(name, pathname, namelen + 1);
+
+	splitname(name, &basename, &dirname);
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	proc_lockSet(&p->lock);
+
+	do {
+		if ((err = proc_lookup(dirname, &dir)) < 0)
+			break;
+
+		if ((err = proc_lookup(pathname, &oid)) < 0)
+			break;
+
+		if ((err = proc_unlink(dir, oid, basename)) < 0)
+			break;
+
+		if (dir.port != oid.port) {
+			/* Signal unlink to device */
+			/* FIXME: refcount here? */
+			if ((err = proc_unlink(oid, oid, pathname)) < 0)
+				break;
+		}
+
+		err = EOK;
+	} while (0);
+
+	vm_kfree(name);
+	proc_lockClear(&p->lock);
+	return err;
 }
 
 
