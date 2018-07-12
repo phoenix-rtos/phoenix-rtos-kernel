@@ -19,6 +19,7 @@
 #include "../include/sysinfo.h"
 #include "../include/mman.h"
 #include "../include/syscalls.h"
+#include "../include/posix.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
@@ -511,7 +512,7 @@ int syscalls_settime(void *ustack)
 {
 	time_t offs;
 
-	GETFROMSTACK(ustack, time_t *, offs, 0);
+	GETFROMSTACK(ustack, time_t, offs, 0);
 
 	return proc_settime(offs);
 }
@@ -850,6 +851,190 @@ int syscalls_mkfifo_absolute(char *ustack)
 	GETFROMSTACK(ustack, mode_t, mode, 1);
 
 	return posix_mkfifo(path, mode);
+}
+
+
+int syscalls_accept(char *ustack)
+{
+	int socket;
+	struct sockaddr *address;
+	socklen_t *address_len;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
+	GETFROMSTACK(ustack, socklen_t *,address_len, 2);
+
+	return posix_accept(socket, address, address_len);
+}
+
+
+int syscalls_bind(char *ustack)
+{
+	int socket;
+	const struct sockaddr *address;
+	socklen_t address_len;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, const struct sockaddr *, address, 1);
+	GETFROMSTACK(ustack, socklen_t, address_len, 2);
+
+	return posix_bind(socket, address, address_len);
+}
+
+
+int syscalls_connect(char *ustack)
+{
+	int socket;
+	const struct sockaddr *address;
+	socklen_t address_len;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, const struct sockaddr *, address, 1);
+	GETFROMSTACK(ustack, socklen_t, address_len, 2);
+
+	return posix_connect(socket, address, address_len);
+}
+
+
+int syscalls_getpeername(char *ustack)
+{
+	int socket;
+	struct sockaddr *address;
+	socklen_t *address_len;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
+	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
+
+	return posix_getpeername(socket, address, address_len);
+}
+
+
+int syscalls_getsockname(char *ustack)
+{
+	int socket;
+	struct sockaddr *address;
+	socklen_t *address_len;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
+	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
+
+	return posix_getsockname(socket, address, address_len);
+}
+
+
+int syscalls_getsockopt(char *ustack)
+{
+	int socket;
+	int level;
+	int optname;
+	void *optval;
+	socklen_t *optlen;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, int, level, 1);
+	GETFROMSTACK(ustack, int, optname, 2);
+	GETFROMSTACK(ustack, void *, optval, 3);
+	GETFROMSTACK(ustack, socklen_t *, optlen, 4);
+
+	return posix_getsockopt(socket, level, optname, optval, optlen);
+}
+
+
+int syscalls_listen(char *ustack)
+{
+	int socket;
+	int backlog;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, int, backlog, 1);
+
+	return posix_listen(socket, backlog);
+}
+
+
+ssize_t syscalls_recvfrom(char *ustack)
+{
+	int socket;
+	void *message;
+	size_t length;
+	int flags;
+	struct sockaddr *src_addr;
+	socklen_t *src_len;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, void *, message, 1);
+	GETFROMSTACK(ustack, size_t, length, 2);
+	GETFROMSTACK(ustack, int, flags, 3);
+	GETFROMSTACK(ustack, struct sockaddr *, src_addr, 4);
+	GETFROMSTACK(ustack, socklen_t *, src_len, 5);
+
+	return posix_recvfrom(socket, message, length, flags, src_addr, src_len);
+}
+
+
+ssize_t syscalls_sendto(char *ustack)
+{
+	int socket;
+	const void *message;
+	size_t length;
+	int flags;
+	const struct sockaddr *dest_addr;
+	socklen_t dest_len;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, const void *, message, 1);
+	GETFROMSTACK(ustack, size_t, length, 2);
+	GETFROMSTACK(ustack, int, flags, 3);
+	GETFROMSTACK(ustack, const struct sockaddr *, dest_addr, 4);
+	GETFROMSTACK(ustack, socklen_t, dest_len, 5);
+
+	return posix_sendto(socket, message, length, flags, dest_addr, dest_len);
+}
+
+
+int syscalls_socket(char *ustack)
+{
+	int domain;
+	int type;
+	int protocol;
+
+	GETFROMSTACK(ustack, int, domain, 0);
+	GETFROMSTACK(ustack, int, type, 1);
+	GETFROMSTACK(ustack, int, protocol, 2);
+
+	return posix_socket(domain, type, protocol);
+}
+
+
+int syscalls_shutdown(char *ustack)
+{
+	int socket;
+	int how;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, int, how, 1);
+
+	return posix_shutdown(socket, how);
+}
+
+
+int syscalls_setsockopt(char *ustack)
+{
+	int socket;
+	int level;
+	int optname;
+	const void *optval;
+	socklen_t optlen;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, int, level, 1);
+	GETFROMSTACK(ustack, int, optname, 2);
+	GETFROMSTACK(ustack, const void *, optval, 3);
+	GETFROMSTACK(ustack, socklen_t, optlen, 4);
+
+	return posix_setsockopt(socket, level, optname, optval, optlen);
 }
 
 

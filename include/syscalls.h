@@ -76,4 +76,17 @@
 	ID(dup) \
 	ID(dup2) \
 	ID(pipe) \
-	ID(mkfifo_absolute)
+	ID(mkfifo_absolute) \
+	\
+	ID(accept) \
+	ID(bind) \
+	ID(connect) \
+	ID(getpeername) \
+	ID(getsockname) \
+	ID(getsockopt) \
+	ID(listen) \
+	ID(recvfrom) \
+	ID(sendto) \
+	ID(socket) \
+	ID(shutdown) \
+	ID(setsockopt)

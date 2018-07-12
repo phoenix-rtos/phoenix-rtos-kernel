@@ -34,12 +34,6 @@ else
 	CFLAGS = -O2 -DNDEBUG
 endif
 
-ifeq ($(shell uname),Darwin)
-	INSTALLCMD = install
-else
-	INSTALLCMD = install -D
-endif
-
 # Compliation options for various architectures
 TARGET_FAMILY = $(firstword $(subst -, ,$(TARGET)-))
 include Makefile.$(TARGET_FAMILY)
@@ -51,7 +45,7 @@ EXTERNAL_HEADERS_DIR := ../include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
 
 SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
-HEADERS_INSTALL_DIR := $(SYSROOT)/usr/local/include/phoenix
+HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
 ifeq (/,$(SYSROOT))
 $(error Sysroot is not supported by Your toolchain. Use cross-toolchain to compile)
 endif
@@ -124,7 +118,8 @@ endif
 install-headers: $(EXTERNAL_HEADERS)
 	@mkdir -p "$(HEADERS_INSTALL_DIR)"; \
 	for file in $(EXTERNAL_HEADERS); do\
-		$(INSTALLCMD) -m 644 $${file} "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
+		mkdir -p "$(HEADERS_INSTALL_DIR)/`dirname $${file#$(EXTERNAL_HEADERS_DIR)}`"; \
+		install -p -m 644 $${file} "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
 	done
 
 

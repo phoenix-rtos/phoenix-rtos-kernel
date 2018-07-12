@@ -27,6 +27,7 @@
 
 #define F_SETOWN 8
 #define F_GETOWN 9
+#define F_DUPFD_CLOEXEC  10
 
 #define FD_CLOEXEC 1
 
@@ -41,5 +42,16 @@
 #define O_NONBLOCK 0x1000
 #define O_NOCTTY 0x2000
 #define O_CLOEXEC 0x4000
+
+typedef int ssize_t;
+
+typedef size_t socklen_t;
+typedef unsigned short sa_family_t;
+
+struct sockaddr {
+	sa_family_t sa_family;
+	char        sa_data[];
+};
+
 
 #endif
