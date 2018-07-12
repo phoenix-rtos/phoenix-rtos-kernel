@@ -321,14 +321,14 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 int posix_open(const char *filename, int oflag, char *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag, mode);
-	oid_t oid, dev = {0, 0}, pipesrv;
+	oid_t oid, dev = {0, 0}, pipesrv = {-1, -1};
 	int fd = 0, err;
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
 
 	if ((proc_lookup("/dev/posix/pipes", &pipesrv)) < 0)
-		return -1;
+		; /* that's fine */
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
