@@ -45,7 +45,7 @@ EXTERNAL_HEADERS_DIR := ../include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
 
 SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
-HEADERS_INSTALL_DIR := $(SYSROOT)/usr/local/include/phoenix
+HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
 ifeq (/,$(SYSROOT))
 $(error Sysroot is not supported by Your toolchain. Use cross-toolchain to compile)
 endif
