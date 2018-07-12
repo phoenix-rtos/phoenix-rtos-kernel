@@ -42,4 +42,15 @@
 #define O_NOCTTY 0x2000
 #define O_CLOEXEC 0x4000
 
+typedef int ssize_t;
+
+typedef size_t socklen_t;
+typedef unsigned short sa_family_t;
+
+struct sockaddr {
+	sa_family_t sa_family;
+	char        sa_data[];
+};
+
+
 #endif

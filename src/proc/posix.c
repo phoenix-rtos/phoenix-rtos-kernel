@@ -6,7 +6,7 @@
  * POSIX-compatibility module
  *
  * Copyright 2018 Phoenix Systems
- * Author: Jan Sikorski
+ * Author: Jan Sikorski, Michal Miroslaw
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -15,7 +15,6 @@
 
 #include HAL
 #include "../../include/errno.h"
-#include "../../include/posix.h"
 #include "threads.h"
 #include "cond.h"
 #include "resource.h"
@@ -23,6 +22,8 @@
 #include "posix.h"
 
 #define MAX_FD_COUNT 32
+
+#define set_errno(x) -1
 
 //#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
 #define TRACE(str, ...)
@@ -115,6 +116,26 @@ static void posix_fileDeref(open_file_t *f)
 }
 
 
+static int posix_newFile(process_info_t *p, int fd)
+{
+	open_file_t *f;
+
+	while (p->fds[fd].file != NULL && fd++ < p->maxfd);
+
+	if (fd > p->maxfd)
+		return -ENFILE;
+
+	if ((f = p->fds[fd].file = vm_kmalloc(sizeof(open_file_t))) == NULL)
+		return -ENOMEM;
+
+	proc_lockInit(&f->lock);
+	f->refs = 1;
+	f->offset = 0;
+
+	return fd;
+}
+
+
 static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 {
 	process_info_t *p1 = lib_treeof(process_info_t, linkage, n1);
@@ -153,7 +174,7 @@ int posix_clone(int ppid)
 	process_info_t *p, *pp;
 	process_t *proc;
 	int i;
-	oid_t console = {0, 0};
+	oid_t console;
 	open_file_t *f;
 
 	proc = proc_current()->process;
@@ -161,6 +182,7 @@ int posix_clone(int ppid)
 	if ((p = vm_kmalloc(sizeof(process_info_t))) == NULL)
 		return -ENOMEM;
 
+	hal_memset(&console, 0, sizeof(oid_t));
 	proc_lockInit(&p->lock);
 
 	if ((pp = pinfo_find(ppid)) != NULL) {
@@ -321,7 +343,7 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 int posix_open(const char *filename, int oflag, char *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag, mode);
-	oid_t oid, dev = {0, 0}, pipesrv = {-1, -1};
+	oid_t oid, dev, pipesrv;
 	int fd = 0, err;
 	process_info_t *p;
 	open_file_t *f;
@@ -332,6 +354,9 @@ int posix_open(const char *filename, int oflag, char *ustack)
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
+
+	hal_memset(&dev, 0, sizeof(oid_t));
+	hal_memset(&pipesrv, -1, sizeof(oid_t));
 
 	proc_lockSet(&p->lock);
 
@@ -591,12 +616,13 @@ int posix_pipe(int fildes[2])
 
 	process_info_t *p;
 	open_file_t *fi, *fo;
-	oid_t oid = {0};
+	oid_t oid;
 	oid_t pipesrv;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
 
+	hal_memset(&oid, 0, sizeof(oid));
 	proc_lockSet(&p->lock);
 
 	do {
@@ -658,12 +684,13 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 	TRACE("mkfifo(%s, %x)", pathname, mode);
 
 	process_info_t *p;
-	oid_t oid = {0, 0}, file;
+	oid_t oid, file;
 	oid_t pipesrv;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
 
+	hal_memset(&oid, 0, sizeof(oid));
 	proc_lockSet(&p->lock);
 
 	do {
@@ -839,6 +866,304 @@ int posix_fcntl(unsigned int fd, unsigned int cmd, char *ustack)
 
 	proc_lockClear(&p->lock);
 	return err;
+}
+
+
+static int socksrvcall(msg_t *msg)
+{
+	oid_t oid;
+	int err;
+
+	if ((err = proc_lookup(PATH_SOCKSRV, &oid)) < 0)
+		return set_errno(err);
+
+	if ((err = proc_send(oid.port, msg)) < 0)
+		return set_errno(err);
+
+	return 0;
+}
+
+
+static ssize_t sockcall(int socket, msg_t *msg)
+{
+	process_info_t *p;
+	open_file_t *f;
+	sockport_resp_t *smo = (void *)msg->o.raw;
+	int err;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	if ((f = p->fds[socket].file) == NULL)
+		return set_errno(-EBADF);
+
+	if (f->type != ftInetSocket)
+		return set_errno(-ENOTSOCK);
+
+	if ((err = proc_send(f->oid.port, msg)) < 0)
+		return set_errno(err);
+
+	err = smo->ret;
+	return set_errno(err);
+}
+
+
+static ssize_t socknamecall(int socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
+{
+	sockport_resp_t *smo = (void *)msg->o.raw;
+	ssize_t err;
+
+	if ((err = sockcall(socket, msg)) < 0)
+		return err;
+
+	if (smo->sockname.addrlen > *address_len)
+		smo->sockname.addrlen = *address_len;
+
+	hal_memcpy(address, smo->sockname.addr, smo->sockname.addrlen);
+	*address_len = smo->sockname.addrlen;
+
+	return err;
+}
+
+
+static ssize_t sockdestcall(int socket, msg_t *msg, const struct sockaddr *address, socklen_t address_len)
+{
+	sockport_msg_t *smi = (void *)msg->i.raw;
+
+	if (address_len > sizeof(smi->send.addr))
+		return set_errno(-EINVAL);
+
+	smi->send.addrlen = address_len;
+	hal_memcpy(smi->send.addr, address, address_len);
+
+	return sockcall(socket, msg);
+}
+
+
+int posix_accept(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	process_info_t *p;
+	ssize_t err;
+	msg_t msg;
+	oid_t oid;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	hal_memset(&oid, 0, sizeof(oid));
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmAccept;
+	smi->send.flags = 0;
+
+	if ((err = socknamecall(socket, &msg, address, address_len)) < 0)
+		return set_errno(err);
+
+	oid.port = err;
+
+	if ((err = posix_newFile(p, 0)) < 0) {
+		msg.type = mtClose;
+		proc_send(oid.port, &msg);
+		return set_errno(err);
+	}
+
+	p->fds[err].file->type = ftInetSocket;
+	hal_memcpy(&p->fds[err].file->oid, &oid, sizeof(oid));
+
+	return err;
+}
+
+
+int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len)
+{
+	msg_t msg;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmBind;
+
+	return sockdestcall(socket, &msg, address, address_len);
+}
+
+
+int posix_connect(int socket, const struct sockaddr *address, socklen_t address_len)
+{
+	msg_t msg;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmConnect;
+
+	return sockdestcall(socket, &msg, address, address_len);
+}
+
+
+int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	msg_t msg;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmGetPeerName;
+
+	return socknamecall(socket, &msg, address, address_len);
+}
+
+
+int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	msg_t msg;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmGetSockName;
+
+	return socknamecall(socket, &msg, address, address_len);
+}
+
+
+/*static*/ int sock_getfl(int socket)
+{
+	msg_t msg;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmGetFl;
+
+	return sockcall(socket, &msg);
+}
+
+
+/*static*/ int sock_setfl(int socket, int val)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmSetFl;
+	smi->send.flags = val;
+
+	return sockcall(socket, &msg);
+}
+
+
+int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+	ssize_t ret;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmGetOpt;
+	smi->opt.level = level;
+	smi->opt.optname = optname;
+	msg.o.data = optval;
+	msg.o.size = *optlen;
+
+	ret = sockcall(socket, &msg);
+
+	if (ret < 0)
+		return ret;
+
+	*optlen = ret;
+	return 0;
+}
+
+
+int posix_listen(int socket, int backlog)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmListen;
+	smi->listen.backlog = backlog;
+
+	return sockcall(socket, &msg);
+}
+
+
+ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmRecv;
+	smi->send.flags = flags;
+	msg.o.data = message;
+	msg.o.size = length;
+
+	return socknamecall(socket, &msg, src_addr, src_len);
+}
+
+
+ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmSend;
+	smi->send.flags = flags;
+	msg.i.data = (void *)message;
+	msg.i.size = length;
+
+	return sockdestcall(socket, &msg, dest_addr, dest_len);
+}
+
+
+int posix_socket(int domain, int type, int protocol)
+{
+	process_info_t *p;
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+	int err;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmSocket;
+	smi->socket.domain = domain;
+	smi->socket.type = type;
+	smi->socket.protocol = protocol;
+
+	if ((err = socksrvcall(&msg)) < 0)
+		return err;
+
+	if (msg.o.lookup.err < 0)
+		return set_errno(msg.o.lookup.err);
+
+	if ((err = posix_newFile(p, 0)) < 0)
+		return set_errno(err);
+
+	p->fds[err].file->type = ftInetSocket;
+	return err;
+}
+
+
+int posix_shutdown(int socket, int how)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmShutdown;
+	smi->send.flags = how;
+
+	return sockcall(socket, &msg);
+}
+
+
+int posix_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmSetOpt;
+	smi->opt.level = level;
+	smi->opt.optname = optname;
+	msg.i.data = (void *)optval;
+	msg.i.size = optlen;
+
+	return sockcall(socket, &msg);
 }
 
 
