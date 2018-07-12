@@ -511,7 +511,7 @@ int syscalls_settime(void *ustack)
 {
 	time_t offs;
 
-	GETFROMSTACK(ustack, time_t *, offs, 0);
+	GETFROMSTACK(ustack, time_t, offs, 0);
 
 	return proc_settime(offs);
 }
