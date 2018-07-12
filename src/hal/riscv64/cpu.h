@@ -234,8 +234,10 @@ static inline void *hal_cpuGetFaultAddr(void)
 }
 
 
-static inline void hal_cpuSwitchSpace(addr_t cr3)
+static inline void hal_cpuSwitchSpace(addr_t pdir)
 {
+	__asm__ ("sfence.vma; csrw sptbr, %0"::"r" (pdir));
+
 	return;
 }
 

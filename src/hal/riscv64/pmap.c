@@ -62,18 +62,20 @@ struct {
 /* Function creates empty page table */
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
-	int i, pages;
+	unsigned int i, pages;
 
 	pmap->pdir2 = vaddr;
-	pmap->satp = p->addr;
+	pmap->satp = (p->addr >> 12) | (u64)0x8000000000000000;
 
 	/* Copy kernel page tables */
 	hal_memset(pmap->pdir2, 0, 4096);
-	vaddr = (void *)((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1));
+	vaddr = (void *)((u64)kpmap->start & ~(((u64)SIZE_PAGE << 18) - 1));
+	kpmap->end = (void *)(((u64)kpmap->end + (u64)(SIZE_PAGE << 18) - 1) & ~(((u64)SIZE_PAGE << 18) - 1));
 
-	pages = (kpmap->end - vaddr) / (SIZE_PAGE << 9);
-/*	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 9), ++i)
-		pmap->pdir[(u32) vaddr >> 22] = kpmap->pdir[(u32) vaddr >> 22];*/
+	pages = (kpmap->end - vaddr) / ((u64)SIZE_PAGE << 18);
+
+	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 18), ++i)
+		pmap->pdir2[((u64)vaddr >> 30) & 0x1ff] = kpmap->pdir2[((u64)vaddr >> 30) & 0x1ff];
 
 	return EOK;
 }
@@ -101,7 +103,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	pdi1 = ((u64)va >> 21) & 0x1ff;
 	pti = ((u64)va >> 12) & 0x000001ff;
 
-	/* lib_printf("va=%p, pdi2=%d pdi1=%d pti=%d %p\n", va, pdi2, pdi1, pti, pmap->pdir2); */
+//	lib_printf("va=%p, pdi2=%d pdi1=%d pti=%d %p\n", va, pdi2, pdi1, pti, pmap->pdir2);
 
 	/* If no page table is allocated add new one */
 	if (!pmap->pdir2[pdi2]) {
@@ -207,6 +209,29 @@ int pmap_getPage(page_t *page, addr_t *addr)
 /* Function allocates page tables for kernel space */
 int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 {
+	void *vaddr;
+
+	vaddr = (void *)((u64)(*start + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+
+	if (vaddr >= end)
+		return EOK;
+
+	if (vaddr < (void *)VADDR_KERNEL)
+		vaddr = (void *)VADDR_KERNEL;
+
+	for (; vaddr < end; vaddr += ((u64)SIZE_PAGE << 30)) {
+		if (pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, NULL) < 0) {
+			if (pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, dp) < 0) {
+				return -ENOMEM;
+			}
+			dp = NULL;
+		}
+		*start = vaddr;
+	}
+
+	pmap->start = (void *)VADDR_KERNEL;
+	pmap->end = end;
+
 	return EOK;
 }
 
@@ -259,6 +284,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Initialize kernel page table - remove first 4 MB mapping */
 	pmap->pdir2 = pmap_common.pdir2;
+	pmap->satp = ((syspage->pdir2 >> 12) | (u64)0x8000000000000000);
 
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)VADDR_MAX;

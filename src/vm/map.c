@@ -962,7 +962,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 
 	proc_lockInit(&map_common.lock);
 
-	vm_mapCreate(kmap, (void *)VADDR_KERNEL, (void *)VADDR_MAX);
+	vm_mapCreate(kmap, (void *)VADDR_KERNEL, kmap->pmap.end);
 	map_common.kmap = kmap;
 	map_common.kernel = kernel;
 
