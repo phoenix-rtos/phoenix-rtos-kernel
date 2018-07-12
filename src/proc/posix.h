@@ -53,7 +53,7 @@ extern off_t posix_lseek(int fildes, off_t offset, int whence);
 extern int posix_ftruncate(int fildes, off_t length);
 
 
-extern int posix_fcntl(unsigned int fd, unsigned int cmd, char *ustack);
+extern int posix_fcntl(int fd, unsigned int cmd, char *ustack);
 
 
 extern int posix_fork(void);

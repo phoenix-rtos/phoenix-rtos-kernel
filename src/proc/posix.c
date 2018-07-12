@@ -23,7 +23,7 @@
 
 #define MAX_FD_COUNT 32
 
-#define set_errno(x) -1
+#define set_errno(x) (((x) < 0) ? -1 : 0)
 
 //#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
 #define TRACE(str, ...)
@@ -819,56 +819,6 @@ int posix_ftruncate(int fildes, off_t length)
 }
 
 
-int posix_fcntl(unsigned int fd, unsigned int cmd, char *ustack)
-{
-	TRACE("fcntl(%d, %u, %u)", fd, cmd, arg);
-
-	int err = -1;
-	process_info_t *p;
-	unsigned long arg;
-
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
-
-	proc_lockSet(&p->lock);
-	switch (cmd) {
-	case F_DUPFD:
-		GETFROMSTACK(ustack, unsigned long, arg, 2);
-		while (p->fds[arg].file != NULL && arg++ < p->maxfd);
-		err = _posix_dup2(p, fd, arg);
-		break;
-
-	case F_GETFD:
-		break;
-
-	case F_SETFD:
-		GETFROMSTACK(ustack, unsigned long, arg, 2);
-
-		switch (arg) {
-		case FD_CLOEXEC:
-			err = 0;
-			break;
-		default:
-			break;
-		}
-		break;
-
-	case F_GETFL:
-	case F_SETFL:
-	case F_GETLK:
-	case F_SETLK:
-	case F_SETLKW:
-	case F_GETOWN:
-	case F_SETOWN:
-	default:
-		break;
-	}
-
-	proc_lockClear(&p->lock);
-	return err;
-}
-
-
 static int socksrvcall(msg_t *msg)
 {
 	oid_t oid;
@@ -1018,30 +968,6 @@ int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_l
 }
 
 
-/*static*/ int sock_getfl(int socket)
-{
-	msg_t msg;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmGetFl;
-
-	return sockcall(socket, &msg);
-}
-
-
-/*static*/ int sock_setfl(int socket, int val)
-{
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmSetFl;
-	smi->send.flags = val;
-
-	return sockcall(socket, &msg);
-}
-
-
 int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
 {
 	msg_t msg;
@@ -1164,6 +1090,178 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 	msg.i.size = optlen;
 
 	return sockcall(socket, &msg);
+}
+
+
+static int posix_fcntlDup(int fd, int fd2, int cloexec)
+{
+	process_info_t *p;
+	int err;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	proc_lockSet(&p->lock);
+	while (p->fds[fd].file != NULL && fd++ < p->maxfd);
+
+	if ((err = _posix_dup2(p, fd, fd2)) == fd && cloexec)
+		p->fds[fd].flags = FD_CLOEXEC;
+
+	proc_lockClear(&p->lock);
+	return err;
+}
+
+
+static int posix_fcntlSetFd(int fd, unsigned flags)
+{
+	process_info_t *p;
+	int err = EOK;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -ENOSYS;
+
+	proc_lockSet(&p->lock);
+	if (p->fds[fd].file != NULL)
+		p->fds[fd].flags = flags;
+	else
+		err = -EBADF;
+	proc_lockClear(&p->lock);
+	return err;
+}
+
+
+static int posix_fcntlGetFd(int fd)
+{
+	process_info_t *p;
+	int err;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -ENOSYS;
+
+	proc_lockSet(&p->lock);
+	if (p->fds[fd].file != NULL)
+		err = p->fds[fd].flags;
+	else
+		err = -EBADF;
+	proc_lockClear(&p->lock);
+	return err;
+}
+
+
+static int _sock_getfl(open_file_t *f)
+{
+	msg_t msg;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmGetFl;
+
+	return proc_send(f->oid.port, &msg);
+}
+
+
+static int _sock_setfl(open_file_t *f, int val)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmSetFl;
+	smi->send.flags = val;
+
+	return proc_send(f->oid.port, &msg);
+}
+
+
+static int posix_fcntlSetFl(int fd, int val)
+{
+	process_info_t *p;
+	open_file_t *f;
+	int err = EOK;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -ENOSYS;
+
+	proc_lockSet(&p->lock);
+	if ((f = p->fds[fd].file) != NULL) {
+		if (f->type == ftInetSocket)
+			err = _sock_setfl(f, val);
+		else
+			f->status = val;
+	}
+	else {
+		err = -EBADF;
+	}
+	proc_lockClear(&p->lock);
+	return err;
+}
+
+
+static int posix_fcntlGetFl(int fd)
+{
+	process_info_t *p;
+	open_file_t *f;
+	int err = EOK;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -ENOSYS;
+
+	proc_lockSet(&p->lock);
+
+	if ((f = p->fds[fd].file) != NULL)
+		err = f->type == ftInetSocket ? _sock_getfl(f) : f->status;
+
+	else
+		err = -EBADF;
+
+	proc_lockClear(&p->lock);
+	return err;
+}
+
+
+int posix_fcntl(int fd, unsigned int cmd, char *ustack)
+{
+	TRACE("fcntl(%d, %u, %u)", fd, cmd, arg);
+
+	int err = -EINVAL, fd2;
+	unsigned long arg;
+	int cloexec = 0;
+
+	switch (cmd) {
+	case F_DUPFD_CLOEXEC:
+		cloexec = 1;
+	case F_DUPFD:
+		GETFROMSTACK(ustack, int, fd2, 2);
+		err = posix_fcntlDup(fd, fd2, cloexec);
+		break;
+
+	case F_GETFD:
+		err = posix_fcntlGetFd(fd);
+		break;
+
+	case F_SETFD:
+		GETFROMSTACK(ustack, unsigned long, arg, 2);
+		err = posix_fcntlSetFd(fd, arg);
+		break;
+
+	case F_GETFL:
+		err = posix_fcntlGetFl(fd);
+		break;
+
+	case F_SETFL:
+		GETFROMSTACK(ustack, unsigned int, arg, 2);
+		err = posix_fcntlSetFl(fd, arg);
+		break;
+
+	case F_GETLK:
+	case F_SETLK:
+	case F_SETLKW:
+	case F_GETOWN:
+	case F_SETOWN:
+	default:
+		break;
+	}
+
+	return set_errno(err);
 }
 
 

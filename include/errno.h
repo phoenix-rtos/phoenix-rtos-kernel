@@ -57,4 +57,6 @@
 #define ETIME        37
 #define EWOULDBLOCK  EAGAIN  /* Operation would block */
 
+#define ENOTSOCK        88
+
 #endif

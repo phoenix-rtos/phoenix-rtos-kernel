@@ -27,6 +27,7 @@
 
 #define F_SETOWN 8
 #define F_GETOWN 9
+#define F_DUPFD_CLOEXEC  10
 
 #define FD_CLOEXEC 1
 
