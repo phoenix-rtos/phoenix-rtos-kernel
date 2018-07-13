@@ -1265,6 +1265,41 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 }
 
 
+int posix_ioctl(int fildes, int request, char *ustack)
+{
+	process_info_t *p;
+	open_file_t *f;
+	int err;
+	msg_t msg;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return set_errno(-ENOSYS);
+
+	proc_lockSet(&p->lock);
+
+	if ((f = p->fds[fildes].file) == NULL) {
+		proc_lockClear(&p->lock);
+		return set_errno(-EBADF);
+	}
+
+	switch (request) {
+		/* TODO: handle POSIX defined requests */
+	default:
+		hal_memset(&msg, 0, sizeof(msg));
+		msg.type = mtDevCtl;
+		GETFROMSTACK(ustack, void *, msg.i.data, 2);
+		GETFROMSTACK(ustack, size_t, msg.i.size, 3);
+		GETFROMSTACK(ustack, void *, msg.o.data, 4);
+		GETFROMSTACK(ustack, size_t, msg.o.size, 5);
+
+		err = proc_send(f->oid.port, &msg);
+	}
+	proc_lockClear(&p->lock);
+
+	return err;
+}
+
+
 void posix_init(void)
 {
 	proc_lockInit(&posix_common.lock);

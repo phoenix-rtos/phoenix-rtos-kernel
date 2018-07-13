@@ -89,4 +89,6 @@
 	ID(sendto) \
 	ID(socket) \
 	ID(shutdown) \
-	ID(setsockopt)
+	ID(setsockopt) \
+	\
+	ID(ioctl)
