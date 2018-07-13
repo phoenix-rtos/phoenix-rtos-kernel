@@ -1062,6 +1062,7 @@ int posix_socket(int domain, int type, int protocol)
 		return set_errno(err);
 
 	p->fds[err].file->type = ftInetSocket;
+	hal_memcpy(&p->fds[err].file->oid, &msg.o.lookup.res, sizeof(oid_t));
 	return err;
 }
 
