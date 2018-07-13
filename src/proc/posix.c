@@ -23,7 +23,7 @@
 
 #define MAX_FD_COUNT 32
 
-#define set_errno(x) (((x) < 0) ? -1 : 0)
+#define set_errno(x) (((x) < 0) ? -1 : x)
 
 //#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
 #define TRACE(str, ...)
@@ -345,7 +345,7 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 /* TODO: handle O_CREAT and O_EXCL */
 int posix_open(const char *filename, int oflag, char *ustack)
 {
-	TRACE("open(%s, %d, %d)", filename, oflag, mode);
+	TRACE("open(%s, %d, %d)", filename, oflag);
 	oid_t oid, dev, pipesrv;
 	int fd = 0, err;
 	process_info_t *p;
@@ -1105,10 +1105,10 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 		return -1;
 
 	proc_lockSet(&p->lock);
-	while (p->fds[fd].file != NULL && fd++ < p->maxfd);
+	while (p->fds[fd2].file != NULL && fd2++ < p->maxfd);
 
-	if ((err = _posix_dup2(p, fd, fd2)) == fd && cloexec)
-		p->fds[fd].flags = FD_CLOEXEC;
+	if ((err = _posix_dup2(p, fd, fd2)) == fd2 && cloexec)
+		p->fds[fd2].flags = FD_CLOEXEC;
 
 	proc_lockClear(&p->lock);
 	return err;
@@ -1233,7 +1233,7 @@ static int posix_fcntlGetFl(int fd)
 
 int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 {
-	TRACE("fcntl(%d, %u, %u)", fd, cmd, arg);
+	TRACE("fcntl(%d, %u)", fd, cmd);
 
 	int err = -EINVAL, fd2;
 	unsigned long arg;
