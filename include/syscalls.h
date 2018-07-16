@@ -77,6 +77,7 @@
 	ID(dup2) \
 	ID(pipe) \
 	ID(mkfifo_absolute) \
+	ID(fstat) \
 	\
 	ID(accept) \
 	ID(bind) \

@@ -821,6 +821,47 @@ int posix_ftruncate(int fildes, off_t length)
 }
 
 
+int posix_fstat(int fd, struct stat *buf)
+{
+	open_file_t *f;
+	process_info_t *p;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	if (fd < 0 || fd > p->maxfd || (f = p->fds[fd].file) == NULL)
+		return set_errno(-EBADF);
+
+	switch (f->type) {
+	case ftRegular:
+		buf->st_mode = S_IFREG;
+		break;
+	case ftPipe:
+	case ftFifo:
+		buf->st_mode = S_IFIFO;
+		break;
+	case ftInetSocket:
+	case ftUnixSocket:
+		buf->st_mode = S_IFSOCK;
+		break;
+	case ftTty:
+		buf->st_mode = S_IFCHR;
+		break;
+	default:
+		buf->st_mode = 0;
+		break;
+	}
+
+	buf->st_uid = 0;
+	buf->st_gid = 0;
+	buf->st_size = proc_size(f->oid);
+	buf->st_dev = f->oid.port;
+	buf->st_ino = (int)f->oid.id; /* FIXME */
+
+	return 0;
+}
+
+
 static int socksrvcall(msg_t *msg)
 {
 	oid_t oid;

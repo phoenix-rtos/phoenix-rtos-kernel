@@ -854,6 +854,18 @@ int syscalls_mkfifo_absolute(char *ustack)
 }
 
 
+int syscalls_fstat(char *ustack)
+{
+	int fd;
+	struct stat *buf;
+
+	GETFROMSTACK(ustack, int, fd, 0);
+	GETFROMSTACK(ustack, struct stat *, buf, 1);
+
+	return posix_fstat(fd, buf);
+}
+
+
 int syscalls_accept(char *ustack)
 {
 	int socket;

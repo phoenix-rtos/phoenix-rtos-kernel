@@ -54,4 +54,57 @@ struct sockaddr {
 };
 
 
+#define S_IFMT   0170000
+#define S_IFIFO  0010000
+#define S_IFCHR  0020000
+#define S_IFDIR  0040000
+#define S_IFBLK  0060000
+#define S_IFREG  0100000
+#define S_IFLNK  0120000
+#define S_IFSOCK 0140000
+
+#define S_BLKSIZE  512
+
+#define S_ISDIR(m) (((m) & 0170000) == 0040000)
+#define S_ISCHR(m) (((m) & 0170000) == 0020000)
+#define S_ISBLK(m) (((m) & 0170000) == 0060000)
+#define S_ISREG(m) (((m) & 0170000) == 0100000)
+#define S_ISFIFO(m) (((m) & 0170000) == 0010000)
+#define S_ISLNK(m) (((m) & 0170000) == 0120000)
+#define S_ISSOCK(m) (((m) & 0170000) == 0140000)
+
+
+typedef int dev_t;
+
+typedef int pid_t;
+typedef int off_t;
+typedef long long off64_t;
+typedef int mode_t;
+typedef int gid_t;
+typedef int uid_t;
+
+typedef int dev_t;
+typedef int ino_t; /* FIXME: should be unsigned long long to encode id_t? */
+typedef int nlink_t;
+typedef int blksize_t;
+typedef int blkcnt_t;
+
+
+struct stat {
+	dev_t     st_dev;
+	ino_t     st_ino;
+	mode_t    st_mode;
+	nlink_t   st_nlink;
+	uid_t     st_uid;
+	gid_t     st_gid;
+	dev_t     st_rdev;
+	off_t     st_size;
+	time_t    st_atime;
+	time_t    st_mtime;
+	time_t    st_ctime;
+	blksize_t st_blksize;
+	blkcnt_t  st_blocks;
+};
+
+
 #endif
