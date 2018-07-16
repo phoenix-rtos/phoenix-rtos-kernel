@@ -68,6 +68,10 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	(*vstart) = *(void **)stackptr;
 	(*vend) = (*vstart) + SIZE_PAGE;
+
+	pmap->start = (void *)VADDR_KERNEL;
+	pmap->end = (void *)VADDR_MAX;
+
 	hal_spinlockCreate(&pmap_common.spinlock, "pmap_common.spinlock");
 
 	return;

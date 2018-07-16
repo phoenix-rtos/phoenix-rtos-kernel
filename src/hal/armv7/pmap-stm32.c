@@ -149,6 +149,9 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	(*vstart) = *(void **) ((hal_cpuGetPC() < 0x08030000) ? 0x08000000 : 0x08030000);
 	(*vend) = (*vstart) + SIZE_PAGE;
 
+	pmap->start = (void *)VADDR_KERNEL;
+	pmap->end = (void *)VADDR_MAX;
+
 	hal_spinlockCreate(&pmap_common.spinlock, "pmap_common.spinlock");
 
 	return;
