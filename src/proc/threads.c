@@ -265,7 +265,12 @@ static void threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 
 	jiffies = threads_common.jiffies;
 
+#ifdef HPTIMER_IRQ
+	now = hal_getTimer();
+#else
 	hal_cpuGetCycles(&now);
+#endif
+
 #ifdef NOMMU
 	/* Add jiffies because hal_cpuGetCycles returns time only in range from 0 to 1000 us */
 	/* Applies to the hardware without CPU cycle counter */
