@@ -19,6 +19,7 @@
 #include "../../include/signal.h"
 #include "../vm/vm.h"
 #include "../lib/lib.h"
+#include "../posix/posix.h"
 #include "process.h"
 #include "threads.h"
 #include "elf.h"
@@ -26,7 +27,6 @@
 #include "name.h"
 #include "msg.h"
 #include "ports.h"
-#include "posix.h"
 
 
 struct {

@@ -29,7 +29,6 @@
 #include "file.h"
 #include "userintr.h"
 #include "ports.h"
-#include "posix.h"
 
 
 extern int _proc_init(vm_map_t *kmap, vm_object_t *kernel);

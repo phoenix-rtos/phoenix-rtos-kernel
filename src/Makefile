@@ -22,7 +22,7 @@ MAKEFLAGS += --no-print-directory --output-sync
 SRCS := main.c syscalls.c programs.c
 OBJS = $(SRCS:.c=.o)
 
-SUBSYSTEMS = lib vm proc test
+SUBSYSTEMS = lib vm proc test posix
 
 BIN = ../phoenix-$(TARGET)
 

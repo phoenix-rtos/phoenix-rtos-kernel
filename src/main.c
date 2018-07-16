@@ -19,6 +19,7 @@
 #include "lib/lib.h"
 #include "vm/vm.h"
 #include "proc/proc.h"
+#include "posix/posix.h"
 #include "syscalls.h"
 #include "test/test.h"
 #include "programs.h"

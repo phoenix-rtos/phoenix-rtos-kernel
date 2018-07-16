@@ -15,10 +15,8 @@
 
 #include HAL
 #include "../../include/errno.h"
-#include "threads.h"
-#include "cond.h"
-#include "resource.h"
-#include "name.h"
+#include "../proc/proc.h"
+
 #include "posix.h"
 
 #define MAX_FD_COUNT 32
@@ -66,6 +64,7 @@ typedef struct {
 struct {
 	rbtree_t pid;
 	lock_t lock;
+	id_t fresh;
 } posix_common;
 
 
@@ -1358,4 +1357,5 @@ void posix_init(void)
 {
 	proc_lockInit(&posix_common.lock);
 	lib_rbInit(&posix_common.pid, pinfo_cmp, NULL);
+	posix_common.fresh = 0;
 }

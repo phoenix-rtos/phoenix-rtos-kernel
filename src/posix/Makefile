@@ -1,17 +1,11 @@
 #
-# Makefile for Phoenix-RTOS kernel (vm)
+# Makefile for Phoenix-RTOS kernel (posix)
 #
 # Copyright 2012-2015, 2017 Phoenix Systems
 # Copyright 2001, 2005-2006 Pawel Pisarczyk
 #
 
-SRCS = proc.c threads.c process.c name.c resource.c mutex.c cond.c userintr.c file.c ports.c
-
-ifneq (, $(findstring NOMMU, $(CFLAGS)))
-	SRCS += msg-nommu.c
-else
-	SRCS += msg.c
-endif
+SRCS = posix.c
 
 OBJS = $(SRCS:.c=.o)
 

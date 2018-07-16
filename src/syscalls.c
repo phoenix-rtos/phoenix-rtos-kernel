@@ -23,6 +23,7 @@
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
+#include "posix/posix.h"
 
 #define SYSCALLS_NAME(name) syscalls_##name,
 
