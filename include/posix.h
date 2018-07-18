@@ -73,6 +73,9 @@ struct sockaddr {
 #define S_ISLNK(m) (((m) & 0170000) == 0120000)
 #define S_ISSOCK(m) (((m) & 0170000) == 0140000)
 
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 typedef int dev_t;
 
