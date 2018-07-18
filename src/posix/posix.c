@@ -810,6 +810,57 @@ int posix_unlink(const char *pathname)
 
 off_t posix_lseek(int fildes, off_t offset, int whence)
 {
+	TRACE("seek(%d, %d, %d)", fildes, offset, whence);
+
+	open_file_t *f;
+	process_info_t *p;
+	int scnt, sz;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	proc_lockSet(&p->lock);
+
+	do {
+		if (fildes < 0 || fildes > p->maxfd)
+			break;
+
+		if ((f = p->fds[fildes].file) == NULL)
+			break;
+
+		proc_lockClear(&p->lock);
+
+		if (whence == SEEK_END)
+			sz = proc_size(f->oid);
+
+		proc_lockSet(&f->lock);
+		switch (whence) {
+
+		case SEEK_SET:
+			f->offset = offset;
+			scnt = offset;
+			break;
+
+		case SEEK_CUR:
+			f->offset += offset;
+			scnt = f->offset;
+			break;
+
+		case SEEK_END:
+			f->offset = sz + offset;
+			scnt = f->offset;
+			break;
+
+		default:
+			scnt = -EINVAL;
+			break;
+		}
+		proc_lockClear(&f->lock);
+
+		return scnt;
+	} while (0);
+
+	proc_lockClear(&p->lock);
 	return -1;
 }
 
