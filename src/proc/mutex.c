@@ -114,10 +114,8 @@ int proc_mutexCopy(resource_t *dst, resource_t *src)
 	proc_lockInit(dst->lock);
 	dst->type = rtLock;
 
-	if (src != NULL) {
-		dst->lock->v = src->lock->v;
+	if (src != NULL)
 		dst->lock->priority = src->lock->priority;
-	}
 
 	return EOK;
 }
