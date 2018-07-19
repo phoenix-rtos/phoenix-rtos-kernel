@@ -450,6 +450,9 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 
 void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, offs_t offs, u8 flags)
 {
+	if (map == NULL)
+		map = map_common.kmap;
+
 	proc_lockSet(&map->lock);
 	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, offs, flags);
 	proc_lockClear(&map->lock);
