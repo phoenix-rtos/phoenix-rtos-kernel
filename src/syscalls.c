@@ -1063,6 +1063,18 @@ int syscalls_ioctl(char *ustack)
 }
 
 
+int syscalls_utimes(char *ustack)
+{
+	const char *filename;
+	const struct timeval *times;
+
+	GETFROMSTACK(ustack, const char *, filename, 0);
+	GETFROMSTACK(ustack, const struct timeval *, times, 1);
+
+	return posix_utimes(filename, times);
+}
+
+
 /*
  * Empty syscall
  */

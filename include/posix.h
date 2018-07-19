@@ -110,4 +110,6 @@ struct stat {
 };
 
 
+struct timeval {
+};
 #endif

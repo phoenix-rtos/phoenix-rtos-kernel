@@ -1399,8 +1399,15 @@ int posix_ioctl(int fildes, int request, char *ustack)
 
 		err = proc_send(f->oid.port, &msg);
 	}
+/* Just a stub to support busybox' touch */
+int posix_utimes(const char *filename, const struct timeval *times)
+{
+	oid_t oid;
 
-	return err;
+	if (proc_lookup(filename, &oid) < 0)
+		return set_errno(-ENOENT);
+
+	return 0;
 }
 
 

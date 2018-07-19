@@ -92,4 +92,5 @@
 	ID(shutdown) \
 	ID(setsockopt) \
 	\
-	ID(ioctl)
+	ID(ioctl) \
+	ID(utimes)
