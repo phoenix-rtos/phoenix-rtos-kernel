@@ -112,4 +112,21 @@ struct stat {
 
 struct timeval {
 };
+
+
+#define AF_UNIX 1
+#define AF_INET 2
+
+#define SOCK_STREAM 1
+#define SOCK_DGRAM 2
+#define SOCK_RAW 3
+#define SOCK_SEQPACKET 4
+#define SOCK_RDM 5
+
+#define MSG_PEEK       0x01
+#define MSG_WAITALL    0x02
+#define MSG_OOB        0x04
+#define MSG_DONTWAIT   0x08
+#define MSG_MORE       0x10
+
 #endif

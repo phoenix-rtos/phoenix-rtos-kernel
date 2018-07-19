@@ -5,7 +5,7 @@
 # Copyright 2001, 2005-2006 Pawel Pisarczyk
 #
 
-SRCS = posix.c
+SRCS = cbuffer.c posix.c inet.c unix.c
 
 OBJS = $(SRCS:.c=.o)
 

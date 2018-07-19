@@ -58,5 +58,11 @@
 #define EWOULDBLOCK  EAGAIN  /* Operation would block */
 
 #define ENOTSOCK        88
+#define EOPNOTSUPP      95
+#define EAFNOSUPPORT    97
+#define EADDRINUSE      98
+#define EISCONN         106
+#define ENOTCONN        107
+#define ECONNREFUSED    111
 
 #endif

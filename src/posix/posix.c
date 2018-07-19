@@ -6,7 +6,7 @@
  * POSIX-compatibility module
  *
  * Copyright 2018 Phoenix Systems
- * Author: Jan Sikorski, Michal Miroslaw
+ * Author: Jan Sikorski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -18,10 +18,9 @@
 #include "../proc/proc.h"
 
 #include "posix.h"
+#include "posix_private.h"
 
 #define MAX_FD_COUNT 32
-
-#define set_errno(x) (((x) < 0) ? -1 : x)
 
 //#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
 #define TRACE(str, ...)
@@ -29,36 +28,6 @@
 /* NOTE: temporarily disable locking, need to be tested */
 #define proc_lockSet(x) (void)0
 #define proc_lockClear(x) (void)0
-
-enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };
-
-enum { pxBufferedPipe, pxPipe, pxPTY };
-
-
-typedef struct {
-	oid_t oid;
-	unsigned refs;
-	off_t offset;
-	unsigned status;
-	lock_t lock;
-	char type;
-} open_file_t;
-
-
-typedef struct {
-	open_file_t *file;
-	unsigned flags;
-} fildes_t;
-
-
-typedef struct {
-	rbnode_t linkage;
-	process_t *process;
-
-	lock_t lock;
-	int maxfd;
-	fildes_t *fds;
-} process_info_t;
 
 
 struct {
@@ -82,7 +51,7 @@ static char *strrchr(const char *s, int c)
 }
 
 
-static void splitname(char *path, char **base, char **dir)
+void splitname(char *path, char **base, char **dir)
 {
 	char *slash;
 
@@ -108,7 +77,8 @@ static void posix_fileDeref(open_file_t *f)
 {
 	proc_lockSet(&f->lock);
 	if (!--f->refs) {
-		proc_close(f->oid, f->status);
+		if (f->type != ftUnixSocket)
+			proc_close(f->oid, f->status);
 		proc_lockDone(&f->lock);
 		vm_kfree(f);
 	}
@@ -118,7 +88,28 @@ static void posix_fileDeref(open_file_t *f)
 }
 
 
-static int posix_newFile(process_info_t *p, int fd)
+static int posix_getOpenFile(int fd, open_file_t **f)
+{
+	process_info_t *p;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -ENOSYS;
+
+	if (fd < 0 || fd > p->maxfd)
+		return -EBADF;
+
+	proc_lockSet(&p->lock);
+	if ((*f = p->fds[fd].file) == NULL) {
+		proc_lockClear(&p->lock);
+		return -EBADF;
+	}
+	proc_lockClear(&p->lock);
+
+	return 0;
+}
+
+
+int posix_newFile(process_info_t *p, int fd)
 {
 	open_file_t *f;
 
@@ -246,6 +237,8 @@ int posix_clone(int ppid)
 
 int posix_fork()
 {
+	TRACE("fork()");
+
 	int pid;
 
 	if (!(pid = proc_vfork())) {
@@ -259,7 +252,7 @@ int posix_fork()
 
 int posix_exec(void)
 {
-	TRACE("exec");
+	TRACE("exec()");
 
 	process_info_t *p;
 	open_file_t *f;
@@ -346,7 +339,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
 	oid_t oid, dev, pipesrv;
-	int fd = 0, err;
+	int fd = 0, err = 0;
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
@@ -365,11 +358,10 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	do {
 		while (p->fds[fd].file != NULL && fd++ < p->maxfd);
 
-		if (fd > p->maxfd)
+		if (fd > p->maxfd || (f = p->fds[fd].file = vm_kmalloc(sizeof(open_file_t))) == NULL) {
+			err = -EBADF;
 			break;
-
-		if ((f = p->fds[fd].file = vm_kmalloc(sizeof(open_file_t))) == NULL)
-			break;
+		}
 
 		proc_lockInit(&f->lock);
 		proc_lockClear(&p->lock);
@@ -381,15 +373,20 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			else if (oflag & O_CREAT) {
 				GETFROMSTACK(ustack, mode_t, mode, 2);
 
-				if (posix_create(filename, 1 /* otFile */, mode, dev, &oid) < 0)
+				if (posix_create(filename, 1 /* otFile */, mode, dev, &oid) < 0) {
+					err = -EIO;
 					break;
+				}
 			}
 			else {
+				err = -ENOENT;
 				break;
 			}
 
-			if ((err = proc_open(oid, oflag)) < 0)
+			if (oid.port != US_PORT && (err = proc_open(oid, oflag)) < 0) {
+				err = -EIO;
 				break;
+			}
 
 			/* TODO: truncate, append */
 
@@ -401,14 +398,26 @@ int posix_open(const char *filename, int oflag, char *ustack)
 				hal_memcpy(&f->oid, &oid, sizeof(oid));
 			}
 			else {
+				/* multiplexer, e.g. /dev/ptmx */
 				f->oid.port = oid.port;
 				f->oid.id = err;
 			}
 
 			f->refs = 1;
-			f->offset = 0;
+
 			/* TODO: check for other types */
-			f->type = oid.port == pipesrv.port ? ftPipe : ftRegular;
+			if (oid.port == US_PORT)
+				f->type = ftUnixSocket;
+			else if (oid.port == pipesrv.port)
+				f->type = ftPipe;
+			else
+				f->type = ftRegular;
+
+			if (oflag & O_APPEND)
+				f->offset = proc_size(f->oid);
+			else
+				f->offset = 0;
+
 			f->status = oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
 
 			return fd;
@@ -422,7 +431,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	} while (0);
 
 	proc_lockClear(&p->lock);
-	return -1;
+	return set_errno(err);
 }
 
 
@@ -478,8 +487,13 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 
 		proc_lockClear(&p->lock);
 
-		if ((rcnt = proc_read(f->oid, f->offset, buf, nbyte, f->status)) < 0)
+		if (f->type == ftUnixSocket) {
+			if ((rcnt = unix_recvfrom(f->oid.id, buf, nbyte, 0, NULL, NULL)) < 0)
+				return set_errno(rcnt);
+		}
+		else if ((rcnt = proc_read(f->oid, f->offset, buf, nbyte, f->status)) < 0) {
 			return set_errno(-EIO);
+		}
 
 		proc_lockSet(&f->lock);
 		f->offset += rcnt;
@@ -515,8 +529,13 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 
 		proc_lockClear(&p->lock);
 
-		if ((rcnt = proc_write(f->oid, f->offset, buf, nbyte, f->status)) < 0)
+		if (f->type == ftUnixSocket) {
+			if ((rcnt = unix_sendto(f->oid.id, buf, nbyte, 0, NULL, 0)) < 0)
+				return set_errno(rcnt);
+		}
+		if ((rcnt = proc_write(f->oid, f->offset, buf, nbyte, f->status)) < 0) {
 			return set_errno(-EIO);
+		}
 
 		proc_lockSet(&f->lock);
 		f->offset += rcnt;
@@ -722,6 +741,8 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 
 int posix_link(const char *path1, const char *path2)
 {
+	TRACE("link(%s, %s)", path1, path2);
+
 	process_info_t *p;
 	oid_t oid, dir;
 	int err;
@@ -766,6 +787,8 @@ int posix_link(const char *path1, const char *path2)
 
 int posix_unlink(const char *pathname)
 {
+	TRACE("unlink(%s)", pathname);
+
 	process_info_t *p;
 	oid_t oid, dir;
 	int err;
@@ -873,317 +896,40 @@ int posix_ftruncate(int fildes, off_t length)
 
 int posix_fstat(int fd, struct stat *buf)
 {
+	TRACE("fstat(%d)", fd);
+
 	open_file_t *f;
-	process_info_t *p;
+	int err;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
+	if (!(err = posix_getOpenFile(fd, &f))) {
+		switch (f->type) {
+		case ftRegular:
+			buf->st_mode = S_IFREG;
+			break;
+		case ftPipe:
+		case ftFifo:
+			buf->st_mode = S_IFIFO;
+			break;
+		case ftInetSocket:
+		case ftUnixSocket:
+			buf->st_mode = S_IFSOCK;
+			break;
+		case ftTty:
+			buf->st_mode = S_IFCHR;
+			break;
+		default:
+			buf->st_mode = 0;
+			break;
+		}
 
-	if (fd < 0 || fd > p->maxfd || (f = p->fds[fd].file) == NULL)
-		return set_errno(-EBADF);
-
-	switch (f->type) {
-	case ftRegular:
-		buf->st_mode = S_IFREG;
-		break;
-	case ftPipe:
-	case ftFifo:
-		buf->st_mode = S_IFIFO;
-		break;
-	case ftInetSocket:
-	case ftUnixSocket:
-		buf->st_mode = S_IFSOCK;
-		break;
-	case ftTty:
-		buf->st_mode = S_IFCHR;
-		break;
-	default:
-		buf->st_mode = 0;
-		break;
+		buf->st_uid = 0;
+		buf->st_gid = 0;
+		buf->st_size = proc_size(f->oid);
+		buf->st_dev = f->oid.port;
+		buf->st_ino = (int)f->oid.id; /* FIXME */
 	}
 
-	buf->st_uid = 0;
-	buf->st_gid = 0;
-	buf->st_size = proc_size(f->oid);
-	buf->st_dev = f->oid.port;
-	buf->st_ino = (int)f->oid.id; /* FIXME */
-
-	return 0;
-}
-
-
-static int socksrvcall(msg_t *msg)
-{
-	oid_t oid;
-	int err;
-
-	if ((err = proc_lookup(PATH_SOCKSRV, &oid)) < 0)
-		return set_errno(err);
-
-	if ((err = proc_send(oid.port, msg)) < 0)
-		return set_errno(err);
-
-	return 0;
-}
-
-
-static ssize_t sockcall(int socket, msg_t *msg)
-{
-	process_info_t *p;
-	open_file_t *f;
-	sockport_resp_t *smo = (void *)msg->o.raw;
-	int err;
-
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
-
-	if ((f = p->fds[socket].file) == NULL)
-		return set_errno(-EBADF);
-
-	if (f->type != ftInetSocket)
-		return set_errno(-ENOTSOCK);
-
-	if ((err = proc_send(f->oid.port, msg)) < 0)
-		return set_errno(err);
-
-	err = smo->ret;
 	return set_errno(err);
-}
-
-
-static ssize_t socknamecall(int socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
-{
-	sockport_resp_t *smo = (void *)msg->o.raw;
-	ssize_t err;
-
-	if ((err = sockcall(socket, msg)) < 0)
-		return err;
-
-	if (smo->sockname.addrlen > *address_len)
-		smo->sockname.addrlen = *address_len;
-
-	hal_memcpy(address, smo->sockname.addr, smo->sockname.addrlen);
-	*address_len = smo->sockname.addrlen;
-
-	return err;
-}
-
-
-static ssize_t sockdestcall(int socket, msg_t *msg, const struct sockaddr *address, socklen_t address_len)
-{
-	sockport_msg_t *smi = (void *)msg->i.raw;
-
-	if (address_len > sizeof(smi->send.addr))
-		return set_errno(-EINVAL);
-
-	smi->send.addrlen = address_len;
-	hal_memcpy(smi->send.addr, address, address_len);
-
-	return sockcall(socket, msg);
-}
-
-
-int posix_accept(int socket, struct sockaddr *address, socklen_t *address_len)
-{
-	process_info_t *p;
-	ssize_t err;
-	msg_t msg;
-	oid_t oid;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
-
-	hal_memset(&oid, 0, sizeof(oid));
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmAccept;
-	smi->send.flags = 0;
-
-	if ((err = socknamecall(socket, &msg, address, address_len)) < 0)
-		return set_errno(err);
-
-	oid.port = err;
-
-	if ((err = posix_newFile(p, 0)) < 0) {
-		msg.type = mtClose;
-		proc_send(oid.port, &msg);
-		return set_errno(err);
-	}
-
-	p->fds[err].file->type = ftInetSocket;
-	hal_memcpy(&p->fds[err].file->oid, &oid, sizeof(oid));
-
-	return err;
-}
-
-
-int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len)
-{
-	msg_t msg;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmBind;
-
-	return sockdestcall(socket, &msg, address, address_len);
-}
-
-
-int posix_connect(int socket, const struct sockaddr *address, socklen_t address_len)
-{
-	msg_t msg;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmConnect;
-
-	return sockdestcall(socket, &msg, address, address_len);
-}
-
-
-int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
-{
-	msg_t msg;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmGetPeerName;
-
-	return socknamecall(socket, &msg, address, address_len);
-}
-
-
-int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
-{
-	msg_t msg;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmGetSockName;
-
-	return socknamecall(socket, &msg, address, address_len);
-}
-
-
-int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
-{
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-	ssize_t ret;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmGetOpt;
-	smi->opt.level = level;
-	smi->opt.optname = optname;
-	msg.o.data = optval;
-	msg.o.size = *optlen;
-
-	ret = sockcall(socket, &msg);
-
-	if (ret < 0)
-		return ret;
-
-	*optlen = ret;
-	return 0;
-}
-
-
-int posix_listen(int socket, int backlog)
-{
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmListen;
-	smi->listen.backlog = backlog;
-
-	return sockcall(socket, &msg);
-}
-
-
-ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
-{
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmRecv;
-	smi->send.flags = flags;
-	msg.o.data = message;
-	msg.o.size = length;
-
-	return socknamecall(socket, &msg, src_addr, src_len);
-}
-
-
-ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
-{
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmSend;
-	smi->send.flags = flags;
-	msg.i.data = (void *)message;
-	msg.i.size = length;
-
-	return sockdestcall(socket, &msg, dest_addr, dest_len);
-}
-
-
-int posix_socket(int domain, int type, int protocol)
-{
-	process_info_t *p;
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-	int err;
-
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmSocket;
-	smi->socket.domain = domain;
-	smi->socket.type = type;
-	smi->socket.protocol = protocol;
-
-	if ((err = socksrvcall(&msg)) < 0)
-		return err;
-
-	if (msg.o.lookup.err < 0)
-		return set_errno(msg.o.lookup.err);
-
-	if ((err = posix_newFile(p, 0)) < 0)
-		return set_errno(err);
-
-	p->fds[err].file->type = ftInetSocket;
-	hal_memcpy(&p->fds[err].file->oid, &msg.o.lookup.res, sizeof(oid_t));
-	return err;
-}
-
-
-int posix_shutdown(int socket, int how)
-{
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmShutdown;
-	smi->send.flags = how;
-
-	return sockcall(socket, &msg);
-}
-
-
-int posix_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen)
-{
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmSetOpt;
-	smi->opt.level = level;
-	smi->opt.optname = optname;
-	msg.i.data = (void *)optval;
-	msg.i.size = optlen;
-
-	return sockcall(socket, &msg);
 }
 
 
@@ -1194,6 +940,9 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
+
+	if (fd < 0 || fd > p->maxfd || fd2 < 0 || fd > p->maxfd)
+		return -EBADF;
 
 	proc_lockSet(&p->lock);
 	while (p->fds[fd2].file != NULL && fd2++ < p->maxfd);
@@ -1214,6 +963,9 @@ static int posix_fcntlSetFd(int fd, unsigned flags)
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -ENOSYS;
 
+	if (fd < 0 || fd > p->maxfd)
+		return -EBADF;
+
 	proc_lockSet(&p->lock);
 	if (p->fds[fd].file != NULL)
 		p->fds[fd].flags = flags;
@@ -1231,6 +983,9 @@ static int posix_fcntlGetFd(int fd)
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -ENOSYS;
+
+	if (fd < 0 || fd > p->maxfd)
+		return -EBADF;
 
 	proc_lockSet(&p->lock);
 	if (p->fds[fd].file != NULL)
@@ -1268,56 +1023,33 @@ static int _sock_setfl(open_file_t *f, int val)
 
 static int posix_fcntlSetFl(int fd, int val)
 {
-	process_info_t *p;
 	open_file_t *f;
 	int err = EOK;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -ENOSYS;
-
-	proc_lockSet(&p->lock);
-	if ((f = p->fds[fd].file) != NULL) {
-		if (f->type == ftInetSocket) {
-			proc_lockClear(&p->lock);
-			return _sock_setfl(f, val);
-		}
-		else {
+	if (!(err = posix_getOpenFile(fd, &f))) {
+		if (f->type == ftInetSocket)
+			err = _sock_setfl(f, val);
+		else
 			f->status = val;
-		}
 	}
-	else {
-		err = -EBADF;
-	}
-	proc_lockClear(&p->lock);
+
 	return err;
 }
 
 
 static int posix_fcntlGetFl(int fd)
 {
-	process_info_t *p;
 	open_file_t *f;
 	int err = EOK;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -ENOSYS;
-
-	proc_lockSet(&p->lock);
-
-	if ((f = p->fds[fd].file) != NULL) {
-		if (f->type == ftInetSocket) {
-			proc_lockClear(&p->lock);
-			return _sock_getfl(f);
-		}
+	if (!(err = posix_getOpenFile(fd, &f))) {
+		if (f->type == ftInetSocket)
+			err = _sock_getfl(f);
 		else {
 			err = f->status;
 		}
 	}
-	else {
-		err = -EBADF;
-	}
 
-	proc_lockClear(&p->lock);
 	return err;
 }
 
@@ -1371,34 +1103,375 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 
 int posix_ioctl(int fildes, int request, char *ustack)
 {
-	process_info_t *p;
+	TRACE("ioctl(%d, %d)", fildes, request);
+
 	open_file_t *f;
 	int err;
 	msg_t msg;
 
+	if (!(err = posix_getOpenFile(fildes, &f))) {
+		switch (request) {
+			/* TODO: handle POSIX defined requests */
+		default:
+			hal_memset(&msg, 0, sizeof(msg));
+			msg.type = mtDevCtl;
+			GETFROMSTACK(ustack, void *, msg.i.data, 2);
+			GETFROMSTACK(ustack, size_t, msg.i.size, 3);
+			GETFROMSTACK(ustack, void *, msg.o.data, 4);
+			GETFROMSTACK(ustack, size_t, msg.o.size, 5);
+
+			err = proc_send(f->oid.port, &msg);
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+int posix_socket(int domain, int type, int protocol)
+{
+	TRACE("socket(%d, %d, %d)", domain, type, protocol);
+
+	process_info_t *p;
+	int err, fd;
+
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return set_errno(-ENOSYS);
+		return -1;
 
-	proc_lockSet(&p->lock);
+	if ((fd = posix_newFile(p, 0)) < 0)
+		return set_errno(-EMFILE);
 
-	if ((f = p->fds[fildes].file) == NULL) {
-		proc_lockClear(&p->lock);
-		return set_errno(-EBADF);
-	}
-	proc_lockClear(&p->lock);
-
-	switch (request) {
-		/* TODO: handle POSIX defined requests */
+	switch (domain) {
+	case AF_UNIX:
+		if ((err = unix_socket(domain, type, protocol)) >= 0) {
+			p->fds[fd].file->type = ftUnixSocket;
+			p->fds[fd].file->oid.port = -1;
+			p->fds[fd].file->oid.id = err;
+		}
+		break;
+	case AF_INET:
+		if ((err = inet_socket(domain, type, protocol)) >= 0) {
+			p->fds[fd].file->type = ftInetSocket;
+			p->fds[fd].file->oid.port = err;
+			p->fds[fd].file->oid.id = 0;
+		}
+		break;
 	default:
-		hal_memset(&msg, 0, sizeof(msg));
-		msg.type = mtDevCtl;
-		GETFROMSTACK(ustack, void *, msg.i.data, 2);
-		GETFROMSTACK(ustack, size_t, msg.i.size, 3);
-		GETFROMSTACK(ustack, void *, msg.o.data, 4);
-		GETFROMSTACK(ustack, size_t, msg.o.size, 5);
-
-		err = proc_send(f->oid.port, &msg);
+		err = -EAFNOSUPPORT;
+		break;
 	}
+
+	if (err < 0)
+		return set_errno(err);
+
+	return fd;
+}
+
+
+int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
+{
+	TRACE("accept4(%d, %s)", socket, address == NULL ? NULL : address->sa_data);
+
+	process_info_t *p;
+	open_file_t *f;
+	int err, fd;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	if ((fd = posix_newFile(p, 0)) < 0)
+		return set_errno(-EMFILE);
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			if ((err = inet_accept(f->oid.port, address, address_len)) >= 0) {
+				p->fds[fd].file->type = ftInetSocket;
+				p->fds[fd].file->oid.port = err;
+				p->fds[fd].file->oid.id = 0;
+			}
+			break;
+		case ftUnixSocket:
+			if ((err = unix_accept(f->oid.id, address, address_len)) >= 0) {
+				p->fds[fd].file->type = ftUnixSocket;
+				p->fds[fd].file->oid.port = -1;
+				p->fds[fd].file->oid.id = err;
+			}
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+
+		if (err >= 0 && flags) {
+			if (flags & SOCK_NONBLOCK)
+				f->status |= O_NONBLOCK;
+			if (flags & SOCK_CLOEXEC)
+				posix_fcntlSetFd(socket, FD_CLOEXEC);
+		}
+	}
+
+	if (err < 0)
+		return set_errno(err);
+
+	return fd;
+}
+
+
+int posix_accept(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	return posix_accept4(socket, address, address_len, 0);
+}
+
+
+int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len)
+{
+	TRACE("bind(%d, %s)", socket, address == NULL ? NULL : address->sa_data);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_bind(f->oid.port, address, address_len);
+			break;
+		case ftUnixSocket:
+			err = unix_bind(f->oid.id, address, address_len);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+int posix_connect(int socket, const struct sockaddr *address, socklen_t address_len)
+{
+	TRACE("connect(%d, %s)", socket, address == NULL ? NULL : address->sa_data);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_connect(f->oid.port, address, address_len);
+			break;
+		case ftUnixSocket:
+			err = unix_connect(f->oid.id, address, address_len);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	TRACE("getpeername(%d, %s)", socket, address == NULL ? NULL : address->sa_data);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_getpeername(f->oid.port, address, address_len);
+			break;
+		case ftUnixSocket:
+			err = unix_getpeername(f->oid.id, address, address_len);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	TRACE("getsockname(%d, %s)", socket, address == NULL ? NULL : address->sa_data);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_getsockname(f->oid.port, address, address_len);
+			break;
+		case ftUnixSocket:
+			err = unix_getsockname(f->oid.id, address, address_len);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
+{
+	TRACE("getsockopt(%d, %d, %d)", socket, level, optname);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_getsockopt(f->oid.port, level, optname, optval, optlen);
+			break;
+		case ftUnixSocket:
+			err = unix_getsockopt(f->oid.id, level, optname, optval, optlen);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+int posix_listen(int socket, int backlog)
+{
+	TRACE("listen(%d, %d)", socket, backlog);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_listen(f->oid.port, backlog);
+			break;
+		case ftUnixSocket:
+			err = unix_listen(f->oid.id, backlog);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+{
+	TRACE("recvfrom(%d, %d, %s)", socket, length, src_addr == NULL ? NULL : src_addr->sa_data);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_recvfrom(f->oid.port, message, length, flags, src_addr, src_len);
+			break;
+		case ftUnixSocket:
+			err = unix_recvfrom(f->oid.id, message, length, flags, src_addr, src_len);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+{
+	TRACE("sendto(%d, %s, %d, %s)", socket, message, length, dest_addr == NULL ? NULL : dest_addr->sa_data);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_sendto(f->oid.port, message, length, flags, dest_addr, dest_len);
+			break;
+		case ftUnixSocket:
+			err = unix_sendto(f->oid.id, message, length, flags, dest_addr, dest_len);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+int posix_shutdown(int socket, int how)
+{
+	TRACE("shutdown(%d, %d)", socket, how);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_shutdown(f->oid.port, how);
+			break;
+		case ftUnixSocket:
+			err = unix_shutdown(f->oid.id, how);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
+int posix_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen)
+{
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+		case ftInetSocket:
+			err = inet_setsockopt(f->oid.port, level, optname, optval, optlen);
+			break;
+		case ftUnixSocket:
+			err = unix_setsockopt(f->oid.id, level, optname, optval, optlen);
+			break;
+		default:
+			err = -ENOTSOCK;
+			break;
+		}
+	}
+
+	return set_errno(err);
+}
+
+
 /* Just a stub to support busybox' touch */
 int posix_utimes(const char *filename, const struct timeval *times)
 {
@@ -1415,5 +1488,6 @@ void posix_init(void)
 {
 	proc_lockInit(&posix_common.lock);
 	lib_rbInit(&posix_common.pid, pinfo_cmp, NULL);
+	unix_sockets_init();
 	posix_common.fresh = 0;
 }

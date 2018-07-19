@@ -209,7 +209,7 @@ static void unixsock_put(unixsock_t *r)
 {
 	proc_lockSet(&unix_common.lock);
 	if (--r->refs < 0) {
-		lib_rbRemove(&unix_common.lock, &r->linkage);
+		lib_rbRemove(&unix_common.tree, &r->linkage);
 		proc_lockClear(&unix_common.lock);
 
 		proc_lockDone(&r->lock);
@@ -589,6 +589,7 @@ int unix_shutdown(unsigned socket, int how)
 
 	unixsock_put(s);
 	unixsock_put(s);
+	return EOK;
 }
 
 
