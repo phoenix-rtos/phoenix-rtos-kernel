@@ -1,3 +1,18 @@
+/*
+ * Phoenix-RTOS
+ *
+ * Operating system kernel
+ *
+ * POSIX-compatibility module - circular buffers
+ *
+ * Copyright 2018 Phoenix Systems
+ * Author: Jan Sikorski
+ *
+ * This file is part of Phoenix-RTOS.
+ *
+ * %LICENSE%
+ */
+
 #include "posix_private.h"
 
 int _cbuffer_init(cbuffer_t *buf, size_t sz)
