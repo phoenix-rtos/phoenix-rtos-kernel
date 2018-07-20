@@ -471,7 +471,7 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 
 	open_file_t *f;
 	process_info_t *p;
-	int rcnt;
+	int rcnt, flags = 0;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
@@ -488,7 +488,10 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 		proc_lockClear(&p->lock);
 
 		if (f->type == ftUnixSocket) {
-			if ((rcnt = unix_recvfrom(f->oid.id, buf, nbyte, 0, NULL, NULL)) < 0)
+			if (f->status & O_NONBLOCK)
+				flags = MSG_DONTWAIT;
+
+			if ((rcnt = unix_recvfrom(f->oid.id, buf, nbyte, flags, NULL, NULL)) < 0)
 				return set_errno(rcnt);
 		}
 		else if ((rcnt = proc_read(f->oid, f->offset, buf, nbyte, f->status)) < 0) {
@@ -513,7 +516,7 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 
 	open_file_t *f;
 	process_info_t *p;
-	int rcnt;
+	int rcnt, flags = 0;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
@@ -530,7 +533,10 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 		proc_lockClear(&p->lock);
 
 		if (f->type == ftUnixSocket) {
-			if ((rcnt = unix_sendto(f->oid.id, buf, nbyte, 0, NULL, 0)) < 0)
+			if (f->status & O_NONBLOCK)
+				flags = MSG_DONTWAIT;
+
+			if ((rcnt = unix_sendto(f->oid.id, buf, nbyte, flags, NULL, 0)) < 0)
 				return set_errno(rcnt);
 		}
 		if ((rcnt = proc_write(f->oid, f->offset, buf, nbyte, f->status)) < 0) {
