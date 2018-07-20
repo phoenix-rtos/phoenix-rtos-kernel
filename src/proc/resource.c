@@ -116,11 +116,11 @@ resource_t *resource_alloc(process_t *process, unsigned int *id, int type)
 {
 	resource_t *r, t;
 
-	proc_lockSet(&process->lock);
+	proc_lockSet(process->rlock);
 
-	if (process->resources.root != NULL) {
+	if (process->resources->root != NULL) {
 		t.id = 0;
-		r = lib_treeof(resource_t, linkage, lib_rbFindEx(process->resources.root, &t.linkage, resource_gapcmp));
+		r = lib_treeof(resource_t, linkage, lib_rbFindEx(process->resources->root, &t.linkage, resource_gapcmp));
 		if (r != NULL) {
 			if (r->lmaxgap > 0)
 				*id = r->id - 1;
@@ -128,13 +128,13 @@ resource_t *resource_alloc(process_t *process, unsigned int *id, int type)
 				*id = r->id + 1;
 		}
 		else {
-			proc_lockClear(&process->lock);
+			proc_lockClear(process->rlock);
 			return NULL;
 		}
 	}
 
 	if ((r = (resource_t *)vm_kmalloc(sizeof(resource_t))) == NULL) {
-		proc_lockClear(&process->lock);
+		proc_lockClear(process->rlock);
 		return NULL;
 	}
 
@@ -142,7 +142,7 @@ resource_t *resource_alloc(process_t *process, unsigned int *id, int type)
 	case rtLock:
 		if ((r->lock = vm_kmalloc(sizeof(lock_t))) == NULL) {
 			vm_kfree(r);
-			proc_lockClear(&process->lock);
+			proc_lockClear(process->rlock);
 			return NULL;
 		}
 		break;
@@ -154,7 +154,7 @@ resource_t *resource_alloc(process_t *process, unsigned int *id, int type)
 	case rtFile:
 		if ((r->fd = vm_kmalloc(sizeof(fd_t))) == NULL) {
 			vm_kfree(r);
-			proc_lockClear(&process->lock);
+			proc_lockClear(process->rlock);
 			return NULL;
 		}
 		break;
@@ -162,14 +162,14 @@ resource_t *resource_alloc(process_t *process, unsigned int *id, int type)
 	case rtInth:
 		if ((r->inth = vm_kmalloc(sizeof(intr_handler_t))) == NULL) {
 			vm_kfree(r);
-			proc_lockClear(&process->lock);
+			proc_lockClear(process->rlock);
 			return NULL;
 		}
 		break;
 
 	default:
 		vm_kfree(r);
-		proc_lockClear(&process->lock);
+		proc_lockClear(process->rlock);
 		return NULL;
 	}
 
@@ -177,8 +177,8 @@ resource_t *resource_alloc(process_t *process, unsigned int *id, int type)
 	r->refs = 1;
 	r->type = type;
 
-	lib_rbInsert(&process->resources, &r->linkage);
-	proc_lockClear(&process->lock);
+	lib_rbInsert(process->resources, &r->linkage);
+	proc_lockClear(process->rlock);
 
 	return r;
 }
@@ -194,7 +194,7 @@ int proc_resourcesCopy(process_t *src)
 	process = proc_current()->process;
 
 	proc_lockSet(&src->lock);
-	for (n = lib_rbMinimum(src->resources.root); n != NULL; n = lib_rbNext(n)) {
+	for (n = lib_rbMinimum(src->resources->root); n != NULL; n = lib_rbNext(n)) {
 		r = lib_treeof(resource_t, linkage, n);
 
 		if (d == NULL && (d = vm_kmalloc(sizeof(resource_t))) == NULL) {
@@ -228,7 +228,7 @@ int proc_resourcesCopy(process_t *src)
 		}
 
 		if (err == EOK) {
-			lib_rbInsert(&process->resources, &d->linkage);
+			lib_rbInsert(process->resources, &d->linkage);
 			d = NULL;
 		}
 		else if (err > 0) {
@@ -262,10 +262,10 @@ int resource_free(resource_t *r)
 
 	process = proc_current()->process;
 
-	proc_lockSet(&process->lock);
+	proc_lockSet(process->rlock);
 
 	if (r->refs > 1) {
-		proc_lockClear(&process->lock);
+		proc_lockClear(process->rlock);
 		return -EBUSY;
 	}
 
@@ -286,8 +286,8 @@ int resource_free(resource_t *r)
 		break;
 	}
 
-	lib_rbRemove(&process->resources, &r->linkage);
-	proc_lockClear(&process->lock);
+	lib_rbRemove(process->resources, &r->linkage);
+	proc_lockClear(process->rlock);
 
 	vm_kfree(r);
 
@@ -300,12 +300,16 @@ void proc_resourcesFree(process_t *proc)
 	rbnode_t *n;
 	resource_t *r;
 
-	proc_lockSet(&proc->lock);
-	for (n = proc->resources.root; n != NULL;
-	     proc_lockSet(&proc->lock), n = proc->resources.root) {
-		lib_rbRemove(&proc->resources, n);
+	/* Don't free if they share parent's resources */
+	if (proc->resources != &proc->resourcetree)
+		return;
+
+	proc_lockSet(proc->rlock);
+	for (n = proc->resources->root; n != NULL;
+	     proc_lockSet(proc->rlock), n = proc->resources->root) {
+		lib_rbRemove(proc->resources, n);
 		r = lib_treeof(resource_t, linkage, n);
-		proc_lockClear(&proc->lock);
+		proc_lockClear(proc->rlock);
 
 		switch (r->type) {
 		case rtFile:
@@ -326,7 +330,7 @@ void proc_resourcesFree(process_t *proc)
 
 		vm_kfree(r);
 	}
-	proc_lockClear(&proc->lock);
+	proc_lockClear(proc->rlock);
 }
 
 
@@ -336,10 +340,10 @@ resource_t *resource_get(process_t *process, unsigned int id)
 
 	t.id = id;
 
-	proc_lockSet(&process->lock);
-	if ((r = lib_treeof(resource_t, linkage, lib_rbFind(&process->resources, &t.linkage))) != NULL)
+	proc_lockSet(process->rlock);
+	if ((r = lib_treeof(resource_t, linkage, lib_rbFind(process->resources, &t.linkage))) != NULL)
 		r->refs++;
-	proc_lockClear(&process->lock);
+	proc_lockClear(process->rlock);
 
 	return r;
 }
@@ -347,10 +351,10 @@ resource_t *resource_get(process_t *process, unsigned int id)
 
 void resource_put(process_t *process, resource_t *r)
 {
-	proc_lockSet(&process->lock);
+	proc_lockSet(process->rlock);
 	if (r->refs)
 		r->refs--;
-	proc_lockClear(&process->lock);
+	proc_lockClear(process->rlock);
 	return;
 }
 
@@ -369,5 +373,7 @@ int proc_resourceFree(unsigned int h)
 
 void resource_init(process_t *process)
 {
-	lib_rbInit(&process->resources, resource_cmp, resource_augment);
+	lib_rbInit(&process->resourcetree, resource_cmp, resource_augment);
+	process->resources = &process->resourcetree;
+	process->rlock = &process->lock;
 }

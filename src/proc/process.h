@@ -54,7 +54,6 @@ typedef struct _process_t {
 		map_entry_t *entries;
 	};
 	vm_map_t *mapp;
-	amap_t *amap;
 	int exit;
 	char lazy;
 
@@ -67,7 +66,10 @@ typedef struct _process_t {
 	u32 umask;*/
 
 	void *ports;
-	rbtree_t resources;
+
+	lock_t *rlock;
+	rbtree_t *resources;
+	rbtree_t resourcetree;
 
 	unsigned sigpend;
 	unsigned sigmask;

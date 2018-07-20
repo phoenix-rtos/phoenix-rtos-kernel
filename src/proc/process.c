@@ -120,7 +120,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #ifndef NOMMU
 	process->lazy = 0;
 	process->mapp = &process->map;
-	process->amap = NULL;
 
 	vm_mapCreate(process->mapp, (void *)VADDR_MIN + SIZE_PAGE, (void *)VADDR_USR_MAX);
 
@@ -132,7 +131,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #else
 	process->lazy = 1;
 	process->mapp = process_common.kmap;
-	process->amap = NULL;
 	//stack = (void *)VADDR_MIN;
 #endif
 
@@ -276,11 +274,9 @@ static void process_vforkthr(void *arg)
 
 	posix_clone(parent->process->id);
 
-	/* Copy parent's files, locks etc. */
-	if (proc_resourcesCopy(parent->process) < 0) {
-		current->process->mapp = NULL;
-		process_exexepilogue(-1, current, parent, NULL, NULL);
-	}
+	/* Share parent's resources */
+	current->process->resources = parent->process->resources;
+	current->process->rlock = parent->process->rlock;
 
 	/* Copy parent kernel stack */
 	if ((current->parentkstack = (void *)vm_kmalloc(parent->kstacksz)) == NULL) {
@@ -340,7 +336,6 @@ int proc_vfork(void)
 
 	/* Use memory map of parent process until execl or exist are executed */
 	process->mapp = parent->mapp;
-	process->amap = parent->amap;
 
 	process->sigpend = 0;
 	process->sigmask = 0;
@@ -353,9 +348,6 @@ int proc_vfork(void)
 	proc_lockSet(&process->parent->lock);
 	LIST_ADD(&process->parent->childs, process);
 	proc_lockClear(&process->parent->lock);
-
-	/* Initialize resources tree for mutex, cond and file handles */
-	resource_init(process);
 
 	current->execwaitq = NULL;
 	current->execfl = PREFORK;
@@ -770,10 +762,19 @@ int proc_copyexec(void)
 	pmap_switch(&process->map.pmap);
 	process->mapp = &process->map;
 
-	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0)
+	/* Initialize resources tree for mutex, cond and file handles */
+	resource_init(current->process);
+
+	if (proc_resourcesCopy(parent->process) < 0) {
+		current->process->mapp = NULL;
 		PUTONSTACK(kstack, int, -1); /* exec */
-	else
+	}
+	else if (vm_mapCopy(process, &process->map, &parent->process->map) < 0) {
+		PUTONSTACK(kstack, int, -1); /* exec */
+	}
+	else {
 		PUTONSTACK(kstack, int, 2); /* exec */
+	}
 
 	hal_jmp(process_exexepilogue, kstack, NULL, 5);
 
@@ -842,6 +843,9 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 		envp[envc] = NULL;
 	}
 
+	/* Initialize resources */
+	resource_init(current->process);
+
 	err = process_exec(prog, process, current, parent, kpath, argc, argv, envp);
 	/* Not reached unless process_exec failed */
 
@@ -902,6 +906,9 @@ int proc_execle(syspage_program_t *prog, const char *path, ...)
 		args += ((len + sizeof(int) - 1) & ~(sizeof(int) - 1));
 	}
 	va_end(ap);
+
+	/* Initialize resources tree */
+	resource_init(current->process);
 
 	/* Calculate env[] size */
 
