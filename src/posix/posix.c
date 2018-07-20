@@ -160,6 +160,23 @@ process_info_t *pinfo_find(unsigned int pid)
 }
 
 
+int posix_truncate(oid_t *oid, off_t length)
+{
+	msg_t msg;
+	int err = -EINVAL;
+
+	if (oid->port != US_PORT) {
+		hal_memset(&msg, 0, sizeof(msg));
+		msg.type = mtTruncate;
+		hal_memcpy(&msg.i.io.oid, oid, sizeof(oid_t));
+		msg.i.io.len = length;
+		err = proc_send(oid->port, &msg);
+	}
+
+	return err;
+}
+
+
 int posix_clone(int ppid)
 {
 	TRACE("clone(%x)", ppid);
@@ -388,8 +405,6 @@ int posix_open(const char *filename, int oflag, char *ustack)
 				break;
 			}
 
-			/* TODO: truncate, append */
-
 			proc_lockSet(&p->lock);
 			p->fds[fd].flags = oflag & O_CLOEXEC ? FD_CLOEXEC : 0;
 			proc_lockClear(&p->lock);
@@ -417,6 +432,11 @@ int posix_open(const char *filename, int oflag, char *ustack)
 				f->offset = proc_size(f->oid);
 			else
 				f->offset = 0;
+
+			if (oflag & O_TRUNC) {
+				if ((err = posix_truncate(&f->oid, 0)) < 0)
+					break;
+			}
 
 			f->status = oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
 
@@ -901,22 +921,11 @@ int posix_ftruncate(int fildes, off_t length)
 {
 	TRACE("ftruncate(%d)", fd);
 
-	msg_t msg;
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(fildes, &f))) {
-		if (f->oid.port != US_PORT) {
-			hal_memset(&msg, 0, sizeof(msg));
-			msg.type = mtTruncate;
-			hal_memcpy(&msg.i.io.oid, &f->oid, sizeof(oid_t));
-			msg.i.io.len = length;
-			err = proc_send(f->oid.port, &msg);
-		}
-		else {
-			err = -EINVAL;
-		}
-	}
+	if (!(err = posix_getOpenFile(fildes, &f)))
+		err = posix_truncate(&f->oid, length);
 
 	return err;
 }
