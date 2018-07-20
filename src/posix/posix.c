@@ -823,9 +823,12 @@ int posix_unlink(const char *pathname)
 			break;
 
 		if (dir.port != oid.port) {
+			if (oid.port == US_PORT)
+				unix_unlink(oid.id);
+
 			/* Signal unlink to device */
 			/* FIXME: refcount here? */
-			if ((err = proc_unlink(oid, oid, pathname)) < 0)
+			else if ((err = proc_unlink(oid, oid, pathname)) < 0)
 				break;
 		}
 
@@ -896,7 +899,26 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 
 int posix_ftruncate(int fildes, off_t length)
 {
-	return -1;
+	TRACE("ftruncate(%d)", fd);
+
+	msg_t msg;
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(fildes, &f))) {
+		if (f->oid.port != US_PORT) {
+			hal_memset(&msg, 0, sizeof(msg));
+			msg.type = mtTruncate;
+			hal_memcpy(&msg.i.io.oid, &f->oid, sizeof(oid_t));
+			msg.i.io.len = length;
+			err = proc_send(f->oid.port, &msg);
+		}
+		else {
+			err = -EINVAL;
+		}
+	}
+
+	return err;
 }
 
 

@@ -580,6 +580,7 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 }
 
 
+/* TODO: proper shutdown, link, unlink */
 int unix_shutdown(unsigned socket, int how)
 {
 	unixsock_t *s;
@@ -596,6 +597,21 @@ int unix_shutdown(unsigned socket, int how)
 int unix_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen)
 {
 	return 0;
+}
+
+
+int unix_unlink(unsigned socket)
+{
+	if (unixsock_get(socket) == NULL)
+		return -ENOTSOCK;
+
+	return EOK;
+}
+
+
+int unix_link(unsigned socket)
+{
+	return unix_shutdown(socket, 0);
 }
 
 

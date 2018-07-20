@@ -158,6 +158,12 @@ extern int unix_socket(int domain, int type, int protocol);
 extern int unix_shutdown(unsigned socket, int how);
 
 
+extern int unix_link(unsigned socket);
+
+
+extern int unix_unlink(unsigned socket);
+
+
 extern int unix_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
