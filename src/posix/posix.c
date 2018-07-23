@@ -337,7 +337,7 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 	splitname(name, &basename, &dirname);
 
 	do {
-		if ((err = proc_lookup(dirname, &dir)) < 0)
+		if ((err = proc_lookup(dirname, NULL, &dir)) < 0)
 			break;
 
 		if ((err = proc_create(dir.port, type, mode, dev, dir, basename, oid)) < 0)
@@ -361,7 +361,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	open_file_t *f;
 	mode_t mode;
 
-	if ((proc_lookup("/dev/posix/pipes", &pipesrv)) < 0)
+	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
 		; /* that's fine */
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
@@ -384,7 +384,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 		proc_lockClear(&p->lock);
 
 		do {
-			if (proc_lookup(filename, &oid) == EOK) {
+			if (proc_lookup(filename, NULL, &oid) == EOK) {
 				/* pass */
 			}
 			else if (oflag & O_CREAT) {
@@ -677,7 +677,7 @@ int posix_pipe(int fildes[2])
 
 	hal_memset(&oid, 0, sizeof(oid));
 
-	if ((proc_lookup("/dev/posix/pipes", &pipesrv)) < 0)
+	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
 		return set_errno(-ENOSYS);
 
 	if (proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid) < 0)
@@ -746,7 +746,7 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 
 	hal_memset(&oid, 0, sizeof(oid));
 
-	if ((proc_lookup("/dev/posix/pipes", &pipesrv)) < 0)
+	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
 		return set_errno(-ENOSYS);
 
 	if (proc_create(pipesrv.port, pxPipe, 0, oid, pipesrv, NULL, &oid) < 0)
@@ -787,10 +787,10 @@ int posix_link(const char *path1, const char *path2)
 			break;
 		}
 
-		if ((err = proc_lookup(dirname, &dir)) < 0)
+		if ((err = proc_lookup(dirname, NULL, &dir)) < 0)
 			break;
 
-		if ((err = proc_lookup(path1, &oid)) < 0)
+		if ((err = proc_lookup(path1, NULL, &oid)) < 0)
 			break;
 
 		if ((err = proc_link(dir, oid, basename)) < 0)
@@ -833,10 +833,10 @@ int posix_unlink(const char *pathname)
 			break;
 		}
 
-		if ((err = proc_lookup(dirname, &dir)) < 0)
+		if ((err = proc_lookup(dirname, NULL, &dir)) < 0)
 			break;
 
-		if ((err = proc_lookup(pathname, &oid)) < 0)
+		if ((err = proc_lookup(pathname, NULL, &oid)) < 0)
 			break;
 
 		if ((err = proc_unlink(dir, oid, basename)) < 0)
@@ -1514,7 +1514,7 @@ int posix_utimes(const char *filename, const struct timeval *times)
 {
 	oid_t oid;
 
-	if (proc_lookup(filename, &oid) < 0)
+	if (proc_lookup(filename, NULL, &oid) < 0)
 		return set_errno(-ENOENT);
 
 	return 0;

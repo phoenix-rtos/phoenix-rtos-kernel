@@ -61,10 +61,10 @@ extern int proc_portRegister(unsigned int port, const char *name, oid_t *oid);
 extern void proc_portUnregister(const char *name);
 
 
-extern int proc_portLookup(const char *name, oid_t *oid);
+extern int proc_portLookup(const char *name, oid_t *file, oid_t *dev);
 
 
-extern int proc_lookup(const char *name, oid_t *oid);
+extern int proc_lookup(const char *name, oid_t *file, oid_t *dev);
 
 
 extern int proc_read(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode);

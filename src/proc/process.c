@@ -519,7 +519,7 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 	pmap_switch(&map->pmap);
 
 	if (prog == NULL) {
-		if (proc_lookup(path, &oid) < 0)
+		if (proc_lookup(path, NULL, &oid) < 0)
 			return -ENOENT;
 
 		if (vm_objectGet(&o, oid) < 0)

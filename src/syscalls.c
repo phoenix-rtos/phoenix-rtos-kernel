@@ -476,12 +476,13 @@ int syscalls_msgRespond(void *ustack)
 int syscalls_lookup(void *ustack)
 {
 	char *name;
-	oid_t *oid;
+	oid_t *file, *dev;
 
 	GETFROMSTACK(ustack, char *, name, 0);
-	GETFROMSTACK(ustack, oid_t *, oid, 1);
+	GETFROMSTACK(ustack, oid_t *, file, 1);
+	GETFROMSTACK(ustack, oid_t *, dev, 1);
 
-	return proc_portLookup(name, oid);
+	return proc_portLookup(name, file, dev);
 }
 
 

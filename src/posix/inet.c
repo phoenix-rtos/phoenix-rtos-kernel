@@ -26,7 +26,7 @@ static int socksrvcall(msg_t *msg)
 	oid_t oid;
 	int err;
 
-	if ((err = proc_lookup(PATH_SOCKSRV, &oid)) < 0)
+	if ((err = proc_lookup(PATH_SOCKSRV, NULL, &oid)) < 0)
 		return set_errno(err);
 
 	if ((err = proc_send(oid.port, msg)) < 0)
@@ -240,7 +240,7 @@ int inet_socket(int domain, int type, int protocol)
 	if ((err = socksrvcall(&msg)) < 0)
 		return err;
 
-	return msg.o.lookup.err < 0 ? msg.o.lookup.err : msg.o.lookup.res.port;
+	return msg.o.lookup.err < 0 ? msg.o.lookup.err : msg.o.lookup.dev.port;
 }
 
 

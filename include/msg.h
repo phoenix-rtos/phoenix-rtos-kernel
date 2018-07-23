@@ -121,7 +121,8 @@ typedef struct _msg_t {
 
 			/* LOOKUP */
 			struct {
-				oid_t res;
+				oid_t fil;
+				oid_t dev;
 				int err;
 			} lookup;
 

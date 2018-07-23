@@ -127,7 +127,7 @@ void proc_portUnregister(const char *name)
 }
 
 
-int proc_portLookup(const char *name, oid_t *oid)
+int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 {
 	int err;
 	dcache_entry_t *entry;
@@ -136,12 +136,15 @@ int proc_portLookup(const char *name, oid_t *oid)
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
 
-	if (name == NULL || oid == NULL || name[0] != '/')
+	if (name == NULL || (file == NULL && dev == NULL) || name[0] != '/')
 		return -EINVAL;
 
 	if (name[1] == 0) {
 		if (name_common.root_registered) {
-			*oid = name_common.root_oid;
+			if (file != NULL)
+				*file = name_common.root_oid;
+			if (dev != NULL)
+				*dev = name_common.root_oid;
 			return EOK;
 		}
 
@@ -151,7 +154,10 @@ int proc_portLookup(const char *name, oid_t *oid)
 	/* Search cache for full path */
 	proc_lockSet(&name_common.dcache_lock);
 	if ((entry = _dcache_entryLookup(dcache_strHash(name), name)) != NULL) {
-		*oid = entry->oid;
+		if (file != NULL)
+			*file = entry->oid;
+		if (dev != NULL)
+			*dev = entry->oid;
 		proc_lockClear(&name_common.dcache_lock);
 		return EOK;
 	}
@@ -211,7 +217,7 @@ int proc_portLookup(const char *name, oid_t *oid)
 		if ((err = proc_send(srv.port, msg)) < 0)
 			break;
 
-		srv = msg->o.lookup.res;
+		srv = msg->o.lookup.dev;
 
 		if ((err = msg->o.lookup.err) < 0)
 			break;
@@ -225,7 +231,10 @@ int proc_portLookup(const char *name, oid_t *oid)
 	}
 	while (i != len);
 
-	*oid = msg->o.lookup.res;
+	if (file != NULL)
+		*file = msg->o.lookup.fil;
+	if (dev != NULL)
+		*dev = msg->o.lookup.dev;
 
 	vm_kfree(msg);
 	return err < 0 ? err : EOK;
@@ -234,11 +243,11 @@ int proc_portLookup(const char *name, oid_t *oid)
 }
 
 
-int proc_lookup(const char *name, oid_t *oid)
+int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 {
-	oid->id = 0;
+	file->id = 0;
 
-	return proc_portLookup((char *)name, oid);
+	return proc_portLookup((char *)name, file, dev);
 }
 
 

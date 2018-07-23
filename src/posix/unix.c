@@ -226,7 +226,7 @@ int unix_lookupSocket(const char *path)
 	int err;
 	oid_t oid;
 
-	if ((err = proc_lookup(path, &oid)) < 0)
+	if ((err = proc_lookup(path, NULL, &oid)) < 0)
 		return err;
 
 	if (oid.port != US_PORT)
@@ -336,7 +336,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 			hal_memcpy(path, address->sa_data, len + 1);
 			splitname(path, &name, &dir);
 
-			if (proc_lookup(dir, &odir) < 0) {
+			if (proc_lookup(dir, NULL, &odir) < 0) {
 				err = -ENOTDIR;
 				break;
 			}
@@ -405,7 +405,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
-		if (proc_lookup(address->sa_data, &oid) < 0) {
+		if (proc_lookup(address->sa_data, NULL, &oid) < 0) {
 			err = -ECONNREFUSED;
 			break;
 		}
