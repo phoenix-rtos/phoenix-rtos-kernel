@@ -245,7 +245,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 {
-	file->id = 0;
+	if (file != NULL)
+		file->id = 0;
 
 	return proc_portLookup((char *)name, file, dev);
 }
