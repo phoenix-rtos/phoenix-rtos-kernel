@@ -1142,6 +1142,60 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 }
 
 
+#define IOCPARM_MASK		0x1fff
+#define IOCPARM_LEN(x)		(((x) >> 16) & IOCPARM_MASK)
+
+
+#define IOC_OUT				0x40000000
+#define IOC_IN				0x80000000
+#define IOC_INOUT			(IOC_IN | IOC_OUT)
+
+
+void ioctl_pack(msg_t *msg, int request, void *data)
+{
+	size_t size = IOCPARM_LEN(request);
+
+	msg->type = mtDevCtl;
+	msg->i.data = NULL;
+	msg->i.size = 0;
+	msg->o.data = NULL;
+	msg->o.size = 0;
+
+	hal_memcpy(msg->i.raw, &request, sizeof(int));
+
+	if (request & IOC_INOUT) {
+		if (request & IOC_IN) {
+			if (size <= (sizeof(msg->i.raw) - sizeof(int))) {
+				hal_memcpy(msg->i.raw + sizeof(int), data, size);
+			} else {
+				msg->i.data = data;
+				msg->i.size = size;
+			}
+		}
+
+		if ((request & IOC_OUT) && size > (sizeof(msg->o.raw) - sizeof(int))) {
+			msg->o.data = data;
+			msg->o.size = size;
+		}
+	}
+}
+
+
+int ioctl_processResponse(const msg_t *msg, int request, void *data)
+{
+	size_t size = IOCPARM_LEN(request);
+	int err;
+
+	hal_memcpy(&err, msg->o.raw, sizeof(int));
+
+	if ((request & IOC_OUT) && size <= (sizeof(msg->o.raw) - sizeof(int))) {
+		hal_memcpy(data, msg->o.raw + sizeof(int), size);
+	}
+
+	return err;
+}
+
+
 int posix_ioctl(int fildes, int request, char *ustack)
 {
 	TRACE("ioctl(%d, %d)", fildes, request);
@@ -1149,19 +1203,22 @@ int posix_ioctl(int fildes, int request, char *ustack)
 	open_file_t *f;
 	int err;
 	msg_t msg;
+	void *data = NULL;
 
 	if (!(err = posix_getOpenFile(fildes, &f))) {
 		switch (request) {
 			/* TODO: handle POSIX defined requests */
 		default:
-			hal_memset(&msg, 0, sizeof(msg));
-			msg.type = mtDevCtl;
-			GETFROMSTACK(ustack, void *, msg.i.data, 2);
-			GETFROMSTACK(ustack, size_t, msg.i.size, 3);
-			GETFROMSTACK(ustack, void *, msg.o.data, 4);
-			GETFROMSTACK(ustack, size_t, msg.o.size, 5);
+			if (request & IOC_INOUT)
+				GETFROMSTACK(ustack, void *, data, 2);
 
-			err = proc_send(f->oid.port, &msg);
+			ioctl_pack(&msg, request, data);
+
+			if (proc_send(f->oid.port, &msg) < 0) {
+				err = -EIO;
+			}
+
+			err = ioctl_processResponse(&msg, request, data);
 		}
 	}
 
