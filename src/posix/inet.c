@@ -57,11 +57,13 @@ static ssize_t socknamecall(unsigned socket, msg_t *msg, struct sockaddr *addres
 	if ((err = sockcall(socket, msg)) < 0)
 		return err;
 
-	if (smo->sockname.addrlen > *address_len)
-		smo->sockname.addrlen = *address_len;
+	if (address_len != NULL) {
+		if (smo->sockname.addrlen > *address_len)
+			smo->sockname.addrlen = *address_len;
 
-	hal_memcpy(address, smo->sockname.addr, smo->sockname.addrlen);
-	*address_len = smo->sockname.addrlen;
+		hal_memcpy(address, smo->sockname.addr, smo->sockname.addrlen);
+		*address_len = smo->sockname.addrlen;
+	}
 
 	return err;
 }

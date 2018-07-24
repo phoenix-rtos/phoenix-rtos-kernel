@@ -266,7 +266,9 @@ int proc_open(oid_t oid, unsigned mode)
 	hal_memcpy(&msg->i.openclose.oid, &oid, sizeof(oid_t));
 	msg->i.openclose.flags = mode;
 
-	err = proc_send(oid.port, msg);
+	if (!(err = proc_send(oid.port, msg)))
+		err = msg->o.io.err;
+
 	vm_kfree(msg);
 	return err;
 }

@@ -6,7 +6,7 @@
  * POSIX-compatibility module
  *
  * Copyright 2018 Phoenix Systems
- * Author: Jan Sikorski
+ * Author: Jan Sikorski, Michal Miroslaw
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -25,9 +25,13 @@
 //#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
 #define TRACE(str, ...)
 
+#define POLL_INTERVAL 25000
+
 /* NOTE: temporarily disable locking, need to be tested */
 #define proc_lockSet(x) (void)0
 #define proc_lockClear(x) (void)0
+
+enum { atMode = 0, atUid, atGid, atSize, atType, atPort, atPollStatus };
 
 
 struct {
@@ -1519,6 +1523,133 @@ int posix_utimes(const char *filename, const struct timeval *times)
 
 	return 0;
 }
+
+
+int posix_grantpt(int fd)
+{
+	return 0;
+}
+
+
+int posix_unlockpt(int fd)
+{
+	return 0;
+}
+
+
+int posix_ptsname(int fd, char *buf, size_t buflen)
+{
+	int err = -EINVAL;
+	msg_t msg;
+	posixsrv_devctl_t *devctl;
+	open_file_t *f;
+
+	if (!(err = posix_getOpenFile(fd, &f))) {
+
+//		if (f->type != ftTty)
+//			return -EINVAL;
+
+		hal_memset(&msg, 0, sizeof(msg));
+
+		msg.type = mtDevCtl;
+		devctl = (posixsrv_devctl_t *)msg.i.raw;
+		devctl->type = pxPtsname;
+		devctl->id = f->oid.id;
+
+		msg.o.data = buf;
+		msg.o.size = buflen;
+
+		if ((err = proc_send(f->oid.port, &msg)) < 0)
+			return err;
+
+		err = msg.o.io.err;
+	}
+
+	return err;
+}
+
+
+static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
+{
+	msg_t msg;
+	size_t ready, i;
+	int err;
+	open_file_t *f;
+
+	hal_memset(&msg, 0, sizeof(msg));
+
+	msg.type = mtGetAttr;
+	msg.i.attr.type = atPollStatus;
+
+	for (ready = i = 0; i < nfds; ++i) {
+		if (fds[i].fd < 0)
+			continue;
+
+		msg.i.attr.val = fds[i].events;
+
+		if (posix_getOpenFile(fds[i].fd, &f) < 0) {
+			err = -EBADF;
+		}
+		else {
+			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
+
+			if (!(err = proc_send(msg.i.attr.oid.port, &msg)))
+				err = msg.o.attr.val;
+		}
+
+		if (err < 0)
+			fds[i].revents |= POLLNVAL;
+		else if (err > 0)
+			fds[i].revents |= err;
+
+		fds[i].revents &= ~(~fds[i].events & (POLLIN|POLLOUT|POLLPRI|POLLRDNORM|POLLWRNORM|POLLRDBAND|POLLWRBAND));
+
+		if (fds[i].revents)
+			++ready;
+	}
+
+	return ready;
+}
+
+
+int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
+{
+	size_t i, n, ready;
+	time_t timeout, now, unused;
+
+	for (i = n = 0; i < nfds; ++i) {
+		fds[i].revents = 0;
+		if (fds[i].fd >= 0)
+			++n;
+	}
+
+	if (!n) {
+		if (timeout_ms > 0)
+			proc_threadSleep(timeout_ms * 1000);
+		return 0;
+	}
+
+	if (timeout_ms >= 0) {
+		proc_gettime(&timeout, &unused);
+		timeout += timeout_ms * 1000 + !timeout_ms;
+	} else
+		timeout = 0;
+
+	while (!(ready = do_poll_iteration(fds, nfds))) {
+		if (timeout) {
+			proc_gettime(&now, &unused);
+			now = now < timeout ? timeout - now : 1;
+			if (now > POLL_INTERVAL)
+				now = POLL_INTERVAL;
+		} else
+			now = POLL_INTERVAL;
+
+		proc_threadSleep(now);
+	}
+
+	return ready;
+}
+
 
 
 void posix_init(void)

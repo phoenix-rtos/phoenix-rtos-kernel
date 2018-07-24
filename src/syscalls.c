@@ -1064,6 +1064,20 @@ int syscalls_ioctl(char *ustack)
 }
 
 
+int syscalls_poll(char *ustack)
+{
+	struct pollfd *fds;
+	nfds_t nfds;
+	int timeout_ms;
+
+	GETFROMSTACK(ustack, struct pollfd *, fds, 0);
+	GETFROMSTACK(ustack, nfds_t, nfds, 2);
+	GETFROMSTACK(ustack, int, timeout_ms, 2);
+
+	return posix_poll(fds, nfds, timeout_ms);
+}
+
+
 int syscalls_utimes(char *ustack)
 {
 	const char *filename;
@@ -1075,6 +1089,40 @@ int syscalls_utimes(char *ustack)
 	return posix_utimes(filename, times);
 }
 
+
+
+int syscalls_grantpt(char *ustack)
+{
+	int fd;
+
+	GETFROMSTACK(ustack, int, fd, 0);
+
+	return posix_grantpt(fd);;
+}
+
+
+int syscalls_unlockpt(char *ustack)
+{
+	int fd;
+
+	GETFROMSTACK(ustack, int, fd, 0);
+
+	return posix_unlockpt(fd);
+}
+
+
+int syscalls_ptsname_r(char *ustack)
+{
+	int fd;
+	char *buf;
+	size_t buflen;
+
+	GETFROMSTACK(ustack, int, fd, 0);
+	GETFROMSTACK(ustack, char *, buf, 1);
+	GETFROMSTACK(ustack, size_t, buflen, 2);
+
+	return posix_ptsname(fd, buf, buflen);
+}
 
 /*
  * Empty syscall

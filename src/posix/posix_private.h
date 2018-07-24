@@ -19,7 +19,26 @@ typedef struct {
 enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };
 
 
+/* FIXME: share with posixsrv */
 enum { pxBufferedPipe, pxPipe, pxPTY };
+
+
+enum { pxUnlockpt, pxGrantpt, pxPtsname };
+
+
+typedef struct {
+	int id;
+	int type;
+
+	union {
+		struct {
+		} unlockpt;
+		struct {
+		} grantpt;
+		struct {
+		} ptsname;
+	};
+} posixsrv_devctl_t;
 
 
 typedef struct {

@@ -93,4 +93,9 @@
 	ID(setsockopt) \
 	\
 	ID(ioctl) \
-	ID(utimes)
+	ID(utimes) \
+	ID(poll) \
+	\
+	ID(grantpt) \
+	ID(unlockpt) \
+	ID(ptsname_r)

@@ -113,7 +113,19 @@ extern int posix_setsockopt(int socket, int level, int optname, const void *optv
 extern int posix_ioctl(int fildes, int request, char *ustack);
 
 
+extern int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms);
+
+
 extern int posix_utimes(const char *filename, const struct timeval *times);
+
+
+extern int posix_grantpt(int fd);
+
+
+extern int posix_unlockpt(int fd);
+
+
+extern int posix_ptsname(int fd, char *buf, size_t buflen);
 
 
 extern void posix_init(void);
