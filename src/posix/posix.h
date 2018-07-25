@@ -74,6 +74,9 @@ extern int posix_clone(int ppid);
 extern int posix_exit(process_t *process);
 
 
+extern int posix_exec(void);
+
+
 extern int posix_accept(int socket, struct sockaddr *address, socklen_t *address_len);
 
 

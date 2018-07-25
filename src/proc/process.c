@@ -843,6 +843,9 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 		envp[envc] = NULL;
 	}
 
+	/* Close cloexec file descriptors */
+	posix_exec();
+
 	/* Initialize resources */
 	resource_init(current->process);
 
@@ -906,6 +909,9 @@ int proc_execle(syspage_program_t *prog, const char *path, ...)
 		args += ((len + sizeof(int) - 1) & ~(sizeof(int) - 1));
 	}
 	va_end(ap);
+
+	/* Close cloexec file descriptors */
+	posix_exec();
 
 	/* Initialize resources tree */
 	resource_init(current->process);

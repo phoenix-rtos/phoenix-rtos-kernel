@@ -920,7 +920,7 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 
 int posix_ftruncate(int fildes, off_t length)
 {
-	TRACE("ftruncate(%d)", fd);
+	TRACE("ftruncate(%d)", fildes);
 
 	open_file_t *f;
 	int err;
