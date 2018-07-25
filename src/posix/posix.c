@@ -27,9 +27,6 @@
 
 #define POLL_INTERVAL 25000
 
-/* NOTE: temporarily disable locking, need to be tested */
-#define proc_lockSet(x) (void)0
-#define proc_lockClear(x) (void)0
 
 enum { atMode = 0, atUid, atGid, atSize, atType, atPort, atPollStatus };
 
@@ -359,7 +356,7 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 int posix_open(const char *filename, int oflag, char *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
-	oid_t oid, dev, pipesrv;
+	oid_t ln, oid, dev, pipesrv;
 	int fd = 0, err = 0;
 	process_info_t *p;
 	open_file_t *f;
@@ -388,7 +385,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 		proc_lockClear(&p->lock);
 
 		do {
-			if (proc_lookup(filename, NULL, &oid) == EOK) {
+			if (proc_lookup(filename, &ln, &oid) == EOK) {
 				/* pass */
 			}
 			else if (oflag & O_CREAT) {
@@ -422,6 +419,8 @@ int posix_open(const char *filename, int oflag, char *ustack)
 				f->oid.id = err;
 			}
 
+			hal_memcpy(&f->ln, &ln, sizeof(ln));
+
 			f->refs = 1;
 
 			/* TODO: check for other types */
@@ -437,10 +436,8 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			else
 				f->offset = 0;
 
-			if (oflag & O_TRUNC) {
-				if ((err = posix_truncate(&f->oid, 0)) < 0)
-					break;
-			}
+			if (oflag & O_TRUNC)
+				posix_truncate(&f->oid, 0);
 
 			f->status = oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
 
@@ -966,8 +963,9 @@ int posix_fstat(int fd, struct stat *buf)
 		buf->st_uid = 0;
 		buf->st_gid = 0;
 		buf->st_size = proc_size(f->oid);
-		buf->st_dev = f->oid.port;
-		buf->st_ino = (int)f->oid.id; /* FIXME */
+		buf->st_dev = f->ln.port;
+		buf->st_ino = (int)f->ln.id; /* FIXME */
+		buf->st_rdev = f->oid.port;
 	}
 
 	return set_errno(err);

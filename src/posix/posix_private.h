@@ -42,6 +42,7 @@ typedef struct {
 
 
 typedef struct {
+	oid_t ln;
 	oid_t oid;
 	unsigned refs;
 	off_t offset;
