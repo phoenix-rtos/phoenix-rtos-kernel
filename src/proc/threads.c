@@ -1255,6 +1255,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.jiffies = 0;
 	threads_common.ghosts = NULL;
 	threads_common.zombies = NULL;
+	threads_common.utcoffs = 0;
 	proc_lockInit(&threads_common.lock);
 
 #ifndef CPU_STM32
