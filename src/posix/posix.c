@@ -398,7 +398,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			else if (oflag & O_CREAT) {
 				GETFROMSTACK(ustack, mode_t, mode, 2);
 
-				if (posix_create(filename, 1 /* otFile */, mode, dev, &oid) < 0) {
+				if (posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid) < 0) {
 					err = -EIO;
 					break;
 				}
@@ -764,7 +764,7 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 		return set_errno(-EIO);
 
 	/* create pipe in filesystem */
-	if (posix_create(pathname, 2 /* otDev */, mode, oid, &file) < 0)
+	if (posix_create(pathname, 2 /* otDev */, mode | S_IFIFO, oid, &file) < 0)
 		return set_errno(-EIO);
 
 	return 0;

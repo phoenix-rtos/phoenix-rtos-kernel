@@ -343,7 +343,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 
 			dev.port = US_PORT;
 			dev.id = socket;
-			err = proc_create(odir.port, 2 /* otDev */, 0, dev, odir, name, &dev);
+			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
 
 			if (!err)
 				s->state |= US_BOUND;
