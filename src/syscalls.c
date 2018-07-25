@@ -664,16 +664,21 @@ void syscalls_signalHandle(void *ustack)
 
 int syscalls_signalPost(void *ustack)
 {
-	int pid, signal, err;
+	int pid, tid, signal, err;
 	process_t *proc;
+	thread_t *t = NULL;
 
 	GETFROMSTACK(ustack, int, pid, 0);
-	GETFROMSTACK(ustack, int, signal, 1);
+	GETFROMSTACK(ustack, int, tid, 1);
+	GETFROMSTACK(ustack, int, signal, 2);
 
 	if ((proc = proc_find(pid)) == NULL)
 		return -EINVAL;
 
-	err = proc_sigpost(proc, NULL, signal);
+	if (tid >= 0 && (t = threads_findThread(tid)) == NULL)
+		return -EINVAL;
+
+	err = proc_sigpost(proc, t, signal);
 	hal_cpuReschedule(NULL);
 	return err;
 }

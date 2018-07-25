@@ -139,6 +139,9 @@ extern thread_t *threads_getFirstThread(void);
 extern thread_t *threads_getNextThread(thread_t *prev);
 
 
+extern thread_t *threads_findThread(int tid);
+
+
 extern time_t proc_uptime(void);
 
 

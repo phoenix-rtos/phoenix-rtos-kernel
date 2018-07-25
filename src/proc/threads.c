@@ -209,6 +209,20 @@ thread_t *threads_getNextThread(thread_t *prev)
 }
 
 
+thread_t *threads_findThread(int tid)
+{
+	thread_t *r, t;
+
+	t.id = tid;
+
+	proc_lockSet(&threads_common.lock);
+	r = lib_treeof(thread_t, idlinkage, lib_rbFind(&threads_common.id, &t.idlinkage));
+	proc_lockClear(&threads_common.lock);
+
+	return r;
+}
+
+
 /*
  * Scheduler
  */
