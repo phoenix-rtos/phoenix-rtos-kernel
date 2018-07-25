@@ -96,11 +96,8 @@ static int posix_getOpenFile(int fd, open_file_t **f)
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -ENOSYS;
 
-	if (fd < 0 || fd > p->maxfd)
-		return -EBADF;
-
 	proc_lockSet(&p->lock);
-	if ((*f = p->fds[fd].file) == NULL) {
+	if (fd < 0 || fd > p->maxfd || (*f = p->fds[fd].file) == NULL) {
 		proc_lockClear(&p->lock);
 		return -EBADF;
 	}
@@ -114,13 +111,21 @@ int posix_newFile(process_info_t *p, int fd)
 {
 	open_file_t *f;
 
+	proc_lockSet(&p->lock);
+
 	while (p->fds[fd].file != NULL && fd++ < p->maxfd);
 
-	if (fd > p->maxfd)
+	if (fd > p->maxfd) {
+		proc_lockClear(&p->lock);
 		return -ENFILE;
+	}
 
-	if ((f = p->fds[fd].file = vm_kmalloc(sizeof(open_file_t))) == NULL)
+	if ((f = p->fds[fd].file = vm_kmalloc(sizeof(open_file_t))) == NULL) {
+		proc_lockClear(&p->lock);
 		return -ENOMEM;
+	}
+
+	proc_lockClear(&p->lock);
 
 	proc_lockInit(&f->lock);
 	f->refs = 1;
@@ -209,6 +214,8 @@ int posix_clone(int ppid)
 
 	if ((p->fds = vm_kmalloc((p->maxfd + 1) * sizeof(fildes_t))) == NULL) {
 		vm_kfree(p);
+		if (pp != NULL)
+			proc_lockClear(&pp->lock);
 		return -ENOMEM;
 	}
 
@@ -493,41 +500,40 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 	open_file_t *f;
 	process_info_t *p;
 	int rcnt, flags = 0;
+	off_t offs;
+	unsigned int status;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
 
 	proc_lockSet(&p->lock);
-
-	do {
-		if (fildes < 0 || fildes > p->maxfd)
-			break;
-
-		if ((f = p->fds[fildes].file) == NULL)
-			break;
-
+	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
 		proc_lockClear(&p->lock);
-
-		if (f->type == ftUnixSocket) {
-			if (f->status & O_NONBLOCK)
-				flags = MSG_DONTWAIT;
-
-			if ((rcnt = unix_recvfrom(f->oid.id, buf, nbyte, flags, NULL, NULL)) < 0)
-				return set_errno(rcnt);
-		}
-		else if ((rcnt = proc_read(f->oid, f->offset, buf, nbyte, f->status)) < 0) {
-			return set_errno(-EIO);
-		}
-
-		proc_lockSet(&f->lock);
-		f->offset += rcnt;
-		proc_lockClear(&f->lock);
-
-		return rcnt;
-	} while (0);
-
+		return -1;
+	}
 	proc_lockClear(&p->lock);
-	return -1;
+
+	proc_lockSet(&f->lock);
+	offs = f->offset;
+	status = f->status;
+	proc_lockClear(&f->lock);
+
+	if (f->type == ftUnixSocket) {
+		if (status & O_NONBLOCK)
+			flags = MSG_DONTWAIT;
+
+		if ((rcnt = unix_recvfrom(f->oid.id, buf, nbyte, flags, NULL, NULL)) < 0)
+			return set_errno(rcnt);
+	}
+	else if ((rcnt = proc_read(f->oid, offs, buf, nbyte, status)) < 0) {
+		return set_errno(-EIO);
+	}
+
+	proc_lockSet(&f->lock);
+	f->offset += rcnt;
+	proc_lockClear(&f->lock);
+
+	return rcnt;
 }
 
 
@@ -538,41 +544,40 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 	open_file_t *f;
 	process_info_t *p;
 	int rcnt, flags = 0;
+	off_t offs;
+	unsigned int status;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
 
 	proc_lockSet(&p->lock);
-
-	do {
-		if (fildes < 0 || fildes > p->maxfd)
-			break;
-
-		if ((f = p->fds[fildes].file) == NULL)
-			break;
-
+	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
 		proc_lockClear(&p->lock);
-
-		if (f->type == ftUnixSocket) {
-			if (f->status & O_NONBLOCK)
-				flags = MSG_DONTWAIT;
-
-			if ((rcnt = unix_sendto(f->oid.id, buf, nbyte, flags, NULL, 0)) < 0)
-				return set_errno(rcnt);
-		}
-		if ((rcnt = proc_write(f->oid, f->offset, buf, nbyte, f->status)) < 0) {
-			return set_errno(-EIO);
-		}
-
-		proc_lockSet(&f->lock);
-		f->offset += rcnt;
-		proc_lockClear(&f->lock);
-
-		return rcnt;
-	} while (0);
-
+		return -1;
+	}
 	proc_lockClear(&p->lock);
-	return -1;
+
+	proc_lockSet(&f->lock);
+	offs = f->offset;
+	status = f->status;
+	proc_lockClear(&f->lock);
+
+	if (f->type == ftUnixSocket) {
+		if (status & O_NONBLOCK)
+			flags = MSG_DONTWAIT;
+
+		if ((rcnt = unix_sendto(f->oid.id, buf, nbyte, flags, NULL, 0)) < 0)
+			return set_errno(rcnt);
+	}
+	if ((rcnt = proc_write(f->oid, offs, buf, nbyte, status)) < 0) {
+		return set_errno(-EIO);
+	}
+
+	proc_lockSet(&f->lock);
+	f->offset += rcnt;
+	proc_lockClear(&f->lock);
+
+	return rcnt;
 }
 
 
@@ -603,12 +608,12 @@ int posix_dup(int fildes)
 
 		p->fds[newfd].file = f;
 		p->fds[newfd].flags = 0;
+		proc_lockClear(&p->lock);
 
 		proc_lockSet(&f->lock);
 		f->refs++;
 		proc_lockClear(&f->lock);
 
-		proc_lockClear(&p->lock);
 		return newfd;
 	} while (0);
 
@@ -684,53 +689,54 @@ int posix_pipe(int fildes[2])
 	if (proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid) < 0)
 		return set_errno(-EIO);
 
+	if ((fo = vm_kmalloc(sizeof(open_file_t))) == NULL) {
+		/* FIXME: destroy pipe */
+		return set_errno(-ENOMEM);
+	}
+
+	if ((fi = vm_kmalloc(sizeof(open_file_t))) == NULL) {
+		vm_kfree(fo);
+		/* FIXME: destroy pipe */
+		return set_errno(-ENOMEM);
+	}
+
+	fildes[0] = 0;
+
 	proc_lockSet(&p->lock);
+	while (p->fds[fildes[0]].file != NULL && fildes[0]++ < p->maxfd);
 
-	do {
-		fildes[0] = 0;
-		while (p->fds[fildes[0]].file != NULL && fildes[0]++ < p->maxfd);
+	fildes[1] = fildes[0] + 1;
+	while (p->fds[fildes[1]].file != NULL && fildes[1]++ < p->maxfd);
 
-		fildes[1] = fildes[0] + 1;
-		while (p->fds[fildes[1]].file != NULL && fildes[1]++ < p->maxfd);
-
-		if (fildes[0] > p->maxfd || fildes[1] > p->maxfd)
-			break;
-
-		p->fds[fildes[0]].flags = p->fds[fildes[1]].flags = 0;
-
-		if ((fo = p->fds[fildes[0]].file = vm_kmalloc(sizeof(open_file_t))) == NULL) {
-			/* FIXME: destroy pipe */
-			break;
-		}
-
-		proc_lockInit(&fo->lock);
-		hal_memcpy(&fo->oid, &oid, sizeof(oid));
-		fo->refs = 1;
-		fo->offset = 0;
-		fo->type = ftPipe;
-		fo->status = O_RDONLY;
-
-		if ((fi = p->fds[fildes[1]].file = vm_kmalloc(sizeof(open_file_t))) == NULL) {
-			p->fds[fildes[0]].file = NULL;
-			proc_lockDone(&fo->lock);
-			vm_kfree(fo);
-			/* FIXME: destroy pipe */
-			break;
-		}
-
-		proc_lockInit(&fi->lock);
-		hal_memcpy(&fi->oid, &oid, sizeof(oid));
-		fi->refs = 1;
-		fi->offset = 0;
-		fi->type = ftPipe;
-		fi->status = O_WRONLY;
-
+	if (fildes[0] > p->maxfd || fildes[1] > p->maxfd) {
 		proc_lockClear(&p->lock);
-		return 0;
-	} while (0);
+
+		vm_kfree(fo);
+		vm_kfree(fi);
+
+		return -1;
+	}
+
+	p->fds[fildes[0]].flags = p->fds[fildes[1]].flags = 0;
+
+	p->fds[fildes[0]].file = fo;
+	proc_lockInit(&fo->lock);
+	hal_memcpy(&fo->oid, &oid, sizeof(oid));
+	fo->refs = 1;
+	fo->offset = 0;
+	fo->type = ftPipe;
+	fo->status = O_RDONLY;
+
+	p->fds[fildes[1]].file = fi;
+	proc_lockInit(&fi->lock);
+	hal_memcpy(&fi->oid, &oid, sizeof(oid));
+	fi->refs = 1;
+	fi->offset = 0;
+	fi->type = ftPipe;
+	fi->status = O_WRONLY;
 
 	proc_lockClear(&p->lock);
-	return -1;
+	return 0;
 }
 
 
@@ -761,7 +767,6 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 	if (posix_create(pathname, 2 /* otDev */, mode, oid, &file) < 0)
 		return set_errno(-EIO);
 
-	proc_lockClear(&p->lock);
 	return 0;
 }
 
@@ -770,7 +775,6 @@ int posix_link(const char *path1, const char *path2)
 {
 	TRACE("link(%s, %s)", path1, path2);
 
-	process_info_t *p;
 	oid_t oid, dir;
 	int err;
 	char *name, *basename, *dirname;
@@ -783,7 +787,7 @@ int posix_link(const char *path1, const char *path2)
 	splitname(name, &basename, &dirname);
 
 	do {
-		if ((p = pinfo_find(proc_current()->process->id)) == NULL) {
+		if (pinfo_find(proc_current()->process->id) == NULL) {
 			err = -ENOSYS;
 			break;
 		}
@@ -816,7 +820,6 @@ int posix_unlink(const char *pathname)
 {
 	TRACE("unlink(%s)", pathname);
 
-	process_info_t *p;
 	oid_t oid, dir;
 	int err;
 	char *name, *basename, *dirname;
@@ -829,7 +832,7 @@ int posix_unlink(const char *pathname)
 	splitname(name, &basename, &dirname);
 
 	do {
-		if ((p = pinfo_find(proc_current()->process->id)) == NULL) {
+		if (pinfo_find(proc_current()->process->id) == NULL) {
 			err = -ENOSYS;
 			break;
 		}
@@ -873,48 +876,41 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 		return -1;
 
 	proc_lockSet(&p->lock);
-
-	do {
-		if (fildes < 0 || fildes > p->maxfd)
-			break;
-
-		if ((f = p->fds[fildes].file) == NULL)
-			break;
-
+	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
 		proc_lockClear(&p->lock);
-
-		if (whence == SEEK_END)
-			sz = proc_size(f->oid);
-
-		proc_lockSet(&f->lock);
-		switch (whence) {
-
-		case SEEK_SET:
-			f->offset = offset;
-			scnt = offset;
-			break;
-
-		case SEEK_CUR:
-			f->offset += offset;
-			scnt = f->offset;
-			break;
-
-		case SEEK_END:
-			f->offset = sz + offset;
-			scnt = f->offset;
-			break;
-
-		default:
-			scnt = -EINVAL;
-			break;
-		}
-		proc_lockClear(&f->lock);
-
-		return scnt;
-	} while (0);
+		return -1;
+	}
 
 	proc_lockClear(&p->lock);
-	return -1;
+
+	if (whence == SEEK_END)
+		sz = proc_size(f->oid);
+
+	proc_lockSet(&f->lock);
+	switch (whence) {
+
+	case SEEK_SET:
+		f->offset = offset;
+		scnt = offset;
+		break;
+
+	case SEEK_CUR:
+		f->offset += offset;
+		scnt = f->offset;
+		break;
+
+	case SEEK_END:
+		f->offset = sz + offset;
+		scnt = f->offset;
+		break;
+
+	default:
+		scnt = -EINVAL;
+		break;
+	}
+	proc_lockClear(&f->lock);
+
+	return scnt;
 }
 
 
@@ -980,10 +976,12 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
 
-	if (fd < 0 || fd > p->maxfd || fd2 < 0 || fd > p->maxfd)
-		return -EBADF;
-
 	proc_lockSet(&p->lock);
+	if (fd < 0 || fd > p->maxfd || fd2 < 0 || fd > p->maxfd) {
+		proc_lockClear(&p->lock);
+		return -EBADF;
+	}
+
 	while (p->fds[fd2].file != NULL && fd2++ < p->maxfd);
 
 	if ((err = _posix_dup2(p, fd, fd2)) == fd2 && cloexec)
@@ -1002,10 +1000,12 @@ static int posix_fcntlSetFd(int fd, unsigned flags)
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -ENOSYS;
 
-	if (fd < 0 || fd > p->maxfd)
-		return -EBADF;
-
 	proc_lockSet(&p->lock);
+	if (fd < 0 || fd > p->maxfd) {
+		proc_lockClear(&p->lock);
+		return -EBADF;
+	}
+
 	if (p->fds[fd].file != NULL)
 		p->fds[fd].flags = flags;
 	else
@@ -1023,10 +1023,12 @@ static int posix_fcntlGetFd(int fd)
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -ENOSYS;
 
-	if (fd < 0 || fd > p->maxfd)
-		return -EBADF;
-
 	proc_lockSet(&p->lock);
+	if (fd < 0 || fd > p->maxfd) {
+		proc_lockClear(&p->lock);
+		return -EBADF;
+	}
+
 	if (p->fds[fd].file != NULL)
 		err = p->fds[fd].flags;
 	else
