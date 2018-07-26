@@ -66,10 +66,10 @@
 /* Structure describing page - its should be aligned to 2^N boundary */
 typedef struct _page_t {
 	addr_t addr;
-	u8 idx;
-	u8 flags;
 	struct _page_t *next;
 	struct _page_t *prev;
+	u8 idx;
+	u8 flags;
 } page_t;
 
 

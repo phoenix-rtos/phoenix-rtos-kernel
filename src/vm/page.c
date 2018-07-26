@@ -314,17 +314,19 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 
 int _page_sbrk(pmap_t *pmap, void **start, void **end)
 {
-	page_t *np;
-	int err;
+	page_t *np, *ap = NULL;
 
 	if ((np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP)) == NULL)
 		return -ENOMEM;
 
+	while (pmap_enter(pmap, np->addr, (*end), PGHD_WRITE | PGHD_PRESENT, ap) < 0) {
+		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+			return -ENOMEM;
+	}
 
-	err = _page_map(pmap, (*end), np->addr, PGHD_WRITE | PGHD_PRESENT);
 	(*end) += SIZE_PAGE;
 
-	return err;
+	return EOK;
 }
 
 
