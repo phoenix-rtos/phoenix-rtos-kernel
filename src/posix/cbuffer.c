@@ -42,7 +42,7 @@ int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 		hal_memcpy(buf->data + buf->w, data, bytes = min(sz, buf->sz - buf->w));
 
 		if (bytes < sz && buf->r) {
-			buf += bytes;
+			data += bytes;
 			sz -= bytes;
 			hal_memcpy(buf->data, data, min(sz, buf->r));
 			bytes += min(sz, buf->r);
@@ -70,7 +70,7 @@ int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 		hal_memcpy(data, buf->data + buf->r, bytes = min(sz, buf->sz - buf->r));
 
 		if (bytes < sz) {
-			buf += bytes;
+			data += bytes;
 			sz -= bytes;
 			hal_memcpy(data, buf->data, min(sz, buf->w));
 			bytes += min(sz, buf->w);
