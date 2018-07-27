@@ -369,6 +369,8 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	open_file_t *f;
 	mode_t mode;
 
+	hal_memset(&pipesrv, 0xff, sizeof(oid_t));
+
 	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
 		; /* that's fine */
 
@@ -376,7 +378,6 @@ int posix_open(const char *filename, int oflag, char *ustack)
 		return -1;
 
 	hal_memset(&dev, 0, sizeof(oid_t));
-	hal_memset(&pipesrv, -1, sizeof(oid_t));
 
 	proc_lockSet(&p->lock);
 
