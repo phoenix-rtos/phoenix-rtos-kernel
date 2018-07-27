@@ -102,17 +102,6 @@ int inet_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 	if ((err = socknamecall(socket, &msg, address, address_len)) < 0)
 		return set_errno(err);
 
-	oid.port = err;
-
-	if ((err = posix_newFile(p, 0)) < 0) {
-		msg.type = mtClose;
-		proc_send(oid.port, &msg);
-		return set_errno(err);
-	}
-
-	p->fds[err].file->type = ftInetSocket;
-	hal_memcpy(&p->fds[err].file->oid, &oid, sizeof(oid));
-
 	return err;
 }
 
