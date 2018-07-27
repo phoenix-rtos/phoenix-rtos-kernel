@@ -756,7 +756,7 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
 		return set_errno(-ENOSYS);
 
-	if (proc_create(pipesrv.port, pxPipe, 0, oid, pipesrv, NULL, &oid) < 0)
+	if (proc_create(pipesrv.port, pxBufferPipe, 0, oid, pipesrv, NULL, &oid) < 0)
 		return set_errno(-EIO);
 
 	/* link pipe in posix server */
