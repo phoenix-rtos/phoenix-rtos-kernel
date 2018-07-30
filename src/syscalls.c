@@ -1075,10 +1075,10 @@ int syscalls_setsockopt(char *ustack)
 int syscalls_ioctl(char *ustack)
 {
 	int fildes;
-	int request;
+	unsigned long request;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
-	GETFROMSTACK(ustack, int, request, 1);
+	GETFROMSTACK(ustack, unsigned long, request, 1);
 
 	return posix_ioctl(fildes, request, ustack);
 }

@@ -116,7 +116,7 @@ extern int posix_shutdown(int socket, int how);
 extern int posix_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
-extern int posix_ioctl(int fildes, int request, char *ustack);
+extern int posix_ioctl(int fildes, unsigned long request, char *ustack);
 
 
 extern int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms);

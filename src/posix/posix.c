@@ -1191,7 +1191,7 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 #define IOC_INOUT			(IOC_IN | IOC_OUT)
 
 
-void ioctl_pack(msg_t *msg, int request, void *data)
+void ioctl_pack(msg_t *msg, unsigned long request, void *data)
 {
 	size_t size = IOCPARM_LEN(request);
 
@@ -1201,7 +1201,7 @@ void ioctl_pack(msg_t *msg, int request, void *data)
 	msg->o.data = NULL;
 	msg->o.size = 0;
 
-	hal_memcpy(msg->i.raw, &request, sizeof(int));
+	hal_memcpy(msg->i.raw, &request, sizeof(unsigned long));
 
 	if (request & IOC_INOUT) {
 		if (request & IOC_IN) {
@@ -1221,7 +1221,7 @@ void ioctl_pack(msg_t *msg, int request, void *data)
 }
 
 
-int ioctl_processResponse(const msg_t *msg, int request, void *data)
+int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 {
 	size_t size = IOCPARM_LEN(request);
 	int err;
@@ -1236,7 +1236,7 @@ int ioctl_processResponse(const msg_t *msg, int request, void *data)
 }
 
 
-int posix_ioctl(int fildes, int request, char *ustack)
+int posix_ioctl(int fildes, unsigned long request, char *ustack)
 {
 	TRACE("ioctl(%d, %d)", fildes, request);
 
