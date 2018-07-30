@@ -134,6 +134,9 @@ extern int posix_unlockpt(int fd);
 extern int posix_ptsname(int fd, char *buf, size_t buflen);
 
 
+extern int posix_tkill(pid_t pid, int tid, int sig);
+
+
 extern void posix_init(void);
 
 #endif

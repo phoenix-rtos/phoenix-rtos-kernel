@@ -1144,6 +1144,20 @@ int syscalls_ptsname_r(char *ustack)
 	return posix_ptsname(fd, buf, buflen);
 }
 
+
+int syscalls_tkill(char *ustack)
+{
+	pid_t pid;
+	int tid;
+	int sig;
+
+	GETFROMSTACK(ustack, int, pid, 0);
+	GETFROMSTACK(ustack, int, tid, 1);
+	GETFROMSTACK(ustack, int, sig, 2);
+
+	return posix_tkill(pid, tid, sig);
+}
+
 /*
  * Empty syscall
  */

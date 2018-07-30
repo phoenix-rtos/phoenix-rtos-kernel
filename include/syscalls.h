@@ -99,4 +99,6 @@
 	\
 	ID(grantpt) \
 	ID(unlockpt) \
-	ID(ptsname_r)
+	ID(ptsname_r) \
+	\
+	ID(tkill)

@@ -256,6 +256,11 @@ int posix_clone(int ppid)
 	lib_rbInsert(&posix_common.pid, &p->linkage);
 	proc_lockClear(&posix_common.lock);
 
+	if (pp != NULL)
+		p->pgid = ppid;
+	else
+		p->pgid = p->process->id;
+
 	return EOK;
 }
 
@@ -1742,6 +1747,74 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	return ready;
 }
 
+
+int posix_tkill(pid_t pid, int tid, int sig)
+{
+	process_info_t *pinfo;
+	process_t *proc, *me;
+	thread_t *thr;
+	int killme = 0;
+
+	if (sig < 0 || sig > NSIG)
+		return -EINVAL;
+
+	/* TODO: handle pid = 0 */
+	if (pid == 0)
+		return -ENOSYS;
+
+	if (pid == -1)
+		return -ESRCH;
+
+	if (pid > 0) {
+		proc_lockSet(&posix_common.lock);
+		pinfo = pinfo_find(pid);
+		proc = pinfo->process;
+		proc_lockClear(&posix_common.lock);
+
+		if (pinfo == NULL)
+			return -EINVAL;
+
+		if (tid) {
+			if ((thr = threads_findThread(tid)) == NULL)
+				return -EINVAL;
+
+			if (thr->process != proc)
+				return -EINVAL;
+		}
+		else {
+			thr = NULL;
+		}
+
+		if (!sig)
+			return EOK;
+		else
+			return proc_sigpost(proc, thr, sig);
+	}
+	else {
+		pid = -pid;
+		me = proc_current()->process;
+		proc_lockSet(&posix_common.lock);
+		pinfo = lib_treeof(process_info_t, linkage, lib_rbMinimum(posix_common.pid.root));
+
+		while (pinfo != NULL) {
+			proc = pinfo->process;
+			pinfo = lib_treeof(process_info_t, linkage, lib_rbNext(&pinfo->linkage));
+
+			if (pinfo->pgid == pid) {
+				if (pinfo->process == me)
+					killme = 1;
+				else if (sig != 0)
+					proc_sigpost(pinfo->process, NULL, sig);
+			}
+		}
+		proc_lockClear(&posix_common.lock);
+
+		if (killme)
+			proc_sigpost(me, NULL, sig);
+
+		return EOK;
+	}
+}
 
 
 void posix_init(void)
