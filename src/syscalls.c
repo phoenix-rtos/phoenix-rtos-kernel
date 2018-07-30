@@ -695,16 +695,20 @@ void syscalls_signalReturn(void *ustack)
 }
 
 
-void syscalls_signalMask(void *ustack)
+unsigned int syscalls_signalMask(void *ustack)
 {
-	unsigned mask, mmask;
+	unsigned mask, mmask, old;
 	thread_t *t;
 
 	GETFROMSTACK(ustack, unsigned, mask, 0);
 	GETFROMSTACK(ustack, unsigned, mmask, 1);
 
 	t = proc_current();
+
+	old = t->sigmask;
 	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
+
+	return old;
 }
 
 
