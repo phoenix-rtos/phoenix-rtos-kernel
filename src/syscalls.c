@@ -876,6 +876,18 @@ int syscalls_fstat(char *ustack)
 }
 
 
+int syscalls_chmod_absolute(char *ustack)
+{
+	const char *path;
+	mode_t mode;
+
+	GETFROMSTACK(ustack, const char *, path, 0);
+	GETFROMSTACK(ustack, mode_t, mode, 1);
+
+	return posix_chmod(path, mode);
+}
+
+
 int syscalls_accept(char *ustack)
 {
 	int socket;

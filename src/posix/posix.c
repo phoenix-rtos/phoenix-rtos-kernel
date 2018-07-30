@@ -772,6 +772,40 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 }
 
 
+int posix_chmod(const char *pathname, mode_t mode)
+{
+	TRACE("chmod(%s, %x)", pathname, mode);
+
+	process_info_t *p;
+	oid_t oid, ln;
+	msg_t msg;
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	if (proc_lookup(pathname, &ln, &oid) < 0)
+		return -1;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	hal_memcpy(&msg.i.attr.oid, &oid, sizeof(oid));
+
+	msg.type = mtGetAttr;
+	msg.i.attr.type = atMode;
+
+	if (proc_send(oid.port, &msg) < 0)
+		return -EIO;
+
+	msg.type = mtSetAttr;
+	msg.i.attr.type = atMode;
+	msg.i.attr.val = (msg.o.attr.val & ~0777) | (mode & 0777);
+
+	if (proc_send(oid.port, &msg) < 0)
+		return -EIO;
+
+	return EOK;
+}
+
+
 int posix_link(const char *path1, const char *path2)
 {
 	TRACE("link(%s, %s)", path1, path2);

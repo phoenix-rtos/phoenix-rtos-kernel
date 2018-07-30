@@ -65,6 +65,9 @@ extern int posix_pipe(int fildes[2]);
 extern int posix_mkfifo(const char *path, mode_t mode);
 
 
+extern int posix_chmod(const char *path, mode_t mode);
+
+
 extern int posix_fstat(int fd, struct stat *buf);
 
 
