@@ -811,14 +811,14 @@ int proc_waitpid(int pid, int *stat, int options)
 		if (stat != NULL)
 			*stat = z->exit & 0xff;
 		LIST_REMOVE(&proc->zombies, z);
-		hal_spinlockSet(&threads_common.spinlock);
-		LIST_ADD(&threads_common.zombies, z);
-		hal_spinlockClear(&threads_common.spinlock);
 	}
 
 	proc->waitpid = 0;
 	hal_spinlockClear(&proc->waitsl);
 	proc_threadProtect();
+
+	if (z != NULL)
+		proc_cleanupZombie(z);
 
 	return err;
 }
