@@ -329,6 +329,9 @@ int posix_exit(process_t *process)
 	proc_lockDone(&p->lock);
 	vm_kfree(p);
 
+	if (process->parent != NULL)
+		posix_tkill(process->parent->id, NULL, SIGCHLD);
+
 	return 0;
 
 }
@@ -1755,6 +1758,8 @@ int posix_tkill(pid_t pid, int tid, int sig)
 	thread_t *thr;
 	int killme = 0;
 
+	TRACE("tkill(%p, %d, %d)", pid, tid, sig);
+
 	if (sig < 0 || sig > NSIG)
 		return -EINVAL;
 
@@ -1766,13 +1771,9 @@ int posix_tkill(pid_t pid, int tid, int sig)
 		return -ESRCH;
 
 	if (pid > 0) {
-		proc_lockSet(&posix_common.lock);
-		pinfo = pinfo_find(pid);
-		proc = pinfo->process;
-		proc_lockClear(&posix_common.lock);
-
-		if (pinfo == NULL)
+		if ((pinfo = pinfo_find(pid)) == NULL)
 			return -EINVAL;
+		proc = pinfo->process;
 
 		if (tid) {
 			if ((thr = threads_findThread(tid)) == NULL)

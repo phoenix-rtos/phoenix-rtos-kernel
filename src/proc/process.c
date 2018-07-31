@@ -81,7 +81,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->entries = NULL;
 #endif
 
-	process->id = 0;
+	process->id = 1;
 	process->state = NORMAL;
 
 	if ((process->path = vm_kmalloc(hal_strlen(path) + 1)) == NULL) {
