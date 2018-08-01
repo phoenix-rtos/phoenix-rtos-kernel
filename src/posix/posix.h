@@ -137,6 +137,15 @@ extern int posix_ptsname(int fd, char *buf, size_t buflen);
 extern int posix_tkill(pid_t pid, int tid, int sig);
 
 
+extern int posix_setpgid(pid_t pid, pid_t pgid);
+
+
+extern pid_t posix_getpgid(pid_t pid);
+
+
+extern pid_t posix_setsid(void);
+
+
 extern void posix_init(void);
 
 #endif

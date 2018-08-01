@@ -1818,6 +1818,76 @@ int posix_tkill(pid_t pid, int tid, int sig)
 }
 
 
+int posix_setpgid(pid_t pid, pid_t pgid)
+{
+	process_info_t *pinfo;
+
+	if (pid < 0 || pgid < 0)
+		return -EINVAL;
+
+	if (!pid)
+		pid = proc_current()->process->id;
+
+	if (!pgid)
+		pgid = pid;
+
+	if ((pinfo = pinfo_find(pid)) == NULL)
+		return -EINVAL;
+
+	proc_lockSet(&pinfo->lock);
+	pinfo->pgid = pgid;
+	proc_lockClear(&pinfo->lock);
+
+	return EOK;
+}
+
+
+pid_t posix_getpgid(pid_t pid)
+{
+	process_info_t *pinfo;
+	pid_t res;
+
+	if (pid < 0)
+		return -EINVAL;
+
+	if (!pid)
+		pid = proc_current()->process->id;
+
+	if ((pinfo = pinfo_find(pid)) == NULL)
+		return -EINVAL;
+
+	proc_lockSet(&pinfo->lock);
+	res = pinfo->pgid;
+	proc_lockClear(&pinfo->lock);
+
+	return res;
+}
+
+
+pid_t posix_setsid(void)
+{
+	process_info_t *pinfo;
+	pid_t pid;
+
+	pid = proc_current()->process->id;
+
+	if ((pinfo = pinfo_find(pid)) == NULL)
+		return -EINVAL;
+
+	/* FIXME (pedantic): Should check if any process has my group id */
+	proc_lockSet(&pinfo->lock);
+	if (pinfo->pgid == pid) {
+		proc_lockClear(&pinfo->lock);
+		return -EPERM;
+	}
+
+	pinfo->pgid = pid;
+	proc_lockClear(&pinfo->lock);
+
+	return EOK;
+}
+
+
 void posix_init(void)
 {
 	proc_lockInit(&posix_common.lock);

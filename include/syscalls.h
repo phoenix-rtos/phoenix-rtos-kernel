@@ -101,4 +101,10 @@
 	ID(unlockpt) \
 	ID(ptsname_r) \
 	\
-	ID(tkill)
+	ID(tkill) \
+	\
+	ID(setpgid) \
+	ID(getpgid) \
+	ID(setpgrp) \
+	ID(getpgrp) \
+	ID(setsid)

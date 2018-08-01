@@ -1155,12 +1155,52 @@ int syscalls_tkill(char *ustack)
 	int tid;
 	int sig;
 
-	GETFROMSTACK(ustack, int, pid, 0);
+	GETFROMSTACK(ustack, pid_t, pid, 0);
 	GETFROMSTACK(ustack, int, tid, 1);
 	GETFROMSTACK(ustack, int, sig, 2);
 
 	return posix_tkill(pid, tid, sig);
 }
+
+
+int syscalls_setpgid(char *ustack)
+{
+	pid_t pid, pgid;
+
+	GETFROMSTACK(ustack, pid_t, pid, 0);
+	GETFROMSTACK(ustack, pid_t, pgid, 1);
+
+	return posix_setpgid(pid, pgid);
+}
+
+
+pid_t syscalls_getpgid(char *ustack)
+{
+	pid_t pid;
+
+	GETFROMSTACK(ustack, pid_t, pid, 0);
+
+	return posix_getpgid(pid);
+}
+
+
+int syscalls_setpgrp(char *ustack)
+{
+	return posix_setpgid(0, 0);
+}
+
+
+pid_t syscalls_getpgrp(char *ustack)
+{
+	return posix_getpgid(0);
+}
+
+
+pid_t syscalls_setsid(char *ustack)
+{
+	return posix_setsid();
+}
+
 
 /*
  * Empty syscall
