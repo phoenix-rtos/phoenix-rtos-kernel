@@ -30,7 +30,7 @@ typedef struct _process_t {
 	lock_t lock;
 
 	struct _process_t *parent;
-	struct _process_t *childs;
+	struct _process_t *children;
 
 	struct _thread_t *threads;
 

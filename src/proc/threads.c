@@ -791,7 +791,7 @@ int proc_waitpid(int pid, int *stat, int options)
 				z = NULL;
 		}
 
-		if (z == NULL && proc->childs == NULL) {
+		if (z == NULL && proc->children == NULL) {
 			err = -ECHILD;
 			break;
 		}

@@ -91,7 +91,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	hal_strcpy(process->path, path);
 	process->parent = NULL;
-	process->childs = NULL;
+	process->children = NULL;
 	process->threads = NULL;
 
 	process->waitq = NULL;
@@ -157,15 +157,15 @@ void proc_kill(process_t *proc)
 
 	if (proc->parent != NULL) {
 		proc_lockSet(&proc->parent->lock);
-		LIST_REMOVE(&proc->parent->childs, proc);
+		LIST_REMOVE(&proc->parent->children, proc);
 		proc_lockClear(&proc->parent->lock);
 	}
 
-	if ((child = proc->childs) != NULL) {
+	if ((child = proc->children) != NULL) {
 		init = proc_find(1);
 		do
 			child->parent = init;
-		while ((child = child->next) != proc->childs);
+		while ((child = child->next) != proc->children);
 	}
 
 	proc_lockSet(&process_common.lock);
@@ -338,7 +338,7 @@ int proc_vfork(void)
 
 	process->id = -(long)process;
 	process->state = NORMAL;
-	process->childs = NULL;
+	process->children = NULL;
 	process->parent = parent;
 	process->threads = NULL;
 	process->path = NULL;
@@ -362,7 +362,7 @@ int proc_vfork(void)
 //	vm_mapCopy(&parent->mapp, process->mapp);
 
 	proc_lockSet(&process->parent->lock);
-	LIST_ADD(&process->parent->childs, process);
+	LIST_ADD(&process->parent->children, process);
 	proc_lockClear(&process->parent->lock);
 
 	current->execwaitq = NULL;
