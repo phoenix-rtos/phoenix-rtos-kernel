@@ -25,7 +25,7 @@
 //#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
 #define TRACE(str, ...)
 
-#define POLL_INTERVAL 25000
+#define POLL_INTERVAL 250000
 
 
 enum { atMode = 0, atUid, atGid, atSize, atType, atPort, atPollStatus };
