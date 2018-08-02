@@ -161,11 +161,29 @@ void proc_kill(process_t *proc)
 		proc_lockClear(&proc->parent->lock);
 	}
 
+	init = proc_find(1);
+
+	proc_lockSet(&proc->lock);
 	if ((child = proc->children) != NULL) {
-		init = proc_find(1);
 		do
 			child->parent = init;
 		while ((child = child->next) != proc->children);
+
+		proc->children = NULL;
+		proc_lockClear(&proc->lock);
+
+		proc_lockSet(&init->lock);
+		if (init->children == NULL) {
+			init->children = child;
+		}
+		else {
+			swap(init->children->next, child->prev->next);
+			swap(init->children->next->prev, child->prev);
+		}
+		proc_lockClear(&init->lock);
+	}
+	else {
+		proc_lockClear(&proc->lock);
 	}
 
 	proc_lockSet(&process_common.lock);
