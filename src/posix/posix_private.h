@@ -4,8 +4,6 @@
 #include "posix.h"
 
 
-#define set_errno(x) ((x < 0) ? -1 : x)
-
 #define US_PORT (-1) /* FIXME */
 
 

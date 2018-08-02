@@ -74,18 +74,21 @@ void splitname(char *path, char **base, char **dir)
 }
 
 
-static void posix_fileDeref(open_file_t *f)
+static int posix_fileDeref(open_file_t *f)
 {
+	int err = EOK;
+
 	proc_lockSet(&f->lock);
 	if (!--f->refs) {
 		if (f->type != ftUnixSocket)
-			proc_close(f->oid, f->status);
+			err = proc_close(f->oid, f->status);
 		proc_lockDone(&f->lock);
 		vm_kfree(f);
 	}
 	else {
 		proc_lockClear(&f->lock);
 	}
+	return err;
 }
 
 
@@ -468,7 +471,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	} while (0);
 
 	proc_lockClear(&p->lock);
-	return set_errno(err);
+	return err;
 }
 
 
@@ -477,6 +480,7 @@ int posix_close(int fildes)
 	TRACE("close(%d)", fildes);
 	open_file_t *f;
 	process_info_t *p;
+	int err = -EBADF;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
@@ -493,12 +497,11 @@ int posix_close(int fildes)
 		p->fds[fildes].file = NULL;
 		proc_lockClear(&p->lock);
 
-		posix_fileDeref(f);
-		return 0;
+		return posix_fileDeref(f);
 	} while (0);
 
 	proc_lockClear(&p->lock);
-	return -1;
+	return err;
 }
 
 
@@ -518,7 +521,7 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 	proc_lockSet(&p->lock);
 	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
 		proc_lockClear(&p->lock);
-		return -1;
+		return -EBADF;
 	}
 	proc_lockClear(&p->lock);
 
@@ -532,10 +535,10 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 			flags = MSG_DONTWAIT;
 
 		if ((rcnt = unix_recvfrom(f->oid.id, buf, nbyte, flags, NULL, NULL)) < 0)
-			return set_errno(rcnt);
+			return rcnt;
 	}
 	else if ((rcnt = proc_read(f->oid, offs, buf, nbyte, status)) < 0) {
-		return set_errno(-EIO);
+		return -EIO;
 	}
 
 	proc_lockSet(&f->lock);
@@ -562,7 +565,7 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 	proc_lockSet(&p->lock);
 	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
 		proc_lockClear(&p->lock);
-		return -1;
+		return -EBADF;
 	}
 	proc_lockClear(&p->lock);
 
@@ -576,10 +579,10 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 			flags = MSG_DONTWAIT;
 
 		if ((rcnt = unix_sendto(f->oid.id, buf, nbyte, flags, NULL, 0)) < 0)
-			return set_errno(rcnt);
+			return rcnt;
 	}
 	if ((rcnt = proc_write(f->oid, offs, buf, nbyte, status)) < 0) {
-		return set_errno(-EIO);
+		return -EIO;
 	}
 
 	proc_lockSet(&f->lock);
@@ -627,7 +630,7 @@ int posix_dup(int fildes)
 	} while (0);
 
 	proc_lockClear(&p->lock);
-	return -1;
+	return -EBADF;
 }
 
 
@@ -637,13 +640,13 @@ int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 	open_file_t *f, *f2;
 
 	if (fildes < 0 || fildes > p->maxfd)
-		return -1;
+		return -EBADF;
 
 	if (fildes2 < 0 || fildes2 > p->maxfd)
-		return -1;
+		return -EBADF;
 
 	if ((f = p->fds[fildes].file) == NULL)
-		return -1;
+		return -EBADF;
 
 	if ((f2 = p->fds[fildes2].file) != NULL) {
 		p->fds[fildes2].file = NULL;
@@ -693,20 +696,20 @@ int posix_pipe(int fildes[2])
 	hal_memset(&oid, 0, sizeof(oid));
 
 	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
-		return set_errno(-ENOSYS);
+		return -ENOSYS;
 
 	if (proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid) < 0)
-		return set_errno(-EIO);
+		return -EIO;
 
 	if ((fo = vm_kmalloc(sizeof(open_file_t))) == NULL) {
 		/* FIXME: destroy pipe */
-		return set_errno(-ENOMEM);
+		return -ENOMEM;
 	}
 
 	if ((fi = vm_kmalloc(sizeof(open_file_t))) == NULL) {
 		vm_kfree(fo);
 		/* FIXME: destroy pipe */
-		return set_errno(-ENOMEM);
+		return -ENOMEM;
 	}
 
 	fildes[0] = 0;
@@ -723,7 +726,7 @@ int posix_pipe(int fildes[2])
 		vm_kfree(fo);
 		vm_kfree(fi);
 
-		return -1;
+		return -EMFILE;
 	}
 
 	p->fds[fildes[0]].flags = p->fds[fildes[1]].flags = 0;
@@ -763,18 +766,18 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 	hal_memset(&oid, 0, sizeof(oid));
 
 	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
-		return set_errno(-ENOSYS);
+		return -ENOSYS;
 
 	if (proc_create(pipesrv.port, pxBufferedPipe, 0, oid, pipesrv, NULL, &oid) < 0)
-		return set_errno(-EIO);
+		return -EIO;
 
 	/* link pipe in posix server */
 	if (proc_link(oid, oid, pathname) < 0)
-		return set_errno(-EIO);
+		return -EIO;
 
 	/* create pipe in filesystem */
 	if (posix_create(pathname, 2 /* otDev */, mode | S_IFIFO, oid, &file) < 0)
-		return set_errno(-EIO);
+		return -EIO;
 
 	return 0;
 }
@@ -792,7 +795,7 @@ int posix_chmod(const char *pathname, mode_t mode)
 		return -1;
 
 	if (proc_lookup(pathname, &ln, &oid) < 0)
-		return -1;
+		return -ENOENT;
 
 	hal_memset(&msg, 0, sizeof(msg));
 	hal_memcpy(&msg.i.attr.oid, &oid, sizeof(oid));
@@ -855,7 +858,7 @@ int posix_link(const char *path1, const char *path2)
 	} while (0);
 
 	vm_kfree(name);
-	return set_errno(err);
+	return err;
 }
 
 
@@ -903,7 +906,7 @@ int posix_unlink(const char *pathname)
 	} while (0);
 
 	vm_kfree(name);
-	return set_errno(err);
+	return err;
 }
 
 
@@ -921,7 +924,7 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 	proc_lockSet(&p->lock);
 	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
 		proc_lockClear(&p->lock);
-		return -1;
+		return -EBADF;
 	}
 
 	proc_lockClear(&p->lock);
@@ -1007,7 +1010,7 @@ int posix_fstat(int fd, struct stat *buf)
 		buf->st_rdev = f->oid.port;
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1181,7 +1184,7 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 		break;
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1265,7 +1268,7 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1280,7 +1283,7 @@ int posix_socket(int domain, int type, int protocol)
 		return -1;
 
 	if ((fd = posix_newFile(p, 0)) < 0)
-		return set_errno(-EMFILE);
+		return -EMFILE;
 
 	switch (domain) {
 	case AF_UNIX:
@@ -1303,7 +1306,7 @@ int posix_socket(int domain, int type, int protocol)
 	}
 
 	if (err < 0)
-		return set_errno(err);
+		return err;
 
 	return fd;
 }
@@ -1321,7 +1324,7 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 		return -1;
 
 	if ((fd = posix_newFile(p, 0)) < 0)
-		return set_errno(-EMFILE);
+		return -EMFILE;
 
 	if (!(err = posix_getOpenFile(socket, &f))) {
 		switch (f->type) {
@@ -1353,7 +1356,7 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 	}
 
 	if (err < 0)
-		return set_errno(err);
+		return err;
 
 	return fd;
 }
@@ -1386,7 +1389,7 @@ int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1411,7 +1414,7 @@ int posix_connect(int socket, const struct sockaddr *address, socklen_t address_
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1436,7 +1439,7 @@ int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_l
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1461,7 +1464,7 @@ int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_l
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1486,7 +1489,7 @@ int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1511,7 +1514,7 @@ int posix_listen(int socket, int backlog)
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1536,7 +1539,7 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1561,7 +1564,7 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1586,7 +1589,7 @@ int posix_shutdown(int socket, int how)
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1609,7 +1612,7 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 		}
 	}
 
-	return set_errno(err);
+	return err;
 }
 
 
@@ -1619,7 +1622,7 @@ int posix_utimes(const char *filename, const struct timeval *times)
 	oid_t oid;
 
 	if (proc_lookup(filename, NULL, &oid) < 0)
-		return set_errno(-ENOENT);
+		return -ENOENT;
 
 	return 0;
 }

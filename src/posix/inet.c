@@ -27,10 +27,10 @@ static int socksrvcall(msg_t *msg)
 	int err;
 
 	if ((err = proc_lookup(PATH_SOCKSRV, NULL, &oid)) < 0)
-		return set_errno(err);
+		return err;
 
 	if ((err = proc_send(oid.port, msg)) < 0)
-		return set_errno(err);
+		return err;
 
 	return 0;
 }
@@ -42,10 +42,10 @@ static ssize_t sockcall(unsigned socket, msg_t *msg)
 	int err;
 
 	if ((err = proc_send(socket, msg)) < 0)
-		return set_errno(err);
+		return err;
 
 	err = smo->ret;
-	return set_errno(err);
+	return err;
 }
 
 
@@ -74,7 +74,7 @@ static ssize_t sockdestcall(unsigned socket, msg_t *msg, const struct sockaddr *
 	sockport_msg_t *smi = (void *)msg->i.raw;
 
 	if (address_len > sizeof(smi->send.addr))
-		return set_errno(-EINVAL);
+		return -EINVAL;
 
 	smi->send.addrlen = address_len;
 	hal_memcpy(smi->send.addr, address, address_len);
@@ -100,7 +100,7 @@ int inet_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 	smi->send.flags = 0;
 
 	if ((err = socknamecall(socket, &msg, address, address_len)) < 0)
-		return set_errno(err);
+		return err;
 
 	return err;
 }

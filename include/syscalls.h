@@ -64,47 +64,47 @@
 	ID(signalMask) \
 	ID(priority) \
 	\
-	ID(read) \
-	ID(write) \
-	ID(open_absolute) \
-	ID(close) \
-	ID(link_absolute) \
-	ID(unlink_absolute) \
-	ID(fcntl) \
-	ID(ftruncate) \
-	ID(lseek) \
-	ID(dup) \
-	ID(dup2) \
-	ID(pipe) \
-	ID(mkfifo_absolute) \
-	ID(chmod_absolute) \
-	ID(fstat) \
+	ID(sys_read) \
+	ID(sys_write) \
+	ID(sys_open) \
+	ID(sys_close) \
+	ID(sys_link) \
+	ID(sys_unlink) \
+	ID(sys_fcntl) \
+	ID(sys_ftruncate) \
+	ID(sys_lseek) \
+	ID(sys_dup) \
+	ID(sys_dup2) \
+	ID(sys_pipe) \
+	ID(sys_mkfifo) \
+	ID(sys_chmod) \
+	ID(sys_fstat) \
 	\
-	ID(accept) \
-	ID(bind) \
-	ID(connect) \
-	ID(getpeername) \
-	ID(getsockname) \
-	ID(getsockopt) \
-	ID(listen) \
-	ID(recvfrom) \
-	ID(sendto) \
-	ID(socket) \
-	ID(shutdown) \
-	ID(setsockopt) \
+	ID(sys_accept) \
+	ID(sys_bind) \
+	ID(sys_connect) \
+	ID(sys_getpeername) \
+	ID(sys_getsockname) \
+	ID(sys_getsockopt) \
+	ID(sys_listen) \
+	ID(sys_recvfrom) \
+	ID(sys_sendto) \
+	ID(sys_socket) \
+	ID(sys_shutdown) \
+	ID(sys_setsockopt) \
 	\
-	ID(ioctl) \
-	ID(utimes) \
-	ID(poll) \
+	ID(sys_ioctl) \
+	ID(sys_utimes) \
+	ID(sys_poll) \
 	\
-	ID(grantpt) \
-	ID(unlockpt) \
-	ID(ptsname_r) \
+	ID(sys_grantpt) \
+	ID(sys_unlockpt) \
+	ID(sys_ptsname_r) \
 	\
-	ID(tkill) \
+	ID(sys_tkill) \
 	\
-	ID(setpgid) \
-	ID(getpgid) \
-	ID(setpgrp) \
-	ID(getpgrp) \
-	ID(setsid)
+	ID(sys_setpgid) \
+	ID(sys_getpgid) \
+	ID(sys_setpgrp) \
+	ID(sys_getpgrp) \
+	ID(sys_setsid)
