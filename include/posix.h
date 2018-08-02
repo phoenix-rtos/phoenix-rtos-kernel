@@ -16,18 +16,8 @@
 #ifndef _PHOENIX_POSIX_H_
 #define _PHOENIX_POSIX_H_
 
-#define F_DUPFD  0
-#define F_GETFD  1
-#define F_SETFD  2
-#define F_GETFL  3
-#define F_SETFL  4
-#define F_GETLK  5
-#define F_SETLK  6
-#define F_SETLKW 7
-
-#define F_SETOWN 8
-#define F_GETOWN 9
-#define F_DUPFD_CLOEXEC  10
+enum { F_DUPFD = 0, F_DUPFD_CLOEXEC, F_GETFD, F_SETFD, F_GETFL, F_SETFL,
+       F_GETOWN, F_SETOWN, F_GETLK, F_SETLK, F_SETLKW };
 
 #define FD_CLOEXEC 1
 
