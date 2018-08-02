@@ -577,13 +577,7 @@ void proc_zombie(process_t *proc)
 {
 	process_t *parent = proc->parent;
 
-	proc_portsDestroy(proc);
-
 	if (parent != NULL) {
-		proc_lockSet(&parent->lock);
-		LIST_REMOVE(&parent->childs, proc);
-		proc_lockClear(&parent->lock);
-
 		hal_spinlockSet(&parent->waitsl);
 		proc->state = ZOMBIE;
 		LIST_ADD(&parent->zombies, proc);

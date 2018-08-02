@@ -153,10 +153,20 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
-	process_t *child;
+	process_t *child, *init;
 
-	for (child = proc->childs; child != proc->childs; child = child->next)
-		proc_kill(child);
+	if (proc->parent != NULL) {
+		proc_lockSet(&proc->parent->lock);
+		LIST_REMOVE(&proc->parent->childs, proc);
+		proc_lockClear(&proc->parent->lock);
+	}
+
+	if ((child = proc->childs) != NULL) {
+		init = proc_find(1);
+		do
+			child->parent = init;
+		while ((child = child->next) != proc->childs);
+	}
 
 	proc_lockSet(&process_common.lock);
 	lib_rbRemove(&process_common.id, &proc->idlinkage);
@@ -164,6 +174,7 @@ void proc_kill(process_t *proc)
 
 	proc_threadsDestroy(proc);
 	proc_resourcesFree(proc);
+	proc_portsDestroy(proc);
 	posix_exit(proc);
 	proc_zombie(proc);
 
