@@ -153,6 +153,11 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
+	process_t *child;
+
+	for (child = proc->childs; child != proc->childs; child = child->next)
+		proc_kill(child);
+
 	proc_lockSet(&process_common.lock);
 	lib_rbRemove(&process_common.id, &proc->idlinkage);
 	proc_lockClear(&process_common.lock);
