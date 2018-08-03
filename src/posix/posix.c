@@ -538,7 +538,7 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 			return rcnt;
 	}
 	else if ((rcnt = proc_read(f->oid, offs, buf, nbyte, status)) < 0) {
-		return -EIO;
+		return rcnt;
 	}
 
 	proc_lockSet(&f->lock);
@@ -582,7 +582,7 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 			return rcnt;
 	}
 	if ((rcnt = proc_write(f->oid, offs, buf, nbyte, status)) < 0) {
-		return -EIO;
+		return rcnt;
 	}
 
 	proc_lockSet(&f->lock);
