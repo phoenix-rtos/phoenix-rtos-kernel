@@ -15,6 +15,7 @@
 
 #include HAL
 #include "../../include/errno.h"
+#include "../../include/ioctl.h"
 #include "../proc/proc.h"
 
 #include "posix.h"
@@ -1197,9 +1198,10 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 #define IOC_INOUT			(IOC_IN | IOC_OUT)
 
 
-void ioctl_pack(msg_t *msg, unsigned long request, void *data)
+void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 {
 	size_t size = IOCPARM_LEN(request);
+	ioctl_in_t *ioctl = (ioctl_in_t *)msg->i.raw;
 
 	msg->type = mtDevCtl;
 	msg->i.data = NULL;
@@ -1207,19 +1209,20 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data)
 	msg->o.data = NULL;
 	msg->o.size = 0;
 
-	hal_memcpy(msg->i.raw, &request, sizeof(unsigned long));
+	ioctl->request = request;
+	ioctl->id = id;
 
 	if (request & IOC_INOUT) {
 		if (request & IOC_IN) {
-			if (size <= (sizeof(msg->i.raw) - sizeof(int))) {
-				hal_memcpy(msg->i.raw + sizeof(int), data, size);
+			if (size <= (sizeof(msg->i.raw) - sizeof(ioctl_in_t))) {
+				hal_memcpy(ioctl->data, data, size);
 			} else {
 				msg->i.data = data;
 				msg->i.size = size;
 			}
 		}
 
-		if ((request & IOC_OUT) && size > (sizeof(msg->o.raw) - sizeof(int))) {
+		if ((request & IOC_OUT) && size > (sizeof(msg->o.raw) - sizeof(ioctl_out_t))) {
 			msg->o.data = data;
 			msg->o.size = size;
 		}
@@ -1231,11 +1234,12 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 {
 	size_t size = IOCPARM_LEN(request);
 	int err;
+	ioctl_out_t *ioctl = (ioctl_out_t *)msg->o.raw;
 
-	hal_memcpy(&err, msg->o.raw, sizeof(int));
+	err = ioctl->err;
 
-	if ((request & IOC_OUT) && size <= (sizeof(msg->o.raw) - sizeof(int))) {
-		hal_memcpy(data, msg->o.raw + sizeof(int), size);
+	if ((request & IOC_OUT) && size <= (sizeof(msg->o.raw) - sizeof(ioctl_out_t))) {
+		hal_memcpy(data, ioctl->data, size);
 	}
 
 	return err;
@@ -1258,7 +1262,7 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 			if (request & IOC_INOUT)
 				GETFROMSTACK(ustack, void *, data, 2);
 
-			ioctl_pack(&msg, request, data);
+			ioctl_pack(&msg, request, data, f->oid.id);
 
 			if (proc_send(f->oid.port, &msg) < 0) {
 				err = -EIO;
