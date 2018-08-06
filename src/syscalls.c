@@ -1114,41 +1114,6 @@ int syscalls_sys_utimes(char *ustack)
 }
 
 
-
-int syscalls_sys_grantpt(char *ustack)
-{
-	int fd;
-
-	GETFROMSTACK(ustack, int, fd, 0);
-
-	return posix_grantpt(fd);;
-}
-
-
-int syscalls_sys_unlockpt(char *ustack)
-{
-	int fd;
-
-	GETFROMSTACK(ustack, int, fd, 0);
-
-	return posix_unlockpt(fd);
-}
-
-
-int syscalls_sys_ptsname_r(char *ustack)
-{
-	int fd;
-	char *buf;
-	size_t buflen;
-
-	GETFROMSTACK(ustack, int, fd, 0);
-	GETFROMSTACK(ustack, char *, buf, 1);
-	GETFROMSTACK(ustack, size_t, buflen, 2);
-
-	return posix_ptsname(fd, buf, buflen);
-}
-
-
 int syscalls_sys_tkill(char *ustack)
 {
 	pid_t pid;

@@ -97,10 +97,6 @@
 	ID(sys_utimes) \
 	ID(sys_poll) \
 	\
-	ID(sys_grantpt) \
-	ID(sys_unlockpt) \
-	ID(sys_ptsname_r) \
-	\
 	ID(sys_tkill) \
 	\
 	ID(sys_setpgid) \

@@ -61,24 +61,6 @@ enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };
 enum { pxBufferedPipe, pxPipe, pxPTY };
 
 
-enum { pxUnlockpt, pxGrantpt, pxPtsname };
-
-
-typedef struct {
-	int id;
-	int type;
-
-	union {
-		struct {
-		} unlockpt;
-		struct {
-		} grantpt;
-		struct {
-		} ptsname;
-	};
-} posixsrv_devctl_t;
-
-
 typedef struct {
 	oid_t ln;
 	oid_t oid;

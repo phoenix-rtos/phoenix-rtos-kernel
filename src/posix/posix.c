@@ -1628,50 +1628,6 @@ int posix_utimes(const char *filename, const struct timeval *times)
 }
 
 
-int posix_grantpt(int fd)
-{
-	return 0;
-}
-
-
-int posix_unlockpt(int fd)
-{
-	return 0;
-}
-
-
-int posix_ptsname(int fd, char *buf, size_t buflen)
-{
-	int err = -EINVAL;
-	msg_t msg;
-	posixsrv_devctl_t *devctl;
-	open_file_t *f;
-
-	if (!(err = posix_getOpenFile(fd, &f))) {
-
-//		if (f->type != ftTty)
-//			return -EINVAL;
-
-		hal_memset(&msg, 0, sizeof(msg));
-
-		msg.type = mtDevCtl;
-		devctl = (posixsrv_devctl_t *)msg.i.raw;
-		devctl->type = pxPtsname;
-		devctl->id = f->oid.id;
-
-		msg.o.data = buf;
-		msg.o.size = buflen;
-
-		if ((err = proc_send(f->oid.port, &msg)) < 0)
-			return err;
-
-		err = msg.o.io.err;
-	}
-
-	return err;
-}
-
-
 static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 {
 	msg_t msg;
