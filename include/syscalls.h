@@ -35,6 +35,7 @@
 	ID(condCreate) \
 	ID(condWait) \
 	ID(condSignal) \
+	ID(condBroadcast) \
 	ID(resourceDestroy) \
 	ID(interrupt) \
 	ID(portCreate) \

@@ -31,6 +31,9 @@ extern int proc_condWait(unsigned int c, unsigned int m, time_t timeout);
 extern int proc_condSignal(process_t *process, unsigned int c);
 
 
+extern int proc_condBroadcast(process_t *process, unsigned int c);
+
+
 extern int proc_condCopy(resource_t *dst, resource_t *src);
 
 #endif

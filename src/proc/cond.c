@@ -104,6 +104,26 @@ int proc_condSignal(process_t *process, unsigned int c)
 }
 
 
+int proc_condBroadcast(process_t *process, unsigned int c)
+{
+	int err = EOK;
+	resource_t *rc;
+
+	if ((rc =  resource_get(process, c)) == NULL)
+		return -EINVAL;
+
+	if (rc->type != rtCond) {
+		resource_put(process, rc);
+		return -EINVAL;
+	}
+
+	while (rc->waitq != NULL && rc->waitq != (void *)-1)
+		proc_threadWakeup(&rc->waitq);
+
+	return err;
+}
+
+
 int proc_condCopy(resource_t *dst, resource_t *src)
 {
 	dst->waitq = NULL;

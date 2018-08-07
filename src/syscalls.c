@@ -356,6 +356,18 @@ int syscalls_condSignal(void *ustack)
 }
 
 
+int syscalls_condBroadcast(void *ustack)
+{
+	unsigned int h;
+	process_t *proc;
+
+	proc = proc_current()->process;
+
+	GETFROMSTACK(ustack, unsigned int, h, 0);
+	return proc_condBroadcast(proc, h);
+}
+
+
 /*
  * Resources
  */
