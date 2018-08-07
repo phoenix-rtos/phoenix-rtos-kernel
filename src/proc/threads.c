@@ -1073,11 +1073,14 @@ int proc_lockTry(lock_t *lock)
 }
 
 
-void _proc_lockClear(lock_t *lock)
+int _proc_lockClear(lock_t *lock)
 {
 	lock->v = 1;
+	if (lock->queue == NULL || lock->queue == (void *)-1)
+		return 0;
+
 	proc_threadWakeup(&lock->queue);
-	return;
+	return 1;
 }
 
 
@@ -1087,8 +1090,10 @@ int proc_lockClear(lock_t *lock)
 		return -EINVAL;
 
 	hal_spinlockSet(&lock->spinlock);
-	_proc_lockClear(lock);
-	hal_cpuReschedule(&lock->spinlock);
+	if (_proc_lockClear(lock))
+		hal_cpuReschedule(&lock->spinlock);
+	else
+		hal_spinlockClear(&lock->spinlock);
 
 	return EOK;
 }
