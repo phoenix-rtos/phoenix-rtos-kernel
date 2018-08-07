@@ -365,7 +365,9 @@ int proc_resourceFree(unsigned int h)
 	resource_t *r;
 
 	process = proc_current()->process;
-	r = resource_get(process, h);
+
+	if ((r = resource_get(process, h)) == NULL)
+		return -EINVAL;
 
 	return resource_free(r);
 }
