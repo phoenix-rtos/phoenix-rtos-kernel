@@ -1701,7 +1701,10 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	while (!(ready = do_poll_iteration(fds, nfds))) {
 		if (timeout) {
 			proc_gettime(&now, &unused);
-			now = now < timeout ? timeout - now : 1;
+			if (now > timeout)
+				break;
+
+			now = timeout - now;
 			if (now > POLL_INTERVAL)
 				now = POLL_INTERVAL;
 		} else
