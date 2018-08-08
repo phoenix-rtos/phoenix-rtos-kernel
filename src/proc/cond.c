@@ -98,8 +98,7 @@ int proc_condSignal(process_t *process, unsigned int c)
 		return -EINVAL;
 	}
 
-	proc_threadWakeup(&rc->waitq);
-
+	proc_threadWakeupYield(&rc->waitq);
 	return err;
 }
 
@@ -117,9 +116,7 @@ int proc_condBroadcast(process_t *process, unsigned int c)
 		return -EINVAL;
 	}
 
-	while (rc->waitq != NULL && rc->waitq != (void *)-1)
-		proc_threadWakeup(&rc->waitq);
-
+	proc_threadBroadcastYield(&rc->waitq);
 	return err;
 }
 

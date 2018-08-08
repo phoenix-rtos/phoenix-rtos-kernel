@@ -739,30 +739,72 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
 }
 
 
-void proc_threadWakeup(thread_t **queue)
+static void _proc_threadWakeup(thread_t **queue)
 {
 	thread_t *first;
 
+	first = *queue;
+	LIST_REMOVE(queue, first);
+
+	if (first->wakeup != 0)
+		lib_rbRemove(&threads_common.sleeping, &first->sleeplinkage);
+
+	first->wakeup = 0;
+	first->wait = NULL;
+	first->state = READY;
+
+	/* MOD */
+	if (first != threads_common.current[hal_cpuGetID()])
+		LIST_ADD(&threads_common.ready[first->priority], first);
+
+	return;
+}
+
+
+void proc_threadWakeup(thread_t **queue)
+{
 	hal_spinlockSet(&threads_common.spinlock);
-	if (*queue != NULL && *queue != (void *)(-1)) {
-		first = *queue;
-		LIST_REMOVE(queue, first);
-		if (first->wakeup != 0)
-			lib_rbRemove(&threads_common.sleeping, &first->sleeplinkage);
-
-		first->wakeup = 0;
-		first->wait = NULL;
-		first->state = READY;
-
-		/* MOD */
-		if (first != threads_common.current[hal_cpuGetID()])
-			LIST_ADD(&threads_common.ready[first->priority], first);
-	}
-	else {
+	if (*queue != NULL && *queue != (void *)(-1))
+		_proc_threadWakeup(queue);
+	else
 		(*queue) = (void *)(-1);
+	hal_spinlockClear(&threads_common.spinlock);
+	return;
+}
+
+
+void proc_threadBroadcast(thread_t **queue)
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	if (*queue != (void *)-1) {
+		while (*queue != NULL)
+			_proc_threadWakeup(queue);
 	}
 	hal_spinlockClear(&threads_common.spinlock);
+	return;
+}
 
+
+void proc_threadWakeupYield(thread_t **queue)
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	if (*queue != NULL && *queue != (void *)(-1))
+		_proc_threadWakeup(queue);
+	else
+		(*queue) = (void *)(-1);
+	hal_cpuReschedule(&threads_common.spinlock);
+	return;
+}
+
+
+void proc_threadBroadcastYield(thread_t **queue)
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	if (*queue != (void *)-1) {
+		while (*queue != NULL)
+			_proc_threadWakeup(queue);
+	}
+	hal_cpuReschedule(&threads_common.spinlock);
 	return;
 }
 
