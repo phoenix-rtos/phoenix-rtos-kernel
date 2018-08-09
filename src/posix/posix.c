@@ -93,6 +93,17 @@ static int posix_fileDeref(open_file_t *f)
 }
 
 
+static void posix_putUnusedFile(process_info_t *p, int fd)
+{
+	open_file_t *f;
+
+	f = p->fds[fd].file;
+	proc_lockDone(&f->lock);
+	vm_kfree(f);
+	p->fds[fd].file = NULL;
+}
+
+
 static int posix_getOpenFile(int fd, open_file_t **f)
 {
 	process_info_t *p;
@@ -1309,8 +1320,10 @@ int posix_socket(int domain, int type, int protocol)
 		break;
 	}
 
-	if (err < 0)
+	if (err < 0) {
+		posix_putUnusedFile(p, fd);
 		return err;
+	}
 
 	return fd;
 }
@@ -1359,8 +1372,10 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 		}
 	}
 
-	if (err < 0)
+	if (err < 0) {
+		posix_putUnusedFile(p, fd);
 		return err;
+	}
 
 	return fd;
 }
