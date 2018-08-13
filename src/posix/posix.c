@@ -29,7 +29,7 @@
 #define POLL_INTERVAL 100000
 
 
-enum { atMode = 0, atUid, atGid, atSize, atType, atPort, atPollStatus };
+enum { atMode = 0, atUid, atGid, atSize, atType, atPort, atPollStatus, atEventMask, atCTime, atMTime, atATime, atLinks, atDev };
 
 
 struct {
@@ -990,36 +990,78 @@ int posix_fstat(int fd, struct stat *buf)
 {
 	TRACE("fstat(%d)", fd);
 
+	msg_t msg;
 	open_file_t *f;
 	int err;
 
 	if (!(err = posix_getOpenFile(fd, &f))) {
-		switch (f->type) {
-		case ftRegular:
-			buf->st_mode = S_IFREG;
-			break;
-		case ftPipe:
-		case ftFifo:
-			buf->st_mode = S_IFIFO;
-			break;
-		case ftInetSocket:
-		case ftUnixSocket:
-			buf->st_mode = S_IFSOCK;
-			break;
-		case ftTty:
-			buf->st_mode = S_IFCHR;
-			break;
-		default:
-			buf->st_mode = 0;
-			break;
-		}
+		hal_memset(buf, 0, sizeof(struct stat));
 
-		buf->st_uid = 0;
-		buf->st_gid = 0;
-		buf->st_size = proc_size(f->oid);
 		buf->st_dev = f->ln.port;
 		buf->st_ino = (int)f->ln.id; /* FIXME */
 		buf->st_rdev = f->oid.port;
+
+		if (f->type == ftRegular) {
+			msg.type = mtGetAttr;
+			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
+			msg.i.attr.val = 0;
+
+			msg.i.attr.type = atMTime;
+			if (!proc_send(f->oid.port, &msg))
+				buf->st_mtime = msg.o.attr.val;
+
+			msg.i.attr.type = atATime;
+			if (!proc_send(f->oid.port, &msg))
+				buf->st_atime = msg.o.attr.val;
+
+			msg.i.attr.type = atCTime;
+			if (!proc_send(f->oid.port, &msg))
+				buf->st_ctime = msg.o.attr.val;
+
+			msg.i.attr.type = atLinks;
+			if (!proc_send(f->oid.port, &msg))
+				buf->st_nlink = msg.o.attr.val;
+
+			msg.i.attr.type = atMode;
+			if (!proc_send(f->oid.port, &msg))
+				buf->st_mode = msg.o.attr.val;
+
+			msg.i.attr.type = atUid;
+			if (!proc_send(f->oid.port, &msg))
+				buf->st_uid = msg.o.attr.val;
+
+			msg.i.attr.type = atGid;
+			if (!proc_send(f->oid.port, &msg))
+				buf->st_gid = msg.o.attr.val;
+
+			msg.i.attr.type = atSize;
+			if (!proc_send(f->oid.port, &msg))
+				buf->st_size = msg.o.attr.val;
+		}
+		else {
+			switch (f->type) {
+			case ftRegular:
+				break;
+			case ftPipe:
+			case ftFifo:
+				buf->st_mode = S_IFIFO;
+				break;
+			case ftInetSocket:
+			case ftUnixSocket:
+				buf->st_mode = S_IFSOCK;
+				break;
+			case ftTty:
+				buf->st_mode = S_IFCHR;
+				break;
+			default:
+				buf->st_mode = 0;
+				break;
+			}
+
+			buf->st_uid = 0;
+			buf->st_gid = 0;
+			buf->st_size = proc_size(f->oid);
+		}
 	}
 
 	return err;
