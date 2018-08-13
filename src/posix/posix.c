@@ -426,6 +426,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 					err = -EIO;
 					break;
 				}
+				hal_memcpy(&ln, &oid, sizeof(oid_t));
 			}
 			else {
 				err = -ENOENT;
