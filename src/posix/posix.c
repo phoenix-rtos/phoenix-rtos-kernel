@@ -1234,6 +1234,8 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 	case F_GETLK:
 	case F_SETLK:
 	case F_SETLKW:
+		/* TODO: implement */
+		err = EOK;
 	case F_GETOWN:
 	case F_SETOWN:
 	default:
