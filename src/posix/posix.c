@@ -997,6 +997,7 @@ int posix_fstat(int fd, struct stat *buf)
 
 	if (!(err = posix_getOpenFile(fd, &f))) {
 		hal_memset(buf, 0, sizeof(struct stat));
+		hal_memset(&msg, 0, sizeof(msg_t));
 
 		buf->st_dev = f->ln.port;
 		buf->st_ino = (int)f->ln.id; /* FIXME */
