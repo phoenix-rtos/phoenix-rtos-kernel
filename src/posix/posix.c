@@ -1284,6 +1284,10 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 			msg->o.data = data;
 			msg->o.size = size;
 		}
+	} else if (size > 0) {
+		/* the data is passed by value instead of pointer */
+		size = min(size, sizeof(void*));
+		hal_memcpy(ioctl->data, &data, size);
 	}
 }
 
@@ -1317,7 +1321,7 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 		switch (request) {
 			/* TODO: handle POSIX defined requests */
 		default:
-			if (request & IOC_INOUT)
+			if ((request & IOC_INOUT) || (IOCPARM_LEN(request) > 0))
 				GETFROMSTACK(ustack, void *, data, 2);
 
 			ioctl_pack(&msg, request, data, f->oid.id);
