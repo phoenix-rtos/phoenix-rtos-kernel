@@ -1268,6 +1268,7 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 
 	ioctl->request = request;
 	ioctl->id = id;
+	ioctl->pid = proc_current()->process->id;
 
 	if (request & IOC_INOUT) {
 		if (request & IOC_IN) {
