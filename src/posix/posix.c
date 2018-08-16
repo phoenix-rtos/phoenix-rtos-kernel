@@ -1827,7 +1827,6 @@ int posix_tkill(pid_t pid, int tid, int sig)
 
 		while (pinfo != NULL) {
 			proc = pinfo->process;
-			pinfo = lib_treeof(process_info_t, linkage, lib_rbNext(&pinfo->linkage));
 
 			if (pinfo->pgid == pid) {
 				if (pinfo->process == me)
@@ -1835,6 +1834,7 @@ int posix_tkill(pid_t pid, int tid, int sig)
 				else if (sig != 0)
 					proc_sigpost(pinfo->process, NULL, sig);
 			}
+			pinfo = lib_treeof(process_info_t, linkage, lib_rbNext(&pinfo->linkage));
 		}
 		proc_lockClear(&posix_common.lock);
 
