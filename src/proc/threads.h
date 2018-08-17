@@ -36,6 +36,7 @@ typedef struct {
 	cycles_t cyclPrev;
 	int cyclptr;
 	time_t jiffiesptr;
+	time_t total;
 } cpu_load_t;
 
 

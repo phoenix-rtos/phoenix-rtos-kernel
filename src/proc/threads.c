@@ -300,8 +300,10 @@ static void threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 		/* Find current bucket */
 		threads_findCurrBucket(&current->load, jiffies);
 
-		if (current->load.cyclPrev != 0)
+		if (current->load.cyclPrev != 0) {
+			current->load.total += now - current->load.cyclPrev;
 			current->load.cycl[current->load.cyclptr] += now - current->load.cyclPrev;
+		}
 
 		current->load.cyclPrev = now;
 	}
@@ -475,6 +477,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->load.cyclPrev = 0;
 	t->load.cyclptr = 0;
 	t->load.jiffiesptr = 0;
+	t->load.total = 0;
 #endif
 
 	if (process != NULL) {
@@ -1277,6 +1280,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 		info[i].tid = t->id;
 		info[i].load = threads_getCpuTime(t);
+		info[i].cpu_time = (unsigned int) (TIMER_CYC2US(t->load.total) / 1000000);
 		info[i].priority = t->priority;
 		info[i].state = t->state;
 
