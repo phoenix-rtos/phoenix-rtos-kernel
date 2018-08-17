@@ -33,6 +33,7 @@ typedef struct _threadinfo_t {
 	unsigned int tid;
 
 	int load;
+	unsigned int cpu_time;
 	int priority;
 	int state;
 	int vmem;
