@@ -1279,8 +1279,13 @@ int proc_threadsList(int n, threadinfo_t *info)
 			info[i].pid = -1;
 
 		info[i].tid = t->id;
+#ifndef CPU_STM32
 		info[i].load = threads_getCpuTime(t);
 		info[i].cpu_time = (unsigned int) (TIMER_CYC2US(t->load.total) / 1000000);
+#else
+		info[i].load = 0;
+		info[i].cpu_time = 0;
+#endif
 		info[i].priority = t->priority;
 		info[i].state = t->state;
 
