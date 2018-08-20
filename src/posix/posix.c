@@ -32,6 +32,27 @@
 enum { atMode = 0, atUid, atGid, atSize, atType, atPort, atPollStatus, atEventMask, atCTime, atMTime, atATime, atLinks, atDev };
 
 
+/* TODO: copied from libphoenix/posixsrv/posixsrv.h */
+enum { evAdd = 0x1, evDelete = 0x2, evEnable = 0x4, evDisable = 0x8, evOneshot = 0x10, evClear = 0x20, evDispatch = 0x40 };
+
+typedef struct {
+	oid_t oid;
+	unsigned flags;
+	unsigned short types;
+} evsub_t;
+
+
+typedef struct _event_t {
+	oid_t oid;
+	unsigned type;
+
+	unsigned flags;
+	unsigned count;
+	unsigned data;
+} event_t;
+
+
+
 struct {
 	rbtree_t pid;
 	lock_t lock;
@@ -1740,7 +1761,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 	return ready;
 }
 
-
+#if 1
 int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 {
 	size_t i, n, ready;
@@ -1782,6 +1803,96 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	return ready;
 }
 
+#else
+
+int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
+{
+	int err, i, j;
+	int queue;
+	msg_t msg;
+	open_file_t *f, *q;
+
+	evsub_t subs_stack[4];
+	evsub_t *subs = subs_stack;
+	event_t events[8];
+
+	/* fast path */
+	if ((err = do_poll_iteration(fds, nfds)))
+		return err;
+	else if (!timeout_ms)
+		return 0;
+
+	if ((queue = posix_open("/dev/event/queue", O_RDWR, NULL)) < 0)
+		return queue;
+
+	do {
+		if (posix_getOpenFile(queue, &q) < 0)
+			return -EAGAIN; /* should not happen? */
+
+		if ((nfds > sizeof(subs_stack) / sizeof(evsub_t)) && (subs = vm_kmalloc(nfds * sizeof(evsub_t))) == NULL)
+			return -ENOMEM;
+
+		hal_memset(subs, 0, nfds * sizeof(evsub_t));
+
+		do {
+			err = EOK;
+
+			for (i = 0; i < nfds; ++i) {
+				if (fds[i].fd < 0)
+					continue;
+
+				if ((err = posix_getOpenFile(fds[i].fd, &f))) {
+					fds[i].revents = POLLNVAL;
+					continue;
+				}
+
+				hal_memcpy(&subs[i].oid, &f->oid, sizeof(oid_t));
+				subs[i].flags = evAdd;
+				subs[i].types = fds[i].events;
+			}
+
+			if (err)
+				break;
+
+			msg.type = mtRead;
+
+			hal_memcpy(&msg.i.io.oid, &q->oid, sizeof(oid_t));
+			msg.i.io.len = (unsigned)timeout_ms;
+
+			msg.i.data = subs;
+			msg.i.size = nfds * sizeof(evsub_t);
+
+			msg.o.data = events;
+			msg.o.size = sizeof(events);
+
+			if ((err = proc_send(q->oid.port, &msg)))
+				break;
+
+			if ((err = msg.o.io.err) < 0)
+				break;
+
+			if (!err)
+				break;
+
+			for (i = 0; i < msg.o.io.err; ++i) {
+				for (j = 0; j < nfds; ++j) {
+					if (hal_memcmp(&events[i].oid, &subs[j].oid, sizeof(oid_t)))
+						continue;
+
+					fds[j].revents |= 1 << events[i].type;
+				}
+			}
+
+		} while (0);
+
+		if (subs != subs_stack)
+			vm_kfree(subs);
+	} while (0);
+
+	posix_close(queue);
+	return err;
+}
+#endif
 
 int posix_tkill(pid_t pid, int tid, int sig)
 {
