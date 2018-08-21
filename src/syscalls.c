@@ -918,6 +918,22 @@ int syscalls_sys_accept(char *ustack)
 }
 
 
+int syscalls_sys_accept4(char *ustack)
+{
+	int socket;
+	struct sockaddr *address;
+	socklen_t *address_len;
+	int flags;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
+	GETFROMSTACK(ustack, socklen_t *,address_len, 2);
+	GETFROMSTACK(ustack, int, flags, 3);
+
+	return posix_accept4(socket, address, address_len, flags);
+}
+
+
 int syscalls_sys_bind(char *ustack)
 {
 	int socket;
