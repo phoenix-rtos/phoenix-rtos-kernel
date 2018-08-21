@@ -82,6 +82,7 @@
 	ID(sys_fstat) \
 	\
 	ID(sys_accept) \
+	ID(sys_accept4) \
 	ID(sys_bind) \
 	ID(sys_connect) \
 	ID(sys_getpeername) \

@@ -83,6 +83,9 @@ extern int posix_exec(void);
 extern int posix_accept(int socket, struct sockaddr *address, socklen_t *address_len);
 
 
+extern int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags);
+
+
 extern int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len);
 
 
