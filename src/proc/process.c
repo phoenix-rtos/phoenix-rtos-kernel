@@ -372,8 +372,8 @@ int proc_vfork(void)
 	process->mapp = parent->mapp;
 
 	process->sigpend = 0;
-	process->sigmask = 0;
-	process->sighandler = NULL;
+	process->sigmask = parent->sigmask;
+	process->sighandler = parent->sighandler;
 	process->zombies = NULL;
 
 //	vm_mapCreate(&process->map, (void *)VADDR_MIN, process_common.kmap->start);
