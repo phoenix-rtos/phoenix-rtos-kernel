@@ -984,10 +984,10 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
 		/* find a thread to wake up to handle the signal */
 		thread = process->threads;
 		do {
-			if (!_proc_sigwant(thread))
-				continue;
-
-			execthr = thread;
+			if (_proc_sigwant(thread)) {
+				execthr = thread;
+				break;
+			}
 		} while ((thread = thread->procnext) != process->threads);
 
 		if (execthr == NULL) {
