@@ -1213,7 +1213,7 @@ void *syscalls_dispatch(int n, char *ustack)
 {
 	void *retval;
 
-	if (n > sizeof(syscalls) / sizeof(syscalls[0]))
+	if (n >= sizeof(syscalls) / sizeof(syscalls[0]))
 		return (void *)-EINVAL;
 
 	proc_threadProtect();
