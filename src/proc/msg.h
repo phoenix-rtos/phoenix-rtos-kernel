@@ -29,7 +29,7 @@ typedef struct _kmsg_t {
 	struct _kmsg_t *prev;
 	thread_t *threads;
 	process_t *src;
-	volatile int responded;
+	volatile int state;
 #ifndef NOMMU
 	struct _kmsg_layout_t {
 		void *bvaddr;
@@ -57,6 +57,9 @@ extern int proc_recv(u32 port, msg_t *msg, unsigned int *rid);
 
 
 extern int proc_respond(u32 port, msg_t *msg, unsigned int rid);
+
+
+extern int proc_msgStatus(unsigned int rid);
 
 
 extern void _msg_init(vm_map_t *kmap, vm_object_t *kernel);

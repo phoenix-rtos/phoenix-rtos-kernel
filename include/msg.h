@@ -36,6 +36,9 @@ enum {
 } type;
 
 
+enum { msAborted = -1, msQueued, msProcessing, msResponded };
+
+
 #pragma pack(push, 8)
 
 

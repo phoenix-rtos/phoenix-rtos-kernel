@@ -154,7 +154,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 void proc_kill(process_t *proc)
 {
 	process_t *child, *init;
-
 	if (proc->parent != NULL) {
 		proc_lockSet(&proc->parent->lock);
 		LIST_REMOVE(&proc->parent->children, proc);
@@ -984,7 +983,6 @@ void proc_exit(int code)
 
 		hal_jmp(process_exexepilogue, kstack, NULL, 5);
 	}
-
 	process_exexepilogue(0, current, parent, NULL, NULL);
 
 	/* Not reached */

@@ -287,19 +287,24 @@ static int msg_opack(kmsg_t *kmsg)
 int proc_send(u32 port, msg_t *msg)
 {
 	port_t *p;
-	int responded = 0;
+	int state = msQueued;
 	int err = EOK;
-	kmsg_t kmsg;
+	kmsg_t *kmsg;
 
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
-	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
-	kmsg.src = proc_current()->process;
-	kmsg.threads = NULL;
-	kmsg.responded = 0;
+	if ((kmsg = vm_kmalloc(sizeof(kmsg_t))) == NULL) {
+		port_put(p, 0);
+		return -ENOMEM;
+	}
 
-	msg_ipack(&kmsg);
+	hal_memcpy(&kmsg->msg, msg, sizeof(msg_t));
+	kmsg->src = proc_current()->process;
+	kmsg->threads = NULL;
+	kmsg->state = msQueued;
+
+	msg_ipack(kmsg);
 
 	hal_spinlockSet(&p->spinlock);
 
@@ -307,25 +312,49 @@ int proc_send(u32 port, msg_t *msg)
 		err = -EINVAL;
 	}
 	else {
-		LIST_ADD(&p->kmessages, &kmsg);
-
+		LIST_ADD(&p->kmessages, kmsg);
 		proc_threadWakeup(&p->threads);
 
-		while (!(responded = kmsg.responded))
-			err = proc_threadWait(&kmsg.threads, &p->spinlock, 0);
+		proc_threadUnprotect();
+		while ((state = kmsg->state) == msQueued || state == msProcessing) {
+			if ((err = proc_threadWait(&kmsg->threads, &p->spinlock, 0)) == -EINTR) {
+				/* Thread was unprotected, abort and leave */
+				switch (kmsg->state) {
+				case msAborted:
+					 /* aborted already, mark as responded to free it on the way out */
+					kmsg->state = msResponded;
+					break;
+				case msQueued:
+					LIST_REMOVE(&p->kmessages, kmsg);
+					break;
+				case msProcessing:
+					LIST_REMOVE(&p->received, kmsg);
+					break;
+				case msResponded:
+					/* Let's pretend that the signal came just _after_ we woke up */
+					err = EOK;
+					break;
+				}
+				kmsg->state = msAborted;
+				break;
+			}
+		}
+		proc_threadProtect();
 	}
 
 	hal_spinlockClear(&p->spinlock);
-
 	port_put(p, 0);
 
-	hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
+	hal_memcpy(msg->o.raw, kmsg->msg.o.raw, sizeof(msg->o.raw));
 
 	/* If msg.o.data has been packed to msg.o.raw */
-	if ((kmsg.msg.o.data > (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw)))
-		hal_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
+	if ((kmsg->msg.o.data > (void *)kmsg->msg.o.raw) && (kmsg->msg.o.data < (void *)kmsg->msg.o.raw + sizeof(kmsg->msg.o.raw)))
+		hal_memcpy(msg->o.data, kmsg->msg.o.data, msg->o.size);
 
-	return responded < 0 ? -EINVAL : err;
+	if (kmsg->state == msResponded)
+		vm_kfree(kmsg);
+
+	return state < 0 ? -EINVAL : err;
 }
 
 
@@ -349,7 +378,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	if (p->closed) {
 		/* Port is being removed */
 		if (kmsg != NULL) {
-			kmsg->responded = -1;
+			kmsg->state = msAborted;
 			LIST_REMOVE(&p->kmessages, kmsg);
 			proc_threadWakeup(&kmsg->threads);
 		}
@@ -360,6 +389,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 		return -EINVAL;
 	}
 
+	kmsg->state = msProcessing;
 	LIST_REMOVE(&p->kmessages, kmsg);
 	LIST_ADD(&p->received, kmsg);
 	hal_spinlockClear(&p->spinlock);
@@ -403,7 +433,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 
 		hal_spinlockSet(&p->spinlock);
 		LIST_REMOVE(&p->received, kmsg);
-		kmsg->responded = -1;
+		kmsg->state = msAborted;
 		proc_threadWakeup(&kmsg->threads);
 		hal_spinlockClear(&p->spinlock);
 
@@ -434,6 +464,12 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
+	if (kmsg->state == msAborted) {
+		msg_release(kmsg);
+		port_put(p, 0);
+		return -EINVAL;
+	}
+
 	/* Copy shadow pages */
 	if (kmsg->i.bp != NULL)
 		hal_memcpy(kmsg->i.bvaddr + kmsg->i.boffs, kmsg->i.w + kmsg->i.boffs, min(SIZE_PAGE - kmsg->i.boffs, kmsg->msg.i.size));
@@ -452,7 +488,7 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
 
 	hal_spinlockSet(&p->spinlock);
-	kmsg->responded = 1;
+	kmsg->state = msResponded;
 	kmsg->src = proc_current()->process;
 	LIST_REMOVE(&p->received, kmsg);
 	proc_threadWakeup(&kmsg->threads);
@@ -460,6 +496,13 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	port_put(p, 0);
 
 	return s;
+}
+
+
+int proc_msgStatus(unsigned int rid)
+{
+	kmsg_t *kmsg = (kmsg_t *)(unsigned long)rid;
+	return kmsg->state;
 }
 
 

@@ -485,6 +485,16 @@ int syscalls_msgRespond(void *ustack)
 }
 
 
+int syscalls_msgStatus(void *ustack)
+{
+	unsigned int rid;
+
+	GETFROMSTACK(ustack, unsigned int, rid, 0);
+
+	return proc_msgStatus(rid);
+}
+
+
 int syscalls_lookup(void *ustack)
 {
 	char *name;

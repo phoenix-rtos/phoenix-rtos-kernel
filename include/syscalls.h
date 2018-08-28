@@ -44,6 +44,7 @@
 	ID(msgSend) \
 	ID(msgRecv) \
 	ID(msgRespond) \
+	ID(msgStatus) \
 	ID(lookup) \
 	ID(gettime) \
 	ID(settime) \
