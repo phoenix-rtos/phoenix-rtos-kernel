@@ -30,14 +30,21 @@ int proc_send(u32 port, msg_t *msg)
 	int responded = 0;
 	int err = EOK;
 	kmsg_t kmsg;
+	thread_t *sender;
 
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
+	sender = proc_current();
+
+
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
-	kmsg.src = proc_current()->process;
+	kmsg.src = sender->process;
 	kmsg.threads = NULL;
 	kmsg.responded = 0;
+
+	kmsg.msg.pid = (sender->process != NULL) ? sender->process->id : 0;
+	kmsg.msg.priority = sender->priority;
 
 	hal_spinlockSet(&p->spinlock);
 

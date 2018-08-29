@@ -16,7 +16,6 @@
 #ifndef _PHOENIX_MSG_H_
 #define _PHOENIX_MSG_H_
 
-
 /*
  * Message types
  */
@@ -41,6 +40,8 @@ enum {
 
 typedef struct _msg_t {
 	int type;
+	unsigned int pid;
+	unsigned int priority;
 
 	struct {
 		union {
