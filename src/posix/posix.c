@@ -1164,11 +1164,16 @@ static int posix_fcntlGetFd(int fd)
 static int _sock_getfl(open_file_t *f)
 {
 	msg_t msg;
+	int err;
 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmGetFl;
 
-	return proc_send(f->oid.port, &msg);
+	if ((err = proc_send(f->oid.port, &msg)) < 0)
+		return err;
+
+	sockport_resp_t *smo = (void *)msg.o.raw;
+	return smo->ret;
 }
 
 
@@ -1179,7 +1184,8 @@ static int _sock_setfl(open_file_t *f, int val)
 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmSetFl;
-	smi->send.flags = val;
+	/* only O_NONBLOCK is supported */
+	smi->send.flags = val & O_NONBLOCK;
 
 	return proc_send(f->oid.port, &msg);
 }
@@ -1436,11 +1442,13 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 			break;
 		}
 
-		if (err >= 0 && flags) {
-			if (flags & SOCK_NONBLOCK)
+		if (err >= 0 && flags && !posix_getOpenFile(fd, &f)) {
+			if (flags & SOCK_NONBLOCK) {
 				f->status |= O_NONBLOCK;
+				_sock_setfl(f, f->status);
+			}
 			if (flags & SOCK_CLOEXEC)
-				posix_fcntlSetFd(socket, FD_CLOEXEC);
+				posix_fcntlSetFd(fd, FD_CLOEXEC);
 		}
 	}
 
