@@ -1760,8 +1760,6 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		else if (err > 0)
 			fds[i].revents |= err;
 
-		fds[i].revents &= ~(~fds[i].events & (POLLIN|POLLOUT|POLLPRI|POLLRDNORM|POLLWRNORM|POLLRDBAND|POLLWRBAND));
-
 		if (fds[i].revents)
 			++ready;
 	}
