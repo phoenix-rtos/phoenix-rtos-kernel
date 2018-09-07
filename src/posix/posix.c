@@ -1195,12 +1195,14 @@ static int posix_fcntlSetFl(int fd, int val)
 {
 	open_file_t *f;
 	int err = EOK;
+	/* Creation and access mode flags shall be ignored */
+	int ignorefl = O_CREAT|O_EXCL|O_NOCTTY|O_TRUNC|O_RDONLY|O_RDWR|O_WRONLY;
 
 	if (!(err = posix_getOpenFile(fd, &f))) {
 		if (f->type == ftInetSocket)
 			err = _sock_setfl(f, val);
 		else
-			f->status = val;
+			f->status = (val & ~ignorefl) | (f->status & ignorefl);
 	}
 
 	return err;
