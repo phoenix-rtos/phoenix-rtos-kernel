@@ -133,7 +133,7 @@ int syscalls_exit(void *ustack)
 }
 
 
-int syscalls_waitpid(void *ustack)
+int syscalls_sys_waitpid(void *ustack)
 {
 	int pid, *stat, options;
 

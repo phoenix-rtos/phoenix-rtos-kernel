@@ -21,7 +21,7 @@
 	ID(vforksvc) \
 	ID(exec) \
 	ID(exit) \
-	ID(waitpid) \
+	ID(sys_waitpid) \
 	ID(getpid) \
 	ID(getppid) \
 	ID(gettid) \
