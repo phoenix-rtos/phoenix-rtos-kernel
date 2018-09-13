@@ -105,4 +105,5 @@
 	ID(sys_getpgid) \
 	ID(sys_setpgrp) \
 	ID(sys_getpgrp) \
-	ID(sys_setsid)
+	ID(sys_setsid) \
+	ID(isatty)

@@ -140,6 +140,9 @@ extern pid_t posix_getpgid(pid_t pid);
 extern pid_t posix_setsid(void);
 
 
+extern int posix_isatty(int fd);
+
+
 extern void posix_init(void);
 
 #endif
