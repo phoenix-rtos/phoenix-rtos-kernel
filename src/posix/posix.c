@@ -1283,6 +1283,9 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 #define IOC_IN				0x80000000
 #define IOC_INOUT			(IOC_IN | IOC_OUT)
 
+#define _IOC(inout,group,num,len)	((unsigned long) (inout | ((len & IOCPARM_MASK) << 16) | ((group) << 8) | (num)))
+#define SIOCGIFCONF			_IOC(IOC_INOUT, 'S', 0x12, sizeof(struct ifconf))
+
 
 void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 {
@@ -1318,6 +1321,13 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 		size = min(size, sizeof(void*));
 		hal_memcpy(ioctl->data, &data, size);
 	}
+
+	/* ioctl special case: arg is structure with pointer - has to be custom-packed into message */
+	if (request == SIOCGIFCONF) {
+		struct ifconf* ifc = (struct ifconf*) data;
+		msg->o.data = ifc->ifc_buf;
+		msg->o.size = ifc->ifc_len;
+	}
 }
 
 
@@ -1331,6 +1341,11 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 
 	if ((request & IOC_OUT) && size <= (sizeof(msg->o.raw) - sizeof(ioctl_out_t))) {
 		hal_memcpy(data, ioctl->data, size);
+	}
+
+	if (request == SIOCGIFCONF) { // restore overriden userspace pointer
+		struct ifconf* ifc = (struct ifconf*) data;
+		ifc->ifc_buf = msg->o.data;
 	}
 
 	return err;
