@@ -89,6 +89,12 @@ typedef struct {
 } process_info_t;
 
 
+/* SIOCGIFCONF ioctl special case: arg is structure with pointer */
+struct ifconf {
+	int ifc_len;    /* size of buffer */
+	char *ifc_buf;  /* buffer address */
+};
+
 extern void splitname(char *path, char **base, char **dir);
 
 
