@@ -20,7 +20,7 @@
 	ID(fork) \
 	ID(vforksvc) \
 	ID(exec) \
-	ID(exit) \
+	ID(sys_exit) \
 	ID(sys_waitpid) \
 	ID(getpid) \
 	ID(getppid) \

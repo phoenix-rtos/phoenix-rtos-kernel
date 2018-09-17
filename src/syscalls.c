@@ -123,7 +123,7 @@ int syscalls_exec(void *ustack)
 }
 
 
-int syscalls_exit(void *ustack)
+int syscalls_sys_exit(void *ustack)
 {
 	int code;
 
