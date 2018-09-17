@@ -2056,28 +2056,6 @@ pid_t posix_setsid(void)
 }
 
 
-int posix_isatty(int fd)
-{
-	process_info_t *pinfo;
-	pid_t pid;
-	open_file_t *f;
-
-	pid = proc_current()->process->id;
-
-	if ((pinfo = pinfo_find(pid)) == NULL)
-		return -EINVAL;
-
-	if (posix_getOpenFile(fd, &f) < 0)
-		return -EBADF;
-
-	if (f->type == ftTty)
-		return 1;
-
-	/* TODO: set errno to EINVAL/ENOTTY */
-	return 0;
-}
-
-
 void posix_init(void)
 {
 	proc_lockInit(&posix_common.lock);

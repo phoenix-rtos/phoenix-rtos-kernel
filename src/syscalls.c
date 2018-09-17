@@ -1195,15 +1195,6 @@ pid_t syscalls_sys_setsid(char *ustack)
 }
 
 
-int syscalls_isatty(char *ustack)
-{
-	int fd;
-	GETFROMSTACK(ustack, int, fd, 0);
-	return posix_isatty(fd);
-}
-
-
-
 /*
  * Empty syscall
  */
