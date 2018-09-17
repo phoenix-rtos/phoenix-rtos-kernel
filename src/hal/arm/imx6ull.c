@@ -209,7 +209,7 @@ static int _imx6ull_setIOisel(int isel, char daisy)
 	if (isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp)
 		return -EINVAL;
 
-	*(imx6ull_common.iomux + isel) = daisy & 0x3;
+	*(imx6ull_common.iomux + isel) = daisy & 0x7;
 
 	return 0;
 }
