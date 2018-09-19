@@ -19,6 +19,11 @@
 #include "proc.h"
 
 
+struct {
+	intr_handler_t *volatile active;
+} userintr_common;
+
+
 int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, unsigned int cond, unsigned int *h)
 {
 	resource_t *r, *t;
@@ -37,12 +42,11 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 	r->inth->prev = NULL;
 	r->inth->f = (int (*)(unsigned int, cpu_context_t *, void *))f;
 	r->inth->data = arg;
-	r->inth->pmap = NULL;
+	r->inth->process = p;
 	r->inth->cond = NULL;
 	r->inth->n = n;
 
 	if (p != NULL) {
-		r->inth->pmap = &p->mapp->pmap;
 		if (cond > 0) {
 			if ((t = resource_get(p, cond)) == NULL) {
 				resource_free(r);
@@ -70,9 +74,11 @@ int userintr_dispatch(intr_handler_t *h)
 	p = (proc_current())->process;
 
 	/* Switch into the handler address space */
-	pmap_switch(h->pmap);
+	pmap_switch(&h->process->mapp->pmap);
 
+	userintr_common.active = h;
 	ret = f(h->n, h->data);
+	userintr_common.active = NULL;
 
 	if (ret >= 0 && h->cond != NULL)
 		proc_threadWakeup((thread_t **)h->cond);
@@ -82,4 +88,16 @@ int userintr_dispatch(intr_handler_t *h)
 		pmap_switch(&p->mapp->pmap);
 
 	return ret;
+}
+
+
+intr_handler_t *userintr_active(void)
+{
+	return userintr_common.active;
+}
+
+
+void _userintr_init(void)
+{
+	userintr_common.active = NULL;
 }

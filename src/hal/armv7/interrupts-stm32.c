@@ -85,7 +85,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		do {
 			hal_cpuSetGot(h->got);
 
-			if (h->pmap != NULL)
+			if (h->process != NULL)
 				userintr_dispatch(h);
 			else
 				h->f(n, ctx, h->data);

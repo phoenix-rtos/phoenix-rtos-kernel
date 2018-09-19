@@ -43,7 +43,7 @@ typedef struct _intr_handler_t {
 	unsigned int n;
 	int (*f)(unsigned int, cpu_context_t *, void *);
 	void *data;
-	pmap_t *pmap;
+	struct _process_t *pmap;
 	void *cond;
 	void *got;
 } intr_handler_t;

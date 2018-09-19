@@ -96,7 +96,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do {
-			if (h->pmap != NULL)
+			if (h->process != NULL)
 				userintr_dispatch(h);
 			else
 				h->f(n, ctx, h->data);

@@ -27,6 +27,7 @@
 #include "name.h"
 #include "msg.h"
 #include "ports.h"
+#include "userintr.h"
 
 
 struct {
@@ -205,13 +206,16 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
+	intr_handler_t *intr;
 	char buff[SIZE_CTXDUMP];
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 	hal_consolePrint(ATTR_BOLD, "\n");
 
-	if (process == NULL)
+	if ((intr = userintr_active()) != NULL)
+		lib_printf("in interrupt (%d) handler of process \"%s\" (%x)\n", intr->n, intr->process->path, intr->process->id);
+	else if (process == NULL)
 		lib_printf("in kernel thread %x\n", thread->id);
 	else
 		lib_printf("in thread %x, process \"%s\" (%x)\n", thread->id, process->path, process->id);

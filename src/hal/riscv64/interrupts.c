@@ -83,7 +83,7 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do {
-			if (h->pmap != NULL) {
+			if (h->process != NULL) {
 				userintr_dispatch(h);
 			}
 			else
@@ -123,7 +123,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
-__attribute__((aligned(4))) void handler(cpu_context_t *ctx) 
+__attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 {
 	cycles_t c = hal_cpuGetCycles2();
 	sbi_call(SBI_SETTIMER, c + 1000, 0, 0);
@@ -148,6 +148,6 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	csr_write(sscratch, 0);
 	csr_write(sie, -1);
 	csr_write(stvec, interrupts_handleintexc);
-	
+
 	return;
 }

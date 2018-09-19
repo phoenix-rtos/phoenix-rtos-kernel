@@ -103,7 +103,7 @@ void _timer_init(u32 interval)
 	timer_common.wakeuph.data = NULL;
 	timer_common.wakeuph.n = HPTIMER_IRQ;
 	timer_common.wakeuph.f = timer_wakeupIrqHandler;
-	timer_common.wakeuph.pmap = NULL;
+	timer_common.wakeuph.process = NULL;
 
 	hal_interruptsSetHandler(&timer_common.wakeuph);
 
@@ -111,7 +111,7 @@ void _timer_init(u32 interval)
 	timer_common.timerh.data = NULL;
 	timer_common.timerh.n = 87;
 	timer_common.timerh.f = timer_overflowIrqHandler;
-	timer_common.timerh.pmap = NULL;
+	timer_common.timerh.process = NULL;
 
 	hal_interruptsSetHandler(&timer_common.timerh);
 

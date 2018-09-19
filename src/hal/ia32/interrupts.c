@@ -96,7 +96,7 @@ void _interrupts_apicACK(unsigned int n)
 {
 	if (n >= SIZE_INTERRUPTS)
 		return;
-	
+
 	if (n < 8) {
 		hal_outb((void *)0x20, 0x60 | n);
 	}
@@ -121,7 +121,7 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do {
-			if (h->pmap != NULL) {
+			if (h->process != NULL) {
 				userintr_dispatch(h);
 			}
 			else
@@ -167,20 +167,20 @@ __attribute__ ((section (".init"))) int _interrupts_setIDTEntry(unsigned int n, 
 {
 	u32 w0, w1;
 	u32 *idtr;
-	
+
 	if (n > 255)
 		return -EINVAL;
 
 	w0 = ((u32)addr & 0xffff0000);
 	w1 = ((u32)addr & 0x0000ffff);
-	
+
 	w0 |= IGBITS_DPL3 | IGBITS_PRES | IGBITS_SYSTEM | type;
 	w1 |= (SEL_KCODE << 16);
 
-	idtr = *(u32 **)&syspage->idtr[2];	
+	idtr = *(u32 **)&syspage->idtr[2];
 	idtr[n * 2 + 1] = w0;
 	idtr[n * 2] = w1;
-	
+
 	return EOK;
 }
 
@@ -194,13 +194,13 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	hal_outb((void *)0x21, 0x20);  /* ICW2 (Master) */
 	hal_outb((void *)0x21, 0x04);  /* ICW3 (Master) */
 	hal_outb((void *)0x21, 0x01);  /* ICW4 */
-	
+
 	hal_outb((void *)0xa0, 0x11);  /* ICW1 (Slave) */
 	hal_outb((void *)0xa1, 0x28);  /* ICW2 (Slave) */
 	hal_outb((void *)0xa1, 0x02);  /* ICW3 (Slave) */
 	hal_outb((void *)0xa1, 0x01);  /* ICW4 (Slave) */
-	
-	/* Set stubs for hardware interrupts */	
+
+	/* Set stubs for hardware interrupts */
 	_interrupts_setIDTEntry(32 + 0,  _interrupts_irq0, IGBITS_IRQEXC);
 	_interrupts_setIDTEntry(32 + 1,  _interrupts_irq1, IGBITS_IRQEXC);
 	_interrupts_setIDTEntry(32 + 2,  _interrupts_irq2, IGBITS_IRQEXC);
@@ -217,13 +217,13 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	_interrupts_setIDTEntry(32 + 13, _interrupts_irq13, IGBITS_IRQEXC);
 	_interrupts_setIDTEntry(32 + 14, _interrupts_irq14, IGBITS_IRQEXC);
 	_interrupts_setIDTEntry(32 + 15, _interrupts_irq15, IGBITS_IRQEXC);
-		
+
 	for (k = 0; k < SIZE_INTERRUPTS; k++) {
 		interrupts.handlers[k] = NULL;
 		interrupts.counters[k] = 0;
 		hal_spinlockCreate(&interrupts.spinlocks[k], "interrupts.spinlocks[]");
 	}
-	
+
 	/* Set stubs for unhandled interrupts */
 	for (; k < 256 - SIZE_INTERRUPTS; k++)
 		_interrupts_setIDTEntry(32 + k, _interrupts_unexpected, IGBITS_IRQEXC);

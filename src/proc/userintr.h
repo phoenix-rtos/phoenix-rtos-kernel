@@ -18,11 +18,15 @@
 
 #include HAL
 
-
 extern int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, unsigned int cond, unsigned int *h);
 
 
 extern int userintr_dispatch(intr_handler_t *h);
 
+
+extern intr_handler_t *userintr_active(void);
+
+
+extern void _userintr_init(void);
 
 #endif
