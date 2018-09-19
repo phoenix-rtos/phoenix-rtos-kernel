@@ -314,6 +314,9 @@ int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, 
 
 	err = proc_send(port, msg);
 
+	if (!err)
+		err = msg->o.create.err;
+
 	hal_memcpy(oid, &msg->o.create.oid, sizeof(oid_t));
 	vm_kfree(msg);
 	return err;
@@ -338,6 +341,10 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 	msg->i.data = (char *)name;
 
 	err = proc_send(dir.port, msg);
+
+	if (!err)
+		err = msg->o.io.err;
+
 	vm_kfree(msg);
 	return err;
 }
@@ -361,6 +368,10 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	msg->i.data = (char *)name;
 
 	err = proc_send(dir.port, msg);
+
+	if (!err)
+		err = msg->o.io.err;
+
 	vm_kfree(msg);
 	return err;
 }
