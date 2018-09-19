@@ -855,7 +855,7 @@ int posix_link(const char *path1, const char *path2)
 {
 	TRACE("link(%s, %s)", path1, path2);
 
-	oid_t oid, dir;
+	oid_t oid, dev, dir;
 	int err;
 	char *name, *basename, *dirname;
 	int namelen;
@@ -875,13 +875,18 @@ int posix_link(const char *path1, const char *path2)
 		if ((err = proc_lookup(dirname, NULL, &dir)) < 0)
 			break;
 
-		if ((err = proc_lookup(path1, NULL, &oid)) < 0)
+		if ((err = proc_lookup(path1, &oid, &dev)) < 0)
 			break;
+
+		if (oid.port != dir.port) {
+			err = -EXDEV;
+			break;
+		}
 
 		if ((err = proc_link(dir, oid, basename)) < 0)
 			break;
 
-		if (dir.port != oid.port) {
+		if (dev.port != oid.port) {
 			/* Signal link to device */
 			/* FIXME: refcount here? */
 			if ((err = proc_link(oid, oid, path2)) < 0)
