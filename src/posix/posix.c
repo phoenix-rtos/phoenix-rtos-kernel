@@ -889,7 +889,7 @@ int posix_link(const char *path1, const char *path2)
 		if (dev.port != oid.port) {
 			/* Signal link to device */
 			/* FIXME: refcount here? */
-			if ((err = proc_link(oid, oid, path2)) < 0)
+			if ((err = proc_link(dev, dev, path2)) < 0)
 				break;
 		}
 
