@@ -368,6 +368,7 @@ void _stm32_pwrEnterLPRun(u32 state)
 
 int _stm32_pwrEnterLPStop(void)
 {
+#ifdef NDEBUG
 	u8 lprun_state = !!(*(stm32_common.pwr + pwr_cr) & (1 << 14));
 	u8 regulator_state = (*(stm32_common.pwr + pwr_csr) >> 11) & 3;
 	u32 cpuclk_state = (*(stm32_common.rcc + rcc_icscr) >> 13) & 7;
@@ -447,6 +448,9 @@ int _stm32_pwrEnterLPStop(void)
 	_stm32_pwrEnterLPRun(lprun_state);
 
 	return slept;
+#else
+	return 0;
+#endif
 }
 
 
