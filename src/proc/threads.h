@@ -143,12 +143,6 @@ extern void proc_threadBroadcastYield(thread_t **queue);
 extern int threads_getCpuTime(thread_t *t);
 
 
-extern thread_t *threads_getFirstThread(void);
-
-
-extern thread_t *threads_getNextThread(thread_t *prev);
-
-
 extern thread_t *threads_findThread(int tid);
 
 

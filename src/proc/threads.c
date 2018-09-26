@@ -185,30 +185,6 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
  */
 
 
-thread_t *threads_getFirstThread(void)
-{
-	thread_t *t;
-
-	proc_lockSet(&threads_common.lock);
-	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
-	proc_lockClear(&threads_common.lock);
-
-	return t;
-}
-
-
-thread_t *threads_getNextThread(thread_t *prev)
-{
-	thread_t *r;
-
-	proc_lockSet(&threads_common.lock);
-	r = lib_treeof(thread_t, idlinkage, lib_rbNext(&prev->idlinkage));
-	proc_lockClear(&threads_common.lock);
-
-	return r;
-}
-
-
 thread_t *threads_findThread(int tid)
 {
 	thread_t *r, t;
