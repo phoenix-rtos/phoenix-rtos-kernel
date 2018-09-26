@@ -1264,9 +1264,10 @@ void proc_threadsDump(unsigned int priority)
 
 int proc_threadsList(int n, threadinfo_t *info)
 {
-	int i = 0;
+	int i = 0, len, nlocked;
+	unsigned int totalgap;
 	thread_t *t;
-	int len;
+	map_entry_t *rootentry;
 
 	proc_lockSet(&threads_common.lock);
 
@@ -1290,6 +1291,8 @@ int proc_threadsList(int n, threadinfo_t *info)
 		info[i].state = t->state;
 
 		if (t->process != NULL) {
+			rootentry = lib_treeof(map_entry_t, linkage, t->process->mapp->tree.root);
+
 			if (t->process->path != NULL) {
 				len = 1 + hal_strlen(t->process->path);
 				hal_memcpy(info[i].name, t->process->path, min(len, sizeof(info[i].name)));
@@ -1298,8 +1301,22 @@ int proc_threadsList(int n, threadinfo_t *info)
 			else
 				info[i].name[0] = 0;
 		}
-		else
+		else {
+			rootentry = lib_treeof(map_entry_t, linkage, threads_common.kmap->tree.root);
 			hal_memcpy(info[i].name, "idle thread", sizeof("idle thread"));
+		}
+
+		/* We can't let go of the threads_common.lock. Avoid deadlock, even if we may get corrupted data */
+		if (rootentry != NULL) {
+			nlocked = proc_lockTry(&rootentry->map->lock);
+			totalgap = rootentry->lmaxgap + rootentry->rmaxgap;
+			info[i].vmem = (rootentry->map->stop - rootentry->map->start) - totalgap;
+			if (!nlocked)
+				proc_lockClear(&rootentry->map->lock);
+		}
+		else {
+			info[i].vmem = 0;
+		}
 
 		++i;
 		t = lib_treeof(thread_t, idlinkage, lib_rbNext(&t->idlinkage));
