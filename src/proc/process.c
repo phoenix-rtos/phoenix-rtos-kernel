@@ -837,6 +837,8 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 	thread_t *current, *parent;
 	process_t *process;
 	char *kpath;
+	char **envp_kstack = NULL;
+	char **argv_kstack;
 
 	current = proc_current();
 	parent = current->execparent;
@@ -856,29 +858,33 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 
 	kstack = current->execkstack + current->kstacksz;
 
+	for (argc = 0; argv[argc] != NULL; ++argc)
+		;
+
+	kstack -= argc * sizeof(char *);
+	argv_kstack = kstack;
+
 	for (argc = 0; argv[argc] != NULL; ++argc) {
 		len = hal_strlen(argv[argc]) + 1;
 		kstack -= (len + sizeof(int) - 1) & ~(sizeof(int) - 1);
 		hal_memcpy(kstack, argv[argc], len);
-		argv[argc] = kstack;
+		argv_kstack[argc] = kstack;
 	}
 
-	kstack -= argc * sizeof(char *);
-	hal_memcpy(kstack, argv, argc * sizeof(char *));
-	argv = kstack;
-
 	if (envp) {
+		for (envc = 0; envp[envc] != NULL; ++envc)
+			;
+
+		kstack -= (envc + 1) * sizeof(char *);
+		envp_kstack = kstack;
+		envp_kstack[envc] = NULL;
+
 		for (envc = 0; envp[envc] != NULL; ++envc) {
 			len = hal_strlen(envp[envc]) + 1;
 			kstack -= (len + sizeof(int) - 1) & ~(sizeof(int) - 1);
 			hal_memcpy(kstack, envp[envc], len);
-			envp[envc] = kstack;
+			envp_kstack[envc] = kstack;
 		}
-
-		kstack -= (envc + 1) * sizeof(char *);
-		hal_memcpy(kstack, envp, envc * sizeof(char *));
-		envp = kstack;
-		envp[envc] = NULL;
 	}
 
 	/* Close cloexec file descriptors */
@@ -887,7 +893,7 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 	/* Initialize resources */
 	resource_init(current->process);
 
-	err = process_exec(prog, process, current, parent, kpath, argc, argv, envp);
+	err = process_exec(prog, process, current, parent, kpath, argc, argv_kstack, envp_kstack);
 	/* Not reached unless process_exec failed */
 
 	vm_kfree(kpath);
