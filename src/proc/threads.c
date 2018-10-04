@@ -824,7 +824,7 @@ int proc_waitpid(int pid, int *stat, int options)
 	if (z != NULL) {
 		err = z->id;
 		if (stat != NULL)
-			*stat = z->exit & 0xff;
+			*stat = z->exit;
 		LIST_REMOVE(&proc->zombies, z);
 	}
 
@@ -928,6 +928,7 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
 	thread_t *execthr = NULL;
 
 	if (sig == signal_kill) {
+		process->exit = sig << 8;
 		proc_kill(process);
 		return EOK;
 	}
@@ -940,6 +941,7 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
 		switch (sig) {
 		case signal_segv:
 		case signal_illegal:
+			process->exit = sig << 8;
 			proc_kill(process);
 			break;
 		default:
