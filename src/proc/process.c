@@ -980,6 +980,9 @@ void proc_exit(int code)
 	current = proc_current();
 	parent = current->execparent;
 
+	if (current->process != NULL)
+		current->process->exit = code;
+
 	if (current->parentkstack != NULL) {
 		current->kstack = current->execkstack;
 		current->process->mapp = NULL;
