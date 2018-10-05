@@ -505,10 +505,20 @@ void proc_threadUnprotect(void)
 void proc_threadDestroy(void)
 {
 	thread_t *thr = proc_current();
+	process_t *proc = thr->process;
+	int zombie = 0;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	if (thr->process != NULL)
-		LIST_REMOVE_EX(&thr->process->threads, thr, procnext, procprev);
+	if (proc != NULL) {
+		LIST_REMOVE_EX(&proc->threads, thr, procnext, procprev);
+		zombie = (proc->threads == NULL);
+	}
+	hal_spinlockClear(&threads_common.spinlock);
+
+	if (zombie)
+		proc_zombie(proc);
+
+	hal_spinlockSet(&threads_common.spinlock);
 	threads_common.current[hal_cpuGetID()] = NULL;
 	LIST_ADD(&threads_common.ghosts, thr);
 	hal_cpuReschedule(&threads_common.spinlock);
