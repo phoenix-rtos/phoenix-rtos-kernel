@@ -366,9 +366,6 @@ int posix_exit(process_t *process)
 	proc_lockDone(&p->lock);
 	vm_kfree(p);
 
-	if (process->parent != NULL)
-		posix_tkill(process->parent->id, NULL, SIGCHLD);
-
 	return 0;
 
 }
@@ -1989,6 +1986,12 @@ int posix_tkill(pid_t pid, int tid, int sig)
 
 		return EOK;
 	}
+}
+
+
+void posix_sigchild(pid_t ppid)
+{
+	posix_tkill(ppid, NULL, SIGCHLD);
 }
 
 
