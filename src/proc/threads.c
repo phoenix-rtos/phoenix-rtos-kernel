@@ -561,6 +561,9 @@ void proc_threadsDestroy(process_t *proc)
 		LIST_REMOVE_EX(&proc->threads, t, procnext, procprev);
 	}
 	hal_spinlockClear(&threads_common.spinlock);
+
+	if (proc->threads == NULL)
+		proc_zombie(proc);
 }
 
 
