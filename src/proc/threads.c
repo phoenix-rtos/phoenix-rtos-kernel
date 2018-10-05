@@ -559,6 +559,7 @@ void proc_zombie(process_t *proc)
 	if (parent != NULL) {
 		hal_spinlockSet(&parent->waitsl);
 		proc->state = ZOMBIE;
+		LIST_REMOVE(&parent->children, proc);
 		LIST_ADD(&parent->zombies, proc);
 
 		if (parent->waitpid == -1 || (unsigned)parent->waitpid == proc->id)

@@ -156,12 +156,6 @@ void proc_kill(process_t *proc)
 {
 	process_t *child, *init;
 
-	if (proc->parent != NULL) {
-		proc_lockSet(&proc->parent->lock);
-		LIST_REMOVE(&proc->parent->children, proc);
-		proc_lockClear(&proc->parent->lock);
-	}
-
 	init = proc_find(1);
 
 	proc_lockSet(&proc->lock);
