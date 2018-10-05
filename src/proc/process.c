@@ -189,7 +189,6 @@ void proc_kill(process_t *proc)
 	proc_resourcesFree(proc);
 	proc_portsDestroy(proc);
 	posix_exit(proc);
-	proc_zombie(proc);
 
 	if (proc == proc_current()->process)
 		proc_threadDestroy();
