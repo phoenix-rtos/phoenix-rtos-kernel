@@ -510,6 +510,7 @@ void proc_threadDestroy(void)
 	int zombie = 0;
 
 	hal_spinlockSet(&threads_common.spinlock);
+	thr->process = NULL;
 	if (proc != NULL) {
 		LIST_REMOVE_EX(&proc->threads, thr, procnext, procprev);
 		zombie = (proc->threads == NULL);
