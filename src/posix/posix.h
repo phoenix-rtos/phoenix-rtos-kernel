@@ -131,6 +131,9 @@ extern int posix_utimes(const char *filename, const struct timeval *times);
 extern int posix_tkill(pid_t pid, int tid, int sig);
 
 
+extern void posix_sigchild(pid_t ppid);
+
+
 extern int posix_setpgid(pid_t pid, pid_t pgid);
 
 

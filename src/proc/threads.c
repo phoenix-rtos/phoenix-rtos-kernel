@@ -19,6 +19,7 @@
 #include "../../include/signal.h"
 #include "threads.h"
 #include "../lib/lib.h"
+#include "../posix/posix.h"
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
@@ -565,6 +566,7 @@ void proc_threadsDestroy(process_t *proc)
 void proc_zombie(process_t *proc)
 {
 	process_t *parent = proc->parent;
+	unsigned int ppid = parent->id;
 
 	if (parent != NULL) {
 		hal_spinlockSet(&parent->waitsl);
@@ -576,6 +578,8 @@ void proc_zombie(process_t *proc)
 			proc_threadWakeup(&parent->waitq);
 
 		hal_spinlockClear(&parent->waitsl);
+
+		posix_sigchild(ppid);
 	}
 	else {
 		hal_spinlockSet(&threads_common.spinlock);
