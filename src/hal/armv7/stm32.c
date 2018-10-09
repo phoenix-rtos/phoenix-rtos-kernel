@@ -974,7 +974,7 @@ void _stm32_init(void)
 	stm32_common.msi = 0;
 
 	/* Fundamental system init */
-	_stm32_rccSetCPUClock(2097152); /* 2,1 MHz */
+	_stm32_rccSetCPUClock(2 * 2097152); /* 4,2 MHz */
 
 	/* Set buses divider to 1 */
 	*(stm32_common.rcc + rcc_cfgr) = 0x8802c000;
