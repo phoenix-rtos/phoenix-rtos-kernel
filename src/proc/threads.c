@@ -1286,14 +1286,16 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 		info[i].vmem = 0;
 
-		proc_lockSet(&map->lock);
-		entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
+		if (map != NULL) {
+			proc_lockSet(&map->lock);
+			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
 
-		while (entry != NULL) {
-			info[i].vmem += entry->size;
-			entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
+			while (entry != NULL) {
+				info[i].vmem += entry->size;
+				entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
+			}
+			proc_lockClear(&map->lock);
 		}
-		proc_lockClear(&map->lock);
 
 		++i;
 		t = lib_treeof(thread_t, idlinkage, lib_rbNext(&t->idlinkage));
