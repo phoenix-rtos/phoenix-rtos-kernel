@@ -342,6 +342,24 @@ aipstzl:
 	subs r2, r2, #1
 	bne aipstzl
 
+	/* Enable USB2 PLL (480 MHz) */
+	ldr r0, =0x020c8020
+	ldr r1, [r0]
+	orr r1, r1, #0x3000
+	str r1, [r0]
+usb2_pll:
+	ldr r1, [r0]
+	ands r1, #(1 << 31) /* Check lock bit */
+	beq usb2_pll
+
+	ldr r1, [r0]
+	/* Clear bypass */
+	bic r1, r1, #(1 << 16)
+	str r1, [r0]
+	/* Set en_usb_clks */
+	orr r1, r1, #(1 << 6)
+	str r1, [r0]
+
 	/* Enable ENETn PLL (both 50 MHz) */
 	ldr r0, =0x020c80e0
 	ldr r1, =0x102005
