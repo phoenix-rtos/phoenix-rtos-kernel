@@ -1,6 +1,6 @@
 #!/bin/bash
 # $1 - toolchain target (e.g. arm-phoenix)
-# $2 - toolchain install path
+# $2 - toolchain install absolute path (i.e. no "." or ".." in the path)
 
 set -e
 
