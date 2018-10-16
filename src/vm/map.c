@@ -230,6 +230,9 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	lmerge = prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot && prev->amap == NULL;
 
 	if (offs != -1) {
+		if (offs & (SIZE_PAGE - 1))
+			return NULL;
+
 		if (rmerge)
 			rmerge &= next->offs == offs + size;
 
