@@ -58,7 +58,7 @@ i=$i+4
 #Find syspage size first
 SYSPAGESZ=$i
 for app in $@; do
-	SYSPAGESZ=$SYSPAGESZ+20
+	SYSPAGESZ=$SYSPAGESZ+24
 	SEGMENTS=`readelf -l $app | grep "LOAD" | wc -l`
 
 	for (( j=1; j<=$SEGMENTS; j++ )); do
@@ -96,6 +96,13 @@ for app in $@; do
 	k=$k+4
 
 	printf "%08x %08x\n" $i $(($OFFSET-$APP_START-$(($i-$k)))) >> syspage.hex #offset
+	i=$i+4
+	k=$k+4
+
+	${CROSS}objcopy $app -Obinary tmpsize.img
+	SIZE=$((`du -b tmpsize.img | awk '{ print $1 }'`))
+	rm -f tmpsize.img
+	printf "%08x %08x\n" $i $(($SIZE)) >> syspage.hex #size
 	i=$i+4
 	k=$k+4
 

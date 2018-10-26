@@ -29,6 +29,7 @@ typedef struct syspage_program_t {
 	void *got;
 	u32 gotsz;
 	u32 offset;
+	u32 size;
 	char *cmdline;
 	struct {
 		u32 addr;
