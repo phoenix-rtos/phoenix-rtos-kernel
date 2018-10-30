@@ -38,7 +38,7 @@ enum {
 
 
 typedef struct {
-	enum { pctl_set = 0, pctl_get } action;
+	enum { pctl_set = 0, pctl_get, pctl_reboot } action;
 	enum { pctl_devclk = 0, pctl_cpuclk } type;
 
 	union {
