@@ -573,6 +573,7 @@ void proc_zombie(process_t *proc)
 	unsigned int ppid = parent->id;
 
 	if (parent != NULL) {
+		proc_lockSet(&proc->lock);
 		hal_spinlockSet(&parent->waitsl);
 		proc->state = ZOMBIE;
 		LIST_REMOVE(&parent->children, proc);
@@ -582,6 +583,7 @@ void proc_zombie(process_t *proc)
 			proc_threadWakeup(&parent->waitq);
 
 		hal_spinlockClear(&parent->waitsl);
+		proc_lockClear(&proc->lock);
 
 		posix_sigchild(ppid);
 	}
@@ -813,6 +815,7 @@ int proc_waitpid(int pid, int *stat, int options)
 	process_t *z, *proc = proc_current()->process;
 
 	proc_threadUnprotect();
+	proc_lockSet(&proc->lock);
 	hal_spinlockSet(&proc->waitsl);
 	proc->waitpid = pid;
 
@@ -849,6 +852,7 @@ int proc_waitpid(int pid, int *stat, int options)
 
 	proc->waitpid = 0;
 	hal_spinlockClear(&proc->waitsl);
+	proc_lockClear(&proc->lock);
 	proc_threadProtect();
 
 	if (z != NULL)
