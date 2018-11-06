@@ -23,6 +23,8 @@ then
     CROSS="arm-phoenix-"
 fi
 
+GDB_APP_FILE="../gdb_app_symbols"
+
 KERNELELF=$1
 shift
 
@@ -171,16 +173,19 @@ OFFSET=$(($APP_START-$FLASH_START))
 dd if="syspage.bin" of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
 OFFSET=$(($OFFSET+$SYSPAGESZ))
 
+[ -f $GDB_APP_FILE ] && rm -rf $GDB_APP_FILE
+
 for app in $@; do
 	${CROSS}objcopy $app -O binary tmp.img
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
+	printf "add-symbol-file %s 0x%08x\n" `basename $app` $((OFFSET + $FLASH_START)) >> $GDB_APP_FILE
 	dd if=tmp.img of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
 	OFFSET=$((($OFFSET+$((`du -b tmp.img | cut -f1`))+$SIZE_PAGE-1)&$((0xffffff00))))
 	rm -f tmp.img
 done
 
 #Convert binary image to hex
-${CROSS}objcopy --change-addresses 0x08000000 -I binary -O ihex ${OUTPUT} ${OUTPUT%.*}.hex
+${CROSS}objcopy --change-addresses $FLASH_START -I binary -O ihex ${OUTPUT} ${OUTPUT%.*}.hex
 
 rm -f kernel.img
 rm -f syspage.bin
