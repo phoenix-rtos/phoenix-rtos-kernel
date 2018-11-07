@@ -68,13 +68,7 @@ int proc_condWait(unsigned int c, unsigned int m, time_t timeout)
 	lock = rl->lock;
 	proc_threadUnprotect();
 
-	hal_spinlockSet(&lock->spinlock);
-	_proc_lockClear(lock);
-
-	err = proc_threadWait(&rc->waitq, &lock->spinlock, timeout);
-
-	_proc_lockSet(lock);
-	hal_spinlockClear(&lock->spinlock);
+	err = proc_lockWait(&rc->waitq, lock, timeout);
 
 	proc_threadProtect();
 

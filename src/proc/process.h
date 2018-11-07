@@ -40,7 +40,6 @@ typedef struct _process_t {
 
 	struct _process_t *zombies;
 	struct _thread_t *waitq;
-	spinlock_t waitsl;
 	int waitpid;
 
 	enum { NORMAL = 0, ZOMBIE } state;

@@ -573,8 +573,7 @@ void proc_zombie(process_t *proc)
 	unsigned int ppid = parent->id;
 
 	if (parent != NULL) {
-		proc_lockSet(&proc->lock);
-		hal_spinlockSet(&parent->waitsl);
+		proc_lockSet(&parent->lock);
 		proc->state = ZOMBIE;
 		LIST_REMOVE(&parent->children, proc);
 		LIST_ADD(&parent->zombies, proc);
@@ -582,8 +581,7 @@ void proc_zombie(process_t *proc)
 		if (parent->waitpid == -1 || (unsigned)parent->waitpid == proc->id)
 			proc_threadWakeup(&parent->waitq);
 
-		hal_spinlockClear(&parent->waitsl);
-		proc_lockClear(&proc->lock);
+		proc_lockClear(&parent->lock);
 
 		posix_sigchild(ppid);
 	}
@@ -602,6 +600,8 @@ static void proc_cleanupZombie(process_t *proc)
 	addr_t a;
 #endif
 
+	proc_lockSet(&proc->lock);
+
 	if (proc->mapp != NULL)
 		vm_mapDestroy(proc, proc->mapp);
 
@@ -615,7 +615,6 @@ static void proc_cleanupZombie(process_t *proc)
 	}
 #endif
 
-	hal_spinlockDestroy(&proc->waitsl);
 	proc_lockDone(&proc->lock);
 
 	if (proc->path != NULL)
@@ -816,7 +815,6 @@ int proc_waitpid(int pid, int *stat, int options)
 
 	proc_threadUnprotect();
 	proc_lockSet(&proc->lock);
-	hal_spinlockSet(&proc->waitsl);
 	proc->waitpid = pid;
 
 	for (;;) {
@@ -839,7 +837,7 @@ int proc_waitpid(int pid, int *stat, int options)
 			break;
 		}
 
-		if (err || (options & 1) || (err = proc_threadWait(&proc->waitq, &proc->waitsl, 0)))
+		if (err || (options & 1) || (err = proc_lockWait(&proc->waitq, &proc->lock, 0)))
 			break;
 	}
 
@@ -851,7 +849,6 @@ int proc_waitpid(int pid, int *stat, int options)
 	}
 
 	proc->waitpid = 0;
-	hal_spinlockClear(&proc->waitsl);
 	proc_lockClear(&proc->lock);
 	proc_threadProtect();
 
@@ -1161,6 +1158,17 @@ int proc_lockSet2(lock_t *l1, lock_t *l2)
 	return EOK;
 }
 
+
+int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
+{
+	int err;
+	hal_spinlockSet(&lock->spinlock);
+	_proc_lockClear(lock);
+	err = proc_threadWait(queue, &lock->spinlock, timeout);
+	_proc_lockSet(lock);
+	hal_spinlockClear(&lock->spinlock);
+	return err;
+}
 
 
 int proc_lockInit(lock_t *lock)

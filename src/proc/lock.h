@@ -42,6 +42,9 @@ extern int proc_lockSet2(lock_t *lock1, lock_t *lock2);
 extern int proc_lockTry(lock_t *lock);
 
 
+extern int proc_lockWait(struct _thread_t **queue, lock_t *lock, time_t timeout);
+
+
 extern int _proc_lockClear(lock_t *lock);
 
 

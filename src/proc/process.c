@@ -96,7 +96,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->threads = NULL;
 
 	process->waitq = NULL;
-	hal_spinlockCreate(&process->waitsl, "process.waitsl");
 	process->waitpid = 0;
 
 	proc_lockInit(&process->lock);
@@ -360,7 +359,6 @@ int proc_vfork(void)
 	proc_lockInit(&process->lock);
 
 	process->waitq = NULL;
-	hal_spinlockCreate(&process->waitsl, "process.waitsl");
 	process->waitpid = 0;
 
 	process->ports = NULL;
