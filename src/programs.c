@@ -20,6 +20,10 @@
 #include "../include/errno.h"
 
 
+#ifndef CPIO_PAD
+#define CPIO_PAD 0x3
+#endif
+
 extern void *programs;
 
 unsigned int programs_a2i(char *s)
@@ -57,7 +61,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 		return -EINVAL;
 
 	for (;;) {
-		if (!hal_strcmp(cpio->name, "000TRAILER!!!"))
+		if (!hal_strcmp(cpio->name, "TRAILER!!!"))
 			break;
 
 		pr = &syspage->progs[syspage->progssz++];
@@ -72,7 +76,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 		fs = programs_a2i(cpio->c_filesize);
 		ns = programs_a2i(cpio->c_namesize);
 
-		cpio = (void *)cpio + sizeof(cpio_newc_t) + ns;
+		cpio = (void *)(((ptr_t)cpio + sizeof(cpio_newc_t) + ns + CPIO_PAD) & ~CPIO_PAD);
 
 		/* Alloc pages for program */
 		sz = ((fs + SIZE_PAGE - 1) / SIZE_PAGE) * SIZE_PAGE;
@@ -90,7 +94,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 		pr->start = (typeof(pr->start))p->addr;
 		pr->end = (typeof(pr->end))p->addr + fs;
 
-		cpio = (void *)cpio + fs;
+		cpio = (void *)(((ptr_t)cpio + fs + CPIO_PAD) & ~CPIO_PAD);
 	}
 #endif
 
