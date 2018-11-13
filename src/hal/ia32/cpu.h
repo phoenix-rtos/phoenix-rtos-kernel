@@ -129,6 +129,8 @@ typedef s64 offs_t;
 typedef unsigned int size_t;
 typedef unsigned long long time_t;
 
+typedef u32 ptr_t;
+
 /* Object identifier - contains server port and object id */
 typedef u64 id_t;
 typedef struct _oid_t {
