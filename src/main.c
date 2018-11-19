@@ -37,7 +37,7 @@ struct {
 void main_initthr(void *unused)
 {
 	int i;
-	syspage_program_t *prog, *last = NULL;
+	syspage_program_t *prog;
 	int xcount = 0;
 	char *cmdline = syspage->arg, *end;
 	char *argv[32], *arg, *argend;
@@ -96,9 +96,7 @@ void main_initthr(void *unused)
 			/* Start program loaded into memory */
 			for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				if (!hal_strcmp(cmdline + 1, prog->cmdline)) {
-					if (!*end)
-						last = prog;
-					else if (!proc_vfork())
+					if (!proc_vfork())
 						proc_execve(prog, prog->cmdline, argv, NULL);
 				}
 			}
@@ -109,11 +107,10 @@ void main_initthr(void *unused)
 
 	if (!xcount && syspage->progssz != 0) {
 		/* Start all syspage programs */
-		for (prog = syspage->progs, i = 0; i < syspage->progssz - 1; i++, prog++) {
+		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 			if (!proc_vfork())
 				proc_execle(prog, prog->cmdline, prog->cmdline, NULL, NULL);
 		}
-		last = prog;
 	}
 
 	/* Reopen stdin, stdout, stderr */
@@ -123,13 +120,10 @@ void main_initthr(void *unused)
 //	proc_fileSet(1, 3, &oid, 0, 0);
 //	proc_fileSet(2, 3, &oid, 0, 0);
 
-	if (last != NULL) {
-		if (!proc_vfork())
-			proc_execve(last, last->cmdline, argv, NULL);
-	}
+	while (proc_waitpid(-1, NULL, 0) != -ECHILD) ;
 
-	for (;;)
-		proc_threadSleep(2000000);
+	/* All init's children are dead at this point */
+	for (;;) proc_threadSleep(100000000);
 }
 
 
