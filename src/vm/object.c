@@ -64,7 +64,6 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 
 	if (*o == NULL) {
-		proc_lockClear(&object_common.lock);
 		sz = proc_size(oid);
 		n = round_page(sz) / SIZE_PAGE;
 
@@ -79,7 +78,6 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 		for (i = 0; i < n; ++i)
 			(*o)->pages[i] = NULL;
 
-		proc_lockSet(&object_common.lock);
 		lib_rbInsert(&object_common.tree, &(*o)->linkage);
 	}
 
