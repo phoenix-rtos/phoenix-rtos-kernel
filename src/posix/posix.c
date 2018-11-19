@@ -393,7 +393,7 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 		if ((err = proc_create(dir.port, type, mode, dev, dir, basename, oid)) < 0)
 			break;
 
-		return EOK;
+		err = EOK;
 	} while (0);
 
 	vm_kfree(name);
