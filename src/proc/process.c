@@ -711,6 +711,7 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		/* Exec into old process, clean up */
 		proc_threadsDestroy(process);
 		proc_portsDestroy(process);
+		proc_resourcesFree(process);
 		vm_mapDestroy(process, &process->map);
 		while ((a = pmap_destroy(&process->map.pmap, &i)))
 			vm_pageFree(_page_get(a));
@@ -720,6 +721,8 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		current->execkstack = NULL;
 		vm_kfree(process->path);
 	}
+
+	resource_init(process);
 
 	vm_mapMove(&process->map, &map);
 	process->mapp = &process->map;
@@ -881,9 +884,6 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 	/* Close cloexec file descriptors */
 	posix_exec();
 
-	/* Initialize resources */
-	resource_init(current->process);
-
 	err = process_exec(prog, process, current, parent, kpath, argc, argv_kstack, envp_kstack);
 	/* Not reached unless process_exec failed */
 
@@ -947,9 +947,6 @@ int proc_execle(syspage_program_t *prog, const char *path, ...)
 
 	/* Close cloexec file descriptors */
 	posix_exec();
-
-	/* Initialize resources tree */
-	resource_init(current->process);
 
 	/* Calculate env[] size */
 
