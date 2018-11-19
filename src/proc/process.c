@@ -172,7 +172,7 @@ void proc_kill(process_t *proc)
 		}
 		else {
 			swap(init->children->next, child->prev->next);
-			swap(init->children->next->prev, child->prev);
+			swap(child->prev->next->prev, child->prev);
 		}
 		proc_lockClear(&init->lock);
 	}
