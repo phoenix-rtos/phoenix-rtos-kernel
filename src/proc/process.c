@@ -157,16 +157,14 @@ void proc_kill(process_t *proc)
 
 	init = proc_find(1);
 
-	proc_lockSet(&proc->lock);
+	proc_lockSet2(&init->lock, &proc->lock);
 	if ((child = proc->children) != NULL) {
 		do
 			child->parent = init;
 		while ((child = child->next) != proc->children);
 
 		proc->children = NULL;
-		proc_lockClear(&proc->lock);
 
-		proc_lockSet(&init->lock);
 		if (init->children == NULL) {
 			init->children = child;
 		}
@@ -174,11 +172,9 @@ void proc_kill(process_t *proc)
 			swap(init->children->next, child->prev->next);
 			swap(child->prev->next->prev, child->prev);
 		}
-		proc_lockClear(&init->lock);
 	}
-	else {
-		proc_lockClear(&proc->lock);
-	}
+	proc_lockClear(&init->lock);
+	proc_lockClear(&proc->lock);
 
 	proc_lockSet(&process_common.lock);
 	lib_rbRemove(&process_common.id, &proc->idlinkage);
