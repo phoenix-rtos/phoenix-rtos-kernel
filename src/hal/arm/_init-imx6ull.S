@@ -444,10 +444,11 @@ set_loop:
 	/* Invalidate TLB */
 	mcr p15, 0, r1, c8, c7, 0
 
-	/* Enable D$ and I$ */
 	mrc p15, 0, r1, c1, c0, 0
-	orr r1, r1, #(1 << 2)
-	orr r1, r1, #(1 << 12)
+	orr r1, r1, #(1 << 2)  /* Enable data cache */
+	orr r1, r1, #(1 << 12) /* Enable instruction cache */
+	orr r1, r1, #(1 << 11) /* Enable branch prediction */
+	bic r1, r1, #(1 << 28) /* Disable TEX remap */
 	mcr p15, 0, r1, c1, c0, 0
 	dsb
 	isb
@@ -506,18 +507,18 @@ kernel_ttl2:
 	str r1, [r0, r2]
 	bne kernel_ttl2
 
-	/* Kernel page directory shall be mapped as uncached */
+	/* Kernel page directory */
 	ldr r1, =(pmap_common - VADDR_KERNEL)
 	add r0, r1, lsr #10
 	add r1, r1, r8
-	orr r1, r1, #0x53
+	orr r1, r1, #0x1f
 	mov r2, #0x1000
 	bl _cpy4
 	bl _cpy4
 	bl _cpy4
 	bl _cpy4
 
-	/* Kernel page tables as well */
+	/* Kernel page tables */
 	bl _cpy4
 	bl _cpy4
 
@@ -587,12 +588,11 @@ kernel_ttl2:
 	str r1, [r0]
 
 	/* Initialize MMU */
-	mrc p15, 0, r1, c2, c0, 2
-	bic r1, r1, #(1UL << 31)
-	orr r1, r1, #1
+	mov r1, #1
 	mcr p15, 0, r1, c2, c0, 2
-
 	ldr r1, =ADDR_TTL1
+	orr r1, r1, #(1 | (1 << 6)) /* Inner cacheability */
+	orr r1, r1, #(3 << 3) /* Outer cacheability */
 	mcr p15, 0, r1, c2, c0, 0
 	mcr p15, 0, r1, c2, c0, 1
 
@@ -954,25 +954,41 @@ hal_cpuGetCycles:
 .size hal_cpuGetCycles, .-hal_cpuGetCycles
 
 
+.globl hal_cpuInvalDataCache
+.type hal_cpuInvalDataCache, %function
+hal_cpuInvalDataCache:
+	ldr r1, =SIZE_CACHE_LINE - 1
+	bic r0, r0, r1
+	mcr p15, 0, r0, c7, c6, 1
+	bx lr
+.size hal_cpuInvalDataCache, .-hal_cpuInvalDataCache
+
+
 .globl hal_cpuFlushDataCache
 .type hal_cpuFlushDataCache, %function
 hal_cpuFlushDataCache:
 	ldr r1, =SIZE_CACHE_LINE - 1
 	bic r0, r0, r1
 	mcr p15, 0, r0, c7, c14, 1
-	isb
 	bx lr
 .size hal_cpuFlushDataCache, .-hal_cpuFlushDataCache
+
+
+.globl hal_cpuCleanDataCache
+.type hal_cpuCleanDataCache, %function
+hal_cpuCleanDataCache:
+	ldr r1, =SIZE_CACHE_LINE - 1
+	bic r0, r0, r1
+	mcr p15, 0, r0, c7, c11, 1
+	bx lr
+.size hal_cpuCleanDataCache, .-hal_cpuCleanDataCache
 
 
 .globl hal_cpuInvalASID
 .type hal_cpuInvalASID, %function
 hal_cpuInvalASID:
 	and r0, r0, #0xff
-	mcr p15, 0, r0, c8, c5, 2
-	mcr p15, 0, r0, c8, c6, 2
 	mcr p15, 0, r0, c8, c7, 2
-	isb
 	bx lr
 .size hal_cpuInvalASID, .-hal_cpuInvalASID
 
@@ -980,10 +996,7 @@ hal_cpuInvalASID:
 .globl hal_cpuInvalTLB
 .type hal_cpuInvalTLB, %function
 hal_cpuInvalTLB:
-	mcr p15, 0, r0, c8, c5, 0
-	mcr p15, 0, r0, c8, c6, 0
 	mcr p15, 0, r0, c8, c7, 0
-	isb
 	bx lr
 .size hal_cpuInvalTLB, .-hal_cpuInvalTLB
 
@@ -991,10 +1004,7 @@ hal_cpuInvalTLB:
 .globl hal_cpuInvalVA
 .type hal_cpuInvalVA, %function
 hal_cpuInvalVA:
-	ldr r1, =SIZE_PAGE - 1
-	bic r0, r0, r1
-	mcr p15, 0, r0, c8, c7, 3
-	isb
+	mcr p15, 0, r0, c8, c7, 1 /* ASID match */
 	bx lr
 .size hal_cpuInvalVA, .-hal_cpuInvalVA
 
@@ -1002,8 +1012,8 @@ hal_cpuInvalVA:
 .globl hal_cpuBranchInval
 .type hal_cpuBranchInval, %function
 hal_cpuBranchInval:
+	mov r0, #0
 	mcr p15, 0, r0, c7, c5, 6
-	isb
 	bx lr
 .size hal_cpuBranchInval, .-hal_cpuBranchInval
 
@@ -1011,8 +1021,8 @@ hal_cpuBranchInval:
 .globl hal_cpuICacheInval
 .type hal_cpuICacheInval, %function
 hal_cpuICacheInval:
+	mov r0, #0
 	mcr p15, 0, r0, c7, c5, 0
-	isb
 	bx lr
 .size hal_cpuICacheInval, .-hal_cpuICacheInval
 
@@ -1029,7 +1039,6 @@ hal_cpuGetUserTT:
 .type hal_cpuSetUserTT, %function
 hal_cpuSetUserTT:
 	mcr p15, 0, r0, c2, c0, 0
-	isb
 	bx lr
 .size hal_cpuSetUserTT, .-hal_cpuSetUserTT
 
@@ -1038,7 +1047,6 @@ hal_cpuSetUserTT:
 .type hal_cpuSetContextId, %function
 hal_cpuSetContextId:
 	mcr p15, 0, r0, c13, c0, 1
-	isb
 	bx lr
 .size hal_cpuSetContextId, .-hal_cpuSetContextId
 
@@ -1055,6 +1063,7 @@ hal_cpuGetContextId:
 .type _hal_cpuSetKernelStack, %function
 _hal_cpuSetKernelStack:
 	mcr p15, 0, r0, c13, c0, 4
+	dsb
 	isb
 	bx lr
 .size _hal_cpuSetKernelStack, .-_hal_cpuSetKernelStack

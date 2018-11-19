@@ -166,13 +166,19 @@ extern void hal_cpuGetCycles(cycles_t *cb);
 /* memory management */
 
 
-extern void hal_cpuFlushDataCache(addr_t vaddr);
+extern void hal_cpuFlushDataCache(void *vaddr);
+
+
+extern void hal_cpuInvalDataCache(void *vaddr);
+
+
+extern void hal_cpuCleanDataCache(void *vaddr);
 
 
 extern void hal_cpuInvalASID(u8 asid);
 
 
-extern void hal_cpuInvalVA(addr_t vaddr);
+extern void hal_cpuInvalVA(u32 vaddr);
 
 
 extern void hal_cpuInvalTLB(void);
@@ -281,7 +287,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
-static inline void hal_cpuDataBarrier(void)
+static inline void hal_cpuDataMemoryBarrier(void)
 {
 	__asm__ volatile ("dmb");
 }

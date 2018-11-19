@@ -125,7 +125,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	/* Create pmap */
 	process->pmapp = p = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
-	process->pmapv = vm_mmap(process_common.kmap, process_common.kmap->start, p, 1 << p->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_UNCACHED);
+	process->pmapv = vm_mmap(process_common.kmap, process_common.kmap->start, p, 1 << p->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_NONE);
 
 	pmap_create(&process->mapp->pmap, &process_common.kmap->pmap, p, process->pmapv);
 #else
@@ -685,7 +685,7 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 	if ((p = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
 		return -ENOMEM;
 
-	if ((v = vm_mmap(process_common.kmap, process_common.kmap->start, p, 1 << p->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_UNCACHED)) == NULL) {
+	if ((v = vm_mmap(process_common.kmap, process_common.kmap->start, p, 1 << p->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_NONE)) == NULL) {
 		vm_pageFree(p);
 		return -ENOMEM;
 	}
@@ -780,7 +780,7 @@ int proc_copyexec(void)
 		hal_jmp(process_exexepilogue, kstack, NULL, 5);
 	}
 
-	if ((process->pmapv = vm_mmap(process_common.kmap, process_common.kmap->start, process->pmapp, 1 << process->pmapp->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_UNCACHED)) == NULL) {
+	if ((process->pmapv = vm_mmap(process_common.kmap, process_common.kmap->start, process->pmapp, 1 << process->pmapp->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_NONE)) == NULL) {
 		vm_pageFree(process->pmapp);
 		PUTONSTACK(kstack, int, -1); /* exec */
 		hal_jmp(process_exexepilogue, kstack, NULL, 5);
