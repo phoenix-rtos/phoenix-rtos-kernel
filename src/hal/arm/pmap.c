@@ -244,6 +244,8 @@ static void _pmap_writeEntry(addr_t *ptable, void *va, addr_t pa, int attributes
 	hal_cpuDataSyncBarrier();
 
 	hal_cpuInvalVA(((u32)va & ~0xfff) | asid);
+
+	hal_cpuICacheInval();
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 }
