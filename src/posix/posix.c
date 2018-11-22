@@ -1766,7 +1766,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		msg.i.attr.val = fds[i].events;
 
 		if (posix_getOpenFile(fds[i].fd, &f) < 0) {
-			err = -EBADF;
+			err = POLLNVAL;
 		}
 		else {
 			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
@@ -1776,7 +1776,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		}
 
 		if (err < 0)
-			fds[i].revents |= POLLNVAL;
+			fds[i].revents |= POLLHUP;
 		else if (err > 0)
 			fds[i].revents |= err;
 
