@@ -509,6 +509,8 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 	/* Map executable */
 	process_load(process, current, prog, path, argc, argv, envp, &stack, &entry);
 
+	resource_init(process);
+
 	if (parent == NULL)
 		process_exexepilogue(1, current, parent, entry, stack);
 
