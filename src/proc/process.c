@@ -153,7 +153,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
-	process_t *child, *init;
+	process_t *child, *zombie, *init;
 
 	init = proc_find(1);
 
@@ -172,6 +172,20 @@ void proc_kill(process_t *proc)
 			swap(init->children->next, child->prev->next);
 			swap(child->prev->next->prev, child->prev);
 		}
+	}
+
+	if ((zombie = proc->zombies) != NULL) {
+		proc->zombies = NULL;
+
+		if (init->zombies == NULL) {
+			init->zombies = zombie;
+		}
+		else {
+			swap(init->zombies->next, zombie->prev->next);
+			swap(zombie->prev->next->prev, zombie->prev);
+		}
+
+		proc_threadWakeup(&init->waitq);
 	}
 	proc_lockClear(&init->lock);
 	proc_lockClear(&proc->lock);
