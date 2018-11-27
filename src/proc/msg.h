@@ -23,7 +23,11 @@
 
 
 typedef struct _kmsg_t {
+#ifndef NOMMU
 	msg_t msg;
+#else
+	msg_t *msg;
+#endif
 
 	struct _kmsg_t *next;
 	struct _kmsg_t *prev;

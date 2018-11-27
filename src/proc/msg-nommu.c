@@ -37,14 +37,13 @@ int proc_send(u32 port, msg_t *msg)
 
 	sender = proc_current();
 
-
-	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
+	kmsg.msg = msg;
 	kmsg.src = sender->process;
 	kmsg.threads = NULL;
 	kmsg.responded = 0;
 
-	kmsg.msg.pid = (sender->process != NULL) ? sender->process->id : 0;
-	kmsg.msg.priority = sender->priority;
+	kmsg.msg->pid = (sender->process != NULL) ? sender->process->id : 0;
+	kmsg.msg->priority = sender->priority;
 
 	hal_spinlockSet(&p->spinlock);
 
@@ -63,8 +62,6 @@ int proc_send(u32 port, msg_t *msg)
 	hal_spinlockClear(&p->spinlock);
 
 	port_put(p, 0);
-
-	hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
 
 	return responded < 0 ? -EINVAL : err;
 }
@@ -108,7 +105,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	/* (MOD) */
 	(*rid) = (unsigned long)(kmsg);
 
-	hal_memcpy(msg, &kmsg->msg, sizeof(*msg));
+	hal_memcpy(msg, kmsg->msg, sizeof(*msg));
 
 	port_put(p, 0);
 	return EOK;
@@ -124,7 +121,7 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
-	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
+	hal_memcpy(kmsg->msg->o.raw, msg->o.raw, sizeof(msg->o.raw));
 
 	hal_spinlockSet(&p->spinlock);
 	kmsg->responded = 1;
