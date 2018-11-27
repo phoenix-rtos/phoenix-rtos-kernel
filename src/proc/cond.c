@@ -93,6 +93,9 @@ int proc_condSignal(process_t *process, unsigned int c)
 	}
 
 	proc_threadWakeupYield(&rc->waitq);
+
+	resource_put(process, rc);
+
 	return err;
 }
 
@@ -111,6 +114,9 @@ int proc_condBroadcast(process_t *process, unsigned int c)
 	}
 
 	proc_threadBroadcastYield(&rc->waitq);
+
+	resource_put(process, rc);
+
 	return err;
 }
 
