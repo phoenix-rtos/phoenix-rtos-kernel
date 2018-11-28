@@ -160,6 +160,9 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 			break;
 
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
+		t->wakeup = 0;
+		hal_cpuSetReturnValue(t->context, -ETIME);
+
 		t->state = READY;
 
 		if (t->wait != NULL) {
@@ -688,7 +691,8 @@ int proc_threadSleep(unsigned int us)
 
 	_threads_updateWakeup(now, NULL);
 
-	err = hal_cpuReschedule(&threads_common.spinlock);
+	if ((err = hal_cpuReschedule(&threads_common.spinlock)) == -ETIME)
+		err = EOK;
 
 	proc_threadProtect();
 
@@ -728,11 +732,6 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
 	hal_spinlockClear(&threads_common.spinlock);
 	err = hal_cpuReschedule(spinlock);
 	hal_spinlockSet(spinlock);
-
-	hal_spinlockSet(&threads_common.spinlock);
-	if (current->wakeup)
-		err = -ETIME;
-	hal_spinlockClear(&threads_common.spinlock);
 
 	return err;
 }
