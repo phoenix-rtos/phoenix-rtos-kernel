@@ -39,8 +39,10 @@ typedef struct _process_t {
 	rbnode_t idlinkage;
 
 	struct _process_t *zombies;
-	struct _thread_t *waitq;
+	struct _thread_t *ghosts;
+	struct _thread_t *waitq, *gwaitq;
 	int waitpid;
+	int waittid;
 
 	enum { NORMAL = 0, ZOMBIE } state;
 

@@ -113,6 +113,9 @@ extern void proc_threadsDestroy(process_t *proc);
 extern int proc_waitpid(int pid, int *stat, int options);
 
 
+extern int proc_waittid(int pid, int options);
+
+
 extern int proc_threadsList(int n, threadinfo_t *info);
 
 

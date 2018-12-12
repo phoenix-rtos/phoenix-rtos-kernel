@@ -112,6 +112,9 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	process->ports = NULL;
 	process->zombies = NULL;
+	process->ghosts = NULL;
+	process->gwaitq = NULL;
+	process->waittid = 0;
 
 	process->sigpend = 0;
 	process->sigmask = 0;
@@ -381,6 +384,9 @@ int proc_vfork(void)
 	process->sighandler = parent->sighandler;
 	process->zombies = NULL;
 
+	process->ghosts = NULL;
+	process->gwaitq = NULL;
+	process->waittid = 0;
 //	vm_mapCreate(&process->map, (void *)VADDR_MIN, process_common.kmap->start);
 //	vm_mapCopy(&parent->mapp, process->mapp);
 

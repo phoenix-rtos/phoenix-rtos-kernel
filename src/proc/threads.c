@@ -506,6 +506,8 @@ void proc_threadUnprotect(void)
 }
 
 
+static void _proc_threadWakeup(thread_t **queue);
+
 void proc_threadDestroy(void)
 {
 	thread_t *thr = proc_current();
@@ -525,7 +527,14 @@ void proc_threadDestroy(void)
 
 	hal_spinlockSet(&threads_common.spinlock);
 	threads_common.current[hal_cpuGetID()] = NULL;
-	LIST_ADD(&threads_common.ghosts, thr);
+	if (zombie || proc == NULL) {
+		LIST_ADD(&threads_common.ghosts, thr);
+	}
+	else {
+		LIST_ADD(&proc->ghosts, thr);
+		if (proc->gwaitq != NULL)
+			_proc_threadWakeup(&proc->gwaitq);
+	}
 	hal_cpuReschedule(&threads_common.spinlock);
 }
 
@@ -562,6 +571,18 @@ void proc_threadsDestroy(process_t *proc)
 
 		LIST_ADD(&threads_common.ghosts, t);
 		LIST_REMOVE_EX(&proc->threads, t, procnext, procprev);
+	}
+
+	if ((t = proc->ghosts) != NULL) {
+		proc->ghosts = NULL;
+
+		if (threads_common.ghosts == NULL) {
+			threads_common.ghosts = t;
+		}
+		else {
+			swap(threads_common.ghosts->next, t->prev->next);
+			swap(t->prev->next->prev, t->prev);
+		}
 	}
 	hal_spinlockClear(&threads_common.spinlock);
 
@@ -700,18 +721,14 @@ int proc_threadSleep(unsigned int us)
 }
 
 
-int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
+static void _proc_threadEnqueue(thread_t **queue, time_t timeout)
 {
-	int err = EOK;
 	thread_t *current;
 	time_t now;
 
-	hal_spinlockSet(&threads_common.spinlock);
-
 	if (*queue == (void *)(-1)) {
 		(*queue) = NULL;
-		hal_spinlockClear(&threads_common.spinlock);
-		return err;
+		return;
 	}
 
 	current = threads_common.current[hal_cpuGetID()];
@@ -727,6 +744,36 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
 		current->wakeup = now + TIMER_US2CYC(timeout);
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 		_threads_updateWakeup(now, NULL);
+	}
+}
+
+
+static int _proc_threadWait(thread_t **queue, time_t timeout)
+{
+	int err;
+
+	_proc_threadEnqueue(queue, timeout);
+
+	if (*queue == NULL)
+		return EOK;
+
+	err = hal_cpuReschedule(&threads_common.spinlock);
+	hal_spinlockSet(&threads_common.spinlock);
+
+	return err;
+}
+
+
+int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
+{
+	int err;
+
+	hal_spinlockSet(&threads_common.spinlock);
+	_proc_threadEnqueue(queue, timeout);
+
+	if (*queue == NULL) {
+		hal_spinlockClear(&threads_common.spinlock);
+		return EOK;
 	}
 
 	hal_spinlockClear(&threads_common.spinlock);
@@ -853,6 +900,49 @@ int proc_waitpid(int pid, int *stat, int options)
 
 	if (z != NULL)
 		proc_cleanupZombie(z);
+
+	return err;
+}
+
+
+int proc_waittid(int tid, int options)
+{
+	int err = 0;
+	process_t *proc = proc_current()->process;
+	thread_t *g;
+
+	hal_spinlockSet(&threads_common.spinlock);
+	proc->waittid = tid;
+
+	for (;;) {
+		if ((g = proc->ghosts) != NULL) {
+			do {
+				if (tid == -1 || g->id == tid) {
+					err = g->id;
+					break;
+				}
+
+				g = g->next;
+			} while (g != proc->ghosts);
+
+			if (!err)
+				g = NULL;
+		}
+
+		if (err || (options & 1) || (err = _proc_threadWait(&proc->gwaitq, 0)))
+			break;
+	}
+
+	if (g != NULL) {
+		err = g->id;
+		LIST_REMOVE(&proc->ghosts, g);
+	}
+
+	proc->waittid = 0;
+	hal_spinlockClear(&threads_common.spinlock);
+
+	if (g != NULL)
+		proc_cleanupGhost(g);
 
 	return err;
 }

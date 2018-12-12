@@ -145,6 +145,17 @@ int syscalls_sys_waitpid(void *ustack)
 }
 
 
+int syscalls_sys_waittid(void *ustack)
+{
+	int tid, options;
+
+	GETFROMSTACK(ustack, int, tid, 0);
+	GETFROMSTACK(ustack, int, options, 1);
+
+	return proc_waittid(tid, options);
+}
+
+
 int syscalls_getpid(void *ustack)
 {
 	return proc_current()->process->id;
