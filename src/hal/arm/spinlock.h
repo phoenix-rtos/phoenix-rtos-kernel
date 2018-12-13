@@ -58,7 +58,7 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 		ldrexb r1, [%0]; \
 		add r1, r1, #1;	\
 		dmb; \
-		strexb r2, r1, [%0];  \
+		strb r1, [%0];  \
 		ldrb r1, [%1]; \
 		msr cpsr_c, r1;"
 	:
