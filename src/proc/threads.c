@@ -1401,7 +1401,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 		else {
 			map = threads_common.kmap;
-			hal_memcpy(info[i].name, "idle thread", sizeof("idle thread"));
+			hal_memcpy(info[i].name, "[idle]", sizeof("[idle]"));
 		}
 
 		info[i].vmem = 0;
