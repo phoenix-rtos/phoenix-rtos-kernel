@@ -526,6 +526,10 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 
 	process->path = path;
 
+	process->sigpend = 0;
+	process->sigmask = 0;
+	process->sighandler = NULL;
+
 	/* Map executable */
 	process_load(process, current, prog, path, argc, argv, envp, &stack, &entry);
 
@@ -741,6 +745,10 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 	}
 
 	resource_init(process);
+
+	process->sigpend = 0;
+	process->sigmask = 0;
+	process->sighandler = NULL;
 
 	vm_mapMove(&process->map, &map);
 	process->mapp = &process->map;
