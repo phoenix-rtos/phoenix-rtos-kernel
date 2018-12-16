@@ -137,6 +137,10 @@ static int posix_getOpenFile(int fd, open_file_t **f)
 		proc_lockClear(&p->lock);
 		return -EBADF;
 	}
+
+	proc_lockSet(&(*f)->lock);
+	(*f)->refs++;
+	proc_lockClear(&(*f)->lock);
 	proc_lockClear(&p->lock);
 
 	return 0;
@@ -542,20 +546,12 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 	TRACE("read(%d, %p, %u)", fildes, buf, nbyte);
 
 	open_file_t *f;
-	process_info_t *p;
-	int rcnt, flags = 0;
+	int rcnt, flags = 0, err;
 	off_t offs;
 	unsigned int status;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
-
-	proc_lockSet(&p->lock);
-	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
-		proc_lockClear(&p->lock);
-		return -EBADF;
-	}
-	proc_lockClear(&p->lock);
+	if ((err = posix_getOpenFile(fildes, &f)))
+		return err;
 
 	proc_lockSet(&f->lock);
 	offs = f->offset;
@@ -566,19 +562,23 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 		if (status & O_NONBLOCK)
 			flags = MSG_DONTWAIT;
 
-		if ((rcnt = unix_recvfrom(f->oid.id, buf, nbyte, flags, NULL, NULL)) < 0)
-			return rcnt;
+		rcnt = unix_recvfrom(f->oid.id, buf, nbyte, flags, NULL, 0);
 	}
-	else if ((rcnt = proc_read(f->oid, offs, buf, nbyte, status)) < 0) {
-		return rcnt;
+	else {
+		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
 	}
 
-	proc_lockSet(&f->lock);
-	f->offset += rcnt;
-	proc_lockClear(&f->lock);
+	if (rcnt > 0) {
+		proc_lockSet(&f->lock);
+		f->offset += rcnt;
+		proc_lockClear(&f->lock);
+	}
+
+	posix_fileDeref(f);
 
 	return rcnt;
 }
+
 
 
 int posix_write(int fildes, void *buf, size_t nbyte)
@@ -586,20 +586,12 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 	TRACE("write(%d, %p, %u)", fildes, buf, nbyte);
 
 	open_file_t *f;
-	process_info_t *p;
-	int rcnt, flags = 0;
+	int rcnt, flags = 0, err;
 	off_t offs;
 	unsigned int status;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
-
-	proc_lockSet(&p->lock);
-	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
-		proc_lockClear(&p->lock);
-		return -EBADF;
-	}
-	proc_lockClear(&p->lock);
+	if ((err = posix_getOpenFile(fildes, &f)))
+		return err;
 
 	proc_lockSet(&f->lock);
 	offs = f->offset;
@@ -610,16 +602,19 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 		if (status & O_NONBLOCK)
 			flags = MSG_DONTWAIT;
 
-		if ((rcnt = unix_sendto(f->oid.id, buf, nbyte, flags, NULL, 0)) < 0)
-			return rcnt;
+		rcnt = unix_sendto(f->oid.id, buf, nbyte, flags, NULL, 0);
 	}
-	if ((rcnt = proc_write(f->oid, offs, buf, nbyte, status)) < 0) {
-		return rcnt;
+	else {
+		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
 	}
 
-	proc_lockSet(&f->lock);
-	f->offset += rcnt;
-	proc_lockClear(&f->lock);
+	if (rcnt > 0) {
+		proc_lockSet(&f->lock);
+		f->offset += rcnt;
+		proc_lockClear(&f->lock);
+	}
+
+	posix_fileDeref(f);
 
 	return rcnt;
 }
@@ -652,11 +647,10 @@ int posix_dup(int fildes)
 
 		p->fds[newfd].file = f;
 		p->fds[newfd].flags = 0;
-		proc_lockClear(&p->lock);
-
 		proc_lockSet(&f->lock);
 		f->refs++;
 		proc_lockClear(&f->lock);
+		proc_lockClear(&p->lock);
 
 		return newfd;
 	} while (0);
@@ -952,19 +946,10 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 	TRACE("seek(%d, %d, %d)", fildes, offset, whence);
 
 	open_file_t *f;
-	process_info_t *p;
-	int scnt, sz;
+	int scnt, sz, err;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
-
-	proc_lockSet(&p->lock);
-	if (fildes < 0 || fildes > p->maxfd || (f = p->fds[fildes].file) == NULL) {
-		proc_lockClear(&p->lock);
-		return -EBADF;
-	}
-
-	proc_lockClear(&p->lock);
+	if ((err = posix_getOpenFile(fildes, &f)))
+		return err;
 
 	if (whence == SEEK_END)
 		sz = proc_size(f->oid);
@@ -993,6 +978,8 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 	}
 	proc_lockClear(&f->lock);
 
+	posix_fileDeref(f);
+
 	return scnt;
 }
 
@@ -1007,6 +994,7 @@ int posix_ftruncate(int fildes, off_t length)
 	if (!(err = posix_getOpenFile(fildes, &f)))
 		err = posix_truncate(&f->oid, length);
 
+	posix_fileDeref(f);
 	return err;
 }
 
@@ -1088,6 +1076,8 @@ int posix_fstat(int fd, struct stat *buf)
 			buf->st_gid = 0;
 			buf->st_size = proc_size(f->oid);
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1206,6 +1196,8 @@ static int posix_fcntlSetFl(int fd, int val)
 			err = _sock_setfl(f, val);
 		else
 			f->status = (val & ~ignorefl) | (f->status & ignorefl);
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1223,6 +1215,8 @@ static int posix_fcntlGetFl(int fd)
 		else {
 			err = f->status;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1379,6 +1373,8 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 
 			err = ioctl_processResponse(&msg, request, data);
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1470,6 +1466,8 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 			if (flags & SOCK_CLOEXEC)
 				posix_fcntlSetFd(fd, FD_CLOEXEC);
 		}
+
+		posix_fileDeref(f);
 	}
 
 	if (err < 0) {
@@ -1506,6 +1504,8 @@ int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1531,6 +1531,8 @@ int posix_connect(int socket, const struct sockaddr *address, socklen_t address_
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1556,6 +1558,8 @@ int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_l
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1581,6 +1585,8 @@ int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_l
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1606,6 +1612,8 @@ int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1631,6 +1639,8 @@ int posix_listen(int socket, int backlog)
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1656,6 +1666,8 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1681,6 +1693,8 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1706,6 +1720,8 @@ int posix_shutdown(int socket, int how)
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1729,6 +1745,8 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 			err = -ENOTSOCK;
 			break;
 		}
+
+		posix_fileDeref(f);
 	}
 
 	return err;
@@ -1770,6 +1788,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		}
 		else {
 			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
+			posix_fileDeref(f);
 
 			if (!(err = proc_send(msg.i.attr.oid.port, &msg)))
 				err = msg.o.attr.val;
