@@ -198,11 +198,17 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		proc_lockClear(&name_common.dcache_lock);
 	}
 
-	if (!name_common.root_registered && !i)
+	if (!name_common.root_registered && !i) {
+		if (pheap != NULL)
+			vm_kfree(pheap);
 		return -EINVAL;
+	}
 
-	if ((msg = vm_kmalloc(sizeof(msg_t))) == NULL)
+	if ((msg = vm_kmalloc(sizeof(msg_t))) == NULL) {
+		if (pheap != NULL)
+			vm_kfree(pheap);
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 	msg->type = mtLookup;
@@ -237,6 +243,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		*dev = msg->o.lookup.dev;
 
 	vm_kfree(msg);
+	if (pheap != NULL)
+		vm_kfree(pheap);
 	return err < 0 ? err : EOK;
 #endif
 
