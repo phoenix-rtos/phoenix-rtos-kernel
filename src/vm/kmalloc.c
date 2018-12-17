@@ -34,7 +34,6 @@ struct {
 
 	unsigned int zonehdrs;
 	lock_t lock;
-//	spinlock_t spinlock;	
 } kmalloc_common;
 
 
@@ -150,7 +149,6 @@ void *vm_kmalloc(size_t size)
 		return NULL;
 
 	proc_lockSet(&kmalloc_common.lock);
-//	hal_spinlockSet(&kmalloc_common.spinlock);
 
 	if (kmalloc_common.hdrblocks == 1)
 		err = _kmalloc_addZone(hdridx, hdridx);
@@ -163,7 +161,7 @@ void *vm_kmalloc(size_t size)
 		b = _kmalloc_alloc(hdridx, idx);
 
 	proc_lockClear(&kmalloc_common.lock);
-//	hal_spinlockClear(&kmalloc_common.spinlock);
+
 	return b;
 }
 
@@ -201,7 +199,6 @@ void vm_kfree(void *p)
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *))
 		return;
 
-//	hal_spinlockSet(&kmalloc_common.spinlock);
 	proc_lockSet(&kmalloc_common.lock);
 
 	for (;;) {
@@ -212,7 +209,6 @@ void vm_kfree(void *p)
 	}
 
 	proc_lockClear(&kmalloc_common.lock);
-//	hal_spinlockClear(&kmalloc_common.spinlock);
 }
 
 
@@ -249,7 +245,6 @@ int _kmalloc_init(void)
 
 	lib_printf("vm: Initializing kernel memory allocator: ");
 
-//	hal_spinlockCreate(&kmalloc_common.spinlock, "kmalloc_common.spinlock");
 	proc_lockInit(&kmalloc_common.lock);
 
 	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
