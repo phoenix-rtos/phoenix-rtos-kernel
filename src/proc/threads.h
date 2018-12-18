@@ -89,6 +89,9 @@ typedef struct _thread_t {
 } thread_t;
 
 
+extern int perf_start(unsigned pid, time_t maxDuration, void *buffer, size_t bufsz);
+
+
 extern thread_t *proc_current(void);
 
 

@@ -56,6 +56,12 @@ struct {
 
 	thread_t * volatile ghosts;
 	process_t * volatile zombies;
+
+	thread_t *perfThread;
+	unsigned perfEventsSize;
+	volatile unsigned perfEventsCount;
+	unsigned long perfPid;
+	perf_event_t *perfEvents;
 } threads_common;
 
 
@@ -92,6 +98,93 @@ static int threads_idcmp(rbnode_t *n1, rbnode_t *n2)
 		return 1;
 
 	return 0;
+}
+
+
+/*
+ * Thread monitoring
+ */
+
+static inline time_t _threads_getTimer(void);
+static void _proc_threadWakeup(thread_t **queue);
+static int _proc_threadWait(thread_t **queue, time_t timeout);
+
+/* Note: always called with threads_common.spinlock set */
+static void perf_event(thread_t *t, int type)
+{
+	perf_event_t *ev;
+
+	if (!threads_common.perfEventsSize)
+		return;
+
+	if (threads_common.perfPid != -1 && (t->process == NULL || t->process->id != threads_common.perfPid))
+		return;
+
+	ev = threads_common.perfEvents + threads_common.perfEventsCount;
+
+	ev->type = type;
+	ev->timestamp = TIMER_CYC2US(_threads_getTimer());
+	ev->timeout = TIMER_CYC2US(t->wakeup);
+
+	ev->tid = t->id;
+	ev->pid = t->process != NULL ? t->process->id : -1;
+
+	threads_common.perfEventsCount++;
+
+	if (threads_common.perfEventsCount == threads_common.perfEventsSize) {
+		threads_common.perfEventsSize = 0;
+		threads_common.perfEvents = NULL;
+		_proc_threadWakeup(&threads_common.perfThread);
+	}
+}
+
+
+static void perf_scheduling(thread_t *t)
+{
+	perf_event(t, perf_sche);
+}
+
+
+static void perf_enqueued(thread_t *t)
+{
+	perf_event(t, perf_enqd);
+}
+
+
+static void perf_waking(thread_t *t)
+{
+	perf_event(t, perf_wkup);
+}
+
+
+int perf_start(unsigned pid, time_t maxDuration, void *buffer, size_t bufsz)
+{
+	int err = 0;
+	int count;
+	void *kaddr = vm_kmalloc(bufsz);
+
+	if (kaddr == NULL)
+		return -ENOMEM;
+
+	hal_spinlockSet(&threads_common.spinlock);
+	threads_common.perfPid = pid;
+	threads_common.perfEvents = kaddr;
+	threads_common.perfEventsCount = 0;
+	threads_common.perfEventsSize = bufsz / sizeof(perf_event_t);
+
+	while (threads_common.perfEventsSize && err != -ETIME)
+		err = _proc_threadWait(&threads_common.perfThread, maxDuration);
+
+	count = threads_common.perfEventsCount;
+
+	threads_common.perfEvents = NULL;
+	threads_common.perfEventsSize = 0;
+	hal_spinlockClear(&threads_common.spinlock);
+
+	hal_memcpy(buffer, kaddr, count * sizeof(perf_event_t));
+	vm_kfree(kaddr);
+
+	return count;
 }
 
 
@@ -158,6 +251,8 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 		if (t == NULL || t->wakeup > now)
 			break;
+
+		perf_waking(t);
 
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
 		t->wakeup = 0;
@@ -341,6 +436,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 		}
 
+		perf_scheduling(selected);
 		hal_cpuRestore(context, selected->context);
 	}
 
@@ -710,6 +806,8 @@ int proc_threadSleep(unsigned int us)
 
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 
+	perf_enqueued(current);
+
 	_threads_updateWakeup(now, NULL);
 
 	if ((err = hal_cpuReschedule(&threads_common.spinlock)) == -ETIME)
@@ -745,6 +843,8 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout)
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 		_threads_updateWakeup(now, NULL);
 	}
+
+	perf_enqueued(current);
 }
 
 
@@ -789,6 +889,8 @@ static void _proc_threadWakeup(thread_t **queue)
 	thread_t *first;
 
 	first = *queue;
+	perf_waking(first);
+
 	LIST_REMOVE(queue, first);
 
 	if (first->wakeup != 0)
@@ -1436,6 +1538,12 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.ghosts = NULL;
 	threads_common.zombies = NULL;
 	threads_common.utcoffs = 0;
+
+	threads_common.perfEvents = NULL;
+	threads_common.perfEventsCount = 0;
+	threads_common.perfEventsSize = 0;
+	threads_common.perfThread = NULL;
+
 	proc_lockInit(&threads_common.lock);
 
 #ifndef CPU_STM32

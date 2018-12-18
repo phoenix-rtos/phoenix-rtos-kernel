@@ -78,4 +78,12 @@ typedef struct _meminfo_t {
 } meminfo_t;
 
 
+typedef struct {
+		enum { perf_sche, perf_enqd, perf_wkup } type;
+		time_t timestamp;
+		time_t timeout;
+		unsigned long tid;
+		unsigned long pid;
+} perf_event_t;
+
 #endif

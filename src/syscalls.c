@@ -286,6 +286,22 @@ int syscalls_syspageprog(void *ustack)
 }
 
 
+int syscalls_perf(void *ustack)
+{
+	unsigned pid;
+	time_t maxDuration;
+	void *buffer;
+	size_t bufsz;
+
+	GETFROMSTACK(ustack, unsigned, pid, 0);
+	GETFROMSTACK(ustack, time_t, maxDuration, 1);
+	GETFROMSTACK(ustack, void *, buffer, 2);
+	GETFROMSTACK(ustack, size_t, bufsz, 3);
+
+	return perf_start(pid, maxDuration, buffer, bufsz);
+}
+
+
 /*
  * Mutexes
  */
