@@ -1282,6 +1282,8 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 
 #define _IOC(inout,group,num,len)	((unsigned long) (inout | ((len & IOCPARM_MASK) << 16) | ((group) << 8) | (num)))
 #define SIOCGIFCONF			_IOC(IOC_INOUT, 'S', 0x12, sizeof(struct ifconf))
+#define SIOCADDRT			_IOC(IOC_IN, 'S', 0x44, sizeof(struct rtentry))
+#define SIOCDELRT			_IOC(IOC_IN, 'S', 0x45, sizeof(struct rtentry))
 
 
 void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
@@ -1321,9 +1323,14 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 
 	/* ioctl special case: arg is structure with pointer - has to be custom-packed into message */
 	if (request == SIOCGIFCONF) {
-		struct ifconf* ifc = (struct ifconf*) data;
+		struct ifconf *ifc = (struct ifconf*) data;
 		msg->o.data = ifc->ifc_buf;
 		msg->o.size = ifc->ifc_len;
+	}
+	else if (request == SIOCADDRT || request == SIOCDELRT) {
+		struct rtentry *rt = (struct rtentry *)data;
+		msg->o.data = rt->rt_dev;
+		msg->o.size = hal_strlen(rt->rt_dev) + 1;
 	}
 }
 
