@@ -95,6 +95,20 @@ struct ifconf {
 	char *ifc_buf;  /* buffer address */
 };
 
+/* SIOADDRT and SIOCDELRT ioctls special case: arg is structure with pointer */
+struct rtentry
+{
+	struct sockaddr rt_dst;
+    struct sockaddr rt_gateway;
+    struct sockaddr rt_genmask;
+    short           rt_flags;
+    short           rt_metric;
+    char            *rt_dev;
+    unsigned long   rt_mss;
+    unsigned long   rt_window;
+    unsigned short  rt_irtt;
+};
+
 extern void splitname(char *path, char **base, char **dir);
 
 
