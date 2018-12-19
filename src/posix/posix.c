@@ -1329,8 +1329,10 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 	}
 	else if (request == SIOCADDRT || request == SIOCDELRT) {
 		struct rtentry *rt = (struct rtentry *)data;
-		msg->o.data = rt->rt_dev;
-		msg->o.size = hal_strlen(rt->rt_dev) + 1;
+		if (rt->rt_dev != NULL) {
+			msg->o.data = rt->rt_dev;
+			msg->o.size = hal_strlen(rt->rt_dev) + 1;
+		}
 	}
 }
 
