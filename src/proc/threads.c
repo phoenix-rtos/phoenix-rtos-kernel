@@ -113,6 +113,19 @@ static int _proc_threadWait(thread_t **queue, time_t timeout);
 static void perf_event(thread_t *t, int type)
 {
 	perf_event_t *ev;
+	time_t now = 0, wait;
+
+	now = TIMER_CYC2US(_threads_getTimer());
+
+	if (type == perf_event_waking || type == perf_event_preempted) {
+		t->readyTime = now;
+	}
+	else if (type == perf_event_scheduling) {
+		wait = now - t->readyTime;
+
+		if (t->maxWait < wait)
+			t->maxWait = wait;
+	}
 
 	if (!threads_common.perfEventsSize)
 		return;
@@ -123,7 +136,7 @@ static void perf_event(thread_t *t, int type)
 	ev = threads_common.perfEvents + threads_common.perfEventsCount;
 
 	ev->type = type;
-	ev->timestamp = TIMER_CYC2US(_threads_getTimer());
+	ev->timestamp = now;
 	ev->timeout = TIMER_CYC2US(t->wakeup);
 
 	ev->tid = t->id;
@@ -141,19 +154,25 @@ static void perf_event(thread_t *t, int type)
 
 static void perf_scheduling(thread_t *t)
 {
-	perf_event(t, perf_sche);
+	perf_event(t, perf_event_scheduling);
+}
+
+
+static void perf_preempted(thread_t *t)
+{
+	perf_event(t, perf_event_preempted);
 }
 
 
 static void perf_enqueued(thread_t *t)
 {
-	perf_event(t, perf_enqd);
+	perf_event(t, perf_event_enqueued);
 }
 
 
 static void perf_waking(thread_t *t)
 {
-	perf_event(t, perf_wkup);
+	perf_event(t, perf_event_waking);
 }
 
 
@@ -416,8 +435,10 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		current->context = context;
 
 		/* Move thread to the end of queue */
-		if (current->state == READY)
+		if (current->state == READY) {
 			LIST_ADD(&threads_common.ready[current->priority], current);
+			perf_preempted(current);
+		}
 	}
 
 	/* Get next thread */
@@ -562,6 +583,9 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 
 	/* Insert thread to scheduler queue */
 	hal_spinlockSet(&threads_common.spinlock);
+	t->maxWait = 0;
+	perf_waking(t);
+
 	LIST_ADD(&threads_common.ready[priority], t);
 	if (current != NULL && current->flags & thread_killme)
 		t->flags |= thread_killme;
@@ -1468,6 +1492,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
+	time_t now;
 
 	proc_lockSet(&threads_common.lock);
 
@@ -1489,6 +1514,15 @@ int proc_threadsList(int n, threadinfo_t *info)
 #endif
 		info[i].priority = t->priority;
 		info[i].state = t->state;
+
+		hal_spinlockSet(&threads_common.spinlock);
+		now = TIMER_CYC2US(_threads_getTimer());
+
+		if (t->state == READY && t->maxWait < now - t->readyTime)
+			info[i].wait = now - t->readyTime;
+		else
+			info[i].wait = t->maxWait;
+		hal_spinlockClear(&threads_common.spinlock);
 
 		if (t->process != NULL) {
 			map = t->process->mapp;

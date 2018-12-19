@@ -81,6 +81,9 @@ typedef struct _thread_t {
 	volatile enum { READY = 0, SLEEP = 1 } state;
 	char execfl;
 
+	time_t readyTime;
+	time_t maxWait;
+
 #ifndef CPU_STM32
 	cpu_load_t load;
 #endif

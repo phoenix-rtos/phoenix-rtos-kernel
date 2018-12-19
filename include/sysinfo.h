@@ -37,6 +37,7 @@ typedef struct _threadinfo_t {
 	int priority;
 	int state;
 	int vmem;
+	time_t wait;
 
 	char name[32];
 } threadinfo_t;
@@ -79,7 +80,7 @@ typedef struct _meminfo_t {
 
 
 typedef struct {
-		enum { perf_sche, perf_enqd, perf_wkup } type;
+		enum { perf_event_scheduling, perf_event_enqueued, perf_event_waking, perf_event_preempted } type;
 		time_t timestamp;
 		time_t timeout;
 		unsigned long tid;
