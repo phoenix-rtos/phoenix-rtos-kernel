@@ -16,7 +16,7 @@ SRCS += hal.c pmap.c spinlock.c syspage.c cpu.c interrupts.c exceptions.c timer.
 OBJS = $(ASMS:.S=.o) $(SRCS:.c=.o)
 
 
-all: check memtest $(ARCH)
+all: check $(ARCH)
 
 
 check:
@@ -27,38 +27,10 @@ check:
 
 
 .c.o:
-	@(printf " CC  %-24s  " "$<"; $(CC) -c $(CFLAGS) $<)
-
-	@(file="$@"; \
-	datasz=0;\
-	textsz=0;\
-	rodatasz=0;\
-	for i in `$(OBJDUMP) -t $$file | grep -e " O " | grep -v ".rodata" | awk '{ print $$4 }'`; do \
-		datasz=`echo $$(($$datasz + 0x$$i))`;\
-	done; \
-	for i in `$(OBJDUMP) -t $$file | grep -e " O " | grep ".rodata" | awk '{ print $$5 }'`; do \
-                rodatasz=`echo $$(($$rodatasz + 0x$$i))`;\
-        done; \
-	for i in `$(OBJDUMP) -t $$file | grep -e " F " | awk '{ print $$5 }'`; do \
-		textsz=`echo $$(($$textsz + 0x$$i))`;\
-	done;\
-	printf "data=%-5d  text=%-5d  rodata=%-5d\n" $$datasz $$textsz $$rodatasz)
-
+	@(printf "CC  hal/arm/%-24s\n" "$<"; $(CC) -c $(CFLAGS) $< )
 
 .S.o:
-	@(printf " ASM %-24s  " "$<"; $(CC) -c $(CFLAGS) $<)
-
-	@(file="$@"; \
-	datasz=0;\
-	textsz=0;\
-	for i in `$(OBJDUMP) -t $$file | grep -e " O " | awk '{ print $$5 }'`; do \
-		datasz=`echo $$(($$datasz + 0x$$i))`;\
-	done; \
-	for i in `$(OBJDUMP) -t $$file | grep -e " F " | awk '{ print $$5 }'`; do \
-		textsz=`echo $$(($$textsz + 0x$$i))`;\
-	done;\
-	printf "data=%-5d  text=%-5d\n" $$datasz $$textsz)
-
+	@(printf "ASM hal/arm/%-24s\n" "$<"; $(CC) -c $(CFLAGS) $< )
 
 -include .depend
 
