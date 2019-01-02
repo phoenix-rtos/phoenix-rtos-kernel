@@ -13,17 +13,16 @@
  * %LICENSE%
  */
 
-#include "posix_private.h"
+#include HAL
+#include "lib.h"
+#include "../vm/vm.h"
 
-int _cbuffer_init(cbuffer_t *buf, size_t sz)
+
+int _cbuffer_init(cbuffer_t *buf, void *data, size_t sz)
 {
 	hal_memset(buf, 0, sizeof(cbuffer_t));
-
-	if ((buf->data = vm_mmap(NULL, NULL, NULL, sz, PROT_READ | PROT_WRITE, NULL, -1, MAP_NONE)) == NULL)
-		return -ENOMEM;
-
 	buf->sz = sz;
-
+	buf->data = data;
 	return 0;
 }
 

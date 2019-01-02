@@ -4,7 +4,7 @@
 # Copyright 2018 Phoenix Systems
 #
 
-SRCS = cbuffer.c posix.c inet.c unix.c
+SRCS = posix.c inet.c unix.c
 
 OBJS = $(SRCS:.c=.o)
 

@@ -20,6 +20,7 @@
 
 #include "posix.h"
 #include "posix_private.h"
+#include "../lib/cbuffer.h"
 
 #define MAX_FD_COUNT 32
 

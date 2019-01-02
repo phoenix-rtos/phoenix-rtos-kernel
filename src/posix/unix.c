@@ -256,6 +256,7 @@ int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 	unixsock_t *s, *conn, *new;
 	int err;
 	unsigned newid;
+	void *v;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -271,13 +272,18 @@ int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 			break;
 		}
 
-		if ((new = unixsock_alloc(&newid, s->type)) == NULL) {
+		if ((v = vm_kmalloc(SIZE_PAGE)) == NULL) {
 			err = -ENOMEM;
 			break;
 		}
 
-		if ((err = _cbuffer_init(&new->buffer, SIZE_PAGE)) < 0)
+		if ((new = unixsock_alloc(&newid, s->type)) == NULL) {
+			vm_kfree(v);
+			err = -ENOMEM;
 			break;
+		}
+
+		_cbuffer_init(&new->buffer, v, SIZE_PAGE);
 
 		hal_spinlockSet(&s->spinlock);
 		s->state |= US_ACCEPTING;
@@ -310,6 +316,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 	int err;
 	oid_t odir, dev;
 	unixsock_t *s;
+	void *v = NULL;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -328,17 +335,21 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 		}
 
 		do {
-			if (s->type == SOCK_DGRAM && _cbuffer_init(&s->buffer, SIZE_PAGE) < 0) {
-				err = -ENOMEM;
-				break;
-			}
-
 			hal_memcpy(path, address->sa_data, len + 1);
 			splitname(path, &name, &dir);
 
 			if (proc_lookup(dir, NULL, &odir) < 0) {
 				err = -ENOTDIR;
 				break;
+			}
+
+			if (s->type == SOCK_DGRAM) {
+				if ((v = vm_kmalloc(SIZE_PAGE)) == NULL) {
+					err = -ENOMEM;
+					break;
+				}
+
+				_cbuffer_init(&s->buffer, v, SIZE_PAGE);
 			}
 
 			dev.port = US_PORT;
@@ -390,6 +401,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 	unixsock_t *s, *remote;
 	int err;
 	oid_t oid;
+	void *v;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -426,8 +438,12 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 				break;
 			}
 
-			if ((err = _cbuffer_init(&s->buffer, SIZE_PAGE)) < 0)
+			if ((v = vm_kmalloc(SIZE_PAGE)) == NULL) {
+				err = -ENOMEM;
 				break;
+			}
+
+			_cbuffer_init(&s->buffer, v, SIZE_PAGE);
 
 			hal_spinlockSet(&remote->spinlock);
 			LIST_ADD(&remote->connect, s);

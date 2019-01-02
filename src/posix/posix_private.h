@@ -47,13 +47,6 @@
 #define SIG_IGN (-3)
 
 
-typedef struct {
-	size_t sz, r, w;
-	char full, mark;
-	void *data;
-} cbuffer_t;
-
-
 enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };
 
 
@@ -110,38 +103,6 @@ struct rtentry
 };
 
 extern void splitname(char *path, char **base, char **dir);
-
-
-static inline size_t _cbuffer_free(cbuffer_t *buf)
-{
-	if (buf->w == buf->r)
-		return buf->full ? 0 : buf->sz;
-
-	return (buf->r - buf->w + buf->sz) & (buf->sz - 1);
-}
-
-
-static inline size_t _cbuffer_avail(cbuffer_t *buf)
-{
-	return buf->sz - _cbuffer_free(buf);
-}
-
-
-static inline int _cbuffer_discard(cbuffer_t *buf, size_t sz)
-{
-	int cnt = min(_cbuffer_free(buf), sz);
-	buf->r = (buf->r + cnt) & (buf->sz - 1);
-	return cnt;
-}
-
-
-extern int _cbuffer_init(cbuffer_t *buf, size_t sz);
-
-
-extern int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz);
-
-
-extern int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz);
 
 
 extern int posix_newFile(process_info_t *p, int fd);

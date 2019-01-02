@@ -5,7 +5,7 @@
 # Copyright 2001, 2005-2006 Pawel Pisarczyk
 #
 
-SRCS = printf.c bsearch.c rand.c strtoul.c rb.c list.c
+SRCS = printf.c bsearch.c rand.c strtoul.c rb.c list.c cbuffer.c
 
 
 OBJS = $(SRCS:.c=.o)
