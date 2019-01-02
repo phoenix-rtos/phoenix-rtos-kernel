@@ -158,6 +158,7 @@ void proc_kill(process_t *proc)
 {
 	process_t *child, *zombie, *init;
 
+	perf_kill(proc);
 	init = proc_find(1);
 
 	proc_lockSet2(&init->lock, &proc->lock);
@@ -410,6 +411,7 @@ int proc_vfork(void)
 
 	/* Signal forking state to vfork thread */
 	hal_spinlockSet(&current->execwaitsl);
+	perf_fork(process);
 	current->execfl = FORKING;
 	proc_threadWakeup(&current->execwaitq);
 
@@ -755,6 +757,8 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 	process->path = path;
 	process->pmapv = v;
 	process->pmapp = p;
+
+	perf_exec(process, path);
 
 	if (parent == NULL)
 		process_exexepilogue(1, current, parent, entry, stack);

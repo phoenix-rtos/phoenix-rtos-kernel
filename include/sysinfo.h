@@ -31,6 +31,7 @@ typedef struct _syspageprog_t {
 typedef struct _threadinfo_t {
 	unsigned int pid;
 	unsigned int tid;
+	unsigned int ppid;
 
 	int load;
 	unsigned int cpu_time;
@@ -79,12 +80,72 @@ typedef struct _meminfo_t {
 } meminfo_t;
 
 
+enum { perf_evScheduling, perf_evEnqueued, perf_evWaking, perf_evPreempted };
+
+
 typedef struct {
-		enum { perf_event_scheduling, perf_event_enqueued, perf_event_waking, perf_event_preempted } type;
-		time_t timestamp;
-		time_t timeout;
-		unsigned long tid;
-		unsigned long pid;
-} perf_event_t;
+	unsigned deltaTimestamp : 12;
+	unsigned type : 2;
+	unsigned tid : 18;
+} __attribute__((packed)) perf_event_t;
+
+
+enum { perf_levBegin, perf_levEnd, perf_levFork, perf_levKill, perf_levExec };
+
+
+typedef struct {
+	unsigned sbz;
+
+	unsigned deltaTimestamp : 12;
+	unsigned type : 3;
+
+	unsigned prio : 3;
+	unsigned tid : 18;
+	unsigned pid : 18;
+} __attribute__((packed)) perf_levent_begin_t;
+
+
+typedef struct {
+	unsigned sbz;
+
+	unsigned deltaTimestamp : 12;
+	unsigned type : 3;
+
+	unsigned tid : 18;
+} __attribute__((packed)) perf_levent_end_t;
+
+
+typedef struct {
+	unsigned sbz;
+
+	unsigned deltaTimestamp : 12;
+	unsigned type : 3;
+
+	unsigned tid: 18;
+	unsigned ppid : 18;
+	unsigned pid : 18;
+} __attribute__((packed)) perf_levent_fork_t;
+
+
+typedef struct {
+	unsigned sbz;
+
+	unsigned deltaTimestamp : 12;
+	unsigned type : 3;
+
+	unsigned tid: 18;
+	unsigned pid : 18;
+} __attribute__((packed)) perf_levent_kill_t;
+
+
+typedef struct {
+	unsigned sbz;
+
+	unsigned deltaTimestamp : 12;
+	unsigned type : 3;
+
+	unsigned tid: 18;
+	char path[32];
+} __attribute__((packed)) perf_levent_exec_t;
 
 #endif

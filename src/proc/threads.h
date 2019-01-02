@@ -92,7 +92,22 @@ typedef struct _thread_t {
 } thread_t;
 
 
-extern int perf_start(unsigned pid, time_t maxDuration, void *buffer, size_t bufsz);
+extern int perf_start(unsigned pid);
+
+
+extern int perf_read(void *buffer, size_t bufsz);
+
+
+extern int perf_finish(void);
+
+
+extern void perf_fork(process_t *p);
+
+
+extern void perf_kill(process_t *p);
+
+
+extern void perf_exec(process_t *p, char *path);
 
 
 extern thread_t *proc_current(void);

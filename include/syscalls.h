@@ -58,7 +58,9 @@
 	ID(fileRemove) \
 	ID(threadsinfo) \
 	ID(meminfo) \
-	ID(perf) \
+	ID(perf_start) \
+	ID(perf_read) \
+	ID(perf_finish) \
 	ID(syspageprog) \
 	ID(va2pa) \
 	ID(signalHandle) \
