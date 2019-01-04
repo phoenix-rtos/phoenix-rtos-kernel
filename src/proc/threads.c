@@ -294,7 +294,7 @@ static void perf_bufferFree(void *data, page_t **pages)
 	page_t *p;
 
 	while ((p = *pages) != NULL) {
-		LIST_REMOVE(pages, p);
+		*pages = p->next;
 		vm_pageFree(p);
 		sz += SIZE_PAGE;
 	}
@@ -322,8 +322,9 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 			return NULL;
 		}
 
-		LIST_ADD(pages, p);
-		page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_READ | PGHD_WRITE);
+		p->next = *pages;
+		*pages = p;
+		page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE);
 	}
 
 	return data;
