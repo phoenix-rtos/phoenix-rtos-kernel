@@ -112,6 +112,11 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 		amap->refs--;
 	}
 
+	/* Allocate anon pointer arrays in chunks
+	 * to facilitate merging of amaps */
+	if (i < (512 - sizeof(amap_t)) / sizeof(anon_t *))
+		i = (512 - sizeof(amap_t)) / sizeof(anon_t *);
+
 	if ((new = vm_kmalloc(sizeof(amap_t) + i * sizeof(anon_t *))) == NULL) {
 		if (amap != NULL)
 			proc_lockClear(&amap->lock);
@@ -124,8 +129,11 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 	new->refs = 1;
 	*offset = *offset / SIZE_PAGE;
 
-	for (i = 0; i < new->size; ++i)
+	for (i = 0; i < size / SIZE_PAGE; ++i)
 		new->anons[i] = (amap == NULL) ? NULL : amap->anons[*offset + i];
+
+	while (i < new->size)
+		new->anons[i++] = NULL;
 
 	if (amap != NULL)
 		proc_lockClear(&amap->lock);

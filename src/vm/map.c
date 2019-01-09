@@ -222,12 +222,13 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	void *v;
 	map_entry_t *prev, *next, *e;
 	unsigned int lmerge, rmerge;
+	amap_t *amap;
 
 	if ((v = _map_find(map, vaddr, size, &prev, &next)) == NULL)
 		return NULL;
 
-	rmerge = next != NULL && v + size == next->vaddr && next->object == o && next->flags == flags && next->prot == prot && next->amap == NULL;
-	lmerge = prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot && prev->amap == NULL;
+	rmerge = next != NULL && v + size == next->vaddr && next->object == o && next->flags == flags && next->prot == prot;
+	lmerge = prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot;
 
 	if (offs != -1) {
 		if (offs & (SIZE_PAGE - 1))
@@ -245,6 +246,31 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	lmerge = lmerge && proc == prev->process;
 #endif
 
+#if 1
+	if (o == NULL) {
+		if (lmerge && rmerge && (next->amap == prev->amap)) {
+			/* Both use the same amap, can merge */
+		}
+		else {
+			/* Can't merge to the left if amap array size is too small */
+			if (lmerge && (amap = prev->amap) != NULL && amap->size * SIZE_PAGE - prev->aoffs - prev->size < size)
+				lmerge = 0;
+
+			/* Can't merge to the right if amap offset is too small */
+			if (rmerge && (amap = next->amap) != NULL && next->aoffs < size)
+				rmerge = 0;
+
+			/* amaps differ, we can only merge one way */
+			if (lmerge && rmerge)
+				rmerge = 0;
+		}
+	}
+#else
+	/* Disable merging of anonymous entries */
+	if (o == NULL)
+		rmerge = lmerge = 0;
+#endif
+
 	if (rmerge && lmerge) {
 		e = prev;
 		e->size += size + next->size;
@@ -259,6 +285,9 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->offs = offs;
 		e->size += size;
 		e->lmaxgap -= size;
+
+		if (e->aoffs)
+			e->aoffs -= size;
 
 		if (prev != NULL) {
 			prev->rmaxgap -= size;
@@ -289,8 +318,21 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->offs = offs;
 		e->flags = flags;
 		e->prot = prot;
+
 		e->amap = NULL;
 		e->aoffs = 0;
+
+		if (o == NULL) {
+			/* Try to use existing amap */
+			if (next != NULL && next->amap != NULL && next->aoffs >= (next->vaddr - e->vaddr)) {
+				e->amap = amap_ref(next->amap);
+				e->aoffs = next->aoffs - (next->vaddr - e->vaddr);
+			}
+			else if (prev != NULL && prev->amap != NULL && SIZE_PAGE * prev->amap->size - prev->aoffs + prev->vaddr >= e->vaddr + size) {
+				e->amap = amap_ref(prev->amap);
+				e->aoffs = prev->aoffs + (e->vaddr - prev->vaddr);
+			}
+		}
 
 		_map_add(proc, map, e);
 	}
