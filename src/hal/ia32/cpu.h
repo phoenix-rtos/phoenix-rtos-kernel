@@ -579,33 +579,29 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 		__asm__ volatile
 		(" \
 			movl %0, %%esp;\
-			movl %1, %%eax;\
-			call *%%eax"
+			call *%1"
 		:
-		:"r" (kstack), "r" (f));
+		: "g" (kstack), "r" (f)
+		: "memory");
 	}
 	else {
 		__asm__ volatile
 		(" \
 			sti; \
-			movl %1, %%eax;\
-			movl %2, %%ebx;\
-			movl %3, %%ecx;\
-			movl %4, %%edx;\
 			movl %0, %%esp;\
-			pushl %%edx;\
-			pushl %%ebx;\
+			pushl %4;\
+			pushl %2;\
 			pushfl;\
-			pushl %%ecx;\
+			pushl %3;\
 			movw %%dx, %%ds;\
 			movw %%dx, %%es;\
 			movw %%dx, %%fs;\
 			movw %%dx, %%gs;\
-			pushl %%eax;\
+			pushl %1;\
 			iret"
 		:
-		:"g" (kstack), "g" (f), "g" (stack), "g" (SEL_UCODE), "g" (SEL_UDATA)
-		:"eax", "ebx", "ecx", "edx");
+		: "g" (kstack), "ri" (f), "ri" (stack), "ri" (SEL_UCODE), "d" (SEL_UDATA)
+		: "memory");
 	}
 }
 
