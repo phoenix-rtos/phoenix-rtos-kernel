@@ -573,6 +573,7 @@ __attribute__((noreturn,regparm(1)))
 void hal_longjmp(cpu_context_t *ctx);
 
 
+__attribute__((noreturn))
 static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 {
 	if (stack == NULL) {
@@ -583,8 +584,8 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 		:
 		: "g" (kstack), "r" (f)
 		: "memory");
-	}
-	else {
+		__builtin_unreachable();
+	} else {
 		__asm__ volatile
 		(" \
 			sti; \
@@ -602,6 +603,7 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 		:
 		: "g" (kstack), "ri" (f), "ri" (stack), "ri" (SEL_UCODE), "d" (SEL_UDATA)
 		: "memory");
+		__builtin_unreachable();
 	}
 }
 
