@@ -817,8 +817,6 @@ void proc_threadDestroy(void)
 	int zombie = 0;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	_perf_end(thr);
-
 	thr->process = NULL;
 	if (proc != NULL) {
 		LIST_REMOVE_EX(&proc->threads, thr, procnext, procprev);
@@ -830,6 +828,7 @@ void proc_threadDestroy(void)
 		proc_zombie(proc);
 
 	hal_spinlockSet(&threads_common.spinlock);
+	_perf_end(thr);
 	threads_common.current[hal_cpuGetID()] = NULL;
 	if (zombie || proc == NULL) {
 		LIST_ADD(&threads_common.ghosts, thr);
