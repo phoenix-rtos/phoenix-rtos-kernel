@@ -1832,13 +1832,13 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 
 	if (!n) {
 		if (timeout_ms > 0)
-			proc_threadSleep(timeout_ms * 1000);
+			proc_threadSleep(timeout_ms * 1000LL);
 		return 0;
 	}
 
 	if (timeout_ms >= 0) {
 		proc_gettime(&timeout, &unused);
-		timeout += timeout_ms * 1000 + !timeout_ms;
+		timeout += timeout_ms * 1000LL + !timeout_ms;
 	} else
 		timeout = 0;
 
