@@ -120,40 +120,46 @@ extern int posix_newFile(process_info_t *p, int fd);
 extern process_info_t *pinfo_find(unsigned int pid);
 
 
-extern int inet_accept(unsigned socket, struct sockaddr *address, socklen_t *address_len);
+extern int inet_accept4(const oid_t *socket, oid_t *new_sock, struct sockaddr *address, socklen_t *address_len, int flags);
 
 
-extern int inet_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len);
+extern int inet_bind(const oid_t *socket, const struct sockaddr *address, socklen_t address_len);
 
 
-extern int inet_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len);
+extern int inet_connect(const oid_t *socket, const struct sockaddr *address, socklen_t address_len);
 
 
-extern int inet_getpeername(unsigned socket, struct sockaddr *address, socklen_t *address_len);
+extern int inet_getpeername(const oid_t *socket, struct sockaddr *address, socklen_t *address_len);
 
 
-extern int inet_getsockname(unsigned socket, struct sockaddr *address, socklen_t *address_len);
+extern int inet_getsockname(const oid_t *socket, struct sockaddr *address, socklen_t *address_len);
 
 
-extern int inet_getsockopt(unsigned socket, int level, int optname, void *optval, socklen_t *optlen);
+extern int inet_getsockopt(const oid_t *socket, int level, int optname, void *optval, socklen_t *optlen);
 
 
-extern int inet_listen(unsigned socket, int backlog);
+extern int inet_listen(const oid_t *socket, int backlog);
 
 
-extern ssize_t inet_recvfrom(unsigned socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len);
+extern ssize_t inet_recvfrom(const oid_t *socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len);
 
 
-extern ssize_t inet_sendto(unsigned socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+extern ssize_t inet_sendto(const oid_t *socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
-extern int inet_socket(int domain, int type, int protocol);
+extern int inet_socket(oid_t *socket, int domain, int type, int protocol);
 
 
-extern int inet_shutdown(unsigned socket, int how);
+extern int inet_shutdown(const oid_t *socket, int how);
 
 
-extern int inet_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen);
+extern int inet_setsockopt(const oid_t *socket, int level, int optname, const void *optval, socklen_t optlen);
+
+
+extern int inet_getfl(const oid_t *socket);
+
+
+extern int inet_setfl(const oid_t *socket, int val);
 
 
 extern int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_len);
