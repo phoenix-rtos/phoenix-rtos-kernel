@@ -554,6 +554,11 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 	if ((err = posix_getOpenFile(fildes, &f)))
 		return err;
 
+	if (f->status & O_WRONLY) {
+		posix_fileDeref(f);
+		return -EBADF;
+	}
+
 	proc_lockSet(&f->lock);
 	offs = f->offset;
 	status = f->status;
@@ -593,6 +598,11 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 
 	if ((err = posix_getOpenFile(fildes, &f)))
 		return err;
+
+	if (f->status & O_RDONLY) {
+		posix_fileDeref(f);
+		return -EBADF;
+	}
 
 	proc_lockSet(&f->lock);
 	offs = f->offset;
@@ -952,8 +962,10 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 	if ((err = posix_getOpenFile(fildes, &f)))
 		return err;
 
-	if (whence == SEEK_END)
-		sz = proc_size(f->oid);
+	/* TODO: Find a better way to check fd type */
+	sz = proc_size(f->oid);
+	if (sz < 0)
+		return -ESPIPE;
 
 	proc_lockSet(&f->lock);
 	switch (whence) {
