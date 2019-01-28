@@ -23,13 +23,14 @@ then
     CROSS="arm-phoenix-"
 fi
 
-GDB_APP_FILE="../gdb_app_symbols"
 
 KERNELELF=$1
 shift
 
 OUTPUT=$1
 shift
+
+GDB_SYM_FILE=`dirname ${OUTPUT}`"/gdb_symbols"
 
 SIZE_PAGE=$((0x200))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
@@ -173,12 +174,13 @@ OFFSET=$(($APP_START-$FLASH_START))
 dd if="syspage.bin" of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
 OFFSET=$(($OFFSET+$SYSPAGESZ))
 
-[ -f $GDB_APP_FILE ] && rm -rf $GDB_APP_FILE
+[ -f $GDB_SYM_FILE ] && rm -rf $GDB_SYM_FILE
+printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
 
 for app in $@; do
 	${CROSS}objcopy $app -O binary tmp.img
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
-	printf "add-symbol-file %s 0x%08x\n" `basename $app` $((OFFSET + $FLASH_START)) >> $GDB_APP_FILE
+	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START)) >> $GDB_SYM_FILE
 	dd if=tmp.img of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
 	OFFSET=$((($OFFSET+$((`du -b tmp.img | cut -f1`))+$SIZE_PAGE-1)&$((0xffffff00))))
 	rm -f tmp.img
