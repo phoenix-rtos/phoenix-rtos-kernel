@@ -534,6 +534,30 @@ int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off
 }
 
 
+int vm_mapFlags(vm_map_t *map, void *vaddr)
+{
+	int flags;
+	map_entry_t t, *e;
+
+	proc_lockSet(&map->lock);
+
+	t.vaddr = vaddr;
+	t.size = SIZE_PAGE;
+
+	e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
+
+	if (e == NULL) {
+		proc_lockClear(&map->lock);
+		return -EFAULT;
+	}
+
+	flags = e->flags & ~MAP_NEEDSCOPY;
+	proc_lockClear(&map->lock);
+
+	return flags;
+}
+
+
 int vm_mapForce(vm_map_t *map, void *paddr, int prot)
 {
 	map_entry_t t, *e;

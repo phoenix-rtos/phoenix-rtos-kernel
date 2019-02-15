@@ -36,9 +36,11 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	page_t *ep = NULL, *nep = NULL, *bp = NULL, *nbp = NULL, *p;
 	vm_map_t *srcmap, *dstmap;
 	struct _kmsg_layout_t *ml = dir ? &kmsg->o : &kmsg->i;
+	int flags;
 
 	if ((size == 0) || (data == NULL))
-		return EOK;
+		return NULL;
+
 
 	attr = PGHD_PRESENT;
 	prot = PROT_READ;
@@ -73,6 +75,20 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	if ((ml->w = w = vm_mapFind(dstmap, (void *)0, (!!boffs + !!eoffs + n) * SIZE_PAGE, MAP_NOINHERIT, prot)) == NULL)
 		return NULL;
 
+	if (pmap_belongs(&srcmap->pmap, data))
+		flags = vm_mapFlags(srcmap, data);
+	else
+		flags = vm_mapFlags(msg_common.kmap, data);
+
+	if (flags < 0)
+		return NULL;
+
+	if (flags & MAP_DEVICE)
+		attr |= PGHD_DEV;
+
+	if (flags & MAP_UNCACHED)
+		attr |= PGHD_NOT_CACHED;
+
 	if (boffs > 0) {
 		ml->boffs = boffs;
 		bp = _page_get(pmap_resolve(&srcmap->pmap, data));
@@ -80,7 +96,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		if ((ml->bp = nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL)
 			return NULL;
 
-		if ((ml->bvaddr = vaddr = vm_mmap(msg_common.kmap, (void *)0, bp, SIZE_PAGE, PROT_READ | PROT_WRITE, msg_common.kernel, -1, MAP_NONE)) == NULL)
+		if ((ml->bvaddr = vaddr = vm_mmap(msg_common.kmap, (void *)0, bp, SIZE_PAGE, PROT_READ | PROT_WRITE, msg_common.kernel, -1, flags)) == NULL)
 			return NULL;
 
 		/* Map new page into destination address space */
@@ -117,7 +133,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			nep = nbp;
 		}
 
-		if ((ml->evaddr = vaddr = vm_mmap(msg_common.kmap, (void *)0, ep, SIZE_PAGE, PROT_READ | PROT_WRITE, msg_common.kernel, -1, MAP_NONE)) == NULL)
+		if ((ml->evaddr = vaddr = vm_mmap(msg_common.kmap, (void *)0, ep, SIZE_PAGE, PROT_READ | PROT_WRITE, msg_common.kernel, -1, flags)) == NULL)
 			return NULL;
 
 		/* Map new page into destination address space */

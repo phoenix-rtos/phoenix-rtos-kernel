@@ -83,6 +83,9 @@ extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 pro
 extern int vm_mapForce(vm_map_t *map, void *vaddr, int prot);
 
 
+extern int vm_mapFlags(vm_map_t *map, void *vaddr);
+
+
 extern int vm_lockVerify(vm_map_t *map, struct _amap_t **amap, struct _vm_object_t *o, void *vaddr, offs_t offs);
 
 
