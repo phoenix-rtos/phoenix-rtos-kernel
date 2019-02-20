@@ -1696,7 +1696,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		if (t->process != NULL)
 			info[i].pid = t->process->id;
 		else
-			info[i].pid = -1;
+			info[i].pid = 0;
 
 		info[i].tid = t->id;
 #ifndef CPU_STM32

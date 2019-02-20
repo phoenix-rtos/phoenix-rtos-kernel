@@ -37,6 +37,7 @@ struct {
 	size_t stacksz;
 	lock_t lock;
 	rbtree_t id;
+	unsigned idcounter;
 } process_common;
 
 
@@ -65,6 +66,95 @@ process_t *proc_find(unsigned int pid)
 	proc_lockClear(&process_common.lock);
 
 	return p;
+}
+
+
+unsigned _process_alloc(unsigned id)
+{
+	process_t *p = lib_treeof(process_t, idlinkage, process_common.id.root);
+
+	if (!id)
+		id = 1;
+
+	while (p != NULL) {
+		if (p->lgap && id < p->id) {
+			if (p->idlinkage.left == NULL)
+				return max(id, p->id - p->lgap);
+
+			p = lib_treeof(process_t, idlinkage, p->idlinkage.left);
+			continue;
+		}
+
+		if (p->rgap) {
+			if (p->idlinkage.right == NULL)
+				return max(id, p->id + 1);
+
+			p = lib_treeof(process_t, idlinkage, p->idlinkage.right);
+			continue;
+		}
+
+		for (;; p = lib_treeof(process_t, idlinkage, p->idlinkage.parent)) {
+			if (p->idlinkage.parent == NULL)
+				return NULL;
+
+			if ((p == lib_treeof(process_t, idlinkage, p->idlinkage.parent->left)) && lib_treeof(process_t, idlinkage, p->idlinkage.parent)->rgap)
+				break;
+		}
+		p = lib_treeof(process_t, idlinkage, p->idlinkage.parent);
+
+		if (p->idlinkage.right == NULL)
+			return p->id + 1;
+
+		p = lib_treeof(process_t, idlinkage, p->idlinkage.right);
+	}
+
+	return id;
+}
+
+
+static void process_augment(rbnode_t *node)
+{
+	rbnode_t *it;
+	process_t *n = lib_treeof(process_t, idlinkage, node);
+	process_t *p = n, *r, *l;
+
+	if (node->left == NULL) {
+		for (it = node; it->parent != NULL; it = it->parent) {
+			p = lib_treeof(process_t, idlinkage, it->parent);
+			if (it->parent->right == it)
+				break;
+		}
+
+		n->lgap = !!((n->id <= p->id) ? n->id : n->id - p->id - 1);
+	}
+	else {
+		l = lib_treeof(process_t, idlinkage, node->left);
+		n->lgap = max((int)l->lgap, (int)l->rgap);
+	}
+
+	if (node->right == NULL) {
+		for (it = node; it->parent != NULL; it = it->parent) {
+			p = lib_treeof(process_t, idlinkage, it->parent);
+			if (it->parent->left == it)
+				break;
+		}
+
+		n->rgap = !!((n->id >= p->id) ? MAX_PID - n->id - 1 : p->id - n->id - 1);
+	}
+	else {
+		r = lib_treeof(process_t, idlinkage, node->right);
+		n->rgap = max((int)r->lgap, (int)r->rgap);
+	}
+
+	for (it = node; it->parent != NULL; it = it->parent) {
+		n = lib_treeof(process_t, idlinkage, it);
+		p = lib_treeof(process_t, idlinkage, it->parent);
+
+		if (it->parent->left == it)
+			p->lgap = max((int)n->lgap, (int)n->rgap);
+		else
+			p->rgap = max((int)n->lgap, (int)n->rgap);
+	}
 }
 
 
@@ -364,7 +454,6 @@ int proc_vfork(void)
 	process->lazy = 0;
 #endif
 
-	process->id = -(long)process;
 	process->state = NORMAL;
 	process->children = NULL;
 	process->parent = parent;
@@ -391,6 +480,20 @@ int proc_vfork(void)
 //	vm_mapCreate(&process->map, (void *)VADDR_MIN, process_common.kmap->start);
 //	vm_mapCopy(&parent->mapp, process->mapp);
 
+	proc_lockSet(&process_common.lock);
+	if ((process->id = _process_alloc(process_common.idcounter)))
+		lib_rbInsert(&process_common.id, &process->idlinkage);
+	else if ((process->id = _process_alloc(process_common.idcounter = 1)))
+		lib_rbInsert(&process_common.id, &process->idlinkage);
+	process_common.idcounter = process->id + 1;
+	proc_lockClear(&process_common.lock);
+
+	if (!process->id) {
+		proc_lockDone(&process->lock);
+		vm_kfree(process);
+		return -ENOMEM;
+	}
+
 	proc_lockSet(&process->parent->lock);
 	LIST_ADD(&process->parent->children, process);
 	proc_lockClear(&process->parent->lock);
@@ -404,10 +507,6 @@ int proc_vfork(void)
 		vm_kfree(process);
 		return -EINVAL;
 	}
-
-	proc_lockSet(&process_common.lock);
-	lib_rbInsert(&process_common.id, &process->idlinkage);
-	proc_lockClear(&process_common.lock);
 
 	/* Signal forking state to vfork thread */
 	hal_spinlockSet(&current->execwaitsl);
@@ -1027,8 +1126,9 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	process_common.kmap = kmap;
 	process_common.first = NULL;
 	process_common.kernel = kernel;
+	process_common.idcounter = 1;
 	proc_lockInit(&process_common.lock);
-	lib_rbInit(&process_common.id, proc_idcmp, NULL);
+	lib_rbInit(&process_common.id, proc_idcmp, process_augment);
 	hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
 	return EOK;

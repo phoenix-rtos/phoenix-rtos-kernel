@@ -22,6 +22,9 @@
 #include "lock.h"
 #include "../vm/amap.h"
 
+#define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
+
+enum { NORMAL = 0, ZOMBIE };
 
 typedef struct _process_t {
 	struct _process_t *next;
@@ -44,8 +47,6 @@ typedef struct _process_t {
 	int waitpid;
 	int waittid;
 
-	enum { NORMAL = 0, ZOMBIE } state;
-
 	/* Temporary? Used to cleanup after pmap */
 	void *pmapv;
 	page_t *pmapp;
@@ -56,7 +57,11 @@ typedef struct _process_t {
 	};
 	vm_map_t *mapp;
 	int exit;
-	char lazy;
+	
+	unsigned lazy : 1;
+	unsigned lgap : 1;
+	unsigned rgap : 1;
+	unsigned state : 1;
 
 	/*u32 uid;
 	u32 euid;
