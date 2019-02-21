@@ -176,6 +176,7 @@ static void test_proc_initthr(void *arg)
 {
 	unsigned int i;
 	syspage_program_t *prog;
+	char *argv[] = { "syspage", "arg1", "arg2", "arg3", NULL };
 
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
@@ -186,7 +187,7 @@ static void test_proc_initthr(void *arg)
 	for (;;) {
 		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 			if (!proc_vfork())
-				proc_execle(prog, "", "syspage", "arg1", "arg2", "arg3", NULL, NULL);
+				proc_execve(prog, "", argv, NULL);
 		}
 
 		proc_threadSleep(120000);
