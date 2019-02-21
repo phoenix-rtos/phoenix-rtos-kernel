@@ -106,10 +106,13 @@ void main_initthr(void *unused)
 	}
 
 	if (!xcount && syspage->progssz != 0) {
+		argv[1] = NULL;
 		/* Start all syspage programs */
 		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
-			if (!proc_vfork())
-				proc_execle(prog, prog->cmdline, prog->cmdline, NULL, NULL);
+			if (!proc_vfork()) {
+				argv[0] = prog->cmdline;
+				proc_execve(prog, prog->cmdline, argv, NULL);
+			}
 		}
 	}
 

@@ -38,6 +38,7 @@ typedef struct _process_t {
 	struct _thread_t *threads;
 
 	char *path;
+	char **argv;
 	unsigned int id;
 	rbnode_t idlinkage;
 
@@ -95,9 +96,6 @@ extern int proc_start(void (*initthr)(void *), void *arg, const char *path);
 
 
 extern int proc_copyexec(void);
-
-
-extern int proc_execle(syspage_program_t *prog, const char *path, ...);
 
 
 extern int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **envp);

@@ -40,7 +40,7 @@ typedef struct _threadinfo_t {
 	int vmem;
 	time_t wait;
 
-	char name[32];
+	char name[128];
 } threadinfo_t;
 
 

@@ -949,6 +949,9 @@ static void proc_cleanupZombie(process_t *proc)
 	if (proc->path != NULL)
 		vm_kfree((void *)proc->path);
 
+	if (proc->argv != NULL)
+		vm_kfree(proc->argv);
+
 	vm_kfree(proc);
 }
 
@@ -1682,11 +1685,12 @@ void proc_threadsDump(unsigned int priority)
 
 int proc_threadsList(int n, threadinfo_t *info)
 {
-	int i = 0, len;
+	int i = 0, len, argc, space;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
 	time_t now;
+	char *name;
 
 	proc_lockSet(&threads_common.lock);
 
@@ -1722,12 +1726,29 @@ int proc_threadsList(int n, threadinfo_t *info)
 			map = t->process->mapp;
 
 			if (t->process->path != NULL) {
-				len = 1 + hal_strlen(t->process->path);
-				hal_memcpy(info[i].name, t->process->path, min(len, sizeof(info[i].name)));
+				space = sizeof(info[i].name);
+				name = info[i].name;
+
+				if (t->process->argv != NULL) {
+					for (argc = 0; t->process->argv[argc] != NULL && space > 0; ++argc) {
+						len = min(hal_strlen(t->process->argv[argc]) + 1, space);
+						hal_memcpy(name, t->process->argv[argc], len);
+						name[len - 1] = ' ';
+						name += len;
+						space -= len;
+					}
+					*(name - 1) = 0;
+				}
+				else {
+					len = hal_strlen(t->process->path) + 1;
+					hal_memcpy(info[i].name, t->process->path, min(space, len));
+				}
+
 				info[i].name[sizeof(info[i].name) - 1] = 0;
 			}
-			else
+			else {
 				info[i].name[0] = 0;
+			}
 		}
 		else {
 			map = threads_common.kmap;

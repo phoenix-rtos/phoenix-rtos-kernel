@@ -181,6 +181,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	}
 
 	hal_strcpy(process->path, path);
+	process->argv = NULL;
 	process->parent = NULL;
 	process->children = NULL;
 	process->threads = NULL;
@@ -477,8 +478,7 @@ int proc_vfork(void)
 	process->ghosts = NULL;
 	process->gwaitq = NULL;
 	process->waittid = 0;
-//	vm_mapCreate(&process->map, (void *)VADDR_MIN, process_common.kmap->start);
-//	vm_mapCopy(&parent->mapp, process->mapp);
+	process->argv = NULL;
 
 	proc_lockSet(&process_common.lock);
 	if ((process->id = _process_alloc(process_common.idcounter)))
@@ -503,7 +503,6 @@ int proc_vfork(void)
 
 	/* Start first thread */
 	if (proc_threadCreate(process, (void *)process_vforkthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)current) < 0) {
-//		proc_threadDestroy();
 		vm_kfree(process);
 		return -EINVAL;
 	}
@@ -611,9 +610,9 @@ int process_load(process_t *process, thread_t *current, syspage_program_t *prog,
 }
 
 
-int process_exec(syspage_program_t *prog, process_t *process, thread_t *current, thread_t *parent, char *path, int argc, char **argv, char **envp)
+int process_exec(syspage_program_t *prog, process_t *process, thread_t *current, thread_t *parent, char *path, int argc, char **argv, char **envp, void *kstack)
 {
-	void *stack, *entry, *kstack = argv;
+	void *stack, *entry;
 
 	if (parent == NULL) {
 		/* Exec into old process, clean up */
@@ -623,6 +622,8 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		vm_kfree(current->execkstack);
 		current->execkstack = NULL;
 		vm_kfree(process->path);
+		if (process->argv != NULL)
+			vm_kfree(process->argv);
 	}
 
 	process->path = path;
@@ -667,6 +668,7 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 	Elf32_Phdr *phdr;
 	unsigned prot, flags, misalign = 0;
 	int i, envc;
+	char **uargv;
 
 	pmap_switch(&map->pmap);
 
@@ -751,20 +753,19 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 
 	stack += 8 * SIZE_PAGE;
 
+	stack -= (argc + 1) * sizeof(char *);
+	uargv = stack;
+
 	/* Copy data from kernel stack */
 	for (i = 0; i < argc; ++i) {
 		memsz = hal_strlen(argv[i]) + 1;
 		hal_memcpy(stack -= memsz, argv[i], memsz);
-		argv[i] = stack;
+		uargv[i] = stack;
 	}
 
+	uargv[i] = NULL;
+
 	stack -= (unsigned long)stack & (sizeof(int) - 1);
-
-	PUTONSTACK(stack, void *, NULL); /* argv sentinel */
-	stack -= argc * sizeof(char *);
-
-	hal_memcpy(stack, argv, argc * sizeof(char *));
-	argv = stack;
 
 	/* Copy env from kernel stack */
 	if (env) {
@@ -784,7 +785,7 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 	}
 
 	PUTONSTACK(stack, char **, env);
-	PUTONSTACK(stack, char **, argv);
+	PUTONSTACK(stack, char **, uargv);
 	PUTONSTACK(stack, int, argc);
 	PUTONSTACK(stack, void *, NULL); /* return address */
 
@@ -794,11 +795,11 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 }
 
 
-int process_exec(syspage_program_t *prog, process_t *process, thread_t *current, thread_t *parent, char *path, int argc, char **argv, char **envp)
+int process_exec(syspage_program_t *prog, process_t *process, thread_t *current, thread_t *parent, char *path, int argc, char **argv, char **envp, void *kstack)
 {
 	vm_map_t map, *mapp;
 	page_t *p;
-	void *v, *stack, *entry, *kstack = argv;
+	void *v, *stack, *entry;
 	int i = 0, err;
 	addr_t a;
 
@@ -843,6 +844,8 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		vm_kfree(current->execkstack);
 		current->execkstack = NULL;
 		vm_kfree(process->path);
+		if (process->argv != NULL)
+			vm_kfree(process->argv);
 	}
 
 	resource_init(process);
@@ -854,6 +857,7 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 	vm_mapMove(&process->map, &map);
 	process->mapp = &process->map;
 	process->path = path;
+	process->argv = argv;
 	process->pmapv = v;
 	process->pmapp = p;
 
@@ -955,13 +959,14 @@ int proc_copyexec(void)
 
 int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **envp)
 {
-	int len, argc, envc, err;
+	int len, argc = 0, envc, err;
 	void *kstack;
 	thread_t *current, *parent;
 	process_t *process;
 	char *kpath;
+	char **kargv = NULL, *buf;
 	char **envp_kstack = NULL;
-	char **argv_kstack;
+
 
 	current = proc_current();
 	parent = current->execparent;
@@ -981,17 +986,29 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 
 	kstack = current->execkstack + current->kstacksz;
 
-	for (argc = 0; argv[argc] != NULL; ++argc)
-		;
+	len = 0;
+	if (argv != NULL) {
+		for (argc = 0; argv[argc] != NULL; ++argc)
+			len += hal_strlen(argv[argc]) + 1;
+	}
 
-	kstack -= argc * sizeof(char *);
-	argv_kstack = kstack;
+	if (argc) {
+		if ((kargv = vm_kmalloc(len + (argc + 1) * sizeof(char *))) == NULL) {
+			vm_kfree(kpath);
+			vm_kfree(current->execkstack);
+			return -ENOMEM;
+		}
 
-	for (argc = 0; argv[argc] != NULL; ++argc) {
-		len = hal_strlen(argv[argc]) + 1;
-		kstack -= (len + sizeof(int) - 1) & ~(sizeof(int) - 1);
-		hal_memcpy(kstack, argv[argc], len);
-		argv_kstack[argc] = kstack;
+		buf = (char *)(kargv + argc + 1);
+
+		for (argc = 0; argv[argc] != NULL; ++argc) {
+			len = hal_strlen(argv[argc]) + 1;
+			hal_memcpy(buf, argv[argc], len);
+			kargv[argc] = buf;
+			buf += len;
+		}
+
+		kargv[argc] = NULL;
 	}
 
 	if (envp) {
@@ -1013,78 +1030,12 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 	/* Close cloexec file descriptors */
 	posix_exec();
 
-	err = process_exec(prog, process, current, parent, kpath, argc, argv_kstack, envp_kstack);
+	err = process_exec(prog, process, current, parent, kpath, argc, kargv, envp_kstack, kstack);
 	/* Not reached unless process_exec failed */
 
 	vm_kfree(kpath);
-	return err;
-}
-
-
-int proc_execle(syspage_program_t *prog, const char *path, ...)
-{
-	va_list ap;
-	thread_t *current, *parent;
-	process_t *process;
-	const char *s;
-	void *kstack, *args, *envp = NULL;
-	char **argv, *kpath;
-	int argc, i, err, len;
-
-	current = proc_current();
-	parent = current->execparent;
-	process = current->process;
-
-	len = hal_strlen(path) + 1;
-
-	if ((kpath = vm_kmalloc(len)) == NULL)
-		return -ENOMEM;
-
-	hal_memcpy(kpath, path, len);
-
-	if (parent == NULL && (current->execkstack = vm_kmalloc(current->kstacksz)) == NULL) {
-		vm_kfree(kpath);
-		return -ENOMEM;
-	}
-
-	kstack = current->execkstack + current->kstacksz;
-
-	/* Calculate args size */
-	va_start(ap, path);
-	for (argc = 0;; argc++) {
-		if ((s = va_arg(ap, char *)) == NULL)
-			break;
-		kstack -= ((hal_strlen(s) + 1 + sizeof(int) - 1) & ~(sizeof(int) - 1));
-	}
-	va_end(ap);
-
-	/* Allocate argv */
-	args = kstack;
-	argv = kstack - argc * sizeof(char *);
-	kstack = argv;
-
-	/* Copy args to kernel stack */
-	va_start(ap, path);
-	for (i = 0; i < argc; i++) {
-		s = va_arg(ap, char *);
-		len = hal_strlen(s) + 1;
-		hal_memcpy(args, s, len);
-		argv[i] = args;
-		args += ((len + sizeof(int) - 1) & ~(sizeof(int) - 1));
-	}
-	va_end(ap);
-
-	/* Close cloexec file descriptors */
-	posix_exec();
-
-	/* Calculate env[] size */
-
-	/* Copy env[] to kernel stack */
-
-	err = process_exec(prog, process, current, parent, kpath, argc, argv, envp);
-	/* Not reached unless process_exec failed */
-
-	vm_kfree(kpath);
+	if (kargv != NULL)
+		vm_kfree(kargv);
 	return err;
 }
 
