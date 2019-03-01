@@ -54,8 +54,10 @@ void amap_putanons(amap_t *amap, int offset, int size)
 	if (amap == NULL)
 		return;
 
+	proc_lockSet(&amap->lock);
 	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i)
-		amap->anons[i] = amap_putanon(amap->anons[i]);
+		amap_putanon(amap->anons[i]);
+	proc_lockClear(&amap->lock);
 }
 
 
@@ -79,8 +81,10 @@ void amap_getanons(amap_t *amap, int offset, int size)
 	if (amap == NULL)
 		return;
 
+	proc_lockSet(&amap->lock);
 	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i)
 		amap_getanon(amap->anons[i]);
+	proc_lockClear(&amap->lock);
 }
 
 
@@ -160,6 +164,17 @@ void amap_put(amap_t *amap)
 }
 
 
+void amap_clear(amap_t *amap, size_t offset, size_t size)
+{
+	int i;
+
+	proc_lockSet(&amap->lock);
+	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; i++)
+		amap->anons[i] = NULL;
+	proc_lockClear(&amap->lock);
+}
+
+
 static anon_t *anon_new(page_t *p)
 {
 	anon_t *a;
@@ -204,7 +219,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 	if ((a = amap->anons[aoffs / SIZE_PAGE]) != NULL) {
 		proc_lockSet(&a->lock);
 		p = a->page;
-		if (!(a->refs > 1 && prot & PROT_WRITE)) {
+		if (!(a->refs > 1 && (prot & PROT_WRITE))) {
 			proc_lockClear(&a->lock);
 			proc_lockClear(&amap->lock);
 			return p;

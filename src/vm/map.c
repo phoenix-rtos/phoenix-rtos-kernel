@@ -253,7 +253,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		}
 		else {
 			/* Can't merge to the left if amap array size is too small */
-			if (lmerge && (amap = prev->amap) != NULL && amap->size * SIZE_PAGE - prev->aoffs - prev->size < size)
+			if (lmerge && (amap = prev->amap) != NULL && (amap->size * SIZE_PAGE - prev->aoffs - prev->size) < size)
 				lmerge = 0;
 
 			/* Can't merge to the right if amap offset is too small */
@@ -329,7 +329,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 				e->amap = amap_ref(next->amap);
 				e->aoffs = next->aoffs - (next->vaddr - e->vaddr);
 			}
-			else if (prev != NULL && prev->amap != NULL && SIZE_PAGE * prev->amap->size - prev->aoffs + prev->vaddr >= e->vaddr + size) {
+			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - prev->aoffs + prev->vaddr) >= (e->vaddr + size)) {
 				e->amap = amap_ref(prev->amap);
 				e->aoffs = prev->aoffs + (e->vaddr - prev->vaddr);
 			}
@@ -338,6 +338,10 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 		_map_add(proc, map, e);
 	}
+
+	/* Clear anon entries */
+	if (e->amap != NULL)
+		amap_clear(e->amap, e->aoffs + (v - e->vaddr), size);
 
 	if (entry != NULL)
 		*entry = e;
@@ -371,6 +375,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	if (e == NULL)
 		return -EINVAL;
 
+	/* Note: what if NEEDS_COPY? */
 	amap_putanons(e->amap, e->aoffs + vaddr - e->vaddr, size);
 
 	for (offs = vaddr - e->vaddr; offs < vaddr + size - e->vaddr; offs += SIZE_PAGE)

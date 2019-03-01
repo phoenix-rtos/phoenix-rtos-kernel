@@ -40,6 +40,9 @@ typedef struct _amap_t {
 extern page_t *amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, int aoffs, int offs, int prot);
 
 
+extern void amap_clear(amap_t *amap, size_t offset, size_t size);
+
+
 extern void amap_putanons(amap_t *amap, int offs, int size);
 
 
