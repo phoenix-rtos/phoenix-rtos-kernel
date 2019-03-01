@@ -322,7 +322,6 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->amap = NULL;
 		e->aoffs = 0;
 
-#if 0
 		if (o == NULL) {
 			/* Try to use existing amap */
 			if (next != NULL && next->amap != NULL && next->aoffs >= (next->vaddr - e->vaddr)) {
@@ -334,7 +333,6 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 				e->aoffs = prev->aoffs + (e->vaddr - prev->vaddr);
 			}
 		}
-#endif
 
 		_map_add(proc, map, e);
 	}
