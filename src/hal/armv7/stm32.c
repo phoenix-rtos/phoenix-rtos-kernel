@@ -40,6 +40,8 @@ struct {
 	u32 gpio_state[8];
 	u32 uart_state[5];
 
+	u32 resetFlags;
+
 	spinlock_t pltctlSp;
 } stm32_common;
 
@@ -117,6 +119,14 @@ int hal_platformctl(void *ptr)
 		}
 
 		break;
+	case pctl_reboot:
+		if (data->action == pctl_set) {
+			if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+				_stm32_nvicSystemReset();
+		}
+		else if (data->action == pctl_get) {
+			data->reboot.reason = stm32_common.resetFlags;
+		}
 	}
 
 	hal_spinlockClear(&stm32_common.pltctlSp);
@@ -975,6 +985,12 @@ void _stm32_init(void)
 	/* Init HSI & MSI refcount */
 	stm32_common.hsi = 0;
 	stm32_common.msi = 0;
+
+	/* Store reset flags and then clean them */
+	_stm32_rtcUnlockRegs();
+	stm32_common.resetFlags = (*(stm32_common.rcc + rcc_csr) >> 26);
+	*(stm32_common.rcc + rcc_csr) |= 1 << 24;
+	_stm32_rtcLockRegs();
 
 	/* Fundamental system init */
 	_stm32_rccSetCPUClock(2 * 2097152); /* 4,2 MHz */

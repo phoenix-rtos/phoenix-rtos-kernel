@@ -17,6 +17,14 @@
 #define _PHOENIX_ARCH_STM32L1_H_
 
 
+#define PCTL_REBOOT_MAGIC 0xaa55aa55UL
+#define PINRSRF (1 << 0)
+#define PORRSTF (1 << 1)
+#define SFTRSTF (1 << 2)
+#define IWDGRSTF (1 << 3)
+#define WWDGRSTF (1 << 4)
+#define LPWRRSTF (1 << 5)
+
 /* STM32 peripherals */
 enum {
 	/* AHB */
@@ -38,8 +46,8 @@ enum {
 
 
 typedef struct {
-	enum { pctl_set = 0, pctl_get, pctl_reboot } action;
-	enum { pctl_devclk = 0, pctl_cpuclk } type;
+	enum { pctl_set = 0, pctl_get } action;
+	enum { pctl_devclk = 0, pctl_cpuclk, pctl_reboot } type;
 
 	union {
 		struct {
@@ -50,6 +58,11 @@ typedef struct {
 		struct {
 			unsigned int hz;
 		} cpuclk;
+
+		struct {
+			unsigned int magic;
+			unsigned int reason;
+		} reboot;
 	};
 } __attribute__((packed)) platformctl_t;
 
