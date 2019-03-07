@@ -97,9 +97,6 @@ int hal_platformctl(void *ptr)
 
 	hal_spinlockSet(&stm32_common.pltctlSp);
 
-	if (data->action == pctl_reboot)
-		_stm32_nvicSystemReset();
-
 	switch (data->type) {
 	case pctl_devclk:
 		if (data->action == pctl_set)
