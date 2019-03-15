@@ -81,7 +81,9 @@ int userintr_dispatch(intr_handler_t *h)
 	userintr_common.active = NULL;
 
 	if (ret >= 0 && h->cond != NULL)
-		proc_threadWakeup((thread_t **)h->cond);
+		ret = proc_threadWakeup((thread_t **)h->cond);
+	else
+		ret = 0;
 
 	/* Restore process address space */
 	if ((p != NULL) && (p->mapp != NULL))

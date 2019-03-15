@@ -21,6 +21,8 @@
 #include "../../proc/userintr.h"
 #include "../../../include/errno.h"
 
+extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+
 
 #define SIZE_INTERRUPTS		159
 #define SIZE_HANDLERS		4
@@ -86,6 +88,7 @@ extern void _end(void);
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
+	int reschedule = 0;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
@@ -97,11 +100,14 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do {
 			if (h->process != NULL)
-				userintr_dispatch(h);
+				reschedule |= userintr_dispatch(h);
 			else
 				h->f(n, ctx, h->data);
 		} while ((h = h->next) != interrupts.handlers[n]);
 	}
+
+	if (reschedule)
+		threads_schedule(n, ctx, NULL);
 
 	hal_spinlockClear(&interrupts.spinlock[n]);
 
