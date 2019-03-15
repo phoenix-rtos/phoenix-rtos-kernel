@@ -21,8 +21,8 @@
 #include "cpu.h"
 
 /* IMX6ULL timer frequency set to 66 MHz */
-#define TIMER_US2CYC(x) (66 * x)
-#define TIMER_CYC2US(x) (x / 66)
+#define TIMER_US2CYC(x) (66LL * (x))
+#define TIMER_CYC2US(x) ((x) / 66)
 
 
 extern time_t hal_getTimer(void);
