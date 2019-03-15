@@ -27,6 +27,9 @@
 #ifndef __ASSEMBLY__
 
 
+#define SYSTICK_INTERVAL 1000
+
+
 #define PUTONSTACK(kstack, t, v) \
 	do { \
 		(kstack) -= sizeof(t); \

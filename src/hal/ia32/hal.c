@@ -44,13 +44,13 @@ __attribute__ ((section (".init"))) void _hal_init(void)
 {
 	_hal_spinlockInit();
 	_hal_consoleInit();
-	
+
 	_hal_exceptionsInit();
 	_hal_interruptsInit();
 
-	_timer_init(1000);
+	_timer_init(SYSTICK_INTERVAL);
 	_hal_cpuInit();
 
 	hal_common.started = 0;
 	return;
-}	
+}

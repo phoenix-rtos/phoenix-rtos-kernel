@@ -24,7 +24,6 @@
 #include "msg.h"
 #include "ports.h"
 
-#define SYSTICK_INTERVAL 10000
 
 struct {
 	vm_map_t *kmap;
