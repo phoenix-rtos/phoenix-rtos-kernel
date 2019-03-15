@@ -364,5 +364,8 @@ void _hal_platformInit(void)
 	imx6ull_common.iomux_snvs = (void *)(((u32)_end + 11 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	imx6ull_common.iomux = (void *)(((u32)_end + 12 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	imx6ull_common.iomux_gpr = (void *)(((u32)_end + 13 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+
+	/* remain in run mode in low power */
+	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3;
 }
 

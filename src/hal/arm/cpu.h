@@ -156,7 +156,7 @@ static inline void hal_cpuSetDevBusy(int s)
 
 static inline void hal_cpuHalt(void)
 {
-	__asm__ volatile ("wfe");
+	__asm__ volatile ("wfi");
 }
 
 
