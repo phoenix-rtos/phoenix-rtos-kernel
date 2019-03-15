@@ -24,6 +24,7 @@
 #include "msg.h"
 #include "ports.h"
 
+#define SYSTICK_INTERVAL 10000
 
 struct {
 	vm_map_t *kmap;
@@ -409,11 +410,11 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 			wakeup = t->wakeup - now;
 	}
 	else {
-		wakeup = TIMER_US2CYC(1000);
+		wakeup = TIMER_US2CYC(SYSTICK_INTERVAL);
 	}
 
-	if (wakeup > TIMER_US2CYC(1200))
-		wakeup = TIMER_US2CYC(1000);
+	if (wakeup > TIMER_US2CYC(SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8))
+		wakeup = TIMER_US2CYC(SYSTICK_INTERVAL);
 
 	hal_setWakeup(wakeup);
 #endif
@@ -441,7 +442,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 #ifdef HPTIMER_IRQ
 	now = threads_common.jiffies = hal_getTimer();
 #else
-	now = threads_common.jiffies += TIMER_US2CYC(1000);
+	now = threads_common.jiffies += TIMER_US2CYC(SYSTICK_INTERVAL);
 #endif
 
 	for (;; i++) {
