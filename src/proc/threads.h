@@ -152,13 +152,13 @@ extern int proc_threadSleep(unsigned int us);
 extern int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout);
 
 
-extern void proc_threadWakeup(thread_t **queue);
+extern int proc_threadWakeup(thread_t **queue);
 
 
 extern void proc_threadWakeupYield(thread_t **queue);
 
 
-extern void proc_threadBroadcast(thread_t **queue);
+extern int proc_threadBroadcast(thread_t **queue);
 
 
 extern void proc_threadBroadcastYield(thread_t **queue);

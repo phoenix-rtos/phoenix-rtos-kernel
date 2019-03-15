@@ -1121,27 +1121,36 @@ static void _proc_threadWakeup(thread_t **queue)
 }
 
 
-void proc_threadWakeup(thread_t **queue)
+int proc_threadWakeup(thread_t **queue)
 {
+	int ret = 0;
+
 	hal_spinlockSet(&threads_common.spinlock);
-	if (*queue != NULL && *queue != (void *)(-1))
+	if (*queue != NULL && *queue != (void *)(-1)) {
 		_proc_threadWakeup(queue);
-	else
+		ret = 1;
+	}
+	else {
 		(*queue) = (void *)(-1);
+	}
 	hal_spinlockClear(&threads_common.spinlock);
-	return;
+	return ret;
 }
 
 
-void proc_threadBroadcast(thread_t **queue)
+int proc_threadBroadcast(thread_t **queue)
 {
+	int ret = 0;
+
 	hal_spinlockSet(&threads_common.spinlock);
 	if (*queue != (void *)-1) {
-		while (*queue != NULL)
+		while (*queue != NULL) {
 			_proc_threadWakeup(queue);
+			ret++;
+		}
 	}
 	hal_spinlockClear(&threads_common.spinlock);
-	return;
+	return ret;
 }
 
 
