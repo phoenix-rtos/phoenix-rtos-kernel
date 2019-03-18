@@ -23,9 +23,9 @@ CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
 
 CFLAGS += -fdata-sections -ffunction-sections
 
-ifneq (, $(findstring stm32l152xd, $(TARGET)))
+ifneq (, $(findstring l152xd, $(TARGET)))
 	CFLAGS += -DCPU_STM32 -DRAM_SIZE=48
-else ifneq (, $(findstring stm32l152xe, $(TARGET)))
+else ifneq (, $(findstring l152xe, $(TARGET)))
 	CFLAGS += -DCPU_STM32 -DRAM_SIZE=80
 else ifneq (, $(findstring imxrt, $(TARGET)))
 	CFLAGS += -DCPU_IMXRT -DRAM_SIZE=128

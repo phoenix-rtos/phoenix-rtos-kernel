@@ -5,7 +5,7 @@
 #
 # Creates syspage for STM32 based on given apps.
 #
-# Copyright 2017 Phoenix Systems
+# Copyright 2017-2019 Phoenix Systems
 # Author: Aleksander Kaminski
 #
 # This file is part of Phoenix-RTOS.
@@ -13,9 +13,9 @@
 # This script creates image of Phoenix-RTOS kernel, syspage and aplications for STM32 platform.
 # Created image can be programmed directly to the device.
 # Usage:
-# $1 - path to Phoenix-RTOS kernel ELF
-# $2 - output file name
-# $3 - applications ELFs
+# $1      - path to Phoenix-RTOS kernel ELF
+# $2      - output file name
+# $3, ... - applications ELF(s)
 # example: ./mkimg-stm32.sh phoenix-armv7-stm32.elf flash.img app1.elf app2.elf
 
 if [ -z "$CROSS" ]
