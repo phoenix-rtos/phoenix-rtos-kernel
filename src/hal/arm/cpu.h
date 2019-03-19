@@ -43,7 +43,7 @@
 #ifndef __ASSEMBLY__
 
 
-#define SYSTICK_INTERVAL 10000
+#define SYSTICK_INTERVAL 1000
 
 
 #define PUTONSTACK(kstack, t, v) \
