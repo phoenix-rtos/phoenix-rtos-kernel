@@ -1706,10 +1706,14 @@ int proc_threadsList(int n, threadinfo_t *info)
 	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
 
 	while (i < n && t != NULL) {
-		if (t->process != NULL)
+		if (t->process != NULL) {
 			info[i].pid = t->process->id;
-		else
+			info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
+		}
+		else {
 			info[i].pid = 0;
+			info[i].ppid = 0;
+		}
 
 		info[i].tid = t->id;
 #ifndef CPU_STM32
