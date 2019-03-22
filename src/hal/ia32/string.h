@@ -24,66 +24,55 @@
 
 static inline void hal_memcpy(void *to, const void *from, unsigned int n)
 {
+	unsigned rn = n & 3;
+	n /= 4;
+
 	__asm__ volatile
 	(" \
 		cld; \
-		movl %0, %%ecx; \
-		movl %%ecx, %%edx; \
-		andl $3, %%edx; \
-		shrl $2, %%ecx; \
-		movl %1, %%edi; \
-		movl %2, %%esi; \
 		rep; movsl; \
 		movl %%edx, %%ecx; \
 		rep; movsb"
-	:
-	: "g" (n), "g" (to), "g" (from)
-	: "ecx", "edx", "esi", "edi", "cc", "memory");
+	: "+c" (n), "+D" (to), "+S" (from)
+	: "d" (rn)
+	: "cc", "memory");
 }
 
 
 static inline void hal_memset(void *where, u8 v, unsigned int n)
 {
+	u16 vv = v | (v << 8);
+	u32 v4 = vv | (vv << 16);
+	unsigned rn = n & 3;
+	n /= 4;
+
 	__asm__ volatile
 	(" \
 		cld; \
-		movl %0, %%ecx; \
-		movl %%ecx, %%edx; \
-		andl $3, %%edx; \
-		shrl $2, %%ecx; \
-		\
-		xorl %%eax, %%eax; \
-		movb %1, %%al; \
-		movl %%eax, %%ebx; \
-		shll $8, %%ebx; \
-		orl %%ebx, %%eax; \
-		movl %%eax, %%ebx; \
-		shll $16, %%ebx; \
-		orl %%ebx, %%eax; \
-		\
-		movl %2, %%edi; \
 		rep; stosl; \
 		movl %%edx, %%ecx; \
 		rep; stosb"
-	: "+d" (n)
-	: "m" (v), "m" (where)
-	: "eax", "ebx", "cc", "ecx", "edi" ,"memory");
+	: "+c" (n), "+D" (where)
+	: "a" (v4), "d" (rn)
+	: "cc", "memory");
 }
 
 
 static inline void hal_memsetw(void *where, u16 v, unsigned int n)
 {
+	u32 vv = v | (v << 16);
+	unsigned rn = n & 1;
+	n /= 2;
+
 	__asm__ volatile
 	(" \
 		cld; \
-		xorl %%eax, %%eax; \
-		movw %1, %%ax; \
-		movl %2, %%edi; \
-		movl %0, %%ecx; \
+		rep; stosl; \
+		movl %%edx, %%ecx; \
 		rep; stosw"
-	: "+d" (n)
-	: "g" (v), "m" (where)
-	: "eax", "ecx", "edi", "cc", "memory");
+	: "+c" (n), "+D" (where)
+	: "a" (vv), "d" (rn)
+	: "cc", "memory");
 }
 
 
