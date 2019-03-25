@@ -897,7 +897,7 @@ int proc_copyexec(void)
 
 	current->kstack = current->execkstack;
 	kstack = current->execkstack + current->kstacksz - sizeof(cpu_context_t);
-	hal_memcpy(kstack, current->parentkstack + current->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
+	hal_memcpy(kstack, parent->kstack + current->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
 
 	PUTONSTACK(kstack, void *, NULL);
 	PUTONSTACK(kstack, void *, NULL);
