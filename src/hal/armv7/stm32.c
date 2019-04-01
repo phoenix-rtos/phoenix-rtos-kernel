@@ -422,7 +422,7 @@ int _stm32_pwrEnterLPStop(void)
 
 	*(stm32_common.exti + exti_pr) |= 0xffffffff;
 
-	/* Enter Stop mode (wfi instruction) */
+	/* Enter Stop mode */
 	__asm__ volatile ("\
 		dmb; \
 		wfe; \
@@ -958,6 +958,8 @@ void _stm32_wdgReload(void)
 void _stm32_init(void)
 {
 	u32 t, i;
+	static const int gpio2pctl[] = { pctl_gpioa, pctl_gpiob, pctl_gpioc,
+		pctl_gpiod, pctl_gpioe, pctl_gpiof, pctl_gpiog, pctl_gpioh };
 
 	/* Base addresses init */
 	stm32_common.rcc = (void *)0x40023800;
@@ -1039,11 +1041,11 @@ void _stm32_init(void)
 #endif
 
 	/* Init all GPIOs to Ain mode to lower power consumption */
-	for (; i <= pctl_gpioh - pctl_gpioa; ++i) {
-		_stm32_rccSetDevClock(pctl_gpioa + i, 1);
+	for (; i <= pctl_gpiog - pctl_gpioa; ++i) {
+		_stm32_rccSetDevClock(gpio2pctl[i], 1);
 		*(stm32_common.gpio[i] + gpio_moder) = 0xffffffff;
 		*(stm32_common.gpio[i] + gpio_pupdr) = 0;
-		_stm32_rccSetDevClock(pctl_gpioa + i, 0);
+		_stm32_rccSetDevClock(gpio2pctl[i], 0);
 	}
 
 	/* Set the internal regulator output voltage to 1.5V */
