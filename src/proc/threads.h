@@ -179,7 +179,7 @@ extern void proc_gettime(time_t *raw, time_t *offs);
 extern int proc_settime(time_t offs);
 
 
-extern int proc_nextWakeup(void);
+extern time_t proc_nextWakeup(void);
 
 
 extern void proc_threadsDump(unsigned int priority);

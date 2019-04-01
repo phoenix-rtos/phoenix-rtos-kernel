@@ -1311,10 +1311,10 @@ int proc_settime(time_t offs)
 }
 
 
-int proc_nextWakeup(void)
+time_t proc_nextWakeup(void)
 {
 	thread_t *thread;
-	int wakeup = 0;
+	time_t wakeup = 0;
 	time_t now;
 
 	hal_spinlockSet(&threads_common.spinlock);
@@ -1617,7 +1617,7 @@ int proc_lockDone(lock_t *lock)
 
 static void threads_idlethr(void *arg)
 {
-	int wakeup;
+	time_t wakeup;
 	thread_t *ghost;
 	process_t *zombie;
 
