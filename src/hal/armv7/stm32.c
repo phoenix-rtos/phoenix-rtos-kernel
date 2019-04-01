@@ -37,7 +37,8 @@ struct {
 	int hsi;
 	int msi;
 
-	u32 gpio_state[8];
+	u32 gpio_mode[8];
+	u32 gpio_pupd[8];
 	u32 uart_state[5];
 
 	u32 resetFlags;
@@ -384,12 +385,6 @@ int _stm32_pwrEnterLPStop(void)
 	u32 cpuclk_state = (*(stm32_common.rcc + rcc_icscr) >> 13) & 7;
 	int slept = 0, i;
 
-	/* Disable gpios during sleep */
-	for (i = 0; i < 8; ++i) {
-		stm32_common.gpio_state[i] = *(stm32_common.gpio[i] + gpio_moder);
-		*(stm32_common.gpio[i] + gpio_moder) = (unsigned int)(-1);
-	}
-
 	/* Disable uarts during sleep */
 	stm32_common.uart_state[0] = *((volatile u32 *)0x4001380c);
 	*((volatile u32 *)0x4001380c) = 0;
@@ -401,6 +396,14 @@ int _stm32_pwrEnterLPStop(void)
 	*((volatile u32 *)0x40004c0c) = 0;
 	stm32_common.uart_state[4] = *((volatile u32 *)0x4000500c);
 	*((volatile u32 *)0x4000500c) = 0;
+
+	/* Disable gpios during sleep */
+	for (i = 0; i < 8; ++i) {
+		stm32_common.gpio_pupd[i] = *(stm32_common.gpio[i] + gpio_pupdr);
+		*(stm32_common.gpio[i] + gpio_pupdr) = 0;
+		stm32_common.gpio_mode[i] = *(stm32_common.gpio[i] + gpio_moder);
+		*(stm32_common.gpio[i] + gpio_moder) = 0xffffffffUL;
+	}
 
 	/* Convert range to Hz */
 	cpuclk_state = 1 << (16 + cpuclk_state);
@@ -443,8 +446,10 @@ int _stm32_pwrEnterLPStop(void)
 	/* Clear wakeup timer and interrupt bits */
 	*(stm32_common.rtc + rtc_cr) &= ~((1 << 10) | (1 << 14));
 
-	for (i = 0; i < 8; ++i)
-		*(stm32_common.gpio[i] + gpio_moder) = stm32_common.gpio_state[i];
+	for (i = 0; i < 8; ++i) {
+		*(stm32_common.gpio[i] + gpio_moder) = stm32_common.gpio_mode[i];
+		*(stm32_common.gpio[i] + gpio_pupdr) = stm32_common.gpio_pupd[i];
+	}
 
 	*((volatile u32 *)0x4001380c) = stm32_common.uart_state[0];
 	*((volatile u32 *)0x4000440c) = stm32_common.uart_state[1];
