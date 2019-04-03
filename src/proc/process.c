@@ -161,9 +161,6 @@ static void process_augment(rbnode_t *node)
 int proc_start(void (*initthr)(void *), void *arg, const char *path)
 {
 	process_t *process;
-#ifndef NOMMU
-	page_t *p;
-#endif
 
 	if ((process = (process_t *)vm_kmalloc(sizeof(process_t))) == NULL)
 		return -ENOMEM;
@@ -216,12 +213,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->mapp = &process->map;
 
 	vm_mapCreate(process->mapp, (void *)VADDR_MIN + SIZE_PAGE, (void *)VADDR_USR_MAX);
-
-	/* Create pmap */
-	process->pmapp = p = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
-	process->pmapv = vm_mmap(process_common.kmap, process_common.kmap->start, p, 1 << p->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_NONE);
-
-	pmap_create(&process->mapp->pmap, &process_common.kmap->pmap, p, process->pmapv);
 #else
 	process->lazy = 1;
 	process->mapp = process_common.kmap;
@@ -798,36 +789,19 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 int process_exec(syspage_program_t *prog, process_t *process, thread_t *current, thread_t *parent, char *path, int argc, char **argv, char **envp, void *kstack)
 {
 	vm_map_t map, *mapp;
-	page_t *p;
-	void *v, *stack, *entry;
-	int i = 0, err;
-	addr_t a;
+	void *stack, *entry;
+	int err;
 
 	/* Create map and pmap for new process, keep old in case of failure */
 	mapp = process->mapp;
-
-	if ((p = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
-		return -ENOMEM;
-
-	if ((v = vm_mmap(process_common.kmap, process_common.kmap->start, p, 1 << p->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_NONE)) == NULL) {
-		vm_pageFree(p);
-		return -ENOMEM;
-	}
-
 	vm_mapCreate(&map, (void *)VADDR_MIN + SIZE_PAGE, (void *)VADDR_USR_MAX);
-	pmap_create(&map.pmap, &process_common.kmap->pmap, p, v);
 	process->mapp = &map;
 
 	/* Map executable */
 	if ((err = process_load(&map, prog, path, argc, argv, envp, &stack, &entry)) < 0) {
 		process->mapp = mapp;
 		pmap_switch(&mapp->pmap);
-
 		vm_mapDestroy(process, &map);
-		while ((a = pmap_destroy(&map.pmap, &i)))
-			vm_pageFree(_page_get(a));
-		vm_munmap(process_common.kmap, v, SIZE_PDIR);
-		vm_pageFree(p);
 		return err;
 	}
 
@@ -837,10 +811,6 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 		proc_portsDestroy(process);
 		proc_resourcesFree(process);
 		vm_mapDestroy(process, &process->map);
-		while ((a = pmap_destroy(&process->map.pmap, &i)))
-			vm_pageFree(_page_get(a));
-		vm_munmap(process_common.kmap, process->pmapv, SIZE_PDIR);
-		vm_pageFree(process->pmapp);
 		vm_kfree(current->execkstack);
 		current->execkstack = NULL;
 		vm_kfree(process->path);
@@ -858,8 +828,6 @@ int process_exec(syspage_program_t *prog, process_t *process, thread_t *current,
 	process->mapp = &process->map;
 	process->path = path;
 	process->argv = argv;
-	process->pmapv = v;
-	process->pmapp = p;
 
 	perf_exec(process, path);
 
@@ -911,18 +879,6 @@ int proc_copyexec(void)
 	}
 	hal_memcpy(process->path, parent->process->path, len);
 
-	if ((process->pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL) {
-		PUTONSTACK(kstack, int, -1); /* exec */
-		hal_jmp(process_exexepilogue, kstack, NULL, 5);
-	}
-
-	if ((process->pmapv = vm_mmap(process_common.kmap, process_common.kmap->start, process->pmapp, 1 << process->pmapp->idx, PROT_READ | PROT_WRITE, process_common.kernel, -1, MAP_NONE)) == NULL) {
-		vm_pageFree(process->pmapp);
-		PUTONSTACK(kstack, int, -1); /* exec */
-		hal_jmp(process_exexepilogue, kstack, NULL, 5);
-	}
-
-	pmap_create(&process->map.pmap, &process_common.kmap->pmap, process->pmapp, process->pmapv);
 	vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
 	pmap_switch(&process->map.pmap);
 	process->mapp = &process->map;

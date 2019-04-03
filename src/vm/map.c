@@ -715,6 +715,18 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 	map->pmap.start = start;
 	map->pmap.end = stop;
 
+#ifndef NOMMU
+	if ((map->pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+		return -ENOMEM;
+
+	if ((map->pmapv = vm_mmap(map_common.kmap, NULL, map->pmapp, 1 << map->pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE)) == NULL) {
+		vm_pageFree(map->pmapp);
+		return -ENOMEM;
+	}
+
+	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmapp, map->pmapv);
+#endif
+
 	proc_lockInit(&map->lock);
 	lib_rbInit(&map->tree, map_cmp, map_augment);
 	return EOK;
@@ -725,24 +737,31 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 {
 	map_entry_t *e;
 
-#ifdef NOMMU
+#ifndef NOMMU
+	addr_t a;
+	rbnode_t *n;
+	int i = 0;
+
+	while ((a = pmap_destroy(&map->pmap, &i)))
+		vm_pageFree(_page_get(a));
+
+	vm_munmap(map_common.kmap, map->pmapv, SIZE_PDIR);
+	vm_pageFree(map->pmapp);
+
+	for (n = map->tree.root; n != NULL; n = map->tree.root) {
+		e = lib_treeof(map_entry_t, linkage, n);
+		amap_putanons(e->amap, e->aoffs, e->size);
+		_entry_put(map, e);
+	}
+
+	proc_lockDone(&map->lock);
+#else
 	proc_lockSet(&map->lock);
 	while ((e = p->entries) != NULL) {
 		_map_remove(map, e);
 		map_free(e);
 	}
 	proc_lockClear(&map->lock);
-#else
-	rbnode_t *n;
-
-	proc_lockSet(&map->lock);
-	for (n = map->tree.root; n != NULL; n = map->tree.root) {
-		e = lib_treeof(map_entry_t, linkage, n);
-		amap_putanons(e->amap, e->aoffs, e->size);
-		_entry_put(map, e);
-	}
-	proc_lockClear(&map->lock);
-	proc_lockDone(&map->lock);
 #endif
 }
 
@@ -823,6 +842,10 @@ void vm_mapMove(vm_map_t *dst, vm_map_t *src)
 
 	proc_lockSet(&src->lock);
 	proc_lockDone(&src->lock);
+#ifndef NOMMU
+	dst->pmapp = src->pmapp;
+	dst->pmapv = src->pmapv;
+#endif
 	hal_memcpy(dst, src, sizeof(vm_map_t));
 	pmap_moved(&dst->pmap);
 	proc_lockInit(&dst->lock);
@@ -1039,7 +1062,12 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 
 	proc_lockInit(&map_common.lock);
 
-	vm_mapCreate(kmap, (void *)VADDR_KERNEL, kmap->pmap.end);
+	kmap->start = kmap->pmap.start;
+	kmap->stop = kmap->pmap.end;
+
+	proc_lockInit(&kmap->lock);
+	lib_rbInit(&kmap->tree, map_cmp, map_augment);
+
 	map_common.kmap = kmap;
 	map_common.kernel = kernel;
 

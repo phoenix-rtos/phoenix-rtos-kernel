@@ -924,25 +924,10 @@ void proc_zombie(process_t *proc)
 
 static void proc_cleanupZombie(process_t *proc)
 {
-#ifndef NOMMU
-	int i = 0;
-	addr_t a;
-#endif
-
 	proc_lockSet(&proc->lock);
 
 	if (proc->mapp != NULL)
 		vm_mapDestroy(proc, proc->mapp);
-
-#ifndef NOMMU
-	if (proc->mapp != NULL) {
-		while ((a = pmap_destroy(&proc->map.pmap, &i)))
-			vm_pageFree(_page_get(a));
-
-		vm_munmap(threads_common.kmap, proc->pmapv, SIZE_PDIR);
-		vm_pageFree(proc->pmapp);
-	}
-#endif
 
 	proc_lockDone(&proc->lock);
 

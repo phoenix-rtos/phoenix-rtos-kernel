@@ -48,10 +48,6 @@ typedef struct _process_t {
 	int waitpid;
 	int waittid;
 
-	/* Temporary? Used to cleanup after pmap */
-	void *pmapv;
-	page_t *pmapp;
-
 	union {
 		vm_map_t map;
 		map_entry_t *entries;
