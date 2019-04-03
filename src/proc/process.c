@@ -69,12 +69,9 @@ process_t *proc_find(unsigned int pid)
 }
 
 
-unsigned _process_alloc(unsigned id)
+static unsigned _process_alloc(unsigned id)
 {
 	process_t *p = lib_treeof(process_t, idlinkage, process_common.id.root);
-
-	if (!id)
-		id = 1;
 
 	while (p != NULL) {
 		if (p->lgap && id < p->id) {
@@ -109,6 +106,27 @@ unsigned _process_alloc(unsigned id)
 	}
 
 	return id;
+}
+
+
+static unsigned process_alloc(process_t *process)
+{
+	proc_lockSet(&process_common.lock);
+	process->id = _process_alloc(process_common.idcounter);
+
+	if (!process->id)
+		process->id = _process_alloc(process_common.idcounter = 1);
+
+	if (process_common.idcounter == MAX_PID)
+		process_common.idcounter = 1;
+
+	if (process->id) {
+		lib_rbInsert(&process_common.id, &process->idlinkage);
+		process_common.idcounter++;
+	}
+	proc_lockClear(&process_common.lock);
+
+	return process->id;
 }
 
 
@@ -169,7 +187,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->entries = NULL;
 #endif
 
-	process->id = 1;
 	process->state = NORMAL;
 
 	if ((process->path = vm_kmalloc(hal_strlen(path) + 1)) == NULL) {
@@ -187,16 +204,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->waitpid = 0;
 
 	proc_lockInit(&process->lock);
-
-	/*process->uid = 0;
-	process->euid = 0;
-	process->suid = 0;
-	process->gid = 0;
-	process->egid = 0;
-	process->sgid = 0;
-
-	process->umask = 0x1ff;
-	process->ports = NULL;*/
 
 	process->ports = NULL;
 	process->zombies = NULL;
@@ -216,22 +223,17 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #else
 	process->lazy = 1;
 	process->mapp = process_common.kmap;
-	//stack = (void *)VADDR_MIN;
 #endif
 
 	/* Initialize resources tree for mutex and cond handles */
 	resource_init(process);
 
 	if (proc_threadCreate(process, (void *)initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
-//		proc_threadDestroy();
 		vm_kfree(process);
 		return -EINVAL;
 	}
 
-	proc_lockSet(&process_common.lock);
-	lib_rbInsert(&process_common.id, &process->idlinkage);
-	proc_lockClear(&process_common.lock);
-
+	process_alloc(process);
 	return 0;
 }
 
@@ -451,7 +453,6 @@ int proc_vfork(void)
 	process->parent = parent;
 	process->threads = NULL;
 	process->path = NULL;
-	proc_lockInit(&process->lock);
 
 	process->waitq = NULL;
 	process->waitpid = 0;
@@ -471,19 +472,12 @@ int proc_vfork(void)
 	process->waittid = 0;
 	process->argv = NULL;
 
-	proc_lockSet(&process_common.lock);
-	if ((process->id = _process_alloc(process_common.idcounter)))
-		lib_rbInsert(&process_common.id, &process->idlinkage);
-	else if ((process->id = _process_alloc(process_common.idcounter = 1)))
-		lib_rbInsert(&process_common.id, &process->idlinkage);
-	process_common.idcounter = process->id + 1;
-	proc_lockClear(&process_common.lock);
-
-	if (!process->id) {
-		proc_lockDone(&process->lock);
+	if (!process_alloc(process)) {
 		vm_kfree(process);
 		return -ENOMEM;
 	}
+
+	proc_lockInit(&process->lock);
 
 	proc_lockSet(&process->parent->lock);
 	LIST_ADD(&process->parent->children, process);
@@ -494,6 +488,7 @@ int proc_vfork(void)
 
 	/* Start first thread */
 	if (proc_threadCreate(process, (void *)process_vforkthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)current) < 0) {
+		proc_lockDone(&process->lock);
 		vm_kfree(process);
 		return -EINVAL;
 	}
