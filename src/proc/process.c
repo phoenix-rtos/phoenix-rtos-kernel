@@ -180,7 +180,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 {
 	process_t *process;
 
-	if ((process = (process_t *)vm_kmalloc(sizeof(process_t))) == NULL)
+	if ((process = vm_kmalloc(sizeof(process_t))) == NULL)
 		return -ENOMEM;
 
 #ifdef NOMMU
@@ -188,13 +188,17 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #endif
 
 	process->state = NORMAL;
+	process->path = NULL;
 
-	if ((process->path = vm_kmalloc(hal_strlen(path) + 1)) == NULL) {
-		vm_kfree(process);
-		return -ENOMEM;
+	if (path != NULL) {
+		if ((process->path = vm_kmalloc(hal_strlen(path) + 1)) == NULL) {
+			vm_kfree(process);
+			return -ENOMEM;
+		}
+
+		hal_strcpy(process->path, path);
 	}
 
-	hal_strcpy(process->path, path);
 	process->argv = NULL;
 	process->parent = NULL;
 	process->children = NULL;
@@ -217,24 +221,23 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 #ifndef NOMMU
 	process->lazy = 0;
-	process->mapp = &process->map;
-
-	vm_mapCreate(process->mapp, (void *)VADDR_MIN + SIZE_PAGE, (void *)VADDR_USR_MAX);
 #else
 	process->lazy = 1;
-	process->mapp = process_common.kmap;
 #endif
+
+	process->mapp = process_common.kmap;
 
 	/* Initialize resources tree for mutex and cond handles */
 	resource_init(process);
+	process_alloc(process);
+	perf_fork(process);
 
 	if (proc_threadCreate(process, (void *)initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
 		vm_kfree(process);
 		return -EINVAL;
 	}
 
-	process_alloc(process);
-	return 0;
+	return process->id;
 }
 
 
@@ -398,7 +401,13 @@ static void process_vforkthr(void *arg)
 		proc_threadWait(&parent->execwaitq, &parent->execwaitsl, 0);
 
 	current->execparent = parent;
-	hal_spinlockClear(&parent->execwaitsl);
+	current->process->parent = parent->process;
+	current->process->mapp = parent->process->mapp;
+	hal_cpuReschedule(&parent->execwaitsl);
+
+	proc_lockSet(&parent->process->lock);
+	LIST_ADD(&parent->process->children, current->process);
+	proc_lockClear(&parent->process->lock);
 
 	posix_clone(parent->process->id);
 
@@ -430,72 +439,20 @@ static void process_vforkthr(void *arg)
 
 int proc_vfork(void)
 {
-	process_t *process, *parent;
 	thread_t *current;
-	int res = 0;
+	int pid, res = 0;
 
-	if (((current = proc_current()) == NULL) || ((parent = current->process) == NULL))
+	if ((current = proc_current()) == NULL)
 		return -EINVAL;
-
-	if ((process = (process_t *)vm_kmalloc(sizeof(process_t))) == NULL) {
-		return -ENOMEM;
-	}
-
-#ifdef NOMMU
-	process->lazy = 1;
-	process->entries = NULL;
-#else
-	process->lazy = 0;
-#endif
-
-	process->state = NORMAL;
-	process->children = NULL;
-	process->parent = parent;
-	process->threads = NULL;
-	process->path = NULL;
-
-	process->waitq = NULL;
-	process->waitpid = 0;
-
-	process->ports = NULL;
-
-	/* Use memory map of parent process until execl or exist are executed */
-	process->mapp = parent->mapp;
-
-	process->sigpend = 0;
-	process->sigmask = parent->sigmask;
-	process->sighandler = parent->sighandler;
-	process->zombies = NULL;
-
-	process->ghosts = NULL;
-	process->gwaitq = NULL;
-	process->waittid = 0;
-	process->argv = NULL;
-
-	if (!process_alloc(process)) {
-		vm_kfree(process);
-		return -ENOMEM;
-	}
-
-	proc_lockInit(&process->lock);
-
-	proc_lockSet(&process->parent->lock);
-	LIST_ADD(&process->parent->children, process);
-	proc_lockClear(&process->parent->lock);
 
 	current->execwaitq = NULL;
 	current->execfl = PREFORK;
 
-	/* Start first thread */
-	if (proc_threadCreate(process, (void *)process_vforkthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)current) < 0) {
-		proc_lockDone(&process->lock);
-		vm_kfree(process);
-		return -EINVAL;
-	}
+	if ((pid = proc_start(process_vforkthr, current, NULL)) < 0)
+		return pid;
 
 	/* Signal forking state to vfork thread */
 	hal_spinlockSet(&current->execwaitsl);
-	perf_fork(process);
 	current->execfl = FORKING;
 	proc_threadWakeup(&current->execwaitq);
 
@@ -519,7 +476,7 @@ int proc_vfork(void)
 	if (res == 1)
 		return 0;
 
-	return current->execfl == NOFORK ? -ENOMEM : process->id;
+	return current->execfl == NOFORK ? -ENOMEM : pid;
 }
 
 
