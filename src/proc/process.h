@@ -36,6 +36,7 @@ typedef struct _process_t {
 	struct _process_t *children;
 
 	struct _thread_t *threads;
+	int refs;
 
 	char *path;
 	char **argv;

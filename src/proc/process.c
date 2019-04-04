@@ -56,16 +56,43 @@ static int proc_idcmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
-process_t *proc_find(unsigned int pid)
+process_t *proc_find(unsigned pid)
 {
 	process_t *p, s;
 	s.id = pid;
 
 	proc_lockSet(&process_common.lock);
-	p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage));
+	if ((p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage))) != NULL)
+		p->refs++;
 	proc_lockClear(&process_common.lock);
 
 	return p;
+}
+
+
+static void process_destroy(process_t *p)
+{
+	vm_mapDestroy(p, p->mapp);
+	proc_resourcesFree(p);
+	proc_portsDestroy(p);
+	proc_lockDone(&p->lock);
+	vm_kfree(p);
+}
+
+
+int proc_put(process_t *p)
+{
+	int remaining;
+
+	proc_lockSet(&process_common.lock);
+	if (!(remaining = --p->refs))
+		lib_rbRemove(&process_common.id, &p->idlinkage);
+	proc_lockClear(&process_common.lock);
+
+	if (!remaining)
+		process_destroy(p);
+
+	return remaining;
 }
 
 
