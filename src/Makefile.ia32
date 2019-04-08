@@ -12,8 +12,8 @@ CROSS ?= i386-pc-phoenix-
 SUBDIRS = hal/ia32  $(SUBSYSTEMS)
 
 # Should be greater or equal than 0xc0020000 because of plo code and data - descriptor tables, page tables, syspage, stack, plo stack and disk cache
-# Should be greate than 0xa000 in case of multiboot qemu loader - on 0x9000 multiboot info is located
-VADDR = c0020000
+# Should be at least 0xc0110000 in case of multiboot qemu loader to skip VGA/BIOS in case of big module payload
+VADDR = c0110000
 
 MKDEP = $(CROSS)gcc -MM
 MKDEPFLAGS = $(CFLAGS)
