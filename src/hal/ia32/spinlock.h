@@ -39,27 +39,33 @@ typedef struct _spinlock_t {
 
 static inline void hal_spinlockSet(spinlock_t *spinlock)
 {
+	int lock_val = 0;
+
 	__asm__ volatile
 	(" \
 		pushf; \
-		popl %%ebx; \
+		popl %0; \
 		cli; \
 	1: \
-		xorl %%eax, %%eax; \
-		xchgl %1, %%eax; \
-		cmp $0, %%eax; \
-		jz 1b; \
-		movl %%ebx, %0"
+		xchgl %2, %1; \
+		cmp $0, %1; \
+		je 2f; \
+		jmp 3f; \
+	2:	pause; \
+		jmp 1b; \
+	3: "
+	: "=r" (spinlock->eflags), "+r" (lock_val), "+m" (spinlock->lock)
 	:
-	: "m" (spinlock->eflags), "m" (spinlock->lock)
-	: "eax", "ebx", "memory");
-	
+	: "memory");
+
 	hal_cpuGetCycles((void *)&spinlock->b);	
 }
 
 
 static inline void hal_spinlockClear(spinlock_t *spinlock)
 {
+	int unlock_val = 1;
+
 	hal_cpuGetCycles((void *)&spinlock->e);
 	
 	/* Calculate maximum and minimum lock time */	
@@ -71,17 +77,12 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 
 	__asm__ volatile
 	(" \
-		movl %1, %%eax; \
-		pushl %%eax; \
-		xorl %%eax, %%eax; \
-		incl %%eax; \
-		xchgl %0, %%eax; \
+		pushl %2; \
+		xchgl %1, %0; \
 		popf"
-	:
-	: "m" (spinlock->lock), "m" (spinlock->eflags)
-	: "eax", "esp", "memory");
-
-	return;
+	: "+r" (unlock_val), "+m" (spinlock->lock)
+	: "rm" (spinlock->eflags)
+	: "memory");
 }
 
 
