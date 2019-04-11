@@ -62,8 +62,9 @@ static inline void hal_spinlockSet(spinlock_t *spinlock)
 }
 
 
-static inline void hal_spinlockClear(spinlock_t *spinlock)
+static inline unsigned long hal_spinlockClearNoRestore(spinlock_t *spinlock)
 {
+	unsigned long flags;
 	int unlock_val = 1;
 
 	hal_cpuGetCycles((void *)&spinlock->e);
@@ -75,16 +76,30 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 	if (spinlock->e - spinlock->b < spinlock->dmin)
 		spinlock->dmin = spinlock->e - spinlock->b;
 
+	flags = spinlock->eflags;
+
 	__asm__ volatile
-	(" \
-		pushl %2; \
-		xchgl %1, %0; \
-		popf"
+	("	xchgl %1, %0"
 	: "+r" (unlock_val), "+m" (spinlock->lock)
-	: "rm" (spinlock->eflags)
+	:
 	: "memory");
+
+	return flags;
 }
 
+
+static inline void hal_spinlockClear(spinlock_t *spinlock)
+{
+	unsigned flags = hal_spinlockClearNoRestore(spinlock);
+
+	__asm__ volatile
+	(" \
+		pushl %0; \
+		popf"
+	:
+	: "r" (flags)
+	: "memory");
+}
 
 extern void hal_spinlockCreate(spinlock_t *spinlock, const char *name);
 

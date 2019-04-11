@@ -261,56 +261,39 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 int hal_cpuReschedule(spinlock_t *spinlock)
 {
+	unsigned long flags;
 	int err;
 
 	if (spinlock != NULL) {
-		hal_cpuGetCycles((void *)&spinlock->e);
-
-		/* Calculate maximum and minimum lock time */
-		if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
-			spinlock->dmax = spinlock->e - spinlock->b;
-
-		if (spinlock->e - spinlock->b < spinlock->dmin)
-			spinlock->dmin = spinlock->e - spinlock->b;
+		flags = hal_spinlockClearNoRestore(spinlock);
+	} else {
+		__asm__ volatile (
+			"pushf;"
+			"popl %0"
+		: "=r" (flags)
+		);
 	}
 
 	__asm__ volatile (
-		"movl %1, %%eax;"
-		"cmp $0, %%eax;"
-		"je 1f;"
-
-		"movl %3, %%eax;"
-		"pushl %%eax;"
-		"xorl %%eax, %%eax;"
-		"incl %%eax;"
-		"xchgl %2, %%eax;"
-		"jmp 2f;"
-
-		"1:;"
-		"pushf;"
-
-		"2:;"
-		"pushl %%cs;"
 		"cli;"
-		"leal 3f, %%eax;"
-		"pushl %%eax;"
+		"pushl %1;"
+		"pushl %%cs;"
+		"pushl $3f;"
 		"movl $0, %%eax;"
 		"call interrupts_pushContext;"
-		"leal 0(%%esp), %%eax;"
+		"movl %%esp, %%eax;"
 		"pushl $0;"
 		"pushl %%eax;"
 		"pushl $0;"
-		"movl %4, %%eax;"
-		"call *%%eax;"
+		"call threads_schedule;"
 		"cli;"
 		"addl $12, %%esp;"
 		"jmp interrupts_popContext;"
 
-		"3:;"
-		"movl %%eax, %0"
-	: "=g" (err)
-	: "m" (spinlock), "m" (spinlock->lock), "m" (spinlock->eflags), "g" (threads_schedule)
-	: "eax", "edx", "esp", "cc", "memory");
+		"3:"
+	: "=&a" (err)
+	: "r" (flags)
+	: "edx", "cc", "memory");
 
 	return err;
 }
