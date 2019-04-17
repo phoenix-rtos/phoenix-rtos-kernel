@@ -76,11 +76,56 @@ plugin_boot_data:
 	.word 1                                             /* plugin */
 	.word 0                                             /* reserved */
 
+.macro mov32, reg, val
+	movw \reg, #:lower16:\val
+	movt \reg, #:upper16:\val
+.endm
+
 plugin:
 	stmdb sp!, {r4, r5, r6, r7, r8, lr}
 
+	/* note: "ldr reg, =constant" pseudo instruction can't be used before
+	 * the serial download check below - the literal pool will not be included in the plugin */
+
+	/* check if reset was caused by watch dog */
+	mov32 r4, 0x20d8008
+	ldr r5, [r4]
+	tst r5, #0x10
+
+	/* skip mdscr register config */
+	bne mdscr_skip
+
+	mov32 r4, 0x21b001c
+	mov32 r5, 0x2008032
+	str r5, [r4]
+	movw r5, #0x8033
+	str r5, [r4]
+	mov32 r5, 0x48031
+	str r5, [r4]
+	mov32 r5, 0x15208030
+	str r5, [r4]
+	mov32 r5, 0x4008040
+	str r5, [r4]
+	mov32 r4, 0x21b0020
+	movw r5, #0x800
+	str r5, [r4]
+
+mdscr_skip:
+	mov32 r4, 0x21b0818
+	mov32 r5, 0x227
+	str r5, [r4]
+	mov32 r4, 0x21b0004
+	mov32 r5, 0x2552d
+	str r5, [r4]
+	mov32 r4, 0x21b0404
+	mov32 r5, 0x11006
+	str r5, [r4]
+	mov32 r4, 0x21b001c
+	mov r5, #0x0
+	str r5, [r4]
+
 	/* check first argument's address - anything below OCRAM means it is a serial download boot */
-	ldr r4, =#0x900000
+	mov r4, #0x900000
 	cmp r0, r4
 	bmi failsafe
 	mov r4, r0
@@ -119,7 +164,7 @@ plugin:
 	ldmia sp!, {r4, r5, r6, r7, r8, pc}
 
 failsafe:
-	ldr r4, =(HAB_API_VEC + 0x28) /* suppress sending error to host app */
+	mov r4, #(HAB_API_VEC + 0x28) /* suppress sending error to host app */
 	ldr r4, [r4]
 	blx r4
 	mov r0, #0x0
@@ -251,26 +296,6 @@ dcd_ddr:
 	.word SWAP(0x82180000)
 	.word SWAP(0x021b0890)
 	.word SWAP(0x00400000)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x02008032)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00008033)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00048031)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x15208030)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x04008040)
-	.word SWAP(0x021b0020)
-	.word SWAP(0x00000800)
-	.word SWAP(0x021b0818)
-	.word SWAP(0x00000227)
-	.word SWAP(0x021b0004)
-	.word SWAP(0x0002552d)
-	.word SWAP(0x021b0404)
-	.word SWAP(0x00011006)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00000000)
 dcd_end:
 
 ivt:
