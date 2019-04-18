@@ -47,6 +47,8 @@ enum { ccm_analog_pll_arm = 0, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, c
 	ccm_analog_misc1_set, ccm_analog_misc1_clr, ccm_analog_misc1_tog, ccm_analog_misc2, ccm_analog_misc2_set,
 	ccm_analog_misc2_clr, ccm_analog_misc2_tog };
 
+/* WDOG registers */
+enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 struct {
 	spinlock_t pltctlSp;
@@ -56,6 +58,7 @@ struct {
 	volatile u32 *iomux;
 	volatile u32 *iomux_gpr;
 	volatile u32 *iomux_snvs;
+	volatile u16 *wdog;
 } imx6ull_common;
 
 /* saved in _init_imx6ull.S */
@@ -305,6 +308,13 @@ static int _imx6ull_getIOisel(int isel, char *daisy)
 }
 
 
+static void _imx6ull_reboot(void)
+{
+	*(imx6ull_common.wdog + wdog_wcr) |= 4;
+	for (;;) ;
+}
+
+
 /* platformctl syscall */
 
 int hal_platformctl(void *ptr)
@@ -346,6 +356,15 @@ int hal_platformctl(void *ptr)
 		else if (data->action == pctl_get)
 			ret = _imx6ull_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
 		break;
+	case pctl_reboot:
+		if (data->action == pctl_set) {
+			if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+				_imx6ull_reboot();
+		}
+		else if (data->action == pctl_get) {
+			data->reboot.reason = imx6ull_bootReason;
+		}
+
 	default:
 		break;
 	}
@@ -367,6 +386,7 @@ void _hal_platformInit(void)
 	imx6ull_common.iomux_snvs = (void *)(((u32)_end + 11 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	imx6ull_common.iomux = (void *)(((u32)_end + 12 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	imx6ull_common.iomux_gpr = (void *)(((u32)_end + 13 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	imx6ull_common.wdog = (void *)(((u32)_end + 14 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 
 	/* remain in run mode in low power */
 	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3;

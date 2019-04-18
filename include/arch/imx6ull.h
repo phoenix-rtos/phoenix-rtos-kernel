@@ -16,6 +16,8 @@
 #ifndef _PHOENIX_ARCH_IMX6ULL_H_
 #define _PHOENIX_ARCH_IMX6ULL_H_
 
+#define PCTL_REBOOT_MAGIC 0xaa55aa55UL
+
 /* Devices clocks */
 enum {
 	/* CCM_CCGR0 */
@@ -198,7 +200,7 @@ enum {
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel } type;
+	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot } type;
 
 	union {
 		struct {
@@ -233,6 +235,11 @@ typedef struct {
 			int isel;
 			char daisy;
 		} ioisel;
+
+		struct {
+			unsigned int magic;
+			unsigned int reason;
+		} reboot;
 	};
 } __attribute__((packed)) platformctl_t;
 

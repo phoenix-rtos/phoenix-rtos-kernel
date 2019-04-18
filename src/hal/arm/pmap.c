@@ -551,8 +551,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Initialize kernel heap start address */
 	(*vstart) = (void *)(((u32)_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 
-	/* First 9 pages after bss are mapped for UART1, UART2, GIC, GPT1, CCM and IOMUX */
-	(*vstart) += 14 * SIZE_PAGE;
+	/* First 9 pages after bss are mapped for UART1, UART2, GIC, GPT1, CCM, IOMUX and WDOG */
+	(*vstart) += 15 * SIZE_PAGE;
 	(*vend) = (*vstart) + SIZE_PAGE;
 
 	pmap_common.start = (u32)pmap_common.heap - VADDR_KERNEL + pmap_common.minAddr;

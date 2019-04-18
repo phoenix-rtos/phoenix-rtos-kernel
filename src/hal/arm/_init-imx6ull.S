@@ -603,6 +603,10 @@ kernel_ttl2:
 
 	/* Map IOMUXC_GPR registers 4KB P 0x020e4000 -> V CEIL(_end + 13 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020e4012
+	str r1, [r0], #4
+
+	/* Map WDOG1 registers 4KB P 0x020bc000 -> V CEIL(_end + 14 * SIZE_PAGE, SIZE_PAGE) */
+	ldr r1, =0x020bc012
 	str r1, [r0]
 
 	/* IOMUX for UART1*/
