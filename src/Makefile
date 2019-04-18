@@ -9,10 +9,10 @@
 
 SIL ?= @
 
-#TARGET ?= ia32
+TARGET ?= ia32
 #TARGET ?= armv7-stm32
 #TARGET ?= armv7-imxrt
-TARGET ?= arm-imx
+#TARGET ?= arm-imx
 #TARGET ?= riscv64
 
 VERSION = 2.80

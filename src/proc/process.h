@@ -24,16 +24,12 @@
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
-enum { NORMAL = 0, ZOMBIE };
 
 typedef struct _process_t {
 	struct _process_t *next;
 	struct _process_t *prev;
 
 	lock_t lock;
-
-	struct _process_t *parent;
-	struct _process_t *children;
 
 	struct _thread_t *threads;
 	int refs;
@@ -42,12 +38,6 @@ typedef struct _process_t {
 	char **argv;
 	unsigned int id;
 	rbnode_t idlinkage;
-
-	struct _process_t *zombies;
-	struct _thread_t *ghosts;
-	struct _thread_t *waitq, *gwaitq;
-	int waitpid;
-	int waittid;
 
 	union {
 		vm_map_t map;
@@ -59,7 +49,6 @@ typedef struct _process_t {
 	unsigned lazy : 1;
 	unsigned lgap : 1;
 	unsigned rgap : 1;
-	unsigned state : 1;
 
 	/*u32 uid;
 	u32 euid;

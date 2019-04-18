@@ -30,6 +30,7 @@ enum { PREFORK = 0, FORKING = 1, FORKED, NOFORK };
 /* Child thread states */
 enum { OWNSTACK = 0, PARENTSTACK };
 
+enum { READY = 0, SLEEP };
 
 typedef struct {
 	cycles_t cycl[10];
@@ -52,16 +53,16 @@ typedef struct _thread_t {
 	struct _thread_t *procprev;
 
 	unsigned long id;
-	unsigned int priority;
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
 	volatile time_t wakeup;
 
-	volatile enum {
-		thread_killme = 1 << 0,
-		thread_protected = 1 << 1,
-	} flags;
+	unsigned priority : 4;
+	unsigned exit : 1;
+	unsigned state : 1;
+	unsigned interruptible : 1;
+	unsigned execfl : 2;
 
 	unsigned sigmask;
 	unsigned sigpend;
@@ -77,9 +78,6 @@ typedef struct _thread_t {
 	struct _thread_t *execparent;
 
 	spinlock_t execwaitsl;
-
-	volatile enum { READY = 0, SLEEP = 1 } state;
-	char execfl;
 
 	time_t readyTime;
 	time_t maxWait;

@@ -64,6 +64,10 @@ struct {
 } threads_common;
 
 
+void proc_threadProtect() {}
+void proc_threadUnprotect() {}
+
+
 static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
 {
 	thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
@@ -225,7 +229,7 @@ void perf_fork(process_t *p)
 	ev.sbz = 0;
 	ev.type = perf_levFork;
 	ev.pid = perf_idpack(p->id);
-	ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
+	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
 	ev.tid = perf_idpack(_proc_current()->id);
 
 	now = TIMER_CYC2US(_threads_getTimer());
@@ -730,7 +734,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->stick = 0;
 	t->utick = 0;
 	t->priority = priority;
-	t->flags = thread_protected;
+	// t->flags = thread_protected;
 
 	if (process != NULL) {
 		hal_spinlockSet(&threads_common.spinlock);
@@ -769,8 +773,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	_perf_waking(t);
 
 	LIST_ADD(&threads_common.ready[priority], t);
-	if (current != NULL && current->flags & thread_killme)
-		t->flags |= thread_killme;
+	// if (current != NULL && current->flags & thread_killme)
+		// t->flags |= thread_killme;
 	hal_spinlockClear(&threads_common.spinlock);
 
 	proc_lockClear(&threads_common.lock);
@@ -779,65 +783,23 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 }
 
 
-void proc_threadProtect(void)
-{
-	thread_t *t;
-
-	hal_spinlockSet(&threads_common.spinlock);
-	t = threads_common.current[hal_cpuGetID()];
-	if (t != NULL)
-		t->flags |= thread_protected;
-	hal_spinlockClear(&threads_common.spinlock);
-}
-
-
-void proc_threadUnprotect(void)
-{
-	thread_t *t;
-
-	hal_spinlockSet(&threads_common.spinlock);
-	t = threads_common.current[hal_cpuGetID()];
-	if (t != NULL) {
-		t->flags &= ~thread_protected;
-		if (t->flags & thread_killme) {
-			hal_spinlockClear(&threads_common.spinlock);
-			proc_threadDestroy();
-		}
-	}
-	hal_spinlockClear(&threads_common.spinlock);
-}
-
-
-static void _proc_threadWakeup(thread_t **queue);
-
 void proc_threadDestroy(void)
 {
 	thread_t *thr = proc_current();
-	process_t *proc = thr->process;
-	int zombie = 0;
+	process_t *proc;
 
-	hal_spinlockSet(&threads_common.spinlock);
-	thr->process = NULL;
-	if (proc != NULL) {
+	if ((proc = thr->process) != NULL) {
+		hal_spinlockSet(&threads_common.spinlock);
 		LIST_REMOVE_EX(&proc->threads, thr, procnext, procprev);
-		zombie = (proc->threads == NULL);
-	}
-	hal_spinlockClear(&threads_common.spinlock);
+		thr->process = NULL;
+		hal_spinlockClear(&threads_common.spinlock);
 
-	if (zombie)
-		proc_zombie(proc);
+		proc_put(proc);
+	}
 
 	hal_spinlockSet(&threads_common.spinlock);
 	_perf_end(thr);
 	threads_common.current[hal_cpuGetID()] = NULL;
-	if (zombie || proc == NULL) {
-		LIST_ADD(&threads_common.ghosts, thr);
-	}
-	else {
-		LIST_ADD(&proc->ghosts, thr);
-		if (proc->gwaitq != NULL)
-			_proc_threadWakeup(&proc->gwaitq);
-	}
 	hal_cpuReschedule(&threads_common.spinlock);
 }
 
@@ -856,10 +818,10 @@ void proc_threadsDestroy(process_t *proc)
 		if (t == _proc_current())
 			continue;
 
-		if (t->flags & thread_protected) {
-			t->flags |= thread_killme;
-			continue;
-		}
+		// if (t->flags & thread_protected) {
+			// t->flags |= thread_killme;
+			// continue;
+		// }
 
 		_perf_end(t);
 
@@ -874,51 +836,9 @@ void proc_threadsDestroy(process_t *proc)
 			LIST_REMOVE(&threads_common.ready[t->priority], t);
 		}
 
-		LIST_ADD(&threads_common.ghosts, t);
 		LIST_REMOVE_EX(&proc->threads, t, procnext, procprev);
 	}
-
-	if ((t = proc->ghosts) != NULL) {
-		proc->ghosts = NULL;
-
-		if (threads_common.ghosts == NULL) {
-			threads_common.ghosts = t;
-		}
-		else {
-			swap(threads_common.ghosts->next, t->prev->next);
-			swap(t->prev->next->prev, t->prev);
-		}
-	}
 	hal_spinlockClear(&threads_common.spinlock);
-
-	if (proc->threads == NULL)
-		proc_zombie(proc);
-}
-
-
-void proc_zombie(process_t *proc)
-{
-	process_t *parent = proc->parent;
-	unsigned int ppid = parent->id;
-
-	if (parent != NULL) {
-		proc_lockSet(&parent->lock);
-		proc->state = ZOMBIE;
-		LIST_REMOVE(&parent->children, proc);
-		LIST_ADD(&parent->zombies, proc);
-
-		if (parent->waitpid == -1 || (unsigned)parent->waitpid == proc->id)
-			proc_threadWakeup(&parent->waitq);
-
-		proc_lockClear(&parent->lock);
-
-		posix_sigchild(ppid);
-	}
-	else {
-		hal_spinlockSet(&threads_common.spinlock);
-		LIST_ADD(&threads_common.zombies, proc);
-		hal_spinlockClear(&threads_common.spinlock);
-	}
 }
 
 
@@ -1174,50 +1094,6 @@ void proc_threadBroadcastYield(thread_t **queue)
 int proc_waitpid(int pid, int *stat, int options)
 {
 	int err = 0;
-	process_t *z, *proc = proc_current()->process;
-
-	proc_threadUnprotect();
-	proc_lockSet(&proc->lock);
-	proc->waitpid = pid;
-
-	for (;;) {
-		if ((z = proc->zombies) != NULL) {
-			do {
-				if (pid == -1 || z->id == pid) {
-					err = z->id;
-					break;
-				}
-
-				z = z->next;
-			} while (z != proc->zombies);
-
-			if (!err)
-				z = NULL;
-		}
-
-		if (z == NULL && proc->children == NULL) {
-			err = -ECHILD;
-			break;
-		}
-
-		if (err || (options & 1) || (err = proc_lockWait(&proc->waitq, &proc->lock, 0)))
-			break;
-	}
-
-	if (z != NULL) {
-		err = z->id;
-		if (stat != NULL)
-			*stat = z->exit;
-		LIST_REMOVE(&proc->zombies, z);
-	}
-
-	proc->waitpid = 0;
-	proc_lockClear(&proc->lock);
-	proc_threadProtect();
-
-	if (z != NULL)
-		proc_cleanupZombie(z);
-
 	return err;
 }
 
@@ -1225,42 +1101,6 @@ int proc_waitpid(int pid, int *stat, int options)
 int proc_waittid(int tid, int options)
 {
 	int err = 0;
-	process_t *proc = proc_current()->process;
-	thread_t *g;
-
-	hal_spinlockSet(&threads_common.spinlock);
-	proc->waittid = tid;
-
-	for (;;) {
-		if ((g = proc->ghosts) != NULL) {
-			do {
-				if (tid == -1 || g->id == tid) {
-					err = g->id;
-					break;
-				}
-
-				g = g->next;
-			} while (g != proc->ghosts);
-
-			if (!err)
-				g = NULL;
-		}
-
-		if (err || (options & 1) || (err = _proc_threadWait(&proc->gwaitq, 0)))
-			break;
-	}
-
-	if (g != NULL) {
-		err = g->id;
-		LIST_REMOVE(&proc->ghosts, g);
-	}
-
-	proc->waittid = 0;
-	hal_spinlockClear(&threads_common.spinlock);
-
-	if (g != NULL)
-		proc_cleanupGhost(g);
-
 	return err;
 }
 
@@ -1338,8 +1178,8 @@ int _proc_sigwant(thread_t *thr)
 	if (proc->sighandler == NULL)
 		return 0;
 
-	if (thr->flags & thread_protected)
-		return 0;
+	// if (thr->flags & thread_protected)
+		// return 0;
 
 	if ((void *)(&proc) - thr->kstack < sizeof(cpu_context_t) * 2 + 128)
 		return 0;
@@ -1693,7 +1533,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
 			info[i].pid = t->process->id;
-			info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
+			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
 		}
 		else {
 			info[i].pid = 0;

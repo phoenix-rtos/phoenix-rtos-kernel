@@ -69,7 +69,6 @@ process_t *proc_find(unsigned pid)
 	return p;
 }
 
-
 static void process_destroy(process_t *p)
 {
 	vm_mapDestroy(p, p->mapp);
@@ -214,7 +213,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->entries = NULL;
 #endif
 
-	process->state = NORMAL;
 	process->path = NULL;
 
 	if (path != NULL) {
@@ -227,20 +225,12 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	}
 
 	process->argv = NULL;
-	process->parent = NULL;
-	process->children = NULL;
 	process->threads = NULL;
-
-	process->waitq = NULL;
-	process->waitpid = 0;
+	process->refs = 1;
 
 	proc_lockInit(&process->lock);
 
 	process->ports = NULL;
-	process->zombies = NULL;
-	process->ghosts = NULL;
-	process->gwaitq = NULL;
-	process->waittid = 0;
 
 	process->sigpend = 0;
 	process->sigmask = 0;
@@ -270,43 +260,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
-	process_t *child, *zombie, *init;
-
 	perf_kill(proc);
-	init = proc_find(1);
-
-	proc_lockSet2(&init->lock, &proc->lock);
-	if ((child = proc->children) != NULL) {
-		do
-			child->parent = init;
-		while ((child = child->next) != proc->children);
-
-		proc->children = NULL;
-
-		if (init->children == NULL) {
-			init->children = child;
-		}
-		else {
-			swap(init->children->next, child->prev->next);
-			swap(child->prev->next->prev, child->prev);
-		}
-	}
-
-	if ((zombie = proc->zombies) != NULL) {
-		proc->zombies = NULL;
-
-		if (init->zombies == NULL) {
-			init->zombies = zombie;
-		}
-		else {
-			swap(init->zombies->next, zombie->prev->next);
-			swap(zombie->prev->next->prev, zombie->prev);
-		}
-
-		proc_threadWakeup(&init->waitq);
-	}
-	proc_lockClear(&init->lock);
-	proc_lockClear(&proc->lock);
 
 	proc_lockSet(&process_common.lock);
 	lib_rbRemove(&process_common.id, &proc->idlinkage);
@@ -428,13 +382,8 @@ static void process_vforkthr(void *arg)
 		proc_threadWait(&parent->execwaitq, &parent->execwaitsl, 0);
 
 	current->execparent = parent;
-	current->process->parent = parent->process;
 	current->process->mapp = parent->process->mapp;
 	hal_cpuReschedule(&parent->execwaitsl);
-
-	proc_lockSet(&parent->process->lock);
-	LIST_ADD(&parent->process->children, current->process);
-	proc_lockClear(&parent->process->lock);
 
 	posix_clone(parent->process->id);
 

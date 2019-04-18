@@ -164,9 +164,9 @@ int syscalls_getpid(void *ustack)
 
 int syscalls_getppid(void *ustack)
 {
-	if (proc_current()->process->parent == NULL)
+	// if (proc_current()->process->parent == NULL)
 		return -EINVAL;
-	return proc_current()->process->parent->id;
+	// return proc_current()->process->parent->id;
 }
 
 
