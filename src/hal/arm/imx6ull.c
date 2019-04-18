@@ -58,6 +58,9 @@ struct {
 	volatile u32 *iomux_snvs;
 } imx6ull_common;
 
+/* saved in _init_imx6ull.S */
+unsigned imx6ull_bootReason;
+
 
 static int _imx6ull_isValidDev(int dev)
 {

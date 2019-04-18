@@ -23,6 +23,7 @@
 .extern pmap_common
 .extern syspage
 .extern _end
+.extern imx6ull_bootReason
 
 #define ADDR_OCRAM    0x907000
 #define ADDR_DDR      0x80000000
@@ -90,10 +91,10 @@ plugin:
 	/* check if reset was caused by watch dog */
 	mov32 r4, 0x20d8008
 	ldr r5, [r4]
-	tst r5, #0x10
+	tst r5, #0x1
 
 	/* skip mdscr register config */
-	bne mdscr_skip
+	beq mdscr_skip
 
 	mov32 r4, 0x21b001c
 	mov32 r5, 0x2008032
@@ -326,6 +327,14 @@ _cpy4:
 /* startup code */
 _start:
 	cpsid aif, #SYS_MODE
+
+	/* Save and clear boot reason */
+	ldr r0, =0x20d8008
+	ldr r1, [r0]
+	movw r2, #0xffff
+	str r2, [r0]
+	ldr r0, =imx6ull_bootReason
+	str r1, [r0]
 
 	/* Enable PMU cycle counter */
 	mrc p15, 0, r0, c9, c12, 0
