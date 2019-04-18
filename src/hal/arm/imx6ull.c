@@ -363,8 +363,9 @@ int hal_platformctl(void *ptr)
 		}
 		else if (data->action == pctl_get) {
 			data->reboot.reason = imx6ull_bootReason;
+			ret = EOK;
 		}
-
+		break;
 	default:
 		break;
 	}
