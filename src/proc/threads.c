@@ -485,6 +485,14 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
  */
 
 
+static void thread_destroy(thread_t *t)
+{
+	hal_spinlockDestroy(&t->execwaitsl);
+	vm_kfree(t->kstack);
+	vm_kfree(t);
+}
+
+
 thread_t *threads_findThread(int tid)
 {
 	thread_t *r, t;
@@ -501,10 +509,15 @@ thread_t *threads_findThread(int tid)
 
 void threads_put(thread_t *t)
 {
+	int remaining;
+
 	proc_lockSet(&threads_common.lock);
-	if (!--t->refs)
+	if (!(remaining = --t->refs))
 		lib_rbRemove(&threads_common.id, &t->idlinkage);
 	proc_lockClear(&threads_common.lock);
+
+	if (!remaining)
+		thread_destroy(t);
 }
 
 
@@ -871,18 +884,6 @@ continue;
 		LIST_REMOVE_EX(&proc->threads, t, procnext, procprev);
 	}
 	hal_spinlockClear(&threads_common.spinlock);
-}
-
-
-static void thread_destroy(thread_t *t)
-{
-	proc_lockSet(&threads_common.lock);
-	lib_rbRemove(&threads_common.id, &t->idlinkage);
-	proc_lockClear(&threads_common.lock);
-
-	hal_spinlockDestroy(&t->execwaitsl);
-	vm_kfree(t->kstack);
-	vm_kfree(t);
 }
 
 
@@ -1449,7 +1450,7 @@ static void threads_idlethr(void *arg)
 			hal_spinlockClear(&threads_common.spinlock);
 
 			if (ghost != NULL)
-				thread_destroy(ghost);
+				threads_put(ghost);
 		}
 
 		wakeup = proc_nextWakeup();

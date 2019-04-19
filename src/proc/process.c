@@ -350,10 +350,11 @@ static void process_exexepilogue(int exec, thread_t *current, thread_t *parent, 
 
 	if (exec <= 0) {
 		/* Exit process */
-		proc_kill(current->process);
+		process_t *process = current->process;
 
+		proc_kill(process);
 		proc_threadDetach(current);
-		proc_put(current->process);
+		proc_put(process);
 		// proc_threadEnd();
 		proc_threadDestroy();
 	}
