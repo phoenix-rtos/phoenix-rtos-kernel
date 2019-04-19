@@ -123,10 +123,13 @@ void main_initthr(void *unused)
 //	proc_fileSet(1, 3, &oid, 0, 0);
 //	proc_fileSet(2, 3, &oid, 0, 0);
 
-	while (proc_waitpid(-1, NULL, 0) != -ECHILD) ;
+	while (proc_waitpid(-1, NULL, 0) != -ECHILD)
+		proc_threadSleep(100000);
 
 	/* All init's children are dead at this point */
-	for (;;) proc_threadSleep(100000000);
+	for (;;) {
+		proc_threadSleep(100000000);
+	}
 }
 
 
