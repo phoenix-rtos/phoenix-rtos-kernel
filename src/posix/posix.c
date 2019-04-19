@@ -1991,8 +1991,10 @@ int posix_tkill(pid_t pid, int tid, int sig)
 			if ((thr = threads_findThread(tid)) == NULL)
 				return -EINVAL;
 
-			if (thr->process != proc)
+			if (thr->process != proc) {
+				threads_put(thr);
 				return -EINVAL;
+			}
 		}
 		else {
 			thr = NULL;
@@ -2000,8 +2002,11 @@ int posix_tkill(pid_t pid, int tid, int sig)
 
 		if (!sig)
 			return EOK;
-		else
-			return proc_sigpost(proc, thr, sig);
+		else {
+			int ret =  proc_sigpost(proc, thr, sig);
+			threads_put(thr);
+			return ret;
+		}
 	}
 	else {
 		pid = -pid;

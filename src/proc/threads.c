@@ -735,6 +735,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->parentkstack = NULL;
 	t->sigmask = t->sigpend = 0;
 	t->refs = 1;
+	t->interruptible = 0;
+	t->exit = 0;
 
 	t->id = (unsigned long)t;
 
@@ -851,6 +853,7 @@ void proc_threadsDestroy(process_t *proc)
 	hal_spinlockSet(&threads_common.spinlock);
 	if ((t = proc->threads) != NULL) {
 		do {
+			t->exit = 1;
 			if (t->interruptible)
 				_thread_interrupt(t);
 		}

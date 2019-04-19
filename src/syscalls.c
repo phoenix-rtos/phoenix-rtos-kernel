@@ -728,10 +728,13 @@ int syscalls_signalPost(void *ustack)
 	if (tid >= 0 && (t = threads_findThread(tid)) == NULL)
 		return -EINVAL;
 
-	if (t != NULL && t->process != proc)
+	if (t != NULL && t->process != proc) {
+		threads_put(t);
 		return -EINVAL;
+	}
 
 	err = proc_sigpost(proc, t, signal);
+	threads_put(t);
 	hal_cpuReschedule(NULL);
 	return err;
 }
