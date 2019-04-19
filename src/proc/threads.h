@@ -52,6 +52,7 @@ typedef struct _thread_t {
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
+	int refs;
 	unsigned long id;
 	struct _thread_t *blocking;
 

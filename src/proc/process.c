@@ -69,6 +69,7 @@ process_t *proc_find(unsigned pid)
 	return p;
 }
 
+
 static void process_destroy(process_t *p)
 {
 	vm_mapDestroy(p, p->mapp);
@@ -92,6 +93,14 @@ int proc_put(process_t *p)
 		process_destroy(p);
 
 	return remaining;
+}
+
+
+void proc_get(process_t *p)
+{
+	proc_lockSet(&process_common.lock);
+	++p->refs;
+	proc_lockClear(&process_common.lock);
 }
 
 
@@ -261,18 +270,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 void proc_kill(process_t *proc)
 {
 	perf_kill(proc);
-
-	proc_lockSet(&process_common.lock);
-	lib_rbRemove(&process_common.id, &proc->idlinkage);
-	proc_lockClear(&process_common.lock);
-
 	proc_threadsDestroy(proc);
-	proc_resourcesFree(proc);
-	proc_portsDestroy(proc);
-	posix_exit(proc);
-
-	if (proc == proc_current()->process)
-		proc_threadDestroy();
 }
 
 
@@ -353,6 +351,11 @@ static void process_exexepilogue(int exec, thread_t *current, thread_t *parent, 
 	if (exec <= 0) {
 		/* Exit process */
 		proc_kill(current->process);
+
+		proc_threadDetach(current);
+		proc_put(current->process);
+		// proc_threadEnd();
+		proc_threadDestroy();
 	}
 
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
