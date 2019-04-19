@@ -835,53 +835,26 @@ void proc_threadDetach(thread_t *t)
 	thread_t *t;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	_perf_end(t);
-
 	cpu = hal_cpuGetID();
 	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
 	LIST_ADD(&threads_common.ghosts, t);
+	_perf_end(t);
 	hal_cpuReschedule(&threads_common.spinlock);
 }
 
 
 void proc_threadsDestroy(process_t *proc)
 {
-	thread_t *t = NULL, *n, *l;
+	thread_t *t;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	n = proc->threads;
-	l = n->procprev;
-
-	while (t != l && (t = n) != NULL) {
-		n = t->procnext;
-
-		t->exit = 1;
-
-		if (t->interruptible)
-			_thread_interrupt(t);
-
-//lib_printf("There were more threads!\n");
-continue;
-		// if (t->flags & thread_protected) {
-			// t->flags |= thread_killme;
-			// continue;
-		// }
-
-		_perf_end(t);
-
-		if (t->state == SLEEP) {
-			if (t->wakeup)
-				lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
-
-			if (t->wait != NULL && *t->wait != (void *)-1)
-				LIST_REMOVE(t->wait, t);
+	if ((t = proc->threads) != NULL) {
+		do {
+			if (t->interruptible)
+				_thread_interrupt(t);
 		}
-		else if (t->state == READY) {
-			LIST_REMOVE(&threads_common.ready[t->priority], t);
-		}
-
-		LIST_REMOVE_EX(&proc->threads, t, procnext, procprev);
+		while ((t = t->procnext) != proc->threads);
 	}
 	hal_spinlockClear(&threads_common.spinlock);
 }
@@ -1065,7 +1038,6 @@ void proc_threadWakeupYield(thread_t **queue)
 		(*queue) = (void *)(-1);
 		hal_spinlockClear(&threads_common.spinlock);
 	}
-	return;
 }
 
 
@@ -1082,8 +1054,6 @@ void proc_threadBroadcastYield(thread_t **queue)
 		*queue = (void *)(-1);
 		hal_spinlockClear(&threads_common.spinlock);
 	}
-
-	return;
 }
 
 
@@ -1440,7 +1410,6 @@ static void threads_idlethr(void *arg)
 {
 	time_t wakeup;
 	thread_t *ghost;
-	process_t *zombie;
 
 	for (;;) {
 		if (threads_common.ghosts != NULL) {
