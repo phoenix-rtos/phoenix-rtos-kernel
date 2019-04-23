@@ -43,7 +43,7 @@ LD = $(CROSS)ld
 ifneq (, $(findstring stm32, $(TARGET)))
 	LDFLAGS = -nostdlib -e _start --section-start .init=8000000 -Tbss=20000000 -z max-page-size=0x10
 else ifneq (, $(findstring imxrt, $(TARGET)))
-	LDFLAGS = -nostdlib -e _start --section-start .init=60002000 -Tbss=20000000 -z max-page-size=0x10
+	LDFLAGS = -nostdlib -e _start --section-start .init=0 -Tbss=20000000 -z max-page-size=0x10
 endif
 
 LDFLAGS += --gc-sections
