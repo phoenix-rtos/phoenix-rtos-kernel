@@ -99,13 +99,15 @@ void syscalls_munmap(void *ustack)
 
 int syscalls_vforksvc(void *ustack)
 {
-	return proc_vfork();
+	return -ENOSYS;
+//	return proc_vfork();
 }
 
 
 int syscalls_fork(void *ustack)
 {
-	return posix_fork();
+	return -ENOSYS;
+//	return posix_fork();
 }
 
 
@@ -119,7 +121,8 @@ int syscalls_exec(void *ustack)
 	GETFROMSTACK(ustack, char **, argv, 1);
 	GETFROMSTACK(ustack, char **, envp, 2);
 
-	return proc_execve(NULL, path, argv, envp);
+	return -ENOSYS;
+//	return proc_execve(NULL, path, argv, envp);
 }
 
 

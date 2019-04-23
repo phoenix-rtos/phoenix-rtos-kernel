@@ -38,6 +38,9 @@ typedef struct {
 	vm_object_t *object;
 	offs_t offset;
 	size_t size;
+
+	char **argv;
+	char **envp;
 } process_spawn_t;
 
 
@@ -281,7 +284,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 void proc_kill(process_t *proc)
 {
 	perf_kill(proc);
-	proc_threadsDestroy(proc);
+	proc_threadsDestroy(&proc->threads);
 }
 
 
@@ -411,12 +414,50 @@ int process_load(vm_map_t *map, vm_object_t *o, offs_t base, size_t size, void *
 }
 
 
+static void *process_putargs(void *stack, char ***argsp, int *count)
+{
+	int argc, len;
+	char **args_stack, **args = *argsp;
+
+	if (args == NULL) {
+		*count = 0;
+		return stack;
+	}
+
+	for (argc = 0; args[argc] != NULL; ++argc)
+		;
+
+	stack -= (argc + 1) * sizeof(char *);
+	args_stack = stack;
+	args_stack[argc] = NULL;
+
+	for (argc = 0; args[argc] != NULL; ++argc) {
+		len = hal_strlen(args[argc]) + 1;
+		stack -= (len + sizeof(int) - 1) & ~(sizeof(int) - 1);
+		hal_memcpy(stack, args[argc], len);
+		args_stack[argc] = stack;
+	}
+
+	*argsp = args_stack;
+	*count = argc;
+
+	return stack;
+}
+
+
 static void proc_spawnThread(void *arg)
 {
 	thread_t *current = proc_current();
 	process_spawn_t *spawn = arg;
 	void *stack, *entry;
-	int err;
+	int err, count;
+
+/* temporary: create new posix process */
+posix_clone(spawn->wq->process->id);
+
+	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
+	current->process->mapp = &current->process->map;
+	pmap_switch(&current->process->map.pmap);
 
 	err = process_load(current->process->mapp, spawn->object, spawn->offset, spawn->size, &stack, &entry);
 
@@ -425,6 +466,15 @@ static void proc_spawnThread(void *arg)
 	proc_threadWakeup(&spawn->wq);
 	hal_spinlockClear(&spawn->sl);
 
+	stack = process_putargs(stack, &spawn->envp, &count);
+	stack = process_putargs(stack, &spawn->argv, &count);
+
+	/* TODO: clean up */
+	PUTONSTACK(stack, char **, spawn->envp);
+	PUTONSTACK(stack, char **, spawn->argv);
+	PUTONSTACK(stack, int, count);
+	PUTONSTACK(stack, void *, NULL); /* return address */
+
 	if (err < 0)
 		proc_threadDestroy();
 	else
@@ -432,7 +482,7 @@ static void proc_spawnThread(void *arg)
 }
 
 
-int proc_spawn(vm_object_t *object, offs_t offset, size_t size)
+int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path, char **argv, char **envp)
 {
 	int pid;
 	process_spawn_t spawn;
@@ -443,8 +493,10 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size)
 	spawn.size = size;
 	spawn.wq = NULL;
 	spawn.state = PREFORK;
+	spawn.argv = argv;
+	spawn.envp = envp;
 
-	if ((pid = proc_start(proc_spawnThread, &spawn, "path")) > 0) {
+	if ((pid = proc_start(proc_spawnThread, &spawn, path)) > 0) {
 		hal_spinlockSet(&spawn.sl);
 		while (spawn.state == PREFORK)
 			proc_threadWait(&spawn.wq, &spawn.sl, 0);
@@ -456,7 +508,7 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size)
 }
 
 
-int proc_fileSpawn(const char *path)
+int proc_fileSpawn(const char *path, char **argv, char **envp)
 {
 	int err;
 	oid_t oid;
@@ -468,15 +520,42 @@ int proc_fileSpawn(const char *path)
 	if ((err = vm_objectGet(&object, oid)) < 0)
 		return err;
 
-	return proc_spawn(object, 0, object->size);
+	return proc_spawn(object, 0, object->size, path, argv, envp);
 }
 
 
-int proc_syspageSpawn(syspage_program_t *program)
+int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv)
 {
-	return proc_spawn((void *)-1, program->start, program->end - program->start);
+	return proc_spawn((void *)-1, program->start, program->end - program->start, path, argv, NULL);
 }
 
+
+void proc_exit(int code)
+{
+	proc_kill(proc_current()->process);
+}
+
+
+int _process_init(vm_map_t *kmap, vm_object_t *kernel)
+{
+	process_common.kmap = kmap;
+	process_common.first = NULL;
+	process_common.kernel = kernel;
+	process_common.idcounter = 1;
+	proc_lockInit(&process_common.lock);
+	lib_rbInit(&process_common.id, proc_idcmp, process_augment);
+	hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
+	hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
+	return EOK;
+}
+
+
+
+#if 0
+int proc_copyexec(void)
+{
+	return -EINVAL;
+}
 
 
 
@@ -572,34 +651,11 @@ int proc_vfork(void)
 
 	return 0;
 }
+#endif
 
 
 
 
 
-
-
-
-
-
-
-int proc_copyexec(void)
-{
-	return -EINVAL;
-}
-
-
-int _process_init(vm_map_t *kmap, vm_object_t *kernel)
-{
-	process_common.kmap = kmap;
-	process_common.first = NULL;
-	process_common.kernel = kernel;
-	process_common.idcounter = 1;
-	proc_lockInit(&process_common.lock);
-	lib_rbInit(&process_common.id, proc_idcmp, process_augment);
-	hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
-	hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
-	return EOK;
-}
 
 

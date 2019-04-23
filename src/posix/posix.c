@@ -313,10 +313,12 @@ int posix_fork()
 
 	int pid;
 
-	if (!(pid = proc_vfork())) {
-		proc_copyexec();
-		/* Not reached */
-	}
+	return -ENOSYS;
+
+	// if (!(pid = proc_vfork())) {
+	// 	proc_copyexec();
+	// 	/* Not reached */
+	// }
 
 	return pid;
 }

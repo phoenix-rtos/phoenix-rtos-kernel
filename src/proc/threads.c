@@ -863,18 +863,18 @@ process_t *proc_threadDetach(thread_t *t)
 }
 
 
-void proc_threadsDestroy(process_t *proc)
+void proc_threadsDestroy(thread_t **threads)
 {
 	thread_t *t;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	if ((t = proc->threads) != NULL) {
+	if ((t = *threads) != NULL) {
 		do {
 			t->exit = 1;
 			if (t->interruptible)
 				_thread_interrupt(t);
 		}
-		while ((t = t->procnext) != proc->threads);
+		while ((t = t->procnext) != *threads);
 	}
 	hal_spinlockClear(&threads_common.spinlock);
 }
