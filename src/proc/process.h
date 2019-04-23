@@ -23,7 +23,7 @@
 #include "../vm/amap.h"
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
-
+#define SIZE_STACK (8 * SIZE_PAGE)
 
 typedef struct _process_t {
 	struct _process_t *next;

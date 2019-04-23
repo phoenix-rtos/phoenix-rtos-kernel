@@ -25,7 +25,7 @@
 
 
 /* Parent thread states */
-enum { PREFORK = 0, FORKING = 1, FORKED, NOFORK };
+enum { PREFORK = 0, FORKING = 1, FORKED };
 
 /* Child thread states */
 enum { OWNSTACK = 0, PARENTSTACK };

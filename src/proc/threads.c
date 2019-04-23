@@ -821,12 +821,17 @@ static void _thread_interrupt(thread_t *t)
 }
 
 
-void proc_threadDetach(thread_t *t)
+process_t *proc_threadDetach(thread_t *t)
 {
+	process_t *p;
+
 	hal_spinlockSet(&threads_common.spinlock);
-	LIST_REMOVE_EX(&t->process->threads, t, procnext, procprev);
+	p = t->process;
+	LIST_REMOVE_EX(&p->threads, t, procnext, procprev);
 	t->process = NULL;
 	hal_spinlockClear(&threads_common.spinlock);
+
+	return p;
 }
 
 
@@ -834,11 +839,23 @@ void proc_threadDetach(thread_t *t)
  void proc_threadDestroy(void)
 {
 	int cpu;
+	process_t *p;
 	thread_t *t;
 
 	hal_spinlockSet(&threads_common.spinlock);
+	t = _proc_current();
+
+	if ((p = t->process) != NULL) {
+		LIST_REMOVE_EX(&p->threads, t, procnext, procprev);
+		t->process = NULL;
+	}
+	hal_spinlockClear(&threads_common.spinlock);
+
+	if (p != NULL)
+		proc_put(p);
+
+	hal_spinlockSet(&threads_common.spinlock);
 	cpu = hal_cpuGetID();
-	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
 	LIST_ADD(&threads_common.ghosts, t);
 	_perf_end(t);
