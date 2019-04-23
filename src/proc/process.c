@@ -414,6 +414,38 @@ int process_load(vm_map_t *map, vm_object_t *o, offs_t base, size_t size, void *
 }
 
 
+void *proc_copyargs(char **args)
+{
+	int argc, len = 0;
+	void *storage;
+	char **kargs, *p;
+
+	if (args == NULL)
+		return NULL;
+
+	for (argc = 0; args[argc] != NULL; ++argc) {
+		len += hal_strlen(args[argc]) + 1;
+		lib_printf("%s, len so far: %d\n", args[argc], len);
+	}
+
+	len += (argc + 1) * sizeof(char *);
+	kargs = storage = vm_kmalloc(len);
+	kargs[argc] = NULL;
+
+	p = (char *)storage + (argc + 1) * sizeof(char *);
+
+	while (argc-- > 0) {
+		len = hal_strlen(args[argc]) + 1;
+		hal_memcpy(p, args[argc], len);
+		kargs[argc] = p;
+		lib_printf("in k: %s, len so far: %d\n", p, len);
+		p += len;
+	}
+
+	return storage;
+}
+
+
 static void *process_putargs(void *stack, char ***argsp, int *count)
 {
 	int argc, len;
@@ -452,28 +484,31 @@ static void proc_spawnThread(void *arg)
 	void *stack, *entry;
 	int err, count;
 
-/* temporary: create new posix process */
-posix_clone(spawn->wq->process->id);
+	/* temporary: create new posix process */
+	posix_clone(spawn->wq->process->id);
 
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
 	current->process->mapp = &current->process->map;
 	pmap_switch(&current->process->map.pmap);
 
+	current->process->argv = spawn->argv;
+
 	err = process_load(current->process->mapp, spawn->object, spawn->offset, spawn->size, &stack, &entry);
+	if (!err) {
+		stack = process_putargs(stack, &spawn->envp, &count);
+		stack = process_putargs(stack, &spawn->argv, &count);
+
+		/* temporary? put arguments to main on stack */
+		PUTONSTACK(stack, char **, spawn->envp);
+		PUTONSTACK(stack, char **, spawn->argv);
+		PUTONSTACK(stack, int, count);
+		PUTONSTACK(stack, void *, NULL); /* return address */
+	}
 
 	hal_spinlockSet(&spawn->sl);
 	spawn->state = err == EOK ? FORKED : err;
 	proc_threadWakeup(&spawn->wq);
 	hal_spinlockClear(&spawn->sl);
-
-	stack = process_putargs(stack, &spawn->envp, &count);
-	stack = process_putargs(stack, &spawn->argv, &count);
-
-	/* TODO: clean up */
-	PUTONSTACK(stack, char **, spawn->envp);
-	PUTONSTACK(stack, char **, spawn->argv);
-	PUTONSTACK(stack, int, count);
-	PUTONSTACK(stack, void *, NULL); /* return address */
 
 	if (err < 0)
 		proc_threadDestroy();

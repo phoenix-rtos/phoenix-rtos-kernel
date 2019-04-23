@@ -111,6 +111,29 @@ int syscalls_fork(void *ustack)
 }
 
 
+int syscalls_sys_spawn(void *ustack)
+{
+	char *path;
+	char **argv, **kargv;
+	char **envp, **kenvp;
+	void *storage;
+	int ret;
+
+	GETFROMSTACK(ustack, char *, path, 0);
+	GETFROMSTACK(ustack, char **, argv, 1);
+	GETFROMSTACK(ustack, char **, envp, 2);
+
+	kargv = proc_copyargs(argv);
+	envp = proc_copyargs(envp);
+
+	ret = proc_fileSpawn(path, kargv, kenvp);
+
+	if (kenvp != NULL)
+		vm_kfree(kenvp);
+	return ret;
+}
+
+
 int syscalls_exec(void *ustack)
 {
 	char *path;
