@@ -86,10 +86,19 @@ process_t *proc_find(unsigned pid)
 
 static void process_destroy(process_t *p)
 {
+	perf_kill(p);
+
 	vm_mapDestroy(p, p->mapp);
 	proc_resourcesFree(p);
 	proc_portsDestroy(p);
 	proc_lockDone(&p->lock);
+
+	if (p->path != NULL)
+		vm_kfree(p->path);
+
+	if (p->argv != NULL)
+		vm_kfree(p->argv);
+
 	vm_kfree(p);
 }
 
@@ -283,7 +292,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
-	perf_kill(proc);
 	proc_threadsDestroy(&proc->threads);
 }
 
@@ -423,10 +431,8 @@ void *proc_copyargs(char **args)
 	if (args == NULL)
 		return NULL;
 
-	for (argc = 0; args[argc] != NULL; ++argc) {
+	for (argc = 0; args[argc] != NULL; ++argc)
 		len += hal_strlen(args[argc]) + 1;
-		lib_printf("%s, len so far: %d\n", args[argc], len);
-	}
 
 	len += (argc + 1) * sizeof(char *);
 	kargs = storage = vm_kmalloc(len);
@@ -438,7 +444,6 @@ void *proc_copyargs(char **args)
 		len = hal_strlen(args[argc]) + 1;
 		hal_memcpy(p, args[argc], len);
 		kargs[argc] = p;
-		lib_printf("in k: %s, len so far: %d\n", p, len);
 		p += len;
 	}
 
@@ -511,7 +516,7 @@ static void proc_spawnThread(void *arg)
 	hal_spinlockClear(&spawn->sl);
 
 	if (err < 0)
-		proc_threadDestroy();
+		proc_threadEnd();
 	else
 		hal_jmp(entry, current->kstack + current->kstacksz, stack, 0);
 }

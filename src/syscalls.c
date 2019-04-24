@@ -227,7 +227,7 @@ int syscalls_beginthreadex(void *ustack)
 
 int syscalls_endthread(void *ustack)
 {
-	proc_threadDestroy();
+	proc_threadEnd();
 	return EOK;
 }
 
@@ -751,15 +751,20 @@ int syscalls_signalPost(void *ustack)
 	if ((proc = proc_find(pid)) == NULL)
 		return -EINVAL;
 
-	if (tid >= 0 && (t = threads_findThread(tid)) == NULL)
+	if (tid >= 0 && (t = threads_findThread(tid)) == NULL) {
+		proc_put(proc);
 		return -EINVAL;
+	}
 
 	if (t != NULL && t->process != proc) {
+		proc_put(proc);
 		threads_put(t);
 		return -EINVAL;
 	}
 
 	err = proc_sigpost(proc, t, signal);
+
+	proc_put(proc);
 	threads_put(t);
 	hal_cpuReschedule(NULL);
 	return err;
@@ -1286,6 +1291,9 @@ void *syscalls_dispatch(int n, char *ustack)
 	proc_threadProtect();
 	retval = ((void *(*)(char *))syscalls[n])(ustack);
 	proc_threadUnprotect();
+
+	if (proc_current()->exit)
+		proc_threadEnd();
 
 	return retval;
 }

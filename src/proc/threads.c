@@ -64,6 +64,7 @@ struct {
 
 
 void proc_threadProtect() {}
+
 void proc_threadUnprotect() {}
 
 
@@ -196,7 +197,7 @@ static void _perf_begin(thread_t *t)
 }
 
 
-void _perf_end(thread_t *t)
+void perf_end(thread_t *t)
 {
 	perf_levent_end_t ev;
 	time_t now;
@@ -204,6 +205,7 @@ void _perf_end(thread_t *t)
 	if (!threads_common.perfGather)
 		return;
 
+	hal_spinlockSet(&threads_common.spinlock);
 	ev.sbz = 0;
 	ev.type = perf_levEnd;
 	ev.tid = perf_idpack(t->id);
@@ -213,6 +215,7 @@ void _perf_end(thread_t *t)
 	threads_common.perfLastTimestamp = now;
 
 	_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
+	hal_spinlockClear(&threads_common.spinlock);
 }
 
 
@@ -487,6 +490,11 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 static void thread_destroy(thread_t *t)
 {
+	perf_end(t);
+
+	if (t->process != NULL)
+		proc_put(t->process);
+
 	hal_spinlockDestroy(&t->execwaitsl);
 	vm_kfree(t->kstack);
 	vm_kfree(t);
@@ -519,10 +527,6 @@ void threads_put(thread_t *t)
 	if (!remaining)
 		thread_destroy(t);
 }
-
-
-
-
 
 
 /*
@@ -650,13 +654,21 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	}
 
 	/* Get next thread */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
-		if ((selected = threads_common.ready[i]) != NULL)
+	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *);) {
+		if ((selected = threads_common.ready[i]) == NULL) {
+			i++;
+			continue;
+		}
+
+		LIST_REMOVE(&threads_common.ready[i], selected);
+
+		if (!selected->exit || hal_cpuSupervisorMode(selected->context))
 			break;
+
+		LIST_ADD(&threads_common.ghosts, selected);
 	}
 
 	if (selected != NULL) {
-		LIST_REMOVE(&threads_common.ready[selected->priority], selected);
 		threads_common.current[hal_cpuGetID()] = selected;
 
 		if (((proc = selected->process) != NULL) && (proc->mapp != NULL)) {
@@ -835,8 +847,8 @@ process_t *proc_threadDetach(thread_t *t)
 }
 
 
-// void proc_threadEnd(void)
- void proc_threadDestroy(void)
+#if 0
+void proc_threadDestroy(void)
 {
 	int cpu;
 	process_t *p;
@@ -861,6 +873,29 @@ process_t *proc_threadDetach(thread_t *t)
 	_perf_end(t);
 	hal_cpuReschedule(&threads_common.spinlock);
 }
+#endif
+
+
+void proc_threadEnd(void)
+{
+	thread_t *t;
+	int cpu;
+
+	hal_spinlockSet(&threads_common.spinlock);
+	cpu = hal_cpuGetID();
+	t = threads_common.current[cpu];
+	threads_common.current[cpu] = NULL;
+	LIST_ADD(&threads_common.ghosts, t);
+	hal_cpuReschedule(&threads_common.spinlock);
+}
+
+
+void _proc_threadExit(thread_t *t)
+{
+	t->exit = 1;
+	if (t->interruptible)
+		_thread_interrupt(t);
+}
 
 
 void proc_threadsDestroy(thread_t **threads)
@@ -869,11 +904,8 @@ void proc_threadsDestroy(thread_t **threads)
 
 	hal_spinlockSet(&threads_common.spinlock);
 	if ((t = *threads) != NULL) {
-		do {
-			t->exit = 1;
-			if (t->interruptible)
-				_thread_interrupt(t);
-		}
+		do
+			_proc_threadExit(t);
 		while ((t = t->procnext) != *threads);
 	}
 	hal_spinlockClear(&threads_common.spinlock);

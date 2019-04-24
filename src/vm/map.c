@@ -881,7 +881,7 @@ void vm_mapinfo(meminfo_t *info)
 	proc_lockClear(&map_common.lock);
 
 	if (info->entry.mapsz != -1) {
-		process = proc_find(info->entry.pid);
+		process = proc_find(info->entry.pid); /* TODO: reference leak */
 
 		if (process == NULL) {
 			info->entry.mapsz = -1;

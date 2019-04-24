@@ -497,6 +497,12 @@ static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 }
 
 
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return ctx->cs & 3;
+}
+
+
 /* Function creates new cpu context on top of given thread kernel stack */
 extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg);
 

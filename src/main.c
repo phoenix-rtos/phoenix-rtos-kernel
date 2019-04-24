@@ -96,7 +96,8 @@ void main_initthr(void *unused)
 			/* Start program loaded into memory */
 			for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				if (!hal_strcmp(cmdline + 1, prog->cmdline)) {
-						proc_syspageSpawn(prog, prog->cmdline, argv);
+					argv[0] = prog->cmdline;
+					proc_syspageSpawn(prog, prog->cmdline, proc_copyargs(argv));
 				}
 			}
 		}
@@ -108,10 +109,8 @@ void main_initthr(void *unused)
 		argv[1] = NULL;
 		/* Start all syspage programs */
 		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
-			// if (!proc_vfork()) {
 				argv[0] = prog->cmdline;
 				proc_syspageSpawn(prog, prog->cmdline, argv);
-			// }
 		}
 	}
 
