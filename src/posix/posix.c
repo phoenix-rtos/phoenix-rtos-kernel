@@ -182,10 +182,10 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 	process_info_t *p1 = lib_treeof(process_info_t, linkage, n1);
 	process_info_t *p2 = lib_treeof(process_info_t, linkage, n2);
 
-	if (p1->process->id < p2->process->id)
+	if (p1->process < p2->process)
 		return -1;
 
-	else if (p1->process->id > p2->process->id)
+	else if (p1->process > p2->process)
 		return 1;
 
 	return 0;
@@ -194,11 +194,9 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 
 process_info_t *pinfo_find(unsigned int pid)
 {
-	process_t p;
 	process_info_t pi, *r;
 
-	p.id = pid;
-	pi.process = &p;
+	pi.process = pid;
 
 	proc_lockSet(&posix_common.lock);
 	r = lib_treeof(process_info_t, linkage, lib_rbFind(&posix_common.pid, &pi.linkage));
@@ -242,17 +240,21 @@ int posix_clone(int ppid)
 
 	hal_memset(&console, 0, sizeof(oid_t));
 	proc_lockInit(&p->lock);
+	p->children = NULL;
 
 	if ((pp = pinfo_find(ppid)) != NULL) {
 		TRACE("clone: got parent");
 		proc_lockSet(&pp->lock);
 		p->maxfd = pp->maxfd;
+		LIST_ADD(&pp->children, p);
+		p->parent = ppid;
 	}
 	else {
+		p->parent = 0;
 		p->maxfd = MAX_FD_COUNT - 1;
 	}
 
-	p->process = proc;
+	p->process = proc->id;
 
 	if ((p->fds = vm_kmalloc((p->maxfd + 1) * sizeof(fildes_t))) == NULL) {
 		vm_kfree(p);
@@ -301,7 +303,7 @@ int posix_clone(int ppid)
 	if (pp != NULL)
 		p->pgid = ppid;
 	else
-		p->pgid = p->process->id;
+		p->pgid = p->process;
 
 	return EOK;
 }
@@ -1987,7 +1989,7 @@ int posix_tkill(pid_t pid, int tid, int sig)
 	if (pid > 0) {
 		if ((pinfo = pinfo_find(pid)) == NULL)
 			return -EINVAL;
-		proc = pinfo->process;
+		proc = proc_find(pinfo->process);
 
 		if (tid) {
 			if ((thr = threads_findThread(tid)) == NULL)
@@ -2017,13 +2019,13 @@ int posix_tkill(pid_t pid, int tid, int sig)
 		pinfo = lib_treeof(process_info_t, linkage, lib_rbMinimum(posix_common.pid.root));
 
 		while (pinfo != NULL) {
-			proc = pinfo->process;
+			proc = proc_find(pinfo->process);
 
 			if (pinfo->pgid == pid) {
-				if (pinfo->process == me)
+				if (proc == me)
 					killme = 1;
 				else if (sig != 0)
-					proc_sigpost(pinfo->process, NULL, sig);
+					proc_sigpost(proc, NULL, sig);
 			}
 			pinfo = lib_treeof(process_info_t, linkage, lib_rbNext(&pinfo->linkage));
 		}
@@ -2110,6 +2112,22 @@ pid_t posix_setsid(void)
 	proc_lockClear(&pinfo->lock);
 
 	return EOK;
+}
+
+
+int posix_waitpid(pid_t child, int *status, int options)
+{
+	process_info_t *pinfo;
+	pid_t pid;
+
+	pid = proc_current()->process->id;
+
+	if ((pinfo = pinfo_find(pid)) == NULL)
+		return -EINVAL;
+
+
+
+	return 0;
 }
 
 

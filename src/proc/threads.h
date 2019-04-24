@@ -74,11 +74,9 @@ typedef struct _thread_t {
 	void *kstack;
 	size_t kstacksz;
 
-	struct _thread_t *execwaitq;
 	void *parentkstack, *execkstack;
 	struct _thread_t *execparent;
-
-	spinlock_t execwaitsl;
+	void *execdata;
 
 	time_t readyTime;
 	time_t maxWait;
@@ -121,7 +119,7 @@ extern void proc_threadProtect(void);
 extern void proc_threadUnprotect(void);
 
 
-extern void proc_threadDestroy(void);
+extern void proc_threadEnd(void);
 
 
 extern int proc_threadJoin(unsigned int id);

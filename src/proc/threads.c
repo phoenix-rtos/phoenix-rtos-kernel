@@ -110,7 +110,6 @@ static int threads_idcmp(rbnode_t *n1, rbnode_t *n2)
 
 static inline time_t _threads_getTimer(void);
 static void _proc_threadWakeup(thread_t **queue);
-static int _proc_threadWait(thread_t **queue, time_t timeout);
 static thread_t *_proc_current(void);
 
 
@@ -495,7 +494,8 @@ static void thread_destroy(thread_t *t)
 	if (t->process != NULL)
 		proc_put(t->process);
 
-	hal_spinlockDestroy(&t->execwaitsl);
+	lib_printf("thread ended %x\n", t->id);
+
 	vm_kfree(t->kstack);
 	vm_kfree(t);
 }
@@ -686,11 +686,13 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	threads_cpuTimeCalc(current, selected);
 #endif
 
+#if 0
 	/* Test stack usage */
-	if (selected != NULL && !selected->execfl && ((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
+	if (selected != NULL && !selected->execkstack && ((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
 		lib_printf("proc: Stack limit exceeded, sp=%p\n", selected->context);
-		for (;;);
+		// for (;;);
 	}
+#endif
 
 	hal_spinlockClear(&threads_common.spinlock);
 
@@ -737,8 +739,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 		return -ENOMEM;
 	}
 
-	hal_spinlockCreate(&t->execwaitsl, "thread.execwaitsl");
-
 	hal_memset(t->kstack, 0xba, t->kstacksz);
 
 	t->state = READY;
@@ -755,6 +755,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	if (id != NULL)
 		*id = t->id;
 
+	lib_printf("thread created %x\n", t->id);
+
 	t->stick = 0;
 	t->utick = 0;
 	t->priority = priority;
@@ -768,6 +770,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 
 	t->execfl = OWNSTACK;
 	t->execparent = NULL;
+	t->execdata = NULL;
 
 	/* Insert thread to global quee */
 	proc_lockSet(&threads_common.lock);
@@ -845,35 +848,6 @@ process_t *proc_threadDetach(thread_t *t)
 
 	return p;
 }
-
-
-#if 0
-void proc_threadDestroy(void)
-{
-	int cpu;
-	process_t *p;
-	thread_t *t;
-
-	hal_spinlockSet(&threads_common.spinlock);
-	t = _proc_current();
-
-	if ((p = t->process) != NULL) {
-		LIST_REMOVE_EX(&p->threads, t, procnext, procprev);
-		t->process = NULL;
-	}
-	hal_spinlockClear(&threads_common.spinlock);
-
-	if (p != NULL)
-		proc_put(p);
-
-	hal_spinlockSet(&threads_common.spinlock);
-	cpu = hal_cpuGetID();
-	threads_common.current[cpu] = NULL;
-	LIST_ADD(&threads_common.ghosts, t);
-	_perf_end(t);
-	hal_cpuReschedule(&threads_common.spinlock);
-}
-#endif
 
 
 void proc_threadEnd(void)
@@ -1004,6 +978,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout)
 }
 
 
+#if 0
 static int _proc_threadWait(thread_t **queue, time_t timeout)
 {
 	int err;
@@ -1018,6 +993,7 @@ static int _proc_threadWait(thread_t **queue, time_t timeout)
 
 	return err;
 }
+#endif
 
 
 int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
@@ -1106,13 +1082,6 @@ void proc_threadBroadcastYield(thread_t **queue)
 		*queue = (void *)(-1);
 		hal_spinlockClear(&threads_common.spinlock);
 	}
-}
-
-
-int proc_waitpid(int pid, int *stat, int options)
-{
-	int err = 0;
-	return err;
 }
 
 

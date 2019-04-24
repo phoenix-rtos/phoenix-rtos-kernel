@@ -99,8 +99,7 @@ void syscalls_munmap(void *ustack)
 
 int syscalls_vforksvc(void *ustack)
 {
-	return -ENOSYS;
-//	return proc_vfork();
+	return proc_vfork();
 }
 
 
@@ -124,12 +123,13 @@ int syscalls_sys_spawn(void *ustack)
 	GETFROMSTACK(ustack, char **, envp, 2);
 
 	kargv = proc_copyargs(argv);
-	envp = proc_copyargs(envp);
+	kenvp = proc_copyargs(envp);
 
 	ret = proc_fileSpawn(path, kargv, kenvp);
 
 	if (kenvp != NULL)
 		vm_kfree(kenvp);
+
 	return ret;
 }
 
@@ -144,8 +144,8 @@ int syscalls_exec(void *ustack)
 	GETFROMSTACK(ustack, char **, argv, 1);
 	GETFROMSTACK(ustack, char **, envp, 2);
 
-	return -ENOSYS;
-//	return proc_execve(NULL, path, argv, envp);
+	// return -ENOSYS;
+	return proc_execve(path, argv, envp);
 }
 
 
@@ -167,7 +167,7 @@ int syscalls_sys_waitpid(void *ustack)
 	GETFROMSTACK(ustack, int *, stat, 1);
 	GETFROMSTACK(ustack, int, options, 2);
 
-	return proc_waitpid(pid, stat, options);
+	return posix_waitpid(pid, stat, options);
 }
 
 
