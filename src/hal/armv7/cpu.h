@@ -18,12 +18,14 @@
 
 #define NULL 0
 
-/* Size of thread kernel stack */
-#define SIZE_KSTACK 2 * 512
+#define SIZE_PAGE       0x200
 
-#define RET_HANDLER_MSP		0xfffffff1
-#define RET_THREAD_MSP		0xfffffff9
-#define RET_THREAD_PSP		0xfffffffd
+#define SIZE_KSTACK     (2 * 512)
+#define SIZE_USTACK     (2 * SIZE_PAGE)
+
+#define RET_HANDLER_MSP 0xfffffff1
+#define RET_THREAD_MSP  0xfffffff9
+#define RET_THREAD_PSP  0xfffffffd
 
 #ifndef __ASSEMBLY__
 

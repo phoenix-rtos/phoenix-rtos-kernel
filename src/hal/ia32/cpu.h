@@ -18,8 +18,11 @@
 #define _HAL_CPU_H_
 
 
-/* Size of thread kernel stack */
-#define SIZE_KSTACK (8 * 512)
+#define SIZE_PAGE         0x1000
+
+
+#define SIZE_KSTACK       (8 * 512)
+#define SIZE_USTACK       (8 * SIZE_PAGE)
 
 
 /* Bitfields used to construct interrupt descriptors */

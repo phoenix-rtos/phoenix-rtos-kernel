@@ -20,8 +20,8 @@
 #define SIZE_PDIR       0x4000
 #define SIZE_CACHE_LINE 64
 
-/* Size of thread kernel stack */
-#define SIZE_KSTACK     8 * 512
+#define SIZE_KSTACK     (8 * 512)
+#define SIZE_USTACK     (8 * SIZE_PAGE)
 
 #define NULL 0
 

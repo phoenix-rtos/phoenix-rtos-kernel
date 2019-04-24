@@ -691,10 +691,10 @@ int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int a
 	vm_objectPut(o);
 
 	/* Allocate and map user stack */
-	if ((stack = vm_mmap(map, map->pmap.end - 8 * SIZE_PAGE, NULL, 8 * SIZE_PAGE, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
+	if ((stack = vm_mmap(map, map->pmap.end - SIZE_USTACK, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
 		return -ENOMEM;
 
-	stack += 8 * SIZE_PAGE;
+	stack += SIZE_USTACK;
 
 	stack -= (argc + 1) * sizeof(char *);
 	uargv = stack;

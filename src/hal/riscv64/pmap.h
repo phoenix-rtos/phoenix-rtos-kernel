@@ -16,9 +16,6 @@
 #ifndef _HAL_PMAP_H_
 #define _HAL_PMAP_H_
 
-#define SIZE_PAGE      0x1000
-#define SIZE_PDIR      SIZE_PAGE
-
 
 /* Predefined virtual adresses */
 #define VADDR_KERNEL   0x0000003fc0000000L   /* base virtual address of kernel space */
@@ -60,6 +57,9 @@
 #ifndef __ASSEMBLY__
 
 #include "cpu.h"
+
+
+#define SIZE_PDIR SIZE_PAGE
 
 
 /* Structure describing page - its should be aligned to 2^N boundary */

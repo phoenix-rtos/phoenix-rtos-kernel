@@ -16,8 +16,6 @@
 #ifndef _HAL_PMAP_H_
 #define _HAL_PMAP_H_
 
-#define SIZE_PAGE  0x200
-
 /* TODO */
 /* Predefined virutal adresses */
 #define VADDR_MIN     0x20000000
