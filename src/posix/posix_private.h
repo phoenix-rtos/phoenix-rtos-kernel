@@ -77,6 +77,7 @@ typedef struct _process_info_t {
 	int parent;
 
 	struct _process_info_t *children;
+	struct _process_info_t *zombies;
 	struct _process_info_t *next, *prev;
 
 	pid_t pgid;

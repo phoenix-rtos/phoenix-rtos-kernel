@@ -206,6 +206,10 @@ process_info_t *pinfo_find(unsigned int pid)
 }
 
 
+/* TODO: refcounting */
+void pinfo_put(process_info_t *p) {}
+
+
 int posix_truncate(oid_t *oid, off_t length)
 {
 	msg_t msg;
@@ -2128,6 +2132,28 @@ int posix_waitpid(pid_t child, int *status, int options)
 
 
 	return 0;
+}
+
+
+void posix_died(pid_t pid)
+{
+	process_info_t *pinfo, *ppinfo;
+	pid_t pid, ppid;
+
+	if ((pinfo = pinfo_find(pid)) == NULL)
+		return;
+
+	if ((ppinfo = pinfo_find(pinfo->parent)) == NULL) {
+		posix_destroy(pinfo);
+	}
+	else {
+		LIST_REMOVE(&ppinfo->children, pinfo);
+		LIST_ADD(&ppinfo->zombies, pinfo);
+
+		pinfo_put(ppinfo);
+	}
+
+	pinfo_put(pinfo);
 }
 
 
