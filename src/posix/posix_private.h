@@ -76,6 +76,8 @@ typedef struct _process_info_t {
 	int process;
 	int parent;
 
+	thread_t *wait;
+
 	struct _process_info_t *children;
 	struct _process_info_t *zombies;
 	struct _process_info_t *next, *prev;

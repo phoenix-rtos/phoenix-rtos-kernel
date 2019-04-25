@@ -89,6 +89,8 @@ static void process_destroy(process_t *p)
 {
 	perf_kill(p);
 
+	posix_died(p->id, p->exit);
+
 	vm_mapDestroy(p, p->mapp);
 	proc_resourcesFree(p);
 	proc_portsDestroy(p);
@@ -581,8 +583,11 @@ int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv)
 }
 
 
-static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn) {
+static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn)
+{
 	thread_t *parent = spawn->parent;
+
+	lib_printf("ex\n");
 
 	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
 	vm_kfree(current->parentkstack);
@@ -597,7 +602,6 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn) {
 }
 
 
-
 void proc_exit(int code)
 {
 	thread_t *current = proc_current();
@@ -605,7 +609,7 @@ void proc_exit(int code)
 	void *kstack;
 
 	if ((spawn = current->execdata) != NULL) {
-		lib_printf("forked exit\n");
+		lib_printf("kstack: %p exkstack: %p\n", current->kstack, current->execkstack);
 		kstack = current->kstack = current->execkstack;
 		kstack += current->kstacksz;
 
@@ -706,6 +710,7 @@ int proc_vfork(void)
 	hal_spinlockClear(&spawn->sl);
 
 	if (isparent) {
+		lib_printf("parent out\n");
 		vm_kfree(spawn);
 		return spawn->state < 0 ? spawn->state : pid;
 	}
@@ -772,6 +777,12 @@ int proc_execve(const char *path, char **argv, char **envp)
 	/* Close cloexec file descriptors */
 	posix_exec();
 
+	if ((err = proc_lookup(path, NULL, &oid)) < 0)
+		return err;
+
+	if ((err = vm_objectGet(&object, oid)) < 0)
+		return err;
+
 	if ((spawn = current->execdata) == NULL) {
 		lib_printf("exec without parent!\n");
 
@@ -783,12 +794,6 @@ int proc_execve(const char *path, char **argv, char **envp)
 		spawn->envp = envp;
 		spawn->parent = NULL;
 	}
-
-	if ((err = proc_lookup(path, NULL, &oid)) < 0)
-		return err;
-
-	if ((err = vm_objectGet(&object, oid)) < 0)
-		return err;
 
 	spawn->object = object;
 	spawn->offset = 0;

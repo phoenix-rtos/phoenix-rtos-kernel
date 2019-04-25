@@ -747,6 +747,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->refs = 1;
 	t->interruptible = 0;
 	t->exit = 0;
+	t->execdata = NULL;
 
 	t->id = (unsigned long)t;
 

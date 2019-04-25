@@ -278,6 +278,7 @@ int posix_clone(int ppid)
 			}
 		}
 
+		LIST_ADD(&pp->children, p);
 		proc_lockClear(&pp->lock);
 	}
 	else {
@@ -354,16 +355,10 @@ int posix_exec(void)
 }
 
 
-int posix_exit(process_t *process)
+void posix_destroy(process_info_t *p)
 {
-	TRACE("exit(%x)", process->id);
-
-	process_info_t *p;
 	open_file_t *f;
 	int fd;
-
-	if ((p = pinfo_find(process->id)) == NULL)
-		return -1;
 
 	proc_lockSet(&p->lock);
 	for (fd = 0; fd <= p->maxfd; ++fd) {
@@ -378,9 +373,20 @@ int posix_exit(process_t *process)
 	vm_kfree(p->fds);
 	proc_lockDone(&p->lock);
 	vm_kfree(p);
+}
 
+
+int posix_exit(process_t *process)
+{
+	TRACE("exit(%x)", process->id);
+
+	process_info_t *p;
+
+	if ((p = pinfo_find(process->id)) == NULL)
+		return -1;
+
+	posix_destroy(p);
 	return 0;
-
 }
 
 
@@ -2121,24 +2127,49 @@ pid_t posix_setsid(void)
 
 int posix_waitpid(pid_t child, int *status, int options)
 {
-	process_info_t *pinfo;
+	process_info_t *pinfo, *c;
 	pid_t pid;
+	int err = EOK;
+	int found = 0;
 
 	pid = proc_current()->process->id;
 
 	if ((pinfo = pinfo_find(pid)) == NULL)
 		return -EINVAL;
 
+	proc_lockSet(&pinfo->lock);
+	do {
+		while ((c = pinfo->zombies) == NULL)
+			err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
 
+		do {
+			if (child == -1 || (!child && c->pgid == pinfo->pgid) || (child < 0 && c->pgid == -child) || child == c->process) {
+				LIST_REMOVE(&pinfo->zombies, c);
+				found = 1;
+				break;
+			}
+		}
+		while ((c = c->next) != pinfo->zombies);
+	}
+	while (!found && err != -EINTR && !(options & 1));
+	proc_lockClear(&pinfo->lock);
 
-	return 0;
+	if (found) {
+		err = c->process;
+		posix_destroy(c);
+
+		if (status != NULL)
+			*status = 0; /* TODO: pass exit code */
+	}
+
+	pinfo_put(pinfo);
+	return err;
 }
 
 
-void posix_died(pid_t pid)
+void posix_died(pid_t pid, int exit)
 {
 	process_info_t *pinfo, *ppinfo;
-	pid_t pid, ppid;
 
 	if ((pinfo = pinfo_find(pid)) == NULL)
 		return;
@@ -2147,8 +2178,11 @@ void posix_died(pid_t pid)
 		posix_destroy(pinfo);
 	}
 	else {
+		proc_lockSet(&pinfo->lock);
 		LIST_REMOVE(&ppinfo->children, pinfo);
 		LIST_ADD(&ppinfo->zombies, pinfo);
+		proc_threadWakeup(&ppinfo->wait);
+		proc_lockClear(&pinfo->lock);
 
 		pinfo_put(ppinfo);
 	}
