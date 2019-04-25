@@ -494,8 +494,6 @@ static void thread_destroy(thread_t *t)
 	if (t->process != NULL)
 		proc_put(t->process);
 
-	lib_printf("thread ended %x\n", t->id);
-
 	vm_kfree(t->kstack);
 	vm_kfree(t);
 }
@@ -755,12 +753,9 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	if (id != NULL)
 		*id = t->id;
 
-	lib_printf("thread created %x\n", t->id);
-
 	t->stick = 0;
 	t->utick = 0;
 	t->priority = priority;
-	// t->flags = thread_protected;
 
 	if (process != NULL) {
 		hal_spinlockSet(&threads_common.spinlock);
@@ -768,8 +763,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 		hal_spinlockClear(&threads_common.spinlock);
 	}
 
-	t->execfl = OWNSTACK;
-	t->execparent = NULL;
 	t->execdata = NULL;
 
 	/* Insert thread to global quee */

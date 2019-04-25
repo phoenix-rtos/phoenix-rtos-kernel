@@ -63,7 +63,6 @@ typedef struct _thread_t {
 	unsigned exit : 1;
 	unsigned state : 1;
 	unsigned interruptible : 1;
-	unsigned execfl : 2;
 
 	unsigned sigmask;
 	unsigned sigpend;
@@ -74,8 +73,8 @@ typedef struct _thread_t {
 	void *kstack;
 	size_t kstacksz;
 
+	/* for vfork/exec */
 	void *parentkstack, *execkstack;
-	struct _thread_t *execparent;
 	void *execdata;
 
 	time_t readyTime;
