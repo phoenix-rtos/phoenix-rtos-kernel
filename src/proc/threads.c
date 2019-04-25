@@ -985,7 +985,7 @@ int _proc_threadSetPriority(thread_t *t, unsigned int priority)
  */
 
 
-int proc_threadSleep(unsigned int us)
+int proc_threadSleep(unsigned long long us)
 {
 	thread_t *current;
 	int err;

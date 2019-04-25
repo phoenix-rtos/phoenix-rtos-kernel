@@ -211,7 +211,7 @@ int syscalls_usleep(void *ustack)
 	unsigned int us;
 
 	GETFROMSTACK(ustack, unsigned int, us, 0);
-	return proc_threadSleep(us);
+	return proc_threadSleep((unsigned long long)us);
 }
 
 
@@ -761,6 +761,26 @@ unsigned int syscalls_signalMask(void *ustack)
 	return old;
 }
 
+
+int syscalls_signalSuspend(void *ustack)
+{
+	unsigned int mask, old;
+	int ret = 0;
+	thread_t *t;
+
+	GETFROMSTACK(ustack, unsigned, mask, 0);
+
+	t = proc_current();
+
+	old = t->sigmask;
+	t->sigmask = mask;
+
+	while (ret != -EINTR)
+		ret = proc_threadSleep(1ULL << 52);
+	t->sigmask = old;
+
+	return ret;
+}
 
 /* POSIX compatibility syscalls */
 
