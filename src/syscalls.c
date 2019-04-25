@@ -26,6 +26,7 @@
 #include "posix/posix.h"
 
 #define SYSCALLS_NAME(name) syscalls_##name,
+#define SYSCALLS_STRING(name) #name,
 
 /*
  * Kernel
@@ -1279,11 +1280,15 @@ int syscalls_notimplemented(void)
 
 
 const void * const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
+const char * const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
 
 
 void *syscalls_dispatch(int n, char *ustack)
 {
 	void *retval;
+
+	if (proc_current()->process->path != NULL && !hal_strcmp(proc_current()->process->path, "busybox"))
+		lib_printf("syscall: %s\n", syscall_strings[n]);
 
 	if (n >= sizeof(syscalls) / sizeof(syscalls[0]))
 		return (void *)-EINVAL;

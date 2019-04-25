@@ -2132,6 +2132,8 @@ int posix_waitpid(pid_t child, int *status, int options)
 	int err = EOK;
 	int found = 0;
 
+lib_printf("waitpid: %d %d\n", child, options);
+
 	pid = proc_current()->process->id;
 
 	if ((pinfo = pinfo_find(pid)) == NULL)
@@ -2139,8 +2141,14 @@ int posix_waitpid(pid_t child, int *status, int options)
 
 	proc_lockSet(&pinfo->lock);
 	do {
-		while ((c = pinfo->zombies) == NULL)
-			err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
+		if (options & 1) {
+			if ((c = pinfo->zombies) == NULL)
+				break;
+		}
+		else {
+			while ((c = pinfo->zombies) == NULL)
+				err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
+		}
 
 		do {
 			if (child == -1 || (!child && c->pgid == pinfo->pgid) || (child < 0 && c->pgid == -child) || child == c->process) {
@@ -2151,7 +2159,7 @@ int posix_waitpid(pid_t child, int *status, int options)
 		}
 		while ((c = c->next) != pinfo->zombies);
 	}
-	while (!found && err != -EINTR && !(options & 1));
+	while (!found && err != -EINTR);
 	proc_lockClear(&pinfo->lock);
 
 	if (found) {
@@ -2178,11 +2186,11 @@ void posix_died(pid_t pid, int exit)
 		posix_destroy(pinfo);
 	}
 	else {
-		proc_lockSet(&pinfo->lock);
+		proc_lockSet(&ppinfo->lock);
 		LIST_REMOVE(&ppinfo->children, pinfo);
 		LIST_ADD(&ppinfo->zombies, pinfo);
 		proc_threadWakeup(&ppinfo->wait);
-		proc_lockClear(&pinfo->lock);
+		proc_lockClear(&ppinfo->lock);
 
 		pinfo_put(ppinfo);
 	}
