@@ -496,6 +496,8 @@ static void thread_destroy(thread_t *t)
 
 	vm_kfree(t->kstack);
 	vm_kfree(t);
+
+	lib_printf("ending thread %p\n", t);
 }
 
 
@@ -1173,6 +1175,11 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	int sigbit = 1 << sig;
 	thread_t *execthr = NULL;
+
+	if (process == NULL) {
+		hal_cpuDisableInterrupts();
+		for (;;) ;
+	}
 
 	if (sig == signal_kill) {
 		process->exit = sig << 8;

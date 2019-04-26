@@ -2001,6 +2001,11 @@ int posix_tkill(pid_t pid, int tid, int sig)
 			return -EINVAL;
 		proc = proc_find(pinfo->process);
 
+		if (proc == NULL)
+			return -ESRCH;
+
+lib_printf("leak %d\n", proc->id);
+
 		if (tid) {
 			if ((thr = threads_findThread(tid)) == NULL)
 				return -EINVAL;
@@ -2018,7 +2023,8 @@ int posix_tkill(pid_t pid, int tid, int sig)
 			return EOK;
 		else {
 			int ret =  proc_sigpost(proc, thr, sig);
-			threads_put(thr);
+			if (thr != NULL)
+				threads_put(thr);
 			return ret;
 		}
 	}
@@ -2189,6 +2195,8 @@ void posix_died(pid_t pid, int exit)
 		LIST_ADD(&ppinfo->zombies, pinfo);
 		proc_threadWakeup(&ppinfo->wait);
 		proc_lockClear(&ppinfo->lock);
+
+		posix_sigchild(pinfo->parent);
 
 		pinfo_put(ppinfo);
 	}
