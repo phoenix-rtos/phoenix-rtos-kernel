@@ -104,10 +104,16 @@ int syscalls_vforksvc(void *ustack)
 }
 
 
-int syscalls_fork(void *ustack)
+int syscalls_sys_fork(void *ustack)
 {
-	return -ENOSYS;
-//	return posix_fork();
+	// return -ENOSYS;
+	return proc_fork();
+}
+
+
+int syscalls_release(void *ustack)
+{
+	return proc_release();
 }
 
 
@@ -1287,8 +1293,10 @@ void *syscalls_dispatch(int n, char *ustack)
 {
 	void *retval;
 
+#if 0
 	if (proc_current()->process->path != NULL && !hal_strcmp(proc_current()->process->path, "busybox"))
 		lib_printf("syscall: %s\n", syscall_strings[n]);
+#endif
 
 	if (n >= sizeof(syscalls) / sizeof(syscalls[0]))
 		return (void *)-EINVAL;

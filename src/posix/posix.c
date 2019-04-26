@@ -2132,8 +2132,6 @@ int posix_waitpid(pid_t child, int *status, int options)
 	int err = EOK;
 	int found = 0;
 
-lib_printf("waitpid: %d %d\n", child, options);
-
 	pid = proc_current()->process->id;
 
 	if ((pinfo = pinfo_find(pid)) == NULL)

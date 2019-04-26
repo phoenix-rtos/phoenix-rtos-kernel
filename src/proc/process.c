@@ -585,7 +585,7 @@ int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv)
 }
 
 
-static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn)
+static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
 {
 	thread_t *parent = spawn->parent;
 
@@ -595,7 +595,7 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn)
 	current->process->mapp = NULL;
 
 	hal_spinlockSet(&spawn->sl);
-	spawn->state = FORKED;
+	spawn->state = state;
 	proc_threadWakeup(&spawn->wq);
 	hal_spinlockClear(&spawn->sl);
 
@@ -616,7 +616,8 @@ void proc_exit(int code)
 
 		PUTONSTACK(kstack, process_spawn_t *, spawn);
 		PUTONSTACK(kstack, thread_t *, current);
-		hal_jmp(proc_vforkedExit, kstack, NULL, 2);
+		PUTONSTACK(kstack, int, FORKED);
+		hal_jmp(proc_vforkedExit, kstack, NULL, 3);
 	}
 
 	proc_kill(current->process);
@@ -716,6 +717,92 @@ int proc_vfork(void)
 	}
 
 	return 0;
+}
+
+
+static int proc_copyexec(void)
+{
+	thread_t *parent, *current = proc_current();
+	process_spawn_t *spawn = current->execdata;
+	process_t *process = current->process;
+	parent = spawn->parent;
+	int len;
+
+	len = hal_strlen(parent->process->path) + 1;
+
+	if ((process->path = vm_kmalloc(len)) == NULL)
+		return -ENOMEM;
+
+	hal_memcpy(process->path, parent->process->path, len);
+
+	/* Initialize resources tree for mutex, cond and file handles */
+	resource_init(current->process);
+
+	if (proc_resourcesCopy(parent->process) < 0)
+		return -ENOMEM;
+
+	vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
+	pmap_switch(&process->map.pmap);
+	process->mapp = &process->map;
+
+	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0)
+		return -ENOMEM;
+
+	return EOK;
+}
+
+
+int proc_release(void)
+{
+	thread_t *current, *parent;
+	process_spawn_t *spawn;
+
+	current = proc_current();
+
+	if ((spawn = current->execdata) == NULL)
+		return -EINVAL;
+
+	if ((parent = spawn->parent) == NULL)
+		return -EINVAL;
+
+	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
+	vm_kfree(current->parentkstack);
+
+	current->execdata = NULL;
+	current->parentkstack = NULL;
+
+	hal_spinlockSet(&spawn->sl);
+	spawn->state = FORKED;
+	proc_threadWakeup(&spawn->wq);
+	hal_spinlockClear(&spawn->sl);
+
+	return EOK;
+}
+
+
+int proc_fork(void)
+{
+	thread_t *current;
+	int err;
+	void *kstack;
+
+	if (!(err = proc_vfork())) {
+		err = proc_copyexec();
+
+		current = proc_current();
+		current->kstack = current->execkstack;
+		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
+
+		if (err < 0) {
+			kstack = current->kstack + current->kstacksz;
+			PUTONSTACK(kstack, process_spawn_t *, current->execdata);
+			PUTONSTACK(kstack, thread_t *, current);
+			PUTONSTACK(kstack, int, err);
+			hal_jmp(proc_vforkedExit, kstack, NULL, 3);
+		}
+	}
+
+	return err;
 }
 
 

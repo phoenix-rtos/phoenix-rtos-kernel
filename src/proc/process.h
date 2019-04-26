@@ -84,9 +84,6 @@ extern void proc_kill(process_t *proc);
 extern int proc_start(void (*initthr)(void *), void *arg, const char *path);
 
 
-extern int proc_copyexec(void);
-
-
 extern int proc_execve(const char *path, char **argv, char **envp);
 
 

@@ -17,7 +17,7 @@
 	ID(debug) \
 	ID(mmap) \
 	ID(munmap) \
-	ID(fork) \
+	ID(sys_fork) \
 	ID(vforksvc) \
 	ID(exec) \
 	ID(sys_exit) \
@@ -110,4 +110,5 @@
 	ID(sys_setpgrp) \
 	ID(sys_getpgrp) \
 	ID(sys_setsid) \
-	ID(sys_spawn)
+	ID(sys_spawn) \
+	ID(release)
