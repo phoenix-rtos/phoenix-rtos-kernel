@@ -403,6 +403,8 @@ static void process_vforkthr(void *arg)
 	current->execparent = parent;
 	current->process->parent = parent->process;
 	current->process->mapp = parent->process->mapp;
+	current->process->sigmask = parent->process->sigmask;
+	current->process->sighandler = parent->process->sighandler;
 	hal_cpuReschedule(&parent->execwaitsl);
 
 	proc_lockSet(&parent->process->lock);
