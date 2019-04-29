@@ -24,25 +24,17 @@
 #pragma pack(push, 1)
 
 typedef struct syspage_program_t {
-	void *entry;
-	u32 hdrssz;
-	void *got;
-	u32 gotsz;
-	u32 offset;
-	u32 size;
-	char *cmdline;
-	struct {
-		u32 addr;
-		u32 memsz;
-		u32 flags;
-		u32 vaddr;
-		u32 filesz;
-		u32 align;
-	} hdrs[3];
+	u32 start;
+	u32 end;
+
+	char cmdline[16];
 } syspage_program_t;
 
 
 typedef struct _syspage_t {
+	u32 pbegin;
+	u32 pend;
+
 	char *arg;
 
 	u32 progssz;
@@ -54,6 +46,10 @@ typedef struct _syspage_t {
 
 /* Syspage */
 extern syspage_t *syspage;
+
+
+void _hal_syspageInit(void);
+
 
 #endif
 

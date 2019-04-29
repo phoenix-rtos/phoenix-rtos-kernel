@@ -67,7 +67,7 @@ void main_initthr(void *unused)
 
 	argv[0] = NULL;
 
-	while (*cmdline) {
+	while (cmdline != NULL && *cmdline != '\0') {
 		end = cmdline;
 		while (*end && *(++end) != ' ');
 		while (*end && *end == ' ')

@@ -756,10 +756,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->load.total = 0;
 #endif
 
-	if (process != NULL) {
+	if (process != NULL)
 		hal_cpuSetCtxGot(t->context, process->got);
-	}
-
 
 	/* Insert thread to scheduler queue */
 	hal_spinlockSet(&threads_common.spinlock);

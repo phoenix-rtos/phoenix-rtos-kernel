@@ -33,6 +33,7 @@ shift
 GDB_SYM_FILE=`dirname ${OUTPUT}`"/gdb_symbols"
 
 SIZE_PAGE=$((0x200))
+PAGE_MASK=$((0xfffffe00))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
 FLASH_START=$((0x08000000))
 APP_START=$((0x08010000))
@@ -43,7 +44,7 @@ declare -i k
 i=$((0))
 
 
-if [ $KERNEL_END -gt $APP_START ]; then
+if [ $KERNEL_END -gt $(($APP_START-$FLASH_START)) ]; then
 	echo "Kernel image is bigger than expected!"
 	printf "Kernel end: 0x%08x > App start: 0x%08x\n" $KERNEL_END $APP_START
 	exit 1
@@ -53,22 +54,18 @@ rm -f *.img
 rm -f syspage.hex syspage.bin
 rm -f $OUTPUT
 
+printf "%08x %08x\n" $i 0x20000000 >> syspage.hex #pbegin
+i=$i+4
+printf "%08x %08x\n" $i 0x20014000 >> syspage.hex #pend
+i=$i+4
 printf "%08x %08x\n" $i 0 >> syspage.hex #arg
 i=$i+4
 printf "%08x %08x\n" $i $((`echo $@ | wc -w`)) >> syspage.hex #progssz
 i=$i+4
 
 #Find syspage size first
-SYSPAGESZ=$i
-for app in $@; do
-	SYSPAGESZ=$SYSPAGESZ+24
-	SEGMENTS=`readelf -l $app | grep "LOAD" | wc -l`
-
-	for (( j=1; j<=$SEGMENTS; j++ )); do
-		SYSPAGESZ=$SYSPAGESZ+24
-	done
-done
-SYSPAGESZ=$((($SYSPAGESZ+$SIZE_PAGE-1)&$((0xffffff00))))
+SYSPAGESZ=$(($i+($((`echo $@ | wc -w`))*$((24)))))
+SYSPAGESZ=$((($SYSPAGESZ+$SIZE_PAGE-1)&$PAGE_MASK))
 
 OFFSET=$(($APP_START+$SYSPAGESZ))
 
@@ -76,87 +73,27 @@ for app in $@; do
 	echo "Proccessing $app"
 	k=0
 
-	ENTRY=$((`readelf -l $app | grep "Entry point" | awk '{ print $3 }'`))
-	ENTRY=$(($ENTRY+$OFFSET-$APP_START-$(($i-$k))))
-	printf "%08x %08x\n" $i $ENTRY >> syspage.hex #entry
+	START=$(($OFFSET-$APP_START-$(($i-$k))))
+	printf "%08x %08x\n" $i $START >> syspage.hex #start
 	i=$i+4
 	k=$k+4
 
-	SEGMENTS=`readelf -l $app | grep "LOAD" | wc -l`
-	printf "%08x %08x\n" $i $SEGMENTS >> syspage.hex #hdrssz
+	cp $app tmp.elf
+	${CROSS}strip tmp.elf
+	SIZE=$((`du -b tmp.elf | cut -f1`))
+	rm -f tmp.elf
+	END=$(($START+$SIZE))
+	printf "%08x %08x\n" $i $END >> syspage.hex #end
 	i=$i+4
 	k=$k+4
 
-	printf "%08x " $i >> syspage.hex
-	echo `readelf -S $app | grep ".got" | awk '{ print $5 }'` >> syspage.hex #got
-	i=$i+4
-	k=$k+4
+	OFFSET=$((($OFFSET+$SIZE+$SIZE_PAGE-1)&$PAGE_MASK))
 
-	printf "%08x " $i >> syspage.hex
-	echo -n "00" >> syspage.hex
-	echo `readelf -S $app | grep ".got" | awk '{ print $7 }'` >> syspage.hex #gotsz
-	i=$i+4
-	k=$k+4
-
-	printf "%08x %08x\n" $i $(($OFFSET-$APP_START-$(($i-$k)))) >> syspage.hex #offset
-	i=$i+4
-	k=$k+4
-
-	${CROSS}objcopy $app -Obinary tmpsize.img
-	SIZE=$((`du -b tmpsize.img | awk '{ print $1 }'`))
-	rm -f tmpsize.img
-	printf "%08x %08x\n" $i $(($SIZE)) >> syspage.hex #size
-	i=$i+4
-	k=$k+4
-
-	printf "%08x %08x\n" $i 0 >> syspage.hex #cmdline
-	i=$i+4
-	k=$k+4
-
-	for (( j=1; j<=$SEGMENTS; j++ )); do
-		LINE=`readelf -l $app | grep "LOAD" | sed -n ${j}p`
-
-		VIRTADDR=`echo $LINE | awk '{ print $3 }'`
-		PHYSADDR=`echo $LINE | awk '{ print $4 }'`
-		FILESIZE=`echo $LINE | awk '{ print $5 }'`
-		MEMSIZE=`echo $LINE | awk '{ print $6 }'`
-		ALIGN=`echo $LINE | rev | cut -d ' ' -f 1 | rev`
-
-		FLAGS=`echo $LINE | grep -o '[RWE]' | tr -d '\n'`
-		FLAGSBIN=$((2))
-		if [ `echo $FLAGS | grep "W"` ]; then
-			FLAGSBIN=$(($FLAGSBIN+1))
-		fi
-		if [ `echo $FLAGS | grep "E"` ]; then
-			FLAGSBIN=$(($FLAGSBIN+4))
-			PHYSADDR=$(($OFFSET-$APP_START-$(($i-$k))))
-		else
-			PHYSADDR=$((0))
-		fi
-
-		printf "%08x %08x\n" $i $((PHYSADDR)) >> syspage.hex #addr
-		i=$i+4
-		k=$k+4
-		printf "%08x %08x\n" $i $((MEMSIZE)) >> syspage.hex #memsz
-		i=$i+4
-		k=$k+4
-		printf "%08x %08x\n" $i $((FLAGSBIN)) >> syspage.hex #flags
-		i=$i+4
-		k=$k+4
-		printf "%08x %08x\n" $i $((VIRTADDR)) >> syspage.hex #vaddr
-		i=$i+4
-		k=$k+4
-		printf "%08x %08x\n" $i $((FILESIZE)) >> syspage.hex #filesz
-		i=$i+4
-		k=$k+4
-		printf "%08x %08x\n" $i $((ALIGN)) >> syspage.hex #align
+	for (( j=0; j<4; j++)); do
+		printf "%08x %08x\n" $i 0 >> syspage.hex #cmdline
 		i=$i+4
 		k=$k+4
 	done
-
-	${CROSS}objcopy $app -O binary tmp.img
-	OFFSET=$((($OFFSET+$((`du -b tmp.img | cut -f1`))+$SIZE_PAGE-1)&$((0xffffff00))))
-	rm -f tmp.img
 done
 
 # Use hex file to create binary file
@@ -178,12 +115,13 @@ OFFSET=$(($OFFSET+$SYSPAGESZ))
 printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
 
 for app in $@; do
-	${CROSS}objcopy $app -O binary tmp.img
+	cp $app tmp.elf
+	${CROSS}strip tmp.elf
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
-	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START)) >> $GDB_SYM_FILE
-	dd if=tmp.img of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
-	OFFSET=$((($OFFSET+$((`du -b tmp.img | cut -f1`))+$SIZE_PAGE-1)&$((0xffffff00))))
-	rm -f tmp.img
+	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START + $((0xc0)))) >> $GDB_SYM_FILE
+	dd if=tmp.elf of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
+	OFFSET=$((($OFFSET+$((`du -b tmp.elf | cut -f1`))+$SIZE_PAGE-1)&$PAGE_MASK))
+	rm -f tmp.elf
 done
 
 #Convert binary image to hex

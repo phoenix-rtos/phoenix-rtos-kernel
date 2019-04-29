@@ -7,15 +7,15 @@
 
 ifneq (, $(findstring stm32, $(TARGET)))
 	ASMS = _init-stm32.S
-	SRCS = stm32.c console-stm32.c interrupts-stm32.c timer-stm32.c syspage-stm32.c pmap-stm32.c
+	SRCS = stm32.c console-stm32.c interrupts-stm32.c timer-stm32.c pmap-stm32.c
 else ifneq (, $(findstring imxrt, $(TARGET)))
 	ASMS = _init-imxrt.S
-	SRCS = imxrt.c console-imxrt.c interrupts-imxrt.c timer-imxrt.c syspage-imxrt.c pmap-imxrt.c
+	SRCS = imxrt.c console-imxrt.c interrupts-imxrt.c timer-imxrt.c pmap-imxrt.c
 endif
 
 
 ASMS +=
-SRCS += spinlock.c cpu.c hal.c exceptions.c
+SRCS += spinlock.c cpu.c hal.c exceptions.c syspage.c
 
 
 OBJS = $(ASMS:.S=.o) $(SRCS:.c=.o)
