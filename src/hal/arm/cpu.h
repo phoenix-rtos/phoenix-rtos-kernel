@@ -290,6 +290,12 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return ctx->psr & 0xf;
+}
+
+
 static inline void hal_cpuDataMemoryBarrier(void)
 {
 	__asm__ volatile ("dmb");
