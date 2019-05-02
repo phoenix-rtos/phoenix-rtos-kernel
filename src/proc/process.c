@@ -518,6 +518,8 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_spinlockClear(&spawn->sl);
 	}
 
+	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
+
 	if (err < 0)
 		proc_threadEnd();
 	else
@@ -911,7 +913,6 @@ int proc_execve(const char *path, char **argv, char **envp)
 	if (spawn->parent != NULL) {
 		kstack = current->kstack = current->execkstack;
 		kstack += current->kstacksz;
-		_hal_cpuSetKernelStack(kstack);
 
 		PUTONSTACK(kstack, thread_t *, current);
 		hal_jmp(process_execve, kstack, NULL, 1);
