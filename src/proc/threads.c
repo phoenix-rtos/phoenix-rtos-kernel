@@ -63,9 +63,21 @@ struct {
 } threads_common;
 
 
-void proc_threadProtect() {}
+static thread_t *_proc_current(void);
 
-void proc_threadUnprotect() {}
+void proc_threadProtect()
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	_proc_current()->protected = 1;
+	hal_spinlockClear(&threads_common.spinlock);
+}
+
+void proc_threadUnprotect()
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	_proc_current()->protected = 0;
+	hal_spinlockClear(&threads_common.spinlock);
+}
 
 
 static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
@@ -110,8 +122,6 @@ static int threads_idcmp(rbnode_t *n1, rbnode_t *n2)
 
 static inline time_t _threads_getTimer(void);
 static void _proc_threadWakeup(thread_t **queue);
-static thread_t *_proc_current(void);
-
 
 static unsigned perf_idpack(unsigned id)
 {
@@ -753,6 +763,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->interruptible = 0;
 	t->exit = 0;
 	t->execdata = NULL;
+	t->protected = 1;
 
 	t->id = (unsigned long)t;
 
@@ -1087,6 +1098,7 @@ void proc_threadBroadcastYield(thread_t **queue)
 int proc_waittid(int tid, int options)
 {
 	int err = 0;
+	proc_threadSleep(10000);
 	return err;
 }
 
@@ -1164,8 +1176,8 @@ int _proc_sigwant(thread_t *thr)
 	if (proc->sighandler == NULL)
 		return 0;
 
-	// if (thr->flags & thread_protected)
-		// return 0;
+	if (thr->protected)
+		return 0;
 
 	if ((void *)(&proc) - thr->kstack < sizeof(cpu_context_t) * 2 + 128)
 		return 0;
