@@ -491,13 +491,16 @@ static void thread_destroy(thread_t *t)
 {
 	perf_end(t);
 
-	if (t->process != NULL)
+	if (t->process != NULL) {
+		hal_spinlockSet(&threads_common.spinlock);
+		LIST_REMOVE_EX(&t->process->threads, t, procnext, procprev);
+		hal_spinlockClear(&threads_common.spinlock);
+
 		proc_put(t->process);
+	}
 
 	vm_kfree(t->kstack);
 	vm_kfree(t);
-
-	lib_printf("ending thread %p\n", t);
 }
 
 
