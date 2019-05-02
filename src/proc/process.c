@@ -89,8 +89,6 @@ static void process_destroy(process_t *p)
 {
 	perf_kill(p);
 
-lib_printf("destroying %d\n", p->id);
-
 	posix_died(p->id, p->exit);
 
 	if (p->mapp != NULL)
@@ -281,7 +279,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->lazy = 1;
 #endif
 
-	process->mapp = process_common.kmap;
+	process->mapp = NULL;
 
 	/* Initialize resources tree for mutex and cond handles */
 	resource_init(process);
@@ -508,15 +506,16 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		PUTONSTACK(stack, void *, NULL); /* return address */
 	}
 
-	hal_spinlockSet(&spawn->sl);
-	spawn->state = err == EOK ? FORKED : err;
-	proc_threadWakeup(&spawn->wq);
-	hal_spinlockClear(&spawn->sl);
-
 	/* if execing without vfork */
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
 		vm_kfree(spawn);
+	}
+	else {
+		hal_spinlockSet(&spawn->sl);
+		spawn->state = err == EOK ? FORKED : err;
+		proc_threadWakeup(&spawn->wq);
+		hal_spinlockClear(&spawn->sl);
 	}
 
 	if (err < 0)
@@ -534,8 +533,6 @@ static void proc_spawnThread(void *arg)
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL)
 		posix_clone(spawn->parent->process->id);
-
-	// lib_printf("spawnthread %d\n", current->process->id);
 
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
 	current->process->mapp = &current->process->map;
@@ -568,7 +565,6 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 		hal_spinlockClear(&spawn.sl);
 	}
 
-	// lib_printf("destroying spawn sl\n");
 	hal_spinlockDestroy(&spawn.sl);
 	return spawn.state < 0 ? spawn.state : pid;
 }
@@ -624,8 +620,6 @@ void proc_exit(int code)
 	process_spawn_t *spawn;
 	void *kstack;
 
-lib_printf("exiting from %d\n", current->process->id);
-
 	if ((spawn = current->execdata) != NULL) {
 		kstack = current->kstack = current->execkstack;
 		kstack += current->kstacksz;
@@ -638,6 +632,7 @@ lib_printf("exiting from %d\n", current->process->id);
 
 	proc_kill(current->process);
 }
+
 
 static void process_vforkThread(void *arg)
 {
@@ -685,7 +680,7 @@ static void process_vforkThread(void *arg)
 int proc_vfork(void)
 {
 	thread_t *current;
-	int pid, isparent = 1;
+	int pid, isparent = 1, ret;
 	process_spawn_t *spawn;
 
 	if ((current = proc_current()) == NULL)
@@ -720,15 +715,17 @@ int proc_vfork(void)
 		 * thread starting from this point
 		 */
 		proc_threadWait(&spawn->wq, &spawn->sl, 0);
+		isparent = proc_current() == current;
 	}
-	while (spawn->state < FORKED && spawn->state > 0 && (isparent = proc_current() == current));
+	while (spawn->state < FORKED && spawn->state > 0 && isparent);
 
 	hal_spinlockClear(&spawn->sl);
 
 	if (isparent) {
 		hal_spinlockDestroy(&spawn->sl);
+		ret = spawn->state;
 		vm_kfree(spawn);
-		return spawn->state < 0 ? spawn->state : pid;
+		return ret < 0 ? ret : pid;
 	}
 
 	return 0;
@@ -750,21 +747,16 @@ static int process_copy(void)
 
 	hal_memcpy(process->path, parent->process->path, len);
 
-	/* Initialize resources tree for mutex, cond and file handles */
-	resource_init(current->process);
-
 	if (proc_resourcesCopy(parent->process) < 0)
 		return -ENOMEM;
 
-	// lib_printf("copy %d from %d\n", current->process->id, parent->process->id);
-
 	vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
-	pmap_switch(&process->map.pmap);
-	process->mapp = &process->map;
 
 	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0)
 		return -ENOMEM;
 
+	process->mapp = &process->map;
+	pmap_switch(&process->map.pmap);
 	return EOK;
 }
 
@@ -792,8 +784,6 @@ int proc_release(void)
 	spawn->state = FORKED;
 	proc_threadWakeup(&spawn->wq);
 	hal_spinlockClear(&spawn->sl);
-
-lib_printf("forked %d from %d\n", current->process->id, parent->process->id);
 
 	return EOK;
 }
@@ -843,9 +833,6 @@ static int process_execve(thread_t *current)
 		vm_mapDestroy(current->process, &current->process->map);
 		proc_resourcesFree(current->process);
 		proc_portsDestroy(current->process);
-
-		resource_init(current->process);
-		current->process->ports = NULL;
 	}
 
 	current->execkstack = NULL;
@@ -902,7 +889,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return err;
 
 	if ((spawn = current->execdata) == NULL) {
-		spawn = current->execdata = vm_kmalloc(sizeof(*spawn));
+		spawn = current->execdata = vm_kmalloc(sizeof(process_spawn_t));
 		hal_spinlockCreate(&spawn->sl, "spawn");
 		spawn->wq = NULL;
 		spawn->state = FORKED;
@@ -915,6 +902,9 @@ int proc_execve(const char *path, char **argv, char **envp)
 	spawn->object = object;
 	spawn->offset = 0;
 	spawn->size = object->size;
+
+	if (current->process->path != NULL)
+		vm_kfree(current->process->path);
 
 	current->process->path = kpath;
 
