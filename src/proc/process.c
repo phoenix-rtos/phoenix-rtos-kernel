@@ -646,6 +646,8 @@ static void process_vforkThread(void *arg)
 	posix_clone(parent->process->id);
 
 	current->process->mapp = parent->process->mapp;
+	current->process->sigmask = parent->process->sigmask;
+	current->process->sighandler = parent->process->sighandler;
 	pmap_switch(&current->process->mapp->pmap);
 
 	hal_spinlockSet(&spawn->sl);
