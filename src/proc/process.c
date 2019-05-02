@@ -1053,7 +1053,7 @@ void proc_exit(int code)
 	parent = current->execparent;
 
 	if (current->process != NULL)
-		current->process->exit = code;
+		current->process->exit = code & 0xff;
 
 	if (current->parentkstack != NULL) {
 		current->kstack = current->execkstack;
