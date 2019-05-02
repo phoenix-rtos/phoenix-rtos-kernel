@@ -967,6 +967,7 @@ void vm_mapinfo(meminfo_t *info)
 
 		proc_lockClear(&map->lock);
 		info->entry.mapsz = size;
+		proc_put(process);
 	}
 
 	if (info->entry.kmapsz != -1) {

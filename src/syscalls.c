@@ -197,9 +197,7 @@ int syscalls_getpid(void *ustack)
 
 int syscalls_getppid(void *ustack)
 {
-	// if (proc_current()->process->parent == NULL)
-		return -EINVAL;
-	// return proc_current()->process->parent->id;
+	return posix_getppid(proc_current()->process->id);
 }
 
 
@@ -220,6 +218,7 @@ int syscalls_beginthreadex(void *ustack)
 	unsigned int priority, stacksz;
 	void *stack, *arg;
 	unsigned int *id;
+	process_t *p;
 
 	GETFROMSTACK(ustack, void *, start, 0);
 	GETFROMSTACK(ustack, unsigned int, priority, 1);
@@ -228,7 +227,10 @@ int syscalls_beginthreadex(void *ustack)
 	GETFROMSTACK(ustack, void *, arg, 4);
 	GETFROMSTACK(ustack, unsigned int *, id, 5);
 
-	return proc_threadCreate(proc_current()->process, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+	if ((p = proc_current()->process) != NULL)
+		proc_get(p);
+
+	return proc_threadCreate(p, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
 }
 
 
