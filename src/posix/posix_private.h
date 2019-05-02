@@ -75,6 +75,7 @@ typedef struct _process_info_t {
 	rbnode_t linkage;
 	int process;
 	int parent;
+	int refs;
 
 	thread_t *wait;
 
