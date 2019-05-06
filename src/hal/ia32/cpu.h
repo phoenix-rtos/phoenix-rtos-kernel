@@ -540,6 +540,19 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
+static inline void hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+{
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	char *ustack = (char *)ctx->esp;
+
+	PUTONSTACK(ustack, u32, ctx->eip);
+	PUTONSTACK(ustack, int, n);
+
+	ctx->eip = (u32)handler;
+	ctx->esp = (u32)ustack;
+}
+
+
 static inline void hal_longjmp(cpu_context_t *ctx)
 {
 	__asm__ volatile

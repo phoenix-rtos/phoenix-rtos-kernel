@@ -344,10 +344,6 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 
 	proc_sigpost(process, thread, signal_illegal);
-
-	if (!_proc_sigwant(thread))
-		proc_sigpost(process, thread, signal_kill);
-
 	hal_cpuReschedule(NULL);
 }
 

@@ -65,7 +65,6 @@
 	ID(va2pa) \
 	ID(signalHandle) \
 	ID(signalPost) \
-	ID(signalReturn) \
 	ID(signalMask) \
 	ID(priority) \
 	\

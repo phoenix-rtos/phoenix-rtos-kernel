@@ -27,22 +27,6 @@
 #define CTXPUSHL 10
 #endif
 
-.global interrupts_checkSignal
-interrupts_checkSignal:
-	pushl $0
-	call _proc_sigwant
-	addl $4, %esp
-	cmpl $0, %eax
-	jne 0f
-	ret
-0:
-	movl %esp, %eax
-	subl $4, %esp
-	pushl %eax
-	call proc_sighandle
-	/* Not reached */
-.size interrupts_checkSignal, .-interrupts_checkSignal
-
 
 .global interrupts_pushContext
 interrupts_pushContext:
@@ -79,8 +63,6 @@ interrupts_pushContext:
 .global interrupts_popContext
 interrupts_popContext:
 	popl %esp
-	leal -4(%esp), %eax
-	call interrupts_checkSignal
 #ifndef NDEBUG
 	popl %edx
 	movl %edx, %dr0

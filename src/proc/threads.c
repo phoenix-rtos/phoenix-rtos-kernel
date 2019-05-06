@@ -647,7 +647,7 @@ int threads_getCpuTime(thread_t *t)
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
-	unsigned int i;
+	unsigned int i, sig;
 	process_t *proc;
 
 	threads_common.executions++;
@@ -688,6 +688,15 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			/* Switch address space */
 			pmap_switch(&proc->mapp->pmap);
 			_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
+
+			/* Check for signals to handle */
+			if ((sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask)) {
+				sig = hal_cpuGetLastBit(sig);
+				selected->sigpend &= ~(1 << sig);
+				proc->sigpend &= ~(1 << sig);
+
+				hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, sig);
+			}
 		}
 
 		_perf_scheduling(selected);
@@ -1160,159 +1169,49 @@ time_t proc_nextWakeup(void)
  */
 
 
-int _proc_sigwant(thread_t *thr)
-{
-	process_t *proc;
-
-	if (thr == NULL && (thr = _proc_current()) == NULL)
-		return 0;
-
-	if ((proc = thr->process) == NULL)
-		return 0;
-
-	if (!(proc->sigpend & ~thr->sigmask) && !thr->sigpend)
-		return 0;
-
-	if (proc->sighandler == NULL)
-		return 0;
-
-	if (thr->protected)
-		return 0;
-
-	if ((void *)(&proc) - thr->kstack < sizeof(cpu_context_t) * 2 + 128)
-		return 0;
-
-	return 1;
-}
-
-
 int proc_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	int sigbit = 1 << sig;
-	thread_t *execthr = NULL;
 
-	if (process == NULL) {
-		hal_cpuDisableInterrupts();
-		for (;;) ;
-	}
+	switch (sig) {
+		case signal_segv:
+		case signal_illegal:
+			if (process->sighandler != NULL)
+				break;
 
-	if (sig == signal_kill) {
-		process->exit = sig << 8;
-		proc_kill(process);
-		return EOK;
+		/* passthrough */
+		case signal_kill:
+			proc_kill(process);
+			return EOK;
+
+		default:
+			break;
 	}
 
 	hal_spinlockSet(&threads_common.spinlock);
-
-	if (process->sighandler == NULL || sigbit & process->sigmask || (thread != NULL && sigbit & thread->sigmask)) {
-		hal_spinlockClear(&threads_common.spinlock);
-
-		switch (sig) {
-		case signal_segv:
-		case signal_illegal:
-			process->exit = sig << 8;
-			proc_kill(process);
-			break;
-		default:
-			break;
-		}
-
-		return EOK;
-	}
-
 	if (thread != NULL) {
-		thread->sigpend |= sigbit;
-		execthr = thread;
+		thread->sigmask |= sigbit;
 	}
 	else {
 		process->sigpend |= sigbit;
-		process->sigmask |= sigbit;
-
-		/* find a thread to wake up to handle the signal */
 		thread = process->threads;
+
 		do {
-			if (_proc_sigwant(thread)) {
-				execthr = thread;
+			if (sigbit & ~thread->sigmask) {
+				// thread->sigpend |= sigbit;
+				// process->sigpend &= ~sigbit;
+
+				if (thread->interruptible)
+					_thread_interrupt(thread);
+
 				break;
 			}
-		} while ((thread = thread->procnext) != process->threads);
-
-		if (execthr == NULL) {
-			hal_spinlockClear(&threads_common.spinlock);
-			return EOK;
 		}
+		while ((thread = thread->procnext) != process->threads);
 	}
+	hal_cpuReschedule(&threads_common.spinlock);
 
-	if (execthr->state == READY) {
-		hal_spinlockClear(&threads_common.spinlock);
-		return EOK;
-	}
-
-	if (execthr->state == SLEEP) {
-		execthr->state = READY;
-
-		if (execthr->wakeup > 0) {
-			lib_rbRemove(&threads_common.sleeping, &execthr->sleeplinkage);
-			execthr->wakeup = 0;
-		}
-
-		if (execthr->wait != NULL) {
-			LIST_REMOVE(execthr->wait, execthr);
-			execthr->wait = NULL;
-		}
-
-		LIST_ADD(&threads_common.ready[execthr->priority], execthr);
-		hal_cpuSetReturnValue(execthr->context, -EINTR);
-	}
-
-	hal_spinlockClear(&threads_common.spinlock);
 	return EOK;
-}
-
-
-void proc_sighandle(void *kstack)
-{
-	thread_t *thr;
-	cpu_context_t signal, *top, *dummy;
-	long s;
-
-	hal_spinlockSet(&threads_common.spinlock);
-	thr = _proc_current();
-
-	if (thr->sigpend) {
-		s = hal_cpuGetLastBit(thr->sigpend);
-		thr->sigpend &= ~(1 << s);
-	}
-	else {
-		s = hal_cpuGetLastBit(thr->process->sigpend & ~thr->sigmask);
-		thr->process->sigpend &= ~(1 << s);
-	}
-
-	top = thr->kstack + thr->kstacksz - sizeof(cpu_context_t);
-	PUTONSTACK(kstack, size_t, thr->kstacksz);
-	thr->kstacksz = kstack - thr->kstack;
-	hal_cpuCreateContext(&dummy, thr->process->sighandler, &signal, sizeof(signal), hal_cpuGetUserSP(top), (void *)s);
-	hal_cpuGuard(&signal, thr->kstack);
-	_hal_cpuSetKernelStack(kstack);
-	hal_spinlockClear(&threads_common.spinlock);
-	hal_longjmp(&signal);
-}
-
-
-void proc_sigreturn(int s)
-{
-	thread_t *thr = proc_current();
-	void *kstack;
-	cpu_context_t *prev;
-
-	hal_spinlockSet(&threads_common.spinlock);
-	thr->process->sigmask &= ~(1 << s);
-	kstack = thr->kstack + thr->kstacksz;
-	thr->kstacksz = *(size_t *)kstack;
-	prev = (cpu_context_t *)(kstack + sizeof(size_t));
-	_hal_cpuSetKernelStack(thr->kstack + thr->kstacksz);
-	hal_spinlockClear(&threads_common.spinlock);
-	hal_longjmp(prev);
 }
 
 

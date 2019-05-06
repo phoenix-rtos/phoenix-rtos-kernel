@@ -780,14 +780,6 @@ int syscalls_signalPost(void *ustack)
 }
 
 
-void syscalls_signalReturn(void *ustack)
-{
-	int signal;
-	GETFROMSTACK(ustack, int, signal, 0);
-	proc_sigreturn(signal);
-}
-
-
 unsigned int syscalls_signalMask(void *ustack)
 {
 	unsigned mask, mmask, old;
