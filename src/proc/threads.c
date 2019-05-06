@@ -829,11 +829,12 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 }
 
 
-static void _proc_threadDequeue(thread_t **queue, thread_t *t)
+static void _proc_threadDequeue(thread_t *t)
 {
 	_perf_waking(t);
 
-	LIST_REMOVE(queue, t);
+	if (t->wait != NULL)
+		LIST_REMOVE(t->wait, t);
 
 	if (t->wakeup != 0)
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
@@ -841,6 +842,7 @@ static void _proc_threadDequeue(thread_t **queue, thread_t *t)
 	t->wakeup = 0;
 	t->wait = NULL;
 	t->state = READY;
+	t->interruptible = 0;
 
 	/* MOD */
 	if (t != threads_common.current[hal_cpuGetID()])
@@ -850,7 +852,7 @@ static void _proc_threadDequeue(thread_t **queue, thread_t *t)
 
 static void _thread_interrupt(thread_t *t)
 {
-	_proc_threadDequeue(t->wait, t);
+	_proc_threadDequeue(t);
 	hal_cpuSetReturnValue(t->context, -EINTR);
 }
 
@@ -952,6 +954,7 @@ int proc_threadSleep(unsigned int us)
 	current->state = SLEEP;
 	current->wait = NULL;
 	current->wakeup = now + TIMER_US2CYC(us);
+	current->interruptible = 1;
 
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 
@@ -1037,7 +1040,7 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
 
 static void _proc_threadWakeup(thread_t **queue)
 {
-	_proc_threadDequeue(queue, *queue);
+	_proc_threadDequeue(*queue);
 }
 
 
