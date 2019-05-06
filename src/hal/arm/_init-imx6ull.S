@@ -796,14 +796,7 @@ hal_cpuReschedule:
 	blx threads_schedule
 
 	ldr sp, [sp]
-
-	mov r0, #0
-	blx _proc_sigwant
-	cmp r0, #0
-	bne _hal_sighandle
-
 	add sp, sp, #8
-
 	b _hal_cpuRestoreCtx
 .size hal_cpuReschedule, .-hal_cpuReschedule
 
@@ -871,25 +864,9 @@ _interrupts_dispatch:
 	str r4, [r0, #0x10] /* Update End of Interrupt register with original value from ICCIAR */
 1:
 	ldr sp, [sp]
-
-	mov r0, #0
-	blx _proc_sigwant
-	cmp r0, #0
-	bne _hal_sighandle
-
 	add sp, sp, #8
-
 	b _hal_cpuRestoreCtx
 .size _interrupts_dispatch, .-_interrupts_dispatch
-
-
-.globl _hal_sighandle
-.type _hal_sighandle, %function
-_hal_sighandle:
-	mov r0, sp
-	sub sp, #8
-	blx proc_sighandle
-.size _hal_sighandle, .-_hal_sighandle
 
 
 .globl _syscalls_dispatch
@@ -933,14 +910,7 @@ _syscalls_dispatch:
 	str r0, [sp, #272]
 
 	ldr sp, [sp]
-
-	mov r0, #0
-	blx _proc_sigwant
-	cmp r0, #0
-	bne _hal_sighandle
-
 	add sp, sp, #8
-
 	b _hal_cpuRestoreCtx
 .size _syscalls_dispatch, .-_syscalls_dispatch
 
