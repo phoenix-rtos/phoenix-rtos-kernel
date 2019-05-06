@@ -30,6 +30,8 @@ ifeq ($(DEBUG), 1)
 	CFLAGS = -Og -g
 else ifneq (, $(findstring imx, $(TARGET)))
 	CFLAGS = -Os -DNDEBUG
+else ifneq (, $(findstring stm32, $(TARGET)))
+	CFLAGS = -Os -DNDEBUG
 else
 	CFLAGS = -O2 -DNDEBUG
 endif
