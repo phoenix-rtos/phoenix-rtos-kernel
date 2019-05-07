@@ -2086,7 +2086,6 @@ int posix_tkill(pid_t pid, int tid, int sig)
 		if (killme)
 			proc_sigpost(me, NULL, sig);
 
-		pinfo_put(pinfo);
 		return EOK;
 	}
 }
