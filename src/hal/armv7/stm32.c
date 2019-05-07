@@ -76,7 +76,7 @@ enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr 
 enum { exti_imr = 0, exti_emr, exti_rtsr, exti_ftsr, exti_swier, exti_pr };
 
 
-enum {stk_ctrl = 0, stk_load, stk_val, stk_calib };
+enum { stk_ctrl = 0, stk_load, stk_val, stk_calib };
 
 
 enum { mpu_typer = 0, mpu_cr, mpu_rnr, mpu_rbar, mpu_rasr };
