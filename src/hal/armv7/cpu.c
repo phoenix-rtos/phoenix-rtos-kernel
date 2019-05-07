@@ -93,22 +93,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-int hal_cpuReschedule(spinlock_t *spinlock)
-{
-	int err;
-
-	_hal_invokePendSV();
-
-	if (spinlock != NULL)
-		hal_spinlockClear(spinlock);
-
-	/* We want to keep r0 from timeintr */
-	__asm__ volatile ("mov %0, r0" : "=r"(err));
-
-	return err;
-}
-
-
 time_t hal_cpuLowPower(time_t ms)
 {
 #ifdef CPU_STM32

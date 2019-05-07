@@ -468,3 +468,26 @@ _intd1:
 	cpsie if
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
+
+
+.globl hal_cpuReschedule
+.type hal_cpuReschedule, %function
+hal_cpuReschedule:
+	push {r0, lr}
+	bl _hal_invokePendSV
+	pop {r1, lr}
+	cmp r1, #NULL
+	it eq
+	beq hal_cpuReschedule0
+	add r1, r1, #12
+	ldrexb r2, [r1]
+	add r2, r2, #1
+	dmb
+	strexb r3, r2, [r1]
+	ldrb r2, [r1, #1]
+	msr primask, r2
+hal_cpuReschedule0:
+	isb
+	dmb
+	bx lr
+.size hal_cpuReschedule, .-hal_cpuReschedule

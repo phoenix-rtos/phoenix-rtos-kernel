@@ -23,12 +23,6 @@
 
 typedef struct _spinlock_t {
 	const char *name;
-	/*
-	cycles_t b;
-	cycles_t e;
-	cycles_t dmin;
-	cycles_t dmax;
-	*/
 	struct _spinlock_t *next;
 	struct _spinlock_t *prev;
 
