@@ -296,6 +296,19 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 }
 
 
+static inline void hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+{
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	char *ustack = (char *)ctx->sp;
+
+	PUTONSTACK(ustack, u32, ctx->pc);
+	PUTONSTACK(ustack, int, n);
+
+	ctx->pc = (u32)handler;
+	ctx->sp = (u32)ustack;
+}
+
+
 static inline void hal_cpuDataMemoryBarrier(void)
 {
 	__asm__ volatile ("dmb");
