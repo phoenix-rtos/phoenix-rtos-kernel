@@ -25,11 +25,12 @@
 
 
 /* Parent thread states */
-enum { PREFORK = 0, FORKING = 1, FORKED, NOFORK };
+enum { PREFORK = 0, FORKING = 1, FORKED };
 
 /* Child thread states */
 enum { OWNSTACK = 0, PARENTSTACK };
 
+enum { READY = 0, SLEEP };
 
 typedef struct {
 	cycles_t cycl[10];
@@ -51,17 +52,17 @@ typedef struct _thread_t {
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
+	int refs;
 	unsigned long id;
-	unsigned int priority;
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
 	volatile time_t wakeup;
 
-	volatile enum {
-		thread_killme = 1 << 0,
-		thread_protected = 1 << 1,
-	} flags;
+	unsigned priority : 4;
+	unsigned exit : 1;
+	unsigned state : 1;
+	unsigned interruptible : 1;
 
 	unsigned sigmask;
 	unsigned sigpend;
@@ -72,14 +73,9 @@ typedef struct _thread_t {
 	void *kstack;
 	size_t kstacksz;
 
-	struct _thread_t *execwaitq;
+	/* for vfork/exec */
 	void *parentkstack, *execkstack;
-	struct _thread_t *execparent;
-
-	spinlock_t execwaitsl;
-
-	volatile enum { READY = 0, SLEEP = 1 } state;
-	char execfl;
+	void *execdata;
 
 	time_t readyTime;
 	time_t maxWait;
@@ -122,13 +118,13 @@ extern void proc_threadProtect(void);
 extern void proc_threadUnprotect(void);
 
 
-extern void proc_threadDestroy(void);
+extern void proc_threadEnd(void);
 
 
 extern int proc_threadJoin(unsigned int id);
 
 
-extern void proc_threadsDestroy(process_t *proc);
+extern void proc_threadsDestroy(thread_t **threads);
 
 
 extern int proc_waitpid(int pid, int *stat, int options);

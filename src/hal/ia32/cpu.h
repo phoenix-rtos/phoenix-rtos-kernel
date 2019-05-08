@@ -500,6 +500,12 @@ static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 }
 
 
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return ctx->cs & 3;
+}
+
+
 /* Function creates new cpu context on top of given thread kernel stack */
 extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg);
 
@@ -534,6 +540,19 @@ static inline void *hal_cpuGetSP(cpu_context_t *ctx)
 static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 {
 	return (void *)ctx->esp;
+}
+
+
+static inline void hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+{
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	char *ustack = (char *)ctx->esp;
+
+	PUTONSTACK(ustack, u32, ctx->eip);
+	PUTONSTACK(ustack, int, n);
+
+	ctx->eip = (u32)handler;
+	ctx->esp = (u32)ustack;
 }
 
 

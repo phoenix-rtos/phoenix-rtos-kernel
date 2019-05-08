@@ -290,6 +290,28 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return ctx->psr & 0xf;
+}
+
+
+static inline void hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+{
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+
+	PUTONSTACK(ctx->sp, u32, ctx->pc | !!(ctx->psr & THUMB_STATE));
+	PUTONSTACK(ctx->sp, int, n);
+
+	ctx->pc = (u32)handler & ~1;
+
+	if ((u32)handler & 1)
+		ctx->psr |= THUMB_STATE;
+	else
+		ctx->psr &= ~THUMB_STATE;
+}
+
+
 static inline void hal_cpuDataMemoryBarrier(void)
 {
 	__asm__ volatile ("dmb");

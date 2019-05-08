@@ -96,8 +96,8 @@ void main_initthr(void *unused)
 			/* Start program loaded into memory */
 			for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				if (!hal_strcmp(cmdline + 1, prog->cmdline)) {
-					if (!proc_vfork())
-						proc_execve(prog, prog->cmdline, argv, NULL);
+					argv[0] = prog->cmdline;
+					proc_syspageSpawn(prog, prog->cmdline, proc_copyargs(argv));
 				}
 			}
 		}
@@ -109,10 +109,8 @@ void main_initthr(void *unused)
 		argv[1] = NULL;
 		/* Start all syspage programs */
 		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
-			if (!proc_vfork()) {
 				argv[0] = prog->cmdline;
-				proc_execve(prog, prog->cmdline, argv, NULL);
-			}
+				proc_syspageSpawn(prog, prog->cmdline, argv);
 		}
 	}
 
@@ -123,10 +121,8 @@ void main_initthr(void *unused)
 //	proc_fileSet(1, 3, &oid, 0, 0);
 //	proc_fileSet(2, 3, &oid, 0, 0);
 
-	while (proc_waitpid(-1, NULL, 0) != -ECHILD) ;
-
-	/* All init's children are dead at this point */
-	for (;;) proc_threadSleep(100000000);
+	for (;;)
+		proc_reap();
 }
 
 

@@ -360,7 +360,6 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
-	proc_threadUnprotect();
 	hal_spinlockSet(&p->spinlock);
 
 	while (p->kmessages == NULL && !p->closed)
@@ -377,7 +376,6 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 		}
 
 		hal_spinlockClear(&p->spinlock);
-		proc_threadProtect();
 		port_put(p, 0);
 		return -EINVAL;
 	}
@@ -385,7 +383,6 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	LIST_REMOVE(&p->kmessages, kmsg);
 	LIST_ADD(&p->received, kmsg);
 	hal_spinlockClear(&p->spinlock);
-	proc_threadProtect();
 
 	/* (MOD) */
 	(*rid) = (unsigned long)(kmsg);

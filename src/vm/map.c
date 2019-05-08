@@ -662,6 +662,10 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	prot = hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
 	paddr = (void *)((unsigned long)vaddr & ~(SIZE_PAGE - 1));
+
+	process_dumpException(n, ctx);
+	for (;;) ;
+
 	hal_cpuEnableInterrupts();
 
 	thread = proc_current();
@@ -877,7 +881,7 @@ void vm_mapinfo(meminfo_t *info)
 	proc_lockClear(&map_common.lock);
 
 	if (info->entry.mapsz != -1) {
-		process = proc_find(info->entry.pid);
+		process = proc_find(info->entry.pid); /* TODO: reference leak */
 
 		if (process == NULL) {
 			info->entry.mapsz = -1;
@@ -963,6 +967,7 @@ void vm_mapinfo(meminfo_t *info)
 
 		proc_lockClear(&map->lock);
 		info->entry.mapsz = size;
+		proc_put(process);
 	}
 
 	if (info->entry.kmapsz != -1) {
