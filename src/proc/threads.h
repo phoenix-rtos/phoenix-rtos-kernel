@@ -63,7 +63,6 @@ typedef struct _thread_t {
 	unsigned exit : 1;
 	unsigned state : 1;
 	unsigned interruptible : 1;
-	unsigned protected : 1;
 
 	unsigned sigmask;
 	unsigned sigpend;
