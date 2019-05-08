@@ -1196,7 +1196,7 @@ int syscalls_sys_poll(char *ustack)
 	int timeout_ms;
 
 	GETFROMSTACK(ustack, struct pollfd *, fds, 0);
-	GETFROMSTACK(ustack, nfds_t, nfds, 2);
+	GETFROMSTACK(ustack, nfds_t, nfds, 1);
 	GETFROMSTACK(ustack, int, timeout_ms, 2);
 
 	return posix_poll(fds, nfds, timeout_ms);
