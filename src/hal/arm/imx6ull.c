@@ -302,7 +302,7 @@ static int _imx6ull_getIOisel(int isel, char *daisy)
 	if (daisy == NULL || isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp)
 		return -EINVAL;
 
-	*daisy = *(imx6ull_common.iomux + isel) & 0x3;
+	*daisy = *(imx6ull_common.iomux + isel) & 0x7;
 
 	return EOK;
 }
@@ -336,6 +336,7 @@ int hal_platformctl(void *ptr)
 			ret = _imx6ull_setIOgpr(data->iogpr.field, data->iogpr.val);
 		else if (data->action == pctl_get)
 			ret = _imx6ull_getIOgpr(data->iogpr.field, &data->iogpr.val);
+		break;
 	case pctl_iomux:
 		if (data->action == pctl_set)
 			ret = _imx6ull_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
