@@ -1287,17 +1287,10 @@ void *syscalls_dispatch(int n, char *ustack)
 {
 	void *retval;
 
-#if 0
-	if (proc_current()->process->path != NULL && !hal_strcmp(proc_current()->process->path, "busybox"))
-		lib_printf("syscall: %s\n", syscall_strings[n]);
-#endif
-
 	if (n >= sizeof(syscalls) / sizeof(syscalls[0]))
 		return (void *)-EINVAL;
 
-	proc_threadProtect();
 	retval = ((void *(*)(char *))syscalls[n])(ustack);
-	proc_threadUnprotect();
 
 	if (proc_current()->exit)
 		proc_threadEnd();
