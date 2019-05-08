@@ -1139,7 +1139,8 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
 
 	hal_spinlockSet(&threads_common.spinlock);
 	if (thread != NULL) {
-		thread->sigmask |= sigbit;
+		hal_cpuPushSignal(thread->kstack + thread->kstacksz, thread->process->sighandler, sig);
+//		thread->sigmask |= sigbit;
 	}
 	else {
 		process->sigpend |= sigbit;
