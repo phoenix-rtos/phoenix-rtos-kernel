@@ -122,7 +122,7 @@ void main_initthr(void *unused)
 //	proc_fileSet(2, 3, &oid, 0, 0);
 
 	for (;;)
-		proc_threadSleep(1000000);
+		proc_reap();
 }
 
 

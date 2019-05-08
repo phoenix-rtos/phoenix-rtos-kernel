@@ -55,6 +55,7 @@ struct {
 #endif
 
 	thread_t *volatile ghosts;
+	thread_t *reaper;
 
 	int perfGather;
 	time_t perfLastTimestamp;
@@ -64,20 +65,8 @@ struct {
 
 
 static thread_t *_proc_current(void);
-
-void proc_threadProtect()
-{
-	hal_spinlockSet(&threads_common.spinlock);
-	_proc_current()->protected = 1;
-	hal_spinlockClear(&threads_common.spinlock);
-}
-
-void proc_threadUnprotect()
-{
-	hal_spinlockSet(&threads_common.spinlock);
-	_proc_current()->protected = 0;
-	hal_spinlockClear(&threads_common.spinlock);
-}
+static void _proc_threadDequeue(thread_t *t);
+static int _proc_threadWait(thread_t **queue, time_t timeout);
 
 
 static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
@@ -465,23 +454,8 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		if (t == NULL || t->wakeup > now)
 			break;
 
-		_perf_waking(t);
-
-		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
-		t->wakeup = 0;
+		_proc_threadDequeue(t);
 		hal_cpuSetReturnValue(t->context, -ETIME);
-
-		t->state = READY;
-
-		if (t->wait != NULL) {
-			LIST_REMOVE(t->wait, t);
-			t->wait = NULL;
-		}
-
-		/* MOD - test presence for all cores */
-		if (t != threads_common.current[hal_cpuGetID()])
-			LIST_ADD(&threads_common.ready[t->priority], t);
-
 	}
 
 	_threads_updateWakeup(now, t);
@@ -679,6 +653,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			break;
 
 		LIST_ADD(&threads_common.ghosts, selected);
+		_proc_threadWakeup(&threads_common.reaper);
 	}
 
 	if (selected != NULL) {
@@ -690,7 +665,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 
 			/* Check for signals to handle */
-			if ((sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask)) {
+			if ((sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask) && proc->sighandler != NULL) {
 				sig = hal_cpuGetLastBit(sig);
 				selected->sigpend &= ~(1 << sig);
 				proc->sigpend &= ~(1 << sig);
@@ -772,7 +747,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->interruptible = 0;
 	t->exit = 0;
 	t->execdata = NULL;
-	t->protected = 1;
+	t->wait = NULL;
 
 	t->id = (unsigned long)t;
 
@@ -829,46 +804,12 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 }
 
 
-static void _proc_threadDequeue(thread_t *t)
-{
-	_perf_waking(t);
-
-	if (t->wait != NULL)
-		LIST_REMOVE(t->wait, t);
-
-	if (t->wakeup != 0)
-		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
-
-	t->wakeup = 0;
-	t->wait = NULL;
-	t->state = READY;
-	t->interruptible = 0;
-
-	/* MOD */
-	if (t != threads_common.current[hal_cpuGetID()])
-		LIST_ADD(&threads_common.ready[t->priority], t);
-}
-
-
 static void _thread_interrupt(thread_t *t)
 {
 	_proc_threadDequeue(t);
 	hal_cpuSetReturnValue(t->context, -EINTR);
 }
 
-
-process_t *proc_threadDetach(thread_t *t)
-{
-	process_t *p;
-
-	hal_spinlockSet(&threads_common.spinlock);
-	p = t->process;
-	LIST_REMOVE_EX(&p->threads, t, procnext, procprev);
-	t->process = NULL;
-	hal_spinlockClear(&threads_common.spinlock);
-
-	return p;
-}
 
 
 void proc_threadEnd(void)
@@ -881,11 +822,12 @@ void proc_threadEnd(void)
 	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
 	LIST_ADD(&threads_common.ghosts, t);
+	_proc_threadWakeup(&threads_common.reaper);
 	hal_cpuReschedule(&threads_common.spinlock);
 }
 
 
-void _proc_threadExit(thread_t *t)
+static void _proc_threadExit(thread_t *t)
 {
 	t->exit = 1;
 	if (t->interruptible)
@@ -907,30 +849,18 @@ void proc_threadsDestroy(thread_t **threads)
 }
 
 
-int _proc_threadSetPriority(thread_t *t, unsigned int priority)
+void proc_reap(void)
 {
-	if (priority > sizeof(threads_common.ready) / sizeof(thread_t *))
-		return -EINVAL;
+	thread_t *ghost;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	do {
-		if (t->priority == priority)
-			break;
+	while ((ghost = threads_common.ghosts) == NULL)
+		_proc_threadWait(&threads_common.reaper, 0);
 
-		/* If thread exist in ready queue */
-		if (t->next != NULL) {
-
-			LIST_REMOVE(&threads_common.ready[t->priority], t);
-			LIST_ADD(&threads_common.ready[priority], t);
-
-		}
-		t->priority = priority;
-		t = t->blocking;
-	}
-	while ((t != NULL) && (t->priority <= priority));
-
+	LIST_REMOVE(&threads_common.ghosts, ghost);
 	hal_spinlockClear(&threads_common.spinlock);
-	return EOK;
+
+	threads_put(ghost);
 }
 
 
@@ -938,36 +868,24 @@ int _proc_threadSetPriority(thread_t *t, unsigned int priority)
  * Sleeping and waiting
  */
 
-
-int proc_threadSleep(unsigned int us)
+static void _proc_threadDequeue(thread_t *t)
 {
-	thread_t *current;
-	int err;
-	time_t now;
+	_perf_waking(t);
 
-	proc_threadUnprotect();
-	hal_spinlockSet(&threads_common.spinlock);
+	if (t->wait != NULL)
+		LIST_REMOVE(t->wait, t);
 
-	now = _threads_getTimer();
+	if (t->wakeup)
+		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
 
-	current = threads_common.current[hal_cpuGetID()];
-	current->state = SLEEP;
-	current->wait = NULL;
-	current->wakeup = now + TIMER_US2CYC(us);
-	current->interruptible = 1;
+	t->wakeup = 0;
+	t->wait = NULL;
+	t->state = READY;
+	t->interruptible = 0;
 
-	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
-
-	_perf_enqueued(current);
-
-	_threads_updateWakeup(now, NULL);
-
-	if ((err = hal_cpuReschedule(&threads_common.spinlock)) == -ETIME)
-		err = EOK;
-
-	proc_threadProtect();
-
-	return err;
+	/* MOD */
+	if (t != threads_common.current[hal_cpuGetID()])
+		LIST_ADD(&threads_common.ready[t->priority], t);
 }
 
 
@@ -1000,7 +918,6 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout)
 }
 
 
-#if 0
 static int _proc_threadWait(thread_t **queue, time_t timeout)
 {
 	int err;
@@ -1015,7 +932,35 @@ static int _proc_threadWait(thread_t **queue, time_t timeout)
 
 	return err;
 }
-#endif
+
+
+int proc_threadSleep(unsigned int us)
+{
+	thread_t *current;
+	int err;
+	time_t now;
+
+	hal_spinlockSet(&threads_common.spinlock);
+
+	now = _threads_getTimer();
+
+	current = threads_common.current[hal_cpuGetID()];
+	current->state = SLEEP;
+	current->wait = NULL;
+	current->wakeup = now + TIMER_US2CYC(us);
+	current->interruptible = 1;
+
+	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
+
+	_perf_enqueued(current);
+
+	_threads_updateWakeup(now, NULL);
+
+	if ((err = hal_cpuReschedule(&threads_common.spinlock)) == -ETIME)
+		err = EOK;
+
+	return err;
+}
 
 
 int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
@@ -1040,7 +985,8 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
 
 static void _proc_threadWakeup(thread_t **queue)
 {
-	_proc_threadDequeue(*queue);
+	if (*queue != NULL && *queue != (void *)-1)
+		_proc_threadDequeue(*queue);
 }
 
 
@@ -1348,19 +1294,8 @@ int proc_lockDone(lock_t *lock)
 static void threads_idlethr(void *arg)
 {
 	time_t wakeup;
-	thread_t *ghost;
 
 	for (;;) {
-		if (threads_common.ghosts != NULL) {
-			hal_spinlockSet(&threads_common.spinlock);
-			if ((ghost = threads_common.ghosts) != NULL)
-				LIST_REMOVE(&threads_common.ghosts, ghost);
-			hal_spinlockClear(&threads_common.spinlock);
-
-			if (ghost != NULL)
-				threads_put(ghost);
-		}
-
 		wakeup = proc_nextWakeup();
 
 		if (wakeup > TIMER_US2CYC(2000)) {
@@ -1507,6 +1442,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.executions = 0;
 	threads_common.jiffies = 0;
 	threads_common.ghosts = NULL;
+	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;
 
 	threads_common.perfGather = 0;
