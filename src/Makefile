@@ -9,10 +9,10 @@
 
 SIL ?= @
 
-TARGET ?= ia32
+#TARGET ?= ia32
 #TARGET ?= armv7-stm32
 #TARGET ?= armv7-imxrt
-#TARGET ?= arm-imx
+TARGET ?= arm-imx
 #TARGET ?= riscv64
 
 VERSION = 2.80
@@ -26,7 +26,6 @@ SUBSYSTEMS = lib vm proc test posix
 
 BIN = ../phoenix-$(TARGET)
 
-DEBUG=1
 ifeq ($(DEBUG), 1)
 	CFLAGS = -Og -g
 else ifneq (, $(findstring imx, $(TARGET)))
