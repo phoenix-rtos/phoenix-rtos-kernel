@@ -21,7 +21,7 @@
 /* Devices clocks */
 enum {
 	/* CCM_CCGR0 */
-	pctl_clk_aips_tz1 = 0, pctl_clk_aips_tz2, pctl_clk_mqs, pctl_clk_sim_main = pctl_clk_mqs + 2, pctl_clk_dcp,
+	pctl_clk_aips_tz1 = 0, pctl_clk_aips_tz2, pctl_clk_mqs, pctl_clk_sim_m_main = pctl_clk_mqs + 2, pctl_clk_dcp,
 	pctl_clk_lpuart3, pctl_clk_can1, pctl_clk_can1_serial, pctl_clk_can2, pctl_clk_can2_serial, pctl_clk_trace,
 	pctl_clk_gpt2_bus, pctl_clk_gpt2_serial, pctl_clk_lpuart2, pctl_clk_gpio2,
 
@@ -38,7 +38,7 @@ enum {
 	/* CCM_CCGR3 */
 	pctl_clk_flexio2, pctl_clk_lpuart5, pctl_clk_semc, pctl_clk_lpuart6, pctl_clk_aoi1, pctl_clk_lcdif_pix,
 	pctl_clk_gpio4, pctl_clk_ewm, pctl_clk_wdog1, pctl_clk_flexram, pctl_clk_acmp1, pctl_clk_acmp2,
-	pctl_clk_acmp2, pctl_clk_acmp3, pctl_clk_acmp4, pctl_clk_ocram, pctl_clk_iomux_snvs_gpr,
+	pctl_clk_acmp3, pctl_clk_acmp4, pctl_clk_ocram, pctl_clk_iomux_snvs_gpr,
 
 	/* CCM_CCGR4 */
 	pctl_clk_sim_m7_reg, pctl_clk_iomuxc, pctl_clk_iomux_gpr, pctl_clk_bee, pctl_clk_sim_m7, pctl_clk_tsc_dig,
@@ -166,53 +166,53 @@ enum {
 	pctl_gpr_lock_m7_apc_ac_r0_bot = 576, pctl_gpr_m7_apc_ac_r0_bot = 576 + 3,
 
 	/* IOMUXC_GPR_GPR19 */
-	pctl_gpr_lock_m7_apc_ac_r0_top = 576, pctl_gpr_m7_apc_ac_r0_top = 576 + 3,
+	pctl_gpr_lock_m7_apc_ac_r0_top = 608, pctl_gpr_m7_apc_ac_r0_top = 608 + 3,
 
 	/* IOMUXC_GPR_GPR20 */
-	pctl_gpr_lock_m7_apc_ac_r1_bot = 608, pctl_gpr_m7_apc_ac_r1_bot = 608 + 3,
+	pctl_gpr_lock_m7_apc_ac_r1_bot = 640, pctl_gpr_m7_apc_ac_r1_bot = 640 + 3,
 
 	/* IOMUXC_GPR_GPR21 */
-	pctl_gpr_lock_m7_apc_ac_r1_top = 640, pctl_gpr_m7_apc_ac_r1_top = 640 + 3,
+	pctl_gpr_lock_m7_apc_ac_r1_top = 672, pctl_gpr_m7_apc_ac_r1_top = 672 + 3,
 
 	/* IOMUXC_GPR_GPR22 */
-	pctl_gpr_lock_m7_apc_ac_r2_bot = 672, pctl_gpr_m7_apc_ac_r2_bot = 672 + 3,
+	pctl_gpr_lock_m7_apc_ac_r2_bot = 704, pctl_gpr_m7_apc_ac_r2_bot = 704 + 3,
 
 	/* IOMUXC_GPR_GPR23 */
-	pctl_gpr_lock_m7_apc_ac_r2_top = 704, pctl_gpr_m7_apc_ac_r2_top = 704 + 3,
+	pctl_gpr_lock_m7_apc_ac_r2_top = 736, pctl_gpr_m7_apc_ac_r2_top = 736 + 3,
 
 	/* IOMUXC_GPR_GPR24 */
-	pctl_gpr_lock_m7_apc_ac_r3_bot = 736, pctl_gpr_m7_apc_ac_r3_bot = 736 + 3,
+	pctl_gpr_lock_m7_apc_ac_r3_bot = 768, pctl_gpr_m7_apc_ac_r3_bot = 768 + 3,
 
 	/* IOMUXC_GPR_GPR25 */
-	pctl_gpr_lock_m7_apc_ac_r3_top = 768, pctl_gpr_m7_apc_ac_r3_top = 768 + 3,
+	pctl_gpr_lock_m7_apc_ac_r3_top = 800, pctl_gpr_m7_apc_ac_r3_top = 800 + 3,
 
 	/* IOMUXC_GPR_GPR26 */
-	pctl_gpr_gpio_mux1_gpio_sel = 800,
+	pctl_gpr_gpio_mux1_gpio_sel = 832,
 
 	/* IOMUXC_GPR_GPR27 */
-	pctl_gpr_gpio_mux2_gpio_sel = 832,
+	pctl_gpr_gpio_mux2_gpio_sel = 864,
 
 	/* IOMUXC_GPR_GPR28 */
-	pctl_gpr_gpio_mux3_gpio_sel = 864,
+	pctl_gpr_gpio_mux3_gpio_sel = 896,
 
 	/* IOMUXC_GPR_GPR29 */
-	pctl_gpr_gpio_mux4_gpio_sel = 896,
+	pctl_gpr_gpio_mux4_gpio_sel = 928,
 
 	/* IOMUXC_GPR_GPR30 */
-	pctl_gpr_flexspi_remap_addr_start = 928 + 12,
+	pctl_gpr_flexspi_remap_addr_start = 960 + 12,
 
 	/* IOMUXC_GPR_GPR31 */
-	pctl_gpr_flexspi_remap_addr_end = 960 + 12,
+	pctl_gpr_flexspi_remap_addr_end = 992 + 12,
 
 	/* IOMUXC_GPR_GPR32 */
-	pctl_gpr_flexspi_remap_addr_offset = 992 + 12,
+	pctl_gpr_flexspi_remap_addr_offset = 1024 + 12,
 
 	/* IOMUXC_GPR_GPR33 */
-	pctl_gpr_ocram2_tz_en = 1024, pctl_gpr_ocram2_tz_addr, pctl_gpr_lock_ocram2_tz_en = 1024 + 16,
-	pctl_gpr_lock_ocram2_tz_addr = 1024 + 17,
+	pctl_gpr_ocram2_tz_en = 1056, pctl_gpr_ocram2_tz_addr, pctl_gpr_lock_ocram2_tz_en = 1056 + 16,
+	pctl_gpr_lock_ocram2_tz_addr = 1056 + 17,
 
 	/* IOMUXC_GPR_GPR33 */
-	pctl_gpr_sip_test_mux_qspi_sip_sel = 1056, pctl_gpr_sip_test_mux_qspi_sip_en = 1056 + 8
+	pctl_gpr_sip_test_mux_qspi_sip_sel = 1088, pctl_gpr_sip_test_mux_qspi_sip_en = 1088 + 8
 };
 
 

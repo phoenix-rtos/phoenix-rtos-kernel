@@ -5,8 +5,8 @@
  *
  * iMXRT basic peripherals control functions
  *
- * Copyright 2017 Phoenix Systems
- * Author: Aleksander Kaminski
+ * Copyright 2017, 2019 Phoenix Systems
+ * Author: Aleksander Kaminski, Jan Sikorski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -17,6 +17,7 @@
 #include "interrupts.h"
 #include "pmap.h"
 #include "../../../include/errno.h"
+#include "../../../include/arch/imxrt.h"
 
 
 struct {
@@ -25,45 +26,26 @@ struct {
 	volatile u32 *ccm_analog;
 	volatile u32 *pmu;
 	volatile u32 *xtalosc;
-	volatile u32 *iomuxsw;
+	volatile u32 *iomuxc;
+	volatile u32 *iomuxgpr;
 	volatile u32 *nvic;
 	volatile u32 *stk;
 	volatile u32 *scb;
 	volatile u16 *wdog1;
 	volatile u16 *wdog2;
 	volatile u32 *rtwdog;
-	volatile u32 *lcd;
+	volatile u32 *src;
+
+	u32 resetFlags;
 
 	u32 xtaloscFreq;
 	u32 cpuclk;
+
+	spinlock_t pltctlSp;
 } imxrt_common;
 
 
 enum { gpio_dr = 0, gpio_gdir, gpio_psr, gpio_icr1, gpio_icr2, gpio_imr, gpio_isr, gpio_edge_sel };
-
-
-enum { lcd_ctrl = 0, lcd_ctrl_set, lcd_ctrl_clr, lcd_ctrl_tog, lcd_ctrl1, lcd_ctrl1_set, lcd_ctrl1_clr, lcd_ctrl1_tog,
-	lcd_ctrl2, lcd_ctrl2_set, lcd_ctrl2_clr, lcd_ctrl2_tog, lcd_transfer_count, /* 3 reserved */ lcd_cur_buf = 16,
-	/* 3 reserved */ lcd_next_buf = 20, /* 7 reserved */ lcd_vdctrl0 = 28, lcd_vdctrl0_set, lcd_vdctrl0_clr,
-	lcd_vdctrl0_tog, lcd_vdctrl1, /* 3 reserved */ lcd_vdctrl2 = 36, /* 3 reserved */ lcd_vdctrl3 = 40, /* 3 reserved */
-	lcd_vdctrl4 = 44, /* 55 reserved */ lcd_bm_error_stat = 100, /*  3 reserved */ lcd_crc_stat = 104, /* 3 reserved */
-	lcd_stat = 108, /* 19 reserved */ lcd_thres = 128, /* 3 reserved */ lcd_as_ctrl = 132, /* 3 reserved */
-	lcd_as_buf = 136, /* 3 reserved */ lcd_as_next_buf = 140, /* 3 reserved */ lcd_as_clrkeylow = 144, /* 3 reserved */
-	lcd_as_clrkeyhigh = 148, /* 75 reserved */ lcd_pigeonctrl0 = 224, lcd_pigeonctrl0_set, lcd_pigeonctrl0_clr,
-	lcd_pigeonctrl0_tog, lcd_pigeonctrl1, lcd_pigeonctrl1_set, lcd_pigeonctrl1_clr, lcd_pigeonctrl1_tog,
-	lcd_pigeonctrl2, lcd_pigeonctrl2_set, lcd_pigeonctrl2_clr, lcd_pigeonctrl2_tog, /* 276 reserved */
-	lcd_pigeon00 = 512, /* 3 reserved */ lcd_pigeon01 = 516, /* 3 reserved */ lcd_pigeon02 = 520, /* 7 reserved */
-	lcd_pigeon10 = 528, /* 3 reserved */ lcd_pigeon11 = 532, /* 3 reserved */ lcd_pigeon12 = 536, /* 7 reserved */
-	lcd_pigeon20 = 544, /* 3 reserved */ lcd_pigeon21 = 548, /* 3 reserved */ lcd_pigeon22 = 552, /* 7 reserved */
-	lcd_pigeon30 = 560, /* 3 reserved */ lcd_pigeon31 = 564, /* 3 reserved */ lcd_pigeon32 = 568, /* 7 reserved */
-	lcd_pigeon40 = 576, /* 3 reserved */ lcd_pigeon41 = 580, /* 3 reserved */ lcd_pigeon42 = 584, /* 7 reserved */
-	lcd_pigeon50 = 592, /* 3 reserved */ lcd_pigeon51 = 596, /* 3 reserved */ lcd_pigeon52 = 600, /* 7 reserved */
-	lcd_pigeon60 = 608, /* 3 reserved */ lcd_pigeon61 = 612, /* 3 reserved */ lcd_pigeon62 = 616, /* 7 reserved */
-	lcd_pigeon70 = 624, /* 3 reserved */ lcd_pigeon71 = 628, /* 3 reserved */ lcd_pigeon72 = 632, /* 7 reserved */
-	lcd_pigeon80 = 640, /* 3 reserved */ lcd_pigeon81 = 644, /* 3 reserved */ lcd_pigeon82 = 648, /* 7 reserved */
-	lcd_pigeon90 = 652, /* 3 reserved */ lcd_pigeon91 = 656, /* 3 reserved */ lcd_pigeon92 = 660, /* 7 reserved */
-	lcd_pigeon100 = 668, /* 3 reserved */ lcd_pigeon101 = 672, /* 3 reserved */ lcd_pigeon102 = 676, /* 7 reserved */
-	lcd_pigeon110 = 684, /* 3 reserved */ lcd_pigeon111 = 688, /* 3 reserved */ lcd_pigeon112 = 672 };
 
 
 enum { ccm_ccr = 0, /* reserved */ ccm_csr = 2, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr, ccm_cscmr1, ccm_cscmr2,
@@ -103,7 +85,11 @@ enum { xtalosc_misc0 = 84, xtalosc_lowpwr_ctrl = 156, xtalosc_lowpwr_ctrl_set, x
 enum { osc_rc = 0, osc_xtal };
 
 
-enum {stk_ctrl = 0, stk_load, stk_val, stk_calib };
+enum { stk_ctrl = 0, stk_load, stk_val, stk_calib };
+
+
+enum { src_scr = 0, src_sbmr1, src_srsr, src_sbmr2 = 7, src_gpr1, src_gpr2, src_gpr3, src_gpr4,
+	src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
 
 
 enum { scb_cpuid = 0, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp0, scb_shp1,
@@ -129,9 +115,313 @@ enum { rtwdog_cs = 0, rtwdog_cnt, rtwdog_total, rtwdog_win };
 /* platformctl syscall */
 
 
+static int _imxrt_isValidDev(int dev)
+{
+	if (dev < pctl_clk_aips_tz1 || dev > pctl_clk_flexio3)
+		return 0;
+
+	return 1;
+}
+
+
+static int _imxrt_getDevClock(int dev, unsigned int *state)
+{
+	int ccgr, flag;
+
+	if (!_imxrt_isValidDev(dev))
+		return -EINVAL;
+
+	ccgr = dev / 16;
+	flag = 3 << (2 * (dev % 16));
+
+	*state = (*(imxrt_common.ccm + ccm_ccgr0 + ccgr) & flag) >> (2 * (dev % 16));
+
+	return EOK;
+}
+
+
+static int _imxrt_setDevClock(int dev, unsigned int state)
+{
+	int ccgr, flag, mask;
+	u32 t;
+
+	if (!_imxrt_isValidDev(dev))
+		return -EINVAL;
+
+	ccgr = dev / 16;
+	flag = (state & 3) << (2 * (dev % 16));
+	mask = 3 << (2 * (dev % 16));
+
+	t = *(imxrt_common.ccm + ccm_ccgr0 + ccgr) & ~mask;
+	*(imxrt_common.ccm + ccm_ccgr0 + ccgr) = t | flag;
+
+	return EOK;
+}
+
+
+static int _imxrt_checkIOgprArg(int field, unsigned int *mask)
+{
+	if (field < pctl_gpr_sai1_mclk1_sel || field > pctl_gpr_sip_test_mux_qspi_sip_en)
+		return -EINVAL;
+
+	switch (field) {
+		case pctl_gpr_sai1_mclk3_sel:
+		case pctl_gpr_sai2_mclk3_sel:
+		case pctl_gpr_sai3_mclk3_sel:
+		case pctl_gpr_m7_apc_ac_r0_ctrl:
+		case pctl_gpr_m7_apc_ac_r1_ctrl:
+		case pctl_gpr_m7_apc_ac_r2_ctrl:
+		case pctl_gpr_m7_apc_ac_r3_ctrl:
+			(*mask) = 0x3;
+			break;
+
+		case pctl_gpr_sai1_mclk1_sel:
+		case pctl_gpr_sai1_mclk2_sel:
+			(*mask) = 0x7;
+			break;
+
+		case pctl_gpr_ocram_ctl:
+		case pctl_gpr_ocram2_ctl:
+		case pctl_gpr_ocram_status:
+		case pctl_gpr_ocram2_status:
+		case pctl_gpr_bee_de_rx_en:
+		case pctl_gpr_cm7_cfgitcmsz:
+		case pctl_gpr_cm7_cfgdtcmsz:
+			(*mask) = 0xf;
+			break;
+
+		case pctl_gpr_ocram_tz_addr:
+		case pctl_gpr_lock_ocram_tz_addr:
+		case pctl_gpr_ocram2_tz_addr:
+		case pctl_gpr_lock_ocram2_tz_addr:
+			(*mask) = 0x7f;
+			break;
+
+		case pctl_gpr_mqs_clk_div:
+		case pctl_gpr_sip_test_mux_qspi_sip_sel:
+			(*mask) = 0xff;
+			break;
+
+		case pctl_gpr_flexspi_remap_addr_start:
+		case pctl_gpr_flexspi_remap_addr_end:
+		case pctl_gpr_flexspi_remap_addr_offset:
+			(*mask) = 0xfffff;
+
+		case pctl_gpr_m7_apc_ac_r0_bot:
+		case pctl_gpr_m7_apc_ac_r0_top:
+		case pctl_gpr_m7_apc_ac_r1_bot:
+		case pctl_gpr_m7_apc_ac_r1_top:
+		case pctl_gpr_m7_apc_ac_r2_bot:
+		case pctl_gpr_m7_apc_ac_r2_top:
+		case pctl_gpr_m7_apc_ac_r3_bot:
+		case pctl_gpr_m7_apc_ac_r3_top:
+			(*mask) = 0x1fffffff;
+			break;
+
+		case pctl_gpr_flexram_bank_cfg:
+		case pctl_gpr_gpio_mux1_gpio_sel:
+		case pctl_gpr_gpio_mux2_gpio_sel:
+		case pctl_gpr_gpio_mux3_gpio_sel:
+		case pctl_gpr_gpio_mux4_gpio_sel:
+			(*mask) = 0xffffffffUL;
+			break;
+
+		default:
+			(*mask) = 1;
+			break;
+	}
+
+	return EOK;
+}
+
+
+static int _imxrt_setIOgpr(int field, unsigned int val)
+{
+	unsigned int mask, t;
+	int err;
+
+	if ((err = _imxrt_checkIOgprArg(field, &mask)) != EOK)
+		return err;
+
+	t = *(imxrt_common.iomuxgpr+ (field >> 5)) & ~(mask << (field & 0x1f));
+	*(imxrt_common.iomuxgpr + (field >> 5)) = t | (val & mask) << (field & 0x1f);
+
+	return EOK;
+}
+
+
+static int _imxrt_getIOgpr(int field, unsigned int *val)
+{
+	unsigned int mask;
+	int err;
+
+	if ((err = _imxrt_checkIOgprArg(field, &mask)) != EOK)
+		return err;
+
+	*val = (*(imxrt_common.iomuxgpr + (field >> 5)) >> (field & 0x1f)) & mask;
+
+	return EOK;
+}
+
+
+static int _imxrt_setIOmux(int mux, char sion, char mode)
+{
+	if (mux < pctl_mux_gpio_emc_00 || mux > pctl_mux_gpio_sd_b1_11)
+		return -EINVAL;
+
+	*(imxrt_common.iomuxc + mux) = (!!sion << 4) | (mode & 0xf);
+
+	return EOK;
+}
+
+
+static int _imxrt_getIOmux(int mux, char *sion, char *mode)
+{
+	u32 t;
+
+	if (mux < pctl_mux_gpio_emc_00 || mux > pctl_mux_gpio_sd_b1_11)
+		return -EINVAL;
+
+	t = *(imxrt_common.iomuxgpr + mux);
+	*sion = !!(t & (1 << 4));
+	*mode = t & 0xf;
+
+	return EOK;
+}
+
+
+static int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre)
+{
+	u32 t;
+
+	if (pad < pctl_pad_gpio_emc_00 || pad > pctl_pad_gpio_spi_b1_07 ||
+			(pad > pctl_pad_gpio_sd_b1_11 && pad < pctl_pad_gpio_spi_b0_00))
+		return -EINVAL;
+
+	t = (!!hys << 16) | ((pus & 0x3) << 14) | (!!pue << 13) | (!!pke << 12);
+	t |= (!!ode << 11) | ((speed & 0x3) << 6) | ((dse & 0x7) << 3) | !!sre;
+	*(imxrt_common.iomuxc + pad) = t;
+
+	return EOK;
+}
+
+
+static int _imxrt_getIOpad(int pad, char *hys, char *pus, char *pue, char *pke, char *ode, char *speed, char *dse, char *sre)
+{
+	u32 t;
+
+	if (pad < pctl_pad_gpio_emc_00 || pad > pctl_pad_gpio_spi_b1_07 ||
+			(pad > pctl_pad_gpio_sd_b1_11 && pad < pctl_pad_gpio_spi_b0_00))
+		return -EINVAL;
+
+	t = *(imxrt_common.iomuxc + pad);
+
+	*hys = (t >> 16) & 0x1;
+	*pus = (t >> 14) & 0x3;
+	*pue = (t >> 13) & 0x1;
+	*pke = (t >> 12) & 0x1;
+	*ode = (t >> 11) & 0x1;
+	*speed = (t >> 6) & 0x3;
+	*dse = (t >> 3) & 0x7;
+	*sre = t & 0x1;
+
+	return EOK;
+}
+
+
+static int _imxrt_setIOisel(int isel, char daisy)
+{
+	if (isel < pctl_isel_anatop_usb_otg1_id || isel > pctl_isel_canfd_ipp_ind_canrx ||
+			(isel > pctl_isel_xbar1_in21 && isel < pctl_isel_enet2_ipg_clk_rmii))
+		return -EINVAL;
+
+	*(imxrt_common.iomuxc + isel) = daisy & 0x7;
+
+	return EOK;
+}
+
+
+static int _imxrt_getIOisel(int isel, char *daisy)
+{
+	if (isel < pctl_isel_anatop_usb_otg1_id || isel > pctl_isel_canfd_ipp_ind_canrx ||
+			(isel > pctl_isel_xbar1_in21 && isel < pctl_isel_enet2_ipg_clk_rmii))
+		return -EINVAL;
+
+	*daisy = *(imxrt_common.iomuxc + isel) & 0x7;
+
+	return EOK;
+}
+
+
+static void _imxrt_reboot(void)
+{
+	/* TODO */
+}
+
+
 int hal_platformctl(void *ptr)
 {
-	return -EINVAL;
+	platformctl_t *data = ptr;
+	int ret = -EINVAL;
+
+	hal_spinlockSet(&imxrt_common.pltctlSp);
+
+	switch (data->type) {
+	case pctl_devclock:
+		if (data->action == pctl_set)
+			ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.state);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getDevClock(data->devclock.dev, &data->devclock.state);
+		break;
+
+	case pctl_iogpr:
+		if (data->action == pctl_set)
+			ret = _imxrt_setIOgpr(data->iogpr.field, data->iogpr.val);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getIOgpr(data->iogpr.field, &data->iogpr.val);
+		break;
+
+	case pctl_iomux:
+		if (data->action == pctl_set)
+			ret = _imxrt_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getIOmux(data->iomux.mux, &data->iomux.sion, &data->iomux.mode);
+		break;
+
+	case pctl_iopad:
+		if (data->action == pctl_set)
+			ret = _imxrt_setIOpad(data->iopad.pad, data->iopad.hys, data->iopad.pus, data->iopad.pue,
+				data->iopad.pke, data->iopad.ode, data->iopad.speed, data->iopad.dse, data->iopad.sre);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getIOpad(data->iopad.pad, &data->iopad.hys, &data->iopad.pus, &data->iopad.pue,
+				&data->iopad.pke, &data->iopad.ode, &data->iopad.speed, &data->iopad.dse, &data->iopad.sre);
+		break;
+
+	case pctl_ioisel:
+		if (data->action == pctl_set)
+			ret = _imxrt_setIOisel(data->ioisel.isel, data->ioisel.daisy);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
+		break;
+
+	case pctl_reboot:
+		if (data->action == pctl_set) {
+			if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+				_imxrt_reboot();
+		}
+		else if (data->action == pctl_get) {
+			data->reboot.reason = imxrt_common.resetFlags;
+			ret = EOK;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	hal_spinlockClear(&imxrt_common.pltctlSp);
+
+	return ret;
 }
 
 
@@ -1559,132 +1849,6 @@ void _imxrt_iomuxSetPinConfig(int pin, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u
 }
 
 
-/* LCD interface */
-
-
-void _imxrt_lcdInit(void)
-{
-	volatile u32 i;
-
-	/* Init pixel clock */
-	_imxrt_ccmInitVideoPll(31, 8, 0, 0);
-	_imxrt_ccmSetMux(clk_mux_lcdif1pre, 2);
-	_imxrt_ccmSetDiv(clk_div_lcdif1pre, 4);
-	_imxrt_ccmSetDiv(clk_div_lcdif1, 1);
-	_imxrt_ccmSetMux(clk_mux_lcdif1, 0);
-	_imxrt_ccmControlGate(lcd, 1);
-	_imxrt_ccmControlGate(lcdpixel, 1);
-
-	/* Reset the LCD */
-	_imxrt_gpioConfig(gpio1, 2, 1);
-	_imxrt_gpioSet(gpio1, 2, 0);
-	for (i = 0; i < 256; ++i)
-		__asm__ volatile ("nop");
-	_imxrt_gpioSet(gpio1, 2, 1);
-
-	/* Turn on backlight */
-	_imxrt_gpioConfig(gpio2, 31, 1);
-	_imxrt_gpioSet(gpio2, 31, 1);
-
-	/* Reset LCD driver */
-	*(imxrt_common.lcd + lcd_ctrl_clr) = 1 << 30;
-	while (*(imxrt_common.lcd + lcd_ctrl) & (1 << 30));
-	*(imxrt_common.lcd + lcd_ctrl_set) = 1 << 31;
-	while (!(*(imxrt_common.lcd + lcd_ctrl) & (1 << 31)));
-	for (i = 0; i < 256; ++i)
-		__asm__ volatile ("nop");
-	*(imxrt_common.lcd + lcd_ctrl_clr) = 0x3 << 30;
-}
-
-
-void _imxrt_lcdSetTiming(u16 width, u16 height, u32 flags, u8 hsw, u8 hfp, u8 hbp, u8 vsw, u8 vfp, u8 vbp)
-{
-	*(imxrt_common.lcd + lcd_transfer_count) = ((u32)height << 16) | (u32)width;
-	*(imxrt_common.lcd + lcd_vdctrl0) = (1 << 28) | (1 << 21) | (1 << 20) | flags | (u32)vsw;
-	*(imxrt_common.lcd + lcd_vdctrl1) = (u32)vsw + (u32)vbp + (u32)vfp + (u32)height;
-	*(imxrt_common.lcd + lcd_vdctrl2) = ((u32)hsw << 18) | ((u32)hfp + (u32)hbp + (u32)hsw + (u32)width);
-	*(imxrt_common.lcd + lcd_vdctrl3) = (((u32)hbp + (u32)hsw) << 16) | ((u32)vbp + (u32)vsw);
-	*(imxrt_common.lcd + lcd_vdctrl4) = (1 << 18) | (u32)width;
-}
-
-
-int _imxrt_lcdSetConfig(int format, int bus)
-{
-	u32 ctrl, ctrl1;
-
-	switch (format) {
-		case lcd_RAW8:
-			ctrl = 1 << 8;
-			ctrl1 = 0xf << 16;
-			break;
-
-		case lcd_RGB565:
-			ctrl = 0;
-			ctrl1 = 0xf << 16;
-			break;
-
-		case lcd_RGB666:
-			ctrl = (0x3 << 8) | 0x2;
-			ctrl1 = 0x7 << 16;
-			break;
-
-		case lcd_ARGB888:
-			ctrl = 0x3 << 8;
-			ctrl1 = 0x7 << 16;
-			break;
-
-		case lcd_RGB888:
-			ctrl = 0x3 << 8;
-			ctrl1 = 0xf << 16;
-			break;
-
-		default:
-			return -EINVAL;
-	}
-
-	switch (bus) {
-		case lcd_bus8:
-			ctrl |= 1 << 10;
-			break;
-
-		case lcd_bus16:
-			break;
-
-		case lcd_bus18:
-			ctrl |= 1 << 11;
-			break;
-
-		case lcd_bus24:
-			ctrl |= 0x3 << 10;
-			break;
-
-		default:
-			return -EINVAL;
-	}
-
-	ctrl |= (1 << 17) | (1 << 19) | (1 << 5);
-
-	*(imxrt_common.lcd + lcd_ctrl) = ctrl;
-	*(imxrt_common.lcd + lcd_ctrl1) = ctrl1;
-
-	return EOK;
-}
-
-
-void _imxrt_lcdSetBuffer(void * buffer)
-{
-	*(imxrt_common.lcd + lcd_next_buf) = (u32)buffer;
-}
-
-
-void _imxrt_lcdStart(void * buffer)
-{
-	*(imxrt_common.lcd + lcd_cur_buf) = (u32)buffer;
-	*(imxrt_common.lcd + lcd_next_buf) = (u32)buffer;
-	*(imxrt_common.lcd + lcd_ctrl_set) = (1 << 17) | 1;
-}
-
-
 /* PendSV and Systick */
 
 
@@ -1711,74 +1875,6 @@ void _imxrt_wdgReload(void)
 }
 
 
-static void _imxrt_initPins(void)
-{
-	_imxrt_ccmControlGate(iomuxc, clk_state_run_wait);
-
-	/* GPIO as I2C1 */
-	_imxrt_iomuxSetPinMux(gpio_ad_b1_00, 5, 1);
-	_imxrt_iomuxSetPinMux(gpio_ad_b1_01, 5, 1);
-
-	/* LPUART1 */
-	_imxrt_iomuxSetPinMux(gpio_ad_b0_12, 2, 0);
-	_imxrt_iomuxSetPinMux(gpio_ad_b0_13, 2, 0);
-
-	_imxrt_iomuxSetPinMux(gpio_ad_b0_02, 5, 0);
-	_imxrt_iomuxSetPinMux(gpio_ad_b1_15, 5, 0);
-
-	/* LCD */
-	_imxrt_iomuxSetPinMux(gpio_b0_00, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_01, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_02, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_03, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_04, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_05, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_06, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_07, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_08, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_09, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_10, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_11, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_12, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_13, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_14, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b0_15, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b1_00, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b1_01, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b1_02, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_b1_03, 0, 0);
-	_imxrt_iomuxSetPinMux(gpio_sd_b0_04, 6, 0);
-
-	_imxrt_iomuxSetPinConfig(gpio_ad_b1_00, 0, 2, 1, 1, 1, 2, 7, 0);
-	_imxrt_iomuxSetPinConfig(gpio_ad_b1_01, 0, 2, 1, 1, 1, 2, 7, 0);
-	_imxrt_iomuxSetPinConfig(gpio_ad_b0_12, 0, 0, 0, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_ad_b0_13, 0, 0, 0, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_ad_b0_02, 0, 0, 0, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_ad_b1_15, 0, 0, 0, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_00, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_01, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_02, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_03, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_04, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_05, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_06, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_07, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_08, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_09, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_10, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_11, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_12, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_13, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_14, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b0_15, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b1_00, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b1_01, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b1_02, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_b1_03, 1, 2, 1, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_sd_b0_04, 1, 0, 0, 0, 0, 3, 7, 1);
-}
-
-
 void _imxrt_init(void)
 {
 	u32 ccsidr, sets, ways;
@@ -1792,17 +1888,22 @@ void _imxrt_init(void)
 	imxrt_common.ccm_analog = (void *)0x400d8000;
 	imxrt_common.pmu = (void *)0x400d8110;
 	imxrt_common.xtalosc = (void *)0x400d8000;
-	imxrt_common.iomuxsw = (void *)0x401f8000;
+	imxrt_common.iomuxgpr = (void *)0x400ac000;
+	imxrt_common.iomuxc = (void *)0x401f8000;
 	imxrt_common.nvic = (void *)0xe000e100;
 	imxrt_common.scb = (void *)0xe000ed00;
 	imxrt_common.stk = (void *)0xe000e010;
 	imxrt_common.wdog1 = (void *)0x400b8000;
 	imxrt_common.wdog2 = (void *)0x400d0000;
 	imxrt_common.rtwdog = (void *)0x400bc000;
-	imxrt_common.lcd = (void *)0x402b8000;
+	imxrt_common.src = (void *)0x400f8000;
 
 	imxrt_common.xtaloscFreq = 24000000;
 	imxrt_common.cpuclk = 528000000; /* Default system clock */
+
+	/* Store reset flags and then clean them */
+	imxrt_common.resetFlags = *(imxrt_common.src + src_srsr) & 0x1f;
+	*(imxrt_common.src + src_srsr) |= 0x1f;
 
 	/* Disable watchdogs */
 	if (*(imxrt_common.wdog1 + wdog_wcr) & (1 << 2))
@@ -1845,7 +1946,7 @@ void _imxrt_init(void)
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 
-	_imxrt_initPins();
+	_imxrt_ccmControlGate(iomuxc, clk_state_run_wait);
 
 	_imxrt_ccmSetMux(clk_mux_periphclk2, 0x1);
 	_imxrt_ccmSetMux(clk_mux_periph, 0x1);
@@ -1876,4 +1977,6 @@ void _imxrt_init(void)
 	_imxrt_ccmDeinitAudioPll();
 	_imxrt_ccmDeinitEnetPll();
 	_imxrt_ccmDeinitUsb2Pll();
+
+	hal_spinlockCreate(&imxrt_common.pltctlSp, "pltctlSp");
 }

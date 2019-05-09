@@ -54,6 +54,11 @@ void _hal_consoleInit(void)
 
 	console_common.uart = (void *)0x40184000;
 
+	_imxrt_iomuxSetPinMux(gpio_ad_b0_12, 2, 0);
+	_imxrt_iomuxSetPinMux(gpio_ad_b0_13, 2, 0);
+	_imxrt_iomuxSetPinConfig(gpio_ad_b0_12, 0, 0, 0, 1, 0, 2, 6, 0);
+	_imxrt_iomuxSetPinConfig(gpio_ad_b0_13, 0, 0, 0, 1, 0, 2, 6, 0);
+
 	_imxrt_ccmSetMux(clk_mux_uart, 0);
 	_imxrt_ccmSetDiv(clk_div_uart, 0);
 	_imxrt_ccmControlGate(lpuart1, clk_state_run_wait);
