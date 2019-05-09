@@ -572,7 +572,10 @@ void *proc_copyargs(char **args)
 		len += hal_strlen(args[argc]) + 1;
 
 	len += (argc + 1) * sizeof(char *);
-	kargs = storage = vm_kmalloc(len);
+
+	if ((kargs = storage = vm_kmalloc(len)) == NULL)
+		return NULL;
+
 	kargs[argc] = NULL;
 
 	p = (char *)storage + (argc + 1) * sizeof(char *);
