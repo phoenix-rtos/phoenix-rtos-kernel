@@ -769,8 +769,8 @@ void proc_exit(int code)
 		kstack = current->kstack = current->execkstack;
 		kstack += current->kstacksz;
 
-		PUTONSTACK(kstack, process_spawn_t *, spawn);
 		PUTONSTACK(kstack, thread_t *, current);
+		PUTONSTACK(kstack, process_spawn_t *, spawn);
 		PUTONSTACK(kstack, int, FORKED);
 		hal_jmp(proc_vforkedExit, kstack, NULL, 3);
 	}
@@ -951,8 +951,8 @@ int proc_fork(void)
 
 		if (err < 0) {
 			kstack = current->kstack + current->kstacksz;
-			PUTONSTACK(kstack, process_spawn_t *, current->execdata);
 			PUTONSTACK(kstack, thread_t *, current);
+			PUTONSTACK(kstack, process_spawn_t *, current->execdata);
 			PUTONSTACK(kstack, int, err);
 			hal_jmp(proc_vforkedExit, kstack, NULL, 3);
 		}
