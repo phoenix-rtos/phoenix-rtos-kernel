@@ -30,6 +30,21 @@
 #include "userintr.h"
 
 
+typedef struct {
+	spinlock_t sl;
+	thread_t *wq;
+	volatile int state;
+	thread_t *parent;
+
+	vm_object_t *object;
+	offs_t offset;
+	size_t size;
+
+	char **argv;
+	char **envp;
+} process_spawn_t;
+
+
 struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
@@ -56,16 +71,61 @@ static int proc_idcmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
-process_t *proc_find(unsigned int pid)
+process_t *proc_find(unsigned pid)
 {
 	process_t *p, s;
 	s.id = pid;
 
 	proc_lockSet(&process_common.lock);
-	p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage));
+	if ((p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage))) != NULL)
+		p->refs++;
 	proc_lockClear(&process_common.lock);
 
 	return p;
+}
+
+
+static void process_destroy(process_t *p)
+{
+	perf_kill(p);
+
+	posix_died(p->id, p->exit);
+
+	if (p->mapp != NULL)
+		vm_mapDestroy(p, p->mapp);
+
+	proc_resourcesFree(p);
+	proc_portsDestroy(p);
+	proc_lockDone(&p->lock);
+
+	vm_kfree(p->path);
+	vm_kfree(p->argv);
+	vm_kfree(p->envp);
+	vm_kfree(p);
+}
+
+
+int proc_put(process_t *p)
+{
+	int remaining;
+
+	proc_lockSet(&process_common.lock);
+	if (!(remaining = --p->refs))
+		lib_rbRemove(&process_common.id, &p->idlinkage);
+	proc_lockClear(&process_common.lock);
+
+	if (!remaining)
+		process_destroy(p);
+
+	return remaining;
+}
+
+
+void proc_get(process_t *p)
+{
+	proc_lockSet(&process_common.lock);
+	++p->refs;
+	proc_lockClear(&process_common.lock);
 }
 
 
@@ -187,7 +247,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->entries = NULL;
 #endif
 
-	process->state = NORMAL;
 	process->path = NULL;
 
 	if (path != NULL) {
@@ -200,20 +259,13 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	}
 
 	process->argv = NULL;
-	process->parent = NULL;
-	process->children = NULL;
+	process->envp = NULL;
 	process->threads = NULL;
-
-	process->waitq = NULL;
-	process->waitpid = 0;
+	process->refs = 1;
 
 	proc_lockInit(&process->lock);
 
 	process->ports = NULL;
-	process->zombies = NULL;
-	process->ghosts = NULL;
-	process->gwaitq = NULL;
-	process->waittid = 0;
 
 	process->sigpend = 0;
 	process->sigmask = 0;
@@ -225,7 +277,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->lazy = 1;
 #endif
 
-	process->mapp = process_common.kmap;
+	process->mapp = NULL;
 
 	/* Initialize resources tree for mutex and cond handles */
 	resource_init(process);
@@ -243,55 +295,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
-	process_t *child, *zombie, *init;
-
-	perf_kill(proc);
-	init = proc_find(1);
-
-	proc_lockSet2(&init->lock, &proc->lock);
-	if ((child = proc->children) != NULL) {
-		do
-			child->parent = init;
-		while ((child = child->next) != proc->children);
-
-		proc->children = NULL;
-
-		if (init->children == NULL) {
-			init->children = child;
-		}
-		else {
-			swap(init->children->next, child->prev->next);
-			swap(child->prev->next->prev, child->prev);
-		}
-	}
-
-	if ((zombie = proc->zombies) != NULL) {
-		proc->zombies = NULL;
-
-		if (init->zombies == NULL) {
-			init->zombies = zombie;
-		}
-		else {
-			swap(init->zombies->next, zombie->prev->next);
-			swap(zombie->prev->next->prev, zombie->prev);
-		}
-
-		proc_threadWakeup(&init->waitq);
-	}
-	proc_lockClear(&init->lock);
-	proc_lockClear(&proc->lock);
-
-	proc_lockSet(&process_common.lock);
-	lib_rbRemove(&process_common.id, &proc->idlinkage);
-	proc_lockClear(&process_common.lock);
-
-	proc_threadsDestroy(proc);
-	proc_resourcesFree(proc);
-	proc_portsDestroy(proc);
-	posix_exit(proc);
-
-	if (proc == proc_current()->process)
-		proc_threadDestroy();
+	proc_threadsDestroy(&proc->threads);
 }
 
 
@@ -338,151 +342,87 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 
 	proc_sigpost(process, thread, signal_illegal);
-
-	if (!_proc_sigwant(thread))
-		proc_sigpost(process, thread, signal_kill);
-
-	hal_cpuReschedule(NULL);
 }
 
 
-static void process_exexepilogue(int exec, thread_t *current, thread_t *parent, void *entry, void *stack)
+#ifndef NOMMU
+
+int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
 {
-	cpu_context_t *ctx;
-	hal_cpuGuard(NULL, current->kstack);
+	void *vaddr = NULL, *stack;
+	size_t memsz = 0, filesz = 0;
+	Elf32_Ehdr *ehdr;
+	Elf32_Phdr *phdr;
+	unsigned i, prot, flags, misalign = 0;
+	offs_t offs;
+	vm_map_t *map = process->mapp;
 
-	if (parent != NULL) {
-		if (current->parentkstack != NULL) {
-			current->execfl = OWNSTACK;
+	size = round_page(size);
 
-			/* Restore kernel stack of parent thread */
-			hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
-			vm_kfree(current->parentkstack);
-			current->parentkstack = NULL;
+	if ((ehdr = vm_mmap(process_common.kmap, NULL, NULL, size, PROT_READ, o, base, MAP_NONE)) == NULL)
+		return -ENOMEM;
+
+	/* Test ELF header */
+	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4)) {
+		vm_munmap(process_common.kmap, ehdr, size);
+		return -ENOEXEC;
+	}
+
+	*entry = (void *)(unsigned long)ehdr->e_entry;
+
+	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+		if (phdr->p_type != PT_LOAD || phdr->p_vaddr == 0)
+			continue;
+
+		vaddr = (void *)((unsigned long)phdr->p_vaddr & ~(phdr->p_align - 1));
+		offs = phdr->p_offset & ~(phdr->p_align - 1);
+		misalign = phdr->p_offset & (phdr->p_align - 1);
+		filesz = phdr->p_filesz ? phdr->p_filesz + misalign : 0;
+		memsz = phdr->p_memsz + misalign;
+
+		prot = PROT_USER;
+		flags = MAP_NONE;
+
+		if (phdr->p_flags & PF_R)
+			prot |= PROT_READ;
+
+		if (phdr->p_flags & PF_W)
+			prot |= PROT_WRITE;
+
+		if (phdr->p_flags & PF_X)
+			prot |= PROT_EXEC;
+
+		if (filesz && (prot & PROT_WRITE))
+			flags |= MAP_NEEDSCOPY;
+
+		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL) {
+			vm_munmap(process_common.kmap, ehdr, size);
+			return -ENOMEM;
 		}
 
-		/* Continue parent thread */
-		hal_spinlockSet(&parent->execwaitsl);
-		parent->execfl = exec < 0 ? NOFORK : FORKED;
-		current->execparent = NULL;
-		proc_threadWakeup(&parent->execwaitq);
-		hal_spinlockClear(&parent->execwaitsl);
-	}
+		if (filesz != memsz) {
+			if (round_page(memsz) - round_page(filesz) && vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL) {
+				vm_munmap(process_common.kmap, ehdr, size);
+				return -ENOMEM;
+			}
 
-	if (exec <= 0) {
-		/* Exit process */
-		proc_kill(current->process);
-	}
-
-	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
-	proc_threadUnprotect();
-
-	/* Switch from kernel mode to user mode */
-	if (exec > 1) {
-		ctx = (cpu_context_t *)(current->kstack + current->kstacksz - sizeof(cpu_context_t));
-		hal_cpuSetReturnValue(ctx, 0);
-		hal_cpuGuard(ctx, current->kstack);
-		hal_longjmp(ctx);
-	}
-	else {
-		hal_jmp(entry, current->kstack + current->kstacksz, stack, 0);
-	}
-}
-
-
-static void process_vforkthr(void *arg)
-{
-	thread_t *current, *parent = (thread_t *)arg;
-
-	current = proc_current();
-
-	hal_spinlockSet(&parent->execwaitsl);
-	while (parent->execfl < FORKING)
-		proc_threadWait(&parent->execwaitq, &parent->execwaitsl, 0);
-
-	current->execparent = parent;
-	current->process->parent = parent->process;
-	current->process->mapp = parent->process->mapp;
-	current->process->sigmask = parent->process->sigmask;
-	current->process->sighandler = parent->process->sighandler;
-	hal_cpuReschedule(&parent->execwaitsl);
-
-	proc_lockSet(&parent->process->lock);
-	LIST_ADD(&parent->process->children, current->process);
-	proc_lockClear(&parent->process->lock);
-
-	posix_clone(parent->process->id);
-
-	/* Share parent's resources */
-	current->process->resources = parent->process->resources;
-	current->process->rlock = parent->process->rlock;
-
-	/* Copy parent kernel stack */
-	if ((current->parentkstack = (void *)vm_kmalloc(parent->kstacksz)) == NULL) {
-		current->process->mapp = NULL;
-		process_exexepilogue(-1, current, parent, NULL, NULL);
-	}
-
-	hal_memcpy(current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), hal_cpuGetSP(parent->context), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
-
-	current->execfl = PARENTSTACK;
-
-	current->execkstack = current->kstack;
-	current->kstack = parent->kstack;
-	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
-
-	/* Start execution from parent suspend point */
-	hal_longjmp(parent->context);
-
-	/* This part of code left unexecuted */
-	return;
-}
-
-
-int proc_vfork(void)
-{
-	thread_t *current;
-	int pid, res = 0;
-
-	if ((current = proc_current()) == NULL)
-		return -EINVAL;
-
-	current->execwaitq = NULL;
-	current->execfl = PREFORK;
-
-	if ((pid = proc_start(process_vforkthr, current, NULL)) < 0)
-		return pid;
-
-	/* Signal forking state to vfork thread */
-	hal_spinlockSet(&current->execwaitsl);
-	current->execfl = FORKING;
-	proc_threadWakeup(&current->execwaitq);
-
-	while (current->execfl < FORKED) {
-
-		/*
-		 * proc_threadWait call stores context on the stack - this allows to execute child
-		 * thread starting from this point
-		 */
-		res = proc_threadWait(&current->execwaitq, &current->execwaitsl, 0);
-
-		/* Am I child thread? */
-		if (current != proc_current()) {
-			res = 1;
-			break;
+			hal_memset(vaddr + filesz, 0, round_page((unsigned long)vaddr + memsz) - (unsigned long)vaddr - filesz);
 		}
 	}
 
-	hal_spinlockClear(&current->execwaitsl);
+	vm_munmap(process_common.kmap, ehdr, size);
 
-	if (res == 1)
-		return 0;
+	/* Allocate and map user stack */
+	if ((stack = vm_mmap(map, map->pmap.end - SIZE_USTACK, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
+		return -ENOMEM;
 
-	return current->execfl == NOFORK ? -ENOMEM : pid;
+	*ustack = stack + SIZE_USTACK;
+
+	return EOK;
 }
 
+#else
 
-#ifdef NOMMU
 struct _reloc {
 	void *vbase;
 	void *pbase;
@@ -505,27 +445,24 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 }
 
 
-int process_load(process_t *process, syspage_program_t *prog, const char *path, int argc, char **argv, char **env, void **ustack, void **entry)
+int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
 {
-	void *vaddr = NULL, *stack, *paddr, *base;
-	size_t memsz = 0, filesz = 0, osize;
+	void *vaddr = NULL, *stack, *paddr;
+	size_t memsz = 0, filesz = 0;
 	offs_t offs = 0;
 	Elf32_Ehdr *ehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr;
 	unsigned prot, flags, misalign = 0;
 	int i, j, relocsz = 0;
-	char **uargv, *snameTab;
+	char *snameTab;
 	ptr_t *got;
 	struct _reloc reloc[4];
 
-	if (prog == NULL)
+	if (o != (void *)-1)
 		return -ENOEXEC;
 
-	osize = round_page(prog->end - prog->start);
-	base = (void *)prog->start;
-
-	ehdr = base;
+	ehdr = (void *)(ptr_t)base;
 
 	/* Test ELF header */
 	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) || ehdr->e_shnum == 0)
@@ -559,7 +496,7 @@ int process_load(process_t *process, syspage_program_t *prog, const char *path, 
 				return -ENOMEM;
 
 			if (filesz) {
-				if (offs + round_page(filesz) > osize)
+				if (offs + round_page(filesz) > size)
 					return -ENOEXEC;
 
 				hal_memcpy(paddr, (char *)ehdr + offs, filesz);
@@ -614,367 +551,468 @@ int process_load(process_t *process, syspage_program_t *prog, const char *path, 
 	if ((stack = vm_mmap(process->mapp, NULL, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
 		return -ENOMEM;
 
-	stack += SIZE_USTACK;
-
-	stack -= (argc + 1) * sizeof(char *);
-	uargv = stack;
-
-	/* Copy data from kernel stack */
-	for (i = 0; i < argc; ++i) {
-		memsz = hal_strlen(argv[i]) + 1;
-		hal_memcpy(stack -= memsz, argv[i], memsz);
-		uargv[i] = stack;
-	}
-
-	uargv[i] = NULL;
-
-	stack -= (unsigned long)stack & (sizeof(int) - 1);
-
-	PUTONSTACK(stack, char **, NULL); /* env */
-	PUTONSTACK(stack, char **, uargv);
-	PUTONSTACK(stack, int, argc);
-	PUTONSTACK(stack, void *, NULL); /* return address */
-
-	/* Put on stack .got base address. hal_jmp will use it to set r9 */
-	PUTONSTACK(stack, void *, got);
 	process->got = (void *)got;
-
-	*ustack = stack;
+	*ustack = stack + SIZE_USTACK;
 
 	return EOK;
 }
 
+#endif
 
-int process_exec(syspage_program_t *prog, process_t *process, thread_t *current, thread_t *parent, char *path, int argc, char **argv, char **envp, void *kstack)
+void *proc_copyargs(char **args)
 {
-	void *stack, *entry;
-	int err;
+	int argc, len = 0;
+	void *storage;
+	char **kargs, *p;
 
-	/* Map executable */
-	if ((err = process_load(process, prog, path, argc, argv, envp, &stack, &entry)) < 0)
-		return err;
+	if (args == NULL)
+		return NULL;
 
-	if (parent == NULL) {
-		/* Exec into old process, clean up */
-		proc_threadsDestroy(process);
-		proc_portsDestroy(process);
-		vm_mapDestroy(process, process->mapp);
-		vm_kfree(current->execkstack);
-		current->execkstack = NULL;
-		vm_kfree(process->path);
-		if (process->argv != NULL)
-			vm_kfree(process->argv);
+	for (argc = 0; args[argc] != NULL; ++argc)
+		len += hal_strlen(args[argc]) + 1;
+
+	len += (argc + 1) * sizeof(char *);
+
+	if ((kargs = storage = vm_kmalloc(len)) == NULL)
+		return NULL;
+
+	kargs[argc] = NULL;
+
+	p = (char *)storage + (argc + 1) * sizeof(char *);
+
+	while (argc-- > 0) {
+		len = hal_strlen(args[argc]) + 1;
+		hal_memcpy(p, args[argc], len);
+		kargs[argc] = p;
+		p += len;
 	}
 
-	process->path = path;
-
-	process->sigpend = 0;
-	process->sigmask = 0;
-	process->sighandler = NULL;
-	process->path = path;
-	process->argv = argv;
-
-	resource_init(process);
-
-	if (parent == NULL)
-		process_exexepilogue(1, current, parent, entry, stack);
-
-	current->kstack = current->execkstack;
-
-	PUTONSTACK(kstack, void *, stack);
-	PUTONSTACK(kstack, void *, entry);
-	PUTONSTACK(kstack, thread_t *, parent);
-	PUTONSTACK(kstack, thread_t *, current);
-	PUTONSTACK(kstack, int, 1);
-
-	hal_jmp(process_exexepilogue, kstack, NULL, 5);
-
-	/* Not reached */
-	return 0;
+	return storage;
 }
 
 
-#else
-
-int process_load(process_t *process, syspage_program_t *prog, const char *path, int argc, char **argv, char **env, void **ustack, void **entry)
+static void *process_putargs(void *stack, char ***argsp, int *count)
 {
-	oid_t oid;
-	vm_object_t *o = NULL;
-	void *vaddr = NULL, *stack;
-	size_t memsz = 0, filesz = 0, osize;
-	offs_t offs = 0, base;
-	Elf32_Ehdr *ehdr;
-	Elf32_Phdr *phdr;
-	unsigned prot, flags, misalign = 0;
-	int i, envc;
-	char **uargv;
+	int argc, len;
+	char **args_stack, **args = *argsp;
 
-	pmap_switch(&process->mapp->pmap);
-
-	if (prog == NULL) {
-		if (proc_lookup(path, NULL, &oid) < 0)
-			return -ENOENT;
-
-		if (vm_objectGet(&o, oid) < 0)
-			return -ENOMEM;
-
-		osize = round_page(o->size);
-		base = 0;
-	}
-	else {
-		o = (void *)-1;
-		osize = round_page(prog->end - prog->start);
-		base = prog->start;
+	if (args == NULL) {
+		*count = 0;
+		return stack;
 	}
 
-	if ((ehdr = vm_mmap(process_common.kmap, NULL, NULL, osize, PROT_READ, o, base, MAP_NONE)) == NULL) {
-		vm_objectPut(o);
-		return -ENOMEM;
-	}
-
-	/* Test ELF header */
-	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4)) {
-		vm_munmap(process_common.kmap, ehdr, osize);
-		vm_objectPut(o);
-		return -ENOEXEC;
-	}
-
-	*entry = (void *)(unsigned long)ehdr->e_entry;
-
-	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type != PT_LOAD || phdr->p_vaddr == 0)
-			continue;
-
-		vaddr = (void *)((unsigned long)phdr->p_vaddr & ~(phdr->p_align - 1));
-		offs = phdr->p_offset & ~(phdr->p_align - 1);
-		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? phdr->p_filesz + misalign : 0;
-		memsz = phdr->p_memsz + misalign;
-
-		prot = PROT_USER;
-		flags = MAP_NONE;
-
-		if (phdr->p_flags & PF_R)
-			prot |= PROT_READ;
-
-		if (phdr->p_flags & PF_W)
-			prot |= PROT_WRITE;
-
-		if (phdr->p_flags & PF_X)
-			prot |= PROT_EXEC;
-
-		if (filesz && (prot & PROT_WRITE))
-			flags |= MAP_NEEDSCOPY;
-
-		if (filesz && vm_mmap(process->mapp, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL) {
-			vm_munmap(process_common.kmap, ehdr, osize);
-			vm_objectPut(o);
-			return -ENOMEM;
-		}
-
-		if (filesz != memsz) {
-			if (round_page(memsz) - round_page(filesz) && vm_mmap(process->mapp, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL) {
-				vm_munmap(process_common.kmap, ehdr, osize);
-				vm_objectPut(o);
-				return -ENOMEM;
-			}
-
-			hal_memset(vaddr + filesz, 0, round_page((unsigned long)vaddr + memsz) - (unsigned long)vaddr - filesz);
-		}
-	}
-
-	vm_munmap(process_common.kmap, ehdr, osize);
-	vm_objectPut(o);
-
-	/* Allocate and map user stack */
-	if ((stack = vm_mmap(process->mapp, process->mapp->pmap.end - SIZE_USTACK, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
-		return -ENOMEM;
-
-	stack += SIZE_USTACK;
+	for (argc = 0; args[argc] != NULL; ++argc)
+		;
 
 	stack -= (argc + 1) * sizeof(char *);
-	uargv = stack;
+	args_stack = stack;
+	args_stack[argc] = NULL;
 
-	/* Copy data from kernel stack */
-	for (i = 0; i < argc; ++i) {
-		memsz = hal_strlen(argv[i]) + 1;
-		hal_memcpy(stack -= memsz, argv[i], memsz);
-		uargv[i] = stack;
+	for (argc = 0; args[argc] != NULL; ++argc) {
+		len = hal_strlen(args[argc]) + 1;
+		stack -= (len + sizeof(int) - 1) & ~(sizeof(int) - 1);
+		hal_memcpy(stack, args[argc], len);
+		args_stack[argc] = stack;
 	}
 
-	uargv[i] = NULL;
+	*argsp = args_stack;
+	*count = argc;
 
-	stack -= (unsigned long)stack & (sizeof(int) - 1);
-
-	/* Copy env from kernel stack */
-	if (env != NULL) {
-		for (envc = 0; env[envc] != NULL; ++envc) {
-			memsz = hal_strlen(env[envc]) + 1;
-			hal_memcpy(stack -= memsz, env[envc], memsz);
-			env[envc] = stack;
-		}
-
-		stack -= (unsigned long)stack & (sizeof(int) - 1);
-
-		PUTONSTACK(stack, void *, NULL); /* env sentinel */
-		stack -= envc * sizeof(char *);
-
-		hal_memcpy(stack, env, envc * sizeof(char *));
-		env = stack;
-	}
-
-	PUTONSTACK(stack, char **, env);
-	PUTONSTACK(stack, char **, uargv);
-	PUTONSTACK(stack, int, argc);
-	PUTONSTACK(stack, void *, NULL); /* return address */
-
-	*ustack = stack;
-
-	return EOK;
+	return stack;
 }
 
 
-int process_exec(syspage_program_t *prog, process_t *process, thread_t *current, thread_t *parent, char *path, int argc, char **argv, char **envp, void *kstack)
+static void process_exec(thread_t *current, process_spawn_t *spawn)
 {
-	vm_map_t map, *mapp;
 	void *stack, *entry;
-	int err;
+	int err, count;
 
-	/* Create map and pmap for new process, keep old in case of failure */
-	mapp = process->mapp;
-	vm_mapCreate(&map, (void *)VADDR_MIN + SIZE_PAGE, (void *)VADDR_USR_MAX);
-	process->mapp = &map;
+	current->process->argv = spawn->argv;
+	current->process->envp = spawn->envp;
 
-	/* Map executable */
-	if ((err = process_load(process, prog, path, argc, argv, envp, &stack, &entry)) < 0) {
-		process->mapp = mapp;
-		pmap_switch(&mapp->pmap);
-		vm_mapDestroy(process, &map);
-		return err;
+	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
+	if (!err) {
+		stack = process_putargs(stack, &spawn->envp, &count);
+		stack = process_putargs(stack, &spawn->argv, &count);
+
+		/* temporary? put arguments to main on stack */
+		PUTONSTACK(stack, char **, spawn->envp);
+		PUTONSTACK(stack, char **, spawn->argv);
+		PUTONSTACK(stack, int, count);
+		PUTONSTACK(stack, void *, NULL); /* return address */
 	}
 
-	if (parent == NULL) {
-		/* Exec into old process, clean up */
-		proc_threadsDestroy(process);
-		proc_portsDestroy(process);
-		proc_resourcesFree(process);
-		vm_mapDestroy(process, &process->map);
-		vm_kfree(current->execkstack);
-		current->execkstack = NULL;
-		vm_kfree(process->path);
-		if (process->argv != NULL)
-			vm_kfree(process->argv);
-	}
-
-	resource_init(process);
-
-	process->sigpend = 0;
-	process->sigmask = 0;
-	process->sighandler = NULL;
-
-	vm_mapMove(&process->map, &map);
-	process->mapp = &process->map;
-	process->path = path;
-	process->argv = argv;
-
-	perf_exec(process, path);
-
-	if (parent == NULL)
-		process_exexepilogue(1, current, parent, entry, stack);
-
-	current->kstack = current->execkstack;
-
-	PUTONSTACK(kstack, void *, stack);
-	PUTONSTACK(kstack, void *, entry);
-	PUTONSTACK(kstack, thread_t *, parent);
-	PUTONSTACK(kstack, thread_t *, current);
-	PUTONSTACK(kstack, int, 1);
-
-	hal_jmp(process_exexepilogue, kstack, NULL, 5);
-
-	/* Not reached */
-	return 0;
-}
-
-#endif
-
-
-#ifndef NOMMU
-
-int proc_copyexec(void)
-{
-	process_t *process;
-	thread_t *parent, *current = proc_current();
-	void *kstack;
-	int len;
-
-	process = current->process;
-	parent = current->execparent;
-
-	current->kstack = current->execkstack;
-	kstack = current->execkstack + current->kstacksz - sizeof(cpu_context_t);
-	hal_memcpy(kstack, parent->kstack + current->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
-
-	PUTONSTACK(kstack, void *, NULL);
-	PUTONSTACK(kstack, void *, NULL);
-	PUTONSTACK(kstack, thread_t *, parent);
-	PUTONSTACK(kstack, thread_t *, current);
-
-	len = hal_strlen(parent->process->path) + 1;
-	if ((process->path = vm_kmalloc(len)) == NULL) {
-		PUTONSTACK(kstack, int, -1); /* exec */
-		hal_jmp(process_exexepilogue, kstack, NULL, 5);
-	}
-	hal_memcpy(process->path, parent->process->path, len);
-
-	vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
-	pmap_switch(&process->map.pmap);
-	process->mapp = &process->map;
-
-	/* Initialize resources tree for mutex, cond and file handles */
-	resource_init(current->process);
-
-	if (proc_resourcesCopy(parent->process) < 0) {
-		current->process->mapp = NULL;
-		PUTONSTACK(kstack, int, -1); /* exec */
-	}
-	else if (vm_mapCopy(process, &process->map, &parent->process->map) < 0) {
-		PUTONSTACK(kstack, int, -1); /* exec */
+	if (spawn->parent == NULL) {
+		/* if execing without vfork */
+		hal_spinlockDestroy(&spawn->sl);
 	}
 	else {
-		PUTONSTACK(kstack, int, 2); /* exec */
+		hal_spinlockSet(&spawn->sl);
+		spawn->state = err == EOK ? FORKED : err;
+		proc_threadWakeup(&spawn->wq);
+		hal_spinlockClear(&spawn->sl);
 	}
 
-	hal_jmp(process_exexepilogue, kstack, NULL, 5);
+	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
-	/* Not reached */
-	return EOK;
+	if (err < 0)
+		proc_threadEnd();
+	else
+		hal_jmp(entry, current->kstack + current->kstacksz, stack, 0);
 }
 
-#else
 
-int proc_copyexec(void)
+static void proc_spawnThread(void *arg)
 {
-	return -EINVAL;
+	thread_t *current = proc_current();
+	process_spawn_t *spawn = arg;
+
+	/* temporary: create new posix process */
+	if (spawn->parent != NULL)
+		posix_clone(spawn->parent->process->id);
+
+	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
+	current->process->mapp = &current->process->map;
+	pmap_switch(&current->process->map.pmap);
+
+	process_exec(current, spawn);
 }
 
-#endif
 
-
-int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **envp)
+int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path, char **argv, char **envp)
 {
-	int len, argc = 0, envc, err;
+	int pid;
+	process_spawn_t spawn;
+
+	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL)
+		return -ENOMEM;
+
+	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
+		vm_kfree(argv);
+		return -ENOMEM;
+	}
+
+	spawn.object = object;
+	spawn.offset = offset;
+	spawn.size = size;
+	spawn.wq = NULL;
+	spawn.state = PREFORK;
+	spawn.argv = argv;
+	spawn.envp = envp;
+	spawn.parent = proc_current();
+
+	hal_spinlockCreate(&spawn.sl, "spawnsl");
+
+	if ((pid = proc_start(proc_spawnThread, &spawn, path)) > 0) {
+		hal_spinlockSet(&spawn.sl);
+		spawn.state = FORKING;
+		while (spawn.state == FORKING)
+			proc_threadWait(&spawn.wq, &spawn.sl, 0);
+		hal_spinlockClear(&spawn.sl);
+	}
+	else {
+			vm_kfree(argv);
+			vm_kfree(envp);
+	}
+
+	hal_spinlockDestroy(&spawn.sl);
+	return spawn.state < 0 ? spawn.state : pid;
+}
+
+
+int proc_fileSpawn(const char *path, char **argv, char **envp)
+{
+	int err;
+	oid_t oid;
+	vm_object_t *object;
+
+	if ((err = proc_lookup(path, NULL, &oid)) < 0)
+		return err;
+
+	if ((err = vm_objectGet(&object, oid)) < 0)
+		return err;
+
+	return proc_spawn(object, 0, object->size, path, argv, envp);
+}
+
+
+int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv)
+{
+	return proc_spawn((void *)-1, program->start, program->end - program->start, path, argv, NULL);
+}
+
+
+/* (v)fork/exec/exit */
+
+static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
+{
+	thread_t *parent = spawn->parent;
+
+	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
+	vm_kfree(current->parentkstack);
+
+	current->process->mapp = NULL;
+
+	hal_spinlockSet(&spawn->sl);
+	spawn->state = state;
+	proc_threadWakeup(&spawn->wq);
+	hal_spinlockClear(&spawn->sl);
+
+	proc_kill(current->process);
+	proc_threadEnd();
+}
+
+
+void proc_exit(int code)
+{
+	thread_t *current = proc_current();
+	process_spawn_t *spawn;
 	void *kstack;
-	thread_t *current, *parent;
-	process_t *process;
-	char *kpath;
-	char **kargv = NULL, *buf;
-	char **envp_kstack = NULL;
 
+	if ((spawn = current->execdata) != NULL) {
+		kstack = current->kstack = current->execkstack;
+		kstack += current->kstacksz;
+
+		PUTONSTACK(kstack, thread_t *, current);
+		PUTONSTACK(kstack, process_spawn_t *, spawn);
+		PUTONSTACK(kstack, int, FORKED);
+		hal_jmp(proc_vforkedExit, kstack, NULL, 3);
+	}
+
+	proc_kill(current->process);
+}
+
+
+static void process_vforkThread(void *arg)
+{
+	process_spawn_t *spawn = arg;
+	thread_t *current, *parent;
 
 	current = proc_current();
-	parent = current->execparent;
-	process = current->process;
+	parent = spawn->parent;
+	posix_clone(parent->process->id);
+
+	current->process->mapp = parent->process->mapp;
+	current->process->sigmask = parent->process->sigmask;
+	current->process->sighandler = parent->process->sighandler;
+	pmap_switch(&current->process->mapp->pmap);
+
+	hal_spinlockSet(&spawn->sl);
+	while (spawn->state < FORKING)
+		proc_threadWait(&spawn->wq, &spawn->sl, 0);
+	hal_spinlockClear(&spawn->sl);
+
+	/* Copy parent kernel stack */
+	if ((current->parentkstack = (void *)vm_kmalloc(parent->kstacksz)) == NULL) {
+		hal_spinlockSet(&spawn->sl);
+		spawn->state = -ENOMEM;
+		proc_threadWakeup(&spawn->wq);
+		hal_spinlockClear(&spawn->sl);
+
+		proc_threadEnd();
+	}
+
+	hal_memcpy(current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), hal_cpuGetSP(parent->context), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
+
+	current->execkstack = current->kstack;
+	current->execdata = spawn;
+	current->kstack = parent->kstack;
+
+	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
+
+	/* Start execution from parent suspend point */
+	hal_longjmp(parent->context);
+
+	/* This part of code left unexecuted */
+	return;
+}
+
+
+int proc_vfork(void)
+{
+	thread_t *current;
+	int pid, isparent = 1, ret;
+	process_spawn_t *spawn;
+
+	if ((current = proc_current()) == NULL)
+		return -EINVAL;
+
+	if ((spawn = vm_kmalloc(sizeof(*spawn))) == NULL)
+		return -ENOMEM;
+
+	hal_spinlockCreate(&spawn->sl, "execsl");
+
+	spawn->object = NULL;
+	spawn->offset = 0;
+	spawn->size = 0;
+	spawn->wq = NULL;
+	spawn->state = PREFORK;
+	spawn->parent = current;
+
+	if ((pid = proc_start(process_vforkThread, spawn, NULL)) < 0) {
+		hal_spinlockDestroy(&spawn->sl);
+		vm_kfree(spawn);
+		return pid;
+	}
+
+	/* Signal forking state to vfork thread */
+	hal_spinlockSet(&spawn->sl);
+	spawn->state = FORKING;
+	proc_threadWakeup(&spawn->wq);
+
+	do {
+		/*
+		 * proc_threadWait call stores context on the stack - this allows to execute child
+		 * thread starting from this point
+		 */
+		proc_threadWait(&spawn->wq, &spawn->sl, 0);
+		isparent = proc_current() == current;
+	}
+	while (spawn->state < FORKED && spawn->state > 0 && isparent);
+
+	hal_spinlockClear(&spawn->sl);
+
+	if (isparent) {
+		hal_spinlockDestroy(&spawn->sl);
+		ret = spawn->state;
+		vm_kfree(spawn);
+		return ret < 0 ? ret : pid;
+	}
+
+	return 0;
+}
+
+
+static int process_copy(void)
+{
+	thread_t *parent, *current = proc_current();
+	process_spawn_t *spawn = current->execdata;
+	process_t *process = current->process;
+	parent = spawn->parent;
+	int len;
+
+	len = hal_strlen(parent->process->path) + 1;
+
+	if ((process->path = vm_kmalloc(len)) == NULL)
+		return -ENOMEM;
+
+	hal_memcpy(process->path, parent->process->path, len);
+
+	if (proc_resourcesCopy(parent->process) < 0)
+		return -ENOMEM;
+
+	vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
+
+	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0)
+		return -ENOMEM;
+
+	process->mapp = &process->map;
+	pmap_switch(&process->map.pmap);
+	return EOK;
+}
+
+
+int proc_release(void)
+{
+	thread_t *current, *parent;
+	process_spawn_t *spawn;
+
+	current = proc_current();
+
+	if ((spawn = current->execdata) == NULL)
+		return -EINVAL;
+
+	if ((parent = spawn->parent) == NULL)
+		return -EINVAL;
+
+	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
+	vm_kfree(current->parentkstack);
+
+	current->execdata = NULL;
+	current->parentkstack = NULL;
+
+	hal_spinlockSet(&spawn->sl);
+	spawn->state = FORKED;
+	proc_threadWakeup(&spawn->wq);
+	hal_spinlockClear(&spawn->sl);
+
+	return EOK;
+}
+
+
+int proc_fork(void)
+{
+	thread_t *current;
+	int err;
+	void *kstack;
+
+	if (!(err = proc_vfork())) {
+		err = process_copy();
+
+		current = proc_current();
+		current->kstack = current->execkstack;
+		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
+
+		if (err < 0) {
+			kstack = current->kstack + current->kstacksz;
+			PUTONSTACK(kstack, thread_t *, current);
+			PUTONSTACK(kstack, process_spawn_t *, current->execdata);
+			PUTONSTACK(kstack, int, err);
+			hal_jmp(proc_vforkedExit, kstack, NULL, 3);
+		}
+	}
+
+	return err;
+}
+
+
+static int process_execve(thread_t *current)
+{
+	process_spawn_t *spawn = current->execdata;
+	thread_t *parent = spawn->parent;
+
+	/* Restore kernel stack of parent thread */
+	if (parent != NULL) {
+		hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
+		vm_kfree(current->parentkstack);
+	}
+	else {
+		/* Reinitialize process */
+		current->process->mapp = NULL;
+		pmap_switch(&process_common.kmap->pmap);
+
+		vm_mapDestroy(current->process, &current->process->map);
+		proc_resourcesFree(current->process);
+		proc_portsDestroy(current->process);
+	}
+
+	current->execkstack = NULL;
+	current->parentkstack = NULL;
+	current->execdata = NULL;
+
+	/* Close cloexec file descriptors */
+	posix_exec();
+
+	proc_spawnThread(spawn);
+
+	/* Not reached */
+	return 0;
+}
+
+
+int proc_execve(const char *path, char **argv, char **envp)
+{
+	int len;
+	thread_t *current;
+	char *kpath;
+	void *kstack;
+	process_spawn_t sspawn, *spawn;
+
+	oid_t oid;
+	vm_object_t *object;
+	int err;
+
+	current = proc_current();
 
 	len = hal_strlen(path) + 1;
 
@@ -983,96 +1021,55 @@ int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **e
 
 	hal_memcpy(kpath, path, len);
 
-	if (parent == NULL && (current->execkstack = vm_kmalloc(current->kstacksz)) == NULL) {
+	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL) {
 		vm_kfree(kpath);
 		return -ENOMEM;
 	}
 
-	kstack = current->execkstack + current->kstacksz;
-
-	len = 0;
-	if (argv != NULL) {
-		for (argc = 0; argv[argc] != NULL; ++argc)
-			len += hal_strlen(argv[argc]) + 1;
+	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
+		vm_kfree(kpath);
+		vm_kfree(argv);
+		return -ENOMEM;
 	}
 
-	if (argc) {
-		if ((kargv = vm_kmalloc(len + (argc + 1) * sizeof(char *))) == NULL) {
-			vm_kfree(kpath);
-			vm_kfree(current->execkstack);
-			return -ENOMEM;
-		}
+	if ((err = proc_lookup(path, NULL, &oid)) < 0)
+		return err;
 
-		buf = (char *)(kargv + argc + 1);
+	if ((err = vm_objectGet(&object, oid)) < 0)
+		return err;
 
-		for (argc = 0; argv[argc] != NULL; ++argc) {
-			len = hal_strlen(argv[argc]) + 1;
-			hal_memcpy(buf, argv[argc], len);
-			kargv[argc] = buf;
-			buf += len;
-		}
-
-		kargv[argc] = NULL;
+	if ((spawn = current->execdata) == NULL) {
+		spawn = current->execdata = &sspawn;
+		hal_spinlockCreate(&spawn->sl, "spawn");
+		spawn->wq = NULL;
+		spawn->state = FORKED;
+		spawn->parent = NULL;
 	}
 
-	if (envp) {
-		for (envc = 0; envp[envc] != NULL; ++envc)
-			;
+	spawn->argv = argv;
+	spawn->envp = envp;
 
-		kstack -= (envc + 1) * sizeof(char *);
-		envp_kstack = kstack;
-		envp_kstack[envc] = NULL;
+	spawn->object = object;
+	spawn->offset = 0;
+	spawn->size = object->size;
 
-		for (envc = 0; envp[envc] != NULL; ++envc) {
-			len = hal_strlen(envp[envc]) + 1;
-			kstack -= (len + sizeof(int) - 1) & ~(sizeof(int) - 1);
-			hal_memcpy(kstack, envp[envc], len);
-			envp_kstack[envc] = kstack;
-		}
-	}
+	vm_kfree(current->process->path);
 
-	/* Close cloexec file descriptors */
-	posix_exec();
+	current->process->path = kpath;
 
-	err = process_exec(prog, process, current, parent, kpath, argc, kargv, envp_kstack, kstack);
-	/* Not reached unless process_exec failed */
+	if (spawn->parent != NULL) {
+		kstack = current->kstack = current->execkstack;
+		kstack += current->kstacksz;
 
-	vm_kfree(kpath);
-	if (kargv != NULL)
-		vm_kfree(kargv);
-	return err;
-}
-
-
-void proc_exit(int code)
-{
-	thread_t *current, *parent;
-	void *kstack;
-
-	current = proc_current();
-	parent = current->execparent;
-
-	if (current->process != NULL)
-		current->process->exit = code & 0xff;
-
-	if (current->parentkstack != NULL) {
-		current->kstack = current->execkstack;
-		current->process->mapp = NULL;
-
-		kstack = current->kstack + current->kstacksz;
-
-		PUTONSTACK(kstack, void *, NULL);
-		PUTONSTACK(kstack, void *, NULL);
-		PUTONSTACK(kstack, thread_t *, parent);
 		PUTONSTACK(kstack, thread_t *, current);
-		PUTONSTACK(kstack, int, 0);
-
-		hal_jmp(process_exexepilogue, kstack, NULL, 5);
+		hal_jmp(process_execve, kstack, NULL, 1);
 	}
-
-	process_exexepilogue(0, current, parent, NULL, NULL);
-
+	else {
+		process_execve(current);
+	}
 	/* Not reached */
+
+	return 0;
 }
 
 

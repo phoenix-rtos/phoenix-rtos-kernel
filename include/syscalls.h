@@ -17,7 +17,7 @@
 	ID(debug) \
 	ID(mmap) \
 	ID(munmap) \
-	ID(fork) \
+	ID(sys_fork) \
 	ID(vforksvc) \
 	ID(exec) \
 	ID(sys_exit) \
@@ -65,7 +65,6 @@
 	ID(va2pa) \
 	ID(signalHandle) \
 	ID(signalPost) \
-	ID(signalReturn) \
 	ID(signalMask) \
 	ID(signalSuspend) \
 	ID(priority) \
@@ -110,4 +109,6 @@
 	ID(sys_getpgid) \
 	ID(sys_setpgrp) \
 	ID(sys_getpgrp) \
-	ID(sys_setsid)
+	ID(sys_setsid) \
+	ID(sys_spawn) \
+	ID(release)

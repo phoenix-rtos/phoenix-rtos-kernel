@@ -26,6 +26,7 @@
 #include "posix/posix.h"
 
 #define SYSCALLS_NAME(name) syscalls_##name,
+#define SYSCALLS_STRING(name) #name,
 
 /*
  * Kernel
@@ -103,9 +104,30 @@ int syscalls_vforksvc(void *ustack)
 }
 
 
-int syscalls_fork(void *ustack)
+int syscalls_sys_fork(void *ustack)
 {
-	return posix_fork();
+	// return -ENOSYS;
+	return proc_fork();
+}
+
+
+int syscalls_release(void *ustack)
+{
+	return proc_release();
+}
+
+
+int syscalls_sys_spawn(void *ustack)
+{
+	char *path;
+	char **argv;
+	char **envp;
+
+	GETFROMSTACK(ustack, char *, path, 0);
+	GETFROMSTACK(ustack, char **, argv, 1);
+	GETFROMSTACK(ustack, char **, envp, 2);
+
+	return proc_fileSpawn(path, argv, envp);
 }
 
 
@@ -119,7 +141,8 @@ int syscalls_exec(void *ustack)
 	GETFROMSTACK(ustack, char **, argv, 1);
 	GETFROMSTACK(ustack, char **, envp, 2);
 
-	return proc_execve(NULL, path, argv, envp);
+	// return -ENOSYS;
+	return proc_execve(path, argv, envp);
 }
 
 
@@ -141,7 +164,7 @@ int syscalls_sys_waitpid(void *ustack)
 	GETFROMSTACK(ustack, int *, stat, 1);
 	GETFROMSTACK(ustack, int, options, 2);
 
-	return proc_waitpid(pid, stat, options);
+	return posix_waitpid(pid, stat, options);
 }
 
 
@@ -164,9 +187,7 @@ int syscalls_getpid(void *ustack)
 
 int syscalls_getppid(void *ustack)
 {
-	if (proc_current()->process->parent == NULL)
-		return -EINVAL;
-	return proc_current()->process->parent->id;
+	return posix_getppid(proc_current()->process->id);
 }
 
 
@@ -187,6 +208,7 @@ int syscalls_beginthreadex(void *ustack)
 	unsigned int priority, stacksz;
 	void *stack, *arg;
 	unsigned int *id;
+	process_t *p;
 
 	GETFROMSTACK(ustack, void *, start, 0);
 	GETFROMSTACK(ustack, unsigned int, priority, 1);
@@ -195,13 +217,16 @@ int syscalls_beginthreadex(void *ustack)
 	GETFROMSTACK(ustack, void *, arg, 4);
 	GETFROMSTACK(ustack, unsigned int *, id, 5);
 
-	return proc_threadCreate(proc_current()->process, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+	if ((p = proc_current()->process) != NULL)
+		proc_get(p);
+
+	return proc_threadCreate(p, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
 }
 
 
 int syscalls_endthread(void *ustack)
 {
-	proc_threadDestroy();
+	proc_threadEnd();
 	return EOK;
 }
 
@@ -725,23 +750,23 @@ int syscalls_signalPost(void *ustack)
 	if ((proc = proc_find(pid)) == NULL)
 		return -EINVAL;
 
-	if (tid >= 0 && (t = threads_findThread(tid)) == NULL)
+	if (tid >= 0 && (t = threads_findThread(tid)) == NULL) {
+		proc_put(proc);
 		return -EINVAL;
+	}
 
-	if (t != NULL && t->process != proc)
+	if (t != NULL && t->process != proc) {
+		proc_put(proc);
+		threads_put(t);
 		return -EINVAL;
+	}
 
 	err = proc_sigpost(proc, t, signal);
+
+	proc_put(proc);
+	threads_put(t);
 	hal_cpuReschedule(NULL);
 	return err;
-}
-
-
-void syscalls_signalReturn(void *ustack)
-{
-	int signal;
-	GETFROMSTACK(ustack, int, signal, 0);
-	proc_sigreturn(signal);
 }
 
 
@@ -1181,7 +1206,7 @@ int syscalls_sys_poll(char *ustack)
 	int timeout_ms;
 
 	GETFROMSTACK(ustack, struct pollfd *, fds, 0);
-	GETFROMSTACK(ustack, nfds_t, nfds, 2);
+	GETFROMSTACK(ustack, nfds_t, nfds, 1);
 	GETFROMSTACK(ustack, int, timeout_ms, 2);
 
 	return posix_poll(fds, nfds, timeout_ms);
@@ -1265,6 +1290,7 @@ int syscalls_notimplemented(void)
 
 
 const void * const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
+const char * const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
 
 
 void *syscalls_dispatch(int n, char *ustack)
@@ -1274,9 +1300,10 @@ void *syscalls_dispatch(int n, char *ustack)
 	if (n >= sizeof(syscalls) / sizeof(syscalls[0]))
 		return (void *)-EINVAL;
 
-	proc_threadProtect();
 	retval = ((void *(*)(char *))syscalls[n])(ustack);
-	proc_threadUnprotect();
+
+	if (proc_current()->exit)
+		proc_threadEnd();
 
 	return retval;
 }

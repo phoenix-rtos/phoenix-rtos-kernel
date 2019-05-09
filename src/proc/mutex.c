@@ -53,9 +53,7 @@ int proc_mutexLock(unsigned int h)
 		return -EINVAL;
 	}
 
-	proc_threadUnprotect();
 	err = proc_lockSet(r->lock);
-	proc_threadProtect();
 	resource_put(process, r);
 
 	return err;
@@ -78,9 +76,7 @@ int proc_mutexTry(unsigned int h)
 		return -EINVAL;
 	}
 
-	proc_threadUnprotect();
 	err = proc_lockTry(r->lock);
-	proc_threadProtect();
 	resource_put(process, r);
 
 	return err;

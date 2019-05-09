@@ -24,29 +24,20 @@
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
-enum { NORMAL = 0, ZOMBIE };
-
 typedef struct _process_t {
 	struct _process_t *next;
 	struct _process_t *prev;
 
 	lock_t lock;
 
-	struct _process_t *parent;
-	struct _process_t *children;
-
 	struct _thread_t *threads;
+	int refs;
 
 	char *path;
 	char **argv;
+	char **envp;
 	unsigned int id;
 	rbnode_t idlinkage;
-
-	struct _process_t *zombies;
-	struct _thread_t *ghosts;
-	struct _thread_t *waitq, *gwaitq;
-	int waitpid;
-	int waittid;
 
 	union {
 		vm_map_t map;
@@ -58,7 +49,6 @@ typedef struct _process_t {
 	unsigned lazy : 1;
 	unsigned lgap : 1;
 	unsigned rgap : 1;
-	unsigned state : 1;
 
 	/*u32 uid;
 	u32 euid;
@@ -85,19 +75,37 @@ typedef struct _process_t {
 extern process_t *proc_find(unsigned int pid);
 
 
+extern int proc_put(process_t *proc);
+
+
+extern void proc_get(process_t *proc);
+
+
 extern void proc_kill(process_t *proc);
+
+
+extern void proc_reap(void);
 
 
 extern int proc_start(void (*initthr)(void *), void *arg, const char *path);
 
 
-extern int proc_copyexec(void);
+extern int proc_fileSpawn(const char *path, char **argv, char **envp);
 
 
-extern int proc_execve(syspage_program_t *prog, const char *path, char **argv, char **envp);
+extern int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv);
+
+
+extern int proc_execve(const char *path, char **argv, char **envp);
 
 
 extern int proc_vfork(void);
+
+
+extern int proc_fork(void);
+
+
+extern int proc_release(void);
 
 
 extern void proc_exit(int code);

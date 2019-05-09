@@ -66,11 +66,8 @@ int proc_condWait(unsigned int c, unsigned int m, time_t timeout)
 	}
 
 	lock = rl->lock;
-	proc_threadUnprotect();
 
 	err = proc_lockWait(&rc->waitq, lock, timeout);
-
-	proc_threadProtect();
 
 	resource_put(process, rl);
 	resource_put(process, rc);

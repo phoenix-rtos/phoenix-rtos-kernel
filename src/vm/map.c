@@ -662,6 +662,10 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	prot = hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
 	paddr = (void *)((unsigned long)vaddr & ~(SIZE_PAGE - 1));
+
+	process_dumpException(n, ctx);
+	for (;;) ;
+
 	hal_cpuEnableInterrupts();
 
 	thread = proc_current();
@@ -885,84 +889,90 @@ void vm_mapinfo(meminfo_t *info)
 			return;
 		}
 
-		map = process->mapp;
-		proc_lockSet(&map->lock);
+		if ((map = process->mapp) != NULL) {
+			proc_lockSet(&map->lock);
 
 #ifndef NOMMU
-		for (size = 0, n = lib_rbMinimum(map->tree.root); n != NULL; n = lib_rbNext(n), ++size) {
-			if (info->entry.map != NULL && info->entry.mapsz > size) {
-				e = lib_treeof(map_entry_t, linkage, n);
+			for (size = 0, n = lib_rbMinimum(map->tree.root); n != NULL; n = lib_rbNext(n), ++size) {
+				if (info->entry.map != NULL && info->entry.mapsz > size) {
+					e = lib_treeof(map_entry_t, linkage, n);
 
-				info->entry.map[size].vaddr  = e->vaddr;
-				info->entry.map[size].size   = e->size;
-				info->entry.map[size].flags  = e->flags;
-				info->entry.map[size].prot   = e->prot;
-				info->entry.map[size].anonsz = ~0;
+					info->entry.map[size].vaddr  = e->vaddr;
+					info->entry.map[size].size   = e->size;
+					info->entry.map[size].flags  = e->flags;
+					info->entry.map[size].prot   = e->prot;
+					info->entry.map[size].anonsz = ~0;
 
-				if (e->amap != NULL) {
-					info->entry.map[size].anonsz = 0;
-					for (i = 0; i < e->amap->size; ++i) {
-						if (e->amap->anons[i] != NULL)
-							info->entry.map[size].anonsz += SIZE_PAGE;
+					if (e->amap != NULL) {
+						info->entry.map[size].anonsz = 0;
+						for (i = 0; i < e->amap->size; ++i) {
+							if (e->amap->anons[i] != NULL)
+								info->entry.map[size].anonsz += SIZE_PAGE;
+						}
+					}
+
+					info->entry.map[size].offs   = e->offs;
+
+					if (e->object == NULL)
+						info->entry.map[size].object = OBJECT_ANONYMOUS;
+
+					else if (e->object == (void *)-1)
+						info->entry.map[size].object = OBJECT_MEMORY;
+
+					else {
+						info->entry.map[size].object = OBJECT_OID;
+						info->entry.map[size].oid = e->object->oid;
 					}
 				}
-
-				info->entry.map[size].offs   = e->offs;
-
-				if (e->object == NULL)
-					info->entry.map[size].object = OBJECT_ANONYMOUS;
-
-				else if (e->object == (void *)-1)
-					info->entry.map[size].object = OBJECT_MEMORY;
-
-				else {
-					info->entry.map[size].object = OBJECT_OID;
-					info->entry.map[size].oid = e->object->oid;
-				}
 			}
-		}
 #else
-		size = 0;
-		e = process->entries;
+			size = 0;
+			e = process->entries;
 
-		do {
-			if (info->entry.map != NULL && info->entry.mapsz > size) {
-				info->entry.map[size].vaddr = e->vaddr;
-				info->entry.map[size].size  = e->size;
-				info->entry.map[size].flags = e->flags;
-				info->entry.map[size].prot  = e->prot;
-				info->entry.map[size].anonsz = ~0;
+			do {
+				if (info->entry.map != NULL && info->entry.mapsz > size) {
+					info->entry.map[size].vaddr = e->vaddr;
+					info->entry.map[size].size  = e->size;
+					info->entry.map[size].flags = e->flags;
+					info->entry.map[size].prot  = e->prot;
+					info->entry.map[size].anonsz = ~0;
 
-				if (e->amap != NULL) {
-					info->entry.map[size].anonsz = 0;
-					for (i = 0; i < e->amap->size; ++i) {
-						if (e->amap->anons[i] != NULL)
-							info->entry.map[size].anonsz += SIZE_PAGE;
+					if (e->amap != NULL) {
+						info->entry.map[size].anonsz = 0;
+						for (i = 0; i < e->amap->size; ++i) {
+							if (e->amap->anons[i] != NULL)
+								info->entry.map[size].anonsz += SIZE_PAGE;
+						}
+					}
+
+					info->entry.map[size].offs  = e->offs;
+
+					if (e->object == NULL)
+						info->entry.map[size].object = OBJECT_ANONYMOUS;
+
+					else if (e->object == (void *)-1)
+						info->entry.map[size].object = OBJECT_MEMORY;
+
+					else {
+						info->entry.map[size].object = OBJECT_OID;
+						info->entry.map[size].oid = e->object->oid;
 					}
 				}
 
-				info->entry.map[size].offs  = e->offs;
-
-				if (e->object == NULL)
-					info->entry.map[size].object = OBJECT_ANONYMOUS;
-
-				else if (e->object == (void *)-1)
-					info->entry.map[size].object = OBJECT_MEMORY;
-
-				else {
-					info->entry.map[size].object = OBJECT_OID;
-					info->entry.map[size].oid = e->object->oid;
-				}
+				++size;
+				e = e->next;
 			}
-
-			++size;
-			e = e->next;
-		}
-		while (e != process->entries);
+			while (e != process->entries);
 #endif
 
-		proc_lockClear(&map->lock);
+			proc_lockClear(&map->lock);
+		}
+		else {
+			size = 0;
+		}
+
 		info->entry.mapsz = size;
+		proc_put(process);
 	}
 
 	if (info->entry.kmapsz != -1) {

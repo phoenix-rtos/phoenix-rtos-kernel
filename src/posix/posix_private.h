@@ -71,9 +71,17 @@ typedef struct {
 } fildes_t;
 
 
-typedef struct {
+typedef struct _process_info_t {
 	rbnode_t linkage;
-	process_t *process;
+	int process;
+	int parent;
+	int refs;
+
+	thread_t *wait;
+
+	struct _process_info_t *children;
+	struct _process_info_t *zombies;
+	struct _process_info_t *next, *prev;
 
 	pid_t pgid;
 	lock_t lock;
