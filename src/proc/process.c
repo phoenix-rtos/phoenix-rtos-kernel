@@ -455,14 +455,14 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	Elf32_Shdr *shdr;
 	unsigned prot, flags, misalign = 0;
 	int i, j, relocsz = 0;
-	char **uargv, *snameTab;
+	char *snameTab;
 	ptr_t *got;
 	struct _reloc reloc[4];
 
-	if (prog == NULL)
+	if (o != (void *)-1)
 		return -ENOEXEC;
 
-	ehdr = (void *)base;
+	ehdr = (void *)(ptr_t)base;
 
 	/* Test ELF header */
 	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) || ehdr->e_shnum == 0)

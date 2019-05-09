@@ -213,6 +213,12 @@ static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
 }
 
 
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return 0;
+}
+
+
 static inline u32 hal_cpuGetPC(void)
 {
 	void *pc;
@@ -256,6 +262,12 @@ static inline void *hal_cpuGetSP(cpu_context_t *ctx)
 static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 {
 	return (void *)ctx->psp;
+}
+
+
+static inline void hal_cpuPushSignal(cpu_context_t *ctx, void (*handler)(void), int sig)
+{
+	return;
 }
 
 
