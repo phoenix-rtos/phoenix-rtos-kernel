@@ -500,6 +500,17 @@ static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 }
 
 
+static inline void hal_cpuSetGot(void *got)
+{
+}
+
+
+static inline void *hal_cpuGetGot(void)
+{
+	return NULL;
+}
+
+
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
 	return ctx->cs & 3;

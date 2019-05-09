@@ -654,6 +654,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	}
 
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
+	hal_cpuSetGot(current->process->got);
 
 	if (err < 0)
 		proc_threadEnd();
@@ -671,9 +672,14 @@ static void proc_spawnThread(void *arg)
 	if (spawn->parent != NULL)
 		posix_clone(spawn->parent->process->id);
 
+#ifndef NOMMU
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
 	current->process->mapp = &current->process->map;
 	pmap_switch(&current->process->map.pmap);
+#else
+	current->process->mapp = process_common.kmap;
+	current->process->entries = NULL;
+#endif
 
 	process_exec(current, spawn);
 }

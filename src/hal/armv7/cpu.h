@@ -314,7 +314,6 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 		__asm__ volatile
 		(" \
 			msr msp, %2; \
-			ldr r9, [%0], #4; \
 			subs %1, #1; \
 			bmi 1f; \
 			ldr r0, [%0], #4; \
