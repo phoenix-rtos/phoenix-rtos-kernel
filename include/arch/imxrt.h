@@ -211,7 +211,7 @@ enum {
 	pctl_gpr_ocram2_tz_en = 1056, pctl_gpr_ocram2_tz_addr, pctl_gpr_lock_ocram2_tz_en = 1056 + 16,
 	pctl_gpr_lock_ocram2_tz_addr = 1056 + 17,
 
-	/* IOMUXC_GPR_GPR33 */
+	/* IOMUXC_GPR_GPR34 */
 	pctl_gpr_sip_test_mux_qspi_sip_sel = 1088, pctl_gpr_sip_test_mux_qspi_sip_en = 1088 + 8
 };
 
@@ -346,6 +346,26 @@ enum {
 	pctl_isel_sai3_ipp_ind_sai_txbclk, pctl_isel_sai3_ipp_ind_sai_txsync, pctl_isel_semc_i_ipp_ind_dqs4,
 	pctl_isel_canfd_ipp_ind_canrx
 };
+
+
+/* Interrupts numbers */
+enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq, lpuart3_irq, lpuart4_irq, lpuart5_irq,
+	lpuart6_irq, lpuart7_irq, lpuart8_irq, lpi2c1_irq, lpi2c2_irq, lpi2c3_irq, lpi2c4_irq, lpspi1_irq, lpspi2_irq,
+	lpspi3_irq, lpspi4_irq, can1_irq, can2_irq, flexram_irq, kpp_irq, tsc_dig_irq, gpr_irq, lcdif_irq, csi_irq, pxp_irq,
+	wdog2_irq, snvs_hp_wrapper_irq, snvs_hp_wrapper_tz_irq, snvs_lp_wrapper_irq, /* Reserved #49 */ dcp_irq = 50 + 16,
+	dcp_vmi_irq, dcp_secure_irq, trng_irq, /* Reserved #54 */ bee_irq = 55 + 16, sai1_irq, sai2_irq, sai3_irq,
+	/* Reserved #59 */ spdif_irq = 60 + 16, /* Reserved #61..64 */ usb_phy1_irq = 65 + 16, usb_phy2_irq, adc1_irq,
+	adc2_irq, dcdc_irq, /* Reserved #70..71 */ gpio1_int0_irq = 72 + 16, gpio1_int1_irq, gpio1_int2_irq, gpio1_int3_irq,
+	gpio1_int4_irq, gpio1_int5_irq, gpio1_int6_irq, gpio1_int7_irq , gpio1_0_15_irq, gpio1_16_31_irq, gpio2_0_15_irq,
+	gpio2_16_31_irq, gpio3_0_15_irq, gpio3_16_31_irq, gpio4_0_15_irq, gpio4_16_31_irq, gpio5_0_15_irq, gpio5_16_31_irq,
+	flexio1_irq, flexio2_irq, wdog1_irq, rtwdog_irq, ewm_irq, ccm_1_irq, ccm2_irq, gpc_irq, src_irq, /* Reserved #99 */
+	gpt1_irq = 100 + 16, gpt2_irq, pwm1_0_irq, pwm1_1_irq, pwm1_2_irq, pwm1_3_irq, pwm1_fault_irq, /* Reserved #107 */
+	flexspi_irq = 108 + 16, semc_irq, usdhc1_irq, usdhc2_irq, usb_otg2_irq, usb_otg1_irq, enet_irq, enet_1588_timer_irq,
+	/* Reserved #116..117 */ adc_etc0_irq = 118 + 16, adc_etc1_irq, adc_etc2_irq, adc_etc_error_irq, pit_irq,
+	acmp0_irq, acmp1_irq, acmp2_irq, acmp3_irq, acmp4_irq, /* Reserved #127..128 */ enc1_irq = 129 + 16, enc2_irq,
+	enc3_irq, enc4_irq, tmr1_irq, tmr2_irq, tmr3_irq, tmr4_irq, pwm2_0_irq, pwm2_1_irq, pwm2_2_irq, pwm2_3_irq,
+	pwm2_fault_irq, pwm3_0_irq, pwm3_1_irq, pwm3_2_irq, pwm3_3_irq, pwm3_fault_irq, pwm4_0_irq, pwm4_1_irq, pwm4_2_irq,
+	pwm4_3_irq, pwm4_fault_irq };
 
 
 typedef struct {
