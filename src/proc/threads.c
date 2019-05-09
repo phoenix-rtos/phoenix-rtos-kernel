@@ -931,7 +931,7 @@ static int _proc_threadWait(thread_t **queue, time_t timeout)
 }
 
 
-int proc_threadSleep(unsigned int us)
+int proc_threadSleep(unsigned long long us)
 {
 	thread_t *current;
 	int err;
@@ -948,9 +948,7 @@ int proc_threadSleep(unsigned int us)
 	current->interruptible = 1;
 
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
-
 	_perf_enqueued(current);
-
 	_threads_updateWakeup(now, NULL);
 
 	if ((err = hal_cpuReschedule(&threads_common.spinlock)) == -ETIME)

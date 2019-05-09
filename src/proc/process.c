@@ -347,7 +347,9 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 }
 
 
-int process_load(vm_map_t *map, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
+#ifndef NOMMU
+
+int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
 {
 	void *vaddr = NULL, *stack;
 	size_t memsz = 0, filesz = 0;
@@ -355,6 +357,7 @@ int process_load(vm_map_t *map, vm_object_t *o, offs_t base, size_t size, void *
 	Elf32_Phdr *phdr;
 	unsigned i, prot, flags, misalign = 0;
 	offs_t offs;
+	vm_map_t *map = process->mapp;
 
 	size = round_page(size);
 
@@ -412,15 +415,151 @@ int process_load(vm_map_t *map, vm_object_t *o, offs_t base, size_t size, void *
 	vm_munmap(process_common.kmap, ehdr, size);
 
 	/* Allocate and map user stack */
-	if ((stack = vm_mmap(map, map->pmap.end - SIZE_STACK, NULL, SIZE_STACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
+	if ((stack = vm_mmap(map, map->pmap.end - SIZE_USTACK, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
 		return -ENOMEM;
 
-	stack += SIZE_STACK;
-	*ustack = stack;
+	*ustack = stack + SIZE_USTACK;
 
 	return EOK;
 }
 
+#else
+
+struct _reloc {
+	void *vbase;
+	void *pbase;
+	size_t size;
+};
+
+
+static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
+{
+	size_t i;
+
+	for (i = 0; i < relocsz; ++i) {
+		if ((ptr_t)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
+			(*addr) = (void *)((ptr_t)(*addr) - (ptr_t)reloc[i].vbase + (ptr_t)reloc[i].pbase);
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
+
+int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
+{
+	void *vaddr = NULL, *stack, *paddr;
+	size_t memsz = 0, filesz = 0;
+	offs_t offs = 0;
+	Elf32_Ehdr *ehdr;
+	Elf32_Phdr *phdr;
+	Elf32_Shdr *shdr;
+	unsigned prot, flags, misalign = 0;
+	int i, j, relocsz = 0;
+	char **uargv, *snameTab;
+	ptr_t *got;
+	struct _reloc reloc[4];
+
+	if (prog == NULL)
+		return -ENOEXEC;
+
+	ehdr = (void *)base;
+
+	/* Test ELF header */
+	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) || ehdr->e_shnum == 0)
+		return -ENOEXEC;
+
+	hal_memset(reloc, 0, sizeof(reloc));
+
+	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+		if (phdr->p_type != PT_LOAD)
+			continue;
+
+		vaddr = (void *)((unsigned long)phdr->p_vaddr & ~(phdr->p_align - 1));
+		offs = phdr->p_offset & ~(phdr->p_align - 1);
+		misalign = phdr->p_offset & (phdr->p_align - 1);
+		filesz = phdr->p_filesz ? phdr->p_filesz + misalign : 0;
+		memsz = phdr->p_memsz + misalign;
+
+		prot = PROT_USER;
+		flags = MAP_NONE;
+
+		if (phdr->p_flags & PF_R)
+			prot |= PROT_READ;
+
+		if (phdr->p_flags & PF_X)
+			prot |= PROT_EXEC;
+
+		if (phdr->p_flags & PF_W) {
+			prot |= PROT_WRITE;
+
+			if ((paddr = vm_mmap(process->mapp, NULL, NULL, round_page(memsz), prot, NULL, -1, flags)) == NULL)
+				return -ENOMEM;
+
+			if (filesz) {
+				if (offs + round_page(filesz) > size)
+					return -ENOEXEC;
+
+				hal_memcpy(paddr, (char *)ehdr + offs, filesz);
+			}
+
+			hal_memset((char *)paddr + filesz, 0, round_page(memsz) - filesz);
+		}
+		else {
+			paddr = (char *)ehdr + offs;
+		}
+
+		if (j > sizeof(reloc) / sizeof(reloc[0]))
+			return -ENOMEM;
+
+		reloc[j].vbase = vaddr;
+		reloc[j].pbase = paddr;
+		reloc[j].size = memsz;
+		++relocsz;
+		++j;
+	}
+
+	/* Find .got section */
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
+	shdr += ehdr->e_shstrndx;
+
+	snameTab = (char *)ehdr + shdr->sh_offset;
+
+	/* Find .got section */
+	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], ".got") == 0)
+			break;
+	}
+
+	if (i >= ehdr->e_shnum)
+		return -ENOEXEC;
+
+	got = (ptr_t *)shdr->sh_addr;
+	if (process_relocate(reloc, relocsz, (char **)&got) < 0)
+		return -ENOEXEC;
+
+	/* Perform relocations */
+	for (i = 0; i < shdr->sh_size / 4; ++i) {
+		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0)
+			return -ENOEXEC;
+	}
+
+	*entry = (void *)(unsigned long)ehdr->e_entry;
+	if (process_relocate(reloc, relocsz, (char **)entry) < 0)
+		return -ENOEXEC;
+
+	/* Allocate and map user stack */
+	if ((stack = vm_mmap(process->mapp, NULL, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
+		return -ENOMEM;
+
+	process->got = (void *)got;
+	*ustack = stack + SIZE_USTACK;
+
+	return EOK;
+}
+
+#endif
 
 void *proc_copyargs(char **args)
 {
@@ -482,222 +621,6 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 }
 
 
-#ifdef NOMMU
-struct _reloc {
-	void *vbase;
-	void *pbase;
-	size_t size;
-};
-
-
-static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
-{
-	size_t i;
-
-	for (i = 0; i < relocsz; ++i) {
-		if ((ptr_t)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
-			(*addr) = (void *)((ptr_t)(*addr) - (ptr_t)reloc[i].vbase + (ptr_t)reloc[i].pbase);
-			return 0;
-		}
-	}
-
-	return -1;
-}
-
-
-int process_load(process_t *process, syspage_program_t *prog, const char *path, int argc, char **argv, char **env, void **ustack, void **entry)
-{
-	void *vaddr = NULL, *stack, *paddr, *base;
-	size_t memsz = 0, filesz = 0, osize;
-	offs_t offs = 0;
-	Elf32_Ehdr *ehdr;
-	Elf32_Phdr *phdr;
-	Elf32_Shdr *shdr;
-	unsigned prot, flags, misalign = 0;
-	int i, j, relocsz = 0;
-	char **uargv, *snameTab;
-	ptr_t *got;
-	struct _reloc reloc[4];
-
-	if (prog == NULL)
-		return -ENOEXEC;
-
-	osize = round_page(prog->end - prog->start);
-	base = (void *)prog->start;
-
-	ehdr = base;
-
-	/* Test ELF header */
-	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) || ehdr->e_shnum == 0)
-		return -ENOEXEC;
-
-	hal_memset(reloc, 0, sizeof(reloc));
-
-	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type != PT_LOAD)
-			continue;
-
-		vaddr = (void *)((unsigned long)phdr->p_vaddr & ~(phdr->p_align - 1));
-		offs = phdr->p_offset & ~(phdr->p_align - 1);
-		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? phdr->p_filesz + misalign : 0;
-		memsz = phdr->p_memsz + misalign;
-
-		prot = PROT_USER;
-		flags = MAP_NONE;
-
-		if (phdr->p_flags & PF_R)
-			prot |= PROT_READ;
-
-		if (phdr->p_flags & PF_X)
-			prot |= PROT_EXEC;
-
-		if (phdr->p_flags & PF_W) {
-			prot |= PROT_WRITE;
-
-			if ((paddr = vm_mmap(process->mapp, NULL, NULL, round_page(memsz), prot, NULL, -1, flags)) == NULL)
-				return -ENOMEM;
-
-			if (filesz) {
-				if (offs + round_page(filesz) > osize)
-					return -ENOEXEC;
-
-				hal_memcpy(paddr, (char *)ehdr + offs, filesz);
-			}
-
-			hal_memset((char *)paddr + filesz, 0, round_page(memsz) - filesz);
-		}
-		else {
-			paddr = (char *)ehdr + offs;
-		}
-
-		if (j > sizeof(reloc) / sizeof(reloc[0]))
-			return -ENOMEM;
-
-		reloc[j].vbase = vaddr;
-		reloc[j].pbase = paddr;
-		reloc[j].size = memsz;
-		++relocsz;
-		++j;
-	}
-
-	/* Find .got section */
-	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
-	shdr += ehdr->e_shstrndx;
-
-	snameTab = (char *)ehdr + shdr->sh_offset;
-
-	/* Find .got section */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if (hal_strcmp(&snameTab[shdr->sh_name], ".got") == 0)
-			break;
-	}
-
-	if (i >= ehdr->e_shnum)
-		return -ENOEXEC;
-
-	got = (ptr_t *)shdr->sh_addr;
-	if (process_relocate(reloc, relocsz, (char **)&got) < 0)
-		return -ENOEXEC;
-
-	/* Perform relocations */
-	for (i = 0; i < shdr->sh_size / 4; ++i) {
-		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0)
-			return -ENOEXEC;
-	}
-
-	*entry = (void *)(unsigned long)ehdr->e_entry;
-	if (process_relocate(reloc, relocsz, (char **)entry) < 0)
-		return -ENOEXEC;
-
-	/* Allocate and map user stack */
-	if ((stack = vm_mmap(process->mapp, NULL, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
-		return -ENOMEM;
-
-	stack += SIZE_USTACK;
-
-	stack -= (argc + 1) * sizeof(char *);
-	uargv = stack;
-
-	/* Copy data from kernel stack */
-	for (i = 0; i < argc; ++i) {
-		memsz = hal_strlen(argv[i]) + 1;
-		hal_memcpy(stack -= memsz, argv[i], memsz);
-		uargv[i] = stack;
-	}
-
-	uargv[i] = NULL;
-
-	stack -= (unsigned long)stack & (sizeof(int) - 1);
-
-	PUTONSTACK(stack, char **, NULL); /* env */
-	PUTONSTACK(stack, char **, uargv);
-	PUTONSTACK(stack, int, argc);
-	PUTONSTACK(stack, void *, NULL); /* return address */
-
-	/* Put on stack .got base address. hal_jmp will use it to set r9 */
-	PUTONSTACK(stack, void *, got);
-	process->got = (void *)got;
-
-	*ustack = stack;
-
-	return EOK;
-}
-
-
-int process_exec(syspage_program_t *prog, process_t *process, thread_t *current, thread_t *parent, char *path, int argc, char **argv, char **envp, void *kstack)
-{
-	void *stack, *entry;
-	int err;
-
-	/* Map executable */
-	if ((err = process_load(process, prog, path, argc, argv, envp, &stack, &entry)) < 0)
-		return err;
-
-	if (parent == NULL) {
-		/* Exec into old process, clean up */
-		proc_threadsDestroy(process);
-		proc_portsDestroy(process);
-		vm_mapDestroy(process, process->mapp);
-		vm_kfree(current->execkstack);
-		current->execkstack = NULL;
-		vm_kfree(process->path);
-		if (process->argv != NULL)
-			vm_kfree(process->argv);
-	}
-
-	process->path = path;
-
-	process->sigpend = 0;
-	process->sigmask = 0;
-	process->sighandler = NULL;
-	process->path = path;
-	process->argv = argv;
-
-	resource_init(process);
-
-	if (parent == NULL)
-		process_exexepilogue(1, current, parent, entry, stack);
-
-	current->kstack = current->execkstack;
-
-	PUTONSTACK(kstack, void *, stack);
-	PUTONSTACK(kstack, void *, entry);
-	PUTONSTACK(kstack, thread_t *, parent);
-	PUTONSTACK(kstack, thread_t *, current);
-	PUTONSTACK(kstack, int, 1);
-
-	hal_jmp(process_exexepilogue, kstack, NULL, 5);
-
-	/* Not reached */
-	return 0;
-}
-
-
-#else
-
-#endif
-
 static void process_exec(thread_t *current, process_spawn_t *spawn)
 {
 	void *stack, *entry;
@@ -705,7 +628,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 
 	current->process->argv = spawn->argv;
 
-	err = process_load(current->process->mapp, spawn->object, spawn->offset, spawn->size, &stack, &entry);
+	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
 	if (!err) {
 		stack = process_putargs(stack, &spawn->envp, &count);
 		stack = process_putargs(stack, &spawn->argv, &count);
@@ -805,7 +728,6 @@ int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv)
 }
 
 
-int process_load(vm_map_t *map, syspage_program_t *prog, const char *path, int argc, char **argv, char **env, void **ustack, void **entry)
 /* (v)fork/exec/exit */
 
 static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
