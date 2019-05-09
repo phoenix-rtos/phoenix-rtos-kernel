@@ -61,6 +61,43 @@ struct {
 } posix_common;
 
 
+process_info_t *pinfo_find(unsigned int pid)
+{
+	process_info_t pi, *r;
+
+	pi.process = pid;
+
+	proc_lockSet(&posix_common.lock);
+	if ((r = lib_treeof(process_info_t, linkage, lib_rbFind(&posix_common.pid, &pi.linkage))) != NULL)
+		r->refs++;
+	proc_lockClear(&posix_common.lock);
+
+	return r;
+}
+
+
+void posix_destroy(process_info_t *p)
+{
+	// lib_printf("removing %d\n", p->process);
+	vm_kfree(p->fds);
+	proc_lockDone(&p->lock);
+	vm_kfree(p);
+}
+
+
+void pinfo_put(process_info_t *p)
+{
+	int remaining;
+
+	proc_lockSet(&posix_common.lock);
+	remaining = --p->refs;
+	proc_lockClear(&posix_common.lock);
+
+	if (!remaining)
+		posix_destroy(p);
+}
+
+
 static char *strrchr(const char *s, int c)
 {
 	const char *p = NULL;
@@ -193,43 +230,6 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 		return 1;
 
 	return 0;
-}
-
-
-process_info_t *pinfo_find(unsigned int pid)
-{
-	process_info_t pi, *r;
-
-	pi.process = pid;
-
-	proc_lockSet(&posix_common.lock);
-	if ((r = lib_treeof(process_info_t, linkage, lib_rbFind(&posix_common.pid, &pi.linkage))) != NULL)
-		r->refs++;
-	proc_lockClear(&posix_common.lock);
-
-	return r;
-}
-
-
-void posix_destroy(process_info_t *p)
-{
-	// lib_printf("removing %d\n", p->process);
-	vm_kfree(p->fds);
-	proc_lockDone(&p->lock);
-	vm_kfree(p);
-}
-
-
-void pinfo_put(process_info_t *p)
-{
-	int remaining;
-
-	proc_lockSet(&posix_common.lock);
-	remaining = --p->refs;
-	proc_lockClear(&posix_common.lock);
-
-	if (!remaining)
-		posix_destroy(p);
 }
 
 

@@ -166,6 +166,9 @@ extern int threads_getCpuTime(thread_t *t);
 extern thread_t *threads_findThread(int tid);
 
 
+extern void threads_put(thread_t *);
+
+
 extern time_t proc_uptime(void);
 
 

@@ -97,7 +97,7 @@ void main_initthr(void *unused)
 			for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				if (!hal_strcmp(cmdline + 1, prog->cmdline)) {
 					argv[0] = prog->cmdline;
-					proc_syspageSpawn(prog, prog->cmdline, proc_copyargs(argv));
+					proc_syspageSpawn(prog, prog->cmdline, argv);
 				}
 			}
 		}

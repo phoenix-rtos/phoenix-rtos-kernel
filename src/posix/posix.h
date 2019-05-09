@@ -140,7 +140,16 @@ extern int posix_setpgid(pid_t pid, pid_t pgid);
 extern pid_t posix_getpgid(pid_t pid);
 
 
+extern pid_t posix_getppid(pid_t pid);
+
+
 extern pid_t posix_setsid(void);
+
+
+extern void posix_died(pid_t pid, int exit);
+
+
+extern int posix_waitpid(pid_t child, int *status, int options);
 
 
 extern void posix_init(void);

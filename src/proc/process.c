@@ -683,7 +683,14 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 	int pid;
 	process_spawn_t spawn;
 
-	hal_spinlockCreate(&spawn.sl, "spawnsl");
+	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL)
+		return -ENOMEM;
+
+	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
+		vm_kfree(argv);
+		return -ENOMEM;
+	}
+
 	spawn.object = object;
 	spawn.offset = offset;
 	spawn.size = size;
@@ -693,6 +700,8 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 	spawn.envp = envp;
 	spawn.parent = proc_current();
 
+	hal_spinlockCreate(&spawn.sl, "spawnsl");
+
 	if ((pid = proc_start(proc_spawnThread, &spawn, path)) > 0) {
 		hal_spinlockSet(&spawn.sl);
 		spawn.state = FORKING;
@@ -700,7 +709,11 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 			proc_threadWait(&spawn.wq, &spawn.sl, 0);
 		hal_spinlockClear(&spawn.sl);
 	}
+	else {
+			vm_kfree(argv);
+	}
 
+	vm_kfree(envp);
 	hal_spinlockDestroy(&spawn.sl);
 	return spawn.state < 0 ? spawn.state : pid;
 }

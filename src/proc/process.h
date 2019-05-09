@@ -77,16 +77,34 @@ extern process_t *proc_find(unsigned int pid);
 extern int proc_put(process_t *proc);
 
 
+extern void proc_get(process_t *proc);
+
+
 extern void proc_kill(process_t *proc);
 
 
+extern void proc_reap(void);
+
+
 extern int proc_start(void (*initthr)(void *), void *arg, const char *path);
+
+
+extern int proc_fileSpawn(const char *path, char **argv, char **envp);
+
+
+extern int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv);
 
 
 extern int proc_execve(const char *path, char **argv, char **envp);
 
 
 extern int proc_vfork(void);
+
+
+extern int proc_fork(void);
+
+
+extern int proc_release(void);
 
 
 extern void proc_exit(int code);
