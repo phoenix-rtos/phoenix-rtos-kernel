@@ -98,12 +98,8 @@ static void process_destroy(process_t *p)
 	proc_portsDestroy(p);
 	proc_lockDone(&p->lock);
 
-	if (p->path != NULL)
-		vm_kfree(p->path);
-
-	if (p->argv != NULL)
-		vm_kfree(p->argv);
-
+	vm_kfree(p->path);
+	vm_kfree(p->argv);
 	vm_kfree(p);
 }
 
@@ -1027,8 +1023,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 
 	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
 		vm_kfree(kpath);
-		if (argv != NULL)
-			vm_kfree(argv);
+		vm_kfree(argv);
 		return -ENOMEM;
 	}
 
@@ -1053,8 +1048,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	spawn->offset = 0;
 	spawn->size = object->size;
 
-	if (current->process->path != NULL)
-		vm_kfree(current->process->path);
+	vm_kfree(current->process->path);
 
 	current->process->path = kpath;
 
