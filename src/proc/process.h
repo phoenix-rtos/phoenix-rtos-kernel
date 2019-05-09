@@ -35,6 +35,7 @@ typedef struct _process_t {
 
 	char *path;
 	char **argv;
+	char **envp;
 	unsigned int id;
 	rbnode_t idlinkage;
 

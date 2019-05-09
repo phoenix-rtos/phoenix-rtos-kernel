@@ -100,6 +100,7 @@ static void process_destroy(process_t *p)
 
 	vm_kfree(p->path);
 	vm_kfree(p->argv);
+	vm_kfree(p->envp);
 	vm_kfree(p);
 }
 
@@ -623,6 +624,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	int err, count;
 
 	current->process->argv = spawn->argv;
+	current->process->envp = spawn->envp;
 
 	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
 	if (!err) {
@@ -636,10 +638,9 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		PUTONSTACK(stack, void *, NULL); /* return address */
 	}
 
-	/* if execing without vfork */
 	if (spawn->parent == NULL) {
+		/* if execing without vfork */
 		hal_spinlockDestroy(&spawn->sl);
-		vm_kfree(spawn);
 	}
 	else {
 		hal_spinlockSet(&spawn->sl);
@@ -707,9 +708,9 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 	}
 	else {
 			vm_kfree(argv);
+			vm_kfree(envp);
 	}
 
-	vm_kfree(envp);
 	hal_spinlockDestroy(&spawn.sl);
 	return spawn.state < 0 ? spawn.state : pid;
 }
@@ -1001,7 +1002,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	thread_t *current;
 	char *kpath;
 	void *kstack;
-	process_spawn_t *spawn;
+	process_spawn_t sspawn, *spawn;
 
 	oid_t oid;
 	vm_object_t *object;
@@ -1034,7 +1035,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return err;
 
 	if ((spawn = current->execdata) == NULL) {
-		spawn = current->execdata = vm_kmalloc(sizeof(process_spawn_t));
+		spawn = current->execdata = &sspawn;
 		hal_spinlockCreate(&spawn->sl, "spawn");
 		spawn->wq = NULL;
 		spawn->state = FORKED;
