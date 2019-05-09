@@ -26,7 +26,7 @@ struct {
 	vm_zone_t *sizes[17];
 	vm_zone_t *used;
 	vm_zone_t firstzone;
-	
+
 	rbtree_t tree;
 
 	unsigned int hdrblocks;
@@ -120,7 +120,7 @@ int _kmalloc_addZone(u8 hdridx, u8 idx)
 	lib_rbInsert(&kmalloc_common.tree, &nz->linkage);
 
 	if (idx == hdridx)
-		kmalloc_common.hdrblocks += nz->blocks;		
+		kmalloc_common.hdrblocks += nz->blocks;
 
 	return EOK;
 }
@@ -201,12 +201,8 @@ void vm_kfree(void *p)
 
 	proc_lockSet(&kmalloc_common.lock);
 
-	for (;;) {
+	while (p != NULL)
 		p = _kmalloc_freeAtom(hdridx, p);
-
-		if (p == NULL)
-			break;
-	}
 
 	proc_lockClear(&kmalloc_common.lock);
 }
