@@ -259,6 +259,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	}
 
 	process->argv = NULL;
+	process->envp = NULL;
 	process->threads = NULL;
 	process->refs = 1;
 
