@@ -28,6 +28,7 @@ struct {
 	volatile u32 *xtalosc;
 	volatile u32 *iomuxc;
 	volatile u32 *iomuxgpr;
+	volatile u32 *iomuxsnvs;
 	volatile u32 *nvic;
 	volatile u32 *stk;
 	volatile u32 *scb;
@@ -264,12 +265,26 @@ static int _imxrt_getIOgpr(int field, unsigned int *val)
 }
 
 
-static int _imxrt_setIOmux(int mux, char sion, char mode)
+static volatile u32 *_imxrt_IOmuxGetReg(int mux)
 {
-	if (mux < pctl_mux_gpio_emc_00 || mux > pctl_mux_gpio_sd_b1_11)
+	if (mux < pctl_mux_gpio_emc_00 || mux > pctl_mux_snvs_pmic_stby_req)
+		return NULL;
+
+	if (mux >= pctl_mux_snvs_wakeup)
+		return imxrt_common.iomuxsnvs + (mux - pctl_mux_snvs_wakeup);
+
+	return imxrt_common.iomuxc + mux + 5;
+}
+
+
+int _imxrt_setIOmux(int mux, char sion, char mode)
+{
+	volatile u32 *reg;
+
+	if ((reg = _imxrt_IOmuxGetReg(mux)) == NULL)
 		return -EINVAL;
 
-	*(imxrt_common.iomuxc + mux) = (!!sion << 4) | (mode & 0xf);
+	(*reg) = (!!sion << 4) | (mode & 0xf);
 
 	return EOK;
 }
@@ -278,11 +293,12 @@ static int _imxrt_setIOmux(int mux, char sion, char mode)
 static int _imxrt_getIOmux(int mux, char *sion, char *mode)
 {
 	u32 t;
+	volatile u32 *reg;
 
-	if (mux < pctl_mux_gpio_emc_00 || mux > pctl_mux_gpio_sd_b1_11)
+	if ((reg = _imxrt_IOmuxGetReg(mux)) == NULL)
 		return -EINVAL;
 
-	t = *(imxrt_common.iomuxgpr + mux);
+	t = (*reg);
 	*sion = !!(t & (1 << 4));
 	*mode = t & 0xf;
 
@@ -290,17 +306,32 @@ static int _imxrt_getIOmux(int mux, char *sion, char *mode)
 }
 
 
-static int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre)
+static volatile u32 *_imxrt_IOpadGetReg(int pad)
+{
+	if (pad < pctl_pad_gpio_emc_00 || pad > pctl_pad_snvs_pmic_stby_req)
+		return NULL;
+
+	if (pad >= pctl_pad_snvs_test_mode)
+		return imxrt_common.iomuxsnvs + 3;
+
+	if (pad >= pctl_pad_gpio_spi_b0_00)
+		return imxrt_common.iomuxc + 429;
+
+	return imxrt_common.iomuxc + 129;
+}
+
+
+int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre)
 {
 	u32 t;
+	volatile u32 *reg;
 
-	if (pad < pctl_pad_gpio_emc_00 || pad > pctl_pad_gpio_spi_b1_07 ||
-			(pad > pctl_pad_gpio_sd_b1_11 && pad < pctl_pad_gpio_spi_b0_00))
+	if ((reg = _imxrt_IOpadGetReg(pad)) == NULL)
 		return -EINVAL;
 
 	t = (!!hys << 16) | ((pus & 0x3) << 14) | (!!pue << 13) | (!!pke << 12);
 	t |= (!!ode << 11) | ((speed & 0x3) << 6) | ((dse & 0x7) << 3) | !!sre;
-	*(imxrt_common.iomuxc + pad) = t;
+	(*reg) = t;
 
 	return EOK;
 }
@@ -309,12 +340,12 @@ static int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char
 static int _imxrt_getIOpad(int pad, char *hys, char *pus, char *pue, char *pke, char *ode, char *speed, char *dse, char *sre)
 {
 	u32 t;
+	volatile u32 *reg;
 
-	if (pad < pctl_pad_gpio_emc_00 || pad > pctl_pad_gpio_spi_b1_07 ||
-			(pad > pctl_pad_gpio_sd_b1_11 && pad < pctl_pad_gpio_spi_b0_00))
+	if ((reg = _imxrt_IOpadGetReg(pad)) == NULL)
 		return -EINVAL;
 
-	t = *(imxrt_common.iomuxc + pad);
+	t = (*reg);
 
 	*hys = (t >> 16) & 0x1;
 	*pus = (t >> 14) & 0x3;
@@ -329,13 +360,75 @@ static int _imxrt_getIOpad(int pad, char *hys, char *pus, char *pue, char *pke, 
 }
 
 
+static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
+{
+	if (isel < pctl_isel_anatop_usb_otg1_id || isel > pctl_isel_canfd_ipp_ind_canrx)
+		return NULL;
+
+	switch (isel) {
+		case pctl_isel_ccm_pmic_ready:
+		case pctl_isel_csi_hsync:
+		case pctl_isel_csi_vsync:
+		case pctl_isel_enet_mdio:
+		case pctl_isel_enet0_timer:
+		case pctl_isel_flexcan1_rx:
+		case pctl_isel_flexcan2_rx:
+		case pctl_isel_flexpwm1_pwma3:
+		case pctl_isel_flexpwm1_pwmb3:
+		case pctl_isel_flexpwm2_pwma3:
+		case pctl_isel_flexpwm2_pwmb3:
+		case pctl_isel_lpi2c3_scl:
+		case pctl_isel_lpi2c3_sda:
+		case pctl_isel_lpuart3_rx:
+		case pctl_isel_lpuart3_tx:
+		case pctl_isel_lpuart4_rx:
+		case pctl_isel_lpuart4_tx:
+		case pctl_isel_lpuart8_rx:
+		case pctl_isel_lpuart8_tx:
+		case pctl_isel_qtimer3_timer0:
+		case pctl_isel_qtimer3_timer1:
+		case pctl_isel_qtimer3_timer2:
+		case pctl_isel_qtimer3_timer3:
+		case pctl_isel_sai1_mclk2:
+		case pctl_isel_sa1_rx_bclk:
+		case pctl_isel_sai1_rx_data0:
+		case pctl_isel_sai1_rx_sync:
+		case pctl_isel_sai1_tx_bclk:
+		case pctl_isel_sai1_tx_sync:
+		case pctl_isel_usdhc1_cd_b:
+		case pctl_isel_usdhc1_wp:
+		case pctl_isel_xbar1_in17:
+		case pctl_isel_enet2_ipg_clk_rmii:
+		case pctl_isel_enet2_ipp_ind_mac0_rxdata:
+		case pctl_isel_enet2_ipp_ind_mac0_rxen:
+		case pctl_isel_enet2_ipp_ind_mac0_rxerr:
+		case pctl_isel_enet2_ipp_ind_mac0_txclk:
+		case pctl_isel_semc_i_ipp_ind_dqs4:
+		case pctl_isel_canfd_ipp_ind_canrx:
+			(*mask) = 0x3;
+			break;
+
+		default:
+			(*mask) = 0x1;
+			break;
+	}
+
+	if (isel >= pctl_isel_enet2_ipg_clk_rmii)
+		return imxrt_common.iomuxc + 451;
+
+	return imxrt_common.iomuxc + 253;
+}
+
+
 static int _imxrt_setIOisel(int isel, char daisy)
 {
-	if (isel < pctl_isel_anatop_usb_otg1_id || isel > pctl_isel_canfd_ipp_ind_canrx ||
-			(isel > pctl_isel_xbar1_in21 && isel < pctl_isel_enet2_ipg_clk_rmii))
+	volatile u32 *reg;
+	u32 mask;
+
+	if ((reg = _imxrt_IOiselGetReg(isel, &mask)) == NULL)
 		return -EINVAL;
 
-	*(imxrt_common.iomuxc + isel) = daisy & 0x7;
+	(*reg) = daisy & mask;
 
 	return EOK;
 }
@@ -343,11 +436,13 @@ static int _imxrt_setIOisel(int isel, char daisy)
 
 static int _imxrt_getIOisel(int isel, char *daisy)
 {
-	if (isel < pctl_isel_anatop_usb_otg1_id || isel > pctl_isel_canfd_ipp_ind_canrx ||
-			(isel > pctl_isel_xbar1_in21 && isel < pctl_isel_enet2_ipg_clk_rmii))
+	volatile u32 *reg;
+	u32 mask;
+
+	if ((reg = _imxrt_IOiselGetReg(isel, &mask)) == NULL)
 		return -EINVAL;
 
-	*daisy = *(imxrt_common.iomuxc + isel) & 0x7;
+	*daisy = (*reg) & mask;
 
 	return EOK;
 }
@@ -1815,40 +1910,6 @@ int _imxrt_gpioGetPort(unsigned int d, u32 *val)
 }
 
 
-/* IOMUX */
-
-
-void _imxrt_iomuxSetPinMux(int pin, u32 mode, u8 sion)
-{
-	volatile u32 *reg;
-
-	if (pin <= gpio_stby)
-		reg = (void *)(0x400a8000 + ((pin - gpio_wakeup) << 2));
-	else if (pin <= gpio_onoff)
-		return;
-	else
-		reg = (void *)(0x401f8014 + ((pin - gpio_emc_00) << 2));
-
-	*reg = (mode & 0x7) | (!!sion << 4);
-}
-
-
-void _imxrt_iomuxSetPinConfig(int pin, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8 speed, u8 dse, u8 sre)
-{
-	volatile u32 *reg;
-
-	if (pin <= gpio_stby)
-		reg = (void *)(0x400a8018 + ((pin - gpio_wakeup) << 2));
-	else if (pin <= gpio_onoff)
-		reg = (void *)(0x400a800c + ((pin - gpio_test) << 2));
-	else
-		reg = (void *)(0x401f8204 + ((pin - gpio_emc_00) << 2));
-
-	*reg = (sre & 1) | ((dse & 0x7) << 3) | ((speed & 0x7) << 6) | ((ode & 1) << 11) | ((pke & 1) << 12) |
-			((pue & 1) << 13) | ((pus & 0x3) << 14) | ((hys & 1) << 16);
-}
-
-
 /* PendSV and Systick */
 
 
@@ -1890,6 +1951,7 @@ void _imxrt_init(void)
 	imxrt_common.xtalosc = (void *)0x400d8000;
 	imxrt_common.iomuxgpr = (void *)0x400ac000;
 	imxrt_common.iomuxc = (void *)0x401f8000;
+	imxrt_common.iomuxsnvs = (void *)0x400a8000;
 	imxrt_common.nvic = (void *)0xe000e100;
 	imxrt_common.scb = (void *)0xe000ed00;
 	imxrt_common.stk = (void *)0xe000e010;
@@ -1946,7 +2008,7 @@ void _imxrt_init(void)
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 
-	_imxrt_ccmControlGate(iomuxc, clk_state_run_wait);
+	_imxrt_ccmControlGate(pctl_clk_iomuxc, clk_state_run_wait);
 
 	_imxrt_ccmSetMux(clk_mux_periphclk2, 0x1);
 	_imxrt_ccmSetMux(clk_mux_periph, 0x1);

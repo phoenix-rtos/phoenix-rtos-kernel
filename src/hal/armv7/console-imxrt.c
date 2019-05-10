@@ -17,6 +17,7 @@
 #include "console.h"
 #include "imxrt.h"
 #include "../../../include/errno.h"
+#include "../../../include/arch/imxrt.h"
 
 
 struct {
@@ -54,14 +55,14 @@ void _hal_consoleInit(void)
 
 	console_common.uart = (void *)0x40184000;
 
-	_imxrt_iomuxSetPinMux(gpio_ad_b0_12, 2, 0);
-	_imxrt_iomuxSetPinMux(gpio_ad_b0_13, 2, 0);
-	_imxrt_iomuxSetPinConfig(gpio_ad_b0_12, 0, 0, 0, 1, 0, 2, 6, 0);
-	_imxrt_iomuxSetPinConfig(gpio_ad_b0_13, 0, 0, 0, 1, 0, 2, 6, 0);
+	_imxrt_setIOmux(pctl_mux_gpio_ad_b0_12, 2, 0);
+	_imxrt_setIOmux(pctl_mux_gpio_ad_b0_13, 2, 0);
+	_imxrt_setIOpad(pctl_pad_gpio_ad_b0_12, 0, 0, 0, 1, 0, 2, 6, 0);
+	_imxrt_setIOpad(pctl_pad_gpio_ad_b0_13, 0, 0, 0, 1, 0, 2, 6, 0);
 
 	_imxrt_ccmSetMux(clk_mux_uart, 0);
 	_imxrt_ccmSetDiv(clk_div_uart, 0);
-	_imxrt_ccmControlGate(lpuart1, clk_state_run_wait);
+	_imxrt_ccmControlGate(pctl_clk_lpuart1, clk_state_run_wait);
 
 	/* Reset all internal logic and registers, except the Global Register */
 	*(console_common.uart + uart_global) |= 1 << 1;

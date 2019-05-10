@@ -61,6 +61,10 @@ enum {
 };
 
 
+/* Peripheral clock modes */
+enum { clk_state_off = 0, clk_state_run, clk_state_run_wait = 3 };
+
+
 /* IOMUX - GPR */
 enum {
 	/* IOMUXC_GPR_GPR1 */
@@ -218,7 +222,7 @@ enum {
 
 /* IOMUX - MUX */
 enum {
-	pctl_mux_gpio_emc_00 = 5, pctl_mux_gpio_emc_01, pctl_mux_gpio_emc_02, pctl_mux_gpio_emc_03,
+	pctl_mux_gpio_emc_00 = 0, pctl_mux_gpio_emc_01, pctl_mux_gpio_emc_02, pctl_mux_gpio_emc_03,
 	pctl_mux_gpio_emc_04, pctl_mux_gpio_emc_05, pctl_mux_gpio_emc_06, pctl_mux_gpio_emc_07,
 	pctl_mux_gpio_emc_08, pctl_mux_gpio_emc_09, pctl_mux_gpio_emc_10, pctl_mux_gpio_emc_11,
 	pctl_mux_gpio_emc_12, pctl_mux_gpio_emc_13, pctl_mux_gpio_emc_14, pctl_mux_gpio_emc_15,
@@ -248,13 +252,15 @@ enum {
 	pctl_mux_gpio_sd_b0_02, pctl_mux_gpio_sd_b0_03, pctl_mux_gpio_sd_b0_04, pctl_mux_gpio_sd_b0_05,
 	pctl_mux_gpio_sd_b1_00, pctl_mux_gpio_sd_b1_01, pctl_mux_gpio_sd_b1_02, pctl_mux_gpio_sd_b1_03,
 	pctl_mux_gpio_sd_b1_04, pctl_mux_gpio_sd_b1_05, pctl_mux_gpio_sd_b1_06, pctl_mux_gpio_sd_b1_07,
-	pctl_mux_gpio_sd_b1_08, pctl_mux_gpio_sd_b1_09, pctl_mux_gpio_sd_b1_10, pctl_mux_gpio_sd_b1_11
+	pctl_mux_gpio_sd_b1_08, pctl_mux_gpio_sd_b1_09, pctl_mux_gpio_sd_b1_10, pctl_mux_gpio_sd_b1_11,
+
+	pctl_mux_snvs_wakeup, pctl_mux_snvs_pmic_on_req, pctl_mux_snvs_pmic_stby_req
 };
 
 
 /* IOMUX - PAD */
 enum {
-	pctl_pad_gpio_emc_00 = 129, pctl_pad_gpio_emc_01, pctl_pad_gpio_emc_02, pctl_pad_gpio_emc_03,
+	pctl_pad_gpio_emc_00 = 0, pctl_pad_gpio_emc_01, pctl_pad_gpio_emc_02, pctl_pad_gpio_emc_03,
 	pctl_pad_gpio_emc_04, pctl_pad_gpio_emc_05, pctl_pad_gpio_emc_06, pctl_pad_gpio_emc_07,
 	pctl_pad_gpio_emc_08, pctl_pad_gpio_emc_09, pctl_pad_gpio_emc_10, pctl_pad_gpio_emc_11,
 	pctl_pad_gpio_emc_12, pctl_pad_gpio_emc_13, pctl_pad_gpio_emc_14, pctl_pad_gpio_emc_15,
@@ -286,18 +292,21 @@ enum {
 	pctl_pad_gpio_sd_b1_04, pctl_pad_gpio_sd_b1_05, pctl_pad_gpio_sd_b1_06, pctl_pad_gpio_sd_b1_07,
 	pctl_pad_gpio_sd_b1_08, pctl_pad_gpio_sd_b1_09, pctl_pad_gpio_sd_b1_10, pctl_pad_gpio_sd_b1_11,
 
-	pctl_pad_gpio_spi_b0_00 = 429, pctl_pad_gpio_spi_b0_01, pctl_pad_gpio_spi_b0_02, pctl_pad_gpio_spi_b0_03,
+	pctl_pad_gpio_spi_b0_00, pctl_pad_gpio_spi_b0_01, pctl_pad_gpio_spi_b0_02, pctl_pad_gpio_spi_b0_03,
 	pctl_pad_gpio_spi_b0_04, pctl_pad_gpio_spi_b0_05, pctl_pad_gpio_spi_b0_06, pctl_pad_gpio_spi_b0_07,
 	pctl_pad_gpio_spi_b0_08, pctl_pad_gpio_spi_b0_09, pctl_pad_gpio_spi_b0_10, pctl_pad_gpio_spi_b0_11,
 	pctl_pad_gpio_spi_b0_12, pctl_pad_gpio_spi_b0_13, pctl_pad_gpio_spi_b1_00, pctl_pad_gpio_spi_b1_01,
 	pctl_pad_gpio_spi_b1_02, pctl_pad_gpio_spi_b1_03, pctl_pad_gpio_spi_b1_04, pctl_pad_gpio_spi_b1_05,
-	pctl_pad_gpio_spi_b1_06, pctl_pad_gpio_spi_b1_07
+	pctl_pad_gpio_spi_b1_06, pctl_pad_gpio_spi_b1_07,
+
+	pctl_pad_snvs_test_mode, pctl_pad_snvs_por_b, pctl_pad_snvs_onoff, pctl_pad_snvs_wakeup,
+	pctl_pad_snvs_pmic_on_req, pctl_pad_snvs_pmic_stby_req
 };
 
 
 /* IOMUX - DAISY */
 enum {
-	pctl_isel_anatop_usb_otg1_id = 253, pctl_isel_anatop_usb_otg2_id, pctl_isel_ccm_pmic_ready,
+	pctl_isel_anatop_usb_otg1_id = 0, pctl_isel_anatop_usb_otg2_id, pctl_isel_ccm_pmic_ready,
 	pctl_isel_csi_data02, pctl_isel_csi_data03, pctl_isel_csi_data04, pctl_isel_csi_data05,
 	pctl_isel_csi_data06, pctl_isel_csi_data07, pctl_isel_csi_data08, pctl_isel_csi_data09,
 	pctl_isel_csi_hsync, pctl_isel_csi_pixclk, pctl_isel_csi_vsync, pctl_isel_enet_ipg_clk_rmi,
@@ -336,9 +345,10 @@ enum {
 	pctl_isel_xbar1_in09, pctl_isel_xbar1_in17, pctl_isel_xbar1_in18, pctl_isel_xbar1_in20,
 	pctl_isel_xbar1_in22, pctl_isel_xbar1_in23, pctl_isel_xbar1_in24, pctl_isel_xbar1_in14,
 	pctl_isel_xbar1_in15, pctl_isel_xbar1_in16, pctl_isel_xbar1_in25, pctl_isel_xbar1_in19,
-	pctl_isel_xbar1_in21, pctl_isel_enet2_ipg_clk_rmii = 451, pctl_isel_enet2_ipp_ind_mac0_mdio,
-	pctl_isel_enet2_ipp_ind_mac0_rxdata, pctl_isel_enet2_ipp_ind_mac0_rxen,
-	pctl_isel_enet2_ipp_ind_mac0_rxerr, pctl_isel_enet2_ipp_ind_mac0_timer,
+	pctl_isel_xbar1_in21,
+
+	pctl_isel_enet2_ipg_clk_rmii, pctl_isel_enet2_ipp_ind_mac0_mdio, pctl_isel_enet2_ipp_ind_mac0_rxdata,
+	pctl_isel_enet2_ipp_ind_mac0_rxen, pctl_isel_enet2_ipp_ind_mac0_rxerr, pctl_isel_enet2_ipp_ind_mac0_timer,
 	pctl_isel_enet2_ipp_ind_mac0_txclk, pctl_isel_gpt1_ipp_ind_capin1, pctl_isel_gpt1_ipp_ind_capin2,
 	pctl_isel_gpt1_ipp_ind_clkin, pctl_isel_gpt2_ipp_ind_capin1, pctl_isel_gpt2_ipp_ind_capin2,
 	pctl_isel_gpt2_ipp_ind_clkin, pctl_isel_sai3_ipg_clk_sai_mclk, pctl_isel_sai3_ipp_ind_sai_rxbclk,

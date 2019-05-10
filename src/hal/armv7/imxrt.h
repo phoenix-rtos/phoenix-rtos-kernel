@@ -22,24 +22,7 @@
 
 /* iMXRT peripherals */
 
-/* GPIO pins */
-enum { gpio_wakeup = 0, gpio_on, gpio_stby, gpio_test, gpio_por, gpio_onoff, gpio_emc_00, gpio_emc_01, gpio_emc_02,
-	gpio_emc_03, gpio_emc_04, gpio_emc_05, gpio_emc_06, gpio_emc_07, gpio_emc_08, gpio_emc_09, gpio_emc_10,
-	gpio_emc_11, gpio_emc_12, gpio_emc_13, gpio_emc_14, gpio_emc_15, gpio_emc_16, gpio_emc_17, gpio_emc_18,
-	gpio_emc_19, gpio_emc_20, gpio_emc_21, gpio_emc_22, gpio_emc_23, gpio_emc_24, gpio_emc_25, gpio_emc_26,
-	gpio_emc_27, gpio_emc_28, gpio_emc_29, gpio_emc_30, gpio_emc_31, gpio_emc_32, gpio_emc_33, gpio_emc_34,
-	gpio_emc_35, gpio_emc_36, gpio_emc_37, gpio_emc_38, gpio_emc_39, gpio_emc_40, gpio_emc_41, gpio_ad_b0_00,
-	gpio_ad_b0_01, gpio_ad_b0_02, gpio_ad_b0_03, gpio_ad_b0_04, gpio_ad_b0_05, gpio_ad_b0_06, gpio_ad_b0_07,
-	gpio_ad_b0_08, gpio_ad_b0_09, gpio_ad_b0_10, gpio_ad_b0_11, gpio_ad_b0_12, gpio_ad_b0_13, gpio_ad_b0_14,
-	gpio_ad_b0_15, gpio_ad_b1_00, gpio_ad_b1_01, gpio_ad_b1_02, gpio_ad_b1_03, gpio_ad_b1_04, gpio_ad_b1_05,
-	gpio_ad_b1_06, gpio_ad_b1_07, gpio_ad_b1_08, gpio_ad_b1_09, gpio_ad_b1_10, gpio_ad_b1_11, gpio_ad_b1_12,
-	gpio_ad_b1_13, gpio_ad_b1_14, gpio_ad_b1_15, gpio_b0_00, gpio_b0_01, gpio_b0_02, gpio_b0_03, gpio_b0_04,
-	gpio_b0_05, gpio_b0_06, gpio_b0_07, gpio_b0_08, gpio_b0_09, gpio_b0_10, gpio_b0_11, gpio_b0_12, gpio_b0_13,
-	gpio_b0_14, gpio_b0_15, gpio_b1_00, gpio_b1_01, gpio_b1_02, gpio_b1_03, gpio_b1_04, gpio_b1_05, gpio_b1_06,
-	gpio_b1_07, gpio_b1_08, gpio_b1_09, gpio_b1_10, gpio_b1_11, gpio_b1_12, gpio_b1_13, gpio_b1_14, gpio_b1_15,
-	gpio_sd_b0_00, gpio_sd_b0_01, gpio_sd_b0_02, gpio_sd_b0_03, gpio_sd_b0_04, gpio_sd_b0_05, gpio_sd_b1_00,
-	gpio_sd_b1_01, gpio_sd_b1_02, gpio_sd_b1_03, gpio_sd_b1_04, gpio_sd_b1_05, gpio_sd_b1_06, gpio_sd_b1_07,
-	gpio_sd_b1_08, gpio_sd_b1_09, gpio_sd_b1_10, gpio_sd_b1_11 };
+enum { gpio1 = 0, gpio2, gpio3, gpio4, gpio5 };
 
 
 /* Clock and PLL management */
@@ -68,29 +51,8 @@ enum { clk_div_arm = 0, clk_div_periphclk2, clk_div_semc, clk_div_ahb, clk_div_i
 	clk_div_flexio1pre, clk_div_flexio1, clk_div_lpi2c, clk_div_lcdif1pre, clk_div_csi };
 
 
-/* Peripherals */
-enum { aips_tz1 = 0, aips_tz2, dcp = 5, lpuart3, can1, can1s, can2, can2s, trace, gpt2, gpt2s, lpuart2, gpio2,
-	lpspi1, lpspi2, lpspi3, lpspi4, adc_5hc, enet, pit, aoi2, adc1, gpt1 = 26, gpt1s, lpuart4, gpio1, csu, gpio5,
-	csi = 33, iomuxcsnvs, lpi2c1, lpi2c2, lpi2c3, ocotp, xbar3, ipmux1, ipmux2, ipmux3, xbar1, xbar2, gpio3, lcd, pxp,
-	flexio2, lpuart5, semc, lpuart6, aoi1, lcdpixel, gpio4, ewm, wdog1, flexram, acmp1, acmp2, acmp3, acmp4, ocram, iomuxcsnvsgpr,
-	iomuxc = 65, iomuxcgpr, bee, simm7, tscdig, simm, simems, pwm1, pwm2, pwm3, pwm4, enc1, enc2, enc3, enc4,
-	rom, flexio1, wdog3, dma, kpp, wdog2, aips_tz4, spdif, simmain, sai1, sai2, sai3, lpuart1, lpuart7, snvshp, snvslp,
-	usb0h3, usdhc1, usdhc2, dcdc, ipmux4, flexspi, trng, lpuart8, timer4, aips_tz3, simper, anadig, lpi2c4, timer1, timer2, timer3 };
-
-
-/* Peripheral clock modes */
-enum { clk_state_off = 0, clk_state_run, clk_state_run_wait = 3 };
-
-
 /* CPU modes */
 enum { clk_mode_run = 0, clk_mode_wait, clk_mode_stop };
-
-
-/* LCD interface */
-enum { lcd_RAW8 = 0, lcd_RGB565, lcd_RGB666, lcd_ARGB888, lcd_RGB888 };
-
-
-enum { lcd_bus8 = 0, lcd_bus16, lcd_bus18, lcd_bus24 };
 
 
 extern int hal_platformctl(void *ptr);
@@ -264,25 +226,10 @@ extern int _imxrt_gpioGet(unsigned int d, u8 pin, u8 *val);
 extern int _imxrt_gpioGetPort(unsigned int d, u32 *val);
 
 
-extern void _imxrt_iomuxSetPinMux(int pin, u32 mode, u8 sion);
+extern int _imxrt_setIOmux(int mux, char sion, char mode);
 
 
-extern void _imxrt_iomuxSetPinConfig(int pin, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8 speed, u8 dse, u8 sre);
-
-
-extern void _imxrt_lcdInit(void);
-
-
-extern void _imxrt_lcdSetTiming(u16 width, u16 height, u32 flags, u8 hsw, u8 hfp, u8 hbp, u8 vsw, u8 vfp, u8 vbp);
-
-
-extern int _imxrt_lcdSetConfig(int format, int bus);
-
-
-extern void _imxrt_lcdSetBuffer(void * buffer);
-
-
-extern void _imxrt_lcdStart(void * buffer);
+extern int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre);
 
 
 extern void _imxrt_invokePendSV(void);
