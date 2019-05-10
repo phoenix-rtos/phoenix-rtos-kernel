@@ -99,19 +99,15 @@ void _timer_init(u32 interval)
 
 	hal_spinlockCreate(&timer_common.lock, "timer");
 
-	timer_common.wakeuph.cond = NULL;
 	timer_common.wakeuph.data = NULL;
 	timer_common.wakeuph.n = HPTIMER_IRQ;
 	timer_common.wakeuph.f = timer_wakeupIrqHandler;
-	timer_common.wakeuph.process = NULL;
 
 	hal_interruptsSetHandler(&timer_common.wakeuph);
 
-	timer_common.timerh.cond = NULL;
 	timer_common.timerh.data = NULL;
 	timer_common.timerh.n = 87;
 	timer_common.timerh.f = timer_overflowIrqHandler;
-	timer_common.timerh.process = NULL;
 
 	hal_interruptsSetHandler(&timer_common.timerh);
 

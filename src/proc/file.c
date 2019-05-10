@@ -22,6 +22,7 @@
 
 int proc_fileAdd(unsigned int *h, oid_t *oid, unsigned mode)
 {
+#if 0
 	process_t *process;
 	resource_t *r;
 
@@ -35,12 +36,14 @@ int proc_fileAdd(unsigned int *h, oid_t *oid, unsigned mode)
 	r->fd->mode = mode;
 	resource_put(process, r);
 
+#endif
 	return EOK;
 }
 
 
 int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs, unsigned mode)
 {
+#if 0
 	process_t *process;
 	resource_t *r;
 
@@ -62,12 +65,14 @@ int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs, unsigned m
 		r->fd->mode = mode;
 
 	resource_put(process, r);
+#endif
 	return EOK;
 }
 
 
 int proc_fileGet(unsigned int h, char flags, oid_t *oid, offs_t *offs, unsigned *mode)
 {
+#if 0
 	process_t *process;
 	resource_t *r;
 
@@ -91,12 +96,14 @@ int proc_fileGet(unsigned int h, char flags, oid_t *oid, offs_t *offs, unsigned 
 		*mode = r->fd->mode;
 
 	resource_put(process, r);
+#endif
 	return EOK;
 }
 
 
 int proc_fileRemove(unsigned int h)
 {
+#if 0
 	process_t *process;
 	resource_t *r;
 
@@ -111,15 +118,18 @@ int proc_fileRemove(unsigned int h)
 	}
 
 	resource_free(r);
+#endif
 	return EOK;
 }
 
 
 int proc_fileCopy(resource_t *dst, resource_t *src)
 {
+#if 0
 	dst->type = rtFile;
 	hal_memcpy(&dst->fd->oid, &src->fd->oid, sizeof(oid_t));
 	dst->fd->offs = src->fd->offs;
 	dst->fd->mode = src->fd->mode;
+#endif
 	return EOK;
 }

@@ -29,40 +29,47 @@ static int resource_cmp(rbnode_t *n1, rbnode_t *n2)
 	resource_t *r1 = lib_treeof(resource_t, linkage, n1);
 	resource_t *r2 = lib_treeof(resource_t, linkage, n2);
 
-	return (r1->id - r2->id);
+	return (r1->id > r2->id) - (r1->id < r2->id);
 }
 
 
-static int resource_gapcmp(rbnode_t *n1, rbnode_t *n2)
+static unsigned _resource_alloc(rbtree_t *tree, unsigned id)
 {
-	resource_t *r1 = lib_treeof(resource_t, linkage, n1);
-	resource_t *r2 = lib_treeof(resource_t, linkage, n2);
-	rbnode_t *child = NULL;
-	int ret = 1;
+	resource_t *r = lib_treeof(resource_t, linkage, tree->root);
 
-	if (r1->lmaxgap > 0 && r1->rmaxgap > 0) {
-		if (r2->id > r1->id) {
-			child = n1->right;
-			ret = -1;
+	while (r != NULL) {
+		if (r->lgap && id < r->id) {
+			if (r->linkage.left == NULL)
+				return max(id, r->id - r->lgap);
+
+			r = lib_treeof(resource_t, linkage, r->linkage.left);
+			continue;
 		}
-		else {
-			child = n1->left;
-			ret = 1;
+
+		if (r->rgap) {
+			if (r->linkage.right == NULL)
+				return max(id, r->id + 1);
+
+			r = lib_treeof(resource_t, linkage, r->linkage.right);
+			continue;
 		}
-	}
-	else if (r1->lmaxgap > 0) {
-		child = n1->left;
-		ret = 1;
-	}
-	else if (r1->rmaxgap > 0) {
-		child = n1->right;
-		ret = -1;
+
+		for (;; r = lib_treeof(resource_t, linkage, r->linkage.parent)) {
+			if (r->linkage.parent == NULL)
+				return NULL;
+
+			if ((r == lib_treeof(resource_t, linkage, r->linkage.parent->left)) && lib_treeof(resource_t, linkage, r->linkage.parent)->rgap)
+				break;
+		}
+		r = lib_treeof(resource_t, linkage, r->linkage.parent);
+
+		if (r->linkage.right == NULL)
+			return r->id + 1;
+
+		r = lib_treeof(resource_t, linkage, r->linkage.right);
 	}
 
-	if (child == NULL)
-		return 0;
-
-	return ret;
+	return id;
 }
 
 
@@ -79,11 +86,11 @@ static void resource_augment(rbnode_t *node)
 				break;
 		}
 
-		n->lmaxgap = (n->id <= p->id) ? n->id : n->id - p->id - 1;
+		n->lgap = !!((n->id <= p->id) ? n->id : n->id - p->id - 1);
 	}
 	else {
 		l = lib_treeof(resource_t, linkage, node->left);
-		n->lmaxgap = max(l->lmaxgap, l->rmaxgap);
+		n->lgap = max((int)l->lgap, (int)l->rgap);
 	}
 
 	if (node->right == NULL) {
@@ -93,11 +100,11 @@ static void resource_augment(rbnode_t *node)
 				break;
 		}
 
-		n->rmaxgap = (n->id >= p->id) ? (unsigned)-1 - n->id - 1 : p->id - n->id - 1;
+		n->rgap = !!((n->id >= p->id) ? MAX_PID - n->id - 1 : p->id - n->id - 1);
 	}
 	else {
 		r = lib_treeof(resource_t, linkage, node->right);
-		n->rmaxgap = max(r->lmaxgap, r->rmaxgap);
+		n->rgap = max((int)r->lgap, (int)r->rgap);
 	}
 
 	for (it = node; it->parent != NULL; it = it->parent) {
@@ -105,277 +112,178 @@ static void resource_augment(rbnode_t *node)
 		p = lib_treeof(resource_t, linkage, it->parent);
 
 		if (it->parent->left == it)
-			p->lmaxgap = max(n->lmaxgap, n->rmaxgap);
+			p->lgap = max((int)n->lgap, (int)n->rgap);
 		else
-			p->rmaxgap = max(n->lmaxgap, n->rmaxgap);
+			p->rgap = max((int)n->lgap, (int)n->rgap);
 	}
 }
 
 
-resource_t *resource_alloc(process_t *process, unsigned int *id, int type)
+unsigned resource_alloc(process_t *process, resource_t *r, int type)
+{
+	r->type = type;
+	r->refs = 2;
+
+	proc_lockSet(&process->lock);
+	r->id = _resource_alloc(&process->resources, 1);
+	lib_rbInsert(&process->resources, &r->linkage);
+	proc_lockClear(&process->lock);
+
+	return r->id;
+}
+
+
+resource_t *resource_get(process_t *process, int type, unsigned int id)
 {
 	resource_t *r, t;
+	t.id = id;
 
-	proc_lockSet(process->rlock);
-
-	if (process->resources->root != NULL) {
-		t.id = 0;
-		r = lib_treeof(resource_t, linkage, lib_rbFindEx(process->resources->root, &t.linkage, resource_gapcmp));
-		if (r != NULL) {
-			if (r->lmaxgap > 0)
-				*id = r->id - 1;
-			else
-				*id = r->id + 1;
-		}
-		else {
-			proc_lockClear(process->rlock);
-			return NULL;
-		}
-	}
-
-	if ((r = (resource_t *)vm_kmalloc(sizeof(resource_t))) == NULL) {
-		proc_lockClear(process->rlock);
-		return NULL;
-	}
-
-	switch (type) {
-	case rtLock:
-		if ((r->lock = vm_kmalloc(sizeof(lock_t))) == NULL) {
-			vm_kfree(r);
-			proc_lockClear(process->rlock);
-			return NULL;
-		}
-		break;
-
-	case rtCond:
-		r->waitq = NULL;
-		break;
-
-	case rtFile:
-		if ((r->fd = vm_kmalloc(sizeof(fd_t))) == NULL) {
-			vm_kfree(r);
-			proc_lockClear(process->rlock);
-			return NULL;
-		}
-		break;
-
-	case rtInth:
-		if ((r->inth = vm_kmalloc(sizeof(intr_handler_t))) == NULL) {
-			vm_kfree(r);
-			proc_lockClear(process->rlock);
-			return NULL;
-		}
-		break;
-
-	default:
-		vm_kfree(r);
-		proc_lockClear(process->rlock);
-		return NULL;
-	}
-
-	r->id = *id;
-	r->refs = 1;
-	r->type = type;
-
-	lib_rbInsert(process->resources, &r->linkage);
-	proc_lockClear(process->rlock);
+	proc_lockSet(&process->lock);
+	if ((r = lib_treeof(resource_t, linkage, lib_rbFind(&process->resources, &t.linkage))) != NULL && r->type == type)
+		lib_atomicIncrement(&r->refs);
+	proc_lockClear(&process->lock);
 
 	return r;
 }
 
 
-int proc_resourcesCopy(process_t *src)
+int resource_put(resource_t *r)
 {
-	rbnode_t *n;
-	resource_t *r, *d = NULL;
-	process_t *process;
-	int err = EOK;
-
-	process = proc_current()->process;
-
-	proc_lockSet(&src->lock);
-	for (n = lib_rbMinimum(src->resources->root); n != NULL; n = lib_rbNext(n)) {
-		r = lib_treeof(resource_t, linkage, n);
-
-		if (d == NULL && (d = vm_kmalloc(sizeof(resource_t))) == NULL) {
-			err = -ENOMEM;
-			break;
-		}
-
-		d->id = r->id;
-		d->refs = 0;
-
-		switch (r->type) {
-		case rtLock:
-			if ((d->lock = vm_kmalloc(sizeof(lock_t))) == NULL)
-				err = -ENOMEM;
-			else
-				err = proc_mutexCopy(d, r);
-			break;
-		case rtCond:
-			err = proc_condCopy(d, r);
-			break;
-		case rtFile:
-			if ((d->fd = vm_kmalloc(sizeof(fd_t))) == NULL)
-				err = -ENOMEM;
-			else if (!(err = proc_fileCopy(d, r)))
-				proc_open(d->fd->oid, d->fd->mode);
-			break;
-		case rtInth:
-			err = 1; /* Don't copy interrupt handlers */
-			d->inth = NULL;
-			break;
-		}
-
-		if (err == EOK) {
-			lib_rbInsert(process->resources, &d->linkage);
-			d = NULL;
-		}
-		else if (err > 0) {
-			err = EOK;
-			continue;
-		}
-		else {
-			break;
-		}
-	}
-	proc_lockClear(&src->lock);
-
-	if (d != NULL) {
-		if (d->type == rtLock && d->lock != NULL)
-			vm_kfree(d->lock);
-		else if (d->type == rtFile && d->fd != NULL)
-			vm_kfree(d->fd);
-		else if (d->type == rtInth && d->inth != NULL)
-			vm_kfree(d->inth);
-
-		vm_kfree(d);
-	}
-
-	return err;
+	return lib_atomicDecrement(&r->refs);
 }
 
 
-int resource_free(resource_t *r)
+void resource_unlink(process_t *process, resource_t *r)
 {
-	process_t *process;
+	proc_lockSet(&process->lock);
+	lib_atomicDecrement(&r->refs);
+	lib_rbRemove(&process->resources, &r->linkage);
+	proc_lockClear(&process->lock);
+}
 
-	process = proc_current()->process;
 
-	proc_lockSet(process->rlock);
+resource_t *resource_remove(process_t *process, unsigned id)
+{
+	resource_t *r, t;
+	t.id = id;
 
-	if (r->refs > 1) {
-		proc_lockClear(process->rlock);
-		return -EBUSY;
-	}
+	proc_lockSet(&process->lock);
+	if ((r = lib_treeof(resource_t, linkage, lib_rbFind(&process->resources, &t.linkage))) != NULL)
+		lib_rbRemove(&process->resources, &r->linkage);
+	proc_lockClear(&process->lock);
+
+	return r;
+}
+
+
+resource_t *resource_removeNext(process_t *process)
+{
+	resource_t *r;
+
+	proc_lockSet(&process->lock);
+	if ((r = lib_treeof(resource_t, linkage, lib_rbMinimum(process->resources.root))) != NULL)
+		lib_rbRemove(&process->resources, &r->linkage);
+	proc_lockClear(&process->lock);
+
+	return r;
+}
+
+
+void _resource_init(process_t *process)
+{
+	lib_rbInit(&process->resources, resource_cmp, resource_augment);
+}
+
+
+int proc_resourcePut(resource_t *r)
+{
+	int rem = -EINVAL;
 
 	switch (r->type) {
 	case rtLock:
-		proc_lockDone(r->lock);
-		vm_kfree(r->lock);
+		rem = mutex_put(resourceof(mutex_t, resource, r));
 		break;
-	case rtFile:
-		/* proc_close? */
-		vm_kfree(r->fd);
+
+	case rtCond:
+		rem = cond_put(resourceof(cond_t, resource, r));
 		break;
+
 	case rtInth:
-		hal_interruptsDeleteHandler(r->inth);
-		vm_kfree(r->inth);
-		break;
-	default:
+		rem = userintr_put(resourceof(userintr_t, resource, r));
 		break;
 	}
 
-	lib_rbRemove(process->resources, &r->linkage);
-	proc_lockClear(process->rlock);
+	return rem;
+}
 
-	vm_kfree(r);
+
+int proc_resourceDestroy(process_t *process, unsigned id)
+{
+	resource_t *r;
+
+	if ((r = resource_remove(process, id)) == NULL)
+		return -EINVAL;
+
+	if (proc_resourcePut(r))
+		return -EBUSY;
 
 	return EOK;
 }
 
 
-void proc_resourcesFree(process_t *proc)
+void proc_resourcesDestroy(process_t *process)
 {
-	rbnode_t *n;
 	resource_t *r;
 
-	/* Don't free if they share parent's resources */
-	if (proc->resources != &proc->resourcetree)
-		return;
+	while ((r = resource_removeNext(process)))
+		proc_resourcePut(r);
+}
 
-	proc_lockSet(proc->rlock);
-	for (n = proc->resources->root; n != NULL;
-	     proc_lockSet(proc->rlock), n = proc->resources->root) {
-		lib_rbRemove(proc->resources, n);
+
+int proc_resourcesCopy(process_t *source)
+{
+	process_t *process = proc_current()->process;
+	rbnode_t *n;
+	resource_t *r, *newr;
+	int err = EOK;
+
+	proc_lockSet(&source->lock);
+	for (n = lib_rbMinimum(source->resources.root); n != NULL; n = lib_rbNext(n)) {
 		r = lib_treeof(resource_t, linkage, n);
-		proc_lockClear(proc->rlock);
 
 		switch (r->type) {
-		case rtFile:
-			proc_close(r->fd->oid, r->fd->mode);
-			vm_kfree(r->fd);
-			break;
 		case rtLock:
-			proc_lockDone(r->lock);
-			vm_kfree(r->lock);
+			err = proc_mutexCreate();
 			break;
+
+		case rtCond:
+			err = proc_condCreate();
+			break;
+
 		case rtInth:
-			hal_interruptsDeleteHandler(r->inth);
-			vm_kfree(r->inth);
+			/* Don't copy interrupt handlers */
+			err = EOK;
 			break;
+
 		default:
+			err = -EINVAL;
 			break;
 		}
 
-		vm_kfree(r);
+		if (err > 0 && err != r->id) {
+			/* Reinsert resource to match original resource id */
+			newr = resource_remove(process, err);
+			newr->id = r->id;
+			err = lib_rbInsert(&process->resources, &newr->linkage);
+		}
+
+		if (err < 0)
+			break;
 	}
-	proc_lockClear(proc->rlock);
-}
+	proc_lockClear(&source->lock);
 
+	if (err > 0)
+		err = EOK;
 
-resource_t *resource_get(process_t *process, unsigned int id)
-{
-	resource_t *r, t;
-
-	t.id = id;
-
-	proc_lockSet(process->rlock);
-	if ((r = lib_treeof(resource_t, linkage, lib_rbFind(process->resources, &t.linkage))) != NULL)
-		r->refs++;
-	proc_lockClear(process->rlock);
-
-	return r;
-}
-
-
-void resource_put(process_t *process, resource_t *r)
-{
-	proc_lockSet(process->rlock);
-	if (r->refs)
-		r->refs--;
-	proc_lockClear(process->rlock);
-	return;
-}
-
-
-int proc_resourceFree(unsigned int h)
-{
-	process_t *process;
-	resource_t *r;
-
-	process = proc_current()->process;
-
-	if ((r = resource_get(process, h)) == NULL)
-		return -EINVAL;
-
-	return resource_free(r);
-}
-
-
-void resource_init(process_t *process)
-{
-	lib_rbInit(&process->resourcetree, resource_cmp, resource_augment);
-	process->resources = &process->resourcetree;
-	process->rlock = &process->lock;
+	return err;
 }

@@ -15,73 +15,50 @@
 
 #include "resource.h"
 #include "userintr.h"
+#include "cond.h"
 #include "../lib/lib.h"
 #include "proc.h"
 
 
 struct {
-	intr_handler_t *volatile active;
+	userintr_t *volatile active;
 } userintr_common;
 
 
-int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, unsigned int cond, unsigned int *h)
+int userintr_put(userintr_t *ui)
 {
-	resource_t *r, *t;
-	process_t *p = proc_current()->process;
-	int res;
-	unsigned int th;
+	int rem;
 
-	/* Pass temporary variable to resource_alloc if no handle storage is provided */
-	if (h == NULL)
-		h = &th;
+	if (!(rem = resource_put(&ui->resource))) {
+		hal_interruptsDeleteHandler(&ui->handler);
 
-	if ((r = resource_alloc(p, h, rtInth)) == NULL)
-		return -ENOMEM;
+		if (ui->cond != NULL)
+			cond_put(ui->cond);
 
-	r->inth->next = NULL;
-	r->inth->prev = NULL;
-	r->inth->f = (int (*)(unsigned int, cpu_context_t *, void *))f;
-	r->inth->data = arg;
-	r->inth->process = p;
-	r->inth->cond = NULL;
-	r->inth->n = n;
-
-	if (p != NULL) {
-		if (cond > 0) {
-			if ((t = resource_get(p, cond)) == NULL) {
-				resource_free(r);
-				return -EINVAL;
-			}
-			r->inth->cond = &t->waitq;
-		}
+		vm_kfree(ui);
 	}
 
-	if ((res = hal_interruptsSetHandler(r->inth)) != EOK) {
-		resource_free(r);
-		return res;
-	}
-
-	return EOK;
+	return rem;
 }
 
 
-int userintr_dispatch(intr_handler_t *h)
+static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 {
+	userintr_t *ui = arg;
 	int ret;
-	int (*f)(int, void *) = (int (*)(int, void *))h->f;
 	process_t *p;
 
 	p = (proc_current())->process;
 
 	/* Switch into the handler address space */
-	pmap_switch(&h->process->mapp->pmap);
+	pmap_switch(&ui->process->mapp->pmap);
 
-	userintr_common.active = h;
-	ret = f(h->n, h->data);
+	userintr_common.active = ui;
+	ret = ui->f(ui->handler.n, ui->arg);
 	userintr_common.active = NULL;
 
-	if (ret >= 0 && h->cond != NULL)
-		ret = proc_threadWakeup((thread_t **)h->cond);
+	if (ret >= 0 && ui->cond != NULL)
+		ret = proc_threadWakeup(&ui->cond->queue);
 	else
 		ret = 0;
 
@@ -93,7 +70,53 @@ int userintr_dispatch(intr_handler_t *h)
 }
 
 
-intr_handler_t *userintr_active(void)
+int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, unsigned int c)
+{
+	process_t *process;
+	userintr_t *ui;
+	int res;
+
+	process = proc_current()->process;
+
+	if ((ui = vm_kmalloc(sizeof(userintr_t))) == NULL)
+		return -ENOMEM;
+
+	ui->handler.next = NULL;
+	ui->handler.prev = NULL;
+	ui->handler.f = userintr_dispatch;
+	ui->handler.data = ui;
+	ui->handler.n = n;
+
+	ui->f = f;
+	ui->arg = arg;
+	ui->process = process;
+	ui->cond = NULL;
+
+	if (c == 0 || (ui->cond = cond_get(c)) != NULL) {
+		if ((res = hal_interruptsSetHandler(&ui->handler)) == EOK) {
+			if ((res = resource_alloc(process, &ui->resource, rtInth))) {
+				userintr_put(ui);
+				return res;
+			}
+			else {
+				res = -ENOMEM;
+			}
+
+			hal_interruptsDeleteHandler(&ui->handler);
+		}
+
+		if (c) cond_put(ui->cond);
+	}
+	else {
+		res = -EINVAL;
+	}
+
+	vm_kfree(ui);
+	return res;
+}
+
+
+userintr_t *userintr_active(void)
 {
 	return userintr_common.active;
 }

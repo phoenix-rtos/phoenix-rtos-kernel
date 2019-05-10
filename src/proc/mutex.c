@@ -20,41 +20,61 @@
 #include "resource.h"
 
 
-int proc_mutexCreate(unsigned int *h)
+mutex_t *mutex_get(unsigned int h)
+{
+	return resourceof(mutex_t, resource, resource_get(proc_current()->process, rtLock, h));
+}
+
+
+int mutex_put(mutex_t *mutex)
+{
+	int rem;
+
+	if (!(rem = resource_put(&mutex->resource))) {
+		proc_lockDone(&mutex->lock);
+		vm_kfree(mutex);
+	}
+
+	return rem;
+}
+
+
+int proc_mutexCreate()
 {
 	process_t *process;
-	resource_t *r;
+	mutex_t *mutex;
+	int id;
 
 	process = proc_current()->process;
 
-	if ((r = resource_alloc(process, h, rtLock)) == NULL)
+	if ((mutex = vm_kmalloc(sizeof(mutex_t))) == NULL)
 		return -ENOMEM;
 
-	proc_lockInit(r->lock);
-	resource_put(process, r);
+	if (!(id = resource_alloc(process, &mutex->resource, rtLock))) {
+		vm_kfree(mutex);
+		id = -ENOMEM;
+	}
+	else {
+		proc_lockInit(&mutex->lock);
+		resource_put(&mutex->resource);
+	}
 
-	return EOK;
+	return id;
 }
 
 
 int proc_mutexLock(unsigned int h)
 {
-	process_t *process;
-	resource_t *r;
-	int err;
+	mutex_t *mutex;
+	int err = EOK;
 
-	process = proc_current()->process;
-
-	if ((r = resource_get(process, h)) == NULL)
+	if ((mutex = mutex_get(h)) == NULL)
 		return -EINVAL;
 
-	if (r->type != rtLock) {
-		resource_put(process, r);
-		return -EINVAL;
-	}
+	err = proc_lockSet /*Interruptible*/(&mutex->lock);
 
-	err = proc_lockSet(r->lock);
-	resource_put(process, r);
+	if (!mutex_put(mutex))
+		err = -EINVAL;
 
 	return err;
 }
@@ -62,22 +82,16 @@ int proc_mutexLock(unsigned int h)
 
 int proc_mutexTry(unsigned int h)
 {
-	process_t *process;
-	resource_t *r;
-	int err;
+	mutex_t *mutex;
+	int err = EOK;
 
-	process = proc_current()->process;
-
-	if ((r = resource_get(process, h)) == NULL)
+	if ((mutex = mutex_get(h)) == NULL)
 		return -EINVAL;
 
-	if (r->type != rtLock) {
-		resource_put(process, r);
-		return -EINVAL;
-	}
+	err = proc_lockTry(&mutex->lock);
 
-	err = proc_lockTry(r->lock);
-	resource_put(process, r);
+	if (!mutex_put(mutex))
+		err = -EINVAL;
 
 	return err;
 }
@@ -85,33 +99,16 @@ int proc_mutexTry(unsigned int h)
 
 int proc_mutexUnlock(unsigned int h)
 {
-	process_t *process;
-	resource_t *r;
+	mutex_t *mutex;
+	int err = EOK;
 
-	process = proc_current()->process;
-
-	if ((r = resource_get(process, h)) == NULL)
+	if ((mutex = mutex_get(h)) == NULL)
 		return -EINVAL;
 
-	if (r->type != rtLock) {
-		resource_put(process, r);
-		return -EINVAL;
-	}
+	err = proc_lockClear(&mutex->lock);
 
-	proc_lockClear(r->lock);
-	resource_put(process, r);
+	if (!mutex_put(mutex))
+		err = -EINVAL;
 
-	return EOK;
-}
-
-
-int proc_mutexCopy(resource_t *dst, resource_t *src)
-{
-	proc_lockInit(dst->lock);
-	dst->type = rtLock;
-
-	if (src != NULL)
-		dst->lock->priority = src->lock->priority;
-
-	return EOK;
+	return err;
 }

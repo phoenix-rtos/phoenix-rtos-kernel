@@ -82,13 +82,9 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 	interrupts.counters[n]++;
 
 	if ((h = interrupts.handlers[n]) != NULL) {
-		do {
-			if (h->process != NULL) {
-				userintr_dispatch(h);
-			}
-			else
-				h->f(n, ctx, h->data);
-		} while ((h = h->next) != interrupts.handlers[n]);
+		do
+			h->f(n, ctx, h->data);
+		while ((h = h->next) != interrupts.handlers[n]);
 	}
 
 	hal_spinlockClear(&interrupts.spinlocks[n]);

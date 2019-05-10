@@ -60,9 +60,7 @@ typedef struct _process_t {
 
 	void *ports;
 
-	lock_t *rlock;
-	rbtree_t *resources;
-	rbtree_t resourcetree;
+	rbtree_t resources;
 
 	unsigned sigpend;
 	unsigned sigmask;

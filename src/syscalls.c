@@ -346,9 +346,15 @@ int syscalls_perf_finish(void *ustack)
 int syscalls_mutexCreate(void *ustack)
 {
 	unsigned int *h;
+	int res;
 
 	GETFROMSTACK(ustack, unsigned int *, h, 0);
-	return proc_mutexCreate(h);
+
+	if ((res = proc_mutexCreate()) < 0)
+		return res;
+
+	*h = res;
+	return EOK;
 }
 
 
@@ -387,9 +393,15 @@ int syscalls_mutexUnlock(void *ustack)
 int syscalls_condCreate(void *ustack)
 {
 	unsigned int *h;
+	int res;
 
 	GETFROMSTACK(ustack, unsigned int *, h, 0);
-	return proc_condCreate(h);
+
+	if ((res = proc_condCreate()) < 0)
+		return res;
+
+	*h = res;
+	return EOK;
 }
 
 
@@ -410,24 +422,18 @@ int syscalls_condWait(void *ustack)
 int syscalls_condSignal(void *ustack)
 {
 	unsigned int h;
-	process_t *proc;
-
-	proc = proc_current()->process;
 
 	GETFROMSTACK(ustack, unsigned int, h, 0);
-	return proc_condSignal(proc, h);
+	return proc_condSignal(h);
 }
 
 
 int syscalls_condBroadcast(void *ustack)
 {
 	unsigned int h;
-	process_t *proc;
-
-	proc = proc_current()->process;
 
 	GETFROMSTACK(ustack, unsigned int, h, 0);
-	return proc_condBroadcast(proc, h);
+	return proc_condBroadcast(h);
 }
 
 
@@ -441,7 +447,7 @@ int syscalls_resourceDestroy(void *ustack)
 	unsigned int h;
 
 	GETFROMSTACK(ustack, unsigned int, h, 0);
-	return proc_resourceFree(h);
+	return proc_resourceDestroy(proc_current()->process, h);
 }
 
 
@@ -458,6 +464,7 @@ int syscalls_interrupt(void *ustack)
 	void *data;
 	unsigned int cond;
 	unsigned int *handle;
+	int res;
 
 	GETFROMSTACK(ustack, unsigned int, n, 0);
 	GETFROMSTACK(ustack, void *, f, 1);
@@ -465,7 +472,11 @@ int syscalls_interrupt(void *ustack)
 	GETFROMSTACK(ustack, unsigned int, cond, 3);
 	GETFROMSTACK(ustack, unsigned int *, handle, 4);
 
-	return userintr_setHandler(n, f, data, cond, handle);
+	if ((res = userintr_setHandler(n, f, data, cond)) < 0)
+		return res;
+
+	*handle = res;
+	return EOK;
 }
 
 

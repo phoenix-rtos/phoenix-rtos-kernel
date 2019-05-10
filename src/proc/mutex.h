@@ -18,6 +18,17 @@
 
 #include "resource.h"
 
+typedef struct {
+	resource_t resource;
+	lock_t lock;
+} mutex_t;
+
+
+extern mutex_t *mutex_get(unsigned int h);
+
+
+extern int mutex_put(mutex_t *mutex);
+
 
 extern int proc_mutexLock(unsigned int h);
 
@@ -28,13 +39,10 @@ extern int proc_mutexTry(unsigned int h);
 extern int proc_mutexUnlock(unsigned int h);
 
 
-extern int proc_mutexCreate(unsigned int *h);
+extern int proc_mutexCreate(void);
 
 
 extern int proc_mutexDestroy(unsigned int h);
-
-
-extern int proc_mutexCopy(resource_t *dst, resource_t *src);
 
 
 #endif

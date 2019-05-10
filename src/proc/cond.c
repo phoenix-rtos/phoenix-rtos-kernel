@@ -17,111 +17,103 @@
 #include "../../include/errno.h"
 #include "threads.h"
 #include "cond.h"
+#include "mutex.h"
 #include "resource.h"
 
 
-int proc_condCreate(unsigned int *h)
+int cond_put(cond_t *cond)
+{
+	int rem;
+
+	if (!(rem = resource_put(&cond->resource)))
+		vm_kfree(cond);
+
+	return rem;
+}
+
+
+cond_t *cond_get(unsigned int c)
+{
+	return resourceof(cond_t, resource, resource_get(proc_current()->process, rtCond, c));
+}
+
+
+int proc_condCreate()
 {
 	process_t *process;
-	resource_t *r;
+	cond_t *cond;
+	int id;
 
 	process = proc_current()->process;
 
-	if ((r = resource_alloc(process, h, rtCond)) == NULL)
+	if ((cond = vm_kmalloc(sizeof(cond_t))) == NULL)
 		return -ENOMEM;
 
-	r->waitq = NULL;
-	resource_put(process, r);
+	if (!(id = resource_alloc(process, &cond->resource, rtCond))) {
+		vm_kfree(cond);
+		id = -ENOMEM;
+	}
+	else {
+		cond->queue = NULL;
+		resource_put(&cond->resource);
+	}
 
-	return EOK;
+	return id;
 }
 
 
 int proc_condWait(unsigned int c, unsigned int m, time_t timeout)
 {
-	lock_t *lock;
-	int err = EOK;
-	process_t *process;
-	resource_t *rl, *rc;
+	cond_t *cond;
+	mutex_t *mutex;
+	int err = -EINVAL;
 
-	process = proc_current()->process;
+	if ((cond = cond_get(c)) == NULL)
+		return err;
 
-	if ((rl = resource_get(process, m)) == NULL)
-		return -EINVAL;
+	if ((mutex = mutex_get(m)) != NULL) {
+		err = proc_lockWait(&cond->queue, &mutex->lock, timeout);
 
-	if (rl->type != rtLock) {
-		resource_put(process, rl);
-		return -EINVAL;
+		if (!mutex_put(mutex))
+			err = -EINVAL;
 	}
 
-	if ((rc = resource_get(process, c)) == NULL) {
-		resource_put(process, rl);
-		return -EINVAL;
-	}
-
-	if (rc->type != rtCond) {
-		resource_put(process, rl);
-		resource_put(process, rc);
-		return -EINVAL;
-	}
-
-	lock = rl->lock;
-
-	err = proc_lockWait(&rc->waitq, lock, timeout);
-
-	resource_put(process, rl);
-	resource_put(process, rc);
+	if (!cond_put(cond))
+		err = -EINVAL;
 
 	return err;
 }
 
 
-int proc_condSignal(process_t *process, unsigned int c)
+int proc_condSignal(unsigned int c)
 {
+	cond_t *cond;
 	int err = EOK;
-	resource_t *rc;
 
-	if ((rc =  resource_get(process, c)) == NULL)
+	if ((cond = cond_get(c)) == NULL)
 		return -EINVAL;
 
-	if (rc->type != rtCond) {
-		resource_put(process, rc);
-		return -EINVAL;
-	}
+	proc_threadWakeupYield(&cond->queue);
 
-	proc_threadWakeupYield(&rc->waitq);
-
-	resource_put(process, rc);
+	if (!cond_put(cond))
+		err = -EINVAL;
 
 	return err;
 }
 
 
-int proc_condBroadcast(process_t *process, unsigned int c)
+int proc_condBroadcast(unsigned int c)
 {
+	cond_t *cond;
 	int err = EOK;
-	resource_t *rc;
 
-	if ((rc =  resource_get(process, c)) == NULL)
+	if ((cond = cond_get(c)) == NULL)
 		return -EINVAL;
 
-	if (rc->type != rtCond) {
-		resource_put(process, rc);
-		return -EINVAL;
-	}
+	proc_threadBroadcastYield(&cond->queue);
 
-	proc_threadBroadcastYield(&rc->waitq);
-
-	resource_put(process, rc);
+	if (!cond_put(cond))
+		err = -EINVAL;
 
 	return err;
-}
-
-
-int proc_condCopy(resource_t *dst, resource_t *src)
-{
-	dst->waitq = NULL;
-	dst->type = rtCond;
-
-	return EOK;
 }

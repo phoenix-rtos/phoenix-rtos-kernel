@@ -43,8 +43,6 @@ typedef struct _intr_handler_t {
 	unsigned int n;
 	int (*f)(unsigned int, cpu_context_t *, void *);
 	void *data;
-	struct _process_t *process;
-	void *cond;
 	void *got;
 } intr_handler_t;
 

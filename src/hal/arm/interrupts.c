@@ -98,12 +98,9 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	interrupts.counters[n]++;
 
 	if ((h = interrupts.handlers[n]) != NULL) {
-		do {
-			if (h->process != NULL)
-				reschedule |= userintr_dispatch(h);
-			else
-				h->f(n, ctx, h->data);
-		} while ((h = h->next) != interrupts.handlers[n]);
+		do
+			reschedule |= h->f(n, ctx, h->data);
+		while ((h = h->next) != interrupts.handlers[n]);
 	}
 
 	if (reschedule)

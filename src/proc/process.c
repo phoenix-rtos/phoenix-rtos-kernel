@@ -94,7 +94,7 @@ static void process_destroy(process_t *p)
 	if (p->mapp != NULL)
 		vm_mapDestroy(p, p->mapp);
 
-	proc_resourcesFree(p);
+	proc_resourcesDestroy(p);
 	proc_portsDestroy(p);
 	proc_lockDone(&p->lock);
 
@@ -280,7 +280,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->mapp = NULL;
 
 	/* Initialize resources tree for mutex and cond handles */
-	resource_init(process);
+	_resource_init(process);
 	process_alloc(process);
 	perf_fork(process);
 
@@ -303,7 +303,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
-	intr_handler_t *intr;
+	userintr_t *intr;
 	char buff[SIZE_CTXDUMP];
 
 	hal_exceptionsDumpContext(buff, ctx, n);
@@ -311,7 +311,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	hal_consolePrint(ATTR_BOLD, "\n");
 
 	if ((intr = userintr_active()) != NULL)
-		lib_printf("in interrupt (%d) handler of process \"%s\" (%x)\n", intr->n, intr->process->path, intr->process->id);
+		lib_printf("in interrupt (%d) handler of process \"%s\" (%x)\n", intr->handler.n, intr->process->path, intr->process->id);
 	else if (process == NULL)
 		lib_printf("in kernel thread %x\n", thread->id);
 	else
@@ -998,7 +998,7 @@ static int process_execve(thread_t *current)
 		pmap_switch(&process_common.kmap->pmap);
 
 		vm_mapDestroy(current->process, &current->process->map);
-		proc_resourcesFree(current->process);
+		proc_resourcesDestroy(current->process);
 		proc_portsDestroy(current->process);
 	}
 
