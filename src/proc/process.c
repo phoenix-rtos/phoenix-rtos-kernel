@@ -951,11 +951,17 @@ int proc_fork(void)
 	thread_t *current;
 	int err;
 	void *kstack;
+	unsigned sigmask;
 
 	if (!(err = proc_vfork())) {
+		current = proc_current();
+
+		/* Mask all signals - during process_copy(), incoming signal might try
+		 * to access our not-yet existent stack */
+		sigmask = current->sigmask;
+		current->sigmask = 0xffffffff;
 		err = process_copy();
 
-		current = proc_current();
 		current->kstack = current->execkstack;
 		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
@@ -966,6 +972,10 @@ int proc_fork(void)
 			PUTONSTACK(kstack, int, err);
 			hal_jmp(proc_vforkedExit, kstack, NULL, 3);
 		}
+	}
+	else if (!err) {
+		/* Restore old mask */
+		current->sigmask = sigmask;
 	}
 
 	return err;
