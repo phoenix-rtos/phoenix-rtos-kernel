@@ -630,6 +630,15 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	current->process->argv = spawn->argv;
 	current->process->envp = spawn->envp;
 
+#ifndef NOMMU
+	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
+	current->process->mapp = &current->process->map;
+	pmap_switch(&current->process->map.pmap);
+#else
+	current->process->mapp = process_common.kmap;
+	current->process->entries = NULL;
+#endif
+
 	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
 	if (!err) {
 		stack = process_putargs(stack, &spawn->envp, &count);
@@ -671,15 +680,6 @@ static void proc_spawnThread(void *arg)
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL)
 		posix_clone(spawn->parent->process->id);
-
-#ifndef NOMMU
-	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
-	current->process->mapp = &current->process->map;
-	pmap_switch(&current->process->map.pmap);
-#else
-	current->process->mapp = process_common.kmap;
-	current->process->entries = NULL;
-#endif
 
 	process_exec(current, spawn);
 }
@@ -961,6 +961,7 @@ int proc_fork(void)
 		sigmask = current->sigmask;
 		current->sigmask = 0xffffffff;
 		err = process_copy();
+		current->sigmask = sigmask;
 
 		current->kstack = current->execkstack;
 		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
@@ -972,10 +973,6 @@ int proc_fork(void)
 			PUTONSTACK(kstack, int, err);
 			hal_jmp(proc_vforkedExit, kstack, NULL, 3);
 		}
-	}
-	else if (!err) {
-		/* Restore old mask */
-		current->sigmask = sigmask;
 	}
 
 	return err;
@@ -1006,10 +1003,12 @@ static int process_execve(thread_t *current)
 	current->parentkstack = NULL;
 	current->execdata = NULL;
 
+	current->process->sighandler = NULL;
+	current->process->sigpend = 0;
+
 	/* Close cloexec file descriptors */
 	posix_exec();
-
-	proc_spawnThread(spawn);
+	process_exec(current, spawn);
 
 	/* Not reached */
 	return 0;

@@ -2170,8 +2170,6 @@ int posix_waitpid(pid_t child, int *status, int options)
 	if ((pinfo = pinfo_find(pid)) == NULL)
 		return -EINVAL;
 
-	// lib_printf("waitpid %d %x\n", child, options);
-
 	proc_lockSet(&pinfo->lock);
 	do {
 		if (options & 1) {

@@ -1126,6 +1126,9 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
 		/* passthrough */
 		case signal_kill:
 			proc_kill(process);
+
+		/* passthrough */
+		case 0:
 			return EOK;
 
 		default:
