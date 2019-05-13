@@ -23,7 +23,7 @@ CONSOLE = serial
 CC = $(CROSS)gcc
 
 CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
-	-m32 -mtune=generic -mno-mmx -mno-sse -fno-pie\
+	-m32 -mtune=generic -march=i586 -mno-mmx -mno-sse -fno-pie\
 	-fomit-frame-pointer -fno-strength-reduce -ffreestanding -DCPU_IA32 \
 	-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" -DHAL=\"hal//ia32//hal.h\"
 
