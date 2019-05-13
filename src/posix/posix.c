@@ -79,6 +79,10 @@ process_info_t *pinfo_find(unsigned int pid)
 void posix_destroy(process_info_t *p)
 {
 	// lib_printf("removing %d\n", p->process);
+	proc_lockSet(&posix_common.lock);
+	lib_rbRemove(&posix_common.pid, &p->linkage);
+	proc_lockClear(&posix_common.lock);
+
 	vm_kfree(p->fds);
 	proc_lockDone(&p->lock);
 	vm_kfree(p);
@@ -397,10 +401,8 @@ int posix_exit(process_info_t *p)
 		if ((f = p->fds[fd].file) != NULL)
 			posix_fileDeref(f);
 	}
+	proc_lockClear(&p->lock);
 
-	proc_lockSet(&posix_common.lock);
-	lib_rbRemove(&posix_common.pid, &p->linkage);
-	proc_lockClear(&posix_common.lock);
 	return 0;
 }
 
@@ -2004,13 +2006,60 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 }
 #endif
 
-int posix_tkill(pid_t pid, int tid, int sig)
+
+static int posix_killOne(pid_t pid, int tid, int sig)
 {
 	process_info_t *pinfo;
-	process_t *proc, *me;
+	process_t *proc;
 	thread_t *thr;
-	int killme = 0;
+	int err;
 
+	if ((pinfo = pinfo_find(pid)) != NULL || !(err = -EINVAL)) {
+		if ((proc = proc_find(pinfo->process)) != NULL || !(err = -ESRCH)) {
+			if (!tid) {
+				err = proc_sigpost(proc, NULL, sig);
+			}
+			else if ((thr = threads_findThread(tid)) != NULL || !(err = -EINVAL)) {
+				if (thr->process == proc || !(err = -EINVAL))
+					err = proc_sigpost(proc, thr, sig);
+
+				threads_put(thr);
+			}
+			proc_put(proc);
+		}
+		pinfo_put(pinfo);
+	}
+
+	return err;
+}
+
+
+static int posix_killGroup(pid_t pgid, int sig)
+{
+	process_info_t *pinfo;
+	process_t *proc;
+	rbnode_t *node;
+
+	proc_lockSet(&posix_common.lock);
+	pinfo = lib_treeof(process_info_t, linkage, lib_rbMinimum(posix_common.pid.root));
+
+	for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
+		pinfo = lib_treeof(process_info_t, linkage, node);
+
+		if (pinfo->pgid == pgid) {
+			proc = proc_find(pinfo->process);
+			proc_sigpost(proc, NULL, sig);
+			proc_put(proc);
+		}
+	}
+	proc_lockClear(&posix_common.lock);
+
+	return EOK;
+}
+
+
+int posix_tkill(pid_t pid, int tid, int sig)
+{
 	TRACE("tkill(%p, %d, %d)", pid, tid, sig);
 
 	if (sig < 0 || sig > NSIG)
@@ -2023,71 +2072,10 @@ int posix_tkill(pid_t pid, int tid, int sig)
 	if (pid == -1)
 		return -ESRCH;
 
-	if (pid > 0) {
-		if ((pinfo = pinfo_find(pid)) == NULL)
-			return -EINVAL;
-		proc = proc_find(pinfo->process);
+	if (pid > 0)
+		return posix_killOne(pid, tid, sig);
 
-		if (proc == NULL)
-			return -ESRCH;
-
-		if (tid) {
-			if ((thr = threads_findThread(tid)) == NULL) {
-				pinfo_put(pinfo);
-				return -EINVAL;
-			}
-
-			if (thr->process != proc) {
-				threads_put(thr);
-				proc_put(proc);
-				pinfo_put(pinfo);
-				return -EINVAL;
-			}
-		}
-		else {
-			thr = NULL;
-		}
-
-		if (!sig) {
-			pinfo_put(pinfo);
-			return EOK;
-		}
-		else {
-			int ret =  proc_sigpost(proc, thr, sig);
-			if (thr != NULL)
-				threads_put(thr);
-			if (proc != NULL)
-				proc_put(proc);
-
-			pinfo_put(pinfo);
-			return ret;
-		}
-	}
-	else {
-		pid = -pid;
-		me = proc_current()->process;
-		proc_lockSet(&posix_common.lock);
-		pinfo = lib_treeof(process_info_t, linkage, lib_rbMinimum(posix_common.pid.root));
-
-		while (pinfo != NULL) {
-			proc = proc_find(pinfo->process);
-
-			if (pinfo->pgid == pid) {
-				if (proc == me)
-					killme = 1;
-				else if (sig != 0)
-					proc_sigpost(proc, NULL, sig);
-			}
-			proc_put(proc);
-			pinfo = lib_treeof(process_info_t, linkage, lib_rbNext(&pinfo->linkage));
-		}
-		proc_lockClear(&posix_common.lock);
-
-		if (killme)
-			proc_sigpost(me, NULL, sig);
-
-		return EOK;
-	}
+	return posix_killGroup(-pid, sig);
 }
 
 
@@ -2210,6 +2198,7 @@ int posix_waitpid(pid_t child, int *status, int options)
 	if (found) {
 		// lib_printf("reaping %d\n", c->process);
 		err = c->process;
+
 		pinfo_put(c);
 
 		if (status != NULL)
