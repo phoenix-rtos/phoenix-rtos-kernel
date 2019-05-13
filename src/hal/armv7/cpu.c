@@ -220,5 +220,7 @@ void _hal_cpuInit(void)
 
 #ifdef CPU_STM32
 	_stm32_platformInit();
+#elif CPU_IMXRT
+	_imxrt_platformInit();
 #endif
 }

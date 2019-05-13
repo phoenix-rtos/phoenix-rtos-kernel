@@ -244,6 +244,9 @@ extern unsigned int _imxrt_cpuid(void);
 extern void _imxrt_wdgReload(void);
 
 
+extern void _imxrt_platformInit(void);
+
+
 extern void _imxrt_init(void);
 
 

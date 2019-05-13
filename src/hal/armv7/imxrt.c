@@ -52,7 +52,7 @@ enum { gpio_dr = 0, gpio_gdir, gpio_psr, gpio_icr1, gpio_icr2, gpio_imr, gpio_is
 enum { ccm_ccr = 0, /* reserved */ ccm_csr = 2, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr, ccm_cscmr1, ccm_cscmr2,
 	ccm_cscdr1, ccm_cs1cdr, ccm_cs2cdr, ccm_cdcdr, /* reserved */ ccm_cscdr2 = 14, ccm_cscdr3, /* 2 reserved */
 	ccm_cdhipr = 18, /* 2 reserved */ ccm_clpcr = 21, ccm_cisr, ccm_cimr, ccm_ccosr, ccm_cgpr, ccm_ccgr0, ccm_ccgr1,
-	ccm_ccgr2, ccm_ccgr3, ccm_ccgr4, ccm_ccgr5, ccm_ccgr6, /* reserved */ ccm_cmeor = 34 };
+	ccm_ccgr2, ccm_ccgr3, ccm_ccgr4, ccm_ccgr5, ccm_ccgr6, ccm_ccgr7, ccm_cmeor };
 
 
 enum { ccm_analog_pll_arm, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, ccm_analog_pll_arm_tog,
@@ -1666,11 +1666,16 @@ u32 _imxrt_ccmGetDiv(int div)
 void _imxrt_ccmControlGate(int dev, int state)
 {
 	int index = dev >> 4, shift = (dev & 0xf) << 1;
+	u32 t;
 
-	if (index > 6)
+	if (index > 7)
 		return;
 
-	*(imxrt_common.ccm + ccm_ccgr0 + index) = (*(imxrt_common.ccm + ccm_ccgr0 + index) & ~(0x3 << shift)) | ((state & 0x3) << shift);
+	t = *(imxrt_common.ccm + ccm_ccgr0 + index) & ~(0x3 << shift);
+	*(imxrt_common.ccm + ccm_ccgr0 + index) = t | ((state & 0x3) << shift);
+
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
@@ -1936,6 +1941,12 @@ void _imxrt_wdgReload(void)
 }
 
 
+void _imxrt_platformInit(void)
+{
+	hal_spinlockCreate(&imxrt_common.pltctlSp, "pltctlSp");
+}
+
+
 void _imxrt_init(void)
 {
 	u32 ccsidr, sets, ways;
@@ -2039,6 +2050,4 @@ void _imxrt_init(void)
 	_imxrt_ccmDeinitAudioPll();
 	_imxrt_ccmDeinitEnetPll();
 	_imxrt_ccmDeinitUsb2Pll();
-
-	hal_spinlockCreate(&imxrt_common.pltctlSp, "pltctlSp");
 }
