@@ -82,11 +82,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do {
 			hal_cpuSetGot(h->got);
-
-			if (h->process != NULL)
-				userintr_dispatch(h);
-			else
-				h->f(n, ctx, h->data);
+			h->f(n, ctx, h->data);
 		} while ((h = h->next) != interrupts.handlers[n]);
 	}
 
