@@ -55,8 +55,8 @@ void _hal_consoleInit(void)
 
 	console_common.uart = (void *)0x40184000;
 
-	_imxrt_setIOmux(pctl_mux_gpio_ad_b0_12, 2, 0);
-	_imxrt_setIOmux(pctl_mux_gpio_ad_b0_13, 2, 0);
+	_imxrt_setIOmux(pctl_mux_gpio_ad_b0_12, 0, 2);
+	_imxrt_setIOmux(pctl_mux_gpio_ad_b0_13, 0, 2);
 	_imxrt_setIOpad(pctl_pad_gpio_ad_b0_12, 0, 0, 0, 1, 0, 2, 6, 0);
 	_imxrt_setIOpad(pctl_pad_gpio_ad_b0_13, 0, 0, 0, 1, 0, 2, 6, 0);
 
