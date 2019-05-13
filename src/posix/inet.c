@@ -85,14 +85,10 @@ static ssize_t sockdestcall(unsigned socket, msg_t *msg, const struct sockaddr *
 
 int inet_accept(unsigned socket, struct sockaddr *address, socklen_t *address_len)
 {
-	process_info_t *p;
 	ssize_t err;
 	msg_t msg;
 	oid_t oid;
 	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
-		return -1;
 
 	hal_memset(&oid, 0, sizeof(oid));
 	hal_memset(&msg, 0, sizeof(msg));
