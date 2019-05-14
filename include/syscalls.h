@@ -30,11 +30,11 @@
 	ID(endthread) \
 	ID(usleep) \
 	ID(mutexCreate) \
-	ID(mutexLock) \
+	ID(phMutexLock) \
 	ID(mutexTry) \
 	ID(mutexUnlock) \
 	ID(condCreate) \
-	ID(condWait) \
+	ID(phCondWait) \
 	ID(condSignal) \
 	ID(condBroadcast) \
 	ID(resourceDestroy) \

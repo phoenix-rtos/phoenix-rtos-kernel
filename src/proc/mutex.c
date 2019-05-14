@@ -71,7 +71,7 @@ int proc_mutexLock(unsigned int h)
 	if ((mutex = mutex_get(h)) == NULL)
 		return -EINVAL;
 
-	err = proc_lockSet /*Interruptible*/(&mutex->lock);
+	err = proc_lockSetInterruptible(&mutex->lock);
 
 	if (!mutex_put(mutex))
 		err = -EINVAL;

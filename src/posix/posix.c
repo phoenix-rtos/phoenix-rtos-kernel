@@ -2172,29 +2172,43 @@ int posix_waitpid(pid_t child, int *status, int options)
 
 	proc_lockSet(&pinfo->lock);
 	do {
-		if (options & 1) {
-			if ((c = pinfo->zombies) == NULL)
+		if ((c = pinfo->zombies) == NULL) {
+			if (pinfo->children == NULL) {
+				err = -ECHILD;
 				break;
-		}
-		else {
-			while ((c = pinfo->zombies) == NULL)
-				err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
+			}
+			else if (options & 1) {
+				err = EOK;
+				break;
+			}
+			else {
+				while ((c = pinfo->zombies) == NULL && !err)
+					err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
+
+				if (err == -EINTR) {
+					/* pinfo->lock is clear */
+					pinfo_put(pinfo);
+					return -EINTR;
+				}
+				else if (err) {
+					/* Should not happen */
+					break;
+				}
+			}
 		}
 
 		do {
 			if (child == -1 || (!child && c->pgid == pinfo->pgid) || (child < 0 && c->pgid == -child) || child == c->process) {
 				LIST_REMOVE(&pinfo->zombies, c);
 				found = 1;
-				break;
 			}
 		}
-		while ((c = c->next) != pinfo->zombies);
+		while (!found && (c = c->next) != pinfo->zombies);
 	}
-	while (!found && err != -EINTR);
+	while (!found);
 	proc_lockClear(&pinfo->lock);
 
 	if (found) {
-		// lib_printf("reaping %d\n", c->process);
 		err = c->process;
 
 		pinfo_put(c);
@@ -2202,8 +2216,6 @@ int posix_waitpid(pid_t child, int *status, int options)
 		if (status != NULL)
 			*status = 0; /* TODO: pass exit code */
 	}
-
-	// lib_printf("waitpid out (%d)\n", err);
 
 	pinfo_put(pinfo);
 	return err;
@@ -2226,7 +2238,7 @@ void posix_died(pid_t pid, int exit)
 		proc_lockSet(&ppinfo->lock);
 		LIST_REMOVE(&ppinfo->children, pinfo);
 		LIST_ADD(&ppinfo->zombies, pinfo);
-		proc_threadWakeup(&ppinfo->wait);
+		proc_threadBroadcast(&ppinfo->wait);
 		proc_lockClear(&ppinfo->lock);
 
 		posix_sigchild(pinfo->parent);

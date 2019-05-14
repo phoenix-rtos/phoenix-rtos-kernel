@@ -357,7 +357,7 @@ int syscalls_mutexCreate(void *ustack)
 }
 
 
-int syscalls_mutexLock(void *ustack)
+int syscalls_phMutexLock(void *ustack)
 {
 	unsigned int h;
 
@@ -404,7 +404,7 @@ int syscalls_condCreate(void *ustack)
 }
 
 
-int syscalls_condWait(void *ustack)
+int syscalls_phCondWait(void *ustack)
 {
 	unsigned int h;
 	unsigned int m;

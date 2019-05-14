@@ -148,6 +148,9 @@ extern int proc_threadSleep(unsigned long long us);
 extern int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout);
 
 
+extern int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout);
+
+
 extern int proc_threadWakeup(thread_t **queue);
 
 

@@ -30,9 +30,6 @@ typedef struct _lock_t {
 } lock_t;
 
 
-extern int _proc_lockSet(lock_t *lock);
-
-
 extern int proc_lockSet(lock_t *lock);
 
 
@@ -45,10 +42,10 @@ extern int proc_lockTry(lock_t *lock);
 extern int proc_lockWait(struct _thread_t **queue, lock_t *lock, time_t timeout);
 
 
-extern int _proc_lockClear(lock_t *lock);
-
-
 extern int proc_lockClear(lock_t *lock);
+
+
+extern int proc_lockSetInterruptible(lock_t *lock);
 
 
 extern int proc_lockInit(lock_t *lock);

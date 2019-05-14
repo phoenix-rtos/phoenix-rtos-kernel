@@ -891,7 +891,7 @@ static void _proc_threadDequeue(thread_t *t)
 }
 
 
-static void _proc_threadEnqueue(thread_t **queue, time_t timeout)
+static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interruptible)
 {
 	thread_t *current;
 	time_t now;
@@ -908,6 +908,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout)
 	current->state = SLEEP;
 	current->wakeup = 0;
 	current->wait = queue;
+	current->interruptible = interruptible;
 
 	if (timeout) {
 		now = _threads_getTimer();
@@ -924,7 +925,7 @@ static int _proc_threadWait(thread_t **queue, time_t timeout)
 {
 	int err;
 
-	_proc_threadEnqueue(queue, timeout);
+	_proc_threadEnqueue(queue, timeout, 0);
 
 	if (*queue == NULL)
 		return EOK;
@@ -963,12 +964,12 @@ int proc_threadSleep(unsigned long long us)
 }
 
 
-int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
+static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, int interruptible)
 {
 	int err;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	_proc_threadEnqueue(queue, timeout);
+	_proc_threadEnqueue(queue, timeout, interruptible);
 
 	if (*queue == NULL) {
 		hal_spinlockClear(&threads_common.spinlock);
@@ -980,6 +981,18 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
 	hal_spinlockSet(spinlock);
 
 	return err;
+}
+
+
+int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout)
+{
+	return proc_threadWaitEx(queue, spinlock, timeout, 0);
+}
+
+
+int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout)
+{
+	return proc_threadWaitEx(queue, spinlock, timeout, 1);
 }
 
 
@@ -1190,10 +1203,10 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
  */
 
 
-int _proc_lockSet(lock_t *lock)
+int _proc_lockSet(lock_t *lock, int interruptible)
 {
 	while (lock->v == 0) {
-		if (proc_threadWait(&lock->queue, &lock->spinlock, 0) == -EINTR)
+		if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible) == -EINTR)
 			return -EINTR;
 	}
 
@@ -1210,7 +1223,18 @@ int proc_lockSet(lock_t *lock)
 		return -EINVAL;
 
 	hal_spinlockSet(&lock->spinlock);
-	err = _proc_lockSet(lock);
+	err = _proc_lockSet(lock, 0);
+	hal_spinlockClear(&lock->spinlock);
+	return err;
+}
+
+
+int proc_lockSetInterruptible(lock_t *lock)
+{
+	int err;
+
+	hal_spinlockSet(&lock->spinlock);
+	err = _proc_lockSet(lock, 1);
 	hal_spinlockClear(&lock->spinlock);
 	return err;
 }
@@ -1282,8 +1306,8 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 	int err;
 	hal_spinlockSet(&lock->spinlock);
 	_proc_lockClear(lock);
-	err = proc_threadWait(queue, &lock->spinlock, timeout);
-	_proc_lockSet(lock);
+	if ((err = proc_threadWaitEx(queue, &lock->spinlock, timeout, 1)) != -EINTR)
+		_proc_lockSet(lock, 0);
 	hal_spinlockClear(&lock->spinlock);
 	return err;
 }
