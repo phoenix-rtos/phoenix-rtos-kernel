@@ -22,7 +22,7 @@
 	ID(exec) \
 	ID(sys_exit) \
 	ID(sys_waitpid) \
-	ID(sys_waittid) \
+	ID(threadJoin) \
 	ID(getpid) \
 	ID(getppid) \
 	ID(gettid) \

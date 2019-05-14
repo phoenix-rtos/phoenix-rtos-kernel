@@ -473,18 +473,23 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 static void thread_destroy(thread_t *t)
 {
+	process_t *process;
 	perf_end(t);
 
-	if (t->process != NULL) {
+	vm_kfree(t->kstack);
+
+	if ((process = t->process) != NULL) {
 		hal_spinlockSet(&threads_common.spinlock);
-		LIST_REMOVE_EX(&t->process->threads, t, procnext, procprev);
+		LIST_REMOVE_EX(&process->threads, t, procnext, procprev);
+		LIST_ADD_EX(&process->ghosts, t, procnext, procprev);
+		_proc_threadWakeup(&process->reaper);
 		hal_spinlockClear(&threads_common.spinlock);
 
-		proc_put(t->process);
+		proc_put(process);
 	}
-
-	vm_kfree(t->kstack);
-	vm_kfree(t);
+	else {
+		vm_kfree(t);
+	}
 }
 
 
@@ -1048,10 +1053,27 @@ void proc_threadBroadcastYield(thread_t **queue)
 }
 
 
-int proc_waittid(int tid, int options)
+int proc_join(time_t timeout)
 {
-	int err = 0;
-	proc_threadSleep(10000);
+	int err;
+	thread_t *ghost;
+	process_t *process = proc_current()->process;
+
+	hal_spinlockSet(&threads_common.spinlock);
+	while ((ghost = process->ghosts) == NULL) {
+		err = _proc_threadWait(&process->reaper, timeout);
+
+		if (err == -EINTR || err == -ETIME)
+			break;
+	}
+
+	if (ghost != NULL) {
+		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
+		err = ghost->id;
+	}
+	hal_spinlockClear(&threads_common.spinlock);
+
+	vm_kfree(ghost);
 	return err;
 }
 

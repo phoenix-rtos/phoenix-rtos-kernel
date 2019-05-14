@@ -130,7 +130,7 @@ extern void proc_threadsDestroy(thread_t **threads);
 extern int proc_waitpid(int pid, int *stat, int options);
 
 
-extern int proc_waittid(int pid, int options);
+extern int proc_join(time_t timeout);
 
 
 extern int proc_threadsList(int n, threadinfo_t *info);

@@ -87,6 +87,8 @@ process_t *proc_find(unsigned pid)
 
 static void process_destroy(process_t *p)
 {
+	thread_t *ghost;
+
 	perf_kill(p);
 
 	posix_died(p->id, p->exit);
@@ -97,6 +99,11 @@ static void process_destroy(process_t *p)
 	proc_resourcesDestroy(p);
 	proc_portsDestroy(p);
 	proc_lockDone(&p->lock);
+
+	while ((ghost = p->ghosts) != NULL) {
+		LIST_REMOVE_EX(&p->ghosts, ghost, procnext, procprev);
+		vm_kfree(ghost);
+	}
 
 	vm_kfree(p->path);
 	vm_kfree(p->argv);
@@ -261,6 +268,8 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->argv = NULL;
 	process->envp = NULL;
 	process->threads = NULL;
+	process->ghosts = NULL;
+	process->reaper = NULL;
 	process->refs = 1;
 
 	proc_lockInit(&process->lock);

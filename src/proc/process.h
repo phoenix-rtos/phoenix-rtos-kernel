@@ -25,12 +25,11 @@
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
 typedef struct _process_t {
-	struct _process_t *next;
-	struct _process_t *prev;
-
 	lock_t lock;
 
 	struct _thread_t *threads;
+	struct _thread_t *ghosts;
+	struct _thread_t *reaper;
 	int refs;
 
 	char *path;
