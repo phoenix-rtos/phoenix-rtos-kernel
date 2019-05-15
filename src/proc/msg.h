@@ -33,7 +33,7 @@ typedef struct _kmsg_t {
 	struct _kmsg_t *prev;
 	thread_t *threads;
 	process_t *src;
-	volatile int responded;
+	volatile int state;
 #ifndef NOMMU
 	struct _kmsg_layout_t {
 		void *bvaddr;

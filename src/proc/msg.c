@@ -6,7 +6,7 @@
  * Messages
  *
  * Copyright 2017, 2018 Phoenix Systems
- * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski
+ * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski, Jan Sikorski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -20,6 +20,9 @@
 
 #define FLOOR(x)    ((x) & ~(SIZE_PAGE - 1))
 #define CEIL(x)     (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
+
+
+enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
 
 
 struct {
@@ -303,7 +306,6 @@ static int msg_opack(kmsg_t *kmsg)
 int proc_send(u32 port, msg_t *msg)
 {
 	port_t *p;
-	int responded = 0;
 	int err = EOK;
 	kmsg_t kmsg;
 	thread_t *sender;
@@ -316,7 +318,7 @@ int proc_send(u32 port, msg_t *msg)
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
 	kmsg.src = sender->process;
 	kmsg.threads = NULL;
-	kmsg.responded = 0;
+	kmsg.state = msg_waiting;
 
 	kmsg.msg.pid = (sender->process != NULL) ? sender->process->id : 0;
 	kmsg.msg.priority = sender->priority;
@@ -330,16 +332,26 @@ int proc_send(u32 port, msg_t *msg)
 	}
 	else {
 		LIST_ADD(&p->kmessages, &kmsg);
-
 		proc_threadWakeup(&p->threads);
 
-		while (!(responded = kmsg.responded))
-			err = proc_threadWait(&kmsg.threads, &p->spinlock, 0);
+		while (kmsg.state != msg_responded && kmsg.state != msg_rejected) {
+			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0);
+
+			if ((err != EOK && kmsg.state == msg_waiting)) {
+				LIST_REMOVE(&p->kmessages, &kmsg);
+				break;
+			}
+		}
+
+		if (kmsg.state == msg_responded)
+			err = EOK; /* Don't report EINTR if we got the response already */
 	}
 
 	hal_spinlockClear(&p->spinlock);
-
 	port_put(p, 0);
+
+	if (err != EOK)
+		return err;
 
 	hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
 
@@ -347,7 +359,7 @@ int proc_send(u32 port, msg_t *msg)
 	if ((kmsg.msg.o.data > (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw)))
 		hal_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
 
-	return responded < 0 ? -EINVAL : err;
+	return kmsg.state == msg_rejected ? -EINVAL : err;
 }
 
 
@@ -355,34 +367,38 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 {
 	port_t *p;
 	kmsg_t *kmsg;
-	int ipacked = 0, opacked = 0, closed;
+	int ipacked = 0, opacked = 0, closed, err = EOK;
 
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
 	hal_spinlockSet(&p->spinlock);
 
-	while (p->kmessages == NULL && !p->closed)
-		proc_threadWait(&p->threads, &p->spinlock, 0);
+	while (p->kmessages == NULL && !p->closed && err != -EINTR)
+		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0);
 
 	kmsg = p->kmessages;
 
 	if (p->closed) {
 		/* Port is being removed */
 		if (kmsg != NULL) {
-			kmsg->responded = -1;
+			kmsg->state = msg_rejected;
 			LIST_REMOVE(&p->kmessages, kmsg);
 			proc_threadWakeup(&kmsg->threads);
 		}
 
-		hal_spinlockClear(&p->spinlock);
-		port_put(p, 0);
-		return -EINVAL;
+		err = -EINVAL;
 	}
-
-	LIST_REMOVE(&p->kmessages, kmsg);
-	LIST_ADD(&p->received, kmsg);
+	else if (err == EOK) {
+		LIST_REMOVE(&p->kmessages, kmsg);
+		kmsg->state = msg_received;
+	}
 	hal_spinlockClear(&p->spinlock);
+
+	if (err != EOK) {
+		port_put(p, 0);
+		return err;
+	}
 
 	/* (MOD) */
 	(*rid) = (unsigned long)(kmsg);
@@ -421,8 +437,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 		msg_release(kmsg);
 
 		hal_spinlockSet(&p->spinlock);
-		LIST_REMOVE(&p->received, kmsg);
-		kmsg->responded = -1;
+		kmsg->state = msg_rejected;
 		proc_threadWakeup(&kmsg->threads);
 		hal_spinlockClear(&p->spinlock);
 
@@ -471,9 +486,8 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
 
 	hal_spinlockSet(&p->spinlock);
-	kmsg->responded = 1;
+	kmsg->state = msg_responded;
 	kmsg->src = proc_current()->process;
-	LIST_REMOVE(&p->received, kmsg);
 	proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock);
 	port_put(p, 0);

@@ -31,7 +31,6 @@ typedef struct _port_t {
 	u32 lmaxgap;
 	u32 rmaxgap;
 	kmsg_t *kmessages;
-	kmsg_t *received;
 	process_t *owner;
 	int refs, closed;
 

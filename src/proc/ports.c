@@ -6,7 +6,7 @@
  * Ports
  *
  * Copyright 2017, 2018 Phoenix Systems
- * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski
+ * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski, Jan Sikorski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -210,7 +210,6 @@ int proc_portCreate(u32 *id)
 	lib_rbInsert(&port_common.tree, &port->linkage);
 
 	port->kmessages = NULL;
-	port->received = NULL;
 	hal_spinlockCreate(&port->spinlock, "port.spinlock");
 
 	port->threads = NULL;

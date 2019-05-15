@@ -6,7 +6,7 @@
  * Messages (no MMU)
  *
  * Copyright 2017, 2018 Phoenix Systems
- * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski
+ * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski, Jan Sikorski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -18,6 +18,9 @@
 #include "proc.h"
 
 
+enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
+
+
 struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
@@ -27,7 +30,6 @@ struct {
 int proc_send(u32 port, msg_t *msg)
 {
 	port_t *p;
-	int responded = 0;
 	int err = EOK;
 	kmsg_t kmsg;
 	thread_t *sender;
@@ -40,7 +42,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.msg = msg;
 	kmsg.src = sender->process;
 	kmsg.threads = NULL;
-	kmsg.responded = 0;
+	kmsg.state = msg_waiting;
 
 	kmsg.msg->pid = (sender->process != NULL) ? sender->process->id : 0;
 	kmsg.msg->priority = sender->priority;
@@ -55,7 +57,7 @@ int proc_send(u32 port, msg_t *msg)
 
 		proc_threadWakeup(&p->threads);
 
-		while (!(responded = kmsg.responded))
+		while (kmsg.state != msg_responded && kmsg.state != msg_rejected)
 			err = proc_threadWait(&kmsg.threads, &p->spinlock, 0);
 	}
 
@@ -63,7 +65,7 @@ int proc_send(u32 port, msg_t *msg)
 
 	port_put(p, 0);
 
-	return responded < 0 ? -EINVAL : err;
+	return kmsg.state == msg_rejected ? -EINVAL : err;
 }
 
 
@@ -85,7 +87,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	if (p->closed) {
 		/* Port is being removed */
 		if (kmsg != NULL) {
-			kmsg->responded = -1;
+			kmsg->state = msg_rejected;
 			LIST_REMOVE(&p->kmessages, kmsg);
 			proc_threadWakeup(&kmsg->threads);
 		}
@@ -95,8 +97,8 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 		return -EINVAL;
 	}
 
+	kmsg->state = msg_received;
 	LIST_REMOVE(&p->kmessages, kmsg);
-	LIST_ADD(&p->received, kmsg);
 	hal_spinlockClear(&p->spinlock);
 
 	/* (MOD) */
@@ -121,9 +123,8 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	hal_memcpy(kmsg->msg->o.raw, msg->o.raw, sizeof(msg->o.raw));
 
 	hal_spinlockSet(&p->spinlock);
-	kmsg->responded = 1;
+	kmsg->state = msg_responded;
 	kmsg->src = proc_current()->process;
-	LIST_REMOVE(&p->received, kmsg);
 	proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock);
 	port_put(p, 0);
