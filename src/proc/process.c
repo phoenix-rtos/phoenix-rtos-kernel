@@ -784,6 +784,8 @@ void proc_exit(int code)
 	process_spawn_t *spawn;
 	void *kstack;
 
+	current->process->exit = code;
+
 	if ((spawn = current->execdata) != NULL) {
 		kstack = current->kstack = current->execkstack;
 		kstack += current->kstacksz;

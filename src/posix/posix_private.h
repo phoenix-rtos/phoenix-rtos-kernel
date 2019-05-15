@@ -76,6 +76,7 @@ typedef struct _process_info_t {
 	int process;
 	int parent;
 	int refs;
+	int exitcode;
 
 	thread_t *wait;
 

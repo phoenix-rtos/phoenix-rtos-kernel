@@ -391,10 +391,12 @@ int posix_exec(void)
 }
 
 
-int posix_exit(process_info_t *p)
+int posix_exit(process_info_t *p, int code)
 {
 	open_file_t *f;
 	int fd;
+
+	p->exitcode = code;
 
 	proc_lockSet(&p->lock);
 	for (fd = 0; fd <= p->maxfd; ++fd) {
@@ -2211,10 +2213,10 @@ int posix_waitpid(pid_t child, int *status, int options)
 	if (found) {
 		err = c->process;
 
-		pinfo_put(c);
-
 		if (status != NULL)
-			*status = 0; /* TODO: pass exit code */
+			*status = c->exitcode;
+
+		pinfo_put(c);
 	}
 
 	pinfo_put(pinfo);
@@ -2229,7 +2231,7 @@ void posix_died(pid_t pid, int exit)
 	if ((pinfo = pinfo_find(pid)) == NULL)
 		return;
 
-	posix_exit(pinfo);
+	posix_exit(pinfo, exit & 0xff);
 
 	if ((ppinfo = pinfo_find(pinfo->parent)) == NULL) {
 		// posix_destroy(pinfo);

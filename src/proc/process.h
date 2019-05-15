@@ -44,7 +44,7 @@ typedef struct _process_t {
 	};
 	vm_map_t *mapp;
 	int exit;
-	
+
 	unsigned lazy : 1;
 	unsigned lgap : 1;
 	unsigned rgap : 1;
