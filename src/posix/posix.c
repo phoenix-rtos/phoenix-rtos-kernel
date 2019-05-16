@@ -473,10 +473,10 @@ int posix_open(const char *filename, int oflag, char *ustack)
 		proc_lockClear(&p->lock);
 
 		do {
-			if (proc_lookup(filename, &ln, &oid) == EOK) {
+			if ((err = proc_lookup(filename, &ln, &oid)) == EOK) {
 				/* pass */
 			}
-			else if (oflag & O_CREAT) {
+			else if (err == -ENOENT && oflag & O_CREAT) {
 				GETFROMSTACK(ustack, mode_t, mode, 2);
 
 				if (posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid) < 0) {
@@ -486,14 +486,11 @@ int posix_open(const char *filename, int oflag, char *ustack)
 				hal_memcpy(&ln, &oid, sizeof(oid_t));
 			}
 			else {
-				err = -ENOENT;
 				break;
 			}
 
-			if (oid.port != US_PORT && (err = proc_open(oid, oflag)) < 0) {
-				err = -EIO;
+			if (oid.port != US_PORT && (err = proc_open(oid, oflag)) < 0)
 				break;
-			}
 
 			proc_lockSet(&p->lock);
 			p->fds[fd].flags = oflag & O_CLOEXEC ? FD_CLOEXEC : 0;
