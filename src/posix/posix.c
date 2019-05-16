@@ -870,6 +870,7 @@ int posix_chmod(const char *pathname, mode_t mode)
 
 	oid_t oid, ln;
 	msg_t msg;
+	int err;
 
 	if (proc_lookup(pathname, &ln, &oid) < 0)
 		return -ENOENT;
@@ -880,17 +881,14 @@ int posix_chmod(const char *pathname, mode_t mode)
 	msg.type = mtGetAttr;
 	msg.i.attr.type = atMode;
 
-	if (proc_send(oid.port, &msg) < 0)
-		return -EIO;
+	if ((err = proc_send(oid.port, &msg)) < 0)
+		return err;
 
 	msg.type = mtSetAttr;
 	msg.i.attr.type = atMode;
 	msg.i.attr.val = (msg.o.attr.val & ~0777) | (mode & 0777);
 
-	if (proc_send(oid.port, &msg) < 0)
-		return -EIO;
-
-	return EOK;
+	return proc_send(oid.port, &msg);
 }
 
 
@@ -1063,37 +1061,48 @@ int posix_fstat(int fd, struct stat *buf)
 			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
 			msg.i.attr.val = 0;
 
-			msg.i.attr.type = atMTime;
-			if (!proc_send(f->oid.port, &msg))
-				buf->st_mtime = msg.o.attr.val;
+			do {
+				msg.i.attr.type = atMTime;
+				if (!(err = proc_send(f->oid.port, &msg)))
+					buf->st_mtime = msg.o.attr.val;
+				else break;
 
-			msg.i.attr.type = atATime;
-			if (!proc_send(f->oid.port, &msg))
-				buf->st_atime = msg.o.attr.val;
+				msg.i.attr.type = atATime;
+				if (!(err = proc_send(f->oid.port, &msg)))
+					buf->st_atime = msg.o.attr.val;
+				else break;
 
-			msg.i.attr.type = atCTime;
-			if (!proc_send(f->oid.port, &msg))
-				buf->st_ctime = msg.o.attr.val;
+				msg.i.attr.type = atCTime;
+				if (!(err = proc_send(f->oid.port, &msg)))
+					buf->st_ctime = msg.o.attr.val;
+				else break;
 
-			msg.i.attr.type = atLinks;
-			if (!proc_send(f->oid.port, &msg))
-				buf->st_nlink = msg.o.attr.val;
+				msg.i.attr.type = atLinks;
+				if (!(err = proc_send(f->oid.port, &msg)))
+					buf->st_nlink = msg.o.attr.val;
+				else break;
 
-			msg.i.attr.type = atMode;
-			if (!proc_send(f->oid.port, &msg))
-				buf->st_mode = msg.o.attr.val;
+				msg.i.attr.type = atMode;
+				if (!(err = proc_send(f->oid.port, &msg)))
+					buf->st_mode = msg.o.attr.val;
+				else break;
 
-			msg.i.attr.type = atUid;
-			if (!proc_send(f->oid.port, &msg))
-				buf->st_uid = msg.o.attr.val;
+				msg.i.attr.type = atUid;
+				if (!(err = proc_send(f->oid.port, &msg)))
+					buf->st_uid = msg.o.attr.val;
+				else break;
 
-			msg.i.attr.type = atGid;
-			if (!proc_send(f->oid.port, &msg))
-				buf->st_gid = msg.o.attr.val;
+				msg.i.attr.type = atGid;
+				if (!(err = proc_send(f->oid.port, &msg)))
+					buf->st_gid = msg.o.attr.val;
+				else break;
 
-			msg.i.attr.type = atSize;
-			if (!proc_send(f->oid.port, &msg))
-				buf->st_size = msg.o.attr.val;
+				msg.i.attr.type = atSize;
+				if (!(err = proc_send(f->oid.port, &msg)))
+					buf->st_size = msg.o.attr.val;
+				else break;
+			}
+			while (0);
 		}
 		else {
 			switch (f->type) {
@@ -1425,11 +1434,8 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 
 			ioctl_pack(&msg, request, data, f->oid.id);
 
-			if (proc_send(f->oid.port, &msg) < 0) {
-				err = -EIO;
-			}
-
-			err = ioctl_processResponse(&msg, request, data);
+			if ((err = proc_send(f->oid.port, &msg)) == EOK)
+				err = ioctl_processResponse(&msg, request, data);
 		}
 
 		posix_fileDeref(f);
@@ -1860,6 +1866,9 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			if (!(err = proc_send(msg.i.attr.oid.port, &msg)))
 				err = msg.o.attr.val;
 		}
+
+		if (err == -EINTR)
+			return err;
 
 		if (err < 0)
 			fds[i].revents |= POLLHUP;
