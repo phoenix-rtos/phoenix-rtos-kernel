@@ -22,6 +22,7 @@
 
 struct {
 	volatile u32 *gpio[5];
+	volatile u32 *aips[4];
 	volatile u32 *ccm;
 	volatile u32 *ccm_analog;
 	volatile u32 *pmu;
@@ -47,6 +48,9 @@ struct {
 
 
 enum { gpio_dr = 0, gpio_gdir, gpio_psr, gpio_icr1, gpio_icr2, gpio_imr, gpio_isr, gpio_edge_sel };
+
+
+enum { aipstz_mpr = 0, aipstz_opacr = 16, aipstz_opacr1, aipstz_opacr2, aipstz_opacr3, aipstz_opacr4 };
 
 
 enum { ccm_ccr = 0, /* reserved */ ccm_csr = 2, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr, ccm_cscmr1, ccm_cscmr2,
@@ -1950,12 +1954,17 @@ void _imxrt_platformInit(void)
 void _imxrt_init(void)
 {
 	u32 ccsidr, sets, ways;
+	int i;
 
 	imxrt_common.gpio[0] = (void *)0x401b8000;
 	imxrt_common.gpio[1] = (void *)0x401bc000;
 	imxrt_common.gpio[2] = (void *)0x401c0000;
 	imxrt_common.gpio[3] = (void *)0x401c4000;
 	imxrt_common.gpio[4] = (void *)0x400c0000;
+	imxrt_common.aips[0] = (void *)0x4007c000;
+	imxrt_common.aips[1] = (void *)0x4017c000;
+	imxrt_common.aips[2] = (void *)0x4027c000;
+	imxrt_common.aips[3] = (void *)0x4037c000;
 	imxrt_common.ccm = (void *)0x400fc000;
 	imxrt_common.ccm_analog = (void *)0x400d8000;
 	imxrt_common.pmu = (void *)0x400d8110;
@@ -2050,4 +2059,13 @@ void _imxrt_init(void)
 	_imxrt_ccmDeinitAudioPll();
 	_imxrt_ccmDeinitEnetPll();
 	_imxrt_ccmDeinitUsb2Pll();
+
+	/* Allow userspace applications to access hardware registers */
+	for (i = 0; i < sizeof(imxrt_common.aips) / sizeof(imxrt_common.aips[0]); ++i) {
+		*(imxrt_common.aips[i] + aipstz_opacr) &= ~0x44444444;
+		*(imxrt_common.aips[i] + aipstz_opacr1) &= ~0x44444444;
+		*(imxrt_common.aips[i] + aipstz_opacr2) &= ~0x44444444;
+		*(imxrt_common.aips[i] + aipstz_opacr3) &= ~0x44444444;
+		*(imxrt_common.aips[i] + aipstz_opacr4) &= ~0x44444444;
+	}
 }
