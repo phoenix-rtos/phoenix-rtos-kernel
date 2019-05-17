@@ -436,6 +436,7 @@ struct _reloc {
 	void *vbase;
 	void *pbase;
 	size_t size;
+	unsigned int misalign;
 };
 
 
@@ -456,13 +457,11 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 
 int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
 {
-	void *vaddr = NULL, *stack, *paddr;
-	size_t memsz = 0, filesz = 0;
-	offs_t offs = 0;
+	void *stack, *paddr;
 	Elf32_Ehdr *ehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr;
-	unsigned prot, flags, misalign = 0;
+	unsigned prot, flags;
 	int i, j, relocsz = 0;
 	char *snameTab;
 	ptr_t *got;
@@ -483,12 +482,6 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		if (phdr->p_type != PT_LOAD)
 			continue;
 
-		vaddr = (void *)((unsigned long)phdr->p_vaddr & ~(phdr->p_align - 1));
-		offs = phdr->p_offset & ~(phdr->p_align - 1);
-		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? phdr->p_filesz + misalign : 0;
-		memsz = phdr->p_memsz + misalign;
-
 		prot = PROT_USER;
 		flags = MAP_NONE;
 
@@ -501,28 +494,29 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		if (phdr->p_flags & PF_W) {
 			prot |= PROT_WRITE;
 
-			if ((paddr = vm_mmap(process->mapp, NULL, NULL, round_page(memsz), prot, NULL, -1, flags)) == NULL)
+			if ((paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags)) == NULL)
 				return -ENOMEM;
 
-			if (filesz) {
-				if (offs + round_page(filesz) > size)
+			if (phdr->p_filesz) {
+				if (phdr->p_offset + round_page(phdr->p_filesz) > size)
 					return -ENOEXEC;
 
-				hal_memcpy(paddr, (char *)ehdr + offs, filesz);
+				hal_memcpy(paddr, (char *)ehdr + phdr->p_offset, phdr->p_filesz);
 			}
 
-			hal_memset((char *)paddr + filesz, 0, round_page(memsz) - filesz);
+			hal_memset((char *)paddr + phdr->p_filesz, 0, round_page(phdr->p_memsz) - phdr->p_filesz);
 		}
 		else {
-			paddr = (char *)ehdr + offs;
+			paddr = (char *)ehdr + phdr->p_offset;
 		}
 
 		if (j > sizeof(reloc) / sizeof(reloc[0]))
 			return -ENOMEM;
 
-		reloc[j].vbase = vaddr;
+		reloc[j].vbase = (void *)phdr->p_vaddr;
 		reloc[j].pbase = paddr;
-		reloc[j].size = memsz;
+		reloc[j].size = phdr->p_memsz;
+		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1);
 		++relocsz;
 		++j;
 	}

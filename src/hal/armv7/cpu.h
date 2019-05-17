@@ -305,7 +305,7 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 			bmi 1f; \
 			pop {r3}; \
 		1: \
-			blx %2"
+			bx %2"
 		: "+r" (argc)
 		: "r" (kstack), "r" (f)
 		: "r0", "r1", "r2", "r3", "sp");
@@ -330,7 +330,7 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 			msr psp, %0; \
 			mov r4, #3; \
 			msr control, r4; \
-			blx %3"
+			bx %3"
 		: "+r"(stack), "+r" (argc)
 		: "r" (kstack), "r" (f)
 		: "r0", "r1", "r2", "r3", "r4", "sp");
