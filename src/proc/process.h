@@ -96,6 +96,9 @@ extern int proc_syspageSpawn(syspage_program_t *program, const char *path, char 
 extern int proc_execve(const char *path, char **argv, char **envp);
 
 
+extern int proc_sigpost(int pid, int sig);
+
+
 extern int proc_vfork(void);
 
 

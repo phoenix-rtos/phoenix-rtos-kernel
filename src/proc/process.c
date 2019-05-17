@@ -337,7 +337,7 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 	if (thread->process == NULL)
 		hal_cpuHalt();
 
-	proc_sigpost(thread->process, thread, signal_kill);
+	threads_sigpost(thread->process, thread, signal_kill);
 	hal_cpuReschedule(NULL);
 }
 
@@ -350,7 +350,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 	if (process == NULL)
 		hal_cpuHalt();
 
-	proc_sigpost(process, thread, signal_illegal);
+	threads_sigpost(process, thread, signal_illegal);
 }
 
 
@@ -1090,6 +1090,24 @@ int proc_execve(const char *path, char **argv, char **envp)
 	/* Not reached */
 
 	return 0;
+}
+
+
+int proc_sigpost(int pid, int sig)
+{
+	process_t s, *p;
+	int err;
+
+	s.id = pid;
+
+	proc_lockSet(&process_common.lock);
+	if ((p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage))) != NULL)
+		err = threads_sigpost(p, NULL, sig);
+	else
+		err = -EINVAL;
+	proc_lockClear(&process_common.lock);
+
+	return err;
 }
 
 

@@ -1148,7 +1148,7 @@ time_t proc_nextWakeup(void)
  */
 
 
-int proc_sigpost(process_t *process, thread_t *thread, int sig)
+int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	int sigbit = 1 << sig;
 
@@ -1173,7 +1173,6 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
 	hal_spinlockSet(&threads_common.spinlock);
 	if (thread != NULL) {
 		hal_cpuPushSignal(thread->kstack + thread->kstacksz, thread->process->sighandler, sig);
-//		thread->sigmask |= sigbit;
 	}
 	else {
 		process->sigpend |= sigbit;
@@ -1181,9 +1180,6 @@ int proc_sigpost(process_t *process, thread_t *thread, int sig)
 
 		do {
 			if (sigbit & ~thread->sigmask) {
-				// thread->sigpend |= sigbit;
-				// process->sigpend &= ~sigbit;
-
 				if (thread->interruptible)
 					_thread_interrupt(thread);
 

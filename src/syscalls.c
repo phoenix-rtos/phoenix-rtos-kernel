@@ -771,7 +771,7 @@ int syscalls_signalPost(void *ustack)
 		return -EINVAL;
 	}
 
-	err = proc_sigpost(proc, t, signal);
+	err = threads_sigpost(proc, t, signal);
 
 	proc_put(proc);
 	threads_put(t);

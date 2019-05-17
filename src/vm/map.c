@@ -680,7 +680,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 			hal_cpuHalt();
 		}
 
-		proc_sigpost(thread->process, thread, signal_segv);
+		threads_sigpost(thread->process, thread, signal_segv);
 	}
 }
 #endif

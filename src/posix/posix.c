@@ -61,17 +61,24 @@ struct {
 } posix_common;
 
 
-process_info_t *pinfo_find(unsigned int pid)
+process_info_t *_pinfo_find(unsigned int pid)
 {
 	process_info_t pi, *r;
-
 	pi.process = pid;
 
-	proc_lockSet(&posix_common.lock);
 	if ((r = lib_treeof(process_info_t, linkage, lib_rbFind(&posix_common.pid, &pi.linkage))) != NULL)
 		r->refs++;
-	proc_lockClear(&posix_common.lock);
 
+	return r;
+}
+
+
+process_info_t *pinfo_find(unsigned int pid)
+{
+	process_info_t *r;
+	proc_lockSet(&posix_common.lock);
+	r = _pinfo_find(pid);
+	proc_lockClear(&posix_common.lock);
 	return r;
 }
 
@@ -2025,11 +2032,11 @@ static int posix_killOne(pid_t pid, int tid, int sig)
 	if ((pinfo = pinfo_find(pid)) != NULL || !(err = -EINVAL)) {
 		if ((proc = proc_find(pinfo->process)) != NULL || !(err = -ESRCH)) {
 			if (!tid) {
-				err = proc_sigpost(proc, NULL, sig);
+				err = threads_sigpost(proc, NULL, sig);
 			}
 			else if ((thr = threads_findThread(tid)) != NULL || !(err = -EINVAL)) {
 				if (thr->process == proc || !(err = -EINVAL))
-					err = proc_sigpost(proc, thr, sig);
+					err = threads_sigpost(proc, thr, sig);
 
 				threads_put(thr);
 			}
@@ -2045,20 +2052,14 @@ static int posix_killOne(pid_t pid, int tid, int sig)
 static int posix_killGroup(pid_t pgid, int sig)
 {
 	process_info_t *pinfo;
-	process_t *proc;
 	rbnode_t *node;
 
 	proc_lockSet(&posix_common.lock);
-	pinfo = lib_treeof(process_info_t, linkage, lib_rbMinimum(posix_common.pid.root));
-
 	for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
 		pinfo = lib_treeof(process_info_t, linkage, node);
 
-		if (pinfo->pgid == pgid) {
-			proc = proc_find(pinfo->process);
-			proc_sigpost(proc, NULL, sig);
-			proc_put(proc);
-		}
+		if (pinfo->pgid == pgid)
+			proc_sigpost(pinfo->process, sig);
 	}
 	proc_lockClear(&posix_common.lock);
 
