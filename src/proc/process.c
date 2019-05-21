@@ -657,6 +657,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	if (spawn->parent == NULL) {
 		/* if execing without vfork */
 		hal_spinlockDestroy(&spawn->sl);
+		vm_objectPut(spawn->object);
 	}
 	else {
 		hal_spinlockSet(&spawn->sl);
@@ -725,6 +726,7 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 	}
 
 	hal_spinlockDestroy(&spawn.sl);
+	vm_objectPut(spawn.object);
 	return spawn.state < 0 ? spawn.state : pid;
 }
 
@@ -885,6 +887,7 @@ int proc_vfork(void)
 
 	if (isparent) {
 		hal_spinlockDestroy(&spawn->sl);
+		vm_objectPut(spawn->object);
 		ret = spawn->state;
 		vm_kfree(spawn);
 		return ret < 0 ? ret : pid;
@@ -1052,11 +1055,19 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return -ENOMEM;
 	}
 
-	if ((err = proc_lookup(path, NULL, &oid)) < 0)
+	if ((err = proc_lookup(path, NULL, &oid)) < 0) {
+		vm_kfree(kpath);
+		vm_kfree(argv);
+		vm_kfree(envp);
 		return err;
+	}
 
-	if ((err = vm_objectGet(&object, oid)) < 0)
+	if ((err = vm_objectGet(&object, oid)) < 0) {
+		vm_kfree(kpath);
+		vm_kfree(argv);
+		vm_kfree(envp);
 		return err;
+	}
 
 	if ((spawn = current->execdata) == NULL) {
 		spawn = current->execdata = &sspawn;
@@ -1074,6 +1085,8 @@ int proc_execve(const char *path, char **argv, char **envp)
 	spawn->size = object->size;
 
 	vm_kfree(current->process->path);
+	vm_kfree(current->process->envp);
+	vm_kfree(current->process->argv);
 
 	current->process->path = kpath;
 
