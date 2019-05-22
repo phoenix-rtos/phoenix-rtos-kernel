@@ -153,6 +153,14 @@ void vm_pageGetStats(size_t *freesz)
 
 void vm_pageinfo(meminfo_t *info)
 {
+	proc_lockSet(&pages.lock);
+
+	info->page.alloc = pages.allocsz;
+	info->page.free = pages.freesz;
+	info->page.boot = pages.bootsz;
+	info->page.sz = sizeof(page_t);
+
+	proc_lockClear(&pages.lock);
 }
 
 
