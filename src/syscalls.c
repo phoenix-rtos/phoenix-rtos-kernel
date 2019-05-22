@@ -286,7 +286,6 @@ void syscalls_meminfo(void *ustack)
 
 int syscalls_syspageprog(void *ustack)
 {
-#ifndef NOMMU
 	int i;
 	syspageprog_t *prog;
 
@@ -304,9 +303,6 @@ int syscalls_syspageprog(void *ustack)
 	hal_memcpy(prog->name, syspage->progs[i].cmdline, sizeof(syspage->progs[i].cmdline));
 
 	return EOK;
-#else
-	return -EINVAL;
-#endif
 }
 
 
