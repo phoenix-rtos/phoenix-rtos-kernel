@@ -18,6 +18,17 @@
 # $3, ... - applications ELF(s)
 # example: ./mkimg-imxrt.sh phoenix-armv7-imxrt.elf flash.img app1.elf app2.elf
 
+
+reverse() {
+	num=$1
+	printf "0x"
+	for i in 1 2 3 4; do
+		printf "%02x" $(($num & 0xff))
+		num=$(($num>>8))
+	done
+}
+
+
 if [ -z "$CROSS" ]
 then
 	CROSS="arm-phoenix-"
@@ -40,7 +51,7 @@ APP_START=$((0x08010000))
 SYSPAGE_START=$((0x08000200))
 
 declare -i i
-declare -i k
+declare -i j
 
 i=$((0))
 
@@ -55,49 +66,45 @@ rm -f *.img
 rm -f syspage.hex syspage.bin
 rm -f $OUTPUT
 
-printf "%08x %08x\n" $i 0x20000000 >> syspage.hex #pbegin
-i=$i+4
-printf "%08x %08x\n" $i 0x20040000 >> syspage.hex #pend
-i=$i+4
-printf "%08x %08x\n" $i 0 >> syspage.hex #arg
-i=$i+4
-printf "%08x %08x\n" $i $((`echo $@ | wc -w`)) >> syspage.hex #progssz
-i=$i+4
+prognum=$((`echo $@ | wc -w`))
+
+printf "%08x%08x" $((`reverse 0x20000000`)) $((`reverse 0x20040000`)) >> syspage.hex
+printf "%08x%08x" 0 $((`reverse $prognum`)) >> syspage.hex
+i=16
 
 OFFSET=$(($APP_START+($APP_START-$SYSPAGE_START)))
 
 for app in $@; do
 	echo "Proccessing $app"
-	k=0
 
-	START=$(($OFFSET-$APP_START-$(($i-$k))))
-	printf "%08x %08x\n" $i $START >> syspage.hex #start
-	i=$i+4
-	k=$k+4
+	START=$(($OFFSET-$APP_START-$i))
+	printf "%08x" $((`reverse $START`)) >> syspage.hex #start
 
 	cp $app tmp.elf
 	${CROSS}strip tmp.elf
 	SIZE=$((`du -b tmp.elf | cut -f1`))
 	rm -f tmp.elf
 	END=$(($START+$SIZE))
-	printf "%08x %08x\n" $i $END >> syspage.hex #end
-	i=$i+4
-	k=$k+4
+	printf "%08x" $((`reverse $END`)) >> syspage.hex #end
+	i=$i+8
 
 	OFFSET=$((($OFFSET+$SIZE+$SIZE_PAGE-1)&$PAGE_MASK))
 
-	for (( j=0; j<4; j++)); do
-		printf "%08x %08x\n" $i 0 >> syspage.hex #cmdline
-		i=$i+4
-		k=$k+4
+	j=0
+	for char in `basename "$app" | sed -e 's/\(.\)/\1\n/g'`; do
+		printf "%02x" "'$char" >> syspage.hex
+		j=$j+1
 	done
+
+	for (( ; j<16; j++ )); do
+		printf "%02x" 0 >> syspage.hex
+	done
+
+	i=$i+16
 done
 
 # Use hex file to create binary file
-xxd -g4 -c4 -r syspage.hex > syspage.bin
-
-# Convert to little endian
-objcopy --reverse-bytes=4 -I binary syspage.bin -O binary syspage.bin
+xxd -r -p syspage.hex > syspage.bin
 
 # Make kernel binary image
 ${CROSS}objcopy $KERNELELF -O binary kernel.img
