@@ -265,9 +265,9 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
-static inline void hal_cpuPushSignal(cpu_context_t *ctx, void (*handler)(void), int sig)
+static inline int hal_cpuPushSignal(cpu_context_t *ctx, void (*handler)(void), int sig)
 {
-	return;
+	return 0;
 }
 
 

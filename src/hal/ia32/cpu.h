@@ -554,7 +554,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
-static inline void hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	char *ustack = (char *)ctx->esp;
@@ -564,6 +564,8 @@ static inline void hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 
 	ctx->eip = (u32)handler;
 	ctx->esp = (u32)ustack;
+
+	return 0;
 }
 
 

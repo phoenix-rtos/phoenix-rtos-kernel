@@ -672,10 +672,11 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			/* Check for signals to handle */
 			if ((sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask) && proc->sighandler != NULL) {
 				sig = hal_cpuGetLastBit(sig);
-				selected->sigpend &= ~(1 << sig);
-				proc->sigpend &= ~(1 << sig);
 
-				hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, sig);
+				if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, sig) == EOK) {
+					selected->sigpend &= ~(1 << sig);
+					proc->sigpend &= ~(1 << sig);
+				}
 			}
 		}
 
@@ -1171,8 +1172,8 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	}
 
 	hal_spinlockSet(&threads_common.spinlock);
-	if (thread != NULL) {
-		hal_cpuPushSignal(thread->kstack + thread->kstacksz, thread->process->sighandler, sig);
+	if (thread != NULL && hal_cpuPushSignal(thread->kstack + thread->kstacksz, thread->process->sighandler, sig) != EOK) {
+		thread->sigpend |= sigbit;
 	}
 	else {
 		process->sigpend |= sigbit;
