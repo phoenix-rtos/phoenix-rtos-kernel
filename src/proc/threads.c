@@ -1152,6 +1152,7 @@ time_t proc_nextWakeup(void)
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	int sigbit = 1 << sig;
+	int kill = 0;
 
 	switch (sig) {
 		case signal_segv:
@@ -1174,6 +1175,12 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	hal_spinlockSet(&threads_common.spinlock);
 	if (thread != NULL && hal_cpuPushSignal(thread->kstack + thread->kstacksz, thread->process->sighandler, sig) != EOK) {
 		thread->sigpend |= sigbit;
+
+		if (sig == signal_segv || sig == signal_illegal) {
+			/* If they can't handle those right away, kill */
+			kill = 1;
+			_proc_threadExit(thread);
+		}
 	}
 	else {
 		process->sigpend |= sigbit;
@@ -1190,6 +1197,9 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		while ((thread = thread->procnext) != process->threads);
 	}
 	hal_cpuReschedule(&threads_common.spinlock);
+
+	if (kill)
+		proc_kill(process);
 
 	return EOK;
 }
