@@ -297,7 +297,12 @@ int proc_close(oid_t oid, unsigned mode)
 	msg->i.openclose.flags = mode;
 
 	err = proc_send(oid.port, msg);
+
+	if (err == EOK)
+		err = msg->o.io.err;
+
 	vm_kfree(msg);
+
 	return err;
 }
 
