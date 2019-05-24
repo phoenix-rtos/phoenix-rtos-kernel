@@ -152,9 +152,9 @@ static int posix_fileDeref(open_file_t *f)
 	proc_lockSet(&f->lock);
 	if (!--f->refs) {
 		if (f->type != ftUnixSocket) {
-			// lib_printf("closing file %d.%lld \n", f->oid.port, f->oid.id);
-			err = proc_close(f->oid, f->status);
+			while ((err = proc_close(f->oid, f->status)) == -EINTR) ;
 		}
+
 		proc_lockDone(&f->lock);
 		vm_kfree(f);
 	}
