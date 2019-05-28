@@ -589,7 +589,7 @@ int vm_mapForce(vm_map_t *map, void *paddr, int prot)
 static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 {
 	int attr = 0, offs;
-	page_t *p;
+	page_t *p = NULL;
 
 	if (prot & PROT_WRITE && !(e->prot & PROT_WRITE))
 		return PROT_WRITE;
@@ -614,7 +614,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 
 	if (e->amap == NULL)
 		p = vm_objectPage(map, NULL, e->object, paddr, (e->offs < 0) ? e->offs : e->offs + offs);
-	else
+	else if (e->object != (void *)-1)
 		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, (e->offs < 0) ? e->offs : e->offs + offs, prot);
 
 	if (prot & PROT_WRITE)
