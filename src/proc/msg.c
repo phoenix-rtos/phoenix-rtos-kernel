@@ -36,10 +36,11 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
 	unsigned int n = 0, i, attr, prot;
-	page_t *ep = NULL, *nep = NULL, *bp = NULL, *nbp = NULL, *p;
+	page_t *nep = NULL, *nbp = NULL;
 	vm_map_t *srcmap, *dstmap;
 	struct _kmsg_layout_t *ml = dir ? &kmsg->o : &kmsg->i;
 	int flags;
+	addr_t bpa, pa, epa;
 
 	if ((size == 0) || (data == NULL))
 		return NULL;
@@ -94,12 +95,12 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 	if (boffs > 0) {
 		ml->boffs = boffs;
-		bp = _page_get(pmap_resolve(&srcmap->pmap, data));
+		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1);
 
 		if ((ml->bp = nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL)
 			return NULL;
 
-		if ((ml->bvaddr = vaddr = vm_mmap(msg_common.kmap, (void *)0, bp, SIZE_PAGE, PROT_READ | PROT_WRITE, msg_common.kernel, -1, flags)) == NULL)
+		if ((ml->bvaddr = vaddr = vm_mmap(msg_common.kmap, (void *)0, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, (void *)-1, bpa, flags)) == NULL)
 			return NULL;
 
 		/* Map new page into destination address space */
@@ -116,8 +117,8 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	vaddr = (void *)CEIL((unsigned long)data);
 
 	for (i = 0; i < n; i++, vaddr += SIZE_PAGE) {
-		p = _page_get(pmap_resolve(&srcmap->pmap, vaddr));
-		if (page_map(&dstmap->pmap, w + (i + !!boffs) * SIZE_PAGE, p->addr, attr) < 0)
+		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1);
+		if (page_map(&dstmap->pmap, w + (i + !!boffs) * SIZE_PAGE, pa, attr) < 0)
 			return NULL;
 	}
 
@@ -126,7 +127,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	if (eoffs) {
 		ml->eoffs = eoffs;
 		vaddr = (void *)FLOOR((unsigned long)data + size);
-		ep = _page_get(pmap_resolve(&srcmap->pmap, vaddr));
+		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1);
 
 		if (!boffs || (eoffs >= boffs)) {
 			if ((ml->ep = nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL)
@@ -136,7 +137,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			nep = nbp;
 		}
 
-		if ((ml->evaddr = vaddr = vm_mmap(msg_common.kmap, (void *)0, ep, SIZE_PAGE, PROT_READ | PROT_WRITE, msg_common.kernel, -1, flags)) == NULL)
+		if ((ml->evaddr = vaddr = vm_mmap(msg_common.kmap, (void *)0, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, (void *)-1, epa, flags)) == NULL)
 			return NULL;
 
 		/* Map new page into destination address space */
