@@ -42,8 +42,6 @@
 
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		if (n == 4) \
-			ustack += 4 * sizeof(unsigned int); \
 		hal_memcpy(&(v), ustack, sizeof(t)); \
 		ustack += (sizeof(t) + 3) & ~0x3; \
 	} while (0)

@@ -143,40 +143,36 @@ _start:
 	bl main
 .size _start, .-_start
 
-
 .globl _syscall_dispatch
 .type _syscall_dispatch, %function
+.type _syscallend, %function
 
 _syscall_dispatch:
-	/* Find out which stack has arguments */
-	tst lr, #4
-	ite eq
-	mrseq r0, msp
-	mrsne r0, psp
+	stmdb sp!, {r4-r8}
+	mrs r0, psp
 
-	push {lr}
+	/* Store hardware saved registers on kernel stack */
+	ldmia r0!, {r1-r8}
+
+	/* Fix PC LSB not being set */
+	orr r7, r7, #1
+
+	stmdb sp!, {r1-r8}
+	push {r0}
+
+	/* Copy arguments back to the user stack */
+	stmdb r0!, {r1-r4}
 
 	/* Get syscall number and its function pointer */
 	ldr r1, =syscalls
-	ldr r2, [r0, #24]
-	ldrb r2, [r2, #-2]
-	lsl r2, #2
-	ldr r1, [r1, r2]
+	ldr r2, [sp, #28]
+	ldrb r2, [r2, #-3]
+	ldr r6, [r1, r2, lsl #2]
 
 	/* Prepare pseudo context */
-	mov r2, #0x01000000
-	push {r2} /* PSR */
-	push {r1} /* PC */
-	mov r2, _syscallend - _syscallrel - 1
-	add r2, r2, pc
-_syscallrel:
-	push {r2} /* LR */
-	mov r2, #0
-	push {r2} /* R12 */
-	push {r2} /* R3 */
-	push {r2} /* R2 */
-	push {r2} /* R1 */
-	push {r0} /* R0 */
+	mov r7, #0x01000000
+	ldr r5, =_syscallend
+	stmdb sp!, {r0-r7} /* PSR, PC, LR, R12, R3, R2, R1, R0 */
 
 	/* Exit handler mode to kernel thread mode */
 	mov lr, #0
@@ -186,25 +182,18 @@ _syscallrel:
 	bx lr
 
 _syscallend:
-	/* There is still original context on stack and return value in r0 register */
 	pop {lr}
 
-	tst lr, #4
-	ite eq
-	moveq r1, #0
-	movne r1, #3
+	ldmia sp!, {r1-r8}
+	stmdb lr!, {r1-r8}
+
+	ldmia sp!, {r4-r8}
+
+	mov r1, #3
 	msr control, r1
 
-	ldr r1, [sp, #24]
-	orr r1, r1, #1
-	str r1, [sp, #24]
-
-	pop {r1} /* sic! */
-	pop {r1}
-	pop {r2}
-	pop {r3}
-	pop {r12}
-	pop {lr}
+	add sp, sp, #4 /* skip r0 */
+	ldmia sp!, {r1-r3, r12, lr}
 	ldr pc, [sp], #8
 .size _syscall_dispatch, .-_syscall_dispatch
 
