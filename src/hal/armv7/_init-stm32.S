@@ -20,6 +20,7 @@
 .syntax unified
 .cpu cortex-m3
 .thumb
+.thumb_func
 
 
 .extern _cpu_nctx
@@ -30,7 +31,7 @@
 .section .init, "x"
 
 .globl _init_vectors
-.type _init_vectors, %function
+.type _init_vectors, %object
 _init_vectors:
 .word _end + 1024 + 256
 .word _start
@@ -47,7 +48,7 @@ _init_vectors:
 .word _syscall_dispatch    /* SVC */
 .word _exceptions_dispatch /* Debug */
 .word 0
-.word _interrupts_dispatch /* PendSV */
+.word _pendsv              /* PendSV */
 .word _interrupts_dispatch /* Systick */
 
 .word _interrupts_dispatch /* IRQ0 */
@@ -130,18 +131,17 @@ _start:
 	/* Init vector table pointer */
 	ldr r0, =0xe000ed08
 	ldr r1, =_init_vectors
-	bic r1, #1
 	str r1, [r0]
 	bl _stm32_init
 
 	/* Pass syspage to main */
 	ldr r0, =_init_vectors
-	and r0, r0, #-2
 	add r0, r0, #0x10000
 	ldr r1, =syspage
 	str r0, [r1]
 	bl main
 .size _start, .-_start
+.ltorg
 
 .globl _syscall_dispatch
 .type _syscall_dispatch, %function
@@ -165,8 +165,7 @@ _syscall_dispatch:
 
 	/* Get syscall number and its function pointer */
 	ldr r1, =syscalls
-	ldr r2, [sp, #28]
-	ldrb r2, [r2, #-3]
+	ldrb r2, [r7, #-3]
 	ldr r6, [r1, r2, lsl #2]
 
 	/* Prepare pseudo context */
@@ -185,17 +184,19 @@ _syscallend:
 	pop {lr}
 
 	ldmia sp!, {r1-r8}
+	mov r1, r0 /* Put result to user's r0 */
 	stmdb lr!, {r1-r8}
 
 	ldmia sp!, {r4-r8}
 
-	mov r1, #3
-	msr control, r1
+	/* Switch stacks */
+	mov r0, #3
+	msr control, r0
 
-	add sp, sp, #4 /* skip r0 */
-	ldmia sp!, {r1-r3, r12, lr}
+	ldmia sp!, {r0-r3, r12, lr}
 	ldr pc, [sp], #8
 .size _syscall_dispatch, .-_syscall_dispatch
+.ltorg
 
 .globl _exceptions_dispatch
 .type _exceptions_dispatch, %function
@@ -203,32 +204,24 @@ _syscallend:
 _exceptions_dispatch:
 	cpsid if
 
-	push {r4-r11}
 	mrs r0, psp
-	push {r0}
+	stmdb sp!, {r0, r4-r11, lr}
 
 	mrs r0, ipsr
 	mov r1, sp
 	b exceptions_dispatch
 .size _exceptions_dispatch, .-_exceptions_dispatch
+.ltorg
 
-.globl _interrupts_dispatch
-.type _interrupts_dispatch, %function
-
-_interrupts_dispatch:
+.globl _pendsv
+.type _pendsv, %function
+_pendsv:
 	cpsid if
 
-	push {r4-r11}
-	push {lr}
-	mrs r0, psp
-	push {r0}
-
-	sub r1, sp, #4
-	push {r1}                /* ctx->savesp = sp */
-
 	mrs r0, ipsr
-	cmp r0, #14
-	bne _intd0
+	mrs r2, psp
+	sub r1, sp, #44
+	stmdb sp!, {r1-r2, r4-r11, lr}
 
 	ldr r5, =_cpu_nctx
 	ldr r6, [r5]
@@ -238,29 +231,36 @@ _interrupts_dispatch:
 	mov r6, #0
 	str r6, [r5]
 	b _intd1
+.size _pendsv, .-_pendsv
+.ltorg
+
+.globl _interrupts_dispatch
+.type _interrupts_dispatch, %function
+_interrupts_dispatch:
+	cpsid if
+
+	mrs r0, ipsr
+	mrs r2, psp
+	sub r1, sp, #44
+	stmdb sp!, {r1-r2, r4-r11, lr}
 
 _intd0:
 	bl interrupts_dispatch
-	ldr sp, [sp]             /* sp = ctx->savesp */
+	ldr sp, [sp]
 _intd1:
-	add sp, sp, #4
+	ldmia sp!, {r0-r1, r4-r11, lr}
 
-	pop {r0}
-	msr psp, r0
-	pop {lr}
+	msr psp, r1
 
-	tst lr, #4
-	ite eq
-	moveq r4, #0
-	movne r4, #1
-	msr control, r4
-
-	pop {r4-r11}
+	/* Check if we're returning to userspace */
+	and r1, lr, #4
+	ror r1, r1, #2
+	msr control, r1
 
 	cpsie if
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
-
+.ltorg
 
 .globl hal_cpuReschedule
 .type hal_cpuReschedule, %function
@@ -283,3 +283,5 @@ hal_cpuReschedule0:
 	dmb
 	bx lr
 .size hal_cpuReschedule, .-hal_cpuReschedule
+.ltorg
+
