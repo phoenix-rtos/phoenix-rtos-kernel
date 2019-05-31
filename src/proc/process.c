@@ -991,6 +991,7 @@ static int process_execve(thread_t *current)
 {
 	process_spawn_t *spawn = current->execdata;
 	thread_t *parent = spawn->parent;
+	vm_map_t *map;
 
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
@@ -999,10 +1000,11 @@ static int process_execve(thread_t *current)
 	}
 	else {
 		/* Reinitialize process */
+		map = current->process->mapp;
 		current->process->mapp = NULL;
 		pmap_switch(&process_common.kmap->pmap);
 
-		vm_mapDestroy(current->process, &current->process->map);
+		vm_mapDestroy(current->process, map);
 		proc_resourcesDestroy(current->process);
 		proc_portsDestroy(current->process);
 	}
