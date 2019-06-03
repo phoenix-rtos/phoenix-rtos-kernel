@@ -62,7 +62,7 @@
 
 
 struct {
-	spinlock_t spinlocks[SIZE_INTERRUPTS];
+	spinlock_t spinlock;
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
 } interrupts;
@@ -75,7 +75,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (n >= SIZE_INTERRUPTS)
 		return;
 
-	hal_spinlockSet(&interrupts.spinlocks[n]);
+	hal_spinlockSet(&interrupts.spinlock);
 
 	interrupts.counters[n]++;
 
@@ -86,7 +86,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		} while ((h = h->next) != interrupts.handlers[n]);
 	}
 
-	hal_spinlockClear(&interrupts.spinlocks[n]);
+	hal_spinlockClear(&interrupts.spinlock);
 
 	return;
 }
@@ -103,7 +103,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
-	hal_spinlockSet(&interrupts.spinlocks[h->n]);
+	hal_spinlockSet(&interrupts.spinlock);
 	h->got = hal_cpuGetGot();
 
 	_intr_add(&interrupts.handlers[h->n], h);
@@ -112,7 +112,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 		_imxrt_nvicSetIRQ(h->n - 0x10, 1);
 		_imxrt_nvicSetPriority(h->n, 0xf);
 	}
-	hal_spinlockClear(&interrupts.spinlocks[h->n]);
+	hal_spinlockClear(&interrupts.spinlock);
 
 	return EOK;
 }
@@ -123,13 +123,13 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
-	hal_spinlockSet(&interrupts.spinlocks[h->n]);
+	hal_spinlockSet(&interrupts.spinlock);
 	_intr_remove(&interrupts.handlers[h->n], h);
 
 	if (interrupts.handlers[h->n] == NULL)
 		_imxrt_nvicSetIRQ(h->n, 0);
 
-	hal_spinlockClear(&interrupts.spinlocks[h->n]);
+	hal_spinlockClear(&interrupts.spinlock);
 
 	return EOK;
 }
@@ -150,8 +150,9 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	for (n = 0; n < SIZE_INTERRUPTS; ++n) {
 		interrupts.handlers[n] = NULL;
 		interrupts.counters[n] = 0;
-		hal_spinlockCreate(&interrupts.spinlocks[n], "interrupts.spinlocks[]");
 	}
+
+	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
 
 	_imxrt_scbSetPriority(SYSTICK_IRQ, 15);
 	_imxrt_scbSetPriority(SVC_IRQ, 11);
