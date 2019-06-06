@@ -2055,6 +2055,9 @@ void _imxrt_init(void)
 	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f330f;
 	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f00;
 
+	/* Remain in run mode on wfi */
+	_imxrt_ccmSetMode(0);
+
 	/* Power down all unused PLL */
 	_imxrt_ccmDeinitAudioPll();
 	_imxrt_ccmDeinitEnetPll();
