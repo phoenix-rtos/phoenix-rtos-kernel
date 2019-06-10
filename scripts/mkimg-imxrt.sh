@@ -14,9 +14,10 @@
 # Created image can be programmed directly to the device.
 # Usage:
 # $1      - path to Phoenix-RTOS kernel ELF
-# $2      - output file name
-# $3, ... - applications ELF(s)
-# example: ./mkimg-imxrt.sh phoenix-armv7-imxrt.elf flash.img app1.elf app2.elf
+# $2      - kernel argument string
+# $3      - output file name
+# $4, ... - applications ELF(s)
+# example: ./mkimg-imxrt.sh phoenix-armv7-imxrt.elf "Xapp1.elf,Xapp2.elf" flash.img app1.elf app2.elf
 
 
 reverse() {
@@ -38,6 +39,9 @@ fi
 KERNELELF=$1
 shift
 
+KARGS=$1
+shift
+
 OUTPUT=$1
 shift
 
@@ -46,9 +50,9 @@ GDB_SYM_FILE=`dirname ${OUTPUT}`"/gdb_symbols"
 SIZE_PAGE=$((0x200))
 PAGE_MASK=$((0xfffffe00))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
-FLASH_START=$((0x08000000))
-APP_START=$((0x08010000))
-SYSPAGE_START=$((0x08000200))
+FLASH_START=$((0x00000000))
+APP_START=$((0x00010000))
+SYSPAGE_START=$((0x00000200))
 
 declare -i i
 declare -i j
@@ -69,7 +73,7 @@ rm -f $OUTPUT
 prognum=$((`echo $@ | wc -w`))
 
 printf "%08x%08x" $((`reverse 0x20000000`)) $((`reverse 0x20040000`)) >> syspage.hex
-printf "%08x%08x" 0 $((`reverse $prognum`)) >> syspage.hex
+printf "%08x%08x" $((`reverse $(($SYSPAGE_START + 16 + ($prognum * 24)))`)) $((`reverse $prognum`)) >> syspage.hex
 i=16
 
 OFFSET=$(($APP_START))
@@ -101,6 +105,10 @@ for app in $@; do
 
 	i=$i+16
 done
+
+# Kernel arg
+echo -n $KARGS | xxd -p >> syspage.hex
+echo -n "00" >> syspage.hex
 
 # Use hex file to create binary file
 xxd -r -p syspage.hex > syspage.bin
