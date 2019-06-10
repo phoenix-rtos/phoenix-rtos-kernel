@@ -72,19 +72,18 @@ printf "%08x%08x" $((`reverse 0x20000000`)) $((`reverse 0x20040000`)) >> syspage
 printf "%08x%08x" 0 $((`reverse $prognum`)) >> syspage.hex
 i=16
 
-OFFSET=$(($APP_START+($APP_START-$SYSPAGE_START)))
+OFFSET=$(($APP_START))
 
 for app in $@; do
 	echo "Proccessing $app"
 
-	START=$(($OFFSET-$APP_START-$i))
-	printf "%08x" $((`reverse $START`)) >> syspage.hex #start
+	printf "%08x" $((`reverse $OFFSET`)) >> syspage.hex #start
 
 	cp $app tmp.elf
 	${CROSS}strip tmp.elf
 	SIZE=$((`du -b tmp.elf | cut -f1`))
 	rm -f tmp.elf
-	END=$(($START+$SIZE))
+	END=$(($OFFSET+$SIZE))
 	printf "%08x" $((`reverse $END`)) >> syspage.hex #end
 	i=$i+8
 

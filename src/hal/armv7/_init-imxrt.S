@@ -19,8 +19,6 @@
 
 .syntax unified
 .cpu cortex-m7
-.thumb
-.thumb_func
 
 
 .extern _cpu_nctx
@@ -151,175 +149,13 @@ _init_vectors:
 .word _pendsv              /* PendSV */
 .word _interrupts_dispatch /* Systick */
 
-.word _interrupts_dispatch /* IRQ0 */
+.rept 168
 .word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ8 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ16 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ24 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ32 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ40 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ48 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ56 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ64 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ72 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ80 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ88 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ96 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ104 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ112 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ120 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ128 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ136 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ144 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ152 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ160 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
+.endr
 .size _init_vectors, .-_init_vectors
+
+.thumb
+.thumb_func
 
 .globl _start
 .type _start, %function

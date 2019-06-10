@@ -71,28 +71,22 @@ OFFSET=$(($APP_START+$SYSPAGESZ))
 
 for app in $@; do
 	echo "Proccessing $app"
-	k=0
-
-	START=$(($OFFSET-$APP_START-$(($i-$k))))
-	printf "%08x %08x\n" $i $START >> syspage.hex #start
+	printf "%08x %08x\n" $i $OFFSET >> syspage.hex #start
 	i=$i+4
-	k=$k+4
 
 	cp $app tmp.elf
 	${CROSS}strip tmp.elf
 	SIZE=$((`du -b tmp.elf | cut -f1`))
 	rm -f tmp.elf
-	END=$(($START+$SIZE))
+	END=$(($OFFSET+$SIZE))
 	printf "%08x %08x\n" $i $END >> syspage.hex #end
 	i=$i+4
-	k=$k+4
 
 	OFFSET=$((($OFFSET+$SIZE+$SIZE_PAGE-1)&$PAGE_MASK))
 
 	for (( j=0; j<4; j++)); do
 		printf "%08x %08x\n" $i 0 >> syspage.hex #cmdline
 		i=$i+4
-		k=$k+4
 	done
 done
 

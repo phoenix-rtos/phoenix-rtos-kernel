@@ -26,20 +26,13 @@ syspage_t *syspage;
 
 void _hal_syspageInit(void)
 {
-	u32 progsz = syspage->progssz, i;
-	syspage_t *tptr = (syspage_t *)_syspage_store;
+	u32 progsz = syspage->progssz;
 
 	if (progsz > MAX_PROGSZ)
 		progsz = MAX_PROGSZ;
 
 	hal_memcpy(_syspage_store, syspage, sizeof(syspage_t) + progsz * sizeof(syspage_program_t));
 
-	tptr->progssz = progsz;
-
-	for (i = 0; i < progsz; ++i) {
-		tptr->progs[i].start += (u32)&syspage->progs[i];
-		tptr->progs[i].end += (u32)&syspage->progs[i];
-	}
-
-	syspage = tptr;
+	syspage = (void *)_syspage_store;
+	syspage->progssz = progsz;
 }

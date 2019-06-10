@@ -19,8 +19,6 @@
 
 .syntax unified
 .cpu cortex-m3
-.thumb
-.thumb_func
 
 
 .extern _cpu_nctx
@@ -51,76 +49,13 @@ _init_vectors:
 .word _pendsv              /* PendSV */
 .word _interrupts_dispatch /* Systick */
 
-.word _interrupts_dispatch /* IRQ0 */
+.rept 68
 .word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ8 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ16 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ24 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ32 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ40 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ48 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ56 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch /* IRQ64 */
-.word _interrupts_dispatch
-.word _interrupts_dispatch
-.word _interrupts_dispatch
+.endr
 .size _init_vectors, .-_init_vectors
 
+.thumb
+.thumb_func
 
 .globl _start
 .type _start, %function
