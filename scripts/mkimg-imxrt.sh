@@ -17,7 +17,7 @@
 # $2      - kernel argument string
 # $3      - output file name
 # $4, ... - applications ELF(s)
-# example: ./mkimg-imxrt.sh phoenix-armv7-imxrt.elf "Xapp1.elf,Xapp2.elf" flash.img app1.elf app2.elf
+# example: ./mkimg-imxrt.sh phoenix-armv7-imxrt.elf "Xapp1.elf Xapp2.elf" flash.img app1.elf app2.elf
 
 
 reverse() {
