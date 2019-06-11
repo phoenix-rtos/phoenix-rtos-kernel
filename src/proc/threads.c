@@ -1010,8 +1010,8 @@ int proc_threadWakeup(thread_t **queue)
 
 	hal_spinlockSet(&threads_common.spinlock);
 	if (*queue != NULL && *queue != (void *)(-1)) {
+		ret = (*queue)->priority > _proc_current()->priority;
 		_proc_threadWakeup(queue);
-		ret = 1;
 	}
 	else {
 		(*queue) = (void *)(-1);
@@ -1028,8 +1028,8 @@ int proc_threadBroadcast(thread_t **queue)
 	hal_spinlockSet(&threads_common.spinlock);
 	if (*queue != (void *)-1) {
 		while (*queue != NULL) {
+			ret += (*queue)->priority > _proc_current()->priority;
 			_proc_threadWakeup(queue);
-			ret++;
 		}
 	}
 	hal_spinlockClear(&threads_common.spinlock);
@@ -1271,8 +1271,7 @@ int _proc_lockClear(lock_t *lock)
 	if (lock->queue == NULL || lock->queue == (void *)-1)
 		return 0;
 
-	proc_threadWakeup(&lock->queue);
-	return 1;
+	return proc_threadWakeup(&lock->queue);
 }
 
 
