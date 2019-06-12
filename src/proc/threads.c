@@ -29,7 +29,12 @@ struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	rbtree_t ready[8];
+
+	struct {
+		rbtree_t tree;
+		time_t runtime;
+	} ready[8];
+
 	thread_t **current;
 	volatile time_t jiffies;
 	time_t utcoffs;
@@ -644,12 +649,19 @@ int threads_getCpuTime(thread_t *t)
 #endif
 
 
+static void _threads_run(thread_t *t)
+{
+	t->runtime = max(t->runtime, threads_common.ready[t->priority].runtime - 1);
+	lib_rbInsert(&threads_common.ready[t->priority].tree, &t->waitlinkage);
+}
+
+
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
 	unsigned int i, sig;
 	process_t *proc;
-	time_t now, minrt = 0;
+	time_t now;
 
 	threads_common.executions++;
 
@@ -664,23 +676,20 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		/* Move thread to the queue */
 		if (current->state == READY) {
-			if ((selected = lib_treeof(thread_t, waitlinkage, lib_rbMinimum(threads_common.ready[current->priority].root))) != NULL)
-				minrt = selected->runtime;
-
-			current->runtime = max(current->runtime, minrt);
-			lib_rbInsert(&threads_common.ready[current->priority], &current->waitlinkage);
+			_threads_run(current);
 			_perf_preempted(current);
 		}
 	}
 
 	/* Get next thread */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(threads_common.ready[0]);) {
-		if ((selected = lib_treeof(thread_t, waitlinkage, lib_rbMinimum(threads_common.ready[i].root))) == NULL) {
+		if ((selected = lib_treeof(thread_t, waitlinkage, lib_rbMinimum(threads_common.ready[i].tree.root))) == NULL) {
 			i++;
 			continue;
 		}
 
-		lib_rbRemove(&threads_common.ready[i], &selected->waitlinkage);
+		lib_rbRemove(&threads_common.ready[i].tree, &selected->waitlinkage);
+		threads_common.ready[selected->priority].runtime = max(selected->runtime, threads_common.ready[selected->priority].runtime);
 
 		if (!selected->exit || hal_cpuSupervisorMode(selected->context))
 			break;
@@ -835,8 +844,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 
 	t->maxWait = 0;
 	_perf_waking(t);
-
-	lib_rbInsert(&threads_common.ready[priority], &t->waitlinkage);
+	_threads_run(t);
 	hal_spinlockClear(&threads_common.spinlock);
 
 	proc_lockClear(&threads_common.lock);
@@ -926,7 +934,7 @@ static void _proc_threadDequeue(thread_t *t)
 
 	/* MOD */
 	if (t != threads_common.current[hal_cpuGetID()])
-		lib_rbInsert(&threads_common.ready[t->priority], &t->waitlinkage);
+		_threads_run(t);
 }
 
 
@@ -1543,8 +1551,10 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 #endif
 
 	/* Initiaizlie scheduler queue */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(threads_common.ready[0]); i++)
-		lib_rbInit(&threads_common.ready[i], threads_waitcmp, NULL);
+	for (i = 0; i < sizeof(threads_common.ready) / sizeof(threads_common.ready[0]); i++) {
+		lib_rbInit(&threads_common.ready[i].tree, threads_waitcmp, NULL);
+		threads_common.ready[i].runtime = 1;
+	}
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
 	lib_rbInit(&threads_common.id, threads_idcmp, NULL);
