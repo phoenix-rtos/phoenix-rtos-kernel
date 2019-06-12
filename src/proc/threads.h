@@ -42,13 +42,17 @@ typedef struct {
 
 
 typedef struct _thread_t {
+	rbnode_t waitlinkage;
+	time_t runtime;
+	time_t schedtime;
+	struct _process_t *process;
+
 	struct _thread_t *next;
 	struct _thread_t *prev;
 
 	rbnode_t sleeplinkage;
 	rbnode_t idlinkage;
 
-	struct _process_t *process;
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 

@@ -29,7 +29,7 @@ struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	thread_t *ready[8];
+	rbtree_t ready[8];
 	thread_t **current;
 	volatile time_t jiffies;
 	time_t utcoffs;
@@ -96,6 +96,27 @@ static int threads_idcmp(rbnode_t *n1, rbnode_t *n2)
 	thread_t *t2 = lib_treeof(thread_t, idlinkage, n2);
 
 	if (t1->id < t2->id)
+		return -1;
+
+	else if (t1->id > t2->id)
+		return 1;
+
+	return 0;
+}
+
+
+static int threads_waitcmp(rbnode_t *n1, rbnode_t *n2)
+{
+	thread_t *t1 = lib_treeof(thread_t, waitlinkage, n1);
+	thread_t *t2 = lib_treeof(thread_t, waitlinkage, n2);
+
+	if (t1->runtime > t2->runtime)
+		return 1;
+
+	else if (t1->runtime < t2->runtime)
+		return -1;
+
+	else if (t1->id < t2->id)
 		return -1;
 
 	else if (t1->id > t2->id)
@@ -628,31 +649,38 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	thread_t *current, *selected;
 	unsigned int i, sig;
 	process_t *proc;
+	time_t now, minrt = 0;
 
 	threads_common.executions++;
 
 	hal_spinlockSet(&threads_common.spinlock);
+	now = hal_getTimer();
 	current = threads_common.current[hal_cpuGetID()];
 
 	/* Save current thread context */
 	if (current != NULL) {
 		current->context = context;
+		current->runtime += now - current->schedtime;
 
-		/* Move thread to the end of queue */
+		/* Move thread to the queue */
 		if (current->state == READY) {
-			LIST_ADD(&threads_common.ready[current->priority], current);
+			if ((selected = lib_treeof(thread_t, waitlinkage, lib_rbMinimum(threads_common.ready[current->priority].root))) != NULL)
+				minrt = selected->runtime;
+
+			current->runtime = max(current->runtime, minrt);
+			lib_rbInsert(&threads_common.ready[current->priority], &current->waitlinkage);
 			_perf_preempted(current);
 		}
 	}
 
 	/* Get next thread */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *);) {
-		if ((selected = threads_common.ready[i]) == NULL) {
+	for (i = 0; i < sizeof(threads_common.ready) / sizeof(threads_common.ready[0]);) {
+		if ((selected = lib_treeof(thread_t, waitlinkage, lib_rbMinimum(threads_common.ready[i].root))) == NULL) {
 			i++;
 			continue;
 		}
 
-		LIST_REMOVE(&threads_common.ready[i], selected);
+		lib_rbRemove(&threads_common.ready[i], &selected->waitlinkage);
 
 		if (!selected->exit || hal_cpuSupervisorMode(selected->context))
 			break;
@@ -663,6 +691,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	if (selected != NULL) {
 		threads_common.current[hal_cpuGetID()] = selected;
+		selected->schedtime = now;
 
 		if (((proc = selected->process) != NULL) && (proc->mapp != NULL)) {
 			/* Switch address space */
@@ -730,7 +759,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	/* TODO - save user stack and it's size in thread_t */
 	thread_t *t;
 
-	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *))
+	if (priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))
 		return -EINVAL;
 
 	if ((t = vm_kmalloc(sizeof(thread_t))) == NULL)
@@ -754,6 +783,15 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->exit = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
+
+	if (proc_current() != NULL) {
+		t->runtime = proc_current()->runtime;
+	}
+	else {
+		t->runtime = 0;
+	}
+
+	t->schedtime = 0;
 
 	t->id = (unsigned long)t;
 
@@ -798,7 +836,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->maxWait = 0;
 	_perf_waking(t);
 
-	LIST_ADD(&threads_common.ready[priority], t);
+	lib_rbInsert(&threads_common.ready[priority], &t->waitlinkage);
 	hal_spinlockClear(&threads_common.spinlock);
 
 	proc_lockClear(&threads_common.lock);
@@ -888,7 +926,7 @@ static void _proc_threadDequeue(thread_t *t)
 
 	/* MOD */
 	if (t != threads_common.current[hal_cpuGetID()])
-		LIST_ADD(&threads_common.ready[t->priority], t);
+		lib_rbInsert(&threads_common.ready[t->priority], &t->waitlinkage);
 }
 
 
@@ -1364,8 +1402,8 @@ static void threads_idlethr(void *arg)
 
 void proc_threadsDump(unsigned int priority)
 {
+#if 0
 	thread_t *t;
-
 	lib_printf("threads: ");
 	hal_spinlockSet(&threads_common.spinlock);
 
@@ -1381,7 +1419,7 @@ void proc_threadsDump(unsigned int priority)
 	hal_spinlockClear(&threads_common.spinlock);
 
 	lib_printf("\n");
-
+#endif
 
 	return;
 }
@@ -1505,13 +1543,13 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 #endif
 
 	/* Initiaizlie scheduler queue */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++)
-		threads_common.ready[i] = NULL;
+	for (i = 0; i < sizeof(threads_common.ready) / sizeof(threads_common.ready[0]); i++)
+		lib_rbInit(&threads_common.ready[i], threads_waitcmp, NULL);
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
 	lib_rbInit(&threads_common.id, threads_idcmp, NULL);
 
-	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
+	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(threads_common.ready[0]));
 
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 
@@ -1522,7 +1560,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
-		proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1, SIZE_KSTACK, NULL, 0, NULL);
+		proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1, SIZE_KSTACK, NULL, 0, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */
