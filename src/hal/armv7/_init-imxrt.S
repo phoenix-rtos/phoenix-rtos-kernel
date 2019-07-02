@@ -212,6 +212,7 @@ _syscall_dispatch:
 	mov lr, #0
 	msr control, lr
 	mov lr, #0xfffffff9
+	dmb
 	cpsie if
 	bx lr
 
@@ -292,6 +293,7 @@ _intd1:
 	ror r1, r1, #2
 	msr control, r1
 
+	dmb
 	cpsie if
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
