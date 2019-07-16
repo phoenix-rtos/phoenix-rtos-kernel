@@ -770,20 +770,21 @@ int posix_pipe(int fildes[2])
 	open_file_t *fi, *fo;
 	oid_t oid;
 	oid_t pipesrv;
+	int res;
 
 	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
 		return -1;
 
 	hal_memset(&oid, 0, sizeof(oid));
 
-	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0) {
+	if ((res = proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0) {
 		pinfo_put(p);
-		return -ENOSYS;
+		return res == -EINTR ? res : -ENOSYS;
 	}
 
-	if (proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid) < 0) {
+	if ((res = proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid)) < 0) {
 		pinfo_put(p);
-		return -EIO;
+		return res;
 	}
 
 	if ((fo = vm_kmalloc(sizeof(open_file_t))) == NULL) {
