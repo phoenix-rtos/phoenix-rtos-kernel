@@ -167,12 +167,12 @@ void port_put(port_t *p, int destroy)
 		p->closed = 1;
 
 	if (p->refs) {
-		hal_spinlockClear(&p->spinlock);
-		proc_lockClear(&port_common.port_lock);
-
 		if (destroy)
 			/* Wake receivers up */
 			proc_threadBroadcastYield(&p->threads);
+
+		hal_spinlockClear(&p->spinlock);
+		proc_lockClear(&port_common.port_lock);
 		return;
 	}
 
