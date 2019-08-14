@@ -29,7 +29,7 @@ BIN = ../phoenix-$(TARGET)
 ifeq ($(DEBUG), 1)
 	CFLAGS = -Og
 else ifneq (, $(findstring imx, $(TARGET)))
-	CFLAGS = -Og -DNDEBUG -DPAGEFAULTSTOP
+	CFLAGS = -Og -DNDEBUG
 else ifneq (, $(findstring stm32, $(TARGET)))
 	CFLAGS = -Os -DNDEBUG
 else
