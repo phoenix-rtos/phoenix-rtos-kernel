@@ -675,6 +675,10 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	if (vm_mapForce(map, paddr, prot)) {
 		process_dumpException(n, ctx);
 
+#ifdef PAGEFAULTSTOP
+		__asm__ volatile ("1: b 1b");
+#endif
+
 		if (thread->process == NULL) {
 			hal_cpuDisableInterrupts();
 			hal_cpuHalt();
