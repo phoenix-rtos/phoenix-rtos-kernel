@@ -1405,6 +1405,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		if (t->process != NULL) {
 			info[i].pid = t->process->id;
 			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
+			info[i].ppid = 0;
 		}
 		else {
 			info[i].pid = 0;
