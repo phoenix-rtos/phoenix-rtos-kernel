@@ -264,13 +264,21 @@ int syscalls_priority(void *ustack)
 
 int syscalls_threadsinfo(void *ustack)
 {
-	int n;
+	int n, i;
+	pid_t ppid;
 	threadinfo_t *info;
 
 	GETFROMSTACK(ustack, int, n, 0);
 	GETFROMSTACK(ustack, threadinfo_t *, info, 1);
 
-	return proc_threadsList(n, info);
+	n = proc_threadsList(n, info);
+
+	for (i = 0; i < n; ++i) {
+		if ((ppid = posix_getppid(info[i].pid)) > 0)
+			info[i].ppid = ppid;
+	}
+
+	return n;
 }
 
 
