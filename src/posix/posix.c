@@ -22,7 +22,7 @@
 #include "posix_private.h"
 #include "../lib/cbuffer.h"
 
-#define MAX_FD_COUNT 32
+#define MAX_FD_COUNT 512
 
 //#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
 #define TRACE(str, ...)
