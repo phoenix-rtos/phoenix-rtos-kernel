@@ -40,7 +40,7 @@ struct {
 	rbtree_t sleeping;
 
 	/* Synchronized by mutex */
-	unsigned int nextid;
+	unsigned int idcounter;
 	rbtree_t id;
 
 #ifndef CPU_STM32
@@ -725,6 +725,113 @@ thread_t *proc_current(void)
 }
 
 
+static unsigned _thread_alloc(unsigned id)
+{
+	thread_t *p = lib_treeof(thread_t, idlinkage, threads_common.id.root);
+
+	while (p != NULL) {
+		if (p->lgap && id < p->id) {
+			if (p->idlinkage.left == NULL)
+				return max(id, p->id - p->lgap);
+
+			p = lib_treeof(thread_t, idlinkage, p->idlinkage.left);
+			continue;
+		}
+
+		if (p->rgap) {
+			if (p->idlinkage.right == NULL)
+				return max(id, p->id + 1);
+
+			p = lib_treeof(thread_t, idlinkage, p->idlinkage.right);
+			continue;
+		}
+
+		for (;; p = lib_treeof(thread_t, idlinkage, p->idlinkage.parent)) {
+			if (p->idlinkage.parent == NULL)
+				return NULL;
+
+			if ((p == lib_treeof(thread_t, idlinkage, p->idlinkage.parent->left)) && lib_treeof(thread_t, idlinkage, p->idlinkage.parent)->rgap)
+				break;
+		}
+		p = lib_treeof(thread_t, idlinkage, p->idlinkage.parent);
+
+		if (p->idlinkage.right == NULL)
+			return p->id + 1;
+
+		p = lib_treeof(thread_t, idlinkage, p->idlinkage.right);
+	}
+
+	return id;
+}
+
+
+static unsigned thread_alloc(thread_t *thread)
+{
+	proc_lockSet(&threads_common.lock);
+	thread->id = _thread_alloc(threads_common.idcounter);
+
+	if (!thread->id)
+		thread->id = _thread_alloc(threads_common.idcounter = 1);
+
+	if (threads_common.idcounter == MAX_TID)
+		threads_common.idcounter = 1;
+
+	if (thread->id) {
+		lib_rbInsert(&threads_common.id, &thread->idlinkage);
+		threads_common.idcounter++;
+	}
+	proc_lockClear(&threads_common.lock);
+
+	return thread->id;
+}
+
+
+static void thread_augment(rbnode_t *node)
+{
+	rbnode_t *it;
+	thread_t *n = lib_treeof(thread_t, idlinkage, node);
+	thread_t *p = n, *r, *l;
+
+	if (node->left == NULL) {
+		for (it = node; it->parent != NULL; it = it->parent) {
+			p = lib_treeof(thread_t, idlinkage, it->parent);
+			if (it->parent->right == it)
+				break;
+		}
+
+		n->lgap = !!((n->id <= p->id) ? n->id : n->id - p->id - 1);
+	}
+	else {
+		l = lib_treeof(thread_t, idlinkage, node->left);
+		n->lgap = max((int)l->lgap, (int)l->rgap);
+	}
+
+	if (node->right == NULL) {
+		for (it = node; it->parent != NULL; it = it->parent) {
+			p = lib_treeof(thread_t, idlinkage, it->parent);
+			if (it->parent->left == it)
+				break;
+		}
+
+		n->rgap = !!((n->id >= p->id) ? MAX_PID - n->id - 1 : p->id - n->id - 1);
+	}
+	else {
+		r = lib_treeof(thread_t, idlinkage, node->right);
+		n->rgap = max((int)r->lgap, (int)r->rgap);
+	}
+
+	for (it = node; it->parent != NULL; it = it->parent) {
+		n = lib_treeof(thread_t, idlinkage, it);
+		p = lib_treeof(thread_t, idlinkage, it->parent);
+
+		if (it->parent->left == it)
+			p->lgap = max((int)n->lgap, (int)n->rgap);
+		else
+			p->rgap = max((int)n->lgap, (int)n->rgap);
+	}
+}
+
+
 int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
 {
 	/* TODO - save user stack and it's size in thread_t */
@@ -755,7 +862,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->execdata = NULL;
 	t->wait = NULL;
 
-	t->id = (unsigned long)t;
+	thread_alloc(t);
 
 	if (id != NULL)
 		*id = t->id;
@@ -1497,6 +1604,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;
+	threads_common.idcounter = 0;
 
 	threads_common.perfGather = 0;
 
@@ -1511,7 +1619,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.ready[i] = NULL;
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
-	lib_rbInit(&threads_common.id, threads_idcmp, NULL);
+	lib_rbInit(&threads_common.id, threads_idcmp, thread_augment);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
 

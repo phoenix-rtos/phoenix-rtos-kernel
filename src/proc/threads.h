@@ -23,6 +23,7 @@
 #include "lock.h"
 #include "../../include/sysinfo.h"
 
+#define MAX_TID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
 /* Parent thread states */
 enum { PREFORK = 0, FORKING = 1, FORKED };
@@ -47,6 +48,8 @@ typedef struct _thread_t {
 
 	rbnode_t sleeplinkage;
 	rbnode_t idlinkage;
+	unsigned lgap : 1;
+	unsigned rgap : 1;
 
 	struct _process_t *process;
 	struct _thread_t *procnext;
