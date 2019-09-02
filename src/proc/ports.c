@@ -169,7 +169,7 @@ void port_put(port_t *p, int destroy)
 	if (p->refs) {
 		if (destroy)
 			/* Wake receivers up */
-			proc_threadBroadcastYield(&p->threads);
+			proc_threadBroadcast(&p->threads);
 
 		hal_spinlockClear(&p->spinlock);
 		proc_lockClear(&port_common.port_lock);
