@@ -2239,7 +2239,7 @@ void posix_died(pid_t pid, int exit)
 	if ((pinfo = pinfo_find(pid)) == NULL)
 		return;
 
-	posix_exit(pinfo, exit & 0xff);
+	posix_exit(pinfo, exit);
 
 	if ((ppinfo = pinfo_find(pinfo->parent)) == NULL) {
 		// posix_destroy(pinfo);
