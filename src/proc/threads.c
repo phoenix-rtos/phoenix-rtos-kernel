@@ -813,7 +813,7 @@ static void thread_augment(rbnode_t *node)
 				break;
 		}
 
-		n->rgap = !!((n->id >= p->id) ? MAX_PID - n->id - 1 : p->id - n->id - 1);
+		n->rgap = !!((n->id >= p->id) ? MAX_TID - n->id - 1 : p->id - n->id - 1);
 	}
 	else {
 		r = lib_treeof(thread_t, idlinkage, node->right);
