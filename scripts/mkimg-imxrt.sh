@@ -51,20 +51,12 @@ SIZE_PAGE=$((0x200))
 PAGE_MASK=$((0xfffffe00))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
 FLASH_START=$((0x00000000))
-APP_START=$((0x00010000))
-SYSPAGE_START=$((0x00000200))
+SYSPAGE_OFFSET=$((512))
 
 declare -i i
 declare -i j
 
 i=$((0))
-
-
-if [ $KERNEL_END -gt $(($APP_START-$FLASH_START)) ]; then
-	echo "Kernel image is bigger than expected!"
-	printf "Kernel end: 0x%08x > App start: 0x%08x\n" $KERNEL_END $APP_START
-	exit 1
-fi
 
 rm -f *.img
 rm -f syspage.hex syspage.bin
@@ -73,10 +65,11 @@ rm -f $OUTPUT
 prognum=$((`echo $@ | wc -w`))
 
 printf "%08x%08x" $((`reverse 0x20000000`)) $((`reverse 0x20040000`)) >> syspage.hex
-printf "%08x%08x" $((`reverse $(($SYSPAGE_START + 16 + ($prognum * 24)))`)) $((`reverse $prognum`)) >> syspage.hex
+printf "%08x%08x" $((`reverse $(($FLASH_START + $SYSPAGE_OFFSET + 16 + ($prognum * 24)))`)) $((`reverse $prognum`)) >> syspage.hex
 i=16
 
-OFFSET=$(($APP_START))
+OFFSET=$(($FLASH_START+$KERNEL_END))
+OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 
 for app in $@; do
 	echo "Proccessing $app"
@@ -118,13 +111,14 @@ ${CROSS}objcopy $KERNELELF -O binary kernel.img
 
 cp kernel.img $OUTPUT
 
-OFFSET=$(($SYSPAGE_START-$FLASH_START))
-dd if="syspage.bin" of=$OUTPUT bs=1 seek=$OFFSET conv=notrunc 2>/dev/null
+dd if="syspage.bin" of=$OUTPUT bs=1 seek=$SYSPAGE_OFFSET conv=notrunc 2>/dev/null
+
+OFFSET=$(($KERNEL_END))
+OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 
 [ -f $GDB_SYM_FILE ] && rm -rf $GDB_SYM_FILE
 printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
 
-OFFSET=$(($APP_START-$FLASH_START))
 for app in $@; do
 	cp $app tmp.elf
 	${CROSS}strip tmp.elf
