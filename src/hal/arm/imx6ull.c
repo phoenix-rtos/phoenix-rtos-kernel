@@ -50,6 +50,11 @@ enum { ccm_analog_pll_arm = 0, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, c
 /* WDOG registers */
 enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
+
+enum { src_scr = 0, src_sbmr1, src_srsr, src_sisr = src_srsr + 3, src_sbmr2 = src_sisr + 2, src_gpr1, src_gpr2,
+	src_gpr3, src_gpr4, src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
+
+
 struct {
 	spinlock_t pltctlSp;
 
@@ -59,6 +64,7 @@ struct {
 	volatile u32 *iomux_gpr;
 	volatile u32 *iomux_snvs;
 	volatile u16 *wdog;
+	volatile u32 *src;
 } imx6ull_common;
 
 /* saved in _init_imx6ull.S */
@@ -359,8 +365,18 @@ int hal_platformctl(void *ptr)
 		break;
 	case pctl_reboot:
 		if (data->action == pctl_set) {
-			if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+			if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
+				*(imx6ull_common.src + src_gpr10) &= ~(1 << 30);
+				hal_cpuInstrBarrier();
+				hal_cpuDataMemoryBarrier();
 				_imx6ull_reboot();
+			}
+			else if (data->reboot.magic == PCTL_REBOOT_MAGIC_SECONDARY) {
+				*(imx6ull_common.src + src_gpr10) |= 1 << 30;
+				hal_cpuInstrBarrier();
+				hal_cpuDataMemoryBarrier();
+				_imx6ull_reboot();
+			}
 		}
 		else if (data->action == pctl_get) {
 			data->reboot.reason = imx6ull_bootReason;
@@ -389,6 +405,7 @@ void _hal_platformInit(void)
 	imx6ull_common.iomux = (void *)(((u32)_end + 12 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	imx6ull_common.iomux_gpr = (void *)(((u32)_end + 13 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	imx6ull_common.wdog = (void *)(((u32)_end + 14 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	imx6ull_common.src = (void *)(((u32)_end + 15 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 
 	/* remain in run mode in low power */
 	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3;
