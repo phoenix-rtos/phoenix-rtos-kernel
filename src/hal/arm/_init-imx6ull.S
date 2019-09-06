@@ -339,7 +339,7 @@ _start:
 	/* Clear PERSIST_SECONDARY_BOOT bit */
 	ldr r0, =0x020d8044
 	ldr r1, [r0]
-	bic r1, r1, #0x40000000
+	bic r1, r1, #(1 << 30)
 	str r1, [r0]
 
 	/* Enable PMU cycle counter */
@@ -613,6 +613,10 @@ kernel_ttl2:
 
 	/* Map WDOG1 registers 4KB P 0x020bc000 -> V CEIL(_end + 14 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020bc012
+	str r1, [r0], #4
+
+	/* Map SRC registers 4KB P 0x020d8000 -> V CEIL(_end + 15 * SIZE_PAGE, SIZE_PAGE) */
+	ldr r1, =0x020d8012
 	str r1, [r0]
 
 	/* IOMUX for UART1*/
@@ -651,7 +655,7 @@ kernel_ttl2:
 	isb
 
 	/* Setup initial SP */
-	ldr r0, =0xfffffff8
+	eor r0, r0
 
 	/* FIQ mode stack */
 	msr CPSR_c, #(FIQ_MODE | NO_INT)

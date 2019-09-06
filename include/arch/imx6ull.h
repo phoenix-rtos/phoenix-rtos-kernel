@@ -17,6 +17,7 @@
 #define _PHOENIX_ARCH_IMX6ULL_H_
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
+#define PCTL_REBOOT_MAGIC_SECONDARY 0x55aa55aaUL
 
 /* Devices clocks */
 enum {
