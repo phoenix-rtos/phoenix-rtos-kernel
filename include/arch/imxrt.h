@@ -380,7 +380,7 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot } type;
+	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot, pctl_devcache } type;
 
 	union {
 		struct {
@@ -420,6 +420,10 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+
+		struct {
+			unsigned char state;
+		} devcache;
 	};
 } __attribute__((packed)) platformctl_t;
 

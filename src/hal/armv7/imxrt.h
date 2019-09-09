@@ -232,6 +232,24 @@ extern int _imxrt_setIOmux(int mux, char sion, char mode);
 extern int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre);
 
 
+extern void _imxrt_enableMPU(void);
+
+
+extern void _imxrt_disableMPU(void);
+
+
+extern void _imxrt_enableDCache(void);
+
+
+extern void _imxrt_disableDCache(void);
+
+
+extern void _imxrt_enableICache(void);
+
+
+extern void _imxrt_disableICache(void);
+
+
 extern void _imxrt_invokePendSV(void);
 
 
