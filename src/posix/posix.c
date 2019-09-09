@@ -205,7 +205,7 @@ static int _posix_allocateFd(process_info_t *p, int *fd)
 {
 	fildes_t *newfds = NULL;
 
-	for (; p->fds[*fd].file != NULL && *fd < p->maxfd; ++(*fd))
+	for (; *fd < p->maxfd && p->fds[*fd].file != NULL; ++(*fd))
 		;
 
 	if (*fd >= p->maxfd) {
