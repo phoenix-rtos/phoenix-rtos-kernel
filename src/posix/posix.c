@@ -214,6 +214,7 @@ static int _posix_allocateFd(process_info_t *p, int *fd)
 			return -ENFILE;
 
 		hal_memcpy(newfds, p->fds, p->maxfd * sizeof(p->fds[0]));
+		hal_memset(&newfds[p->maxfd], NULL, p->maxfd * sizeof(p->fds[0]));
 
 		vm_kfree(p->fds);
 		p->fds = newfds;
