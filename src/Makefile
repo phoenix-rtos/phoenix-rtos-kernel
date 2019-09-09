@@ -27,11 +27,11 @@ SUBSYSTEMS = lib vm proc test posix
 BIN = ../phoenix-$(TARGET)
 
 ifeq ($(DEBUG), 1)
-	CFLAGS = -Og
+	CFLAGS = -Os
 else ifneq (, $(findstring imx, $(TARGET)))
 	CFLAGS = -Og -DNDEBUG
 else ifneq (, $(findstring stm32, $(TARGET)))
-	CFLAGS = -Os -DNDEBUG
+	CFLAGS = -Og -DNDEBUG
 else
 	CFLAGS = -O2 -DNDEBUG
 endif
