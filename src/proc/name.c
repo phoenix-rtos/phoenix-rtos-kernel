@@ -136,10 +136,10 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
 
-	if (name == NULL || (file == NULL && dev == NULL) || name[0] != '/')
+	if (name == NULL || (file == NULL && dev == NULL))
 		return -EINVAL;
 
-	if (name[1] == 0) {
+	if (name[0] == '/' && name[1] == 0) {
 		if (name_common.root_registered) {
 			if (file != NULL)
 				*file = name_common.root_oid;
@@ -162,6 +162,9 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return EOK;
 	}
 	proc_lockClear(&name_common.dcache_lock);
+
+	if (name[0] != '/')
+		return -ENOENT;
 
 	srv = name_common.root_oid;
 
