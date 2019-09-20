@@ -14,17 +14,32 @@
 # Created image can be programmed directly to the device.
 # Usage:
 # $1      - path to Phoenix-RTOS kernel ELF
+# $2      - kernel argument string
 # $2      - output file name
 # $3, ... - applications ELF(s)
-# example: ./mkimg-stm32.sh phoenix-armv7-stm32.elf flash.img app1.elf app2.elf
+# example: ./mkimg-stm32.sh phoenix-armv7-stm32.elf "argument" flash.img app1.elf app2.elf
+
+
+reverse() {
+	num=$1
+	printf "0x"
+	for i in 1 2 3 4; do
+		printf "%02x" $(($num & 0xff))
+		num=$(($num>>8))
+	done
+}
+
 
 if [ -z "$CROSS" ]
 then
-    CROSS="arm-phoenix-"
+	CROSS="arm-phoenix-"
 fi
 
 
 KERNELELF=$1
+shift
+
+KARGS=$1
 shift
 
 OUTPUT=$1
@@ -36,74 +51,70 @@ SIZE_PAGE=$((0x200))
 PAGE_MASK=$((0xfffffe00))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
 FLASH_START=$((0x08000000))
-APP_START=$((0x08010000))
+SYSPAGE_OFFSET=$((512))
 
 declare -i i
-declare -i k
+declare -i j
 
 i=$((0))
-
-
-if [ $KERNEL_END -gt $(($APP_START-$FLASH_START)) ]; then
-	echo "Kernel image is bigger than expected!"
-	printf "Kernel end: 0x%08x > App start: 0x%08x\n" $KERNEL_END $APP_START
-	exit 1
-fi
 
 rm -f *.img
 rm -f syspage.hex syspage.bin
 rm -f $OUTPUT
 
-printf "%08x %08x\n" $i 0x20000000 >> syspage.hex #pbegin
-i=$i+4
-printf "%08x %08x\n" $i 0x20014000 >> syspage.hex #pend
-i=$i+4
-printf "%08x %08x\n" $i 0 >> syspage.hex #arg
-i=$i+4
-printf "%08x %08x\n" $i $((`echo $@ | wc -w`)) >> syspage.hex #progssz
-i=$i+4
+prognum=$((`echo $@ | wc -w`))
 
-#Find syspage size first
-SYSPAGESZ=$(($i+($((`echo $@ | wc -w`))*$((24)))))
-SYSPAGESZ=$((($SYSPAGESZ+$SIZE_PAGE-1)&$PAGE_MASK))
+printf "%08x%08x" $((`reverse 0x20000000`)) $((`reverse 0x20014000`)) >> syspage.hex
+printf "%08x%08x" $((`reverse $(($FLASH_START + $SYSPAGE_OFFSET + 16 + ($prognum * 24)))`)) $((`reverse $prognum`)) >> syspage.hex
+i=16
 
-OFFSET=$(($APP_START+$SYSPAGESZ))
+OFFSET=$(($FLASH_START+$KERNEL_END))
+OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 
 for app in $@; do
 	echo "Proccessing $app"
-	printf "%08x %08x\n" $i $OFFSET >> syspage.hex #start
-	i=$i+4
+
+	printf "%08x" $((`reverse $OFFSET`)) >> syspage.hex #start
 
 	cp $app tmp.elf
 	${CROSS}strip tmp.elf
 	SIZE=$((`du -b tmp.elf | cut -f1`))
 	rm -f tmp.elf
 	END=$(($OFFSET+$SIZE))
-	printf "%08x %08x\n" $i $END >> syspage.hex #end
-	i=$i+4
+	printf "%08x" $((`reverse $END`)) >> syspage.hex #end
+	i=$i+8
 
 	OFFSET=$((($OFFSET+$SIZE+$SIZE_PAGE-1)&$PAGE_MASK))
 
-	for (( j=0; j<4; j++)); do
-		printf "%08x %08x\n" $i 0 >> syspage.hex #cmdline
-		i=$i+4
+	j=0
+	for char in `basename "$app" | sed -e 's/\(.\)/\1\n/g'`; do
+		printf "%02x" "'$char" >> syspage.hex
+		j=$j+1
 	done
+
+	for (( ; j<16; j++ )); do
+		printf "%02x" 0 >> syspage.hex
+	done
+
+	i=$i+16
 done
 
-# Use hex file to create binary file
-xxd -g4 -c4 -r syspage.hex > syspage.bin
+# Kernel arg
+echo -n $KARGS | xxd -p >> syspage.hex
+echo -n "00" >> syspage.hex
 
-# Convert to little endian
-objcopy --reverse-bytes=4 -I binary syspage.bin -O binary syspage.bin
+# Use hex file to create binary file
+xxd -r -p syspage.hex > syspage.bin
 
 # Make kernel binary image
 ${CROSS}objcopy $KERNELELF -O binary kernel.img
 
 cp kernel.img $OUTPUT
 
-OFFSET=$(($APP_START-$FLASH_START))
-dd if="syspage.bin" of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
-OFFSET=$(($OFFSET+$SYSPAGESZ))
+dd if="syspage.bin" of=$OUTPUT bs=1 seek=$SYSPAGE_OFFSET conv=notrunc 2>/dev/null
+
+OFFSET=$(($KERNEL_END))
+OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 
 [ -f $GDB_SYM_FILE ] && rm -rf $GDB_SYM_FILE
 printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE

@@ -663,6 +663,11 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
 	paddr = (void *)((unsigned long)vaddr & ~(SIZE_PAGE - 1));
 
+#ifdef PAGEFAULTSTOP
+	process_dumpException(n, ctx);
+	__asm__ volatile ("1: b 1b");
+#endif
+
 	hal_cpuEnableInterrupts();
 
 	thread = proc_current();
@@ -680,7 +685,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 			hal_cpuHalt();
 		}
 
-		threads_sigpost(thread->process, thread, signal_segv);
+		threads_sigpost(thread->process, thread, SIGSEGV);
 	}
 }
 #endif

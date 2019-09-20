@@ -54,6 +54,16 @@ _init_vectors:
 .endr
 .size _init_vectors, .-_init_vectors
 
+.org _init_vectors + 512
+
+_syspage:
+.word 0x20000000                        /* pbegin */
+.word 0x20000000 + (1024 * RAM_SIZE)    /* pend */
+.word 0x00000000                        /* *arg */
+.word 0x00000000                        /* progssz */
+
+.org _syspage + 1024
+
 .thumb
 .thumb_func
 
@@ -70,8 +80,7 @@ _start:
 	bl _stm32_init
 
 	/* Pass syspage to main */
-	ldr r0, =_init_vectors
-	add r0, r0, #0x10000
+	ldr r0, =_syspage
 	ldr r1, =syspage
 	str r0, [r1]
 	bl main

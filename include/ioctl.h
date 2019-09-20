@@ -16,6 +16,7 @@
 #ifndef _PHOENIX_IOCTL_H_
 #define _PHOENIX_IOCTL_H_
 
+#include "types.h"
 
 typedef struct {
 	id_t id;

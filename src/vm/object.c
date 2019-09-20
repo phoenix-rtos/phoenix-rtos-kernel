@@ -15,6 +15,7 @@
 
 #include HAL
 #include "../../include/errno.h"
+#include "../../include/fcntl.h"
 #include "../lib/lib.h"
 #include "page.h"
 #include "kmalloc.h"
@@ -64,11 +65,17 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 
 	if (*o == NULL) {
-		sz = proc_size(oid);
+		if (proc_objectGetAttr(&oid, atSize, &sz, sizeof(sz)) != sizeof(sz)) {
+			proc_lockClear(&object_common.lock);			
+			return -EINVAL; /* other error? */
+		}
+
 		n = round_page(sz) / SIZE_PAGE;
 
-		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL)
+		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
+			proc_lockClear(&object_common.lock);
 			return -ENOMEM;
+		}
 
 		hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
 		(*o)->size = sz;
@@ -136,30 +143,21 @@ static page_t *object_fetch(oid_t oid, offs_t offs)
 	page_t *p;
 	void *v;
 
-	if (proc_open(oid, 0) < 0)
+	if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL)
 		return NULL;
-
-	if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL) {
-		proc_close(oid, 0);
-		return NULL;
-	}
 
 	if ((v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE)) == NULL) {
 		vm_pageFree(p);
-		proc_close(oid, 0);
 		return NULL;
 	}
 
-	if (proc_read(oid, offs, v, SIZE_PAGE, 0) < 0) {
+	if (proc_objectRead(&oid, v, SIZE_PAGE, offs) <= 0) {
 		vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
-		proc_close(oid, 0);
 		return NULL;
 	}
 
 	vm_munmap(object_common.kmap, v, SIZE_PAGE);
-	proc_close(oid, 0);
-
 	return p;
 }
 

@@ -16,10 +16,10 @@
 
 #include HAL
 #include "../../include/errno.h"
+#include "../../include/wait.h"
 #include "../../include/signal.h"
 #include "threads.h"
 #include "../lib/lib.h"
-#include "../posix/posix.h"
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
@@ -40,7 +40,7 @@ struct {
 	rbtree_t sleeping;
 
 	/* Synchronized by mutex */
-	unsigned int nextid;
+	unsigned int idcounter;
 	rbtree_t id;
 
 #ifndef CPU_STM32
@@ -725,6 +725,113 @@ thread_t *proc_current(void)
 }
 
 
+static unsigned _thread_alloc(unsigned id)
+{
+	thread_t *p = lib_treeof(thread_t, idlinkage, threads_common.id.root);
+
+	while (p != NULL) {
+		if (p->lgap && id < p->id) {
+			if (p->idlinkage.left == NULL)
+				return max(id, p->id - p->lgap);
+
+			p = lib_treeof(thread_t, idlinkage, p->idlinkage.left);
+			continue;
+		}
+
+		if (p->rgap) {
+			if (p->idlinkage.right == NULL)
+				return max(id, p->id + 1);
+
+			p = lib_treeof(thread_t, idlinkage, p->idlinkage.right);
+			continue;
+		}
+
+		for (;; p = lib_treeof(thread_t, idlinkage, p->idlinkage.parent)) {
+			if (p->idlinkage.parent == NULL)
+				return NULL;
+
+			if ((p == lib_treeof(thread_t, idlinkage, p->idlinkage.parent->left)) && lib_treeof(thread_t, idlinkage, p->idlinkage.parent)->rgap)
+				break;
+		}
+		p = lib_treeof(thread_t, idlinkage, p->idlinkage.parent);
+
+		if (p->idlinkage.right == NULL)
+			return p->id + 1;
+
+		p = lib_treeof(thread_t, idlinkage, p->idlinkage.right);
+	}
+
+	return id;
+}
+
+
+static unsigned thread_alloc(thread_t *thread)
+{
+	proc_lockSet(&threads_common.lock);
+	thread->id = _thread_alloc(threads_common.idcounter);
+
+	if (!thread->id)
+		thread->id = _thread_alloc(threads_common.idcounter = 1);
+
+	if (threads_common.idcounter == MAX_TID)
+		threads_common.idcounter = 1;
+
+	if (thread->id) {
+		lib_rbInsert(&threads_common.id, &thread->idlinkage);
+		threads_common.idcounter++;
+	}
+	proc_lockClear(&threads_common.lock);
+
+	return thread->id;
+}
+
+
+static void thread_augment(rbnode_t *node)
+{
+	rbnode_t *it;
+	thread_t *n = lib_treeof(thread_t, idlinkage, node);
+	thread_t *p = n, *r, *l;
+
+	if (node->left == NULL) {
+		for (it = node; it->parent != NULL; it = it->parent) {
+			p = lib_treeof(thread_t, idlinkage, it->parent);
+			if (it->parent->right == it)
+				break;
+		}
+
+		n->lgap = !!((n->id <= p->id) ? n->id : n->id - p->id - 1);
+	}
+	else {
+		l = lib_treeof(thread_t, idlinkage, node->left);
+		n->lgap = max((int)l->lgap, (int)l->rgap);
+	}
+
+	if (node->right == NULL) {
+		for (it = node; it->parent != NULL; it = it->parent) {
+			p = lib_treeof(thread_t, idlinkage, it->parent);
+			if (it->parent->left == it)
+				break;
+		}
+
+		n->rgap = !!((n->id >= p->id) ? MAX_TID - n->id - 1 : p->id - n->id - 1);
+	}
+	else {
+		r = lib_treeof(thread_t, idlinkage, node->right);
+		n->rgap = max((int)r->lgap, (int)r->rgap);
+	}
+
+	for (it = node; it->parent != NULL; it = it->parent) {
+		n = lib_treeof(thread_t, idlinkage, it);
+		p = lib_treeof(thread_t, idlinkage, it->parent);
+
+		if (it->parent->left == it)
+			p->lgap = max((int)n->lgap, (int)n->rgap);
+		else
+			p->rgap = max((int)n->lgap, (int)n->rgap);
+	}
+}
+
+
 int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
 {
 	/* TODO - save user stack and it's size in thread_t */
@@ -755,7 +862,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->execdata = NULL;
 	t->wait = NULL;
 
-	t->id = (unsigned long)t;
+	thread_alloc(t);
 
 	if (id != NULL)
 		*id = t->id;
@@ -1092,6 +1199,82 @@ int proc_join(time_t timeout)
 }
 
 
+int proc_child(process_t *child, process_t *parent)
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	LIST_ADD(&parent->children, child);
+	hal_spinlockClear(&threads_common.spinlock);
+}
+
+
+int proc_zombie(process_t *zombie, process_t *parent)
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	LIST_REMOVE(&parent->children, zombie);
+	LIST_ADD(&parent->zombies, zombie);
+	hal_spinlockClear(&threads_common.spinlock);
+
+	proc_threadBroadcastYield(&parent->wait);
+}
+
+
+int proc_waitpid(pid_t pid, int *status, int options)
+{
+	process_t *p = proc_current()->process, *c;
+	int err = EOK;
+	int found = 0;
+
+	hal_spinlockSet(&threads_common.spinlock);
+	do {
+		if ((c = p->zombies) == NULL) {
+			if (p->children == NULL) {
+				err = -ECHILD;
+				break;
+			}
+			else if (options & WNOHANG) {
+				err = EOK;
+				break;
+			}
+			else {
+				while ((c = p->zombies) == NULL && !err)
+					err = _proc_threadWait(&p->wait, 0);
+
+				if (err == -EINTR) {
+					hal_spinlockClear(&threads_common.spinlock);
+					return -EINTR;
+				}
+				else if (err) {
+					/* Should not happen */
+					break;
+				}
+			}
+		}
+
+		do {
+			if (pid == -1 || (c->group != NULL && !pid && c->group->id == p->group->id) ||
+			    (pid < 0 && c->group != NULL && c->group->id == -pid) || pid == c->id) {
+				LIST_REMOVE(&p->zombies, c);
+				found = 1;
+			}
+		}
+		while (!found && (c = c->next) != p->zombies);
+	}
+	while (!found);
+	hal_spinlockClear(&threads_common.spinlock);
+
+	if (found) {
+		err = c->id;
+
+		if (status != NULL)
+			*status = c->exit;
+
+		proc_put(c);
+	}
+
+	return err;
+}
+
+
 time_t proc_uptime(void)
 {
 	time_t time;
@@ -1155,13 +1338,13 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	int kill = 0;
 
 	switch (sig) {
-		case signal_segv:
-		case signal_illegal:
+		case SIGSEGV:
+		case SIGILL:
 			if (process->sighandler != NULL)
 				break;
 
 		/* passthrough */
-		case signal_kill:
+		case SIGKILL:
 			proc_kill(process);
 
 		/* passthrough */
@@ -1176,7 +1359,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	if (thread != NULL && hal_cpuPushSignal(thread->kstack + thread->kstacksz, thread->process->sighandler, sig) != EOK) {
 		thread->sigpend |= sigbit;
 
-		if (sig == signal_segv || sig == signal_illegal) {
+		if (sig == SIGSEGV || sig == SIGILL) {
 			/* If they can't handle those right away, kill */
 			kill = 1;
 			_proc_threadExit(thread);
@@ -1405,6 +1588,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		if (t->process != NULL) {
 			info[i].pid = t->process->id;
 			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
+			info[i].ppid = 0;
 		}
 		else {
 			info[i].pid = 0;
@@ -1496,6 +1680,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;
+	threads_common.idcounter = 0;
 
 	threads_common.perfGather = 0;
 
@@ -1510,7 +1695,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.ready[i] = NULL;
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
-	lib_rbInit(&threads_common.id, threads_idcmp, NULL);
+	lib_rbInit(&threads_common.id, threads_idcmp, thread_augment);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
 

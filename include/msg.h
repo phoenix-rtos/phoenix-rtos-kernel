@@ -16,6 +16,8 @@
 #ifndef _PHOENIX_MSG_H_
 #define _PHOENIX_MSG_H_
 
+#include "types.h"
+
 /*
  * Message types
  */
@@ -37,14 +39,32 @@ enum {
 
 #pragma pack(push, 8)
 
-
 typedef struct _msg_t {
-	int type;
-	unsigned int pid;
-	unsigned int priority;
+	short type;
+	short priority;
+	pid_t pid;
+	id_t object;
 
 	struct {
 		union {
+			/* OPEN */
+			struct {
+				int flags;
+				mode_t mode;
+			} open_;
+
+			/* READ/WRITE */
+			struct {
+				off_t offs;
+				unsigned flags;
+			} io_;
+
+			/* GETATTR/SETATTR */
+			int attr_;
+
+			/* LINK */
+			oid_t link_;
+
 			/* OPEN/CLOSE */
 			struct {
 				oid_t oid;
@@ -96,15 +116,25 @@ typedef struct _msg_t {
 				offs_t offs;
 			} readdir;
 
-			u8 raw[64];
+			unsigned char raw[64];
 		};
 
 		size_t size;
-		void *data;
+		const void *data;
 	} i;
 
 	struct {
 		union {
+			struct {
+				id_t id;
+				mode_t mode;
+				int err;
+			} open_;
+
+			ssize_t io_;
+
+
+
 			struct {
 				int err;
 			} io;
@@ -127,13 +157,12 @@ typedef struct _msg_t {
 				int err;
 			} lookup;
 
-			u8 raw[64];
+			unsigned char raw[64];
 		};
 
 		size_t size;
 		void *data;
 	} o;
-
 } msg_t;
 
 

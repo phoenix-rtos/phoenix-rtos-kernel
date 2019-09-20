@@ -52,10 +52,6 @@
 	ID(mmdump) \
 	ID(platformctl) \
 	ID(wdgreload) \
-	ID(fileAdd) \
-	ID(fileSet) \
-	ID(fileGet) \
-	ID(fileRemove) \
 	ID(threadsinfo) \
 	ID(meminfo) \
 	ID(perf_start) \
@@ -71,44 +67,58 @@
 	\
 	ID(sys_read) \
 	ID(sys_write) \
+	ID(sys_openat) \
 	ID(sys_open) \
 	ID(sys_close) \
-	ID(sys_link) \
-	ID(sys_unlink) \
+	ID(sys_linkat) \
+	ID(sys_unlinkat) \
 	ID(sys_fcntl) \
 	ID(sys_ftruncate) \
-	ID(sys_lseek) \
+	ID(lseek) \
+	ID(sys_dup3) \
+	ID(sys_fchmod) \
+	ID(sys_fstat) \
+	ID(sys_ioctl) \
+	ID(sys_spawn) \
+	ID(release) \
+	ID(SetRoot) \
+	\
+	ID(sys_setpgid) \
+	ID(sys_setpgrp) \
+	ID(sys_getpgid) \
+	ID(sys_getpgrp) \
+	ID(sys_setsid) \
 	ID(sys_dup) \
 	ID(sys_dup2) \
 	ID(sys_pipe) \
+	ID(sys_link) \
+	ID(sys_unlink) \
 	ID(sys_mkfifo) \
 	ID(sys_chmod) \
-	ID(sys_fstat) \
-	\
-	ID(sys_accept) \
-	ID(sys_accept4) \
-	ID(sys_bind) \
-	ID(sys_connect) \
-	ID(sys_getpeername) \
-	ID(sys_getsockname) \
-	ID(sys_getsockopt) \
-	ID(sys_listen) \
-	ID(sys_recvfrom) \
-	ID(sys_sendto) \
-	ID(sys_socket) \
-	ID(sys_shutdown) \
-	ID(sys_setsockopt) \
-	\
-	ID(sys_ioctl) \
-	ID(sys_utimes) \
-	ID(sys_poll) \
-	\
 	ID(sys_tkill) \
 	\
-	ID(sys_setpgid) \
-	ID(sys_getpgid) \
-	ID(sys_setpgrp) \
-	ID(sys_getpgrp) \
-	ID(sys_setsid) \
-	ID(sys_spawn) \
-	ID(release)
+	ID(sys_poll)
+
+
+	// ID(setpgid)
+	// ID(getpgid)
+	// ID(setpgrp)
+	// ID(getpgrp)
+	// ID(setsid)
+
+//	ID(pipe)
+//	ID(mkfifo)
+//	ID(utimes)
+//	ID(tkill)
+	// ID(accept4)
+	// ID(bind)
+	// ID(connect)
+	// ID(getpeername)
+	// ID(getsockname)
+	// ID(getsockopt)
+	// ID(listen)
+	// ID(recvfrom)
+	// ID(sendto)
+	// ID(socket)
+	// ID(shutdown)
+	// ID(setsockopt)

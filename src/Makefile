@@ -22,19 +22,21 @@ MAKEFLAGS += --no-print-directory --output-sync
 SRCS := main.c syscalls.c programs.c
 OBJS = $(SRCS:.c=.o)
 
-SUBSYSTEMS = lib vm proc test posix
+SUBSYSTEMS = lib vm proc test
 
 BIN = ../phoenix-$(TARGET)
 
 ifeq ($(DEBUG), 1)
-	CFLAGS = -Og -g
+	CFLAGS = -Og
 else ifneq (, $(findstring imx, $(TARGET)))
-	CFLAGS = -Os -DNDEBUG
+	CFLAGS = -Og -DNDEBUG
 else ifneq (, $(findstring stm32, $(TARGET)))
 	CFLAGS = -Os -DNDEBUG
 else
 	CFLAGS = -O2 -DNDEBUG
 endif
+
+CFLAGS += -g
 
 # Compliation options for various architectures
 TARGET_FAMILY = $(firstword $(subst -, ,$(TARGET)-))
@@ -77,7 +79,7 @@ subsystems: $(ARCHS)
 $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 	@echo "\033[1;34mEMBED programs.cpio\033[0m"
 	@touch /tmp/programs
-	$(SIL)$(OBJCOPY) --update-section .data=/tmp/programs programs.o --add-symbol programs=.data:0
+	$(SIL)$(OBJCOPY) --update-section .data=/tmp/programs programs.o  --add-symbol programs=.data:0
 	
 	@(\
 	printf "Subsystem           | text    | rodata  | data\n";\

@@ -19,6 +19,7 @@
 #include "proc.h"
 
 #define HASH_LEN 5 /* Number of entries in dcache = 2 ^ HASH_LEN */
+#if 0
 
 
 typedef struct _dcache_entry_t {
@@ -94,6 +95,53 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 	proc_lockClear(&name_common.dcache_lock);
 
 	return EOK;
+}
+
+
+
+int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
+{
+	int err;
+	dcache_entry_t *entry;
+	msg_t *msg;
+	size_t len, i;
+
+	if (name == NULL || (file == NULL && dev == NULL) || name[0] != '/')
+		return -EINVAL;
+
+	if (name[1] == 0) {
+		if (name_common.root_registered) {
+			if (file != NULL)
+				*file = name_common.root_oid;
+			if (dev != NULL)
+				*dev = name_common.root_oid;
+			return EOK;
+		}
+
+		return -EINVAL;
+	}
+
+	/* Search cache for full path */
+	proc_lockSet(&name_common.dcache_lock);
+	if ((entry = _dcache_entryLookup(dcache_strHash(name), name)) != NULL) {
+		if (file != NULL)
+			*file = entry->oid;
+		if (dev != NULL)
+			*dev = entry->oid;
+		proc_lockClear(&name_common.dcache_lock);
+		return EOK;
+	}
+	proc_lockClear(&name_common.dcache_lock);
+
+	return -ENOENT;
+}
+
+void _name_init(void)
+{
+	proc_lockInit(&name_common.dcache_lock);
+
+	hal_memset(name_common.dcache, NULL, sizeof(name_common.dcache));
+	name_common.root_registered = 0;
 }
 
 
@@ -251,6 +299,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 }
 
 
+
 int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 {
 	if (file != NULL)
@@ -258,7 +307,6 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 
 	return proc_portLookup((char *)name, file, dev);
 }
-
 
 int proc_open(oid_t oid, unsigned mode)
 {
@@ -472,10 +520,4 @@ int proc_size(oid_t oid)
 }
 
 
-void _name_init(void)
-{
-	proc_lockInit(&name_common.dcache_lock);
-
-	hal_memset(name_common.dcache, NULL, sizeof(name_common.dcache));
-	name_common.root_registered = 0;
-}
+#endif

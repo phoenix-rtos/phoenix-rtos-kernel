@@ -17,13 +17,14 @@
 #include HAL
 #include "../include/errno.h"
 #include "../include/sysinfo.h"
+#include "../include/fcntl.h"
 #include "../include/mman.h"
 #include "../include/syscalls.h"
-#include "../include/posix.h"
+#include "../include/poll.h"
+#include "../include/socket.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
-#include "posix/posix.h"
 
 #define SYSCALLS_NAME(name) syscalls_##name,
 #define SYSCALLS_STRING(name) #name,
@@ -106,7 +107,6 @@ int syscalls_vforksvc(void *ustack)
 
 int syscalls_sys_fork(void *ustack)
 {
-	// return -ENOSYS;
 	return proc_fork();
 }
 
@@ -158,13 +158,14 @@ int syscalls_sys_exit(void *ustack)
 
 int syscalls_sys_waitpid(void *ustack)
 {
-	int pid, *stat, options;
+	pid_t pid;
+	int *stat, options;
 
-	GETFROMSTACK(ustack, int, pid, 0);
+	GETFROMSTACK(ustack, pid_t, pid, 0);
 	GETFROMSTACK(ustack, int *, stat, 1);
 	GETFROMSTACK(ustack, int, options, 2);
 
-	return posix_waitpid(pid, stat, options);
+	return proc_waitpid(pid, stat, options);
 }
 
 
@@ -186,7 +187,7 @@ int syscalls_getpid(void *ustack)
 
 int syscalls_getppid(void *ustack)
 {
-	return posix_getppid(proc_current()->process->id);
+	return proc_current()->process->ppid;
 }
 
 
@@ -264,13 +265,23 @@ int syscalls_priority(void *ustack)
 
 int syscalls_threadsinfo(void *ustack)
 {
-	int n;
+	int n, i;
+	pid_t ppid;
 	threadinfo_t *info;
 
 	GETFROMSTACK(ustack, int, n, 0);
 	GETFROMSTACK(ustack, threadinfo_t *, info, 1);
 
-	return proc_threadsList(n, info);
+	n = proc_threadsList(n, info);
+
+#if 0
+	for (i = 0; i < n; ++i) {
+		if ((ppid = posix_getppid(info[i].pid)) > 0)
+			info[i].ppid = ppid;
+	}
+#endif
+
+	return n;
 }
 
 
@@ -510,7 +521,7 @@ u32 syscalls_portRegister(void *ustack)
 	GETFROMSTACK(ustack, char *, name, 1);
 	GETFROMSTACK(ustack, oid_t *, oid, 2);
 
-	return proc_portRegister(port, name, oid);
+	return -ENOSYS; //proc_portRegister(port, name, oid);
 }
 
 
@@ -563,7 +574,7 @@ int syscalls_lookup(void *ustack)
 	GETFROMSTACK(ustack, oid_t *, file, 1);
 	GETFROMSTACK(ustack, oid_t *, dev, 2);
 
-	return proc_portLookup(name, file, dev);
+	return -ENOSYS; //proc_portLookup(name, file, dev);
 }
 
 
@@ -649,71 +660,6 @@ int syscalls_platformctl(void *ustack)
 void syscalls_wdgreload(void *ustack)
 {
 	hal_wdgReload();
-}
-
-
-/*
- * File operations
- */
-
-
-int syscalls_fileAdd(void *ustack)
-{
-	unsigned int *h;
-	oid_t *oid;
-	unsigned int mode;
-
-	GETFROMSTACK(ustack, unsigned int *, h, 0);
-	GETFROMSTACK(ustack, oid_t *, oid, 1);
-	GETFROMSTACK(ustack, unsigned int, mode, 2);
-
-	return proc_fileAdd(h, oid, mode);
-}
-
-
-int syscalls_fileSet(void *ustack)
-{
-	unsigned int h;
-	char flags;
-	oid_t *oid;
-	offs_t offs;
-	unsigned mode;
-
-	GETFROMSTACK(ustack, unsigned int, h, 0);
-	GETFROMSTACK(ustack, char, flags, 1);
-	GETFROMSTACK(ustack, oid_t *, oid, 2);
-	GETFROMSTACK(ustack, offs_t, offs, 3);
-	GETFROMSTACK(ustack, unsigned, mode, 4);
-
-	return proc_fileSet(h, flags, oid, offs, mode);
-}
-
-
-int syscalls_fileGet(void *ustack)
-{
-	unsigned int h;
-	int flags;
-	oid_t *oid;
-	offs_t *offs;
-	unsigned *mode;
-
-	GETFROMSTACK(ustack, unsigned int, h, 0);
-	GETFROMSTACK(ustack, int, flags, 1);
-	GETFROMSTACK(ustack, oid_t *, oid, 2);
-	GETFROMSTACK(ustack, offs_t *, offs, 3);
-	GETFROMSTACK(ustack, unsigned *, mode, 4);
-
-	return proc_fileGet(h, flags, oid, offs, mode);
-}
-
-
-int syscalls_fileRemove(void *ustack)
-{
-	unsigned int h;
-
-	GETFROMSTACK(ustack, unsigned int, h, 0);
-
-	return proc_fileRemove(h);
 }
 
 
@@ -814,16 +760,42 @@ int syscalls_signalSuspend(void *ustack)
 }
 
 /* POSIX compatibility syscalls */
+int syscalls_SetRoot(char *ustack)
+{
+	oid_t *oid;
+	mode_t mode;
+	GETFROMSTACK(ustack, oid_t *, oid, 0);
+	GETFROMSTACK(ustack, mode_t, mode, 1);
+	proc_filesSetRoot(oid, mode);
+}
+
+
+int syscalls_sys_openat(char *ustack)
+{
+	const char *filename;
+	int flags, dirfd;
+	mode_t mode;
+
+	GETFROMSTACK(ustack, int, dirfd, 0);
+	GETFROMSTACK(ustack, const char *, filename, 1);
+	GETFROMSTACK(ustack, int, flags, 2);
+	GETFROMSTACK(ustack, mode_t, mode, 3);
+
+	return proc_fileOpen(dirfd, filename, flags, mode);
+}
+
 
 int syscalls_sys_open(char *ustack)
 {
 	const char *filename;
-	int oflag;
+	int flags;
+	mode_t mode;
 
 	GETFROMSTACK(ustack, const char *, filename, 0);
-	GETFROMSTACK(ustack, int, oflag, 1);
+	GETFROMSTACK(ustack, int, flags, 1);
+	GETFROMSTACK(ustack, mode_t, mode, 2);
 
-	return posix_open(filename, oflag, ustack);
+	return proc_fileOpen(AT_FDCWD, filename, flags, mode);
 }
 
 
@@ -833,7 +805,7 @@ int syscalls_sys_close(char *ustack)
 
 	GETFROMSTACK(ustack, int, fildes, 0);
 
-	return posix_close(fildes);
+	return proc_fileClose(fildes);
 }
 
 
@@ -847,7 +819,7 @@ int syscalls_sys_read(char *ustack)
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
 
-	return posix_read(fildes, buf, nbyte);
+	return proc_fileRead(fildes, buf, nbyte);
 }
 
 
@@ -861,65 +833,60 @@ int syscalls_sys_write(char *ustack)
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
 
-	return posix_write(fildes, buf, nbyte);
+	return proc_fileWrite(fildes, buf, nbyte);
 }
 
 
-int syscalls_sys_dup(char *ustack)
+int syscalls_sys_dup3(char *ustack)
 {
-	int fildes;
-
-	GETFROMSTACK(ustack, int, fildes, 0);
-
-	return posix_dup(fildes);
-}
-
-
-int syscalls_sys_dup2(char *ustack)
-{
-	int fildes;
-	int fildes2;
+	int fildes, fildes2, flags;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, int, fildes2, 1);
+	GETFROMSTACK(ustack, int, flags, 2);
 
-	return posix_dup2(fildes, fildes2);
+	return proc_fileDup(fildes, fildes2, flags);
 }
 
 
-int syscalls_sys_link(char *ustack)
+int syscalls_sys_linkat(char *ustack)
 {
-	const char *path1;
-	const char *path2;
+	int fildes, dirfd, flags;
+	const char *name;
 
-	GETFROMSTACK(ustack, const char *, path1, 0);
-	GETFROMSTACK(ustack, const char *, path2, 1);
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, int, dirfd, 1);
+	GETFROMSTACK(ustack, const char *, name, 2);
+	GETFROMSTACK(ustack, int, flags, 3);
 
-	return posix_link(path1, path2);
+	return proc_fileLink(fildes, dirfd, name, flags);
 }
 
 
-int syscalls_sys_unlink(char *ustack)
+int syscalls_sys_unlinkat(char *ustack)
 {
 	const char *pathname;
+	int dirfd, flags;
 
-	GETFROMSTACK(ustack, const char *, pathname, 0);
+	GETFROMSTACK(ustack, int, dirfd, 0);
+	GETFROMSTACK(ustack, const char *, pathname, 1);
+	GETFROMSTACK(ustack, int, flags, 2);
 
-	return posix_unlink(pathname);
+	return proc_fileUnlink(dirfd, pathname, flags);
 }
 
 
-off_t syscalls_sys_lseek(char *ustack)
+int syscalls_lseek(char *ustack)
 {
 	int fildes;
-	off_t offset;
+	off_t *offset;
 	int whence;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
-	GETFROMSTACK(ustack, off_t, offset, 1);
+	GETFROMSTACK(ustack, off_t *, offset, 1);
 	GETFROMSTACK(ustack, int, whence, 2);
 
-	return posix_lseek(fildes, offset, whence);
+	return proc_fileSeek(fildes, offset, whence);
 }
 
 
@@ -931,83 +898,95 @@ int syscalls_sys_ftruncate(char *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, off_t, length, 1);
 
-	return posix_ftruncate(fildes, length);
+	return proc_fileTruncate(fildes, length);
 }
 
 
 int syscalls_sys_fcntl(char *ustack)
 {
-	unsigned int fd;
-	unsigned int cmd;
+	int fildes, cmd;
+	long arg;
 
-	GETFROMSTACK(ustack, unsigned int, fd, 0);
-	GETFROMSTACK(ustack, unsigned int, cmd, 1);
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, int, cmd, 1);
+	GETFROMSTACK(ustack, long, arg, 2);
 
-	return posix_fcntl(fd, cmd, ustack);
-}
-
-
-int syscalls_sys_pipe(char *ustack)
-{
-	int *fildes;
-
-	GETFROMSTACK(ustack, int *, fildes, 0);
-
-	return posix_pipe(fildes);
-}
-
-
-int syscalls_sys_mkfifo(char *ustack)
-{
-	const char *path;
-	mode_t mode;
-
-	GETFROMSTACK(ustack, const char *, path, 0);
-	GETFROMSTACK(ustack, mode_t, mode, 1);
-
-	return posix_mkfifo(path, mode);
+	return proc_fileControl(fildes, cmd, arg);
 }
 
 
 int syscalls_sys_fstat(char *ustack)
 {
-	int fd;
-	struct stat *buf;
+	int fildes;
+	file_stat_t *buf;
 
-	GETFROMSTACK(ustack, int, fd, 0);
-	GETFROMSTACK(ustack, struct stat *, buf, 1);
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, file_stat_t *, buf, 1);
 
-	return posix_fstat(fd, buf);
+	return proc_fileStat(fildes, buf);
 }
 
 
-int syscalls_sys_chmod(char *ustack)
+int syscalls_sys_fchmod(char *ustack)
 {
-	const char *path;
+	int fildes;
 	mode_t mode;
 
-	GETFROMSTACK(ustack, const char *, path, 0);
+	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, mode_t, mode, 1);
 
-	return posix_chmod(path, mode);
+	return proc_fileChmod(fildes, mode);
 }
 
 
-int syscalls_sys_accept(char *ustack)
+int syscalls_sys_ioctl(char *ustack)
 {
-	int socket;
-	struct sockaddr *address;
-	socklen_t *address_len;
+	int fildes;
+	unsigned long request;
+	char *data;
 
-	GETFROMSTACK(ustack, int, socket, 0);
-	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
-	GETFROMSTACK(ustack, socklen_t *,address_len, 2);
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, unsigned long, request, 1);
+	GETFROMSTACK(ustack, char *, data, 2);
 
-	return posix_accept(socket, address, address_len);
+	return proc_fileIoctl(fildes, request, data);
 }
 
 
-int syscalls_sys_accept4(char *ustack)
+int syscalls_sys_poll(char *ustack)
+{
+	struct pollfd *fds;
+	nfds_t nfds;
+	int timeout_ms;
+
+	GETFROMSTACK(ustack, struct pollfd *, fds, 0);
+	GETFROMSTACK(ustack, nfds_t, nfds, 1);
+	GETFROMSTACK(ustack, int, timeout_ms, 2);
+
+	return 0;
+}
+
+
+
+int syscalls_sys_tkill(char *ustack) {return -ENOSYS;}
+int syscalls_sys_setpgid(char *ustack) {return -ENOSYS;}
+int syscalls_sys_setpgrp(char *ustack) {return -ENOSYS;}
+int syscalls_sys_getpgid(char *ustack) {return -ENOSYS;}
+int syscalls_sys_getpgrp(char *ustack) {return -ENOSYS;}
+int syscalls_sys_setsid(char *ustack) {return -ENOSYS;}
+int syscalls_sys_dup(char *ustack) {return -ENOSYS;}
+int syscalls_sys_dup2(char *ustack) {return -ENOSYS;}
+int syscalls_sys_pipe(char *ustack) {return -ENOSYS;}
+int syscalls_sys_link(char *ustack) {return -ENOSYS;}
+int syscalls_sys_unlink(char *ustack) {return -ENOSYS;}
+int syscalls_sys_mkfifo(char *ustack) {return -ENOSYS;}
+int syscalls_sys_chmod(char *ustack) {return -ENOSYS;}
+
+
+
+#if 0
+
+int syscalls_accept4(char *ustack)
 {
 	int socket;
 	struct sockaddr *address;
@@ -1023,7 +1002,7 @@ int syscalls_sys_accept4(char *ustack)
 }
 
 
-int syscalls_sys_bind(char *ustack)
+int syscalls_bind(char *ustack)
 {
 	int socket;
 	const struct sockaddr *address;
@@ -1037,7 +1016,7 @@ int syscalls_sys_bind(char *ustack)
 }
 
 
-int syscalls_sys_connect(char *ustack)
+int syscalls_connect(char *ustack)
 {
 	int socket;
 	const struct sockaddr *address;
@@ -1051,7 +1030,7 @@ int syscalls_sys_connect(char *ustack)
 }
 
 
-int syscalls_sys_getpeername(char *ustack)
+int syscalls_getpeername(char *ustack)
 {
 	int socket;
 	struct sockaddr *address;
@@ -1065,7 +1044,7 @@ int syscalls_sys_getpeername(char *ustack)
 }
 
 
-int syscalls_sys_getsockname(char *ustack)
+int syscalls_getsockname(char *ustack)
 {
 	int socket;
 	struct sockaddr *address;
@@ -1079,7 +1058,7 @@ int syscalls_sys_getsockname(char *ustack)
 }
 
 
-int syscalls_sys_getsockopt(char *ustack)
+int syscalls_getsockopt(char *ustack)
 {
 	int socket;
 	int level;
@@ -1097,7 +1076,7 @@ int syscalls_sys_getsockopt(char *ustack)
 }
 
 
-int syscalls_sys_listen(char *ustack)
+int syscalls_listen(char *ustack)
 {
 	int socket;
 	int backlog;
@@ -1109,7 +1088,7 @@ int syscalls_sys_listen(char *ustack)
 }
 
 
-ssize_t syscalls_sys_recvfrom(char *ustack)
+ssize_t syscalls_recvfrom(char *ustack)
 {
 	int socket;
 	void *message;
@@ -1129,7 +1108,7 @@ ssize_t syscalls_sys_recvfrom(char *ustack)
 }
 
 
-ssize_t syscalls_sys_sendto(char *ustack)
+ssize_t syscalls_sendto(char *ustack)
 {
 	int socket;
 	const void *message;
@@ -1149,7 +1128,7 @@ ssize_t syscalls_sys_sendto(char *ustack)
 }
 
 
-int syscalls_sys_socket(char *ustack)
+int syscalls_socket(char *ustack)
 {
 	int domain;
 	int type;
@@ -1163,7 +1142,7 @@ int syscalls_sys_socket(char *ustack)
 }
 
 
-int syscalls_sys_shutdown(char *ustack)
+int syscalls_shutdown(char *ustack)
 {
 	int socket;
 	int how;
@@ -1175,7 +1154,7 @@ int syscalls_sys_shutdown(char *ustack)
 }
 
 
-int syscalls_sys_setsockopt(char *ustack)
+int syscalls_setsockopt(char *ustack)
 {
 	int socket;
 	int level;
@@ -1193,33 +1172,7 @@ int syscalls_sys_setsockopt(char *ustack)
 }
 
 
-int syscalls_sys_ioctl(char *ustack)
-{
-	int fildes;
-	unsigned long request;
-
-	GETFROMSTACK(ustack, int, fildes, 0);
-	GETFROMSTACK(ustack, unsigned long, request, 1);
-
-	return posix_ioctl(fildes, request, ustack);
-}
-
-
-int syscalls_sys_poll(char *ustack)
-{
-	struct pollfd *fds;
-	nfds_t nfds;
-	int timeout_ms;
-
-	GETFROMSTACK(ustack, struct pollfd *, fds, 0);
-	GETFROMSTACK(ustack, nfds_t, nfds, 1);
-	GETFROMSTACK(ustack, int, timeout_ms, 2);
-
-	return posix_poll(fds, nfds, timeout_ms);
-}
-
-
-int syscalls_sys_utimes(char *ustack)
+int syscalls_utimes(char *ustack)
 {
 	const char *filename;
 	const struct timeval *times;
@@ -1230,8 +1183,7 @@ int syscalls_sys_utimes(char *ustack)
 	return posix_utimes(filename, times);
 }
 
-
-int syscalls_sys_tkill(char *ustack)
+int syscalls_tkill(char *ustack)
 {
 	pid_t pid;
 	int tid;
@@ -1245,7 +1197,7 @@ int syscalls_sys_tkill(char *ustack)
 }
 
 
-int syscalls_sys_setpgid(char *ustack)
+int syscalls_setpgid(char *ustack)
 {
 	pid_t pid, pgid;
 
@@ -1256,7 +1208,7 @@ int syscalls_sys_setpgid(char *ustack)
 }
 
 
-pid_t syscalls_sys_getpgid(char *ustack)
+pid_t syscalls_getpgid(char *ustack)
 {
 	pid_t pid;
 
@@ -1266,22 +1218,24 @@ pid_t syscalls_sys_getpgid(char *ustack)
 }
 
 
-int syscalls_sys_setpgrp(char *ustack)
+int syscalls_setpgrp(char *ustack)
 {
 	return posix_setpgid(0, 0);
 }
 
 
-pid_t syscalls_sys_getpgrp(char *ustack)
+pid_t syscalls_getpgrp(char *ustack)
 {
 	return posix_getpgid(0);
 }
 
 
-pid_t syscalls_sys_setsid(char *ustack)
+pid_t syscalls_setsid(char *ustack)
 {
 	return posix_setsid();
 }
+
+#endif
 
 
 /*

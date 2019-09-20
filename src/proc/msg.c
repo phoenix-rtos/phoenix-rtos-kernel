@@ -204,43 +204,16 @@ static void msg_ipack(kmsg_t *kmsg)
 {
 	size_t offset;
 
+#if 0
 	if (kmsg->msg.i.data != NULL) {
 		switch (kmsg->msg.type) {
 			case mtOpen:
-			case mtClose:
-				offset = sizeof(kmsg->msg.i.openclose);
+				offset = sizeof(kmsg->msg.i.open);
 				break;
 
 			case mtRead:
 			case mtWrite:
-			case mtTruncate:
 				offset = sizeof(kmsg->msg.i.io);
-				break;
-
-			case mtCreate:
-				offset = sizeof(kmsg->msg.i.create);
-				break;
-
-			case mtDestroy:
-				offset = sizeof(kmsg->msg.i.destroy);
-				break;
-
-			case mtSetAttr:
-			case mtGetAttr:
-				offset = sizeof(kmsg->msg.i.attr);
-				break;
-
-			case mtLookup:
-				offset = sizeof(kmsg->msg.i.lookup);
-				break;
-
-			case mtLink:
-			case mtUnlink:
-				offset = sizeof(kmsg->msg.i.ln);
-				break;
-
-			case mtReaddir:
-				offset = sizeof(kmsg->msg.i.readdir);
 				break;
 
 			case mtDevCtl:
@@ -254,18 +227,23 @@ static void msg_ipack(kmsg_t *kmsg)
 		hal_memcpy(kmsg->msg.i.raw + offset, kmsg->msg.i.data, kmsg->msg.i.size);
 		kmsg->msg.i.data = kmsg->msg.i.raw + offset;
 	}
+#endif
 }
 
 
 static int msg_opack(kmsg_t *kmsg)
 {
+	return 0;
+#if 0
 	size_t offset;
-
 	if (kmsg->msg.o.data == NULL)
 		return 0;
 
 	switch (kmsg->msg.type) {
 		case mtOpen:
+			offset = sizeof(kmsg->msg.o.open);
+			break;
+
 		case mtClose:
 		case mtRead:
 		case mtWrite:
@@ -275,19 +253,6 @@ static int msg_opack(kmsg_t *kmsg)
 		case mtUnlink:
 		case mtReaddir:
 			offset = sizeof(kmsg->msg.o.io);
-			break;
-
-		case mtCreate:
-			offset = sizeof(kmsg->msg.o.create);
-			break;
-
-		case mtSetAttr:
-		case mtGetAttr:
-			offset = sizeof(kmsg->msg.o.attr);
-			break;
-
-		case mtLookup:
-			offset = sizeof(kmsg->msg.o.lookup);
 			break;
 
 		case mtDevCtl:
@@ -301,6 +266,7 @@ static int msg_opack(kmsg_t *kmsg)
 	kmsg->msg.o.data = kmsg->msg.o.raw + offset;
 
 	return 1;
+#endif
 }
 
 

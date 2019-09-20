@@ -19,7 +19,6 @@
 #include "lib/lib.h"
 #include "vm/vm.h"
 #include "proc/proc.h"
-#include "posix/posix.h"
 #include "syscalls.h"
 #include "test/test.h"
 #include "programs.h"
@@ -52,9 +51,6 @@ void main_initthr(void *unused)
 	for (i = 0; i < syspage->progssz; i++)
 		lib_printf(" '%s',", syspage->progs[i].cmdline);
 	lib_printf("\b \n");
-
-	posix_init();
-	posix_clone(-1);
 
 	/* Free memory used by initial stack */
 	/*vm_munmap(&main_common.kmap, main_common.stack, main_common.stacksz);

@@ -20,6 +20,8 @@
 #include <arch.h>
 #endif
 
+#include "types.h"
+
 
 typedef struct _syspageprog_t {
 	char name[16];

@@ -316,12 +316,12 @@ static volatile u32 *_imxrt_IOpadGetReg(int pad)
 		return NULL;
 
 	if (pad >= pctl_pad_snvs_test_mode)
-		return imxrt_common.iomuxsnvs + 3;
+		return imxrt_common.iomuxsnvs + 3 + (pad - pctl_pad_snvs_test_mode);
 
 	if (pad >= pctl_pad_gpio_spi_b0_00)
-		return imxrt_common.iomuxc + 429;
+		return imxrt_common.iomuxc + 429 + (pad - pctl_pad_gpio_spi_b0_00);
 
-	return imxrt_common.iomuxc + 129;
+	return imxrt_common.iomuxc + 129 + pad;
 }
 
 
@@ -418,9 +418,9 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 	}
 
 	if (isel >= pctl_isel_enet2_ipg_clk_rmii)
-		return imxrt_common.iomuxc + 451;
+		return imxrt_common.iomuxc + 451 + (isel - pctl_isel_enet2_ipg_clk_rmii);
 
-	return imxrt_common.iomuxc + 253;
+	return imxrt_common.iomuxc + 253 + isel;
 }
 
 

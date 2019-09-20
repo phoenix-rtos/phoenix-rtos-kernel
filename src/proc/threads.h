@@ -23,6 +23,7 @@
 #include "lock.h"
 #include "../../include/sysinfo.h"
 
+#define MAX_TID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
 /* Parent thread states */
 enum { PREFORK = 0, FORKING = 1, FORKED };
@@ -47,6 +48,8 @@ typedef struct _thread_t {
 
 	rbnode_t sleeplinkage;
 	rbnode_t idlinkage;
+	unsigned lgap : 1;
+	unsigned rgap : 1;
 
 	struct _process_t *process;
 	struct _thread_t *procnext;
@@ -127,16 +130,19 @@ extern int proc_threadJoin(unsigned int id);
 extern void proc_threadsDestroy(thread_t **threads);
 
 
-extern int proc_waitpid(int pid, int *stat, int options);
+extern int proc_child(process_t *child, process_t *parent);
+
+
+extern int proc_zombie(process_t *zombie, process_t *parent);
+
+
+extern int proc_waitpid(pid_t pid, int *status, int options);
 
 
 extern int proc_join(time_t timeout);
 
 
 extern int proc_threadsList(int n, threadinfo_t *info);
-
-
-extern void proc_zombie(process_t *proc);
 
 
 extern int proc_threadClone(void);

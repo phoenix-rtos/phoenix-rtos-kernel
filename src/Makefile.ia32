@@ -31,7 +31,7 @@ AR = $(CROSS)ar
 ARFLAGS = -r
 
 LD = $(CROSS)ld
-LDFLAGS = -m elf_i386 -e _start --section-start .init=$(VADDR) $(LIBDIRS)
+LDFLAGS = -m elf_i386 -e _start --section-start .init=$(VADDR) $(LIBDIRS) --no-omagic
 GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
 LIBS = $(GCCLIB)
 

@@ -5,8 +5,8 @@
  *
  * Files
  *
- * Copyright 2017 Phoenix Systems
- * Author: Pawel Pisarczyk, Aleksander Kaminski
+ * Copyright 2019 Phoenix Systems
+ * Author: Jan Sikorski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -17,22 +17,61 @@
 #define _PROC_FILE_H_
 
 #include HAL
-#include "threads.h"
-#include "resource.h"
+#include "../../include/types.h"
+#include "../../include/stat.h"
+#include "process.h"
+
+typedef struct _fildes_t fildes_t;
 
 
-extern int proc_fileAdd(unsigned int *h, oid_t *oid, unsigned mode);
+typedef struct _file_t file_t;
 
 
-extern int proc_fileSet(unsigned int h, char flags, oid_t *oid, offs_t offs, unsigned mode);
+typedef struct stat file_stat_t;
 
 
-extern int proc_fileGet(unsigned int h, char flags, oid_t *oid, offs_t *offs, unsigned *mode);
+extern int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode);
 
 
-extern int proc_fileRemove(unsigned int h);
+extern int proc_fileClose(int fildes);
 
 
-extern int proc_fileCopy(resource_t *dst, resource_t *src);
+extern ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte);
+
+
+extern ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte);
+
+
+extern int proc_fileDup(int fildes, int fildes2, int flags);
+
+
+extern int proc_fileLink(int fildes, int dirfd, const char *name, int flags);
+
+
+extern int proc_fileUnlink(int dirfd, const char *name, int flags);
+
+
+extern int proc_fileSeek(int fildes, off_t *offset, int whence);
+
+
+extern int proc_fileTruncate(int fildes, off_t length);
+
+
+extern int proc_fileControl(int fildes, int cmd, long arg);
+
+
+extern int proc_fileStat(int fildes, file_stat_t *buf);
+
+
+extern int proc_fileChmod(int fildes, mode_t mode);
+
+
+extern int proc_fileIoctl(int fildes, unsigned long request, char *data);
+
+
+extern int proc_filesDestroy(struct _process_t *process);
+
+
+extern void _file_init(void);
 
 #endif

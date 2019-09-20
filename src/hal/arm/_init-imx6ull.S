@@ -330,10 +330,16 @@ _start:
 
 	/* Save and clear boot reason */
 	ldr r0, =0x20d8008
-	ldr r1, [r0]
+	ldr r7, [r0]
 	movw r2, #0xffff
 	str r2, [r0]
-	ldr r0, =imx6ull_bootReason
+
+	/* WARNING: R7 - can't touch this until MMU enable */
+
+	/* Clear PERSIST_SECONDARY_BOOT bit */
+	ldr r0, =0x020d8044
+	ldr r1, [r0]
+	bic r1, r1, #0x40000000
 	str r1, [r0]
 
 	/* Enable PMU cycle counter */
@@ -683,6 +689,10 @@ kernel_ttl2:
 	vmrs r0, fpexc
 	orr r0, r0, #0x40000000
 	vmsr fpexc, r0
+
+	/* Store boot reason */
+	ldr r0, =imx6ull_bootReason
+	str r7, [r0]
 
 	ldr pc, =main
 .size _start, .-_start

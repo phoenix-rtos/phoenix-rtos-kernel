@@ -23,6 +23,7 @@
 #include "rand.h"
 #include "strtoul.h"
 #include "rb.h"
+#include "id.h"
 #include "list.h"
 
 

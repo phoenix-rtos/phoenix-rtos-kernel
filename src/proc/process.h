@@ -21,6 +21,7 @@
 #include "../vm/vm.h"
 #include "lock.h"
 #include "../vm/amap.h"
+#include "file.h"
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
@@ -49,14 +50,6 @@ typedef struct _process_t {
 	unsigned lgap : 1;
 	unsigned rgap : 1;
 
-	/*u32 uid;
-	u32 euid;
-	u32 suid;
-	u32 gid;
-	u32 egid;
-	u32 sgid;
-	u32 umask;*/
-
 	void *ports;
 
 	rbtree_t resources;
@@ -65,8 +58,37 @@ typedef struct _process_t {
 	unsigned sigmask;
 	void *sighandler;
 
+	struct _thread_t *wait;
+	struct _process_t *children;
+	struct _process_t *zombies;
+	struct _process_t *next, *prev;
+
+	struct _process_group_t *group;
+	struct _process_t *pg_next, *pg_prev;
+
+	pid_t ppid;
+
+	unsigned fdcount;
+	fildes_t *fds;
+
 	void *got;
 } process_t;
+
+
+typedef struct _process_group_t {
+	pid_t id;
+	process_t *members;
+
+	struct _session_t *session;
+	struct _process_group_t *next, *prev;
+} process_group_t;
+
+
+typedef struct _session_t {
+	pid_t id;
+	file_t *ctty;
+	process_group_t *members;
+} session_t;
 
 
 extern process_t *proc_find(unsigned int pid);

@@ -24,7 +24,7 @@
 #define CPIO_PAD 0x3
 #endif
 
-extern void *programs;
+extern char programs[] __attribute__((align(4096)));
 
 unsigned int programs_a2i(char *s)
 {
@@ -57,8 +57,17 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 	void *vaddr;
 	syspage_program_t *pr;
 
-	if (hal_strncmp(cpio->c_magic, "070701", 6))
-		return -EINVAL;
+	if (hal_strncmp(cpio->c_magic, "070701", 6)) {
+		/* Happens in QEMU when programs are not page aligned. What the hell? */
+		cpio = (char *)&programs - 0x1000;
+
+		if (hal_strncmp(cpio->c_magic, "070701", 6)) {
+			lib_printf("valid cpio not found\n");
+			return -EINVAL;
+		}
+
+		lib_printf("cpio found dislocated\n");
+	}
 
 	for (;;) {
 		if (!hal_strcmp(cpio->name, "TRAILER!!!"))

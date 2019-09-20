@@ -19,7 +19,6 @@
 #include "../../include/signal.h"
 #include "../vm/vm.h"
 #include "../lib/lib.h"
-#include "../posix/posix.h"
 #include "process.h"
 #include "threads.h"
 #include "elf.h"
@@ -91,13 +90,14 @@ static void process_destroy(process_t *p)
 
 	perf_kill(p);
 
-	posix_died(p->id, p->exit);
+//	posix_died(p->id, p->exit);
 
 	if (p->mapp != NULL)
 		vm_mapDestroy(p, p->mapp);
 
 	proc_resourcesDestroy(p);
 	proc_portsDestroy(p);
+	proc_filesDestroy(p);
 	proc_lockDone(&p->lock);
 
 	while ((ghost = p->ghosts) != NULL) {
@@ -272,6 +272,14 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->reaper = NULL;
 	process->refs = 1;
 
+	process->group = NULL;
+	process->wait = NULL;
+	process->children = NULL;
+	process->zombies = NULL;
+	process->ppid = -1;
+	process->fdcount = 0;
+	process->fds = NULL;
+
 	proc_lockInit(&process->lock);
 
 	process->ports = NULL;
@@ -304,7 +312,22 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
+	process_t *parent;
 	proc_threadsDestroy(&proc->threads);
+	if ((parent = proc_find(proc->ppid)) != NULL) {
+		proc_zombie(proc, parent);
+		proc_put(parent);
+	}
+}
+
+
+static int process_inherit(process_t *parent)
+{
+	process_t *process = proc_current()->process;
+	proc_get(process);
+	proc_child(process, parent);
+	proc_filesCopy(parent);
+	return EOK;
 }
 
 
@@ -337,7 +360,7 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 	if (thread->process == NULL)
 		hal_cpuHalt();
 
-	threads_sigpost(thread->process, thread, signal_kill);
+	threads_sigpost(thread->process, thread, SIGKILL);
 	hal_cpuReschedule(NULL);
 }
 
@@ -350,7 +373,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 	if (process == NULL)
 		hal_cpuHalt();
 
-	threads_sigpost(process, thread, signal_illegal);
+	threads_sigpost(process, thread, SIGILL);
 }
 
 
@@ -683,7 +706,7 @@ static void proc_spawnThread(void *arg)
 
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL)
-		posix_clone(spawn->parent->process->id);
+		process_inherit(spawn->parent->process);
 
 	process_exec(current, spawn);
 }
@@ -721,8 +744,8 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 		hal_spinlockClear(&spawn.sl);
 	}
 	else {
-			vm_kfree(argv);
-			vm_kfree(envp);
+		vm_kfree(argv);
+		vm_kfree(envp);
 	}
 
 	hal_spinlockDestroy(&spawn.sl);
@@ -736,7 +759,8 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	int err;
 	oid_t oid;
 	vm_object_t *object;
-
+	return -ENOSYS;
+#if 0
 	if ((err = proc_lookup(path, NULL, &oid)) < 0)
 		return err;
 
@@ -744,6 +768,7 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 		return err;
 
 	return proc_spawn(object, 0, object->size, path, argv, envp);
+#endif
 }
 
 
@@ -803,7 +828,7 @@ static void process_vforkThread(void *arg)
 
 	current = proc_current();
 	parent = spawn->parent;
-	posix_clone(parent->process->id);
+	process_inherit(parent->process);
 
 	current->process->mapp = parent->process->mapp;
 	current->process->sigmask = parent->process->sigmask;
@@ -1017,7 +1042,7 @@ static int process_execve(thread_t *current)
 	current->process->sigpend = 0;
 
 	/* Close cloexec file descriptors */
-	posix_exec();
+	proc_filesCloseExec(current->process);
 	process_exec(current, spawn);
 
 	/* Not reached */
@@ -1034,6 +1059,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	process_spawn_t sspawn, *spawn;
 
 	oid_t oid;
+	mode_t mode;
 	vm_object_t *object;
 	int err;
 
@@ -1057,7 +1083,9 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return -ENOMEM;
 	}
 
-	if ((err = proc_lookup(path, NULL, &oid)) < 0) {
+	mode = file_root(&oid);
+
+	if ((err = proc_fileLookup(&oid, &mode, path, 0, 0)) < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);
 		vm_kfree(envp);

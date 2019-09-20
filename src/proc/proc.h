@@ -30,6 +30,23 @@
 #include "userintr.h"
 #include "ports.h"
 
+/* TODO: move */
+
+int proc_objectLookup(const oid_t *oid, const char *name, size_t namelen, int flags, id_t *object, mode_t *mode);
+
+ssize_t proc_objectWrite(const oid_t *oid, const char *data, size_t size, off_t offset);
+
+ssize_t proc_objectRead(const oid_t *oid, char *data, size_t size, off_t offset);
+
+ssize_t proc_objectGetAttr(const oid_t *oid, int attr, char *data, size_t size);
+
+ssize_t proc_objectSetAttr(const oid_t *oid, int attr, const char *data, size_t size);
+
+int proc_objectLink(const oid_t *oid, const char *name, const oid_t *file);
+
+int proc_objectUnlink(const oid_t *oid, const char *name);
+
+
 
 extern int _proc_init(vm_map_t *kmap, vm_object_t *kernel);
 
