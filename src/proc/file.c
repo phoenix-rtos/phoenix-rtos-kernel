@@ -44,8 +44,8 @@ struct _file_t {
 
 
 struct _file_ops_t {
-	ssize_t (*read)(file_t *, char *, size_t);
-	ssize_t (*write)(file_t *, const char *, size_t);
+	ssize_t (*read)(file_t *, void *, size_t);
+	ssize_t (*write)(file_t *, const void *, size_t);
 	int (*close)(file_t *);
 	int (*seek)(file_t *, off_t *, int);
 	ssize_t (*setattr)(file_t *, int, const void *, size_t);
@@ -103,19 +103,19 @@ static int generic_close(file_t *file)
 }
 
 
-static int generic_seek(file_t *file, long long *offset, int whence)
+static int generic_seek(file_t *file, off_t *offset, int whence)
 {
 	return EOK;
 }
 
 
-static int generic_setattr(file_t *file, int attr, const char *value, ssize_t size)
+static int generic_setattr(file_t *file, int attr, const void *value, size_t size)
 {
 	return proc_objectSetAttr(&file->oid, attr, value, size);
 }
 
 
-static ssize_t generic_getattr(file_t *file, int attr, char *value, ssize_t size)
+static ssize_t generic_getattr(file_t *file, int attr, void *value, size_t size)
 {
 	return proc_objectGetAttr(&file->oid, attr, value, size);
 }
