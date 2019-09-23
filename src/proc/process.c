@@ -70,15 +70,27 @@ static int proc_idcmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
+void proctree_lock()
+{
+	proc_lockSet(&process_common.lock);
+}
+
+
+void proctree_unlock()
+{
+	proc_lockClear(&process_common.lock);
+}
+
+
 process_t *proc_find(unsigned pid)
 {
 	process_t *p, s;
 	s.id = pid;
 
-	proc_lockSet(&process_common.lock);
+	proctree_lock();
 	if ((p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage))) != NULL)
 		p->refs++;
-	proc_lockClear(&process_common.lock);
+	proctree_unlock();
 
 	return p;
 }
@@ -90,11 +102,14 @@ static void process_destroy(process_t *p)
 
 	perf_kill(p);
 
-//	posix_died(p->id, p->exit);
+	proctree_lock();
+	lib_rbRemove(&process_common.id, &p->idlinkage);
+	proctree_unlock();
 
 	if (p->mapp != NULL)
 		vm_mapDestroy(p, p->mapp);
 
+	proc_groupLeave(p);
 	proc_resourcesDestroy(p);
 	proc_portsDestroy(p);
 	proc_filesDestroy(p);
@@ -116,12 +131,7 @@ int proc_put(process_t *p)
 {
 	int remaining;
 
-	proc_lockSet(&process_common.lock);
-	if (!(remaining = --p->refs))
-		lib_rbRemove(&process_common.id, &p->idlinkage);
-	proc_lockClear(&process_common.lock);
-
-	if (!remaining)
+	if (!(remaining = lib_atomicDecrement(&p->refs)))
 		process_destroy(p);
 
 	return remaining;
@@ -130,9 +140,7 @@ int proc_put(process_t *p)
 
 void proc_get(process_t *p)
 {
-	proc_lockSet(&process_common.lock);
-	++p->refs;
-	proc_lockClear(&process_common.lock);
+	lib_atomicIncrement(&p->refs);
 }
 
 
@@ -178,7 +186,7 @@ static unsigned _process_alloc(unsigned id)
 
 static unsigned process_alloc(process_t *process)
 {
-	proc_lockSet(&process_common.lock);
+	proctree_lock();
 	process->id = _process_alloc(process_common.idcounter);
 
 	if (!process->id)
@@ -191,7 +199,7 @@ static unsigned process_alloc(process_t *process)
 		lib_rbInsert(&process_common.id, &process->idlinkage);
 		process_common.idcounter++;
 	}
-	proc_lockClear(&process_common.lock);
+	proctree_unlock();
 
 	return process->id;
 }
@@ -326,6 +334,7 @@ static int process_inherit(process_t *parent)
 	process_t *process = proc_current()->process;
 	proc_get(process);
 	proc_child(process, parent);
+	proc_groupInit(process, parent);
 	proc_filesCopy(parent);
 	return EOK;
 }
@@ -1143,12 +1152,12 @@ int proc_sigpost(int pid, int sig)
 
 	s.id = pid;
 
-	proc_lockSet(&process_common.lock);
+	proctree_lock();
 	if ((p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage))) != NULL)
 		err = threads_sigpost(p, NULL, sig);
 	else
 		err = -EINVAL;
-	proc_lockClear(&process_common.lock);
+	proctree_unlock();
 
 	return err;
 }

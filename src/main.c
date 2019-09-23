@@ -44,6 +44,8 @@ void main_initthr(void *unused)
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 
+	proc_groupInit(proc_current()->process, NULL);
+
 	lib_printf("main: Decoding programs from data segment\n");
 	programs_decode(&main_common.kmap, &main_common.kernel);
 

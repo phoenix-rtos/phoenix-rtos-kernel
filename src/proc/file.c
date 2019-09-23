@@ -22,9 +22,6 @@
 
 #define FD_HARD_LIMIT 1024
 
-#define process_lock(p) proc_lockSet(&p->lock)
-#define process_unlock(p) proc_lockClear(&p->lock)
-
 
 struct _fildes_t {
 	file_t *file;

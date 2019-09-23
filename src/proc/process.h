@@ -91,6 +91,10 @@ typedef struct _session_t {
 } session_t;
 
 
+#define process_lock(p) proc_lockSet(&p->lock)
+#define process_unlock(p) proc_lockClear(&p->lock)
+
+
 extern process_t *proc_find(unsigned int pid);
 
 
@@ -98,6 +102,12 @@ extern int proc_put(process_t *proc);
 
 
 extern void proc_get(process_t *proc);
+
+
+extern void proctree_lock(void);
+
+
+extern void proctree_unlock(void);
 
 
 extern void proc_kill(process_t *proc);

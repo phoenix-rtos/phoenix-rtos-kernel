@@ -46,6 +46,9 @@ int proc_objectLink(const oid_t *oid, const char *name, const oid_t *file);
 
 int proc_objectUnlink(const oid_t *oid, const char *name);
 
+void proc_groupLeave(process_t *process);
+
+int proc_groupInit(process_t *process, process_t *parent);
 
 
 extern int _proc_init(vm_map_t *kmap, vm_object_t *kernel);
