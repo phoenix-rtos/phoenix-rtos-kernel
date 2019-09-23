@@ -706,7 +706,7 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 	spawn.offset = offset;
 	spawn.size = size;
 	spawn.wq = NULL;
-	spawn.state = PREFORK;
+	spawn.state = FORKING;
 	spawn.argv = argv;
 	spawn.envp = envp;
 	spawn.parent = proc_current();
@@ -715,7 +715,6 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 
 	if ((pid = proc_start(proc_spawnThread, &spawn, path)) > 0) {
 		hal_spinlockSet(&spawn.sl);
-		spawn.state = FORKING;
 		while (spawn.state == FORKING)
 			proc_threadWait(&spawn.wq, &spawn.sl, 0);
 		hal_spinlockClear(&spawn.sl);
