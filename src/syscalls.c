@@ -766,7 +766,7 @@ int syscalls_SetRoot(char *ustack)
 	mode_t mode;
 	GETFROMSTACK(ustack, oid_t *, oid, 0);
 	GETFROMSTACK(ustack, mode_t, mode, 1);
-	proc_filesSetRoot(oid, mode);
+	return proc_filesSetRoot(oid, mode);
 }
 
 
@@ -849,30 +849,32 @@ int syscalls_sys_dup3(char *ustack)
 }
 
 
-int syscalls_sys_linkat(char *ustack)
+int syscalls_fileLink(char *ustack)
 {
 	int fildes, dirfd, flags;
-	const char *name;
+	const char *name, *path;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
-	GETFROMSTACK(ustack, int, dirfd, 1);
-	GETFROMSTACK(ustack, const char *, name, 2);
-	GETFROMSTACK(ustack, int, flags, 3);
+	GETFROMSTACK(ustack, const char *, path, 1);
+	GETFROMSTACK(ustack, int, dirfd, 2);
+	GETFROMSTACK(ustack, const char *, name, 3);
+	GETFROMSTACK(ustack, int, flags, 4);
 
-	return proc_fileLink(fildes, dirfd, name, flags);
+	return proc_fileLink(fildes, path, dirfd, name, flags);
 }
 
 
-int syscalls_sys_unlinkat(char *ustack)
+int syscalls_fileUnlink(char *ustack)
 {
-	const char *pathname;
+	const char *dirpath, *name;
 	int dirfd, flags;
 
 	GETFROMSTACK(ustack, int, dirfd, 0);
-	GETFROMSTACK(ustack, const char *, pathname, 1);
-	GETFROMSTACK(ustack, int, flags, 2);
+	GETFROMSTACK(ustack, const char *, dirpath, 1);
+	GETFROMSTACK(ustack, const char *, name, 2);
+	GETFROMSTACK(ustack, int, flags, 3);
 
-	return proc_fileUnlink(dirfd, pathname, flags);
+	return proc_fileUnlink(dirfd, dirpath, name, flags);
 }
 
 
@@ -915,15 +917,18 @@ int syscalls_sys_fcntl(char *ustack)
 }
 
 
-int syscalls_sys_fstat(char *ustack)
+int syscalls_fileStat(char *ustack)
 {
-	int fildes;
+	int fildes, flags;
 	file_stat_t *buf;
+	const char *path;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
-	GETFROMSTACK(ustack, file_stat_t *, buf, 1);
+	GETFROMSTACK(ustack, const char *, path, 1);
+	GETFROMSTACK(ustack, file_stat_t *, buf, 2);
+	GETFROMSTACK(ustack, int, flags, 3);
 
-	return proc_fileStat(fildes, buf);
+	return proc_fileStat(fildes, path, buf, flags);
 }
 
 
@@ -981,6 +986,8 @@ int syscalls_sys_link(char *ustack) {return -ENOSYS;}
 int syscalls_sys_unlink(char *ustack) {return -ENOSYS;}
 int syscalls_sys_mkfifo(char *ustack) {return -ENOSYS;}
 int syscalls_sys_chmod(char *ustack) {return -ENOSYS;}
+
+int syscalls_sys_utimes(char *ustack) {return EOK;}
 
 
 

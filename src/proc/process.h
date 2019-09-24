@@ -68,6 +68,7 @@ typedef struct _process_t {
 
 	pid_t ppid;
 
+	file_t *cwd;
 	unsigned fdcount;
 	fildes_t *fds;
 

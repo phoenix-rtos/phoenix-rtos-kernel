@@ -70,14 +70,14 @@
 	ID(sys_openat) \
 	ID(sys_open) \
 	ID(sys_close) \
-	ID(sys_linkat) \
-	ID(sys_unlinkat) \
+	ID(fileLink) \
+	ID(fileUnlink) \
 	ID(sys_fcntl) \
 	ID(sys_ftruncate) \
 	ID(lseek) \
 	ID(sys_dup3) \
 	ID(sys_fchmod) \
-	ID(sys_fstat) \
+	ID(fileStat) \
 	ID(sys_ioctl) \
 	ID(sys_spawn) \
 	ID(release) \
@@ -97,7 +97,8 @@
 	ID(sys_chmod) \
 	ID(sys_tkill) \
 	\
-	ID(sys_poll)
+	ID(sys_poll)\
+	ID(sys_utimes)
 
 
 	// ID(setpgid)

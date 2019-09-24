@@ -196,6 +196,31 @@ static int file_put(file_t *f)
 }
 
 
+static file_t *file_alloc(file_t *orig)
+{
+	file_t *file;
+
+	if ((file = vm_kmalloc(sizeof(*file))) != NULL) {
+		file->refs = 1;
+		file->offset = 0;
+		file->status = 0;
+		proc_lockInit(&file->lock);
+
+		if (orig != NULL) {
+			hal_memcpy(&file->oid, &orig->oid, sizeof(oid_t));
+			file->mode = orig->mode;
+			file->ops = orig->ops;
+		}
+		else {
+			file->ops = &generic_file_ops;
+			file->mode = file_root(&file->oid);
+		}
+	}
+
+	return file;
+}
+
+
 /* File descriptor table functions */
 
 static int _fd_realloc(process_t *p)
@@ -330,15 +355,15 @@ static int file_followLink(oid_t *oid, mode_t *mode)
 }
 
 
-int proc_fileLookup(oid_t *oid, mode_t *mode, const char *path, int flags, mode_t cmode)
+int proc_fileLookup(oid_t *oid, mode_t *mode, const char *name, int flags, mode_t cmode)
 {
-	int err, sflags;
-	const char *delim = path;
+	int err, sflags, ret = EOK;
+	const char *delim = name, *path;
 
 	cmode |= ((cmode & S_IFMT) == 0) * S_IFREG;
 
 	do {
-		path = delim + 1;
+		path = delim;
 
 		while (*path && *path == '/')
 			++path;
@@ -350,6 +375,11 @@ int proc_fileLookup(oid_t *oid, mode_t *mode, const char *path, int flags, mode_
 
 		if (path == delim)
 			continue;
+
+		if (!*delim && (flags & O_PARENT)) {
+			ret = path - name;
+			break;
+		}
 
 		if (S_ISLNK(*mode) && (err = file_followLink(oid, mode)) < 0)
 			return err;
@@ -373,7 +403,54 @@ int proc_fileLookup(oid_t *oid, mode_t *mode, const char *path, int flags, mode_
 	else if (!S_ISDIR(*mode) && !S_ISREG(*mode) && !(flags & O_NOFOLLOW) && (err = proc_objectRead(oid, (char *)oid, sizeof(oid_t), 0)) < 0)
 		return err;
 
-	return EOK;
+	return ret;
+}
+
+
+static int file_resolve(process_t *process, int fildes, const char *path, int flags, file_t **result)
+{
+	file_t *file, *dir;
+	int err;
+
+	if (flags & (O_CREAT | O_TRUNC | O_EXCL))
+		return -EINVAL;
+
+	if (path != NULL && path[0] == '/') {
+		if ((file = file_alloc(NULL)) == NULL)
+			return -ENOMEM;
+	}
+	else {
+		if (fildes == AT_FDCWD) {
+			process_lock(process);
+			file = process->cwd;
+			file_ref(file);
+			process_unlock(process);
+		}
+		else if ((file = file_get(process, fildes)) == NULL) {
+			return -EBADF;
+		}
+
+		if (path == NULL) {
+			*result = file;
+			return EOK;
+		}
+
+		dir = file;
+		if (!S_ISDIR(dir->mode)) {
+			file_put(file);
+			return -ENOTDIR;
+		}
+
+		file = file_alloc(dir);
+		file_put(dir);
+		if (file == NULL)
+			return -ENOMEM;
+	}
+
+	if ((err = proc_fileLookup(&file->oid, &file->mode, path, flags, 0)) >= 0)
+		*result = file;
+
+	return err;
 }
 
 
@@ -553,48 +630,41 @@ int proc_fileDup(int fildes, int fildes2, int flags)
 }
 
 
-int proc_fileLink(int fildes, int dirfd, const char *name, int flags)
+int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	file_t *file, *dir;
 	int retval;
+	const char *linkname;
 
-	if ((file = file_get(process, fildes)) == NULL)
-		return -EBADF;
+	if ((retval = file_resolve(process, dirfd, name, O_DIRECTORY | O_PARENT, &dir)) < 0)
+		return retval;
 
-	if ((dir = file_get(process, fildes)) == NULL) {
-		file_put(file);
-		return -EBADF;
-	}
+	linkname = name + retval;
 
-	if (!S_ISDIR(dir->mode)) {
-		file_put(file);
+	if ((retval = file_resolve(process, fildes, path, 0, &file)) < 0) {
 		file_put(dir);
-		return -ENOTDIR;
+		return retval;
 	}
 
-	retval = dir->ops->link(dir, name, &file->oid);
+	retval = dir->ops->link(dir, linkname, &file->oid);
+
 	file_put(file);
 	file_put(dir);
 	return retval;
 }
 
 
-int proc_fileUnlink(int dirfd, const char *name, int flags)
+int proc_fileUnlink(int dirfd, const char *dirpath, const char *name, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	file_t *dir;
 	int retval;
 
-	if ((dir = file_get(process, dirfd)) == NULL)
-		return -EBADF;
-
-	if (!S_ISDIR(dir->mode)) {
-		file_put(dir);
-		return -ENOTDIR;
-	}
+	if ((retval = file_resolve(process, dirfd, dirpath, O_DIRECTORY, &dir)) < 0)
+		return retval;
 
 	retval = dir->ops->unlink(dir, name);
 	file_put(dir);
@@ -720,21 +790,21 @@ int proc_fileControl(int fildes, int cmd, long arg)
 }
 
 
-int proc_fileStat(int fildes, file_stat_t *buf)
+int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	file_t *file;
-	ssize_t retval;
+	int err;
 
-	if ((file = file_get(process, fildes)) == NULL)
-		return -EBADF;
+	if ((err = file_resolve(process, fildes, path, flags, &file)) != EOK)
+		return err;
 
-	if ((retval = file->ops->getattr(file, atStatStruct, (char *)buf, sizeof(*buf))) >= 0)
-		retval = EOK;
+	if ((err = file->ops->getattr(file, atStatStruct, (char *)buf, sizeof(*buf))) >= 0)
+		err = EOK;
 
 	file_put(file);
-	return retval;
+	return err;
 }
 
 
@@ -744,12 +814,13 @@ int proc_fileChmod(int fildes, mode_t mode)
 }
 
 
-void proc_filesSetRoot(const oid_t *oid, mode_t mode)
+int proc_filesSetRoot(const oid_t *oid, mode_t mode)
 {
 	hal_spinlockSet(&file_common.lock);
 	hal_memcpy(&file_common.root, oid, sizeof(*oid));
 	file_common.rootmode = mode;
 	hal_spinlockClear(&file_common.lock);
+	return EOK;
 }
 
 
@@ -789,6 +860,14 @@ static int _proc_filesCopy(process_t *parent)
 			file_ref(process->fds[fd].file);
 	}
 
+	if (parent->cwd != NULL) {
+		process->cwd = parent->cwd;
+		file_ref(process->cwd);
+	}
+	/* FIXME */
+	else if (S_ISDIR(file_common.rootmode)) {
+		process->cwd = file_alloc(NULL);
+	}
 	return EOK;
 }
 
