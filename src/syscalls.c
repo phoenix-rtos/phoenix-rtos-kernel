@@ -981,7 +981,12 @@ int syscalls_sys_getpgrp(char *ustack) {return -ENOSYS;}
 int syscalls_sys_setsid(char *ustack) {return -ENOSYS;}
 int syscalls_sys_dup(char *ustack) {return -ENOSYS;}
 int syscalls_sys_dup2(char *ustack) {return -ENOSYS;}
-int syscalls_sys_pipe(char *ustack) {return -ENOSYS;}
+int syscalls_sys_pipe(char *ustack)
+{
+	int *fds;
+	GETFROMSTACK(ustack, int *, fds, 0);
+	return proc_pipeCreate(fds);
+}
 int syscalls_sys_link(char *ustack) {return -ENOSYS;}
 int syscalls_sys_unlink(char *ustack) {return -ENOSYS;}
 int syscalls_sys_mkfifo(char *ustack) {return -ENOSYS;}

@@ -25,6 +25,7 @@
 #include "rb.h"
 #include "id.h"
 #include "list.h"
+#include "fifo.h"
 
 
 #define lib_atomicIncrement(ptr) __atomic_add_fetch(ptr, 1, __ATOMIC_RELAXED)
