@@ -841,31 +841,6 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 }
 
 
-void vm_mapMove(vm_map_t *dst, vm_map_t *src)
-{
-	rbnode_t *n;
-	map_entry_t *e;
-
-	proc_lockSet(&src->lock);
-	proc_lockDone(&src->lock);
-#ifndef NOMMU
-	dst->pmapp = src->pmapp;
-	dst->pmapv = src->pmapv;
-#endif
-	hal_memcpy(dst, src, sizeof(vm_map_t));
-	pmap_moved(&dst->pmap);
-	proc_lockInit(&dst->lock);
-	proc_lockSet(&dst->lock);
-
-	for (n = lib_rbMinimum(src->tree.root); n != NULL; n = lib_rbNext(n)) {
-		e = lib_treeof(map_entry_t, linkage, n);
-		e->map = dst;
-	}
-
-	proc_lockClear(&dst->lock);
-}
-
-
 void vm_mapinfo(meminfo_t *info)
 {
 	rbnode_t *n;

@@ -109,9 +109,6 @@ extern int vm_mapCreate(vm_map_t *map, void *start, void *stop);
 extern int vm_mapCopy(struct _process_t *process, vm_map_t *dst, vm_map_t *src);
 
 
-extern void vm_mapMove(vm_map_t *dst, vm_map_t *src);
-
-
 extern void vm_mapDestroy(struct _process_t *p, vm_map_t *map);
 
 

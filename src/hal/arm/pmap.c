@@ -166,14 +166,6 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-void pmap_moved(pmap_t *pmap)
-{
-	hal_spinlockSet(&pmap_common.lock);
-	pmap_common.asid_map[pmap->asid_ix] = pmap;
-	hal_spinlockClear(&pmap_common.lock);
-}
-
-
 addr_t pmap_destroy(pmap_t *pmap, int *i)
 {
 	int max = ((VADDR_USR_MAX + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) >> 20;
