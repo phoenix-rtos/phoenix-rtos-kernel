@@ -16,19 +16,15 @@
 #ifndef _PHOENIX_IOCTL_H_
 #define _PHOENIX_IOCTL_H_
 
-#include "types.h"
+#define IOCPARM_MASK		0x1fff
+#define IOCPARM_LEN(x)		(((x) >> 16) & IOCPARM_MASK)
+#define IOCBASECMD(x)		((x) & ~(IOCPARM_MASK << 16))
+#define IOCGROUP(x)			(((x) >> 8) & 0xff)
 
-typedef struct {
-	id_t id;
-	unsigned pid;
-	unsigned long request;
-	char data[];
-} ioctl_in_t;
-
-
-typedef struct {
-	int err;
-	char data[];
-} ioctl_out_t;
+#define IOC_VOID			0x00000000
+#define IOC_OUT				0x40000000
+#define IOC_IN				0x80000000
+#define IOC_INOUT			(IOC_IN | IOC_OUT)
+#define IOC_DIRMASK			0xe0000000
 
 #endif

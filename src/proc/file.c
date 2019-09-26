@@ -17,6 +17,7 @@
 #include "../../include/types.h"
 #include "../../include/errno.h"
 #include "../../include/fcntl.h"
+#include "../../include/ioctl.h"
 #include "../lib/lib.h"
 #include "proc.h"
 
@@ -39,8 +40,9 @@ struct _file_t {
 	mode_t mode;
 	unsigned status;
 	const file_ops_t *ops;
+	oid_t oid;
+
 	union {
-		oid_t oid;
 		struct _pipe_t *pipe;
 	};
 };
@@ -53,7 +55,7 @@ struct _file_ops_t {
 	int (*seek)(file_t *, off_t *, int);
 	ssize_t (*setattr)(file_t *, int, const void *, size_t);
 	ssize_t (*getattr)(file_t *, int, void *, size_t);
-	int (*ioctl)(file_t *, pid_t, unsigned, void *);
+	int (*ioctl)(file_t *, unsigned, void *);
 	int (*link)(file_t *, const char *, const oid_t *);
 	int (*unlink)(file_t *, const char *);
 };
@@ -69,9 +71,10 @@ typedef struct _pipe_t {
 
 
 static struct {
+	lock_t lock;
 	oid_t root;
 	mode_t rootmode;
-	spinlock_t lock;
+	rbtree_t vfiles;
 } file_common;
 
 
@@ -79,10 +82,10 @@ mode_t file_root(oid_t *oid)
 {
 	mode_t result;
 
-	hal_spinlockSet(&file_common.lock);
+	proc_lockSet(&file_common.lock);
 	hal_memcpy(oid, &file_common.root, sizeof(*oid));
 	result = file_common.rootmode;
-	hal_spinlockClear(&file_common.lock);
+	proc_lockClear(&file_common.lock);
 	return result;
 }
 
@@ -145,9 +148,34 @@ static int generic_unlink(file_t *dir, const char *name)
 }
 
 
-static int generic_ioctl(file_t *file, pid_t pid, unsigned cmd, void *val)
+static int generic_ioctl(file_t *file, unsigned cmd, void *val)
 {
-	return EOK;
+	int in_size = 0, out_size = 0;
+	const void *in_buf = 0;
+	void *out_buf = 0;
+
+	if (cmd & IOC_OUT) {
+		out_size = IOCPARM_LEN(cmd);
+		out_buf = val;
+	}
+	else {
+		out_size = 0;
+		out_buf = NULL;
+	}
+	if (cmd & IOC_IN) {
+		in_size = IOCPARM_LEN(cmd);
+		in_buf = val;
+	}
+	else {
+		in_size = 0;
+		in_buf = NULL;
+	}
+	if (IOCPARM_LEN(cmd) && !(cmd & IOC_INOUT)) {
+		in_size = IOCPARM_LEN(cmd);
+		in_buf = &val;
+	}
+
+	return proc_objectControl(&file->oid, cmd, in_buf, in_size, out_buf, out_size);
 }
 
 
@@ -613,7 +641,7 @@ int proc_fileIoctl(int fildes, unsigned long request, char *data)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	retval = file->ops->ioctl(file, process->id, request, data);
+	retval = file->ops->ioctl(file, request, data);
 	file_put(file);
 	return retval;
 }
@@ -658,15 +686,18 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 }
 
 
-int proc_fileUnlink(int dirfd, const char *dirpath, const char *name, int flags)
+int proc_fileUnlink(int dirfd, const char *path, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	file_t *dir;
 	int retval;
+	const char *name;
 
-	if ((retval = file_resolve(process, dirfd, dirpath, O_DIRECTORY, &dir)) < 0)
+	if ((retval = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir)) < 0)
 		return retval;
+
+	name = path + retval;
 
 	retval = dir->ops->unlink(dir, name);
 	file_put(dir);
@@ -818,10 +849,10 @@ int proc_fileChmod(int fildes, mode_t mode)
 
 int proc_filesSetRoot(const oid_t *oid, mode_t mode)
 {
-	hal_spinlockSet(&file_common.lock);
+	proc_lockSet(&file_common.lock);
 	hal_memcpy(&file_common.root, oid, sizeof(*oid));
 	file_common.rootmode = mode;
-	hal_spinlockClear(&file_common.lock);
+	proc_lockClear(&file_common.lock);
 	return EOK;
 }
 
@@ -1060,7 +1091,7 @@ static int pipe_unlink(file_t *dir, const char *name)
 }
 
 
-static int pipe_ioctl(file_t *file, pid_t pid, unsigned cmd, void *val)
+static int pipe_ioctl(file_t *file, unsigned cmd, void *val)
 {
 	lib_printf("pipe_ioctl\n");
 	return -ENOSYS;
@@ -1171,6 +1202,6 @@ void _file_init()
 {
 	file_common.root.port = 0;
 	file_common.root.id = 0;
-	hal_spinlockCreate(&file_common.lock, "file_root");
+	proc_lockInit(&file_common.lock);
 }
 

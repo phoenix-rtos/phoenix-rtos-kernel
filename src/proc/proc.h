@@ -42,6 +42,8 @@ ssize_t proc_objectGetAttr(const oid_t *oid, int attr, char *data, size_t size);
 
 ssize_t proc_objectSetAttr(const oid_t *oid, int attr, const char *data, size_t size);
 
+int proc_objectControl(const oid_t *oid, unsigned command, const void *in, size_t insz, void *out, size_t outsz);
+
 int proc_objectLink(const oid_t *oid, const char *name, const oid_t *file);
 
 int proc_objectUnlink(const oid_t *oid, const char *name);

@@ -866,15 +866,14 @@ int syscalls_fileLink(char *ustack)
 
 int syscalls_fileUnlink(char *ustack)
 {
-	const char *dirpath, *name;
+	const char *path;
 	int dirfd, flags;
 
 	GETFROMSTACK(ustack, int, dirfd, 0);
-	GETFROMSTACK(ustack, const char *, dirpath, 1);
-	GETFROMSTACK(ustack, const char *, name, 2);
+	GETFROMSTACK(ustack, const char *, path, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
 
-	return proc_fileUnlink(dirfd, dirpath, name, flags);
+	return proc_fileUnlink(dirfd, path, flags);
 }
 
 

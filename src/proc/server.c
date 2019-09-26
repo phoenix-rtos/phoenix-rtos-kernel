@@ -175,3 +175,25 @@ int proc_objectUnlink(const oid_t *oid, const char *name)
 }
 
 
+int proc_objectControl(const oid_t *oid, unsigned command, const void *in, size_t insz, void *out, size_t outsz)
+{
+	msg_t msg;
+	int error;
+
+	msg.type = mtDevCtl;
+	msg.object = oid->id;
+
+	msg.i.devctl_= command;
+
+	msg.i.size = insz;
+	msg.i.data = in;
+	msg.o.size = outsz;
+	msg.o.data = out;
+
+	if ((error = proc_send(oid->port, &msg)) < 0)
+		return error;
+
+	return msg.o.io_;
+}
+
+

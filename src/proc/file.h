@@ -48,7 +48,7 @@ extern int proc_fileDup(int fildes, int fildes2, int flags);
 extern int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int flags);
 
 
-extern int proc_fileUnlink(int dirfd, const char *dirpath, const char *name, int flags);
+extern int proc_fileUnlink(int dirfd, const char *path, int flags);
 
 
 extern int proc_fileSeek(int fildes, off_t *offset, int whence);

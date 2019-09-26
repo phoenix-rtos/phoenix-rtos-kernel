@@ -65,6 +65,9 @@ typedef struct _msg_t {
 			/* LINK */
 			oid_t link_;
 
+			unsigned devctl_;
+
+
 			/* OPEN/CLOSE */
 			struct {
 				oid_t oid;
