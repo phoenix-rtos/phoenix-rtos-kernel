@@ -555,6 +555,21 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 	return error < 0 ? error : fd;
 }
 
+int proc_fileOid(process_t *process, int fd, oid_t *oid)
+{
+	int retval = -EBADF;
+	file_t *file;
+
+	process_lock(process);
+	if ((file = _file_get(process, fd)) != NULL) {
+		hal_memcpy(oid, &file->oid, sizeof(oid_t));
+		file_put(file);
+		retval = EOK;
+	}
+	process_unlock(process);
+	return retval;
+}
+
 
 int proc_fileClose(int fildes)
 {

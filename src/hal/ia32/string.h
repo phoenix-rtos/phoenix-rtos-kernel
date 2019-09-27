@@ -89,6 +89,19 @@ static inline void hal_memsetw(void *where, u16 v, unsigned int n)
 
 #endif
 
+static inline int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
+{
+	const unsigned char *p1 = ptr1;
+	const unsigned char *p2 = ptr2;
+	size_t i;
+	int retval = 0;
+	for (i = 0; i < num; ++i) {
+		if ((retval = (int)p1[i] - (int)p2[i]))
+			break;
+	}
+	return retval;
+}
+
 
 static inline unsigned int hal_strlen(const char *s)
 {

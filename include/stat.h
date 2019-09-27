@@ -88,7 +88,4 @@ struct stat {
 	blkcnt_t  st_blocks;
 };
 
-
-enum { atSize, atStatStruct };
-
 #endif

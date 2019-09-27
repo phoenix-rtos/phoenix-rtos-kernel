@@ -38,9 +38,9 @@ ssize_t proc_objectWrite(const oid_t *oid, const char *data, size_t size, off_t 
 
 ssize_t proc_objectRead(const oid_t *oid, char *data, size_t size, off_t offset);
 
-ssize_t proc_objectGetAttr(const oid_t *oid, int attr, char *data, size_t size);
+ssize_t proc_objectGetAttr(const oid_t *oid, int attr, void *data, size_t size);
 
-ssize_t proc_objectSetAttr(const oid_t *oid, int attr, const char *data, size_t size);
+ssize_t proc_objectSetAttr(const oid_t *oid, int attr, const void *data, size_t size);
 
 int proc_objectControl(const oid_t *oid, unsigned command, const void *in, size_t insz, void *out, size_t outsz);
 

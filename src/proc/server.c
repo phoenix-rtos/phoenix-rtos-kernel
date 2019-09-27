@@ -89,7 +89,7 @@ ssize_t proc_objectRead(const oid_t *oid, char *data, size_t size, off_t offset)
 }
 
 
-ssize_t proc_objectGetAttr(const oid_t *oid, int attr, char *data, size_t size)
+ssize_t proc_objectGetAttr(const oid_t *oid, int attr, void *data, size_t size)
 {
 	msg_t msg;
 	int error;
@@ -111,7 +111,7 @@ ssize_t proc_objectGetAttr(const oid_t *oid, int attr, char *data, size_t size)
 }
 
 
-ssize_t proc_objectSetAttr(const oid_t *oid, int attr, const char *data, size_t size)
+ssize_t proc_objectSetAttr(const oid_t *oid, int attr, const void *data, size_t size)
 {
 	msg_t msg;
 	int error;

@@ -37,6 +37,10 @@ enum {
 } type;
 
 
+/* mt{Get,Set}Attr types */
+enum { atSize, atStatStruct, atEvents };
+
+
 #pragma pack(push, 8)
 
 typedef struct _msg_t {

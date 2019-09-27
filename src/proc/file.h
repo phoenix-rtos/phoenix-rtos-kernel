@@ -30,6 +30,9 @@ typedef struct _file_t file_t;
 typedef struct stat file_stat_t;
 
 
+extern int proc_fileOid(struct _process_t *process, int fd, oid_t *oid);
+
+
 extern int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode);
 
 
