@@ -16,6 +16,7 @@
 #include HAL
 #include "../../include/errno.h"
 #include "../../include/fcntl.h"
+#include "../../include/msg.h"
 #include "../lib/lib.h"
 #include "page.h"
 #include "kmalloc.h"

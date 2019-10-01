@@ -49,10 +49,6 @@ ssize_t proc_objectWrite(const oid_t *oid, const char *data, size_t size, off_t 
 	msg.type = mtWrite;
 	msg.object = oid->id;
 
-	if (offset < 0) {
-		asm volatile ("1: jmp 1b");
-	}
-
 	msg.i.io_.offs = offset;
 
 	msg.i.size = size;

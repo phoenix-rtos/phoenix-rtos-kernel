@@ -44,6 +44,7 @@ struct _file_t {
 
 	union {
 		struct _pipe_t *pipe;
+		struct _evqueue_t *queue;
 	};
 };
 
@@ -1210,7 +1211,62 @@ int proc_pipeCreate(int fds[2])
 
 /* Named pipes */
 
+/* Event queue */
 
+int einval_op()
+{
+	return -EINVAL;
+}
+
+const file_ops_t queue_ops = {
+	.read = einval_op,
+	.write = einval_op,
+	.close = einval_op,
+	.seek = einval_op,
+	.setattr = einval_op,
+	.getattr = einval_op,
+	.link = einval_op,
+	.unlink = einval_op,
+	.ioctl = einval_op,
+};
+
+int proc_queueCreate()
+{
+	process_t *process = proc_current()->process;
+	evqueue_t *queue;
+	file_t *file;
+	int fd;
+
+	if ((queue = queue_create(process)) == NULL)
+		return -ENOMEM;
+
+	process_lock(process);
+	if ((fd = _file_new(process, 0, &file)) >= 0) {
+		file->mode = S_IFEVQ;
+		file->queue = queue;
+		file->ops = &queue_ops;
+		process->fds[fd].flags = FD_CLOEXEC;
+		file_put(file);
+	}
+	process_unlock(process);
+	return fd;
+}
+
+int proc_queueWait(int fd, const struct _event_t *subs, int subcnt, struct _event_t *events, int evcnt, time_t timeout)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+
+	if ((file = file_get(process, fd)) == NULL)
+		return -EBADF;
+
+	if (!S_ISEVTQ(file->mode)) {
+		file_put(file);
+		return -EBADF;
+	}
+
+	return queue_wait(file->queue, subs, subcnt, events, evcnt, timeout);
+}
 
 
 void _file_init()

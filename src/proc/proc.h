@@ -53,6 +53,10 @@ void proc_groupLeave(process_t *process);
 int proc_groupInit(process_t *process, process_t *parent);
 
 
+typedef struct _evqueue_t evqueue_t;
+extern evqueue_t *queue_create(process_t *process);
+
+
 extern int _proc_init(vm_map_t *kmap, vm_object_t *kernel);
 
 

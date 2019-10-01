@@ -16,32 +16,30 @@
 // sub / output ------- move outside
 typedef struct _event_t {
 	int fd;
-	unsigned type;
 	unsigned flags;
-	unsigned count;
-	unsigned data;
+	unsigned types;
 } event_t;
 
 
-enum { evAdd = 0x1, evDelete = 0x2, evEnable = 0x4, evDisable = 0x8,
-	evOneshot = 0x10, evClear = 0x20, evDispatch = 0x40 };
+enum { evAdd = 0x1, evDelete = 0x2, evOneshot = 0x4, evClear = 0x8};
 
 
 #include HAL
 #include "proc.h"
 #include "../lib/lib.h"
+#include "../../include/poll.h"
 
 
 //#define TRACE(str, ...) lib_printf("event: " str "\n", ##__VA_ARGS__)
 #define TRACE(str, ...)
 
 
-typedef struct _evqueue_t {
+struct _evqueue_t {
 	lock_t lock;
 	thread_t *threads;
 	struct _evnote_t *notes;
 	process_t *process;
-} evqueue_t;
+};
 
 
 typedef struct _evnote_t {
@@ -51,18 +49,11 @@ typedef struct _evnote_t {
 	struct _evnote_t *queue_next, *queue_prev;
 
 	int fd;
+	unsigned data;
 
-	unsigned short mask;
-	unsigned short pend;
-	unsigned short enabled;
-	unsigned short oneshot;
-	unsigned short dispatch;
-
-	struct {
-		unsigned flags;
-		unsigned count;
-		unsigned data;
-	} pending[16];
+	unsigned mask;
+	unsigned pend;
+	unsigned oneshot;
 } evnote_t;
 
 
@@ -72,7 +63,7 @@ typedef struct _eventry_t {
 	unsigned refs;
 	oid_t oid;
 
-	unsigned short mask;
+	unsigned mask;
 	evnote_t *notes;
 } eventry_t;
 
@@ -212,34 +203,19 @@ static void entry_put(eventry_t *entry)
 static void queue_wakeup(evqueue_t *queue);
 
 
-static void _entry_register(eventry_t *entry, event_t *event)
+static void _entry_register(eventry_t *entry, unsigned types)
 {
 	TRACE("_entry_register()");
-
 	evnote_t *note;
-	unsigned short typebit;
 
-	typebit = 1 << event->type;
-
-	if (!(entry->mask & typebit))
+	if (!(entry->mask & types))
 		return;
 
 	note = entry->notes;
 	do {
-		if (note->mask & typebit) {
-			if (note->pend & typebit) {
-				note->pending[event->type].flags |= event->flags;
-				note->pending[event->type].count += event->count;
-			}
-			else {
-				note->pend |= typebit;
-				note->pending[event->type].flags = event->flags;
-				note->pending[event->type].count = event->count;
-
-				queue_wakeup(note->queue);
-			}
-
-			note->pending[event->type].data = event->data;
+		if (note->mask & types) {
+			note->pend |= types;
+			queue_wakeup(note->queue);
 		}
 
 		note = note->next;
@@ -261,13 +237,12 @@ static int _note_poll(evnote_t *note)
 {
 	TRACE("_note_poll()");
 
-	unsigned short events;
+	unsigned events;
 	int err;
 
 	if ((err = proc_objectGetAttr(&note->entry->oid, atEvents, &events, sizeof(events))) < 0)
 		return err;
 
-	/* TODO: have a way to update event data */
 	note->pend |= events & note->mask;
 	return EOK;
 }
@@ -278,7 +253,7 @@ static void _entry_recalculate(eventry_t *entry)
 	TRACE("_entry_recalculate()");
 
 	evnote_t *note;
-	unsigned short mask = 0, oldmask;
+	unsigned mask = 0, oldmask;
 
 	if ((note = entry->notes) != NULL) {
 		do {
@@ -327,47 +302,36 @@ static void _note_remove(evnote_t *note)
 }
 
 
-static void _note_merge(evnote_t *note, unsigned flags, unsigned types)
+static void _note_merge(evnote_t *note, unsigned flags, unsigned types, unsigned data)
 {
 	TRACE("_note_merge()");
 
-	if (flags & evAdd) {
+	note->data = data;
+
+	if (flags & evAdd)
 		note->mask    |= types;
-		note->enabled |= types;
-	}
-
-	if (flags & evDelete) {
-		note->pend     &= ~types;
-		note->mask     &= ~types;
-		note->enabled  &= ~types;
-		note->oneshot  &= ~types;
-		note->dispatch &= ~types;
-	}
-
-	if (flags & evEnable)
-		note->enabled |= types;
-
-	if (flags & evDisable)
-		note->enabled &= ~types;
 
 	if (flags & evOneshot)
 		note->oneshot |= types;
 
-	if (flags & evDispatch)
-		note->dispatch |= types;
-
 	if (flags & evClear)
 		note->pend &= ~types;
+
+	if (flags & evDelete) {
+		note->pend     &= ~types;
+		note->mask     &= ~types;
+		note->oneshot  &= ~types;
+	}
 }
 
 
-static int _event_subscribe(evqueue_t *queue, int fd, unsigned flags, unsigned types, const oid_t *oid)
+static int _event_subscribe(evqueue_t *queue, int fd, unsigned flags, unsigned types, const oid_t *oid, unsigned data)
 {
 	TRACE("_event_subscribe()");
 
 	evnote_t *note;
 	eventry_t *entry;
-	unsigned short mask;
+	unsigned mask;
 
 	if ((note = queue->notes) != NULL) {
 		do {
@@ -396,7 +360,7 @@ static int _event_subscribe(evqueue_t *queue, int fd, unsigned flags, unsigned t
 
 got_note:
 	mask = note->mask;
-	_note_merge(note, flags, types);
+	_note_merge(note, flags, types, data);
 
 	if (note->mask != mask) {
 		if (mask & ~note->mask) {
@@ -419,7 +383,7 @@ got_note:
 }
 
 
-static evqueue_t *queue_create(process_t *process)
+evqueue_t *queue_create(process_t *process)
 {
 	TRACE("queue_create()");
 	evqueue_t *queue;
@@ -450,8 +414,8 @@ static int _event_read(evqueue_t *queue, event_t *event, int eventcnt)
 {
 	TRACE("_event_read()");
 
-	int type, i = 0;
-	unsigned short typebit;
+	int i = 0;
+	unsigned types;
 	evnote_t *note;
 
 	if ((note = queue->notes) == NULL)
@@ -459,28 +423,21 @@ static int _event_read(evqueue_t *queue, event_t *event, int eventcnt)
 
 	do {
 		entry_lock(note->entry);
-		for (type = 0; type < sizeof(note->pending) / sizeof(*note->pending) && i < eventcnt; ++type) {
-			typebit = 1 << type;
+		types = note->pend & note->mask;
+		if (types) {
+			event->fd = note->fd;
+			event->types = types;
+			event->flags = note->data;
 
-			if (note->pend & note->mask & note->enabled & typebit) {
-				event->fd = note->fd;
-				event->type = type;
-				event->flags = note->pending[type].flags;
-				event->count = note->pending[type].count;
-				event->data = note->pending[type].data;
-
-				if (note->oneshot & typebit) {
-					note->mask &= ~typebit;
-					_entry_recalculate(note->entry);
-				}
-
-				if (note->dispatch & typebit)
-					note->enabled &= ~typebit;
-
-				++i;
-				++event;
-				note->pend &= ~typebit;
+			if (note->oneshot & types) {
+				/* TODO: remove note if empty? */
+				note->mask &= ~(note->oneshot & types);
+				_entry_recalculate(note->entry);
 			}
+
+			++i;
+			++event;
+			note->pend &= ~types;
 		}
 		entry_unlock(note->entry);
 
@@ -512,7 +469,7 @@ static void _queue_poll(evqueue_t *queue)
 
 static void queue_wakeup(evqueue_t *queue)
 {
-	proc_threadWakeup(&queue->threads);
+	proc_threadBroadcast(&queue->threads);
 }
 
 
@@ -535,7 +492,7 @@ static void queue_close(evqueue_t *queue)
 }
 
 
-int proc_eventRegister(const oid_t *oid, event_t *event)
+int proc_eventRegister(const oid_t *oid, unsigned types)
 {
 	eventry_t *entry;
 
@@ -543,15 +500,16 @@ int proc_eventRegister(const oid_t *oid, event_t *event)
 		return -ENOENT;
 
 	entry_lock(entry);
-	_entry_register(entry, event);
+	_entry_register(entry, types);
 	entry_unlock(entry);
 	entry_put(entry);
 	return EOK;
 }
 
 
-int proc_queueWait(evqueue_t *queue, const event_t *subs, int subcnt, event_t *events, int evcnt, time_t timeout)
+int queue_wait(evqueue_t *queue, const event_t *subs, int subcnt, event_t *events, int evcnt, time_t timeout)
 {
+	TRACE("queue_wait()");
 	int evs;
 	oid_t oid;
 	process_t *process = proc_current()->process;
@@ -561,25 +519,64 @@ int proc_queueWait(evqueue_t *queue, const event_t *subs, int subcnt, event_t *e
 		if (proc_fileOid(process, subs[evs].fd, &oid) < 0)
 			continue; /* TODO: report invalid fildes */
 
-		_event_subscribe(queue, subs[evs].fd, subs[evs].flags, subs[evs].type, &oid);
+		_event_subscribe(queue, subs[evs].fd, subs[evs].flags, subs[evs].types, &oid, 0);
 	}
 	_queue_poll(queue);
-	while (!(evs = _event_read(queue, events, evcnt))) {
-		if ((evs = proc_lockWait(&queue->threads, &queue->lock, timeout)) < 0)
-			break;
+	if (evcnt) {
+		while (!(evs = _event_read(queue, events, evcnt))) {
+			if (timeout == -1 || (evs = proc_lockWait(&queue->threads, &queue->lock, timeout)) < 0)
+				break;
+		}
 	}
 	queue_unlock(queue);
 	return evs;
 }
 
 
-evqueue_t *proc_queueCreate()
+int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 {
-	return queue_create(proc_current()->process);
+	TRACE("proc_poll()");
+	process_t *process = proc_current()->process;
+	evqueue_t *queue;
+	event_t ev;
+	oid_t oid;
+	int nev = 0, i;
+
+	if (timeout_ms < 0)
+		timeout_ms = 0;
+	else if (!timeout_ms)
+		timeout_ms = -1;
+
+	if ((queue = queue_create(process)) == NULL)
+		return -ENOMEM;
+
+	queue_lock(queue);
+	for (i = 0; i < nfds; ++i) {
+		if (proc_fileOid(process, fds[i].fd, &oid) < 0) {
+			fds[i].revents = POLLNVAL;
+			continue;
+		}
+
+		fds[i].revents = 0;
+		_event_subscribe(queue, fds[i].fd, evAdd | evOneshot, fds[i].events, &oid, i);
+	}
+	_queue_poll(queue);
+	do {
+		while (_event_read(queue, &ev, 1)) {
+			nev++;
+			fds[ev.flags].fd = ev.fd;
+			fds[ev.flags].revents |= ev.types;
+		}
+	} while (!nev && timeout_ms >= 0 && proc_lockWait(&queue->threads, &queue->lock, timeout_ms) == EOK);
+	queue_unlock(queue);
+	queue_close(queue);
+	queue_destroy(queue);
+
+	return nev;
 }
 
 
-void event_init(void)
+void _event_init(void)
 {
 	proc_lockInit(&event_common.lock);
 	lib_rbInit(&event_common.notes, event_cmp, NULL);

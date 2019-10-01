@@ -16,16 +16,18 @@
 #ifndef _PHOENIX_POLL_H_
 #define _PHOENIX_POLL_H_
 
-#define POLLIN         0x1
-#define POLLRDNORM     0x2
-#define POLLRDBAND     0x4
-#define POLLPRI        0x8
-#define POLLOUT       0x10
-#define POLLWRNORM    0x20
-#define POLLWRBAND    0x40
-#define POLLERR       0x80
-#define POLLHUP      0x100
-#define POLLNVAL     0x200
+#define POLLRDNORM     (1 << 0)
+#define POLLRDBAND     (1 << 1)
+#define POLLPRI        (1 << 2)
+#define POLLIN         (POLLRDNORM | POLLRDBAND)
+
+#define POLLWRNORM    (1 << 3)
+#define POLLWRBAND    (1 << 4)
+#define POLLOUT       (POLLWRNORM)
+
+#define POLLERR      (1 << 5)
+#define POLLHUP      (1 << 6)
+#define POLLNVAL     (1 << 7)
 
 #define POLLIN_SET  (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR)
 #define POLLOUT_SET (POLLWRNORM | POLLWRBAND | POLLOUT | POLLHUP)

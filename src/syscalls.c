@@ -967,9 +967,44 @@ int syscalls_sys_poll(char *ustack)
 	GETFROMSTACK(ustack, nfds_t, nfds, 1);
 	GETFROMSTACK(ustack, int, timeout_ms, 2);
 
-	return 0;
+	return proc_poll(fds, nfds, timeout_ms);
 }
 
+
+int syscalls_eventRegister(char *ustack)
+{
+	const oid_t *oid;
+	unsigned types;
+
+	GETFROMSTACK(ustack, const oid_t *, oid, 0);
+	GETFROMSTACK(ustack, unsigned, types, 1);
+
+	return proc_eventRegister(oid, types);
+}
+
+
+int syscalls_queueCreate(char *ustack)
+{
+	return proc_queueCreate();
+}
+
+
+int syscalls_queueWait(char *ustack)
+{
+	int fd, subcnt, evcnt;
+	time_t timeout;
+	const struct _event_t *subs;
+	struct _event_t *events;
+
+	GETFROMSTACK(ustack, int, fd, 0);
+	GETFROMSTACK(ustack, const struct _event_t *, subs, 1);
+	GETFROMSTACK(ustack, int, subcnt, 2);
+	GETFROMSTACK(ustack, struct _event_t *, events, 3);
+	GETFROMSTACK(ustack, int, evcnt, 4);
+	GETFROMSTACK(ustack, time_t, timeout, 5);
+
+	return proc_queueWait(fd, subs, subcnt, events, evcnt, timeout);
+}
 
 
 int syscalls_sys_tkill(char *ustack) {return -ENOSYS;}

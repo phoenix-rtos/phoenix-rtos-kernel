@@ -49,6 +49,7 @@
 #define S_IFREG  0x8000   /* regular file */
 #define S_IFBLK  0x6000   /* block device */
 #define S_IFDIR  0x4000   /* directory */
+#define S_IFEVQ  0x3000   /* event queue */
 #define S_IFCHR  0x2000   /* character device */
 #define S_IFIFO  0x1000   /* fifo */
 
@@ -67,6 +68,7 @@
 #define S_ISLNK(m)  (((m) & S_IFMT) == S_IFLNK)  /* symbolic link */
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK) /* socket */
 #define S_ISMNT(m)  (((m) & S_IFMT) == S_IFMNT)   /* mount point */
+#define S_ISEVTQ(m)  (((m) & S_IFMT) == S_IFEVQ)   /* mount point */
 
 
 typedef int dev_t;

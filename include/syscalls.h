@@ -98,7 +98,11 @@
 	ID(sys_tkill) \
 	\
 	ID(sys_poll)\
-	ID(sys_utimes)
+	ID(sys_utimes)\
+	\
+	ID(eventRegister)\
+	ID(queueCreate)\
+	ID(queueWait)
 
 
 	// ID(setpgid)
