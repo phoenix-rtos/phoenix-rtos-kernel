@@ -63,7 +63,7 @@ typedef struct _msg_t {
 			struct {
 				oid_t dir;
 				int type;
-				u32 mode;
+				unsigned mode;
 				oid_t dev;
 			} create;
 
@@ -96,7 +96,7 @@ typedef struct _msg_t {
 				offs_t offs;
 			} readdir;
 
-			u8 raw[64];
+			unsigned char raw[64];
 		};
 
 		size_t size;
@@ -127,7 +127,7 @@ typedef struct _msg_t {
 				int err;
 			} lookup;
 
-			u8 raw[64];
+			unsigned char raw[64];
 		};
 
 		size_t size;
