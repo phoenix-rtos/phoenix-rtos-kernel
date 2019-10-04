@@ -1030,9 +1030,8 @@ int syscalls_sys_utimes(char *ustack) {return EOK;}
 
 
 
-#if 0
 
-int syscalls_accept4(char *ustack)
+int syscalls_sys_accept4(char *ustack)
 {
 	int socket;
 	struct sockaddr *address;
@@ -1044,11 +1043,11 @@ int syscalls_accept4(char *ustack)
 	GETFROMSTACK(ustack, socklen_t *,address_len, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
 
-	return posix_accept4(socket, address, address_len, flags);
+	return proc_netAccept4(socket, address, address_len, flags);
 }
 
 
-int syscalls_bind(char *ustack)
+int syscalls_sys_bind(char *ustack)
 {
 	int socket;
 	const struct sockaddr *address;
@@ -1058,11 +1057,11 @@ int syscalls_bind(char *ustack)
 	GETFROMSTACK(ustack, const struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t, address_len, 2);
 
-	return posix_bind(socket, address, address_len);
+	return proc_netBind(socket, address, address_len);
 }
 
 
-int syscalls_connect(char *ustack)
+int syscalls_sys_connect(char *ustack)
 {
 	int socket;
 	const struct sockaddr *address;
@@ -1072,11 +1071,11 @@ int syscalls_connect(char *ustack)
 	GETFROMSTACK(ustack, const struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t, address_len, 2);
 
-	return posix_connect(socket, address, address_len);
+	return proc_netConnect(socket, address, address_len);
 }
 
 
-int syscalls_getpeername(char *ustack)
+int syscalls_sys_getpeername(char *ustack)
 {
 	int socket;
 	struct sockaddr *address;
@@ -1086,11 +1085,11 @@ int syscalls_getpeername(char *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
 
-	return posix_getpeername(socket, address, address_len);
+	return proc_netGetpeername(socket, address, address_len);
 }
 
 
-int syscalls_getsockname(char *ustack)
+int syscalls_sys_getsockname(char *ustack)
 {
 	int socket;
 	struct sockaddr *address;
@@ -1100,11 +1099,11 @@ int syscalls_getsockname(char *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
 
-	return posix_getsockname(socket, address, address_len);
+	return proc_netGetsockname(socket, address, address_len);
 }
 
 
-int syscalls_getsockopt(char *ustack)
+int syscalls_sys_getsockopt(char *ustack)
 {
 	int socket;
 	int level;
@@ -1118,11 +1117,11 @@ int syscalls_getsockopt(char *ustack)
 	GETFROMSTACK(ustack, void *, optval, 3);
 	GETFROMSTACK(ustack, socklen_t *, optlen, 4);
 
-	return posix_getsockopt(socket, level, optname, optval, optlen);
+	return proc_netGetsockopt(socket, level, optname, optval, optlen);
 }
 
 
-int syscalls_listen(char *ustack)
+int syscalls_sys_listen(char *ustack)
 {
 	int socket;
 	int backlog;
@@ -1130,11 +1129,11 @@ int syscalls_listen(char *ustack)
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, int, backlog, 1);
 
-	return posix_listen(socket, backlog);
+	return proc_netListen(socket, backlog);
 }
 
 
-ssize_t syscalls_recvfrom(char *ustack)
+ssize_t syscalls_sys_recvfrom(char *ustack)
 {
 	int socket;
 	void *message;
@@ -1150,11 +1149,11 @@ ssize_t syscalls_recvfrom(char *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, src_addr, 4);
 	GETFROMSTACK(ustack, socklen_t *, src_len, 5);
 
-	return posix_recvfrom(socket, message, length, flags, src_addr, src_len);
+	return proc_netRecvfrom(socket, message, length, flags, src_addr, src_len);
 }
 
 
-ssize_t syscalls_sendto(char *ustack)
+ssize_t syscalls_sys_sendto(char *ustack)
 {
 	int socket;
 	const void *message;
@@ -1170,11 +1169,11 @@ ssize_t syscalls_sendto(char *ustack)
 	GETFROMSTACK(ustack, const struct sockaddr *, dest_addr, 4);
 	GETFROMSTACK(ustack, socklen_t, dest_len, 5);
 
-	return posix_sendto(socket, message, length, flags, dest_addr, dest_len);
+	return proc_netSendto(socket, message, length, flags, dest_addr, dest_len);
 }
 
 
-int syscalls_socket(char *ustack)
+int syscalls_sys_socket(char *ustack)
 {
 	int domain;
 	int type;
@@ -1184,11 +1183,11 @@ int syscalls_socket(char *ustack)
 	GETFROMSTACK(ustack, int, type, 1);
 	GETFROMSTACK(ustack, int, protocol, 2);
 
-	return posix_socket(domain, type, protocol);
+	return proc_netSocket(domain, type, protocol);
 }
 
 
-int syscalls_shutdown(char *ustack)
+int syscalls_sys_shutdown(char *ustack)
 {
 	int socket;
 	int how;
@@ -1196,11 +1195,11 @@ int syscalls_shutdown(char *ustack)
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, int, how, 1);
 
-	return posix_shutdown(socket, how);
+	return proc_netShutdown(socket, how);
 }
 
 
-int syscalls_setsockopt(char *ustack)
+int syscalls_sys_setsockopt(char *ustack)
 {
 	int socket;
 	int level;
@@ -1214,9 +1213,10 @@ int syscalls_setsockopt(char *ustack)
 	GETFROMSTACK(ustack, const void *, optval, 3);
 	GETFROMSTACK(ustack, socklen_t, optlen, 4);
 
-	return posix_setsockopt(socket, level, optname, optval, optlen);
+	return proc_netSetsockopt(socket, level, optname, optval, optlen);
 }
 
+#if 0
 
 int syscalls_utimes(char *ustack)
 {

@@ -33,6 +33,10 @@ enum {
 	/* Directory operations */
 	mtLookup, mtLink, mtUnlink, mtReaddir,
 
+	/* Socket operations */
+	mtAccept, mtBind, mtConnect, mtGetPeerName, mtGetSockName, mtListen,
+	mtRecv, mtSend, mtSocket, mtShutdown, mtSetOpt, mtGetOpt, mtGetFl, mtSetFl, mtGetAddrInfo, mtGetNameInfo,
+
 	mtCount
 } type;
 
@@ -139,7 +143,6 @@ typedef struct _msg_t {
 			} open_;
 
 			ssize_t io_;
-
 
 
 			struct {

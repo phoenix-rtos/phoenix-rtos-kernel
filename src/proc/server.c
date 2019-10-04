@@ -193,3 +193,24 @@ int proc_objectControl(const oid_t *oid, unsigned command, const void *in, size_
 }
 
 
+int proc_objectClose(const oid_t *oid)
+{
+	msg_t msg;
+	int error;
+
+	msg.type = mtClose;
+	msg.object = oid->id;
+
+	msg.i.size = 0;
+	msg.i.data = NULL;
+	msg.o.size = 0;
+	msg.o.data = NULL;
+
+	if ((error = proc_send(oid->port, &msg)) < 0)
+		return error;
+
+	return msg.o.io_;
+}
+
+
+

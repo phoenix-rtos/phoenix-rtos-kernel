@@ -18,6 +18,7 @@
 #include "../../include/errno.h"
 #include "../../include/fcntl.h"
 #include "../../include/ioctl.h"
+#include "../../include/socket.h"
 #include "../lib/lib.h"
 #include "proc.h"
 
@@ -115,7 +116,7 @@ static ssize_t generic_write(file_t *file, const void *data, size_t size)
 
 static int generic_close(file_t *file)
 {
-	return EOK;
+	return proc_objectClose(&file->oid);
 }
 
 
@@ -1266,6 +1267,219 @@ int proc_queueWait(int fd, const struct _event_t *subs, int subcnt, struct _even
 	}
 
 	return queue_wait(file->queue, subs, subcnt, events, evcnt, timeout);
+}
+
+
+/* Sockets */
+
+static int socket_get(process_t *process, int socket, file_t **file)
+{
+	if ((*file = file_get(process, socket)) == NULL)
+		return -EBADF;
+
+	if (!S_ISSOCK((*file)->mode)) {
+		file_put(*file);
+		return -ENOTSOCK;
+	}
+
+	return EOK;
+}
+
+
+int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_accept(&file->oid, address, address_len, flags);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netBind(int socket, const struct sockaddr *address, socklen_t address_len)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_bind(&file->oid, address, address_len);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netConnect(int socket, const struct sockaddr *address, socklen_t address_len)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_connect(&file->oid, address, address_len);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netGetpeername(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_getpeername(&file->oid, address, address_len);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netGetsockname(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_getsockname(&file->oid, address, address_len);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netGetsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_getsockopt(&file->oid, level, optname, optval, optlen);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netListen(int socket, int backlog)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_listen(&file->oid, backlog);
+	file_put(file);
+	return retval;
+}
+
+
+ssize_t proc_netRecvfrom(int socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	ssize_t retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_recvfrom(&file->oid, message, length, flags, src_addr, src_len);
+	file_put(file);
+	return retval;
+}
+
+
+ssize_t proc_netSendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	ssize_t retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_sendto(&file->oid, message, length, flags, dest_addr, dest_len);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netShutdown(int socket, int how)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_shutdown(&file->oid, how);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netSetsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen)
+{
+	file_t *file;
+	process_t *process = proc_current()->process;
+	int retval;
+
+	if ((retval = socket_get(process, socket, &file)) < 0)
+		return retval;
+
+	retval = socket_setsockopt(&file->oid, level, optname, optval, optlen);
+	file_put(file);
+	return retval;
+}
+
+
+int proc_netSocket(int domain, int type, int protocol)
+{
+	process_t *process = proc_current()->process;
+	file_t *file;
+	int sockfd, err;
+
+	if ((sockfd = file_new(process, 0, &file)) < 0)
+		return sockfd;
+
+	file->mode = S_IFSOCK;
+
+	switch (domain) {
+	case AF_INET:
+		if ((err = socket_create(&file->oid, domain, type, protocol)) >= 0) {
+			file->ops = &generic_file_ops;
+			err = sockfd;
+		}
+		break;
+	default:
+		err = -EAFNOSUPPORT;
+		break;
+	}
+
+	if (err < 0) {
+		fd_close(process, sockfd);
+	}
+
+	file_put(file);
+	return err;
 }
 
 

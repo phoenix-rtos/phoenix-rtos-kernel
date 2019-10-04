@@ -102,7 +102,19 @@
 	\
 	ID(eventRegister)\
 	ID(queueCreate)\
-	ID(queueWait)
+	ID(queueWait) \
+	ID(sys_accept4) \
+	ID(sys_bind) \
+	ID(sys_connect) \
+	ID(sys_getpeername) \
+	ID(sys_getsockname) \
+	ID(sys_getsockopt) \
+	ID(sys_listen) \
+	ID(sys_recvfrom) \
+	ID(sys_sendto) \
+	ID(sys_socket) \
+	ID(sys_shutdown) \
+	ID(sys_setsockopt)
 
 
 	// ID(setpgid)
@@ -115,15 +127,3 @@
 //	ID(mkfifo)
 //	ID(utimes)
 //	ID(tkill)
-	// ID(accept4)
-	// ID(bind)
-	// ID(connect)
-	// ID(getpeername)
-	// ID(getsockname)
-	// ID(getsockopt)
-	// ID(listen)
-	// ID(recvfrom)
-	// ID(sendto)
-	// ID(socket)
-	// ID(shutdown)
-	// ID(setsockopt)
