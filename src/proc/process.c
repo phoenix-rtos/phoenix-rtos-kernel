@@ -320,12 +320,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
-	process_t *parent;
 	proc_threadsDestroy(&proc->threads);
-	if ((parent = proc_find(proc->ppid)) != NULL) {
-		proc_zombie(proc, parent);
-		proc_put(parent);
-	}
 }
 
 

@@ -1007,28 +1007,12 @@ int syscalls_queueWait(char *ustack)
 }
 
 
-int syscalls_sys_tkill(char *ustack) {return -ENOSYS;}
-int syscalls_sys_setpgid(char *ustack) {return -ENOSYS;}
-int syscalls_sys_setpgrp(char *ustack) {return -ENOSYS;}
-int syscalls_sys_getpgid(char *ustack) {return -ENOSYS;}
-int syscalls_sys_getpgrp(char *ustack) {return -ENOSYS;}
-int syscalls_sys_setsid(char *ustack) {return -ENOSYS;}
-int syscalls_sys_dup(char *ustack) {return -ENOSYS;}
-int syscalls_sys_dup2(char *ustack) {return -ENOSYS;}
 int syscalls_sys_pipe(char *ustack)
 {
 	int *fds;
 	GETFROMSTACK(ustack, int *, fds, 0);
 	return proc_pipeCreate(fds);
 }
-int syscalls_sys_link(char *ustack) {return -ENOSYS;}
-int syscalls_sys_unlink(char *ustack) {return -ENOSYS;}
-int syscalls_sys_mkfifo(char *ustack) {return -ENOSYS;}
-int syscalls_sys_chmod(char *ustack) {return -ENOSYS;}
-
-int syscalls_sys_utimes(char *ustack) {return EOK;}
-
-
 
 
 int syscalls_sys_accept4(char *ustack)
@@ -1216,20 +1200,39 @@ int syscalls_sys_setsockopt(char *ustack)
 	return proc_netSetsockopt(socket, level, optname, optval, optlen);
 }
 
-#if 0
 
-int syscalls_utimes(char *ustack)
+int syscalls_sys_setpgid(char *ustack)
 {
-	const char *filename;
-	const struct timeval *times;
-
-	GETFROMSTACK(ustack, const char *, filename, 0);
-	GETFROMSTACK(ustack, const struct timeval *, times, 1);
-
-	return posix_utimes(filename, times);
+	pid_t pid, pgid;
+	GETFROMSTACK(ustack, pid_t, pid, 0);
+	GETFROMSTACK(ustack, pid_t, pgid, 1);
+	return proc_setpgid(proc_current()->process, pid, pgid);
 }
 
-int syscalls_tkill(char *ustack)
+
+pid_t syscalls_sys_getpgid(char *ustack)
+{
+	pid_t pid;
+	GETFROMSTACK(ustack, pid_t, pid, 0);
+	return proc_getpgid(proc_current()->process, pid);
+}
+
+
+pid_t syscalls_sys_setsid(char *ustack)
+{
+	return proc_setsid(proc_current()->process);
+}
+
+
+pid_t syscalls_sys_getsid(char *ustack)
+{
+	pid_t pid;
+	GETFROMSTACK(ustack, pid_t, pid, 0);
+	return proc_getsid(proc_current()->process, pid);
+}
+
+
+int syscalls_threadKill(char *ustack)
 {
 	pid_t pid;
 	int tid;
@@ -1239,49 +1242,8 @@ int syscalls_tkill(char *ustack)
 	GETFROMSTACK(ustack, int, tid, 1);
 	GETFROMSTACK(ustack, int, sig, 2);
 
-	return posix_tkill(pid, tid, sig);
+	return proc_threadKill(pid, tid, sig);
 }
-
-
-int syscalls_setpgid(char *ustack)
-{
-	pid_t pid, pgid;
-
-	GETFROMSTACK(ustack, pid_t, pid, 0);
-	GETFROMSTACK(ustack, pid_t, pgid, 1);
-
-	return posix_setpgid(pid, pgid);
-}
-
-
-pid_t syscalls_getpgid(char *ustack)
-{
-	pid_t pid;
-
-	GETFROMSTACK(ustack, pid_t, pid, 0);
-
-	return posix_getpgid(pid);
-}
-
-
-int syscalls_setpgrp(char *ustack)
-{
-	return posix_setpgid(0, 0);
-}
-
-
-pid_t syscalls_getpgrp(char *ustack)
-{
-	return posix_getpgid(0);
-}
-
-
-pid_t syscalls_setsid(char *ustack)
-{
-	return posix_setsid();
-}
-
-#endif
 
 
 /*

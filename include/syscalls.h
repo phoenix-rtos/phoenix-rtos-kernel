@@ -83,22 +83,8 @@
 	ID(release) \
 	ID(SetRoot) \
 	\
-	ID(sys_setpgid) \
-	ID(sys_setpgrp) \
-	ID(sys_getpgid) \
-	ID(sys_getpgrp) \
-	ID(sys_setsid) \
-	ID(sys_dup) \
-	ID(sys_dup2) \
-	ID(sys_pipe) \
-	ID(sys_link) \
-	ID(sys_unlink) \
-	ID(sys_mkfifo) \
-	ID(sys_chmod) \
-	ID(sys_tkill) \
-	\
 	ID(sys_poll)\
-	ID(sys_utimes)\
+	ID(sys_pipe)\
 	\
 	ID(eventRegister)\
 	ID(queueCreate)\
@@ -114,16 +100,13 @@
 	ID(sys_sendto) \
 	ID(sys_socket) \
 	ID(sys_shutdown) \
-	ID(sys_setsockopt)
-
-
-	// ID(setpgid)
-	// ID(getpgid)
-	// ID(setpgrp)
-	// ID(getpgrp)
-	// ID(setsid)
+	ID(sys_setsockopt) \
+	ID(sys_setpgid) \
+	ID(sys_getpgid) \
+	ID(sys_setsid) \
+	ID(sys_getsid) \
+	ID(threadKill)
 
 //	ID(pipe)
 //	ID(mkfifo)
 //	ID(utimes)
-//	ID(tkill)

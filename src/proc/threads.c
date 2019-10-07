@@ -473,7 +473,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 static void thread_destroy(thread_t *t)
 {
-	process_t *process;
+	process_t *process, *parent;
 	perf_end(t);
 
 	vm_kfree(t->kstack);
@@ -484,6 +484,11 @@ static void thread_destroy(thread_t *t)
 		LIST_ADD_EX(&process->ghosts, t, procnext, procprev);
 		_proc_threadWakeup(&process->reaper);
 		hal_spinlockClear(&threads_common.spinlock);
+
+		if (process->threads == NULL && (parent = proc_find(process->ppid)) != NULL) {
+			proc_zombie(process, parent);
+			proc_put(parent);
+		}
 
 		proc_put(process);
 	}
@@ -914,12 +919,55 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 }
 
 
+int proc_threadKill(pid_t pid, int tid, int signal)
+{
+	process_t *process, *peer;
+	thread_t *thread = 0;
+
+	if (signal < 0 || signal > NSIG)
+		return -EINVAL;
+
+	if (pid == 0)
+		return -ENOSYS;
+	if (pid == -1)
+		return -ESRCH;
+
+	if (pid > 0) {
+		if ((process = proc_find(pid)) == NULL)
+			return -ESRCH;
+
+		if (tid && (thread = threads_findThread(tid)) == NULL)
+			return -ESRCH;
+
+		threads_sigpost(process, thread, signal);
+		if (tid)
+			threads_put(thread);
+		proc_put(process);
+	}
+	else {
+		if (tid)
+			return -EINVAL;
+
+		if ((process = proc_find(-pid)) == NULL)
+			return -ESRCH;
+
+		proctree_lock();
+		peer = process;
+		do {
+			threads_sigpost(process, NULL, signal);
+		} while ((peer = peer->pg_next) != process);
+		proctree_unlock();
+
+		proc_put(process);
+	}
+}
+
+
 static void _thread_interrupt(thread_t *t)
 {
 	_proc_threadDequeue(t);
 	hal_cpuSetReturnValue(t->context, -EINTR);
 }
-
 
 
 void proc_threadEnd(void)
