@@ -69,7 +69,7 @@ extern int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int fla
 extern int proc_fileChmod(int fildes, mode_t mode);
 
 
-extern int proc_fileIoctl(int fildes, unsigned long request, char *data);
+extern int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t insz, char *outdata, size_t outsz);
 
 
 extern int proc_filesDestroy(struct _process_t *process);

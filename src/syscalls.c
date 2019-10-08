@@ -943,17 +943,22 @@ int syscalls_sys_fchmod(char *ustack)
 }
 
 
-int syscalls_sys_ioctl(char *ustack)
+int syscalls_fileIoctl(char *ustack)
 {
 	int fildes;
 	unsigned long request;
-	char *data;
+	char *outdata;
+	const char *indata;
+	size_t insz, outsz;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, unsigned long, request, 1);
-	GETFROMSTACK(ustack, char *, data, 2);
+	GETFROMSTACK(ustack, const char *, indata, 2);
+	GETFROMSTACK(ustack, size_t, insz, 3);
+	GETFROMSTACK(ustack, char *, outdata, 4);
+	GETFROMSTACK(ustack, size_t, outsz, 5);
 
-	return proc_fileIoctl(fildes, request, data);
+	return proc_fileIoctl(fildes, request, indata, insz, outdata, outsz);
 }
 
 

@@ -78,7 +78,7 @@
 	ID(sys_dup3) \
 	ID(sys_fchmod) \
 	ID(fileStat) \
-	ID(sys_ioctl) \
+	ID(fileIoctl) \
 	ID(sys_spawn) \
 	ID(release) \
 	ID(SetRoot) \

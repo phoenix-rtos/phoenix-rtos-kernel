@@ -57,7 +57,7 @@ struct _file_ops_t {
 	int (*seek)(file_t *, off_t *, int);
 	ssize_t (*setattr)(file_t *, int, const void *, size_t);
 	ssize_t (*getattr)(file_t *, int, void *, size_t);
-	int (*ioctl)(file_t *, unsigned, void *);
+	int (*ioctl)(file_t *, unsigned, const void *, size_t, void *, size_t);
 	int (*link)(file_t *, const char *, const oid_t *);
 	int (*unlink)(file_t *, const char *);
 };
@@ -150,33 +150,8 @@ static int generic_unlink(file_t *dir, const char *name)
 }
 
 
-static int generic_ioctl(file_t *file, unsigned cmd, void *val)
+static int generic_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
 {
-	int in_size = 0, out_size = 0;
-	const void *in_buf = 0;
-	void *out_buf = 0;
-
-	if (cmd & IOC_OUT) {
-		out_size = IOCPARM_LEN(cmd);
-		out_buf = val;
-	}
-	else {
-		out_size = 0;
-		out_buf = NULL;
-	}
-	if (cmd & IOC_IN) {
-		in_size = IOCPARM_LEN(cmd);
-		in_buf = val;
-	}
-	else {
-		in_size = 0;
-		in_buf = NULL;
-	}
-	if (IOCPARM_LEN(cmd) && !(cmd & IOC_INOUT)) {
-		in_size = IOCPARM_LEN(cmd);
-		in_buf = &val;
-	}
-
 	return proc_objectControl(&file->oid, cmd, in_buf, in_size, out_buf, out_size);
 }
 
@@ -648,7 +623,7 @@ int proc_fileTruncate(int fildes, off_t length)
 }
 
 
-int proc_fileIoctl(int fildes, unsigned long request, char *data)
+int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t insz, char *outdata, size_t outsz)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -658,7 +633,7 @@ int proc_fileIoctl(int fildes, unsigned long request, char *data)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	retval = file->ops->ioctl(file, request, data);
+	retval = file->ops->ioctl(file, request, indata, insz, outdata, outsz);
 	file_put(file);
 	return retval;
 }
@@ -1108,7 +1083,7 @@ static int pipe_unlink(file_t *dir, const char *name)
 }
 
 
-static int pipe_ioctl(file_t *file, unsigned cmd, void *val)
+static int pipe_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
 {
 	lib_printf("pipe_ioctl\n");
 	return -ENOSYS;
