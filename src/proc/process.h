@@ -126,7 +126,7 @@ extern int proc_fileSpawn(const char *path, char **argv, char **envp);
 extern int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv);
 
 
-extern int proc_execve(const char *path, char **argv, char **envp);
+extern int proc_exec(int dirfd, const char *path, char **argv, char **envp);
 
 
 extern int proc_sigpost(int pid, int sig);

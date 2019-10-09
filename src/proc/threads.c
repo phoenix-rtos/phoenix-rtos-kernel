@@ -960,6 +960,8 @@ int proc_threadKill(pid_t pid, int tid, int signal)
 
 		proc_put(process);
 	}
+
+	return EOK;
 }
 
 
@@ -1253,6 +1255,7 @@ int proc_child(process_t *child, process_t *parent)
 	hal_spinlockSet(&threads_common.spinlock);
 	LIST_ADD(&parent->children, child);
 	hal_spinlockClear(&threads_common.spinlock);
+	return EOK;
 }
 
 
@@ -1264,6 +1267,7 @@ int proc_zombie(process_t *zombie, process_t *parent)
 	hal_spinlockClear(&threads_common.spinlock);
 
 	proc_threadBroadcastYield(&parent->wait);
+	return EOK;
 }
 
 
@@ -1636,7 +1640,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
 			info[i].pid = t->process->id;
-			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
+			info[i].ppid = t->process->ppid;
 			info[i].ppid = 0;
 		}
 		else {

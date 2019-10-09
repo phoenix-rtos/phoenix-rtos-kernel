@@ -24,6 +24,7 @@
 #include "../include/socket.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
+#include "proc/event.h"
 #include "vm/object.h"
 
 #define SYSCALLS_NAME(name) syscalls_##name,
@@ -105,7 +106,7 @@ int syscalls_vforksvc(void *ustack)
 }
 
 
-int syscalls_sys_fork(void *ustack)
+int syscalls_ProcFork(void *ustack)
 {
 	return proc_fork();
 }
@@ -131,32 +132,34 @@ int syscalls_sys_spawn(void *ustack)
 }
 
 
-int syscalls_exec(void *ustack)
+int syscalls_ProcExec(void *ustack)
 {
+	int dirfd;
 	char *path;
 	char **argv;
 	char **envp;
 
-	GETFROMSTACK(ustack, char *, path, 0);
-	GETFROMSTACK(ustack, char **, argv, 1);
-	GETFROMSTACK(ustack, char **, envp, 2);
+	GETFROMSTACK(ustack, int, dirfd, 0);
+	GETFROMSTACK(ustack, char *, path, 1);
+	GETFROMSTACK(ustack, char **, argv, 2);
+	GETFROMSTACK(ustack, char **, envp, 3);
 
-	// return -ENOSYS;
-	return proc_execve(path, argv, envp);
+	return proc_exec(dirfd, path, argv, envp);
 }
 
 
-int syscalls_sys_exit(void *ustack)
+int syscalls_ProcExit(void *ustack)
 {
 	int code;
 
 	GETFROMSTACK(ustack, int, code, 0);
+
 	proc_exit(code);
 	return EOK;
 }
 
 
-int syscalls_sys_waitpid(void *ustack)
+int syscalls_ProcWait(void *ustack)
 {
 	pid_t pid;
 	int *stat, options;
@@ -265,21 +268,13 @@ int syscalls_priority(void *ustack)
 
 int syscalls_threadsinfo(void *ustack)
 {
-	int n, i;
-	pid_t ppid;
+	int n;
 	threadinfo_t *info;
 
 	GETFROMSTACK(ustack, int, n, 0);
 	GETFROMSTACK(ustack, threadinfo_t *, info, 1);
 
 	n = proc_threadsList(n, info);
-
-#if 0
-	for (i = 0; i < n; ++i) {
-		if ((ppid = posix_getppid(info[i].pid)) > 0)
-			info[i].ppid = ppid;
-	}
-#endif
 
 	return n;
 }
@@ -513,6 +508,7 @@ void syscalls_portDestroy(void *ustack)
 
 u32 syscalls_portRegister(void *ustack)
 {
+#if 0
 	unsigned int port;
 	char *name;
 	oid_t *oid;
@@ -520,7 +516,7 @@ u32 syscalls_portRegister(void *ustack)
 	GETFROMSTACK(ustack, unsigned int, port, 0);
 	GETFROMSTACK(ustack, char *, name, 1);
 	GETFROMSTACK(ustack, oid_t *, oid, 2);
-
+#endif
 	return -ENOSYS; //proc_portRegister(port, name, oid);
 }
 
@@ -567,13 +563,14 @@ int syscalls_msgRespond(void *ustack)
 
 int syscalls_lookup(void *ustack)
 {
+#if 0
 	char *name;
 	oid_t *file, *dev;
 
 	GETFROMSTACK(ustack, char *, name, 0);
 	GETFROMSTACK(ustack, oid_t *, file, 1);
 	GETFROMSTACK(ustack, oid_t *, dev, 2);
-
+#endif
 	return -ENOSYS; //proc_portLookup(name, file, dev);
 }
 

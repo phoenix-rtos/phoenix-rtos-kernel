@@ -24,7 +24,7 @@
 #define CPIO_PAD 0x3
 #endif
 
-extern char programs[] __attribute__((align(4096)));
+extern char programs[];
 
 unsigned int programs_a2i(char *s)
 {
@@ -59,7 +59,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 
 	if (hal_strncmp(cpio->c_magic, "070701", 6)) {
 		/* Happens in QEMU when programs are not page aligned. What the hell? */
-		cpio = (char *)&programs - 0x1000;
+		cpio = (void *)((char *)&programs - 0x1000);
 
 		if (hal_strncmp(cpio->c_magic, "070701", 6)) {
 			lib_printf("valid cpio not found\n");

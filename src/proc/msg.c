@@ -202,9 +202,8 @@ static void msg_release(kmsg_t *kmsg)
 
 static void msg_ipack(kmsg_t *kmsg)
 {
-	size_t offset;
-
 #if 0
+	size_t offset;
 	if (kmsg->msg.i.data != NULL) {
 		switch (kmsg->msg.type) {
 			case mtOpen:
@@ -391,8 +390,9 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
+	/* TODO: propagate const */
 	if (!ipacked)
-		kmsg->msg.i.data = msg_map(0, kmsg, kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
+		kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 
 	if (!(opacked = msg_opack(kmsg)))
 		kmsg->msg.o.data = msg_map(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);

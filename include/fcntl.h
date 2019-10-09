@@ -42,6 +42,7 @@ enum { F_DUPFD, F_DUPFD_CLOEXEC, F_GETFD, F_SETFD, F_GETFL, F_SETFL,
 #define FD_ALLOC 2
 
 #define AT_FDCWD (-100)
+#define AT_FDSYSPAGE (-101)
 
 enum {
 	LOCK_SH = 1,

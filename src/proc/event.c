@@ -13,19 +13,10 @@
  * %LICENSE%
  */
 
-// sub / output ------- move outside
-typedef struct _event_t {
-	int fd;
-	unsigned flags;
-	unsigned types;
-} event_t;
-
-
-enum { evAdd = 0x1, evDelete = 0x2, evOneshot = 0x4, evClear = 0x8};
-
 
 #include HAL
 #include "proc.h"
+#include "event.h"
 #include "../lib/lib.h"
 #include "../../include/poll.h"
 

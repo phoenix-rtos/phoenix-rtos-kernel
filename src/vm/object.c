@@ -22,6 +22,7 @@
 #include "kmalloc.h"
 #include "object.h"
 #include "map.h"
+#include "../proc/server.h"
 #include "../proc/name.h"
 #include "../proc/threads.h"
 

@@ -17,6 +17,7 @@
 #include HAL
 #include "../../include/errno.h"
 #include "proc.h"
+#include "event.h"
 
 
 int _proc_init(vm_map_t *kmap, vm_object_t *kernel)

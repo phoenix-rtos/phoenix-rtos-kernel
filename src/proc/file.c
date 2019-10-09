@@ -19,8 +19,11 @@
 #include "../../include/fcntl.h"
 #include "../../include/ioctl.h"
 #include "../../include/socket.h"
+#include "../../include/event.h"
 #include "../lib/lib.h"
 #include "proc.h"
+#include "socket.h"
+#include "event.h"
 
 #define FD_HARD_LIMIT 1024
 #define IS_POW_2(x) ((x) && !((x) & ((x) - 1)))
@@ -28,38 +31,6 @@
 struct _fildes_t {
 	file_t *file;
 	unsigned flags;
-};
-
-
-typedef struct _file_ops_t file_ops_t;
-
-
-struct _file_t {
-	unsigned refs;
-	off_t offset;
-	lock_t lock;
-	mode_t mode;
-	unsigned status;
-	const file_ops_t *ops;
-	oid_t oid;
-
-	union {
-		struct _pipe_t *pipe;
-		struct _evqueue_t *queue;
-	};
-};
-
-
-struct _file_ops_t {
-	ssize_t (*read)(file_t *, void *, size_t);
-	ssize_t (*write)(file_t *, const void *, size_t);
-	int (*close)(file_t *);
-	int (*seek)(file_t *, off_t *, int);
-	ssize_t (*setattr)(file_t *, int, const void *, size_t);
-	ssize_t (*getattr)(file_t *, int, void *, size_t);
-	int (*ioctl)(file_t *, unsigned, const void *, size_t, void *, size_t);
-	int (*link)(file_t *, const char *, const oid_t *);
-	int (*unlink)(file_t *, const char *);
 };
 
 
@@ -457,6 +428,19 @@ static int file_resolve(process_t *process, int fildes, const char *path, int fl
 	if ((err = proc_fileLookup(&file->oid, &file->mode, path, flags, 0)) >= 0)
 		*result = file;
 
+	return EOK;
+}
+
+
+int proc_fileResolve(process_t *process, int fildes, const char *path, int flags, oid_t *oid)
+{
+	file_t *file;
+	int err;
+
+	if ((err = file_resolve(process, fildes, path, flags, &file)) < 0)
+		return err;
+
+	hal_memcpy(oid, &file->oid, sizeof(oid_t));
 	return err;
 }
 
@@ -1189,24 +1173,75 @@ int proc_pipeCreate(int fds[2])
 
 /* Event queue */
 
-int einval_op()
+
+static ssize_t queue_read(file_t *file, void *data, size_t size)
 {
 	return -EINVAL;
 }
 
+
+static ssize_t queue_write(file_t *file, const void *data, size_t size)
+{
+	return -EINVAL;
+}
+
+
+static int queue_close(file_t *file)
+{
+	return -EINVAL; /* TODO */
+}
+
+
+static int queue_seek(file_t *file, off_t *offset, int whence)
+{
+	return -EINVAL;
+}
+
+
+static int queue_setattr(file_t *file, int attr, const void *value, size_t size)
+{
+	return -EINVAL;
+}
+
+
+static ssize_t queue_getattr(file_t *file, int attr, void *value, size_t size)
+{
+	return -EINVAL;
+}
+
+
+static int queue_link(file_t *dir, const char *name, const oid_t *file)
+{
+	return -EINVAL;
+}
+
+
+static int queue_unlink(file_t *dir, const char *name)
+{
+	return -EINVAL;
+}
+
+
+static int queue_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
+{
+	return -EINVAL;
+}
+
+
 const file_ops_t queue_ops = {
-	.read = einval_op,
-	.write = einval_op,
-	.close = einval_op,
-	.seek = einval_op,
-	.setattr = einval_op,
-	.getattr = einval_op,
-	.link = einval_op,
-	.unlink = einval_op,
-	.ioctl = einval_op,
+	.read = queue_read,
+	.write = queue_write,
+	.close = queue_close,
+	.seek = queue_seek,
+	.setattr = queue_setattr,
+	.getattr = queue_getattr,
+	.link = queue_link,
+	.unlink = queue_unlink,
+	.ioctl = queue_ioctl,
 };
 
-int proc_queueCreate()
+
+int proc_queueCreate(void)
 {
 	process_t *process = proc_current()->process;
 	evqueue_t *queue;
@@ -1227,6 +1262,7 @@ int proc_queueCreate()
 	process_unlock(process);
 	return fd;
 }
+
 
 int proc_queueWait(int fd, const struct _event_t *subs, int subcnt, struct _event_t *events, int evcnt, time_t timeout)
 {

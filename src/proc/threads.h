@@ -145,6 +145,9 @@ extern int proc_join(time_t timeout);
 extern int proc_threadsList(int n, threadinfo_t *info);
 
 
+extern int proc_threadKill(pid_t pid, int tid, int signal);
+
+
 extern int proc_threadClone(void);
 
 

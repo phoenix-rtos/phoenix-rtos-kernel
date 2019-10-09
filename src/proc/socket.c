@@ -5,7 +5,7 @@
  *
  * Sockets
  *
- * Copyright 2018 Phoenix Systems
+ * Copyright 2018, 2019 Phoenix Systems
  * Author: Michal Miroslaw, Jan Sikorski
  *
  * This file is part of Phoenix-RTOS.
@@ -110,7 +110,7 @@ static ssize_t sockdestcall(const oid_t *oid, msg_t *msg, const struct sockaddr 
 }
 
 
-int socket_accept(const oid_t *oid, struct sockaddr *address, socklen_t *address_len)
+int socket_accept(const oid_t *oid, struct sockaddr *address, socklen_t *address_len, int flags)
 {
 	ssize_t err;
 	msg_t msg;
@@ -243,7 +243,6 @@ int socket_create(oid_t *oid, int domain, int type, int protocol)
 	sockport_msg_t *smi = (void *)msg.i.raw;
 	int err;
 	oid_t srv;
-	mode_t mode;
 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = mtSocket;
@@ -251,8 +250,7 @@ int socket_create(oid_t *oid, int domain, int type, int protocol)
 	smi->socket.type = type;
 	smi->socket.protocol = protocol;
 
-	mode = file_root(&srv);
-	if ((err = proc_fileLookup(&srv, &mode, "/dev/netsocket", 0, 0)) < 0)
+	if ((err = proc_fileResolve(NULL, -1, "/dev/netsocket", 0, &srv)) < 0)
 		return err;
 
 	if ((err = proc_send(srv.port, &msg)) < 0)

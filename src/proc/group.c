@@ -1,4 +1,21 @@
+/*
+ * Phoenix-RTOS
+ *
+ * Operating system kernel
+ *
+ * Process groups and sessions
+ *
+ * Copyright 2019 Phoenix Systems
+ * Author: Jan Sikorski
+ *
+ * This file is part of Phoenix-RTOS.
+ *
+ * %LICENSE%
+ */
+
 #include "proc.h"
+
+
 #define process_pid(p) (p->id)
 
 /* process groups and sessions */

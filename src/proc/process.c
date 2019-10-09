@@ -17,6 +17,7 @@
 #include HAL
 #include "../../include/errno.h"
 #include "../../include/signal.h"
+#include "../../include/fcntl.h"
 #include "../vm/vm.h"
 #include "../lib/lib.h"
 #include "process.h"
@@ -27,6 +28,7 @@
 #include "msg.h"
 #include "ports.h"
 #include "userintr.h"
+#include "group.h"
 
 
 typedef struct {
@@ -759,11 +761,11 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 
 int proc_fileSpawn(const char *path, char **argv, char **envp)
 {
+	return -ENOSYS;
+#if 0
 	int err;
 	oid_t oid;
 	vm_object_t *object;
-	return -ENOSYS;
-#if 0
 	if ((err = proc_lookup(path, NULL, &oid)) < 0)
 		return err;
 
@@ -1053,18 +1055,19 @@ static int process_execve(thread_t *current)
 }
 
 
-int proc_execve(const char *path, char **argv, char **envp)
+int proc_exec(int dirfd, const char *path, char **argv, char **envp)
 {
 	int len;
 	thread_t *current;
 	char *kpath;
 	void *kstack;
 	process_spawn_t sspawn, *spawn;
+	off_t offset = 0;
+	size_t size;
 
 	oid_t oid;
-	mode_t mode;
 	vm_object_t *object;
-	int err;
+	int err, i;
 
 	current = proc_current();
 
@@ -1086,20 +1089,41 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return -ENOMEM;
 	}
 
-	mode = file_root(&oid);
+	if (dirfd != AT_FDSYSPAGE) {
+		if ((err = proc_fileResolve(current->process, dirfd, path, 0, &oid)) < 0) {
+			vm_kfree(kpath);
+			vm_kfree(argv);
+			vm_kfree(envp);
+			return err;
+		}
 
-	if ((err = proc_fileLookup(&oid, &mode, path, 0, 0)) < 0) {
-		vm_kfree(kpath);
-		vm_kfree(argv);
-		vm_kfree(envp);
-		return err;
+		if ((err = vm_objectGet(&object, oid)) < 0) {
+			vm_kfree(kpath);
+			vm_kfree(argv);
+			vm_kfree(envp);
+			return err;
+		}
+
+		size = object->size;
 	}
+	else {
+		object = (void *)-1;
 
-	if ((err = vm_objectGet(&object, oid)) < 0) {
-		vm_kfree(kpath);
-		vm_kfree(argv);
-		vm_kfree(envp);
-		return err;
+		for (i = 0; i < syspage->progssz; i++) {
+			if (!hal_strcmp(path, syspage->progs[i].cmdline))
+				break;
+		}
+
+		if (i < syspage->progssz) {
+			offset = syspage->progs[i].start;
+			size = syspage->progs[i].end - syspage->progs[i].start;
+		}
+		else {
+			vm_kfree(kpath);
+			vm_kfree(argv);
+			vm_kfree(envp);
+			return -ENOENT;
+		}
 	}
 
 	if ((spawn = current->execdata) == NULL) {
@@ -1114,8 +1138,8 @@ int proc_execve(const char *path, char **argv, char **envp)
 	spawn->envp = envp;
 
 	spawn->object = object;
-	spawn->offset = 0;
-	spawn->size = object->size;
+	spawn->offset = offset;
+	spawn->size = size;
 
 	vm_kfree(current->process->path);
 	vm_kfree(current->process->envp);

@@ -17,11 +17,11 @@
 	ID(debug) \
 	ID(mmap) \
 	ID(munmap) \
-	ID(sys_fork) \
+	ID(ProcFork) \
 	ID(vforksvc) \
-	ID(exec) \
-	ID(sys_exit) \
-	ID(sys_waitpid) \
+	ID(ProcExec) \
+	ID(ProcExit) \
+	ID(ProcWait) \
 	ID(threadJoin) \
 	ID(getpid) \
 	ID(getppid) \
