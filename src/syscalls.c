@@ -488,21 +488,11 @@ int syscalls_interrupt(void *ustack)
 
 int syscalls_portCreate(void *ustack)
 {
-	u32 *port;
-
-	GETFROMSTACK(ustack, u32 *, port, 0);
-
-	return proc_portCreate(port);
-}
-
-
-void syscalls_portDestroy(void *ustack)
-{
 	u32 port;
 
 	GETFROMSTACK(ustack, u32, port, 0);
 
-	proc_portDestroy(port);
+	return proc_portCreate(port);
 }
 
 
@@ -529,7 +519,8 @@ int syscalls_msgSend(void *ustack)
 	GETFROMSTACK(ustack, u32, port, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 
-	return proc_send(port, msg);
+	/* FIXME */
+	return proc_send(proc_current()->process->fds[port].file->port->id, msg);
 }
 
 
@@ -543,7 +534,7 @@ int syscalls_msgRecv(void *ustack)
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 	GETFROMSTACK(ustack, unsigned int *, rid, 2);
 
-	return proc_recv(port, msg, rid);
+	return proc_recv(proc_current()->process->fds[port].file->port->id, msg, rid);
 }
 
 

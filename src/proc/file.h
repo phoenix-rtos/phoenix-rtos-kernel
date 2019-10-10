@@ -42,6 +42,29 @@ typedef struct _file_ops_t {
 } file_ops_t;
 
 
+#if 0
+#define KERNEL_ID(type, id) ((type) << (64 - 8) | (id))
+
+
+typedef struct _object_t object_t;
+
+
+typedef struct _object_ops_t {
+	int (*release)(object_t *);
+} object_ops_t;
+
+
+enum { object_port };
+
+
+struct _object_t {
+	unsigned refs;
+	oid_t oid;
+	const object_ops_t *ops;
+};
+#endif
+
+
 struct _file_t {
 	unsigned refs;
 	off_t offset;
@@ -54,7 +77,14 @@ struct _file_t {
 	union {
 		struct _pipe_t *pipe;
 		struct _evqueue_t *queue;
+		struct _port_t *port;
 	};
+};
+
+
+struct _fildes_t {
+	file_t *file;
+	unsigned flags;
 };
 
 

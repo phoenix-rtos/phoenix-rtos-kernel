@@ -40,7 +40,6 @@
 	ID(resourceDestroy) \
 	ID(interrupt) \
 	ID(portCreate) \
-	ID(portDestroy) \
 	ID(portRegister) \
 	ID(msgSend) \
 	ID(msgRecv) \

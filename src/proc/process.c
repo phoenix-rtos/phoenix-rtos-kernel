@@ -113,7 +113,6 @@ static void process_destroy(process_t *p)
 
 	proc_groupLeave(p);
 	proc_resourcesDestroy(p);
-	proc_portsDestroy(p);
 	proc_filesDestroy(p);
 	proc_lockDone(&p->lock);
 
@@ -1036,7 +1035,6 @@ static int process_execve(thread_t *current)
 
 		vm_mapDestroy(current->process, map);
 		proc_resourcesDestroy(current->process);
-		proc_portsDestroy(current->process);
 	}
 
 	current->execkstack = NULL;

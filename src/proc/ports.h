@@ -20,39 +20,26 @@
 #include "msg.h"
 #include "process.h"
 #include "threads.h"
-
+#include "file.h"
 
 typedef struct _port_t {
+#if 0
+	object_t object;
+#endif
+
 	rbnode_t linkage;
-	struct _port_t *next;
-	struct _port_t *prev;
-
 	u32 id;
-	u32 lmaxgap;
-	u32 rmaxgap;
-	kmsg_t *kmessages;
-	process_t *owner;
-	int refs, closed;
 
+	kmsg_t *kmessages;
 	spinlock_t spinlock;
 	thread_t *threads;
-	msg_t *current;
 } port_t;
 
 
-extern int proc_portCreate(u32 *port);
-
-
-extern void proc_portDestroy(u32 port);
-
-
-extern void proc_portsDestroy(process_t *proc);
+extern int proc_portCreate(u32 id);
 
 
 extern port_t *proc_portGet(u32 id);
-
-
-extern void port_put(port_t *p, int destroy);
 
 
 extern void _port_init(void);

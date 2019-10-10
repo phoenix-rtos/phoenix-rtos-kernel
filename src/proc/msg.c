@@ -293,7 +293,7 @@ int proc_send(u32 port, msg_t *msg)
 
 	hal_spinlockSet(&p->spinlock);
 
-	if (p->closed) {
+	if (0 /*p->closed*/) {
 		err = -EINVAL;
 	}
 	else {
@@ -314,7 +314,7 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	hal_spinlockClear(&p->spinlock);
-	port_put(p, 0);
+//	proc_portPut(p);
 
 	if (err != EOK)
 		return err;
@@ -340,12 +340,12 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 
 	hal_spinlockSet(&p->spinlock);
 
-	while (p->kmessages == NULL && !p->closed && err != -EINTR)
+	while (p->kmessages == NULL && !0 /*p->closed*/ && err != -EINTR)
 		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0);
 
 	kmsg = p->kmessages;
 
-	if (p->closed) {
+	if (0 /*p->closed*/) {
 		/* Port is being removed */
 		if (kmsg != NULL) {
 			kmsg->state = msg_rejected;
@@ -362,7 +362,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	hal_spinlockClear(&p->spinlock);
 
 	if (err != EOK) {
-		port_put(p, 0);
+//		proc_portPut(p);
 		return err;
 	}
 
@@ -399,8 +399,8 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 
 	if ((kmsg->msg.i.size && kmsg->msg.i.data == NULL) ||
 		(kmsg->msg.o.size && kmsg->msg.o.data == NULL) ||
-		p->closed) {
-		closed = p->closed;
+		0 /*p->closed*/) {
+		closed = 0 /*p->closed*/;
 		msg_release(kmsg);
 
 		hal_spinlockSet(&p->spinlock);
@@ -408,7 +408,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 		proc_threadWakeup(&kmsg->threads);
 		hal_spinlockClear(&p->spinlock);
 
-		port_put(p, 0);
+//		proc_portPut(p);
 
 		return closed ? -EINVAL : -ENOMEM;
 	}
@@ -421,7 +421,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	if (opacked)
 		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
 
-	port_put(p, 0);
+//	proc_portPut(p);
 	return EOK;
 }
 
@@ -457,7 +457,7 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	kmsg->src = proc_current()->process;
 	proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock);
-	port_put(p, 0);
+//	proc_portPut(p);
 
 	return s;
 }

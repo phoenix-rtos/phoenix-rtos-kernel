@@ -28,11 +28,6 @@
 #define FD_HARD_LIMIT 1024
 #define IS_POW_2(x) ((x) && !((x) & ((x) - 1)))
 
-struct _fildes_t {
-	file_t *file;
-	unsigned flags;
-};
-
 
 typedef struct _pipe_t {
 	lock_t lock;
@@ -1487,6 +1482,30 @@ int proc_netSocket(int domain, int type, int protocol)
 
 	if (err < 0) {
 		fd_close(process, sockfd);
+	}
+
+	file_put(file);
+	return err;
+}
+
+/* ports */
+
+int proc_portCreate(u32 id)
+{
+	process_t *process = proc_current()->process;
+	file_t *file;
+	int portfd, err;
+
+	if ((portfd = file_new(process, 0, &file)) < 0)
+		return portfd;
+
+	if ((err = port_create(&file->oid, &file->port, id)) >= 0) {
+		file->ops = &generic_file_ops;
+		err = portfd;
+	}
+
+	if (err < 0) {
+		fd_close(process, portfd);
 	}
 
 	file_put(file);
