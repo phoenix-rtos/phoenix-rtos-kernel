@@ -23,10 +23,6 @@
 #include "file.h"
 
 typedef struct _port_t {
-#if 0
-	object_t object;
-#endif
-
 	rbnode_t linkage;
 	u32 id;
 

@@ -534,6 +534,7 @@ int syscalls_msgRecv(void *ustack)
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 	GETFROMSTACK(ustack, unsigned int *, rid, 2);
 
+	/* FIXME */
 	return proc_recv(proc_current()->process->fds[port].file->port->id, msg, rid);
 }
 
@@ -548,7 +549,8 @@ int syscalls_msgRespond(void *ustack)
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 	GETFROMSTACK(ustack, unsigned int, rid, 2);
 
-	return proc_respond(port, msg, rid);
+	/* FIXME */
+	return proc_respond(proc_current()->process->fds[port].file->port->id, msg, rid);
 }
 
 
@@ -1005,6 +1007,19 @@ int syscalls_sys_pipe(char *ustack)
 	int *fds;
 	GETFROMSTACK(ustack, int *, fds, 0);
 	return proc_pipeCreate(fds);
+}
+
+
+int syscalls_fifoCreate(char *ustack)
+{
+	int dirfd;
+	const char *path;
+	mode_t mode;
+
+	GETFROMSTACK(ustack, int, dirfd, 0);
+	GETFROMSTACK(ustack, const char *, path, 1);
+	GETFROMSTACK(ustack, mode_t, mode, 2);
+	return proc_fifoCreate(dirfd, path, mode);
 }
 
 

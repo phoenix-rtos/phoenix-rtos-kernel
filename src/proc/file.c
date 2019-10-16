@@ -125,7 +125,7 @@ static int generic_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t 
 const file_ops_t generic_file_ops = {
 	.read = generic_read,
 	.write = generic_write,
-	.close = generic_close,
+	.release = generic_close,
 	.seek = generic_seek,
 	.setattr = generic_setattr,
 	.getattr = generic_getattr,
@@ -152,7 +152,7 @@ static void file_unlock(file_t *f)
 static void file_destroy(file_t *f)
 {
 	if (f->ops != NULL)
-		f->ops->close(f);
+		f->ops->release(f);
 	proc_lockDone(&f->lock);
 	vm_kfree(f);
 }
@@ -476,7 +476,7 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	int error = 0, fd;
+	int error = EOK, fd;
 	file_t *dir = NULL, *file;
 
 	if (path[0] != '/') {
@@ -501,7 +501,14 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 		if ((error = proc_fileLookup(&file->oid, &file->mode, path, flags, mode)) < 0)
 			fd_close(process, fd);
 
-		file->ops = &generic_file_ops;
+		if (S_ISFIFO(file->mode)) {
+			error = npipe_open(file, flags);
+		}
+		else {
+			file->ops = &generic_file_ops;
+		}
+		if (error < 0)
+			fd_close(process, fd);
 		file_put(file);
 	}
 
@@ -929,7 +936,6 @@ static int pipe_destroy(pipe_t *pipe)
 {
 	proc_lockDone(&pipe->lock);
 	vm_kfree(pipe->fifo.data);
-	vm_kfree(pipe);
 	return EOK;
 }
 
@@ -1009,10 +1015,13 @@ static ssize_t pipe_write(file_t *file, const void *data, size_t size)
 static int pipe_close_read(file_t *file)
 {
 	pipe_t *pipe = file->pipe;
-	if (!lib_atomicDecrement(&pipe->nreaders) && !pipe->nwriters)
+	if (!lib_atomicDecrement(&pipe->nreaders) && !pipe->nwriters) {
 		pipe_destroy(pipe);
-	else
+		vm_kfree(pipe);
+	}
+	else {
 		pipe_wakeup(pipe);
+	}
 	return EOK;
 }
 
@@ -1020,10 +1029,13 @@ static int pipe_close_read(file_t *file)
 static int pipe_close_write(file_t *file)
 {
 	pipe_t *pipe = file->pipe;
-	if (!lib_atomicDecrement(&pipe->nwriters) && !pipe->nreaders)
+	if (!lib_atomicDecrement(&pipe->nwriters) && !pipe->nreaders) {
 		pipe_destroy(pipe);
-	else
+		vm_kfree(pipe);
+	}
+	else {
 		pipe_wakeup(pipe);
+	}
 	return EOK;
 }
 
@@ -1072,7 +1084,7 @@ static int pipe_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_
 const file_ops_t pipe_read_file_ops = {
 	.read = pipe_read,
 	.write = pipe_invalid_write,
-	.close = pipe_close_read,
+	.release = pipe_close_read,
 	.seek = pipe_invalid_seek,
 	.setattr = pipe_setattr,
 	.getattr = pipe_getattr,
@@ -1085,7 +1097,7 @@ const file_ops_t pipe_read_file_ops = {
 const file_ops_t pipe_write_file_ops = {
 	.read = pipe_invalid_read,
 	.write = pipe_write,
-	.close = pipe_close_write,
+	.release = pipe_close_write,
 	.seek = pipe_invalid_seek,
 	.setattr = pipe_setattr,
 	.getattr = pipe_getattr,
@@ -1093,6 +1105,22 @@ const file_ops_t pipe_write_file_ops = {
 	.unlink = pipe_unlink,
 	.ioctl = pipe_ioctl,
 };
+
+
+int pipe_init(pipe_t *pipe, size_t size)
+{
+	if (!IS_POW_2(size))
+		return -EINVAL;
+
+	if ((pipe->fifo.data = vm_kmalloc(size)) == NULL)
+		return -ENOMEM;
+
+	pipe->nreaders = pipe->nwriters = 0;
+	pipe->queue = NULL;
+	proc_lockInit(&pipe->lock);
+	fifo_init(&pipe->fifo, size);
+	return EOK;
+}
 
 
 int pipe_create(process_t *process, size_t size, int fds[2])
@@ -1107,8 +1135,8 @@ int pipe_create(process_t *process, size_t size, int fds[2])
 	else if ((pipe = vm_kmalloc(sizeof(pipe_t))) == NULL) {
 		err = -ENOMEM;
 	}
-	else if ((pipe->fifo.data = vm_kmalloc(size)) == NULL) {
-		err = -ENOMEM;
+	else if ((err = pipe_init(pipe, size))) {
+		;
 	}
 	else if ((write_fd = _file_new(process, 0, &write_file)) < 0) {
 		err = write_fd;
@@ -1119,9 +1147,6 @@ int pipe_create(process_t *process, size_t size, int fds[2])
 	else {
 		pipe->nreaders = 1;
 		pipe->nwriters = 1;
-		pipe->queue = NULL;
-		proc_lockInit(&pipe->lock);
-		fifo_init(&pipe->fifo, size);
 
 		write_file->mode = S_IFIFO;
 		write_file->pipe = pipe;
@@ -1165,6 +1190,182 @@ int proc_pipeCreate(int fds[2])
 
 
 /* Named pipes */
+
+struct {
+	rbtree_t named;
+	lock_t lock;
+} pipe_common;
+
+
+typedef struct _named_pipe_t {
+	pipe_t pipe;
+	oid_t oid;
+	rbnode_t linkage;
+} named_pipe_t;
+
+
+int npipe_cmp(rbnode_t *n1, rbnode_t *n2)
+{
+	int cmp;
+
+	named_pipe_t *p1 = lib_treeof(named_pipe_t, linkage, n1);
+	named_pipe_t *p2 = lib_treeof(named_pipe_t, linkage, n2);
+
+	if ((cmp = (p1->oid.port > p2->oid.port) - (p1->oid.port < p2->oid.port)))
+		return cmp;
+
+	return (p1->oid.id > p2->oid.id) - (p1->oid.id < p2->oid.id);
+}
+
+
+named_pipe_t *npipe_find(const oid_t *oid)
+{
+	named_pipe_t t;
+	t.oid.port = oid->port;
+	t.oid.id = oid->id;
+
+	return lib_treeof(named_pipe_t, linkage, lib_rbFind(&pipe_common.named, &t.linkage));
+}
+
+
+named_pipe_t *npipe_create(const oid_t *oid)
+{
+	named_pipe_t *p;
+
+	if ((p = vm_kmalloc(sizeof(*p))) != NULL) {
+		p->oid.port = oid->port;
+		p->oid.id = oid->id;
+
+		if (pipe_init(&p->pipe, SIZE_PAGE) != EOK) {
+			vm_kfree(p);
+			return NULL;
+		}
+
+		if (lib_rbInsert(&pipe_common.named, &p->linkage) != EOK) {
+			pipe_destroy(&p->pipe);
+			vm_kfree(p);
+			return NULL;
+		}
+	}
+	return p;
+}
+
+
+void npipe_destroy(named_pipe_t *np)
+{
+	lib_rbRemove(&pipe_common.named, &np->linkage);
+	pipe_destroy(&np->pipe);
+	vm_kfree(np);
+}
+
+
+int npipe_release(file_t *file)
+{
+	pipe_t *pipe = &file->npipe->pipe;
+
+	proc_lockSet(&pipe_common.lock);
+	if (file->status & O_RDONLY) {
+		lib_atomicDecrement(&pipe->nreaders);
+	}
+	if (file->status & O_WRONLY) {
+		lib_atomicDecrement(&pipe->nwriters);
+	}
+	if (!pipe->nreaders && !pipe->nwriters) {
+		npipe_destroy(file->npipe);
+	}
+	else {
+		pipe_wakeup(pipe);
+	}
+	proc_lockClear(&pipe_common.lock);
+
+	return EOK;
+}
+
+
+const file_ops_t npipe_ops = {
+	.read = pipe_read,
+	.write = pipe_write,
+	.release = npipe_release,
+	.seek = pipe_invalid_seek,
+	.setattr = pipe_setattr,
+	.getattr = pipe_getattr,
+	.link = pipe_link,
+	.unlink = pipe_unlink,
+	.ioctl = pipe_ioctl,
+};
+
+
+int pipe_open(pipe_t *pipe, int oflag)
+{
+	int err = EOK;
+
+	pipe_lock(pipe);
+	if (oflag & O_RDONLY) {
+		lib_atomicIncrement(&pipe->nreaders);
+	}
+	if (oflag & O_WRONLY) {
+		lib_atomicIncrement(&pipe->nwriters);
+	}
+	pipe_wakeup(pipe);
+	if (oflag & O_NONBLOCK) {
+		 if (!pipe->nreaders)
+			err = -ENXIO;
+	}
+	else {
+		while (err == EOK && !(pipe->nreaders && pipe->nwriters)) {
+			err = pipe_wait(pipe);
+		}
+	}
+	pipe_unlock(pipe);
+
+	return err;
+}
+
+
+int npipe_open(file_t *file, int oflag)
+{
+	int err = EOK;
+	file->ops = &npipe_ops;
+
+	/* TODO: better bump reference under common lock? */
+	proc_lockSet(&pipe_common.lock);
+	if ((file->npipe = npipe_find(&file->oid)) == NULL)
+		file->npipe = npipe_create(&file->oid);
+	proc_lockClear(&pipe_common.lock);
+
+	if (file->npipe == NULL) {
+		err = -ENOMEM;
+	}
+	else if ((err = pipe_open(&file->npipe->pipe, oflag)) < 0) {
+		npipe_destroy(file->npipe);
+	}
+
+	return err;
+}
+
+
+int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
+{
+	process_t *process = proc_current()->process;
+	int err;
+	file_t *dir;
+	const char *fifoname;
+	id_t id;
+
+	/* only permission bits allowed */
+	if (mode & ~(S_IRWXU | S_IRWXG | S_IRWXO))
+		return -EINVAL;
+
+	if ((err = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir)) < 0)
+		return err;
+
+	fifoname = path + err;
+
+	mode |= S_IFIFO;
+	err = proc_objectLookup(&dir->oid, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode);
+	return err;
+}
+
 
 /* Event queue */
 
@@ -1226,7 +1427,7 @@ static int queue_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in
 const file_ops_t queue_ops = {
 	.read = queue_read,
 	.write = queue_write,
-	.close = queue_close,
+	.release = queue_close,
 	.seek = queue_seek,
 	.setattr = queue_setattr,
 	.getattr = queue_getattr,

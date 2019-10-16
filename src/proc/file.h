@@ -32,7 +32,7 @@ typedef struct _file_t file_t;
 typedef struct _file_ops_t {
 	ssize_t (*read)(file_t *, void *, size_t);
 	ssize_t (*write)(file_t *, const void *, size_t);
-	int (*close)(file_t *);
+	int (*release)(file_t *);
 	int (*seek)(file_t *, off_t *, int);
 	ssize_t (*setattr)(file_t *, int, const void *, size_t);
 	ssize_t (*getattr)(file_t *, int, void *, size_t);
@@ -40,29 +40,6 @@ typedef struct _file_ops_t {
 	int (*link)(file_t *, const char *, const oid_t *);
 	int (*unlink)(file_t *, const char *);
 } file_ops_t;
-
-
-#if 0
-#define KERNEL_ID(type, id) ((type) << (64 - 8) | (id))
-
-
-typedef struct _object_t object_t;
-
-
-typedef struct _object_ops_t {
-	int (*release)(object_t *);
-} object_ops_t;
-
-
-enum { object_port };
-
-
-struct _object_t {
-	unsigned refs;
-	oid_t oid;
-	const object_ops_t *ops;
-};
-#endif
 
 
 struct _file_t {
@@ -76,6 +53,7 @@ struct _file_t {
 
 	union {
 		struct _pipe_t *pipe;
+		struct _named_pipe_t *npipe;
 		struct _evqueue_t *queue;
 		struct _port_t *port;
 	};
@@ -95,6 +73,9 @@ extern int proc_queueCreate(void);
 
 
 extern int proc_pipeCreate(int fds[2]);
+
+
+extern int proc_fifoCreate(int dirfd, const char *path, mode_t mode);
 
 
 extern int proc_queueWait(int fd, const event_t *subs, int subcnt, event_t *events, int evcnt, time_t timeout);

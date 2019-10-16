@@ -84,6 +84,7 @@
 	\
 	ID(sys_poll)\
 	ID(sys_pipe)\
+	ID(fifoCreate)\
 	\
 	ID(eventRegister)\
 	ID(queueCreate)\
