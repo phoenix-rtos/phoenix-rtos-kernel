@@ -26,16 +26,20 @@ typedef struct _port_t {
 	rbnode_t linkage;
 	u32 id;
 
+	int refs;
 	kmsg_t *kmessages;
 	spinlock_t spinlock;
 	thread_t *threads;
 } port_t;
 
 
-extern int proc_portCreate(u32 id);
+extern int port_create(port_t **port, u32 id);
 
 
-extern port_t *proc_portGet(u32 id);
+extern port_t *port_get(u32 id);
+
+
+extern void port_put(port_t *port);
 
 
 extern void _port_init(void);

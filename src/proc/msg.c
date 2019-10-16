@@ -276,7 +276,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg_t kmsg;
 	thread_t *sender;
 
-	if ((p = proc_portGet(port)) == NULL)
+	if ((p = port_get(port)) == NULL)
 		return -EINVAL;
 
 	sender = proc_current();
@@ -314,7 +314,7 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	hal_spinlockClear(&p->spinlock);
-//	proc_portPut(p);
+	port_put(p);
 
 	if (err != EOK)
 		return err;
@@ -335,7 +335,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	kmsg_t *kmsg;
 	int ipacked = 0, opacked = 0, closed, err = EOK;
 
-	if ((p = proc_portGet(port)) == NULL)
+	if ((p = port_get(port)) == NULL)
 		return -EINVAL;
 
 	hal_spinlockSet(&p->spinlock);
@@ -362,7 +362,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	hal_spinlockClear(&p->spinlock);
 
 	if (err != EOK) {
-//		proc_portPut(p);
+		port_put(p);
 		return err;
 	}
 
@@ -408,7 +408,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 		proc_threadWakeup(&kmsg->threads);
 		hal_spinlockClear(&p->spinlock);
 
-//		proc_portPut(p);
+		port_put(p);
 
 		return closed ? -EINVAL : -ENOMEM;
 	}
@@ -421,7 +421,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	if (opacked)
 		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
 
-//	proc_portPut(p);
+	port_put(p);
 	return EOK;
 }
 
@@ -432,7 +432,7 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	size_t s = 0;
 	kmsg_t *kmsg = (kmsg_t *)(unsigned long)rid;
 
-	if ((p = proc_portGet(port)) == NULL)
+	if ((p = port_get(port)) == NULL)
 		return -EINVAL;
 
 	/* Copy shadow pages */
@@ -457,7 +457,7 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	kmsg->src = proc_current()->process;
 	proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock);
-//	proc_portPut(p);
+	port_put(p);
 
 	return s;
 }

@@ -32,7 +32,7 @@ static int ports_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
-port_t *proc_portGet(u32 id)
+port_t *port_get(u32 id)
 {
 	port_t *port;
 	port_t t;
@@ -40,25 +40,31 @@ port_t *proc_portGet(u32 id)
 	t.id = id;
 
 	proc_lockSet(&port_common.lock);
-	port = lib_treeof(port_t, linkage, lib_rbFind(&port_common.tree, &t.linkage));
+	if ((port = lib_treeof(port_t, linkage, lib_rbFind(&port_common.tree, &t.linkage))) != NULL)
+		port->refs++;
 	proc_lockClear(&port_common.lock);
 
 	return port;
 }
 
 
-static void port_release(port_t *port)
+void port_put(port_t *port)
 {
+	int refs;
+
 	proc_lockSet(&port_common.lock);
-	lib_rbRemove(&port_common.tree, &port->linkage);
+	if (!(refs = --port->refs))
+		lib_rbRemove(&port_common.tree, &port->linkage);
 	proc_lockClear(&port_common.lock);
 
-	hal_spinlockDestroy(&port->spinlock);
-	vm_kfree(port);
+	if (!refs) {
+		hal_spinlockDestroy(&port->spinlock);
+		vm_kfree(port);
+	}
 }
 
 
-int port_create(oid_t *oid, port_t **port, u32 id)
+int port_create(port_t **port, u32 id)
 {
 	port_t *p;
 	int err;
@@ -69,6 +75,7 @@ int port_create(oid_t *oid, port_t **port, u32 id)
 	p->id = id;
 	p->kmessages = NULL;
 	p->threads = NULL;
+	p->refs = 1;
 	hal_spinlockCreate(&p->spinlock, "port.spinlock");
 
 	proc_lockSet(&port_common.lock);
@@ -76,7 +83,8 @@ int port_create(oid_t *oid, port_t **port, u32 id)
 	proc_lockClear(&port_common.lock);
 
 	if (err < 0) {
-		port_release(p);
+		hal_spinlockDestroy(&p->spinlock);
+		vm_kfree(p);
 		return -EEXIST;
 	}
 

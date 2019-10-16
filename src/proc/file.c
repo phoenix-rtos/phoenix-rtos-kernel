@@ -106,6 +106,9 @@ static ssize_t generic_getattr(file_t *file, int attr, void *value, size_t size)
 
 static int generic_link(file_t *dir, const char *name, const oid_t *file)
 {
+	if (!file->port)
+		return -EINVAL;
+
 	return proc_objectLink(&dir->oid, name, file);
 }
 
@@ -1691,6 +1694,18 @@ int proc_netSocket(int domain, int type, int protocol)
 
 /* ports */
 
+int port_release(file_t *file)
+{
+	port_put(file->port);
+	return EOK;
+}
+
+
+static const file_ops_t port_ops = {
+	.release = port_release,
+};
+
+
 int proc_portCreate(u32 id)
 {
 	process_t *process = proc_current()->process;
@@ -1700,8 +1715,8 @@ int proc_portCreate(u32 id)
 	if ((portfd = file_new(process, 0, &file)) < 0)
 		return portfd;
 
-	if ((err = port_create(&file->oid, &file->port, id)) >= 0) {
-		file->ops = &generic_file_ops;
+	if ((err = port_create(&file->port, id)) >= 0) {
+		file->ops = &port_ops;
 		err = portfd;
 	}
 
