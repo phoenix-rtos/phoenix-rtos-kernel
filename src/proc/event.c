@@ -389,7 +389,7 @@ evqueue_t *queue_create(process_t *process)
 }
 
 
-static void queue_destroy(evqueue_t *queue)
+void queue_destroy(evqueue_t *queue)
 {
 	TRACE("queue_destroy()");
 
@@ -464,7 +464,7 @@ static void queue_wakeup(evqueue_t *queue)
 }
 
 
-static void queue_close(evqueue_t *queue)
+void queue_close(evqueue_t *queue)
 {
 	TRACE("queue_close()");
 	eventry_t *entry;

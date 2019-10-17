@@ -135,7 +135,7 @@ extern int proc_fileIoctl(int fildes, unsigned long request, const char *indata,
 extern int proc_filesDestroy(struct _process_t *process);
 
 
-extern int proc_filesSetRoot(const oid_t *oid, mode_t mode);
+extern int proc_filesSetRoot(int port, id_t id, mode_t mode);
 
 
 extern int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags);

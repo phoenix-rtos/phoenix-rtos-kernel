@@ -752,11 +752,13 @@ int syscalls_signalSuspend(void *ustack)
 /* POSIX compatibility syscalls */
 int syscalls_SetRoot(char *ustack)
 {
-	oid_t *oid;
+	int port;
+	id_t id;
 	mode_t mode;
-	GETFROMSTACK(ustack, oid_t *, oid, 0);
-	GETFROMSTACK(ustack, mode_t, mode, 1);
-	return proc_filesSetRoot(oid, mode);
+	GETFROMSTACK(ustack, int, port, 0);
+	GETFROMSTACK(ustack, id_t, id, 1);
+	GETFROMSTACK(ustack, mode_t, mode, 2);
+	return proc_filesSetRoot(port, id, mode);
 }
 
 

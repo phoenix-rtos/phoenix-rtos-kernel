@@ -40,22 +40,11 @@ typedef struct _pipe_t {
 
 static struct {
 	lock_t lock;
-	oid_t root;
-	mode_t rootmode;
-	rbtree_t vfiles;
+	file_t *root;
 } file_common;
 
 
-mode_t file_root(oid_t *oid)
-{
-	mode_t result;
-
-	proc_lockSet(&file_common.lock);
-	hal_memcpy(oid, &file_common.root, sizeof(*oid));
-	result = file_common.rootmode;
-	proc_lockClear(&file_common.lock);
-	return result;
-}
+static int file_openKernelObject(file_t *file);
 
 
 static ssize_t generic_read(file_t *file, void *data, size_t size)
@@ -185,19 +174,28 @@ static file_t *file_alloc(file_t *orig)
 		file->offset = 0;
 		file->status = 0;
 		proc_lockInit(&file->lock);
+		file->ops = NULL;
+		file->mode = 0;
 
 		if (orig != NULL) {
 			hal_memcpy(&file->oid, &orig->oid, sizeof(oid_t));
 			file->mode = orig->mode;
 			file->ops = orig->ops;
 		}
-		else {
-			file->ops = &generic_file_ops;
-			file->mode = file_root(&file->oid);
-		}
 	}
 
 	return file;
+}
+
+
+file_t *file_root(void)
+{
+	file_t *root;
+	proc_lockSet(&file_common.lock);
+	if ((root = file_common.root) != NULL)
+		file_ref(root);
+	proc_lockClear(&file_common.lock);
+	return root;
 }
 
 
@@ -270,25 +268,15 @@ static int fd_close(process_t *p, int fd)
 }
 
 
-static int _file_new(process_t *p, int minfd, file_t **file)
+static int _fd_new(process_t *p, int minfd, unsigned flags, file_t *file)
 {
-	file_t *f;
 	int fd;
 
 	if ((fd = _fd_alloc(p, minfd)) < 0)
 		return fd;
 
-	if ((*file = f = p->fds[fd].file = vm_kmalloc(sizeof(file_t))) == NULL)
-		return -ENOMEM;
-
-	hal_memset(f, 0, sizeof(file_t));
-	proc_lockInit(&f->lock);
-	f->refs = 2;
-	f->offset = 0;
-	f->mode = 0;
-	f->status = 0;
-	f->ops = NULL;
-
+	p->fds[fd].file = file;
+	p->fds[fd].flags = flags;
 	return fd;
 }
 
@@ -305,11 +293,11 @@ static file_t *_file_get(process_t *p, int fd)
 }
 
 
-static int file_new(process_t *p, int fd, file_t **file)
+static int fd_new(process_t *p, int fd, unsigned flags, file_t *file)
 {
 	int retval;
 	process_lock(p);
-	retval = _file_new(p, fd, file);
+	retval = _fd_new(p, fd, flags, file);
 	process_unlock(p);
 	return retval;
 }
@@ -383,66 +371,6 @@ int proc_fileLookup(oid_t *oid, mode_t *mode, const char *name, int flags, mode_
 }
 
 
-static int file_resolve(process_t *process, int fildes, const char *path, int flags, file_t **result)
-{
-	file_t *file, *dir;
-	int err;
-
-	if (flags & (O_CREAT | O_TRUNC | O_EXCL))
-		return -EINVAL;
-
-	if (path != NULL && path[0] == '/') {
-		if ((file = file_alloc(NULL)) == NULL)
-			return -ENOMEM;
-	}
-	else {
-		if (fildes == AT_FDCWD) {
-			process_lock(process);
-			file = process->cwd;
-			file_ref(file);
-			process_unlock(process);
-		}
-		else if ((file = file_get(process, fildes)) == NULL) {
-			return -EBADF;
-		}
-
-		if (path == NULL) {
-			*result = file;
-			return EOK;
-		}
-
-		dir = file;
-		if (!S_ISDIR(dir->mode)) {
-			file_put(file);
-			return -ENOTDIR;
-		}
-
-		file = file_alloc(dir);
-		file_put(dir);
-		if (file == NULL)
-			return -ENOMEM;
-	}
-
-	if ((err = proc_fileLookup(&file->oid, &file->mode, path, flags, 0)) >= 0)
-		*result = file;
-
-	return EOK;
-}
-
-
-int proc_fileResolve(process_t *process, int fildes, const char *path, int flags, oid_t *oid)
-{
-	file_t *file;
-	int err;
-
-	if ((err = file_resolve(process, fildes, path, flags, &file)) < 0)
-		return err;
-
-	hal_memcpy(oid, &file->oid, sizeof(oid_t));
-	return err;
-}
-
-
 static int _file_dup(process_t *p, int fd, int fd2, int flags)
 {
 	file_t *f, *f2;
@@ -475,51 +403,142 @@ static int _file_dup(process_t *p, int fd, int fd2, int flags)
 }
 
 
-int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
+int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 {
-	thread_t *current = proc_current();
-	process_t *process = current->process;
-	int error = EOK, fd;
+	file_t *root, *port;
+	process_t *process = proc_current()->process;
+
+	if ((port = file_get(process, fd)) == NULL)
+		return -EBADF;
+
+	if ((root = file_alloc(NULL)) == NULL) {
+		file_put(port);
+		return -ENOMEM;
+	}
+
+	/* TODO: check type */
+	root->oid.port = port->port->id;
+	root->oid.id = id;
+	root->ops = &generic_file_ops;
+	root->mode = mode;
+
+	proc_lockSet(&file_common.lock);
+	if (file_common.root != NULL)
+		file_put(file_common.root);
+	file_common.root = root;
+	proc_lockClear(&file_common.lock);
+
+	file_put(port);
+	return EOK;
+}
+
+
+int file_open(file_t **result, process_t *process, int dirfd, const char *path, int flags, mode_t mode)
+{
+	int error = EOK;
 	file_t *dir = NULL, *file;
 
+	if (path == NULL)
+		return -EINVAL;
+
 	if (path[0] != '/') {
-		if ((dir = file_get(process, dirfd)) == NULL)
+		if (dirfd == AT_FDCWD) {
+			if ((dir = process->cwd) == NULL)
+				/* Current directory not set */
+				return -ENOENT;
+			file_ref(process->cwd);
+		}
+		else if ((dir = file_get(process, dirfd)) == NULL) {
 			return -EBADF;
+		}
 
 		if (!S_ISDIR(dir->mode)) {
 			file_put(dir);
 			return -ENOTDIR;
 		}
 	}
-
-	if ((fd = file_new(process, 0, &file)) >= 0) {
-		if (dir != NULL) {
-			hal_memcpy(&file->oid, &dir->oid, sizeof(oid_t));
-			file->mode = dir->mode;
-		}
-		else {
-			file->mode = file_root(&file->oid);
-		}
-
-		if ((error = proc_fileLookup(&file->oid, &file->mode, path, flags, mode)) < 0)
-			fd_close(process, fd);
-
-		if (S_ISFIFO(file->mode)) {
-			error = npipe_open(file, flags);
-		}
-		else {
-			file->ops = &generic_file_ops;
-		}
-		if (error < 0)
-			fd_close(process, fd);
-		file_put(file);
+	else {
+		if ((dir = file_root()) == NULL)
+			/* Rootfs not mounted yet */
+			return -ENOENT;
 	}
 
-	if (dir != NULL)
-		file_put(dir);
+	file = file_alloc(dir);
+	file_put(dir);
+	if (file == NULL)
+		return -ENOMEM;
 
-	return error < 0 ? error : fd;
+	if ((error = proc_fileLookup(&file->oid, &file->mode, path, flags, mode)) != EOK) {
+		file_put(file);
+		return error;
+	}
+
+	if (S_ISFIFO(file->mode)) {
+		error = npipe_open(file, flags);
+	}
+	else if (S_ISSOCK(file->mode)) {
+		error = -ENOSYS;
+	}
+	else if (S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
+		/* send open to the device? */
+		file->ops = &generic_file_ops;
+	}
+	else if (file->oid.port == 0) {
+		file_openKernelObject(file);
+	}
+	else {
+		file->ops = &generic_file_ops;
+	}
+
+	*result = file;
+	return EOK;
 }
+
+
+int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
+{
+	thread_t *current = proc_current();
+	process_t *process = current->process;
+	file_t *file;
+	int error = EOK;
+
+	if ((error = file_open(&file, process, dirfd, path, flags, mode)) < 0)
+		return error;
+
+	return fd_new(process, 0, 0, file);
+}
+
+
+static int file_resolve(process_t *process, int fildes, const char *path, int flags, file_t **result)
+{
+	if (flags & O_CREAT)
+		return -EINVAL;
+
+	if (path == NULL) {
+		if (flags)
+			return -EINVAL;
+
+		if ((*result = file_get(process, fildes)) == NULL)
+			return -ENOENT;
+	}
+	return file_open(result, process, fildes, path, flags, 0);
+}
+
+
+/* TODO: remove */
+int proc_fileResolve(process_t *process, int fildes, const char *path, int flags, oid_t *oid)
+{
+	file_t *file;
+	int err;
+
+	if ((err = file_resolve(process, fildes, path, flags, &file)) < 0)
+		return err;
+
+	hal_memcpy(oid, &file->oid, sizeof(oid_t));
+	file_put(file);
+	return err;
+}
+
 
 int proc_fileOid(process_t *process, int fd, oid_t *oid)
 {
@@ -828,16 +847,6 @@ int proc_fileChmod(int fildes, mode_t mode)
 }
 
 
-int proc_filesSetRoot(const oid_t *oid, mode_t mode)
-{
-	proc_lockSet(&file_common.lock);
-	hal_memcpy(&file_common.root, oid, sizeof(*oid));
-	file_common.rootmode = mode;
-	proc_lockClear(&file_common.lock);
-	return EOK;
-}
-
-
 int proc_filesDestroy(process_t *process)
 {
 	int fd;
@@ -875,9 +884,8 @@ static int _proc_filesCopy(process_t *parent)
 		process->cwd = parent->cwd;
 		file_ref(process->cwd);
 	}
-	/* FIXME */
-	else if (S_ISDIR(file_common.rootmode)) {
-		process->cwd = file_alloc(NULL);
+	else {
+		process->cwd = file_root();
 	}
 	return EOK;
 }
@@ -1141,11 +1149,11 @@ int pipe_create(process_t *process, size_t size, int fds[2])
 	else if ((err = pipe_init(pipe, size))) {
 		;
 	}
-	else if ((write_fd = _file_new(process, 0, &write_file)) < 0) {
-		err = write_fd;
+	else if ((write_file = file_alloc(NULL)) == NULL) {
+		err = -ENOMEM;
 	}
-	else if ((read_fd = _file_new(process, 0, &read_file)) < 0) {
-		err = read_fd;
+	else if ((read_file = file_alloc(NULL)) == NULL) {
+		err = -ENOMEM;
 	}
 	else {
 		pipe->nreaders = 1;
@@ -1159,23 +1167,26 @@ int pipe_create(process_t *process, size_t size, int fds[2])
 		read_file->pipe = pipe;
 		read_file->ops = &pipe_read_file_ops;
 
-		file_put(read_file);
-		file_put(write_file);
+		if ((read_fd = fd_new(process, 0, 0, read_file)) < 0) {
+			file_put(read_file);
+			file_put(write_file);
+			return read_fd;
+		}
+
+		if ((write_fd = fd_new(process, 0, 0, write_file)) < 0) {
+			fd_close(process, read_fd);
+			file_put(read_file);
+			file_put(write_file);
+			return write_fd;
+		}
 
 		fds[0] = read_fd;
 		fds[1] = write_fd;
 		return EOK;
 	}
 
-	if (pipe != NULL) {
-		vm_kfree(pipe->fifo.data);
-		vm_kfree(pipe);
-	}
-
 	file_put(read_file);
 	file_put(write_file);
-	_fd_close(process, read_fd);
-	_fd_close(process, write_fd);
 	return err;
 }
 
@@ -1366,6 +1377,7 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 
 	mode |= S_IFIFO;
 	err = proc_objectLookup(&dir->oid, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode);
+	file_put(dir);
 	return err;
 }
 
@@ -1385,9 +1397,11 @@ static ssize_t queue_write(file_t *file, const void *data, size_t size)
 }
 
 
-static int queue_close(file_t *file)
+static int queue_release(file_t *file)
 {
-	return -EINVAL; /* TODO */
+	queue_close(file->queue);
+	queue_destroy(file->queue);
+	return EOK;
 }
 
 
@@ -1430,7 +1444,7 @@ static int queue_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in
 const file_ops_t queue_ops = {
 	.read = queue_read,
 	.write = queue_write,
-	.release = queue_close,
+	.release = queue_release,
 	.seek = queue_seek,
 	.setattr = queue_setattr,
 	.getattr = queue_getattr,
@@ -1450,15 +1464,18 @@ int proc_queueCreate(void)
 	if ((queue = queue_create(process)) == NULL)
 		return -ENOMEM;
 
-	process_lock(process);
-	if ((fd = _file_new(process, 0, &file)) >= 0) {
-		file->mode = S_IFEVQ;
-		file->queue = queue;
-		file->ops = &queue_ops;
-		process->fds[fd].flags = FD_CLOEXEC;
-		file_put(file);
+	if ((file = file_alloc(NULL)) == NULL) {
+		queue_destroy(queue);
+		return -ENOMEM;
 	}
-	process_unlock(process);
+
+	file->mode = S_IFEVQ;
+	file->queue = queue;
+	file->ops = &queue_ops;
+
+	if ((fd = fd_new(process, 0, FD_CLOEXEC, file)) < 0)
+		file_put(file);
+
 	return fd;
 }
 
@@ -1467,6 +1484,7 @@ int proc_queueWait(int fd, const struct _event_t *subs, int subcnt, struct _even
 {
 	file_t *file;
 	process_t *process = proc_current()->process;
+	int retval;
 
 	if ((file = file_get(process, fd)) == NULL)
 		return -EBADF;
@@ -1476,7 +1494,9 @@ int proc_queueWait(int fd, const struct _event_t *subs, int subcnt, struct _even
 		return -EBADF;
 	}
 
-	return queue_wait(file->queue, subs, subcnt, events, evcnt, timeout);
+	retval = queue_wait(file->queue, subs, subcnt, events, evcnt, timeout);
+	file_put(file);
+	return retval;
 }
 
 
@@ -1665,10 +1685,10 @@ int proc_netSocket(int domain, int type, int protocol)
 {
 	process_t *process = proc_current()->process;
 	file_t *file;
-	int sockfd, err;
+	int err;
 
-	if ((sockfd = file_new(process, 0, &file)) < 0)
-		return sockfd;
+	if ((file = file_alloc(NULL)) == NULL)
+		return -ENOMEM;
 
 	file->mode = S_IFSOCK;
 
@@ -1676,7 +1696,6 @@ int proc_netSocket(int domain, int type, int protocol)
 	case AF_INET:
 		if ((err = socket_create(&file->oid, domain, type, protocol)) >= 0) {
 			file->ops = &generic_file_ops;
-			err = sockfd;
 		}
 		break;
 	default:
@@ -1684,11 +1703,9 @@ int proc_netSocket(int domain, int type, int protocol)
 		break;
 	}
 
-	if (err < 0) {
-		fd_close(process, sockfd);
-	}
+	if (err != EOK || (err = fd_new(process, 0, 0, file)) < 0)
+		file_put(file);
 
-	file_put(file);
 	return err;
 }
 
@@ -1710,29 +1727,36 @@ int proc_portCreate(u32 id)
 {
 	process_t *process = proc_current()->process;
 	file_t *file;
-	int portfd, err;
+	int err;
 
-	if ((portfd = file_new(process, 0, &file)) < 0)
-		return portfd;
+	if ((file = file_alloc(NULL)) == NULL)
+		return -ENOMEM;
 
 	if ((err = port_create(&file->port, id)) >= 0) {
 		file->ops = &port_ops;
-		err = portfd;
 	}
 
-	if (err < 0) {
-		fd_close(process, portfd);
-	}
+	if (err != EOK || (err = fd_new(process, 0, 0, file)) < 0)
+		file_put(file);
 
-	file_put(file);
 	return err;
+}
+
+
+static int file_openKernelObject(file_t *file)
+{
+	/* TODO: support other types of objects */
+	if ((file->port = port_get(file->oid.id)) == NULL)
+		return -ENXIO;
+
+	file->ops = &port_ops;
+	return EOK;
 }
 
 
 void _file_init()
 {
-	file_common.root.port = 0;
-	file_common.root.id = 0;
+	file_common.root = NULL;
 	proc_lockInit(&file_common.lock);
 }
 
