@@ -23,6 +23,7 @@
 
 struct _vm_map_t;
 
+/* FIXME: keep file_t* instead of oid_t */
 typedef struct _vm_object_t {
 	rbnode_t linkage;
 	lock_t lock;

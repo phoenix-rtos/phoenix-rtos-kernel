@@ -16,13 +16,13 @@
 #include HAL
 #include "proc.h"
 
-int proc_objectLookup(const oid_t *oid, const char *name, size_t namelen, int flags, id_t *object, mode_t *mode)
+int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t namelen, int flags, id_t *object, mode_t *mode)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtOpen;
-	msg.object = oid->id;
+	msg.object = id;
 
 	msg.i.open_.flags = flags;
 	msg.i.open_.mode = *mode;
@@ -32,7 +32,7 @@ int proc_objectLookup(const oid_t *oid, const char *name, size_t namelen, int fl
 	msg.o.data = NULL;
 	msg.o.size = 0;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	*object = msg.o.open_.id;
@@ -41,13 +41,13 @@ int proc_objectLookup(const oid_t *oid, const char *name, size_t namelen, int fl
 }
 
 
-ssize_t proc_objectWrite(const oid_t *oid, const char *data, size_t size, off_t offset)
+ssize_t proc_objectWrite(struct _port_t *port, id_t id, const char *data, size_t size, off_t offset)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtWrite;
-	msg.object = oid->id;
+	msg.object = id;
 
 	msg.i.io_.offs = offset;
 
@@ -56,20 +56,20 @@ ssize_t proc_objectWrite(const oid_t *oid, const char *data, size_t size, off_t 
 	msg.o.size = 0;
 	msg.o.data = NULL;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	return msg.o.io_;
 }
 
 
-ssize_t proc_objectRead(const oid_t *oid, char *data, size_t size, off_t offset)
+ssize_t proc_objectRead(struct _port_t *port, id_t id, char *data, size_t size, off_t offset)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtRead;
-	msg.object = oid->id;
+	msg.object = id;
 
 	msg.i.io_.offs = offset;
 
@@ -78,20 +78,20 @@ ssize_t proc_objectRead(const oid_t *oid, char *data, size_t size, off_t offset)
 	msg.o.size = size;
 	msg.o.data = data;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	return msg.o.io_;
 }
 
 
-ssize_t proc_objectGetAttr(const oid_t *oid, int attr, void *data, size_t size)
+ssize_t proc_objectGetAttr(struct _port_t *port, id_t id, int attr, void *data, size_t size)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtGetAttr;
-	msg.object = oid->id;
+	msg.object = id;
 
 	msg.i.attr_ = attr;
 
@@ -100,20 +100,20 @@ ssize_t proc_objectGetAttr(const oid_t *oid, int attr, void *data, size_t size)
 	msg.o.size = size;
 	msg.o.data = data;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	return msg.o.io_;
 }
 
 
-ssize_t proc_objectSetAttr(const oid_t *oid, int attr, const void *data, size_t size)
+ssize_t proc_objectSetAttr(struct _port_t *port, id_t id, int attr, const void *data, size_t size)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtSetAttr;
-	msg.object = oid->id;
+	msg.object = id;
 
 	msg.i.attr_ = attr;
 
@@ -122,20 +122,20 @@ ssize_t proc_objectSetAttr(const oid_t *oid, int attr, const void *data, size_t 
 	msg.o.size = 0;
 	msg.o.data = NULL;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	return msg.o.io_;
 }
 
 
-int proc_objectLink(const oid_t *oid, const char *name, const oid_t *file)
+int proc_objectLink(struct _port_t *port, id_t id, const char *name, const oid_t *file)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtLink;
-	msg.object = oid->id;
+	msg.object = id;
 
 	hal_memcpy(&msg.i.link_, file, sizeof(*file));
 
@@ -144,40 +144,40 @@ int proc_objectLink(const oid_t *oid, const char *name, const oid_t *file)
 	msg.o.size = 0;
 	msg.o.data = NULL;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	return msg.o.io_;
 }
 
 
-int proc_objectUnlink(const oid_t *oid, const char *name)
+int proc_objectUnlink(struct _port_t *port, id_t id, const char *name)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtUnlink;
-	msg.object = oid->id;
+	msg.object = id;
 
 	msg.i.size = hal_strlen(name);
 	msg.i.data = name;
 	msg.o.size = 0;
 	msg.o.data = NULL;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	return msg.o.io_;
 }
 
 
-int proc_objectControl(const oid_t *oid, unsigned command, const void *in, size_t insz, void *out, size_t outsz)
+int proc_objectControl(struct _port_t *port, id_t id, unsigned command, const void *in, size_t insz, void *out, size_t outsz)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtDevCtl;
-	msg.object = oid->id;
+	msg.object = id;
 
 	msg.i.devctl_= command;
 
@@ -186,27 +186,27 @@ int proc_objectControl(const oid_t *oid, unsigned command, const void *in, size_
 	msg.o.size = outsz;
 	msg.o.data = out;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	return msg.o.io_;
 }
 
 
-int proc_objectClose(const oid_t *oid)
+int proc_objectClose(struct _port_t *port, id_t id)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtClose;
-	msg.object = oid->id;
+	msg.object = id;
 
 	msg.i.size = 0;
 	msg.i.data = NULL;
 	msg.o.size = 0;
 	msg.o.data = NULL;
 
-	if ((error = proc_send(oid->port, &msg)) < 0)
+	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
 	return msg.o.io_;

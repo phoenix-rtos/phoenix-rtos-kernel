@@ -218,7 +218,16 @@ static int _entry_notify(eventry_t *entry)
 {
 	TRACE("_entry_notify()");
 	int err;
-	if ((err = proc_objectSetAttr(&entry->oid, atEvents, &entry->mask, sizeof(entry->mask))) < 0)
+	/* TODO: keep reference to port in entry? */
+	port_t *port = port_get(entry->oid.port);
+
+	if (port == NULL)
+		return -ENXIO;
+
+	err = proc_objectSetAttr(port, entry->oid.id, atEvents, &entry->mask, sizeof(entry->mask));
+	port_put(port);
+
+	if (err < 0)
 		return err;
 	return EOK;
 }
@@ -231,7 +240,15 @@ static int _note_poll(evnote_t *note)
 	unsigned events;
 	int err;
 
-	if ((err = proc_objectGetAttr(&note->entry->oid, atEvents, &events, sizeof(events))) < 0)
+	port_t *port = port_get(note->entry->oid.port);
+
+	if (port == NULL)
+		return -ENXIO;
+
+	err = proc_objectGetAttr(port, note->entry->oid.id, atEvents, &events, sizeof(events));
+	port_put(port);
+
+	if (err < 0)
 		return err;
 
 	note->pend |= events & note->mask;

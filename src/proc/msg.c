@@ -269,15 +269,11 @@ static int msg_opack(kmsg_t *kmsg)
 }
 
 
-int proc_send(u32 port, msg_t *msg)
+int port_send(port_t *p, msg_t *msg)
 {
-	port_t *p;
 	int err = EOK;
 	kmsg_t kmsg;
 	thread_t *sender;
-
-	if ((p = port_get(port)) == NULL)
-		return -EINVAL;
 
 	sender = proc_current();
 
@@ -314,7 +310,6 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	hal_spinlockClear(&p->spinlock);
-	port_put(p);
 
 	if (err != EOK)
 		return err;
@@ -329,14 +324,19 @@ int proc_send(u32 port, msg_t *msg)
 }
 
 
-int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
+int proc_send(u32 port, msg_t *msg)
 {
-	port_t *p;
+	port_t *p = port_get(port);
+	int err = port_send(p, msg);
+	port_put(p);
+	return err;
+}
+
+
+int port_recv(port_t *p, msg_t *msg, unsigned int *rid)
+{
 	kmsg_t *kmsg;
 	int ipacked = 0, opacked = 0, closed, err = EOK;
-
-	if ((p = port_get(port)) == NULL)
-		return -EINVAL;
 
 	hal_spinlockSet(&p->spinlock);
 
@@ -361,10 +361,8 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	}
 	hal_spinlockClear(&p->spinlock);
 
-	if (err != EOK) {
-		port_put(p);
+	if (err != EOK)
 		return err;
-	}
 
 	/* (MOD) */
 	(*rid) = (unsigned long)(kmsg);
@@ -408,8 +406,6 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 		proc_threadWakeup(&kmsg->threads);
 		hal_spinlockClear(&p->spinlock);
 
-		port_put(p);
-
 		return closed ? -EINVAL : -ENOMEM;
 	}
 
@@ -421,19 +417,23 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	if (opacked)
 		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
 
-	port_put(p);
 	return EOK;
 }
 
 
-int proc_respond(u32 port, msg_t *msg, unsigned int rid)
+int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 {
-	port_t *p;
+	port_t *p = port_get(port);
+	int err = port_recv(p, msg, rid);
+	port_put(p);
+	return err;
+}
+
+
+int port_respond(port_t *p, msg_t *msg, unsigned int rid)
+{
 	size_t s = 0;
 	kmsg_t *kmsg = (kmsg_t *)(unsigned long)rid;
-
-	if ((p = port_get(port)) == NULL)
-		return -EINVAL;
 
 	/* Copy shadow pages */
 	if (kmsg->i.bp != NULL)
@@ -457,9 +457,17 @@ int proc_respond(u32 port, msg_t *msg, unsigned int rid)
 	kmsg->src = proc_current()->process;
 	proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock);
-	port_put(p);
 
 	return s;
+}
+
+
+int proc_respond(u32 port, msg_t *msg, unsigned int rid)
+{
+	port_t *p = port_get(port);
+	int err = port_respond(p, msg, rid);
+	port_put(p);
+	return err;
 }
 
 

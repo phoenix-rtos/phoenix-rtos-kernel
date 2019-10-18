@@ -51,7 +51,7 @@ static ssize_t generic_read(file_t *file, void *data, size_t size)
 {
 	ssize_t retval;
 
-	if ((retval = proc_objectRead(&file->oid, data, size, file->offset)) > 0)
+	if ((retval = proc_objectRead(file->port, file->oid.id, data, size, file->offset)) > 0)
 		file->offset += retval;
 
 	return retval;
@@ -62,16 +62,17 @@ static ssize_t generic_write(file_t *file, const void *data, size_t size)
 {
 	ssize_t retval;
 
-	if ((retval = proc_objectWrite(&file->oid, data, size, file->offset)) > 0)
+	if ((retval = proc_objectWrite(file->port, file->oid.id, data, size, file->offset)) > 0)
 		file->offset += retval;
 
 	return retval;
 }
 
 
-static int generic_close(file_t *file)
+static int generic_release(file_t *file)
 {
-	return proc_objectClose(&file->oid);
+	port_put(file->port);
+	return proc_objectClose(file->port, file->oid.id);
 }
 
 
@@ -83,13 +84,13 @@ static int generic_seek(file_t *file, off_t *offset, int whence)
 
 static int generic_setattr(file_t *file, int attr, const void *value, size_t size)
 {
-	return proc_objectSetAttr(&file->oid, attr, value, size);
+	return proc_objectSetAttr(file->port, file->oid.id, attr, value, size);
 }
 
 
 static ssize_t generic_getattr(file_t *file, int attr, void *value, size_t size)
 {
-	return proc_objectGetAttr(&file->oid, attr, value, size);
+	return proc_objectGetAttr(file->port, file->oid.id, attr, value, size);
 }
 
 
@@ -98,26 +99,26 @@ static int generic_link(file_t *dir, const char *name, const oid_t *file)
 	if (!file->port)
 		return -EINVAL;
 
-	return proc_objectLink(&dir->oid, name, file);
+	return proc_objectLink(dir->port, file->id, name, file);
 }
 
 
 static int generic_unlink(file_t *dir, const char *name)
 {
-	return proc_objectUnlink(&dir->oid, name);
+	return proc_objectUnlink(dir->port, dir->oid.id, name);
 }
 
 
 static int generic_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
 {
-	return proc_objectControl(&file->oid, cmd, in_buf, in_size, out_buf, out_size);
+	return proc_objectControl(file->port, file->oid.id, cmd, in_buf, in_size, out_buf, out_size);
 }
 
 
 const file_ops_t generic_file_ops = {
 	.read = generic_read,
 	.write = generic_write,
-	.release = generic_close,
+	.release = generic_release,
 	.seek = generic_seek,
 	.setattr = generic_setattr,
 	.getattr = generic_getattr,
@@ -313,18 +314,20 @@ static file_t *file_get(process_t *p, int fd)
 }
 
 
-static int file_followLink(oid_t *oid, mode_t *mode)
+int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mode_t cmode)
 {
-	return -ENOSYS;
-}
-
-
-int proc_fileLookup(oid_t *oid, mode_t *mode, const char *name, int flags, mode_t cmode)
-{
-	int err, sflags, ret = EOK;
+	int err = EOK, sflags, ret = EOK;
 	const char *delim = name, *path;
+	oid_t oid;
+	id_t id;
+	mode_t mode;
+	port_t *port;
 
 	cmode |= ((cmode & S_IFMT) == 0) * S_IFREG;
+
+	port = port_get(dir->port->id); /* TODO: add port_ref? */
+	id = dir->oid.id;
+	mode = dir->mode;
 
 	do {
 		path = delim;
@@ -345,27 +348,65 @@ int proc_fileLookup(oid_t *oid, mode_t *mode, const char *name, int flags, mode_
 			break;
 		}
 
-		if (S_ISLNK(*mode) && (err = file_followLink(oid, mode)) < 0)
-			return err;
-		else if (S_ISMNT(*mode) && (err = proc_objectRead(oid, (char *)oid, sizeof(*oid), 0)) < 0)
-			return err;
-		else if (!S_ISDIR(*mode))
-			return -ENOTDIR;
+		if (S_ISLNK(mode)) {
+			err = -ENOSYS;
+			break;
+		}
+		else if (S_ISMNT(mode)) {
+			if ((err = proc_objectRead(port, id, (void *)&oid, sizeof(oid_t), 0)) < 0)
+				break;
 
-		*mode = cmode;
+			if (oid.port != port->id) {
+				port_put(port);
+				if ((port = port_get(oid.port)) == NULL)
+					return -ENXIO;
+			}
+
+			id = oid.id;
+		}
+		else if (!S_ISDIR(mode)) {
+			err = -ENOTDIR;
+			break;
+		}
+
+		mode = cmode;
 		sflags = *delim ? 0 : flags;
 
-		if ((err = proc_objectLookup(oid, path, delim - path, sflags, &oid->id, mode)) < 0)
-			return err;
+		if ((err = proc_objectLookup(port, id, path, delim - path, sflags, &id, &mode)) < 0)
+			break;
 
 	} while (*delim);
 
-	if ((flags & O_DIRECTORY) && !S_ISDIR(*mode))
-		return -ENOTDIR;
-	else if (S_ISLNK(*mode) && (err = file_followLink(oid, mode)) < 0)
-		return err;
-	else if (!S_ISDIR(*mode) && !S_ISREG(*mode) && !(flags & O_NOFOLLOW) && (err = proc_objectRead(oid, (char *)oid, sizeof(oid_t), 0)) < 0)
-		return err;
+	if (err == EOK) {
+		if ((flags & O_DIRECTORY) && !S_ISDIR(mode)) {
+			err = -ENOTDIR;
+		}
+		else if (S_ISLNK(mode)) {
+			err = -ENOSYS;
+		}
+		else if (!S_ISDIR(mode) && !S_ISREG(mode) && !(flags & O_NOFOLLOW)) {
+			err = proc_objectRead(port, id, (void *)&oid, sizeof(oid_t), 0);
+
+			/* copy-paste from above */
+			if (err == EOK && oid.port != port->id) {
+				port_put(port);
+				if ((port = port_get(oid.port)) == NULL)
+					return -ENXIO;
+			}
+
+			id = oid.id;
+		}
+	}
+
+	if (err < 0) {
+		ret = err;
+		port_put(port);
+	}
+	else {
+		file->port = port;
+		file->oid.port = port->id;
+		file->oid.id = id;
+	}
 
 	return ret;
 }
@@ -463,12 +504,15 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 			return -ENOENT;
 	}
 
-	file = file_alloc(dir);
-	file_put(dir);
-	if (file == NULL)
+	if ((file = file_alloc(NULL)) == NULL) {
+		file_put(dir);
 		return -ENOMEM;
+	}
 
-	if ((error = proc_fileLookup(&file->oid, &file->mode, path, flags, mode)) != EOK) {
+	error = file_lookup(dir, file, path, flags, mode);
+	file_put(dir);
+
+	if (error != EOK) {
 		file_put(file);
 		return error;
 	}
@@ -484,14 +528,18 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		file->ops = &generic_file_ops;
 	}
 	else if (file->oid.port == 0) {
-		file_openKernelObject(file);
+		error = file_openKernelObject(file);
 	}
 	else {
 		file->ops = &generic_file_ops;
 	}
 
-	*result = file;
-	return EOK;
+	if (error == EOK)
+		*result = file;
+	else
+		file_put(file);
+
+	return error;
 }
 
 
@@ -1376,7 +1424,7 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	fifoname = path + err;
 
 	mode |= S_IFIFO;
-	err = proc_objectLookup(&dir->oid, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode);
+	err = proc_objectLookup(dir->port, dir->oid.id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode);
 	file_put(dir);
 	return err;
 }
@@ -1732,9 +1780,8 @@ int proc_portCreate(u32 id)
 	if ((file = file_alloc(NULL)) == NULL)
 		return -ENOMEM;
 
-	if ((err = port_create(&file->port, id)) >= 0) {
+	if ((err = port_create(&file->port, id)) >= 0)
 		file->ops = &port_ops;
-	}
 
 	if (err != EOK || (err = fd_new(process, 0, 0, file)) < 0)
 		file_put(file);
