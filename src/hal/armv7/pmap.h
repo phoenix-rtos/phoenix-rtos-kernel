@@ -27,7 +27,7 @@
 #endif
 
 #ifdef CPU_IMXRT
-#define VADDR_MAX     (VADDR_KERNEL + 128 * 1024)
+#define VADDR_MAX     (VADDR_KERNEL + RAM_SIZE * 1024)
 #endif
 
 /* Architecure dependent page attributes - used for mapping */

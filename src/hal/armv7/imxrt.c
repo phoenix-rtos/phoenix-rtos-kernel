@@ -69,7 +69,7 @@ enum { ccm_analog_pll_arm, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, ccm_a
 	ccm_analog_pll_audio_clr, ccm_analog_pll_audio_tog, ccm_analog_pll_audio_num, /* 3 reserved */
 	ccm_analog_pll_audio_denom = 36, /* 3 reserved */ ccm_analog_pll_video = 40, ccm_analog_pll_video_set,
 	ccm_analog_pll_video_clr, ccm_analog_pll_video_tog, ccm_analog_pll_video_num, /* 3 reserved */
-	ccm_analog_pll_video_denom = 48, /* 3 reserved */ ccm_analog_pll_enet = 52, ccm_analog_pll_enet_set,
+	ccm_analog_pll_video_denom = 48, /* 3 reserved */ ccm_analog_pll_enet = 56, ccm_analog_pll_enet_set,
 	ccm_analog_pll_enet_clr, ccm_analog_pll_enet_tog, ccm_analog_pfd_480, ccm_analog_pfd_480_set,
 	ccm_analog_pfd_480_clr, ccm_analog_pfd_480_tog, ccm_analog_pfd_528, ccm_analog_pfd_528_set,
 	ccm_analog_pfd_528_clr, ccm_analog_pfd_528_tog, ccm_analog_misc0 = 84, ccm_analog_misc0_set,
@@ -2113,11 +2113,9 @@ void _imxrt_init(void)
 	if (*(imxrt_common.stk + stk_ctrl) & 1)
 		*(imxrt_common.stk + stk_ctrl) &= ~1;
 
-
 	/* Configure cache */
 	_imxrt_enableDCache();
 	_imxrt_enableICache();
-
 
 	_imxrt_ccmControlGate(pctl_clk_iomuxc, clk_state_run_wait);
 
@@ -2137,14 +2135,16 @@ void _imxrt_init(void)
 	_imxrt_ccmSetMux(clk_mux_prePeriph, 0x3);
 	_imxrt_ccmSetMux(clk_mux_periph, 0x0);
 
+
 	/* Disable unused clocks */
-	*(imxrt_common.ccm + ccm_ccgr0) = 0x00c0000f;
+	*(imxrt_common.ccm + ccm_ccgr0) = 0x00c000ff;
 	*(imxrt_common.ccm + ccm_ccgr1) = 0x30000000;
-	*(imxrt_common.ccm + ccm_ccgr2) = 0xff3f003f;
+	*(imxrt_common.ccm + ccm_ccgr2) = 0xfffff03f;
 	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c0fff;
 	*(imxrt_common.ccm + ccm_ccgr4) = 0x0000ff3c;
 	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f330f;
 	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f00;
+
 
 	/* Remain in run mode on wfi */
 	_imxrt_ccmSetMode(0);
