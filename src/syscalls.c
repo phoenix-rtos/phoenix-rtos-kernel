@@ -48,38 +48,47 @@ void syscalls_debug(void *ustack)
  * Memory management
  */
 
-
-void *syscalls_mmap(void *ustack)
+int syscalls_mmap(void *ustack)
 {
-	void *vaddr;
+	void **vaddr;
 	size_t size;
-	int prot, flags;
-	oid_t *oid;
-	offs_t offs;
+	int prot, flags, fd;
+	off_t offs;
+	file_t *file;
 	vm_object_t *o;
+	int err;
 
-	GETFROMSTACK(ustack, void *, vaddr, 0);
+	GETFROMSTACK(ustack, void **, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
-	GETFROMSTACK(ustack, oid_t *, oid, 4);
+	GETFROMSTACK(ustack, int, fd, 4);
 	GETFROMSTACK(ustack, offs_t, offs, 5);
 
-	if (oid == (void *)-1)
-		o = (void *)-1;
-	else if (oid == NULL)
+	if (flags & MAP_ANONYMOUS) {
 		o = NULL;
-	else if (vm_objectGet(&o, *oid) != EOK)
-		return NULL;
+	}
+	else if (fd == FD_PHYSMEM) {
+		o = (void *)-1;
+	}
+	else if ((file = file_get(proc_current()->process, fd)) != NULL) {
+		err = vm_objectGet(&o, file);
+		file_put(file);
 
-	vaddr = vm_mmap(proc_current()->process->mapp, vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
+		if (err != EOK)
+			return err;
+	}
+	else {
+		return -EBADF;
+	}
+
+	*vaddr = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
 	vm_objectPut(o);
 
-	/* vm_mapDump(proc_current()->process->mapp); */
 	if (vaddr == NULL)
-		return (void *)-1;
+		return -ENOMEM; /* TODO: get real error from mmap */
 
-	return vaddr;
+	return EOK;
 }
 
 

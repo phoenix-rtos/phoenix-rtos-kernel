@@ -25,6 +25,7 @@
 #include "../proc/server.h"
 #include "../proc/name.h"
 #include "../proc/threads.h"
+#include "../proc/file.h"
 
 
 struct {
@@ -39,47 +40,36 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 {
 	vm_object_t *o1 = lib_treeof(vm_object_t, linkage, n1);
 	vm_object_t *o2 = lib_treeof(vm_object_t, linkage, n2);
+	int retval;
 
-	if (o1->oid.id > o2->oid.id)
-		return 1;
-	if (o1->oid.id < o2->oid.id)
-		return -1;
+	if (o1->file == NULL || o2->file == NULL)
+		return (o1->file == NULL) - (o2->file == NULL);
 
-	if (o1->oid.port > o2->oid.port)
- 		return 1;
-	if (o1->oid.port < o2->oid.port)
-		return -1;
+	if ((retval = (o1->file->oid.id > o2->file->oid.id) - (o1->file->oid.id < o2->file->oid.id)))
+		return retval;
 
-	return 0;
+	return (o1->file->oid.port > o2->file->oid.port) - (o1->file->oid.port < o2->file->oid.port);
 }
 
 
-int vm_objectGet(vm_object_t **o, oid_t oid)
+int vm_objectGet(vm_object_t **o, file_t *file)
 {
 	vm_object_t t;
 	int i, n;
 	size_t sz;
-	port_t *port;
 
-	t.oid.port = oid.port;
-	t.oid.id = oid.id;
+	t.file = file;
 
 	proc_lockSet(&object_common.lock);
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 
 	if (*o == NULL) {
-		if ((port = port_get(oid.port)) == NULL) {
+		if (file->ops == NULL || file->ops->getattr(file, atSize, &sz, sizeof(sz)) != sizeof(sz)) {
 			proc_lockClear(&object_common.lock);
-			return -ENXIO;
-		}
-
-		if (proc_objectGetAttr(port, oid.id, atSize, &sz, sizeof(sz)) != sizeof(sz)) {
-			proc_lockClear(&object_common.lock);
-			port_put(port);
 			return -EINVAL; /* other error? */
+
 		}
 
-		port_put(port);
 		n = round_page(sz) / SIZE_PAGE;
 
 		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
@@ -87,7 +77,8 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			return -ENOMEM;
 		}
 
-		hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
+		(*o)->file = file;
+		file_ref(file);
 		(*o)->size = sz;
 		(*o)->refs = 0;
 		proc_lockInit(&(*o)->lock);
@@ -108,9 +99,9 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 vm_object_t *vm_objectRef(vm_object_t *o)
 {
 	if (o != NULL && o != (void *)-1) {
-		proc_lockSet(&o->lock);
+		proc_lockSet(&object_common.lock);
 		o->refs++;
-		proc_lockClear(&o->lock);
+		proc_lockClear(&object_common.lock);
 	}
 
 	return o;
@@ -124,14 +115,11 @@ int vm_objectPut(vm_object_t *o)
 	if (o == NULL || o == (void *)-1)
 		return EOK;
 
-	proc_lockSet(&o->lock);
-
+	proc_lockSet(&object_common.lock);
 	if (--o->refs) {
-		proc_lockClear(&o->lock);
+		proc_lockClear(&object_common.lock);
 		return EOK;
 	}
-
-	proc_lockSet(&object_common.lock);
 	lib_rbRemove(&object_common.tree, &o->linkage);
 	proc_lockClear(&object_common.lock);
 
@@ -142,17 +130,18 @@ int vm_objectPut(vm_object_t *o)
 			vm_pageFree(o->pages[i]);
 	}
 
-	vm_kfree(o);
+	if (o->file != NULL)
+		file_put(o->file);
 
+	vm_kfree(o);
 	return EOK;
 }
 
 
-static page_t *object_fetch(oid_t oid, offs_t offs)
+static page_t *object_fetch(vm_object_t *o, offs_t offs)
 {
 	page_t *p;
 	void *v;
-	port_t *port;
 
 	if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL)
 		return NULL;
@@ -162,21 +151,13 @@ static page_t *object_fetch(oid_t oid, offs_t offs)
 		return NULL;
 	}
 
-	if ((port = port_get(oid.port)) == NULL) {
+	if (o->file->ops->read(o->file, v, SIZE_PAGE, offs) <= 0) {
 		vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
-		return NULL;		
-	}
-
-	if (proc_objectRead(port, oid.id, v, SIZE_PAGE, offs) <= 0) {
-		vm_munmap(object_common.kmap, v, SIZE_PAGE);
-		vm_pageFree(p);
-		port_put(port);
 		return NULL;
 	}
 
 	vm_munmap(object_common.kmap, v, SIZE_PAGE);
-	port_put(port);
 	return p;
 }
 
@@ -212,7 +193,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 
 	proc_lockClear(&map->lock);
 
-	p = object_fetch(o->oid, offs);
+	p = object_fetch(o, offs);
 
 	if (vm_lockVerify(map, amap, o, vaddr, offs)) {
 		if (p != NULL)
@@ -251,12 +232,11 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 	proc_lockInit(&object_common.lock);
 	lib_rbInit(&object_common.tree, object_cmp, NULL);
 
-	kernel->oid.port = 0;
-	kernel->oid.id = 0;
+	kernel->file = NULL;
 	lib_rbInsert(&object_common.tree, &kernel->linkage);
 	proc_lockInit(&kernel->lock);
 
-	vm_objectGet(&o, kernel->oid);
+	vm_objectGet(&o, NULL);
 
 	return EOK;
 }

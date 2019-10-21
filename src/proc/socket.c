@@ -242,7 +242,7 @@ int socket_create(oid_t *oid, int domain, int type, int protocol)
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
 	int err;
-	oid_t srv;
+	file_t *srv;
 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = mtSocket;
@@ -250,16 +250,19 @@ int socket_create(oid_t *oid, int domain, int type, int protocol)
 	smi->socket.type = type;
 	smi->socket.protocol = protocol;
 
-	if ((err = proc_fileResolve(NULL, -1, "/dev/netsocket", 0, &srv)) < 0)
+	if ((err = file_open(&srv, proc_current()->process, -1, "/dev/netsocket", 0, 0)) != EOK)
 		return err;
 
-	if ((err = proc_send(srv.port, &msg)) < 0)
+	err = port_send(srv->port, &msg);
+	file_put(srv);
+
+	if (err != EOK)
 		return err;
 
-	oid->port = msg.o.lookup.dev.port;
+	oid->port = msg.o.io_;
 	oid->id = 0;
 
-	return msg.o.lookup.err;
+	return EOK;
 }
 
 

@@ -30,8 +30,8 @@ typedef struct _file_t file_t;
 
 
 typedef struct _file_ops_t {
-	ssize_t (*read)(file_t *, void *, size_t);
-	ssize_t (*write)(file_t *, const void *, size_t);
+	ssize_t (*read)(file_t *, void *, size_t, off_t);
+	ssize_t (*write)(file_t *, const void *, size_t, off_t);
 	int (*release)(file_t *);
 	int (*seek)(file_t *, off_t *, int);
 	ssize_t (*setattr)(file_t *, int, const void *, size_t);
@@ -67,6 +67,21 @@ struct _fildes_t {
 
 
 typedef struct stat file_stat_t;
+
+
+extern file_t *file_get(struct _process_t *p, int fd);
+
+
+extern void file_ref(file_t *f);
+
+
+extern int file_put(file_t *f);
+
+
+extern int file_open(file_t **result, struct _process_t *process, int dirfd, const char *path, int flags, mode_t mode);
+
+
+extern int file_resolve(struct _process_t *process, int fildes, const char *path, int flags, file_t **result);
 
 
 extern int proc_queueCreate(void);

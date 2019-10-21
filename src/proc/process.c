@@ -1062,8 +1062,8 @@ int proc_exec(int dirfd, const char *path, char **argv, char **envp)
 	process_spawn_t sspawn, *spawn;
 	off_t offset = 0;
 	size_t size;
+	file_t *file;
 
-	oid_t oid;
 	vm_object_t *object;
 	int err, i;
 
@@ -1088,20 +1088,22 @@ int proc_exec(int dirfd, const char *path, char **argv, char **envp)
 	}
 
 	if (dirfd != AT_FDSYSPAGE) {
-		if ((err = proc_fileResolve(current->process, dirfd, path, 0, &oid)) < 0) {
+		if ((err = file_resolve(current->process, dirfd, path, 0, &file)) < 0) {
 			vm_kfree(kpath);
 			vm_kfree(argv);
 			vm_kfree(envp);
 			return err;
 		}
 
-		if ((err = vm_objectGet(&object, oid)) < 0) {
+		if ((err = vm_objectGet(&object, file)) < 0) {
 			vm_kfree(kpath);
 			vm_kfree(argv);
 			vm_kfree(envp);
+			file_put(file);
 			return err;
 		}
 
+		file_put(file);
 		size = object->size;
 	}
 	else {

@@ -68,9 +68,9 @@ typedef struct _process_t {
 
 	pid_t ppid;
 
-	file_t *cwd;
+	struct _file_t *cwd;
 	unsigned fdcount;
-	fildes_t *fds;
+	struct _fildes_t *fds;
 
 	void *got;
 } process_t;
@@ -87,7 +87,7 @@ typedef struct _process_group_t {
 
 typedef struct _session_t {
 	pid_t id;
-	file_t *ctty;
+	struct _file_t *ctty;
 	process_group_t *members;
 } session_t;
 

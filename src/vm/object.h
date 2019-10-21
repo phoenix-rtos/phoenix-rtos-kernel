@@ -28,6 +28,7 @@ typedef struct _vm_object_t {
 	rbnode_t linkage;
 	lock_t lock;
 	oid_t oid;
+	struct _file_t *file;
 //	mutex_t *mutex;
 	unsigned int refs;
 	size_t size;
@@ -38,7 +39,7 @@ typedef struct _vm_object_t {
 extern vm_object_t *vm_objectRef(vm_object_t *o);
 
 
-extern int vm_objectGet(vm_object_t **o, oid_t oid);
+extern int vm_objectGet(vm_object_t **o, struct _file_t *file);
 
 
 extern int vm_objectPut(vm_object_t *o);

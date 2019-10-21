@@ -47,22 +47,22 @@ static struct {
 static int file_openKernelObject(file_t *file);
 
 
-static ssize_t generic_read(file_t *file, void *data, size_t size)
+static ssize_t generic_read(file_t *file, void *data, size_t size, off_t offset)
 {
 	ssize_t retval;
 
-	if ((retval = proc_objectRead(file->port, file->oid.id, data, size, file->offset)) > 0)
+	if ((retval = proc_objectRead(file->port, file->oid.id, data, size, offset)) > 0)
 		file->offset += retval;
 
 	return retval;
 }
 
 
-static ssize_t generic_write(file_t *file, const void *data, size_t size)
+static ssize_t generic_write(file_t *file, const void *data, size_t size, off_t offset)
 {
 	ssize_t retval;
 
-	if ((retval = proc_objectWrite(file->port, file->oid.id, data, size, file->offset)) > 0)
+	if ((retval = proc_objectWrite(file->port, file->oid.id, data, size, offset)) > 0)
 		file->offset += retval;
 
 	return retval;
@@ -151,13 +151,13 @@ static void file_destroy(file_t *f)
 }
 
 
-static void file_ref(file_t *f)
+void file_ref(file_t *f)
 {
 	lib_atomicIncrement(&f->refs);
 }
 
 
-static int file_put(file_t *f)
+int file_put(file_t *f)
 {
 	if (f && !lib_atomicDecrement(&f->refs))
 		file_destroy(f);
@@ -305,7 +305,7 @@ static int fd_new(process_t *p, int fd, unsigned flags, file_t *file)
 }
 
 
-static file_t *file_get(process_t *p, int fd)
+file_t *file_get(process_t *p, int fd)
 {
 	file_t *f;
 	process_lock(p);
@@ -330,17 +330,19 @@ static int file_followOid(file_t *file)
 	if ((error = proc_objectRead(file->port, file->oid.id, &dest, sizeof(oid_t), 0)) != EOK)
 		return error;
 
+	/* TODO: close after read oid is opened? */
 	if ((error = proc_objectClose(file->port, file->oid.id)) != EOK)
 		return error;
 
 	if (dest.port != file->oid.port) {
+		port_put(file->port);
+
 		if ((port = port_get(dest.port)) == NULL) {
 			/* Object is closed, don't close again when cleaning up */
 			file->ops = NULL;
 			return -ENXIO;
 		}
 
-		port_put(file->port);
 		file->port = port;
 		file->oid.port = dest.port;
 	}
@@ -420,6 +422,7 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 		file->port = port;
 		file->oid.port = port->id;
 		file->oid.id = id;
+		file->ops = &generic_file_ops;
 	}
 
 	return ret;
@@ -544,7 +547,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		error = -ENOSYS;
 	}
 	else if (S_ISREG(file->mode) || S_ISDIR(file->mode)) {
-		file->ops = &generic_file_ops;
+		error = EOK;
 	}
 	else {
 		error = -ENXIO;
@@ -573,7 +576,7 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 }
 
 
-static int file_resolve(process_t *process, int fildes, const char *path, int flags, file_t **result)
+int file_resolve(process_t *process, int fildes, const char *path, int flags, file_t **result)
 {
 	if (flags & O_CREAT)
 		return -EINVAL;
@@ -586,21 +589,6 @@ static int file_resolve(process_t *process, int fildes, const char *path, int fl
 			return -ENOENT;
 	}
 	return file_open(result, process, fildes, path, flags, 0);
-}
-
-
-/* TODO: remove */
-int proc_fileResolve(process_t *process, int fildes, const char *path, int flags, oid_t *oid)
-{
-	file_t *file;
-	int err;
-
-	if ((err = file_resolve(process, fildes, path, flags, &file)) < 0)
-		return err;
-
-	hal_memcpy(oid, &file->oid, sizeof(oid_t));
-	file_put(file);
-	return err;
 }
 
 
@@ -639,7 +627,8 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	retval = file->ops->read(file, buf, nbyte);
+	if ((retval = file->ops->read(file, buf, nbyte, file->offset)) > 0)
+		file->offset += retval; /* TODO: lock */
 	file_put(file);
 	return retval;
 }
@@ -655,7 +644,8 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	retval = file->ops->write(file, buf, nbyte);
+	if ((retval = file->ops->write(file, buf, nbyte, file->offset)) > 0)
+		file->offset += retval; /* TODO: lock */
 	file_put(file);
 	return retval;
 }
@@ -1015,19 +1005,19 @@ static int pipe_destroy(pipe_t *pipe)
 }
 
 
-static ssize_t pipe_invalid_read(file_t *file, void *data, size_t size)
+static ssize_t pipe_invalid_read(file_t *file, void *data, size_t size, off_t offset)
 {
 	return -EBADF;
 }
 
 
-static ssize_t pipe_invalid_write(file_t *file, const void *data, size_t size)
+static ssize_t pipe_invalid_write(file_t *file, const void *data, size_t size, off_t offset)
 {
 	return -EBADF;
 }
 
 
-static ssize_t pipe_read(file_t *file, void *data, size_t size)
+static ssize_t pipe_read(file_t *file, void *data, size_t size, off_t offset)
 {
 	ssize_t retval;
 	pipe_t *pipe = file->pipe;
@@ -1051,7 +1041,7 @@ static ssize_t pipe_read(file_t *file, void *data, size_t size)
 }
 
 
-static ssize_t pipe_write(file_t *file, const void *data, size_t size)
+static ssize_t pipe_write(file_t *file, const void *data, size_t size, off_t offset)
 {
 	ssize_t retval = 0;
 	pipe_t *pipe = file->pipe;
@@ -1450,13 +1440,13 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 /* Event queue */
 
 
-static ssize_t queue_read(file_t *file, void *data, size_t size)
+static ssize_t queue_read(file_t *file, void *data, size_t size, off_t offset)
 {
 	return -EINVAL;
 }
 
 
-static ssize_t queue_write(file_t *file, const void *data, size_t size)
+static ssize_t queue_write(file_t *file, const void *data, size_t size, off_t offset)
 {
 	return -EINVAL;
 }
