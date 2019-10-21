@@ -177,6 +177,7 @@ static file_t *file_alloc(file_t *orig)
 		proc_lockInit(&file->lock);
 		file->ops = NULL;
 		file->mode = 0;
+		file->port = NULL;
 
 		if (orig != NULL) {
 			hal_memcpy(&file->oid, &orig->oid, sizeof(oid_t));
@@ -314,12 +315,51 @@ static file_t *file_get(process_t *p, int fd)
 }
 
 
+static int file_readLink(file_t *file)
+{
+	return -ENOSYS;
+}
+
+
+static int file_followOid(file_t *file)
+{
+	oid_t dest;
+	int error;
+	port_t *port;
+
+	if ((error = proc_objectRead(file->port, file->oid.id, &dest, sizeof(oid_t), 0)) != EOK)
+		return error;
+
+	if ((error = proc_objectClose(file->port, file->oid.id)) != EOK)
+		return error;
+
+	if (dest.port != file->oid.port) {
+		if ((port = port_get(dest.port)) == NULL) {
+			/* Object is closed, don't close again when cleaning up */
+			file->ops = NULL;
+			return -ENXIO;
+		}
+
+		port_put(file->port);
+		file->port = port;
+		file->oid.port = dest.port;
+	}
+
+	file->oid.id = dest.id;
+
+	if ((error = proc_objectOpen(file->port, file->oid.id)) != EOK)
+		return error;
+
+	file->ops = &generic_file_ops;
+	return EOK;
+}
+
+
 int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mode_t cmode)
 {
 	int err = EOK, sflags, ret = EOK;
 	const char *delim = name, *path;
-	oid_t oid;
-	id_t id;
+	id_t id, nextid;
 	mode_t mode;
 	port_t *port;
 
@@ -349,20 +389,12 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 		}
 
 		if (S_ISLNK(mode)) {
-			err = -ENOSYS;
-			break;
+			if ((err = file_readLink(file)) != EOK)
+				break;
 		}
 		else if (S_ISMNT(mode)) {
-			if ((err = proc_objectRead(port, id, (void *)&oid, sizeof(oid_t), 0)) < 0)
+			if ((err = file_followOid(file)) != EOK)
 				break;
-
-			if (oid.port != port->id) {
-				port_put(port);
-				if ((port = port_get(oid.port)) == NULL)
-					return -ENXIO;
-			}
-
-			id = oid.id;
 		}
 		else if (!S_ISDIR(mode)) {
 			err = -ENOTDIR;
@@ -372,34 +404,16 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 		mode = cmode;
 		sflags = *delim ? 0 : flags;
 
-		if ((err = proc_objectLookup(port, id, path, delim - path, sflags, &id, &mode)) < 0)
+		if ((err = proc_objectLookup(port, id, path, delim - path, sflags, &nextid, &mode)) < 0)
 			break;
 
+		proc_objectClose(port, id);
+		id = nextid;
 	} while (*delim);
-
-	if (err == EOK) {
-		if ((flags & O_DIRECTORY) && !S_ISDIR(mode)) {
-			err = -ENOTDIR;
-		}
-		else if (S_ISLNK(mode)) {
-			err = -ENOSYS;
-		}
-		else if (!S_ISDIR(mode) && !S_ISREG(mode) && !(flags & O_NOFOLLOW)) {
-			err = proc_objectRead(port, id, (void *)&oid, sizeof(oid_t), 0);
-
-			/* copy-paste from above */
-			if (err == EOK && oid.port != port->id) {
-				port_put(port);
-				if ((port = port_get(oid.port)) == NULL)
-					return -ENXIO;
-			}
-
-			id = oid.id;
-		}
-	}
 
 	if (err < 0) {
 		ret = err;
+		proc_objectClose(port, id);
 		port_put(port);
 	}
 	else {
@@ -517,21 +531,23 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		return error;
 	}
 
-	if (S_ISFIFO(file->mode)) {
+	if (S_ISMNT(file->mode) || S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
+		error = file_followOid(file);
+	}
+	else if (S_ISLNK(file->mode)) {
+		error = file_readLink(file);
+	}
+	else if (S_ISFIFO(file->mode)) {
 		error = npipe_open(file, flags);
 	}
 	else if (S_ISSOCK(file->mode)) {
 		error = -ENOSYS;
 	}
-	else if (S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
-		/* send open to the device? */
+	else if (S_ISREG(file->mode) || S_ISDIR(file->mode)) {
 		file->ops = &generic_file_ops;
-	}
-	else if (file->oid.port == 0) {
-		error = file_openKernelObject(file);
 	}
 	else {
-		file->ops = &generic_file_ops;
+		error = -ENXIO;
 	}
 
 	if (error == EOK)
@@ -1388,6 +1404,7 @@ int npipe_open(file_t *file, int oflag)
 {
 	int err = EOK;
 	file->ops = &npipe_ops;
+	file->status = oflag;
 
 	/* TODO: better bump reference under common lock? */
 	proc_lockSet(&pipe_common.lock);

@@ -21,7 +21,7 @@ int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t na
 	msg_t msg;
 	int error;
 
-	msg.type = mtOpen;
+	msg.type = mtLookup;
 	msg.object = id;
 
 	msg.i.open_.flags = flags;
@@ -41,7 +41,27 @@ int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t na
 }
 
 
-ssize_t proc_objectWrite(struct _port_t *port, id_t id, const char *data, size_t size, off_t offset)
+int proc_objectOpen(struct _port_t *port, id_t id)
+{
+	msg_t msg;
+	int error;
+
+	msg.type = mtOpen;
+	msg.object = id;
+
+	msg.i.size = 0;
+	msg.i.data = NULL;
+	msg.o.size = 0;
+	msg.o.data = NULL;
+
+	if ((error = port_send(port, &msg)) < 0)
+		return error;
+
+	return msg.o.io_;
+}
+
+
+ssize_t proc_objectWrite(struct _port_t *port, id_t id, const void *data, size_t size, off_t offset)
 {
 	msg_t msg;
 	int error;
@@ -63,7 +83,7 @@ ssize_t proc_objectWrite(struct _port_t *port, id_t id, const char *data, size_t
 }
 
 
-ssize_t proc_objectRead(struct _port_t *port, id_t id, char *data, size_t size, off_t offset)
+ssize_t proc_objectRead(struct _port_t *port, id_t id, void *data, size_t size, off_t offset)
 {
 	msg_t msg;
 	int error;
