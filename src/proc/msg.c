@@ -314,6 +314,7 @@ int port_send(port_t *p, msg_t *msg)
 	if (err != EOK)
 		return err;
 
+	msg->error = kmsg.msg.error;
 	hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
 
 	/* If msg.o.data has been packed to msg.o.raw */
@@ -430,10 +431,11 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 }
 
 
-int port_respond(port_t *p, msg_t *msg, unsigned int rid)
+int port_respond(port_t *p, int error, msg_t *msg, unsigned int rid)
 {
 	size_t s = 0;
 	kmsg_t *kmsg = (kmsg_t *)(unsigned long)rid;
+	kmsg->msg.error = error;
 
 	/* Copy shadow pages */
 	if (kmsg->i.bp != NULL)
@@ -462,10 +464,10 @@ int port_respond(port_t *p, msg_t *msg, unsigned int rid)
 }
 
 
-int proc_respond(u32 port, msg_t *msg, unsigned int rid)
+int proc_respond(u32 port, int error, msg_t *msg, unsigned int rid)
 {
 	port_t *p = port_get(port);
-	int err = port_respond(p, msg, rid);
+	int err = port_respond(p, error, msg, rid);
 	port_put(p);
 	return err;
 }

@@ -51,81 +51,31 @@ typedef struct _msg_t {
 	short type;
 	short priority;
 	pid_t pid;
+	int error;
 	id_t object;
 
 	struct {
 		union {
-			/* OPEN */
+			/* LOOKUP */
 			struct {
 				int flags;
 				mode_t mode;
-			} open_;
+			} lookup;
 
 			/* READ/WRITE */
 			struct {
 				off_t offs;
 				unsigned flags;
-			} io_;
-
-			/* GETATTR/SETATTR */
-			int attr_;
-
-			/* LINK */
-			oid_t link_;
-
-			unsigned devctl_;
-
-
-			/* OPEN/CLOSE */
-			struct {
-				oid_t oid;
-				int flags;
-			} openclose;
-
-			/* READ/WRITE/TRUNCATE */
-			struct {
-				oid_t oid;
-				offs_t offs;
-				size_t len;
-				unsigned mode;
 			} io;
 
-			/* CREATE */
-			struct {
-				oid_t dir;
-				int type;
-				u32 mode;
-				oid_t dev;
-			} create;
+			/* GETATTR/SETATTR */
+			int attr;
 
-			/* DESTROY */
-			struct {
-				oid_t oid;
-			} destroy;
+			/* LINK */
+			oid_t link;
 
-			/* SETATTR/GETATTR */
-			struct {
-				oid_t oid;
-				int type;
-				int val;
-			} attr;
-
-			/* LOOKUP */
-			struct {
-				oid_t dir;
-			} lookup;
-
-			/* LINK/UNLINK */
-			struct {
-				oid_t dir;
-				oid_t oid;
-			} ln;
-
-			/* READDIR */
-			struct {
-				oid_t dir;
-				offs_t offs;
-			} readdir;
+			/* DEVCTL */
+			unsigned long devctl;
 
 			unsigned char raw[64];
 		};
@@ -139,33 +89,9 @@ typedef struct _msg_t {
 			struct {
 				id_t id;
 				mode_t mode;
-				int err;
-			} open_;
-
-			ssize_t io_;
-
-
-			struct {
-				int err;
-			} io;
-
-			/* ATTR */
-			struct {
-				int val;
-			} attr;
-
-			/* CREATE */
-			struct {
-				oid_t oid;
-				int err;
-			} create;
-
-			/* LOOKUP */
-			struct {
-				oid_t fil;
-				oid_t dev;
-				int err;
 			} lookup;
+
+			ssize_t io;
 
 			unsigned char raw[64];
 		};

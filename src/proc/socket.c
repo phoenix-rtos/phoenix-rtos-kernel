@@ -259,7 +259,7 @@ int socket_create(oid_t *oid, int domain, int type, int protocol)
 	if (err != EOK)
 		return err;
 
-	oid->port = msg.o.io_;
+	oid->port = msg.o.io;
 	oid->id = 0;
 
 	return EOK;

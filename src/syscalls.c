@@ -553,13 +553,15 @@ int syscalls_msgRespond(void *ustack)
 	u32 port;
 	msg_t *msg;
 	unsigned int rid;
+	int error;
 
 	GETFROMSTACK(ustack, u32, port, 0);
-	GETFROMSTACK(ustack, msg_t *, msg, 1);
-	GETFROMSTACK(ustack, unsigned int, rid, 2);
+	GETFROMSTACK(ustack, int, error, 1);
+	GETFROMSTACK(ustack, msg_t *, msg, 2);
+	GETFROMSTACK(ustack, unsigned int, rid, 3);
 
 	/* FIXME */
-	return port_respond(proc_current()->process->fds[port].file->port, msg, rid);
+	return port_respond(proc_current()->process->fds[port].file->port, error, msg, rid);
 }
 
 

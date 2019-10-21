@@ -24,8 +24,8 @@ int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t na
 	msg.type = mtLookup;
 	msg.object = id;
 
-	msg.i.open_.flags = flags;
-	msg.i.open_.mode = *mode;
+	msg.i.lookup.flags = flags;
+	msg.i.lookup.mode = *mode;
 
 	msg.i.data = name;
 	msg.i.size = namelen;
@@ -35,9 +35,9 @@ int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t na
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	*object = msg.o.open_.id;
-	*mode = msg.o.open_.mode;
-	return msg.o.open_.err;
+	*object = msg.o.lookup.id;
+	*mode = msg.o.lookup.mode;
+	return msg.error;
 }
 
 
@@ -57,7 +57,7 @@ int proc_objectOpen(struct _port_t *port, id_t id)
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	return msg.error;
 }
 
 
@@ -69,7 +69,7 @@ ssize_t proc_objectWrite(struct _port_t *port, id_t id, const void *data, size_t
 	msg.type = mtWrite;
 	msg.object = id;
 
-	msg.i.io_.offs = offset;
+	msg.i.io.offs = offset;
 
 	msg.i.size = size;
 	msg.i.data = data;
@@ -79,7 +79,9 @@ ssize_t proc_objectWrite(struct _port_t *port, id_t id, const void *data, size_t
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	if (msg.error)
+		return msg.error;
+	return msg.o.io;
 }
 
 
@@ -91,7 +93,7 @@ ssize_t proc_objectRead(struct _port_t *port, id_t id, void *data, size_t size, 
 	msg.type = mtRead;
 	msg.object = id;
 
-	msg.i.io_.offs = offset;
+	msg.i.io.offs = offset;
 
 	msg.i.size = 0;
 	msg.i.data = NULL;
@@ -101,7 +103,9 @@ ssize_t proc_objectRead(struct _port_t *port, id_t id, void *data, size_t size, 
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	if (msg.error)
+		return msg.error;
+	return msg.o.io;
 }
 
 
@@ -113,7 +117,7 @@ ssize_t proc_objectGetAttr(struct _port_t *port, id_t id, int attr, void *data, 
 	msg.type = mtGetAttr;
 	msg.object = id;
 
-	msg.i.attr_ = attr;
+	msg.i.attr = attr;
 
 	msg.i.size = 0;
 	msg.i.data = NULL;
@@ -123,7 +127,7 @@ ssize_t proc_objectGetAttr(struct _port_t *port, id_t id, int attr, void *data, 
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	return msg.error;
 }
 
 
@@ -135,7 +139,7 @@ ssize_t proc_objectSetAttr(struct _port_t *port, id_t id, int attr, const void *
 	msg.type = mtSetAttr;
 	msg.object = id;
 
-	msg.i.attr_ = attr;
+	msg.i.attr = attr;
 
 	msg.i.size = size;
 	msg.i.data = data;
@@ -145,7 +149,7 @@ ssize_t proc_objectSetAttr(struct _port_t *port, id_t id, int attr, const void *
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	return msg.error;
 }
 
 
@@ -157,7 +161,7 @@ int proc_objectLink(struct _port_t *port, id_t id, const char *name, const oid_t
 	msg.type = mtLink;
 	msg.object = id;
 
-	hal_memcpy(&msg.i.link_, file, sizeof(*file));
+	hal_memcpy(&msg.i.link, file, sizeof(*file));
 
 	msg.i.size = hal_strlen(name);
 	msg.i.data = name;
@@ -167,7 +171,7 @@ int proc_objectLink(struct _port_t *port, id_t id, const char *name, const oid_t
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	return msg.error;
 }
 
 
@@ -187,7 +191,7 @@ int proc_objectUnlink(struct _port_t *port, id_t id, const char *name)
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	return msg.error;
 }
 
 
@@ -199,7 +203,7 @@ int proc_objectControl(struct _port_t *port, id_t id, unsigned command, const vo
 	msg.type = mtDevCtl;
 	msg.object = id;
 
-	msg.i.devctl_= command;
+	msg.i.devctl = command;
 
 	msg.i.size = insz;
 	msg.i.data = in;
@@ -209,7 +213,9 @@ int proc_objectControl(struct _port_t *port, id_t id, unsigned command, const vo
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	if (msg.error)
+		return msg.error;
+	return msg.o.io;
 }
 
 
@@ -229,7 +235,7 @@ int proc_objectClose(struct _port_t *port, id_t id)
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	return msg.o.io_;
+	return msg.error;
 }
 
 
