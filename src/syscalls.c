@@ -993,12 +993,13 @@ int syscalls_eventRegister(char *ustack)
 
 int syscalls_queueCreate(char *ustack)
 {
-	return proc_queueCreate();
+	return -ENOSYS;
 }
 
 
 int syscalls_queueWait(char *ustack)
 {
+#if 0
 	int fd, subcnt, evcnt;
 	time_t timeout;
 	const struct _event_t *subs;
@@ -1010,8 +1011,8 @@ int syscalls_queueWait(char *ustack)
 	GETFROMSTACK(ustack, struct _event_t *, events, 3);
 	GETFROMSTACK(ustack, int, evcnt, 4);
 	GETFROMSTACK(ustack, time_t, timeout, 5);
-
-	return proc_queueWait(fd, subs, subcnt, events, evcnt, timeout);
+#endif
+	return -ENOSYS;
 }
 
 

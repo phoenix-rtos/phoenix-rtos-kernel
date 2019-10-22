@@ -34,9 +34,6 @@ static struct {
 } file_common;
 
 
-static int file_openKernelObject(file_t *file);
-
-
 static ssize_t generic_read(file_t *file, void *data, size_t size, off_t offset)
 {
 	ssize_t retval;
@@ -994,123 +991,6 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	err = proc_objectLookup(dir->port, dir->oid.id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode);
 	file_put(dir);
 	return err;
-}
-
-/* Event queue */
-
-
-static ssize_t queue_read(file_t *file, void *data, size_t size, off_t offset)
-{
-	return -EINVAL;
-}
-
-
-static ssize_t queue_write(file_t *file, const void *data, size_t size, off_t offset)
-{
-	return -EINVAL;
-}
-
-
-static int queue_release(file_t *file)
-{
-	queue_close(file->queue);
-	queue_destroy(file->queue);
-	return EOK;
-}
-
-
-static int queue_seek(file_t *file, off_t *offset, int whence)
-{
-	return -EINVAL;
-}
-
-
-static int queue_setattr(file_t *file, int attr, const void *value, size_t size)
-{
-	return -EINVAL;
-}
-
-
-static ssize_t queue_getattr(file_t *file, int attr, void *value, size_t size)
-{
-	return -EINVAL;
-}
-
-
-static int queue_link(file_t *dir, const char *name, const oid_t *file)
-{
-	return -EINVAL;
-}
-
-
-static int queue_unlink(file_t *dir, const char *name)
-{
-	return -EINVAL;
-}
-
-
-static int queue_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
-{
-	return -EINVAL;
-}
-
-
-const file_ops_t queue_ops = {
-	.read = queue_read,
-	.write = queue_write,
-	.release = queue_release,
-	.seek = queue_seek,
-	.setattr = queue_setattr,
-	.getattr = queue_getattr,
-	.link = queue_link,
-	.unlink = queue_unlink,
-	.ioctl = queue_ioctl,
-};
-
-
-int proc_queueCreate(void)
-{
-	process_t *process = proc_current()->process;
-	evqueue_t *queue;
-	file_t *file;
-	int fd;
-
-	if ((queue = queue_create(process)) == NULL)
-		return -ENOMEM;
-
-	if ((file = file_alloc()) == NULL) {
-		queue_destroy(queue);
-		return -ENOMEM;
-	}
-
-	file->mode = S_IFEVQ;
-	file->queue = queue;
-	file->ops = &queue_ops;
-
-	if ((fd = fd_new(process, 0, FD_CLOEXEC, file)) < 0)
-		file_put(file);
-
-	return fd;
-}
-
-
-int proc_queueWait(int fd, const struct _event_t *subs, int subcnt, struct _event_t *events, int evcnt, time_t timeout)
-{
-	file_t *file;
-	process_t *process = proc_current()->process;
-	int retval;
-
-	if ((file = file_get(process, fd)) == NULL)
-		return -EBADF;
-
-	if (!S_ISEVTQ(file->mode)) {
-		file_put(file);
-		return -EBADF;
-	}
-
-	retval = queue_wait(file->queue, subs, subcnt, events, evcnt, timeout);
-	file_put(file);
-	return retval;
 }
 
 
