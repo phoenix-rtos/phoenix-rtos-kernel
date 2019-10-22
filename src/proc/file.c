@@ -439,17 +439,13 @@ static int _file_dup(process_t *p, int fd, int fd2, int flags)
 	if (fd2 < 0 || (f = _file_get(p, fd)) == NULL)
 		return -EBADF;
 
-	if (flags & FD_ALLOC) {
+	if (flags & FD_ALLOC || fd2 >= p->fdcount) {
 		if ((fd2 = _fd_alloc(p, fd2)) < 0) {
 			file_put(f);
 			return fd2;
 		}
 
 		flags &= ~FD_ALLOC;
-	}
-	else if (fd2 >= p->fdcount) {
-		file_put(f);
-		return -EBADF;
 	}
 	else if ((f2 = p->fds[fd2].file) != NULL) {
 		file_put(f2);
@@ -477,6 +473,7 @@ int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 	/* TODO: check type */
 	root->oid.port = port->port->id;
 	root->oid.id = id;
+	root->port = port_get(port->port->id); /* XXX */
 	root->ops = &generic_file_ops;
 	root->mode = mode;
 
@@ -486,7 +483,6 @@ int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 	file_common.root = root;
 	proc_lockClear(&file_common.lock);
 
-	file_put(port);
 	return EOK;
 }
 
