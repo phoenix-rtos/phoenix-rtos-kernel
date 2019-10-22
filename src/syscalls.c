@@ -48,7 +48,7 @@ void syscalls_debug(void *ustack)
  * Memory management
  */
 
-int syscalls_mmap(void *ustack)
+int syscalls_memMap(void *ustack)
 {
 	void **vaddr;
 	size_t size;
@@ -92,7 +92,7 @@ int syscalls_mmap(void *ustack)
 }
 
 
-void syscalls_munmap(void *ustack)
+void syscalls_memUnmap(void *ustack)
 {
 	void *vaddr;
 	size_t size;

@@ -15,8 +15,8 @@
 
 #define SYSCALLS(ID) \
 	ID(debug) \
-	ID(mmap) \
-	ID(munmap) \
+	ID(memMap) \
+	ID(memUnmap) \
 	ID(ProcFork) \
 	ID(vforksvc) \
 	ID(ProcExec) \
