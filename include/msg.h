@@ -25,13 +25,10 @@
 
 enum {
 	/* File operations */
-	mtOpen = 0, mtClose, mtRead, mtWrite, mtTruncate, mtDevCtl,
-
-	/* Object operations */
-	mtCreate, mtDestroy, mtSetAttr, mtGetAttr,
+	mtOpen = 0, mtClose, mtRead, mtWrite, mtDevCtl, mtSetAttr, mtGetAttr,
 
 	/* Directory operations */
-	mtLookup, mtLink, mtUnlink, mtReaddir,
+	mtLookup, mtLink, mtUnlink,
 
 	/* Socket operations */
 	mtAccept, mtBind, mtConnect, mtGetPeerName, mtGetSockName, mtListen,
