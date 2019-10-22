@@ -52,6 +52,7 @@ struct _file_t {
 	oid_t oid;
 
 	union {
+		void *data;
 		struct _pipe_t *pipe;
 		struct _named_pipe_t *npipe;
 		struct _evqueue_t *queue;
@@ -62,7 +63,7 @@ struct _file_t {
 
 struct _fildes_t {
 	file_t *file;
-	unsigned flags;
+	int flags;
 };
 
 
@@ -84,10 +85,16 @@ extern int file_open(file_t **result, struct _process_t *process, int dirfd, con
 extern int file_resolve(struct _process_t *process, int fildes, const char *path, int flags, file_t **result);
 
 
+extern int fd_create(struct _process_t *p, int minfd, int flags, unsigned int status, const file_ops_t *ops, void *data);
+
+
+extern int fd_close(struct _process_t *p, int fd);
+
+
 extern int proc_queueCreate(void);
 
 
-extern int proc_pipeCreate(int fds[2]);
+extern int proc_pipeCreate(int fds[2], int flags);
 
 
 extern int proc_fifoCreate(int dirfd, const char *path, mode_t mode);

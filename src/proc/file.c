@@ -26,16 +26,6 @@
 #include "event.h"
 
 #define FD_HARD_LIMIT 1024
-#define IS_POW_2(x) ((x) && !((x) & ((x) - 1)))
-
-
-typedef struct _pipe_t {
-	lock_t lock;
-	fifo_t fifo;
-	thread_t *queue;
-	unsigned nreaders;
-	unsigned nwriters;
-} pipe_t;
 
 
 static struct {
@@ -166,7 +156,7 @@ int file_put(file_t *f)
 }
 
 
-static file_t *file_alloc(file_t *orig)
+file_t *file_alloc(void)
 {
 	file_t *file;
 
@@ -178,12 +168,6 @@ static file_t *file_alloc(file_t *orig)
 		file->ops = NULL;
 		file->mode = 0;
 		file->port = NULL;
-
-		if (orig != NULL) {
-			hal_memcpy(&file->oid, &orig->oid, sizeof(oid_t));
-			file->mode = orig->mode;
-			file->ops = orig->ops;
-		}
 	}
 
 	return file;
@@ -260,7 +244,7 @@ static int _fd_close(process_t *p, int fd)
 }
 
 
-static int fd_close(process_t *p, int fd)
+int fd_close(process_t *p, int fd)
 {
 	int error;
 	process_lock(p);
@@ -295,7 +279,7 @@ static file_t *_file_get(process_t *p, int fd)
 }
 
 
-static int fd_new(process_t *p, int fd, unsigned flags, file_t *file)
+static int fd_new(process_t *p, int fd, int flags, file_t *file)
 {
 	int retval;
 	process_lock(p);
@@ -312,6 +296,25 @@ file_t *file_get(process_t *p, int fd)
 	f = _file_get(p, fd);
 	process_unlock(p);
 	return f;
+}
+
+
+int fd_create(process_t *p, int minfd, int flags, unsigned int status, const file_ops_t *ops, void *data)
+{
+	file_t *file;
+	int error;
+
+	if ((file = file_alloc()) == NULL)
+		return -ENOMEM;
+
+	file->data = data;
+	file->status = status;
+
+	if ((error = fd_new(p, minfd, flags, file)) != EOK)
+		file_put(file);
+
+	file->ops = ops;
+	return error;
 }
 
 
@@ -469,7 +472,7 @@ int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 	if ((port = file_get(process, fd)) == NULL)
 		return -EBADF;
 
-	if ((root = file_alloc(NULL)) == NULL) {
+	if ((root = file_alloc()) == NULL) {
 		file_put(port);
 		return -ENOMEM;
 	}
@@ -521,7 +524,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 			return -ENOENT;
 	}
 
-	if ((file = file_alloc(NULL)) == NULL) {
+	if ((file = file_alloc()) == NULL) {
 		file_put(dir);
 		return -ENOMEM;
 	}
@@ -970,449 +973,6 @@ int proc_filesCloseExec(process_t *process)
 }
 
 
-/* pipes */
-
-static void pipe_lock(pipe_t *pipe)
-{
-	proc_lockSet(&pipe->lock);
-}
-
-
-static void pipe_unlock(pipe_t *pipe)
-{
-	proc_lockClear(&pipe->lock);
-}
-
-
-static int pipe_wait(pipe_t *pipe)
-{
-	return proc_lockWait(&pipe->queue, &pipe->lock, 0);
-}
-
-
-static void pipe_wakeup(pipe_t *pipe)
-{
-	if (pipe->queue != NULL)
-		proc_threadBroadcastYield(&pipe->queue);
-}
-
-
-static int pipe_destroy(pipe_t *pipe)
-{
-	proc_lockDone(&pipe->lock);
-	vm_kfree(pipe->fifo.data);
-	return EOK;
-}
-
-
-static ssize_t pipe_invalid_read(file_t *file, void *data, size_t size, off_t offset)
-{
-	return -EBADF;
-}
-
-
-static ssize_t pipe_invalid_write(file_t *file, const void *data, size_t size, off_t offset)
-{
-	return -EBADF;
-}
-
-
-static ssize_t pipe_read(file_t *file, void *data, size_t size, off_t offset)
-{
-	ssize_t retval;
-	pipe_t *pipe = file->pipe;
-
-	pipe_lock(pipe);
-	while ((retval = fifo_read(&pipe->fifo, data, size)) == 0) {
-		if (!pipe->nwriters) {
-			retval = 0;
-			break;
-		}
-		if (file->status & O_NONBLOCK) {
-			retval = -EWOULDBLOCK;
-			break;
-		}
-		pipe_wait(pipe);
-	}
-	pipe_unlock(pipe);
-	if (retval > 0)
-		pipe_wakeup(pipe);
-	return retval;
-}
-
-
-static ssize_t pipe_write(file_t *file, const void *data, size_t size, off_t offset)
-{
-	ssize_t retval = 0;
-	pipe_t *pipe = file->pipe;
-	int atomic;
-
-	if (!pipe->nreaders)
-		return -EPIPE;
-
-	if (!size)
-		return 0;
-
-	pipe_lock(pipe);
-	atomic = size <= fifo_size(&pipe->fifo);
-	do {
-		if (!pipe->nreaders) {
-			retval = -EPIPE;
-			break;
-		}
-		else if (fifo_freespace(&pipe->fifo) > atomic * (size - 1)) {
-			retval += fifo_write(&pipe->fifo, data + retval, size - retval);
-		}
-		else if (file->status & O_NONBLOCK) {
-			break;
-		}
-		else {
-			pipe_wait(pipe);
-		}
-	} while (retval < size);
-	pipe_unlock(pipe);
-	if (retval > 0)
-		pipe_wakeup(pipe);
-	return retval ? retval : -EWOULDBLOCK;
-}
-
-
-static int pipe_close_read(file_t *file)
-{
-	pipe_t *pipe = file->pipe;
-	if (!lib_atomicDecrement(&pipe->nreaders) && !pipe->nwriters) {
-		pipe_destroy(pipe);
-		vm_kfree(pipe);
-	}
-	else {
-		pipe_wakeup(pipe);
-	}
-	return EOK;
-}
-
-
-static int pipe_close_write(file_t *file)
-{
-	pipe_t *pipe = file->pipe;
-	if (!lib_atomicDecrement(&pipe->nwriters) && !pipe->nreaders) {
-		pipe_destroy(pipe);
-		vm_kfree(pipe);
-	}
-	else {
-		pipe_wakeup(pipe);
-	}
-	return EOK;
-}
-
-
-static int pipe_invalid_seek(file_t *file, off_t *offset, int whence)
-{
-	return -ESPIPE;
-}
-
-
-static int pipe_setattr(file_t *file, int attr, const void *value, size_t size)
-{
-	lib_printf("pipe_setattr\n");
-	return -ENOSYS;
-}
-
-
-static ssize_t pipe_getattr(file_t *file, int attr, void *value, size_t size)
-{
-	lib_printf("pipe_getattr\n");
-	return -ENOSYS;
-}
-
-
-static int pipe_link(file_t *dir, const char *name, const oid_t *file)
-{
-	lib_printf("pipe_link\n");
-	return -ENOTDIR;
-}
-
-
-static int pipe_unlink(file_t *dir, const char *name)
-{
-	lib_printf("pipe_unlink\n");
-	return -ENOTDIR;
-}
-
-
-static int pipe_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
-{
-	lib_printf("pipe_ioctl\n");
-	return -ENOSYS;
-}
-
-
-const file_ops_t pipe_read_file_ops = {
-	.read = pipe_read,
-	.write = pipe_invalid_write,
-	.release = pipe_close_read,
-	.seek = pipe_invalid_seek,
-	.setattr = pipe_setattr,
-	.getattr = pipe_getattr,
-	.link = pipe_link,
-	.unlink = pipe_unlink,
-	.ioctl = pipe_ioctl,
-};
-
-
-const file_ops_t pipe_write_file_ops = {
-	.read = pipe_invalid_read,
-	.write = pipe_write,
-	.release = pipe_close_write,
-	.seek = pipe_invalid_seek,
-	.setattr = pipe_setattr,
-	.getattr = pipe_getattr,
-	.link = pipe_link,
-	.unlink = pipe_unlink,
-	.ioctl = pipe_ioctl,
-};
-
-
-int pipe_init(pipe_t *pipe, size_t size)
-{
-	if (!IS_POW_2(size))
-		return -EINVAL;
-
-	if ((pipe->fifo.data = vm_kmalloc(size)) == NULL)
-		return -ENOMEM;
-
-	pipe->nreaders = pipe->nwriters = 0;
-	pipe->queue = NULL;
-	proc_lockInit(&pipe->lock);
-	fifo_init(&pipe->fifo, size);
-	return EOK;
-}
-
-
-int pipe_create(process_t *process, size_t size, int fds[2])
-{
-	int read_fd = -1, write_fd = -1, err = EOK;
-	file_t *write_file = NULL, *read_file = NULL;
-	pipe_t *pipe = NULL;
-
-	if (!IS_POW_2(size)) {
-		err = -EINVAL;
-	}
-	else if ((pipe = vm_kmalloc(sizeof(pipe_t))) == NULL) {
-		err = -ENOMEM;
-	}
-	else if ((err = pipe_init(pipe, size))) {
-		;
-	}
-	else if ((write_file = file_alloc(NULL)) == NULL) {
-		err = -ENOMEM;
-	}
-	else if ((read_file = file_alloc(NULL)) == NULL) {
-		err = -ENOMEM;
-	}
-	else {
-		pipe->nreaders = 1;
-		pipe->nwriters = 1;
-
-		write_file->mode = S_IFIFO;
-		write_file->pipe = pipe;
-		write_file->ops = &pipe_write_file_ops;
-
-		read_file->mode = S_IFIFO;
-		read_file->pipe = pipe;
-		read_file->ops = &pipe_read_file_ops;
-
-		if ((read_fd = fd_new(process, 0, 0, read_file)) < 0) {
-			file_put(read_file);
-			file_put(write_file);
-			return read_fd;
-		}
-
-		if ((write_fd = fd_new(process, 0, 0, write_file)) < 0) {
-			fd_close(process, read_fd);
-			file_put(read_file);
-			file_put(write_file);
-			return write_fd;
-		}
-
-		fds[0] = read_fd;
-		fds[1] = write_fd;
-		return EOK;
-	}
-
-	file_put(read_file);
-	file_put(write_file);
-	return err;
-}
-
-
-int proc_pipeCreate(int fds[2])
-{
-	process_t *process = proc_current()->process;
-	int retval;
-
-	process_lock(process);
-	retval = pipe_create(process, SIZE_PAGE, fds);
-	process_unlock(process);
-	return retval;
-}
-
-
-/* Named pipes */
-
-struct {
-	rbtree_t named;
-	lock_t lock;
-} pipe_common;
-
-
-typedef struct _named_pipe_t {
-	pipe_t pipe;
-	oid_t oid;
-	rbnode_t linkage;
-} named_pipe_t;
-
-
-int npipe_cmp(rbnode_t *n1, rbnode_t *n2)
-{
-	int cmp;
-
-	named_pipe_t *p1 = lib_treeof(named_pipe_t, linkage, n1);
-	named_pipe_t *p2 = lib_treeof(named_pipe_t, linkage, n2);
-
-	if ((cmp = (p1->oid.port > p2->oid.port) - (p1->oid.port < p2->oid.port)))
-		return cmp;
-
-	return (p1->oid.id > p2->oid.id) - (p1->oid.id < p2->oid.id);
-}
-
-
-named_pipe_t *npipe_find(const oid_t *oid)
-{
-	named_pipe_t t;
-	t.oid.port = oid->port;
-	t.oid.id = oid->id;
-
-	return lib_treeof(named_pipe_t, linkage, lib_rbFind(&pipe_common.named, &t.linkage));
-}
-
-
-named_pipe_t *npipe_create(const oid_t *oid)
-{
-	named_pipe_t *p;
-
-	if ((p = vm_kmalloc(sizeof(*p))) != NULL) {
-		p->oid.port = oid->port;
-		p->oid.id = oid->id;
-
-		if (pipe_init(&p->pipe, SIZE_PAGE) != EOK) {
-			vm_kfree(p);
-			return NULL;
-		}
-
-		if (lib_rbInsert(&pipe_common.named, &p->linkage) != EOK) {
-			pipe_destroy(&p->pipe);
-			vm_kfree(p);
-			return NULL;
-		}
-	}
-	return p;
-}
-
-
-void npipe_destroy(named_pipe_t *np)
-{
-	lib_rbRemove(&pipe_common.named, &np->linkage);
-	pipe_destroy(&np->pipe);
-	vm_kfree(np);
-}
-
-
-int npipe_release(file_t *file)
-{
-	pipe_t *pipe = &file->npipe->pipe;
-
-	proc_lockSet(&pipe_common.lock);
-	if (file->status & O_RDONLY) {
-		lib_atomicDecrement(&pipe->nreaders);
-	}
-	if (file->status & O_WRONLY) {
-		lib_atomicDecrement(&pipe->nwriters);
-	}
-	if (!pipe->nreaders && !pipe->nwriters) {
-		npipe_destroy(file->npipe);
-	}
-	else {
-		pipe_wakeup(pipe);
-	}
-	proc_lockClear(&pipe_common.lock);
-
-	return EOK;
-}
-
-
-const file_ops_t npipe_ops = {
-	.read = pipe_read,
-	.write = pipe_write,
-	.release = npipe_release,
-	.seek = pipe_invalid_seek,
-	.setattr = pipe_setattr,
-	.getattr = pipe_getattr,
-	.link = pipe_link,
-	.unlink = pipe_unlink,
-	.ioctl = pipe_ioctl,
-};
-
-
-int pipe_open(pipe_t *pipe, int oflag)
-{
-	int err = EOK;
-
-	pipe_lock(pipe);
-	if (oflag & O_RDONLY) {
-		lib_atomicIncrement(&pipe->nreaders);
-	}
-	if (oflag & O_WRONLY) {
-		lib_atomicIncrement(&pipe->nwriters);
-	}
-	pipe_wakeup(pipe);
-	if (oflag & O_NONBLOCK) {
-		 if (!pipe->nreaders)
-			err = -ENXIO;
-	}
-	else {
-		while (err == EOK && !(pipe->nreaders && pipe->nwriters)) {
-			err = pipe_wait(pipe);
-		}
-	}
-	pipe_unlock(pipe);
-
-	return err;
-}
-
-
-int npipe_open(file_t *file, int oflag)
-{
-	int err = EOK;
-	file->ops = &npipe_ops;
-	file->status = oflag;
-
-	/* TODO: better bump reference under common lock? */
-	proc_lockSet(&pipe_common.lock);
-	if ((file->npipe = npipe_find(&file->oid)) == NULL)
-		file->npipe = npipe_create(&file->oid);
-	proc_lockClear(&pipe_common.lock);
-
-	if (file->npipe == NULL) {
-		err = -ENOMEM;
-	}
-	else if ((err = pipe_open(&file->npipe->pipe, oflag)) < 0) {
-		npipe_destroy(file->npipe);
-	}
-
-	return err;
-}
-
-
 int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 {
 	process_t *process = proc_current()->process;
@@ -1435,7 +995,6 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	file_put(dir);
 	return err;
 }
-
 
 /* Event queue */
 
@@ -1519,7 +1078,7 @@ int proc_queueCreate(void)
 	if ((queue = queue_create(process)) == NULL)
 		return -ENOMEM;
 
-	if ((file = file_alloc(NULL)) == NULL) {
+	if ((file = file_alloc()) == NULL) {
 		queue_destroy(queue);
 		return -ENOMEM;
 	}
@@ -1742,7 +1301,7 @@ int proc_netSocket(int domain, int type, int protocol)
 	file_t *file;
 	int err;
 
-	if ((file = file_alloc(NULL)) == NULL)
+	if ((file = file_alloc()) == NULL)
 		return -ENOMEM;
 
 	file->mode = S_IFSOCK;
@@ -1762,49 +1321,6 @@ int proc_netSocket(int domain, int type, int protocol)
 		file_put(file);
 
 	return err;
-}
-
-/* ports */
-
-int port_release(file_t *file)
-{
-	port_put(file->port);
-	return EOK;
-}
-
-
-static const file_ops_t port_ops = {
-	.release = port_release,
-};
-
-
-int proc_portCreate(u32 id)
-{
-	process_t *process = proc_current()->process;
-	file_t *file;
-	int err;
-
-	if ((file = file_alloc(NULL)) == NULL)
-		return -ENOMEM;
-
-	if ((err = port_create(&file->port, id)) >= 0)
-		file->ops = &port_ops;
-
-	if (err != EOK || (err = fd_new(process, 0, 0, file)) < 0)
-		file_put(file);
-
-	return err;
-}
-
-
-static int file_openKernelObject(file_t *file)
-{
-	/* TODO: support other types of objects */
-	if ((file->port = port_get(file->oid.id)) == NULL)
-		return -ENXIO;
-
-	file->ops = &port_ops;
-	return EOK;
 }
 
 

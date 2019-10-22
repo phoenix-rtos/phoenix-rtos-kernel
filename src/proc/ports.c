@@ -14,6 +14,7 @@
  */
 
 #include "../lib/lib.h"
+#include "file.h"
 #include "ports.h"
 
 
@@ -64,7 +65,7 @@ void port_put(port_t *port)
 }
 
 
-int port_create(port_t **port, u32 id)
+static int port_create(port_t **port, u32 id)
 {
 	port_t *p;
 	int err;
@@ -90,6 +91,31 @@ int port_create(port_t **port, u32 id)
 
 	*port = p;
 	return EOK;
+}
+
+
+static int port_release(file_t *file)
+{
+	port_put(file->data);
+	return EOK;
+}
+
+
+static const file_ops_t port_ops = {
+	.release = port_release,
+};
+
+
+int proc_portCreate(u32 id)
+{
+	process_t *process = proc_current()->process;
+	int err;
+	port_t *port;
+
+	if ((err = port_create(&port, id)) == EOK && (err = fd_create(process, 0, 0, 0, &port_ops, port)) != EOK)
+		port_put(port);
+
+	return err;
 }
 
 

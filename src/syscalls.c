@@ -1018,8 +1018,10 @@ int syscalls_queueWait(char *ustack)
 int syscalls_sys_pipe(char *ustack)
 {
 	int *fds;
+	int flags;
 	GETFROMSTACK(ustack, int *, fds, 0);
-	return proc_pipeCreate(fds);
+	GETFROMSTACK(ustack, int, flags, 1);
+	return proc_pipeCreate(fds, flags);
 }
 
 
