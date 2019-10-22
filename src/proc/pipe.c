@@ -92,7 +92,7 @@ static ssize_t pipe_invalid_write(file_t *file, const void *data, size_t size, o
 static ssize_t pipe_read(file_t *file, void *data, size_t size, off_t offset)
 {
 	ssize_t retval;
-	pipe_t *pipe = file->pipe;
+	pipe_t *pipe = file->data;
 
 	pipe_lock(pipe);
 	while ((retval = fifo_read(&pipe->fifo, data, size)) == 0) {
@@ -116,7 +116,7 @@ static ssize_t pipe_read(file_t *file, void *data, size_t size, off_t offset)
 static ssize_t pipe_write(file_t *file, const void *data, size_t size, off_t offset)
 {
 	ssize_t retval = 0;
-	pipe_t *pipe = file->pipe;
+	pipe_t *pipe = file->data;
 	int atomic;
 
 	if (!pipe->nreaders)
@@ -151,7 +151,7 @@ static ssize_t pipe_write(file_t *file, const void *data, size_t size, off_t off
 
 static int pipe_close_read(file_t *file)
 {
-	pipe_t *pipe = file->pipe;
+	pipe_t *pipe = file->data;
 	if (!lib_atomicDecrement(&pipe->nreaders) && !pipe->nwriters) {
 		pipe_destroy(pipe);
 		vm_kfree(pipe);
@@ -165,7 +165,7 @@ static int pipe_close_read(file_t *file)
 
 static int pipe_close_write(file_t *file)
 {
-	pipe_t *pipe = file->pipe;
+	pipe_t *pipe = file->data;
 	if (!lib_atomicDecrement(&pipe->nwriters) && !pipe->nreaders) {
 		pipe_destroy(pipe);
 		vm_kfree(pipe);
@@ -366,7 +366,8 @@ void npipe_destroy(named_pipe_t *np)
 
 int npipe_release(file_t *file)
 {
-	pipe_t *pipe = &file->npipe->pipe;
+	named_pipe_t *npipe = file->data;
+	pipe_t *pipe = &npipe->pipe;
 
 	proc_lockSet(&pipe_common.lock);
 	if (file->status & O_RDONLY) {
@@ -376,7 +377,7 @@ int npipe_release(file_t *file)
 		lib_atomicDecrement(&pipe->nwriters);
 	}
 	if (!pipe->nreaders && !pipe->nwriters) {
-		npipe_destroy(file->npipe);
+		npipe_destroy(file->data);
 	}
 	else {
 		pipe_wakeup(pipe);
@@ -435,15 +436,15 @@ int npipe_open(file_t *file, int oflag)
 
 	/* TODO: better bump reference under common lock? */
 	proc_lockSet(&pipe_common.lock);
-	if ((file->npipe = npipe_find(&file->oid)) == NULL)
-		file->npipe = npipe_create(&file->oid);
+	if ((file->data = npipe_find(&file->oid)) == NULL)
+		file->data = npipe_create(&file->oid);
 	proc_lockClear(&pipe_common.lock);
 
-	if (file->npipe == NULL) {
+	if (file->data == NULL) {
 		err = -ENOMEM;
 	}
-	else if ((err = pipe_open(&file->npipe->pipe, oflag)) < 0) {
-		npipe_destroy(file->npipe);
+	else if ((err = pipe_open(&((named_pipe_t *)file->data)->pipe, oflag)) < 0) {
+		npipe_destroy(file->data);
 	}
 
 	return err;

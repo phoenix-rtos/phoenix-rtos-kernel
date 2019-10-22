@@ -53,9 +53,6 @@ struct _file_t {
 
 	union {
 		void *data;
-		struct _pipe_t *pipe;
-		struct _named_pipe_t *npipe;
-		struct _evqueue_t *queue;
 		struct _port_t *port;
 	};
 };
