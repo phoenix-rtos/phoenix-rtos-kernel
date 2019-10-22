@@ -272,10 +272,10 @@ int pipe_create(process_t *process, size_t size, int fds[2], int flags)
 		return -ENOMEM;
 	}
 	
-	pipe->nreaders = 1;
-	pipe->nwriters = 1;
-
 	if ((err = pipe_init(pipe, size)) == EOK) {
+		pipe->nreaders = 1;
+		pipe->nwriters = 1;
+
 		if ((read_fd = fd_create(process, 0, flags, 0, &pipe_read_file_ops, pipe)) < 0) {
 			err = read_fd;
 		}
