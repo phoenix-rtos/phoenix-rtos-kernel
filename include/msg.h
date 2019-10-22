@@ -42,7 +42,7 @@ enum {
 
 
 /* mt{Get,Set}Attr types */
-enum { atSize, atStatStruct, atEvents };
+enum { atMode, atUid, atGid, atSize, atType, atPort, atEvents, atCTime, atMTime, atATime, atLinks, atDev, atStatStruct };
 
 
 #pragma pack(push, 8)

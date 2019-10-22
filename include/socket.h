@@ -61,7 +61,7 @@
 #define SCM_RIGHTS 1
 
 
-typedef size_t socklen_t;
+typedef int socklen_t;
 typedef unsigned short sa_family_t;
 
 
