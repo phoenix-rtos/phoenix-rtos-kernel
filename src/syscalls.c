@@ -527,7 +527,7 @@ int syscalls_msgSend(void *ustack)
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 
 	/* FIXME */
-	return port_send(proc_current()->process->fds[portfd].file->port, msg);
+	return port_send(proc_current()->process->fds[portfd].file->data, msg);
 }
 
 
@@ -542,7 +542,7 @@ int syscalls_msgRecv(void *ustack)
 	GETFROMSTACK(ustack, unsigned int *, rid, 2);
 
 	/* FIXME */
-	return port_recv(proc_current()->process->fds[portfd].file->port, msg, rid);
+	return port_recv(proc_current()->process->fds[portfd].file->data, msg, rid);
 }
 
 
@@ -559,7 +559,7 @@ int syscalls_msgRespond(void *ustack)
 	GETFROMSTACK(ustack, unsigned int, rid, 3);
 
 	/* FIXME */
-	return port_respond(proc_current()->process->fds[portfd].file->port, error, msg, rid);
+	return port_respond(proc_current()->process->fds[portfd].file->data, error, msg, rid);
 }
 
 
