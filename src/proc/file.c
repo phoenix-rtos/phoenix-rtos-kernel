@@ -153,7 +153,7 @@ int file_put(file_t *f)
 }
 
 
-file_t *file_alloc(void)
+static file_t *file_alloc(void)
 {
 	file_t *file;
 
@@ -171,7 +171,7 @@ file_t *file_alloc(void)
 }
 
 
-file_t *file_root(void)
+static file_t *file_root(void)
 {
 	file_t *root;
 	proc_lockSet(&file_common.lock);
@@ -623,8 +623,11 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
+	file_lock(file);
 	if ((retval = file->ops->read(file, buf, nbyte, file->offset)) > 0)
-		file->offset += retval; /* TODO: lock */
+		file->offset += retval;
+	file_unlock(file);
+
 	file_put(file);
 	return retval;
 }
@@ -640,8 +643,13 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	if ((retval = file->ops->write(file, buf, nbyte, file->offset)) > 0)
-		file->offset += retval; /* TODO: lock */
+	file_lock(file);
+	if ((file->status & O_APPEND) && (file->ops->getattr(file, atSize, &file->offset, sizeof(file->offset)) != sizeof(file->offset)))
+		retval = -EIO;
+	else if ((retval = file->ops->write(file, buf, nbyte, file->offset)) > 0)
+		file->offset += retval;
+	file_unlock(file);
+
 	file_put(file);
 	return retval;
 }
