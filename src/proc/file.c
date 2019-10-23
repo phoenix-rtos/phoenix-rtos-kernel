@@ -423,6 +423,7 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 		file->port = port;
 		file->id = id;
 		file->ops = &generic_file_ops;
+		file->mode = mode;
 	}
 
 	return ret;
