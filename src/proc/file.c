@@ -38,7 +38,7 @@ static ssize_t generic_read(file_t *file, void *data, size_t size, off_t offset)
 {
 	ssize_t retval;
 
-	if ((retval = proc_objectRead(file->port, file->oid.id, data, size, offset)) > 0)
+	if ((retval = proc_objectRead(file->port, file->id, data, size, offset)) > 0)
 		file->offset += retval;
 
 	return retval;
@@ -49,7 +49,7 @@ static ssize_t generic_write(file_t *file, const void *data, size_t size, off_t 
 {
 	ssize_t retval;
 
-	if ((retval = proc_objectWrite(file->port, file->oid.id, data, size, offset)) > 0)
+	if ((retval = proc_objectWrite(file->port, file->id, data, size, offset)) > 0)
 		file->offset += retval;
 
 	return retval;
@@ -58,8 +58,10 @@ static ssize_t generic_write(file_t *file, const void *data, size_t size, off_t 
 
 static int generic_release(file_t *file)
 {
+	int retval;
+	retval = proc_objectClose(file->port, file->id);
 	port_put(file->port);
-	return proc_objectClose(file->port, file->oid.id);
+	return retval;
 }
 
 
@@ -71,13 +73,13 @@ static int generic_seek(file_t *file, off_t *offset, int whence)
 
 static int generic_setattr(file_t *file, int attr, const void *value, size_t size)
 {
-	return proc_objectSetAttr(file->port, file->oid.id, attr, value, size);
+	return proc_objectSetAttr(file->port, file->id, attr, value, size);
 }
 
 
 static ssize_t generic_getattr(file_t *file, int attr, void *value, size_t size)
 {
-	return proc_objectGetAttr(file->port, file->oid.id, attr, value, size);
+	return proc_objectGetAttr(file->port, file->id, attr, value, size);
 }
 
 
@@ -92,13 +94,13 @@ static int generic_link(file_t *dir, const char *name, const oid_t *file)
 
 static int generic_unlink(file_t *dir, const char *name)
 {
-	return proc_objectUnlink(dir->port, dir->oid.id, name);
+	return proc_objectUnlink(dir->port, dir->id, name);
 }
 
 
 static int generic_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
 {
-	return proc_objectControl(file->port, file->oid.id, cmd, in_buf, in_size, out_buf, out_size);
+	return proc_objectControl(file->port, file->id, cmd, in_buf, in_size, out_buf, out_size);
 }
 
 
@@ -327,14 +329,14 @@ static int file_followOid(file_t *file)
 	int error;
 	port_t *port;
 
-	if ((error = proc_objectRead(file->port, file->oid.id, &dest, sizeof(oid_t), 0)) != EOK)
+	if ((error = proc_objectRead(file->port, file->id, &dest, sizeof(oid_t), 0)) != EOK)
 		return error;
 
 	/* TODO: close after read oid is opened? */
-	if ((error = proc_objectClose(file->port, file->oid.id)) != EOK)
+	if ((error = proc_objectClose(file->port, file->id)) != EOK)
 		return error;
 
-	if (dest.port != file->oid.port) {
+	if (dest.port != file->port->id) {
 		port_put(file->port);
 
 		if ((port = port_get(dest.port)) == NULL) {
@@ -344,12 +346,11 @@ static int file_followOid(file_t *file)
 		}
 
 		file->port = port;
-		file->oid.port = dest.port;
 	}
 
-	file->oid.id = dest.id;
+	file->id = dest.id;
 
-	if ((error = proc_objectOpen(file->port, file->oid.id)) != EOK)
+	if ((error = proc_objectOpen(file->port, &file->id)) != EOK)
 		return error;
 
 	file->ops = &generic_file_ops;
@@ -368,7 +369,7 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 	cmode |= ((cmode & S_IFMT) == 0) * S_IFREG;
 
 	port = port_get(dir->port->id); /* TODO: add port_ref? */
-	id = dir->oid.id;
+	id = dir->id;
 	mode = dir->mode;
 
 	do {
@@ -420,8 +421,7 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 	}
 	else {
 		file->port = port;
-		file->oid.port = port->id;
-		file->oid.id = id;
+		file->id = id;
 		file->ops = &generic_file_ops;
 	}
 
@@ -471,9 +471,8 @@ int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 	}
 
 	/* TODO: check type */
-	root->oid.port = port->port->id;
-	root->oid.id = id;
-	root->port = port_get(port->port->id); /* XXX */
+	root->port = port->data;
+	root->id = id;
 	root->ops = &generic_file_ops;
 	root->mode = mode;
 
@@ -542,6 +541,9 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 	else if (S_ISSOCK(file->mode)) {
 		error = -ENOSYS;
 	}
+	else if (S_ISPORT(file->mode)) {
+		error = port_open(file, flags);
+	}
 	else if (S_ISREG(file->mode) || S_ISDIR(file->mode)) {
 		error = EOK;
 	}
@@ -595,7 +597,8 @@ int proc_fileOid(process_t *process, int fd, oid_t *oid)
 
 	process_lock(process);
 	if ((file = _file_get(process, fd)) != NULL) {
-		hal_memcpy(oid, &file->oid, sizeof(oid_t));
+		oid->port = file->port->id;
+		oid->id = file->id;
 		file_put(file);
 		retval = EOK;
 	}
@@ -725,6 +728,7 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 	file_t *file, *dir;
 	int retval;
 	const char *linkname;
+	oid_t oid;
 
 	if ((retval = file_resolve(process, dirfd, name, O_DIRECTORY | O_PARENT, &dir)) < 0)
 		return retval;
@@ -736,7 +740,9 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 		return retval;
 	}
 
-	retval = dir->ops->link(dir, linkname, &file->oid);
+	oid.port = file->port->id;
+	oid.id = file->id;
+	retval = dir->ops->link(dir, linkname, &oid);
 
 	file_put(file);
 	file_put(dir);
@@ -992,7 +998,7 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	fifoname = path + err;
 
 	mode |= S_IFIFO;
-	err = proc_objectLookup(dir->port, dir->oid.id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode);
+	err = proc_objectLookup(dir->port, dir->id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode);
 	file_put(dir);
 	return err;
 }
@@ -1023,7 +1029,7 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_accept(&file->oid, address, address_len, flags);
+	retval = socket_accept(file->port, file->id, address, address_len, flags);
 	file_put(file);
 	return retval;
 }
@@ -1038,7 +1044,7 @@ int proc_netBind(int socket, const struct sockaddr *address, socklen_t address_l
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_bind(&file->oid, address, address_len);
+	retval = socket_bind(file->port, file->id, address, address_len);
 	file_put(file);
 	return retval;
 }
@@ -1053,7 +1059,7 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_connect(&file->oid, address, address_len);
+	retval = socket_connect(file->port, file->id, address, address_len);
 	file_put(file);
 	return retval;
 }
@@ -1068,7 +1074,7 @@ int proc_netGetpeername(int socket, struct sockaddr *address, socklen_t *address
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_getpeername(&file->oid, address, address_len);
+	retval = socket_getpeername(file->port, file->id, address, address_len);
 	file_put(file);
 	return retval;
 }
@@ -1083,7 +1089,7 @@ int proc_netGetsockname(int socket, struct sockaddr *address, socklen_t *address
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_getsockname(&file->oid, address, address_len);
+	retval = socket_getsockname(file->port, file->id, address, address_len);
 	file_put(file);
 	return retval;
 }
@@ -1098,7 +1104,7 @@ int proc_netGetsockopt(int socket, int level, int optname, void *optval, socklen
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_getsockopt(&file->oid, level, optname, optval, optlen);
+	retval = socket_getsockopt(file->port, file->id, level, optname, optval, optlen);
 	file_put(file);
 	return retval;
 }
@@ -1113,7 +1119,7 @@ int proc_netListen(int socket, int backlog)
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_listen(&file->oid, backlog);
+	retval = socket_listen(file->port, file->id, backlog);
 	file_put(file);
 	return retval;
 }
@@ -1128,7 +1134,7 @@ ssize_t proc_netRecvfrom(int socket, void *message, size_t length, int flags, st
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_recvfrom(&file->oid, message, length, flags, src_addr, src_len);
+	retval = socket_recvfrom(file->port, file->id, message, length, flags, src_addr, src_len);
 	file_put(file);
 	return retval;
 }
@@ -1143,7 +1149,7 @@ ssize_t proc_netSendto(int socket, const void *message, size_t length, int flags
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_sendto(&file->oid, message, length, flags, dest_addr, dest_len);
+	retval = socket_sendto(file->port, file->id, message, length, flags, dest_addr, dest_len);
 	file_put(file);
 	return retval;
 }
@@ -1158,7 +1164,7 @@ int proc_netShutdown(int socket, int how)
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_shutdown(&file->oid, how);
+	retval = socket_shutdown(file->port, file->id, how);
 	file_put(file);
 	return retval;
 }
@@ -1173,7 +1179,7 @@ int proc_netSetsockopt(int socket, int level, int optname, const void *optval, s
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = socket_setsockopt(&file->oid, level, optname, optval, optlen);
+	retval = socket_setsockopt(file->port, file->id, level, optname, optval, optlen);
 	file_put(file);
 	return retval;
 }
@@ -1192,7 +1198,7 @@ int proc_netSocket(int domain, int type, int protocol)
 
 	switch (domain) {
 	case AF_INET:
-		if ((err = socket_create(&file->oid, domain, type, protocol)) >= 0) {
+		if ((err = socket_create(domain, type, protocol)) >= 0) {
 			file->ops = &generic_file_ops;
 		}
 		break;

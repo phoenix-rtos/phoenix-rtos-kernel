@@ -43,13 +43,13 @@
 #define S_IXOTH 0000001   /* X for other */
 
 #define S_IFMT   0xF000   /* mask for type */
+#define S_IFPORT 0xE000   /* port */
 #define S_IFMNT  0xD000   /* mount point */
 #define S_IFSOCK 0xC000   /* socket */
 #define S_IFLNK  0xA000   /* symbolic link */
 #define S_IFREG  0x8000   /* regular file */
 #define S_IFBLK  0x6000   /* block device */
 #define S_IFDIR  0x4000   /* directory */
-#define S_IFEVQ  0x3000   /* event queue */
 #define S_IFCHR  0x2000   /* character device */
 #define S_IFIFO  0x1000   /* fifo */
 
@@ -68,7 +68,7 @@
 #define S_ISLNK(m)  (((m) & S_IFMT) == S_IFLNK)  /* symbolic link */
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK) /* socket */
 #define S_ISMNT(m)  (((m) & S_IFMT) == S_IFMNT)   /* mount point */
-#define S_ISEVTQ(m)  (((m) & S_IFMT) == S_IFEVQ)   /* mount point */
+#define S_ISPORT(m)  (((m) & S_IFMT) == S_IFPORT)   /* port */
 
 
 typedef int dev_t;

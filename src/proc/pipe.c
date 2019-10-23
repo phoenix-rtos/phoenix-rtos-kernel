@@ -431,13 +431,18 @@ int pipe_open(pipe_t *pipe, int oflag)
 int npipe_open(file_t *file, int oflag)
 {
 	int err = EOK;
+	oid_t oid;
+
 	file->ops = &npipe_ops;
 	file->status = oflag;
 
+	oid.port = file->port->id;
+	oid.id = file->id;
+
 	/* TODO: better bump reference under common lock? */
 	proc_lockSet(&pipe_common.lock);
-	if ((file->data = npipe_find(&file->oid)) == NULL)
-		file->data = npipe_create(&file->oid);
+	if ((file->data = npipe_find(&oid)) == NULL)
+		file->data = npipe_create(&oid);
 	proc_lockClear(&pipe_common.lock);
 
 	if (file->data == NULL) {

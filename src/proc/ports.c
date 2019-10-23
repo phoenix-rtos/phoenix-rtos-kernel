@@ -97,13 +97,36 @@ static int port_create(port_t **port, u32 id)
 static int port_release(file_t *file)
 {
 	port_put(file->data);
-	return EOK;
 }
 
 
 static const file_ops_t port_ops = {
 	.release = port_release,
 };
+
+
+int port_open(file_t *file, int flags)
+{
+	int error = EOK;
+	u32 number;
+	port_t *port = NULL;
+
+	/* TODO: proper way to retrieve port number? */
+	if (file->ops->getattr(file, atPort, &number, sizeof(number)) != sizeof(number))
+		return -EINVAL;
+
+	if ((port = port_get(number)) == NULL)
+		error = port_create(&port, number);
+
+	if (error == EOK) {
+		/* Close object in filesystem */
+		file->ops->release(file);
+		file->data = port;
+		file->ops = &port_ops;
+	}
+
+	return error;
+}
 
 
 int proc_portCreate(u32 id)

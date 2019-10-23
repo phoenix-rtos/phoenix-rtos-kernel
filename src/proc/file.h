@@ -49,12 +49,9 @@ struct _file_t {
 	mode_t mode;
 	unsigned status;
 	const file_ops_t *ops;
-	oid_t oid;
-
-	union {
-		void *data;
-		struct _port_t *port;
-	};
+	struct _port_t *port;
+	id_t id;
+	void *data;
 };
 
 

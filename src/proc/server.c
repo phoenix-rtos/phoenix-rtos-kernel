@@ -41,13 +41,13 @@ int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t na
 }
 
 
-int proc_objectOpen(struct _port_t *port, id_t id)
+int proc_objectOpen(struct _port_t *port, id_t *id)
 {
 	msg_t msg;
 	int error;
 
 	msg.type = mtOpen;
-	msg.object = id;
+	msg.object = *id;
 
 	msg.i.size = 0;
 	msg.i.data = NULL;
@@ -56,6 +56,9 @@ int proc_objectOpen(struct _port_t *port, id_t id)
 
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
+
+	if (msg.error == EOK)
+		*id = msg.o.open;
 
 	return msg.error;
 }

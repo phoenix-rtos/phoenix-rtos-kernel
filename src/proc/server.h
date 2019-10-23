@@ -22,7 +22,7 @@
 extern int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t namelen, int flags, id_t *object, mode_t *mode);
 
 
-extern int proc_objectOpen(struct _port_t *port, id_t id);
+extern int proc_objectOpen(struct _port_t *port, id_t *id);
 
 
 extern ssize_t proc_objectWrite(struct _port_t *port, id_t id, const void *data, size_t size, off_t offset);

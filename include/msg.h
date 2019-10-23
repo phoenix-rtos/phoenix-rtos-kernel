@@ -88,6 +88,8 @@ typedef struct _msg_t {
 				mode_t mode;
 			} lookup;
 
+			id_t open;
+
 			ssize_t io;
 
 			unsigned char raw[64];

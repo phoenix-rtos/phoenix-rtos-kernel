@@ -45,10 +45,10 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 	if (o1->file == NULL || o2->file == NULL)
 		return (o1->file == NULL) - (o2->file == NULL);
 
-	if ((retval = (o1->file->oid.id > o2->file->oid.id) - (o1->file->oid.id < o2->file->oid.id)))
+	if ((retval = (o1->file->id > o2->file->id) - (o1->file->id < o2->file->id)))
 		return retval;
 
-	return (o1->file->oid.port > o2->file->oid.port) - (o1->file->oid.port < o2->file->oid.port);
+	return (o1->file->port->id > o2->file->port->id) - (o1->file->port->id < o2->file->port->id);
 }
 
 
