@@ -63,7 +63,7 @@ int syscalls_memMap(void *ustack)
 	GETFROMSTACK(ustack, int, prot, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
 	GETFROMSTACK(ustack, int, fd, 4);
-	GETFROMSTACK(ustack, offs_t, offs, 5);
+	GETFROMSTACK(ustack, off_t, offs, 5);
 
 	if (flags & MAP_ANONYMOUS) {
 		o = NULL;
@@ -82,12 +82,10 @@ int syscalls_memMap(void *ustack)
 		return -EBADF;
 	}
 
-	*vaddr = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
+	if ((*vaddr = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags)) == NULL)
+		err = -ENOMEM; /* TODO: get real error from mmap */
+
 	vm_objectPut(o);
-
-	if (vaddr == NULL)
-		return -ENOMEM; /* TODO: get real error from mmap */
-
 	return EOK;
 }
 
@@ -522,46 +520,46 @@ u32 syscalls_portRegister(void *ustack)
 
 int syscalls_msgSend(void *ustack)
 {
-	u32 port;
+	int portfd;
 	msg_t *msg;
 
-	GETFROMSTACK(ustack, u32, port, 0);
+	GETFROMSTACK(ustack, int, portfd, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 
 	/* FIXME */
-	return port_send(proc_current()->process->fds[port].file->port, msg);
+	return port_send(proc_current()->process->fds[portfd].file->port, msg);
 }
 
 
 int syscalls_msgRecv(void *ustack)
 {
-	u32 port;
+	int portfd;
 	msg_t *msg;
 	unsigned int *rid;
 
-	GETFROMSTACK(ustack, u32, port, 0);
+	GETFROMSTACK(ustack, int, portfd, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 	GETFROMSTACK(ustack, unsigned int *, rid, 2);
 
 	/* FIXME */
-	return port_recv(proc_current()->process->fds[port].file->port, msg, rid);
+	return port_recv(proc_current()->process->fds[portfd].file->port, msg, rid);
 }
 
 
 int syscalls_msgRespond(void *ustack)
 {
-	u32 port;
+	int portfd;
 	msg_t *msg;
 	unsigned int rid;
 	int error;
 
-	GETFROMSTACK(ustack, u32, port, 0);
+	GETFROMSTACK(ustack, int, portfd, 0);
 	GETFROMSTACK(ustack, int, error, 1);
 	GETFROMSTACK(ustack, msg_t *, msg, 2);
 	GETFROMSTACK(ustack, unsigned int, rid, 3);
 
 	/* FIXME */
-	return port_respond(proc_current()->process->fds[port].file->port, error, msg, rid);
+	return port_respond(proc_current()->process->fds[portfd].file->port, error, msg, rid);
 }
 
 
