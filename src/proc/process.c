@@ -288,6 +288,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->ppid = -1;
 	process->fdcount = 0;
 	process->fds = NULL;
+	process->cwd = NULL;
 
 	proc_lockInit(&process->lock);
 
