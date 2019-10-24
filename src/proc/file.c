@@ -27,6 +27,8 @@
 
 #define FD_HARD_LIMIT 1024
 
+#define FILE_LOG(fmt, ...) lib_printf("%s:%d  %s(): " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);
+
 
 static struct {
 	lock_t lock;
@@ -47,7 +49,11 @@ static ssize_t generic_read(file_t *file, void *data, size_t size, off_t offset)
 
 static ssize_t generic_write(file_t *file, const void *data, size_t size, off_t offset)
 {
-	ssize_t retval;
+	ssize_t retval = EOK;
+	off_t seekoff = 0;
+
+	if ((file->status & O_APPEND) && (retval = file->ops->seek(file, &seekoff, SEEK_END)) != EOK)
+		return retval;
 
 	if ((retval = proc_objectWrite(file->port, file->id, data, size, offset)) > 0)
 		file->offset += retval;
@@ -67,7 +73,32 @@ static int generic_release(file_t *file)
 
 static int generic_seek(file_t *file, off_t *offset, int whence)
 {
-	return EOK;
+	int retval = EOK;
+	size_t size;
+
+	switch (whence) {
+	case SEEK_SET:
+		file->offset = *offset;
+		break;
+	case SEEK_END:
+		if ((retval = file->ops->getattr(file, atSize, &size, sizeof(size))) == sizeof(size)) {
+			file->offset = size + *offset;
+			*offset = file->offset;
+			retval = EOK;
+		}
+		else {
+			FILE_LOG("getting file size");
+		}
+		break;
+	case SEEK_CUR:
+		file->offset += *offset;
+		*offset = file->offset;
+		break;
+	default:
+		retval = -EINVAL;
+	}
+
+	return retval;
 }
 
 
@@ -638,8 +669,7 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 		return -EBADF;
 
 	file_lock(file);
-	if ((retval = file->ops->read(file, buf, nbyte, file->offset)) > 0)
-		file->offset += retval;
+	retval = file->ops->read(file, buf, nbyte, file->offset);
 	file_unlock(file);
 
 	file_put(file);
@@ -658,10 +688,7 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 		return -EBADF;
 
 	file_lock(file);
-	if ((file->status & O_APPEND) && (file->ops->getattr(file, atSize, &file->offset, sizeof(file->offset)) != sizeof(file->offset)))
-		retval = -EIO;
-	else if ((retval = file->ops->write(file, buf, nbyte, file->offset)) > 0)
-		file->offset += retval;
+	retval = file->ops->write(file, buf, nbyte, file->offset);
 	file_unlock(file);
 
 	file_put(file);
