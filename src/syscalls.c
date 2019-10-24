@@ -1037,6 +1037,23 @@ int syscalls_fifoCreate(char *ustack)
 }
 
 
+int syscalls_deviceCreate(char *ustack)
+{
+	int dirfd, portfd;
+	id_t id;
+	const char *path;
+	mode_t mode;
+
+	GETFROMSTACK(ustack, int, dirfd, 0);
+	GETFROMSTACK(ustack, const char *, path, 1);
+	GETFROMSTACK(ustack, int, portfd, 2);
+	GETFROMSTACK(ustack, id_t, id, 3);
+	GETFROMSTACK(ustack, mode_t, mode, 4);
+
+	return proc_deviceCreate(dirfd, path, portfd, id, mode);
+}
+
+
 int syscalls_sys_accept4(char *ustack)
 {
 	int socket;

@@ -57,6 +57,7 @@ typedef struct _msg_t {
 			struct {
 				int flags;
 				mode_t mode;
+				oid_t dev;
 			} lookup;
 
 			/* READ/WRITE */

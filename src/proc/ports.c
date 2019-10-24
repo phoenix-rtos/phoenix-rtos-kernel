@@ -97,6 +97,7 @@ static int port_create(port_t **port, u32 id)
 static int port_release(file_t *file)
 {
 	port_put(file->data);
+	return EOK;
 }
 
 

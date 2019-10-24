@@ -93,6 +93,8 @@ extern int proc_pipeCreate(int fds[2], int flags);
 
 extern int proc_fifoCreate(int dirfd, const char *path, mode_t mode);
 
+extern int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t mode);
+
 
 extern int proc_queueWait(int fd, const event_t *subs, int subcnt, event_t *events, int evcnt, time_t timeout);
 

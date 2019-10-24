@@ -358,19 +358,26 @@ static int file_followOid(file_t *file)
 }
 
 
-int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mode_t cmode)
+int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mode_t cmode, const oid_t *cdev)
 {
-	int err = EOK, sflags, ret = EOK;
+	int err = EOK, sflags = 0, ret = EOK;
 	const char *delim = name, *path;
 	id_t id, nextid;
 	mode_t mode;
 	port_t *port;
+	const oid_t *dev = NULL;
 
 	cmode |= ((cmode & S_IFMT) == 0) * S_IFREG;
 
 	port = port_get(dir->port->id); /* TODO: add port_ref? */
 	id = dir->id;
 	mode = dir->mode;
+
+	if (proc_objectOpen(port, &id) != EOK) {
+		/* Should not happen */
+		port_put(port);
+		return -ENXIO;
+	}
 
 	do {
 		path = delim;
@@ -404,10 +411,13 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 			break;
 		}
 
-		mode = cmode;
-		sflags = *delim ? 0 : flags;
+		if (*delim == 0 && (flags & O_CREAT)) {
+			mode = cmode;
+			sflags = flags;
+			dev = cdev;
+		}
 
-		if ((err = proc_objectLookup(port, id, path, delim - path, sflags, &nextid, &mode)) < 0)
+		if ((err = proc_objectLookup(port, id, path, delim - path, sflags, &nextid, &mode, dev)) < 0)
 			break;
 
 		proc_objectClose(port, id);
@@ -522,7 +532,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		return -ENOMEM;
 	}
 
-	error = file_lookup(dir, file, path, flags, mode);
+	error = file_lookup(dir, file, path, flags, mode, NULL);
 	file_put(dir);
 
 	if (error != EOK) {
@@ -999,7 +1009,37 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	fifoname = path + err;
 
 	mode |= S_IFIFO;
-	err = proc_objectLookup(dir->port, dir->id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode);
+	if ((err = proc_objectLookup(dir->port, dir->id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode, NULL)) == EOK)
+		proc_objectClose(dir->port, id);
+	file_put(dir);
+	return err;
+}
+
+
+int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t mode)
+{
+	process_t *process = proc_current()->process;
+	int err;
+	file_t *dir, *port;
+	const char *name;
+	oid_t oid;
+
+	if ((err = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir)) < 0)
+		return err;
+
+	/* FIXME: check if it's a port */
+	if ((port = file_get(process, portfd)) != NULL) {
+		oid.port = ((port_t *)port->data)->id;
+		oid.id = id;
+
+		name = path + err;
+
+		if ((err = proc_objectLookup(dir->port, dir->id, name, hal_strlen(name), O_CREAT | O_EXCL, &id, &mode, &oid)) == EOK)
+			proc_objectClose(dir->port, id);
+
+		file_put(port);
+	}
+
 	file_put(dir);
 	return err;
 }

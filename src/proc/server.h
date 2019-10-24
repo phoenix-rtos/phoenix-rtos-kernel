@@ -19,7 +19,7 @@
 #include HAL
 #include "ports.h"
 
-extern int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t namelen, int flags, id_t *object, mode_t *mode);
+extern int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t namelen, int flags, id_t *object, mode_t *mode, const oid_t *dev);
 
 
 extern int proc_objectOpen(struct _port_t *port, id_t *id);

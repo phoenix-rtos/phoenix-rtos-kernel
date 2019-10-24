@@ -16,7 +16,7 @@
 #include HAL
 #include "proc.h"
 
-int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t namelen, int flags, id_t *object, mode_t *mode)
+int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t namelen, int flags, id_t *object, mode_t *mode, const oid_t *dev)
 {
 	msg_t msg;
 	int error;
@@ -26,6 +26,9 @@ int proc_objectLookup(struct _port_t *port, id_t id, const char *name, size_t na
 
 	msg.i.lookup.flags = flags;
 	msg.i.lookup.mode = *mode;
+
+	if (dev != NULL)
+		hal_memcpy(&msg.i.lookup.dev, dev, sizeof(*dev));
 
 	msg.i.data = name;
 	msg.i.size = namelen;

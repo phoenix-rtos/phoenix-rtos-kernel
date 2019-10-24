@@ -105,7 +105,8 @@
 	ID(sys_getpgid) \
 	ID(sys_setsid) \
 	ID(sys_getsid) \
-	ID(threadKill)
+	ID(threadKill) \
+	ID(deviceCreate)
 
 //	ID(pipe)
 //	ID(mkfifo)
