@@ -27,7 +27,7 @@
 
 #define FD_HARD_LIMIT 1024
 
-#define FILE_LOG(fmt, ...) lib_printf("%s:%d  %s(): " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);
+#define FILE_LOG(fmt, ...) lib_printf("%s:%d  %s(): " fmt "\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);
 
 
 static struct {
@@ -116,9 +116,6 @@ static ssize_t generic_getattr(file_t *file, int attr, void *value, size_t size)
 
 static int generic_link(file_t *dir, const char *name, const oid_t *file)
 {
-	if (!file->port)
-		return -EINVAL;
-
 	return proc_objectLink(dir->port, file->id, name, file);
 }
 
@@ -406,8 +403,13 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 
 	if (proc_objectOpen(port, &id) != EOK) {
 		/* Should not happen */
+		FILE_LOG("open of starting dir");
 		port_put(port);
 		return -ENXIO;
+	}
+
+	if (id != dir->id) {
+		FILE_LOG("opened directory id differs");
 	}
 
 	do {
@@ -538,9 +540,11 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 
 	if (path[0] != '/') {
 		if (dirfd == AT_FDCWD) {
-			if ((dir = process->cwd) == NULL)
+			if ((dir = process->cwd) == NULL) {
 				/* Current directory not set */
+				FILE_LOG("current directory not set");
 				return -ENOENT;
+			}
 			file_ref(process->cwd);
 		}
 		else if ((dir = file_get(process, dirfd)) == NULL) {
@@ -553,9 +557,11 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		}
 	}
 	else {
-		if ((dir = file_root()) == NULL)
+		if ((dir = file_root()) == NULL) {
 			/* Rootfs not mounted yet */
+			FILE_LOG("no root filesystem");
 			return -ENOENT;
+		}
 	}
 
 	if ((file = file_alloc()) == NULL) {
