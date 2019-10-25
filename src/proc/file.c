@@ -572,7 +572,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 	error = file_lookup(dir, file, path, flags, mode, NULL);
 	file_put(dir);
 
-	if (error != EOK) {
+	if (error < 0) {
 		file_put(file);
 		return error;
 	}
@@ -599,10 +599,10 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		error = -ENXIO;
 	}
 
-	if (error == EOK)
-		*result = file;
-	else
+	if (error < 0)
 		file_put(file);
+	else
+		*result = file;
 
 	return error;
 }
@@ -712,7 +712,9 @@ int proc_fileSeek(int fildes, off_t *offset, int whence)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
+	file_lock(file);
 	retval = file->ops->seek(file, offset, whence);
+	file_unlock(file);
 	file_put(file);
 	return retval;
 }
@@ -728,8 +730,10 @@ int proc_fileTruncate(int fildes, off_t length)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
+	file_lock(file);
 	if ((retval = file->ops->setattr(file, atSize, &length, sizeof(length))) >= 0)
 		retval = EOK;
+	file_unlock(file);
 
 	file_put(file);
 	return retval;
@@ -746,7 +750,9 @@ int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
+	file_lock(file);
 	retval = file->ops->ioctl(file, request, indata, insz, outdata, outsz);
+	file_unlock(file);
 	file_put(file);
 	return retval;
 }
@@ -786,7 +792,10 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 
 	oid.port = file->port->id;
 	oid.id = file->id;
+
+	file_lock(dir);
 	retval = dir->ops->link(dir, linkname, &oid);
+	file_unlock(dir);
 
 	file_put(file);
 	file_put(dir);
@@ -807,7 +816,9 @@ int proc_fileUnlink(int dirfd, const char *path, int flags)
 
 	name = path + retval;
 
+	file_lock(dir);
 	retval = dir->ops->unlink(dir, name);
+	file_unlock(dir);
 	file_put(dir);
 	return retval;
 }
@@ -941,8 +952,10 @@ int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
 	if ((err = file_resolve(process, fildes, path, flags, &file)) != EOK)
 		return err;
 
+	file_lock(file);
 	if ((err = file->ops->getattr(file, atStatStruct, (char *)buf, sizeof(*buf))) >= 0)
 		err = EOK;
+	file_lock(file);
 
 	file_put(file);
 	return err;
