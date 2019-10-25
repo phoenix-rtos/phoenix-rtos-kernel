@@ -363,8 +363,10 @@ static int file_followOid(file_t *file)
 	}
 
 	/* TODO: close after read oid is opened? */
-	if ((error = proc_objectClose(file->port, file->id)) != EOK)
+	if ((error = proc_objectClose(file->port, file->id)) != EOK) {
+		FILE_LOG("close device node");
 		return error;
+	}
 
 	if (dest.port != file->port->id) {
 		port_put(file->port);
@@ -381,8 +383,10 @@ static int file_followOid(file_t *file)
 
 	file->id = dest.id;
 
-	if ((error = proc_objectOpen(file->port, &file->id)) != EOK)
+	if ((error = proc_objectOpen(file->port, &file->id)) != EOK) {
+		FILE_LOG("open device");
 		return error;
+	}
 
 	file->ops = &generic_file_ops;
 	return EOK;

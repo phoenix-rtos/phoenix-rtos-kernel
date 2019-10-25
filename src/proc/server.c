@@ -76,6 +76,7 @@ ssize_t proc_objectWrite(struct _port_t *port, id_t id, const void *data, size_t
 	msg.object = id;
 
 	msg.i.io.offs = offset;
+	msg.i.io.flags = 0; /* TODO: pass flags */
 
 	msg.i.size = size;
 	msg.i.data = data;
@@ -100,6 +101,7 @@ ssize_t proc_objectRead(struct _port_t *port, id_t id, void *data, size_t size, 
 	msg.object = id;
 
 	msg.i.io.offs = offset;
+	msg.i.io.flags = 0; /* TODO: pass flags */
 
 	msg.i.size = 0;
 	msg.i.data = NULL;
