@@ -357,8 +357,10 @@ static int file_followOid(file_t *file)
 	int error;
 	port_t *port;
 
-	if ((error = proc_objectRead(file->port, file->id, &dest, sizeof(oid_t), 0)) != EOK)
+	if ((error = proc_objectRead(file->port, file->id, &dest, sizeof(oid_t), 0)) != sizeof(oid_t)) {
+		FILE_LOG("read device node");
 		return error;
+	}
 
 	/* TODO: close after read oid is opened? */
 	if ((error = proc_objectClose(file->port, file->id)) != EOK)
@@ -368,6 +370,7 @@ static int file_followOid(file_t *file)
 		port_put(file->port);
 
 		if ((port = port_get(dest.port)) == NULL) {
+			FILE_LOG("get device port");
 			/* Object is closed, don't close again when cleaning up */
 			file->ops = NULL;
 			return -ENXIO;

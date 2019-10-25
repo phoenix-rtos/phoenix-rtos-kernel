@@ -107,7 +107,3 @@
 	ID(sys_getsid) \
 	ID(threadKill) \
 	ID(deviceCreate)
-
-//	ID(pipe)
-//	ID(mkfifo)
-//	ID(utimes)
