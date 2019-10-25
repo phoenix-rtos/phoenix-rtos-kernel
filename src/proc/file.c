@@ -584,6 +584,11 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		return error;
 	}
 
+	if ((flags & O_DIRECTORY) && !S_ISDIR(file->mode)) {
+		file_put(file);
+		return -ENOTDIR;
+	}
+
 	if (S_ISMNT(file->mode) || S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
 		error = file_followOid(file);
 	}
