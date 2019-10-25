@@ -593,7 +593,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		error = port_open(file, flags);
 	}
 	else if (S_ISREG(file->mode) || S_ISDIR(file->mode)) {
-		error = EOK;
+		/* FIXME: keep positive return value if O_PARENT */;
 	}
 	else {
 		error = -ENXIO;
