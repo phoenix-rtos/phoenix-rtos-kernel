@@ -1103,6 +1103,24 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 }
 
 
+int proc_changeDir(int fildes, const char *path)
+{
+	process_t *process = proc_current()->process;
+	file_t *file;
+	int retval;
+
+	if ((retval = file_resolve(process, fildes, path, O_DIRECTORY, &file)) < 0)
+		return retval;
+
+	process_lock(process);
+	if (process->cwd != NULL)
+		file_put(process->cwd);
+	process->cwd = file;
+	process_unlock(process);
+	return EOK;
+}
+
+
 /* Sockets */
 
 static int socket_get(process_t *process, int socket, file_t **file)

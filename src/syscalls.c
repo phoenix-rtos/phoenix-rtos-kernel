@@ -944,6 +944,16 @@ int syscalls_sys_fchmod(char *ustack)
 }
 
 
+int syscalls_procChangeDir(char *ustack)
+{
+	int fildes;
+	const char *path;
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, const char *, path, 1);
+	return proc_changeDir(fildes, path);
+}
+
+
 int syscalls_fileIoctl(char *ustack)
 {
 	int fildes;

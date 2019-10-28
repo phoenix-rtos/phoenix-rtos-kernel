@@ -74,6 +74,7 @@
 	ID(sys_fcntl) \
 	ID(sys_ftruncate) \
 	ID(fileSeek) \
+	ID(procChangeDir) \
 	ID(sys_dup3) \
 	ID(sys_fchmod) \
 	ID(fileStat) \

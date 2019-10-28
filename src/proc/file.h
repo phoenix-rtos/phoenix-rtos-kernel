@@ -85,6 +85,9 @@ extern int fd_create(struct _process_t *p, int minfd, int flags, unsigned int st
 extern int fd_close(struct _process_t *p, int fd);
 
 
+extern int proc_changeDir(int fildes, const char *path);
+
+
 extern int proc_queueCreate(void);
 
 
