@@ -92,12 +92,6 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 }
 
 
-void _hal_invokePendSV(void)
-{
-	_imxrt_invokePendSV();
-}
-
-
 int hal_interruptsSetHandler(intr_handler_t *h)
 {
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)

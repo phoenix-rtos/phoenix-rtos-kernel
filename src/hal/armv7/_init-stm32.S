@@ -17,6 +17,8 @@
 
 #include "cpu.h"
 
+#define ADDR_SCB 0xe000ed00
+
 .syntax unified
 .cpu cortex-m3
 
@@ -206,10 +208,23 @@ _intd1:
 .size _interrupts_dispatch, .-_interrupts_dispatch
 .ltorg
 
+
+.globl _hal_invokePendSV
+.type _hal_invokePendSV, %function
+_hal_invokePendSV:
+	mov r1, #(1 << 28)
+	ldr r2, =ADDR_SCB
+	str r1, [r2, #4]
+	bx lr
+.size _hal_invokePendSV, .-_hal_invokePendSV
+.ltorg
+
+
 .globl hal_cpuReschedule
 .type hal_cpuReschedule, %function
 hal_cpuReschedule:
 	push {r0, lr}
+	eor r0, r0, r0 /* default return value */
 	bl _hal_invokePendSV
 	pop {r1, lr}
 	cmp r1, #NULL

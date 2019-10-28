@@ -165,12 +165,6 @@ extern void _stm32_systickSet(u8 state);
 extern u32 _stm32_systickGet(void);
 
 
-extern void _stm32_invokePendSV(void);
-
-
-extern void _stm32_invokeSysTick(void);
-
-
 extern void _stm32_mpuReadRegion(u8 region, mpur_t *reg);
 
 

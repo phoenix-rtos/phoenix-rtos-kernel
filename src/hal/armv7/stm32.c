@@ -925,21 +925,6 @@ int _stm32_gpioGetPort(unsigned int d, u16 *val)
 }
 
 
-/* Exception triggering */
-
-
-void _stm32_invokePendSV(void)
-{
-	*(stm32_common.scb + scb_icsr) |= (1 << 28);
-}
-
-
-void _stm32_invokeSysTick(void)
-{
-	*(stm32_common.scb + scb_icsr) |= (1 << 26);
-}
-
-
 /* CPU info */
 
 

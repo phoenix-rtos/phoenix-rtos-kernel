@@ -250,12 +250,6 @@ extern void _imxrt_enableICache(void);
 extern void _imxrt_disableICache(void);
 
 
-extern void _imxrt_invokePendSV(void);
-
-
-extern void _imxrt_invokeSysTick(void);
-
-
 extern unsigned int _imxrt_cpuid(void);
 
 

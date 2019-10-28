@@ -2030,21 +2030,6 @@ void _imxrt_disableICache(void)
 }
 
 
-/* PendSV and Systick */
-
-
-void _imxrt_invokePendSV(void)
-{
-	*(imxrt_common.scb + scb_icsr) |= (1 << 28);
-}
-
-
-void _imxrt_invokeSysTick(void)
-{
-	*(imxrt_common.scb + scb_icsr) |= (1 << 26);
-}
-
-
 unsigned int _imxrt_cpuid(void)
 {
 	return *(imxrt_common.scb + scb_cpuid);
