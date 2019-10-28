@@ -24,7 +24,7 @@
 #define CPIO_PAD 0x3
 #endif
 
-extern void *programs;
+extern char programs[];
 
 unsigned int programs_a2i(char *s)
 {
@@ -51,14 +51,23 @@ unsigned int programs_a2i(char *s)
 int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 {
 #if !defined(CPU_STM32) && !defined(CPU_IMXRT)
-	cpio_newc_t *cpio = (void *)&programs;
+	cpio_newc_t *cpio = (void *)programs;
 	unsigned int fs, ns, sz, k;
 	page_t *p;
 	void *vaddr;
 	syspage_program_t *pr;
 
-	if (hal_strncmp(cpio->c_magic, "070701", 6))
-		return -EINVAL;
+	if (hal_strncmp(cpio->c_magic, "070701", 6)) {
+		/* Happens in QEMU when programs are not page aligned. What the hell? */
+		cpio = (void *)(programs - 0x1000);
+
+		if (hal_strncmp(cpio->c_magic, "070701", 6)) {
+			lib_printf("programs: valid cpio archive not found\n");
+			return -EINVAL;
+		}
+
+		lib_printf("programs: cpio archive found dislocated\n");
+	}
 
 	for (;;) {
 		if (!hal_strcmp(cpio->name, "TRAILER!!!"))
