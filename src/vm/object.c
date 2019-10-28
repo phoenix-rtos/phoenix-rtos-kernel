@@ -64,11 +64,12 @@ int vm_objectGet(vm_object_t **o, file_t *file)
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 
 	if (*o == NULL) {
+		/* FIXME: avoid deadlock in some better way */
+		proc_lockClear(&object_common.lock);
 		if (file->ops == NULL || file->ops->getattr(file, atSize, &sz, sizeof(sz)) != sizeof(sz)) {
-			proc_lockClear(&object_common.lock);
 			return -EINVAL; /* other error? */
-
 		}
+		proc_lockSet(&object_common.lock);
 
 		n = round_page(sz) / SIZE_PAGE;
 
