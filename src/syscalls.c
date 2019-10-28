@@ -878,7 +878,7 @@ int syscalls_fileUnlink(char *ustack)
 }
 
 
-int syscalls_lseek(char *ustack)
+int syscalls_fileSeek(char *ustack)
 {
 	int fildes;
 	off_t *offset;

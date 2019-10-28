@@ -73,7 +73,7 @@
 	ID(fileUnlink) \
 	ID(sys_fcntl) \
 	ID(sys_ftruncate) \
-	ID(lseek) \
+	ID(fileSeek) \
 	ID(sys_dup3) \
 	ID(sys_fchmod) \
 	ID(fileStat) \
