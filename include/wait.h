@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _SYS_WAIT_H_
-#define _SYS_WAIT_H_
+#ifndef _PHOENIX_WAIT_H_
+#define _PHOENIX_WAIT_H_
 
 
 enum {
