@@ -116,7 +116,7 @@ static ssize_t generic_getattr(file_t *file, int attr, void *value, size_t size)
 
 static int generic_link(file_t *dir, const char *name, const oid_t *file)
 {
-	return proc_objectLink(dir->port, file->id, name, file);
+	return proc_objectLink(dir->port, dir->id, name, file);
 }
 
 
