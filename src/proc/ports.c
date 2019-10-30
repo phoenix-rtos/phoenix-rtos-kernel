@@ -136,7 +136,7 @@ int proc_portCreate(u32 id)
 	int err;
 	port_t *port;
 
-	if ((err = port_create(&port, id)) == EOK && (err = fd_create(process, 0, 0, 0, &port_ops, port)) != EOK)
+	if ((err = port_create(&port, id)) == EOK && (err = fd_create(process, 0, 0, 0, &port_ops, port)) < 0)
 		port_put(port);
 
 	return err;
