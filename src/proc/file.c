@@ -967,7 +967,7 @@ int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
 	file_lock(file);
 	if ((err = file->ops->getattr(file, atStatStruct, (char *)buf, sizeof(*buf))) >= 0)
 		err = EOK;
-	file_lock(file);
+	file_unlock(file);
 
 	file_put(file);
 	return err;
