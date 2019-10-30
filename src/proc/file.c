@@ -337,7 +337,7 @@ int fd_create(process_t *p, int minfd, int flags, unsigned int status, const fil
 	file->data = data;
 	file->status = status;
 
-	if ((error = fd_new(p, minfd, flags, file)) != EOK)
+	if ((error = fd_new(p, minfd, flags, file)) < 0)
 		file_put(file);
 
 	file->ops = ops;
