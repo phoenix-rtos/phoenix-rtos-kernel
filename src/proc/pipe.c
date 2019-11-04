@@ -302,9 +302,7 @@ int proc_pipeCreate(int fds[2], int flags)
 	process_t *process = proc_current()->process;
 	int retval;
 
-	process_lock(process);
 	retval = pipe_create(process, SIZE_PAGE, fds, flags);
-	process_unlock(process);
 	return retval;
 }
 
