@@ -74,8 +74,8 @@ void _hal_consoleInit(void)
 
 	/* Set 115200 baudrate */
 	t = *(console_common.uart + uart_baud);
-	t = (t & ~(0x1f << 24)) | (0x19 << 24);
-	*(console_common.uart + uart_baud) = (t & ~0x1fff) | 8;
+	t = (t & ~(0x1f << 24)) | (0x4 << 24);
+	*(console_common.uart + uart_baud) = (t & ~0x1fff) | 111;
 	*(console_common.uart + uart_baud) &= ~(1 << 29);
 
 	/* Set 8 bit and no parity mode */
