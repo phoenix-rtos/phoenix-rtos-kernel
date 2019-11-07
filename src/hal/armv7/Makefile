@@ -10,7 +10,12 @@ ifneq (, $(findstring stm32, $(TARGET)))
 	SRCS = stm32.c console-stm32.c interrupts-stm32.c timer-stm32.c pmap-stm32.c
 else ifneq (, $(findstring imxrt, $(TARGET)))
 	ASMS = _init-imxrt.S
-	SRCS = imxrt.c console-imxrt.c interrupts-imxrt.c timer-imxrt.c pmap-imxrt.c
+	SRCS = interrupts-imxrt.c timer-imxrt.c pmap-imxrt.c
+	ifneq (, $(findstring 1170, $(TARGET)))
+		SRCS += imxrt1170.c console-imxrt1170.c
+	else
+		SRCS += imxrt.c console-imxrt.c
+	endif
 endif
 
 

@@ -29,6 +29,13 @@ else ifneq (, $(findstring l152xe, $(TARGET)))
 	CFLAGS += -DCPU_STM32 -DRAM_SIZE=80
 else ifneq (, $(findstring imxrt, $(TARGET)))
 	CFLAGS += -DCPU_IMXRT -DRAM_SIZE=256
+	ifneq (, $(findstring 1052, $(TARGET)))
+		CFLAGS += -DCPU_IMXRT1052
+	else ifneq (, $(findstring 1064, $(TARGET)))
+		CFLAGS += -DCPU_IMXRT1064
+	else ifneq (, $(findstring 1170, $(TARGET)))
+		CFLAGS += -DCPU_IMXRT1170
+	endif
 endif
 
 ifneq ($(DEBUG), 1)
