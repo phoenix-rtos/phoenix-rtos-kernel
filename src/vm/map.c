@@ -224,6 +224,11 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	unsigned int lmerge, rmerge;
 	amap_t *amap;
 
+#ifdef NOMMU
+	if (o == (void *)-1)
+		return vaddr;
+#endif
+
 	if ((v = _map_find(map, vaddr, size, &prev, &next)) == NULL)
 		return NULL;
 
