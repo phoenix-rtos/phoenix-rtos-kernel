@@ -27,6 +27,18 @@ extern int hal_platformctl(void *ptr);
 extern unsigned int _imxrt_cpuid(void);
 
 
+extern void _imxrt_nvicSetIRQ(s8 irqn, u8 state);
+
+
+extern void _imxrt_nvicSetPriority(s8 irqn, u32 priority);
+
+
+extern void _imxrt_scbSetPriorityGrouping(u32 group);
+
+
+extern void _imxrt_scbSetPriority(s8 excpn, u32 priority);
+
+
 extern void _imxrt_wdgReload(void);
 
 

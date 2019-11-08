@@ -32,7 +32,11 @@
 #endif
 
 #ifdef CPU_IMXRT
+#ifdef CPU_IMXRT1170
+#include "imxrt1170.h"
+#else
 #include "imxrt.h"
+#endif
 #endif
 
 
