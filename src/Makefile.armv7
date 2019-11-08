@@ -17,18 +17,21 @@ MKDEPFLAGS = $(CFLAGS)
 CC = $(CROSS)gcc
 
 CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
-	-mcpu=cortex-m3 -mthumb -ffixed-r9 -fomit-frame-pointer -ffreestanding -Wno-bool-operation \
+	-mthumb -ffixed-r9 -fomit-frame-pointer -ffreestanding -Wno-bool-operation \
 	-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" \
 	-DHAL=\"hal//armv7//hal.h\" -DNOMMU
 
 CFLAGS += -fdata-sections -ffunction-sections
 
-ifneq (, $(findstring l152xd, $(TARGET)))
-	CFLAGS += -DCPU_STM32 -DRAM_SIZE=48
-else ifneq (, $(findstring l152xe, $(TARGET)))
-	CFLAGS += -DCPU_STM32 -DRAM_SIZE=80
+ifneq (, $(findstring stm32, $(TARGET)))
+	CFLAGS += -DCPU_STM32 -mcpu=cortex-m3
+	ifneq (, $(findstring l152xd, $(TARGET)))
+		CFLAGS += -DRAM_SIZE=48
+	else ifneq (, $(findstring l152xe, $(TARGET)))
+		CFLAGS += -DRAM_SIZE=80
+	endif
 else ifneq (, $(findstring imxrt, $(TARGET)))
-	CFLAGS += -DCPU_IMXRT -DRAM_SIZE=256
+	CFLAGS += -DCPU_IMXRT -DRAM_SIZE=256 -mcpu=cortex-m7
 	ifneq (, $(findstring 1052, $(TARGET)))
 		CFLAGS += -DCPU_IMXRT1052
 	else ifneq (, $(findstring 1064, $(TARGET)))
