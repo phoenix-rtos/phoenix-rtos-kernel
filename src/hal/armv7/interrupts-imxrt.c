@@ -20,16 +20,15 @@
 
 #ifdef CPU_IMXRT1170
 #include "imxrt1170.h"
+#define SIZE_INTERRUPTS 217
 #else
 #include "imxrt.h"
+#define SIZE_INTERRUPTS 167
 #endif
 
 #include "../../proc/userintr.h"
 
 #include "../../../include/errno.h"
-
-
-#define SIZE_INTERRUPTS		167
 
 
 #define _intr_add(list, t) \
@@ -149,6 +148,7 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	for (n = 0; n < SIZE_INTERRUPTS; ++n) {
 		interrupts.handlers[n] = NULL;
 		interrupts.counters[n] = 0;
+		_imxrt_nvicSetIRQ(n, 0);
 	}
 
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");

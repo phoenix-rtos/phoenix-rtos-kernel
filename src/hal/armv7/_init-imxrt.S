@@ -171,7 +171,7 @@ _init_vectors:
 .word _pendsv              /* PendSV */
 .word _interrupts_dispatch /* Systick */
 
-.rept 168
+.rept 217
 .word _interrupts_dispatch
 .endr
 .size _init_vectors, .-_init_vectors
