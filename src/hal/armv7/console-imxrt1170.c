@@ -61,7 +61,7 @@ void _hal_consoleInit(void)
 
 	/* rx */
 	_imxrt_setIOmux(pctl_mux_gpio_ad_25, 0, 0);
-	_imxrt_setIOpad(pctl_pad_gpio_ad_24, 0, 0, 1, 1, 0, 0);
+	_imxrt_setIOpad(pctl_pad_gpio_ad_25, 0, 0, 1, 1, 0, 0);
 
 	_imxrt_setIOisel(pctl_isel_lpuart1_rxd, 0);
 	_imxrt_setIOisel(pctl_isel_lpuart1_txd, 0);
