@@ -106,7 +106,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 	if (h->n >= 0x10) {
 		_stm32_nvicSetIRQ(h->n - 0x10, 1);
-		_stm32_nvicSetPriority(h->n, 0xf);
+		_stm32_nvicSetPriority(h->n - 0x10, 0xf);
 	}
 	hal_spinlockClear(&interrupts.spinlock);
 
@@ -122,8 +122,8 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	hal_spinlockSet(&interrupts.spinlock);
 	_intr_remove(&interrupts.handlers[h->n], h);
 
-	if (interrupts.handlers[h->n] == NULL)
-		_stm32_nvicSetIRQ(h->n, 0);
+	if (h->n >= 0x10 && interrupts.handlers[h->n] == NULL)
+		_stm32_nvicSetIRQ(h->n - 0x10, 0);
 
 	hal_spinlockClear(&interrupts.spinlock);
 

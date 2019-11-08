@@ -108,7 +108,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 	if (h->n >= 0x10) {
 		_imxrt_nvicSetIRQ(h->n - 0x10, 1);
-		_imxrt_nvicSetPriority(h->n, 0xf);
+		_imxrt_nvicSetPriority(h->n - 0x10, 0xf);
 	}
 	hal_spinlockClear(&interrupts.spinlock);
 
@@ -124,8 +124,8 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	hal_spinlockSet(&interrupts.spinlock);
 	_intr_remove(&interrupts.handlers[h->n], h);
 
-	if (interrupts.handlers[h->n] == NULL)
-		_imxrt_nvicSetIRQ(h->n, 0);
+	if (h->n >= 0x10 && interrupts.handlers[h->n] == NULL)
+		_imxrt_nvicSetIRQ(h->n - 0x10, 0);
 
 	hal_spinlockClear(&interrupts.spinlock);
 
@@ -145,10 +145,15 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int n;
 
-	for (n = 0; n < SIZE_INTERRUPTS; ++n) {
+	for (n = 0; n < 16; ++n) {
 		interrupts.handlers[n] = NULL;
 		interrupts.counters[n] = 0;
-		_imxrt_nvicSetIRQ(n, 0);
+	}
+
+	for (; n < SIZE_INTERRUPTS; ++n) {
+		interrupts.handlers[n] = NULL;
+		interrupts.counters[n] = 0;
+		_imxrt_nvicSetIRQ(n - 0x10, 0);
 	}
 
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
