@@ -291,14 +291,13 @@ typedef struct {
 
 		struct {
 			int pad;
-			char hys;
 			char pus;
 			char pue;
 			char pke;
 			char ode;
-			char speed;
 			char dse;
 			char sre;
+			char apc;
 		} iopad;
 
 		struct {
@@ -310,10 +309,6 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
-
-		struct {
-			unsigned char state;
-		} devcache;
 	};
 } __attribute__((packed)) platformctl_t;
 

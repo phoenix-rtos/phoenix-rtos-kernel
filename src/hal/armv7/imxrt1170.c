@@ -497,15 +497,84 @@ static void _imxrt_enableICache(void)
 }
 
 
+static void _imxrt_reboot(void)
+{
+	/* TODO */
+}
+
+
+
 int hal_platformctl(void *ptr)
 {
-	return -ENOSYS;
+	platformctl_t *data = ptr;
+	int ret = -EINVAL;
+
+	hal_spinlockSet(&imxrt_common.pltctlSp);
+
+	switch (data->type) {
+/*
+	case pctl_devclock:
+		if (data->action == pctl_set)
+			ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.state);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getDevClock(data->devclock.dev, &data->devclock.state);
+		break;
+*/
+/*
+	case pctl_iogpr:
+		if (data->action == pctl_set)
+			ret = _imxrt_setIOgpr(data->iogpr.field, data->iogpr.val);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getIOgpr(data->iogpr.field, &data->iogpr.val);
+		break;
+*/
+	case pctl_iomux:
+		if (data->action == pctl_set)
+			ret = _imxrt_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getIOmux(data->iomux.mux, &data->iomux.sion, &data->iomux.mode);
+		break;
+
+	case pctl_iopad:
+		if (data->action == pctl_set)
+			ret = _imxrt_setIOpad(data->iopad.pad, data->iopad.sre, data->iopad.dse, data->iopad.pue,
+				data->iopad.pus, data->iopad.ode, data->iopad.apc);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getIOpad(data->iopad.pad, &data->iopad.sre, &data->iopad.dse, &data->iopad.pue,
+				&data->iopad.pus, &data->iopad.ode, &data->iopad.apc);
+		break;
+
+	case pctl_ioisel:
+		if (data->action == pctl_set)
+			ret = _imxrt_setIOisel(data->ioisel.isel, data->ioisel.daisy);
+		else if (data->action == pctl_get)
+			ret = _imxrt_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
+		break;
+
+	case pctl_reboot:
+		if (data->action == pctl_set) {
+			if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+				_imxrt_reboot();
+		}
+		else if (data->action == pctl_get) {
+			data->reboot.reason = imxrt_common.resetFlags;
+			ret = EOK;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	hal_spinlockClear(&imxrt_common.pltctlSp);
+
+	return ret;
 }
 
 
 void _imxrt_platformInit(void)
 {
-
+	hal_spinlockCreate(&imxrt_common.pltctlSp, "pltctlSp");
 }
 
 
