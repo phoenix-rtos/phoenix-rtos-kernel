@@ -349,10 +349,10 @@ _pendsv:
 
 	vstmdb sp!, {s16-s31}
 	mrs r0, ipsr
-	mrs r2, psp
+	mrs r3, psp
+	mov r2, r3
 	sub r1, sp, #48
-	stmdb sp!, {r1-r2, r4-r11, lr}
-	stmdb sp!, {r1}
+	stmdb sp!, {r1-r11, lr}
 
 	ldr r5, =_cpu_nctx
 	ldr r6, [r5]
@@ -372,20 +372,19 @@ _interrupts_dispatch:
 
 	vstmdb sp!, {s16-s31}
 	mrs r0, ipsr
-	mrs r2, psp
+	mrs r3, psp
+	mov r2, r3
 	sub r1, sp, #48
-	stmdb sp!, {r1-r2, r4-r11, lr}
-	stmdb sp!, {r1}
+	stmdb sp!, {r1-r11, lr}
 
 _intd0:
 	bl interrupts_dispatch
 	ldr sp, [sp]
 _intd1:
-	add sp, #4
-	ldmia sp!, {r0-r1, r4-r11, lr}
+	ldmia sp!, {r1-r11, lr}
 	vldmia sp!, {s16-s31}
 
-	msr psp, r1
+	msr psp, r3
 
 	/* Check if we're returning to userspace */
 	and r1, lr, #4
