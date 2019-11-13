@@ -278,8 +278,8 @@ _syscall_dispatch:
 	orr r7, r7, #1
 	stmdb sp!, {r1-r8}
 
-	add r9, r0, #(18 * 4)
-	push {r9}
+	add r6, r0, #(18 * 4)
+	push {r6}
 	sub sp, sp, #(18 * 4)
 	mov r5, #(17 * 4)
 
