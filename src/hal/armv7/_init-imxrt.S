@@ -271,7 +271,6 @@ _start_1:
 .type _syscallend, %function
 
 _syscall_dispatch:
-	cpsid if
 	stmdb sp!, {r4-r8}
 	mrs r0, psp
 
@@ -279,6 +278,8 @@ _syscall_dispatch:
 	orr r7, r7, #1
 	stmdb sp!, {r1-r8}
 
+	add r6, r0, #(18 * 4)
+	push {r6}
 	sub sp, sp, #(18 * 4)
 	mov r5, #(17 * 4)
 
@@ -308,9 +309,7 @@ _syscall_dispatch0:
 	bx lr
 
 _syscallend:
-	cpsid if
-	mrs lr, psp
-	add lr, #((18 + 8) * 4)
+	pop {lr}
 
 	ldmia sp!, {r1-r8}
 	mov r1, r0 /* Put result to user's r0 */
@@ -324,7 +323,6 @@ _syscallend:
 	msr control, r0
 
 	ldmia sp!, {r0-r3, r12, lr}
-	cpsie if
 	ldr pc, [sp], #8
 .size _syscall_dispatch, .-_syscall_dispatch
 .ltorg
