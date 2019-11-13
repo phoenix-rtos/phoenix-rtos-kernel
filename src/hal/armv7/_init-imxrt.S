@@ -314,6 +314,7 @@ _syscallend:
 	ldmia sp!, {r1-r8}
 	mov r1, r0 /* Put result to user's r0 */
 	stmdb lr!, {r1-r8}
+	msr psp, lr
 
 	ldmia sp!, {r4-r9}
 

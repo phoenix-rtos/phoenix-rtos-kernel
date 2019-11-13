@@ -1960,18 +1960,6 @@ void _imxrt_disableMPU(void)
 }
 
 
-/* FPU */
-
-
-void _imxrt_enableFPU(void)
-{
-	*(imxrt_common.scb + scb_cpacr) |= (3 << 22) | (3 << 20);
-
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-}
-
-
 /* Cache */
 
 
@@ -2109,9 +2097,6 @@ void _imxrt_init(void)
 	/* Disable Systick which might be enabled by bootrom */
 	if (*(imxrt_common.stk + stk_ctrl) & 1)
 		*(imxrt_common.stk + stk_ctrl) &= ~1;
-
-	/* Enable FPU */
-	_imxrt_enableFPU();
 
 	/* Configure cache */
 	_imxrt_enableDCache();
