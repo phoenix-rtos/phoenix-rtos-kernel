@@ -184,6 +184,17 @@ _init_vectors:
 _start:
 	cpsid if
 
+	/* Enable FPU */
+	ldr r0, =0xe000ed88
+	ldr r1, [r0]
+	orr r1, r1, #(0xf << 20)
+	str r1, [r0]
+
+	/* Enable FPU ctx */
+	mrs r0, control
+	orr r0, r0, #(1 << 2)
+	msr control, r0
+
 	/* Check kernel localization */
 	ldr r0, =FLEXSPI2_BASE
 	mov r1, pc
@@ -260,35 +271,41 @@ _start_1:
 .type _syscallend, %function
 
 _syscall_dispatch:
-	stmdb sp!, {r4-r8}
+	stmdb sp!, {r4-r9}
 	mrs r0, psp
 
-	/* Store hardware saved registers on kernel stack */
 	ldmia r0!, {r1-r8}
-
-	/* Fix PC LSB not being set */
 	orr r7, r7, #1
-
 	stmdb sp!, {r1-r8}
-	push {r0}
 
-	/* Copy arguments back to the user stack */
-	stmdb r0!, {r1-r4}
+	add r9, r0, #(18 * 4)
+	push {r9}
+	mov r9, r0
+	sub sp, sp, #(18 * 4)
+	eor r5, r5, r5
 
-	/* Get syscall number and its function pointer */
+_syscall_dispatch0:
+	ldr r6, [r9, r5]
+	str r6, [sp, r5]
+	add r5, r5, #1
+	cmp r5, #18
+	it ne
+	bne _syscall_dispatch0
+
+	add r0, r0, #(18 * 4)
+	stmdb r0, {r1-r4}
+
 	ldr r1, =syscalls
 	ldrb r2, [r7, #-3]
 	ldr r6, [r1, r2, lsl #2]
 
-	/* Prepare pseudo context */
 	mov r7, #0x01000000
 	ldr r5, =_syscallend
-	stmdb sp!, {r0-r7} /* PSR, PC, LR, R12, R3, R2, R1, R0 */
+	stmdb sp!, {r0-r7}
 
-	/* Exit handler mode to kernel thread mode */
-	mov lr, #0
+	mov lr, #(1 << 2)
 	msr control, lr
-	mov lr, #0xfffffff9
+	mov lr, #0xffffffe9
 	dmb
 	cpsie if
 	bx lr
@@ -300,10 +317,10 @@ _syscallend:
 	mov r1, r0 /* Put result to user's r0 */
 	stmdb lr!, {r1-r8}
 
-	ldmia sp!, {r4-r8}
+	ldmia sp!, {r4-r9}
 
 	/* Switch stacks */
-	mov r0, #3
+	mov r0, #7
 	msr control, r0
 
 	ldmia sp!, {r0-r3, r12, lr}
@@ -331,10 +348,12 @@ _exceptions_dispatch:
 _pendsv:
 	cpsid if
 
+	vstmdb sp!, {s16-s31}
 	mrs r0, ipsr
 	mrs r2, psp
-	sub r1, sp, #44
+	sub r1, sp, #48
 	stmdb sp!, {r1-r2, r4-r11, lr}
+	stmdb sp!, {r1}
 
 	ldr r5, =_cpu_nctx
 	ldr r6, [r5]
@@ -352,22 +371,27 @@ _pendsv:
 _interrupts_dispatch:
 	cpsid if
 
+	vstmdb sp!, {s16-s31}
 	mrs r0, ipsr
 	mrs r2, psp
-	sub r1, sp, #44
+	sub r1, sp, #48
 	stmdb sp!, {r1-r2, r4-r11, lr}
+	stmdb sp!, {r1}
 
 _intd0:
 	bl interrupts_dispatch
 	ldr sp, [sp]
 _intd1:
+	add sp, #4
 	ldmia sp!, {r0-r1, r4-r11, lr}
+	vldmia sp!, {s16-s31}
 
 	msr psp, r1
 
 	/* Check if we're returning to userspace */
 	and r1, lr, #4
 	ror r1, r1, #2
+	orr r1, r1, #(1 << 2)
 	msr control, r1
 
 	dmb
