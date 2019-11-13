@@ -280,17 +280,15 @@ _syscall_dispatch:
 
 	add r9, r0, #(18 * 4)
 	push {r9}
-	mov r9, r0
 	sub sp, sp, #(18 * 4)
-	eor r5, r5, r5
+	mov r5, #(17 * 4)
 
 _syscall_dispatch0:
-	ldr r6, [r9, r5]
+	ldr r6, [r0, r5]
 	str r6, [sp, r5]
-	add r5, r5, #4
-	cmp r5, #(18 * 4)
-	it lt
-	blt _syscall_dispatch0
+	subs r5, r5, #4
+	it pl
+	bpl _syscall_dispatch0
 
 	add r0, r0, #(18 * 4)
 	stmdb r0!, {r1-r4}
