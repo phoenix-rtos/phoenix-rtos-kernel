@@ -288,12 +288,12 @@ _syscall_dispatch0:
 	ldr r6, [r9, r5]
 	str r6, [sp, r5]
 	add r5, r5, #4
-	cmp r5, #18
-	it ne
-	bne _syscall_dispatch0
+	cmp r5, #(18 * 4)
+	it lt
+	blt _syscall_dispatch0
 
 	add r0, r0, #(18 * 4)
-	stmdb r0, {r1-r4}
+	stmdb r0!, {r1-r4}
 
 	ldr r1, =syscalls
 	ldrb r2, [r7, #-3]
