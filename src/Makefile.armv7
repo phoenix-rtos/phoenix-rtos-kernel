@@ -31,7 +31,7 @@ ifneq (, $(findstring stm32, $(TARGET)))
 		CFLAGS += -DRAM_SIZE=80
 	endif
 else ifneq (, $(findstring imxrt, $(TARGET)))
-	CFLAGS += -DCPU_IMXRT -DRAM_SIZE=256 -mcpu=cortex-m7
+	CFLAGS += -DCPU_IMXRT -DRAM_SIZE=256 -mcpu=cortex-m7  -mfloat-abi=hard -mfpu=fpv5-sp-d16
 	ifneq (, $(findstring 105, $(TARGET)))
 		CFLAGS += -DCPU_IMXRT1052
 	else ifneq (, $(findstring 106, $(TARGET)))

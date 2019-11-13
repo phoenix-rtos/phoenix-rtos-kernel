@@ -20,12 +20,19 @@
 
 #define SIZE_PAGE       0x200
 
-#define SIZE_KSTACK     (2 * 512)
 #define SIZE_USTACK     (2 * SIZE_PAGE)
 
+#ifdef CPU_IMXRT
+#define SIZE_KSTACK     (4 * 512)
+#define RET_HANDLER_MSP 0xffffffe1
+#define RET_THREAD_MSP  0xffffffe9
+#define RET_THREAD_PSP  0xffffffed
+#else
+#define SIZE_KSTACK     (2 * 512)
 #define RET_HANDLER_MSP 0xfffffff1
 #define RET_THREAD_MSP  0xfffffff9
 #define RET_THREAD_PSP  0xfffffffd
+#endif
 
 #ifndef __ASSEMBLY__
 
@@ -77,6 +84,7 @@ typedef struct _oid_t {
 /* TODO - add FPU context for iMXRT */
 typedef struct _cpu_context_t {
 	u32 savesp;
+	u32 pad0;
 
 	/* Saved by ISR */
 	u32 psp;
@@ -90,6 +98,25 @@ typedef struct _cpu_context_t {
 	u32 r11;
 	u32 irq_ret;
 
+#ifdef CPU_IMXRT
+	u32 s16;
+	u32 s17;
+	u32 s18;
+	u32 s19;
+	u32 s20;
+	u32 s21;
+	u32 s22;
+	u32 s23;
+	u32 s24;
+	u32 s25;
+	u32 s26;
+	u32 s27;
+	u32 s28;
+	u32 s29;
+	u32 s30;
+	u32 s31;
+#endif
+
 	/* Saved by hardware */
 	u32 r0;
 	u32 r1;
@@ -99,6 +126,27 @@ typedef struct _cpu_context_t {
 	u32 lr;
 	u32 pc;
 	u32 psr;
+
+#ifdef CPU_IMXRT
+	u32 s0;
+	u32 s1;
+	u32 s2;
+	u32 s3;
+	u32 s4;
+	u32 s5;
+	u32 s6;
+	u32 s7;
+	u32 s8;
+	u32 s9;
+	u32 s10;
+	u32 s11;
+	u32 s12;
+	u32 s13;
+	u32 s14;
+	u32 s15;
+	u32 fpscr;
+	u32 pad1;
+#endif
 } cpu_context_t;
 
 
@@ -326,7 +374,7 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 			ldr r3, [%0], #4; \
 		1: \
 			msr psp, %0; \
-			mov r4, #3; \
+			mov r4, #7; \
 			msr control, r4; \
 			bx %3"
 		: "+r"(stack), "+r" (argc)
