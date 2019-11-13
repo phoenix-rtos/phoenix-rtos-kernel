@@ -287,7 +287,7 @@ _syscall_dispatch:
 _syscall_dispatch0:
 	ldr r6, [r9, r5]
 	str r6, [sp, r5]
-	add r5, r5, #1
+	add r5, r5, #4
 	cmp r5, #18
 	it ne
 	bne _syscall_dispatch0
