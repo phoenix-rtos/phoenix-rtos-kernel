@@ -76,6 +76,9 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		((u32 *)ctx->psp)[5] = 0xeeeeeeee; /* lr */
 		((u32 *)ctx->psp)[6] = (u32)start; /* pc */
 		((u32 *)ctx->psp)[7] = 0x01000000; /* psr */
+#ifdef CPU_IMXRT
+		((u32 *)ctx->psp)[24] = 0;         /* fpscr */
+#endif
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
@@ -87,6 +90,9 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		ctx->lr = 0xeeeeeeee;
 		ctx->pc = (u32)start;
 		ctx->psr = 0x01000000;
+#ifdef CPU_IMXRT
+		ctx->fpscr = 0;
+#endif
 		ctx->irq_ret = RET_THREAD_MSP;
 	}
 
