@@ -290,6 +290,9 @@ _syscall_dispatch0:
 	it pl
 	bpl _syscall_dispatch0
 
+	ldr r6, =0xe000ef38
+	str sp, [r6]
+
 	add r0, r0, #(18 * 4)
 	stmdb r0!, {r1-r4}
 
