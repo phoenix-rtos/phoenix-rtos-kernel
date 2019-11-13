@@ -21,8 +21,8 @@
 #define SIZE_PAGE       0x200
 
 #ifdef CPU_IMXRT
-#define SIZE_USTACK     (4 * SIZE_PAGE)
-#define SIZE_KSTACK     (4 * 512)
+#define SIZE_USTACK     (2 * SIZE_PAGE)
+#define SIZE_KSTACK     (2 * 512)
 #define RET_HANDLER_MSP 0xffffffe1
 #define RET_THREAD_MSP  0xffffffe9
 #define RET_THREAD_PSP  0xffffffed
@@ -89,6 +89,7 @@ typedef struct _oid_t {
 
 typedef struct _cpu_context_t {
 	u32 savesp;
+	u32 pad0;
 
 	/* Saved by ISR */
 	u32 psp;

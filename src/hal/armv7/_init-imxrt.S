@@ -271,7 +271,8 @@ _start_1:
 .type _syscallend, %function
 
 _syscall_dispatch:
-	stmdb sp!, {r4-r8}
+	cpsid if
+	stmdb sp!, {r3-r8}
 	mrs r0, psp
 
 	ldmia r0!, {r1-r8}
@@ -279,7 +280,7 @@ _syscall_dispatch:
 	stmdb sp!, {r1-r8}
 
 	add r6, r0, #(18 * 4)
-	push {r6}
+	stmdb sp!, {r5-r6}
 	sub sp, sp, #(18 * 4)
 	mov r5, #(17 * 4)
 
@@ -296,9 +297,9 @@ _syscall_dispatch0:
 	add r0, r0, #(18 * 4)
 	stmdb r0!, {r1-r4}
 
-	ldr r1, =syscalls
-	ldrb r2, [r7, #-3]
-	ldr r6, [r1, r2, lsl #2]
+	mov r1, r0
+	ldrb r0, [r7, #-3]
+	ldr r6, =syscalls_dispatch
 
 	mov r7, #0x01000000
 	ldr r5, =_syscallend
@@ -312,14 +313,16 @@ _syscall_dispatch0:
 	bx lr
 
 _syscallend:
-	pop {lr}
+	cpsid if
+	pop {r12, lr}
 
 	ldmia sp!, {r1-r8}
 	mov r1, r0 /* Put result to user's r0 */
 	stmdb lr!, {r1-r8}
 	msr psp, lr
 
-	ldmia sp!, {r4-r8}
+	ldmia sp!, {r3-r8}
+	cpsie if
 
 	/* Switch stacks */
 	mov r0, #7
@@ -352,9 +355,9 @@ _pendsv:
 
 	vstmdb sp!, {s16-s31}
 	mrs r0, ipsr
-	mrs r2, psp
-	sub r1, sp, #44
-	stmdb sp!, {r1-r2, r4-r11, lr}
+	mrs r3, psp
+	sub r1, sp, #48
+	stmdb sp!, {r1-r11, lr}
 
 	ldr r5, =_cpu_nctx
 	ldr r6, [r5]
@@ -374,18 +377,18 @@ _interrupts_dispatch:
 
 	vstmdb sp!, {s16-s31}
 	mrs r0, ipsr
-	mrs r2, psp
-	sub r1, sp, #44
-	stmdb sp!, {r1-r2, r4-r11, lr}
+	mrs r3, psp
+	sub r1, sp, #48
+	stmdb sp!, {r1-r11, lr}
 
 _intd0:
 	bl interrupts_dispatch
 	ldr sp, [sp]
 _intd1:
-	ldmia sp!, {r0-r1, r4-r11, lr}
+	ldmia sp!, {r1-r11, lr}
 	vldmia sp!, {s16-s31}
 
-	msr psp, r1
+	msr psp, r3
 
 	/* Check if we're returning to userspace */
 	and r1, lr, #4
