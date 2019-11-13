@@ -53,7 +53,8 @@
 
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		hal_memcpy(&(v), ustack, sizeof(t)); \
+		ustack = (void *)(((ptr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
+		(v) = *(t *)ustack; \
 		ustack += (sizeof(t) + 3) & ~0x3; \
 	} while (0)
 
@@ -85,10 +86,9 @@ typedef struct _oid_t {
 	id_t id;
 } oid_t;
 
-/* TODO - add FPU context for iMXRT */
+
 typedef struct _cpu_context_t {
 	u32 savesp;
-	u32 pad0;
 
 	/* Saved by ISR */
 	u32 psp;
