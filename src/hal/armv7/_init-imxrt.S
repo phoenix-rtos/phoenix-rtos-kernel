@@ -271,7 +271,7 @@ _start_1:
 .type _syscallend, %function
 
 _syscall_dispatch:
-	stmdb sp!, {r4-r9}
+	stmdb sp!, {r4-r8}
 	mrs r0, psp
 
 	ldmia r0!, {r1-r8}
@@ -316,7 +316,7 @@ _syscallend:
 	stmdb lr!, {r1-r8}
 	msr psp, lr
 
-	ldmia sp!, {r4-r9}
+	ldmia sp!, {r4-r8}
 
 	/* Switch stacks */
 	mov r0, #7
