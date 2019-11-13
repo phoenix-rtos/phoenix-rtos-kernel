@@ -57,7 +57,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	hal_memset(ctx, 0, sizeof(*ctx));
 
 	ctx->savesp = (u32)ctx;
-	ctx->psp = (ustack != NULL) ? (u32)ustack - ((8 + 18) * sizeof(int)) : NULL;
+	ctx->psp = (ustack != NULL) ? (u32)ustack - (HWCTXSIZE * sizeof(int)) : NULL;
 	ctx->r4 = 0x44444444;
 	ctx->r5 = 0x55555555;
 	ctx->r6 = 0x66666666;
@@ -66,23 +66,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->r9 = 0x99999999;
 	ctx->r10 = 0xaaaaaaaa;
 	ctx->r11 = 0xbbbbbbbb;
-
-	ctx->s16 = 0x55aa550a;
-	ctx->s17 = 0x55aa551a;
-	ctx->s18 = 0x55aa552a;
-	ctx->s19 = 0x55aa553a;
-	ctx->s20 = 0x55aa554a;
-	ctx->s21 = 0x55aa555a;
-	ctx->s22 = 0x55aa556a;
-	ctx->s23 = 0x55aa557a;
-	ctx->s24 = 0x55aa558a;
-	ctx->s25 = 0x55aa559a;
-	ctx->s26 = 0x55aa55aa;
-	ctx->s27 = 0x55aa55ba;
-	ctx->s28 = 0x55aa55ca;
-	ctx->s29 = 0x55aa55da;
-	ctx->s30 = 0x55aa55ea;
-	ctx->s31 = 0x55aa55fa;
 
 	if (ustack != NULL) {
 		((u32 *)ctx->psp)[0] = (u32)arg;   /* r0 */
@@ -93,27 +76,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		((u32 *)ctx->psp)[5] = 0xeeeeeeee; /* lr */
 		((u32 *)ctx->psp)[6] = (u32)start; /* pc */
 		((u32 *)ctx->psp)[7] = 0x01000000; /* psr */
-		((u32 *)ctx->psp)[8] = 0xaa55aa55;
-		((u32 *)ctx->psp)[9] = 0xaa55aa55;
-
-		((u32 *)ctx->psp)[10] = 0xaa55aa50;
-		((u32 *)ctx->psp)[11] = 0xaa55aa51;
-		((u32 *)ctx->psp)[12] = 0xaa55aa52;
-		((u32 *)ctx->psp)[13] = 0xaa55aa53;
-		((u32 *)ctx->psp)[14] = 0xaa55aa54;
-		((u32 *)ctx->psp)[15] = 0xaa55aa55;
-		((u32 *)ctx->psp)[16] = 0xaa55aa56;
-		((u32 *)ctx->psp)[17] = 0xaa55aa57;
-		((u32 *)ctx->psp)[18] = 0xaa55aa58;
-		((u32 *)ctx->psp)[19] = 0xaa55aa59;
-		((u32 *)ctx->psp)[20] = 0xaa55aa5a;
-		((u32 *)ctx->psp)[21] = 0xaa55aa5b;
-		((u32 *)ctx->psp)[22] = 0xaa55aa5c;
-		((u32 *)ctx->psp)[23] = 0xaa55aa5d;
-		((u32 *)ctx->psp)[24] = 0xaa55aa5e;
-		((u32 *)ctx->psp)[25] = 0xaa55aa5f;
-		((u32 *)ctx->psp)[24] = 0xaa55aa60;
-		((u32 *)ctx->psp)[25] = 0;
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
@@ -126,25 +88,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		ctx->pc = (u32)start;
 		ctx->psr = 0x01000000;
 		ctx->irq_ret = RET_THREAD_MSP;
-
-		ctx->s0 = 0x55aa550a;
-		ctx->s1 = 0x55aa551a;
-		ctx->s2 = 0x55aa552a;
-		ctx->s3 = 0x55aa553a;
-		ctx->s4 = 0x55aa554a;
-		ctx->s5 = 0x55aa555a;
-		ctx->s6 = 0x55aa556a;
-		ctx->s7 = 0x55aa557a;
-		ctx->s8 = 0x55aa558a;
-		ctx->s9 = 0x55aa559a;
-		ctx->s10 = 0x55aa55aa;
-		ctx->s11 = 0x55aa55ba;
-		ctx->s12 = 0x55aa55ca;
-		ctx->s13 = 0x55aa55da;
-		ctx->s14 = 0x55aa55ea;
-		ctx->s15 = 0x55aa55fa;
-		ctx->fpscr = 0;
-		ctx->pad1 = 0x55aa55f1;
 	}
 
 	*nctx = ctx;

@@ -27,11 +27,15 @@
 #define RET_HANDLER_MSP 0xffffffe1
 #define RET_THREAD_MSP  0xffffffe9
 #define RET_THREAD_PSP  0xffffffed
+#define HWCTXSIZE       (8 + 18)
+#define USERCONTROL     0x7
 #else
 #define SIZE_KSTACK     (2 * 512)
 #define RET_HANDLER_MSP 0xfffffff1
 #define RET_THREAD_MSP  0xfffffff9
 #define RET_THREAD_PSP  0xfffffffd
+#define HWCTXSIZE       8
+#define USERCONTROL     0x3
 #endif
 
 #ifndef __ASSEMBLY__
@@ -374,11 +378,11 @@ static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 			ldr r3, [%0], #4; \
 		1: \
 			msr psp, %0; \
-			mov r4, #7; \
+			mov r4, %4; \
 			msr control, r4; \
 			bx %3"
 		: "+r"(stack), "+r" (argc)
-		: "r" (kstack), "r" (f)
+		: "r" (kstack), "r" (f), "i"(USERCONTROL)
 		: "r0", "r1", "r2", "r3", "r4", "sp");
 	}
 }
