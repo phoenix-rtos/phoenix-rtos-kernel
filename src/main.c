@@ -36,7 +36,7 @@ struct {
 
 void main_initthr(void *unused)
 {
-	int i;
+	int i, res;
 	syspage_program_t *prog;
 	int xcount = 0;
 	char *cmdline = syspage->arg, *end;
@@ -97,7 +97,10 @@ void main_initthr(void *unused)
 			for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				if (!hal_strcmp(cmdline + 1, prog->cmdline)) {
 					argv[0] = prog->cmdline;
-					proc_syspageSpawn(prog, prog->cmdline, argv);
+					res = proc_syspageSpawn(prog, prog->cmdline, argv);
+					if (res < 0) {
+						lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
+					}
 				}
 			}
 		}
@@ -110,7 +113,10 @@ void main_initthr(void *unused)
 		/* Start all syspage programs */
 		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				argv[0] = prog->cmdline;
-				proc_syspageSpawn(prog, prog->cmdline, argv);
+				res = proc_syspageSpawn(prog, prog->cmdline, argv);
+				if (res < 0) {
+					lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
+				}
 		}
 	}
 
