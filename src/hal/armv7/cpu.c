@@ -91,7 +91,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		ctx->lr = 0xeeeeeeee;
 		ctx->pc = (u32)start;
 		ctx->psr = 0x01000000;
-		ctx->fpuctx = &ctx->psr + 1;
+		ctx->fpuctx = (u32)(&ctx->psr + 1);
 #ifdef CPU_IMXRT
 		ctx->fpscr = 0;
 #endif
