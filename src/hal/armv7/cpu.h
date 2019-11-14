@@ -89,7 +89,7 @@ typedef struct _oid_t {
 
 typedef struct _cpu_context_t {
 	u32 savesp;
-	u32 pad0;
+	u32 fpuctx;
 
 	/* Saved by ISR */
 	u32 psp;

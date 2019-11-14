@@ -272,7 +272,7 @@ _start_1:
 
 _syscall_dispatch:
 	cpsid if
-	stmdb sp!, {r3-r8}
+	stmdb sp!, {r4-r8}
 	mrs r0, psp
 
 	ldmia r0!, {r1-r8}
@@ -280,7 +280,7 @@ _syscall_dispatch:
 	stmdb sp!, {r1-r8}
 
 	add r6, r0, #(18 * 4)
-	stmdb sp!, {r5-r6}
+	stmdb sp!, {r6}
 	sub sp, sp, #(18 * 4)
 	mov r5, #(17 * 4)
 
@@ -314,14 +314,14 @@ _syscall_dispatch0:
 
 _syscallend:
 	cpsid if
-	pop {r12, lr}
+	pop {lr}
 
 	ldmia sp!, {r1-r8}
 	mov r1, r0 /* Put result to user's r0 */
 	stmdb lr!, {r1-r8}
 	msr psp, lr
 
-	ldmia sp!, {r3-r8}
+	ldmia sp!, {r4-r8}
 	cpsie if
 
 	/* Switch stacks */
@@ -357,6 +357,8 @@ _pendsv:
 	mrs r0, ipsr
 	mrs r3, psp
 	sub r1, sp, #48
+	ldr r2, =0xe000ef38
+	ldr r2, [r2]
 	stmdb sp!, {r1-r11, lr}
 
 	ldr r5, =_cpu_nctx
@@ -379,6 +381,8 @@ _interrupts_dispatch:
 	mrs r0, ipsr
 	mrs r3, psp
 	sub r1, sp, #48
+	ldr r2, =0xe000ef38
+	ldr r2, [r2]
 	stmdb sp!, {r1-r11, lr}
 
 _intd0:
@@ -387,6 +391,9 @@ _intd0:
 _intd1:
 	ldmia sp!, {r1-r11, lr}
 	vldmia sp!, {s16-s31}
+
+	ldr r1, =0xe000ef38
+	str r2, [r1]
 
 	msr psp, r3
 
