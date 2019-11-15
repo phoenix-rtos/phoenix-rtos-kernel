@@ -17,6 +17,7 @@
 #define _PHOENIX_MSG_H_
 
 #include "types.h"
+#include "socket.h"
 
 /*
  * Message types
@@ -28,10 +29,12 @@ enum {
 	mtOpen = 0, mtClose, mtRead, mtWrite, mtDevCtl, mtSetAttr, mtGetAttr,
 
 	/* Directory operations */
-	mtLookup, mtLink, mtUnlink,
+	mtLookup, mtLink, mtUnlink, mtMount,
 
 	/* Socket operations */
-	mtAccept, mtBind, mtConnect, mtGetPeerName, mtGetSockName, mtListen,
+	mtAccept, mtBind, mtConnect, mtListen,
+
+	mtGetPeerName, mtGetSockName,
 	mtRecv, mtSend, mtSocket, mtShutdown, mtSetOpt, mtGetOpt, mtGetFl, mtSetFl, mtGetAddrInfo, mtGetNameInfo,
 
 	mtCount
@@ -39,7 +42,7 @@ enum {
 
 
 /* mt{Get,Set}Attr types */
-enum { atMode, atUid, atGid, atSize, atType, atPort, atEvents, atCTime, atMTime, atATime, atLinks, atDev, atStatStruct };
+enum { atMode, atUid, atGid, atSize, atType, atPort, atEvents, atCTime, atMTime, atATime, atLinks, atDev, atStatStruct, atMount };
 
 
 #pragma pack(push, 8)
@@ -72,8 +75,17 @@ typedef struct _msg_t {
 			/* LINK */
 			oid_t link;
 
+			/* MOUNT */
+			struct {
+				unsigned int port;
+				int flags;
+				oid_t dir;
+			} mount;
+
 			/* DEVCTL */
 			unsigned long devctl;
+
+			int listen; /* backlog */
 
 			unsigned char raw[64];
 		};
@@ -92,6 +104,13 @@ typedef struct _msg_t {
 			id_t open;
 
 			ssize_t io;
+
+			struct {
+				id_t id;
+				socklen_t length;
+			} accept;
+
+			id_t mount;
 
 			unsigned char raw[64];
 		};

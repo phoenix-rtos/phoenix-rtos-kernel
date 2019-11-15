@@ -46,6 +46,21 @@ extern int proc_objectLink(struct _port_t *port, id_t id, const char *name, cons
 extern int proc_objectUnlink(struct _port_t *port, id_t id, const char *name);
 
 
+extern int proc_objectMount(struct _port_t *port, id_t id, unsigned int newport, oid_t *oid, const char *type, int flags, id_t *newid);
+
+
 extern int proc_objectClose(struct _port_t *port, id_t id);
+
+
+extern int proc_objectBind(struct _port_t *port, id_t id, const struct sockaddr *address, socklen_t length);
+
+
+extern int proc_objectAccept(struct _port_t *port, id_t id, id_t *new, const struct sockaddr *address, socklen_t *length);
+
+
+extern int proc_objectListen(struct _port_t *port, id_t id, int backlog);
+
+
+extern int proc_objectConnect(struct _port_t *port, id_t id, const struct sockaddr *address, socklen_t length);
 
 #endif

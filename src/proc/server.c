@@ -247,4 +247,117 @@ int proc_objectClose(struct _port_t *port, id_t id)
 }
 
 
+int proc_objectMount(port_t *dev, id_t id, unsigned int port, oid_t *dir, const char *type, int flags, id_t *newid)
+{
+	int retval;
+	msg_t msg;
+	msg.type = mtMount;
+	msg.object = id;
 
+	msg.i.mount.port = port;
+	msg.i.mount.dir = *dir;
+	msg.i.mount.flags = flags;
+
+	msg.i.data = type;
+	msg.i.size = hal_strlen(type);
+
+	if ((retval = port_send(dev, &msg)) < 0)
+		return retval;
+
+	*newid = msg.o.mount;
+	return msg.error;
+}
+
+
+int proc_objectBind(struct _port_t *port, id_t id, const struct sockaddr *address, socklen_t length)
+{
+	msg_t msg;
+	int error;
+
+	msg.type = mtBind;
+	msg.object = id;
+
+	msg.i.size = length;
+	msg.i.data = address;
+	msg.o.size = 0;
+	msg.o.data = NULL;
+
+	if ((error = port_send(port, &msg)) < 0)
+		return error;
+
+	return msg.error;
+}
+
+
+int proc_objectAccept(struct _port_t *port, id_t id, id_t *new, const struct sockaddr *address, socklen_t *length)
+{
+	msg_t msg;
+	int error;
+
+	msg.type = mtAccept;
+	msg.object = id;
+
+	msg.i.size = 0;
+	msg.i.data = NULL;
+
+	if (length != NULL && address != NULL) {
+		msg.o.size = *length;
+		msg.o.data = address;
+	}
+	else {
+		msg.o.size = 0;
+		msg.o.data = NULL;
+	}
+
+	if ((error = port_send(port, &msg)) < 0)
+		return error;
+
+	if (length != NULL && address != NULL) {
+		*length = msg.o.accept.length;
+	}
+
+	*new = msg.o.accept.id;
+	return msg.error;
+}
+
+
+int proc_objectListen(struct _port_t *port, id_t id, int backlog)
+{
+	msg_t msg;
+	int error;
+
+	msg.type = mtListen;
+	msg.object = id;
+
+	msg.i.listen = backlog;
+
+	msg.i.size = 0;
+	msg.i.data = NULL;
+	msg.o.size = 0;
+	msg.o.data = NULL;
+
+	if ((error = port_send(port, &msg)) < 0)
+		return error;
+
+	return msg.error;
+}
+
+
+int proc_objectConnect(struct _port_t *port, id_t id, const struct sockaddr *address, socklen_t length)
+{
+	msg_t msg;
+	int error;
+
+	msg.type = mtConnect;
+	msg.object = id;
+
+	msg.i.size = length;
+	msg.i.data = address;
+	msg.o.size = 0;
+	msg.o.data = NULL;
+
+	if ((error = port_send(port, &msg)) < 0)
+		return error;
+
+	return msg.error;
+}

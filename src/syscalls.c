@@ -1064,6 +1064,23 @@ int syscalls_deviceCreate(char *ustack)
 }
 
 
+int syscalls_deviceMount(char *ustack)
+{
+	const char *type, *dirpath, *devpath;
+	int flags, dirfd;
+	unsigned int port;
+
+	GETFROMSTACK(ustack, const char *, type, 0);
+	GETFROMSTACK(ustack, int, flags, 1);
+	GETFROMSTACK(ustack, int, dirfd, 2);
+	GETFROMSTACK(ustack, const char *, dirpath, 3);
+	GETFROMSTACK(ustack, const char *, devpath, 4);
+	GETFROMSTACK(ustack, unsigned int, port, 5);
+
+	return proc_deviceMount(type, flags, dirfd, dirpath, devpath, port);
+}
+
+
 int syscalls_sys_accept4(char *ustack)
 {
 	int socket;
@@ -1076,7 +1093,15 @@ int syscalls_sys_accept4(char *ustack)
 	GETFROMSTACK(ustack, socklen_t *,address_len, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
 
-	return proc_netAccept4(socket, address, address_len, flags);
+	int err;
+	do {
+		if ((err = proc_netAccept4(socket, address, address_len, flags)) == -EAGAIN) {
+			lib_printf("accept: polling\n");
+			struct pollfd fd = { .fd = socket, .events = POLLIN, .revents = 0 };
+			proc_poll(&fd, 1, -1);
+		}
+	} while (err == -EAGAIN);
+	return err;
 }
 
 
