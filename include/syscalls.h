@@ -107,4 +107,5 @@
 	ID(sys_setsid) \
 	ID(sys_getsid) \
 	ID(threadKill) \
-	ID(deviceCreate)
+	ID(deviceCreate) \
+	ID(deviceMount)
