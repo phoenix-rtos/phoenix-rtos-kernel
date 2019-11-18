@@ -42,7 +42,7 @@ enum {
 
 
 /* mt{Get,Set}Attr types */
-enum { atMode, atUid, atGid, atSize, atType, atPort, atEvents, atCTime, atMTime, atATime, atLinks, atDev, atStatStruct, atMount };
+enum { atMode, atUid, atGid, atSize, atType, atPort, atEvents, atCTime, atMTime, atATime, atLinks, atDev, atStatStruct, atMount, atMountPoint };
 
 
 #pragma pack(push, 8)
@@ -78,8 +78,6 @@ typedef struct _msg_t {
 			/* MOUNT */
 			struct {
 				unsigned int port;
-				int flags;
-				oid_t dir;
 			} mount;
 
 			/* DEVCTL */
@@ -110,7 +108,10 @@ typedef struct _msg_t {
 				socklen_t length;
 			} accept;
 
-			id_t mount;
+			struct {
+				id_t id;
+				mode_t mode;
+			} mount;
 
 			unsigned char raw[64];
 		};

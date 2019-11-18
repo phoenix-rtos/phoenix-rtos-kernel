@@ -159,7 +159,10 @@ extern int proc_filesDestroy(struct _process_t *process);
 extern int proc_filesSetRoot(int port, id_t id, mode_t mode);
 
 
-extern int proc_deviceMount(const char *type, int flags, int dirfd, const char *dirpath, const char *devpath, unsigned int port);
+extern int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port);
+
+
+extern int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath);
 
 
 extern int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags);

@@ -508,6 +508,17 @@ static int _file_dup(process_t *p, int fd, int fd2, int flags)
 }
 
 
+static file_t *file_setRoot(file_t *file)
+{
+	file_t *root;
+	proc_lockSet(&file_common.lock);
+	root = file_common.root;
+	file_common.root = file;
+	proc_lockClear(&file_common.lock);
+	return root;
+}
+
+
 int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 {
 	file_t *root, *port;
@@ -527,12 +538,7 @@ int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 	root->ops = &generic_file_ops;
 	root->mode = mode;
 
-	proc_lockSet(&file_common.lock);
-	if (file_common.root != NULL)
-		file_put(file_common.root);
-	file_common.root = root;
-	proc_lockClear(&file_common.lock);
-
+	file_put(file_setRoot(root));
 	return EOK;
 }
 
@@ -1121,32 +1127,81 @@ int proc_changeDir(int fildes, const char *path)
 }
 
 
-int proc_deviceMount(const char *type, int flags, int dirfd, const char *dirpath, const char *devpath, unsigned int port)
+int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port)
 {
 	process_t *process = proc_current()->process;
-	file_t *dir, *device;
-	oid_t oid;
-	id_t newid;
 	int retval;
+	file_t *device, *root;
+	id_t rootid;
+	mode_t mode;
 
-	if ((retval = file_resolve(process, dirfd, dirpath, O_DIRECTORY, &dir)) < 0)
+	if ((retval = file_resolve(process, devfd, devpath, 0, &device)) < 0)
 		return retval;
 
-	if ((retval = file_resolve(process, AT_FDCWD, devpath, 0, &device)) < 0) {
+	retval = proc_objectMount(device->port, device->id, port, type, &rootid, &mode);
+	file_put(device);
+
+	if (retval < 0)
+		return retval;
+
+	if ((root = file_alloc()) == NULL)
+		return -ENOMEM;
+
+	if ((root->port = port_get(port)) == NULL) {
+		FILE_LOG("filesystem mounted but it's port not found");
+		file_put(root);
+		return -EIO;
+	}
+
+	root->id = rootid;
+	root->ops = &generic_file_ops;
+	root->mode = mode;
+
+	if ((retval = fd_new(process, 0, 0, root)) < 0)
+		file_put(root);
+	return retval;
+}
+
+
+int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath)
+{
+	process_t *process = proc_current()->process;
+	file_t *dir, *fs;
+	oid_t oid;
+	int retval;
+
+	if (dirpath[0] == '/' && dirpath[1] == 0) {
+		dir = NULL;
+		oid.port = 0;
+		oid.id = 0;
+	}
+	else {
+		if ((retval = file_resolve(process, dirfd, dirpath, O_DIRECTORY, &dir)) < 0)
+			return retval;
+
+		oid.port = dir->port->id;
+		oid.id = dir->id;
+	}
+
+	if ((retval = file_resolve(process, fsfd, fspath, 0, &fs)) < 0) {
 		file_put(dir);
 		return retval;
 	}
 
-	oid.port = dir->port->id;
-	oid.id = dir->id;
-	if ((retval = proc_objectMount(device->port, device->id, port, &oid, type, flags, &newid)) == EOK) {
-		oid.port = port;
-		oid.id = newid;
-		retval = dir->ops->setattr(dir, atMount, &oid, sizeof(oid));
+	if (dir != NULL) {
+		retval = fs->ops->setattr(fs, atMountPoint, &oid, sizeof(oid));
+		if (retval == EOK) {
+			oid.port = fs->port->id;
+			oid.id = fs->id;
+			retval = dir->ops->setattr(dir, atMount, &oid, sizeof(oid));
+		}
+	}
+	else {
+		fs = file_setRoot(fs);
 	}
 
 	file_put(dir);
-	file_put(device);
+	file_put(fs);
 	return retval;
 }
 

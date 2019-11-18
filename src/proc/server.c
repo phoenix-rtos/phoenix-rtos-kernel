@@ -247,7 +247,7 @@ int proc_objectClose(struct _port_t *port, id_t id)
 }
 
 
-int proc_objectMount(port_t *dev, id_t id, unsigned int port, oid_t *dir, const char *type, int flags, id_t *newid)
+int proc_objectMount(port_t *dev, id_t id, unsigned int port, const char *type, id_t *newid, mode_t *mode)
 {
 	int retval;
 	msg_t msg;
@@ -255,8 +255,6 @@ int proc_objectMount(port_t *dev, id_t id, unsigned int port, oid_t *dir, const 
 	msg.object = id;
 
 	msg.i.mount.port = port;
-	msg.i.mount.dir = *dir;
-	msg.i.mount.flags = flags;
 
 	msg.i.data = type;
 	msg.i.size = hal_strlen(type);
@@ -264,7 +262,8 @@ int proc_objectMount(port_t *dev, id_t id, unsigned int port, oid_t *dir, const 
 	if ((retval = port_send(dev, &msg)) < 0)
 		return retval;
 
-	*newid = msg.o.mount;
+	*newid = msg.o.mount.id;
+	*mode = msg.o.mount.mode;
 	return msg.error;
 }
 

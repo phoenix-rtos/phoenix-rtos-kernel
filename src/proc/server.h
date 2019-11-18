@@ -46,7 +46,7 @@ extern int proc_objectLink(struct _port_t *port, id_t id, const char *name, cons
 extern int proc_objectUnlink(struct _port_t *port, id_t id, const char *name);
 
 
-extern int proc_objectMount(struct _port_t *port, id_t id, unsigned int newport, oid_t *oid, const char *type, int flags, id_t *newid);
+extern int proc_objectMount(struct _port_t *port, id_t id, unsigned int newport, const char *type, id_t *newid, mode_t *mode);
 
 
 extern int proc_objectClose(struct _port_t *port, id_t id);

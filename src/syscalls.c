@@ -1064,22 +1064,33 @@ int syscalls_deviceCreate(char *ustack)
 }
 
 
-int syscalls_deviceMount(char *ustack)
+int syscalls_fsMount(char *ustack)
 {
-	const char *type, *dirpath, *devpath;
-	int flags, dirfd;
+	const char *type, *devpath;
+	int devfd;
 	unsigned int port;
 
 	GETFROMSTACK(ustack, const char *, type, 0);
-	GETFROMSTACK(ustack, int, flags, 1);
-	GETFROMSTACK(ustack, int, dirfd, 2);
-	GETFROMSTACK(ustack, const char *, dirpath, 3);
-	GETFROMSTACK(ustack, const char *, devpath, 4);
-	GETFROMSTACK(ustack, unsigned int, port, 5);
+	GETFROMSTACK(ustack, int, devfd, 1);
+	GETFROMSTACK(ustack, const char *, devpath, 2);
+	GETFROMSTACK(ustack, unsigned int, port, 3);
 
-	return proc_deviceMount(type, flags, dirfd, dirpath, devpath, port);
+	return proc_fsMount(devfd, devpath, type, port);
 }
 
+
+int syscalls_fsBind(char *ustack)
+{
+	int dirfd, fsfd;
+	const char *dirpath, *fspath;
+
+	GETFROMSTACK(ustack, int, dirfd, 0);
+	GETFROMSTACK(ustack, const char *, dirpath, 1);
+	GETFROMSTACK(ustack, int, fsfd, 2);
+	GETFROMSTACK(ustack, const char *, fspath, 3);
+
+	return proc_fsBind(dirfd, dirpath, fsfd, fspath);
+}
 
 int syscalls_sys_accept4(char *ustack)
 {

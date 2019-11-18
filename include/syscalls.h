@@ -108,4 +108,5 @@
 	ID(sys_getsid) \
 	ID(threadKill) \
 	ID(deviceCreate) \
-	ID(deviceMount)
+	ID(fsMount) \
+	ID(fsBind)
