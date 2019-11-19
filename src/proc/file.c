@@ -67,6 +67,11 @@ static int generic_release(file_t *file)
 	int retval;
 	retval = proc_objectClose(file->port, file->id);
 	port_put(file->port);
+
+	if (file->fs.port != NULL) {
+		retval = proc_objectClose(file->fs.port, file->fs.id);
+		port_put(file->fs.port);
+	}
 	return retval;
 }
 
@@ -163,6 +168,7 @@ static void file_destroy(file_t *f)
 {
 	if (f->ops != NULL)
 		f->ops->release(f);
+
 	proc_lockDone(&f->lock);
 	vm_kfree(f);
 }
@@ -195,6 +201,7 @@ static file_t *file_alloc(void)
 		file->ops = NULL;
 		file->mode = 0;
 		file->port = NULL;
+		file->fs.port = NULL;
 	}
 
 	return file;
@@ -393,9 +400,9 @@ static int file_followOid(file_t *file)
 }
 
 
-int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mode_t cmode, const oid_t *cdev)
+int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mode_t cmode, const oid_t *cdev, int *pplen)
 {
-	int err = EOK, sflags = 0, ret = EOK;
+	int err = EOK, sflags = 0;
 	const char *delim = name, *path;
 	id_t id, nextid;
 	mode_t mode;
@@ -433,8 +440,8 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 		if (path == delim)
 			continue;
 
-		if (!*delim && (flags & O_PARENT)) {
-			ret = path - name;
+		if (!*delim && (flags & O_PARENT) && pplen != NULL) {
+			*pplen = path - name;
 			break;
 		}
 
@@ -465,18 +472,18 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 	} while (*delim);
 
 	if (err < 0) {
-		ret = err;
 		proc_objectClose(port, id);
 		port_put(port);
 	}
 	else {
 		file->port = port;
-		file->id = id;
+		file->fs.port = port_get(port->id); /* TODO port_ref */
+		file->id = file->fs.id = id;
 		file->ops = &generic_file_ops;
 		file->mode = mode;
 	}
 
-	return ret;
+	return err;
 }
 
 
@@ -543,7 +550,7 @@ int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 }
 
 
-int file_open(file_t **result, process_t *process, int dirfd, const char *path, int flags, mode_t mode)
+int file_open(file_t **result, process_t *process, int dirfd, const char *path, int flags, mode_t mode, int *pplen)
 {
 	int error = EOK;
 	file_t *dir = NULL, *file;
@@ -582,7 +589,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		return -ENOMEM;
 	}
 
-	error = file_lookup(dir, file, path, flags, mode, NULL);
+	error = file_lookup(dir, file, path, flags, mode, NULL, pplen);
 	file_put(dir);
 
 	if (error < 0) {
@@ -595,7 +602,11 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		return -ENOTDIR;
 	}
 
-	if (S_ISMNT(file->mode) || S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
+	if (S_ISMNT(file->mode)) {
+		error = file_followOid(file);
+		/* TODO: adjust file->fs */
+	}
+	else if (S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
 		error = file_followOid(file);
 	}
 	else if (S_ISLNK(file->mode)) {
@@ -612,6 +623,10 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 	}
 	else if (S_ISREG(file->mode) || S_ISDIR(file->mode)) {
 		/* FIXME: keep positive return value if O_PARENT */;
+		proc_objectOpen(file->port, &file->id);
+		if (file->id != file->fs.id) {
+			FILE_LOG("got different id after opening a regular file or directory");
+		}
 	}
 	else {
 		error = -ENXIO;
@@ -633,14 +648,14 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 	file_t *file;
 	int error = EOK;
 
-	if ((error = file_open(&file, process, dirfd, path, flags, mode)) < 0)
+	if ((error = file_open(&file, process, dirfd, path, flags, mode, NULL)) < 0)
 		return error;
 
 	return fd_new(process, 0, 0, file);
 }
 
 
-int file_resolve(process_t *process, int fildes, const char *path, int flags, file_t **result)
+int file_resolve(process_t *process, int fildes, const char *path, int flags, file_t **result, int *pplen)
 {
 	if (flags & O_CREAT)
 		return -EINVAL;
@@ -650,9 +665,11 @@ int file_resolve(process_t *process, int fildes, const char *path, int flags, fi
 			return -EINVAL;
 
 		if ((*result = file_get(process, fildes)) == NULL)
-			return -ENOENT;
+			return -EBADF;
+
+		return EOK;
 	}
-	return file_open(result, process, fildes, path, flags, 0);
+	return file_open(result, process, fildes, path, flags, 0, pplen);
 }
 
 
@@ -794,16 +811,16 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	file_t *file, *dir;
-	int retval;
+	int retval, pplen;
 	const char *linkname;
 	oid_t oid;
 
-	if ((retval = file_resolve(process, dirfd, name, O_DIRECTORY | O_PARENT, &dir)) < 0)
+	if ((retval = file_resolve(process, dirfd, name, O_DIRECTORY | O_PARENT, &dir, &pplen)) < 0)
 		return retval;
 
-	linkname = name + retval;
+	linkname = name + pplen;
 
-	if ((retval = file_resolve(process, fildes, path, 0, &file)) < 0) {
+	if ((retval = file_resolve(process, fildes, path, 0, &file, NULL)) < 0) {
 		file_put(dir);
 		return retval;
 	}
@@ -826,13 +843,13 @@ int proc_fileUnlink(int dirfd, const char *path, int flags)
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	file_t *dir;
-	int retval;
+	int retval, pplen;
 	const char *name;
 
-	if ((retval = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir)) < 0)
+	if ((retval = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir, &pplen)) < 0)
 		return retval;
 
-	name = path + retval;
+	name = path + pplen;
 
 	file_lock(dir);
 	retval = dir->ops->unlink(dir, name);
@@ -967,11 +984,14 @@ int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
 	file_t *file;
 	int err;
 
-	if ((err = file_resolve(process, fildes, path, flags, &file)) != EOK)
+	if ((err = file_resolve(process, fildes, path, flags, &file, NULL)) != EOK)
 		return err;
 
+	if (file->fs.port == NULL)
+		return -EBADF;
+
 	file_lock(file);
-	if ((err = file->ops->getattr(file, atStatStruct, (char *)buf, sizeof(*buf))) >= 0)
+	if ((err = proc_objectGetAttr(file->fs.port, file->fs.id, atStatStruct, (char *)buf, sizeof(*buf))) >= 0)
 		err = EOK;
 	file_unlock(file);
 
@@ -1058,7 +1078,7 @@ int proc_filesCloseExec(process_t *process)
 int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 {
 	process_t *process = proc_current()->process;
-	int err;
+	int err, pplen;
 	file_t *dir;
 	const char *fifoname;
 	id_t id;
@@ -1067,10 +1087,10 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	if (mode & ~(S_IRWXU | S_IRWXG | S_IRWXO))
 		return -EINVAL;
 
-	if ((err = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir)) < 0)
+	if ((err = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir, &pplen)) < 0)
 		return err;
 
-	fifoname = path + err;
+	fifoname = path + pplen;
 
 	mode |= S_IFIFO;
 	if ((err = proc_objectLookup(dir->port, dir->id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode, NULL)) == EOK)
@@ -1083,12 +1103,12 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t mode)
 {
 	process_t *process = proc_current()->process;
-	int err;
+	int err, pplen;
 	file_t *dir, *port;
 	const char *name;
 	oid_t oid;
 
-	if ((err = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir)) < 0)
+	if ((err = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir, &pplen)) < 0)
 		return err;
 
 	/* FIXME: check if it's a port */
@@ -1096,7 +1116,7 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 		oid.port = ((port_t *)port->data)->id;
 		oid.id = id;
 
-		name = path + err;
+		name = path + pplen;
 
 		if ((err = proc_objectLookup(dir->port, dir->id, name, hal_strlen(name), O_CREAT | O_EXCL, &id, &mode, &oid)) == EOK)
 			proc_objectClose(dir->port, id);
@@ -1115,7 +1135,7 @@ int proc_changeDir(int fildes, const char *path)
 	file_t *file;
 	int retval;
 
-	if ((retval = file_resolve(process, fildes, path, O_DIRECTORY, &file)) < 0)
+	if ((retval = file_resolve(process, fildes, path, O_DIRECTORY, &file, NULL)) < 0)
 		return retval;
 
 	process_lock(process);
@@ -1135,7 +1155,7 @@ int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port
 	id_t rootid;
 	mode_t mode;
 
-	if ((retval = file_resolve(process, devfd, devpath, 0, &device)) < 0)
+	if ((retval = file_resolve(process, devfd, devpath, 0, &device, NULL)) < 0)
 		return retval;
 
 	retval = proc_objectMount(device->port, device->id, port, type, &rootid, &mode);
@@ -1176,14 +1196,14 @@ int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath)
 		oid.id = 0;
 	}
 	else {
-		if ((retval = file_resolve(process, dirfd, dirpath, O_DIRECTORY, &dir)) < 0)
+		if ((retval = file_resolve(process, dirfd, dirpath, O_DIRECTORY, &dir, NULL)) < 0)
 			return retval;
 
 		oid.port = dir->port->id;
 		oid.id = dir->id;
 	}
 
-	if ((retval = file_resolve(process, fsfd, fspath, 0, &fs)) < 0) {
+	if ((retval = file_resolve(process, fsfd, fspath, 0, &fs, NULL)) < 0) {
 		file_put(dir);
 		return retval;
 	}
@@ -1234,7 +1254,7 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 
 	if ((retval = proc_objectAccept(file->port, file->id, &conn_id, address, address_len)) == EOK) {
 		if ((conn = file_alloc()) != NULL) {
-			conn->port = port_get(file->port->id); /* XXX */
+			conn->port = port_get(file->port->id); /* TODO port_ref */
 			conn->id = conn_id;
 			conn->ops = &generic_file_ops;
 			conn->mode = S_IFSOCK;
@@ -1405,7 +1425,7 @@ int proc_netSocket(int domain, int type, int protocol)
 	file_t *file;
 	int err;
 
-	if ((err = file_open(&file, proc_current()->process, -1, "/dev/net", 0, 0)) != EOK)
+	if ((err = file_open(&file, proc_current()->process, -1, "/dev/net", 0, 0, NULL)) != EOK)
 		return err;
 
 	file->mode = S_IFSOCK;
@@ -1422,4 +1442,3 @@ void _file_init()
 	file_common.root = NULL;
 	proc_lockInit(&file_common.lock);
 }
-

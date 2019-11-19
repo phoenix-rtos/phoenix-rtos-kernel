@@ -1089,7 +1089,7 @@ int proc_exec(int dirfd, const char *path, char **argv, char **envp)
 	}
 
 	if (dirfd != AT_FDSYSPAGE) {
-		if ((err = file_resolve(current->process, dirfd, path, 0, &file)) < 0) {
+		if ((err = file_resolve(current->process, dirfd, path, 0, &file, NULL)) < 0) {
 			vm_kfree(kpath);
 			vm_kfree(argv);
 			vm_kfree(envp);

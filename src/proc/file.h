@@ -49,8 +49,15 @@ struct _file_t {
 	mode_t mode;
 	unsigned status;
 	const file_ops_t *ops;
+
 	struct _port_t *port;
 	id_t id;
+
+	struct {
+		struct _port_t *port;
+		id_t id;
+	} fs;
+
 	void *data;
 };
 
@@ -73,10 +80,10 @@ extern void file_ref(file_t *f);
 extern int file_put(file_t *f);
 
 
-extern int file_open(file_t **result, struct _process_t *process, int dirfd, const char *path, int flags, mode_t mode);
+extern int file_open(file_t **result, struct _process_t *process, int dirfd, const char *path, int flags, mode_t mode, int *pplen);
 
 
-extern int file_resolve(struct _process_t *process, int fildes, const char *path, int flags, file_t **result);
+extern int file_resolve(struct _process_t *process, int fildes, const char *path, int flags, file_t **result, int *pplen);
 
 
 extern int fd_create(struct _process_t *p, int minfd, int flags, unsigned int status, const file_ops_t *ops, void *data);
