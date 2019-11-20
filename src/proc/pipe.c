@@ -58,7 +58,10 @@ static void pipe_unlock(pipe_t *pipe)
 
 static int pipe_wait(pipe_t *pipe)
 {
-	return proc_lockWait(&pipe->queue, &pipe->lock, 0);
+	/* TODO: propagate interruption down to user */
+	if (proc_lockWait(&pipe->queue, &pipe->lock, 0) == -EINTR)
+		proc_lockSet(&pipe->lock);
+	return EOK;
 }
 
 

@@ -536,7 +536,8 @@ int queue_wait(evqueue_t *queue, const event_t *subs, int subcnt, event_t *event
 				break;
 		}
 	}
-	queue_unlock(queue);
+	if (evs != -EINTR)
+		queue_unlock(queue);
 	return evs;
 }
 
@@ -548,7 +549,7 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	evqueue_t *queue;
 	event_t ev;
 	oid_t oid;
-	int nev = 0, i;
+	int nev = 0, i, err;
 
 	if (timeout_ms < 0)
 		timeout_ms = 0;
@@ -575,8 +576,9 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 			fds[ev.flags].fd = ev.fd;
 			fds[ev.flags].revents |= ev.types;
 		}
-	} while (!nev && timeout_ms >= 0 && proc_lockWait(&queue->threads, &queue->lock, timeout_ms) == EOK);
-	queue_unlock(queue);
+	} while (!nev && timeout_ms >= 0 && (err = proc_lockWait(&queue->threads, &queue->lock, timeout_ms)) == EOK);
+	if (err != -EINTR)
+		queue_unlock(queue);
 	queue_close(queue);
 	queue_destroy(queue);
 
