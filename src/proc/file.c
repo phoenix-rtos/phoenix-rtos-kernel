@@ -150,6 +150,126 @@ const file_ops_t generic_file_ops = {
 };
 
 
+static ssize_t null_read(file_t *file, void *data, size_t size, off_t offset)
+{
+	return 0;
+}
+
+
+static ssize_t zero_read(file_t *file, void *data, size_t size, off_t offset)
+{
+	hal_memset(data, 0, size);
+	return size;
+}
+
+
+static ssize_t null_write(file_t *file, const void *data, size_t size, off_t offset)
+{
+	return size;
+}
+
+
+static int null_release(file_t *file)
+{
+	return EOK;
+}
+
+
+static int null_seek(file_t *file, off_t *offset, int whence)
+{
+	int retval = EOK;
+
+	switch (whence) {
+	case SEEK_SET:
+	case SEEK_END:
+		file->offset = *offset;
+		break;
+	case SEEK_CUR:
+		file->offset += *offset;
+		*offset = file->offset;
+		break;
+	default:
+		retval = -EINVAL;
+	}
+
+	return retval;
+}
+
+
+static int invalid_setattr(file_t *file, int attr, const void *value, size_t size)
+{
+	FILE_LOG("on file id: %llu", file->id);
+	return -ENOSYS;
+}
+
+
+static ssize_t invalid_getattr(file_t *file, int attr, void *value, size_t size)
+{
+	FILE_LOG("on file id: %llu", file->id);
+	return -ENOSYS;
+}
+
+
+static int invalid_link(file_t *dir, const char *name, const oid_t *file)
+{
+	FILE_LOG("on file id: %llu", dir->id);
+	return -ENOTDIR;
+}
+
+
+static int invalid_unlink(file_t *dir, const char *name)
+{
+	FILE_LOG("on file id: %llu", dir->id);
+	return -ENOTDIR;
+}
+
+
+static int invalid_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
+{
+	FILE_LOG("on file id: %llu", file->id);
+	return -EINVAL;
+}
+
+
+const file_ops_t null_file_ops = {
+	.read = null_read,
+	.write = null_write,
+	.release = null_release,
+	.seek = null_seek,
+	.setattr = invalid_setattr,
+	.getattr = invalid_getattr,
+	.link = invalid_link,
+	.unlink = invalid_unlink,
+	.ioctl = invalid_ioctl,
+};
+
+
+const file_ops_t zero_file_ops = {
+	.read = zero_read,
+	.write = null_write,
+	.release = null_release,
+	.seek = null_seek,
+	.setattr = invalid_setattr,
+	.getattr = invalid_getattr,
+	.link = invalid_link,
+	.unlink = invalid_unlink,
+	.ioctl = invalid_ioctl,
+};
+
+
+static const file_ops_t *file_getSpecial(id_t id)
+{
+	switch (id) {
+		case 0:
+			return &null_file_ops;
+		case 1:
+			return &zero_file_ops;
+		default:
+			return NULL;
+	}
+}
+
+
 /* file_t functions */
 
 static void file_lock(file_t *f)
@@ -378,8 +498,14 @@ static int file_followOid(file_t *file)
 	if (dest.port != file->port->id) {
 		port_put(file->port);
 
-		if ((port = port_get(dest.port)) == NULL) {
-			FILE_LOG("get device port");
+		if (dest.port == 0) {
+			port = NULL;
+			file->ops = file_getSpecial(dest.id);
+			if (file->ops == NULL)
+				return -ENXIO;
+		}
+		else if ((port = port_get(dest.port)) == NULL) {
+			FILE_LOG("get device port (%d)", dest.port);
 			/* Object is closed, don't close again when cleaning up */
 			file->ops = NULL;
 			return -ENXIO;
@@ -390,12 +516,15 @@ static int file_followOid(file_t *file)
 
 	file->id = dest.id;
 
-	if ((error = proc_objectOpen(file->port, &file->id)) != EOK) {
-		FILE_LOG("open device");
-		return error;
+	if (file->port != NULL) {
+		if ((error = proc_objectOpen(file->port, &file->id)) != EOK) {
+			FILE_LOG("open device");
+			return error;
+		}
+
+		file->ops = &generic_file_ops;
 	}
 
-	file->ops = &generic_file_ops;
 	return EOK;
 }
 
@@ -1104,7 +1233,7 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 {
 	process_t *process = proc_current()->process;
 	int err, pplen;
-	file_t *dir, *port;
+	file_t *dir, *port = NULL;
 	const char *name;
 	oid_t oid;
 
@@ -1112,8 +1241,8 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 		return err;
 
 	/* FIXME: check if it's a port */
-	if ((port = file_get(process, portfd)) != NULL) {
-		oid.port = ((port_t *)port->data)->id;
+	if (portfd == -1 || (port = file_get(process, portfd)) != NULL) {
+		oid.port = (portfd == -1) ? 0 : ((port_t *)port->data)->id;
 		oid.id = id;
 
 		name = path + pplen;
