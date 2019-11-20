@@ -1142,6 +1142,8 @@ int proc_filesDestroy(process_t *process)
 	process_lock(process);
 	for (fd = 0; fd < process->fdcount; ++fd)
 		_fd_close(process, fd);
+	vm_kfree(process->fds);
+	process->fds = NULL;
 	process_unlock(process);
 
 	return EOK;
