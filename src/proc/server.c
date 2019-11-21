@@ -258,6 +258,8 @@ int proc_objectMount(port_t *dev, id_t id, unsigned int port, const char *type, 
 
 	msg.i.data = type;
 	msg.i.size = hal_strlen(type);
+	msg.o.data = NULL;
+	msg.o.size = 0;
 
 	if ((retval = port_send(dev, &msg)) < 0)
 		return retval;
