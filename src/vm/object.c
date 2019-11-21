@@ -52,47 +52,71 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
+static void object_destroy(vm_object_t *o)
+{
+	int i;
+	proc_lockDone(&o->lock);
+
+	for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
+		if (o->pages[i] != NULL)
+			vm_pageFree(o->pages[i]);
+	}
+
+	if (o->file != NULL)
+		file_put(o->file);
+
+	vm_kfree(o);
+}
+
+
 int vm_objectGet(vm_object_t **o, file_t *file)
 {
 	vm_object_t t;
 	int i, n;
 	size_t sz;
+	vm_object_t *newo;
 
 	t.file = file;
 
 	proc_lockSet(&object_common.lock);
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
-
-	if (*o == NULL) {
-		/* FIXME: avoid deadlock in some better way */
+	if (*o != NULL) {
+		(*o)->refs++;
 		proc_lockClear(&object_common.lock);
-		if (file->ops == NULL || file->ops->getattr(file, atSize, &sz, sizeof(sz)) != sizeof(sz)) {
-			return -EINVAL; /* other error? */
-		}
-		proc_lockSet(&object_common.lock);
-
-		n = round_page(sz) / SIZE_PAGE;
-
-		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
-			proc_lockClear(&object_common.lock);
-			return -ENOMEM;
-		}
-
-		(*o)->file = file;
-		file_ref(file);
-		(*o)->size = sz;
-		(*o)->refs = 0;
-		proc_lockInit(&(*o)->lock);
-
-		for (i = 0; i < n; ++i)
-			(*o)->pages[i] = NULL;
-
-		lib_rbInsert(&object_common.tree, &(*o)->linkage);
+		return EOK;
 	}
-
-	(*o)->refs++;
+	/* FIXME: avoid deadlock in some better way? */
 	proc_lockClear(&object_common.lock);
 
+	if (file->ops == NULL || file->ops->getattr(file, atSize, &sz, sizeof(sz)) != sizeof(sz))
+		return -EINVAL; /* other error? */
+
+	n = round_page(sz) / SIZE_PAGE;
+
+	if ((newo = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL)
+		return -ENOMEM;
+
+	newo->file = file;
+	file_ref(file);
+	newo->size = sz;
+	newo->refs = 0;
+	proc_lockInit(&newo->lock);
+
+	for (i = 0; i < n; ++i)
+		newo->pages[i] = NULL;
+
+	proc_lockSet(&object_common.lock);
+	if (lib_rbInsert(&object_common.tree, &newo->linkage) == -EEXIST) {
+		*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
+		(*o)->refs++;
+		proc_lockClear(&object_common.lock);
+
+		object_destroy(newo);
+		return EOK;
+	}
+	proc_lockClear(&object_common.lock);
+
+	*o = newo;
 	return EOK;
 }
 
@@ -111,8 +135,6 @@ vm_object_t *vm_objectRef(vm_object_t *o)
 
 int vm_objectPut(vm_object_t *o)
 {
-	int i;
-
 	if (o == NULL || o == (void *)-1)
 		return EOK;
 
@@ -123,18 +145,7 @@ int vm_objectPut(vm_object_t *o)
 	}
 	lib_rbRemove(&object_common.tree, &o->linkage);
 	proc_lockClear(&object_common.lock);
-
-	proc_lockDone(&o->lock);
-
-	for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
-		if (o->pages[i] != NULL)
-			vm_pageFree(o->pages[i]);
-	}
-
-	if (o->file != NULL)
-		file_put(o->file);
-
-	vm_kfree(o);
+	object_destroy(o);
 	return EOK;
 }
 
