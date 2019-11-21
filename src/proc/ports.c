@@ -17,10 +17,12 @@
 #include "file.h"
 #include "ports.h"
 
+#define MAX_SPECIFIED_PORT 10000
 
 struct {
 	rbtree_t tree;
 	lock_t lock;
+	unsigned int freshId;
 } port_common;
 
 
@@ -65,10 +67,13 @@ void port_put(port_t *port)
 }
 
 
-static int port_create(port_t **port, u32 id)
+int port_create(port_t **port, u32 id)
 {
 	port_t *p;
 	int err;
+
+	if (id > MAX_SPECIFIED_PORT)
+		return -EINVAL;
 
 	if ((p = vm_kmalloc(sizeof(port_t))) == NULL)
 		return -ENOMEM;
@@ -80,6 +85,11 @@ static int port_create(port_t **port, u32 id)
 	hal_spinlockCreate(&p->spinlock, "port.spinlock");
 
 	proc_lockSet(&port_common.lock);
+	if (id == 0) {
+		id = port_common.freshId++;
+		p->id = id;
+	}
+
 	err = lib_rbInsert(&port_common.tree, &p->linkage);
 	proc_lockClear(&port_common.lock);
 
@@ -143,8 +153,22 @@ int proc_portCreate(u32 id)
 }
 
 
+int proc_portGet(u32 id)
+{
+	process_t *process = proc_current()->process;
+	int err = -ENOENT;
+	port_t *port;
+
+	if ((port = port_get(id)) != NULL && (err = fd_create(process, 0, 0, 0, &port_ops, port)) < 0)
+		port_put(port);
+
+	return err;
+}
+
+
 void _port_init(void)
 {
+	port_common.freshId = MAX_SPECIFIED_PORT + 1;
 	lib_rbInit(&port_common.tree, ports_cmp, NULL);
 	proc_lockInit(&port_common.lock);
 }

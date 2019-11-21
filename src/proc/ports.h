@@ -36,10 +36,16 @@ typedef struct _port_t {
 extern port_t *port_get(u32 id);
 
 
+extern int port_create(port_t **port, u32 id);
+
+
 extern void port_put(port_t *port);
 
 
 extern int proc_portCreate(u32 id);
+
+
+extern int proc_portGet(u32 id);
 
 
 extern void _port_init(void);

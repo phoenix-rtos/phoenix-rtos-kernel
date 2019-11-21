@@ -109,4 +109,5 @@
 	ID(threadKill) \
 	ID(deviceCreate) \
 	ID(fsMount) \
-	ID(fsBind)
+	ID(fsBind) \
+	ID(portGet)

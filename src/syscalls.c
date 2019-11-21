@@ -503,6 +503,16 @@ int syscalls_portCreate(void *ustack)
 }
 
 
+int syscalls_portGet(void *ustack)
+{
+	u32 port;
+
+	GETFROMSTACK(ustack, u32, port, 0);
+
+	return proc_portGet(port);
+}
+
+
 u32 syscalls_portRegister(void *ustack)
 {
 #if 0
