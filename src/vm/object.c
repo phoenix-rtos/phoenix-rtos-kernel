@@ -99,7 +99,7 @@ int vm_objectGet(vm_object_t **o, file_t *file)
 	newo->file = file;
 	file_ref(file);
 	newo->size = sz;
-	newo->refs = 0;
+	newo->refs = 1;
 	proc_lockInit(&newo->lock);
 
 	for (i = 0; i < n; ++i)
