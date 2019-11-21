@@ -1278,38 +1278,45 @@ int proc_changeDir(int fildes, const char *path)
 }
 
 
-int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port)
+int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned portno)
 {
 	process_t *process = proc_current()->process;
 	int retval;
 	file_t *device, *root;
 	id_t rootid;
 	mode_t mode;
+	port_t *port;
 
 	if ((retval = file_resolve(process, devfd, devpath, 0, &device, NULL)) < 0)
 		return retval;
 
-	retval = proc_objectMount(device->port, device->id, port, type, &rootid, &mode);
-	file_put(device);
-
-	if (retval < 0)
+	if ((retval = port_create(&port, portno)) < 0) {
+		FILE_LOG("could not create port %d", portno);
 		return retval;
-
-	if ((root = file_alloc()) == NULL)
-		return -ENOMEM;
-
-	if ((root->port = port_get(port)) == NULL) {
-		FILE_LOG("filesystem mounted but it's port not found");
-		file_put(root);
-		return -EIO;
 	}
 
+	retval = proc_objectMount(device->port, device->id, port->id, type, &rootid, &mode);
+	file_put(device);
+
+	if (retval < 0) {
+		port_put(port);
+		FILE_LOG("mount failed");
+		return retval;
+	}
+
+	if ((root = file_alloc()) == NULL) {
+		port_put(port);
+		return -ENOMEM;
+	}
+
+	root->port = port;
 	root->id = rootid;
 	root->ops = &generic_file_ops;
 	root->mode = mode;
 
 	if ((retval = fd_new(process, 0, 0, root)) < 0)
 		file_put(root);
+
 	return retval;
 }
 
