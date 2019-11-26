@@ -313,7 +313,7 @@ int proc_objectAccept(struct _port_t *port, id_t id, id_t *new, const struct soc
 	if ((error = port_send(port, &msg)) < 0)
 		return error;
 
-	if (length != NULL && address != NULL) {
+	if (msg.error == EOK && length != NULL && address != NULL) {
 		*length = msg.o.accept.length;
 	}
 
@@ -354,6 +354,28 @@ int proc_objectConnect(struct _port_t *port, id_t id, const struct sockaddr *add
 
 	msg.i.size = length;
 	msg.i.data = address;
+	msg.o.size = 0;
+	msg.o.data = NULL;
+
+	if ((error = port_send(port, &msg)) < 0)
+		return error;
+
+	return msg.error;
+}
+
+
+int proc_objectShutdown(struct _port_t *port, id_t id, int how)
+{
+	msg_t msg;
+	int error;
+
+	msg.type = mtShutdown;
+	msg.object = id;
+
+	msg.i.shutdown = how;
+
+	msg.i.size = 0;
+	msg.i.data = NULL;
 	msg.o.size = 0;
 	msg.o.data = NULL;
 

@@ -1114,15 +1114,7 @@ int syscalls_sys_accept4(char *ustack)
 	GETFROMSTACK(ustack, socklen_t *,address_len, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
 
-	int err;
-	do {
-		if ((err = proc_netAccept4(socket, address, address_len, flags)) == -EAGAIN) {
-			lib_printf("accept: polling\n");
-			struct pollfd fd = { .fd = socket, .events = POLLIN, .revents = 0 };
-			proc_poll(&fd, 1, -1);
-		}
-	} while (err == -EAGAIN);
-	return err;
+	return proc_netAccept4(socket, address, address_len, flags);
 }
 
 

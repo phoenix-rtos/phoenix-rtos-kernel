@@ -1389,21 +1389,40 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 	process_t *process = proc_current()->process;
 	int retval;
 	id_t conn_id;
+	int block;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	if ((retval = proc_objectAccept(file->port, file->id, &conn_id, address, address_len)) == EOK) {
-		if ((conn = file_alloc()) != NULL) {
-			conn->port = port_get(file->port->id); /* TODO port_ref */
-			conn->id = conn_id;
-			conn->ops = &generic_file_ops;
-			conn->mode = S_IFSOCK;
+	block = !(file->status & O_NONBLOCK);
 
-			if ((retval = fd_new(process, 0, flags, conn)) < 0)
-				file_put(conn);
+	do {
+		if ((retval = proc_objectAccept(file->port, file->id, &conn_id, address, address_len)) == EOK) {
+			if ((conn = file_alloc()) != NULL) {
+				conn->port = port_get(file->port->id); /* TODO port_ref */
+				conn->id = conn_id;
+				conn->ops = &generic_file_ops;
+				conn->mode = S_IFSOCK;
+
+				if ((retval = fd_new(process, 0, flags, conn)) < 0)
+					file_put(conn);
+			}
+			else {
+				proc_objectClose(file->port, conn_id);
+				retval = -ENOMEM;
+			}
+		}
+		else if (retval == -EAGAIN) {
+			/* TODO: short cut poll and it's ceremony */
+			/* file_waitForOne(file, POLLIN); */
+			struct pollfd fd = { .fd = socket, .events = POLLIN, .revents = 0 };
+			if (proc_poll(&fd, 1, -1) == -EINTR) {
+				retval = -EINTR;
+				break;
+			}
 		}
 	}
+	while (block && retval == -EAGAIN);
 
 	file_put(file);
 	return retval;
@@ -1429,12 +1448,26 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 {
 	file_t *file;
 	process_t *process = proc_current()->process;
-	int retval;
+	int retval, block;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = proc_objectConnect(file->port, file->id, address, address_len);
+	block = !(file->status & O_NONBLOCK);
+
+	do {
+		if ((retval = proc_objectConnect(file->port, file->id, address, address_len)) == -EINPROGRESS && block) {
+			/* TODO: short cut poll and it's ceremony */
+			/* file_waitForOne(file, POLLOUT); */
+			struct pollfd fd = { .fd = socket, .events = POLLOUT, .revents = 0 };
+			if (proc_poll(&fd, 1, -1) == -EINTR) {
+				retval = -EINTR;
+				break;
+			}
+		}
+	}
+	while (block && retval == -EINPROGRESS);
+
 	file_put(file);
 	return retval;
 }
@@ -1449,7 +1482,9 @@ int proc_netGetpeername(int socket, struct sockaddr *address, socklen_t *address
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = -EINVAL; //socket_getpeername(file->port, file->id, address, address_len);
+	if ((retval = file->ops->getattr(file, atRemoteAddr, address, *address_len)) > 0)
+		*address_len = retval;
+
 	file_put(file);
 	return retval;
 }
@@ -1464,7 +1499,9 @@ int proc_netGetsockname(int socket, struct sockaddr *address, socklen_t *address
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = -EINVAL; //socket_getsockname(file->port, file->id, address, address_len);
+	if ((retval = file->ops->getattr(file, atLocalAddr, address, *address_len)) > 0)
+		*address_len = retval;
+
 	file_put(file);
 	return retval;
 }
@@ -1539,7 +1576,7 @@ int proc_netShutdown(int socket, int how)
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = -EINVAL; //socket_shutdown(file->port, file->id, how);
+	retval = proc_objectShutdown(file->port, file->id, how);
 	file_put(file);
 	return retval;
 }

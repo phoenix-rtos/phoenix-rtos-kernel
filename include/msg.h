@@ -42,7 +42,8 @@ enum {
 
 
 /* mt{Get,Set}Attr types */
-enum { atMode, atUid, atGid, atSize, atType, atPort, atEvents, atCTime, atMTime, atATime, atLinks, atDev, atStatStruct, atMount, atMountPoint };
+enum { atMode, atUid, atGid, atSize, atType, atPort, atEvents, atCTime, atMTime, atATime, atLinks, atDev, atStatStruct, atMount, atMountPoint,
+	atLocalAddr, atRemoteAddr };
 
 
 #pragma pack(push, 8)
@@ -68,6 +69,9 @@ typedef struct _msg_t {
 				off_t offs;
 				unsigned flags;
 			} io;
+
+			/* SHUTDOWN */
+			int shutdown;
 
 			/* GETATTR/SETATTR */
 			int attr;

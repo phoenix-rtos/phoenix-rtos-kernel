@@ -63,4 +63,7 @@ extern int proc_objectListen(struct _port_t *port, id_t id, int backlog);
 
 extern int proc_objectConnect(struct _port_t *port, id_t id, const struct sockaddr *address, socklen_t length);
 
+
+extern int proc_objectShutdown(struct _port_t *port, id_t id, int how);
+
 #endif
