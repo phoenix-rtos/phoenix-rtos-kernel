@@ -165,9 +165,9 @@ _pendsv:
 	cpsid if
 
 	mrs r0, ipsr
-	mrs r2, psp
-	sub r1, sp, #44
-	stmdb sp!, {r1-r2, r4-r11, lr}
+	mrs r3, psp
+	sub r1, sp, #48
+	stmdb sp!, {r1-r11, lr}
 
 	ldr r5, =_cpu_nctx
 	ldr r6, [r5]
@@ -186,17 +186,17 @@ _interrupts_dispatch:
 	cpsid if
 
 	mrs r0, ipsr
-	mrs r2, psp
-	sub r1, sp, #44
-	stmdb sp!, {r1-r2, r4-r11, lr}
+	mrs r3, psp
+	sub r1, sp, #48
+	stmdb sp!, {r1-r11, lr}
 
 _intd0:
 	bl interrupts_dispatch
 	ldr sp, [sp]
 _intd1:
-	ldmia sp!, {r0-r1, r4-r11, lr}
+	ldmia sp!, {r1-r11, lr}
 
-	msr psp, r1
+	msr psp, r3
 
 	/* Check if we're returning to userspace */
 	and r1, lr, #4
