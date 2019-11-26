@@ -1267,6 +1267,7 @@ int proc_zombie(process_t *zombie, process_t *parent)
 	hal_spinlockClear(&threads_common.spinlock);
 
 	proc_threadBroadcastYield(&parent->wait);
+	threads_sigpost(parent, NULL, SIGCHLD);
 	return EOK;
 }
 
