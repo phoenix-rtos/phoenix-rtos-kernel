@@ -732,8 +732,11 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 	}
 
 	if (S_ISMNT(file->mode)) {
-		error = file_followOid(file);
-		/* TODO: adjust file->fs */
+		if ((error = file_followOid(file)) == EOK) {
+			port_put(file->fs.port);
+			file->fs.port = port_get(file->port->id); /* TODO port_ref */
+			file->fs.id = file->id;
+		}
 	}
 	else if (S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
 		error = file_followOid(file);
