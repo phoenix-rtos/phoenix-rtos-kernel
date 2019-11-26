@@ -812,7 +812,7 @@ int proc_fileOid(process_t *process, int fd, oid_t *oid)
 
 	process_lock(process);
 	if ((file = _file_get(process, fd)) != NULL) {
-		oid->port = file->port->id;
+		oid->port = file->port != NULL ? file->port->id : 0;
 		oid->id = file->id;
 		file_put(file);
 		retval = EOK;
