@@ -18,7 +18,7 @@ VADDR = c0110000
 MKDEP = $(CROSS)gcc -MM
 MKDEPFLAGS = $(CFLAGS)
 
-CONSOLE = serial
+CONSOLE ?= serial
 
 CC = $(CROSS)gcc
 
