@@ -501,8 +501,10 @@ static int file_followOid(file_t *file)
 		if (dest.port == 0) {
 			port = NULL;
 			file->ops = file_getSpecial(dest.id);
-			if (file->ops == NULL)
+			if (file->ops == NULL) {
+				FILE_LOG("special ops");
 				return -ENXIO;
+			}
 		}
 		else if ((port = port_get(dest.port)) == NULL) {
 			FILE_LOG("get device port (%d)", dest.port);
@@ -579,8 +581,13 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 				break;
 		}
 		else if (S_ISMNT(mode)) {
+			file->port = port;
+			file->id = id;
 			if ((err = file_followOid(file)) != EOK)
 				break;
+			port = file->port;
+			id = file->id;
+			mode = (mode & ~S_IFMT) | S_IFDIR;
 		}
 		else if (!S_ISDIR(mode)) {
 			err = -ENOTDIR;
@@ -726,7 +733,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		return error;
 	}
 
-	if ((flags & O_DIRECTORY) && !S_ISDIR(file->mode)) {
+	if ((flags & O_DIRECTORY) && !S_ISDIR(file->mode) && !S_ISMNT(file->mode)) {
 		file_put(file);
 		return -ENOTDIR;
 	}
@@ -737,8 +744,11 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 			file->fs.port = port_get(file->port->id); /* TODO port_ref */
 			file->fs.id = file->id;
 		}
+
+		file->mode = (file->mode & ~S_IFMT) | S_IFDIR;
 	}
-	else if (S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
+
+	if (S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
 		error = file_followOid(file);
 	}
 	else if (S_ISLNK(file->mode)) {
@@ -761,6 +771,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		}
 	}
 	else {
+		FILE_LOG("invalid type");
 		error = -ENXIO;
 	}
 
