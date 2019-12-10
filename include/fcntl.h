@@ -32,6 +32,7 @@
 #define O_NOFOLLOW 0x4000
 #define O_DIRECTORY 0x8000
 #define O_PARENT 0x10000
+#define O_CLOEXEC 0x20000
 
 #define SEEK_SET 0
 #define SEEK_CUR 1

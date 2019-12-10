@@ -27,250 +27,16 @@
 
 #define FD_HARD_LIMIT 1024
 
-#define FILE_LOG(fmt, ...) lib_printf("%s:%d  %s(): " fmt "\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);
+#define FILE_LOG(fmt, ...) lib_printf("%s:%d  %s(): " fmt "\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
+enum { devNull, devZero };
 
 static struct {
 	lock_t lock;
 	file_t *root;
+	unsigned filecnt;
 } file_common;
 
-
-static ssize_t generic_read(file_t *file, void *data, size_t size, off_t offset)
-{
-	ssize_t retval;
-
-	if ((retval = proc_objectRead(file->port, file->id, data, size, offset)) > 0)
-		file->offset += retval;
-
-	return retval;
-}
-
-
-static ssize_t generic_write(file_t *file, const void *data, size_t size, off_t offset)
-{
-	ssize_t retval = EOK;
-	off_t seekoff = 0;
-
-	if ((file->status & O_APPEND) && (retval = file->ops->seek(file, &seekoff, SEEK_END)) != EOK)
-		return retval;
-
-	if ((retval = proc_objectWrite(file->port, file->id, data, size, offset)) > 0)
-		file->offset += retval;
-
-	return retval;
-}
-
-
-static int generic_release(file_t *file)
-{
-	int retval;
-	retval = proc_objectClose(file->port, file->id);
-	port_put(file->port);
-
-	if (file->fs.port != NULL) {
-		retval = proc_objectClose(file->fs.port, file->fs.id);
-		port_put(file->fs.port);
-	}
-	return retval;
-}
-
-
-static int generic_seek(file_t *file, off_t *offset, int whence)
-{
-	int retval = EOK;
-	size_t size;
-
-	switch (whence) {
-	case SEEK_SET:
-		file->offset = *offset;
-		break;
-	case SEEK_END:
-		if ((retval = file->ops->getattr(file, atSize, &size, sizeof(size))) == sizeof(size)) {
-			file->offset = size + *offset;
-			*offset = file->offset;
-			retval = EOK;
-		}
-		else {
-			FILE_LOG("getting file size");
-		}
-		break;
-	case SEEK_CUR:
-		file->offset += *offset;
-		*offset = file->offset;
-		break;
-	default:
-		retval = -EINVAL;
-	}
-
-	return retval;
-}
-
-
-static int generic_setattr(file_t *file, int attr, const void *value, size_t size)
-{
-	return proc_objectSetAttr(file->port, file->id, attr, value, size);
-}
-
-
-static ssize_t generic_getattr(file_t *file, int attr, void *value, size_t size)
-{
-	return proc_objectGetAttr(file->port, file->id, attr, value, size);
-}
-
-
-static int generic_link(file_t *dir, const char *name, const oid_t *file)
-{
-	return proc_objectLink(dir->port, dir->id, name, file);
-}
-
-
-static int generic_unlink(file_t *dir, const char *name)
-{
-	return proc_objectUnlink(dir->port, dir->id, name);
-}
-
-
-static int generic_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
-{
-	return proc_objectControl(file->port, file->id, cmd, in_buf, in_size, out_buf, out_size);
-}
-
-
-const file_ops_t generic_file_ops = {
-	.read = generic_read,
-	.write = generic_write,
-	.release = generic_release,
-	.seek = generic_seek,
-	.setattr = generic_setattr,
-	.getattr = generic_getattr,
-	.link = generic_link,
-	.unlink = generic_unlink,
-	.ioctl = generic_ioctl,
-};
-
-
-static ssize_t null_read(file_t *file, void *data, size_t size, off_t offset)
-{
-	return 0;
-}
-
-
-static ssize_t zero_read(file_t *file, void *data, size_t size, off_t offset)
-{
-	hal_memset(data, 0, size);
-	return size;
-}
-
-
-static ssize_t null_write(file_t *file, const void *data, size_t size, off_t offset)
-{
-	return size;
-}
-
-
-static int null_release(file_t *file)
-{
-	return EOK;
-}
-
-
-static int null_seek(file_t *file, off_t *offset, int whence)
-{
-	int retval = EOK;
-
-	switch (whence) {
-	case SEEK_SET:
-	case SEEK_END:
-		file->offset = *offset;
-		break;
-	case SEEK_CUR:
-		file->offset += *offset;
-		*offset = file->offset;
-		break;
-	default:
-		retval = -EINVAL;
-	}
-
-	return retval;
-}
-
-
-static int invalid_setattr(file_t *file, int attr, const void *value, size_t size)
-{
-	FILE_LOG("on file id: %llu", file->id);
-	return -ENOSYS;
-}
-
-
-static ssize_t invalid_getattr(file_t *file, int attr, void *value, size_t size)
-{
-	FILE_LOG("on file id: %llu", file->id);
-	return -ENOSYS;
-}
-
-
-static int invalid_link(file_t *dir, const char *name, const oid_t *file)
-{
-	FILE_LOG("on file id: %llu", dir->id);
-	return -ENOTDIR;
-}
-
-
-static int invalid_unlink(file_t *dir, const char *name)
-{
-	FILE_LOG("on file id: %llu", dir->id);
-	return -ENOTDIR;
-}
-
-
-static int invalid_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
-{
-	FILE_LOG("on file id: %llu", file->id);
-	return -EINVAL;
-}
-
-
-const file_ops_t null_file_ops = {
-	.read = null_read,
-	.write = null_write,
-	.release = null_release,
-	.seek = null_seek,
-	.setattr = invalid_setattr,
-	.getattr = invalid_getattr,
-	.link = invalid_link,
-	.unlink = invalid_unlink,
-	.ioctl = invalid_ioctl,
-};
-
-
-const file_ops_t zero_file_ops = {
-	.read = zero_read,
-	.write = null_write,
-	.release = null_release,
-	.seek = null_seek,
-	.setattr = invalid_setattr,
-	.getattr = invalid_getattr,
-	.link = invalid_link,
-	.unlink = invalid_unlink,
-	.ioctl = invalid_ioctl,
-};
-
-
-static const file_ops_t *file_getSpecial(id_t id)
-{
-	switch (id) {
-		case 0:
-			return &null_file_ops;
-		case 1:
-			return &zero_file_ops;
-		default:
-			return NULL;
-	}
-}
-
-
-/* file_t functions */
 
 static void file_lock(file_t *f)
 {
@@ -284,11 +50,246 @@ static void file_unlock(file_t *f)
 }
 
 
-static void file_destroy(file_t *f)
+static const char *file_basename(const char *path)
 {
-	if (f->ops != NULL)
-		f->ops->release(f);
+	int i;
+	const char *name = path;
 
+	for (i = 0; path[i]; ++i) {
+		if (path[i] == '/')
+			name = path + i + 1;
+	}
+
+	return name;
+}
+
+
+static ssize_t _file_read(file_t *file, void *data, size_t size, off_t offset)
+{
+	ssize_t retval = EOK;
+	port_t *port = NULL;
+	id_t id;
+
+	switch (file->type) {
+		case ftRegular:
+		case ftDirectory: {
+			port = file->fs.port;
+			id = file->fs.id;
+			break;
+		}
+		case ftSocket:
+		case ftDevice: {
+			port = file->device.port;
+			id = file->device.id;
+			break;
+		}
+		case ftPort: {
+			FILE_LOG("got port");
+			return -EOPNOTSUPP;
+		}
+		case ftPipe:
+			break;
+		case ftFifo:
+			FILE_LOG("TODO");
+			return -ENOSYS;
+		default: {
+			FILE_LOG("invalid file type");
+			return -ENXIO;
+		}
+	}
+
+	if (port == NULL && file->type == ftDevice) {
+		switch (id) {
+			case devNull:
+				return 0;
+			case devZero: {
+				hal_memset(data, 0, size);
+				return size;
+			}
+			default: {
+				FILE_LOG("invalid special file: %lld", id);
+				return -ENXIO;
+			}
+		}
+	}
+	else if (file->type == ftPipe || file->type == ftFifo) {
+		retval = pipe_read(file->pipe, data, size);
+	}
+	else {
+		retval = proc_objectRead(port, id, data, size, offset);
+	}
+
+	return retval;
+}
+
+
+ssize_t file_read(file_t *file, void *data, size_t size, off_t offset)
+{
+	ssize_t retval;
+	file_lock(file);
+	retval = _file_read(file, data, size, offset);
+	file_unlock(file);
+	return retval;
+}
+
+
+static ssize_t _file_write(file_t *file, const void *data, size_t size, off_t offset)
+{
+	ssize_t retval = EOK;
+	port_t *port = NULL;
+	id_t id;
+
+	switch (file->type) {
+		case ftRegular:
+		case ftDirectory: {
+			port = file->fs.port;
+			id = file->fs.id;
+			break;
+		}
+		case ftSocket:
+		case ftDevice: {
+			port = file->device.port;
+			id = file->device.id;
+			break;
+		}
+		case ftPort: {
+			FILE_LOG("got port");
+			return -EOPNOTSUPP;
+		}
+		case ftPipe:
+			break;
+		case ftFifo:{
+			FILE_LOG("TODO");
+			return -ENOSYS;
+		}
+		default: {
+			FILE_LOG("invalid file type");
+			return -ENXIO;
+		}
+	}
+
+	if (port == NULL && file->type == ftDevice) {
+		switch (id) {
+			case devNull:
+			case devZero:
+				return size;
+			default: {
+				FILE_LOG("invalid special file: %lld", id);
+				return -ENXIO;
+			}
+		}
+	}
+	else if (file->type == ftPipe || file->type == ftFifo) {
+		retval = pipe_write(file->pipe, data, size);
+	}
+	else {
+		retval = proc_objectWrite(port, id, data, size, offset);
+	}
+
+	return retval;
+}
+
+
+static int _file_release(file_t *file)
+{
+	int retval = EOK;
+
+	switch (file->type) {
+		case ftRegular:
+		case ftDirectory: {
+			retval = proc_objectClose(file->fs.port, file->fs.id);
+			port_put(file->fs.port);
+			break;
+		}
+		case ftSocket: {
+			retval = proc_objectClose(file->device.port, file->device.id);
+			port_put(file->device.port);
+			break;
+		}
+		case ftDevice: {
+			if (file->fs.port != NULL) {
+				retval = proc_objectClose(file->fs.port, file->fs.id);
+				port_put(file->fs.port);
+			}
+			if (file->device.port != NULL) {
+				retval = proc_objectClose(file->device.port, file->device.id);
+				port_put(file->device.port);
+			}
+			break;
+		}
+		case ftPort: {
+			port_put(file->port);
+			retval = EOK;
+			break;
+		}
+		case ftFifo: {
+			retval = proc_objectClose(file->fs.port, file->fs.id);
+			port_put(file->fs.port);
+			/* fallthrough */
+		}
+		case ftPipe: {
+			pipe_close(file->pipe, file->status & O_RDONLY, file->status & O_WRONLY);
+			break;
+		}
+		default: {
+			FILE_LOG("invalid file type");
+			retval = -ENXIO;
+			break;
+		}
+	}
+
+	return retval;
+}
+
+
+static int _file_seek(file_t *file, off_t *offset, int whence)
+{
+	int retval = EOK;
+	size_t size;
+
+	switch (file->type) {
+		case ftFifo:
+		case ftPipe:
+		case ftPort:
+		case ftSocket:
+			return -ESPIPE;
+	}
+
+	switch (whence) {
+		case SEEK_SET: {
+			file->offset = *offset;
+			break;
+		}
+		case SEEK_END: {
+			if ((retval = proc_objectGetAttr(file->fs.port, file->fs.id, atSize, &size, sizeof(size))) == sizeof(size)) {
+				file->offset = size + *offset;
+				*offset = file->offset;
+				retval = EOK;
+			}
+			else if (retval >= 0) {
+				FILE_LOG("getting size, gettattr=%d", retval);
+				retval = -EIO;
+			}
+			else {
+				FILE_LOG("getting size");
+			}
+			break;
+		}
+		case SEEK_CUR: {
+			file->offset += *offset;
+			*offset = file->offset;
+			break;
+		}
+		default:
+			retval = -EINVAL;
+	}
+
+	return retval;
+}
+
+
+void file_destroy(file_t *f)
+{
 	proc_lockDone(&f->lock);
 	vm_kfree(f);
 }
@@ -302,32 +303,30 @@ void file_ref(file_t *f)
 
 int file_put(file_t *f)
 {
-	if (f && !lib_atomicDecrement(&f->refs))
+	if (f && !lib_atomicDecrement(&f->refs)) {
+		_file_release(f);
 		file_destroy(f);
+	}
 
 	return EOK;
 }
 
 
-static file_t *file_alloc(void)
+file_t *file_alloc(void)
 {
 	file_t *file;
 
 	if ((file = vm_kmalloc(sizeof(*file))) != NULL) {
+		hal_memset(file, 0, sizeof(*file));
 		file->refs = 1;
-		file->offset = 0;
-		file->status = 0;
 		proc_lockInit(&file->lock);
-		file->ops = NULL;
-		file->mode = 0;
-		file->port = NULL;
-		file->fs.port = NULL;
 	}
 
 	return file;
 }
 
 
+///////////////////////// FIXME: can't usually share root file! investigate
 static file_t *file_root(void)
 {
 	file_t *root;
@@ -425,7 +424,7 @@ static file_t *_file_get(process_t *p, int fd)
 {
 	file_t *f;
 
-	if (fd < 0 || fd >= p->fdcount || (f = p->fds[fd].file) == NULL || f->ops == NULL)
+	if (fd < 0 || fd >= p->fdcount || (f = p->fds[fd].file) == NULL)
 		return NULL;
 
 	file_ref(f);
@@ -433,7 +432,7 @@ static file_t *_file_get(process_t *p, int fd)
 }
 
 
-static int fd_new(process_t *p, int fd, int flags, file_t *file)
+int fd_new(process_t *p, int fd, int flags, file_t *file)
 {
 	int retval;
 	process_lock(p);
@@ -453,113 +452,86 @@ file_t *file_get(process_t *p, int fd)
 }
 
 
-int fd_create(process_t *p, int minfd, int flags, unsigned int status, const file_ops_t *ops, void *data)
+int file_followMount(port_t **port, id_t *id)
 {
-	file_t *file;
 	int error;
-
-	if ((file = file_alloc()) == NULL)
-		return -ENOMEM;
-
-	file->data = data;
-	file->status = status;
-
-	if ((error = fd_new(p, minfd, flags, file)) < 0)
-		file_put(file);
-
-	file->ops = ops;
-	return error;
-}
-
-
-static int file_readLink(file_t *file)
-{
-	return -ENOSYS;
-}
-
-
-static int file_followOid(file_t *file)
-{
 	oid_t dest;
-	int error;
-	port_t *port;
+	port_t *newport;
 
-	if ((error = proc_objectRead(file->port, file->id, &dest, sizeof(oid_t), 0)) != sizeof(oid_t)) {
-		FILE_LOG("read device node");
+	if ((error = proc_objectRead(*port, *id, &dest, sizeof(oid_t), 0)) != sizeof(oid_t)) {
+		FILE_LOG("read device node %u.%llu", (*port)->id, *id);
+		asm volatile ("1: jmp 1b");
 		return error;
 	}
 
-	/* TODO: close after read oid is opened? */
-	if ((error = proc_objectClose(file->port, file->id)) != EOK) {
-		FILE_LOG("close device node");
+	if (dest.port == 0) {
+		/* kernel-handled device, not a directory */
+		return -ENOTDIR;
+	}
+
+	if (dest.port == (*port)->id) {
+		/* probably should not happen */
+		FILE_LOG("same filesystem?");
+		asm volatile ("1: jmp 1b");
+	}
+
+	if ((newport = port_get(dest.port)) == NULL) {
+		FILE_LOG("get port (%d)", dest.port);
+		return -ENXIO;
+	}
+
+	if ((error = proc_objectOpen(newport, &dest.id)) != EOK) {
+		FILE_LOG("open");
+		port_put(newport);
 		return error;
 	}
 
-	if (dest.port != file->port->id) {
-		port_put(file->port);
+	/* TODO: maybe getattr to check if it's a directory? */
 
-		if (dest.port == 0) {
-			port = NULL;
-			file->ops = file_getSpecial(dest.id);
-			if (file->ops == NULL) {
-				FILE_LOG("special ops");
-				return -ENXIO;
-			}
-		}
-		else if ((port = port_get(dest.port)) == NULL) {
-			FILE_LOG("get device port (%d)", dest.port);
-			/* Object is closed, don't close again when cleaning up */
-			file->ops = NULL;
-			return -ENXIO;
-		}
-
-		file->port = port;
+	if ((error = proc_objectClose(*port, *id)) != EOK) {
+		FILE_LOG("close");
+		/* don't fail as we have the mounted fs opened already */
 	}
 
-	file->id = dest.id;
-
-	if (file->port != NULL) {
-		if ((error = proc_objectOpen(file->port, &file->id)) != EOK) {
-			FILE_LOG("open device");
-			return error;
-		}
-
-		file->ops = &generic_file_ops;
-	}
-
+	port_put(*port);
+	*port = newport;
+	*id = dest.id;
 	return EOK;
 }
 
 
-int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mode_t cmode, const oid_t *cdev, int *pplen)
-{
-	int err = EOK, sflags = 0;
-	const char *delim = name, *path;
-	id_t id, nextid;
-	mode_t mode;
+#define LOOKUP_PARENT 1
+#define LOOKUP_CREATE 2
+#define LOOKUP_EXCLUSIVE 4
+
+
+typedef struct {
+	const char *remaining;
 	port_t *port;
-	const oid_t *dev = NULL;
+	id_t id;
+	mode_t mode;
+	int flags;
+} pathwalk_t;
 
-	cmode |= ((cmode & S_IFMT) == 0) * S_IFREG;
 
-	port = port_get(dir->port->id); /* TODO: add port_ref? */
-	id = dir->id;
-	mode = dir->mode;
+int file_walkPath(pathwalk_t *state)
+{
+	int err = EOK;
+	const char *delim = state->remaining, *path;
+	port_t *port = state->port;
+	id_t nextid, id = state->id;
 
-	if (proc_objectOpen(port, &id) != EOK) {
-		/* Should not happen */
-		FILE_LOG("open of starting dir");
-		port_put(port);
-		return -ENXIO;
+	if (state->remaining == NULL)
+		return EOK;
+
+	if (state->port == NULL) {
+		FILE_LOG("given NULL port");
+		return -EINVAL;
 	}
 
-	if (id != dir->id) {
-		FILE_LOG("opened directory id differs");
-	}
+	path = delim;
 
 	do {
-		path = delim;
-
 		while (*path && *path == '/')
 			++path;
 
@@ -571,54 +543,305 @@ int file_lookup(const file_t *dir, file_t *file, const char *name, int flags, mo
 		if (path == delim)
 			continue;
 
-		if (!*delim && (flags & O_PARENT) && pplen != NULL) {
-			*pplen = path - name;
+		if (!*delim && (state->flags & LOOKUP_PARENT))
 			break;
-		}
 
-		if (S_ISLNK(mode)) {
-			if ((err = file_readLink(file)) != EOK)
-				break;
-		}
-		else if (S_ISMNT(mode)) {
-			file->port = port;
-			file->id = id;
-			if ((err = file_followOid(file)) != EOK)
-				break;
-			port = file->port;
-			id = file->id;
-			mode = (mode & ~S_IFMT) | S_IFDIR;
-		}
-		else if (!S_ISDIR(mode)) {
+		if (!S_ISDIR(state->mode)) {
 			err = -ENOTDIR;
 			break;
 		}
 
-		if (*delim == 0 && (flags & O_CREAT)) {
-			mode = cmode;
-			sflags = flags;
-			dev = cdev;
-		}
-
-		if ((err = proc_objectLookup(port, id, path, delim - path, sflags, &nextid, &mode, dev)) < 0)
+		if ((err = proc_objectLookup(port, id, path, delim - path, 0, &nextid, &state->mode, NULL)) < 0) {
 			break;
+		}
 
 		proc_objectClose(port, id);
 		id = nextid;
+		path = delim;
 	} while (*delim);
 
-	if (err < 0) {
-		proc_objectClose(port, id);
-		port_put(port);
-	}
-	else {
-		file->port = port;
-		file->fs.port = port_get(port->id); /* TODO port_ref */
-		file->id = file->fs.id = id;
-		file->ops = &generic_file_ops;
-		file->mode = mode;
+	state->id = id;
+	state->remaining = *path ? path : NULL;
+	return err;
+}
+
+
+int file_walkLast(pathwalk_t *state, mode_t mode, oid_t *dev)
+{
+	int pathlen = hal_strlen(state->remaining);
+	int err, flags = 0;
+	id_t newid;
+
+	if (state->flags & LOOKUP_CREATE)
+		flags |= O_CREAT;
+	if (state->flags & LOOKUP_EXCLUSIVE)
+		flags |= O_EXCL;
+
+	if ((err = proc_objectLookup(state->port, state->id, state->remaining, pathlen, flags, &newid, &mode, dev)) < 0) {
+		return err;
 	}
 
+	proc_objectClose(state->port, state->id);
+	state->id = newid;
+	state->mode = mode;
+	state->remaining = NULL;
+	return EOK;
+}
+
+
+int file_followPath(pathwalk_t *walk)
+{
+	int err;
+
+	while ((err = file_walkPath(walk)) == -ENOTDIR) {
+		if (S_ISLNK(walk->mode)) {
+			/* TODO: handle symlink */
+			asm volatile ("1: jmp 1b");
+			FILE_LOG("symlink");
+			err = -ENOSYS;
+			break;
+		}
+		else if (S_ISMNT(walk->mode)) {
+			if ((err = file_followMount(&walk->port, &walk->id)) < 0)
+				break;
+			walk->mode = (walk->mode & ~S_IFMT) | S_IFDIR;
+		}
+		else {
+			break;
+		}
+	}
+
+	return err;
+}
+
+
+int file_fsOpen(port_t **port, id_t *id, const char *path, int flags, mode_t *mode, oid_t *dev)
+{
+	int err;
+	pathwalk_t walk;
+
+	walk.port = *port;
+	walk.id = *id;
+	walk.remaining = path;
+	walk.flags = 0;
+	walk.mode = S_IFDIR;
+
+	if ((flags & O_CREAT) | (flags & O_PARENT))
+		walk.flags |= LOOKUP_PARENT;
+
+	err = file_followPath(&walk);
+
+	if (err == EOK && (flags & O_CREAT)) {
+		walk.flags &= ~LOOKUP_PARENT;
+		walk.flags |= LOOKUP_CREATE;
+
+		if (flags & O_EXCL)
+			walk.flags |= LOOKUP_EXCLUSIVE;
+
+		err = file_walkLast(&walk, *mode, dev);
+	}
+
+	*port = walk.port;
+	*id = walk.id;
+	*mode = walk.mode;
+
+	return err;
+}
+
+
+int file_openBase(file_t **result, process_t *process, int fd, const char *path)
+{
+	file_t *base = NULL;
+
+	if (path == NULL)
+		return -EINVAL;
+
+	if (path[0] != '/') {
+		if (fd == AT_FDCWD) {
+			/* FIXME: keep process locked? - race against chdir() */
+			if ((base = process->cwd) == NULL) {
+				FILE_LOG("current directory not set");
+				return -ENOENT;
+			}
+			file_ref(process->cwd);
+		}
+		else if ((base = file_get(process, fd)) == NULL) {
+			return -EBADF;
+		}
+
+		if (base->type != ftDirectory) {
+			file_put(base);
+			return -ENOTDIR;
+		}
+	}
+	else {
+		if ((base = file_root()) == NULL) {
+			FILE_LOG("no root filesystem");
+			return -ENOENT;
+		}
+	}
+
+	*result = base;
+	return EOK;
+}
+
+
+int file_copyFs(file_t *dst, file_t *src)
+{
+	int error;
+
+	dst->fs.port = src->fs.port;
+	dst->fs.id = src->fs.id;
+	port_ref(dst->fs.port);
+
+	if ((error = proc_objectOpen(dst->fs.port, &dst->fs.id)) < 0) {
+		FILE_LOG("open = %d", error);
+		return error;
+	}
+
+	return EOK;
+}
+
+
+int file_openDevice(file_t *file)
+{
+	int error;
+	oid_t dest;
+	port_t *port;
+
+	if ((error = proc_objectRead(file->fs.port, file->fs.id, &dest, sizeof(oid_t), 0)) != sizeof(oid_t)) {
+		FILE_LOG("read device node");
+		return error;
+	}
+
+	if (dest.port == 0) {
+		port = NULL;
+		switch (dest.id) {
+			case devNull:
+			case devZero:
+				break;
+			default: {
+				FILE_LOG("invalid kernel device");
+				return -ENXIO;
+			}
+		}
+	}
+	else {
+		if ((port = port_get(dest.port)) == NULL) {
+			FILE_LOG("get port (%d)", dest.port);
+			return -ENXIO;
+		}
+
+		if ((error = proc_objectOpen(port, &dest.id)) != EOK) {
+			FILE_LOG("open");
+			port_put(port);
+			return error;
+		}
+	}
+
+	file->device.port = port;
+	file->device.id = dest.id;
+	return EOK;
+}
+
+
+int file_open(file_t **result, process_t *process, int dirfd, const char *path, int flags, mode_t mode)
+{
+	int error = EOK;
+	file_t *dir = NULL, *file;
+	mode_t open_mode;
+
+	if ((error = file_openBase(&dir, process, dirfd, path)) < 0)
+		return error;
+
+	if ((file = file_alloc()) == NULL) {
+		file_put(dir);
+		return -ENOMEM;
+	}
+
+	error = file_copyFs(file, dir);
+	file_put(dir);
+
+	if (error < 0)
+		return error;
+
+	open_mode = mode;
+	if ((error = file_fsOpen(&file->fs.port, &file->fs.id, path, flags, &open_mode, NULL)) < 0) {
+		proc_objectClose(file->fs.port, file->fs.id);
+		port_put(file->fs.port);
+		return error;
+	}
+
+	if ((flags & O_DIRECTORY) && !S_ISMNT(open_mode) && !S_ISDIR(open_mode)) {
+		file_put(file);
+		return -ENOTDIR;
+	}
+
+	switch (open_mode & S_IFMT) {
+		case S_IFREG: {
+			file->type = ftRegular;
+			break;
+		}
+		case S_IFDIR: {
+			file->type = ftDirectory;
+			break;
+		}
+		case S_IFBLK:
+		case S_IFCHR: {
+			file->type = ftDevice;
+			file_openDevice(file);
+			break;
+		}
+		case S_IFMNT: {
+			file->type = ftDirectory;
+			file_followMount(&file->fs.port, &file->fs.id);
+			break;
+		}
+		case S_IFSOCK: {
+			file->type = ftSocket;
+			FILE_LOG("TODO");
+			error = -ENOSYS;
+			break;
+		}
+		case S_IFIFO: {
+			file->type = ftFifo;
+			FILE_LOG("no fifos for now");
+			error = -ENOSYS;
+			break;
+		}
+		case S_IFLNK: {
+			FILE_LOG("symlinks not supported yet");
+			error = -ENOSYS;
+			break;
+		}
+		default: {
+			FILE_LOG("file type not recognized");
+			error = -ENXIO;
+			break;
+		}
+	}
+
+	if (error < 0) {
+		file_put(file);
+	}
+	else {
+		*result = file;
+	}
+
+	return error;
+}
+
+
+int file_resolve(file_t **file, process_t *process, int fildes, const char *path, int flags)
+{
+	int err;
+	if (path == NULL) {
+		if ((*file = file_get(process, fildes)) == NULL)
+			err = -EBADF;
+	}
+	else {
+		err = file_open(file, process, fildes, path, flags, 0);
+	}
 	return err;
 }
 
@@ -651,14 +874,14 @@ static int _file_dup(process_t *p, int fd, int fd2, int flags)
 }
 
 
-static file_t *file_setRoot(file_t *file)
+static file_t *file_setRoot(file_t *newroot)
 {
-	file_t *root;
+	file_t *oldroot;
 	proc_lockSet(&file_common.lock);
-	root = file_common.root;
-	file_common.root = file;
+	oldroot = file_common.root;
+	file_common.root = newroot;
 	proc_lockClear(&file_common.lock);
-	return root;
+	return oldroot;
 }
 
 
@@ -667,120 +890,31 @@ int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 	file_t *root, *port;
 	process_t *process = proc_current()->process;
 
-	if ((port = file_get(process, fd)) == NULL)
+	if ((port = file_get(process, fd)) == NULL) {
+		FILE_LOG("bad file descriptor");
 		return -EBADF;
+	}
+
+	if (port->type != ftPort) {
+		FILE_LOG("given descriptor is not a port");
+		file_put(port);
+		return -EBADF;
+	}
 
 	if ((root = file_alloc()) == NULL) {
 		file_put(port);
 		return -ENOMEM;
 	}
 
-	/* TODO: check type */
-	root->port = port->data;
-	root->id = id;
-	root->ops = &generic_file_ops;
-	root->mode = mode;
+	if (port->port == NULL)
+		asm volatile ("1: jmp 1b");
+
+	root->type = ftDirectory; /* TODO: check */
+	root->fs.port = port->port;
+	root->fs.id = id;
 
 	file_put(file_setRoot(root));
 	return EOK;
-}
-
-
-int file_open(file_t **result, process_t *process, int dirfd, const char *path, int flags, mode_t mode, int *pplen)
-{
-	int error = EOK;
-	file_t *dir = NULL, *file;
-
-	if (path == NULL)
-		return -EINVAL;
-
-	if (path[0] != '/') {
-		if (dirfd == AT_FDCWD) {
-			if ((dir = process->cwd) == NULL) {
-				/* Current directory not set */
-				FILE_LOG("current directory not set");
-				return -ENOENT;
-			}
-			file_ref(process->cwd);
-		}
-		else if ((dir = file_get(process, dirfd)) == NULL) {
-			return -EBADF;
-		}
-
-		if (!S_ISDIR(dir->mode)) {
-			file_put(dir);
-			return -ENOTDIR;
-		}
-	}
-	else {
-		if ((dir = file_root()) == NULL) {
-			/* Rootfs not mounted yet */
-			FILE_LOG("no root filesystem");
-			return -ENOENT;
-		}
-	}
-
-	if ((file = file_alloc()) == NULL) {
-		file_put(dir);
-		return -ENOMEM;
-	}
-
-	error = file_lookup(dir, file, path, flags, mode, NULL, pplen);
-	file_put(dir);
-
-	if (error < 0) {
-		file_put(file);
-		return error;
-	}
-
-	if ((flags & O_DIRECTORY) && !S_ISDIR(file->mode) && !S_ISMNT(file->mode)) {
-		file_put(file);
-		return -ENOTDIR;
-	}
-
-	if (S_ISMNT(file->mode)) {
-		if ((error = file_followOid(file)) == EOK) {
-			port_put(file->fs.port);
-			file->fs.port = port_get(file->port->id); /* TODO port_ref */
-			file->fs.id = file->id;
-		}
-
-		file->mode = (file->mode & ~S_IFMT) | S_IFDIR;
-	}
-
-	if (S_ISCHR(file->mode) || S_ISBLK(file->mode)) {
-		error = file_followOid(file);
-	}
-	else if (S_ISLNK(file->mode)) {
-		error = file_readLink(file);
-	}
-	else if (S_ISFIFO(file->mode)) {
-		error = npipe_open(file, flags);
-	}
-	else if (S_ISSOCK(file->mode)) {
-		error = -ENOSYS;
-	}
-	else if (S_ISPORT(file->mode)) {
-		error = port_open(file, flags);
-	}
-	else if (S_ISREG(file->mode) || S_ISDIR(file->mode)) {
-		/* FIXME: keep positive return value if O_PARENT */;
-		proc_objectOpen(file->port, &file->id);
-		if (file->id != file->fs.id) {
-			FILE_LOG("got different id after opening a regular file or directory");
-		}
-	}
-	else {
-		FILE_LOG("invalid type");
-		error = -ENXIO;
-	}
-
-	if (error < 0)
-		file_put(file);
-	else
-		*result = file;
-
-	return error;
 }
 
 
@@ -791,31 +925,18 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 	file_t *file;
 	int error = EOK;
 
-	if ((error = file_open(&file, process, dirfd, path, flags, mode, NULL)) < 0)
+	/* FIXME - we currently use this to create directories too.. */
+	if (!(mode & S_IFMT))
+		mode |= S_IFREG;
+
+	if ((error = file_open(&file, process, dirfd, path, flags, mode)) < 0)
 		return error;
 
 	return fd_new(process, 0, 0, file);
 }
 
 
-int file_resolve(process_t *process, int fildes, const char *path, int flags, file_t **result, int *pplen)
-{
-	if (flags & O_CREAT)
-		return -EINVAL;
-
-	if (path == NULL) {
-		if (flags)
-			return -EINVAL;
-
-		if ((*result = file_get(process, fildes)) == NULL)
-			return -EBADF;
-
-		return EOK;
-	}
-	return file_open(result, process, fildes, path, flags, 0, pplen);
-}
-
-
+/* TODO: get rid of this */
 int proc_fileOid(process_t *process, int fd, oid_t *oid)
 {
 	int retval = -EBADF;
@@ -823,10 +944,27 @@ int proc_fileOid(process_t *process, int fd, oid_t *oid)
 
 	process_lock(process);
 	if ((file = _file_get(process, fd)) != NULL) {
-		oid->port = file->port != NULL ? file->port->id : 0;
-		oid->id = file->id;
-		file_put(file);
 		retval = EOK;
+		switch (file->type) {
+			case ftRegular:
+			case ftDirectory: {
+				oid->port = file->fs.port != NULL ? file->fs.port->id : 0;
+				oid->id = file->fs.id;
+				break;
+			}
+			case ftDevice:
+			case ftSocket: {
+				oid->port = file->device.port->id;
+				oid->id = file->device.id;
+				break;
+			}
+			default: {
+				FILE_LOG("oid for type (%d)", file->type);
+				retval = -EBADF;
+				break;
+			}
+		}
+		file_put(file);
 	}
 	process_unlock(process);
 	return retval;
@@ -852,9 +990,24 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	file_lock(file);
-	retval = file->ops->read(file, buf, nbyte, file->offset);
-	file_unlock(file);
+	do {
+		file_lock(file);
+		if ((retval = _file_read(file, buf, nbyte, file->offset)) > 0)
+			file->offset += retval;
+		file_unlock(file);
+
+		if ((retval == -EAGAIN && !(file->status & O_NONBLOCK))) {
+			/* TODO: short cut poll and it's ceremony */
+			/* file_waitForOne(file, POLLIN); */
+			struct pollfd fd = { .fd = fildes, .events = POLLIN, .revents = 0 };
+			if (proc_poll(&fd, 1, -1) == -EINTR) {
+				lib_printf("read poll interrupted\n");
+				retval = -EINTR;
+				break;
+			}
+		}
+	}
+	while (retval == -EAGAIN && !(file->status & O_NONBLOCK));
 
 	file_put(file);
 	return retval;
@@ -871,9 +1024,24 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	file_lock(file);
-	retval = file->ops->write(file, buf, nbyte, file->offset);
-	file_unlock(file);
+	do {
+		file_lock(file);
+		if ((retval = _file_write(file, buf, nbyte, file->offset)) > 0)
+			file->offset += retval;
+		file_unlock(file);
+
+		if ((retval == -EAGAIN && !(file->status & O_NONBLOCK))) {
+			lib_printf("read poll\n");
+			/* TODO: short cut poll and it's ceremony */
+			/* file_waitForOne(file, POLLIN); */
+			struct pollfd fd = { .fd = fildes, .events = POLLIN, .revents = 0 };
+			if (proc_poll(&fd, 1, -1) == -EINTR) {
+				retval = -EINTR;
+				break;
+			}
+		}
+	}
+	while (retval == -EAGAIN && !(file->status & O_NONBLOCK));
 
 	file_put(file);
 	return retval;
@@ -891,7 +1059,7 @@ int proc_fileSeek(int fildes, off_t *offset, int whence)
 		return -EBADF;
 
 	file_lock(file);
-	retval = file->ops->seek(file, offset, whence);
+	retval = _file_seek(file, offset, whence);
 	file_unlock(file);
 	file_put(file);
 	return retval;
@@ -909,11 +1077,38 @@ int proc_fileTruncate(int fildes, off_t length)
 		return -EBADF;
 
 	file_lock(file);
-	if ((retval = file->ops->setattr(file, atSize, &length, sizeof(length))) >= 0)
-		retval = EOK;
+	switch (file->type) {
+		case ftRegular: {
+			retval = proc_objectSetAttr(file->fs.port, file->fs.id, atSize, &length, sizeof(length));
+			break;
+		}
+		case ftDevice: {
+			if (file->device.port == NULL) {
+				retval = EOK;
+			}
+			else {
+				retval = proc_objectSetAttr(file->device.port, file->device.id, atSize, &length, sizeof(length));
+			}
+			break;
+		}
+		case ftDirectory: {
+			retval = -EISDIR;
+			break;
+		}
+		default: {
+			/* TODO: what else to return? */
+			retval = -ESPIPE;
+			break;
+		}
+	}
 	file_unlock(file);
-
 	file_put(file);
+
+	if (retval != sizeof(length) && retval >= 0) {
+		FILE_LOG("setattr");
+		retval = -EIO;
+	}
+
 	return retval;
 }
 
@@ -929,7 +1124,38 @@ int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t
 		return -EBADF;
 
 	file_lock(file);
-	retval = file->ops->ioctl(file, request, indata, insz, outdata, outsz);
+	switch (file->type) {
+		case ftRegular:
+		case ftDirectory: {
+			retval = -ENOTTY;
+			break;
+		}
+		case ftFifo:
+		case ftPipe: {
+			retval = pipe_ioctl(file->pipe, request, indata, insz, outdata, outsz);
+			break;
+		}
+		case ftSocket: {
+			FILE_LOG("TODO");
+			retval = EOK;
+			break;
+		}
+		case ftDevice: {
+			if (file->device.port != NULL) {
+				retval = proc_objectControl(file->device.port, file->device.id, request, indata, insz, outdata, outsz);
+			}
+			else {
+				FILE_LOG("TODO");
+				retval = -ENOTTY;
+			}
+			break;
+		}
+		default: {
+			FILE_LOG("invalid file type");
+			retval = -ENXIO;
+			break;
+		}
+	}
 	file_unlock(file);
 	file_put(file);
 	return retval;
@@ -954,25 +1180,25 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	file_t *file, *dir;
-	int retval, pplen;
+	int retval;
 	const char *linkname;
 	oid_t oid;
 
-	if ((retval = file_resolve(process, dirfd, name, O_DIRECTORY | O_PARENT, &dir, &pplen)) < 0)
+	if ((retval = file_resolve(&dir, process, dirfd, name, O_DIRECTORY | O_PARENT)) < 0)
 		return retval;
 
-	linkname = name + pplen;
+	linkname = file_basename(name);
 
-	if ((retval = file_resolve(process, fildes, path, 0, &file, NULL)) < 0) {
+	if ((retval = file_resolve(&file, process, fildes, path, 0)) < 0) {
 		file_put(dir);
 		return retval;
 	}
 
-	oid.port = file->port->id;
-	oid.id = file->id;
+	oid.port = file->fs.port->id;
+	oid.id = file->fs.id;
 
 	file_lock(dir);
-	retval = dir->ops->link(dir, linkname, &oid);
+	retval = proc_objectLink(dir->fs.port, dir->fs.id, linkname, &oid);
 	file_unlock(dir);
 
 	file_put(file);
@@ -986,17 +1212,18 @@ int proc_fileUnlink(int dirfd, const char *path, int flags)
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	file_t *dir;
-	int retval, pplen;
-	const char *name;
+	int retval;
+	const char *linkname;
 
-	if ((retval = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir, &pplen)) < 0)
+	if ((retval = file_open(&dir, process, dirfd, path, O_DIRECTORY | O_PARENT, 0)) < 0)
 		return retval;
 
-	name = path + pplen;
+	linkname = file_basename(path);
 
 	file_lock(dir);
-	retval = dir->ops->unlink(dir, name);
+	retval = proc_objectUnlink(dir->fs.port, dir->fs.id, linkname);
 	file_unlock(dir);
+
 	file_put(dir);
 	return retval;
 }
@@ -1126,17 +1353,43 @@ int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
 	process_t *process = current->process;
 	file_t *file;
 	int err;
+	port_t *port;
+	id_t id;
+	mode_t mode = 0;
 
-	if ((err = file_resolve(process, fildes, path, flags, &file, NULL)) != EOK)
+	if (path == NULL) {
+		if ((file = file_get(process, fildes)) == NULL)
+			return -EBADF;
+	}
+	else if ((err = file_openBase(&file, process, fildes, path)) < 0) {
 		return err;
+	}
 
-	if (file->fs.port == NULL)
+	if (file->fs.port == NULL) {
+		file_put(file);
 		return -EBADF;
+	}
 
-	file_lock(file);
-	if ((err = proc_objectGetAttr(file->fs.port, file->fs.id, atStatStruct, (char *)buf, sizeof(*buf))) >= 0)
+	port = file->fs.port;
+	id = file->fs.id;
+
+	if (path != NULL) {
+		port_ref(port);
+		proc_objectOpen(port, &id);
+		if ((err = file_fsOpen(&port, &id, path, 0, &mode, NULL)) < 0) {
+			port_put(port);
+			file_put(file);
+			return err;
+		}
+	}
+
+	if ((err = proc_objectGetAttr(port, id, atStatStruct, (char *)buf, sizeof(*buf))) >= 0)
 		err = EOK;
-	file_unlock(file);
+
+	if (path != NULL) {
+		proc_objectClose(port, id);
+		port_put(port);
+	}
 
 	file_put(file);
 	return err;
@@ -1232,13 +1485,13 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	if (mode & ~(S_IRWXU | S_IRWXG | S_IRWXO))
 		return -EINVAL;
 
-	if ((err = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir, &pplen)) < 0)
+	if ((err = file_resolve(&dir, process, dirfd, path, O_PARENT | O_DIRECTORY)) < 0)
 		return err;
 
-	fifoname = path + pplen;
-
+	fifoname = file_basename(path);
 	mode |= S_IFIFO;
-	if ((err = proc_objectLookup(dir->port, dir->id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode, NULL)) == EOK)
+
+	if ((err = proc_objectLookup(dir->fs.port, dir->fs.id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode, NULL)) == EOK)
 		proc_objectClose(dir->port, id);
 	file_put(dir);
 	return err;
@@ -1253,23 +1506,36 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 	const char *name;
 	oid_t oid;
 
-	if ((err = file_resolve(process, dirfd, path, O_PARENT | O_DIRECTORY, &dir, &pplen)) < 0)
+	if ((err = file_resolve(&dir, process, dirfd, path, O_PARENT | O_DIRECTORY)) < 0) {
+		FILE_LOG("dir resolve");
+		asm volatile ("1: jmp 1b");
 		return err;
-
-	/* FIXME: check if it's a port */
-	if (portfd == -1 || (port = file_get(process, portfd)) != NULL) {
-		oid.port = (portfd == -1) ? 0 : ((port_t *)port->data)->id;
-		oid.id = id;
-
-		name = path + pplen;
-
-		if ((err = proc_objectLookup(dir->port, dir->id, name, hal_strlen(name), O_CREAT | O_EXCL, &id, &mode, &oid)) == EOK)
-			proc_objectClose(dir->port, id);
-
-		file_put(port);
 	}
 
+	oid.id = id;
+
+	if (portfd == -1) {
+		oid.port = 0;
+	}
+	else if ((port = file_get(process, portfd)) == NULL || (port->type != ftPort)) {
+		FILE_LOG("port");
+		file_put(dir);
+		file_put(port);
+		return -EBADF;
+	}
+	else {
+		oid.port = port->port->id;
+	}
+
+	name = file_basename(path);
+
+	if ((err = proc_objectLookup(dir->fs.port, dir->fs.id, name, hal_strlen(name), O_CREAT | O_EXCL, &id, &mode, &oid)) == EOK)
+		proc_objectClose(dir->fs.port, id);
+	else
+		FILE_LOG("lookup");
+
 	file_put(dir);
+	file_put(port);
 	return err;
 }
 
@@ -1280,7 +1546,7 @@ int proc_changeDir(int fildes, const char *path)
 	file_t *file;
 	int retval;
 
-	if ((retval = file_resolve(process, fildes, path, O_DIRECTORY, &file, NULL)) < 0)
+	if ((retval = file_resolve(&file, process, fildes, path, O_DIRECTORY)) < 0)
 		return retval;
 
 	process_lock(process);
@@ -1301,15 +1567,18 @@ int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port
 	mode_t mode;
 	port_t *port;
 
-	if ((retval = file_resolve(process, devfd, devpath, 0, &device, NULL)) < 0)
+	if ((retval = file_resolve(&device, process, devfd, devpath, 0)) < 0) {
+		FILE_LOG("resolve");
+		asm volatile ("1: jmp 1b");
 		return retval;
+	}
 
 	if ((retval = port_create(&port, portno)) < 0) {
 		FILE_LOG("could not create port %d", portno);
 		return retval;
 	}
 
-	retval = proc_objectMount(device->port, device->id, port->id, type, &rootid, &mode);
+	retval = proc_objectMount(device->device.port, device->device.id, port->id, type, &rootid, &mode);
 	file_put(device);
 
 	if (retval < 0) {
@@ -1318,15 +1587,20 @@ int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port
 		return retval;
 	}
 
+	if (!S_ISDIR(mode)) {
+		port_put(port);
+		FILE_LOG("bad mode of mounted directory");
+		return -ENOTDIR;
+	}
+
 	if ((root = file_alloc()) == NULL) {
 		port_put(port);
 		return -ENOMEM;
 	}
 
-	root->port = port;
-	root->id = rootid;
-	root->ops = &generic_file_ops;
-	root->mode = mode;
+	root->type = ftDirectory;
+	root->fs.port = port;
+	root->fs.id = rootid;
 
 	if ((retval = fd_new(process, 0, 0, root)) < 0)
 		file_put(root);
@@ -1348,24 +1622,28 @@ int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath)
 		oid.id = 0;
 	}
 	else {
-		if ((retval = file_resolve(process, dirfd, dirpath, O_DIRECTORY, &dir, NULL)) < 0)
+		if ((retval = file_resolve(&dir, process, dirfd, dirpath, O_DIRECTORY)) < 0)
 			return retval;
 
-		oid.port = dir->port->id;
-		oid.id = dir->id;
+		oid.port = dir->fs.port->id;
+		oid.id = dir->fs.id;
 	}
 
-	if ((retval = file_resolve(process, fsfd, fspath, 0, &fs, NULL)) < 0) {
+	if ((retval = file_resolve(&fs, process, fsfd, fspath, O_DIRECTORY)) < 0) {
 		file_put(dir);
 		return retval;
 	}
 
 	if (dir != NULL) {
-		retval = fs->ops->setattr(fs, atMountPoint, &oid, sizeof(oid));
+
+		FILE_LOG("binding dir=%u.%llu to fs=%u.%llu", dir->fs.port->id, dir->fs.id, fs->fs.port->id, fs->fs.id);
+
+		retval = proc_objectSetAttr(fs->fs.port, fs->fs.id, atMountPoint, &oid, sizeof(oid));
+
 		if (retval == EOK) {
-			oid.port = fs->port->id;
-			oid.id = fs->id;
-			retval = dir->ops->setattr(dir, atMount, &oid, sizeof(oid));
+			oid.port = fs->fs.port->id;
+			oid.id = fs->fs.id;
+			retval = proc_objectSetAttr(dir->fs.port, dir->fs.id, atMount, &oid, sizeof(oid));
 		}
 	}
 	else {
@@ -1385,7 +1663,7 @@ static int socket_get(process_t *process, int socket, file_t **file)
 	if ((*file = file_get(process, socket)) == NULL)
 		return -EBADF;
 
-	if (!S_ISSOCK((*file)->mode)) {
+	if ((*file)->type != ftSocket) {
 		file_put(*file);
 		return -ENOTSOCK;
 	}
@@ -1408,18 +1686,18 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 	block = !(file->status & O_NONBLOCK);
 
 	do {
-		if ((retval = proc_objectAccept(file->port, file->id, &conn_id, address, address_len)) == EOK) {
+		if ((retval = proc_objectAccept(file->device.port, file->device.id, &conn_id, address, address_len)) == EOK) {
 			if ((conn = file_alloc()) != NULL) {
-				conn->port = port_get(file->port->id); /* TODO port_ref */
-				conn->id = conn_id;
-				conn->ops = &generic_file_ops;
-				conn->mode = S_IFSOCK;
+				conn->device.port = file->port;
+				port_ref(file->port);
+				conn->device.id = conn_id;
+				conn->type = ftSocket;
 
 				if ((retval = fd_new(process, 0, flags, conn)) < 0)
 					file_put(conn);
 			}
 			else {
-				proc_objectClose(file->port, conn_id);
+				proc_objectClose(file->device.port, conn_id);
 				retval = -ENOMEM;
 			}
 		}
@@ -1449,7 +1727,7 @@ int proc_netBind(int socket, const struct sockaddr *address, socklen_t address_l
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = proc_objectBind(file->port, file->id, address, address_len);
+	retval = proc_objectBind(file->device.port, file->device.id, address, address_len);
 	file_put(file);
 	return retval;
 }
@@ -1459,7 +1737,7 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 {
 	file_t *file;
 	process_t *process = proc_current()->process;
-	int retval, block;
+	int retval, block, submitted = 0;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
@@ -1467,14 +1745,18 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 	block = !(file->status & O_NONBLOCK);
 
 	do {
-		if ((retval = proc_objectConnect(file->port, file->id, address, address_len)) == -EINPROGRESS && block) {
+		if ((retval = proc_objectConnect(file->device.port, file->device.id, address, address_len)) == -EINPROGRESS && block) {
 			/* TODO: short cut poll and it's ceremony */
 			/* file_waitForOne(file, POLLOUT); */
+			submitted = 1;
 			struct pollfd fd = { .fd = socket, .events = POLLOUT, .revents = 0 };
 			if (proc_poll(&fd, 1, -1) == -EINTR) {
 				retval = -EINTR;
 				break;
 			}
+		}
+		else if (retval == -EALREADY && submitted) {
+			retval = EOK;
 		}
 	}
 	while (block && retval == -EINPROGRESS);
@@ -1493,7 +1775,7 @@ int proc_netGetpeername(int socket, struct sockaddr *address, socklen_t *address
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	if ((retval = file->ops->getattr(file, atRemoteAddr, address, *address_len)) > 0)
+	if ((retval = proc_objectGetAttr(file->device.port, file->device.id, atRemoteAddr, address, *address_len)) > 0)
 		*address_len = retval;
 
 	file_put(file);
@@ -1510,7 +1792,7 @@ int proc_netGetsockname(int socket, struct sockaddr *address, socklen_t *address
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	if ((retval = file->ops->getattr(file, atLocalAddr, address, *address_len)) > 0)
+	if ((retval = proc_objectGetAttr(file->device.port, file->device.id, atLocalAddr, address, *address_len)) > 0)
 		*address_len = retval;
 
 	file_put(file);
@@ -1542,7 +1824,7 @@ int proc_netListen(int socket, int backlog)
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = proc_objectListen(file->port, file->id, backlog);
+	retval = proc_objectListen(file->device.port, file->device.id, backlog);
 	file_put(file);
 	return retval;
 }
@@ -1587,7 +1869,7 @@ int proc_netShutdown(int socket, int how)
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = proc_objectShutdown(file->port, file->id, how);
+	retval = proc_objectShutdown(file->device.port, file->device.id, how);
 	file_put(file);
 	return retval;
 }
@@ -1614,10 +1896,10 @@ int proc_netSocket(int domain, int type, int protocol)
 	file_t *file;
 	int err;
 
-	if ((err = file_open(&file, proc_current()->process, -1, "/dev/net", 0, 0, NULL)) != EOK)
+	if ((err = file_open(&file, proc_current()->process, -1, "/dev/net", 0, 0)) != EOK)
 		return err;
 
-	file->mode = S_IFSOCK;
+	file->type = ftSocket;
 
 	if (err != EOK || (err = fd_new(process, 0, 0, file)) < 0)
 		file_put(file);

@@ -29,36 +29,42 @@ typedef struct _fildes_t fildes_t;
 typedef struct _file_t file_t;
 
 
-typedef struct _file_ops_t {
-	ssize_t (*read)(file_t *, void *, size_t, off_t);
-	ssize_t (*write)(file_t *, const void *, size_t, off_t);
-	int (*release)(file_t *);
-	int (*seek)(file_t *, off_t *, int);
-	ssize_t (*setattr)(file_t *, int, const void *, size_t);
-	ssize_t (*getattr)(file_t *, int, void *, size_t);
-	int (*ioctl)(file_t *, unsigned, const void *, size_t, void *, size_t);
-	int (*link)(file_t *, const char *, const oid_t *);
-	int (*unlink)(file_t *, const char *);
-} file_ops_t;
+typedef struct _object_node_t {
+	int refs;
+	struct _thread_t *queue;
+
+	rbnode_t linkage;
+	id_t id;
+	struct _port_t *port;
+} object_node_t;
+
+
+enum { ftRegular, ftDirectory, ftDevice, ftPort, ftFifo, ftPipe, ftSocket };
 
 
 struct _file_t {
-	unsigned refs;
-	off_t offset;
+	int refs;
 	lock_t lock;
-	mode_t mode;
 	unsigned status;
-	const file_ops_t *ops;
-
-	struct _port_t *port;
-	id_t id;
+	off_t offset;
+	int type;
 
 	struct {
 		struct _port_t *port;
 		id_t id;
 	} fs;
 
-	void *data;
+	union {
+		struct _port_t *port;
+		struct _pipe_t *pipe;
+
+		struct {
+			struct _port_t *port;
+			id_t id;
+		} device;
+
+		/* id_t socket; treat separately? */
+	};
 };
 
 
@@ -80,13 +86,16 @@ extern void file_ref(file_t *f);
 extern int file_put(file_t *f);
 
 
-extern int file_open(file_t **result, struct _process_t *process, int dirfd, const char *path, int flags, mode_t mode, int *pplen);
+extern int file_open(file_t **result, struct _process_t *process, int dirfd, const char *path, int flags, mode_t mode);
 
 
-extern int file_resolve(struct _process_t *process, int fildes, const char *path, int flags, file_t **result, int *pplen);
+extern ssize_t file_read(file_t *file, void *data, size_t size, off_t offset);
 
 
-extern int fd_create(struct _process_t *p, int minfd, int flags, unsigned int status, const file_ops_t *ops, void *data);
+extern int file_resolve(file_t **result, struct _process_t *process, int fildes, const char *path, int flags);
+
+
+//extern int fd_create(struct _process_t *p, int minfd, int flags, unsigned int status, const file_ops_t *ops, void *data);
 
 
 extern int fd_close(struct _process_t *p, int fd);

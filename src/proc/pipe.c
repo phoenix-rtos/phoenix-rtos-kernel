@@ -59,16 +59,19 @@ static void pipe_unlock(pipe_t *pipe)
 static int pipe_wait(pipe_t *pipe)
 {
 	/* TODO: propagate interruption down to user */
-	if (proc_lockWait(&pipe->queue, &pipe->lock, 0) == -EINTR)
+	if (proc_lockWait(&pipe->queue, &pipe->lock, 0) == -EINTR) {
 		proc_lockSet(&pipe->lock);
+		return -EINTR;
+	}
 	return EOK;
 }
 
 
-static void pipe_wakeup(pipe_t *pipe)
+static void pipe_wakeup(pipe_t *pipe, int events)
 {
 	if (pipe->queue != NULL)
 		proc_threadBroadcastYield(&pipe->queue);
+	/* TODO: proc_eventRegister */
 }
 
 
@@ -80,22 +83,9 @@ static int pipe_destroy(pipe_t *pipe)
 }
 
 
-static ssize_t pipe_invalid_read(file_t *file, void *data, size_t size, off_t offset)
-{
-	return -EBADF;
-}
-
-
-static ssize_t pipe_invalid_write(file_t *file, const void *data, size_t size, off_t offset)
-{
-	return -EBADF;
-}
-
-
-static ssize_t pipe_read(file_t *file, void *data, size_t size, off_t offset)
+ssize_t pipe_read(pipe_t *pipe, void *data, size_t size, off_t offset)
 {
 	ssize_t retval;
-	pipe_t *pipe = file->data;
 
 	pipe_lock(pipe);
 	while ((retval = fifo_read(&pipe->fifo, data, size)) == 0) {
@@ -103,23 +93,22 @@ static ssize_t pipe_read(file_t *file, void *data, size_t size, off_t offset)
 			retval = 0;
 			break;
 		}
-		if (file->status & O_NONBLOCK) {
-			retval = -EWOULDBLOCK;
-			break;
-		}
-		pipe_wait(pipe);
+//		if (file->status & O_NONBLOCK) {
+//			retval = -EWOULDBLOCK;
+//			break;
+//		}
+		retval = pipe_wait(pipe); /* FIXME: what about partial reads */
 	}
 	pipe_unlock(pipe);
 	if (retval > 0)
-		pipe_wakeup(pipe);
+		pipe_wakeup(pipe, POLLOUT);
 	return retval;
 }
 
 
-static ssize_t pipe_write(file_t *file, const void *data, size_t size, off_t offset)
+ssize_t pipe_write(pipe_t *pipe, const void *data, size_t size, off_t offset)
 {
 	ssize_t retval = 0;
-	pipe_t *pipe = file->data;
 	int atomic;
 
 	if (!pipe->nreaders)
@@ -138,113 +127,47 @@ static ssize_t pipe_write(file_t *file, const void *data, size_t size, off_t off
 		else if (fifo_freespace(&pipe->fifo) > atomic * (size - 1)) {
 			retval += fifo_write(&pipe->fifo, data + retval, size - retval);
 		}
-		else if (file->status & O_NONBLOCK) {
-			break;
-		}
+//		else if (file->status & O_NONBLOCK) {
+//			break;
+//		}
 		else {
-			pipe_wait(pipe);
+			pipe_wait(pipe); /* FIXME: EINTR vs partial writes */
 		}
 	} while (retval < size);
 	pipe_unlock(pipe);
 	if (retval > 0)
-		pipe_wakeup(pipe);
+		pipe_wakeup(pipe, POLLIN);
 	return retval ? retval : -EWOULDBLOCK;
 }
 
 
-static int pipe_close_read(file_t *file)
+int pipe_close(pipe_t *pipe, int read, int write)
 {
-	pipe_t *pipe = file->data;
-	if (!lib_atomicDecrement(&pipe->nreaders) && !pipe->nwriters) {
+	/* FIXME: races */
+	if (read) {
+		lib_atomicDecrement(&pipe->nreaders);
+	}
+
+	if (write) {
+		lib_atomicDecrement(&pipe->nwriters);
+	}
+
+	if (!pipe->nreaders && !pipe->nwriters) {
 		pipe_destroy(pipe);
 		vm_kfree(pipe);
 	}
 	else {
-		pipe_wakeup(pipe);
+		pipe_wakeup(pipe, POLLHUP);
 	}
 	return EOK;
 }
 
 
-static int pipe_close_write(file_t *file)
-{
-	pipe_t *pipe = file->data;
-	if (!lib_atomicDecrement(&pipe->nwriters) && !pipe->nreaders) {
-		pipe_destroy(pipe);
-		vm_kfree(pipe);
-	}
-	else {
-		pipe_wakeup(pipe);
-	}
-	return EOK;
-}
-
-
-static int pipe_invalid_seek(file_t *file, off_t *offset, int whence)
-{
-	return -ESPIPE;
-}
-
-
-static int pipe_setattr(file_t *file, int attr, const void *value, size_t size)
-{
-	lib_printf("pipe_setattr\n");
-	return -ENOSYS;
-}
-
-
-static ssize_t pipe_getattr(file_t *file, int attr, void *value, size_t size)
-{
-	lib_printf("pipe_getattr\n");
-	return -ENOSYS;
-}
-
-
-static int pipe_link(file_t *dir, const char *name, const oid_t *file)
-{
-	lib_printf("pipe_link\n");
-	return -ENOTDIR;
-}
-
-
-static int pipe_unlink(file_t *dir, const char *name)
-{
-	lib_printf("pipe_unlink\n");
-	return -ENOTDIR;
-}
-
-
-static int pipe_ioctl(file_t *file, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
+int pipe_ioctl(pipe_t *pipe, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
 {
 	lib_printf("pipe_ioctl\n");
 	return -ENOSYS;
 }
-
-
-const file_ops_t pipe_read_file_ops = {
-	.read = pipe_read,
-	.write = pipe_invalid_write,
-	.release = pipe_close_read,
-	.seek = pipe_invalid_seek,
-	.setattr = pipe_setattr,
-	.getattr = pipe_getattr,
-	.link = pipe_link,
-	.unlink = pipe_unlink,
-	.ioctl = pipe_ioctl,
-};
-
-
-const file_ops_t pipe_write_file_ops = {
-	.read = pipe_invalid_read,
-	.write = pipe_write,
-	.release = pipe_close_write,
-	.seek = pipe_invalid_seek,
-	.setattr = pipe_setattr,
-	.getattr = pipe_getattr,
-	.link = pipe_link,
-	.unlink = pipe_unlink,
-	.ioctl = pipe_ioctl,
-};
 
 
 int pipe_init(pipe_t *pipe, size_t size)
@@ -265,38 +188,69 @@ int pipe_init(pipe_t *pipe, size_t size)
 
 int pipe_create(process_t *process, size_t size, int fds[2], int flags)
 {
-	int read_fd = -1, write_fd = -1, err = EOK;
+	int readfd = -1, writefd = -1, err = EOK;
 	pipe_t *pipe = NULL;
+	file_t *read_end, *write_end;
+	int fdflags = 0;
 
-	if (!IS_POW_2(size)) {
+	if (flags & ~(O_NONBLOCK | O_CLOEXEC))
 		return -EINVAL;
-	}
-	else if ((pipe = vm_kmalloc(sizeof(pipe_t))) == NULL) {
+
+	if (flags & O_CLOEXEC)
+		fdflags = FD_CLOEXEC;
+
+	if (!IS_POW_2(size))
+		return -EINVAL;
+
+	if ((pipe = vm_kmalloc(sizeof(pipe_t))) == NULL)
+		return -ENOMEM;
+
+	if ((read_end = file_alloc()) == NULL) {
+		vm_kfree(pipe);
 		return -ENOMEM;
 	}
-	
-	if ((err = pipe_init(pipe, size)) == EOK) {
-		pipe->nreaders = 1;
-		pipe->nwriters = 1;
 
-		if ((read_fd = fd_create(process, 0, flags, 0, &pipe_read_file_ops, pipe)) < 0) {
-			err = read_fd;
-		}
-		else if ((write_fd = fd_create(process, 0, flags, 0, &pipe_write_file_ops, pipe)) < 0) {
-			fd_close(process, read_fd);
-			err = write_fd;
-		}
-		else {
-			fds[0] = read_fd;
-			fds[1] = write_fd;
-			return EOK;
-		}
-
-		pipe_destroy(pipe);
+	if ((write_end = file_alloc()) == NULL) {
+		file_put(read_end);
+		vm_kfree(pipe);
+		return -ENOMEM;
 	}
 
-	vm_kfree(pipe);
-	return err;
+	if ((err = pipe_init(pipe, size)) < 0) {
+		file_put(read_end);
+		file_put(write_end);
+		vm_kfree(pipe);
+		return err;
+	}
+
+	pipe->nreaders = 1;
+	pipe->nwriters = 1;
+
+	read_end->status = (flags & ~O_CLOEXEC) | O_RDONLY;
+	write_end->status = (flags & ~O_CLOEXEC) | O_WRONLY;
+
+	write_end->pipe = read_end->pipe = pipe;
+	write_end->type = read_end->type = ftPipe;
+
+	if ((readfd = fd_new(process, 0, fdflags, read_end)) < 0) {
+		file_put(read_end);
+		file_put(write_end);
+		pipe_destroy(pipe);
+		vm_kfree(pipe);
+		return err;
+	}
+
+	if ((writefd = fd_new(process, 0, fdflags, write_end)) < 0) {
+		file_put(write_end);
+		fd_close(process, readfd);
+		pipe_destroy(pipe);
+		vm_kfree(pipe);
+		return err;
+	}
+
+	fds[0] = readfd;
+	fds[1] = writefd;
+	return EOK;
 }
 
 
@@ -310,6 +264,7 @@ int proc_pipeCreate(int fds[2], int flags)
 }
 
 
+#if 0
 int npipe_cmp(rbnode_t *n1, rbnode_t *n2)
 {
 	int cmp;
@@ -367,7 +322,7 @@ void npipe_destroy(named_pipe_t *np)
 
 int npipe_release(file_t *file)
 {
-	named_pipe_t *npipe = file->data;
+	named_pipe_t *npipe = file->pipe;
 	pipe_t *pipe = &npipe->pipe;
 
 	proc_lockSet(&pipe_common.lock);
@@ -378,28 +333,15 @@ int npipe_release(file_t *file)
 		lib_atomicDecrement(&pipe->nwriters);
 	}
 	if (!pipe->nreaders && !pipe->nwriters) {
-		npipe_destroy(file->data);
+		npipe_destroy(file->pipe);
 	}
 	else {
-		pipe_wakeup(pipe);
+		pipe_wakeup(pipe, POLLHUP);
 	}
 	proc_lockClear(&pipe_common.lock);
 
 	return EOK;
 }
-
-
-const file_ops_t npipe_ops = {
-	.read = pipe_read,
-	.write = pipe_write,
-	.release = npipe_release,
-	.seek = pipe_invalid_seek,
-	.setattr = pipe_setattr,
-	.getattr = pipe_getattr,
-	.link = pipe_link,
-	.unlink = pipe_unlink,
-	.ioctl = pipe_ioctl,
-};
 
 
 int pipe_open(pipe_t *pipe, int oflag)
@@ -413,7 +355,7 @@ int pipe_open(pipe_t *pipe, int oflag)
 	if (oflag & O_WRONLY) {
 		lib_atomicIncrement(&pipe->nwriters);
 	}
-	pipe_wakeup(pipe);
+	pipe_wakeup(pipe, POLLIN | POLLOUT);
 	if (oflag & O_NONBLOCK) {
 		 if (!pipe->nreaders)
 			err = -ENXIO;
@@ -434,7 +376,7 @@ int npipe_open(file_t *file, int oflag)
 	int err = EOK;
 	oid_t oid;
 
-	file->ops = &npipe_ops;
+#if 0
 	file->status = oflag;
 
 	oid.port = file->port->id;
@@ -442,17 +384,17 @@ int npipe_open(file_t *file, int oflag)
 
 	/* TODO: better bump reference under common lock? */
 	proc_lockSet(&pipe_common.lock);
-	if ((file->data = npipe_find(&oid)) == NULL)
-		file->data = npipe_create(&oid);
+	if ((file->pipe = npipe_find(&oid)) == NULL)
+		file->pipe = npipe_create(&oid);
 	proc_lockClear(&pipe_common.lock);
 
-	if (file->data == NULL) {
+	if (file->pipe == NULL) {
 		err = -ENOMEM;
 	}
-	else if ((err = pipe_open(&((named_pipe_t *)file->data)->pipe, oflag)) < 0) {
-		npipe_destroy(file->data);
+	else if ((err = pipe_open(&((named_pipe_t *)file->pipe)->pipe, oflag)) < 0) {
+		npipe_destroy(file->pipe);
 	}
-
+#endif
 	return err;
 }
-
+#endif

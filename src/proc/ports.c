@@ -35,6 +35,14 @@ static int ports_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
+void port_ref(port_t *port)
+{
+	proc_lockSet(&port_common.lock);
+	port->refs++;
+	proc_lockClear(&port_common.lock);
+}
+
+
 port_t *port_get(u32 id)
 {
 	port_t *port;
@@ -106,37 +114,8 @@ int port_create(port_t **port, u32 id)
 
 static int port_release(file_t *file)
 {
-	port_put(file->data);
+	port_put(file->port);
 	return EOK;
-}
-
-
-static const file_ops_t port_ops = {
-	.release = port_release,
-};
-
-
-int port_open(file_t *file, int flags)
-{
-	int error = EOK;
-	u32 number;
-	port_t *port = NULL;
-
-	/* TODO: proper way to retrieve port number? */
-	if (file->ops->getattr(file, atPort, &number, sizeof(number)) != sizeof(number))
-		return -EINVAL;
-
-	if ((port = port_get(number)) == NULL)
-		error = port_create(&port, number);
-
-	if (error == EOK) {
-		/* Close object in filesystem */
-		file->ops->release(file);
-		file->data = port;
-		file->ops = &port_ops;
-	}
-
-	return error;
 }
 
 
@@ -144,10 +123,20 @@ int proc_portCreate(u32 id)
 {
 	process_t *process = proc_current()->process;
 	int err;
-	port_t *port;
+	file_t *file;
 
-	if ((err = port_create(&port, id)) == EOK && (err = fd_create(process, 0, 0, 0, &port_ops, port)) < 0)
-		port_put(port);
+	if ((file = file_alloc()) == NULL)
+		return -ENOMEM;
+
+	file->type = ftPort;
+
+	if ((err = port_create(&file->port, id)) == EOK) {
+		if ((err = fd_new(process, 0, 0, file)) < 0)
+			file_put(file);
+	}
+	else {
+		file_destroy(file);
+	}
 
 	return err;
 }
@@ -156,11 +145,22 @@ int proc_portCreate(u32 id)
 int proc_portGet(u32 id)
 {
 	process_t *process = proc_current()->process;
-	int err = -ENOENT;
-	port_t *port;
+	int err;
+	file_t *file;
 
-	if ((port = port_get(id)) != NULL && (err = fd_create(process, 0, 0, 0, &port_ops, port)) < 0)
-		port_put(port);
+	if ((file = file_alloc()) == NULL)
+		return -ENOMEM;
+
+	file->type = ftPort;
+
+	if ((file->port = port_get(id)) != NULL) {
+		if ((err = fd_new(process, 0, 0, file)) < 0)
+			file_put(file);
+	}
+	else {
+		err = -ENXIO;
+		file_destroy(file);
+	}
 
 	return err;
 }

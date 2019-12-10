@@ -45,10 +45,10 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 	if (o1->file == NULL || o2->file == NULL)
 		return (o1->file == NULL) - (o2->file == NULL);
 
-	if ((retval = (o1->file->id > o2->file->id) - (o1->file->id < o2->file->id)))
+	if ((retval = (o1->file->fs.id > o2->file->fs.id) - (o1->file->fs.id < o2->file->fs.id)))
 		return retval;
 
-	return (o1->file->port->id > o2->file->port->id) - (o1->file->port->id < o2->file->port->id);
+	return (o1->file->fs.port->id > o2->file->fs.port->id) - (o1->file->fs.port->id < o2->file->fs.port->id);
 }
 
 
@@ -88,7 +88,7 @@ int vm_objectGet(vm_object_t **o, file_t *file)
 	/* FIXME: avoid deadlock in some better way? */
 	proc_lockClear(&object_common.lock);
 
-	if (file->ops == NULL || file->ops->getattr(file, atSize, &sz, sizeof(sz)) != sizeof(sz))
+	if (file->fs.port == NULL || proc_objectGetAttr(file->fs.port, file->fs.id, atSize, &sz, sizeof(sz)) != sizeof(sz))
 		return -EINVAL; /* other error? */
 
 	n = round_page(sz) / SIZE_PAGE;
@@ -163,7 +163,7 @@ static page_t *object_fetch(vm_object_t *o, offs_t offs)
 		return NULL;
 	}
 
-	if (o->file->ops->read(o->file, v, SIZE_PAGE, offs) <= 0) {
+	if (file_read(o->file, v, SIZE_PAGE, offs) <= 0) {
 		vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
 		return NULL;

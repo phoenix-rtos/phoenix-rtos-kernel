@@ -21,8 +21,7 @@
 #include "../../include/poll.h"
 
 
-//#define TRACE(str, ...) lib_printf("event: " str "\n", ##__VA_ARGS__)
-#define TRACE(str, ...)
+#define TRACE(str, ...) //lib_printf("event: " str "\n", ##__VA_ARGS__)
 
 
 struct _evqueue_t {
@@ -73,6 +72,10 @@ static void common_lock(void)
 
 static void entry_lock(eventry_t *entry)
 {
+	if (!entry->refs){
+		lib_printf("ref underflow\n");
+		asm volatile("1: jmp 1b");
+	}
 	proc_lockSet(&entry->lock);
 }
 
@@ -91,6 +94,10 @@ static void common_unlock(void)
 
 static void entry_unlock(eventry_t *entry)
 {
+	if (!entry->refs){
+		lib_printf("ref underflow\n");
+		asm volatile("1: jmp 1b");
+	}
 	proc_lockClear(&entry->lock);
 }
 
@@ -185,6 +192,11 @@ static eventry_t *entry_get(const oid_t *oid)
 static void entry_put(eventry_t *entry)
 {
 	common_lock();
+	if (!entry->refs){
+		lib_printf("ref underflow\n");
+		asm volatile("1: jmp 1b");
+	}
+
 	if (!--entry->refs)
 		_entry_remove(entry);
 	common_unlock();
@@ -217,6 +229,7 @@ static void _entry_register(eventry_t *entry, unsigned types)
 static int _entry_notify(eventry_t *entry)
 {
 	TRACE("_entry_notify()");
+#if 0 /* this is asking for a deadlock, server may try to register an event for this entry before receiving */
 	int err;
 	/* TODO: keep reference to port in entry? */
 	port_t *port = port_get(entry->oid.port);
@@ -229,6 +242,7 @@ static int _entry_notify(eventry_t *entry)
 
 	if (err < 0)
 		return err;
+#endif
 	return EOK;
 }
 
@@ -466,9 +480,9 @@ static void _queue_poll(evqueue_t *queue)
 		return;
 
 	do {
-		entry_lock(note->entry); /* TODO: is this lock necessary? */
+//		entry_lock(note->entry); /* TODO: is this lock necessary? hopefully not, we might get into a deadlock with eventRegister */
 		_note_poll(note);
-		entry_unlock(note->entry);
+//		entry_unlock(note->entry);
 
 		note = note->queue_next;
 	} while (note != queue->notes);
@@ -549,7 +563,7 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	evqueue_t *queue;
 	event_t ev;
 	oid_t oid;
-	int nev = 0, i, err;
+	int nev = 0, i, err = 0;
 
 	if (timeout_ms < 0)
 		timeout_ms = 0;
@@ -562,12 +576,13 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	queue_lock(queue);
 	for (i = 0; i < nfds; ++i) {
 		if (proc_fileOid(process, fds[i].fd, &oid) < 0) {
-			fds[i].revents = POLLNVAL;
+			if (fds[i].fd >= 0)
+				fds[i].revents = POLLNVAL;
 			continue;
 		}
 
 		fds[i].revents = 0;
-		_event_subscribe(queue, fds[i].fd, evAdd | evOneshot, fds[i].events, &oid, i);
+		_event_subscribe(queue, fds[i].fd, evAdd | evOneshot, fds[i].events | POLLHUP | POLLERR, &oid, i);
 	}
 	_queue_poll(queue);
 	do {
@@ -582,7 +597,7 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	queue_close(queue);
 	queue_destroy(queue);
 
-	return nev;
+	return err == -ETIME ? 0 : (err ? err : nev);
 }
 
 
