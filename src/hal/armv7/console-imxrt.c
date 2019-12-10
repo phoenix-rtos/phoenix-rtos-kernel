@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+#define UART_CONSOLE 1
+
 #include "cpu.h"
 #include "console.h"
 #include "imxrt.h"
@@ -53,16 +55,32 @@ void _hal_consoleInit(void)
 {
 	u32 t;
 
+#if UART_CONSOLE == 3
+	console_common.uart = (void *)0x4018c000;
+
+	_imxrt_ccmControlGate(pctl_clk_lpuart3, clk_state_run_wait);
+
+	_imxrt_setIOmux(pctl_mux_gpio_emc_13, 0, 2);
+	_imxrt_setIOmux(pctl_mux_gpio_emc_14, 0, 2);
+
+	_imxrt_setIOisel(pctl_isel_lpuart3_tx, 1);
+	_imxrt_setIOisel(pctl_isel_lpuart3_rx, 1);
+
+	_imxrt_setIOpad(pctl_pad_gpio_emc_13, 0, 0, 0, 1, 0, 2, 6, 0);
+	_imxrt_setIOpad(pctl_pad_gpio_emc_14, 0, 0, 0, 1, 0, 2, 6, 0);
+#else
 	console_common.uart = (void *)0x40184000;
+
+	_imxrt_ccmControlGate(pctl_clk_lpuart1, clk_state_run_wait);
 
 	_imxrt_setIOmux(pctl_mux_gpio_ad_b0_12, 0, 2);
 	_imxrt_setIOmux(pctl_mux_gpio_ad_b0_13, 0, 2);
 	_imxrt_setIOpad(pctl_pad_gpio_ad_b0_12, 0, 0, 0, 1, 0, 2, 6, 0);
 	_imxrt_setIOpad(pctl_pad_gpio_ad_b0_13, 0, 0, 0, 1, 0, 2, 6, 0);
+#endif
 
 	_imxrt_ccmSetMux(clk_mux_uart, 0);
 	_imxrt_ccmSetDiv(clk_div_uart, 0);
-	_imxrt_ccmControlGate(pctl_clk_lpuart1, clk_state_run_wait);
 
 	/* Reset all internal logic and registers, except the Global Register */
 	*(console_common.uart + uart_global) |= 1 << 1;

@@ -232,6 +232,9 @@ extern int _imxrt_setIOmux(int mux, char sion, char mode);
 extern int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre);
 
 
+extern int _imxrt_setIOisel(int isel, char daisy);
+
+
 extern void _imxrt_enableMPU(void);
 
 

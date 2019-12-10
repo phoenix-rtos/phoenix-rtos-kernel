@@ -427,7 +427,7 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 }
 
 
-static int _imxrt_setIOisel(int isel, char daisy)
+int _imxrt_setIOisel(int isel, char daisy)
 {
 	volatile u32 *reg;
 	u32 mask;
@@ -2120,16 +2120,14 @@ void _imxrt_init(void)
 	_imxrt_ccmSetMux(clk_mux_prePeriph, 0x3);
 	_imxrt_ccmSetMux(clk_mux_periph, 0x0);
 
-
 	/* Disable unused clocks */
-	*(imxrt_common.ccm + ccm_ccgr0) = 0x00c000ff;
+	*(imxrt_common.ccm + ccm_ccgr0) = 0x00c0ffff;
 	*(imxrt_common.ccm + ccm_ccgr1) = 0x30000000;
 	*(imxrt_common.ccm + ccm_ccgr2) = 0xfffff03f;
-	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c0fff;
+	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c3fff;
 	*(imxrt_common.ccm + ccm_ccgr4) = 0x0000ff3c;
 	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f330f;
 	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f00;
-
 
 	/* Remain in run mode on wfi */
 	_imxrt_ccmSetMode(0);
