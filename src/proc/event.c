@@ -63,7 +63,7 @@ void poll_signal(wait_note_t **queue, int events)
 	if ((note = *queue) != NULL) {
 		do {
 			note->events |= events;
-			proc_threadWakeup(note->head->threads);
+			proc_threadWakeup(&note->head->threads);
 		}
 		while ((note = note->obj_next) != *queue);
 	}
