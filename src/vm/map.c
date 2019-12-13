@@ -329,7 +329,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 		if (o == NULL) {
 			/* Try to use existing amap */
-			if (next != NULL && next->amap != NULL && next->aoffs >= (next->vaddr - e->vaddr)) {
+			if (next != NULL && next->amap != NULL && e->vaddr >= (next->vaddr - next->aoffs)) {
 				e->amap = amap_ref(next->amap);
 				e->aoffs = next->aoffs - (next->vaddr - e->vaddr);
 			}
