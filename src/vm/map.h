@@ -36,7 +36,7 @@ typedef struct _vm_map_t {
 	rbtree_t tree;
 	lock_t lock;
 
-#ifndef NOMMU	
+#ifndef NOMMU
 	void *pmapv;
 	page_t *pmapp;
 #endif
@@ -61,7 +61,7 @@ typedef struct _map_entry_t {
 
 	vm_map_t *map;
 
-	int aoffs;
+	off_t aoffs;
 	struct _amap_t *amap;
 
 	void *vaddr;

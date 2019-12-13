@@ -82,8 +82,10 @@ int syscalls_memMap(void *ustack)
 		return -EBADF;
 	}
 
-	if ((*vaddr = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags)) == NULL)
+	if ((*vaddr = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags)) == NULL) {
+		*vaddr = (void *)-1;
 		err = -ENOMEM; /* TODO: get real error from mmap */
+	}
 
 	vm_objectPut(o);
 	return EOK;
