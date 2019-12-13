@@ -528,6 +528,20 @@ u32 syscalls_portRegister(void *ustack)
 }
 
 
+int syscalls_portEvent(char *ustack)
+{
+	int portfd;
+	id_t id;
+	int events;
+
+	GETFROMSTACK(ustack, int, portfd, 0);
+	GETFROMSTACK(ustack, id_t, id, 1);
+	GETFROMSTACK(ustack, int, events, 2);
+
+	return proc_event(portfd, id, events);
+}
+
+
 int syscalls_msgSend(void *ustack)
 {
 	int portfd;
@@ -1005,7 +1019,7 @@ int syscalls_eventRegister(char *ustack)
 	GETFROMSTACK(ustack, const oid_t *, oid, 0);
 	GETFROMSTACK(ustack, unsigned, types, 1);
 
-	return proc_eventRegister(oid, types);
+	return -ENOSYS;
 }
 
 

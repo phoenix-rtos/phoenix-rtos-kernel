@@ -23,31 +23,35 @@
 #include "process.h"
 #include "event.h"
 
+// hades_t
 typedef struct _fildes_t fildes_t;
 
-
+// iodes_t
 typedef struct _file_t file_t;
 
 
-typedef struct _object_node_t {
-	int refs;
-	struct _thread_t *queue;
-
+typedef struct _obdes_t {
 	rbnode_t linkage;
 	id_t id;
+	int refs;
+	spinlock_t lock;
+	wait_note_t *queue;
 	struct _port_t *port;
-} object_node_t;
+} obdes_t;
 
 
 enum { ftRegular, ftDirectory, ftDevice, ftPort, ftFifo, ftPipe, ftSocket };
 
 
+// iodes_t
 struct _file_t {
 	int refs;
 	lock_t lock;
 	unsigned status;
 	off_t offset;
 	int type;
+
+	struct _obdes_t *obdes;
 
 	struct {
 		struct _port_t *port;
@@ -68,6 +72,7 @@ struct _file_t {
 };
 
 
+// hades_t
 struct _fildes_t {
 	file_t *file;
 	int flags;

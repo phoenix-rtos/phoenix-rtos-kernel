@@ -26,12 +26,99 @@ struct {
 } port_common;
 
 
+static int obdesc_cmp(rbnode_t *n1, rbnode_t *n2)
+{
+	obdes_t *d1 = lib_treeof(obdes_t, linkage, n1);
+	obdes_t *d2 = lib_treeof(obdes_t, linkage, n2);
+	return (d1->id > d2->id) - (d1->id < d2->id);
+}
+
+
 static int ports_cmp(rbnode_t *n1, rbnode_t *n2)
 {
 	port_t *p1 = lib_treeof(port_t, linkage, n1);
 	port_t *p2 = lib_treeof(port_t, linkage, n2);
 
 	return (p1->id > p2->id) - (p1->id < p2->id);
+}
+
+
+obdes_t *port_obdesGet(port_t *port, id_t id)
+{
+	obdes_t *od, t;
+	t.id = id;
+
+	proc_lockSet(&port->odlock);
+	if ((od = lib_treeof(obdes_t, linkage, lib_rbFind(&port->obdes, &t))) == NULL) {
+		if ((od = vm_kmalloc(sizeof(*od))) != NULL) {
+			od->refs = 1;
+			lib_rbInsert(&port->obdes, &od->linkage);
+			od->queue = NULL;
+			port_ref(port);
+			od->port = port;
+			od->id = id;
+			hal_spinlockCreate(&od->lock, "obdes.spinlock");
+		}
+	}
+	else {
+		od->refs++;
+	}
+	proc_lockClear(&port->odlock);
+
+	return od;
+}
+
+
+void port_obdesPut(obdes_t *obdes)
+{
+	port_t *port = obdes->port;
+	int refs;
+
+	proc_lockSet(&port->odlock);
+	if (!(refs = --obdes->refs))
+		lib_rbRemove(&port->obdes, &obdes->linkage);
+	proc_lockClear(&port->odlock);
+
+	if (!refs) {
+		if (obdes->queue != NULL)
+			lib_printf("error: obdes queue not empty despite no references\n");
+
+		hal_spinlockDestroy(&obdes->lock);
+		port_put(port);
+	}
+}
+
+
+int port_event(port_t *port, id_t id, int events)
+{
+	obdes_t *od, t;
+	t.id = id;
+
+	proc_lockSet(&port->odlock);
+	if ((od = lib_treeof(obdes_t, linkage, lib_rbFind(&port->obdes, &t))) != NULL)
+		poll_signal(&od->queue, events);
+	proc_lockClear(&port->odlock);
+	return EOK;
+}
+
+
+int proc_event(int portfd, id_t id, int events)
+{
+	process_t *process = proc_current()->process;
+	file_t *file;
+	int retval;
+
+	if ((file = file_get(process, portfd)) == NULL)
+		return -EBADF;
+
+	if (file->type != ftPort) {
+		file_put(file);
+		return -EBADF;
+	}
+
+	retval = port_event(file->port, id, events);
+	file_put(file);
+	return retval;
 }
 
 
@@ -91,6 +178,8 @@ int port_create(port_t **port, u32 id)
 	p->threads = NULL;
 	p->refs = 1;
 	hal_spinlockCreate(&p->spinlock, "port.spinlock");
+	lib_rbInit(&p->obdes, obdesc_cmp, NULL);
+	proc_lockInit(&p->odlock);
 
 	proc_lockSet(&port_common.lock);
 	if (id == 0) {

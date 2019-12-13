@@ -41,6 +41,7 @@
 	ID(interrupt) \
 	ID(portCreate) \
 	ID(portRegister) \
+	ID(portEvent) \
 	ID(msgSend) \
 	ID(msgRecv) \
 	ID(msgRespond) \

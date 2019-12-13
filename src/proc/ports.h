@@ -30,10 +30,19 @@ typedef struct _port_t {
 	kmsg_t *kmessages;
 	spinlock_t spinlock;
 	thread_t *threads;
+
+	lock_t odlock;
+	rbtree_t obdes;
 } port_t;
 
 
 extern port_t *port_get(u32 id);
+
+
+extern obdes_t *port_obdesGet(port_t *port, id_t id);
+
+
+extern void port_obdesPut(obdes_t *obdes);
 
 
 extern int port_create(port_t **port, u32 id);

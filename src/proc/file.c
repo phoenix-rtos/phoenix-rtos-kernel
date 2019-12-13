@@ -27,9 +27,24 @@
 
 #define FD_HARD_LIMIT 1024
 
+#define LOOKUP_PARENT 1
+#define LOOKUP_CREATE 2
+#define LOOKUP_EXCLUSIVE 4
+
 #define FILE_LOG(fmt, ...) lib_printf("%s:%d  %s(): " fmt "\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
+
 enum { devNull, devZero };
+
+
+typedef struct {
+	const char *remaining;
+	port_t *port;
+	id_t id;
+	mode_t mode;
+	int flags;
+} pathwalk_t;
+
 
 static struct {
 	lock_t lock;
@@ -326,6 +341,126 @@ file_t *file_alloc(void)
 }
 
 
+int file_waitForOne(file_t *file, int events, int timeout)
+{
+	poll_head_t poll;
+	wait_note_t note;
+	obdes_t *obdes = file->obdes;
+	int revents = 0;
+	int err = EOK;
+
+	poll_init(&poll);
+	if (obdes != NULL) {
+		poll_add(&poll, &file->obdes->queue, &note);
+
+		if ((err = proc_objectGetAttr(obdes->port, obdes->id, atEvents, &revents, sizeof(revents))) < 0) {
+			return err;
+		}
+
+		poll_lock();
+		revents |= note.events;
+		while (!(revents & events)) {
+			_poll_wait(&poll, timeout);
+			revents |= note.events;
+		}
+		_poll_remove(&note);
+		poll_unlock();
+	}
+	return err;
+}
+
+
+int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
+{
+	int nev = 0, i, events, error, revents;
+	wait_note_t snotes[16];
+	wait_note_t *notes;
+	poll_head_t poll;
+	file_t *file;
+	obdes_t *obdes;
+	process_t *process = proc_current()->process;
+
+	if (!timeout_ms)
+		timeout_ms = -1;
+	else if (timeout_ms < 0)
+		timeout_ms = 0;
+
+	if (nfds <= 16) {
+		notes = snotes;
+	}
+	else if ((notes = vm_kmalloc(nfds * sizeof(wait_note_t))) == NULL) {
+		return -ENOMEM;
+	}
+
+	hal_memset(notes, 0, nfds * sizeof(notes[0]));
+	poll_init(&poll);
+
+	for (i = 0; i < nfds; ++i) {
+		if (fds[i].fd >= 0) {
+			file = file_get(process, fds[i].fd);
+			if (file == NULL) {
+				fds[i].revents = POLLNVAL;
+				nev++;
+				continue;
+			}
+			else if ((obdes = file->obdes) == NULL) {
+				FILE_LOG("TODO: file type %d not supported", file->type);
+				fds[i].revents = POLLNVAL;
+				nev++;
+				file_put(file);
+				continue;
+			}
+		}
+		else {
+			continue;
+		}
+
+		poll_add(&poll, &obdes->queue, notes + i);
+
+		if ((error = proc_objectGetAttr(obdes->port, obdes->id, atEvents, &events, sizeof(events))) < 0) {
+			FILE_LOG("getattr atEvents");
+			break;
+		}
+
+		error = EOK;
+
+		if ((revents = (fds[i].events | POLLERR | POLLHUP) & events)) {
+			fds[i].revents = revents;
+			nev++;
+		}
+		file_put(file);
+	}
+
+	poll_lock();
+	if (!nev && !error) {
+		for (;;) {
+			for (i = 0; i < nfds; ++i) {
+				if ((revents = notes->events & (fds[i].events | POLLERR | POLLHUP))) {
+					fds[i].revents = revents;
+					nev++;
+				}
+			}
+
+			if (nev || error || timeout_ms < 0)
+				break;
+
+			if ((error = _poll_wait(&poll, timeout_ms)) == -EINTR)
+				poll_lock();
+		}
+	}
+
+	for (i = 0; i < nfds; ++i)
+		_poll_remove(notes + i);
+	poll_unlock();
+
+	if (nfds > 16) {
+		vm_kfree(notes);
+	}
+
+	return nev;
+}
+
+
 ///////////////////////// FIXME: can't usually share root file! investigate
 static file_t *file_root(void)
 {
@@ -498,20 +633,6 @@ int file_followMount(port_t **port, id_t *id)
 	*id = dest.id;
 	return EOK;
 }
-
-
-#define LOOKUP_PARENT 1
-#define LOOKUP_CREATE 2
-#define LOOKUP_EXCLUSIVE 4
-
-
-typedef struct {
-	const char *remaining;
-	port_t *port;
-	id_t id;
-	mode_t mode;
-	int flags;
-} pathwalk_t;
 
 
 int file_walkPath(pathwalk_t *state)
@@ -750,6 +871,10 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 	int error = EOK;
 	file_t *dir = NULL, *file;
 	mode_t open_mode;
+	size_t size;
+
+	if ((flags & O_TRUNC) && (flags & O_RDONLY))
+		return -EINVAL;
 
 	if ((error = file_openBase(&dir, process, dirfd, path)) < 0)
 		return error;
@@ -780,21 +905,30 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 	switch (open_mode & S_IFMT) {
 		case S_IFREG: {
 			file->type = ftRegular;
+			file->obdes = port_obdesGet(file->fs.port, file->fs.id);
 			break;
 		}
 		case S_IFDIR: {
 			file->type = ftDirectory;
+			file->obdes = port_obdesGet(file->fs.port, file->fs.id);
 			break;
 		}
 		case S_IFBLK:
 		case S_IFCHR: {
 			file->type = ftDevice;
 			file_openDevice(file);
+			if (file->device.port != NULL) {
+				file->obdes = port_obdesGet(file->device.port, file->device.id);
+			}
+			else {
+				file->obdes = NULL;
+			}
 			break;
 		}
 		case S_IFMNT: {
 			file->type = ftDirectory;
 			file_followMount(&file->fs.port, &file->fs.id);
+			file->obdes = port_obdesGet(file->fs.port, file->fs.id);
 			break;
 		}
 		case S_IFSOCK: {
@@ -825,6 +959,11 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		file_put(file);
 	}
 	else {
+		if ((flags & O_TRUNC) && file->obdes != NULL) {
+			size = 0;
+			proc_objectSetAttr(file->obdes->port, file->obdes->id, atSize, &size, sizeof(size));
+		}
+
 		*result = file;
 	}
 
@@ -986,6 +1125,7 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 	process_t *process = current->process;
 	file_t *file;
 	ssize_t retval;
+	int err;
 
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
@@ -996,18 +1136,13 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 			file->offset += retval;
 		file_unlock(file);
 
-		if ((retval == -EAGAIN && !(file->status & O_NONBLOCK))) {
-			/* TODO: short cut poll and it's ceremony */
-			/* file_waitForOne(file, POLLIN); */
-			struct pollfd fd = { .fd = fildes, .events = POLLIN, .revents = 0 };
-			if (proc_poll(&fd, 1, -1) == -EINTR) {
-				lib_printf("read poll interrupted\n");
-				retval = -EINTR;
-				break;
-			}
-		}
+		if (file->status & O_NONBLOCK)
+			break;
+
+		if (retval == -EAGAIN && (err = file_waitForOne(file, POLLIN, 0)) < 0)
+			retval = err;
 	}
-	while (retval == -EAGAIN && !(file->status & O_NONBLOCK));
+	while (retval == -EAGAIN);
 
 	file_put(file);
 	return retval;
@@ -1020,6 +1155,7 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 	process_t *process = current->process;
 	file_t *file;
 	ssize_t retval;
+	int err;
 
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
@@ -1030,18 +1166,13 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 			file->offset += retval;
 		file_unlock(file);
 
-		if ((retval == -EAGAIN && !(file->status & O_NONBLOCK))) {
-			lib_printf("read poll\n");
-			/* TODO: short cut poll and it's ceremony */
-			/* file_waitForOne(file, POLLIN); */
-			struct pollfd fd = { .fd = fildes, .events = POLLIN, .revents = 0 };
-			if (proc_poll(&fd, 1, -1) == -EINTR) {
-				retval = -EINTR;
-				break;
-			}
-		}
+		if (file->status & O_NONBLOCK)
+			break;
+
+		if (retval == -EAGAIN && (err = file_waitForOne(file, POLLOUT, 0)) < 0)
+			retval = err;
 	}
-	while (retval == -EAGAIN && !(file->status & O_NONBLOCK));
+	while (retval == -EAGAIN);
 
 	file_put(file);
 	return retval;
@@ -1135,11 +1266,7 @@ int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t
 			retval = pipe_ioctl(file->pipe, request, indata, insz, outdata, outsz);
 			break;
 		}
-		case ftSocket: {
-			FILE_LOG("TODO");
-			retval = EOK;
-			break;
-		}
+		case ftSocket:
 		case ftDevice: {
 			if (file->device.port != NULL) {
 				retval = proc_objectControl(file->device.port, file->device.id, request, indata, insz, outdata, outsz);
@@ -1508,7 +1635,6 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 
 	if ((err = file_resolve(&dir, process, dirfd, path, O_PARENT | O_DIRECTORY)) < 0) {
 		FILE_LOG("dir resolve");
-		asm volatile ("1: jmp 1b");
 		return err;
 	}
 
@@ -1569,7 +1695,6 @@ int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port
 
 	if ((retval = file_resolve(&device, process, devfd, devpath, 0)) < 0) {
 		FILE_LOG("resolve");
-		asm volatile ("1: jmp 1b");
 		return retval;
 	}
 
@@ -1678,7 +1803,7 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 	process_t *process = proc_current()->process;
 	int retval;
 	id_t conn_id;
-	int block;
+	int block, err;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
@@ -1702,13 +1827,8 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 			}
 		}
 		else if (retval == -EAGAIN) {
-			/* TODO: short cut poll and it's ceremony */
-			/* file_waitForOne(file, POLLIN); */
-			struct pollfd fd = { .fd = socket, .events = POLLIN, .revents = 0 };
-			if (proc_poll(&fd, 1, -1) == -EINTR) {
-				retval = -EINTR;
-				break;
-			}
+			if ((err = file_waitForOne(file, POLLIN, 0)) < 0)
+				retval = err;
 		}
 	}
 	while (block && retval == -EAGAIN);
@@ -1737,7 +1857,7 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 {
 	file_t *file;
 	process_t *process = proc_current()->process;
-	int retval, block, submitted = 0;
+	int retval, block, submitted = 0, err;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
@@ -1746,14 +1866,9 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 
 	do {
 		if ((retval = proc_objectConnect(file->device.port, file->device.id, address, address_len)) == -EINPROGRESS && block) {
-			/* TODO: short cut poll and it's ceremony */
-			/* file_waitForOne(file, POLLOUT); */
 			submitted = 1;
-			struct pollfd fd = { .fd = socket, .events = POLLOUT, .revents = 0 };
-			if (proc_poll(&fd, 1, -1) == -EINTR) {
-				retval = -EINTR;
-				break;
-			}
+			if ((err = file_waitForOne(file, POLLOUT, 0)) < 0)
+				retval = err;
 		}
 		else if (retval == -EALREADY && submitted) {
 			retval = EOK;
