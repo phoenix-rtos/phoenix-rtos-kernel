@@ -305,6 +305,9 @@ static int _file_seek(file_t *file, off_t *offset, int whence)
 
 void file_destroy(file_t *f)
 {
+	if (f->obdes != NULL)
+		port_obdesPut(f->obdes);
+
 	proc_lockDone(&f->lock);
 	vm_kfree(f);
 }
@@ -354,17 +357,19 @@ int file_waitForOne(file_t *file, int events, int timeout)
 		poll_add(&poll, &file->obdes->queue, &note);
 
 		if ((err = proc_objectGetAttr(obdes->port, obdes->id, atEvents, &revents, sizeof(revents))) < 0) {
-			return err;
+			revents = POLLERR;
+			poll_remove(&note);
 		}
-
-		poll_lock();
-		revents |= note.events;
-		while (!(revents & events)) {
-			_poll_wait(&poll, timeout);
+		else {
+			poll_lock();
 			revents |= note.events;
+			while (!(revents & events)) {
+				_poll_wait(&poll, timeout);
+				revents |= note.events;
+			}
+			_poll_remove(&note);
+			poll_unlock();
 		}
-		_poll_remove(&note);
-		poll_unlock();
 	}
 	return err;
 }
@@ -396,35 +401,31 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	poll_init(&poll);
 
 	for (i = 0; i < nfds; ++i) {
-		if (fds[i].fd >= 0) {
-			file = file_get(process, fds[i].fd);
-			if (file == NULL) {
-				fds[i].revents = POLLNVAL;
-				nev++;
-				continue;
-			}
-			else if ((obdes = file->obdes) == NULL) {
-				FILE_LOG("TODO: file type %d not supported", file->type);
-				fds[i].revents = POLLNVAL;
-				nev++;
-				file_put(file);
-				continue;
-			}
+		if (fds[i].fd < 0)
+			continue;
+
+		file = file_get(process, fds[i].fd);
+		if (file == NULL) {
+			FILE_LOG("bad fd %d", fds[i].fd);
+			fds[i].revents = POLLNVAL;
+			nev++;
+			continue;
 		}
-		else {
+		else if ((obdes = file->obdes) == NULL) {
+			FILE_LOG("TODO: file type %d not supported", file->type);
+			if ((fds[i].revents = (fds[i].events & (POLLOUT))))//POLLNVAL;
+				nev++;
+			file_put(file);
 			continue;
 		}
 
 		poll_add(&poll, &obdes->queue, notes + i);
 
-		if ((error = proc_objectGetAttr(obdes->port, obdes->id, atEvents, &events, sizeof(events))) < 0) {
+		if (proc_objectGetAttr(obdes->port, obdes->id, atEvents, &events, sizeof(events)) < 0) {
 			FILE_LOG("getattr atEvents");
-			break;
+			fds[i].revents = POLLERR;
 		}
-
-		error = EOK;
-
-		if ((revents = (fds[i].events | POLLERR | POLLHUP) & events)) {
+		else if ((revents = (fds[i].events | POLLERR | POLLHUP) & events)) {
 			fds[i].revents = revents;
 			nev++;
 		}
@@ -432,10 +433,11 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	}
 
 	poll_lock();
-	if (!nev && !error) {
+	if (!nev) {
+		error = EOK;
 		for (;;) {
 			for (i = 0; i < nfds; ++i) {
-				if ((revents = notes->events & (fds[i].events | POLLERR | POLLHUP))) {
+				if ((revents = notes[i].events & (fds[i].events | POLLERR | POLLHUP))) {
 					fds[i].revents = revents;
 					nev++;
 				}
@@ -1130,19 +1132,18 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	do {
+	for (;;) {
 		file_lock(file);
 		if ((retval = _file_read(file, buf, nbyte, file->offset)) > 0)
 			file->offset += retval;
 		file_unlock(file);
 
-		if (file->status & O_NONBLOCK)
+		if ((file->status & O_NONBLOCK) || retval != -EAGAIN)
 			break;
 
-		if (retval == -EAGAIN && (err = file_waitForOne(file, POLLIN, 0)) < 0)
-			retval = err;
+		if ((retval = file_waitForOne(file, POLLIN, 0)) < 0)
+			break;
 	}
-	while (retval == -EAGAIN);
 
 	file_put(file);
 	return retval;
@@ -1160,19 +1161,18 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 	if ((file = file_get(process, fildes)) == NULL)
 		return -EBADF;
 
-	do {
+	for (;;) {
 		file_lock(file);
 		if ((retval = _file_write(file, buf, nbyte, file->offset)) > 0)
 			file->offset += retval;
 		file_unlock(file);
 
-		if (file->status & O_NONBLOCK)
+		if ((file->status & O_NONBLOCK) || retval != -EAGAIN)
 			break;
 
-		if (retval == -EAGAIN && (err = file_waitForOne(file, POLLOUT, 0)) < 0)
-			retval = err;
+		if ((retval = file_waitForOne(file, POLLOUT, 0)) < 0)
+			break;
 	}
-	while (retval == -EAGAIN);
 
 	file_put(file);
 	return retval;
@@ -1817,6 +1817,7 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 				port_ref(file->port);
 				conn->device.id = conn_id;
 				conn->type = ftSocket;
+				conn->obdes = port_obdesGet(conn->device.port, conn_id);
 
 				if ((retval = fd_new(process, 0, flags, conn)) < 0)
 					file_put(conn);
