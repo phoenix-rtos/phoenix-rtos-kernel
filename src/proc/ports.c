@@ -52,12 +52,11 @@ obdes_t *port_obdesGet(port_t *port, id_t id)
 	if ((od = lib_treeof(obdes_t, linkage, lib_rbFind(&port->obdes, &t))) == NULL) {
 		if ((od = vm_kmalloc(sizeof(*od))) != NULL) {
 			od->refs = 1;
+			od->id = id;
 			lib_rbInsert(&port->obdes, &od->linkage);
 			od->queue = NULL;
 			port_ref(port);
 			od->port = port;
-			od->id = id;
-			hal_spinlockCreate(&od->lock, "obdes.spinlock");
 		}
 	}
 	else {
@@ -83,8 +82,8 @@ void port_obdesPut(obdes_t *obdes)
 		if (obdes->queue != NULL)
 			lib_printf("error: obdes queue not empty despite no references\n");
 
-		hal_spinlockDestroy(&obdes->lock);
 		port_put(port);
+		vm_kfree(obdes);
 	}
 }
 

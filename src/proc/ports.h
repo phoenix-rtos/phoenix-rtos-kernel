@@ -45,6 +45,9 @@ extern obdes_t *port_obdesGet(port_t *port, id_t id);
 extern void port_obdesPut(obdes_t *obdes);
 
 
+extern int port_event(port_t *port, id_t id, int events);
+
+
 extern int port_create(port_t **port, u32 id);
 
 

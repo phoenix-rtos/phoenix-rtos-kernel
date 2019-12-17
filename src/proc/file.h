@@ -34,7 +34,6 @@ typedef struct _obdes_t {
 	rbnode_t linkage;
 	id_t id;
 	int refs;
-	spinlock_t lock;
 	wait_note_t *queue;
 	struct _port_t *port;
 } obdes_t;
