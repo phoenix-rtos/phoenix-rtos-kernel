@@ -507,7 +507,7 @@ static inline void *hal_cpuGetGot(void)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return ctx->cs & 3;
+	return (ctx->cs & 3) == 0;
 }
 
 
