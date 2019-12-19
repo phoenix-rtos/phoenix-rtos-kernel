@@ -137,7 +137,9 @@ _interrupts_syscall:
 	movl (4 * CTXPUSHL + 12)(%esp), %edx
 	pushl %edx
 	pushl %eax
+	sti
 	call syscalls_dispatch
+	cli
 	addl $8, %esp
 	movl %eax, (4 * CTXPUSHL - 12)(%esp)
 	jmp interrupts_popContext
