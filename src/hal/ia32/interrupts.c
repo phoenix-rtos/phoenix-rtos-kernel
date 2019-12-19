@@ -225,7 +225,8 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 		_interrupts_setIDTEntry(32 + k, _interrupts_unexpected, IGBITS_IRQEXC);
 
 	/* Set stub for syscall */
-	_interrupts_setIDTEntry(0x80, _interrupts_syscall, IGBITS_TRAP);
+/*	_interrupts_setIDTEntry(0x80, _interrupts_syscall, IGBITS_TRAP); */
+	_interrupts_setIDTEntry(0x80, _interrupts_syscall, IGBITS_IRQEXC);
 
 	return;
 }
