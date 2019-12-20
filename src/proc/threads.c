@@ -638,6 +638,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	hal_spinlockSet(&threads_common.spinlock);
 	current = threads_common.current[hal_cpuGetID()];
+	threads_common.current[hal_cpuGetID()] = NULL;
 
 	/* Save current thread context */
 	if (current != NULL) {
