@@ -772,7 +772,6 @@ static unsigned _thread_alloc(unsigned id)
 
 static unsigned thread_alloc(thread_t *thread)
 {
-	proc_lockSet(&threads_common.lock);
 	thread->id = _thread_alloc(threads_common.idcounter);
 
 	if (!thread->id)
@@ -785,7 +784,9 @@ static unsigned thread_alloc(thread_t *thread)
 		lib_rbInsert(&threads_common.id, &thread->idlinkage);
 		threads_common.idcounter++;
 	}
-	proc_lockClear(&threads_common.lock);
+	else {
+		lib_printf("thread id allocation failed\n");
+	}
 
 	return thread->id;
 }
@@ -867,11 +868,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->execdata = NULL;
 	t->wait = NULL;
 
-	thread_alloc(t);
-
-	if (id != NULL)
-		*id = t->id;
-
 	t->stick = 0;
 	t->utick = 0;
 	t->priority = priority;
@@ -886,7 +882,10 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 
 	/* Insert thread to global quee */
 	proc_lockSet(&threads_common.lock);
-	lib_rbInsert(&threads_common.id, &t->idlinkage);
+	thread_alloc(t);
+
+	if (id != NULL)
+		*id = t->id;
 
 	/* Prepare initial stack */
 	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, stack + stacksz, arg);
