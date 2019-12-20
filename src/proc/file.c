@@ -1828,8 +1828,8 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 	do {
 		if ((retval = proc_objectAccept(file->device.port, file->device.id, &conn_id, address, address_len)) == EOK) {
 			if ((conn = file_alloc()) != NULL) {
-				conn->device.port = file->port;
-				port_ref(file->port);
+				conn->device.port = file->device.port;
+				port_ref(file->device.port);
 				conn->device.id = conn_id;
 				conn->type = ftSocket;
 				conn->obdes = port_obdesGet(conn->device.port, conn_id);
