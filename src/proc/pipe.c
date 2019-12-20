@@ -25,7 +25,7 @@
 typedef struct _pipe_t {
 	lock_t lock;
 	fifo_t fifo;
-	thread_t *queue;
+	wait_note_t *wait;
 	unsigned nreaders;
 	unsigned nwriters;
 } pipe_t;
@@ -56,25 +56,6 @@ static void pipe_unlock(pipe_t *pipe)
 }
 
 
-static int pipe_wait(pipe_t *pipe)
-{
-	/* TODO: propagate interruption down to user */
-	if (proc_lockWait(&pipe->queue, &pipe->lock, 0) == -EINTR) {
-		proc_lockSet(&pipe->lock);
-		return -EINTR;
-	}
-	return EOK;
-}
-
-
-static void pipe_wakeup(pipe_t *pipe, int events)
-{
-	if (pipe->queue != NULL)
-		proc_threadBroadcastYield(&pipe->queue);
-	/* TODO: proc_eventRegister */
-}
-
-
 static int pipe_destroy(pipe_t *pipe)
 {
 	proc_lockDone(&pipe->lock);
@@ -83,30 +64,46 @@ static int pipe_destroy(pipe_t *pipe)
 }
 
 
-ssize_t pipe_read(pipe_t *pipe, void *data, size_t size, off_t offset)
+int pipe_poll(pipe_t *pipe, poll_head_t *poll, wait_note_t *note)
+{
+	int events = 0;
+	pipe_lock(pipe);
+	poll_add(poll, &pipe->wait, note);
+
+	if (!fifo_is_empty(&pipe->fifo))
+		events |= POLLIN;
+
+	if (!fifo_is_full(&pipe->fifo))
+		events |= POLLOUT;
+
+	if (!pipe->nreaders || !pipe->nwriters) {
+		events |= POLLHUP;
+		lib_printf("pipe hup\n");
+	}
+
+	pipe_unlock(pipe);
+	return events;
+}
+
+
+ssize_t pipe_read(pipe_t *pipe, void *data, size_t size)
 {
 	ssize_t retval;
 
 	pipe_lock(pipe);
-	while ((retval = fifo_read(&pipe->fifo, data, size)) == 0) {
-		if (!pipe->nwriters) {
-			retval = 0;
-			break;
-		}
-//		if (file->status & O_NONBLOCK) {
-//			retval = -EWOULDBLOCK;
-//			break;
-//		}
-		retval = pipe_wait(pipe); /* FIXME: what about partial reads */
-	}
+	retval = fifo_read(&pipe->fifo, data, size);
 	pipe_unlock(pipe);
+
 	if (retval > 0)
-		pipe_wakeup(pipe, POLLOUT);
+		poll_signal(&pipe->wait, POLLOUT);
+	else if (!retval && pipe->nwriters)
+		retval = -EAGAIN;
+
 	return retval;
 }
 
 
-ssize_t pipe_write(pipe_t *pipe, const void *data, size_t size, off_t offset)
+ssize_t pipe_write(pipe_t *pipe, const void *data, size_t size)
 {
 	ssize_t retval = 0;
 	int atomic;
@@ -119,25 +116,17 @@ ssize_t pipe_write(pipe_t *pipe, const void *data, size_t size, off_t offset)
 
 	pipe_lock(pipe);
 	atomic = size <= fifo_size(&pipe->fifo);
-	do {
-		if (!pipe->nreaders) {
-			retval = -EPIPE;
-			break;
-		}
-		else if (fifo_freespace(&pipe->fifo) > atomic * (size - 1)) {
-			retval += fifo_write(&pipe->fifo, data + retval, size - retval);
-		}
-//		else if (file->status & O_NONBLOCK) {
-//			break;
-//		}
-		else {
-			pipe_wait(pipe); /* FIXME: EINTR vs partial writes */
-		}
-	} while (retval < size);
+
+	if (fifo_freespace(&pipe->fifo) > atomic * (size - 1))
+		retval = fifo_write(&pipe->fifo, data, size);
+	else
+		retval = -EAGAIN;
 	pipe_unlock(pipe);
+
 	if (retval > 0)
-		pipe_wakeup(pipe, POLLIN);
-	return retval ? retval : -EWOULDBLOCK;
+		poll_signal(&pipe->wait, POLLIN);
+
+	return retval;
 }
 
 
@@ -157,7 +146,7 @@ int pipe_close(pipe_t *pipe, int read, int write)
 		vm_kfree(pipe);
 	}
 	else {
-		pipe_wakeup(pipe, POLLHUP);
+		poll_signal(&pipe->wait, POLLHUP);
 	}
 	return EOK;
 }
@@ -179,7 +168,7 @@ int pipe_init(pipe_t *pipe, size_t size)
 		return -ENOMEM;
 
 	pipe->nreaders = pipe->nwriters = 0;
-	pipe->queue = NULL;
+	pipe->wait = NULL;
 	proc_lockInit(&pipe->lock);
 	fifo_init(&pipe->fifo, size);
 	return EOK;

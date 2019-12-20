@@ -243,7 +243,7 @@ static int _file_release(file_t *file)
 			/* fallthrough */
 		}
 		case ftPipe: {
-			pipe_close(file->pipe, file->status & O_RDONLY, file->status & O_WRONLY);
+			pipe_close(file->pipe, (file->status & O_RDONLY) || (file->status & O_RDWR), (file->status & O_WRONLY) || (file->status & O_RDWR));
 			break;
 		}
 		default: {
@@ -344,6 +344,38 @@ file_t *file_alloc(void)
 }
 
 
+static int file_poll(file_t *file, poll_head_t *poll, wait_note_t *note)
+{
+	int revents = 0;
+	obdes_t *od;
+
+	if ((od = file->obdes) != NULL) {
+		poll_add(poll, &od->queue, note);
+
+		if ((proc_objectGetAttr(od->port, od->id, atEvents, &revents, sizeof(revents))) < 0) {
+			FILE_LOG("getattr");
+			revents = POLLERR;
+		}
+
+		return revents;
+	}
+
+	switch (file->type) {
+		case ftFifo:
+		case ftPipe: {
+			revents = pipe_poll(file->pipe, poll, note);
+			break;
+		}
+		default: {
+			FILE_LOG("TODO type %d", file->type);
+			revents = POLLNVAL;
+			break;
+		}
+	}
+	return revents;
+}
+
+
 int file_waitForOne(file_t *file, int events, int timeout)
 {
 	poll_head_t poll;
@@ -352,32 +384,26 @@ int file_waitForOne(file_t *file, int events, int timeout)
 	int revents = 0;
 	int err = EOK;
 
-	poll_init(&poll);
-	if (obdes != NULL) {
-		poll_add(&poll, &file->obdes->queue, &note);
+	events |= POLLERR | POLLNVAL | POLLHUP;
 
-		if ((err = proc_objectGetAttr(obdes->port, obdes->id, atEvents, &revents, sizeof(revents))) < 0) {
-			revents = POLLERR;
-			poll_remove(&note);
-		}
-		else {
-			poll_lock();
-			revents |= note.events;
-			while (!(revents & events)) {
-				_poll_wait(&poll, timeout);
-				revents |= note.events;
-			}
-			_poll_remove(&note);
-			poll_unlock();
-		}
+	poll_init(&poll);
+	revents = file_poll(file, &poll, &note);
+
+	poll_lock();
+	revents |= note.events;
+	while (!(revents & events)) {
+		_poll_wait(&poll, timeout);
+		revents |= note.events;
 	}
+	_poll_remove(&note);
+	poll_unlock();
 	return err;
 }
 
 
 int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 {
-	int nev = 0, i, events, error, revents;
+	int nev = 0, i, events, error = EOK, revents;
 	wait_note_t snotes[16];
 	wait_note_t *notes;
 	poll_head_t poll;
@@ -411,21 +437,10 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 			nev++;
 			continue;
 		}
-		else if ((obdes = file->obdes) == NULL) {
-			FILE_LOG("TODO: file type %d not supported", file->type);
-			if ((fds[i].revents = (fds[i].events & (POLLOUT))))//POLLNVAL;
-				nev++;
-			file_put(file);
-			continue;
-		}
 
-		poll_add(&poll, &obdes->queue, notes + i);
+		events = file_poll(file, &poll, notes + i);
 
-		if (proc_objectGetAttr(obdes->port, obdes->id, atEvents, &events, sizeof(events)) < 0) {
-			FILE_LOG("getattr atEvents");
-			fds[i].revents = POLLERR;
-		}
-		else if ((revents = (fds[i].events | POLLERR | POLLHUP) & events)) {
+		if ((revents = (fds[i].events | POLLERR | POLLHUP) & events)) {
 			fds[i].revents = revents;
 			nev++;
 		}
@@ -459,7 +474,7 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 		vm_kfree(notes);
 	}
 
-	return nev;
+	return nev ? nev : error;
 }
 
 
