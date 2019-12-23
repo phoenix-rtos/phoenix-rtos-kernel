@@ -32,20 +32,6 @@ typedef struct _pipe_t {
 } pipe_t;
 
 
-typedef struct _named_pipe_t {
-	pipe_t pipe;
-	rbnode_t linkage;
-	port_t *port;
-	id_t id;
-} named_pipe_t;
-
-
-struct {
-	rbtree_t named;
-	lock_t lock;
-} pipe_common;
-
-
 static void pipe_lock(pipe_t *pipe)
 {
 	proc_lockSet(&pipe->lock);
@@ -270,14 +256,6 @@ int proc_pipeCreate(int fds[2], int flags)
 
 	retval = pipe_create(process, SIZE_PAGE, fds, flags);
 	return retval;
-}
-
-
-void npipe_destroy(named_pipe_t *np)
-{
-	lib_rbRemove(&pipe_common.named, &np->linkage);
-	pipe_destroy(&np->pipe);
-	vm_kfree(np);
 }
 
 
