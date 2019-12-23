@@ -28,13 +28,15 @@ typedef struct _pipe_t {
 	wait_note_t *wait;
 	unsigned nreaders;
 	unsigned nwriters;
+	int open;
 } pipe_t;
 
 
 typedef struct _named_pipe_t {
 	pipe_t pipe;
-	oid_t oid;
 	rbnode_t linkage;
+	port_t *port;
+	id_t id;
 } named_pipe_t;
 
 
@@ -73,12 +75,13 @@ int pipe_poll(pipe_t *pipe, poll_head_t *poll, wait_note_t *note)
 	if (!fifo_is_empty(&pipe->fifo))
 		events |= POLLIN;
 
-	if (!fifo_is_full(&pipe->fifo))
-		events |= POLLOUT;
-
-	if (!pipe->nreaders || !pipe->nwriters) {
-		events |= POLLHUP;
-		lib_printf("pipe hup\n");
+	if (pipe->open) {
+		if (!pipe->nreaders || !pipe->nwriters) {
+			events |= POLLHUP;
+		}
+		else if (!fifo_is_full(&pipe->fifo)) {
+			events |= POLLOUT;
+		}
 	}
 
 	pipe_unlock(pipe);
@@ -133,6 +136,7 @@ ssize_t pipe_write(pipe_t *pipe, const void *data, size_t size)
 int pipe_close(pipe_t *pipe, int read, int write)
 {
 	/* FIXME: races */
+
 	if (read) {
 		lib_atomicDecrement(&pipe->nreaders);
 	}
@@ -144,10 +148,24 @@ int pipe_close(pipe_t *pipe, int read, int write)
 	if (!pipe->nreaders && !pipe->nwriters) {
 		pipe_destroy(pipe);
 		vm_kfree(pipe);
+		return 1;
 	}
 	else {
 		poll_signal(&pipe->wait, POLLHUP);
+		return 0;
 	}
+}
+
+
+int pipe_closeNamed(obdes_t *obdes, int read, int write)
+{
+	port_t *port;
+	port = obdes->port;
+
+	proc_lockSet(&port->odlock);
+	if (pipe_close(obdes->pipe, read, write))
+		obdes->pipe = NULL;
+	proc_lockClear(&port->odlock);
 	return EOK;
 }
 
@@ -167,6 +185,7 @@ int pipe_init(pipe_t *pipe, size_t size)
 	if ((pipe->fifo.data = vm_kmalloc(size)) == NULL)
 		return -ENOMEM;
 
+	pipe->open = 0;
 	pipe->nreaders = pipe->nwriters = 0;
 	pipe->wait = NULL;
 	proc_lockInit(&pipe->lock);
@@ -214,6 +233,7 @@ int pipe_create(process_t *process, size_t size, int fds[2], int flags)
 
 	pipe->nreaders = 1;
 	pipe->nwriters = 1;
+	pipe->open = 1;
 
 	read_end->status = (flags & ~O_CLOEXEC) | O_RDONLY;
 	write_end->status = (flags & ~O_CLOEXEC) | O_WRONLY;
@@ -253,54 +273,6 @@ int proc_pipeCreate(int fds[2], int flags)
 }
 
 
-#if 0
-int npipe_cmp(rbnode_t *n1, rbnode_t *n2)
-{
-	int cmp;
-
-	named_pipe_t *p1 = lib_treeof(named_pipe_t, linkage, n1);
-	named_pipe_t *p2 = lib_treeof(named_pipe_t, linkage, n2);
-
-	if ((cmp = (p1->oid.port > p2->oid.port) - (p1->oid.port < p2->oid.port)))
-		return cmp;
-
-	return (p1->oid.id > p2->oid.id) - (p1->oid.id < p2->oid.id);
-}
-
-
-named_pipe_t *npipe_find(const oid_t *oid)
-{
-	named_pipe_t t;
-	t.oid.port = oid->port;
-	t.oid.id = oid->id;
-
-	return lib_treeof(named_pipe_t, linkage, lib_rbFind(&pipe_common.named, &t.linkage));
-}
-
-
-named_pipe_t *npipe_create(const oid_t *oid)
-{
-	named_pipe_t *p;
-
-	if ((p = vm_kmalloc(sizeof(*p))) != NULL) {
-		p->oid.port = oid->port;
-		p->oid.id = oid->id;
-
-		if (pipe_init(&p->pipe, SIZE_PAGE) != EOK) {
-			vm_kfree(p);
-			return NULL;
-		}
-
-		if (lib_rbInsert(&pipe_common.named, &p->linkage) != EOK) {
-			pipe_destroy(&p->pipe);
-			vm_kfree(p);
-			return NULL;
-		}
-	}
-	return p;
-}
-
-
 void npipe_destroy(named_pipe_t *np)
 {
 	lib_rbRemove(&pipe_common.named, &np->linkage);
@@ -309,81 +281,62 @@ void npipe_destroy(named_pipe_t *np)
 }
 
 
-int npipe_release(file_t *file)
+int pipe_get(obdes_t *obdes, pipe_t **result, int flags)
 {
-	named_pipe_t *npipe = file->pipe;
-	pipe_t *pipe = &npipe->pipe;
+	port_t *port = obdes->port;
+	pipe_t *pipe;
+	int error;
 
-	proc_lockSet(&pipe_common.lock);
-	if (file->status & O_RDONLY) {
-		lib_atomicDecrement(&pipe->nreaders);
+	proc_lockSet(&port->odlock);
+	if ((pipe = obdes->pipe) == NULL) {
+		if ((pipe = vm_kmalloc(sizeof(*pipe))) == NULL) {
+			proc_lockClear(&port->odlock);
+			return -ENOMEM;
+		}
+
+		error = pipe_init(pipe, SIZE_PAGE);
+		if (error < 0) {
+			proc_lockClear(&port->odlock);
+			vm_kfree(pipe);
+			return error;
+		}
+		obdes->pipe = pipe;
 	}
-	if (file->status & O_WRONLY) {
-		lib_atomicDecrement(&pipe->nwriters);
+
+	if (flags & O_WRONLY) {
+		lib_atomicIncrement(&pipe->nwriters);
 	}
-	if (!pipe->nreaders && !pipe->nwriters) {
-		npipe_destroy(file->pipe);
+	else if (flags & O_RDWR) {
+		lib_atomicIncrement(&pipe->nwriters);
+		lib_atomicIncrement(&pipe->nreaders);
 	}
 	else {
-		pipe_wakeup(pipe, POLLHUP);
+		lib_atomicIncrement(&pipe->nreaders);
 	}
-	proc_lockClear(&pipe_common.lock);
+	proc_lockClear(&port->odlock);
 
+	*result = pipe;
 	return EOK;
 }
 
 
-int pipe_open(pipe_t *pipe, int oflag)
+int pipe_open(pipe_t *pipe)
 {
-	int err = EOK;
-
+	int error;
 	pipe_lock(pipe);
-	if (oflag & O_RDONLY) {
-		lib_atomicIncrement(&pipe->nreaders);
-	}
-	if (oflag & O_WRONLY) {
-		lib_atomicIncrement(&pipe->nwriters);
-	}
-	pipe_wakeup(pipe, POLLIN | POLLOUT);
-	if (oflag & O_NONBLOCK) {
-		 if (!pipe->nreaders)
-			err = -ENXIO;
+	if ((!pipe->nwriters || !pipe->nreaders)) {
+		error = -EAGAIN;
 	}
 	else {
-		while (err == EOK && !(pipe->nreaders && pipe->nwriters)) {
-			err = pipe_wait(pipe);
+		pipe->open = 1;
+
+		if (!fifo_is_full(&pipe->fifo)) {
+			poll_signal(&pipe->wait, POLLOUT);
 		}
+
+		error = EOK;
 	}
 	pipe_unlock(pipe);
 
-	return err;
+	return error;
 }
-
-
-int npipe_open(file_t *file, int oflag)
-{
-	int err = EOK;
-	oid_t oid;
-
-#if 0
-	file->status = oflag;
-
-	oid.port = file->port->id;
-	oid.id = file->id;
-
-	/* TODO: better bump reference under common lock? */
-	proc_lockSet(&pipe_common.lock);
-	if ((file->pipe = npipe_find(&oid)) == NULL)
-		file->pipe = npipe_create(&oid);
-	proc_lockClear(&pipe_common.lock);
-
-	if (file->pipe == NULL) {
-		err = -ENOMEM;
-	}
-	else if ((err = pipe_open(&((named_pipe_t *)file->pipe)->pipe, oflag)) < 0) {
-		npipe_destroy(file->pipe);
-	}
-#endif
-	return err;
-}
-#endif

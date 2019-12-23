@@ -51,6 +51,7 @@ obdes_t *port_obdesGet(port_t *port, id_t id)
 	proc_lockSet(&port->odlock);
 	if ((od = lib_treeof(obdes_t, linkage, lib_rbFind(&port->obdes, &t))) == NULL) {
 		if ((od = vm_kmalloc(sizeof(*od))) != NULL) {
+			od->pipe = NULL;
 			od->refs = 1;
 			od->id = id;
 			lib_rbInsert(&port->obdes, &od->linkage);

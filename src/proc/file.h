@@ -36,6 +36,10 @@ typedef struct _obdes_t {
 	int refs;
 	wait_note_t *queue;
 	struct _port_t *port;
+
+	union {
+		struct _pipe_t *pipe;
+	};
 } obdes_t;
 
 

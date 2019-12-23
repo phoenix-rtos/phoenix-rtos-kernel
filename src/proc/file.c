@@ -102,11 +102,9 @@ static ssize_t _file_read(file_t *file, void *data, size_t size, off_t offset)
 			FILE_LOG("got port");
 			return -EOPNOTSUPP;
 		}
+		case ftFifo:
 		case ftPipe:
 			break;
-		case ftFifo:
-			FILE_LOG("TODO");
-			return -ENOSYS;
 		default: {
 			FILE_LOG("invalid file type");
 			return -ENXIO;
@@ -171,12 +169,9 @@ static ssize_t _file_write(file_t *file, const void *data, size_t size, off_t of
 			FILE_LOG("got port");
 			return -EOPNOTSUPP;
 		}
+		case ftFifo:
 		case ftPipe:
 			break;
-		case ftFifo:{
-			FILE_LOG("TODO");
-			return -ENOSYS;
-		}
 		default: {
 			FILE_LOG("invalid file type");
 			return -ENXIO;
@@ -207,7 +202,17 @@ static ssize_t _file_write(file_t *file, const void *data, size_t size, off_t of
 
 static int _file_release(file_t *file)
 {
-	int retval = EOK;
+	int retval = EOK, r, w;
+
+	if (file->status & O_WRONLY) {
+		r = 0; w = 1;
+	}
+	else if (file->status & O_RDWR) {
+		r = 1; w = 1;
+	}
+	else {
+		r = 1; w = 0;
+	}
 
 	switch (file->type) {
 		case ftRegular:
@@ -238,12 +243,13 @@ static int _file_release(file_t *file)
 			break;
 		}
 		case ftFifo: {
+			pipe_closeNamed(file->obdes, r, w);
 			retval = proc_objectClose(file->fs.port, file->fs.id);
 			port_put(file->fs.port);
-			/* fallthrough */
+			break;
 		}
 		case ftPipe: {
-			pipe_close(file->pipe, (file->status & O_RDONLY) || (file->status & O_RDWR), (file->status & O_WRONLY) || (file->status & O_RDWR));
+			pipe_close(file->pipe, r, w);
 			break;
 		}
 		default: {
@@ -349,17 +355,6 @@ static int file_poll(file_t *file, poll_head_t *poll, wait_note_t *note)
 	int revents = 0;
 	obdes_t *od;
 
-	if ((od = file->obdes) != NULL) {
-		poll_add(poll, &od->queue, note);
-
-		if ((proc_objectGetAttr(od->port, od->id, atEvents, &revents, sizeof(revents))) < 0) {
-			FILE_LOG("getattr");
-			revents = POLLERR;
-		}
-
-		return revents;
-	}
-
 	switch (file->type) {
 		case ftFifo:
 		case ftPipe: {
@@ -367,8 +362,18 @@ static int file_poll(file_t *file, poll_head_t *poll, wait_note_t *note)
 			break;
 		}
 		default: {
-			FILE_LOG("TODO type %d", file->type);
-			revents = POLLNVAL;
+			if ((od = file->obdes) != NULL) {
+				poll_add(poll, &od->queue, note);
+
+				if ((proc_objectGetAttr(od->port, od->id, atEvents, &revents, sizeof(revents))) < 0) {
+					FILE_LOG("getattr");
+					revents = POLLERR;
+				}
+			}
+			else {
+				FILE_LOG("TODO type %d", file->type);
+				revents = POLLNVAL;
+			}
 			break;
 		}
 	}
@@ -919,6 +924,9 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		return -ENOTDIR;
 	}
 
+	/* XXX */
+	file->status = flags;
+
 	switch (open_mode & S_IFMT) {
 		case S_IFREG: {
 			file->type = ftRegular;
@@ -933,8 +941,8 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		case S_IFBLK:
 		case S_IFCHR: {
 			file->type = ftDevice;
-			file_openDevice(file);
-			if (file->device.port != NULL) {
+			error = file_openDevice(file);
+			if (error == EOK && file->device.port != NULL) {
 				file->obdes = port_obdesGet(file->device.port, file->device.id);
 			}
 			else {
@@ -956,8 +964,25 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 		}
 		case S_IFIFO: {
 			file->type = ftFifo;
-			FILE_LOG("no fifos for now");
-			error = -ENOSYS;
+			file->obdes = port_obdesGet(file->fs.port, file->fs.id);
+			file->pipe = NULL;
+
+			if ((error = pipe_get(file->obdes, &file->pipe, flags)) < 0)
+				break;
+
+			while ((error = pipe_open(file->pipe)) == -EAGAIN) {
+				if (file->status & O_NONBLOCK) {
+					if (file->status & O_WRONLY)
+						error = -ENXIO;
+					else
+						error = EOK;
+					break;
+				}
+				else {
+					file_waitForOne(file, POLLOUT, 0);
+				}
+			}
+
 			break;
 		}
 		case S_IFLNK: {
@@ -1634,7 +1659,7 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	mode |= S_IFIFO;
 
 	if ((err = proc_objectLookup(dir->fs.port, dir->fs.id, fifoname, hal_strlen(fifoname), O_CREAT | O_EXCL, &id, &mode, NULL)) == EOK)
-		proc_objectClose(dir->port, id);
+		proc_objectClose(dir->fs.port, id);
 	file_put(dir);
 	return err;
 }
@@ -1776,7 +1801,7 @@ int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath)
 
 	if (dir != NULL) {
 
-		FILE_LOG("binding dir=%u.%llu to fs=%u.%llu", dir->fs.port->id, dir->fs.id, fs->fs.port->id, fs->fs.id);
+//		FILE_LOG("binding dir=%u.%llu to fs=%u.%llu", dir->fs.port->id, dir->fs.id, fs->fs.port->id, fs->fs.id);
 
 		retval = proc_objectSetAttr(fs->fs.port, fs->fs.id, atMountPoint, &oid, sizeof(oid));
 
