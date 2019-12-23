@@ -22,6 +22,7 @@
 #include "string.h"
 #include "pmap.h"
 #include "spinlock.h"
+#include "pci.h"
 
 
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
@@ -33,131 +34,6 @@ struct {
 
 	spinlock_t lock;
 } cpu;
-
-
-/* Function reads word from PCI configuration space */
-static u32 _hal_pciGet(u8 bus, u8 dev, u8 func, u8 reg)
-{
-	u32 v;
-
-	hal_outl((void *)0xcf8, 0x80000000 | ((u32)bus << 16 ) | ((u32)dev << 11) | ((u32)func << 8) | (reg << 2));
-	v = hal_inl((void *)0xcfc);
-
-	return v;
-}
-
-
-/* Function writes word to PCI configuration space */
-static u32 _hal_pciSet(u8 bus, u8 dev, u8 func, u8 reg, u32 v)
-{
-	hal_outl((void *)0xcf8, 0x80000000 | ((u32)bus << 16 ) | ((u32)dev << 11) | ((u32)func << 8) | (reg << 2));
-	hal_outl((void *)0xcfc, v);
-
-	return v;
-}
-
-
-static int hal_pciSetBusmaster(pci_device_t *dev, u8 enable)
-{
-	u32 dv;
-
-	if (dev == NULL)
-		return -EINVAL;
-
-	hal_spinlockSet(&cpu.lock);
-	dv = _hal_pciGet(dev->b, dev->d, dev->f, 1);
-	dv &= ~(!enable << 2);
-	dv |= !!enable << 2;
-	_hal_pciSet(dev->b, dev->d, dev->f, 1, dv);
-	hal_spinlockClear(&cpu.lock);
-
-	dev->command = dv & 0xffff;
-
-	return EOK;
-}
-
-
-static int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev)
-{
-	unsigned int b, d, f, i;
-	u32 dv, cl, tmp, shift;
-
-	if (id == NULL || dev == NULL)
-		return -EINVAL;
-
-	for (b = 0; b < 256; b++) {
-		for (d = 0; d < 32; d++) {
-			for (f = 0; f < 8; f++) {
-				hal_spinlockSet(&cpu.lock);
-				dv = _hal_pciGet(b, d, f, 0);
-				hal_spinlockClear(&cpu.lock);
-
-				if (dv == 0xffffffff)
-					continue;
-
-				if (id->vendor != PCI_ANY && id->vendor != (dv & 0xffff))
-					continue;
-
-				if (id->device != PCI_ANY && id->device != (dv >> 16))
-					continue;
-
-				hal_spinlockSet(&cpu.lock);
-				cl = _hal_pciGet(b, d, f, 2) >> 16;
-				hal_spinlockClear(&cpu.lock);
-
-				if (id->cl != PCI_ANY && id->cl != cl)
-					continue;
-
-				dev->b = b;
-				dev->d = d;
-				dev->f = f;
-				dev->device = dv & 0xffff;
-				dev->vendor = dv >> 16;
-				dev->cl = cl;
-
-				hal_spinlockSet(&cpu.lock);
-				dv = _hal_pciGet(b, d, f, 1);
-				dev->status = dv >> 16;
-				dev->command = dv & 0xffff;
-				dev->progif = (_hal_pciGet(b, d, f, 2) >> 8) & 0xff;
-				dev->revision = _hal_pciGet(b, d, f, 2) & 0xff;
-				dev->type = _hal_pciGet(b, d, f, 3) >> 16 & 0xff;
-				dev->irq = _hal_pciGet(b, d, f, 15) & 0xff;
-
-				/* Get resources */
-				for (i = 0; i < 6; i++) {
-					dev->resources[i].base = _hal_pciGet(b, d, f, 4 + i);
-
-					/* Get resource limit */
-					_hal_pciSet(b, d, f, 4 + i, 0xffffffff);
-					dev->resources[i].limit = _hal_pciGet(b, d, f, 4 + i);
-					tmp = dev->resources[i].limit & ((dev->resources[i].limit & 1) ? ~0x03 : ~0xf);
-
-					__asm__ volatile
-					(" \
-						mov %1, %%eax; \
-						bsfl %%eax, %0; \
-						jnz 1f; \
-						xorl %0, %0; \
-					1:"
-					:"=r" (shift)
-					:"g" (tmp)
-					:"eax");
-
-					dev->resources[i].limit = (1 << shift);
-
-					_hal_pciSet(b, d, f, 4 + i, dev->resources[i].base);
-				}
-
-				hal_spinlockClear(&cpu.lock);
-
-				return EOK;
-			}
-		}
-	}
-
-	return -ENODEV;
-}
 
 
 /* context management */
@@ -488,7 +364,7 @@ int hal_platformctl(void *ptr)
 	switch (data->type) {
 		case pctl_pci:
 			if (data->action == pctl_get)
-				return hal_pciGetDevice(&data->pci.id, &data->pci.dev);
+				return hal_pciGetDevice(&data->pci.id, &data->pci.dev, data->pci.cap_list);
 			break;
 
 		case pctl_busmaster:
