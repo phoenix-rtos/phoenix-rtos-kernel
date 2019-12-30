@@ -48,18 +48,18 @@ typedef struct {
 
 static struct {
 	lock_t lock;
-	file_t *root;
+	iodes_t *root;
 	unsigned filecnt;
 } file_common;
 
 
-static void file_lock(file_t *f)
+static void file_lock(iodes_t *f)
 {
 	proc_lockSet(&f->lock);
 }
 
 
-static void file_unlock(file_t *f)
+static void file_unlock(iodes_t *f)
 {
 	proc_lockClear(&f->lock);
 }
@@ -79,7 +79,7 @@ static const char *file_basename(const char *path)
 }
 
 
-static ssize_t _file_read(file_t *file, void *data, size_t size, off_t offset)
+static ssize_t _file_read(iodes_t *file, void *data, size_t size, off_t offset)
 {
 	ssize_t retval = EOK;
 	port_t *port = NULL;
@@ -136,7 +136,7 @@ static ssize_t _file_read(file_t *file, void *data, size_t size, off_t offset)
 }
 
 
-ssize_t file_read(file_t *file, void *data, size_t size, off_t offset)
+ssize_t file_read(iodes_t *file, void *data, size_t size, off_t offset)
 {
 	ssize_t retval;
 	file_lock(file);
@@ -146,7 +146,7 @@ ssize_t file_read(file_t *file, void *data, size_t size, off_t offset)
 }
 
 
-static ssize_t _file_write(file_t *file, const void *data, size_t size, off_t offset)
+static ssize_t _file_write(iodes_t *file, const void *data, size_t size, off_t offset)
 {
 	ssize_t retval = EOK;
 	port_t *port = NULL;
@@ -200,7 +200,7 @@ static ssize_t _file_write(file_t *file, const void *data, size_t size, off_t of
 }
 
 
-static int _file_release(file_t *file)
+static int _file_release(iodes_t *file)
 {
 	int retval = EOK, r, w;
 
@@ -263,7 +263,7 @@ static int _file_release(file_t *file)
 }
 
 
-static int _file_seek(file_t *file, off_t *offset, int whence)
+static int _file_seek(iodes_t *file, off_t *offset, int whence)
 {
 	int retval = EOK;
 	size_t size;
@@ -309,7 +309,7 @@ static int _file_seek(file_t *file, off_t *offset, int whence)
 }
 
 
-void file_destroy(file_t *f)
+void file_destroy(iodes_t *f)
 {
 	if (f->obdes != NULL)
 		port_obdesPut(f->obdes);
@@ -319,13 +319,13 @@ void file_destroy(file_t *f)
 }
 
 
-void file_ref(file_t *f)
+void file_ref(iodes_t *f)
 {
 	lib_atomicIncrement(&f->refs);
 }
 
 
-int file_put(file_t *f)
+int file_put(iodes_t *f)
 {
 	if (f && !lib_atomicDecrement(&f->refs)) {
 		_file_release(f);
@@ -336,9 +336,9 @@ int file_put(file_t *f)
 }
 
 
-file_t *file_alloc(void)
+iodes_t *file_alloc(void)
 {
-	file_t *file;
+	iodes_t *file;
 
 	if ((file = vm_kmalloc(sizeof(*file))) != NULL) {
 		hal_memset(file, 0, sizeof(*file));
@@ -350,7 +350,7 @@ file_t *file_alloc(void)
 }
 
 
-static int file_poll(file_t *file, poll_head_t *poll, wait_note_t *note)
+static int file_poll(iodes_t *file, poll_head_t *poll, wait_note_t *note)
 {
 	int revents = 0;
 	obdes_t *od;
@@ -381,7 +381,7 @@ static int file_poll(file_t *file, poll_head_t *poll, wait_note_t *note)
 }
 
 
-int file_waitForOne(file_t *file, int events, int timeout)
+int file_waitForOne(iodes_t *file, int events, int timeout)
 {
 	poll_head_t poll;
 	wait_note_t note;
@@ -412,7 +412,7 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	wait_note_t snotes[16];
 	wait_note_t *notes;
 	poll_head_t poll;
-	file_t *file;
+	iodes_t *file;
 	obdes_t *obdes;
 	process_t *process = proc_current()->process;
 
@@ -483,10 +483,9 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 }
 
 
-///////////////////////// FIXME: can't usually share root file! investigate
-static file_t *file_root(void)
+static iodes_t *file_root(void)
 {
-	file_t *root;
+	iodes_t *root;
 	proc_lockSet(&file_common.lock);
 	if ((root = file_common.root) != NULL)
 		file_ref(root);
@@ -499,7 +498,7 @@ static file_t *file_root(void)
 
 static int _fd_realloc(process_t *p)
 {
-	fildes_t *new;
+	hades_t *new;
 	int fdcount;
 
 	fdcount = p->fdcount ? p->fdcount * 2 : 4;
@@ -507,11 +506,11 @@ static int _fd_realloc(process_t *p)
 	if (fdcount > FD_HARD_LIMIT)
 		return -ENFILE;
 
-	if ((new = vm_kmalloc(fdcount * sizeof(fildes_t))) == NULL)
+	if ((new = vm_kmalloc(fdcount * sizeof(hades_t))) == NULL)
 		return -ENOMEM;
 
-	hal_memcpy(new, p->fds, p->fdcount * sizeof(fildes_t));
-	hal_memset(new + p->fdcount, 0, (fdcount - p->fdcount) * sizeof(fildes_t));
+	hal_memcpy(new, p->fds, p->fdcount * sizeof(hades_t));
+	hal_memset(new + p->fdcount, 0, (fdcount - p->fdcount) * sizeof(hades_t));
 
 	vm_kfree(p->fds);
 	p->fds = new;
@@ -542,7 +541,7 @@ static int _fd_alloc(process_t *p, int fd)
 
 static int _fd_close(process_t *p, int fd)
 {
-	file_t *file;
+	iodes_t *file;
 	int error = EOK;
 
 	if (fd < 0 || fd >= p->fdcount || (file = p->fds[fd].file) == NULL)
@@ -564,7 +563,7 @@ int fd_close(process_t *p, int fd)
 }
 
 
-static int _fd_new(process_t *p, int minfd, unsigned flags, file_t *file)
+static int _fd_new(process_t *p, int minfd, unsigned flags, iodes_t *file)
 {
 	int fd;
 
@@ -577,9 +576,9 @@ static int _fd_new(process_t *p, int minfd, unsigned flags, file_t *file)
 }
 
 
-static file_t *_file_get(process_t *p, int fd)
+static iodes_t *_file_get(process_t *p, int fd)
 {
-	file_t *f;
+	iodes_t *f;
 
 	if (fd < 0 || fd >= p->fdcount || (f = p->fds[fd].file) == NULL)
 		return NULL;
@@ -589,7 +588,7 @@ static file_t *_file_get(process_t *p, int fd)
 }
 
 
-int fd_new(process_t *p, int fd, int flags, file_t *file)
+int fd_new(process_t *p, int fd, int flags, iodes_t *file)
 {
 	int retval;
 	process_lock(p);
@@ -599,9 +598,9 @@ int fd_new(process_t *p, int fd, int flags, file_t *file)
 }
 
 
-file_t *file_get(process_t *p, int fd)
+iodes_t *file_get(process_t *p, int fd)
 {
-	file_t *f;
+	iodes_t *f;
 	process_lock(p);
 	f = _file_get(p, fd);
 	process_unlock(p);
@@ -792,9 +791,9 @@ int file_fsOpen(port_t **port, id_t *id, const char *path, int flags, mode_t *mo
 }
 
 
-int file_openBase(file_t **result, process_t *process, int fd, const char *path)
+int file_openBase(iodes_t **result, process_t *process, int fd, const char *path)
 {
-	file_t *base = NULL;
+	iodes_t *base = NULL;
 
 	if (path == NULL)
 		return -EINVAL;
@@ -829,7 +828,7 @@ int file_openBase(file_t **result, process_t *process, int fd, const char *path)
 }
 
 
-int file_copyFs(file_t *dst, file_t *src)
+int file_copyFs(iodes_t *dst, iodes_t *src)
 {
 	int error;
 
@@ -846,7 +845,7 @@ int file_copyFs(file_t *dst, file_t *src)
 }
 
 
-int file_openDevice(file_t *file)
+int file_openDevice(iodes_t *file)
 {
 	int error;
 	oid_t dest;
@@ -888,10 +887,10 @@ int file_openDevice(file_t *file)
 }
 
 
-int file_open(file_t **result, process_t *process, int dirfd, const char *path, int flags, mode_t mode)
+int file_open(iodes_t **result, process_t *process, int dirfd, const char *path, int flags, mode_t mode)
 {
 	int error = EOK;
-	file_t *dir = NULL, *file;
+	iodes_t *dir = NULL, *file;
 	mode_t open_mode;
 	size_t size;
 
@@ -1013,7 +1012,7 @@ int file_open(file_t **result, process_t *process, int dirfd, const char *path, 
 }
 
 
-int file_resolve(file_t **file, process_t *process, int fildes, const char *path, int flags)
+int file_resolve(iodes_t **file, process_t *process, int fildes, const char *path, int flags)
 {
 	int err;
 	if (path == NULL) {
@@ -1029,7 +1028,7 @@ int file_resolve(file_t **file, process_t *process, int fildes, const char *path
 
 static int _file_dup(process_t *p, int fd, int fd2, int flags)
 {
-	file_t *f, *f2;
+	iodes_t *f, *f2;
 
 	if (fd == fd2)
 		return -EINVAL;
@@ -1055,9 +1054,9 @@ static int _file_dup(process_t *p, int fd, int fd2, int flags)
 }
 
 
-static file_t *file_setRoot(file_t *newroot)
+static iodes_t *file_setRoot(iodes_t *newroot)
 {
-	file_t *oldroot;
+	iodes_t *oldroot;
 	proc_lockSet(&file_common.lock);
 	oldroot = file_common.root;
 	file_common.root = newroot;
@@ -1068,7 +1067,7 @@ static file_t *file_setRoot(file_t *newroot)
 
 int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 {
-	file_t *root, *port;
+	iodes_t *root, *port;
 	process_t *process = proc_current()->process;
 
 	if ((port = file_get(process, fd)) == NULL) {
@@ -1103,7 +1102,7 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *file;
+	iodes_t *file;
 	int error = EOK;
 
 	/* FIXME - we currently use this to create directories too.. */
@@ -1121,7 +1120,7 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 int proc_fileOid(process_t *process, int fd, oid_t *oid)
 {
 	int retval = -EBADF;
-	file_t *file;
+	iodes_t *file;
 
 	process_lock(process);
 	if ((file = _file_get(process, fd)) != NULL) {
@@ -1165,7 +1164,7 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *file;
+	iodes_t *file;
 	ssize_t retval;
 	int err;
 
@@ -1194,7 +1193,7 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *file;
+	iodes_t *file;
 	ssize_t retval;
 	int err;
 
@@ -1223,7 +1222,7 @@ int proc_fileSeek(int fildes, off_t *offset, int whence)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *file;
+	iodes_t *file;
 	int retval;
 
 	if ((file = file_get(process, fildes)) == NULL)
@@ -1241,7 +1240,7 @@ int proc_fileTruncate(int fildes, off_t length)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *file;
+	iodes_t *file;
 	ssize_t retval;
 
 	if ((file = file_get(process, fildes)) == NULL)
@@ -1288,7 +1287,7 @@ int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *file;
+	iodes_t *file;
 	int retval;
 
 	if ((file = file_get(process, fildes)) == NULL)
@@ -1346,7 +1345,7 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *file, *dir;
+	iodes_t *file, *dir;
 	int retval;
 	const char *linkname;
 	oid_t oid;
@@ -1378,7 +1377,7 @@ int proc_fileUnlink(int dirfd, const char *path, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *dir;
+	iodes_t *dir;
 	int retval;
 	const char *linkname;
 
@@ -1399,7 +1398,7 @@ int proc_fileUnlink(int dirfd, const char *path, int flags)
 static int fcntl_getFd(int fd)
 {
 	process_t *p = proc_current()->process;
-	file_t *file;
+	iodes_t *file;
 	int flags;
 
 	process_lock(p);
@@ -1419,7 +1418,7 @@ static int fcntl_getFd(int fd)
 static int fcntl_setFd(int fd, int flags)
 {
 	process_t *p = proc_current()->process;
-	file_t *file;
+	iodes_t *file;
 
 	process_lock(p);
 	if ((file = _file_get(p, fd)) == NULL) {
@@ -1438,7 +1437,7 @@ static int fcntl_setFd(int fd, int flags)
 static int fcntl_getFl(int fd)
 {
 	process_t *p = proc_current()->process;
-	file_t *file;
+	iodes_t *file;
 	int status;
 
 	if ((file = file_get(p, fd)) == NULL)
@@ -1454,7 +1453,7 @@ static int fcntl_getFl(int fd)
 static int fcntl_setFl(int fd, int val)
 {
 	process_t *p = proc_current()->process;
-	file_t *file;
+	iodes_t *file;
 	int ignored = O_CREAT|O_EXCL|O_NOCTTY|O_TRUNC|O_RDONLY|O_RDWR|O_WRONLY;
 
 	if ((file = file_get(p, fd)) == NULL)
@@ -1518,7 +1517,7 @@ int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	file_t *file;
+	iodes_t *file;
 	int err;
 	port_t *port;
 	id_t id;
@@ -1593,11 +1592,11 @@ static int _proc_filesCopy(process_t *parent)
 	if (process->fdcount)
 		return -EINVAL;
 
-	if ((process->fds = vm_kmalloc(parent->fdcount * sizeof(fildes_t))) == NULL)
+	if ((process->fds = vm_kmalloc(parent->fdcount * sizeof(hades_t))) == NULL)
 		return -ENOMEM;
 
 	process->fdcount = parent->fdcount;
-	hal_memcpy(process->fds, parent->fds, parent->fdcount * sizeof(fildes_t));
+	hal_memcpy(process->fds, parent->fds, parent->fdcount * sizeof(hades_t));
 
 	for (fd = 0; fd < process->fdcount; ++fd) {
 		if (process->fds[fd].file != NULL)
@@ -1644,7 +1643,7 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 {
 	process_t *process = proc_current()->process;
 	int err, pplen;
-	file_t *dir;
+	iodes_t *dir;
 	const char *fifoname;
 	id_t id;
 
@@ -1669,7 +1668,7 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 {
 	process_t *process = proc_current()->process;
 	int err, pplen;
-	file_t *dir, *port = NULL;
+	iodes_t *dir, *port = NULL;
 	const char *name;
 	oid_t oid;
 
@@ -1709,7 +1708,7 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 int proc_changeDir(int fildes, const char *path)
 {
 	process_t *process = proc_current()->process;
-	file_t *file;
+	iodes_t *file;
 	int retval;
 
 	if ((retval = file_resolve(&file, process, fildes, path, O_DIRECTORY)) < 0)
@@ -1728,7 +1727,7 @@ int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port
 {
 	process_t *process = proc_current()->process;
 	int retval;
-	file_t *device, *root;
+	iodes_t *device, *root;
 	id_t rootid;
 	mode_t mode;
 	port_t *port;
@@ -1777,7 +1776,7 @@ int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port
 int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath)
 {
 	process_t *process = proc_current()->process;
-	file_t *dir, *fs;
+	iodes_t *dir, *fs;
 	oid_t oid;
 	int retval;
 
@@ -1823,7 +1822,7 @@ int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath)
 
 /* Sockets */
 
-static int socket_get(process_t *process, int socket, file_t **file)
+static int socket_get(process_t *process, int socket, iodes_t **file)
 {
 	if ((*file = file_get(process, socket)) == NULL)
 		return -EBADF;
@@ -1839,7 +1838,7 @@ static int socket_get(process_t *process, int socket, file_t **file)
 
 int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
 {
-	file_t *file, *conn;
+	iodes_t *file, *conn;
 	process_t *process = proc_current()->process;
 	int retval;
 	id_t conn_id;
@@ -1881,7 +1880,7 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 
 int proc_netBind(int socket, const struct sockaddr *address, socklen_t address_len)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval;
 
@@ -1896,7 +1895,7 @@ int proc_netBind(int socket, const struct sockaddr *address, socklen_t address_l
 
 int proc_netConnect(int socket, const struct sockaddr *address, socklen_t address_len)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval, block, submitted = 0, err;
 
@@ -1924,7 +1923,7 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 
 int proc_netGetpeername(int socket, struct sockaddr *address, socklen_t *address_len)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval;
 
@@ -1941,7 +1940,7 @@ int proc_netGetpeername(int socket, struct sockaddr *address, socklen_t *address
 
 int proc_netGetsockname(int socket, struct sockaddr *address, socklen_t *address_len)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval;
 
@@ -1958,7 +1957,7 @@ int proc_netGetsockname(int socket, struct sockaddr *address, socklen_t *address
 
 int proc_netGetsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval;
 
@@ -1973,7 +1972,7 @@ int proc_netGetsockopt(int socket, int level, int optname, void *optval, socklen
 
 int proc_netListen(int socket, int backlog)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval;
 
@@ -1988,7 +1987,7 @@ int proc_netListen(int socket, int backlog)
 
 ssize_t proc_netRecvfrom(int socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	ssize_t retval;
 
@@ -2003,7 +2002,7 @@ ssize_t proc_netRecvfrom(int socket, void *message, size_t length, int flags, st
 
 ssize_t proc_netSendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	ssize_t retval;
 
@@ -2018,7 +2017,7 @@ ssize_t proc_netSendto(int socket, const void *message, size_t length, int flags
 
 int proc_netShutdown(int socket, int how)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval;
 
@@ -2033,7 +2032,7 @@ int proc_netShutdown(int socket, int how)
 
 int proc_netSetsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen)
 {
-	file_t *file;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval;
 
@@ -2049,7 +2048,7 @@ int proc_netSetsockopt(int socket, int level, int optname, const void *optval, s
 int proc_netSocket(int domain, int type, int protocol)
 {
 	process_t *process = proc_current()->process;
-	file_t *file;
+	iodes_t *file;
 	int err;
 
 	if ((err = file_open(&file, proc_current()->process, -1, "/dev/net", 0, 0)) != EOK)

@@ -184,7 +184,7 @@ int pipe_create(process_t *process, size_t size, int fds[2], int flags)
 {
 	int readfd = -1, writefd = -1, err = EOK;
 	pipe_t *pipe = NULL;
-	file_t *read_end, *write_end;
+	iodes_t *read_end, *write_end;
 	int fdflags = 0;
 
 	if (flags & ~(O_NONBLOCK | O_CLOEXEC))

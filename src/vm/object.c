@@ -69,7 +69,7 @@ static void object_destroy(vm_object_t *o)
 }
 
 
-int vm_objectGet(vm_object_t **o, file_t *file)
+int vm_objectGet(vm_object_t **o, iodes_t *file)
 {
 	vm_object_t t;
 	int i, n;

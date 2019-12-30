@@ -1063,7 +1063,7 @@ int proc_exec(int dirfd, const char *path, char **argv, char **envp)
 	process_spawn_t sspawn, *spawn;
 	off_t offset = 0;
 	size_t size;
-	file_t *file;
+	iodes_t *file;
 
 	vm_object_t *object;
 	int err, i;

@@ -54,7 +54,7 @@ int syscalls_memMap(void *ustack)
 	size_t size;
 	int prot, flags, fd;
 	off_t offs;
-	file_t *file;
+	iodes_t *file;
 	vm_object_t *o;
 	int err;
 

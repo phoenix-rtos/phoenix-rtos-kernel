@@ -23,11 +23,9 @@
 #include "process.h"
 #include "event.h"
 
-// hades_t
-typedef struct _fildes_t fildes_t;
+typedef struct _hades_t hades_t;
 
-// iodes_t
-typedef struct _file_t file_t;
+typedef struct _iodes_t iodes_t;
 
 
 typedef struct _obdes_t {
@@ -46,8 +44,7 @@ typedef struct _obdes_t {
 enum { ftRegular, ftDirectory, ftDevice, ftPort, ftFifo, ftPipe, ftSocket };
 
 
-// iodes_t
-struct _file_t {
+struct _iodes_t {
 	int refs;
 	lock_t lock;
 	unsigned status;
@@ -75,9 +72,8 @@ struct _file_t {
 };
 
 
-// hades_t
-struct _fildes_t {
-	file_t *file;
+struct _hades_t {
+	iodes_t *file;
 	int flags;
 };
 
@@ -85,22 +81,22 @@ struct _fildes_t {
 typedef struct stat file_stat_t;
 
 
-extern file_t *file_get(struct _process_t *p, int fd);
+extern iodes_t *file_get(struct _process_t *p, int fd);
 
 
-extern void file_ref(file_t *f);
+extern void file_ref(iodes_t *f);
 
 
-extern int file_put(file_t *f);
+extern int file_put(iodes_t *f);
 
 
-extern int file_open(file_t **result, struct _process_t *process, int dirfd, const char *path, int flags, mode_t mode);
+extern int file_open(iodes_t **result, struct _process_t *process, int dirfd, const char *path, int flags, mode_t mode);
 
 
-extern ssize_t file_read(file_t *file, void *data, size_t size, off_t offset);
+extern ssize_t file_read(iodes_t *file, void *data, size_t size, off_t offset);
 
 
-extern int file_resolve(file_t **result, struct _process_t *process, int fildes, const char *path, int flags);
+extern int file_resolve(iodes_t **result, struct _process_t *process, int fildes, const char *path, int flags);
 
 
 //extern int fd_create(struct _process_t *p, int minfd, int flags, unsigned int status, const file_ops_t *ops, void *data);

@@ -105,7 +105,7 @@ int port_event(port_t *port, id_t id, int events)
 int proc_event(int portfd, id_t id, int events)
 {
 	process_t *process = proc_current()->process;
-	file_t *file;
+	iodes_t *file;
 	int retval;
 
 	if ((file = file_get(process, portfd)) == NULL)
@@ -201,7 +201,7 @@ int port_create(port_t **port, u32 id)
 }
 
 
-static int port_release(file_t *file)
+static int port_release(iodes_t *file)
 {
 	port_put(file->port);
 	return EOK;
@@ -212,7 +212,7 @@ int proc_portCreate(u32 id)
 {
 	process_t *process = proc_current()->process;
 	int err;
-	file_t *file;
+	iodes_t *file;
 
 	if ((file = file_alloc()) == NULL)
 		return -ENOMEM;
@@ -235,7 +235,7 @@ int proc_portGet(u32 id)
 {
 	process_t *process = proc_current()->process;
 	int err;
-	file_t *file;
+	iodes_t *file;
 
 	if ((file = file_alloc()) == NULL)
 		return -ENOMEM;
