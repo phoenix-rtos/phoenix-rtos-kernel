@@ -96,7 +96,7 @@ extern int file_open(iodes_t **result, struct _process_t *process, int dirfd, co
 extern ssize_t file_read(iodes_t *file, void *data, size_t size, off_t offset);
 
 
-extern int file_resolve(iodes_t **result, struct _process_t *process, int fildes, const char *path, int flags);
+extern int file_resolve(iodes_t **result, struct _process_t *process, int handle, const char *path, int flags);
 
 
 //extern int fd_create(struct _process_t *p, int minfd, int flags, unsigned int status, const file_ops_t *ops, void *data);
@@ -105,7 +105,7 @@ extern int file_resolve(iodes_t **result, struct _process_t *process, int fildes
 extern int fd_close(struct _process_t *p, int fd);
 
 
-extern int proc_changeDir(int fildes, const char *path);
+extern int proc_changeDir(int handle, const char *path);
 
 
 extern int proc_queueCreate(void);
@@ -122,7 +122,7 @@ extern int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, m
 extern int proc_queueWait(int fd, const event_t *subs, int subcnt, event_t *events, int evcnt, time_t timeout);
 
 
-extern int proc_fileResolve(struct _process_t *process, int fildes, const char *path, int flags, oid_t *oid);
+extern int proc_fileResolve(struct _process_t *process, int handle, const char *path, int flags, oid_t *oid);
 
 
 extern int proc_filesCopy(struct _process_t *parent);
@@ -137,40 +137,40 @@ extern int proc_fileOid(struct _process_t *process, int fd, oid_t *oid);
 extern int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode);
 
 
-extern int proc_fileClose(int fildes);
+extern int proc_fileClose(int handle);
 
 
-extern ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte);
+extern ssize_t proc_fileRead(int handle, char *buf, size_t nbyte);
 
 
-extern ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte);
+extern ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte);
 
 
-extern int proc_fileDup(int fildes, int fildes2, int flags);
+extern int proc_fileDup(int handle, int fildes2, int flags);
 
 
-extern int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int flags);
+extern int proc_fileLink(int handle, const char *path, int dirfd, const char *name, int flags);
 
 
 extern int proc_fileUnlink(int dirfd, const char *path, int flags);
 
 
-extern int proc_fileSeek(int fildes, off_t *offset, int whence);
+extern int proc_fileSeek(int handle, off_t *offset, int whence);
 
 
-extern int proc_fileTruncate(int fildes, off_t length);
+extern int proc_fileTruncate(int handle, off_t length);
 
 
-extern int proc_fileControl(int fildes, int cmd, long arg);
+extern int proc_fileControl(int handle, int cmd, long arg);
 
 
-extern int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags);
+extern int proc_fileStat(int handle, const char *path, file_stat_t *buf, int flags);
 
 
-extern int proc_fileChmod(int fildes, mode_t mode);
+extern int proc_fileChmod(int handle, mode_t mode);
 
 
-extern int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t insz, char *outdata, size_t outsz);
+extern int proc_fileIoctl(int handle, unsigned long request, const char *indata, size_t insz, char *outdata, size_t outsz);
 
 
 extern int proc_filesDestroy(struct _process_t *process);

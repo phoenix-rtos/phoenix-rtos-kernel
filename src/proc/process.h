@@ -69,8 +69,8 @@ typedef struct _process_t {
 	pid_t ppid;
 
 	struct _iodes_t *cwd;
-	unsigned fdcount;
-	struct _hades_t *fds;
+	unsigned hcount;
+	struct _hades_t *handles;
 
 	void *got;
 } process_t;

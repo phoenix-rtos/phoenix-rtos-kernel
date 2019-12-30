@@ -286,8 +286,8 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->children = NULL;
 	process->zombies = NULL;
 	process->ppid = -1;
-	process->fdcount = 0;
-	process->fds = NULL;
+	process->hcount = 0;
+	process->handles = NULL;
 	process->cwd = NULL;
 
 	proc_lockInit(&process->lock);

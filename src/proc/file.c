@@ -385,7 +385,6 @@ int file_waitForOne(iodes_t *file, int events, int timeout)
 {
 	poll_head_t poll;
 	wait_note_t note;
-	obdes_t *obdes = file->obdes;
 	int revents = 0;
 	int err = EOK;
 
@@ -406,14 +405,13 @@ int file_waitForOne(iodes_t *file, int events, int timeout)
 }
 
 
-int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
+int proc_poll(struct pollfd *handles, nfds_t nfds, int timeout_ms)
 {
 	int nev = 0, i, events, error = EOK, revents;
 	wait_note_t snotes[16];
 	wait_note_t *notes;
 	poll_head_t poll;
 	iodes_t *file;
-	obdes_t *obdes;
 	process_t *process = proc_current()->process;
 
 	if (!timeout_ms)
@@ -432,21 +430,21 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	poll_init(&poll);
 
 	for (i = 0; i < nfds; ++i) {
-		if (fds[i].fd < 0)
+		if (handles[i].fd < 0)
 			continue;
 
-		file = file_get(process, fds[i].fd);
+		file = file_get(process, handles[i].fd);
 		if (file == NULL) {
-			FILE_LOG("bad fd %d", fds[i].fd);
-			fds[i].revents = POLLNVAL;
+			FILE_LOG("bad handle %d", handles[i].fd);
+			handles[i].revents = POLLNVAL;
 			nev++;
 			continue;
 		}
 
 		events = file_poll(file, &poll, notes + i);
 
-		if ((revents = (fds[i].events | POLLERR | POLLHUP) & events)) {
-			fds[i].revents = revents;
+		if ((revents = (handles[i].events | POLLERR | POLLHUP) & events)) {
+			handles[i].revents = revents;
 			nev++;
 		}
 		file_put(file);
@@ -457,8 +455,8 @@ int proc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 		error = EOK;
 		for (;;) {
 			for (i = 0; i < nfds; ++i) {
-				if ((revents = notes[i].events & (fds[i].events | POLLERR | POLLHUP))) {
-					fds[i].revents = revents;
+				if ((revents = notes[i].events & (handles[i].events | POLLERR | POLLHUP))) {
+					handles[i].revents = revents;
 					nev++;
 				}
 			}
@@ -499,37 +497,37 @@ static iodes_t *file_root(void)
 static int _fd_realloc(process_t *p)
 {
 	hades_t *new;
-	int fdcount;
+	int hcount;
 
-	fdcount = p->fdcount ? p->fdcount * 2 : 4;
+	hcount = p->hcount ? p->hcount * 2 : 4;
 
-	if (fdcount > FD_HARD_LIMIT)
+	if (hcount > FD_HARD_LIMIT)
 		return -ENFILE;
 
-	if ((new = vm_kmalloc(fdcount * sizeof(hades_t))) == NULL)
+	if ((new = vm_kmalloc(hcount * sizeof(hades_t))) == NULL)
 		return -ENOMEM;
 
-	hal_memcpy(new, p->fds, p->fdcount * sizeof(hades_t));
-	hal_memset(new + p->fdcount, 0, (fdcount - p->fdcount) * sizeof(hades_t));
+	hal_memcpy(new, p->handles, p->hcount * sizeof(hades_t));
+	hal_memset(new + p->hcount, 0, (hcount - p->hcount) * sizeof(hades_t));
 
-	vm_kfree(p->fds);
-	p->fds = new;
-	p->fdcount = fdcount;
+	vm_kfree(p->handles);
+	p->handles = new;
+	p->hcount = hcount;
 
 	return EOK;
 }
 
 
-static int _fd_alloc(process_t *p, int fd)
+static int _fd_alloc(process_t *p, int handle)
 {
 	int err = EOK;
 
 	while (err == EOK) {
-		while (fd < p->fdcount) {
-			if (p->fds[fd].file == NULL)
-				return fd;
+		while (handle < p->hcount) {
+			if (p->handles[handle].file == NULL)
+				return handle;
 
-			fd++;
+			handle++;
 		}
 
 		err = _fd_realloc(p);
@@ -539,25 +537,25 @@ static int _fd_alloc(process_t *p, int fd)
 }
 
 
-static int _fd_close(process_t *p, int fd)
+static int _fd_close(process_t *p, int handle)
 {
 	iodes_t *file;
 	int error = EOK;
 
-	if (fd < 0 || fd >= p->fdcount || (file = p->fds[fd].file) == NULL)
+	if (handle < 0 || handle >= p->hcount || (file = p->handles[handle].file) == NULL)
 		return -EBADF;
-	p->fds[fd].file = NULL;
+	p->handles[handle].file = NULL;
 	file_put(file);
 
 	return error;
 }
 
 
-int fd_close(process_t *p, int fd)
+int fd_close(process_t *p, int handle)
 {
 	int error;
 	process_lock(p);
-	error = _fd_close(p, fd);
+	error = _fd_close(p, handle);
 	process_unlock(p);
 	return error;
 }
@@ -565,22 +563,22 @@ int fd_close(process_t *p, int fd)
 
 static int _fd_new(process_t *p, int minfd, unsigned flags, iodes_t *file)
 {
-	int fd;
+	int handle;
 
-	if ((fd = _fd_alloc(p, minfd)) < 0)
-		return fd;
+	if ((handle = _fd_alloc(p, minfd)) < 0)
+		return handle;
 
-	p->fds[fd].file = file;
-	p->fds[fd].flags = flags;
-	return fd;
+	p->handles[handle].file = file;
+	p->handles[handle].flags = flags;
+	return handle;
 }
 
 
-static iodes_t *_file_get(process_t *p, int fd)
+static iodes_t *_file_get(process_t *p, int handle)
 {
 	iodes_t *f;
 
-	if (fd < 0 || fd >= p->fdcount || (f = p->fds[fd].file) == NULL)
+	if (handle < 0 || handle >= p->hcount || (f = p->handles[handle].file) == NULL)
 		return NULL;
 
 	file_ref(f);
@@ -588,21 +586,21 @@ static iodes_t *_file_get(process_t *p, int fd)
 }
 
 
-int fd_new(process_t *p, int fd, int flags, iodes_t *file)
+int fd_new(process_t *p, int handle, int flags, iodes_t *file)
 {
 	int retval;
 	process_lock(p);
-	retval = _fd_new(p, fd, flags, file);
+	retval = _fd_new(p, handle, flags, file);
 	process_unlock(p);
 	return retval;
 }
 
 
-iodes_t *file_get(process_t *p, int fd)
+iodes_t *file_get(process_t *p, int handle)
 {
 	iodes_t *f;
 	process_lock(p);
-	f = _file_get(p, fd);
+	f = _file_get(p, handle);
 	process_unlock(p);
 	return f;
 }
@@ -791,7 +789,7 @@ int file_fsOpen(port_t **port, id_t *id, const char *path, int flags, mode_t *mo
 }
 
 
-int file_openBase(iodes_t **result, process_t *process, int fd, const char *path)
+int file_openBase(iodes_t **result, process_t *process, int handle, const char *path)
 {
 	iodes_t *base = NULL;
 
@@ -799,7 +797,7 @@ int file_openBase(iodes_t **result, process_t *process, int fd, const char *path
 		return -EINVAL;
 
 	if (path[0] != '/') {
-		if (fd == AT_FDCWD) {
+		if (handle == AT_FDCWD) {
 			/* FIXME: keep process locked? - race against chdir() */
 			if ((base = process->cwd) == NULL) {
 				FILE_LOG("current directory not set");
@@ -807,7 +805,7 @@ int file_openBase(iodes_t **result, process_t *process, int fd, const char *path
 			}
 			file_ref(process->cwd);
 		}
-		else if ((base = file_get(process, fd)) == NULL) {
+		else if ((base = file_get(process, handle)) == NULL) {
 			return -EBADF;
 		}
 
@@ -887,7 +885,7 @@ int file_openDevice(iodes_t *file)
 }
 
 
-int file_open(iodes_t **result, process_t *process, int dirfd, const char *path, int flags, mode_t mode)
+int file_open(iodes_t **result, process_t *process, int dirhandle, const char *path, int flags, mode_t mode)
 {
 	int error = EOK;
 	iodes_t *dir = NULL, *file;
@@ -897,7 +895,7 @@ int file_open(iodes_t **result, process_t *process, int dirfd, const char *path,
 	if ((flags & O_TRUNC) && (flags & O_RDONLY))
 		return -EINVAL;
 
-	if ((error = file_openBase(&dir, process, dirfd, path)) < 0)
+	if ((error = file_openBase(&dir, process, dirhandle, path)) < 0)
 		return error;
 
 	if ((file = file_alloc()) == NULL) {
@@ -1012,45 +1010,45 @@ int file_open(iodes_t **result, process_t *process, int dirfd, const char *path,
 }
 
 
-int file_resolve(iodes_t **file, process_t *process, int fildes, const char *path, int flags)
+int file_resolve(iodes_t **file, process_t *process, int handle, const char *path, int flags)
 {
 	int err;
 	if (path == NULL) {
-		if ((*file = file_get(process, fildes)) == NULL)
+		if ((*file = file_get(process, handle)) == NULL)
 			err = -EBADF;
 	}
 	else {
-		err = file_open(file, process, fildes, path, flags, 0);
+		err = file_open(file, process, handle, path, flags, 0);
 	}
 	return err;
 }
 
 
-static int _file_dup(process_t *p, int fd, int fd2, int flags)
+static int _file_dup(process_t *p, int handle, int handle2, int flags)
 {
 	iodes_t *f, *f2;
 
-	if (fd == fd2)
+	if (handle == handle2)
 		return -EINVAL;
 
-	if (fd2 < 0 || (f = _file_get(p, fd)) == NULL)
+	if (handle2 < 0 || (f = _file_get(p, handle)) == NULL)
 		return -EBADF;
 
-	if (flags & FD_ALLOC || fd2 >= p->fdcount) {
-		if ((fd2 = _fd_alloc(p, fd2)) < 0) {
+	if (flags & FD_ALLOC || handle2 >= p->hcount) {
+		if ((handle2 = _fd_alloc(p, handle2)) < 0) {
 			file_put(f);
-			return fd2;
+			return handle2;
 		}
 
 		flags &= ~FD_ALLOC;
 	}
-	else if ((f2 = p->fds[fd2].file) != NULL) {
+	else if ((f2 = p->handles[handle2].file) != NULL) {
 		file_put(f2);
 	}
 
-	p->fds[fd2].file = f;
-	p->fds[fd2].flags = flags;
-	return fd2;
+	p->handles[handle2].file = f;
+	p->handles[handle2].flags = flags;
+	return handle2;
 }
 
 
@@ -1065,12 +1063,12 @@ static iodes_t *file_setRoot(iodes_t *newroot)
 }
 
 
-int proc_filesSetRoot(int fd, id_t id, mode_t mode)
+int proc_filesSetRoot(int handle, id_t id, mode_t mode)
 {
 	iodes_t *root, *port;
 	process_t *process = proc_current()->process;
 
-	if ((port = file_get(process, fd)) == NULL) {
+	if ((port = file_get(process, handle)) == NULL) {
 		FILE_LOG("bad file descriptor");
 		return -EBADF;
 	}
@@ -1098,7 +1096,7 @@ int proc_filesSetRoot(int fd, id_t id, mode_t mode)
 }
 
 
-int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
+int proc_fileOpen(int dirhandle, const char *path, int flags, mode_t mode)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -1109,7 +1107,7 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 	if (!(mode & S_IFMT))
 		mode |= S_IFREG;
 
-	if ((error = file_open(&file, process, dirfd, path, flags, mode)) < 0)
+	if ((error = file_open(&file, process, dirhandle, path, flags, mode)) < 0)
 		return error;
 
 	return fd_new(process, 0, 0, file);
@@ -1117,13 +1115,13 @@ int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode)
 
 
 /* TODO: get rid of this */
-int proc_fileOid(process_t *process, int fd, oid_t *oid)
+int proc_fileOid(process_t *process, int handle, oid_t *oid)
 {
 	int retval = -EBADF;
 	iodes_t *file;
 
 	process_lock(process);
-	if ((file = _file_get(process, fd)) != NULL) {
+	if ((file = _file_get(process, handle)) != NULL) {
 		retval = EOK;
 		switch (file->type) {
 			case ftRegular:
@@ -1151,16 +1149,16 @@ int proc_fileOid(process_t *process, int fd, oid_t *oid)
 }
 
 
-int proc_fileClose(int fildes)
+int proc_fileClose(int handle)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 
-	return fd_close(process, fildes);
+	return fd_close(process, handle);
 }
 
 
-ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
+ssize_t proc_fileRead(int handle, char *buf, size_t nbyte)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -1168,7 +1166,7 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 	ssize_t retval;
 	int err;
 
-	if ((file = file_get(process, fildes)) == NULL)
+	if ((file = file_get(process, handle)) == NULL)
 		return -EBADF;
 
 	for (;;) {
@@ -1189,7 +1187,7 @@ ssize_t proc_fileRead(int fildes, char *buf, size_t nbyte)
 }
 
 
-ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
+ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -1197,7 +1195,7 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 	ssize_t retval;
 	int err;
 
-	if ((file = file_get(process, fildes)) == NULL)
+	if ((file = file_get(process, handle)) == NULL)
 		return -EBADF;
 
 	for (;;) {
@@ -1218,14 +1216,14 @@ ssize_t proc_fileWrite(int fildes, const char *buf, size_t nbyte)
 }
 
 
-int proc_fileSeek(int fildes, off_t *offset, int whence)
+int proc_fileSeek(int handle, off_t *offset, int whence)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	iodes_t *file;
 	int retval;
 
-	if ((file = file_get(process, fildes)) == NULL)
+	if ((file = file_get(process, handle)) == NULL)
 		return -EBADF;
 
 	file_lock(file);
@@ -1236,14 +1234,14 @@ int proc_fileSeek(int fildes, off_t *offset, int whence)
 }
 
 
-int proc_fileTruncate(int fildes, off_t length)
+int proc_fileTruncate(int handle, off_t length)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	iodes_t *file;
 	ssize_t retval;
 
-	if ((file = file_get(process, fildes)) == NULL)
+	if ((file = file_get(process, handle)) == NULL)
 		return -EBADF;
 
 	file_lock(file);
@@ -1283,14 +1281,14 @@ int proc_fileTruncate(int fildes, off_t length)
 }
 
 
-int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t insz, char *outdata, size_t outsz)
+int proc_fileIoctl(int handle, unsigned long request, const char *indata, size_t insz, char *outdata, size_t outsz)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	iodes_t *file;
 	int retval;
 
-	if ((file = file_get(process, fildes)) == NULL)
+	if ((file = file_get(process, handle)) == NULL)
 		return -EBADF;
 
 	file_lock(file);
@@ -1328,20 +1326,20 @@ int proc_fileIoctl(int fildes, unsigned long request, const char *indata, size_t
 }
 
 
-int proc_fileDup(int fildes, int fildes2, int flags)
+int proc_fileDup(int handle, int handle2, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
 	int retval;
 
 	process_lock(process);
-	retval = _file_dup(process, fildes, fildes2, flags);
+	retval = _file_dup(process, handle, handle2, flags);
 	process_unlock(process);
 	return retval;
 }
 
 
-int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int flags)
+int proc_fileLink(int handle, const char *path, int dirhandle, const char *name, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -1350,12 +1348,12 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 	const char *linkname;
 	oid_t oid;
 
-	if ((retval = file_resolve(&dir, process, dirfd, name, O_DIRECTORY | O_PARENT)) < 0)
+	if ((retval = file_resolve(&dir, process, dirhandle, name, O_DIRECTORY | O_PARENT)) < 0)
 		return retval;
 
 	linkname = file_basename(name);
 
-	if ((retval = file_resolve(&file, process, fildes, path, 0)) < 0) {
+	if ((retval = file_resolve(&file, process, handle, path, 0)) < 0) {
 		file_put(dir);
 		return retval;
 	}
@@ -1373,7 +1371,7 @@ int proc_fileLink(int fildes, const char *path, int dirfd, const char *name, int
 }
 
 
-int proc_fileUnlink(int dirfd, const char *path, int flags)
+int proc_fileUnlink(int dirhandle, const char *path, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -1381,7 +1379,7 @@ int proc_fileUnlink(int dirfd, const char *path, int flags)
 	int retval;
 	const char *linkname;
 
-	if ((retval = file_open(&dir, process, dirfd, path, O_DIRECTORY | O_PARENT, 0)) < 0)
+	if ((retval = file_open(&dir, process, dirhandle, path, O_DIRECTORY | O_PARENT, 0)) < 0)
 		return retval;
 
 	linkname = file_basename(path);
@@ -1395,19 +1393,19 @@ int proc_fileUnlink(int dirfd, const char *path, int flags)
 }
 
 
-static int fcntl_getFd(int fd)
+static int fcntl_getFd(int handle)
 {
 	process_t *p = proc_current()->process;
 	iodes_t *file;
 	int flags;
 
 	process_lock(p);
-	if ((file = _file_get(p, fd)) == NULL) {
+	if ((file = _file_get(p, handle)) == NULL) {
 		process_unlock(p);
 		return -EBADF;
 	}
 
-	flags = p->fds[fd].flags;
+	flags = p->handles[handle].flags;
 	process_unlock(p);
 	file_put(file);
 
@@ -1415,18 +1413,18 @@ static int fcntl_getFd(int fd)
 }
 
 
-static int fcntl_setFd(int fd, int flags)
+static int fcntl_setFd(int handle, int flags)
 {
 	process_t *p = proc_current()->process;
 	iodes_t *file;
 
 	process_lock(p);
-	if ((file = _file_get(p, fd)) == NULL) {
+	if ((file = _file_get(p, handle)) == NULL) {
 		process_unlock(p);
 		return -EBADF;
 	}
 
-	p->fds[fd].flags = flags;
+	p->handles[handle].flags = flags;
 	process_unlock(p);
 	file_put(file);
 
@@ -1434,13 +1432,13 @@ static int fcntl_setFd(int fd, int flags)
 }
 
 
-static int fcntl_getFl(int fd)
+static int fcntl_getFl(int handle)
 {
 	process_t *p = proc_current()->process;
 	iodes_t *file;
 	int status;
 
-	if ((file = file_get(p, fd)) == NULL)
+	if ((file = file_get(p, handle)) == NULL)
 		return -EBADF;
 
 	status = file->status;
@@ -1450,13 +1448,13 @@ static int fcntl_getFl(int fd)
 }
 
 
-static int fcntl_setFl(int fd, int val)
+static int fcntl_setFl(int handle, int val)
 {
 	process_t *p = proc_current()->process;
 	iodes_t *file;
 	int ignored = O_CREAT|O_EXCL|O_NOCTTY|O_TRUNC|O_RDONLY|O_RDWR|O_WRONLY;
 
-	if ((file = file_get(p, fd)) == NULL)
+	if ((file = file_get(p, handle)) == NULL)
 		return -EBADF;
 
 	file_lock(file);
@@ -1468,7 +1466,7 @@ static int fcntl_setFl(int fd, int val)
 }
 
 
-int proc_fileControl(int fildes, int cmd, long arg)
+int proc_fileControl(int handle, int cmd, long arg)
 {
 	int err, flags = 0;
 
@@ -1477,23 +1475,23 @@ int proc_fileControl(int fildes, int cmd, long arg)
 		flags = FD_CLOEXEC;
 		/* fallthrough */
 	case F_DUPFD:
-		err = proc_fileDup(fildes, arg, flags | FD_ALLOC);
+		err = proc_fileDup(handle, arg, flags | FD_ALLOC);
 		break;
 
 	case F_GETFD:
-		err = fcntl_getFd(fildes);
+		err = fcntl_getFd(handle);
 		break;
 
 	case F_SETFD:
-		err = fcntl_setFd(fildes, arg);
+		err = fcntl_setFd(handle, arg);
 		break;
 
 	case F_GETFL:
-		err = fcntl_getFl(fildes);
+		err = fcntl_getFl(handle);
 		break;
 
 	case F_SETFL:
-		err = fcntl_setFl(fildes, arg);
+		err = fcntl_setFl(handle, arg);
 		break;
 
 	case F_GETLK:
@@ -1513,7 +1511,7 @@ int proc_fileControl(int fildes, int cmd, long arg)
 }
 
 
-int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
+int proc_fileStat(int handle, const char *path, file_stat_t *buf, int flags)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -1524,10 +1522,10 @@ int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
 	mode_t mode = 0;
 
 	if (path == NULL) {
-		if ((file = file_get(process, fildes)) == NULL)
+		if ((file = file_get(process, handle)) == NULL)
 			return -EBADF;
 	}
-	else if ((err = file_openBase(&file, process, fildes, path)) < 0) {
+	else if ((err = file_openBase(&file, process, handle, path)) < 0) {
 		return err;
 	}
 
@@ -1562,7 +1560,7 @@ int proc_fileStat(int fildes, const char *path, file_stat_t *buf, int flags)
 }
 
 
-int proc_fileChmod(int fildes, mode_t mode)
+int proc_fileChmod(int handle, mode_t mode)
 {
 	return 0;
 }
@@ -1570,13 +1568,13 @@ int proc_fileChmod(int fildes, mode_t mode)
 
 int proc_filesDestroy(process_t *process)
 {
-	int fd;
+	int handle;
 
 	process_lock(process);
-	for (fd = 0; fd < process->fdcount; ++fd)
-		_fd_close(process, fd);
-	vm_kfree(process->fds);
-	process->fds = NULL;
+	for (handle = 0; handle < process->hcount; ++handle)
+		_fd_close(process, handle);
+	vm_kfree(process->handles);
+	process->handles = NULL;
 	process_unlock(process);
 
 	return EOK;
@@ -1587,20 +1585,20 @@ static int _proc_filesCopy(process_t *parent)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
-	int fd;
+	int handle;
 
-	if (process->fdcount)
+	if (process->hcount)
 		return -EINVAL;
 
-	if ((process->fds = vm_kmalloc(parent->fdcount * sizeof(hades_t))) == NULL)
+	if ((process->handles = vm_kmalloc(parent->hcount * sizeof(hades_t))) == NULL)
 		return -ENOMEM;
 
-	process->fdcount = parent->fdcount;
-	hal_memcpy(process->fds, parent->fds, parent->fdcount * sizeof(hades_t));
+	process->hcount = parent->hcount;
+	hal_memcpy(process->handles, parent->handles, parent->hcount * sizeof(hades_t));
 
-	for (fd = 0; fd < process->fdcount; ++fd) {
-		if (process->fds[fd].file != NULL)
-			file_ref(process->fds[fd].file);
+	for (handle = 0; handle < process->hcount; ++handle) {
+		if (process->handles[handle].file != NULL)
+			file_ref(process->handles[handle].file);
 	}
 
 	if (parent->cwd != NULL) {
@@ -1626,12 +1624,12 @@ int proc_filesCopy(process_t *parent)
 
 int proc_filesCloseExec(process_t *process)
 {
-	int fd;
+	int handle;
 
 	process_lock(process);
-	for (fd = 0; fd < process->fdcount; ++fd) {
-		if (process->fds[fd].file != NULL && (process->fds[fd].flags & FD_CLOEXEC))
-			_fd_close(process, fd);
+	for (handle = 0; handle < process->hcount; ++handle) {
+		if (process->handles[handle].file != NULL && (process->handles[handle].flags & FD_CLOEXEC))
+			_fd_close(process, handle);
 	}
 	process_unlock(process);
 
@@ -1639,7 +1637,7 @@ int proc_filesCloseExec(process_t *process)
 }
 
 
-int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
+int proc_fifoCreate(int dirhandle, const char *path, mode_t mode)
 {
 	process_t *process = proc_current()->process;
 	int err, pplen;
@@ -1651,7 +1649,7 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 	if (mode & ~(S_IRWXU | S_IRWXG | S_IRWXO))
 		return -EINVAL;
 
-	if ((err = file_resolve(&dir, process, dirfd, path, O_PARENT | O_DIRECTORY)) < 0)
+	if ((err = file_resolve(&dir, process, dirhandle, path, O_PARENT | O_DIRECTORY)) < 0)
 		return err;
 
 	fifoname = file_basename(path);
@@ -1664,7 +1662,7 @@ int proc_fifoCreate(int dirfd, const char *path, mode_t mode)
 }
 
 
-int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t mode)
+int proc_deviceCreate(int dirhandle, const char *path, int portfd, id_t id, mode_t mode)
 {
 	process_t *process = proc_current()->process;
 	int err, pplen;
@@ -1672,7 +1670,7 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 	const char *name;
 	oid_t oid;
 
-	if ((err = file_resolve(&dir, process, dirfd, path, O_PARENT | O_DIRECTORY)) < 0) {
+	if ((err = file_resolve(&dir, process, dirhandle, path, O_PARENT | O_DIRECTORY)) < 0) {
 		FILE_LOG("dir resolve");
 		return err;
 	}
@@ -1705,13 +1703,13 @@ int proc_deviceCreate(int dirfd, const char *path, int portfd, id_t id, mode_t m
 }
 
 
-int proc_changeDir(int fildes, const char *path)
+int proc_changeDir(int handle, const char *path)
 {
 	process_t *process = proc_current()->process;
 	iodes_t *file;
 	int retval;
 
-	if ((retval = file_resolve(&file, process, fildes, path, O_DIRECTORY)) < 0)
+	if ((retval = file_resolve(&file, process, handle, path, O_DIRECTORY)) < 0)
 		return retval;
 
 	process_lock(process);
@@ -1773,7 +1771,7 @@ int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port
 }
 
 
-int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath)
+int proc_fsBind(int dirhandle, const char *dirpath, int fsfd, const char *fspath)
 {
 	process_t *process = proc_current()->process;
 	iodes_t *dir, *fs;
@@ -1786,7 +1784,7 @@ int proc_fsBind(int dirfd, const char *dirpath, int fsfd, const char *fspath)
 		oid.id = 0;
 	}
 	else {
-		if ((retval = file_resolve(&dir, process, dirfd, dirpath, O_DIRECTORY)) < 0)
+		if ((retval = file_resolve(&dir, process, dirhandle, dirpath, O_DIRECTORY)) < 0)
 			return retval;
 
 		oid.port = dir->fs.port->id;
