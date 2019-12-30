@@ -5,8 +5,8 @@
  *
  * IA32 basic peripherals control functions
  *
- * Copyright 2018 Phoenix Systems
- * Author: Aleksander Kaminski
+ * Copyright 2018, 2019 Phoenix Systems
+ * Author: Aleksander Kaminski, Kamil Amanowicz
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -25,7 +25,7 @@ typedef struct {
 	unsigned short device;
 	unsigned short subvendor;
 	unsigned short subdevice;
-	unsigned short cl;
+	unsigned short class_code;
 } pci_id_t;
 
 
@@ -36,20 +36,53 @@ typedef struct {
 } pci_resource_t;
 
 
+/* capability list entry */
 typedef struct {
-	unsigned char b; /* bus */
-	unsigned char d; /* device */
-	unsigned char f; /* function */
-	unsigned short device;
-	unsigned short vendor;
+	unsigned char id;
+	unsigned char next;
+	unsigned char len;
+	unsigned char data[];
+} pci_cap_t;
+
+
+/* capability list */
+typedef struct {
+	unsigned char data[192];
+} pci_cap_list_t;
+
+
+typedef struct {
+	/* pci device id combo */
+	unsigned char bus;
+	unsigned char device;
+	unsigned char function;
+
+	/* mandatory header members */
+	unsigned short device_id;
+	unsigned short vendor_id;
 	unsigned short status;
 	unsigned short command;
-	unsigned short cl; /* class and subclass */
-	unsigned char progif;
+	unsigned short class_code; /* class and subclass */
+	unsigned char type; /* header type */
+
+	/* optional header members */
+	unsigned char progif; /* register level programming interface */
 	unsigned char revision;
-	unsigned char irq;
-	unsigned char type;
-	pci_resource_t resources[6];
+	unsigned char irq; /* irq line */
+	unsigned char irq_pin;
+	unsigned char bist; /* built-in self test */
+	unsigned char latency_tmr; /* latency timer */
+	unsigned char cache_line_size;
+
+	/* device header */
+	pci_resource_t resources[6]; /* base address registers */
+	unsigned long cis_ptr; /* cardbus cis pointer */
+	unsigned long exp_rom_addr; /* expansion ROM address */
+	unsigned short subsystem_id;
+	unsigned short subsystem_vendor_id;
+	unsigned char max_latency;
+	unsigned char min_grant; /* burst lenght period in 1/4 micro seconds (assuming 33 MHz clock) */
+	unsigned char cap_ptr; /* capabilities list head pointer */
 } pci_device_t;
 
 
@@ -61,6 +94,7 @@ typedef struct {
 		struct {
 			pci_id_t id;
 			pci_device_t dev;
+			pci_cap_list_t *cap_list;
 		} pci;
 
 		struct {
