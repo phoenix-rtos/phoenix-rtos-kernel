@@ -931,6 +931,11 @@ int file_open(iodes_t **result, process_t *process, int dirhandle, const char *p
 		return -ENOTDIR;
 	}
 
+	if ((flags & O_APPEND) && !S_ISREG(open_mode)) {
+		file_put(file);
+		return -EINVAL;
+	}
+
 	/* XXX */
 	file->status = flags;
 
@@ -1203,12 +1208,18 @@ ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte)
 	iodes_t *file;
 	ssize_t retval;
 	int err;
+	off_t offset;
 
 	if ((file = file_get(process, handle)) == NULL)
 		return -EBADF;
 
 	for (;;) {
 		file_lock(file);
+		if (file->status & O_APPEND) {
+			offset = 0;
+			_file_seek(file, &offset, SEEK_END); /* TODO: check return value */
+		}
+
 		if ((retval = _file_write(file, buf, nbyte, file->offset)) > 0)
 			file->offset += retval;
 		file_unlock(file);
