@@ -1222,43 +1222,41 @@ int syscalls_sys_listen(char *ustack)
 }
 
 
-ssize_t syscalls_sys_recvfrom(char *ustack)
+ssize_t syscalls_sys_recvmsg(char *ustack)
 {
-	int socket;
-	void *message;
-	size_t length;
-	int flags;
-	struct sockaddr *src_addr;
-	socklen_t *src_len;
+	int socket, flags;
+	struct msghdr *msg;
 
 	GETFROMSTACK(ustack, int, socket, 0);
-	GETFROMSTACK(ustack, void *, message, 1);
-	GETFROMSTACK(ustack, size_t, length, 2);
-	GETFROMSTACK(ustack, int, flags, 3);
-	GETFROMSTACK(ustack, struct sockaddr *, src_addr, 4);
-	GETFROMSTACK(ustack, socklen_t *, src_len, 5);
+	GETFROMSTACK(ustack, struct msghdr *, msg, 1);
+	GETFROMSTACK(ustack, int, flags, 2);
 
-	return proc_netRecvfrom(socket, message, length, flags, src_addr, src_len);
+	return proc_recvmsg(socket, msg, flags);
+}
+
+
+ssize_t syscalls_sys_sendmsg(char *ustack)
+{
+	int socket, flags;
+	struct msghdr *msg;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, struct msghdr *, msg, 1);
+	GETFROMSTACK(ustack, int, flags, 2);
+
+	return proc_sendmsg(socket, msg, flags);
+}
+
+
+ssize_t syscalls_sys_recvfrom(char *ustack)
+{
+	return -ENOSYS; //proc_netRecvfrom(socket, message, length, flags, src_addr, src_len);
 }
 
 
 ssize_t syscalls_sys_sendto(char *ustack)
 {
-	int socket;
-	const void *message;
-	size_t length;
-	int flags;
-	const struct sockaddr *dest_addr;
-	socklen_t dest_len;
-
-	GETFROMSTACK(ustack, int, socket, 0);
-	GETFROMSTACK(ustack, const void *, message, 1);
-	GETFROMSTACK(ustack, size_t, length, 2);
-	GETFROMSTACK(ustack, int, flags, 3);
-	GETFROMSTACK(ustack, const struct sockaddr *, dest_addr, 4);
-	GETFROMSTACK(ustack, socklen_t, dest_len, 5);
-
-	return proc_netSendto(socket, message, length, flags, dest_addr, dest_len);
+	return -ENOSYS; //proc_netSendto(socket, message, length, flags, dest_addr, dest_len);
 }
 
 

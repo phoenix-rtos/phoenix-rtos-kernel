@@ -16,6 +16,8 @@
 #ifndef _PHOENIX_SOCKET_H_
 #define _PHOENIX_SOCKET_H_
 
+#include "types.h"
+
 #define AF_UNSPEC 0
 #define AF_UNIX 1
 #define AF_INET 2
@@ -53,6 +55,7 @@
 #define MSG_OOB  0x01
 #define MSG_PEEK 0x02
 #define MSG_DONTWAIT 0x08
+#define MSG_TRUNC 0x10
 
 #define SHUT_RD 0
 #define SHUT_WR 1
@@ -69,5 +72,17 @@ struct sockaddr {
 	sa_family_t sa_family;
 	char        sa_data[14];
 };
+
+
+struct msghdr {
+	void         *msg_name;
+	socklen_t     msg_namelen;
+	struct iovec *msg_iov;
+	unsigned int /* TODO: size_t */        msg_iovlen;
+	void         *msg_control;
+	unsigned int /* TODO: size_t */        msg_controllen;
+	int           msg_flags;
+};
+
 
 #endif

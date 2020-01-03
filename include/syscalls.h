@@ -111,4 +111,6 @@
 	ID(deviceCreate) \
 	ID(fsMount) \
 	ID(fsBind) \
-	ID(portGet)
+	ID(portGet) \
+	ID(sys_recvmsg) \
+	ID(sys_sendmsg)

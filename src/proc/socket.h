@@ -20,7 +20,7 @@
 #include "../../include/socket.h"
 
 
-extern int socket_accept(port_t *port, id_t socket, struct sockaddr *address, socklen_t *address_len, int flags);
+extern int socket_accept(process_t *process, port_t *port, id_t socket, struct sockaddr *address, socklen_t *address_len, int flags);
 
 
 extern int socket_bind(port_t *port, id_t socket, const struct sockaddr *address, socklen_t address_len);

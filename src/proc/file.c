@@ -24,6 +24,7 @@
 #include "proc.h"
 #include "socket.h"
 #include "event.h"
+#include "sun.h"
 
 #define FD_HARD_LIMIT 1024
 
@@ -65,7 +66,7 @@ static void file_unlock(iodes_t *f)
 }
 
 
-static const char *file_basename(const char *path)
+const char *file_basename(const char *path)
 {
 	int i;
 	const char *name = path;
@@ -102,9 +103,11 @@ static ssize_t _file_read(iodes_t *file, void *data, size_t size, off_t offset)
 			FILE_LOG("got port");
 			return -EOPNOTSUPP;
 		}
+		case ftLocalSocket:
+			return sun_read(file->sun, data, size);
 		case ftFifo:
 		case ftPipe:
-			break;
+			return pipe_read(file->pipe, data, size);
 		default: {
 			FILE_LOG("invalid file type");
 			return -ENXIO;
@@ -124,9 +127,6 @@ static ssize_t _file_read(iodes_t *file, void *data, size_t size, off_t offset)
 				return -ENXIO;
 			}
 		}
-	}
-	else if (file->type == ftPipe || file->type == ftFifo) {
-		retval = pipe_read(file->pipe, data, size);
 	}
 	else {
 		retval = proc_objectRead(port, id, data, size, offset);
@@ -169,9 +169,11 @@ static ssize_t _file_write(iodes_t *file, const void *data, size_t size, off_t o
 			FILE_LOG("got port");
 			return -EOPNOTSUPP;
 		}
+		case ftLocalSocket:
+			return sun_write(file->sun, data, size);
 		case ftFifo:
 		case ftPipe:
-			break;
+			return pipe_write(file->pipe, data, size);
 		default: {
 			FILE_LOG("invalid file type");
 			return -ENXIO;
@@ -188,9 +190,6 @@ static ssize_t _file_write(iodes_t *file, const void *data, size_t size, off_t o
 				return -ENXIO;
 			}
 		}
-	}
-	else if (file->type == ftPipe || file->type == ftFifo) {
-		retval = pipe_write(file->pipe, data, size);
 	}
 	else {
 		retval = proc_objectWrite(port, id, data, size, offset);
@@ -224,6 +223,13 @@ static int _file_release(iodes_t *file)
 		case ftSocket: {
 			retval = proc_objectClose(file->device.port, file->device.id);
 			port_put(file->device.port);
+			break;
+		}
+		case ftLocalSocket: {
+			retval = EOK;
+			if (file->sun != NULL) {
+				retval = sun_close(file->sun);
+			}
 			break;
 		}
 		case ftDevice: {
@@ -359,6 +365,10 @@ static int file_poll(iodes_t *file, poll_head_t *poll, wait_note_t *note)
 		case ftFifo:
 		case ftPipe: {
 			revents = pipe_poll(file->pipe, poll, note);
+			break;
+		}
+		case ftLocalSocket: {
+			revents = sun_poll(file->sun, poll, note);
 			break;
 		}
 		default: {
@@ -954,9 +964,8 @@ int file_open(iodes_t **result, process_t *process, int dirhandle, const char *p
 			break;
 		}
 		case S_IFSOCK: {
-			file->type = ftSocket;
-			FILE_LOG("TODO");
-			error = -ENOSYS;
+			file->type = ftLocalSocket;
+			error = -ENXIO;
 			break;
 		}
 		case S_IFIFO: {
@@ -1637,6 +1646,32 @@ int proc_filesCloseExec(process_t *process)
 }
 
 
+// TODO: ??
+int proc_sunCreate(port_t **port, id_t *id, int dirhandle, const char *path, mode_t mode)
+{
+	process_t *process = proc_current()->process;
+	int err, pplen;
+	iodes_t *dir;
+	const char *fifoname;
+
+	/* only permission bits allowed */
+	if (mode & ~(S_IRWXU | S_IRWXG | S_IRWXO))
+		return -EINVAL;
+
+	if ((err = file_resolve(&dir, process, dirhandle, path, O_PARENT | O_DIRECTORY)) < 0)
+		return err;
+
+	fifoname = file_basename(path);
+	mode |= S_IFSOCK;
+
+	if ((err = proc_objectLookup(dir->fs.port, dir->fs.id, fifoname, hal_strlen(fifoname), O_CREAT /*| O_EXCL*/, id, &mode, NULL)) == EOK) {
+		*port = dir->fs.port;
+	}
+	file_put(dir);
+	return err;
+}
+
+
 int proc_fifoCreate(int dirhandle, const char *path, mode_t mode)
 {
 	process_t *process = proc_current()->process;
@@ -1825,12 +1860,41 @@ static int socket_get(process_t *process, int socket, iodes_t **file)
 	if ((*file = file_get(process, socket)) == NULL)
 		return -EBADF;
 
-	if ((*file)->type != ftSocket) {
+	if ((*file)->type != ftSocket && (*file)->type != ftLocalSocket) {
 		file_put(*file);
 		return -ENOTSOCK;
 	}
 
 	return EOK;
+}
+
+
+int socket_accept(process_t *process, port_t *port, id_t id, struct sockaddr *address, socklen_t *address_len, int flags)
+{
+	int retval;
+	id_t conn_id;
+	iodes_t *conn;
+
+	retval = proc_objectAccept(port, id, &conn_id, address, address_len);
+
+	if (retval == EOK) {
+		if ((conn = file_alloc()) != NULL) {
+			conn->device.port = port;
+			port_ref(port);
+			conn->device.id = conn_id;
+			conn->type = ftSocket;
+			conn->obdes = port_obdesGet(conn->device.port, conn_id);
+
+			if ((retval = fd_new(process, 0, flags, conn)) < 0)
+				file_put(conn);
+		}
+		else {
+			proc_objectClose(port, conn_id);
+			retval = -ENOMEM;
+		}
+	}
+
+	return retval;
 }
 
 
@@ -1840,36 +1904,33 @@ int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len
 	process_t *process = proc_current()->process;
 	int retval;
 	id_t conn_id;
-	int block, err;
+	int block;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
 	block = !(file->status & O_NONBLOCK);
 
-	do {
-		if ((retval = proc_objectAccept(file->device.port, file->device.id, &conn_id, address, address_len)) == EOK) {
-			if ((conn = file_alloc()) != NULL) {
-				conn->device.port = file->device.port;
-				port_ref(file->device.port);
-				conn->device.id = conn_id;
-				conn->type = ftSocket;
-				conn->obdes = port_obdesGet(conn->device.port, conn_id);
+	for (;;) {
+		switch (file->type) {
+			case ftSocket:
+				retval = socket_accept(process, file->device.port, file->device.id, address, address_len, flags);
+				break;
+			case ftLocalSocket:
+				retval = sun_accept(process, file->sun, address, address_len);
+				break;
+			default:
+				FILE_LOG("unexpected file type");
+				retval = -ENXIO;
+				break;
+		}
 
-				if ((retval = fd_new(process, 0, flags, conn)) < 0)
-					file_put(conn);
-			}
-			else {
-				proc_objectClose(file->device.port, conn_id);
-				retval = -ENOMEM;
-			}
-		}
-		else if (retval == -EAGAIN) {
-			if ((err = file_waitForOne(file, POLLIN, 0)) < 0)
-				retval = err;
-		}
+		if (!block || retval != -EAGAIN)
+			break;
+
+		if ((retval = file_waitForOne(file, POLLIN, 0)) < 0)
+			break;
 	}
-	while (block && retval == -EAGAIN);
 
 	file_put(file);
 	return retval;
@@ -1885,7 +1946,19 @@ int proc_netBind(int socket, const struct sockaddr *address, socklen_t address_l
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = proc_objectBind(file->device.port, file->device.id, address, address_len);
+	switch (file->type) {
+		case ftSocket:
+			retval = proc_objectBind(file->device.port, file->device.id, address, address_len);
+			break;
+		case ftLocalSocket:
+			retval = sun_bind(process, file->sun, address, address_len);
+			break;
+		default:
+			FILE_LOG("unexpected file type");
+			retval = -ENXIO;
+			break;
+	}
+
 	file_put(file);
 	return retval;
 }
@@ -1895,24 +1968,38 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 {
 	iodes_t *file;
 	process_t *process = proc_current()->process;
-	int retval, block, submitted = 0, err;
+	int retval, block, inprogress = 0, err;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
 	block = !(file->status & O_NONBLOCK);
 
-	do {
-		if ((retval = proc_objectConnect(file->device.port, file->device.id, address, address_len)) == -EINPROGRESS && block) {
-			submitted = 1;
-			if ((err = file_waitForOne(file, POLLOUT, 0)) < 0)
-				retval = err;
+	for (;;) {
+		switch (file->type) {
+			case ftSocket:
+				retval = proc_objectConnect(file->device.port, file->device.id, address, address_len);
+				break;
+			case ftLocalSocket:
+				retval = sun_connect(process, file->sun, address, address_len);
+				break;
+			default:
+				FILE_LOG("unexpected file type");
+				retval = -ENXIO;
+				break;
 		}
-		else if (retval == -EALREADY && submitted) {
-			retval = EOK;
-		}
+
+		if (!block || retval != -EINPROGRESS)
+			break;
+
+		inprogress = 1;
+
+		if ((retval = file_waitForOne(file, POLLOUT, 0)) < 0)
+			break;
 	}
-	while (block && retval == -EINPROGRESS);
+
+	if (inprogress && retval == -EALREADY)
+		retval = EOK;
 
 	file_put(file);
 	return retval;
@@ -1928,8 +2015,19 @@ int proc_netGetpeername(int socket, struct sockaddr *address, socklen_t *address
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	if ((retval = proc_objectGetAttr(file->device.port, file->device.id, atRemoteAddr, address, *address_len)) > 0)
-		*address_len = retval;
+	switch (file->type) {
+		case ftSocket:
+			if ((retval = proc_objectGetAttr(file->device.port, file->device.id, atRemoteAddr, address, *address_len)) > 0)
+				*address_len = retval;
+			break;
+		case ftLocalSocket:
+			retval = -EAFNOSUPPORT;
+			break;
+		default:
+			FILE_LOG("unexpected file type");
+			retval = -ENXIO;
+			break;
+	}
 
 	file_put(file);
 	return retval;
@@ -1945,8 +2043,19 @@ int proc_netGetsockname(int socket, struct sockaddr *address, socklen_t *address
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	if ((retval = proc_objectGetAttr(file->device.port, file->device.id, atLocalAddr, address, *address_len)) > 0)
-		*address_len = retval;
+	switch (file->type) {
+		case ftSocket:
+			if ((retval = proc_objectGetAttr(file->device.port, file->device.id, atLocalAddr, address, *address_len)) > 0)
+				*address_len = retval;
+			break;
+		case ftLocalSocket:
+			retval = -EAFNOSUPPORT;
+			break;
+		default:
+			FILE_LOG("unexpected file type");
+			retval = -ENXIO;
+			break;
+	}
 
 	file_put(file);
 	return retval;
@@ -1977,13 +2086,25 @@ int proc_netListen(int socket, int backlog)
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = proc_objectListen(file->device.port, file->device.id, backlog);
+	switch (file->type) {
+		case ftSocket:
+			retval = proc_objectListen(file->device.port, file->device.id, backlog);
+			break;
+		case ftLocalSocket:
+			retval = sun_listen(file->sun, backlog);
+			break;
+		default:
+			FILE_LOG("unexpected file type");
+			retval = -ENXIO;
+			break;
+	}
+
 	file_put(file);
 	return retval;
 }
 
 
-ssize_t proc_netRecvfrom(int socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+ssize_t proc_recvmsg(int socket, struct msghdr *msg, int flags)
 {
 	iodes_t *file;
 	process_t *process = proc_current()->process;
@@ -1992,13 +2113,25 @@ ssize_t proc_netRecvfrom(int socket, void *message, size_t length, int flags, st
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = -EINVAL; //socket_recvfrom(file->port, file->id, message, length, flags, src_addr, src_len);
+	switch (file->type) {
+		case ftSocket:
+			retval = -EAFNOSUPPORT;
+			break;
+		case ftLocalSocket:
+			retval = sun_recvmsg(file->sun, msg, flags);
+			break;
+		default:
+			FILE_LOG("unexpected file type");
+			retval = -ENXIO;
+			break;
+	}
+
 	file_put(file);
 	return retval;
 }
 
 
-ssize_t proc_netSendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+ssize_t proc_sendmsg(int socket, const struct msghdr *msg, int flags)
 {
 	iodes_t *file;
 	process_t *process = proc_current()->process;
@@ -2007,7 +2140,19 @@ ssize_t proc_netSendto(int socket, const void *message, size_t length, int flags
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = -EINVAL; //socket_sendto(file->port, file->id, message, length, flags, dest_addr, dest_len);
+	switch (file->type) {
+		case ftSocket:
+			retval = -EAFNOSUPPORT;
+			break;
+		case ftLocalSocket:
+			retval = sun_sendmsg(file->sun, msg, flags);
+			break;
+		default:
+			FILE_LOG("unexpected file type");
+			retval = -ENXIO;
+			break;
+	}
+
 	file_put(file);
 	return retval;
 }
@@ -2022,7 +2167,19 @@ int proc_netShutdown(int socket, int how)
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = proc_objectShutdown(file->device.port, file->device.id, how);
+	switch (file->type) {
+		case ftSocket:
+			retval = proc_objectShutdown(file->device.port, file->device.id, how);
+			break;
+		case ftLocalSocket:
+			retval = -EAFNOSUPPORT;
+			break;
+		default:
+			FILE_LOG("unexpected file type");
+			retval = -ENXIO;
+			break;
+	}
+
 	file_put(file);
 	return retval;
 }
@@ -2049,13 +2206,26 @@ int proc_netSocket(int domain, int type, int protocol)
 	iodes_t *file;
 	int err;
 
-	if ((err = file_open(&file, proc_current()->process, -1, "/dev/net", 0, 0)) != EOK)
-		return err;
+	switch (domain) {
+		case AF_INET: {
+			if ((err = file_open(&file, proc_current()->process, -1, "/dev/net", 0, 0)) != EOK)
+				return err;
 
-	file->type = ftSocket;
+			file->type = ftSocket;
 
-	if (err != EOK || (err = fd_new(process, 0, 0, file)) < 0)
-		file_put(file);
+			if (err != EOK || (err = fd_new(process, 0, 0, file)) < 0)
+				file_put(file);
+
+			break;
+		}
+		case AF_UNIX: {
+			err = sun_socket(process, type, protocol, 0);
+			break;
+		}
+		default:
+			err = -EAFNOSUPPORT;
+			break;
+	}
 
 	return err;
 }
@@ -2065,4 +2235,5 @@ void _file_init()
 {
 	file_common.root = NULL;
 	proc_lockInit(&file_common.lock);
+	_sun_init();
 }

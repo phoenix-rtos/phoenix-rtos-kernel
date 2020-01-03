@@ -232,7 +232,7 @@ int pipe_create(process_t *process, size_t size, int fds[2], int flags)
 		file_put(write_end);
 		pipe_destroy(pipe);
 		vm_kfree(pipe);
-		return err;
+		return readfd;
 	}
 
 	if ((writefd = fd_new(process, 0, fdflags, write_end)) < 0) {
@@ -240,7 +240,7 @@ int pipe_create(process_t *process, size_t size, int fds[2], int flags)
 		fd_close(process, readfd);
 		pipe_destroy(pipe);
 		vm_kfree(pipe);
-		return err;
+		return writefd;
 	}
 
 	fds[0] = readfd;

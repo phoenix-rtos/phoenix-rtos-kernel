@@ -41,7 +41,7 @@ typedef struct _obdes_t {
 } obdes_t;
 
 
-enum { ftRegular, ftDirectory, ftDevice, ftPort, ftFifo, ftPipe, ftSocket };
+enum { ftRegular, ftDirectory, ftDevice, ftPort, ftFifo, ftPipe, ftLocalSocket, ftSocket };
 
 
 struct _iodes_t {
@@ -61,13 +61,12 @@ struct _iodes_t {
 	union {
 		struct _port_t *port;
 		struct _pipe_t *pipe;
+		struct _sun_t *sun;
 
 		struct {
 			struct _port_t *port;
 			id_t id;
 		} device;
-
-		/* id_t socket; treat separately? */
 	};
 };
 
@@ -79,6 +78,12 @@ struct _hades_t {
 
 
 typedef struct stat file_stat_t;
+
+
+extern iodes_t *file_alloc(void);
+
+
+extern int fd_new(struct _process_t *p, int handle, int flags, iodes_t *file);
 
 
 extern iodes_t *file_get(struct _process_t *p, int fd);

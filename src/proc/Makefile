@@ -5,7 +5,7 @@
 # Copyright 2001, 2005-2006 Pawel Pisarczyk
 #
 
-SRCS = proc.c threads.c process.c name.c resource.c mutex.c cond.c userintr.c file.c ports.c server.c group.c event.c socket.c pipe.c
+SRCS = proc.c threads.c process.c name.c resource.c mutex.c cond.c userintr.c file.c ports.c server.c group.c event.c sun.c pipe.c
 
 ifneq (, $(findstring NOMMU, $(CFLAGS)))
 	SRCS += msg-nommu.c
