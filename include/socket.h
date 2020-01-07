@@ -17,6 +17,7 @@
 #define _PHOENIX_SOCKET_H_
 
 #include "types.h"
+#include "uio.h"
 
 #define AF_UNSPEC 0
 #define AF_UNIX 1

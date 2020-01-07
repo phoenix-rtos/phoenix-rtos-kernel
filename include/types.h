@@ -23,12 +23,6 @@ typedef struct _oid_t {
 	id_t id;
 } oid_t;
 
-/* TODO: move */
-struct iovec {
-	void *iov_base;
-	unsigned int /* TODO: size_t */ iov_len;
-};
-
 typedef int pid_t;
 typedef long off_t;
 typedef long long off64_t;
