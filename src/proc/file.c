@@ -1661,7 +1661,7 @@ int proc_filesCloseExec(process_t *process)
 int proc_sunCreate(port_t **port, id_t *id, int dirhandle, const char *path, mode_t mode)
 {
 	process_t *process = proc_current()->process;
-	int err, pplen;
+	int err;
 	iodes_t *dir;
 	const char *fifoname;
 
@@ -1686,7 +1686,7 @@ int proc_sunCreate(port_t **port, id_t *id, int dirhandle, const char *path, mod
 int proc_fifoCreate(int dirhandle, const char *path, mode_t mode)
 {
 	process_t *process = proc_current()->process;
-	int err, pplen;
+	int err;
 	iodes_t *dir;
 	const char *fifoname;
 	id_t id;
@@ -1711,7 +1711,7 @@ int proc_fifoCreate(int dirhandle, const char *path, mode_t mode)
 int proc_deviceCreate(int dirhandle, const char *path, int portfd, id_t id, mode_t mode)
 {
 	process_t *process = proc_current()->process;
-	int err, pplen;
+	int err;
 	iodes_t *dir, *port = NULL;
 	const char *name;
 	oid_t oid;

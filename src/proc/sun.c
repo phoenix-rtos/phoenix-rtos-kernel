@@ -130,19 +130,15 @@ static int sun_init(sun_t *socket)
 }
 
 
-int sun_socket(process_t *process, int type, int protocol, int flags)
+static int sun_create(iodes_t **result, int type, int protocol)
 {
 	sun_t *socket;
 	iodes_t *file;
-	int handle;
 
 	if (type != SOCK_STREAM && type != SOCK_DGRAM) {
 		DEBUG_LOG("invalid socket type: %d", type);
 		return -EINVAL;
 	}
-
-	if (flags & ~(O_NONBLOCK | O_CLOEXEC))
-		return -EINVAL;
 
 	if ((socket = vm_kmalloc(sizeof(*socket))) == NULL)
 		return -ENOMEM;
@@ -164,8 +160,26 @@ int sun_socket(process_t *process, int type, int protocol, int flags)
 	if (type == SOCK_STREAM)
 		socket->flags |= SFL_STREAM;
 
+	socket->type = type;
+
 	file->sun = socket;
 	file->type = ftLocalSocket;
+	*result = file;
+
+	return EOK;
+}
+
+
+int sun_socket(process_t *process, int type, int protocol, int flags)
+{
+	iodes_t *file;
+	int handle, error;
+
+	if (flags & ~(O_NONBLOCK | O_CLOEXEC))
+		return -EINVAL;
+
+	if ((error = sun_create(&file, type, protocol)) < 0)
+		return error;
 
 	if ((handle = fd_new(process, 0, flags, file)) < 0)
 		file_put(file);
@@ -246,7 +260,7 @@ int _sun_accept(process_t *process, struct _sun_t *socket, struct sockaddr *addr
 {
 	sun_t *peer, *new;
 	iodes_t *file;
-	int handle;
+	int handle, error;
 
 	if (!(socket->flags & SFL_CONNECTION_MODE))
 		return -EOPNOTSUPP;
@@ -257,22 +271,8 @@ int _sun_accept(process_t *process, struct _sun_t *socket, struct sockaddr *addr
 	if ((peer = socket->connection) == NULL)
 		return -EAGAIN;
 
-	if ((new = vm_kmalloc(sizeof(*new))) == NULL)
-		return -ENOMEM;
-
-	if ((file = file_alloc()) == NULL) {
-		vm_kfree(new);
-		return -ENOMEM;
-	}
-
-	if (sun_init(new) < 0) {
-		file_put(file);
-		vm_kfree(new);
-		return -ENOMEM;
-	}
-
-	file->sun = new;
-	file->type = ftLocalSocket;
+	if ((error = sun_create(&file, socket->type, 0)) < 0)
+		return error;
 
 	if ((handle = fd_new(process, 0, 0, file)) < 0) {
 		file_put(file);
