@@ -1274,6 +1274,24 @@ int syscalls_sys_socket(char *ustack)
 }
 
 
+int syscalls_sys_socketPair(char *ustack)
+{
+	int domain;
+	int type;
+	int protocol;
+	int flags;
+	int *sv;
+
+	GETFROMSTACK(ustack, int, domain, 0);
+	GETFROMSTACK(ustack, int, type, 1);
+	GETFROMSTACK(ustack, int, protocol, 2);
+	GETFROMSTACK(ustack, int, flags, 3);
+	GETFROMSTACK(ustack, int *, sv, 4);
+
+	return sun_pair(domain, type, protocol, flags, sv);
+}
+
+
 int syscalls_sys_shutdown(char *ustack)
 {
 	int socket;

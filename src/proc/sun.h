@@ -41,6 +41,9 @@ extern int sun_accept(process_t *process, struct _sun_t *socket, struct sockaddr
 extern int sun_connect(process_t *process, struct _sun_t *socket, const struct sockaddr *address, socklen_t address_len);
 
 
+extern int sun_pair(int domain, int type, int protocol, int flags, int sv[2]);
+
+
 extern ssize_t sun_sendmsg(struct _sun_t *socket, const struct msghdr *msg, int flags);
 
 

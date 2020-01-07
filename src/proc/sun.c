@@ -30,10 +30,6 @@
 #define SFL_CONNECTION_MODE (1 << 0)
 #define SFL_STREAM (1 << 1)
 
-enum {
-	ss_new, ss_bound, ss_accepting,
-	ss_connected, ss_closed
-};
 
 typedef struct _sun_t {
 	rbnode_t linkage;
@@ -188,6 +184,63 @@ int sun_socket(process_t *process, int type, int protocol, int flags)
 }
 
 
+static int _sun_pair(process_t *process, int type, int protocol, int flags, int sv[2])
+{
+	iodes_t *sun1, *sun2;
+	int error, handle[2];
+
+	if (flags & ~(O_NONBLOCK | O_CLOEXEC))
+		return -EINVAL;
+
+	if ((error = sun_create(&sun1, type, protocol)) < 0)
+		return error;
+
+	if ((error = sun_create(&sun2, type, protocol)) < 0) {
+		file_put(sun1);
+		return error;
+	}
+
+	sun1->sun->connection = sun2;
+	sun2->sun->connection = sun1;
+	error = EOK;
+
+	if ((handle[0] = fd_new(process, 0, 0, sun1)) < 0) {
+		error = handle[0];
+		file_put(sun1);
+		file_put(sun2);
+	}
+	else if ((handle[1] = fd_new(process, 0, 0, sun2)) < 0) {
+		error = handle[1];
+		file_put(sun2);
+		fd_close(process, handle[0]);
+	}
+
+	if (error == EOK) {
+		sv[0] = handle[0];
+		sv[1] = handle[1];
+	}
+
+	return error;
+}
+
+
+int sun_pair(int domain, int type, int protocol, int flags, int sv[2])
+{
+	int retval;
+	process_t *process;
+
+	if (domain != AF_UNIX)
+		return -EAFNOSUPPORT;
+
+	process = proc_current()->process;
+
+	proc_lockSet(&sun_common.lock);
+	retval = _sun_pair(process, type, protocol, flags, sv);
+	proc_lockClear(&sun_common.lock);
+	return retval;
+}
+
+
 int sun_bind(process_t *process, struct _sun_t *socket, const struct sockaddr *address, socklen_t address_len)
 {
 	int error, len;
@@ -208,6 +261,9 @@ int sun_bind(process_t *process, struct _sun_t *socket, const struct sockaddr *a
 		proc_objectClose(port, id);
 		socket->address_port = NULL;
 		socket->address_id = 0;
+	}
+	else {
+		socket->state |= SUN_BOUND;
 	}
 	proc_lockClear(&sun_common.lock);
 
@@ -338,6 +394,9 @@ int sun_connect(process_t *process, struct _sun_t *socket, const struct sockaddr
 
 	if (socket->connection != NULL)
 		return -EISCONN;
+
+	if (socket->state & SUN_CONNECTING)
+		return -EINPROGRESS;
 
 	if ((error = sun_lookup(process, &port, &id, address->sa_data)) < 0)
 		return error;
