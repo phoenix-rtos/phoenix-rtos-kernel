@@ -968,7 +968,7 @@ int proc_threadKill(pid_t pid, int tid, int signal)
 		proctree_lock();
 		peer = process;
 		do {
-			threads_sigpost(process, NULL, signal);
+			threads_sigpost(peer, NULL, signal);
 		} while ((peer = peer->pg_next) != process);
 		proctree_unlock();
 
