@@ -32,6 +32,7 @@ struct {
 	thread_t *ready[8];
 	thread_t **current;
 	volatile time_t jiffies;
+	cycles_t cycles;
 	time_t utcoffs;
 
 	unsigned int executions;
@@ -446,6 +447,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	now = threads_common.jiffies = hal_getTimer();
 #else
 	now = threads_common.jiffies += TIMER_US2CYC(SYSTICK_INTERVAL);
+	hal_cpuGetCycles(&threads_common.cycles);
 #endif
 
 	for (;; i++) {
@@ -534,7 +536,11 @@ void threads_put(thread_t *t)
 static void threads_findCurrBucket(cpu_load_t *load, time_t jiffies)
 {
 	int steps, i;
-	const time_t step = TIMER_US2CYC(1000);
+#ifdef HPTIMER_IRQ
+	const time_t step = 5 * TIMER_US2CYC(SYSTICK_INTERVAL);
+#else
+	const time_t step = 5 * TIMER_US2CYC(SYSTICK_INTERVAL) * (threads_common.cycles / threads_common.jiffies);
+#endif
 
 	steps = (jiffies - load->jiffiesptr) / step;
 	if (steps)
@@ -553,10 +559,17 @@ int threads_getCpuTime(thread_t *t)
 {
 	int i;
 	u64 curr = 0, tot = 0;
+	u64 jiffies;
+
+#ifdef HPTIMER_IRQ
+	jiffies = threads_common.jiffies;
+#else
+	jiffies = threads_common.cycles;
+#endif
 
 	hal_spinlockSet(&threads_common.spinlock);
-	threads_findCurrBucket(&threads_common.load, threads_common.jiffies);
-	threads_findCurrBucket(&t->load, threads_common.jiffies);
+	threads_findCurrBucket(&threads_common.load, jiffies);
+	threads_findCurrBucket(&t->load, jiffies);
 
 	if (t != NULL) {
 		for (i = 0; i < sizeof(t->load.cycl) / sizeof(t->load.cycl[0]); ++i) {
@@ -580,11 +593,12 @@ static void threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 	cycles_t now = 0;
 	time_t jiffies;
 
-	jiffies = threads_common.jiffies;
 
 #ifdef HPTIMER_IRQ
+	jiffies = threads_common.jiffies;
 	now = hal_getTimer();
 #else
+	jiffies = threads_common.cycles;
 	hal_cpuGetCycles(&now);
 #endif
 
@@ -1652,7 +1666,12 @@ int proc_threadsList(int n, threadinfo_t *info)
 		info[i].tid = t->id;
 #ifndef CPU_STM32
 		info[i].load = threads_getCpuTime(t);
+#ifdef HPTIMER_IRQ
 		info[i].cpu_time = (unsigned int) (TIMER_CYC2US(t->load.total) / 1000000);
+#else
+		/* Estimate time used using thread's cycles, system cycles and number of systicks passed */
+		info[i].cpu_time = (unsigned int) TIMER_CYC2US(((threads_common.jiffies / 1000000) * t->load.total) / threads_common.cycles);
+#endif
 #else
 		info[i].load = 0;
 		info[i].cpu_time = 0;
@@ -1730,11 +1749,11 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	unsigned int i;
 	threads_common.kmap = kmap;
 	threads_common.executions = 0;
-	threads_common.jiffies = 0;
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;
 	threads_common.idcounter = 0;
+	threads_common.jiffies = 0;
 
 	threads_common.perfGather = 0;
 
@@ -1783,6 +1802,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.timeintrHandler.n = HPTIMER_IRQ;
 	threads_common.scheduleHandler.n = HPTIMER_IRQ;
 #else
+	hal_cpuGetCycles(&threads_common.cycles);
 	threads_common.timeintrHandler.n = SYSTICK_IRQ;
 	threads_common.scheduleHandler.n = SYSTICK_IRQ;
 #endif
