@@ -406,7 +406,8 @@ int file_waitForOne(iodes_t *file, int events, int timeout)
 	poll_lock();
 	revents |= note.events;
 	while (!(revents & events)) {
-		_poll_wait(&poll, timeout);
+		if ((err = _poll_wait(&poll, timeout)) < 0)
+			break;
 		revents |= note.events;
 	}
 	_poll_remove(&note);
@@ -474,8 +475,7 @@ int proc_poll(struct pollfd *handles, nfds_t nfds, int timeout_ms)
 			if (nev || error || timeout_ms < 0)
 				break;
 
-			if ((error = _poll_wait(&poll, timeout_ms)) == -EINTR)
-				poll_lock();
+			error = _poll_wait(&poll, timeout_ms);
 		}
 	}
 

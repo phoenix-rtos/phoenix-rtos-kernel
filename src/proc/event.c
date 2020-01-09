@@ -85,7 +85,10 @@ void poll_unlock(void)
 
 int _poll_wait(poll_head_t *poll, int timeout)
 {
-	return proc_lockWait(&poll->threads, &event_common.lock, timeout);
+	int err;
+	if ((err = proc_lockWait(&poll->threads, &event_common.lock, timeout)) == -EINTR)
+		poll_lock();
+	return err;
 }
 
 
