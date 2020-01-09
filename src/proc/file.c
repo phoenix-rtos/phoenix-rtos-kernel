@@ -624,7 +624,6 @@ int file_followMount(port_t **port, id_t *id)
 
 	if ((error = proc_objectRead(*port, *id, &dest, sizeof(oid_t), 0)) != sizeof(oid_t)) {
 		FILE_LOG("read device node %u.%llu", (*port)->id, *id);
-		asm volatile ("1: jmp 1b");
 		return error;
 	}
 
@@ -636,7 +635,6 @@ int file_followMount(port_t **port, id_t *id)
 	if (dest.port == (*port)->id) {
 		/* probably should not happen */
 		FILE_LOG("same filesystem?");
-		asm volatile ("1: jmp 1b");
 	}
 
 	if ((newport = port_get(dest.port)) == NULL) {
@@ -746,7 +744,6 @@ int file_followPath(pathwalk_t *walk)
 	while ((err = file_walkPath(walk)) == -ENOTDIR) {
 		if (S_ISLNK(walk->mode)) {
 			/* TODO: handle symlink */
-			asm volatile ("1: jmp 1b");
 			FILE_LOG("symlink");
 			err = -ENOSYS;
 			break;
@@ -1097,9 +1094,6 @@ int proc_filesSetRoot(int handle, id_t id, mode_t mode)
 		file_put(port);
 		return -ENOMEM;
 	}
-
-	if (port->port == NULL)
-		asm volatile ("1: jmp 1b");
 
 	root->type = ftDirectory; /* TODO: check */
 	root->fs.port = port->port;
