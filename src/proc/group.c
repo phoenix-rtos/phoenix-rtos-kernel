@@ -15,13 +15,14 @@
 
 #include "proc.h"
 
-
+#define DEBUG_LOG(fmt, ...) // lib_printf("%s:%d  %s(): " fmt "\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 #define process_pid(p) (p->id)
 
 /* process groups and sessions */
 
 static void ses_destroy(session_t *ses)
 {
+	DEBUG_LOG("%d", ses->id);
 	vm_kfree(ses);
 }
 
@@ -64,6 +65,9 @@ static int ses_new(process_t *p)
 	ses->ctty = NULL;
 	ses->members = NULL;
 	ses->id = process_pid(p);
+
+	DEBUG_LOG("%d", ses->id);
+
 	ses_remove(p->group);
 	ses_add(ses, p->group);
 
@@ -73,6 +77,7 @@ static int ses_new(process_t *p)
 
 static void pg_destroy(process_group_t *pg)
 {
+	DEBUG_LOG("%d", pg->id);
 	vm_kfree(pg);
 }
 
@@ -94,7 +99,7 @@ static void pg_remove(process_t *p)
 {
 	process_group_t *pg = p->group;
 
-	if (pg) {
+	if (pg != NULL) {
 		LIST_REMOVE_EX(&pg->members, p, pg_next, pg_prev);
 
 		if (pg->members == NULL) {
@@ -114,12 +119,13 @@ static int pg_new(process_t *p)
 	if ((pg = vm_kmalloc(sizeof(*pg))) == NULL)
 		return -ENOMEM;
 
-
 	pg->members = NULL;
 	pg->session = NULL;
 	pg->id = process_pid(p);
 
-	if (p->group)
+	DEBUG_LOG("creating pg %d", pg->id);
+
+	if (p->group != NULL)
 		ses_add(p->group->session, pg);
 
 	pg_remove(p);
@@ -131,6 +137,7 @@ static int pg_new(process_t *p)
 
 pid_t proc_setsid(process_t *p)
 {
+	DEBUG_LOG("enter");
 	pid_t retval;
 
 	process_lock(p);
@@ -158,6 +165,8 @@ int proc_setpgid(process_t *p, pid_t pid, pid_t pgid)
 	process_group_t *pg;
 	int err = EOK;
 
+	DEBUG_LOG("enter %d, %d", pid, pgid);
+
 	if (pgid < 0)
 		return -EINVAL;
 
@@ -174,15 +183,21 @@ int proc_setpgid(process_t *p, pid_t pid, pid_t pgid)
 	}
 
 	if (!s || process_pid(s) != pid) {
+		DEBUG_LOG("child not found");
 		process_unlock(p);
 		return -ESRCH;
 	}
 
+	/* TODO: return EACCESS if trying to setpgid a child that has already called exec() */
 	proctree_lock();
 	if (ses_leader(s) || s->group->session != p->group->session) {
+		DEBUG_LOG("leader or different session");
 		err = -EPERM;
 	}
-	else if (pgid == 0) {
+	else if (s->group->id == pgid) {
+		err = EOK;
+	}
+	else if (pgid == 0 || pgid == pid) {
 		pg_new(s);
 	}
 	else {
@@ -197,6 +212,7 @@ int proc_setpgid(process_t *p, pid_t pid, pid_t pgid)
 			pg_add(pg, s);
 		}
 		else {
+			DEBUG_LOG("pgid %d not found", pgid);
 			err = -EPERM;
 		}
 	}
@@ -211,6 +227,7 @@ pid_t proc_getpgid(process_t *p, pid_t pid)
 {
 	process_t *s;
 	pid_t retval;
+	DEBUG_LOG("enter");
 
 	if (pid < 0)
 		return -EINVAL;
@@ -224,11 +241,15 @@ pid_t proc_getpgid(process_t *p, pid_t pid)
 		return -ESRCH;
 
 	proctree_lock();
+#if 0
 	if (s->group->session->id != p->group->session->id) {
+		DEBUG_LOG("process %d in different session", pid);
 		/* NOTE: disallowing this is optional */
 		retval = -EPERM;
 	}
-	else {
+	else
+#endif
+	{
 		retval = s->group->id;
 	}
 	proctree_unlock();
@@ -245,6 +266,8 @@ pid_t proc_getsid(process_t *p, pid_t pid)
 	process_t *s;
 	pid_t retval;
 
+	DEBUG_LOG("enter");
+
 	if (pid < 0)
 		return -EINVAL;
 
@@ -257,11 +280,15 @@ pid_t proc_getsid(process_t *p, pid_t pid)
 		return -ESRCH;
 
 	proctree_lock();
+#if 0
 	if (s->group->session->id != p->group->session->id) {
+		DEBUG_LOG("process %d in different session", pid);
 		/* NOTE: disallowing this is optional */
 		retval = -EPERM;
 	}
-	else {
+	else
+#endif
+	{
 		retval = s->group->session->id;
 	}
 	proctree_unlock();
