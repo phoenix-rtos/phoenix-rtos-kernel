@@ -57,14 +57,14 @@
 #define SIG_DFL ((sighandler_t)-2)
 #define SIG_IGN ((sighandler_t)-3)
 
-#define	SA_NOCLDSTOP	1 << 0
-#define SA_NOCLDWAIT	1 << 1
-#define SA_NODEFER		1 << 2
-#define SA_ONSTACK		1 << 3
-#define	SA_RESETHAND	1 << 4
-#define	SA_RESTART		1 << 5
-#define	SA_RESTORER		1 << 6
-#define SA_SIGINFO		1 << 7
+#define	SA_NOCLDSTOP	(1 << 0)
+#define SA_NOCLDWAIT	(1 << 1)
+#define SA_NODEFER		(1 << 2)
+#define SA_ONSTACK		(1 << 3)
+#define	SA_RESETHAND	(1 << 4)
+#define	SA_RESTART		(1 << 5)
+#define	SA_RESTORER		(1 << 6)
+#define SA_SIGINFO		(1 << 7)
 
 
 typedef void (*sighandler_t)(int);
