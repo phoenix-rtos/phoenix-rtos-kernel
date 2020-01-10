@@ -470,6 +470,9 @@ int proc_poll(struct pollfd *handles, nfds_t nfds, int timeout_ms)
 					handles[i].revents = revents;
 					nev++;
 				}
+				else {
+					handles[i].revents = 0;
+				}
 			}
 
 			if (nev || error || timeout_ms < 0)
