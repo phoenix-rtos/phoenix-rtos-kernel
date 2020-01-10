@@ -990,7 +990,7 @@ int file_open(iodes_t **result, process_t *process, int dirhandle, const char *p
 					break;
 				}
 				else {
-					file_waitForOne(file, POLLOUT, 0);
+					error = file_waitForOne(file, POLLOUT, 0);
 				}
 			}
 
