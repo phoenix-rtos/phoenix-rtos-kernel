@@ -20,7 +20,7 @@ MPFR=mpfr-3.1.5
 MPC=mpc-1.0.3
 GCC=gcc-7.1.0
 
-TARGET=$1
+TARGET="$1"
 BUILD_ROOT="$2"
 TOOLCHAIN_PREFIX="${BUILD_ROOT}/${TARGET}"
 MAKEOPTS="-j9 -s"
@@ -38,60 +38,41 @@ cd "${BUILD_ROOT}"
 
 # Extract packages
 [[ ! -d ${BINUTILS} ]] && tar jxf ${BINUTILS}.tar.bz2 && mkdir "${BINUTILS}/build"
-[[ ! -d ${GMP} ]] && tar jxf ${GMP}.tar.bz2 && mkdir "${GMP}/build"
-[[ ! -d ${MPFR} ]] && tar jxf ${MPFR}.tar.bz2 && mkdir "${MPFR}/build"
-[[ ! -d ${MPC} ]] && tar xf ${MPC}.tar.gz && mkdir "${MPC}/build"
+[[ ! -d ${GMP} ]] && tar jxf ${GMP}.tar.bz2
+[[ ! -d ${MPFR} ]] && tar jxf ${MPFR}.tar.bz2
+[[ ! -d ${MPC} ]] && tar xf ${MPC}.tar.gz
 [[ ! -d ${GCC} ]] && tar jxf ${GCC}.tar.bz2 && mkdir "${GCC}/build"
 
 # patch Binutils
 for patchfile in binutils-*.patch; do
     if [ ! -f "${BINUTILS}/build/$patchfile.applied" ]; then
-        patch -d ${BINUTILS} -p1 < "$patchfile"
-    touch "${BINUTILS}/build/$patchfile.applied"
+        patch -d "${BINUTILS}" -p1 < "$patchfile"
+        touch "${BINUTILS}/build/$patchfile.applied"
     fi
 done
 
 # Build Binutils
 cd "${BINUTILS}/build"
 
-../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}"
+../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" \
+             --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}"
 make ${MAKEOPTS}
 make ${MAKEOPTS} install
 
-cd -
+cd "${BUILD_ROOT}"
 
-# Build GMP
-cd "${GMP}/build"
-
-../configure --prefix="${TOOLCHAIN_PREFIX}" --disable-shared
-make ${MAKEOPTS}
-make ${MAKEOPTS} install
-
-cd -
-
-# Build MPFR
-cd "${MPFR}/build"
-
-../configure --prefix="${TOOLCHAIN_PREFIX}" --with-gmp="${TOOLCHAIN_PREFIX}" --disable-shared
-make ${MAKEOPTS}
-make ${MAKEOPTS} install
-
-cd -
-
-# Build MPC
-cd "${MPC}/build"
-
-../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" --with-gmp="${TOOLCHAIN_PREFIX}" --with-mpfr="${TOOLCHAIN_PREFIX}" --disable-shared
-make ${MAKEOPTS}
-make ${MAKEOPTS} install
-
-cd -
+# Create links
+cd "$GCC"
+ln -sf "../$GMP" gmp
+ln -sf "../$MPFR" mpfr
+ln -sf "../$MPC" mpc
+cd "${BUILD_ROOT}"
 
 # patch GCC
 for patchfile in gcc-*.patch; do
     if [ ! -f "${GCC}/build/$patchfile.applied" ]; then
-        patch -d ${GCC} -p1 < "$patchfile"
-    touch "${GCC}/build/$patchfile.applied"
+        patch -d "${GCC}" -p1 < "$patchfile"
+        touch "${GCC}/build/$patchfile.applied"
     fi
 done
 
@@ -102,9 +83,8 @@ if [[ "$TARGET" = *"arm-" ]]; then
     GCC_CONFIG_PARAMS="--with-abi=aapcs"
 fi
 
-
-../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}" \
-             --with-gmp="${TOOLCHAIN_PREFIX}" --with-mpfr="${TOOLCHAIN_PREFIX}" --with-mpc="${TOOLCHAIN_PREFIX}" \
+../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" \
+             --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}" \
              --enable-languages=c --with-newlib \
              --disable-libssp --disable-nls $GCC_CONFIG_PARAMS
 
