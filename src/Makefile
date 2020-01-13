@@ -85,7 +85,7 @@ $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 	printf "Subsystem           | text    | rodata  | data\n";\
 	printf "==================================================\n";\
 	for f in $(ARCHS) $(OBJS); do\
-	 	datasz=0;\
+		datasz=0;\
 		textsz=0;\
 		rodatasz=0;\
 		file=$$f;\
