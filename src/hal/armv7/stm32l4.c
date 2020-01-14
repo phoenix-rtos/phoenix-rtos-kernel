@@ -21,21 +21,18 @@
 
 struct {
 	volatile u32 *rcc;
-	volatile u32 *gpio[8];
+	volatile u32 *gpio[9];
 	volatile u32 *pwr;
 	volatile u32 *scb;
 	volatile u32 *rtc;
 	volatile u32 *nvic;
 	volatile u32 *exti;
-	volatile u32 *stk;
+	volatile u32 *syst;
 	volatile u32 *mpu;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
 
 	u32 cpuclk;
-
-	int hsi;
-	int msi;
 
 	u32 gpio_mode[8];
 	u32 gpio_pupd[8];
@@ -47,45 +44,52 @@ struct {
 } stm32_common;
 
 
-enum { rcc_cr = 0, rcc_icscr, rcc_cfgr, rcc_cir, rcc_ahbrstr, rcc_apb2rstr, rcc_apb1rstr,
-	rcc_ahbenr, rcc_apb2enr, rcc_apb1enr, rcc_ahblpenr, rcc_apb2lpenr, rcc_apb1lpenr, rcc_csr };
+enum { ahb1_begin = pctl_dma1, ahb1_end = pctl_dma2d, ahb2_begin = pctl_gpioa, ahb2_end = pctl_rng,
+	ahb3_begin = pctl_fmc, ahb3_end = pctl_qspi, apb1_1_begin = pctl_tim2, apb1_1_end = pctl_lptim1,
+	apb1_2_begin = pctl_lpuart1, apb1_2_end = pctl_lptim2, apb2_begin = pctl_syscfg, apb2_end = pctl_dfsdm1,
+	misc_begin = pctl_rtc, misc_end = pctl_hsi };
+
+
+enum { rcc_cr = 0, rcc_icscr, rcc_cfgr, rcc_pllcfgr, rcc_pllsai1cfgr, rcc_pllsai2cfgr, rcc_cier, rcc_cifr,
+	rcc_cicr, rcc_ahb1rstr, rcc_ahb2rstr, rcc_ahb3rstr, rcc_apb1rstr1, rcc_apb1rstr2, rcc_apb2rstr, rcc_ahb1enr,
+	rcc_ahb2enr, rcc_ahb3enr, rcc_apb1enr1, rcc_apb1enr2, rcc_apb2enr, rcc_ahb1smenr, rcc_ahb2smenr, rcc_ahb3smenr,
+	rcc_apb1smenr1, rcc_apb1smenr2, rcc_apb2smenr, rcc_ccipr, rcc_bdcr, rcc_csr, rcc_crrcr, rcc_ccipr2 };
 
 
 enum { gpio_moder = 0, gpio_otyper, gpio_ospeedr, gpio_pupdr, gpio_idr,
-	gpio_odr, gpio_bsrr, gpio_lckr, gpio_afrl, gpio_afrh, gpio_brr };
+	gpio_odr, gpio_bsrr, gpio_lckr, gpio_afrl, gpio_afrh, gpio_brr, gpio_ascr };
 
 
-enum { pwr_cr = 0, pwr_csr };
+enum { pwr_cr1 = 0, pwr_cr2, pwr_cr3, pwr_cr4, pwr_sr1, pwr_sr2, pwr_scr, pwr_pucra, pwr_pdcra, pwr_pucrb,
+	pwr_pdcrb, pwr_pucrc, pwr_pdcrc, pwr_pucrd, pwr_pdcrd, pwr_pucre, pwr_pdcre, pwr_pucrf, pwr_pdcrf,
+	pwr_pucrg, pwr_pdcrg, pwr_pucrh, pwr_pdcrh, pwr_pucri, pwr_pdcri };
 
 
-enum { rtc_tr = 0, rtc_dr, rtc_cr, rtc_isr, rtc_prer, rtc_wutr, rtc_calibr, rtc_alrmar,
-	rtc_alrmbr, rtc_wpr, rtc_ssr, rtc_shiftr, rtc_tstr, rtc_tsdr, rtc_tsssr, rtc_calr,
-	rtc_tafcr, rtc_alrmassr, rtc_alrmbssr, rtc_bkp0r, rtc_bkp31r };
+enum { rtc_tr = 0, rtc_dr, rtc_cr, rtc_isr, rtc_prer, rtc_wutr, rtc_alrmar, rtc_alrmbr, rtc_wpr, rtc_ssr,
+	rtc_shiftr, rtc_tstr, rtc_tsdr, rtc_tsssr, rtc_calr, rtc_tampcr, rtc_alrmassr, rtc_alrmbssr, rtc_or,
+	rtc_bkp0r, rtc_bkp31r };
 
 
-enum { scb_cpuid = 0, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp0, scb_shp1,
-	scb_shp2, scb_shcsr, scb_cfsr, scb_hfsr, scb_dfsr, scb_mmfar, scb_bfar, scb_afsr, scb_pfr0,
-	scb_pfr1, scb_dfr, scb_adr, scb_mmfr0, scb_mmfr1, scb_mmfr2, scb_mmf3, scb_isar0, scb_isar1,
-	scb_isar2, scb_isar3, scb_isar4, /* skip reserved registers */ scb_cpacr = 35 };
+enum { scb_actlr = 2, scb_cpuid = 3328, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp1, scb_shp2,
+	scb_shp3, scb_shcsr, scb_cfsr, scb_mmsr, scb_bfsr, scb_ufsr, scb_hfsr, scb_mmar, scb_bfar, scb_afsr };
 
 
 enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr = 128,
 	nvic_ip = 192, nvic_stir = 896 };
 
 
-enum { exti_imr = 0, exti_emr, exti_rtsr, exti_ftsr, exti_swier, exti_pr };
+enum { exti_imr1 = 0, exti_emr1, exti_rtsr1, exti_ftsr1, exti_swier1, exti_pr1, exti_imr2 = 8, exti_emr2,
+	exti_rtsr2, exti_ftsr2, exti_swier2, exti_pr2 };
 
 
-enum { stk_ctrl = 0, stk_load, stk_val, stk_calib };
+enum { syst_csr = 4, syst_rvr, syst_cvr, syst_calib };
 
 
-enum { mpu_typer = 0, mpu_cr, mpu_rnr, mpu_rbar, mpu_rasr };
+enum { syscfg_memrmp = 0, syscfg_cfgr1, syscfg_exticr1, syscfg_exticr2, syscfg_exticr3, syscfg_exticr4,
+	syscfg_scsr, syscfg_cfgr2, syscfg_swpr, syscfg_skr, syscfg_swpr2 };
 
 
-enum { syscfg_memrmp = 0, syscfg_pmc, syscfg_exticr };
-
-
-enum { iwdg_kr = 0, iwdg_pr, iwdg_rlr, iwdg_sr };
+enum { iwdg_kr = 0, iwdg_pr, iwdg_rlr, iwdg_sr, iwdg_winr };
 
 
 /* platformctl syscall */
@@ -109,7 +113,7 @@ int hal_platformctl(void *ptr)
 	case pctl_cpuclk:
 		if (data->action == pctl_set) {
 			ret = _stm32_rccSetCPUClock(data->cpuclk.hz);
-			_stm32_systickInit(1000);
+			_stm32_systickInit(SYSTICK_INTERVAL);
 		}
 		else if (data->action == pctl_get) {
 			data->cpuclk.hz = _stm32_rccGetCPUClock();
@@ -141,48 +145,16 @@ void _stm32_platformInit(void)
 
 /* RCC (Reset and Clock Controller) */
 
-
-int _stm32_rccSetHSI(u32 on)
-{
-	if (on) {
-		if (!stm32_common.hsi) {
-			/* Turn HSI on */
-			*(stm32_common.rcc + rcc_cr) |= 1;
-			hal_cpuDataBarrier();
-
-			/* Wait for HSIRDY flag */
-			while (!(*(stm32_common.rcc + rcc_cr) & 2));
-		}
-
-		++stm32_common.hsi;
-	}
-	else if (stm32_common.hsi) {
-		--stm32_common.hsi;
-
-		if (!stm32_common.hsi) {
-			/* Disable HSI */
-			*(stm32_common.rcc + rcc_cr) &= ~1;
-			hal_cpuDataBarrier();
-
-			/* Wait for HSIRDY flag to clear */
-			while (*(stm32_common.rcc + rcc_cr) & 2);
-		}
-	}
-
-	return EOK;
-}
-
-
 int _stm32_rccSetMSI(u32 on)
 {
 	if (on) {
 		if (!stm32_common.msi) {
 			/* Turn MSI on */
-			*(stm32_common.rcc + rcc_cr) |= 0x100;
+			*(stm32_common.rcc + rcc_cr) |= 1;
 			hal_cpuDataBarrier();
 
 			/* Wait for MSIRDY flag */
-			while (!((*(stm32_common.rcc + rcc_cr)) & 0x200));
+			while (!((*(stm32_common.rcc + rcc_cr)) & 2));
 		}
 
 		++stm32_common.msi;
@@ -192,11 +164,11 @@ int _stm32_rccSetMSI(u32 on)
 
 		if (!stm32_common.msi) {
 			/* Disable MSI */
-			*(stm32_common.rcc + rcc_cr) &= ~0x100;
+			*(stm32_common.rcc + rcc_cr) &= ~1;
 			hal_cpuDataBarrier();
 
 			/* Wait for MSIRDY flag to clear */
-			while ((*(stm32_common.rcc + rcc_cr)) & 0x200);
+			while ((*(stm32_common.rcc + rcc_cr)) & 2);
 		}
 	}
 
@@ -210,21 +182,25 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 
 	hz = !!hz;
 
-	if (d <= ahb_end) {
-		t = *(stm32_common.rcc + rcc_ahbenr) & ~(1 << d);
-		*(stm32_common.rcc + rcc_ahbenr) = t | (hz << d);
+	if (d <= ahb1_end) {
+		t = *(stm32_common.rcc + rcc_ahb1enr) & ~(1 << (d - ahb1_begin));
+		*(stm32_common.rcc + rcc_ahb1enr) = t | (hz << (d - ahb1_begin));
 	}
-	else if (d <= apb2_end) {
-		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1 << (d - apb2_begin));
-		*(stm32_common.rcc + rcc_apb2enr) = t | (hz << (d - apb2_begin));
+	else if (d <= ahb2_end) {
+		t = *(stm32_common.rcc + rcc_ahb2enr) & ~(1 << (d - ahb2_begin));
+		*(stm32_common.rcc + rcc_ahb2enr) = t | (hz << (d - ahb2_begin));
 	}
-	else if (d <= apb1_end) {
-		t = *(stm32_common.rcc + rcc_apb1enr) & ~(1 << (d - apb1_begin));
-		*(stm32_common.rcc + rcc_apb1enr) = t | (hz << (d - apb1_begin));
+	else if (d <= ahb3_end) {
+		t = *(stm32_common.rcc + rcc_ahb3enr) & ~(1 << (d - ahb3_begin));
+		*(stm32_common.rcc + rcc_ahb3enr) = t | (hz << (d - ahb3_begin));
+	}
+	else if (d <= apb1_1_end) {
+		t = *(stm32_common.rcc + rcc_apb1enr1) & ~(1 << (d - apb1_1_begin));
+		*(stm32_common.rcc + rcc_apb1enr1) = t | (hz << (d - apb1_1_begin));
 	}
 	else if (d == pctl_rtc) {
-		t = *(stm32_common.rcc + rcc_csr) & ~(1 << 22);
-		*(stm32_common.rcc + rcc_csr) = t | (hz << 22);
+		t = *(stm32_common.rcc + rcc_bdcr) & ~(1 << 15);
+		*(stm32_common.rcc + rcc_bdcr) = t | (hz << 15);
 	}
 	else if (d == pctl_msi) {
 		_stm32_rccSetMSI(hz);
@@ -243,32 +219,20 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 
 int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
 {
-	if (d <= ahb_end) {
-		if (d == pctl_gpiof || d == pctl_gpiog)
-			d += 1;
-		else if (d == pctl_gpioh)
-			d -= 2;
-
-		*hz = !!(*(stm32_common.rcc + rcc_ahbenr) & (1 << d));
-	}
-	else if (d <= apb2_end) {
-		*hz = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
-	}
-	else if (d <= apb1_end) {
-		*hz = !!(*(stm32_common.rcc + rcc_apb1enr) & (1 << (d - apb1_begin)));
-	}
-	else if (d == pctl_rtc) {
-		*hz = !!(*(stm32_common.rcc + rcc_csr) & (1 << 22));
-	}
-	else if (d == pctl_msi) {
-		*hz = !!(*(stm32_common.rcc + rcc_cr) & 0x100);
-	}
-	else if (d == pctl_hsi) {
+	if (d <= ahb1_end)
+		*hz = !!(*(stm32_common.rcc + rcc_ahb1enr) & (1 << d));
+	else if (d <= ahb2_end)
+		*hz = !!(*(stm32_common.rcc + rcc_ahb2enr) & (1 << (d - ahb2_begin)));
+	else if (d <= ahb3_end)
+		*hz = !!(*(stm32_common.rcc + rcc_ahb3enr) & (1 << (d - ahb3_begin)));
+	else if (d == pctl_rtc)
+		*hz = !!(*(stm32_common.rcc + rcc_bdcr) & (1 << 15));
+	else if (d == pctl_msi)
 		*hz = !!(*(stm32_common.rcc + rcc_cr) & 1);
-	}
-	else {
+	else if (d == pctl_hsi)
+		*hz = !!(*(stm32_common.rcc + rcc_cr) & (1 << 10));
+	else
 		return -EINVAL;
-	}
 
 	return EOK;
 }
@@ -276,48 +240,76 @@ int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
 
 int _stm32_rccSetCPUClock(u32 hz)
 {
-	u8 range = hal_cpuGetLastBit(hz) - 16;
-	u32 t = *(stm32_common.rcc + rcc_icscr);
+	u8 range;
+	u32 t;
 
-	if (range == 7 || range > 8) {
+	if (hz <= 100 * 1000) {
+		range = 0;
+		hz = 100 * 1000;
+	}
+	else if (hz <= 200 * 1000) {
+		range = 1;
+		hz = 200 * 1000;
+	}
+	else if (hz <= 400 * 1000) {
+		range = 2;
+		hz = 400 * 1000;
+	}
+	else if (hz <= 800 * 1000) {
+		range = 3;
+		hz = 800 * 1000;
+	}
+	else if (hz <= 1000 * 1000) {
+		range = 4;
+		hz = 1000 * 1000;
+	}
+	else if (hz <= 2000 * 1000) {
+		range = 5;
+		hz = 2000 * 1000;
+	}
+	else if (hz <= 4000 * 1000) {
+		range = 6;
+		hz = 4000 * 1000;
+	}
+	else if (hz <= 8000 * 1000) {
+		range = 7;
+		hz = 8000 * 1000;
+	}
+	else if (hz <= 16000 * 1000) {
+		range = 8;
+		hz = 16000 * 1000;
+	}
+/* TODO - we need to change flash wait states to handle below frequencies
+	else if (hz <= 24000 * 1000) {
+		range = 9;
+		hz = 24000 * 1000;
+	}
+	else if (hz <= 32000 * 1000) {
+		range = 10;
+		hz = 32000 * 1000;
+	}
+	else if (hz <= 48000 * 1000) {
+		range = 11;
+		hz = 48000 * 1000;
+	}
+*/
+	else {
+		/* We can use HSI, if higher frequency is needed */
 		return -EINVAL;
 	}
-	else if (range == 8) {
+
+	if (hz > 6000 * 1000)
 		_stm32_pwrSetCPUVolt(1);
 
-		/* 16 MHz */
-		*(stm32_common.rcc + rcc_icscr) = t | (0x1f << 8);
-		hal_cpuDataBarrier();
+	t = *(stm32_common.rcc + rcc_cr) & ~(0xf << 4);
+	*(stm32_common.rcc + rcc_cr) = t | range << 4;
+	hal_cpuDataBarrier();
 
-		_stm32_rccSetHSI(1);
-
-		/* System clock switch */
-		*(stm32_common.rcc + rcc_cfgr) |= 1;
-
-		/* Wait for switch to happen */
-		while (!(*(stm32_common.rcc + rcc_cfgr) & (1 << 2)));
-
-		_stm32_rccSetMSI(0);
-	}
-	else {
-		/* Set new MSIRANGE */
-		t = (t & 0xffff1fff) | (range << 13);
-		*(stm32_common.rcc + rcc_icscr) = t;
-		hal_cpuDataBarrier();
-
-		_stm32_rccSetMSI(1);
-
-		/* System clock switch */
-		*(stm32_common.rcc + rcc_cfgr) &= ~1;
-
-		/* Wait for switch to happen */
-		while (*(stm32_common.rcc + rcc_cfgr) & (1 << 2));
-
-		_stm32_rccSetHSI(0);
+	if (hz <= 6000 * 1000)
 		_stm32_pwrSetCPUVolt(2);
-	}
 
-	stm32_common.cpuclk = 1 << (16 + range);
+	stm32_common.cpuclk = hz;
+
 	return EOK;
 }
 
@@ -330,15 +322,7 @@ u32 _stm32_rccGetCPUClock(void)
 
 void _stm32_rccClearResetFlags(void)
 {
-	*(stm32_common.rcc + rcc_csr) |= 0x01000000;
-}
-
-
-int _stm32_rccIsIWDGResetFlag(void)
-{
-	u32 t = 0x5d & 0x1f;
-
-	return ((*(stm32_common.rcc + rcc_csr) & (1 << t)) == 0);
+	*(stm32_common.rcc + rcc_csr) |= 1 << 23;
 }
 
 
@@ -349,64 +333,38 @@ void _stm32_pwrSetCPUVolt(u8 range)
 {
 	u32 t;
 
-	t = *(stm32_common.pwr + pwr_cr) & ~(3 << 11);
-	*(stm32_common.pwr + pwr_cr) = t | ((range & 0x3) << 11);
+	if (range != 1 && range != 2)
+		return;
+
+	t = *(stm32_common.pwr + pwr_cr1) & ~(3 << 9);
+	*(stm32_common.pwr + pwr_cr) = t | (range << 9);
 
 	/* Wait for VOSF flag */
 	while (*(stm32_common.pwr + pwr_csr) & (1 << 4));
 }
 
 
-void _stm32_pwrEnterLPRun(u32 state)
+void hal_preSleep(void)
 {
-	/* Both bits has to be set and reset in the correct order! */
-	if (state) {
-		/* Set LPSDSR bit */
-		*(stm32_common.pwr + pwr_cr) |= 1;
+	/* TODO */
+}
 
-		/* Set LPRUN bit */
-		*(stm32_common.pwr + pwr_cr) |= 1 << 14;
-	}
-	else {
-		/* Reset LPRUN bit */
-		*(stm32_common.pwr + pwr_cr) &= ~(1 << 14);
 
-		/* Reset LPSDSR bit */
-		*(stm32_common.pwr + pwr_cr) &= ~1;
-	}
+void hal_postSleep(void)
+{
+	/* TODO */
 }
 
 
 int _stm32_pwrEnterLPStop(void)
 {
-#ifdef NDEBUG
+/* TODO */
+#if 0//def NDEBUG
 	u8 lprun_state = !!(*(stm32_common.pwr + pwr_cr) & (1 << 14));
 	u8 regulator_state = (*(stm32_common.pwr + pwr_csr) >> 11) & 3;
-	u32 cpuclk_state = (*(stm32_common.rcc + rcc_icscr) >> 13) & 7;
 	int slept = 0, i;
 
-	/* Disable uarts during sleep */
-	stm32_common.uart_state[0] = *((volatile u32 *)0x4001380c);
-	*((volatile u32 *)0x4001380c) = 0;
-	stm32_common.uart_state[1] = *((volatile u32 *)0x4000440c);
-	*((volatile u32 *)0x4000440c) = 0;
-	stm32_common.uart_state[2] = *((volatile u32 *)0x4000480c);
-	*((volatile u32 *)0x4000480c) = 0;
-	stm32_common.uart_state[3] = *((volatile u32 *)0x40004c0c);
-	*((volatile u32 *)0x40004c0c) = 0;
-	stm32_common.uart_state[4] = *((volatile u32 *)0x4000500c);
-	*((volatile u32 *)0x4000500c) = 0;
-
-	/* Disable gpios during sleep */
-	for (i = 0; i < 8; ++i) {
-		stm32_common.gpio_pupd[i] = *(stm32_common.gpio[i] + gpio_pupdr);
-		*(stm32_common.gpio[i] + gpio_pupdr) = 0;
-		stm32_common.gpio_mode[i] = *(stm32_common.gpio[i] + gpio_moder);
-		*(stm32_common.gpio[i] + gpio_moder) = 0xffffffffUL;
-	}
-
-	/* Convert range to Hz */
-	cpuclk_state = 1 << (16 + cpuclk_state);
+	hal_preSleep();
 
 	/* Set LPSDSR and ULP bits */
 	*(stm32_common.pwr + pwr_cr) |= 1;
@@ -446,20 +404,11 @@ int _stm32_pwrEnterLPStop(void)
 	/* Clear wakeup timer and interrupt bits */
 	*(stm32_common.rtc + rtc_cr) &= ~((1 << 10) | (1 << 14));
 
-	for (i = 0; i < 8; ++i) {
-		*(stm32_common.gpio[i] + gpio_moder) = stm32_common.gpio_mode[i];
-		*(stm32_common.gpio[i] + gpio_pupdr) = stm32_common.gpio_pupd[i];
-	}
-
-	*((volatile u32 *)0x4001380c) = stm32_common.uart_state[0];
-	*((volatile u32 *)0x4000440c) = stm32_common.uart_state[1];
-	*((volatile u32 *)0x4000480c) = stm32_common.uart_state[2];
-	*((volatile u32 *)0x40004c0c) = stm32_common.uart_state[3];
-	*((volatile u32 *)0x4000500c) = stm32_common.uart_state[4];
+	hal_postSleep();
 
 	/* Recover previous configuration */
 	_stm32_pwrSetCPUVolt(regulator_state);
-	_stm32_rccSetCPUClock(cpuclk_state);
+	_stm32_rccSetCPUClock(stm32_common.cpuclk);
 	_stm32_pwrEnterLPRun(lprun_state);
 
 	return slept;
@@ -475,7 +424,7 @@ int _stm32_pwrEnterLPStop(void)
 void _stm32_rtcUnlockRegs(void)
 {
 	/* Set DBP bit */
-	*(stm32_common.pwr + pwr_cr) |= 1 << 8;
+	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
 
 	/* Unlock RTC */
 	*(stm32_common.rtc + rtc_wpr) = 0x000000ca;
@@ -489,7 +438,7 @@ void _stm32_rtcLockRegs(void)
 	*(stm32_common.rtc + rtc_wpr) = 0x000000ff;
 
 	/* Reset DBP bit */
-	*(stm32_common.pwr + pwr_cr) &= ~(1 << 8);
+	*(stm32_common.pwr + pwr_cr1) &= ~(1 << 8);
 }
 
 
@@ -525,16 +474,6 @@ void _stm32_rtcSetAlarm(u32 ms)
 }
 
 
-u32 _stm32_rtcGetms(void)
-{
-	u32 ms = 255 - (*(stm32_common.rtc + rtc_ssr) & 0xffff);
-
-	/* Perform fixed point mult to get 1/1000 of second */
-	ms = (ms << 5) * 0x7d;	/* ms = ms * 3.90625 */
-	return ms >> 10;
-}
-
-
 /* SCB */
 
 
@@ -560,7 +499,7 @@ void _stm32_scbSetPriority(s8 excpn, u32 priority)
 {
 	volatile u8 *ptr;
 
-	ptr = &((u8*)(stm32_common.scb + scb_shp0))[excpn - 4];
+	ptr = &((u8*)(stm32_common.scb + scb_shp1))[excpn - 4];
 
 	*ptr = (priority << 4) & 0x0ff;
 }
@@ -570,7 +509,7 @@ u32 _stm32_scbGetPriority(s8 excpn)
 {
 	volatile u8 *ptr;
 
-	ptr = &((u8*)(stm32_common.scb + scb_shp0))[excpn - 4];
+	ptr = &((u8*)(stm32_common.scb + scb_shp1))[excpn - 4];
 
 	return *ptr >> 4;
 }
@@ -642,11 +581,16 @@ void _stm32_nvicSystemReset(void)
 
 int _stm32_extiMaskInterrupt(u32 line, u8 state)
 {
-	if (line > 23)
-		return -EINVAL;
+	u32 t;
+	u32 *base = line > 32 ? stm32_common.exti + exti_imr1 : stm32_common.exti + exti_imr2;
 
-	*(stm32_common.exti + exti_imr) &= ~(!state << line);
-	*(stm32_common.exti + exti_imr) |= !!state << line;
+	if (line > 40)
+		return -EINVAL;
+	else if (line >= 32)
+		line -= 32;
+
+	t = *base & ~(!state << line);
+	*base = t | !!state << line;
 
 	return EOK;
 }
@@ -654,11 +598,16 @@ int _stm32_extiMaskInterrupt(u32 line, u8 state)
 
 int _stm32_extiMaskEvent(u32 line, u8 state)
 {
-	if (line > 23)
-		return -EINVAL;
+	u32 t;
+	u32 *base = line > 32 ? stm32_common.exti + exti_emr1 : stm32_common.exti + exti_emr2;
 
-	*(stm32_common.exti + exti_emr) &= ~(!state << line);
-	*(stm32_common.exti + exti_emr) |= !!state << line;
+	if (line > 40)
+		return -EINVAL;
+	else if (line >= 32)
+		line -= 32;
+
+	t = *base & ~(!state << line);
+	*base = t | !!state << line;
 
 	return EOK;
 }
@@ -667,14 +616,15 @@ int _stm32_extiMaskEvent(u32 line, u8 state)
 int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge)
 {
 	volatile u32 *p;
+	const int reglut[2][2] = { { exti_rtsr1, exti_ftsr1 }, { exti_rtsr2, exti_ftsr2 } };
 
-	if (line > 23)
+	if (line > 40)
 		return -EINVAL;
 
-	if (edge)
-		p = stm32_common.exti + exti_rtsr; /* rising edge trigger */
-	else
-		p = stm32_common.exti + exti_ftsr; /* falling edge trigger */
+	p = stm32_common.exti + reglut[line >= 32][!!edge];
+
+	if (line >= 32)
+		line -= 32;
 
 	*p &= ~(!state << line);
 	*p |= !!state << line;
@@ -683,44 +633,15 @@ int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge)
 }
 
 
-int _stm32_syscfgExtiLineConfig(u8 port, u8 pin)
-{
-	u32 t;
-
-	if (port > 7 || pin > 15)
-		return -EINVAL;
-
-	t = ((u32)0x0f << (0x04 * (pin & (u8)0x03)));
-	(stm32_common.syscfg + syscfg_exticr)[pin >> 0x02] &= ~t;
-	(stm32_common.syscfg + syscfg_exticr)[pin >> 0x02] |= (((u32)port) << (0x04 * (pin & (u8)0x03)));
-
-	return EOK;
-}
-
-
 int _stm32_extiSoftInterrupt(u32 line)
 {
-	if (line > 23)
+	if (line > 40)
 		return -EINVAL;
 
-	*(stm32_common.exti + exti_swier) |= 1 << line;
-
-	return EOK;
-}
-
-
-u32 _stm32_extiGetPending(void)
-{
-	return *(stm32_common.exti + exti_pr) & 0xffffff;
-}
-
-
-int _stm32_extiClearPending(u32 line)
-{
-	if (line > 23)
-		return -EINVAL;
-
-	*(stm32_common.exti + exti_pr) |= 1 << line;
+	if (line < 32)
+		*(stm32_common.exti + exti_swier1) |= 1 << line;
+	else
+		*(stm32_common.exti + exti_swier2) |= 1 << (line - 32);
 
 	return EOK;
 }
@@ -735,17 +656,13 @@ int _stm32_systickInit(u32 interval)
 	if (load > 0x00ffffff)
 		return -EINVAL;
 
-	*(stm32_common.stk + stk_load) = (u32) load;
-	*(stm32_common.stk + stk_ctrl) = 0x7;
+	*(stm32_common.syst + syst_rvr) = (u32)load;
+	*(stm32_common.syst + syst_cvr) = 0;
+
+	/* Enable systick */
+	*(stm32_common.syst + syst_csr) |= 0x7;
 
 	return EOK;
-}
-
-
-void _stm32_systickSet(u8 state)
-{
-	*(stm32_common.stk + stk_ctrl) &= ~(!state);
-	*(stm32_common.stk + stk_ctrl) |= !!state;
 }
 
 
@@ -753,78 +670,13 @@ u32 _stm32_systickGet(void)
 {
 	u32 cb;
 
-	cb = ((*(stm32_common.stk + stk_load) - *(stm32_common.stk + stk_val)) * 1000) / *(stm32_common.stk + stk_load);
+	cb = ((*(stm32_common.syst + syst_rvr) - *(stm32_common.syst + syst_cvr)) * 1000) / *(stm32_common.syst + syst_rvr);
 
 	/* Add 1000 us if there's systick pending */
 	if (*(stm32_common.scb + scb_icsr) & (1 << 26))
 		cb += 1000;
 
 	return cb;
-}
-
-
-/* MPU */
-
-
-void _stm32_mpuReadRegion(u8 region, mpur_t *reg)
-{
-	u32 t;
-	u32 ap;
-
-	*(stm32_common.mpu + mpu_rnr) = region & 0x7;
-	t = *(stm32_common.mpu + mpu_rasr);
-	ap = ((t >> 24) & 0x7);
-
-	reg->region = region;
-	reg->base = *(stm32_common.mpu + mpu_rbar) & 0xffffffe0;
-	reg->size = 1 << ((t >> 1) & 0x1f);
-	reg->subregions = (t >> 8) & 0xff;
-	reg->attr = (t & 1)? PGHD_PRESENT : 0;
-	reg->attr |= ((t >> 28) & 1)? PGHD_EXEC : 0;
-
-	if (ap == 3)
-		reg->attr |= PGHD_USER | PGHD_WRITE;
-	else if (ap == 2)
-		reg->attr |= PGHD_USER;
-}
-
-
-void _stm32_mpuEnableRegion(u8 region, u8 state)
-{
-	u32 t;
-
-	*(stm32_common.mpu + mpu_rnr) = region;
-	t = *(stm32_common.mpu + mpu_rasr) & ~1;
-	*(stm32_common.mpu + mpu_rasr) = t | !!state;
-}
-
-
-void _stm32_mpuUpdateRegion(mpur_t *reg)
-{
-	u32 t;
-	u32 size = hal_cpuGetLastBit(reg->size);
-
-	/* Turn off region */
-	_stm32_mpuEnableRegion(reg->region, 0);
-
-	*(stm32_common.mpu + mpu_rbar) = (reg->base & 0xffffffe0) | (1 << 4) | (reg->region & 0xf);
-
-	t = *(stm32_common.mpu + mpu_rasr) & ~((1 << 28) | (0x7 << 24) | (0xff << 8) | 0x1f);
-	t |= size << 1;
-	t |= reg->subregions << 8;
-	t |= (reg->attr & PGHD_EXEC)? (1 << 28) : 0;
-
-	if (!(reg->attr & PGHD_USER))
-		t |= 1 << 24;
-	else if (!(reg->attr & PGHD_WRITE))
-		t |= 2 << 24;
-	else
-		t |= 3 << 24;
-
-	*(stm32_common.mpu + mpu_rasr) = t;
-
-	/* Turn on region if present*/
-	_stm32_mpuEnableRegion(reg->region, reg->attr & PGHD_PRESENT);
 }
 
 
@@ -861,6 +713,11 @@ int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospee
 		t = *(base + gpio_afrh) & ~(0xf << ((pin - 8) << 2));
 		*(base + gpio_afrh) = t | (af & 0xf) << ((pin - 8) << 2);
 	}
+
+	if (mode == 0x3)
+		*(base + gpio_ascr) |= 1 << pin;
+	else
+		*(base + gpio_ascr) &= ~(1 << pin);
 
 	return EOK;
 }
@@ -949,12 +806,12 @@ void _stm32_init(void)
 {
 	u32 t, i;
 	static const int gpio2pctl[] = { pctl_gpioa, pctl_gpiob, pctl_gpioc,
-		pctl_gpiod, pctl_gpioe, pctl_gpiof, pctl_gpiog, pctl_gpioh };
+		pctl_gpiod, pctl_gpioe, pctl_gpiof, pctl_gpiog, pctl_gpioh, pctl_gpioi };
 
 	/* Base addresses init */
-	stm32_common.rcc = (void *)0x40023800;
+	stm32_common.rcc = (void *)0x40021000;
 	stm32_common.pwr = (void *)0x40007000;
-	stm32_common.scb = (void *)0xe000ed00;
+	stm32_common.scb = (void *)0xe000e000;
 	stm32_common.rtc = (void *)0x40002800;
 	stm32_common.nvic = (void *)0xe000e100;
 	stm32_common.exti = (void *)0x40010400;
@@ -962,32 +819,21 @@ void _stm32_init(void)
 	stm32_common.mpu = (void *)0xe000ed90;
 	stm32_common.syscfg = (void *)0x40010000;
 	stm32_common.iwdg = (void *)0x40003000;
-	stm32_common.gpio[0] = (void *)0x40020000; /* GPIOA */
-	stm32_common.gpio[1] = (void *)0x40020400; /* GPIOB */
-	stm32_common.gpio[2] = (void *)0x40020800; /* GPIOC */
-	stm32_common.gpio[3] = (void *)0x40020c00; /* GPIOD */
-	stm32_common.gpio[4] = (void *)0x40021000; /* GPIOE */
-	stm32_common.gpio[5] = (void *)0x40021800; /* GPIOF */
-	stm32_common.gpio[6] = (void *)0x40021c00; /* GPIOG */
-	stm32_common.gpio[7] = (void *)0x40021400; /* GPIOH */
-
-	/* Init HSI & MSI refcount */
-	stm32_common.hsi = 0;
-	stm32_common.msi = 0;
+	stm32_common.gpio[0] = (void *)0x48000000; /* GPIOA */
+	stm32_common.gpio[1] = (void *)0x48000400; /* GPIOB */
+	stm32_common.gpio[2] = (void *)0x48000800; /* GPIOC */
+	stm32_common.gpio[3] = (void *)0x48000c00; /* GPIOD */
+	stm32_common.gpio[4] = (void *)0x48001000; /* GPIOE */
+	stm32_common.gpio[5] = (void *)0x48001400; /* GPIOF */
+	stm32_common.gpio[6] = (void *)0x48001800; /* GPIOG */
+	stm32_common.gpio[7] = (void *)0x48001c00; /* GPIOH */
+	stm32_common.gpio[8] = (void *)0x48002000; /* GPIOI */
 
 	/* Store reset flags and then clean them */
 	_stm32_rtcUnlockRegs();
 	stm32_common.resetFlags = (*(stm32_common.rcc + rcc_csr) >> 26);
 	*(stm32_common.rcc + rcc_csr) |= 1 << 24;
 	_stm32_rtcLockRegs();
-
-	/* Fundamental system init */
-	_stm32_rccSetCPUClock(2 * 2097152); /* 4,2 MHz */
-
-	/* Set buses divider to 1 */
-	*(stm32_common.rcc + rcc_cfgr) = 0x8802c000;
-
-	hal_cpuDataBarrier();
 
 	/* Enable System configuration controller */
 	_stm32_rccSetDevClock(pctl_syscfg, 1);
@@ -1001,15 +847,15 @@ void _stm32_init(void)
 	hal_cpuDataBarrier();
 
 	/* Rescue */
-	_stm32_rccSetDevClock(pctl_gpiob, 1);
-	_stm32_gpioConfig(pctl_gpiob, 8, 0, 0, 0, 0, 1);
+	_stm32_rccSetDevClock(pctl_gpiod, 1);
+	_stm32_gpioConfig(pctl_gpiod, 1, 0, 0, 0, 0, 1);
 	u8 val;
-	_stm32_gpioGet(pctl_gpiob, 8, &val);
+	_stm32_gpioGet(pctl_gpiod, 1, &val);
 
 	while (!val)
-		_stm32_gpioGet(pctl_gpiob, 8, &val);
+		_stm32_gpioGet(pctl_gpiod, 1, &val);
 
-	_stm32_rccSetDevClock(pctl_gpiob, 0);
+	_stm32_rccSetDevClock(pctl_gpiod, 0);
 
 	/* GPIO LP init */
 #ifdef NDEBUG
@@ -1025,7 +871,7 @@ void _stm32_init(void)
 	_stm32_rccSetDevClock(pctl_gpiob, 0);
 
 	/* Enable debug in stop mode */
-	*((u32*)0xE0042004) |= 3;
+	*((u32*)0xe0042004) |= 3;
 
 	i = 2;
 #endif
@@ -1042,31 +888,34 @@ void _stm32_init(void)
 	_stm32_pwrSetCPUVolt(2);
 
 	/* Set DBP bit */
-	*(stm32_common.pwr + pwr_cr) |= 1 << 8;
+	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
 
 	/* Enable LSE clock source */
-	*(stm32_common.rcc + rcc_csr) |= 1 << 8;
+	*(stm32_common.rcc + rcc_bdcr) |= 1;
 
 	hal_cpuDataBarrier();
 
 	/* And wait for it to turn on */
-	while (!(*(stm32_common.rcc + rcc_csr) & (1 << 9)));
+	while (!(*(stm32_common.rcc + rcc_bdcr) & (1 << 1)));
 
 	/* Initialize RTC */
 
 	/* Select LSE as clock source for RTC and LCD */
-	*(stm32_common.rcc + rcc_csr) |= 1 << 16;
+	*(stm32_common.rcc + rcc_bdcr) = (*(stm32_common.rcc + rcc_bdcr) & ~(0x3 << 8)) | (1 << 8);
 
 	hal_cpuDataBarrier();
 
-	/* Clear DBP bit */
-	*(stm32_common.pwr + pwr_cr) |= 1 << 8;
+	/* Set DBP bit */
+	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
 
 	/* Unlock RTC */
 	_stm32_rtcUnlockRegs();
 
 	/* Turn on RTC */
 	_stm32_rccSetDevClock(pctl_rtc, 1);
+	*(stm32_common.rcc + rcc_bdcr) |= 1 << 15;
+
+	hal_cpuDataBarrier();
 
 	/* Set INIT bit */
 	*(stm32_common.rtc + rtc_isr) |= 1 << 7;
@@ -1092,7 +941,8 @@ void _stm32_init(void)
 	_stm32_rtcLockRegs();
 
 	/* Clear pending interrupts */
-	*(stm32_common.exti + exti_pr) |= 0xffffff;
+	*(stm32_common.exti + exti_pr1) |= 0xffffff;
+	*(stm32_common.exti + exti_pr2) |= 0xffffff;
 
 #if defined(WATCHDOG) && defined(NDEBUG)
 	/* Init watchdog */

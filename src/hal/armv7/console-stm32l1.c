@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * HAL console (STM32 USART)
+ * HAL console (STM32L1 USART)
  *
  * Copyright 2016-2017 Phoenix Systems
  * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski

@@ -133,14 +133,6 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
-int hal_interruptsSetGpioInterrupt(unsigned char port, unsigned char pin, char state, char edge)
-{
-	/* Not implemented */
-
-	return EOK;
-}
-
-
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int n;
