@@ -77,7 +77,7 @@ subsystems: $(ARCHS)
 
 
 $(BIN): $(ARCHS) $(EMBED) $(OBJS)
-	@echo "\033[1;34mEMBED programs.cpio\033[0m"
+	@echo -e "\033[1;34mEMBED programs.cpio\033[0m"
 	@touch /tmp/programs
 	$(SIL)$(OBJCOPY) --update-section .data=/tmp/programs programs.o --add-symbol programs=.data:0
 	
@@ -85,7 +85,7 @@ $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 	printf "Subsystem           | text    | rodata  | data\n";\
 	printf "==================================================\n";\
 	for f in $(ARCHS) $(OBJS); do\
-	 	datasz=0;\
+		datasz=0;\
 		textsz=0;\
 		rodatasz=0;\
 		file=$$f;\
@@ -101,7 +101,7 @@ $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 		printf "%-19s | %-7d | %-7d | %-7d\n" $$f $$textsz $$rodatasz $$datasz;\
 	done;)
 		
-	@echo "\033[1;34mLD $@\033[0m"
+	@echo -e "\033[1;34mLD $@\033[0m"
 	$(LD) $(LDFLAGS) -o $(BIN).elf $(OBJS) $(EMBED) -\( $(ARCHS) $(LIBS) -\)
 	$(SIL)$(OBJCOPY) -O binary $(BIN).elf $(BIN).img
 
