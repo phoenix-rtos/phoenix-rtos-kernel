@@ -13,7 +13,9 @@
  * %LICENSE%
  */
 
+#ifndef UART_CONSOLE
 #define UART_CONSOLE 1
+#endif
 
 #include "cpu.h"
 #include "console.h"
