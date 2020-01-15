@@ -47,7 +47,7 @@ struct {
 enum { ahb1_begin = pctl_dma1, ahb1_end = pctl_dma2d, ahb2_begin = pctl_gpioa, ahb2_end = pctl_rng,
 	ahb3_begin = pctl_fmc, ahb3_end = pctl_qspi, apb1_1_begin = pctl_tim2, apb1_1_end = pctl_lptim1,
 	apb1_2_begin = pctl_lpuart1, apb1_2_end = pctl_lptim2, apb2_begin = pctl_syscfg, apb2_end = pctl_dfsdm1,
-	misc_begin = pctl_rtc, misc_end = pctl_hsi };
+	misc_begin = pctl_rtc, misc_end = pctl_rtc };
 
 
 enum { rcc_cr = 0, rcc_icscr, rcc_cfgr, rcc_pllcfgr, rcc_pllsai1cfgr, rcc_pllsai2cfgr, rcc_cier, rcc_cifr,
@@ -145,36 +145,6 @@ void _stm32_platformInit(void)
 
 /* RCC (Reset and Clock Controller) */
 
-int _stm32_rccSetMSI(u32 on)
-{
-	if (on) {
-		if (!stm32_common.msi) {
-			/* Turn MSI on */
-			*(stm32_common.rcc + rcc_cr) |= 1;
-			hal_cpuDataBarrier();
-
-			/* Wait for MSIRDY flag */
-			while (!((*(stm32_common.rcc + rcc_cr)) & 2));
-		}
-
-		++stm32_common.msi;
-	}
-	else if (stm32_common.msi) {
-		--stm32_common.msi;
-
-		if (!stm32_common.msi) {
-			/* Disable MSI */
-			*(stm32_common.rcc + rcc_cr) &= ~1;
-			hal_cpuDataBarrier();
-
-			/* Wait for MSIRDY flag to clear */
-			while ((*(stm32_common.rcc + rcc_cr)) & 2);
-		}
-	}
-
-	return EOK;
-}
-
 
 int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 {
@@ -202,12 +172,6 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 		t = *(stm32_common.rcc + rcc_bdcr) & ~(1 << 15);
 		*(stm32_common.rcc + rcc_bdcr) = t | (hz << 15);
 	}
-	else if (d == pctl_msi) {
-		_stm32_rccSetMSI(hz);
-	}
-	else if (d == pctl_hsi) {
-		_stm32_rccSetHSI(hz);
-	}
 	else
 		return -EINVAL;
 
@@ -227,10 +191,6 @@ int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
 		*hz = !!(*(stm32_common.rcc + rcc_ahb3enr) & (1 << (d - ahb3_begin)));
 	else if (d == pctl_rtc)
 		*hz = !!(*(stm32_common.rcc + rcc_bdcr) & (1 << 15));
-	else if (d == pctl_msi)
-		*hz = !!(*(stm32_common.rcc + rcc_cr) & 1);
-	else if (d == pctl_hsi)
-		*hz = !!(*(stm32_common.rcc + rcc_cr) & (1 << 10));
 	else
 		return -EINVAL;
 
@@ -337,10 +297,10 @@ void _stm32_pwrSetCPUVolt(u8 range)
 		return;
 
 	t = *(stm32_common.pwr + pwr_cr1) & ~(3 << 9);
-	*(stm32_common.pwr + pwr_cr) = t | (range << 9);
+	*(stm32_common.pwr + pwr_cr1) = t | (range << 9);
 
 	/* Wait for VOSF flag */
-	while (*(stm32_common.pwr + pwr_csr) & (1 << 4));
+	while (*(stm32_common.pwr + pwr_sr2) & (1 << 10));
 }
 
 
@@ -450,7 +410,7 @@ void _stm32_rtcSetAlarm(u32 ms)
 	*(stm32_common.rtc + rtc_isr) &= ~(1 << 10);
 
 	/* Clear sleep status (CSBF and CWUF bits) */
-	*(stm32_common.pwr + pwr_cr) |= (3 << 2) | 1;
+	*(stm32_common.pwr + pwr_scr) |= 0x11f;
 
 	/* Clear wakeup timer and interrupt bits */
 	*(stm32_common.rtc + rtc_cr) &= ~((1 << 10) | (1 << 14));
@@ -582,7 +542,7 @@ void _stm32_nvicSystemReset(void)
 int _stm32_extiMaskInterrupt(u32 line, u8 state)
 {
 	u32 t;
-	u32 *base = line > 32 ? stm32_common.exti + exti_imr1 : stm32_common.exti + exti_imr2;
+	volatile u32 *base = line > 32 ? stm32_common.exti + exti_imr1 : stm32_common.exti + exti_imr2;
 
 	if (line > 40)
 		return -EINVAL;
@@ -599,7 +559,7 @@ int _stm32_extiMaskInterrupt(u32 line, u8 state)
 int _stm32_extiMaskEvent(u32 line, u8 state)
 {
 	u32 t;
-	u32 *base = line > 32 ? stm32_common.exti + exti_emr1 : stm32_common.exti + exti_emr2;
+	volatile u32 *base = line > 32 ? stm32_common.exti + exti_emr1 : stm32_common.exti + exti_emr2;
 
 	if (line > 40)
 		return -EINVAL;
@@ -815,7 +775,7 @@ void _stm32_init(void)
 	stm32_common.rtc = (void *)0x40002800;
 	stm32_common.nvic = (void *)0xe000e100;
 	stm32_common.exti = (void *)0x40010400;
-	stm32_common.stk = (void *)0xe000e010;
+	stm32_common.syst = (void *)0xe000e010;
 	stm32_common.mpu = (void *)0xe000ed90;
 	stm32_common.syscfg = (void *)0x40010000;
 	stm32_common.iwdg = (void *)0x40003000;
@@ -842,7 +802,7 @@ void _stm32_init(void)
 	_stm32_rccSetDevClock(pctl_pwr, 1);
 
 	/* Disable all interrupts */
-	*(stm32_common.rcc + rcc_cir) = 0;
+	*(stm32_common.rcc + rcc_cier) = 0;
 
 	hal_cpuDataBarrier();
 
