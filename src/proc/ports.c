@@ -49,7 +49,7 @@ obdes_t *port_obdesGet(port_t *port, id_t id)
 	t.id = id;
 
 	proc_lockSet(&port->odlock);
-	if ((od = lib_treeof(obdes_t, linkage, lib_rbFind(&port->obdes, &t))) == NULL) {
+	if ((od = lib_treeof(obdes_t, linkage, lib_rbFind(&port->obdes, &t.linkage))) == NULL) {
 		if ((od = vm_kmalloc(sizeof(*od))) != NULL) {
 			od->pipe = NULL;
 			od->refs = 1;
@@ -197,13 +197,6 @@ int port_create(port_t **port, u32 id)
 	}
 
 	*port = p;
-	return EOK;
-}
-
-
-static int port_release(iodes_t *file)
-{
-	port_put(file->port);
 	return EOK;
 }
 
