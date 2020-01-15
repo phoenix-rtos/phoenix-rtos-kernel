@@ -698,6 +698,20 @@ addr_t syscalls_va2pa(void *ustack)
 }
 
 
+int syscalls_sys_sigaction(void *ustack)
+{
+	int sig;
+	const struct sigaction *act;
+	struct sigaction *oact;
+
+	GETFROMSTACK(ustack, int, sig, 0);
+	GETFROMSTACK(ustack, const struct sigaction *, act, 1);
+	GETFROMSTACK(ustack, struct sigaction *, oact, 2);
+
+	return proc_sigaction(sig, act, oact);
+}
+
+
 void syscalls_signalHandle(void *ustack)
 {
 	void *handler;
@@ -710,7 +724,7 @@ void syscalls_signalHandle(void *ustack)
 
 	thread = proc_current();
 	thread->process->sigmask = (mask & mmask) | (thread->process->sigmask & ~mmask);
-	thread->process->sighandler = handler;
+	thread->process->sigtrampoline = handler;
 }
 
 
@@ -1385,14 +1399,21 @@ const char * const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
 void *syscalls_dispatch(int n, char *ustack)
 {
 	void *retval;
+	thread_t *current;
 
 	if (n >= sizeof(syscalls) / sizeof(syscalls[0]))
 		return (void *)-EINVAL;
 
 	retval = ((void *(*)(char *))syscalls[n])(ustack);
 
-	if (proc_current()->exit)
-		proc_threadEnd();
+	current = proc_current();
+
+	while (current->exit || current->stop) {
+		if (current->exit)
+			proc_threadEnd();
+		else if (current->stop)
+			proc_threadStop();
+	}
 
 	return retval;
 }

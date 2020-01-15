@@ -114,4 +114,5 @@
 	ID(portGet) \
 	ID(sys_recvmsg) \
 	ID(sys_sendmsg) \
-	ID(sys_socketPair)
+	ID(sys_socketPair) \
+	ID(sys_sigaction)

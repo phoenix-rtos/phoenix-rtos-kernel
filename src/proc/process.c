@@ -284,7 +284,6 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->group = NULL;
 	process->wait = NULL;
 	process->children = NULL;
-	process->zombies = NULL;
 	process->ppid = -1;
 	process->hcount = 0;
 	process->handles = NULL;
@@ -296,7 +295,11 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	process->sigpend = 0;
 	process->sigmask = 0;
-	process->sighandler = NULL;
+	process->sighandlers = NULL;
+	process->signum = 0;
+	process->sigtrampoline = NULL;
+
+	process->flags = 0;
 
 #ifndef NOMMU
 	process->lazy = 0;
@@ -811,6 +814,7 @@ void proc_exit(int code)
 	void *kstack;
 
 	current->process->exit = code;
+	current->process->signum = 0;
 
 	if ((spawn = current->execdata) != NULL) {
 		kstack = current->kstack = current->execkstack;
@@ -837,7 +841,23 @@ static void process_vforkThread(void *arg)
 
 	current->process->mapp = parent->process->mapp;
 	current->process->sigmask = parent->process->sigmask;
-	current->process->sighandler = parent->process->sighandler;
+
+	if (parent->process->sighandlers == NULL) {
+		current->process->sighandlers = NULL;
+	}
+	else {
+		if ((current->process->sighandlers = vm_kmalloc(NSIG * sizeof(current->process->sighandlers[0]))) == NULL) {
+			hal_spinlockSet(&spawn->sl);
+			spawn->state = -ENOMEM;
+			proc_threadWakeup(&spawn->wq);
+			hal_spinlockClear(&spawn->sl);
+
+			proc_threadEnd();
+		}
+
+		hal_memcpy(current->process->sighandlers, parent->process->sighandlers, NSIG * sizeof(current->process->sighandlers[0]));
+	}
+
 	pmap_switch(&current->process->mapp->pmap);
 
 	hal_spinlockSet(&spawn->sl);
@@ -1042,7 +1062,8 @@ static int process_execve(thread_t *current)
 	current->parentkstack = NULL;
 	current->execdata = NULL;
 
-	current->process->sighandler = NULL;
+	vm_kfree(current->process->sighandlers);
+	current->process->sighandlers = NULL;
 	current->process->sigpend = 0;
 
 	/* Close cloexec file descriptors */
@@ -1161,6 +1182,61 @@ int proc_exec(int dirfd, const char *path, char **argv, char **envp)
 	/* Not reached */
 
 	return 0;
+}
+
+
+int _proc_sigaction(thread_t *current, process_t *process, int sig, const struct sigaction *act, struct sigaction *oact)
+{
+	int i;
+
+	if (act == NULL && oact == NULL)
+		return -EINVAL;
+
+	if (process->sighandlers == NULL && act != NULL) {
+		process->sighandlers = vm_kmalloc(NSIG * sizeof(process->sighandlers[0]));
+		if (process->sighandlers == NULL)
+			return -ENOMEM;
+
+		for (i = 0; i < NSIG; ++i) {
+			process->sighandlers[i] = SIG_DFL;
+		}
+	}
+
+	if (oact != NULL) {
+		if (process->sighandlers == NULL)
+			oact->sa_handler = SIG_DFL;
+		else
+			oact->sa_handler = process->sighandlers[sig];
+
+		oact->sa_mask = 0;
+		oact->sa_flags = 0;
+	}
+
+	if (act != NULL) {
+		process->sighandlers[sig] = act->sa_handler;
+	}
+
+	return EOK;
+}
+
+
+int proc_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
+{
+	thread_t *current;
+	process_t *process;
+	int retval;
+
+	if (sig < 0 || sig >= NSIG)
+		return -EINVAL;
+
+	current = proc_current();
+	process = current->process;
+
+	process_lock(process);
+	retval = _proc_sigaction(current, process, sig, act, oact);
+	process_unlock(process);
+
+	return retval;
 }
 
 

@@ -24,6 +24,7 @@
 #include "msg.h"
 #include "ports.h"
 
+enum { signal_ignore, signal_terminate, signal_dump, signal_stop, signal_action };
 
 struct {
 	vm_map_t *kmap;
@@ -39,6 +40,7 @@ struct {
 
 	/* Synchronized by spinlock */
 	rbtree_t sleeping;
+	thread_t *stopped;
 
 	/* Synchronized by mutex */
 	unsigned int idcounter;
@@ -67,7 +69,7 @@ struct {
 
 static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
-static int _proc_threadWait(thread_t **queue, time_t timeout);
+static int _proc_threadWait(thread_t **queue, time_t timeout, int interruptible);
 
 
 static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
@@ -674,6 +676,8 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		LIST_REMOVE(&threads_common.ready[i], selected);
 
+		/* TODO: catch stopped threads here? who sends SIGCHLD, the reaper thread? */
+
 		if (!selected->exit || hal_cpuSupervisorMode(selected->context))
 			break;
 
@@ -690,13 +694,12 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 
 			/* Check for signals to handle */
-			if ((sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask) && proc->sighandler != NULL) {
+			if ((sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask)) {
 				sig = hal_cpuGetLastBit(sig);
+				selected->sigpend &= ~(1 << sig);
+				proc->sigpend &= ~(1 << sig);
 
-				if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, sig) == EOK) {
-					selected->sigpend &= ~(1 << sig);
-					proc->sigpend &= ~(1 << sig);
-				}
+				_threads_sigpost(selected->process, selected, sig);
 			}
 		}
 
@@ -880,6 +883,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->refs = 1;
 	t->interruptible = 0;
 	t->exit = 0;
+	t->stop = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
 
@@ -1009,16 +1013,22 @@ static void _proc_threadExit(thread_t *t)
 }
 
 
-void proc_threadsDestroy(thread_t **threads)
+static void _proc_threadsDestroy(thread_t **threads)
 {
 	thread_t *t;
 
-	hal_spinlockSet(&threads_common.spinlock);
 	if ((t = *threads) != NULL) {
 		do
 			_proc_threadExit(t);
 		while ((t = t->procnext) != *threads);
 	}
+}
+
+
+void proc_threadsDestroy(thread_t **threads)
+{
+	hal_spinlockSet(&threads_common.spinlock);
+	_proc_threadsDestroy(threads);
 	hal_spinlockClear(&threads_common.spinlock);
 }
 
@@ -1029,7 +1039,7 @@ void proc_reap(void)
 
 	hal_spinlockSet(&threads_common.spinlock);
 	while ((ghost = threads_common.ghosts) == NULL)
-		_proc_threadWait(&threads_common.reaper, 0);
+		_proc_threadWait(&threads_common.reaper, 0, 0);
 
 	LIST_REMOVE(&threads_common.ghosts, ghost);
 	hal_spinlockClear(&threads_common.spinlock);
@@ -1093,11 +1103,11 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 }
 
 
-static int _proc_threadWait(thread_t **queue, time_t timeout)
+static int _proc_threadWait(thread_t **queue, time_t timeout, int interruptible)
 {
 	int err;
 
-	_proc_threadEnqueue(queue, timeout, 0);
+	_proc_threadEnqueue(queue, timeout, interruptible);
 
 	if (*queue == NULL)
 		return EOK;
@@ -1238,6 +1248,64 @@ void proc_threadBroadcastYield(thread_t **queue)
 }
 
 
+void proc_threadStop(void)
+{
+	thread_t *current = proc_current();
+	process_t *parent;
+
+	parent = proc_find(current->process->ppid);
+
+	hal_spinlockSet(&threads_common.spinlock);
+	if (current->process->flags & PFL_STOPPED) { /* TODO: take SA_NOCLDSTOP into account */
+		_threads_sigpost(parent, NULL, SIGCHLD);
+	}
+	_proc_threadEnqueue(&threads_common.stopped, 0, 1);
+	current->state = STOPPED;
+	hal_cpuReschedule(&threads_common.spinlock);
+
+#if 0
+	/* Send SIGCHLD on continue? (optional) */
+	hal_spinlockSet(&threads_common.spinlock);
+	if (current->process->continued) {
+		_threads_sigpost(parent, NULL, SIGCHLD);
+	}
+	hal_spinlockClear(&threads_common.spinlock);
+#endif
+
+	proc_put(parent);
+}
+
+
+void _proc_threadsStop(thread_t **threads)
+{
+	thread_t *t;
+
+	t = *threads;
+	do {
+		t->stop = 1;
+		if (t->interruptible)
+			_thread_interrupt(t);
+	}
+	while ((t = t->procnext) != *threads);
+}
+
+
+static int _proc_threadsContinue(thread_t **threads)
+{
+	thread_t *t;
+
+	if ((t = *threads) != NULL) {
+		do {
+			t->stop = 0;
+			if (t->state == STOPPED)
+				_proc_threadDequeue(t);
+		}
+		while ((t = t->procnext) != *threads);
+	}
+	return EOK;
+}
+
+
 int proc_join(time_t timeout)
 {
 	int err;
@@ -1246,7 +1314,7 @@ int proc_join(time_t timeout)
 
 	hal_spinlockSet(&threads_common.spinlock);
 	while ((ghost = process->ghosts) == NULL) {
-		err = _proc_threadWait(&process->reaper, timeout);
+		err = _proc_threadWait(&process->reaper, timeout, 1);
 
 		if (err == -EINTR || err == -ETIME)
 			break;
@@ -1276,14 +1344,18 @@ int proc_child(process_t *child, process_t *parent)
 int proc_zombie(process_t *zombie, process_t *parent)
 {
 	hal_spinlockSet(&threads_common.spinlock);
-	LIST_REMOVE(&parent->children, zombie);
-	LIST_ADD(&parent->zombies, zombie);
+	zombie->flags |= PFL_ZOMBIE;
 	hal_spinlockClear(&threads_common.spinlock);
 
 	proc_threadBroadcastYield(&parent->wait);
 	threads_sigpost(parent, NULL, SIGCHLD);
 	return EOK;
 }
+
+
+#define W_EXITED(exit_code, signum) (((signum) << 8) | ((exit_code) & 0xff))
+#define W_STOPPED(signum) (((signum)) << 16)
+#define W_CONTINUED (SIGCONT << 16)
 
 
 int proc_waitpid(pid_t pid, int *status, int options)
@@ -1293,50 +1365,52 @@ int proc_waitpid(pid_t pid, int *status, int options)
 	int found = 0;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	do {
-		if ((c = p->zombies) == NULL) {
-			if (p->children == NULL) {
-				err = -ECHILD;
-				break;
-			}
-			else if (options & WNOHANG) {
-				err = EOK;
-				break;
-			}
-			else {
-				while ((c = p->zombies) == NULL && !err)
-					err = _proc_threadWait(&p->wait, 0);
-
-				if (err == -EINTR) {
-					hal_spinlockClear(&threads_common.spinlock);
-					return -EINTR;
-				}
-				else if (err) {
-					/* Should not happen */
-					break;
-				}
-			}
+	for (;;) {
+		if ((c = p->children) == NULL) {
+			err = -ECHILD;
+			break;
 		}
 
 		do {
-			if (pid == -1 || (c->group != NULL && !pid && c->group->id == p->group->id) ||
-			    (pid < 0 && c->group != NULL && c->group->id == -pid) || pid == c->id) {
-				LIST_REMOVE(&p->zombies, c);
+			if (pid != -1 && c->id != pid && p->group->id != -pid && !(!pid && p->group == c->group))
+				continue;
+
+			if (c->flags & PFL_ZOMBIE) {
 				found = 1;
+				LIST_REMOVE(&p->children, c);
+				if (status != NULL)
+					*status = W_EXITED(c->exit, c->signum);
+				break;
+			}
+			else if (c->flags & PFL_STOPPED) {
+				found = 1;
+				c->flags &= ~PFL_STOPPED;
+				if (status != NULL)
+					*status = W_STOPPED(c->signum);
+				break;
+			}
+			else if ((options & WCONTINUED) && (c->flags & PFL_CONTINUED)) {
+				found = 1;
+				c->flags &= ~PFL_CONTINUED;
+				if (status != NULL)
+					*status = W_CONTINUED;
+				break;
 			}
 		}
-		while (!found && (c = c->next) != p->zombies);
+		while ((c = c->next) != p->children);
+
+		if (found || options & WNOHANG)
+			break;
+
+		if ((err = _proc_threadWait(&p->wait, 0, 1)) == -EINTR)
+			break;
 	}
-	while (!found);
 	hal_spinlockClear(&threads_common.spinlock);
 
 	if (found) {
 		err = c->id;
-
-		if (status != NULL)
-			*status = c->exit;
-
-		proc_put(c);
+		if (c->flags & PFL_ZOMBIE)
+			proc_put(c);
 	}
 
 	return err;
@@ -1400,40 +1474,108 @@ time_t proc_nextWakeup(void)
  */
 
 
-int threads_sigpost(process_t *process, thread_t *thread, int sig)
+int _threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
+	static const char defaultActions[NSIG] = {
+		[0]         = signal_ignore,
+		[SIGHUP]    = signal_terminate,
+		[SIGINT]    = signal_terminate,
+		[SIGQUIT]   = signal_dump,
+		[SIGILL]    = signal_dump,
+		[SIGTRAP]   = signal_dump,
+		[SIGABRT]   = signal_dump,
+/*		[SIGIOT]    = signal_dump, same as SIGABRT */
+		[SIGEMT]    = signal_dump,
+		[SIGFPE]    = signal_dump,
+		[SIGKILL]   = signal_terminate,
+		[SIGBUS]    = signal_dump,
+		[SIGSEGV]   = signal_dump,
+		[SIGSYS]    = signal_dump,
+		[SIGPIPE]   = signal_terminate,
+		[SIGALRM]   = signal_terminate,
+		[SIGTERM]   = signal_terminate,
+		[SIGURG]    = signal_ignore,
+		[SIGSTOP]   = signal_stop,
+		[SIGTSTP]   = signal_stop,
+		[SIGCONT]   = signal_ignore,
+		[SIGCHLD]   = signal_ignore,
+		[SIGTTIN]   = signal_stop,
+		[SIGTTOU]   = signal_stop,
+		[SIGIO]     = signal_terminate,
+		[SIGXCPU]   = signal_dump,
+		[SIGXFSZ]   = signal_dump,
+		[SIGVTALRM] = signal_terminate,
+		[SIGPROF]   = signal_terminate,
+		[SIGWINCH]  = signal_ignore,
+		[SIGINFO]   = signal_terminate,
+		[SIGUSR1]   = signal_terminate,
+		[SIGUSR2]   = signal_terminate,
+	};
+
+	int action, retval;
+	addr_t handler;
 	int sigbit = 1 << sig;
-	int kill = 0;
 
-	switch (sig) {
-		case SIGSEGV:
-		case SIGILL:
-			if (process->sighandler != NULL)
-				break;
+	if (sig == SIGKILL) {
+		_proc_threadsDestroy(&process->threads);
+		process->signum = sig;
+		return signal_terminate;
+	}
 
-		/* passthrough */
-		case SIGKILL:
-			proc_kill(process);
+	if (sig == SIGSTOP) {
+		_proc_threadsStop(&process->threads);
+		process->flags |= PFL_STOPPED;
+		process->signum = sig;
+		return signal_stop;
+	}
 
-		/* passthrough */
-		case 0:
-			return EOK;
+	if (sig == SIGCONT) {
+		process->flags |= PFL_CONTINUED;
+		_proc_threadsContinue(&process->threads);
+		process->signum = sig;
+	}
 
-		default:
+	if (process->sighandlers != NULL)
+		handler = process->sighandlers[sig];
+	else
+		handler = SIG_DFL;
+
+	if (handler == SIG_DFL) {
+		action = defaultActions[sig];
+	}
+	else if (handler == SIG_IGN) {
+		action = signal_ignore;
+	}
+	else {
+		action = signal_action;
+	}
+
+	switch (action) {
+		case signal_ignore:
+			return signal_ignore;
+		case signal_terminate:
+		case signal_dump:
+			_proc_threadsDestroy(&process->threads);
+			process->signum = sig;
+			return action;
+		case signal_stop:
+			process->flags |= PFL_STOPPED;
+			_proc_threadsStop(&process->threads);
+			process->signum = sig;
+			return signal_stop;
+		case signal_action:
 			break;
 	}
 
-	hal_spinlockSet(&threads_common.spinlock);
-	if (thread != NULL && hal_cpuPushSignal(thread->kstack + thread->kstacksz, thread->process->sighandler, sig) != EOK) {
-		thread->sigpend |= sigbit;
+	retval = signal_action;
 
-		if (sig == SIGSEGV || sig == SIGILL) {
-			/* If they can't handle those right away, kill */
-			kill = 1;
-			_proc_threadExit(thread);
-		}
+	if (thread != NULL && hal_cpuPushSignal(thread->kstack + thread->kstacksz, process->sigtrampoline, handler, sig) != EOK) {
+		retval = -EAGAIN;
+		thread->sigpend |= sigbit;
+		/* FIXME: SIGSEGV, SIGILL, SIGFPE */
 	}
 	else {
+		retval = -EAGAIN;
 		process->sigpend |= sigbit;
 		thread = process->threads;
 
@@ -1447,12 +1589,28 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 		while ((thread = thread->procnext) != process->threads);
 	}
-	hal_cpuReschedule(&threads_common.spinlock);
 
-	if (kill)
-		proc_kill(process);
+	return retval;
+}
 
-	return EOK;
+
+int threads_sigpost(process_t *process, thread_t *thread, int sig)
+{
+	int error;
+
+	hal_spinlockSet(&threads_common.spinlock);
+	error = _threads_sigpost(process, thread, sig);
+	hal_spinlockClear(&threads_common.spinlock);
+
+	switch (error) {
+		case signal_stop:
+			break;
+		case signal_terminate:
+		case signal_dump:
+			break;
+	}
+
+	return error;
 }
 
 
@@ -1753,6 +1911,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.utcoffs = 0;
 	threads_common.idcounter = 0;
 	threads_common.jiffies = 0;
+	threads_common.stopped = NULL;
 
 	threads_common.perfGather = 0;
 

@@ -25,6 +25,10 @@
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
+#define PFL_STOPPED 1
+#define PFL_CONTINUED 2
+#define PFL_ZOMBIE 4
+
 typedef struct _process_t {
 	lock_t lock;
 
@@ -44,7 +48,6 @@ typedef struct _process_t {
 		map_entry_t *entries;
 	};
 	vm_map_t *mapp;
-	int exit;
 
 	unsigned lazy : 1;
 	unsigned lgap : 1;
@@ -56,11 +59,15 @@ typedef struct _process_t {
 
 	unsigned sigpend;
 	unsigned sigmask;
-	void *sighandler;
+	void *sigtrampoline;
+	addr_t *sighandlers;
+
+	unsigned char signum;
+	unsigned exit;
+	unsigned flags;
 
 	struct _thread_t *wait;
 	struct _process_t *children;
-	struct _process_t *zombies;
 	struct _process_t *next, *prev;
 
 	struct _process_group_t *group;

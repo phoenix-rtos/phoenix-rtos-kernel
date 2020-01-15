@@ -20,6 +20,7 @@
 enum {
 	WNOHANG = 1 << 0,
 	WUNTRACED = 1 << 1,
+	WCONTINUED = 1 << 2,
 };
 
 

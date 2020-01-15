@@ -31,7 +31,7 @@ enum { PREFORK = 0, FORKING = 1, FORKED };
 /* Child thread states */
 enum { OWNSTACK = 0, PARENTSTACK };
 
-enum { READY = 0, SLEEP };
+enum { READY = 0, SLEEP, STOPPED };
 
 typedef struct {
 	cycles_t cycl[10];
@@ -64,7 +64,8 @@ typedef struct _thread_t {
 
 	unsigned priority : 4;
 	unsigned exit : 1;
-	unsigned state : 1;
+	unsigned stop : 1;
+	unsigned state : 2;
 	unsigned interruptible : 1;
 
 	unsigned sigmask;
