@@ -5,7 +5,7 @@
  *
  * STM32L4 basic peripherals control functions
  *
- * Copyright 2019 Phoenix Systems
+ * Copyright 2020 Phoenix Systems
  * Author: Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.

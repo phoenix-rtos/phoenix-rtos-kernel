@@ -5,7 +5,7 @@
  *
  * STM32 basic peripherals control functions
  *
- * Copyright 2017 Phoenix Systems
+ * Copyright 2020 Phoenix Systems
  * Author: Aleksander Kaminski, Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.

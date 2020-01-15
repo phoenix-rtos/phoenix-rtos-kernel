@@ -5,7 +5,7 @@
  *
  * HAL console (STM32L4 USART)
  *
- * Copyright 2016-2017, 2019 Phoenix Systems
+ * Copyright 2016-2017, 2019-2020 Phoenix Systems
  * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
