@@ -51,9 +51,11 @@ enum { ahb1_begin = pctl_dma1, ahb1_end = pctl_dma2d, ahb2_begin = pctl_gpioa, a
 
 
 enum { rcc_cr = 0, rcc_icscr, rcc_cfgr, rcc_pllcfgr, rcc_pllsai1cfgr, rcc_pllsai2cfgr, rcc_cier, rcc_cifr,
-	rcc_cicr, rcc_ahb1rstr, rcc_ahb2rstr, rcc_ahb3rstr, rcc_apb1rstr1, rcc_apb1rstr2, rcc_apb2rstr, rcc_ahb1enr,
-	rcc_ahb2enr, rcc_ahb3enr, rcc_apb1enr1, rcc_apb1enr2, rcc_apb2enr, rcc_ahb1smenr, rcc_ahb2smenr, rcc_ahb3smenr,
-	rcc_apb1smenr1, rcc_apb1smenr2, rcc_apb2smenr, rcc_ccipr, rcc_bdcr, rcc_csr, rcc_crrcr, rcc_ccipr2 };
+	rcc_cicr, rcc_ahb1rstr = rcc_cicr + 2, rcc_ahb2rstr, rcc_ahb3rstr, rcc_apb1rstr1 = rcc_ahb3rstr + 2,
+	rcc_apb1rstr2, rcc_apb2rstr, rcc_ahb1enr = rcc_apb2rstr + 2, rcc_ahb2enr, rcc_ahb3enr,
+	rcc_apb1enr1 = rcc_ahb3enr + 2, rcc_apb1enr2, rcc_apb2enr, rcc_ahb1smenr = rcc_apb2enr + 2,
+	rcc_ahb2smenr, rcc_ahb3smenr, rcc_apb1smenr1 = rcc_ahb3smenr + 2, rcc_apb1smenr2, rcc_apb2smenr,
+	rcc_ccipr = rcc_apb2smenr + 2, rcc_bdcr = rcc_ccipr + 2, rcc_csr, rcc_crrcr, rcc_ccipr2 };
 
 
 enum { gpio_moder = 0, gpio_otyper, gpio_ospeedr, gpio_pupdr, gpio_idr,
@@ -65,9 +67,9 @@ enum { pwr_cr1 = 0, pwr_cr2, pwr_cr3, pwr_cr4, pwr_sr1, pwr_sr2, pwr_scr, pwr_pu
 	pwr_pucrg, pwr_pdcrg, pwr_pucrh, pwr_pdcrh, pwr_pucri, pwr_pdcri };
 
 
-enum { rtc_tr = 0, rtc_dr, rtc_cr, rtc_isr, rtc_prer, rtc_wutr, rtc_alrmar, rtc_alrmbr, rtc_wpr, rtc_ssr,
-	rtc_shiftr, rtc_tstr, rtc_tsdr, rtc_tsssr, rtc_calr, rtc_tampcr, rtc_alrmassr, rtc_alrmbssr, rtc_or,
-	rtc_bkp0r, rtc_bkp31r };
+enum { rtc_tr = 0, rtc_dr, rtc_cr, rtc_isr, rtc_prer, rtc_wutr, rtc_alrmar = rtc_wutr + 2, rtc_alrmbr, rtc_wpr,
+	rtc_ssr, rtc_shiftr, rtc_tstr, rtc_tsdr, rtc_tsssr, rtc_calr, rtc_tampcr, rtc_alrmassr, rtc_alrmbssr, rtc_or,
+	rtc_bkpr };
 
 
 enum { scb_actlr = 2, scb_cpuid = 3328, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp1, scb_shp2,
@@ -857,6 +859,8 @@ void _stm32_init(void)
 
 	/* And wait for it to turn on */
 	while (!(*(stm32_common.rcc + rcc_bdcr) & (1 << 1)));
+
+	*(stm32_common.rcc + rcc_bdcr) |= 1 << 25;
 
 	/* Initialize RTC */
 
