@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * STM32 basic peripherals control functions
+ * STM32L4 basic peripherals control functions
  *
  * Copyright 2020 Phoenix Systems
  * Author: Aleksander Kaminski, Pawel Pisarczyk
