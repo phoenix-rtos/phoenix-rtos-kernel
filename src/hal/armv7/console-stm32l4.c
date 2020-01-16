@@ -21,8 +21,6 @@
 
 struct {
 	volatile u32 *base;
-	u8 txpin;
-	u8 rxpin;
 	unsigned cpufreq;
 } console_common;
 
@@ -70,8 +68,6 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	u8 port, txpin, rxpin, af = 7;
-
 	struct {
 		void *base;
 		u8 uart;
@@ -83,22 +79,17 @@ void _hal_consoleInit(void)
 		{ (void *)0x40005000, pctl_uart5 }  /* UART5 */
 	};
 
-	const int uart = 2;
-	port = pctl_gpiod;
-	txpin = 5;
-	rxpin = 6;
+	const int uart = 1, port = pctl_gpiod, txpin = 5, rxpin = 6, af = 7;
 
 	_stm32_rccSetDevClock(port, 1);
 
 	console_common.base = uarts[uart].base;
-	console_common.txpin = txpin;
-	console_common.rxpin = rxpin;
 
 	/* Init tx pin - output, push-pull, high speed, no pull-up */
-	_stm32_gpioConfig(port, console_common.txpin, 2, af, 0, 2, 0);
+	_stm32_gpioConfig(port, txpin, 2, af, 0, 2, 0);
 
 	/* Init rxd pin - input, push-pull, high speed, no pull-up */
-	_stm32_gpioConfig(port, console_common.rxpin, 2, af, 0, 2, 0);
+	_stm32_gpioConfig(port, rxpin, 2, af, 0, 2, 0);
 
 	/* Enable uart clock */
 	_stm32_rccSetDevClock(uarts[uart].uart, 1);
@@ -107,12 +98,14 @@ void _hal_consoleInit(void)
 
 	/* Set up UART to 9600,8,n,1 16-bit oversampling */
 	*(console_common.base + cr1) &= ~1;   /* disable USART */
-
+	hal_cpuDataBarrier();
 	*(console_common.base + cr1) = 0xa;
 	*(console_common.base + cr2) = 0;
 	*(console_common.base + cr3) = 0;
 	*(console_common.base + brr) = console_common.cpufreq / 9600; /* 9600 baud rate */
+	hal_cpuDataBarrier();
 	*(console_common.base + cr1) |= 1;
+	hal_cpuDataBarrier();
 
 	_hal_consolePrint("\033c");
 	_hal_consolePrint("\033[2J");
