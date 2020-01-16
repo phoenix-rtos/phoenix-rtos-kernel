@@ -334,6 +334,7 @@ int _sun_accept(process_t *process, struct _sun_t *socket, struct sockaddr *addr
 		file_put(file);
 	}
 	else {
+		new = file->sun;
 		LIST_REMOVE(&socket->connection, peer);
 		new->connection = peer;
 		peer->connection = new;
