@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * STM32 basic peripherals control functions
+ * STM32L1 basic peripherals control functions
  *
  * Copyright 2017 Phoenix Systems
  * Author: Aleksander Kaminski, Pawel Pisarczyk
@@ -45,6 +45,10 @@ struct {
 
 	spinlock_t pltctlSp;
 } stm32_common;
+
+
+enum { ahb_begin = pctl_gpioa, ahb_end = pctl_fsmc, apb2_begin = pctl_syscfg, apb2_end = pctl_usart1,
+	apb1_begin = pctl_tim2, apb1_end = pctl_comp, misc_begin = pctl_rtc, misc_end = pctl_hsi };
 
 
 enum { rcc_cr = 0, rcc_icscr, rcc_cfgr, rcc_cir, rcc_ahbrstr, rcc_apb2rstr, rcc_apb1rstr,
@@ -109,7 +113,7 @@ int hal_platformctl(void *ptr)
 	case pctl_cpuclk:
 		if (data->action == pctl_set) {
 			ret = _stm32_rccSetCPUClock(data->cpuclk.hz);
-			_stm32_systickInit(1000);
+			_stm32_systickInit(SYSTICK_INTERVAL);
 		}
 		else if (data->action == pctl_get) {
 			data->cpuclk.hz = _stm32_rccGetCPUClock();

@@ -3,9 +3,9 @@
  *
  * Operating system kernel
  *
- * HAL console (STM32 USART)
+ * HAL console (STM32L4 USART)
  *
- * Copyright 2016-2017 Phoenix Systems
+ * Copyright 2016-2017, 2019-2020 Phoenix Systems
  * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
@@ -27,7 +27,7 @@ struct {
 } console_common;
 
 
-enum { sr = 0, dr, brr, cr1, cr2, cr3, gtpr };
+enum { cr1 = 0, cr2, cr3, brr, gtpr, rtor, rqr, isr, icr, rdr, tdr };
 
 
 void _hal_consolePrint(const char *s)
@@ -35,7 +35,7 @@ void _hal_consolePrint(const char *s)
 	unsigned cpufreq;
 
 	while (*s) {
-		if (~(*(console_common.base + sr)) & 0x80)
+		if (~(*(console_common.base + isr)) & 0x80)
 			continue;
 
 		cpufreq = _stm32_rccGetCPUClock();
@@ -43,15 +43,15 @@ void _hal_consolePrint(const char *s)
 		if (cpufreq != console_common.cpufreq) {
 			console_common.cpufreq = cpufreq;
 
-			*(console_common.base + cr1) &= ~(1 << 13);
+			*(console_common.base + cr1) &= ~1;
 			*(console_common.base + brr) = cpufreq / 9600;
-			*(console_common.base + cr1) |= 1 << 13;
+			*(console_common.base + cr1) |= 1;
 		}
 
-		*(console_common.base + dr) = *(s++);
+		*(console_common.base + tdr) = *(s++);
 	}
 
-	while (~(*(console_common.base + sr)) & 0x80);
+	while (~(*(console_common.base + isr)) & 0x80);
 
 	return;
 }
@@ -83,11 +83,10 @@ void _hal_consoleInit(void)
 		{ (void *)0x40005000, pctl_uart5 }  /* UART5 */
 	};
 
-	const int uart = 3;
-	port = pctl_gpioc;
-	txpin = 10;
-	rxpin = 11;
-	af = 8;
+	const int uart = 2;
+	port = pctl_gpiod;
+	txpin = 5;
+	rxpin = 6;
 
 	_stm32_rccSetDevClock(port, 1);
 
@@ -107,12 +106,13 @@ void _hal_consoleInit(void)
 	console_common.cpufreq = _stm32_rccGetCPUClock();
 
 	/* Set up UART to 9600,8,n,1 16-bit oversampling */
-	*(console_common.base + cr1) &= ~0x2000;   /* disable USART */
-	*(console_common.base + cr2) = 0;          /* 1 start, 1 stop bit */
-	*(console_common.base + cr1) = 0x8 | 0x4;  /* enable receiver, enable transmitter */
-	*(console_common.base + cr3) = 0;          /* no aditional settings */
+	*(console_common.base + cr1) &= ~1;   /* disable USART */
+
+	*(console_common.base + cr1) = 0xa;
+	*(console_common.base + cr2) = 0;
+	*(console_common.base + cr3) = 0;
 	*(console_common.base + brr) = console_common.cpufreq / 9600; /* 9600 baud rate */
-	*(console_common.base + cr1) |= 0x2000;
+	*(console_common.base + cr1) |= 1;
 
 	_hal_consolePrint("\033c");
 	_hal_consolePrint("\033[2J");

@@ -131,16 +131,6 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
-int hal_interruptsSetGpioInterrupt(unsigned char port, unsigned char pin, char state, char edge)
-{
-	_stm32_syscfgExtiLineConfig(port, pin);
-	_stm32_extiMaskInterrupt(pin, state);
-	_stm32_extiSetTrigger(pin, state, edge);
-
-	return EOK;
-}
-
-
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int n;

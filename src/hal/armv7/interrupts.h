@@ -58,9 +58,6 @@ extern int hal_interruptsSetHandler(intr_handler_t *h);
 extern int hal_interruptsDeleteHandler(intr_handler_t *h);
 
 
-extern int hal_interruptsSetGpioInterrupt(unsigned char port, unsigned char pin, char state, char edge);
-
-
 /* Function initializes interrupt handling */
 extern void _hal_interruptsInit(void);
 
