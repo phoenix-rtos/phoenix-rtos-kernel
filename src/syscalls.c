@@ -532,60 +532,55 @@ u32 syscalls_portRegister(void *ustack)
 
 int syscalls_portEvent(char *ustack)
 {
-	int portfd;
+	int porth;
 	id_t id;
 	int events;
 
-	GETFROMSTACK(ustack, int, portfd, 0);
+	GETFROMSTACK(ustack, int, porth, 0);
 	GETFROMSTACK(ustack, id_t, id, 1);
 	GETFROMSTACK(ustack, int, events, 2);
 
-	return proc_event(portfd, id, events);
+	return proc_event(porth, id, events);
 }
 
 
 int syscalls_msgSend(void *ustack)
 {
-	int portfd;
+	int porth;
 	msg_t *msg;
 
-	GETFROMSTACK(ustack, int, portfd, 0);
+	GETFROMSTACK(ustack, int, porth, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 
-	/* FIXME */
-	return port_send(proc_current()->process->handles[portfd].file->port, msg);
+	return proc_msgSend(porth, msg);
 }
 
 
-int syscalls_msgRecv(void *ustack)
+int syscalls_portRecv(void *ustack)
 {
-	int portfd;
+	int porth;
 	msg_t *msg;
-	unsigned int *rid;
 
-	GETFROMSTACK(ustack, int, portfd, 0);
+	GETFROMSTACK(ustack, int, porth, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
-	GETFROMSTACK(ustack, unsigned int *, rid, 2);
 
-	/* FIXME */
-	return port_recv(proc_current()->process->handles[portfd].file->port, msg, rid);
+	return proc_msgRecv(porth, msg);
 }
 
 
 int syscalls_msgRespond(void *ustack)
 {
-	int portfd;
+	int porth;
 	msg_t *msg;
-	unsigned int rid;
+	unsigned int msgh;
 	int error;
 
-	GETFROMSTACK(ustack, int, portfd, 0);
+	GETFROMSTACK(ustack, int, porth, 0);
 	GETFROMSTACK(ustack, int, error, 1);
 	GETFROMSTACK(ustack, msg_t *, msg, 2);
-	GETFROMSTACK(ustack, unsigned int, rid, 3);
+	GETFROMSTACK(ustack, int, msgh, 3);
 
-	/* FIXME */
-	return port_respond(proc_current()->process->handles[portfd].file->port, error, msg, rid);
+	return proc_msgRespond(porth, msgh, error, msg);
 }
 
 

@@ -43,7 +43,7 @@
 	ID(portRegister) \
 	ID(portEvent) \
 	ID(msgSend) \
-	ID(msgRecv) \
+	ID(portRecv) \
 	ID(msgRespond) \
 	ID(lookup) \
 	ID(gettime) \

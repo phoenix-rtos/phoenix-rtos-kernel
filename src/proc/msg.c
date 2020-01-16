@@ -334,7 +334,7 @@ int proc_send(u32 port, msg_t *msg)
 }
 
 
-int port_recv(port_t *p, msg_t *msg, unsigned int *rid)
+int port_recv(port_t *p, msg_t *msg, kmsg_t **rkmsg)
 {
 	kmsg_t *kmsg;
 	int ipacked = 0, opacked = 0, closed, err = EOK;
@@ -365,8 +365,7 @@ int port_recv(port_t *p, msg_t *msg, unsigned int *rid)
 	if (err != EOK)
 		return err;
 
-	/* (MOD) */
-	(*rid) = (unsigned long)(kmsg);
+	(*rkmsg) = kmsg;
 
 	kmsg->i.bvaddr = NULL;
 	kmsg->i.boffs = 0;
@@ -421,7 +420,7 @@ int port_recv(port_t *p, msg_t *msg, unsigned int *rid)
 	return EOK;
 }
 
-
+#if 0
 int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 {
 	port_t *p = port_get(port);
@@ -429,12 +428,11 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 	port_put(p);
 	return err;
 }
+#endif
 
-
-int port_respond(port_t *p, int error, msg_t *msg, unsigned int rid)
+int port_respond(port_t *p, int error, msg_t *msg, kmsg_t *kmsg)
 {
 	size_t s = 0;
-	kmsg_t *kmsg = (kmsg_t *)(unsigned long)rid;
 	kmsg->msg.error = error;
 
 	/* Copy shadow pages */
@@ -463,7 +461,7 @@ int port_respond(port_t *p, int error, msg_t *msg, unsigned int rid)
 	return s;
 }
 
-
+#if 0
 int proc_respond(u32 port, int error, msg_t *msg, unsigned int rid)
 {
 	port_t *p = port_get(port);
@@ -471,7 +469,7 @@ int proc_respond(u32 port, int error, msg_t *msg, unsigned int rid)
 	port_put(p);
 	return err;
 }
-
+#endif
 
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel)
 {

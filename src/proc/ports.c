@@ -95,7 +95,7 @@ int port_event(port_t *port, id_t id, int events)
 	t.id = id;
 
 	proc_lockSet(&port->odlock);
-	if ((od = lib_treeof(obdes_t, linkage, lib_rbFind(&port->obdes, &t))) != NULL)
+	if ((od = lib_treeof(obdes_t, linkage, lib_rbFind(&port->obdes, &t.linkage))) != NULL)
 		poll_signal(&od->queue, events);
 	proc_lockClear(&port->odlock);
 	return EOK;

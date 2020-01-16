@@ -23,6 +23,10 @@
 #include "process.h"
 #include "event.h"
 
+
+struct _msg_t;
+
+
 typedef struct _hades_t hades_t;
 
 typedef struct _iodes_t iodes_t;
@@ -71,8 +75,19 @@ struct _iodes_t {
 };
 
 
+#define HD_TYPE(flags) (((flags) >> 8) & 0xff)
+#define HD_MESSAGE (hades_msg << 8)
+
+
+enum { hades_io = 0, hades_msg };
+
+
 struct _hades_t {
-	iodes_t *file;
+	union {
+		iodes_t *file;
+		struct _kmsg_t *msg;
+	};
+
 	int flags;
 };
 
@@ -224,6 +239,15 @@ extern int proc_netSetsockopt(int socket, int level, int optname, const void *op
 
 
 extern int proc_netSocket(int domain, int type, int protocol);
+
+
+extern int proc_msgRespond(int porth, int handle, int error, struct _msg_t *msg);
+
+
+extern int proc_msgSend(int handle, struct _msg_t *msg);
+
+
+extern int proc_msgRecv(int handle, struct _msg_t *msg);
 
 
 extern void _file_init(void);

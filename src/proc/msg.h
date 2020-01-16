@@ -60,16 +60,16 @@ extern int proc_send(u32 port, msg_t *msg);
 extern int proc_recv(u32 port, msg_t *msg, unsigned int *rid);
 
 
-extern int proc_respond(u32 port, int error, msg_t *msg, unsigned int rid);
+extern int proc_respond(u32 port, int error, msg_t *msg, kmsg_t *kmsg);
 
 
 extern int port_send(struct _port_t *port, msg_t *msg);
 
 
-extern int port_recv(struct _port_t *port, msg_t *msg, unsigned int *rid);
+extern int port_recv(struct _port_t *port, msg_t *msg, kmsg_t **rkmsg);
 
 
-extern int port_respond(struct _port_t *port, int error, msg_t *msg, unsigned int rid);
+extern int port_respond(struct _port_t *port, int error, msg_t *msg, kmsg_t *kmsg);
 
 
 extern void _msg_init(vm_map_t *kmap, vm_object_t *kernel);

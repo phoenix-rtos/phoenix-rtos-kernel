@@ -5,7 +5,7 @@
  *
  * File
  *
- * Copyright 2019 Phoenix Systems
+ * Copyright 2019, 2020 Phoenix Systems
  * Author: Jan Sikorski
  *
  * This file is part of Phoenix-RTOS.
@@ -557,8 +557,11 @@ static int _fd_close(process_t *p, int handle)
 
 	if (handle < 0 || handle >= p->hcount || (file = p->handles[handle].file) == NULL)
 		return -EBADF;
+
 	p->handles[handle].file = NULL;
-	file_put(file);
+
+	if (HD_TYPE(p->handles[handle].flags) == hades_io)
+		file_put(file);
 
 	return error;
 }
@@ -591,7 +594,7 @@ static iodes_t *_file_get(process_t *p, int handle)
 {
 	iodes_t *f;
 
-	if (handle < 0 || handle >= p->hcount || (f = p->handles[handle].file) == NULL)
+	if (handle < 0 || handle >= p->hcount || (f = p->handles[handle].file) == NULL || HD_TYPE(p->handles[handle].flags) != hades_io)
 		return NULL;
 
 	file_ref(f);
@@ -2236,6 +2239,94 @@ int proc_netSocket(int domain, int type, int protocol)
 	}
 
 	return err;
+}
+
+
+static kmsg_t *kmsg_get(process_t *p, int handle)
+{
+	kmsg_t *kmsg;
+	if (handle < 0 || handle >= p->hcount || (kmsg = p->handles[handle].msg) == NULL || HD_TYPE(p->handles[handle].flags) != hades_msg) {
+		kmsg = NULL;
+	}
+	return kmsg;
+}
+
+
+int proc_msgRespond(int porth, int handle, int error, msg_t *msg)
+{
+	process_t *process = proc_current()->process;
+	iodes_t *portdes;
+	kmsg_t *kmsg;
+
+	if ((portdes = file_get(process, porth)) == NULL)
+		return -EBADF;
+
+	if (portdes->type != ftPort) {
+		file_put(portdes);
+		return -EBADF;
+	}
+
+	process_lock(process);
+	if ((kmsg = kmsg_get(process, handle)) == NULL) {
+		process_unlock(process);
+		file_put(portdes);
+		return -EBADF;
+	}
+
+	error = port_respond(portdes->port, error, msg, kmsg);
+	_fd_close(process, handle);
+	process_unlock(process);
+	file_put(portdes);
+	return error;
+}
+
+
+int proc_msgSend(int handle, msg_t *msg)
+{
+	iodes_t *portdes;
+	process_t *process = proc_current()->process;
+	int error;
+
+	if ((portdes = file_get(process, handle)) == NULL)
+		return -EBADF;
+
+	if (portdes->type != ftPort) {
+		file_put(portdes);
+		return -EBADF;
+	}
+
+	error = port_send(portdes->port, msg);
+	file_put(portdes);
+	return error;
+}
+
+
+int proc_msgRecv(int handle, msg_t *msg)
+{
+	iodes_t *portdes;
+	process_t *process = proc_current()->process;
+	kmsg_t *kmsg;
+	int error;
+
+	if ((portdes = file_get(process, handle)) == NULL)
+		return -EBADF;
+
+	if (portdes->type != ftPort) {
+		file_put(portdes);
+		return -EBADF;
+	}
+
+	if ((error = port_recv(portdes->port, msg, &kmsg)) < 0) {
+		file_put(portdes);
+		return error;
+	}
+
+	if ((error = fd_new(process, 0, HD_MESSAGE, kmsg)) < 0) {
+		port_respond(portdes->port, error, msg, kmsg);
+	}
+
+	file_put(portdes);
+	return error;
 }
 
 
