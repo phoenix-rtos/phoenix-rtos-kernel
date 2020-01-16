@@ -2268,13 +2268,12 @@ int proc_msgRespond(int porth, int handle, int error, msg_t *msg)
 
 	process_lock(process);
 	if ((kmsg = kmsg_get(process, handle)) == NULL) {
-		process_unlock(process);
-		file_put(portdes);
-		return -EBADF;
+		error = -EBADF;
 	}
-
-	error = port_respond(portdes->port, error, msg, kmsg);
-	_fd_close(process, handle);
+	else {
+		error = port_respond(portdes->port, error, msg, kmsg);
+		_fd_close(process, handle);
+	}
 	process_unlock(process);
 	file_put(portdes);
 	return error;
