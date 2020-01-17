@@ -5,7 +5,7 @@
  *
  * STM32L1 basic peripherals control functions
  *
- * Copyright 2018, 2019 Phoenix Systems
+ * Copyright 2018, 2019, 2020 Phoenix Systems
  * Author: Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
@@ -26,7 +26,7 @@
 #define LPWRRSTF (1 << 5)
 
 
-/* STM32 peripherals */
+/* STM32L1 peripherals */
 enum {
 	/* AHB */
 	pctl_gpioa = 0, pctl_gpiob, pctl_gpioc, pctl_gpiod, pctl_gpioe, pctl_gpioh, pctl_gpiof,
@@ -46,7 +46,7 @@ enum {
 };
 
 
-/* STM32 Interrupt numbers */
+/* STM32L1 Interrupt numbers */
 enum { wwdq_irq = 16, pvd_irq, tamper_stamp_irq, rtc_wkup_irq, flash_irq, rcc_irq,
 	exti0_irq, exti1_irq, exti2_irq, exti3_irq, exti4_irq, dma1ch1_irq, dma1ch2_irq,
 	dma1ch3_irq, dma1ch4_irq, dma1ch5_irq, dma1ch6_irq, dma1ch7_irq, adc1_irq,
