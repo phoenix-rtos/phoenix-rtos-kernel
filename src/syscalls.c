@@ -71,6 +71,10 @@ int syscalls_memMap(void *ustack)
 	else if (fd == FD_PHYSMEM) {
 		o = (void *)-1;
 	}
+	else if (fd == FD_CONTIGUOUS) {
+		if ((err = vm_objectContiguous(&o, size)) < 0)
+			return err;
+	}
 	else if ((file = file_get(proc_current()->process, fd)) != NULL) {
 		err = vm_objectGet(&o, file);
 		file_put(file);

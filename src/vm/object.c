@@ -42,9 +42,6 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 	vm_object_t *o2 = lib_treeof(vm_object_t, linkage, n2);
 	int retval;
 
-	if (o1->file == NULL || o2->file == NULL)
-		return (o1->file == NULL) - (o2->file == NULL);
-
 	if ((retval = (o1->file->fs.id > o2->file->fs.id) - (o1->file->fs.id < o2->file->fs.id)))
 		return retval;
 
@@ -55,17 +52,59 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 static void object_destroy(vm_object_t *o)
 {
 	int i;
+	page_t *p;
+	size_t size = round_page(o->size);
+
 	proc_lockDone(&o->lock);
 
+	for (i = 0; size > 0; ) {
+		p = o->pages[i];
+		size -= 1 << p->idx;
+		i += (1 << p->idx) / SIZE_PAGE;
+		vm_pageFree(p);
+	}
+
+#if 0
 	for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
 		if (o->pages[i] != NULL)
 			vm_pageFree(o->pages[i]);
 	}
+#endif
 
 	if (o->file != NULL)
 		file_put(o->file);
 
 	vm_kfree(o);
+}
+
+
+int vm_objectContiguous(vm_object_t **object, size_t size)
+{
+	vm_object_t *o;
+	page_t *p;
+	int i, n;
+
+	if ((p = vm_pageAlloc(size, PAGE_OWNER_APP)) == NULL)
+		return -ENOMEM;
+
+	size = 1 << p->idx;
+	n = size / SIZE_PAGE;
+
+	if ((o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
+		vm_pageFree(p);
+		return -ENOMEM;
+	}
+
+	hal_memset(o, 0, sizeof(*o));
+	o->refs = 1;
+	o->size = size;
+	proc_lockInit(&o->lock);
+
+	for (i = 0; i < size / SIZE_PAGE; ++i)
+		o->pages[i] = p + i;
+
+	*object = o;
+	return EOK;
 }
 
 
@@ -143,7 +182,10 @@ int vm_objectPut(vm_object_t *o)
 		proc_lockClear(&object_common.lock);
 		return EOK;
 	}
-	lib_rbRemove(&object_common.tree, &o->linkage);
+
+	if (o->file != NULL)
+		lib_rbRemove(&object_common.tree, &o->linkage);
+
 	proc_lockClear(&object_common.lock);
 	object_destroy(o);
 	return EOK;
@@ -245,10 +287,8 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 	lib_rbInit(&object_common.tree, object_cmp, NULL);
 
 	kernel->file = NULL;
-	lib_rbInsert(&object_common.tree, &kernel->linkage);
+	kernel->refs = 1;
 	proc_lockInit(&kernel->lock);
-
-	vm_objectGet(&o, NULL);
 
 	return EOK;
 }
