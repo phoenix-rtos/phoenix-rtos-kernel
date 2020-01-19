@@ -20,9 +20,14 @@
 #define SIZE_PAGE 0x1000
 
 
-/* Size of thread kernel stack */
+/* Default kernel and user stack sizes */
+#ifndef SIZE_KSTACK
 #define SIZE_KSTACK (8 * 512)
+#endif
+
+#ifndef SIZE_USTACK
 #define SIZE_USTACK (8 * SIZE_PAGE)
+#endif
 
 
 #define NULL 0
