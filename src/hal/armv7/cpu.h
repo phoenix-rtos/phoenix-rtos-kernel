@@ -20,17 +20,21 @@
 
 #define SIZE_PAGE       0x200
 
-#ifdef CPU_IMXRT
+#ifndef SIZE_USTACK
 #define SIZE_USTACK     (2 * SIZE_PAGE)
+#endif
+
+#ifndef SIZE_KSTACK
 #define SIZE_KSTACK     (2 * 512)
+#endif
+
+#ifdef CPU_IMXRT
 #define RET_HANDLER_MSP 0xffffffe1
 #define RET_THREAD_MSP  0xffffffe9
 #define RET_THREAD_PSP  0xffffffed
 #define HWCTXSIZE       (8 + 18)
 #define USERCONTROL     0x7
 #else
-#define SIZE_USTACK     (2 * SIZE_PAGE)
-#define SIZE_KSTACK     (2 * 512)
 #define RET_HANDLER_MSP 0xfffffff1
 #define RET_THREAD_MSP  0xfffffff9
 #define RET_THREAD_PSP  0xfffffffd

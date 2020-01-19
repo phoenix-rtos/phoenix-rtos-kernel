@@ -21,8 +21,14 @@
 #define SIZE_PAGE         0x1000
 
 
+/* Default kernel and user stack sizes */
+#ifndef SIZE_KSTACK
 #define SIZE_KSTACK       (8 * 512)
+#endif
+
+#ifndef SIZE_USTACK
 #define SIZE_USTACK       (8 * SIZE_PAGE)
+#endif
 
 
 /* Bitfields used to construct interrupt descriptors */

@@ -38,6 +38,14 @@ endif
 
 CFLAGS += -g
 
+ifneq ($(SIZE_KSTACK),)
+	CFLAGS += -DSIZE_KSTACK=$(SIZE_KSTACK)
+endif
+
+ifneq ($(SIZE_USTACK),)
+	CFLAGS += -DSIZE_USTACK=$(SIZE_USTACK)
+endif
+
 # Compliation options for various architectures
 TARGET_FAMILY = $(firstword $(subst -, ,$(TARGET)-))
 include Makefile.$(TARGET_FAMILY)
