@@ -170,10 +170,6 @@ int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev, pci_cap_list_t *cap_list)
 				/* get header type */
 				val = ((hal_pciGet(b, d, f, 3) >> 16) & 0xff);
 
-				/* check multi-function if it's f0 */
-				if (!f && !(val & 0x80))
-					f = 8;
-
 				/* check for bridge - since we scan all buses anyway we can just ignore it */
 				if (val & 0x7f)
 					continue;
@@ -217,7 +213,7 @@ int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev, pci_cap_list_t *cap_list)
 				dev->progif = (val >> 8) & 0xff;
 				dev->revision = val & 0xff;
 
-				val = _hal_pciGet(b, d, f, 2);
+				val = _hal_pciGet(b, d, f, 3);
 				dev->cache_line_size = val & 0xff;
 				dev->latency_tmr = (val >> 8) & 0xff;
 				dev->type = (val >> 16) & 0xff;
@@ -255,6 +251,10 @@ int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev, pci_cap_list_t *cap_list)
 
 				if (cap_list)
 					res = _hal_pciGetCapList(dev, cap_list);
+
+				/* check multi-function if it's f0 */
+				if (!f && !(dev->type & 0x80))
+					f = 8;
 
 				hal_spinlockClear(&cpu.lock);
 
