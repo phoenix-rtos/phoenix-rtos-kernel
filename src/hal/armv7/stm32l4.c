@@ -27,7 +27,6 @@ struct {
 	volatile u32 *rtc;
 	volatile u32 *nvic;
 	volatile u32 *exti;
-	volatile u32 *syst;
 	volatile u32 *mpu;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
@@ -618,11 +617,11 @@ int _stm32_systickInit(u32 interval)
 	if (load > 0x00ffffff)
 		return -EINVAL;
 
-	*(stm32_common.syst + syst_rvr) = (u32)load;
-	*(stm32_common.syst + syst_cvr) = 0;
+	*(stm32_common.scb + syst_rvr) = (u32)load;
+	*(stm32_common.scb + syst_cvr) = 0;
 
 	/* Enable systick */
-	*(stm32_common.syst + syst_csr) |= 0x7;
+	*(stm32_common.scb + syst_csr) |= 0x7;
 
 	return EOK;
 }
@@ -632,7 +631,7 @@ u32 _stm32_systickGet(void)
 {
 	u32 cb;
 
-	cb = ((*(stm32_common.syst + syst_rvr) - *(stm32_common.syst + syst_cvr)) * 1000) / *(stm32_common.syst + syst_rvr);
+	cb = ((*(stm32_common.scb + syst_rvr) - *(stm32_common.scb + syst_cvr)) * 1000) / *(stm32_common.scb + syst_rvr);
 
 	/* Add 1000 us if there's systick pending */
 	if (*(stm32_common.scb + scb_icsr) & (1 << 26))
@@ -650,7 +649,7 @@ int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospee
 	volatile u32 *base;
 	u32 t;
 
-	if (d > pctl_gpioh || pin > 15)
+	if (d > pctl_gpioi || pin > 15)
 		return -EINVAL;
 
 	base = stm32_common.gpio[d - pctl_gpioa];
@@ -690,7 +689,7 @@ int _stm32_gpioSet(unsigned int d, u8 pin, u8 val)
 	volatile u32 *base;
 	u32 t;
 
-	if (d > pctl_gpioh || pin > 15)
+	if (d > pctl_gpioi || pin > 15)
 		return -EINVAL;
 
 	base = stm32_common.gpio[d - pctl_gpioa];
@@ -706,7 +705,7 @@ int _stm32_gpioSetPort(unsigned int d, u16 val)
 {
 	volatile u32 *base;
 
-	if (d > pctl_gpioh)
+	if (d > pctl_gpioi)
 		return -EINVAL;
 
 	base = stm32_common.gpio[d - pctl_gpioa];
@@ -720,7 +719,7 @@ int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val)
 {
 	volatile u32 *base;
 
-	if (d > pctl_gpioh || pin > 15)
+	if (d > pctl_gpioi || pin > 15)
 		return -EINVAL;
 
 	base = stm32_common.gpio[d - pctl_gpioa];
@@ -734,7 +733,7 @@ int _stm32_gpioGetPort(unsigned int d, u16 *val)
 {
 	volatile u32 *base;
 
-	if (d > pctl_gpioh)
+	if (d > pctl_gpioi)
 		return -EINVAL;
 
 	base = stm32_common.gpio[d - pctl_gpioa];
@@ -777,7 +776,6 @@ void _stm32_init(void)
 	stm32_common.rtc = (void *)0x40002800;
 	stm32_common.nvic = (void *)0xe000e100;
 	stm32_common.exti = (void *)0x40010400;
-	stm32_common.syst = (void *)0xe000e010;
 	stm32_common.mpu = (void *)0xe000ed90;
 	stm32_common.syscfg = (void *)0x40010000;
 	stm32_common.iwdg = (void *)0x40003000;

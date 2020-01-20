@@ -38,6 +38,14 @@ endif
 
 CFLAGS += -g
 
+ifneq ($(SIZE_KSTACK),)
+	CFLAGS += -DSIZE_KSTACK=$(SIZE_KSTACK)
+endif
+
+ifneq ($(SIZE_USTACK),)
+	CFLAGS += -DSIZE_USTACK=$(SIZE_USTACK)
+endif
+
 # Compliation options for various architectures
 TARGET_FAMILY = $(firstword $(subst -, ,$(TARGET)-))
 include Makefile.$(TARGET_FAMILY)
@@ -77,10 +85,10 @@ subsystems: $(ARCHS)
 
 
 $(BIN): $(ARCHS) $(EMBED) $(OBJS)
-	@printf "\033[1;34mEMBED programs.cpio\033[0m"
+	@printf "\033[1;34mEMBED programs.cpio\033[0m\n"
 	@touch /tmp/programs
 	$(SIL)$(OBJCOPY) --update-section .data=/tmp/programs programs.o --add-symbol programs=.data:0
-	
+
 	@(\
 	printf "Subsystem           | text    | rodata  | data\n";\
 	printf "==================================================\n";\
@@ -100,8 +108,8 @@ $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 		done;\
 		printf "%-19s | %-7d | %-7d | %-7d\n" $$f $$textsz $$rodatasz $$datasz;\
 	done;)
-		
-	@printf "\033[1;34mLD $@\033[0m"
+
+	@printf "\033[1;34mLD $@\033[0m\n"
 	$(LD) $(LDFLAGS) -o $(BIN).elf $(OBJS) $(EMBED) -\( $(ARCHS) $(LIBS) -\)
 	$(SIL)$(OBJCOPY) -O binary $(BIN).elf $(BIN).img
 
