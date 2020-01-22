@@ -716,6 +716,11 @@ int file_walkPath(pathwalk_t *state)
 
 	state->id = id;
 	state->remaining = *path ? path : NULL;
+
+	/* We will follow the mount later */
+	if (S_ISMNT(state->mode))
+		err = -ENOTDIR;
+
 	return err;
 }
 
