@@ -697,13 +697,13 @@ int file_walkPath(pathwalk_t *state)
 		if (path == delim)
 			continue;
 
-		if (!*delim && (state->flags & LOOKUP_PARENT))
-			break;
-
 		if (!S_ISDIR(state->mode)) {
 			err = -ENOTDIR;
 			break;
 		}
+
+		if (!*delim && (state->flags & LOOKUP_PARENT))
+			break;
 
 		if ((err = proc_objectLookup(port, id, path, delim - path, 0, &nextid, &state->mode, NULL)) < 0) {
 			break;
