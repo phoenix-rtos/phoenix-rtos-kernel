@@ -722,9 +722,18 @@ int file_walkPath(pathwalk_t *state)
 
 int file_walkLast(pathwalk_t *state, mode_t mode, oid_t *dev)
 {
-	int pathlen = hal_strlen(state->remaining);
+	int pathlen;
 	int err, flags = 0;
 	id_t newid;
+
+	if (state->remaining == NULL) {
+		if (state->flags & (LOOKUP_CREATE | LOOKUP_EXCLUSIVE) == (LOOKUP_CREATE | LOOKUP_EXCLUSIVE))
+			return -EEXIST;
+		else
+			return EOK;
+	}
+
+	pathlen = hal_strlen(state->remaining);
 
 	if (state->flags & LOOKUP_CREATE)
 		flags |= O_CREAT;
