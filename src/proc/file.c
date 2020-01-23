@@ -1834,7 +1834,7 @@ int proc_fsMount(int devfd, const char *devpath, const char *type, unsigned port
 int proc_fsBind(int dirhandle, const char *dirpath, int fsfd, const char *fspath)
 {
 	process_t *process = proc_current()->process;
-	iodes_t *dir, *fs;
+	iodes_t *dir, *fs, *dotdot;
 	oid_t oid;
 	int retval;
 
@@ -1847,8 +1847,14 @@ int proc_fsBind(int dirhandle, const char *dirpath, int fsfd, const char *fspath
 		if ((retval = file_resolve(&dir, process, dirhandle, dirpath, O_DIRECTORY)) < 0)
 			return retval;
 
-		oid.port = dir->fs.port->id;
-		oid.id = dir->fs.id;
+		if ((retval = file_resolve(&dotdot, process, dirhandle, dirpath, O_DIRECTORY | O_PARENT)) < 0) {
+			file_put(dir);
+			return retval;
+		}
+
+		oid.port = dotdot->fs.port->id;
+		oid.id = dotdot->fs.id;
+		file_put(dotdot);
 	}
 
 	if ((retval = file_resolve(&fs, process, fsfd, fspath, O_DIRECTORY)) < 0) {
