@@ -628,8 +628,8 @@ int file_followMount(port_t **port, id_t *id)
 	oid_t dest;
 	port_t *newport;
 
-	if ((error = proc_objectRead(*port, *id, &dest, sizeof(oid_t), 0)) != sizeof(oid_t)) {
-		FILE_LOG("read device node %u.%llu", (*port)->id, *id);
+	if ((error = proc_objectGetAttr(*port, *id, atMount, &dest, sizeof(oid_t))) < 0) {
+		FILE_LOG("read mounted fs %u.%llu = %d", (*port)->id, *id, error);
 		return error;
 	}
 
