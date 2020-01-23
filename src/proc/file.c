@@ -490,6 +490,9 @@ int proc_poll(struct pollfd *handles, nfds_t nfds, int timeout_ms)
 		vm_kfree(notes);
 	}
 
+	if (error == -ETIME)
+		error = 0;
+
 	return nev ? nev : error;
 }
 
