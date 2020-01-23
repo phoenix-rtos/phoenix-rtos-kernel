@@ -1392,12 +1392,17 @@ int proc_fileLink(int handle, const char *path, int dirhandle, const char *name,
 		return retval;
 	}
 
-	oid.port = file->fs.port->id;
-	oid.id = file->fs.id;
+	if (file->fs.port == dir->fs.port) {
+		oid.port = file->fs.port->id;
+		oid.id = file->fs.id;
 
-	file_lock(dir);
-	retval = proc_objectLink(dir->fs.port, dir->fs.id, linkname, &oid);
-	file_unlock(dir);
+		file_lock(dir);
+		retval = proc_objectLink(dir->fs.port, dir->fs.id, linkname, &oid);
+		file_unlock(dir);
+	}
+	else {
+		retval = -EXDEV;
+	}
 
 	file_put(file);
 	file_put(dir);
