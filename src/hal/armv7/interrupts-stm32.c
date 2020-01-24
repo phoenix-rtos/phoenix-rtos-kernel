@@ -23,9 +23,12 @@
 
 #include "../../../include/errno.h"
 
-
-#define SIZE_INTERRUPTS		84
-#define SIZE_HANDLERS		4
+#ifdef CPU_STM32L1
+#define SIZE_INTERRUPTS     84
+#else
+#define SIZE_INTERRUPTS     97
+#endif
+#define SIZE_HANDLERS       4
 
 
 #define _intr_add(list, t) \

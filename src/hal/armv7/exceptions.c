@@ -83,8 +83,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 	i += exceptions_i2s("\npsp=", &buff[i], ctx->psp, 16, 1);
 	i += exceptions_i2s(" psr=", &buff[i], ctx->psr, 16, 1);
-
 	i += exceptions_i2s(" cfs=", &buff[i], *(u32*)0xe000ed28, 16, 1);
+	i += exceptions_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
 
 	buff[i] = 0;
 }

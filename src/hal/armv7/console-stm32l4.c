@@ -107,9 +107,8 @@ void _hal_consoleInit(void)
 	*(console_common.base + cr1) |= 1;
 	hal_cpuDataBarrier();
 
-	_hal_consolePrint("\033c");
 	_hal_consolePrint("\033[2J");
-	_hal_consolePrint("\033[20h");
+	_hal_consolePrint("\033[f");
 
 	return;
 }

@@ -70,7 +70,7 @@ enum { wwdq_irq = 16, pvd_pvm_irq, rtc_tamper_stamp_irq, rtc_wkup_irq, flash_irq
 	comp_irq, lptim1_irq, lptim2_irq, otg_fs_irq, dm2_ch6_irq, dma2_ch7_irq, lpuart1_irq,
 	quadspi_irq, i2c3_ev_irq, i2c3_er_irq, sai1_irq, sai2_irq, swpmi1_irq, tsc_irq, lcd_irq,
 	aes_irq, rng_irq, fpu_irq, hash_irq, i2c4_ev_irq, i2c4_er_irq, dcmi_irq, can2_tx_irq,
-	can2_rx0_irq, can2_rx1_irq, can2_sce_irq, dma2d_irq};
+	can2_rx0_irq, can2_rx1_irq, can2_sce_irq, dma2d_irq };
 
 
 typedef struct {

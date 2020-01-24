@@ -39,6 +39,7 @@ typedef struct _exc_context_t {
 	u32 r9;
 	u32 r10;
 	u32 r11;
+	u32 excret;
 
 	/* Saved by hardware */
 	u32 r0;

@@ -71,7 +71,7 @@ enum { rtc_tr = 0, rtc_dr, rtc_cr, rtc_isr, rtc_prer, rtc_wutr, rtc_alrmar = rtc
 	rtc_bkpr };
 
 
-enum { scb_actlr = 2, scb_cpuid = 3328, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp1, scb_shp2,
+enum { scb_actlr = 2, scb_cpuid = 832, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp1, scb_shp2,
 	scb_shp3, scb_shcsr, scb_cfsr, scb_mmsr, scb_bfsr, scb_ufsr, scb_hfsr, scb_mmar, scb_bfar, scb_afsr };
 
 
@@ -169,6 +169,14 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 		t = *(stm32_common.rcc + rcc_apb1enr1) & ~(1 << (d - apb1_1_begin));
 		*(stm32_common.rcc + rcc_apb1enr1) = t | (hz << (d - apb1_1_begin));
 	}
+	else if (d <= apb1_2_end) {
+		t = *(stm32_common.rcc + rcc_apb1enr2) & ~(1 << (d - apb1_2_begin));
+		*(stm32_common.rcc + rcc_apb1enr2) = t | (hz << (d - apb1_2_begin));
+	}
+	else if (d <= apb2_end) {
+		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1 << (d - apb2_begin));
+		*(stm32_common.rcc + rcc_apb2enr) = t | (hz << (d - apb2_begin));
+	}
 	else if (d == pctl_rtc) {
 		t = *(stm32_common.rcc + rcc_bdcr) & ~(1 << 15);
 		*(stm32_common.rcc + rcc_bdcr) = t | (hz << 15);
@@ -185,11 +193,17 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
 {
 	if (d <= ahb1_end)
-		*hz = !!(*(stm32_common.rcc + rcc_ahb1enr) & (1 << d));
+		*hz = !!(*(stm32_common.rcc + rcc_ahb1enr) & (1 << (d - ahb1_begin)));
 	else if (d <= ahb2_end)
 		*hz = !!(*(stm32_common.rcc + rcc_ahb2enr) & (1 << (d - ahb2_begin)));
 	else if (d <= ahb3_end)
 		*hz = !!(*(stm32_common.rcc + rcc_ahb3enr) & (1 << (d - ahb3_begin)));
+	else if (d <= apb1_1_end)
+		*hz = !!(*(stm32_common.rcc + rcc_apb1enr1) & (1 << (d - apb1_1_begin)));
+	else if (d <= apb1_2_end)
+		*hz = !!(*(stm32_common.rcc + rcc_apb1enr2) & (1 << (d - apb1_2_begin)));
+	else if (d <= apb2_end)
+		*hz = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
 	else if (d == pctl_rtc)
 		*hz = !!(*(stm32_common.rcc + rcc_bdcr) & (1 << 15));
 	else
