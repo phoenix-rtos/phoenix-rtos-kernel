@@ -150,7 +150,9 @@ int vm_objectGet(vm_object_t **o, iodes_t *file)
 		(*o)->refs++;
 		proc_lockClear(&object_common.lock);
 
-		object_destroy(newo);
+		file_put(file);
+		proc_lockDone(&newo->lock);
+		vm_kfree(newo);
 		return EOK;
 	}
 	proc_lockClear(&object_common.lock);
