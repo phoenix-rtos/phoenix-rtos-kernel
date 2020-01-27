@@ -1569,10 +1569,12 @@ int _threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 	retval = signal_action;
 
-	if (thread != NULL && hal_cpuPushSignal(thread->kstack + thread->kstacksz, process->sigtrampoline, handler, sig) != EOK) {
-		retval = -EAGAIN;
-		thread->sigpend |= sigbit;
-		/* FIXME: SIGSEGV, SIGILL, SIGFPE */
+	if (thread != NULL) {
+		if (process->sigtrampoline == NULL || hal_cpuPushSignal(thread->kstack + thread->kstacksz, process->sigtrampoline, handler, sig) != EOK) {
+			retval = -EAGAIN;
+			thread->sigpend |= sigbit;
+			/* FIXME: SIGSEGV, SIGILL, SIGFPE */
+		}
 	}
 	else {
 		retval = -EAGAIN;

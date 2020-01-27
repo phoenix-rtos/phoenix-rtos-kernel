@@ -846,6 +846,8 @@ static void process_vforkThread(void *arg)
 		current->process->sighandlers = NULL;
 	}
 	else {
+		current->process->sigtrampoline = parent->process->sigtrampoline;
+
 		if ((current->process->sighandlers = vm_kmalloc(NSIG * sizeof(current->process->sighandlers[0]))) == NULL) {
 			hal_spinlockSet(&spawn->sl);
 			spawn->state = -ENOMEM;
