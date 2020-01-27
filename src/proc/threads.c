@@ -1577,17 +1577,17 @@ int _threads_sigpost(process_t *process, thread_t *thread, int sig)
 	else {
 		retval = -EAGAIN;
 		process->sigpend |= sigbit;
-		thread = process->threads;
+		if ((thread = process->threads) != NULL) {
+			do {
+				if (sigbit & ~thread->sigmask) {
+					if (thread->interruptible)
+						_thread_interrupt(thread);
 
-		do {
-			if (sigbit & ~thread->sigmask) {
-				if (thread->interruptible)
-					_thread_interrupt(thread);
-
-				break;
+					break;
+				}
 			}
+			while ((thread = thread->procnext) != process->threads);			
 		}
-		while ((thread = thread->procnext) != process->threads);
 	}
 
 	return retval;
