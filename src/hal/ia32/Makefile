@@ -36,14 +36,14 @@ check:
 	datasz=0;\
 	textsz=0;\
 	rodatasz=0;\
-	for i in `$(OBJDUMP) -t $$file | grep -e "O" | grep -v ".rodata" | awk '{ print $$4 }'`; do \
-		datasz=`echo $$(($$datasz + 0x$$i))`;\
+	for i in `$(OBJDUMP) -t $$file | awk '/ O / && !/.rodata/ { print $$4 }'`; do \
+		datasz=$$(($$datasz + 0x$$i));\
 	done; \
-	for i in `$(OBJDUMP) -t $$file | grep -e " O " | grep ".rodata" | awk '{ print $$5 }'`; do \
-                rodatasz=`echo $$(($$rodatasz + 0x$$i))`;\
+	for i in `$(OBJDUMP) -t $$file | awk '/ O / && /.rodata/ { print $$5 }'`; do \
+                rodatasz=$$(($$rodatasz + 0x$$i));\
         done; \
-	for i in `$(OBJDUMP) -t $$file | grep -e "F" | awk '{ print $$5 }'`; do \
-		textsz=`echo $$(($$textsz + 0x$$i))`;\
+	for i in `$(OBJDUMP) -t $$file | awk '/ F / { print $$5 }'`; do \
+		textsz=$$(($$textsz + 0x$$i));\
 	done;\
 	printf "data=%-5d  text=%-5d  rodata=%-5d\n" $$datasz $$textsz $$rodatasz)
 
@@ -54,11 +54,11 @@ check:
 	@(file="$@"; \
 	datasz=0;\
 	textsz=0;\
-	for i in `$(OBJDUMP) -t $$file | grep -e "O" | awk '{ print $$5 }'`; do \
-		datasz=`echo $$(($$datasz + 0x$$i))`;\
+	for i in `$(OBJDUMP) -t $$file | awk '/ O / { print $$5 }'`; do \
+		datasz=$$(($$datasz + 0x$$i));\
 	done; \
-	for i in `$(OBJDUMP) -t $$file | grep -e "F" | awk '{ print $$5 }'`; do \
-		textsz=`echo $$(($$textsz + 0x$$i))`;\
+	for i in `$(OBJDUMP) -t $$file | awk '/ F / { print $$5 }'`; do \
+		textsz=$$(($$textsz + 0x$$i));\
 	done;\
 	printf "data=%-5d  text=%-5d\n" $$datasz $$textsz)
 
