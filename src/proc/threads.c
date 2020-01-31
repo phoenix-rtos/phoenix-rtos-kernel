@@ -1343,12 +1343,26 @@ int proc_child(process_t *child, process_t *parent)
 
 int proc_zombie(process_t *zombie, process_t *parent)
 {
+	int put = 0;
+
 	hal_spinlockSet(&threads_common.spinlock);
 	zombie->flags |= PFL_ZOMBIE;
+
+	if (parent->flags & PFL_NOREAP) {
+		/* Parent does not care, remove zombie now */
+		LIST_REMOVE(&parent->children, zombie);
+		put = 1;
+	}
+	else {
+		_threads_sigpost(parent, NULL, SIGCHLD);
+	}
 	hal_spinlockClear(&threads_common.spinlock);
 
-	proc_threadBroadcastYield(&parent->wait);
-	threads_sigpost(parent, NULL, SIGCHLD);
+	if (put)
+		proc_put(zombie);
+	else
+		proc_threadBroadcastYield(&parent->wait);
+
 	return EOK;
 }
 

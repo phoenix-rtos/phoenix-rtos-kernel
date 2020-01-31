@@ -28,6 +28,7 @@
 #define PFL_STOPPED 1
 #define PFL_CONTINUED 2
 #define PFL_ZOMBIE 4
+#define PFL_NOREAP 8
 
 typedef struct _process_t {
 	lock_t lock;

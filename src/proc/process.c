@@ -124,6 +124,7 @@ static void process_destroy(process_t *p)
 	vm_kfree(p->path);
 	vm_kfree(p->argv);
 	vm_kfree(p->envp);
+	vm_kfree(p->sighandlers);
 	vm_kfree(p);
 }
 
@@ -841,13 +842,12 @@ static void process_vforkThread(void *arg)
 
 	current->process->mapp = parent->process->mapp;
 	current->process->sigmask = parent->process->sigmask;
+	current->process->sigtrampoline = parent->process->sigtrampoline;
 
 	if (parent->process->sighandlers == NULL) {
 		current->process->sighandlers = NULL;
 	}
 	else {
-		current->process->sigtrampoline = parent->process->sigtrampoline;
-
 		if ((current->process->sighandlers = vm_kmalloc(NSIG * sizeof(current->process->sighandlers[0]))) == NULL) {
 			hal_spinlockSet(&spawn->sl);
 			spawn->state = -ENOMEM;
@@ -1216,6 +1216,13 @@ int _proc_sigaction(thread_t *current, process_t *process, int sig, const struct
 
 	if (act != NULL) {
 		process->sighandlers[sig] = act->sa_handler;
+
+		if (sig == SIGCHLD) {
+			if (act->sa_handler == SIG_IGN)
+				process->flags |= PFL_NOREAP;
+			else
+				process->flags &= ~PFL_NOREAP;
+		}
 	}
 
 	return EOK;
