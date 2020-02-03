@@ -141,6 +141,8 @@ resource_t *resource_get(process_t *process, int type, unsigned int id)
 	proc_lockSet(&process->lock);
 	if ((r = lib_treeof(resource_t, linkage, lib_rbFind(&process->resources, &t.linkage))) != NULL && r->type == type)
 		lib_atomicIncrement(&r->refs);
+	else
+		r = NULL;
 	proc_lockClear(&process->lock);
 
 	return r;
