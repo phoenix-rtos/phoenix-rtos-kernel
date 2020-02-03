@@ -1057,9 +1057,9 @@ static int process_execve(thread_t *current)
 		pmap_switch(&process_common.kmap->pmap);
 
 		vm_mapDestroy(current->process, map);
-		proc_resourcesDestroy(current->process);
 	}
 
+	proc_resourcesDestroy(current->process);
 	current->execkstack = NULL;
 	current->parentkstack = NULL;
 	current->execdata = NULL;
