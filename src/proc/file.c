@@ -941,8 +941,7 @@ int file_open(iodes_t **result, process_t *process, int dirhandle, const char *p
 
 	open_mode = mode;
 	if ((error = file_fsOpen(&file->fs.port, &file->fs.id, path, flags, &open_mode, NULL)) < 0) {
-		proc_objectClose(file->fs.port, file->fs.id);
-		port_put(file->fs.port);
+		file_put(file);
 		return error;
 	}
 
