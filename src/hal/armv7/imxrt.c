@@ -397,7 +397,7 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 		case pctl_isel_qtimer3_timer2:
 		case pctl_isel_qtimer3_timer3:
 		case pctl_isel_sai1_mclk2:
-		case pctl_isel_sa1_rx_bclk:
+		case pctl_isel_sai1_rx_bclk:
 		case pctl_isel_sai1_rx_data0:
 		case pctl_isel_sai1_rx_sync:
 		case pctl_isel_sai1_tx_bclk:
