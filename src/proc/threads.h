@@ -149,6 +149,9 @@ extern int proc_threadsList(int n, threadinfo_t *info);
 extern int proc_threadKill(pid_t pid, int tid, int signal);
 
 
+extern void proc_threadStop(void);
+
+
 extern int proc_threadClone(void);
 
 

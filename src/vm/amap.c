@@ -101,7 +101,7 @@ amap_t *amap_ref(amap_t *amap)
 }
 
 
-amap_t *amap_create(amap_t *amap, int *offset, size_t size)
+amap_t *amap_create(amap_t *amap, off_t *offset, size_t size)
 {
 	int i = size / SIZE_PAGE;
 	amap_t *new;

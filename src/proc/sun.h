@@ -53,7 +53,7 @@ extern ssize_t sun_recvmsg(struct _sun_t *socket, struct msghdr *msg, int flags)
 extern ssize_t sun_read(struct _sun_t *socket, void *data, size_t size);
 
 
-extern ssize_t sun_write(struct _sun_t *socket, void *data, size_t size);
+extern ssize_t sun_write(struct _sun_t *socket, const void *data, size_t size);
 
 
 void _sun_init(void);

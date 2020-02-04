@@ -46,6 +46,9 @@ extern int vm_objectPut(vm_object_t *o);
 extern page_t *vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, offs_t offs);
 
 
+extern int vm_objectContiguous(vm_object_t **object, size_t size);
+
+
 extern int _object_init(struct _vm_map_t *kmap, vm_object_t *kernel);
 
 

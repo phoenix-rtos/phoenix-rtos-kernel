@@ -49,7 +49,7 @@ extern void amap_putanons(amap_t *amap, int offs, int size);
 extern void amap_getanons(amap_t *amap, int offs, int size);
 
 
-extern amap_t *amap_create(amap_t *amap, int *offset, size_t size);
+extern amap_t *amap_create(amap_t *amap, off_t *offset, size_t size);
 
 
 extern void amap_put(amap_t *amap);

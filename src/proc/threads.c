@@ -644,6 +644,9 @@ int threads_getCpuTime(thread_t *t)
 #endif
 
 
+static int _threads_sigpost(process_t *process, thread_t *thread, int sig);
+
+
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
@@ -1488,7 +1491,7 @@ time_t proc_nextWakeup(void)
  */
 
 
-int _threads_sigpost(process_t *process, thread_t *thread, int sig)
+static int _threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	static const char defaultActions[NSIG] = {
 		[0]         = signal_ignore,
@@ -1527,7 +1530,7 @@ int _threads_sigpost(process_t *process, thread_t *thread, int sig)
 	};
 
 	int action, retval;
-	addr_t handler;
+	sighandler_t handler;
 	int sigbit = 1 << sig;
 
 	if (sig == SIGKILL) {
@@ -1584,7 +1587,7 @@ int _threads_sigpost(process_t *process, thread_t *thread, int sig)
 	retval = signal_action;
 
 	if (thread != NULL) {
-		if (process->sigtrampoline == NULL || hal_cpuPushSignal(thread->kstack + thread->kstacksz, process->sigtrampoline, handler, sig) != EOK) {
+		if (process->sigtrampoline == NULL || hal_cpuPushSignal(thread->kstack + thread->kstacksz, process->sigtrampoline, (addr_t)handler, sig) != EOK) {
 			retval = -EAGAIN;
 			thread->sigpend |= sigbit;
 			/* FIXME: SIGSEGV, SIGILL, SIGFPE */

@@ -125,6 +125,21 @@ extern int file_resolve(iodes_t **result, struct _process_t *process, int handle
 extern int fd_close(struct _process_t *p, int fd);
 
 
+extern void file_destroy(iodes_t *f);
+
+
+extern const char *file_basename(const char *path);
+
+
+extern int proc_poll(struct pollfd *handles, nfds_t nfds, int timeout_ms);
+
+
+extern ssize_t proc_recvmsg(int socket, struct msghdr *msg, int flags);
+
+
+ssize_t proc_sendmsg(int socket, const struct msghdr *msg, int flags);
+
+
 extern int proc_changeDir(int handle, const char *path);
 
 
@@ -248,6 +263,9 @@ extern int proc_msgSend(int handle, struct _msg_t *msg);
 
 
 extern int proc_msgRecv(int handle, struct _msg_t *msg);
+
+
+extern int proc_sunCreate(struct _port_t **port, id_t *id, int dirhandle, const char *path, mode_t mode);
 
 
 extern void _file_init(void);

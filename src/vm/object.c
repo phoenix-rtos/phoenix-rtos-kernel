@@ -278,8 +278,6 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 
 int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 {
-	vm_object_t *o;
-
 	lib_printf("vm: Initializing memory objects\n");
 
 	object_common.kernel = kernel;

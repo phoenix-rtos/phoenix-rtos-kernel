@@ -88,9 +88,6 @@
 	ID(sys_pipe)\
 	ID(fifoCreate)\
 	\
-	ID(eventRegister)\
-	ID(queueCreate)\
-	ID(queueWait) \
 	ID(sys_accept4) \
 	ID(sys_bind) \
 	ID(sys_connect) \

@@ -39,6 +39,9 @@ typedef struct _port_t {
 extern port_t *port_get(u32 id);
 
 
+extern void port_ref(port_t *port);
+
+
 extern obdes_t *port_obdesGet(port_t *port, id_t id);
 
 
@@ -46,6 +49,9 @@ extern void port_obdesPut(obdes_t *obdes);
 
 
 extern int port_event(port_t *port, id_t id, int events);
+
+
+extern int proc_event(int portfd, id_t id, int events);
 
 
 extern int port_create(port_t **port, u32 id);

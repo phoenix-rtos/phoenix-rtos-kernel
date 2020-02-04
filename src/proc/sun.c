@@ -200,8 +200,8 @@ static int _sun_pair(process_t *process, int type, int protocol, int flags, int 
 		return error;
 	}
 
-	sun1->sun->connection = sun2;
-	sun2->sun->connection = sun1;
+	sun1->sun->connection = sun2->sun;
+	sun2->sun->connection = sun1->sun;
 	error = EOK;
 
 	if ((handle[0] = fd_new(process, 0, 0, sun1)) < 0) {
@@ -243,7 +243,7 @@ int sun_pair(int domain, int type, int protocol, int flags, int sv[2])
 
 int sun_bind(process_t *process, struct _sun_t *socket, const struct sockaddr *address, socklen_t address_len)
 {
-	int error, len;
+	int error;
 	port_t *port;
 	id_t id;
 
@@ -478,7 +478,7 @@ ssize_t _sun_sendmsg(sun_t *socket, const struct msghdr *msg, int flags)
 			bytes = -EAGAIN;
 		}
 		else {
-			fifo_write(&peer->fifo, &header, sizeof(header));
+			fifo_write(&peer->fifo, (unsigned char *)&header, sizeof(header));
 
 			for (i = 0; i < msg->msg_iovlen; ++i)
 				fifo_write(&peer->fifo, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
@@ -527,7 +527,7 @@ static ssize_t sun_recvdgram(fifo_t *fifo, struct iovec *iovec, int iovlen)
 	ssize_t remaining, bytes = 0;
 	sun_header_t header;
 
-	fifo_read(fifo, &header, sizeof(header));
+	fifo_read(fifo, (unsigned char *)&header, sizeof(header));
 	remaining = header.size;
 
 	for (i = 0; i < iovlen && remaining; ++i) {
@@ -606,12 +606,12 @@ ssize_t sun_read(sun_t *socket, void *data, size_t size)
 }
 
 
-ssize_t sun_write(sun_t *socket, void *data, size_t size)
+ssize_t sun_write(sun_t *socket, const void *data, size_t size)
 {
 	struct msghdr msg;
 	struct iovec iov;
 	hal_memset(&msg, 0, sizeof(msg));
-	iov.iov_base = data;
+	iov.iov_base = (void *)data;
 	iov.iov_len = size;
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;

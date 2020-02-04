@@ -25,6 +25,7 @@
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "proc/event.h"
+#include "proc/sun.h"
 #include "vm/object.h"
 
 #define SYSCALLS_NAME(name) syscalls_##name,
@@ -859,7 +860,7 @@ int syscalls_fileRead(char *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
-	GETFROMSTACK(ustack, off_t, *offset, 3);
+	GETFROMSTACK(ustack, off_t *, offset, 3);
 
 	return proc_fileRead(fildes, buf, nbyte, offset);
 }
@@ -875,7 +876,7 @@ int syscalls_fileWrite(char *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
-	GETFROMSTACK(ustack, off_t, *offset, 3);
+	GETFROMSTACK(ustack, off_t *, offset, 3);
 
 	return proc_fileWrite(fildes, buf, nbyte, offset);
 }
@@ -1027,43 +1028,6 @@ int syscalls_sys_poll(char *ustack)
 	GETFROMSTACK(ustack, int, timeout_ms, 2);
 
 	return proc_poll(fds, nfds, timeout_ms);
-}
-
-
-int syscalls_eventRegister(char *ustack)
-{
-	const oid_t *oid;
-	unsigned types;
-
-	GETFROMSTACK(ustack, const oid_t *, oid, 0);
-	GETFROMSTACK(ustack, unsigned, types, 1);
-
-	return -ENOSYS;
-}
-
-
-int syscalls_queueCreate(char *ustack)
-{
-	return -ENOSYS;
-}
-
-
-int syscalls_queueWait(char *ustack)
-{
-#if 0
-	int fd, subcnt, evcnt;
-	time_t timeout;
-	const struct _event_t *subs;
-	struct _event_t *events;
-
-	GETFROMSTACK(ustack, int, fd, 0);
-	GETFROMSTACK(ustack, const struct _event_t *, subs, 1);
-	GETFROMSTACK(ustack, int, subcnt, 2);
-	GETFROMSTACK(ustack, struct _event_t *, events, 3);
-	GETFROMSTACK(ustack, int, evcnt, 4);
-	GETFROMSTACK(ustack, time_t, timeout, 5);
-#endif
-	return -ENOSYS;
 }
 
 

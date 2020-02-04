@@ -25,6 +25,7 @@
 #include "socket.h"
 #include "event.h"
 #include "sun.h"
+#include "pipe.h"
 
 #define FD_HARD_LIMIT 1024
 
@@ -360,6 +361,7 @@ static int file_poll(iodes_t *file, poll_head_t *poll, wait_note_t *note)
 {
 	int revents = 0;
 	obdes_t *od;
+	int error;
 
 	switch (file->type) {
 		case ftFifo:
@@ -375,8 +377,8 @@ static int file_poll(iodes_t *file, poll_head_t *poll, wait_note_t *note)
 			if ((od = file->obdes) != NULL) {
 				poll_add(poll, &od->queue, note);
 
-				if ((proc_objectGetAttr(od->port, od->id, atEvents, &revents, sizeof(revents))) < 0) {
-					FILE_LOG("getattr");
+				if ((error = proc_objectGetAttr(od->port, od->id, atEvents, &revents, sizeof(revents))) < 0) {
+					FILE_LOG("getattr = %d", error);
 					revents = POLLERR;
 				}
 			}
@@ -735,7 +737,7 @@ int file_walkLast(pathwalk_t *state, mode_t mode, oid_t *dev)
 	id_t newid;
 
 	if (state->remaining == NULL) {
-		if (state->flags & (LOOKUP_CREATE | LOOKUP_EXCLUSIVE) == (LOOKUP_CREATE | LOOKUP_EXCLUSIVE))
+		if ((state->flags & (LOOKUP_CREATE | LOOKUP_EXCLUSIVE)) == (LOOKUP_CREATE | LOOKUP_EXCLUSIVE))
 			return -EEXIST;
 		else
 			return EOK;
@@ -1045,7 +1047,7 @@ int file_open(iodes_t **result, process_t *process, int dirhandle, const char *p
 
 int file_resolve(iodes_t **file, process_t *process, int handle, const char *path, int flags)
 {
-	int err;
+	int err = EOK;
 	if (path == NULL) {
 		if ((*file = file_get(process, handle)) == NULL)
 			err = -EBADF;
@@ -1194,7 +1196,6 @@ ssize_t proc_fileRead(int handle, char *buf, size_t nbyte, off_t *poffset)
 	process_t *process = current->process;
 	iodes_t *file;
 	ssize_t retval;
-	int err;
 
 	if ((file = file_get(process, handle)) == NULL)
 		return -EBADF;
@@ -1227,7 +1228,6 @@ ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte, off_t *poffset
 	process_t *process = current->process;
 	iodes_t *file;
 	ssize_t retval;
-	int err;
 	off_t offset;
 
 	if ((file = file_get(process, handle)) == NULL)
@@ -1947,10 +1947,9 @@ int socket_accept(process_t *process, port_t *port, id_t id, struct sockaddr *ad
 
 int proc_netAccept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
 {
-	iodes_t *file, *conn;
+	iodes_t *file;
 	process_t *process = proc_current()->process;
 	int retval;
-	id_t conn_id;
 	int block;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
@@ -2015,7 +2014,7 @@ int proc_netConnect(int socket, const struct sockaddr *address, socklen_t addres
 {
 	iodes_t *file;
 	process_t *process = proc_current()->process;
-	int retval, block, inprogress = 0, err;
+	int retval, block, inprogress = 0;
 
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
@@ -2356,7 +2355,8 @@ int proc_msgRecv(int handle, msg_t *msg)
 		return error;
 	}
 
-	if ((error = fd_new(process, 0, HD_MESSAGE, kmsg)) < 0) {
+	/* FIXME: change fd_new to accept void*? */
+	if ((error = fd_new(process, 0, HD_MESSAGE, (void *)kmsg)) < 0) {
 		port_respond(portdes->port, error, msg, kmsg);
 	}
 

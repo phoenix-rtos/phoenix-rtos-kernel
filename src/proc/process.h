@@ -22,6 +22,7 @@
 #include "lock.h"
 #include "../vm/amap.h"
 #include "file.h"
+#include "../../include/signal.h"
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
@@ -61,7 +62,7 @@ typedef struct _process_t {
 	unsigned sigpend;
 	unsigned sigmask;
 	void *sigtrampoline;
-	addr_t *sighandlers;
+	sighandler_t *sighandlers;
 
 	unsigned char signum;
 	unsigned exit;
@@ -123,6 +124,9 @@ extern void proc_kill(process_t *proc);
 
 
 extern void proc_reap(void);
+
+
+extern int proc_sigaction(int sig, const struct sigaction *act, struct sigaction *oact);
 
 
 extern int proc_start(void (*initthr)(void *), void *arg, const char *path);
