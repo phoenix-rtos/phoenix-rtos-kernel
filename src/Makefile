@@ -96,15 +96,14 @@ $(BIN): $(ARCHS) $(EMBED) $(OBJS)
 		datasz=0;\
 		textsz=0;\
 		rodatasz=0;\
-		file=$$f;\
-		for i in `$(OBJDUMP) -t $$file | grep -e " O " | grep -v ".rodata" | awk '{ print $$1 }'`; do\
-			datasz=`echo $$(($$datasz + 0x$$i))`;\
+		for i in `$(OBJDUMP) -t $$f | awk '/ O / && !/.rodata/ { print $$1 }'`; do\
+			datasz=$$(($$datasz + 0x$$i));\
 		done;\
-		for i in `$(OBJDUMP) -t $$file | grep -e " O " | grep ".rodata" | awk '{ print $$1 }'`; do \
-			rodatasz=`echo $$(($$rodatasz + 0x$$i))`;\
+		for i in `$(OBJDUMP) -t $$f | awk '/ O / && /.rodata/ { print $$1 }'`; do \
+			rodatasz=$$(($$rodatasz + 0x$$i));\
 		done; \
-		for i in `$(OBJDUMP) -t $$file | grep -e " F " | awk '{ print $$5 }'`; do \
-			textsz=`echo $$(($$textsz + 0x$$i))`;\
+		for i in `$(OBJDUMP) -t $$f | awk '/ F / { print $$5 }'`; do \
+			textsz=$$(($$textsz + 0x$$i));\
 		done;\
 		printf "%-19s | %-7d | %-7d | %-7d\n" $$f $$textsz $$rodatasz $$datasz;\
 	done;)
