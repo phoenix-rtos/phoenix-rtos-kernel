@@ -65,11 +65,11 @@
 	ID(signalSuspend) \
 	ID(priority) \
 	\
-	ID(sys_read) \
-	ID(sys_write) \
 	ID(sys_openat) \
 	ID(sys_open) \
 	ID(sys_close) \
+	ID(fileRead) \
+	ID(fileWrite) \
 	ID(fileLink) \
 	ID(fileUnlink) \
 	ID(sys_fcntl) \

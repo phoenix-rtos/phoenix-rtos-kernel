@@ -160,10 +160,10 @@ extern int proc_fileOpen(int dirfd, const char *path, int flags, mode_t mode);
 extern int proc_fileClose(int handle);
 
 
-extern ssize_t proc_fileRead(int handle, char *buf, size_t nbyte);
+extern ssize_t proc_fileRead(int handle, char *buf, size_t nbyte, off_t *offset);
 
 
-extern ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte);
+extern ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte, off_t *offset);
 
 
 extern int proc_fileDup(int handle, int fildes2, int flags);

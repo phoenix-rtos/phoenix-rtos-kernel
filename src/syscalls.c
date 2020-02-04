@@ -849,31 +849,35 @@ int syscalls_sys_close(char *ustack)
 }
 
 
-int syscalls_sys_read(char *ustack)
+int syscalls_fileRead(char *ustack)
 {
 	int fildes;
 	void *buf;
 	size_t nbyte;
+	off_t *offset;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
+	GETFROMSTACK(ustack, off_t, *offset, 3);
 
-	return proc_fileRead(fildes, buf, nbyte);
+	return proc_fileRead(fildes, buf, nbyte, offset);
 }
 
 
-int syscalls_sys_write(char *ustack)
+int syscalls_fileWrite(char *ustack)
 {
 	int fildes;
 	void *buf;
 	size_t nbyte;
+	off_t *offset;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
+	GETFROMSTACK(ustack, off_t, *offset, 3);
 
-	return proc_fileWrite(fildes, buf, nbyte);
+	return proc_fileWrite(fildes, buf, nbyte, offset);
 }
 
 

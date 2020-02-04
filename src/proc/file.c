@@ -1188,7 +1188,7 @@ int proc_fileClose(int handle)
 }
 
 
-ssize_t proc_fileRead(int handle, char *buf, size_t nbyte)
+ssize_t proc_fileRead(int handle, char *buf, size_t nbyte, off_t *poffset)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -1201,8 +1201,12 @@ ssize_t proc_fileRead(int handle, char *buf, size_t nbyte)
 
 	for (;;) {
 		file_lock(file);
-		if ((retval = _file_read(file, buf, nbyte, file->offset)) > 0)
+		if (poffset != NULL) {
+			retval = _file_read(file, buf, nbyte, *poffset);
+		}
+		else if ((retval = _file_read(file, buf, nbyte, file->offset)) > 0) {
 			file->offset += retval;
+		}
 		file_unlock(file);
 
 		if ((file->status & O_NONBLOCK) || retval != -EAGAIN)
@@ -1217,7 +1221,7 @@ ssize_t proc_fileRead(int handle, char *buf, size_t nbyte)
 }
 
 
-ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte)
+ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte, off_t *poffset)
 {
 	thread_t *current = proc_current();
 	process_t *process = current->process;
@@ -1231,13 +1235,18 @@ ssize_t proc_fileWrite(int handle, const char *buf, size_t nbyte)
 
 	for (;;) {
 		file_lock(file);
-		if (file->status & O_APPEND) {
-			offset = 0;
-			_file_seek(file, &offset, SEEK_END); /* TODO: check return value */
+		if (poffset != NULL) {
+			retval = _file_write(file, buf, nbyte, *poffset);
 		}
+		else {
+			if (file->status & O_APPEND) {
+				offset = 0;
+				_file_seek(file, &offset, SEEK_END); /* TODO: check return value */
+			}
 
-		if ((retval = _file_write(file, buf, nbyte, file->offset)) > 0)
-			file->offset += retval;
+			if ((retval = _file_write(file, buf, nbyte, file->offset)) > 0)
+				file->offset += retval;
+		}
 		file_unlock(file);
 
 		if ((file->status & O_NONBLOCK) || retval != -EAGAIN)
