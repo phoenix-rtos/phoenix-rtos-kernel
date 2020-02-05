@@ -101,6 +101,7 @@ process_t *proc_find(unsigned pid)
 static void process_destroy(process_t *p)
 {
 	thread_t *ghost;
+	process_t *c, *cnext;
 
 	perf_kill(p);
 
@@ -119,6 +120,15 @@ static void process_destroy(process_t *p)
 	while ((ghost = p->ghosts) != NULL) {
 		LIST_REMOVE_EX(&p->ghosts, ghost, procnext, procprev);
 		vm_kfree(ghost);
+	}
+
+	if ((c = p->children) != NULL) {
+		do {
+			/* TODO: orphaned children should be adopted init */
+			cnext = c->next;
+			proc_put(c);
+		}
+		while ((c = cnext) != p->children);
 	}
 
 	vm_kfree(p->path);
