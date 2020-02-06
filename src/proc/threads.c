@@ -1076,17 +1076,20 @@ static void _proc_threadDequeue(thread_t *t)
 }
 
 
-static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interruptible)
+static int _proc_threadEnqueue(thread_t **queue, time_t timeout, int interruptible)
 {
 	thread_t *current;
 	time_t now;
 
 	if (*queue == (void *)(-1)) {
 		(*queue) = NULL;
-		return;
+		return EOK;
 	}
 
 	current = threads_common.current[hal_cpuGetID()];
+
+	if (interruptible && current->sigpend)
+		return -EINTR;
 
 	LIST_ADD(queue, current);
 
@@ -1103,6 +1106,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	}
 
 	_perf_enqueued(current);
+	return EOK;
 }
 
 
@@ -1110,7 +1114,8 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, int interruptible)
 {
 	int err;
 
-	_proc_threadEnqueue(queue, timeout, interruptible);
+	if ((err = _proc_threadEnqueue(queue, timeout, interruptible)) < 0)
+		return err;
 
 	if (*queue == NULL)
 		return EOK;
@@ -1129,10 +1134,14 @@ int proc_threadSleep(unsigned long long us)
 	time_t now;
 
 	hal_spinlockSet(&threads_common.spinlock);
-
 	now = _threads_getTimer();
-
 	current = threads_common.current[hal_cpuGetID()];
+
+	if (current->sigpend) {
+		hal_spinlockClear(&threads_common.spinlock);
+		return -EINTR;
+	}
+
 	current->state = SLEEP;
 	current->wait = NULL;
 	current->wakeup = now + TIMER_US2CYC(us);
@@ -1151,10 +1160,13 @@ int proc_threadSleep(unsigned long long us)
 
 static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, int interruptible)
 {
-	int err;
+	int err = EOK;
 
 	hal_spinlockSet(&threads_common.spinlock);
-	_proc_threadEnqueue(queue, timeout, interruptible);
+	if ((err = _proc_threadEnqueue(queue, timeout, interruptible)) < 0) {
+		hal_spinlockClear(&threads_common.spinlock);
+		return err;
+	}
 
 	if (*queue == NULL) {
 		hal_spinlockClear(&threads_common.spinlock);
@@ -1259,12 +1271,18 @@ void proc_threadStop(void)
 	parent = proc_find(current->process->ppid);
 
 	hal_spinlockSet(&threads_common.spinlock);
+	/* FIXME: sigpost after trying to stop? */
 	if (current->process->flags & PFL_STOPPED) { /* TODO: take SA_NOCLDSTOP into account */
 		_threads_sigpost(parent, NULL, SIGCHLD);
 	}
-	_proc_threadEnqueue(&threads_common.stopped, 0, 1);
-	current->state = STOPPED;
-	hal_cpuReschedule(&threads_common.spinlock);
+
+	if (_proc_threadEnqueue(&threads_common.stopped, 0, 1) < 0) {
+		hal_spinlockClear(&threads_common.spinlock);
+	}
+	else {
+		current->state = STOPPED;
+		hal_cpuReschedule(&threads_common.spinlock);
+	}
 
 #if 0
 	/* Send SIGCHLD on continue? (optional) */
