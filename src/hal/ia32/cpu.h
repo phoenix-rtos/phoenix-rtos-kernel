@@ -552,8 +552,16 @@ static inline int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), addr
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	char *ustack = (char *)ctx->esp;
+	char *savesp;
 
+	PUTONSTACK(ustack, u32, ctx->eflags);
+	PUTONSTACK(ustack, u32, ctx->cs);
 	PUTONSTACK(ustack, u32, ctx->eip);
+
+	savesp = ustack;
+	ustack = (char *)((unsigned int)ustack & ~15);
+
+	PUTONSTACK(ustack, u32, (u32)savesp);
 	PUTONSTACK(ustack, int, n);
 	PUTONSTACK(ustack, addr_t, handler);
 
