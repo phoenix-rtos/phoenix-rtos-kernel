@@ -1336,8 +1336,8 @@ int proc_join(time_t timeout)
 
 int proc_child(process_t *child, process_t *parent)
 {
-	child->ppid = parent->id;
 	hal_spinlockSet(&threads_common.spinlock);
+	child->ppid = parent->id;
 	LIST_ADD(&parent->children, child);
 	hal_spinlockClear(&threads_common.spinlock);
 	return EOK;
