@@ -2127,7 +2127,7 @@ void _imxrt_init(void)
 	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c3fff;
 	*(imxrt_common.ccm + ccm_ccgr4) = 0x0000ff3c;
 	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f330f;
-	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f00;
+	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f0f;
 
 	/* Remain in run mode on wfi */
 	_imxrt_ccmSetMode(0);
