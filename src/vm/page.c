@@ -410,13 +410,12 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 
 		if (err == EOK) {
 
+			page->idx = hal_cpuGetFirstBit(SIZE_PAGE);
 			if (page->flags & PAGE_FREE) {
-				page->idx = hal_cpuGetFirstBit(SIZE_PAGE);
-				LIST_ADD(&pages.sizes[hal_cpuGetFirstBit(SIZE_PAGE)], page);
+				LIST_ADD(&pages.sizes[page->idx], page);
 				pages.freesz += SIZE_PAGE;
 			}
 			else {
-				page->idx = 0;
 				pages.allocsz += SIZE_PAGE;
 				if (((page->flags >> 1) & 7) == PAGE_OWNER_BOOT)
 					pages.bootsz += SIZE_PAGE;
