@@ -300,7 +300,7 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 }
 
 
-static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+static inline int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), addr_t handler, int n)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 
@@ -310,8 +310,9 @@ static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 
 	PUTONSTACK(ctx->sp, u32, ctx->pc | !!(ctx->psr & THUMB_STATE));
 	PUTONSTACK(ctx->sp, int, n);
+	PUTONSTACK(ctx->sp, addr_t, handler);
 
-	ctx->pc = (u32)handler & ~1;
+	ctx->pc = (u32)trampoline & ~1;
 
 	if ((u32)handler & 1)
 		ctx->psr |= THUMB_STATE;
