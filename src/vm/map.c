@@ -613,9 +613,9 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 	offs = paddr - e->vaddr;
 
 	if (e->amap == NULL)
-		p = vm_objectPage(map, NULL, e->object, paddr, (e->offs < 0) ? e->offs : e->offs + offs);
+		p = vm_objectPage(map, NULL, e->object, paddr, (e->offs == -1) ? -1 : e->offs + offs);
 	else if (e->object != (void *)-1)
-		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, (e->offs < 0) ? e->offs : e->offs + offs, prot);
+		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, (e->offs == -1) ? -1 : e->offs + offs, prot);
 
 	if (prot & PROT_WRITE)
 		attr |= PGHD_WRITE | PGHD_PRESENT;
