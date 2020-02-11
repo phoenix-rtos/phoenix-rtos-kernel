@@ -54,7 +54,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 	cpio_newc_t *cpio = (void *)&programs;
 	unsigned int fs, ns, sz, k;
 	page_t *p;
-	void *vaddr;
+	void *vaddr, *cpiosp, *cpioep;
 	syspage_program_t *pr;
 
 	if (hal_strncmp(cpio->c_magic, "070701", 6)) {
@@ -68,6 +68,9 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 
 		lib_printf("cpio found dislocated\n");
 	}
+
+	/* Page aligned up cpio start address */
+	cpiosp = (void *)(((ptr_t)cpio + (SIZE_PAGE - 1)) & ~(SIZE_PAGE - 1));
 
 	for (;;) {
 		if (!hal_strcmp(cpio->name, "TRAILER!!!"))
@@ -105,6 +108,14 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 
 		cpio = (void *)(((ptr_t)cpio + fs + CPIO_PAD) & ~CPIO_PAD);
 	}
+
+	/* Page aligned down cpio end address */
+	cpioep = (void *)((((ptr_t)cpio + sizeof(cpio_newc_t) + programs_a2i(cpio->c_namesize) + CPIO_PAD) & ~CPIO_PAD) & ~(SIZE_PAGE - 1));
+	/* Free cpio pages */
+	for (vaddr = cpiosp; vaddr < cpioep; vaddr += SIZE_PAGE)
+		vm_pageFreeAt(&kmap->pmap, vaddr);
+	/* Unmap cpio */
+	vm_munmap(kmap, cpiosp, cpioep - cpiosp);
 #endif
 
 	return EOK;
