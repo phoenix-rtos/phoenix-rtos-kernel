@@ -141,6 +141,11 @@ int vm_objectGet(vm_object_t **o, iodes_t *file)
 	newo->refs = 1;
 	proc_lockInit(&newo->lock);
 
+	if (file->obdes != NULL) {
+		newo->oid.port = file->obdes->port->id;
+		newo->oid.id = file->obdes->id;
+	}
+
 	for (i = 0; i < n; ++i)
 		newo->pages[i] = NULL;
 
