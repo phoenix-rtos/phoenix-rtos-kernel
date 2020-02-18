@@ -18,6 +18,7 @@
 #include "../../include/errno.h"
 #include "../../include/wait.h"
 #include "../../include/signal.h"
+#include "../../include/time.h"
 #include "threads.h"
 #include "../lib/lib.h"
 #include "resource.h"
@@ -1127,11 +1128,11 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, int interruptible)
 }
 
 
-int proc_threadSleep(unsigned long long us)
+int thread_sleep(unsigned long long us, long long *remaining)
 {
 	thread_t *current;
 	int err;
-	time_t now;
+	time_t now, wakeup;
 
 	hal_spinlockSet(&threads_common.spinlock);
 	now = _threads_getTimer();
@@ -1144,7 +1145,7 @@ int proc_threadSleep(unsigned long long us)
 
 	current->state = SLEEP;
 	current->wait = NULL;
-	current->wakeup = now + TIMER_US2CYC(us);
+	current->wakeup = wakeup = now + TIMER_US2CYC(us);
 	current->interruptible = 1;
 
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
@@ -1154,7 +1155,47 @@ int proc_threadSleep(unsigned long long us)
 	if ((err = hal_cpuReschedule(&threads_common.spinlock)) == -ETIME)
 		err = EOK;
 
+	if (remaining != NULL) {
+		hal_spinlockSet(&threads_common.spinlock);
+		*remaining = TIMER_CYC2US(_threads_getTimer() - wakeup);
+		hal_spinlockClear(&threads_common.spinlock);		
+	}
+
 	return err;
+}
+
+
+int proc_threadSleep(clockid_t clock_id, int flags, const struct timespec *request, struct timespec *remain)
+{
+	unsigned long long duration;
+	long long remaining;
+	int retval;
+
+	if (flags & TIMER_ABSTIME)
+		return -ENOSYS;
+
+	if (request->tv_sec < 0 || request->tv_nsec > 999999999)
+		return -EINVAL;
+
+	duration = 1000000 * request->tv_sec + request->tv_nsec / 1000;
+
+	if (remain == NULL) {
+		retval = thread_sleep(duration, NULL);
+	}
+	else {
+		retval = thread_sleep(duration, &remaining);
+
+		if (remaining > 0) {
+			remain->tv_sec = remaining / 1000000;
+			remain->tv_nsec = 1000 * remaining;
+		}
+		else {
+			remain->tv_sec = 0;
+			remain->tv_nsec = 0;
+		}
+	}
+
+	return retval;
 }
 
 

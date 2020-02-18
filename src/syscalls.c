@@ -18,6 +18,8 @@
 #include "../include/errno.h"
 #include "../include/sysinfo.h"
 #include "../include/fcntl.h"
+#include "../include/types.h"
+#include "../include/time.h"
 #include "../include/mman.h"
 #include "../include/syscalls.h"
 #include "../include/poll.h"
@@ -248,12 +250,27 @@ int syscalls_endthread(void *ustack)
 }
 
 
+int syscalls_threadSleep(void *ustack)
+{
+	clockid_t clockid;
+	int flags;
+	const struct timespec *request;
+	struct timespec *remain;
+
+	GETFROMSTACK(ustack, clockid_t, clockid, 0);
+	GETFROMSTACK(ustack, int, flags, 1);
+	GETFROMSTACK(ustack, const struct timespec *, request, 2);
+	GETFROMSTACK(ustack, struct timespec *, remain, 3);
+
+	return proc_threadSleep(clockid, flags, request, remain);
+}
+
+
 int syscalls_usleep(void *ustack)
 {
-	unsigned int us;
-
-	GETFROMSTACK(ustack, unsigned int, us, 0);
-	return proc_threadSleep((unsigned long long)us);
+	useconds_t us;
+	GETFROMSTACK(ustack, useconds_t, us, 0);
+	return thread_sleep(us, NULL);
 }
 
 
@@ -792,7 +809,7 @@ int syscalls_signalSuspend(void *ustack)
 	t->sigmask = mask;
 
 	while (ret != -EINTR)
-		ret = proc_threadSleep(1ULL << 52);
+		ret = thread_sleep(1ULL << 52, NULL);
 	t->sigmask = old;
 
 	return ret;

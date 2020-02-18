@@ -164,7 +164,7 @@ static void _test_vm_msgsimthr(void *arg)
 		}
 		hal_memset(buff, 2, 44);
 		vm_kfree(buff);
-		proc_threadSleep(10000);
+		thread_sleep(10000, NULL);
 	}
 
 	proc_lockSet(&lock);
@@ -205,7 +205,7 @@ static void _test_vm_upgrsimthr(void *arg)
 				break;
 			hal_memset(buff, 0, 133);
 			vm_kfree(buff);
-			proc_threadSleep(1000);
+			thread_sleep(1000, NULL);
 		}
 		vm_kfree(first);
 

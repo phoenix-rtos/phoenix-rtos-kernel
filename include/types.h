@@ -29,6 +29,8 @@ typedef long long off64_t;
 typedef int mode_t;
 typedef int gid_t;
 typedef int uid_t;
+typedef int clockid_t;
+typedef unsigned int useconds_t;
 
 typedef int dev_t;
 typedef int ino_t;

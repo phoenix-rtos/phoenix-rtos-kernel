@@ -22,6 +22,7 @@
 #include "process.h"
 #include "lock.h"
 #include "../../include/sysinfo.h"
+#include "../../include/time.h"
 
 #define MAX_TID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
@@ -140,6 +141,9 @@ extern int proc_zombie(process_t *zombie, process_t *parent);
 extern int proc_waitpid(pid_t pid, int *status, int options);
 
 
+extern int thread_sleep(unsigned long long us, long long *remaining);
+
+
 extern int proc_join(time_t timeout);
 
 
@@ -155,7 +159,7 @@ extern void proc_threadStop(void);
 extern int proc_threadClone(void);
 
 
-extern int proc_threadSleep(unsigned long long us);
+extern int proc_threadSleep(clockid_t clock_id, int flags, const struct timespec *request, struct timespec *remain);
 
 
 extern int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout);

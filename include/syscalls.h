@@ -105,6 +105,7 @@
 	ID(sys_setsid) \
 	ID(sys_getsid) \
 	ID(threadKill) \
+	ID(threadSleep) \
 	ID(deviceCreate) \
 	ID(fsMount) \
 	ID(fsBind) \

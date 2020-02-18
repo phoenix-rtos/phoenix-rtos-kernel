@@ -57,7 +57,7 @@ static void test_proc_indthr(void *arg)
 			test_proc_common.rotations[6] % 100,
 			test_proc_common.rotations[7] % 100);
 
-		proc_threadSleep(5000);
+		thread_sleep(5000, NULL);
 	}
 
 	return;
@@ -80,7 +80,7 @@ static void test_proc_timethr(void *arg)
 		test_proc_common.tm++;
 		proc_threadWakeup(&test_proc_common.queue);
 		hal_spinlockClear(&test_proc_common.spinlock);
-		proc_threadSleep(100000);
+		thread_sleep(100000, NULL);
 	}
 }
 
@@ -96,7 +96,7 @@ static void test_proc_rotthr1(void *arg)
 
 	for (;;) {
 		test_proc_common.rotations[i]++;
-		proc_threadSleep(10000 * i);
+		thread_sleep(10000 * i, NULL);
 	}
 
 	return;
@@ -189,7 +189,7 @@ static void test_proc_initthr(void *arg)
 			proc_syspageSpawn(prog, "", argv);
 		}
 
-		proc_threadSleep(120000);
+		thread_sleep(120000, NULL);
 	}
 }
 
