@@ -314,7 +314,7 @@ static inline int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), addr
 
 	ctx->pc = (u32)trampoline & ~1;
 
-	if ((u32)handler & 1)
+	if ((u32)trampoline & 1)
 		ctx->psr |= THUMB_STATE;
 	else
 		ctx->psr &= ~THUMB_STATE;
