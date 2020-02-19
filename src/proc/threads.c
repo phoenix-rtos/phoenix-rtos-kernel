@@ -1171,6 +1171,9 @@ int proc_threadSleep(clockid_t clock_id, int flags, const struct timespec *reque
 	long long remaining;
 	int retval;
 
+	if (clock_id != CLOCK_REALTIME && clock_id != CLOCK_MONOTONIC)
+		return -ENOTSUP;
+
 	if (flags & TIMER_ABSTIME)
 		return -ENOSYS;
 
