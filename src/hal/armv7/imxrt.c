@@ -397,7 +397,7 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 		case pctl_isel_qtimer3_timer2:
 		case pctl_isel_qtimer3_timer3:
 		case pctl_isel_sai1_mclk2:
-		case pctl_isel_sa1_rx_bclk:
+		case pctl_isel_sai1_rx_bclk:
 		case pctl_isel_sai1_rx_data0:
 		case pctl_isel_sai1_rx_sync:
 		case pctl_isel_sai1_tx_bclk:
@@ -2127,7 +2127,7 @@ void _imxrt_init(void)
 	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c3fff;
 	*(imxrt_common.ccm + ccm_ccgr4) = 0x0000ff3c;
 	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f330f;
-	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f00;
+	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f0f;
 
 	/* Remain in run mode on wfi */
 	_imxrt_ccmSetMode(0);

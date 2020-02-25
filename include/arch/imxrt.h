@@ -332,7 +332,7 @@ enum {
 	pctl_isel_lpuart8_rx, pctl_isel_lpuart8_tx, pctl_isel_nmi, pctl_isel_qtimer2_timer0,
 	pctl_isel_qtimer2_timer1, pctl_isel_qtimer2_timer2, pctl_isel_qtimer2_timer3,
 	pctl_isel_qtimer3_timer0, pctl_isel_qtimer3_timer1, pctl_isel_qtimer3_timer2,
-	pctl_isel_qtimer3_timer3, pctl_isel_sai1_mclk2, pctl_isel_sa1_rx_bclk, pctl_isel_sai1_rx_data0,
+	pctl_isel_qtimer3_timer3, pctl_isel_sai1_mclk2, pctl_isel_sai1_rx_bclk, pctl_isel_sai1_rx_data0,
 	pctl_isel_sai1_rx_data1, pctl_isel_sai1_rx_data2, pctl_isel_sai1_rx_data3, pctl_isel_sai1_rx_sync,
 	pctl_isel_sai1_tx_bclk, pctl_isel_sai1_tx_sync, pctl_isel_sai2_mclk2, pctl_isel_sai2_rx_bclk,
 	pctl_isel_sai2_rx_data0, pctl_isel_sai2_rx_sync, pctl_isel_sai2_tx_bclk, pctl_isel_sai2_tx_sync,
