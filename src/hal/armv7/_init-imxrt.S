@@ -5,8 +5,8 @@
  *
  * Low-level initialization for Cortex-M7 (ARMv7) architecture
  *
- * Copyright 2012, 2016-2017 Phoenix Systems
- * Author: Jacek Popko, Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski
+ * Copyright 2012, 2016-2017, 2020 Phoenix Systems
+ * Author: Jacek Popko, Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski, Hubert Buczynski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -54,12 +54,12 @@ _fcfb:
 .word 0, 0, 0, 0 /* configCmdSeqs */
 .word 0, 0, 0, 0 /* cfgCmdArgs */
 .word 0x00000000 /* controllerMiscOption */
-.byte 0x1          /* deviceType */
+.byte 0x0          /* deviceType */
 .byte 0x4        /* sflashPadType */
-.byte 0x8        /* serialClkFreq */
+.byte 0x6        /* serialClkFreq */
 .byte 0x0        /* lutCustomSeqEnable */
-.word 0, 0
-.word 0x04000000 /* sflashA1Size */
+.word 0,
+.word 0x800000 /* sflashA1Size */
 .word 0          /* sflashA2Size */
 .word 0          /* sflashB1Size */
 .word 0          /* sflashB2Size */
@@ -70,8 +70,8 @@ _fcfb:
 .word 0          /* timeoutInMs */
 .word 0          /* commandInterval */
 .word 0x00000000 /* dataValidTime */
-.byte 0xf, 0     /* busyOffset */
-.byte 0x1, 0     /* busyBitPolarity */
+.byte 0x0, 0     /* busyOffset */
+.byte 0x0, 0     /* busyBitPolarity */
 
 /* lookupTable */
 .word 0x0a1804eb, 0x26043206, 0x00000000, 0x00000000
@@ -217,7 +217,8 @@ _start:
 	ldr r9, =0xaaaaffff
 	str r9, [r8, #0x44]
 
-_start_copy:
+
+ _start_copy:
 	/* Copy kernel from internal flash to ITCM */
 	ldr r0, [r2], #4
 	str r0, [r3], #4
@@ -225,29 +226,35 @@ _start_copy:
 	cmp r2, r1
 	blt _start_copy
 
-	/* Add offset to syspage's programs */
-	eor r0, r0, r0
-	ldr r4, =_syspage
-	ldr r1, [r4, #0xc]
-	add r2, r4, #0x10
+	/* Find syspage size */
+	ldr r9, =_syspage
+	ldr r9, [r9, #12] //syspage size
 
-_programs_offset:
-	cmp r0, r1
-	bge _start_1
+	/* If syspage is empty, programs are not copied */
+	cmp r9, #0
+	beq _start_1
 
-	/* Program's start offset */
-	ldr r3, [r2]
-	add r3, r3, FLEXSPI2_BASE
-	str r3, [r2]
+	/* Calcuclate offset to of the last program */
+	sub r9, r9, #1
 
-	/* Program's end offset */
-	ldr r3, [r2], #4
-	add r3, r3, FLEXSPI2_BASE
-	str r3, [r2]
+	mov r8, #0x18
+	mul r9, r9, r8
+	add r9, r9, #20
 
-	add r2, r2, #20
-	add r0, r0, #1
-	b _programs_offset
+	ldr r8, =_syspage
+	add r8, r8, r9
+
+	ldr r8, [r8]
+	add r8, r8, FLEXSPI2_BASE
+
+
+ _start_syspage_copy:
+	 /* Copy syspage's programs form internal flash to ITCM */
+	 ldr r0, [r2], #4
+	 str r0, [r3], #4
+
+	 cmp r2, r8
+	 blt _start_syspage_copy
 
 _start_1:
 	/* Init vector table and stack pointer */
@@ -260,8 +267,11 @@ _start_1:
 
 	ldr r0, =syspage
 	ldr r1, =_syspage
+
 	str r1, [r0]
-	bl main
+
+	ldr r8, =main
+	bx r8
 .size _start, .-_start
 .ltorg
 
