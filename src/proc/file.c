@@ -383,8 +383,24 @@ static int file_poll(iodes_t *file, poll_head_t *poll, wait_note_t *note)
 				}
 			}
 			else {
-				FILE_LOG("TODO type %d", file->type);
-				revents = POLLNVAL;
+				if (file->type == ftDevice && file->device.port == NULL) {
+					switch (file->device.id) {
+						case devNull:
+							revents |= POLLOUT;
+							/* fallthrough */
+						case devZero:
+							revents |= POLLIN;
+							break;
+						default:
+							FILE_LOG("invalid special file: %lld", file->device.id);
+							revents = POLLNVAL;
+							break;
+					}
+				}
+				else {
+					FILE_LOG("TODO type %d", file->type);
+					revents = POLLNVAL;
+				}
 			}
 			break;
 		}
