@@ -114,7 +114,6 @@ static void process_destroy(process_t *p)
 
 	proc_groupLeave(p);
 	proc_resourcesDestroy(p);
-	proc_filesDestroy(p);
 	proc_lockDone(&p->lock);
 
 	while ((ghost = p->ghosts) != NULL) {

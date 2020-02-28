@@ -490,9 +490,12 @@ static void thread_destroy(thread_t *t)
 		_proc_threadWakeup(&process->reaper);
 		hal_spinlockClear(&threads_common.spinlock);
 
-		if (process->threads == NULL && (parent = proc_find(process->ppid)) != NULL) {
-			proc_zombie(process, parent);
-			proc_put(parent);
+		if (process->threads == NULL) {
+			proc_filesDestroy(process);
+			if ((parent = proc_find(process->ppid)) != NULL) {
+				proc_zombie(process, parent);
+				proc_put(parent);
+			}
 		}
 
 		proc_put(process);
