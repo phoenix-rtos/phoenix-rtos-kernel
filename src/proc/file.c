@@ -2133,7 +2133,7 @@ int proc_netGetsockopt(int socket, int level, int optname, void *optval, socklen
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = -EINVAL; //socket_getsockopt(file->port, file->id, level, optname, optval, optlen);
+	retval = EOK; //socket_getsockopt(file->port, file->id, level, optname, optval, optlen);
 	file_put(file);
 	return retval;
 }
