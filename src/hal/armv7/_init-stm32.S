@@ -94,6 +94,11 @@ _start:
 .type _syscallend, %function
 
 _syscall_dispatch:
+	cpsid if
+
+	mov r0, #0
+	msr control, r0
+
 	stmdb sp!, {r4-r8}
 	mrs r0, psp
 
@@ -108,25 +113,22 @@ _syscall_dispatch:
 
 	/* Copy arguments back to the user stack */
 	stmdb r0!, {r1-r4}
-
-	/* Get syscall number and its function pointer */
-	ldr r1, =syscalls
-	ldrb r2, [r7, #-3]
-	ldr r6, [r1, r2, lsl #2]
+	mov r1, r0
+	ldrb r0, [r7, #-3]
 
 	/* Prepare pseudo context */
 	mov r7, #0x01000000
+	ldr r6, =syscalls_dispatch
 	ldr r5, =_syscallend
 	stmdb sp!, {r0-r7} /* PSR, PC, LR, R12, R3, R2, R1, R0 */
 
 	/* Exit handler mode to kernel thread mode */
-	mov lr, #0
-	msr control, lr
 	mov lr, #0xfffffff9
 	cpsie if
 	bx lr
 
 _syscallend:
+	cpsid if
 	pop {lr}
 
 	ldmia sp!, {r1-r8}
@@ -134,6 +136,7 @@ _syscallend:
 	stmdb lr!, {r1-r8}
 
 	ldmia sp!, {r4-r8}
+	cpsie if
 
 	/* Switch stacks */
 	mov r0, #3
@@ -141,6 +144,7 @@ _syscallend:
 
 	ldmia sp!, {r0-r3, r12, lr}
 	ldr pc, [sp], #8
+
 .size _syscall_dispatch, .-_syscall_dispatch
 .ltorg
 
@@ -164,6 +168,9 @@ _exceptions_dispatch:
 _pendsv:
 	cpsid if
 
+	mov r0, #0
+	msr control, r0
+
 	mrs r0, ipsr
 	mrs r3, psp
 	sub r1, sp, #48
@@ -185,6 +192,9 @@ _pendsv:
 _interrupts_dispatch:
 	cpsid if
 
+	mov r0, #0
+	msr control, r0
+
 	mrs r0, ipsr
 	mrs r3, psp
 	sub r1, sp, #48
@@ -192,7 +202,8 @@ _interrupts_dispatch:
 
 _intd0:
 	bl interrupts_dispatch
-	ldr sp, [sp]
+	ldr r1, [sp]
+	mov sp, r1
 _intd1:
 	ldmia sp!, {r1-r11, lr}
 

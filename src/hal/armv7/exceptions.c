@@ -48,7 +48,7 @@ static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 {
-	const char *mnemonics[] = {
+	static const char *mnemonics[] = {
 		"0 #InitialSP",   "1 #Reset",    "2 #NMI",        "3 #HardFault",
 		"4 #MemMgtFault", "5 #BusFault", "6 #UsageFault", "7 #",
 		"8 #",            "9 #",         "10 #",          "11 #SVC",
@@ -83,8 +83,10 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 	i += exceptions_i2s("\npsp=", &buff[i], ctx->psp, 16, 1);
 	i += exceptions_i2s(" psr=", &buff[i], ctx->psr, 16, 1);
-	i += exceptions_i2s(" cfs=", &buff[i], *(u32*)0xe000ed28, 16, 1);
 	i += exceptions_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
+	i += exceptions_i2s(" bfa=", &buff[i], *(u32*)0xe000ed38, 16, 1);
+
+	i += exceptions_i2s("\ncfs=", &buff[i], *(u32*)0xe000ed28, 16, 1);
 
 	buff[i] = 0;
 }
