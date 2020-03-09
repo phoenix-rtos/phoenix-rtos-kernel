@@ -93,6 +93,9 @@ enum { syscfg_memrmp = 0, syscfg_cfgr1, syscfg_exticr1, syscfg_exticr2, syscfg_e
 enum { iwdg_kr = 0, iwdg_pr, iwdg_rlr, iwdg_sr, iwdg_winr };
 
 
+enum { fpu_cpacr = 34, fpu_fpccr = 141, fpu_fpcar, fpu_fpdscr };
+
+
 /* platformctl syscall */
 
 
@@ -476,7 +479,7 @@ void _stm32_scbSetPriority(s8 excpn, u32 priority)
 
 	ptr = &((u8*)(stm32_common.scb + scb_shp1))[excpn - 4];
 
-	*ptr = (priority << 4) & 0x0ff;
+	*ptr = (priority << 4) & 0xff;
 }
 
 
@@ -527,7 +530,7 @@ void _stm32_nvicSetPriority(s8 irqn, u32 priority)
 
 	ptr = ((u8*)(stm32_common.nvic + nvic_ip)) + irqn;
 
-	*ptr = (priority << 4) & 0x0ff;
+	*ptr = (priority << 4) & 0xff;
 }
 
 
@@ -881,6 +884,9 @@ void _stm32_init(void)
 	/* Select LSE as clock source for RTC and LCD */
 	*(stm32_common.rcc + rcc_bdcr) = (*(stm32_common.rcc + rcc_bdcr) & ~(0x3 << 8)) | (1 << 8);
 
+	/* Select system clock for ADC */
+	*(stm32_common.rcc + rcc_ccipr) |= 0x3 << 28;
+
 	hal_cpuDataBarrier();
 
 	/* Set DBP bit */
@@ -936,6 +942,13 @@ void _stm32_init(void)
 	/* Enable watchdog */
 	*(stm32_common.iwdg + iwdg_kr) = 0xcccc;
 #endif
+
+	/* Enable UsageFault, BusFault and MemManage exceptions */
+	*(stm32_common.scb + scb_shcsr) |= (1 << 16) | (1 << 17) | (1 << 18);
+
+	/* Disable FPU */
+	*(stm32_common.scb + fpu_cpacr) = 0;
+	*(stm32_common.scb + fpu_fpccr) = 0;
 
 	return;
 }
