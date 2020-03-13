@@ -720,8 +720,8 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 		hal_spinlockClear(&spawn.sl);
 	}
 	else {
-			vm_kfree(argv);
-			vm_kfree(envp);
+		vm_kfree(argv);
+		vm_kfree(envp);
 	}
 
 	hal_spinlockDestroy(&spawn.sl);
@@ -753,6 +753,7 @@ int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv)
 
 
 /* (v)fork/exec/exit */
+
 
 static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
 {

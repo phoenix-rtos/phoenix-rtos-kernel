@@ -105,6 +105,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 
 		cpio = (void *)(((ptr_t)cpio + fs + CPIO_PAD) & ~CPIO_PAD);
 	}
+
 #endif
 
 	return EOK;

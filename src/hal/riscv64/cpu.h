@@ -409,13 +409,65 @@ static inline void hal_cpuGuard(cpu_context_t *ctx, void *addr)
 }
 
 
+static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+{
+//	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+/*	char *ustack = (char *)ctx->esp;
+
+	PUTONSTACK(ustack, u32, ctx->eip);
+	PUTONSTACK(ustack, int, n);
+
+	ctx->eip = (u32)handler;
+	ctx->esp = (u32)ustack;
+*/
+	return 0;
+}
+
+
 extern void hal_longjmp(cpu_context_t *ctx);
 
 
 static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
 {
+/*	if (stack == NULL) {
+		__asm__ volatile
+		(" \
+			movl %0, %%esp;\
+			movl %1, %%eax;\
+			call *%%eax"
+		:
+		:"r" (kstack), "r" (f));
+	}
+	else {
+		__asm__ volatile
+		(" \
+			sti; \
+			movl %1, %%eax;\
+			movl %2, %%ebx;\
+			movl %3, %%ecx;\
+			movl %4, %%edx;\
+			movl %0, %%esp;\
+			pushl %%edx;\
+			pushl %%ebx;\
+			pushfl;\
+			pushl %%ecx;\
+			movw %%dx, %%ds;\
+			movw %%dx, %%es;\
+			movw %%dx, %%fs;\
+			movw %%dx, %%gs;\
+			pushl %%eax;\
+			iret"
+		:
+		:"g" (kstack), "g" (f), "g" (stack), "g" (SEL_UCODE), "g" (SEL_UDATA)
+		:"eax", "ebx", "ecx", "edx");
+	}*/
 }
 
+
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return (ctx->sscratch == 0);
+}
 
 /* core management */
 

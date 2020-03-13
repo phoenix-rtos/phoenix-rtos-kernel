@@ -152,11 +152,11 @@
 
 
 .macro CHECKSIGNAL
-	mv a0, zero
-	call _proc_sigwant
-	beqz a0, 1f
-	mv a0, sp
-	call proc_sighandle
+//	mv a0, zero
+//	call _proc_sigwant
+//	beqz a0, 1f
+//	mv a0, sp
+//	call proc_sighandle
 	/* Not reached */
 1:
 .endm
