@@ -3,17 +3,18 @@
 # Process arguments and add programs to the binary file whch will be transformed into the ELF section */
 
 
-printf "../../libphoenix/test/psh\n../../phoenix-rtos-devices/tty/pc-uart/pc-uart" | cpio -o -H newc > /tmp/programs
+printf "../../phoenix-rtos-devices/tty/spike-tty/spike-tty\n../../libphoenix/test/psh" | cpio -o -H newc > /tmp/programs
+#printf "../../libphoenix/test/psh\n../../libphoenix/test/test_threads" | cpio -o -H newc > /tmp/programs
 
 #elf64-littleriscv
 
 # Create ELF file consiting programs
-riscv64-unknown-elf-objcopy -I binary -O elf64-littleriscv -Briscv:rv64 --redefine-sym _binary__tmp_programs_start=pprograms \
-	-N _binary__tmp_programs_end -N _binary__tmp_programs_size /tmp/programs /tmp/programs.elf
+#riscv64-unknown-elf-objcopy -I binary -O elf64-littleriscv -Briscv:rv64 --redefine-sym _binary__tmp_programs_start=pprograms \
+#	-N _binary__tmp_programs_end -N _binary__tmp_programs_size /tmp/programs /tmp/programs.elf
 
 # Copy ELF file into the .program section
-riscv64-unknown-elf-objcopy -I elf64-littleriscv -O elf64-littleriscv --update-section .data=/tmp/programs programs.o \
-	--add-symbol programs=.data:0
+#riscv64-unknown-elf-objcopy -I elf64-littleriscv -O elf64-littleriscv --update-section .data=/tmp/programs programs.o \
+#	--add-symbol programs=.data:0
 #	../phoenix-riscv64-withprograms.elf
 	
 #riscv64-unknown-elf-objcopy -I elf64-littleriscv -O elf64-littleriscv -R .sdata --add-section .sdata=/tmp/programs.elf ../phoenix-riscv64.elf \

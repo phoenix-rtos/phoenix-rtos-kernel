@@ -12,8 +12,8 @@ SIL ?= @
 #TARGET ?= ia32
 #TARGET ?= armv7-stm32
 #TARGET ?= armv7-imxrt
-TARGET ?= arm-imx
-#TARGET ?= riscv64
+#TARGET ?= arm-imx
+TARGET ?= riscv64
 
 VERSION = 2.80
 CORE_VERSION = 1.0
@@ -57,7 +57,7 @@ EXTERNAL_HEADERS_DIR := ../include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
 
 SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
-HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
+HEADERS_INSTALL_DIR := $(SYSROOT)/usr/local/include/phoenix
 ifeq (/,$(SYSROOT))
 $(error Sysroot is not supported by Your toolchain. Use cross-toolchain to compile)
 endif

@@ -293,7 +293,7 @@ int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 	page_t *ap = NULL;
 
 	while (pmap_enter(pmap, pa, vaddr, attrs, ap) < 0) {
-		if (vaddr > (void *)VADDR_KERNEL || (ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+		if (/*vaddr > (void *)VADDR_KERNEL ||*/ (ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
 			return -ENOMEM;
 	}
 	return EOK;
