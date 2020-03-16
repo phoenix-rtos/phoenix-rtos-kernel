@@ -117,9 +117,9 @@ int sun_close(sun_t *socket)
 static int sun_init(sun_t *socket)
 {
 	hal_memset(socket, 0, sizeof(*socket));
-	if ((socket->fifo.data = vm_kmalloc(SIZE_PAGE)) == NULL)
+	if ((socket->fifo.data = vm_kmalloc(4 * SIZE_PAGE)) == NULL)
 		return -ENOMEM;
-	fifo_init(&socket->fifo, SIZE_PAGE);
+	fifo_init(&socket->fifo, 4 * SIZE_PAGE);
 	proc_lockInit(&socket->lock);
 	socket->refs = 1;
 	return EOK;
@@ -282,7 +282,8 @@ int sun_poll(sun_t *socket, poll_head_t *poll, wait_note_t *note)
 		if (!fifo_is_empty(&socket->fifo))
 			events |= POLLIN;
 
-		if (!fifo_is_full(&socket->fifo))
+//		if (!fifo_is_full(&socket->fifo))
+		if (fifo_freespace(&socket->fifo) > 128)
 			events |= POLLOUT;
 	}
 
@@ -576,7 +577,7 @@ ssize_t _sun_recvmsg(sun_t *socket, struct msghdr *msg, int flags)
 		}
 	}
 
-	if (bytes > 0 && socket->connection != NULL)
+	if (bytes > 0 && socket->connection != NULL && fifo_freespace(&socket->fifo) > 128)
 		poll_signal(&socket->connection->wait, POLLOUT);
 
 	return bytes;

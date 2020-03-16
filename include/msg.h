@@ -37,6 +37,8 @@ enum {
 	mtGetPeerName, mtGetSockName,
 	mtRecv, mtSend, mtSocket, mtShutdown, mtSetOpt, mtGetOpt, mtGetFl, mtSetFl, mtGetAddrInfo, mtGetNameInfo,
 
+	mtRaw,
+
 	mtCount
 } type;
 

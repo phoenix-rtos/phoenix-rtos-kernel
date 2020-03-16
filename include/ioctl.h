@@ -27,4 +27,13 @@
 #define IOC_INOUT			(IOC_IN | IOC_OUT)
 #define IOC_DIRMASK			0xe0000000
 
+#define _IOC(inout,group,num,len)	((unsigned long) (inout | ((len & IOCPARM_MASK) << 16) | ((group) << 8) | (num)))
+#define _IO(g,n)			_IOC(IOC_VOID, (g), (n), 0)
+#define _IOV(g,n,t)			_IOC(IOC_VOID, (g), (n), sizeof(t))     /* IOW with passing by value */
+#define _IOR(g,n,t)			_IOC(IOC_OUT, (g), (n), sizeof(t))
+#define _IOW(g,n,t)			_IOC(IOC_IN, (g), (n), sizeof(t))
+#define _IOWR(g,n,t)		_IOC(IOC_INOUT, (g), (n), sizeof(t))
+
+#define	FIONREAD		_IOR('f', 127, int)
+
 #endif

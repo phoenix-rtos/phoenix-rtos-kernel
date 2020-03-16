@@ -297,7 +297,12 @@ int port_send(port_t *p, msg_t *msg)
 		proc_threadWakeup(&p->threads);
 
 		while (kmsg.state != msg_responded && kmsg.state != msg_rejected) {
-			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0);
+			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 3000000);
+
+			if (err == -ETIME) {
+				lib_printf("TIMEOUT port=%d sender=%s pid=%d mtype=%d\n", p->id, sender->process->path, sender->process->id, msg->type);
+				continue;
+			}
 
 			if ((err != EOK && kmsg.state == msg_waiting)) {
 				LIST_REMOVE(&p->kmessages, &kmsg);

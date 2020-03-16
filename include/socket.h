@@ -64,6 +64,8 @@
 
 #define SCM_RIGHTS 1
 
+#define SOCK_NONBLOCK	0x8000
+#define SOCK_CLOEXEC	0x4000
 
 typedef int socklen_t;
 typedef unsigned short sa_family_t;

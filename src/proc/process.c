@@ -142,7 +142,11 @@ int proc_put(process_t *p)
 {
 	int remaining;
 
-	if (!(remaining = lib_atomicDecrement(&p->refs)))
+	proctree_lock();
+	remaining = lib_atomicDecrement(&p->refs);
+	proctree_unlock();
+
+	if (!remaining)
 		process_destroy(p);
 
 	return remaining;

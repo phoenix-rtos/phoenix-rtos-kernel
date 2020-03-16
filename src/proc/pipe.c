@@ -16,6 +16,7 @@
 #include HAL
 #include "../../include/errno.h"
 #include "../../include/fcntl.h"
+#include "../../include/ioctl.h"
 #include "../lib/lib.h"
 #include "proc.h"
 #include "file.h"
@@ -62,11 +63,16 @@ int pipe_poll(pipe_t *pipe, poll_head_t *poll, wait_note_t *note)
 		events |= POLLIN;
 
 	if (pipe->open) {
-		if (!pipe->nreaders || !pipe->nwriters) {
+		if (!fifo_is_full(&pipe->fifo)) {
+			events |= POLLOUT;
+		}
+
+		if (!pipe->nwriters && fifo_is_empty(&pipe->fifo)) {
 			events |= POLLHUP;
 		}
-		else if (!fifo_is_full(&pipe->fifo)) {
-			events |= POLLOUT;
+
+		if (!pipe->nreaders) {
+			events |= POLLERR;
 		}
 	}
 
@@ -122,7 +128,7 @@ ssize_t pipe_write(pipe_t *pipe, const void *data, size_t size)
 int pipe_close(pipe_t *pipe, int read, int write)
 {
 	/* FIXME: races */
-
+	pipe_lock(pipe);
 	if (read) {
 		lib_atomicDecrement(&pipe->nreaders);
 	}
@@ -132,11 +138,13 @@ int pipe_close(pipe_t *pipe, int read, int write)
 	}
 
 	if (!pipe->nreaders && !pipe->nwriters) {
+		pipe_unlock(pipe);
 		pipe_destroy(pipe);
 		vm_kfree(pipe);
 		return 1;
 	}
 	else {
+		pipe_unlock(pipe);
 		poll_signal(&pipe->wait, POLLHUP);
 		return 0;
 	}
@@ -158,8 +166,20 @@ int pipe_closeNamed(obdes_t *obdes, int read, int write)
 
 int pipe_ioctl(pipe_t *pipe, unsigned cmd, const void *in_buf, size_t in_size, void *out_buf, size_t out_size)
 {
-	lib_printf("pipe_ioctl\n");
-	return -ENOSYS;
+	int rv;
+
+	pipe_lock(pipe);
+	switch (cmd) {
+	case FIONREAD:
+		rv = fifo_count(&pipe->fifo);
+		break;
+
+	default:
+		rv = -ENOTTY;
+		break;
+	}
+	pipe_unlock(pipe);
+	return rv;
 }
 
 
@@ -281,6 +301,7 @@ int pipe_get(obdes_t *obdes, pipe_t **result, int flags)
 		obdes->pipe = pipe;
 	}
 
+	pipe_lock(pipe);
 	if (flags & O_WRONLY) {
 		lib_atomicIncrement(&pipe->nwriters);
 	}
@@ -291,6 +312,7 @@ int pipe_get(obdes_t *obdes, pipe_t **result, int flags)
 	else {
 		lib_atomicIncrement(&pipe->nreaders);
 	}
+	pipe_unlock(pipe);
 	proc_lockClear(&port->odlock);
 
 	*result = pipe;

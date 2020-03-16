@@ -20,6 +20,7 @@
 #include "../../include/ioctl.h"
 #include "../../include/socket.h"
 #include "../../include/event.h"
+#include "../../include/socket.h"
 #include "../lib/lib.h"
 #include "proc.h"
 #include "socket.h"
@@ -459,6 +460,8 @@ int proc_poll(struct pollfd *handles, nfds_t nfds, int timeout_ms)
 	poll_init(&poll);
 
 	for (i = 0; i < nfds; ++i) {
+		handles[i].revents = 0;
+
 		if (handles[i].fd < 0)
 			continue;
 
@@ -638,6 +641,9 @@ iodes_t *file_get(process_t *p, int handle)
 	iodes_t *f;
 	process_lock(p);
 	f = _file_get(p, handle);
+	if (f == NULL) {
+		FILE_LOG("BADF %s %d", p->path, handle);
+	}
 	process_unlock(p);
 	return f;
 }
@@ -921,7 +927,7 @@ int file_openDevice(iodes_t *file)
 		}
 
 		if ((error = proc_objectOpen(port, &dest.id)) != EOK) {
-			FILE_LOG("open");
+			FILE_LOG("open port=%d id=%llu type=%d", port->id, dest.id, file->type);
 			port_put(port);
 			return error;
 		}
@@ -1333,11 +1339,6 @@ int proc_fileTruncate(int handle, off_t length)
 	file_unlock(file);
 	file_put(file);
 
-	if (retval != sizeof(length) && retval >= 0) {
-		FILE_LOG("setattr");
-		retval = -EIO;
-	}
-
 	return retval;
 }
 
@@ -1370,7 +1371,6 @@ int proc_fileIoctl(int handle, unsigned long request, const char *indata, size_t
 				retval = proc_objectControl(file->device.port, file->device.id, request, indata, insz, outdata, outsz);
 			}
 			else {
-				FILE_LOG("TODO");
 				retval = -ENOTTY;
 			}
 			break;
@@ -1904,6 +1904,12 @@ int proc_fsBind(int dirhandle, const char *dirpath, int fsfd, const char *fspath
 			oid.port = fs->fs.port->id;
 			oid.id = fs->fs.id;
 			retval = proc_objectSetAttr(dir->fs.port, dir->fs.id, atMount, &oid, sizeof(oid));
+
+			if (retval < 0)
+				FILE_LOG("atMount: %d", retval);
+		}
+		else {
+			FILE_LOG("atMountPoint: %d", retval);
 		}
 	}
 	else {
@@ -1937,6 +1943,7 @@ int socket_accept(process_t *process, port_t *port, id_t id, struct sockaddr *ad
 	int retval;
 	id_t conn_id;
 	iodes_t *conn;
+	int fdflags = 0;
 
 	retval = proc_objectAccept(port, id, &conn_id, address, address_len);
 
@@ -1948,7 +1955,13 @@ int socket_accept(process_t *process, port_t *port, id_t id, struct sockaddr *ad
 			conn->type = ftSocket;
 			conn->obdes = port_obdesGet(conn->device.port, conn_id);
 
-			if ((retval = fd_new(process, 0, flags, conn)) < 0)
+			if (flags & SOCK_NONBLOCK)
+				conn->status |= O_NONBLOCK;
+
+			if (flags & SOCK_CLOEXEC)
+				fdflags |= FD_CLOEXEC;
+
+			if ((retval = fd_new(process, 0, fdflags, conn)) < 0)
 				file_put(conn);
 		}
 		else {
@@ -2202,16 +2215,25 @@ ssize_t proc_sendmsg(int socket, const struct msghdr *msg, int flags)
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	switch (file->type) {
-		case ftSocket:
-			retval = -EAFNOSUPPORT;
+	for (;;) {
+		switch (file->type) {
+			case ftSocket:
+				FILE_LOG("TODO");
+				retval = -EAFNOSUPPORT;
+				break;
+			case ftLocalSocket:
+				retval = sun_sendmsg(file->sun, msg, flags);
+				break;
+			default:
+				FILE_LOG("unexpected file type");
+				retval = -ENXIO;
+				break;
+		}
+
+		if ((file->status & O_NONBLOCK) || retval != -EAGAIN)
 			break;
-		case ftLocalSocket:
-			retval = sun_sendmsg(file->sun, msg, flags);
-			break;
-		default:
-			FILE_LOG("unexpected file type");
-			retval = -ENXIO;
+
+		if ((retval = file_waitForOne(file, POLLOUT, 0)) < 0)
 			break;
 	}
 
@@ -2256,7 +2278,8 @@ int proc_netSetsockopt(int socket, int level, int optname, const void *optval, s
 	if ((retval = socket_get(process, socket, &file)) < 0)
 		return retval;
 
-	retval = -EINVAL; //socket_setsockopt(file->port, file->id, level, optname, optval, optlen);
+//	retval = -EINVAL; //socket_setsockopt(file->port, file->id, level, optname, optval, optlen);
+	retval = EOK;
 	file_put(file);
 	return retval;
 }
