@@ -443,11 +443,14 @@ int proc_poll(struct pollfd *handles, nfds_t nfds, int timeout_ms)
 	poll_head_t poll;
 	iodes_t *file;
 	process_t *process = proc_current()->process;
+	long timeout;
 
 	if (!timeout_ms)
-		timeout_ms = -1;
+		timeout = -1;
 	else if (timeout_ms < 0)
-		timeout_ms = 0;
+		timeout = 0;
+	else
+		timeout = timeout_ms * 1000;
 
 	if (nfds <= 16) {
 		notes = snotes;
@@ -496,10 +499,10 @@ int proc_poll(struct pollfd *handles, nfds_t nfds, int timeout_ms)
 				}
 			}
 
-			if (nev || error || timeout_ms < 0)
+			if (nev || error || timeout < 0)
 				break;
 
-			error = _poll_wait(&poll, timeout_ms);
+			error = _poll_wait(&poll, timeout);
 		}
 	}
 
