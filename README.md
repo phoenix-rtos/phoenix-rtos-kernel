@@ -7,6 +7,7 @@ To build cross-compile toolchain use `toolchain/build-toolchain.sh` script.
 Targets supported currently by the script:
 - i386-pc-phoenix
 - arm-phoenix
+- riscv64-phoenix-elf
 
 Sample invocation:
 ```

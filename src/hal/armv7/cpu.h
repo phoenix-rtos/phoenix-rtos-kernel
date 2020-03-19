@@ -341,56 +341,7 @@ static inline void hal_longjmp(cpu_context_t *ctx)
 }
 
 
-static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
-{
-	if (stack == NULL) {
-		__asm__ volatile
-		(" \
-			mov sp, %1; \
-			subs %0, #1; \
-			bmi 1f; \
-			pop {r0};\
-			subs %0, #1; \
-			bmi 1f; \
-			pop {r1}; \
-			subs %0, #1; \
-			bmi 1f; \
-			pop {r2}; \
-			subs %0, #1; \
-			bmi 1f; \
-			pop {r3}; \
-		1: \
-			bx %2"
-		: "+r" (argc)
-		: "r" (kstack), "r" (f)
-		: "r0", "r1", "r2", "r3", "sp");
-	}
-	else {
-		__asm__ volatile
-		(" \
-			msr msp, %2; \
-			subs %1, #1; \
-			bmi 1f; \
-			ldr r0, [%0], #4; \
-			subs %1, #1; \
-			bmi 1f; \
-			ldr r1, [%0], #4; \
-			subs %1, #1; \
-			bmi 1f; \
-			ldr r2, [%0], #4; \
-			subs %1, #1; \
-			bmi 1f; \
-			ldr r3, [%0], #4; \
-		1: \
-			msr psp, %0; \
-			mov r4, %4; \
-			msr control, r4; \
-			bx %3"
-		: "+r"(stack), "+r" (argc)
-		: "r" (kstack), "r" (f), "i"(USERCONTROL)
-		: "r0", "r1", "r2", "r3", "r4", "sp");
-	}
-}
+void hal_jmp(void *f, void *kstack, void *stack, int argc);
 
 
 static inline void hal_cpuGuard(cpu_context_t *ctx, void *addr)
