@@ -255,3 +255,56 @@ hal_cpuReschedule0:
 .size hal_cpuReschedule, .-hal_cpuReschedule
 .ltorg
 
+
+.globl hal_jmp /* void hal_jmp(void *f, void *kstack, void *stack, int argc) */
+.type hal_jmp, %function
+hal_jmp:
+	push {r0-r3}
+	pop {r4-r7}
+
+	cpsid if
+
+	cmp r2, #NULL
+	bne hal_jmp_user
+
+	mov sp, r5
+	subs r7, #1
+	bmi 1f
+	pop {r0}
+	subs r7, #1
+	bmi 1f
+	pop {r1}
+	subs r7, #1
+	bmi 1f
+	pop {r2}
+	subs r7, #1
+	bmi 1f
+	pop {r3}
+1:
+	cpsie if
+	bx r4
+
+hal_jmp_user:
+	cpsid if
+	msr msp, r5
+	subs r7, #1
+	bmi 2f
+	pop {r0}
+	subs r7, #1
+	bmi 2f
+	pop {r1}
+	subs r7, #1
+	bmi 2f
+	pop {r2}
+	subs r7, #1
+	bmi 2f
+	pop {r3}
+2:
+	cpsie if
+	msr psp, r6
+	mov r5, #0x3
+	msr control, r5
+	bx r4
+
+.size hal_jmp, .-hal_jmp
+.ltorg
