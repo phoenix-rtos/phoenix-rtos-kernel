@@ -58,7 +58,7 @@ _fcfb:
 .byte 0x4        /* sflashPadType */
 .byte 0x6        /* serialClkFreq */
 .byte 0x0        /* lutCustomSeqEnable */
-.word 0,
+.word 0, 0
 .word 0x800000 /* sflashA1Size */
 .word 0          /* sflashA2Size */
 .word 0          /* sflashB1Size */
