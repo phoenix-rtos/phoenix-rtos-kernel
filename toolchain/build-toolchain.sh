@@ -2,10 +2,16 @@
 # $1 - toolchain target (e.g. arm-phoenix)
 # $2 - toolchain install absolute path (i.e. no "." or ".." in the path)
 
+
 set -e
+
+log() {
+    echo -e "\e[35;1m$*\e[0m"
+}
 
 if [ -z "$1" ]; then
     echo "No toolchain target provided! Abort."
+    echo "officially supported targets: arm-phoenix i386-pc-phoenix riscv64-phoenix-elf"
     exit 1
 fi
 
@@ -14,81 +20,86 @@ if [ -z "$2" ]; then
     exit 1
 fi
 
-BINUTILS=binutils-2.28
-GMP=gmp-6.1.2
-MPFR=mpfr-3.1.5
-MPC=mpc-1.0.3
-GCC=gcc-7.1.0
+# old legacy versions of the compiler:
+#BINUTILS=binutils-2.28
+#GCC=gcc-7.1.0
+
+BINUTILS=binutils-2.34
+GCC=gcc-9.3.0
 
 TARGET="$1"
 BUILD_ROOT="$2"
 TOOLCHAIN_PREFIX="${BUILD_ROOT}/${TARGET}"
 MAKEOPTS="-j9 -s"
 
-# Download packages
+log "downloading packages"
 mkdir -p "${TOOLCHAIN_PREFIX}"
 cp ./*.patch "${BUILD_ROOT}"
 cd "${BUILD_ROOT}"
 
-[[ ! -f ${BINUTILS}.tar.bz2 ]] && wget "http://ftp.gnu.org/gnu/binutils/${BINUTILS}.tar.bz2"
-[[ ! -f ${GMP}.tar.bz2 ]] && wget "http://ftp.gnu.org/gnu/gmp/${GMP}.tar.bz2"
-[[ ! -f ${MPFR}.tar.bz2 ]] && wget "http://ftp.gnu.org/gnu/mpfr/${MPFR}.tar.bz2"
-[[ ! -f ${MPC}.tar.gz ]] && wget "ftp://ftp.gnu.org/gnu/mpc/${MPC}.tar.gz"
-[[ ! -f ${GCC}.tar.bz2 ]] && wget "http://www.mirrorservice.org/sites/ftp.gnu.org/gnu/gcc/${GCC}/${GCC}.tar.bz2"
+[ ! -f ${BINUTILS}.tar.bz2 ] && wget "http://ftp.gnu.org/gnu/binutils/${BINUTILS}.tar.bz2"
+[ ! -f ${GCC}.tar.xz ] && wget "http://www.mirrorservice.org/sites/ftp.gnu.org/gnu/gcc/${GCC}/${GCC}.tar.xz"
 
-# Extract packages
-[[ ! -d ${BINUTILS} ]] && tar jxf ${BINUTILS}.tar.bz2 && mkdir "${BINUTILS}/build"
-[[ ! -d ${GMP} ]] && tar jxf ${GMP}.tar.bz2
-[[ ! -d ${MPFR} ]] && tar jxf ${MPFR}.tar.bz2
-[[ ! -d ${MPC} ]] && tar xf ${MPC}.tar.gz
-[[ ! -d ${GCC} ]] && tar jxf ${GCC}.tar.bz2 && mkdir "${GCC}/build"
+log "extracting packages"
+[ ! -d ${BINUTILS} ] && tar jxf ${BINUTILS}.tar.bz2
+[ ! -d ${GCC} ] && tar Jxf ${GCC}.tar.xz
 
-# patch Binutils
-for patchfile in binutils-*.patch; do
-    if [ ! -f "${BINUTILS}/build/$patchfile.applied" ]; then
+
+log "patching ${BINUTILS}"
+for patchfile in "${BINUTILS}"-*.patch; do
+    if [ ! -f "${BINUTILS}/$patchfile.applied" ]; then
         patch -d "${BINUTILS}" -p1 < "$patchfile"
-        touch "${BINUTILS}/build/$patchfile.applied"
+        touch "${BINUTILS}/$patchfile.applied"
     fi
 done
 
-# Build Binutils
+log "building binutils"
+rm -rf "${BINUTILS}/build"
+mkdir -p "${BINUTILS}/build"
 cd "${BINUTILS}/build"
 
-../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" \
-             --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}"
+../configure --target="${TARGET}" --prefix="${TOOLCHAIN_PREFIX}" \
+             --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}" --enable-lto
 make ${MAKEOPTS}
-make ${MAKEOPTS} install
+
+log "installing binutils"
+make install
 
 cd "${BUILD_ROOT}"
 
-# Create links
-cd "$GCC"
-ln -sf "../$GMP" gmp
-ln -sf "../$MPFR" mpfr
-ln -sf "../$MPC" mpc
-cd "${BUILD_ROOT}"
+log "downloading GCC dependencies"
+(cd "$GCC" && ./contrib/download_prerequisites)
 
-# patch GCC
-for patchfile in gcc-*.patch; do
-    if [ ! -f "${GCC}/build/$patchfile.applied" ]; then
+
+log "patching ${GCC}"
+for patchfile in "${GCC}"-*.patch; do
+    if [ ! -f "${GCC}/$patchfile.applied" ]; then
         patch -d "${GCC}" -p1 < "$patchfile"
-        touch "${GCC}/build/$patchfile.applied"
+        touch "${GCC}/$patchfile.applied"
     fi
 done
 
-# Build GCC
+log "building GCC"
+rm -rf "${GCC}/build"
+mkdir -p "${GCC}/build"
 cd "${GCC}/build"
 
 if [[ "$TARGET" = *"arm-" ]]; then
     GCC_CONFIG_PARAMS="--with-abi=aapcs"
 fi
 
-../configure --target=${TARGET} --prefix="${TOOLCHAIN_PREFIX}" \
+# GCC compiler options
+# --with-sysroot -> cross-compiler sysroot
+# --with-newlib -> do note generate standard library includes by fixincludes, do not include _eprintf in libgcc
+# --disable-libssp -> stack smashing protector library disabled
+# --disable-nls -> all compiler messages will be in english
+
+../configure --target="${TARGET}" --prefix="${TOOLCHAIN_PREFIX}" \
              --with-sysroot="${TOOLCHAIN_PREFIX}/${TARGET}" \
              --enable-languages=c --with-newlib \
              --disable-libssp --disable-nls $GCC_CONFIG_PARAMS
 
 make ${MAKEOPTS} all-gcc all-target-libgcc
-make ${MAKEOPTS} install-gcc install-target-libgcc
 
-exit 0
+log "installing GCC"
+make install-gcc install-target-libgcc
