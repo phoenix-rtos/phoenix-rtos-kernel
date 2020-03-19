@@ -8,7 +8,7 @@
 # %LICENSE%
 #
 
-CROSS ?= riscv64-unknown-elf-
+CROSS ?= riscv64-phoenix-elf-
 SUBDIRS = hal/riscv64 $(SUBSYSTEMS)
 
 VADDR = 0000003fc0000000
