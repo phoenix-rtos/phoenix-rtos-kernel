@@ -121,7 +121,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	addr = ((pmap->pdir2[pdi2] >> 10) << 12);
 
 	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
-	
+
 	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
 	hal_cpuFlushTLB(va);
 
@@ -138,7 +138,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
 
 	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
-	
+
 	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
 	hal_cpuFlushTLB(va);
 
@@ -193,10 +193,10 @@ int pmap_getPage(page_t *page, addr_t *addr)
 
 	page->addr = a;
 	page->flags = 0;
-		
+
 	if ((page->addr >= syspage->kernel) && (page->addr < syspage->kernel + syspage->kernelsize)) {
 		page->flags |= PAGE_OWNER_KERNEL;
-		
+
 		if ((page->addr >= syspage->pdir2) && (page->addr < syspage->pdir2 + 3 * SIZE_PAGE))
 			page->flags |= PAGE_KERNEL_PTABLE;
 

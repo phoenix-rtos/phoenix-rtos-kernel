@@ -30,12 +30,12 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	*nctx = 0;
 	if (kstack == NULL)
 		return -EINVAL;
-	
+
 	if (kstacksz < sizeof(cpu_context_t))
 		return -EINVAL;
 
 	kstacksz &= ~0x3;
-	
+
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
 
@@ -66,7 +66,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	ctx->pc = (u32)start;
 	ctx->r0	= (u32)arg;
-	
+
 	/* Enable interrupts, set normal execution mode */
 	if (ustack != NULL) {
 		ctx->psr = USR_MODE;
@@ -83,7 +83,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	ctx->fp	 = ctx->sp;
 	*nctx = ctx;
-	
+
 	return 0;
 }
 

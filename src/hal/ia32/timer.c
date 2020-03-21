@@ -27,7 +27,7 @@ struct {
 
 int timer_reschedule(unsigned int n, cpu_context_t *ctx, void *arg)
 {
-//	timer.scheduler(ctx);	
+//	timer.scheduler(ctx);
 	return EOK;
 }
 
@@ -35,17 +35,17 @@ int timer_reschedule(unsigned int n, cpu_context_t *ctx, void *arg)
 __attribute__ ((section (".init"))) void _timer_init(u32 interval)
 {
 	unsigned int t;
-	
+
 	timer.interval = interval;
 
-	t = (u32)((interval * 1190) / 1000);	
+	t = (u32)((interval * 1190) / 1000);
 
 	/* First generator, operation - CE write, work mode 2, binary counting */
 	hal_outb((void *)0x43, 0x34);
-	
+
 	/* Set counter */
 	hal_outb((void *)0x40, (u8)(t & 0xff));
 	hal_outb((void *)0x40, (u8)(t >> 8));
-	
+
 	return;
 }

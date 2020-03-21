@@ -21,7 +21,7 @@
 
 /* Flags used for printing */
 #define FLAG_SIGNED        0x1
-#define FLAG_64BIT         0x2	
+#define FLAG_64BIT         0x2
 #define FLAG_SPACE         0x10
 #define FLAG_ZERO          0x20
 #define FLAG_PLUS          0x40

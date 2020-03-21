@@ -75,7 +75,7 @@ void hal_consolePrint(int attr, const char *s)
 		_console_print("\033[0m");
 	}
 	else
-		_console_print(s);		
+		_console_print(s);
 }
 
 

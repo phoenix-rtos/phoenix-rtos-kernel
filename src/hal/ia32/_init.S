@@ -102,7 +102,7 @@ _init_setupPaging:
 	cld
 
 	/* Now enable paging */
-	movl %ecx, %cr3                
+	movl %ecx, %cr3
 	movl %cr0, %eax
 	orl $0x80000000, %eax
 	movl %eax, %cr0
@@ -117,7 +117,7 @@ _init_setupPaging:
 	addl $VADDR_KERNEL, (%esi)
 	addl $8, %esi
 	addl $VADDR_KERNEL, (%esi)
-	
+
 	movl syspage, %eax
 	lgdt (%eax)
 	addl $8, %eax
@@ -142,13 +142,13 @@ _init_empty8042:
 	pushl %ecx
 2:
 	/* Short delay */
-	mov $0x1000, %ecx               
+	mov $0x1000, %ecx
 3:
 	rep; loop 3b
 
 	/* Test if output buffer is empty */
 	inb $0x64, %al
-	test $1, %al	
+	test $1, %al
 	jz 5f
 
 	/* Second delay */
