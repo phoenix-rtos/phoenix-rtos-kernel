@@ -141,7 +141,7 @@ hal_memset:
 	addi t0, t0, 1
 	bltu t0, a3, 1b
 	sub a2, a2, a4
-2: 
+2:
 	/* Broadcast value into all bytes */
 	andi a1, a1, 0xff
 	slli a3, a1, 8
@@ -205,7 +205,7 @@ hal_memset:
 	bltu t0, a3, 3b
 
 	/* Update count */
-	andi a2, a2, 7  
+	andi a2, a2, 7
 4:
 	/* Handle trailing misalignment */
 	beqz a2, 6f

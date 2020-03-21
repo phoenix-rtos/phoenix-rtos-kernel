@@ -44,7 +44,7 @@ unsigned int lib_strtoul(char *nptr, char **endptr, int base)
 	while (strtoul_isalnum(*nptr)) {
 		if ((t = *nptr - '0') > 9)
 			t = (*nptr | 0x20) - 'a' + 10;
-			
+
 		if (t >= base)
 			break;
 

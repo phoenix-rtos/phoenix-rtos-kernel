@@ -280,10 +280,10 @@ static inline unsigned int hal_cpuGetLastBit(u64 v)
 
 	if (!(v & 0xf000000000000000)) {
 		lb -= 4;
-		v = (v << 4);	
+		v = (v << 4);
 	}
 
-	if (!(v & 0xc000000000000000)) {	
+	if (!(v & 0xc000000000000000)) {
 		lb -= 2;
 		v = (v << 2);
 	}

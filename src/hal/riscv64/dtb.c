@@ -157,7 +157,7 @@ void dtb_parse(void *arg, void *dtb)
 		else if (token == 3) {
 			l = ntoh32(*(u32 *)dtb);
 			l = ((l + 3) & ~3);
-		
+
 			dtb += 4;
 			si = ntoh32(*(u32 *)dtb);
 			dtb += 4;

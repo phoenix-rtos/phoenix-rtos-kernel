@@ -27,7 +27,7 @@ static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b
 
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
-	
+
 	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
 		if (!zero && !i)
 			break;

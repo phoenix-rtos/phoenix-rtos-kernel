@@ -171,7 +171,7 @@ interrupts_handleintexc:
 	mv a0, sp
 
 	bge s4, zero, 2f
-	
+
 	call handler
 
 	mv a0, zero
@@ -197,7 +197,7 @@ interrupts_handleintexc:
 .global hal_cpuReschedule
 hal_cpuReschedule:
 	csrrc tp, sstatus, 2
-	
+
 	/* Change correctly status register */
 	csrw sepc, ra
 

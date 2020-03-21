@@ -96,7 +96,7 @@ _start:
 	/* Add dummy page fault trap handler */
 	la a0, .Lsecondary_park
 	csrw stvec, a0
-	
+
 	call main
 	li a7, SBI_SHUTDOWN
 	ecall

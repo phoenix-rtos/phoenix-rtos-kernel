@@ -44,7 +44,7 @@ unsigned int programs_a2i(char *s)
 		v += (d << k);
 		k -= 4;
 	}
-	return v;	
+	return v;
 }
 
 
