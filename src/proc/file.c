@@ -37,7 +37,7 @@
 #define FILE_LOG(fmt, ...) lib_printf("%s:%d  %s(): " fmt "\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
 
-enum { devNull, devZero };
+enum { devNull, devZero, devRandom };
 
 
 typedef struct {
@@ -124,6 +124,16 @@ static ssize_t _file_read(iodes_t *file, void *data, size_t size, off_t offset)
 				hal_memset(data, 0, size);
 				return size;
 			}
+			case devRandom: {
+				/* TODO: add a real PRNG */
+				static unsigned state = 0x1234abcd;
+				for (int i = 0; i < size; ++i) {
+					state ^= (state << 13) ^ (state >> 23) ^ (state << 7) ^ (state >> 3);
+					state++;
+					((char *)data)[i] = state & 0xff;
+				}
+				return size;
+			}
 			default: {
 				FILE_LOG("invalid special file: %lld", id);
 				return -ENXIO;
@@ -186,6 +196,7 @@ static ssize_t _file_write(iodes_t *file, const void *data, size_t size, off_t o
 		switch (id) {
 			case devNull:
 			case devZero:
+			case devRandom:
 				return size;
 			default: {
 				FILE_LOG("invalid special file: %lld", id);
@@ -390,6 +401,7 @@ static int file_poll(iodes_t *file, poll_head_t *poll, wait_note_t *note)
 							revents |= POLLOUT;
 							/* fallthrough */
 						case devZero:
+						case devRandom:
 							revents |= POLLIN;
 							break;
 						default:
@@ -916,6 +928,7 @@ int file_openDevice(iodes_t *file)
 		switch (dest.id) {
 			case devNull:
 			case devZero:
+			case devRandom:
 				break;
 			default: {
 				FILE_LOG("invalid kernel device");
@@ -2221,7 +2234,7 @@ ssize_t proc_sendmsg(int socket, const struct msghdr *msg, int flags)
 	for (;;) {
 		switch (file->type) {
 			case ftSocket:
-				FILE_LOG("TODO");
+				FILE_LOG("TODO, %s", process->path);
 				retval = -EAFNOSUPPORT;
 				break;
 			case ftLocalSocket:
