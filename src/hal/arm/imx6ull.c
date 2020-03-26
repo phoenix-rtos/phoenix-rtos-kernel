@@ -327,21 +327,28 @@ int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	int ret = -EINVAL;
+	unsigned int t;
 
 	hal_spinlockSet(&imx6ull_common.pltctlSp);
 
 	switch (data->type) {
 	case pctl_devclock:
-		if (data->action == pctl_set)
+		if (data->action == pctl_set) {
 			ret = _imx6ull_setDevClock(data->devclock.dev, data->devclock.state);
-		else if (data->action == pctl_get)
-			ret = _imx6ull_getDevClock(data->devclock.dev, &data->devclock.state);
+		}
+		else if (data->action == pctl_get) {
+			ret = _imx6ull_getDevClock(data->devclock.dev, &t);
+			data->devclock.state = t;
+		}
 		break;
 	case pctl_iogpr:
-		if (data->action == pctl_set)
+		if (data->action == pctl_set) {
 			ret = _imx6ull_setIOgpr(data->iogpr.field, data->iogpr.val);
-		else if (data->action == pctl_get)
-			ret = _imx6ull_getIOgpr(data->iogpr.field, &data->iogpr.val);
+		}
+		else if (data->action == pctl_get) {
+			ret = _imx6ull_getIOgpr(data->iogpr.field, &t);
+			data->iogpr.val = t;
+		}
 		break;
 	case pctl_iomux:
 		if (data->action == pctl_set)
