@@ -56,7 +56,7 @@ _init_vectors:
 .endr
 .size _init_vectors, .-_init_vectors
 
-.org _init_vectors + 512
+.org _init_vectors + 2048
 
 _syspage:
 .word 0x20000000                        /* pbegin */
@@ -64,7 +64,7 @@ _syspage:
 .word 0x00000000                        /* *arg */
 .word 0x00000000                        /* progssz */
 
-.org _syspage + 1024
+.org _syspage + 2048
 
 .thumb
 .thumb_func

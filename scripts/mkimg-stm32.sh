@@ -47,11 +47,11 @@ shift
 
 GDB_SYM_FILE=`dirname ${OUTPUT}`"/gdb_symbols"
 
-SIZE_PAGE=$((0x200))
-PAGE_MASK=$((0xfffffe00))
+SIZE_PAGE=$((0x800))
+PAGE_MASK=$((~($SIZE_PAGE-1)))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
 FLASH_START=$((0x08000000))
-SYSPAGE_OFFSET=$((512))
+SYSPAGE_OFFSET=$((2048))
 
 declare -i i
 declare -i j
