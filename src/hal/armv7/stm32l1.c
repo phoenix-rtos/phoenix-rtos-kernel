@@ -99,15 +99,19 @@ int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	int ret = -EINVAL;
+	unsigned int state;
 
 	hal_spinlockSet(&stm32_common.pltctlSp);
 
 	switch (data->type) {
 	case pctl_devclk:
-		if (data->action == pctl_set)
+		if (data->action == pctl_set) {
 			ret = _stm32_rccSetDevClock(data->devclk.dev, data->devclk.state);
-		else if (data->action == pctl_get)
-			ret = _stm32_rccGetDevClock(data->devclk.dev, &data->devclk.state);
+		}
+		else if (data->action == pctl_get) {
+			ret = _stm32_rccGetDevClock(data->devclk.dev, &state);
+			data->devclk.state = state;
+		}
 
 		break;
 	case pctl_cpuclk:

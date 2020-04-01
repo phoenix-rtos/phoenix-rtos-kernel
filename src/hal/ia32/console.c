@@ -37,7 +37,7 @@
 struct {
 	spinlock_t spinlock;
 	unsigned char rows;
-	unsigned char maxcol;	
+	unsigned char maxcol;
 	unsigned char row;
 	unsigned char col;
 	u16 *vram;
@@ -74,24 +74,24 @@ void hal_consolePrint(int attr, const char *s)
 
 		default:
 			*(console.vram + console.row * console.maxcol + console.col) = *p | attr << 8;
-			console.col++;	
+			console.col++;
 			break;
 		}
-		
+
 		/* end of line is reached */
 		if (console.col == console.maxcol) {
 			console.row++;
 			console.col = 0;
 		}
-		
+
 		/* scroll down */
-		if (console.row == console.rows) {			
+		if (console.row == console.rows) {
 			hal_memcpy(console.vram, console.vram + console.maxcol, console.maxcol * (console.rows - 1) * 2);
 			console.row--;
-			console.col = 0;			
+			console.col = 0;
 			hal_memsetw(console.vram + console.maxcol * (console.rows - 1), attr << 8 | ' ', console.maxcol);
 		}
-		
+
 		/* Set hardware cursor position */
 		hal_outb(console.crtc, CRTC_CURSORH);
 		hal_outb(console.crtc + 1, (console.row * console.maxcol + console.col) >> 8);
@@ -107,18 +107,18 @@ void hal_consolePrint(int attr, const char *s)
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
 	int isColor = 0;
-	
+
 	/* Test monitor type */
 	isColor = (hal_inb((void *)MAIN_MISCIN) & 0x01);
-	
+
 	console.rows = 25;
 	console.maxcol = 80;
 	console.row = 0;
 	console.col = 0;
-	
+
 	console.vram = VADDR_KERNEL + (isColor ? VRAM_COLOR : VRAM_MONO);
 	console.crtc = isColor ? (void *)BASE_COLOR : (void *)BASE_MONO;
-	
+
 	hal_memsetw(console.vram, ' ' | ATTR_NORMAL << 8, console.rows * console.maxcol);
 
 	hal_spinlockCreate(&console.spinlock, "console.spinlock");

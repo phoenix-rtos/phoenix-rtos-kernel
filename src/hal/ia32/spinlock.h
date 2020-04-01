@@ -33,7 +33,7 @@ typedef struct _spinlock_t {
 
 	u32 lock;
 	u32 eflags;
-		
+
 } spinlock_t;
 
 
@@ -53,16 +53,16 @@ static inline void hal_spinlockSet(spinlock_t *spinlock)
 	:
 	: "m" (spinlock->eflags), "m" (spinlock->lock)
 	: "eax", "ebx", "memory");
-	
-	hal_cpuGetCycles((void *)&spinlock->b);	
+
+	hal_cpuGetCycles((void *)&spinlock->b);
 }
 
 
 static inline void hal_spinlockClear(spinlock_t *spinlock)
 {
 	hal_cpuGetCycles((void *)&spinlock->e);
-	
-	/* Calculate maximum and minimum lock time */	
+
+	/* Calculate maximum and minimum lock time */
 	if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
 		spinlock->dmax = spinlock->e - spinlock->b;
 

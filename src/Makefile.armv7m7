@@ -23,25 +23,13 @@ CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
 
 CFLAGS += -fdata-sections -ffunction-sections
 
-ifneq (, $(findstring stm32, $(TARGET)))
-	CFLAGS += -DCPU_STM32
-	ifneq (, $(findstring l1, $(TARGET)))
-		CFLAGS += -mcpu=cortex-m3 -DCPU_STM32L1
-		ifneq (, $(findstring l152xd, $(TARGET)))
-			CFLAGS += -DRAM_SIZE=48
-		else ifneq (, $(findstring l152xe, $(TARGET)))
-			CFLAGS += -DRAM_SIZE=80
-		endif
-	else
-		CFLAGS += -mcpu=cortex-m4 -DRAM_SIZE=320 -DCPU_STM32L4
-	endif
-else ifneq (, $(findstring imxrt, $(TARGET)))
+ifneq (, $(findstring imxrt, $(TARGET)))
 	CFLAGS += -DCPU_IMXRT -DRAM_SIZE=256 -mcpu=cortex-m7  -mfloat-abi=hard -mfpu=fpv5-sp-d16
-	ifneq (, $(findstring 105, $(TARGET)))
+	ifneq (, $(findstring 105x, $(TARGET)))
 		CFLAGS += -DCPU_IMXRT1052
-	else ifneq (, $(findstring 106, $(TARGET)))
+	else ifneq (, $(findstring 106x, $(TARGET)))
 		CFLAGS += -DCPU_IMXRT1064
-	else ifneq (, $(findstring 117, $(TARGET)))
+	else ifneq (, $(findstring 117x, $(TARGET)))
 		CFLAGS += -DCPU_IMXRT1170
 	endif
 endif
@@ -54,14 +42,7 @@ AR = $(CROSS)ar
 ARFLAGS = -r
 
 LD = $(CROSS)ld
-
-ifneq (, $(findstring stm32, $(TARGET)))
-	LDFLAGS = -nostdlib -e _start --section-start .init=8000000 -Tbss=20000000 -z max-page-size=0x10
-else ifneq (, $(findstring imxrt, $(TARGET)))
-	LDFLAGS = -nostdlib -e _start --section-start .init=0 -Tbss=20000000 -z max-page-size=0x10
-endif
-
-LDFLAGS += --gc-sections
+LDFLAGS = -nostdlib -e _start --section-start .init=0 -Tbss=20000000 -z max-page-size=0x10 --gc-sections
 
 GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
 LIBS = $(GCCLIB)

@@ -47,11 +47,11 @@ shift
 
 GDB_SYM_FILE=`dirname ${OUTPUT}`"/gdb_symbols"
 
-SIZE_PAGE=$((0x200))
-PAGE_MASK=$((0xfffffe00))
+SIZE_PAGE=$((0x800))
+PAGE_MASK=$((~($SIZE_PAGE-1)))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
 FLASH_START=$((0x08000000))
-SYSPAGE_OFFSET=$((512))
+SYSPAGE_OFFSET=$((2048))
 
 declare -i i
 declare -i j
@@ -123,7 +123,8 @@ for app in $@; do
 	cp $app tmp.elf
 	${CROSS}strip tmp.elf
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
-	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START + $((0xc0)))) >> $GDB_SYM_FILE
+	ELFOFFS=$((`readelf -l $app | grep "LOAD" | grep "R E" | awk '{ print $2 }'`))
+	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START + $ELFOFFS)) >> $GDB_SYM_FILE
 	dd if=tmp.elf of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
 	OFFSET=$((($OFFSET+$((`du -b tmp.elf | cut -f1`))+$SIZE_PAGE-1)&$PAGE_MASK))
 	rm -f tmp.elf

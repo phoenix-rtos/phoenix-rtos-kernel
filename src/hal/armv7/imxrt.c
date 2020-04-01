@@ -465,22 +465,29 @@ int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	int ret = -EINVAL;
+	unsigned int state;
 
 	hal_spinlockSet(&imxrt_common.pltctlSp);
 
 	switch (data->type) {
 	case pctl_devclock:
-		if (data->action == pctl_set)
+		if (data->action == pctl_set) {
 			ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.state);
-		else if (data->action == pctl_get)
-			ret = _imxrt_getDevClock(data->devclock.dev, &data->devclock.state);
+		}
+		else if (data->action == pctl_get) {
+			ret = _imxrt_getDevClock(data->devclock.dev, &state);
+			data->devclock.state = state;
+		}
 		break;
 
 	case pctl_iogpr:
-		if (data->action == pctl_set)
+		if (data->action == pctl_set) {
 			ret = _imxrt_setIOgpr(data->iogpr.field, data->iogpr.val);
-		else if (data->action == pctl_get)
-			ret = _imxrt_getIOgpr(data->iogpr.field, &data->iogpr.val);
+		}
+		else if (data->action == pctl_get) {
+			ret = _imxrt_getIOgpr(data->iogpr.field, &state);
+			data->iogpr.val = state;
+		}
 		break;
 
 	case pctl_iomux:

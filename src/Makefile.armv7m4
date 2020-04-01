@@ -1,0 +1,44 @@
+#
+# Makefile for Phoenix-RTOS 3.0 kernel
+#
+# ARMv7 (Cortex-M3/M4/M7) options
+#
+# Copyright 2018-2020 Phoenix Systems
+#
+# %LICENSE%
+#
+
+CROSS ?= arm-phoenix-
+SUBDIRS = hal/armv7 $(SUBSYSTEMS)
+
+MKDEP = $(CROSS)gcc -MM
+MKDEPFLAGS = $(CFLAGS)
+
+CC = $(CROSS)gcc
+
+CFLAGS += -Wall -Wstrict-prototypes -I$(SRCDIR) -nostartfiles -nostdlib\
+	-mthumb -ffixed-r9 -fomit-frame-pointer -ffreestanding -Wno-bool-operation \
+	-DVERSION=\"$(VERSION)\" -DCORE_VERSION=\"$(CORE_VERSION)\" -DAPP_VERSION=\"$(APP_VERSION)\" \
+	-DHAL=\"hal//armv7//hal.h\" -DNOMMU
+
+CFLAGS += -fdata-sections -ffunction-sections
+
+ifneq (, $(findstring stm32, $(TARGET)))
+	CFLAGS += -DCPU_STM32 -mcpu=cortex-m4 -DRAM_SIZE=320 -DCPU_STM32L4
+endif
+
+ifneq ($(DEBUG), 1)
+	CFLAGS += -DWATCHDOG
+endif
+
+AR = $(CROSS)ar
+ARFLAGS = -r
+
+LD = $(CROSS)ld
+LDFLAGS = -nostdlib -e _start --section-start .init=8000000 -Tbss=20000000 -z max-page-size=0x10 --gc-sections
+
+GCCLIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
+LIBS = $(GCCLIB)
+
+OBJCOPY = $(CROSS)objcopy
+OBJDUMP = $(CROSS)objdump

@@ -134,7 +134,7 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	char *compatible, *isa, *mmu;
 	u32 clock;
 
-	
+
 	while (!dtb_getCPU(n++, &compatible, &clock, &isa, &mmu)) {
 
 		l = hal_strlen(compatible);
