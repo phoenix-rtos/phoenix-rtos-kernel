@@ -34,10 +34,6 @@ struct {
 
 	u32 cpuclk;
 
-	u32 gpio_mode[8];
-	u32 gpio_pupd[8];
-	u32 uart_state[5];
-
 	u32 resetFlags;
 
 	spinlock_t pltctlSp;
@@ -332,72 +328,52 @@ void _stm32_pwrSetCPUVolt(u8 range)
 }
 
 
-void hal_preSleep(void)
-{
-	/* TODO */
-}
-
-
-void hal_postSleep(void)
-{
-	/* TODO */
-}
-
-
 int _stm32_pwrEnterLPStop(void)
 {
-/* TODO */
-#if 0//def NDEBUG
-	u8 lprun_state = !!(*(stm32_common.pwr + pwr_cr) & (1 << 14));
-	u8 regulator_state = (*(stm32_common.pwr + pwr_csr) >> 11) & 3;
-	int slept = 0, i;
-
-	hal_preSleep();
-
-	/* Set LPSDSR and ULP bits */
-	*(stm32_common.pwr + pwr_cr) |= 1;
-	*(stm32_common.pwr + pwr_cr) &= ~2;
+#ifdef NDEBUG
+	u8 regulator_state = (*(stm32_common.pwr + pwr_cr1) >> 9) & 3;
+	int slept = 0;
+	unsigned int t;
 
 	/* Set internal regulator to default range to further conserve power */
 	_stm32_pwrSetCPUVolt(1);
 
+	/* Enter Stop2 on deep-sleep */
+	t = *(stm32_common.pwr + pwr_cr1) & ~(0x7);
+	*(stm32_common.pwr + pwr_cr1) = t | 2;
+
 	/* Set SLEEPDEEP bit of Cortex System Control Register */
 	*(stm32_common.scb + scb_scr) |= 1 << 2;
+
+	/* Clear EXTI pending bits */
+	*(stm32_common.exti + exti_pr1) |= 0xffffffff;
+	*(stm32_common.exti + exti_pr2) |= 0xffffffff;
 
 	_stm32_rtcUnlockRegs();
 	/* Set wakeup timer and interrupt bits */
 	*(stm32_common.rtc + rtc_cr) |= (1 << 10) | (1 << 14);
 	_stm32_rtcLockRegs();
 
-	*(stm32_common.exti + exti_pr) |= 0xffffffff;
-
 	/* Enter Stop mode */
 	__asm__ volatile ("\
 		dmb; \
+		sev; \
+		wfe; \
 		wfe; \
 		nop; ");
 
 	/* Find out if device actually woke up because of the alarm */
-	slept = !!(*(stm32_common.pwr + pwr_csr) & 1);
+	slept = !!(*(stm32_common.rtc + rtc_isr) & (1 << 10));
 
 	/* Reset SLEEPDEEP bit of Cortex System Control Register */
 	*(stm32_common.scb + scb_scr) &= ~(1 << 2);
 
-	/* Reset LPSDSR and ULP bits */
-	*(stm32_common.pwr + pwr_cr) &= ~1;
-
-	/* Clear standby and wakeup flags */
-	*(stm32_common.pwr + pwr_cr) |= (3 << 2) | 1;
-
 	/* Clear wakeup timer and interrupt bits */
 	*(stm32_common.rtc + rtc_cr) &= ~((1 << 10) | (1 << 14));
-
-	hal_postSleep();
 
 	/* Recover previous configuration */
 	_stm32_pwrSetCPUVolt(regulator_state);
 	_stm32_rccSetCPUClock(stm32_common.cpuclk);
-	_stm32_pwrEnterLPRun(lprun_state);
 
 	return slept;
 #else
@@ -836,43 +812,9 @@ void _stm32_init(void)
 
 	hal_cpuDataBarrier();
 
-	/* Rescue */
-	_stm32_rccSetDevClock(pctl_gpiod, 1);
-	_stm32_gpioConfig(pctl_gpiod, 1, 0, 0, 0, 0, 1);
-	u8 val;
-	_stm32_gpioGet(pctl_gpiod, 1, &val);
-
-	while (!val)
-		_stm32_gpioGet(pctl_gpiod, 1, &val);
-
-	_stm32_rccSetDevClock(pctl_gpiod, 0);
-
-	/* GPIO LP init */
-#ifdef NDEBUG
-	i = 0;
-#else
-	/* Don't change setting for debug pins (needed for JTAG) */
-	/* Turn off for production to reduce power consumption */
-	_stm32_rccSetDevClock(pctl_gpioa, 1);
-	*(stm32_common.gpio[0] + gpio_moder) = 0xabffffff;
-	_stm32_rccSetDevClock(pctl_gpioa, 0);
-	_stm32_rccSetDevClock(pctl_gpiob, 1);
-	*(stm32_common.gpio[1] + gpio_moder) = 0xfffffebf;
-	_stm32_rccSetDevClock(pctl_gpiob, 0);
-
-	/* Enable debug in stop mode */
-	*((u32*)0xe0042004) |= 3;
-
-	i = 2;
-#endif
-
-	/* Init all GPIOs to Ain mode to lower power consumption */
-	for (; i <= pctl_gpiog - pctl_gpioa; ++i) {
+	/* GPIO init */
+	for (i = 0; i < sizeof(stm32_common.gpio) / sizeof(stm32_common.gpio[0]); ++i)
 		_stm32_rccSetDevClock(gpio2pctl[i], 1);
-		*(stm32_common.gpio[i] + gpio_moder) = 0xffffffff;
-		*(stm32_common.gpio[i] + gpio_pupdr) = 0;
-		_stm32_rccSetDevClock(gpio2pctl[i], 0);
-	}
 
 	/* Set the internal regulator output voltage to 1.5V */
 	_stm32_pwrSetCPUVolt(2);
@@ -899,9 +841,6 @@ void _stm32_init(void)
 	*(stm32_common.rcc + rcc_ccipr) |= 0x3 << 28;
 
 	hal_cpuDataBarrier();
-
-	/* Set DBP bit */
-	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
 
 	/* Unlock RTC */
 	_stm32_rtcUnlockRegs();
@@ -954,6 +893,10 @@ void _stm32_init(void)
 	*(stm32_common.iwdg + iwdg_kr) = 0xcccc;
 #endif
 
+#ifdef NDEBUG
+	*(u32 *)0xE0042004 = 0;
+#endif
+
 	/* Enable UsageFault, BusFault and MemManage exceptions */
 	*(stm32_common.scb + scb_shcsr) |= (1 << 16) | (1 << 17) | (1 << 18);
 
@@ -961,7 +904,14 @@ void _stm32_init(void)
 	*(stm32_common.scb + fpu_cpacr) = 0;
 	*(stm32_common.scb + fpu_fpccr) = 0;
 
+	/* Enable internal wakeup line */
+	*(stm32_common.pwr + pwr_cr3) |= 1 << 15;
+
 	/* Flash in power-down during low power modes */
 	*(stm32_common.flash + flash_acr) |= 1 << 14;
+
+	/* Clear DBP bit */
+	*(stm32_common.pwr + pwr_cr1) &= ~(1 << 8);
+
 	return;
 }
