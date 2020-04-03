@@ -570,7 +570,7 @@ void _stm32_nvicSystemReset(void)
 int _stm32_extiMaskInterrupt(u32 line, u8 state)
 {
 	u32 t;
-	volatile u32 *base = line > 32 ? stm32_common.exti + exti_imr1 : stm32_common.exti + exti_imr2;
+	volatile u32 *base = (line < 32) ? (stm32_common.exti + exti_imr1) : (stm32_common.exti + exti_imr2);
 
 	if (line > 40)
 		return -EINVAL;
@@ -587,15 +587,15 @@ int _stm32_extiMaskInterrupt(u32 line, u8 state)
 int _stm32_extiMaskEvent(u32 line, u8 state)
 {
 	u32 t;
-	volatile u32 *base = line > 32 ? stm32_common.exti + exti_emr1 : stm32_common.exti + exti_emr2;
+	volatile u32 *reg = (line < 32) ? (stm32_common.exti + exti_emr1) : (stm32_common.exti + exti_emr2);
 
 	if (line > 40)
 		return -EINVAL;
 	else if (line >= 32)
 		line -= 32;
 
-	t = *base & ~(!state << line);
-	*base = t | !!state << line;
+	t = *reg & ~(!state << line);
+	*reg = t | !!state << line;
 
 	return EOK;
 }
@@ -604,7 +604,7 @@ int _stm32_extiMaskEvent(u32 line, u8 state)
 int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge)
 {
 	volatile u32 *p;
-	const int reglut[2][2] = { { exti_rtsr1, exti_ftsr1 }, { exti_rtsr2, exti_ftsr2 } };
+	const int reglut[2][2] = { { exti_ftsr1, exti_rtsr1 }, { exti_ftsr2, exti_rtsr2 } };
 
 	if (line > 40)
 		return -EINVAL;
