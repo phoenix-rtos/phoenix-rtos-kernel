@@ -30,6 +30,7 @@ struct {
 	volatile u32 *mpu;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
+	volatile u32 *flash;
 
 	u32 cpuclk;
 
@@ -94,6 +95,11 @@ enum { iwdg_kr = 0, iwdg_pr, iwdg_rlr, iwdg_sr, iwdg_winr };
 
 
 enum { fpu_cpacr = 34, fpu_fpccr = 141, fpu_fpcar, fpu_fpdscr };
+
+
+enum { flash_acr = 0, flash_pdkeyr, flash_keyr, flash_optkeyr, flash_sr, flash_cr, flash_eccr,
+	flash_optr = flash_eccr + 2, flash_pcrop1sr, flash_pcrop1er, flash_wrp1ar, flash_wrp1br,
+	flash_pcrop2sr = flash_wrp1br + 5, flash_pcrop2er, flash_wrp2ar, flash_wrp2br };
 
 
 /* platformctl syscall */
@@ -809,6 +815,7 @@ void _stm32_init(void)
 	stm32_common.gpio[6] = (void *)0x48001800; /* GPIOG */
 	stm32_common.gpio[7] = (void *)0x48001c00; /* GPIOH */
 	stm32_common.gpio[8] = (void *)0x48002000; /* GPIOI */
+	stm32_common.flash = (void *)0x40022000;
 
 	/* Store reset flags and then clean them */
 	_stm32_rtcUnlockRegs();
@@ -954,5 +961,7 @@ void _stm32_init(void)
 	*(stm32_common.scb + fpu_cpacr) = 0;
 	*(stm32_common.scb + fpu_fpccr) = 0;
 
+	/* Flash in power-down during low power modes */
+	*(stm32_common.flash + flash_acr) |= 1 << 14;
 	return;
 }
