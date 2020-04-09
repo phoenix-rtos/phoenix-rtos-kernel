@@ -394,7 +394,7 @@ time_t _stm32_pwrEnterLPStop(time_t ms)
 	int slept = 0;
 	unsigned int t;
 
-	_stm32_rtcSetAlarm(ms)
+	_stm32_rtcSetAlarm(ms);
 
 	/* Set internal regulator to default range to further conserve power */
 	_stm32_pwrSetCPUVolt(1);
