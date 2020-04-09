@@ -310,6 +310,65 @@ void _stm32_rccClearResetFlags(void)
 }
 
 
+/* RTC */
+
+
+void _stm32_rtcUnlockRegs(void)
+{
+	/* Set DBP bit */
+	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
+
+	/* Unlock RTC */
+	*(stm32_common.rtc + rtc_wpr) = 0x000000ca;
+	*(stm32_common.rtc + rtc_wpr) = 0x00000053;
+}
+
+
+void _stm32_rtcLockRegs(void)
+{
+	/* Lock RTC */
+	*(stm32_common.rtc + rtc_wpr) = 0x000000ff;
+
+	/* Reset DBP bit */
+	*(stm32_common.pwr + pwr_cr1) &= ~(1 << 8);
+}
+
+
+void _stm32_rtcSetAlarm(time_t ms)
+{
+	if ((ms << 1) > 0xffff)
+		ms = 0x7fff;
+
+	_stm32_rtcUnlockRegs();
+
+	/* Clear WUTF flag */
+	*(stm32_common.rtc + rtc_isr) &= ~(1 << 10);
+
+	/* Clear sleep status (CSBF and CWUF bits) */
+	*(stm32_common.pwr + pwr_scr) |= 0x11f;
+
+	/* Clear wakeup timer and interrupt bits */
+	*(stm32_common.rtc + rtc_cr) &= ~((1 << 10) | (1 << 14));
+
+	/* Wait for WUTWF flag */
+	while (!(*(stm32_common.rtc + rtc_isr) & (1 << 2)));
+
+	/* Load wakeup timer register */
+	*(stm32_common.rtc + rtc_wutr) = (ms << 1) & 0xffff;
+
+	/* Select RTC/16 wakeup clock */
+	*(stm32_common.rtc + rtc_cr) &= ~0x7;
+
+	/* Unmask interrupt */
+	_stm32_extiMaskEvent(20, 1);
+
+	/* Set rising edge trigger */
+	_stm32_extiSetTrigger(20, 1, 1);
+
+	_stm32_rtcLockRegs();
+}
+
+
 /* PWR */
 
 
@@ -328,12 +387,14 @@ void _stm32_pwrSetCPUVolt(u8 range)
 }
 
 
-int _stm32_pwrEnterLPStop(void)
+time_t _stm32_pwrEnterLPStop(time_t ms)
 {
 #ifdef NDEBUG
 	u8 regulator_state = (*(stm32_common.pwr + pwr_cr1) >> 9) & 3;
 	int slept = 0;
 	unsigned int t;
+
+	_stm32_rtcSetAlarm(ms)
 
 	/* Set internal regulator to default range to further conserve power */
 	_stm32_pwrSetCPUVolt(1);
@@ -375,66 +436,10 @@ int _stm32_pwrEnterLPStop(void)
 	_stm32_pwrSetCPUVolt(regulator_state);
 	_stm32_rccSetCPUClock(stm32_common.cpuclk);
 
-	return slept;
+	return slept ? ms : 0;
 #else
 	return 0;
 #endif
-}
-
-
-/* RTC */
-
-
-void _stm32_rtcUnlockRegs(void)
-{
-	/* Set DBP bit */
-	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
-
-	/* Unlock RTC */
-	*(stm32_common.rtc + rtc_wpr) = 0x000000ca;
-	*(stm32_common.rtc + rtc_wpr) = 0x00000053;
-}
-
-
-void _stm32_rtcLockRegs(void)
-{
-	/* Lock RTC */
-	*(stm32_common.rtc + rtc_wpr) = 0x000000ff;
-
-	/* Reset DBP bit */
-	*(stm32_common.pwr + pwr_cr1) &= ~(1 << 8);
-}
-
-
-void _stm32_rtcSetAlarm(u32 ms)
-{
-	_stm32_rtcUnlockRegs();
-
-	/* Clear WUTF flag */
-	*(stm32_common.rtc + rtc_isr) &= ~(1 << 10);
-
-	/* Clear sleep status (CSBF and CWUF bits) */
-	*(stm32_common.pwr + pwr_scr) |= 0x11f;
-
-	/* Clear wakeup timer and interrupt bits */
-	*(stm32_common.rtc + rtc_cr) &= ~((1 << 10) | (1 << 14));
-
-	/* Wait for WUTWF flag */
-	while (!(*(stm32_common.rtc + rtc_isr) & (1 << 2)));
-
-	/* Load wakeup timer register */
-	*(stm32_common.rtc + rtc_wutr) = (ms << 1) & 0xffff;
-
-	/* Select RTC/16 wakeup clock */
-	*(stm32_common.rtc + rtc_cr) &= ~0x7;
-
-	/* Unmask interrupt */
-	_stm32_extiMaskEvent(20, 1);
-
-	/* Set rising edge trigger */
-	_stm32_extiSetTrigger(20, 1, 1);
-
-	_stm32_rtcLockRegs();
 }
 
 
