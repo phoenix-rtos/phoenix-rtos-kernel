@@ -374,7 +374,7 @@ void _stm32_rtcLockRegs(void)
 }
 
 
-static void _stm32_rtcSetAlarm(time_t ms)
+static time_t _stm32_rtcSetAlarm(time_t ms)
 {
 	if ((ms << 1) > 0xffff)
 		ms = 0x7fff;
@@ -406,6 +406,8 @@ static void _stm32_rtcSetAlarm(time_t ms)
 	_stm32_extiSetTrigger(20, 1, 1);
 
 	_stm32_rtcLockRegs();
+
+	return ms;
 }
 
 
@@ -462,7 +464,7 @@ time_t _stm32_pwrEnterLPStop(time_t ms)
 	u32 cpuclk_state = (*(stm32_common.rcc + rcc_icscr) >> 13) & 7;
 	int slept = 0, i;
 
-	_stm32_rtcSetAlarm(ms);
+	ms = _stm32_rtcSetAlarm(ms);
 
 	/* Disable uarts during sleep */
 	stm32_common.uart_state[0] = *((volatile u32 *)0x4001380c);
