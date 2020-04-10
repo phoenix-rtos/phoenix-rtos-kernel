@@ -63,7 +63,7 @@ enum { wwdq_irq = 16, pvd_pvm_irq, rtc_tamper_stamp_irq, rtc_wkup_irq, flash_irq
 	can1_tx_irq, can1_rx0_irq, can1_rx1_irq, can1_sce_irq, exti9_5_irq, tim1_brk_irq,
 	tim1_up_irq, tim1_trg_com_irq, tim1_cc_irq, tim2_irq, tim3_irq, tim4_irq, i2c1_ev_irq,
 	i2c1_er_irq, i2c2_ev_irq, i2c2_er_irq, spi1_irq, spi2_irq, usart1_irq, usart2_irq,
-	usart3_irq, exit15_10_irq, rtc_alarm_irq, dfsdm1_flt3_irq, tim8_brk_irq, tim8_up_irq,
+	usart3_irq, exti15_10_irq, rtc_alarm_irq, dfsdm1_flt3_irq, tim8_brk_irq, tim8_up_irq,
 	tim8_trg_com_irq, tim8_cc_irq, adc3_irq, fmc_irq, sdmmc1_irq, tim5_irq, spi3_irq,
 	uart4_irq, uart5_irq, tim6_dacunder_irq, tim7_irq, dma2_ch1_irq, dma2_ch2_irq,
 	dma2_ch3_irq, dma2_ch4_irq, dma2_ch5_irq, dfsdm1_flt0_irq, dfsdm1_flt1_irq, dfsdm1_flt2_irq,
