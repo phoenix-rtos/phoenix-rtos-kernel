@@ -289,6 +289,9 @@ int _stm32_rccSetCPUClock(u32 hz)
 	if (hz > 6000 * 1000)
 		_stm32_pwrSetCPUVolt(1);
 
+	while (!(*(stm32_common.rcc + rcc_cr) & 2))
+		;
+
 	t = *(stm32_common.rcc + rcc_cr) & ~(0xf << 4);
 	*(stm32_common.rcc + rcc_cr) = t | range << 4;
 	hal_cpuDataBarrier();
@@ -343,16 +346,27 @@ void _stm32_rtcLockRegs(void)
 
 static time_t _stm32_lptimSetAlarm(time_t ms)
 {
-	if (ms * 2 > 0xffff)
-		ms = 0x7fff;
+	if (ms > 0xffff)
+		ms = 0xffff;
 
-	*(stm32_common.lptim + lptim_cr) &= 3;
+	if (!ms)
+		ms = 1;
+
+	/* /32 prescaler, ~1 ms per tick */
+	*(stm32_common.lptim + lptim_cfgr) = (1 << 19) | (0x5 << 9);
+
+	/* Enable interrupt. We won't enable it in NVIC, so interrput won't come,
+	 * only event will be generated. */
+	*(stm32_common.lptim + lptim_ier) |= 1;
+
 	*(stm32_common.lptim + lptim_icr) |= 0x7f;
 	*(stm32_common.lptim + lptim_cr) = 1;
 	hal_cpuDataBarrier();
-	*(stm32_common.lptim + lptim_arr) = (unsigned int)(ms * 2);
+	*(stm32_common.lptim + lptim_cnt) = 0;
+	*(stm32_common.lptim + lptim_cmp) = (unsigned int)ms;
+	*(stm32_common.lptim + lptim_arr) = 0xffff;
 
-	*(stm32_common.lptim + lptim_cr) |= 2;
+	*(stm32_common.lptim + lptim_cr) |= 4;
 
 	return ms;
 }
@@ -360,11 +374,26 @@ static time_t _stm32_lptimSetAlarm(time_t ms)
 
 static time_t _stm32_lptimStopGetMs(void)
 {
-	unsigned int val;
+	unsigned int cnt[2];
 
-	*(stm32_common.lptim + lptim_cr) &= 3;
-	val = *(stm32_common.lptim + lptim_cnt);
-	return (val ? val : *(stm32_common.lptim + lptim_arr)) / 2;
+	do {
+		/* From documentation: "It should be noted that for a reliable LPTIM_CNT
+		 * register read access, two consecutive read accesses must be performed and compared.
+		 * A read access can be considered reliable when the
+		 * values of the two consecutive read accesses are equal." */
+		cnt[0] = *(stm32_common.lptim + lptim_cnt);
+		cnt[1] = *(stm32_common.lptim + lptim_cnt);
+	} while (cnt[0] != cnt[1]);
+
+	hal_cpuDataBarrier();
+
+	/* We need to reset timer (errata) */
+	*(stm32_common.rcc + rcc_apb1rstr1) |= 1u << 31;
+	hal_cpuDataBarrier();
+	*(stm32_common.rcc + rcc_apb1rstr1) &= ~(1u << 31);
+	hal_cpuDataBarrier();
+
+	return cnt[0];
 }
 
 
@@ -405,6 +434,8 @@ time_t _stm32_pwrEnterLPStop(time_t ms)
 	*(stm32_common.exti + exti_pr1) |= 0xffffffff;
 	*(stm32_common.exti + exti_pr2) |= 0xffffffff;
 
+	*(stm32_common.scb + syst_csr) &= ~1;
+
 	_stm32_lptimSetAlarm(ms);
 
 	/* Enter Stop mode */
@@ -424,6 +455,8 @@ time_t _stm32_pwrEnterLPStop(time_t ms)
 
 	/* Provoke systick, so we'll be reschuduled asap */
 	*(stm32_common.scb + scb_icsr) |= 1 << 26;
+
+	*(stm32_common.scb + syst_csr) |= 1;
 
 	return _stm32_lptimStopGetMs();
 }
@@ -906,13 +939,6 @@ void _stm32_init(void)
 	*(stm32_common.rcc + rcc_ccipr) |= (0x3 << 20) | (0x3 << 18) | (0x3 << 10);
 
 	_stm32_rccSetDevClock(pctl_lptim1, 1);
-
-	/* /16 prescaler, ~0.5 ms per tick */
-	*(stm32_common.lptim + lptim_cfgr) = (1 << 19) | (0x4 << 9);
-
-	/* Enable interrupt. We won't enable it in NVIC, so interrput won't come,
-	 * only event will be generated. */
-	*(stm32_common.lptim + lptim_ier) |= 2;
 
 	/* Unmask event */
 	_stm32_extiMaskEvent(32, 1);
