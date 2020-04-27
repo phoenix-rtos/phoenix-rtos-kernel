@@ -47,6 +47,8 @@ shift
 
 GDB_SYM_FILE=`dirname ${OUTPUT}`"/gdb_symbols"
 
+STRIP_CMD="--strip-unneeded -R .symtab"
+
 SIZE_PAGE=$((0x200))
 PAGE_MASK=$((0xfffffe00))
 KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
@@ -77,7 +79,7 @@ for app in $@; do
 	printf "%08x" $((`reverse $OFFSET`)) >> syspage.hex #start
 
 	cp $app tmp.elf
-	${CROSS}strip tmp.elf
+	${CROSS}strip $STRIP_CMD tmp.elf
 	SIZE=$((`du -b tmp.elf | cut -f1`))
 	rm -f tmp.elf
 	END=$(($OFFSET+$SIZE))
@@ -121,7 +123,7 @@ printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
 
 for app in $@; do
 	cp $app tmp.elf
-	${CROSS}strip tmp.elf
+	${CROSS}strip $STRIP_CMD tmp.elf
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
 	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START + $((0xc0)))) >> $GDB_SYM_FILE
 	dd if=tmp.elf of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null

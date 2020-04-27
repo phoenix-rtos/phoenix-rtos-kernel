@@ -19,7 +19,6 @@
 # $3, ... - applications ELF(s)
 # example: ./mkimg-stm32.sh phoenix-armv7-stm32.elf "argument" flash.img app1.elf app2.elf
 
-
 reverse() {
 	num=$1
 	printf "0x"
@@ -46,6 +45,8 @@ OUTPUT=$1
 shift
 
 GDB_SYM_FILE=`dirname ${OUTPUT}`"/gdb_symbols"
+
+STRIP_CMD="--strip-unneeded -R .symtab"
 
 SIZE_PAGE=$((0x800))
 PAGE_MASK=$((~($SIZE_PAGE-1)))
@@ -77,7 +78,8 @@ for app in $@; do
 	printf "%08x" $((`reverse $OFFSET`)) >> syspage.hex #start
 
 	cp $app tmp.elf
-	${CROSS}strip tmp.elf
+	${CROSS}strip $STRIP_CMD tmp.elf
+	echo "${CROSS}strip $STRIP_CMD tmp.elf"
 	SIZE=$((`du -b tmp.elf | cut -f1`))
 	rm -f tmp.elf
 	END=$(($OFFSET+$SIZE))
@@ -121,7 +123,7 @@ printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
 
 for app in $@; do
 	cp $app tmp.elf
-	${CROSS}strip tmp.elf
+	${CROSS}strip $STRIP_CMD tmp.elf
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
 	ELFOFFS=$((`readelf -l $app | grep "LOAD" | grep "R E" | awk '{ print $2 }'`))
 	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START + $ELFOFFS)) >> $GDB_SYM_FILE

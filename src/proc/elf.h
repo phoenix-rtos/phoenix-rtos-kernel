@@ -104,6 +104,22 @@ typedef struct {
 
 
 typedef struct {
+	u32           st_name;
+	Elf32_Addr    st_value;
+	u32           st_size;
+	unsigned char st_info;
+	unsigned char st_other;
+	u16           st_shndx;
+} Elf32_Sym;
+
+
+typedef struct {
+	Elf32_Addr r_offset;
+	u32        r_info;
+} Elf32_Rel;
+
+
+typedef struct {
 	unsigned char e_ident [EI_NIDENT];
 	Elf64_Half e_type;
 	Elf64_Half e_machine;
@@ -134,6 +150,15 @@ typedef struct {
 
 
 #pragma pack(pop)
+
+
+#define ELF32_R_SYM(info)             ((info)>>8)
+#define ELF32_R_TYPE(info)            ((unsigned char)(info))
+#define ELF32_R_INFO(sym, type)       (((sym)<<8)+(unsigned char)(type))
+
+
+#define R_ARM_ABS32 2
+#define R_ARM_GOT_BREL 26
 
 
 #endif
