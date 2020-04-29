@@ -19,6 +19,7 @@
 #define MAX_PROGSZ 16
 
 u8 _syspage_store[sizeof(syspage_t) + MAX_PROGSZ * sizeof(syspage_program_t)];
+char _syspage_arg[256];
 
 
 syspage_t *syspage;
@@ -32,7 +33,10 @@ void _hal_syspageInit(void)
 		progsz = MAX_PROGSZ;
 
 	hal_memcpy(_syspage_store, syspage, sizeof(syspage_t) + progsz * sizeof(syspage_program_t));
+	hal_strncpy(_syspage_arg, syspage->arg, sizeof(_syspage_arg));
+	_syspage_arg[sizeof(_syspage_arg) - 1] = '\0';
 
 	syspage = (void *)_syspage_store;
 	syspage->progssz = progsz;
+	syspage->arg = _syspage_arg;
 }
