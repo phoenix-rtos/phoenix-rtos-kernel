@@ -543,9 +543,8 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		return -ENOEXEC;
 
 	/* Perform .got relocations */
-	/* *Proper* .got relocations (using commands of .rel section)
-	 * would require .symtab to be present (about 300 KB for a
-	 * simple binary). This is more then some targets whole program memory... */
+	/* This is non classic approach to .got relocation. We use .got itselft
+	 * instead of .rel section. */
 	for (i = 0; i < shdr->sh_size / 4; ++i) {
 		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0)
 			return -ENOEXEC;
