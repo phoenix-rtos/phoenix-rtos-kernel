@@ -79,7 +79,7 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 		popf"
 	:
 	: "m" (spinlock->lock), "m" (spinlock->eflags)
-	: "eax", "esp", "memory");
+	: "eax", "memory");
 
 	return;
 }
