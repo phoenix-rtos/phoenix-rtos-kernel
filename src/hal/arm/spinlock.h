@@ -43,7 +43,7 @@ static inline void hal_spinlockSet(spinlock_t *spinlock)
 		cmp r1, #0; \
 		beq 1b; \
 		strexb r1, r2, [%1]; \
-		cmp r1,	#0; \
+		cmp r1, #0; \
 		bne 1b; \
 		dmb"
 	:
@@ -56,14 +56,14 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 {
 	__asm__ volatile (" \
 		ldrexb r1, [%0]; \
-		add r1, r1, #1;	\
+		add r1, r1, #1; \
 		dmb; \
-		strb r1, [%0];  \
+		strb r1, [%0]; \
 		ldrb r1, [%1]; \
 		msr cpsr_c, r1;"
 	:
 	: "r" (&spinlock->lock), "r" (&spinlock->cflags)
-	: "r1", "r2", "memory");
+	: "r1", "memory");
 }
 
 
