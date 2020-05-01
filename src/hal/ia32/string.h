@@ -48,7 +48,6 @@ static inline void hal_memset(void *where, u8 v, unsigned int n)
 	(" \
 		cld; \
 		movl %0, %%ecx; \
-		movl %%ecx, %%edx; \
 		andl $3, %%edx; \
 		shrl $2, %%ecx; \
 		\
@@ -79,11 +78,10 @@ static inline void hal_memsetw(void *where, u16 v, unsigned int n)
 		xorl %%eax, %%eax; \
 		movw %1, %%ax; \
 		movl %2, %%edi; \
-		movl %0, %%ecx; \
 		rep; stosw"
-	: "+d" (n)
+	: "+c" (n)
 	: "g" (v), "m" (where)
-	: "eax", "ecx", "edi", "cc", "memory");
+	: "eax", "edi", "cc", "memory");
 }
 
 
