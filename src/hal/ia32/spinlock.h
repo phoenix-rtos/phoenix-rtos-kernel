@@ -69,13 +69,15 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 	if (spinlock->e - spinlock->b < spinlock->dmin)
 		spinlock->dmin = spinlock->e - spinlock->b;
 
+
+
 	__asm__ volatile
 	(" \
-		movl %1, %%eax; \
-		pushl %%eax; \
 		xorl %%eax, %%eax; \
 		incl %%eax; \
 		xchgl %0, %%eax; \
+		movl %1, %%eax; \
+		pushl %%eax; \
 		popf"
 	:
 	: "m" (spinlock->lock), "m" (spinlock->eflags)

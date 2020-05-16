@@ -10,12 +10,12 @@
 SIL ?= @
 
 #TARGET ?= ia32
-#TARGET ?= armv7-stm32
-#TARGET ?= armv7-imxrt
+TARGET ?= armv7a7
+#TARGET ?= armv7m3
 #TARGET ?= arm-imx
-TARGET ?= riscv64
+#TARGET ?= riscv64
 
-VERSION = 2.80
+VERSION = 2.90
 CORE_VERSION = 1.0
 SRCDIR := $(CURDIR)
 MAKEFLAGS += --no-print-directory --output-sync
