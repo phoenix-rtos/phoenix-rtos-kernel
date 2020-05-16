@@ -461,11 +461,13 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	Elf32_Ehdr *ehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr;
+	Elf32_Rel *rel;
 	unsigned prot, flags;
-	int i, j, relocsz = 0;
+	int i, j, relocsz = 0, reltype;
+	void *relptr;
 	char *snameTab;
 	ptr_t *got;
-	struct _reloc reloc[4];
+	struct _reloc reloc[5];
 
 	if (o != (void *)-1)
 		return -ENOEXEC;
@@ -540,7 +542,9 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	if (process_relocate(reloc, relocsz, (char **)&got) < 0)
 		return -ENOEXEC;
 
-	/* Perform relocations */
+	/* Perform .got relocations */
+	/* This is non classic approach to .got relocation. We use .got itselft
+	 * instead of .rel section. */
 	for (i = 0; i < shdr->sh_size / 4; ++i) {
 		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0)
 			return -ENOEXEC;
@@ -549,6 +553,30 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	*entry = (void *)(unsigned long)ehdr->e_entry;
 	if (process_relocate(reloc, relocsz, (char **)entry) < 0)
 		return -ENOEXEC;
+
+	/* Perform data relocation */
+	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strncmp(&snameTab[shdr->sh_name], ".rel", 4) != 0)
+			continue;
+
+		if (!shdr->sh_size || !shdr->sh_entsize)
+			continue;
+
+		for (j = 0; j < shdr->sh_size / shdr->sh_entsize; ++j) {
+			rel = (void *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize));
+			reltype = ELF32_R_TYPE(rel->r_info);
+
+			if (reltype == R_ARM_ABS32) {
+				relptr = (void *)rel->r_offset;
+
+				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0)
+					return -ENOEXEC;
+
+				if (process_relocate(reloc, relocsz, relptr) < 0)
+					return -ENOEXEC;
+			}
+		}
+	}
 
 	/* Allocate and map user stack */
 	if ((stack = vm_mmap(process->mapp, NULL, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)

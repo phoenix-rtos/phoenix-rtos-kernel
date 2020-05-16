@@ -30,12 +30,10 @@ struct {
 	volatile u32 *mpu;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
+	volatile u32 *flash;
+	volatile u32 *lptim;
 
 	u32 cpuclk;
-
-	u32 gpio_mode[8];
-	u32 gpio_pupd[8];
-	u32 uart_state[5];
 
 	u32 resetFlags;
 
@@ -94,6 +92,14 @@ enum { iwdg_kr = 0, iwdg_pr, iwdg_rlr, iwdg_sr, iwdg_winr };
 
 
 enum { fpu_cpacr = 34, fpu_fpccr = 141, fpu_fpcar, fpu_fpdscr };
+
+
+enum { flash_acr = 0, flash_pdkeyr, flash_keyr, flash_optkeyr, flash_sr, flash_cr, flash_eccr,
+	flash_optr = flash_eccr + 2, flash_pcrop1sr, flash_pcrop1er, flash_wrp1ar, flash_wrp1br,
+	flash_pcrop2sr = flash_wrp1br + 5, flash_pcrop2er, flash_wrp2ar, flash_wrp2br };
+
+
+enum { lptim_isr = 0, lptim_icr, lptim_ier, lptim_cfgr, lptim_cr, lptim_cmp, lptim_arr, lptim_cnt, lptim_or };
 
 
 /* platformctl syscall */
@@ -283,6 +289,9 @@ int _stm32_rccSetCPUClock(u32 hz)
 	if (hz > 6000 * 1000)
 		_stm32_pwrSetCPUVolt(1);
 
+	while (!(*(stm32_common.rcc + rcc_cr) & 2))
+		;
+
 	t = *(stm32_common.rcc + rcc_cr) & ~(0xf << 4);
 	*(stm32_common.rcc + rcc_cr) = t | range << 4;
 	hal_cpuDataBarrier();
@@ -305,98 +314,6 @@ u32 _stm32_rccGetCPUClock(void)
 void _stm32_rccClearResetFlags(void)
 {
 	*(stm32_common.rcc + rcc_csr) |= 1 << 23;
-}
-
-
-/* PWR */
-
-
-void _stm32_pwrSetCPUVolt(u8 range)
-{
-	u32 t;
-
-	if (range != 1 && range != 2)
-		return;
-
-	t = *(stm32_common.pwr + pwr_cr1) & ~(3 << 9);
-	*(stm32_common.pwr + pwr_cr1) = t | (range << 9);
-
-	/* Wait for VOSF flag */
-	while (*(stm32_common.pwr + pwr_sr2) & (1 << 10));
-}
-
-
-void hal_preSleep(void)
-{
-	/* TODO */
-}
-
-
-void hal_postSleep(void)
-{
-	/* TODO */
-}
-
-
-int _stm32_pwrEnterLPStop(void)
-{
-/* TODO */
-#if 0//def NDEBUG
-	u8 lprun_state = !!(*(stm32_common.pwr + pwr_cr) & (1 << 14));
-	u8 regulator_state = (*(stm32_common.pwr + pwr_csr) >> 11) & 3;
-	int slept = 0, i;
-
-	hal_preSleep();
-
-	/* Set LPSDSR and ULP bits */
-	*(stm32_common.pwr + pwr_cr) |= 1;
-	*(stm32_common.pwr + pwr_cr) &= ~2;
-
-	/* Set internal regulator to default range to further conserve power */
-	_stm32_pwrSetCPUVolt(1);
-
-	/* Set SLEEPDEEP bit of Cortex System Control Register */
-	*(stm32_common.scb + scb_scr) |= 1 << 2;
-
-	_stm32_rtcUnlockRegs();
-	/* Set wakeup timer and interrupt bits */
-	*(stm32_common.rtc + rtc_cr) |= (1 << 10) | (1 << 14);
-	_stm32_rtcLockRegs();
-
-	*(stm32_common.exti + exti_pr) |= 0xffffffff;
-
-	/* Enter Stop mode */
-	__asm__ volatile ("\
-		dmb; \
-		wfe; \
-		nop; ");
-
-	/* Find out if device actually woke up because of the alarm */
-	slept = !!(*(stm32_common.pwr + pwr_csr) & 1);
-
-	/* Reset SLEEPDEEP bit of Cortex System Control Register */
-	*(stm32_common.scb + scb_scr) &= ~(1 << 2);
-
-	/* Reset LPSDSR and ULP bits */
-	*(stm32_common.pwr + pwr_cr) &= ~1;
-
-	/* Clear standby and wakeup flags */
-	*(stm32_common.pwr + pwr_cr) |= (3 << 2) | 1;
-
-	/* Clear wakeup timer and interrupt bits */
-	*(stm32_common.rtc + rtc_cr) &= ~((1 << 10) | (1 << 14));
-
-	hal_postSleep();
-
-	/* Recover previous configuration */
-	_stm32_pwrSetCPUVolt(regulator_state);
-	_stm32_rccSetCPUClock(stm32_common.cpuclk);
-	_stm32_pwrEnterLPRun(lprun_state);
-
-	return slept;
-#else
-	return 0;
-#endif
 }
 
 
@@ -424,35 +341,124 @@ void _stm32_rtcLockRegs(void)
 }
 
 
-void _stm32_rtcSetAlarm(u32 ms)
+/* LPTIM */
+
+
+static time_t _stm32_lptimSetAlarm(time_t ms)
 {
-	_stm32_rtcUnlockRegs();
+	if (ms > 0xffff)
+		ms = 0xffff;
 
-	/* Clear WUTF flag */
-	*(stm32_common.rtc + rtc_isr) &= ~(1 << 10);
+	if (!ms)
+		ms = 1;
 
-	/* Clear sleep status (CSBF and CWUF bits) */
-	*(stm32_common.pwr + pwr_scr) |= 0x11f;
+	/* /32 prescaler, ~1 ms per tick */
+	*(stm32_common.lptim + lptim_cfgr) = (1 << 19) | (0x5 << 9);
 
-	/* Clear wakeup timer and interrupt bits */
-	*(stm32_common.rtc + rtc_cr) &= ~((1 << 10) | (1 << 14));
+	/* Enable interrupt. We won't enable it in NVIC, so interrput won't come,
+	 * only event will be generated. */
+	*(stm32_common.lptim + lptim_ier) |= 1;
 
-	/* Wait for WUTWF flag */
-	while (!(*(stm32_common.rtc + rtc_isr) & (1 << 2)));
+	*(stm32_common.lptim + lptim_icr) |= 0x7f;
+	*(stm32_common.lptim + lptim_cr) = 1;
+	hal_cpuDataBarrier();
+	*(stm32_common.lptim + lptim_cnt) = 0;
+	*(stm32_common.lptim + lptim_cmp) = (unsigned int)ms;
+	*(stm32_common.lptim + lptim_arr) = 0xffff;
 
-	/* Load wakeup timer register */
-	*(stm32_common.rtc + rtc_wutr) = (ms << 1) & 0xffff;
+	*(stm32_common.lptim + lptim_cr) |= 4;
 
-	/* Select RTC/16 wakeup clock */
-	*(stm32_common.rtc + rtc_cr) &= ~0x7;
+	return ms;
+}
 
-	/* Unmask interrupt */
-	_stm32_extiMaskEvent(20, 1);
 
-	/* Set rising edge trigger */
-	_stm32_extiSetTrigger(20, 1, 1);
+static time_t _stm32_lptimStopGetMs(void)
+{
+	unsigned int cnt[2];
 
-	_stm32_rtcLockRegs();
+	do {
+		/* From documentation: "It should be noted that for a reliable LPTIM_CNT
+		 * register read access, two consecutive read accesses must be performed and compared.
+		 * A read access can be considered reliable when the
+		 * values of the two consecutive read accesses are equal." */
+		cnt[0] = *(stm32_common.lptim + lptim_cnt);
+		cnt[1] = *(stm32_common.lptim + lptim_cnt);
+	} while (cnt[0] != cnt[1]);
+
+	hal_cpuDataBarrier();
+
+	/* We need to reset timer (errata) */
+	*(stm32_common.rcc + rcc_apb1rstr1) |= 1u << 31;
+	hal_cpuDataBarrier();
+	*(stm32_common.rcc + rcc_apb1rstr1) &= ~(1u << 31);
+	hal_cpuDataBarrier();
+
+	return cnt[0];
+}
+
+
+/* PWR */
+
+
+void _stm32_pwrSetCPUVolt(u8 range)
+{
+	u32 t;
+
+	if (range != 1 && range != 2)
+		return;
+
+	t = *(stm32_common.pwr + pwr_cr1) & ~(3 << 9);
+	*(stm32_common.pwr + pwr_cr1) = t | (range << 9);
+
+	/* Wait for VOSF flag */
+	while (*(stm32_common.pwr + pwr_sr2) & (1 << 10));
+}
+
+
+time_t _stm32_pwrEnterLPStop(time_t ms)
+{
+	u8 regulator_state = (*(stm32_common.pwr + pwr_cr1) >> 9) & 3;
+	unsigned int t;
+
+	/* Set internal regulator to default range to further conserve power */
+	_stm32_pwrSetCPUVolt(1);
+
+	/* Enter Stop2 on deep-sleep */
+	t = *(stm32_common.pwr + pwr_cr1) & ~(0x7);
+	*(stm32_common.pwr + pwr_cr1) = t | 2;
+
+	/* Set SLEEPDEEP bit of Cortex System Control Register */
+	*(stm32_common.scb + scb_scr) |= 1 << 2;
+
+	/* Clear EXTI pending bits */
+	*(stm32_common.exti + exti_pr1) |= 0xffffffff;
+	*(stm32_common.exti + exti_pr2) |= 0xffffffff;
+
+	*(stm32_common.scb + syst_csr) &= ~1;
+
+	_stm32_lptimSetAlarm(ms);
+
+	/* Enter Stop mode */
+	__asm__ volatile ("\
+		dmb; \
+		sev; \
+		wfe; \
+		wfe; \
+		nop; ");
+
+	/* Reset SLEEPDEEP bit of Cortex System Control Register */
+	*(stm32_common.scb + scb_scr) &= ~(1 << 2);
+
+	/* Recover previous configuration */
+	_stm32_pwrSetCPUVolt(regulator_state);
+	_stm32_rccSetCPUClock(stm32_common.cpuclk);
+
+	/* Provoke systick, so we'll be reschuduled asap */
+	*(stm32_common.scb + scb_icsr) |= 1 << 26;
+
+	*(stm32_common.scb + syst_csr) |= 1;
+
+	return _stm32_lptimStopGetMs();
 }
 
 
@@ -564,7 +570,7 @@ void _stm32_nvicSystemReset(void)
 int _stm32_extiMaskInterrupt(u32 line, u8 state)
 {
 	u32 t;
-	volatile u32 *base = line > 32 ? stm32_common.exti + exti_imr1 : stm32_common.exti + exti_imr2;
+	volatile u32 *base = (line < 32) ? (stm32_common.exti + exti_imr1) : (stm32_common.exti + exti_imr2);
 
 	if (line > 40)
 		return -EINVAL;
@@ -581,15 +587,15 @@ int _stm32_extiMaskInterrupt(u32 line, u8 state)
 int _stm32_extiMaskEvent(u32 line, u8 state)
 {
 	u32 t;
-	volatile u32 *base = line > 32 ? stm32_common.exti + exti_emr1 : stm32_common.exti + exti_emr2;
+	volatile u32 *reg = (line < 32) ? (stm32_common.exti + exti_emr1) : (stm32_common.exti + exti_emr2);
 
 	if (line > 40)
 		return -EINVAL;
 	else if (line >= 32)
 		line -= 32;
 
-	t = *base & ~(!state << line);
-	*base = t | !!state << line;
+	t = *reg & ~(!state << line);
+	*reg = t | !!state << line;
 
 	return EOK;
 }
@@ -598,7 +604,7 @@ int _stm32_extiMaskEvent(u32 line, u8 state)
 int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge)
 {
 	volatile u32 *p;
-	const int reglut[2][2] = { { exti_rtsr1, exti_ftsr1 }, { exti_rtsr2, exti_ftsr2 } };
+	const int reglut[2][2] = { { exti_ftsr1, exti_rtsr1 }, { exti_ftsr2, exti_rtsr2 } };
 
 	if (line > 40)
 		return -EINVAL;
@@ -809,6 +815,8 @@ void _stm32_init(void)
 	stm32_common.gpio[6] = (void *)0x48001800; /* GPIOG */
 	stm32_common.gpio[7] = (void *)0x48001c00; /* GPIOH */
 	stm32_common.gpio[8] = (void *)0x48002000; /* GPIOI */
+	stm32_common.flash = (void *)0x40022000;
+	stm32_common.lptim = (void *)0x40007c00;
 
 	/* Store reset flags and then clean them */
 	_stm32_rtcUnlockRegs();
@@ -829,43 +837,9 @@ void _stm32_init(void)
 
 	hal_cpuDataBarrier();
 
-	/* Rescue */
-	_stm32_rccSetDevClock(pctl_gpiod, 1);
-	_stm32_gpioConfig(pctl_gpiod, 1, 0, 0, 0, 0, 1);
-	u8 val;
-	_stm32_gpioGet(pctl_gpiod, 1, &val);
-
-	while (!val)
-		_stm32_gpioGet(pctl_gpiod, 1, &val);
-
-	_stm32_rccSetDevClock(pctl_gpiod, 0);
-
-	/* GPIO LP init */
-#ifdef NDEBUG
-	i = 0;
-#else
-	/* Don't change setting for debug pins (needed for JTAG) */
-	/* Turn off for production to reduce power consumption */
-	_stm32_rccSetDevClock(pctl_gpioa, 1);
-	*(stm32_common.gpio[0] + gpio_moder) = 0xabffffff;
-	_stm32_rccSetDevClock(pctl_gpioa, 0);
-	_stm32_rccSetDevClock(pctl_gpiob, 1);
-	*(stm32_common.gpio[1] + gpio_moder) = 0xfffffebf;
-	_stm32_rccSetDevClock(pctl_gpiob, 0);
-
-	/* Enable debug in stop mode */
-	*((u32*)0xe0042004) |= 3;
-
-	i = 2;
-#endif
-
-	/* Init all GPIOs to Ain mode to lower power consumption */
-	for (; i <= pctl_gpiog - pctl_gpioa; ++i) {
+	/* GPIO init */
+	for (i = 0; i < sizeof(stm32_common.gpio) / sizeof(stm32_common.gpio[0]); ++i)
 		_stm32_rccSetDevClock(gpio2pctl[i], 1);
-		*(stm32_common.gpio[i] + gpio_moder) = 0xffffffff;
-		*(stm32_common.gpio[i] + gpio_pupdr) = 0;
-		_stm32_rccSetDevClock(gpio2pctl[i], 0);
-	}
 
 	/* Set the internal regulator output voltage to 1.5V */
 	_stm32_pwrSetCPUVolt(2);
@@ -892,9 +866,6 @@ void _stm32_init(void)
 	*(stm32_common.rcc + rcc_ccipr) |= 0x3 << 28;
 
 	hal_cpuDataBarrier();
-
-	/* Set DBP bit */
-	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
 
 	/* Unlock RTC */
 	_stm32_rtcUnlockRegs();
@@ -947,12 +918,36 @@ void _stm32_init(void)
 	*(stm32_common.iwdg + iwdg_kr) = 0xcccc;
 #endif
 
+#ifdef NDEBUG
+	*(u32 *)0xE0042004 = 0;
+#endif
+
 	/* Enable UsageFault, BusFault and MemManage exceptions */
 	*(stm32_common.scb + scb_shcsr) |= (1 << 16) | (1 << 17) | (1 << 18);
 
 	/* Disable FPU */
 	*(stm32_common.scb + fpu_cpacr) = 0;
 	*(stm32_common.scb + fpu_fpccr) = 0;
+
+	/* Enable internal wakeup line */
+	*(stm32_common.pwr + pwr_cr3) |= 1 << 15;
+
+	/* Flash in power-down during low power modes */
+	*(stm32_common.flash + flash_acr) |= 1 << 14;
+
+	/* LSE as clock source for all LP peripherals */
+	*(stm32_common.rcc + rcc_ccipr) |= (0x3 << 20) | (0x3 << 18) | (0x3 << 10);
+
+	_stm32_rccSetDevClock(pctl_lptim1, 1);
+
+	/* Unmask event */
+	_stm32_extiMaskEvent(32, 1);
+
+	/* Set rising edge trigger */
+	_stm32_extiSetTrigger(32, 1, 1);
+
+	/* Clear DBP bit */
+	*(stm32_common.pwr + pwr_cr1) &= ~(1 << 8);
 
 	return;
 }

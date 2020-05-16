@@ -502,7 +502,7 @@ hal_jmp_user:
 2:
 	cpsie if
 	msr psp, r6
-	mov r5, #0x3
+	mov r5, USERCONTROL
 	msr control, r5
 	bx r4
 
