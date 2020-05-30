@@ -163,8 +163,11 @@ static inline unsigned int hal_i2s(char *prefix, char *s, unsigned int i, unsign
 	char c;
 	unsigned int l, k, m;
 
-	m = hal_strlen(prefix);
-	hal_memcpy(s, prefix, m);
+	m = 0;
+	while (*prefix) {
+		s[m] = *prefix++;
+		m++;
+	}
 
 	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
 		if (!zero && !i)
