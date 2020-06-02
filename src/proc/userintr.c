@@ -58,15 +58,13 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	userintr_common.active = NULL;
 
 	if (ret >= 0 && ui->cond != NULL)
-		ret = proc_threadWakeup(&ui->cond->queue);
-	else
-		ret = 0;
+		proc_threadWakeupYield(&ui->cond->queue);
 
 	/* Restore process address space */
 	if ((p != NULL) && (p->mapp != NULL))
 		pmap_switch(&p->mapp->pmap);
 
-	return ret;
+	return 0;
 }
 
 
