@@ -281,7 +281,6 @@ _start_1:
 .type _syscallend, %function
 
 _syscall_dispatch:
-	cpsid if
 	stmdb sp!, {r4-r8}
 	mrs r0, psp
 
@@ -319,11 +318,10 @@ _syscall_dispatch0:
 	msr control, lr
 	mov lr, #0xffffffe9
 	dmb
-	cpsie if
+
 	bx lr
 
 _syscallend:
-	cpsid if
 	pop {lr}
 
 	ldmia sp!, {r1-r8}
@@ -332,7 +330,6 @@ _syscallend:
 	msr psp, lr
 
 	ldmia sp!, {r4-r8}
-	cpsie if
 
 	/* Switch stacks */
 	mov r0, #7
@@ -361,8 +358,6 @@ _exceptions_dispatch:
 .globl _pendsv
 .type _pendsv, %function
 _pendsv:
-	cpsid if
-
 	vstmdb sp!, {s16-s31}
 	mrs r0, ipsr
 	mrs r3, psp
@@ -385,8 +380,6 @@ _pendsv:
 .globl _interrupts_dispatch
 .type _interrupts_dispatch, %function
 _interrupts_dispatch:
-	cpsid if
-
 	vstmdb sp!, {s16-s31}
 	mrs r0, ipsr
 	mrs r3, psp
@@ -397,7 +390,8 @@ _interrupts_dispatch:
 
 _intd0:
 	bl interrupts_dispatch
-	ldr sp, [sp]
+	ldr r1, [sp]
+	mov sp, r1
 _intd1:
 	ldmia sp!, {r1-r11, lr}
 	vldmia sp!, {s16-s31}
@@ -414,7 +408,6 @@ _intd1:
 	msr control, r1
 
 	dmb
-	cpsie if
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
 .ltorg

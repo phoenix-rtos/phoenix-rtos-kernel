@@ -1790,7 +1790,7 @@ void _imxrt_nvicSetPriority(s8 irqn, u32 priority)
 {
 	volatile u8 *ptr;
 
-	ptr = (u8*)(imxrt_common.nvic + irqn + nvic_ip);
+	ptr = ((u8*)(imxrt_common.nvic + nvic_ip)) + irqn;
 
 	*ptr = (priority << 4) & 0x0ff;
 }
@@ -1800,7 +1800,7 @@ u8 _imxrt_nvicGetPriority(s8 irqn)
 {
 	volatile u8 *ptr;
 
-	ptr = (u8*)(imxrt_common.nvic + irqn + nvic_ip);
+	ptr = ((u8*)(imxrt_common.nvic + nvic_ip)) + irqn;
 
 	return *ptr >> 4;
 }
