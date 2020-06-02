@@ -107,7 +107,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	_intr_add(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10) {
-		_imxrt_nvicSetPriority(h->n, 1);
+		_imxrt_nvicSetPriority(h->n - 0x10, 1);
 		_imxrt_nvicSetIRQ(h->n - 0x10, 1);
 	}
 	hal_spinlockClear(&interrupts.spinlock);
@@ -154,7 +154,7 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	_imxrt_scbSetPriority(SVC_IRQ, 0);
 
 	/* Set no subprorities in Interrupt Group Priority */
-	_imxrt_scbSetPriorityGrouping(7);
+	_imxrt_scbSetPriorityGrouping(3);
 
 	return;
 }

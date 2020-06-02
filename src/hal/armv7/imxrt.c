@@ -111,7 +111,7 @@ enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rasr, mpu_rbar_a1, mpu_rasr_a1
        mpu_rbar_a3, mpu_rasr_a3 };
 
 enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr = 128,
-	nvic_ip = 256, nvic_stir = 896 };
+	nvic_ip = 192, nvic_stir = 896 };
 
 
 enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };

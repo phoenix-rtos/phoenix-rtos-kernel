@@ -94,8 +94,6 @@ _start:
 .type _syscallend, %function
 
 _syscall_dispatch:
-	cpsid if
-
 	mov r0, #0
 	msr control, r0
 
@@ -124,11 +122,9 @@ _syscall_dispatch:
 
 	/* Exit handler mode to kernel thread mode */
 	mov lr, #0xfffffff9
-	cpsie if
 	bx lr
 
 _syscallend:
-	cpsid if
 	pop {lr}
 
 	ldmia sp!, {r1-r8}
@@ -136,7 +132,6 @@ _syscallend:
 	stmdb lr!, {r1-r8}
 
 	ldmia sp!, {r4-r8}
-	cpsie if
 
 	/* Switch stacks */
 	mov r0, #3
@@ -166,8 +161,6 @@ _exceptions_dispatch:
 .globl _pendsv
 .type _pendsv, %function
 _pendsv:
-	cpsid if
-
 	mov r0, #0
 	msr control, r0
 
@@ -190,8 +183,6 @@ _pendsv:
 .globl _interrupts_dispatch
 .type _interrupts_dispatch, %function
 _interrupts_dispatch:
-	cpsid if
-
 	mov r0, #0
 	msr control, r0
 
@@ -214,7 +205,6 @@ _intd1:
 	ror r1, r1, #2
 	msr control, r1
 
-	cpsie if
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
 .ltorg
