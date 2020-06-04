@@ -93,7 +93,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	if (!pmap->pdir[pdi]) {
 		if (alloc == NULL)
 			return -EFAULT;
-		pmap->pdir[pdi] = ((alloc->addr & ~0xfff) | (attr & 0xfff) | PTHD_USER | PTHD_WRITE | PTHD_PRESENT);
+		pmap->pdir[pdi] = ((alloc->addr & ~0xfff) | /*(attr & 0xfff) |*/ PTHD_USER | PTHD_WRITE | PTHD_PRESENT);
 	}
 
 	hal_spinlockSet(&pmap_common.lock);
@@ -333,8 +333,8 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 		vaddr = (void *)VADDR_KERNEL;
 
 	for (; vaddr < end; vaddr += (SIZE_PAGE << 10)) {
-		if (pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, NULL) < 0) {
-			if (pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, dp) < 0) {
+		if (pmap_enter(pmap, 0, vaddr, 0, NULL) < 0) {
+			if (pmap_enter(pmap, 0, vaddr, 0, dp) < 0) {
 				return -ENOMEM;
 			}
 			dp = NULL;

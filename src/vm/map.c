@@ -1068,8 +1068,12 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	/* Init map entry pool */
 	map_common.nfree = map_common.ntotal = freesz / (4 * SIZE_PAGE + sizeof(map_entry_t));
 
-	while ((*top) - (*bss) < sizeof(map_entry_t) * map_common.ntotal)
-		_page_sbrk(&map_common.kmap->pmap, bss, top);
+	while ((*top) - (*bss) < sizeof(map_entry_t) * map_common.ntotal) {
+		if (_page_sbrk(&map_common.kmap->pmap, bss, top) < 0) {
+			lib_printf("vm: Problem with extending kernel heap for map_entry_t pool (vaddr=%p)\n", *bss);
+			for (;;);
+		}
+	}
 
 	map_common.entries = (*bss);
 	poolsz = min((*top) - (*bss), sizeof(map_entry_t) * map_common.ntotal);
@@ -1078,6 +1082,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 
 	for (i = 0; i < map_common.nfree - 1; ++i)
 		map_common.entries[i].next = map_common.entries + i + 1;
+
 
 	map_common.entries[i].next = NULL;
 

@@ -87,21 +87,22 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 
 		cpio = (void *)(((ptr_t)cpio + sizeof(cpio_newc_t) + ns + CPIO_PAD) & ~CPIO_PAD);
 
-		/* Alloc pages for program */
-		sz = ((fs + SIZE_PAGE - 1) / SIZE_PAGE) * SIZE_PAGE;
-		if ((p = vm_pageAlloc(sz, PAGE_OWNER_APP)) == NULL)
-			return -ENOMEM;
+		if (fs) {
+			/* Alloc pages for program */
+			sz = ((fs + SIZE_PAGE - 1) / SIZE_PAGE) * SIZE_PAGE;
+			if ((p = vm_pageAlloc(sz, PAGE_OWNER_APP)) == NULL)
+				return -ENOMEM;
 
-		if ((vaddr = vm_mmap(kmap, kmap->start, p, sz, PROT_READ | PROT_WRITE, kernel, -1, MAP_NONE)) == NULL) {
-			vm_pageFree(p);
-			return -ENOMEM;
+			if ((vaddr = vm_mmap(kmap, kmap->start, p, sz, PROT_READ | PROT_WRITE, kernel, -1, MAP_NONE)) == NULL) {
+				vm_pageFree(p);
+				return -ENOMEM;
+			}
+			hal_memcpy(vaddr, cpio, fs);
+			//vm_munmap(kmap, vaddr, sz);
+
+			pr->start = (typeof(pr->start))p->addr;
+			pr->end = (typeof(pr->end))p->addr + fs;
 		}
-
-		hal_memcpy(vaddr, cpio, fs);
-//		vm_munmap(kmap, vaddr, sz);
-
-		pr->start = (typeof(pr->start))p->addr;
-		pr->end = (typeof(pr->end))p->addr + fs;
 
 		cpio = (void *)(((ptr_t)cpio + fs + CPIO_PAD) & ~CPIO_PAD);
 	}

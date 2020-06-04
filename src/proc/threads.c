@@ -429,6 +429,9 @@ static inline time_t _threads_getTimer(void)
 #ifdef HPTIMER_IRQ
 	return hal_getTimer();
 #else
+//	time_t t;
+//	hal_cpuGetCycles(&t);
+//	return t / 1900000;
 	return threads_common.jiffies;
 #endif
 }
@@ -1466,7 +1469,6 @@ static void threads_idlethr(void *arg)
 			hal_spinlockClear(&threads_common.spinlock);
 #endif
 		}
-
 		hal_cpuHalt();
 	}
 }
