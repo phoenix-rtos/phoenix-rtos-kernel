@@ -20,7 +20,6 @@
 #ifndef __ASSEMBLY__
 
 #include "cpu.h"
-#include "exceptions.h"
 #include "../../../include/mman.h"
 
 
