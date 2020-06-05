@@ -57,8 +57,11 @@ static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b
 	char c;
 	unsigned int l, k, m;
 
-	m = hal_strlen(prefix);
-	hal_memcpy(s, prefix, m);
+	m = 0;
+	while (*prefix) {
+		s[m] = *prefix++;
+		m++;
+	}
 
 	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
 		if (!zero && !i)
@@ -78,6 +81,16 @@ static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b
 }
 
 
+static char *exceptions_cpy(char *s1, const char *s2)
+{
+	while ((*s1++ = *s2++))
+		;
+	s1--;
+
+	return s1;
+}
+
+
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 {
 	static const char *const mnemonics[] = {
@@ -86,12 +99,10 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	};
 	size_t i = 0;
 
-	hal_strcpy(buff, "\nException: ");
-	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
-	hal_strcpy(buff += hal_strlen(buff), "\n");
-	buff += hal_strlen(buff);
+	buff = exceptions_cpy(buff, "\nException: ");
+	buff = exceptions_cpy(buff, mnemonics[n]);
 
-	i += exceptions_i2s(" r0=", &buff[i], ctx->r0, 16, 1);
+	i += exceptions_i2s("\n r0=", &buff[i], ctx->r0, 16, 1);
 	i += exceptions_i2s("  r1=", &buff[i], ctx->r1, 16, 1);
 	i += exceptions_i2s("  r2=", &buff[i], ctx->r2, 16, 1);
 	i += exceptions_i2s("  r3=", &buff[i], ctx->r3, 16, 1);
