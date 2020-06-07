@@ -41,6 +41,8 @@ _start:
 	csrw sie, zero
 	csrw sscratch, zero
 
+	la sp, pmap_common + 4 * SIZE_PAGE
+
 	/* Load the global pointer */
 //.option push
 //.option norelax

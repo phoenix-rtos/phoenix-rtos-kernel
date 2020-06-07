@@ -5,7 +5,7 @@
  *
  * HAL console (via SBI)
  *
- * Copyright 2018 Phoenix Systems
+ * Copyright 2018, 2020 Phoenix Systems
  * Author: Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
@@ -25,11 +25,11 @@ struct {
 } console_common;
 
 
-static void _console_print(const char *s)
+void _console_print(const char *s)
 {
 
 	for (; *s; s++)
-		sbi_call(1, *s, 0, 0);
+		sbi_ecall(1, 0, *s, 0, 0, 0, 0, 0);
 }
 
 

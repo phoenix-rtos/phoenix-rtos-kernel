@@ -5,7 +5,7 @@
  *
  * System timer driver (HAL RISCV64)
  *
- * Copyright 2018 Phoenix Systems
+ * Copyright 2018, 2020 Phoenix Systems
  * Author: Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
@@ -31,7 +31,7 @@ __attribute__ ((section (".init"))) void _timer_init(u32 interval)
 
 	timer.interval = interval;
 
-	sbi_call(SBI_SETTIMER, c + 1000L, 0, 0);
+	sbi_ecall(SBI_SETTIMER, 0, c + 1000L, 0, 0, 0, 0, 0);
 	csr_set(sie, SIE_STIE);
 
 	return;

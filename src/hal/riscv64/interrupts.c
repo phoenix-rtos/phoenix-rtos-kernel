@@ -5,7 +5,7 @@
  *
  * Interrupt handling (RISCV64)
  *
- * Copyright 2018 Phoenix Systems
+ * Copyright 2018, 2020 Phoenix Systems
  * Author: Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
@@ -122,7 +122,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 {
 	cycles_t c = hal_cpuGetCycles2();
-	sbi_call(SBI_SETTIMER, c + 1000, 0, 0);
+	sbi_ecall(SBI_SETTIMER, 0, c + 1000, 0, 0, 0, 0, 0);
 	csr_set(sie, SIE_STIE);
 }
 
