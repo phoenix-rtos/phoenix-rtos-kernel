@@ -448,6 +448,7 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	u32 nb, nx, v[4], a;
 	unsigned int i = 0, overflow = 0;
 	const struct cpu_feature_t *p;
+	unsigned int ln;
 
 	/* Get number of basic cpuid levels */
 	hal_cpuid(0, 0, &nb, v + 1, v + 2, v + 3);
@@ -464,10 +465,11 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 		hal_cpuid(a, 0, v + 0, v + 1, v + 2, v + 3);
 
 		if (v[p->reg] & (1 << p->offset)) {
-			if (!overflow && (i + hal_strlen(p->name) + 1 + 1 < len)) {
+			ln = hal_strlen(p->name);
+			if (!overflow && (i + ln + 1 + 1 < len)) {
 				features[i++] = '+';
-				hal_memcpy(&features[i], p->name, hal_strlen(p->name));
-				i += hal_strlen(p->name);
+				hal_memcpy(&features[i], p->name, ln);
+				i += ln;
 			}
 			else if (!overflow) {
 				overflow = 1;
