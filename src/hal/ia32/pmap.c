@@ -31,13 +31,13 @@ extern void _etext(void);
 
 __attribute__((aligned(SIZE_PAGE)))
 struct {
-	u8 heap[SIZE_PAGE];
 	u32 minAddr;
 	u32 maxAddr;
 	addr_t *ptable;
 	u32 start;
 	u32 end;
 	spinlock_t lock;
+	addr_t ebda;
 } pmap_common;
 
 
@@ -298,9 +298,16 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_STACK);
 	}
 
+	/* BIOS Data Area with initial heap */
 	if ((page->addr >= pmap_common.start) && (page->addr < pmap_common.end)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= PAGE_OWNER_KERNEL;
+	}
+
+	/* Extended BIOS Data Area */
+	if ((page->addr >= pmap_common.ebda) && (page->addr <= 0x0009ffff)) {
+		page->flags &= ~PAGE_FREE;
+		page->flags |= PAGE_OWNER_BOOT;
 	}
 
 	if ((page->addr >= syspage->kernel) && (page->addr < syspage->kernel + syspage->kernelsize)) {
@@ -426,13 +433,21 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.ptable = (*vstart);
 	(*vstart) += SIZE_PAGE;
 
-	(*vend) = (*vstart) + SIZE_PAGE;
-
-	pmap_common.start = (u32)pmap_common.heap - VADDR_KERNEL;
+	/* Map initial heap to first physical page */
+	pmap_common.start = 0x00000000;
 	pmap_common.end = pmap_common.start + SIZE_PAGE;
-
-	/* Create initial heap */
+	(*vend) = (*vstart) + SIZE_PAGE;
 	pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_PRESENT, NULL);
+
+	/* Move heap start above BIOS Data Area */
+	(*vstart) += 0x500;
+
+	/* Initilize Extended BIOS Data Area start address */
+	pmap_common.ebda = (*(u16 *)(VADDR_KERNEL + 0x40e) << 4) & ~(SIZE_PAGE - 1);
+	if ((pmap_common.ebda < 0x00080000) || (pmap_common.ebda > 0x0009ffff)) {
+		pmap_common.ebda = 0x00080000;
+		lib_printf("vm: EBDA address not defined, setting to default (0x80000)\n");
+	}
 
 	for (v = *vend; v < (void *)VADDR_KERNEL + (4 << 20); v += SIZE_PAGE)
 		pmap_remove(pmap, v);
