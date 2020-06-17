@@ -6,7 +6,7 @@
 #
 
 ASMS = _init.S _exceptions.S _interrupts.S
-SRCS = syspage.c multiboot.c spinlock.c exceptions.c interrupts.c cpu.c pmap.c timer.c hal.c
+SRCS = syspage.c multiboot.c spinlock.c exceptions.c interrupts.c cpu.c pmap.c timer.c hal.c string.c
 #watchdog.c
 
 ifeq ($(CONSOLE), vga)

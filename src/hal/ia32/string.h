@@ -157,34 +157,7 @@ static inline char *hal_strncpy(char *dest, const char *src, size_t n)
 }
 
 
-static inline unsigned int hal_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero)
-{
-	char digits[] = "0123456789abcdef";
-	char c;
-	unsigned int l, k, m;
-
-	m = 0;
-	while (*prefix) {
-		s[m] = *prefix++;
-		m++;
-	}
-
-	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
-			break;
-		s[k++] = digits[i % b];
-	}
-
-	l = k--;
-
-	while (k > m) {
-		c = s[m];
-		s[m++] = s[k];
-		s[k--] = c;
-	}
-
-	return l;
-}
+extern unsigned int hal_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero);
 
 
 #endif
