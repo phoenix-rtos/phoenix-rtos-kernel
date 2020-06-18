@@ -727,15 +727,15 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 	map->pmap.end = stop;
 
 #ifndef NOMMU
-	if ((map->pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+	if ((map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
 		return -ENOMEM;
 
-	if ((map->pmapv = vm_mmap(map_common.kmap, NULL, map->pmapp, 1 << map->pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE)) == NULL) {
-		vm_pageFree(map->pmapp);
+	if ((map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1 << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE)) == NULL) {
+		vm_pageFree(map->pmap.pmapp);
 		return -ENOMEM;
 	}
 
-	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmapp, map->pmapv);
+	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmap.pmapp, map->pmap.pmapv);
 #endif
 
 	proc_lockInit(&map->lock);
@@ -756,8 +756,8 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 	while ((a = pmap_destroy(&map->pmap, &i)))
 		vm_pageFree(_page_get(a));
 
-	vm_munmap(map_common.kmap, map->pmapv, SIZE_PDIR);
-	vm_pageFree(map->pmapp);
+	vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
+	vm_pageFree(map->pmap.pmapp);
 
 	for (n = map->tree.root; n != NULL; n = map->tree.root) {
 		e = lib_treeof(map_entry_t, linkage, n);

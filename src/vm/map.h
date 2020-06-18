@@ -35,11 +35,6 @@ typedef struct _vm_map_t {
 	void *stop;
 	rbtree_t tree;
 	lock_t lock;
-
-#ifndef NOMMU
-	void *pmapv;
-	page_t *pmapp;
-#endif
 } vm_map_t;
 
 
