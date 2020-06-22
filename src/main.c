@@ -35,34 +35,30 @@ struct {
 } main_common;
 
 
-static void main_createMaps(void)
+static int main_createMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
 {
 #ifdef NOMMU
-	int i;
+	if (no > sizeof(main_common.maps) / sizeof(main_common.maps[0]))
+		return -ENOMEM;
 
-	if (syspage->maps == NULL) {
-		for (i = 0; i < sizeof(main_common.maps) / sizeof(main_common.maps[0]) ; ++i)
-			main_common.maps[i] = NULL;
-		return;
+	/* TODO enable MPU */
+	(void)attr;
+
+	if (start <= stop || start & (SIZE_PAGE - 1) || stop & (SIZE_PAGE - 1)) {
+		main_common.maps[no] = NULL;
+		return -EINVAL;
 	}
 
-	for (i = 0; i < sizeof(main_common.maps) / sizeof(main_common.maps[0]); ++i) {
-		if (syspage->maps == NULL || !(syspage->maps->map[i].attr & PGHD_PRESENT)) {
-			main_common.maps[i] = NULL;
-			continue;
-		}
-
-		if ((main_common.maps[i] = vm_kmalloc(sizeof(vm_map_t))) == NULL) {
-			lib_printf("main: Map #%d creation failed - out of memory\n", i);
-			continue;
-		}
-
-		if (vm_mapCreate(main_common.maps[i], (void *)syspage->maps->map[i].begin, (void *)syspage->maps->map[i].end) < 0) {
-			lib_printf("main: Map #%d creation failed\n", i);
-			vm_kfree(main_common.maps[i]);
-			main_common.maps[i] = NULL;
-		}
+	if ((main_common.maps[no] = vm_kmalloc(sizeof(vm_map_t))) == NULL) {
+		return -ENOMEM;
 	}
+
+	if (vm_mapCreate(main_common.maps[no], (void *)start, (void *)stop) < 0) {
+		vm_kfree(main_common.maps[no]);
+		main_common.maps[no] = NULL;
+	}
+
+	return EOK;
 #endif
 }
 
@@ -70,10 +66,10 @@ static void main_createMaps(void)
 static vm_map_t *main_getmap(syspage_program_t *prog)
 {
 #ifdef NOMMU
-	if (prog->mapno < 0 || prog->mapno > sizeof(main_common.maps) / sizeof (main_common.maps[0]))
+	if (prog->mapno <= 0 || prog->mapno > sizeof(main_common.maps) / sizeof (main_common.maps[0]))
 		return NULL;
 
-	return main_common.maps[prog->mapno];
+	return main_common.maps[prog->mapno - 1];
 #else
 	return NULL;
 #endif
@@ -82,11 +78,13 @@ static vm_map_t *main_getmap(syspage_program_t *prog)
 
 void main_initthr(void *unused)
 {
-	int i, res;
+	size_t i;
 	syspage_program_t *prog;
-	int xcount = 0;
+	int xcount = 0, mcount = 0, res;
 	char *cmdline = syspage->arg, *end;
 	char *argv[32], *arg, *argend;
+	ptr_t start = 0, stop = 0;
+	unsigned int t;
 
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
@@ -102,8 +100,8 @@ void main_initthr(void *unused)
 	posix_init();
 	posix_clone(-1);
 
-	/* Read memory maps definitions from syspage */
-	main_createMaps();
+	for (i = 0; i < sizeof(main_common.maps) / sizeof(main_common.maps[0]); ++i)
+		main_common.maps[i] = NULL;
 
 	/* Free memory used by initial stack */
 	/*vm_munmap(&main_common.kmap, main_common.stack, main_common.stacksz);
@@ -122,15 +120,14 @@ void main_initthr(void *unused)
 		while (*end && *end == ' ')
 			*(end++) = 0;
 		if (*cmdline == 'X' && ++xcount) {
-			i = 0;
 			argend = cmdline;
 
-			while (i < sizeof(argv) / sizeof(*argv) - 1) {
+			for (i = 0; i < sizeof(argv) / sizeof(*argv) - 1; ++i) {
 				arg = ++argend;
 				while (*argend && *argend != ';')
 					argend++;
 
-				argv[i++] = arg;
+				argv[i] = arg;
 
 				if (!*argend)
 					break;
@@ -151,6 +148,30 @@ void main_initthr(void *unused)
 						lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 					}
 				}
+			}
+		}
+		else if (*cmdline == 'M') {
+			argend = cmdline;
+			for (i = 0; i < 3; ++i) {
+				arg = ++argend;
+				while (*argend != '\0' && *argend != ';')
+					++argend;
+
+				if (i < 2 && *argend == '\0') {
+					lib_printf("main: Invalid memory map definition\n");
+					break;
+				}
+
+				*argend = '\0';
+
+				t = lib_strtoul(arg, NULL, 16);
+
+				if (i == 0)
+					start = t;
+				else if (i == 1)
+					stop = t;
+				else if ((res = main_createMap(start, stop, t, mcount)) < 0)
+					lib_printf("main: Memory map creation failed (%d)\n", res);
 			}
 		}
 

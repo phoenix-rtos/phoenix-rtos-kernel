@@ -66,13 +66,15 @@ rm -f $OUTPUT
 prognum=$((`echo $@ | wc -w`))
 
 printf "%08x%08x" $((`reverse 0x20000000`)) $((`reverse 0x20014000`)) >> syspage.hex
-printf "%08x%08x" $((`reverse $(($FLASH_START + $SYSPAGE_OFFSET + 16 + ($prognum * 24)))`)) $((`reverse $prognum`)) >> syspage.hex
+printf "%08x%08x" $((`reverse $(($FLASH_START + $SYSPAGE_OFFSET + 16 + ($prognum * 28)))`)) $((`reverse $prognum`)) >> syspage.hex
 i=16
 
 OFFSET=$(($FLASH_START+$KERNEL_END))
 OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 
 for app in $@; do
+	map=$(($(echo $app | cut -s -d';' -f2)))
+	app=$(echo $app | cut -s -d';' -f1)
 	echo "Proccessing $app"
 
 	printf "%08x" $((`reverse $OFFSET`)) >> syspage.hex #start
@@ -84,7 +86,8 @@ for app in $@; do
 	rm -f tmp.elf
 	END=$(($OFFSET+$SIZE))
 	printf "%08x" $((`reverse $END`)) >> syspage.hex #end
-	i=$i+8
+	printf "%08x" $((`reverse $map`)) >> syspage.hex #mapno
+	i=$i+12
 
 	OFFSET=$((($OFFSET+$SIZE+$SIZE_PAGE-1)&$PAGE_MASK))
 
@@ -122,6 +125,7 @@ OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
 
 for app in $@; do
+	app=$(echo $app | cut -s -d';' -f1)
 	cp $app tmp.elf
 	${CROSS}strip $STRIP_CMD tmp.elf
 	printf "App %s @offset 0x%08x\n" $app $OFFSET

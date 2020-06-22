@@ -31,25 +31,11 @@ typedef struct syspage_program_t {
 } syspage_program_t;
 
 
-typedef struct {
-	addr_t begin;
-	addr_t end;
-	int attr;
-} syspage_map_t;
-
-
-typedef struct {
-	u32 mapsz;
-	syspage_map_t map[0];
-} syspage_maps_t;
-
-
 typedef struct _syspage_t {
 	u32 pbegin;
 	u32 pend;
 
 	char *arg;
-	syspage_maps_t *maps;
 
 	u32 progssz;
 	syspage_program_t progs[0];
