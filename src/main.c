@@ -31,7 +31,53 @@ struct {
 	page_t *page;
 	void *stack;
 	size_t stacksz;
+	vm_map_t *maps[16];
 } main_common;
+
+
+static void main_createMaps(void)
+{
+#ifdef NOMMU
+	int i;
+
+	if (syspage->maps == NULL) {
+		for (i = 0; i < sizeof(main_common.maps) / sizeof(main_common.maps[0]) ; ++i)
+			main_common.maps[i] = NULL;
+		return;
+	}
+
+	for (i = 0; i < sizeof(main_common.maps) / sizeof(main_common.maps[0]); ++i) {
+		if (syspage->maps == NULL || !(syspage->maps->map[i].attr & PGHD_PRESENT)) {
+			main_common.maps[i] = NULL;
+			continue;
+		}
+
+		if ((main_common.maps[i] = vm_kmalloc(sizeof(vm_map_t))) == NULL) {
+			lib_printf("main: Map #%d creation failed - out of memory\n", i);
+			continue;
+		}
+
+		if (vm_mapCreate(main_common.maps[i], (void *)syspage->maps->map[i].begin, (void *)syspage->maps->map[i].end) < 0) {
+			lib_printf("main: Map #%d creation failed\n", i);
+			vm_kfree(main_common.maps[i]);
+			main_common.maps[i] = NULL;
+		}
+	}
+#endif
+}
+
+
+static vm_map_t *main_getmap(syspage_program_t *prog)
+{
+#ifdef NOMMU
+	if (prog->mapno < 0 || prog->mapno > sizeof(main_common.maps) / sizeof (main_common.maps[0]))
+		return NULL;
+
+	return main_common.maps[prog->mapno];
+#else
+	return NULL;
+#endif
+}
 
 
 void main_initthr(void *unused)
@@ -55,6 +101,9 @@ void main_initthr(void *unused)
 
 	posix_init();
 	posix_clone(-1);
+
+	/* Read memory maps definitions from syspage */
+	main_createMaps();
 
 	/* Free memory used by initial stack */
 	/*vm_munmap(&main_common.kmap, main_common.stack, main_common.stacksz);
@@ -97,7 +146,7 @@ void main_initthr(void *unused)
 			for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				if (!hal_strcmp(cmdline + 1, prog->cmdline)) {
 					argv[0] = prog->cmdline;
-					res = proc_syspageSpawn(prog, prog->cmdline, argv);
+					res = proc_syspageSpawn(prog, main_getmap(prog), prog->cmdline, argv);
 					if (res < 0) {
 						lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 					}
@@ -113,7 +162,7 @@ void main_initthr(void *unused)
 		/* Start all syspage programs */
 		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				argv[0] = prog->cmdline;
-				res = proc_syspageSpawn(prog, prog->cmdline, argv);
+				res = proc_syspageSpawn(prog, main_getmap(prog), prog->cmdline, argv);
 				if (res < 0) {
 					lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 				}

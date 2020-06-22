@@ -18,17 +18,10 @@
 
 /* TODO */
 /* Predefined virutal adresses */
-#define VADDR_MIN     0x20000000
-#define VADDR_KERNEL  0x20000000
-#define VADDR_USR_MAX VADDR_KERNEL
-
-#ifdef CPU_STM32
-#define VADDR_MAX     (VADDR_KERNEL + RAM_SIZE * 1024)
-#endif
-
-#ifdef CPU_IMXRT
-#define VADDR_MAX     (VADDR_KERNEL + RAM_SIZE * 1024)
-#endif
+#define VADDR_MIN       0x20000000
+#define VADDR_KERNEL    0x20000000
+#define VADDR_KERNELSZ  (32 * 1024)
+#define VADDR_MAX       (VADDR_KERNEL + RAM_SIZE * 1024)
 
 /* Architecure dependent page attributes - used for mapping */
 #define PGHD_PRESENT    0x01

@@ -39,6 +39,7 @@ typedef struct {
 	vm_object_t *object;
 	offs_t offset;
 	size_t size;
+	vm_map_t *map;
 
 	char **argv;
 	char **envp;
@@ -666,7 +667,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	current->process->mapp = &current->process->map;
 	pmap_switch(&current->process->map.pmap);
 #else
-	current->process->mapp = process_common.kmap;
+	current->process->mapp = (spawn->map != NULL) ? spawn->map : process_common.kmap;
 	current->process->entries = NULL;
 #endif
 
@@ -717,7 +718,7 @@ static void proc_spawnThread(void *arg)
 }
 
 
-int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path, char **argv, char **envp)
+int proc_spawn(vm_object_t *object, vm_map_t *map, offs_t offset, size_t size, const char *path, char **argv, char **envp)
 {
 	int pid;
 	process_spawn_t spawn;
@@ -738,6 +739,7 @@ int proc_spawn(vm_object_t *object, offs_t offset, size_t size, const char *path
 	spawn.argv = argv;
 	spawn.envp = envp;
 	spawn.parent = proc_current();
+	spawn.map = map;
 
 	hal_spinlockCreate(&spawn.sl, "spawnsl");
 
@@ -770,13 +772,13 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	if ((err = vm_objectGet(&object, oid)) < 0)
 		return err;
 
-	return proc_spawn(object, 0, object->size, path, argv, envp);
+	return proc_spawn(object, NULL, 0, object->size, path, argv, envp);
 }
 
 
-int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv)
+int proc_syspageSpawn(syspage_program_t *program, vm_map_t *map, const char *path, char **argv)
 {
-	return proc_spawn((void *)-1, program->start, program->end - program->start, path, argv, NULL);
+	return proc_spawn((void *)-1, map, program->start, program->end - program->start, path, argv, NULL);
 }
 
 

@@ -55,7 +55,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	(*vend) = (*vstart) + SIZE_PAGE;
 
 	pmap->start = (void *)VADDR_KERNEL;
-	pmap->end = (void *)VADDR_MAX;
+	pmap->end = (void *)(VADDR_KERNEL + VADDR_KERNELSZ);
 
 	return;
 }

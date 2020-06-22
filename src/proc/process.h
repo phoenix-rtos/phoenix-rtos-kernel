@@ -90,7 +90,7 @@ extern int proc_start(void (*initthr)(void *), void *arg, const char *path);
 extern int proc_fileSpawn(const char *path, char **argv, char **envp);
 
 
-extern int proc_syspageSpawn(syspage_program_t *program, const char *path, char **argv);
+extern int proc_syspageSpawn(syspage_program_t *program, vm_map_t *map, const char *path, char **argv);
 
 
 extern int proc_execve(const char *path, char **argv, char **envp);

@@ -186,7 +186,7 @@ static void test_proc_initthr(void *arg)
 
 	for (;;) {
 		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
-			proc_syspageSpawn(prog, "", argv);
+			proc_syspageSpawn(prog, NULL, "", argv);
 		}
 
 		proc_threadSleep(120000);
