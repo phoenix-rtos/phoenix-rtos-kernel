@@ -270,9 +270,10 @@ void _page_showPages(void)
 		/* Print markers in case of memory gap */
 		if (p->addr > a) {
 			if ((rep = (p->addr - a) / SIZE_PAGE) >= 4) {
-				if ((w += page_digits(rep, 10) + 3) > 80) {
+				k = page_digits(rep, 10);
+				if ((w += k + 3) > 80) {
 					lib_printf("\nvm: ");
-					w = page_digits(rep, 10) + 7;
+					w = k + 7;
 				}
 				lib_printf("[%dx]", rep);
 			}
@@ -295,9 +296,10 @@ void _page_showPages(void)
 		}
 
 		if (rep >= 4) {
-			if ((w += page_digits(rep + 1, 10) + 3) > 80) {
+			k = page_digits(rep + 1, 10);
+			if ((w += k + 3) > 80) {
 				lib_printf("\nvm: ");
-				w = page_digits(rep + 1, 10) + 7;
+				w = k + 7;
 			}
 			lib_printf("[%d%c]", rep + 1, c);
 		}
