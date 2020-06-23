@@ -37,7 +37,6 @@ struct {
 
 static int main_createMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
 {
-#ifdef NOMMU
 	if (no > sizeof(main_common.maps) / sizeof(main_common.maps[0]))
 		return -ENOMEM;
 
@@ -59,7 +58,6 @@ static int main_createMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
 	}
 
 	return EOK;
-#endif
 }
 
 
