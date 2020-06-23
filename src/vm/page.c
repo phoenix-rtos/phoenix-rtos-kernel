@@ -247,7 +247,12 @@ void _page_showSizes(void)
 
 static unsigned int page_digits(unsigned int n, unsigned int base)
 {
-	return (n < base) ? 1 : 1 + page_digits(n / base, base);
+	unsigned int d = 1;
+
+	while (n /= base)
+		d++;
+	
+	return d;
 }
 
 
