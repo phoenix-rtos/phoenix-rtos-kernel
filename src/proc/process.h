@@ -38,11 +38,10 @@ typedef struct _process_t {
 	unsigned int id;
 	rbnode_t idlinkage;
 
-	union {
-		vm_map_t map;
-		map_entry_t *entries;
-	};
+	vm_map_t map;
+	map_entry_t *entries;
 	vm_map_t *mapp;
+	pmap_t *pmapp;
 	int exit;
 
 	unsigned lazy : 1;

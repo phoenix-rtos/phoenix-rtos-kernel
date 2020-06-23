@@ -51,7 +51,7 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	p = (proc_current())->process;
 
 	/* Switch into the handler address space */
-	pmap_switch(&ui->process->mapp->pmap);
+	pmap_switch(ui->process->pmapp);
 
 	userintr_common.active = ui;
 	ret = ui->f(ui->handler.n, ui->arg);
@@ -62,7 +62,7 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 
 	/* Restore process address space */
 	if ((p != NULL) && (p->mapp != NULL))
-		pmap_switch(&p->mapp->pmap);
+		pmap_switch(p->pmapp);
 
 	return 0;
 }

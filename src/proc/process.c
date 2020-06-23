@@ -288,6 +288,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #endif
 
 	process->mapp = NULL;
+	process->pmapp = NULL;
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
@@ -665,11 +666,14 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 #ifndef NOMMU
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
 	current->process->mapp = &current->process->map;
-	pmap_switch(&current->process->map.pmap);
+	current->process->pmapp = &current->process->mapp->pmap;
 #else
 	current->process->mapp = (spawn->map != NULL) ? spawn->map : process_common.kmap;
+	current->process->pmapp = &current->process->map.pmap;
 	current->process->entries = NULL;
 #endif
+
+	pmap_switch(current->process->pmapp);
 
 	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
 	if (!err) {
@@ -793,6 +797,7 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 	vm_kfree(current->parentkstack);
 
 	current->process->mapp = NULL;
+	current->process->pmapp = NULL;
 
 	hal_spinlockSet(&spawn->sl);
 	spawn->state = state;
@@ -836,9 +841,10 @@ static void process_vforkThread(void *arg)
 	posix_clone(parent->process->id);
 
 	current->process->mapp = parent->process->mapp;
+	current->process->pmapp = parent->process->pmapp;
 	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
-	pmap_switch(&current->process->mapp->pmap);
+	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl);
 	while (spawn->state < FORKING)
@@ -951,7 +957,8 @@ static int process_copy(void)
 		return -ENOMEM;
 
 	process->mapp = &process->map;
-	pmap_switch(&process->map.pmap);
+	process->pmapp = &process->map.pmap;
+	pmap_switch(process->pmapp);
 	return EOK;
 }
 
@@ -1032,6 +1039,7 @@ static int process_execve(thread_t *current)
 		/* Reinitialize process */
 		map = current->process->mapp;
 		current->process->mapp = NULL;
+		current->process->pmapp = NULL;
 		pmap_switch(&process_common.kmap->pmap);
 
 		vm_mapDestroy(current->process, map);

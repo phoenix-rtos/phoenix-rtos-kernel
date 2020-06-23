@@ -736,6 +736,8 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 	}
 
 	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmap.pmapp, map->pmap.pmapv);
+#else
+	pmap_create(&map->pmap, &map_common.kmap->pmap, NULL, NULL);
 #endif
 
 	proc_lockInit(&map->lock);
