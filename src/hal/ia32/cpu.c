@@ -30,8 +30,8 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 struct {
 	tss_t tss;
 	u32 dr5;
-
 	spinlock_t lock;
+	volatile unsigned int ncpus;
 } cpu;
 
 
@@ -349,10 +349,26 @@ void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 }
 
 
+void _cpu_initCore(void)
+{
+//	lib_printf("INIT CORE: %p\n", *(u32 *)0xFEE00020);
+
+	cpu.ncpus++;
+
+//	for (;;);
+/*	syspage->
+	while (syspage->bootstrap);
+
+	lib_printf("AP started\n");
+	for (;;);*/
+}
+
+
 /* (MOD) - dynamic allocation for separate TSS for every CPU */
 void _hal_cpuInitCores(void)
 {
 	int s;
+	unsigned int i, k;
 
 	/* Prepare descriptors for user segments */
 	_cpu_gdtInsert(3, 0x00000000, VADDR_KERNEL, DESCR_UCODE);
@@ -370,6 +386,20 @@ cpu.tss.esp0 = (u32)&s;
 		movl $40, %%eax; \
 		ltr %%ax"
 	::);
+
+	cpu.ncpus = 0;
+
+	*(u32 *)((void *)syspage->stack + VADDR_KERNEL - 4) = 0;
+	
+	for (;;) {
+		k = cpu.ncpus;
+		i = 0;
+		while ((cpu.ncpus == k) && (++i < 50000000));
+		if (i >= 50000000)
+			break;
+	}
+
+	cpu.ncpus++;
 }
 
 
@@ -402,6 +432,9 @@ char *hal_cpuInfo(char *info)
 	i += hal_i2s(" (", &info[i], nb, 10, 0);
 	i += hal_i2s("/", &info[i], nx, 10, 0);
 	info[i++] = ')';
+
+	i += hal_i2s(", CPUs=", &info[i], cpu.ncpus, 10, 0);
+
 	info[i] = 0;
 
 	return info;
@@ -505,6 +538,8 @@ int hal_platformctl(void *ptr)
 
 void _hal_cpuInit(void)
 {
+	cpu.ncpus = 0;
+
 	_hal_cpuInitCores();
 #ifndef NDEBUG
 	hal_cpuDebugGuard(1, 0);

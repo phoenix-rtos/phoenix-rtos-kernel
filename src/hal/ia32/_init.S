@@ -5,7 +5,7 @@
  *
  * Low-level initialization for IA32 architecure (code called after kernel load)
  *
- * Copyright 2012, 2016 Phoenix Systems
+ * Copyright 2012, 2016, 2020 Phoenix Systems
  * Copyright 2001 Pawel Pisarczyk
  * Author: Pawel Pisarczyk
  *
@@ -39,6 +39,7 @@ _start:
 	push %ebx
 	call _multiboot_init
 	movl %eax, %esi
+	popl %ebx
 	jmp _init_setupPaging
 
 _init_plo:
@@ -64,8 +65,35 @@ _init_plo:
 	outb %al, $0x60
 	call _init_empty8042
 
-	/* Create empty page directory */
+
 _init_setupPaging:
+	/* Set bootstrap flag on the top of the stack */
+	movl $0xaabbccdd, %ebx
+//	movl %esp, 24(%esi)
+	subl $4, %esp
+	movl %ebx, (%esp)
+
+	/* Copy AP initialization code to address below 1MB */
+
+	movl (%esi), %eax
+	movl %eax, (0xfff0)
+	movl 4(%esi), %eax
+	movl %eax, (0xfff4)
+	movl %esi, (0xfff8)
+
+	pushl %esi
+	movl $0x11000, %edi
+	movl $_init_core, %eax
+	subl $VADDR_KERNEL, %eax
+	movl %eax, %esi
+	movl $0x200, %ecx
+	cld;
+	rep; movsb
+	popl %esi
+
+
+	/* Create empty page directory */
+
 	movl $1024, %ecx
 	xorl %eax, %eax
 	movl %esi, %ebx
@@ -101,8 +129,27 @@ _init_setupPaging:
 	jge 1b
 	cld
 
-	/* Now enable paging */
+	/* Map LAPIC registers linearly into the kernel address space */
+	movl %ecx, %ebx
+	movl %ecx, %edi
+	addl $0x1000, %edi
+
+	std
+	subl $20, %edi
+	movl $0xfec0019b, %eax
+	movl %eax, (%edi)
+	cld
+	movl %ebx, %ecx
+
+	/* Set kernel page directory */
 	movl %ecx, %cr3
+
+	/* Enable big pages */
+	movl %cr4, %eax
+	orl $0x10, %eax
+	movl %eax, %cr4
+
+	/* Now enable paging */
 	movl %cr0, %eax
 	orl $0x80000000, %eax
 	movl %eax, %cr0
@@ -123,6 +170,24 @@ _init_setupPaging:
 	addl $8, %eax
 	lidt (%eax)
 
+//	jmp b3
+
+
+_start_initap:
+	/* Send INI IPI */
+	movl $0x000C4500, %eax /* 11 00 0 1 0 0 0 101 00000000 */;
+	mov %eax, (0xFEE00300)
+b0:
+	btl $12, (0xFEE00300)
+	jc b0
+
+	/* Send SIPI IPI (wit real memory-address 0x00011000) */
+	movl $0x000C4611, %eax /* 11 00 0 0 1 0 0 0 110 00010001 */
+	mov %eax, (0xFEE00300)
+b1:	btl $12, (0xFEE00300)
+	jc b1
+
+b3:
 	/* Now jump to main function */
 	pushl $0
 	pushl $0
@@ -168,6 +233,132 @@ _init_empty8042:
 	popf
 	ret
 .size _init_empty8042, .-_init_empty8042
+
+
+.globl _init_core
+.type _init_core, @function
+_init_core:
+	cli
+	/* mov ax, #0xfff */
+	.byte 0xb8, 0xff, 0x0f
+
+	/* movl (0xfffc), %eax */
+	//.byte 0xa1, 0xfc, 0xff 
+
+	/* mov es, ax */
+	.byte 0x8e, 0xc0
+
+	/* lgdt es:0 */
+	.byte 0x26, 0x0f, 0x01, 0x16, 0x00, 0x00
+
+	/* mov ax, #0 */
+	.byte 0xb8, 0x00, 0x00
+	
+	/* mov ss, ax */
+	.byte 0x8e, 0xd0
+
+	/* mov esp, #INIT_ESP */
+	.byte 0x66, 0xbc, 0x00, 0x60, 0x00, 0x00
+
+	/* mov eax, #SYSPAGE_SEG */
+	.byte 0x66, 0xb8, 0x00, 0x02, 0x00, 0x00
+
+	/* shl eax, #4 */
+	.byte 0x66, 0xc1, 0xe0, 0x04
+
+	/* push eax */
+	.byte 0x66, 0x50
+
+	movl $0x3f8, %edx
+	movb $67, %al
+	outb %al, %dx
+
+	/* mov eax, cr0 */
+	.byte 0x0f, 0x20, 0xc0 
+
+	/* or eax, 1 */
+	.byte 0x66, 0x83, 0xc8, 0x01
+
+	/* mov cr0, eax */
+	.byte 0x0f, 0x22, 0xc0
+
+	/* jmp far 0008h:0011000 (MOD) */
+	.byte 0x66, 0xea, 0x3d, 0x10, 0x01, 0x00, 0x08, 0x00
+_init_core_prot:
+	movw $SEL_KDATA, %ax
+	movw %ax, %ss
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
+
+	movl $0x3f8, %edx
+	movb $68, %al
+	outb %al, %dx
+
+	/* Initialize virtual memory */
+	movl (0xfff8), %esi
+	movl %esi, %ebx
+	addl $16, %ebx
+	movl (%ebx), %ecx
+
+	/* Set page directory */
+	movl %ecx, %cr3
+
+ 	/* Enable big pages */
+        movl %cr4, %eax
+        orl $0x10, %eax
+        movl %eax, %cr4
+	
+	movl %cr0, %eax
+	orl $0x80000000, %eax
+	movl %eax, %cr0
+
+	/* Switch to virtual addresses */
+	lea _init_virt, %eax
+	jmp %eax
+
+_init_virt:
+	/* Reload relocated GDT and IDT */
+	addl $VADDR_KERNEL, %esi
+	lgdt (%esi)
+	addl $8, %esi
+	lidt (%esi)
+
+	/* Get BSP stack and establish bootstrap flag pointer */
+	addl $16, %esi
+	movl (%esi), %ebx
+	addl $VADDR_KERNEL, %ebx
+	subl $4, %ebx
+
+_init_core_wait:
+	movl $0xaa, %eax
+	xchgl (%ebx), %eax
+	cmp $0, %eax
+	jne _init_core_wait
+
+	movl $0x3f8, %edx
+	movb $63, %al
+	outb %al, %dx
+
+	movl $0x7c00, %esp
+	addl $VADDR_KERNEL, %esp
+	lea _cpu_initCore, %eax
+	call %eax
+	
+	xorl %eax, %eax
+	xchg (%ebx), %eax
+
+	hlt
+
+	/* Now jump to main function */
+	pushl $0
+	pushl $0
+	lea main, %eax
+
+
+	hlt
+.size _init_core, .-_init_core
 
 
 /* Multiboot header - used when loading by multiboot compliant loader */
