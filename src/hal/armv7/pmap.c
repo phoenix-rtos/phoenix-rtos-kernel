@@ -5,8 +5,8 @@
  *
  * pmap - machine dependent part of VM subsystem (ARMv7 with MPU)
  *
- * Copyright 2017 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2017, 2020 Phoenix Systems
+ * Author: Pawel Pisarczyk, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -17,7 +17,6 @@
 #include "spinlock.h"
 #include "string.h"
 #include "console.h"
-#include "imxrt.h"
 
 #include "../../../include/errno.h"
 
@@ -52,22 +51,13 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-extern void *_end, *_init_vectors;
+extern void *_init_vectors;
 
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	void *stackptr;
-
-	__asm__ volatile (" \
-		mov %0, %1; \
-		bic %0, #3"
-	: "=r" (stackptr)
-	: "r" (&_init_vectors)
-	: );
-
-	(*vstart) = *(void **)stackptr;
-	(*vend) = (*vstart) + SIZE_PAGE;
+	(*vstart) = (void *)(((u32)_init_vectors + 7) & ~7);
+	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)(VADDR_KERNEL + VADDR_KERNELSZ);
