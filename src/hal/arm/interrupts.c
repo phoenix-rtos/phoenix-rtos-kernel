@@ -224,5 +224,3 @@ void _hal_interruptsInit(void)
 	*(interrupts.gic + bpr) = 0;
 	*(interrupts.gic + pmr) = 0xff;
 }
-
-

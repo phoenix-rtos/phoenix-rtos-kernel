@@ -18,4 +18,3 @@
 
 /* Syspage */
 syspage_t * const syspage = (void *)(VADDR_KERNEL + 0x20);
-

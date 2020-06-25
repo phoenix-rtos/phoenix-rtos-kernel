@@ -164,7 +164,7 @@ void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map
 	*next = NULL;
 
 	if (((void *)map->stop - size) < vaddr)
- 		return NULL;
+		return NULL;
 
 	if (vaddr < map->start)
 		vaddr = map->start;

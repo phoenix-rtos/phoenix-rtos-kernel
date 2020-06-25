@@ -218,7 +218,7 @@ _start:
 	str r9, [r8, #0x44]
 
 
- _start_copy:
+_start_copy:
 	/* Copy kernel from internal flash to ITCM */
 	ldr r0, [r2], #4
 	str r0, [r3], #4
@@ -248,7 +248,7 @@ _start:
 	add r8, r8, FLEXSPI2_BASE
 
 
- _start_syspage_copy:
+_start_syspage_copy:
 	 /* Copy syspage's programs form internal flash to ITCM */
 	 ldr r0, [r2], #4
 	 str r0, [r3], #4

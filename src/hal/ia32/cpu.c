@@ -169,7 +169,7 @@ static inline u32 cpu_getEFLAGS(void)
 
 	__asm__ volatile
 	(" \
- 		pushf; \
+		pushf; \
 		popl %%eax; \
 		movl %%eax, %0"
 	:"=g" (eflags)
@@ -390,7 +390,7 @@ cpu.tss.esp0 = (u32)&s;
 	cpu.ncpus = 0;
 
 	*(u32 *)((void *)syspage->stack + VADDR_KERNEL - 4) = 0;
-	
+
 	for (;;) {
 		k = cpu.ncpus;
 		i = 0;
