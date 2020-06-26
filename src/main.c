@@ -31,54 +31,14 @@ struct {
 	page_t *page;
 	void *stack;
 	size_t stacksz;
-	vm_map_t *maps[16];
 } main_common;
-
-
-static int main_createMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
-{
-	if (no > sizeof(main_common.maps) / sizeof(main_common.maps[0]))
-		return -ENOMEM;
-
-	/* TODO enable MPU */
-	(void)attr;
-
-	if (start <= stop || start & (SIZE_PAGE - 1) || stop & (SIZE_PAGE - 1)) {
-		main_common.maps[no] = NULL;
-		return -EINVAL;
-	}
-
-	if ((main_common.maps[no] = vm_kmalloc(sizeof(vm_map_t))) == NULL) {
-		return -ENOMEM;
-	}
-
-	if (vm_mapCreate(main_common.maps[no], (void *)start, (void *)stop) < 0) {
-		vm_kfree(main_common.maps[no]);
-		main_common.maps[no] = NULL;
-	}
-
-	return EOK;
-}
-
-
-static vm_map_t *main_getmap(syspage_program_t *prog)
-{
-#ifdef NOMMU
-	if (prog->mapno <= 0 || prog->mapno > sizeof(main_common.maps) / sizeof (main_common.maps[0]))
-		return NULL;
-
-	return main_common.maps[prog->mapno - 1];
-#else
-	return NULL;
-#endif
-}
 
 
 void main_initthr(void *unused)
 {
 	size_t i;
 	syspage_program_t *prog;
-	int xcount = 0, mcount = 0, res;
+	int xcount = 0, mcount = 1, res;
 	char *cmdline = syspage->arg, *end;
 	char *argv[32], *arg, *argend;
 	ptr_t start = 0, stop = 0;
@@ -97,9 +57,6 @@ void main_initthr(void *unused)
 
 	posix_init();
 	posix_clone(-1);
-
-	for (i = 0; i < sizeof(main_common.maps) / sizeof(main_common.maps[0]); ++i)
-		main_common.maps[i] = NULL;
 
 	/* Free memory used by initial stack */
 	/*vm_munmap(&main_common.kmap, main_common.stack, main_common.stacksz);
@@ -141,7 +98,7 @@ void main_initthr(void *unused)
 			for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				if (!hal_strcmp(cmdline + 1, prog->cmdline)) {
 					argv[0] = prog->cmdline;
-					res = proc_syspageSpawn(prog, main_getmap(prog), prog->cmdline, argv);
+					res = proc_syspageSpawn(prog, vm_getSharedMap(prog), prog->cmdline, argv);
 					if (res < 0) {
 						lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 					}
@@ -168,8 +125,10 @@ void main_initthr(void *unused)
 					start = t;
 				else if (i == 1)
 					stop = t;
-				else if ((res = main_createMap(start, stop, t, mcount)) < 0)
+				else if ((res = vm_createSharedMap(start, stop, t, mcount)) < 0)
 					lib_printf("main: Memory map creation failed (%d)\n", res);
+				else
+					++mcount;
 			}
 		}
 
@@ -181,7 +140,7 @@ void main_initthr(void *unused)
 		/* Start all syspage programs */
 		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
 				argv[0] = prog->cmdline;
-				res = proc_syspageSpawn(prog, main_getmap(prog), prog->cmdline, argv);
+				res = proc_syspageSpawn(prog, vm_getSharedMap(prog), prog->cmdline, argv);
 				if (res < 0) {
 					lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 				}

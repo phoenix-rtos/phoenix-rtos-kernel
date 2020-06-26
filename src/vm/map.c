@@ -34,6 +34,8 @@ struct {
 	unsigned int ntotal, nfree;
 	map_entry_t *free;
 	map_entry_t *entries;
+
+	vm_map_t *maps[16];
 } map_common;
 
 
@@ -1047,12 +1049,59 @@ void vm_mapGetStats(size_t *allocsz)
 }
 
 
+int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
+{
+	/* 0 is for kmap */
+	if (--no < 0)
+		return -EINVAL;
+
+	if (stop <= start || start & (SIZE_PAGE - 1) || stop & (SIZE_PAGE - 1)) {
+		map_common.maps[no] = NULL;
+		return -EINVAL;
+	}
+
+	if (no >= sizeof(map_common.maps) / sizeof(map_common.maps[0]) ||
+			map_common.maps[no] != NULL)
+		return -ENOMEM;
+
+	/* TODO enable MPU */
+	(void)attr;
+
+	if ((map_common.maps[no] = vm_kmalloc(sizeof(vm_map_t))) == NULL)
+		return -ENOMEM;
+
+	if (vm_mapCreate(map_common.maps[no], (void *)start, (void *)stop) < 0) {
+		vm_kfree(map_common.maps[no]);
+		map_common.maps[no] = NULL;
+	}
+
+	return EOK;
+}
+
+
+vm_map_t *vm_getSharedMap(syspage_program_t *prog)
+{
+#ifdef NOMMU
+	if (prog->mapno <= 0 || prog->mapno > sizeof(map_common.maps) / sizeof (map_common.maps[0]))
+		return NULL;
+
+	return map_common.maps[prog->mapno - 1];
+#else
+	return NULL;
+#endif
+}
+
+
+
 int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
 	int i, prot;
 	size_t poolsz, freesz, size;
 	map_entry_t *e;
 	void *vaddr;
+
+	for (i = 0; i < sizeof(map_common.maps) / sizeof(map_common.maps[0]); ++i)
+		map_common.maps[i] = NULL;
 
 	proc_lockInit(&map_common.lock);
 
