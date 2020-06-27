@@ -661,10 +661,8 @@ static inline void hal_cpuid(u32 leaf, u32 index, u32 *ra, u32 *rb, u32 *rc, u32
 }
 
 
-static inline unsigned int hal_cpuGetCount(void)
-{
-	return 1;
-}
+extern unsigned int hal_cpuGetCount(void);
+
 
 
 static inline unsigned int hal_cpuGetID(void)
