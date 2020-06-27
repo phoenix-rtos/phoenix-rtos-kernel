@@ -65,37 +65,13 @@ _init_plo:
 	outb %al, $0x60
 	call _init_empty8042
 
-
 _init_setupPaging:
-	/* Set bootstrap flag on the top of the stack */
-	movl $0xaabbccdd, %ebx
-//	movl %esp, 24(%esi)
-	subl $4, %esp
-	movl %ebx, (%esp)
 
-	/* Copy AP initialization code to address below 1MB */
-
-	movl (%esi), %eax
-	movl %eax, (0xfff0)
-	movl 4(%esi), %eax
-	movl %eax, (0xfff4)
-	movl %esi, (0xfff8)
-
-	pushl %esi
-	movl $0x11000, %edi
-	movl $_init_core, %eax
-	subl $VADDR_KERNEL, %eax
-	movl %eax, %esi
-	movl $0x200, %ecx
-	cld;
-	rep; movsb
-	popl %esi
-
-
-	/* Create empty page directory */
-
+	/* Create empty page directory for first 4 MB mapping */
 	movl $1024, %ecx
 	xorl %eax, %eax
+
+	/* Get address of page directory from SYSPAGE */
 	movl %esi, %ebx
 	addl $16, %ebx
 	movl (%ebx), %edi
@@ -107,9 +83,6 @@ _init_setupPaging:
 	movl 4(%ebx), %edx
 	orl $3, %edx
 
-/*	movl $(VADDR_KERNEL >> 22), %eax
-	shl $2, %eax*/
-
 	movl $(VADDR_KERNEL >> 20), %eax
 	addl %ecx, %eax
 	movl %edx, (%ecx)
@@ -120,7 +93,6 @@ _init_setupPaging:
 	movl %edx, %edi
 	addl $0x1000, %edi
 	subl $4, %edi
-
 	movl $0x03ff003, %eax
 	std
 1:
@@ -170,21 +142,44 @@ _init_setupPaging:
 	addl $8, %eax
 	lidt (%eax)
 
-//	jmp b3
-
-
 _start_initap:
+	/* Get SYSPAGE address before paging */
+	subl $8, %eax
+	subl $VADDR_KERNEL, %eax
+	movl %eax, %esi
+
+	/* Set bootstrap flag on the top of the stack */
+	movl $0xaabbccdd, %ebx
+	subl $4, %esp
+	movl %ebx, (%esp)
+
+	/* Copy AP initialization code to address below 1MB */
+	movl (%esi), %eax
+	movl %eax, (0xfff0)
+	movl 4(%esi), %eax
+	movl %eax, (0xfff4)
+	subl $VADDR_KERNEL, (0xfff2) 		
+	movl %esi, (0xfff8)
+
+	movl $0x11000, %edi
+	movl $_init_core, %eax
+	subl $VADDR_KERNEL, %eax
+	movl %eax, %esi
+	movl $0x200, %ecx
+	cld;
+	rep; movsb
+
 	/* Send INI IPI */
-	movl $0x000C4500, %eax /* 11 00 0 1 0 0 0 101 00000000 */;
-	mov %eax, (0xFEE00300)
+	movl $0x000c4500, %eax /* 11 00 0 1 0 0 0 101 00000000 */;
+	mov %eax, (0xfee00300)
 b0:
-	btl $12, (0xFEE00300)
+	btl $12, (0xfee00300)
 	jc b0
 
-	/* Send SIPI IPI (wit real memory-address 0x00011000) */
+	/* Send SIPI IPI (with real memory-address 0x00011000) */
 	movl $0x000C4611, %eax /* 11 00 0 0 1 0 0 0 110 00010001 */
-	mov %eax, (0xFEE00300)
-b1:	btl $12, (0xFEE00300)
+	mov %eax, (0xfee00300)
+b1:	btl $12, (0xfee00300)
 	jc b1
 
 b3:
@@ -194,6 +189,7 @@ b3:
 	lea main, %eax
 	pushl %eax
 	ret
+	hlt
 .size _start, .-_start
 
 
@@ -242,9 +238,6 @@ _init_core:
 	/* mov ax, #0xfff */
 	.byte 0xb8, 0xff, 0x0f
 
-	/* movl (0xfffc), %eax */
-	//.byte 0xa1, 0xfc, 0xff 
-
 	/* mov es, ax */
 	.byte 0x8e, 0xc0
 
@@ -270,7 +263,7 @@ _init_core:
 	.byte 0x66, 0x50
 
 	movl $0x3f8, %edx
-	movb $67, %al
+	movb $70, %al
 	outb %al, %dx
 
 	/* mov eax, cr0 */
@@ -345,19 +338,12 @@ _init_core_wait:
 	addl $VADDR_KERNEL, %esp
 	lea _cpu_initCore, %eax
 	call %eax
-	
+
+	/* Signal spinlock */	
 	xorl %eax, %eax
 	xchg (%ebx), %eax
-
 	hlt
 
-	/* Now jump to main function */
-	pushl $0
-	pushl $0
-	lea main, %eax
-
-
-	hlt
 .size _init_core, .-_init_core
 
 
