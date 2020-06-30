@@ -33,7 +33,7 @@ void test_vm_alloc(void)
 	lib_printf("test: Page allocator test\n");
 
 	hal_cpuGetCycles(&b);
- 	seed = (unsigned int)b;
+	seed = (unsigned int)b;
 
 	for (n = 0; n < 1000000; n++) {
 
@@ -50,9 +50,9 @@ void test_vm_alloc(void)
 			break;
 		}
 
- 		_page_free(p);
+		_page_free(p);
 
- 		lib_printf("\rtest: size=%d, n=%d", size, n);
+		lib_printf("\rtest: size=%d, n=%d", size, n);
 
 		if (e - b > dmax)
 			dmax = e - b;
@@ -115,7 +115,7 @@ void test_vm_kmalloc(void)
 	lib_printf("test: Testing kmalloc,   kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024);
 
 	hal_cpuGetCycles(&c);
- 	s1 = (unsigned int)c;
+	s1 = (unsigned int)c;
 	s2 = s1 / 2;
 
 	for (i = 0; i < sizeof(buff) / sizeof(buff[0]); i++)
@@ -133,7 +133,7 @@ void test_vm_kmalloc(void)
 		}
 
 		lib_printf("\rtest: [%4d] allocating %5d", k, size);
- 		buff[i] = vm_kmalloc(size);
+		buff[i] = vm_kmalloc(size);
 	}
 	lib_printf("\n");
 

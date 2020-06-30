@@ -406,8 +406,8 @@ static inline void hal_cpuSwitchSpace(addr_t cr3)
 {
 	__asm__ volatile
 	(" \
- 		movl %0, %%eax; \
- 		movl %%eax, %%cr3;"
+		movl %0, %%eax; \
+		movl %%eax, %%cr3;"
 	:
 	:"g" (cr3)
 	: "eax", "memory");
@@ -425,10 +425,10 @@ static inline unsigned int hal_cpuGetLastBit(u32 v)
 
 	__asm__ volatile
 	(" \
- 		movl %1, %%eax; \
- 		bsrl %%eax, %0; \
- 		jnz 1f; \
- 		xorl %0, %0; \
+		movl %1, %%eax; \
+		bsrl %%eax, %0; \
+		jnz 1f; \
+		xorl %0, %0; \
 	1:"
 	:"=r" (lb)
 	:"g" (v)
@@ -444,10 +444,10 @@ static inline unsigned int hal_cpuGetFirstBit(u32 v)
 
 	__asm__ volatile
 	(" \
- 		mov %1, %%eax; \
- 		bsfl %%eax, %0; \
- 		jnz 1f; \
- 		xorl %0, %0; \
+		mov %1, %%eax; \
+		bsfl %%eax, %0; \
+		jnz 1f; \
+		xorl %0, %0; \
 	1:"
 	:"=r" (fb)
 	:"g" (v)
@@ -474,10 +474,10 @@ static inline void hal_cpuSetBreakpoint(void *addr)
 {
 	__asm__ volatile
 	(" \
- 		movl $0x80, %%eax; \
- 		movl %%eax, %%dr7; \
- 		movl %0, %%eax; \
- 		movl %%eax, %%dr3"
+		movl $0x80, %%eax; \
+		movl %%eax, %%dr7; \
+		movl %0, %%eax; \
+		movl %%eax, %%dr3"
 	:
 	:"g" (addr)
 	:"eax","memory");

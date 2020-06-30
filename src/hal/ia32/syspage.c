@@ -19,4 +19,3 @@
 
 /* Syspage */
 syspage_t *syspage;
-
