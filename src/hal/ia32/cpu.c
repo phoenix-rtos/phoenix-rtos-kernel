@@ -326,6 +326,12 @@ void _hal_cpuSetKernelStack(void *kstack)
 /* core management */
 
 
+unsigned int hal_cpuGetCount(void)
+{
+	return cpu.ncpus;
+}
+
+
 void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 {
 	u32 descrl, descrh;
@@ -351,16 +357,10 @@ void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 
 void _cpu_initCore(void)
 {
-//	lib_printf("INIT CORE: %p\n", *(u32 *)0xFEE00020);
-
 	cpu.ncpus++;
 
-//	for (;;);
-/*	syspage->
-	while (syspage->bootstrap);
+//__asm__ ("xorl %%ebx, %%ebx; divl %%ebx"::);
 
-	lib_printf("AP started\n");
-	for (;;);*/
 }
 
 
@@ -385,7 +385,7 @@ cpu.tss.esp0 = (u32)&s;
 	__asm__ volatile (" \
 		movl $40, %%eax; \
 		ltr %%ax"
-	::);
+	::: "eax");
 
 	cpu.ncpus = 0;
 
@@ -433,7 +433,7 @@ char *hal_cpuInfo(char *info)
 	i += hal_i2s("/", &info[i], nx, 10, 0);
 	info[i++] = ')';
 
-	i += hal_i2s(", CPUs=", &info[i], cpu.ncpus, 10, 0);
+	i += hal_i2s(", cores=", &info[i], cpu.ncpus, 10, 0);
 
 	info[i] = 0;
 

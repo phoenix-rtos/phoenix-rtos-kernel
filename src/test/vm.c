@@ -62,7 +62,6 @@ void test_vm_alloc(void)
 
 	lib_printf("\n");
 	lib_printf("test: n=%d, dmax=%u, dmin=%u, size=%d:%d\n", n, (u32)dmax, (u32)dmin, minsize, maxsize);
-	lib_printf("test: ");
 	_page_showPages();
 	return;
 }

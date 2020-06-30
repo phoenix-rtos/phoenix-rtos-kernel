@@ -245,24 +245,46 @@ void _page_showSizes(void)
 }
 
 
+static unsigned int page_digits(unsigned int n, unsigned int base)
+{
+	unsigned int d = 1;
+
+	while (n /= base)
+		d++;
+	
+	return d;
+}
+
+
 void _page_showPages(void)
 {
 	addr_t a;
 	page_t *p;
-	unsigned int rep, i, k;
+	unsigned int rep, i, k, w = 4;
 	char c;
 
+	lib_printf("vm: ");
 	for (i = 0, a = 0; i < (pages.freesz + pages.allocsz) / SIZE_PAGE; i++) {
-
 		p = &pages.pages[i];
 
 		/* Print markers in case of memory gap */
 		if (p->addr > a) {
-			if ((p->addr - a) / SIZE_PAGE >= 4)
-				lib_printf("[%dx]", (p->addr - a) / SIZE_PAGE);
+			if ((rep = (p->addr - a) / SIZE_PAGE) >= 4) {
+				k = page_digits(rep, 10);
+				if ((w += k + 3) > 80) {
+					lib_printf("\nvm: ");
+					w = k + 7;
+				}
+				lib_printf("[%dx]", rep);
+			}
 			else {
-				for (k = 0; k < (p->addr - a) / SIZE_PAGE; k++)
-				lib_printf("%c", 'x');
+				for (k = 0; k < rep; k++) {
+					if (++w > 80) {
+						lib_printf("\nvm: ");
+						w = 5;
+					}
+					lib_printf("%c", 'x');
+				}
 			}
 		}
 
@@ -273,11 +295,22 @@ void _page_showPages(void)
 				break;
 		}
 
-		if (rep >= 4)
+		if (rep >= 4) {
+			k = page_digits(rep + 1, 10);
+			if ((w += k + 3) > 80) {
+				lib_printf("\nvm: ");
+				w = k + 7;
+			}
 			lib_printf("[%d%c]", rep + 1, c);
+		}
 		else {
-			for (k = 0; k <= rep; k++)
+			for (k = 0; k <= rep; k++) {
+				if (++w > 80) {
+					lib_printf("\nvm: ");
+					w = 5;
+				}
 				lib_printf("%c", pmap_marker(p));
+			}
 		}
 
 		a = pages.pages[i + rep ].addr + SIZE_PAGE;
@@ -447,7 +480,6 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	lib_printf("vm: Initializing page allocator (%d+%d)/%dKB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024,
 		pages.bootsz / 1024, (pages.freesz + pages.allocsz ) / 1024, sizeof(page_t));
 
-	lib_printf("vm: ");
 	_page_showPages();
 
 	/* Create NULL pointer entry */
