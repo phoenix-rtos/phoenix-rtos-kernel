@@ -1082,10 +1082,10 @@ int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
 		if (map_common.maps[i] == NULL)
 			continue;
 
-		if ((start >= (ptr_t)map_common.maps[i]->start) && (start < (ptr_t)map_common.maps[i]->stop))
-			return -EINVAL;
-
-		if ((stop > (ptr_t)map_common.maps[i]->start) && (stop <= (ptr_t)map_common.maps[i]->stop))
+		if ((((start >= (ptr_t)map_common.maps[i]->start)) && (start < (ptr_t)map_common.maps[i]->stop)) ||
+				(((stop > (ptr_t)map_common.maps[i]->start)) && (stop < (ptr_t)map_common.maps[i]->stop)) ||
+				((((ptr_t)map_common.maps[i]->start >= start) && ((ptr_t)map_common.maps[i]->start) < stop)) ||
+				((((ptr_t)map_common.maps[i]->stop > start) && ((ptr_t)map_common.maps[i]->stop) < stop)))
 			return -EINVAL;
 	}
 
