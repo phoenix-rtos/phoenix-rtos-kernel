@@ -28,7 +28,8 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 struct {
-	tss_t tss;
+	tss_t tss[256];
+	char stacks[256][128];
 	u32 dr5;
 	spinlock_t lock;
 	volatile unsigned int ncpus;
@@ -318,8 +319,8 @@ int hal_cpuReschedule(spinlock_t *spinlock)
 
 void _hal_cpuSetKernelStack(void *kstack)
 {
-	cpu.tss.ss0 = SEL_KDATA;
-	cpu.tss.esp0 = (u32)kstack;
+	cpu.tss[hal_cpuGetID()].ss0 = SEL_KDATA;
+	cpu.tss[hal_cpuGetID()].esp0 = (u32)kstack;
 }
 
 
@@ -359,35 +360,33 @@ void _cpu_initCore(void)
 {
 	cpu.ncpus++;
 
-//__asm__ ("xorl %%ebx, %%ebx; divl %%ebx"::);
+	hal_memset(&cpu.tss[hal_cpuGetID()], 0, sizeof(tss_t));
 
+	_cpu_gdtInsert(4 + cpu.ncpus, (u32)&cpu.tss[hal_cpuGetID()], sizeof(tss_t), DESCR_TSS);
+
+	cpu.tss[hal_cpuGetID()].ss0 = SEL_KDATA;
+	cpu.tss[hal_cpuGetID()].esp0 = (u32)&cpu.stacks[hal_cpuGetID()][127];
+
+	/* Set task register */
+	__asm__ volatile (" \
+		movl %0, %%eax; \
+		ltr %%ax"
+	:
+	: "r" ((4 + cpu.ncpus) * 8));
 }
 
 
-/* (MOD) - dynamic allocation for separate TSS for every CPU */
 void _hal_cpuInitCores(void)
 {
-	int s;
 	unsigned int i, k;
 
 	/* Prepare descriptors for user segments */
 	_cpu_gdtInsert(3, 0x00000000, VADDR_KERNEL, DESCR_UCODE);
 	_cpu_gdtInsert(4, 0x00000000, VADDR_KERNEL, DESCR_UDATA);
 
-	hal_memset(&cpu.tss, 0, sizeof(tss_t));
-
-	_cpu_gdtInsert(5, (u32)&cpu.tss, sizeof(tss_t), DESCR_TSS);
-
-cpu.tss.ss0 = SEL_KDATA;
-cpu.tss.esp0 = (u32)&s;
-
-	/* Set task register */
-	__asm__ volatile (" \
-		movl $40, %%eax; \
-		ltr %%ax"
-	::);
-
+	/* Initialize BSP */
 	cpu.ncpus = 0;
+	_cpu_initCore();
 
 	*(u32 *)((void *)syspage->stack + VADDR_KERNEL - 4) = 0;
 	
@@ -398,8 +397,6 @@ cpu.tss.esp0 = (u32)&s;
 		if (i >= 50000000)
 			break;
 	}
-
-	cpu.ncpus++;
 }
 
 

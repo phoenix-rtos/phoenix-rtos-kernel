@@ -309,7 +309,7 @@ _init_core_prot:
 
 	/* Switch to virtual addresses */
 	lea _init_virt, %eax
-	jmp %eax
+	jmp *%eax
 
 _init_virt:
 	/* Reload relocated GDT and IDT */
@@ -337,7 +337,7 @@ _init_core_wait:
 	movl $0x7c00, %esp
 	addl $VADDR_KERNEL, %esp
 	lea _cpu_initCore, %eax
-	call %eax
+	call *%eax
 
 	/* Signal spinlock */	
 	xorl %eax, %eax

@@ -102,7 +102,19 @@ name:; \
 	pushl %esp; \
 	pushl $intr; \
 	call func; \
+	movl %eax, %ebx; \
 	addl $8, %esp; \
+	push $intr; \
+	call _interrupts_apicACK; \
+	addl $4, %esp; \
+	cmpl $0, %ebx; \
+	jz interrupts_popContext; \
+	leal 0(%esp), %eax; \
+	pushl $0; \
+	pushl %eax; \
+	pushl $0; \
+	call threads_schedule; \
+	addl $12, %esp; \
 	jmp interrupts_popContext; \
 .size name, .-name
 

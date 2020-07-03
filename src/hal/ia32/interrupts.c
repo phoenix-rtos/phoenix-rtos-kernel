@@ -107,13 +107,13 @@ void _interrupts_apicACK(unsigned int n)
 	return;
 }
 
-
-void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
+int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
+	int reschedule = 0;
 
 	if (n >= SIZE_INTERRUPTS)
-		return;
+		return 0;
 
 	hal_spinlockSet(&interrupts.spinlocks[n]);
 
@@ -121,14 +121,16 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do
-			h->f(n, ctx, h->data);
+			if (h->f(n, ctx, h->data))
+				reschedule = 1;
 		while ((h = h->next) != interrupts.handlers[n]);
 	}
 
-	_interrupts_apicACK(n);
 	hal_spinlockClear(&interrupts.spinlocks[n]);
 
-	return;
+	if (n == 0)
+		return 0;
+	return reschedule;
 }
 
 

@@ -45,7 +45,7 @@ int userintr_put(userintr_t *ui)
 static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 {
 	userintr_t *ui = arg;
-	int ret;
+	int ret, reschedule = 0;
 	process_t *p;
 
 	p = (proc_current())->process;
@@ -57,14 +57,16 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	ret = ui->f(ui->handler.n, ui->arg);
 	userintr_common.active = NULL;
 
-	if (ret >= 0 && ui->cond != NULL)
-		proc_threadWakeupYield(&ui->cond->queue);
+	if (ret >= 0 && ui->cond != NULL) {
+		reschedule = 1;
+		proc_threadWakeup(&ui->cond->queue);
+	}
 
 	/* Restore process address space */
 	if ((p != NULL) && (p->mapp != NULL))
 		pmap_switch(&p->mapp->pmap);
 
-	return 0;
+	return reschedule;
 }
 
 
