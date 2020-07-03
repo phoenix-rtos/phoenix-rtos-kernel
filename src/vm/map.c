@@ -1051,6 +1051,8 @@ void vm_mapGetStats(size_t *allocsz)
 
 int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
 {
+	int i;
+
 	/* 0 is for kmap */
 	if (--no < 0)
 		return -EINVAL;
@@ -1067,6 +1069,25 @@ int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
 
 	/* TODO enable MPU */
 	(void)attr;
+
+	/* Check if new map overlap with kernel map */
+	if ((start > (ptr_t)map_common.kmap->start) && (start < (ptr_t)map_common.kmap->stop))
+		return -EINVAL;
+
+	if ((stop > (ptr_t)map_common.kmap->start) && (stop < (ptr_t)map_common.kmap->stop))
+		return -EINVAL;
+
+	/* Check if new map overlap with existing one */
+	for (i = 0; i < sizeof(map_common.maps) / sizeof(map_common.maps[0]); ++i) {
+		if (map_common.maps[i] == NULL)
+			continue;
+
+		if ((start >= (ptr_t)map_common.maps[i]->start) && (start < (ptr_t)map_common.maps[i]->stop))
+			return -EINVAL;
+
+		if ((stop > (ptr_t)map_common.maps[i]->start) && (stop <= (ptr_t)map_common.maps[i]->stop))
+			return -EINVAL;
+	}
 
 	if ((map_common.maps[no] = vm_kmalloc(sizeof(vm_map_t))) == NULL)
 		return -ENOMEM;
