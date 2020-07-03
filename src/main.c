@@ -128,10 +128,10 @@ void main_initthr(void *unused)
 					stop = t;
 				}
 				else {
-					++mcount;
-
 					if ((res = vm_createSharedMap(start, stop, t, mcount)) < 0)
 						lib_printf("main: Memory map creation failed (%d)\n", res);
+
+					++mcount;
 				}
 			}
 		}
