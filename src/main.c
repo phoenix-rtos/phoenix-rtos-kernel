@@ -121,14 +121,18 @@ void main_initthr(void *unused)
 
 				t = lib_strtoul(arg, NULL, 16);
 
-				if (i == 0)
+				if (i == 0) {
 					start = t;
-				else if (i == 1)
+				}
+				else if (i == 1) {
 					stop = t;
-				else if ((res = vm_createSharedMap(start, stop, t, mcount)) < 0)
-					lib_printf("main: Memory map creation failed (%d)\n", res);
-				else
+				}
+				else {
 					++mcount;
+
+					if ((res = vm_createSharedMap(start, stop, t, mcount)) < 0)
+						lib_printf("main: Memory map creation failed (%d)\n", res);
+				}
 			}
 		}
 
