@@ -19,6 +19,8 @@
 # $3, ... - applications ELF(s)
 # example: ./mkimg-stm32.sh phoenix-armv7-stm32.elf "argument" flash.img app1.elf app2.elf
 
+set -e
+
 reverse() {
 	num=$1
 	printf "0x"
@@ -73,8 +75,8 @@ OFFSET=$(($FLASH_START+$KERNEL_END))
 OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 
 for app in $@; do
-	map=$(($(echo $app | cut -s -d';' -f2)))
-	app=$(echo $app | cut -s -d';' -f1)
+	map=$(($(echo $app | awk -F";" '{print $2}')))
+	app=$(echo $app | awk -F";" '{print $1}')
 	echo "Proccessing $app"
 
 	printf "%08x" $((`reverse $OFFSET`)) >> syspage.hex #start
@@ -125,7 +127,7 @@ OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
 
 for app in $@; do
-	app=$(echo $app | cut -s -d';' -f1)
+	app=$(echo $app | awk -F";" '{print $1}')
 	cp $app tmp.elf
 	${CROSS}strip $STRIP_CMD tmp.elf
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
