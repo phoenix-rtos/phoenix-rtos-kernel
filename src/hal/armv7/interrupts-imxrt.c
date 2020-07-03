@@ -72,9 +72,13 @@ struct {
 } interrupts;
 
 
+extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+
+
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
+	int reschedule = 0;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
@@ -86,13 +90,15 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do {
 			hal_cpuSetGot(h->got);
-			h->f(n, ctx, h->data);
+			if (h->f(n, ctx, h->data))
+				reschedule = 1;
 		} while ((h = h->next) != interrupts.handlers[n]);
 	}
 
 	hal_spinlockClear(&interrupts.spinlock);
 
-	return;
+	if (reschedule)
+		threads_schedule(n, ctx, NULL);
 }
 
 
