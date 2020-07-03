@@ -1055,10 +1055,11 @@ int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
 	if (--no < 0)
 		return -EINVAL;
 
-	if (stop <= start || start & (SIZE_PAGE - 1) || stop & (SIZE_PAGE - 1)) {
-		map_common.maps[no] = NULL;
+	if (map_common.maps[no] != NULL)
+		return -EEXIST;
+
+	if (stop <= start || start & (SIZE_PAGE - 1) || stop & (SIZE_PAGE - 1))
 		return -EINVAL;
-	}
 
 	if (no >= sizeof(map_common.maps) / sizeof(map_common.maps[0]) ||
 			map_common.maps[no] != NULL)
