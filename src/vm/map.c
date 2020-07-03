@@ -1071,10 +1071,7 @@ int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
 	(void)attr;
 
 	/* Check if new map overlap with kernel map */
-	if ((start > (ptr_t)map_common.kmap->start) && (start < (ptr_t)map_common.kmap->stop))
-		return -EINVAL;
-
-	if ((stop > (ptr_t)map_common.kmap->start) && (stop < (ptr_t)map_common.kmap->stop))
+	if ((start < (ptr_t)map_common.kmap->stop) && (stop > (ptr_t)map_common.kmap->start))
 		return -EINVAL;
 
 	/* Check if new map overlap with existing one */
