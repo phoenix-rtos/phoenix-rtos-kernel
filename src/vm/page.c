@@ -270,9 +270,11 @@ void _page_showPages(void)
 		/* Print markers in case of memory gap */
 		if (p->addr > a) {
 			if ((rep = (p->addr - a) / SIZE_PAGE) >= 4) {
-				k = page_digits(rep, 10);
-				if ((w += k + 3) > 80) {
-					lib_printf("\nvm: ");
+				k = page_digits(rep, 10) + 3;
+				if ((w += k) > 80) {
+					if (w - k < 80)
+						lib_printf("\n");
+					lib_printf("vm: ");
 					w = k + 7;
 				}
 				lib_printf("[%dx]", rep);
@@ -280,7 +282,7 @@ void _page_showPages(void)
 			else {
 				for (k = 0; k < rep; k++) {
 					if (++w > 80) {
-						lib_printf("\nvm: ");
+						lib_printf("vm: ");
 						w = 5;
 					}
 					lib_printf("%c", 'x');
@@ -296,9 +298,11 @@ void _page_showPages(void)
 		}
 
 		if (rep >= 4) {
-			k = page_digits(rep + 1, 10);
-			if ((w += k + 3) > 80) {
-				lib_printf("\nvm: ");
+			k = page_digits(rep + 1, 10) + 3;
+			if ((w += k) > 80) {
+				if (w - k < 80)
+					lib_printf("\n");
+				lib_printf("vm: ");
 				w = k + 7;
 			}
 			lib_printf("[%d%c]", rep + 1, c);
@@ -306,7 +310,7 @@ void _page_showPages(void)
 		else {
 			for (k = 0; k <= rep; k++) {
 				if (++w > 80) {
-					lib_printf("\nvm: ");
+					lib_printf("vm: ");
 					w = 5;
 				}
 				lib_printf("%c", pmap_marker(p));
