@@ -417,4 +417,3 @@ void _hal_platformInit(void)
 	/* remain in run mode in low power */
 	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3;
 }
-

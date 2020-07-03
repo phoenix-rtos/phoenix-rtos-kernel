@@ -313,7 +313,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	if ((page->addr >= syspage->kernel) && (page->addr < syspage->kernel + syspage->kernelsize)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= PAGE_OWNER_KERNEL;
- 	}
+	}
 
 	/* Check page according to loaded programs */
 	for (k = 0, p = syspage->progs; k < syspage->progssz; k++, p++) {

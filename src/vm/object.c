@@ -43,7 +43,7 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 		return -1;
 
 	if (o1->oid.port > o2->oid.port)
- 		return 1;
+		return 1;
 	if (o1->oid.port < o2->oid.port)
 		return -1;
 

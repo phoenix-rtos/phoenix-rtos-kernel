@@ -38,7 +38,7 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 		return -EINVAL;
 
 	if ((zone->pages = vm_pageAlloc(blocks * blocksz, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP)) == NULL)
- 		return -ENOMEM;
+		return -ENOMEM;
 
 	if ((zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, 1 << zone->pages->idx, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE)) == NULL) {
 		vm_pageFree(zone->pages);

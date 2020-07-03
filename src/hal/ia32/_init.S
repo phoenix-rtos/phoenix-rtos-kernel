@@ -158,7 +158,7 @@ _start_initap:
 	movl %eax, (0xfff0)
 	movl 4(%esi), %eax
 	movl %eax, (0xfff4)
-	subl $VADDR_KERNEL, (0xfff2) 		
+	subl $VADDR_KERNEL, (0xfff2)
 	movl %esi, (0xfff8)
 
 	movl $0x11000, %edi
@@ -246,7 +246,7 @@ _init_core:
 
 	/* mov ax, #0 */
 	.byte 0xb8, 0x00, 0x00
-	
+
 	/* mov ss, ax */
 	.byte 0x8e, 0xd0
 
@@ -267,7 +267,7 @@ _init_core:
 	outb %al, %dx
 
 	/* mov eax, cr0 */
-	.byte 0x0f, 0x20, 0xc0 
+	.byte 0x0f, 0x20, 0xc0
 
 	/* or eax, 1 */
 	.byte 0x66, 0x83, 0xc8, 0x01
@@ -298,11 +298,11 @@ _init_core_prot:
 	/* Set page directory */
 	movl %ecx, %cr3
 
- 	/* Enable big pages */
-        movl %cr4, %eax
-        orl $0x10, %eax
-        movl %eax, %cr4
-	
+	/* Enable big pages */
+	movl %cr4, %eax
+	orl $0x10, %eax
+	movl %eax, %cr4
+
 	movl %cr0, %eax
 	orl $0x80000000, %eax
 	movl %eax, %cr0
@@ -339,7 +339,7 @@ _init_core_wait:
 	lea _cpu_initCore, %eax
 	call *%eax
 
-	/* Signal spinlock */	
+	/* Signal spinlock */
 	xorl %eax, %eax
 	xchg (%ebx), %eax
 	hlt
