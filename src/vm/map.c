@@ -34,6 +34,8 @@ struct {
 	unsigned int ntotal, nfree;
 	map_entry_t *free;
 	map_entry_t *entries;
+
+	vm_map_t *maps[16];
 } map_common;
 
 
@@ -727,15 +729,17 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 	map->pmap.end = stop;
 
 #ifndef NOMMU
-	if ((map->pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+	if ((map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
 		return -ENOMEM;
 
-	if ((map->pmapv = vm_mmap(map_common.kmap, NULL, map->pmapp, 1 << map->pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE)) == NULL) {
-		vm_pageFree(map->pmapp);
+	if ((map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1 << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE)) == NULL) {
+		vm_pageFree(map->pmap.pmapp);
 		return -ENOMEM;
 	}
 
-	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmapp, map->pmapv);
+	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmap.pmapp, map->pmap.pmapv);
+#else
+	pmap_create(&map->pmap, &map_common.kmap->pmap, NULL, NULL);
 #endif
 
 	proc_lockInit(&map->lock);
@@ -756,8 +760,8 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 	while ((a = pmap_destroy(&map->pmap, &i)))
 		vm_pageFree(_page_get(a));
 
-	vm_munmap(map_common.kmap, map->pmapv, SIZE_PDIR);
-	vm_pageFree(map->pmapp);
+	vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
+	vm_pageFree(map->pmap.pmapp);
 
 	for (n = map->tree.root; n != NULL; n = map->tree.root) {
 		e = lib_treeof(map_entry_t, linkage, n);
@@ -1045,12 +1049,75 @@ void vm_mapGetStats(size_t *allocsz)
 }
 
 
+int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no)
+{
+	int i;
+
+	/* 0 is for kmap */
+	if (--no < 0)
+		return -EINVAL;
+
+	if (map_common.maps[no] != NULL)
+		return -EEXIST;
+
+	if (stop <= start || start & (SIZE_PAGE - 1) || stop & (SIZE_PAGE - 1))
+		return -EINVAL;
+
+	if (no >= sizeof(map_common.maps) / sizeof(map_common.maps[0]) ||
+			map_common.maps[no] != NULL)
+		return -ENOMEM;
+
+	/* TODO enable MPU */
+	(void)attr;
+
+	/* Check if new map overlap with kernel map */
+	if ((start < (ptr_t)map_common.kmap->stop) && (stop > (ptr_t)map_common.kmap->start))
+		return -EINVAL;
+
+	/* Check if new map overlap with existing one */
+	for (i = 0; i < sizeof(map_common.maps) / sizeof(map_common.maps[0]); ++i) {
+		if (map_common.maps[i] == NULL)
+			continue;
+
+		if ((start < (ptr_t)map_common.maps[i]->stop) && (stop > (ptr_t)map_common.maps[i]->start))
+			return -EINVAL;
+	}
+
+	if ((map_common.maps[no] = vm_kmalloc(sizeof(vm_map_t))) == NULL)
+		return -ENOMEM;
+
+	if (vm_mapCreate(map_common.maps[no], (void *)start, (void *)stop) < 0) {
+		vm_kfree(map_common.maps[no]);
+		map_common.maps[no] = NULL;
+	}
+
+	return EOK;
+}
+
+
+vm_map_t *vm_getSharedMap(syspage_program_t *prog)
+{
+#ifdef NOMMU
+	if (prog->mapno <= 0 || prog->mapno > sizeof(map_common.maps) / sizeof (map_common.maps[0]))
+		return NULL;
+
+	return map_common.maps[prog->mapno - 1];
+#else
+	return NULL;
+#endif
+}
+
+
+
 int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
 	int i, prot;
 	size_t poolsz, freesz, size;
 	map_entry_t *e;
 	void *vaddr;
+
+	for (i = 0; i < sizeof(map_common.maps) / sizeof(map_common.maps[0]); ++i)
+		map_common.maps[i] = NULL;
 
 	proc_lockInit(&map_common.lock);
 

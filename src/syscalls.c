@@ -731,7 +731,7 @@ addr_t syscalls_va2pa(void *ustack)
 
 	GETFROMSTACK(ustack, void *, va, 0);
 
-	return (pmap_resolve(&proc_current()->process->mapp->pmap, (void *)((unsigned long)va & ~0xfff)) & ~0xfff) + ((unsigned long)va & 0xfff);
+	return (pmap_resolve(proc_current()->process->pmapp, (void *)((unsigned long)va & ~0xfff)) & ~0xfff) + ((unsigned long)va & 0xfff);
 }
 
 

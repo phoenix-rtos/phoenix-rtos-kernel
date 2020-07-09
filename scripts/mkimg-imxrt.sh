@@ -19,6 +19,7 @@
 # $4, ... - applications ELF(s)
 # example: ./mkimg-imxrt.sh phoenix-armv7-imxrt.elf "Xapp1.elf Xapp2.elf" flash.img app1.elf app2.elf
 
+set -e
 
 reverse() {
 	num=$1
@@ -67,13 +68,15 @@ rm -f $OUTPUT
 prognum=$((`echo $@ | wc -w`))
 
 printf "%08x%08x" $((`reverse 0x20000000`)) $((`reverse 0x20040000`)) >> syspage.hex
-printf "%08x%08x" $((`reverse $(($FLASH_START + $SYSPAGE_OFFSET + 16 + ($prognum * 24)))`)) $((`reverse $prognum`)) >> syspage.hex
+printf "%08x%08x" $((`reverse $(($FLASH_START + $SYSPAGE_OFFSET + 16 + ($prognum * 28)))`)) $((`reverse $prognum`)) >> syspage.hex
 i=16
 
 OFFSET=$(($FLASH_START+$KERNEL_END))
 OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 
 for app in $@; do
+	map=$(($(echo $app | awk -F";" '{print $2}')))
+	app=$(echo $app | awk -F";" '{print $1}')
 	echo "Proccessing $app"
 
 	printf "%08x" $((`reverse $OFFSET`)) >> syspage.hex #start
@@ -84,7 +87,8 @@ for app in $@; do
 	rm -f tmp.elf
 	END=$(($OFFSET+$SIZE))
 	printf "%08x" $((`reverse $END`)) >> syspage.hex #end
-	i=$i+8
+	printf "%08x" $((`reverse $map`)) >> syspage.hex #mapno
+	i=$i+12
 
 	OFFSET=$((($OFFSET+$SIZE+$SIZE_PAGE-1)&$PAGE_MASK))
 
@@ -122,10 +126,12 @@ OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
 printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
 
 for app in $@; do
+	app=$(echo $app | awk -F";" '{print $1}')
 	cp $app tmp.elf
 	${CROSS}strip $STRIP_CMD tmp.elf
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
-	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START + $((0xc0)))) >> $GDB_SYM_FILE
+	ELFOFFS=$((`readelf -l $app | grep "LOAD" | grep "R E" | awk '{ print $2 }'`))
+	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START + $ELFOFFS)) >> $GDB_SYM_FILE
 	dd if=tmp.elf of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
 	OFFSET=$((($OFFSET+$((`du -b tmp.elf | cut -f1`))+$SIZE_PAGE-1)&$PAGE_MASK))
 	rm -f tmp.elf

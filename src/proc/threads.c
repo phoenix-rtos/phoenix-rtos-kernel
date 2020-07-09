@@ -670,7 +670,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		if (((proc = selected->process) != NULL) && (proc->mapp != NULL)) {
 			/* Switch address space */
-			pmap_switch(&proc->mapp->pmap);
+			pmap_switch(proc->pmapp);
 			_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 
 			/* Check for signals to handle */
