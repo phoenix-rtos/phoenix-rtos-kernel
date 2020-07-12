@@ -74,7 +74,8 @@ void main_initthr(void *unused)
 		while (*end && *(++end) != ' ');
 		while (*end && *end == ' ')
 			*(end++) = 0;
-		if (*cmdline == 'X' && ++xcount) {
+		if (*cmdline == 'X') {
+			++xcount;
 			argend = cmdline;
 
 			for (i = 0; i < sizeof(argv) / sizeof(*argv) - 1; ++i) {
