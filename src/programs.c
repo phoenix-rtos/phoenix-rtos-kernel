@@ -83,7 +83,15 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 		hal_strncpy(pr->cmdline, (char *)cpio->name + k, sizeof(pr->cmdline) - 1);
 
 		fs = programs_a2i(cpio->c_filesize);
+		if (fs == -EINVAL) {
+			lib_printf("programs: invalid filesize");
+			continue;
+		}
 		ns = programs_a2i(cpio->c_namesize);
+		if (ns == -EINVAL) {
+			lib_printf("programs: invalid namesize");
+			continue;
+		}
 
 		cpio = (void *)(((ptr_t)cpio + sizeof(cpio_newc_t) + ns + CPIO_PAD) & ~CPIO_PAD);
 
