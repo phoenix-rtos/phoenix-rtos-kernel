@@ -15,15 +15,14 @@
 # Usage:
 # $1      - path to Phoenix-RTOS kernel ELF
 # $2      - kernel argument string
-# $2      - output file name
-# $3, ... - applications ELF(s)
+# $3      - output file name
+# $4, ... - applications ELF(s)
 # example: ./mkimg-stm32.sh phoenix-armv7-stm32.elf "argument" flash.img app1.elf app2.elf
 
 set -e
 
 reverse() {
-	num=$1
-	printf "0x"
+	local num=$1 i
 	for i in 1 2 3 4; do
 		printf "%02x" $(($num & 0xff))
 		num=$(($num>>8))
@@ -31,79 +30,64 @@ reverse() {
 }
 
 
-if [ -z "$CROSS" ]
-then
-	CROSS="arm-phoenix-"
+CROSS=${CROSS:-arm-phoenix-}
+
+
+if [ "$1" == "-h" -o $# -lt 3 ]; then
+	echo "usage: $0 <kernel ELF> <kernel args> <output file> [[app] ... ]"
+	exit 1
 fi
 
-
 KERNELELF=$1
-shift
+KARGS=$2
+OUTPUT=$3
+shift 3
 
-KARGS=$1
-shift
+GDB_SYM_FILE="$(dirname ${OUTPUT})/gdb_symbols"
 
-OUTPUT=$1
-shift
-
-GDB_SYM_FILE=`dirname ${OUTPUT}`"/gdb_symbols"
-
-STRIP_CMD="--strip-unneeded -R .symtab"
+STRIP_OPT="--strip-unneeded -R .symtab"
 
 SIZE_PAGE=$((0x800))
 PAGE_MASK=$((~($SIZE_PAGE-1)))
-KERNEL_END=$((`readelf -l $KERNELELF | grep "LOAD" | grep "R E" | awk '{ print $6 }'`))
+KERNEL_END=$(($(readelf -l $KERNELELF | awk '/LOAD/ && /R E/ { print $6 }')))
 FLASH_START=$((0x08000000))
 SYSPAGE_OFFSET=$((2048))
 
-declare -i i
-declare -i j
+rm -f *.img syspage.hex syspage.bin $OUTPUT
 
-i=$((0))
+prognum=$#
 
-rm -f *.img
-rm -f syspage.hex syspage.bin
-rm -f $OUTPUT
+reverse 0x20000000 >> syspage.hex
+reverse 0x20014000 >> syspage.hex
+reverse $(($FLASH_START + $SYSPAGE_OFFSET + 16 + ($prognum * 28))) >> syspage.hex
+reverse $prognum >> syspage.hex
 
-prognum=$((`echo $@ | wc -w`))
+OFFSET=$(($FLASH_START + $KERNEL_END))
+OFFSET=$((($OFFSET + $SIZE_PAGE - 1)&$PAGE_MASK))
 
-printf "%08x%08x" $((`reverse 0x20000000`)) $((`reverse 0x20014000`)) >> syspage.hex
-printf "%08x%08x" $((`reverse $(($FLASH_START + $SYSPAGE_OFFSET + 16 + ($prognum * 28)))`)) $((`reverse $prognum`)) >> syspage.hex
-i=16
-
-OFFSET=$(($FLASH_START+$KERNEL_END))
-OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
-
-for app in $@; do
-	map=$(($(echo $app | awk -F";" '{print $2}')))
-	app=$(echo $app | awk -F";" '{print $1}')
+for arg in "$@"; do
+	IFS=';' read -r app map <<< "$arg"
+	map=$(($map))
 	echo "Proccessing $app"
 
-	printf "%08x" $((`reverse $OFFSET`)) >> syspage.hex #start
+	reverse $OFFSET >> syspage.hex #start
 
 	cp $app tmp.elf
-	${CROSS}strip $STRIP_CMD tmp.elf
-	echo "${CROSS}strip $STRIP_CMD tmp.elf"
-	SIZE=$((`du -b tmp.elf | cut -f1`))
+	${CROSS}strip $STRIP_OPT tmp.elf
+	echo "${CROSS}strip $STRIP_OPT tmp.elf"
+	SIZE=$(stat -c "%s" tmp.elf)
 	rm -f tmp.elf
-	END=$(($OFFSET+$SIZE))
-	printf "%08x" $((`reverse $END`)) >> syspage.hex #end
-	printf "%08x" $((`reverse $map`)) >> syspage.hex #mapno
-	i=$i+12
+	END=$(($OFFSET + $SIZE))
+	reverse $END >> syspage.hex #end
+	reverse $map >> syspage.hex #mapno
 
-	OFFSET=$((($OFFSET+$SIZE+$SIZE_PAGE-1)&$PAGE_MASK))
+	OFFSET=$((($OFFSET + $SIZE + $SIZE_PAGE - 1)&$PAGE_MASK))
 
-	j=0
-	for char in `basename "$app" | sed -e 's/\(.\)/\1\n/g'`; do
-		printf "%02x" "'$char" >> syspage.hex
-		j=$j+1
+	app=${app##*/}
+	for ((j=0; j < 16; j++)); do
+		printf "%02x" \'${app:j:1} >> syspage.hex
 	done
 
-	for (( ; j<16; j++ )); do
-		printf "%02x" 0 >> syspage.hex
-	done
-
-	i=$i+16
 done
 
 # Kernel arg
@@ -114,35 +98,30 @@ echo -n "00" >> syspage.hex
 xxd -r -p syspage.hex > syspage.bin
 
 # Make kernel binary image
-${CROSS}objcopy $KERNELELF -O binary kernel.img
-
-cp kernel.img $OUTPUT
+${CROSS}objcopy $KERNELELF -O binary $OUTPUT
 
 dd if="syspage.bin" of=$OUTPUT bs=1 seek=$SYSPAGE_OFFSET conv=notrunc 2>/dev/null
 
-OFFSET=$(($KERNEL_END))
-OFFSET=$((($OFFSET+$SIZE_PAGE-1)&$PAGE_MASK))
+OFFSET=$((($KERNEL_END + $SIZE_PAGE - 1)&$PAGE_MASK))
 
-[ -f $GDB_SYM_FILE ] && rm -rf $GDB_SYM_FILE
-printf "file %s \n" `realpath $KERNELELF` >> $GDB_SYM_FILE
+rm -f $GDB_SYM_FILE
+printf "file %s \n" $(realpath $KERNELELF) > $GDB_SYM_FILE
 
-for app in $@; do
-	app=$(echo $app | awk -F";" '{print $1}')
+for arg in "$@"; do
+	app=${arg%%;*}
 	cp $app tmp.elf
-	${CROSS}strip $STRIP_CMD tmp.elf
+	${CROSS}strip $STRIP_OPT tmp.elf
 	printf "App %s @offset 0x%08x\n" $app $OFFSET
-	ELFOFFS=$((`readelf -l $app | grep "LOAD" | grep "R E" | awk '{ print $2 }'`))
-	printf "add-symbol-file %s 0x%08x\n" `realpath $app` $((OFFSET + $FLASH_START + $ELFOFFS)) >> $GDB_SYM_FILE
+	ELFOFFS=$(($(readelf -l $app | awk '/LOAD/ && /R E/ { print $2 }')))
+	printf "add-symbol-file %s 0x%08x\n" $(realpath $app) $((OFFSET + $FLASH_START + $ELFOFFS)) >> $GDB_SYM_FILE
 	dd if=tmp.elf of=$OUTPUT bs=1 seek=$OFFSET 2>/dev/null
-	OFFSET=$((($OFFSET+$((`du -b tmp.elf | cut -f1`))+$SIZE_PAGE-1)&$PAGE_MASK))
+	OFFSET=$((($OFFSET + $(stat -c "%s" tmp.elf) + $SIZE_PAGE - 1)&$PAGE_MASK))
 	rm -f tmp.elf
 done
 
 #Convert binary image to hex
 ${CROSS}objcopy --change-addresses $FLASH_START -I binary -O ihex ${OUTPUT} ${OUTPUT%.*}.hex
 
-rm -f kernel.img
-rm -f syspage.bin
-rm -f syspage.hex
+rm -f syspage.bin syspage.hex
 
-echo "Image file `basename ${OUTPUT}` has been created"
+echo "Image file $(basename ${OUTPUT}) has been created"
