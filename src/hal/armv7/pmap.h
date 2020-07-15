@@ -20,7 +20,7 @@
 /* Predefined virutal adresses */
 #define VADDR_MIN       0x20000000
 #define VADDR_KERNEL    0x20000000
-#define VADDR_KERNELSZ  (64 * 1024)
+#define VADDR_KERNELSZ  (96 * 1024)
 #define VADDR_MAX       (VADDR_KERNEL + RAM_SIZE * 1024)
 
 /* Architecure dependent page attributes - used for mapping */
