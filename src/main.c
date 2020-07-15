@@ -75,14 +75,15 @@ void main_initthr(void *unused)
 		while (*end && *end == ' ')
 			*(end++) = 0;
 		if (*cmdline == 'X' && ++xcount) {
+			i = 0;
 			argend = cmdline;
 
-			for (i = 0; i < sizeof(argv) / sizeof(*argv) - 1; ++i) {
+			while (i < sizeof(argv) / sizeof(*argv) - 1) {
 				arg = ++argend;
 				while (*argend && *argend != ';')
 					argend++;
 
-				argv[i] = arg;
+				argv[i++] = arg;
 
 				if (!*argend)
 					break;
