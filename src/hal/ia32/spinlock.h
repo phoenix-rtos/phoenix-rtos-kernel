@@ -32,7 +32,7 @@ typedef struct _spinlock_t {
 	struct _spinlock_t *prev;
 
 	u32 lock;
-	u32 eflags;
+	u32 eflags[8];
 
 } spinlock_t;
 
@@ -51,7 +51,7 @@ static inline void hal_spinlockSet(spinlock_t *spinlock)
 		jz 1b; \
 		movl %%ebx, %0"
 	:
-	: "m" (spinlock->eflags), "m" (spinlock->lock)
+	: "m" (spinlock->eflags[hal_cpuGetID()]), "m" (spinlock->lock)
 	: "eax", "ebx", "memory");
 
 	hal_cpuGetCycles((void *)&spinlock->b);
@@ -69,8 +69,6 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 	if (spinlock->e - spinlock->b < spinlock->dmin)
 		spinlock->dmin = spinlock->e - spinlock->b;
 
-
-
 	__asm__ volatile
 	(" \
 		xorl %%eax, %%eax; \
@@ -80,7 +78,7 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 		pushl %%eax; \
 		popf"
 	:
-	: "m" (spinlock->lock), "m" (spinlock->eflags)
+	: "m" (spinlock->lock), "m" (spinlock->eflags[hal_cpuGetID()])
 	: "eax", "memory");
 
 	return;

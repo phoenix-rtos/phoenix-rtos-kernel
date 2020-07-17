@@ -46,9 +46,10 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 {
 	userintr_t *ui = arg;
 	int ret, reschedule = 0;
-	process_t *p;
+	process_t *p = NULL;
 
-	p = (proc_current())->process;
+	if (proc_current() != NULL)
+		p = (proc_current())->process;
 
 	/* Switch into the handler address space */
 	pmap_switch(&ui->process->mapp->pmap);

@@ -5,9 +5,9 @@
  *
  * CPU related routines
  *
- * Copyright 2012, 2017 Phoenix Systems
+ * Copyright 2012, 2017, 2020 Phoenix Systems
  * Copyright 2001, 2006 Pawel Pisarczyk
- * Author: Pawel Pisarczyk
+ * Author: Pawel Pisarczyk, Jan Sikorski, Kamil Amanowicz
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -29,7 +29,7 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 struct {
 	tss_t tss[256];
-	char stacks[256][128];
+	char stacks[256][512];
 	u32 dr5;
 	spinlock_t lock;
 	volatile unsigned int ncpus;
@@ -164,7 +164,7 @@ static int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev)
 /* context management */
 
 
-static inline u32 cpu_getEFLAGS(void)
+u32 cpu_getEFLAGS(void)
 {
 	u32 eflags;
 
@@ -297,6 +297,9 @@ int hal_cpuReschedule(spinlock_t *spinlock)
 		"pushl %%eax;"
 		"movl $0, %%eax;"
 		"call interrupts_pushContext;"
+
+		"call _interrupts_multilockSet;"
+
 		"leal 0(%%esp), %%eax;"
 		"pushl $0;"
 		"pushl %%eax;"
@@ -305,12 +308,17 @@ int hal_cpuReschedule(spinlock_t *spinlock)
 		"call *%%eax;"
 		"cli;"
 		"addl $12, %%esp;"
+		"popl %%esp;"
+
+		"call _interrupts_multilockClear;"
+ 		"pushl %%esp;"
+
 		"jmp interrupts_popContext;"
 
 		"3:;"
 		"movl %%eax, %0"
 	: "=g" (err)
-	: "m" (spinlock), "m" (spinlock->lock), "m" (spinlock->eflags), "g" (threads_schedule)
+	: "m" (spinlock), "m" (spinlock->lock), "m" (spinlock->eflags[hal_cpuGetID()]), "g" (threads_schedule)
 	: "eax", "edx", "esp", "cc", "memory");
 
 	return err;
@@ -356,16 +364,19 @@ void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 }
 
 
-void _cpu_initCore(void)
+void *_cpu_initCore(void)
 {
 	cpu.ncpus++;
+
+	u32 a = *(u32 *)0xfee000f0;
+	*(u32 *)0xfee000f0 = (a | 0x100);
 
 	hal_memset(&cpu.tss[hal_cpuGetID()], 0, sizeof(tss_t));
 
 	_cpu_gdtInsert(4 + cpu.ncpus, (u32)&cpu.tss[hal_cpuGetID()], sizeof(tss_t), DESCR_TSS);
 
 	cpu.tss[hal_cpuGetID()].ss0 = SEL_KDATA;
-	cpu.tss[hal_cpuGetID()].esp0 = (u32)&cpu.stacks[hal_cpuGetID()][127];
+	cpu.tss[hal_cpuGetID()].esp0 = (u32)&cpu.stacks[hal_cpuGetID()][511];
 
 	/* Set task register */
 	__asm__ volatile (" \
@@ -373,6 +384,8 @@ void _cpu_initCore(void)
 		ltr %%ax"
 	:
 	: "r" ((4 + cpu.ncpus) * 8));
+
+	return (void *)cpu.tss[hal_cpuGetID()].esp0;
 }
 
 

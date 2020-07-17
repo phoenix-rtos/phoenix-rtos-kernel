@@ -443,6 +443,9 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	unsigned int i = 0;
 	time_t now;
 
+	if (hal_cpuGetID())
+		return EOK;
+
 	hal_spinlockSet(&threads_common.spinlock);
 
 #ifdef HPTIMER_IRQ
@@ -632,9 +635,14 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	unsigned int i, sig;
 	process_t *proc;
 
+	hal_spinlockSet(&threads_common.spinlock);
+
+	if (hal_cpuGetID() == 0) {
+		cpu_sendIPI(0, 32);
+	}
+
 	threads_common.executions++;
 
-	hal_spinlockSet(&threads_common.spinlock);
 	current = threads_common.current[hal_cpuGetID()];
 	threads_common.current[hal_cpuGetID()] = NULL;
 
@@ -696,8 +704,8 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 #if 0
 	/* Test stack usage */
 	if (selected != NULL && !selected->execkstack && ((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
-		lib_printf("proc: Stack limit exceeded, sp=%p\n", selected->context);
-		// for (;;);
+		lib_printf("proc: Stack limit exceeded, sp=%p %p %d\n", selected->kstack, selected->context, hal_cpuGetID());
+		for (;;);
 	}
 #endif
 
@@ -925,7 +933,6 @@ static void _thread_interrupt(thread_t *t)
 }
 
 
-
 void proc_threadEnd(void)
 {
 	thread_t *t;
@@ -984,6 +991,8 @@ void proc_reap(void)
 
 static void _proc_threadDequeue(thread_t *t)
 {
+	unsigned int i;
+
 	_perf_waking(t);
 
 	if (t->wait != NULL)
@@ -998,7 +1007,12 @@ static void _proc_threadDequeue(thread_t *t)
 	t->interruptible = 0;
 
 	/* MOD */
-	if (t != threads_common.current[hal_cpuGetID()])
+	for (i = 0; i < hal_cpuGetCount(); i++) {
+		if (t == threads_common.current[i])
+			break;
+	}
+
+	if (i == hal_cpuGetCount())
 		LIST_ADD(&threads_common.ready[t->priority], t);
 }
 
@@ -1066,6 +1080,7 @@ int proc_threadSleep(unsigned long long us)
 	current->interruptible = 1;
 
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
+
 	_perf_enqueued(current);
 	_threads_updateWakeup(now, NULL);
 

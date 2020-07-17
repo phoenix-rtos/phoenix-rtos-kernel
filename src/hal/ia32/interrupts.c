@@ -97,6 +97,12 @@ void _interrupts_apicACK(unsigned int n)
 	if (n >= SIZE_INTERRUPTS)
 		return;
 
+if (hal_cpuGetID()) {
+	__asm__ volatile
+	("movl $0, (0xfee000b0)"::);
+	return;
+}
+
 	if (n < 8) {
 		hal_outb((void *)0x20, 0x60 | n);
 	}

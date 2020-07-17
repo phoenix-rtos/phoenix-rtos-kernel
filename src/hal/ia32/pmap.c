@@ -52,7 +52,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 	hal_memset(pmap->pdir, 0, 4096);
 	vaddr = (void *)((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1));
 
-	pages = (kpmap->end - vaddr) / (SIZE_PAGE << 10);
+	pages = ((void *)0xffffffff - vaddr) / (SIZE_PAGE << 10);
 	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 10), ++i)
 		pmap->pdir[(u32) vaddr >> 22] = kpmap->pdir[(u32) vaddr >> 22];
 
@@ -442,7 +442,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Move heap start above BIOS Data Area */
 	(*vstart) += 0x500;
 
-	/* Initilize Extended BIOS Data Area start address */
+	/* Initialize Extended BIOS Data Area start address */
 	pmap_common.ebda = (*(u16 *)(VADDR_KERNEL + 0x40e) << 4) & ~(SIZE_PAGE - 1);
 	if ((pmap_common.ebda < 0x00080000) || (pmap_common.ebda > 0x0009ffff)) {
 		pmap_common.ebda = 0x00080000;

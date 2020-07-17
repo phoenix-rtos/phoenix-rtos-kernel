@@ -338,11 +338,15 @@ _init_core_wait:
 	addl $VADDR_KERNEL, %esp
 	lea _cpu_initCore, %eax
 	call *%eax
+	movl %eax, %esp
 
 	/* Signal spinlock */
 	xorl %eax, %eax
 	xchg (%ebx), %eax
+	sti
+_init_core_stop:
 	hlt
+	jmp _init_core_stop
 
 .size _init_core, .-_init_core
 

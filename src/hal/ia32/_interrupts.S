@@ -5,7 +5,7 @@
  *
  * Interrupt stubs
  *
- * Copyright 2012, 2016 Phoenix Systems
+ * Copyright 2012, 2016, 2020 Phoenix Systems
  * Copyright 2001, 2005 Pawel Pisarczyk
  * Author; Pawel Pisarczyk, Jan Sikorski
  *
@@ -17,6 +17,17 @@
 #define __ASSEMBLY__
 
 #include "cpu.h"
+
+.data
+
+
+/* Multilock for synchronizing context switching on multiple cores */
+.align 4
+.type _interrupts_multilock, @object
+_interrupts_multilock:
+        .long 1
+.size _interrupts_multilock, .-_interrupts_multilock
+
 
 .text
 
@@ -53,7 +64,7 @@ interrupts_pushContext:
 	pushl %edx
 	movl %dr0, %edx
 	pushl %edx
-#endif
+#endif	
 	pushl %esp
 	subl $4, %esp
 	ret
@@ -88,6 +99,30 @@ interrupts_popContext:
 .size interrupts_popContext, .-interrupts_popContext
 
 
+.global _interrupts_multilockSet
+_interrupts_multilockSet:
+	pushl %eax
+	xorl %eax, %eax
+_interrupts_multilockSet_l1:
+	xchgl _interrupts_multilock, %eax
+	orl %eax, %eax
+	jz _interrupts_multilockSet_l1
+	popl %eax
+	ret
+.size _interrupts_multiLockSet, .-_interrupts_multilockSet
+
+
+.global _interrupts_multilockClear
+_interrupts_multilockClear:
+	pushl %eax
+	xorl %eax, %eax
+	incl %eax
+	xchgl _interrupts_multilock, %eax
+	popl %eax
+	ret
+.size _interrupts_multilockClear, .-_interrupts_multilockClear
+
+
 #define INTERRUPT(name, intr, func) \
 .globl name; \
 .type name, @function; \
@@ -113,13 +148,50 @@ name:; \
 	pushl $0; \
 	pushl %eax; \
 	pushl $0; \
+	call _interrupts_multilockSet; \
 	call threads_schedule; \
 	addl $12, %esp; \
+	popl %esp; \
+	call _interrupts_multilockClear; \
+	pushl %esp; \
 	jmp interrupts_popContext; \
 .size name, .-name
 
 
-INTERRUPT(_interrupts_irq0, 0, interrupts_dispatchIRQ)
+/* Interrupt routine for scheduler */
+.globl _interrupts_irq0
+.type _interrupts_irq0, @function
+.align 4, 0x90
+_interrupts_irq0:
+	call interrupts_pushContext
+	movl $SEL_KDATA, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
+
+	call _interrupts_multilockSet
+
+	/* Dispatch IRQ */
+	pushl %esp
+	pushl $0
+	call interrupts_dispatchIRQ
+	movl %eax, %ebx
+	addl $8, %esp
+
+	pushl $0
+	call _interrupts_apicACK
+	addl $4, %esp
+
+	/* Unlock scheduler */
+	popl %esp
+	call _interrupts_multilockClear
+	pushl %esp
+
+	jmp interrupts_popContext
+.size _interrupts_irq0, .-_interrupts_irq0
+
+
 INTERRUPT(_interrupts_irq1, 1, interrupts_dispatchIRQ)
 INTERRUPT(_interrupts_irq2, 2, interrupts_dispatchIRQ)
 INTERRUPT(_interrupts_irq3, 3, interrupts_dispatchIRQ)

@@ -664,10 +664,31 @@ static inline void hal_cpuid(u32 leaf, u32 index, u32 *ra, u32 *rb, u32 *rc, u32
 extern unsigned int hal_cpuGetCount(void);
 
 
-
 static inline unsigned int hal_cpuGetID(void)
 {
-	return 0;
+	u32 id;
+
+	__asm__ volatile
+	(" \
+		movl (0xfee00020), %0"
+	: "=r" (id));
+
+	return (id >> 24);
+}
+
+
+static inline void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+{
+	__asm__ volatile
+	(" \
+		movl %0, %%eax; \
+		orl $0x000c4000, %%eax; \
+		movl %%eax, (0xfee00300); \
+	b0:; \
+		btl $12, (0xfee00300); \
+		jc b0"
+	:
+	:  "r" (intr));
 }
 
 
