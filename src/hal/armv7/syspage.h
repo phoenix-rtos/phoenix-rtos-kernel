@@ -18,7 +18,6 @@
 
 #include "cpu.h"
 
-
 #ifndef __ASSEMBLY__
 
 #pragma pack(push, 1)
@@ -26,6 +25,7 @@
 typedef struct syspage_program_t {
 	u32 start;
 	u32 end;
+	int mapno;
 
 	char cmdline[16];
 } syspage_program_t;

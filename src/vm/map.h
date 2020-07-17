@@ -35,11 +35,6 @@ typedef struct _vm_map_t {
 	void *stop;
 	rbtree_t tree;
 	lock_t lock;
-
-#ifndef NOMMU
-	void *pmapv;
-	page_t *pmapp;
-#endif
 } vm_map_t;
 
 
@@ -116,6 +111,12 @@ extern void vm_mapGetStats(size_t *allocsz);
 
 
 extern void vm_mapinfo(meminfo_t *info);
+
+
+extern int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no);
+
+
+extern vm_map_t *vm_getSharedMap(syspage_program_t *prog);
 
 
 extern int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **start, void **end);

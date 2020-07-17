@@ -77,6 +77,8 @@ typedef struct _pmap_t {
 	addr_t satp;
 	void *start;
 	void *end;
+	void *pmapv;
+	page_t *pmapp;
 } pmap_t;
 
 

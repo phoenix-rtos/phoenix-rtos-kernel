@@ -17,9 +17,12 @@
 #include "spinlock.h"
 #include "string.h"
 #include "console.h"
-#include "stm32.h"
 
 #include "../../../include/errno.h"
+
+struct {
+	spinlock_t spinlock;
+} pmap_common;
 
 
 void pmap_switch(pmap_t *pmap)
@@ -35,6 +38,8 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 
 int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 {
+	/* TODO */
+
 	return EOK;
 }
 
@@ -46,16 +51,18 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-extern void *_end;
+extern void *_init_vectors;
 
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	(*vstart) = *(void **) ((hal_cpuGetPC() < 0x08030000) ? 0x08000000 : 0x08030000);
-	(*vend) = (*vstart) + SIZE_PAGE;
+	(*vstart) = (void *)(((u32)_init_vectors + 7) & ~7);
+	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)VADDR_KERNEL;
-	pmap->end = (void *)VADDR_MAX;
+	pmap->end = (void *)(VADDR_KERNEL + VADDR_KERNELSZ);
+
+	hal_spinlockCreate(&pmap_common.spinlock, "pmap_common.spinlock");
 
 	return;
 }

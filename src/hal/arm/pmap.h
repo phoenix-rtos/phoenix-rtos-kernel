@@ -73,6 +73,8 @@ typedef struct _pmap_t {
 	addr_t addr;   /* physical address of pdir */
 	void *start;
 	void *end;
+	void *pmapv;
+	page_t *pmapp;
 } pmap_t;
 
 

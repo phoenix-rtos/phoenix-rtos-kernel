@@ -214,7 +214,7 @@ _start:
 	ldr r9, =0x00200007
 	str r9, [r8, #0x40]
 
-	ldr r9, =0xaaaaffff
+	ldr r9, =0xaabfffff
 	str r9, [r8, #0x44]
 
 
@@ -228,16 +228,16 @@ _start_copy:
 
 	/* Find syspage size */
 	ldr r9, =_syspage
-	ldr r9, [r9, #12] //syspage size
+	ldr r9, [r9, #12] /* syspage size */
 
 	/* If syspage is empty, programs are not copied */
 	cmp r9, #0
 	beq _start_1
 
-	/* Calcuclate offset to of the last program */
+	/* Calcuclate offset to the last program */
 	sub r9, r9, #1
 
-	mov r8, #0x18
+	mov r8, #0x1c /* size of syspage_program_t */
 	mul r9, r9, r8
 	add r9, r9, #20
 
