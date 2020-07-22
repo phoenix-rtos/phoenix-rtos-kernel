@@ -21,7 +21,6 @@
 #include "syspage.h"
 #include "string.h"
 #include "pmap.h"
-#include "spinlock.h"
 
 
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
@@ -173,11 +172,8 @@ u32 cpu_getEFLAGS(void)
 	__asm__ volatile
 	(" \
 		pushf; \
-		popl %%eax; \
-		movl %%eax, %0"
-	:"=g" (eflags)
-	:
-	:"eax");
+		popl %0"
+	: "=a" (eflags));
 
 	return eflags;
 }
@@ -381,11 +377,7 @@ void *_cpu_initCore(void)
 	cpu.tss[hal_cpuGetID()].esp0 = (u32)&cpu.stacks[hal_cpuGetID()][511];
 
 	/* Set task register */
-	__asm__ volatile (" \
-		movl %0, %%eax; \
-		ltr %%ax"
-	:
-	: "r" ((4 + cpu.ncpus) * 8));
+	__asm__ volatile ("ltr %%ax" : : "a" ((4 + cpu.ncpus) * 8));
 
 	return (void *)cpu.tss[hal_cpuGetID()].esp0;
 }
