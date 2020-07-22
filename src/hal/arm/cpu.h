@@ -402,6 +402,12 @@ extern void _hal_cpuInit(void);
 extern void _hal_platformInit(void);
 
 
+static inline void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+{
+
+}
+
+
 #endif
 
 #endif
