@@ -502,6 +502,12 @@ static inline void hal_wdgReload(void)
 extern void _hal_cpuInit(void);
 
 
+static inline void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+{
+
+}
+
+
 #endif
 
 
