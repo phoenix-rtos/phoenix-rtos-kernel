@@ -193,7 +193,7 @@ int main(void)
 
 	/* Start scheduling, leave current stack */
 	hal_cpuEnableInterrupts();
-	hal_cpuReschedule(NULL);
+	hal_cpuReschedule(NULL, NULL);
 
 	return 0;
 }

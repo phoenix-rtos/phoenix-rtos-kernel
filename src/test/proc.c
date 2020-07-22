@@ -75,11 +75,13 @@ static void test_proc_busythr(void *arg)
 
 static void test_proc_timethr(void *arg)
 {
+	spinlock_ctx_t sc;
+
 	for (;;) {
-		hal_spinlockSet(&test_proc_common.spinlock);
+		hal_spinlockSet(&test_proc_common.spinlock, &sc);
 		test_proc_common.tm++;
 		proc_threadWakeup(&test_proc_common.queue);
-		hal_spinlockClear(&test_proc_common.spinlock);
+		hal_spinlockClear(&test_proc_common.spinlock, &sc);
 		proc_threadSleep(100000);
 	}
 }
@@ -132,19 +134,20 @@ static void test_proc_rotthr2(void *arg)
 {
 	unsigned int i = (unsigned long)arg;
 	time_t otm = test_proc_common.tm;
+	spinlock_ctx_t sc;
 
 	for (;;) {
 		test_proc_common.rotations[i]++;
 
-		hal_spinlockSet(&test_proc_common.spinlock);
+		hal_spinlockSet(&test_proc_common.spinlock, &sc);
 		for (;;) {
-			proc_threadWait(&test_proc_common.queue, &test_proc_common.spinlock, 0);
+			proc_threadWait(&test_proc_common.queue, &test_proc_common.spinlock, 0, &sc);
 			if (test_proc_common.tm > otm) {
 				otm = test_proc_common.tm;
 				break;
 			}
 		}
-		hal_spinlockClear(&test_proc_common.spinlock);
+		hal_spinlockClear(&test_proc_common.spinlock, &sc);
 	}
 	return;
 }
@@ -198,5 +201,5 @@ void test_proc_exit(void)
 	proc_start(test_proc_initthr, NULL, (const char *)"init");
 
 	hal_cpuEnableInterrupts();
-	hal_cpuReschedule(NULL);
+	hal_cpuReschedule(NULL, NULL);
 }

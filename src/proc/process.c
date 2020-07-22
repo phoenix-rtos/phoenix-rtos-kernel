@@ -340,7 +340,7 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 
 	threads_sigpost(thread->process, thread, signal_kill);
-	hal_cpuReschedule(NULL);
+	hal_cpuReschedule(NULL, NULL);
 }
 
 
@@ -659,6 +659,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 {
 	void *stack, *entry;
 	int err, count;
+	spinlock_ctx_t sc;
 
 	current->process->argv = spawn->argv;
 	current->process->envp = spawn->envp;
@@ -693,10 +694,10 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		vm_objectPut(spawn->object);
 	}
 	else {
-		hal_spinlockSet(&spawn->sl);
+		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = err == EOK ? FORKED : err;
 		proc_threadWakeup(&spawn->wq);
-		hal_spinlockClear(&spawn->sl);
+		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
@@ -726,6 +727,7 @@ int proc_spawn(vm_object_t *object, vm_map_t *map, offs_t offset, size_t size, c
 {
 	int pid;
 	process_spawn_t spawn;
+	spinlock_ctx_t sc;
 
 	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL)
 		return -ENOMEM;
@@ -748,10 +750,10 @@ int proc_spawn(vm_object_t *object, vm_map_t *map, offs_t offset, size_t size, c
 	hal_spinlockCreate(&spawn.sl, "spawnsl");
 
 	if ((pid = proc_start(proc_spawnThread, &spawn, path)) > 0) {
-		hal_spinlockSet(&spawn.sl);
+		hal_spinlockSet(&spawn.sl, &sc);
 		while (spawn.state == FORKING)
-			proc_threadWait(&spawn.wq, &spawn.sl, 0);
-		hal_spinlockClear(&spawn.sl);
+			proc_threadWait(&spawn.wq, &spawn.sl, 0, &sc);
+		hal_spinlockClear(&spawn.sl, &sc);
 	}
 	else {
 		vm_kfree(argv);
@@ -792,6 +794,7 @@ int proc_syspageSpawn(syspage_program_t *program, vm_map_t *map, const char *pat
 static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
 {
 	thread_t *parent = spawn->parent;
+	spinlock_ctx_t sc;
 
 	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
 	vm_kfree(current->parentkstack);
@@ -799,10 +802,10 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 	current->process->mapp = NULL;
 	current->process->pmapp = NULL;
 
-	hal_spinlockSet(&spawn->sl);
+	hal_spinlockSet(&spawn->sl, &sc);
 	spawn->state = state;
 	proc_threadWakeup(&spawn->wq);
-	hal_spinlockClear(&spawn->sl);
+	hal_spinlockClear(&spawn->sl, &sc);
 
 	proc_kill(current->process);
 	proc_threadEnd();
@@ -835,6 +838,7 @@ static void process_vforkThread(void *arg)
 {
 	process_spawn_t *spawn = arg;
 	thread_t *current, *parent;
+	spinlock_ctx_t sc;
 
 	current = proc_current();
 	parent = spawn->parent;
@@ -846,17 +850,17 @@ static void process_vforkThread(void *arg)
 	current->process->sighandler = parent->process->sighandler;
 	pmap_switch(current->process->pmapp);
 
-	hal_spinlockSet(&spawn->sl);
+	hal_spinlockSet(&spawn->sl, &sc);
 	while (spawn->state < FORKING)
-		proc_threadWait(&spawn->wq, &spawn->sl, 0);
-	hal_spinlockClear(&spawn->sl);
+		proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
+	hal_spinlockClear(&spawn->sl, &sc);
 
 	/* Copy parent kernel stack */
 	if ((current->parentkstack = (void *)vm_kmalloc(parent->kstacksz)) == NULL) {
-		hal_spinlockSet(&spawn->sl);
+		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = -ENOMEM;
 		proc_threadWakeup(&spawn->wq);
-		hal_spinlockClear(&spawn->sl);
+		hal_spinlockClear(&spawn->sl, &sc);
 
 		proc_threadEnd();
 	}
@@ -882,6 +886,7 @@ int proc_vfork(void)
 	thread_t *current;
 	int pid, isparent = 1, ret;
 	process_spawn_t *spawn;
+	spinlock_ctx_t sc;
 
 	if ((current = proc_current()) == NULL)
 		return -EINVAL;
@@ -905,7 +910,7 @@ int proc_vfork(void)
 	}
 
 	/* Signal forking state to vfork thread */
-	hal_spinlockSet(&spawn->sl);
+	hal_spinlockSet(&spawn->sl, &sc);
 	spawn->state = FORKING;
 	proc_threadWakeup(&spawn->wq);
 
@@ -914,12 +919,12 @@ int proc_vfork(void)
 		 * proc_threadWait call stores context on the stack - this allows to execute child
 		 * thread starting from this point
 		 */
-		proc_threadWait(&spawn->wq, &spawn->sl, 0);
+		proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
 		isparent = proc_current() == current;
 	}
 	while (spawn->state < FORKED && spawn->state > 0 && isparent);
 
-	hal_spinlockClear(&spawn->sl);
+	hal_spinlockClear(&spawn->sl, &sc);
 
 	if (isparent) {
 		hal_spinlockDestroy(&spawn->sl);
@@ -967,6 +972,7 @@ int proc_release(void)
 {
 	thread_t *current, *parent;
 	process_spawn_t *spawn;
+	spinlock_ctx_t sc;
 
 	current = proc_current();
 
@@ -982,10 +988,10 @@ int proc_release(void)
 	current->execdata = NULL;
 	current->parentkstack = NULL;
 
-	hal_spinlockSet(&spawn->sl);
+	hal_spinlockSet(&spawn->sl, &sc);
 	spawn->state = FORKED;
 	proc_threadWakeup(&spawn->wq);
-	hal_spinlockClear(&spawn->sl);
+	hal_spinlockClear(&spawn->sl, &sc);
 
 	return EOK;
 }

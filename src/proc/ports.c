@@ -141,15 +141,16 @@ port_t *proc_portGet(u32 id)
 {
 	port_t *port;
 	port_t t;
+	spinlock_ctx_t sc;
 
 	t.id = id;
 
 	proc_lockSet(&port_common.port_lock);
 	port = lib_treeof(port_t, linkage, lib_rbFind(&port_common.tree, &t.linkage));
 	if (port != NULL) {
-		hal_spinlockSet(&port->spinlock);
+		hal_spinlockSet(&port->spinlock, &sc);
 		port->refs++;
-		hal_spinlockClear(&port->spinlock);
+		hal_spinlockClear(&port->spinlock, &sc);
 	}
 	proc_lockClear(&port_common.port_lock);
 
@@ -159,8 +160,10 @@ port_t *proc_portGet(u32 id)
 
 void port_put(port_t *p, int destroy)
 {
+	spinlock_ctx_t sc;
+
 	proc_lockSet(&port_common.port_lock);
-	hal_spinlockSet(&p->spinlock);
+	hal_spinlockSet(&p->spinlock, &sc);
 	p->refs--;
 
 	if (destroy)
@@ -171,12 +174,12 @@ void port_put(port_t *p, int destroy)
 			/* Wake receivers up */
 			proc_threadBroadcast(&p->threads);
 
-		hal_spinlockClear(&p->spinlock);
+		hal_spinlockClear(&p->spinlock, &sc);
 		proc_lockClear(&port_common.port_lock);
 		return;
 	}
 
-	hal_spinlockClear(&p->spinlock);
+	hal_spinlockClear(&p->spinlock, &sc);
 	lib_rbRemove(&port_common.tree, &p->linkage);
 	proc_lockClear(&port_common.port_lock);
 

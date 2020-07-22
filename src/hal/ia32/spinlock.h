@@ -32,12 +32,13 @@ typedef struct _spinlock_t {
 	struct _spinlock_t *prev;
 
 	u32 lock;
-	u32 eflags[8];
-
 } spinlock_t;
 
 
-static inline void hal_spinlockSet(spinlock_t *spinlock)
+typedef u32 spinlock_ctx_t;
+
+
+static inline void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	__asm__ volatile
 	(" \
@@ -49,16 +50,16 @@ static inline void hal_spinlockSet(spinlock_t *spinlock)
 		xchgl %1, %%eax; \
 		cmp $0, %%eax; \
 		jz 1b; \
-		movl %%ebx, %0"
+		movl %%ebx, (%0)"
 	:
-	: "m" (spinlock->eflags[hal_cpuGetID()]), "m" (spinlock->lock)
+	: "r" (sc), "m" (spinlock->lock)
 	: "eax", "ebx", "memory");
 
 	hal_cpuGetCycles((void *)&spinlock->b);
 }
 
 
-static inline void hal_spinlockClear(spinlock_t *spinlock)
+static inline void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	hal_cpuGetCycles((void *)&spinlock->e);
 
@@ -78,7 +79,7 @@ static inline void hal_spinlockClear(spinlock_t *spinlock)
 		pushl %%eax; \
 		popf"
 	:
-	: "m" (spinlock->lock), "m" (spinlock->eflags[hal_cpuGetID()])
+	: "m" (spinlock->lock), "r" (*sc)
 	: "eax", "memory");
 
 	return;
