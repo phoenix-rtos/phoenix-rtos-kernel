@@ -33,14 +33,6 @@ enum { OWNSTACK = 0, PARENTSTACK };
 
 enum { READY = 0, SLEEP };
 
-typedef struct {
-	cycles_t cycl[10];
-	cycles_t cyclPrev;
-	int cyclptr;
-	time_t jiffiesptr;
-	time_t total;
-} cpu_load_t;
-
 
 typedef struct _thread_t {
 	struct _thread_t *next;
@@ -83,9 +75,9 @@ typedef struct _thread_t {
 	time_t readyTime;
 	time_t maxWait;
 
-#ifndef CPU_STM32
-	cpu_load_t load;
-#endif
+	time_t startTime;
+	time_t cpuTime;
+	time_t lastTime;
 
 	cpu_context_t *context;
 } thread_t;

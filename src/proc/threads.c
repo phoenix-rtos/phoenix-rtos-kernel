@@ -43,10 +43,6 @@ struct {
 	unsigned int idcounter;
 	rbtree_t id;
 
-#ifndef CPU_STM32
-	cpu_load_t load;
-#endif
-
 	intr_handler_t timeintrHandler;
 	intr_handler_t scheduleHandler;
 
@@ -527,106 +523,18 @@ void threads_put(thread_t *t)
 }
 
 
-/*
- * Scheduler
- */
-
-#ifndef CPU_STM32
-static void threads_findCurrBucket(cpu_load_t *load, time_t jiffies)
-{
-	int steps, i;
-	const time_t step = TIMER_US2CYC(1000);
-
-	steps = (jiffies - load->jiffiesptr) / step;
-	if (steps)
-		load->jiffiesptr = jiffies;
-	if (steps >= (sizeof(load->cycl) / sizeof(load->cycl[0])))
-		hal_memset(load->cycl, 0, sizeof(load->cycl));
-	steps %= sizeof(load->cycl) / sizeof(load->cycl[0]);
-	for (i = 0; i < steps; ++i) {
-		load->cyclptr = (load->cyclptr + 1) % (sizeof(load->cycl) / sizeof(load->cycl[0]));
-		load->cycl[load->cyclptr] = 0;
-	}
-}
-
-
-int threads_getCpuTime(thread_t *t)
-{
-	int i;
-	u64 curr = 0, tot = 0;
-
-	hal_spinlockSet(&threads_common.spinlock);
-	threads_findCurrBucket(&threads_common.load, threads_common.jiffies);
-	threads_findCurrBucket(&t->load, threads_common.jiffies);
-
-	if (t != NULL) {
-		for (i = 0; i < sizeof(t->load.cycl) / sizeof(t->load.cycl[0]); ++i) {
-			curr += t->load.cycl[i];
-			tot += threads_common.load.cycl[i];
-		}
-
-		if (tot != 0)
-			curr = (curr * 1000) / tot;
-		else
-			curr = 0;
-	}
-	hal_spinlockClear(&threads_common.spinlock);
-
-	return (int)curr;
-}
-
-
 static void threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 {
-	cycles_t now = 0;
-	time_t jiffies;
-
-	jiffies = threads_common.jiffies;
-
-#ifdef HPTIMER_IRQ
-	now = hal_getTimer();
-#else
-	hal_cpuGetCycles(&now);
-#endif
-
-#ifdef NOMMU
-	/* Add jiffies because hal_cpuGetCycles returns time only in range from 0 to 1000 us */
-	/* Applies to the hardware without CPU cycle counter */
-	now += threads_common.jiffies;
-#endif
-
-	threads_findCurrBucket(&threads_common.load, jiffies);
-
-	threads_common.load.cycl[threads_common.load.cyclptr] += now - threads_common.load.cyclPrev;
-	threads_common.load.cyclPrev = now;
+	time_t now = threads_common.jiffies;
 
 	if (current != NULL) {
-		/* Find current bucket */
-		threads_findCurrBucket(&current->load, jiffies);
-
-		if (current->load.cyclPrev != 0) {
-			current->load.total += now - current->load.cyclPrev;
-			current->load.cycl[current->load.cyclptr] += now - current->load.cyclPrev;
-		}
-
-		current->load.cyclPrev = now;
+		current->cpuTime += now - current->lastTime;
+		current->lastTime = now;
 	}
 
-	if (current != NULL && selected != NULL && current != selected) {
-		current->load.cyclPrev = 0;
-
-		/* Find current bucket */
-		threads_findCurrBucket(&selected->load, jiffies);
-
-		selected->load.cyclPrev = now;
-	}
+	if (current != NULL && selected != NULL && current != selected)
+		selected->lastTime = now;
 }
-#else
-int threads_getCpuTime(thread_t *t)
-{
-	return 0;
-}
-#endif
 
 
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
@@ -898,17 +806,12 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	/* Prepare initial stack */
 	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, stack + stacksz, arg);
 
-#ifndef CPU_STM32
-	hal_memset(&t->load.cycl, 0, sizeof(t->load.cycl));
-	t->load.cyclPrev = 0;
-	t->load.cyclptr = 0;
-	t->load.jiffiesptr = 0;
-	t->load.total = 0;
-#endif
-
 	if (process != NULL)
 		hal_cpuSetCtxGot(t->context, process->got);
 
+	t->startTime = threads_common.jiffies;
+	t->cpuTime = 0;
+	t->lastTime = threads_common.jiffies;
 
 	/* Insert thread to scheduler queue */
 	hal_spinlockSet(&threads_common.spinlock);
@@ -1540,8 +1443,8 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 		info[i].tid = t->id;
 #ifndef CPU_STM32
-		info[i].load = threads_getCpuTime(t);
-		info[i].cpu_time = (unsigned int) (TIMER_CYC2US(t->load.total) / 1000000);
+		info[i].load = (t->cpuTime * 1000) / (threads_common.jiffies - t->startTime);
+		info[i].cpu_time = t->cpuTime / 10000;
 #else
 		info[i].load = 0;
 		info[i].cpu_time = 0;
@@ -1628,10 +1531,6 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.perfGather = 0;
 
 	proc_lockInit(&threads_common.lock);
-
-#ifndef CPU_STM32
-	hal_memset(&threads_common.load, 0, sizeof(threads_common.load));
-#endif
 
 	/* Initiaizlie scheduler queue */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++)
