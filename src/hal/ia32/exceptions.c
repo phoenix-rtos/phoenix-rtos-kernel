@@ -161,10 +161,12 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
 {
+	spinlock_ctx_t sc;
+
 	if (n == EXC_DEFAULT) {
-		hal_spinlockSet(&exceptions.lock);
+		hal_spinlockSet(&exceptions.lock, &sc);
 		exceptions.defaultHandler = handler;
-		hal_spinlockClear(&exceptions.lock);
+		hal_spinlockClear(&exceptions.lock, &sc);
 
 		return EOK;
 	}
@@ -172,9 +174,9 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 	if (n >= SIZE_EXCHANDLERS)
 		return -EINVAL;
 
-	hal_spinlockSet(&exceptions.lock);
+	hal_spinlockSet(&exceptions.lock, &sc);
 	exceptions.handlers[n] = handler;
-	hal_spinlockClear(&exceptions.lock);
+	hal_spinlockClear(&exceptions.lock, &sc);
 
 	return EOK;
 }

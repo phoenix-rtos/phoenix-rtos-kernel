@@ -60,16 +60,17 @@ static u32 _hal_pciSet(u8 bus, u8 dev, u8 func, u8 reg, u32 v)
 static int hal_pciSetBusmaster(pci_device_t *dev, u8 enable)
 {
 	u32 dv;
+	spinlock_ctx_t sc;
 
 	if (dev == NULL)
 		return -EINVAL;
 
-	hal_spinlockSet(&cpu.lock);
+	hal_spinlockSet(&cpu.lock, &sc);
 	dv = _hal_pciGet(dev->b, dev->d, dev->f, 1);
 	dv &= ~(!enable << 2);
 	dv |= !!enable << 2;
 	_hal_pciSet(dev->b, dev->d, dev->f, 1, dv);
-	hal_spinlockClear(&cpu.lock);
+	hal_spinlockClear(&cpu.lock, &sc);
 
 	dev->command = dv & 0xffff;
 
@@ -81,6 +82,7 @@ static int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev)
 {
 	unsigned int b, d, f, i;
 	u32 dv, cl, tmp, shift;
+	spinlock_ctx_t sc;
 
 	if (id == NULL || dev == NULL)
 		return -EINVAL;
@@ -88,9 +90,9 @@ static int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev)
 	for (b = 0; b < 256; b++) {
 		for (d = 0; d < 32; d++) {
 			for (f = 0; f < 8; f++) {
-				hal_spinlockSet(&cpu.lock);
+				hal_spinlockSet(&cpu.lock, &sc);
 				dv = _hal_pciGet(b, d, f, 0);
-				hal_spinlockClear(&cpu.lock);
+				hal_spinlockClear(&cpu.lock, &sc);
 
 				if (dv == 0xffffffff)
 					continue;
@@ -101,9 +103,9 @@ static int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev)
 				if (id->device != PCI_ANY && id->device != (dv >> 16))
 					continue;
 
-				hal_spinlockSet(&cpu.lock);
+				hal_spinlockSet(&cpu.lock, &sc);
 				cl = _hal_pciGet(b, d, f, 2) >> 16;
-				hal_spinlockClear(&cpu.lock);
+				hal_spinlockClear(&cpu.lock, &sc);
 
 				if (id->cl != PCI_ANY && id->cl != cl)
 					continue;
@@ -115,7 +117,7 @@ static int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev)
 				dev->vendor = dv >> 16;
 				dev->cl = cl;
 
-				hal_spinlockSet(&cpu.lock);
+				hal_spinlockSet(&cpu.lock, &sc);
 				dv = _hal_pciGet(b, d, f, 1);
 				dev->status = dv >> 16;
 				dev->command = dv & 0xffff;
@@ -149,7 +151,7 @@ static int hal_pciGetDevice(pci_id_t *id, pci_device_t *dev)
 					_hal_pciSet(b, d, f, 4 + i, dev->resources[i].base);
 				}
 
-				hal_spinlockClear(&cpu.lock);
+				hal_spinlockClear(&cpu.lock, &sc);
 
 				return EOK;
 			}
@@ -256,7 +258,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-int hal_cpuReschedule(spinlock_t *spinlock)
+int hal_cpuReschedule(spinlock_t *spinlock, spinlock_ctx_t *scp)
 {
 	int err;
 
@@ -314,7 +316,7 @@ int hal_cpuReschedule(spinlock_t *spinlock)
 		"3:;"
 		"movl %%eax, %0"
 	: "=g" (err)
-	: "m" (spinlock), "m" (spinlock->lock), "m" (spinlock->eflags[hal_cpuGetID()]), "g" (threads_schedule)
+	: "m" (spinlock), "m" (spinlock->lock), "r" (*scp), "g" (threads_schedule)
 	: "eax", "edx", "esp", "cc", "memory");
 
 	return err;

@@ -779,7 +779,7 @@ int syscalls_signalPost(void *ustack)
 
 	proc_put(proc);
 	threads_put(t);
-	hal_cpuReschedule(NULL);
+	hal_cpuReschedule(NULL, NULL);
 	return err;
 }
 

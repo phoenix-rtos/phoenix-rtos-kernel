@@ -51,15 +51,19 @@ static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 
 void hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 {
-	hal_spinlockSet(&spinlocks.spinlock);
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&spinlocks.spinlock, &sc);
 	_hal_spinlockCreate(spinlock, name);
-	hal_spinlockClear(&spinlocks.spinlock);
+	hal_spinlockClear(&spinlocks.spinlock, &sc);
 }
 
 
 void hal_spinlockDestroy(spinlock_t *spinlock)
 {
-	hal_spinlockSet(&spinlocks.spinlock);
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&spinlocks.spinlock, &sc);
 
 	if (spinlock->next == spinlock)
 		spinlocks.first = NULL;
@@ -69,7 +73,7 @@ void hal_spinlockDestroy(spinlock_t *spinlock)
 	}
 	spinlock->prev = spinlock->next = NULL;
 
-	hal_spinlockClear(&spinlocks.spinlock);
+	hal_spinlockClear(&spinlocks.spinlock, &sc);
 	return;
 }
 

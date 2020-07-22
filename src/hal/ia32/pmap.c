@@ -85,6 +85,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 {
 	unsigned int pdi, pti;
 	addr_t addr, *ptable;
+	spinlock_ctx_t sc;
 
 	pdi = (u32)va >> 22;
 	pti = ((u32)va >> 12) & 0x000003ff;
@@ -96,12 +97,12 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 		pmap->pdir[pdi] = ((alloc->addr & ~0xfff) | /*(attr & 0xfff) |*/ PTHD_USER | PTHD_WRITE | PTHD_PRESENT);
 	}
 
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 
 	/* Map selected page table to specified virtual address */
 	addr = pmap->pdir[pdi];
 	if ((u32)pmap_common.ptable < VADDR_KERNEL) {
-		hal_spinlockClear(&pmap_common.lock);
+		hal_spinlockClear(&pmap_common.lock, &sc);
 		return -EFAULT;
 	}
 
@@ -116,7 +117,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 
 	hal_cpuFlushTLB(va);
 
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	return EOK;
 }
@@ -126,6 +127,7 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 {
 	unsigned int pdi, pti;
 	addr_t addr, *ptable;
+	spinlock_ctx_t sc;
 
 	pdi = (u32)vaddr >> 22;
 	pti = ((u32)vaddr >> 12) & 0x000003ff;
@@ -134,12 +136,12 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	if (!pmap->pdir[pdi])
 		return EOK;
 
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 
 	/* Map selected page table to specified virtual address */
 	addr = pmap->pdir[pdi];
 	if ((u32)pmap_common.ptable < VADDR_KERNEL) {
-		hal_spinlockClear(&pmap_common.lock);
+		hal_spinlockClear(&pmap_common.lock, &sc);
 		return -EFAULT;
 	}
 
@@ -153,7 +155,7 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	pmap_common.ptable[pti] = 0;
 
 	hal_cpuFlushTLB(vaddr);
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	return EOK;
 }
@@ -164,6 +166,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
 	unsigned int pdi, pti;
 	addr_t addr, *ptable;
+	spinlock_ctx_t sc;
 
 	pdi = (u32)vaddr >> 22;
 	pti = ((u32)vaddr >> 12) & 0x000003ff;
@@ -171,7 +174,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	if (!pmap->pdir[pdi])
 		return 0;
 
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 
 	/* Map page table corresponding to vaddr at specified virtual address */
 	addr = pmap->pdir[pdi];
@@ -181,7 +184,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	hal_cpuFlushTLB(pmap_common.ptable);
 
 	addr = (addr_t)pmap_common.ptable[pti];
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	/*if (((*paddr) & PGHD_PRESENT) == 0)
 		return -ENOMEM;
@@ -199,22 +202,23 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	addr_t a, ta;
 	u16 tl;
 	syspage_program_t *p;
+	spinlock_ctx_t sc;
 
 	a = *addr & ~0xfff;
 	page->flags = 0;
 
 	/* Test address ranges */
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 
 	if (a < pmap_common.minAddr)
 		a = pmap_common.minAddr;
 
 	if (a >= pmap_common.maxAddr) {
-		hal_spinlockClear(&pmap_common.lock);
+		hal_spinlockClear(&pmap_common.lock, &sc);
 		return -ENOMEM;
 	}
 
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	page->addr = a;
 	page->flags = 0;
@@ -254,14 +258,14 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	}
 
 	/* Verify if page has been allocated by loader or kernel */
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 
 	/*if ((page->addr >= (u32)pmap_common.ptable - VADDR_KERNEL) && (page->addr < (u32)pmap_common.ptable - VADDR_KERNEL + SIZE_PAGE)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_PMAP);
 	}*/
 
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	if ((page->addr >= (u32)syspage - VADDR_KERNEL) && (page->addr < (u32)syspage - VADDR_KERNEL + SIZE_PAGE)) {
 		page->flags &= ~PAGE_FREE;

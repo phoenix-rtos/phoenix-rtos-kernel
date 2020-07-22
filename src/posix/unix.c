@@ -5,8 +5,8 @@
  *
  * POSIX-compatibility module, UNIX sockets
  *
- * Copyright 2018 Phoenix Systems
- * Author: Jan Sikorski
+ * Copyright 2018, 2020 Phoenix Systems
+ * Author: Jan Sikorski, Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -257,6 +257,7 @@ int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 	int err;
 	unsigned newid;
 	void *v;
+	spinlock_ctx_t sc;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -285,11 +286,11 @@ int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 
 		_cbuffer_init(&new->buffer, v, SIZE_PAGE);
 
-		hal_spinlockSet(&s->spinlock);
+		hal_spinlockSet(&s->spinlock, &sc);
 		s->state |= US_ACCEPTING;
 
 		while ((conn = s->connect) == NULL)
-			proc_threadWait(&s->queue, &s->spinlock, 0);
+			proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 
 		LIST_REMOVE(&s->connect, conn);
 		s->state &= ~US_ACCEPTING;
@@ -298,7 +299,7 @@ int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 		new->connect = conn;
 
 		proc_threadWakeup(&conn->queue);
-		hal_spinlockClear(&s->spinlock);
+		hal_spinlockClear(&s->spinlock, &sc);
 
 		err = new->id;
 		unixsock_put(new);
@@ -402,6 +403,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 	int err;
 	oid_t oid;
 	void *v;
+	spinlock_ctx_t sc;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -445,19 +447,19 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 
 			_cbuffer_init(&s->buffer, v, SIZE_PAGE);
 
-			hal_spinlockSet(&remote->spinlock);
+			hal_spinlockSet(&remote->spinlock, &sc);
 			LIST_ADD(&remote->connect, s);
 			proc_threadWakeup(&remote->queue);
-			hal_spinlockClear(&remote->spinlock);
+			hal_spinlockClear(&remote->spinlock, &sc);
 
-			hal_spinlockSet(&s->spinlock);
+			hal_spinlockSet(&s->spinlock, &sc);
 			s->state |= US_CONNECTING;
 
 			while (s->connect == NULL)
-				proc_threadWait(&s->queue, &s->spinlock, 0);
+				proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 
 			s->state &= ~US_CONNECTING;
-			hal_spinlockClear(&s->spinlock);
+			hal_spinlockClear(&s->spinlock, &sc);
 
 			err = EOK;
 		} while (0);
@@ -493,6 +495,7 @@ ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, 
 	unixsock_t *s;
 	size_t rlen = 0;
 	int err = 0;
+	spinlock_ctx_t sc;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -512,9 +515,9 @@ ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, 
 		proc_lockClear(&s->lock);
 
 		if (err > 0) {
-			hal_spinlockSet(&s->spinlock);
+			hal_spinlockSet(&s->spinlock, &sc);
 			proc_threadWakeup(&s->writeq);
-			hal_spinlockClear(&s->spinlock);
+			hal_spinlockClear(&s->spinlock, &sc);
 
 			break;
 		}
@@ -523,9 +526,9 @@ ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, 
 			break;
 		}
 
-		hal_spinlockSet(&s->spinlock);
-		proc_threadWait(&s->queue, &s->spinlock, 0);
-		hal_spinlockClear(&s->spinlock);
+		hal_spinlockSet(&s->spinlock, &sc);
+		proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+		hal_spinlockClear(&s->spinlock, &sc);
 	}
 
 	unixsock_put(s);
@@ -537,6 +540,7 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 {
 	unixsock_t *s, *conn;
 	int err;
+	spinlock_ctx_t sc;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -573,9 +577,9 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 			proc_lockClear(&conn->lock);
 
 			if (err > 0) {
-				hal_spinlockSet(&conn->spinlock);
+				hal_spinlockSet(&conn->spinlock, &sc);
 				proc_threadWakeup(&conn->queue);
-				hal_spinlockClear(&conn->spinlock);
+				hal_spinlockClear(&conn->spinlock, &sc);
 
 				break;
 			}
@@ -584,9 +588,9 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 				break;
 			}
 
-			hal_spinlockSet(&conn->spinlock);
-			proc_threadWait(&conn->writeq, &conn->spinlock, 0);
-			hal_spinlockClear(&conn->spinlock);
+			hal_spinlockSet(&conn->spinlock, &sc);
+			proc_threadWait(&conn->writeq, &conn->spinlock, 0, &sc);
+			hal_spinlockClear(&conn->spinlock, &sc);
 		}
 
 	} while (0);

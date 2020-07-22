@@ -5,7 +5,7 @@
  *
  * HAL console
  *
- * Copyright 2012, 2016 Phoenix Systems
+ * Copyright 2012, 2016, 2020 Phoenix Systems
  * Copyright 2001, 2005-2008 Pawel Pisarczyk
  * Author: Pawel Pisarczyk
  *
@@ -48,8 +48,9 @@ struct {
 void hal_consolePrint(int attr, const char *s)
 {
 	const char *p;
+	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&console.spinlock);
+	hal_spinlockSet(&console.spinlock, &sc);
 
 	for (p = s; *p; p++) {
 		switch (*p) {
@@ -98,7 +99,7 @@ void hal_consolePrint(int attr, const char *s)
 		hal_outb(console.crtc, CRTC_CURSORL);
 		hal_outb(console.crtc + 1, (console.row * console.maxcol + console.col) & 0xff);
 	}
-	hal_spinlockClear(&console.spinlock);
+	hal_spinlockClear(&console.spinlock, &sc);
 
 	return;
 }
