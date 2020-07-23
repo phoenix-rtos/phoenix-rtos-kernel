@@ -56,6 +56,11 @@ _init_plo:
 	/* Store system page address in esi register */
 	movl (%eax), %esi
 
+	/* Test presence of PS/2 keyboard */
+	inb $0x64, %al
+	cmp $0xff, %al
+	jz _init_setupPaging
+
 	/* Disable A20 line mask */
 	call _init_empty8042
 	movb $0xd1, %al
