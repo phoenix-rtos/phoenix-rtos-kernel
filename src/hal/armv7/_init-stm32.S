@@ -224,19 +224,21 @@ _hal_invokePendSV:
 .globl hal_cpuReschedule
 .type hal_cpuReschedule, %function
 hal_cpuReschedule:
-	push {r0, lr}
+	push {r0-r2, lr}
 	eor r0, r0, r0 /* default return value */
 	bl _hal_invokePendSV
-	pop {r1, lr}
+	pop {r1-r3, lr}
 	cmp r1, #NULL
 	it eq
 	beq hal_cpuReschedule0
+	push {r3-r4}
 	add r1, r1, #12
-	ldrexb r2, [r1]
-	add r2, r2, #1
+	ldrexb r3, [r1]
+	add r3, r3, #1
 	dmb
-	strexb r3, r2, [r1]
-	ldrb r2, [r1, #1]
+	strexb r4, r3, [r1]
+	pop {r3-r4}
+	ldr r2, [r2]
 	msr primask, r2
 hal_cpuReschedule0:
 	isb

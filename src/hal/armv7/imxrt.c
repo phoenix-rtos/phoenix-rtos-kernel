@@ -466,8 +466,9 @@ int hal_platformctl(void *ptr)
 	platformctl_t *data = ptr;
 	int ret = -EINVAL;
 	unsigned int state;
+	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&imxrt_common.pltctlSp);
+	hal_spinlockSet(&imxrt_common.pltctlSp, &sc);
 
 	switch (data->type) {
 	case pctl_devclock:
@@ -543,7 +544,7 @@ int hal_platformctl(void *ptr)
 		break;
 	}
 
-	hal_spinlockClear(&imxrt_common.pltctlSp);
+	hal_spinlockClear(&imxrt_common.pltctlSp, &sc);
 
 	return ret;
 }

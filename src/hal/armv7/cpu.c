@@ -106,16 +106,18 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 time_t hal_cpuLowPower(time_t ms)
 {
 #ifdef CPU_STM32
-	hal_spinlockSet(&cpu_common.busySp);
+	spinlock_ctx_t scp;
+
+	hal_spinlockSet(&cpu_common.busySp, &scp);
 	if (cpu_common.busy == 0) {
 		/* Don't increment jiffies if sleep was unsuccessful */
 		ms = _stm32_pwrEnterLPStop(ms);
 
-		hal_spinlockClear(&cpu_common.busySp);
+		hal_spinlockClear(&cpu_common.busySp, &scp);
 		return ms;
 	}
 	else {
-		hal_spinlockClear(&cpu_common.busySp);
+		hal_spinlockClear(&cpu_common.busySp, &scp);
 		return 0;
 	}
 #else
@@ -127,7 +129,9 @@ time_t hal_cpuLowPower(time_t ms)
 
 void hal_cpuSetDevBusy(int s)
 {
-	hal_spinlockSet(&cpu_common.busySp);
+	spinlock_ctx_t scp;
+
+	hal_spinlockSet(&cpu_common.busySp, &scp);
 	if (s == 1)
 		++cpu_common.busy;
 	else
@@ -135,7 +139,7 @@ void hal_cpuSetDevBusy(int s)
 
 	if (cpu_common.busy < 0)
 		cpu_common.busy = 0;
-	hal_spinlockClear(&cpu_common.busySp);
+	hal_spinlockClear(&cpu_common.busySp, &scp);
 }
 
 

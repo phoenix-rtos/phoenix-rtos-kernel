@@ -27,16 +27,18 @@ typedef struct _spinlock_t {
 	struct _spinlock_t *prev;
 
 	u8 lock;
-	u8 cflags;
 } spinlock_t;
 
 
-static inline void hal_spinlockSet(spinlock_t *spinlock)
+typedef u32 spinlock_ctx_t;
+
+
+static inline void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	__asm__ volatile(" \
 		mrs r1, primask; \
 		cpsid i; \
-		strb	r1, [%0]; \
+		str r1, [%0]; \
 		mov r2, #0; \
 	1: \
 		ldrexb r1, [%1]; \
@@ -47,22 +49,22 @@ static inline void hal_spinlockSet(spinlock_t *spinlock)
 		bne 1b; \
 		dmb"
 	:
-	: "r" (&spinlock->cflags), "r" (&spinlock->lock)
+	: "r" (sc), "r" (&spinlock->lock)
 	: "r1", "r2", "memory", "cc");
 }
 
 
-static inline void hal_spinlockClear(spinlock_t *spinlock)
+static inline void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	__asm__ volatile (" \
 		ldrexb r1, [%0]; \
 		add r1, r1, #1; \
-		dmb;	\
+		dmb; \
 		strexb r2, r1, [%0]; \
-		ldrb	r1, [%1]; \
+		ldr r1, [%1]; \
 		msr primask, r1;"
 	:
-	: "r" (&spinlock->lock), "r" (&spinlock->cflags)
+	: "r" (&spinlock->lock), "r" (sc)
 	: "r1", "r2", "memory");
 }
 

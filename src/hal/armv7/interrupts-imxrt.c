@@ -79,11 +79,12 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	int reschedule = 0;
+	spinlock_ctx_t sc;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
 
-	hal_spinlockSet(&interrupts.spinlock);
+	hal_spinlockSet(&interrupts.spinlock, &sc);
 
 	interrupts.counters[n]++;
 
@@ -95,7 +96,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		} while ((h = h->next) != interrupts.handlers[n]);
 	}
 
-	hal_spinlockClear(&interrupts.spinlock);
+	hal_spinlockClear(&interrupts.spinlock, &sc);
 
 	if (reschedule)
 		threads_schedule(n, ctx, NULL);
@@ -104,10 +105,12 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 int hal_interruptsSetHandler(intr_handler_t *h)
 {
+	spinlock_ctx_t sc;
+
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
-	hal_spinlockSet(&interrupts.spinlock);
+	hal_spinlockSet(&interrupts.spinlock, &sc);
 	h->got = hal_cpuGetGot();
 
 	_intr_add(&interrupts.handlers[h->n], h);
@@ -116,7 +119,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 		_imxrt_nvicSetPriority(h->n - 0x10, 1);
 		_imxrt_nvicSetIRQ(h->n - 0x10, 1);
 	}
-	hal_spinlockClear(&interrupts.spinlock);
+	hal_spinlockClear(&interrupts.spinlock, &sc);
 
 	return EOK;
 }
@@ -124,16 +127,18 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 int hal_interruptsDeleteHandler(intr_handler_t *h)
 {
+	spinlock_ctx_t sc;
+
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
-	hal_spinlockSet(&interrupts.spinlock);
+	hal_spinlockSet(&interrupts.spinlock, &sc);
 	_intr_remove(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10 && interrupts.handlers[h->n] == NULL)
 		_imxrt_nvicSetIRQ(h->n - 0x10, 0);
 
-	hal_spinlockClear(&interrupts.spinlock);
+	hal_spinlockClear(&interrupts.spinlock, &sc);
 
 	return EOK;
 }

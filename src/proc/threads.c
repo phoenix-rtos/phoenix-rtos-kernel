@@ -1417,6 +1417,7 @@ int proc_lockDone(lock_t *lock)
 static void threads_idlethr(void *arg)
 {
 	time_t wakeup;
+	spinlock_ctx_t scp;
 
 	for (;;) {
 		wakeup = proc_nextWakeup();
@@ -1424,9 +1425,11 @@ static void threads_idlethr(void *arg)
 		if (wakeup > TIMER_US2CYC(2000)) {
 			wakeup = hal_cpuLowPower((TIMER_CYC2US(wakeup) + TIMER_US2CYC(500)) / TIMER_US2CYC(1000));
 #ifdef CPU_STM32
-			hal_spinlockSet(&threads_common.spinlock, &sc);
+			hal_spinlockSet(&threads_common.spinlock, &scp);
 			threads_common.jiffies += wakeup * 1000;
-			hal_spinlockClear(&threads_common.spinlock, &sc);
+			hal_spinlockClear(&threads_common.spinlock, &scp);
+#else
+			(void)scp;
 #endif
 		}
 		hal_cpuHalt();
