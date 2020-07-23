@@ -65,13 +65,15 @@ static int timer_overflowIrqHandler(unsigned int n, cpu_context_t *ctx, void *ar
 
 void hal_setWakeup(u32 when)
 {
+	spinlock_ctx_t sc;
+
 	if (!when)
 		++when;
 
-	hal_spinlockSet(&timer_common.lock);
+	hal_spinlockSet(&timer_common.lock, &sc);
 	*(timer_common.epit1 + epit_lr) = when;
 	*(timer_common.epit1 + epit_cr) |= 1;
-	hal_spinlockClear(&timer_common.lock);
+	hal_spinlockClear(&timer_common.lock, &sc);
 }
 
 
@@ -79,13 +81,14 @@ time_t hal_getTimer(void)
 {
 	u32 reg;
 	time_t ret;
+	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&timer_common.lock);
+	hal_spinlockSet(&timer_common.lock, &sc);
 	reg = *(timer_common.gpt1 + gpt_cnt);
 	ret = ((time_t)timer_common.timerhi << 32) | (time_t)reg;
 	if ((*(timer_common.gpt1 + gpt_sr) & (1 << 5)) && !(reg & (1 << 31)))
 		ret += 1ULL << 32;
-	hal_spinlockClear(&timer_common.lock);
+	hal_spinlockClear(&timer_common.lock, &sc);
 
 	return ret;
 }

@@ -260,7 +260,7 @@ extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack,
 struct _spinlock_t;
 
 
-extern int hal_cpuReschedule(struct _spinlock_t *spinlock);
+extern int hal_cpuReschedule(struct _spinlock_t *spinlock, u32 *scp);
 
 
 static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)

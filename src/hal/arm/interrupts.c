@@ -89,11 +89,12 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	int reschedule = 0;
+	spinlock_ctx_t sc;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
 
-	hal_spinlockSet(&interrupts.spinlock[n]);
+	hal_spinlockSet(&interrupts.spinlock[n], &sc);
 
 	interrupts.counters[n]++;
 
@@ -106,7 +107,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (reschedule)
 		threads_schedule(n, ctx, NULL);
 
-	hal_spinlockClear(&interrupts.spinlock[n]);
+	hal_spinlockClear(&interrupts.spinlock[n], &sc);
 
 	return;
 }
@@ -149,17 +150,19 @@ static inline u32 interrupts_getPriority(unsigned int irqn)
 
 int hal_interruptsSetHandler(intr_handler_t *h)
 {
+	spinlock_ctx_t sc;
+
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
-	hal_spinlockSet(&interrupts.spinlock[h->n]);
+	hal_spinlockSet(&interrupts.spinlock[h->n], &sc);
 	_intr_add(&interrupts.handlers[h->n], h);
 
 	interrupts_setPriority(h->n, h->n >> 5);
 	interrupts_setConf(h->n, 0x3);
 	interrupts_enableIRQ(h->n);
 
-	hal_spinlockClear(&interrupts.spinlock[h->n]);
+	hal_spinlockClear(&interrupts.spinlock[h->n], &sc);
 
 	return EOK;
 }
@@ -167,16 +170,18 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 int hal_interruptsDeleteHandler(intr_handler_t *h)
 {
+	spinlock_ctx_t sc;
+
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
-	hal_spinlockSet(&interrupts.spinlock[h->n]);
+	hal_spinlockSet(&interrupts.spinlock[h->n], &sc);
 	_intr_remove(&interrupts.handlers[h->n], h);
 
 	if (interrupts.handlers[h->n] == NULL)
 		interrupts_disableIRQ(h->n);
 
-	hal_spinlockClear(&interrupts.spinlock[h->n]);
+	hal_spinlockClear(&interrupts.spinlock[h->n], &sc);
 
 	return EOK;
 }

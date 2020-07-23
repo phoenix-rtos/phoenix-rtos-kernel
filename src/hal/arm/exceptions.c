@@ -204,8 +204,9 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
 {
 	int ret = 0;
+	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&exceptions.lock);
+	hal_spinlockSet(&exceptions.lock, &sc);
 
 	switch (n) {
 		case EXC_DEFAULT:
@@ -225,7 +226,7 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 			break;
 	}
 
-	hal_spinlockClear(&exceptions.lock);
+	hal_spinlockClear(&exceptions.lock, &sc);
 
 	return ret;
 }

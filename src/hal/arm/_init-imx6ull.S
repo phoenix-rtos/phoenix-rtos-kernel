@@ -803,6 +803,8 @@ hal_cpuReschedule:
 	stmfd sp, {r0-r14}
 	sub sp, sp, #0x3c
 
+	mov r3, r1 /* Save spinlock context for later */
+
 	/* Default return value - EOK */
 	mov r1, #0
 	str r1, [sp]
@@ -823,7 +825,7 @@ hal_cpuReschedule:
 	add r1, r1, #1
 	dmb
 	strexb r2, r1, [r0]
-	ldrb r1, [r0, #1]
+	ldrb r1, [r3]
 
 	bic r4, #0xff
 	and r1, #0xff

@@ -168,12 +168,14 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 
 addr_t pmap_destroy(pmap_t *pmap, int *i)
 {
+	spinlock_ctx_t sc;
+
 	int max = ((VADDR_USR_MAX + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) >> 20;
 
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 	if (pmap->asid_ix != 0)
 		_pmap_asidDealloc(pmap);
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	while (*i < max) {
 		if (pmap->pdir[*i] != NULL) {
@@ -218,9 +220,11 @@ void _pmap_switch(pmap_t *pmap)
 
 void pmap_switch(pmap_t *pmap)
 {
-	hal_spinlockSet(&pmap_common.lock);
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&pmap_common.lock, &sc);
 	_pmap_switch(pmap);
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 }
 
 
@@ -273,16 +277,17 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 {
 	int pdi, i = 0;
 	unsigned char asid;
+	spinlock_ctx_t sc;
 
 	pdi = (u32)va >> 20;
 
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 	asid = pmap_common.asids[pmap->asid_ix];
 
 	/* If no page table is allocated add new one */
 	if (!pmap->pdir[pdi]) {
 		if (alloc == NULL) {
-			hal_spinlockClear(&pmap_common.lock);
+			hal_spinlockClear(&pmap_common.lock, &sc);
 			return -EFAULT;
 		}
 
@@ -298,7 +303,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	_pmap_writeEntry(pmap_common.sptab, va, pa, attr, asid);
 
 	if (!(attr & PGHD_PRESENT)) {
-		hal_spinlockClear(&pmap_common.lock);
+		hal_spinlockClear(&pmap_common.lock, &sc);
 		return EOK;
 	}
 
@@ -322,7 +327,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 		hal_cpuInstrBarrier();
 	}
 
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 	return EOK;
 }
 
@@ -332,13 +337,14 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	unsigned int pdi, pti;
 	addr_t addr;
 	unsigned char asid;
+	spinlock_ctx_t sc;
 
 	pdi = (u32)vaddr >> 20;
 	pti = ((u32)vaddr >> 12) & 0x3ff;
 
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 	if (!(addr = pmap->pdir[pdi])) {
-		hal_spinlockClear(&pmap_common.lock);
+		hal_spinlockClear(&pmap_common.lock, &sc);
 		return EOK;
 	}
 
@@ -347,12 +353,12 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	_pmap_mapScratch(addr, asid);
 
 	if (pmap_common.sptab[pti] == 0) {
-		hal_spinlockClear(&pmap_common.lock);
+		hal_spinlockClear(&pmap_common.lock, &sc);
 		return EOK;
 	}
 
 	_pmap_writeEntry(pmap_common.sptab, vaddr, 0, 0, asid);
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 	return EOK;
 }
 
@@ -363,20 +369,21 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	unsigned int pdi, pti;
 	addr_t addr;
 	unsigned char asid;
+	spinlock_ctx_t sc;
 
 	pdi = (u32)vaddr >> 20;
 	pti = ((u32)vaddr >> 12) & 0x3ff;
 
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 	if (!(addr = pmap->pdir[pdi])) {
-		hal_spinlockClear(&pmap_common.lock);
+		hal_spinlockClear(&pmap_common.lock, &sc);
 		return 0;
 	}
 
 	asid = pmap_common.asids[pmap->asid_ix];
 	_pmap_mapScratch(addr, asid);
 	addr = pmap_common.sptab[pti];
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	/* Mask out flags? */
 	return addr;
@@ -388,15 +395,16 @@ int pmap_getPage(page_t *page, addr_t *addr)
 {
 	addr_t a, min, max, end;
 	int i;
+	spinlock_ctx_t sc;
 
 	a = *addr & ~(SIZE_PAGE - 1);
 	page->flags = 0;
 
 	/* Test address ranges */
-	hal_spinlockSet(&pmap_common.lock);
+	hal_spinlockSet(&pmap_common.lock, &sc);
 	min = pmap_common.minAddr;
 	max = pmap_common.maxAddr;
-	hal_spinlockClear(&pmap_common.lock);
+	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	if (a < min)
 		a = min;
