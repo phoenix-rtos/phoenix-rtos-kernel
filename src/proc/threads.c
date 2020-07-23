@@ -1016,16 +1016,17 @@ int proc_threadSleep(unsigned long long us)
 static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, int interruptible, spinlock_ctx_t *scp)
 {
 	int err;
+	spinlock_ctx_t tsc;
 
-	hal_spinlockSet(&threads_common.spinlock, scp);
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	_proc_threadEnqueue(queue, timeout, interruptible);
 
 	if (*queue == NULL) {
-		hal_spinlockClear(&threads_common.spinlock, scp);
+		hal_spinlockClear(&threads_common.spinlock, &tsc);
 		return EOK;
 	}
 
-	hal_spinlockClear(&threads_common.spinlock, scp);
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
 	err = hal_cpuReschedule(spinlock, scp);
 	hal_spinlockSet(spinlock, scp);
 
