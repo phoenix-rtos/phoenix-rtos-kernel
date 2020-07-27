@@ -275,7 +275,7 @@ void _page_showPages(void)
 					if (w - k < 80)
 						lib_printf("\n");
 					lib_printf("vm: ");
-					w = k + 7;
+					w = k + 4;
 				}
 				lib_printf("[%dx]", rep);
 			}
@@ -303,7 +303,7 @@ void _page_showPages(void)
 				if (w - k < 80)
 					lib_printf("\n");
 				lib_printf("vm: ");
-				w = k + 7;
+				w = k + 4;
 			}
 			lib_printf("[%d%c]", rep + 1, c);
 		}
@@ -320,7 +320,10 @@ void _page_showPages(void)
 		a = pages.pages[i + rep ].addr + SIZE_PAGE;
 		i += rep;
 	}
-	lib_printf("\n");
+
+	if (w < 80)
+		lib_printf("\n");
+
 	return;
 }
 
