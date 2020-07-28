@@ -34,7 +34,7 @@ typedef struct _threadinfo_t {
 	unsigned int ppid;
 
 	int load;
-	unsigned int cpu_time;
+	time_t cpuTime;
 	int priority;
 	int state;
 	int vmem;
