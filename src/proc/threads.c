@@ -535,7 +535,7 @@ void threads_put(thread_t *t)
 
 static void threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 {
-	time_t now = threads_common.jiffies;
+	time_t now = TIMER_CYC2US(_threads_getTimer());
 
 	if (current != NULL) {
 		current->cpuTime += now - current->lastTime;
@@ -822,9 +822,9 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	if (process != NULL)
 		hal_cpuSetCtxGot(t->context, process->got);
 
-	t->startTime = threads_common.jiffies;
+	t->startTime = TIMER_CYC2US(_threads_getTimer());
 	t->cpuTime = 0;
-	t->lastTime = threads_common.jiffies;
+	t->lastTime = t->startTime;
 
 	/* Insert thread to scheduler queue */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -1489,18 +1489,13 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 
 		info[i].tid = t->id;
-#ifndef CPU_STM32
-		info[i].load = (t->cpuTime * 1000) / (threads_common.jiffies - t->startTime);
-		info[i].cpu_time = t->cpuTime / 10000;
-#else
-		info[i].load = 0;
-		info[i].cpu_time = 0;
-#endif
 		info[i].priority = t->priority;
 		info[i].state = t->state;
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 		now = TIMER_CYC2US(_threads_getTimer());
+		info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
+		info[i].cpuTime = t->cpuTime;
 
 		if (t->state == READY && t->maxWait < now - t->readyTime)
 			info[i].wait = now - t->readyTime;
