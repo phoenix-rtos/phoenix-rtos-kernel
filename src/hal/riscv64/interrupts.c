@@ -73,11 +73,12 @@ struct {
 void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
+	spinlock_ctx_t sc;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
 
-	hal_spinlockSet(&interrupts.spinlocks[n]);
+	hal_spinlockSet(&interrupts.spinlocks[n], &sc);
 
 	interrupts.counters[n]++;
 
@@ -87,7 +88,7 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 		while ((h = h->next) != interrupts.handlers[n]);
 	}
 
-	hal_spinlockClear(&interrupts.spinlocks[n]);
+	hal_spinlockClear(&interrupts.spinlocks[n], &sc);
 
 	return;
 }
@@ -95,12 +96,14 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 
 int hal_interruptsSetHandler(intr_handler_t *h)
 {
+	spinlock_ctx_t sc;
+
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
-	hal_spinlockSet(&interrupts.spinlocks[h->n]);
+	hal_spinlockSet(&interrupts.spinlocks[h->n], &sc);
 	_intr_add(&interrupts.handlers[h->n], h);
-	hal_spinlockClear(&interrupts.spinlocks[h->n]);
+	hal_spinlockClear(&interrupts.spinlocks[h->n], &sc);
 
 	return EOK;
 }
@@ -108,12 +111,14 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 int hal_interruptsDeleteHandler(intr_handler_t *h)
 {
+	spinlock_ctx_t sc;
+
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
 		return -EINVAL;
 
-	hal_spinlockSet(&interrupts.spinlocks[h->n]);
+	hal_spinlockSet(&interrupts.spinlocks[h->n], &sc);
 	_intr_remove(&interrupts.handlers[h->n], h);
-	hal_spinlockClear(&interrupts.spinlocks[h->n]);
+	hal_spinlockClear(&interrupts.spinlocks[h->n], &sc);
 
 	return EOK;
 }

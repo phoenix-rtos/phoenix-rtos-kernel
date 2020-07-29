@@ -36,7 +36,9 @@ typedef struct _spinlock_t {
 } spinlock_t;
 
 
-static inline void hal_spinlockSet(spinlock_t *spinlock)
+typedef u64 spinlock_ctx_t;
+
+static inline void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	__asm__ volatile
 	(" \
@@ -54,7 +56,7 @@ static inline void hal_spinlockSet(spinlock_t *spinlock)
 }
 
 
-static inline void hal_spinlockClear(spinlock_t *spinlock)
+static inline void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	hal_cpuGetCycles((void *)&spinlock->e);
 
