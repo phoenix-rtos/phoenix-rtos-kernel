@@ -578,7 +578,7 @@ static u32 _imxrt_ccmGetPeriphClkFreq(void)
 		freq /= ((*(imxrt_common.ccm + ccm_cbcdr) >> 27) & 0x7) + 1;
 	}
 	else { /* Pre_Periph_clk ---> Periph_clk */
-		switch ((*(imxrt_common.ccm + ccm_cbcmr) >> 18) * 0x3) {
+		switch ((*(imxrt_common.ccm + ccm_cbcmr) >> 18) & 0x3) {
 			/* PLL2 ---> Pre_Periph_clk ---> Periph_clk */
 			case 0x0:
 				freq = _imxrt_ccmGetPllFreq(clk_pll_sys);
