@@ -14,7 +14,7 @@ Supported targets:
  * riscv64-spike
 
 ## Building kernel
-To compile the kernel and build the operating system image phoenix-rtos-project repository should be used. Please read the instruction in this repository.
+To compile the kernel and build the operating system image [phoenix-rtos-project](https://github.com/phoenix-rtos/phoenix-rtos-project) repository should be used. Please read the instruction in this repository.
 
 ## License
 This work is licensed under a BSD license. See the LICENSE file for details.
