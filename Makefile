@@ -41,7 +41,8 @@ endif
 OBJS = $(PREFIX_O)main.o $(PREFIX_O)syscalls.o
 
 
-all: $(PREFIX_PROG)phoenix-$(TARGET)
+all: $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET).elf
+#kxkall: $(PREFIX_PROG)phoenix-$(TARGET).elf $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET).elf
 
 
 include hal/$(TARGET_SUFF)/Makefile
@@ -62,7 +63,7 @@ $(PREFIX_O)/programs.o.cpio: $(PREFIX_O)programs.o $(BUILD_DIR)/programs.cpio
 	$(SIL)$(OBJCOPY) --update-section .data=$(BUILD_DIR)/programs.cpio $(PREFIX_O)programs.o --add-symbol programs=.data:0 $(PREFIX_O)programs.o.cpio
 
 
-$(PREFIX_PROG)phoenix-$(TARGET): $(OBJS) $(PREFIX_O)/programs.o.cpio	
+$(PREFIX_PROG)phoenix-$(TARGET).elf: $(OBJS) $(PREFIX_O)/programs.o.cpio	
 	@(printf "LD  %-24s\n" "$(@F)");
 	$(SIL)$(LD) $(LDFLAGS) -e _start --section-start .init=$(VADDR_KERNEL_INIT) -o $(PREFIX_PROG)phoenix-$(TARGET).elf $(OBJS) $(PREFIX_O)/programs.o.cpio $(GCCLIB)
 
