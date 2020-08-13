@@ -17,15 +17,25 @@ MAKEFLAGS += --no-print-directory
 #TARGET ?= armv7m4-stm32l4x6
 #TARGET ?= armv7m7-imxrt105x
 #TARGET ?= armv7m7-imxrt106x
-TARGET ?= armv7m7-imxrt117x
+#TARGET ?= armv7m7-imxrt117x
 #TARGET ?= armv7a7-imx6ull
-#TARGET ?= ia32-generic
+TARGET ?= ia32-generic
 #TARGET ?= riscv64-spike
 
 include ../phoenix-rtos-build/Makefile.common
 include ../phoenix-rtos-build/Makefile.$(TARGET_SUFF)
 
 CFLAGS += -I. -DHAL=\"hal/$(TARGET_SUFF)/hal.h\" -DVERSION=\"$(VERSION)\"
+
+EXTERNAL_HEADERS_DIR := ./include
+EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
+
+SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
+HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
+ifeq (/,$(SYSROOT))
+$(error Sysroot is not supported by toolchain. Use Phoenix-RTOS cross-toolchain to compile)
+endif
+
 
 OBJS = $(PREFIX_O)main.o $(PREFIX_O)syscalls.o
 
@@ -56,7 +66,20 @@ $(PREFIX_PROG)phoenix-$(TARGET): $(OBJS) $(PREFIX_O)/programs.o.cpio
 	$(SIL)$(LD) $(LDFLAGS) -e _start --section-start .init=$(VADDR_KERNEL_INIT) -o $(PREFIX_PROG)phoenix-$(TARGET).elf $(OBJS) $(PREFIX_O)/programs.o.cpio $(GCCLIB)
 
 
-.PHONY: clean headers install
+install-headers: $(EXTERNAL_HEADERS)
+	@printf "Installing kernel headers\n"
+	@mkdir -p "$(HEADERS_INSTALL_DIR)"; \
+	for file in $(EXTERNAL_HEADERS); do\
+		mkdir -p "$(HEADERS_INSTALL_DIR)/`dirname $${file#$(EXTERNAL_HEADERS_DIR)}`"; \
+		install -p -m 644 $${file} "$(HEADERS_INSTALL_DIR)/$${file#$(EXTERNAL_HEADERS_DIR)}";\
+	done
+
+
+uninstall-headers:
+	rm -rf "$(HEADERS_INSTALL_DIR)"/*
+
+
+.PHONY: clean install-headers uninstall-headers
 clean:
 	@echo "rm -rf $(BUILD_DIR)"
 
