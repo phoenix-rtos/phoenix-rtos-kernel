@@ -16,7 +16,7 @@
 #include "cpu.h"
 #include "console.h"
 #include "stm32.h"
-#include "../../../include/errno.h"
+#include "../../include/errno.h"
 
 
 struct {

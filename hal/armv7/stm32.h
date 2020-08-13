@@ -21,9 +21,9 @@
 #include "spinlock.h"
 
 #ifdef CPU_STM32L1
-#include "../../../include/arch/stm32l1.h"
+#include "../../include/arch/stm32l1.h"
 #else
-#include "../../../include/arch/stm32l4.h"
+#include "../../include/arch/stm32l4.h"
 #endif
 
 

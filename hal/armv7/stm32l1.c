@@ -16,7 +16,7 @@
 #include "stm32.h"
 #include "interrupts.h"
 #include "pmap.h"
-#include "../../../include/errno.h"
+#include "../../include/errno.h"
 
 
 struct {

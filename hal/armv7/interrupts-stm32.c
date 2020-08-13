@@ -21,7 +21,7 @@
 
 #include "../../proc/userintr.h"
 
-#include "../../../include/errno.h"
+#include "../../include/errno.h"
 
 #ifdef CPU_STM32L1
 #define SIZE_INTERRUPTS     84
