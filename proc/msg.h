@@ -57,10 +57,10 @@ typedef struct _kmsg_t {
 extern int proc_send(u32 port, msg_t *msg);
 
 
-extern int proc_recv(u32 port, msg_t *msg, unsigned int *rid);
+extern int proc_recv(u32 port, msg_t *msg, unsigned long int *rid);
 
 
-extern int proc_respond(u32 port, msg_t *msg, unsigned int rid);
+extern int proc_respond(u32 port, msg_t *msg, unsigned long int rid);
 
 
 extern void _msg_init(vm_map_t *kmap, vm_object_t *kernel);

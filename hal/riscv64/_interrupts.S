@@ -15,6 +15,10 @@
 
 #define __ASSEMBLY__
 
+#define SR_FS           0x00006000
+#define SR_SUM          0x00040000
+#define SR_MER          0x00080000
+
 #include "cpu.h"
 
 .text
@@ -23,20 +27,20 @@
 	csrc sstatus, 2
 	addi sp, sp, -16
 
-	j 1f
+//	j 1f
 
 	/* If coming from userspace sscratch register holds kernel stack */
 	csrrw tp, sscratch, tp
 	beqz tp, 1f
 
 	/* save user stack and task register in case of priv. switch */
-	sd sp, (tp)
+	sd sp, -8(tp)        /* usp */
 	csrr sp, sscratch
-	ld sp, -8(tp)
+	sd sp, -16(tp)       /* tp */
 	mv sp, tp
 	addi sp, sp, -16
 1:
-	addi sp, sp, -272
+	addi sp, sp, -280
 	sd x1, (sp)          /* ra */
 	sd x3, 8(sp)         /* gp */
 	sd x5, 16(sp)        /* t0 */
@@ -69,9 +73,12 @@
 
 	mv s0, sp
 
-	/* Disable user memory access and FPU */
-//	li t0, SR_SUM | 0x6000
-//	csrrc s1, sstatus, t0
+	/* Disable FPU */
+	li t0, SR_FS
+	csrc sstatus, t0
+	/* Allow supervisor access to user space and reading from execute pages (for the time being) */
+	li t0, SR_SUM | SR_MER
+	csrs sstatus, t0
 
 	csrrc s1, sstatus, 2
 	csrr s2, sepc
@@ -97,7 +104,7 @@
 	ld tp, 272(sp)
 
 	/* Kernel mode left */
-//	csrw sscratch, tp
+	csrw sscratch, tp
 
 	ld a0, 240(sp)
 	andi a0, a0, ~2
@@ -137,13 +144,13 @@
 	ld x31, 224(sp)      /* t6 */
 
 //	csrr s0, sstatus
-	addi sp, sp, 272
-	j 1f
+	addi sp, sp, 280
+//	j 1f
 
 	beqz tp, 1f
 	addi sp, sp, 16
-	ld tp, -8(sp)
-	ld sp, (sp)
+	ld tp, -16(sp)
+	ld sp, -8(sp)
 
 1:
 	addi sp, sp, 16
@@ -170,6 +177,8 @@ interrupts_handleintexc:
 	SAVE
 	mv a0, sp
 
+	li t1, 8
+	beq s4, t1, 3f
 	bge s4, zero, 2f
 
 	call handler
@@ -177,7 +186,7 @@ interrupts_handleintexc:
 	mv a0, zero
 	mv a1, sp
 	call interrupts_dispatchIRQ
-	j 3f
+	j 4f
 
 //	call interrupts_checkSignal
 2:
@@ -185,8 +194,17 @@ interrupts_handleintexc:
 	andi a0, a0, 0xf
 	mv a1, sp
 	call exceptions_dispatch
-	j 2b
+	j 4f
 3:
+	addi s2, s2, 4 /* move pc past ecall instruction */
+	sd s2, 248(sp)
+	mv a0, a7
+	ld a1, 288(sp)      /* usp */
+	li t0, 16
+	add a1, a1, t0
+	call syscalls_dispatch
+	sd a0, 56(sp)
+4:
 	CHECKSIGNAL
 	RESTORE
 	sret
@@ -200,17 +218,6 @@ hal_cpuReschedule:
 
 	/* Change correctly status register */
 	csrw sepc, ra
-
-	SAVE
-
-	ori tp, tp, 0x100        /* Set supervistor bit */
-	andi t0, tp, 0x2         /* Test SPIE */
-	sll t0, t0, 4
-	andi tp, tp, ~0x22
-	or tp, tp, t0
-
-	/* Save modified flags in old context */
-	sd tp, 240(sp)
 
 	beqz a0, 1f
 
@@ -228,6 +235,19 @@ hal_cpuReschedule:
 	amoswap.w.rl t0, t0, (a0)
 1:
 	mv a0, zero
+
+	SAVE
+
+	ori tp, tp, 0x100        /* Set supervistor bit */
+	andi t0, tp, 0x2         /* Test SPIE */
+	sll t0, t0, 4
+	andi tp, tp, ~0x22
+	or tp, tp, t0
+
+	/* Save modified flags in old context */
+	sd tp, 240(sp)
+
+
 	mv a1, sp
 	mv a2, zero
 	call threads_schedule
@@ -245,3 +265,69 @@ hal_longjmp:
 	RESTORE
 	sret
 .size hal_longjmp, .-hal_longjmp
+
+
+.global hal_jmp  /* void hal_jmp(void *f, void *kstack, void *stack, int argc) */
+hal_jmp:
+       mv s0, a0
+       mv s1, a1
+       mv s2, a2
+       mv s3, a3
+       csrc sstatus, 2 /* disable interrupts */
+
+       bnez a2, 2f
+
+       mv sp, s1
+       addi s3, s3, -1
+       blt s3, zero, 1f
+       ld a0, (sp)
+       addi sp, sp, 8
+       addi s3, s3, -1
+       blt s3, zero, 1f
+       ld a1, (sp)
+       addi sp, sp, 8
+       addi s3, s3, -1
+       blt s3, zero, 1f
+       ld a2, (sp)
+       addi sp, sp, 8
+       addi s3, s3, -1
+       blt s3, zero, 1f
+       ld a3, (sp)
+       addi sp, sp, 8
+1:
+       csrs sstatus, 2 /* enable interrupts */
+       jr s0
+
+2:
+       csrc sstatus, 2 /* disable interrupts */
+
+       csrw sscratch, s1 /* kernel stack pointer */
+
+       mv sp, s2 /* user stack pointer */
+
+       addi s3, s3, -1
+       blt s3, zero, 3f
+       ld a0, (sp)
+       addi sp, sp, 8
+       addi s3, s3, -1
+       blt s3, zero, 3f
+       ld a1, (sp)
+       addi sp, sp, 8
+       addi s3, s3, -1
+       blt s3, zero, 3f
+       ld a2, (sp)
+       addi sp, sp, 8
+       addi s3, s3, -1
+       blt s3, zero, 3f
+       ld a3, (sp)
+       addi sp, sp, 8
+3:
+       csrs sstatus, 2 /* enable interrupts */
+
+       li t0, 0x100
+       csrc sstatus, a0 /* sret will return to usermode */
+       csrw sepc, s0 /* address to return to */
+
+       sret
+
+.size hal_jmp, .-hal_jmp

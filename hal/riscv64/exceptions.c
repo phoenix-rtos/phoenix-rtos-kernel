@@ -98,6 +98,16 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s("   t6 : ", &buff[i], (u64)ctx->t6, 16, 1);
 	buff[i++] = '\n';
 
+	i += hal_i2s(" ksp : ", &buff[i], (u64)ctx->ksp, 16, 1);
+	i += hal_i2s(" sstatus : ", &buff[i], (u64)ctx->sstatus, 16, 1);
+	i += hal_i2s(" sepc : ", &buff[i], (u64)ctx->sepc, 16, 1);
+	buff[i++] = '\n';
+	i += hal_i2s(" sbaddaddr : ", &buff[i], (u64)ctx->sbadaddr, 16, 1);
+	i += hal_i2s(" scause : ", &buff[i], (u64)ctx->scause, 16, 1);
+	i += hal_i2s(" sscratch : ", &buff[i], (u64)ctx->sscratch, 16, 1);
+
+	buff[i++] = '\n';
+
 	buff[i] = 0;
 
 	return;
@@ -124,6 +134,25 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 	exceptions_common.defaultHandler(n, ctx);
 }
 
+int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+{
+	int prot = PROT_NONE;
+
+	u64 num = ctx->scause;
+
+	prot |= PROT_READ;
+
+	if (num == 6 || num== 7 || num == 15)
+		prot |= PROT_WRITE;
+
+	if (num <= 3 || num == 12)
+		prot |= PROT_EXEC;
+
+	if ((ctx->sstatus & 0x100) == 0) // from user code
+		prot |= PROT_USER;
+
+	return prot;
+}
 
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 {
@@ -156,6 +185,16 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 		return EOK;
 	}
 
+	if (n == EXC_PAGEFAULT)
+	{
+		hal_spinlockSet(&exceptions_common.spinlock, &sc);
+		exceptions_common.handlers[12] = handler;
+		exceptions_common.handlers[13] = handler;
+		exceptions_common.handlers[15] = handler;
+		hal_spinlockClear(&exceptions_common.spinlock, &sc);
+
+		return EOK;
+	}
 	if (n >= SIZE_EXCEPTIONS)
 		return -EINVAL;
 

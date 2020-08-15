@@ -34,6 +34,7 @@ int hal_platformctl(void *ptr)
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;
+	void *gp_val;
 
 	*nctx = NULL;
 	if (kstack == NULL)
@@ -43,6 +44,10 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		return -EINVAL;
 
 	ctx = (cpu_context_t *)(kstack + kstacksz - 2 * sizeof(cpu_context_t));
+
+	__asm__ __volatile__ (
+		"sd gp, %0"
+		: "=m" (gp_val));
 
 	ctx->pc = (u64)start;
 	ctx->sp = (u64)ctx;
@@ -84,8 +89,16 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->sepc = (u64)start;
 	ctx->ksp = (u64)ctx;
 
-	ctx->sstatus = csr_read(sstatus) | SR_SPIE | SR_SPP;
-	ctx->sscratch = (u64)ctx;
+	if (ustack != NULL) {
+		ctx->sp = ustack;
+		ctx->sstatus = csr_read(sstatus) | SR_SPIE;
+		ctx->sscratch = (u64)ctx;
+		ctx->tp = ctx->ksp;
+	} else {
+		ctx->sstatus = csr_read(sstatus) | SR_SPIE | SR_SPP;
+		ctx->sscratch = 0;
+		ctx->tp = 0;
+	}
 
 	*nctx = ctx;
 
@@ -95,6 +108,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 void _hal_cpuSetKernelStack(void *kstack)
 {
+	csr_write(sscratch, kstack);
 }
 
 

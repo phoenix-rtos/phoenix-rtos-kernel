@@ -365,7 +365,7 @@ int proc_send(u32 port, msg_t *msg)
 }
 
 
-int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
+int proc_recv(u32 port, msg_t *msg, unsigned long int *rid)
 {
 	port_t *p;
 	kmsg_t *kmsg;
@@ -462,7 +462,7 @@ int proc_recv(u32 port, msg_t *msg, unsigned int *rid)
 }
 
 
-int proc_respond(u32 port, msg_t *msg, unsigned int rid)
+int proc_respond(u32 port, msg_t *msg, unsigned long int rid)
 {
 	port_t *p;
 	size_t s = 0;
