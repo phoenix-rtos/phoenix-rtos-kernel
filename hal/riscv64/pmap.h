@@ -26,17 +26,20 @@
 
 /* Architecure dependent page attributes */
 #define PGHD_PRESENT    0x01
-#define PGHD_USER       0x04
-#define PGHD_WRITE      0x02
-#define PGHD_EXEC       0x00
+#define PGHD_READ       0x02
+#define PGHD_WRITE      0x04
+#define PGHD_EXEC       0x08
+#define PGHD_USER       0x10
 #define PGHD_DEV        0x00
 #define PGHD_NOT_CACHED 0x00
 
 
 /* Architecure dependent page table attributes */
 #define PTHD_PRESENT  0x01
-#define PTHD_USER     0x04
-#define PTHD_WRITE    0x02
+#define PTHD_READ     0x02
+#define PTHD_WRITE    0x04
+#define PTHD_EXEC     0x08
+#define PTHD_USER     0x10
 
 
 /* Page flags */

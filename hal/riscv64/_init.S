@@ -27,6 +27,8 @@
 #define SBI_SHUTDOWN 8
 
 #define SR_FS           0x00006000
+#define SR_SUM          0x00040000
+#define SR_MER          0x00080000
 
 #include "cpu.h"
 #include "pmap.h"
@@ -44,10 +46,10 @@ _start:
 	la sp, pmap_common + 4 * SIZE_PAGE
 
 	/* Load the global pointer */
-//.option push
-//.option norelax
-//	la gp, __global_pointer$
-//.option pop
+.option push
+.option norelax
+	la gp, __global_pointer$
+.option pop
 
 	/*
 	 * Disable FPU to detect illegal usage of
@@ -55,6 +57,9 @@ _start:
 	 */
 	li t0, SR_FS
 	csrc sstatus, t0
+	/* Allow supervisor access to user space and reading from execute pages (for the time being) */
+	li t0, SR_SUM | SR_MER
+	csrs sstatus, t0
 
 	/* Initialize syspage */
 	la a0, syspage

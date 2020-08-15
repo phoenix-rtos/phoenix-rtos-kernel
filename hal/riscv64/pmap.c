@@ -83,6 +83,14 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 
 addr_t pmap_destroy(pmap_t *pmap, int *i)
 {
+	int kernel = VADDR_KERNEL / ((u64)SIZE_PAGE << 18);
+
+	while (*i < kernel) {
+		if (pmap->pdir2[*i] != NULL)
+			return (pmap->pdir2[(*i)++] & (u64)~0x3ff) << 2;
+		(*i)++;
+	}
+
 	return 0;
 }
 
@@ -114,7 +122,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 			hal_spinlockClear(&pmap_common.lock, &sc);
 			return -EFAULT;
 		}
-		pmap->pdir2[pdi2] = (((alloc->addr >> 12) << 10) | 1);
+		pmap->pdir2[pdi2] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 1);
 		alloc = NULL;
 	}
 
@@ -131,20 +139,20 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 			hal_spinlockClear(&pmap_common.lock, &sc);
 			return -EFAULT;
 		}
-		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | 1);
+		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 1);
 		alloc = NULL;
 	}
 
 	/* Map next level pdir */
 	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
 
-	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf | (attr & 0x3f));
 
 	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
 	hal_cpuFlushTLB(va);
 
 	/* And at last map page or only changle attributes of map entry */
-	pmap_common.ptable[pti] = (((pa >> 12) << 10) | 0xcf);
+	pmap_common.ptable[pti] = (((pa >> 12) << 10) | 0xcf | (attr & 0x3f));
 
 /*lib_printf("%p pdir2[%d]=%p pdir1[%d]=%p ptable[%d]=%p\n", va, pdi2, a2, pdi1, a1, pti, pa);*/
 
@@ -159,6 +167,47 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 
 int pmap_remove(pmap_t *pmap, void *vaddr)
 {
+	unsigned int pdi2, pdi1, pti;
+	addr_t addr;
+	spinlock_ctx_t sc;
+
+	pdi2 = ((u64)vaddr >> 30) & 0x1ff;
+	pdi1 = ((u64)vaddr >> 21) & 0x1ff;
+	pti = ((u64)vaddr >> 12) & 0x000001ff;
+
+	u64 userattr = vaddr >= VADDR_KERNEL ? 0 : 0x10;
+
+	if (!pmap->pdir2[pdi2])
+		return EOK;
+
+	hal_spinlockSet(&pmap_common.lock, &sc);
+
+	/* Map page table corresponding to vaddr at specified virtual address */
+	addr = (pmap->pdir2[pdi2] >> 10) << 12;
+
+	if ((u32)pmap_common.ptable < VADDR_KERNEL) {
+		hal_spinlockClear(&pmap_common.lock, &sc);
+		return -EFAULT;
+	}
+
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 1);
+	hal_cpuFlushTLB(vaddr);
+
+	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
+
+	if ((u32)pmap_common.ptable < VADDR_KERNEL) {
+		hal_spinlockClear(&pmap_common.lock, &sc);
+		return -EFAULT;
+	}
+
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 1);
+	hal_cpuFlushTLB(vaddr);
+
+	pmap_common.pdir0[pti] = 0;
+	hal_spinlockClear(&pmap_common.lock, &sc);
+
+	hal_cpuFlushTLB(vaddr);
+
 	return EOK;
 }
 
@@ -166,7 +215,36 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 /* Functions returs physical address associated with specified virtual address */
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
-	return 0;
+	unsigned int pdi2, pdi1, pti;
+	addr_t addr;
+	spinlock_ctx_t sc;
+
+	pdi2 = ((u64)vaddr >> 30) & 0x1ff;
+	pdi1 = ((u64)vaddr >> 21) & 0x1ff;
+	pti = ((u64)vaddr >> 12) & 0x000001ff;
+
+	u64 userattr = vaddr >= VADDR_KERNEL ? 0 : 0x10;
+
+	if (!pmap->pdir2[pdi2])
+		return 0;
+
+	hal_spinlockSet(&pmap_common.lock, &sc);
+
+	/* Map page table corresponding to vaddr at specified virtual address */
+	addr = (pmap->pdir2[pdi2] >> 10) << 12;
+
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf );
+	hal_cpuFlushTLB(vaddr);
+
+	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
+
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
+	hal_cpuFlushTLB(vaddr);
+
+	addr = ((pmap_common.pdir0[pti] >> 10) << 12);
+	hal_spinlockClear(&pmap_common.lock, &sc);
+
+	return addr;
 }
 
 

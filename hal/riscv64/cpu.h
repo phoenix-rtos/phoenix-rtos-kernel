@@ -38,22 +38,19 @@
 
 #define SYSTICK_INTERVAL 1000
 
+ #define PUTONSTACK(kstack, t, v) \
+        do { \
+               (kstack) -= (sizeof(t) + 0x7) & ~0x7; \
+                *((t *)kstack) = (v); \
+        } while (0)
 
-#define PUTONSTACK(kstack, t, v) \
-	do { \
-		(kstack) -= sizeof(t); \
-		*((t *)kstack) = (v); \
-	} while (0)
 
-
-#define GETFROMSTACK(ustack, t, v, n) \
-	do { \
-		if (n == 0) \
-			ustack += 4; \
-		v = *(t *)ustack; \
-		ustack += sizeof(t); \
-	} while (0)
-
+ #define GETFROMSTACK(ustack, t, v, n) \
+        do { \
+               ustack = (void *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
+               (v) = *(t *)ustack; \
+               ustack += (sizeof(t) + 0x7) & ~0x7; \
+        } while (0)
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -216,12 +213,6 @@ static inline void hal_cpuHalt(void)
 }
 
 
-static inline void hal_cpuGetCycles(void *cb)
-{
-	return;
-}
-
-
 static inline cycles_t hal_cpuGetCycles2(void)
 {
 	register cycles_t n;
@@ -232,6 +223,12 @@ static inline cycles_t hal_cpuGetCycles2(void)
 	return n;
 }
 
+
+static inline void hal_cpuGetCycles(void *cb)
+{
+	*(cycles_t*)cb = hal_cpuGetCycles2();
+	return;
+}
 
 /* memory management */
 
@@ -244,7 +241,9 @@ static inline void hal_cpuFlushTLB(void *vaddr)
 
 static inline void *hal_cpuGetFaultAddr(void)
 {
-	return (void *)NULL;
+       u64 badaddress;
+       badaddress = csr_read(sbadaddr);
+       return (void *)badaddress;
 }
 
 
@@ -333,9 +332,15 @@ static inline unsigned int hal_cpuGetFirstBit(u64 v)
 
 static inline u32 hal_cpuSwapBits(const u32 v)
 {
-	u32 data = v;
+       u32 data = 0;
+       u32 vv = v;
 
-	return data;
+       vv = ((vv >> 1) & 0x55555555) | ((vv & 0x55555555) << 1);
+       vv = ((vv >> 2) & 0x33333333) | ((vv & 0x33333333) << 2);
+       vv = ((vv >> 4) & 0x0F0F0F0F) | ((vv & 0x0F0F0F0F) << 4);
+       vv = ((vv >> 8) & 0x00FF00FF) | ((vv & 0x00FF00FF) << 8);
+       vv = (vv >> 16) | (vv << 16);
+       return vv;
 }
 
 
@@ -385,7 +390,7 @@ static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 
 static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
 {
-//	ctx->eax = retval;
+	ctx->a0 = retval;
 }
 
 
@@ -427,41 +432,7 @@ static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 extern void hal_longjmp(cpu_context_t *ctx);
 
 
-static inline void hal_jmp(void *f, void *kstack, void *stack, int argc)
-{
-/*	if (stack == NULL) {
-		__asm__ volatile
-		(" \
-			movl %0, %%esp;\
-			movl %1, %%eax;\
-			call *%%eax"
-		:
-		:"r" (kstack), "r" (f));
-	}
-	else {
-		__asm__ volatile
-		(" \
-			sti; \
-			movl %1, %%eax;\
-			movl %2, %%ebx;\
-			movl %3, %%ecx;\
-			movl %4, %%edx;\
-			movl %0, %%esp;\
-			pushl %%edx;\
-			pushl %%ebx;\
-			pushfl;\
-			pushl %%ecx;\
-			movw %%dx, %%ds;\
-			movw %%dx, %%es;\
-			movw %%dx, %%fs;\
-			movw %%dx, %%gs;\
-			pushl %%eax;\
-			iret"
-		:
-		:"g" (kstack), "g" (f), "g" (stack), "g" (SEL_UCODE), "g" (SEL_UDATA)
-		:"eax", "ebx", "ecx", "edx");
-	}*/
-}
+extern void hal_jmp(void *f, void *kstack, void *stack, int argc);
 
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
