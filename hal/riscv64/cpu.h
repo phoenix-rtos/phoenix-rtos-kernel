@@ -218,7 +218,7 @@ static inline cycles_t hal_cpuGetCycles2(void)
 	register cycles_t n;
 
 	__asm__ __volatile__ (
-		"rdtime %0"
+		"rdcycle %0"
 		: "=r" (n));
 	return n;
 }
@@ -332,7 +332,6 @@ static inline unsigned int hal_cpuGetFirstBit(u64 v)
 
 static inline u32 hal_cpuSwapBits(const u32 v)
 {
-       u32 data = 0;
        u32 vv = v;
 
        vv = ((vv >> 1) & 0x55555555) | ((vv & 0x55555555) << 1);

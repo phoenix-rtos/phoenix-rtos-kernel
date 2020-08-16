@@ -90,7 +90,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->ksp = (u64)ctx;
 
 	if (ustack != NULL) {
-		ctx->sp = ustack;
+		ctx->sp = (u64)ustack;
 		ctx->sstatus = csr_read(sstatus) | SR_SPIE;
 		ctx->sscratch = (u64)ctx;
 		ctx->tp = ctx->ksp;

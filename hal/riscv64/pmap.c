@@ -168,44 +168,38 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 int pmap_remove(pmap_t *pmap, void *vaddr)
 {
 	unsigned int pdi2, pdi1, pti;
-	addr_t addr;
+	addr_t addr, a;
 	spinlock_ctx_t sc;
 
 	pdi2 = ((u64)vaddr >> 30) & 0x1ff;
 	pdi1 = ((u64)vaddr >> 21) & 0x1ff;
-	pti = ((u64)vaddr >> 12) & 0x000001ff;
-
-	u64 userattr = vaddr >= VADDR_KERNEL ? 0 : 0x10;
+	pti = ((u64)vaddr >> 12) & 0x1ff;
 
 	if (!pmap->pdir2[pdi2])
 		return EOK;
 
+
+
 	hal_spinlockSet(&pmap_common.lock, &sc);
 
 	/* Map page table corresponding to vaddr at specified virtual address */
-	addr = (pmap->pdir2[pdi2] >> 10) << 12;
+	addr = ((a = pmap->pdir2[pdi2]) >> 10) << 12;
 
-	if ((u32)pmap_common.ptable < VADDR_KERNEL) {
-		hal_spinlockClear(&pmap_common.lock, &sc);
-		return -EFAULT;
+	if ((a & 1) && !(a & 0xa)) {
+		pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xc7);
+		hal_cpuFlushTLB(pmap_common.ptable);
+
+		addr = (((a = pmap_common.ptable[pdi1]) >> 10) << 12);
+
+		if ((a & 1) && !(a & 0xa)) {
+			pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xc7);
+			hal_cpuFlushTLB(pmap_common.ptable);
+
+			pmap_common.pdir0[pti] = 0;
+		}
 	}
 
-	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 1);
-	hal_cpuFlushTLB(vaddr);
-
-	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
-
-	if ((u32)pmap_common.ptable < VADDR_KERNEL) {
-		hal_spinlockClear(&pmap_common.lock, &sc);
-		return -EFAULT;
-	}
-
-	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 1);
-	hal_cpuFlushTLB(vaddr);
-
-	pmap_common.pdir0[pti] = 0;
 	hal_spinlockClear(&pmap_common.lock, &sc);
-
 	hal_cpuFlushTLB(vaddr);
 
 	return EOK;
@@ -222,8 +216,6 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	pdi2 = ((u64)vaddr >> 30) & 0x1ff;
 	pdi1 = ((u64)vaddr >> 21) & 0x1ff;
 	pti = ((u64)vaddr >> 12) & 0x000001ff;
-
-	u64 userattr = vaddr >= VADDR_KERNEL ? 0 : 0x10;
 
 	if (!pmap->pdir2[pdi2])
 		return 0;
@@ -393,7 +385,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Create initial heap */
 	pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_PRESENT, NULL);
 
-	for (v = *vend; v < (void *)VADDR_KERNEL + (4 << 20); v += SIZE_PAGE)
+	for (v = *vend; v < (void *)VADDR_KERNEL + (2 << 20); v += SIZE_PAGE)
 		pmap_remove(pmap, v);
 
 	hal_cpuFlushTLB(NULL);

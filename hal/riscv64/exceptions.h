@@ -36,7 +36,7 @@ extern int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
 
 static inline void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 {
-	return ctx->sbadaddr;
+	return (void *)ctx->sbadaddr;
 }
 
 
