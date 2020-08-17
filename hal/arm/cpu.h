@@ -28,6 +28,8 @@
 #define SIZE_USTACK     (8 * SIZE_PAGE)
 #endif
 
+#define	STACK_ALIGN		4
+
 #define NULL 0
 
 #define USR_MODE        0x10
@@ -88,6 +90,8 @@ typedef unsigned long long time_t;
 typedef u32 ptr_t;
 
 typedef u64 id_t;
+
+typedef	u32	archreg_t;
 
 /* Object identifier - contains server port and object id */
 typedef struct _oid_t {

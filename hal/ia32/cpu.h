@@ -30,6 +30,8 @@
 #define SIZE_USTACK       (8 * SIZE_PAGE)
 #endif
 
+#define	STACK_ALIGN		4
+
 
 /* Bitfields used to construct interrupt descriptors */
 #define IGBITS_DPL0       0x00000000
@@ -142,6 +144,8 @@ typedef unsigned int size_t;
 typedef unsigned long long time_t;
 
 typedef u32 ptr_t;
+
+typedef	u32	archreg_t;
 
 /* Object identifier - contains server port and object id */
 typedef u64 id_t;

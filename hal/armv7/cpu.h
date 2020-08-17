@@ -28,6 +28,8 @@
 #define SIZE_KSTACK     (2 * 512)
 #endif
 
+#define	STACK_ALIGN		4
+
 #ifdef CPU_IMXRT
 #define RET_HANDLER_MSP 0xffffffe1
 #define RET_THREAD_MSP  0xffffffe9
@@ -82,6 +84,8 @@ typedef unsigned int size_t;
 typedef unsigned long long time_t;
 
 typedef u32 ptr_t;
+
+typedef	u32	archreg_t;
 
 /* Object identifier - contains server port and object id */
 typedef u32 id_t;

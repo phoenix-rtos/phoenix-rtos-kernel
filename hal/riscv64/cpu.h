@@ -29,6 +29,8 @@
 #define SIZE_USTACK (8 * SIZE_PAGE)
 #endif
 
+#define	STACK_ALIGN		8
+
 
 #define NULL 0
 
@@ -72,6 +74,8 @@ typedef unsigned long size_t;
 typedef unsigned long long time_t;
 
 typedef u64 ptr_t;
+
+typedef	u64	archreg_t;
 
 /* Object identifier - contains server port and object id */
 typedef u64 id_t;

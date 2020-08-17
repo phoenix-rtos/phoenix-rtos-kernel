@@ -719,7 +719,7 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 
 	for (argc = 0; args[argc] != NULL; ++argc) {
 		len = hal_strlen(args[argc]) + 1;
-		stack -= (len + sizeof(int) - 1) & ~(sizeof(int) - 1);
+		stack -= (len + STACK_ALIGN - 1) & ~(STACK_ALIGN - 1);
 		hal_memcpy(stack, args[argc], len);
 		args_stack[argc] = stack;
 	}
@@ -760,7 +760,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		/* temporary? put arguments to main on stack */
 		PUTONSTACK(stack, char **, spawn->envp);
 		PUTONSTACK(stack, char **, spawn->argv);
-		PUTONSTACK(stack, int, count);
+		PUTONSTACK(stack, archreg_t, (archreg_t)count);
 		PUTONSTACK(stack, void *, NULL); /* return address */
 	}
 
