@@ -312,12 +312,14 @@ void proc_kill(process_t *proc)
 
 void process_dumpException(unsigned int n, exc_context_t *ctx)
 {
-	thread_t *thread = proc_current();
+/*	thread_t *thread = proc_current();
 	process_t *process = thread->process;
-	userintr_t *intr;
+	userintr_t *intr;*/
 	char buff[SIZE_CTXDUMP];
 
 	hal_exceptionsDumpContext(buff, ctx, n);
+	hal_consolePrint(ATTR_BOLD, buff);
+
 	posix_write(2, buff, hal_strlen(buff));
 	posix_write(2, "\n", 1);
 	
@@ -358,28 +360,16 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 
 #ifndef NOMMU
 
-int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
+
+/* TODO - adding error handling and unmapping of already mapped segments */
+int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr)
 {
-	void *vaddr = NULL, *stack;
+	void *vaddr = NULL;
 	size_t memsz = 0, filesz = 0;
-	Elf32_Ehdr *ehdr;
+	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
 	unsigned i, prot, flags, misalign = 0;
 	offs_t offs;
-	vm_map_t *map = process->mapp;
-
-	size = round_page(size);
-
-	if ((ehdr = vm_mmap(process_common.kmap, NULL, NULL, size, PROT_READ, o, base, MAP_NONE)) == NULL)
-		return -ENOMEM;
-
-	/* Test ELF header */
-	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4)) {
-		vm_munmap(process_common.kmap, ehdr, size);
-		return -ENOEXEC;
-	}
-
-	*entry = (void *)(unsigned long)ehdr->e_entry;
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
 		if (phdr->p_type != PT_LOAD || phdr->p_vaddr == 0)
@@ -406,27 +396,113 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		if (filesz && (prot & PROT_WRITE))
 			flags |= MAP_NEEDSCOPY;
 
-		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL) {
-			vm_munmap(process_common.kmap, ehdr, size);
+		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)
 			return -ENOMEM;
-		}
 
 		if (filesz != memsz) {
-			if (round_page(memsz) - round_page(filesz) && vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL) {
-				vm_munmap(process_common.kmap, ehdr, size);
+			if (round_page(memsz) - round_page(filesz) && vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)
 				return -ENOMEM;
-			}
 
 			hal_memset(vaddr + filesz, 0, round_page((unsigned long)vaddr + memsz) - (unsigned long)vaddr - filesz);
 		}
 	}
 
+	return EOK;
+}
+
+
+int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr)
+{
+	void *vaddr = NULL;
+	size_t memsz = 0, filesz = 0;
+	Elf64_Ehdr *ehdr = iehdr;
+	Elf64_Phdr *phdr;
+	unsigned i, prot, flags, misalign = 0;
+	offs_t offs;
+
+	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+		if (phdr->p_type != PT_LOAD || phdr->p_vaddr == 0)
+			continue;
+
+		vaddr = (void *)((unsigned long)phdr->p_vaddr & ~(phdr->p_align - 1));
+		offs = phdr->p_offset & ~(phdr->p_align - 1);
+		misalign = phdr->p_offset & (phdr->p_align - 1);
+		filesz = phdr->p_filesz ? phdr->p_filesz + misalign : 0;
+		memsz = phdr->p_memsz + misalign;
+
+		prot = PROT_USER;
+		flags = MAP_NONE;
+
+		if (phdr->p_flags & PF_R)
+			prot |= PROT_READ;
+
+		if (phdr->p_flags & PF_W)
+			prot |= PROT_WRITE;
+
+		if (phdr->p_flags & PF_X)
+			prot |= PROT_EXEC;
+
+		if (filesz && (prot & PROT_WRITE))
+			flags |= MAP_NEEDSCOPY;
+
+		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)
+			return -ENOMEM;
+
+		if (filesz != memsz) {
+			if (round_page(memsz) - round_page(filesz) && vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)
+				return -ENOMEM;
+
+			hal_memset(vaddr + filesz, 0, round_page((unsigned long)vaddr + memsz) - (unsigned long)vaddr - filesz);
+		}
+	}
+	return EOK;
+}
+
+
+int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
+{
+	void *stack;
+	Elf64_Ehdr *ehdr;
+	vm_map_t *map = process->mapp;
+	int err;
+
+	size = round_page(size);
+
+	if ((ehdr = vm_mmap(process_common.kmap, NULL, NULL, size, PROT_READ, o, base, MAP_NONE)) == NULL)
+		return -ENOMEM;
+
+	/* Test ELF header */
+	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4)) {
+		vm_munmap(process_common.kmap, ehdr, size);
+		return -ENOEXEC;
+	}
+
+	*entry = (void *)(unsigned long)ehdr->e_entry;
+
+	err = EOK;
+	
+	switch (ehdr->e_ident[4]) {
+		
+	/* 32-bit binary */
+	case 1:
+		err = process_load32(map, o, base, ehdr);
+		break;
+
+	/* 64-bit binary */ 
+	case 2:
+		err = process_load64(map, o, base, ehdr);
+		break;
+	default:
+		err = -ENOEXEC;
+	}
 	vm_munmap(process_common.kmap, ehdr, size);
+
+	if (err < 0)
+		return err;
 
 	/* Allocate and map user stack */
 	if ((stack = vm_mmap(map, map->pmap.end - SIZE_USTACK, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
 		return -ENOMEM;
-
 	*ustack = stack + SIZE_USTACK;
 
 	return EOK;
