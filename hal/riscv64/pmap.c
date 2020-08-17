@@ -178,8 +178,6 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	if (!pmap->pdir2[pdi2])
 		return EOK;
 
-
-
 	hal_spinlockSet(&pmap_common.lock, &sc);
 
 	/* Map page table corresponding to vaddr at specified virtual address */
@@ -195,7 +193,7 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 			pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xc7);
 			hal_cpuFlushTLB(pmap_common.ptable);
 
-			pmap_common.pdir0[pti] = 0;
+			pmap_common.ptable[pti] = 0;
 		}
 	}
 

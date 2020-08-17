@@ -367,7 +367,7 @@ void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
 
 int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 {
-	int offs;
+	long offs;
 	map_entry_t *e, *s;
 	map_entry_t t;
 	process_t *proc = proc_current()->process;
