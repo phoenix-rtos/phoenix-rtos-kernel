@@ -108,7 +108,7 @@ enum { scb_cpuid = 0, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp0,
 	scb_itcmcr = 164, scb_dtcmcr, scb_ahbpcr, scb_cacr, scb_ahbscr, /* reserved */ scb_abfsr = 170 };
 
 enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rasr, mpu_rbar_a1, mpu_rasr_a1, mpu_rbar_a2, mpu_rasr_a2,
-       mpu_rbar_a3, mpu_rasr_a3 };
+	mpu_rbar_a3, mpu_rasr_a3 };
 
 enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr = 128,
 	nvic_ip = 192, nvic_stir = 896 };
@@ -465,7 +465,7 @@ int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	int ret = -EINVAL;
-	unsigned int state;
+	unsigned int state = 0;
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&imxrt_common.pltctlSp, &sc);
@@ -1835,8 +1835,9 @@ int _imxrt_systickInit(u32 interval)
 
 void _imxrt_systickSet(u8 state)
 {
-	*(imxrt_common.stk + stk_ctrl) &= ~(!state);
-	*(imxrt_common.stk + stk_ctrl) |= !!state;
+	state = !state;
+	*(imxrt_common.stk + stk_ctrl) &= ~state;
+	*(imxrt_common.stk + stk_ctrl) |= !state;
 }
 
 
