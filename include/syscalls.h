@@ -111,4 +111,6 @@
 	ID(sys_getpgrp) \
 	ID(sys_setsid) \
 	ID(sys_spawn) \
-	ID(release)
+	ID(release) \
+	ID(sbi_putchar) \
+	ID(sbi_getchar)
