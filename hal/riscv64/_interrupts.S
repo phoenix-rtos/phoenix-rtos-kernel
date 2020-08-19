@@ -304,6 +304,7 @@ hal_jmp:
        csrw sscratch, s1 /* kernel stack pointer */
 
        mv sp, s2 /* user stack pointer */
+       addi sp, sp, 8 /* skip return address */
 
        addi s3, s3, -1
        blt s3, zero, 3f
