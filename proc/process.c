@@ -719,7 +719,7 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 
 	for (argc = 0; args[argc] != NULL; ++argc) {
 		len = hal_strlen(args[argc]) + 1;
-		stack -= (len + sizeof(int) - 1) & ~(sizeof(int) - 1);
+		stack -= (len + sizeof(long) - 1) & ~(sizeof(long) - 1);
 		hal_memcpy(stack, args[argc], len);
 		args_stack[argc] = stack;
 	}
@@ -782,7 +782,11 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	if (err < 0)
 		proc_threadEnd();
 	else
+#ifdef TARGET_RISCV64
+		hal_jmp(entry, current->kstack + current->kstacksz, stack, 3);
+#else
 		hal_jmp(entry, current->kstack + current->kstacksz, stack, 0);
+#endif
 }
 
 
