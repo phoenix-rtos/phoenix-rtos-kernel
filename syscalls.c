@@ -1292,6 +1292,28 @@ pid_t syscalls_sys_setsid(char *ustack)
 }
 
 
+void syscalls_sbi_putchar(char* ustack)
+{
+#ifdef TARGET_RISCV64
+	char c;
+	GETFROMSTACK(ustack, char, c, 0);
+	sbi_ecall(SBI_PUTCHAR, 0, c, 0, 0, 0, 0, 0);
+#endif
+}
+
+
+int syscalls_sbi_getchar(char* ustack)
+{
+#ifdef TARGET_RISCV64
+	sbiret_t ret;
+	ret = sbi_ecall(SBI_GETCHAR, 0, 0, 0, 0, 0, 0, 0);
+	return (int)ret.error;
+#else
+	return -1;
+#endif
+}
+
+
 /*
  * Empty syscall
  */
