@@ -218,7 +218,7 @@ static inline cycles_t hal_cpuGetCycles2(void)
 	register cycles_t n;
 
 	__asm__ __volatile__ (
-		"rdcycle %0"
+		"rdtime %0"
 		: "=r" (n));
 	return n;
 }
@@ -226,9 +226,12 @@ static inline cycles_t hal_cpuGetCycles2(void)
 
 static inline void hal_cpuGetCycles(void *cb)
 {
-	*(cycles_t*)cb = hal_cpuGetCycles2();
+	__asm__ __volatile__ (
+		"rdcycle %0"
+		: "=r" (*(cycles_t *)cb));
 	return;
 }
+
 
 /* memory management */
 
