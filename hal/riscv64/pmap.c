@@ -112,7 +112,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	pdi1 = ((u64)va >> 21) & 0x1ff;
 	pti = ((u64)va >> 12) & 0x000001ff;
 
-//	lib_printf("va=%p, pdi2=%d pdi1=%d pti=%d %p %p\n", va, pdi2, pdi1, pti, pmap->pdir2, pmap_common.ptable);
+	//lib_printf("va=%p, pdi2=%d pdi1=%d pti=%d %p %p\n", va, pdi2, pdi1, pti, pmap->pdir2, pmap_common.ptable);
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
 
@@ -129,7 +129,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	/* Map next level pdir */
 	addr = ((pmap->pdir2[pdi2] >> 10) << 12);
 
-	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | (attr & 0x10) | 0xcf);
 
 	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
 	hal_cpuFlushTLB(va);
@@ -146,13 +146,14 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	/* Map next level pdir */
 	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
 
-	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf | (attr & 0x3f));
+	attr |= 2;
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
 
 	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
-	hal_cpuFlushTLB(va);
+	hal_cpuFlushTLB(pmap_common.ptable);
 
 	/* And at last map page or only changle attributes of map entry */
-	pmap_common.ptable[pti] = (((pa >> 12) << 10) | 0xcf | (attr & 0x3f));
+	pmap_common.ptable[pti] = (((pa >> 12) << 10) | 0xc1 | (attr & 0x3f));
 
 /*lib_printf("%p pdir2[%d]=%p pdir1[%d]=%p ptable[%d]=%p\n", va, pdi2, a2, pdi1, a1, pti, pa);*/
 
@@ -231,7 +232,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
 	hal_cpuFlushTLB(vaddr);
 
-	addr = ((pmap_common.pdir0[pti] >> 10) << 12);
+	addr = ((pmap_common.ptable[pti] >> 10) << 12);
 	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	return addr;
