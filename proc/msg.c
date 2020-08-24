@@ -457,6 +457,8 @@ int proc_recv(u32 port, msg_t *msg, unsigned long int *rid)
 	if (opacked)
 		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
 
+/* lib_printf("proc_recv 3: %p %d ipacked:%d\n", kmsg, kmsg->i.eoffs, ipacked); */
+
 	port_put(p, 0);
 	return EOK;
 }
@@ -481,6 +483,7 @@ int proc_respond(u32 port, msg_t *msg, unsigned long int rid)
 
 	if (kmsg->o.bp != NULL)
 		hal_memcpy(kmsg->o.bvaddr + kmsg->o.boffs, kmsg->o.w + kmsg->o.boffs, min(SIZE_PAGE - kmsg->o.boffs, kmsg->msg.o.size));
+
 
 	if (kmsg->o.eoffs)
 		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, kmsg->o.eoffs);

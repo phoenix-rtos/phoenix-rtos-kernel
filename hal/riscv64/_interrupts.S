@@ -228,7 +228,7 @@ hal_cpuReschedule:
 	sll t1, t1, 4
 	andi t0, t0, ~2
 	or t0, t0, t1
-	sd t0, 240(sp)
+//	sd t0, 240(sp)
 
 	li t0, 1
 	addi a0, a0, 56

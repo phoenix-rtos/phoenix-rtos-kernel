@@ -112,34 +112,36 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	pdi1 = ((u64)va >> 21) & 0x1ff;
 	pti = ((u64)va >> 12) & 0x000001ff;
 
-	//lib_printf("va=%p, pdi2=%d pdi1=%d pti=%d %p %p\n", va, pdi2, pdi1, pti, pmap->pdir2, pmap_common.ptable);
+/* lib_printf("va=%p, pdi2=%d pdi1=%d pti=%d %p %p\n", va, pdi2, pdi1, pti, pmap->pdir2, pmap_common.ptable); */
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
 
 	/* If no page table is allocated add new one */
 	if (!pmap->pdir2[pdi2]) {
+
 		if (alloc == NULL) {
 			hal_spinlockClear(&pmap_common.lock, &sc);
 			return -EFAULT;
 		}
-		pmap->pdir2[pdi2] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 1);
+
+		pmap->pdir2[pdi2] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 0xc1);
 		alloc = NULL;
 	}
 
 	/* Map next level pdir */
 	addr = ((pmap->pdir2[pdi2] >> 10) << 12);
 
-	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | (attr & 0x10) | 0xcf);
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | /*0x10 | */ 0xcf);
 
 	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
-	hal_cpuFlushTLB(va);
+	hal_cpuFlushTLB(pmap_common.ptable);
 
 	if (!pmap_common.ptable[pdi1]) {
 		if (alloc == NULL) {
 			hal_spinlockClear(&pmap_common.lock, &sc);
 			return -EFAULT;
 		}
-		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 1);
+		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | /*(attr & 0x10) |*/ 0xc1);
 		alloc = NULL;
 	}
 
