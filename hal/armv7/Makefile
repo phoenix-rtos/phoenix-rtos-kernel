@@ -4,8 +4,6 @@
 # Copyright 2016-2017, 2019-2020 Phoenix Systems
 #
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv7/, spinlock.o cpu.o hal.o exceptions.o syspage.o pmap.o)
-
 
 ifneq (, $(findstring stm32, $(TARGET)))
 	OBJS += $(addprefix $(PREFIX_O)hal/armv7/, _init-stm32.o interrupts-stm32.o timer-stm32.o)
@@ -24,3 +22,5 @@ else ifneq (, $(findstring imxrt, $(TARGET)))
 		OBJS += $(addprefix $(PREFIX_O)hal/armv7/, imxrt.o console-imxrt.o)
 	endif
 endif
+
+OBJS += $(addprefix $(PREFIX_O)hal/armv7/, spinlock.o cpu.o hal.o exceptions.o syspage.o pmap.o)
