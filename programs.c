@@ -17,7 +17,7 @@
 #include "vm/vm.h"
 #include "programs.h"
 
-#include "../include/errno.h"
+#include "include/errno.h"
 
 
 #ifndef CPIO_PAD
