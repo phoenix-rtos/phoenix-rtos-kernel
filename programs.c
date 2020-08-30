@@ -73,7 +73,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 		if (!hal_strcmp(cpio->name, "TRAILER!!!"))
 			break;
 
-		pr = &syspage->progs[syspage->progssz++];
+		pr = &syspage->progs[syspage->progssz];
 
 		/* Initialize cmdline */
 		k = hal_strlen((char *)cpio->name);
@@ -84,12 +84,12 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 
 		fs = programs_a2i(cpio->c_filesize);
 		if (fs == -EINVAL) {
-			lib_printf("programs: invalid filesize");
+			lib_printf("programs: invalid filesize\n");
 			return -EINVAL;
 		}
 		ns = programs_a2i(cpio->c_namesize);
 		if (ns == -EINVAL) {
-			lib_printf("programs: invalid namesize");
+			lib_printf("programs: invalid namesize\n");
 			return -EINVAL;
 		}
 
@@ -112,6 +112,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 			pr->end = (typeof(pr->end))p->addr + fs;
 		}
 
+		syspage->progssz++;
 		cpio = (void *)(((ptr_t)cpio + fs + CPIO_PAD) & ~CPIO_PAD);
 	}
 
