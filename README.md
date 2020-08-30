@@ -8,10 +8,11 @@ Supported targets:
  * armv7m4-stm32l4x6
  * armv7m7-imxrt105x
  * armv7m7-imxrt106x
- * armv7m7-imxrt117x
+ * armv7m7-imxrt117x (incomplete)
  * armv7a7-imx6ull
  * ia32-generic
  * riscv64-spike
+ * riscv64-virt
 
 ## Building kernel
 To compile the kernel and build the operating system image [phoenix-rtos-project](https://github.com/phoenix-rtos/phoenix-rtos-project) repository should be used. Please read the instruction in this repository.
