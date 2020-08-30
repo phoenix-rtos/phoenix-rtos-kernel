@@ -8,7 +8,7 @@ Supported targets:
  * armv7m4-stm32l4x6
  * armv7m7-imxrt105x
  * armv7m7-imxrt106x
- * armv7m7-imxrt117x (incomplete)
+ * armv7m7-imxrt117x
  * armv7a7-imx6ull
  * ia32-generic
  * riscv64-spike
