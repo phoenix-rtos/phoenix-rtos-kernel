@@ -145,8 +145,10 @@ typedef struct {
 #define SR_SPP	0x00000100UL /* Previously Supervisor */
 #define SR_SUM	0x00040000UL /* Supervisor may access User Memory */
 
-#define SIE_STIE 0x00000020UL
 
+
+#define SIE_STIE 0x00000020UL
+#define SIE_SEIE 0x00000200UL
 
 #define csr_set(csr, val)					\
 ({								\

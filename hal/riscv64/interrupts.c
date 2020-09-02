@@ -128,7 +128,6 @@ __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 {
 	cycles_t c = hal_cpuGetCycles2();
 	sbi_ecall(SBI_SETTIMER, 0, c + 1000, 0, 0, 0, 0, 0);
-	csr_set(sie, SIE_STIE);
 }
 
 
@@ -148,6 +147,7 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	/* Enable HART interrupts */
 	csr_write(sscratch, 0);
 	csr_write(sie, -1);
+
 	csr_write(stvec, interrupts_handleintexc);
 
 	return;

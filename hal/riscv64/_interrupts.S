@@ -5,8 +5,8 @@
  *
  * Interrupt stubs
  *
- * Copyright 2018 Phoenix Systems
- * Author; Pawel Pisarczyk
+ * Copyright 2018, 2020 Phoenix Systems
+ * Author; Pawel Pisarczyk, Julia Kosowska
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -174,6 +174,7 @@
 interrupts_handleintexc:
 .align 8
 	csrc sstatus, 2
+	csrc sie, 8
 	SAVE
 	mv a0, sp
 
@@ -181,9 +182,16 @@ interrupts_handleintexc:
 	beq s4, t1, 3f
 	bge s4, zero, 2f
 
-	call handler
+	li t1, 0x8000000000000009
+	bne s4, t1, 33f
+	li a0, 0xa
+	j 34f
 
+33:	
+	call handler
 	mv a0, zero
+
+34:
 	mv a1, sp
 	call interrupts_dispatchIRQ
 	j 4f
@@ -323,10 +331,10 @@ hal_jmp:
        ld a3, (sp)
        addi sp, sp, 8
 3:
-       csrs sstatus, 2 /* enable interrupts */
+	csrs sstatus, 2 /* enable interrupts */
 
        li t0, 0x100
-       csrc sstatus, a0 /* sret will return to usermode */
+       csrc sstatus, t0 /* sret will return to usermode */
        csrw sepc, s0 /* address to return to */
 
        sret

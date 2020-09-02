@@ -6,7 +6,7 @@
  * pmap - machine dependent part of VM subsystem (RISCV64)
  *
  * Copyright 2018, 2020 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Author: Pawel Pisarczyk, Julia Kosowska
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -124,7 +124,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 			return -EFAULT;
 		}
 
-		pmap->pdir2[pdi2] = (((alloc->addr >> 12) << 10) | /*(attr & 0x10) |*/ 0xc1);
+		pmap->pdir2[pdi2] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 0xc1);
 
 		/* Initialize pdir (MOD) - because of reentrancy */
 		pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((alloc->addr >> 12) << 10) | /*0x10 | */ 0xcf);
@@ -145,26 +145,22 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 			hal_spinlockClear(&pmap_common.lock, &sc);
 			return -EFAULT;
 		}
-		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | /*(attr & 0x10) |*/ 0xc1);
+		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 0xc1);
 		alloc = NULL;
 	}
 
 	/* Map next level pdir */
 	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
-
-	attr |= 0x2;
 	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
-
-	/* PGHD_WRITE | PGHD_PRESENT | PGHD_USER); */
 	hal_cpuFlushTLB(pmap_common.ptable);
 
 	/* And at last map page or only changle attributes of map entry */
+	attr |= 0x2;
 	pmap_common.ptable[pti] = (((pa >> 12) << 10) | 0xc1 | (attr & 0x3f));
 
-/*lib_printf("%p pdir2[%d]=%p pdir1[%d]=%p ptable[%d]=%p\n", va, pdi2, a2, pdi1, a1, pti, pa);*/
+	/*lib_printf("%p pdir2[%d]=%p pdir1[%d]=%p ptable[%d]=%p\n", va, pdi2, a2, pdi1, a1, pti, pa);*/
 
 	hal_cpuFlushTLB(va);
-
 	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	return EOK;
