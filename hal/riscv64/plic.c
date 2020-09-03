@@ -21,57 +21,62 @@
 
 
 struct {
-	u8 regw[SIZE_PAGE];
+	u8 *regw;
+	unsigned int baseEnable;
+	unsigned int baseContext;
 } plic_common;
 
 
-typedef enum {
-	plic_regTreshold, plic_regPriority, plic_regClaimComplete,
-	plic_regEnable, plic_regPending
-} plic_reg_t;
-
-
-static inline u32 plic_read(plic_reg_t reg)
+static inline u32 plic_read(unsigned int reg)
 {
-	return (u32)(*(u64 *)(plic_common.regw + reg));
+	return (u32)(*(u32 *)(plic_common.regw + reg));
 }
 
 
-static inline void plic_write(plic_reg_t reg, u32 v)
+static inline void plic_write(unsigned int reg, u32 v)
 {
-	*(u64 *)(plic_common.regw + reg) = v; 
+	*(u32 *)(plic_common.regw + reg) = v; 
 	return;
 }
 
 
-void plic_priority(unsigned int n)
+void plic_priority(unsigned int n, unsigned int priority)
 {
-	plic_write(plic_regPriority + n, 0x2);
+	plic_write(4 + n * 4, priority);
 	return;
 }
 
 
-void plic_treshold(unsigned int priority)
+int plic_isPending(unsigned int n)
 {
-	plic_write(plic_regTreshold, priority);
+	u32 reg = n / 32;
+	u32 bitshift = n % 32;
+
+	return ((plic_read(0x1000 + 4 * reg) >> bitshift) & 1);
+}
+
+
+void plic_treshold(unsigned int hart, unsigned int priority)
+{
+	plic_write(plic_common.baseContext + hart * 0x1000, priority);
 	return;
 }
 
 
-unsigned int plic_claim (void)
+unsigned int plic_claim(unsigned int hart)
 {
-	return plic_read(plic_regClaimComplete);
+	return plic_read(plic_common.baseContext + hart * 0x1000 + 4);
 }
 
 
-int plic_complete(unsigned int n)
+int plic_complete(unsigned int hart, unsigned int n)
 {
-	plic_write(plic_regClaimComplete, n);
+	plic_write(plic_common.baseContext + hart * 0x1000 + 4, n);
 	return EOK;
 }
 
 
-int plic_enableInterrupt(unsigned int n, char enable)
+int plic_enableInterrupt(unsigned int hart, unsigned int n, char enable)
 {
 	u32 reg = n / 32;
 	u32 bitshift = n % 32;
@@ -80,28 +85,22 @@ int plic_enableInterrupt(unsigned int n, char enable)
 	if (n >= 128)
 		return -ENOENT;
 
-	w = plic_read(plic_regEnable);
+	w = plic_read(plic_common.baseEnable + hart * 0x80);
 
 	if (enable)
 		w |= (1 << bitshift);
 	else
 		w &= ~(1 << bitshift);
 
-	plic_write(plic_regEnable + 4 * reg, w);
+	plic_write(plic_common.baseEnable + hart * 0x80 + 4 * reg, w);
+
 	return EOK;
-}
-
-
-int plic_isPending (unsigned int n) {
-
-	u32 reg = n / 32;
-	u32 bitshift = n % 32;
-
-	return ((plic_read(plic_regPending + 4 * reg) >> bitshift) & 1);
 }
 
 
 int _plic_init(void)
 {
+	plic_common.baseEnable = 0x2000;
+	plic_common.baseContext = 0x200000;
 	return EOK;
 }
