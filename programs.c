@@ -60,7 +60,7 @@ int programs_decode(vm_map_t *kmap, vm_object_t *kernel)
 	if (hal_strncmp(cpio->c_magic, "070701", 6)) {
 
 		/* Happens in QEMU when programs are not page aligned. What the hell? */
-		if (!hal_strcmp(HAL, "hal/ia32/hal.h"))
+		if (!__builtin_strcmp(HAL, "hal/ia32/hal.h"))
 			cpio = (void *)(programs - 0x1000);
 
 		if (hal_strncmp(cpio->c_magic, "070701", 6)) {
