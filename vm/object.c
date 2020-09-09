@@ -5,8 +5,8 @@
  *
  * Virtual memory manager - object management
  *
- * Copyright 2017 Phoenix Systems
- * Author: Pawel Pisarczyk, Jan Sikorski
+ * Copyright 2017, 2020 Phoenix Systems
+ * Author: Pawel Pisarczyk, Jan Sikorski, Maciej Purski
  *
  * This file is part of Phoenix-RTOS.
  *
