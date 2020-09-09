@@ -820,13 +820,13 @@ void _stm32_init(void)
 	*(stm32_common.rcc + rcc_csr) |= 1 << 24;
 	_stm32_rtcLockRegs();
 
-	_stm32_rccSetCPUClock(4 * 1000 * 1000);
-
 	/* Enable System configuration controller */
 	_stm32_rccSetDevClock(pctl_syscfg, 1);
 
 	/* Enable power module */
 	_stm32_rccSetDevClock(pctl_pwr, 1);
+
+	_stm32_rccSetCPUClock(16 * 1000 * 1000);
 
 	/* Disable all interrupts */
 	*(stm32_common.rcc + rcc_cier) = 0;
