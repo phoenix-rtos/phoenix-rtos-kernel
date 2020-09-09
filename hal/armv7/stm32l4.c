@@ -294,7 +294,7 @@ int _stm32_rccSetCPUClock(u32 hz)
 		;
 
 	t = *(stm32_common.rcc + rcc_cr) & ~(0xf << 4);
-	*(stm32_common.rcc + rcc_cr) = t | range << 4;
+	*(stm32_common.rcc + rcc_cr) = t | range << 4 | (1 << 3);
 	hal_cpuDataBarrier();
 
 	if (hz <= 6000 * 1000)
@@ -418,7 +418,6 @@ void _stm32_pwrSetCPUVolt(u8 range)
 
 time_t _stm32_pwrEnterLPStop(time_t ms)
 {
-	u8 regulator_state = (*(stm32_common.pwr + pwr_cr1) >> 9) & 3;
 	unsigned int t;
 
 	/* Set internal regulator to default range to further conserve power */
@@ -449,10 +448,6 @@ time_t _stm32_pwrEnterLPStop(time_t ms)
 
 	/* Reset SLEEPDEEP bit of Cortex System Control Register */
 	*(stm32_common.scb + scb_scr) &= ~(1 << 2);
-
-	/* Recover previous configuration */
-	_stm32_pwrSetCPUVolt(regulator_state);
-	_stm32_rccSetCPUClock(stm32_common.cpuclk);
 
 	/* Provoke systick, so we'll be reschuduled asap */
 	*(stm32_common.scb + scb_icsr) |= 1 << 26;
