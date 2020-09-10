@@ -5,7 +5,7 @@
  *
  * Hardware Abstraction Layer (RISCV64)
  *
- * Copyright 2018 Phoenix Systems
+ * Copyright 2018, 2020 Phoenix Systems
  * Author: Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.

@@ -74,9 +74,17 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
+	unsigned int cn;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
+
+if (n != 0) {
+	cn = plic_claim(0);
+	if (cn == 0) {
+		return;
+	}
+}
 
 	hal_spinlockSet(&interrupts.spinlocks[n], &sc);
 
@@ -90,6 +98,14 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts.spinlocks[n], &sc);
 
+if (cn != 0) {
+	plic_complete(0, cn);
+
+//	lib_printf("cl=%p\n", n);
+}
+
+
+//for (;;);
 	return;
 }
 
@@ -127,7 +143,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 {
 	cycles_t c = hal_cpuGetCycles2();
-	sbi_ecall(SBI_SETTIMER, 0, c + 1000, 0, 0, 0, 0, 0);
+	sbi_ecall(SBI_SETTIMER, 0, c + 10000, 0, 0, 0, 0, 0);
 }
 
 
@@ -149,6 +165,9 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	csr_write(sie, -1);
 
 	csr_write(stvec, interrupts_handleintexc);
+
+	/* Initialize PLIC if present */
+	_plic_init();
 
 	return;
 }

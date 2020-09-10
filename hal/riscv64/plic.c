@@ -21,7 +21,7 @@
 
 
 struct {
-	u8 *regw;
+	volatile u8 *regw;
 	unsigned int baseEnable;
 	unsigned int baseContext;
 } plic_common;
@@ -29,21 +29,27 @@ struct {
 
 static inline u32 plic_read(unsigned int reg)
 {
-	return (u32)(*(u32 *)(plic_common.regw + reg));
+	return (u32)(*(volatile u32 *)(plic_common.regw + reg));
 }
 
 
 static inline void plic_write(unsigned int reg, u32 v)
 {
-	*(u32 *)(plic_common.regw + reg) = v; 
+	*(volatile u32 *)(plic_common.regw + reg) = v; 
 	return;
 }
 
 
 void plic_priority(unsigned int n, unsigned int priority)
 {
-	plic_write(4 + n * 4, priority);
+	plic_write(n * 4, priority);
 	return;
+}
+
+
+u32 plic_priorityGet(unsigned int n)
+{
+	return plic_read(n * 4);
 }
 
 
@@ -56,10 +62,16 @@ int plic_isPending(unsigned int n)
 }
 
 
-void plic_treshold(unsigned int hart, unsigned int priority)
+void plic_tresholdSet(unsigned int hart, unsigned int priority)
 {
 	plic_write(plic_common.baseContext + hart * 0x1000, priority);
 	return;
+}
+
+
+u32 plic_tresholdGet(unsigned int hart)
+{
+	return plic_read(plic_common.baseContext + hart * 0x1000);
 }
 
 
@@ -100,7 +112,20 @@ int plic_enableInterrupt(unsigned int hart, unsigned int n, char enable)
 
 int _plic_init(void)
 {
+	unsigned int i;
+
 	plic_common.baseEnable = 0x2000;
 	plic_common.baseContext = 0x200000;
+
+	plic_common.regw = (void *)((u64)((1L << 39) - 1024 * 1024 * 1024 + 0x0c000000)| (u64)0xffffff8000000000);
+
+	plic_tresholdSet(0, 0);
+
+	/* Disable and mask external interrupts */
+	for (i = 0; i < 128; i++) {
+		plic_priority(i, 0);
+		plic_enableInterrupt(0, i, 0);
+	}
+
 	return EOK;
 }

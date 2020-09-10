@@ -190,7 +190,6 @@ interrupts_handleintexc:
 33:	
 	call handler
 	mv a0, zero
-
 34:
 	mv a1, sp
 	call interrupts_dispatchIRQ

@@ -41,7 +41,12 @@ struct {
 	u64 stack[512];
 	u8 heap[SIZE_PAGE];
 
+u64 iopdir[512];
+
 	syspage_t pmap_syspage;
+
+	/* second pdir for mapping I/O - first 1 GB of memory is mapped linearly at the end of address space */
+	
 
 	/* The order of below fields could be randomized */
 	u64 minAddr;
@@ -76,6 +81,9 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 
 	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 18), ++i)
 		pmap->pdir2[((u64)vaddr >> 30) & 0x1ff] = kpmap->pdir2[((u64)vaddr >> 30) & 0x1ff];
+
+
+	pmap->pdir2[511] = kpmap->pdir2[511];
 
 	return EOK;
 }
@@ -276,12 +284,12 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		if ((page->addr >= syspage->stack) && (page->addr < syspage->stack + syspage->stacksz))
 			page->flags |= PAGE_KERNEL_STACK;
 	}
-	else if ((page->addr >= pmap_common.dtb) && (page->addr < pmap_common.dtb + pmap_common.dtbsz))
+	else if ((page->addr >= pmap_common.dtb) && (page->addr < pmap_common.dtb + pmap_common.dtbsz)) {
 		page->flags |= PAGE_OWNER_BOOT;
-
-	else
+	}
+	else {
 		page->flags |= PAGE_FREE;
-
+	}
 	*addr = a + SIZE_PAGE;
 
 	return EOK;
@@ -301,7 +309,8 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 	if (vaddr < (void *)VADDR_KERNEL)
 		vaddr = (void *)VADDR_KERNEL;
 
-	for (; vaddr < end; vaddr += ((u64)SIZE_PAGE << 30)) {
+
+	for (; vaddr < end; vaddr += ((u64)1 << 30)) {
 		if (pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, NULL) < 0) {
 			if (pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, dp) < 0) {
 				return -ENOMEM;
@@ -440,6 +449,11 @@ void _pmap_preinit(void)
 
 	for (i = 0; i < 512; i++)
 		pmap_common.pdir0[((VADDR_KERNEL >> 12) % 512) + i] = ((( ((u64)_start + i * SIZE_PAGE) >> 12) << 10) | 0xcf);
+
+	/* Map PLIC (MOD) */
+//	pmap_common.pdir2[511] = ((u64)pmap_common.iopdir >> 2) | 1;
+	pmap_common.pdir2[511] = 0xcf | 0x10;
+//	pmap_common.iopdir[0] = (((u64)0x0c000000 >> 2) | 0xcf);
 
 	return;
 }
