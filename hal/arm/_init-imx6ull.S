@@ -5,8 +5,8 @@
  *
  * Low-level initialization for iMX6ULL processor
  *
- * Copyright 2018 Phoenix Systems
- * Author: Pawel Pisarczyk, Aleksander Kaminski
+ * Copyright 2018, 2020 Phoenix Systems
+ * Author: Pawel Pisarczyk, Aleksander Kaminski, Maciej Purski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -410,48 +410,7 @@ enet_pll:
 	ands r1, #(1 << 31)
 	beq enet_pll
 
-	/* Copy applications and update syspage */
 	ldr r8, =(ADDR_DDR)
-	ldr r9, =(SIZE_PAGE - 1)
-
-	add r0, r8, #0x20 /* Syspage address */
-	ldr r4, [r0, #0x8] /* Kernel offset */
-	add r0, r0, r4 /* add kernel offset */
-
-	ldr r1, [r0, #0x114] /* Number of programs */
-	add r0, r0, #0x118 /* Now points to syspage->progs */
-	add r2, r8, #0x400000 /* Destination */
-	bic r2, r2, r6
-
-apps_copy:
-	ldr r3, [r0] /* Source */
-	ldr r4, [r0, #4] /* Source end */
-
-	/* New source begin */
-	str r2, [r0]
-
-	cmp r1, #0
-	beq apps_copy_end
-
-app_copy:
-	ldr r5, [r3], #4
-	str r5, [r2], #4
-	cmp r3, r4
-	blo app_copy
-
-	/* New source end */
-	str r2, [r0, #4]
-
-	sub r1, r1, #1
-	add r0, r0, #24
-
-	/* Align destination to SIZE_PAGE */
-	add r2, r2, r9
-	bic r2, r2, r9
-
-	b apps_copy
-
-apps_copy_end:
 
 	/* Disable caches */
 	mrc p15, 0, r1, c1, c0, 0
