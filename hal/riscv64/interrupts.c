@@ -71,20 +71,21 @@ struct {
 } interrupts;
 
 
-void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
+int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
 	unsigned int cn = 0;
+	int res = 0;
 
 	if (n >= SIZE_INTERRUPTS)
-		return;
+		return 0;
 
 if (n != 0) {
 
 	cn = plic_claim(1);
 	if (cn == 0) {
-		return;
+		return 0;
 	}
 //lib_printf("ddd\n");
 }
@@ -95,7 +96,9 @@ if (n != 0) {
 
 	if ((h = interrupts.handlers[n]) != NULL) {
 		do
-			h->f(n, ctx, h->data);
+			if (h->f(n, ctx, h->data))
+				res = 1;
+
 		while ((h = h->next) != interrupts.handlers[n]);
 	}
 
@@ -105,7 +108,10 @@ if (cn != 0) {
 	plic_complete(1, cn);
 }
 
-	return;
+	if (n == 0)
+		return 0;
+
+	return res;
 }
 
 

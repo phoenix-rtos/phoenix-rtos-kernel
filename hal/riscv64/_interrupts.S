@@ -188,6 +188,8 @@ interrupts_handleintexc:
 	j 34f
 
 33:	
+	li t1, 0x8000000000000005
+	bne s4, t1, 34f
 	call handler
 	mv a0, zero
 34:
@@ -201,7 +203,7 @@ interrupts_handleintexc:
 	andi a0, a0, 0xf
 	mv a1, sp
 	call exceptions_dispatch
-	j 4f
+	j 5f
 3:
 	addi s2, s2, 4 /* move pc past ecall instruction */
 	sd s2, 248(sp)
@@ -211,7 +213,14 @@ interrupts_handleintexc:
 	add a1, a1, t0
 	call syscalls_dispatch
 	sd a0, 56(sp)
+	j 5f
 4:
+	beq a0, zero, 5f
+	li a0, 0
+	mv a1, sp
+	call threads_schedule;
+
+5:
 	CHECKSIGNAL
 	RESTORE
 	sret
