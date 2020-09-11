@@ -119,13 +119,13 @@ int _plic_init(void)
 
 	plic_common.regw = (void *)((u64)((1L << 39) - 1024 * 1024 * 1024 + 0x0c000000)| (u64)0xffffff8000000000);
 
-	plic_tresholdSet(0, 0);
-
 	/* Disable and mask external interrupts */
-	for (i = 0; i < 128; i++) {
-		plic_priority(i, 0);
-		plic_enableInterrupt(0, i, 0);
+	for (i = 1; i < 127; i++) {
+		plic_priority(i, 1);
+		plic_enableInterrupt(1, i, 0);
 	}
+
+	plic_tresholdSet(1, 1);
 
 	return EOK;
 }

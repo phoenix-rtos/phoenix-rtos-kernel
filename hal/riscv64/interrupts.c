@@ -19,6 +19,7 @@
 #include "cpu.h"
 #include "pmap.h"
 #include "sbi.h"
+#include "plic.h"
 
 #include "../../proc/userintr.h"
 
@@ -74,16 +75,18 @@ void interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
-	unsigned int cn;
+	unsigned int cn = 0;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
 
 if (n != 0) {
-	cn = plic_claim(0);
+
+	cn = plic_claim(1);
 	if (cn == 0) {
 		return;
 	}
+//lib_printf("ddd\n");
 }
 
 	hal_spinlockSet(&interrupts.spinlocks[n], &sc);
@@ -99,13 +102,9 @@ if (n != 0) {
 	hal_spinlockClear(&interrupts.spinlocks[n], &sc);
 
 if (cn != 0) {
-	plic_complete(0, cn);
-
-//	lib_printf("cl=%p\n", n);
+	plic_complete(1, cn);
 }
 
-
-//for (;;);
 	return;
 }
 
@@ -119,6 +118,12 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 	hal_spinlockSet(&interrupts.spinlocks[h->n], &sc);
 	_intr_add(&interrupts.handlers[h->n], h);
+
+	if (h->n) {
+		plic_priority(h->n, 2);
+		plic_enableInterrupt(1, h->n, 1);
+	}
+
 	hal_spinlockClear(&interrupts.spinlocks[h->n], &sc);
 
 	return EOK;
@@ -143,7 +148,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 {
 	cycles_t c = hal_cpuGetCycles2();
-	sbi_ecall(SBI_SETTIMER, 0, c + 10000, 0, 0, 0, 0, 0);
+	sbi_ecall(SBI_SETTIMER, 0, c + 1000, 0, 0, 0, 0, 0);
 }
 
 
