@@ -150,10 +150,26 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	return EOK;
 }
 
+time_t jiffies;
 
 __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 {
-	cycles_t c = hal_cpuGetCycles2();
+	cycles_t c, d;
+
+/*if (!jiffies)
+	jiffies = hal_cpuGetCycles2();
+else
+	jiffies += 100000;
+
+c = jiffies;
+//	hal_cpuGetCycles(&d);*/
+
+	c = hal_cpuGetCycles2();
+
+
+//lib_printf("cycles=%p %p\n", d, c);
+//c = d / 24000000;
+
 	sbi_ecall(SBI_SETTIMER, 0, c + 1000, 0, 0, 0, 0, 0);
 }
 
@@ -164,6 +180,8 @@ extern void interrupts_handleintexc(void *);
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int k;
+
+jiffies = 0;
 
 	for (k = 0; k < SIZE_INTERRUPTS; k++) {
 		interrupts.handlers[k] = NULL;
