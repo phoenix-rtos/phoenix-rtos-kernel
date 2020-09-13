@@ -51,20 +51,22 @@ static inline void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 	: "m" (spinlock->sstatus), "A" (spinlock->lock)
 	: "t0", "memory");
 
-	hal_cpuGetCycles((void *)&spinlock->b);
+	/* (MOD) inefficiency because of rdcycles instruction */
+	/* hal_cpuGetCycles((void *)&spinlock->b); */
 }
 
 
 static inline void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
-	hal_cpuGetCycles((void *)&spinlock->e);
+	/* (MOD) inefficiency because of rdcycles instruction */
+	/* hal_cpuGetCycles((void *)&spinlock->e);*/
 
 	/* Calculate maximum and minimum lock time */
-	if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
+	/*if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
 		spinlock->dmax = spinlock->e - spinlock->b;
 
 	if (spinlock->e - spinlock->b < spinlock->dmin)
-		spinlock->dmin = spinlock->e - spinlock->b;
+		spinlock->dmin = spinlock->e - spinlock->b;*/
 
 	__asm__ volatile
 	(" \
