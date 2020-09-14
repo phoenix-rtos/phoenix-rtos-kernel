@@ -542,7 +542,7 @@ static void threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 		current->lastTime = now;
 	}
 
-	if (current != NULL && selected != NULL && current != selected)
+	if (selected != NULL && current != selected)
 		selected->lastTime = now;
 }
 
