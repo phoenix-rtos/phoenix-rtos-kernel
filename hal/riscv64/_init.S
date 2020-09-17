@@ -99,6 +99,8 @@ _start:
 
 	sfence.vma
 	csrw sptbr, a0
+
+.align 4
 1:
 	/* Add dummy page fault trap handler */
 	la a0, .Lsecondary_park
@@ -108,10 +110,9 @@ _start:
 	li a7, SBI_SHUTDOWN
 	ecall
 
+.align 4
 .Lsecondary_park:
 	wfi
 	j .Lsecondary_park
-
-
 
 .size _start, .-_start
