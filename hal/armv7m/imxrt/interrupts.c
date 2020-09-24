@@ -18,13 +18,16 @@
 #include "cpu.h"
 #include "pmap.h"
 
-#ifdef CPU_IMXRT1170
-#include "imxrt1170.h"
+#ifdef CPU_IMXRT117X
 #define SIZE_INTERRUPTS 217
-#else
-#include "imxrt.h"
-#define SIZE_INTERRUPTS 167
+#include "imxrt117x.h"
 #endif
+
+#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
+#define SIZE_INTERRUPTS 167
+#include "imxrt10xx.h"
+#endif
+
 
 #include "../../proc/userintr.h"
 
