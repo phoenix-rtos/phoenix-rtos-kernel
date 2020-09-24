@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#include "imxrt.h"
+#include "imxrt10xx.h"
 #include "interrupts.h"
 #include "pmap.h"
-#include "../../include/errno.h"
-#include "../../include/arch/imxrt.h"
+#include "../../../../include/errno.h"
+#include "../../../../include/arch/imxrt.h"
 
 
 struct {

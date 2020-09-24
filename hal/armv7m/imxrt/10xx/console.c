@@ -19,9 +19,9 @@
 
 #include "cpu.h"
 #include "console.h"
-#include "imxrt.h"
-#include "../../include/errno.h"
-#include "../../include/arch/imxrt.h"
+#include "imxrt10xx.h"
+#include "../../../../include/errno.h"
+#include "../../../../include/arch/imxrt.h"
 
 
 struct {
