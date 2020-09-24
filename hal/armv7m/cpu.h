@@ -16,6 +16,16 @@
 #ifndef _HAL_CPU_H_
 #define _HAL_CPU_H_
 
+
+#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)
+#define CPU_STM32
+#endif
+
+#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X) || defined(CPU_IMXRT117X)
+#define CPU_IMXRT
+#endif
+
+
 #define NULL 0
 
 #define SIZE_PAGE       0x200
