@@ -20,11 +20,15 @@
 #include "pmap.h"
 #include "spinlock.h"
 
-#ifdef CPU_STM32L1
-#include "../../include/arch/stm32l1.h"
-#else
-#include "../../include/arch/stm32l4.h"
+
+#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE)
+#include "../../../include/arch/stm32l1.h"
 #endif
+
+#ifdef CPU_STM32L4X6
+#include "../../../include/arch/stm32l4.h"
+#endif
+
 
 
 /* platformctl syscall */

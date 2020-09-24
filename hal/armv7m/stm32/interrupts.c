@@ -19,15 +19,20 @@
 #include "pmap.h"
 #include "stm32.h"
 
-#include "../../proc/userintr.h"
+#include "../../../proc/userintr.h"
 
-#include "../../include/errno.h"
+#include "../../../include/errno.h"
 
-#ifdef CPU_STM32L1
+
+#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE)
 #define SIZE_INTERRUPTS     84
-#else
+#endif
+
+#ifdef CPU_STM32L4X6
 #define SIZE_INTERRUPTS     97
 #endif
+
+
 #define SIZE_HANDLERS       4
 
 
