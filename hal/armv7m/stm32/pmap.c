@@ -18,7 +18,7 @@
 #include "string.h"
 #include "console.h"
 
-#include "../../include/errno.h"
+#include "../../../include/errno.h"
 
 struct {
 	spinlock_t spinlock;
