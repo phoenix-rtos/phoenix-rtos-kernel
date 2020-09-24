@@ -5,22 +5,12 @@
 #
 
 
-ifneq (, $(findstring stm32, $(TARGET)))
-	OBJS += $(addprefix $(PREFIX_O)hal/armv7/, _init-stm32.o interrupts-stm32.o timer-stm32.o)
-	
-	ifneq (, $(findstring l1, $(TARGET)))
-		OBJS += $(addprefix $(PREFIX_O)hal/armv7/, stm32l1.o console-stm32l1.o)
-	else
-		OBJS += $(addprefix $(PREFIX_O)hal/armv7/, stm32l4.o console-stm32l4.o)
-	endif
-
-else ifneq (, $(findstring imxrt, $(TARGET)))
-	OBJS += $(addprefix $(PREFIX_O)hal/armv7/, _init-imxrt.o interrupts-imxrt.o timer-imxrt.o)
-	ifneq (, $(findstring 1170, $(TARGET)))
-		OBJS += $(addprefix $(PREFIX_O)hal/armv7/, imxrt1170.o console-imxrt1170.o)
-	else
-		OBJS += $(addprefix $(PREFIX_O)hal/armv7/, imxrt.o console-imxrt.o)
-	endif
+ifneq (, $(findstring stm32, $(TARGET_SUBFAMILY)))
+    include hal/armv7m/stm32/Makefile
+    CFLAGS += -Ihal/armv7m/stm32 -Ihal/armv7m
+else ifneq (, $(findstring imxrt, $(TARGET_SUBFAMILY)))
+    include hal/armv7m/imxrt/Makefile 
+    CFLAGS += -Ihal/armv7m/imxrt -Ihal/armv7m
 endif
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv7/, spinlock.o cpu.o hal.o exceptions.o syspage.o pmap.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv7m/, spinlock.o cpu.o hal.o exceptions.o)

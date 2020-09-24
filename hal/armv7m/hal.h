@@ -27,16 +27,16 @@
 #include "exceptions.h"
 #include "timer.h"
 
-#ifdef CPU_STM32
+#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)
 #include "stm32.h"
 #endif
 
-#ifdef CPU_IMXRT
-#ifdef CPU_IMXRT1170
-#include "imxrt1170.h"
-#else
-#include "imxrt.h"
+#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
+#include "imxrt10xx.h"
 #endif
+
+#ifdef CPU_IMXRT117X
+#include "imxrt117x.h"
 #endif
 
 

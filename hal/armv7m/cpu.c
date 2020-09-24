@@ -19,13 +19,19 @@
 #include "spinlock.h"
 #include "string.h"
 
-#ifdef CPU_STM32
+
+#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)
 #include "stm32.h"
 #endif
 
-#ifdef CPU_IMXRT
-#include "imxrt.h"
+#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
+#include "imxrt10xx.h"
 #endif
+
+#ifdef CPU_IMXRT117X
+#include "imxrt117x.h"
+#endif
+
 
 
 struct {
@@ -147,7 +153,7 @@ void hal_cpuGetCycles(cycles_t *cb)
 {
 #ifdef CPU_STM32
 	*cb = _stm32_systickGet();
-#elif CPU_IMXRT
+#elif defined(CPU_IMXRT)
 	*cb = _imxrt_systickGet();
 #endif
 }
@@ -157,7 +163,7 @@ void hal_cpuRestart(void)
 {
 #ifdef CPU_STM32
 	_stm32_nvicSystemReset();
-#elif CPU_IMXRT
+#elif defined(CPU_IMXRT)
 	_imxrt_nvicSystemReset();
 #endif
 }
@@ -172,7 +178,7 @@ char *hal_cpuInfo(char *info)
 	cpuinfo = _stm32_cpuid();
 	hal_strcpy(info, "STM32 ");
 	i = 6;
-#elif CPU_IMXRT
+#elif defined(CPU_IMXRT)
 	cpuinfo = _imxrt_cpuid();
 	hal_strcpy(info, "i.MX RT ");
 	i = 8;
@@ -213,7 +219,7 @@ void hal_wdgReload(void)
 {
 #ifdef CPU_STM32
 	_stm32_wdgReload();
-#elif CPU_IMXRT
+#elif defined(CPU_IMXRT)
 	_imxrt_wdgReload();
 #endif
 }
@@ -228,7 +234,7 @@ void _hal_cpuInit(void)
 
 #ifdef CPU_STM32
 	_stm32_platformInit();
-#elif CPU_IMXRT
+#elif defined(CPU_IMXRT)
 	_imxrt_platformInit();
 #endif
 }
