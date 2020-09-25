@@ -340,7 +340,7 @@ hal_jmp:
 3:
 //	csrs sstatus, 2 /* enable interrupts */
 
-       li t0, 0x100
+       li t0, 0x120
        csrc sstatus, t0 /* sret will return to usermode */
        csrw sepc, s0 /* address to return to */
 

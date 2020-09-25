@@ -132,10 +132,10 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 			return -EFAULT;
 		}
 
-		pmap->pdir2[pdi2] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 0xc1);
+		pmap->pdir2[pdi2] = (((alloc->addr >> 12) << 10) | 0x01);
 
 		/* Initialize pdir (MOD) - because of reentrancy */
-		pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((alloc->addr >> 12) << 10) | /*0x10 | */ 0xcf);
+		pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((alloc->addr >> 12) << 10) | 0xcf);
 		hal_cpuFlushTLB(pmap_common.ptable);
 		hal_memset(pmap_common.ptable, 0, 4096);
 
@@ -144,7 +144,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	else {
 		/* Map next level pdir */
 		addr = ((pmap->pdir2[pdi2] >> 10) << 12);
-		pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | /*0x10 | */ 0xcf);
+		pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
 		hal_cpuFlushTLB(pmap_common.ptable);
 	}
 
@@ -153,7 +153,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 			hal_spinlockClear(&pmap_common.lock, &sc);
 			return -EFAULT;
 		}
-		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | (attr & 0x10) | 0xc1);
+		pmap_common.ptable[pdi1] = (((alloc->addr >> 12) << 10) | 0x01);
 		alloc = NULL;
 	}
 
@@ -234,7 +234,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	/* Map page table corresponding to vaddr at specified virtual address */
 	addr = (pmap->pdir2[pdi2] >> 10) << 12;
 
-	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf );
+	pmap_common.pdir0[((u64)pmap_common.ptable >> 12) & 0x1ff] = (((addr >> 12) << 10) | 0xcf);
 	hal_cpuFlushTLB(vaddr);
 
 	addr = ((pmap_common.ptable[pdi1] >> 10) << 12);
@@ -452,7 +452,7 @@ void _pmap_preinit(void)
 
 	/* Map PLIC (MOD) */
 //	pmap_common.pdir2[511] = ((u64)pmap_common.iopdir >> 2) | 1;
-	pmap_common.pdir2[511] = 0xcf | 0x10;
+	pmap_common.pdir2[511] = 0xcf;
 //	pmap_common.iopdir[0] = (((u64)0x0c000000 >> 2) | 0xcf);
 
 	return;
