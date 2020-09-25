@@ -87,7 +87,7 @@ if (n != 0) {
 	if (cn == 0) {
 		return 0;
 	}
-//lib_printf("ddd\n");
+//lib_printf("ddd %d\n", cn);
 }
 
 	hal_spinlockSet(&interrupts.spinlocks[n], &sc);
@@ -169,6 +169,11 @@ c = jiffies;
 
 //lib_printf("cycles=%p %p\n", d, c);
 //c = d / 24000000;
+
+jiffies += 1000;
+
+//if (!(jiffies % 2000))
+//	lib_printf("+");
 
 	sbi_ecall(SBI_SETTIMER, 0, c + 1000, 0, 0, 0, 0, 0);
 }

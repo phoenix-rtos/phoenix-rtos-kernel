@@ -174,7 +174,7 @@
 interrupts_handleintexc:
 .align 8
 	csrc sstatus, 2
-	csrc sie, 8
+//	csrc sie, 8
 	SAVE
 	mv a0, sp
 
@@ -211,8 +211,11 @@ interrupts_handleintexc:
 	ld a1, 288(sp)      /* usp */
 	li t0, 16
 	add a1, a1, t0
+
+csrs sstatus, 2
 	call syscalls_dispatch
 	sd a0, 56(sp)
+	csrc sstatus, 2
 	j 5f
 4:
 	beq a0, zero, 5f
@@ -228,6 +231,7 @@ interrupts_handleintexc:
 .size interrupts_handleintexc, .-interrupts_handleintexc
 
 
+
 .global hal_cpuReschedule
 hal_cpuReschedule:
 	csrrc tp, sstatus, 2
@@ -235,34 +239,29 @@ hal_cpuReschedule:
 	/* Change correctly status register */
 	csrw sepc, ra
 
+	SAVE
+
 	beqz a0, 1f
 
 	/* Set spinlock */
 	ld t0, 64(a0)            /* Modify saved status */
-	ori t0, t0, 0x100
-	andi t1, t0, 0x2
-	sll t1, t1, 4
-	andi t0, t0, ~2
-	or t0, t0, t1
-//	sd t0, 240(sp)
+	sd t0, 240(sp)
 
 	li t0, 1
 	addi a0, a0, 56
 	amoswap.w.rl t0, t0, (a0)
 1:
-	mv a0, zero
+	ld t0, 240(sp)
+	sd zero, 56(sp)
 
-	SAVE
-
-	ori tp, tp, 0x100        /* Set supervistor bit */
-	andi t0, tp, 0x2         /* Test SPIE */
-	sll t0, t0, 4
-	andi tp, tp, ~0x22
-	or tp, tp, t0
+	ori t0, t0, 0x100
+	andi t1, t0, 0x2
+	sll t1, t1, 4
+	andi t0, t0, ~2
+	or t0, t0, t1
 
 	/* Save modified flags in old context */
-	sd tp, 240(sp)
-
+	sd t0, 240(sp)
 
 	mv a1, sp
 	mv a2, zero
@@ -315,7 +314,7 @@ hal_jmp:
        jr s0
 
 2:
-       csrc sstatus, 2 /* disable interrupts */
+//       csrc sstatus, 2 /* disable interrupts */
 
        csrw sscratch, s1 /* kernel stack pointer */
 
@@ -339,7 +338,7 @@ hal_jmp:
        ld a3, (sp)
        addi sp, sp, 8
 3:
-	csrs sstatus, 2 /* enable interrupts */
+//	csrs sstatus, 2 /* enable interrupts */
 
        li t0, 0x100
        csrc sstatus, t0 /* sret will return to usermode */

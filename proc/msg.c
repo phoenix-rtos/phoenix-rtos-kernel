@@ -122,8 +122,6 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			return NULL;
 	}
 
-// lib_printf("w=%p bp->addr=%p %p\n", w, nbp->addr, vaddr);
-
 	if (eoffs) {
 		ml->eoffs = eoffs;
 		vaddr = (void *)FLOOR((unsigned long)data + size);
@@ -337,6 +335,7 @@ int proc_send(u32 port, msg_t *msg)
 		proc_threadWakeup(&p->threads);
 
 		while (kmsg.state != msg_responded && kmsg.state != msg_rejected) {
+
 			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
 
 			if ((err != EOK && kmsg.state == msg_waiting)) {
@@ -496,7 +495,9 @@ int proc_respond(u32 port, msg_t *msg, unsigned long int rid)
 	kmsg->state = msg_responded;
 	kmsg->src = proc_current()->process;
 	proc_threadWakeup(&kmsg->threads);
+	hal_cpuReschedule(&p->spinlock, &sc);
 	hal_spinlockClear(&p->spinlock, &sc);
+
 	port_put(p, 0);
 
 	return s;

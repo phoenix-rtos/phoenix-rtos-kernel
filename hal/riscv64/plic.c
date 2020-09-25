@@ -121,7 +121,7 @@ int _plic_init(void)
 
 	/* Disable and mask external interrupts */
 	for (i = 1; i < 127; i++) {
-		plic_priority(i, 1);
+		plic_priority(i, 0);
 		plic_enableInterrupt(1, i, 0);
 	}
 

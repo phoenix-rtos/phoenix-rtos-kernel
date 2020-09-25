@@ -5,5 +5,5 @@
 # Author: Pawel Pisarczyk
 #
 
-OBJS += $(addprefix $(PREFIX_O)test/, test.o vm.o rb.o proc.o)
+OBJS += $(addprefix $(PREFIX_O)test/, test.o vm.o rb.o proc.o msg.o)
 
