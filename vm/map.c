@@ -370,7 +370,8 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	long offs;
 	map_entry_t *e, *s;
 	map_entry_t t;
-	process_t *proc = proc_current()->process;
+	thread_t *thr = proc_current();
+	process_t *proc = (thr != NULL) ? thr->process : NULL;
 
 	t.vaddr = vaddr;
 	t.size = size;
