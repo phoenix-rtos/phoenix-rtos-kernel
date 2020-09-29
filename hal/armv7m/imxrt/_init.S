@@ -184,6 +184,10 @@ _init_vectors:
 _start:
 	cpsid if
 
+	/* Point to syspage */
+	ldr r8, =syspage
+	str r9, [r8]
+
 	/* Enable FPU */
 	ldr r0, =0xe000ed88
 	ldr r1, [r0]
@@ -195,20 +199,6 @@ _start:
 	orr r0, r0, #(1 << 2)
 	msr control, r0
 
-	/* Check kernel localization */
-	ldr r0, =FLEXSPI2_BASE
-	mov r1, pc
-	cmp r0, r1
-	bgt _start_1
-
-	/* Prepare registers to kernel copy */
-	ldr r5, =__bss_start__
-	ldr r6, =_fcfb
-	sub r1, r5, r6
-	ldr r2, =FLEXSPI2_BASE
-	add r1, r1, r2
-	ldr r3, =ADDR_ITCM
-
 	/* Configure FLEX RAM */
 	ldr r8, =IOMUXC_GPR
 	ldr r9, =0x00200007
@@ -216,45 +206,6 @@ _start:
 
 	ldr r9, =0xaabfffff
 	str r9, [r8, #0x44]
-
-
-_start_copy:
-	/* Copy kernel from internal flash to ITCM */
-	ldr r0, [r2], #4
-	str r0, [r3], #4
-
-	cmp r2, r1
-	blt _start_copy
-
-	/* Find syspage size */
-	ldr r9, =_syspage
-	ldr r9, [r9, #12] /* syspage size */
-
-	/* If syspage is empty, programs are not copied */
-	cmp r9, #0
-	beq _start_1
-
-	/* Calcuclate offset to the last program */
-	sub r9, r9, #1
-
-	mov r8, #0x1c /* size of syspage_program_t */
-	mul r9, r9, r8
-	add r9, r9, #20
-
-	ldr r8, =_syspage
-	add r8, r8, r9
-
-	ldr r8, [r8]
-	add r8, r8, FLEXSPI2_BASE
-
-
-_start_syspage_copy:
-	 /* Copy syspage's programs form internal flash to ITCM */
-	 ldr r0, [r2], #4
-	 str r0, [r3], #4
-
-	 cmp r2, r8
-	 blt _start_syspage_copy
 
 _start_1:
 	/* Init vector table and stack pointer */
@@ -264,11 +215,6 @@ _start_1:
 	ldr r0, [r1]
 	msr msp, r0
 	bl _imxrt_init
-
-	ldr r0, =syspage
-	ldr r1, =_syspage
-
-	str r1, [r0]
 
 	ldr r8, =main
 	bx r8
