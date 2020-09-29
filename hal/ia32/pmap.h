@@ -122,6 +122,15 @@ extern int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t
 extern int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top);
 
 
+extern int pmap_getMapsCnt(void);
+
+
+extern int pmap_getMapParameters(u8 id, u32 *start, u32 *end);
+
+
+extern void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop);
+
+
 extern void _pmap_init(pmap_t *pmap, void **start, void **end);
 
 #endif
