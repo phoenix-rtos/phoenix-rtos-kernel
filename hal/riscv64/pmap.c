@@ -46,7 +46,7 @@ u64 iopdir[512];
 	syspage_t pmap_syspage;
 
 	/* second pdir for mapping I/O - first 1 GB of memory is mapped linearly at the end of address space */
-	
+
 
 	/* The order of below fields could be randomized */
 	u64 minAddr;
@@ -422,6 +422,24 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 	}
 
 	return EOK;
+}
+
+
+int pmap_getMapsCnt(void)
+{
+	return 0;
+}
+
+
+int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
+{
+	return EOK;
+}
+
+
+void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop)
+{
+	return;
 }
 
 
