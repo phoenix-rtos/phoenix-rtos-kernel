@@ -6,7 +6,7 @@
  * pmap interface - machine dependent part of VM subsystem (ARMv7 with MPU)
  *
  * Copyright 2017 Phoenix Systems
- * Author: Pawel Pisarczyk, Aleksander Kaminski
+ * Author: Pawel Pisarczyk, Aleksander Kaminski, Hubert Buczynski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -15,13 +15,6 @@
 
 #ifndef _HAL_PMAP_H_
 #define _HAL_PMAP_H_
-
-/* TODO */
-/* Predefined virutal adresses */
-#define VADDR_MIN       0x20000000
-#define VADDR_KERNEL    0x20000000
-#define VADDR_KERNELSZ  (96 * 1024)
-#define VADDR_MAX       (VADDR_KERNEL + RAM_SIZE * 1024)
 
 /* Architecure dependent page attributes - used for mapping */
 #define PGHD_PRESENT    0x01
@@ -49,6 +42,7 @@
 #ifndef __ASSEMBLY__
 
 #include "cpu.h"
+#include "syspage.h"
 
 
 typedef struct _page_t {
@@ -81,6 +75,12 @@ static inline int pmap_belongs(pmap_t *pmap, void *addr)
 }
 
 
+extern addr_t pmap_getMinVAdrr(void);
+
+
+extern addr_t pmap_getMaxVAdrr(void);
+
+
 extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
 
 
@@ -104,16 +104,23 @@ static inline int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *
 	if (i)
 		return -1;
 
-	*vaddr = (void *)VADDR_KERNEL;
-	*size = (((size_t)(*top) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) - (size_t)VADDR_KERNEL;
+	*vaddr = (void *)syspage->kernel.bss;
+	*size = (((size_t)(*top) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) - (size_t)syspage->kernel.bss;
 
 	return 0;
 }
 
 
+extern int pmap_getMapsCnt(void);
+
+
+extern int pmap_getMapParameters(u8 id, u32 *start, u32 *end);
+
+
+extern void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop);
+
 
 extern void _pmap_init(pmap_t *pmap, void **start, void **end);
-
 
 #endif
 
