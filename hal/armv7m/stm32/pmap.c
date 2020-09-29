@@ -54,6 +54,27 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 extern void *_init_vectors;
 
 
+int pmap_getMapsCnt(void)
+{
+	//TODO: get maps counter from syspage
+	return 0;
+}
+
+
+int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
+{
+	//TODO: get maps parameters from syspage
+	return EOK;
+}
+
+
+void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop)
+{
+	return;
+}
+
+
+
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
 	(*vstart) = (void *)(((u32)_init_vectors + 7) & ~7);
