@@ -171,7 +171,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 
 	proc_lockInit(&pages.lock);
 
-	pages.freesz = VADDR_MAX - (unsigned int)(*bss);
+	pages.freesz = pmap_getMaxVAdrr() - (unsigned int)(*bss);
 	pages.bootsz = 0;
 
 	pages.freeq = (*bss);
@@ -181,7 +181,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	(*top) = max((*top), (*bss));
 
 	/* Prepare memory hash */
-	pages.allocsz = (unsigned int)(*bss) - VADDR_MIN;
+	pages.allocsz = (unsigned int)(*bss) - pmap_getMinVAdrr();
 	pages.freesz -= pages.freeqsz * sizeof(page_t);
 
 	/* Show statistics one the console */
