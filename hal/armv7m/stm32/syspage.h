@@ -25,7 +25,7 @@
 typedef struct syspage_program_t {
 	u32 start;
 	u32 end;
-	int mapno;
+	int dmap;
 
 	char cmdline[16];
 } syspage_program_t;

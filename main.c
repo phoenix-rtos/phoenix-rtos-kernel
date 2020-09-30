@@ -38,11 +38,9 @@ void main_initthr(void *unused)
 {
 	size_t i;
 	syspage_program_t *prog;
-	int xcount = 0, mcount = 1, res;
+	int xcount = 0, res;
 	char *cmdline = syspage->arg, *end;
 	char *argv[32], *arg, *argend;
-	ptr_t start = 0, stop = 0;
-	unsigned int t;
 
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
@@ -103,36 +101,6 @@ void main_initthr(void *unused)
 					if (res < 0) {
 						lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 					}
-				}
-			}
-		}
-		else if (*cmdline == 'M') {
-			argend = cmdline;
-			for (i = 0; i < 3; ++i) {
-				arg = ++argend;
-				while (*argend != '\0' && *argend != ';')
-					++argend;
-
-				if (i < 2 && *argend == '\0') {
-					lib_printf("main: Invalid memory map definition\n");
-					break;
-				}
-
-				*argend = '\0';
-
-				t = lib_strtoul(arg, NULL, 16);
-
-				if (i == 0) {
-					start = t;
-				}
-				else if (i == 1) {
-					stop = t;
-				}
-				else {
-					if ((res = vm_createSharedMap(start, stop, t, mcount)) < 0)
-						lib_printf("main: Memory map creation failed (%d)\n", res);
-
-					++mcount;
 				}
 			}
 		}

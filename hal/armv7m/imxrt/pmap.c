@@ -14,6 +14,7 @@
  */
 
 #include "pmap.h"
+#include "syspage.h"
 #include "spinlock.h"
 #include "string.h"
 #include "console.h"
@@ -23,6 +24,9 @@
 struct {
 	spinlock_t spinlock;
 } pmap_common;
+
+
+extern void *_init_vectors;
 
 
 void pmap_switch(pmap_t *pmap)
@@ -44,6 +48,26 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 }
 
 
+addr_t pmap_getMinVAdrr(void)
+{
+	return (addr_t)syspage->kernel.bss;
+}
+
+
+addr_t pmap_getMaxVAdrr(void)
+{
+	int i;
+
+	/* Find kernel map end adress */
+	for (i = 0; i < syspage->mapssz; ++i) {
+		if (syspage->maps[i].start >= (addr_t)syspage->kernel.bss)
+			return (addr_t)(syspage->kernel.bss + (syspage->maps[i].end - (addr_t)syspage->kernel.bss));
+	}
+
+	return 0;
+}
+
+
 /* Function creates empty page table */
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
@@ -51,16 +75,103 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-extern void *_init_vectors;
+int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
+{
+	int i;
+
+	/* Stop reading parameters */
+	if (id >= syspage->mapssz)
+		return EOK;
+
+	*start = syspage->maps[id].start;
+	*end = syspage->maps[id].end;
+
+	if (*end <= *start || *start & (SIZE_PAGE - 1) || *end & (SIZE_PAGE - 1))
+		return -EINVAL;
+
+	/* Check if new map overlap with existing one */
+	for (i = 0; i < syspage->mapssz; ++i) {
+		if (i == id)
+			continue;
+
+		if ((*start < syspage->maps[i].end) && (*end > syspage->maps[i].start))
+			return -EINVAL;
+	}
+
+	/* Continue reading map parameters */
+	return 1;
+}
+
+
+static void pmap_getMinOverlappedRange(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop, u32 *minSegStart, u32 *minSegStop)
+{
+	if ((memStart < *segStop) && (memStop > *segStart)) {
+		if (memStart > *segStart)
+			*segStart = memStart;
+
+		if (memStop < *segStop)
+			*segStop = memStop;
+
+		if (*segStart < *minSegStart) {
+			*minSegStart = *segStart;
+			*minSegStop = *segStop;
+		}
+	}
+}
+
+
+void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *estart, u32 *estop)
+{
+	int i;
+	u32 segStart = 0, segStop = 0;
+	u32 minSegStart, minSegStop;
+
+	minSegStart = -1;
+	minSegStop = 0;
+
+	/* Check syspage segment */
+	segStart = (addr_t)(syspage);
+	segStop = ((addr_t)(syspage) + syspage->syspagesz);
+	pmap_getMinOverlappedRange(memStart, memStop, &segStart, &segStop, &minSegStart, &minSegStop);
+
+	/* Check kernel's .text segment */
+	segStart = (addr_t)(syspage->kernel.text);
+	segStop = ((addr_t)(syspage->kernel.text) + syspage->kernel.textsz);
+	pmap_getMinOverlappedRange(memStart, memStop, &segStart, &segStop, &minSegStart, &minSegStop);
+
+	/* Check kernel's .data segment */
+	segStart = (addr_t)(syspage->kernel.data);
+	segStop = ((addr_t)(syspage->kernel.data) + syspage->kernel.datasz);
+	pmap_getMinOverlappedRange(memStart, memStop, &segStart, &segStop, &minSegStart, &minSegStop);
+
+	/* Check programs' segments */
+	for (i = 0; i < syspage->progssz; ++i) {
+		segStop = syspage->progs[i].end;
+		segStart = syspage->progs[i].start;
+		pmap_getMinOverlappedRange(memStart, memStop, &segStart, &segStop, &minSegStart, &minSegStop);
+	}
+
+	if (minSegStart != -1) {
+		*estart = minSegStart;
+		*estop = minSegStop;
+	}
+}
+
+
+int pmap_getMapsCnt(void)
+{
+	return syspage->mapssz;
+}
 
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	(*vstart) = (void *)(((u32)_init_vectors + 7) & ~7);
+	(*vstart) = (void *)(((u32)(syspage->kernel.bss + syspage->kernel.bsssz + 1024 + 256) + 7) & ~7);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
-	pmap->start = (void *)VADDR_KERNEL;
-	pmap->end = (void *)(VADDR_KERNEL + VADDR_KERNELSZ);
+	pmap->start = (void *)syspage->kernel.bss;
+	/* Initial size of kernel map */
+	pmap->end = (void *)(syspage->kernel.bss + 32 * 1024);
 
 	hal_spinlockCreate(&pmap_common.spinlock, "pmap_common.spinlock");
 

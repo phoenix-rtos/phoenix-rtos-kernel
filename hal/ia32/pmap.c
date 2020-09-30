@@ -398,6 +398,24 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 }
 
 
+int pmap_getMapsCnt(void)
+{
+	return 0;
+}
+
+
+int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
+{
+	return EOK;
+}
+
+
+void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop)
+{
+	return;
+}
+
+
 /* Function initializes low-level page mapping interface */
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {

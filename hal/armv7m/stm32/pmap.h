@@ -20,7 +20,7 @@
 /* Predefined virutal adresses */
 #define VADDR_MIN       0x20000000
 #define VADDR_KERNEL    0x20000000
-#define VADDR_KERNELSZ  (96 * 1024)
+#define VADDR_KERNELSZ  (320 * 1024)
 #define VADDR_MAX       (VADDR_KERNEL + RAM_SIZE * 1024)
 
 /* Architecure dependent page attributes - used for mapping */
@@ -81,6 +81,18 @@ static inline int pmap_belongs(pmap_t *pmap, void *addr)
 }
 
 
+static inline addr_t pmap_getMinVAdrr(void)
+{
+	return VADDR_MIN;
+}
+
+
+static inline addr_t pmap_getMaxVAdrr(void)
+{
+	return VADDR_MAX;
+}
+
+
 extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
 
 
@@ -110,6 +122,14 @@ static inline int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *
 	return 0;
 }
 
+
+extern int pmap_getMapsCnt(void);
+
+
+extern int pmap_getMapParameters(u8 id, u32 *start, u32 *end);
+
+
+extern void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop);
 
 
 extern void _pmap_init(pmap_t *pmap, void **start, void **end);

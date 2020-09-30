@@ -1982,9 +1982,13 @@ void _imxrt_enableDCache(void)
 	ccsidr = *(imxrt_common.scb + scb_ccsidr);
 
 	/* Invalidate D$ */
-	for (sets = (ccsidr >> 13) & 0x7fff; sets-- != 0; )
-		for (ways = (ccsidr >> 3) & 0x3ff; ways-- != 0; )
+	sets = (ccsidr >> 13) & 0x7fff;
+	do {
+		ways = (ccsidr >> 3) & 0x3ff;
+		do {
 			*(imxrt_common.scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
+		} while (ways-- != 0);
+	} while (sets-- != 0);
 	hal_cpuDataSyncBarrier();
 
 	*(imxrt_common.scb + scb_ccr) |= 1 << 16;
@@ -2006,9 +2010,36 @@ void _imxrt_disableDCache(void)
 
 	ccsidr = *(imxrt_common.scb + scb_ccsidr);
 
-	for (sets = (ccsidr >> 13) & 0x7fff; sets-- != 0; )
-		for (ways = (ccsidr >> 3) & 0x3ff; ways-- != 0; )
-			*(imxrt_common.scb + scb_dccisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
+	sets = (ccsidr >> 13) & 0x7fff;
+	do {
+		ways = (ccsidr >> 3) & 0x3ff;
+		do {
+			*(imxrt_common.scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
+		} while (ways-- != 0);
+	} while (sets-- != 0);
+
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
+}
+
+
+void _imxrt_cleanDCache(void)
+{
+	u32 ccsidr, sets, ways;
+
+	*(imxrt_common.scb + scb_csselr) = 0;
+
+	hal_cpuDataSyncBarrier();
+	ccsidr = *(imxrt_common.scb + scb_ccsidr);
+
+	/* Clean D$ */
+	sets = (ccsidr >> 13) & 0x7fff;
+	do {
+		ways = (ccsidr >> 3) & 0x3ff;
+		do {
+			*(imxrt_common.scb + scb_dccsw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
+		} while (ways-- != 0);
+	} while (sets-- != 0);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
