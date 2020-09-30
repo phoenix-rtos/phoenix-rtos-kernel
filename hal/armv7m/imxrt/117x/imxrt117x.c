@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include "imxrt1170.h"
+#include "imxrt117x.h"
 #include "interrupts.h"
 #include "pmap.h"
 #include "../../../include/errno.h"
@@ -581,8 +581,6 @@ void _imxrt_platformInit(void)
 
 void _imxrt_init(void)
 {
-	int i;
-
 	imxrt_common.aips[0] = (void *)0x40000000;
 	imxrt_common.aips[1] = (void *)0x40400000;
 	imxrt_common.aips[2] = (void *)0x40800000;
