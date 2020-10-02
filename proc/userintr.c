@@ -45,8 +45,11 @@ int userintr_put(userintr_t *ui)
 static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 {
 	userintr_t *ui = arg;
-	int ret, attr, reschedule = 0;
+	int ret, reschedule = 0;
 	process_t *p = NULL;
+#ifdef TARGET_RISCV64
+	int attr;
+#endif
 
 	if (proc_current() != NULL)
 		p = (proc_current())->process;
