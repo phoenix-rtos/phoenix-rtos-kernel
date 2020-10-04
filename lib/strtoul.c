@@ -38,9 +38,6 @@ unsigned int lib_strtoul(char *nptr, char **endptr, int base)
 	if (base == 16 && nptr[0] == '0' && nptr[1] == 'x')
 		nptr += 2;
 
-	if (*endptr != NULL)
-		*endptr = nptr;
-
 	while (strtoul_isalnum(*nptr)) {
 		if ((t = *nptr - '0') > 9)
 			t = (*nptr | 0x20) - 'a' + 10;
@@ -50,11 +47,11 @@ unsigned int lib_strtoul(char *nptr, char **endptr, int base)
 
 		v = (v * base) + t;
 
-		if (*endptr != NULL)
-			*endptr = nptr;
-
 		++nptr;
 	}
+
+	if (*endptr != NULL)
+		*endptr = nptr;
 
 	return v;
 }
