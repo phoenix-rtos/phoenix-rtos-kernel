@@ -45,7 +45,7 @@ int userintr_put(userintr_t *ui)
 static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 {
 	userintr_t *ui = arg;
-	int ret, attr, reschedule = 0;
+	int ret, reschedule = 0;
 	process_t *p = NULL;
 
 	if (proc_current() != NULL)
@@ -57,7 +57,7 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 #ifdef TARGET_RISCV64
 	/* Clear PGHD_USER attribute in interrupt handler code page (RISC-V specification forbids user code execution in kernel mode) */
 	/* Assumes that entire interrupt handler code lies within one page */
-	attr = PGHD_READ | PGHD_WRITE | PGHD_EXEC | PGHD_PRESENT;
+	int attr = PGHD_READ | PGHD_WRITE | PGHD_EXEC | PGHD_PRESENT;
 	pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1)), attr, NULL);
 #endif
 

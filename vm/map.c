@@ -1065,8 +1065,9 @@ vm_map_t *vm_getSharedMap(syspage_program_t *prog)
 static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
 	int res, id;
-	u32 estop, estart;
-	u32 mstart, mstop, mapsCnt;
+	void *estop, *estart;
+	void *mstart, *mstop;
+	unsigned int mapsCnt;
 	map_entry_t *entry;
 
 	id = 0;
@@ -1087,12 +1088,12 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 			return res;
 
 		/* Assign map as kernel map */
-		if ((ptr_t)kmap->pmap.start >= mstart && (ptr_t)kmap->pmap.end <= mstop) {
-			kmap->pmap.start = (void *)mstart;
-			kmap->pmap.end = (void *)mstop;
+		if (kmap->pmap.start >= mstart && kmap->pmap.end <= mstop) {
+			kmap->pmap.start = mstart;
+			kmap->pmap.end = mstop;
 
-			kmap->start = (void *)mstart;
-			kmap->stop = (void *)mstop;
+			kmap->start = mstart;
+			kmap->stop = mstop;
 
 			map_common.maps[id] = kmap;
 		}

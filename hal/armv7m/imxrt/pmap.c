@@ -75,7 +75,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
+int pmap_getMapParameters(u8 id, void **start, void **end)
 {
 	int i;
 
@@ -83,10 +83,10 @@ int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
 	if (id >= syspage->mapssz)
 		return EOK;
 
-	*start = syspage->maps[id].start;
-	*end = syspage->maps[id].end;
+	*start = (void *)syspage->maps[id].start;
+	*end = (void *)syspage->maps[id].end;
 
-	if (*end <= *start || *start & (SIZE_PAGE - 1) || *end & (SIZE_PAGE - 1))
+	if (*end <= *start || ((u32)*start & (SIZE_PAGE - 1)) || ((u32)*end & (SIZE_PAGE - 1)))
 		return -EINVAL;
 
 	/* Check if new map overlap with existing one */
@@ -94,7 +94,7 @@ int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
 		if (i == id)
 			continue;
 
-		if ((*start < syspage->maps[i].end) && (*end > syspage->maps[i].start))
+		if ((*start < (void *)syspage->maps[i].end) && (*end > (void *)syspage->maps[i].start))
 			return -EINVAL;
 	}
 
@@ -103,7 +103,7 @@ int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
 }
 
 
-static void pmap_getMinOverlappedRange(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop, u32 *minSegStart, u32 *minSegStop)
+static void pmap_getMinOverlappedRange(void *memStart, void *memStop, void **segStart, void **segStop, void **minSegStart, void **minSegStop)
 {
 	if ((memStart < *segStop) && (memStop > *segStart)) {
 		if (memStart > *segStart)
@@ -120,38 +120,38 @@ static void pmap_getMinOverlappedRange(u32 memStart, u32 memStop, u32 *segStart,
 }
 
 
-void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *estart, u32 *estop)
+void pmap_getAllocatedSegment(void *memStart, void *memStop, void **estart, void **estop)
 {
 	int i;
-	u32 segStart = 0, segStop = 0;
-	u32 minSegStart, minSegStop;
+	void *segStart = 0, *segStop = 0;
+	void *minSegStart, *minSegStop;
 
-	minSegStart = -1;
+	minSegStart = (void *)-1;
 	minSegStop = 0;
 
 	/* Check syspage segment */
-	segStart = (addr_t)(syspage);
-	segStop = ((addr_t)(syspage) + syspage->syspagesz);
+	segStart = syspage;
+	segStop = ((void *)syspage + syspage->syspagesz);
 	pmap_getMinOverlappedRange(memStart, memStop, &segStart, &segStop, &minSegStart, &minSegStop);
 
 	/* Check kernel's .text segment */
-	segStart = (addr_t)(syspage->kernel.text);
-	segStop = ((addr_t)(syspage->kernel.text) + syspage->kernel.textsz);
+	segStart = (void *)(syspage->kernel.text);
+	segStop = ((void *)syspage->kernel.text + syspage->kernel.textsz);
 	pmap_getMinOverlappedRange(memStart, memStop, &segStart, &segStop, &minSegStart, &minSegStop);
 
 	/* Check kernel's .data segment */
-	segStart = (addr_t)(syspage->kernel.data);
-	segStop = ((addr_t)(syspage->kernel.data) + syspage->kernel.datasz);
+	segStart = (void *)syspage->kernel.data;
+	segStop = ((void *)syspage->kernel.data + syspage->kernel.datasz);
 	pmap_getMinOverlappedRange(memStart, memStop, &segStart, &segStop, &minSegStart, &minSegStop);
 
 	/* Check programs' segments */
 	for (i = 0; i < syspage->progssz; ++i) {
-		segStop = syspage->progs[i].end;
-		segStart = syspage->progs[i].start;
+		segStop = (void *)syspage->progs[i].end;
+		segStart = (void *)syspage->progs[i].start;
 		pmap_getMinOverlappedRange(memStart, memStop, &segStart, &segStop, &minSegStart, &minSegStop);
 	}
 
-	if (minSegStart != -1) {
+	if (minSegStart != (void *)-1) {
 		*estart = minSegStart;
 		*estop = minSegStop;
 	}
