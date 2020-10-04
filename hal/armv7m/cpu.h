@@ -31,7 +31,7 @@
 #define SIZE_PAGE       0x200
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK     (2 * SIZE_PAGE)
+#define SIZE_USTACK     (3 * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_KSTACK

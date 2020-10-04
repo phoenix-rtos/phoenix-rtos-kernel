@@ -842,27 +842,22 @@ void _stm32_init(void)
 
 	/* Set DBP bit */
 	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
+	hal_cpuDataBarrier();
 
-	/* Enable LSE clock source */
-	*(stm32_common.rcc + rcc_bdcr) |= 1;
-
+	/* Enable LSE clock source, set it as RTC source and set medium xtal drive strength */
+	t = *(stm32_common.rcc + rcc_bdcr) & ~((3 << 24) | (3 << 15) | (3 << 8) | 0x7f);
+	*(stm32_common.rcc + rcc_bdcr) = t | (1 << 25) | (1 << 15) | (1 << 8) | (1 << 3) | 1;
 	hal_cpuDataBarrier();
 
 	/* And wait for it to turn on */
 	while (!(*(stm32_common.rcc + rcc_bdcr) & (1 << 1)));
-
-	*(stm32_common.rcc + rcc_bdcr) |= 1 << 25;
-
-	/* Initialize RTC */
-
-	/* Select LSE as clock source for RTC and LCD */
-	*(stm32_common.rcc + rcc_bdcr) = (*(stm32_common.rcc + rcc_bdcr) & ~(0x3 << 8)) | (1 << 8);
 
 	/* Select system clock for ADC */
 	*(stm32_common.rcc + rcc_ccipr) |= 0x3 << 28;
 
 	hal_cpuDataBarrier();
 
+	/* Initialize RTC */
 	/* Unlock RTC */
 	_stm32_rtcUnlockRegs();
 

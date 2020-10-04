@@ -15,7 +15,7 @@
 
 #include "cpu.h"
 #include "console.h"
-#include "imxrt1170.h"
+#include "imxrt117x.h"
 #include "../../include/errno.h"
 #include "../../include/arch/imxrt1170.h"
 
