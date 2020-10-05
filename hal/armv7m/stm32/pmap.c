@@ -61,14 +61,14 @@ int pmap_getMapsCnt(void)
 }
 
 
-int pmap_getMapParameters(u8 id, u32 *start, u32 *end)
+int pmap_getMapParameters(u8 id, void **start, void **end)
 {
 	//TODO: get maps parameters from syspage
 	return EOK;
 }
 
 
-void pmap_getAllocatedSegment(u32 memStart, u32 memStop, u32 *segStart, u32 *segStop)
+void pmap_getAllocatedSegment(void *memStart, void *memStop, void **segStart, void **segStop)
 {
 	return;
 }
