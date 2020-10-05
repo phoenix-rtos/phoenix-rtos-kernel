@@ -26,14 +26,14 @@ typedef struct {
 	unsigned short subvendor;
 	unsigned short subdevice;
 	unsigned short cl;
-} pci_id_t;
+} __attribute__((packed)) pci_id_t;
 
 
 typedef struct {
 	unsigned long base;
 	unsigned long limit;
 	unsigned char flags;
-} pci_resource_t;
+} __attribute__((packed)) pci_resource_t;
 
 
 typedef struct {
@@ -50,7 +50,7 @@ typedef struct {
 	unsigned char irq;
 	unsigned char type;
 	pci_resource_t resources[6];
-} pci_device_t;
+} __attribute__((packed)) pci_device_t;
 
 
 typedef struct {
@@ -68,6 +68,6 @@ typedef struct {
 			int enable;
 		} busmaster;
 	};
-} __attribute__((packed)) platformctl_t;
+} platformctl_t;
 
 #endif
