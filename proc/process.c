@@ -952,6 +952,7 @@ static void process_vforkThread(void *arg)
 	current->execdata = spawn;
 	current->kstack = parent->kstack;
 
+	hal_cpuDisableInterrupts();
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 	/* Start execution from parent suspend point */
