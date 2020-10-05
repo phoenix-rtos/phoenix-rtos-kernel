@@ -315,6 +315,7 @@ int lib_printf(const char *format, ...)
 
 		if (fmt != '%') {
 			lib_putch(fmt);
+			i++;
 			continue;
 		}
 
@@ -322,6 +323,7 @@ int lib_printf(const char *format, ...)
 
 		if (fmt == '\0') {
 			lib_putch('%');
+			i++;
 			goto end;
 		}
 
@@ -404,6 +406,7 @@ int lib_printf(const char *format, ...)
 			case 'c': {
 				c = (char)va_arg(ap, int);
 				lib_putch(c);
+				i++;
 
 				break;
 			}
@@ -428,6 +431,7 @@ int lib_printf(const char *format, ...)
 					lib_putch('i');
 					lib_putch('l');
 					lib_putch(')');
+					i += 5;
 					break;
 				}
 
@@ -445,11 +449,13 @@ int lib_printf(const char *format, ...)
 
 			case '%':
 				lib_putch('%');
+				i++;
 				break;
 
 			default:
 				lib_putch('%');
 				lib_putch(fmt);
+				i += 2;
 				break;
 		}
 
