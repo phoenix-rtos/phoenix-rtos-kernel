@@ -5,7 +5,7 @@
  *
  * Exception and interrupt handling
  *
- * Copyright 2014, 2018 Phoenix Systems
+ * Copyright 2014, 2018, 2020 Phoenix Systems
  * Author: Jacek Popko, Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
@@ -165,6 +165,15 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	hal_spinlockClear(&interrupts.spinlock[h->n], &sc);
 
 	return EOK;
+}
+
+
+char *hal_interruptsFeatures(char *features, unsigned int len)
+{
+	hal_memcpy(features, "Using GIC interrupt controller", min(31, len));
+	features[len - 1] = 0;
+
+	return features;
 }
 
 

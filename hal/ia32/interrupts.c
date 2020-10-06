@@ -5,7 +5,7 @@
  *
  * Interrupt handling
  *
- * Copyright 2012-2013, 2016-2017 Phoenix Systems
+ * Copyright 2012-2013, 2016-2017, 2020 Phoenix Systems
  * Copyright 2001, 2005-2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk
  *
