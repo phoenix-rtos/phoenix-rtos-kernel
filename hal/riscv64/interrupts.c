@@ -20,6 +20,7 @@
 #include "pmap.h"
 #include "sbi.h"
 #include "plic.h"
+#include "dtb.h"
 
 #include "../../proc/userintr.h"
 
@@ -81,7 +82,7 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 	if (n >= SIZE_INTERRUPTS)
 		return 0;
 
-if (n != 0) {
+if (dtb_getPLIC() && (n != 0)) {
 
 	cn = plic_claim(1);
 	if (cn == 0) {
@@ -125,7 +126,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	hal_spinlockSet(&interrupts.spinlocks[h->n], &sc);
 	_intr_add(&interrupts.handlers[h->n], h);
 
-	if (h->n) {
+	if (dtb_getPLIC() && (h->n)) {
 		plic_priority(h->n, 2);
 		plic_enableInterrupt(1, h->n, 1);
 	}
@@ -150,32 +151,27 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	return EOK;
 }
 
-time_t jiffies;
 
 __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 {
 	cycles_t c, d;
 
-/*if (!jiffies)
-	jiffies = hal_cpuGetCycles2();
-else
-	jiffies += 100000;
-
-c = jiffies;
-//	hal_cpuGetCycles(&d);*/
-
 	c = hal_cpuGetCycles2();
 
-
-//lib_printf("cycles=%p %p\n", d, c);
-//c = d / 24000000;
-
-jiffies += 1000;
-
-//if (!(jiffies % 2000))
-//	lib_printf("+");
-
 	sbi_ecall(SBI_SETTIMER, 0, c + 1000, 0, 0, 0, 0, 0);
+}
+
+
+char *hal_interruptsFeatures(char *features, unsigned int len)
+{
+	if (dtb_getPLIC())
+		hal_memcpy(features, "Using PLIC interrupt controller", min(40, len));
+	else
+		hal_memcpy(features, "PLIC interrupt controller not found", min(36, len));
+
+	features[len - 1] = 0;
+
+	return features;
 }
 
 
@@ -185,8 +181,6 @@ extern void interrupts_handleintexc(void *);
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int k;
-
-jiffies = 0;
 
 	for (k = 0; k < SIZE_INTERRUPTS; k++) {
 		interrupts.handlers[k] = NULL;
@@ -201,7 +195,8 @@ jiffies = 0;
 	csr_write(stvec, interrupts_handleintexc);
 
 	/* Initialize PLIC if present */
-	_plic_init();
+	if (dtb_getPLIC())
+		_plic_init();
 
 	return;
 }

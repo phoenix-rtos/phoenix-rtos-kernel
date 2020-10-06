@@ -5,7 +5,7 @@
  *
  * Exception and interrupt handling
  *
- * Copyright 2016, 2012 Phoenix Systems
+ * Copyright 2016, 2012, 2020 Phoenix Systems
  * Copyright 2001, 2005, 2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk
  *
@@ -40,6 +40,9 @@ extern int hal_interruptsSetHandler(intr_handler_t *h);
 
 
 extern int hal_interruptsDeleteHandler(intr_handler_t *h);
+
+
+extern char *hal_interruptsFeatures(char *features, unsigned int len);
 
 
 /* Function initializes interrupt handling */

@@ -194,6 +194,15 @@ __attribute__ ((section (".init"))) int _interrupts_setIDTEntry(unsigned int n, 
 }
 
 
+char *hal_interruptsFeatures(char *features, unsigned int len)
+{
+	hal_memcpy(features, "Using i8259 interrupt controller", min(33, len));
+	features[len - 1] = 0;
+
+	return features;
+}
+
+
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int k;

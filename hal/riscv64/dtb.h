@@ -36,6 +36,9 @@ extern int dtb_getCPU(unsigned int n, char **compatible, u32 *clock, char **isa,
 extern void dtb_getMemory(u64 **reg, size_t *nreg);
 
 
+extern int dtb_getPLIC(void);
+
+
 extern void dtb_getReservedMemory(u64 **reg);
 
 

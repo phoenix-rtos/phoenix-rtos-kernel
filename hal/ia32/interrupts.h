@@ -42,6 +42,9 @@ extern int hal_interruptsSetHandler(intr_handler_t *h);
 extern int hal_interruptsDeleteHandler(intr_handler_t *h);
 
 
+extern char *hal_interruptsFeatures(char *features, unsigned int len);
+
+
 /* Function initializes interrupt handling */
 extern void _hal_interruptsInit(void);
 

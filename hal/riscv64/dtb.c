@@ -64,6 +64,13 @@ struct {
 		u64 *reg;
 	} memory;
 
+	struct {
+		struct {
+			int exist;
+			u32 *reg;
+		} intctl;
+	} soc;
+
 } dtb_common;
 
 
@@ -105,6 +112,13 @@ void dtb_parseInterruptController(void *dtb, u32 si, u32 l)
 }
 
 
+void dtb_parseSOCInterruptController(void *dtb, u32 si, u32 l)
+{
+	dtb_common.soc.intctl.exist = 1;
+	return;
+}
+
+
 int dtb_parseMemory(void *dtb, u32 si, u32 l)
 {
 	if (!hal_strcmp(dtb_getString(si), "reg")) {
@@ -120,7 +134,7 @@ void dtb_parse(void *arg, void *dtb)
 	u32 token, si;
 	size_t l;
 	unsigned int d = 0;
-	enum { stateIdle = 0, stateSystem, stateCPU, stateInterruptController, stateMemory } state;
+	enum { stateIdle = 0, stateSystem, stateCPU, stateCPUInterruptController, stateMemory, stateSOC, stateSOCInterruptController } state;
 	extern char _start;
 
 	/* Copy DTB into BSS */
@@ -132,6 +146,8 @@ void dtb_parse(void *arg, void *dtb)
 
 	dtb = (void *)dtb_common.fdth + ntoh32(dtb_common.fdth->off_dt_struct);
 
+
+	dtb_common.soc.intctl.exist = 0;
 	state = stateIdle;
 
 	for (;;) {
@@ -144,10 +160,18 @@ void dtb_parse(void *arg, void *dtb)
 				state = stateSystem;
 			else if ((d == 2) && !hal_strncmp(dtb, "cpu", 3))
 				state = stateCPU;
-			else if ((d == 3) && !hal_strncmp(dtb, "interrupt-controller", 20))
-				state = stateInterruptController;
+
+			else if ((state == stateCPU) && !hal_strncmp(dtb, "interrupt-controller", 20))
+				state = stateCPUInterruptController;
+
 			else if ((d == 1) && !hal_strncmp(dtb, "memory", 6))
 				state = stateMemory;
+
+			else if ((d == 1) && !hal_strncmp(dtb, "soc", 3))
+				state = stateSOC;
+
+			else if ((state == stateSOC) && !hal_strncmp(dtb, "interrupt-controller", 20))
+				state = stateSOCInterruptController;
 
 			dtb += ((hal_strlen(dtb) + 3) & ~3);
 			d++;
@@ -169,12 +193,16 @@ void dtb_parse(void *arg, void *dtb)
 			case stateCPU:
 				dtb_parseCPU(dtb, si, l);
 				break;
-			case stateInterruptController:
+			case stateCPUInterruptController:
 				dtb_parseInterruptController(dtb, si, l);
 				break;
 			case stateMemory:
 				dtb_parseMemory(dtb, si, l);
 				break;
+			case stateSOC:
+				break;
+			case stateSOCInterruptController:
+				dtb_parseSOCInterruptController(dtb, si, l);
 			case stateIdle:
 				break;
 			}
@@ -185,8 +213,10 @@ void dtb_parse(void *arg, void *dtb)
 		/* FDT_NODE_END */
 		else if (token == 2) {
 			d--;
-			if (state == stateInterruptController)
+			if (state == stateCPUInterruptController)
 				state = stateCPU;
+			if (state == stateSOCInterruptController)
+				state = stateSOC;
 			else if (state == stateCPU) {
 				dtb_common.ncpus++;
 				state = stateSystem;
@@ -240,6 +270,12 @@ void dtb_getMemory(u64 **reg, size_t *nreg)
 	return;
 }
 
+
+int dtb_getPLIC(void)
+{
+//	*reg = dtb_relocate(dtb_common.memory.reg);
+	return dtb_common.soc.intctl.exist;
+}
 
 void dtb_getReservedMemory(u64 **reg)
 {
