@@ -5,8 +5,8 @@
  *
  * Interrupt handling
  *
- * Copyright 2017 Phoenix Systems
- * Author: Pawel Pisarczyk, Aleksander Kaminski
+ * Copyright 2017, 2020 Phoenix Systems
+ * Author: Pawel Pisarczyk, Aleksander Kaminski, Hubert Buczynski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -144,6 +144,15 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	hal_spinlockClear(&interrupts.spinlock, &sc);
 
 	return EOK;
+}
+
+
+char *hal_interruptsFeatures(char *features, unsigned int len)
+{
+	hal_memcpy(features, "Using NVIC interrupt controller", min(32, len));
+	features[len - 1] = 0;
+
+	return features;
 }
 
 
