@@ -5,8 +5,8 @@
  *
  * Interrupt handling
  *
- * Copyright 2016, 2017 Phoenix Systems
- * Author: Pawel Pisarczyk, Artur Wodejko
+ * Copyright 2016, 2017, 2020 Phoenix Systems
+ * Author: Pawel Pisarczyk, Artur Wodejko, Hubert Buczynski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -56,6 +56,9 @@ extern int hal_interruptsSetHandler(intr_handler_t *h);
 
 
 extern int hal_interruptsDeleteHandler(intr_handler_t *h);
+
+
+extern char *hal_interruptsFeatures(char *features, unsigned int len);
 
 
 /* Function initializes interrupt handling */
