@@ -149,7 +149,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
-	hal_memcpy(features, "Using NVIC interrupt controller", min(32, len));
+	hal_strncpy(features, "Using NVIC interrupt controller", len);
 	features[len - 1] = 0;
 
 	return features;
