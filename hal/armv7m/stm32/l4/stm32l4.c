@@ -873,9 +873,9 @@ void _stm32_init(void)
 
 	/* Set RTC prescaler (it has to be done this way) */
 	t = *(stm32_common.rtc + rtc_prer) & ~(0x7f << 16);
-	*(stm32_common.rtc + rtc_prer) = t | (0x7f << 16);
+	*(stm32_common.rtc + rtc_prer) = t | (0xf << 16);
 	t = *(stm32_common.rtc + rtc_prer) & ~0x7fff;
-	*(stm32_common.rtc + rtc_prer) = t | 0xff;
+	*(stm32_common.rtc + rtc_prer) = t | 0x7ff;
 
 	/* Reset RTC interrupt bits WUTIE & WUTE */
 	*(stm32_common.rtc + rtc_cr) &= ~((1 << 14) | (1 << 10));
