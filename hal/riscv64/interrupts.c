@@ -165,9 +165,9 @@ __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
 	if (dtb_getPLIC())
-		hal_memcpy(features, "Using PLIC interrupt controller", min(40, len));
+		hal_strncpy(features, "Using PLIC interrupt controller", len);
 	else
-		hal_memcpy(features, "PLIC interrupt controller not found", min(36, len));
+		hal_strncpy(features, "PLIC interrupt controller not found", len);
 
 	features[len - 1] = 0;
 
