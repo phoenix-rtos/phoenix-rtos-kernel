@@ -355,8 +355,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	dtb_getReservedMemory((u64 **)&r);
 	dtb_getDTBArea(&pmap_common.dtb, &pmap_common.dtbsz);
 
-	e += pmap_common.dtbsz;
-
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");
 
 	/* Calculate physical address space range */
@@ -469,9 +467,10 @@ void _pmap_preinit(void)
 		pmap_common.pdir0[((VADDR_KERNEL >> 12) % 512) + i] = ((( ((u64)_start + i * SIZE_PAGE) >> 12) << 10) | 0xcf);
 
 	/* Map PLIC (MOD) */
-//	pmap_common.pdir2[511] = ((u64)pmap_common.iopdir >> 2) | 1;
 	pmap_common.pdir2[511] = 0xcf;
-//	pmap_common.iopdir[0] = (((u64)0x0c000000 >> 2) | 0xcf);
+
+	/* Map physical memory to reach DTB before vm subsystem initialization (MOD) */
+	pmap_common.pdir2[510] = ((0x80000000 >> 2) | 0xcf);
 
 	return;
 }

@@ -5,7 +5,7 @@
  *
  * DTB parser
  *
- * Copyright 2018 Phoenix Systems
+ * Copyright 2018, 2020 Phoenix Systems
  * Author: Pawel Pisarczyk
  *
  * This file is part of Phoenix-RTOS.
@@ -139,13 +139,11 @@ void dtb_parse(void *arg, void *dtb)
 
 	/* Copy DTB into BSS */
 	dtb_common.fdth = (struct _fdt_header_t *)dtb;
-	hal_memcpy(_end, dtb, ntoh32(dtb_common.fdth->totalsize));
-	dtb_common.fdth = (struct _fdt_header_t *)_end;
 
-	/* lib_printf("fdt_header.magic: %x\n", ntoh32(dtb_common.fdth->magic)); */
+	if (dtb_common.fdth->magic != ntoh32(0xd00dfeed))
+		return;
 
 	dtb = (void *)dtb_common.fdth + ntoh32(dtb_common.fdth->off_dt_struct);
-
 
 	dtb_common.soc.intctl.exist = 0;
 	state = stateIdle;
@@ -236,7 +234,7 @@ void dtb_parse(void *arg, void *dtb)
 
 static void *dtb_relocate(void *addr)
 {
-	return (addr + VADDR_KERNEL - ((u64)dtb_common.start /*& 0xffffffffc0000000*/));
+	return (void *)((u64)((1L << 39) - (u64)2 * 1024 * 1024 * 1024 + addr - 0x80000000L) | (u64)0xffffff8000000000);
 }
 
 
@@ -276,6 +274,7 @@ int dtb_getPLIC(void)
 //	*reg = dtb_relocate(dtb_common.memory.reg);
 	return dtb_common.soc.intctl.exist;
 }
+
 
 void dtb_getReservedMemory(u64 **reg)
 {

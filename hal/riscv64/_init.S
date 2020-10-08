@@ -5,8 +5,8 @@
  *
  * Low-level initialization for RISCV64
  *
- * Copyright 2018 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2020 Phoenix Systems
+ * Author: Pawel Pisarczyk, Łukasz Kosiński
  *
  * This file is part of Phoenix-RTOS.
  *
