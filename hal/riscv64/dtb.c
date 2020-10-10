@@ -129,13 +129,34 @@ int dtb_parseMemory(void *dtb, u32 si, u32 l)
 }
 
 
+static void dtb_print(char *s) {
+	while (*s != 0) {
+		__asm__ (
+			"li t0, 0x10000000;" \
+			"ld t1, (%0);" \
+			"sd t1, (t0);" \
+			:: "r" (s) : "t0", "t1", "memory"
+		);
+		s++;
+	}
+}
+
+
 void dtb_parse(void *arg, void *dtb)
 {
+	extern char _start;
+	unsigned int d = 0;
 	u32 token, si;
 	size_t l;
-	unsigned int d = 0;
-	enum { stateIdle = 0, stateSystem, stateCPU, stateCPUInterruptController, stateMemory, stateSOC, stateSOCInterruptController } state;
-	extern char _start;
+	enum {
+		stateIdle,
+		stateSystem,
+		stateCPU,
+		stateCPUInterruptController,
+		stateMemory,
+		stateSOC,
+		stateSOCInterruptController
+	} state = stateIdle;
 
 	/* Copy DTB into BSS */
 	dtb_common.fdth = (struct _fdt_header_t *)dtb;
@@ -144,31 +165,35 @@ void dtb_parse(void *arg, void *dtb)
 		return;
 
 	dtb = (void *)dtb_common.fdth + ntoh32(dtb_common.fdth->off_dt_struct);
-
 	dtb_common.soc.intctl.exist = 0;
-	state = stateIdle;
 
 	for (;;) {
 		token = ntoh32(*(u32 *)dtb);
 		dtb += 4;
 
-		/* FDT_BEGIN_NODE */
+		/* FDT_NODE_BEGIN */
 		if (token == 1) {
+			// char buff[2] = " ";
+			// dtb_print(dtb);
+			// dtb_print(" ");
+			// buff[0] = '0' + d;
+			// dtb_print(buff);
+			// dtb_print(" ");
+			// buff[0] = '0' + state;
+			// dtb_print(buff);
+			// dtb_print("\n");
+
 			if (!d && (*(char *)dtb == 0))
 				state = stateSystem;
-			else if ((d == 2) && !hal_strncmp(dtb, "cpu", 3))
+			else if ((d == 1) && !hal_strncmp(dtb, "memory@", 7))
+				state = stateMemory;
+			else if ((d == 2) && !hal_strncmp(dtb, "cpu@", 4))
 				state = stateCPU;
-
 			else if ((state == stateCPU) && !hal_strncmp(dtb, "interrupt-controller", 20))
 				state = stateCPUInterruptController;
-
-			else if ((d == 1) && !hal_strncmp(dtb, "memory", 6))
-				state = stateMemory;
-
 			else if ((d == 1) && !hal_strncmp(dtb, "soc", 3))
 				state = stateSOC;
-
-			else if ((state == stateSOC) && !hal_strncmp(dtb, "interrupt-controller", 20))
+			else if ((state == stateSOC) && (!hal_strncmp(dtb, "interrupt-controller@", 21) || !hal_strncmp(dtb, "plic@", 5)))
 				state = stateSOCInterruptController;
 
 			dtb += ((hal_strlen(dtb) + 3) & ~3);
@@ -188,20 +213,24 @@ void dtb_parse(void *arg, void *dtb)
 			case stateSystem:
 				dtb_parseSystem(dtb, si, l);
 				break;
-			case stateCPU:
-				dtb_parseCPU(dtb, si, l);
-				break;
-			case stateCPUInterruptController:
-				dtb_parseInterruptController(dtb, si, l);
-				break;
+
 			case stateMemory:
 				dtb_parseMemory(dtb, si, l);
 				break;
-			case stateSOC:
+
+			case stateCPU:
+				dtb_parseCPU(dtb, si, l);
 				break;
+
+			case stateCPUInterruptController:
+				dtb_parseInterruptController(dtb, si, l);
+				break;
+
 			case stateSOCInterruptController:
 				dtb_parseSOCInterruptController(dtb, si, l);
-			case stateIdle:
+				break;
+
+			default:
 				break;
 			}
 
@@ -210,17 +239,25 @@ void dtb_parse(void *arg, void *dtb)
 
 		/* FDT_NODE_END */
 		else if (token == 2) {
-			d--;
-			if (state == stateCPUInterruptController)
-				state = stateCPU;
-			if (state == stateSOCInterruptController)
-				state = stateSOC;
-			else if (state == stateCPU) {
+			switch (state) {
+			case stateCPU:
 				dtb_common.ncpus++;
+			case stateMemory:
 				state = stateSystem;
+				break;
+
+			case stateCPUInterruptController:
+				state = stateCPU;
+				break;
+
+			case stateSOCInterruptController:
+				state = stateSOC;
+				break;
+
+			default:
+				break;
 			}
-			else
-				state = stateIdle;
+			d--;
 		}
 		else if (token == 9)
 			break;
