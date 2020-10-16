@@ -837,9 +837,6 @@ void _stm32_init(void)
 	for (i = 0; i < sizeof(stm32_common.gpio) / sizeof(stm32_common.gpio[0]); ++i)
 		_stm32_rccSetDevClock(gpio2pctl[i], 1);
 
-	/* Set the internal regulator output voltage to 1.5V */
-	_stm32_pwrSetCPUVolt(2);
-
 	/* Set DBP bit */
 	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
 	hal_cpuDataBarrier();

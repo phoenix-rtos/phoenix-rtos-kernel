@@ -26,16 +26,6 @@
 #define PENDSV_IRQ		14
 #define SYSTICK_IRQ		15
 
-#ifdef CPU_STM32
-#define EXTI0_IRQ		22
-#define EXTI1_IRQ		23
-#define EXTI2_IRQ		24
-#define EXTI3_IRQ		25
-#define EXTI4_IRQ		26
-#define EXTI9_5_IRQ		39
-#define EXTI15_10_IRQ	56
-#endif
-
 
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;
