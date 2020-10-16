@@ -1539,6 +1539,15 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 		info[i].vmem = 0;
 
+#ifdef NOMMU
+		if ((t->process != NULL) && (entry = t->process->entries) != NULL) {
+			do {
+				info[i].vmem += entry->size;
+				entry = entry->next;
+			} while (entry != t->process->entries);
+		}
+		else
+#endif
 		if (map != NULL) {
 			proc_lockSet(&map->lock);
 			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
