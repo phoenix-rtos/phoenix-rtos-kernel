@@ -615,10 +615,8 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		hal_cpuRestore(context, selected->context);
 	}
 
-#ifndef CPU_STM32
 	/* Update CPU usage */
 	threads_cpuTimeCalc(current, selected);
-#endif
 
 #if 0
 	/* Test stack usage */
