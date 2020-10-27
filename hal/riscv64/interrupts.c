@@ -88,7 +88,7 @@ if (dtb_getPLIC() && (n != 0)) {
 	if (cn == 0) {
 		return 0;
 	}
-//lib_printf("ddd %d\n", cn);
+	n = cn;
 }
 
 	hal_spinlockSet(&interrupts.spinlocks[n], &sc);
