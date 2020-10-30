@@ -664,7 +664,7 @@ static inline void hal_cpuid(u32 leaf, u32 index, u32 *ra, u32 *rb, u32 *rc, u32
 extern unsigned int hal_cpuGetCount(void);
 
 
-static inline unsigned int hal_cpuGetID(void)
+static inline unsigned int _hal_cpuGetID(void)
 {
 	u32 id;
 
@@ -673,12 +673,23 @@ static inline unsigned int hal_cpuGetID(void)
 		movl (0xfee00020), %0"
 	: "=r" (id));
 
-	return (id >> 24);
+	return id;
+}
+
+
+static inline unsigned int hal_cpuGetID(void)
+{
+	u32 id = _hal_cpuGetID();
+
+	return (id == 0xffffffff) ? 0 : (id >> 24);
 }
 
 
 static inline void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 {
+	if (_hal_cpuGetID() == 0xffffffff)
+		return;
+
 	__asm__ volatile
 	(" \
 		movl %0, %%eax; \

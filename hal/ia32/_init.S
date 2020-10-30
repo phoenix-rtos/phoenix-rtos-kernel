@@ -147,6 +147,12 @@ _init_setupPaging:
 	lgdt (%eax)
 	addl $8, %eax
 	lidt (%eax)
+
+	/* Test LAPIC presence */
+	movl (0xfee00020), %ebx
+	cmp $0xffffffff, %ebx
+	jz b3
+
 _start_initap:
 	/* Get SYSPAGE address before paging */
 	subl $8, %eax
