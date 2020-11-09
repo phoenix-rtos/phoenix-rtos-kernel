@@ -25,130 +25,14 @@
 .extern syscalls
 .extern syspage
 
-#define IOMUXC_GPR 0x400ac000
 #define FLEXSPI2_BASE 0x70000000
 
 #define ADDR_ITCM 0x00000000
 #define ADDR_DTCM 0x20000000
 #define ADDR_SCB  0xe000ed00
-#define SWAP(x)   (((x >> 24) & 0xff) | ((x << 8) & (0xff << 16)) | ((x >> 8) & (0xff << 8)) | ((x << 24) & (0xff << 24)))
 
 
 .section .init, "x"
-
-_fcfb:
-.word 0x42464346 /* Tag */
-.word 0x56010400 /* Version */
-.word 0
-.byte 0x1        /* readSampleClkSrc */
-.byte 0x3        /* dataHoldTime */
-.byte 0x3        /* dataSetupTime */
-.byte 0          /* columnAdressWidth */
-.byte 0          /* deviceModeCfgEnable */
-.byte 0
-.byte 0, 0       /* waitTimeCfgCommnads */
-.word 0          /* deviceModeSeq */
-.word 0          /* deviceModeArg */
-.byte 0          /* configCmdEnable */
-.byte 0, 0, 0
-.word 0, 0, 0, 0 /* configCmdSeqs */
-.word 0, 0, 0, 0 /* cfgCmdArgs */
-.word 0x00000000 /* controllerMiscOption */
-.byte 0x0          /* deviceType */
-.byte 0x4        /* sflashPadType */
-.byte 0x6        /* serialClkFreq */
-.byte 0x0        /* lutCustomSeqEnable */
-.word 0, 0
-.word 0x800000 /* sflashA1Size */
-.word 0          /* sflashA2Size */
-.word 0          /* sflashB1Size */
-.word 0          /* sflashB2Size */
-.word 0          /* csPadSettingOverride */
-.word 0          /* sclkPadSettingOverride */
-.word 0          /* dataPadSettingOverride */
-.word 0          /* dqsPadSettingOverride */
-.word 0          /* timeoutInMs */
-.word 0          /* commandInterval */
-.word 0x00000000 /* dataValidTime */
-.byte 0x0, 0     /* busyOffset */
-.byte 0x0, 0     /* busyBitPolarity */
-
-/* lookupTable */
-.word 0x0a1804eb, 0x26043206, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-
-/* lutCustomSeq */
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-.word 0x00000000, 0x00000000, 0x00000000, 0x00000000
-
-.word 0x00000100 /* pageSize */
-.word 0x00001000 /* sectorSize */
-.word 0x00000000 /* ipCmdSerialClkFreq */
-.word 0x00000000
-.word 0x00040000
-
-.org _fcfb + 512
-
-.type _syspage, %object
-_syspage:
-
-.org _fcfb + 0x1000, 0x0
-
-ivt_flash:
-	.word 0x412000d1                                /* hdr */
-	.word _start + FLEXSPI2_BASE             /* entry */
-	.word 0                                         /* reserved 1 */
-	.word 0                                         /* dcd */
-	.word flash_boot_data + FLEXSPI2_BASE    /* boot_data */
-	.word ivt_flash + FLEXSPI2_BASE          /* self */
-	.word 0                                         /* csf */
-	.word 0                                         /* reserved 2 */
-
-flash_boot_data:
-	.word FLEXSPI2_BASE                      /* load address */
-	.word __bss_start__ - _fcfb                     /* size */
-	.word 0                                         /* plugin */
-	.word 0xffffffff                                /* empty - extra data word */
-
-ivt_flash_end:
-
-.org _fcfb + 0x1050, 0x0
-
-ivt:
-	.word 0x412000d1                    /* hdr */
-	.word _start                        /* entry */
-	.word 0                             /* reserved 1 */
-	.word 0                             /* dcd */
-	.word boot_data                     /* boot_data */
-	.word ivt                           /* self */
-	.word 0                             /* csf */
-	.word 0                             /* reserved 2 */
-
-boot_data:
-	.word ADDR_ITCM                     /* load address */
-	.word __bss_start__ - _fcfb         /* size */
-	.word 0                             /* plugin */
-	.word 0xffffffff
-
-ivt_end:
-
-.org _fcfb + 0x1100, 0x0
 
 .globl _init_vectors
 .type _init_vectors, %object
@@ -198,14 +82,6 @@ _start:
 	mrs r0, control
 	orr r0, r0, #(1 << 2)
 	msr control, r0
-
-	/* Configure FLEX RAM */
-	ldr r8, =IOMUXC_GPR
-	ldr r9, =0x00200007
-	str r9, [r8, #0x40]
-
-	ldr r9, =0xaabfffff
-	str r9, [r8, #0x44]
 
 _start_1:
 	/* Init vector table and stack pointer */
