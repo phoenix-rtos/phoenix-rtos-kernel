@@ -26,6 +26,7 @@ TARGET ?= ia32-generic
 include ../phoenix-rtos-build/Makefile.common
 include ../phoenix-rtos-build/Makefile.$(TARGET_SUFF)
 
+CFLAGS += $(BOARD_CONFIG)
 CFLAGS += -I. -DHAL=\"hal/$(TARGET_SUFF)/hal.h\" -DVERSION=\"$(VERSION)\"
 
 EXTERNAL_HEADERS_DIR := ./include
