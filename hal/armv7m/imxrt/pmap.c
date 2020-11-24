@@ -60,8 +60,8 @@ addr_t pmap_getMaxVAdrr(void)
 
 	/* Find kernel map end adress */
 	for (i = 0; i < syspage->mapssz; ++i) {
-		if (syspage->maps[i].start >= (addr_t)syspage->kernel.bss)
-			return (addr_t)(syspage->kernel.bss + (syspage->maps[i].end - (addr_t)syspage->kernel.bss));
+		if ((addr_t)syspage->kernel.bss < syspage->maps[i].end && (addr_t)syspage->kernel.bss >= syspage->maps[i].start)
+			return syspage->maps[i].end;
 	}
 
 	return 0;
