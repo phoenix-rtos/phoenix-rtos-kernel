@@ -322,7 +322,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 
 	posix_write(2, buff, hal_strlen(buff));
 	posix_write(2, "\n", 1);
-	
+
 /*	if ((intr = userintr_active()) != NULL)
 		lib_printf("in interrupt (%d) handler of process \"%s\" (%x)\n", intr->handler.n, intr->process->path, intr->process->id);
 	else if (process == NULL)
@@ -480,15 +480,15 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	*entry = (void *)(unsigned long)ehdr->e_entry;
 
 	err = EOK;
-	
+
 	switch (ehdr->e_ident[4]) {
-		
+
 	/* 32-bit binary */
 	case 1:
 		err = process_load32(map, o, base, ehdr);
 		break;
 
-	/* 64-bit binary */ 
+	/* 64-bit binary */
 	case 2:
 		err = process_load64(map, o, base, ehdr);
 		break;
@@ -546,6 +546,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	char *snameTab;
 	ptr_t *got;
 	struct _reloc reloc[5];
+	size_t stacksz = SIZE_USTACK;
 
 	if (o != (void *)-1)
 		return -ENOEXEC;
@@ -559,6 +560,10 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	hal_memset(reloc, 0, sizeof(reloc));
 
 	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+
+		if (phdr->p_type == PT_GNU_STACK)
+			stacksz = round_page(phdr->p_memsz);
+
 		if (phdr->p_type != PT_LOAD)
 			continue;
 
@@ -657,11 +662,11 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	}
 
 	/* Allocate and map user stack */
-	if ((stack = vm_mmap(process->mapp, NULL, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
+	if ((stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
 		return -ENOMEM;
 
 	process->got = (void *)got;
-	*ustack = stack + SIZE_USTACK;
+	*ustack = stack + stacksz;
 
 	return EOK;
 }
