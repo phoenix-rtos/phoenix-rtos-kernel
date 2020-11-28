@@ -5,8 +5,8 @@
  *
  * IA32 basic peripherals control functions
  *
- * Copyright 2018 Phoenix Systems
- * Author: Aleksander Kaminski
+ * Copyright 2018, 2019, 2020 Phoenix Systems
+ * Author: Aleksander Kaminski, Kamil Amanowicz, Lukasz Kosinski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -37,20 +37,37 @@ typedef struct {
 
 
 typedef struct {
-	unsigned char b; /* bus */
-	unsigned char d; /* device */
-	unsigned char f; /* function */
+	unsigned char id;
+	unsigned char next;
+	unsigned char len;
+	unsigned char data[];
+} pci_cap_t;
+
+
+typedef struct {
+	/* Device ID */
+	unsigned char bus;
+	unsigned char dev;
+	unsigned char func;
+
+	/* Mandatory header members */
 	unsigned short device;
 	unsigned short vendor;
 	unsigned short status;
 	unsigned short command;
-	unsigned short cl; /* class and subclass */
+	unsigned short cl;
+	unsigned char type;
+
+	/* Optional header members */
 	unsigned char progif;
 	unsigned char revision;
 	unsigned char irq;
-	unsigned char type;
+
+	/* Device header */
+	unsigned short subvendor;
+	unsigned short subdevice;
 	pci_resource_t resources[6];
-} __attribute__((packed)) pci_device_t;
+} __attribute__((packed)) pci_dev_t;
 
 
 typedef struct {
@@ -60,14 +77,16 @@ typedef struct {
 	union {
 		struct {
 			pci_id_t id;
-			pci_device_t dev;
+			pci_dev_t dev;
+			void* caps;
 		} pci;
 
 		struct {
-			pci_device_t dev;
+			pci_dev_t dev;
 			int enable;
 		} busmaster;
 	};
 } platformctl_t;
+
 
 #endif
