@@ -20,7 +20,7 @@
 
 
 struct {
-	spinlock_t lock;
+	spinlock_t spinlock;
 } pci_common;
 
 
@@ -38,9 +38,9 @@ static u32 hal_pciGet(u8 bus, u8 dev, u8 func, u8 reg)
 	spinlock_ctx_t sc;
 	u32 val;
 
-	hal_spinlockSet(&pci_common.lock, &sc);
+	hal_spinlockSet(&pci_common.spinlock, &sc);
 	val = _hal_pciGet(bus, dev, func, reg);
-	hal_spinlockClear(&pci_common.lock, &sc);
+	hal_spinlockClear(&pci_common.spinlock, &sc);
 
 	return val;
 }
@@ -105,12 +105,13 @@ int hal_pciSetBusmaster(pci_dev_t *dev, u8 enable)
 	if (dev == NULL)
 		return -EINVAL;
 
-	hal_spinlockSet(&pci_common.lock, &sc);
+	hal_spinlockSet(&pci_common.spinlock, &sc);
 	dv = _hal_pciGet(dev->bus, dev->dev, dev->func, 1);
-	dv &= ~(!enable << 2);
-	dv |= !!enable << 2;
+	dv &= ~(1 << 2);
+	if (enable)
+		dv |= (1 << 2);
 	_hal_pciSet(dev->bus, dev->dev, dev->func, 1, dv);
-	hal_spinlockClear(&pci_common.lock, &sc);
+	hal_spinlockClear(&pci_common.spinlock, &sc);
 
 	dev->command = dv & 0xffff;
 
@@ -166,7 +167,7 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 				dev->subvendor = val & 0xffff;
 				dev->subdevice = (val >> 16) & 0xffff;
 
-				hal_spinlockSet(&pci_common.lock, &sc);
+				hal_spinlockSet(&pci_common.spinlock, &sc);
 
 				dv = _hal_pciGet(b, d, f, 1);
 				dev->status = dv >> 16;
@@ -195,7 +196,7 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 				if (caps != NULL)
 					res = _hal_pciGetCaps(dev, caps);
 
-				hal_spinlockClear(&pci_common.lock, &sc);
+				hal_spinlockClear(&pci_common.spinlock, &sc);
 
 				return res;
 			}
@@ -208,5 +209,5 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 
 void _hal_pciInit(void)
 {
-	hal_spinlockCreate(&pci_common.lock, "pci.lock");
+	hal_spinlockCreate(&pci_common.spinlock, "pci_common.spinlock");
 }
