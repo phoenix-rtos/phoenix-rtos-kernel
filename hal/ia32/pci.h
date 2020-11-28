@@ -25,4 +25,7 @@ extern int hal_pciSetBusmaster(pci_dev_t *dev, u8 enable);
 extern int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps);
 
 
+extern void _hal_pciInit(void);
+
+
 #endif

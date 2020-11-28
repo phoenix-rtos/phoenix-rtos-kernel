@@ -31,7 +31,6 @@ struct {
 	tss_t tss[256];
 	char stacks[256][512];
 	u32 dr5;
-	spinlock_t lock;
 	volatile unsigned int ncpus;
 } cpu;
 
@@ -425,6 +424,4 @@ void _hal_cpuInit(void)
 //	hal_cpuDebugGuard(1, 2);
 //	hal_cpuDebugGuard(1, 3);
 #endif
-
-	hal_spinlockCreate(&cpu.lock, "cpu.lock");
 }
