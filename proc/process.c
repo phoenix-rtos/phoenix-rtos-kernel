@@ -522,6 +522,9 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 {
 	size_t i;
 
+	if ((ptr_t)(*addr) == 0)
+		return 0;
+
 	for (i = 0; i < relocsz; ++i) {
 		if ((ptr_t)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
 			(*addr) = (void *)((ptr_t)(*addr) - (ptr_t)reloc[i].vbase + (ptr_t)reloc[i].pbase);
