@@ -62,6 +62,7 @@ struct {
 	volatile u32 *iomux_snvs;
 	volatile u32 *iomux_lpsr;
 	volatile u32 *iomuxc;
+	volatile u32 *ccm;
 
 	spinlock_t pltctlSp;
 
@@ -436,8 +437,10 @@ int _imxrt_systickInit(u32 interval)
 
 void _imxrt_systickSet(u8 state)
 {
-	*(imxrt_common.stk + stk_ctrl) &= ~(!state);
-	*(imxrt_common.stk + stk_ctrl) |= !!state;
+	state = !state;
+
+	*(imxrt_common.stk + stk_ctrl) &= ~state;
+	*(imxrt_common.stk + stk_ctrl) |= !state;
 }
 
 
@@ -458,42 +461,142 @@ u32 _imxrt_systickGet(void)
 /* Cache */
 
 
-static void _imxrt_enableDCache(void)
+void _imxrt_enableDCache(void)
 {
-#if 0 /* TODO */
 	u32 ccsidr, sets, ways;
 
 	*(imxrt_common.scb + scb_csselr) = 0;
-	hal_cpuDataSyncBarrier();
+	imxrt_dataSyncBarrier();
 
 	ccsidr = *(imxrt_common.scb + scb_ccsidr);
 
 	/* Invalidate D$ */
-	for (sets = (ccsidr >> 13) & 0x7fff; sets-- != 0; )
-		for (ways = (ccsidr >> 3) & 0x3ff; ways-- != 0; )
+	sets = (ccsidr >> 13) & 0x7fff;
+	do {
+		ways = (ccsidr >> 3) & 0x3ff;
+		do {
 			*(imxrt_common.scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
-	hal_cpuDataSyncBarrier();
+		} while (ways-- != 0);
+	} while(sets-- != 0);
+	imxrt_dataSyncBarrier();
 
 	*(imxrt_common.scb + scb_ccr) |= 1 << 16;
 
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-#endif
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
 }
 
 
-static void _imxrt_enableICache(void)
+void _imxrt_disableDCache(void)
 {
-#if 0 /* TODO */
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
+	register u32 ccsidr, sets, ways;
+
+	*(imxrt_common.scb + scb_csselr) = 0;
+	imxrt_dataSyncBarrier();
+
+	*(imxrt_common.scb + scb_ccr) &= ~(1 << 16);
+	imxrt_dataSyncBarrier();
+
+	ccsidr = *(imxrt_common.scb + scb_ccsidr);
+
+	sets = (ccsidr >> 13) & 0x7fff;
+	do {
+		ways = (ccsidr >> 3) & 0x3ff;
+		do {
+			*(imxrt_common.scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
+		} while (ways-- != 0);
+	} while(sets-- != 0);
+
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
+}
+
+
+void _imxrt_cleanDCache(void)
+{
+	register u32 ccsidr, sets, ways;
+
+	*(imxrt_common.scb + scb_csselr) = 0;
+
+	imxrt_dataSyncBarrier();
+	ccsidr = *(imxrt_common.scb + scb_ccsidr);
+
+	/* Clean D$ */
+	sets = (ccsidr >> 13) & 0x7fff;
+	do {
+		ways = (ccsidr >> 3) & 0x3ff;
+		do {
+			*(imxrt_common.scb + scb_dccsw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
+		} while (ways-- != 0);
+	} while(sets-- != 0);
+
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
+}
+
+
+
+void _imxrt_enableICache(void)
+{
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
 	*(imxrt_common.scb + scb_iciallu) = 0; /* Invalidate I$ */
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
 	*(imxrt_common.scb + scb_ccr) |= 1 << 17;
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-#endif
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
+}
+
+
+void _imxrt_disableICache(void)
+{
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
+	*(imxrt_common.scb + scb_ccr) &= ~(1 << 17);
+	*(imxrt_common.scb + scb_iciallu) = 0;
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
+}
+
+
+/* CCM */
+
+int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state)
+{
+	unsigned int t;
+	volatile u32 *reg = imxrt_common.ccm + (clock * 0x20);
+
+	if (clock < pctl_clk_cm7 || clock > pctl_clk_ccm_clko2)
+		return -1;
+
+	t = *reg & ~0x01ff07ffu;
+	*reg = t | (!state << 24) | ((mfn & 0xf) << 20) | ((mfd & 0xf) << 16) | ((mux & 0x7) << 8) | (div & 0xff);
+
+	imxrt_dataSyncBarrier();
+	imxrt_dataInstrBarrier();
+
+	return 0;
+}
+
+
+int _imxrt_getDevClock(int clock, int *div, int *mux, int *mfd, int *mfn, int *state)
+{
+	unsigned int t;
+	volatile u32 *reg = imxrt_common.ccm + (clock * 0x20);
+
+	if (clock < pctl_clk_cm7 || clock > pctl_clk_ccm_clko2)
+		return -1;
+
+	t = *reg;
+
+	*div = t & 0xff;
+	*mux = (t >> 8) & 0x7;
+	*mfd = (t >> 16) & 0xf;
+	*mfn = (t >> 20) & 0xf;
+	*state = !(t & (1 << 24));
+
+	return 0;
 }
 
 
@@ -509,18 +612,26 @@ int hal_platformctl(void *ptr)
 	platformctl_t *data = ptr;
 	int ret = -EINVAL;
 	spinlock_ctx_t sc;
+	int div, mux, mfd, mfn, state;
 
 	hal_spinlockSet(&imxrt_common.pltctlSp, &sc);
 
 	switch (data->type) {
-/*
+
 	case pctl_devclock:
-		if (data->action == pctl_set)
-			ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.state);
-		else if (data->action == pctl_get)
-			ret = _imxrt_getDevClock(data->devclock.dev, &data->devclock.state);
+		if (data->action == pctl_set) {
+			ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.div, data->devclock.mux,
+				data->devclock.mfd, data->devclock.mfn, data->devclock.state);
+		}
+		else if (data->action == pctl_get) {
+			ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state);
+			data->devclock.div = div;
+			data->devclock.mux = mux;
+			data->devclock.mfd = mfd;
+			data->devclock.mfn = mfn;
+			data->devclock.state = state;
+		}
 		break;
-*/
 /*
 	case pctl_iogpr:
 		if (data->action == pctl_set)

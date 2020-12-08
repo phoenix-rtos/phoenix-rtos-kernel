@@ -19,8 +19,21 @@
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 
 
-/* Peripheral clock modes */
-enum { clk_state_off = 0, clk_state_run, clk_state_run_wait = 3 };
+/* CCM - Clock gating */
+
+enum { pctl_clk_cm7 = 0, pctl_clk_cm4, pctl_clk_bus, pctl_clk_bus_lpsr, pctl_clk_semc, pctl_clk_cssys,
+	pctl_clk_cstrace, pctl_clk_m4_systick, pctl_clk_m7_systick, pctl_clk_adc1, pctl_clk_adc2, pctl_clk_acmp,
+	pctl_clk_flexio1, pctl_clk_flexio2, pctl_clk_gpt1, pctl_clk_gpt2, pctl_clk_gpt3, pctl_clk_gpt4, pctl_clk_gpt5,
+	pctl_clk_gpt6, pctl_clk_flexspi1, pctl_clk_flexspi2, pctl_clk_can1, pctl_clk_can2, pctl_clk_can3, pctl_clk_lpuart1,
+	pctl_clk_lpuart2, pctl_clk_lpuart3, pctl_clk_lpuart4, pctl_clk_lpuart5, pctl_clk_lpuart6, pctl_clk_lpuart7,
+	pctl_clk_lpuart8, pctl_clk_lpuart9, pctl_clk_lpuart10, pctl_clk_lpuart11, pctl_clk_lpuart12, pctl_clk_lpi2c1,
+	pctl_clk_lpi2c2, pctl_clk_lpi2c3, pctl_clk_lpi2c4, pctl_clk_lpi2c5, pctl_clk_lpi2c6, pctl_clk_lpspi1, pctl_clk_lpspi2,
+	pctl_clk_lpspi3, pctl_clk_lpspi4, pctl_clk_lpspi5, pctl_clk_lpspi6, pctl_clk_emv1, pctl_clk_emv2, pctl_clk_enet1,
+	pctl_clk_enet2, pctl_clk_enet_qos, pctl_clk_enet_25m, pctl_clk_enet_time1, pctl_clk_enet_time2, pctl_clk_enet_time3,
+	pctl_clk_usdhc1, pctl_clk_usdhc2, pctl_clk_asrc, pctl_clk_mqs, pctl_clk_pdm, pctl_clk_spdif, pctl_clk_sai1,
+	pctl_clk_sai2, pctl_clk_sai3, pctl_clk_sai4, pctl_clk_gpu2d, pctl_clk_elcdif, pctl_clk_lcdifv2, pctl_clk_mipi_ref,
+	pctl_clk_mipi_esc, pctl_clk_csi2, pctl_clk_csi2_esc, pctl_clk_csi2_ui, pctl_clk_csi, pctl_clk_ccm_clko1,
+	pctl_clk_ccm_clko2 };
 
 
 /* IOMUX - MUX */
@@ -275,7 +288,11 @@ typedef struct {
 	union {
 		struct {
 			int dev;
-			unsigned int state;
+			int div;
+			int mux;
+			int mfd;
+			int mfn;
+			int state;
 		} devclock;
 
 		struct {
