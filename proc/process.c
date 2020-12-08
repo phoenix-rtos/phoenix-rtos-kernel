@@ -871,6 +871,28 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 }
 
 
+int proc_syspageSpawnName(const char *map, const char *name, char **argv)
+{
+	int i, j;
+	syspage_program_t *prog;
+
+	for (i = 0; i < syspage->mapssz; ++i) {
+		/* TODO: check map's attributes; take into account only maps with attributes R+W;
+		         attributes have to be generalized for other architecture */
+		if (!hal_strcmp(map, syspage->maps[i].name)) {
+			for (j = 0, prog = syspage->progs; j < syspage->progssz; ++j, ++prog) {
+				if (!hal_strcmp(name, prog->cmdline)) {
+					prog->dmap = i;
+					return proc_syspageSpawn(prog, vm_getSharedMap(prog), name, argv);
+				}
+			}
+		}
+	}
+
+	return -EINVAL;
+}
+
+
 int proc_syspageSpawn(syspage_program_t *program, vm_map_t *map, const char *path, char **argv)
 {
 	return proc_spawn((void *)-1, map, program->start, program->end - program->start, path, argv, NULL);

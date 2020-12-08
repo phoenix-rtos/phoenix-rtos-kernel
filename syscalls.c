@@ -146,6 +146,20 @@ int syscalls_exec(void *ustack)
 }
 
 
+int syscalls_spawnSyspage(void *ustack)
+{
+	char *map;
+	char *name;
+	char **argv;
+
+	GETFROMSTACK(ustack, char *, map, 0);
+	GETFROMSTACK(ustack, char *, name, 1);
+	GETFROMSTACK(ustack, char **, argv, 2);
+
+	return proc_syspageSpawnName(map, name, argv);
+}
+
+
 int syscalls_sys_exit(void *ustack)
 {
 	int code;

@@ -20,6 +20,7 @@
 	ID(sys_fork) \
 	ID(vforksvc) \
 	ID(exec) \
+	ID(spawnSyspage) \
 	ID(sys_exit) \
 	ID(sys_waitpid) \
 	ID(threadJoin) \
