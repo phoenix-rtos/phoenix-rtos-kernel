@@ -32,20 +32,6 @@ static u32 _hal_pciGet(u8 bus, u8 dev, u8 func, u8 reg)
 }
 
 
-/* Reads word from PCI configuration space with spinlock guard */
-static u32 hal_pciGet(u8 bus, u8 dev, u8 func, u8 reg)
-{
-	spinlock_ctx_t sc;
-	u32 val;
-
-	hal_spinlockSet(&pci_common.spinlock, &sc);
-	val = _hal_pciGet(bus, dev, func, reg);
-	hal_spinlockClear(&pci_common.spinlock, &sc);
-
-	return val;
-}
-
-
 /* Writes word to PCI configuration space */
 static void _hal_pciSet(u8 bus, u8 dev, u8 func, u8 reg, u32 val)
 {
@@ -62,7 +48,7 @@ static int _hal_pciGetCaps(pci_dev_t *dev, void *caps)
 	u8 offs, len;
 
 	/* Check if device uses capability list */
-	if (!(dev->status & 0x10))
+	if (!(dev->status & (1 << 4)))
 		return EOK;
 
 	/* Get capability list head offset */
@@ -88,7 +74,7 @@ static int _hal_pciGetCaps(pci_dev_t *dev, void *caps)
 		}
 
 		offs = cap->next;
-		cap->next = (unsigned char)((u8 *)cap - (u8 *)caps) + cap->len;
+		cap->next = (unsigned char)((u8 *)data - (u8 *)caps) + cap->len;
 		cap = (pci_cap_t *)((u8 *)data + cap->len);
 		data = (u32 *)cap;
 	} while (offs);
@@ -122,21 +108,19 @@ int hal_pciSetBusmaster(pci_dev_t *dev, u8 enable)
 int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 {
 	spinlock_ctx_t sc;
-	unsigned char b, d, f, i;
+	unsigned int b, d, f, i;
 	u32 dv, cl, mask, val;
 	int res = EOK;
 
 	if ((id == NULL) || (dev == NULL))
 		return -EINVAL;
 
+	hal_spinlockSet(&pci_common.spinlock, &sc);
+
 	for (b = dev->bus; b < 256; b++) {
 		for (d = dev->dev; d < 32; d++) {
 			for (f = dev->func; f < 8; f++) {
-				dev->bus = 0;
-				dev->dev = 0;
-				dev->func = 0;
-
-				if ((dv = hal_pciGet(b, d, f, 0)) == 0xffffffff)
+				if ((dv = _hal_pciGet(b, d, f, 0)) == 0xffffffff)
 					continue;
 
 				if ((id->vendor != PCI_ANY) && (id->vendor != (dv & 0xffff)))
@@ -145,12 +129,12 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 				if ((id->device != PCI_ANY) && (id->device != (dv >> 16)))
 					continue;
 
-				cl = hal_pciGet(b, d, f, 2) >> 16;
+				cl = _hal_pciGet(b, d, f, 2) >> 16;
 
 				if ((id->cl != PCI_ANY) && (id->cl != cl))
 					continue;
 
-				val = hal_pciGet(b, d, f, 0xb);
+				val = _hal_pciGet(b, d, f, 0xb);
 
 				if ((id->subdevice != PCI_ANY) && (id->subdevice != ((val >> 16) & 0xffff)))
 					continue;
@@ -166,8 +150,6 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 				dev->cl = cl;
 				dev->subvendor = val & 0xffff;
 				dev->subdevice = (val >> 16) & 0xffff;
-
-				hal_spinlockSet(&pci_common.spinlock, &sc);
 
 				dv = _hal_pciGet(b, d, f, 1);
 				dev->status = dv >> 16;
@@ -200,8 +182,12 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 
 				return res;
 			}
+			dev->func = 0;
 		}
+		dev->dev = 0;
 	}
+
+	hal_spinlockClear(&pci_common.spinlock, &sc);
 
 	return -ENODEV;
 }
