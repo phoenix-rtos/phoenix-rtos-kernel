@@ -624,12 +624,13 @@ int hal_platformctl(void *ptr)
 				data->devclock.mfd, data->devclock.mfn, data->devclock.state);
 		}
 		else if (data->action == pctl_get) {
-			ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state);
-			data->devclock.div = div;
-			data->devclock.mux = mux;
-			data->devclock.mfd = mfd;
-			data->devclock.mfn = mfn;
-			data->devclock.state = state;
+			if (!(ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state))) {
+				data->devclock.div = div;
+				data->devclock.mux = mux;
+				data->devclock.mfd = mfd;
+				data->devclock.mfn = mfn;
+				data->devclock.state = state;
+			}
 		}
 		break;
 /*
