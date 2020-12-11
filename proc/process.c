@@ -876,7 +876,7 @@ int proc_syspageSpawnName(const char *map, const char *name, char **argv)
 	int j;
 	syspage_program_t *prog;
 
-#ifdef NOMMU
+#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X) || defined(CPU_IMXRT117X)
 	int i;
 
 	for (i = 0; i < syspage->mapssz; ++i) {
