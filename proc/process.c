@@ -873,8 +873,11 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 
 int proc_syspageSpawnName(const char *map, const char *name, char **argv)
 {
-	int i, j;
+	int j;
 	syspage_program_t *prog;
+
+#ifdef NOMMU
+	int i;
 
 	for (i = 0; i < syspage->mapssz; ++i) {
 		/* TODO: check map's attributes; take into account only maps with attributes R+W;
@@ -888,6 +891,12 @@ int proc_syspageSpawnName(const char *map, const char *name, char **argv)
 			}
 		}
 	}
+#else
+	for (j = 0, prog = syspage->progs; j < syspage->progssz; ++j, ++prog) {
+		if (!hal_strcmp(name, prog->cmdline))
+			return proc_syspageSpawn(prog, NULL, name, argv);
+	}
+#endif
 
 	return -EINVAL;
 }
