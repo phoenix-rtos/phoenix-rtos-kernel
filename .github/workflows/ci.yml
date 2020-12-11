@@ -1,0 +1,58 @@
+# vim:sw=2:ts=2
+name: ci
+
+# on events
+on:
+  push:
+    branches:
+      - master
+      - posix_rev
+  pull_request:
+    branches:
+      - master
+      - posix_rev
+
+# jobs
+jobs:
+  build:
+    name: build image
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: ['armv7a7-imx6ull', 'armv7m7-imxrt106x', 'armv7m4-stm32l4x6', 'ia32-generic', 'riscv64-spike', 'riscv64-virt']
+    steps:
+      # step 1: checkout phoenix-rtos-project repository code inside the workspace directory of the runner
+      - name: Checkout phoenix-rtos-project
+        uses: actions/checkout@v2
+        with:
+          repository: phoenix-rtos/phoenix-rtos-project
+          submodules: true
+
+      # step 2: update the submodule
+      - name: Update submodule ${{ github.event.repository.name }}
+        working-directory: ${{ github.event.repository.name }}
+        run: |
+          git fetch --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
+          git fetch --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git checkout ${{ github.sha }} || git checkout ${{ github.event.pull_request.head.sha }}
+
+      # attach GCC problem matcher... might not work because of submodules... just trying
+      - uses: ammaraskar/gcc-problem-matcher@master
+
+      # step 3: use our custom action to build the project
+      - name: Build
+        uses: ./.github/actions/phoenix-build
+        with:
+          target: ${{ matrix.target }}
+          param1: 'clean'
+          param2: 'core'
+          param3: 'fs'
+          param4: 'project'
+          param5: 'image'
+
+      # step 4: upload contents of "_boot" as build artifacts
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: phoenix-rtos-${{ matrix.target }}
+          path: _boot
