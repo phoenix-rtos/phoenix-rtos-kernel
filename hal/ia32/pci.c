@@ -136,7 +136,7 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 
 				val = _hal_pciGet(b, d, f, 0xb);
 
-				if ((id->subdevice != PCI_ANY) && (id->subdevice != ((val >> 16) & 0xffff)))
+				if ((id->subdevice != PCI_ANY) && (id->subdevice != (val >> 16)))
 					continue;
 
 				if ((id->subvendor != PCI_ANY) && (id->subvendor != (val & 0xffff)))
@@ -149,7 +149,7 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 				dev->device = dv >> 16;
 				dev->cl = cl;
 				dev->subvendor = val & 0xffff;
-				dev->subdevice = (val >> 16) & 0xffff;
+				dev->subdevice = val >> 16;
 
 				dv = _hal_pciGet(b, d, f, 1);
 				dev->status = dv >> 16;
