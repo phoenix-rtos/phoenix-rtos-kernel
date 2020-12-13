@@ -52,7 +52,7 @@ static inline u8 _console_uartRead(unsigned int reg)
 
 static void _console_print(const char *s)
 {
-	for (; *s != NULL; s++) {
+	for (; *s; s++) {
 
 		/* Wait for transmitter readiness */
 		while (!(_console_uartRead(lsr) & 0x20));
