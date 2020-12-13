@@ -56,6 +56,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	};
 	size_t i = 0;
 
+	n &= 0xf;
+
 	hal_strcpy(buff, "\nException: ");
 	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
 	hal_strcpy(buff += hal_strlen(buff), "\n");
