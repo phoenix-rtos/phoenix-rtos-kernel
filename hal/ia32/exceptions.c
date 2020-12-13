@@ -80,6 +80,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	size_t i = 0;
 	u32 ss;
 
+	n &= 0x1f;
+
 	__asm__ volatile
 	(" \
 		xorl %%eax, %%eax; \
