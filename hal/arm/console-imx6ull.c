@@ -34,7 +34,7 @@ enum { urxd = 0, utxd = 16, ucr1 = 32, ucr2, ucr3, ucr4, ufcr, usr1, usr2,
 
 static void _console_print(const char *s)
 {
-	for (; *s != NULL; s++) {
+	for (; *s; s++) {
 		/* Wait for transmitter readiness */
 		while (!(*(console_common.UART + usr1) & 0x2000));
 
