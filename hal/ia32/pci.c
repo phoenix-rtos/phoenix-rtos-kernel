@@ -108,86 +108,91 @@ int hal_pciSetBusmaster(pci_dev_t *dev, u8 enable)
 int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 {
 	spinlock_ctx_t sc;
-	unsigned int b, d, f, i;
+	unsigned char b, d, f, i;
 	u32 dv, cl, mask, val;
 	int res = EOK;
 
 	if ((id == NULL) || (dev == NULL))
 		return -EINVAL;
 
-	hal_spinlockSet(&pci_common.spinlock, &sc);
-
-	for (b = dev->bus; b < 256; b++) {
+	for (b = dev->bus;; b++) {
 		for (d = dev->dev; d < 32; d++) {
 			for (f = dev->func; f < 8; f++) {
-				if ((dv = _hal_pciGet(b, d, f, 0)) == 0xffffffff)
-					continue;
+				hal_spinlockSet(&pci_common.spinlock, &sc);
 
-				if ((id->vendor != PCI_ANY) && (id->vendor != (dv & 0xffff)))
-					continue;
+				do {
+					if ((dv = _hal_pciGet(b, d, f, 0)) == 0xffffffff)
+						break;
 
-				if ((id->device != PCI_ANY) && (id->device != (dv >> 16)))
-					continue;
+					if ((id->vendor != PCI_ANY) && (id->vendor != (dv & 0xffff)))
+						break;
 
-				cl = _hal_pciGet(b, d, f, 2) >> 16;
+					if ((id->device != PCI_ANY) && (id->device != (dv >> 16)))
+						break;
 
-				if ((id->cl != PCI_ANY) && (id->cl != cl))
-					continue;
+					cl = _hal_pciGet(b, d, f, 2) >> 16;
 
-				val = _hal_pciGet(b, d, f, 0xb);
+					if ((id->cl != PCI_ANY) && (id->cl != cl))
+						break;
 
-				if ((id->subdevice != PCI_ANY) && (id->subdevice != (val >> 16)))
-					continue;
+					val = _hal_pciGet(b, d, f, 0xb);
 
-				if ((id->subvendor != PCI_ANY) && (id->subvendor != (val & 0xffff)))
-					continue;
+					if ((id->subdevice != PCI_ANY) && (id->subdevice != (val >> 16)))
+						break;
 
-				dev->bus = b;
-				dev->dev = d;
-				dev->func = f;
-				dev->vendor = dv & 0xffff;
-				dev->device = dv >> 16;
-				dev->cl = cl;
-				dev->subvendor = val & 0xffff;
-				dev->subdevice = val >> 16;
+					if ((id->subvendor != PCI_ANY) && (id->subvendor != (val & 0xffff)))
+						break;
 
-				dv = _hal_pciGet(b, d, f, 1);
-				dev->status = dv >> 16;
-				dev->command = dv & 0xffff;
+					dev->bus = b;
+					dev->dev = d;
+					dev->func = f;
+					dev->vendor = dv & 0xffff;
+					dev->device = dv >> 16;
+					dev->cl = cl;
+					dev->subvendor = val & 0xffff;
+					dev->subdevice = val >> 16;
 
-				val = _hal_pciGet(b, d, f, 2);
-				dev->progif = (val >> 8) & 0xff;
-				dev->revision = val & 0xff;
-				dev->type = (_hal_pciGet(b, d, f, 3) >> 16) & 0xff;
-				dev->irq = _hal_pciGet(b, d, f, 15) & 0xff;
+					dv = _hal_pciGet(b, d, f, 1);
+					dev->status = dv >> 16;
+					dev->command = dv & 0xffff;
 
-				/* Get resources */
-				for (i = 0; i < 6; i++) {
-					dev->resources[i].base = _hal_pciGet(b, d, f, 4 + i);
+					val = _hal_pciGet(b, d, f, 2);
+					dev->progif = (val >> 8) & 0xff;
+					dev->revision = val & 0xff;
+					dev->type = (_hal_pciGet(b, d, f, 3) >> 16) & 0xff;
+					dev->irq = _hal_pciGet(b, d, f, 15) & 0xff;
 
-					/* Get resource limit/size */
-					_hal_pciSet(b, d, f, 4 + i, 0xffffffff);
-					dev->resources[i].limit = _hal_pciGet(b, d, f, 4 + i);
-					mask = (dev->resources[i].base & 0x1) ? ~0x3 : ~0xf;
-					dev->resources[i].limit = (~(dev->resources[i].limit & mask)) + 1;
-					_hal_pciSet(b, d, f, 4 + i, dev->resources[i].base);
-					dev->resources[i].flags = dev->resources[i].base & ~mask;
-					dev->resources[i].base &= mask;
-				}
+					/* Get resources */
+					for (i = 0; i < 6; i++) {
+						dev->resources[i].base = _hal_pciGet(b, d, f, 4 + i);
 
-				if (caps != NULL)
-					res = _hal_pciGetCaps(dev, caps);
+						/* Get resource flags and size */
+						_hal_pciSet(b, d, f, 4 + i, 0xffffffff);
+						dev->resources[i].limit = _hal_pciGet(b, d, f, 4 + i);
+						mask = (dev->resources[i].base & 0x1) ? ~0x3 : ~0xf;
+						dev->resources[i].limit = (~(dev->resources[i].limit & mask)) + 1;
+						_hal_pciSet(b, d, f, 4 + i, dev->resources[i].base);
+						dev->resources[i].flags = dev->resources[i].base & ~mask;
+						dev->resources[i].base &= mask;
+					}
+
+					if (caps != NULL)
+						res = _hal_pciGetCaps(dev, caps);
+
+					hal_spinlockClear(&pci_common.spinlock, &sc);
+
+					return res;
+				} while (0);
 
 				hal_spinlockClear(&pci_common.spinlock, &sc);
-
-				return res;
 			}
 			dev->func = 0;
 		}
 		dev->dev = 0;
-	}
 
-	hal_spinlockClear(&pci_common.spinlock, &sc);
+		if (b == 0xff)
+			break;
+	}
 
 	return -ENODEV;
 }
