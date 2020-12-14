@@ -543,7 +543,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr;
 	Elf32_Rel *rel;
-	unsigned prot, flags;
+	unsigned prot, flags, reloffs;
 	int i, j, relocsz = 0, reltype;
 	void *relptr;
 	char *snameTab;
@@ -570,6 +570,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		if (phdr->p_type != PT_LOAD)
 			continue;
 
+		reloffs = 0;
 		prot = PROT_USER;
 		flags = MAP_NONE;
 
@@ -582,17 +583,20 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		if (phdr->p_flags & PF_W) {
 			prot |= PROT_WRITE;
 
-			if ((paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags)) == NULL)
+			reloffs = phdr->p_vaddr % SIZE_PAGE;
+
+			if ((paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), prot, NULL, -1, flags)) == NULL)
 				return -ENOMEM;
 
 			if (phdr->p_filesz) {
 				if (phdr->p_offset + round_page(phdr->p_filesz) > size)
 					return -ENOEXEC;
 
-				hal_memcpy(paddr, (char *)ehdr + phdr->p_offset, phdr->p_filesz);
+				hal_memcpy((char *)paddr + reloffs, (char *)ehdr + phdr->p_offset, phdr->p_filesz);
 			}
 
-			hal_memset((char *)paddr + phdr->p_filesz, 0, round_page(phdr->p_memsz) - phdr->p_filesz);
+			hal_memset((char *)paddr, 0, reloffs);
+			hal_memset((char *)paddr + reloffs + phdr->p_filesz, 0, round_page(phdr->p_memsz + reloffs) - phdr->p_filesz - reloffs);
 		}
 		else {
 			paddr = (char *)ehdr + phdr->p_offset;
@@ -602,7 +606,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 			return -ENOMEM;
 
 		reloc[j].vbase = (void *)phdr->p_vaddr;
-		reloc[j].pbase = paddr;
+		reloc[j].pbase = (void *)((char *)paddr + reloffs);
 		reloc[j].size = phdr->p_memsz;
 		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1);
 		++relocsz;
