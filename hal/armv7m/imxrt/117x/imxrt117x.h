@@ -69,6 +69,9 @@ extern int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char
 extern int _imxrt_setIOisel(int isel, char daisy);
 
 
+extern int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state);
+
+
 extern void _imxrt_platformInit(void);
 
 

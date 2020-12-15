@@ -19,6 +19,9 @@
 #include "../../include/errno.h"
 #include "../../include/arch/imxrt1170.h"
 
+#ifndef CONSOLE
+#define CONSOLE 11
+#endif
 
 struct {
 	volatile u32 *uart;
@@ -51,9 +54,30 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	u32 t;
+	u32 t, console = CONSOLE -1;
 
-	console_common.uart = (void *)0x4007c000;
+	static const struct {
+		volatile u32 *base;
+		int dev;
+	} info[] = {
+		{ ((void *)0x4007c000), pctl_clk_lpuart1 },
+		{ ((void *)0x40080000), pctl_clk_lpuart2 },
+		{ ((void *)0x40084000), pctl_clk_lpuart3 },
+		{ ((void *)0x40088000), pctl_clk_lpuart4 },
+		{ ((void *)0x4008c000), pctl_clk_lpuart5 },
+		{ ((void *)0x40090000), pctl_clk_lpuart6 },
+		{ ((void *)0x40094000), pctl_clk_lpuart7 },
+		{ ((void *)0x40098000), pctl_clk_lpuart8 },
+		{ ((void *)0x4009c000), pctl_clk_lpuart9 },
+		{ ((void *)0x400a0000), pctl_clk_lpuart10 },
+		{ ((void *)0x40c24000), pctl_clk_lpuart11 },
+		{ ((void *)0x40c28000), pctl_clk_lpuart12 }
+	};
+
+	console_common.uart = info[console].base;
+
+#if 0
+	_imxrt_setDevClock(info[console].dev, 0, 0, 0, 0, 1);
 
 	/* tx */
 	_imxrt_setIOmux(pctl_mux_gpio_ad_24, 0, 0);
@@ -95,4 +119,5 @@ void _hal_consoleInit(void)
 
 	/* Enable TX and RX */
 	*(console_common.uart + uart_ctrl) |= (1 << 19) | (1 << 18);
+#endif
 }
