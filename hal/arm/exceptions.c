@@ -120,6 +120,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 	i += exceptions_i2s("\nifa=", &buff[i], ctx->ifar, 16, 1);
 
+	buff[i++] = '\n';
+
 	buff[i] = 0;
 }
 
@@ -132,7 +134,6 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
-	hal_consolePrint(ATTR_BOLD, "\n");
 
 	for (;;)
 		hal_cpuHalt();

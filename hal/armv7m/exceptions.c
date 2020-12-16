@@ -90,6 +90,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 	i += exceptions_i2s("\ncfs=", &buff[i], *(u32*)0xe000ed28, 16, 1);
 
+	buff[i++] = '\n';
+
 	buff[i] = 0;
 }
 
@@ -100,7 +102,6 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
-	hal_consolePrint(ATTR_BOLD, "\n");
 
 #ifdef NDEBUG
 	hal_cpuRestart();
