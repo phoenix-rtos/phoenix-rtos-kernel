@@ -63,12 +63,19 @@ void *syscalls_mmap(void *ustack)
 	GETFROMSTACK(ustack, oid_t *, oid, 4);
 	GETFROMSTACK(ustack, offs_t, offs, 5);
 
-	if (oid == (void *)-1)
+	if (oid == (void *)-1) {
 		o = (void *)-1;
-	else if (oid == NULL)
+	}
+	else if (oid == NULL) {
 		o = NULL;
-	else if (vm_objectGet(&o, *oid) != EOK)
+	}
+	else if (oid == (void *)-2) {
+		if ((o = vm_objectContiguous(size)) == NULL)
+			return (void *)-1;
+	}
+	else if (vm_objectGet(&o, *oid) != EOK) {
 		return NULL;
+	}
 
 	vaddr = vm_mmap(proc_current()->process->mapp, vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
 	vm_objectPut(o);
