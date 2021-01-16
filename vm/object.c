@@ -222,6 +222,35 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 }
 
 
+vm_object_t *vm_objectContiguous(size_t size)
+{
+	vm_object_t *o;
+	page_t *p;
+	int i, n;
+
+	if ((p = vm_pageAlloc(size, PAGE_OWNER_APP)) == NULL)
+		return NULL;
+
+	size = 1 << p->idx;
+	n = size / SIZE_PAGE;
+
+	if ((o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
+		vm_pageFree(p);
+		return NULL;
+	}
+
+	hal_memset(o, 0, sizeof(*o));
+	o->refs = 1;
+	o->size = size;
+	proc_lockInit(&o->lock);
+
+	for (i = 0; i < size / SIZE_PAGE; ++i)
+		o->pages[i] = p + i;
+
+	return o;
+}
+
+
 int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	vm_object_t *o;
