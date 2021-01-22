@@ -63,13 +63,13 @@ void *syscalls_mmap(void *ustack)
 	GETFROMSTACK(ustack, oid_t *, oid, 4);
 	GETFROMSTACK(ustack, offs_t, offs, 5);
 
-	if (oid == (void *)-1) {
-		o = (void *)-1;
-	}
-	else if (oid == NULL) {
+	if (oid == OID_NULL) {
 		o = NULL;
 	}
-	else if (oid == (void *)-2) {
+	else if (oid == OID_PHYSMEM) {
+		o = (void *)-1;
+	}
+	else if (oid == OID_CONTIGUOUS) {
 		if ((o = vm_objectContiguous(size)) == NULL)
 			return (void *)-1;
 	}
