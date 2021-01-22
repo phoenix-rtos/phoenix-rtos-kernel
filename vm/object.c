@@ -120,9 +120,15 @@ int vm_objectPut(vm_object_t *o)
 
 	proc_lockDone(&o->lock);
 
-	for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
-		if (o->pages[i] != NULL)
-			vm_pageFree(o->pages[i]);
+	/* Contiguous object 'holds' all pages in pages[0] */
+	if ((o->oid.port == -1) && (o->oid.id == -1)) {
+		vm_pageFree(o->pages[0]);
+	}
+	else {
+		for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
+			if (o->pages[i] != NULL)
+				vm_pageFree(o->pages[i]);
+		}
 	}
 
 	vm_kfree(o);
@@ -240,11 +246,14 @@ vm_object_t *vm_objectContiguous(size_t size)
 	}
 
 	hal_memset(o, 0, sizeof(*o));
+	/* Mark object as contiguous by setting its oid.port and oid.id to -1 */
+	o->oid.port = -1;
+	o->oid.id = -1;
 	o->refs = 1;
 	o->size = size;
 	proc_lockInit(&o->lock);
 
-	for (i = 0; i < size / SIZE_PAGE; ++i)
+	for (i = 0; i < n; ++i)
 		o->pages[i] = p + i;
 
 	return o;
