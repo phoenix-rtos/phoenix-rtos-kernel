@@ -214,6 +214,7 @@ static int _imxrt_checkIOgprArg(int field, unsigned int *mask)
 		case pctl_gpr_flexspi_remap_addr_end:
 		case pctl_gpr_flexspi_remap_addr_offset:
 			(*mask) = 0xfffff;
+			break;
 
 		case pctl_gpr_m7_apc_ac_r0_bot:
 		case pctl_gpr_m7_apc_ac_r0_top:
