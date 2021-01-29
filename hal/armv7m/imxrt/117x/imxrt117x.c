@@ -697,6 +697,7 @@ void _imxrt_init(void)
 	imxrt_common.aips[1] = (void *)0x40400000;
 	imxrt_common.aips[2] = (void *)0x40800000;
 	imxrt_common.aips[3] = (void *)0x40c00000;
+	imxrt_common.ccm = (void *)0x40cc0000;
 	imxrt_common.nvic = (void *)0xe000e100;
 	imxrt_common.scb = (void *)0xe000ed00;
 	imxrt_common.stk = (void *)0xe000e010;
