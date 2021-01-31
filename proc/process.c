@@ -296,6 +296,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	perf_fork(process);
 
 	if (proc_threadCreate(process, (void *)initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
+		vm_kfree(process->path);
 		vm_kfree(process);
 		return -EINVAL;
 	}
