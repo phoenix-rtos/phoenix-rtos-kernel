@@ -744,4 +744,7 @@ void _imxrt_init(void)
 		*(imxrt_common.aips[i] + aipstz_opacr4) &= ~0x44444444;
 	}
 */
+
+	/* Enable UsageFault, BusFault and MemManage exceptions */
+	*(imxrt_common.scb + scb_shcsr) |= (1 << 16) | (1 << 17) | (1 << 18);
 }
