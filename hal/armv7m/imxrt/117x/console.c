@@ -76,7 +76,6 @@ void _hal_consoleInit(void)
 
 	console_common.uart = info[console].base;
 
-#if 0
 	_imxrt_setDevClock(info[console].dev, 0, 0, 0, 0, 1);
 
 	/* tx */
@@ -97,10 +96,8 @@ void _hal_consoleInit(void)
 	hal_cpuDataBarrier();
 
 	/* Set 115200 baudrate */
-	t = *(console_common.uart + uart_baud);
-	t = (t & ~(0x1f << 24)) | (0x4 << 24);
-	*(console_common.uart + uart_baud) = (t & ~0x1fff) | 111;
-	*(console_common.uart + uart_baud) &= ~(1 << 29);
+	t = *(console_common.uart + uart_baud) & ~((0x1f << 24) | (1 << 17) | 0xfff);
+	*(console_common.uart + uart_baud) = t | 50462772;
 
 	/* Set 8 bit and no parity mode */
 	*(console_common.uart + uart_ctrl) &= ~0x117;
@@ -119,5 +116,4 @@ void _hal_consoleInit(void)
 
 	/* Enable TX and RX */
 	*(console_common.uart + uart_ctrl) |= (1 << 19) | (1 << 18);
-#endif
 }
