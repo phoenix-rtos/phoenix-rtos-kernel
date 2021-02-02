@@ -760,8 +760,10 @@ int _stm32_systickInit(u32 interval)
 
 void _stm32_systickSet(u8 state)
 {
-	*(stm32_common.stk + stk_ctrl) &= ~(!state);
-	*(stm32_common.stk + stk_ctrl) |= !!state;
+	if (state > 0)
+		*(stm32_common.stk + stk_ctrl) |= 1;
+	else
+		*(stm32_common.stk + stk_ctrl) &= ~1;
 }
 
 
