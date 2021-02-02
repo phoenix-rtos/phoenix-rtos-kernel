@@ -172,6 +172,9 @@ static void *_kmalloc_freeAtom(u8 hdridx, void *p)
 	u8 idx;
 
 	z = _kmalloc_free(hdridx, p);
+	if (z == NULL)
+		return NULL;
+
 	idx = hal_cpuGetLastBit(z->blocksz);
 
 	/* Remove zone if free */

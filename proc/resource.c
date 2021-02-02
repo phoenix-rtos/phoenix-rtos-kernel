@@ -273,6 +273,10 @@ int proc_resourcesCopy(process_t *source)
 		if (err > 0 && err != r->id) {
 			/* Reinsert resource to match original resource id */
 			newr = resource_remove(process, err);
+			if (newr == NULL) {
+				err = -EINVAL;
+				break;
+			}
 			newr->id = r->id;
 			err = lib_rbInsert(&process->resources, &newr->linkage);
 		}

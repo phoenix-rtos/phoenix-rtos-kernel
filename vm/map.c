@@ -1204,6 +1204,9 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 			break;
 
 		e = map_alloc();
+		if (e == NULL)
+			break;
+
 		e->vaddr = (void *)round_page((long)vaddr);
 		e->size = round_page(size);
 		e->object = kernel;
