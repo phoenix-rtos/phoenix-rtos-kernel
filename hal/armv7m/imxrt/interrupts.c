@@ -119,7 +119,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	_intr_add(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10) {
-		_imxrt_nvicSetPriority(h->n - 0x10, 1);
+		_imxrt_nvicSetPriority(h->n - 0x10, 0);
 		_imxrt_nvicSetIRQ(h->n - 0x10, 1);
 	}
 	hal_spinlockClear(&interrupts.spinlock, &sc);
@@ -160,20 +160,15 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int n;
 
-	for (n = 0; n < 16; ++n) {
-		interrupts.handlers[n] = NULL;
-		interrupts.counters[n] = 0;
-	}
-
-	for (; n < SIZE_INTERRUPTS; ++n) {
+	for (n = 0; n < SIZE_INTERRUPTS; ++n) {
 		interrupts.handlers[n] = NULL;
 		interrupts.counters[n] = 0;
 	}
 
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
 
-	_imxrt_scbSetPriority(SYSTICK_IRQ, 1);
-	_imxrt_scbSetPriority(PENDSV_IRQ, 1);
+	_imxrt_scbSetPriority(SYSTICK_IRQ, 0);
+	_imxrt_scbSetPriority(PENDSV_IRQ, 0);
 	_imxrt_scbSetPriority(SVC_IRQ, 0);
 
 	/* Set no subprorities in Interrupt Group Priority */
