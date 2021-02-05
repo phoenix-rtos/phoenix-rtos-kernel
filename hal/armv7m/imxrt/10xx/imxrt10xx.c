@@ -2157,7 +2157,7 @@ void _imxrt_init(void)
 	_imxrt_ccmSetDiv(clk_div_ahb, 0x0);
 	_imxrt_ccmSetDiv(clk_div_ipg, 0x3);
 
-	/* Now CPU runs again on ARM PLL at 600M (with divider 2) */
+	/* Now CPU runs again on ARM PLL at 528M (with divider 2) */
 	_imxrt_ccmSetMux(clk_mux_prePeriph, 0x3);
 	_imxrt_ccmSetMux(clk_mux_periph, 0x0);
 
