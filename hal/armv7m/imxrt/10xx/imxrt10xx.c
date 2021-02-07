@@ -2170,6 +2170,9 @@ void _imxrt_init(void)
 	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f330f;
 	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f0f;
 
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
+
 	/* Remain in run mode on wfi */
 	_imxrt_ccmSetMode(0);
 
@@ -2177,6 +2180,9 @@ void _imxrt_init(void)
 	_imxrt_ccmDeinitAudioPll();
 	_imxrt_ccmDeinitEnetPll();
 	_imxrt_ccmDeinitUsb2Pll();
+
+	/* Wait for any pending CCM div/mux handshake process to complete */
+	while (*(imxrt_common.ccm + ccm_cdhipr) & 0x1002b);
 
 	/* Allow userspace applications to access hardware registers */
 	for (i = 0; i < sizeof(imxrt_common.aips) / sizeof(imxrt_common.aips[0]); ++i) {
