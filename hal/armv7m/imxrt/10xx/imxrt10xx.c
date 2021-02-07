@@ -1812,7 +1812,7 @@ void _imxrt_nvicSystemReset(void)
 {
 	*(imxrt_common.scb + scb_aircr) = ((0x5fa << 16) | (*(imxrt_common.scb + scb_aircr) & (0x700)) | (1 << 0x02));
 
-	__asm__ volatile ("dsb");
+	hal_cpuDataSyncBarrier();
 
 	for(;;);
 }
