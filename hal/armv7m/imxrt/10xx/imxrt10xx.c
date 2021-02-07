@@ -2163,9 +2163,9 @@ void _imxrt_init(void)
 
 	/* Disable unused clocks */
 	*(imxrt_common.ccm + ccm_ccgr0) = 0x00c0ffff;
-	*(imxrt_common.ccm + ccm_ccgr1) = 0x30000000;
+	*(imxrt_common.ccm + ccm_ccgr1) = 0x300c0000;
 	*(imxrt_common.ccm + ccm_ccgr2) = 0xfffff03f;
-	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c3fff;
+	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c3fcf;
 	*(imxrt_common.ccm + ccm_ccgr4) = 0x0000ff3c;
 	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f330f;
 	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f0f;
