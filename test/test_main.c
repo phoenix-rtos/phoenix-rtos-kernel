@@ -2,10 +2,12 @@
 #include "proc/threads.h"
 
 DECLARE_TEST_GROUP(test_list);
+DECLARE_TEST_GROUP(test_sched);
 
 void runner(void)
 {
 	RUN_TEST_GROUP(test_list);
+	RUN_TEST_GROUP(test_sched);
 }
 
 void test_main(void* args)
