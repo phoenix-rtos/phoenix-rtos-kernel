@@ -20,4 +20,14 @@
 #include "vm.h"
 #include "proc.h"
 
+#ifdef KERNEL_TEST
+#include "unity_fixture.h"
+
+#define KERNEL_TEST_TASK_PRIO 7
+
+void test_main(void* args);
+
+#endif
+
+
 #endif

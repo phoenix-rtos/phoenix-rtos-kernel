@@ -158,7 +158,11 @@ int main(void)
 	test_proc_exit();
 	*/
 
+#ifdef KERNEL_TEST
+	proc_threadCreate(NULL, test_main, NULL, KERNEL_TEST_TASK_PRIO, SIZE_KSTACK, NULL, 0, NULL);
+#else
 	proc_start(main_initthr, NULL, (const char *)"init");
+#endif
 
 	/* Start scheduling, leave current stack */
 	hal_cpuEnableInterrupts();

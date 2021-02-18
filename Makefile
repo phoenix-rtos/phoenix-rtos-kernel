@@ -67,7 +67,7 @@ $(PREFIX_O)/programs.o.cpio: $(PREFIX_O)programs.o $(BUILD_DIR)/programs.cpio
 $(PREFIX_PROG)phoenix-${TARGET_FAMILY}-${TARGET_SUBFAMILY}.elf: $(OBJS) $(PREFIX_O)/programs.o.cpio
 	@mkdir -p $(@D)
 	@(printf "LD  %-24s\n" "$(@F)");
-	$(SIL)$(LD) $(LDFLAGS) -e _start --section-start .init=$(VADDR_KERNEL_INIT) -o $(PREFIX_PROG)phoenix-${TARGET_FAMILY}-${TARGET_SUBFAMILY}.elf $(OBJS) $(PREFIX_O)/programs.o.cpio $(GCCLIB)
+	$(SIL)$(LD) $(LDFLAGS) -e _start --section-start .init=$(VADDR_KERNEL_INIT) -o $(PREFIX_PROG)phoenix-${TARGET_FAMILY}-${TARGET_SUBFAMILY}.elf $(OBJS) $(PREFIX_O)/programs.o.cpio $(GCCLIB) $(UNITYLIB)
 
 
 install-headers: $(EXTERNAL_HEADERS)
