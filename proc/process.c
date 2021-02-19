@@ -603,7 +603,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 			paddr = (char *)ehdr + phdr->p_offset;
 		}
 
-		if (j > sizeof(reloc) / sizeof(reloc[0]))
+		if (j >= sizeof(reloc) / sizeof(reloc[0]))
 			return -ENOMEM;
 
 		reloc[j].vbase = (void *)phdr->p_vaddr;
