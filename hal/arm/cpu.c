@@ -49,7 +49,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	ctx->padding = 0;
 
-	ctx->r0	= (u32)arg;
+	ctx->r0 = (u32)arg;
 	ctx->r1 = 0x11111111;
 	ctx->r2 = 0x22222222;
 	ctx->r3 = 0x33333333;
@@ -65,7 +65,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->lr = 0xeeeeeeee;
 
 	ctx->pc = (u32)start;
-	ctx->r0	= (u32)arg;
 
 	/* Enable interrupts, set normal execution mode */
 	if (ustack != NULL) {
