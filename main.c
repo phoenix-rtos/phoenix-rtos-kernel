@@ -70,7 +70,7 @@ void main_initthr(void *unused)
 	while (cmdline != NULL && *cmdline != '\0') {
 		end = cmdline;
 		while (*end && *(++end) != ' ');
-		while (*end && *end == ' ')
+		while (*end == ' ')
 			*(end++) = 0;
 		if (*cmdline == 'X' && ++xcount) {
 			i = 0;
