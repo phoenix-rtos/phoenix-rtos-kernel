@@ -429,9 +429,10 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 	char *name, *basename, *dirname;
 	int namelen;
 
-	namelen = hal_strlen(filename);
-	name = vm_kmalloc(namelen + 1);
-	hal_memcpy(name, filename, namelen + 1);
+	namelen = hal_strlen(filename) + 1;
+	if ((name = vm_kmalloc(namelen)) == NULL)
+		return -ENOMEM;
+	hal_memcpy(name, filename, namelen);
 
 	splitname(name, &basename, &dirname);
 
@@ -910,9 +911,10 @@ int posix_link(const char *path1, const char *path2)
 	char *name, *basename, *dirname;
 	int namelen;
 
-	namelen = hal_strlen(path2);
-	name = vm_kmalloc(namelen + 1);
-	hal_memcpy(name, path2, namelen + 1);
+	namelen = hal_strlen(path2) + 1;
+	if ((name = vm_kmalloc(namelen)) == NULL)
+		return -ENOMEM;
+	hal_memcpy(name, path2, namelen);
 
 	splitname(name, &basename, &dirname);
 
@@ -955,9 +957,10 @@ int posix_unlink(const char *pathname)
 	char *name, *basename, *dirname;
 	int namelen;
 
-	namelen = hal_strlen(pathname);
-	name = vm_kmalloc(namelen + 1);
-	hal_memcpy(name, pathname, namelen + 1);
+	namelen = hal_strlen(pathname) + 1;
+	if ((name = vm_kmalloc(namelen)) == NULL)
+		return -ENOMEM;
+	hal_memcpy(name, pathname, namelen);
 
 	splitname(name, &basename, &dirname);
 
