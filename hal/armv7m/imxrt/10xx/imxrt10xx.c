@@ -19,6 +19,14 @@
 #include "../../../../include/errno.h"
 #include "../../../../include/arch/imxrt.h"
 
+#define RTWDOG_UPDATE_KEY 0xd928c520
+#define RTWDOG_REFRESH_KEY 0xb480a602
+#define LPO_CLK_FREQ_HZ 32000
+
+#if defined(WATCHDOG) && \
+	(WATCHDOG <= 0x0 || WATCHDOG > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
+#error "Watchdog timeout out of bounds!"
+#endif
 
 struct {
 	volatile u32 *gpio[5];
@@ -2079,6 +2087,11 @@ unsigned int _imxrt_cpuid(void)
 
 void _imxrt_wdgReload(void)
 {
+#if defined(WATCHDOG) && defined(NDEBUG)
+	hal_cpuDisableInterrupts();
+	*(imxrt_common.rtwdog + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
+	hal_cpuEnableInterrupts();
+#endif
 }
 
 
@@ -2131,9 +2144,28 @@ void _imxrt_init(void)
 	if (*(imxrt_common.wdog2 + wdog_wcr) & (1 << 2))
 		*(imxrt_common.wdog2 + wdog_wcr) &= ~(1 << 2);
 
-	*(imxrt_common.rtwdog + rtwdog_cnt) = 0xd928c520; /* Update key */
-	*(imxrt_common.rtwdog + rtwdog_total) = 0xffff;
-	*(imxrt_common.rtwdog + rtwdog_cs) = (*(imxrt_common.rtwdog + rtwdog_cs) & ~(1 << 7)) | (1 << 5);
+	/* RTWDOG unlock update */
+	*(imxrt_common.rtwdog + rtwdog_cnt) = RTWDOG_UPDATE_KEY;
+	while (!(*(imxrt_common.rtwdog + rtwdog_cs) & (1 << 11)))
+		;
+#if defined(WATCHDOG) && defined(NDEBUG)
+	/* Enable rtwdog: LPO_CLK (256 prescaler), set timeout to WATCHDOG ms */
+	*(imxrt_common.rtwdog + rtwdog_total) =
+		WATCHDOG / (256 / (LPO_CLK_FREQ_HZ / 1000));
+	*(imxrt_common.rtwdog + rtwdog_cs) =
+		(*(imxrt_common.rtwdog + rtwdog_cs) | (1 << 7)) |
+		(1 << 13) | (1 << 12) | (1 << 8) | (1 << 5);
+	/* Refresh watchdog */
+	*(imxrt_common.rtwdog + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
+#else
+	/* Disable rtwdog, enable update */
+	*(imxrt_common.rtwdog + rtwdog_total) = 0xffffU;
+	*(imxrt_common.rtwdog + rtwdog_cs) =
+		(*(imxrt_common.rtwdog + rtwdog_cs) & ~(1 << 7)) | (1 << 5);
+#endif
+	/* Check update */
+	while (!(*(imxrt_common.rtwdog + rtwdog_cs) & (1 << 10)))
+		;
 
 	/* Disable Systick which might be enabled by bootrom */
 	if (*(imxrt_common.stk + stk_ctrl) & 1)
@@ -2167,7 +2199,7 @@ void _imxrt_init(void)
 	*(imxrt_common.ccm + ccm_ccgr2) = 0xfffff03f;
 	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c3fcf;
 	*(imxrt_common.ccm + ccm_ccgr4) = 0x0000ff3c;
-	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f330f;
+	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f333f;
 	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f0f;
 
 	hal_cpuDataSyncBarrier();
