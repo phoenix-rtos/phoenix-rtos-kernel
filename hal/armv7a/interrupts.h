@@ -25,6 +25,40 @@
 #define HPTIMER_IRQ     88
 
 
+#define _intr_add(list, t) \
+	do { \
+		if (t == NULL) \
+			break; \
+		if (*list == NULL) { \
+			t->next = t; \
+			t->prev = t; \
+			(*list) = t; \
+			break; \
+		} \
+		t->prev = (*list)->prev; \
+		(*list)->prev->next = t; \
+		t->next = (*list); \
+		(*list)->prev = t; \
+	} while (0)
+
+
+#define _intr_remove(list, t) \
+	do { \
+		if (t == NULL) \
+			break; \
+		if ((t->next == t) && (t->prev == t)) \
+			(*list) = NULL; \
+		else { \
+			t->prev->next = t->next; \
+			t->next->prev = t->prev; \
+			if (t == (*list)) \
+				(*list) = t->next; \
+		} \
+		t->next = NULL; \
+		t->prev = NULL; \
+	} while (0)
+
+
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;
 	struct _intr_handler_t *prev;
