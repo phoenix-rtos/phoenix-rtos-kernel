@@ -50,7 +50,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 
 addr_t pmap_getMinVAdrr(void)
 {
-	return (addr_t)syspage->kernel.bss;
+	return syspage->kernel.bss;
 }
 
 
@@ -60,7 +60,7 @@ addr_t pmap_getMaxVAdrr(void)
 
 	/* Find kernel map end adress */
 	for (i = 0; i < syspage->mapssz; ++i) {
-		if ((addr_t)syspage->kernel.bss < syspage->maps[i].end && (addr_t)syspage->kernel.bss >= syspage->maps[i].start)
+		if (syspage->kernel.bss < syspage->maps[i].end && syspage->kernel.bss >= syspage->maps[i].start)
 			return syspage->maps[i].end;
 	}
 
@@ -86,7 +86,7 @@ int pmap_getMapParameters(u8 id, void **start, void **end)
 	*start = (void *)syspage->maps[id].start;
 	*end = (void *)syspage->maps[id].end;
 
-	if (*end <= *start || ((u32)*start & (SIZE_PAGE - 1)) || ((u32)*end & (SIZE_PAGE - 1)))
+	if (*end <= *start || ((addr_t)*start & (SIZE_PAGE - 1)) || ((addr_t)*end & (SIZE_PAGE - 1)))
 		return -EINVAL;
 
 	/* Check if new map overlap with existing one */
@@ -166,7 +166,7 @@ int pmap_getMapsCnt(void)
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	(*vstart) = (void *)(((u32)(syspage->kernel.bss + syspage->kernel.bsssz + 1024 + 256) + 7) & ~7);
+	(*vstart) = (void *)(((addr_t)(syspage->kernel.bss + syspage->kernel.bsssz + 1024 + 256) + 7) & ~7);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)syspage->kernel.bss;
