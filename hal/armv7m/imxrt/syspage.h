@@ -31,8 +31,8 @@ enum { mAttrRead = 0x01, mAttrWrite = 0x02, maAtrrExec = 0x04, mAttrShareable = 
 
 
 typedef struct _syspage_map_t {
-	u32 start;
-	u32 end;
+	addr_t start;
+	addr_t end;
 	u32 attr;
 
 	u8 id;
@@ -41,8 +41,8 @@ typedef struct _syspage_map_t {
 
 
 typedef struct syspage_program_t {
-	u32 start;
-	u32 end;
+	addr_t start;
+	addr_t end;
 
 	u8 dmap;
 	u8 imap;
@@ -53,24 +53,24 @@ typedef struct syspage_program_t {
 
 typedef struct _syspage_t {
 	struct {
-		void *text;
-		u32 textsz;
+		addr_t text;
+		size_t textsz;
 
-		void *data;
-		u32 datasz;
+		addr_t data;
+		size_t datasz;
 
-		void *bss;
-		u32 bsssz;
+		addr_t bss;
+		size_t bsssz;
 	} kernel;
 
-	u32 syspagesz;
+	size_t syspagesz;
 
 	char *arg;
 
-	u32 progssz;
+	size_t progssz;
 	syspage_program_t *progs;
 
-	u32 mapssz;
+	size_t mapssz;
 	syspage_map_t *maps;
 } syspage_t;
 
