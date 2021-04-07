@@ -709,7 +709,7 @@ void _imxrt_init(void)
 	imxrt_common.iomux_lpsr = (void *)0x40c08000;
 	imxrt_common.iomuxc = (void *)0x400e8000;
 
-	imxrt_common.cpuclk = 640000000;
+	imxrt_common.cpuclk = 696000000;
 
 	/* Store reset flags and then clean them */
 	imxrt_common.resetFlags = *(imxrt_common.src + src_srsr) & 0x1f;
