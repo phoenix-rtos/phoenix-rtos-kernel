@@ -268,17 +268,17 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 	ccm2_irq, gpc_irq, /* Reserved #118 */ gpt1_irq = 119 + 16, gpt2_irq, gpt3_irq, gpt4_irq, gpt5_irq, gpt6_irq,
 	flexpwm1_0_irq, flexpwm1_1_irq, flexpwm1_2_irq, flexpwm1_3_irq, flexpwm1_err_irq, flexspi1_irq, flexspi2_irq,
 	semc_irq, usdhc1_irq, usdhc2_irq, usb_otg2_irq, usb_otg1_irq, enet_irq, enet_1588_timer_irq, enet_1g_rxtx_irq,
-	enet_1g_rxtxdone_irq, enet_1g_irq, enet_1g_1588_timer_irq, xbar1_0_irq, xbar1_1_irq, xbar1_2_irq, xbar1_3_irq,
-	adc_etc1_0_irq, adc_etc1_1_irq, adc_etc1_2_irq, adc_etc1_3_irq, adc_etc1_err_irq, adc_etc2_0_irq, adc_etc2_1_irq,
-	adc_etc2_2_irq, adc_etc2_3_irq, adc_etc2_err_irq, pit1_irq, pit2_irq, acmp1_irq, acmp2_irq, acmp3_irq, acmp4_irq,
-	acmp5_irq, acmp6_irq, acmp7_irq, acmp_lpsr, enc1_irq, enc2_irq, enc3_irq, enc4_irq, enc5_irq, enc6_irq,
-	qtimer1_irq, qtimer2_irq, qtimer3_irq, qtimer4_irq, qtimer5_irq, qtimer6_irq, flexpwm2_0_irq, flexpwm2_1_irq,
-	flexpwm2_2_irq, flexpwm2_3_irq, flexpwm2_err_irq, flexpwm3_0_irq, flexpwm3_1_irq, flexpwm3_2_irq, flexpwm3_3_irq,
-	flexpwm3_err_irq, flexpwm4_0_irq, flexpwm4_1_irq, flexpwm4_2_irq, flexpwm4_3_irq, flexpwm4_err_irq, flexpwm5_0_irq,
-	flexpwm5_1_irq, flexpwm5_2_irq, flexpwm5_3_irq, flexpwm5_err_irq, flexpwm6_0_irq, flexpwm6_1_irq, flexpwm6_2_irq,
-	flexpwm6_3_irq, flexpwm6_err_irq, mic_irq, mic_err_irq, sim1_irq, sim2_irq, mecc1_irq, mecc1_fatal_irq, mecc2_irq,
-	mecc2_fatal_irq, xecc_flexspi1_irq, xecc_flexspi1_fatal_irq, xecc_flexspi2_irq, xecc_flexspi2_fatal_irq,
-	xecc_semc_irq, xecc_semc_fatal_irq, enet_qos_irq, enet_pmt_irq };
+	enet_1g_rxtxdone_irq, enet_1g_irq, enet_1g_1588_timer_irq, xbar1_0_irq, xbar1_1_irq, adc_etc1_0_irq, adc_etc1_1_irq,
+	adc_etc1_2_irq, adc_etc1_3_irq, adc_etc1_err_irq, adc_etc2_0_irq, adc_etc2_1_irq, adc_etc2_2_irq, adc_etc2_3_irq,
+	adc_etc2_err_irq, pit1_irq, pit2_irq, acmp1_irq, acmp2_irq, acmp3_irq, acmp4_irq, acmp5_irq, acmp6_irq, acmp7_irq,
+	acmp_lpsr, enc1_irq, enc2_irq, enc3_irq, enc4_irq, enc5_irq, enc6_irq, qtimer1_irq, qtimer2_irq, qtimer3_irq,
+	qtimer4_irq, qtimer5_irq, qtimer6_irq, flexpwm2_0_irq, flexpwm2_1_irq, flexpwm2_2_irq, flexpwm2_3_irq,
+	flexpwm2_err_irq, flexpwm3_0_irq, flexpwm3_1_irq, flexpwm3_2_irq, flexpwm3_3_irq, flexpwm3_err_irq,flexpwm4_0_irq,
+	flexpwm4_1_irq, flexpwm4_2_irq, flexpwm4_3_irq, flexpwm4_err_irq, flexpwm5_0_irq, flexpwm5_1_irq, flexpwm5_2_irq,
+	flexpwm5_3_irq, flexpwm5_err_irq, flexpwm6_0_irq, flexpwm6_1_irq, flexpwm6_2_irq, flexpwm6_3_irq, flexpwm6_err_irq,
+	mic_irq, mic_err_irq, sim1_irq, sim2_irq, mecc1_irq, mecc1_fatal_irq, mecc2_irq, mecc2_fatal_irq, xecc_flexspi1_irq,
+	xecc_flexspi1_fatal_irq, xecc_flexspi2_irq, xecc_flexspi2_fatal_irq, xecc_semc_irq, xecc_semc_fatal_irq, enet_qos_irq,
+	enet_pmt_irq };
 
 
 typedef struct {
