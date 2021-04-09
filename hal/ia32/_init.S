@@ -84,7 +84,7 @@ _init_setupPaging:
 	cld
 	rep; stosl
 
-	/* Map first 4MB of memory at VADDR_KERNEL and at 0 adresses */
+	/* Map first 4MB of memory at VADDR_KERNEL and at 0 addresses */
 	movl (%ebx), %ecx
 	movl 4(%ebx), %edx
 	orl $3, %edx

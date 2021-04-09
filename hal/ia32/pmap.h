@@ -18,7 +18,7 @@
 #define _HAL_PMAP_H_
 
 
-/* Predefined virtual adresses */
+/* Predefined virtual addresses */
 #define VADDR_KERNEL   0xc0000000   /* base virtual address of kernel space */
 #define VADDR_MIN      0x00000000
 #define VADDR_MAX      0xffffffff
