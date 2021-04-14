@@ -77,12 +77,14 @@ static inline int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 
 static inline void hal_memset(void *dst, int v, unsigned int l)
 {
-	int v1 = v & 0xff;
+	unsigned int v1 = v & 0xff;
+	unsigned int tmp;
+
+	tmp = (v1 << 8) | v1;
+	tmp |= (tmp << 16);
 
 	__asm__ volatile
 	(" \
-		orr %1, %1, %1, lsl #8; \
-		orr %1, %1, %1, lsl #16; \
 		lsls r3, %0, #30; \
 		bne 2f; \
 	1: \
@@ -97,7 +99,7 @@ static inline void hal_memset(void *dst, int v, unsigned int l)
 		strbne %1, [%0], #1; \
 		subsne %2, #1; \
 		bne 2b"
-	: "+r"(dst), "+r" (v1), "+r" (l)
+	: "+r"(dst), "+r" (tmp), "+r" (l)
 	:
 	: "r3", "memory", "cc");
 }
@@ -117,7 +119,7 @@ static inline unsigned int hal_strlen(const char *s)
 	2:"
 	: "+r" (k), "+r" (s)
 	:
-	: "r1", "cc");
+	: "r1", "memory", "cc");
 
 	return k;
 }
