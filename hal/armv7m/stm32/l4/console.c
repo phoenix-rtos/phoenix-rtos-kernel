@@ -102,7 +102,7 @@ void _hal_consoleInit(void)
 	*(console_common.base + cr1) = 0xa;
 	*(console_common.base + cr2) = 0;
 	*(console_common.base + cr3) = 0;
-	*(console_common.base + brr) = console_common.cpufreq / 9600; /* 9600 baud rate */
+	*(console_common.base + brr) = console_common.cpufreq / 115200; /* 115200 baud rate */
 	hal_cpuDataBarrier();
 	*(console_common.base + cr1) |= 1;
 	hal_cpuDataBarrier();
