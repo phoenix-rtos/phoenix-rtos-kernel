@@ -600,13 +600,6 @@ int _imxrt_getDevClock(int clock, int *div, int *mux, int *mfd, int *mfn, int *s
 }
 
 
-static void _imxrt_reboot(void)
-{
-	/* TODO */
-}
-
-
-
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
@@ -667,7 +660,7 @@ int hal_platformctl(void *ptr)
 	case pctl_reboot:
 		if (data->action == pctl_set) {
 			if (data->reboot.magic == PCTL_REBOOT_MAGIC)
-				_imxrt_reboot();
+				_imxrt_nvicSystemReset();
 		}
 		else if (data->action == pctl_get) {
 			data->reboot.reason = imxrt_common.resetFlags;
