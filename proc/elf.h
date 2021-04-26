@@ -158,8 +158,9 @@ typedef struct {
 #define ELF32_R_INFO(sym, type)       (((sym)<<8)+(unsigned char)(type))
 
 
-#define R_ARM_ABS32 2
+#define R_ARM_ABS32    2
 #define R_ARM_GOT_BREL 26
+#define R_ARM_TARGET1  38
 
 
 #endif

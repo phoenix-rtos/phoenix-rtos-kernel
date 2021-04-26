@@ -645,7 +645,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	if (process_relocate(reloc, relocsz, (char **)entry) < 0)
 		return -ENOEXEC;
 
-	/* Perform data relocation */
+	/* Perform data, init_array and fini_array relocation */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
 		if (hal_strncmp(&snameTab[shdr->sh_name], ".rel", 4) != 0)
 			continue;
@@ -657,7 +657,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 			rel = (void *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize));
 			reltype = ELF32_R_TYPE(rel->r_info);
 
-			if (reltype == R_ARM_ABS32) {
+			if (reltype == R_ARM_ABS32 || reltype == R_ARM_TARGET1) {
 				relptr = (void *)rel->r_offset;
 
 				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0)
