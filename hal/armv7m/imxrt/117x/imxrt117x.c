@@ -63,6 +63,7 @@ struct {
 	volatile u32 *iomux_lpsr;
 	volatile u32 *iomuxc;
 	volatile u32 *gpr;
+	volatile u32 *lpsrgpr;
 	volatile u32 *ccm;
 
 	spinlock_t pltctlSp;
@@ -626,6 +627,28 @@ static int _imxrt_getIOgpr(int which, unsigned int *what)
 }
 
 
+static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
+{
+	if (which < 0 || which > 41)
+		return -EINVAL;
+
+	*(imxrt_common.lpsrgpr + which) = what;
+
+	return  0;
+}
+
+
+static int _imxrt_getIOlpsrGpr(int which, unsigned int *what)
+{
+	if (which < 0 || which > 41 || what == NULL)
+		return -EINVAL;
+
+	*what = *(imxrt_common.lpsrgpr + which);
+
+	return 0;
+}
+
+
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
@@ -660,6 +683,16 @@ int hal_platformctl(void *ptr)
 		}
 		else if (data->action == pctl_get) {
 			if ((ret = _imxrt_getIOgpr(data->iogpr.field, &t)) == 0)
+				data->iogpr.val = t;
+		}
+		break;
+
+	case pctl_iolpsrgpr:
+		if (data->action == pctl_set) {
+			ret = _imxrt_setIOlpsrGpr(data->iogpr.field, data->iogpr.val);
+		}
+		else if (data->action == pctl_get) {
+			if ((ret = _imxrt_getIOlpsrGpr(data->iogpr.field, &t)) == 0)
 				data->iogpr.val = t;
 		}
 		break;
@@ -732,6 +765,7 @@ void _imxrt_init(void)
 	imxrt_common.iomux_lpsr = (void *)0x40c08000;
 	imxrt_common.iomuxc = (void *)0x400e8000;
 	imxrt_common.gpr = (void *)0x400e4000;
+	imxrt_common.lpsrgpr = (void *)0x40c0c000;
 
 	imxrt_common.cpuclk = 696000000;
 
