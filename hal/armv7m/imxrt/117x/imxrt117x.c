@@ -62,6 +62,7 @@ struct {
 	volatile u32 *iomux_snvs;
 	volatile u32 *iomux_lpsr;
 	volatile u32 *iomuxc;
+	volatile u32 *gpr;
 	volatile u32 *ccm;
 
 	spinlock_t pltctlSp;
@@ -600,12 +601,38 @@ int _imxrt_getDevClock(int clock, int *div, int *mux, int *mfd, int *mfn, int *s
 }
 
 
+/* GPR */
+
+
+static int _imxrt_setIOgpr(int which, unsigned int what)
+{
+	if (which < 0 || which > 76)
+		return -EINVAL;
+
+	*(imxrt_common.gpr + which) = what;
+
+	return  0;
+}
+
+
+static int _imxrt_getIOgpr(int which, unsigned int *what)
+{
+	if (which < 0 || which > 76 || what == NULL)
+		return -EINVAL;
+
+	*what = *(imxrt_common.gpr + which);
+
+	return 0;
+}
+
+
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	int ret = -EINVAL;
 	spinlock_ctx_t sc;
 	int div, mux, mfd, mfn, state;
+	unsigned int t = 0;
 
 	hal_spinlockSet(&imxrt_common.pltctlSp, &sc);
 
@@ -626,14 +653,17 @@ int hal_platformctl(void *ptr)
 			}
 		}
 		break;
-/*
+
 	case pctl_iogpr:
-		if (data->action == pctl_set)
+		if (data->action == pctl_set) {
 			ret = _imxrt_setIOgpr(data->iogpr.field, data->iogpr.val);
-		else if (data->action == pctl_get)
-			ret = _imxrt_getIOgpr(data->iogpr.field, &data->iogpr.val);
+		}
+		else if (data->action == pctl_get) {
+			if ((ret = _imxrt_getIOgpr(data->iogpr.field, &t)) == 0)
+				data->iogpr.val = t;
+		}
 		break;
-*/
+
 	case pctl_iomux:
 		if (data->action == pctl_set)
 			ret = _imxrt_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
@@ -701,6 +731,7 @@ void _imxrt_init(void)
 	imxrt_common.iomux_snvs = (void *)0x40c94000;
 	imxrt_common.iomux_lpsr = (void *)0x40c08000;
 	imxrt_common.iomuxc = (void *)0x400e8000;
+	imxrt_common.gpr = (void *)0x400e4000;
 
 	imxrt_common.cpuclk = 696000000;
 
