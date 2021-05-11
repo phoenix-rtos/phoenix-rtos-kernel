@@ -6,12 +6,10 @@ on:
   push:
     branches:
       - master
-      - posix_rev
       - 'feature/*'
   pull_request:
     branches:
       - master
-      - posix_rev
       - 'feature/*'
 
 # jobs
@@ -21,7 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: ['armv7a7-imx6ull', 'armv7a9-zynq7000', 'armv7m7-imxrt106x', 'armv7m4-stm32l4x6', 'ia32-generic', 'riscv64-spike', 'riscv64-virt']
+        target: ['armv7a7-imx6ull', 'armv7a9-zynq7000', 'armv7m7-imxrt106x', 'armv7m4-stm32l4x6', 'host-pc', 'ia32-generic', 'riscv64-spike', 'riscv64-virt']
+        include:
+          - target: 'ia32-generic'
+            syspage: 'psh pc-ata uart16550'
     steps:
       # step 1: checkout phoenix-rtos-project repository code inside the workspace directory of the runner
       - name: Checkout phoenix-rtos-project
@@ -46,11 +47,13 @@ jobs:
         uses: ./.github/actions/phoenix-build
         with:
           target: ${{ matrix.target }}
+          syspage: ${{ matrix.syspage }}
           param1: 'clean'
           param2: 'core'
           param3: 'fs'
-          param4: 'project'
-          param5: 'image'
+          param4: 'test'
+          param5: 'project'
+          param6: 'image'
 
       # step 4: upload contents of "_boot" as build artifacts
       - name: Upload build artifacts
@@ -58,3 +61,41 @@ jobs:
         with:
           name: phoenix-rtos-${{ matrix.target }}
           path: _boot
+
+  test:
+    needs: build
+    name: run tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: ['host-pc', 'ia32-generic']
+
+    steps:
+      - name: Checkout phoenix-rtos-project
+        uses: actions/checkout@v2
+        with:
+          repository: phoenix-rtos/phoenix-rtos-project
+          submodules: recursive
+
+      # step 2: update the submodule
+      - name: Update submodule ${{ github.event.repository.name }}
+        working-directory: ${{ github.event.repository.name }}
+        run: |
+          git fetch --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
+          git fetch --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git checkout ${{ github.sha }} || git checkout ${{ github.event.pull_request.head.sha }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: phoenix-rtos-${{ matrix.target }}
+          path: _boot
+
+      - name: Fix file permissions
+        if: ${{ matrix.target == 'host-pc' }}
+        run: find _boot/host-pc/ -type f -exec chmod 755 {} \;
+
+      - name: Test runner
+        uses: ./.github/actions/phoenix-runner
+        with:
+          target: ${{ matrix.target }}
