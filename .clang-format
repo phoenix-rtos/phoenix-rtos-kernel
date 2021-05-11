@@ -1,0 +1,26 @@
+---
+BasedOnStyle: WebKit
+
+ColumnLimit: 0
+AlignAfterOpenBracket: DontAlign
+UseTab: ForContinuationAndIndentation
+IndentWidth: 8
+ContinuationIndentWidth: 8
+
+PointerAlignment: Right
+SpaceAfterCStyleCast: 'false'
+BreakBeforeBraces: Stroustrup
+
+AlignConsecutiveMacros: 'true'
+AlignEscapedNewlines: DontAlign
+AlignTrailingComments: 'true'
+AllowShortCaseLabelsOnASingleLine: 'true'
+IndentCaseLabels: 'true'
+MaxEmptyLinesToKeep: 2
+SortIncludes: 'false'
+SpacesBeforeTrailingComments: 2
+
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: 'false'
+BreakConstructorInitializers: AfterColon
+...
