@@ -313,9 +313,9 @@ void proc_kill(process_t *proc)
 
 void process_dumpException(unsigned int n, exc_context_t *ctx)
 {
-/*	thread_t *thread = proc_current();
+	thread_t *thread = proc_current();
 	process_t *process = thread->process;
-	userintr_t *intr;*/
+	userintr_t *intr;
 	char buff[SIZE_CTXDUMP];
 
 	hal_exceptionsDumpContext(buff, ctx, n);
@@ -324,12 +324,12 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	posix_write(2, buff, hal_strlen(buff));
 	posix_write(2, "\n", 1);
 
-/*	if ((intr = userintr_active()) != NULL)
+	if ((intr = userintr_active()) != NULL)
 		lib_printf("in interrupt (%d) handler of process \"%s\" (%x)\n", intr->handler.n, intr->process->path, intr->process->id);
 	else if (process == NULL)
 		lib_printf("in kernel thread %x\n", thread->id);
 	else
-		lib_printf("in thread %d, process \"%s\" (%x)\n", thread->id, process->path, process->id);*/
+		lib_printf("in thread %d, process \"%s\" (%x)\n", thread->id, process->path, process->id);
 }
 
 
