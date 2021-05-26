@@ -6,7 +6,7 @@
 # %LICENSE%
 #
 
-VERSION="2.97 rev: "`git rev-parse --short HEAD`
+VERSION="2.97 rev: $(shell git rev-parse --short HEAD)"
 CONSOLE?=vga
 KERNEL=1
 
