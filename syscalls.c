@@ -35,9 +35,9 @@
 
 void syscalls_debug(void *ustack)
 {
-	char *s;
+	const char *s;
 
-	GETFROMSTACK(ustack, char *, s, 0);
+	GETFROMSTACK(ustack, const char *, s, 0);
 	hal_consolePrint(ATTR_USER, s);
 }
 
