@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: ['armv7a7-imx6ull', 'armv7a9-zynq7000', 'armv7m7-imxrt106x', 'armv7m4-stm32l4x6', 'host-pc', 'ia32-generic', 'riscv64-spike', 'riscv64-virt']
+        target: ['armv7a7-imx6ull', 'armv7a9-zynq7000', 'armv7m7-imxrt106x', 'armv7m7-imxrt117x', 'armv7m4-stm32l4x6', 'host-pc', 'ia32-generic', 'riscv64-spike', 'riscv64-virt']
         include:
           - target: 'ia32-generic'
             syspage: 'psh pc-ata uart16550'
@@ -31,12 +31,12 @@ jobs:
           repository: phoenix-rtos/phoenix-rtos-project
           submodules: recursive
 
-      # step 2: update the submodule
+      # step 2: update the submodule (recurse-sumbodules=no is needed for phoenix-rtos-lwip checkout not to fail, but it fails to update the submodule (TODO)
       - name: Update submodule ${{ github.event.repository.name }}
         working-directory: ${{ github.event.repository.name }}
         run: |
-          git fetch --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
-          git fetch --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
           git checkout ${{ github.sha }} || git checkout ${{ github.event.pull_request.head.sha }}
 
       # attach GCC problem matcher... might not work because of submodules... just trying
@@ -48,12 +48,11 @@ jobs:
         with:
           target: ${{ matrix.target }}
           syspage: ${{ matrix.syspage }}
-          param1: 'clean'
-          param2: 'core'
-          param3: 'fs'
-          param4: 'test'
-          param5: 'project'
-          param6: 'image'
+          param1: 'core'
+          param2: 'fs'
+          param3: 'test'
+          param4: 'project'
+          param5: 'image'
 
       # step 4: upload contents of "_boot" as build artifacts
       - name: Upload build artifacts
@@ -81,8 +80,8 @@ jobs:
       - name: Update submodule ${{ github.event.repository.name }}
         working-directory: ${{ github.event.repository.name }}
         run: |
-          git fetch --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
-          git fetch --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
           git checkout ${{ github.sha }} || git checkout ${{ github.event.pull_request.head.sha }}
 
       - name: Download build artifacts

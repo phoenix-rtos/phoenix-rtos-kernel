@@ -64,7 +64,7 @@ jobs:
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git diff -U0 HEAD^ | clang-format-diff-10 -p1 | /tmp/reviewdog -f=diff -f.diff.strip=0 -name=clang-format-pr -reporter=github-pr-review
+          git diff -U0 HEAD^ | clang-format-diff-10 -p1 | /tmp/reviewdog -f=diff -f.diff.strip=0 -name=clang-format-pr -reporter=github-pr-review -fail-on-error
 
 
   # reviewdog: codespell for PRs only
