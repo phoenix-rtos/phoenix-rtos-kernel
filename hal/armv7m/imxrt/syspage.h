@@ -47,7 +47,7 @@ typedef struct syspage_program_t {
 	u8 dmap;
 	u8 imap;
 
-	char cmdline[16];
+	char cmdline[32];
 } syspage_program_t;
 
 
