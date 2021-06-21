@@ -316,6 +316,7 @@ void syscalls_meminfo(void *ustack)
 int syscalls_syspageprog(void *ustack)
 {
 	int i;
+	size_t sz;
 	syspageprog_t *prog;
 
 	GETFROMSTACK(ustack, syspageprog_t *, prog, 0);
@@ -329,7 +330,9 @@ int syscalls_syspageprog(void *ustack)
 
 	prog->addr = syspage->progs[i].start;
 	prog->size = syspage->progs[i].end - syspage->progs[i].start;
-	hal_memcpy(prog->name, syspage->progs[i].cmdline, sizeof(syspage->progs[i].cmdline));
+	sz = min(sizeof(prog->name), sizeof(syspage->progs[i].cmdline));
+	hal_memcpy(prog->name, syspage->progs[i].cmdline, sz);
+	prog->name[sz - 1] = '\0';
 
 	return EOK;
 }
