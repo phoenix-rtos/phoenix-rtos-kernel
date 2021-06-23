@@ -13,10 +13,9 @@
  * %LICENSE%
  */
 
-#include "stm32.h"
-#include "interrupts.h"
-#include "pmap.h"
-#include "../../include/errno.h"
+#include "../stm32.h"
+#include "../interrupts.h"
+#include "../../../../include/errno.h"
 
 
 struct {
@@ -505,7 +504,10 @@ u32 _stm32_scbGetPriority(s8 excpn)
 void _stm32_nvicSetIRQ(s8 irqn, u8 state)
 {
 	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + (state ? nvic_iser: nvic_icer);
-	*ptr |= 1 << (irqn & 0x1F);
+	*ptr = 1 << (irqn & 0x1F);
+
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
@@ -519,7 +521,7 @@ u32 _stm32_nvicGetPendingIRQ(s8 irqn)
 void _stm32_nvicSetPendingIRQ(s8 irqn, u8 state)
 {
 	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + (state ? nvic_ispr: nvic_icpr);
-	*ptr |= 1 << (irqn & 0x1F);
+	*ptr = 1 << (irqn & 0x1F);
 }
 
 
