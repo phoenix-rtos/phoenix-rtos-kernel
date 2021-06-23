@@ -1764,8 +1764,11 @@ u32 _imxrt_scbGetPriority(s8 excpn)
 
 void _imxrt_nvicSetIRQ(s8 irqn, u8 state)
 {
-	volatile u32 *ptr = imxrt_common.nvic + ((u8)irqn >> 5) + (state ? nvic_iser: nvic_icer);
-	*ptr |= 1 << (irqn & 0x1F);
+	volatile u32 *ptr = imxrt_common.nvic + ((u8)irqn >> 5) + (state ? nvic_iser : nvic_icer);
+	*ptr = 1 << (irqn & 0x1F);
+
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
@@ -1779,7 +1782,7 @@ u32 _imxrt_nvicGetPendingIRQ(s8 irqn)
 void _imxrt_nvicSetPendingIRQ(s8 irqn, u8 state)
 {
 	volatile u32 *ptr = imxrt_common.nvic + ((u8)irqn >> 5) + (state ? nvic_ispr: nvic_icpr);
-	*ptr |= 1 << (irqn & 0x1F);
+	*ptr = 1 << (irqn & 0x1F);
 }
 
 
