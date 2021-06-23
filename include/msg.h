@@ -112,6 +112,7 @@ typedef struct _msg_t {
 			/* ATTR */
 			struct {
 				int val;
+				int err;
 			} attr;
 
 			/* CREATE */
