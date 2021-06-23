@@ -21,24 +21,6 @@
 #include "spinlock.h"
 
 
-static inline void imxrt_dataSyncBarrier(void)
-{
-	__asm__ volatile ("dsb");
-}
-
-
-static inline void imxrt_dataInstrBarrier(void)
-{
-	__asm__ volatile ("isb");
-}
-
-
-static inline void imxrt_dataBarrier(void)
-{
-	__asm__ volatile ("dmb");
-}
-
-
 extern int hal_platformctl(void *ptr);
 
 
