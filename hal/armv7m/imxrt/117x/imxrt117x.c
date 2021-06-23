@@ -16,6 +16,7 @@
 #include "imxrt117x.h"
 #include "interrupts.h"
 #include "pmap.h"
+#include "../../cpu.h"
 #include "../../../include/errno.h"
 #include "../../../include/arch/imxrt1170.h"
 
@@ -368,8 +369,8 @@ void _imxrt_nvicSetIRQ(s8 irqn, u8 state)
 	volatile u32 *ptr = imxrt_common.nvic + ((u8)irqn >> 5) + (state ? nvic_iser: nvic_icer);
 	*ptr = 1 << (irqn & 0x1F);
 
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
@@ -471,7 +472,7 @@ void _imxrt_enableDCache(void)
 	u32 ccsidr, sets, ways;
 
 	*(imxrt_common.scb + scb_csselr) = 0;
-	imxrt_dataSyncBarrier();
+	hal_cpuDataSyncBarrier();
 
 	ccsidr = *(imxrt_common.scb + scb_ccsidr);
 
@@ -483,12 +484,12 @@ void _imxrt_enableDCache(void)
 			*(imxrt_common.scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
 		} while (ways-- != 0);
 	} while(sets-- != 0);
-	imxrt_dataSyncBarrier();
+	hal_cpuDataSyncBarrier();
 
 	*(imxrt_common.scb + scb_ccr) |= 1 << 16;
 
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
@@ -497,10 +498,10 @@ void _imxrt_disableDCache(void)
 	register u32 ccsidr, sets, ways;
 
 	*(imxrt_common.scb + scb_csselr) = 0;
-	imxrt_dataSyncBarrier();
+	hal_cpuDataSyncBarrier();
 
 	*(imxrt_common.scb + scb_ccr) &= ~(1 << 16);
-	imxrt_dataSyncBarrier();
+	hal_cpuDataSyncBarrier();
 
 	ccsidr = *(imxrt_common.scb + scb_ccsidr);
 
@@ -512,8 +513,8 @@ void _imxrt_disableDCache(void)
 		} while (ways-- != 0);
 	} while(sets-- != 0);
 
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
@@ -523,7 +524,7 @@ void _imxrt_cleanDCache(void)
 
 	*(imxrt_common.scb + scb_csselr) = 0;
 
-	imxrt_dataSyncBarrier();
+	hal_cpuDataSyncBarrier();
 	ccsidr = *(imxrt_common.scb + scb_ccsidr);
 
 	/* Clean D$ */
@@ -535,33 +536,33 @@ void _imxrt_cleanDCache(void)
 		} while (ways-- != 0);
 	} while(sets-- != 0);
 
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
 
 void _imxrt_enableICache(void)
 {
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 	*(imxrt_common.scb + scb_iciallu) = 0; /* Invalidate I$ */
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 	*(imxrt_common.scb + scb_ccr) |= 1 << 17;
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
 void _imxrt_disableICache(void)
 {
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 	*(imxrt_common.scb + scb_ccr) &= ~(1 << 17);
 	*(imxrt_common.scb + scb_iciallu) = 0;
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 }
 
 
@@ -578,8 +579,8 @@ int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state)
 	t = *reg & ~0x01ff07ffu;
 	*reg = t | (!state << 24) | ((mfn & 0xf) << 20) | ((mfd & 0xf) << 16) | ((mux & 0x7) << 8) | (div & 0xff);
 
-	imxrt_dataSyncBarrier();
-	imxrt_dataInstrBarrier();
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 
 	return 0;
 }
