@@ -67,6 +67,7 @@ typedef struct _thread_t {
 
 	void *kstack;
 	size_t kstacksz;
+	char *ustack;
 
 	/* for vfork/exec */
 	void *parentkstack, *execkstack;
@@ -104,6 +105,9 @@ extern void perf_exec(process_t *p, char *path);
 extern thread_t *proc_current(void);
 
 
+extern void threads_canaryInit(thread_t *t, void *ustack);
+
+
 extern int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
 
 
@@ -132,9 +136,6 @@ extern int proc_threadsList(int n, threadinfo_t *info);
 
 
 extern void proc_zombie(process_t *proc);
-
-
-extern int proc_threadClone(void);
 
 
 extern int proc_threadSleep(unsigned long long us);

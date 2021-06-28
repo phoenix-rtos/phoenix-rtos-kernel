@@ -57,6 +57,8 @@ struct {
 	time_t perfLastTimestamp;
 	cbuffer_t perfBuffer;
 	page_t *perfPages;
+
+	unsigned char stackCanary[16];
 } threads_common;
 
 
@@ -618,10 +620,17 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Update CPU usage */
 	threads_cpuTimeCalc(current, selected);
 
-#if 0
+#ifndef NDEBUG
 	/* Test stack usage */
-	if (selected != NULL && !selected->execkstack && ((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
+	if (selected != NULL && !selected->execkstack &&
+			((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
 		lib_printf("proc: Stack limit exceeded, sp=%p %p %d\n", selected->kstack, selected->context, hal_cpuGetID());
+		for (;;);
+	}
+
+	if (selected != NULL && selected->process != NULL && selected->ustack != NULL &&
+			hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) != 0) {
+		lib_printf("proc: User stack corrupted pid=%d, tid=%d\n", selected->process->id, selected->id);
 		for (;;);
 	}
 #endif
@@ -762,6 +771,13 @@ static void thread_augment(rbnode_t *node)
 }
 
 
+void threads_canaryInit(thread_t *t, void *ustack)
+{
+	if ((t->ustack = ustack) != NULL)
+		hal_memcpy(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
+}
+
+
 int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
 {
 	/* TODO - save user stack and it's size in thread_t */
@@ -817,8 +833,13 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	/* Prepare initial stack */
 	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, stack + stacksz, arg);
 
-	if (process != NULL)
+	if (process != NULL) {
 		hal_cpuSetCtxGot(t->context, process->got);
+		threads_canaryInit(t, stack);
+	}
+	else {
+		t->ustack = NULL;
+	}
 
 	t->startTime = TIMER_CYC2US(_threads_getTimer());
 	t->cpuTime = 0;
@@ -1583,6 +1604,9 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.perfGather = 0;
 
 	proc_lockInit(&threads_common.lock);
+
+	for (i = 0; i < sizeof(threads_common.stackCanary); ++i)
+		threads_common.stackCanary[i] = (i & 1) ? 0xaa : 0x55;
 
 	/* Initiaizlie scheduler queue */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++)
