@@ -506,6 +506,8 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		return -ENOMEM;
 	*ustack = stack + SIZE_USTACK;
 
+	threads_canaryInit(proc_current(), stack);
+
 	return EOK;
 }
 
@@ -675,6 +677,8 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 
 	process->got = (void *)got;
 	*ustack = stack + stacksz;
+
+	threads_canaryInit(proc_current(), stack);
 
 	return EOK;
 }
