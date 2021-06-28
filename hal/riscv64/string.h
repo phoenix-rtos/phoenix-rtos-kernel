@@ -49,6 +49,21 @@ static inline void hal_memsetw(void *where, u16 v, unsigned int n)
 #endif
 
 
+static inline int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
+{
+	int i;
+
+	for (i = 0; i < num; ++i) {
+		if (((const u8 *)ptr1)[i] < ((const u8 *)ptr2)[i])
+			return -1;
+		else if (((const u8 *)ptr1)[i] > ((const u8 *)ptr2)[i])
+			return 1;
+	}
+
+	return 0;
+}
+
+
 static inline unsigned int hal_strlen(const char *s)
 {
 	unsigned int k;
