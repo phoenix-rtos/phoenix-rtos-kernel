@@ -1083,6 +1083,18 @@ int syscalls_sys_connect(char *ustack)
 }
 
 
+int syscalls_sys_gethostname(char *ustack)
+{
+	char *name;
+	size_t namelen;
+
+	GETFROMSTACK(ustack, char *, name, 0);
+	GETFROMSTACK(ustack, size_t, namelen, 1);
+
+	return posix_gethostname(name, namelen);
+}
+
+
 int syscalls_sys_getpeername(char *ustack)
 {
 	int socket;
@@ -1204,6 +1216,18 @@ int syscalls_sys_shutdown(char *ustack)
 	GETFROMSTACK(ustack, int, how, 1);
 
 	return posix_shutdown(socket, how);
+}
+
+
+int syscalls_sys_sethostname(char *ustack)
+{
+	const char *name;
+	size_t namelen;
+
+	GETFROMSTACK(ustack, const char *, name, 0);
+	GETFROMSTACK(ustack, size_t, namelen, 1);
+
+	return posix_sethostname(name, namelen);
 }
 
 

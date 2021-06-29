@@ -92,6 +92,9 @@ extern int posix_bind(int socket, const struct sockaddr *address, socklen_t addr
 extern int posix_connect(int socket, const struct sockaddr *address, socklen_t address_len);
 
 
+extern int posix_gethostname(char *name, size_t namelen);
+
+
 extern int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
 
 
@@ -114,6 +117,9 @@ extern int posix_socket(int domain, int type, int protocol);
 
 
 extern int posix_shutdown(int socket, int how);
+
+
+extern int posix_sethostname(const char *name, size_t namelen);
 
 
 extern int posix_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen);
