@@ -90,6 +90,7 @@
 	ID(sys_accept4) \
 	ID(sys_bind) \
 	ID(sys_connect) \
+	ID(sys_gethostname) \
 	ID(sys_getpeername) \
 	ID(sys_getsockname) \
 	ID(sys_getsockopt) \
@@ -98,6 +99,7 @@
 	ID(sys_sendto) \
 	ID(sys_socket) \
 	ID(sys_shutdown) \
+	ID(sys_sethostname) \
 	ID(sys_setsockopt) \
 	\
 	ID(sys_ioctl) \

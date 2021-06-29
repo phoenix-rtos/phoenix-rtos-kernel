@@ -16,6 +16,7 @@
 #include HAL
 #include "../include/errno.h"
 #include "../include/ioctl.h"
+#include "../include/limits.h"
 #include "../proc/proc.h"
 
 #include "posix.h"
@@ -62,6 +63,7 @@ struct {
 	rbtree_t pid;
 	lock_t lock;
 	id_t fresh;
+	char hostname[HOST_NAME_MAX + 1];
 } posix_common;
 
 
@@ -1626,6 +1628,19 @@ int posix_connect(int socket, const struct sockaddr *address, socklen_t address_
 }
 
 
+int posix_gethostname(char *name, size_t namelen)
+{
+	TRACE("gethostname(%zu)", namelen);
+
+	if (namelen < 0)
+		return -EINVAL;
+
+	hal_strncpy(name, posix_common.hostname, namelen);
+
+	return 0;
+}
+
+
 int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
 {
 	TRACE("getpeername(%d, %s)", socket, address == NULL ? NULL : address->sa_data);
@@ -1812,6 +1827,20 @@ int posix_shutdown(int socket, int how)
 	}
 
 	return err;
+}
+
+
+int posix_sethostname(const char *name, size_t namelen)
+{
+	TRACE("sethostname(%zu)", namelen);
+
+	if (namelen < 0 || namelen > HOST_NAME_MAX)
+		return -EINVAL;
+
+	hal_strncpy(posix_common.hostname, name, namelen);
+	posix_common.hostname[namelen] = '\0';
+
+	return 0;
 }
 
 
