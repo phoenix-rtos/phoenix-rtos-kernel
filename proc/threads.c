@@ -630,7 +630,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	if (selected != NULL && selected->process != NULL && selected->ustack != NULL &&
 			hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) != 0) {
-		lib_printf("proc: User stack corrupted pid=%d, tid=%d\n", selected->process->id, selected->id);
+		lib_printf("proc: User stack corrupted path=%s, pid=%d, tid=%d\n", selected->process->path, selected->process->id, selected->id);
 		for (;;);
 	}
 #endif
