@@ -104,9 +104,10 @@ struct timeval {
 };
 
 
-#define AF_UNIX 1
-#define AF_INET 2
-#define AF_INET6 10
+#define AF_UNIX   1
+#define AF_INET   2
+#define AF_INET6  10
+#define AF_KEY    15
 #define AF_PACKET 17
 
 #define SOCK_STREAM 1
