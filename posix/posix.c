@@ -1484,6 +1484,7 @@ int posix_socket(int domain, int type, int protocol)
 		break;
 	case AF_INET:
 	case AF_INET6:
+	case AF_KEY:
 	case AF_PACKET:
 		if ((err = inet_socket(domain, type, protocol)) >= 0) {
 			p->fds[fd].file->type = ftInetSocket;
