@@ -54,12 +54,19 @@ jobs:
           param4: 'project'
           param5: 'image'
 
-      # step 4: upload contents of "_boot" as build artifacts
+      # step 4: tar rootfs
+      - name: Tar rootfs
+        working-directory: _fs
+        run: tar -cvf ../rootfs-${{ matrix.target }}.tar ${{ matrix.target }}/root
+
+      # step 5: upload "_boot" directory and tarball of rootfs as build artifacts
       - name: Upload build artifacts
         uses: actions/upload-artifact@v2
         with:
           name: phoenix-rtos-${{ matrix.target }}
-          path: _boot
+          path: |
+            _boot
+            rootfs-${{ matrix.target }}.tar
 
   test:
     needs: build
@@ -88,11 +95,10 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: phoenix-rtos-${{ matrix.target }}
-          path: _boot
 
-      - name: Fix file permissions
-        if: ${{ matrix.target == 'host-pc' }}
-        run: find _boot/host-pc/ -type f -exec chmod 755 {} \;
+      - name: Untar rootfs
+        working-directory: _fs
+        run: tar -xvf ../rootfs-${{ matrix.target }}.tar
 
       - name: Test runner
         uses: ./.github/actions/phoenix-runner
