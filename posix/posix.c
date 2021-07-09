@@ -1633,9 +1633,6 @@ int posix_gethostname(char *name, size_t namelen)
 {
 	TRACE("gethostname(%zu)", namelen);
 
-	if (namelen < 0)
-		return -EINVAL;
-
 	hal_strncpy(name, posix_common.hostname, namelen);
 
 	return 0;
@@ -1835,7 +1832,7 @@ int posix_sethostname(const char *name, size_t namelen)
 {
 	TRACE("sethostname(%zu)", namelen);
 
-	if (namelen < 0 || namelen > HOST_NAME_MAX)
+	if (namelen > HOST_NAME_MAX)
 		return -EINVAL;
 
 	hal_strncpy(posix_common.hostname, name, namelen);
@@ -2321,4 +2318,5 @@ void posix_init(void)
 	lib_rbInit(&posix_common.pid, pinfo_cmp, NULL);
 	unix_sockets_init();
 	posix_common.fresh = 0;
+	hal_memset(posix_common.hostname, 0, sizeof(posix_common.hostname));
 }
