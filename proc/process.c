@@ -973,15 +973,17 @@ static void process_vforkThread(void *arg)
 	parent = spawn->parent;
 	posix_clone(parent->process->id);
 
+	hal_spinlockSet(&spawn->sl, &sc);
+	while (spawn->state < FORKING)
+		proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
+
+	/* in critical section - needs to be done atomically */
 	current->process->mapp = parent->process->mapp;
 	current->process->pmapp = parent->process->pmapp;
 	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
 	pmap_switch(current->process->pmapp);
 
-	hal_spinlockSet(&spawn->sl, &sc);
-	while (spawn->state < FORKING)
-		proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
 	hal_spinlockClear(&spawn->sl, &sc);
 
 	/* Copy parent kernel stack */
