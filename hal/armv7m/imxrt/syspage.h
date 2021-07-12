@@ -30,6 +30,19 @@ enum { mAttrRead = 0x01, mAttrWrite = 0x02, maAtrrExec = 0x04, mAttrShareable = 
 	   mAttrCacheable = 0x10, mAttrBufferable = 0x20, /* TODO: */ };
 
 
+typedef struct {
+	struct {
+		u32 type;
+		u32 allocCnt;
+		struct {
+			u32 rbar;
+			u32 rasr;
+		} table[16] __attribute__((aligned(8)));
+		u32 map[16]; /* ((u32)-1) = map is not assigned */
+	} mpu;
+} syspage_hal_t;
+
+
 typedef struct _syspage_map_t {
 	addr_t start;
 	addr_t end;
@@ -52,6 +65,8 @@ typedef struct syspage_program_t {
 
 
 typedef struct _syspage_t {
+	syspage_hal_t hal;
+
 	struct {
 		addr_t text;
 		size_t textsz;
