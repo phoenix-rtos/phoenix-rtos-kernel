@@ -69,6 +69,12 @@ extern int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
 extern void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx);
 
 
+static inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
+{
+	return ctx->pc;
+}
+
+
 extern void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n);
 
 

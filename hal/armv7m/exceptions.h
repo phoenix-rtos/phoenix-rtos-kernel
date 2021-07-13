@@ -56,6 +56,12 @@ typedef struct _exc_context_t {
 extern void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n);
 
 
+static inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
+{
+	return ctx->pc;
+}
+
+
 static inline int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
 {
 	return 0;
