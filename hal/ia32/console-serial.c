@@ -104,9 +104,9 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	}
 
 	/* 115200 8n1 */
-	_console_uartWrite(lcr, 0x83);
-	_console_uartWrite(dlh, 0x01);
-	_console_uartWrite(dll, 0x20);
+	_console_uartWrite(lcr, 0x80);
+	_console_uartWrite(dll, 0x01);
+	_console_uartWrite(dlh, 0x00);
 	_console_uartWrite(lcr, 0x03);
 
 	/* disable IRQ */
