@@ -665,26 +665,24 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	vm_map_t *map;
 	void *vaddr, *paddr;
 	int prot;
-	int vaddrInKernel;
 
 	prot = hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
 	paddr = (void *)((unsigned long)vaddr & ~(SIZE_PAGE - 1));
-	vaddrInKernel = pmap_belongs(&map_common.kmap->pmap, vaddr);
 
 #ifdef PAGEFAULTSTOP
 	process_dumpException(n, ctx);
 	__asm__ volatile ("1: b 1b");
 #endif
 
-	if (vaddrInKernel) /* output exception ASAP to avoid being deadlocked on spinlock */
+	if (hal_exceptionsPC(ctx) >= VADDR_KERNEL) /* output exception ASAP to avoid being deadlocked on spinlock */
 		process_dumpException(n, ctx);
 
 	hal_cpuEnableInterrupts();
 
 	thread = proc_current();
 
-	if (thread->process != NULL && !vaddrInKernel)
+	if (thread->process != NULL && !pmap_belongs(&map_common.kmap->pmap, vaddr))
 		map = thread->process->mapp;
 	else
 		map = map_common.kmap;
