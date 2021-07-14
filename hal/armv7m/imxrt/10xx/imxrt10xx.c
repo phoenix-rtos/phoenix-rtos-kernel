@@ -2183,6 +2183,7 @@ void _imxrt_init(void)
 	_imxrt_ccmInitArmPll(88);
 	_imxrt_ccmInitSysPll(1);
 	_imxrt_ccmInitUsb1Pll(0);
+	_imxrt_ccmInitUsb2Pll(0);
 
 	_imxrt_ccmSetDiv(clk_div_arm, 0x1);
 	_imxrt_ccmSetDiv(clk_div_ahb, 0x0);
@@ -2210,7 +2211,6 @@ void _imxrt_init(void)
 	/* Power down all unused PLL */
 	_imxrt_ccmDeinitAudioPll();
 	_imxrt_ccmDeinitEnetPll();
-	_imxrt_ccmDeinitUsb2Pll();
 
 	/* Wait for any pending CCM div/mux handshake process to complete */
 	while (*(imxrt_common.ccm + ccm_cdhipr) & 0x1002b);
