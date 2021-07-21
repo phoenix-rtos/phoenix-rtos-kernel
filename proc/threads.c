@@ -773,8 +773,14 @@ static void thread_augment(rbnode_t *node)
 
 void threads_canaryInit(thread_t *t, void *ustack)
 {
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
 	if ((t->ustack = ustack) != NULL)
 		hal_memcpy(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
 
