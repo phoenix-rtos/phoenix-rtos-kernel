@@ -21,7 +21,7 @@
 
 static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero)
 {
-	char digits[] = "0123456789abcdef";
+	static const char digits[] = "0123456789abcdef";
 	char c;
 	unsigned int l, k, m;
 
