@@ -886,32 +886,40 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 
 int proc_syspageSpawnName(const char *map, const char *name, char **argv)
 {
-	int j;
-	syspage_program_t *prog;
+	int i;
+	syspage_program_t *prog = NULL;
+
+	for (i = 0; i < syspage->progssz; ++i) {
+		if (hal_strcmp(name, syspage->progs[i].cmdline) == 0)
+			prog = &syspage->progs[i];
+	}
+
+	if (prog == NULL)
+		return -ENOENT;
 
 #if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X) || defined(CPU_IMXRT117X)
-	int i;
+	if (map == NULL) {
+		if (prog->dmap < syspage->mapssz && (syspage->maps[prog->dmap].attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite))
+			return proc_syspageSpawn(prog, vm_getSharedMap(prog), name, argv);
+		else
+			return -EINVAL;
+	}
 
 	for (i = 0; i < syspage->mapssz; ++i) {
-		/* TODO: check map's attributes; take into account only maps with attributes R+W;
-		         attributes have to be generalized for other architecture */
-		if (!hal_strcmp(map, syspage->maps[i].name)) {
-			for (j = 0, prog = syspage->progs; j < syspage->progssz; ++j, ++prog) {
-				if (!hal_strcmp(name, prog->cmdline)) {
-					prog->dmap = i;
-					return proc_syspageSpawn(prog, vm_getSharedMap(prog), name, argv);
-				}
-			}
-		}
+		if (hal_strcmp(map, syspage->maps[i].name) != 0)
+			continue;
+
+		if ((syspage->maps[i].attr & (mAttrRead | mAttrWrite)) != (mAttrRead | mAttrWrite))
+			break;
+
+		prog->dmap = i;
+		return proc_syspageSpawn(prog, vm_getSharedMap(prog), name, argv);
 	}
-#else
-	for (j = 0, prog = syspage->progs; j < syspage->progssz; ++j, ++prog) {
-		if (!hal_strcmp(name, prog->cmdline))
-			return proc_syspageSpawn(prog, NULL, name, argv);
-	}
-#endif
 
 	return -EINVAL;
+#else
+	return proc_syspageSpawn(prog, NULL, name, argv);
+#endif
 }
 
 
