@@ -1052,16 +1052,17 @@ void vm_mapGetStats(size_t *allocsz)
 }
 
 
-vm_map_t *vm_getSharedMap(syspage_program_t *prog)
+vm_map_t *vm_getSharedMap(syspage_program_t *prog, int map)
 {
 #ifdef NOMMU
-	if (prog->dmap < 0 || prog->dmap >= 16)
-		return NULL;
+	if (map < 0)
+		map = prog->dmap;
 
-	return map_common.maps[prog->dmap];
-#else
-	return NULL;
+	if (map >= 0 && map < 16)
+		return map_common.maps[map];
+
 #endif
+	return NULL;
 }
 
 
