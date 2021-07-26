@@ -900,7 +900,7 @@ int proc_syspageSpawnName(const char *map, const char *name, char **argv)
 #if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X) || defined(CPU_IMXRT117X)
 	if (map == NULL) {
 		if (prog->dmap < syspage->mapssz && (syspage->maps[prog->dmap].attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite))
-			return proc_syspageSpawn(prog, vm_getSharedMap(prog), name, argv);
+			return proc_syspageSpawn(prog, vm_getSharedMap(prog, -1), name, argv);
 		else
 			return -EINVAL;
 	}
@@ -912,8 +912,7 @@ int proc_syspageSpawnName(const char *map, const char *name, char **argv)
 		if ((syspage->maps[i].attr & (mAttrRead | mAttrWrite)) != (mAttrRead | mAttrWrite))
 			break;
 
-		prog->dmap = i;
-		return proc_syspageSpawn(prog, vm_getSharedMap(prog), name, argv);
+		return proc_syspageSpawn(prog, vm_getSharedMap(prog, i), name, argv);
 	}
 
 	return -EINVAL;
