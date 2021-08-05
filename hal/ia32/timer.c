@@ -16,13 +16,42 @@
 
 #include "cpu.h"
 #include "interrupts.h"
+#include "spinlock.h"
 
 #include "../../include/errno.h"
 
 
 struct {
+	intr_handler_t handler;
+	volatile time_t jiffies;
+	spinlock_t sp;
+
 	u32 interval;
 } timer;
+
+
+static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
+{
+	(void)n;
+	(void)arg;
+	(void)ctx;
+
+	timer.jiffies += timer.interval;
+	return -1;
+}
+
+
+time_t hal_getTimer(void)
+{
+	spinlock_ctx_t sc;
+	time_t ret;
+
+	hal_spinlockSet(&timer.sp, &sc);
+	ret = timer.jiffies;
+	hal_spinlockClear(&timer.sp, &sc);
+
+	return ret;
+}
 
 
 int timer_reschedule(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -46,6 +75,12 @@ __attribute__ ((section (".init"))) void _timer_init(u32 interval)
 	/* Set counter */
 	hal_outb((void *)0x40, (u8)(t & 0xff));
 	hal_outb((void *)0x40, (u8)(t >> 8));
+
+	hal_spinlockCreate(&timer.sp, "timer");
+	timer.handler.f = timer_irqHandler;
+	timer.handler.n = SYSTICK_IRQ;
+	timer.handler.data = NULL;
+	hal_interruptsSetHandler(&timer.handler);
 
 	return;
 }

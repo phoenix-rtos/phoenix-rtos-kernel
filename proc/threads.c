@@ -31,7 +31,6 @@ struct {
 	lock_t lock;
 	thread_t *ready[8];
 	thread_t **current;
-	volatile time_t jiffies;
 	time_t utcoffs;
 
 	unsigned int executions;
@@ -432,14 +431,7 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 
 static inline time_t _threads_getTimer(void)
 {
-#ifdef HPTIMER_IRQ
 	return hal_getTimer();
-#else
-//	time_t t;
-//	hal_cpuGetCycles(&t);
-//	return t / 1900000;
-	return threads_common.jiffies;
-#endif
 }
 
 
@@ -454,12 +446,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		return EOK;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-
-#ifdef HPTIMER_IRQ
-	now = threads_common.jiffies = hal_getTimer();
-#else
-	now = threads_common.jiffies += TIMER_US2CYC(SYSTICK_INTERVAL);
-#endif
+	now = _threads_getTimer();
 
 	for (;; i++) {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
@@ -1439,21 +1426,13 @@ int proc_lockDone(lock_t *lock)
 static void threads_idlethr(void *arg)
 {
 	time_t wakeup;
-	spinlock_ctx_t scp;
 
 	for (;;) {
 		wakeup = proc_nextWakeup();
 
-		if (wakeup > TIMER_US2CYC(2000)) {
-			wakeup = hal_cpuLowPower((TIMER_CYC2US(wakeup) + TIMER_US2CYC(500)) / TIMER_US2CYC(1000));
-#ifdef CPU_STM32
-			hal_spinlockSet(&threads_common.spinlock, &scp);
-			threads_common.jiffies += wakeup * 1000;
-			hal_spinlockClear(&threads_common.spinlock, &scp);
-#else
-			(void)scp;
-#endif
-		}
+		if (wakeup > TIMER_US2CYC(2000))
+			hal_cpuLowPower((TIMER_CYC2US(wakeup) + TIMER_US2CYC(500)) / TIMER_US2CYC(1000));
+
 		hal_cpuHalt();
 	}
 }
@@ -1595,7 +1574,6 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	unsigned int i;
 	threads_common.kmap = kmap;
 	threads_common.executions = 0;
-	threads_common.jiffies = 0;
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;

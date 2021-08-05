@@ -18,6 +18,7 @@
 #include "interrupts.h"
 #include "spinlock.h"
 #include "string.h"
+#include "timer.h"
 
 
 #if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)
@@ -112,7 +113,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-time_t hal_cpuLowPower(time_t ms)
+void hal_cpuLowPower(time_t ms)
 {
 #ifdef CPU_STM32
 	spinlock_ctx_t scp;
@@ -121,17 +122,9 @@ time_t hal_cpuLowPower(time_t ms)
 	if (cpu_common.busy == 0) {
 		/* Don't increment jiffies if sleep was unsuccessful */
 		ms = _stm32_pwrEnterLPStop(ms);
-
-		hal_spinlockClear(&cpu_common.busySp, &scp);
-		return ms;
+		timer_jiffiesAdd(1000 * ms);
 	}
-	else {
-		hal_spinlockClear(&cpu_common.busySp, &scp);
-		return 0;
-	}
-#else
-	/* TODO - low power for imxrt */
-	return 0;
+	hal_spinlockClear(&cpu_common.busySp, &scp);
 #endif
 }
 
