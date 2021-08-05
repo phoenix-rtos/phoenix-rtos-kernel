@@ -25,6 +25,9 @@
 #define TIMER_CYC2US(x) (x)
 
 
+extern time_t hal_getTimer(void);
+
+
 extern int timer_reschedule(unsigned int n, cpu_context_t *ctx, void *arg);
 
 

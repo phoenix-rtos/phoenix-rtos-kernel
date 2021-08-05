@@ -24,6 +24,12 @@
 #define TIMER_CYC2US(x) (x)
 
 
+extern void timer_jiffiesAdd(time_t t);
+
+
+extern time_t hal_getTimer(void);
+
+
 extern void _timer_init(u32 interval);
 
 
