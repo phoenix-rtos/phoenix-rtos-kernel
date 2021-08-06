@@ -40,7 +40,13 @@ void timer_jiffiesAdd(time_t t)
 }
 
 
-int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
+void timer_setAlarm(time_t us)
+{
+	(void)us;
+}
+
+
+static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 {
 	(void)n;
 	(void)arg;
