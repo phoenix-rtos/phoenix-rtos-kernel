@@ -13,64 +13,154 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "stm32.h"
-#include "interrupts.h"
-#include "spinlock.h"
+#include "../cpu.h"
+#include "../stm32.h"
+#include "../../interrupts.h"
+#include "../../spinlock.h"
+
+/*
+ * Prescaler settings (32768 Hz input frequency):
+ * 0 - 1/1
+ * 1 - 1/2
+ * 2 - 1/4
+ * 3 - 1/8
+ * 4 - 1/16
+ * 5 - 1/32
+ * 6 - 1/64
+ * 7 - 1/128
+ */
+#define PRESCALER 3
+
+
+enum { lptim_isr = 0, lptim_icr, lptim_ier, lptim_cfgr, lptim_cr, lptim_cmp, lptim_arr, lptim_cnt, lptim_or };
+
 
 static struct {
-	intr_handler_t handler;
-	volatile time_t jiffies;
+	intr_handler_t overflowh;
 	spinlock_t sp;
 
-	u32 interval;
+	volatile u32 *lptim;
+	volatile time_t upper;
 } timer_common;
 
 
-int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
+static inline time_t timer_ticks2us(time_t ticks)
+{
+	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
+}
+
+
+static inline time_t timer_us2ticks(time_t us)
+{
+	return ((32768 / (1 << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
+}
+
+
+static u32 timer_getCnt(void)
+{
+	u32 cnt[2];
+
+	do {
+		/* From documentation: "It should be noted that for a reliable LPTIM_CNT
+		 * register read access, two consecutive read accesses must be performed and compared.
+		 * A read access can be considered reliable when the
+		 * values of the two consecutive read accesses are equal." */
+		cnt[0] = *(timer_common.lptim + lptim_cnt);
+		cnt[1] = *(timer_common.lptim + lptim_cnt);
+	} while (cnt[0] != cnt[1]);
+
+	return cnt[0] & 0xffffu;
+}
+
+
+static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 {
 	(void)n;
-	(void)arg;
 	(void)ctx;
+	(void)arg;
 
-	timer_common.jiffies += timer_common.interval;
-	return 0;
+	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
+		++timer_common.upper;
+		*(timer_common.lptim + lptim_icr) = 1 << 1;
+		return 0;
+	}
+
+	*(timer_common.lptim + lptim_ier) = 2;
+	*(timer_common.lptim + lptim_icr) = 1;
+
+	return 1;
 }
 
 
 void timer_jiffiesAdd(time_t t)
 {
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&timer_common.sp, &sc);
-	timer_common.jiffies += t;
-	hal_spinlockClear(&timer_common.sp, &sc);
+	(void)t;
 }
 
 
 time_t hal_getTimer(void)
 {
+	time_t upper;
+	u32 lower;
 	spinlock_ctx_t sc;
-	time_t ret;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	ret = timer_common.jiffies;
+	upper = timer_common.upper;
+	lower = timer_getCnt();
+
+	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
+		if (timer_getCnt() >= lower)
+			++upper;
+	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return ret;
+	return timer_ticks2us((upper << 16) + lower);
+}
+
+
+void timer_setAlarm(time_t us)
+{
+	time_t ticks = timer_us2ticks(us);
+	u32 setval;
+	spinlock_ctx_t sc;
+
+	if (ticks > 0xffffu)
+		ticks = 0xffffu;
+
+	hal_spinlockSet(&timer_common.sp, &sc);
+	setval = timer_getCnt() + (u32)ticks;
+	/* ARR has to be strictly greater than CMP */
+	if (setval == 0xffffu)
+		setval = 0;
+	*(timer_common.lptim + lptim_cmp) = setval & 0xffffu;
+	*(timer_common.lptim + lptim_ier) = 3;
+	hal_spinlockClear(&timer_common.sp, &sc);
 }
 
 
 void _timer_init(u32 interval)
 {
-	timer_common.jiffies = 0;
+	timer_common.lptim = (void *)0x40007c00;
+	timer_common.upper = 0;
+
+	hal_spinlockCreate(&timer_common.sp, "timer");
+
+	*(timer_common.lptim + lptim_cfgr) = (1 << 19) | (PRESCALER << 9);
+	*(timer_common.lptim + lptim_ier) = 2;
+	*(timer_common.lptim + lptim_icr) |= 0x7f;
+	*(timer_common.lptim + lptim_cr) = 1;
+	hal_cpuDataBarrier();
+	*(timer_common.lptim + lptim_cnt) = 0;
+	*(timer_common.lptim + lptim_cmp) = 0;
+	*(timer_common.lptim + lptim_arr) = 0xffff;
+
+	*(timer_common.lptim + lptim_cr) |= 4;
+
+	timer_common.overflowh.f = timer_irqHandler;
+	timer_common.overflowh.n = lptim1_irq;
+	timer_common.overflowh.got = NULL;
+	timer_common.overflowh.data = NULL;
+	hal_interruptsSetHandler(&timer_common.overflowh);
 
 	_stm32_systickInit(interval);
-
-	timer_common.interval = interval;
-	hal_spinlockCreate(&timer_common.sp, "timer");
-	timer_common.handler.f = _timer_irqHandler;
-	timer_common.handler.n = SYSTICK_IRQ;
-	timer_common.handler.data = NULL;
-	hal_interruptsSetHandler(&timer_common.handler);
 }

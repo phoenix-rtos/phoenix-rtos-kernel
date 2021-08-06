@@ -352,9 +352,8 @@ static inline void hal_cpuEnableInterrupts(void)
 /* performance */
 
 
-static inline void hal_cpuLowPower(time_t ms)
+static inline void hal_cpuLowPower(time_t us)
 {
-	return 0;
 }
 
 

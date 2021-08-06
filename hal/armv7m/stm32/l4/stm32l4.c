@@ -16,6 +16,7 @@
 #include "../stm32.h"
 #include "../interrupts.h"
 #include "../../../../include/errno.h"
+#include "../../timer.h"
 
 
 struct {
@@ -30,7 +31,6 @@ struct {
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
 	volatile u32 *flash;
-	volatile u32 *lptim;
 
 	u32 cpuclk;
 
@@ -96,9 +96,6 @@ enum { fpu_cpacr = 34, fpu_fpccr = 141, fpu_fpcar, fpu_fpdscr };
 enum { flash_acr = 0, flash_pdkeyr, flash_keyr, flash_optkeyr, flash_sr, flash_cr, flash_eccr,
 	flash_optr = flash_eccr + 2, flash_pcrop1sr, flash_pcrop1er, flash_wrp1ar, flash_wrp1br,
 	flash_pcrop2sr = flash_wrp1br + 5, flash_pcrop2er, flash_wrp2ar, flash_wrp2br };
-
-
-enum { lptim_isr = 0, lptim_icr, lptim_ier, lptim_cfgr, lptim_cr, lptim_cmp, lptim_arr, lptim_cnt, lptim_or };
 
 
 /* platformctl syscall */
@@ -341,62 +338,6 @@ void _stm32_rtcLockRegs(void)
 }
 
 
-/* LPTIM */
-
-
-static time_t _stm32_lptimSetAlarm(time_t ms)
-{
-	if (ms > 0xffff)
-		ms = 0xffff;
-
-	if (!ms)
-		ms = 1;
-
-	/* /32 prescaler, ~1 ms per tick */
-	*(stm32_common.lptim + lptim_cfgr) = (1 << 19) | (0x5 << 9);
-
-	/* Enable interrupt. We won't enable it in NVIC, so interrput won't come,
-	 * only event will be generated. */
-	*(stm32_common.lptim + lptim_ier) |= 1;
-
-	*(stm32_common.lptim + lptim_icr) |= 0x7f;
-	*(stm32_common.lptim + lptim_cr) = 1;
-	hal_cpuDataBarrier();
-	*(stm32_common.lptim + lptim_cnt) = 0;
-	*(stm32_common.lptim + lptim_cmp) = (unsigned int)ms;
-	*(stm32_common.lptim + lptim_arr) = 0xffff;
-
-	*(stm32_common.lptim + lptim_cr) |= 4;
-
-	return ms;
-}
-
-
-static time_t _stm32_lptimStopGetMs(void)
-{
-	unsigned int cnt[2];
-
-	do {
-		/* From documentation: "It should be noted that for a reliable LPTIM_CNT
-		 * register read access, two consecutive read accesses must be performed and compared.
-		 * A read access can be considered reliable when the
-		 * values of the two consecutive read accesses are equal." */
-		cnt[0] = *(stm32_common.lptim + lptim_cnt);
-		cnt[1] = *(stm32_common.lptim + lptim_cnt);
-	} while (cnt[0] != cnt[1]);
-
-	hal_cpuDataBarrier();
-
-	/* We need to reset timer (errata) */
-	*(stm32_common.rcc + rcc_apb1rstr1) |= 1u << 31;
-	hal_cpuDataBarrier();
-	*(stm32_common.rcc + rcc_apb1rstr1) &= ~(1u << 31);
-	hal_cpuDataBarrier();
-
-	return cnt[0];
-}
-
-
 /* PWR */
 
 
@@ -415,7 +356,7 @@ void _stm32_pwrSetCPUVolt(u8 range)
 }
 
 
-time_t _stm32_pwrEnterLPStop(time_t ms)
+time_t _stm32_pwrEnterLPStop(time_t us)
 {
 	unsigned int t;
 
@@ -435,7 +376,7 @@ time_t _stm32_pwrEnterLPStop(time_t ms)
 
 	*(stm32_common.scb + syst_csr) &= ~1;
 
-	_stm32_lptimSetAlarm(ms);
+	timer_setAlarm(us);
 
 	/* Enter Stop mode */
 	__asm__ volatile ("\
@@ -453,7 +394,7 @@ time_t _stm32_pwrEnterLPStop(time_t ms)
 
 	*(stm32_common.scb + syst_csr) |= 1;
 
-	return _stm32_lptimStopGetMs();
+	return 0;
 }
 
 
@@ -814,7 +755,6 @@ void _stm32_init(void)
 	stm32_common.gpio[7] = (void *)0x48001c00; /* GPIOH */
 	stm32_common.gpio[8] = (void *)0x48002000; /* GPIOI */
 	stm32_common.flash = (void *)0x40022000;
-	stm32_common.lptim = (void *)0x40007c00;
 
 	/* Store reset flags and then clean them */
 	_stm32_rtcUnlockRegs();

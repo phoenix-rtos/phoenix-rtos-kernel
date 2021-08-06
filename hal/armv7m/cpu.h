@@ -190,7 +190,7 @@ static inline void hal_cpuEnableInterrupts(void)
 /* performance */
 
 
-extern void hal_cpuLowPower(time_t ms);
+extern void hal_cpuLowPower(time_t us);
 
 
 extern void hal_cpuSetDevBusy(int s);

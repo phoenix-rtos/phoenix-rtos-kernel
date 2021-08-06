@@ -1430,7 +1430,7 @@ static void threads_idlethr(void *arg)
 		wakeup = proc_nextWakeup();
 
 		if (wakeup > TIMER_US2CYC(2000))
-			hal_cpuLowPower((TIMER_CYC2US(wakeup) + TIMER_US2CYC(500)) / TIMER_US2CYC(1000));
+			hal_cpuLowPower(TIMER_CYC2US(wakeup));
 
 		hal_cpuHalt();
 	}

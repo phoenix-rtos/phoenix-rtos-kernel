@@ -456,13 +456,14 @@ void _stm32_pwrEnterLPRun(u32 state)
 }
 
 
-time_t _stm32_pwrEnterLPStop(time_t ms)
+time_t _stm32_pwrEnterLPStop(time_t us)
 {
 #ifdef NDEBUG
 	u8 lprun_state = !!(*(stm32_common.pwr + pwr_cr) & (1 << 14));
 	u8 regulator_state = (*(stm32_common.pwr + pwr_csr) >> 11) & 3;
 	u32 cpuclk_state = (*(stm32_common.rcc + rcc_icscr) >> 13) & 7;
 	int slept = 0, i;
+	time_t ms = (us + 500) / 1000;
 
 	ms = _stm32_rtcSetAlarm(ms);
 

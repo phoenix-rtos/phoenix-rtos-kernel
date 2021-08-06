@@ -24,6 +24,9 @@
 #define TIMER_CYC2US(x) (x)
 
 
+extern void timer_setAlarm(time_t us);
+
+
 extern void timer_jiffiesAdd(time_t t);
 
 

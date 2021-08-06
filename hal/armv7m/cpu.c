@@ -113,7 +113,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-void hal_cpuLowPower(time_t ms)
+void hal_cpuLowPower(time_t us)
 {
 #ifdef CPU_STM32
 	spinlock_ctx_t scp;
@@ -121,8 +121,8 @@ void hal_cpuLowPower(time_t ms)
 	hal_spinlockSet(&cpu_common.busySp, &scp);
 	if (cpu_common.busy == 0) {
 		/* Don't increment jiffies if sleep was unsuccessful */
-		ms = _stm32_pwrEnterLPStop(ms);
-		timer_jiffiesAdd(1000 * ms);
+		us = _stm32_pwrEnterLPStop(us);
+		timer_jiffiesAdd(us);
 	}
 	hal_spinlockClear(&cpu_common.busySp, &scp);
 #endif
