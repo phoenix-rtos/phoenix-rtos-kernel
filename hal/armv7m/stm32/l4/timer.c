@@ -60,13 +60,16 @@ static u32 timer_getCnt(void)
 {
 	u32 cnt[2];
 
+	/* From documentation: "It should be noted that for a reliable LPTIM_CNT
+	 * register read access, two consecutive read accesses must be performed and compared.
+	 * A read access can be considered reliable when the
+	 * values of the two consecutive read accesses are equal." */
+
+	cnt[0] = *(timer_common.lptim + lptim_cnt);
+
 	do {
-		/* From documentation: "It should be noted that for a reliable LPTIM_CNT
-		 * register read access, two consecutive read accesses must be performed and compared.
-		 * A read access can be considered reliable when the
-		 * values of the two consecutive read accesses are equal." */
+		cnt[1] = cnt[0];
 		cnt[0] = *(timer_common.lptim + lptim_cnt);
-		cnt[1] = *(timer_common.lptim + lptim_cnt);
 	} while (cnt[0] != cnt[1]);
 
 	return cnt[0] & 0xffffu;
@@ -109,6 +112,8 @@ time_t hal_getTimer(void)
 	lower = timer_getCnt();
 
 	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
+		/* Check if we have unhandled overflow event.
+		 * If so, upper is one less than it should be */
 		if (timer_getCnt() >= lower)
 			++upper;
 	}
