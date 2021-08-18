@@ -819,13 +819,10 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	/* Prepare initial stack */
 	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, stack + stacksz, arg);
 
-	if (process != NULL) {
+	if (process != NULL)
 		hal_cpuSetCtxGot(t->context, process->got);
-		threads_canaryInit(t, stack);
-	}
-	else {
-		t->ustack = NULL;
-	}
+
+	threads_canaryInit(t, stack);
 
 	t->startTime = TIMER_CYC2US(hal_getTimer());
 	t->cpuTime = 0;
