@@ -669,6 +669,10 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0)
 					return -ENOEXEC;
 
+				/* Don't modify ELF file! */
+				if ((ptr_t)relptr >= (ptr_t)base && (ptr_t)relptr < (ptr_t)base + size)
+					continue;
+
 				if (process_relocate(reloc, relocsz, relptr) < 0)
 					return -ENOEXEC;
 			}
