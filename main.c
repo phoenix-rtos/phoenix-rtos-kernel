@@ -37,7 +37,7 @@ struct {
 void main_initthr(void *unused)
 {
 	size_t i;
-	syspage_program_t *prog;
+	syspage_program_t prog;
 	int xcount = 0, res;
 	char *cmdline = syspage->arg, *end;
 	char *argv[32], *arg, *argend;
@@ -94,13 +94,13 @@ void main_initthr(void *unused)
 				lib_printf("main: truncated arguments for command '%s'\n", argv[0]);
 
 			/* Start program loaded into memory */
-			for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
-				if (!hal_strcmp(cmdline + 1, prog->cmdline)) {
-					argv[0] = prog->cmdline;
-					res = proc_syspageSpawn(prog, vm_getSharedMap(prog, -1), prog->cmdline, argv);
-					if (res < 0) {
+			for (i = 0; i < syspage->progssz; i++) {
+				if (!hal_strcmp(cmdline + 1, syspage->progs[i].cmdline)) {
+					argv[0] = syspage->progs[i].cmdline;
+					hal_memcpy(&prog, &syspage->progs[i], sizeof(prog));
+					res = proc_syspageSpawn(&prog, vm_getSharedMap(&prog, -1), prog.cmdline, argv);
+					if (res < 0)
 						lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
-					}
 				}
 			}
 		}
@@ -111,12 +111,13 @@ void main_initthr(void *unused)
 	if (!xcount && syspage->progssz != 0) {
 		argv[1] = NULL;
 		/* Start all syspage programs */
-		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
-				argv[0] = prog->cmdline;
-				res = proc_syspageSpawn(prog, vm_getSharedMap(prog, -1), prog->cmdline, argv);
-				if (res < 0) {
-					lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
-				}
+		for (i = 0; i < syspage->progssz; i++) {
+			argv[0] = syspage->progs[i].cmdline;
+			hal_memcpy(&prog, &syspage->progs[i], sizeof(prog));
+			res = proc_syspageSpawn(&prog, vm_getSharedMap(&prog, -1), prog.cmdline, argv);
+			if (res < 0) {
+				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
+			}
 		}
 	}
 
