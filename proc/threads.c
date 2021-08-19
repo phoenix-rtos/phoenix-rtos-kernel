@@ -766,7 +766,6 @@ void threads_canaryInit(thread_t *t, void *ustack)
 
 int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
 {
-	/* TODO - save user stack and it's size in thread_t */
 	thread_t *t;
 	spinlock_ctx_t sc;
 
@@ -1491,7 +1490,10 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 		now = TIMER_CYC2US(hal_getTimer());
-		info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
+		if (now != t->startTime)
+			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
+		else
+			info[i].load = 0;
 		info[i].cpuTime = t->cpuTime;
 
 		if (t->state == READY && t->maxWait < now - t->readyTime)
