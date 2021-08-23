@@ -83,7 +83,7 @@ static ssize_t sockdestcall(unsigned socket, msg_t *msg, const struct sockaddr *
 }
 
 
-int inet_accept(unsigned socket, struct sockaddr *address, socklen_t *address_len)
+int inet_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags)
 {
 	ssize_t err;
 	msg_t msg;
@@ -93,7 +93,7 @@ int inet_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 	hal_memset(&oid, 0, sizeof(oid));
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmAccept;
-	smi->send.flags = 0;
+	smi->send.flags = flags;
 
 	if ((err = socknamecall(socket, &msg, address, address_len)) < 0)
 		return err;
@@ -298,6 +298,30 @@ int inet_setsockopt(unsigned socket, int level, int optname, const void *optval,
 	smi->opt.optname = optname;
 	msg.i.data = (void *)optval;
 	msg.i.size = optlen;
+
+	return sockcall(socket, &msg);
+}
+
+
+int inet_setfl(unsigned socket, int flags)
+{
+	msg_t msg;
+	sockport_msg_t *smi = (void *)msg.i.raw;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmSetFl;
+	smi->send.flags = flags;
+
+	return sockcall(socket, &msg);
+}
+
+
+int inet_getfl(unsigned socket)
+{
+	msg_t msg;
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = sockmGetFl;
 
 	return sockcall(socket, &msg);
 }

@@ -122,7 +122,7 @@ extern int posix_newFile(process_info_t *p, int fd);
 extern process_info_t *pinfo_find(unsigned int pid);
 
 
-extern int inet_accept(unsigned socket, struct sockaddr *address, socklen_t *address_len);
+extern int inet_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags);
 
 
 extern int inet_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len);
@@ -164,7 +164,13 @@ extern int inet_shutdown(unsigned socket, int how);
 extern int inet_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
-extern int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_len);
+extern int inet_setfl(unsigned socket, int flags);
+
+
+extern int inet_getfl(unsigned socket);
+
+
+extern int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags);
 
 
 extern int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len);
@@ -213,6 +219,12 @@ extern int unix_unlink(unsigned socket);
 
 
 extern int unix_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen);
+
+
+extern int unix_setfl(unsigned socket, int flags);
+
+
+extern int unix_getfl(unsigned socket);
 
 
 extern void unix_sockets_init(void);

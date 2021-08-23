@@ -595,7 +595,7 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 	TRACE("read(%d, %p, %u)", fildes, buf, nbyte);
 
 	open_file_t *f;
-	int rcnt, flags = 0, err;
+	int rcnt, err;
 	off_t offs;
 	unsigned int status;
 
@@ -612,15 +612,10 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 	status = f->status;
 	proc_lockClear(&f->lock);
 
-	if (f->type == ftUnixSocket) {
-		if (status & O_NONBLOCK)
-			flags = MSG_DONTWAIT;
-
-		rcnt = unix_recvfrom(f->oid.id, buf, nbyte, flags, NULL, 0);
-	}
-	else {
+	if (f->type == ftUnixSocket)
+		rcnt = unix_recvfrom(f->oid.id, buf, nbyte, 0, NULL, 0);
+	else
 		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
-	}
 
 	if (rcnt > 0) {
 		proc_lockSet(&f->lock);
@@ -640,7 +635,7 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 	TRACE("write(%d, %p, %u)", fildes, buf, nbyte);
 
 	open_file_t *f;
-	int rcnt, flags = 0, err;
+	int rcnt, err;
 	off_t offs;
 	unsigned int status;
 
@@ -657,15 +652,10 @@ int posix_write(int fildes, void *buf, size_t nbyte)
 	status = f->status;
 	proc_lockClear(&f->lock);
 
-	if (f->type == ftUnixSocket) {
-		if (status & O_NONBLOCK)
-			flags = MSG_DONTWAIT;
-
-		rcnt = unix_sendto(f->oid.id, buf, nbyte, flags, NULL, 0);
-	}
-	else {
+	if (f->type == ftUnixSocket)
+		rcnt = unix_sendto(f->oid.id, buf, nbyte, 0, NULL, 0);
+	else
 		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
-	}
 
 	if (rcnt > 0) {
 		proc_lockSet(&f->lock);
@@ -1226,36 +1216,6 @@ static int posix_fcntlGetFd(int fd)
 }
 
 
-static int _sock_getfl(open_file_t *f)
-{
-	msg_t msg;
-	int err;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmGetFl;
-
-	if ((err = proc_send(f->oid.port, &msg)) < 0)
-		return err;
-
-	sockport_resp_t *smo = (void *)msg.o.raw;
-	return smo->ret;
-}
-
-
-static int _sock_setfl(open_file_t *f, int val)
-{
-	msg_t msg;
-	sockport_msg_t *smi = (void *)msg.i.raw;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = sockmSetFl;
-	/* only O_NONBLOCK is supported */
-	smi->send.flags = val & O_NONBLOCK;
-
-	return proc_send(f->oid.port, &msg);
-}
-
-
 static int posix_fcntlSetFl(int fd, int val)
 {
 	open_file_t *f;
@@ -1264,10 +1224,17 @@ static int posix_fcntlSetFl(int fd, int val)
 	int ignorefl = O_CREAT|O_EXCL|O_NOCTTY|O_TRUNC|O_RDONLY|O_RDWR|O_WRONLY;
 
 	if (!(err = posix_getOpenFile(fd, &f))) {
-		if (f->type == ftInetSocket)
-			err = _sock_setfl(f, val);
-		else
-			f->status = (val & ~ignorefl) | (f->status & ignorefl);
+		switch (f->type) {
+			case ftInetSocket:
+				err = inet_setfl(f->oid.port, val);
+				break;
+			case ftUnixSocket:
+				err = unix_setfl(f->oid.id, val);
+				break;
+			default:
+				f->status = (val & ~ignorefl) | (f->status & ignorefl);
+				break;
+		}
 
 		posix_fileDeref(f);
 	}
@@ -1282,10 +1249,16 @@ static int posix_fcntlGetFl(int fd)
 	int err = EOK;
 
 	if (!(err = posix_getOpenFile(fd, &f))) {
-		if (f->type == ftInetSocket)
-			err = _sock_getfl(f);
-		else {
-			err = f->status;
+		switch (f->type) {
+			case ftInetSocket:
+				err = inet_getfl(f->oid.port);
+				break;
+			case ftUnixSocket:
+				err = unix_getfl(f->oid.id);
+				break;
+			default:
+				err = f->status;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1475,26 +1448,26 @@ int posix_socket(int domain, int type, int protocol)
 	}
 
 	switch (domain) {
-	case AF_UNIX:
-		if ((err = unix_socket(domain, type, protocol)) >= 0) {
-			p->fds[fd].file->type = ftUnixSocket;
-			p->fds[fd].file->oid.port = -1;
-			p->fds[fd].file->oid.id = err;
-		}
-		break;
-	case AF_INET:
-	case AF_INET6:
-	case AF_KEY:
-	case AF_PACKET:
-		if ((err = inet_socket(domain, type, protocol)) >= 0) {
-			p->fds[fd].file->type = ftInetSocket;
-			p->fds[fd].file->oid.port = err;
-			p->fds[fd].file->oid.id = 0;
-		}
-		break;
-	default:
-		err = -EAFNOSUPPORT;
-		break;
+		case AF_UNIX:
+			if ((err = unix_socket(domain, type, protocol)) >= 0) {
+				p->fds[fd].file->type = ftUnixSocket;
+				p->fds[fd].file->oid.port = -1;
+				p->fds[fd].file->oid.id = err;
+			}
+			break;
+		case AF_INET:
+		case AF_INET6:
+		case AF_KEY:
+		case AF_PACKET:
+			if ((err = inet_socket(domain, type, protocol)) >= 0) {
+				p->fds[fd].file->type = ftInetSocket;
+				p->fds[fd].file->oid.port = err;
+				p->fds[fd].file->oid.id = 0;
+			}
+			break;
+		default:
+			err = -EAFNOSUPPORT;
+			break;
 	}
 
 	if (err < 0) {
@@ -1502,6 +1475,9 @@ int posix_socket(int domain, int type, int protocol)
 		pinfo_put(p);
 		return err;
 	}
+
+	if (type & SOCK_CLOEXEC)
+		p->fds[fd].flags = FD_CLOEXEC;
 
 	pinfo_put(p);
 	return fd;
@@ -1557,7 +1533,7 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 
 int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
 {
-	TRACE("accept4(%d, %s)", socket, address == NULL ? NULL : address->sa_data);
+	TRACE("accept4(%d, %s, %d)", socket, address == NULL ? NULL : address->sa_data, flags);
 
 	process_info_t *p;
 	open_file_t *f;
@@ -1568,38 +1544,28 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 
 	if ((fd = posix_newFile(p, 0)) < 0) {
 		pinfo_put(p);
-
 		return -EMFILE;
 	}
 
 	if (!(err = posix_getOpenFile(socket, &f))) {
 		switch (f->type) {
-		case ftInetSocket:
-			if ((err = inet_accept(f->oid.port, address, address_len)) >= 0) {
-				p->fds[fd].file->type = ftInetSocket;
-				p->fds[fd].file->oid.port = err;
-				p->fds[fd].file->oid.id = 0;
-			}
-			break;
-		case ftUnixSocket:
-			if ((err = unix_accept(f->oid.id, address, address_len)) >= 0) {
-				p->fds[fd].file->type = ftUnixSocket;
-				p->fds[fd].file->oid.port = -1;
-				p->fds[fd].file->oid.id = err;
-			}
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
-		}
-
-		if (err >= 0 && flags && !posix_getOpenFile(fd, &f)) {
-			if (flags & SOCK_NONBLOCK) {
-				f->status |= O_NONBLOCK;
-				_sock_setfl(f, f->status);
-			}
-			if (flags & SOCK_CLOEXEC)
-				posix_fcntlSetFd(fd, FD_CLOEXEC);
+			case ftInetSocket:
+				if ((err = inet_accept4(f->oid.port, address, address_len, flags)) >= 0) {
+					p->fds[fd].file->type = ftInetSocket;
+					p->fds[fd].file->oid.port = err;
+					p->fds[fd].file->oid.id = 0;
+				}
+				break;
+			case ftUnixSocket:
+				if ((err = unix_accept4(f->oid.id, address, address_len, flags)) >= 0) {
+					p->fds[fd].file->type = ftUnixSocket;
+					p->fds[fd].file->oid.port = -1;
+					p->fds[fd].file->oid.id = err;
+				}
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1610,6 +1576,9 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 		pinfo_put(p);
 		return err;
 	}
+
+	if (flags & SOCK_CLOEXEC)
+		p->fds[fd].flags = FD_CLOEXEC;
 
 	pinfo_put(p);
 	return fd;
