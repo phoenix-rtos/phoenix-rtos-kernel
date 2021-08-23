@@ -1848,6 +1848,60 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 }
 
 
+ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
+{
+	TRACE("recvmsg(%d, %p, %d)", socket, msg, flags);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+			case ftInetSocket:
+				err = inet_recvmsg(f->oid.port, msg, flags);
+				break;
+			case ftUnixSocket:
+				err = unix_recvmsg(f->oid.id, msg, flags);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
+		}
+
+		posix_fileDeref(f);
+	}
+
+	return err;
+}
+
+
+ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
+{
+	TRACE("sendmsg(%d, %p, %d)", socket, msg, flags);
+
+	open_file_t *f;
+	int err;
+
+	if (!(err = posix_getOpenFile(socket, &f))) {
+		switch (f->type) {
+			case ftInetSocket:
+				err = inet_sendmsg(f->oid.port, msg, flags);
+				break;
+			case ftUnixSocket:
+				err = unix_sendmsg(f->oid.id, msg, flags);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
+		}
+
+		posix_fileDeref(f);
+	}
+
+	return err;
+}
+
+
 int posix_shutdown(int socket, int how)
 {
 	TRACE("shutdown(%d, %d)", socket, how);

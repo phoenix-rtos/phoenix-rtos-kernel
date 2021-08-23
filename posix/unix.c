@@ -648,6 +648,58 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 }
 
 
+ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags)
+{
+	ssize_t err;
+	void *buf = NULL;
+	size_t len = 0;
+
+	/* multiple buffers are not supported */
+	if (msg->msg_iovlen > 1)
+		return -EINVAL;
+
+	if (msg->msg_iovlen > 0) {
+		buf = msg->msg_iov->iov_base;
+		len = msg->msg_iov->iov_len;
+	}
+
+	err = unix_recvfrom(socket, buf, len, flags, msg->msg_name, &msg->msg_namelen);
+
+	if (err >= 0) {
+		/* control data is not supported */
+		if (msg->msg_controllen > 0)
+			msg->msg_controllen = 0;
+
+		/* output flags are not supported */
+		msg->msg_flags = 0;
+	}
+
+	return err;
+}
+
+
+ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
+{
+	const void *buf = NULL;
+	size_t len = 0;
+
+	/* multiple buffers are not supported */
+	if (msg->msg_iovlen > 1)
+		return -EINVAL;
+
+	/* control data is not supported */
+	if (msg->msg_controllen > 0)
+		return -EINVAL;
+
+	if (msg->msg_iovlen > 0) {
+		buf = msg->msg_iov->iov_base;
+		len = msg->msg_iov->iov_len;
+	}
+
+	return unix_sendto(socket, buf, len, flags, msg->msg_name, msg->msg_namelen);
+}
+
+
 /* TODO: proper shutdown, link, unlink */
 int unix_shutdown(unsigned socket, int how)
 {
