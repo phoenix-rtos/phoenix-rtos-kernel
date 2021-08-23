@@ -212,6 +212,49 @@ ssize_t inet_sendto(unsigned socket, const void *message, size_t length, int fla
 }
 
 
+ssize_t inet_recvmsg(unsigned socket, struct msghdr *msg, int flags)
+{
+	ssize_t ret = 0;
+
+	/* multiple buffers are not supported */
+	if (msg->msg_iovlen > 1)
+		return -EINVAL;
+
+	if (msg->msg_iovlen == 1)
+		ret = inet_recvfrom(socket, msg->msg_iov->iov_base, msg->msg_iov->iov_len, flags, msg->msg_name, &msg->msg_namelen);
+
+	if (ret >= 0) {
+		/* control data is not supported */
+		if (msg->msg_controllen > 0)
+			msg->msg_controllen = 0;
+
+		/* output flags are not supported */
+		msg->msg_flags = 0;
+	}
+
+	return ret;
+}
+
+
+ssize_t inet_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
+{
+	ssize_t ret = 0;
+
+	/* multiple buffers are not supported */
+	if (msg->msg_iovlen > 1)
+		return -EINVAL;
+
+	/* control data is not supported */
+	if (msg->msg_controllen > 0)
+		return -EINVAL;
+
+	if (msg->msg_iovlen == 1)
+		ret = inet_sendto(socket, msg->msg_iov->iov_base, msg->msg_iov->iov_len, flags, msg->msg_name, msg->msg_namelen);
+
+	return ret;
+}
+
+
 int inet_socket(int domain, int type, int protocol)
 {
 	msg_t msg;

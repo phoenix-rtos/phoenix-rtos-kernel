@@ -1193,6 +1193,34 @@ ssize_t syscalls_sys_sendto(char *ustack)
 }
 
 
+ssize_t syscalls_sys_recvmsg(char *ustack)
+{
+	int socket;
+	struct msghdr *msg;
+	int flags;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, struct msghdr *, msg, 1);
+	GETFROMSTACK(ustack, int, flags, 2);
+
+	return posix_recvmsg(socket, msg, flags);
+}
+
+
+ssize_t syscalls_sys_sendmsg(char *ustack)
+{
+	int socket;
+	const struct msghdr *msg;
+	int flags;
+
+	GETFROMSTACK(ustack, int, socket, 0);
+	GETFROMSTACK(ustack, const struct msghdr *, msg, 1);
+	GETFROMSTACK(ustack, int, flags, 2);
+
+	return posix_sendmsg(socket, msg, flags);
+}
+
+
 int syscalls_sys_socket(char *ustack)
 {
 	int domain;

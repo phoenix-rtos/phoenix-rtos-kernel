@@ -113,6 +113,12 @@ extern ssize_t posix_recvfrom(int socket, void *message, size_t length, int flag
 extern ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
+extern ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags);
+
+
+extern ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags);
+
+
 extern int posix_socket(int domain, int type, int protocol);
 
 

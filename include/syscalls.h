@@ -97,6 +97,8 @@
 	ID(sys_listen) \
 	ID(sys_recvfrom) \
 	ID(sys_sendto) \
+	ID(sys_recvmsg) \
+	ID(sys_sendmsg) \
 	ID(sys_socket) \
 	ID(sys_socketpair) \
 	ID(sys_shutdown) \

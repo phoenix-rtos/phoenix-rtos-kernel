@@ -149,6 +149,12 @@ extern ssize_t inet_recvfrom(unsigned socket, void *message, size_t length, int 
 extern ssize_t inet_sendto(unsigned socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
+extern ssize_t inet_recvmsg(unsigned socket, struct msghdr *msg, int flags);
+
+
+extern ssize_t inet_sendmsg(unsigned socket, const struct msghdr *msg, int flags);
+
+
 extern int inet_socket(int domain, int type, int protocol);
 
 
@@ -183,6 +189,12 @@ extern ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int 
 
 
 extern ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+
+
+extern ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags);
+
+
+extern ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags);
 
 
 extern int unix_socket(int domain, int type, int protocol);
