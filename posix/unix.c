@@ -559,42 +559,51 @@ ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, 
 {
 	unixsock_t *s;
 	size_t rlen = 0;
-	int err = 0;
+	int err;
 	spinlock_ctx_t sc;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
 
-	for (;;) {
-		proc_lockSet(&s->lock);
-		if (s->type == SOCK_STREAM) {
-			err = _cbuffer_read(&s->buffer, message, length);
+	do {
+		if (s->type != SOCK_DGRAM && !s->connect) {
+			err = -ENOTCONN;
+			break;
 		}
-		else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-			_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
-			_cbuffer_read(&s->buffer, message, err = min(length, rlen));
 
-			if (length < rlen)
-				_cbuffer_discard(&s->buffer, rlen - length);
-		}
-		proc_lockClear(&s->lock);
+		err = 0;
 
-		if (err > 0) {
+		for (;;) {
+			proc_lockSet(&s->lock);
+			if (s->type == SOCK_STREAM) {
+				err = _cbuffer_read(&s->buffer, message, length);
+			}
+			else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+				_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
+				_cbuffer_read(&s->buffer, message, err = min(length, rlen));
+
+				if (length < rlen)
+					_cbuffer_discard(&s->buffer, rlen - length);
+			}
+			proc_lockClear(&s->lock);
+
+			if (err > 0) {
+				hal_spinlockSet(&s->spinlock, &sc);
+				proc_threadWakeup(&s->writeq);
+				hal_spinlockClear(&s->spinlock, &sc);
+
+				break;
+			}
+			else if (s->nonblock || (flags & MSG_DONTWAIT)) {
+				err = -EWOULDBLOCK;
+				break;
+			}
+
 			hal_spinlockSet(&s->spinlock, &sc);
-			proc_threadWakeup(&s->writeq);
+			proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 			hal_spinlockClear(&s->spinlock, &sc);
-
-			break;
 		}
-		else if (s->nonblock || (flags & MSG_DONTWAIT)) {
-			err = -EWOULDBLOCK;
-			break;
-		}
-
-		hal_spinlockSet(&s->spinlock, &sc);
-		proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
-		hal_spinlockClear(&s->spinlock, &sc);
-	}
+	} while (0);
 
 	unixsock_put(s);
 	return err;
@@ -612,23 +621,33 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 
 	do {
 		if (s->type == SOCK_DGRAM) {
-			conn = s;
-		}
-		else if (s->connect == NULL && dest_addr != NULL) {
-			if ((err = unix_lookupSocket(dest_addr->sa_data)) < 0)
-				break;
+			if (dest_addr && dest_len != 0) {
+				if ((err = unix_lookupSocket(dest_addr->sa_data)) < 0)
+					break;
 
-			if ((conn = unixsock_get(err)) == NULL) {
-				err = -ENOTSOCK;
+				if ((conn = unixsock_get(err)) == NULL) {
+					err = -ENOTSOCK;
+					break;
+				}
+			}
+			else if ((conn = s->connect) == NULL) {
+				err = -ENOTCONN;
 				break;
 			}
 		}
-		else if ((conn = s->connect) == NULL) {
-			err = -ENOTCONN;
-			break;
+		else {
+			if (dest_addr || dest_len != 0) {
+				err = -EISCONN;
+				break;
+			}
+			else if ((conn = s->connect) == NULL) {
+				err = -ENOTCONN;
+				break;
+			}
 		}
 
 		err = 0;
+
 		for (;;) {
 			proc_lockSet(&conn->lock);
 			if (s->type == SOCK_STREAM) {
@@ -658,6 +677,8 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 			hal_spinlockClear(&conn->spinlock, &sc);
 		}
 
+		if (s->type == SOCK_DGRAM && dest_addr && dest_len != 0)
+			unixsock_put(conn);
 	} while (0);
 
 	unixsock_put(s);
