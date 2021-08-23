@@ -98,6 +98,7 @@
 	ID(sys_recvfrom) \
 	ID(sys_sendto) \
 	ID(sys_socket) \
+	ID(sys_socketpair) \
 	ID(sys_shutdown) \
 	ID(sys_sethostname) \
 	ID(sys_setsockopt) \

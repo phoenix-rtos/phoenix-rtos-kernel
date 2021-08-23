@@ -251,6 +251,54 @@ int unix_socket(int domain, int type, int protocol)
 }
 
 
+int unix_socketpair(int domain, int type, int protocol, int sv[2])
+{
+	unixsock_t *s[2];
+	unsigned id[2];
+	void *v[2];
+
+	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+
+	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
+		return -EPROTOTYPE;
+
+	if (protocol != PF_UNSPEC)
+		return -EPROTONOSUPPORT;
+
+	if ((s[0] = unixsock_alloc(&id[0], type)) == NULL)
+		return -ENOMEM;
+
+	if ((s[1] = unixsock_alloc(&id[1], type)) == NULL) {
+		unixsock_put(s[0]);
+		return -ENOMEM;
+	}
+
+	if ((v[0] = vm_kmalloc(SIZE_PAGE)) == NULL) {
+		unixsock_put(s[1]);
+		unixsock_put(s[0]);
+		return -ENOMEM;
+	}
+
+	if ((v[1] = vm_kmalloc(SIZE_PAGE)) == NULL) {
+		vm_kfree(v[0]);
+		unixsock_put(s[1]);
+		unixsock_put(s[0]);
+		return -ENOMEM;
+	}
+
+	_cbuffer_init(&s[0]->buffer, v[0], SIZE_PAGE);
+	_cbuffer_init(&s[1]->buffer, v[1], SIZE_PAGE);
+
+	s[0]->connect = s[1];
+	s[1]->connect = s[0];
+
+	sv[0] = id[0];
+	sv[1] = id[1];
+
+	return 0;
+}
+
+
 int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_len)
 {
 	unixsock_t *s, *conn, *new;

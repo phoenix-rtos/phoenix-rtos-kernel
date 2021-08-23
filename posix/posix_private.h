@@ -188,6 +188,9 @@ extern ssize_t unix_sendto(unsigned socket, const void *message, size_t length, 
 extern int unix_socket(int domain, int type, int protocol);
 
 
+extern int unix_socketpair(int domain, int type, int protocol, int sv[2]);
+
+
 extern int unix_shutdown(unsigned socket, int how);
 
 

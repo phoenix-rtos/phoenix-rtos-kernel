@@ -116,6 +116,9 @@ extern ssize_t posix_sendto(int socket, const void *message, size_t length, int 
 extern int posix_socket(int domain, int type, int protocol);
 
 
+extern int posix_socketpair(int domain, int type, int protocol, int sv[2]);
+
+
 extern int posix_shutdown(int socket, int how);
 
 
