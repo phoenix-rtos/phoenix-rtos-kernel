@@ -40,6 +40,7 @@ typedef struct _unixsock_t {
 	cbuffer_t buffer;
 	char type;
 	char state;
+	char nonblock;
 
 	spinlock_t spinlock;
 
@@ -144,7 +145,7 @@ static void unixsock_augment(rbnode_t *node)
 }
 
 
-static unixsock_t *unixsock_alloc(unsigned *id, int type)
+static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 {
 	unixsock_t *r, t;
 
@@ -175,6 +176,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type)
 	r->id = *id;
 	r->refs = 1;
 	r->type = type;
+	r->nonblock = nonblock;
 	r->connect = NULL;
 	r->queue = NULL;
 	r->writeq = NULL;
@@ -240,11 +242,18 @@ int unix_socket(int domain, int type, int protocol)
 {
 	unixsock_t *s;
 	unsigned id;
+	int nonblock;
 
-	if (type != SOCK_STREAM && type != SOCK_DGRAM)
-		return -EINVAL;
+	nonblock = (type & SOCK_NONBLOCK) != 0;
+	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
-	if ((s = unixsock_alloc(&id, type)) == NULL)
+	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
+		return -EPROTOTYPE;
+
+	if (protocol != PF_UNSPEC)
+		return -EPROTONOSUPPORT;
+
+	if ((s = unixsock_alloc(&id, type, nonblock)) == NULL)
 		return -ENOMEM;
 
 	return id;
@@ -256,7 +265,9 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 	unixsock_t *s[2];
 	unsigned id[2];
 	void *v[2];
+	int nonblock;
 
+	nonblock = (type & SOCK_NONBLOCK) != 0;
 	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
 	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
@@ -265,10 +276,10 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 	if (protocol != PF_UNSPEC)
 		return -EPROTONOSUPPORT;
 
-	if ((s[0] = unixsock_alloc(&id[0], type)) == NULL)
+	if ((s[0] = unixsock_alloc(&id[0], type, nonblock)) == NULL)
 		return -ENOMEM;
 
-	if ((s[1] = unixsock_alloc(&id[1], type)) == NULL) {
+	if ((s[1] = unixsock_alloc(&id[1], type, nonblock)) == NULL) {
 		unixsock_put(s[0]);
 		return -ENOMEM;
 	}
@@ -299,16 +310,20 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 }
 
 
-int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_len)
+/* TODO: nonblocking accept */
+int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags)
 {
 	unixsock_t *s, *conn, *new;
 	int err;
 	unsigned newid;
 	void *v;
 	spinlock_ctx_t sc;
+	int nonblock;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
+
+	nonblock = (flags & SOCK_NONBLOCK) != 0;
 
 	do {
 		if (s->type != SOCK_STREAM && s->type != SOCK_SEQPACKET) {
@@ -326,7 +341,7 @@ int unix_accept(unsigned socket, struct sockaddr *address, socklen_t *address_le
 			break;
 		}
 
-		if ((new = unixsock_alloc(&newid, s->type)) == NULL) {
+		if ((new = unixsock_alloc(&newid, s->type, nonblock)) == NULL) {
 			vm_kfree(v);
 			err = -ENOMEM;
 			break;
@@ -417,6 +432,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 }
 
 
+/* TODO: use backlog */
 int unix_listen(unsigned socket, int backlog)
 {
 	unixsock_t *s;
@@ -445,6 +461,7 @@ int unix_listen(unsigned socket, int backlog)
 }
 
 
+/* TODO: nonblocking connect */
 int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len)
 {
 	unixsock_t *s, *remote;
@@ -569,7 +586,7 @@ ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, 
 
 			break;
 		}
-		else if (flags & MSG_DONTWAIT) {
+		else if (s->nonblock || (flags & MSG_DONTWAIT)) {
 			err = -EWOULDBLOCK;
 			break;
 		}
@@ -631,7 +648,7 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 
 				break;
 			}
-			else if (flags & MSG_DONTWAIT) {
+			else if (s->nonblock || (flags & MSG_DONTWAIT)) {
 				err = -EWOULDBLOCK;
 				break;
 			}
@@ -717,6 +734,35 @@ int unix_shutdown(unsigned socket, int how)
 int unix_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen)
 {
 	return 0;
+}
+
+
+int unix_setfl(unsigned socket, int flags)
+{
+	unixsock_t *s;
+
+	if ((s = unixsock_get(socket)) == NULL)
+		return -ENOTSOCK;
+
+	s->nonblock = (flags & O_NONBLOCK) != 0;
+
+	unixsock_put(s);
+	return flags;
+}
+
+
+int unix_getfl(unsigned socket)
+{
+	unixsock_t *s;
+	int flags;
+
+	if ((s = unixsock_get(socket)) == NULL)
+		return -ENOTSOCK;
+
+	flags = s->nonblock ? O_NONBLOCK : 0;
+
+	unixsock_put(s);
+	return flags;
 }
 
 
