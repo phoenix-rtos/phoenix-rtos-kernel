@@ -1207,6 +1207,22 @@ int syscalls_sys_socket(char *ustack)
 }
 
 
+int syscalls_sys_socketpair(char *ustack)
+{
+	int domain;
+	int type;
+	int protocol;
+	int *sv;
+
+	GETFROMSTACK(ustack, int, domain, 0);
+	GETFROMSTACK(ustack, int, type, 1);
+	GETFROMSTACK(ustack, int, protocol, 2);
+	GETFROMSTACK(ustack, int *, sv, 3);
+
+	return posix_socketpair(domain, type, protocol, sv);
+}
+
+
 int syscalls_sys_shutdown(char *ustack)
 {
 	int socket;

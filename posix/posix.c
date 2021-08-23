@@ -1508,6 +1508,53 @@ int posix_socket(int domain, int type, int protocol)
 }
 
 
+int posix_socketpair(int domain, int type, int protocol, int sv[2])
+{
+	TRACE("socketpair(%d, %d, %d, %p)", domain, type, protocol, sv);
+
+	process_info_t *p;
+	int err, id[2];
+
+	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+		return -1;
+
+	if (domain != AF_UNIX)
+		return -EAFNOSUPPORT;
+
+	if ((sv[0] = posix_newFile(p, 0)) < 0) {
+		pinfo_put(p);
+		return -EMFILE;
+	}
+
+	if ((sv[1] = posix_newFile(p, 0)) < 0) {
+		posix_putUnusedFile(p, sv[0]);
+		pinfo_put(p);
+		return -EMFILE;
+	}
+
+	if (!(err = unix_socketpair(domain, type, protocol, id))) {
+		p->fds[sv[0]].file->type = ftUnixSocket;
+		p->fds[sv[1]].file->type = ftUnixSocket;
+		p->fds[sv[0]].file->oid.port = -1;
+		p->fds[sv[1]].file->oid.port = -1;
+		p->fds[sv[0]].file->oid.id = id[0];
+		p->fds[sv[1]].file->oid.id = id[1];
+
+		if (type & SOCK_CLOEXEC) {
+			p->fds[sv[0]].flags = FD_CLOEXEC;
+			p->fds[sv[1]].flags = FD_CLOEXEC;
+		}
+	}
+	else {
+		posix_putUnusedFile(p, sv[1]);
+		posix_putUnusedFile(p, sv[0]);
+	}
+
+	pinfo_put(p);
+	return err;
+}
+
+
 int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
 {
 	TRACE("accept4(%d, %s)", socket, address == NULL ? NULL : address->sa_data);
