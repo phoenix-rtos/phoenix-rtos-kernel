@@ -648,33 +648,34 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 
 		err = 0;
 
-		for (;;) {
-			proc_lockSet(&conn->lock);
-			if (s->type == SOCK_STREAM) {
-				err = _cbuffer_write(&conn->buffer, message, length);
-			}
-			else if (_cbuffer_free(&conn->buffer) >= length + sizeof(length)) {
-				_cbuffer_write(&conn->buffer, &length, sizeof(length));
-				_cbuffer_write(&conn->buffer, message, err = length);
-				proc_threadWakeup(&conn->queue);
-			}
-			proc_lockClear(&conn->lock);
+		if (length > 0) {
+			for (;;) {
+				proc_lockSet(&conn->lock);
+				if (s->type == SOCK_STREAM) {
+					err = _cbuffer_write(&conn->buffer, message, length);
+				}
+				else if (_cbuffer_free(&conn->buffer) >= length + sizeof(length)) {
+					_cbuffer_write(&conn->buffer, &length, sizeof(length));
+					_cbuffer_write(&conn->buffer, message, err = length);
+				}
+				proc_lockClear(&conn->lock);
 
-			if (err > 0) {
+				if (err > 0) {
+					hal_spinlockSet(&conn->spinlock, &sc);
+					proc_threadWakeup(&conn->queue);
+					hal_spinlockClear(&conn->spinlock, &sc);
+
+					break;
+				}
+				else if (s->nonblock || (flags & MSG_DONTWAIT)) {
+					err = -EWOULDBLOCK;
+					break;
+				}
+
 				hal_spinlockSet(&conn->spinlock, &sc);
-				proc_threadWakeup(&conn->queue);
+				proc_threadWait(&conn->writeq, &conn->spinlock, 0, &sc);
 				hal_spinlockClear(&conn->spinlock, &sc);
-
-				break;
 			}
-			else if (s->nonblock || (flags & MSG_DONTWAIT)) {
-				err = -EWOULDBLOCK;
-				break;
-			}
-
-			hal_spinlockSet(&conn->spinlock, &sc);
-			proc_threadWait(&conn->writeq, &conn->spinlock, 0, &sc);
-			hal_spinlockClear(&conn->spinlock, &sc);
 		}
 
 		if (s->type == SOCK_DGRAM && dest_addr && dest_len != 0)
