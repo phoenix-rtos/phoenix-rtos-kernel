@@ -157,7 +157,10 @@ static int posix_fileDeref(open_file_t *f)
 
 	proc_lockSet(&f->lock);
 	if (!--f->refs) {
-		if (f->type != ftUnixSocket) {
+		if (f->type == ftUnixSocket) {
+			err = unix_close(f->oid.id);
+		}
+		else {
 			while ((err = proc_close(f->oid, f->status)) == -EINTR) ;
 		}
 

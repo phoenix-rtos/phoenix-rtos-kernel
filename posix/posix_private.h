@@ -1,3 +1,21 @@
+/*
+ * Phoenix-RTOS
+ *
+ * Operating system kernel
+ *
+ * Private
+ *
+ * Copyright 2021 Phoenix Systems
+ * Author: Pawel Pisarczyk
+ *
+ * This file is part of Phoenix-RTOS.
+ *
+ * %LICENSE%
+ */
+
+#ifndef _POSIX_POSIX_PRIVATE_H_
+#define _POSIX_POSIX_PRIVATE_H_
+
 #include HAL
 #include "../include/posix.h"
 #include "../proc/proc.h"
@@ -212,9 +230,6 @@ extern int unix_socketpair(int domain, int type, int protocol, int sv[2]);
 extern int unix_shutdown(unsigned socket, int how);
 
 
-extern int unix_link(unsigned socket);
-
-
 extern int unix_unlink(unsigned socket);
 
 
@@ -227,4 +242,9 @@ extern int unix_setfl(unsigned socket, int flags);
 extern int unix_getfl(unsigned socket);
 
 
+extern int unix_close(unsigned socket);
+
+
 extern void unix_sockets_init(void);
+
+#endif

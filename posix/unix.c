@@ -183,6 +183,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 	r->state = 0;
 	r->next = NULL;
 	r->prev = NULL;
+	_cbuffer_init(&r->buffer, NULL, 0);
 	hal_spinlockCreate(&r->spinlock, "unix socket");
 
 	lib_rbInsert(&unix_common.tree, &r->linkage);
@@ -210,12 +211,14 @@ static unixsock_t *unixsock_get(unsigned id)
 static void unixsock_put(unixsock_t *r)
 {
 	proc_lockSet(&unix_common.lock);
-	if (--r->refs < 0) {
+	if (--r->refs <= 0) {
 		lib_rbRemove(&unix_common.tree, &r->linkage);
 		proc_lockClear(&unix_common.lock);
 
 		proc_lockDone(&r->lock);
 		hal_spinlockDestroy(&r->spinlock);
+		if (r->buffer.data)
+			vm_kfree(r->buffer.data);
 		vm_kfree(r);
 		return;
 	}
@@ -420,8 +423,15 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 			dev.id = socket;
 			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
 
-			if (!err)
-				s->state |= US_BOUND;
+			if (err) {
+				if (s->type == SOCK_DGRAM) {
+					_cbuffer_init(&s->buffer, NULL, 0);
+					vm_kfree(v);
+				}
+				break;
+			}
+
+			s->state |= US_BOUND;
 		} while (0);
 
 		vm_kfree(path);
@@ -790,16 +800,21 @@ int unix_getfl(unsigned socket)
 
 int unix_unlink(unsigned socket)
 {
-	if (unixsock_get(socket) == NULL)
-		return -ENOTSOCK;
-
+	/* TODO: broken - socket may be phony */
 	return EOK;
 }
 
 
-int unix_link(unsigned socket)
+int unix_close(unsigned socket)
 {
-	return unix_shutdown(socket, 0);
+	unixsock_t *s;
+
+	if ((s = unixsock_get(socket)) == NULL)
+		return -ENOTSOCK;
+
+	unixsock_put(s);
+	unixsock_put(s);
+	return EOK;
 }
 
 
