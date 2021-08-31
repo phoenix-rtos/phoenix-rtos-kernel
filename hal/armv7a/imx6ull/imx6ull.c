@@ -417,4 +417,7 @@ void _hal_platformInit(void)
 
 	/* remain in run mode in low power */
 	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3;
+
+	/* kick watchdog power down counter */
+	*(imx6ull_common.wdog + wdog_wmcr) = 0;
 }
