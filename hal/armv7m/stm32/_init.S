@@ -229,7 +229,6 @@ hal_cpuReschedule:
 	bl _hal_invokePendSV
 	pop {r1-r3, lr}
 	cmp r1, #NULL
-	it eq
 	beq hal_cpuReschedule0
 	push {r3-r4}
 	add r1, r1, #12
