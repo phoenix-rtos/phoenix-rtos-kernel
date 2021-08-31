@@ -142,8 +142,11 @@ static inline unsigned int hal_i2s(char *prefix, char *s, unsigned long i, unsig
 	hal_memcpy(s, prefix, m);
 
 	for (k = m, l = (unsigned long)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+		if (!zero && !i) {
+			if (k == m)
+				s[k++] = '0';
 			break;
+		}
 		s[k++] = digits[i % b];
 	}
 

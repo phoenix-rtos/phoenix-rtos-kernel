@@ -61,8 +61,11 @@ static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b
 	hal_memcpy(s, prefix, m);
 
 	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+		if (!zero && !i) {
+			if (k == m)
+				s[k++] = '0';
 			break;
+		}
 		s[k++] = digits[i % b];
 	}
 
