@@ -28,7 +28,7 @@
 
 struct cpu_feature_t {
 	const char *name;
-	u32 eax;
+	s32 eax;
 	u8 reg;
 	u8 offset; /* eax, ebx, ecx, edx */
 };
@@ -524,11 +524,10 @@ char *hal_cpuInfo(char *info)
 }
 
 
-
 char *hal_cpuFeatures(char *features, unsigned int len)
 {
 	u32 nb, nx, v[4], a;
-	unsigned int i = 0, overflow = 0;
+	unsigned int i = 0;
 	const struct cpu_feature_t *p;
 	unsigned int ln;
 
@@ -540,23 +539,28 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	nx &= 0x7fffffff;
 
 	for (p = cpufeatures; p->name != NULL; ++p) {
-		if ((p->eax < 0) ? (p->eax < -nx) : (p->eax > nb)) { /* FIXME: Invalid check, look PR #233 */
+		if ((p->eax < 0) ? (p->eax < -(s32)nx) : ((u32)p->eax > nb)) {
 			continue;
 		}
 
-		a = (p->eax < 0) ? (0x80000000 - p->eax) : p->eax;
+		a = (p->eax < 0) ? (0x80000000 - p->eax) : (u32)p->eax;
 		hal_cpuid(a, 0, v + 0, v + 1, v + 2, v + 3);
 
 		if (v[p->reg] & (1 << p->offset)) {
 			ln = hal_strlen(p->name);
-			if (!overflow && (i + ln + 1 + 1 < len)) {
-				features[i++] = '+';
+			if (i + ln + 1 + 1 < len) {
+				if (i > 0) {
+					features[i++] = '+';
+				}
 				hal_memcpy(&features[i], p->name, ln);
 				i += ln;
 			}
-			else if (!overflow) {
-				overflow = 1;
+			else {
+				if (i > 0) {
+					i--;
+				}
 				features[i++] = '|';
+				break;
 			}
 		}
 	}
