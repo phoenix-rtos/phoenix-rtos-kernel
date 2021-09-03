@@ -19,6 +19,8 @@
 
 #include "posix.h"
 #include "posix_private.h"
+#include "fdpass.h"
+
 
 #define US_BOUND (1 << 0)
 #define US_LISTENING (1 << 1)
@@ -38,6 +40,8 @@ typedef struct _unixsock_t {
 
 	lock_t lock;
 	cbuffer_t buffer;
+	fdpack_t *fdpacks;
+
 	char type;
 	char state;
 	char nonblock;
@@ -177,6 +181,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 	r->refs = 1;
 	r->type = type;
 	r->nonblock = nonblock;
+	r->fdpacks = NULL;
 	r->connect = NULL;
 	r->queue = NULL;
 	r->writeq = NULL;
@@ -219,6 +224,8 @@ static void unixsock_put(unixsock_t *r)
 		hal_spinlockDestroy(&r->spinlock);
 		if (r->buffer.data)
 			vm_kfree(r->buffer.data);
+		if (r->fdpacks)
+			fdpass_discard(&r->fdpacks);
 		vm_kfree(r);
 		return;
 	}
@@ -565,7 +572,7 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 }
 
 
-ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
 	unixsock_t *s;
 	size_t rlen = 0;
@@ -586,15 +593,17 @@ ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, 
 		for (;;) {
 			proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
-				err = _cbuffer_read(&s->buffer, message, length);
+				err = _cbuffer_read(&s->buffer, buf, len);
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 				_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
-				_cbuffer_read(&s->buffer, message, err = min(length, rlen));
+				_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
 
-				if (length < rlen)
-					_cbuffer_discard(&s->buffer, rlen - length);
+				if (len < rlen)
+					_cbuffer_discard(&s->buffer, rlen - len);
 			}
+			if (err > 0 && control && controllen && *controllen > 0)
+				fdpass_unpack(&s->fdpacks, control, controllen);
 			proc_lockClear(&s->lock);
 
 			if (err > 0) {
@@ -620,7 +629,7 @@ ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, 
 }
 
 
-ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
 {
 	unixsock_t *s, *conn;
 	int err;
@@ -658,16 +667,18 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 
 		err = 0;
 
-		if (length > 0) {
+		if (len > 0) {
 			for (;;) {
 				proc_lockSet(&conn->lock);
 				if (s->type == SOCK_STREAM) {
-					err = _cbuffer_write(&conn->buffer, message, length);
+					err = _cbuffer_write(&conn->buffer, buf, len);
 				}
-				else if (_cbuffer_free(&conn->buffer) >= length + sizeof(length)) {
-					_cbuffer_write(&conn->buffer, &length, sizeof(length));
-					_cbuffer_write(&conn->buffer, message, err = length);
+				else if (_cbuffer_free(&conn->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+					_cbuffer_write(&conn->buffer, &len, sizeof(len));
+					_cbuffer_write(&conn->buffer, buf, err = len);
 				}
+				if (err > 0 && fdpack)
+					LIST_ADD(&conn->fdpacks, fdpack);
 				proc_lockClear(&conn->lock);
 
 				if (err > 0) {
@@ -697,6 +708,18 @@ ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int fla
 }
 
 
+ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+{
+	return recv(socket, msg, len, flags, src_addr, src_len, NULL, NULL);
+}
+
+
+ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+{
+	return send(socket, msg, len, flags, dest_addr, dest_len, NULL);
+}
+
+
 ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags)
 {
 	ssize_t err;
@@ -712,13 +735,9 @@ ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags)
 		len = msg->msg_iov->iov_len;
 	}
 
-	err = unix_recvfrom(socket, buf, len, flags, msg->msg_name, &msg->msg_namelen);
+	err = recv(socket, buf, len, flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
 
 	if (err >= 0) {
-		/* control data is not supported */
-		if (msg->msg_controllen > 0)
-			msg->msg_controllen = 0;
-
 		/* output flags are not supported */
 		msg->msg_flags = 0;
 	}
@@ -729,6 +748,8 @@ ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags)
 
 ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
 {
+	ssize_t err;
+	fdpack_t *fdpack = NULL;
 	const void *buf = NULL;
 	size_t len = 0;
 
@@ -736,16 +757,23 @@ ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
 	if (msg->msg_iovlen > 1)
 		return -EINVAL;
 
-	/* control data is not supported */
-	if (msg->msg_controllen > 0)
-		return -EINVAL;
+	if (msg->msg_controllen > 0) {
+		if ((err = fdpass_pack(&fdpack, msg->msg_control, msg->msg_controllen)) < 0)
+			return err;
+	}
 
 	if (msg->msg_iovlen > 0) {
 		buf = msg->msg_iov->iov_base;
 		len = msg->msg_iov->iov_len;
 	}
 
-	return unix_sendto(socket, buf, len, flags, msg->msg_name, msg->msg_namelen);
+	err = send(socket, buf, len, flags, msg->msg_name, msg->msg_namelen, fdpack);
+
+	/* file descriptors are passed only when some bytes have been sent */
+	if (fdpack && err <= 0)
+		fdpass_discard(&fdpack);
+
+	return err;
 }
 
 
