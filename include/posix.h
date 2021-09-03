@@ -124,12 +124,15 @@ struct timeval {
 #define SOCK_SEQPACKET 4
 #define SOCK_RDM       5
 
+#define SOL_SOCKET 0xFFF
+
 #define MSG_PEEK     0x01
 #define MSG_WAITALL  0x02
 #define MSG_OOB      0x04
 #define MSG_DONTWAIT 0x08
 #define MSG_MORE     0x10
 
+#define SCM_RIGHTS 1
 
 #define POLLIN     0x1
 #define POLLRDNORM 0x2
@@ -169,5 +172,11 @@ struct msghdr {
 	int msg_flags;
 };
 
+
+struct cmsghdr {
+	socklen_t cmsg_len;
+	int cmsg_level;
+	int cmsg_type;
+};
 
 #endif

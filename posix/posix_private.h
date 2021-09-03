@@ -134,10 +134,22 @@ struct rtentry
 extern void splitname(char *path, char **base, char **dir);
 
 
+extern int posix_fileDeref(open_file_t *f);
+
+
+extern int posix_getOpenFile(int fd, open_file_t **f);
+
+
 extern int posix_newFile(process_info_t *p, int fd);
 
 
+extern int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags);
+
+
 extern process_info_t *pinfo_find(unsigned int pid);
+
+
+extern void pinfo_put(process_info_t *p);
 
 
 extern int inet_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags);

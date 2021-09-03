@@ -151,7 +151,7 @@ void splitname(char *path, char **base, char **dir)
 }
 
 
-static int posix_fileDeref(open_file_t *f)
+int posix_fileDeref(open_file_t *f)
 {
 	int err = EOK;
 
@@ -185,7 +185,7 @@ static void posix_putUnusedFile(process_info_t *p, int fd)
 }
 
 
-static int posix_getOpenFile(int fd, open_file_t **f)
+int posix_getOpenFile(int fd, open_file_t **f)
 {
 	process_info_t *p;
 
@@ -233,6 +233,23 @@ int posix_newFile(process_info_t *p, int fd)
 	proc_lockInit(&f->lock);
 	f->refs = 1;
 	f->offset = 0;
+
+	return fd;
+}
+
+
+int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags)
+{
+	int fd = 0;
+
+	while (p->fds[fd].file != NULL && fd++ < p->maxfd)
+		;
+
+	if (fd > p->maxfd)
+		return -ENFILE;
+
+	p->fds[fd].file = f;
+	p->fds[fd].flags = flags;
 
 	return fd;
 }
