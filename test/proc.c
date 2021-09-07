@@ -16,6 +16,7 @@
 
 #include HAL
 #include "../proc/proc.h"
+#include "../syspage.h"
 
 
 struct {
@@ -177,21 +178,21 @@ void test_proc_threads2(void)
 /* Test process termination given terminating programs in syspage */
 static void test_proc_initthr(void *arg)
 {
-	unsigned int i;
-	syspage_program_t *prog;
+	syspage_prog_t *prog;
 	char *argv[] = { "syspage", "arg1", "arg2", "arg3", NULL };
 
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 
-	lib_printf("main: Starting syspage programs (%d) and init\n", syspage->progssz);
+	lib_printf("main: Starting syspage programs (%d) and init\n", syspage_progSize());
 	lib_printf("init: %p\n", proc_current());
 
 	for (;;) {
-		for (prog = syspage->progs, i = 0; i < syspage->progssz; i++, prog++) {
-			proc_syspageSpawn(prog, NULL, "", argv);
+		if ((prog = syspage_progList()) != NULL) {
+			do {
+				proc_syspageSpawn(prog, NULL, "", argv);
+			} while ((prog = prog->next) != syspage_progList());
 		}
-
 		proc_threadSleep(120000);
 	}
 }
