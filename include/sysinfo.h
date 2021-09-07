@@ -22,7 +22,7 @@
 
 
 typedef struct _syspageprog_t {
-	char name[16];
+	char name[32];
 	addr_t addr;
 	size_t size;
 } syspageprog_t;
