@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * System information page (prepared by kernel loader)
+ * Configuration file for Zynq 7000
  *
  * Copyright 2021 Phoenix Systems
  * Author: Hubert Buczynski
@@ -13,13 +13,9 @@
  * %LICENSE%
  */
 
-#include "syspage.h"
+#ifndef _HAL_CONFIG_H_
+#define _HAL_CONFIG_H_
 
+#include "../../include/arch/syspage-zynq7000.h"
 
-syspage_t *syspage;
-
-
-void _hal_syspageInit(void)
-{
-
-}
+#endif

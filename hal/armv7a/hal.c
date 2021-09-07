@@ -13,17 +13,27 @@
  * %LICENSE%
  */
 
-#include "spinlock.h"
-#include "console.h"
-#include "exceptions.h"
-#include "interrupts.h"
-#include "cpu.h"
-#include "timer.h"
-
+#include "../hal.h"
 
 struct {
 	int started;
 } hal_common;
+
+
+hal_syspage_t *syspage;
+unsigned int relOffs;
+
+
+void *hal_syspageRelocate(void *data)
+{
+	return ((u8 *)data + relOffs);
+}
+
+
+ptr_t hal_syspageAddr(void)
+{
+	return (ptr_t)syspage;
+}
 
 
 int hal_started(void)
