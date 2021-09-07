@@ -901,45 +901,25 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 
 int proc_syspageSpawnName(const char *map, const char *name, char **argv)
 {
-	int i;
-	syspage_program_t prog;
+	u8 dmap;
+	const syspage_map_t *sysMap;
+	const syspage_prog_t *prog = syspage_progNameResolve(name);
 
-	for (i = 0; i < syspage->progssz; ++i) {
-		if (hal_strcmp(name, syspage->progs[i].cmdline) == 0)
-			break;
-	}
-
-	if (i >= syspage->progssz)
+	if (prog == NULL)
 		return -ENOENT;
 
-	hal_memcpy(&prog, &syspage->progs[i], sizeof(prog));
+	dmap = prog->dmaps[0];
+	sysMap = (map == NULL) ? syspage_mapIdResolve(dmap) :
+							 syspage_mapNameResolve(map);
 
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X) || defined(CPU_IMXRT117X)
-	if (map == NULL) {
-		if (prog.dmap < syspage->mapssz && (syspage->maps[prog.dmap].attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite))
-			return proc_syspageSpawn(&prog, vm_getSharedMap(&prog, -1), name, argv);
-		else
-			return -EINVAL;
-	}
-
-	for (i = 0; i < syspage->mapssz; ++i) {
-		if (hal_strcmp(map, syspage->maps[i].name) != 0)
-			continue;
-
-		if ((syspage->maps[i].attr & (mAttrRead | mAttrWrite)) != (mAttrRead | mAttrWrite))
-			break;
-
-		return proc_syspageSpawn(&prog, vm_getSharedMap(&prog, i), name, argv);
-	}
+	if (sysMap != NULL && (sysMap->attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite))
+		return proc_syspageSpawn((syspage_prog_t *)prog, vm_getSharedMap((syspage_prog_t *)prog, sysMap->attr), name, argv);
 
 	return -EINVAL;
-#else
-	return proc_syspageSpawn(&prog, NULL, name, argv);
-#endif
 }
 
 
-int proc_syspageSpawn(syspage_program_t *program, vm_map_t *map, const char *path, char **argv)
+int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *map, const char *path, char **argv)
 {
 	return proc_spawn((void *)-1, map, program->start, program->end - program->start, path, argv, NULL);
 }

@@ -21,6 +21,7 @@
 #include "../vm/vm.h"
 #include "lock.h"
 #include "../vm/amap.h"
+#include "../syspage.h"
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 
@@ -92,7 +93,7 @@ extern int proc_fileSpawn(const char *path, char **argv, char **envp);
 extern int proc_syspageSpawnName(const char *map, const char *name, char **argv);
 
 
-extern int proc_syspageSpawn(syspage_program_t *program, vm_map_t *map, const char *path, char **argv);
+extern int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *map, const char *path, char **argv);
 
 
 extern int proc_execve(const char *path, char **argv, char **envp);
