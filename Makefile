@@ -27,7 +27,7 @@ include ../phoenix-rtos-build/Makefile.common
 include ../phoenix-rtos-build/Makefile.$(TARGET_SUFF)
 
 CFLAGS += $(BOARD_CONFIG)
-CFLAGS += -I. -DHAL=\"hal/$(TARGET_SUFF)/hal.h\" -DVERSION=\"$(VERSION)\"
+CFLAGS += -I. -DHAL=\"hal/hal.h\" -DVERSION=\"$(VERSION)\"
 
 EXTERNAL_HEADERS_DIR := ./include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
@@ -38,13 +38,9 @@ ifeq (/,$(SYSROOT))
 $(error Sysroot is not supported by toolchain. Use Phoenix-RTOS cross-toolchain to compile)
 endif
 
+OBJS = $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o)
 
-OBJS = $(PREFIX_O)main.o $(PREFIX_O)syscalls.o
-
-
-all: $(PREFIX_PROG_STRIPPED)phoenix-${TARGET_FAMILY}-${TARGET_SUBFAMILY}.elf
-#kxkall: $(PREFIX_PROG)phoenix-${TARGET_FAMILY}-${TARGET_SUBFAMILY}.elf $(PREFIX_PROG_STRIPPED)phoenix-${TARGET_FAMILY}-${TARGET_SUBFAMILY}.elf
-
+all: $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf
 
 include hal/$(TARGET_SUFF)/Makefile
 include vm/Makefile
@@ -54,20 +50,10 @@ include lib/Makefile
 include test/Makefile
 
 
-$(BUILD_DIR)/programs.cpio:
-	@printf "TOUCH programs.cpio\n"
-	$(SIL)touch $(BUILD_DIR)/programs.cpio
-
-
-$(PREFIX_O)/programs.o.cpio: $(PREFIX_O)programs.o $(BUILD_DIR)/programs.cpio
-	@printf "EMBED programs.cpio\n"
-	$(SIL)$(OBJCOPY) --update-section .data=$(BUILD_DIR)/programs.cpio $(PREFIX_O)programs.o --add-symbol programs=.data:0 $(PREFIX_O)programs.o.cpio
-
-
-$(PREFIX_PROG)phoenix-${TARGET_FAMILY}-${TARGET_SUBFAMILY}.elf: $(OBJS) $(PREFIX_O)/programs.o.cpio
+$(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS)
 	@mkdir -p $(@D)
 	@(printf "LD  %-24s\n" "$(@F)");
-	$(SIL)$(LD) $(LDFLAGS) -e _start --section-start .init=$(VADDR_KERNEL_INIT) -o $(PREFIX_PROG)phoenix-${TARGET_FAMILY}-${TARGET_SUBFAMILY}.elf $(OBJS) $(PREFIX_O)/programs.o.cpio $(GCCLIB)
+	$(SIL)$(LD) $(LDFLAGS) -e _start --section-start .init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) $(GCCLIB)
 
 
 install-headers: $(EXTERNAL_HEADERS)
