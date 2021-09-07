@@ -20,6 +20,7 @@
 #include "../include/sysinfo.h"
 #include "../include/mman.h"
 #include "../lib/lib.h"
+#include "../syspage.h"
 #include "object.h"
 #include "proc/lock.h"
 #include "vm/amap.h"
@@ -116,7 +117,7 @@ extern void vm_mapinfo(meminfo_t *info);
 extern int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no);
 
 
-extern vm_map_t *vm_getSharedMap(syspage_program_t *prog, int map);
+extern vm_map_t *vm_getSharedMap(syspage_prog_t *prog, int map);
 
 
 extern int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **start, void **end);
