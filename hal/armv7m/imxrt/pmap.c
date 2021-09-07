@@ -14,8 +14,6 @@
  */
 
 #include "pmap.h"
-#include "syspage.h"
-
 
 /* Linker symbols */
 extern unsigned int _end;
@@ -64,7 +62,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	(*vstart) = (void *)(((u32)_init_vectors + 7) & ~7);
+	(*vstart) = (void *)(((ptr_t)_init_vectors + 7) & ~7);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)&__bss_start;
