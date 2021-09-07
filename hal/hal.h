@@ -17,8 +17,8 @@
 
 #ifndef __ASSEMBLY__
 
-#include "syspage.h"
 #include "cpu.h"
+#include "config.h"
 #include "string.h"
 #include "console.h"
 #include "pmap.h"
@@ -27,17 +27,11 @@
 #include "exceptions.h"
 #include "timer.h"
 
-#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)
-#include "stm32.h"
-#endif
 
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
-#include "imxrt10xx.h"
-#endif
+extern void *hal_syspageRelocate(void *data);
 
-#ifdef CPU_IMXRT117X
-#include "imxrt117x.h"
-#endif
+
+extern ptr_t hal_syspageAddr(void);
 
 
 extern int hal_started(void);
