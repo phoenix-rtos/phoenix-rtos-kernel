@@ -15,16 +15,18 @@
 
 #include "pmap.h"
 #include "cpu.h"
+#include "config.h"
 #include "spinlock.h"
 #include "string.h"
 
 #include "../../include/errno.h"
 #include "../../include/mman.h"
+#include "../../../syspage.h"
 
-#include "syspage.h"
+extern unsigned int _end;
+extern unsigned int _etext;
 
-extern void _end(void);
-extern void _etext(void);
+#define SIZE_EXTEND_BSS 18 * SIZE_PAGE
 
 #define TT2S_ATTR_MASK      0xfff
 #define TT2S_NOTGLOBAL      0x800
@@ -394,8 +396,9 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 int pmap_getPage(page_t *page, addr_t *addr)
 {
 	addr_t a, min, max, end;
-	int i;
 	spinlock_ctx_t sc;
+
+	const syspage_prog_t *prog;
 
 	a = *addr & ~(SIZE_PAGE - 1);
 	page->flags = 0;
@@ -415,11 +418,14 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	page->addr = a;
 	(*addr) = a + SIZE_PAGE;
 
-	for (i = 0; i < syspage->progssz; ++i) {
-		if (page->addr >= (addr_t)syspage->progs[i].start && page->addr < (addr_t)syspage->progs[i].end) {
-			page->flags = PAGE_OWNER_APP;
-			return EOK;
-		}
+	/* TODO: Checking programs should be placed in a common part */
+	if ((prog = syspage_progList()) != NULL) {
+		do {
+			if (page->addr >= prog->start && page->addr < prog->end) {
+				page->flags = PAGE_OWNER_APP;
+				return EOK;
+			}
+		} while ((prog = prog->next) != syspage_progList());
 	}
 
 	if (page->addr >= min + (4 * 1024 * 1024)) {
@@ -434,11 +440,13 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		return EOK;
 	}
 
-	end = ((addr_t)_end + SIZE_PAGE - 1 ) & ~(SIZE_PAGE - 1);
+	end = ((addr_t)&_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1);
+	end += SIZE_EXTEND_BSS;
 	if (page->addr >= end - VADDR_KERNEL + min) {
 		page->flags |= PAGE_FREE;
 		return EOK;
 	}
+
 
 	if (page->addr >= ((addr_t)pmap_common.kpdir - VADDR_KERNEL + min) && page->addr < ((addr_t)pmap_common.sptab - VADDR_KERNEL + min)) {
 		page->flags |= PAGE_KERNEL_PTABLE;
@@ -498,18 +506,18 @@ char pmap_marker(page_t *p)
 int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
 {
 	switch (i) {
-	case 0:
-		*vaddr = (void *)VADDR_KERNEL;
-		*size = (size_t)_etext - VADDR_KERNEL;
-		*prot = (PROT_EXEC | PROT_READ);
-		break;
-	case 1:
-		*vaddr = _etext;
-		*size = (size_t)(*top) - (size_t)_etext;
-		*prot = (PROT_WRITE | PROT_READ);
-		break;
-	default:
-		return -EINVAL;
+		case 0:
+			*vaddr = (void *)VADDR_KERNEL;
+			*size = (size_t)&_etext - VADDR_KERNEL;
+			*prot = (PROT_EXEC | PROT_READ);
+			break;
+		case 1:
+			*vaddr = &_etext;
+			*size = (size_t)(*top) - (size_t)&_etext;
+			*prot = (PROT_WRITE | PROT_READ);
+			break;
+		default:
+			return -EINVAL;
 	}
 
 	return EOK;
@@ -532,8 +540,9 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");
 
-	pmap_common.minAddr = syspage->pbegin;
-	pmap_common.maxAddr = syspage->pend;
+	/* TODO: ddr address and size */
+	pmap_common.minAddr = ADDR_DDR;
+	pmap_common.maxAddr = ADDR_DDR + SIZE_DDR;
 
 	/* Initialize kernel page table */
 	pmap->pdir = pmap_common.kpdir;
@@ -549,10 +558,10 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap->end = (void *)VADDR_MAX;
 
 	/* Initialize kernel heap start address */
-	(*vstart) = (void *)(((u32)_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	(*vstart) = (void *)(((u32)&_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 
-	/* First 15 pages after bss are mapped for UART1, UART2, GIC, GPT1, CCM, IOMUX, WDOG and SRC */
-	(*vstart) += 16 * SIZE_PAGE;
+	/* First 17 pages after bss are mapped for, syspage, UART1, UART2, GIC, GPT1, CCM, IOMUX, WDOG and SRC */
+	(*vstart) += SIZE_EXTEND_BSS;
 	(*vend) = (*vstart) + SIZE_PAGE;
 
 	pmap_common.start = (u32)pmap_common.heap - VADDR_KERNEL + pmap_common.minAddr;
