@@ -42,7 +42,6 @@
 #ifndef __ASSEMBLY__
 
 #include "cpu.h"
-#include "syspage.h"
 
 
 typedef struct _page_t {
@@ -75,10 +74,7 @@ static inline int pmap_belongs(pmap_t *pmap, void *addr)
 }
 
 
-extern addr_t pmap_getMinVAdrr(void);
-
-
-extern addr_t pmap_getMaxVAdrr(void);
+extern int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top);
 
 
 extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
@@ -99,28 +95,8 @@ static inline addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 }
 
 
-static inline int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
-{
-	if (i)
-		return -1;
-
-	*vaddr = (void *)syspage->kernel.bss;
-	*size = (((size_t)(*top) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) - (size_t)syspage->kernel.bss;
-
-	return 0;
-}
-
-
-extern int pmap_getMapsCnt(void);
-
-
-extern int pmap_getMapParameters(u8 id, void **start, void **end);
-
-
-extern void pmap_getAllocatedSegment(void *memStart, void *memStop, void **segStart, void **segStop);
-
-
 extern void _pmap_init(pmap_t *pmap, void **start, void **end);
+
 
 #endif
 
