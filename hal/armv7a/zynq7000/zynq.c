@@ -126,6 +126,10 @@ static void _zynq_peripherals(void)
 	_zynq_slcrLock();
 }
 
+void hal_wdgReload(void)
+{
+	return;
+}
 
 int hal_platformctl(void *ptr)
 {

@@ -320,6 +320,11 @@ static void _imx6ull_reboot(void)
 	for (;;) ;
 }
 
+void hal_wdgReload(void)
+{
+	*(imx6ull_common.wdog + wdog_wsr) = 0x5555;
+	*(imx6ull_common.wdog + wdog_wsr) = 0xAAAA;
+}
 
 /* platformctl syscall */
 

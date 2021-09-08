@@ -389,10 +389,7 @@ extern char *hal_cpuInfo(char *info);
 extern char *hal_cpuFeatures(char *features, unsigned int len);
 
 
-static inline void hal_wdgReload(void)
-{
-
-}
+extern void hal_wdgReload(void);
 
 
 extern void _hal_cpuInit(void);
