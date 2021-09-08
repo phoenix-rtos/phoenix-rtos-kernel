@@ -88,6 +88,18 @@ plugin:
 	/* note: "ldr reg, =constant" pseudo instruction can't be used before
 	 * the serial download check below - the literal pool will not be included in the plugin */
 
+	/* init watchdog */
+	mov32 r4, 0x20bc000
+#if defined(WATCHDOG)
+	/* 128 sec timeout, debug, the clock is already enabled */
+	movw r5, #0xff36
+#else
+	/* we need to keep plugin section size the same regardless of
+	 * WATCHDOG define, so feed it with the default value */
+	movw r5, #0x0030
+#endif
+	strh r5, [r4]
+
 	/* check if reset was caused by watch dog */
 	mov32 r4, 0x20d8008
 	ldr r5, [r4]
@@ -186,9 +198,9 @@ dcd_clock:
 	.word SWAP(0x021b0000)
 	.word SWAP(0x80000000)
 
-	/* Enable DDR clock */
+	/* Enable DDR and watchdog clock */
 	.word SWAP(0x020c4074)
-	.word SWAP(0x0f300000)
+	.word SWAP(0x0f330000)
 
 	/* AIPSTZ1,2,3 clocks */
 	.word SWAP(0x020c4068)
