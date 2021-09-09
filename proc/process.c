@@ -551,7 +551,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	Elf32_Shdr *shdr;
 	Elf32_Rel *rel;
 	unsigned prot, flags, reloffs;
-	int i, j, relocsz = 0, reltype;
+	int i, j, relocsz = 0, reltype, badreloc = 0;
 	void *relptr;
 	char *snameTab;
 	ptr_t *got;
@@ -670,8 +670,10 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 					return -ENOEXEC;
 
 				/* Don't modify ELF file! */
-				if ((ptr_t)relptr >= (ptr_t)base && (ptr_t)relptr < (ptr_t)base + size)
+				if ((ptr_t)relptr >= (ptr_t)base && (ptr_t)relptr < (ptr_t)base + size) {
+					++badreloc;
 					continue;
+				}
 
 				if (process_relocate(reloc, relocsz, relptr) < 0)
 					return -ENOEXEC;
@@ -687,6 +689,15 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	*ustack = stack + stacksz;
 
 	threads_canaryInit(proc_current(), stack);
+
+	if (badreloc) {
+		if (process->path != NULL && process->path[0] != '\0')
+			lib_printf("app %s: ", process->path);
+		else
+			lib_printf("process %d: ", process->id);
+
+		lib_printf("Found %d badreloc%c\n", badreloc, (badreloc > 1) ? 's' : ' ');
+	}
 
 	return EOK;
 }
