@@ -119,7 +119,6 @@ _syscall_dispatch0:
 	ldr r6, [r0, r5]
 	str r6, [sp, r5]
 	subs r5, r5, #4
-	it pl
 	bpl _syscall_dispatch0
 
 	ldr r6, =0xe000ef38
@@ -254,7 +253,6 @@ hal_cpuReschedule:
 	bl _hal_invokePendSV
 	pop {r1-r3, lr}
 	cmp r1, #NULL
-	it eq
 	beq hal_cpuReschedule0
 	push {r3-r4}
 	add r1, r1, #12
