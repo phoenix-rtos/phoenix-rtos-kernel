@@ -36,7 +36,8 @@ enum {
 };
 
 
-extern void _end(void);
+extern unsigned int _end;
+
 
 static void _console_print(const char *s)
 {
@@ -74,8 +75,8 @@ void hal_consolePrint(int attr, const char *s)
 
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
-	console_common.uart0 = (void *)(((u32)_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
-	console_common.uart1 = (void *)(((u32)_end + (2 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart0 = (void *)(((u32)&_end + 3 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart1 = (void *)(((u32)&_end + 4 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	console_common.speed = 115200;
 
 	*(console_common.UART + idr) = 0xfff;
