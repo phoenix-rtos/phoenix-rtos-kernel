@@ -14,6 +14,7 @@
  */
 
 #include "cpu.h"
+#include "config.h"
 #include "spinlock.h"
 #include "interrupts.h"
 
@@ -36,7 +37,7 @@ enum { epit_cr = 0, epit_sr, epit_lr, epit_cmpr, epit_cnr };
 enum { gpt_cr = 0, gpt_pr, gpt_sr, gpt_ir, gpt_ocr1, gpt_ocr2, gpt_ocr3, gpt_icr1, gpt_icr2, gpt_cnt };
 
 
-extern void _end(void);
+extern unsigned int _end;
 
 
 static int timer_wakeupIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -96,8 +97,8 @@ time_t hal_getTimer(void)
 
 void _timer_init(u32 interval)
 {
-	timer_common.epit1 = (void *)(((u32)_end + (7 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	timer_common.gpt1 = (void *)(((u32)_end + (8 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	timer_common.epit1 = (void *)(((u32)&_end + (9 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	timer_common.gpt1 = (void *)(((u32)&_end + (10 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
 	timer_common.timerhi = 0;
 
 	hal_spinlockCreate(&timer_common.lock, "timer");

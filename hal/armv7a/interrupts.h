@@ -22,9 +22,6 @@
 #include "pmap.h"
 
 
-#define HPTIMER_IRQ     88
-
-
 #define _intr_add(list, t) \
 	do { \
 		if (t == NULL) \

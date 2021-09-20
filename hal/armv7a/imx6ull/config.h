@@ -16,6 +16,13 @@
 #ifndef _HAL_CONFIG_H_
 #define _HAL_CONFIG_H_
 
+/* TODO: temp solution, defines should be located in appropriate headers */
+#define HPTIMER_IRQ 88
+
+/* IMX6ULL timer frequency set to 66 MHz */
+#define TIMER_US2CYC(x) (66LL * (x))
+#define TIMER_CYC2US(x) ((x) / 66)
+
 #define ADDR_OCRAM 0x907000
 #define ADDR_DDR   0x80000000
 #define SIZE_DDR   0x7ffffff
