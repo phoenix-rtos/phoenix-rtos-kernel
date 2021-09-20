@@ -26,10 +26,12 @@ struct {
 	u32 speed;
 } console_common;
 
-extern void _end(void);
 
 enum { urxd = 0, utxd = 16, ucr1 = 32, ucr2, ucr3, ucr4, ufcr, usr1, usr2,
 	uesc, utim, ubir, ubmr, ubrc, onems, uts, umcr };
+
+
+extern unsigned int _end;
 
 
 static void _console_print(const char *s)
@@ -64,8 +66,8 @@ void hal_consolePrint(int attr, const char *s)
 
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
-	console_common.uart1 = (void *)(((u32)_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
-	console_common.uart2 = (void *)(((u32)_end + (2 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart1 = (void *)(((u32)&_end + (3 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart2 = (void *)(((u32)&_end + (4 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
 	console_common.speed = 115200;
 
 	*(console_common.UART + ucr2) &= ~0x1;
