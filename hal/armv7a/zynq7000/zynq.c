@@ -14,9 +14,9 @@
  */
 
 #include "pmap.h"
-#include "../../include/errno.h"
 #include "vm/map.h"
-
+#include "spinlock.h"
+#include "../../include/arch/zynq7000.h"
 
 
 /* SLCR (System Level Control Registers) */
@@ -69,14 +69,13 @@ enum {
 };
 
 
-
-
 struct {
+	spinlock_t pltctlSp;
 	volatile u32 *slcr;
 } zynq_common;
 
 
-extern void _end(void);
+extern unsigned int _end;
 
 
 static void _zynq_slcrLock(void)
@@ -88,6 +87,326 @@ static void _zynq_slcrLock(void)
 static void _zynq_slcrUnlock(void)
 {
 	*(zynq_common.slcr + slcr_unlock) = 0x0000df0d;
+}
+
+
+static int _zynq_setAmbaClk(u32 dev, u32 state)
+{
+	/* Check max dev position in amba register */
+	if (dev > 24)
+		return -1;
+
+	_zynq_slcrUnlock();
+	*(zynq_common.slcr + slcr_aper_clk_ctrl) = (*(zynq_common.slcr + slcr_aper_clk_ctrl) & ~(1 << dev)) | (!!state << dev);
+	_zynq_slcrLock();
+
+	return 0;
+}
+
+
+static int _zynq_getAmbaClk(u32 dev, u32 *state)
+{
+	/* Check max dev position in amba register */
+	if (dev > 24)
+		return -1;
+
+	_zynq_slcrUnlock();
+	*state = (*(zynq_common.slcr + slcr_aper_clk_ctrl) >> dev) & 0x1;
+	_zynq_slcrLock();
+
+	return 0;
+}
+
+
+static int _zynq_setDevClk(int dev, char divisor0, char divisor1, char srcsel, char clkact0, char clkact1)
+{
+	u32 id = 0;
+	int err = 0;
+
+	_zynq_slcrUnlock();
+	switch (dev) {
+		case pctl_ctrl_usb0_clk:
+		case pctl_ctrl_usb1_clk:
+			id = dev - pctl_ctrl_usb0_clk;
+			*(zynq_common.slcr + slcr_usb0_clk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_usb0_clk + id) & ~0x00000070) | (srcsel & 0x7) << 4;
+			break;
+
+		case pctl_ctrl_gem0_rclk:
+		case pctl_ctrl_gem1_rclk:
+			id = dev - pctl_ctrl_gem0_rclk;
+			*(zynq_common.slcr + slcr_gem0_rclk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_gem0_rclk + id) & ~0x00000011) | (!!clkact0) |
+				((!!srcsel) << 4);
+			break;
+
+		case pctl_ctrl_gem0_clk:
+		case pctl_ctrl_gem1_clk:
+			id = dev - pctl_ctrl_gem0_clk;
+			*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) = (*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) & ~0x03f03f71) | (!!clkact0) |
+				((srcsel & 0x7) << 4) | ((divisor0 & 0x3f) << 8) | ((divisor1 & 0x3f) << 20);
+			break;
+
+		case pctl_ctrl_smc_clk:
+			*(zynq_common.slcr + slcr_smc_clk_ctrl) = (*(zynq_common.slcr + slcr_smc_clk_ctrl) & ~0x00003f31) | (!!clkact0) |
+				((srcsel & 0x3) << 4) | ((divisor0 & 0x3f) << 8);
+			break;
+
+		case pctl_ctrl_lqspi_clk:
+			*(zynq_common.slcr + slcr_lqspi_clk_ctrl) = (*(zynq_common.slcr + slcr_lqspi_clk_ctrl) & ~0x00003f31) | (!!clkact0) |
+				((srcsel & 0x3) << 4) | ((divisor0 & 0x3f) << 8);
+			break;
+
+		case pctl_ctrl_sdio_clk:
+			*(zynq_common.slcr + slcr_sdio_clk_ctrl) = (*(zynq_common.slcr + slcr_sdio_clk_ctrl) & ~0x00003f33) | (!!clkact0) | ((!!clkact1) << 1) |
+				((srcsel & 0x3) << 4) | ((divisor0 & 0x3f) << 8);
+			break;
+
+		case pctl_ctrl_uart_clk:
+			*(zynq_common.slcr + slcr_uart_clk_ctrl) = (*(zynq_common.slcr + slcr_uart_clk_ctrl) & ~0x00003f33) | (!!clkact0) |
+				((!!clkact1) << 1) | ((srcsel & 0x3) << 4) | ((divisor0 & 0x3f) << 8);
+			break;
+
+		case pctl_ctrl_spi_clk:
+			*(zynq_common.slcr + slcr_spi_clk_ctrl) = (*(zynq_common.slcr + slcr_spi_clk_ctrl) & ~0x00003f33) | (!!clkact0) |
+				((!!clkact1) << 1) | ((srcsel & 0x3) << 4) | ((divisor0 & 0x3f) << 8);
+			break;
+
+		case pctl_ctrl_can_clk:
+			*(zynq_common.slcr + slcr_can_clk_ctrl) = (*(zynq_common.slcr + slcr_can_clk_ctrl) & ~0x03f03f33) | (!!clkact0) |
+				((!!clkact1) << 1) | ((srcsel & 0x3) << 4) | ((divisor0 & 0x3f) << 8) | ((divisor1 & 0x3f) << 20);
+			break;
+
+		default:
+			err = -1;
+			break;
+	}
+
+	_zynq_slcrLock();
+
+	return err;
+}
+
+
+static int _zynq_getDevClk(int dev, char *divisor0, char *divisor1, char *srcsel, char *clkact0, char *clkact1)
+{
+	u32 id;
+	u32 val = 0;
+	int err = 0;
+
+	switch (dev) {
+		case pctl_ctrl_usb0_clk:
+		case pctl_ctrl_usb1_clk:
+			id = dev - pctl_ctrl_usb0_clk;
+			val = *(zynq_common.slcr + slcr_usb0_clk_ctrl + id);
+			*srcsel = (val >> 4) & 0x7;
+			*clkact0 = *clkact1 = *divisor0 = *divisor1 = 0;
+			break;
+
+		case pctl_ctrl_gem0_rclk:
+		case pctl_ctrl_gem1_rclk:
+			id = dev - pctl_ctrl_gem0_rclk;
+			val = *(zynq_common.slcr + slcr_gem0_rclk_ctrl + id);
+			*clkact0 = val & 0x1;
+			*srcsel = (val >> 4) & 0x1;
+			*clkact1 = *divisor0 = *divisor1 = 0;
+			break;
+
+		case pctl_ctrl_gem0_clk:
+		case pctl_ctrl_gem1_clk:
+			id = dev - pctl_ctrl_gem0_clk;
+			val = *(zynq_common.slcr + slcr_gem0_clk_ctrl + id);
+			*clkact0 = val & 0x1;
+			*srcsel = (val >> 4) & 0x7;
+			*divisor0 = (val >> 8) & 0x3f;
+			*divisor1 = (val >> 20) & 0x3f;
+			*clkact1 = 0;
+			break;
+
+		case pctl_ctrl_smc_clk:
+			val = *(zynq_common.slcr + slcr_smc_clk_ctrl);
+			*clkact0 = val & 0x1;
+			*srcsel = (val >> 4) & 0x3;
+			*divisor0 = (val >> 8) & 0x3f;
+			*clkact1 = *divisor1 = 0;
+			break;
+
+		case pctl_ctrl_lqspi_clk:
+			val = *(zynq_common.slcr + slcr_lqspi_clk_ctrl);
+			*clkact0 = val & 0x1;
+			*srcsel = (val >> 4) & 0x3;
+			*divisor0 = (val >> 8) & 0x3f;
+			*clkact1 = *divisor1 = 0;
+			break;
+
+		case pctl_ctrl_sdio_clk:
+			val = *(zynq_common.slcr + slcr_sdio_clk_ctrl);
+			*clkact0 = val & 0x1;
+			*clkact1 = (val >> 1) & 0x1;
+			*srcsel = (val >> 4) & 0x3;
+			*divisor0 = (val >> 8) & 0x3f;
+			*divisor1 = 0;
+			break;
+
+		case pctl_ctrl_uart_clk:
+			val = *(zynq_common.slcr + slcr_uart_clk_ctrl);
+			*clkact0 = val & 0x1;
+			*clkact1 = (val >> 1) & 0x1;
+			*srcsel = (val >> 4) & 0x3;
+			*divisor0 = (val >> 8) & 0x3f;
+			*divisor1 = 0;
+			break;
+
+		case pctl_ctrl_spi_clk:
+			val = *(zynq_common.slcr + slcr_spi_clk_ctrl);
+			*clkact0 = val & 0x1;
+			*clkact1 = (val >> 1) & 0x1;
+			*srcsel = (val >> 4) & 0x3;
+			*divisor0 = (val >> 8) & 0x3f;
+			*divisor1 = 0;
+			break;
+
+		case pctl_ctrl_can_clk:
+			val = *(zynq_common.slcr + slcr_can_clk_ctrl);
+			*clkact0 = val & 0x1;
+			*clkact1 = (val >> 1) & 0x1;
+			*srcsel = (val >> 4) & 0x3;
+			*divisor0 = (val >> 8) & 0x3f;
+			*divisor1 = (val >> 20) & 0x3f;
+			break;
+
+		default:
+			err = -1;
+			break;
+	}
+
+	return err;
+}
+
+
+static int _zynq_setMioClk(char ref0, char mux0, char ref1, char mux1)
+{
+	_zynq_slcrUnlock();
+	*(zynq_common.slcr + slcr_can_mioclk_ctrl) = (*(zynq_common.slcr + slcr_can_mioclk_ctrl) & ~0x007f007f) | (mux0 & 0x3f) | ((!!ref0) << 6) |
+		((mux1 & 0x3f) << 16) | ((!!ref1) << 22);
+	_zynq_slcrLock();
+
+	return 0;
+}
+
+
+static int _zynq_getMioClk(char *ref0, char *mux0, char *ref1, char *mux1)
+{
+	u32 val = 0;
+
+	val = *(zynq_common.slcr + slcr_can_mioclk_ctrl);
+	*mux0 = val & 0x3f;
+	*ref0 = (val >> 6) & 0x1;
+	*mux1 = (val >> 16) & 0x3f;
+	*ref1 = (val >> 22) & 0x1;
+
+	return 0;
+}
+
+
+static int _zynq_setMIO(unsigned int pin, char disableRcvr, char pullup, char ioType, char speed, char l0, char l1, char l2, char l3, char triEnable)
+{
+	u32 val = 0;
+
+	if (pin > 53)
+		return -1;
+
+	val = (!!triEnable) | (!!l0 << 1) | (!!l1 << 2) | ((l2 & 0x3) << 3) |
+		((l3 & 0x7) << 5) | (!!speed << 8) | ((ioType & 0x7) << 9) | (!!pullup << 12) |
+		(!!disableRcvr << 13);
+
+	_zynq_slcrUnlock();
+	*(zynq_common.slcr + slcr_mio_pin_00 + pin) = (*(zynq_common.slcr + slcr_mio_pin_00 + pin) & ~0x00003fff) | val;
+	_zynq_slcrLock();
+
+	return 0;
+}
+
+
+static int _zynq_getMIO(unsigned int pin, char *disableRcvr, char *pullup, char *ioType, char *speed, char *l0, char *l1, char *l2, char *l3, char *triEnable)
+{
+	u32 val;
+
+	if (pin > 53)
+		return -1;
+
+	val = *(zynq_common.slcr + slcr_mio_pin_00 + pin);
+
+	*disableRcvr = (val >> 13) & 0x1;
+	*pullup = (val >> 12) & 0x1;
+	*ioType = (val >> 9) & 0x7;
+	*speed = (val >> 8) & 0x1;
+	*l0 = (val >> 1) & 0x1;
+	*l1 = (val >> 2) & 0x1;
+	*l2 = (val >> 3) & 0x3;
+	*l3 = (val >> 5) & 0x7;
+	*triEnable = val & 0x1;
+
+	return 0;
+}
+
+
+int hal_platformctl(void *ptr)
+{
+	platformctl_t *data = ptr;
+	unsigned int t = 0;
+	spinlock_ctx_t sc;
+	int ret = -1;
+
+	hal_spinlockSet(&zynq_common.pltctlSp, &sc);
+
+	switch (data->type) {
+		case pctl_ambaclock:
+			if (data->action == pctl_set) {
+				ret = _zynq_setAmbaClk(data->ambaclock.dev, data->ambaclock.state);
+			}
+			else if (data->action == pctl_get) {
+				ret = _zynq_getAmbaClk(data->ambaclock.dev, &t);
+				data->ambaclock.state = t;
+			}
+			break;
+
+		case pctl_mioclock:
+			if (data->mioclock.mio == pctl_ctrl_can_mioclk) {
+				if (data->action == pctl_set)
+					ret = _zynq_setMioClk(data->mioclock.ref0, data->mioclock.mux0, data->mioclock.ref1, data->mioclock.mux1);
+				else if (data->action == pctl_get)
+					ret = _zynq_getMioClk(&data->mioclock.ref0, &data->mioclock.mux0, &data->mioclock.ref1, &data->mioclock.mux1);
+			}
+			break;
+
+		case pctl_devclock:
+			if (data->action == pctl_set)
+				ret = _zynq_setDevClk(data->devclock.dev, data->devclock.divisor0, data->devclock.divisor1,
+					data->devclock.srcsel, data->devclock.clkact0, data->devclock.clkact1);
+			else if (data->action == pctl_get)
+				ret = _zynq_getDevClk(data->devclock.dev, &data->devclock.divisor0, &data->devclock.divisor1,
+					&data->devclock.srcsel, &data->devclock.clkact0, &data->devclock.clkact1);
+			break;
+
+		case pctl_mio:
+			if (data->action == pctl_set)
+				ret = _zynq_setMIO(data->mio.pin, data->mio.disableRcvr, data->mio.pullup, data->mio.ioType, data->mio.speed, data->mio.l0,
+					data->mio.l1, data->mio.l2, data->mio.l3, data->mio.triEnable);
+			else if (data->action == pctl_get)
+				ret = _zynq_getMIO(data->mio.pin, &data->mio.disableRcvr, &data->mio.pullup, &data->mio.ioType, &data->mio.speed, &data->mio.l0,
+					&data->mio.l1, &data->mio.l2, &data->mio.l3, &data->mio.triEnable);
+			break;
+
+		case pctl_reboot:
+			/* TODO */
+			break;
+
+		default:
+			break;
+	}
+
+	hal_spinlockClear(&zynq_common.pltctlSp, &sc);
+
+	return ret;
 }
 
 
@@ -131,15 +450,10 @@ void hal_wdgReload(void)
 	return;
 }
 
-int hal_platformctl(void *ptr)
-{
-	return 0;
-}
-
-
 void _hal_platformInit(void)
 {
-	zynq_common.slcr = (void *)(((u32)_end + 7 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	hal_spinlockCreate(&zynq_common.pltctlSp, "pltctl");
+	zynq_common.slcr = (void *)(((u32)&_end + 9 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 
 
 	/* Initialize basic peripherals - MIO & Clk:
