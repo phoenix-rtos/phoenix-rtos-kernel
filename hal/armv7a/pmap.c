@@ -540,7 +540,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");
 
-	/* TODO: ddr address and size */
 	pmap_common.minAddr = ADDR_DDR;
 	pmap_common.maxAddr = ADDR_DDR + SIZE_DDR;
 
@@ -560,7 +559,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Initialize kernel heap start address */
 	(*vstart) = (void *)(((u32)&_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 
-	/* First 17 pages after bss are mapped for, syspage, UART1, UART2, GIC, GPT1, CCM, IOMUX, WDOG and SRC */
+	/* First 17 pages after bss are mapped for controllers */
+	/* TODO: this size should depend on platform */
 	(*vstart) += SIZE_EXTEND_BSS;
 	(*vend) = (*vstart) + SIZE_PAGE;
 
