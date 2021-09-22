@@ -334,6 +334,9 @@ int syscalls_syspageprog(void *ustack)
 	if ((progSys = syspage_progIdResolve(i)) == NULL)
 		return -EINVAL;
 
+	prog->addr = progSys->start;
+	prog->size = progSys->end - progSys->start;
+
 	/* TODO: change syspageprog_t to allocate data for name dynamically */
 	namesz = hal_strlen(progSys->argv);
 	sz = min(sizeof(prog->name) - 1, namesz);
