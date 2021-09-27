@@ -792,10 +792,13 @@ hal_cpuReschedule:
 	add r0, #12
 
 	/* Spinlock clear */
+spinlock:
 	ldrexb r1, [r0]
 	add r1, r1, #1
 	dmb
 	strexb r2, r1, [r0]
+	cmp r2, #0
+	bne spinlock
 	ldrb r1, [r3]
 
 	bic r4, #0xff
