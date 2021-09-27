@@ -57,10 +57,13 @@ static inline void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 static inline void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	__asm__ volatile (" \
+	1 : \
 		ldrexb r1, [%0]; \
 		add r1, r1, #1; \
 		dmb; \
 		strexb r2, r1, [%0]; \
+		cmp r2, #0; \
+		bne 1b; \
 		ldr r1, [%1]; \
 		msr primask, r1;"
 	:
