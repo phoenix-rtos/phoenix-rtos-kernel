@@ -83,12 +83,12 @@ _start:
 	orr r0, r0, #(1 << 2)
 	msr control, r0
 
-_start_1:
 	/* Init vector table and stack pointer */
 	ldr r0, =0xe000ed08
 	ldr r1, =_init_vectors
 	str r1, [r0]
 	ldr r0, [r1]
+	bic r0, 7
 	msr msp, r0
 	bl _imxrt_init
 
