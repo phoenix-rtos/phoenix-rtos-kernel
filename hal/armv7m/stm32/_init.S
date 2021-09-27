@@ -232,10 +232,14 @@ hal_cpuReschedule:
 	beq hal_cpuReschedule0
 	push {r3-r4}
 	add r1, r1, #12
+
+spinlock:
 	ldrexb r3, [r1]
 	add r3, r3, #1
 	dmb
 	strexb r4, r3, [r1]
+	cmp r4, #0
+	bne spinlock
 	pop {r3-r4}
 	ldr r2, [r2]
 	msr primask, r2
