@@ -42,10 +42,10 @@ u32 cpu_getEFLAGS(void)
 {
 	u32 eflags;
 
-	__asm__ volatile(" \
-		pushf; \
-		popl %0"
-					 : "=a"(eflags));
+	__asm__ volatile(
+		"pushf; "
+		"popl %0; "
+	: "=a" (eflags));
 
 	return eflags;
 }
@@ -67,9 +67,9 @@ int hal_cpuDebugGuard(u32 enable, u32 slot)
 	else
 		cpu.dr5 &= ~mask;
 
-	__asm__ volatile("movl %0, %%dr5"
-					 :
-					 : "r"(cpu.dr5));
+	__asm__ volatile(
+		"movl %0, %%dr5; "
+	:: "r" (cpu.dr5));
 
 	return EOK;
 }
@@ -120,7 +120,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		((u32 *)ctx->esp)[1] = (u32)arg;
 		ctx->ss = SEL_UDATA;
 	}
-
 	/* Prepare kernel stack for kernel-level thread */
 	else {
 		ctx->ss = (u32)arg;
@@ -136,6 +135,8 @@ int hal_cpuReschedule(spinlock_t *spinlock, spinlock_ctx_t *scp)
 {
 	int err;
 
+	hal_cpuDisableInterrupts();
+
 	if (spinlock != NULL) {
 		hal_cpuGetCycles((void *)&spinlock->e);
 
@@ -145,53 +146,46 @@ int hal_cpuReschedule(spinlock_t *spinlock, spinlock_ctx_t *scp)
 
 		if (spinlock->e - spinlock->b < spinlock->dmin)
 			spinlock->dmin = spinlock->e - spinlock->b;
+
+		__asm__ volatile(
+			"xorl %%eax, %%eax; "
+			"incl %%eax; "
+			"xchgl %0, %%eax; "
+		:: "m" (spinlock->lock)
+		: "eax", "memory");
+
+		err = *scp;
+	}
+	else {
+		err = cpu_getEFLAGS();
 	}
 
 	__asm__ volatile(
-		"movl %1, %%eax;"
-		"cmp $0, %%eax;"
-		"je 1f;"
+		"pushl %%eax; "
+		"pushl %%cs; "
+		"leal 1f, %%eax; "
+		"pushl %%eax; "
+		"xorl %%eax, %%eax; "
+		"call interrupts_pushContext; "
 
-		"movl %3, %%eax;"
-		"pushl %%eax;"
-		"xorl %%eax, %%eax;"
-		"incl %%eax;"
-		"xchgl %2, %%eax;"
-		"jmp 2f;"
+		"call _interrupts_multilockSet; "
 
-		"1:;"
-		"pushf;"
+		"leal (%%esp), %%eax; "
+		"pushl $0; "
+		"pushl %%eax; "
+		"pushl $0; "
+		"movl %1, %%eax; "
+		"call *%%eax; "
+		"cli; "
+		"addl $12, %%esp; "
 
-		"2:;"
-		"pushl %%cs;"
-		"cli;"
-		"leal 3f, %%eax;"
-		"pushl %%eax;"
-		"movl $0, %%eax;"
-		"call interrupts_pushContext;"
+		"call _interrupts_multilockClear; "
 
-		"call _interrupts_multilockSet;"
-
-		"leal 0(%%esp), %%eax;"
-		"pushl $0;"
-		"pushl %%eax;"
-		"pushl $0;"
-		"movl %4, %%eax;"
-		"call *%%eax;"
-		"cli;"
-		"addl $12, %%esp;"
-		"popl %%esp;"
-
-		"call _interrupts_multilockClear;"
-		"pushl %%esp;"
-
-		"jmp interrupts_popContext;"
-
-		"3:;"
-		"movl %%eax, %0"
-		: "=g"(err)
-		: "m"(spinlock), "m"(spinlock->lock), "r"(*scp), "g"(threads_schedule)
-		: "eax", "edx", "esp", "cc", "memory");
+		"jmp interrupts_popContext; "
+		"1: "
+	: "+a" (err)
+	: "g" (threads_schedule)
+	: "ecx", "edx", "esp", "memory");
 
 	return err;
 }
@@ -251,9 +245,9 @@ void *_cpu_initCore(void)
 	cpu.tss[hal_cpuGetID()].esp0 = (u32)&cpu.stacks[hal_cpuGetID()][511];
 
 	/* Set task register */
-	__asm__ volatile("ltr %%ax"
-					 :
-					 : "a"((4 + cpu.ncpus) * 8));
+	__asm__ volatile(
+		"ltr %0; "
+	:: "r" ((u16)((4 + cpu.ncpus) * 8)));
 
 	return (void *)cpu.tss[hal_cpuGetID()].esp0;
 }
