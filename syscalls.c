@@ -25,7 +25,7 @@
 #include "vm/object.h"
 #include "posix/posix.h"
 
-#define SYSCALLS_NAME(name) syscalls_##name,
+#define SYSCALLS_NAME(name)   syscalls_##name,
 #define SYSCALLS_STRING(name) #name,
 
 /*
@@ -483,7 +483,6 @@ int syscalls_resourceDestroy(void *ustack)
  */
 
 
-
 int syscalls_interrupt(void *ustack)
 {
 	unsigned int n;
@@ -802,8 +801,9 @@ int syscalls_signalPost(void *ustack)
 	err = threads_sigpost(proc, t, signal);
 
 	proc_put(proc);
-	threads_put(t);
-	hal_cpuReschedule(NULL, NULL);
+	if (t != NULL)
+		threads_put(t);
+
 	return err;
 }
 
@@ -1033,7 +1033,7 @@ int syscalls_sys_accept(char *ustack)
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
-	GETFROMSTACK(ustack, socklen_t *,address_len, 2);
+	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
 
 	return posix_accept(socket, address, address_len);
 }
@@ -1048,7 +1048,7 @@ int syscalls_sys_accept4(char *ustack)
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
-	GETFROMSTACK(ustack, socklen_t *,address_len, 2);
+	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
 
 	return posix_accept4(socket, address, address_len, flags);
@@ -1384,7 +1384,7 @@ pid_t syscalls_sys_setsid(char *ustack)
 }
 
 
-void syscalls_sbi_putchar(char* ustack)
+void syscalls_sbi_putchar(char *ustack)
 {
 #ifdef TARGET_RISCV64
 	char c;
@@ -1394,7 +1394,7 @@ void syscalls_sbi_putchar(char* ustack)
 }
 
 
-int syscalls_sbi_getchar(char* ustack)
+int syscalls_sbi_getchar(char *ustack)
 {
 #ifdef TARGET_RISCV64
 	sbiret_t ret;
@@ -1417,8 +1417,8 @@ int syscalls_notimplemented(void)
 }
 
 
-const void * const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
-const char * const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
+const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
+const char *const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
 
 
 void *syscalls_dispatch(int n, char *ustack)
