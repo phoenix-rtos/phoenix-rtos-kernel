@@ -42,11 +42,10 @@ u32 cpu_getEFLAGS(void)
 {
 	u32 eflags;
 
-	__asm__ volatile
-	(" \
+	__asm__ volatile(" \
 		pushf; \
 		popl %0"
-	: "=a" (eflags));
+					 : "=a"(eflags));
 
 	return eflags;
 }
@@ -68,7 +67,9 @@ int hal_cpuDebugGuard(u32 enable, u32 slot)
 	else
 		cpu.dr5 &= ~mask;
 
-	__asm__ volatile ("movl %0, %%dr5" : : "r" (cpu.dr5));
+	__asm__ volatile("movl %0, %%dr5"
+					 :
+					 : "r"(cpu.dr5));
 
 	return EOK;
 }
@@ -146,7 +147,7 @@ int hal_cpuReschedule(spinlock_t *spinlock, spinlock_ctx_t *scp)
 			spinlock->dmin = spinlock->e - spinlock->b;
 	}
 
-	__asm__ volatile (
+	__asm__ volatile(
 		"movl %1, %%eax;"
 		"cmp $0, %%eax;"
 		"je 1f;"
@@ -182,15 +183,15 @@ int hal_cpuReschedule(spinlock_t *spinlock, spinlock_ctx_t *scp)
 		"popl %%esp;"
 
 		"call _interrupts_multilockClear;"
- 		"pushl %%esp;"
+		"pushl %%esp;"
 
 		"jmp interrupts_popContext;"
 
 		"3:;"
 		"movl %%eax, %0"
-	: "=g" (err)
-	: "m" (spinlock), "m" (spinlock->lock), "r" (*scp), "g" (threads_schedule)
-	: "eax", "edx", "esp", "cc", "memory");
+		: "=g"(err)
+		: "m"(spinlock), "m"(spinlock->lock), "r"(*scp), "g"(threads_schedule)
+		: "eax", "edx", "esp", "cc", "memory");
 
 	return err;
 }
@@ -222,7 +223,7 @@ void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 		limit = (limit >> 12);
 
 	descrh = (base & 0xff000000) | (type & 0x00c00000) | (limit & 0x000f0000) |
-	         (type & 0x0000ff00) | ((base >> 16) & 0x000000ff);
+		(type & 0x0000ff00) | ((base >> 16) & 0x000000ff);
 
 	descrl = (base << 16) | (limit & 0xffff);
 
@@ -250,7 +251,9 @@ void *_cpu_initCore(void)
 	cpu.tss[hal_cpuGetID()].esp0 = (u32)&cpu.stacks[hal_cpuGetID()][511];
 
 	/* Set task register */
-	__asm__ volatile ("ltr %%ax" : : "a" ((4 + cpu.ncpus) * 8));
+	__asm__ volatile("ltr %%ax"
+					 :
+					 : "a"((4 + cpu.ncpus) * 8));
 
 	return (void *)cpu.tss[hal_cpuGetID()].esp0;
 }
@@ -273,7 +276,8 @@ void _hal_cpuInitCores(void)
 	for (;;) {
 		k = cpu.ncpus;
 		i = 0;
-		while ((cpu.ncpus == k) && (++i < 50000000));
+		while ((cpu.ncpus == k) && (++i < 50000000))
+			;
 		if (i >= 50000000)
 			break;
 	}
@@ -322,34 +326,36 @@ struct cpu_feature_t {
 	const char *name;
 	u32 eax;
 	u8 reg;
-	u8 offset;         /* eax, ebx, ecx, edx */
+	u8 offset; /* eax, ebx, ecx, edx */
 };
 
 
 static const struct cpu_feature_t cpufeatures[] = {
-	{ "fpu", 1, 3, 0 },          /* x87 FPU insns */
-	{ "de", 1, 3, 2 },           /* debugging ext: CR4.DE, DR4 DR5 traps */
-	{ "pse", 1, 3, 3 },          /* 4MiB pages */
-	{ "tsc", 1, 3, 4 },          /* RDTSC insn */
-	{ "msr", 1, 3, 5 },          /* RDMSR/WRMSR insns */
-	{ "pae", 1, 3, 6 },          /* PAE */
-	{ "apic", 1, 3, 6 },         /* APIC present */
-	{ "cx8", 1, 2, 8 },          /* CMPXCHG8B insn */
-	{ "sep", 1, 2, 11 },         /* SYSENTER/SYSEXIT insns */
-	{ "mtrr", 1, 3, 12 },        /* MTRRs */
-	{ "pge", 1, 3, 13 },         /* global pages */
-	{ "cmov", 1, 3, 15 },        /* CMOV insn */
-	{ "pat", 1, 3, 16 },         /* PAT */
-	{ "pse36", 1, 3, 17 },       /* 4MiB pages can reach beyond 4GiB */
-	{ "psn", 1, 3, 18 },         /* CPU serial number enabled */
-	{ "clflush", 1, 3, 19 },     /* CLFLUSH insn */
-	{ "cx16", 1, 2, 13 },        /* CMPXCHG16B insn */
-	{ "dca", 1, 2, 18 },         /* prefetch from MMIO */
-	{ "xsave", 1, 2, 26 },       /* XSAVE/XRSTOR insns */
-	{ "smep", 7, 1, 7 },         /* SMEP */
-	{ "smap", 7, 1, 20 },        /* SMAP */
-	{ "nx", -1, 3, 20 },         /* page execute disable bit */
-	{ NULL, }
+	{ "fpu", 1, 3, 0 },      /* x87 FPU insns */
+	{ "de", 1, 3, 2 },       /* debugging ext: CR4.DE, DR4 DR5 traps */
+	{ "pse", 1, 3, 3 },      /* 4MiB pages */
+	{ "tsc", 1, 3, 4 },      /* RDTSC insn */
+	{ "msr", 1, 3, 5 },      /* RDMSR/WRMSR insns */
+	{ "pae", 1, 3, 6 },      /* PAE */
+	{ "apic", 1, 3, 6 },     /* APIC present */
+	{ "cx8", 1, 2, 8 },      /* CMPXCHG8B insn */
+	{ "sep", 1, 2, 11 },     /* SYSENTER/SYSEXIT insns */
+	{ "mtrr", 1, 3, 12 },    /* MTRRs */
+	{ "pge", 1, 3, 13 },     /* global pages */
+	{ "cmov", 1, 3, 15 },    /* CMOV insn */
+	{ "pat", 1, 3, 16 },     /* PAT */
+	{ "pse36", 1, 3, 17 },   /* 4MiB pages can reach beyond 4GiB */
+	{ "psn", 1, 3, 18 },     /* CPU serial number enabled */
+	{ "clflush", 1, 3, 19 }, /* CLFLUSH insn */
+	{ "cx16", 1, 2, 13 },    /* CMPXCHG16B insn */
+	{ "dca", 1, 2, 18 },     /* prefetch from MMIO */
+	{ "xsave", 1, 2, 26 },   /* XSAVE/XRSTOR insns */
+	{ "smep", 7, 1, 7 },     /* SMEP */
+	{ "smap", 7, 1, 20 },    /* SMAP */
+	{ "nx", -1, 3, 20 },     /* page execute disable bit */
+	{
+		NULL,
+	}
 };
 
 
