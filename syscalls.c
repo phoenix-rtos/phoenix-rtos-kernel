@@ -869,7 +869,7 @@ int syscalls_sys_close(char *ustack)
 }
 
 
-int syscalls_sys_read(char *ustack)
+ssize_t syscalls_sys_read(char *ustack)
 {
 	int fildes;
 	void *buf;
@@ -883,7 +883,7 @@ int syscalls_sys_read(char *ustack)
 }
 
 
-int syscalls_sys_write(char *ustack)
+ssize_t syscalls_sys_write(char *ustack)
 {
 	int fildes;
 	void *buf;
