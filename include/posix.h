@@ -70,8 +70,6 @@ struct sockaddr {
 typedef int dev_t;
 
 typedef int pid_t;
-typedef int off_t;
-typedef long long off64_t;
 typedef int mode_t;
 typedef int gid_t;
 typedef int uid_t;
@@ -81,6 +79,8 @@ typedef int ino_t; /* FIXME: should be unsigned long long to encode id_t? */
 typedef int nlink_t;
 typedef int blksize_t;
 typedef int blkcnt_t;
+typedef long long off64_t;
+typedef off64_t off_t;
 
 
 struct stat {

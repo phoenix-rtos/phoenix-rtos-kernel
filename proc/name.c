@@ -393,7 +393,7 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 }
 
 
-int proc_read(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode)
+int proc_read(oid_t oid, offs_t offs, void *buf, size_t sz, unsigned mode)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -422,7 +422,7 @@ int proc_read(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode)
 }
 
 
-int proc_write(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode)
+int proc_write(oid_t oid, offs_t offs, void *buf, size_t sz, unsigned mode)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -451,9 +451,9 @@ int proc_write(oid_t oid, size_t offs, void *buf, size_t sz, unsigned mode)
 }
 
 
-int proc_size(oid_t oid)
+offs_t proc_size(oid_t oid)
 {
-	int err;
+	offs_t err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
 	if (msg == NULL)
@@ -465,9 +465,7 @@ int proc_size(oid_t oid)
 	hal_memcpy(&msg->i.attr.oid, &oid, sizeof(oid_t));
 	msg->i.attr.type = 3; /* atSize */
 
-	err = proc_send(oid.port, msg);
-
-	if (err >= 0)
+	if (((err = proc_send(oid.port, msg)) == EOK) && ((err = msg->o.attr.err) == EOK))
 		err = msg->o.attr.val;
 
 	vm_kfree(msg);

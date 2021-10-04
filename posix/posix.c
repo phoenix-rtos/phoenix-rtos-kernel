@@ -610,16 +610,17 @@ int posix_close(int fildes)
 }
 
 
-int posix_read(int fildes, void *buf, size_t nbyte)
+ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 {
 	TRACE("read(%d, %p, %u)", fildes, buf, nbyte);
 
 	open_file_t *f;
-	int rcnt, err;
+	ssize_t rcnt;
 	off_t offs;
 	unsigned int status;
+	int err;
 
-	if ((err = posix_getOpenFile(fildes, &f)))
+	if ((err = posix_getOpenFile(fildes, &f)) < 0)
 		return err;
 
 	if (f->status & O_WRONLY) {
@@ -649,17 +650,17 @@ int posix_read(int fildes, void *buf, size_t nbyte)
 }
 
 
-
-int posix_write(int fildes, void *buf, size_t nbyte)
+ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 {
 	TRACE("write(%d, %p, %u)", fildes, buf, nbyte);
 
 	open_file_t *f;
-	int rcnt, err;
+	ssize_t rcnt;
 	off_t offs;
 	unsigned int status;
+	int err;
 
-	if ((err = posix_getOpenFile(fildes, &f)))
+	if ((err = posix_getOpenFile(fildes, &f)) < 0)
 		return err;
 
 	if (f->status & O_RDONLY) {
@@ -903,14 +904,17 @@ int posix_chmod(const char *pathname, mode_t mode)
 	msg.type = mtGetAttr;
 	msg.i.attr.type = atMode;
 
-	if ((err = proc_send(oid.port, &msg)) < 0)
+	if (((err = proc_send(oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
 		return err;
 
 	msg.type = mtSetAttr;
 	msg.i.attr.type = atMode;
 	msg.i.attr.val = (msg.o.attr.val & ~0777) | (mode & 0777);
 
-	return proc_send(oid.port, &msg);
+	if (((err = proc_send(oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+		return err;
+
+	return EOK;
 }
 
 
@@ -1009,22 +1013,21 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 	TRACE("seek(%d, %d, %d)", fildes, offset, whence);
 
 	open_file_t *f;
-	int scnt, sz, err;
+	off_t scnt;
+	int err;
 
 	if ((err = posix_getOpenFile(fildes, &f)))
 		return err;
 
 	/* TODO: Find a better way to check fd type */
-	sz = proc_size(f->oid);
-	if (sz < 0)
+	if ((scnt = proc_size(f->oid)) < 0)
 		return -ESPIPE;
 
 	proc_lockSet(&f->lock);
 	switch (whence) {
-
 	case SEEK_SET:
 		f->offset = offset;
-		scnt = offset;
+		scnt = f->offset;
 		break;
 
 	case SEEK_CUR:
@@ -1033,8 +1036,8 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 		break;
 
 	case SEEK_END:
-		f->offset = sz + offset;
-		scnt = f->offset;
+		scnt += offset;
+		f->offset = scnt;
 		break;
 
 	default:
@@ -1068,68 +1071,68 @@ int posix_fstat(int fd, struct stat *buf)
 {
 	TRACE("fstat(%d)", fd);
 
-	msg_t msg;
 	open_file_t *f;
+	msg_t msg;
 	int err;
 
-	if (!(err = posix_getOpenFile(fd, &f))) {
-		hal_memset(buf, 0, sizeof(struct stat));
-		hal_memset(&msg, 0, sizeof(msg_t));
+	if ((err = posix_getOpenFile(fd, &f)) < 0)
+		return err;
 
-		buf->st_dev = f->ln.port;
-		buf->st_ino = (int)f->ln.id; /* FIXME */
-		buf->st_rdev = f->oid.port;
+	hal_memset(buf, 0, sizeof(struct stat));
+	hal_memset(&msg, 0, sizeof(msg_t));
 
-		if (f->type == ftRegular) {
-			msg.type = mtGetAttr;
-			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
-			msg.i.attr.val = 0;
+	buf->st_dev = f->ln.port;
+	buf->st_ino = (int)f->ln.id; /* FIXME */
+	buf->st_rdev = f->oid.port;
 
-			do {
-				msg.i.attr.type = atMTime;
-				if (!(err = proc_send(f->oid.port, &msg)))
-					buf->st_mtime = msg.o.attr.val;
-				else break;
+	if (f->type == ftRegular) {
+		msg.type = mtGetAttr;
+		hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
 
-				msg.i.attr.type = atATime;
-				if (!(err = proc_send(f->oid.port, &msg)))
-					buf->st_atime = msg.o.attr.val;
-				else break;
+		do {
+			msg.i.attr.type = atMTime;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_mtime = msg.o.attr.val;
 
-				msg.i.attr.type = atCTime;
-				if (!(err = proc_send(f->oid.port, &msg)))
-					buf->st_ctime = msg.o.attr.val;
-				else break;
+			msg.i.attr.type = atATime;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_atime = msg.o.attr.val;
 
-				msg.i.attr.type = atLinks;
-				if (!(err = proc_send(f->oid.port, &msg)))
-					buf->st_nlink = msg.o.attr.val;
-				else break;
+			msg.i.attr.type = atCTime;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_ctime = msg.o.attr.val;
 
-				msg.i.attr.type = atMode;
-				if (!(err = proc_send(f->oid.port, &msg)))
-					buf->st_mode = msg.o.attr.val;
-				else break;
+			msg.i.attr.type = atLinks;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_nlink = msg.o.attr.val;
 
-				msg.i.attr.type = atUid;
-				if (!(err = proc_send(f->oid.port, &msg)))
-					buf->st_uid = msg.o.attr.val;
-				else break;
+			msg.i.attr.type = atMode;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_mode = msg.o.attr.val;
 
-				msg.i.attr.type = atGid;
-				if (!(err = proc_send(f->oid.port, &msg)))
-					buf->st_gid = msg.o.attr.val;
-				else break;
+			msg.i.attr.type = atUid;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_uid = msg.o.attr.val;
 
-				msg.i.attr.type = atSize;
-				if (!(err = proc_send(f->oid.port, &msg)))
-					buf->st_size = msg.o.attr.val;
-				else break;
-			}
-			while (0);
-		}
-		else {
-			switch (f->type) {
+			msg.i.attr.type = atGid;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_gid = msg.o.attr.val;
+
+			msg.i.attr.type = atSize;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_size = msg.o.attr.val;
+		} while (0);
+	}
+	else {
+		switch (f->type) {
 			case ftRegular:
 				break;
 			case ftPipe:
@@ -1146,15 +1149,14 @@ int posix_fstat(int fd, struct stat *buf)
 			default:
 				buf->st_mode = 0;
 				break;
-			}
-
-			buf->st_uid = 0;
-			buf->st_gid = 0;
-			buf->st_size = proc_size(f->oid);
 		}
 
-		posix_fileDeref(f);
+		buf->st_uid = 0;
+		buf->st_gid = 0;
+		buf->st_size = proc_size(f->oid);
 	}
+
+	posix_fileDeref(f);
 
 	return err;
 }
@@ -1994,7 +1996,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
 			posix_fileDeref(f);
 
-			if (!(err = proc_send(msg.i.attr.oid.port, &msg)))
+			if (((err = proc_send(msg.i.attr.oid.port, &msg)) == EOK) && ((err = msg.o.attr.err) == EOK))
 				err = msg.o.attr.val;
 		}
 

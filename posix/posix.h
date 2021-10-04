@@ -19,9 +19,6 @@
 #include "../include/posix.h"
 #include "sockport.h"
 
-typedef int off_t;
-typedef int mode_t;
-
 
 extern int posix_open(const char *filename, int oflag, char *ustack);
 
@@ -29,10 +26,10 @@ extern int posix_open(const char *filename, int oflag, char *ustack);
 extern int posix_close(int fildes);
 
 
-extern int posix_read(int fildes, void *buf, size_t nbyte);
+extern ssize_t posix_read(int fildes, void *buf, size_t nbyte);
 
 
-extern int posix_write(int fildes, void *buf, size_t nbyte);
+extern ssize_t posix_write(int fildes, void *buf, size_t nbyte);
 
 
 extern int posix_dup(int fildes);
@@ -168,5 +165,6 @@ extern int posix_waitpid(pid_t child, int *status, int options);
 
 
 extern void posix_init(void);
+
 
 #endif

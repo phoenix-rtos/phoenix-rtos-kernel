@@ -75,8 +75,8 @@ typedef struct _msg_t {
 			/* SETATTR/GETATTR */
 			struct {
 				oid_t oid;
+				long long val;
 				int type;
-				int val;
 			} attr;
 
 			/* LOOKUP */
@@ -111,7 +111,7 @@ typedef struct _msg_t {
 
 			/* ATTR */
 			struct {
-				int val;
+				long long val;
 				int err;
 			} attr;
 

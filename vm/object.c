@@ -64,7 +64,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 
 	if (*o == NULL) {
-		sz = proc_size(oid);
+		sz = (size_t)proc_size(oid);
 		n = round_page(sz) / SIZE_PAGE;
 
 		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL)
