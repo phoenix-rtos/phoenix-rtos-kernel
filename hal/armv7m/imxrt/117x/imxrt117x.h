@@ -54,6 +54,9 @@ extern int _imxrt_setIOisel(int isel, char daisy);
 extern int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state);
 
 
+extern unsigned int _imxrt_otpFuseValue(int n);
+
+
 extern void _imxrt_platformInit(void);
 
 

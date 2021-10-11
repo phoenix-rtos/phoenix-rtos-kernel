@@ -45,6 +45,13 @@ enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr 
 	nvic_ip = 256, nvic_stir = 896 };
 
 
+enum { otp_ctrl = 0, otp_ctrl_set, otp_ctrl_clr, otp_ctrl_tog, otp_pdn, otp_data = 8, otp_read_ctrl = 12,
+	otp_out_status = 36, otp_out_status_set, otp_out_status_clr, otp_out_status_tog, otp_version = 44,
+	otp_read_fuse_data0 = 64, otp_read_fuse_data1 = 68, otp_read_fuse_data2 = 72, otp_read_fuse_data3 = 76,
+	otp_sw_lock = 80, otp_bit_lock = 84, otp_locked0 = 384, otp_locked1 = 388, otp_locked2 = 392,
+	otp_locked3 = 396, otp_locked4 = 400, otp_fuse = 512 };
+
+
 enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 
@@ -66,6 +73,7 @@ struct {
 	volatile u32 *gpr;
 	volatile u32 *lpsrgpr;
 	volatile u32 *ccm;
+	volatile u32 *otp;
 
 	spinlock_t pltctlSp;
 
@@ -77,6 +85,21 @@ struct {
 unsigned int _imxrt_cpuid(void)
 {
 	return *(imxrt_common.scb + scb_cpuid);
+}
+
+
+static u32 _imxrt_cpuClk(void)
+{
+	switch ((_imxrt_otpFuseValue(26) >> 3) & 7) {
+		default: return 400000000;
+		case 1: return 696000000;
+		case 2: return 200000000;
+		case 3: return 348000000;
+		case 4: return 100000000;
+		case 5: return 174000000;
+		case 6: return 50000000;
+		case 7: return 87000000;
+	}
 }
 
 
@@ -653,6 +676,15 @@ static int _imxrt_getIOlpsrGpr(int which, unsigned int *what)
 }
 
 
+/* OTP */
+
+
+u32 _imxrt_otpFuseValue(int n)
+{
+	return *(imxrt_common.otp + otp_fuse + n * 0x4);
+}
+
+
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
@@ -770,8 +802,9 @@ void _imxrt_init(void)
 	imxrt_common.iomuxc = (void *)0x400e8000;
 	imxrt_common.gpr = (void *)0x400e4000;
 	imxrt_common.lpsrgpr = (void *)0x40c0c000;
+	imxrt_common.otp = (void *)0x40cac000;
 
-	imxrt_common.cpuclk = 696000000;
+	imxrt_common.cpuclk = _imxrt_cpuClk();
 
 	/* Store reset flags and then clean them */
 	imxrt_common.resetFlags = *(imxrt_common.src + src_srsr) & 0x1f;
