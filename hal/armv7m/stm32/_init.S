@@ -74,11 +74,14 @@ _syspage:
 
 _start:
 	cpsid if
+	isb
 
 	/* Init vector table pointer */
 	ldr r0, =0xe000ed08
 	ldr r1, =_init_vectors
 	str r1, [r0]
+	isb
+	dmb
 	bl _stm32_init
 
 	/* Pass syspage to main */
@@ -96,6 +99,7 @@ _start:
 _syscall_dispatch:
 	mov r0, #0
 	msr control, r0
+	isb
 
 	stmdb sp!, {r4-r8}
 	mrs r0, psp
@@ -136,6 +140,7 @@ _syscallend:
 	/* Switch stacks */
 	mov r0, #3
 	msr control, r0
+	isb
 
 	ldmia sp!, {r0-r3, r12, lr}
 	ldr pc, [sp], #8
@@ -148,6 +153,7 @@ _syscallend:
 
 _exceptions_dispatch:
 	cpsid if
+	isb
 
 	mrs r0, psp
 	stmdb sp!, {r0, r4-r11, lr}
@@ -163,6 +169,7 @@ _exceptions_dispatch:
 _pendsv:
 	mov r0, #0
 	msr control, r0
+	isb
 
 	mrs r0, ipsr
 	mrs r3, psp
@@ -174,8 +181,10 @@ _pendsv:
 	cmp r6, #0
 	beq _intd0
 	mov sp, r6
+	isb
 	mov r6, #0
 	str r6, [r5]
+	dmb
 	b _intd1
 .size _pendsv, .-_pendsv
 .ltorg
@@ -185,6 +194,7 @@ _pendsv:
 _interrupts_dispatch:
 	mov r0, #0
 	msr control, r0
+	isb
 
 	mrs r0, ipsr
 	mrs r3, psp
@@ -195,15 +205,18 @@ _intd0:
 	bl interrupts_dispatch
 	ldr r1, [sp]
 	mov sp, r1
+	isb
 _intd1:
 	ldmia sp!, {r1-r11, lr}
 
 	msr psp, r3
+	isb
 
 	/* Check if we're returning to userspace */
 	and r1, lr, #4
 	ror r1, r1, #2
 	msr control, r1
+	isb
 
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
@@ -258,6 +271,7 @@ hal_jmp:
 	pop {r4-r7}
 
 	cpsid if
+	isb
 
 	cmp r2, #NULL
 	bne hal_jmp_user
@@ -277,6 +291,8 @@ hal_jmp:
 	pop {r3}
 1:
 	cpsie if
+	isb
+	dmb
 	bx r4
 
 hal_jmp_user:
@@ -295,10 +311,13 @@ hal_jmp_user:
 	bmi 2f
 	pop {r3}
 2:
-	cpsie if
 	msr psp, r6
+	cpsie if
+	isb
 	mov r5, #0x3
 	msr control, r5
+	isb
+	dmb
 	bx r4
 
 .size hal_jmp, .-hal_jmp

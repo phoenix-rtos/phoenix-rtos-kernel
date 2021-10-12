@@ -1815,6 +1815,7 @@ u8 _imxrt_nvicGetPriority(s8 irqn)
 
 void _imxrt_nvicSystemReset(void)
 {
+	hal_cpuDataSyncBarrier();
 	*(imxrt_common.scb + scb_aircr) = ((0x5fa << 16) | (*(imxrt_common.scb + scb_aircr) & (0x700)) | (1 << 0x02));
 
 	hal_cpuDataSyncBarrier();
