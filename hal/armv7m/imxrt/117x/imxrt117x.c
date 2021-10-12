@@ -111,6 +111,7 @@ int _imxrt_setIOmux(int mux, char sion, char mode)
 		return -EINVAL;
 
 	(*reg) = (!!sion << 4) | (mode & 0xf);
+	hal_cpuDataBarrier();
 
 	return EOK;
 }
@@ -187,6 +188,7 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 	//t |= (apc & 0xf) << 28;
 
 	(*reg) = t;
+	hal_cpuDataBarrier();
 
 	return EOK;
 }
@@ -301,6 +303,7 @@ int _imxrt_setIOisel(int isel, char daisy)
 		return -EINVAL;
 
 	(*reg) = daisy & mask;
+	hal_cpuDataBarrier();
 
 	return EOK;
 }
@@ -332,6 +335,7 @@ void _imxrt_scbSetPriorityGrouping(u32 group)
 
 	/* Store new value */
 	*(imxrt_common.scb + scb_aircr) = t | 0x5fa0000 | ((group & 7) << 8);
+	hal_cpuDataBarrier();
 }
 
 
@@ -348,6 +352,7 @@ void _imxrt_scbSetPriority(s8 excpn, u32 priority)
 	ptr = &((u8*)(imxrt_common.scb + scb_shp0))[excpn - 4];
 
 	*ptr = (priority << 4) & 0x0ff;
+	hal_cpuDataBarrier();
 }
 
 
@@ -385,6 +390,7 @@ void _imxrt_nvicSetPendingIRQ(s8 irqn, u8 state)
 {
 	volatile u32 *ptr = imxrt_common.nvic + ((u8)irqn >> 5) + (state ? nvic_ispr: nvic_icpr);
 	*ptr = 1 << (irqn & 0x1F);
+	hal_cpuDataBarrier();
 }
 
 
@@ -417,9 +423,11 @@ u8 _imxrt_nvicGetPriority(s8 irqn)
 
 void _imxrt_nvicSystemReset(void)
 {
+	hal_cpuDataSyncBarrier();
 	*(imxrt_common.scb + scb_aircr) = ((0x5fa << 16) | (*(imxrt_common.scb + scb_aircr) & (0x700)) | (1 << 0x02));
 
-	__asm__ volatile ("dsb");
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
 
 	for(;;);
 }
@@ -615,6 +623,7 @@ static int _imxrt_setIOgpr(int which, unsigned int what)
 		return -EINVAL;
 
 	*(imxrt_common.gpr + which) = what;
+	hal_cpuDataSyncBarrier();
 
 	return  0;
 }
@@ -637,6 +646,7 @@ static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 		return -EINVAL;
 
 	*(imxrt_common.lpsrgpr + which) = what;
+	hal_cpuDataSyncBarrier();
 
 	return  0;
 }

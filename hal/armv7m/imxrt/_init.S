@@ -55,7 +55,7 @@ _init_vectors:
 .word _pendsv              /* PendSV */
 .word _interrupts_dispatch /* Systick */
 
-.rept 217
+.rept 240
 .word _interrupts_dispatch
 .endr
 .size _init_vectors, .-_init_vectors
@@ -77,19 +77,25 @@ _start:
 	ldr r1, [r0]
 	orr r1, r1, #(0xf << 20)
 	str r1, [r0]
+	isb
+	dmb
 
 	/* Enable FPU ctx */
 	mrs r0, control
 	orr r0, r0, #(1 << 2)
 	msr control, r0
+	isb
 
 	/* Init vector table and stack pointer */
 	ldr r0, =0xe000ed08
 	ldr r1, =_init_vectors
 	str r1, [r0]
+	isb
+	dmb
 	ldr r0, [r1]
 	bic r0, 7
 	msr msp, r0
+	isb
 	bl _imxrt_init
 
 	ldr r8, =main
@@ -123,6 +129,8 @@ _syscall_dispatch0:
 
 	ldr r6, =0xe000ef38
 	str sp, [r6]
+	isb
+	dmb
 
 	add r0, r0, #(18 * 4)
 	stmdb r0!, {r1-r4}
@@ -138,6 +146,7 @@ _syscall_dispatch0:
 	mov lr, #(1 << 2)
 	msr control, lr
 	mov lr, #0xffffffe9
+	isb
 	dmb
 
 	bx lr
@@ -149,12 +158,14 @@ _syscallend:
 	mov r1, r0 /* Put result to user's r0 */
 	stmdb lr!, {r1-r8}
 	msr psp, lr
+	isb
 
 	ldmia sp!, {r4-r8}
 
 	/* Switch stacks */
 	mov r0, #7
 	msr control, r0
+	isb
 
 	ldmia sp!, {r0-r3, r12, lr}
 	ldr pc, [sp], #8
@@ -192,8 +203,10 @@ _pendsv:
 	cmp r6, #0
 	beq _intd0
 	mov sp, r6
+	isb
 	mov r6, #0
 	str r6, [r5]
+	dmb
 	b _intd1
 .size _pendsv, .-_pendsv
 .ltorg
@@ -202,6 +215,7 @@ _pendsv:
 .type _interrupts_dispatch, %function
 _interrupts_dispatch:
 	vstmdb sp!, {s16-s31}
+	isb
 	mrs r0, ipsr
 	mrs r3, psp
 	sub r1, sp, #48
@@ -211,22 +225,30 @@ _interrupts_dispatch:
 
 _intd0:
 	bl interrupts_dispatch
+	isb
+	dmb
 	ldr r1, [sp]
 	mov sp, r1
+	isb
 _intd1:
 	ldmia sp!, {r1-r11, lr}
 	vldmia sp!, {s16-s31}
+	isb
 
 	ldr r1, =0xe000ef38
 	str r2, [r1]
+	isb
+	dmb
 
 	msr psp, r3
+	isb
 
 	/* Check if we're returning to userspace */
 	and r1, lr, #4
 	ror r1, r1, #2
 	orr r1, r1, #(1 << 2)
 	msr control, r1
+	isb
 
 	dmb
 	bx lr
@@ -240,6 +262,8 @@ _hal_invokePendSV:
 	mov r1, #(1 << 28)
 	ldr r2, =ADDR_SCB
 	str r1, [r2, #4]
+	isb
+	dmb
 	bx lr
 .size _hal_invokePendSV, .-_hal_invokePendSV
 .ltorg
@@ -282,11 +306,13 @@ hal_jmp:
 	pop {r4-r7}
 
 	cpsid if
+	isb
 
 	cmp r2, #NULL
 	bne hal_jmp_user
 
 	mov sp, r5
+	isb
 	subs r7, #1
 	bmi 1f
 	pop {r0}
@@ -301,11 +327,15 @@ hal_jmp:
 	pop {r3}
 1:
 	cpsie if
+	isb
+	dmb
 	bx r4
 
 hal_jmp_user:
 	cpsid if
+	isb
 	msr msp, r5
+	isb
 	subs r7, #1
 	bmi 2f
 	pop {r0}
@@ -319,10 +349,13 @@ hal_jmp_user:
 	bmi 2f
 	pop {r3}
 2:
-	cpsie if
 	msr psp, r6
+	cpsie if
+	isb
 	mov r5, USERCONTROL
 	msr control, r5
+	isb
+	dmb
 	bx r4
 
 .size hal_jmp, .-hal_jmp
