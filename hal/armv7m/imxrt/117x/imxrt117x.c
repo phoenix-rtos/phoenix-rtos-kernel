@@ -479,25 +479,27 @@ void _imxrt_enableDCache(void)
 {
 	u32 ccsidr, sets, ways;
 
-	*(imxrt_common.scb + scb_csselr) = 0;
-	hal_cpuDataSyncBarrier();
+	if (!(*(imxrt_common.scb + scb_ccr) & (1 << 16))) {
+		*(imxrt_common.scb + scb_csselr) = 0;
+		hal_cpuDataSyncBarrier();
 
-	ccsidr = *(imxrt_common.scb + scb_ccsidr);
+		ccsidr = *(imxrt_common.scb + scb_ccsidr);
 
-	/* Invalidate D$ */
-	sets = (ccsidr >> 13) & 0x7fff;
-	do {
-		ways = (ccsidr >> 3) & 0x3ff;
+		/* Invalidate D$ */
+		sets = (ccsidr >> 13) & 0x7fff;
 		do {
-			*(imxrt_common.scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
-		} while (ways-- != 0);
-	} while(sets-- != 0);
-	hal_cpuDataSyncBarrier();
+			ways = (ccsidr >> 3) & 0x3ff;
+			do {
+				*(imxrt_common.scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
+			} while (ways-- != 0);
+		} while (sets-- != 0);
+		hal_cpuDataSyncBarrier();
 
-	*(imxrt_common.scb + scb_ccr) |= 1 << 16;
+		*(imxrt_common.scb + scb_ccr) |= 1 << 16;
 
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
+		hal_cpuDataSyncBarrier();
+		hal_cpuInstrBarrier();
+	}
 }
 
 
@@ -519,7 +521,7 @@ void _imxrt_disableDCache(void)
 		do {
 			*(imxrt_common.scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
 		} while (ways-- != 0);
-	} while(sets-- != 0);
+	} while (sets-- != 0);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -552,14 +554,16 @@ void _imxrt_cleanDCache(void)
 
 void _imxrt_enableICache(void)
 {
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-	*(imxrt_common.scb + scb_iciallu) = 0; /* Invalidate I$ */
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-	*(imxrt_common.scb + scb_ccr) |= 1 << 17;
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
+	if (!(*(imxrt_common.scb + scb_ccr) & (1 << 17))) {
+		hal_cpuDataSyncBarrier();
+		hal_cpuInstrBarrier();
+		*(imxrt_common.scb + scb_iciallu) = 0; /* Invalidate I$ */
+		hal_cpuDataSyncBarrier();
+		hal_cpuInstrBarrier();
+		*(imxrt_common.scb + scb_ccr) |= 1 << 17;
+		hal_cpuDataSyncBarrier();
+		hal_cpuInstrBarrier();
+	}
 }
 
 
