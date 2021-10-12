@@ -790,37 +790,5 @@ void _imxrt_init(void)
 	/* Store reset flags and then clean them */
 	imxrt_common.resetFlags = *(imxrt_common.src + src_srsr) & 0x1f;
 	*(imxrt_common.src + src_srsr) |= 0x1f;
-
-	/* Disable watchdogs */
-	if (*(imxrt_common.wdog1 + wdog_wcr) & (1 << 2))
-		*(imxrt_common.wdog1 + wdog_wcr) &= ~(1 << 2);
-	if (*(imxrt_common.wdog2 + wdog_wcr) & (1 << 2))
-		*(imxrt_common.wdog2 + wdog_wcr) &= ~(1 << 2);
-
-	*(imxrt_common.wdog3 + rtwdog_cnt) = 0xd928c520; /* Update key */
-	*(imxrt_common.wdog3 + rtwdog_total) = 0xffff;
-	*(imxrt_common.wdog3 + rtwdog_cs) |= 1 << 5;
-	*(imxrt_common.wdog3 + rtwdog_cs) &= ~(1 << 7);
-
-	/* Disable Systick which might be enabled by bootrom */
-	if (*(imxrt_common.stk + stk_ctrl) & 1)
-		*(imxrt_common.stk + stk_ctrl) &= ~1;
-
-	/* Configure cache */
-	_imxrt_enableDCache();
-	_imxrt_enableICache();
-
-	/* Allow userspace applications to access hardware registers */
-/*
-	for (i = 0; i < sizeof(imxrt_common.aips) / sizeof(imxrt_common.aips[0]); ++i) {
-		*(imxrt_common.aips[i] + aipstz_opacr) &= ~0x44444444;
-		*(imxrt_common.aips[i] + aipstz_opacr1) &= ~0x44444444;
-		*(imxrt_common.aips[i] + aipstz_opacr2) &= ~0x44444444;
-		*(imxrt_common.aips[i] + aipstz_opacr3) &= ~0x44444444;
-		*(imxrt_common.aips[i] + aipstz_opacr4) &= ~0x44444444;
-	}
-*/
-
-	/* Enable UsageFault, BusFault and MemManage exceptions */
-	*(imxrt_common.scb + scb_shcsr) |= (1 << 16) | (1 << 17) | (1 << 18);
+	hal_cpuDataSyncBarrier();
 }
