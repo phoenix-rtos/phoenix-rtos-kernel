@@ -19,6 +19,7 @@
 #define PCI_ANY            0
 #define PCI_VENDOR_INTEL   0x8086
 
+#define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 
 typedef struct {
 	unsigned short vendor;
@@ -72,7 +73,7 @@ typedef struct {
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_pci = 0, pctl_busmaster } type;
+	enum { pctl_pci = 0, pctl_busmaster, pctl_reboot } type;
 
 	union {
 		struct {
@@ -85,6 +86,11 @@ typedef struct {
 			pci_dev_t dev;
 			int enable;
 		} busmaster;
+
+		struct {
+			unsigned int magic;
+			unsigned int reason;
+		} reboot;
 	};
 } platformctl_t;
 

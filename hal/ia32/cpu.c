@@ -393,6 +393,35 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 }
 
 
+void hal_cpuReboot(void)
+{
+	u8 status;
+	u64 idtr0 = 0;
+
+	hal_cpuDisableInterrupts();
+
+	/* 1. Try to reboot using keyboard controller (8042) */
+	do {
+		status = hal_inb((void *)0x64);
+		if (status & 1)
+			(void)hal_inb((void *)0x60);
+	} while (status & 2);
+	hal_outb((void *)0x64, 0xfe);
+
+	/* 2. Try to reboot by PCI reset */
+	hal_outb((void *)0xcf9, 0xe);
+
+	/* 3. Triple fault (interrupt with null idt) */
+	__asm__ volatile(
+		"lidt %0; "
+		"int3; " ::"m"(idtr0));
+
+	/* 4. Nothing worked, halt */
+	for (;;)
+		hal_cpuHalt();
+}
+
+
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = (platformctl_t *)ptr;
@@ -406,6 +435,16 @@ int hal_platformctl(void *ptr)
 		case pctl_busmaster:
 			if (data->action == pctl_set)
 				return hal_pciSetBusmaster(&data->busmaster.dev, data->busmaster.enable);
+			break;
+
+		case pctl_reboot:
+			if (data->action == pctl_set) {
+				if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+					hal_cpuReboot();
+			}
+			break;
+
+		default:
 			break;
 	}
 
