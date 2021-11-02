@@ -37,8 +37,8 @@ jobs:
       - name: Update submodule ${{ github.event.repository.name }}
         working-directory: ${{ github.event.repository.name }}
         run: |
-          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
-          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.clone_url }} "+refs/heads/*:refs/remotes/origin/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.clone_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
           git checkout ${{ github.sha }} || git checkout ${{ github.event.pull_request.head.sha }}
 
       # attach GCC problem matcher... might not work because of submodules... just trying
@@ -91,8 +91,8 @@ jobs:
       - name: Update submodule ${{ github.event.repository.name }}
         working-directory: ${{ github.event.repository.name }}
         run: |
-          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
-          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.clone_url }} "+refs/heads/*:refs/remotes/origin/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.clone_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
           git checkout ${{ github.sha }} || git checkout ${{ github.event.pull_request.head.sha }}
 
       - name: Download build artifacts
@@ -130,8 +130,8 @@ jobs:
       - name: Update submodule ${{ github.event.repository.name }}
         working-directory: ${{ github.event.repository.name }}
         run: |
-          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/heads/*:refs/remotes/origin/*"
-          git fetch --recurse-submodules=no --force ${{ github.event.repository.git_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.clone_url }} "+refs/heads/*:refs/remotes/origin/*"
+          git fetch --recurse-submodules=no --force ${{ github.event.repository.clone_url }} "+refs/pull/*/head:refs/remotes/origin/pr/*"
           git checkout ${{ github.sha }} || git checkout ${{ github.event.pull_request.head.sha }}
 
       - name: Download build artifacts
