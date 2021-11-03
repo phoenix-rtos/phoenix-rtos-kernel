@@ -74,6 +74,14 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 	}
 	proc_lockClear(&name_common.dcache_lock);
 
+	if (name[0] == '/' && name[1] == 0) {
+		name_common.root_oid.port = port;
+		if (oid != NULL)
+			name_common.root_oid.id = oid->id;
+		name_common.root_registered = 1;
+		return EOK;
+	}
+
 	if ((entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1)) == NULL)
 		return -ENOMEM;
 
@@ -81,12 +89,6 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 	if (oid != NULL)
 		entry->oid.id = oid->id;
 	hal_strcpy(entry->name, name);
-
-	if (name[0] == '/' && name[1] == 0) {
-		name_common.root_oid = entry->oid;
-		name_common.root_registered = 1;
-		return EOK;
-	}
 
 	proc_lockSet(&name_common.dcache_lock);
 	entry->next = name_common.dcache[hash];
