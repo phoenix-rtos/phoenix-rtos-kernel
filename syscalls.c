@@ -501,7 +501,9 @@ int syscalls_interrupt(void *ustack)
 	if ((res = userintr_setHandler(n, f, data, cond)) < 0)
 		return res;
 
-	*handle = res;
+	if (handle != NULL)
+		*handle = res;
+
 	return EOK;
 }
 
