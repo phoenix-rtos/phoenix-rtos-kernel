@@ -53,6 +53,25 @@ static int kmalloc_zone_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
+static inline unsigned int kmalloc_calc_idx(size_t size)
+{
+	unsigned int idx;
+
+	if (!size)
+		return 0;
+
+	if (sizeof(size) == 8)
+		idx = 63 - __builtin_clzl(size);
+	else
+		idx = 31 - __builtin_clz(size);
+
+	if ((size & (size - 1)) != 0)
+		idx++;
+
+	return idx;
+}
+
+
 void *_kmalloc_alloc(u8 hdridx, u8 idx)
 {
 	void *b;
@@ -133,19 +152,17 @@ void *vm_kmalloc(size_t size)
 	vm_zone_t *z;
 	int err = EOK;
 
+	hdridx = kmalloc_calc_idx(sizeof(vm_zone_t));
+	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *))
+		return NULL;
+
 	/* Establish minimal size */
 	size = size < 16 ? 16 : size;
 
 	idx = hal_cpuGetLastBit(size);
-	if (hal_cpuGetFirstBit(size) < idx)
+	if ((size & (size - 1)) != 0)
 		idx++;
 	if (idx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *))
-		return NULL;
-
-	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
-	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx)
-		hdridx++;
-	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *))
 		return NULL;
 
 	proc_lockSet(&kmalloc_common.lock);
@@ -196,9 +213,7 @@ void vm_kfree(void *p)
 {
 	unsigned int hdridx;
 
-	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
-	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx)
-		hdridx++;
+	hdridx = kmalloc_calc_idx(sizeof(vm_zone_t));
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *))
 		return;
 
@@ -246,12 +261,10 @@ int _kmalloc_init(void)
 
 	proc_lockInit(&kmalloc_common.lock);
 
-	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
-	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx)
-		hdridx++;
+	hdridx = kmalloc_calc_idx(sizeof(vm_zone_t));
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		lib_printf("BAD HDRIDX!\n");
-		return NULL;
+		return 0;
 	}
 
 	/* Initialize sizes */
