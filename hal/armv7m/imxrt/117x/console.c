@@ -13,14 +13,23 @@
  * %LICENSE%
  */
 
+#ifndef UART_CONSOLE
+#define UART_CONSOLE 11
+#endif
+
 #include "cpu.h"
 #include "console.h"
 #include "imxrt117x.h"
 #include "../../include/errno.h"
 #include "../../include/arch/imxrt1170.h"
 
-#ifndef CONSOLE
-#define CONSOLE 11
+#define CONCAT3(a, b, c) a##b##c
+#define CONSOLE_BAUD(n)  (CONCAT3(UART, n, _BAUDRATE))
+
+#if CONSOLE_BAUD(UART_CONSOLE)
+#define CONSOLE_BAUDRATE CONSOLE_BAUD(UART_CONSOLE)
+#else
+#define CONSOLE_BAUDRATE 115200
 #endif
 
 struct {
@@ -54,40 +63,48 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	u32 t, console = CONSOLE -1;
+	u32 t, console = UART_CONSOLE - 1;
 
 	static const struct {
 		volatile u32 *base;
-		int dev;
+		int mode;
+		int clk;
+		int txmux, txpad;
+		int rxmux, rxpad;
+		int txdaisy, txsel;
+		int rxdaisy, rxsel;
 	} info[] = {
-		{ ((void *)0x4007c000), pctl_clk_lpuart1 },
-		{ ((void *)0x40080000), pctl_clk_lpuart2 },
-		{ ((void *)0x40084000), pctl_clk_lpuart3 },
-		{ ((void *)0x40088000), pctl_clk_lpuart4 },
-		{ ((void *)0x4008c000), pctl_clk_lpuart5 },
-		{ ((void *)0x40090000), pctl_clk_lpuart6 },
-		{ ((void *)0x40094000), pctl_clk_lpuart7 },
-		{ ((void *)0x40098000), pctl_clk_lpuart8 },
-		{ ((void *)0x4009c000), pctl_clk_lpuart9 },
-		{ ((void *)0x400a0000), pctl_clk_lpuart10 },
-		{ ((void *)0x40c24000), pctl_clk_lpuart11 },
-		{ ((void *)0x40c28000), pctl_clk_lpuart12 }
+		{ (void *)0x4007c000, 0, pctl_clk_lpuart1, pctl_mux_gpio_ad_24, pctl_pad_gpio_ad_24, pctl_mux_gpio_ad_25, pctl_pad_gpio_ad_25, pctl_isel_lpuart1_txd, 0, pctl_isel_lpuart1_rxd, 0 },
+		{ (void *)0x40080000, 2, pctl_clk_lpuart2, pctl_mux_gpio_disp_b2_10, pctl_pad_gpio_disp_b2_10, pctl_mux_gpio_disp_b2_11, pctl_pad_gpio_disp_b2_11, -1, -1, -1, -1 },
+		{ (void *)0x40084000, 4, pctl_clk_lpuart3, pctl_mux_gpio_ad_30, pctl_pad_gpio_ad_30, pctl_mux_gpio_ad_31, pctl_pad_gpio_ad_31, -1, -1, -1, -1 },
+		{ (void *)0x40088000, 2, pctl_clk_lpuart4, pctl_mux_gpio_disp_b1_06, pctl_pad_gpio_disp_b1_06, pctl_mux_gpio_disp_b1_04, pctl_pad_gpio_disp_b1_04, -1, -1, -1, -1 },
+		{ (void *)0x4008c000, 1, pctl_clk_lpuart5, pctl_mux_gpio_ad_28, pctl_pad_gpio_ad_28, pctl_mux_gpio_ad_29, pctl_pad_gpio_ad_29, -1, -1, -1, -1 },
+		{ (void *)0x40090000, 3, pctl_clk_lpuart6, pctl_mux_gpio_emc_b1_40, pctl_pad_gpio_emc_b1_40, pctl_mux_gpio_emc_b1_41, pctl_pad_gpio_emc_b1_41, -1, -1, -1, -1 },
+		{ (void *)0x40094000, 2, pctl_clk_lpuart7, pctl_mux_gpio_disp_b2_06, pctl_pad_gpio_disp_b2_06, pctl_mux_gpio_disp_b2_07, pctl_pad_gpio_disp_b2_07, pctl_isel_lpuart7_txd, 1, pctl_isel_lpuart7_rxd, 1 },
+		{ (void *)0x40098000, 2, pctl_clk_lpuart8, pctl_mux_gpio_disp_b2_08, pctl_pad_gpio_disp_b2_08, pctl_mux_gpio_disp_b2_09, pctl_pad_gpio_disp_b2_09, pctl_isel_lpuart8_txd, 1, pctl_isel_lpuart8_rxd, 1 },
+		{ (void *)0x4009c000, 3, pctl_clk_lpuart9, pctl_mux_gpio_sd_b2_00, pctl_pad_gpio_sd_b2_00, pctl_mux_gpio_sd_b2_01, pctl_pad_gpio_sd_b2_01, -1, -1, -1, -1 },
+		{ (void *)0x400a0000, 1, pctl_clk_lpuart10, pctl_mux_gpio_ad_15, pctl_pad_gpio_ad_15, pctl_mux_gpio_ad_16, pctl_pad_gpio_ad_16, pctl_isel_lpuart10_txd, 0, pctl_isel_lpuart10_rxd, 0 },
+		{ (void *)0x40c24000, 0, pctl_clk_lpuart11, pctl_mux_gpio_lpsr_08, pctl_pad_gpio_lpsr_08, pctl_mux_gpio_lpsr_09, pctl_pad_gpio_lpsr_09, pctl_isel_lpuart11_txd, 1, pctl_isel_lpuart11_rxd, 1 },
+		{ (void *)0x40c28000, 6, pctl_clk_lpuart12, pctl_mux_gpio_lpsr_00, pctl_pad_gpio_lpsr_00, pctl_mux_gpio_lpsr_01, pctl_pad_gpio_lpsr_01, pctl_isel_lpuart12_txd, 0, pctl_isel_lpuart12_rxd, 0 }
 	};
 
 	console_common.uart = info[console].base;
 
-	_imxrt_setDevClock(info[console].dev, 0, 0, 0, 0, 1);
+	_imxrt_setDevClock(info[console].clk, 0, 0, 0, 0, 1);
 
 	/* tx */
-	_imxrt_setIOmux(pctl_mux_gpio_ad_24, 0, 0);
-	_imxrt_setIOpad(pctl_pad_gpio_ad_24, 0, 0, 0, 0, 0, 0);
+	_imxrt_setIOmux(info[console].txmux, 0, info[console].mode);
+	_imxrt_setIOpad(info[console].txpad, 0, 0, 0, 0, 0, 0);
+
+	if (info[console].txdaisy >= 0)
+		_imxrt_setIOisel(info[console].txdaisy, info[console].txsel);
 
 	/* rx */
-	_imxrt_setIOmux(pctl_mux_gpio_ad_25, 0, 0);
-	_imxrt_setIOpad(pctl_pad_gpio_ad_25, 0, 0, 1, 1, 0, 0);
+	_imxrt_setIOmux(info[console].rxmux, 0, info[console].mode);
+	_imxrt_setIOpad(info[console].rxpad, 0, 0, 1, 1, 0, 0);
 
-	_imxrt_setIOisel(pctl_isel_lpuart1_rxd, 0);
-	_imxrt_setIOisel(pctl_isel_lpuart1_txd, 0);
+	if (info[console].rxdaisy >= 0)
+		_imxrt_setIOisel(info[console].rxdaisy, info[console].rxsel);
 
 	/* Reset all internal logic and registers, except the Global Register */
 	*(console_common.uart + uart_global) |= 1 << 1;
@@ -95,9 +112,22 @@ void _hal_consoleInit(void)
 	*(console_common.uart + uart_global) &= ~(1 << 1);
 	hal_cpuDataBarrier();
 
-	/* Set 115200 baudrate */
+	/* Set baud rate */
 	t = *(console_common.uart + uart_baud) & ~((0x1f << 24) | (1 << 17) | 0xfff);
-	*(console_common.uart + uart_baud) = t | 50462772;
+
+	/* For baud rate calculation, default UART_CLK=24MHz assumed */
+	switch (CONSOLE_BAUDRATE) {
+		case 9600: t |= 0x03020271; break;
+		case 19200: t |= 0x03020138; break;
+		case 38400: t |= 0x0302009c; break;
+		case 57600: t |= 0x03020068; break;
+		case 115200: t |= 0x03020034; break;
+		case 230400: t |= 0x0302001a; break;
+		case 460800: t |= 0x0302000d; break;
+		/* As fallback use default 115200 */
+		default: t |= 0x03020034; break;
+	}
+	*(console_common.uart + uart_baud) = t;
 
 	/* Set 8 bit and no parity mode */
 	*(console_common.uart + uart_ctrl) &= ~0x117;
