@@ -19,4 +19,6 @@
 #include "imxrt117x.h"
 #include "../../include/arch/syspage-imxrt.h"
 
+#define SIZE_INTERRUPTS 217
+
 #endif

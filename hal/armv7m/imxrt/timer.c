@@ -14,15 +14,8 @@
  */
 
 #include "cpu.h"
+#include "config.h"
 #include "interrupts.h"
-
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
-#include "imxrt10xx.h"
-#endif
-
-#ifdef CPU_IMXRT117X
-#include "imxrt117x.h"
-#endif
 
 
 static struct {

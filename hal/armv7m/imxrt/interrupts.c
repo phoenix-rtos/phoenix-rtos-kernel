@@ -15,22 +15,11 @@
 
 #include "interrupts.h"
 #include "spinlock.h"
+#include "config.h"
 #include "cpu.h"
 #include "pmap.h"
 
-#ifdef CPU_IMXRT117X
-#define SIZE_INTERRUPTS 217
-#include "imxrt117x.h"
-#endif
-
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
-#define SIZE_INTERRUPTS 167
-#include "imxrt10xx.h"
-#endif
-
-
 #include "../../proc/userintr.h"
-
 #include "../../include/errno.h"
 
 
