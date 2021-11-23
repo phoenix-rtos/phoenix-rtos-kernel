@@ -58,13 +58,6 @@ _init_vectors:
 
 .org _init_vectors + 2048
 
-_syspage:
-.word 0x20000000                        /* pbegin */
-.word 0x20000000 + (1024 * RAM_SIZE)    /* pend */
-.word 0x00000000                        /* *arg */
-.word 0x00000000                        /* progssz */
-
-.org _syspage + 2048
 
 .thumb
 .thumb_func
@@ -76,6 +69,10 @@ _start:
 	cpsid if
 	isb
 
+	/* Point to syspage */
+	ldr r8, =syspage
+	str r9, [r8]
+
 	/* Init vector table pointer */
 	ldr r0, =0xe000ed08
 	ldr r1, =_init_vectors
@@ -84,10 +81,6 @@ _start:
 	dmb
 	bl _stm32_init
 
-	/* Pass syspage to main */
-	ldr r0, =_syspage
-	ldr r1, =syspage
-	str r0, [r1]
 	bl main
 .size _start, .-_start
 .ltorg
