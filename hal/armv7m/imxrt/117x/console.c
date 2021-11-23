@@ -18,9 +18,8 @@
 #endif
 
 #include "cpu.h"
-#include "console.h"
 #include "imxrt117x.h"
-#include "../../include/errno.h"
+#include "../../../console.h"
 #include "../../include/arch/imxrt1170.h"
 
 #define CONCAT3(a, b, c) a##b##c

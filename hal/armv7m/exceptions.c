@@ -15,7 +15,7 @@
 
 #include "exceptions.h"
 #include "cpu.h"
-#include "console.h"
+#include "../console.h"
 #include "string.h"
 
 

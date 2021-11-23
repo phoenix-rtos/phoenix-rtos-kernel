@@ -15,9 +15,9 @@
 
 #include "cpu.h"
 #include "pmap.h"
-#include "string.h"
 #include "spinlock.h"
 
+#include "../string.h"
 #include "../../include/errno.h"
 
 
