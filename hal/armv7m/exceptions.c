@@ -16,7 +16,7 @@
 #include "exceptions.h"
 #include "cpu.h"
 #include "../console.h"
-#include "string.h"
+#include "../string.h"
 
 
 static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero)
