@@ -13,4 +13,4 @@ else ifneq (, $(findstring imxrt, $(TARGET_SUBFAMILY)))
     CFLAGS += -Ihal/armv7m/imxrt -Ihal/armv7m
 endif
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv7m/, string.o spinlock.o cpu.o hal.o exceptions.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv7m/, string.o spinlock.o cpu.o hal.o pmap.o exceptions.o)
