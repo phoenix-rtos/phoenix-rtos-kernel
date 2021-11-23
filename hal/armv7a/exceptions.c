@@ -15,9 +15,9 @@
 
 #include "exceptions.h"
 #include "cpu.h"
-#include "../console.h"
 #include "spinlock.h"
-#include "string.h"
+#include "../console.h"
+#include "../string.h"
 #include "../../include/mman.h"
 
 

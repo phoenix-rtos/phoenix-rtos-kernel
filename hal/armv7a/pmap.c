@@ -17,7 +17,7 @@
 #include "cpu.h"
 #include "config.h"
 #include "spinlock.h"
-#include "string.h"
+#include "../string.h"
 
 #include "../../include/errno.h"
 #include "../../include/mman.h"

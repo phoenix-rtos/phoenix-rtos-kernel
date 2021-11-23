@@ -5,21 +5,19 @@
  *
  * HAL basic routines
  *
- * Copyright 2017, 2018 Phoenix Systems
- * Author: Pawel Pisarczyk, Aleksander Kaminski
+ * Copyright 2017 Phoenix Systems
+ * Copyright 2001, 2005-2006 Pawel Pisarczyk
+ * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
-#ifndef _HAL_BASE_H_
-#define _HAL_BASE_H_
-
-#include "cpu.h"
+#include "../string.h"
 
 
-static inline void hal_memcpy(void *dst, const void *src, unsigned int l)
+void hal_memcpy(void *dst, const void *src, unsigned int l)
 {
 	__asm__ volatile
 	(" \
@@ -46,7 +44,7 @@ static inline void hal_memcpy(void *dst, const void *src, unsigned int l)
 }
 
 
-static inline int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
+int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
 	int res = 0;
 
@@ -74,7 +72,7 @@ static inline int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 }
 
 
-static inline void hal_memset(void *dst, int v, unsigned int l)
+void hal_memset(void *dst, int v, unsigned int l)
 {
 	unsigned int v1 = v & 0xff;
 	unsigned int tmp;
@@ -104,7 +102,7 @@ static inline void hal_memset(void *dst, int v, unsigned int l)
 }
 
 
-static inline unsigned int hal_strlen(const char *s)
+unsigned int hal_strlen(const char *s)
 {
 	unsigned int k = 0;
 
@@ -124,7 +122,7 @@ static inline unsigned int hal_strlen(const char *s)
 }
 
 
-static inline int hal_strcmp(const char *s1, const char *s2)
+int hal_strcmp(const char *s1, const char *s2)
 {
 	int res = 0;
 
@@ -153,7 +151,7 @@ static inline int hal_strcmp(const char *s1, const char *s2)
 }
 
 
-static inline int hal_strncmp(const char *s1, const char *s2, unsigned int count)
+int hal_strncmp(const char *s1, const char *s2, unsigned int count)
 {
 	int res = 0;
 
@@ -185,7 +183,7 @@ static inline int hal_strncmp(const char *s1, const char *s2, unsigned int count
 }
 
 
-static inline char *hal_strcpy(char *dest, const char *src)
+char *hal_strcpy(char *dest, const char *src)
 {
 	char *p = dest;
 
@@ -204,7 +202,7 @@ static inline char *hal_strcpy(char *dest, const char *src)
 }
 
 
-static inline char *hal_strncpy(char *dest, const char *src, size_t n)
+char *hal_strncpy(char *dest, const char *src, size_t n)
 {
 	char *p = dest;
 
@@ -225,6 +223,3 @@ static inline char *hal_strncpy(char *dest, const char *src, size_t n)
 
 	return dest;
 }
-
-
-#endif
