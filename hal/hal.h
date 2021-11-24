@@ -15,8 +15,6 @@
 
 #ifndef _HAL_HAL_H_
 
-#ifndef __ASSEMBLY__
-
 #include "cpu.h"
 #include "config.h"
 #include "string.h"
@@ -34,6 +32,12 @@ extern void *hal_syspageRelocate(void *data);
 extern ptr_t hal_syspageAddr(void);
 
 
+extern void hal_wdgReload(void);
+
+
+extern int hal_platformctl(void *ptr);
+
+
 extern int hal_started(void);
 
 
@@ -41,8 +45,5 @@ extern void _hal_start(void);
 
 
 extern void _hal_init(void);
-
-
-#endif
 
 #endif
