@@ -650,12 +650,10 @@ int syscalls_settime(void *ustack)
 
 void syscalls_keepidle(void *ustack)
 {
-#ifdef CPU_STM32
 	int t;
 
 	GETFROMSTACK(ustack, int, t, 0);
 	hal_cpuSetDevBusy(t);
-#endif
 }
 
 
