@@ -15,7 +15,7 @@
 
 #define __ASSEMBLY__
 
-#include "cpu.h"
+#include <arch/cpu.h>
 
 #define ADDR_SCB 0xe000ed00
 
