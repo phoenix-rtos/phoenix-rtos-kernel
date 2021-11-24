@@ -56,7 +56,7 @@ void _hal_init(void)
 	_hal_interruptsInit();
 	_hal_cpuInit();
 	_hal_consoleInit();
-	_timer_init(SYSTICK_INTERVAL);
+	_hal_timerInit(SYSTICK_INTERVAL);
 
 	hal_common.started = 0;
 
