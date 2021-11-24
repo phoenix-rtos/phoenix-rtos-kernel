@@ -16,10 +16,8 @@
 #ifndef _HAL_STM32_H_
 #define _HAL_STM32_H_
 
-#include "../cpu.h"
-#include "pmap.h"
-#include "../spinlock.h"
-
+#include <arch/types.h>
+#include "../pmap.h"
 
 #if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE)
 #include "../../../include/arch/stm32l1.h"

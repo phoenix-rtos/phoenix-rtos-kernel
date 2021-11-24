@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
-#include "../cpu.h"
+#include "../../timer.h"
 #include "../stm32.h"
-#include "../../interrupts.h"
-#include "../../spinlock.h"
+#include "../../../interrupts.h"
+#include "../../../spinlock.h"
 
 /*
  * Prescaler settings (32768 Hz input frequency):
@@ -154,7 +154,7 @@ void _timer_init(u32 interval)
 	*(timer_common.lptim + lptim_ier) = 2;
 	*(timer_common.lptim + lptim_icr) |= 0x7f;
 	*(timer_common.lptim + lptim_cr) = 1;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 	*(timer_common.lptim + lptim_cnt) = 0;
 	*(timer_common.lptim + lptim_cmp) = 0;
 	*(timer_common.lptim + lptim_arr) = 0xffff;

@@ -16,8 +16,9 @@
 #include "../cpu.h"
 #include "../interrupts.h"
 #include "../spinlock.h"
-#include "../timer.h"
 #include "../string.h"
+
+#include "timer.h"
 
 
 #if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)

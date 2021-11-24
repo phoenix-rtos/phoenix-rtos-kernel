@@ -16,8 +16,6 @@
 #include "../../interrupts.h"
 #include "../../spinlock.h"
 #include "../../cpu.h"
-#include "pmap.h"
-#include "stm32.h"
 
 #include "../../../proc/userintr.h"
 

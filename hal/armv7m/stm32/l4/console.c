@@ -13,7 +13,6 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
 #include "../../../console.h"
 #include "stm32.h"
 
@@ -97,14 +96,14 @@ void _hal_consoleInit(void)
 
 	/* Set up UART to 9600,8,n,1 16-bit oversampling */
 	*(console_common.base + cr1) &= ~1;   /* disable USART */
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 	*(console_common.base + cr1) = 0xa;
 	*(console_common.base + cr2) = 0;
 	*(console_common.base + cr3) = 0;
 	*(console_common.base + brr) = console_common.cpufreq / 115200; /* 115200 baud rate */
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 	*(console_common.base + cr1) |= 1;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	_hal_consolePrint("\033[2J");
 	_hal_consolePrint("\033[f");
