@@ -13,10 +13,9 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
 #include "config.h"
-#include "spinlock.h"
-#include "interrupts.h"
+#include "../../cpu.h"
+#include "../../interrupts.h"
 
 
 struct {

@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "exceptions.h"
-#include "cpu.h"
-#include "spinlock.h"
+#include "../exceptions.h"
+#include "../spinlock.h"
+#include "../cpu.h"
 #include "../console.h"
 #include "../string.h"
 #include "../../include/mman.h"
@@ -175,6 +175,11 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot |= PROT_USER;
 
 	return prot;
+}
+
+ptr_t hal_exceptionsPC(exc_context_t *ctx)
+{
+	return ctx->pc;
 }
 
 

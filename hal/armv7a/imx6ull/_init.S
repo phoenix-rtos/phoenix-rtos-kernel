@@ -15,7 +15,7 @@
 
 #define __ASSEMBLY__
 
-#include "cpu.h"
+#include <arch/cpu.h>
 #include "pmap.h"
 #include "config.h"
 
@@ -376,4 +376,4 @@ kernel_ttl2:
 .size _start, .-_start
 
 #include "../_interrupts.S"
-#include "../_hal.S"
+#include "../_armv7a.S"

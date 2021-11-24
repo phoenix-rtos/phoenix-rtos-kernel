@@ -14,13 +14,13 @@
  */
 
 #include "pmap.h"
-#include "cpu.h"
-#include "config.h"
-#include "spinlock.h"
+#include "armv7a.h"
 #include "../string.h"
+#include "../spinlock.h"
 
 #include "../../include/errno.h"
 #include "../../include/mman.h"
+
 #include "../../../syspage.h"
 
 extern unsigned int _end;

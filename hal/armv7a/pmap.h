@@ -54,8 +54,7 @@
 
 #ifndef __ASSEMBLY__
 
-#include "cpu.h"
-
+#include <arch/types.h>
 
 /* Structure describing page - its should be aligned to 2^N boundary */
 typedef struct _page_t {

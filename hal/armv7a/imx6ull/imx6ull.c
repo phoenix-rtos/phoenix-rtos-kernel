@@ -328,6 +328,7 @@ void hal_wdgReload(void)
 	*(imx6ull_common.wdog + wdog_wsr) = 0xAAAA;
 }
 
+
 /* platformctl syscall */
 
 int hal_platformctl(void *ptr)
