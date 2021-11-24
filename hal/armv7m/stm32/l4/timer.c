@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "../../timer.h"
-#include "../stm32.h"
+#include "../config.h"
+#include "../../../timer.h"
 #include "../../../interrupts.h"
 #include "../../../spinlock.h"
 
@@ -42,18 +42,6 @@ static struct {
 	volatile u32 *lptim;
 	volatile time_t upper;
 } timer_common;
-
-
-static inline time_t timer_ticks2us(time_t ticks)
-{
-	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
-}
-
-
-static inline time_t timer_us2ticks(time_t us)
-{
-	return ((32768 / (1 << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
-}
 
 
 static u32 timer_getCnt(void)
@@ -94,6 +82,7 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	return 1;
 }
 
+/* Additional functions */
 
 void timer_jiffiesAdd(time_t t)
 {
@@ -101,31 +90,9 @@ void timer_jiffiesAdd(time_t t)
 }
 
 
-time_t hal_getTimer(void)
-{
-	time_t upper;
-	u32 lower;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&timer_common.sp, &sc);
-	upper = timer_common.upper;
-	lower = timer_getCnt();
-
-	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
-		/* Check if we have unhandled overflow event.
-		 * If so, upper is one less than it should be */
-		if (timer_getCnt() >= lower)
-			++upper;
-	}
-	hal_spinlockClear(&timer_common.sp, &sc);
-
-	return timer_ticks2us((upper << 16) + lower);
-}
-
-
 void timer_setAlarm(time_t us)
 {
-	time_t ticks = timer_us2ticks(us);
+	time_t ticks = hal_timerUs2Cyc(us);
 	u32 setval;
 	spinlock_ctx_t sc;
 
@@ -143,7 +110,65 @@ void timer_setAlarm(time_t us)
 }
 
 
-void _timer_init(u32 interval)
+/* Interface functions */
+
+
+void hal_timerSetWakeup(u32 when)
+{
+}
+
+
+time_t hal_timerCyc2Us(time_t ticks)
+{
+	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
+}
+
+
+time_t hal_timerUs2Cyc(time_t us)
+{
+	return ((32768 / (1 << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
+}
+
+
+time_t hal_timerGetUs(void)
+{
+	return hal_timerCyc2Us(hal_timerGetCyc());
+}
+
+
+time_t hal_timerGetCyc(void)
+{
+	time_t upper;
+	u32 lower;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&timer_common.sp, &sc);
+	upper = timer_common.upper;
+	lower = timer_getCnt();
+
+	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
+		/* Check if we have unhandled overflow event.
+		 * If so, upper is one less than it should be */
+		if (timer_getCnt() >= lower)
+			++upper;
+	}
+	hal_spinlockClear(&timer_common.sp, &sc);
+
+	return (upper << 16) + lower;
+}
+
+
+int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+{
+	h->f = f;
+	h->n = lptim1_irq;
+	h->data = data;
+
+	return hal_interruptsSetHandler(h);
+}
+
+
+void _hal_timerInit(u32 interval)
 {
 	timer_common.lptim = (void *)0x40007c00;
 	timer_common.upper = 0;

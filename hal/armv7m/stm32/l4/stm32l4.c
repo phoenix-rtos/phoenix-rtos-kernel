@@ -14,9 +14,8 @@
  */
 
 #include "../stm32.h"
-#include "../interrupts.h"
+#include "../stm32-timer.h"
 #include "../../../../include/errno.h"
-#include "../../timer.h"
 
 
 struct {

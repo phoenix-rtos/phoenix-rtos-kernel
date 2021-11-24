@@ -18,21 +18,7 @@
 #include "../spinlock.h"
 #include "../string.h"
 
-#include "timer.h"
-
-
-#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)
-#include "stm32.h"
-#endif
-
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
-#include "imxrt10xx.h"
-#endif
-
-#ifdef CPU_IMXRT117X
-#include "imxrt117x.h"
-#endif
-
+#include "config.h"
 
 struct {
 	int busy;

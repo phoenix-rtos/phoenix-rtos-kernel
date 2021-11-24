@@ -59,7 +59,7 @@ __attribute__ ((section (".init"))) void _hal_init(void)
 	_hal_exceptionsInit();
 	_hal_interruptsInit();
 
-	_timer_init(SYSTICK_INTERVAL);
+	_hal_timerInit(SYSTICK_INTERVAL);
 
 	hal_common.started = 0;
 	return;

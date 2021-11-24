@@ -21,6 +21,7 @@
 
 #ifndef __ASSEMBLY__
 #include "stm32.h"
+#include "stm32-timer.h"
 #include "../../include/arch/syspage-stm32.h"
 #endif
 

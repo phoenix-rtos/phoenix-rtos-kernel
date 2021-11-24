@@ -5,8 +5,8 @@
  *
  * System timer driver
  *
- * Copyright 2018 Phoenix Systems
- * Author: Aleksander Kaminski
+ * Copyright 2018, 2021 Phoenix Systems
+ * Author: Aleksander Kaminski, Hubert Buczynski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -16,20 +16,28 @@
 #ifndef _HAL_TIMER_H_
 #define _HAL_TIMER_H_
 
-#ifndef __ASSEMBLY__
 
-#include <arch/types.h>
+#include "cpu.h"
+#include "interrupts.h"
 
-
-extern time_t hal_getTimer(void);
-
-
-extern void hal_setWakeup(u32 when);
+extern time_t hal_timerUs2Cyc(time_t us);
 
 
-extern void _timer_init(u32 interval);
+extern time_t hal_timerCyc2Us(time_t cyc);
 
 
-#endif
+extern time_t hal_timerGetCyc(void);
+
+
+extern time_t hal_timerGetUs(void);
+
+
+extern void hal_timerSetWakeup(u32 when);
+
+
+extern int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h);
+
+
+extern void _hal_timerInit(u32 interval);
 
 #endif

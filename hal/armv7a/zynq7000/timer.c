@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#include "../../cpu.h"
+#include "../../timer.h"
 #include "../../spinlock.h"
-#include "../../interrupts.h"
 
-#define TTC_SRC_CLK_CPU_1x 111111115 /* Hz */
+#define TIMER_SRC_CLK_CPU_1x 111111115 /* Hz */
+#define TIMER_IRQ_ID         42
 
 struct {
 	volatile u32 *ttc;
@@ -37,18 +37,6 @@ enum {
 
 
 extern unsigned int _end;
-
-
-void timer_jiffiesAdd(time_t t)
-{
-	(void)t;
-}
-
-
-void timer_setAlarm(time_t us)
-{
-	(void)us;
-}
 
 
 static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -72,13 +60,33 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-void hal_setWakeup(u32 when)
+void hal_timerSetWakeup(u32 when)
 {
 
 }
 
 
-time_t hal_getTimer(void)
+time_t hal_timerUs2Cyc(time_t us)
+{
+	return (55555LL * us) / 1000LL;
+}
+
+
+time_t hal_timerCyc2Us(time_t cyc)
+{
+	return (cyc * 1000LL) / 55555LL;
+}
+
+
+time_t hal_timerGetUs(void)
+{
+	time_t ret = hal_timerGetCyc();
+
+	return hal_timerCyc2Us(ret);
+}
+
+
+time_t hal_timerGetCyc(void)
 {
 	spinlock_ctx_t sc;
 	time_t ret;
@@ -90,10 +98,19 @@ time_t hal_getTimer(void)
 	return ret;
 }
 
-
-static void timer_setPrescaler(u32 freq)
+int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
-	u32 ticks = TTC_SRC_CLK_CPU_1x / freq;
+	h->f = f;
+	h->n = TIMER_IRQ_ID;
+	h->data = data;
+
+	return hal_interruptsSetHandler(h);
+}
+
+
+static void hal_timerSetPrescaler(u32 freq)
+{
+	u32 ticks = TIMER_SRC_CLK_CPU_1x / freq;
 	u32 prescaler = 0;
 
 	while ((ticks >= 0xffff) && (prescaler < 0x10)) {
@@ -112,7 +129,7 @@ static void timer_setPrescaler(u32 freq)
 }
 
 
-void _timer_init(u32 interval)
+void _hal_timerInit(u32 interval)
 {
 	timer_common.ttc = (void *)(((u32)&_end + 10 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	timer_common.jiffies = 0;
@@ -136,11 +153,11 @@ void _timer_init(u32 interval)
 	/* Reset counters and restart counting */
 	*(timer_common.ttc + cnt_ctrl) = 0x10;
 
-	timer_setPrescaler(interval);
+	hal_timerSetPrescaler(interval);
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 	timer_common.handler.f = _timer_irqHandler;
-	timer_common.handler.n = 42;
+	timer_common.handler.n = TIMER_IRQ_ID;
 	timer_common.handler.data = NULL;
 	hal_interruptsSetHandler(&timer_common.handler);
 
