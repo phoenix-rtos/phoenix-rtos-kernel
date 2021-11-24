@@ -41,8 +41,7 @@
 
 #ifndef __ASSEMBLY__
 
-#include "cpu.h"
-
+#include "../cpu.h"
 
 typedef struct _page_t {
 	addr_t addr;

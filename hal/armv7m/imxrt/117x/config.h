@@ -16,9 +16,14 @@
 #ifndef _HAL_CONFIG_H_
 #define _HAL_CONFIG_H_
 
+#define SIZE_INTERRUPTS 217
+
+#define TIMER_US2CYC(x) (x)
+#define TIMER_CYC2US(x) (x)
+
+#ifndef __ASSEMBLY__
 #include "imxrt117x.h"
 #include "../../include/arch/syspage-imxrt.h"
-
-#define SIZE_INTERRUPTS 217
+#endif
 
 #endif

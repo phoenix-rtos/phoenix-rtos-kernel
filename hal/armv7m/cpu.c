@@ -13,11 +13,10 @@
  * %LICENSE%
  */
 
-#include "../../include/errno.h"
-#include "cpu.h"
-#include "interrupts.h"
-#include "spinlock.h"
-#include "timer.h"
+#include "../cpu.h"
+#include "../interrupts.h"
+#include "../spinlock.h"
+#include "../timer.h"
 #include "../string.h"
 
 
@@ -34,7 +33,6 @@
 #endif
 
 
-
 struct {
 	int busy;
 	spinlock_t busySp;
@@ -44,7 +42,123 @@ struct {
 volatile cpu_context_t *_cpu_nctx;
 
 
+/* interrupts */
+
+
+void hal_cpuDisableInterrupts(void)
+{
+	__asm__ volatile ("cpsid if");
+}
+
+
+void hal_cpuEnableInterrupts(void)
+{
+	__asm__ volatile ("cpsie if");
+}
+
+
+/* performance */
+
+
+void hal_cpuLowPower(time_t us)
+{
+#ifdef CPU_STM32
+	spinlock_ctx_t scp;
+
+	hal_spinlockSet(&cpu_common.busySp, &scp);
+	if (cpu_common.busy == 0) {
+		/* Don't increment jiffies if sleep was unsuccessful */
+		us = _stm32_pwrEnterLPStop(us);
+		timer_jiffiesAdd(us);
+	}
+	hal_spinlockClear(&cpu_common.busySp, &scp);
+#endif
+}
+
+
+void hal_cpuSetDevBusy(int s)
+{
+	spinlock_ctx_t scp;
+
+	hal_spinlockSet(&cpu_common.busySp, &scp);
+	if (s == 1)
+		++cpu_common.busy;
+	else
+		--cpu_common.busy;
+
+	if (cpu_common.busy < 0)
+		cpu_common.busy = 0;
+	hal_spinlockClear(&cpu_common.busySp, &scp);
+}
+
+
+void hal_cpuHalt(void)
+{
+#ifndef CPU_IMXRT117X
+	__asm__ volatile ("\
+		wfi; \
+		nop; ");
+#endif
+}
+
+
+void hal_cpuGetCycles(cycles_t *cb)
+{
+#ifdef CPU_STM32
+	*cb = _stm32_systickGet();
+#elif defined(CPU_IMXRT)
+	*cb = _imxrt_systickGet();
+#endif
+}
+
+
+/* bit operations */
+
+
+unsigned int hal_cpuGetLastBit(const u32 v)
+{
+	int pos;
+
+	__asm__ volatile ("clz %0, %1" : "=r" (pos) : "r" (v));
+
+	return 31 - pos;
+}
+
+
+unsigned int hal_cpuGetFirstBit(const u32 v)
+{
+	unsigned pos;
+
+	__asm__ volatile ("\
+		rbit %0, %1; \
+		clz  %0, %0;" : "=r" (pos) : "r" (v));
+
+	return pos;
+}
+
+
 /* context management */
+
+void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
+{
+	ctx->r9 = (u32)got;
+}
+
+
+void hal_cpuSetGot(void *got)
+{
+	__asm__ volatile ("mov r9, %0" :: "r" (got));
+}
+
+
+void *hal_cpuGetGot(void)
+{
+	void *got;
+
+	__asm__ volatile ("mov %0, r9" : "=r" (got));
+
+	return got;
+}
 
 
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
@@ -109,59 +223,106 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	}
 
 	*nctx = ctx;
-	return EOK;
+	return 0;
 }
 
 
-void hal_cpuLowPower(time_t us)
+void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 {
-#ifdef CPU_STM32
-	spinlock_ctx_t scp;
-
-	hal_spinlockSet(&cpu_common.busySp, &scp);
-	if (cpu_common.busy == 0) {
-		/* Don't increment jiffies if sleep was unsuccessful */
-		us = _stm32_pwrEnterLPStop(us);
-		timer_jiffiesAdd(us);
-	}
-	hal_spinlockClear(&cpu_common.busySp, &scp);
-#endif
+	curr->savesp = (u32)next;
 }
 
 
-void hal_cpuSetDevBusy(int s)
+void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
 {
-	spinlock_ctx_t scp;
-
-	hal_spinlockSet(&cpu_common.busySp, &scp);
-	if (s == 1)
-		++cpu_common.busy;
-	else
-		--cpu_common.busy;
-
-	if (cpu_common.busy < 0)
-		cpu_common.busy = 0;
-	hal_spinlockClear(&cpu_common.busySp, &scp);
+	ctx->r0 = retval;
 }
 
 
-void hal_cpuGetCycles(cycles_t *cb)
+u32 hal_cpuGetPC(void)
 {
-#ifdef CPU_STM32
-	*cb = _stm32_systickGet();
-#elif defined(CPU_IMXRT)
-	*cb = _imxrt_systickGet();
-#endif
+	void *pc;
+
+	__asm__ volatile ("mov %0, pc" : "=r" (pc));
+
+	return (u32)pc;
 }
 
 
-void hal_cpuRestart(void)
+void _hal_cpuSetKernelStack(void *kstack)
 {
-#ifdef CPU_STM32
-	_stm32_nvicSystemReset();
-#elif defined(CPU_IMXRT)
-	_imxrt_nvicSystemReset();
-#endif
+}
+
+
+void *hal_cpuGetSP(cpu_context_t *ctx)
+{
+	return (void *)ctx;
+}
+
+
+void *hal_cpuGetUserSP(cpu_context_t *ctx)
+{
+	return (void *)ctx->psp;
+}
+
+
+int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return 0;
+}
+
+
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), int sig)
+{
+	return 0;
+}
+
+
+void hal_cpuDataMemoryBarrier(void)
+{
+	__asm__ volatile ("dmb");
+}
+
+
+void hal_cpuDataSyncBarrier(void)
+{
+	__asm__ volatile ("dsb");
+}
+
+
+void hal_cpuInstrBarrier(void)
+{
+	__asm__ volatile ("isb");
+}
+
+
+void hal_longjmp(cpu_context_t *ctx)
+{
+	__asm__ volatile
+	(" \
+		cpsid if; \
+		str %1, [%0]; \
+		bl _hal_invokePendSV; \
+		cpsie if; \
+	1:	b 1b"
+	:
+	: "r" (&_cpu_nctx), "r" (ctx)
+	: "memory");
+}
+
+
+/* core management */
+
+
+unsigned int hal_cpuGetID(void)
+{
+	return 0;
+}
+
+
+unsigned int hal_cpuGetCount(void)
+{
+	return 1;
 }
 
 
@@ -218,6 +379,11 @@ void hal_wdgReload(void)
 #elif defined(CPU_IMXRT)
 	_imxrt_wdgReload();
 #endif
+}
+
+
+void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+{
 }
 
 
