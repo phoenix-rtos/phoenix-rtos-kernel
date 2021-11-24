@@ -15,8 +15,7 @@
 
 
 #include "../../console.h"
-#include "cpu.h"
-#include "syspage.h"
+#include "../../cpu.h"
 
 
 #define UART uart1

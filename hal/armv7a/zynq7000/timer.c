@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "spinlock.h"
-#include "interrupts.h"
+#include "../../cpu.h"
+#include "../../spinlock.h"
+#include "../../interrupts.h"
 
 #define TTC_SRC_CLK_CPU_1x 111111115 /* Hz */
 

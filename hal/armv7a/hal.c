@@ -19,9 +19,11 @@ struct {
 	int started;
 } hal_common;
 
-
 hal_syspage_t *syspage;
 unsigned int relOffs;
+
+
+extern void _hal_platformInit(void);
 
 
 void *hal_syspageRelocate(void *data)
@@ -58,7 +60,6 @@ __attribute__ ((section (".init"))) void _hal_init(void)
 	_hal_interruptsInit();
 
 	_timer_init(SYSTICK_INTERVAL);
-	_hal_cpuInit();
 
 	hal_common.started = 0;
 	return;

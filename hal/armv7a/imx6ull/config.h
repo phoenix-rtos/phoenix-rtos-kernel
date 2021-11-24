@@ -30,6 +30,8 @@
 
 #ifndef __ASSEMBLY__
 
+#define HAL_NAME_PLATFORM "NXP i.MX 6ULL "
+
 #include "../../include/arch/syspage-imx6ull.h"
 
 #endif

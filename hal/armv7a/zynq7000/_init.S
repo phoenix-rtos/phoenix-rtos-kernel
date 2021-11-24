@@ -16,20 +16,14 @@
 #define __ASSEMBLY__
 
 #include "pmap.h"
-#include "../cpu.h"
+#include "config.h"
+#include <arch/cpu.h>
 
 .extern pmap_common
 .extern syspage
 .extern relOffs
 .extern _end
 
-
-#define ADDR_OCRAM_LOW  0x00000000
-#define SIZE_OCRAM_LOW  192 * 1024
-#define ADDR_OCRAM_HIGH 0xffff0000
-#define SIZE_OCRAM_HIGH 64 * 1024
-
-#define ADDR_DDR      0x00100000
 #define ADDR_TTL1     (pmap_common - VADDR_KERNEL + ADDR_DDR)
 #define ADDR_TTL2_K   (ADDR_TTL1 + 4 * SIZE_PAGE)
 #define ADDR_TTL2_EXC (ADDR_TTL2_K + SIZE_PAGE)
@@ -45,7 +39,6 @@
 #define PADDR_UART1 0xe0001000
 #define PADDR_SLCR  0xf8000000
 #define PADDR_TTC   0xf8001000
-
 
 .arm
 
@@ -352,4 +345,4 @@ kernel_ttl2:
 	ldr pc, =main
 
 #include "../_interrupts.S"
-#include "../_hal.S"
+#include "../_armv7a.S"

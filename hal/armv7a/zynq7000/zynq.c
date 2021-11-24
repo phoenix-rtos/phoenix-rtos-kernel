@@ -15,7 +15,8 @@
 
 #include "pmap.h"
 #include "vm/map.h"
-#include "spinlock.h"
+#include "../../cpu.h"
+#include "../../spinlock.h"
 #include "../../include/arch/zynq7000.h"
 
 
@@ -349,6 +350,12 @@ static int _zynq_getMIO(unsigned int pin, char *disableRcvr, char *pullup, char 
 }
 
 
+/* TODO */
+void hal_wdgReload(void)
+{
+}
+
+
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
@@ -445,10 +452,6 @@ static void _zynq_peripherals(void)
 	_zynq_slcrLock();
 }
 
-void hal_wdgReload(void)
-{
-	return;
-}
 
 void _hal_platformInit(void)
 {

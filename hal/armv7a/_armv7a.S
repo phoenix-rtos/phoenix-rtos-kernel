@@ -15,7 +15,7 @@
 
 #define __ASSEMBLY__
 
-#include "cpu.h"
+#include <arch/cpu.h>
 
 .arm
 
@@ -133,16 +133,6 @@ hal_cpuGetContextId:
 .size hal_cpuGetContextId, .-hal_cpuGetContextId
 
 
-.globl _hal_cpuSetKernelStack
-.type _hal_cpuSetKernelStack, %function
-_hal_cpuSetKernelStack:
-	mcr p15, 0, r0, c13, c0, 4
-	dsb
-	isb
-	bx lr
-.size _hal_cpuSetKernelStack, .-_hal_cpuSetKernelStack
-
-
 .globl hal_cpuGetMIDR
 .type hal_cpuGetMIDR, %function
 hal_cpuGetMIDR:
@@ -165,6 +155,16 @@ hal_cpuGetPFR1:
 	mrc p15, 0, r0, c0, c1, 1
 	bx lr
 .size hal_cpuGetPFR1, .-hal_cpuGetPFR1
+
+
+.globl _hal_cpuSetKernelStack
+.type _hal_cpuSetKernelStack, %function
+_hal_cpuSetKernelStack:
+	mcr p15, 0, r0, c13, c0, 4
+	dsb
+	isb
+	bx lr
+.size _hal_cpuSetKernelStack, .-_hal_cpuSetKernelStack
 
 
 .globl hal_longjmp
