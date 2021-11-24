@@ -18,10 +18,7 @@
 
 #ifndef __ASSEMBLY__
 
-#include "cpu.h"
-
-#define TIMER_US2CYC(x) (x)
-#define TIMER_CYC2US(x) (x)
+#include <arch/types.h>
 
 
 extern void timer_setAlarm(time_t us);

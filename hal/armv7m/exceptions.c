@@ -13,10 +13,11 @@
  * %LICENSE%
  */
 
-#include "exceptions.h"
-#include "cpu.h"
+#include "../exceptions.h"
+#include "../cpu.h"
 #include "../console.h"
 #include "../string.h"
+#include "config.h"
 
 
 static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero)
@@ -104,8 +105,41 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 	hal_consolePrint(ATTR_BOLD, buff);
 
 #ifdef NDEBUG
-	hal_cpuRestart();
+#ifdef CPU_STM32
+	_stm32_nvicSystemReset();
+#elif defined(CPU_IMXRT)
+	_imxrt_nvicSystemReset();
+#endif
 #else
 	hal_cpuHalt();
 #endif
+}
+
+
+ptr_t hal_exceptionsPC(exc_context_t *ctx)
+{
+	return ctx->pc;
+}
+
+
+int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+{
+	return 0;
+}
+
+
+void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
+{
+	return NULL;
+}
+
+
+int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+{
+	return 0;
+}
+
+
+void _hal_exceptionsInit(void)
+{
 }

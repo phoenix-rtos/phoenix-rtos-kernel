@@ -17,8 +17,8 @@
 #define UART_CONSOLE 1
 #endif
 
-#include "cpu.h"
 #include "imxrt10xx.h"
+#include "../../../cpu.h"
 #include "../../../console.h"
 #include "../../../../include/arch/imxrt.h"
 
@@ -106,9 +106,9 @@ void _hal_consoleInit(void)
 
 	/* Reset all internal logic and registers, except the Global Register */
 	*(console_common.uart + uart_global) |= 1 << 1;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 	*(console_common.uart + uart_global) &= ~(1 << 1);
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	/* Set baud rate */
 	t = *(console_common.uart + uart_baud) & ~((0x1f << 24) | (1 << 17) | 0xfff);

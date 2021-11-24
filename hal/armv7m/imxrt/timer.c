@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
+#include "../../cpu.h"
+#include "../../interrupts.h"
 #include "config.h"
-#include "interrupts.h"
 
 
 static struct {
