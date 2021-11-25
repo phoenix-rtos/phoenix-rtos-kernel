@@ -38,15 +38,10 @@ enum {
 extern unsigned int _end;
 
 
-static void _console_print(const char *s)
+static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++) {
-		/* Wait until TX fifo is empty */
-		while (!(*(console_common.UART + sr) & (1 << 3)))
-			;
-
-		*(console_common.UART + fifo) = *s;
-	}
+	for (; *s; s++)
+		hal_consolePutch(*s);
 
 	/* Wait until TX fifo is empty */
 	while (!(*(console_common.UART + sr) & (1 << 3)))
@@ -56,19 +51,24 @@ static void _console_print(const char *s)
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD) {
-		_console_print("\033[1m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else if (attr != ATTR_USER) {
-		_console_print("\033[36m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else {
-		_console_print(s);
-	}
+	if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
+	if (attr == ATTR_BOLD)
+		_hal_consolePrint(CONSOLE_BOLD);
+
+	_hal_consolePrint(s);
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
+	/* Wait until TX fifo is empty */
+	while (!(*(console_common.UART + sr) & (1 << 3)))
+		;
+
+	*(console_common.UART + fifo) = c;
 }
 
 

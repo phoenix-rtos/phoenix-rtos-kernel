@@ -31,26 +31,11 @@ enum { cr1 = 0, cr2, cr3, brr, gtpr, rtor, rqr, isr, icr, rdr, tdr };
 
 void _hal_consolePrint(const char *s)
 {
-	unsigned cpufreq;
+	while (*s)
+		hal_consolePutch(*(s++));
 
-	while (*s) {
-		if (~(*(console_common.base + isr)) & 0x80)
-			continue;
-
-		cpufreq = _stm32_rccGetCPUClock();
-
-		if (cpufreq != console_common.cpufreq) {
-			console_common.cpufreq = cpufreq;
-
-			*(console_common.base + cr1) &= ~1;
-			*(console_common.base + brr) = cpufreq / 9600;
-			*(console_common.base + cr1) |= 1;
-		}
-
-		*(console_common.base + tdr) = *(s++);
-	}
-
-	while (~(*(console_common.base + isr)) & 0x80);
+	while (~(*(console_common.base + isr)) & 0x80)
+		;
 
 	return;
 }
@@ -58,12 +43,23 @@ void _hal_consolePrint(const char *s)
 
 void hal_consolePrint(int attr, const char *s)
 {
+	if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
 	if (attr == ATTR_BOLD)
-		_hal_consolePrint("\033[1m");
+		_hal_consolePrint(CONSOLE_BOLD);
+
 	_hal_consolePrint(s);
-	if (attr == ATTR_BOLD)
-		_hal_consolePrint("\033[0m");
-	return;
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
+	while (~(*(console_common.base + isr)) & 0x80)
+		;
+
+	*(console_common.base + tdr) = c;
 }
 
 

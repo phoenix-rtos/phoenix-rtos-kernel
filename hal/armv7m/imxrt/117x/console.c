@@ -40,23 +40,32 @@ enum { uart_verid = 0, uart_param, uart_global, uart_pincfg, uart_baud, uart_sta
 	uart_data, uart_match, uart_modir, uart_fifo, uart_water };
 
 
-void _hal_consolePrint(const char *s)
+static void _hal_consolePrint(const char *s)
 {
-	while (*s) {
-		while (!(*(console_common.uart + uart_stat) & (1 << 23)));
-		*(console_common.uart + uart_data) = *(s++);
-	}
+	while (*s)
+		hal_consolePutch(*(s++));
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
+	if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
 	if (attr == ATTR_BOLD)
-		_hal_consolePrint("\033[1m");
+		_hal_consolePrint(CONSOLE_BOLD);
+
 	_hal_consolePrint(s);
-	if (attr == ATTR_BOLD)
-		_hal_consolePrint("\033[0m");
-	return;
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
+	while (!(*(console_common.uart + uart_stat) & (1 << 23)))
+		;
+
+	*(console_common.uart + uart_data) = c;
 }
 
 
