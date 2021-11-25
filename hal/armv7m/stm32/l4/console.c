@@ -13,8 +13,10 @@
  * %LICENSE%
  */
 
-#include "../../../console.h"
 #include "stm32.h"
+
+#include "../../../console.h"
+#include "../../../cpu.h"
 
 
 struct {

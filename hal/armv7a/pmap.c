@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "pmap.h"
 #include "armv7a.h"
+#include "../pmap.h"
 #include "../string.h"
 #include "../spinlock.h"
 

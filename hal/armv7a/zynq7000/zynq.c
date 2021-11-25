@@ -13,8 +13,6 @@
  * %LICENSE%
  */
 
-#include "pmap.h"
-#include "vm/map.h"
 #include "../../cpu.h"
 #include "../../spinlock.h"
 #include "../../include/arch/zynq7000.h"

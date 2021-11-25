@@ -13,8 +13,10 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_PMAP_H_
-#define _HAL_PMAP_H_
+#ifndef _HAL_PMAP_ARMV7M_H_
+#define _HAL_PMAP_ARMV7M_H_
+
+#include "types.h"
 
 /* Architecure dependent page attributes - used for mapping */
 #define PGHD_PRESENT    0x01
@@ -41,8 +43,6 @@
 
 #ifndef __ASSEMBLY__
 
-#include "../cpu.h"
-
 typedef struct _page_t {
 	addr_t addr;
 	u8 idx;
@@ -65,37 +65,6 @@ typedef struct _mpur_t {
 	u8 subregions;
 	int attr;
 } mpur_t;
-
-
-static inline int pmap_belongs(pmap_t *pmap, void *addr)
-{
-	return addr >= pmap->start && addr < pmap->end;
-}
-
-
-extern int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top);
-
-
-extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
-
-
-extern void pmap_switch(pmap_t *pmap);
-
-
-extern int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc);
-
-
-extern int pmap_remove(pmap_t *pmap, void *vaddr);
-
-
-static inline addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
-{
-	return (addr_t)vaddr;
-}
-
-
-extern void _pmap_init(pmap_t *pmap, void **start, void **end);
-
 
 #endif
 
