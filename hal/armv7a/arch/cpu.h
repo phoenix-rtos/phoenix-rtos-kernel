@@ -95,6 +95,129 @@ typedef struct _cpu_context_t {
 } cpu_context_t;
 
 
+static inline void hal_cpuDisableInterrupts(void)
+{
+	__asm__ volatile ("cpsid if");
+}
+
+
+static inline void hal_cpuEnableInterrupts(void)
+{
+	__asm__ volatile ("cpsie aif");
+}
+
+
+static inline void hal_cpuLowPower(time_t us)
+{
+}
+
+
+static inline void hal_cpuSetDevBusy(int s)
+{
+}
+
+
+static inline void hal_cpuHalt(void)
+{
+	__asm__ volatile ("wfi");
+}
+
+
+static inline unsigned int hal_cpuGetLastBit(const u32 v)
+{
+	int pos;
+
+	__asm__ volatile ("clz %0, %1" : "=r" (pos) : "r" (v));
+
+	return 31 - pos;
+}
+
+
+static inline unsigned int hal_cpuGetFirstBit(const u32 v)
+{
+	unsigned pos;
+
+	__asm__ volatile ("\
+		rbit %0, %1; \
+		clz  %0, %0;" : "=r" (pos) : "r" (v));
+
+	return pos;
+}
+
+
+static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
+{
+}
+
+
+static inline void hal_cpuSetGot(void *got)
+{
+}
+
+
+static inline void *hal_cpuGetGot(void)
+{
+	return NULL;
+}
+
+
+static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
+{
+	curr->savesp = (u32)next /*+ sizeof(u32)*/;
+}
+
+
+static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
+{
+	ctx->r0 = retval;
+}
+
+
+static inline u32 hal_cpuGetPC(void)
+{
+	void *pc;
+
+	__asm__ volatile ("mov %0, pc" : "=r" (pc));
+
+	return (u32)pc;
+}
+
+
+static inline void *hal_cpuGetSP(cpu_context_t *ctx)
+{
+	return (void *)ctx;
+}
+
+
+static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
+{
+	return (void *)ctx->sp;
+}
+
+
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return ctx->psr & 0xf;
+}
+
+
+static inline unsigned int hal_cpuGetID(void)
+{
+	return 0;
+}
+
+
+static inline unsigned int hal_cpuGetCount(void)
+{
+	return 1;
+}
+
+
+static inline void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+{
+}
+
+
 #endif
 
 #endif

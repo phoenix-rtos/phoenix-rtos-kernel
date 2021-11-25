@@ -94,15 +94,6 @@ extern int hal_cpuSupervisorMode(cpu_context_t *ctx);
 extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n);
 
 
-extern void hal_cpuDataMemoryBarrier(void);
-
-
-extern void hal_cpuDataSyncBarrier(void);
-
-
-extern void hal_cpuInstrBarrier(void);
-
-
 extern void hal_longjmp(cpu_context_t *ctx);
 
 

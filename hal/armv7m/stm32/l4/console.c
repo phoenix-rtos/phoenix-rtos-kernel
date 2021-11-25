@@ -17,6 +17,7 @@
 
 #include "../../../console.h"
 #include "../../../cpu.h"
+#include "../../armv7m.h"
 
 
 struct {

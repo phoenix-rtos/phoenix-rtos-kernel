@@ -20,71 +20,6 @@
 #include "../string.h"
 #include "../spinlock.h"
 
-void hal_cpuDisableInterrupts(void)
-{
-	__asm__ volatile ("cpsid if");
-}
-
-
-void hal_cpuEnableInterrupts(void)
-{
-	__asm__ volatile ("cpsie aif");
-}
-
-
-void hal_cpuLowPower(time_t us)
-{
-}
-
-
-void hal_cpuSetDevBusy(int s)
-{
-}
-
-
-void hal_cpuHalt(void)
-{
-	__asm__ volatile ("wfi");
-}
-
-
-unsigned int hal_cpuGetLastBit(const u32 v)
-{
-	int pos;
-
-	__asm__ volatile ("clz %0, %1" : "=r" (pos) : "r" (v));
-
-	return 31 - pos;
-}
-
-
-unsigned int hal_cpuGetFirstBit(const u32 v)
-{
-	unsigned pos;
-
-	__asm__ volatile ("\
-		rbit %0, %1; \
-		clz  %0, %0;" : "=r" (pos) : "r" (v));
-
-	return pos;
-}
-
-
-void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
-{
-}
-
-
-void hal_cpuSetGot(void *got)
-{
-}
-
-
-void *hal_cpuGetGot(void)
-{
-	return NULL;
-}
-
 
 /* Function creates new cpu context on top of given thread kernel stack */
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
@@ -152,46 +87,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
-{
-	curr->savesp = (u32)next /*+ sizeof(u32)*/;
-}
-
-
-void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
-{
-	ctx->r0 = retval;
-}
-
-
-u32 hal_cpuGetPC(void)
-{
-	void *pc;
-
-	__asm__ volatile ("mov %0, pc" : "=r" (pc));
-
-	return (u32)pc;
-}
-
-
-void *hal_cpuGetSP(cpu_context_t *ctx)
-{
-	return (void *)ctx;
-}
-
-
-void *hal_cpuGetUserSP(cpu_context_t *ctx)
-{
-	return (void *)ctx->sp;
-}
-
-
-int hal_cpuSupervisorMode(cpu_context_t *ctx)
-{
-	return ctx->psr & 0xf;
-}
-
-
 int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
@@ -211,36 +106,6 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 		ctx->psr &= ~THUMB_STATE;
 
 	return 0;
-}
-
-
-void hal_cpuDataMemoryBarrier(void)
-{
-	__asm__ volatile ("dmb");
-}
-
-
-void hal_cpuDataSyncBarrier(void)
-{
-	__asm__ volatile ("dsb");
-}
-
-
-void hal_cpuInstrBarrier(void)
-{
-	__asm__ volatile ("isb");
-}
-
-
-unsigned int hal_cpuGetID(void)
-{
-	return 0;
-}
-
-
-unsigned int hal_cpuGetCount(void)
-{
-	return 1;
 }
 
 
@@ -333,9 +198,4 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 		features[0] = '\0';
 
 	return features;
-}
-
-
-void cpu_sendIPI(unsigned int cpu, unsigned int intr)
-{
 }

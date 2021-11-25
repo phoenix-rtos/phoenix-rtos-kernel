@@ -15,7 +15,7 @@
 
 #include "imxrt10xx.h"
 
-#include "../../../cpu.h"
+#include "../../armv7m.h"
 #include "../../../spinlock.h"
 
 #include "../../../../include/errno.h"

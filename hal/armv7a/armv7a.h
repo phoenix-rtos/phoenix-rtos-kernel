@@ -1,8 +1,42 @@
+/*
+ * Phoenix-RTOS
+ *
+ * Operating system kernel
+ *
+ * ARMv7 Cortex-A related routines
+ *
+ * Copyright 2021 Phoenix Systems
+ * Author: Hubert Buczynski
+ *
+ * This file is part of Phoenix-RTOS.
+ *
+ * %LICENSE%
+ */
 
 #ifndef _HAL_ARMV7A_H_
 #define _HAL_ARMV7A_H_
 
 #include <arch/types.h>
+
+
+/* barriers */
+
+static inline void hal_cpuDataMemoryBarrier(void)
+{
+	__asm__ volatile ("dmb");
+}
+
+
+static inline void hal_cpuDataSyncBarrier(void)
+{
+	__asm__ volatile ("dsb");
+}
+
+
+static inline void hal_cpuInstrBarrier(void)
+{
+	__asm__ volatile ("isb");
+}
 
 
 /* memory management */
