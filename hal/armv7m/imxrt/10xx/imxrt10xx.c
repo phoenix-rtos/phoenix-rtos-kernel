@@ -14,8 +14,8 @@
  */
 
 #include "imxrt10xx.h"
-#include "pmap.h"
-#include "../../../interrupts.h"
+
+#include "../../../cpu.h"
 #include "../../../spinlock.h"
 
 #include "../../../../include/errno.h"

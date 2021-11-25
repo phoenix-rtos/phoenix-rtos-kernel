@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "pmap.h"
-#include "vm/map.h"
+#include "../../cpu.h"
+#include "../../spinlock.h"
 #include "../../include/arch/imx6ull.h"
 
 /* CCM registers */

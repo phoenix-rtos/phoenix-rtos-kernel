@@ -13,12 +13,10 @@
  * %LICENSE%
  */
 
-#include "pmap.h"
 #include "../../cpu.h"
 #include "../../interrupts.h"
 
 #include "../../proc/userintr.h"
-#include "../../include/errno.h"
 
 #define SIZE_INTERRUPTS 159
 #define SIZE_HANDLERS   4
@@ -155,7 +153,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
-		return -EINVAL;
+		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock[h->n], &sc);
 	_intr_add(&interrupts.handlers[h->n], h);
@@ -166,7 +164,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 	hal_spinlockClear(&interrupts.spinlock[h->n], &sc);
 
-	return EOK;
+	return 0;
 }
 
 
@@ -184,7 +182,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
-		return -EINVAL;
+		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock[h->n], &sc);
 	_intr_remove(&interrupts.handlers[h->n], h);
@@ -194,7 +192,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 	hal_spinlockClear(&interrupts.spinlock[h->n], &sc);
 
-	return EOK;
+	return 0;
 }
 
 

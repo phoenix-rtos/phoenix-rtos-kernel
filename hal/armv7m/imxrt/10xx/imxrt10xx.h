@@ -16,7 +16,7 @@
 #ifndef _HAL_IMXRT_H_
 #define _HAL_IMXRT_H_
 
-#include "pmap.h"
+
 #include <arch/types.h>
 
 /* iMXRT peripherals */

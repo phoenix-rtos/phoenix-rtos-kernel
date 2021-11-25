@@ -15,6 +15,8 @@
 
 #include "../stm32.h"
 #include "../stm32-timer.h"
+
+#include "../../../cpu.h"
 #include "../../../../include/errno.h"
 
 

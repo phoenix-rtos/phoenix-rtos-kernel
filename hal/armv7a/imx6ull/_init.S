@@ -16,7 +16,7 @@
 #define __ASSEMBLY__
 
 #include <arch/cpu.h>
-#include "pmap.h"
+#include <arch/pmap.h>
 #include "config.h"
 
 .extern pmap_common
