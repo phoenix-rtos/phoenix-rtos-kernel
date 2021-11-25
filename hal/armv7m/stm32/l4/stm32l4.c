@@ -17,6 +17,7 @@
 #include "../stm32-timer.h"
 
 #include "../../../cpu.h"
+#include "../../armv7m.h"
 #include "../../../../include/errno.h"
 
 

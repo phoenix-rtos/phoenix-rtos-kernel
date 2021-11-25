@@ -13,6 +13,7 @@
  * %LICENSE%
  */
 
+#include "../armv7a.h"
 #include "../../timer.h"
 #include "../../spinlock.h"
 

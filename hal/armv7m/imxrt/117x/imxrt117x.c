@@ -14,7 +14,7 @@
  */
 
 #include "imxrt117x.h"
-#include "../../cpu.h"
+#include "../../armv7m.h"
 #include "../../spinlock.h"
 #include "../../../include/errno.h"
 #include "../../../include/arch/imxrt1170.h"

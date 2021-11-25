@@ -18,7 +18,7 @@
 #endif
 
 #include "imxrt10xx.h"
-#include "../../../cpu.h"
+#include "../../armv7m.h"
 #include "../../../console.h"
 #include "../../../../include/arch/imxrt.h"
 

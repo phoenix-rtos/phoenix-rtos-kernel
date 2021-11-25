@@ -14,6 +14,7 @@
  */
 
 #include "../../cpu.h"
+#include "../armv7a.h"
 #include "../../spinlock.h"
 #include "../../include/arch/imx6ull.h"
 

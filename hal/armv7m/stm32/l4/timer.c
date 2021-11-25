@@ -14,6 +14,7 @@
  */
 
 #include "../config.h"
+#include "../../armv7m.h"
 #include "../../../timer.h"
 #include "../../../interrupts.h"
 #include "../../../spinlock.h"
