@@ -133,12 +133,7 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 
 void lib_putch(char s)
 {
-	char c[2];
-
-	c[0] = s;
-	c[1] = '\0';
-
-	hal_consolePrint(ATTR_NORMAL, c);
+	hal_consolePutch(s);
 }
 
 
@@ -307,6 +302,10 @@ int lib_printf(const char *format, ...)
 	char *sptr, *eptr;
 
 	va_start(ap, format);
+
+	s = CONSOLE_CYAN;
+	while (*s)
+		hal_consolePutch(*(s++));
 
 	for (;;) {
 		fmt = *format++;
@@ -481,6 +480,10 @@ handle_number:;
 	}
 
 end:
+	s = CONSOLE_NORMAL;
+	while (*s)
+		hal_consolePutch(*(s++));
+
 	va_end(ap);
 	return i;
 }

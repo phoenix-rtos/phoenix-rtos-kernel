@@ -33,33 +33,36 @@ enum { urxd = 0, utxd = 16, ucr1 = 32, ucr2, ucr3, ucr4, ufcr, usr1, usr2,
 extern unsigned int _end;
 
 
-static void _console_print(const char *s)
+static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++) {
-		/* Wait for transmitter readiness */
-		while (!(*(console_common.UART + usr1) & 0x2000));
+	for (; *s; s++)
+		hal_consolePutch(*s);
 
-		*(console_common.UART + utxd) = *s;
-	}
-
-	while (!(*(console_common.UART + usr1) & 0x2000));
+	while (!(*(console_common.UART + usr1) & 0x2000))
+		;
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD) {
-		_console_print("\033[1m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else if (attr != ATTR_USER) {
-		_console_print("\033[36m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else
-		_console_print(s);
+	if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
+	if (attr == ATTR_BOLD)
+		_hal_consolePrint(CONSOLE_BOLD);
+
+	_hal_consolePrint(s);
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
+	/* Wait for transmitter readiness */
+	while (!(*(console_common.UART + usr1) & 0x2000))
+		;
+
+	*(console_common.UART + utxd) = c;
 }
 
 
@@ -82,6 +85,6 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	*(console_common.UART + ubir) = 0x11ff;
 	*(console_common.UART + ubmr) = 0xc34f;
 
-	_console_print("\033[2J");
-	_console_print("\033[0;0f");
+	_hal_consolePrint("\033[2J");
+	_hal_consolePrint("\033[0;0f");
 }
