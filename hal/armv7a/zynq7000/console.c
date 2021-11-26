@@ -51,11 +51,10 @@ static void _hal_consolePrint(const char *s)
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr != ATTR_USER)
-		_hal_consolePrint(CONSOLE_CYAN);
-
 	if (attr == ATTR_BOLD)
 		_hal_consolePrint(CONSOLE_BOLD);
+	else if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
