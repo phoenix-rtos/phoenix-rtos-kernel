@@ -198,7 +198,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using gic interrupt controller", len);
+	hal_strncpy(features, "Using GIC interrupt controller", len);
 	features[len - 1] = 0;
 
 	return features;
