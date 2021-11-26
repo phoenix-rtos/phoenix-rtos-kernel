@@ -165,29 +165,37 @@ char *hal_cpuInfo(char *info)
 
 #ifdef CPU_STM32
 	cpuinfo = _stm32_cpuid();
-	hal_strcpy(info, "STM32 ");
-	i = 6;
 #elif defined(CPU_IMXRT)
 	cpuinfo = _imxrt_cpuid();
-	hal_strcpy(info, "i.MX RT ");
-	i = 8;
 #else
 	hal_strcpy(info, "unknown");
 	return info;
 #endif
-	if (((cpuinfo >> 24) & 0xff) == 0x41) {
-		hal_strcpy(info + i, "ARM ");
-		i += 4;
-	}
 
-	*(info + i++) = 'r';
-	*(info + i++) = '0' + ((cpuinfo >> 20) & 0xf);
-	*(info + i++) = ' ';
+	hal_strcpy(info, HAL_NAME_PLATFORM);
+	i = sizeof(HAL_NAME_PLATFORM) - 1;
+
+	if (((cpuinfo >> 24) & 0xff) == 0x41) {
+		hal_strcpy(info + i, "ARMv7 ");
+		i += 6;
+	}
 
 	if (((cpuinfo >> 4) & 0xfff) == 0xc23) {
 		hal_strcpy(info + i, "Cortex-M3 ");
 		i += 10;
 	}
+	else if (((cpuinfo >> 4) & 0xfff) == 0xc24) {
+		hal_strcpy(info + i, "Cortex-M4 ");
+		i += 10;
+	}
+	else if (((cpuinfo >> 4) & 0xfff) == 0xc27) {
+		hal_strcpy(info + i, "Cortex-M7 ");
+		i += 10;
+	}
+
+	*(info + i++) = 'r';
+	*(info + i++) = '0' + ((cpuinfo >> 20) & 0xf);
+	*(info + i++) = ' ';
 
 	*(info + i++) = 'p';
 	*(info + i++) = '0' + (cpuinfo & 0xf);
@@ -199,7 +207,34 @@ char *hal_cpuInfo(char *info)
 
 char *hal_cpuFeatures(char *features, unsigned int len)
 {
-	features[0] = '\0';
+	unsigned int n = 0;
+#ifdef CPU_IMXRT
+	if ((len - n) > 5) {
+		hal_strcpy(features + n, "FPU, ");
+		n += 5;
+	}
+#elif defined(CPU_STM32)
+	if ((len - n) > 8) {
+		hal_strcpy(features + n, "softfp, ");
+		n += 8;
+	}
+#endif
+	/* TODO: get region numbers from MPU controller */
+	if ((len - n) > 8) {
+		hal_strcpy(features + n, "MPU, ");
+		n += 5;
+	}
+
+	if ((len - n) > 7) {
+		hal_strcpy(features + n, "Thumb, ");
+		n += 7;
+	}
+
+	if (n > 0)
+		features[n - 2] = '\0';
+	else
+		features[0] = '\0';
+
 	return features;
 }
 

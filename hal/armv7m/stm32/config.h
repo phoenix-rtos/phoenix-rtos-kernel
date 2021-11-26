@@ -23,6 +23,8 @@
 #include "stm32.h"
 #include "stm32-timer.h"
 #include "../../include/arch/syspage-stm32.h"
+
+#define HAL_NAME_PLATFORM "STM32 "
 #endif
 
 #endif

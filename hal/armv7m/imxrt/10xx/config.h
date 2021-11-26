@@ -24,6 +24,8 @@
 #ifndef __ASSEMBLY__
 #include "imxrt10xx.h"
 #include "../../include/arch/syspage-imxrt.h"
+
+#define HAL_NAME_PLATFORM "NXP i.MX RT10xx "
 #endif
 
 #endif
