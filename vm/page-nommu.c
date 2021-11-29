@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "page.h"
 #include "../include/errno.h"
 #include "../lib/lib.h"

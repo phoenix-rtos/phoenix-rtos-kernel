@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "../include/errno.h"
 #include "mutex.h"
 #include "threads.h"

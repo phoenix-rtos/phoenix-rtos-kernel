@@ -16,7 +16,7 @@
 #ifndef _LIB_RB_H_
 #define _LIB_RB_H_
 
-//#include HAL
+//#include "../hal/hal.h"
 
 
 #define lib_treeof(type, node_field, node) ({					\

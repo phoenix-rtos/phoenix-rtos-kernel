@@ -16,7 +16,7 @@
 #ifndef _PROC_USERINTR_H_
 #define _PROC_USERINTR_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "resource.h"
 #include "cond.h"
 

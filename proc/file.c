@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "../include/errno.h"
 #include "threads.h"
 #include "cond.h"

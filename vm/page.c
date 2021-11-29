@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "page.h"
 #include "../include/errno.h"
 #include "../include/mman.h"
@@ -251,7 +251,7 @@ static unsigned int page_digits(unsigned int n, unsigned int base)
 
 	while (n /= base)
 		d++;
-	
+
 	return d;
 }
 

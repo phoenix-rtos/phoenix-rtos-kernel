@@ -16,7 +16,7 @@
 #ifndef _VM_MAP_H_
 #define _VM_MAP_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "../include/sysinfo.h"
 #include "../include/mman.h"
 #include "../lib/lib.h"

@@ -16,7 +16,7 @@
 #ifndef _POSIX_POSIX_PRIVATE_H_
 #define _POSIX_POSIX_PRIVATE_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "../include/posix.h"
 #include "../proc/proc.h"
 #include "posix.h"

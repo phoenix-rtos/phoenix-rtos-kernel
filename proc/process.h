@@ -17,7 +17,7 @@
 #ifndef _PROC_PROCESS_H_
 #define _PROC_PROCESS_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "../vm/vm.h"
 #include "lock.h"
 #include "../vm/amap.h"

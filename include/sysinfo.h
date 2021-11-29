@@ -16,10 +16,6 @@
 #ifndef _PHOENIX_SYSINFO_H_
 #define _PHOENIX_SYSINFO_H_
 
-#ifndef HAL
-#include <arch.h>
-#endif
-
 
 typedef struct _syspageprog_t {
 	char name[32];

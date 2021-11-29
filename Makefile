@@ -27,7 +27,7 @@ include ../phoenix-rtos-build/Makefile.common
 include ../phoenix-rtos-build/Makefile.$(TARGET_SUFF)
 
 CFLAGS += $(BOARD_CONFIG)
-CFLAGS += -I. -DHAL=\"hal/hal.h\" -DVERSION=\"$(VERSION)\"
+CFLAGS += -I. -DVERSION=\"$(VERSION)\"
 
 EXTERNAL_HEADERS_DIR := ./include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
