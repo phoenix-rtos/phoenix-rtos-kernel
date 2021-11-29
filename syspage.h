@@ -16,7 +16,7 @@
 #ifndef _SYSPAGE_H_
 #define _SYSPAGE_H_
 
-#include HAL
+#include "hal/hal.h"
 #include "include/syspage.h"
 
 

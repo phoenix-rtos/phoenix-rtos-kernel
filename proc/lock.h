@@ -16,7 +16,7 @@
 #ifndef _PROC_LOCK_H_
 #define _PROC_LOCK_H_
 
-#include HAL
+#include "../hal/hal.h"
 
 
 typedef struct _lock_t {

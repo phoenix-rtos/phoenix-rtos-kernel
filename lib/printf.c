@@ -16,7 +16,7 @@
 
 #include <stdarg.h>
 
-#include HAL
+#include "../hal/hal.h"
 
 
 /* Flags used for printing */

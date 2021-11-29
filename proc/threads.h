@@ -17,7 +17,7 @@
 #ifndef _PROC_THREADS_H_
 #define _PROC_THREADS_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "../lib/lib.h"
 #include "process.h"
 #include "lock.h"

@@ -17,7 +17,7 @@
 #ifndef _PROC_PROC_H_
 #define _PROC_PROC_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "threads.h"
 #include "process.h"
 #include "lock.h"

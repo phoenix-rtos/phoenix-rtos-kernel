@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "../proc/proc.h"
 #include "../syspage.h"
 

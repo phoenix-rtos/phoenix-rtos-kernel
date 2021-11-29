@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "hal/hal.h"
 #include "include/errno.h"
 #include "include/sysinfo.h"
 #include "include/mman.h"

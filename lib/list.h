@@ -16,7 +16,7 @@
 #ifndef _LIB_LIST_H_
 #define _LIB_LIST_H_
 
-#include HAL
+#include "../hal/hal.h"
 
 
 extern void lib_listAdd(void **list, void *t, size_t noff, size_t poff);
