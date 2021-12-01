@@ -16,7 +16,7 @@
 #include "../string.h"
 
 
-void *hal_memcpy(void *dst, const void *src, unsigned int l)
+void hal_memcpy(void *dst, const void *src, unsigned int l)
 {
 	__asm__ volatile
 	(" \
@@ -40,8 +40,6 @@ void *hal_memcpy(void *dst, const void *src, unsigned int l)
 	: "+r" (dst), "+r" (src), "+r" (l)
 	:
 	: "r3", "memory", "cc");
-
-	return dst;
 }
 
 
@@ -73,7 +71,7 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 }
 
 
-void *hal_memset(void *dst, int v, unsigned int l)
+void hal_memset(void *dst, int v, unsigned int l)
 {
 	unsigned int v1 = v & 0xff;
 	unsigned int tmp;
@@ -100,8 +98,6 @@ void *hal_memset(void *dst, int v, unsigned int l)
 	: "+r"(dst), "+r" (tmp), "+r" (l)
 	:
 	: "r3", "memory", "cc");
-
-	return dst;
 }
 
 
