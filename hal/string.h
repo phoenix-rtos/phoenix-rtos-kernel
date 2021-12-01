@@ -20,13 +20,13 @@
 #include <arch/types.h>
 
 
-extern void hal_memcpy(void *dst, const void *src, size_t l);
+extern void *hal_memcpy(void *dst, const void *src, size_t l);
 
 
 extern int hal_memcmp(const void *ptr1, const void *ptr2, size_t num);
 
 
-extern void hal_memset(void *dst, int v, size_t l);
+extern void *hal_memset(void *dst, int v, size_t l);
 
 
 extern size_t hal_strlen(const char *s);
@@ -42,6 +42,9 @@ extern char *hal_strcpy(char *dest, const char *src);
 
 
 extern char *hal_strncpy(char *dest, const char *src, size_t n);
+
+
+extern int hal_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero);
 
 
 #endif
