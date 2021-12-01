@@ -17,7 +17,7 @@
 #include "../string.h"
 
 
-void hal_memcpy(void *dst, const void *src, unsigned int l)
+void *hal_memcpy(void *dst, const void *src, unsigned int l)
 {
 	__asm__ volatile
 	(" \
@@ -41,6 +41,8 @@ void hal_memcpy(void *dst, const void *src, unsigned int l)
 	: "+r" (dst), "+r" (src), "+r" (l)
 	:
 	: "r3", "memory", "cc");
+
+	return dst;
 }
 
 
@@ -72,7 +74,7 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 }
 
 
-void hal_memset(void *dst, int v, unsigned int l)
+void *hal_memset(void *dst, int v, unsigned int l)
 {
 	unsigned int v1 = v & 0xff;
 	unsigned int tmp;
@@ -99,6 +101,8 @@ void hal_memset(void *dst, int v, unsigned int l)
 	: "+r"(dst), "+r" (tmp), "+r" (l)
 	:
 	: "r3", "memory", "cc");
+
+	return dst;
 }
 
 
@@ -222,4 +226,31 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 	: "r3", "memory", "cc");
 
 	return dest;
+}
+
+
+int hal_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero)
+{
+	static const char digits[] = "0123456789abcdef";
+	char c;
+	unsigned int l, k, m;
+
+	m = hal_strlen(prefix);
+	hal_memcpy(s, prefix, m);
+
+	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
+		if (!zero && !i)
+			break;
+		s[k++] = digits[i % b];
+	}
+
+	l = k--;
+
+	while (k > m) {
+		c = s[m];
+		s[m++] = s[k];
+		s[k--] = c;
+	}
+
+	return l;
 }
