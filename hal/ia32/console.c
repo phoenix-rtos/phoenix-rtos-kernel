@@ -14,10 +14,11 @@
  * %LICENSE%
  */
 
-#include "console.h"
-#include "string.h"
-#include "spinlock.h"
-#include "pmap.h"
+#include "../console.h"
+#include "../string.h"
+#include "../spinlock.h"
+#include "../pmap.h"
+#include "ia32.h"
 
 #include "../../include/errno.h"
 
@@ -43,6 +44,22 @@ struct {
 	u16 *vram;
 	void *crtc;
 } console;
+
+
+static void hal_memsetw(void *where, u16 v, unsigned int n)
+{
+	__asm__ volatile
+	(" \
+		cld; \
+		xorl %%eax, %%eax; \
+		movw %1, %%ax; \
+		movl %2, %%edi; \
+		movl %0, %%ecx; \
+		rep; stosw"
+	: "+d" (n)
+	: "g" (v), "m" (where)
+	: "eax", "ecx", "edi", "cc", "memory");
+}
 
 
 void hal_consolePrint(int attr, const char *s)
@@ -102,6 +119,11 @@ void hal_consolePrint(int attr, const char *s)
 	hal_spinlockClear(&console.spinlock, &sc);
 
 	return;
+}
+
+
+void hal_consolePutch(char c)
+{
 }
 
 

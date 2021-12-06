@@ -14,19 +14,37 @@
  * %LICENSE%
  */
 
-#include "spinlock.h"
-#include "console.h"
-#include "exceptions.h"
-#include "interrupts.h"
-#include "cpu.h"
-#include "pmap.h"
-#include "timer.h"
+#include "../spinlock.h"
+#include "../console.h"
+#include "../exceptions.h"
+#include "../interrupts.h"
+#include "../cpu.h"
+#include "../timer.h"
 #include "pci.h"
+#include "config.h"
 
 
 struct {
 	int started;
 } hal_common;
+
+
+hal_syspage_t *syspage;
+
+
+extern void _hal_cpuInit(void);
+
+
+void *hal_syspageRelocate(void *data)
+{
+	return data;
+}
+
+
+ptr_t hal_syspageAddr(void)
+{
+	return (ptr_t)syspage;
+}
 
 
 int hal_started(void)
@@ -41,15 +59,22 @@ void _hal_start(void)
 }
 
 
+void hal_wdgReload(void)
+{
+}
+
+
 __attribute__ ((section (".init"))) void _hal_init(void)
 {
+
 	_hal_spinlockInit();
 	_hal_consoleInit();
+
 
 	_hal_exceptionsInit();
 	_hal_interruptsInit();
 
-	_timer_init(SYSTICK_INTERVAL);
+	_hal_timerInit(SYSTICK_INTERVAL);
 	_hal_cpuInit();
 	_hal_pciInit();
 

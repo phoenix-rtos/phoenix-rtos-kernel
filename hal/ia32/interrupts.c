@@ -14,14 +14,13 @@
  * %LICENSE%
  */
 
-#include "interrupts.h"
-#include "spinlock.h"
-#include "syspage.h"
-#include "cpu.h"
-#include "pmap.h"
+#include "../interrupts.h"
+#include "../spinlock.h"
+#include "../cpu.h"
+#include "../pmap.h"
+#include "ia32.h"
 
 #include "../../proc/userintr.h"
-
 #include "../../include/errno.h"
 
 
@@ -186,9 +185,12 @@ __attribute__ ((section (".init"))) int _interrupts_setIDTEntry(unsigned int n, 
 	w0 |= IGBITS_DPL3 | IGBITS_PRES | IGBITS_SYSTEM | type;
 	w1 |= (SEL_KCODE << 16);
 
+/* TODO: add new syspage */
+#if 0
 	idtr = *(u32 **)&syspage->idtr[2];
 	idtr[n * 2 + 1] = w0;
 	idtr[n * 2] = w1;
+#endif
 
 	return EOK;
 }

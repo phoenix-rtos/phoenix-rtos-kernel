@@ -16,12 +16,49 @@
 
 #include "../../include/errno.h"
 #include "../../include/arch/ia32.h"
-#include "cpu.h"
-#include "spinlock.h"
-#include "syspage.h"
-#include "string.h"
-#include "pmap.h"
+#include "../cpu.h"
+#include "../spinlock.h"
+#include "../string.h"
+#include "../pmap.h"
 #include "pci.h"
+#include "ia32.h"
+
+
+struct cpu_feature_t {
+	const char *name;
+	u32 eax;
+	u8 reg;
+	u8 offset; /* eax, ebx, ecx, edx */
+};
+
+
+static const struct cpu_feature_t cpufeatures[] = {
+	{ "fpu", 1, 3, 0 },      /* x87 FPU insns */
+	{ "de", 1, 3, 2 },       /* debugging ext: CR4.DE, DR4 DR5 traps */
+	{ "pse", 1, 3, 3 },      /* 4MiB pages */
+	{ "tsc", 1, 3, 4 },      /* RDTSC insn */
+	{ "msr", 1, 3, 5 },      /* RDMSR/WRMSR insns */
+	{ "pae", 1, 3, 6 },      /* PAE */
+	{ "apic", 1, 3, 6 },     /* APIC present */
+	{ "cx8", 1, 2, 8 },      /* CMPXCHG8B insn */
+	{ "sep", 1, 2, 11 },     /* SYSENTER/SYSEXIT insns */
+	{ "mtrr", 1, 3, 12 },    /* MTRRs */
+	{ "pge", 1, 3, 13 },     /* global pages */
+	{ "cmov", 1, 3, 15 },    /* CMOV insn */
+	{ "pat", 1, 3, 16 },     /* PAT */
+	{ "pse36", 1, 3, 17 },   /* 4MiB pages can reach beyond 4GiB */
+	{ "psn", 1, 3, 18 },     /* CPU serial number enabled */
+	{ "clflush", 1, 3, 19 }, /* CLFLUSH insn */
+	{ "cx16", 1, 2, 13 },    /* CMPXCHG16B insn */
+	{ "dca", 1, 2, 18 },     /* prefetch from MMIO */
+	{ "xsave", 1, 2, 26 },   /* XSAVE/XRSTOR insns */
+	{ "smep", 7, 1, 7 },     /* SMEP */
+	{ "smap", 7, 1, 20 },    /* SMAP */
+	{ "nx", -1, 3, 20 },     /* page execute disable bit */
+	{
+		NULL,
+	}
+};
 
 
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
@@ -50,8 +87,8 @@ u32 cpu_getEFLAGS(void)
 	return eflags;
 }
 
-
-int hal_cpuDebugGuard(u32 enable, u32 slot)
+#ifndef NDEBUG
+static int hal_cpuDebugGuard(u32 enable, u32 slot)
 {
 	/* guard 4 bytes read/write */
 	u32 mask = (3 << (2 * slot)) | (0xf << (2 * slot + 16));
@@ -73,6 +110,7 @@ int hal_cpuDebugGuard(u32 enable, u32 slot)
 
 	return EOK;
 }
+#endif
 
 
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
@@ -198,7 +236,105 @@ void _hal_cpuSetKernelStack(void *kstack)
 }
 
 
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+{
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	char *ustack = (char *)ctx->esp;
+
+	PUTONSTACK(ustack, u32, ctx->eip);
+	PUTONSTACK(ustack, int, n);
+
+	ctx->eip = (u32)handler;
+	ctx->esp = (u32)ustack;
+
+	return 0;
+}
+
+
+void hal_longjmp(cpu_context_t *ctx)
+{
+	__asm__ volatile
+	(" \
+		cli; \
+		movl %0, %%eax;\
+		addl $4, %%eax;\
+		movl %%eax, %%esp;"
+#ifndef NDEBUG
+		"popl %%eax;\
+		movl %%eax, %%dr0;\
+		popl %%eax;\
+		movl %%eax, %%dr1;\
+		popl %%eax;\
+		movl %%eax, %%dr2;\
+		popl %%eax;\
+		movl %%eax, %%dr3;"
+#endif
+		"popl %%edi;\
+		popl %%esi;\
+		popl %%ebp;\
+		popl %%edx;\
+		popl %%ecx;\
+		popl %%ebx;\
+		popl %%eax;\
+		popw %%gs;\
+		popw %%fs;\
+		popw %%es;\
+		popw %%ds;\
+		iret"
+	:
+	:"g" (ctx));
+}
+
+
+void hal_jmp(void *f, void *kstack, void *stack, int argc)
+{
+	if (stack == NULL) {
+		__asm__ volatile
+		(" \
+			movl %0, %%esp;\
+			movl %1, %%eax;\
+			call *%%eax"
+		:
+		:"r" (kstack), "r" (f));
+	}
+	else {
+		__asm__ volatile
+		(" \
+			sti; \
+			movl %1, %%eax;\
+			movl %2, %%ebx;\
+			movl %3, %%ecx;\
+			movl %4, %%edx;\
+			movl %0, %%esp;\
+			pushl %%edx;\
+			pushl %%ebx;\
+			pushfl;\
+			pushl %%ecx;\
+			movw %%dx, %%ds;\
+			movw %%dx, %%es;\
+			movw %%dx, %%fs;\
+			movw %%dx, %%gs;\
+			pushl %%eax;\
+			iret"
+		:
+		:"g" (kstack), "g" (f), "g" (stack), "g" (SEL_UCODE), "g" (SEL_UDATA)
+		:"eax", "ebx", "ecx", "edx");
+	}
+}
+
+
 /* core management */
+
+
+static void hal_cpuid(u32 leaf, u32 index, u32 *ra, u32 *rb, u32 *rc, u32 *rd)
+{
+	__asm__ volatile
+	(" \
+		cpuid"
+	: "=a" (*ra), "=b" (*rb), "=c" (*rc), "=d" (*rd)
+	: "a" (leaf), "c" (index)
+	: "memory");
+}
 
 
 unsigned int hal_cpuGetCount(void)
@@ -207,8 +343,49 @@ unsigned int hal_cpuGetCount(void)
 }
 
 
-void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
+static inline unsigned int _hal_cpuGetID(void)
 {
+	u32 id;
+
+	__asm__ volatile
+	(" \
+		movl (0xfee00020), %0"
+	: "=r" (id));
+
+	return id;
+}
+
+
+unsigned int hal_cpuGetID(void)
+{
+	u32 id = _hal_cpuGetID();
+
+	return (id == 0xffffffff) ? 0 : (id >> 24);
+}
+
+
+void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+{
+	if (_hal_cpuGetID() == 0xffffffff)
+		return;
+
+	__asm__ volatile
+	(" \
+		movl %0, %%eax; \
+		orl $0x000c4000, %%eax; \
+		movl %%eax, (0xfee00300); \
+	b0:; \
+		btl $12, (0xfee00300); \
+		jc b0"
+	:
+	:  "r" (intr));
+}
+
+
+static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
+{
+/* TODO: add new syspage */
+#if 0
 	u32 descrl, descrh;
 	u32 *gdt;
 
@@ -227,6 +404,7 @@ void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 	gdt[idx * 2 + 1] = descrh;
 
 	return;
+#endif
 }
 
 
@@ -253,8 +431,10 @@ void *_cpu_initCore(void)
 }
 
 
-void _hal_cpuInitCores(void)
+static void _hal_cpuInitCores(void)
 {
+/* TODO: add new syspage */
+#if 0
 	unsigned int i, k;
 
 	/* Prepare descriptors for user segments */
@@ -275,6 +455,7 @@ void _hal_cpuInitCores(void)
 		if (i >= 50000000)
 			break;
 	}
+#endif
 }
 
 
@@ -315,42 +496,6 @@ char *hal_cpuInfo(char *info)
 	return info;
 }
 
-
-struct cpu_feature_t {
-	const char *name;
-	u32 eax;
-	u8 reg;
-	u8 offset; /* eax, ebx, ecx, edx */
-};
-
-
-static const struct cpu_feature_t cpufeatures[] = {
-	{ "fpu", 1, 3, 0 },      /* x87 FPU insns */
-	{ "de", 1, 3, 2 },       /* debugging ext: CR4.DE, DR4 DR5 traps */
-	{ "pse", 1, 3, 3 },      /* 4MiB pages */
-	{ "tsc", 1, 3, 4 },      /* RDTSC insn */
-	{ "msr", 1, 3, 5 },      /* RDMSR/WRMSR insns */
-	{ "pae", 1, 3, 6 },      /* PAE */
-	{ "apic", 1, 3, 6 },     /* APIC present */
-	{ "cx8", 1, 2, 8 },      /* CMPXCHG8B insn */
-	{ "sep", 1, 2, 11 },     /* SYSENTER/SYSEXIT insns */
-	{ "mtrr", 1, 3, 12 },    /* MTRRs */
-	{ "pge", 1, 3, 13 },     /* global pages */
-	{ "cmov", 1, 3, 15 },    /* CMOV insn */
-	{ "pat", 1, 3, 16 },     /* PAT */
-	{ "pse36", 1, 3, 17 },   /* 4MiB pages can reach beyond 4GiB */
-	{ "psn", 1, 3, 18 },     /* CPU serial number enabled */
-	{ "clflush", 1, 3, 19 }, /* CLFLUSH insn */
-	{ "cx16", 1, 2, 13 },    /* CMPXCHG16B insn */
-	{ "dca", 1, 2, 18 },     /* prefetch from MMIO */
-	{ "xsave", 1, 2, 26 },   /* XSAVE/XRSTOR insns */
-	{ "smep", 7, 1, 7 },     /* SMEP */
-	{ "smap", 7, 1, 20 },    /* SMAP */
-	{ "nx", -1, 3, 20 },     /* page execute disable bit */
-	{
-		NULL,
-	}
-};
 
 
 char *hal_cpuFeatures(char *features, unsigned int len)
