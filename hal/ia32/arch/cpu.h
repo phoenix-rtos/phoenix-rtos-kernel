@@ -238,7 +238,7 @@ static inline void hal_cpuGetCycles(cycles_t *cb)
 /* bit operations */
 
 
-static inline unsigned int hal_cpuGetLastBit(u32 v)
+static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	int lb;
 
@@ -257,7 +257,7 @@ static inline unsigned int hal_cpuGetLastBit(u32 v)
 }
 
 
-static inline unsigned int hal_cpuGetFirstBit(u32 v)
+static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	int fb;
 

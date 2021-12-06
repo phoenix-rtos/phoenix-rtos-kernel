@@ -46,10 +46,10 @@ extern void hal_cpuGetCycles(cycles_t *cb);
 
 /* bit operations */
 
-extern unsigned int hal_cpuGetLastBit(const u32 v);
+extern unsigned int hal_cpuGetLastBit(unsigned long v);
 
 
-extern unsigned int hal_cpuGetFirstBit(const u32 v);
+extern unsigned int hal_cpuGetFirstBit(unsigned long v);
 
 
 /* context management */
@@ -67,7 +67,7 @@ extern void *hal_cpuGetGot(void);
 extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg);
 
 
-extern int hal_cpuReschedule(struct _spinlock_t *spinlock, u32 *scp);
+extern int hal_cpuReschedule(struct _spinlock_t *spinlock, spinlock_ctx_t *scp);
 
 
 extern void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next);
