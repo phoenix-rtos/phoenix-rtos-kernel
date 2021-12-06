@@ -16,8 +16,7 @@
 #ifndef _HAL_SBI_H_
 #define _HAL_SBI_H_
 
-#include "../../include/errno.h"
-#include "cpu.h"
+#include <arch/types.h>
 
 #define SBI_SETTIMER                0
 #define SBI_PUTCHAR                 1

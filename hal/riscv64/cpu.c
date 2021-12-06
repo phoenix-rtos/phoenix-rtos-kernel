@@ -14,11 +14,11 @@
  */
 
 #include "../../include/errno.h"
-#include "cpu.h"
-#include "spinlock.h"
-#include "syspage.h"
-#include "string.h"
-#include "pmap.h"
+#include "../cpu.h"
+#include "../spinlock.h"
+#include "../string.h"
+#include "../pmap.h"
+#include "riscv64.h"
 #include "dtb.h"
 
 
@@ -29,6 +29,84 @@ int hal_platformctl(void *ptr)
 {
 	return EOK;
 }
+
+
+/* bit operations */
+
+/* TODO: use clz/ctz instructions */
+unsigned int hal_cpuGetLastBit(unsigned long v)
+{
+	int lb = 63;
+
+	if (!(v & 0xffffffff00000000L)) {
+		lb -= 32;
+		v = (v << 32);
+	}
+
+	if (!(v & 0xffff000000000000)) {
+		lb -= 16;
+		v = (v << 16);
+	}
+
+	if (!(v & 0xff00000000000000)) {
+		lb -= 8;
+		v = (v << 8);
+	}
+
+	if (!(v & 0xf000000000000000)) {
+		lb -= 4;
+		v = (v << 4);
+	}
+
+	if (!(v & 0xc000000000000000)) {
+		lb -= 2;
+		v = (v << 2);
+	}
+
+	if (!(v & 0x8000000000000000))
+		lb -= 1;
+
+	return lb;
+}
+
+
+unsigned int hal_cpuGetFirstBit(unsigned long v)
+{
+	int fb = 0;
+
+	if (!(v & 0xffffffffL)) {
+		fb += 32;
+		v = (v >> 32);
+	}
+
+	if (!(v & 0xffff)) {
+		fb += 16;
+		v = (v >> 16);
+	}
+
+	if (!(v & 0xff)) {
+		fb += 8;
+		v = (v >> 8);
+	}
+
+	if (!(v & 0xf)) {
+		fb += 4;
+		v = (v >> 4);
+	}
+
+	if (!(v & 0x3)) {
+		fb += 2;
+		v = (v >> 2);
+	}
+
+	if (!(v & 0x01))
+		fb += 1;
+
+	return fb;
+}
+
+
+/* context management */
 
 
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)

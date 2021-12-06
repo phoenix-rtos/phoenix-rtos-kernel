@@ -13,17 +13,15 @@
  * %LICENSE%
  */
 
-#include "interrupts.h"
-#include "spinlock.h"
-#include "syspage.h"
-#include "cpu.h"
-#include "pmap.h"
+#include "../interrupts.h"
+#include "../spinlock.h"
+#include "../cpu.h"
 #include "sbi.h"
 #include "plic.h"
 #include "dtb.h"
+#include "riscv64.h"
 
 #include "../../proc/userintr.h"
-
 #include "../../include/errno.h"
 
 
@@ -154,7 +152,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 __attribute__((aligned(4))) void handler(cpu_context_t *ctx)
 {
-	cycles_t c, d;
+	cycles_t c;
 
 	c = hal_cpuGetCycles2();
 

@@ -13,9 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_PMAP_H_
-#define _HAL_PMAP_H_
-
+#ifndef _HAL_RISCV64_PMAP_H_
+#define _HAL_RISCV64_PMAP_H_
 
 /* Predefined virtual addresses */
 #define VADDR_KERNEL   0x0000003fc0000000L   /* base virtual address of kernel space */
@@ -59,7 +58,7 @@
 
 #ifndef __ASSEMBLY__
 
-#include "cpu.h"
+#include "types.h"
 
 
 #define SIZE_PDIR SIZE_PAGE
@@ -83,57 +82,6 @@ typedef struct _pmap_t {
 	void *pmapv;
 	page_t *pmapp;
 } pmap_t;
-
-
-static inline int pmap_belongs(pmap_t *pmap, void *addr)
-{
-	return addr >= pmap->start && addr < pmap->end;
-}
-
-
-extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
-
-
-extern addr_t pmap_destroy(pmap_t *pmap, int *i);
-
-
-extern void pmap_switch(pmap_t *pmap);
-
-
-extern int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, int attrs, page_t *alloc);
-
-
-/* Function removes mapping for given address */
-extern int pmap_remove(pmap_t *pmap, void *vaddr);
-
-
-extern addr_t pmap_resolve(pmap_t *pmap, void *vaddr);
-
-
-extern int pmap_getPage(page_t *page, addr_t *addr);
-
-
-/* Function return character marker for page flags */
-extern char pmap_marker(page_t *p);
-
-
-/* Function allocates page tables for kernel space */
-extern int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp);
-
-
-extern int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top);
-
-
-extern int pmap_getMapsCnt(void);
-
-
-extern int pmap_getMapParameters(u8 id, void **start, void **end);
-
-
-extern void pmap_getAllocatedSegment(void *memStart, void *memStop, void **segStart, void **segStop);
-
-
-extern void _pmap_init(pmap_t *pmap, void **start, void **end);
 
 #endif
 
