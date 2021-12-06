@@ -13,9 +13,7 @@
  * %LICENSE%
  */
 
-#include "hal.h"
-#include "pmap.h"
-
+#include "plic.h"
 
 #include "../../include/errno.h"
 

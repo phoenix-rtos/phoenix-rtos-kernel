@@ -13,10 +13,8 @@
  * %LICENSE%
  */
 
-#include "console.h"
-#include "cpu.h"
-#include "syspage.h"
-#include "spinlock.h"
+#include "../console.h"
+#include "../spinlock.h"
 #include "sbi.h"
 
 
@@ -25,33 +23,31 @@ struct {
 } console_common;
 
 
-void _console_print(const char *s)
+void _hal_consolePrint(const char *s)
 {
-
 	for (; *s; s++)
-		sbi_ecall(1, 0, *s, 0, 0, 0, 0, 0);
+		hal_consolePutch(*s);
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
+	if (attr == ATTR_BOLD)
+		_hal_consolePrint(CONSOLE_BOLD);
+	else if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
+	_hal_consolePrint(s);
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&console_common.spinlock, &sc);
-
-	if (attr == ATTR_BOLD) {
-		_console_print("\033[1m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else if (attr != ATTR_USER) {
-		_console_print("\033[36m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else
-		_console_print(s);
-
+	sbi_ecall(1, 0, c, 0, 0, 0, 0, 0);
 	hal_spinlockClear(&console_common.spinlock, &sc);
 }
 

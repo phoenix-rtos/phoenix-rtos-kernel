@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#include "pmap.h"
-#include "syspage.h"
-#include "spinlock.h"
-#include "string.h"
-#include "console.h"
+#include "../pmap.h"
+#include "../spinlock.h"
+#include "../string.h"
+#include "../console.h"
+#include "riscv64.h"
 #include "dtb.h"
 #include "lib/lib.h"
 
@@ -43,8 +43,10 @@ struct {
 
 u64 iopdir[512];
 
+/* TODO: add new syspage */
+#if 0
 	syspage_t pmap_syspage;
-
+#endif
 	/* second pdir for mapping I/O - first 1 GB of memory is mapped linearly at the end of address space */
 
 
@@ -275,6 +277,8 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	page->addr = a;
 	page->flags = 0;
 
+/* TODO: add new syspage */
+#if 0
 	if ((page->addr >= syspage->kernel) && (page->addr < syspage->kernel + syspage->kernelsize)) {
 		page->flags |= PAGE_OWNER_KERNEL;
 
@@ -291,6 +295,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		page->flags |= PAGE_FREE;
 	}
 	*addr = a + SIZE_PAGE;
+#endif
 
 	return EOK;
 }
@@ -342,14 +347,12 @@ char pmap_marker(page_t *p)
 /* Function initializes low-level page mapping interface */
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	void *v;
 	struct {
 		u64 addr;
 		u64 limit;
 	} *m, *r;
 	size_t n, i;
 	u64 a, l;
-	u64 e = (u64)_end;
 
 	dtb_getMemory((u64 **)&m, &n);
 	dtb_getReservedMemory((u64 **)&r);
@@ -370,6 +373,11 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 		if (a < pmap_common.minAddr)
 			pmap_common.minAddr = a;
 	}
+
+/* TODO: add new syspage */
+#if 0
+	void *v;
+	u64 e = (u64)_end;
 
 	/* Initialize kernel page table - remove first 4 MB mapping */
 	pmap->pdir2 = pmap_common.pdir2;
@@ -395,6 +403,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	for (v = *vend; v < (void *)VADDR_KERNEL + (2 << 20); v += SIZE_PAGE)
 		pmap_remove(pmap, v);
+#endif
 
 	hal_cpuFlushTLB(NULL);
 
@@ -445,6 +454,8 @@ void _pmap_preinit(void)
 {
 	unsigned int i;
 
+/* TODO: add new syspage */
+#if 0
 	/* Initialize syspage with zeros */
 	hal_memset(&pmap_common.pmap_syspage, 0, sizeof(syspage_t));
 
@@ -454,6 +465,7 @@ void _pmap_preinit(void)
 	syspage->pdir2 = (u64)pmap_common.pdir2;
 	syspage->stack = (u64)pmap_common.stack;
 	syspage->stacksz = SIZE_PAGE;
+#endif
 
 	/* pmap_common.pdir2[(VADDR_KERNEL >> 30) % 512] = ((((u64)_start >> 30) << 28) | 0xcf); */
 

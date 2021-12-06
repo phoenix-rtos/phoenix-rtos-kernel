@@ -14,42 +14,10 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_BASE_H_
-#define _HAL_BASE_H_
-
-#ifndef __ASSEMBLY__
-
-#include "cpu.h"
+#include "../string.h"
 
 
-extern void *hal_memcpy(void *to, const void *from, unsigned int n);
-
-
-extern void hal_memset(void *where, u8 v, unsigned int n);
-
-
-static inline void hal_memsetw(void *where, u16 v, unsigned int n)
-{
-#if 0
-	__asm__ volatile
-	(" \
-		cld; \
-		xorl %%eax, %%eax; \
-		movw %1, %%ax; \
-		movl %2, %%edi; \
-		movl %0, %%ecx; \
-		rep; stosw"
-	: "+d" (n)
-	: "g" (v), "m" (where)
-	: "eax", "ecx", "edi", "cc", "memory");
-#endif
-}
-
-
-#endif
-
-
-static inline int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
+int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
 	int i;
 
@@ -64,16 +32,18 @@ static inline int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 }
 
 
-static inline unsigned int hal_strlen(const char *s)
+size_t hal_strlen(const char *s)
 {
-	unsigned int k;
+	size_t k;
 
-	for (k = 0; *s; s++, k++);
+	for (k = 0; *s; s++, k++)
+		;
+
 	return k;
 }
 
 
-static inline int hal_strcmp(const char *s1, const char *s2)
+int hal_strcmp(const char *s1, const char *s2)
 {
 	const char *p;
 	unsigned int k;
@@ -93,9 +63,9 @@ static inline int hal_strcmp(const char *s1, const char *s2)
 }
 
 
-static inline int hal_strncmp(const char *s1, const char *s2, unsigned int count)
+int hal_strncmp(const char *s1, const char *s2, size_t count)
 {
-	unsigned int k;
+	size_t k;
 
 	for (k = 0; k < count && *s1 && *s2 && (*s1 == *s2); ++k, ++s1, ++s2);
 
@@ -106,7 +76,7 @@ static inline int hal_strncmp(const char *s1, const char *s2, unsigned int count
 }
 
 
-static inline char *hal_strcpy(char *dest, const char *src)
+char *hal_strcpy(char *dest, const char *src)
 {
 	int i = 0;
 
@@ -118,9 +88,12 @@ static inline char *hal_strcpy(char *dest, const char *src)
 }
 
 
-static inline char *hal_strncpy(char *dest, const char *src, size_t n)
+char *hal_strncpy(char *dest, const char *src, size_t n)
 {
 	int i = 0;
+
+	if (n == 0)
+		return dest;
 
 	do {
 		dest[i] = src[i];
@@ -131,9 +104,9 @@ static inline char *hal_strncpy(char *dest, const char *src, size_t n)
 }
 
 
-static inline unsigned int hal_i2s(char *prefix, char *s, unsigned long i, unsigned char b, char zero)
+int hal_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero)
 {
-	char digits[] = "0123456789abcdef";
+	static const char digits[] = "0123456789abcdef";
 	char c;
 	unsigned int k, m;
 	unsigned long l;
@@ -157,6 +130,3 @@ static inline unsigned int hal_i2s(char *prefix, char *s, unsigned long i, unsig
 
 	return l;
 }
-
-
-#endif
