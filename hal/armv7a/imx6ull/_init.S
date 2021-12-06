@@ -348,12 +348,6 @@ _start:
 
 	/* WARNING: R7 - can't touch this until MMU enable */
 
-	/* Clear PERSIST_SECONDARY_BOOT bit */
-	ldr r0, =0x020d8044
-	ldr r1, [r0]
-	bic r1, r1, #(1 << 30)
-	str r1, [r0]
-
 	/* Enable PMU cycle counter */
 	mrc p15, 0, r0, c9, c12, 0
 	orr r0, #0x7
