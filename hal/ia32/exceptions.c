@@ -14,13 +14,13 @@
  * %LICENSE%
  */
 
-#include "exceptions.h"
-#include "syspage.h"
-#include "cpu.h"
-#include "spinlock.h"
-#include "console.h"
-#include "string.h"
+#include "../exceptions.h"
+#include "../cpu.h"
+#include "../spinlock.h"
+#include "../console.h"
+#include "../string.h"
 
+#include "../../include/mman.h"
 #include "../../include/errno.h"
 
 
@@ -67,6 +67,43 @@ struct {
 	void (*defaultHandler)(unsigned int, exc_context_t *);
 	spinlock_t lock;
 } exceptions;
+
+
+int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+{
+	int prot = PROT_NONE;
+
+	if (ctx->err & 1)
+		prot |= PROT_READ;
+
+	if (ctx->err & 2)
+		prot |= PROT_WRITE;
+
+	if (ctx->err & 4)
+		prot |= PROT_USER;
+
+	return prot;
+}
+
+
+void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
+{
+	u32 cr2;
+
+	__asm__ volatile
+	("movl %%cr2, %0"
+	:"=r" (cr2)
+	:
+	:"eax");
+
+	return (void *)cr2;
+}
+
+
+ptr_t hal_exceptionsPC(exc_context_t *ctx)
+{
+	return ctx->eip;
+}
 
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
@@ -195,9 +232,12 @@ __attribute__ ((section (".init"))) void _exceptions_setIDTStub(unsigned int n, 
 	w0 |= IGBITS_DPL3 | IGBITS_PRES | IGBITS_SYSTEM | IGBITS_IRQEXC;
 	w1 |= (SEL_KCODE << 16);
 
+/* TODO: add new syspage */
+#if 0
 	idtr = *(u32 **)&syspage->idtr[2];
 	idtr[n * 2 + 1] = w0;
 	idtr[n * 2] = w1;
+#endif
 
 	return;
 }

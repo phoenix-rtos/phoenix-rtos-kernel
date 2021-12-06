@@ -13,9 +13,8 @@
  * %LICENSE%
  */
 
-#include "console.h"
-#include "cpu.h"
-#include "syspage.h"
+#include "../console.h"
+#include "ia32.h"
 
 
 struct {
@@ -50,37 +49,39 @@ static inline u8 _console_uartRead(unsigned int reg)
 }
 
 
-static void _console_print(const char *s)
+static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++) {
-
-		/* Wait for transmitter readiness */
-		while (!(_console_uartRead(lsr) & 0x20));
-
-		_console_uartWrite(thr, *s);
-	}
+	for (; *s; s++)
+		hal_consolePutch(*s);
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD) {
-		_console_print("\033[1m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else if (attr != ATTR_USER) {
-		_console_print("\033[36m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else
-		_console_print(s);
+	if (attr == ATTR_BOLD)
+		_hal_consolePrint(CONSOLE_BOLD);
+	else if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
+	_hal_consolePrint(s);
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
+	/* Wait for transmitter readiness */
+	while (!(_console_uartRead(lsr) & 0x20))
+		;
+
+	_console_uartWrite(thr, c);
 }
 
 
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
+/* TODO: add new syspage */
+#if 0
 	void *bases[] = {
 		(void *)0x3f8, (void *)0x2f8, (void *)0x3e8, (void *)0x2e8,   /* regular PC COMs */
 		(void *)0x9000f000u, (void *)0x9000b000u                      /* Galileo UARTs */
@@ -102,6 +103,7 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 		pmap_enter(console_common.base[syspage->console], top);
 		*/
 	}
+#endif
 
 	/* 115200 8n1 */
 	_console_uartWrite(lcr, 0x80);
