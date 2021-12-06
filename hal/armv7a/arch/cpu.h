@@ -123,7 +123,7 @@ static inline void hal_cpuHalt(void)
 }
 
 
-static inline unsigned int hal_cpuGetLastBit(const u32 v)
+static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	int pos;
 
@@ -133,7 +133,7 @@ static inline unsigned int hal_cpuGetLastBit(const u32 v)
 }
 
 
-static inline unsigned int hal_cpuGetFirstBit(const u32 v)
+static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned pos;
 
