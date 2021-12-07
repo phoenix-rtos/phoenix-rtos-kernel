@@ -68,7 +68,7 @@ struct {
 } imx6ull_common;
 
 /* saved in _init_imx6ull.S */
-unsigned imx6ull_bootReason;
+u32 imx6ull_bootReason;
 
 
 static int _imx6ull_isValidDev(int dev)
@@ -393,6 +393,7 @@ int hal_platformctl(void *ptr)
 			}
 		}
 		else if (data->action == pctl_get) {
+			/* [src_gpt10[31:24]] [wdog_wrsr[7:0]] [src_srsr[15:8]] [src_srsr[7:0]] */
 			data->reboot.reason = imx6ull_bootReason;
 			ret = EOK;
 		}
@@ -426,4 +427,8 @@ void _hal_platformInit(void)
 
 	/* kick watchdog power down counter */
 	*(imx6ull_common.wdog + wdog_wmcr) = 0;
+
+	/* copy watchdog Reset Status Register to bootreason[23:16] */
+	imx6ull_bootReason &= 0xff00ffffu;
+	imx6ull_bootReason |= *(imx6ull_common.wdog + wdog_wrsr) << 16;
 }
