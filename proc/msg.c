@@ -310,10 +310,15 @@ int proc_send(u32 port, msg_t *msg)
 	thread_t *sender;
 	spinlock_ctx_t sc;
 
+	if (msg == NULL)
+		return -EINVAL;
+
 	if ((p = proc_portGet(port)) == NULL)
 		return -EINVAL;
 
 	sender = proc_current();
+
+	/* TODO - check if msg pointer belongs to user vm_map */
 
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
 	kmsg.src = sender->process;
