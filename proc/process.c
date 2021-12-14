@@ -807,22 +807,24 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	}
 	else {
 		hal_spinlockSet(&spawn->sl, &sc);
-		spawn->state = err == EOK ? FORKED : err;
+		spawn->state = FORKED;
 		proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
+	}
+
+	if (err < 0) {
+		current->process->exit = err;
+		proc_threadEnd();
 	}
 
 	hal_cpuDisableInterrupts();
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 	hal_cpuSetGot(current->process->got);
 
-	if (err < 0)
-		proc_threadEnd();
-	else
 #ifdef TARGET_RISCV64
-		hal_jmp(entry, current->kstack + current->kstacksz, stack, 3);
+	hal_jmp(entry, current->kstack + current->kstacksz, stack, 3);
 #else
-		hal_jmp(entry, current->kstack + current->kstacksz, stack, 0);
+	hal_jmp(entry, current->kstack + current->kstacksz, stack, 0);
 #endif
 }
 
@@ -959,10 +961,16 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 	current->process->mapp = NULL;
 	current->process->pmapp = NULL;
 
-	hal_spinlockSet(&spawn->sl, &sc);
-	spawn->state = state;
-	proc_threadWakeup(&spawn->wq);
-	hal_spinlockClear(&spawn->sl, &sc);
+	if (spawn->parent == NULL) {
+		hal_spinlockDestroy(&spawn->sl);
+		vm_objectPut(spawn->object);
+	}
+	else {
+		hal_spinlockSet(&spawn->sl, &sc);
+		spawn->state = state;
+		proc_threadWakeup(&spawn->wq);
+		hal_spinlockClear(&spawn->sl, &sc);
+	}
 
 	proc_kill(current->process);
 	proc_threadEnd();
