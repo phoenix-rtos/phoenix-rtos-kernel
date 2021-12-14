@@ -16,13 +16,13 @@
 #define _DMESG_H_
 
 
+extern int klog_write(const char *data, size_t len);
+
+
 extern void _klog_init(void);
 
 
 extern void _klog_initSrv(void);
-
-
-extern int klog_write(const char *data, size_t len);
 
 
 #endif /* _DMESG_H_ */

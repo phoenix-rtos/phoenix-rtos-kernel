@@ -34,7 +34,8 @@
 
 
 typedef struct klog_reader {
-	msg_t msg;
+	void *odata;
+	size_t osize;
 	offs_t ridx;
 	unsigned long rid;
 	unsigned pid;
@@ -120,12 +121,10 @@ static int klog_readerAdd(unsigned pid, unsigned nonblocking)
 	if ((r = vm_kmalloc(sizeof(klog_reader_t))) == NULL)
 		return -ENOMEM;
 
-	r->next = NULL;
-	r->prev = NULL;
+	hal_memset(r, 0, sizeof(klog_reader_t));
+
 	r->nonblocking = !!nonblocking;
 	r->pid = pid;
-	r->waiting = 0;
-	hal_memset(&r->msg, 0, sizeof(msg_t));
 
 	proc_lockSet(&klog_common.lock);
 	r->ridx = klog_common.head;
@@ -139,13 +138,19 @@ static int klog_readerAdd(unsigned pid, unsigned nonblocking)
 static int _klog_readln(klog_reader_t *r, char *buf, size_t sz)
 {
 	size_t n = 0;
-	char c;
 
 	while (r->ridx < klog_common.tail && n < sz) {
-		c = _fifo_get(r->ridx++);
-		buf[n++] = c;
-		if (c == '\n' || c == '\0')
+		buf[n++] = _fifo_get(r->ridx++);
+		if (buf[n - 1] == '\n' || buf[n - 1] == '\0')
 			break;
+	}
+
+	/* Always end with newline */
+	if (n > 0 && buf[n - 1] != '\n') {
+		if (n < sz)
+			buf[n++] = '\n';
+		else
+			buf[n - 1] = '\n';
 	}
 
 	return n;
@@ -172,13 +177,19 @@ static int klog_read(klog_reader_t *r, char *buf, size_t sz)
 static void _klog_updateReaders(void)
 {
 	klog_reader_t *r = klog_common.readers;
+	msg_t msg;
+
+	msg.type = mtRead;
 
 	if (r != NULL) {
 		do {
 			if (r->waiting) {
-				r->msg.o.io.err = _klog_readln(r, r->msg.o.data, r->msg.o.size);
+				msg.pid = r->pid;
+				msg.o.data = r->odata;
+				msg.o.size = r->osize;
+				msg.o.io.err = _klog_readln(r, msg.o.data, msg.o.size);
 				r->waiting = 0;
-				proc_respond(0, &r->msg, r->rid);
+				proc_respond(0, &msg, r->rid);
 			}
 			r = r->next;
 		} while (r != klog_common.readers);
@@ -189,12 +200,17 @@ static void _klog_updateReaders(void)
 static void klog_close(unsigned pid)
 {
 	klog_reader_t *r;
+	msg_t msg;
 
+	msg.type = mtRead;
 	proc_lockSet(&klog_common.lock);
 	if ((r = klog_readerFind(pid)) != NULL) {
 		if (r->waiting) {
-			r->msg.o.io.err = -EINVAL;
-			proc_respond(klog_common.port, &r->msg, r->rid);
+			msg.pid = r->pid;
+			msg.o.data = r->odata;
+			msg.o.size = r->osize;
+			msg.o.io.err = -EIO;
+			proc_respond(klog_common.port, &msg, r->rid);
 		}
 		LIST_REMOVE(&klog_common.readers, r);
 		vm_kfree(r);
@@ -221,14 +237,13 @@ static int klog_devctl(msg_t *msg)
 		out->err = -EINVAL;
 	}
 
-	out->err = 0;
-
 	return 0;
 }
 
 
 int klog_write(const char *data, size_t len)
 {
+#if KLOG_ENABLE
 	int i = 0, overwrite = 0;
 	char c;
 
@@ -251,8 +266,20 @@ int klog_write(const char *data, size_t len)
 
 	_klog_updateReaders();
 	proc_lockClear(&klog_common.lock);
+#else
+	hal_consolePrint(ATTR_NORMAL, data);
+#endif /* KLOG_ENABLE */
 
 	return len;
+}
+
+
+static void klog_readerBlock(klog_reader_t *r, msg_t *msg, unsigned long rid)
+{
+	r->waiting = 1;
+	r->odata = msg->o.data;
+	r->osize = msg->o.size;
+	r->rid = rid;
 }
 
 
@@ -262,7 +289,6 @@ static void msgthr(void *arg)
 	klog_reader_t *r;
 	unsigned long int rid;
 	int respond;
-	int ret;
 
 	for (;;) {
 		if (proc_recv(klog_common.port, &msg, &rid) != 0)
@@ -281,20 +307,13 @@ static void msgthr(void *arg)
 					msg.o.io.err = -EINVAL;
 				}
 				else {
-					ret = klog_read(r, msg.o.data, msg.o.size);
-					if (ret == 0) {
-						if (!r->nonblocking) {
-							r->waiting = 1;
-							hal_memcpy(&r->msg, &msg, sizeof(msg));
-							r->rid = rid;
-							respond = 0;
-						}
-						else {
-							msg.o.io.err = -EWOULDBLOCK;
-						}
+					msg.o.io.err = klog_read(r, msg.o.data, msg.o.size);
+					if (msg.o.io.err == 0 && !r->nonblocking) {
+						respond = 0;
+						klog_readerBlock(r, &msg, rid);
 					}
-					else {
-						msg.o.io.err = ret;
+					else if (msg.o.io.err == 0 && r->nonblocking) {
+						msg.o.io.err = -EAGAIN;
 					}
 				}
 				break;
@@ -319,9 +338,11 @@ static void msgthr(void *arg)
 
 void _klog_initSrv(void)
 {
+#if KLOG_ENABLE
 	/* Create port 0 for /dev/kmsg */
 	if (proc_portCreate(&klog_common.port) != 0)
 		return;
 
 	proc_threadCreate(NULL, msgthr, NULL, 4, 2048, NULL, 0, NULL);
+#endif /* KLOG_ENABLE */
 }
