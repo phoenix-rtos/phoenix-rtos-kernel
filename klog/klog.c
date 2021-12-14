@@ -135,9 +135,9 @@ static int klog_readerAdd(unsigned pid, unsigned nonblocking)
 }
 
 
-static int _klog_readln(klog_reader_t *r, char *buf, size_t sz)
+static ssize_t _klog_readln(klog_reader_t *r, char *buf, size_t sz)
 {
-	size_t n = 0;
+	ssize_t n = 0;
 
 	while (r->ridx < klog_common.tail && n < sz) {
 		buf[n++] = _fifo_get(r->ridx++);
@@ -147,19 +147,25 @@ static int _klog_readln(klog_reader_t *r, char *buf, size_t sz)
 
 	/* Always end with newline */
 	if (n > 0 && buf[n - 1] != '\n') {
-		if (n < sz)
-			buf[n++] = '\n';
-		else
+		if (buf[n - 1] == '\0') {
 			buf[n - 1] = '\n';
+		}
+		else if (n < sz) {
+			buf[n++] = '\n';
+		}
+		else {
+			buf[n - 1] = '\n';
+			r->ridx--;
+		}
 	}
 
 	return n;
 }
 
 
-static int klog_read(klog_reader_t *r, char *buf, size_t sz)
+static ssize_t klog_read(klog_reader_t *r, char *buf, size_t sz)
 {
-	int ret;
+	ssize_t ret;
 
 	proc_lockSet(&klog_common.lock);
 	/* We need to catch up the ring buffer's head */
