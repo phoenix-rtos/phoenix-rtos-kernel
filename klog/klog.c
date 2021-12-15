@@ -280,8 +280,8 @@ int klog_write(const char *data, size_t len)
 	if (klog_common.tail + len >= klog_common.head + KLOG_BUFSZ)
 		overwrite = 1;
 
-	while (i < len)
-		_fifo_push(data[i++]);
+	for (i = 0; i < len; ++i)
+		_fifo_push(data[i]);
 
 	if (overwrite) {
 		do {
