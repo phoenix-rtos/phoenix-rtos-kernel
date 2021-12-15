@@ -33,14 +33,19 @@
 #define TCGETS 0x405c7401
 
 
-typedef struct klog_reader {
+typedef struct klog_readMsg {
 	void *odata;
-	size_t osize;
-	offs_t ridx;
 	unsigned long rid;
+	size_t osize;
+	struct klog_readMsg *prev, *next;
+} klog_readMsg_t;
+
+
+typedef struct klog_reader {
+	offs_t ridx;
 	unsigned pid;
 	unsigned nonblocking;
-	unsigned waiting;
+	klog_readMsg_t *msgs;
 	struct klog_reader *prev, *next;
 } klog_reader_t;
 
@@ -169,55 +174,65 @@ static ssize_t klog_read(klog_reader_t *r, char *buf, size_t sz)
 
 	proc_lockSet(&klog_common.lock);
 	/* We need to catch up the ring buffer's head */
-	if (r->ridx < klog_common.head)
+	if (r->ridx < klog_common.head) {
+		ret = -EPIPE;
 		r->ridx = klog_common.head;
-
-	ret = _klog_readln(r, buf, sz);
-
+	}
+	else {
+		ret = _klog_readln(r, buf, sz);
+	}
 	proc_lockClear(&klog_common.lock);
 
 	return ret;
 }
 
 
+static void _klog_msgRespond(klog_reader_t *r, ssize_t err)
+{
+	klog_readMsg_t *rmsg;
+	msg_t msg;
+
+	rmsg = r->msgs;
+	LIST_REMOVE(&r->msgs, rmsg);
+
+	msg.type = mtRead;
+	msg.pid = r->pid;
+	msg.o.data = rmsg->odata;
+	msg.o.size = rmsg->osize;
+	msg.o.io.err = err;
+
+	proc_respond(klog_common.port, &msg, rmsg->rid);
+
+	vm_kfree(rmsg);
+}
+
+
 static void _klog_updateReaders(void)
 {
 	klog_reader_t *r = klog_common.readers;
-	msg_t msg;
+	ssize_t ret;
 
-	msg.type = mtRead;
+	if (r == NULL)
+		return;
 
-	if (r != NULL) {
-		do {
-			if (r->waiting) {
-				msg.pid = r->pid;
-				msg.o.data = r->odata;
-				msg.o.size = r->osize;
-				msg.o.io.err = _klog_readln(r, msg.o.data, msg.o.size);
-				r->waiting = 0;
-				proc_respond(0, &msg, r->rid);
-			}
-			r = r->next;
-		} while (r != klog_common.readers);
-	}
+	do {
+		if (r->msgs != NULL) {
+			ret = _klog_readln(r, r->msgs->odata, r->msgs->osize);
+			_klog_msgRespond(r, ret);
+		}
+		r = r->next;
+	} while (r != klog_common.readers);
 }
 
 
 static void klog_close(unsigned pid)
 {
 	klog_reader_t *r;
-	msg_t msg;
 
-	msg.type = mtRead;
 	proc_lockSet(&klog_common.lock);
 	if ((r = klog_readerFind(pid)) != NULL) {
-		if (r->waiting) {
-			msg.pid = r->pid;
-			msg.o.data = r->odata;
-			msg.o.size = r->osize;
-			msg.o.io.err = -EIO;
-			proc_respond(klog_common.port, &msg, r->rid);
-		}
+		while (r->msgs != NULL)
+			_klog_msgRespond(r, -EIO);
 		LIST_REMOVE(&klog_common.readers, r);
 		vm_kfree(r);
 	}
@@ -280,12 +295,22 @@ int klog_write(const char *data, size_t len)
 }
 
 
-static void klog_readerBlock(klog_reader_t *r, msg_t *msg, unsigned long rid)
+static int klog_readerBlock(klog_reader_t *r, msg_t *msg, unsigned long rid)
 {
-	r->waiting = 1;
-	r->odata = msg->o.data;
-	r->osize = msg->o.size;
-	r->rid = rid;
+	klog_readMsg_t *rmsg;
+
+	if ((rmsg = vm_kmalloc(sizeof(*rmsg))) == NULL)
+		return -ENOMEM;
+
+	rmsg->odata = msg->o.data;
+	rmsg->osize = msg->o.size;
+	rmsg->rid = rid;
+
+	proc_lockSet(&klog_common.lock);
+	LIST_ADD(&r->msgs, rmsg);
+	proc_lockClear(&klog_common.lock);
+
+	return EOK;
 }
 
 
@@ -315,8 +340,8 @@ static void msgthr(void *arg)
 				else {
 					msg.o.io.err = klog_read(r, msg.o.data, msg.o.size);
 					if (msg.o.io.err == 0 && !r->nonblocking) {
-						respond = 0;
-						klog_readerBlock(r, &msg, rid);
+						if ((msg.o.io.err = klog_readerBlock(r, &msg, rid)) == EOK)
+							respond = 0;
 					}
 					else if (msg.o.io.err == 0 && r->nonblocking) {
 						msg.o.io.err = -EAGAIN;
