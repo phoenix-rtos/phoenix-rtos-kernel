@@ -891,11 +891,11 @@ int posix_chmod(const char *pathname, mode_t mode)
 {
 	TRACE("chmod(%s, %x)", pathname, mode);
 
-	oid_t oid, ln;
+	oid_t oid;
 	msg_t msg;
 	int err;
 
-	if (proc_lookup(pathname, &ln, &oid) < 0)
+	if (proc_lookup(pathname, &oid, NULL) < 0)
 		return -ENOENT;
 
 	hal_memset(&msg, 0, sizeof(msg));
