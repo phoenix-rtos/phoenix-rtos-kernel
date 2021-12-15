@@ -18,6 +18,7 @@
 
 #include HAL
 
+#include "../klog/klog.h"
 
 /* Flags used for printing */
 #define FLAG_SIGNED        0x1
@@ -138,7 +139,7 @@ void lib_putch(char s)
 	c[0] = s;
 	c[1] = '\0';
 
-	hal_consolePrint(ATTR_NORMAL, c);
+	klog_write(c, 1);
 }
 
 
