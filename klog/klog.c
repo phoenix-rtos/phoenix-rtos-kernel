@@ -104,7 +104,8 @@ static klog_reader_t *klog_readerFind(unsigned pid)
 {
 	klog_reader_t *r, *ret = NULL;
 
-	if ((r = klog_common.readers) != NULL) {
+	r = klog_common.readers;
+	if (r != NULL) {
 		do {
 			if (r->pid == pid) {
 				ret = r;
@@ -125,7 +126,8 @@ static int klog_readerAdd(unsigned pid, unsigned nonblocking)
 	if (klog_readerFind(pid) != NULL)
 		return -EINVAL;
 
-	if ((r = vm_kmalloc(sizeof(klog_reader_t))) == NULL)
+	r = vm_kmalloc(sizeof(klog_reader_t));
+	if (r == NULL)
 		return -ENOMEM;
 
 	hal_memset(r, 0, sizeof(klog_reader_t));
@@ -234,7 +236,8 @@ static void klog_close(unsigned pid)
 	klog_reader_t *r;
 
 	proc_lockSet(&klog_common.lock);
-	if ((r = klog_readerFind(pid)) != NULL) {
+	r = klog_readerFind(pid);
+	if (r != NULL) {
 		while (r->msgs != NULL)
 			_klog_msgRespond(r, -EIO);
 		LIST_REMOVE(&klog_common.readers, r);
@@ -301,7 +304,8 @@ static int klog_readerBlock(klog_reader_t *r, msg_t *msg, unsigned long rid)
 {
 	klog_readMsg_t *rmsg;
 
-	if ((rmsg = vm_kmalloc(sizeof(*rmsg))) == NULL)
+	rmsg = vm_kmalloc(sizeof(*rmsg));
+	if (rmsg == NULL)
 		return -ENOMEM;
 
 	rmsg->odata = msg->o.data;
@@ -336,13 +340,15 @@ static void msgthr(void *arg)
 					msg.o.io.err = klog_readerAdd(msg.pid, msg.i.openclose.flags & O_NONBLOCK);
 				break;
 			case mtRead:
-				if ((r = klog_readerFind(msg.pid)) == NULL) {
+				r = klog_readerFind(msg.pid);
+				if (r == NULL) {
 					msg.o.io.err = -EINVAL;
 				}
 				else {
 					msg.o.io.err = klog_read(r, msg.o.data, msg.o.size);
 					if (msg.o.io.err == 0 && !r->nonblocking) {
-						if ((msg.o.io.err = klog_readerBlock(r, &msg, rid)) == EOK)
+						msg.o.io.err = klog_readerBlock(r, &msg, rid);
+						if (msg.o.io.err == EOK)
 							respond = 0;
 					}
 					else if (msg.o.io.err == 0 && r->nonblocking) {
