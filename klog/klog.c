@@ -102,17 +102,19 @@ void _klog_init(void)
 
 static klog_reader_t *klog_readerFind(unsigned pid)
 {
-	klog_reader_t *r = klog_common.readers;
+	klog_reader_t *r, *ret = NULL;
 
-	if (r != NULL) {
+	if ((r = klog_common.readers) != NULL) {
 		do {
-			if (r->pid == pid)
-				return r;
+			if (r->pid == pid) {
+				ret = r;
+				break;
+			}
 			r = r->next;
 		} while (r != klog_common.readers);
 	}
 
-	return NULL;
+	return ret;
 }
 
 
@@ -195,6 +197,9 @@ static void _klog_msgRespond(klog_reader_t *r, ssize_t err)
 	rmsg = r->msgs;
 	LIST_REMOVE(&r->msgs, rmsg);
 
+	msg.i.data = NULL;
+	msg.i.size = 0;
+
 	msg.type = mtRead;
 	msg.pid = r->pid;
 	msg.o.data = rmsg->odata;
@@ -212,16 +217,15 @@ static void _klog_updateReaders(void)
 	klog_reader_t *r = klog_common.readers;
 	ssize_t ret;
 
-	if (r == NULL)
-		return;
-
-	do {
-		if (r->msgs != NULL) {
-			ret = _klog_readln(r, r->msgs->odata, r->msgs->osize);
-			_klog_msgRespond(r, ret);
-		}
-		r = r->next;
-	} while (r != klog_common.readers);
+	if (r != NULL) {
+		do {
+			if (r->msgs != NULL) {
+				ret = _klog_readln(r, r->msgs->odata, r->msgs->osize);
+				_klog_msgRespond(r, ret);
+			}
+			r = r->next;
+		} while (r != klog_common.readers);
+	}
 }
 
 
@@ -268,9 +272,6 @@ int klog_write(const char *data, size_t len)
 	int i = 0, overwrite = 0;
 	char c;
 
-	if (len == 0)
-		return 0;
-
 	proc_lockSet(&klog_common.lock);
 
 	if (klog_common.tail + len >= klog_common.head + KLOG_BUFSZ)
@@ -285,7 +286,8 @@ int klog_write(const char *data, size_t len)
 		} while (c != '\n' && c != '\0' && !_fifo_empty());
 	}
 
-	_klog_updateReaders();
+	if (i > 0)
+		_klog_updateReaders();
 	proc_lockClear(&klog_common.lock);
 #else
 	hal_consolePrint(ATTR_NORMAL, data);
