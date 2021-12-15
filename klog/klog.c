@@ -29,7 +29,6 @@
 #define KLOG_BUFSZ (2 * SIZE_PAGE)
 #endif
 
-
 #define TCGETS 0x405c7401
 
 
@@ -59,6 +58,7 @@ static struct {
 	klog_reader_t *readers;
 } klog_common;
 
+#if KLOG_ENABLE
 
 static int _fifo_empty(void)
 {
@@ -90,13 +90,6 @@ static void _fifo_push(char c)
 static char _fifo_get(offs_t off)
 {
 	return klog_common.buf[off % KLOG_BUFSZ];
-}
-
-
-void _klog_init(void)
-{
-	hal_memset(&klog_common, 0, sizeof(klog_common));
-	proc_lockInit(&klog_common.lock);
 }
 
 
@@ -269,37 +262,6 @@ static int klog_devctl(msg_t *msg)
 }
 
 
-int klog_write(const char *data, size_t len)
-{
-#if KLOG_ENABLE
-	int i = 0, overwrite = 0;
-	char c;
-
-	proc_lockSet(&klog_common.lock);
-
-	if (klog_common.tail + len >= klog_common.head + KLOG_BUFSZ)
-		overwrite = 1;
-
-	for (i = 0; i < len; ++i)
-		_fifo_push(data[i]);
-
-	if (overwrite) {
-		do {
-			c = _fifo_pop();
-		} while (c != '\n' && c != '\0' && !_fifo_empty());
-	}
-
-	if (i > 0)
-		_klog_updateReaders();
-	proc_lockClear(&klog_common.lock);
-#else
-	hal_consolePrint(ATTR_NORMAL, data);
-#endif /* KLOG_ENABLE */
-
-	return len;
-}
-
-
 static int klog_readerBlock(klog_reader_t *r, msg_t *msg, unsigned long rid)
 {
 	klog_readMsg_t *rmsg;
@@ -372,6 +334,46 @@ static void msgthr(void *arg)
 		if (respond)
 			proc_respond(klog_common.port, &msg, rid);
 	}
+}
+
+#endif /* KLOG_ENABLE */
+
+
+int klog_write(const char *data, size_t len)
+{
+#if KLOG_ENABLE
+	int i = 0, overwrite = 0;
+	char c;
+
+	proc_lockSet(&klog_common.lock);
+
+	if (klog_common.tail + len >= klog_common.head + KLOG_BUFSZ)
+		overwrite = 1;
+
+	for (i = 0; i < len; ++i)
+		_fifo_push(data[i]);
+
+	if (overwrite) {
+		do {
+			c = _fifo_pop();
+		} while (c != '\n' && c != '\0' && !_fifo_empty());
+	}
+
+	if (i > 0)
+		_klog_updateReaders();
+	proc_lockClear(&klog_common.lock);
+#else
+	hal_consolePrint(ATTR_NORMAL, data);
+#endif /* KLOG_ENABLE */
+
+	return len;
+}
+
+
+void _klog_init(void)
+{
+	hal_memset(&klog_common, 0, sizeof(klog_common));
+	proc_lockInit(&klog_common.lock);
 }
 
 
