@@ -20,8 +20,6 @@
 #include "../pmap.h"
 #include "ia32.h"
 
-#include "../../include/errno.h"
-
 
 #define VRAM_MONO     (void *)0xb0000
 #define VRAM_COLOR    (void *)0xb8000
@@ -43,6 +41,8 @@ struct {
 	unsigned char col;
 	u16 *vram;
 	void *crtc;
+
+	int attr;
 } console;
 
 
@@ -116,6 +116,7 @@ void hal_consolePrint(int attr, const char *s)
 		hal_outb(console.crtc, CRTC_CURSORL);
 		hal_outb(console.crtc + 1, (console.row * console.maxcol + console.col) & 0xff);
 	}
+	console.attr = attr;
 	hal_spinlockClear(&console.spinlock, &sc);
 
 	return;
@@ -124,6 +125,8 @@ void hal_consolePrint(int attr, const char *s)
 
 void hal_consolePutch(char c)
 {
+	const char str[] = { c, '\0' };
+	hal_consolePrint(console.attr, str);
 }
 
 
@@ -138,6 +141,7 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	console.maxcol = 80;
 	console.row = 0;
 	console.col = 0;
+	console.attr = ATTR_NORMAL;
 
 	console.vram = VADDR_KERNEL + (isColor ? VRAM_COLOR : VRAM_MONO);
 	console.crtc = isColor ? (void *)BASE_COLOR : (void *)BASE_MONO;
