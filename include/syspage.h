@@ -28,7 +28,7 @@ enum { console_default = 0, console_com0, console_com1, console_com2, console_co
 
 typedef struct _mapent_t {
 	struct _mapent_t *next, *prev;
-	enum { hal_entryReserved = 0, hal_entryTemp, hal_entryAllocated } type;
+	enum { hal_entryReserved = 0, hal_entryTemp, hal_entryAllocated, hal_entryInvalid } type;
 
 	addr_t start;
 	addr_t end;
@@ -44,10 +44,10 @@ typedef struct _syspage_prog_t {
 	char *argv;
 
 	size_t imapSz;
-	u8 *imaps;
+	unsigned char *imaps;
 
 	size_t dmapSz;
-	u8 *dmaps;
+	unsigned char *dmaps;
 } __attribute__((packed)) syspage_prog_t;
 
 
@@ -59,22 +59,23 @@ typedef struct _syspage_map_t {
 	addr_t start;
 	addr_t end;
 
-	u32 attr;
-	u8 id;
+	unsigned int attr;
+	unsigned char id;
 
 	char *name;
 } __attribute__((packed)) syspage_map_t;
 
 
 typedef struct {
-	hal_syspage_t hs;
+	hal_syspage_t hs; /* Specific syspage structure defines per architecture */
+	size_t size;      /* Syspage size                                        */
 
-	size_t size;
+	addr_t pkernel; /* Physical address of kernel's beginning */
 
-	syspage_map_t *maps;
-	syspage_prog_t *progs;
+	syspage_map_t *maps;   /* Maps list    */
+	syspage_prog_t *progs; /* Programs list*/
 
-	unsigned int console;
+	unsigned int console; /* Console ID defines in hal */
 } __attribute__((packed)) syspage_t;
 
 #endif
