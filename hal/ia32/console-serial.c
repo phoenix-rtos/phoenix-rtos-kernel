@@ -15,6 +15,7 @@
 
 #include "../console.h"
 #include "ia32.h"
+#include "halsyspage.h"
 
 
 struct {
@@ -80,12 +81,11 @@ void hal_consolePutch(char c)
 
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
-/* TODO: add new syspage */
-#if 0
 	void *bases[] = {
 		(void *)0x3f8, (void *)0x2f8, (void *)0x3e8, (void *)0x2e8,   /* regular PC COMs */
 		(void *)0x9000f000u, (void *)0x9000b000u                      /* Galileo UARTs */
 	};
+
 
 	if (syspage->console > 5)
 		return;
@@ -103,7 +103,6 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 		pmap_enter(console_common.base[syspage->console], top);
 		*/
 	}
-#endif
 
 	/* 115200 8n1 */
 	_console_uartWrite(lcr, 0x80);
