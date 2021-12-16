@@ -19,6 +19,7 @@
 #include "../exceptions.h"
 #include "../interrupts.h"
 #include "../cpu.h"
+#include "../pmap.h"
 #include "../timer.h"
 #include "pci.h"
 #include "halsyspage.h"
@@ -37,7 +38,7 @@ extern void _hal_cpuInit(void);
 
 void *hal_syspageRelocate(void *data)
 {
-	return data;
+	return ((u8 *)data + VADDR_KERNEL);
 }
 
 

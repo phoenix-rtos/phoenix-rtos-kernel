@@ -22,6 +22,7 @@
 #include "../pmap.h"
 #include "pci.h"
 #include "ia32.h"
+#include "halsyspage.h"
 
 
 struct cpu_feature_t {
@@ -86,6 +87,7 @@ u32 cpu_getEFLAGS(void)
 
 	return eflags;
 }
+
 
 #ifndef NDEBUG
 static int hal_cpuDebugGuard(u32 enable, u32 slot)
@@ -384,8 +386,6 @@ void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 
 static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 {
-/* TODO: add new syspage */
-#if 0
 	u32 descrl, descrh;
 	u32 *gdt;
 
@@ -398,13 +398,12 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 
 	descrl = (base << 16) | (limit & 0xffff);
 
-	gdt = (void *)*(u32 *)&syspage->gdtr[2];
+	gdt = (void *)syspage->hs.gdtr.addr;
 
 	gdt[idx * 2] = descrl;
 	gdt[idx * 2 + 1] = descrh;
 
 	return;
-#endif
 }
 
 
@@ -433,8 +432,6 @@ void *_cpu_initCore(void)
 
 static void _hal_cpuInitCores(void)
 {
-/* TODO: add new syspage */
-#if 0
 	unsigned int i, k;
 
 	/* Prepare descriptors for user segments */
@@ -445,7 +442,7 @@ static void _hal_cpuInitCores(void)
 	cpu.ncpus = 0;
 	_cpu_initCore();
 
-	*(u32 *)((void *)syspage->stack + VADDR_KERNEL - 4) = 0;
+	*(u32 *)(syspage->hs.stack + VADDR_KERNEL - 4) = 0;
 
 	for (;;) {
 		k = cpu.ncpus;
@@ -455,7 +452,6 @@ static void _hal_cpuInitCores(void)
 		if (i >= 50000000)
 			break;
 	}
-#endif
 }
 
 
