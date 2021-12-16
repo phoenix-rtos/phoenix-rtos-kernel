@@ -14,6 +14,7 @@
  * %LICENSE%
  */
 
+#include "halsyspage.h"
 #include "../interrupts.h"
 #include "../spinlock.h"
 #include "../cpu.h"
@@ -89,6 +90,9 @@ struct {
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
 } interrupts;
+
+
+unsigned int _interrupts_multilock;
 
 
 void _interrupts_apicACK(unsigned int n)
@@ -185,12 +189,9 @@ __attribute__ ((section (".init"))) int _interrupts_setIDTEntry(unsigned int n, 
 	w0 |= IGBITS_DPL3 | IGBITS_PRES | IGBITS_SYSTEM | type;
 	w1 |= (SEL_KCODE << 16);
 
-/* TODO: add new syspage */
-#if 0
-	idtr = *(u32 **)&syspage->idtr[2];
+	idtr = (u32 *)syspage->hs.idtr.addr;
 	idtr[n * 2 + 1] = w0;
 	idtr[n * 2] = w1;
-#endif
 
 	return EOK;
 }
@@ -208,6 +209,8 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int k;
+
+	_interrupts_multilock = 1;
 
 	/* Initialize interrupt controllers (8259A) */
 	hal_outb((void *)0x20, 0x11);  /* ICW1 */

@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * Configuration file for ia2
+ * System information page (prepared by kernel loader)
  *
  * Copyright 2021 Phoenix Systems
  * Author: Hubert Buczynski
@@ -13,15 +13,12 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_CONFIG_H_
-#define _HAL_CONFIG_H_
+#ifndef _HAL_SYSPAGE_H_
+#define _HAL_SYSPAGE_H_
 
-#ifndef __ASSEMBLY__
+#include <arch/types.h>
+#include "config.h"
 
-#include "../../include/arch/syspage-ia32.h"
-#include "../../include/syspage.h"
-
-#endif
-
+extern syspage_t *syspage;
 
 #endif
