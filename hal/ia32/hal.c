@@ -21,7 +21,7 @@
 #include "../cpu.h"
 #include "../timer.h"
 #include "pci.h"
-#include "config.h"
+#include "halsyspage.h"
 
 
 struct {
@@ -29,7 +29,7 @@ struct {
 } hal_common;
 
 
-hal_syspage_t *syspage;
+syspage_t *syspage;
 
 
 extern void _hal_cpuInit(void);
