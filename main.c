@@ -16,7 +16,7 @@
 
 #include HAL
 
-#include "klog/klog.h"
+#include "log/log.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
 #include "proc/proc.h"
@@ -45,6 +45,7 @@ void main_initthr(void *unused)
 
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
+	_log_start();
 
 	lib_printf("main: Decoding programs from data segment\n");
 	programs_decode(&main_common.kmap, &main_common.kernel);
@@ -139,8 +140,8 @@ int main(void)
 	char s[128];
 
 	_hal_init();
+	_log_init();
 
-	_klog_init();
 	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v. " VERSION "\n");
 	lib_printf("hal: %s\n", hal_cpuInfo(s));
 	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
@@ -149,8 +150,6 @@ int main(void)
 	_vm_init(&main_common.kmap, &main_common.kernel);
 	_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
-
-	_klog_initSrv();
 
 	/* Start tests */
 

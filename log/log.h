@@ -12,17 +12,17 @@
  *
  * %LICENSE%
  */
-#ifndef _DMESG_H_
-#define _DMESG_H_
+#ifndef _LOG_H_
+#define _LOG_H_
 
 
-extern int klog_write(const char *data, size_t len);
+extern int log_write(const char *data, size_t len);
 
 
-extern void _klog_init(void);
+extern void _log_start(void);
 
 
-extern void _klog_initSrv(void);
+extern void _log_init(void);
 
 
-#endif /* _DMESG_H_ */
+#endif /* _LOG_H_ */
