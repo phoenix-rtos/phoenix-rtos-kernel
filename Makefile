@@ -52,7 +52,7 @@ include proc/Makefile
 include posix/Makefile
 include lib/Makefile
 include test/Makefile
-include klog/Makefile
+include log/Makefile
 
 
 $(BUILD_DIR)/programs.cpio:
