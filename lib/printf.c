@@ -18,6 +18,7 @@
 
 #include "../hal/hal.h"
 
+#include "../klog/klog.h"
 
 /* Flags used for printing */
 #define FLAG_SIGNED        0x1
@@ -133,7 +134,12 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 
 void lib_putch(char s)
 {
-	hal_consolePutch(s);
+	char c[2];
+
+	c[0] = s;
+	c[1] = '\0';
+
+	klog_write(c, 1);
 }
 
 
