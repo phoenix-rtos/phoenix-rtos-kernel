@@ -45,6 +45,7 @@ typedef struct _unixsock_t {
 	char type;
 	char state;
 	char nonblock;
+	char largebuf;
 
 	spinlock_t spinlock;
 
@@ -149,7 +150,7 @@ static void unixsock_augment(rbnode_t *node)
 }
 
 
-static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
+static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock, int largebuf)
 {
 	unixsock_t *r, t;
 
@@ -181,6 +182,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 	r->refs = 1;
 	r->type = type;
 	r->nonblock = nonblock;
+	r->largebuf = largebuf;
 	r->fdpacks = NULL;
 	r->connect = NULL;
 	r->queue = NULL;
@@ -253,9 +255,11 @@ int unix_socket(int domain, int type, int protocol)
 	unixsock_t *s;
 	unsigned id;
 	int nonblock;
+	int largebuf;
 
 	nonblock = (type & SOCK_NONBLOCK) != 0;
-	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+	largebuf = (type & SOCK_LARGEBUF) != 0;
+	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC | SOCK_LARGEBUF);
 
 	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
 		return -EPROTOTYPE;
@@ -263,7 +267,7 @@ int unix_socket(int domain, int type, int protocol)
 	if (protocol != PF_UNSPEC)
 		return -EPROTONOSUPPORT;
 
-	if ((s = unixsock_alloc(&id, type, nonblock)) == NULL)
+	if ((s = unixsock_alloc(&id, type, nonblock, largebuf)) == NULL)
 		return -ENOMEM;
 
 	return id;
@@ -276,9 +280,12 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 	unsigned id[2];
 	void *v[2];
 	int nonblock;
+	int largebuf;
+	size_t bufsize = SIZE_PAGE;
 
 	nonblock = (type & SOCK_NONBLOCK) != 0;
-	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+	largebuf = (type & SOCK_LARGEBUF) != 0;
+	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC | SOCK_LARGEBUF);
 
 	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
 		return -EPROTOTYPE;
@@ -286,29 +293,32 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 	if (protocol != PF_UNSPEC)
 		return -EPROTONOSUPPORT;
 
-	if ((s[0] = unixsock_alloc(&id[0], type, nonblock)) == NULL)
+	if ((s[0] = unixsock_alloc(&id[0], type, nonblock, largebuf)) == NULL)
 		return -ENOMEM;
 
-	if ((s[1] = unixsock_alloc(&id[1], type, nonblock)) == NULL) {
+	if ((s[1] = unixsock_alloc(&id[1], type, nonblock, largebuf)) == NULL) {
 		unixsock_put(s[0]);
 		return -ENOMEM;
 	}
 
-	if ((v[0] = vm_kmalloc(SIZE_PAGE)) == NULL) {
+	if (largebuf)
+		bufsize *= 4;
+
+	if ((v[0] = vm_kmalloc(bufsize)) == NULL) {
 		unixsock_put(s[1]);
 		unixsock_put(s[0]);
 		return -ENOMEM;
 	}
 
-	if ((v[1] = vm_kmalloc(SIZE_PAGE)) == NULL) {
+	if ((v[1] = vm_kmalloc(bufsize)) == NULL) {
 		vm_kfree(v[0]);
 		unixsock_put(s[1]);
 		unixsock_put(s[0]);
 		return -ENOMEM;
 	}
 
-	_cbuffer_init(&s[0]->buffer, v[0], SIZE_PAGE);
-	_cbuffer_init(&s[1]->buffer, v[1], SIZE_PAGE);
+	_cbuffer_init(&s[0]->buffer, v[0], bufsize);
+	_cbuffer_init(&s[1]->buffer, v[1], bufsize);
 
 	s[0]->connect = s[1];
 	s[1]->connect = s[0];
@@ -329,11 +339,14 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 	void *v;
 	spinlock_ctx_t sc;
 	int nonblock;
+	int largebuf;
+	size_t bufsize = SIZE_PAGE;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
 
 	nonblock = (flags & SOCK_NONBLOCK) != 0;
+	largebuf = (type & SOCK_LARGEBUF) != 0;
 
 	do {
 		if (s->type != SOCK_STREAM && s->type != SOCK_SEQPACKET) {
@@ -346,18 +359,21 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		if ((v = vm_kmalloc(SIZE_PAGE)) == NULL) {
+		if (largebuf)
+			bufsize *= 4;
+
+		if ((v = vm_kmalloc(bufsize)) == NULL) {
 			err = -ENOMEM;
 			break;
 		}
 
-		if ((new = unixsock_alloc(&newid, s->type, nonblock)) == NULL) {
+		if ((new = unixsock_alloc(&newid, s->type, nonblock, largebuf)) == NULL) {
 			vm_kfree(v);
 			err = -ENOMEM;
 			break;
 		}
 
-		_cbuffer_init(&new->buffer, v, SIZE_PAGE);
+		_cbuffer_init(&new->buffer, v, bufsize);
 
 		hal_spinlockSet(&s->spinlock, &sc);
 		s->state |= US_ACCEPTING;
@@ -391,6 +407,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 	oid_t odir, dev;
 	unixsock_t *s;
 	void *v = NULL;
+	size_t bufsize = SIZE_PAGE;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -418,12 +435,15 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 			}
 
 			if (s->type == SOCK_DGRAM) {
-				if ((v = vm_kmalloc(SIZE_PAGE)) == NULL) {
+				if (s->largebuf)
+					bufsize *= 4;
+
+				if ((v = vm_kmalloc(bufsize)) == NULL) {
 					err = -ENOMEM;
 					break;
 				}
 
-				_cbuffer_init(&s->buffer, v, SIZE_PAGE);
+				_cbuffer_init(&s->buffer, v, bufsize);
 			}
 
 			dev.port = US_PORT;
@@ -486,6 +506,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 	oid_t oid;
 	void *v;
 	spinlock_ctx_t sc;
+	size_t bufsize = SIZE_PAGE;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -522,12 +543,15 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 				break;
 			}
 
-			if ((v = vm_kmalloc(SIZE_PAGE)) == NULL) {
+			if ((v = vm_kmalloc(bufsize)) == NULL) {
 				err = -ENOMEM;
 				break;
 			}
 
-			_cbuffer_init(&s->buffer, v, SIZE_PAGE);
+			if (s->largebuf)
+				bufsize *= 4;
+
+			_cbuffer_init(&s->buffer, v, bufsize);
 
 			hal_spinlockSet(&remote->spinlock, &sc);
 			LIST_ADD(&remote->connect, s);
