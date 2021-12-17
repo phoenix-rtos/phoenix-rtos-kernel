@@ -16,7 +16,8 @@
 #ifndef _SYS_SOCKDEFS_H_
 #define _SYS_SOCKDEFS_H_
 
-#define SOCK_NONBLOCK	0x8000
-#define SOCK_CLOEXEC	0x4000
+#define SOCK_NONBLOCK 0x8000
+#define SOCK_CLOEXEC  0x4000
+#define SOCK_LARGEBUF 0x2000
 
 #endif
