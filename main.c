@@ -16,6 +16,7 @@
 
 #include "hal/hal.h"
 
+#include "klog/klog.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
 #include "proc/proc.h"
@@ -95,6 +96,7 @@ int main(void)
 
 	_hal_init();
 
+	_klog_init();
 	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v. " VERSION "\n");
 	lib_printf("hal: %s\n", hal_cpuInfo(s));
 	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
@@ -104,6 +106,8 @@ int main(void)
 	_vm_init(&main_common.kmap, &main_common.kernel);
 	_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
+
+	_klog_initSrv();
 
 #if 0
 	/* Start tests */

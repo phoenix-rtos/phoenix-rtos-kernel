@@ -48,6 +48,7 @@ include proc/Makefile
 include posix/Makefile
 include lib/Makefile
 include test/Makefile
+include klog/Makefile
 
 
 $(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS)

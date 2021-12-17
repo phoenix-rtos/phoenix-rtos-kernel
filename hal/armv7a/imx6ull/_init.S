@@ -113,17 +113,19 @@ syspage_cpy:
 	cmp r9, r2
 	blo syspage_cpy
 
-	/* Save and clear boot reason */
+	/* Save and clear boot reason - RM: otherwise all boot reasons since POR */
 	ldr r0, =0x20d8008
-	ldr r7, [r0]
-	movw r2, #0xffff
+	ldr r7, [r0]    /* only bits 16:0 are used */
+	mov r2, #0xff   /* RM: bits 7:0 are w1c, other are w0c */
 	str r2, [r0]
 
 	/* WARNING: R7 - can't touch this until MMU enable */
 
-	/* Clear PERSIST_SECONDARY_BOOT bit */
+	/* Clear PERSIST_SECONDARY_BOOT bit to rollback to primary in case we fail to boot */
 	ldr r0, =0x020d8044
 	ldr r1, [r0]
+	bic r2, r1, #(0xffffff) /* save upper 8 bits of SRC_GPR10 into boot reason */
+	orr r7, r7, r2
 	bic r1, r1, #(1 << 30)
 	str r1, [r0]
 
