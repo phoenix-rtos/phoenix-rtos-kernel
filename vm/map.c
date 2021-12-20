@@ -1062,7 +1062,7 @@ vm_map_t *vm_getSharedMap(syspage_prog_t *prog, int map)
 
 	for (i = 0; i < prog->dmapSz; ++i) {
 		if (map == prog->dmaps[i])
-			return map_common.maps[i];
+			return map_common.maps[map];
 	}
 #endif
 
