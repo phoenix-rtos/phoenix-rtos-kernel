@@ -416,11 +416,11 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 			wakeup = t->wakeup - now;
 	}
 	else {
-		wakeup = hal_timerUs2Cyc(SYSTICK_INTERVAL);
+		wakeup = SYSTICK_INTERVAL;
 	}
 
-	if (wakeup > hal_timerUs2Cyc(SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8))
-		wakeup = hal_timerUs2Cyc(SYSTICK_INTERVAL);
+	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8)
+		wakeup = SYSTICK_INTERVAL;
 
 	hal_timerSetWakeup(wakeup);
 }
@@ -437,7 +437,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		return EOK;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	now = hal_timerGetCyc();
+	now = hal_timerGetUs();
 
 	for (;; i++) {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
@@ -957,8 +957,8 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->interruptible = interruptible;
 
 	if (timeout) {
-		now = hal_timerGetCyc();
-		current->wakeup = now + hal_timerUs2Cyc(timeout);
+		now = hal_timerGetUs();
+		current->wakeup = now + timeout;
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 		_threads_updateWakeup(now, NULL);
 	}
@@ -992,12 +992,12 @@ int proc_threadSleep(unsigned long long us)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	now = hal_timerGetCyc();
+	now = hal_timerGetUs();
 
 	current = threads_common.current[hal_cpuGetID()];
 	current->state = SLEEP;
 	current->wait = NULL;
-	current->wakeup = now + hal_timerUs2Cyc(us);
+	current->wakeup = now + us;
 	current->interruptible = 1;
 
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
@@ -1153,10 +1153,10 @@ time_t proc_uptime(void)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	time = hal_timerGetCyc();
+	time = hal_timerGetUs();
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return hal_timerCyc2Us(time);
+	return time;
 }
 
 
@@ -1193,7 +1193,7 @@ time_t proc_nextWakeup(void)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 	if (thread != NULL) {
-		now = hal_timerGetCyc();
+		now = hal_timerGetUs();
 		if (now >= thread->wakeup)
 			wakeup = 0;
 		else
@@ -1423,8 +1423,8 @@ static void threads_idlethr(void *arg)
 	for (;;) {
 		wakeup = proc_nextWakeup();
 
-		if (wakeup > hal_timerUs2Cyc(2000))
-			hal_cpuLowPower(hal_timerCyc2Us(wakeup));
+		if (wakeup > 2000)
+			hal_cpuLowPower(wakeup);
 
 		hal_cpuHalt();
 	}
