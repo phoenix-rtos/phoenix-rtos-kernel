@@ -915,7 +915,7 @@ int proc_syspageSpawnName(const char *map, const char *name, char **argv)
 							 syspage_mapNameResolve(map);
 
 	if (sysMap != NULL && (sysMap->attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite))
-		return proc_syspageSpawn((syspage_prog_t *)prog, vm_getSharedMap((syspage_prog_t *)prog, sysMap->attr), name, argv);
+		return proc_syspageSpawn((syspage_prog_t *)prog, vm_getSharedMap((syspage_prog_t *)prog, sysMap->id), name, argv);
 
 	return -EINVAL;
 }
