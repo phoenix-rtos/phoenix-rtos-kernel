@@ -161,9 +161,17 @@ time_t hal_timerGetCyc(void)
 
 int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
+	int err;
+
 	h->f = f;
 	h->n = lptim1_irq;
 	h->data = data;
+
+	err = hal_interruptsSetHandler(h);
+	if (err < 0)
+		return err;
+
+	h->n = SYSTICK_IRQ;
 
 	return hal_interruptsSetHandler(h);
 }
