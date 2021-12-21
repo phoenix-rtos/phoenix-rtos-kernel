@@ -83,6 +83,40 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	return 1;
 }
 
+
+static time_t hal_timerCyc2Us(time_t ticks)
+{
+	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
+}
+
+
+static time_t hal_timerUs2Cyc(time_t us)
+{
+	return ((32768 / (1 << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
+}
+
+
+static time_t hal_timerGetCyc(void)
+{
+	time_t upper;
+	u32 lower;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&timer_common.sp, &sc);
+	upper = timer_common.upper;
+	lower = timer_getCnt();
+
+	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
+		/* Check if we have unhandled overflow event.
+		 * If so, upper is one less than it should be */
+		if (timer_getCnt() >= lower)
+			++upper;
+	}
+	hal_spinlockClear(&timer_common.sp, &sc);
+
+	return (upper << 16) + lower;
+}
+
 /* Additional functions */
 
 void timer_jiffiesAdd(time_t t)
@@ -111,25 +145,11 @@ void timer_setAlarm(time_t us)
 }
 
 
-/* Interface functions */
-
-
 void hal_timerSetWakeup(u32 when)
 {
 }
 
-
-time_t hal_timerCyc2Us(time_t ticks)
-{
-	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
-}
-
-
-time_t hal_timerUs2Cyc(time_t us)
-{
-	return ((32768 / (1 << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
-}
-
+/* Interface functions */
 
 time_t hal_timerGetUs(void)
 {
@@ -137,41 +157,11 @@ time_t hal_timerGetUs(void)
 }
 
 
-time_t hal_timerGetCyc(void)
-{
-	time_t upper;
-	u32 lower;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&timer_common.sp, &sc);
-	upper = timer_common.upper;
-	lower = timer_getCnt();
-
-	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
-		/* Check if we have unhandled overflow event.
-		 * If so, upper is one less than it should be */
-		if (timer_getCnt() >= lower)
-			++upper;
-	}
-	hal_spinlockClear(&timer_common.sp, &sc);
-
-	return (upper << 16) + lower;
-}
-
-
 int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
-	int err;
-
 	h->f = f;
-	h->n = lptim1_irq;
-	h->data = data;
-
-	err = hal_interruptsSetHandler(h);
-	if (err < 0)
-		return err;
-
 	h->n = SYSTICK_IRQ;
+	h->data = data;
 
 	return hal_interruptsSetHandler(h);
 }

@@ -64,6 +64,29 @@ static int timer_overflowIrqHandler(unsigned int n, cpu_context_t *ctx, void *ar
 }
 
 
+static time_t hal_timerCyc2Us(time_t cyc)
+{
+	return cyc / 66LL;
+}
+
+
+static time_t hal_timerGetCyc(void)
+{
+	u32 reg;
+	time_t ret;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&timer_common.lock, &sc);
+	reg = *(timer_common.gpt1 + gpt_cnt);
+	ret = ((time_t)timer_common.timerhi << 32) | (time_t)reg;
+	if ((*(timer_common.gpt1 + gpt_sr) & (1 << 5)) && !(reg & (1 << 31)))
+		ret += 1ULL << 32;
+	hal_spinlockClear(&timer_common.lock, &sc);
+
+	return ret;
+}
+
+
 void hal_timerSetWakeup(u32 when)
 {
 	spinlock_ctx_t sc;
@@ -78,40 +101,11 @@ void hal_timerSetWakeup(u32 when)
 }
 
 
-time_t hal_timerUs2Cyc(time_t us)
-{
-	return 66LL * us;
-}
-
-
-time_t hal_timerCyc2Us(time_t cyc)
-{
-	return cyc / 66LL;
-}
-
-
 time_t hal_timerGetUs(void)
 {
 	time_t ret = hal_timerGetCyc();
 
 	return hal_timerCyc2Us(ret);
-}
-
-
-time_t hal_timerGetCyc(void)
-{
-	u32 reg;
-	time_t ret;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&timer_common.lock, &sc);
-	reg = *(timer_common.gpt1 + gpt_cnt);
-	ret = ((time_t)timer_common.timerhi << 32) | (time_t)reg;
-	if ((*(timer_common.gpt1 + gpt_sr) & (1 << 5)) && !(reg & (1 << 31)))
-		ret += 1ULL << 32;
-	hal_spinlockClear(&timer_common.lock, &sc);
-
-	return ret;
 }
 
 
