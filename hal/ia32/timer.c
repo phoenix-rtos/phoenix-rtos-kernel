@@ -44,25 +44,7 @@ void hal_timerSetWakeup(u32 when)
 }
 
 
-time_t hal_timerUs2Cyc(time_t us)
-{
-	return us;
-}
-
-
-time_t hal_timerCyc2Us(time_t cyc)
-{
-	return cyc;
-}
-
-
 time_t hal_timerGetUs(void)
-{
-	return hal_timerGetCyc();
-}
-
-
-time_t hal_timerGetCyc(void)
 {
 	spinlock_ctx_t sc;
 	time_t ret;

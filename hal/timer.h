@@ -20,15 +20,6 @@
 #include "cpu.h"
 #include "interrupts.h"
 
-extern time_t hal_timerUs2Cyc(time_t us);
-
-
-extern time_t hal_timerCyc2Us(time_t cyc);
-
-
-extern time_t hal_timerGetCyc(void);
-
-
 extern time_t hal_timerGetUs(void);
 
 

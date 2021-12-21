@@ -61,33 +61,13 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-void hal_timerSetWakeup(u32 when)
-{
-
-}
-
-
-time_t hal_timerUs2Cyc(time_t us)
-{
-	return (55555LL * us) / 1000LL;
-}
-
-
-time_t hal_timerCyc2Us(time_t cyc)
+static time_t hal_timerCyc2Us(time_t cyc)
 {
 	return (cyc * 1000LL) / 55555LL;
 }
 
 
-time_t hal_timerGetUs(void)
-{
-	time_t ret = hal_timerGetCyc();
-
-	return hal_timerCyc2Us(ret);
-}
-
-
-time_t hal_timerGetCyc(void)
+static time_t hal_timerGetCyc(void)
 {
 	spinlock_ctx_t sc;
 	time_t ret;
@@ -98,6 +78,20 @@ time_t hal_timerGetCyc(void)
 
 	return ret;
 }
+
+
+void hal_timerSetWakeup(u32 when)
+{
+}
+
+
+time_t hal_timerGetUs(void)
+{
+	time_t ret = hal_timerGetCyc();
+
+	return hal_timerCyc2Us(ret);
+}
+
 
 int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
