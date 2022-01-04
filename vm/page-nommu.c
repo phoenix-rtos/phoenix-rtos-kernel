@@ -159,6 +159,7 @@ void vm_pageinfo(meminfo_t *info)
 	info->page.free = pages.freesz;
 	info->page.boot = pages.bootsz;
 	info->page.sz = sizeof(page_t);
+	info->page.mapsz = -1;
 
 	proc_lockClear(&pages.lock);
 }
