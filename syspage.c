@@ -178,6 +178,7 @@ void syspage_init(void)
 		do {
 			map->next = hal_syspageRelocate(map->next);
 			map->prev = hal_syspageRelocate(map->prev);
+			map->name = hal_syspageRelocate(map->name);
 
 			if (map->entries != NULL) {
 				map->entries = hal_syspageRelocate(map->entries);
