@@ -35,7 +35,7 @@
 #define POLL_INTERVAL 100000
 
 
-enum { atMode = 0, atUid, atGid, atSize, atType, atPort, atPollStatus, atEventMask, atCTime, atMTime, atATime, atLinks, atDev };
+enum { atMode = 0, atUid, atGid, atSize, atBlocks, atIOBlock, atType, atPort, atPollStatus, atEventMask, atCTime, atMTime, atATime, atLinks, atDev };
 
 
 /* TODO: copied from libphoenix/posixsrv/posixsrv.h */
@@ -1129,6 +1129,16 @@ int posix_fstat(int fd, struct stat *buf)
 			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
 				break;
 			buf->st_size = msg.o.attr.val;
+
+			msg.i.attr.type = atBlocks;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_blocks = msg.o.attr.val;
+
+			msg.i.attr.type = atIOBlock;
+			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+				break;
+			buf->st_blksize = msg.o.attr.val;
 		} while (0);
 	}
 	else {
