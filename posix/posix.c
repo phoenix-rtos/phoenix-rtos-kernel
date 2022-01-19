@@ -901,15 +901,9 @@ int posix_chmod(const char *pathname, mode_t mode)
 	hal_memset(&msg, 0, sizeof(msg));
 	hal_memcpy(&msg.i.attr.oid, &oid, sizeof(oid));
 
-	msg.type = mtGetAttr;
-	msg.i.attr.type = atMode;
-
-	if (((err = proc_send(oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
-		return err;
-
 	msg.type = mtSetAttr;
 	msg.i.attr.type = atMode;
-	msg.i.attr.val = (msg.o.attr.val & ~0777) | (mode & 0777);
+	msg.i.attr.val = mode & 0777;
 
 	if (((err = proc_send(oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
 		return err;
