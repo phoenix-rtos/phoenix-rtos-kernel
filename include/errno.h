@@ -59,6 +59,7 @@
 
 #define ENOTSOCK        88
 #define EPROTOTYPE      91
+#define ENOPROTOOPT     92
 #define EPROTONOSUPPORT 93
 #define EOPNOTSUPP      95
 #define EAFNOSUPPORT    97

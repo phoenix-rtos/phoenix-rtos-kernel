@@ -155,6 +155,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 static void msg_release(kmsg_t *kmsg)
 {
 	process_t *process;
+	vm_map_t *map;
 
 	if (kmsg->i.bp != NULL) {
 		vm_pageFree(kmsg->i.bp);
@@ -170,9 +171,13 @@ static void msg_release(kmsg_t *kmsg)
 		kmsg->i.ep = NULL;
 	}
 
+	if ((process = proc_current()->process) != NULL)
+		map = process->mapp;
+	else
+		map = msg_common.kmap;
+
 	if (kmsg->i.w != NULL) {
-		if ((process = proc_current()->process) != NULL)
-			vm_munmap(process->mapp, kmsg->i.w, CEIL((unsigned long)kmsg->msg.i.data + kmsg->msg.i.size) - FLOOR((unsigned long)kmsg->msg.i.data));
+		vm_munmap(map, kmsg->i.w, CEIL((unsigned long)kmsg->msg.i.data + kmsg->msg.i.size) - FLOOR((unsigned long)kmsg->msg.i.data));
 		kmsg->i.w = NULL;
 	}
 
@@ -191,8 +196,7 @@ static void msg_release(kmsg_t *kmsg)
 	}
 
 	if (kmsg->o.w != NULL) {
-		if ((process = proc_current()->process) != NULL)
-			vm_munmap(process->mapp, kmsg->o.w, CEIL((unsigned long)kmsg->msg.o.data + kmsg->msg.o.size) - FLOOR((unsigned long)kmsg->msg.o.data));
+		vm_munmap(map, kmsg->o.w, CEIL((unsigned long)kmsg->msg.o.data + kmsg->msg.o.size) - FLOOR((unsigned long)kmsg->msg.o.data));
 		kmsg->o.w = NULL;
 	}
 }
