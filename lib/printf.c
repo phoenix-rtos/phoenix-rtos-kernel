@@ -18,7 +18,7 @@
 
 #include "../hal/hal.h"
 
-#include "../klog/klog.h"
+#include "../log/log.h"
 
 /* Flags used for printing */
 #define FLAG_SIGNED        0x1
@@ -139,7 +139,7 @@ void lib_putch(char s)
 	c[0] = s;
 	c[1] = '\0';
 
-	klog_write(c, 1);
+	log_write(c, 1);
 }
 
 

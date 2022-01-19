@@ -126,6 +126,8 @@ struct timeval {
 
 #define SOL_SOCKET 0xFFF
 
+#define SO_RCVBUF 0x1002
+
 #define MSG_PEEK     0x01
 #define MSG_WAITALL  0x02
 #define MSG_OOB      0x04

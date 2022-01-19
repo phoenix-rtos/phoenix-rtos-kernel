@@ -5,4 +5,4 @@
 # Author: Maciej Purski
 #
 
-OBJS += $(addprefix $(PREFIX_O)klog/, klog.o)
+OBJS += $(addprefix $(PREFIX_O)log/, log.o)
