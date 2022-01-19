@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 
 #include "../include/ioctl.h"
 
@@ -339,8 +339,9 @@ static void log_msgthr(void *arg)
 
 int log_write(const char *data, size_t len)
 {
+	int i = 0;
 #if KLOG_ENABLE
-	int i = 0, overwrite = 0;
+	int overwrite = 0;
 	char c;
 
 	proc_lockSet(&log_common.lock);
@@ -361,7 +362,8 @@ int log_write(const char *data, size_t len)
 		_log_readersUpdate();
 	proc_lockClear(&log_common.lock);
 #else
-	hal_consolePrint(ATTR_NORMAL, data);
+	for (i = 0; i < len; ++i)
+		hal_consolePutch(data[i]);
 #endif /* KLOG_ENABLE */
 
 	return len;
