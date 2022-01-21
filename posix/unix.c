@@ -26,11 +26,11 @@
 #define US_MIN_BUFFER_SIZE SIZE_PAGE
 #define US_MAX_BUFFER_SIZE 65536
 
-#define US_BOUND      (1 << 0)
-#define US_LISTENING  (1 << 1)
-#define US_ACCEPTING  (1 << 2)
-#define US_CONNECTING (1 << 3)
-
+#define US_BOUND       (1 << 0)
+#define US_LISTENING   (1 << 1)
+#define US_ACCEPTING   (1 << 2)
+#define US_CONNECTING  (1 << 3)
+#define US_PEER_CLOSED (1 << 4)
 
 typedef struct _unixsock_t {
 	rbnode_t linkage;
@@ -218,20 +218,28 @@ static unixsock_t *unixsock_get(unsigned id)
 }
 
 
-static void unixsock_put(unixsock_t *r)
+static void unixsock_put(unixsock_t *s)
 {
 	proc_lockSet(&unix_common.lock);
-	if (--r->refs <= 0) {
-		lib_rbRemove(&unix_common.tree, &r->linkage);
+	if (--s->refs <= 0) {
+		lib_rbRemove(&unix_common.tree, &s->linkage);
+
+		/* TODO: handle connecting socket */
+
+		if (s->connect != NULL) {
+			s->connect->state |= US_PEER_CLOSED;
+			s->connect->connect = NULL;
+		}
+
 		proc_lockClear(&unix_common.lock);
 
-		proc_lockDone(&r->lock);
-		hal_spinlockDestroy(&r->spinlock);
-		if (r->buffer.data)
-			vm_kfree(r->buffer.data);
-		if (r->fdpacks)
-			fdpass_discard(&r->fdpacks);
-		vm_kfree(r);
+		proc_lockDone(&s->lock);
+		hal_spinlockDestroy(&s->spinlock);
+		if (s->buffer.data)
+			vm_kfree(s->buffer.data);
+		if (s->fdpacks)
+			fdpass_discard(&s->fdpacks);
+		vm_kfree(s);
 		return;
 	}
 	proc_lockClear(&unix_common.lock);
@@ -373,6 +381,7 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 		LIST_REMOVE(&s->connect, conn);
 		s->state &= ~US_ACCEPTING;
 
+		conn->state &= ~US_PEER_CLOSED;
 		conn->connect = new;
 		new->connect = conn;
 
@@ -484,6 +493,7 @@ int unix_listen(unsigned socket, int backlog)
 
 
 /* TODO: nonblocking connect */
+/* TODO: SOCK_DGRAM support */
 int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len)
 {
 	unixsock_t *s, *remote;
@@ -501,7 +511,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
-		if (s->connect != NULL) {
+		if (s->connect != NULL || (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED))) {
 			err = -EISCONN;
 			break;
 		}
@@ -618,7 +628,7 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 		return -ENOTSOCK;
 
 	do {
-		if (s->type != SOCK_DGRAM && !s->connect) {
+		if (s->type != SOCK_DGRAM && !s->connect && !(s->state & US_PEER_CLOSED)) {
 			err = -ENOTCONN;
 			break;
 		}
@@ -646,6 +656,10 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 				proc_threadWakeup(&s->writeq);
 				hal_spinlockClear(&s->spinlock, &sc);
 
+				break;
+			}
+			else if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED)) {
+				err = 0; /* EOS */
 				break;
 			}
 			else if (s->nonblock || (flags & MSG_DONTWAIT)) {
@@ -684,6 +698,10 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 					break;
 				}
 			}
+			else if (s->state & US_PEER_CLOSED) {
+				err = -ECONNREFUSED;
+				break;
+			}
 			else if ((conn = s->connect) == NULL) {
 				err = -ENOTCONN;
 				break;
@@ -692,6 +710,11 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 		else {
 			if (dest_addr || dest_len != 0) {
 				err = -EISCONN;
+				break;
+			}
+			else if (s->state & US_PEER_CLOSED) {
+				posix_tkill(proc_current()->process->id, 0, SIGPIPE);
+				err = -EPIPE;
 				break;
 			}
 			else if ((conn = s->connect) == NULL) {
