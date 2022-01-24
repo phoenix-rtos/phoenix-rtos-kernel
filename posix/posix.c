@@ -2006,7 +2006,9 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
 			posix_fileDeref(f);
 
-			if (((err = proc_send(msg.i.attr.oid.port, &msg)) == EOK) && ((err = msg.o.attr.err) == EOK))
+			if (f->type == ftUnixSocket)
+				err = unix_poll(msg.i.attr.oid.id, fds[i].events);
+			else if (((err = proc_send(msg.i.attr.oid.port, &msg)) == EOK) && ((err = msg.o.attr.err) == EOK))
 				err = msg.o.attr.val;
 		}
 
