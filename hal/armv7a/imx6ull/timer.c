@@ -90,12 +90,15 @@ static time_t hal_timerGetCyc(void)
 void hal_timerSetWakeup(u32 when)
 {
 	spinlock_ctx_t sc;
+	u32 cyc;
 
 	if (!when)
 		++when;
 
+	cyc = when * 66;
+
 	hal_spinlockSet(&timer_common.lock, &sc);
-	*(timer_common.epit1 + epit_lr) = when;
+	*(timer_common.epit1 + epit_lr) = cyc;
 	*(timer_common.epit1 + epit_cr) |= 1;
 	hal_spinlockClear(&timer_common.lock, &sc);
 }
