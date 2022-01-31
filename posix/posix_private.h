@@ -257,6 +257,9 @@ extern int unix_getfl(unsigned socket);
 extern int unix_close(unsigned socket);
 
 
+extern int unix_poll(unsigned socket, short events);
+
+
 extern void unix_sockets_init(void);
 
 #endif

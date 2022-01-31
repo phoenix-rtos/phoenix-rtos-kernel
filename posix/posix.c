@@ -901,15 +901,9 @@ int posix_chmod(const char *pathname, mode_t mode)
 	hal_memset(&msg, 0, sizeof(msg));
 	hal_memcpy(&msg.i.attr.oid, &oid, sizeof(oid));
 
-	msg.type = mtGetAttr;
-	msg.i.attr.type = atMode;
-
-	if (((err = proc_send(oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
-		return err;
-
 	msg.type = mtSetAttr;
 	msg.i.attr.type = atMode;
-	msg.i.attr.val = (msg.o.attr.val & ~0777) | (mode & 0777);
+	msg.i.attr.val = mode & ALLPERMS;
 
 	if (((err = proc_send(oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
 		return err;
@@ -2006,7 +2000,9 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
 			posix_fileDeref(f);
 
-			if (((err = proc_send(msg.i.attr.oid.port, &msg)) == EOK) && ((err = msg.o.attr.err) == EOK))
+			if (f->type == ftUnixSocket)
+				err = unix_poll(msg.i.attr.oid.id, fds[i].events);
+			else if (((err = proc_send(msg.i.attr.oid.port, &msg)) == EOK) && ((err = msg.o.attr.err) == EOK))
 				err = msg.o.attr.val;
 		}
 
