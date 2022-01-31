@@ -31,6 +31,8 @@
 #define ADDR_TTL2_K   (ADDR_TTL1 + 4 * SIZE_PAGE)
 #define ADDR_TTL2_EXC (ADDR_TTL2_K + SIZE_PAGE)
 
+#define ADDR_PROGS_BEGIN (_end + 4 * 1024 * 1024 - VADDR_KERNEL + ADDR_DDR)
+
 #define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
 #define VADDR_UART1   (VADDR_SYSPAGE + 2 * SIZE_PAGE)
 #define VADDR_UART2   (VADDR_UART1 + SIZE_PAGE)
@@ -149,6 +151,11 @@ mdscr_skip:
 	mov r5, r1
 	mov r6, r2
 	ldr r1, =(boot_data - VADDR_KERNEL + ADDR_OCRAM)
+	ldr r2, =(ADDR_OCRAM + (syspage_data - init_vectors))
+	ldr r2, [r2]     /* syspage->hs.imgsz */
+	ldr r3, [r1, #4] /* boot_data->size */
+	/* Update image size based on data in syspage */
+	str r2, [r1, #4]
 	ldmia r1, {r2, r3, r7, r8}
 	str r8, [sp, #-4]!
 	str r7, [sp, #-4]!
@@ -344,6 +351,60 @@ _cpy4:
 /* startup code */
 _start:
 	cpsid aif, #SYS_MODE
+
+/* Temporary solution: code allowing skipping phoenix-rtos-loader */
+	ldr r0, =(ADDR_DDR + syspage_data - init_vectors)
+	ldr r0, [r0, #16] /* points to syspage->progs address (circular list) */
+	mov r1, r0
+	cmp r1, #0
+	beq init_syspage
+
+	/* Copy applications to _end + 4MB */
+	ldr r4, =ADDR_PROGS_BEGIN
+	ldr r9, =(SIZE_PAGE - 1)
+
+update_apps:
+	ldr r2, [r1, #8]  /* prog->start */
+	ldr r3, [r1, #12] /* prog->end */
+
+	/* Align destination address to SIZE_PAGE */
+	add r4, r4, r9
+	bic r4, r4, r9
+
+	/* Set new start in prog->start */
+	str r4, [r1, #8]
+
+copy_app:
+	ldr r5, [r2], #4
+	str r5, [r4], #4
+	cmp r2, r3
+	blo copy_app
+
+	/* Set new end in prog->end */
+	str r4, [r1, #12]
+
+	/* Take pointer to the next program in the list */
+	ldr r1, [r1]
+
+	cmp r1, r0
+	bne update_apps
+
+init_syspage:
+	/* Assign syspage address to syspage variable */
+	ldr r0, =syspage
+	sub r0, r0, #VADDR_KERNEL
+	add r0, r0, #ADDR_DDR
+	ldr r1, =VADDR_KERNEL
+	add r1, r1, #(syspage_data - init_vectors)
+	str r1, [r0]
+
+	/* Define offset on which pointers should be moved */
+	ldr r0, =relOffs
+	sub r0, r0, #VADDR_KERNEL
+	add r0, r0, #ADDR_DDR
+	ldr r1, =(VADDR_KERNEL - ADDR_DDR)
+	str r1, [r0]
+/* End of the the temporary code */
 
 	/* Save and clear boot reason - RM: otherwise all boot reasons since POR */
 	ldr r0, =0x20d8008
