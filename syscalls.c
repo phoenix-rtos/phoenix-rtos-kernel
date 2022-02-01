@@ -1015,6 +1015,16 @@ int syscalls_sys_fstat(char *ustack)
 }
 
 
+int syscalls_sys_fsync(char *ustack)
+{
+	int fd;
+
+	GETFROMSTACK(ustack, int, fd, 0);
+
+	return posix_fsync(fd);
+}
+
+
 int syscalls_sys_chmod(char *ustack)
 {
 	const char *path;
