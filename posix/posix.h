@@ -68,6 +68,9 @@ extern int posix_chmod(const char *path, mode_t mode);
 extern int posix_fstat(int fd, struct stat *buf);
 
 
+extern int posix_fsync(int fd);
+
+
 extern int posix_clone(int ppid);
 
 
