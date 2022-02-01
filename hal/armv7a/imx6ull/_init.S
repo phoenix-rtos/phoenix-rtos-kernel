@@ -26,6 +26,7 @@
 .extern imx6ull_bootReason
 
 
+#define ADDR_OCRAM    0x907000
 #define ADDR_STACK    0x803ff000
 #define ADDR_TTL1     (pmap_common - VADDR_KERNEL + ADDR_DDR)
 #define ADDR_TTL2_K   (ADDR_TTL1 + 4 * SIZE_PAGE)

@@ -16,7 +16,6 @@
 #ifndef _HAL_CONFIG_H_
 #define _HAL_CONFIG_H_
 
-#define ADDR_OCRAM 0x907000
 #define ADDR_DDR   0x80000000
 #define SIZE_DDR   0x7ffffff
 
@@ -26,6 +25,7 @@
 #define HAL_NAME_PLATFORM "NXP i.MX 6ULL "
 
 #include "../../include/arch/syspage-imx6ull.h"
+#include "../../include/syspage.h"
 
 #endif
 

@@ -15,11 +15,13 @@
 
 #include "../hal.h"
 
+#include "halsyspage.h"
+
 struct {
 	int started;
 } hal_common;
 
-hal_syspage_t *syspage;
+syspage_t *syspage;
 unsigned int relOffs;
 
 

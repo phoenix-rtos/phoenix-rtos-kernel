@@ -32,6 +32,7 @@
 #define HAL_NAME_PLATFORM "Xilinx Zynq-7000 "
 
 #include "../../include/arch/syspage-zynq7000.h"
+#include "../../include/syspage.h"
 
 #endif
 
