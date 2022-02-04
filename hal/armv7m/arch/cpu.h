@@ -34,7 +34,7 @@
 #endif
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (2 * 512)
+#define SIZE_KSTACK (4 * SIZE_PAGE)
 #endif
 
 #ifdef CPU_IMXRT
