@@ -200,6 +200,6 @@ _start:
 	mcr p15, 0, r1, c1, c0, 0
 
 	ldr sp, =0x0091fff8
-	blx test_ddrAll
+	blx test_ddr
 	b _start
 .size _start, .-_start

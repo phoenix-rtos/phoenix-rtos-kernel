@@ -248,11 +248,6 @@ int test_ddrAll(void)
 	u32 address = 0x80000000, size = 128 * 1024 * 1024;
 	int errors;
 
-	test_ddrPrintStr("\033[2J");
-	test_ddrPrintStr("\033[0;0f");
-	test_ddrPrintStr("Phoenix-RTOS memtest\n");
-	test_ddrPrintStr("\nStarting test");
-
 	while (1) {
 		++i;
 
@@ -274,4 +269,33 @@ int test_ddrAll(void)
 		test_ddrPrintStr("\nErrors: ");
 		test_ddrPrintUint(errors);
 	}
+}
+
+
+static void test_ddrShort(void)
+{
+	int errors;
+	u32 address = 0x80000000, size = 128 * 1024 * 1024;
+
+	errors = test_ddrWordAccessibility(address, size);
+	test_ddrPrintStr("\nErrors: ");
+	test_ddrPrintUint(errors);
+	test_ddrPutch('\n');
+}
+
+
+void test_ddr(void)
+{
+	test_ddrPrintStr("\033[2J");
+	test_ddrPrintStr("\033[0;0f");
+	test_ddrPrintStr("Phoenix-RTOS memtest\n");
+	test_ddrPrintStr("\nStarting test");
+
+#ifdef MEMTEST_SHORT
+	test_ddrShort();
+#else
+	test_ddrAll();
+#endif
+
+	hal_cpuHalt();
 }

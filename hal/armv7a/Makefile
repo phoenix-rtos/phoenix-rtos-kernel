@@ -20,6 +20,10 @@ OBJS += $(addprefix $(PREFIX_O)hal/armv7a/, spinlock.o cpu.o hal.o exceptions.o)
 memtest: $(PREFIX_PROG)/memtest.elf $(PREFIX_PROG)/memtest.img
 memtest: OBJS:=$(addprefix $(PREFIX_O)hal/armv7a/, _memtest.o memtest.o)
 
+ifdef MEMTEST_SHORT
+	CFLAGS += -DMEMTEST_SHORT
+endif
+
 $(PREFIX_PROG)/memtest.elf: $(PREFIX_O)hal/armv7a/_memtest.o $(PREFIX_O)hal/armv7a/memtest.o
 	$(SIL)$(LD) $(LDFLAGS) -o $@ -e _start --section-start .init=0x907000 -z max-page-size=0x1000 $^
 
