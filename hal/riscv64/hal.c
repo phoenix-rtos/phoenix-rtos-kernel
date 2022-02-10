@@ -22,18 +22,19 @@
 #include "../pmap.h"
 #include "../timer.h"
 #include "config.h"
-
+#include "halsyspage.h"
 
 struct {
 	int started;
 } hal_common;
 
-hal_syspage_t *syspage;
 
+syspage_t *syspage;
+addr_t relOffs;
 
 void *hal_syspageRelocate(void *data)
 {
-	return data;
+	return ((u8 *)data + relOffs);
 }
 
 
@@ -58,7 +59,6 @@ void _hal_start(void)
 {
 	hal_common.started = 1;
 }
-
 
 __attribute__ ((section (".init"))) void _hal_init(void)
 {
