@@ -1166,6 +1166,32 @@ int posix_fstat(int fd, struct stat *buf)
 }
 
 
+int posix_fsync(int fd)
+{
+	TRACE("fsync(%d)", fd);
+
+	open_file_t *f;
+	msg_t msg;
+	int err;
+
+	if ((err = posix_getOpenFile(fd, &f)) < 0)
+		return err;
+
+	hal_memset(&msg, 0, sizeof(msg_t));
+
+	/* TODO: add mtSync message type in kernel */
+	msg.type = 0xf52; /* mtSync */
+
+	/* TODO: allow passing f->oid.id in mtSync message */
+	/* Please note that we sync whole fs/dev for now */
+	err = proc_send(f->oid.port, &msg);
+
+	posix_fileDeref(f);
+
+	return err;
+}
+
+
 static int posix_fcntlDup(int fd, int fd2, int cloexec)
 {
 	process_info_t *p;
