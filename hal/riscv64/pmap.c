@@ -24,10 +24,12 @@
 #include "../../include/errno.h"
 #include "../../include/mman.h"
 
+#include "halsyspage.h"
 
-extern void _start(void);
-extern void _end(void);
-extern void _etext(void);
+
+extern unsigned int _start;
+extern unsigned int _end;
+extern unsigned int _etext;
 
 
 __attribute__((aligned(SIZE_PAGE)))
@@ -43,10 +45,6 @@ struct {
 
 u64 iopdir[512];
 
-/* TODO: add new syspage */
-#if 0
-	syspage_t pmap_syspage;
-#endif
 	/* second pdir for mapping I/O - first 1 GB of memory is mapped linearly at the end of address space */
 
 
@@ -62,6 +60,10 @@ u64 iopdir[512];
 
 	u64 dtb;
 	u32 dtbsz;
+
+
+	addr_t kernel;
+	size_t kernelsz;
 
 } pmap_common;
 
@@ -256,6 +258,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 {
 	addr_t a;
 	spinlock_ctx_t sc;
+	const syspage_prog_t *prog;
 
 	a = *addr & ~0xfff;
 	page->flags = 0;
@@ -276,16 +279,24 @@ int pmap_getPage(page_t *page, addr_t *addr)
 
 	page->addr = a;
 	page->flags = 0;
+	*addr = a + SIZE_PAGE;
 
-/* TODO: add new syspage */
-#if 0
-	if ((page->addr >= syspage->kernel) && (page->addr < syspage->kernel + syspage->kernelsize)) {
+	if ((prog = syspage->progs) != NULL) {
+		do {
+			if (page->addr >= prog->start && page->addr < prog->end) {
+				page->flags = PAGE_OWNER_APP;
+				return EOK;
+			}
+		} while ((prog = prog->next) != syspage->progs);
+	}
+
+	if ((page->addr >= pmap_common.kernel) && (page->addr < pmap_common.kernel + pmap_common.kernelsz)) {
 		page->flags |= PAGE_OWNER_KERNEL;
 
-		if ((page->addr >= syspage->pdir2) && (page->addr < syspage->pdir2 + 3 * SIZE_PAGE))
+		if ((page->addr >= (u64)pmap_common.pdir2) && (page->addr < (u64)pmap_common.pdir2 + 3 * SIZE_PAGE))
 			page->flags |= PAGE_KERNEL_PTABLE;
 
-		if ((page->addr >= syspage->stack) && (page->addr < syspage->stack + syspage->stacksz))
+		if ((page->addr >= (u64)pmap_common.stack) && (page->addr < (u64)pmap_common.stack + SIZE_PAGE))
 			page->flags |= PAGE_KERNEL_STACK;
 	}
 	else if ((page->addr >= pmap_common.dtb) && (page->addr < pmap_common.dtb + pmap_common.dtbsz)) {
@@ -294,8 +305,6 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	else {
 		page->flags |= PAGE_FREE;
 	}
-	*addr = a + SIZE_PAGE;
-#endif
 
 	return EOK;
 }
@@ -347,12 +356,14 @@ char pmap_marker(page_t *p)
 /* Function initializes low-level page mapping interface */
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
+	void *v;
 	struct {
 		u64 addr;
 		u64 limit;
 	} *m, *r;
 	size_t n, i;
 	u64 a, l;
+	u64 e = (u64)&_end;
 
 	dtb_getMemory((u64 **)&m, &n);
 	dtb_getReservedMemory((u64 **)&r);
@@ -374,14 +385,9 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 			pmap_common.minAddr = a;
 	}
 
-/* TODO: add new syspage */
-#if 0
-	void *v;
-	u64 e = (u64)_end;
-
 	/* Initialize kernel page table - remove first 4 MB mapping */
 	pmap->pdir2 = pmap_common.pdir2;
-	pmap->satp = ((syspage->pdir2 >> 12) | (u64)0x8000000000000000);
+	pmap->satp = (((u64)pmap_common.pdir2 >> 12) | (u64)0x8000000000000000);
 
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)VADDR_MAX;
@@ -395,7 +401,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	(*vend) = (*vstart) + SIZE_PAGE;
 
-	pmap_common.start = (u64)pmap_common.heap - VADDR_KERNEL + syspage->kernel;
+	pmap_common.start = (u64)pmap_common.heap - VADDR_KERNEL + pmap_common.kernel;
 	pmap_common.end = pmap_common.start + SIZE_PAGE;
 
 	/* Create initial heap */
@@ -403,7 +409,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	for (v = *vend; v < (void *)VADDR_KERNEL + (2 << 20); v += SIZE_PAGE)
 		pmap_remove(pmap, v);
-#endif
 
 	hal_cpuFlushTLB(NULL);
 
@@ -416,12 +421,12 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 	switch (i) {
 	case 0:
 		*vaddr = (void *)VADDR_KERNEL;
-		*size = (size_t)_etext - VADDR_KERNEL;
+		*size = (size_t)&_etext - VADDR_KERNEL;
 		*prot = (PROT_EXEC | PROT_READ);
 		break;
 	case 1:
-		*vaddr = _etext;
-		*size = (size_t)(*top) - (size_t)_etext;
+		*vaddr = &_etext;
+		*size = (size_t)(*top) - (size_t)&_etext;
 		*prot = (PROT_WRITE | PROT_READ);
 		break;
 	default:
@@ -454,18 +459,9 @@ void _pmap_preinit(void)
 {
 	unsigned int i;
 
-/* TODO: add new syspage */
-#if 0
-	/* Initialize syspage with zeros */
-	hal_memset(&pmap_common.pmap_syspage, 0, sizeof(syspage_t));
-
-	syspage->kernel = (u64)_start;
-	syspage->kernelsize = (u64)_end - (u64)_start;
-
-	syspage->pdir2 = (u64)pmap_common.pdir2;
-	syspage->stack = (u64)pmap_common.stack;
-	syspage->stacksz = SIZE_PAGE;
-#endif
+	/* Get physical kernel address */
+	pmap_common.kernel = (addr_t)&_start;
+	pmap_common.kernelsz = (addr_t)&_end - (addr_t)&_start;
 
 	/* pmap_common.pdir2[(VADDR_KERNEL >> 30) % 512] = ((((u64)_start >> 30) << 28) | 0xcf); */
 
@@ -478,7 +474,7 @@ void _pmap_preinit(void)
 	pmap_common.pdir1[(VADDR_KERNEL >> 21) % 512] = ((u64)pmap_common.pdir0 >> 2) | 1;
 
 	for (i = 0; i < 512; i++)
-		pmap_common.pdir0[((VADDR_KERNEL >> 12) % 512) + i] = ((( ((u64)_start + i * SIZE_PAGE) >> 12) << 10) | 0xcf);
+		pmap_common.pdir0[((VADDR_KERNEL >> 12) % 512) + i] = (((((addr_t)&_start + i * SIZE_PAGE) >> 12) << 10) | 0xcf);
 
 	/* Map PLIC (MOD) */
 	pmap_common.pdir2[511] = 0xcf;

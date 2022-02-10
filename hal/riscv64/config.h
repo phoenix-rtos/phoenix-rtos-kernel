@@ -19,6 +19,7 @@
 #ifndef __ASSEMBLY__
 
 #include "../../include/arch/syspage-riscv64.h"
+#include "../../include/syspage.h"
 
 #endif
 
