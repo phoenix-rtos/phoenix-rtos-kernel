@@ -122,10 +122,10 @@ dtb:
 	/* Initialize syspage pointer */
 	la t0, _syspage_data
 	add t0, t0, a1
-	la t1, syspage
+	la t1, hal_syspage
 	sd t0, (t1)
 
-	la a0, relOffs
+	la a0, hal_relOffs
 	sd a1, (a0)
 
 	la a0, pmap_common

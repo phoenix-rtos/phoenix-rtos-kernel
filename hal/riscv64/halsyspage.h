@@ -19,6 +19,6 @@
 #include <arch/types.h>
 #include "config.h"
 
-extern syspage_t *syspage;
+extern syspage_t *hal_syspage;
 
 #endif
