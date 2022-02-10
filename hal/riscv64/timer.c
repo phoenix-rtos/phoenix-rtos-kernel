@@ -13,12 +13,12 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "interrupts.h"
+#include "../timer.h"
+#include "../interrupts.h"
+#include "../spinlock.h"
+#include "riscv64.h"
 #include "sbi.h"
-#include "spinlock.h"
 
-#include "../../include/errno.h"
 
 
 struct {
@@ -41,7 +41,12 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-time_t hal_getTimer(void)
+void hal_timerSetWakeup(u32 when)
+{
+}
+
+
+time_t hal_timerGetUs(void)
 {
 	spinlock_ctx_t sc;
 	time_t ret;
@@ -54,7 +59,17 @@ time_t hal_getTimer(void)
 }
 
 
-__attribute__ ((section (".init"))) void _timer_init(u32 interval)
+int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+{
+	h->f = f;
+	h->n = SYSTICK_IRQ;
+	h->data = data;
+
+	return hal_interruptsSetHandler(h);
+}
+
+
+__attribute__((section(".init"))) void _hal_timerInit(u32 interval)
 {
 	cycles_t c = hal_cpuGetCycles2() / 1000;
 

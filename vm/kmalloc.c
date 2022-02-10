@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "../lib/lib.h"
 #include "map.h"
 #include "zone.h"

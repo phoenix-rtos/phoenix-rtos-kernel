@@ -13,17 +13,17 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "../include/errno.h"
 #include "../include/signal.h"
 #include "../lib/lib.h"
+#include "../syspage.h"
 #include "map.h"
 #include "../proc/proc.h"
 #include "amap.h"
 
 
-extern void _etext(void);
-
+extern unsigned int __bss_start;
 
 struct {
 	vm_map_t *kmap;
@@ -1052,30 +1052,36 @@ void vm_mapGetStats(size_t *allocsz)
 }
 
 
-vm_map_t *vm_getSharedMap(syspage_program_t *prog, int map)
+vm_map_t *vm_getSharedMap(syspage_prog_t *prog, int map)
 {
 #ifdef NOMMU
+	unsigned int i;
+
 	if (map < 0)
-		map = prog->dmap;
+		map = prog->dmaps[0];
 
-	if (map >= 0 && map < 16)
-		return map_common.maps[map];
-
+	for (i = 0; i < prog->dmapSz; ++i) {
+		if (map == prog->dmaps[i])
+			return map_common.maps[map];
+	}
 #endif
+
 	return NULL;
 }
 
 
 static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
-	int res, id;
-	void *estop, *estart;
-	void *mstart, *mstop;
-	unsigned int mapsCnt;
-	map_entry_t *entry;
+#ifdef NOMMU
+	size_t mapsCnt, id = 0;
 
-	id = 0;
-	mapsCnt = pmap_getMapsCnt();
+	map_entry_t *entry;
+	const mapent_t *sysEntry;
+	const syspage_map_t *map;
+
+	if ((mapsCnt = syspage_mapSize()) == 0)
+		return -EINVAL;
+
 	map_common.maps = (vm_map_t **)(*bss);
 
 	while ((*top) - (*bss) < sizeof(vm_map_t *) * mapsCnt) {
@@ -1086,18 +1092,16 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	}
 
 	(*bss) += (sizeof(vm_map_t *) * mapsCnt);
+	map = syspage_mapList();
 
-	while (id < mapsCnt) {
-		if ((res = pmap_getMapParameters(id, &mstart, &mstop)) <= 0)
-			return res;
 
-		/* Assign map as kernel map */
-		if (kmap->pmap.start >= mstart && kmap->pmap.end <= mstop) {
-			kmap->pmap.start = mstart;
-			kmap->pmap.end = mstop;
+	do {
+		if (kmap->pmap.start >= (void *)map->start && kmap->pmap.end <= (void *)map->end) {
+			kmap->pmap.start = (void *)map->start;
+			kmap->pmap.end = (void *)map->end;
 
-			kmap->start = mstart;
-			kmap->stop = mstop;
+			kmap->start = (void *)map->start;
+			kmap->stop = (void *)map->end;
 
 			map_common.maps[id] = kmap;
 		}
@@ -1111,41 +1115,38 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 			}
 
 			map_common.maps[id] = (*bss);
-
-			if (vm_mapCreate(map_common.maps[id], (void *)mstart, (void *)mstop) < 0)
+			if (vm_mapCreate(map_common.maps[id], (void *)map->start, (void *)map->end) < 0)
 				return -ENOMEM;
 
 			(*bss) += sizeof(vm_map_t);
 		}
 
-		for (;;) {
-			estop = 0;
-			estart = 0;
+		if ((sysEntry = map->entries) != NULL) {
+			do {
+				/* Skip temporary entries which are used only in phoenix-rtos-loader */
+				if (sysEntry->type == hal_entryTemp)
+					continue;
 
-			pmap_getAllocatedSegment(mstart, mstop, &estart, &estop);
+				if ((entry = map_alloc()) == NULL)
+					return -ENOMEM;
 
-			if (estart == estop)
-				break;
+				entry->vaddr = (void *)round_page((long)sysEntry->start);
+				entry->size = round_page(sysEntry->end - sysEntry->start);
+				entry->object = kernel;
+				entry->offs = -1;
+				entry->flags = MAP_NONE;
+				/* TODO: initialize map properties based on attributes in syspage */
+				entry->prot = PROT_READ | PROT_EXEC;
+				entry->amap = NULL;
 
-			if ((entry = map_alloc()) == NULL)
-				return -ENOMEM;
-
-			entry->vaddr = (void *)round_page((long)estart);
-			entry->size = round_page(estop - estart);
-			entry->object = kernel;
-			entry->offs = -1;
-			entry->flags = MAP_NONE;
-			entry->prot = PROT_READ | PROT_EXEC; // TODO: initialize map properties based on attributes in syspage
-			entry->amap = NULL;
-
-			if (_map_add(NULL, map_common.maps[id], entry) < 0)
-				return -ENOMEM;
-
-			mstart = estop;
+				if (_map_add(NULL, map_common.maps[id], entry) < 0)
+					return -ENOMEM;
+			} while ((sysEntry = sysEntry->next) != map->entries);
 		}
 
 		++id;
-	}
+	} while ((map = map->next) != syspage_mapList());
+#endif
 
 	return EOK;
 }
@@ -1154,9 +1155,9 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
 	int i, prot;
+	void *vaddr;
 	size_t poolsz, freesz, size;
 	map_entry_t *e;
-	void *vaddr;
 
 	proc_lockInit(&map_common.lock);
 
@@ -1194,11 +1195,11 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	(*bss) += poolsz;
 	lib_printf("vm: Initializing memory mapper: (%d*%d) %d\n", map_common.nfree, sizeof(map_entry_t), poolsz);
 
-
 	if (_map_mapsInit(kmap, kernel, bss, top) < 0) {
 		lib_printf("vm: Problem with maps initialization.\n");
 		for (;;);
 	}
+
 
 	/* Map kernel segments */
 	for (i = 0;; i++) {

@@ -13,16 +13,10 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "interrupts.h"
-
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
-#include "imxrt10xx.h"
-#endif
-
-#ifdef CPU_IMXRT117X
-#include "imxrt117x.h"
-#endif
+#include "../../../timer.h"
+#include "config.h"
+#include <arch/cpu.h>
+#include <arch/interrupts.h>
 
 
 static struct {
@@ -32,18 +26,6 @@ static struct {
 
 	u32 interval;
 } timer_common;
-
-
-void timer_jiffiesAdd(time_t t)
-{
-	(void)t;
-}
-
-
-void timer_setAlarm(time_t us)
-{
-	(void)us;
-}
 
 
 static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -57,20 +39,41 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-time_t hal_getTimer(void)
+static time_t hal_timerCyc2Us(time_t cyc)
+{
+	return cyc;
+}
+
+
+void hal_timerSetWakeup(u32 when)
+{
+}
+
+
+time_t hal_timerGetUs(void)
 {
 	spinlock_ctx_t sc;
 	time_t ret;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	ret = timer_common.jiffies;
+	ret = hal_timerCyc2Us(timer_common.jiffies);
 	hal_spinlockClear(&timer_common.sp, &sc);
 
 	return ret;
 }
 
 
-void _timer_init(u32 interval)
+int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+{
+	h->f = f;
+	h->n = SYSTICK_IRQ;
+	h->data = data;
+
+	return hal_interruptsSetHandler(h);
+}
+
+
+void _hal_timerInit(u32 interval)
 {
 	timer_common.jiffies = 0;
 

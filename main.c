@@ -5,16 +5,16 @@
  *
  * Kernel initialization
  *
- * Copyright 2012-2017 Phoenix Systems
+ * Copyright 2012-2017, 2021 Phoenix Systems
  * Copyright 2001, 2005-2006 Pawel Pisarczyk
- * Author: Pawel Pisarczyk, Aleksander Kaminski
+ * Author: Pawel Pisarczyk, Aleksander Kaminski, Hubert Buczynski
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
-#include HAL
+#include "hal/hal.h"
 
 #include "log/log.h"
 #include "lib/lib.h"
@@ -22,8 +22,8 @@
 #include "proc/proc.h"
 #include "posix/posix.h"
 #include "syscalls.h"
+#include "syspage.h"
 #include "test/test.h"
-#include "programs.h"
 
 
 struct {
@@ -37,98 +37,54 @@ struct {
 
 void main_initthr(void *unused)
 {
-	size_t i;
-	syspage_program_t prog;
-	int xcount = 0, res;
-	char *cmdline = syspage->arg, *end;
-	char *argv[32], *arg, *argend;
+	int res;
+	unsigned int argc;
+
+	syspage_prog_t *prog;
+	char *argv[32], *cmdline;
 
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 	_log_start();
 
-	lib_printf("main: Decoding programs from data segment\n");
-	programs_decode(&main_common.kmap, &main_common.kernel);
-
 	lib_printf("main: Starting syspage programs:");
-	for (i = 0; i < syspage->progssz; i++)
-		lib_printf(" '%s',", syspage->progs[i].cmdline);
-	lib_printf("\b \n");
+	syspage_progShow();
 
 	posix_init();
 	posix_clone(-1);
 
-	/* Free memory used by initial stack */
-	/*vm_munmap(&main_common.kmap, main_common.stack, main_common.stacksz);
-	vm_pageFree(p);*/
+	/* Start programs from syspage */
+	if ((prog = syspage_progList()) != NULL) {
+		do {
+			cmdline = prog->argv;
+			/* If app shouldn't be executed then args should be discarded */
+			if (*cmdline != 'X') {
+				while (*cmdline != ';' && *cmdline != '\0')
+					++cmdline;
 
-	/* Set stdin, stdout, stderr ports */
-//	proc_fileAdd(&h, &oid, 0);
-//	proc_fileAdd(&h, &oid, 0);
-//	proc_fileAdd(&h, &oid, 0);
+				*cmdline = '\0';
+				continue;
+			}
 
-	argv[0] = NULL;
+			/* 'X' is no longer useful */
+			++prog->argv;
+			cmdline = prog->argv;
+			for (argc = 0; argc < (sizeof(argv) / sizeof(*argv) - 1);) {
+				argv[argc++] = cmdline;
+				while (*cmdline != ';' && *cmdline != '\0')
+					++cmdline;
 
-	while (cmdline != NULL && *cmdline != '\0') {
-		end = cmdline;
-		while (*end && *(++end) != ' ');
-		while (*end == ' ')
-			*(end++) = 0;
-		if (*cmdline == 'X' && ++xcount) {
-			i = 0;
-			argend = cmdline;
-
-			while (i < sizeof(argv) / sizeof(*argv) - 1) {
-				arg = ++argend;
-				while (*argend && *argend != ';')
-					argend++;
-
-				argv[i++] = arg;
-
-				if (!*argend)
+				if (*cmdline == '\0')
 					break;
 
-				*argend = 0;
+				*(cmdline++) = '\0';
 			}
-			argv[i++] = NULL;
+			argv[argc++] = NULL;
 
-			if (i == sizeof(argv) / sizeof(*argv))
-				lib_printf("main: truncated arguments for command '%s'\n", argv[0]);
-
-			/* Start program loaded into memory */
-			for (i = 0; i < syspage->progssz; i++) {
-				if (!hal_strcmp(cmdline + 1, syspage->progs[i].cmdline)) {
-					argv[0] = syspage->progs[i].cmdline;
-					hal_memcpy(&prog, &syspage->progs[i], sizeof(prog));
-					res = proc_syspageSpawn(&prog, vm_getSharedMap(&prog, -1), prog.cmdline, argv);
-					if (res < 0)
-						lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
-				}
-			}
-		}
-
-		cmdline = end;
-	}
-
-	if (!xcount && syspage->progssz != 0) {
-		argv[1] = NULL;
-		/* Start all syspage programs */
-		for (i = 0; i < syspage->progssz; i++) {
-			argv[0] = syspage->progs[i].cmdline;
-			hal_memcpy(&prog, &syspage->progs[i], sizeof(prog));
-			res = proc_syspageSpawn(&prog, vm_getSharedMap(&prog, -1), prog.cmdline, argv);
-			if (res < 0) {
+			if ((res = proc_syspageSpawn(prog, vm_getSharedMap(prog, -1), argv[0], argv)) < 0)
 				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
-			}
-		}
+		} while ((prog = prog->next) != syspage_progList());
 	}
-
-	/* Reopen stdin, stdout, stderr */
-//	proc_lookup("/dev/console", &oid);
-
-//	proc_fileSet(0, 3, &oid, 0, 0);
-//	proc_fileSet(1, 3, &oid, 0, 0);
-//	proc_fileSet(2, 3, &oid, 0, 0);
 
 	for (;;)
 		proc_reap();
@@ -146,21 +102,21 @@ int main(void)
 	lib_printf("hal: %s\n", hal_cpuInfo(s));
 	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
 	lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
+	syspage_init();
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
 	_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
 
+#if 0
 	/* Start tests */
-
-	/*
 	test_proc_threads1();
 	test_vm_kmallocsim();
 	test_proc_conditional();
 	test_vm_alloc();
 	test_vm_kmalloc();
 	test_proc_exit();
-	*/
+#endif
 
 	proc_start(main_initthr, NULL, (const char *)"init");
 

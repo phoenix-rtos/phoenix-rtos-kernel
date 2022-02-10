@@ -13,12 +13,12 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "pmap.h"
-#include "string.h"
-#include "spinlock.h"
+#include "armv7a.h"
+#include "config.h"
 
-#include "../../include/errno.h"
+#include "../cpu.h"
+#include "../string.h"
+#include "../spinlock.h"
 
 
 /* Function creates new cpu context on top of given thread kernel stack */
@@ -29,10 +29,10 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	*nctx = 0;
 	if (kstack == NULL)
-		return -EINVAL;
+		return -1;
 
 	if (kstacksz < sizeof(cpu_context_t))
-		return -EINVAL;
+		return -1;
 
 	kstacksz &= ~0x3;
 
@@ -87,21 +87,35 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+{
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+
+	/* No signal handling inside IT block */
+	if (ctx->psr & 0x600fc00)
+		return -1;
+
+	PUTONSTACK(ctx->sp, u32, ctx->pc | !!(ctx->psr & THUMB_STATE));
+	PUTONSTACK(ctx->sp, int, n);
+
+	ctx->pc = (u32)handler & ~1;
+
+	if ((u32)handler & 1)
+		ctx->psr |= THUMB_STATE;
+	else
+		ctx->psr &= ~THUMB_STATE;
+
+	return 0;
+}
+
+
 char *hal_cpuInfo(char *info)
 {
 	size_t n = 0;
 	u32 midr;
 
-#ifdef CPU_IMX
-	hal_strcpy(&info[n], "i.MX 6ULL ");
-	n += 10;
-#elif CPU_IMX6UL
-	hal_strcpy(&info[n], "i.MX 6UL ");
-	n += 9;
-#else
-	hal_strcpy(&info[n], "unknown ");
-	n += 8;
-#endif
+	hal_strcpy(info, HAL_NAME_PLATFORM);
+	n = sizeof(HAL_NAME_PLATFORM) - 1;
 
 	midr = hal_cpuGetMIDR();
 
@@ -112,6 +126,10 @@ char *hal_cpuInfo(char *info)
 
 	if (((midr >> 4) & 0xfff) == 0xc07) {
 		hal_strcpy(&info[n], "Cortex-A7 ");
+		n += 10;
+	}
+	else if (((midr >> 4) & 0xfff) == 0xc09) {
+		hal_strcpy(&info[n], "Cortex-A9 ");
 		n += 10;
 	}
 
@@ -134,56 +152,50 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	if (!len)
 		return features;
 
-	if ((pfr0 >> 12) & 0xf && len - n > 8) {
-		hal_strcpy(&features[n], "ThumbEE,");
-		n += 8;
-	}
-
-	if ((pfr0 >> 8) & 0xf && len - n > 8) {
-		hal_strcpy(&features[n], "Jazelle,");
-		n += 8;
-	}
-
-	if ((pfr0 >> 4) & 0xf && len - n > 6) {
-		hal_strcpy(&features[n], "Thumb,");
-		n += 6;
-	}
-
-	if (pfr0 & 0xf && len - n > 4) {
-		hal_strcpy(&features[n], "ARM,");
-		n += 4;
-	}
-
-	if ((pfr1 >> 16) & 0xf && len - n > 14) {
-		hal_strcpy(&features[n], "Generic Timer,");
-		n += 14;
-	}
-
-	if ((pfr1 >> 12) & 0xf && len - n > 15) {
-		hal_strcpy(&features[n], "Virtualization,");
-		n += 15;
-	}
-
-	if ((pfr1 >> 8) & 0xf && len - n > 4) {
-		hal_strcpy(&features[n], "MCU,");
-		n += 4;
-	}
-
-	if ((pfr1 >> 4) & 0xf && len - n > 9) {
-		hal_strcpy(&features[n], "Security,");
+	if ((pfr0 >> 12) & 0xf && len - n > 9) {
+		hal_strcpy(&features[n], "ThumbEE, ");
 		n += 9;
 	}
 
+	if ((pfr0 >> 8) & 0xf && len - n > 9) {
+		hal_strcpy(&features[n], "Jazelle, ");
+		n += 9;
+	}
+
+	if ((pfr0 >> 4) & 0xf && len - n > 7) {
+		hal_strcpy(&features[n], "Thumb, ");
+		n += 7;
+	}
+
+	if (pfr0 & 0xf && len - n > 5) {
+		hal_strcpy(&features[n], "ARM, ");
+		n += 5;
+	}
+
+	if ((pfr1 >> 16) & 0xf && len - n > 15) {
+		hal_strcpy(&features[n], "Generic Timer, ");
+		n += 15;
+	}
+
+	if ((pfr1 >> 12) & 0xf && len - n > 16) {
+		hal_strcpy(&features[n], "Virtualization, ");
+		n += 16;
+	}
+
+	if ((pfr1 >> 8) & 0xf && len - n > 5) {
+		hal_strcpy(&features[n], "MCU, ");
+		n += 5;
+	}
+
+	if ((pfr1 >> 4) & 0xf && len - n > 10) {
+		hal_strcpy(&features[n], "Security, ");
+		n += 10;
+	}
+
 	if (n > 0)
-		features[n - 1] = '\0';
+		features[n - 2] = '\0';
 	else
 		features[0] = '\0';
 
 	return features;
-}
-
-
-void _hal_cpuInit(void)
-{
-//	_hal_cpuInitCores();
 }

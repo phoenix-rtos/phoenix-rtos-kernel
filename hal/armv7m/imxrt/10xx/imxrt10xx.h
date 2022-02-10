@@ -16,9 +16,8 @@
 #ifndef _HAL_IMXRT_H_
 #define _HAL_IMXRT_H_
 
-#include "cpu.h"
-#include "pmap.h"
-#include "spinlock.h"
+
+#include <arch/types.h>
 
 /* iMXRT peripherals */
 

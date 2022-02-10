@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "hal/hal.h"
 #include "include/errno.h"
 #include "include/sysinfo.h"
 #include "include/mman.h"
@@ -24,6 +24,7 @@
 #include "proc/proc.h"
 #include "vm/object.h"
 #include "posix/posix.h"
+#include "syspage.h"
 
 #define SYSCALLS_NAME(name)   syscalls_##name,
 #define SYSCALLS_STRING(name) #name,
@@ -316,23 +317,31 @@ void syscalls_meminfo(void *ustack)
 int syscalls_syspageprog(void *ustack)
 {
 	int i;
-	size_t sz;
+	size_t sz, namesz;
 	syspageprog_t *prog;
+	const syspage_prog_t *progSys;
 
 	GETFROMSTACK(ustack, syspageprog_t *, prog, 0);
 	GETFROMSTACK(ustack, int, i, 1);
 
+	sz = syspage_progSize();
 	if (i < 0)
-		return syspage->progssz;
+		return sz;
 
-	if (i >= syspage->progssz)
+	if (i >= sz)
 		return -EINVAL;
 
-	prog->addr = syspage->progs[i].start;
-	prog->size = syspage->progs[i].end - syspage->progs[i].start;
-	sz = min(sizeof(prog->name), sizeof(syspage->progs[i].cmdline));
-	hal_memcpy(prog->name, syspage->progs[i].cmdline, sz);
-	prog->name[sz - 1] = '\0';
+	if ((progSys = syspage_progIdResolve(i)) == NULL)
+		return -EINVAL;
+
+	prog->addr = progSys->start;
+	prog->size = progSys->end - progSys->start;
+
+	/* TODO: change syspageprog_t to allocate data for name dynamically */
+	namesz = hal_strlen(progSys->argv);
+	sz = min(sizeof(prog->name) - 1, namesz);
+	hal_memcpy(prog->name, progSys->argv, sz);
+	prog->name[sz] = '\0';
 
 	return EOK;
 }
@@ -641,12 +650,10 @@ int syscalls_settime(void *ustack)
 
 void syscalls_keepidle(void *ustack)
 {
-#ifdef CPU_STM32
 	int t;
 
 	GETFROMSTACK(ustack, int, t, 0);
 	hal_cpuSetDevBusy(t);
-#endif
 }
 
 

@@ -19,7 +19,7 @@
 #define SR_SUM          0x00040000
 #define SR_MER          0x00080000
 
-#include "cpu.h"
+#include <arch/cpu.h>
 
 .text
 

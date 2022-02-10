@@ -14,9 +14,8 @@
  */
 
 
-#include "console.h"
-#include "cpu.h"
-#include "syspage.h"
+#include "../../console.h"
+#include "../../cpu.h"
 
 
 #define UART uart1
@@ -36,17 +35,13 @@ enum {
 };
 
 
-extern void _end(void);
+extern unsigned int _end;
 
-static void _console_print(const char *s)
+
+static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++) {
-		/* Wait until TX fifo is empty */
-		while (!(*(console_common.UART + sr) & (1 << 3)))
-			;
-
-		*(console_common.UART + fifo) = *s;
-	}
+	for (; *s; s++)
+		hal_consolePutch(*s);
 
 	/* Wait until TX fifo is empty */
 	while (!(*(console_common.UART + sr) & (1 << 3)))
@@ -56,26 +51,30 @@ static void _console_print(const char *s)
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD) {
-		_console_print("\033[1m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else if (attr != ATTR_USER) {
-		_console_print("\033[36m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else {
-		_console_print(s);
-	}
+	if (attr == ATTR_BOLD)
+		_hal_consolePrint(CONSOLE_BOLD);
+	else if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
+	_hal_consolePrint(s);
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
+	/* Wait until TX fifo is empty */
+	while (!(*(console_common.UART + sr) & (1 << 3)))
+		;
+
+	*(console_common.UART + fifo) = c;
 }
 
 
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
-	console_common.uart0 = (void *)(((u32)_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
-	console_common.uart1 = (void *)(((u32)_end + (2 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart0 = (void *)(((u32)&_end + 3 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart1 = (void *)(((u32)&_end + 4 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	console_common.speed = 115200;
 
 	*(console_common.UART + idr) = 0xfff;

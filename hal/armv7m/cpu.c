@@ -13,27 +13,12 @@
  * %LICENSE%
  */
 
-#include "../../include/errno.h"
-#include "cpu.h"
-#include "interrupts.h"
-#include "spinlock.h"
-#include "string.h"
-#include "timer.h"
+#include "../cpu.h"
+#include "../interrupts.h"
+#include "../spinlock.h"
+#include "../string.h"
 
-
-#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)
-#include "stm32.h"
-#endif
-
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
-#include "imxrt10xx.h"
-#endif
-
-#ifdef CPU_IMXRT117X
-#include "imxrt117x.h"
-#endif
-
-
+#include "config.h"
 
 struct {
 	int busy;
@@ -44,7 +29,49 @@ struct {
 volatile cpu_context_t *_cpu_nctx;
 
 
-/* context management */
+/* performance */
+
+
+void hal_cpuLowPower(time_t us)
+{
+#ifdef CPU_STM32
+	spinlock_ctx_t scp;
+
+	hal_spinlockSet(&cpu_common.busySp, &scp);
+	if (cpu_common.busy == 0) {
+		/* Don't increment jiffies if sleep was unsuccessful */
+		us = _stm32_pwrEnterLPStop(us);
+		timer_jiffiesAdd(us);
+	}
+	hal_spinlockClear(&cpu_common.busySp, &scp);
+#endif
+}
+
+
+void hal_cpuGetCycles(cycles_t *cb)
+{
+#ifdef CPU_STM32
+	*cb = _stm32_systickGet();
+#elif defined(CPU_IMXRT)
+	*cb = _imxrt_systickGet();
+#endif
+}
+
+
+void hal_cpuSetDevBusy(int s)
+{
+	spinlock_ctx_t scp;
+
+	hal_spinlockSet(&cpu_common.busySp, &scp);
+	if (s == 1)
+		++cpu_common.busy;
+	else
+		--cpu_common.busy;
+
+	if (cpu_common.busy < 0)
+		cpu_common.busy = 0;
+	hal_spinlockClear(&cpu_common.busySp, &scp);
+}
 
 
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
@@ -109,60 +136,26 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	}
 
 	*nctx = ctx;
-	return EOK;
+	return 0;
 }
 
 
-void hal_cpuLowPower(time_t us)
+void hal_longjmp(cpu_context_t *ctx)
 {
-#ifdef CPU_STM32
-	spinlock_ctx_t scp;
-
-	hal_spinlockSet(&cpu_common.busySp, &scp);
-	if (cpu_common.busy == 0) {
-		/* Don't increment jiffies if sleep was unsuccessful */
-		us = _stm32_pwrEnterLPStop(us);
-		timer_jiffiesAdd(us);
-	}
-	hal_spinlockClear(&cpu_common.busySp, &scp);
-#endif
+	__asm__ volatile
+	(" \
+		cpsid if; \
+		str %1, [%0]; \
+		bl _hal_invokePendSV; \
+		cpsie if; \
+	1:	b 1b"
+	:
+	: "r" (&_cpu_nctx), "r" (ctx)
+	: "memory");
 }
 
 
-void hal_cpuSetDevBusy(int s)
-{
-	spinlock_ctx_t scp;
-
-	hal_spinlockSet(&cpu_common.busySp, &scp);
-	if (s == 1)
-		++cpu_common.busy;
-	else
-		--cpu_common.busy;
-
-	if (cpu_common.busy < 0)
-		cpu_common.busy = 0;
-	hal_spinlockClear(&cpu_common.busySp, &scp);
-}
-
-
-void hal_cpuGetCycles(cycles_t *cb)
-{
-#ifdef CPU_STM32
-	*cb = _stm32_systickGet();
-#elif defined(CPU_IMXRT)
-	*cb = _imxrt_systickGet();
-#endif
-}
-
-
-void hal_cpuRestart(void)
-{
-#ifdef CPU_STM32
-	_stm32_nvicSystemReset();
-#elif defined(CPU_IMXRT)
-	_imxrt_nvicSystemReset();
-#endif
-}
+/* core management */
 
 
 char *hal_cpuInfo(char *info)
@@ -172,29 +165,37 @@ char *hal_cpuInfo(char *info)
 
 #ifdef CPU_STM32
 	cpuinfo = _stm32_cpuid();
-	hal_strcpy(info, "STM32 ");
-	i = 6;
 #elif defined(CPU_IMXRT)
 	cpuinfo = _imxrt_cpuid();
-	hal_strcpy(info, "i.MX RT ");
-	i = 8;
 #else
 	hal_strcpy(info, "unknown");
 	return info;
 #endif
-	if (((cpuinfo >> 24) & 0xff) == 0x41) {
-		hal_strcpy(info + i, "ARM ");
-		i += 4;
-	}
 
-	*(info + i++) = 'r';
-	*(info + i++) = '0' + ((cpuinfo >> 20) & 0xf);
-	*(info + i++) = ' ';
+	hal_strcpy(info, HAL_NAME_PLATFORM);
+	i = sizeof(HAL_NAME_PLATFORM) - 1;
+
+	if (((cpuinfo >> 24) & 0xff) == 0x41) {
+		hal_strcpy(info + i, "ARMv7 ");
+		i += 6;
+	}
 
 	if (((cpuinfo >> 4) & 0xfff) == 0xc23) {
 		hal_strcpy(info + i, "Cortex-M3 ");
 		i += 10;
 	}
+	else if (((cpuinfo >> 4) & 0xfff) == 0xc24) {
+		hal_strcpy(info + i, "Cortex-M4 ");
+		i += 10;
+	}
+	else if (((cpuinfo >> 4) & 0xfff) == 0xc27) {
+		hal_strcpy(info + i, "Cortex-M7 ");
+		i += 10;
+	}
+
+	*(info + i++) = 'r';
+	*(info + i++) = '0' + ((cpuinfo >> 20) & 0xf);
+	*(info + i++) = ' ';
 
 	*(info + i++) = 'p';
 	*(info + i++) = '0' + (cpuinfo & 0xf);
@@ -206,7 +207,34 @@ char *hal_cpuInfo(char *info)
 
 char *hal_cpuFeatures(char *features, unsigned int len)
 {
-	features[0] = '\0';
+	unsigned int n = 0;
+#ifdef CPU_IMXRT
+	if ((len - n) > 5) {
+		hal_strcpy(features + n, "FPU, ");
+		n += 5;
+	}
+#elif defined(CPU_STM32)
+	if ((len - n) > 8) {
+		hal_strcpy(features + n, "softfp, ");
+		n += 8;
+	}
+#endif
+	/* TODO: get region numbers from MPU controller */
+	if ((len - n) > 8) {
+		hal_strcpy(features + n, "MPU, ");
+		n += 5;
+	}
+
+	if ((len - n) > 7) {
+		hal_strcpy(features + n, "Thumb, ");
+		n += 7;
+	}
+
+	if (n > 0)
+		features[n - 2] = '\0';
+	else
+		features[0] = '\0';
+
 	return features;
 }
 

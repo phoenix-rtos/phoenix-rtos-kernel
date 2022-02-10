@@ -13,19 +13,47 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "pmap.h"
-#include "spinlock.h"
-#include "interrupts.h"
+#include "../../cpu.h"
+#include "../../interrupts.h"
 
 #include "../../proc/userintr.h"
-#include "../../include/errno.h"
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+#define SIZE_INTERRUPTS 159
+#define SIZE_HANDLERS   4
 
 
-#define SIZE_INTERRUPTS		159
-#define SIZE_HANDLERS		4
+#define _intr_add(list, t) \
+	do { \
+		if (t == NULL) \
+			break; \
+		if (*list == NULL) { \
+			t->next = t; \
+			t->prev = t; \
+			(*list) = t; \
+			break; \
+		} \
+		t->prev = (*list)->prev; \
+		(*list)->prev->next = t; \
+		t->next = (*list); \
+		(*list)->prev = t; \
+	} while (0)
+
+
+#define _intr_remove(list, t) \
+	do { \
+		if (t == NULL) \
+			break; \
+		if ((t->next == t) && (t->prev == t)) \
+			(*list) = NULL; \
+		else { \
+			t->prev->next = t->next; \
+			t->next->prev = t->prev; \
+			if (t == (*list)) \
+				(*list) = t->next; \
+		} \
+		t->next = NULL; \
+		t->prev = NULL; \
+	} while (0)
 
 
 enum { /* 1024 reserved */ ctlr = 0x400, typer, iidr, /* 29 reserved */ igroupr0 = 0x420, /* 16 registers */
@@ -48,7 +76,9 @@ struct {
 } interrupts;
 
 
-extern void _end(void);
+extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+
+extern unsigned int _end;
 
 
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
@@ -56,6 +86,8 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
+
+	n = *(interrupts.gic + iar) & 0x3ff;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
@@ -72,6 +104,8 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if (reschedule)
 		threads_schedule(n, ctx, NULL);
+
+	*(interrupts.gic + eoir) = (*(interrupts.gic + eoir) & ~0x3ff) | n;
 
 	hal_spinlockClear(&interrupts.spinlock[n], &sc);
 
@@ -119,7 +153,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
-		return -EINVAL;
+		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock[h->n], &sc);
 	_intr_add(&interrupts.handlers[h->n], h);
@@ -130,7 +164,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 	hal_spinlockClear(&interrupts.spinlock[h->n], &sc);
 
-	return EOK;
+	return 0;
 }
 
 
@@ -148,7 +182,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
-		return -EINVAL;
+		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock[h->n], &sc);
 	_intr_remove(&interrupts.handlers[h->n], h);
@@ -158,11 +192,10 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 	hal_spinlockClear(&interrupts.spinlock[h->n], &sc);
 
-	return EOK;
+	return 0;
 }
 
 
-/* Function initializes interrupt handling */
 void _hal_interruptsInit(void)
 {
 	u32 i, t, priority;
@@ -173,7 +206,7 @@ void _hal_interruptsInit(void)
 		hal_spinlockCreate(&interrupts.spinlock[i], "interrupts");
 	}
 
-	interrupts.gic = (void *)(((u32)_end + (3 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	interrupts.gic = (void *)(((u32)&_end + (5 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
 
 	*(interrupts.gic + ctlr) &= ~1;
 

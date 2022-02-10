@@ -5,31 +5,30 @@
  *
  * pmap - machine dependent part of VM subsystem
  *
- * Copyright 2012, 2016 Phoenix Systems
+ * Copyright 2012, 2016, 2021 Phoenix Systems
  * Copyright 2001, 2005 Pawel Pisarczyk
- * Author: Pawel Pisarczyk
+ * Author: Pawel Pisarczyk, Hubert Buczynski
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
-#include "pmap.h"
-#include "syspage.h"
-#include "spinlock.h"
-#include "string.h"
-#include "console.h"
-#include "lib/lib.h"
+#include "halsyspage.h"
+#include "ia32.h"
+#include "../pmap.h"
+#include "../spinlock.h"
+#include "../string.h"
+#include "../console.h"
 
 #include "../../include/errno.h"
 #include "../../include/mman.h"
 
 
-extern void _end(void);
-extern void _etext(void);
+extern unsigned int _end;
+extern unsigned int _etext;
 
 
-__attribute__((aligned(SIZE_PAGE)))
 struct {
 	u32 minAddr;
 	u32 maxAddr;
@@ -38,7 +37,7 @@ struct {
 	u32 end;
 	spinlock_t lock;
 	addr_t ebda;
-} pmap_common;
+} __attribute__((aligned(SIZE_PAGE))) pmap_common;
 
 
 /* Function creates empty page table */
@@ -107,7 +106,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	}
 
 	/* Map selected page table */
-	ptable = (addr_t *)(syspage->ptable + VADDR_KERNEL);
+	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
 	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ff] = (addr & ~0xfff) | (PGHD_WRITE | PGHD_PRESENT | PGHD_USER);
 
 	hal_cpuFlushTLB(pmap_common.ptable);
@@ -146,7 +145,7 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	}
 
 	/* Map selected page table */
-	ptable = (addr_t *)(syspage->ptable + VADDR_KERNEL);
+	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
 	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ff] = (addr & ~0xfff) | (PGHD_WRITE | PGHD_PRESENT);
 
 	hal_cpuFlushTLB(pmap_common.ptable);
@@ -179,7 +178,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	/* Map page table corresponding to vaddr at specified virtual address */
 	addr = pmap->pdir[pdi];
 
-	ptable = (addr_t *)(syspage->ptable + VADDR_KERNEL);
+	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
 	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ff] = (addr & ~0xfff) | (PGHD_WRITE | PGHD_PRESENT);
 	hal_cpuFlushTLB(pmap_common.ptable);
 
@@ -198,14 +197,15 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 /* Function fills page_t structure for frame given by addr */
 int pmap_getPage(page_t *page, addr_t *addr)
 {
-	unsigned int k;
-	addr_t a, ta;
-	u16 tl;
-	syspage_program_t *p;
+	addr_t a;
+	size_t sz;
 	spinlock_ctx_t sc;
 
-	a = *addr & ~0xfff;
-	page->flags = 0;
+	const syspage_map_t *map;
+	const mapent_t *sysEntry;
+	const syspage_prog_t *prog;
+
+	a = *addr & ~(SIZE_PAGE - 1);
 
 	/* Test address ranges */
 	hal_spinlockSet(&pmap_common.lock, &sc);
@@ -223,81 +223,75 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	page->addr = a;
 	page->flags = 0;
 
-	for (k = 0; k < syspage->mmsize; k++) {
-
-		if ((a >= syspage->mm[k].addr) && (a <= syspage->mm[k].addr + syspage->mm[k].len - 1) &&
-			(a + SIZE_PAGE - 1 >= syspage->mm[k].addr) && (a + SIZE_PAGE - 1 <= syspage->mm[k].addr + syspage->mm[k].len - 1)) {
-			if (syspage->mm[k].attr == 1)
-				page->flags |= PAGE_FREE;
-			break;
-		}
-
-		/* Test if next memory area is higher than current page */
-		if ((syspage->mm[k].addr > a) && (syspage->mm[k].addr > a + SIZE_PAGE - 1)) {
-			a = (syspage->mm[k].addr & ~0xfff) - SIZE_PAGE;
-			k = syspage->mmsize;
-			break;
-		}
-
-		/* Test if page overlaps with reserved memory area */
-		if ((a <= syspage->mm[k].addr) && (syspage->mm[k].attr != 1)) {
-			page->flags &= ~PAGE_FREE;
-			break;
-		}
-	}
-	*addr = a + SIZE_PAGE;
-
-	/* If page doesn't exist return error */
-	if (k == syspage->mmsize)
+	map = syspage->maps;
+	if (map == NULL)
 		return -EINVAL;
 
-	/* Page is allocated by BIOS */
-	if (!(page->flags & PAGE_FREE)) {
-		page->flags |= PAGE_OWNER_BOOT;
-		return EOK;
-	}
+	do {
+		if (a >= map->start && a < map->end) {
+			sysEntry = map->entries;
+			if (sysEntry != NULL) {
+				do {
+					if (!(a >= sysEntry->start && a < sysEntry->end))
+						continue;
 
-	/* Verify if page has been allocated by loader or kernel */
-	hal_spinlockSet(&pmap_common.lock, &sc);
+					/* Memory reserved for boot rom */
+					if ((sysEntry->type == hal_entryReserved)) {
+						*addr = a + SIZE_PAGE;
+						page->flags |= PAGE_OWNER_BOOT;
+						return EOK;
+					}
 
-	/*if ((page->addr >= (u32)pmap_common.ptable - VADDR_KERNEL) && (page->addr < (u32)pmap_common.ptable - VADDR_KERNEL + SIZE_PAGE)) {
-		page->flags &= ~PAGE_FREE;
-		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_PMAP);
-	}*/
+					/* Skip invalid entries in map */
+					if (sysEntry->type == hal_entryInvalid) {
+						a = (sysEntry->end & ~(SIZE_PAGE - 1)) - SIZE_PAGE;
+						*addr = a + SIZE_PAGE;
+						return -EINVAL;
+					}
+				} while ((sysEntry = sysEntry->next) != map->entries);
+			}
+		}
+		else {
+			/* Skip empty area between maps */
+			if (a > (map->end - 1) && a < map->next->start) {
+				a = (map->next->start & ~(SIZE_PAGE - 1)) - SIZE_PAGE;
+				*addr = a + SIZE_PAGE;
+				return -EINVAL;
+			}
+		}
+	} while ((map = map->next) != syspage->maps);
 
-	hal_spinlockClear(&pmap_common.lock, &sc);
+	page->flags |= PAGE_FREE;
+	*addr = a + SIZE_PAGE;
 
-	if ((page->addr >= (u32)syspage - VADDR_KERNEL) && (page->addr < (u32)syspage - VADDR_KERNEL + SIZE_PAGE)) {
+
+	if ((page->addr >= (ptr_t)syspage - VADDR_KERNEL) && (page->addr < (ptr_t)syspage - VADDR_KERNEL + syspage->size)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_SYSPAGE);
 	}
 
 	/* Check addr according GDT parameters */
-	hal_memcpy(&ta, &syspage->gdtr[2], 4);
-	hal_memcpy(&tl, syspage->gdtr, 2);
-	if ((page->addr >= ta - VADDR_KERNEL) && (page->addr < ta - VADDR_KERNEL + tl)) {
+	if ((page->addr >= syspage->hs.gdtr.addr - VADDR_KERNEL) && (page->addr < syspage->hs.gdtr.addr - VADDR_KERNEL + syspage->hs.gdtr.size)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
 	}
 
-	hal_memcpy(&ta, &syspage->idtr[2], 4);
-	hal_memcpy(&tl, syspage->idtr, 2);
-	if ((page->addr >= ta - VADDR_KERNEL) && (page->addr < ta - VADDR_KERNEL + tl)) {
+	if ((page->addr >= syspage->hs.idtr.addr - VADDR_KERNEL) && (page->addr < syspage->hs.idtr.addr - VADDR_KERNEL + syspage->hs.idtr.size)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
 	}
 
-	if ((page->addr >= syspage->pdir) && (page->addr < syspage->pdir + SIZE_PAGE)) {
+	if ((page->addr >= syspage->hs.pdir) && (page->addr < syspage->hs.pdir + SIZE_PAGE)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
 	}
 
-	if ((page->addr >= syspage->ptable) && (page->addr < syspage->ptable + SIZE_PAGE)) {
+	if ((page->addr >= syspage->hs.ptable) && (page->addr < syspage->hs.ptable + SIZE_PAGE)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
 	}
 
-	if ((page->addr >= ((syspage->stack - syspage->stacksize) & ~0xfff)) && (page->addr < syspage->stack)) {
+	if ((page->addr >= ((syspage->hs.stack - syspage->hs.stacksz) & ~(SIZE_PAGE - 1))) && (page->addr < syspage->hs.stack)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= (PAGE_OWNER_KERNEL | PAGE_KERNEL_STACK);
 	}
@@ -314,17 +308,20 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		page->flags |= PAGE_OWNER_BOOT;
 	}
 
-	if ((page->addr >= syspage->kernel) && (page->addr < syspage->kernel + syspage->kernelsize)) {
+	sz = (size_t)((ptr_t)&_end - (ptr_t)(VADDR_KERNEL + syspage->pkernel));
+	if ((page->addr >= syspage->pkernel) && (page->addr < syspage->pkernel + sz)) {
 		page->flags &= ~PAGE_FREE;
 		page->flags |= PAGE_OWNER_KERNEL;
 	}
 
-	/* Check page according to loaded programs */
-	for (k = 0, p = syspage->progs; k < syspage->progssz; k++, p++) {
-		if (page->addr >= (p->start & ~(SIZE_PAGE - 1)) && page->addr < round_page(p->end)) {
-			page->flags &= ~PAGE_FREE;
-			page->flags |= PAGE_OWNER_APP;
-		}
+	if ((prog = syspage->progs) != NULL) {
+		do {
+			if (page->addr >= prog->start && page->addr < prog->end) {
+				page->flags &= ~PAGE_FREE;
+				page->flags |= PAGE_OWNER_APP;
+				return EOK;
+			}
+		} while ((prog = prog->next) != syspage->progs);
 	}
 
 	return EOK;
@@ -363,64 +360,46 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 /* Function return character marker for page flags */
 char pmap_marker(page_t *p)
 {
-  static const char *const marksets[4] = { "BBBBBBBBBBBBBBBB", "KYCPMSHKKKKKKKKK", "AAAAAAAAAAAAAAAA", "UUUUUUUUUUUUUUUU" };
+	static const char *const marksets[4] = { "BBBBBBBBBBBBBBBB", "KYCPMSHKKKKKKKKK", "AAAAAAAAAAAAAAAA", "UUUUUUUUUUUUUUUU" };
 
-  if (p->flags & PAGE_FREE)
-    return '.';
+	if (p->flags & PAGE_FREE)
+		return '.';
 
-  return marksets[(p->flags >> 1) & 3][(p->flags >> 4) & 0xf];
+	return marksets[(p->flags >> 1) & 3][(p->flags >> 4) & 0xf];
 }
 
 
 int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
 {
 	switch (i) {
-	case 0:
-		*vaddr = (void *)VADDR_KERNEL;
-		*size = syspage->kernel;
-		*prot = (PROT_WRITE | PROT_READ);
-		break;
-	case 1:
-		*vaddr = (void *)VADDR_KERNEL + syspage->kernel;
-		*size = (size_t)_etext - (size_t)*vaddr;
-		*prot = (PROT_EXEC | PROT_READ);
-		break;
-	case 2:
-		*vaddr = _etext;
-		*size = (size_t)(*top) - (size_t)_etext;
-		*prot = (PROT_WRITE | PROT_READ);
-		break;
-	default:
-		return -EINVAL;
+		case 0:
+			*vaddr = (void *)VADDR_KERNEL;
+			*size = syspage->pkernel;
+			*prot = (PROT_WRITE | PROT_READ);
+			break;
+		case 1:
+			*vaddr = (void *)(VADDR_KERNEL + syspage->pkernel);
+			*size = (ptr_t)&_etext - (ptr_t)*vaddr;
+			*prot = (PROT_EXEC | PROT_READ);
+			break;
+		case 2:
+			*vaddr = &_etext;
+			*size = (ptr_t)(*top) - (ptr_t)&_etext;
+			*prot = (PROT_WRITE | PROT_READ);
+			break;
+		default:
+			return -EINVAL;
 	}
 
 	return EOK;
 }
 
 
-int pmap_getMapsCnt(void)
-{
-	return 0;
-}
-
-
-int pmap_getMapParameters(u8 id, void **start, void **end)
-{
-	return EOK;
-}
-
-
-void pmap_getAllocatedSegment(void *memStart, void *memStop, void **segStart, void **segStop)
-{
-	return;
-}
-
-
 /* Function initializes low-level page mapping interface */
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	unsigned int k;
 	void *v;
+	const syspage_map_t *map;
 
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");
 
@@ -428,18 +407,22 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.minAddr = 0xffffffff;
 	pmap_common.maxAddr = 0x00000000;
 
-	for (k = 0; k < syspage->mmsize; k++)	{
-		if (syspage->mm[k].addr < pmap_common.minAddr)
-			pmap_common.minAddr = syspage->mm[k].addr;
-		if (syspage->mm[k].addr + syspage->mm[k].len - 1 > pmap_common.maxAddr) {
-			pmap_common.maxAddr = syspage->mm[k].addr + syspage->mm[k].len - 1;
-		}
-	}
+	map = syspage->maps;
+	if (map == NULL)
+		return;
+
+	do {
+		if (map->start < pmap_common.minAddr)
+			pmap_common.minAddr = map->start;
+
+		if (map->end > pmap_common.maxAddr)
+			pmap_common.maxAddr = map->end;
+	} while ((map = map->next) != syspage->maps);
 
 	/* Initialize kernel page table - remove first 4 MB mapping */
-	pmap->pdir = VADDR_KERNEL + (void *)syspage->pdir;
+	pmap->pdir = (u32 *)(VADDR_KERNEL + syspage->hs.pdir);
 	pmap->pdir[0] = 0;
-	pmap->cr3 = syspage->pdir;
+	pmap->cr3 = syspage->hs.pdir;
 
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)VADDR_MAX;
@@ -447,7 +430,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	hal_cpuFlushTLB(NULL);
 
 	/* Initialize kernel heap start address */
-	(*vstart) = (void *)(((u32)_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	(*vstart) = (void *)(((ptr_t)&_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	if (*vstart < (void *)0xc00a0000)
 		(*vstart) = (void *)(VADDR_KERNEL + 0x00100000);
 
@@ -468,7 +451,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.ebda = (*(u16 *)(VADDR_KERNEL + 0x40e) << 4) & ~(SIZE_PAGE - 1);
 	if ((pmap_common.ebda < 0x00080000) || (pmap_common.ebda > 0x0009ffff)) {
 		pmap_common.ebda = 0x00080000;
-		lib_printf("vm: EBDA address not defined, setting to default (0x80000)\n");
+		hal_consolePrint(ATTR_NORMAL, "vm: EBDA address not defined, setting to default (0x80000)\n");
 	}
 
 	for (v = *vend; v < (void *)VADDR_KERNEL + (4 << 20); v += SIZE_PAGE)

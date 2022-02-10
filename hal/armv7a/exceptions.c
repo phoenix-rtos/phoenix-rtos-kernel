@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#include "exceptions.h"
-#include "cpu.h"
-#include "console.h"
-#include "spinlock.h"
-#include "string.h"
+#include "../exceptions.h"
+#include "../spinlock.h"
+#include "../cpu.h"
+#include "../console.h"
+#include "../string.h"
 #include "../../include/mman.h"
 
 
@@ -46,36 +46,7 @@ struct {
 } exceptions;
 
 
-static const char digits[] = "0123456789abcdef";
-
-
 enum { exc_reset = 0, exc_undef, exc_svc, exc_prefetch, exc_abort };
-
-
-static int exceptions_i2s(char *prefix, char *s, unsigned int i, unsigned char b, char zero)
-{
-	char c;
-	unsigned int l, k, m;
-
-	m = hal_strlen(prefix);
-	hal_memcpy(s, prefix, m);
-
-	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
-			break;
-		s[k++] = digits[i % b];
-	}
-
-	l = k--;
-
-	while (k > m) {
-		c = s[m];
-		s[m++] = s[k];
-		s[k--] = c;
-	}
-
-	return l;
-}
 
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
@@ -93,32 +64,32 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
-	i += exceptions_i2s(" r0=", &buff[i], ctx->r0, 16, 1);
-	i += exceptions_i2s("  r1=", &buff[i], ctx->r1, 16, 1);
-	i += exceptions_i2s("  r2=", &buff[i], ctx->r2, 16, 1);
-	i += exceptions_i2s("  r3=", &buff[i], ctx->r3, 16, 1);
+	i += hal_i2s(" r0=", &buff[i], ctx->r0, 16, 1);
+	i += hal_i2s("  r1=", &buff[i], ctx->r1, 16, 1);
+	i += hal_i2s("  r2=", &buff[i], ctx->r2, 16, 1);
+	i += hal_i2s("  r3=", &buff[i], ctx->r3, 16, 1);
 
-	i += exceptions_i2s("\n r4=", &buff[i], ctx->r4, 16, 1);
-	i += exceptions_i2s("  r5=", &buff[i], ctx->r5, 16, 1);
-	i += exceptions_i2s("  r6=", &buff[i], ctx->r6, 16, 1);
-	i += exceptions_i2s("  r7=", &buff[i], ctx->r7, 16, 1);
+	i += hal_i2s("\n r4=", &buff[i], ctx->r4, 16, 1);
+	i += hal_i2s("  r5=", &buff[i], ctx->r5, 16, 1);
+	i += hal_i2s("  r6=", &buff[i], ctx->r6, 16, 1);
+	i += hal_i2s("  r7=", &buff[i], ctx->r7, 16, 1);
 
-	i += exceptions_i2s("\n r8=", &buff[i], ctx->r8, 16, 1);
-	i += exceptions_i2s("  r9=", &buff[i], ctx->r9, 16, 1);
-	i += exceptions_i2s(" r10=", &buff[i], ctx->r10, 16, 1);
-	i += exceptions_i2s("  fp=", &buff[i], ctx->fp, 16, 1);
+	i += hal_i2s("\n r8=", &buff[i], ctx->r8, 16, 1);
+	i += hal_i2s("  r9=", &buff[i], ctx->r9, 16, 1);
+	i += hal_i2s(" r10=", &buff[i], ctx->r10, 16, 1);
+	i += hal_i2s("  fp=", &buff[i], ctx->fp, 16, 1);
 
-	i += exceptions_i2s("\n ip=", &buff[i], ctx->ip, 16, 1);
-	i += exceptions_i2s("  sp=", &buff[i], (u32)ctx + 21 * 4, 16, 1);
-	i += exceptions_i2s("  lr=", &buff[i], ctx->lr, 16, 1);
-	i += exceptions_i2s("  pc=", &buff[i], ctx->pc, 16, 1);
+	i += hal_i2s("\n ip=", &buff[i], ctx->ip, 16, 1);
+	i += hal_i2s("  sp=", &buff[i], (u32)ctx + 21 * 4, 16, 1);
+	i += hal_i2s("  lr=", &buff[i], ctx->lr, 16, 1);
+	i += hal_i2s("  pc=", &buff[i], ctx->pc, 16, 1);
 
-	i += exceptions_i2s("\npsr=", &buff[i], ctx->psr, 16, 1);
-	i += exceptions_i2s(" dfs=", &buff[i], ctx->dfsr, 16, 1);
-	i += exceptions_i2s(" dfa=", &buff[i], ctx->dfar, 16, 1);
-	i += exceptions_i2s(" ifs=", &buff[i], ctx->ifsr, 16, 1);
+	i += hal_i2s("\npsr=", &buff[i], ctx->psr, 16, 1);
+	i += hal_i2s(" dfs=", &buff[i], ctx->dfsr, 16, 1);
+	i += hal_i2s(" dfa=", &buff[i], ctx->dfar, 16, 1);
+	i += hal_i2s(" ifs=", &buff[i], ctx->ifsr, 16, 1);
 
-	i += exceptions_i2s("\nifa=", &buff[i], ctx->ifar, 16, 1);
+	i += hal_i2s("\nifa=", &buff[i], ctx->ifar, 16, 1);
 
 	buff[i++] = '\n';
 
@@ -175,6 +146,11 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot |= PROT_USER;
 
 	return prot;
+}
+
+ptr_t hal_exceptionsPC(exc_context_t *ctx)
+{
+	return ctx->pc;
 }
 
 

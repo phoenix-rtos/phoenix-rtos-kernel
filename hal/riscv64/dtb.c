@@ -13,13 +13,11 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "string.h"
 #include "dtb.h"
-#include "pmap.h"
+#include "../string.h"
+#include "../pmap.h"
 
 #include "../../include/errno.h"
-
 
 extern void _end(void);
 
@@ -129,6 +127,7 @@ int dtb_parseMemory(void *dtb, u32 si, u32 l)
 }
 
 
+#if 0
 static void dtb_print(char *s) {
 	while (*s != 0) {
 		__asm__ (
@@ -140,7 +139,7 @@ static void dtb_print(char *s) {
 		s++;
 	}
 }
-
+#endif
 
 void dtb_parse(void *arg, void *dtb)
 {
@@ -166,6 +165,7 @@ void dtb_parse(void *arg, void *dtb)
 
 	dtb = (void *)dtb_common.fdth + ntoh32(dtb_common.fdth->off_dt_struct);
 	dtb_common.soc.intctl.exist = 0;
+	dtb_common.ncpus = 0;
 
 	for (;;) {
 		token = ntoh32(*(u32 *)dtb);
@@ -173,15 +173,17 @@ void dtb_parse(void *arg, void *dtb)
 
 		/* FDT_NODE_BEGIN */
 		if (token == 1) {
-			// char buff[2] = " ";
-			// dtb_print(dtb);
-			// dtb_print(" ");
-			// buff[0] = '0' + d;
-			// dtb_print(buff);
-			// dtb_print(" ");
-			// buff[0] = '0' + state;
-			// dtb_print(buff);
-			// dtb_print("\n");
+#if 0
+			char buff[2] = " ";
+			dtb_print(dtb);
+			dtb_print(" ");
+			buff[0] = '0' + d;
+			dtb_print(buff);
+			dtb_print(" ");
+			buff[0] = '0' + state;
+			dtb_print(buff);
+			dtb_print("\n");
+#endif
 
 			if (!d && (*(char *)dtb == 0))
 				state = stateSystem;

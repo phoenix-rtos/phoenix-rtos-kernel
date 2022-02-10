@@ -1,7 +1,7 @@
 /*
  * Phoenix-RTOS
  *
- * plo - operating system loader
+ * Operating system kernel
  *
  * Low-level initialization for Cortex-A9 (ARMv7) architecture
  *
@@ -15,41 +15,38 @@
 
 #define __ASSEMBLY__
 
-#include "pmap.h"
-#include "../cpu.h"
+#include "config.h"
+#include <arch/cpu.h>
+#include <arch/pmap.h>
 
-#define ADDR_OCRAM_LOW   0x00000000
-#define SIZE_OCRAM_LOW   192 * 1024
-#define ADDR_OCRAM_HIGH  0xffff0000
-#define SIZE_OCRAM_HIGH  64 * 1024
+.extern pmap_common
+.extern syspage
+.extern relOffs
+.extern _end
 
-#define ADDR_DDR         0x00100000
+#define ADDR_TTL1     (pmap_common - VADDR_KERNEL + ADDR_DDR)
+#define ADDR_TTL2_K   (ADDR_TTL1 + 4 * SIZE_PAGE)
+#define ADDR_TTL2_EXC (ADDR_TTL2_K + SIZE_PAGE)
+#define ADDR_STACK    0x004ff000
 
-#define ADDR_TTL1        (pmap_common - VADDR_KERNEL + ADDR_DDR)
-#define ADDR_TTL2_K      (ADDR_TTL1 + 4 * SIZE_PAGE)
-#define ADDR_TTL2_EXC    (ADDR_TTL2_K + SIZE_PAGE)
+#define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
+#define VADDR_UART0   (VADDR_SYSPAGE + 2 * SIZE_PAGE)
+#define VADDR_UART1   (VADDR_UART0 + SIZE_PAGE)
+#define VADDR_GIC     (VADDR_UART1 + SIZE_PAGE)
+#define VADDR_TTC     (VADDR_GIC + 4 * SIZE_PAGE)
 
-#define ADDR_STACK       0x004ff000
-
-#define PADDR_UART0      0xe0000000
-#define VADDR_UART0      (_end + SIZE_PAGE - 1)
-#define VADDR_UART1      (VADDR_UART0 + SIZE_PAGE)
-#define PADDR_UART1      0xe0001000
-
-#define VADDR_GIC        (VADDR_UART1 + SIZE_PAGE)
-
+#define PADDR_UART0 0xe0000000
+#define PADDR_UART1 0xe0001000
+#define PADDR_SLCR  0xf8000000
+#define PADDR_TTC   0xf8001000
 
 .arm
 
 .section .init, "ax"
-.globl _vector_table
-
 .global _start
 .type _start, %function
 
 
-
-/* Vector Table Definition */
 .org 0
 _vector_table:
 	b _start
@@ -60,7 +57,6 @@ _vector_table:
 	.word 0
 	b _interrupts_dispatch
 	b _interrupts_dispatch
-
 
 _cpy4:
 	mov r3, #4
@@ -74,6 +70,33 @@ _cpy4:
 /* startup code */
 _start:
 	cpsid aif, #SYS_MODE
+
+	ldr r0, =relOffs
+	ldr r1, =#VADDR_SYSPAGE
+	lsr r1, #12
+	lsl r1, #12
+
+	sub r0, r0, #VADDR_KERNEL
+	add r0, r0, #ADDR_DDR
+	sub r2, r1, r9
+	str r2, [r0]
+
+	ldr r0, [r9, #4] /* syspage size address - syspage address + sizeof(hal_syspage_t) */
+	add r2, r9, r0   /* end of the syspage */
+
+	ldr r0, =syspage
+	sub r0, r0, #VADDR_KERNEL
+	add r0, r0, #ADDR_DDR
+	str r1, [r0]
+
+	sub r1, r1, #VADDR_KERNEL
+	add r1, r1, #ADDR_DDR
+
+syspage_cpy:
+	ldr r3, [r9], #4
+	str r3, [r1], #4
+	cmp r9, r2
+	blo syspage_cpy
 
 	/* Only CPU0 performs initialization, others go into WFI */
 	mrc p15, 0, r1, c0, c0, 5       /* Read Multiprocessor Affinity Register */
@@ -96,6 +119,10 @@ initialize:
 	orr r0, #1 << 31                 /* Enable cycle counter                              */
 	mcr p15, 0, r0, c9, c12, 1       /* Write CESR (Count Enable Set Register)            */
 
+	/* Enable SMP */
+	mrc p15, 0, r1, c1, c0, 1
+	orr r1, r1, #(1 << 6)
+	mcr p15, 0, r1, c1, c0, 1
 
 	/* Disable MMU */
 	mrc p15, 0, r1, c1, c0, 0        /* Read SCTLR (System Control Register) data  */
@@ -147,7 +174,7 @@ clear_ttl1:
 
 	/* In order to execute first stage of kernel */
 	/* Map 4 MB P 0x00100000 -> V 0x00100000 */
-	add r0, r5, #((ADDR_DDR >> 20) << 2)                  /* Entry address: TTL1 base address + entry index * 4 bytes (entry size)       */
+	add r0, r5, #((ADDR_DDR >> 20) << 2)                  /* Entry address: TTL1 base address + entry index * 4 B (entry size)           */
 	ldr r1, =((ADDR_DDR & ~0xfffff) | (0x1 << 10) | 0x2)  /* Section entry: base addres - DDR, AP = 01, APX = 0 (privileged access only) */
 	mov r2, #0x100000                                     /* Size of section: 1 MB                                                       */
 	bl _cpy4                                              /* Fill 4 entries in TTL1                                                      */
@@ -155,10 +182,36 @@ clear_ttl1:
 
 	/* Kernel TTL1 entries
 	 * map 4 MB P 0x00100000 -> V 0xc0000000 */
-	add r0, r5, #((VADDR_KERNEL >> 20) << 2)              /* Entry address: vritual kernel address + entry index * 4 bytes (entry size)  */
-	ldr r1, =(ADDR_TTL2_K + 1)                            /* Ptr to kernel's TTL2 (pmap_common.kptab); bits [1:0] = 1 defines TTL2       */
-	mov r2, #0x400                                        /* Size of TTL2                                                                */
-	bl _cpy4                                              /* Fill TTL1 with 4 TTL2's addresses; pmap_common.kptab consists of 4 TTL2     */
+	add r0, r5, #((VADDR_KERNEL >> 20) << 2)              /* Entry address: virtual kernel address + entry index * 4 B (entry size)  */
+	ldr r1, =(ADDR_TTL2_K + 1)                            /* Ptr to kernel's TTL2 (pmap_common.kptab); bits [1:0] = 1 defines TTL2   */
+	mov r2, #0x400                                        /* Size of TTL2                                                            */
+	bl _cpy4                                              /* Fill TTL1 with 4 TTL2's addresses; pmap_common.kptab consists of 4 TTL2 */
+
+
+	/* Exceptions vectors and stack TTL1 entry
+	 * map 4MB V 0xffc00000 -> TTL2 of pmap_common.excptab */
+	ldr r0, =(ADDR_TTL1 + (0xffc << 2))                   /* Entry address: TTL1 address + index (0xffc - 4 entries in TTL1) * 4 B*/
+	ldr r1, =(ADDR_TTL2_EXC + 1)                          /* Ptr to exception's TTL2 (pmap_common.excptab); bits [1:0] = 1 defines TTL2 */
+	bl _cpy4                                              /* Fill TTL1 with 4 TTL2's addresses; pmap_common.excptab consists of 4 TTL2  */
+
+	ldr r8, =(ADDR_DDR)
+
+	/* Exceptions vectors TTL2 entry */
+	/* Map P 0x00100000 -> V 0xffff0000 */
+	ldr r0, =(ADDR_TTL2_EXC + (0x3f0 << 2))               /* Entry address: 4 entries from the end in last TTL2 in pmap_common.excptab    */
+	orr r1, r8, #0x1a                                     /* Ptr to physical address. Attributes: XN = 0, B = 0, C = 0, AP = 0x3, TEX = 0 */
+	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
+
+	/* Stack TTL2 entry */
+	/* Map P ADDR_STACK -> V 0xfffff000 */
+	ldr r0, =(ADDR_TTL2_EXC + (0x3ff << 2))               /* Entry address: the last entry in 4 TTL2 in pmap_common.excptab               */
+	ldr r1, =((ADDR_STACK & ~0xfff) | 0x1e)               /* Ptr to physical address. Attributes: XN = 0, B = 1, C = 1, AP = 0x3, TEX = 0 */
+	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
+
+
+	/* Set vector table pointer to virtual address */
+	ldr r0, =_vector_table
+	mcr p15, 0, r0, c12, c0, 0                            /* Write to VBAR (Vector Base Address Register) */
 
 
 	/* Kernel TTL2 entries (pmap_common.kptab) */
@@ -186,32 +239,36 @@ kernel_ttl2:
 
 	/* Kernel page tables */
 	bl _cpy4
+
+	/* Map perpehrals addresses */
+	/* Map UART0 4 KB P 0xE0000000 -> V CEIL(_end, SIZE_PAGE) */
+	ldr r0, =(VADDR_UART0 - VADDR_KERNEL)
+	lsr r0, #12
+	lsl r0, #2
+	ldr r1, =ADDR_TTL2_K
+	add r0, r0, r1
+	ldr r1, =(PADDR_UART0 | 0x12)
+	str r1, [r0], #4
+
+	/* Map UART1 4KB P 0xE0001000 -> V CEIL(_end + SIZE_PAGE, SIZE_PAGE) */
+	ldr r1, =(PADDR_UART1 | 0x12)
+	str r1, [r0], #4
+
+	/* Map GIC 16 KB after UARTs */
+	mrc p15, 4, r1, c15, c0, 0           /* Get GIC paddr */
+	lsr r1, #16
+	lsl r1, #16
+	orr r1, r1, #0x12
+	mov r2, #(1 << 12)
 	bl _cpy4
 
+	/* Map SLCR after GIC */
+	ldr r1, =(PADDR_SLCR | 0x12)
+	str r1, [r0], #4
 
-	/* Exceptions vectors and stack TTL1 entry
-	 * map 4MB V 0xffc00000 -> TTL2 of pmap_common.excptab */
-	ldr r0, =(ADDR_TTL1 + (0xffc << 2))                   /* Entry address: TTL1 base address + entry index (0xffc the last 4 entries in TTL1) * 4 bytes (entry size) */
-	ldr r1, =(ADDR_TTL2_EXC + 1)                          /* Ptr to exception's TTL2 (pmap_common.excptab); bits [1:0] = 1 defines TTL2 */
-	mov r2, #0x400                                        /* Size of TTL2                                                               */
-	bl _cpy4                                              /* Fill TTL1 with 4 TTL2's addresses; pmap_common.excptab consists of 4 TTL2  */
-
-	/* Exceptions vectors TTL2 entry */
-	/* Map P 0x00100000 -> V 0xffff0000 */
-	ldr r0, =(ADDR_TTL2_EXC + (0x3f0 << 2))               /* Entry address: 4 entries from the end in last TTL2 in pmap_common.excptab    */
-	ldr r1, =((ADDR_DDR & ~0xfffff) | 0x1a)               /* Ptr to physical address. Attributes: XN = 0, B = 0, C = 0, AP = 0x3, TEX = 0 */
-	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
-
-	/* Stack TTL2 entry */
-	/* Map P ADDR_STACK -> V 0xfffff000 */
-	ldr r0, =(ADDR_TTL2_EXC + (0x3ff << 2))               /* Entry address: the last entry in 4 TTL2 in pmap_common.excptab               */
-	ldr r1, =((ADDR_STACK & ~0xfff) | 0x1e)               /* Ptr to physical address. Attributes: XN = 0, B = 1, C = 1, AP = 0x3, TEX = 0 */
-	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
-
-
-	/* Set vector table pointer to virtual address */
-	ldr r0, =0xffff0000
-	mcr p15, 0, r0, c12, c0, 0                            /* Write to VBAR (Vector Base Address Register) */
+	/* Map TTC after SLCR */
+	ldr r1, =(PADDR_TTC | 0x12)
+	str r1, [r0], #4
 
 
 	/* Initialize MMU */
@@ -242,33 +299,6 @@ kernel_ttl2:
 	mcr p15, 0, r1, c1, c0, 0        /* Write Control Register configuration data */
 	dsb
 	isb
-
-
-	/* Map perpehrals adresses */
-	/* Map UART0 4 KB P 0xE0000000 -> V CEIL(_end, SIZE_PAGE) */
-	ldr r0, =(VADDR_UART0 - VADDR_KERNEL)
-	lsr r0, #12
-	lsl r0, #2
-	ldr r1, =ADDR_TTL2_K
-	add r0, r0, r1
-	ldr r1, =(PADDR_UART0 | 0x12)
-	str r1, [r0], #4
-
-	/* Map UART1 4KB P 0xE0001000 -> V CEIL(_end + SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =(PADDR_UART1 | 0x12)
-	str r1, [r0], #4
-
-	/* Map GIC 16 KB after UARTs */
-	mrc p15, 4, r1, c15, c0, 0           /* Get GIC paddr */
-	lsr r1, #16
-	lsl r1, #16
-	orr r1, r1, #0x12
-	mov r2, #(1 << 12)
-	bl _cpy4
-
-	/* Map SLCR after GIC */
-	ldr r1, =0xf8000012
-	str r1, [r0], #4
 
 
 	/* Setup stacks */
@@ -315,4 +345,4 @@ kernel_ttl2:
 	ldr pc, =main
 
 #include "../_interrupts.S"
-#include "../_hal.S"
+#include "../_armv7a.S"

@@ -16,7 +16,7 @@
 #ifndef _VM_AMAP_H_
 #define _VM_AMAP_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "map.h"
 
 struct _vm_map_t;

@@ -16,9 +16,9 @@
 
 #include "syspage.h"
 #include "multiboot.h"
-#include "cpu.h"
-#include "pmap.h"
-#include "string.h"
+#include "../pmap.h"
+#include "../string.h"
+#include <arch/cpu.h>
 #include "../../proc/elf.h"
 
 #include "../../include/errno.h"
@@ -53,8 +53,11 @@ static void multiboot_print(const char *s)
 #endif
 
 
+
 void *_multiboot_init(multiboot_info_t *mbi)
 {
+/* TODO: add new syspage */
+#if 0
 	syspage_t *relsyspage;
 	u32 v;
 	u32 *dt;
@@ -163,4 +166,7 @@ hal_memset((void *)relsyspage->pdir, 0, SIZE_PAGE);
 		relsyspage->progssz = 0;
 
 	return relsyspage;
+#else
+	return NULL;
+#endif
 }

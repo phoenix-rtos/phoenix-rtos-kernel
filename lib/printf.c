@@ -16,7 +16,7 @@
 
 #include <stdarg.h>
 
-#include HAL
+#include "../hal/hal.h"
 
 #include "../log/log.h"
 
@@ -309,6 +309,10 @@ int lib_printf(const char *format, ...)
 
 	va_start(ap, format);
 
+	s = CONSOLE_CYAN;
+	while (*s)
+		hal_consolePutch(*(s++));
+
 	for (;;) {
 		fmt = *format++;
 		if (fmt == '\0')
@@ -482,6 +486,10 @@ handle_number:;
 	}
 
 end:
+	s = CONSOLE_NORMAL;
+	while (*s)
+		hal_consolePutch(*(s++));
+
 	va_end(ap);
 	return i;
 }

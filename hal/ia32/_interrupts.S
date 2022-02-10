@@ -16,18 +16,9 @@
 
 #define __ASSEMBLY__
 
-#include "cpu.h"
+#include <arch/cpu.h>
 
-.data
-
-
-/* Multilock for synchronizing context switching on multiple cores */
-.align 4
-.type _interrupts_multilock, @object
-_interrupts_multilock:
-        .long 1
-.size _interrupts_multilock, .-_interrupts_multilock
-
+.extern _interrupts_multilock;
 
 .text
 

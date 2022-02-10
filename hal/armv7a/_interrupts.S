@@ -15,7 +15,7 @@
 
 #define __ASSEMBLY__
 
-#include "cpu.h"
+#include <arch/cpu.h>
 
 .arm
 
@@ -149,11 +149,14 @@ hal_cpuReschedule:
 
 	add r0, #12
 
-	/* Spinlock clear */
+/* Spinlock clear */
+spinlock:
 	ldrexb r1, [r0]
 	add r1, r1, #1
 	dmb
 	strexb r2, r1, [r0]
+	cmp r2, #0
+	bne spinlock
 	ldrb r1, [r3]
 
 	bic r4, #0xff
@@ -226,26 +229,12 @@ _interrupts_dispatch:
 	push {r1}
 	push {r1}
 
-	ldr r2, =VADDR_GIC + 0x2000 /* Interrupt Acknowledge register */
-	lsr r2, r2, #12
-	lsl r2, r2, #12
-	ldr r4, [r2, #0x0c] /* r4[12:10] = CPU_ID of software interrupts, r4[9:0] = INT_ID */
-	ldr r3, =0x03fe
-	and r2, r3, r4
-	cmp r2, r3 /* Check that INT_ID is not 1023 or 1022 (spurious interrupt) */
-	beq 1f
-	add r3, r3, #1
-
-	/* pass INT_ID as arg0 (in r0) to the IRQ handler */
-	and r0, r3, r4
+	/* pass dummy data to first argument to be consistent with interface
+	 * irq number is calculated in interrupts_dispatch function */
+	mov r0, #0
 
 	blx interrupts_dispatch
 
-	ldr r0, =VADDR_GIC + 0x2000
-	lsr r0, r0, #12
-	lsl r0, r0, #12
-	str r4, [r0, #0x10] /* Update End of Interrupt register with original value from ICCIAR */
-1:
 	ldr sp, [sp]
 	add sp, sp, #8
 	b _hal_cpuRestoreCtx

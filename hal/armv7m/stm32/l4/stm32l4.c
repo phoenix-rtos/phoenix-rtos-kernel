@@ -14,9 +14,11 @@
  */
 
 #include "../stm32.h"
-#include "../interrupts.h"
+#include "../stm32-timer.h"
+
+#include "../../../cpu.h"
+#include "../../armv7m.h"
 #include "../../../../include/errno.h"
-#include "../../timer.h"
 
 
 struct {
@@ -194,7 +196,7 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 	else
 		return -EINVAL;
 
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	return EOK;
 }
@@ -291,7 +293,7 @@ int _stm32_rccSetCPUClock(u32 hz)
 
 	t = *(stm32_common.rcc + rcc_cr) & ~(0xf << 4);
 	*(stm32_common.rcc + rcc_cr) = t | range << 4 | (1 << 3);
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	if (hz <= 6000 * 1000)
 		_stm32_pwrSetCPUVolt(2);
@@ -773,7 +775,7 @@ void _stm32_init(void)
 	/* Disable all interrupts */
 	*(stm32_common.rcc + rcc_cier) = 0;
 
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	/* GPIO init */
 	for (i = 0; i < sizeof(stm32_common.gpio) / sizeof(stm32_common.gpio[0]); ++i)
@@ -781,12 +783,12 @@ void _stm32_init(void)
 
 	/* Set DBP bit */
 	*(stm32_common.pwr + pwr_cr1) |= 1 << 8;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	/* Enable LSE clock source, set it as RTC source and set medium xtal drive strength */
 	t = *(stm32_common.rcc + rcc_bdcr) & ~((3 << 24) | (3 << 15) | (3 << 8) | 0x7f);
 	*(stm32_common.rcc + rcc_bdcr) = t | (1 << 25) | (1 << 15) | (1 << 8) | (1 << 3) | 1;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	/* And wait for it to turn on */
 	while (!(*(stm32_common.rcc + rcc_bdcr) & (1 << 1)));
@@ -794,7 +796,7 @@ void _stm32_init(void)
 	/* Select system clock for ADC */
 	*(stm32_common.rcc + rcc_ccipr) |= 0x3 << 28;
 
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	/* Initialize RTC */
 	/* Unlock RTC */
@@ -804,7 +806,7 @@ void _stm32_init(void)
 	_stm32_rccSetDevClock(pctl_rtc, 1);
 	*(stm32_common.rcc + rcc_bdcr) |= 1 << 15;
 
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	/* Set INIT bit */
 	*(stm32_common.rtc + rtc_isr) |= 1 << 7;

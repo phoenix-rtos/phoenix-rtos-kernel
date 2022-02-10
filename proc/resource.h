@@ -16,7 +16,7 @@
 #ifndef _PROC_RESOURCE_H_
 #define _PROC_RESOURCE_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "threads.h"
 
 

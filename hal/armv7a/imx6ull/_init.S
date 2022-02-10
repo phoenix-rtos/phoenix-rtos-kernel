@@ -5,8 +5,8 @@
  *
  * Low-level initialization for iMX6ULL processor
  *
- * Copyright 2018, 2020 Phoenix Systems
- * Author: Pawel Pisarczyk, Aleksander Kaminski, Maciej Purski
+ * Copyright 2018, 2020-2021 Phoenix Systems
+ * Author: Pawel Pisarczyk, Aleksander Kaminski, Maciej Purski, Hubert Buczynski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -15,29 +15,33 @@
 
 #define __ASSEMBLY__
 
-#include "cpu.h"
-#include "pmap.h"
-#include "exceptions.h"
-#include "interrupts.h"
+#include <arch/cpu.h>
+#include <arch/pmap.h>
+#include "config.h"
 
 .extern pmap_common
 .extern syspage
+.extern relOffs
 .extern _end
 .extern imx6ull_bootReason
 
+
 #define ADDR_OCRAM    0x907000
-#define ADDR_DDR      0x80000000
 #define ADDR_STACK    0x803ff000
-#define SIZE_OCRAM    68 * 1024
 #define ADDR_TTL1     (pmap_common - VADDR_KERNEL + ADDR_DDR)
 #define ADDR_TTL2_K   (ADDR_TTL1 + 4 * SIZE_PAGE)
 #define ADDR_TTL2_EXC (ADDR_TTL2_K + SIZE_PAGE)
-#define VADDR_UART1   (_end + SIZE_PAGE - 1)
+
+#define ADDR_PROGS_BEGIN (_end + 4 * 1024 * 1024 - VADDR_KERNEL + ADDR_DDR)
+
+#define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
+#define VADDR_UART1   (VADDR_SYSPAGE + 2 * SIZE_PAGE)
 #define VADDR_UART2   (VADDR_UART1 + SIZE_PAGE)
 #define VADDR_GIC     (VADDR_UART2 + SIZE_PAGE)
 #define VADDR_GPT     (VADDR_GIC + 4 * SIZE_PAGE)
 #define VADDR_CCM     (VADDR_GPT + SIZE_PAGE)
 #define SWAP(x)       (((x >> 24) & 0xff) | ((x << 8) & (0xff << 16)) | ((x >> 8) & (0xff << 8)) | ((x << 24) & (0xff << 24)))
+
 
 /* API vectors */
 #define HAB_API_VEC   0x100
@@ -50,6 +54,7 @@
 .type _start, %function
 
 .org 0
+init_vectors:
 	ldr pc, =_start
 	ldr pc, =_exception_undef
 	ldr pc, =_syscalls_dispatch
@@ -58,6 +63,8 @@
 	.word 0
 	ldr pc, =_interrupts_dispatch
 	ldr pc, =_interrupts_dispatch
+
+syspage_data:
 
 .org 0x400, 0x0
 
@@ -145,6 +152,11 @@ mdscr_skip:
 	mov r5, r1
 	mov r6, r2
 	ldr r1, =(boot_data - VADDR_KERNEL + ADDR_OCRAM)
+	ldr r2, =(ADDR_OCRAM + (syspage_data - init_vectors))
+	ldr r2, [r2]     /* syspage->hs.imgsz */
+	ldr r3, [r1, #4] /* boot_data->size */
+	/* Update image size based on data in syspage */
+	str r2, [r1, #4]
 	ldmia r1, {r2, r3, r7, r8}
 	str r8, [sp, #-4]!
 	str r7, [sp, #-4]!
@@ -155,6 +167,7 @@ mdscr_skip:
 	add r2, sp, #8
 	add r1, sp, #4
 	add r0, sp, #0
+
 	ldr r8, =(ROM_API_VEC + 0x8) /* (void **dest_address, u32 *load_size, boot_data_t *boot_data) */
 	ldr r8, [r8]
 	blx r8
@@ -340,6 +353,60 @@ _cpy4:
 _start:
 	cpsid aif, #SYS_MODE
 
+/* Temporary solution: code allowing skipping phoenix-rtos-loader */
+	ldr r0, =(ADDR_DDR + syspage_data - init_vectors)
+	ldr r0, [r0, #16] /* points to syspage->progs address (circular list) */
+	mov r1, r0
+	cmp r1, #0
+	beq init_syspage
+
+	/* Copy applications to _end + 4MB */
+	ldr r4, =ADDR_PROGS_BEGIN
+	ldr r9, =(SIZE_PAGE - 1)
+
+update_apps:
+	ldr r2, [r1, #8]  /* prog->start */
+	ldr r3, [r1, #12] /* prog->end */
+
+	/* Align destination address to SIZE_PAGE */
+	add r4, r4, r9
+	bic r4, r4, r9
+
+	/* Set new start in prog->start */
+	str r4, [r1, #8]
+
+copy_app:
+	ldr r5, [r2], #4
+	str r5, [r4], #4
+	cmp r2, r3
+	blo copy_app
+
+	/* Set new end in prog->end */
+	str r4, [r1, #12]
+
+	/* Take pointer to the next program in the list */
+	ldr r1, [r1]
+
+	cmp r1, r0
+	bne update_apps
+
+init_syspage:
+	/* Assign syspage address to syspage variable */
+	ldr r0, =syspage
+	sub r0, r0, #VADDR_KERNEL
+	add r0, r0, #ADDR_DDR
+	ldr r1, =VADDR_KERNEL
+	add r1, r1, #(syspage_data - init_vectors)
+	str r1, [r0]
+
+	/* Define offset on which pointers should be moved */
+	ldr r0, =relOffs
+	sub r0, r0, #VADDR_KERNEL
+	add r0, r0, #ADDR_DDR
+	ldr r1, =(VADDR_KERNEL - ADDR_DDR)
+	str r1, [r0]
+/* End of the the temporary code */
+
 	/* Save and clear boot reason - RM: otherwise all boot reasons since POR */
 	ldr r0, =0x20d8008
 	ldr r7, [r0]    /* only bits 16:0 are used */
@@ -368,6 +435,7 @@ _start:
 	mrc p15, 0, r1, c1, c0, 1
 	orr r1, r1, #(1 << 6)
 	mcr p15, 0, r1, c1, c0, 1
+
 
 #ifndef CPU_IMX6UL
 	/* Set ARM clock to 792 MHz */
@@ -426,6 +494,7 @@ enet_pll:
 
 	ldr r8, =(ADDR_DDR)
 
+
 	/* Disable caches */
 	mrc p15, 0, r1, c1, c0, 0
 	bic r1, r1, #(1 << 12)
@@ -482,6 +551,7 @@ clear_ttl1:
 	mov r2, #0x100000
 	bl _cpy4
 
+
 	/* Kernel TTL1 entries */
 	/* map 4 MB P 0x80000000 -> V 0xc0000000 */
 	add r0, r5, #((VADDR_KERNEL >> 20) << 2)
@@ -493,6 +563,8 @@ clear_ttl1:
 	ldr r0, =(ADDR_TTL1 + (0xffc << 2))
 	ldr r1, =(ADDR_TTL2_EXC + 1)
 	bl _cpy4
+
+	ldr r8, =(ADDR_DDR)
 
 	/* Exceptions vectors TTL2 entry */
 	/* Map P 0x80000000 -> V 0xffff0000 */
@@ -533,9 +605,8 @@ kernel_ttl2:
 
 	/* Kernel page tables */
 	bl _cpy4
-	bl _cpy4
 
-	/* Map UART1 4 KB P 0x02020000 -> V CEIL(_end, SIZE_PAGE) */
+	/* Map UART1 4 KB P 0x02020000 -> V CEIL(_end + 3 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r0, =(VADDR_UART1 - VADDR_KERNEL)
 	lsr r0, #12
 	lsl r0, #2
@@ -544,7 +615,7 @@ kernel_ttl2:
 	ldr r1, =0x02020012
 	str r1, [r0], #4
 
-	/* Map UART2 4KB P 0x021e8000 -> V CEIL(_end + SIZE_PAGE, SIZE_PAGE) */
+	/* Map UART2 4KB P 0x021e8000 -> V CEIL(_end + 4 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x021e8012
 	str r1, [r0], #4
 
@@ -564,33 +635,34 @@ kernel_ttl2:
 	ldr r1, =0x02098012
 	str r1, [r0], #4
 
-	/* Map CCM registers 4KB P 0x020c4000 -> V CEIL(_end + 9 * SIZE_PAGE, SIZE_PAGE) */
+	/* Map CCM registers 4KB P 0x020c4000 -> V CEIL(_end + 11 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020c4012
 	str r1, [r0], #4
 
-	/* Map CCM_ANALOG registers 4KB P 0x020c8000 -> V CEIL(_end + 10 * SIZE_PAGE, SIZE_PAGE) */
+	/* Map CCM_ANALOG registers 4KB P 0x020c8000 -> V CEIL(_end + 12 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020c8012
 	str r1, [r0], #4
 
-	/* Map IOMUX_SNVS registers 4KB P 0x02290000 -> V CEIL(_end + 11 * SIZE_PAGE, SIZE_PAGE) */
+	/* Map IOMUX_SNVS registers 4KB P 0x02290000 -> V CEIL(_end + 13 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x02290012
 	str r1, [r0], #4
 
-	/* Map IOMUX registers 4KB P 0x020e0000 -> V CEIL(_end + 12 * SIZE_PAGE, SIZE_PAGE) */
+	/* Map IOMUX registers 4KB P 0x020e0000 -> V CEIL(_end + 14 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020e0012
 	str r1, [r0], #4
 
-	/* Map IOMUXC_GPR registers 4KB P 0x020e4000 -> V CEIL(_end + 13 * SIZE_PAGE, SIZE_PAGE) */
+	/* Map IOMUXC_GPR registers 4KB P 0x020e4000 -> V CEIL(_end + 15 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020e4012
 	str r1, [r0], #4
 
-	/* Map WDOG1 registers 4KB P 0x020bc000 -> V CEIL(_end + 14 * SIZE_PAGE, SIZE_PAGE) */
+	/* Map WDOG1 registers 4KB P 0x020bc000 -> V CEIL(_end + 16 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020bc012
 	str r1, [r0], #4
 
-	/* Map SRC registers 4KB P 0x020d8000 -> V CEIL(_end + 15 * SIZE_PAGE, SIZE_PAGE) */
+	/* Map SRC registers 4KB P 0x020d8000 -> V CEIL(_end + 17 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020d8012
 	str r1, [r0]
+
 
 	/* IOMUX for UART1*/
 	ldr r0, =0x20e0084
@@ -607,6 +679,7 @@ kernel_ttl2:
 	ldr r1, [r0]
 	orr r1, r1, #(3 << 24)
 	str r1, [r0]
+
 
 	/* Initialize MMU */
 	mov r1, #1
@@ -674,477 +747,5 @@ kernel_ttl2:
 	ldr pc, =main
 .size _start, .-_start
 
-
-.globl _exceptions_dispatch
-.type _exceptions_dispatch, %function
-_exception_undef:
-	cpsid if
-	stmfd sp, {r0-r4}
-	mov r0, #1
-	mrs r3, spsr
-	tst r3, #0x20
-	subeq r2, lr, #4
-	subne r2, lr, #2
-	b _exceptions_dispatch
-
-_exception_prefetch:
-	cpsid if
-	stmfd sp, {r0-r4}
-	mov r0, #3
-	sub r2, lr, #4
-	b _exceptions_dispatch
-
-_exception_abort:
-	cpsid if
-	stmfd sp, {r0-r4}
-	mov r0, #4
-	sub r2, lr, #8
-
-_exceptions_dispatch:
-	mrs r3, spsr
-	sub r1, sp, #0x14
-	mrc p15, 0, r4, c13, c0, 4
-	cps #SYS_MODE
-	tst r3, #0x0f
-	movne r4, sp
-	stmfd r4!, {r2}
-	stmfd r4!, {r5-r14}
-	mov sp, r4
-	ldmfd r1, {r4-r8}
-	push {r3-r8}
-	mrc p15, 0, r1, c6, c0, 2
-	push {r1}
-	mrc p15, 0, r1, c5, c0, 1
-	push {r1}
-	mrc p15, 0, r1, c6, c0, 0
-	push {r1}
-	mrc p15, 0, r1, c5, c0, 0
-	push {r1}
-	sub r1, sp, #4
-	push {r1}
-
-	ldr lr, =exceptions_dispatch
-	blx lr
-
-	ldr sp, [sp]
-	add sp, sp, #20
-
-	pop {r11}
-	pop {r0-r10}
-	mov r12, sp
-	ldr sp, [r12, #0x8]
-	ldr lr, [r12, #0xc]
-	cps #IRQ_MODE
-	push {r11}
-	ldr r11, [r12, #0x0]
-	ldr lr, [r12, #0x10]
-	push {lr}
-	ldr r12, [r12, #0x4]
-	rfefd sp!
-.size _exceptions_dispatch, .-_exceptions_dispatch
-
-
-.globl _hal_cpuRestoreCtx
-.type _hal_cpuRestoreCtx, %function
-_hal_cpuRestoreCtx:
-	/* Restore fpu context */
-	pop {r4}
-	vmsr fpscr, r4
-	vpop {d0-d15}
-	vpop {d16-d31}
-
-	pop {r11} /* r11 - apsr */
-	pop {r0-r10}
-	mov r12, sp /* r12 - points saved r11, r12, sp, lr, pc */
-	ldr sp, [r12, #0x8]
-	ldr lr, [r12, #0xc]
-	cps #IRQ_MODE
-	push {r11} /* cpsr saved, r11 free */
-	ldr r11, [r12, #0x0]
-	ldr lr, [r12, #0x10]
-	push {lr}
-	ldr r12, [r12, #0x4]
-	rfefd sp! /* return from exception - pops pc and cpsr */
-.size _hal_cpuRestoreCtx, .-_hal_cpuRestoreCtx
-
-
-.globl hal_cpuReschedule
-.type hal_cpuReschedule, %function
-hal_cpuReschedule:
-	cpsid if
-	push {lr}
-	stmfd sp, {r0-r14}
-	sub sp, sp, #0x3c
-
-	mov r3, r1 /* Save spinlock context for later */
-
-	/* Default return value - EOK */
-	mov r1, #0
-	str r1, [sp]
-
-	ldr r1, [sp, #0x34]
-	add r1, #4
-	str r1, [sp, #0x34]
-
-	mrs r4, cpsr
-
-	cmp r0, #NULL
-	beq 1f
-
-	add r0, #12
-
-	/* Spinlock clear */
-spinlock:
-	ldrexb r1, [r0]
-	add r1, r1, #1
-	dmb
-	strexb r2, r1, [r0]
-	cmp r2, #0
-	bne spinlock
-	ldrb r1, [r3]
-
-	bic r4, #0xff
-	and r1, #0xff
-	orr r4, r4, r1
-1:
-	/* store CPSR with adjusted M and I flags */
-	and r5, lr, #1 /* extract Thumb flag from LR address */
-	orr r4, r4, r5, lsl #5
-	bic r4, #0xc0
-	push {r4}
-
-	/* Store fpu context */
-	vpush {d16-d31}
-	vpush {d0-d15}
-	vmrs r4,fpscr
-	push {r4}
-
-	sub r1, sp, #8
-	push {r1}
-	push {r1}
-
-	blx threads_schedule
-
-	ldr sp, [sp]
-	add sp, sp, #8
-	b _hal_cpuRestoreCtx
-.size hal_cpuReschedule, .-hal_cpuReschedule
-
-
-.globl _interrupts_dispatch
-.type _interrupts_dispatch, %function
-_interrupts_dispatch:
-	stmfd sp, {r0-r3}
-	mrs r2, spsr
-	sub r1, lr, #4
-	sub r0, sp, #0x10
-	/* fetch kernel thread SP from TPIDRPRW register */
-	mrc p15, 0, r3, c13, c0, 4
-
-	/* return to SYS mode with no interrupts */
-	cpsie af, #SYS_MODE
-
-	/* If exception was not taken in user mode, use curren stack
-	 * to store context. Otherwise use preffered one from r3 */
-	tst r2, #0x0f
-	movne r3, sp
-
-	/* save return address */
-	stmfd r3!, {r1}
-
-	/* store original r4-r14 registers as in hal_cpuReschedule()
-	 * (original r0-r3 are still on exception stack) */
-	stmfd r3!, {r4-r14}
-	mov sp, r3
-
-	/* fetch original r0-r3 from exception stack and store on local one
-	 * including SPSR stored in current r3 */
-	ldmfd r0, {r3-r6}
-	push {r2-r6}
-
-	/* Store fpu context */
-	vpush {d16-d31}
-	vpush {d0-d15}
-	vmrs r4,fpscr
-	push {r4}
-
-	/* save SP on top of the stack and pass it as arg1 to IRQ handler (it is cpu_context_t *) */
-	sub r1, sp, #8
-	push {r1}
-	push {r1}
-
-	ldr r2, =VADDR_GIC + 0x2000 /* Interrupt Acknowledge register */
-	lsr r2, r2, #12
-	lsl r2, r2, #12
-	ldr r4, [r2, #0x0c] /* r4[12:10] = CPU_ID of software interrupts, r4[9:0] = INT_ID */
-	ldr r3, =0x03fe
-	and r2, r3, r4
-	cmp r2, r3 /* Check that INT_ID is not 1023 or 1022 (spurious interrupt) */
-	beq 1f
-	add r3, r3, #1
-
-	/* pass INT_ID as arg0 (in r0) to the IRQ handler */
-	and r0, r3, r4
-
-	blx interrupts_dispatch
-
-	ldr r0, =VADDR_GIC + 0x2000
-	lsr r0, r0, #12
-	lsl r0, r0, #12
-	str r4, [r0, #0x10] /* Update End of Interrupt register with original value from ICCIAR */
-1:
-	ldr sp, [sp]
-	add sp, sp, #8
-	b _hal_cpuRestoreCtx
-.size _interrupts_dispatch, .-_interrupts_dispatch
-
-
-.globl _syscalls_dispatch
-.type _syscalls_dispatch, %function
-_syscalls_dispatch:
-	stmfd sp, {r0-r4}^
-	sub r1, sp, #0x14
-	mrs r3, spsr
-	mov r2, lr
-	tst r3, #THUMB_STATE
-	ldreq r0, [r2, #-4]
-	biceq r0, r0, #0xff000000
-	ldrneh r0, [r2, #-2]
-	bicne r0, r0, #0xff00
-	mrc p15, 0, r4, c13, c0, 4
-
-	cpsie af, #SYS_MODE
-
-	stmfd r4!, {r2}
-	stmfd r4!, {r5-r14}
-	mov r2, sp
-	mov sp, r4
-	ldmfd r1, {r4-r8}
-	push {r3-r8}
-	vpush {d16-d31}
-	vpush {d0-d15}
-	vmrs r4,fpscr
-	push {r4}
-	sub r1, sp, #8
-	push {r1}
-	push {r1}
-
-	mov r1, r2
-
-	cpsie if
-
-	blx syscalls_dispatch
-
-	cpsid if
-
-	str r0, [sp, #272]
-
-	ldr sp, [sp]
-	add sp, sp, #8
-	b _hal_cpuRestoreCtx
-.size _syscalls_dispatch, .-_syscalls_dispatch
-
-
-.globl hal_cpuGetCycles
-.type hal_cpuGetCycles, %function
-hal_cpuGetCycles:
-	mrc p15, 0, r1, c9, c13, 0
-	str r1, [r0]
-	bx lr
-.size hal_cpuGetCycles, .-hal_cpuGetCycles
-
-
-.globl hal_cpuInvalDataCache
-.type hal_cpuInvalDataCache, %function
-hal_cpuInvalDataCache:
-	ldr r1, =SIZE_CACHE_LINE - 1
-	bic r0, r0, r1
-	mcr p15, 0, r0, c7, c6, 1
-	bx lr
-.size hal_cpuInvalDataCache, .-hal_cpuInvalDataCache
-
-
-.globl hal_cpuFlushDataCache
-.type hal_cpuFlushDataCache, %function
-hal_cpuFlushDataCache:
-	ldr r1, =SIZE_CACHE_LINE - 1
-	bic r0, r0, r1
-	mcr p15, 0, r0, c7, c14, 1
-	bx lr
-.size hal_cpuFlushDataCache, .-hal_cpuFlushDataCache
-
-
-.globl hal_cpuCleanDataCache
-.type hal_cpuCleanDataCache, %function
-hal_cpuCleanDataCache:
-	ldr r1, =SIZE_CACHE_LINE - 1
-	bic r0, r0, r1
-	mcr p15, 0, r0, c7, c11, 1
-	bx lr
-.size hal_cpuCleanDataCache, .-hal_cpuCleanDataCache
-
-
-.globl hal_cpuInvalASID
-.type hal_cpuInvalASID, %function
-hal_cpuInvalASID:
-	and r0, r0, #0xff
-	mcr p15, 0, r0, c8, c7, 2
-	bx lr
-.size hal_cpuInvalASID, .-hal_cpuInvalASID
-
-
-.globl hal_cpuInvalTLB
-.type hal_cpuInvalTLB, %function
-hal_cpuInvalTLB:
-	mcr p15, 0, r0, c8, c7, 0
-	bx lr
-.size hal_cpuInvalTLB, .-hal_cpuInvalTLB
-
-
-.globl hal_cpuInvalVA
-.type hal_cpuInvalVA, %function
-hal_cpuInvalVA:
-	mcr p15, 0, r0, c8, c7, 1 /* ASID match */
-	bx lr
-.size hal_cpuInvalVA, .-hal_cpuInvalVA
-
-
-.globl hal_cpuBranchInval
-.type hal_cpuBranchInval, %function
-hal_cpuBranchInval:
-	mov r0, #0
-	mcr p15, 0, r0, c7, c5, 6
-	bx lr
-.size hal_cpuBranchInval, .-hal_cpuBranchInval
-
-
-.globl hal_cpuICacheInval
-.type hal_cpuICacheInval, %function
-hal_cpuICacheInval:
-	mov r0, #0
-	mcr p15, 0, r0, c7, c5, 0
-	bx lr
-.size hal_cpuICacheInval, .-hal_cpuICacheInval
-
-
-.globl hal_cpuGetUserTT
-.type hal_cpuGetUserTT, %function
-hal_cpuGetUserTT:
-	mrc p15, 0, r0, c2, c0, 0
-	bx lr
-.size hal_cpuGetUserTT, .-hal_cpuGetUserTT
-
-
-.globl hal_cpuSetUserTT
-.type hal_cpuSetUserTT, %function
-hal_cpuSetUserTT:
-	mcr p15, 0, r0, c2, c0, 0
-	bx lr
-.size hal_cpuSetUserTT, .-hal_cpuSetUserTT
-
-
-.globl hal_cpuSetContextId
-.type hal_cpuSetContextId, %function
-hal_cpuSetContextId:
-	mcr p15, 0, r0, c13, c0, 1
-	bx lr
-.size hal_cpuSetContextId, .-hal_cpuSetContextId
-
-
-.globl hal_cpuGetContextId
-.type hal_cpuGetContextId, %function
-hal_cpuGetContextId:
-	mrc p15, 0, r0, c13, c0, 1
-	bx lr
-.size hal_cpuGetContextId, .-hal_cpuGetContextId
-
-
-.globl _hal_cpuSetKernelStack
-.type _hal_cpuSetKernelStack, %function
-_hal_cpuSetKernelStack:
-	mcr p15, 0, r0, c13, c0, 4
-	dsb
-	isb
-	bx lr
-.size _hal_cpuSetKernelStack, .-_hal_cpuSetKernelStack
-
-
-.globl hal_cpuGetMIDR
-.type hal_cpuGetMIDR, %function
-hal_cpuGetMIDR:
-	mrc p15, 0, r0, c0, c0, 0
-	bx lr
-.size hal_cpuGetMIDR, .-hal_cpuGetMIDR
-
-
-.globl hal_cpuGetPFR0
-.type hal_cpuGetPFR0, %function
-hal_cpuGetPFR0:
-	mrc p15, 0, r0, c0, c1, 0
-	bx lr
-.size hal_cpuGetPFR0, .-hal_cpuGetPFR0
-
-
-.globl hal_cpuGetPFR1
-.type hal_cpuGetPFR1, %function
-hal_cpuGetPFR1:
-	mrc p15, 0, r0, c0, c1, 1
-	bx lr
-.size hal_cpuGetPFR1, .-hal_cpuGetPFR1
-
-
-.globl hal_longjmp
-.type hal_longjmp, %function
-hal_longjmp:
-	cpsid if
-	add sp, r0, #8
-	b _hal_cpuRestoreCtx
-.size hal_longjmp, .-hal_longjmp
-
-
-.globl hal_jmp
-.type hal_jmp, %function
-hal_jmp:
-	cpsid if
-	mov r4, r0
-	mov r5, r1
-	mov r6, r2
-	mov r7, r3
-	cmp r6, #0
-	bne 2f
-	mov sp, r5
-	subs r7, #1
-	bmi 1f
-	pop {r0}
-	subs r7, #1
-	bmi 1f
-	pop {r1}
-	subs r7, #1
-	bmi 1f
-	pop {r2}
-	subs r7, #1
-	bmi 1f
-	pop {r3}
-1:	cpsie if
-	blx r4
-2:	mov sp, r6
-	subs r7, #1
-	bmi 3f
-	pop {r0}
-	subs r7, #1
-	bmi 3f
-	pop {r1}
-	subs r7, #1
-	bmi 3f
-	pop {r2}
-	subs r7, #1
-	bmi 3f
-	pop {r3}
-3:	cps #0x12
-	mov r5, #0x10
-	tst r4, #1
-	orrne r5, r5, #(1 << 5)
-	push {r5}
-	push {r4}
-	rfefd sp!
-.size hal_jmp, .-hal_jmp
+#include "../_interrupts.S"
+#include "../_armv7a.S"

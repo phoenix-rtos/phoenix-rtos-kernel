@@ -16,7 +16,7 @@
 #ifndef _PROC_PORT_H_
 #define _PROC_PORT_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "msg.h"
 #include "process.h"
 #include "threads.h"

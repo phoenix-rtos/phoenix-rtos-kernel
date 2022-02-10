@@ -14,16 +14,16 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "page.h"
 #include "../include/errno.h"
 #include "../lib/lib.h"
 #include "map.h"
 #include "../proc/proc.h"
+#include "../syspage.h"
 
 
-/* Last BSS symbol */
-extern void *_end;
+extern unsigned int __bss_start;
 
 
 struct {
@@ -168,11 +168,16 @@ void vm_pageinfo(meminfo_t *info)
 void _page_init(pmap_t *pmap, void **bss, void **top)
 {
 	page_t *p;
+	const syspage_map_t *map;
 	unsigned int i;
 
 	proc_lockInit(&pages.lock);
 
-	pages.freesz = pmap_getMaxVAdrr() - (unsigned int)(*bss);
+	/* TODO: handle error */
+	if ((map = syspage_mapAddrResolve((addr_t)&__bss_start)) == NULL)
+		return;
+
+	pages.freesz = map->end - (unsigned int)(*bss);
 	pages.bootsz = 0;
 
 	pages.freeq = (*bss);
@@ -182,7 +187,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	(*top) = max((*top), (*bss));
 
 	/* Prepare memory hash */
-	pages.allocsz = (unsigned int)(*bss) - pmap_getMinVAdrr();
+	pages.allocsz = (unsigned int)(*bss) - (unsigned int)&__bss_start;
 	pages.freesz -= pages.freeqsz * sizeof(page_t);
 
 	/* Show statistics one the console */

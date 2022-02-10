@@ -13,14 +13,51 @@
  * %LICENSE%
  */
 
-#include "spinlock.h"
-#include "cpu.h"
-
+#include "../spinlock.h"
 
 struct {
 	spinlock_t spinlock;
 	spinlock_t *first;
 } spinlocks;
+
+
+void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
+{
+	__asm__ volatile(" \
+		mrs r1, primask; \
+		cpsid i; \
+		str r1, [%0]; \
+		mov r2, #0; \
+	1: \
+		ldrexb r1, [%1]; \
+		cmp r1, #0; \
+		beq 1b; \
+		strexb r1, r2, [%1]; \
+		cmp r1, #0; \
+		bne 1b; \
+		dmb"
+	:
+	: "r" (sc), "r" (&spinlock->lock)
+	: "r1", "r2", "memory", "cc");
+}
+
+
+void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
+{
+	__asm__ volatile (" \
+	1 : \
+		ldrexb r1, [%0]; \
+		add r1, r1, #1; \
+		dmb; \
+		strexb r2, r1, [%0]; \
+		cmp r2, #0; \
+		bne 1b; \
+		ldr r1, [%1]; \
+		msr primask, r1;"
+	:
+	: "r" (&spinlock->lock), "r" (sc)
+	: "r1", "r2", "memory");
+}
 
 
 void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)

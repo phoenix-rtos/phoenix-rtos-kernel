@@ -16,8 +16,8 @@
 
 #define __ASSEMBLY__
 
-#include "cpu.h"
-#include "pmap.h"
+#include <arch/cpu.h>
+#include <arch/pmap.h>
 #include "multiboot.h"
 
 

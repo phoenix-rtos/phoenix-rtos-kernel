@@ -13,15 +13,13 @@
  * %LICENSE%
  */
 
-#include "exceptions.h"
-#include "syspage.h"
-#include "cpu.h"
-#include "spinlock.h"
-#include "console.h"
-#include "string.h"
+#include "../exceptions.h"
+#include "../cpu.h"
+#include "../spinlock.h"
+#include "../console.h"
+#include "../string.h"
 
-#include "../../include/errno.h"
-
+#include "../../include/mman.h"
 
 #define SIZE_EXCEPTIONS   16
 
@@ -133,6 +131,7 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 	exceptions_common.defaultHandler(n, ctx);
 }
 
+
 int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	int prot = PROT_NONE;
@@ -152,6 +151,19 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 
 	return prot;
 }
+
+
+inline void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
+{
+	return (void *)ctx->sbadaddr;
+}
+
+
+inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
+{
+	return ctx->pc;
+}
+
 
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 {
@@ -181,27 +193,27 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 		exceptions_common.defaultHandler = handler;
 		hal_spinlockClear(&exceptions_common.spinlock, &sc);
 
-		return EOK;
+		return 0;
 	}
 
-	if (n == EXC_PAGEFAULT)
-	{
+	if (n == EXC_PAGEFAULT) {
 		hal_spinlockSet(&exceptions_common.spinlock, &sc);
 		exceptions_common.handlers[12] = handler;
 		exceptions_common.handlers[13] = handler;
 		exceptions_common.handlers[15] = handler;
 		hal_spinlockClear(&exceptions_common.spinlock, &sc);
 
-		return EOK;
+		return 0;
 	}
+
 	if (n >= SIZE_EXCEPTIONS)
-		return -EINVAL;
+		return -1;
 
 	hal_spinlockSet(&exceptions_common.spinlock, &sc);
 	exceptions_common.handlers[n] = handler;
 	hal_spinlockClear(&exceptions_common.spinlock, &sc);
 
-	return EOK;
+	return 0;
 }
 
 

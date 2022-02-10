@@ -14,7 +14,7 @@
  *
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "bsearch.h"
 
 

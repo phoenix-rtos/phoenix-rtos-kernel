@@ -14,9 +14,8 @@
  */
 
 #include "imxrt117x.h"
-#include "interrupts.h"
-#include "pmap.h"
-#include "../../cpu.h"
+#include "../../armv7m.h"
+#include "../../spinlock.h"
 #include "../../../include/errno.h"
 #include "../../../include/arch/imxrt1170.h"
 
@@ -111,7 +110,7 @@ int _imxrt_setIOmux(int mux, char sion, char mode)
 		return -EINVAL;
 
 	(*reg) = (!!sion << 4) | (mode & 0xf);
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	return EOK;
 }
@@ -188,7 +187,7 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 	//t |= (apc & 0xf) << 28;
 
 	(*reg) = t;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	return EOK;
 }
@@ -303,7 +302,7 @@ int _imxrt_setIOisel(int isel, char daisy)
 		return -EINVAL;
 
 	(*reg) = daisy & mask;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	return EOK;
 }
@@ -335,7 +334,7 @@ void _imxrt_scbSetPriorityGrouping(u32 group)
 
 	/* Store new value */
 	*(imxrt_common.scb + scb_aircr) = t | 0x5fa0000 | ((group & 7) << 8);
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 }
 
 
@@ -352,7 +351,7 @@ void _imxrt_scbSetPriority(s8 excpn, u32 priority)
 	ptr = &((u8*)(imxrt_common.scb + scb_shp0))[excpn - 4];
 
 	*ptr = (priority << 4) & 0x0ff;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 }
 
 
@@ -390,7 +389,7 @@ void _imxrt_nvicSetPendingIRQ(s8 irqn, u8 state)
 {
 	volatile u32 *ptr = imxrt_common.nvic + ((u8)irqn >> 5) + (state ? nvic_ispr: nvic_icpr);
 	*ptr = 1 << (irqn & 0x1F);
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 }
 
 

@@ -17,7 +17,7 @@
 #ifndef _LIB_LIB_H_
 #define _LIB_LIB_H_
 
-#include HAL
+#include "../hal/hal.h"
 #include "printf.h"
 #include "bsearch.h"
 #include "rand.h"

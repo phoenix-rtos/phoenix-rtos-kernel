@@ -13,25 +13,11 @@
  * %LICENSE%
  */
 
-#include "interrupts.h"
-#include "spinlock.h"
-#include "cpu.h"
-#include "pmap.h"
-
-#ifdef CPU_IMXRT117X
-#define SIZE_INTERRUPTS 217
-#include "imxrt117x.h"
-#endif
-
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X)
-#define SIZE_INTERRUPTS 167
-#include "imxrt10xx.h"
-#endif
-
+#include "../../interrupts.h"
+#include "../../spinlock.h"
+#include "config.h"
 
 #include "../../proc/userintr.h"
-
-#include "../../include/errno.h"
 
 
 #define _intr_add(list, t) \
@@ -111,7 +97,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
-		return -EINVAL;
+		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock, &sc);
 	h->got = hal_cpuGetGot();
@@ -124,7 +110,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	}
 	hal_spinlockClear(&interrupts.spinlock, &sc);
 
-	return EOK;
+	return 0;
 }
 
 
@@ -133,7 +119,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
-		return -EINVAL;
+		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock, &sc);
 	_intr_remove(&interrupts.handlers[h->n], h);
@@ -143,7 +129,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 	hal_spinlockClear(&interrupts.spinlock, &sc);
 
-	return EOK;
+	return 0;
 }
 
 

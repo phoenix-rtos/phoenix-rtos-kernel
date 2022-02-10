@@ -13,9 +13,8 @@
  * %LICENSE%
  */
 
-#include "console.h"
-#include "cpu.h"
-#include "syspage.h"
+#include "../../console.h"
+#include "../../cpu.h"
 
 #define UART uart1
 
@@ -26,46 +25,50 @@ struct {
 	u32 speed;
 } console_common;
 
-extern void _end(void);
 
 enum { urxd = 0, utxd = 16, ucr1 = 32, ucr2, ucr3, ucr4, ufcr, usr1, usr2,
 	uesc, utim, ubir, ubmr, ubrc, onems, uts, umcr };
 
 
-static void _console_print(const char *s)
+extern unsigned int _end;
+
+
+static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++) {
-		/* Wait for transmitter readiness */
-		while (!(*(console_common.UART + usr1) & 0x2000));
+	for (; *s; s++)
+		hal_consolePutch(*s);
 
-		*(console_common.UART + utxd) = *s;
-	}
-
-	while (!(*(console_common.UART + usr1) & 0x2000));
+	while (!(*(console_common.UART + usr1) & 0x2000))
+		;
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD) {
-		_console_print("\033[1m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else if (attr != ATTR_USER) {
-		_console_print("\033[36m");
-		_console_print(s);
-		_console_print("\033[0m");
-	}
-	else
-		_console_print(s);
+	if (attr == ATTR_BOLD)
+		_hal_consolePrint(CONSOLE_BOLD);
+	else if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
+	_hal_consolePrint(s);
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
+	/* Wait for transmitter readiness */
+	while (!(*(console_common.UART + usr1) & 0x2000))
+		;
+
+	*(console_common.UART + utxd) = c;
 }
 
 
 __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 {
-	console_common.uart1 = (void *)(((u32)_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
-	console_common.uart2 = (void *)(((u32)_end + (2 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart1 = (void *)(((u32)&_end + (3 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart2 = (void *)(((u32)&_end + (4 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
 	console_common.speed = 115200;
 
 	*(console_common.UART + ucr2) &= ~0x1;
@@ -81,6 +84,6 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	*(console_common.UART + ubir) = 0x11ff;
 	*(console_common.UART + ubmr) = 0xc34f;
 
-	_console_print("\033[2J");
-	_console_print("\033[0;0f");
+	_hal_consolePrint("\033[2J");
+	_hal_consolePrint("\033[0;0f");
 }

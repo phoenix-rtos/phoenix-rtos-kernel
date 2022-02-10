@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-#include HAL
+#include "../hal/hal.h"
 #include "../include/errno.h"
 #include "../include/signal.h"
 #include "threads.h"
@@ -120,7 +120,7 @@ static void _perf_event(thread_t *t, int type)
 	perf_event_t ev;
 	time_t now = 0, wait;
 
-	now = TIMER_CYC2US(hal_getTimer());
+	now = hal_timerGetUs();
 
 	if (type == perf_evWaking || type == perf_evPreempted) {
 		t->readyTime = now;
@@ -183,7 +183,7 @@ static void _perf_begin(thread_t *t)
 	ev.tid = perf_idpack(t->id);
 	ev.pid = t->process != NULL ? perf_idpack(t->process->id) : -1;
 
-	now = TIMER_CYC2US(hal_getTimer());
+	now = hal_timerGetUs();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -205,7 +205,7 @@ void perf_end(thread_t *t)
 	ev.type = perf_levEnd;
 	ev.tid = perf_idpack(t->id);
 
-	now = TIMER_CYC2US(hal_getTimer());
+	now = hal_timerGetUs();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -230,7 +230,7 @@ void perf_fork(process_t *p)
 	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
 	ev.tid = perf_idpack(_proc_current()->id);
 
-	now = TIMER_CYC2US(hal_getTimer());
+	now = hal_timerGetUs();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -254,7 +254,7 @@ void perf_kill(process_t *p)
 	ev.pid = perf_idpack(p->id);
 	ev.tid = perf_idpack(_proc_current()->id);
 
-	now = TIMER_CYC2US(hal_getTimer());
+	now = hal_timerGetUs();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -283,7 +283,7 @@ void perf_exec(process_t *p, char *path)
 	hal_memcpy(ev.path, path, plen);
 	ev.path[plen] = 0;
 
-	now = TIMER_CYC2US(hal_getTimer());
+	now = hal_timerGetUs();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -357,7 +357,7 @@ int perf_start(unsigned pid)
 	/* Start gathering events */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	threads_common.perfGather = 1;
-	threads_common.perfLastTimestamp = TIMER_CYC2US(hal_getTimer());
+	threads_common.perfLastTimestamp = hal_timerGetUs();
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return EOK;
@@ -401,7 +401,6 @@ int perf_finish()
 
 static void _threads_updateWakeup(time_t now, thread_t *min)
 {
-#ifdef HPTIMER_IRQ
 	thread_t *t;
 	time_t wakeup;
 
@@ -417,14 +416,13 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 			wakeup = t->wakeup - now;
 	}
 	else {
-		wakeup = TIMER_US2CYC(SYSTICK_INTERVAL);
+		wakeup = SYSTICK_INTERVAL;
 	}
 
-	if (wakeup > TIMER_US2CYC(SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8))
-		wakeup = TIMER_US2CYC(SYSTICK_INTERVAL);
+	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8)
+		wakeup = SYSTICK_INTERVAL;
 
-	hal_setWakeup(wakeup);
-#endif
+	hal_timerSetWakeup(wakeup);
 }
 
 
@@ -439,7 +437,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		return EOK;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	now = hal_getTimer();
+	now = hal_timerGetUs();
 
 	for (;; i++) {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
@@ -517,7 +515,7 @@ void threads_put(thread_t *t)
 
 static void threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 {
-	time_t now = TIMER_CYC2US(hal_getTimer());
+	time_t now = hal_timerGetUs();
 
 	if (current != NULL) {
 		current->cpuTime += now - current->lastTime;
@@ -823,7 +821,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 
 	threads_canaryInit(t, stack);
 
-	t->startTime = TIMER_CYC2US(hal_getTimer());
+	t->startTime = hal_timerGetUs();
 	t->cpuTime = 0;
 	t->lastTime = t->startTime;
 
@@ -959,8 +957,8 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->interruptible = interruptible;
 
 	if (timeout) {
-		now = hal_getTimer();
-		current->wakeup = now + TIMER_US2CYC(timeout);
+		now = hal_timerGetUs();
+		current->wakeup = now + timeout;
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 		_threads_updateWakeup(now, NULL);
 	}
@@ -994,12 +992,12 @@ int proc_threadSleep(unsigned long long us)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	now = hal_getTimer();
+	now = hal_timerGetUs();
 
 	current = threads_common.current[hal_cpuGetID()];
 	current->state = SLEEP;
 	current->wait = NULL;
-	current->wakeup = now + TIMER_US2CYC(us);
+	current->wakeup = now + us;
 	current->interruptible = 1;
 
 	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
@@ -1155,10 +1153,10 @@ time_t proc_uptime(void)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	time = hal_getTimer();
+	time = hal_timerGetUs();
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return TIMER_CYC2US(time);
+	return time;
 }
 
 
@@ -1167,7 +1165,7 @@ void proc_gettime(time_t *raw, time_t *offs)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	(*raw) = TIMER_CYC2US(hal_getTimer());
+	(*raw) = hal_timerGetUs();
 	(*offs) = threads_common.utcoffs;
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
@@ -1195,7 +1193,7 @@ time_t proc_nextWakeup(void)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 	if (thread != NULL) {
-		now = hal_getTimer();
+		now = hal_timerGetUs();
 		if (now >= thread->wakeup)
 			wakeup = 0;
 		else
@@ -1425,8 +1423,8 @@ static void threads_idlethr(void *arg)
 	for (;;) {
 		wakeup = proc_nextWakeup();
 
-		if (wakeup > TIMER_US2CYC(2000))
-			hal_cpuLowPower(TIMER_CYC2US(wakeup));
+		if (wakeup > 2000)
+			hal_cpuLowPower(wakeup);
 
 		hal_cpuHalt();
 	}
@@ -1489,7 +1487,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		info[i].state = t->state;
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		now = TIMER_CYC2US(hal_getTimer());
+		now = hal_timerGetUs();
 		if (now != t->startTime)
 			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
 		else
@@ -1614,21 +1612,10 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 #endif
 
 	hal_memset(&threads_common.timeintrHandler, NULL, sizeof(threads_common.timeintrHandler));
-	threads_common.timeintrHandler.f = threads_timeintr;
+	hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
 
 	hal_memset(&threads_common.scheduleHandler, NULL, sizeof(threads_common.scheduleHandler));
-	threads_common.scheduleHandler.f = threads_schedule;
-
-#ifdef HPTIMER_IRQ
-	threads_common.timeintrHandler.n = HPTIMER_IRQ;
-	threads_common.scheduleHandler.n = HPTIMER_IRQ;
-#else
-	threads_common.timeintrHandler.n = SYSTICK_IRQ;
-	threads_common.scheduleHandler.n = SYSTICK_IRQ;
-#endif
-
-	hal_interruptsSetHandler(&threads_common.timeintrHandler);
-	hal_interruptsSetHandler(&threads_common.scheduleHandler);
+	hal_timerRegister(threads_schedule, NULL, &threads_common.scheduleHandler);
 
 	return EOK;
 }

@@ -13,10 +13,11 @@
  * %LICENSE%
  */
 
-#include "../cpu.h"
-#include "../stm32.h"
-#include "../../interrupts.h"
-#include "../../spinlock.h"
+#include "../config.h"
+#include "../../armv7m.h"
+#include "../../../timer.h"
+#include "../../../interrupts.h"
+#include "../../../spinlock.h"
 
 /*
  * Prescaler settings (32768 Hz input frequency):
@@ -42,18 +43,6 @@ static struct {
 	volatile u32 *lptim;
 	volatile time_t upper;
 } timer_common;
-
-
-static inline time_t timer_ticks2us(time_t ticks)
-{
-	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
-}
-
-
-static inline time_t timer_us2ticks(time_t us)
-{
-	return ((32768 / (1 << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
-}
 
 
 static u32 timer_getCnt(void)
@@ -95,13 +84,19 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-void timer_jiffiesAdd(time_t t)
+static time_t hal_timerCyc2Us(time_t ticks)
 {
-	(void)t;
+	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
 }
 
 
-time_t hal_getTimer(void)
+static time_t hal_timerUs2Cyc(time_t us)
+{
+	return ((32768 / (1 << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
+}
+
+
+static time_t hal_timerGetCyc(void)
 {
 	time_t upper;
 	u32 lower;
@@ -119,13 +114,20 @@ time_t hal_getTimer(void)
 	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return timer_ticks2us((upper << 16) + lower);
+	return (upper << 16) + lower;
+}
+
+/* Additional functions */
+
+void timer_jiffiesAdd(time_t t)
+{
+	(void)t;
 }
 
 
 void timer_setAlarm(time_t us)
 {
-	time_t ticks = timer_us2ticks(us);
+	time_t ticks = hal_timerUs2Cyc(us);
 	u32 setval;
 	spinlock_ctx_t sc;
 
@@ -143,7 +145,29 @@ void timer_setAlarm(time_t us)
 }
 
 
-void _timer_init(u32 interval)
+void hal_timerSetWakeup(u32 when)
+{
+}
+
+/* Interface functions */
+
+time_t hal_timerGetUs(void)
+{
+	return hal_timerCyc2Us(hal_timerGetCyc());
+}
+
+
+int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+{
+	h->f = f;
+	h->n = SYSTICK_IRQ;
+	h->data = data;
+
+	return hal_interruptsSetHandler(h);
+}
+
+
+void _hal_timerInit(u32 interval)
 {
 	timer_common.lptim = (void *)0x40007c00;
 	timer_common.upper = 0;
@@ -154,7 +178,7 @@ void _timer_init(u32 interval)
 	*(timer_common.lptim + lptim_ier) = 2;
 	*(timer_common.lptim + lptim_icr) |= 0x7f;
 	*(timer_common.lptim + lptim_cr) = 1;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 	*(timer_common.lptim + lptim_cnt) = 0;
 	*(timer_common.lptim + lptim_cmp) = 0;
 	*(timer_common.lptim + lptim_arr) = 0xffff;

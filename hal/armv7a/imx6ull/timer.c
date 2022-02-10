@@ -13,10 +13,11 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "spinlock.h"
-#include "interrupts.h"
+#include "../armv7a.h"
+#include "../../timer.h"
+#include "../../spinlock.h"
 
+#define TIMER_IRQ_ID 88
 
 struct {
 	volatile u32 *epit1;
@@ -36,7 +37,7 @@ enum { epit_cr = 0, epit_sr, epit_lr, epit_cmpr, epit_cnr };
 enum { gpt_cr = 0, gpt_pr, gpt_sr, gpt_ir, gpt_ocr1, gpt_ocr2, gpt_ocr3, gpt_icr1, gpt_icr2, gpt_cnt };
 
 
-extern void _end(void);
+extern unsigned int _end;
 
 
 static int timer_wakeupIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -63,21 +64,13 @@ static int timer_overflowIrqHandler(unsigned int n, cpu_context_t *ctx, void *ar
 }
 
 
-void hal_setWakeup(u32 when)
+static time_t hal_timerCyc2Us(time_t cyc)
 {
-	spinlock_ctx_t sc;
-
-	if (!when)
-		++when;
-
-	hal_spinlockSet(&timer_common.lock, &sc);
-	*(timer_common.epit1 + epit_lr) = when;
-	*(timer_common.epit1 + epit_cr) |= 1;
-	hal_spinlockClear(&timer_common.lock, &sc);
+	return cyc / 66LL;
 }
 
 
-time_t hal_getTimer(void)
+static time_t hal_timerGetCyc(void)
 {
 	u32 reg;
 	time_t ret;
@@ -94,16 +87,51 @@ time_t hal_getTimer(void)
 }
 
 
-void _timer_init(u32 interval)
+void hal_timerSetWakeup(u32 when)
 {
-	timer_common.epit1 = (void *)(((u32)_end + (7 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	timer_common.gpt1 = (void *)(((u32)_end + (8 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	spinlock_ctx_t sc;
+	u32 cyc;
+
+	if (!when)
+		++when;
+
+	cyc = when * 66;
+
+	hal_spinlockSet(&timer_common.lock, &sc);
+	*(timer_common.epit1 + epit_lr) = cyc;
+	*(timer_common.epit1 + epit_cr) |= 1;
+	hal_spinlockClear(&timer_common.lock, &sc);
+}
+
+
+time_t hal_timerGetUs(void)
+{
+	time_t ret = hal_timerGetCyc();
+
+	return hal_timerCyc2Us(ret);
+}
+
+
+int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+{
+	h->f = f;
+	h->n = TIMER_IRQ_ID;
+	h->data = data;
+
+	return hal_interruptsSetHandler(h);
+}
+
+
+void _hal_timerInit(u32 interval)
+{
+	timer_common.epit1 = (void *)(((u32)&_end + (9 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	timer_common.gpt1 = (void *)(((u32)&_end + (10 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
 	timer_common.timerhi = 0;
 
 	hal_spinlockCreate(&timer_common.lock, "timer");
 
 	timer_common.wakeuph.data = NULL;
-	timer_common.wakeuph.n = HPTIMER_IRQ;
+	timer_common.wakeuph.n = TIMER_IRQ_ID;
 	timer_common.wakeuph.f = timer_wakeupIrqHandler;
 
 	hal_interruptsSetHandler(&timer_common.wakeuph);

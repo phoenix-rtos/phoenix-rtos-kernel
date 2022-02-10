@@ -17,11 +17,10 @@
 #define UART_CONSOLE 11
 #endif
 
-#include "cpu.h"
-#include "console.h"
 #include "imxrt117x.h"
-#include "../../include/errno.h"
-#include "../../include/arch/imxrt1170.h"
+#include "../../armv7m.h"
+#include "../../../console.h"
+#include "../../../../include/arch/imxrt1170.h"
 
 #define CONCAT3(a, b, c) a##b##c
 #define CONSOLE_BAUD(n)  (CONCAT3(UART, n, _BAUDRATE))
@@ -41,23 +40,31 @@ enum { uart_verid = 0, uart_param, uart_global, uart_pincfg, uart_baud, uart_sta
 	uart_data, uart_match, uart_modir, uart_fifo, uart_water };
 
 
-void _hal_consolePrint(const char *s)
+static void _hal_consolePrint(const char *s)
 {
-	while (*s) {
-		while (!(*(console_common.uart + uart_stat) & (1 << 23)));
-		*(console_common.uart + uart_data) = *(s++);
-	}
+	while (*s)
+		hal_consolePutch(*(s++));
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
 	if (attr == ATTR_BOLD)
-		_hal_consolePrint("\033[1m");
+		_hal_consolePrint(CONSOLE_BOLD);
+	else if (attr != ATTR_USER)
+		_hal_consolePrint(CONSOLE_CYAN);
+
 	_hal_consolePrint(s);
-	if (attr == ATTR_BOLD)
-		_hal_consolePrint("\033[0m");
-	return;
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+
+void hal_consolePutch(char c)
+{
+	while (!(*(console_common.uart + uart_stat) & (1 << 23)))
+		;
+
+	*(console_common.uart + uart_data) = c;
 }
 
 
@@ -108,9 +115,9 @@ void _hal_consoleInit(void)
 
 	/* Reset all internal logic and registers, except the Global Register */
 	*(console_common.uart + uart_global) |= 1 << 1;
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 	*(console_common.uart + uart_global) &= ~(1 << 1);
-	hal_cpuDataBarrier();
+	hal_cpuDataMemoryBarrier();
 
 	/* Set baud rate */
 	t = *(console_common.uart + uart_baud) & ~((0x1f << 24) | (1 << 17) | 0xfff);
