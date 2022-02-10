@@ -165,6 +165,7 @@ void dtb_parse(void *arg, void *dtb)
 
 	dtb = (void *)dtb_common.fdth + ntoh32(dtb_common.fdth->off_dt_struct);
 	dtb_common.soc.intctl.exist = 0;
+	dtb_common.ncpus = 0;
 
 	for (;;) {
 		token = ntoh32(*(u32 *)dtb);
