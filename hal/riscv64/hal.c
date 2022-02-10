@@ -29,18 +29,18 @@ struct {
 } hal_common;
 
 
-syspage_t *syspage;
-addr_t relOffs;
+syspage_t *hal_syspage;
+addr_t hal_relOffs;
 
 void *hal_syspageRelocate(void *data)
 {
-	return ((u8 *)data + relOffs);
+	return ((u8 *)data + hal_relOffs);
 }
 
 
 ptr_t hal_syspageAddr(void)
 {
-	return (ptr_t)syspage;
+	return (ptr_t)hal_syspage;
 }
 
 
