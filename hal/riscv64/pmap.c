@@ -469,6 +469,8 @@ void _pmap_preinit(void)
 
 	/* pmap_common.pdir2[(VADDR_KERNEL >> 30) % 512] = ((((u64)_start >> 30) << 28) | 0xcf); */
 
+	hal_memset(pmap_common.pdir0, 0, SIZE_PAGE);
+	hal_memset(pmap_common.pdir1, 0, SIZE_PAGE);
 	hal_memset(pmap_common.pdir2, 0, SIZE_PAGE);
 
 	/* Map 4MB after _start symbol at VADDR_KERNEL */
