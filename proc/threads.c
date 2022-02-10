@@ -574,11 +574,11 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	if (selected != NULL) {
 		threads_common.current[hal_cpuGetID()] = selected;
+		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 
 		if (((proc = selected->process) != NULL) && (proc->pmapp != NULL)) {
 			/* Switch address space */
 			pmap_switch(proc->pmapp);
-			_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 
 			/* Check for signals to handle */
 			if ((sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask) && proc->sighandler != NULL) {
