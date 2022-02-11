@@ -2375,7 +2375,7 @@ int posix_waitpid(pid_t child, int *status, int options)
 		}
 		while (!found && (c = c->next) != pinfo->zombies);
 	}
-	while (!found);
+	while (!found && !(options & 1));
 	proc_lockClear(&pinfo->lock);
 
 	if (found) {
