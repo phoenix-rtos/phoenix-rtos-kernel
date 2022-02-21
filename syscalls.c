@@ -1350,6 +1350,18 @@ int syscalls_sys_utimes(char *ustack)
 }
 
 
+int syscalls_sys_futimes(char *ustack)
+{
+	int fildes;
+	const struct timeval *times;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, const struct timeval *, times, 1);
+
+	return posix_futimes(fildes, times);
+}
+
+
 int syscalls_sys_tkill(char *ustack)
 {
 	pid_t pid;

@@ -133,6 +133,8 @@ struct stat {
 
 
 struct timeval {
+	time_t tv_sec;
+	int tv_usec;
 };
 
 

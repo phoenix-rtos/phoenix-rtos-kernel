@@ -1993,11 +1993,46 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 int posix_utimes(const char *filename, const struct timeval *times)
 {
 	oid_t oid;
-
 	if (proc_lookup(filename, NULL, &oid) < 0)
 		return -ENOENT;
 
 	return 0;
+}
+
+
+int posix_futimes(int fildes, const struct timeval *times)
+{
+	TRACE("futimes(%d)", fildes);
+
+	open_file_t *f;
+	msg_t msg;
+	int err;
+
+	if ((err = posix_getOpenFile(fildes, &f)) < 0)
+		return err;
+
+	hal_memset(&msg, 0, sizeof(msg_t));
+
+	msg.type = mtSetAttr;
+	hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
+
+	msg.i.attr.type = atMTime;
+	msg.i.attr.val = times[1].tv_sec;
+	if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0)) {
+		posix_fileDeref(f);
+		return err;
+	}
+
+	msg.i.attr.type = atATime;
+	msg.i.attr.val = times[0].tv_sec;
+	if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0)) {
+		posix_fileDeref(f);
+		return err;
+	}
+
+	posix_fileDeref(f);
+
+	return err;
 }
 
 
