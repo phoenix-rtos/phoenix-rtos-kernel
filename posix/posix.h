@@ -143,6 +143,9 @@ extern int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms);
 extern int posix_utimes(const char *filename, const struct timeval *times);
 
 
+extern int posix_futimens(int fildes, const struct timespec *times);
+
+
 extern int posix_tkill(pid_t pid, int tid, int sig);
 
 

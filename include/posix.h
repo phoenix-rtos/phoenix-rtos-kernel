@@ -136,6 +136,12 @@ struct timeval {
 };
 
 
+struct timespec {
+	time_t tv_sec;
+	long tv_nsec;
+};
+
+
 #define AF_UNSPEC 0
 #define AF_UNIX   1
 #define AF_INET   2

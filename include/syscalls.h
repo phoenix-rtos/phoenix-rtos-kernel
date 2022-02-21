@@ -108,6 +108,7 @@
 	\
 	ID(sys_ioctl) \
 	ID(sys_utimes) \
+	ID(sys_futimens) \
 	ID(sys_poll) \
 	\
 	ID(sys_tkill) \
