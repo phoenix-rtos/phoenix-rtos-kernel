@@ -118,7 +118,7 @@ jobs:
       runner_result: ${{ steps.runner.outcome }}
     strategy:
       matrix:
-        target: ['armv7m7-imxrt106x']
+        target: ['armv7m7-imxrt106x',  'armv7m7-imxrt117x']
 
     steps:
       - name: Checkout phoenix-rtos-project
