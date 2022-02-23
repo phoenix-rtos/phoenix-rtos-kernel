@@ -31,12 +31,13 @@ enum { PREFORK = 0, FORKING = 1, FORKED };
 /* Child thread states */
 enum { OWNSTACK = 0, PARENTSTACK };
 
-enum { READY = 0, SLEEP };
+enum { READY = 0, SLEEP, GHOST };
 
 
 typedef struct _thread_t {
 	struct _thread_t *next;
 	struct _thread_t *prev;
+	struct _lock_t *locks;
 
 	rbnode_t sleeplinkage;
 	rbnode_t idlinkage;
@@ -54,9 +55,10 @@ typedef struct _thread_t {
 	struct _thread_t **wait;
 	volatile time_t wakeup;
 
+	unsigned priorityBase : 4;
 	unsigned priority : 4;
+	unsigned state : 2;
 	unsigned exit : 1;
-	unsigned state : 1;
 	unsigned interruptible : 1;
 
 	unsigned sigmask;
@@ -109,6 +111,9 @@ extern void threads_canaryInit(thread_t *t, void *ustack);
 
 
 extern int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
+
+
+extern int proc_threadPriority(int priority);
 
 
 extern void proc_threadProtect(void);
@@ -165,7 +170,7 @@ extern int threads_getCpuTime(thread_t *t);
 extern thread_t *threads_findThread(int tid);
 
 
-extern void threads_put(thread_t *);
+extern void threads_put(thread_t *thread);
 
 
 extern time_t proc_uptime(void);
@@ -196,5 +201,6 @@ extern int _proc_sigwant(thread_t *thread);
 
 
 extern void proc_sigreturn(int s);
+
 
 #endif
