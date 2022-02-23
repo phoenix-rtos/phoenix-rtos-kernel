@@ -20,13 +20,10 @@
 
 
 typedef struct _lock_t {
-	spinlock_t spinlock;
-	volatile char v;
-	volatile struct _thread_t *owner;
-
-	/* Saved original priority of mutex holder to be restored once mutex is released */
-	unsigned int priority;
-	struct _thread_t *queue;
+	spinlock_t spinlock;         /* Spinlock */
+	struct _thread_t *owner;     /* Owner thread */
+	struct _thread_t *queue;     /* Waiting threads */
+	struct _lock_t *prev, *next; /* Doubly linked list */
 } lock_t;
 
 

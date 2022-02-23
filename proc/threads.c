@@ -462,54 +462,74 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
  */
 
 
-static void thread_destroy(thread_t *t)
+static void proc_lockUnlock(lock_t *lock);
+
+
+static void thread_destroy(thread_t *thread)
 {
 	process_t *process;
 	spinlock_ctx_t sc;
 
-	perf_end(t);
+	perf_end(thread);
 
-	vm_kfree(t->kstack);
+	/* No need to protect thread->locks access with threads_common.spinlock */
+	/* The destroyed thread is a ghost and no thread (except for the current one) can access it */
+	while (thread->locks != NULL) {
+		proc_lockUnlock(thread->locks);
+	}
+	vm_kfree(thread->kstack);
 
-	if ((process = t->process) != NULL) {
+	process = thread->process;
+	if (process != NULL) {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		LIST_REMOVE_EX(&process->threads, t, procnext, procprev);
-		LIST_ADD_EX(&process->ghosts, t, procnext, procprev);
-		_proc_threadWakeup(&process->reaper);
-		hal_spinlockClear(&threads_common.spinlock, &sc);
 
+		LIST_REMOVE_EX(&process->threads, thread, procnext, procprev);
+		LIST_ADD_EX(&process->ghosts, thread, procnext, procprev);
+		_proc_threadWakeup(&process->reaper);
+
+		hal_spinlockClear(&threads_common.spinlock, &sc);
 		proc_put(process);
 	}
-	else
-		vm_kfree(t);
+	else {
+		vm_kfree(thread);
+	}
 }
 
 
 thread_t *threads_findThread(int tid)
 {
-	thread_t *r, t;
-	t.id = tid;
+	thread_t *thread, t;
 
+	t.id = tid;
 	proc_lockSet(&threads_common.lock);
-	if ((r = lib_treeof(thread_t, idlinkage, lib_rbFind(&threads_common.id, &t.idlinkage))) != NULL)
-		r->refs++;
+
+	thread = lib_treeof(thread_t, idlinkage, lib_rbFind(&threads_common.id, &t.idlinkage));
+	if (thread != NULL) {
+		thread->refs++;
+	}
+
 	proc_lockClear(&threads_common.lock);
 
-	return r;
+	return thread;
 }
 
 
-void threads_put(thread_t *t)
+void threads_put(thread_t *thread)
 {
-	int remaining;
+	int refs;
 
 	proc_lockSet(&threads_common.lock);
-	if (!(remaining = --t->refs))
-		lib_rbRemove(&threads_common.id, &t->idlinkage);
+
+	refs = --thread->refs;
+	if (refs <= 0) {
+		lib_rbRemove(&threads_common.id, &thread->idlinkage);
+	}
+
 	proc_lockClear(&threads_common.lock);
 
-	if (!remaining)
-		thread_destroy(t);
+	if (refs <= 0) {
+		thread_destroy(thread);
+	}
 }
 
 
@@ -568,6 +588,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		if (!selected->exit /*|| hal_cpuSupervisorMode(selected->context)*/)
 			break;
 
+		selected->state = GHOST;
 		LIST_ADD(&threads_common.ghosts, selected);
 		_proc_threadWakeup(&threads_common.reaper);
 	}
@@ -778,7 +799,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 		vm_kfree(t);
 		return -ENOMEM;
 	}
-
 	hal_memset(t->kstack, 0xba, t->kstacksz);
 
 	t->state = READY;
@@ -791,6 +811,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->exit = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
+	t->locks = NULL;
 
 	thread_alloc(t);
 
@@ -799,6 +820,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 
 	t->stick = 0;
 	t->utick = 0;
+	t->priorityBase = priority;
 	t->priority = priority;
 
 	if (process != NULL) {
@@ -809,7 +831,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 
 	t->execdata = NULL;
 
-	/* Insert thread to global quee */
+	/* Insert thread to global queue */
 	proc_lockSet(&threads_common.lock);
 	lib_rbInsert(&threads_common.id, &t->idlinkage);
 
@@ -841,6 +863,92 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 }
 
 
+static unsigned int _proc_lockGetPriority(lock_t *lock)
+{
+	unsigned int priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1;
+	thread_t *thread = lock->queue;
+
+	if (thread != NULL) {
+		do {
+			if (thread->priority < priority) {
+				priority = thread->priority;
+			}
+			thread = thread->next;
+		} while (thread != lock->queue);
+	}
+
+	return priority;
+}
+
+
+static unsigned int _proc_threadGetPriority(thread_t *thread)
+{
+	unsigned int ret, priority = thread->priorityBase;
+	lock_t *lock = thread->locks;
+
+	if (lock != NULL) {
+		do {
+			ret = _proc_lockGetPriority(lock);
+			if (ret < priority) {
+				priority = ret;
+			}
+			lock = lock->next;
+		} while (lock != thread->locks);
+	}
+
+	return priority;
+}
+
+
+static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
+{
+	unsigned int i;
+
+	if (thread->state == READY) {
+		for (i = 0; i < hal_cpuGetCount(); i++) {
+			if (thread == threads_common.current[i]) {
+				break;
+			}
+		}
+
+		if (i == hal_cpuGetCount()) {
+			LIST_REMOVE(&threads_common.ready[thread->priority], thread);
+			LIST_ADD(&threads_common.ready[priority], thread);
+		}
+	}
+
+	thread->priority = priority;
+}
+
+
+int proc_threadPriority(int priority)
+{
+	thread_t *current;
+	spinlock_ctx_t sc;
+	int ret;
+
+	if ((priority < -1) || (priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	current = _proc_current();
+	if (priority >= 0) {
+		/* Don't lower current thread priority if it holds any locks */
+		if ((priority < current->priority) || (current->locks == NULL)) {
+			current->priority = priority;
+		}
+		current->priorityBase = priority;
+	}
+	ret = current->priorityBase;
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return ret;
+}
+
+
 static void _thread_interrupt(thread_t *t)
 {
 	_proc_threadDequeue(t);
@@ -859,6 +967,7 @@ void proc_threadEnd(void)
 	cpu = hal_cpuGetID();
 	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
+	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
 	_proc_threadWakeup(&threads_common.reaper);
 
@@ -1275,90 +1384,209 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
  */
 
 
-int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *sc)
+static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 {
-	while (lock->v == 0) {
-		if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, sc) == -EINTR)
+	thread_t *current = proc_current();
+	unsigned int priority;
+	spinlock_ctx_t sc;
+
+	while (lock->owner != NULL) {
+		/* Lock owner might inherit our priority */
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+
+		if (current->priority < lock->owner->priority) {
+			_proc_threadSetPriority(lock->owner, current->priority);
+		}
+
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+
+		if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
+			/* Recalculate lock owner priority (it might have been inherited from the current thread) */
+			if (lock->owner != NULL) {
+				hal_spinlockSet(&threads_common.spinlock, &sc);
+
+				_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
+
+				hal_spinlockClear(&threads_common.spinlock, &sc);
+			}
 			return -EINTR;
+		}
 	}
 
-	lock->v = 0;
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	/* Recalculate current thread priority based on priority of the threads waiting for the lock */
+	if (lock->queue != NULL) {
+		priority = _proc_lockGetPriority(lock);
+		if (priority < current->priority) {
+			current->priority = priority;
+		}
+	}
+	LIST_ADD(&current->locks, lock);
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	lock->owner = current;
+
 	return EOK;
 }
 
 
 int proc_lockSet(lock_t *lock)
 {
-	int err;
 	spinlock_ctx_t sc;
+	int err;
 
-	if (!hal_started())
+	if (!hal_started()) {
 		return -EINVAL;
+	}
 
 	hal_spinlockSet(&lock->spinlock, &sc);
+
 	err = _proc_lockSet(lock, 0, &sc);
+
 	hal_spinlockClear(&lock->spinlock, &sc);
+
 	return err;
 }
 
 
 int proc_lockSetInterruptible(lock_t *lock)
 {
-	int err;
 	spinlock_ctx_t sc;
+	int err;
+
+	if (!hal_started()) {
+		return -EINVAL;
+	}
 
 	hal_spinlockSet(&lock->spinlock, &sc);
+
 	err = _proc_lockSet(lock, 1, &sc);
+
 	hal_spinlockClear(&lock->spinlock, &sc);
+
 	return err;
+}
+
+
+static int _proc_lockTry(lock_t *lock)
+{
+	thread_t *current = proc_current();
+	spinlock_ctx_t sc;
+
+	if (lock->owner != NULL) {
+		return -EBUSY;
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	LIST_ADD(&current->locks, lock);
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	lock->owner = current;
+
+	return EOK;
 }
 
 
 int proc_lockTry(lock_t *lock)
 {
 	spinlock_ctx_t sc;
+	int err;
 
-	int err = EOK;
-
-	if (!hal_started())
+	if (!hal_started()) {
 		return -EINVAL;
+	}
 
 	hal_spinlockSet(&lock->spinlock, &sc);
-	if (lock->v == 0)
-		err = -EBUSY;
 
-	lock->v = 0;
+	err = _proc_lockTry(lock);
+
 	hal_spinlockClear(&lock->spinlock, &sc);
 
 	return err;
 }
 
 
-int _proc_lockClear(lock_t *lock)
+static int _proc_lockUnlock(lock_t *lock)
 {
-	lock->v = 1;
-	if (lock->queue == NULL || lock->queue == (void *)-1)
-		return 0;
+	thread_t *owner = lock->owner;
+	spinlock_ctx_t sc;
+	int ret = 0;
 
-	proc_threadWakeup(&lock->queue);
-	return 1;
+	lock->owner = NULL;
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	LIST_REMOVE(&owner->locks, lock);
+	if (lock->queue != NULL) {
+		_proc_threadDequeue(lock->queue);
+		ret = 1;
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return ret;
+}
+
+
+static void proc_lockUnlock(lock_t *lock)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&lock->spinlock, &sc);
+
+	if (_proc_lockUnlock(lock)) {
+		hal_cpuReschedule(&lock->spinlock, &sc);
+	}
+	else {
+		hal_spinlockClear(&lock->spinlock, &sc);
+	}
+}
+
+
+static int _proc_lockClear(lock_t *lock)
+{
+	thread_t *current = proc_current();
+	spinlock_ctx_t sc;
+	int ret;
+
+	if (lock->owner != current) {
+		return -EPERM;
+	}
+
+	ret = _proc_lockUnlock(lock);
+	if (ret) {
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+
+		current->priority = _proc_threadGetPriority(current);
+
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
+
+	return ret;
 }
 
 
 int proc_lockClear(lock_t *lock)
 {
 	spinlock_ctx_t sc;
+	int err;
 
-	if (!hal_started())
+	if (!hal_started()) {
 		return -EINVAL;
+	}
 
 	hal_spinlockSet(&lock->spinlock, &sc);
-	if (_proc_lockClear(lock))
-		hal_cpuReschedule(&lock->spinlock, &sc);
-	else
-		hal_spinlockClear(&lock->spinlock, &sc);
 
-	return EOK;
+	err = _proc_lockClear(lock);
+	if (err > 0) {
+		hal_cpuReschedule(&lock->spinlock, &sc);
+		return EOK;
+	}
+
+	hal_spinlockClear(&lock->spinlock, &sc);
+
+	return err;
 }
 
 
@@ -1366,47 +1594,72 @@ int proc_lockSet2(lock_t *l1, lock_t *l2)
 {
 	int err;
 
-	if ((err = proc_lockSet(l1)) < 0)
+	err = proc_lockSet(l1);
+	if (err < 0) {
 		return err;
+	}
 
 	while (proc_lockTry(l2) < 0) {
 		proc_lockClear(l1);
-		if ((err = proc_lockSet(l2)) < 0)
+		err = proc_lockSet(l2);
+		if (err < 0) {
 			return err;
+		}
 		swap(l1, l2);
 	}
+
 	return EOK;
 }
 
 
 int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 {
-	int err;
 	spinlock_ctx_t sc;
+	int err;
+
+	if (!hal_started()) {
+		return -EINVAL;
+	}
 
 	hal_spinlockSet(&lock->spinlock, &sc);
-	_proc_lockClear(lock);
-	if ((err = proc_threadWaitEx(queue, &lock->spinlock, timeout, 1, &sc)) != -EINTR)
-		_proc_lockSet(lock, 0, &sc);
+
+	err = _proc_lockClear(lock);
+	if (err >= 0) {
+		err = proc_threadWaitEx(queue, &lock->spinlock, timeout, 1, &sc);
+		if (err != -EINTR) {
+			err = _proc_lockSet(lock, 0, &sc);
+		}
+	}
+
 	hal_spinlockClear(&lock->spinlock, &sc);
+
 	return err;
-}
-
-
-int proc_lockInit(lock_t *lock)
-{
-	lock->owner = NULL;
-	lock->priority = 0;
-	lock->queue = NULL;
-	lock->v = 1;
-	hal_spinlockCreate(&lock->spinlock, "lock.spinlock");
-	return EOK;
 }
 
 
 int proc_lockDone(lock_t *lock)
 {
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&lock->spinlock, &sc);
+
+	if (lock->owner != NULL) {
+		_proc_lockUnlock(lock);
+	}
+
+	hal_spinlockClear(&lock->spinlock, &sc);
 	hal_spinlockDestroy(&lock->spinlock);
+
+	return EOK;
+}
+
+
+int proc_lockInit(lock_t *lock)
+{
+	hal_spinlockCreate(&lock->spinlock, "lock.spinlock");
+	lock->owner = NULL;
+	lock->queue = NULL;
+
 	return EOK;
 }
 
@@ -1483,7 +1736,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 
 		info[i].tid = t->id;
-		info[i].priority = t->priority;
+		info[i].priority = t->priorityBase;
 		info[i].state = t->state;
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
