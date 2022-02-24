@@ -1989,17 +1989,6 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 }
 
 
-/* Just a stub to support busybox' touch */
-int posix_utimes(const char *filename, const struct timeval *times)
-{
-	oid_t oid;
-	if (proc_lookup(filename, NULL, &oid) < 0)
-		return -ENOENT;
-
-	return 0;
-}
-
-
 int posix_futimens(int fildes, const struct timespec *times)
 {
 	TRACE("futimens(%d)", fildes);

@@ -1338,18 +1338,6 @@ int syscalls_sys_poll(char *ustack)
 }
 
 
-int syscalls_sys_utimes(char *ustack)
-{
-	const char *filename;
-	const struct timeval *times;
-
-	GETFROMSTACK(ustack, const char *, filename, 0);
-	GETFROMSTACK(ustack, const struct timeval *, times, 1);
-
-	return posix_utimes(filename, times);
-}
-
-
 int syscalls_sys_futimens(char *ustack)
 {
 	int fildes;

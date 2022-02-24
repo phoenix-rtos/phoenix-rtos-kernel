@@ -107,7 +107,6 @@
 	ID(sys_setsockopt) \
 	\
 	ID(sys_ioctl) \
-	ID(sys_utimes) \
 	ID(sys_futimens) \
 	ID(sys_poll) \
 	\
