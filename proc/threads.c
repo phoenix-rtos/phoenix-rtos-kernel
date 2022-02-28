@@ -812,52 +812,41 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->execdata = NULL;
 	t->wait = NULL;
 	t->locks = NULL;
-
-	thread_alloc(t);
-
-	if (id != NULL)
-		*id = t->id;
-
 	t->stick = 0;
 	t->utick = 0;
 	t->priorityBase = priority;
 	t->priority = priority;
-
-	if (process != NULL) {
-		hal_spinlockSet(&threads_common.spinlock, &sc);
-		LIST_ADD_EX(&process->threads, t, procnext, procprev);
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-	}
-
-	t->execdata = NULL;
-
-	/* Insert thread to global queue */
-	proc_lockSet(&threads_common.lock);
-	lib_rbInsert(&threads_common.id, &t->idlinkage);
+	t->cpuTime = 0;
+	t->maxWait = 0;
+	t->startTime = hal_timerGetUs();
+	t->lastTime = t->startTime;
 
 	/* Prepare initial stack */
 	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, stack + stacksz, arg);
-
-	if (process != NULL)
-		hal_cpuSetCtxGot(t->context, process->got);
-
 	threads_canaryInit(t, stack);
 
-	t->startTime = hal_timerGetUs();
-	t->cpuTime = 0;
-	t->lastTime = t->startTime;
+	thread_alloc(t);
+	if (id != NULL) {
+		*id = t->id;
+	}
+
+	if (process != NULL) {
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+
+		LIST_ADD_EX(&process->threads, t, procnext, procprev);
+
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_cpuSetCtxGot(t->context, process->got);
+	}
 
 	/* Insert thread to scheduler queue */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
+
 	_perf_begin(t);
-
-	t->maxWait = 0;
 	_perf_waking(t);
-
 	LIST_ADD(&threads_common.ready[priority], t);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	proc_lockClear(&threads_common.lock);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return EOK;
 }
