@@ -230,6 +230,7 @@ int syscalls_beginthreadex(void *ustack)
 	void *stack, *arg;
 	unsigned int *id;
 	process_t *p;
+	int err;
 
 	GETFROMSTACK(ustack, void *, start, 0);
 	GETFROMSTACK(ustack, unsigned int, priority, 1);
@@ -238,10 +239,18 @@ int syscalls_beginthreadex(void *ustack)
 	GETFROMSTACK(ustack, void *, arg, 4);
 	GETFROMSTACK(ustack, unsigned int *, id, 5);
 
-	if ((p = proc_current()->process) != NULL)
+	p = proc_current()->process;
+	if (p != NULL) {
 		proc_get(p);
+	}
 
-	return proc_threadCreate(p, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+	err = proc_threadCreate(p, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+
+	if (p != NULL && err < 0) {
+		proc_put(p);
+	}
+
+	return err;
 }
 
 
