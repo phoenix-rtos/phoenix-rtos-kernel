@@ -1348,15 +1348,24 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		process->sigpend |= sigbit;
 		thread = process->threads;
 
-		do {
-			if (sigbit & ~thread->sigmask) {
-				if (thread->interruptible)
-					_thread_interrupt(thread);
+		if (thread != NULL) {
+			do {
+				if (sigbit & ~thread->sigmask) {
+					if (thread->interruptible)
+						_thread_interrupt(thread);
 
-				break;
-			}
+					break;
+				}
+			} while ((thread = thread->procnext) != process->threads);
 		}
-		while ((thread = thread->procnext) != process->threads);
+		else {
+			/* Case for process without any theads
+			 * Might happen during small window between last
+			 * thread destroy and process destroy. This process
+			 * will end anyway, no point in delivering the signal */
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			return -ESRCH;
+		}
 	}
 
 	hal_cpuReschedule(&threads_common.spinlock, &sc);
