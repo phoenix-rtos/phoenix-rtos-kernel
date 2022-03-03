@@ -1616,7 +1616,7 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 	if (err >= 0) {
 		err = proc_threadWaitEx(queue, &lock->spinlock, timeout, 1, &sc);
 		if (err != -EINTR) {
-			err = _proc_lockSet(lock, 0, &sc);
+			_proc_lockSet(lock, 0, &sc);
 		}
 	}
 
