@@ -1385,10 +1385,9 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current = proc_current();
-	unsigned int priority;
 	spinlock_ctx_t sc;
 
-	while (lock->owner != NULL) {
+	if (lock->owner != NULL) {
 		/* Lock owner might inherit our priority */
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -1398,28 +1397,23 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
-		if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
-			/* Recalculate lock owner priority (it might have been inherited from the current thread) */
-			if (lock->owner != NULL) {
-				hal_spinlockSet(&threads_common.spinlock, &sc);
+		do {
+			if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
+				/* Recalculate lock owner priority (it might have been inherited from the current thread) */
+				if (lock->owner != NULL) {
+					hal_spinlockSet(&threads_common.spinlock, &sc);
 
-				_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
+					_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
 
-				hal_spinlockClear(&threads_common.spinlock, &sc);
+					hal_spinlockClear(&threads_common.spinlock, &sc);
+				}
+				return -EINTR;
 			}
-			return -EINTR;
-		}
+		} while (lock->owner != NULL);
 	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	/* Recalculate current thread priority based on priority of the threads waiting for the lock */
-	if (lock->queue != NULL) {
-		priority = _proc_lockGetPriority(lock);
-		if (priority < current->priority) {
-			current->priority = priority;
-		}
-	}
 	LIST_ADD(&current->locks, lock);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1517,6 +1511,7 @@ static int _proc_lockUnlock(lock_t *lock)
 
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
+		lock->queue->priority = _proc_lockGetPriority(lock);
 		_proc_threadDequeue(lock->queue);
 		ret = 1;
 	}
