@@ -1181,6 +1181,9 @@ static int process_execve(thread_t *current)
 	thread_t *parent = spawn->parent;
 	vm_map_t *map;
 
+	/* The old user stack is no longer valid */
+	current->ustack = NULL;
+
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
 		hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
