@@ -273,6 +273,7 @@ int test_ddrAll(void)
 }
 
 
+#ifdef MEMTEST_SHORT
 static void test_ddrShort(void)
 {
 	int errors;
@@ -283,6 +284,7 @@ static void test_ddrShort(void)
 	test_ddrPrintUint(errors);
 	test_ddrPutch('\n');
 }
+#endif
 
 
 void test_ddr(void)

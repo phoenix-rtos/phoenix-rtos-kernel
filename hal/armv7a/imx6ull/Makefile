@@ -9,7 +9,7 @@ OBJS += $(addprefix $(PREFIX_O)hal/armv7a/imx6ull/, _init.o console.o imx6ull.o 
 $(PREFIX_O)hal/armv7a/imx6ull/_init.o: hal/armv7a/_armv7a.S hal/armv7a/_interrupts.S
 
 ifdef MEMTEST_SHORT
-	CFLAGS += -DMEMTEST_SHORT
+  CFLAGS += -DMEMTEST_SHORT
 endif
 
 # TODO: remove after introducing plo
