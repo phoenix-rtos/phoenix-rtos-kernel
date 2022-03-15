@@ -1539,11 +1539,11 @@ static void proc_lockUnlock(lock_t *lock)
 
 static int _proc_lockClear(lock_t *lock)
 {
-	thread_t *current = proc_current();
+	thread_t *owner = lock->owner;
 	spinlock_ctx_t sc;
 	int ret;
 
-	if (lock->owner != current) {
+	if (owner == NULL) {
 		return -EPERM;
 	}
 
@@ -1551,7 +1551,7 @@ static int _proc_lockClear(lock_t *lock)
 	if (ret) {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
-		current->priority = _proc_threadGetPriority(current);
+		owner->priority = _proc_threadGetPriority(owner);
 
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
