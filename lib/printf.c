@@ -311,7 +311,7 @@ int lib_printf(const char *format, ...)
 
 	s = CONSOLE_CYAN;
 	while (*s)
-		hal_consolePutch(*(s++));
+		lib_putch(*(s++));
 
 	for (;;) {
 		fmt = *format++;
@@ -488,7 +488,7 @@ handle_number:;
 end:
 	s = CONSOLE_NORMAL;
 	while (*s)
-		hal_consolePutch(*(s++));
+		lib_putch(*(s++));
 
 	va_end(ap);
 	return i;
