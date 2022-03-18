@@ -18,14 +18,15 @@
 
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
-/*
-#define PINRSRF (1 << 0)
-#define PORRSTF (1 << 1)
-#define SFTRSTF (1 << 2)
-#define IWDGRSTF (1 << 3)
-#define WWDGRSTF (1 << 4)
-#define LPWRRSTF (1 << 5)
-*/
+
+#define FWRSTF   (1 << 0)
+#define OBLRSTF  (1 << 1)
+#define PINRSTF  (1 << 2)
+#define BORRSTF  (1 << 3)
+#define SFTRSTF  (1 << 4)
+#define IWDGRSTF (1 << 5)
+#define WWDGRSTF (1 << 6)
+#define LPWRRSTF (1 << 7)
 
 /* STM32L4 peripherals */
 enum {
