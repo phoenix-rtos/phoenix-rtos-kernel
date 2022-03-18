@@ -759,10 +759,8 @@ void _stm32_init(void)
 	stm32_common.flash = (void *)0x40022000;
 
 	/* Store reset flags and then clean them */
-	_stm32_rtcUnlockRegs();
-	stm32_common.resetFlags = (*(stm32_common.rcc + rcc_csr) >> 26);
-	*(stm32_common.rcc + rcc_csr) |= 1 << 24;
-	_stm32_rtcLockRegs();
+	stm32_common.resetFlags = (*(stm32_common.rcc + rcc_csr) >> 24);
+	*(stm32_common.rcc + rcc_csr) |= 1 << 23;
 
 	/* Enable System configuration controller */
 	_stm32_rccSetDevClock(pctl_syscfg, 1);
