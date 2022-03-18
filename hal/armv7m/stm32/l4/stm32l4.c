@@ -327,11 +327,15 @@ void _stm32_rtcUnlockRegs(void)
 	/* Unlock RTC */
 	*(stm32_common.rtc + rtc_wpr) = 0x000000ca;
 	*(stm32_common.rtc + rtc_wpr) = 0x00000053;
+
+	hal_cpuDataMemoryBarrier();
 }
 
 
 void _stm32_rtcLockRegs(void)
 {
+	hal_cpuDataMemoryBarrier();
+
 	/* Lock RTC */
 	*(stm32_common.rtc + rtc_wpr) = 0x000000ff;
 
