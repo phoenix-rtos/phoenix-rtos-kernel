@@ -42,6 +42,7 @@ static struct {
 
 	volatile u32 *lptim;
 	volatile time_t upper;
+	volatile int wakeup;
 } timer_common;
 
 
@@ -70,17 +71,25 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)n;
 	(void)ctx;
 	(void)arg;
+	int ret = 0;
 
 	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
 		++timer_common.upper;
-		*(timer_common.lptim + lptim_icr) = 1 << 1;
-		return 0;
+		*(timer_common.lptim + lptim_icr) = 2;
 	}
 
-	*(timer_common.lptim + lptim_ier) = 2;
-	*(timer_common.lptim + lptim_icr) = 1;
+	if (*(timer_common.lptim + lptim_isr) & 1) {
+		*(timer_common.lptim + lptim_icr) = 1;
 
-	return 1;
+		if (timer_common.wakeup != 0) {
+			ret = 1;
+			timer_common.wakeup = 0;
+		}
+	}
+
+	hal_cpuDataMemoryBarrier();
+
+	return ret;
 }
 
 
@@ -109,8 +118,9 @@ static time_t hal_timerGetCyc(void)
 	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
 		/* Check if we have unhandled overflow event.
 		 * If so, upper is one less than it should be */
-		if (timer_getCnt() >= lower)
+		if (timer_getCnt() >= lower) {
 			++upper;
+		}
 	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 
@@ -127,20 +137,27 @@ void timer_jiffiesAdd(time_t t)
 
 void timer_setAlarm(time_t us)
 {
-	time_t ticks = hal_timerUs2Cyc(us);
 	u32 setval;
 	spinlock_ctx_t sc;
+	time_t ticks = hal_timerUs2Cyc(us);
 
-	if (ticks > 0xffffu)
-		ticks = 0xffffu;
+	if (ticks > 0xffff0000U) {
+		ticks = 0xffff0000U;
+	}
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	setval = timer_getCnt() + (u32)ticks;
-	/* ARR has to be strictly greater than CMP */
-	if (setval == 0xffffu)
-		setval = 0;
-	*(timer_common.lptim + lptim_cmp) = setval & 0xffffu;
-	*(timer_common.lptim + lptim_ier) = 3;
+	setval = (timer_getCnt() + (u32)ticks) & 0xffff;
+
+	/* Can't have cmp == arr */
+	if (setval > 0xfffeu) {
+		setval = 0xfffeu;
+	}
+
+	*(timer_common.lptim + lptim_icr) = 1;
+	hal_cpuDataMemoryBarrier();
+	*(timer_common.lptim + lptim_cmp) = setval;
+	hal_cpuDataMemoryBarrier();
+	timer_common.wakeup = 1;
 	hal_spinlockClear(&timer_common.sp, &sc);
 }
 
@@ -171,17 +188,20 @@ void _hal_timerInit(u32 interval)
 {
 	timer_common.lptim = (void *)0x40007c00;
 	timer_common.upper = 0;
+	timer_common.wakeup = 0;
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 
-	*(timer_common.lptim + lptim_cfgr) = (1 << 19) | (PRESCALER << 9);
-	*(timer_common.lptim + lptim_ier) = 2;
+	*(timer_common.lptim + lptim_cfgr) = (PRESCALER << 9);
+	*(timer_common.lptim + lptim_ier) = 3;
 	*(timer_common.lptim + lptim_icr) |= 0x7f;
+	hal_cpuDataMemoryBarrier();
 	*(timer_common.lptim + lptim_cr) = 1;
 	hal_cpuDataMemoryBarrier();
 	*(timer_common.lptim + lptim_cnt) = 0;
-	*(timer_common.lptim + lptim_cmp) = 0;
+	*(timer_common.lptim + lptim_cmp) = 0xfffe;
 	*(timer_common.lptim + lptim_arr) = 0xffff;
+	hal_cpuDataMemoryBarrier();
 
 	*(timer_common.lptim + lptim_cr) |= 4;
 
