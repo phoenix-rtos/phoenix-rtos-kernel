@@ -275,7 +275,7 @@ int posix_truncate(oid_t *oid, off_t length)
 	msg_t msg;
 	int err = -EINVAL;
 
-	if (oid->port != US_PORT) {
+	if (oid->port != US_PORT && length >= 0) {
 		hal_memset(&msg, 0, sizeof(msg));
 		msg.type = mtTruncate;
 		hal_memcpy(&msg.i.io.oid, oid, sizeof(oid_t));
