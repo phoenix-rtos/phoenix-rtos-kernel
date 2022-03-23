@@ -20,7 +20,6 @@
 
 #define SIZE_PAGE       0x1000
 #define SIZE_PDIR       0x4000
-#define SIZE_CACHE_LINE 64
 
 #ifndef SIZE_KSTACK
 #define SIZE_KSTACK (8 * 512)
