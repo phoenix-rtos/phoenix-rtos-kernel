@@ -19,7 +19,7 @@
 #include <arch/types.h>
 
 
-/* barriers */
+/* Barriers */
 
 static inline void hal_cpuDataMemoryBarrier(void)
 {
@@ -39,45 +39,58 @@ static inline void hal_cpuInstrBarrier(void)
 }
 
 
-/* memory management */
-
-extern void hal_cpuFlushDataCache(void *vaddr);
+/* Memory Management */
 
 
-extern void hal_cpuInvalDataCache(void *vaddr);
-
-
-extern void hal_cpuCleanDataCache(void *vaddr);
-
-
-extern void hal_cpuInvalASID(u8 asid);
-
-
-extern void hal_cpuInvalVA(u32 vaddr);
-
-
-extern void hal_cpuInvalTLB(void);
-
-
+/* Invalidate entire branch predictor array */
 extern void hal_cpuBranchInval(void);
 
 
+/* Invalidate all instruction caches to PoU. Also flushes branch target cache */
 extern void hal_cpuICacheInval(void);
 
 
-extern addr_t hal_cpuGetUserTT(void);
+/* Clean Data or Unified cache line by MVA to PoC */
+extern void hal_cpuCleanDataCache(ptr_t vstart, ptr_t vend);
 
 
-extern void hal_cpuSetUserTT(addr_t tt);
+/* Invalidate Data or Unified cache line by MVA to PoC */
+extern void hal_cpuInvalDataCache(ptr_t vstart, ptr_t vend);
 
 
+/* Clean and Invalidate Data or Unified cache line by MVA to PoC */
+extern void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
+
+
+/* Invalidate TLB entries by ASID Match */
+extern void hal_cpuInvalASID(u8 asid);
+
+
+/* Invalidate Unified TLB by MVA */
+extern void hal_cpuInvalVA(ptr_t vaddr);
+
+
+/* Invalidate entire Unified TLB*/
+extern void hal_cpuInvalTLB(void);
+
+
+/* Read Translation Table Base Register 0 with properties */
+extern addr_t hal_cpuGetTTBR0(void);
+
+
+/* Set Translation Table Base Register 0 with properties */
+extern void hal_cpuSetTTBR0(addr_t ttbr0);
+
+
+/* Set ContextID = Process ID (pmap->pdir) and ASID */
 extern void hal_cpuSetContextId(u32 id);
 
 
+/* Get ContextID = Process ID (pmap->pdir) and ASID */
 extern u32 hal_cpuGetContextId(void);
 
 
-/* core management */
+/* Core Management */
 
 extern u32 hal_cpuGetMIDR(void);
 
