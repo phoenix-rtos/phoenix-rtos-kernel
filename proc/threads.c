@@ -1003,6 +1003,17 @@ void proc_reap(void)
 }
 
 
+void proc_changeMap(process_t *proc, vm_map_t *map, pmap_t *pmap)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	proc->mapp = map;
+	proc->pmapp = pmap;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
 /*
  * Sleeping and waiting
  */
