@@ -287,8 +287,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->lazy = 1;
 #endif
 
-	process->mapp = NULL;
-	process->pmapp = NULL;
+	proc_changeMap(process, NULL, NULL);
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
@@ -777,8 +776,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 
 #ifndef NOMMU
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
-	current->process->mapp = &current->process->map;
-	current->process->pmapp = &current->process->mapp->pmap;
+	proc_changeMap(current->process, &current->process->map, &current->process->map.pmap);
 #else
 	current->process->mapp = (spawn->map != NULL) ? spawn->map : process_common.kmap;
 	current->process->pmapp = &current->process->map.pmap;
@@ -937,8 +935,7 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
 	vm_kfree(current->parentkstack);
 
-	current->process->mapp = NULL;
-	current->process->pmapp = NULL;
+	proc_changeMap(current->process, NULL, NULL);
 
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
@@ -988,8 +985,8 @@ static void process_vforkThread(void *arg)
 	parent = spawn->parent;
 	posix_clone(parent->process->id);
 
-	current->process->mapp = parent->process->mapp;
-	current->process->pmapp = parent->process->pmapp;
+	proc_changeMap(current->process, parent->process->mapp, parent->process->pmapp);
+
 	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
 	pmap_switch(current->process->pmapp);
@@ -1085,6 +1082,7 @@ int proc_vfork(void)
 
 static int process_copy(void)
 {
+
 	thread_t *parent, *current = proc_current();
 	process_spawn_t *spawn = current->execdata;
 	process_t *process = current->process;
@@ -1106,8 +1104,8 @@ static int process_copy(void)
 	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0)
 		return -ENOMEM;
 
-	process->mapp = &process->map;
-	process->pmapp = &process->map.pmap;
+	proc_changeMap(process, &process->map, &process->map.pmap);
+
 	pmap_switch(process->pmapp);
 	return EOK;
 }
@@ -1192,8 +1190,7 @@ static int process_execve(thread_t *current)
 	else {
 		/* Reinitialize process */
 		map = current->process->mapp;
-		current->process->mapp = NULL;
-		current->process->pmapp = NULL;
+		proc_changeMap(current->process, NULL, NULL);
 		pmap_switch(&process_common.kmap->pmap);
 
 		vm_mapDestroy(current->process, map);
