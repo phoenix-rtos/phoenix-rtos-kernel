@@ -870,9 +870,9 @@ static unsigned int _proc_lockGetPriority(lock_t *lock)
 }
 
 
-static unsigned int _proc_threadGetPriority(thread_t *thread)
+static unsigned int _proc_threadGetLockPriority(thread_t *thread)
 {
-	unsigned int ret, priority = thread->priorityBase;
+	unsigned int ret, priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1;
 	lock_t *lock = thread->locks;
 
 	if (lock != NULL) {
@@ -883,6 +883,19 @@ static unsigned int _proc_threadGetPriority(thread_t *thread)
 			}
 			lock = lock->next;
 		} while (lock != thread->locks);
+	}
+
+	return priority;
+}
+
+
+static unsigned int _proc_threadGetPriority(thread_t *thread)
+{
+	unsigned int ret, priority = thread->priorityBase;
+
+	ret = _proc_threadGetLockPriority(thread);
+	if (ret < priority) {
+		priority = ret;
 	}
 
 	return priority;
@@ -924,8 +937,7 @@ int proc_threadPriority(int priority)
 
 	current = _proc_current();
 	if (priority >= 0) {
-		/* Don't lower current thread priority if it holds any locks */
-		if ((priority < current->priority) || (current->locks == NULL)) {
+		if ((priority < current->priority) || (priority <= _proc_threadGetLockPriority(current))) {
 			current->priority = priority;
 		}
 		current->priorityBase = priority;
