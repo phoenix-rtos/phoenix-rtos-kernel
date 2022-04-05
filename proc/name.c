@@ -165,9 +165,6 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 	proc_lockClear(&name_common.dcache_lock);
 
-	if (name[0] != '/')
-		return -ENOENT;
-
 	srv = name_common.root_oid;
 
 #if 1 /* (MOD) */
@@ -187,7 +184,9 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	hal_strcpy(pptr, name);
 
 	while (i > 1) {
-		while (pptr[--i] != '/');
+		while (i > 0 && pptr[i] != '/') {
+			--i;
+		}
 
 		if (i == 0)
 			break;
