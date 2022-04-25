@@ -413,8 +413,6 @@ int hal_platformctl(void *ptr)
 
 void _hal_platformInit(void)
 {
-	unsigned int reg, tmp;
-
 	hal_spinlockCreate(&imx6ull_common.pltctlSp, "pltctl");
 	imx6ull_common.ccm = (void *)(((u32)&_end + (11 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
 	imx6ull_common.ccm_analog = (void *)(((u32)&_end + (12 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
@@ -433,21 +431,4 @@ void _hal_platformInit(void)
 	/* copy watchdog Reset Status Register to bootreason[23:16] */
 	imx6ull_bootReason &= 0xff00ffffu;
 	imx6ull_bootReason |= *(imx6ull_common.wdog + wdog_wrsr) << 16;
-
-	/* Set ENFC clock to 198 MHz */
-	/* First disable all output clocks */
-	reg = *(imx6ull_common.ccm + ccm_ccgr4);
-	tmp = reg;
-	reg &= ~((3 << 30) | (3 << 28) | (3 << 26) | (3 << 24) | (3 << 12));
-	*(imx6ull_common.ccm + ccm_ccgr4) = reg;
-
-	/* Configure ENFC clock */
-	reg = *(imx6ull_common.ccm + ccm_cs2cdr);
-	reg &= ~((63 << 21) | (7 << 18) | (7 << 15)); /* Clear ENFC clock selector and dividers */
-	reg |= (3 << 15);                             /* Set ENFC_CLK_SEL to PLL2 PFD2 (396 MHz) */
-	reg |= (1 << 18);                             /* Set ENFC_PRED divider to 2 */
-	*(imx6ull_common.ccm + ccm_cs2cdr) = reg;
-
-	/* Restore output clocks state */
-	*(imx6ull_common.ccm + ccm_ccgr4) = tmp;
 }
