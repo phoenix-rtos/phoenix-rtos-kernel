@@ -61,6 +61,17 @@ typedef struct _pageinfo_t {
 } pageinfo_t;
 
 
+typedef struct {
+	int id;
+	addr_t pstart;
+	addr_t pend;
+	addr_t vstart;
+	addr_t vend;
+	size_t alloc;
+	size_t free;
+} mapinfo_t;
+
+
 typedef struct _meminfo_t {
 	struct {
 		unsigned int alloc, free, boot, sz;
@@ -73,6 +84,13 @@ typedef struct _meminfo_t {
 		int mapsz, kmapsz;
 		entryinfo_t *kmap, *map;
 	} entry;
+
+	struct {
+		size_t total;
+		size_t free;
+		int mapsz;
+		mapinfo_t *map;
+	} maps;
 } meminfo_t;
 
 
