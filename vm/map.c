@@ -36,6 +36,7 @@ struct {
 	map_entry_t *entries;
 
 	vm_map_t **maps;
+	size_t mapssz;
 } map_common;
 
 
@@ -861,6 +862,7 @@ void vm_mapinfo(meminfo_t *info)
 	unsigned int size;
 	process_t *process;
 	int i;
+	size_t total, free;
 
 
 	proc_lockSet(&map_common.lock);
@@ -1003,6 +1005,48 @@ void vm_mapinfo(meminfo_t *info)
 		proc_lockClear(&map_common.kmap->lock);
 		info->entry.kmapsz = size;
 	}
+
+	if (info->maps.mapsz != -1) {
+		info->maps.total = 0;
+		info->maps.free = 0;
+
+		for (size = 0; size < map_common.mapssz; ++size) {
+			map = vm_getSharedMap(NULL, (int)size);
+			if (map == NULL) {
+				if ((int)size < info->maps.mapsz) {
+					/* Store info that the map doesn't exist */
+					info->maps.map[size].id = (int)size;
+					info->maps.map[size].free = 0;
+					info->maps.map[size].alloc = 0;
+					info->maps.map[size].pstart = 0;
+					info->maps.map[size].pend = 0;
+					info->maps.map[size].vstart = 0;
+					info->maps.map[size].vend = 0;
+				}
+				continue;
+			}
+
+			total = (ptr_t)map->stop - (ptr_t)map->start;
+			e = lib_treeof(map_entry_t, linkage, map->tree.root);
+			free = e->lmaxgap + e->rmaxgap;
+
+			/* All maps together */
+			info->maps.total += total;
+			info->maps.free += free;
+
+			if ((int)size < info->maps.mapsz) {
+				info->maps.map[size].id = (int)size;
+				info->maps.map[size].free = free;
+				info->maps.map[size].alloc = total - free;
+				info->maps.map[size].pstart = (addr_t)map->pmap.start;
+				info->maps.map[size].pend = (addr_t)map->pmap.end;
+				info->maps.map[size].vstart = (ptr_t)map->start;
+				info->maps.map[size].vend = (ptr_t)map->stop;
+			}
+		}
+
+		info->maps.mapsz = (int)size;
+	}
 }
 
 
@@ -1054,19 +1098,31 @@ void vm_mapGetStats(size_t *allocsz)
 
 vm_map_t *vm_getSharedMap(syspage_prog_t *prog, int map)
 {
+	vm_map_t *ret = NULL;
+
 #ifdef NOMMU
 	unsigned int i;
 
-	if (map < 0)
-		map = prog->dmaps[0];
+	if (prog == NULL) {
+		if (map >= 0 && (size_t)map < map_common.mapssz) {
+			ret = map_common.maps[map];
+		}
+	}
+	else {
+		if (map < 0) {
+			map = prog->dmaps[0];
+		}
 
-	for (i = 0; i < prog->dmapSz; ++i) {
-		if (map == prog->dmaps[i])
-			return map_common.maps[map];
+		for (i = 0; i < prog->dmapSz; ++i) {
+			if (map == prog->dmaps[i]) {
+				ret = map_common.maps[map];
+				break;
+			}
+		}
 	}
 #endif
 
-	return NULL;
+	return ret;
 }
 
 
@@ -1146,6 +1202,11 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 
 		++id;
 	} while ((map = map->next) != syspage_mapList());
+
+	map_common.mapssz = id;
+#else
+	map_common.maps = NULL;
+	map_common.mapssz = 0;
 #endif
 
 	return EOK;
