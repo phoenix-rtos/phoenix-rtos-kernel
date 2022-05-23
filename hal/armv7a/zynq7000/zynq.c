@@ -348,6 +348,172 @@ static int _zynq_getMIO(unsigned int pin, char *disableRcvr, char *pullup, char 
 }
 
 
+static int _zynq_setDevRst(int dev, unsigned int state)
+{
+	int err = 0;
+
+	_zynq_slcrUnlock();
+	switch (dev) {
+		case pctl_ctrl_pss_rst:
+			*(zynq_common.slcr + slcr_pss_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_ddr_rst:
+			*(zynq_common.slcr + slcr_ddr_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_topsw_rst:
+			*(zynq_common.slcr + slcr_topsw_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_dmac_rst:
+			*(zynq_common.slcr + slcr_dmac_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_usb_rst:
+			*(zynq_common.slcr + slcr_usb_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_gem_rst:
+			*(zynq_common.slcr + slcr_gem_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_sdio_rst:
+			*(zynq_common.slcr + slcr_sdio_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_spi_rst:
+			*(zynq_common.slcr + slcr_spi_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_can_rst:
+			*(zynq_common.slcr + slcr_can_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_i2c_rst:
+			*(zynq_common.slcr + slcr_i2c_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_uart_rst:
+			*(zynq_common.slcr + slcr_uart_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_gpio_rst:
+			*(zynq_common.slcr + slcr_gpio_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_lqspi_rst:
+			*(zynq_common.slcr + slcr_lqspi_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_smc_rst:
+			*(zynq_common.slcr + slcr_smc_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_ocm_rst:
+			*(zynq_common.slcr + slcr_ocm_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_fpga_rst:
+			*(zynq_common.slcr + slcr_fpga_rst_ctrl) = state;
+			break;
+
+		case pctl_ctrl_a9_cpu_rst:
+			*(zynq_common.slcr + slcr_a9_cpu_rst_ctrl) = state;
+			break;
+
+		default:
+			err = -1;
+			break;
+	}
+	_zynq_slcrLock();
+
+	return err;
+}
+
+
+static int _zynq_getDevRst(int dev, unsigned int *state)
+{
+	int err = 0;
+
+	switch (dev) {
+		case pctl_ctrl_pss_rst:
+			*state = *(zynq_common.slcr + slcr_pss_rst_ctrl);
+			break;
+
+		case pctl_ctrl_ddr_rst:
+			*state = *(zynq_common.slcr + slcr_ddr_rst_ctrl);
+			break;
+
+		case pctl_ctrl_topsw_rst:
+			*state = *(zynq_common.slcr + slcr_topsw_rst_ctrl);
+			break;
+
+		case pctl_ctrl_dmac_rst:
+			*state = *(zynq_common.slcr + slcr_dmac_rst_ctrl);
+			break;
+
+		case pctl_ctrl_usb_rst:
+			*state = *(zynq_common.slcr + slcr_usb_rst_ctrl);
+			break;
+
+		case pctl_ctrl_gem_rst:
+			*state = *(zynq_common.slcr + slcr_gem_rst_ctrl);
+			break;
+
+		case pctl_ctrl_sdio_rst:
+			*state = *(zynq_common.slcr + slcr_sdio_rst_ctrl);
+			break;
+
+		case pctl_ctrl_spi_rst:
+			*state = *(zynq_common.slcr + slcr_spi_rst_ctrl);
+			break;
+
+		case pctl_ctrl_can_rst:
+			*state = *(zynq_common.slcr + slcr_can_rst_ctrl);
+			break;
+
+		case pctl_ctrl_i2c_rst:
+			*state = *(zynq_common.slcr + slcr_i2c_rst_ctrl);
+			break;
+
+		case pctl_ctrl_uart_rst:
+			*state = *(zynq_common.slcr + slcr_uart_rst_ctrl);
+			break;
+
+		case pctl_ctrl_gpio_rst:
+			*state = *(zynq_common.slcr + slcr_gpio_rst_ctrl);
+			break;
+
+		case pctl_ctrl_lqspi_rst:
+			*state = *(zynq_common.slcr + slcr_lqspi_rst_ctrl);
+			break;
+
+		case pctl_ctrl_smc_rst:
+			*state = *(zynq_common.slcr + slcr_smc_rst_ctrl);
+			break;
+
+		case pctl_ctrl_ocm_rst:
+			*state = *(zynq_common.slcr + slcr_ocm_rst_ctrl);
+			break;
+
+		case pctl_ctrl_fpga_rst:
+			*state = *(zynq_common.slcr + slcr_fpga_rst_ctrl);
+			break;
+
+		case pctl_ctrl_a9_cpu_rst:
+			*state = *(zynq_common.slcr + slcr_a9_cpu_rst_ctrl);
+			break;
+
+		default:
+			err = -1;
+			break;
+	}
+
+	return err;
+}
+
+
 /* TODO */
 void hal_wdgReload(void)
 {
@@ -399,6 +565,16 @@ int hal_platformctl(void *ptr)
 			else if (data->action == pctl_get)
 				ret = _zynq_getMIO(data->mio.pin, &data->mio.disableRcvr, &data->mio.pullup, &data->mio.ioType, &data->mio.speed, &data->mio.l0,
 					&data->mio.l1, &data->mio.l2, &data->mio.l3, &data->mio.triEnable);
+			break;
+
+		case pctl_devreset:
+			if (data->action == pctl_set) {
+				ret = _zynq_setDevRst(data->devreset.dev, data->devreset.state);
+			}
+			else if (data->action == pctl_get) {
+				ret = _zynq_getDevRst(data->devreset.dev, &t);
+				data->devreset.state = t;
+			}
 			break;
 
 		case pctl_reboot:

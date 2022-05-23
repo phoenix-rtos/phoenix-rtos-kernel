@@ -32,6 +32,14 @@ enum {
 };
 
 
+/* Devices' reset controllers */
+enum {
+	pctl_ctrl_pss_rst = 0, pctl_ctrl_ddr_rst, pctl_ctrl_topsw_rst, pctl_ctrl_dmac_rst, pctl_ctrl_usb_rst, pctl_ctrl_gem_rst, pctl_ctrl_sdio_rst,
+	pctl_ctrl_spi_rst, pctl_ctrl_can_rst, pctl_ctrl_i2c_rst, pctl_ctrl_uart_rst, pctl_ctrl_gpio_rst, pctl_ctrl_lqspi_rst, pctl_ctrl_smc_rst, pctl_ctrl_ocm_rst,
+	pctl_ctrl_fpga_rst, pctl_ctrl_a9_cpu_rst,
+};
+
+
 enum {
 	pctl_mio_pin_00 = 0, pctl_mio_pin_01, pctl_mio_pin_02, pctl_mio_pin_03, pctl_mio_pin_04, pctl_mio_pin_05, pctl_mio_pin_06, pctl_mio_pin_07, pctl_mio_pin_08,
 	pctl_mio_pin_09, pctl_mio_pin_10, pctl_mio_pin_11, pctl_mio_pin_12, pctl_mio_pin_13, pctl_mio_pin_14, pctl_mio_pin_15, pctl_mio_pin_16, pctl_pctl_mio_pin_17,
@@ -44,7 +52,7 @@ enum {
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_ambaclock = 0, pctl_devclock, pctl_mioclock, pctl_mio, pctl_reboot } type;
+	enum { pctl_ambaclock = 0, pctl_devclock, pctl_mioclock, pctl_mio, pctl_devreset, pctl_reboot } type;
 
 	union {
 		struct {
@@ -81,6 +89,11 @@ typedef struct {
 			char l3;
 			char triEnable;
 		} mio;
+
+		struct {
+			int dev;
+			unsigned int state;
+		} devreset;
 
 		struct {
 			unsigned int magic;
