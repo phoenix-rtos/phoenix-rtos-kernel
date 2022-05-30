@@ -929,7 +929,11 @@ int proc_threadPriority(int priority)
 	spinlock_ctx_t sc;
 	int ret;
 
-	if ((priority < -1) || (priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
+	if (priority < -1) {
+		return -EINVAL;
+	}
+
+	if ((priority >= 0) && (priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
 		return -EINVAL;
 	}
 
