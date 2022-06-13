@@ -387,8 +387,6 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	/* Enter Stop mode */
 	__asm__ volatile ("\
 		dmb; \
-		sev; \
-		wfe; \
 		wfe; \
 		nop; ");
 
