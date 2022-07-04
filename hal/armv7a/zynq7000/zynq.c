@@ -89,7 +89,7 @@ static void _zynq_slcrUnlock(void)
 }
 
 
-static int _zynq_setAmbaClk(u32 dev, u32 state)
+int _zynq_setAmbaClk(u32 dev, u32 state)
 {
 	/* Check max dev position in amba register */
 	if (dev > 24)
@@ -306,7 +306,7 @@ static int _zynq_getMioClk(char *ref0, char *mux0, char *ref1, char *mux1)
 }
 
 
-static int _zynq_setMIO(unsigned int pin, char disableRcvr, char pullup, char ioType, char speed, char l0, char l1, char l2, char l3, char triEnable)
+int _zynq_setMIO(unsigned int pin, char disableRcvr, char pullup, char ioType, char speed, char l0, char l1, char l2, char l3, char triEnable)
 {
 	u32 val = 0;
 
@@ -591,49 +591,8 @@ int hal_platformctl(void *ptr)
 }
 
 
-static void _zynq_peripherals(void)
-{
-	_zynq_slcrUnlock();
-
-	/* UART_0 Initialization
-	 * TxD
-	 * TRI_ENABLE = 0; L0_SEL = 0; L1_SEL = 0; L2_SEL = 0; L3_SEL = 7; Speed = 0; IO_Type = 1; PULLUP = 0; DisableRcvr = 0 */
-	*(zynq_common.slcr + slcr_mio_pin_11) = (*(zynq_common.slcr + slcr_mio_pin_11) & ~0x00003fff) | 0x000002e0;
-
-	/* RxD
-	 * TRI_ENABLE = 1; L0_SEL = 0; L1_SEL = 0; L2_SEL = 0; L3_SEL = 7; Speed = 0; IO_Type = 1; PULLUP = 0; DisableRcvr = 0 */
-	*(zynq_common.slcr + slcr_mio_pin_10) = (*(zynq_common.slcr + slcr_mio_pin_10) & ~0x00003fff) | 0x000002e1;
-
-
-	/* UART_1 Initialization
-	 * TxD
-	 * TRI_ENABLE = 0; L0_SEL = 0; L1_SEL = 0; L2_SEL = 0; L3_SEL = 7; Speed = 0; IO_Type = 1; PULLUP = 0; DisableRcvr = 0 */
-	*(zynq_common.slcr + slcr_mio_pin_48) = (*(zynq_common.slcr + slcr_mio_pin_48) & ~0x00003fff) | 0x000002e0;
-
-	/* RxD
-	 * TRI_ENABLE = 1; L0_SEL = 0; L1_SEL = 0; L2_SEL = 0; L3_SEL = 7; Speed = 0; IO_Type = 1; PULLUP = 0; DisableRcvr = 0 */
-	*(zynq_common.slcr + slcr_mio_pin_49) = (*(zynq_common.slcr + slcr_mio_pin_49) & ~0x00003fff) | 0x000002e1;
-
-
-	/* Define UARTs' clocks speed
-	 * IO_PLL / 20 :  1000 MHz / 20 = 50 MHz
-	 * CLKACT0 = 0x0; CLKACT1 = 0x1; SRCSEL = 0x0; DIVISOR = 0x14 */
-	*(zynq_common.slcr + slcr_uart_clk_ctrl) = (*(zynq_common.slcr + slcr_uart_clk_ctrl) & ~0x00003f33) | 0x00001402 | 0x1;
-
-	/* Enable UART_0 & UART_1 clock */
-	*(zynq_common.slcr + slcr_aper_clk_ctrl) = *(zynq_common.slcr + slcr_aper_clk_ctrl) | (1 << 21) | (1 << 20);
-
-	_zynq_slcrLock();
-}
-
-
 void _hal_platformInit(void)
 {
 	hal_spinlockCreate(&zynq_common.pltctlSp, "pltctl");
 	zynq_common.slcr = (void *)(((u32)&_end + 9 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
-
-
-	/* Initialize basic peripherals - MIO & Clk:
-	 *  -  UART_1       : ref_clk = 50 MHz based on TRM                                */
-	_zynq_peripherals();
 }

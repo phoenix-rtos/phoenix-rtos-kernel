@@ -17,8 +17,22 @@
 #include "../../console.h"
 #include "../../cpu.h"
 
+#include "zynq.h"
 
-#define UART uart1
+#include <board_config.h>
+
+
+#if UART_CONSOLE == 0
+#define UART     uart0
+#define UART_RX  UART0_RX
+#define UART_TX  UART0_TX
+#define UART_CLK 20
+#else
+#define UART     uart1
+#define UART_RX  UART1_RX
+#define UART_TX  UART1_TX
+#define UART_CLK 21
+#endif
 
 
 struct {
@@ -76,6 +90,11 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	console_common.uart0 = (void *)(((u32)&_end + 3 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	console_common.uart1 = (void *)(((u32)&_end + 4 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	console_common.speed = 115200;
+
+	_zynq_setMIO(UART_RX, 1, 1, 1, 0, 0, 0, 0, 0x7, 1);
+	_zynq_setMIO(UART_TX, 1, 1, 1, 0, 0, 0, 0, 0x7, 0);
+
+	_zynq_setAmbaClk(UART_CLK, 1);
 
 	*(console_common.UART + idr) = 0xfff;
 
