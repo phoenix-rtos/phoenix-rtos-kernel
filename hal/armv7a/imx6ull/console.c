@@ -83,7 +83,4 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	*(console_common.UART + utim) = 0x0;
 	*(console_common.UART + ubir) = 0x11ff;
 	*(console_common.UART + ubmr) = 0xc34f;
-
-	_hal_consolePrint("\033[2J");
-	_hal_consolePrint("\033[0;0f");
 }

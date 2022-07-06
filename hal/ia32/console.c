@@ -360,4 +360,7 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	halconsole_common.cols = 80;
 	halconsole_common.attr = 0x03;
 	hal_spinlockCreate(&halconsole_common.spinlock, "console.spinlock");
+
+	/* Clear console */
+	_hal_consolePrint("\033[2J\033[H");
 }

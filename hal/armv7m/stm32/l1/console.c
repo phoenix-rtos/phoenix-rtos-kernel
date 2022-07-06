@@ -113,8 +113,5 @@ void _hal_consoleInit(void)
 	*(console_common.base + brr) = console_common.cpufreq / 9600; /* 9600 baud rate */
 	*(console_common.base + cr1) |= 0x2000;
 
-	_hal_consolePrint("\033[2J");
-	_hal_consolePrint("\033[f");
-
 	return;
 }

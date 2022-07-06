@@ -103,8 +103,5 @@ void _hal_consoleInit(void)
 	*(console_common.base + cr1) |= 1;
 	hal_cpuDataMemoryBarrier();
 
-	_hal_consolePrint("\033[2J");
-	_hal_consolePrint("\033[f");
-
 	return;
 }
