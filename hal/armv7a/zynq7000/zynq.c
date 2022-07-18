@@ -514,6 +514,16 @@ static int _zynq_getDevRst(int dev, unsigned int *state)
 }
 
 
+static void zynq_softRst(void)
+{
+	_zynq_slcrUnlock();
+	*(zynq_common.slcr + slcr_pss_rst_ctrl) |= 0x1;
+	_zynq_slcrLock();
+
+	__builtin_unreachable();
+}
+
+
 /* TODO */
 void hal_wdgReload(void)
 {
@@ -578,7 +588,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		case pctl_reboot:
-			/* TODO */
+			zynq_softRst();
 			break;
 
 		default:
