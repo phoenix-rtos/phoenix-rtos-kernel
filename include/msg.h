@@ -32,7 +32,7 @@ enum {
 	mtLookup, mtLink, mtUnlink, mtReaddir,
 
 	mtCount
-} type;
+};
 
 
 #pragma pack(push, 8)
