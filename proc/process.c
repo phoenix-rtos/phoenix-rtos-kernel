@@ -288,6 +288,11 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->sigpend = 0;
 	process->sigmask = 0;
 	process->sighandler = NULL;
+	process->tls.tls_base = NULL;
+	process->tls.tbss_sz = 0;
+	process->tls.tdata_sz = 0;
+	process->tls.tls_sz = 0;
+	process->tls.arm_m_tls = NULL;
 
 #ifndef NOMMU
 	process->lazy = 0;
@@ -370,18 +375,56 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 }
 
 
+static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
+{
+	if (tls->tls_base != NULL) {
+		process_tls->tls_base = tls->tls_base;
+	}
+	else if (tbssAddr != NULL) {
+		process_tls->tls_base = tbssAddr;
+	}
+	else {
+		process_tls->tls_base = NULL;
+	}
+	process_tls->tdata_sz = tls->tdata_sz;
+	process_tls->tbss_sz = tls->tbss_sz;
+	process_tls->tls_sz = tls->tbss_sz + tls->tdata_sz + sizeof(void *);
+	process_tls->arm_m_tls = tls->arm_m_tls;
+}
+
+
 #ifndef NOMMU
 
-
 /* TODO - adding error handling and unmapping of already mapped segments */
-int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t *ustacksz)
+int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
 	void *vaddr = NULL;
 	size_t memsz = 0, filesz = 0;
 	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
+	Elf32_Shdr *shdr;
 	unsigned i, prot, flags, misalign = 0;
 	offs_t offs;
+	char *snameTab;
+
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
+	shdr += ehdr->e_shstrndx;
+	snameTab = (char *)ehdr + shdr->sh_offset;
+
+	/* Find .tdata and .tbss sections */
+	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
+			tls->tls_base = (ptr_t)shdr->sh_addr;
+			tls->tdata_sz += shdr->sh_size;
+		}
+		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
+			*tbssAddr = (ptr_t)shdr->sh_addr;
+			tls->tbss_sz += shdr->sh_size;
+		}
+		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
+			tls->arm_m_tls = (ptr_t)shdr->sh_addr;
+		}
+	}
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
 		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
@@ -422,19 +465,39 @@ int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 			hal_memset(vaddr + filesz, 0, round_page((unsigned long)vaddr + memsz) - (unsigned long)vaddr - filesz);
 		}
 	}
-
 	return EOK;
 }
 
 
-int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t *ustacksz)
+int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
 	void *vaddr = NULL;
 	size_t memsz = 0, filesz = 0;
 	Elf64_Ehdr *ehdr = iehdr;
 	Elf64_Phdr *phdr;
+	Elf64_Shdr *shdr;
 	unsigned i, prot, flags, misalign = 0;
 	offs_t offs;
+	char *snameTab;
+
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
+	shdr += ehdr->e_shstrndx;
+	snameTab = (char *)ehdr + shdr->sh_offset;
+
+	/* Find .tdata and .tbss sections */
+	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
+			tls->tls_base = (ptr_t)shdr->sh_addr;
+			tls->tdata_sz += shdr->sh_size;
+		}
+		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
+			*tbssAddr = (ptr_t)shdr->sh_addr;
+			tls->tbss_sz += shdr->sh_size;
+		}
+		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
+			tls->arm_m_tls = (ptr_t)shdr->sh_addr;
+		}
+	}
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
 		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
@@ -486,6 +549,14 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	vm_map_t *map = process->mapp;
 	size_t ustacksz = SIZE_USTACK;
 	int err;
+	hal_tls_t tlsNew;
+	ptr_t tbssAddr = 0;
+
+	tlsNew.tls_base = NULL;
+	tlsNew.tdata_sz = 0;
+	tlsNew.tbss_sz = 0;
+	tlsNew.tls_sz = 0;
+	tlsNew.arm_m_tls = NULL;
 
 	size = round_page(size);
 
@@ -505,12 +576,12 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	switch (ehdr->e_ident[4]) {
 		/* 32-bit binary */
 		case 1:
-			err = process_load32(map, o, base, ehdr, &ustacksz);
+			err = process_load32(map, o, base, ehdr, &ustacksz, &tlsNew, &tbssAddr);
 			break;
 
 		/* 64-bit binary */
 		case 2:
-			err = process_load64(map, o, base, ehdr, &ustacksz);
+			err = process_load64(map, o, base, ehdr, &ustacksz, &tlsNew, &tbssAddr);
 			break;
 
 		default:
@@ -520,6 +591,8 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 
 	if (err < 0)
 		return err;
+
+	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
 	/* Allocate and map user stack */
 	if ((stack = vm_mmap(map, map->pmap.end - ustacksz, NULL, ustacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL) {
@@ -573,8 +646,10 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	void *relptr;
 	char *snameTab;
 	ptr_t *got;
-	struct _reloc reloc[5];
+	struct _reloc reloc[8];
 	size_t stacksz = SIZE_USTACK;
+	hal_tls_t tlsNew;
+	ptr_t tbssAddr = 0;
 
 	if (o != (void *)-1)
 		return -ENOEXEC;
@@ -652,7 +727,6 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		++j;
 	}
 
-	/* Find .got section */
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	shdr += ehdr->e_shstrndx;
 
@@ -712,6 +786,37 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 			}
 		}
 	}
+
+	tlsNew.tls_base = NULL;
+	tlsNew.tdata_sz = 0;
+	tlsNew.tbss_sz = 0;
+	tlsNew.tls_sz = 0;
+	tlsNew.arm_m_tls = NULL;
+
+	/* Perform .tdata, .tbss and .armtls relocations */
+	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
+			tlsNew.tls_base = (ptr_t)shdr->sh_addr;
+			tlsNew.tdata_sz += shdr->sh_size;
+			if (process_relocate(reloc, relocsz, (char **)&tlsNew.tls_base) < 0) {
+				return -ENOEXEC;
+			}
+		}
+		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
+			tbssAddr = (ptr_t)shdr->sh_addr;
+			tlsNew.tbss_sz += shdr->sh_size;
+			if (process_relocate(reloc, relocsz, (char **)&tbssAddr) < 0) {
+				return -ENOEXEC;
+			}
+		}
+		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
+			tlsNew.arm_m_tls = (ptr_t)shdr->sh_addr;
+			if (process_relocate(reloc, relocsz, (char **)&tlsNew.arm_m_tls) < 0) {
+				return -ENOEXEC;
+			}
+		}
+	}
+	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
 	/* Allocate and map user stack */
 	if ((stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
@@ -845,6 +950,10 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
+	if (err == EOK && current->process->tls.tls_base != NULL) {
+		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
+	}
+
 	if (err < 0) {
 		current->process->exit = err;
 		proc_threadEnd();
@@ -853,6 +962,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	hal_cpuDisableInterrupts();
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 	hal_cpuSetGot(current->process->got);
+	hal_cpuTlsSet(&current->tls, current->context);
 
 #ifdef TARGET_RISCV64
 	hal_jmp(entry, current->kstack + current->kstacksz, stack, 3);
@@ -1061,8 +1171,12 @@ static void process_vforkThread(void *arg)
 	current->execdata = spawn;
 	current->kstack = parent->kstack;
 
+	hal_memcpy(&current->process->tls, &parent->process->tls, sizeof(hal_tls_t));
+	hal_memcpy(&current->tls, &parent->tls, sizeof(hal_tls_t));
+
 	hal_cpuDisableInterrupts();
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
+	hal_cpuTlsSet(&current->tls, current->context);
 
 	/* Start execution from parent suspend point */
 	hal_longjmp(parent->context);
@@ -1387,4 +1501,34 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
 	return EOK;
+}
+
+
+int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
+{
+	int err;
+	dest->tdata_sz = source->tdata_sz;
+	dest->tbss_sz = source->tbss_sz;
+	dest->tls_sz = round_page(source->tls_sz);
+	dest->arm_m_tls = source->arm_m_tls;
+
+	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
+
+	if (dest->tls_base != NULL) {
+		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
+		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
+		/* At the end of TLS there must be a pointer to itself */
+		*(ptr_t *)(dest->tls_base + dest->tdata_sz + dest->tbss_sz) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
+		err = EOK;
+	}
+	else {
+		err = -ENOMEM;
+	}
+	return err;
+}
+
+
+int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map)
+{
+	return vm_munmap(map, (void *)tls->tls_base, tls->tls_sz);
 }

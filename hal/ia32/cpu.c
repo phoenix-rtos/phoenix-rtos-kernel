@@ -23,6 +23,7 @@
 #include "pci.h"
 #include "ia32.h"
 #include "halsyspage.h"
+#include "../hal.h"
 
 
 struct cpu_feature_t {
@@ -144,7 +145,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->ecx = 0;
 	ctx->ebx = 0;
 	ctx->eax = 0;
-	ctx->gs = ustack ? SEL_UDATA : SEL_KDATA;
+	ctx->gs = SEL_TLS;
 	ctx->fs = ustack ? SEL_UDATA : SEL_KDATA;
 	ctx->es = ustack ? SEL_UDATA : SEL_KDATA;
 	ctx->ds = ustack ? SEL_UDATA : SEL_KDATA;
@@ -315,7 +316,6 @@ void hal_jmp(void *f, void *kstack, void *stack, int argc)
 			movw %%dx, %%ds;\
 			movw %%dx, %%es;\
 			movw %%dx, %%fs;\
-			movw %%dx, %%gs;\
 			pushl %%eax;\
 			iret"
 		:
@@ -416,7 +416,7 @@ void *_cpu_initCore(void)
 
 	hal_memset(&cpu.tss[hal_cpuGetID()], 0, sizeof(tss_t));
 
-	_cpu_gdtInsert(4 + cpu.ncpus, (u32)&cpu.tss[hal_cpuGetID()], sizeof(tss_t), DESCR_TSS);
+	_cpu_gdtInsert(TLS_DESC_IDX + cpu.ncpus, (u32)&cpu.tss[hal_cpuGetID()], sizeof(tss_t), DESCR_TSS);
 
 	cpu.tss[hal_cpuGetID()].ss0 = SEL_KDATA;
 	cpu.tss[hal_cpuGetID()].esp0 = (u32)&cpu.stacks[hal_cpuGetID()][511];
@@ -424,7 +424,7 @@ void *_cpu_initCore(void)
 	/* Set task register */
 	__asm__ volatile(
 		"ltr %0; "
-	:: "r" ((u16)((4 + cpu.ncpus) * 8)));
+	:: "r" ((u16)((TLS_DESC_IDX + cpu.ncpus) * 8)));
 
 	return (void *)cpu.tss[hal_cpuGetID()].esp0;
 }
@@ -437,6 +437,7 @@ static void _hal_cpuInitCores(void)
 	/* Prepare descriptors for user segments */
 	_cpu_gdtInsert(3, 0x00000000, VADDR_KERNEL, DESCR_UCODE);
 	_cpu_gdtInsert(4, 0x00000000, VADDR_KERNEL, DESCR_UDATA);
+	_cpu_gdtInsert(TLS_DESC_IDX, 0x00000000, VADDR_KERNEL, DESCR_TLS);
 
 	/* Initialize BSP */
 	cpu.ncpus = 0;
@@ -615,4 +616,26 @@ void _hal_cpuInit(void)
 //	hal_cpuDebugGuard(1, 2);
 //	hal_cpuDebugGuard(1, 3);
 #endif
+}
+
+
+void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
+{
+	ptr_t descrh, descrl;
+	u32 type = DESCR_TLS;
+	u32 *gdt;
+	ptr_t base;
+	ptr_t limit = VADDR_KERNEL;
+
+	base = tls->tls_base + tls->tbss_sz + tls->tdata_sz;
+
+	/* Update TLS entry in GDT with allocated page address */
+	descrh = (base & 0xff000000) | (type & 0x00c00000) | (limit & 0x000f0000) |
+		(type & 0x0000ff00) | ((base >> 16) & 0x000000ff);
+	descrl = (base << 16) | (limit & 0xffff);
+
+	gdt = (void *)syspage->hs.gdtr.addr;
+
+	gdt[TLS_DESC_IDX * 2] = descrl;
+	gdt[TLS_DESC_IDX * 2 + 1] = descrh;
 }

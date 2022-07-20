@@ -90,12 +90,18 @@
 /* Descriptor of user task data segment */
 #define DESCR_KDATA (DBITS_4KB | DBITS_PRESENT | DBITS_DPL0 | DBITS_APP | DBITS_DATA | DBITS_WRT)
 
+/* Descriptor of Thread Local Storage segment */
+#define DESCR_TLS (DBITS_4KB | DBITS_CODE32 | DBITS_PRESENT | DBITS_DPL3 | DBITS_APP | DBITS_DATA | DBITS_WRT)
+
 
 /* Segment selectors */
 #define SEL_KCODE 8
 #define SEL_KDATA 16
 #define SEL_UCODE 27
 #define SEL_UDATA 35
+#define SEL_TLS   43
+
+#define TLS_DESC_IDX 5
 
 
 #ifndef __ASSEMBLY__

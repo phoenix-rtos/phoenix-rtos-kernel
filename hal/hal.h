@@ -14,6 +14,7 @@
  */
 
 #ifndef _HAL_HAL_H_
+#define _HAL_HAL_H_
 
 #include "cpu.h"
 /* TODO: remove config file after cleaning up 'includes' directory */
@@ -25,6 +26,15 @@
 #include "interrupts.h"
 #include "exceptions.h"
 #include "timer.h"
+
+
+typedef struct _hal_tls_t {
+	ptr_t tls_base;
+	ptr_t arm_m_tls;
+	size_t tdata_sz;
+	size_t tbss_sz;
+	size_t tls_sz;
+} hal_tls_t;
 
 
 extern void *hal_syspageRelocate(void *data);
@@ -46,5 +56,6 @@ extern void _hal_start(void);
 
 
 extern void _hal_init(void);
+
 
 #endif
