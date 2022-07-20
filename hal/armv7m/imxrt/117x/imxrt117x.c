@@ -5,8 +5,8 @@
  *
  * i.MX RT1170 basic peripherals control functions
  *
- * Copyright 2017, 2019 Phoenix Systems
- * Author: Aleksander Kaminski, Jan Sikorski
+ * Copyright 2017, 2019-2022 Phoenix Systems
+ * Author: Aleksander Kaminski, Jan Sikorski, Gerard Swiderski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -603,6 +603,61 @@ int _imxrt_getDevClock(int clock, int *div, int *mux, int *mfd, int *mfn, int *s
 }
 
 
+int _imxrt_setDirectLPCG(int clock, int state)
+{
+	u32 t;
+	volatile u32 *reg;
+
+	if (clock < pctl_lpcg_m7 || clock > pctl_lpcg_uniq_edt_i) {
+		return -EINVAL;
+	}
+
+	reg = imxrt_common.ccm + 0x1800 + clock * 0x8;
+
+	t = *reg & ~1u;
+	*reg = t | (state & 1);
+
+	hal_cpuDataMemoryBarrier();
+	hal_cpuInstrBarrier();
+
+	return EOK;
+}
+
+
+int _imxrt_getDirectLPCG(int clock, int *state)
+{
+	if (clock < pctl_lpcg_m7 || clock > pctl_lpcg_uniq_edt_i) {
+		return -EINVAL;
+	}
+
+	*state = *((volatile u32 *)(imxrt_common.ccm + 0x1800 + clock * 0x8)) & 1u;
+
+	return EOK;
+}
+
+
+int _imxrt_setLevelLPCG(int clock, int level)
+{
+	volatile u32 *reg;
+
+	if (clock < pctl_lpcg_m7 || clock > pctl_lpcg_uniq_edt_i) {
+		return -EINVAL;
+	}
+
+	if (level < 0 || level > 4) {
+		return -EINVAL;
+	}
+
+	reg = imxrt_common.ccm + 0x1801 + clock * 0x8;
+	*reg = (level << 28) | (level << 24) | (level << 20) | (level << 16) | level;
+
+	hal_cpuDataMemoryBarrier();
+	hal_cpuInstrBarrier();
+
+	return EOK;
+}
+
+
 /* GPR */
 
 
@@ -676,6 +731,25 @@ int hal_platformctl(void *ptr)
 				data->devclock.mfd = mfd;
 				data->devclock.mfn = mfn;
 				data->devclock.state = state;
+			}
+		}
+		break;
+
+	case pctl_lpcg:
+		if (data->action == pctl_set) {
+			if (data->lpcg.op == pctl_lpcg_op_direct) {
+				ret = _imxrt_setDirectLPCG(data->lpcg.dev, data->lpcg.state);
+			}
+			else if (data->lpcg.op == pctl_lpcg_op_level) {
+				ret = _imxrt_setLevelLPCG(data->lpcg.dev, data->lpcg.state);
+			}
+		}
+		else if (data->action == pctl_get) {
+			if (data->lpcg.op == pctl_lpcg_op_direct) {
+				ret = _imxrt_getDirectLPCG(data->lpcg.dev, &state);
+				if (ret == EOK) {
+					data->lpcg.state = state;
+				}
 			}
 		}
 		break;

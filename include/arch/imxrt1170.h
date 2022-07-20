@@ -5,8 +5,8 @@
  *
  * i.MX RT1170 basic peripherals control functions
  *
- * Copyright 2019 Phoenix Systems
- * Author: Aleksander Kaminski
+ * Copyright 2019-2022 Phoenix Systems
+ * Author: Aleksander Kaminski, Gerard Świderski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -34,6 +34,31 @@ enum { pctl_clk_cm7 = 0, pctl_clk_cm4, pctl_clk_bus, pctl_clk_bus_lpsr, pctl_clk
 	pctl_clk_sai2, pctl_clk_sai3, pctl_clk_sai4, pctl_clk_gpu2d, pctl_clk_elcdif, pctl_clk_lcdifv2, pctl_clk_mipi_ref,
 	pctl_clk_mipi_esc, pctl_clk_csi2, pctl_clk_csi2_esc, pctl_clk_csi2_ui, pctl_clk_csi, pctl_clk_ccm_clko1,
 	pctl_clk_ccm_clko2 };
+
+
+/* CCM - Low Power Clock Gates */
+enum { pctl_lpcg_m7 = 0, pctl_lpcg_m4, pctl_lpcg_sim_m7, pctl_lpcg_sim_m, pctl_lpcg_sim_disp, pctl_lpcg_sim_per,
+	pctl_lpcg_sim_lpsr, pctl_lpcg_anadig, pctl_lpcg_dcdc, pctl_lpcg_src, pctl_lpcg_ccm, pctl_lpcg_gpc, pctl_lpcg_ssarc,
+	pctl_lpcg_sim_r, pctl_lpcg_wdog1, pctl_lpcg_wdog2, pctl_lpcg_wdog3, pctl_lpcg_wdog4, pctl_lpcg_ewm0, pctl_lpcg_sema,
+	pctl_lpcg_mu_a, pctl_lpcg_mu_b, pctl_lpcg_edma, pctl_lpcg_edma_lpsr, pctl_lpcg_romcp, pctl_lpcg_ocram,
+	pctl_lpcg_flexram, pctl_lpcg_lmem, pctl_lpcg_flexspi1, pctl_lpcg_flexspi2, pctl_lpcg_rdc, pctl_lpcg_m7_xrdc,
+	pctl_lpcg_m4_xrdc, pctl_lpcg_semc, pctl_lpcg_xecc, pctl_lpcg_iee, pctl_lpcg_puf, pctl_lpcg_ocotp, pctl_lpcg_snvs_hp,
+	pctl_lpcg_snvs, pctl_lpcg_caam, pctl_lpcg_jtag_mux, pctl_lpcg_cstrace, pctl_lpcg_xbar1, pctl_lpcg_xbar2,
+	pctl_lpcg_xbar3, pctl_lpcg_aoi1, pctl_lpcg_aoi2, pctl_lpcg_adc_etc, pctl_lpcg_iomuxc, pctl_lpcg_iomuxc_lpsr,
+	pctl_lpcg_gpio, pctl_lpcg_kpp, pctl_lpcg_flexio1, pctl_lpcg_flexio2, pctl_lpcg_lpadc1, pctl_lpcg_lpadc2,
+	pctl_lpcg_dac, pctl_lpcg_acmp1, pctl_lpcg_acmp2, pctl_lpcg_acmp3, pctl_lpcg_acmp4, pctl_lpcg_pit1, pctl_lpcg_pit2,
+	pctl_lpcg_gpt1, pctl_lpcg_gpt2, pctl_lpcg_gpt3, pctl_lpcg_gpt4, pctl_lpcg_gpt5, pctl_lpcg_gpt6, pctl_lpcg_qtimer1,
+	pctl_lpcg_qtimer2, pctl_lpcg_qtimer3, pctl_lpcg_qtimer4, pctl_lpcg_enc1, pctl_lpcg_enc2, pctl_lpcg_enc3,
+	pctl_lpcg_enc4, pctl_lpcg_hrtimer, pctl_lpcg_pwm1, pctl_lpcg_pwm2, pctl_lpcg_pwm3, pctl_lpcg_pwm4, pctl_lpcg_can1,
+	pctl_lpcg_can2, pctl_lpcg_can3, pctl_lpcg_lpuart1, pctl_lpcg_lpuart2, pctl_lpcg_lpuart3, pctl_lpcg_lpuart4,
+	pctl_lpcg_lpuart5, pctl_lpcg_lpuart6, pctl_lpcg_lpuart7, pctl_lpcg_lpuart8, pctl_lpcg_lpuart9, pctl_lpcg_lpuart10,
+	pctl_lpcg_lpuart11, pctl_lpcg_lpuart12, pctl_lpcg_lpi2c1, pctl_lpcg_lpi2c2, pctl_lpcg_lpi2c3, pctl_lpcg_lpi2c4,
+	pctl_lpcg_lpi2c5, pctl_lpcg_lpi2c6, pctl_lpcg_lpspi1, pctl_lpcg_lpspi2, pctl_lpcg_lpspi3, pctl_lpcg_lpspi4,
+	pctl_lpcg_lpspi5, pctl_lpcg_lpspi6, pctl_lpcg_sim1, pctl_lpcg_sim2, pctl_lpcg_enet, pctl_lpcg_enet_1g,
+	pctl_lpcg_enet_qos, pctl_lpcg_usb, pctl_lpcg_cdog, pctl_lpcg_usdhc1, pctl_lpcg_usdhc2, pctl_lpcg_asrc,
+	pctl_lpcg_mqs, pctl_lpcg_pdm, pctl_lpcg_spdif, pctl_lpcg_sai1, pctl_lpcg_sai2, pctl_lpcg_sai3, pctl_lpcg_sai4,
+	pctl_lpcg_pxp, pctl_lpcg_gpu2d, pctl_lpcg_lcdif, pctl_lpcg_lcdifv2, pctl_lpcg_mipi_dsi, pctl_lpcg_mipi_csi,
+	pctl_lpcg_csi, pctl_lpcg_dcic_mipi, pctl_lpcg_dcic_lcd, pctl_lpcg_video_mux, pctl_lpcg_uniq_edt_i };
 
 
 /* IOMUX - MUX */
@@ -282,7 +307,8 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclock = 0, pctl_iogpr, pctl_iolpsrgpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot, pctl_devcache } type;
+	enum { pctl_devclock = 0, pctl_iogpr, pctl_iolpsrgpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot, pctl_devcache,
+		pctl_lpcg } type;
 
 	union {
 		struct {
@@ -293,6 +319,12 @@ typedef struct {
 			int mfn;
 			int state;
 		} devclock;
+
+		struct {
+			enum { pctl_lpcg_op_direct = 0, pctl_lpcg_op_level } op;
+			int dev;
+			int state;
+		} lpcg;
 
 		struct {
 			int field;
