@@ -5,7 +5,7 @@
  *
  * iMXRT basic peripherals control functions
  *
- * Copyright 2019 Phoenix Systems
+ * Copyright 2019-2022 Phoenix Systems
  * Author: Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
@@ -51,6 +51,15 @@ extern int _imxrt_setIOisel(int isel, char daisy);
 
 
 extern int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state);
+
+
+extern int _imxrt_setDirectLPCG(int clock, int state);
+
+
+extern int _imxrt_getDirectLPCG(int clock, int *state);
+
+
+extern int _imxrt_setLevelLPCG(int clock, int level);
 
 
 extern void _imxrt_platformInit(void);
