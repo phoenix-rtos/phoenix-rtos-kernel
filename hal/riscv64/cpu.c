@@ -14,12 +14,14 @@
  */
 
 #include "../../include/errno.h"
+#include "../hal.h"
 #include "../cpu.h"
 #include "../spinlock.h"
 #include "../string.h"
 #include "../pmap.h"
 #include "riscv64.h"
 #include "dtb.h"
+#include "arch/types.h"
 
 
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
@@ -276,4 +278,10 @@ void hal_cleanDCache(ptr_t start, size_t len)
 void _hal_cpuInit(void)
 {
 	_hal_cpuInitCores();
+}
+
+
+void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
+{
+	ctx->tp = tls->tls_base;
 }

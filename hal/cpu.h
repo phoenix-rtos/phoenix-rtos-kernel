@@ -20,6 +20,9 @@
 #include "spinlock.h"
 
 
+struct _hal_tls_t;
+
+
 /* interrupts */
 
 
@@ -116,6 +119,12 @@ extern char *hal_cpuFeatures(char *features, unsigned int len);
 
 
 extern void cpu_sendIPI(unsigned int cpu, unsigned int intr);
+
+
+/* thread local storage */
+
+
+extern void hal_cpuTlsSet(struct _hal_tls_t *tls, cpu_context_t *ctx);
 
 
 /* cache management */

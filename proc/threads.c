@@ -608,7 +608,9 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 				}
 			}
 		}
-
+		if (selected->tls.tls_base != NULL) {
+			hal_cpuTlsSet(&selected->tls, selected->context);
+		}
 		_perf_scheduling(selected);
 		hal_cpuRestore(context, selected->context);
 	}
@@ -786,6 +788,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
+	int err;
 
 	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *)) {
 		return -EINVAL;
@@ -827,6 +830,20 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	/* Prepare initial stack */
 	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, stack + stacksz, arg);
 	threads_canaryInit(t, stack);
+
+	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
+		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
+		if (err != EOK) {
+			vm_kfree(t->kstack);
+			vm_kfree(t);
+			return err;
+		}
+	}
+	else {
+		t->tls.tls_base = NULL;
+		t->tls.tdata_sz = 0;
+		t->tls.tbss_sz = 0;
+	}
 
 	thread_alloc(t);
 	if (id != NULL) {
@@ -1310,6 +1327,10 @@ int proc_join(int tid, time_t timeout)
 		id = ghost->id;
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (ghost->tls.tls_sz != 0) {
+		process_tlsDestroy(&ghost->tls, process->mapp);
+	}
 
 	vm_kfree(ghost);
 	return err < 0 ? err : id;

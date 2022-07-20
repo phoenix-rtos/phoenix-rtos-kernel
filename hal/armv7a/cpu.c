@@ -19,6 +19,7 @@
 #include "../cpu.h"
 #include "../string.h"
 #include "../spinlock.h"
+#include "../hal.h"
 
 
 /* Function creates new cpu context on top of given thread kernel stack */
@@ -198,6 +199,16 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 		features[0] = '\0';
 
 	return features;
+}
+
+
+void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
+{
+	/* In theory there should be 8-byte thread control block but
+	 * it's stored elsewhere so we need to subtract 8 from the pointer
+	 */
+	ptr_t ptr = tls->tls_base - 8;
+	__asm__ volatile("mcr p15, 0, %[value], cr13, cr0, 3;" ::[value] "r"(ptr));
 }
 
 

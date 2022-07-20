@@ -17,6 +17,7 @@
 #include "../interrupts.h"
 #include "../spinlock.h"
 #include "../string.h"
+#include "../hal.h"
 #include "../timer.h"
 
 #include "config.h"
@@ -285,4 +286,10 @@ void _hal_cpuInit(void)
 #elif defined(CPU_IMXRT)
 	_imxrt_platformInit();
 #endif
+}
+
+
+void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
+{
+	*(ptr_t *)tls->arm_m_tls = tls->tls_base - 8;
 }

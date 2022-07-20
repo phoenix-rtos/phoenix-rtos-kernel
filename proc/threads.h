@@ -71,6 +71,8 @@ typedef struct _thread_t {
 	size_t kstacksz;
 	char *ustack;
 
+	hal_tls_t tls;
+
 	/* for vfork/exec */
 	void *parentkstack, *execkstack;
 	void *execdata;
