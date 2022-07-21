@@ -41,7 +41,7 @@ struct {
 	spinlock_t pltctlSp;
 } stm32_common;
 
-
+/* clang-format off */
 enum { ahb1_begin = pctl_dma1, ahb1_end = pctl_dma2d, ahb2_begin = pctl_gpioa, ahb2_end = pctl_rng,
 	ahb3_begin = pctl_fmc, ahb3_end = pctl_qspi, apb1_1_begin = pctl_tim2, apb1_1_end = pctl_lptim1,
 	apb1_2_begin = pctl_lpuart1, apb1_2_end = pctl_lptim2, apb2_begin = pctl_syscfg, apb2_end = pctl_dfsdm1,
@@ -71,7 +71,8 @@ enum { rtc_tr = 0, rtc_dr, rtc_cr, rtc_isr, rtc_prer, rtc_wutr, rtc_alrmar = rtc
 
 
 enum { scb_actlr = 2, scb_cpuid = 832, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp1, scb_shp2,
-	scb_shp3, scb_shcsr, scb_cfsr, scb_mmsr, scb_bfsr, scb_ufsr, scb_hfsr, scb_mmar, scb_bfar, scb_afsr };
+	scb_shp3, scb_shcsr, scb_cfsr, scb_mmsr, scb_bfsr, scb_ufsr, scb_hfsr, scb_mmar, scb_bfar, scb_afsr,
+	scb_cpacr = 866, scb_fpccr = 973, scb_fpcar, scb_fpdscr };
 
 
 enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr = 128,
@@ -92,12 +93,10 @@ enum { syscfg_memrmp = 0, syscfg_cfgr1, syscfg_exticr1, syscfg_exticr2, syscfg_e
 enum { iwdg_kr = 0, iwdg_pr, iwdg_rlr, iwdg_sr, iwdg_winr };
 
 
-enum { fpu_cpacr = 34, fpu_fpccr = 141, fpu_fpcar, fpu_fpdscr };
-
-
 enum { flash_acr = 0, flash_pdkeyr, flash_keyr, flash_optkeyr, flash_sr, flash_cr, flash_eccr,
 	flash_optr = flash_eccr + 2, flash_pcrop1sr, flash_pcrop1er, flash_wrp1ar, flash_wrp1br,
 	flash_pcrop2sr = flash_wrp1br + 5, flash_pcrop2er, flash_wrp2ar, flash_wrp2br };
+/* clang-format on */
 
 
 /* platformctl syscall */
@@ -858,8 +857,8 @@ void _stm32_init(void)
 	*(stm32_common.scb + scb_shcsr) |= (1 << 16) | (1 << 17) | (1 << 18);
 
 	/* Disable FPU */
-	*(stm32_common.scb + fpu_cpacr) = 0;
-	*(stm32_common.scb + fpu_fpccr) = 0;
+	*(stm32_common.scb + scb_cpacr) = 0;
+	*(stm32_common.scb + scb_fpccr) = 0;
 
 	/* Enable internal wakeup line */
 	*(stm32_common.pwr + pwr_cr3) |= 1 << 15;
