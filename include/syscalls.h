@@ -29,7 +29,7 @@
 	ID(gettid) \
 	ID(beginthreadex) \
 	ID(endthread) \
-	ID(usleep) \
+	ID(nsleep) \
 	ID(mutexCreate) \
 	ID(phMutexLock) \
 	ID(mutexTry) \

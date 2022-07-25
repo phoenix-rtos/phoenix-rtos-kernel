@@ -261,12 +261,45 @@ int syscalls_endthread(void *ustack)
 }
 
 
-int syscalls_usleep(void *ustack)
+int syscalls_nsleep(void *ustack)
 {
-	unsigned int us;
+	time_t *sec;
+	long int *nsec;
+	time_t start, us, stop, diff;
+	int ret;
 
-	GETFROMSTACK(ustack, unsigned int, us, 0);
-	return proc_threadSleep((unsigned long long)us);
+	GETFROMSTACK(ustack, time_t *, sec, 0);
+	GETFROMSTACK(ustack, long int *, nsec, 1);
+
+	/* TODO - user pointer check */
+	if (sec == NULL || nsec == NULL) {
+		return -EINVAL;
+	}
+
+	/* FIXME - time_t should be signed and we should check for *sec < 0 */
+	if (*nsec < 0 || *nsec >= 1000 * 1000 * 1000) {
+		return -EINVAL;
+	}
+
+	proc_gettime(&start, NULL);
+
+	us = *sec * 1000 * 1000 + (*nsec + 999) / 1000;
+
+	ret = proc_threadSleep(us);
+
+	*sec = 0;
+	*nsec = 0;
+
+	if (ret == -EINTR) {
+		proc_gettime(&stop, NULL);
+		diff = stop - start;
+		if (diff < us) {
+			*sec = diff / (1000 * 1000);
+			*nsec = (diff % (1000 * 1000)) * 1000;
+		}
+	}
+
+	return ret;
 }
 
 
