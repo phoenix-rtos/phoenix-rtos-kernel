@@ -1290,8 +1290,12 @@ void proc_gettime(time_t *raw, time_t *offs)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	(*raw) = hal_timerGetUs();
-	(*offs) = threads_common.utcoffs;
+	if (raw != NULL) {
+		(*raw) = hal_timerGetUs();
+	}
+	if (offs != NULL) {
+		(*offs) = threads_common.utcoffs;
+	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
