@@ -146,7 +146,7 @@ extern int proc_threadsList(int n, threadinfo_t *info);
 extern void proc_zombie(process_t *proc);
 
 
-extern int proc_threadSleep(unsigned long long us);
+extern int proc_threadSleep(time_t us);
 
 
 extern int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);

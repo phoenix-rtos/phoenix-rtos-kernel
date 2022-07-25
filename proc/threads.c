@@ -1108,7 +1108,7 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *sc
 }
 
 
-int proc_threadSleep(unsigned long long us)
+int proc_threadSleep(time_t us)
 {
 	thread_t *current;
 	int err;
