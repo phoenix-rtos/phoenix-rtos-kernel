@@ -115,6 +115,12 @@ typedef long long off64_t;
 typedef off64_t off_t;
 
 
+struct timespec {
+	time_t tv_sec;
+	long tv_nsec;
+};
+
+
 struct stat {
 	dev_t st_dev;
 	ino_t st_ino;
@@ -124,17 +130,11 @@ struct stat {
 	gid_t st_gid;
 	dev_t st_rdev;
 	off_t st_size;
-	time_t st_atime;
-	time_t st_mtime;
-	time_t st_ctime;
+	struct timespec st_atim;
+	struct timespec st_mtim;
+	struct timespec st_ctim;
 	blksize_t st_blksize;
 	blkcnt_t st_blocks;
-};
-
-
-struct timespec {
-	time_t tv_sec;
-	long tv_nsec;
 };
 
 
