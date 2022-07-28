@@ -1087,17 +1087,20 @@ int posix_fstat(int fd, struct stat *buf)
 			msg.i.attr.type = atMTime;
 			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
 				break;
-			buf->st_mtime = msg.o.attr.val;
+			buf->st_mtim.tv_sec = msg.o.attr.val;
+			buf->st_mtim.tv_nsec = 0;
 
 			msg.i.attr.type = atATime;
 			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
 				break;
-			buf->st_atime = msg.o.attr.val;
+			buf->st_atim.tv_sec = msg.o.attr.val;
+			buf->st_atim.tv_nsec = 0;
 
 			msg.i.attr.type = atCTime;
 			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
 				break;
-			buf->st_ctime = msg.o.attr.val;
+			buf->st_ctim.tv_sec = msg.o.attr.val;
+			buf->st_ctim.tv_nsec = 0;
 
 			msg.i.attr.type = atLinks;
 			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
