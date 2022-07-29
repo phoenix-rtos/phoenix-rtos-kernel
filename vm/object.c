@@ -51,10 +51,24 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
+static int object_read(oid_t oid, offs_t offs, void *v, size_t sz)
+{
+	int err;
+
+	err = proc_open(oid, 0);
+	if (err >= 0) {
+		err = proc_read(oid, offs, v, sz, 0);
+		proc_close(oid, 0);
+	}
+
+	return err;
+}
+
+
 int vm_objectGet(vm_object_t **o, oid_t oid)
 {
 	vm_object_t t;
-	int i, n;
+	int i, n, err;
 	size_t sz;
 
 	t.oid.port = oid.port;
@@ -70,14 +84,37 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL)
 			return -ENOMEM;
 
-		hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
-		(*o)->size = sz;
-		(*o)->refs = 0;
-		proc_lockInit(&(*o)->lock);
+#ifdef NOMMU
+		/* On NOMMU we need continuous, preloaded object */
+		(*o)->pages[0] = vm_pageAlloc(n * SIZE_PAGE, PAGE_OWNER_APP);
+		if ((*o)->pages[0] == NULL) {
+			vm_kfree(o);
+			return -ENOMEM;
+		}
+
+		for (i = 1; i < n; ++i) {
+			(*o)->pages[i] = (*o)->pages[0] + i;
+		}
+
+		err = object_read(oid, 0, (void*)(*o)->pages[0]->addr, sz);
+
+		if (err < 0) {
+			vm_pageFree((*o)->pages[0]);
+			vm_kfree(o);
+			return err;
+		}
+#else
+		(void)err;
 
 		for (i = 0; i < n; ++i)
 			(*o)->pages[i] = NULL;
+#endif
 
+		hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
+		(*o)->size = sz;
+		(*o)->refs = 0;
+
+		proc_lockInit(&(*o)->lock);
 		lib_rbInsert(&object_common.tree, &(*o)->linkage);
 	}
 
@@ -120,6 +157,10 @@ int vm_objectPut(vm_object_t *o)
 
 	proc_lockDone(&o->lock);
 
+#ifdef NOMMU
+	(void)i;
+	vm_pageFree(o->pages[0]);
+#else
 	/* Contiguous object 'holds' all pages in pages[0] */
 	if ((o->oid.port == -1) && (o->oid.id == -1)) {
 		vm_pageFree(o->pages[0]);
@@ -130,6 +171,7 @@ int vm_objectPut(vm_object_t *o)
 				vm_pageFree(o->pages[i]);
 		}
 	}
+#endif
 
 	vm_kfree(o);
 
@@ -142,9 +184,6 @@ static page_t *object_fetch(oid_t oid, offs_t offs)
 	page_t *p;
 	void *v;
 
-	if (proc_open(oid, 0) < 0)
-		return NULL;
-
 	if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL) {
 		proc_close(oid, 0);
 		return NULL;
@@ -152,19 +191,16 @@ static page_t *object_fetch(oid_t oid, offs_t offs)
 
 	if ((v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE)) == NULL) {
 		vm_pageFree(p);
-		proc_close(oid, 0);
 		return NULL;
 	}
 
-	if (proc_read(oid, offs, v, SIZE_PAGE, 0) < 0) {
+	if (object_read(oid, offs, v, SIZE_PAGE) < 0) {
 		vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
-		proc_close(oid, 0);
 		return NULL;
 	}
 
 	vm_munmap(object_common.kmap, v, SIZE_PAGE);
-	proc_close(oid, 0);
 
 	return p;
 }

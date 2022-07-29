@@ -556,10 +556,10 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	struct _reloc reloc[5];
 	size_t stacksz = SIZE_USTACK;
 
-	if (o != (void *)-1)
-		return -ENOEXEC;
-
-	ehdr = (void *)(ptr_t)base;
+	ehdr = vm_mmap(process->mapp, NULL, NULL, size, PROT_EXEC | PROT_READ | PROT_USER, o, base, MAP_NONE);
+	if (ehdr == NULL) {
+		return -ENOMEM;
+	}
 
 	/* Test ELF header */
 	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) || ehdr->e_shnum == 0)
