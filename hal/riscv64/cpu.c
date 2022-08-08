@@ -167,7 +167,10 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->ksp = (u64)ctx;
 
 	if (ustack != NULL) {
-		ctx->sp = (u64)ustack;
+		/* While restoring registers sp is incremented by 16
+		 * so it has to be subtracted here
+		 */
+		ctx->sp = (u64)ustack - 16;
 		ctx->sstatus = csr_read(sstatus) | SR_SPIE | SR_SUM;
 		ctx->sscratch = (u64)ctx;
 		ctx->tp = ctx->ksp;
