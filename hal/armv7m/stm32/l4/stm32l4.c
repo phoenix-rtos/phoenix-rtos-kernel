@@ -375,10 +375,6 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	/* Set SLEEPDEEP bit of Cortex System Control Register */
 	*(stm32_common.scb + scb_scr) |= 1 << 2;
 
-	/* Clear EXTI pending bits */
-	*(stm32_common.exti + exti_pr1) |= 0xffffffff;
-	*(stm32_common.exti + exti_pr2) |= 0xffffffff;
-
 	*(stm32_common.scb + syst_csr) &= ~1;
 
 	timer_setAlarm(us);
@@ -386,7 +382,7 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	/* Enter Stop mode */
 	__asm__ volatile ("\
 		dmb; \
-		wfe; \
+		wfi; \
 		nop; ");
 
 	/* Reset SLEEPDEEP bit of Cortex System Control Register */
