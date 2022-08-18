@@ -1246,29 +1246,59 @@ void proc_threadBroadcastYield(thread_t **queue)
 }
 
 
-int proc_join(time_t timeout)
+int proc_join(int tid, time_t timeout)
 {
-	int err;
-	thread_t *ghost;
-	spinlock_ctx_t sc;
+	int err = EOK, found = 0, id = 0;
 	process_t *process = proc_current()->process;
+	thread_t *ghost, *firstGhost, *lastChecked = NULL;
+	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	while ((ghost = process->ghosts) == NULL) {
-		err = _proc_threadWait(&process->reaper, timeout, &sc);
+	ghost = process->ghosts;
+	firstGhost = process->ghosts;
 
-		if (err == -EINTR || err == -ETIME)
-			break;
+	if (tid >= 0) {
+		do {
+			if (firstGhost != NULL) {
+				do {
+					if (ghost->id == tid) {
+						found = 1;
+						break;
+					}
+					else {
+						lastChecked = ghost;
+						ghost = ghost->procnext;
+					}
+				} while (ghost != NULL && ghost != firstGhost);
+			}
+			if (found == 1) {
+				break;
+			}
+			else {
+				err = _proc_threadWait(&process->reaper, timeout, &sc);
+				firstGhost = process->ghosts;
+				ghost = lastChecked == NULL ? process->ghosts : lastChecked->procnext;
+			}
+		} while (err != -ETIME && err != -EINTR);
+	}
+	else {
+		/* compatibility with existing code */
+		while ((ghost = process->ghosts) == NULL) {
+			err = _proc_threadWait(&process->reaper, timeout, &sc);
+			if (err == -EINTR || err == -ETIME) {
+				break;
+			}
+		}
 	}
 
 	if (ghost != NULL) {
 		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
-		err = ghost->id;
+		id = ghost->id;
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	vm_kfree(ghost);
-	return err;
+	return err < 0 ? err : id;
 }
 
 

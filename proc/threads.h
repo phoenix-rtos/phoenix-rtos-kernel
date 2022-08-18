@@ -134,7 +134,7 @@ extern void proc_threadsDestroy(thread_t **threads);
 extern int proc_waitpid(int pid, int *stat, int options);
 
 
-extern int proc_join(time_t timeout);
+extern int proc_join(int tid, time_t timeout);
 
 
 extern void proc_changeMap(process_t *proc, vm_map_t *map, pmap_t *pmap);

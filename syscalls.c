@@ -192,11 +192,13 @@ int syscalls_sys_waitpid(void *ustack)
 
 int syscalls_threadJoin(void *ustack)
 {
+	int tid;
 	time_t timeout;
 
-	GETFROMSTACK(ustack, time_t, timeout, 0);
+	GETFROMSTACK(ustack, int, tid, 0);
+	GETFROMSTACK(ustack, time_t, timeout, 1);
 
-	return proc_join(timeout);
+	return proc_join(tid, timeout);
 }
 
 
