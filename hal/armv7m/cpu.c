@@ -42,8 +42,14 @@ void hal_cpuLowPower(time_t us)
 		/* Don't increment jiffies if sleep was unsuccessful */
 		us = _stm32_pwrEnterLPStop(us);
 		timer_jiffiesAdd(us);
+		hal_spinlockClear(&cpu_common.busySp, &scp);
 	}
-	hal_spinlockClear(&cpu_common.busySp, &scp);
+	else {
+		hal_spinlockClear(&cpu_common.busySp, &scp);
+		hal_cpuHalt();
+	}
+#else
+	hal_cpuHalt();
 #endif
 }
 
