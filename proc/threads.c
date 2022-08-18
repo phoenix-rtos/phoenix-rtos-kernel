@@ -1700,10 +1700,12 @@ static void threads_idlethr(void *arg)
 	for (;;) {
 		wakeup = proc_nextWakeup();
 
-		if (wakeup > 2000)
+		if (wakeup > (2 * SYSTICK_INTERVAL)) {
 			hal_cpuLowPower(wakeup);
-
-		hal_cpuHalt();
+		}
+		else {
+			hal_cpuHalt();
+		}
 	}
 }
 
