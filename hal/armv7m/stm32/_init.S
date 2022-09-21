@@ -79,6 +79,13 @@ _start:
 	str r1, [r0]
 	isb
 	dmb
+
+	/* Init MSP */
+	ldr r0, [r1]
+	bic r0, 7
+	msr msp, r0
+	isb
+
 	bl _stm32_init
 
 	bl main
