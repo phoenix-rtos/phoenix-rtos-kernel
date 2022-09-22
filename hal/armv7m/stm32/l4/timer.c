@@ -137,7 +137,9 @@ void timer_jiffiesAdd(time_t t)
 
 void timer_setAlarm(time_t us)
 {
-	u32 setval;
+	const u32 mintime = hal_timerUs2Cyc(1000);
+	u32 setval, timerval[2];
+	int arrpend;
 	spinlock_ctx_t sc;
 	time_t ticks = hal_timerUs2Cyc(us);
 
@@ -146,18 +148,43 @@ void timer_setAlarm(time_t us)
 	}
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	setval = (timer_getCnt() + (u32)ticks) & 0xffff;
 
-	/* Can't have cmp == arr */
-	if (setval > 0xfffeu) {
-		setval = 0xfffeu;
+	/* Check if there's pending overflow to be handled
+	 * to not lose it should there be next when sleeping */
+	timerval[0] = timer_getCnt();
+	arrpend = (*(timer_common.lptim + lptim_isr) & 2) != 0 ? 1 : 0;
+	timerval[1] = timer_getCnt();
+
+	if (timerval[0] > timerval[1] || arrpend != 0) {
+		++timer_common.upper;
+		*(timer_common.lptim + lptim_icr) = 2;
 	}
 
-	*(timer_common.lptim + lptim_icr) = 1;
-	hal_cpuDataMemoryBarrier();
+	if (ticks >= 0xffff) {
+		setval = (timerval[1] - 1) & 0xffff;
+	}
+	else {
+		setval = (timerval[1] + (u32)ticks) & 0xffff;
+
+		if (((setval - timerval[1]) & 0xffff) < mintime) {
+			/* There is too much risk that interrupt will arrive before wfi
+			 * This can happen regardless of previous checks - can be
+			 * caused by a modulo operation few lines above */
+			setval = (timerval[1] + mintime) & 0xffff;
+		}
+	}
+
+	/* Can't have cmp == arr */
+	if (setval > 0xfffe) {
+		setval = 0xfffe;
+	}
+
 	*(timer_common.lptim + lptim_cmp) = setval;
 	hal_cpuDataMemoryBarrier();
+	*(timer_common.lptim + lptim_icr) = 1;
+	hal_cpuDataMemoryBarrier();
 	timer_common.wakeup = 1;
+
 	hal_spinlockClear(&timer_common.sp, &sc);
 }
 
@@ -192,6 +219,8 @@ void _hal_timerInit(u32 interval)
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 
+	*(timer_common.lptim + lptim_cr) = 0;
+	hal_cpuDataMemoryBarrier();
 	*(timer_common.lptim + lptim_cfgr) = (PRESCALER << 9);
 	*(timer_common.lptim + lptim_ier) = 3;
 	*(timer_common.lptim + lptim_icr) |= 0x7f;
@@ -203,13 +232,14 @@ void _hal_timerInit(u32 interval)
 	*(timer_common.lptim + lptim_arr) = 0xffff;
 	hal_cpuDataMemoryBarrier();
 
-	*(timer_common.lptim + lptim_cr) |= 4;
-
 	timer_common.overflowh.f = timer_irqHandler;
 	timer_common.overflowh.n = lptim1_irq;
 	timer_common.overflowh.got = NULL;
 	timer_common.overflowh.data = NULL;
 	hal_interruptsSetHandler(&timer_common.overflowh);
+
+	*(timer_common.lptim + lptim_cr) |= 4;
+	hal_cpuDataMemoryBarrier();
 
 	_stm32_systickInit(interval);
 }
