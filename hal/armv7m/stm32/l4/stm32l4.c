@@ -388,9 +388,6 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	/* Reset SLEEPDEEP bit of Cortex System Control Register */
 	*(stm32_common.scb + scb_scr) &= ~(1 << 2);
 
-	/* Provoke systick, so we'll be reschuduled asap */
-	*(stm32_common.scb + scb_icsr) |= 1 << 26;
-
 	*(stm32_common.scb + syst_csr) |= 1;
 
 	return 0;
