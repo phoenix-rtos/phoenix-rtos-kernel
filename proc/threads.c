@@ -988,6 +988,17 @@ static void _proc_threadExit(thread_t *t)
 }
 
 
+void proc_threadDestroy(thread_t *t)
+{
+	spinlock_ctx_t sc;
+	if (t != NULL) {
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		_proc_threadExit(t);
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
+}
+
+
 void proc_threadsDestroy(thread_t **threads)
 {
 	thread_t *t;
@@ -1355,9 +1366,12 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		/* passthrough */
 		case signal_kill:
 			proc_kill(process);
-			break;
+			return EOK;
 
-		/* passthrough */
+		case signal_cancel:
+			proc_threadDestroy(thread);
+			return EOK;
+
 		case 0:
 			return EOK;
 

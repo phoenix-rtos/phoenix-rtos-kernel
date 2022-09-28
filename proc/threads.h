@@ -128,6 +128,9 @@ extern void proc_threadEnd(void);
 extern int proc_threadJoin(unsigned int id);
 
 
+extern void proc_threadDestroy(thread_t *t);
+
+
 extern void proc_threadsDestroy(thread_t **threads);
 
 
