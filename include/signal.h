@@ -17,6 +17,6 @@
 #ifndef _PHOENIX_SIGNAL_H_
 #define _PHOENIX_SIGNAL_H_
 
-enum { signal_kill = 1, signal_segv, signal_illegal };
+enum { signal_kill = 1, signal_segv, signal_illegal, signal_cancel = 32 };
 
 #endif
