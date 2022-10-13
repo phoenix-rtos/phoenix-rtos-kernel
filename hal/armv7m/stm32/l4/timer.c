@@ -31,6 +31,7 @@
  * 7 - 1/128
  */
 #define PRESCALER 3
+#define ARR_VAL   0xffff
 
 
 enum { lptim_isr = 0, lptim_icr, lptim_ier, lptim_cfgr, lptim_cr, lptim_cmp, lptim_arr, lptim_cnt, lptim_or };
@@ -72,20 +73,31 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)ctx;
 	(void)arg;
 	int ret = 0;
+	u32 isr = *(timer_common.lptim + lptim_isr), clr = 0;
 
-	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
-		++timer_common.upper;
-		*(timer_common.lptim + lptim_icr) = 2;
+	/* Clear CMPOK. Has to be done before active IRQs (errata) */
+	if ((isr & (1 << 3)) != 0) {
+		*(timer_common.lptim + lptim_icr) = (1 << 3);
+		hal_cpuDataMemoryBarrier();
 	}
 
-	if (*(timer_common.lptim + lptim_isr) & 1) {
-		*(timer_common.lptim + lptim_icr) = 1;
+	/* Clear CMPM */
+	if ((isr & (1 << 1)) != 0) {
+		++timer_common.upper;
+		clr |= (1 << 1);
+	}
+
+	/* Clear ARRM */
+	if ((isr & (1 << 0)) != 0) {
+		clr |= (1 << 0);
 
 		if (timer_common.wakeup != 0) {
 			ret = 1;
 			timer_common.wakeup = 0;
 		}
 	}
+
+	*(timer_common.lptim + lptim_icr) = clr;
 
 	hal_cpuDataMemoryBarrier();
 
@@ -115,16 +127,17 @@ static time_t hal_timerGetCyc(void)
 	upper = timer_common.upper;
 	lower = timer_getCnt();
 
+	/* Check if we have unhandled overflow event */
 	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
-		/* Check if we have unhandled overflow event.
-		 * If so, upper is one less than it should be */
-		if (timer_getCnt() >= lower) {
+		lower = timer_getCnt();
+		if (lower != ARR_VAL) {
 			++upper;
 		}
 	}
+
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return (upper << 16) + lower;
+	return (upper * (ARR_VAL + 1)) + lower;
 }
 
 /* Additional functions */
@@ -137,51 +150,31 @@ void timer_jiffiesAdd(time_t t)
 
 void timer_setAlarm(time_t us)
 {
-	const u32 mintime = hal_timerUs2Cyc(1000);
-	u32 setval, timerval[2];
-	int arrpend;
+	u32 setval, timerval;
 	spinlock_ctx_t sc;
 	time_t ticks = hal_timerUs2Cyc(us);
 
-	if (ticks > 0xffff0000U) {
-		ticks = 0xffff0000U;
-	}
-
 	hal_spinlockSet(&timer_common.sp, &sc);
 
-	/* Check if there's pending overflow to be handled
-	 * to not lose it should there be next when sleeping */
-	timerval[0] = timer_getCnt();
-	arrpend = (*(timer_common.lptim + lptim_isr) & 2) != 0 ? 1 : 0;
-	timerval[1] = timer_getCnt();
+	timerval = timer_getCnt();
 
-	if (timerval[0] > timerval[1] || arrpend != 0) {
-		++timer_common.upper;
-		*(timer_common.lptim + lptim_icr) = 2;
+	/* Allow max 2/3 ARR_VAL sleep period, so no double ARR can occur */
+	if (ticks > (ARR_VAL * 2) / 3) {
+		ticks = (ARR_VAL * 2) / 3;
 	}
 
-	if (ticks >= 0xffff) {
-		setval = (timerval[1] - 1) & 0xffff;
-	}
-	else {
-		setval = (timerval[1] + (u32)ticks) & 0xffff;
-
-		if (((setval - timerval[1]) & 0xffff) < mintime) {
-			/* There is too much risk that interrupt will arrive before wfi
-			 * This can happen regardless of previous checks - can be
-			 * caused by a modulo operation few lines above */
-			setval = (timerval[1] + mintime) & 0xffff;
-		}
-	}
+	setval = (timerval + (u32)ticks) & ARR_VAL;
 
 	/* Can't have cmp == arr */
-	if (setval > 0xfffe) {
-		setval = 0xfffe;
+	if (setval > ARR_VAL - 1) {
+		setval = ARR_VAL - 1;
 	}
 
 	*(timer_common.lptim + lptim_cmp) = setval;
 	hal_cpuDataMemoryBarrier();
-	*(timer_common.lptim + lptim_icr) = 1;
+	/* Wait for CMPOK */
+	while ((*(timer_common.lptim + lptim_isr) & (1 << 3)) == 0) {
+	}
 	hal_cpuDataMemoryBarrier();
 	timer_common.wakeup = 1;
 
@@ -222,14 +215,16 @@ void _hal_timerInit(u32 interval)
 	*(timer_common.lptim + lptim_cr) = 0;
 	hal_cpuDataMemoryBarrier();
 	*(timer_common.lptim + lptim_cfgr) = (PRESCALER << 9);
-	*(timer_common.lptim + lptim_ier) = 3;
-	*(timer_common.lptim + lptim_icr) |= 0x7f;
+	/* Enable CMPM and ARRM IRQs */
+	*(timer_common.lptim + lptim_ier) = (1 << 1) | (1 << 0);
 	hal_cpuDataMemoryBarrier();
+	/* Timer enable */
 	*(timer_common.lptim + lptim_cr) = 1;
 	hal_cpuDataMemoryBarrier();
-	*(timer_common.lptim + lptim_cnt) = 0;
-	*(timer_common.lptim + lptim_cmp) = 0xfffe;
-	*(timer_common.lptim + lptim_arr) = 0xffff;
+	*(timer_common.lptim + lptim_arr) = ARR_VAL;
+	/* Wait for ARROK. Don't need to clear this ISR, we do it once */
+	while ((*(timer_common.lptim + lptim_isr) & (1 << 4)) == 0) {
+	}
 	hal_cpuDataMemoryBarrier();
 
 	timer_common.overflowh.f = timer_irqHandler;
@@ -238,6 +233,7 @@ void _hal_timerInit(u32 interval)
 	timer_common.overflowh.data = NULL;
 	hal_interruptsSetHandler(&timer_common.overflowh);
 
+	/* Trigger timer start */
 	*(timer_common.lptim + lptim_cr) |= 4;
 	hal_cpuDataMemoryBarrier();
 
