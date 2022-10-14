@@ -622,7 +622,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 
 	if (e->amap == NULL)
 		p = vm_objectPage(map, NULL, e->object, paddr, (e->offs < 0) ? e->offs : e->offs + offs);
-	else if (e->object != (void *)-1)
+	else /* if (e->object != (void *)-1) FIXME disabled until memory objects are created for syspage progs */
 		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, (e->offs < 0) ? e->offs : e->offs + offs, prot);
 
 	if (prot & PROT_WRITE)
