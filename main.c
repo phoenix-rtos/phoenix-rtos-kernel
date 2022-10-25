@@ -81,7 +81,7 @@ void main_initthr(void *unused)
 			}
 			argv[argc++] = NULL;
 
-			if ((res = proc_syspageSpawn(prog, vm_getSharedMap(prog, -1), argv[0], argv)) < 0)
+			if ((res = proc_syspageSpawn(prog, vm_getSharedMap(prog->imaps[0]), vm_getSharedMap(prog->dmaps[0]), argv[0], argv)) < 0)
 				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 		} while ((prog = prog->next) != syspage_progList());
 	}

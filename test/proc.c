@@ -190,7 +190,7 @@ static void test_proc_initthr(void *arg)
 	for (;;) {
 		if ((prog = syspage_progList()) != NULL) {
 			do {
-				proc_syspageSpawn(prog, NULL, "", argv);
+				proc_syspageSpawn(prog, NULL, NULL, "", argv);
 			} while ((prog = prog->next) != syspage_progList());
 		}
 		proc_threadSleep(120000);

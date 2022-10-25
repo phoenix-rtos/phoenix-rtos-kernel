@@ -1011,7 +1011,7 @@ void vm_mapinfo(meminfo_t *info)
 		info->maps.free = 0;
 
 		for (size = 0; size < map_common.mapssz; ++size) {
-			map = vm_getSharedMap(NULL, (int)size);
+			map = vm_getSharedMap((int)size);
 			if (map == NULL) {
 				if ((int)size < info->maps.mapsz) {
 					/* Store info that the map doesn't exist */
@@ -1096,31 +1096,13 @@ void vm_mapGetStats(size_t *allocsz)
 }
 
 
-vm_map_t *vm_getSharedMap(syspage_prog_t *prog, int map)
+vm_map_t *vm_getSharedMap(int map)
 {
 	vm_map_t *ret = NULL;
 
-#ifdef NOMMU
-	unsigned int i;
-
-	if (prog == NULL) {
-		if (map >= 0 && (size_t)map < map_common.mapssz) {
-			ret = map_common.maps[map];
-		}
+	if (map >= 0 && (size_t)map < map_common.mapssz) {
+		ret = map_common.maps[map];
 	}
-	else {
-		if (map < 0) {
-			map = prog->dmaps[0];
-		}
-
-		for (i = 0; i < prog->dmapSz; ++i) {
-			if (map == prog->dmaps[i]) {
-				ret = map_common.maps[map];
-				break;
-			}
-		}
-	}
-#endif
 
 	return ret;
 }
