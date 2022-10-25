@@ -40,6 +40,7 @@ typedef struct {
 	offs_t offset;
 	size_t size;
 	vm_map_t *map;
+	vm_map_t *imap;
 
 	char **argv;
 	char **envp;
@@ -94,8 +95,13 @@ static void process_destroy(process_t *p)
 
 	posix_died(p->id, p->exit);
 
-	if (p->mapp != NULL)
+	if (p->mapp != NULL) {
 		vm_mapDestroy(p, p->mapp);
+	}
+
+	if (p->imapp != NULL) {
+		vm_mapDestroy(p, p->imapp);
+	}
 
 	proc_resourcesDestroy(p);
 	proc_portsDestroy(p);
@@ -288,6 +294,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #endif
 
 	proc_changeMap(process, NULL, NULL);
+	process->imapp = NULL;
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
@@ -578,12 +585,25 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		reloffs = 0;
 		prot = PROT_USER;
 		flags = MAP_NONE;
+		paddr = (char *)ehdr + phdr->p_offset;
 
 		if (phdr->p_flags & PF_R)
 			prot |= PROT_READ;
 
-		if (phdr->p_flags & PF_X)
+		if (phdr->p_flags & PF_X) {
 			prot |= PROT_EXEC;
+
+			if (process->imapp != NULL &&
+					(((ptr_t)base < (ptr_t)process->imapp->start) ||
+					((ptr_t)base > (ptr_t)process->imapp->stop))) {
+				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
+				if (paddr == NULL) {
+					return -ENOMEM;
+				}
+
+				hal_memcpy((char *)paddr, (char *)ehdr + phdr->p_offset, phdr->p_memsz);
+			}
+		}
 
 		if (phdr->p_flags & PF_W) {
 			prot |= PROT_WRITE;
@@ -602,9 +622,6 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 
 			hal_memset((char *)paddr, 0, reloffs);
 			hal_memset((char *)paddr + reloffs + phdr->p_filesz, 0, round_page(phdr->p_memsz + reloffs) - phdr->p_filesz - reloffs);
-		}
-		else {
-			paddr = (char *)ehdr + phdr->p_offset;
 		}
 
 		if (j >= sizeof(reloc) / sizeof(reloc[0]))
@@ -777,7 +794,9 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 #ifndef NOMMU
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
 	proc_changeMap(current->process, &current->process->map, &current->process->map.pmap);
+	current->process->imapp = NULL;
 #else
+	current->process->imapp = spawn->imap;
 	current->process->mapp = (spawn->map != NULL) ? spawn->map : process_common.kmap;
 	current->process->pmapp = &current->process->map.pmap;
 	current->process->entries = NULL;
@@ -839,7 +858,7 @@ static void proc_spawnThread(void *arg)
 }
 
 
-int proc_spawn(vm_object_t *object, vm_map_t *map, offs_t offset, size_t size, const char *path, char **argv, char **envp)
+int proc_spawn(vm_object_t *object, vm_map_t *imap, vm_map_t *map, offs_t offset, size_t size, const char *path, char **argv, char **envp)
 {
 	int pid;
 	process_spawn_t spawn;
@@ -862,6 +881,7 @@ int proc_spawn(vm_object_t *object, vm_map_t *map, offs_t offset, size_t size, c
 	spawn.envp = envp;
 	spawn.parent = proc_current();
 	spawn.map = map;
+	spawn.imap = imap;
 
 	hal_spinlockCreate(&spawn.sl, "spawnsl");
 
@@ -894,33 +914,42 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	if ((err = vm_objectGet(&object, oid)) < 0)
 		return err;
 
-	return proc_spawn(object, NULL, 0, object->size, path, argv, envp);
+	return proc_spawn(object, NULL, NULL, 0, object->size, path, argv, envp);
 }
 
 
-int proc_syspageSpawnName(const char *map, const char *name, char **argv)
+int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, char **argv)
 {
-	u8 dmap;
-	const syspage_map_t *sysMap;
+	const syspage_map_t *sysMap, *codeMap;
 	const syspage_prog_t *prog = syspage_progNameResolve(name);
+	vm_map_t *imapp = NULL;
 
-	if (prog == NULL)
+	if (prog == NULL) {
 		return -ENOENT;
+	}
 
-	dmap = prog->dmaps[0];
-	sysMap = (map == NULL) ? syspage_mapIdResolve(dmap) :
-							 syspage_mapNameResolve(map);
+	sysMap = (dmap == NULL) ? syspage_mapIdResolve(prog->dmaps[0]) : syspage_mapNameResolve(dmap);
+	codeMap = (imap == NULL) ? syspage_mapIdResolve(prog->imaps[0]) : syspage_mapNameResolve(imap);
 
-	if (sysMap != NULL && (sysMap->attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite))
-		return proc_syspageSpawn((syspage_prog_t *)prog, vm_getSharedMap((syspage_prog_t *)prog, sysMap->id), name, argv);
+	if (codeMap != NULL) {
+		if ((codeMap->attr & (mAttrRead | mAttrExec)) != (mAttrRead | mAttrExec)) {
+			return -EINVAL;
+		}
+
+		imapp = vm_getSharedMap(codeMap->id);
+	}
+
+	if (sysMap != NULL && (sysMap->attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite)) {
+		return proc_syspageSpawn((syspage_prog_t *)prog, imapp, vm_getSharedMap(sysMap->id), name, argv);
+	}
 
 	return -EINVAL;
 }
 
 
-int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *map, const char *path, char **argv)
+int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
 {
-	return proc_spawn((void *)-1, map, program->start, program->end - program->start, path, argv, NULL);
+	return proc_spawn((void *)-1, imap, map, program->start, program->end - program->start, path, argv, NULL);
 }
 
 
@@ -1194,6 +1223,12 @@ static int process_execve(thread_t *current)
 		pmap_switch(&process_common.kmap->pmap);
 
 		vm_mapDestroy(current->process, map);
+
+		if (current->process->imapp != NULL) {
+			vm_mapDestroy(current->process, current->process->imapp);
+		}
+		current->process->imapp = NULL;
+
 		proc_resourcesDestroy(current->process);
 		proc_portsDestroy(current->process);
 	}
