@@ -602,6 +602,9 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 				}
 
 				hal_memcpy((char *)paddr, (char *)ehdr + phdr->p_offset, phdr->p_memsz);
+
+				/* Need to make cache and memory coherent, so $I is coherent too */
+				hal_cleanDCache((ptr_t)paddr, phdr->p_memsz);
 			}
 		}
 

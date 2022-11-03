@@ -26,6 +26,9 @@ extern int hal_platformctl(void *ptr);
 extern unsigned int _imxrt_cpuid(void);
 
 
+extern void _imxrt_cleanDCache(void);
+
+
 extern void _imxrt_nvicSetIRQ(s8 irqn, u8 state);
 
 

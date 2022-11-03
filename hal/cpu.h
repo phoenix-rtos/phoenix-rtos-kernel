@@ -118,4 +118,10 @@ extern char *hal_cpuFeatures(char *features, unsigned int len);
 extern void cpu_sendIPI(unsigned int cpu, unsigned int intr);
 
 
+/* cache management */
+
+
+extern void hal_cleanDCache(ptr_t start, size_t len);
+
+
 #endif

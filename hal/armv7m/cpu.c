@@ -255,6 +255,23 @@ void hal_wdgReload(void)
 }
 
 
+/* cache management */
+
+
+void hal_cleanDCache(ptr_t start, size_t len)
+{
+	(void)start;
+	(void)len;
+
+#ifdef CPU_IMXRT
+	/* Clean the whole cache, no harm in being overzealous */
+	_imxrt_cleanDCache();
+#else
+	/* TODO */
+#endif
+}
+
+
 void _hal_cpuInit(void)
 {
 	cpu_common.busy = 0;

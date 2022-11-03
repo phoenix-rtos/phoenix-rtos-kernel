@@ -262,6 +262,17 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 }
 
 
+/* cache management */
+
+
+void hal_cleanDCache(ptr_t start, size_t len)
+{
+	(void)start;
+	(void)len;
+	/* TODO */
+}
+
+
 void _hal_cpuInit(void)
 {
 	_hal_cpuInitCores();
