@@ -593,6 +593,17 @@ int hal_platformctl(void *ptr)
 }
 
 
+/* cache management */
+
+
+void hal_cleanDCache(ptr_t start, size_t len)
+{
+	(void)start;
+	(void)len;
+	/* Shouldn't be needed on this arch */
+}
+
+
 void _hal_cpuInit(void)
 {
 	cpu.ncpus = 0;

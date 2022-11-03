@@ -199,3 +199,12 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 
 	return features;
 }
+
+
+/* cache management */
+
+
+void hal_cleanDCache(ptr_t start, size_t len)
+{
+	hal_cpuCleanDataCache(start, start + len);
+}
