@@ -33,8 +33,6 @@ struct {
 	thread_t **current;
 	time_t utcoffs;
 
-	unsigned int executions;
-
 	/* Synchronized by spinlock */
 	rbtree_t sleeping;
 
@@ -560,8 +558,6 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		cpu_sendIPI(0, 32);
 	}
 
-	threads_common.executions++;
-
 	current = threads_common.current[hal_cpuGetID()];
 	threads_common.current[hal_cpuGetID()] = NULL;
 
@@ -585,7 +581,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		LIST_REMOVE(&threads_common.ready[i], selected);
 
-		if (!selected->exit /*|| hal_cpuSupervisorMode(selected->context)*/)
+		if (!selected->exit)
 			break;
 
 		selected->state = GHOST;
@@ -1862,7 +1858,6 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	unsigned int i;
 	threads_common.kmap = kmap;
-	threads_common.executions = 0;
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;

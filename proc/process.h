@@ -50,13 +50,16 @@ typedef struct _process_t {
 	unsigned lgap : 1;
 	unsigned rgap : 1;
 
-	/*u32 uid;
+/* TODO: Process shall keep information permissions */
+#if 0
+	u32 uid;
 	u32 euid;
 	u32 suid;
 	u32 gid;
 	u32 egid;
 	u32 sgid;
-	u32 umask;*/
+	u32 umask;
+#endif
 
 	void *ports;
 
