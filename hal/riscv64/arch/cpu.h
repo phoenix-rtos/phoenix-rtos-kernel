@@ -208,12 +208,6 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
-static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
-{
-	return (ctx->sscratch == 0);
-}
-
-
 static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 {
 #if 0
