@@ -88,9 +88,6 @@ extern void *hal_cpuGetSP(cpu_context_t *ctx);
 extern void *hal_cpuGetUserSP(cpu_context_t *ctx);
 
 
-extern int hal_cpuSupervisorMode(cpu_context_t *ctx);
-
-
 extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n);
 
 
