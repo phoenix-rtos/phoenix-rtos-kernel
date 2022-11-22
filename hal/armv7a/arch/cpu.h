@@ -195,6 +195,12 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return ctx->psr & 0xf;
+}
+
+
 static inline unsigned int hal_cpuGetID(void)
 {
 	return 0;
