@@ -252,7 +252,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return 0;
+	return ((ctx->irq_ret & (1 << 2)) == 0) ? 1 : 0;
 }
 
 
