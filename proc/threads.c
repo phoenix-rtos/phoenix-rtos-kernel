@@ -581,7 +581,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		LIST_REMOVE(&threads_common.ready[i], selected);
 
-		if (!selected->exit)
+		if (!selected->exit || hal_cpuSupervisorMode(selected->context))
 			break;
 
 		selected->state = GHOST;
