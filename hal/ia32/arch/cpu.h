@@ -320,6 +320,12 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
+static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return ((ctx->cs & 3) == 0);
+}
+
+
 #endif
 
 #endif
