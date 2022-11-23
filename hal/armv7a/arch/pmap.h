@@ -66,7 +66,7 @@ typedef struct _page_t {
 
 
 typedef struct _pmap_t {
-	u8 asid_ix;
+	u8 asid;
 	u32 *pdir;
 	addr_t addr;   /* physical address of pdir */
 	void *start;

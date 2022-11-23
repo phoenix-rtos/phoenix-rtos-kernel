@@ -56,6 +56,9 @@ extern unsigned int _etext;
 #define PDIR_TYPE_L2TABLE 0x00001
 #define PDIR_TYPE_INVALID 0x00000
 
+#define ASID_CNT     256
+#define ASID_INVALID 0
+
 
 struct {
 	u32 kpdir[0x1000]; /* Has to be first in the structure */
@@ -63,14 +66,15 @@ struct {
 	u32 excptab[0x400];
 	u32 sptab[0x400];
 	u8 heap[SIZE_PAGE];
-	pmap_t *asid_map[256];
-	u8 asids[256];
+
+	pmap_t *asidMaps[ASID_CNT];
+	u8 asidCnt;
+
 	addr_t minAddr;
 	addr_t maxAddr;
 	u32 start;
 	u32 end;
 	spinlock_t lock;
-	u8 asidptr;
 } __attribute__((aligned(0x4000))) pmap_common;
 
 
@@ -113,50 +117,46 @@ static const u16 attrMap[] = {
 };
 
 
-static void _pmap_asidAlloc(pmap_t *pmap)
+static void _pmap_asidDealloc(pmap_t *pmap)
 {
-	pmap_t *evicted = NULL;
+	if (pmap->asid != ASID_INVALID) {
+		/* Remove all tags in TLB associated with current ASID */
+		hal_cpuInvalASID(pmap->asid);
+		hal_cpuBranchInval();
+		hal_cpuICacheInval();
+		hal_cpuDataSyncBarrier();
+		hal_cpuInstrBarrier();
 
-	while (!++pmap_common.asidptr || (evicted = pmap_common.asid_map[pmap_common.asidptr]) != NULL) {
-		if (evicted != NULL) {
-			if ((hal_cpuGetContextId() & 0xff) == pmap_common.asids[evicted->asid_ix])
-				continue;
-
-			evicted->asid_ix = 0;
-			break;
-		}
+		pmap_common.asidMaps[pmap->asid] = NULL;
+		pmap->asid = ASID_INVALID;
 	}
-
-	pmap_common.asid_map[pmap_common.asidptr] = pmap;
-	pmap->asid_ix = pmap_common.asidptr;
-
-	hal_cpuInvalASID(pmap_common.asids[pmap->asid_ix]);
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
 }
 
 
-static void _pmap_asidDealloc(pmap_t *pmap)
+static void _pmap_asidAlloc(pmap_t *pmap)
 {
-	pmap_t *last;
-	addr_t tmp;
+	int i;
+	u8 newAsid = ++pmap_common.asidCnt;
 
-	if (pmap->asid_ix != 0) {
-		if (pmap->asid_ix != pmap_common.asidptr) {
-			pmap_common.asid_map[pmap->asid_ix] = last = pmap_common.asid_map[pmap_common.asidptr];
-			last->asid_ix = pmap->asid_ix;
-			tmp = pmap_common.asids[last->asid_ix];
-			pmap_common.asids[last->asid_ix] = pmap_common.asids[pmap_common.asidptr];
-			pmap_common.asids[pmap_common.asidptr] = tmp;
+	/* When ASID's counter wraps around, the new set of ASID is prepared */
+	if (newAsid == ASID_INVALID) {
+		hal_cpuInvalTLB();
+		hal_cpuBranchInval();
+		hal_cpuICacheInval();
+
+		newAsid = 1;
+		pmap_common.asidCnt = 1;
+
+		for (i = 0; i < ASID_CNT; i++) {
+			if (pmap_common.asidMaps[i] != NULL) {
+				pmap_common.asidMaps[i]->asid = ASID_INVALID;
+				pmap_common.asidMaps[i] = NULL;
+			}
 		}
-
-		pmap_common.asid_map[pmap_common.asidptr] = NULL;
-
-		if (!--pmap_common.asidptr)
-			pmap_common.asidptr--;
-
-		pmap->asid_ix = 0;
 	}
+
+	pmap_common.asidMaps[newAsid] = pmap;
+	pmap->asid = newAsid;
 }
 
 
@@ -165,58 +165,69 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
 	pmap->pdir = vaddr;
 	pmap->addr = p->addr;
-	pmap->asid_ix = 0;
+	pmap->asid = ASID_INVALID;
 
 	hal_memset(pmap->pdir, 0, (VADDR_KERNEL) >> 18);
 	hal_memcpy(&pmap->pdir[ID_PDIR(VADDR_KERNEL)], &kpmap->pdir[ID_PDIR(VADDR_KERNEL)], (VADDR_MAX - VADDR_KERNEL + 1) >> 18);
 
 	hal_cpuDataMemoryBarrier();
 	hal_cpuDataSyncBarrier();
+
 	return EOK;
 }
 
 
 addr_t pmap_destroy(pmap_t *pmap, int *i)
 {
+	int pdi;
+	addr_t addr = 0;
 	spinlock_ctx_t sc;
 
 	int max = ((VADDR_USR_MAX + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) >> 20;
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
-	if (pmap->asid_ix != 0)
+	if (pmap->asid != ASID_INVALID) {
 		_pmap_asidDealloc(pmap);
+	}
 	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	while (*i < max) {
 		if (pmap->pdir[*i] != NULL) {
+			pdi = *i;
 			*i += 4;
-			return pmap->pdir[*i - 4] & ~0xfff;
+
+			addr = pmap->pdir[pdi] & ~0xfff;
+			pmap->pdir[pdi] = NULL;
+
+			hal_cpuInvalVA((ptr_t)&pmap->pdir[pdi] & ~0xfff);
+			hal_cpuBranchInval();
+			hal_cpuICacheInval();
+
+			return addr;
 		}
 		(*i) += 4;
 	}
 
-	return 0;
+	return addr;
 }
 
 
 void _pmap_switch(pmap_t *pmap)
 {
-	if (pmap->asid_ix == 0)
+	if (pmap->asid == ASID_INVALID) {
 		_pmap_asidAlloc(pmap);
-	else if (hal_cpuGetTTBR0() == (pmap->addr | TTBR_CACHE_CONF))
+	}
+	else if (hal_cpuGetTTBR0() == ((u32)pmap->addr | TTBR_CACHE_CONF)) {
 		return;
+	}
 
 	/* Assign new user's page dir to TTBR0 register */
-	hal_cpuDataSyncBarrier();
 	hal_cpuSetContextId(0);
 	hal_cpuInstrBarrier();
 	hal_cpuSetTTBR0(pmap->addr | TTBR_CACHE_CONF);
 	hal_cpuInstrBarrier();
-	hal_cpuSetContextId((u32)pmap->pdir | pmap_common.asids[pmap->asid_ix]);
-
-	/* TODO: invalidate TLB only if asids pool is run out.
-       This code should be moved to _pmap_asidAlloc and _pmap_asidDealloc */
-	hal_cpuInvalTLB();
+	hal_cpuSetContextId((u32)pmap->pdir | pmap->asid);
+	hal_cpuInstrBarrier();
 
 	hal_cpuBranchInval();
 	hal_cpuICacheInval();
@@ -237,14 +248,21 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, int attributes,
 {
 	int pti = ID_PTABLE((ptr_t)va);
 
-	hal_cpuCleanDataCache((ptr_t)&ptable[pti], (ptr_t)&ptable[pti] + sizeof(ptr_t));
 	if (attributes & PGHD_PRESENT)
 		ptable[pti] = (pa & ~0xfff) | attrMap[attributes & 0x1f];
 	else
 		ptable[pti] = 0;
 
+	hal_cpuFlushDataCache((ptr_t)&ptable[pti], (ptr_t)&ptable[pti] + sizeof(ptr_t));
 	hal_cpuDataSyncBarrier();
-	hal_cpuInvalVA(((ptr_t)va & ~0xfff) | asid);
+
+	/* If entry is not a global, invalidate VA associated with specific address space */
+	if (asid != ASID_INVALID) {
+		hal_cpuInvalVAASID(((ptr_t)va & ~0xfff) | asid);
+	}
+	else {
+		hal_cpuInvalVA((ptr_t)va & ~0xfff);
+	}
 
 	hal_cpuBranchInval();
 	hal_cpuICacheInval();
@@ -253,9 +271,11 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, int attributes,
 
 static void _pmap_addTable(pmap_t *pmap, int pdi, addr_t pa)
 {
-	pa = (pa & ~0xfff) | PDIR_TYPE_L2TABLE;
+	int i;
 
+	pa = (pa & ~0xfff) | PDIR_TYPE_L2TABLE;
 	pdi &= ~3;
+
 	hal_cpuFlushDataCache((ptr_t)&pmap->pdir[pdi], (ptr_t)&pmap->pdir[pdi] + 4 * sizeof(ptr_t));
 
 	/* L2 table contains 256 entries (0x400). PAGE_SIZE is equal 0x1000 so that four L2 tables are added. */
@@ -264,10 +284,13 @@ static void _pmap_addTable(pmap_t *pmap, int pdi, addr_t pa)
 	pmap->pdir[pdi + 2] = pa + 0x800;
 	pmap->pdir[pdi + 3] = pa + 0xc00;
 
-	hal_cpuInvalASID(pmap_common.asids[pmap->asid_ix]);
+	/* TODO: check if it is needed */
+	for (i = 0; i < 4; ++i) {
+		hal_cpuInvalVA((ptr_t)&pmap->pdir[pdi + i] & ~0xfff);
+	}
 
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
+	hal_cpuBranchInval();
+	hal_cpuICacheInval();
 }
 
 
@@ -287,7 +310,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	pdi = ID_PDIR((ptr_t)va);
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
-	asid = pmap_common.asids[pmap->asid_ix];
+	asid = pmap->asid;
 
 	/* If no page table is allocated add new one */
 	if (pmap->pdir[pdi] == PDIR_TYPE_INVALID) {
@@ -314,6 +337,13 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 	if (!(attr & PGHD_PRESENT)) {
 		hal_spinlockClear(&pmap_common.lock, &sc);
 		return EOK;
+	}
+
+	if (attr & PGHD_USER) {
+		hal_cpuInvalVAASID(((ptr_t)va & ~0xfff) | asid);
+	}
+	else {
+		hal_cpuInvalVA((ptr_t)va & ~0xfff);
 	}
 
 	if (attr & PGHD_EXEC || attr & PGHD_NOT_CACHED || attr & PGHD_DEV) {
@@ -358,7 +388,7 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	}
 
 	/* Map page table corresponding to vaddr */
-	asid = pmap_common.asids[pmap->asid_ix];
+	asid = pmap->asid;
 	_pmap_mapScratch(addr, asid);
 
 	if (pmap_common.sptab[pti] == 0) {
@@ -392,7 +422,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 		return 0;
 	}
 
-	asid = pmap_common.asids[pmap->asid_ix];
+	asid = pmap->asid;
 	_pmap_mapScratch(addr, asid);
 	addr = pmap_common.sptab[pti];
 	hal_spinlockClear(&pmap_common.lock, &sc);
@@ -540,13 +570,13 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	int i;
 	void *v;
 
-	pmap_common.asidptr = 0;
-	pmap->asid_ix = 0;
+	pmap->asid = 0;
 
-	for (i = 0; i < sizeof(pmap_common.asid_map) / sizeof(pmap_common.asid_map[0]); ++i) {
-		pmap_common.asid_map[i] = NULL;
-		pmap_common.asids[i] = i;
+	for (i = 0; i < ASID_CNT; ++i) {
+		pmap_common.asidMaps[i] = NULL;
 	}
+
+	pmap_common.asidCnt = 0;
 
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");
 
@@ -583,3 +613,4 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	for (v = *vend; v < (void *)VADDR_KERNEL + (4 * 1024 * 1024); v += SIZE_PAGE)
 		pmap_remove(pmap, v);
 }
+
