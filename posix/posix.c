@@ -2334,8 +2334,9 @@ pid_t posix_setsid(void)
 
 	pid = proc_current()->process->id;
 
-	if ((pinfo = pinfo_find(pid)) == NULL)
-		return -EINVAL;
+	if ((pinfo = pinfo_find(pid)) == NULL) {
+		return -EPERM;
+	}
 
 	/* FIXME (pedantic): Should check if any process has my group id */
 	proc_lockSet(&pinfo->lock);
@@ -2349,7 +2350,7 @@ pid_t posix_setsid(void)
 	proc_lockClear(&pinfo->lock);
 	pinfo_put(pinfo);
 
-	return EOK;
+	return pinfo->pgid;
 }
 
 
