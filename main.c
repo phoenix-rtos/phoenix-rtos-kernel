@@ -16,7 +16,7 @@
 
 #include "hal/hal.h"
 
-#include "log/log.h"
+#include "usrv.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
 #include "proc/proc.h"
@@ -45,7 +45,7 @@ void main_initthr(void *unused)
 
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
-	_log_start();
+	_usrv_start();
 
 	lib_printf("main: Starting syspage programs:");
 	syspage_progShow();
@@ -96,7 +96,7 @@ int main(void)
 	char s[128];
 
 	_hal_init();
-	_log_init();
+	_usrv_init();
 
 	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v. " VERSION "\n");
 	lib_printf("hal: %s\n", hal_cpuInfo(s));
