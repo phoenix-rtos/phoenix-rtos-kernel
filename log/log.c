@@ -21,7 +21,6 @@
 
 #include "log.h"
 #include "../proc/threads.h"
-#include "../proc/msg.h"
 #include "../proc/ports.h"
 
 
@@ -34,6 +33,7 @@
 
 typedef struct _log_rmsg_t {
 	void *odata;
+	oid_t oid;
 	unsigned long rid;
 	size_t osize;
 	struct _log_rmsg_t *prev, *next;
@@ -51,7 +51,6 @@ typedef struct _log_reader_t {
 
 static struct {
 	char buf[SIZE_LOG];
-	oid_t oid;
 	offs_t head;
 	offs_t tail;
 	lock_t lock;
@@ -136,7 +135,7 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	msg.o.size = rmsg->osize;
 	msg.o.io.err = err;
 
-	proc_respond(log_common.oid.port, &msg, rmsg->rid);
+	proc_respond(rmsg->oid.port, &msg, rmsg->rid);
 
 	vm_kfree(rmsg);
 }
@@ -203,7 +202,7 @@ static void _log_readersUpdate(void)
 }
 
 
-static int log_readerBlock(log_reader_t *r, msg_t *msg, unsigned long rid)
+static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, unsigned long rid)
 {
 	log_rmsg_t *rmsg;
 
@@ -214,6 +213,7 @@ static int log_readerBlock(log_reader_t *r, msg_t *msg, unsigned long rid)
 	rmsg->odata = msg->o.data;
 	rmsg->osize = msg->o.size;
 	rmsg->rid = rid;
+	rmsg->oid = oid;
 
 	proc_lockSet(&log_common.lock);
 	LIST_ADD(&r->msgs, rmsg);
@@ -278,57 +278,55 @@ static ssize_t log_read(log_reader_t *r, char *buf, size_t sz)
 }
 
 
-static void log_msgthr(void *arg)
+void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 {
-	msg_t msg;
 	log_reader_t *r;
-	unsigned long int rid;
-	int respond;
+	int respond = 1;
 
-	for (;;) {
-		if (proc_recv(log_common.oid.port, &msg, &rid) != 0)
-			continue;
-
-		respond = 1;
-		switch (msg.type) {
-			case mtOpen:
-				if (msg.i.openclose.flags & O_WRONLY)
-					msg.o.io.err = EOK;
-				else
-					msg.o.io.err = log_readerAdd(msg.pid, msg.i.openclose.flags & O_NONBLOCK);
-				break;
-			case mtRead:
-				r = log_readerFind(msg.pid);
-				if (r == NULL) {
-					msg.o.io.err = -EINVAL;
-				}
-				else {
-					msg.o.io.err = log_read(r, msg.o.data, msg.o.size);
-					if (msg.o.io.err == 0 && !r->nonblocking) {
-						msg.o.io.err = log_readerBlock(r, &msg, rid);
-						if (msg.o.io.err == EOK)
-							respond = 0;
-					}
-					else if (msg.o.io.err == 0 && r->nonblocking) {
-						msg.o.io.err = -EAGAIN;
+	switch (msg->type) {
+		case mtOpen:
+			if (msg->i.openclose.flags & O_WRONLY) {
+				msg->o.io.err = EOK;
+			}
+			else {
+				msg->o.io.err = log_readerAdd(msg->pid, msg->i.openclose.flags & O_NONBLOCK);
+			}
+			break;
+		case mtRead:
+			r = log_readerFind(msg->pid);
+			if (r == NULL) {
+				msg->o.io.err = -EINVAL;
+			}
+			else {
+				msg->o.io.err = log_read(r, msg->o.data, msg->o.size);
+				if (msg->o.io.err == 0 && !r->nonblocking) {
+					msg->o.io.err = log_readerBlock(r, msg, oid, rid);
+					if (msg->o.io.err == EOK) {
+						respond = 0;
 					}
 				}
-				break;
-			case mtWrite:
-				msg.o.io.err = log_write(msg.i.data, msg.i.size);
-				break;
-			case mtClose:
-				log_close(msg.pid);
-				msg.o.io.err = 0;
-			case mtDevCtl:
-				log_devctl(&msg);
-				break;
-			default:
-				msg.o.io.err = -EINVAL;
-				break;
-		}
-		if (respond)
-			proc_respond(log_common.oid.port, &msg, rid);
+				else if (msg->o.io.err == 0 && r->nonblocking) {
+					msg->o.io.err = -EAGAIN;
+				}
+			}
+			break;
+		case mtWrite:
+			msg->o.io.err = log_write(msg->i.data, msg->i.size);
+			break;
+		case mtClose:
+			log_close(msg->pid);
+			msg->o.io.err = 0;
+			break;
+		case mtDevCtl:
+			log_devctl(msg);
+			break;
+		default:
+			msg->o.io.err = -EINVAL;
+			break;
+	}
+
+	if (respond == 1) {
+		proc_respond(oid.port, msg, rid);
 	}
 }
 
@@ -358,16 +356,6 @@ int log_write(const char *data, size_t len)
 	proc_lockClear(&log_common.lock);
 
 	return len;
-}
-
-
-void _log_start(void)
-{
-	/* Create port 0 for /dev/kmsg */
-	if (proc_portCreate(&log_common.oid.port) != 0)
-		return;
-
-	proc_threadCreate(NULL, log_msgthr, NULL, 4, 2048, NULL, 0, NULL);
 }
 
 

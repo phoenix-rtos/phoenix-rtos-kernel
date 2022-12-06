@@ -15,11 +15,13 @@
 #ifndef _LOG_H_
 #define _LOG_H_
 
+#include "../proc/msg.h"
+
 
 extern int log_write(const char *data, size_t len);
 
 
-extern void _log_start(void);
+extern void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid);
 
 
 extern void _log_init(void);

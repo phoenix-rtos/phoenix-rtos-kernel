@@ -30,7 +30,7 @@ ifeq (/,$(SYSROOT))
 $(error Sysroot is not supported by toolchain. Use Phoenix-RTOS cross-toolchain to compile)
 endif
 
-OBJS = $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o)
+OBJS = $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o usrv.o)
 
 all: $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf
 
