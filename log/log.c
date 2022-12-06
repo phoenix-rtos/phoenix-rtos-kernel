@@ -31,8 +31,6 @@
 
 #define TCGETS 0x405c7401
 
-/* Temporary until all uart drivers support reading from kernel log */
-#if KLOG_ENABLE
 
 typedef struct _log_rmsg_t {
 	void *odata;
@@ -334,13 +332,10 @@ static void log_msgthr(void *arg)
 	}
 }
 
-#endif /* KLOG_ENABLE */
-
 
 int log_write(const char *data, size_t len)
 {
 	int i = 0;
-#if KLOG_ENABLE
 	int overwrite = 0;
 	char c;
 
@@ -361,10 +356,6 @@ int log_write(const char *data, size_t len)
 	if (i > 0)
 		_log_readersUpdate();
 	proc_lockClear(&log_common.lock);
-#else
-	for (i = 0; i < len; ++i)
-		hal_consolePutch(data[i]);
-#endif /* KLOG_ENABLE */
 
 	return len;
 }
@@ -372,20 +363,16 @@ int log_write(const char *data, size_t len)
 
 void _log_start(void)
 {
-#if KLOG_ENABLE
 	/* Create port 0 for /dev/kmsg */
 	if (proc_portCreate(&log_common.oid.port) != 0)
 		return;
 
 	proc_threadCreate(NULL, log_msgthr, NULL, 4, 2048, NULL, 0, NULL);
-#endif /* KLOG_ENABLE */
 }
 
 
 void _log_init(void)
 {
-#if KLOG_ENABLE
 	hal_memset(&log_common, 0, sizeof(log_common));
 	proc_lockInit(&log_common.lock);
-#endif /* KLOG_ENABLE */
 }
