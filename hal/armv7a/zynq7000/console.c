@@ -22,7 +22,7 @@
 #include <board_config.h>
 
 
-#if UART_CONSOLE == 0
+#if UART_CONSOLE_KERNEL == 0
 #define UART     uart0
 #define UART_RX  UART0_RX
 #define UART_TX  UART0_TX
