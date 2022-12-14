@@ -372,7 +372,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 
 
 /* TODO - adding error handling and unmapping of already mapped segments */
-int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr)
+int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t *ustacksz)
 {
 	void *vaddr = NULL;
 	size_t memsz = 0, filesz = 0;
@@ -382,6 +382,10 @@ int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr)
 	offs_t offs;
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+		if (phdr->p_type == PT_GNU_STACK) {
+			*ustacksz = round_page(phdr->p_memsz);
+		}
+
 		if (phdr->p_type != PT_LOAD || phdr->p_vaddr == 0)
 			continue;
 
@@ -421,7 +425,7 @@ int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr)
 }
 
 
-int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr)
+int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t *ustacksz)
 {
 	void *vaddr = NULL;
 	size_t memsz = 0, filesz = 0;
@@ -431,6 +435,10 @@ int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr)
 	offs_t offs;
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+		if (phdr->p_type == PT_GNU_STACK) {
+			*ustacksz = round_page(phdr->p_memsz);
+		}
+
 		if (phdr->p_type != PT_LOAD || phdr->p_vaddr == 0)
 			continue;
 
@@ -474,6 +482,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	void *stack;
 	Elf64_Ehdr *ehdr;
 	vm_map_t *map = process->mapp;
+	size_t ustacksz = SIZE_USTACK;
 	int err;
 
 	size = round_page(size);
@@ -492,18 +501,18 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	err = EOK;
 
 	switch (ehdr->e_ident[4]) {
+		/* 32-bit binary */
+		case 1:
+			err = process_load32(map, o, base, ehdr, &ustacksz);
+			break;
 
-	/* 32-bit binary */
-	case 1:
-		err = process_load32(map, o, base, ehdr);
-		break;
+		/* 64-bit binary */
+		case 2:
+			err = process_load64(map, o, base, ehdr, &ustacksz);
+			break;
 
-	/* 64-bit binary */
-	case 2:
-		err = process_load64(map, o, base, ehdr);
-		break;
-	default:
-		err = -ENOEXEC;
+		default:
+			err = -ENOEXEC;
 	}
 	vm_munmap(process_common.kmap, ehdr, size);
 
@@ -511,9 +520,11 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 		return err;
 
 	/* Allocate and map user stack */
-	if ((stack = vm_mmap(map, map->pmap.end - SIZE_USTACK, NULL, SIZE_USTACK, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
+	if ((stack = vm_mmap(map, map->pmap.end - ustacksz, NULL, ustacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL) {
 		return -ENOMEM;
-	*ustack = stack + SIZE_USTACK;
+	}
+
+	*ustack = stack + ustacksz;
 
 	threads_canaryInit(proc_current(), stack);
 
