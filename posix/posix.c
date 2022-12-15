@@ -20,8 +20,10 @@
 #include "../proc/proc.h"
 
 #include "posix.h"
+#include "pipe.h"
 #include "posix_private.h"
 #include "../lib/cbuffer.h"
+#include "../usrv.h"
 
 #ifdef CPU_STM32
 #define MAX_FD_COUNT 8
@@ -795,12 +797,19 @@ int posix_pipe(int fildes[2])
 
 	hal_memset(&oid, 0, sizeof(oid));
 
-	if ((res = proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0) {
-		pinfo_put(p);
-		return res == -EINTR ? res : -ENOSYS;
+	res = proc_lookup("/dev/posix/pipes", NULL, &pipesrv);
+	if (res < 0) {
+		/* Use anonymous pipe from kernel */
+		pipesrv.port = USRV_PORT;
+		pipesrv.id = USRV_ID_PIPES;
+
+	}
+	else {
+		/* Use anonymous pipes from external server */
 	}
 
-	if ((res = proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid)) < 0) {
+	res = proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid);
+	if (res < 0) {
 		pinfo_put(p);
 		return res;
 	}
@@ -833,6 +842,7 @@ int posix_pipe(int fildes[2])
 		vm_kfree(fi);
 
 		pinfo_put(p);
+		/* FIXME: destroy pipe */
 		return -EMFILE;
 	}
 
