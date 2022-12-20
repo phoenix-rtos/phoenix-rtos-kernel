@@ -17,6 +17,7 @@
 #include "../interrupts.h"
 #include "../spinlock.h"
 #include "../string.h"
+#include "../timer.h"
 
 #include "config.h"
 
@@ -59,7 +60,7 @@ void hal_cpuGetCycles(cycles_t *cb)
 #ifdef CPU_STM32
 	*cb = _stm32_systickGet();
 #elif defined(CPU_IMXRT)
-	*cb = _imxrt_systickGet();
+	*cb = (cycles_t)hal_timerGetUs();
 #endif
 }
 

@@ -14,6 +14,7 @@
  */
 
 #include "imxrt10xx.h"
+#include "config.h"
 
 #include "../../armv7m.h"
 #include "../../../cpu.h"
@@ -1827,44 +1828,6 @@ void _imxrt_nvicSystemReset(void)
 }
 
 
-/* SysTick */
-
-
-int _imxrt_systickInit(u32 interval)
-{
-	u64 load = ((u64) interval * imxrt_common.cpuclk) / 1000000;
-	if (load > 0x00ffffff)
-		return -EINVAL;
-
-	*(imxrt_common.stk + stk_load) = (u32)load;
-	*(imxrt_common.stk + stk_ctrl) = 0x7;
-
-	return EOK;
-}
-
-
-void _imxrt_systickSet(u8 state)
-{
-	state = !state;
-	*(imxrt_common.stk + stk_ctrl) &= ~state;
-	*(imxrt_common.stk + stk_ctrl) |= !state;
-}
-
-
-u32 _imxrt_systickGet(void)
-{
-	u32 cb;
-
-	cb = ((*(imxrt_common.stk + stk_load) - *(imxrt_common.stk + stk_val)) * 1000) / *(imxrt_common.stk + stk_load);
-
-	/* Add 1000 us if there's systick pending */
-	if (*(imxrt_common.scb + scb_icsr) & (1 << 26))
-		cb += 1000;
-
-	return cb;
-}
-
-
 /* GPIO */
 
 
@@ -2234,4 +2197,7 @@ void _imxrt_init(void)
 
 	/* Enable UsageFault, BusFault and MemManage exceptions */
 	*(imxrt_common.scb + scb_shcsr) |= (1 << 16) | (1 << 17) | (1 << 18);
+
+	/* Enable system HP timer clock gate */
+	_imxrt_ccmControlGate(GPT_BUS_CLK, clk_state_run_wait);
 }
