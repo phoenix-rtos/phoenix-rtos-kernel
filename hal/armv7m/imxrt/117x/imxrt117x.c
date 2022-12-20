@@ -14,6 +14,7 @@
  */
 
 #include "imxrt117x.h"
+#include "config.h"
 #include "../../armv7m.h"
 #include "../../spinlock.h"
 #include "../../../include/errno.h"
@@ -432,31 +433,6 @@ void _imxrt_nvicSystemReset(void)
 }
 
 
-/* SysTick */
-
-
-int _imxrt_systickInit(u32 interval)
-{
-	u32 load = interval * 24;
-
-	if (load > 0x00ffffff)
-		return -EINVAL;
-
-	*(imxrt_common.stk + stk_ctrl) = 0;
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-	*(imxrt_common.stk + stk_load) = load;
-	*(imxrt_common.stk + stk_val) = load - 1;
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-	*(imxrt_common.stk + stk_ctrl) = 0x3;
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-
-	return EOK;
-}
-
-
 /* Cache */
 
 
@@ -850,4 +826,7 @@ void _imxrt_init(void)
 	imxrt_common.resetFlags = *(imxrt_common.src + src_srsr) & 0x1f;
 	*(imxrt_common.src + src_srsr) |= 0x1f;
 	hal_cpuDataSyncBarrier();
+
+	/* Enable system HP timer clock gate */
+	_imxrt_setDevClock(GPT_BUS_CLK, 0, 0, 0, 0, 1);
 }

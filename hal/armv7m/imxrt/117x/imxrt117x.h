@@ -71,12 +71,6 @@ extern void _imxrt_platformInit(void);
 extern void _imxrt_init(void);
 
 
-extern int _imxrt_systickInit(u32 interval);
-
-
-extern u32 _imxrt_systickGet(void);
-
-
 extern void _imxrt_nvicSetIRQ(s8 irqn, u8 state);
 
 

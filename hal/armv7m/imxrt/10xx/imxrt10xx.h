@@ -201,15 +201,6 @@ extern u8 _imxrt_nvicGetPriority(s8 irqn);
 extern void _imxrt_nvicSystemReset(void);
 
 
-extern int _imxrt_systickInit(u32 interval);
-
-
-extern void _imxrt_systickSet(u8 state);
-
-
-extern u32 _imxrt_systickGet(void);
-
-
 extern int _imxrt_gpioConfig(unsigned int d, u8 pin, u8 dir);
 
 
