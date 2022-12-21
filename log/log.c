@@ -55,6 +55,7 @@ static struct {
 	offs_t tail;
 	lock_t lock;
 	log_reader_t *readers;
+	volatile int updated;
 } log_common;
 
 static int _log_empty(void)
@@ -312,6 +313,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			break;
 		case mtWrite:
 			msg->o.io.err = log_write(msg->i.data, msg->i.size);
+			log_scrub();
 			break;
 		case mtClose:
 			log_close(msg->pid);
@@ -351,11 +353,25 @@ int log_write(const char *data, size_t len)
 		} while (c != '\n' && c != '\0' && !_log_empty());
 	}
 
-	if (i > 0)
-		_log_readersUpdate();
+	if (i > 0) {
+		log_common.updated = 1;
+	}
 	proc_lockClear(&log_common.lock);
 
 	return len;
+}
+
+
+void log_scrub(void)
+{
+	/* Treat log_common.updated as atomic to
+	 * avoid taking lock in most cases */
+	if (log_common.updated != 0) {
+		proc_lockSet(&log_common.lock);
+		_log_readersUpdate();
+		log_common.updated = 0;
+		proc_lockClear(&log_common.lock);
+	}
 }
 
 

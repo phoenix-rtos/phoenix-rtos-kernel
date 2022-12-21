@@ -23,6 +23,7 @@
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
+#include "../log/log.h"
 
 
 struct {
@@ -1738,6 +1739,8 @@ static void threads_idlethr(void *arg)
 	time_t wakeup;
 
 	for (;;) {
+		log_scrub();
+
 		wakeup = proc_nextWakeup();
 
 		if (wakeup > (2 * SYSTICK_INTERVAL)) {

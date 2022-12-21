@@ -25,6 +25,7 @@
 #include "vm/object.h"
 #include "posix/posix.h"
 #include "syspage.h"
+#include "log/log.h"
 
 #define SYSCALLS_NAME(name)   syscalls_##name,
 #define SYSCALLS_STRING(name) #name,
@@ -1481,6 +1482,9 @@ const char *const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
 void *syscalls_dispatch(int n, char *ustack)
 {
 	void *retval;
+
+	/* Do before syscall to reduce jitter */
+	log_scrub();
 
 	if (n >= sizeof(syscalls) / sizeof(syscalls[0]))
 		return (void *)-EINVAL;

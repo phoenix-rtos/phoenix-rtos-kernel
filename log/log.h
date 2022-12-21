@@ -21,6 +21,9 @@
 extern int log_write(const char *data, size_t len);
 
 
+extern void log_scrub(void);
+
+
 extern void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid);
 
 
