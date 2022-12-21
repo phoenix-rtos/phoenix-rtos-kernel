@@ -21,6 +21,9 @@ CFLAGS += $(BOARD_CONFIG)
 CFLAGS += -I. -I$(PROJECT_PATH)/
 CFLAGS += -DVERSION=\"$(VERSION)\"
 
+# uncomment to enable stack canary checking
+# CFLAGS += -DSTACK_CANARY
+
 EXTERNAL_HEADERS_DIR := ./include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
 

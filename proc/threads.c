@@ -615,7 +615,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Update CPU usage */
 	threads_cpuTimeCalc(current, selected);
 
-#ifndef NDEBUG
+#if defined(STACK_CANARY) || !defined(NDEBUG)
 	/* Test stack usage */
 	if (selected != NULL && !selected->execkstack &&
 			((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
