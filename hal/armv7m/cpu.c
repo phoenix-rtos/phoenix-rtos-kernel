@@ -112,14 +112,14 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->r11 = 0xbbbbbbbb;
 
 	if (ustack != NULL) {
-		((u32 *)ctx->psp)[0] = (u32)arg;   /* r0 */
-		((u32 *)ctx->psp)[1] = 0x11111111; /* r1 */
-		((u32 *)ctx->psp)[2] = 0x22222222; /* r2 */
-		((u32 *)ctx->psp)[3] = 0x33333333; /* r3 */
-		((u32 *)ctx->psp)[4] = 0xcccccccc; /* r12 */
-		((u32 *)ctx->psp)[5] = 0xeeeeeeee; /* lr */
-		((u32 *)ctx->psp)[6] = (u32)start; /* pc */
-		((u32 *)ctx->psp)[7] = 0x01000000; /* psr */
+		((cpu_hwContext_t *)ctx->psp)->r0 = (u32)arg;
+		((cpu_hwContext_t *)ctx->psp)->r1 = 0x11111111;
+		((cpu_hwContext_t *)ctx->psp)->r2 = 0x22222222;
+		((cpu_hwContext_t *)ctx->psp)->r3 = 0x33333333;
+		((cpu_hwContext_t *)ctx->psp)->r12 = 0xcccccccc;
+		((cpu_hwContext_t *)ctx->psp)->lr = 0xeeeeeeee;
+		((cpu_hwContext_t *)ctx->psp)->pc = (u32)start;
+		((cpu_hwContext_t *)ctx->psp)->psr = 0x01000000;
 #ifdef CPU_IMXRT
 		ctx->fpuctx = ctx->psp + 8 * sizeof(int);
 		((u32 *)ctx->psp)[24] = 0;         /* fpscr */
@@ -127,15 +127,15 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
-		ctx->r0 = (u32)arg;
-		ctx->r1 = 0x11111111;
-		ctx->r2 = 0x22222222;
-		ctx->r3 = 0x33333333;
-		ctx->r12 = 0xcccccccc;
-		ctx->lr = 0xeeeeeeee;
-		ctx->pc = (u32)start;
-		ctx->psr = 0x01000000;
-		ctx->fpuctx = (u32)(&ctx->psr + 1);
+		ctx->hwctx.r0 = (u32)arg;
+		ctx->hwctx.r1 = 0x11111111;
+		ctx->hwctx.r2 = 0x22222222;
+		ctx->hwctx.r3 = 0x33333333;
+		ctx->hwctx.r12 = 0xcccccccc;
+		ctx->hwctx.lr = 0xeeeeeeee;
+		ctx->hwctx.pc = (u32)start;
+		ctx->hwctx.psr = 0x01000000;
+		ctx->fpuctx = (u32)(&ctx->hwctx.psr + 1);
 #ifdef CPU_IMXRT
 		ctx->fpscr = 0;
 #endif

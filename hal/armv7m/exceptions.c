@@ -37,10 +37,10 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
-	i += hal_i2s(" r0=", &buff[i], ctx->r0, 16, 1);
-	i += hal_i2s("  r1=", &buff[i], ctx->r1, 16, 1);
-	i += hal_i2s("  r2=", &buff[i], ctx->r2, 16, 1);
-	i += hal_i2s("  r3=", &buff[i], ctx->r3, 16, 1);
+	i += hal_i2s(" r0=", &buff[i], ctx->hwctx->r0, 16, 1);
+	i += hal_i2s("  r1=", &buff[i], ctx->hwctx->r1, 16, 1);
+	i += hal_i2s("  r2=", &buff[i], ctx->hwctx->r2, 16, 1);
+	i += hal_i2s("  r3=", &buff[i], ctx->hwctx->r3, 16, 1);
 
 	i += hal_i2s("\n r4=", &buff[i], ctx->r4, 16, 1);
 	i += hal_i2s("  r5=", &buff[i], ctx->r5, 16, 1);
@@ -52,13 +52,13 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" r10=", &buff[i], ctx->r10, 16, 1);
 	i += hal_i2s(" r11=", &buff[i], ctx->r11, 16, 1);
 
-	i += hal_i2s("\nr12=", &buff[i], ctx->r12, 16, 1);
-	i += hal_i2s("  sp=", &buff[i], (u32)ctx - 17 * 4, 16, 1);
-	i += hal_i2s("  lr=", &buff[i], ctx->lr, 16, 1);
-	i += hal_i2s("  pc=", &buff[i], ctx->pc, 16, 1);
+	i += hal_i2s("\nr12=", &buff[i], ctx->hwctx->r12, 16, 1);
+	i += hal_i2s(" psr=", &buff[i], ctx->hwctx->psr, 16, 1);
+	i += hal_i2s("  lr=", &buff[i], ctx->hwctx->lr, 16, 1);
+	i += hal_i2s("  pc=", &buff[i], ctx->hwctx->pc, 16, 1);
 
 	i += hal_i2s("\npsp=", &buff[i], ctx->psp, 16, 1);
-	i += hal_i2s(" psr=", &buff[i], ctx->psr, 16, 1);
+	i += hal_i2s("  sp=", &buff[i], (u32)ctx + sizeof(*ctx), 16, 1);
 	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
 	i += hal_i2s(" bfa=", &buff[i], *(u32 *)0xe000ed38, 16, 1);
 
@@ -91,7 +91,7 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
-	return ctx->pc;
+	return ctx->hwctx->pc;
 }
 
 

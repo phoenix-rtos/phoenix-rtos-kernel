@@ -178,11 +178,19 @@ _syscallend:
 _exceptions_dispatch:
 	cpsid if
 
-	mrs r0, psp
-	stmdb sp!, {r0, r4-r11, lr}
+	mrs r3, psp
+	mov r2, sp
+	stmdb sp!, {r3, r4-r11, lr}
 
 	mrs r0, ipsr
 	mov r1, sp
+
+	cbz r3, 1f
+	cmp lr, RET_THREAD_PSP
+	it eq
+	moveq r2, r3
+1:
+	push {r2-r3}
 	b exceptions_dispatch
 .size _exceptions_dispatch, .-_exceptions_dispatch
 .ltorg

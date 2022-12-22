@@ -72,6 +72,18 @@
 	} while (0)
 
 
+typedef struct {
+	u32 r0;
+	u32 r1;
+	u32 r2;
+	u32 r3;
+	u32 r12;
+	u32 lr;
+	u32 pc;
+	u32 psr;
+} cpu_hwContext_t;
+
+
 typedef struct _cpu_context_t {
 	u32 savesp;
 	u32 fpuctx;
@@ -108,14 +120,7 @@ typedef struct _cpu_context_t {
 #endif
 
 	/* Saved by hardware */
-	u32 r0;
-	u32 r1;
-	u32 r2;
-	u32 r3;
-	u32 r12;
-	u32 lr;
-	u32 pc;
-	u32 psr;
+	cpu_hwContext_t hwctx;
 
 #ifdef CPU_IMXRT
 	u32 s0;
@@ -219,7 +224,7 @@ static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 
 static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
 {
-	ctx->r0 = retval;
+	ctx->hwctx.r0 = retval;
 }
 
 
