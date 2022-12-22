@@ -56,6 +56,7 @@ static struct {
 	lock_t lock;
 	log_reader_t *readers;
 	volatile int updated;
+	volatile int enabled;
 } log_common;
 
 static int _log_empty(void)
@@ -335,28 +336,37 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 
 int log_write(const char *data, size_t len)
 {
-	int i = 0;
+	size_t i = 0;
 	int overwrite = 0;
 	char c;
 
-	proc_lockSet(&log_common.lock);
+	if (log_common.enabled != 0) {
+		proc_lockSet(&log_common.lock);
 
-	if (log_common.tail + len >= log_common.head + SIZE_LOG)
-		overwrite = 1;
+		if (log_common.tail + len >= log_common.head + SIZE_LOG) {
+			overwrite = 1;
+		}
 
-	for (i = 0; i < len; ++i)
-		_log_push(data[i]);
+		for (i = 0; i < len; ++i) {
+			_log_push(data[i]);
+		}
 
-	if (overwrite) {
-		do {
-			c = _log_pop();
-		} while (c != '\n' && c != '\0' && !_log_empty());
+		if (overwrite) {
+			do {
+				c = _log_pop();
+			} while (c != '\n' && c != '\0' && !_log_empty());
+		}
+
+		if (i > 0) {
+			log_common.updated = 1;
+		}
+		proc_lockClear(&log_common.lock);
 	}
-
-	if (i > 0) {
-		log_common.updated = 1;
+	else {
+		for (i = 0; i < len; ++i) {
+			hal_consolePutch(data[i]);
+		}
 	}
-	proc_lockClear(&log_common.lock);
 
 	return len;
 }
@@ -375,8 +385,16 @@ void log_scrub(void)
 }
 
 
+void log_disable(void)
+{
+	log_common.enabled = 0;
+}
+
+
 void _log_init(void)
 {
 	hal_memset(&log_common, 0, sizeof(log_common));
 	proc_lockInit(&log_common.lock);
+
+	log_common.enabled = 1;
 }

@@ -21,7 +21,14 @@
 extern int log_write(const char *data, size_t len);
 
 
+/* Has to be called after log_write to wakeup klog readers.
+ * Not safe - performs i.a. proc_respond! */
 extern void log_scrub(void);
+
+
+/* Bypass log, change log_write mode to writing directly to the console
+ * Debug feature, allows direct and instant message printing */
+extern void log_disable(void);
 
 
 extern void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid);

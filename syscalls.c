@@ -1483,7 +1483,9 @@ void *syscalls_dispatch(int n, char *ustack)
 {
 	void *retval;
 
-	/* Do before syscall to reduce jitter */
+	/* Do before syscall to reduce jitter.
+	 * We don't have spare kernel threads (apart from idle) to do this.
+	 * Only kernel logs need scrubing, so in most cases this is a no-op */
 	log_scrub();
 
 	if (n >= sizeof(syscalls) / sizeof(syscalls[0]))

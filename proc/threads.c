@@ -620,12 +620,14 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Test stack usage */
 	if (selected != NULL && !selected->execkstack &&
 			((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
+		log_disable();
 		lib_printf("proc: Stack limit exceeded, sp=%p %p %d\n", selected->kstack, selected->context, hal_cpuGetID());
 		for (;;);
 	}
 
 	if (selected != NULL && selected->process != NULL && selected->ustack != NULL &&
 			hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) != 0) {
+		log_disable();
 		lib_printf("proc: User stack corrupted path=%s, pid=%d, tid=%d\n", selected->process->path, selected->process->id, selected->id);
 		for (;;);
 	}
@@ -1739,6 +1741,7 @@ static void threads_idlethr(void *arg)
 	time_t wakeup;
 
 	for (;;) {
+		/* Scrub any potential kernel logs (wake up readers) */
 		log_scrub();
 
 		wakeup = proc_nextWakeup();
