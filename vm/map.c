@@ -1027,8 +1027,13 @@ void vm_mapinfo(meminfo_t *info)
 			}
 
 			total = (ptr_t)map->stop - (ptr_t)map->start;
-			e = lib_treeof(map_entry_t, linkage, map->tree.root);
-			free = e->lmaxgap + e->rmaxgap;
+			if (map->tree.root == NULL) {
+				free = total; /* Map is empty */
+			}
+			else {
+				e = lib_treeof(map_entry_t, linkage, map->tree.root);
+				free = e->lmaxgap + e->rmaxgap;
+			}
 
 			/* All maps together */
 			info->maps.total += total;
