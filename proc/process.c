@@ -382,7 +382,7 @@ int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 	offs_t offs;
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type == PT_GNU_STACK) {
+		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
 			*ustacksz = round_page(phdr->p_memsz);
 		}
 
@@ -435,7 +435,7 @@ int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 	offs_t offs;
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type == PT_GNU_STACK) {
+		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
 			*ustacksz = round_page(phdr->p_memsz);
 		}
 
@@ -587,8 +587,9 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 
 	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
 
-		if (phdr->p_type == PT_GNU_STACK)
+		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
 			stacksz = round_page(phdr->p_memsz);
+		}
 
 		if (phdr->p_type != PT_LOAD)
 			continue;
