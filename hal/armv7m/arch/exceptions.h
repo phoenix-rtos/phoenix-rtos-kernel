@@ -14,8 +14,6 @@
 
 typedef struct _exc_context_t {
 	/* Saved by ISR */
-	cpu_hwContext_t *hwctx;
-	u32 padding;
 	u32 psp;
 	u32 r4;
 	u32 r5;
