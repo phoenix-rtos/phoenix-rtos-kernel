@@ -10,7 +10,7 @@ Supported targets:
  * armv7m7-imxrt106x
  * armv7m7-imxrt117x
  * armv7a7-imx6ull
- * armv7a9-zynq7000 (port under development)
+ * armv7a9-zynq7000
  * ia32-generic
  * riscv64-generic
 
