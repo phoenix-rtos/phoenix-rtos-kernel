@@ -5,8 +5,8 @@
  *
  * System timer driver
  *
- * Copyright 2021 Phoenix Systems
- * Author: Hubert Buczynski
+ * Copyright 2021, 2023 Phoenix Systems
+ * Author: Hubert Buczynski, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -49,11 +49,9 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	u32 st = *(timer_common.ttc + isr);
 
 	/* Interval IRQ */
-	if (st & 0x1)
+	if (st & 0x1) {
 		timer_common.jiffies += timer_common.ticksPerFreq;
-
-	/* Clear irq status */
-	*(timer_common.ttc + isr) = st;
+	}
 
 	hal_cpuDataSyncBarrier();
 
@@ -63,20 +61,32 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 static time_t hal_timerCyc2Us(time_t cyc)
 {
-	return (cyc * 1000LL) / 55555LL;
+	return (cyc * 1000LL) / (time_t)(timer_common.ticksPerFreq);
 }
 
 
 static time_t hal_timerGetCyc(void)
 {
 	spinlock_ctx_t sc;
-	time_t ret;
+	time_t jiffies, cnt;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	ret = timer_common.jiffies;
+	cnt = (time_t)(*(timer_common.ttc + cnt_value));
+	jiffies = timer_common.jiffies;
+
+	/* Check if there's pending jiffies increment */
+	if ((*(timer_common.ttc + isr) & 1) != 0) {
+		/* ISR register is clear on read, we have to update jiffies now */
+		timer_common.jiffies += timer_common.ticksPerFreq;
+
+		/* Timer might've just wrapped-around,
+		 * take counter value again */
+		jiffies = timer_common.jiffies;
+		cnt = (time_t)(*(timer_common.ttc + cnt_value));
+	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return ret;
+	return jiffies + cnt;
 }
 
 
