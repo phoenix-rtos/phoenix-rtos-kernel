@@ -5,8 +5,8 @@
  *
  * System timer driver
  *
- * Copyright 2021 Phoenix Systems
- * Author: Hubert Buczynski
+ * Copyright 2021, 2023 Phoenix Systems
+ * Author: Hubert Buczynski, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -70,13 +70,23 @@ static time_t hal_timerCyc2Us(time_t cyc)
 static time_t hal_timerGetCyc(void)
 {
 	spinlock_ctx_t sc;
-	time_t ret;
+	time_t jiffies, cnt;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	ret = timer_common.jiffies;
+	cnt = (time_t)(*(timer_common.ttc + cnt_value));
+	jiffies = timer_common.jiffies;
+
+	/* Check if there's pending jiffies increment */
+	if ((*(timer_common.ttc + isr) & 1) != 0) {
+		jiffies += timer_common.ticksPerFreq;
+
+		/* Timer might've just wrapped-around,
+		 * take counter value again */
+		cnt = (time_t)(*(timer_common.ttc + cnt_value));
+	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return ret;
+	return jiffies + cnt;
 }
 
 
