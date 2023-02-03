@@ -59,14 +59,16 @@ void *_kmalloc_alloc(u8 hdridx, u8 idx)
 	vm_zone_t *z = kmalloc_common.sizes[idx];
 
 	b = _vm_zalloc(z, NULL);
-	kmalloc_common.allocsz += (1 << idx);
+	if (b != NULL) {
+		kmalloc_common.allocsz += (1 << idx);
 
-	if (idx == hdridx)
-		kmalloc_common.hdrblocks--;
+		if (idx == hdridx)
+			kmalloc_common.hdrblocks--;
 
-	if (z->used == z->blocks) {
-		LIST_REMOVE(&kmalloc_common.sizes[idx], z);
-		LIST_ADD(&kmalloc_common.used, z);
+		if (z->used == z->blocks) {
+			LIST_REMOVE(&kmalloc_common.sizes[idx], z);
+			LIST_ADD(&kmalloc_common.used, z);
+		}
 	}
 
 	return b;
@@ -109,6 +111,9 @@ int _kmalloc_addZone(u8 hdridx, u8 idx)
 	vm_zone_t *nz;
 
 	nz = _kmalloc_alloc(hdridx, hdridx);
+	if (nz == NULL) {
+		return -ENOMEM;
+	}
 
 	/* Add new zone */
 	if (_vm_zoneCreate(nz, 1 << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1), SIZE_PAGE / (1 << idx))) < 0) {
