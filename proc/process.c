@@ -253,9 +253,10 @@ static void process_augment(rbnode_t *node)
 int proc_start(void (*initthr)(void *), void *arg, const char *path)
 {
 	process_t *process;
-
-	if ((process = vm_kmalloc(sizeof(process_t))) == NULL)
+	process = vm_kmalloc(sizeof(process_t));
+	if (process == NULL) {
 		return -ENOMEM;
+	}
 
 #ifdef NOMMU
 	process->entries = NULL;
@@ -264,7 +265,8 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->path = NULL;
 
 	if (path != NULL) {
-		if ((process->path = vm_kmalloc(hal_strlen(path) + 1)) == NULL) {
+		process->path = vm_kmalloc(hal_strlen(path) + 1);
+		if (process->path == NULL) {
 			vm_kfree(process);
 			return -ENOMEM;
 		}
@@ -866,8 +868,9 @@ static void proc_spawnThread(void *arg)
 	process_spawn_t *spawn = arg;
 
 	/* temporary: create new posix process */
-	if (spawn->parent != NULL)
+	if (spawn->parent != NULL) {
 		posix_clone(spawn->parent->process->id);
+	}
 
 	process_exec(current, spawn);
 }
@@ -1036,12 +1039,14 @@ static void process_vforkThread(void *arg)
 	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl, &sc);
-	while (spawn->state < FORKING)
+	while (spawn->state < FORKING) {
 		proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
+	}
 	hal_spinlockClear(&spawn->sl, &sc);
 
 	/* Copy parent kernel stack */
-	if ((current->parentkstack = (void *)vm_kmalloc(parent->kstacksz)) == NULL) {
+	current->parentkstack = vm_kmalloc(parent->kstacksz);
+	if (current->parentkstack == NULL) {
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = -ENOMEM;
 		proc_threadWakeup(&spawn->wq);
@@ -1074,11 +1079,15 @@ int proc_vfork(void)
 	process_spawn_t *spawn;
 	spinlock_ctx_t sc;
 
-	if ((current = proc_current()) == NULL)
+	current = proc_current();
+	if (current == NULL) {
 		return -EINVAL;
+	}
 
-	if ((spawn = vm_kmalloc(sizeof(*spawn))) == NULL)
+	spawn = vm_kmalloc(sizeof(*spawn));
+	if (spawn == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_spinlockCreate(&spawn->sl, "execsl");
 
@@ -1089,7 +1098,8 @@ int proc_vfork(void)
 	spawn->state = PREFORK;
 	spawn->parent = current;
 
-	if ((pid = proc_start(process_vforkThread, spawn, NULL)) < 0) {
+	pid = proc_start(process_vforkThread, spawn, NULL);
+	if (pid < 0) {
 		hal_spinlockDestroy(&spawn->sl);
 		vm_kfree(spawn);
 		return pid;
@@ -1107,8 +1117,7 @@ int proc_vfork(void)
 		 */
 		proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
 		isparent = proc_current() == current;
-	}
-	while (spawn->state < FORKED && spawn->state > 0 && isparent);
+	} while ((spawn->state < FORKED) && (spawn->state > 0) && (isparent != 0));
 
 	hal_spinlockClear(&spawn->sl, &sc);
 
@@ -1117,7 +1126,7 @@ int proc_vfork(void)
 		vm_objectPut(spawn->object);
 		ret = spawn->state;
 		vm_kfree(spawn);
-		return ret < 0 ? ret : pid;
+		return (ret < 0) ? ret : pid;
 	}
 
 	return 0;
@@ -1191,7 +1200,8 @@ int proc_fork(void)
 	void *kstack;
 	unsigned sigmask;
 
-	if (!(err = proc_vfork())) {
+	err = proc_vfork();
+	if (err == 0) {
 		current = proc_current();
 
 		/* Mask all signals - during process_copy(), incoming signal might try

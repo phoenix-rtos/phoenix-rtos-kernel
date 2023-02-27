@@ -299,10 +299,12 @@ int posix_clone(int ppid)
 
 	proc = proc_current()->process;
 
-	if ((p = vm_kmalloc(sizeof(process_info_t))) == NULL)
+	p = vm_kmalloc(sizeof(process_info_t));
+	if (p == NULL) {
 		return -ENOMEM;
+	}
 
-	hal_memset(&console, 0, sizeof(oid_t));
+	hal_memset(&console, 0, sizeof(console));
 	proc_lockInit(&p->lock);
 	p->children = NULL;
 	p->zombies = NULL;
@@ -310,7 +312,8 @@ int posix_clone(int ppid)
 	p->next = p->prev = NULL;
 	p->refs = 1;
 
-	if ((pp = pinfo_find(ppid)) != NULL) {
+	pp = pinfo_find(ppid);
+	if (pp != NULL) {
 		TRACE("clone: got parent");
 		proc_lockSet(&pp->lock);
 		p->maxfd = pp->maxfd;
@@ -324,7 +327,8 @@ int posix_clone(int ppid)
 
 	p->process = proc->id;
 
-	if ((p->fds = vm_kmalloc((p->maxfd + 1) * sizeof(fildes_t))) == NULL) {
+	p->fds = vm_kmalloc((p->maxfd + 1) * sizeof(fildes_t));
+	if (p->fds == NULL) {
 		vm_kfree(p);
 		if (pp != NULL) {
 			proc_lockClear(&pp->lock);
@@ -337,7 +341,8 @@ int posix_clone(int ppid)
 		hal_memcpy(p->fds, pp->fds, (pp->maxfd + 1) * sizeof(fildes_t));
 
 		for (i = 0; i <= p->maxfd; ++i) {
-			if ((f = p->fds[i].file) != NULL) {
+			f = p->fds[i].file;
+			if (f != NULL) {
 				proc_lockSet(&f->lock);
 				++f->refs;
 				proc_lockClear(&f->lock);
@@ -350,8 +355,11 @@ int posix_clone(int ppid)
 		hal_memset(p->fds, 0, (p->maxfd + 1) * sizeof(fildes_t));
 
 		for (i = 0; i < 3; ++i) {
-			if ((f = p->fds[i].file = vm_kmalloc(sizeof(open_file_t))) == NULL)
+			f = vm_kmalloc(sizeof(open_file_t));
+			p->fds[i].file = f;
+			if (f == NULL) {
 				return -ENOMEM;
+			}
 
 			proc_lockInit(&f->lock);
 			f->refs = 1;
@@ -2284,17 +2292,22 @@ int posix_setpgid(pid_t pid, pid_t pgid)
 {
 	process_info_t *pinfo;
 
-	if (pid < 0 || pgid < 0)
+	if ((pid < 0) || (pgid < 0)) {
 		return -EINVAL;
+	}
 
-	if (!pid)
+	if (pid == 0) {
 		pid = proc_current()->process->id;
+	}
 
-	if (!pgid)
+	if (pgid == 0) {
 		pgid = pid;
+	}
 
-	if ((pinfo = pinfo_find(pid)) == NULL)
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
 		return -EINVAL;
+	}
 
 	proc_lockSet(&pinfo->lock);
 	pinfo->pgid = pgid;
@@ -2309,14 +2322,18 @@ pid_t posix_getpgid(pid_t pid)
 	process_info_t *pinfo;
 	pid_t res;
 
-	if (pid < 0)
+	if (pid < 0) {
 		return -EINVAL;
+	}
 
-	if (!pid)
+	if (pid == 0) {
 		pid = proc_current()->process->id;
+	}
 
-	if ((pinfo = pinfo_find(pid)) == NULL)
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
 		return -EINVAL;
+	}
 
 	proc_lockSet(&pinfo->lock);
 	res = pinfo->pgid;

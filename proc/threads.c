@@ -787,14 +787,18 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	thread_t *t;
 	spinlock_ctx_t sc;
 
-	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *))
+	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *)) {
 		return -EINVAL;
+	}
 
-	if ((t = vm_kmalloc(sizeof(thread_t))) == NULL)
+	t = vm_kmalloc(sizeof(thread_t));
+	if (t == NULL) {
 		return -ENOMEM;
+	}
 
 	t->kstacksz = kstacksz;
-	if ((t->kstack = vm_kmalloc(t->kstacksz)) == NULL) {
+	t->kstack = vm_kmalloc(t->kstacksz);
+	if (t->kstack == NULL) {
 		vm_kfree(t);
 		return -ENOMEM;
 	}
