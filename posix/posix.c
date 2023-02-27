@@ -375,7 +375,7 @@ int posix_clone(int ppid)
 	}
 
 	if (pp != NULL) {
-		p->pgid = ppid;
+		p->pgid = pp->pgid;
 		pinfo_put(pp);
 	}
 	else {
