@@ -2420,7 +2420,7 @@ int posix_waitpid(pid_t child, int *status, int options)
 
 void posix_died(pid_t pid, int exit)
 {
-	process_info_t *pinfo, *ppinfo;
+	process_info_t *pinfo, *ppinfo, *init, *cinfo;
 
 	if ((pinfo = pinfo_find(pid)) == NULL)
 		return;
@@ -2436,6 +2436,23 @@ void posix_died(pid_t pid, int exit)
 		LIST_ADD(&ppinfo->zombies, pinfo);
 		proc_threadBroadcast(&ppinfo->wait);
 		proc_lockClear(&ppinfo->lock);
+
+		init = pinfo_find(1);
+		if (init != NULL) {
+			proc_lockSet2(&pinfo->lock, &init->lock);
+			while (pinfo->children != NULL) {
+				cinfo = pinfo->children;
+
+				/* Treat cinfo->parent as atomic, no need for lock */
+				cinfo->parent = 1;
+
+				LIST_REMOVE(&pinfo->children, cinfo);
+				LIST_ADD(&init->children, cinfo);
+			}
+			proc_lockClear(&pinfo->lock);
+			proc_lockClear(&init->lock);
+			pinfo_put(init);
+		}
 
 		posix_sigchild(pinfo->parent);
 
