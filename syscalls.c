@@ -356,30 +356,44 @@ void syscalls_meminfo(void *ustack)
 int syscalls_syspageprog(void *ustack)
 {
 	int i;
-	size_t sz, namesz;
+	size_t sz;
 	syspageprog_t *prog;
 	const syspage_prog_t *progSys;
+	const char *name;
 
 	GETFROMSTACK(ustack, syspageprog_t *, prog, 0);
 	GETFROMSTACK(ustack, int, i, 1);
 
 	sz = syspage_progSize();
-	if (i < 0)
+	if (i < 0) {
 		return sz;
+	}
 
-	if (i >= sz)
+	if (i >= sz) {
 		return -EINVAL;
+	}
 
-	if ((progSys = syspage_progIdResolve(i)) == NULL)
+	progSys = syspage_progIdResolve(i);
+	if (progSys == NULL) {
 		return -EINVAL;
+	}
 
 	prog->addr = progSys->start;
 	prog->size = progSys->end - progSys->start;
 
 	/* TODO: change syspageprog_t to allocate data for name dynamically */
-	namesz = hal_strlen(progSys->argv);
-	sz = min(sizeof(prog->name) - 1, namesz);
-	hal_memcpy(prog->name, progSys->argv, sz);
+
+	name = progSys->argv;
+	for (sz = 0; (name[sz] != '\0') && (name[sz] != ';'); ++sz) {
+	}
+
+	sz = min(sizeof(prog->name) - 1, sz);
+	if (*name == 'X') {
+		name++;
+		sz--;
+	}
+
+	hal_memcpy(prog->name, name, sz);
 	prog->name[sz] = '\0';
 
 	return EOK;
