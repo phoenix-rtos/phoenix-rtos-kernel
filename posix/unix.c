@@ -866,16 +866,35 @@ int unix_shutdown(unsigned socket, int how)
 }
 
 
-/* TODO: support buffer reallocation */
+/* TODO: copy data from old buffer */
 static int unix_bufferSetSize(unixsock_t *s, int sz)
 {
-	if (sz < US_MIN_BUFFER_SIZE || sz > US_MAX_BUFFER_SIZE)
-		return -EINVAL;
+	void *v[2] = { NULL, NULL };
 
-	if (s->buffer.data != NULL)
+	if (sz < US_MIN_BUFFER_SIZE || sz > US_MAX_BUFFER_SIZE) {
 		return -EINVAL;
+	}
+
+	proc_lockSet(&s->lock);
+
+	if (s->buffer.data != NULL) {
+		v[0] = vm_kmalloc(sz);
+		if (v[0] == NULL) {
+			proc_lockClear(&s->lock);
+			return -ENOMEM;
+		}
+
+		v[1] = s->buffer.data;
+		_cbuffer_init(&s->buffer, v[0], sz);
+	}
 
 	s->buffsz = sz;
+
+	proc_lockClear(&s->lock);
+
+	if (v[1] != NULL) {
+		vm_kfree(v[1]);
+	}
 
 	return 0;
 }
