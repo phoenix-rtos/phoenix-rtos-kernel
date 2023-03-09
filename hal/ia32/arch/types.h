@@ -26,6 +26,18 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
+typedef u8 ld80[10]; /* Long double as bytes */
+typedef struct {
+	u16 _controlWord, controlWord;
+	u16 _statusWord, statusWord;
+	u16 _tagWord, tagWord;
+	u32 fip;
+	u32 fips;
+	u32 fdp;
+	u16 _fds, fds;
+	ld80 fpuContext[8];
+} fpu_context_t;
+
 typedef char s8;
 typedef short s16;
 typedef int s32;

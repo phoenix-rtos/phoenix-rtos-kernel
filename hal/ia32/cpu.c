@@ -138,6 +138,8 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->dr3 = 0;
 #endif
 
+	hal_memset(&ctx->fpuContext, 0, sizeof(ctx->fpuContext));
+	ctx->cr0Bits = CR0_TS_BIT; /* The process starts with unused FPU */
 	ctx->edi = 0;
 	ctx->esi = 0;
 	ctx->ebp = 0;
@@ -256,8 +258,8 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 
 void hal_longjmp(cpu_context_t *ctx)
 {
-	__asm__ volatile
-	(" \
+	/* clang-format off */
+	__asm__ volatile(" \
 		cli; \
 		movl %0, %%eax;\
 		addl $4, %%eax;\
@@ -283,9 +285,25 @@ void hal_longjmp(cpu_context_t *ctx)
 		popw %%fs;\
 		popw %%es;\
 		popw %%ds;\
+		testl %[cr0ts], %c[fpuContextSize](%%esp);\
+		movl %%eax, %c[fpuContextSize](%%esp);\
+		movl %%cr0, %%eax;\
+		jz .hal_longjmp_fpu;\
+		orl %[cr0ts], %%eax;\
+		mov %%eax, %%cr0;\
+		addl %[fpuContextSize], %%esp;\
+		popl %%eax;\
+		iret;\
+		.hal_longjmp_fpu: \
+		andl %[not_cr0ts], %%eax;\
+		mov %%eax, %%cr0;\
+		frstor (%%esp);\
+		addl %[fpuContextSize], %%esp;\
+		popl %%eax;\
 		iret"
 	:
-	:"g" (ctx));
+	: "g" (ctx), [cr0ts] "i" (CR0_TS_BIT), [not_cr0ts] "i" (~CR0_TS_BIT), [fpuContextSize] "i" (FPU_CONTEXT_SIZE));
+	/* clang-format on */
 }
 
 

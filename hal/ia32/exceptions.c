@@ -58,7 +58,7 @@ extern void _exceptions_exc28(void);
 extern void _exceptions_exc29(void);
 extern void _exceptions_exc30(void);
 extern void _exceptions_exc31(void);
-
+extern void exceptions_exc7_handler(unsigned int n, exc_context_t *ctx);
 
 #define SIZE_EXCHANDLERS   32
 
@@ -282,8 +282,10 @@ __attribute__ ((section (".init"))) void _hal_exceptionsInit(void)
 	_exceptions_setIDTStub(30, _exceptions_exc30);
 	_exceptions_setIDTStub(31, _exceptions_exc31);
 
-	for (k = 0; k < SIZE_EXCHANDLERS; k++)
+	for (k = 0; k < SIZE_EXCHANDLERS; k++) {
 		exceptions.handlers[k] = exceptions_trampoline;
+	}
+	exceptions.handlers[7] = exceptions_exc7_handler;
 
 	return;
 }
