@@ -962,7 +962,10 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	hal_cpuDisableInterrupts();
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 	hal_cpuSetGot(current->process->got);
-	hal_cpuTlsSet(&current->tls, current->context);
+
+	if (current->tls.tls_base != NULL) {
+		hal_cpuTlsSet(&current->tls, current->context);
+	}
 
 #ifdef TARGET_RISCV64
 	hal_jmp(entry, current->kstack + current->kstacksz, stack, 3);
@@ -1176,7 +1179,10 @@ static void process_vforkThread(void *arg)
 
 	hal_cpuDisableInterrupts();
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
-	hal_cpuTlsSet(&current->tls, current->context);
+
+	if (current->tls.tls_base != NULL) {
+		hal_cpuTlsSet(&current->tls, current->context);
+	}
 
 	/* Start execution from parent suspend point */
 	hal_longjmp(parent->context);
