@@ -843,6 +843,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 		t->tls.tls_base = NULL;
 		t->tls.tdata_sz = 0;
 		t->tls.tbss_sz = 0;
+		t->tls.tls_sz = 0;
 		t->tls.arm_m_tls = NULL;
 	}
 
