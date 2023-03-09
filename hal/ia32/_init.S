@@ -194,6 +194,11 @@ b0:
 b1:	btl $12, (0xfee00300)
 	jc b1
 b3:
+	/* Set FPU */
+	fninit
+	movl %cr0, %eax
+	orl $8, %eax	// Set TS flag
+	mov %eax, %cr0
 	/* Now jump to main function */
 	pushl $0
 	pushl $0

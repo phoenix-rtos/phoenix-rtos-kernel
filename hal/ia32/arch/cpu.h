@@ -103,6 +103,8 @@
 
 #define TLS_DESC_IDX 5
 
+#define CR0_TS_BIT       8u
+#define FPU_CONTEXT_SIZE 108u /* sizeof(fpu_context_t) */
 
 #ifndef __ASSEMBLY__
 
@@ -149,10 +151,11 @@ typedef struct {
 	u16 fs;
 	u16 es;
 	u16 ds;
+	fpu_context_t fpuContext;
+	u32 cr0Bits;
 	u32 eip; /* eip, cs, eflags, esp, ss saved by CPU on interrupt */
 	u32 cs;
 	u32 eflags;
-
 	u32 esp;
 	u32 ss;
 } cpu_context_t;

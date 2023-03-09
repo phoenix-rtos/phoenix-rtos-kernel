@@ -24,10 +24,12 @@
 
 
 #ifndef NDEBUG
-#define CTXPUSHL 14
+#define CTXPUSHL 42 /* 10 + 4 (DEBUG) + 28 (FPU) */
 #else
-#define CTXPUSHL 10
+#define CTXPUSHL 38 /* 10 + 28 (FPU) */
 #endif
+
+#define EAX_OFFSET (16 + (FPU_CONTEXT_SIZE))
 
 
 .global interrupts_pushContext
@@ -35,6 +37,16 @@ interrupts_pushContext:
 	xchgl (%esp), %edx
 	movl %edx, -(4 * CTXPUSHL)(%esp)
 	popl %edx
+	/* Check TS flag in CR0 register */
+	pushl %eax
+	movl %cr0, %eax
+	subl $FPU_CONTEXT_SIZE, %esp
+	andl $CR0_TS_BIT, %eax
+	xchgl FPU_CONTEXT_SIZE(%esp), %eax
+	jnz .interrupts_pushRegisters
+	/* Save FPU context */
+	fsave (%esp)
+.interrupts_pushRegisters:
 	pushw %ds
 	pushw %es
 	pushw %fs
@@ -55,7 +67,7 @@ interrupts_pushContext:
 	pushl %edx
 	movl %dr0, %edx
 	pushl %edx
-#endif	
+#endif
 	pushl %esp
 	subl $4, %esp
 	ret
@@ -86,6 +98,22 @@ interrupts_popContext:
 	popw %fs
 	popw %es
 	popw %ds
+	/* FPU context */
+	testl $CR0_TS_BIT, FPU_CONTEXT_SIZE(%esp)
+	movl %eax, FPU_CONTEXT_SIZE(%esp)
+	movl %cr0, %eax
+	jz .interrupts_popFPU
+	orl $CR0_TS_BIT, %eax
+	movl %eax, %cr0
+	addl $FPU_CONTEXT_SIZE, %esp
+	popl %eax
+	iret;
+	.interrupts_popFPU:
+	andl $~CR0_TS_BIT, %eax
+	mov %eax, %cr0
+	frstor (%esp)
+	addl $FPU_CONTEXT_SIZE, %esp
+	popl %eax
 	iret
 .size interrupts_popContext, .-interrupts_popContext
 
@@ -216,6 +244,6 @@ _interrupts_syscall:
 	call syscalls_dispatch
 	cli
 	addl $8, %esp
-	movl %eax, (4 * CTXPUSHL - 12)(%esp)
+	movl %eax, (4 * CTXPUSHL - EAX_OFFSET)(%esp)	// Save return value to eax in context
 	jmp interrupts_popContext
 .size _interrupts_syscall, .-_interrupts_syscall
