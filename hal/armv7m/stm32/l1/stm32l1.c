@@ -218,15 +218,16 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 
 	state = !!state;
 
-	if (d <= ahb_end) {
-		t = *(stm32_common.rcc + rcc_ahbenr) & ~(1 << d);
-		*(stm32_common.rcc + rcc_ahbenr) = t | (state << d);
+	/* there are gaps in numeration so values need to compared with both begin and end */
+	if (d >= ahb_begin && d <= ahb_end) {
+		t = *(stm32_common.rcc + rcc_ahbenr) & ~(1 << (d - ahb_begin));
+		*(stm32_common.rcc + rcc_ahbenr) = t | (state << (d - ahb_begin));
 	}
-	else if (d <= apb2_end) {
+	else if (d >= apb2_begin && d <= apb2_end) {
 		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1 << (d - apb2_begin));
 		*(stm32_common.rcc + rcc_apb2enr) = t | (state << (d - apb2_begin));
 	}
-	else if (d <= apb1_end) {
+	else if (d >= apb1_begin && d <= apb1_end) {
 		t = *(stm32_common.rcc + rcc_apb1enr) & ~(1 << (d - apb1_begin));
 		*(stm32_common.rcc + rcc_apb1enr) = t | (state << (d - apb1_begin));
 	}
@@ -251,18 +252,19 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 
 int _stm32_rccGetDevClock(unsigned int d, u32 *state)
 {
-	if (d <= ahb_end) {
+	/* there are gaps in numeration so values need to compared with both begin and end */
+	if (d >= ahb_begin && d <= ahb_end) {
 		if (d == pctl_gpiof || d == pctl_gpiog)
 			d += 1;
 		else if (d == pctl_gpioh)
 			d -= 2;
 
-		*state = !!(*(stm32_common.rcc + rcc_ahbenr) & (1 << d));
+		*state = !!(*(stm32_common.rcc + rcc_ahbenr) & (1 << (d - ahb_begin)));
 	}
-	else if (d <= apb2_end) {
+	else if (d >= apb2_begin && d <= apb2_end) {
 		*state = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
 	}
-	else if (d <= apb1_end) {
+	else if (d >= apb1_begin && d <= apb1_end) {
 		*state = !!(*(stm32_common.rcc + rcc_apb1enr) & (1 << (d - apb1_begin)));
 	}
 	else if (d == pctl_rtc) {
