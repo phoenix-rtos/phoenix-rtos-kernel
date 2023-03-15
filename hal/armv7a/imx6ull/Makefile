@@ -12,6 +12,10 @@ ifdef MEMTEST_SHORT
   CFLAGS += -DMEMTEST_SHORT
 endif
 
+ifeq ($(KERNEL_PLO_BOOT), y)
+  CFLAGS += -DKERNEL_PLO_BOOT
+endif
+
 # TODO: remove after introducing plo
 # HACKISH: different OBJS for memtest target
 .PHONY: memtest

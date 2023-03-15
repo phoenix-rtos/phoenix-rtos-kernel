@@ -64,6 +64,7 @@ init_vectors:
 	ldr pc, =_interrupts_dispatch
 	ldr pc, =_interrupts_dispatch
 
+#ifndef KERNEL_PLO_BOOT
 syspage_data:
 
 .org 0x400, 0x0
@@ -339,6 +340,7 @@ boot_data:
 	.word __bss_start__ - ivt                           /* size - will be changed during image creation */
 	.word 0                                             /* plugin */
 	.word 0
+#endif
 
 _cpy4:
 	mov r3, #4
@@ -353,6 +355,29 @@ _cpy4:
 _start:
 	cpsid aif, #SYS_MODE
 
+#ifdef KERNEL_PLO_BOOT
+	ldr r0, =(relOffs - VADDR_KERNEL + ADDR_DDR)
+	ldr r1, =VADDR_SYSPAGE
+	lsr r1, #12
+	lsl r1, #12
+
+	sub r2, r1, r9
+	str r2, [r0]
+
+	ldr r0, [r9, #4] /* syspage size address - syspage address + sizeof(hal_syspage_t) */
+	add r2, r9, r0   /* end of the syspage */
+
+	ldr r0, =(syspage - VADDR_KERNEL + ADDR_DDR)
+	str r1, [r0]
+
+	add r1, r1, #(ADDR_DDR - VADDR_KERNEL)
+
+syspage_cpy:
+	ldr r3, [r9], #4
+	str r3, [r1], #4
+	cmp r9, r2
+	blo syspage_cpy
+#else
 /* Temporary solution: code allowing skipping phoenix-rtos-loader */
 	ldr r0, =(ADDR_DDR + syspage_data - init_vectors)
 	ldr r0, [r0, #16] /* points to syspage->progs address (circular list) */
@@ -406,6 +431,7 @@ init_syspage:
 	ldr r1, =(VADDR_KERNEL - ADDR_DDR)
 	str r1, [r0]
 /* End of the the temporary code */
+#endif
 
 	/* Save and clear boot reason - RM: otherwise all boot reasons since POR */
 	ldr r0, =0x20d8008
