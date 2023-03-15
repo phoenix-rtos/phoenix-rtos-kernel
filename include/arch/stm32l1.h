@@ -64,8 +64,8 @@ typedef struct {
 
 	union {
 		struct {
-			unsigned int dev;
-			unsigned int state;
+			unsigned int dev;   /* one of pctl_* enum values */
+			unsigned int state; /* 1 - clock enabled; 0 - clock disabled */
 		} devclk;
 
 		struct {
