@@ -37,14 +37,14 @@ extern void _stm32_platformInit(void);
 
 
 /* Sets peripheral clock */
-extern int _stm32_rccSetDevClock(unsigned int d, u32 hz);
+extern int _stm32_rccSetDevClock(unsigned int d, u32 state);
 
 
-/* Sets CPU clock to the closest smaller MSI freqency */
+/* Sets CPU clock to the closest smaller MSI frequency */
 extern int _stm32_rccSetCPUClock(u32 hz);
 
 
-extern int _stm32_rccGetDevClock(unsigned int d, u32 *hz);
+extern int _stm32_rccGetDevClock(unsigned int d, u32 *state);
 
 
 extern u32 _stm32_rccGetCPUClock(void);

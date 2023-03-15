@@ -212,33 +212,33 @@ int _stm32_rccSetMSI(u32 on)
 }
 
 
-int _stm32_rccSetDevClock(unsigned int d, u32 hz)
+int _stm32_rccSetDevClock(unsigned int d, u32 state)
 {
 	u32 t;
 
-	hz = !!hz;
+	state = !!state;
 
 	if (d <= ahb_end) {
 		t = *(stm32_common.rcc + rcc_ahbenr) & ~(1 << d);
-		*(stm32_common.rcc + rcc_ahbenr) = t | (hz << d);
+		*(stm32_common.rcc + rcc_ahbenr) = t | (state << d);
 	}
 	else if (d <= apb2_end) {
 		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1 << (d - apb2_begin));
-		*(stm32_common.rcc + rcc_apb2enr) = t | (hz << (d - apb2_begin));
+		*(stm32_common.rcc + rcc_apb2enr) = t | (state << (d - apb2_begin));
 	}
 	else if (d <= apb1_end) {
 		t = *(stm32_common.rcc + rcc_apb1enr) & ~(1 << (d - apb1_begin));
-		*(stm32_common.rcc + rcc_apb1enr) = t | (hz << (d - apb1_begin));
+		*(stm32_common.rcc + rcc_apb1enr) = t | (state << (d - apb1_begin));
 	}
 	else if (d == pctl_rtc) {
 		t = *(stm32_common.rcc + rcc_csr) & ~(1 << 22);
-		*(stm32_common.rcc + rcc_csr) = t | (hz << 22);
+		*(stm32_common.rcc + rcc_csr) = t | (state << 22);
 	}
 	else if (d == pctl_msi) {
-		_stm32_rccSetMSI(hz);
+		_stm32_rccSetMSI(state);
 	}
 	else if (d == pctl_hsi) {
-		_stm32_rccSetHSI(hz);
+		_stm32_rccSetHSI(state);
 	}
 	else
 		return -EINVAL;
@@ -249,7 +249,7 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 }
 
 
-int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
+int _stm32_rccGetDevClock(unsigned int d, u32 *state)
 {
 	if (d <= ahb_end) {
 		if (d == pctl_gpiof || d == pctl_gpiog)
@@ -257,22 +257,22 @@ int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
 		else if (d == pctl_gpioh)
 			d -= 2;
 
-		*hz = !!(*(stm32_common.rcc + rcc_ahbenr) & (1 << d));
+		*state = !!(*(stm32_common.rcc + rcc_ahbenr) & (1 << d));
 	}
 	else if (d <= apb2_end) {
-		*hz = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
+		*state = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
 	}
 	else if (d <= apb1_end) {
-		*hz = !!(*(stm32_common.rcc + rcc_apb1enr) & (1 << (d - apb1_begin)));
+		*state = !!(*(stm32_common.rcc + rcc_apb1enr) & (1 << (d - apb1_begin)));
 	}
 	else if (d == pctl_rtc) {
-		*hz = !!(*(stm32_common.rcc + rcc_csr) & (1 << 22));
+		*state = !!(*(stm32_common.rcc + rcc_csr) & (1 << 22));
 	}
 	else if (d == pctl_msi) {
-		*hz = !!(*(stm32_common.rcc + rcc_cr) & 0x100);
+		*state = !!(*(stm32_common.rcc + rcc_cr) & 0x100);
 	}
 	else if (d == pctl_hsi) {
-		*hz = !!(*(stm32_common.rcc + rcc_cr) & 1);
+		*state = !!(*(stm32_common.rcc + rcc_cr) & 1);
 	}
 	else {
 		return -EINVAL;

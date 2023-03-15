@@ -158,39 +158,39 @@ void _stm32_platformInit(void)
 /* RCC (Reset and Clock Controller) */
 
 
-int _stm32_rccSetDevClock(unsigned int d, u32 hz)
+int _stm32_rccSetDevClock(unsigned int d, u32 state)
 {
 	u32 t;
 
-	hz = !!hz;
+	state = !!state;
 
 	if (d <= ahb1_end) {
 		t = *(stm32_common.rcc + rcc_ahb1enr) & ~(1 << (d - ahb1_begin));
-		*(stm32_common.rcc + rcc_ahb1enr) = t | (hz << (d - ahb1_begin));
+		*(stm32_common.rcc + rcc_ahb1enr) = t | (state << (d - ahb1_begin));
 	}
 	else if (d <= ahb2_end) {
 		t = *(stm32_common.rcc + rcc_ahb2enr) & ~(1 << (d - ahb2_begin));
-		*(stm32_common.rcc + rcc_ahb2enr) = t | (hz << (d - ahb2_begin));
+		*(stm32_common.rcc + rcc_ahb2enr) = t | (state << (d - ahb2_begin));
 	}
 	else if (d <= ahb3_end) {
 		t = *(stm32_common.rcc + rcc_ahb3enr) & ~(1 << (d - ahb3_begin));
-		*(stm32_common.rcc + rcc_ahb3enr) = t | (hz << (d - ahb3_begin));
+		*(stm32_common.rcc + rcc_ahb3enr) = t | (state << (d - ahb3_begin));
 	}
 	else if (d <= apb1_1_end) {
 		t = *(stm32_common.rcc + rcc_apb1enr1) & ~(1 << (d - apb1_1_begin));
-		*(stm32_common.rcc + rcc_apb1enr1) = t | (hz << (d - apb1_1_begin));
+		*(stm32_common.rcc + rcc_apb1enr1) = t | (state << (d - apb1_1_begin));
 	}
 	else if (d <= apb1_2_end) {
 		t = *(stm32_common.rcc + rcc_apb1enr2) & ~(1 << (d - apb1_2_begin));
-		*(stm32_common.rcc + rcc_apb1enr2) = t | (hz << (d - apb1_2_begin));
+		*(stm32_common.rcc + rcc_apb1enr2) = t | (state << (d - apb1_2_begin));
 	}
 	else if (d <= apb2_end) {
 		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1 << (d - apb2_begin));
-		*(stm32_common.rcc + rcc_apb2enr) = t | (hz << (d - apb2_begin));
+		*(stm32_common.rcc + rcc_apb2enr) = t | (state << (d - apb2_begin));
 	}
 	else if (d == pctl_rtc) {
 		t = *(stm32_common.rcc + rcc_bdcr) & ~(1 << 15);
-		*(stm32_common.rcc + rcc_bdcr) = t | (hz << 15);
+		*(stm32_common.rcc + rcc_bdcr) = t | (state << 15);
 	}
 	else
 		return -EINVAL;
@@ -201,22 +201,22 @@ int _stm32_rccSetDevClock(unsigned int d, u32 hz)
 }
 
 
-int _stm32_rccGetDevClock(unsigned int d, u32 *hz)
+int _stm32_rccGetDevClock(unsigned int d, u32 *state)
 {
 	if (d <= ahb1_end)
-		*hz = !!(*(stm32_common.rcc + rcc_ahb1enr) & (1 << (d - ahb1_begin)));
+		*state = !!(*(stm32_common.rcc + rcc_ahb1enr) & (1 << (d - ahb1_begin)));
 	else if (d <= ahb2_end)
-		*hz = !!(*(stm32_common.rcc + rcc_ahb2enr) & (1 << (d - ahb2_begin)));
+		*state = !!(*(stm32_common.rcc + rcc_ahb2enr) & (1 << (d - ahb2_begin)));
 	else if (d <= ahb3_end)
-		*hz = !!(*(stm32_common.rcc + rcc_ahb3enr) & (1 << (d - ahb3_begin)));
+		*state = !!(*(stm32_common.rcc + rcc_ahb3enr) & (1 << (d - ahb3_begin)));
 	else if (d <= apb1_1_end)
-		*hz = !!(*(stm32_common.rcc + rcc_apb1enr1) & (1 << (d - apb1_1_begin)));
+		*state = !!(*(stm32_common.rcc + rcc_apb1enr1) & (1 << (d - apb1_1_begin)));
 	else if (d <= apb1_2_end)
-		*hz = !!(*(stm32_common.rcc + rcc_apb1enr2) & (1 << (d - apb1_2_begin)));
+		*state = !!(*(stm32_common.rcc + rcc_apb1enr2) & (1 << (d - apb1_2_begin)));
 	else if (d <= apb2_end)
-		*hz = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
+		*state = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
 	else if (d == pctl_rtc)
-		*hz = !!(*(stm32_common.rcc + rcc_bdcr) & (1 << 15));
+		*state = !!(*(stm32_common.rcc + rcc_bdcr) & (1 << 15));
 	else
 		return -EINVAL;
 
