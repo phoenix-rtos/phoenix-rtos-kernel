@@ -164,27 +164,29 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 
 	state = !!state;
 
-	if (d <= ahb1_end) {
+	/* there are gaps in numeration so values need to compared with both begin and end */
+
+	if (d >= ahb1_begin && d <= ahb1_end) {
 		t = *(stm32_common.rcc + rcc_ahb1enr) & ~(1 << (d - ahb1_begin));
 		*(stm32_common.rcc + rcc_ahb1enr) = t | (state << (d - ahb1_begin));
 	}
-	else if (d <= ahb2_end) {
+	else if (d >= ahb2_begin && d <= ahb2_end) {
 		t = *(stm32_common.rcc + rcc_ahb2enr) & ~(1 << (d - ahb2_begin));
 		*(stm32_common.rcc + rcc_ahb2enr) = t | (state << (d - ahb2_begin));
 	}
-	else if (d <= ahb3_end) {
+	else if (d >= ahb3_begin && d <= ahb3_end) {
 		t = *(stm32_common.rcc + rcc_ahb3enr) & ~(1 << (d - ahb3_begin));
 		*(stm32_common.rcc + rcc_ahb3enr) = t | (state << (d - ahb3_begin));
 	}
-	else if (d <= apb1_1_end) {
+	else if (d >= apb1_1_begin && d <= apb1_1_end) {
 		t = *(stm32_common.rcc + rcc_apb1enr1) & ~(1 << (d - apb1_1_begin));
 		*(stm32_common.rcc + rcc_apb1enr1) = t | (state << (d - apb1_1_begin));
 	}
-	else if (d <= apb1_2_end) {
+	else if (d >= apb1_2_begin && d <= apb1_2_end) {
 		t = *(stm32_common.rcc + rcc_apb1enr2) & ~(1 << (d - apb1_2_begin));
 		*(stm32_common.rcc + rcc_apb1enr2) = t | (state << (d - apb1_2_begin));
 	}
-	else if (d <= apb2_end) {
+	else if (d >= apb2_begin && d <= apb2_end) {
 		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1 << (d - apb2_begin));
 		*(stm32_common.rcc + rcc_apb2enr) = t | (state << (d - apb2_begin));
 	}
@@ -203,17 +205,18 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 
 int _stm32_rccGetDevClock(unsigned int d, u32 *state)
 {
-	if (d <= ahb1_end)
+	/* there are gaps in numeration so values need to compared with both begin and end */
+	if (d >= ahb1_begin && d <= ahb1_end)
 		*state = !!(*(stm32_common.rcc + rcc_ahb1enr) & (1 << (d - ahb1_begin)));
-	else if (d <= ahb2_end)
+	else if (d >= ahb2_begin && d <= ahb2_end)
 		*state = !!(*(stm32_common.rcc + rcc_ahb2enr) & (1 << (d - ahb2_begin)));
-	else if (d <= ahb3_end)
+	else if (d >= ahb3_begin && d <= ahb3_end)
 		*state = !!(*(stm32_common.rcc + rcc_ahb3enr) & (1 << (d - ahb3_begin)));
-	else if (d <= apb1_1_end)
+	else if (d >= apb1_1_begin && d <= apb1_1_end)
 		*state = !!(*(stm32_common.rcc + rcc_apb1enr1) & (1 << (d - apb1_1_begin)));
-	else if (d <= apb1_2_end)
+	else if (d >= apb1_2_begin && d <= apb1_2_end)
 		*state = !!(*(stm32_common.rcc + rcc_apb1enr2) & (1 << (d - apb1_2_begin)));
-	else if (d <= apb2_end)
+	else if (d >= apb2_begin && d <= apb2_end)
 		*state = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
 	else if (d == pctl_rtc)
 		*state = !!(*(stm32_common.rcc + rcc_bdcr) & (1 << 15));
