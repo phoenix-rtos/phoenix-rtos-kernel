@@ -46,6 +46,7 @@ typedef struct _log_reader_t {
 	unsigned nonblocking;
 	log_rmsg_t *msgs;
 	struct _log_reader_t *prev, *next;
+	int refs;
 } log_reader_t;
 
 
@@ -59,15 +60,16 @@ static struct {
 	volatile int enabled;
 } log_common;
 
+
 static int _log_empty(void)
 {
-	return log_common.tail == log_common.head;
+	return (log_common.tail == log_common.head) ? 1 : 0;
 }
 
 
 static int _log_full(void)
 {
-	return log_common.tail - log_common.head == SIZE_LOG;
+	return ((log_common.tail - log_common.head) == SIZE_LOG) ? 1 : 0;
 }
 
 
@@ -79,10 +81,7 @@ static char _log_pop(void)
 
 static void _log_push(char c)
 {
-	log_common.buf[log_common.tail % SIZE_LOG] = c;
-	log_common.tail++;
-	if (_log_full())
-		_log_pop();
+	log_common.buf[log_common.tail++ % SIZE_LOG] = c;
 }
 
 
@@ -96,18 +95,19 @@ static ssize_t _log_readln(log_reader_t *r, char *buf, size_t sz)
 {
 	ssize_t n = 0;
 
-	while (r->ridx < log_common.tail && n < sz) {
+	while ((r->ridx < log_common.tail) && ((size_t)n < sz)) {
 		buf[n++] = _log_getc(r->ridx++);
-		if (buf[n - 1] == '\n' || buf[n - 1] == '\0')
+		if ((buf[n - 1] == '\n') || (buf[n - 1] == '\0')) {
 			break;
+		}
 	}
 
 	/* Always end with newline */
-	if (n > 0 && buf[n - 1] != '\n') {
+	if ((n > 0) && (buf[n - 1] != '\n')) {
 		if (buf[n - 1] == '\0') {
 			buf[n - 1] = '\n';
 		}
-		else if (n < sz) {
+		else if ((size_t)n < sz) {
 			buf[n++] = '\n';
 		}
 		else {
@@ -143,7 +143,7 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 }
 
 
-static log_reader_t *log_readerFind(pid_t pid)
+static log_reader_t *_log_readerFind(pid_t pid)
 {
 	log_reader_t *r, *ret = NULL;
 
@@ -158,7 +158,46 @@ static log_reader_t *log_readerFind(pid_t pid)
 		} while (r != log_common.readers);
 	}
 
+	if (ret != NULL) {
+		++ret->refs;
+	}
+
 	return ret;
+}
+
+
+static log_reader_t *log_readerFind(pid_t pid)
+{
+	log_reader_t *r;
+
+	proc_lockSet(&log_common.lock);
+	r = _log_readerFind(pid);
+	proc_lockClear(&log_common.lock);
+
+	return r;
+}
+
+
+static void _log_readerPut(log_reader_t **r)
+{
+	if ((*r) != NULL) {
+		--(*r)->refs;
+		if ((*r)->refs <= 0) {
+			while ((*r)->msgs != NULL) {
+				_log_msgRespond((*r), -EIO);
+			}
+			LIST_REMOVE(&log_common.readers, (*r));
+			vm_kfree((*r));
+			(*r) = NULL;
+		}
+	}
+}
+
+static void log_readerPut(log_reader_t **r)
+{
+	proc_lockSet(&log_common.lock);
+	_log_readerPut(r);
+	proc_lockClear(&log_common.lock);
 }
 
 
@@ -166,17 +205,22 @@ static int log_readerAdd(pid_t pid, unsigned nonblocking)
 {
 	log_reader_t *r;
 
-	if (log_readerFind(pid) != NULL)
+	r = log_readerFind(pid);
+	if (r != NULL) {
+		log_readerPut(&r);
 		return -EINVAL;
+	}
 
 	r = vm_kmalloc(sizeof(log_reader_t));
-	if (r == NULL)
+	if (r == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(r, 0, sizeof(log_reader_t));
 
-	r->nonblocking = !!nonblocking;
+	r->nonblocking = nonblocking;
 	r->pid = pid;
+	r->refs = 1;
 
 	proc_lockSet(&log_common.lock);
 	r->ridx = log_common.head;
@@ -194,8 +238,11 @@ static void _log_readersUpdate(void)
 
 	if (r != NULL) {
 		do {
-			if (r->msgs != NULL) {
+			while (r->msgs != NULL) {
 				ret = _log_readln(r, r->msgs->odata, r->msgs->osize);
+				if (ret == 0) {
+					break;
+				}
 				_log_msgRespond(r, ret);
 			}
 			r = r->next;
@@ -209,8 +256,9 @@ static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, unsigned long
 	log_rmsg_t *rmsg;
 
 	rmsg = vm_kmalloc(sizeof(*rmsg));
-	if (rmsg == NULL)
+	if (rmsg == NULL) {
 		return -ENOMEM;
+	}
 
 	rmsg->odata = msg->o.data;
 	rmsg->osize = msg->o.size;
@@ -230,12 +278,11 @@ static void log_close(pid_t pid)
 	log_reader_t *r;
 
 	proc_lockSet(&log_common.lock);
-	r = log_readerFind(pid);
+	r = _log_readerFind(pid);
 	if (r != NULL) {
-		while (r->msgs != NULL)
-			_log_msgRespond(r, -EIO);
-		LIST_REMOVE(&log_common.readers, r);
-		vm_kfree(r);
+		/* Put 2 times to decrement initial reference too */
+		_log_readerPut(&r);
+		_log_readerPut(&r);
 	}
 	proc_lockClear(&log_common.lock);
 }
@@ -243,19 +290,14 @@ static void log_close(pid_t pid)
 
 static int log_devctl(msg_t *msg)
 {
-	ioctl_in_t *in;
-	ioctl_out_t *out;
+	ioctl_in_t *in = (ioctl_in_t *)msg->i.raw;
+	ioctl_out_t *out = (ioctl_out_t *)msg->o.raw;
 
-	in = (ioctl_in_t *)msg->i.raw;
-	out = (ioctl_out_t *)msg->o.raw;
 	/*
 	 * We need to handle isatty(), which
 	 * only checks if a device responds to TCGETS
 	 */
-	if (in->request == TCGETS)
-		out->err = EOK;
-	else
-		out->err = -EINVAL;
+	out->err = (in->request == TCGETS) ? EOK : -EINVAL;
 
 	return 0;
 }
@@ -301,15 +343,16 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			}
 			else {
 				msg->o.io.err = log_read(r, msg->o.data, msg->o.size);
-				if (msg->o.io.err == 0 && !r->nonblocking) {
+				if ((msg->o.io.err == 0) && (r->nonblocking == 0)) {
 					msg->o.io.err = log_readerBlock(r, msg, oid, rid);
 					if (msg->o.io.err == EOK) {
 						respond = 0;
 					}
 				}
-				else if (msg->o.io.err == 0 && r->nonblocking) {
+				else if ((msg->o.io.err == 0) && (r->nonblocking != 0)) {
 					msg->o.io.err = -EAGAIN;
 				}
+				log_readerPut(&r);
 			}
 			break;
 		case mtWrite:
@@ -337,24 +380,22 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 int log_write(const char *data, size_t len)
 {
 	size_t i = 0;
-	int overwrite = 0;
 	char c;
 
 	if (log_common.enabled != 0) {
 		proc_lockSet(&log_common.lock);
 
-		if (log_common.tail + len >= log_common.head + SIZE_LOG) {
-			overwrite = 1;
-		}
+		/* No need to check log_common.enabled again,
+		 * it's used only on kernel panic */
 
 		for (i = 0; i < len; ++i) {
 			_log_push(data[i]);
-		}
-
-		if (overwrite) {
-			do {
-				c = _log_pop();
-			} while (c != '\n' && c != '\0' && !_log_empty());
+			if (_log_full() != 0) {
+				do {
+					/* Log full, remove oldest line to make space */
+					c = _log_pop();
+				} while ((c != '\n') && (c != '\0') && (_log_empty() == 0));
+			}
 		}
 
 		if (i > 0) {
@@ -378,8 +419,10 @@ void log_scrub(void)
 	 * avoid taking lock in most cases */
 	if (log_common.updated != 0) {
 		proc_lockSet(&log_common.lock);
-		_log_readersUpdate();
-		log_common.updated = 0;
+		if (log_common.updated != 0) {
+			_log_readersUpdate();
+			log_common.updated = 0;
+		}
 		proc_lockClear(&log_common.lock);
 	}
 }
