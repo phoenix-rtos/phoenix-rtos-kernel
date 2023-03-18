@@ -642,7 +642,13 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	Elf32_Ehdr *ehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr;
+#ifdef __sparc__
+	Elf32_Rela *rela;
+	Elf32_Sym *sym;
+	ptr_t symTab;
+#else
 	Elf32_Rel *rel;
+#endif
 	unsigned prot, flags, reloffs;
 	int i, j, relocsz = 0, reltype, badreloc = 0;
 	void *relptr;
@@ -759,6 +765,54 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	if (process_relocate(reloc, relocsz, (char **)entry) < 0)
 		return -ENOEXEC;
 
+#ifdef __sparc__
+	/* find symtab */
+	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], ".symtab") == 0)
+			break;
+	}
+
+	if (i >= ehdr->e_shnum) {
+		return -ENOEXEC;
+	}
+	symTab = (ptr_t)ehdr + (ptr_t)shdr->sh_offset;
+
+	/* Perform data, init_array and fini_array relocation */
+	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strncmp(&snameTab[shdr->sh_name], ".rela", 5) != 0)
+			continue;
+
+		if (!shdr->sh_size || !shdr->sh_entsize)
+			continue;
+
+		for (j = 0; j < shdr->sh_size / shdr->sh_entsize; ++j) {
+			rela = (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize));
+			reltype = ELF32_R_TYPE(rela->r_info);
+
+			if (reltype == R_SPARC_32) {
+				relptr = (void *)rela->r_offset;
+				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+					return -ENOEXEC;
+				}
+
+				/* Don't modify ELF file! */
+				if ((ptr_t)relptr >= (ptr_t)base && (ptr_t)relptr < (ptr_t)base + size) {
+					++badreloc;
+					continue;
+				}
+
+				sym = (Elf32_Sym *)(symTab + ELF32_R_SYM(rela->r_info) * sizeof(Elf32_Sym));
+
+				/* Write addend to the address */
+				*(char **)relptr = (char *)(sym->st_value + rela->r_addend);
+
+				if (process_relocate(reloc, relocsz, relptr) < 0) {
+					return -ENOEXEC;
+				}
+			}
+		}
+	}
+#else
 	/* Perform data, init_array and fini_array relocation */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
 		if (hal_strncmp(&snameTab[shdr->sh_name], ".rel", 4) != 0)
@@ -788,6 +842,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 			}
 		}
 	}
+#endif
 
 	tlsNew.tls_base = NULL;
 	tlsNew.tdata_sz = 0;
