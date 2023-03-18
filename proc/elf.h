@@ -121,6 +121,13 @@ typedef struct {
 
 
 typedef struct {
+	Elf32_Addr r_offset;
+	u32 r_info;
+	Elf32_Sword r_addend;
+} Elf32_Rela;
+
+
+typedef struct {
 	unsigned char e_ident [EI_NIDENT];
 	Elf64_Half e_type;
 	Elf64_Half e_machine;
@@ -175,6 +182,7 @@ typedef struct {
 #define R_ARM_ABS32    2
 #define R_ARM_GOT_BREL 26
 #define R_ARM_TARGET1  38
+#define R_SPARC_32     3
 
 
 #endif
