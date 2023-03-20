@@ -244,6 +244,6 @@ _interrupts_syscall:
 	call syscalls_dispatch
 	cli
 	addl $8, %esp
-	movl %eax, (4 * CTXPUSHL - EAX_OFFSET)(%esp)	// Save return value to eax in context
+	movl %eax, (4 * CTXPUSHL - EAX_OFFSET)(%esp)	/* Save return value to eax in context */
 	jmp interrupts_popContext
 .size _interrupts_syscall, .-_interrupts_syscall

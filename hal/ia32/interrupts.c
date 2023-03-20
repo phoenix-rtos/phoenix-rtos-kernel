@@ -97,14 +97,14 @@ unsigned int _interrupts_multilock;
 
 void _interrupts_apicACK(unsigned int n)
 {
-	if (n >= SIZE_INTERRUPTS)
+	if (n >= SIZE_INTERRUPTS) {
 		return;
+	}
 
-if (hal_cpuGetID()) {
-	__asm__ volatile
-	("movl $0, (0xfee000b0)"::);
-	return;
-}
+	if (hal_cpuGetID()) {
+		__asm__ volatile("movl $0, (0xfee000b0)" ::);
+		return;
+	}
 
 	if (n < 8) {
 		hal_outb((void *)0x20, 0x60 | n);
@@ -122,24 +122,29 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 	int reschedule = 0;
 	spinlock_ctx_t sc;
 
-	if (n >= SIZE_INTERRUPTS)
+	if (n >= SIZE_INTERRUPTS) {
 		return 0;
+	}
 
 	hal_spinlockSet(&interrupts.spinlocks[n], &sc);
 
 	interrupts.counters[n]++;
 
-	if ((h = interrupts.handlers[n]) != NULL) {
-		do
-			if (h->f(n, ctx, h->data))
+	h = interrupts.handlers[n];
+	if (h != NULL) {
+		do {
+			if ((h->f(n, ctx, h->data)) != 0) {
 				reschedule = 1;
-		while ((h = h->next) != interrupts.handlers[n]);
+			}
+			h = h->next;
+		} while (h != interrupts.handlers[n]);
 	}
 
 	hal_spinlockClear(&interrupts.spinlocks[n], &sc);
 
-	if (n == 0)
+	if (n == 0) {
 		return 0;
+	}
 	return reschedule;
 }
 
@@ -148,8 +153,9 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 {
 	spinlock_ctx_t sc;
 
-	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
+	if ((h == NULL) || (h->f == NULL) || (h->n >= SIZE_INTERRUPTS)) {
 		return -EINVAL;
+	}
 
 	hal_spinlockSet(&interrupts.spinlocks[h->n], &sc);
 	_intr_add(&interrupts.handlers[h->n], h);
@@ -163,8 +169,9 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 {
 	spinlock_ctx_t sc;
 
-	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
+	if ((h == NULL) || (h->f == NULL) || (h->n >= SIZE_INTERRUPTS)) {
 		return -EINVAL;
+	}
 
 	hal_spinlockSet(&interrupts.spinlocks[h->n], &sc);
 	_intr_remove(&interrupts.handlers[h->n], h);
@@ -180,8 +187,9 @@ __attribute__ ((section (".init"))) int _interrupts_setIDTEntry(unsigned int n, 
 	u32 w0, w1;
 	u32 *idtr;
 
-	if (n > 255)
+	if (n > 255) {
 		return -EINVAL;
+	}
 
 	w0 = ((u32)addr & 0xffff0000);
 	w1 = ((u32)addr & 0x0000ffff);
@@ -248,8 +256,9 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	}
 
 	/* Set stubs for unhandled interrupts */
-	for (; k < 256 - SIZE_INTERRUPTS; k++)
+	for (; k < 256 - SIZE_INTERRUPTS; k++) {
 		_interrupts_setIDTEntry(32 + k, _interrupts_unexpected, IGBITS_IRQEXC);
+	}
 
 	/* Set stub for syscall */
 /*	_interrupts_setIDTEntry(0x80, _interrupts_syscall, IGBITS_TRAP); */

@@ -99,13 +99,16 @@ static int hal_cpuDebugGuard(u32 enable, u32 slot)
 	/* exact breakpoint match */
 	mask |= 3 << 8;
 
-	if (slot > 3)
+	if (slot > 3) {
 		return -EINVAL;
+	}
 
-	if (enable)
+	if (enable != 0) {
 		cpu.dr5 |= mask;
-	else
+	}
+	else {
 		cpu.dr5 &= ~mask;
+	}
 
 	__asm__ volatile(
 		"movl %0, %%dr5; "
@@ -121,11 +124,13 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	cpu_context_t *ctx;
 
 	*nctx = NULL;
-	if (kstack == NULL)
+	if (kstack == NULL) {
 		return -EINVAL;
+	}
 
-	if (kstacksz < sizeof(cpu_context_t))
+	if (kstacksz < sizeof(cpu_context_t)) {
 		return -EINVAL;
+	}
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
@@ -184,11 +189,13 @@ int hal_cpuReschedule(spinlock_t *spinlock, spinlock_ctx_t *scp)
 		hal_cpuGetCycles((void *)&spinlock->e);
 
 		/* Calculate maximum and minimum lock time */
-		if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
+		if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax) {
 			spinlock->dmax = spinlock->e - spinlock->b;
+		}
 
-		if (spinlock->e - spinlock->b < spinlock->dmin)
+		if (spinlock->e - spinlock->b < spinlock->dmin) {
 			spinlock->dmin = spinlock->e - spinlock->b;
+		}
 
 		__asm__ volatile(
 			"xorl %%eax, %%eax; "
@@ -386,8 +393,9 @@ unsigned int hal_cpuGetID(void)
 
 void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 {
-	if (_hal_cpuGetID() == 0xffffffff)
+	if (_hal_cpuGetID() == 0xffffffff) {
 		return;
+	}
 
 	__asm__ volatile
 	(" \
@@ -408,8 +416,9 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 	u32 *gdt;
 
 	/* Modify limit for 4KB granularity */
-	if (type & DBITS_4KB)
+	if ((type & DBITS_4KB) != 0) {
 		limit = (limit >> 12);
+	}
 
 	descrh = (base & 0xff000000) | (type & 0x00c00000) | (limit & 0x000f0000) |
 		(type & 0x0000ff00) | ((base >> 16) & 0x000000ff);
@@ -468,8 +477,9 @@ static void _hal_cpuInitCores(void)
 		i = 0;
 		while ((cpu.ncpus == k) && (++i < 50000000))
 			;
-		if (i >= 50000000)
+		if (i >= 50000000) {
 			break;
+		}
 	}
 }
 
@@ -489,12 +499,14 @@ char *hal_cpuInfo(char *info)
 
 	hal_cpuid(1, 0, &a, v + 1, v + 2, v + 3);
 	fam = (a >> 8) & 0xf;
-	if (fam == 0xf)
+	if (fam == 0xf) {
 		fam += (a >> 20) & 0xff;
+	}
 
 	model = (a >> 4) & 0xf;
-	if (fam == 6 || fam == 15)
+	if ((fam == 6) || (fam == 15)) {
 		model |= (a >> 12) & 0xf0;
+	}
 
 	i += hal_i2s(" Family ", &info[i], fam, 16, 0);
 	i += hal_i2s(" Model ", &info[i], model, 16, 0);
@@ -528,10 +540,11 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	nx &= 0x7fffffff;
 
 	for (p = cpufeatures; p->name != NULL; ++p) {
-		if (p->eax < 0 ? p->eax < -nx : p->eax > nb)
+		if ((p->eax < 0) ? (p->eax < -nx) : (p->eax > nb)) { /* FIXME: Invalid check, look PR #233 */
 			continue;
+		}
 
-		a = p->eax < 0 ? 0x80000000 - p->eax : p->eax;
+		a = (p->eax < 0) ? (0x80000000 - p->eax) : p->eax;
 		hal_cpuid(a, 0, v + 0, v + 1, v + 2, v + 3);
 
 		if (v[p->reg] & (1 << p->offset)) {
@@ -563,9 +576,10 @@ void hal_cpuReboot(void)
 	/* 1. Try to reboot using keyboard controller (8042) */
 	do {
 		status = hal_inb((void *)0x64);
-		if (status & 1)
+		if ((status & 1) != 0) {
 			(void)hal_inb((void *)0x60);
-	} while (status & 2);
+		}
+	} while ((status & 2) != 0);
 	hal_outb((void *)0x64, 0xfe);
 
 	/* 2. Try to reboot by PCI reset */
@@ -577,8 +591,9 @@ void hal_cpuReboot(void)
 		"int3; " ::"m"(idtr0));
 
 	/* 4. Nothing worked, halt */
-	for (;;)
+	for (;;) {
 		hal_cpuHalt();
+	}
 }
 
 
@@ -588,19 +603,22 @@ int hal_platformctl(void *ptr)
 
 	switch (data->type) {
 		case pctl_pci:
-			if (data->action == pctl_get)
+			if (data->action == pctl_get) {
 				return hal_pciGetDevice(&data->pci.id, &data->pci.dev, data->pci.caps);
+			}
 			break;
 
 		case pctl_busmaster:
-			if (data->action == pctl_set)
+			if (data->action == pctl_set) {
 				return hal_pciSetBusmaster(&data->busmaster.dev, data->busmaster.enable);
+			}
 			break;
 
 		case pctl_reboot:
 			if (data->action == pctl_set) {
-				if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+				if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
 					hal_cpuReboot();
+				}
 			}
 			break;
 
