@@ -74,14 +74,17 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	int prot = PROT_NONE;
 
-	if (ctx->err & 1)
+	if ((ctx->err & 1) != 0) {
 		prot |= PROT_READ;
+	}
 
-	if (ctx->err & 2)
+	if ((ctx->err & 2) != 0) {
 		prot |= PROT_WRITE;
+	}
 
-	if (ctx->err & 4)
+	if ((ctx->err & 4) != 0) {
 		prot |= PROT_USER;
+	}
 
 	return prot;
 }
@@ -211,8 +214,9 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 		return EOK;
 	}
 
-	if (n >= SIZE_EXCHANDLERS)
+	if (n >= SIZE_EXCHANDLERS) {
 		return -EINVAL;
+	}
 
 	hal_spinlockSet(&exceptions.lock, &sc);
 	exceptions.handlers[n] = handler;

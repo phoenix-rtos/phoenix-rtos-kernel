@@ -197,7 +197,7 @@ b3:
 	/* Set FPU */
 	fninit
 	movl %cr0, %eax
-	orl $8, %eax	// Set TS flag
+	orl $8, %eax	/* Set TS flag */
 	mov %eax, %cr0
 	/* Now jump to main function */
 	pushl $0

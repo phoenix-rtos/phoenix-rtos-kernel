@@ -18,7 +18,7 @@
 
 #include <arch/cpu.h>
 
-#define CTXPUSHL 43 // 10 + 5 + 28
+#define CTXPUSHL 43 /* 10 + 5 + 28 */
 
 .text
 
