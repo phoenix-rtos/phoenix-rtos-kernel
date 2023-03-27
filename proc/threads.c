@@ -25,6 +25,8 @@
 #include "ports.h"
 #include "../log/log.h"
 
+/* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
+static thread_t *const wakeupPending = (void *)-1;
 
 struct {
 	vm_map_t *kmap;
@@ -1100,7 +1102,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	thread_t *current;
 	time_t now;
 
-	if (*queue == (void *)(-1)) {
+	if (*queue == wakeupPending) {
 		(*queue) = NULL;
 		return;
 	}
@@ -1205,7 +1207,7 @@ int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t 
 
 static void _proc_threadWakeup(thread_t **queue)
 {
-	if (*queue != NULL && *queue != (void *)-1)
+	if (*queue != NULL && *queue != wakeupPending)
 		_proc_threadDequeue(*queue);
 }
 
@@ -1216,12 +1218,12 @@ int proc_threadWakeup(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (*queue != NULL && *queue != (void *)(-1)) {
+	if (*queue != NULL && *queue != wakeupPending) {
 		_proc_threadWakeup(queue);
 		ret = 1;
 	}
 	else {
-		(*queue) = (void *)(-1);
+		(*queue) = wakeupPending;
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return ret;
@@ -1234,7 +1236,7 @@ int proc_threadBroadcast(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (*queue != (void *)-1) {
+	if (*queue != wakeupPending) {
 		while (*queue != NULL) {
 			_proc_threadWakeup(queue);
 			ret++;
@@ -1250,12 +1252,12 @@ void proc_threadWakeupYield(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (*queue != NULL && *queue != (void *)(-1)) {
+	if (*queue != NULL && *queue != wakeupPending) {
 		_proc_threadWakeup(queue);
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 	else {
-		(*queue) = (void *)(-1);
+		(*queue) = wakeupPending;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 }
@@ -1266,14 +1268,14 @@ void proc_threadBroadcastYield(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (*queue != (void *)-1 && *queue != NULL) {
+	if (*queue != wakeupPending && *queue != NULL) {
 		while (*queue != NULL)
 			_proc_threadWakeup(queue);
 
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 	else {
-		*queue = (void *)(-1);
+		*queue = wakeupPending;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 }
