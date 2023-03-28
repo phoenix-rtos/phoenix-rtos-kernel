@@ -915,20 +915,22 @@ static unsigned int _proc_threadGetLockPriority(thread_t *thread)
 
 static unsigned int _proc_threadGetPriority(thread_t *thread)
 {
-	unsigned int ret, priority = thread->priorityBase;
+	unsigned int ret;
 
 	ret = _proc_threadGetLockPriority(thread);
-	if (ret < priority) {
-		priority = ret;
-	}
 
-	return priority;
+	return (ret < thread->priorityBase) ? ret : thread->priorityBase;
 }
 
 
 static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 {
 	unsigned int i;
+
+	/* Don't allow decreasing the priority below base level */
+	if (priority > thread->priorityBase) {
+		priority = thread->priorityBase;
+	}
 
 	if (thread->state == READY) {
 		for (i = 0; i < hal_cpuGetCount(); i++) {
@@ -965,7 +967,7 @@ int proc_threadPriority(int priority)
 
 	current = _proc_current();
 	if (priority >= 0) {
-		if ((priority < current->priority) || (priority <= _proc_threadGetLockPriority(current))) {
+		if ((priority < current->priority) || (current->locks == NULL)) {
 			current->priority = priority;
 		}
 		current->priorityBase = priority;
@@ -1485,12 +1487,51 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
  */
 
 
+static int _proc_lockTry(thread_t *current, lock_t *lock)
+{
+	spinlock_ctx_t sc;
+
+	if (lock->owner != NULL) {
+		return -EBUSY;
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	LIST_ADD(&current->locks, lock);
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	lock->owner = current;
+
+	return EOK;
+}
+
+
+int proc_lockTry(lock_t *lock)
+{
+	thread_t *current = proc_current();
+	spinlock_ctx_t sc;
+	int err;
+
+	if (!hal_started()) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&lock->spinlock, &sc);
+
+	err = _proc_lockTry(current, lock);
+
+	hal_spinlockClear(&lock->spinlock, &sc);
+
+	return err;
+}
+
+
 static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current = proc_current();
 	spinlock_ctx_t sc;
 
-	if (lock->owner != NULL) {
+	if (_proc_lockTry(current, lock) < 0) {
 		/* Lock owner might inherit our priority */
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -1501,26 +1542,23 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		do {
+			/* _proc_lockUnlock will give us a lock by it's own */
 			if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
-				/* Recalculate lock owner priority (it might have been inherited from the current thread) */
-				if (lock->owner != NULL) {
+
+				/* Don't return EINTR if we got lock anyway */
+				if (lock->owner != current) {
 					hal_spinlockSet(&threads_common.spinlock, &sc);
 
+					/* Recalculate lock owner priority (it might have been inherited from the current thread) */
 					_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
 
 					hal_spinlockClear(&threads_common.spinlock, &sc);
+
+					return -EINTR;
 				}
-				return -EINTR;
 			}
-		} while (lock->owner != NULL);
+		} while (lock->owner != current);
 	}
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
-	LIST_ADD(&current->locks, lock);
-
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-	lock->owner = current;
 
 	return EOK;
 }
@@ -1564,60 +1602,32 @@ int proc_lockSetInterruptible(lock_t *lock)
 }
 
 
-static int _proc_lockTry(lock_t *lock)
-{
-	thread_t *current = proc_current();
-	spinlock_ctx_t sc;
-
-	if (lock->owner != NULL) {
-		return -EBUSY;
-	}
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
-	LIST_ADD(&current->locks, lock);
-
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-	lock->owner = current;
-
-	return EOK;
-}
-
-
-int proc_lockTry(lock_t *lock)
-{
-	spinlock_ctx_t sc;
-	int err;
-
-	if (!hal_started()) {
-		return -EINVAL;
-	}
-
-	hal_spinlockSet(&lock->spinlock, &sc);
-
-	err = _proc_lockTry(lock);
-
-	hal_spinlockClear(&lock->spinlock, &sc);
-
-	return err;
-}
-
-
 static int _proc_lockUnlock(lock_t *lock)
 {
 	thread_t *owner = lock->owner;
 	spinlock_ctx_t sc;
-	int ret = 0;
+	int ret = 0, lockPriority;
 
-	lock->owner = NULL;
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
-		lock->queue->priority = _proc_lockGetPriority(lock);
-		_proc_threadDequeue(lock->queue);
+		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
+		lock->owner = lock->queue;
+		lockPriority = _proc_lockGetPriority(lock);
+		if (lockPriority < lock->owner->priority) {
+			_proc_threadSetPriority(lock->queue, lockPriority);
+		}
+		_proc_threadDequeue(lock->owner);
+		LIST_ADD(&lock->owner->locks, lock);
 		ret = 1;
 	}
+	else {
+		lock->owner = NULL;
+	}
+
+	/* Restore previous owner priority */
+	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1642,24 +1652,11 @@ static void proc_lockUnlock(lock_t *lock)
 
 static int _proc_lockClear(lock_t *lock)
 {
-	thread_t *owner = lock->owner;
-	spinlock_ctx_t sc;
-	int ret;
-
-	if (owner == NULL) {
+	if (lock->owner == NULL) {
 		return -EPERM;
 	}
 
-	ret = _proc_lockUnlock(lock);
-	if (ret) {
-		hal_spinlockSet(&threads_common.spinlock, &sc);
-
-		owner->priority = _proc_threadGetPriority(owner);
-
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-	}
-
-	return ret;
+	return _proc_lockUnlock(lock);
 }
 
 
@@ -1789,6 +1786,11 @@ void proc_threadsDump(unsigned int priority)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
+
+	/* Strictly needed - no lock can be taken
+	 * while threads_common.spinlock is being
+	 * held! */
+	log_disable();
 
 	lib_printf("threads: ");
 	hal_spinlockSet(&threads_common.spinlock, &sc);
