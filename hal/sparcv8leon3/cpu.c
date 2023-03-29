@@ -26,6 +26,9 @@
 #define XSTR(x) STR(x)
 
 
+ptr_t hal_cpuKernelStack;
+
+
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;
@@ -91,6 +94,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		ctx->psr = (PSR_S | PSR_ET | PSR_PS) & (~PSR_CWP);
 	}
 	ctx->fp = ctx->sp + 0x60;
+	ctx->savesp = ctx->sp;
 
 	ctx->pc = (u32)start;
 	ctx->npc = (u32)start + 4;
@@ -99,6 +103,12 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	*nctx = ctx;
 
 	return 0;
+}
+
+
+void _hal_cpuSetKernelStack(void *kstack)
+{
+	hal_cpuKernelStack = (ptr_t)kstack;
 }
 
 

@@ -86,9 +86,19 @@
 typedef struct _cpu_context_t {
 	u32 savesp;
 
+	u32 y;
 	u32 psr;
 	u32 pc;
 	u32 npc;
+
+	/* global */
+	u32 g1;
+	u32 g2;
+	u32 g3;
+	u32 g4;
+	u32 g5;
+	u32 g6;
+	u32 g7;
 
 	/* out */
 	u32 o0;
@@ -119,17 +129,6 @@ typedef struct _cpu_context_t {
 	u32 i5;
 	u32 fp;
 	u32 i7;
-
-	/* global */
-	u32 g1;
-	u32 g2;
-	u32 g3;
-	u32 g4;
-	u32 g5;
-	u32 g6;
-	u32 g7;
-
-	u32 y;
 } cpu_context_t;
 
 
@@ -210,14 +209,8 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 }
 
 
-static inline void _hal_cpuSetKernelStack(void *kstack)
-{
-}
-
-
 static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 {
-	next->psr = (curr->psr & ~PSR_ICC) | (next->psr & PSR_ICC);
 	curr->savesp = (u32)next;
 }
 
