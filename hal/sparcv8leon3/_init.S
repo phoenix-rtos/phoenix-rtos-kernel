@@ -28,8 +28,7 @@ _init:
 	set _trap_table, %g1
 	wr %g1, %tbr
 
-	/* Using flat register model */
-	wr %g0, %wim
+	wr %g0, 0x2, %wim
 
 	/* Point to syspage */
 	set syspage, %g1
