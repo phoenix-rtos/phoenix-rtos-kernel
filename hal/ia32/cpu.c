@@ -570,16 +570,20 @@ void hal_cpuReboot(void)
 {
 	u8 status;
 	u64 idtr0 = 0;
+	u16 timeout;
 
 	hal_cpuDisableInterrupts();
 
 	/* 1. Try to reboot using keyboard controller (8042) */
-	do {
+	for (timeout = 0xffff; timeout != 0; --timeout) {
 		status = hal_inb((void *)0x64);
 		if ((status & 1) != 0) {
 			(void)hal_inb((void *)0x60);
 		}
-	} while ((status & 2) != 0);
+		if ((status & 2) == 0) {
+			break;
+		}
+	}
 	hal_outb((void *)0x64, 0xfe);
 
 	/* 2. Try to reboot by PCI reset */
