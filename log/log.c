@@ -413,17 +413,36 @@ int log_write(const char *data, size_t len)
 }
 
 
+void _log_scrub(void)
+{
+	if (log_common.updated != 0) {
+		_log_readersUpdate();
+		log_common.updated = 0;
+	}
+}
+
+
 void log_scrub(void)
 {
 	/* Treat log_common.updated as atomic to
 	 * avoid taking lock in most cases */
 	if (log_common.updated != 0) {
 		proc_lockSet(&log_common.lock);
-		if (log_common.updated != 0) {
-			_log_readersUpdate();
-			log_common.updated = 0;
-		}
+		_log_scrub();
 		proc_lockClear(&log_common.lock);
+	}
+}
+
+
+void log_scrubTry(void)
+{
+	/* Treat log_common.updated as atomic to
+	 * avoid taking lock in most cases */
+	if (log_common.updated != 0) {
+		if (proc_lockTry(&log_common.lock) == 0) {
+			_log_scrub();
+			proc_lockClear(&log_common.lock);
+		}
 	}
 }
 

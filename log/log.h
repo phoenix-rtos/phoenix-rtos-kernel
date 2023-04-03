@@ -26,6 +26,10 @@ extern int log_write(const char *data, size_t len);
 extern void log_scrub(void);
 
 
+/* Same as log_scrub, but give up if lock is taken */
+extern void log_scrubTry(void);
+
+
 /* Bypass log, change log_write mode to writing directly to the console
  * Debug feature, allows direct and instant message printing */
 extern void log_disable(void);

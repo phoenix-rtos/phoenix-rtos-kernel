@@ -1768,7 +1768,7 @@ static void threads_idlethr(void *arg)
 
 	for (;;) {
 		/* Scrub any potential kernel logs (wake up readers) */
-		log_scrub();
+		log_scrubTry();
 
 		wakeup = proc_nextWakeup();
 
