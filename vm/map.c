@@ -876,7 +876,6 @@ void vm_mapinfo(meminfo_t *info)
 
 		if (process == NULL) {
 			info->entry.mapsz = -1;
-			proc_lockClear(&map_common.lock);
 			return;
 		}
 
@@ -1066,10 +1065,10 @@ map_entry_t *map_alloc(void)
 	proc_lockSet(&map_common.lock);
 
 	if (!map_common.nfree) {
+		proc_lockClear(&map_common.lock);
 #ifndef NDEBUG
 		lib_printf("vm: Entry pool exhausted!\n");
 #endif
-		proc_lockClear(&map_common.lock);
 		return NULL;
 	}
 
