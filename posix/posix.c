@@ -2367,7 +2367,7 @@ pid_t posix_setsid(void)
 	proc_lockClear(&pinfo->lock);
 	pinfo_put(pinfo);
 
-	return pinfo->pgid;
+	return pid;
 }
 
 
