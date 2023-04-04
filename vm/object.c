@@ -75,7 +75,6 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 		hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
 		(*o)->size = sz;
 		(*o)->refs = 0;
-		proc_lockInit(&(*o)->lock);
 
 		for (i = 0; i < n; ++i)
 			(*o)->pages[i] = NULL;
@@ -93,9 +92,9 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 vm_object_t *vm_objectRef(vm_object_t *o)
 {
 	if (o != NULL && o != (void *)-1) {
-		proc_lockSet(&o->lock);
+		proc_lockSet(&object_common.lock);
 		o->refs++;
-		proc_lockClear(&o->lock);
+		proc_lockClear(&object_common.lock);
 	}
 
 	return o;
@@ -109,18 +108,15 @@ int vm_objectPut(vm_object_t *o)
 	if (o == NULL || o == (void *)-1)
 		return EOK;
 
-	proc_lockSet(&o->lock);
+	proc_lockSet(&object_common.lock);
 
 	if (--o->refs) {
-		proc_lockClear(&o->lock);
+		proc_lockClear(&object_common.lock);
 		return EOK;
 	}
 
-	proc_lockSet(&object_common.lock);
 	lib_rbRemove(&object_common.tree, &o->linkage);
 	proc_lockClear(&object_common.lock);
-
-	proc_lockDone(&o->lock);
 
 	/* Contiguous object 'holds' all pages in pages[0] */
 	if ((o->oid.port == -1) && (o->oid.id == -1)) {
@@ -182,21 +178,21 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 	if (o == (void *)-1)
 		return _page_get(offs);
 
-	proc_lockSet(&o->lock);
+	proc_lockSet(&object_common.lock);
 
 	if (offs >= o->size) {
-		proc_lockClear(&o->lock);
+		proc_lockClear(&object_common.lock);
 		return NULL;
 	}
 
 	if ((p = o->pages[offs / SIZE_PAGE]) != NULL) {
-		proc_lockClear(&o->lock);
+		proc_lockClear(&object_common.lock);
 		return p;
 	}
 
 	/* Fetch page from backing store */
 
-	proc_lockClear(&o->lock);
+	proc_lockClear(&object_common.lock);
 
 	if (amap != NULL)
 		proc_lockClear(&(*amap)->lock);
@@ -212,7 +208,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		return NULL;
 	}
 
-	proc_lockSet(&o->lock);
+	proc_lockSet(&object_common.lock);
 
 	if (o->pages[offs / SIZE_PAGE] != NULL) {
 		/* Someone loaded a page in the meantime, use it */
@@ -220,12 +216,12 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 			vm_pageFree(p);
 
 		p = o->pages[offs / SIZE_PAGE];
-		proc_lockClear(&o->lock);
+		proc_lockClear(&object_common.lock);
 		return p;
 	}
 
 	o->pages[offs / SIZE_PAGE] = p;
-	proc_lockClear(&o->lock);
+	proc_lockClear(&object_common.lock);
 	return p;
 }
 
@@ -253,7 +249,6 @@ vm_object_t *vm_objectContiguous(size_t size)
 	o->oid.id = -1;
 	o->refs = 1;
 	o->size = size;
-	proc_lockInit(&o->lock);
 
 	for (i = 0; i < n; ++i)
 		o->pages[i] = p + i;
@@ -278,7 +273,6 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 	kernel->oid.port = 0;
 	kernel->oid.id = 0;
 	lib_rbInsert(&object_common.tree, &kernel->linkage);
-	proc_lockInit(&kernel->lock);
 
 	vm_objectGet(&o, kernel->oid);
 
