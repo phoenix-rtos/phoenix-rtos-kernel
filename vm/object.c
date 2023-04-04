@@ -67,8 +67,10 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 		sz = (size_t)proc_size(oid);
 		n = round_page(sz) / SIZE_PAGE;
 
-		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL)
+		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
+			proc_lockClear(&object_common.lock);
 			return -ENOMEM;
+		}
 
 		hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
 		(*o)->size = sz;
