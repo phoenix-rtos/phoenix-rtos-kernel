@@ -105,7 +105,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" i3=", &buff[i], ctx->i3, 16, 1);
 	i += hal_i2s("\n i4=", &buff[i], ctx->i4, 16, 1);
 	i += hal_i2s(" i5=", &buff[i], ctx->i5, 16, 1);
-	i += hal_i2s(" i6=", &buff[i], ctx->i6, 16, 1);
+	i += hal_i2s(" fp=", &buff[i], ctx->fp, 16, 1);
 	i += hal_i2s(" i7=", &buff[i], ctx->i7, 16, 1);
 
 	i += hal_i2s("\n y=", &buff[i], ctx->y, 16, 1);

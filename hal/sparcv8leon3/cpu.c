@@ -70,7 +70,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->i3 = 0x10000003;
 	ctx->i4 = 0x10000004;
 	ctx->i5 = 0x10000005;
-	ctx->i6 = 0;
 	ctx->i7 = (u32)start - 8;
 
 	ctx->g1 = 0x11111111;
@@ -91,6 +90,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		/* supervisor mode, enable traps, cwp = 0 */
 		ctx->psr = (PSR_S | PSR_ET | PSR_PS) & (~PSR_CWP);
 	}
+	ctx->fp = ctx->sp + 0x60;
 
 	ctx->pc = (u32)start;
 	ctx->npc = (u32)start + 4;

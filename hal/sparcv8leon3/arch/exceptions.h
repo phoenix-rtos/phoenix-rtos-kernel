@@ -64,7 +64,7 @@ typedef struct _exc_context_t {
 	u32 i3;
 	u32 i4;
 	u32 i5;
-	u32 i6;
+	u32 fp;
 	u32 i7;
 
 	/* special */
