@@ -219,13 +219,11 @@ int posix_newFile(process_info_t *p, int fd)
 		return -ENOMEM;
 	}
 
-	proc_lockClear(&p->lock);
-
 	hal_memset(f, 0, sizeof(open_file_t));
-	proc_lockInit(&f->lock);
 	f->refs = 1;
 	f->offset = 0;
-
+	proc_lockInit(&f->lock);
+	proc_lockClear(&p->lock);
 	return fd;
 }
 
