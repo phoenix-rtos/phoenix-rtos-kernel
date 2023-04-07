@@ -35,7 +35,7 @@ extern void hal_cpuEnableInterrupts(void);
 /* performance */
 
 
-extern void hal_cpuLowPower(time_t us);
+extern void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc);
 
 
 extern void hal_cpuSetDevBusy(int s);

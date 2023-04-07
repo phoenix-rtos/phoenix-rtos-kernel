@@ -1383,14 +1383,12 @@ int proc_settime(time_t offs)
 }
 
 
-time_t proc_nextWakeup(void)
+static time_t _proc_nextWakeup(void)
 {
 	thread_t *thread;
 	time_t wakeup = 0;
 	time_t now;
-	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
 	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 	if (thread != NULL) {
 		now = hal_timerGetUs();
@@ -1399,7 +1397,6 @@ time_t proc_nextWakeup(void)
 		else
 			wakeup = thread->wakeup - now;
 	}
-	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return wakeup;
 }
@@ -1765,17 +1762,20 @@ int proc_lockInit(lock_t *lock)
 static void threads_idlethr(void *arg)
 {
 	time_t wakeup;
+	spinlock_ctx_t sc;
 
 	for (;;) {
 		/* Scrub any potential kernel logs (wake up readers) */
 		log_scrubTry();
 
-		wakeup = proc_nextWakeup();
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		wakeup = _proc_nextWakeup();
 
 		if (wakeup > (2 * SYSTICK_INTERVAL)) {
-			hal_cpuLowPower(wakeup);
+			hal_cpuLowPower(wakeup, &threads_common.spinlock, &sc);
 		}
 		else {
+			hal_spinlockClear(&threads_common.spinlock, &sc);
 			hal_cpuHalt();
 		}
 	}

@@ -634,6 +634,13 @@ int hal_platformctl(void *ptr)
 }
 
 
+void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
+{
+	hal_spinlockClear(spinlock, sc);
+	hal_cpuHalt();
+}
+
+
 /* cache management */
 
 

@@ -112,12 +112,6 @@ static inline void hal_cpuHalt(void)
 }
 
 
-static inline void hal_cpuLowPower(time_t us)
-{
-	hal_cpuHalt();
-}
-
-
 static inline void hal_cpuSetDevBusy(int s)
 {
 }
