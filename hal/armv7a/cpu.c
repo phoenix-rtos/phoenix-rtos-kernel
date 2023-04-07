@@ -212,6 +212,13 @@ void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 }
 
 
+void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
+{
+	hal_spinlockClear(spinlock, sc);
+	hal_cpuHalt();
+}
+
+
 /* cache management */
 
 

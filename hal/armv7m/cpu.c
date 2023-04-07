@@ -34,7 +34,7 @@ volatile cpu_context_t *_cpu_nctx;
 /* performance */
 
 
-void hal_cpuLowPower(time_t us)
+void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 #ifdef CPU_STM32
 	spinlock_ctx_t scp;
@@ -50,7 +50,9 @@ void hal_cpuLowPower(time_t us)
 		hal_spinlockClear(&cpu_common.busySp, &scp);
 		hal_cpuHalt();
 	}
+	hal_spinlockClear(spinlock, sc);
 #else
+	hal_spinlockClear(spinlock, sc);
 	hal_cpuHalt();
 #endif
 }
