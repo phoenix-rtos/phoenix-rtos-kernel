@@ -89,29 +89,21 @@ process_info_t *pinfo_find(unsigned int pid)
 }
 
 
-void posix_destroy(process_info_t *p)
+void pinfo_put(process_info_t *p)
 {
-	// lib_printf("removing %d\n", p->process);
 	proc_lockSet(&posix_common.lock);
+	p->refs--;
+	if (p->refs) {
+		proc_lockClear(&posix_common.lock);
+		return;
+	}
+
 	lib_rbRemove(&posix_common.pid, &p->linkage);
 	proc_lockClear(&posix_common.lock);
 
 	vm_kfree(p->fds);
 	proc_lockDone(&p->lock);
 	vm_kfree(p);
-}
-
-
-void pinfo_put(process_info_t *p)
-{
-	int remaining;
-
-	proc_lockSet(&posix_common.lock);
-	remaining = --p->refs;
-	proc_lockClear(&posix_common.lock);
-
-	if (!remaining)
-		posix_destroy(p);
 }
 
 
@@ -2444,10 +2436,7 @@ void posix_died(pid_t pid, int exit)
 
 	posix_exit(pinfo, exit);
 
-	if ((ppinfo = pinfo_find(pinfo->parent)) == NULL) {
-		// posix_destroy(pinfo);
-	}
-	else {
+	if ((ppinfo = pinfo_find(pinfo->parent)) != NULL) {
 		proc_lockSet(&ppinfo->lock);
 		LIST_REMOVE(&ppinfo->children, pinfo);
 		LIST_ADD(&ppinfo->zombies, pinfo);
