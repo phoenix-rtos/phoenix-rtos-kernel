@@ -231,6 +231,35 @@ static int log_readerAdd(pid_t pid, unsigned nonblocking)
 }
 
 
+static ssize_t _log_read(log_reader_t *r, char *buf, size_t sz)
+{
+	ssize_t ret;
+
+	/* We need to catch up the ring buffer's head */
+	if (r->ridx < log_common.head) {
+		ret = -EPIPE;
+		r->ridx = log_common.head;
+	}
+	else {
+		ret = _log_readln(r, buf, sz);
+	}
+
+	return ret;
+}
+
+
+static ssize_t log_read(log_reader_t *r, char *buf, size_t sz)
+{
+	ssize_t ret;
+
+	proc_lockSet(&log_common.lock);
+	ret = _log_read(r, buf, sz);
+	proc_lockClear(&log_common.lock);
+
+	return ret;
+}
+
+
 static void _log_readersUpdate(void)
 {
 	log_reader_t *r = log_common.readers;
@@ -239,7 +268,7 @@ static void _log_readersUpdate(void)
 	if (r != NULL) {
 		do {
 			while (r->msgs != NULL) {
-				ret = _log_readln(r, r->msgs->odata, r->msgs->osize);
+				ret = _log_read(r, r->msgs->odata, r->msgs->osize);
 				if (ret == 0) {
 					break;
 				}
@@ -300,25 +329,6 @@ static int log_devctl(msg_t *msg)
 	out->err = (in->request == TCGETS) ? EOK : -EINVAL;
 
 	return 0;
-}
-
-
-static ssize_t log_read(log_reader_t *r, char *buf, size_t sz)
-{
-	ssize_t ret;
-
-	proc_lockSet(&log_common.lock);
-	/* We need to catch up the ring buffer's head */
-	if (r->ridx < log_common.head) {
-		ret = -EPIPE;
-		r->ridx = log_common.head;
-	}
-	else {
-		ret = _log_readln(r, buf, sz);
-	}
-	proc_lockClear(&log_common.lock);
-
-	return ret;
 }
 
 
