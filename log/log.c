@@ -367,6 +367,10 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			break;
 		case mtWrite:
 			msg->o.io.err = log_write(msg->i.data, msg->i.size);
+			/* Writing thread is blocked on this write. Response should be sent as soon as possible */
+			proc_respond(oid.port, msg, rid);
+			respond = 0;
+			/* TODO: consider moving scrub to minimize delay before next message can be received */
 			log_scrub();
 			break;
 		case mtClose:
