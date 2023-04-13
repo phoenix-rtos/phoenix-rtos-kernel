@@ -53,9 +53,10 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 
 int vm_objectGet(vm_object_t **o, oid_t oid)
 {
-	vm_object_t t;
-	int i, n;
-	size_t sz;
+	vm_object_t t, *no = NULL;
+	size_t i, n;
+	offs_t sz;
+	int err = -ENOMEM;
 
 	t.oid.port = oid.port;
 	t.oid.id = oid.id;
@@ -64,26 +65,46 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 
 	if (*o == NULL) {
-		sz = (size_t)proc_size(oid);
-		n = round_page(sz) / SIZE_PAGE;
+		/* Take off the lock to avoid a deadlock in vm_kmalloc */
+		proc_lockClear(&object_common.lock);
 
-		if ((*o = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
-			proc_lockClear(&object_common.lock);
-			return -ENOMEM;
+		sz = proc_size(oid);
+		if (sz < 0) {
+			err = (int)sz;
+		}
+		else if ((sizeof(offs_t) <= sizeof(size_t)) || (sz <= (offs_t)((size_t)-1))) {
+			n = round_page((size_t)sz) / SIZE_PAGE;
+			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
 		}
 
-		hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
-		(*o)->size = sz;
-		(*o)->refs = 0;
+		proc_lockSet(&object_common.lock);
+		/* Check again, somebody could've added the object in the meantime */
+		*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
+		if (*o == NULL) {
+			if (no == NULL) {
+				proc_lockClear(&object_common.lock);
+				return err;
+			}
+			*o = no;
+			no = NULL;
+			hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
+			(*o)->size = sz;
+			(*o)->refs = 0;
 
-		for (i = 0; i < n; ++i)
-			(*o)->pages[i] = NULL;
+			for (i = 0; i < n; ++i)
+				(*o)->pages[i] = NULL;
 
-		lib_rbInsert(&object_common.tree, &(*o)->linkage);
+			lib_rbInsert(&object_common.tree, &(*o)->linkage);
+		}
 	}
 
 	(*o)->refs++;
 	proc_lockClear(&object_common.lock);
+
+	/* Did we allocate an object we didn't need in the end? */
+	if (no != NULL) {
+		vm_kfree(no);
+	}
 
 	return EOK;
 }
