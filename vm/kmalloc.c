@@ -249,7 +249,7 @@ int _kmalloc_init(void)
 
 	lib_printf("vm: Initializing kernel memory allocator: ");
 
-	proc_lockInit(&kmalloc_common.lock);
+	proc_lockInit(&kmalloc_common.lock, "kmalloc.common");
 
 	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
 	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx)

@@ -24,6 +24,7 @@ typedef struct _lock_t {
 	struct _thread_t *owner;     /* Owner thread */
 	struct _thread_t *queue;     /* Waiting threads */
 	struct _lock_t *prev, *next; /* Doubly linked list */
+	const char *name;
 } lock_t;
 
 
@@ -45,7 +46,7 @@ extern int proc_lockClear(lock_t *lock);
 extern int proc_lockSetInterruptible(lock_t *lock);
 
 
-extern int proc_lockInit(lock_t *lock);
+extern int proc_lockInit(lock_t *lock, const char *name);
 
 
 extern int proc_lockDone(lock_t *lock);

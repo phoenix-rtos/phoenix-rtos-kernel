@@ -281,7 +281,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->reaper = NULL;
 	process->refs = 1;
 
-	proc_lockInit(&process->lock);
+	proc_lockInit(&process->lock, "process");
 
 	process->ports = NULL;
 
@@ -1502,7 +1502,7 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	process_common.first = NULL;
 	process_common.kernel = kernel;
 	process_common.idcounter = 1;
-	proc_lockInit(&process_common.lock);
+	proc_lockInit(&process_common.lock, "process.common");
 	lib_rbInit(&process_common.id, proc_idcmp, process_augment);
 
 	hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);

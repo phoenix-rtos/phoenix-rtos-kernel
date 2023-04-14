@@ -128,7 +128,7 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 		return NULL;
 	}
 
-	proc_lockInit(&new->lock);
+	proc_lockInit(&new->lock, "amap.map");
 	new->size = i;
 	new->refs = 1;
 	*offset = *offset / SIZE_PAGE;
@@ -184,7 +184,7 @@ static anon_t *anon_new(page_t *p)
 
 	a->page = p;
 	a->refs = 1;
-	proc_lockInit(&a->lock);
+	proc_lockInit(&a->lock, "amap.anon");
 
 	return a;
 }
