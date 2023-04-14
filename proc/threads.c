@@ -1744,11 +1744,12 @@ int proc_lockDone(lock_t *lock)
 }
 
 
-int proc_lockInit(lock_t *lock)
+int proc_lockInit(lock_t *lock, const char *name)
 {
 	hal_spinlockCreate(&lock->spinlock, "lock.spinlock");
 	lock->owner = NULL;
 	lock->queue = NULL;
+	lock->name = name;
 
 	return EOK;
 }
@@ -1932,7 +1933,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	threads_common.perfGather = 0;
 
-	proc_lockInit(&threads_common.lock);
+	proc_lockInit(&threads_common.lock, "threads.common");
 
 	for (i = 0; i < sizeof(threads_common.stackCanary); ++i)
 		threads_common.stackCanary[i] = (i & 1) ? 0xaa : 0x55;

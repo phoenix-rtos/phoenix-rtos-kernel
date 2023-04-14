@@ -55,7 +55,7 @@ int proc_mutexCreate()
 		id = -ENOMEM;
 	}
 	else {
-		proc_lockInit(&mutex->lock);
+		proc_lockInit(&mutex->lock, "user.mutex");
 		resource_put(&mutex->resource);
 	}
 

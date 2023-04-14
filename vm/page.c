@@ -423,7 +423,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	int err;
 	void *vaddr;
 
-	proc_lockInit(&pages.lock);
+	proc_lockInit(&pages.lock, "page");
 
 	/* Prepare memory hash */
 	pages.freesz = 0;

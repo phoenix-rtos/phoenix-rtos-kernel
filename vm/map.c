@@ -746,7 +746,7 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 	pmap_create(&map->pmap, &map_common.kmap->pmap, NULL, NULL);
 #endif
 
-	proc_lockInit(&map->lock);
+	proc_lockInit(&map->lock, "map.map");
 	lib_rbInit(&map->tree, map_cmp, map_augment);
 	return EOK;
 }
@@ -1206,12 +1206,12 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	size_t poolsz, freesz, size;
 	map_entry_t *e;
 
-	proc_lockInit(&map_common.lock);
+	proc_lockInit(&map_common.lock, "map.common");
 
 	kmap->start = kmap->pmap.start;
 	kmap->stop = kmap->pmap.end;
 
-	proc_lockInit(&kmap->lock);
+	proc_lockInit(&kmap->lock, "map.kmap");
 	lib_rbInit(&kmap->tree, map_cmp, map_augment);
 
 	map_common.kmap = kmap;

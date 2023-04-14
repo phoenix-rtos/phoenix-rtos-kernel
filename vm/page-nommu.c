@@ -171,7 +171,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	const syspage_map_t *map;
 	unsigned int i;
 
-	proc_lockInit(&pages.lock);
+	proc_lockInit(&pages.lock, "page.nommu");
 
 	/* TODO: handle error */
 	if ((map = syspage_mapAddrResolve((addr_t)&__bss_start)) == NULL)

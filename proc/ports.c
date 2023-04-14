@@ -281,5 +281,5 @@ void proc_portsDestroy(process_t *proc)
 void _port_init(void)
 {
 	lib_rbInit(&port_common.tree, ports_cmp, ports_augment);
-	proc_lockInit(&port_common.port_lock);
+	proc_lockInit(&port_common.port_lock, "port.common");
 }

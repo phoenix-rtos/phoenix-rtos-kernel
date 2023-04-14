@@ -466,7 +466,7 @@ void log_disable(void)
 void _log_init(void)
 {
 	hal_memset(&log_common, 0, sizeof(log_common));
-	proc_lockInit(&log_common.lock);
+	proc_lockInit(&log_common.lock, "log.common");
 
 	log_common.enabled = 1;
 }

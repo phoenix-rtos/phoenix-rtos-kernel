@@ -227,7 +227,7 @@ lib_printf("\n");
 void test_vm_kmallocsim(void)
 {
 	unsigned int i;
-	proc_lockInit(&lock);
+	proc_lockInit(&lock, "kmalloc.sim");
 
 	proc_threadCreate(0, _test_vm_upgrsimthr, NULL, 0, 512, 0, 0, 0);
 
