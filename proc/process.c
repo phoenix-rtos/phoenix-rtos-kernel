@@ -1315,8 +1315,9 @@ int proc_release(void)
 
 int proc_fork(void)
 {
+	int err = -ENOSYS;
+#ifndef NOMMU
 	thread_t *current;
-	int err;
 	void *kstack;
 	unsigned sigmask;
 
@@ -1342,7 +1343,7 @@ int proc_fork(void)
 			hal_jmp(proc_vforkedExit, kstack, NULL, 3);
 		}
 	}
-
+#endif
 	return err;
 }
 

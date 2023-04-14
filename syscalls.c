@@ -115,7 +115,6 @@ int syscalls_vforksvc(void *ustack)
 
 int syscalls_sys_fork(void *ustack)
 {
-	// return -ENOSYS;
 	return proc_fork();
 }
 
