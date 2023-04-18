@@ -1017,9 +1017,10 @@ int unix_poll(unsigned socket, short events)
 				/* FIXME: how to handle unconnected SOCK_DGRAM socket? */
 			}
 		}
+
+		unixsock_put(s);
 	}
 
-	unixsock_put(s);
 	return err;
 }
 
