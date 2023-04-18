@@ -319,6 +319,7 @@ int posix_clone(int ppid)
 
 	p->fds = vm_kmalloc((p->maxfd + 1) * sizeof(fildes_t));
 	if (p->fds == NULL) {
+		proc_lockDone(&p->lock);
 		vm_kfree(p);
 		if (pp != NULL) {
 			proc_lockClear(&pp->lock);
@@ -348,6 +349,12 @@ int posix_clone(int ppid)
 			f = vm_kmalloc(sizeof(open_file_t));
 			p->fds[i].file = f;
 			if (f == NULL) {
+				for (--i; i >= 0; --i) {
+					posix_putUnusedFile(p, i);
+				}
+				proc_lockDone(&p->lock);
+				vm_kfree(p->fds);
+				vm_kfree(p);
 				return -ENOMEM;
 			}
 
