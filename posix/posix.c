@@ -1012,8 +1012,10 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 		return err;
 
 	/* TODO: Find a better way to check fd type */
-	if ((scnt = proc_size(f->oid)) < 0)
+	if ((scnt = proc_size(f->oid)) < 0) {
+		posix_fileDeref(f);
 		return -ESPIPE;
+	}
 
 	proc_lockSet(&f->lock);
 	switch (whence) {
