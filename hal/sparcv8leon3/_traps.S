@@ -21,6 +21,8 @@
 #define TBR_TT_MSK 0xFF0
 #define TBR_TT_SHIFT 4
 
+.extern hal_cpuKernelStack
+
 #define BAD_TRAP \
 	mov %psr, %l0; \
 	sethi %hi(_exceptions_dispatch), %l3; \
@@ -245,10 +247,7 @@ _traps_flushWindows:
 	mov %g4, %l6
 	mov %g5, %l7
 
-	mov %l0, %g1
 	and %l0, PSR_CWP, %g3
-	mov %wim, %g4
-
 	add %g3, 1, %g3
 	cmp %g3, NWINDOWS
 	bne fw_cwp_done
@@ -257,7 +256,6 @@ _traps_flushWindows:
 	mov 0, %g3
 fw_cwp_done:
 	/* Current state of registers:
-	 * %g1 = %psr
 	 * %g3 = CWP + 1
 	 * %g4 = %wim
 	 */
@@ -268,38 +266,14 @@ fw_cwp_done:
 	 * %g3 = 1 << %g3 (CWP + 1)
 	 */
 
-	mov 1, %g5
-	sll %g5, %g3, %g3
+	mov 1, %g4
+	sll %g4, %g3, %g3
 
-flush_win_loop:
-	/* %g3 - has bit set for CWP + 1 (mod NWINDOWS)
-	 * %g4 - %wim
-	 */
+	mov %l0, %g5 /* save %psr in %g5 */
 
-	/* check if restore won't underflow */
-	andcc %g3, %g4, %g0
-	bnz flush_win_done
-	nop
-
-	/* if not, advance to next window */
-	restore
-
-	/* save window on current %sp */
-	std %l0, [%sp + 0x00]
-	std %l2, [%sp + 0x08]
-	std %l4, [%sp + 0x10]
-	std %l6, [%sp + 0x18]
-	std %i0, [%sp + 0x20]
-	std %i2, [%sp + 0x28]
-	std %i4, [%sp + 0x30]
-	std %i6, [%sp + 0x38]
-
-	/* calculate new CWP mask */
-	sll %g3, 1, %g5
-	srl %g3, (NWINDOWS - 1), %g3
-	or %g3, %g5, %g3
-	ba flush_win_loop
-	nop
+	sethi %hi(_interrupts_save_context), %l0
+	jmpl %l0 + %lo(_interrupts_save_context), %g1 /* clobbers %g1, %g3 */
+	rd %wim, %g4
 
 flush_win_done:
 	/* calculate new wim for CWP + 2
@@ -318,7 +292,7 @@ fw_cwp_done2:
 	wr %g3, %wim
 
 	/* restore %psr */
-	mov %g1, %psr
+	mov %g5, %psr
 	nop
 	nop
 	nop
@@ -415,7 +389,6 @@ _exceptions_dispatch:
  * on entry:
  * %psr in %l0, PC in %l1, nPC in %l2
  * syscall number in %g4
- * carry bit set indicates error
  */
 
 .global _traps_syscall
@@ -425,6 +398,7 @@ _traps_syscall:
 	 * so we know which registers are used.
 	 * Thus we won't save global registers
 	 * (none are important for the caller).
+	 * This does not conform to the ABI.
 	 */
 
 	mov %wim, %g2
@@ -457,8 +431,11 @@ _traps_syscall:
 	restore
 
 s_wovfl_done:
+	/* swap to kernel stack */
+	sethi %hi(hal_cpuKernelStack), %l5
+	ld [%l5 + %lo(hal_cpuKernelStack)], %sp
+
 	/* allocate stack frame for syscall handler */
-	mov %fp, %sp
 	sub %sp, 0x60, %sp
 
 	/* write arguments to stack */
@@ -471,7 +448,7 @@ s_wovfl_done:
 
 	/* enable traps, interrupts */
 	andn %l0, (PSR_PIL), %l1
-	wr %l1, PSR_ET, %psr
+	wr %l1, (PSR_ET), %psr
 	nop
 	nop
 	nop
@@ -485,6 +462,7 @@ s_wovfl_done:
 	nop
 	nop
 	nop
+
 
 	/* Check if restore would cause underflow.
 	 * After restore: CWP = CWP + 1

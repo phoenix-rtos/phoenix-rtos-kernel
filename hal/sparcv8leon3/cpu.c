@@ -46,7 +46,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	}
 
 	/* Prepare initial kernel stack */
-	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t) - 0x60);
+	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
 
 	hal_memset(ctx, 0, sizeof(cpu_context_t));
 
@@ -86,7 +86,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	if (ustack != NULL) {
 		ctx->sp = (u32)ustack;
 		/* TODO: correct PSR settings when register windows are used */
-		ctx->psr = (PSR_S | PSR_ET | PSR_PS) & (~PSR_CWP);
+		ctx->psr = (PSR_S | PSR_ET) & (~PSR_CWP);
 	}
 	else {
 		ctx->sp = (u32)kstack + kstacksz - 0x60;
