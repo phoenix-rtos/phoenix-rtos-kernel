@@ -25,14 +25,14 @@
 .global		_init
 _init:
 	/* Set up trap table */
-	set _trap_table, %g1
+	sethi %hi(_trap_table), %g1
 	wr %g1, %tbr
 
 	wr %g0, 0x2, %wim
 
 	/* Point to syspage */
-	set syspage, %g1
-	st %g2, [%g1]
+	sethi %hi(syspage), %g1
+	st %g2, [%g1 + %lo(syspage)]
 
 	/* Set PSR to "supervisor", enable traps, disable interrupts, set CWP to 0 */
 	mov %psr, %g1
@@ -45,8 +45,8 @@ _init:
 
 	/* Set stack pointer */
 	clr %fp
-	set _init_stack, %g1
-	ld [%g1], %sp
+	sethi %hi(_init_stack), %g1
+	ld [%g1 + %lo(_init_stack)], %sp
 	sub %sp, 0x60, %sp
 
 	call main
