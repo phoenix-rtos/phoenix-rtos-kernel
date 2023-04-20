@@ -26,6 +26,9 @@ extern int lib_vsprintf(char *out, const char *format, va_list args);
 extern int lib_printf(const char *fmt, ...);
 
 
+extern int lib_vprintf(const char *format, va_list ap);
+
+
 extern void lib_putch(char c);
 
 

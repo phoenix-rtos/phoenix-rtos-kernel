@@ -296,9 +296,8 @@ end:
 }
 
 
-int lib_printf(const char *format, ...)
+int lib_vprintf(const char *format, va_list ap)
 {
-	va_list ap;
 	int i = 0;
 	char fmt, c;
 	const char *s;
@@ -306,8 +305,6 @@ int lib_printf(const char *format, ...)
 	u64 number;
 	char buff[24];
 	char *sptr, *eptr;
-
-	va_start(ap, format);
 
 	s = CONSOLE_CYAN;
 	while (*s)
@@ -490,6 +487,18 @@ end:
 	while (*s)
 		lib_putch(*(s++));
 
-	va_end(ap);
 	return i;
+}
+
+
+int lib_printf(const char *format, ...)
+{
+	va_list ap;
+	int ret;
+
+	va_start(ap, format);
+	ret = lib_vprintf(format, ap);
+	va_end(ap);
+
+	return ret;
 }
