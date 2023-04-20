@@ -1543,6 +1543,9 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 	thread_t *current = proc_current();
 	spinlock_ctx_t sc;
 
+	LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
+		lock->name, (current->process != NULL) ? current->process->id : 0, current->id);
+
 	if (_proc_lockTry(current, lock) < 0) {
 		/* Lock owner might inherit our priority */
 		hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -1616,11 +1619,14 @@ int proc_lockSetInterruptible(lock_t *lock)
 
 static int _proc_lockUnlock(lock_t *lock)
 {
-	thread_t *owner = lock->owner;
+	thread_t *owner = lock->owner, *current;
 	spinlock_ctx_t sc;
 	int ret = 0, lockPriority;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	current = _proc_current();
+	(void)current; /* Unused in non-debug build */
 
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
@@ -1641,6 +1647,9 @@ static int _proc_lockUnlock(lock_t *lock)
 	/* Restore previous owner priority */
 	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
 
+	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
+		(current->process != NULL) ? current->process->id : 0, current->id, current->priorityBase, current->priority);
+
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return ret;
@@ -1653,7 +1662,7 @@ static void proc_lockUnlock(lock_t *lock)
 
 	hal_spinlockSet(&lock->spinlock, &sc);
 
-	if (_proc_lockUnlock(lock)) {
+	if (_proc_lockUnlock(lock) > 0) {
 		hal_cpuReschedule(&lock->spinlock, &sc);
 	}
 	else {
@@ -1664,6 +1673,16 @@ static void proc_lockUnlock(lock_t *lock)
 
 static int _proc_lockClear(lock_t *lock)
 {
+#ifndef NDEBUG
+	thread_t *current = proc_current();
+
+	LIB_ASSERT(lock->owner != NULL, "lock: %s, pid: %d, tid: %d, unlock on not locked lock",
+		lock->name, (current->process != NULL) ? current->process->id : 0, current->id);
+
+	LIB_ASSERT(lock->owner == current, "lock: %s, pid: %d, tid: %d, owner: %d, unlocking someone's else lock",
+		lock->name, (current->process != NULL) ? current->process->id : 0, current->id, lock->owner->id);
+#endif
+
 	if (lock->owner == NULL) {
 		return -EPERM;
 	}
