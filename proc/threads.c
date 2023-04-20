@@ -609,6 +609,8 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		_proc_threadWakeup(&threads_common.reaper);
 	}
 
+	LIB_ASSERT(selected != NULL, "no threads to schedule");
+
 	if (selected != NULL) {
 		threads_common.current[hal_cpuGetID()] = selected;
 		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
@@ -632,27 +634,20 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		}
 		_perf_scheduling(selected);
 		hal_cpuRestore(context, selected->context);
+
+#if defined(STACK_CANARY) || !defined(NDEBUG)
+		LIB_ASSERT_ALWAYS((selected->execkstack != NULL) || ((void *)selected->context > selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
+			"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded", (selected->process != NULL) ? selected->process->id : 0,
+			selected->id, selected->kstack, selected->context);
+
+		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
+			(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
+			"pid: %d, tid: %d, path: %s, user stack corrupted", selected->process->id, selected->id, selected->process->path);
+#endif
 	}
 
 	/* Update CPU usage */
 	_threads_cpuTimeCalc(current, selected);
-
-#if defined(STACK_CANARY) || !defined(NDEBUG)
-	/* Test stack usage */
-	if (selected != NULL && !selected->execkstack &&
-			((void *)selected->context < selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10)) {
-		log_disable();
-		lib_printf("proc: Stack limit exceeded, sp=%p %p %d\n", selected->kstack, selected->context, hal_cpuGetID());
-		for (;;);
-	}
-
-	if (selected != NULL && selected->process != NULL && selected->ustack != NULL &&
-			hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) != 0) {
-		log_disable();
-		lib_printf("proc: User stack corrupted path=%s, pid=%d, tid=%d\n", selected->process->path, selected->process->id, selected->id);
-		for (;;);
-	}
-#endif
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -957,6 +952,9 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 		}
 
 		if (i == hal_cpuGetCount()) {
+			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread) != 0,
+				"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
+				thread, thread->id, thread->priority);
 			LIST_REMOVE(&threads_common.ready[thread->priority], thread);
 			LIST_ADD(&threads_common.ready[priority], thread);
 		}
@@ -1628,6 +1626,8 @@ static int _proc_lockUnlock(lock_t *lock)
 	current = _proc_current();
 	(void)current; /* Unused in non-debug build */
 
+	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
+		lock->name, (owner->process != NULL) ? owner->process->id : 0, owner->id);
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
 		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
