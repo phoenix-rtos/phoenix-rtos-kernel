@@ -51,3 +51,25 @@ void lib_listRemove(void **list, void *t, size_t noff, size_t poff)
 	*((addr_t *)(t + noff)) = NULL;
 	*((addr_t *)(t + poff)) = NULL;
 }
+
+
+int lib_listBelongs(void **list, void *t, size_t noff, size_t poff)
+{
+	void *iter;
+
+	(void)poff;
+
+	if ((t == NULL) || ((*list) == NULL)) {
+		return 0;
+	}
+
+	iter = *list;
+	do {
+		if (iter == t) {
+			return 1;
+		}
+		iter = (void *)*((addr_t *)(iter + noff));
+	} while (iter != *list);
+
+	return 0;
+}
