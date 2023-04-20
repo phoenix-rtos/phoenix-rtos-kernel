@@ -57,13 +57,27 @@ struct {
 	cbuffer_t perfBuffer;
 	page_t *perfPages;
 
+	/* Debug */
 	unsigned char stackCanary[16];
+	time_t prev;
 } threads_common;
 
 
 static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
 static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp);
+
+
+static time_t _proc_gettimeRaw(void)
+{
+	time_t now = hal_timerGetUs();
+
+	LIB_ASSERT(now >= threads_common.prev, "timer non-monotonicity detected (%llu < %llu)", now, threads_common.prev);
+
+	threads_common.prev = now;
+
+	return now;
+}
 
 
 static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
@@ -120,7 +134,7 @@ static void _perf_event(thread_t *t, int type)
 	perf_event_t ev;
 	time_t now = 0, wait;
 
-	now = hal_timerGetUs();
+	now = _proc_gettimeRaw();
 
 	if (type == perf_evWaking || type == perf_evPreempted) {
 		t->readyTime = now;
@@ -183,7 +197,7 @@ static void _perf_begin(thread_t *t)
 	ev.tid = perf_idpack(t->id);
 	ev.pid = t->process != NULL ? perf_idpack(t->process->id) : -1;
 
-	now = hal_timerGetUs();
+	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -205,7 +219,7 @@ void perf_end(thread_t *t)
 	ev.type = perf_levEnd;
 	ev.tid = perf_idpack(t->id);
 
-	now = hal_timerGetUs();
+	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -230,7 +244,7 @@ void perf_fork(process_t *p)
 	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
 	ev.tid = perf_idpack(_proc_current()->id);
 
-	now = hal_timerGetUs();
+	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -254,7 +268,7 @@ void perf_kill(process_t *p)
 	ev.pid = perf_idpack(p->id);
 	ev.tid = perf_idpack(_proc_current()->id);
 
-	now = hal_timerGetUs();
+	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -283,7 +297,7 @@ void perf_exec(process_t *p, char *path)
 	hal_memcpy(ev.path, path, plen);
 	ev.path[plen] = 0;
 
-	now = hal_timerGetUs();
+	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
 
@@ -357,7 +371,7 @@ int perf_start(unsigned pid)
 	/* Start gathering events */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	threads_common.perfGather = 1;
-	threads_common.perfLastTimestamp = hal_timerGetUs();
+	threads_common.perfLastTimestamp = _proc_gettimeRaw();
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return EOK;
@@ -439,7 +453,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	now = hal_timerGetUs();
+	now = _proc_gettimeRaw();
 
 	for (;; i++) {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
@@ -537,9 +551,9 @@ void threads_put(thread_t *thread)
 }
 
 
-static void threads_cpuTimeCalc(thread_t *current, thread_t *selected)
+static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 {
-	time_t now = hal_timerGetUs();
+	time_t now = _proc_gettimeRaw();
 
 	if (current != NULL) {
 		current->cpuTime += now - current->lastTime;
@@ -621,7 +635,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	}
 
 	/* Update CPU usage */
-	threads_cpuTimeCalc(current, selected);
+	_threads_cpuTimeCalc(current, selected);
 
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 	/* Test stack usage */
@@ -829,7 +843,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->priority = priority;
 	t->cpuTime = 0;
 	t->maxWait = 0;
-	t->startTime = hal_timerGetUs();
+	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
 
 	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
@@ -1123,7 +1137,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->interruptible = interruptible;
 
 	if (timeout) {
-		now = hal_timerGetUs();
+		now = _proc_gettimeRaw();
 		current->wakeup = now + timeout;
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 		_threads_updateWakeup(now, NULL);
@@ -1158,7 +1172,7 @@ int proc_threadSleep(time_t us)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	now = hal_timerGetUs();
+	now = _proc_gettimeRaw();
 
 	current = threads_common.current[hal_cpuGetID()];
 	current->state = SLEEP;
@@ -1350,11 +1364,8 @@ int proc_join(int tid, time_t timeout)
 time_t proc_uptime(void)
 {
 	time_t time;
-	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	time = hal_timerGetUs();
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	proc_gettime(&time, NULL);
 
 	return time;
 }
@@ -1366,7 +1377,7 @@ void proc_gettime(time_t *raw, time_t *offs)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if (raw != NULL) {
-		(*raw) = hal_timerGetUs();
+		(*raw) = _proc_gettimeRaw();
 	}
 	if (offs != NULL) {
 		(*offs) = threads_common.utcoffs;
@@ -1395,7 +1406,7 @@ static time_t _proc_nextWakeup(void)
 
 	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 	if (thread != NULL) {
-		now = hal_timerGetUs();
+		now = _proc_gettimeRaw();
 		if (now >= thread->wakeup)
 			wakeup = 0;
 		else
@@ -1848,7 +1859,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		info[i].state = t->state;
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		now = hal_timerGetUs();
+		now = _proc_gettimeRaw();
 		if (now != t->startTime)
 			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
 		else
@@ -1934,6 +1945,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;
 	threads_common.idcounter = 0;
+	threads_common.prev = 0;
 
 	threads_common.perfGather = 0;
 
