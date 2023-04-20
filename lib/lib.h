@@ -24,6 +24,7 @@
 #include "strtoul.h"
 #include "rb.h"
 #include "list.h"
+#include "assert.h"
 
 
 #define lib_atomicIncrement(ptr) __atomic_add_fetch(ptr, 1, __ATOMIC_RELAXED)
