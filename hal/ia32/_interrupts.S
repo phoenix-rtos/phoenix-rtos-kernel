@@ -23,11 +23,7 @@
 .text
 
 
-#ifndef NDEBUG
-#define CTXPUSHL 42 /* 10 + 4 (DEBUG) + 28 (FPU) */
-#else
 #define CTXPUSHL 38 /* 10 + 28 (FPU) */
-#endif
 
 #define EAX_OFFSET (16 + (FPU_CONTEXT_SIZE))
 
@@ -58,16 +54,6 @@ interrupts_pushContext:
 	pushl %ebp
 	pushl %esi
 	pushl %edi
-#ifndef NDEBUG
-	movl %dr3, %edx
-	pushl %edx
-	movl %dr2, %edx
-	pushl %edx
-	movl %dr1, %edx
-	pushl %edx
-	movl %dr0, %edx
-	pushl %edx
-#endif
 	pushl %esp
 	subl $4, %esp
 	ret
@@ -77,16 +63,6 @@ interrupts_pushContext:
 .global interrupts_popContext
 interrupts_popContext:
 	popl %esp
-#ifndef NDEBUG
-	popl %edx
-	movl %edx, %dr0
-	popl %edx
-	movl %edx, %dr1
-	popl %edx
-	movl %edx, %dr2
-	popl %edx
-	movl %edx, %dr3
-#endif
 	popl %edi
 	popl %esi
 	popl %ebp

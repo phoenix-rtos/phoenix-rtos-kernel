@@ -90,35 +90,6 @@ u32 cpu_getEFLAGS(void)
 }
 
 
-#ifndef NDEBUG
-static int hal_cpuDebugGuard(u32 enable, u32 slot)
-{
-	/* guard 4 bytes read/write */
-	u32 mask = (3 << (2 * slot)) | (0xf << (2 * slot + 16));
-
-	/* exact breakpoint match */
-	mask |= 3 << 8;
-
-	if (slot > 3) {
-		return -EINVAL;
-	}
-
-	if (enable != 0) {
-		cpu.dr5 |= mask;
-	}
-	else {
-		cpu.dr5 &= ~mask;
-	}
-
-	__asm__ volatile(
-		"movl %0, %%dr5; "
-	:: "r" (cpu.dr5));
-
-	return EOK;
-}
-#endif
-
-
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;
@@ -135,13 +106,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
 	hal_cpuRestore(ctx, ctx);
-
-#ifndef NDEBUG
-	ctx->dr0 = (u32)kstack + 16; /* protect bottom bytes of kstack */
-	ctx->dr1 = 0;
-	ctx->dr2 = 0;
-	ctx->dr3 = 0;
-#endif
 
 	hal_memset(&ctx->fpuContext, 0, sizeof(ctx->fpuContext));
 	ctx->cr0Bits = CR0_TS_BIT; /* The process starts with unused FPU */
@@ -270,18 +234,8 @@ void hal_longjmp(cpu_context_t *ctx)
 		cli; \
 		movl %0, %%eax;\
 		addl $4, %%eax;\
-		movl %%eax, %%esp;"
-#ifndef NDEBUG
-		"popl %%eax;\
-		movl %%eax, %%dr0;\
-		popl %%eax;\
-		movl %%eax, %%dr1;\
-		popl %%eax;\
-		movl %%eax, %%dr2;\
-		popl %%eax;\
-		movl %%eax, %%dr3;"
-#endif
-		"popl %%edi;\
+		movl %%eax, %%esp;\
+		popl %%edi;\
 		popl %%esi;\
 		popl %%ebp;\
 		popl %%edx;\
@@ -661,12 +615,6 @@ void _hal_cpuInit(void)
 	cpu.ncpus = 0;
 
 	_hal_cpuInitCores();
-#ifndef NDEBUG
-	hal_cpuDebugGuard(1, 0);
-//	hal_cpuDebugGuard(1, 1);
-//	hal_cpuDebugGuard(1, 2);
-//	hal_cpuDebugGuard(1, 3);
-#endif
 }
 
 

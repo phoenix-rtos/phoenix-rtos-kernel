@@ -134,12 +134,6 @@
 /* CPU context saved by interrupt handlers on thread kernel stack */
 typedef struct {
 	u32 savesp;
-#ifndef NDEBUG
-	u32 dr0;
-	u32 dr1;
-	u32 dr2;
-	u32 dr3;
-#endif
 	u32 edi;
 	u32 esi;
 	u32 ebp;
