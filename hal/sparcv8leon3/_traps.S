@@ -470,6 +470,8 @@ s_wovfl_done:
 	 */
 	rd %psr, %g3
 	and %g3, PSR_CWP, %g3
+	/* save CWP */
+	mov %g3, %g5
 	add %g3, 1, %g3
 	cmp %g3, NWINDOWS
 	bne s_cwp_done
@@ -507,6 +509,9 @@ s_cwp_done:
 s_wunfl_done:
 	mov %o0, %i0 /* pass return value to caller */
 
+	/* swap window if needed (after vfork) */
+	andn %l0, PSR_CWP, %l0
+	or %l0, %g5, %l0
 	wr %l0, %psr
 	nop
 	nop
