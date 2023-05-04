@@ -674,27 +674,25 @@ hal_jmp:
 hal_longjmp:
 	/* disable interrupts */
 	ta 0x09
-	ld [%o0], %g1
+	mov %o0, %g1
 	ld [%o0 + 0x08], %g2 /* psr */
-	or %g2, PSR_PIL, %g2 /* disable interrupts */
-	/* writing %psr might cause window switch */
-	wr %g2, %psr
+	or %g2, PSR_PIL, %g3 /* disable interrupts */
+	mov %g0, %wim
+	nop
+	nop
+	nop
+	/* writing psr might cause window switch */
+	wr %g3, %psr
 	nop
 	nop
 	nop
 	mov %g1, %sp
-	ld [%sp + 0x04], %g1
-	wr %g1, %y
 
+	/* restore context - no need to load caller-saves */
 	ld  [%sp + 0x0c], %o7 /* pc */
-	ld  [%sp + 0x14], %g1
-	ldd [%sp + 0x18], %g2
-	ldd [%sp + 0x20], %g4
 	ldd [%sp + 0x28], %g6
 
-	ldd [%sp + 0x30], %o0
-	ldd [%sp + 0x38], %o2
-	ldd [%sp + 0x40], %o4
+	ld  [%sp + 0x30], %o0
 
 	ldd [%sp + 0x50], %l0
 	ldd [%sp + 0x58], %l2
@@ -706,10 +704,27 @@ hal_longjmp:
 	ldd [%sp + 0x80], %i4
 	ldd [%sp + 0x88], %i6
 
-	/* enable interrupts */
-	ta  0x0a
-	add %sp, 0x90, %sp
+	/* calculate new wim */
+	and %g2, PSR_CWP, %g1
+	add %g1, 1, %g1
+	cmp %g1, NWINDOWS
+	bne 5f
+	nop
+	mov 0, %g1
+5:
+	mov 1, %g3
+	sll %g3, %g1, %g1
+	wr %g1, %wim
+	nop
+	nop
+	nop
+
+	/* restore psr */
+	wr %g2, PSR_ET, %psr
+	nop
+	nop
+	nop
 
 	jmp %o7
-	ld  [%sp - 0x44], %o7
+	add %sp, 0x60, %sp
 .size hal_longjmp, . - hal_longjmp
