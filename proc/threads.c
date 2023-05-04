@@ -1056,13 +1056,14 @@ void proc_reap(void)
 }
 
 
-void proc_changeMap(process_t *proc, vm_map_t *map, pmap_t *pmap)
+void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_t *pmap)
 {
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	proc->mapp = map;
 	proc->pmapp = pmap;
+	proc->imapp = imap;
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
