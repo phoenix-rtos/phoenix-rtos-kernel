@@ -142,7 +142,7 @@ extern int proc_waitpid(int pid, int *stat, int options);
 extern int proc_join(int tid, time_t timeout);
 
 
-extern void proc_changeMap(process_t *proc, vm_map_t *map, pmap_t *pmap);
+extern void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_t *pmap);
 
 
 extern int proc_threadsList(int n, threadinfo_t *info);

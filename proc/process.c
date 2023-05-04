@@ -90,17 +90,20 @@ process_t *proc_find(unsigned pid)
 static void process_destroy(process_t *p)
 {
 	thread_t *ghost;
+	vm_map_t *mapp = p->mapp, *imapp = p->imapp;
 
 	perf_kill(p);
 
 	posix_died(p->id, p->exit);
 
-	if (p->mapp != NULL) {
-		vm_mapDestroy(p, p->mapp);
+	proc_changeMap(p, NULL, NULL, NULL);
+
+	if (mapp != NULL) {
+		vm_mapDestroy(p, mapp);
 	}
 
-	if (p->imapp != NULL) {
-		vm_mapDestroy(p, p->imapp);
+	if (imapp != NULL) {
+		vm_mapDestroy(p, imapp);
 	}
 
 	proc_resourcesDestroy(p);
@@ -300,8 +303,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->lazy = 1;
 #endif
 
-	proc_changeMap(process, NULL, NULL);
-	process->imapp = NULL;
+	proc_changeMap(process, NULL, NULL, NULL);
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
@@ -915,12 +917,10 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 
 #ifndef NOMMU
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
-	proc_changeMap(current->process, &current->process->map, &current->process->map.pmap);
-	current->process->imapp = NULL;
+	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 #else
-	current->process->imapp = spawn->imap;
-	current->process->mapp = (spawn->map != NULL) ? spawn->map : process_common.kmap;
-	current->process->pmapp = &current->process->map.pmap;
+	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
+
 	current->process->entries = NULL;
 #endif
 
@@ -1095,7 +1095,7 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
 	vm_kfree(current->parentkstack);
 
-	proc_changeMap(current->process, NULL, NULL);
+	proc_changeMap(current->process, NULL, NULL, NULL);
 
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
@@ -1145,7 +1145,7 @@ static void process_vforkThread(void *arg)
 	parent = spawn->parent;
 	posix_clone(parent->process->id);
 
-	proc_changeMap(current->process, parent->process->mapp, parent->process->pmapp);
+	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
 	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
@@ -1253,6 +1253,7 @@ int proc_vfork(void)
 }
 
 
+#ifndef NOMMU
 static int process_copy(void)
 {
 
@@ -1277,11 +1278,12 @@ static int process_copy(void)
 	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0)
 		return -ENOMEM;
 
-	proc_changeMap(process, &process->map, &process->map.pmap);
+	proc_changeMap(process, &process->map, process->imapp, &process->map.pmap);
 
 	pmap_switch(process->pmapp);
 	return EOK;
 }
+#endif
 
 
 int proc_release(void)
@@ -1352,7 +1354,7 @@ static int process_execve(thread_t *current)
 {
 	process_spawn_t *spawn = current->execdata;
 	thread_t *parent = spawn->parent;
-	vm_map_t *map;
+	vm_map_t *map, *imap;
 
 	/* The old user stack is no longer valid */
 	current->ustack = NULL;
@@ -1365,15 +1367,15 @@ static int process_execve(thread_t *current)
 	else {
 		/* Reinitialize process */
 		map = current->process->mapp;
-		proc_changeMap(current->process, NULL, NULL);
+		imap = current->process->imapp;
+		proc_changeMap(current->process, NULL, NULL, NULL);
 		pmap_switch(&process_common.kmap->pmap);
 
 		vm_mapDestroy(current->process, map);
 
-		if (current->process->imapp != NULL) {
-			vm_mapDestroy(current->process, current->process->imapp);
+		if (imap != NULL) {
+			vm_mapDestroy(current->process, imap);
 		}
-		current->process->imapp = NULL;
 
 		proc_resourcesDestroy(current->process);
 		proc_portsDestroy(current->process);
