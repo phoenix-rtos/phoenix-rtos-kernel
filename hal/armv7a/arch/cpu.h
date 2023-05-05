@@ -22,7 +22,7 @@
 #define SIZE_PDIR       0x4000
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (8 * 512)
+#define SIZE_KSTACK (8 * 1024)
 #endif
 
 #ifndef SIZE_USTACK
