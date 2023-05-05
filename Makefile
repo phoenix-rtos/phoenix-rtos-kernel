@@ -30,10 +30,10 @@ EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
 SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
 HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
 ifeq (/,$(SYSROOT))
-$(error Sysroot is not supported by toolchain. Use Phoenix-RTOS cross-toolchain to compile)
+  $(error Sysroot is not supported by toolchain. Use Phoenix-RTOS cross-toolchain to compile)
 endif
 
-OBJS = $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o usrv.o)
+OBJS := $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o usrv.o)
 
 all: $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf
 
@@ -45,6 +45,9 @@ include lib/Makefile
 include test/Makefile
 include log/Makefile
 
+# incremental build quick-fix, WARN: assuming the sources are in c
+DEPS := $(patsubst %.o, %.c.d, $(OBJS))
+-include $(DEPS)
 
 $(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS)
 	@mkdir -p $(@D)
@@ -64,12 +67,4 @@ install-headers: $(EXTERNAL_HEADERS)
 uninstall-headers:
 	rm -rf "$(HEADERS_INSTALL_DIR)"/*
 
-
-.PHONY: clean install-headers uninstall-headers
-clean:
-	@echo "rm -rf $(BUILD_DIR)"
-
-ifneq ($(filter clean,$(MAKECMDGOALS)),)
-	$(shell rm -rf $(BUILD_DIR))
-	$(shell rm -f string/*.inc)
-endif
+.PHONY: install-headers uninstall-headers all
