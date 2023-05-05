@@ -21,13 +21,12 @@
 #define SIZE_PAGE 0x200
 
 /* Default kernel and user stack sizes */
-/* FIXME: change stack sizes when KSTACK is used */
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (16 * SIZE_PAGE)
+#define SIZE_KSTACK (8 * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (16 * SIZE_PAGE)
+#define SIZE_USTACK (8 * SIZE_PAGE)
 #endif
 
 
