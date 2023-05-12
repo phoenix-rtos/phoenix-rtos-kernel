@@ -268,13 +268,6 @@ void _gr716_cguClkDisable(u32 cgu, u32 device)
 }
 
 
-u32 _gr716_getSysClk(void)
-{
-	/* TODO - PLL usage */
-	return 20 * 1000 * 1000;
-}
-
-
 void hal_wdgReload(void)
 {
 }

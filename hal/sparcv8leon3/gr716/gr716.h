@@ -40,6 +40,8 @@
 #define GRGPIO0_BASE ((void *)0x8030C000)
 #define GRGPIO1_BASE ((void *)0x8030D000)
 
+#define SYSCLK_FREQ 50000000 /* 50 MHz */
+
 
 extern int _gr716_gpioWritePin(u8 pin, u8 val);
 
@@ -63,9 +65,6 @@ extern void _gr716_cguClkEnable(u32 cgu, u32 device);
 
 
 extern void _gr716_cguClkDisable(u32 cgu, u32 device);
-
-
-extern u32 _gr716_getSysClk(void);
 
 
 extern int hal_platformctl(void *ptr);

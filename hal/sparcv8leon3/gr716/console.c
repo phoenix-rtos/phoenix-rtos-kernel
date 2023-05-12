@@ -88,7 +88,7 @@ static u32 _hal_consoleCalcScaler(u32 baud)
 {
 	u32 scaler = 0;
 
-	scaler = (_gr716_getSysClk() / (baud * 8 + 7));
+	scaler = (SYSCLK_FREQ / (baud * 8 + 7));
 
 	return scaler;
 }

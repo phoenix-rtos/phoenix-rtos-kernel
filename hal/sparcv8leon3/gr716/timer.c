@@ -108,8 +108,8 @@ static inline void timer_setReloadValue(int timer, u32 val)
 
 static void timer_setPrescaler(int timer, u32 freq)
 {
-	u32 prescaler = _gr716_getSysClk() / 1000000; /* 1 MHz */
-	u32 ticks = (_gr716_getSysClk() / prescaler) / freq;
+	u32 prescaler = SYSCLK_FREQ / 1000000; /* 1 MHz */
+	u32 ticks = (SYSCLK_FREQ / prescaler) / freq;
 
 	timer_setReloadValue(timer, ticks - 1);
 	*(timer_common.timer0_base + gpt_sreload) = prescaler - 1;
