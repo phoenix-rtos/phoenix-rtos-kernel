@@ -20,7 +20,11 @@
 #include <arch/pmap.h>
 #include "multiboot.h"
 
+#define INIT_ESP 0x6000
+#define SYSPAGE_SEG 0x200
+#define INIT_CORE_BASE_ADDR 0x11000
 
+.code32
 .section .init, "x"
 
 /* .init */
@@ -171,7 +175,7 @@ _start_initap:
 	movl %eax, (0xfff4)
 	subl $VADDR_KERNEL, (0xfff2)
 	movl %esi, (0xfff8)
-	movl $0x11000, %edi
+	movl $INIT_CORE_BASE_ADDR, %edi
 	movl $_init_core, %eax
 	subl $VADDR_KERNEL, %eax
 	movl %eax, %esi
@@ -197,7 +201,8 @@ b3:
 	/* Set FPU */
 	fninit
 	movl %cr0, %eax
-	orl $8, %eax	/* Set TS flag */
+	orl $8, %eax
+	/* Set TS flag */
 	mov %eax, %cr0
 	/* Now jump to main function */
 	pushl $0
@@ -248,53 +253,31 @@ _init_empty8042:
 .size _init_empty8042, .-_init_empty8042
 
 
+.code16
 .globl _init_core
 .type _init_core, @function
 _init_core:
 	cli
-
-	/* mov ax, #0xfff */
-	.byte 0xb8, 0xff, 0x0f
-
-	/* mov es, ax */
-	.byte 0x8e, 0xc0
-
-	/* lgdt es:0 */
-	.byte 0x26, 0x0f, 0x01, 0x16, 0x00, 0x00
-
-	/* mov ax, #0 */
-	.byte 0xb8, 0x00, 0x00
-
-	/* mov ss, ax */
-	.byte 0x8e, 0xd0
-
-	/* mov esp, #INIT_ESP */
-	.byte 0x66, 0xbc, 0x00, 0x60, 0x00, 0x00
-
-	/* mov eax, #SYSPAGE_SEG */
-	.byte 0x66, 0xb8, 0x00, 0x02, 0x00, 0x00
-
-	/* shl eax, #4 */
-	.byte 0x66, 0xc1, 0xe0, 0x04
-
-	/* push eax */
-	.byte 0x66, 0x50
+	mov $0xfff, %ax
+	mov %ax, %es
+	lgdt %es:0
+	mov $0, %ax
+	mov %ax, %ss
+	movl $INIT_ESP, %esp
+	movl $SYSPAGE_SEG, %eax
+	shl $4, %eax
+	push %eax
 
 	movl $0x3f8, %edx
 	movb $70, %al
 	outb %al, %dx
 
-	/* mov eax, cr0 */
-	.byte 0x0f, 0x20, 0xc0
-
-	/* or eax, 1 */
-	.byte 0x66, 0x83, 0xc8, 0x01
-
-	/* mov cr0, eax */
-	.byte 0x0f, 0x22, 0xc0
-
-	/* jmp far 0008h:0011000 (MOD) */
-	.byte 0x66, 0xea, 0x3d, 0x10, 0x01, 0x00, 0x08, 0x00
+	/* Enable protected mode */
+	mov %cr0, %eax
+	orl $1, %eax
+	mov %eax, %cr0
+	ljmpl $SEL_KCODE , $(INIT_CORE_BASE_ADDR + _init_core_prot - _init_core)
+.code32
 _init_core_prot:
 	movw $SEL_KDATA, %ax
 	movw %ax, %ss
