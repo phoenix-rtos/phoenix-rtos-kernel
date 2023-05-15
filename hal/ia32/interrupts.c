@@ -102,6 +102,7 @@ void _interrupts_apicACK(unsigned int n)
 	}
 
 	if (hal_cpuGetID()) {
+		/* 0xfee000b0 - EOI Register */
 		__asm__ volatile("movl $0, (0xfee000b0)" ::);
 		return;
 	}
