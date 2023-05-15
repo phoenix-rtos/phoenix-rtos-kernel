@@ -258,6 +258,11 @@ _init_empty8042:
 .type _init_core, @function
 _init_core:
 	cli
+	/* Enable cache */
+	mov %cr0, %eax
+	andl $0x9FFFFFFF, %eax
+	mov %eax, %cr0
+
 	mov $0xfff, %ax
 	mov %ax, %es
 	lgdt %es:0
