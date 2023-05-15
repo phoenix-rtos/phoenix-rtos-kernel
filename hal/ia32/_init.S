@@ -193,17 +193,11 @@ b0:
 	jc b0
 
 	/* Send SIPI IPI (with real memory-address 0x00011000) */
-	movl $0x000C4611, %eax /* 11 00 0 0 1 0 0 0 110 00010001 */
+	movl $0x000c4611, %eax /* 11 00 0 0 1 0 0 0 110 00010001 */
 	mov %eax, (0xfee00300)
 b1:	btl $12, (0xfee00300)
 	jc b1
 b3:
-	/* Set FPU */
-	fninit
-	movl %cr0, %eax
-	orl $8, %eax
-	/* Set TS flag */
-	mov %eax, %cr0
 	/* Now jump to main function */
 	pushl $0
 	pushl $0
@@ -273,10 +267,6 @@ _init_core:
 	shl $4, %eax
 	push %eax
 
-	movl $0x3f8, %edx
-	movb $70, %al
-	outb %al, %dx
-
 	/* Enable protected mode */
 	mov %cr0, %eax
 	orl $1, %eax
@@ -290,10 +280,6 @@ _init_core_prot:
 	movw %ax, %es
 	movw %ax, %fs
 	movw %ax, %gs
-
-	movl $0x3f8, %edx
-	movb $68, %al
-	outb %al, %dx
 
 	/* Initialize virtual memory */
 	movl (0xfff8), %esi
@@ -335,10 +321,6 @@ _init_core_wait:
 	xchgl (%ebx), %eax
 	cmp $0, %eax
 	jne _init_core_wait
-
-	movl $0x3f8, %edx
-	movb $63, %al
-	outb %al, %dx
 
 	movl $0x7c00, %esp
 	addl $VADDR_KERNEL, %esp

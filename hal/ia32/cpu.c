@@ -268,6 +268,7 @@ static inline unsigned int _hal_cpuGetID(void)
 {
 	u32 id;
 
+	/* 0xfee00020 - Local APIC ID Register */
 	__asm__ volatile
 	(" \
 		movl (0xfee00020), %0"
@@ -291,6 +292,7 @@ void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 		return;
 	}
 
+	/* 0xfee00300 - Interrupt Command Register (ICR); bits 0-31 */
 	__asm__ volatile
 	(" \
 		movl %0, %%eax; \
@@ -330,24 +332,42 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 
 void *_cpu_initCore(void)
 {
+	const unsigned int id = hal_cpuGetID();
+	/* 0xfee000f0 - Local APIC, Spurious Interrupt Vector Register */
+	volatile u32 *p = (void *)0xfee000f0;
+
 	cpu.ncpus++;
 
-	u32 a = *(u32 *)0xfee000f0;
-	*(u32 *)0xfee000f0 = (a | 0x100);
+	*p = (*p | 0x100);
 
-	hal_memset(&cpu.tss[hal_cpuGetID()], 0, sizeof(tss_t));
+	hal_memset(&cpu.tss[id], 0, sizeof(tss_t));
 
-	_cpu_gdtInsert(TLS_DESC_IDX + cpu.ncpus, (u32)&cpu.tss[hal_cpuGetID()], sizeof(tss_t), DESCR_TSS);
+	_cpu_gdtInsert(TLS_DESC_IDX + (id + 1), (u32)&cpu.tss[id], sizeof(tss_t), DESCR_TSS);
 
-	cpu.tss[hal_cpuGetID()].ss0 = SEL_KDATA;
-	cpu.tss[hal_cpuGetID()].esp0 = (u32)&cpu.stacks[hal_cpuGetID()][511];
+	cpu.tss[id].ss0 = SEL_KDATA;
+	cpu.tss[id].esp0 = (u32)&cpu.stacks[id][511];
+
+	/* Init FPU - set flags:
+	   MP - FWAIT instruction does not ignore TS flag
+	   TS - The first use of FPU generates device-not-available exception (#NM)
+	   NE - FPU exceptions are handled internally*/
+	/* clang-format off */
+	__asm__ volatile (
+		"fninit;"
+		"movl %%cr0, %%eax;"
+		"orl $0x2A, %%eax;"
+		"mov %%eax, %%cr0;"
+	:
+	:
+	: "eax");
+	/* clang-format on */
 
 	/* Set task register */
 	__asm__ volatile(
 		"ltr %0; "
-	:: "r" ((u16)((TLS_DESC_IDX + cpu.ncpus) * 8)));
+	:: "r" ((u16)((TLS_DESC_IDX + (id + 1)) * 8)));
 
-	return (void *)cpu.tss[hal_cpuGetID()].esp0;
+	return (void *)cpu.tss[id].esp0;
 }
 
 
