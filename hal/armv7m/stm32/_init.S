@@ -126,6 +126,7 @@ _syscall_dispatch:
 
 	/* Exit handler mode to kernel thread mode */
 	mov lr, #0xfffffff9
+	dsb
 	bx lr
 
 _syscallend:
@@ -217,6 +218,7 @@ _intd1:
 	ror r1, r1, #2
 	msr control, r1
 	isb
+	dsb
 
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch

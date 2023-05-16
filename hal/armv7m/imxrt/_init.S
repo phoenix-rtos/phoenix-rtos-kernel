@@ -147,7 +147,7 @@ _syscall_dispatch0:
 	msr control, lr
 	mov lr, #0xffffffe9
 	isb
-	dmb
+	dsb
 
 	bx lr
 
@@ -251,7 +251,7 @@ _intd1:
 	msr control, r1
 	isb
 
-	dmb
+	dsb
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
 .ltorg
