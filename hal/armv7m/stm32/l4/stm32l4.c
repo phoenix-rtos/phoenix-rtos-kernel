@@ -385,7 +385,7 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	/* Enter Stop mode */
 	__asm__ volatile ("\
 		dmb; \
-		wfi; \
+		wfe; \
 		nop; ");
 
 	/* Reset SLEEPDEEP bit of Cortex System Control Register */
@@ -855,6 +855,9 @@ void _stm32_init(void)
 	/* Disable FPU */
 	*(stm32_common.scb + scb_cpacr) = 0;
 	*(stm32_common.scb + scb_fpccr) = 0;
+
+	/* Enable SEVONPEND */
+	*(stm32_common.scb + scb_scr) |= 1 << 4;
 
 	/* Enable internal wakeup line */
 	*(stm32_common.pwr + pwr_cr3) |= 1 << 15;
