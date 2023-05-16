@@ -227,6 +227,58 @@ int _stm32_rccGetDevClock(unsigned int d, u32 *state)
 }
 
 
+static void _stm32_rccMsiToHsi(void)
+{
+	u32 t;
+
+	/* Enable HSI */
+	*(stm32_common.rcc + rcc_cr) |= 1 << 8;
+	hal_cpuDataMemoryBarrier();
+
+	while ((*(stm32_common.rcc + rcc_cr) & (1 << 10)) == 0) {
+	}
+
+	/* Change system clk to HSI */
+	t = *(stm32_common.rcc + rcc_cfgr) & ~3;
+	*(stm32_common.rcc + rcc_cfgr) = t | 1;
+	hal_cpuDataMemoryBarrier();
+
+	/* Wait for HSI selection */
+	while (((*(stm32_common.rcc + rcc_cfgr) >> 2) & 3) != 1) {
+	}
+
+	/* Disable MSI */
+	*(stm32_common.rcc + rcc_cr) &= ~1;
+	hal_cpuDataMemoryBarrier();
+
+	while ((*(stm32_common.rcc + rcc_cr) & (1 << 1)) != 0) {
+	}
+}
+
+
+static void _stm32_rccHsiToMsi(void)
+{
+	/* Enable MSI */
+	*(stm32_common.rcc + rcc_cr) |= 1;
+	hal_cpuDataMemoryBarrier();
+
+	while ((*(stm32_common.rcc + rcc_cr) & (1 << 1)) == 0) {
+	}
+
+	/* Change system clk to MSI */
+	*(stm32_common.rcc + rcc_cfgr) &= ~3;
+	hal_cpuDataMemoryBarrier();
+
+	/* Wait for MSI selection */
+	while (((*(stm32_common.rcc + rcc_cfgr) >> 2) & 3) != 0) {
+	}
+
+	/* Disable HSI */
+	*(stm32_common.rcc + rcc_cr) &= ~(1 << 8);
+	hal_cpuDataMemoryBarrier();
+}
+
+
 int _stm32_rccSetCPUClock(u32 hz)
 {
 	u8 range;
@@ -283,22 +335,46 @@ int _stm32_rccSetCPUClock(u32 hz)
 	}
 */
 	else {
-		/* We can use HSI, if higher frequency is needed */
+		/* Not supported */
 		return -EINVAL;
 	}
 
 	if (hz > 6000 * 1000)
 		_stm32_pwrSetCPUVolt(1);
 
-	while (!(*(stm32_common.rcc + rcc_cr) & 2))
-		;
+	if (hz == 16 * 1000 * 1000) {
+		/* We can use HSI */
+		_stm32_rccMsiToHsi();
 
-	t = *(stm32_common.rcc + rcc_cr) & ~(0xf << 4);
-	*(stm32_common.rcc + rcc_cr) = t | range << 4 | (1 << 3);
-	hal_cpuDataMemoryBarrier();
+		/* Use HSI after STOP2 wakeup */
+		*(stm32_common.rcc + rcc_cfgr) |= 1 << 15;
+		hal_cpuDataMemoryBarrier();
+	}
+	else {
+		/* Enable MSI (doesn't hurt if already enabled) */
+		*(stm32_common.rcc + rcc_cr) |= 1;
+		hal_cpuDataMemoryBarrier();
 
-	if (hz <= 6000 * 1000)
-		_stm32_pwrSetCPUVolt(2);
+		/* Wait for MSI ready */
+		while (!(*(stm32_common.rcc + rcc_cr) & 2)) {
+		}
+
+		/* Set MSI range */
+		t = *(stm32_common.rcc + rcc_cr) & ~(0xf << 4);
+		*(stm32_common.rcc + rcc_cr) = t | range << 4 | (1 << 3);
+		hal_cpuDataMemoryBarrier();
+
+		_stm32_rccHsiToMsi();
+
+		/* Can use Vcore range 2 only below 6 MHz */
+		if (hz <= 6000 * 1000) {
+			_stm32_pwrSetCPUVolt(2);
+		}
+
+		/* Use MSI after STOP2 wakeup */
+		*(stm32_common.rcc + rcc_cfgr) &= ~(1 << 15);
+		hal_cpuDataMemoryBarrier();
+	}
 
 	stm32_common.cpuclk = hz;
 
@@ -367,13 +443,21 @@ void _stm32_pwrSetCPUVolt(u8 range)
 time_t _stm32_pwrEnterLPStop(time_t us)
 {
 	unsigned int t;
+	int restoreMsi = 0;
 
-	/* Set internal regulator to default range to further conserve power */
+	/* Set internal regulator to default range as we're switching to HSI */
 	_stm32_pwrSetCPUVolt(1);
+
+	if (((*(stm32_common.rcc + rcc_cfgr) >> 2) & 3) == 0) {
+		/* Errata ES0335 rev 17 2.2.4 - initiate STOP mode on HSI if MSI is selected */
+		restoreMsi = 1;
+		_stm32_rccMsiToHsi();
+	}
 
 	/* Enter Stop2 on deep-sleep */
 	t = *(stm32_common.pwr + pwr_cr1) & ~(0x7);
 	*(stm32_common.pwr + pwr_cr1) = t | 2;
+	hal_cpuDataMemoryBarrier();
 
 	/* Set SLEEPDEEP bit of Cortex System Control Register */
 	*(stm32_common.scb + scb_scr) |= 1 << 2;
@@ -392,6 +476,16 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	*(stm32_common.scb + scb_scr) &= ~(1 << 2);
 
 	*(stm32_common.scb + syst_csr) |= 1;
+
+	if (restoreMsi != 0) {
+		/* Restore pre-sleep MSI clock */
+		_stm32_rccHsiToMsi();
+	}
+
+	/* Can use Vcore range 2 only below 6 MHz */
+	if (stm32_common.cpuclk <= 6 * 1000 * 1000) {
+		_stm32_pwrSetCPUVolt(2);
+	}
 
 	return 0;
 }
