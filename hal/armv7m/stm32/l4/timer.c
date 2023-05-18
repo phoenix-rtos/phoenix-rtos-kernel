@@ -18,6 +18,7 @@
 #include "../../../timer.h"
 #include "../../../interrupts.h"
 #include "../../../spinlock.h"
+#include "../../../console.h"
 
 /*
  * Prescaler settings (32768 Hz input frequency):
@@ -81,20 +82,20 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 		hal_cpuDataMemoryBarrier();
 	}
 
-	/* Clear CMPM */
+	/* Clear ARRM */
 	if ((isr & (1 << 1)) != 0) {
 		++timer_common.upper;
 		clr |= (1 << 1);
 	}
 
-	/* Clear ARRM */
+	/* Clear CMPM */
 	if ((isr & (1 << 0)) != 0) {
 		clr |= (1 << 0);
+	}
 
-		if (timer_common.wakeup != 0) {
-			ret = 1;
-			timer_common.wakeup = 0;
-		}
+	if (timer_common.wakeup != 0) {
+		ret = 1;
+		timer_common.wakeup = 0;
 	}
 
 	*(timer_common.lptim + lptim_icr) = clr;
@@ -150,7 +151,9 @@ void timer_jiffiesAdd(time_t t)
 
 void timer_setAlarm(time_t us)
 {
-	u32 setval, timerval;
+	int cmpdone = 0;
+	u32 setval, timerval, oldval;
+	u32 timeout = 0;
 	spinlock_ctx_t sc;
 	time_t ticks = hal_timerUs2Cyc(us);
 
@@ -163,19 +166,45 @@ void timer_setAlarm(time_t us)
 		ticks = (ARR_VAL * 2) / 3;
 	}
 
-	setval = (timerval + (u32)ticks) & ARR_VAL;
+	setval = timerval + (u32)ticks;
+	oldval = *(timer_common.lptim + lptim_cmp);
 
-	/* Can't have cmp == arr */
-	if (setval > ARR_VAL - 1) {
-		setval = ARR_VAL - 1;
+	/* Undocumented STM32L4x6 issue workaround:
+	 * We discovered that sometimes the CMPOK flag is never set after write
+	 * to the CMP register. We believe that it may be provoked by either:
+	 * - writing CMP <= CNT,
+	 * - writing CMP == CMP (the same value as already present in the register).
+	 * Solution below avoids both of these cases. Nevertheless, if we
+	 * time out on waiting for the CMPOK flag, we retry write to the CMP
+	 * register. It is forbidden to write the CMP when CMPOK != 1, but it
+	 * seems to correct the issue of CMPOK being stuck on 0 anyway.
+	 */
+
+	/* Can't have cmp == arr, arr will wake us up, no need to set cmp
+	.* if setval >= arr or it's already set as desired */
+	if ((setval < ARR_VAL) && (setval != oldval)) {
+		do {
+			*(timer_common.lptim + lptim_cmp) = setval;
+			hal_cpuDataSyncBarrier();
+
+			for (timeout = 0; timeout < 0x1234; ++timeout) {
+				if ((*(timer_common.lptim + lptim_isr) & (1 << 3)) != 0) {
+					cmpdone = 1;
+					break;
+				}
+			}
+
+			/* <DEBUG> */
+			if (!cmpdone) {
+				log_disable();
+				lib_printf("CMPOK timeout. timerval: %u, setval %u, oldval %u, ticks: %u\n", timerval, setval, oldval, (u32)ticks);
+			}
+			/* </DEBUG> */
+
+			/* Retry setting CMP if waiting for CMPOK timed out */
+		} while (cmpdone == 0);
 	}
 
-	*(timer_common.lptim + lptim_cmp) = setval;
-	hal_cpuDataMemoryBarrier();
-	/* Wait for CMPOK */
-	while ((*(timer_common.lptim + lptim_isr) & (1 << 3)) == 0) {
-	}
-	hal_cpuDataMemoryBarrier();
 	timer_common.wakeup = 1;
 
 	hal_spinlockClear(&timer_common.sp, &sc);
