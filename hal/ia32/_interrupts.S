@@ -90,6 +90,15 @@ interrupts_pushContext:
 interrupts_popContext:
 	popl %esp
 	_INTERRUPTS_MULTILOCKCLEAR %eax
+	/* Set correct gs */
+	movw 28(%esp), %dx
+	cmpw $SEL_KDATA, %dx
+	je .Lignore_gs
+	call hal_cpuGetTlsIndex
+	shl $3, %eax
+	orb $3, %al
+	movw %ax, 28(%esp)
+.Lignore_gs:
 	popl %edi
 	popl %esi
 	popl %ebp

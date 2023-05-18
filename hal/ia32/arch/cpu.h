@@ -99,9 +99,8 @@
 #define SEL_KDATA 16
 #define SEL_UCODE 27
 #define SEL_UDATA 35
-#define SEL_TLS   43
 
-#define TLS_DESC_IDX 5
+#define GDT_FREE_SEL_IDX 5
 
 #define CR0_TS_BIT       8u
 #define FPU_CONTEXT_SIZE 108u /* sizeof(fpu_context_t) */
@@ -269,6 +268,7 @@ static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 
 /* context management */
 
+unsigned int hal_cpuGetTlsIndex(void);
 
 static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 {
