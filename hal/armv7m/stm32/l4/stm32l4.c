@@ -782,7 +782,7 @@ void _stm32_init(void)
 
 	/* Enable LSE clock source, set it as RTC source and set medium xtal drive strength */
 	t = *(stm32_common.rcc + rcc_bdcr) & ~((3 << 24) | (3 << 15) | (3 << 8) | 0x7f);
-	*(stm32_common.rcc + rcc_bdcr) = t | (1 << 25) | (1 << 15) | (1 << 8) | (1 << 3) | 1;
+	*(stm32_common.rcc + rcc_bdcr) = t | (1 << 25) | (1 << 15) | (1 << 8) | (2 << 3) | 1;
 	hal_cpuDataMemoryBarrier();
 
 	/* And wait for it to turn on */
