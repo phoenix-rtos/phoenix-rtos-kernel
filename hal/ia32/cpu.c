@@ -77,6 +77,18 @@ struct {
 /* context management */
 
 
+static unsigned int hal_cpuGetTssIndex(void)
+{
+	return GDT_FREE_SEL_IDX + 2 * hal_cpuGetID();
+}
+
+
+unsigned int hal_cpuGetTlsIndex(void)
+{
+	return GDT_FREE_SEL_IDX + 2 * hal_cpuGetID() + 1;
+}
+
+
 u32 cpu_getEFLAGS(void)
 {
 	u32 eflags;
@@ -118,7 +130,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->ecx = 0;
 	ctx->ebx = 0;
 	ctx->eax = 0;
-	ctx->gs = SEL_TLS;
+	ctx->gs = ustack ? 8 * hal_cpuGetTlsIndex() | 3 : SEL_KDATA;
 	ctx->fs = ustack ? SEL_UDATA : SEL_KDATA;
 	ctx->es = ustack ? SEL_UDATA : SEL_KDATA;
 	ctx->ds = ustack ? SEL_UDATA : SEL_KDATA;
@@ -175,6 +187,14 @@ void hal_longjmp(cpu_context_t *ctx)
 		movl %0, %%eax;\
 		addl $4, %%eax;\
 		movl %%eax, %%esp;\
+		movw 28(%%esp), %%dx;\
+		cmpw %[kdata], %%dx;\
+		je .Lignore_gs;\
+		call hal_cpuGetTlsIndex;\
+		shl $3, %%eax;\
+		orb $3, %%al;\
+		movw %%ax, 28(%%esp);\
+		.Lignore_gs: \
 		popl %%edi;\
 		popl %%esi;\
 		popl %%ebp;\
@@ -203,7 +223,7 @@ void hal_longjmp(cpu_context_t *ctx)
 		popl %%eax;\
 		iret"
 	:
-	: "g" (ctx), [cr0ts] "i" (CR0_TS_BIT), [not_cr0ts] "i" (~CR0_TS_BIT), [fpuContextSize] "i" (FPU_CONTEXT_SIZE));
+	: "g" (ctx), [cr0ts] "i" (CR0_TS_BIT), [not_cr0ts] "i" (~CR0_TS_BIT), [fpuContextSize] "i" (FPU_CONTEXT_SIZE), [kdata] "i" (SEL_KDATA));
 	/* clang-format on */
 }
 
@@ -220,14 +240,15 @@ void hal_jmp(void *f, void *kstack, void *stack, int argc)
 		:"r" (kstack), "r" (f));
 	}
 	else {
+		/* clang-format off */
 		__asm__ volatile
 		(" \
-			sti; \
-			movl %1, %%eax;\
-			movl %2, %%ebx;\
-			movl %3, %%ecx;\
-			movl %4, %%edx;\
-			movl %0, %%esp;\
+			sti;\
+			movl %[func], %%eax;\
+			movl %[ustack], %%ebx;\
+			movl %[ucs], %%ecx;\
+			movl %[uds], %%edx;\
+			movl %[kstack], %%esp;\
 			pushl %%edx;\
 			pushl %%ebx;\
 			pushfl;\
@@ -235,11 +256,14 @@ void hal_jmp(void *f, void *kstack, void *stack, int argc)
 			movw %%dx, %%ds;\
 			movw %%dx, %%es;\
 			movw %%dx, %%fs;\
+			shrl $16, %%edx;\
+			movw %%dx, %%gs;\
 			pushl %%eax;\
 			iret"
 		:
-		:"g" (kstack), "g" (f), "g" (stack), "g" (SEL_UCODE), "g" (SEL_UDATA)
-		:"eax", "ebx", "ecx", "edx");
+		: [kstack] "g" (kstack), [func] "g" (f), [ustack] "g" (stack), [ucs] "g" (SEL_UCODE), [uds] "g" ((8 * hal_cpuGetTlsIndex() | 3) << 16 | SEL_UDATA)
+		: "eax", "ebx", "ecx", "edx");
+		/* clang-format on */
 	}
 }
 
@@ -298,11 +322,13 @@ void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 		movl %0, %%eax; \
 		orl $0x000c4000, %%eax; \
 		movl %%eax, (0xfee00300); \
-	b0:; \
+	0:; \
 		btl $12, (0xfee00300); \
-		jc b0"
+		jc 0b"
 	:
-	:  "r" (intr));
+	:  "r" (intr)
+	: "eax");
+	/* clang-format on */
 }
 
 
@@ -342,7 +368,8 @@ void *_cpu_initCore(void)
 
 	hal_memset(&cpu.tss[id], 0, sizeof(tss_t));
 
-	_cpu_gdtInsert(TLS_DESC_IDX + (id + 1), (u32)&cpu.tss[id], sizeof(tss_t), DESCR_TSS);
+	_cpu_gdtInsert(hal_cpuGetTssIndex(), (u32)&cpu.tss[id], sizeof(tss_t), DESCR_TSS);
+	_cpu_gdtInsert(hal_cpuGetTlsIndex(), 0x00000000, VADDR_KERNEL, DESCR_TLS);
 
 	cpu.tss[id].ss0 = SEL_KDATA;
 	cpu.tss[id].esp0 = (u32)&cpu.stacks[id][511];
@@ -362,10 +389,13 @@ void *_cpu_initCore(void)
 	: "eax");
 	/* clang-format on */
 
+	/* clang-format off */
 	/* Set task register */
-	__asm__ volatile(
-		"ltr %0; "
-	:: "r" ((u16)((TLS_DESC_IDX + (id + 1)) * 8)));
+	__asm__ volatile (
+		"ltr %0;"
+	:
+	: "r" ((u16)(hal_cpuGetTssIndex() * 8)));
+	/* clang-format on */
 
 	return (void *)cpu.tss[id].esp0;
 }
@@ -378,7 +408,6 @@ static void _hal_cpuInitCores(void)
 	/* Prepare descriptors for user segments */
 	_cpu_gdtInsert(3, 0x00000000, VADDR_KERNEL, DESCR_UCODE);
 	_cpu_gdtInsert(4, 0x00000000, VADDR_KERNEL, DESCR_UDATA);
-	_cpu_gdtInsert(TLS_DESC_IDX, 0x00000000, VADDR_KERNEL, DESCR_TLS);
 
 	/* Initialize BSP */
 	cpu.ncpus = 0;
@@ -580,21 +609,5 @@ void _hal_cpuInit(void)
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	ptr_t descrh, descrl;
-	u32 type = DESCR_TLS;
-	u32 *gdt;
-	ptr_t base;
-	ptr_t limit = VADDR_KERNEL;
-
-	base = tls->tls_base + tls->tbss_sz + tls->tdata_sz;
-
-	/* Update TLS entry in GDT with allocated page address */
-	descrh = (base & 0xff000000) | (type & 0x00c00000) | (limit & 0x000f0000) |
-		(type & 0x0000ff00) | ((base >> 16) & 0x000000ff);
-	descrl = (base << 16) | (limit & 0xffff);
-
-	gdt = (void *)syspage->hs.gdtr.addr;
-
-	gdt[TLS_DESC_IDX * 2] = descrl;
-	gdt[TLS_DESC_IDX * 2 + 1] = descrh;
+	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->tbss_sz + tls->tdata_sz, VADDR_KERNEL, DESCR_TLS);
 }
