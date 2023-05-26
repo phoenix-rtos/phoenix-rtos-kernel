@@ -67,6 +67,9 @@ extern void _gr716_cguClkEnable(u32 cgu, u32 device);
 extern void _gr716_cguClkDisable(u32 cgu, u32 device);
 
 
+extern int _gr716_cguClkStatus(u32 cgu, u32 device);
+
+
 extern int hal_platformctl(void *ptr);
 
 
