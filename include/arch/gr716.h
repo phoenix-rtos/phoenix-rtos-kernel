@@ -49,7 +49,10 @@ typedef struct {
 		} iocfg;
 
 		struct {
-			enum { disable = 0, enable } state;
+			union {
+				enum { disable = 0, enable } state;
+				int stateVal;
+			};
 			unsigned char cgu;
 			unsigned int cgudev;
 		} cguctrl;

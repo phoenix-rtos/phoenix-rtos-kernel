@@ -268,6 +268,15 @@ void _gr716_cguClkDisable(u32 cgu, u32 device)
 }
 
 
+int _gr716_cguClkStatus(u32 cgu, u32 device)
+{
+	volatile u32 *cguBase = (cgu == cgu_primary) ? gr716_common.cgu_base0 : gr716_common.cgu_base1;
+	u32 msk = 1 << device;
+
+	return (*(cguBase + cgu_clk_en) & msk) ? 1 : 0;
+}
+
+
 void hal_wdgReload(void)
 {
 }
@@ -290,6 +299,10 @@ int hal_platformctl(void *ptr)
 				else {
 					_gr716_cguClkEnable(data->cguctrl.cgu, data->cguctrl.cgudev);
 				}
+				ret = 0;
+			}
+			else if (data->action == pctl_get) {
+				data->cguctrl.stateVal = _gr716_cguClkStatus(data->cguctrl.cgu, data->cguctrl.cgudev);
 				ret = 0;
 			}
 			break;
