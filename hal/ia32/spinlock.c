@@ -25,20 +25,21 @@ struct {
 
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
-	__asm__ volatile
-	(" \
-		pushf; \
-		popl %%ebx; \
-		cli; \
-	1: \
-		xorl %%eax, %%eax; \
-		xchgl %1, %%eax; \
-		cmp $0, %%eax; \
-		jz 1b; \
-		movl %%ebx, (%0)"
+	/* clang-format off */
+	__asm__ volatile (
+		"pushf\n\t"
+		"popl %%ebx\n\t"
+		"cli\n"
+		"1:\n\t"
+		"xorl %%eax, %%eax\n\t"
+		"xchgl %1, %%eax\n\t"
+		"testl %%eax, %%eax\n\t"
+		"jz 1b\n\t"
+		"movl %%ebx, (%0)"
 	:
 	: "r" (sc), "m" (spinlock->lock)
 	: "eax", "ebx", "memory");
+	/* clang-format on */
 
 	hal_cpuGetCycles((void *)&spinlock->b);
 }
@@ -55,17 +56,18 @@ void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 	if (spinlock->e - spinlock->b < spinlock->dmin)
 		spinlock->dmin = spinlock->e - spinlock->b;
 
-	__asm__ volatile
-	(" \
-		xorl %%eax, %%eax; \
-		incl %%eax; \
-		xchgl %0, %%eax; \
-		movl %1, %%eax; \
-		pushl %%eax; \
-		popf"
+	/* clang-format off */
+	__asm__ volatile (
+		"xorl %%eax, %%eax\n\t"
+		"incl %%eax\n\t"
+		"xchgl %0, %%eax\n\t"
+		"movl %1, %%eax\n\t"
+		"pushl %%eax\n\t"
+		"popf"
 	:
 	: "m" (spinlock->lock), "r" (*sc)
 	: "eax", "memory");
+	/* clang-format on */
 
 	return;
 }

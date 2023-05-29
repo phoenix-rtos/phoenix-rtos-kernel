@@ -19,21 +19,22 @@
 
 void hal_memcpy(void *dst, const void *src, size_t l)
 {
-	__asm__ volatile
-	(" \
-		cld; \
-		movl %0, %%ecx; \
-		movl %%ecx, %%edx; \
-		andl $3, %%edx; \
-		shrl $2, %%ecx; \
-		movl %1, %%edi; \
-		movl %2, %%esi; \
-		rep; movsl; \
-		movl %%edx, %%ecx; \
-		rep; movsb"
+	/* clang-format off */
+	__asm__ volatile (
+		"cld\n\t"
+		"movl %0, %%ecx\n\t"
+		"movl %%ecx, %%edx\n\t"
+		"andl $3, %%edx\n\t"
+		"shrl $2, %%ecx\n\t"
+		"movl %1, %%edi\n\t"
+		"movl %2, %%esi\n\t"
+		"rep movsl\n\t"
+		"movl %%edx, %%ecx\n\t"
+		"rep movsb"
 	:
 	: "g" (l), "g" (dst), "g" (src)
 	: "ecx", "edx", "esi", "edi", "cc", "memory");
+	/* clang-format on */
 }
 
 
@@ -54,30 +55,31 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 
 void hal_memset(void *dst, int v, size_t l)
 {
-	__asm__ volatile
-	(" \
-		cld; \
-		movl %0, %%ecx; \
-		movl %%ecx, %%edx; \
-		andl $3, %%edx; \
-		shrl $2, %%ecx; \
-		\
-		xorl %%eax, %%eax; \
-		movb %1, %%al; \
-		movl %%eax, %%ebx; \
-		shll $8, %%ebx; \
-		orl %%ebx, %%eax; \
-		movl %%eax, %%ebx; \
-		shll $16, %%ebx; \
-		orl %%ebx, %%eax; \
-		\
-		movl %2, %%edi; \
-		rep; stosl; \
-		movl %%edx, %%ecx; \
-		rep; stosb"
+	/* clang-format off */
+	__asm__ volatile (
+		"cld\n\t"
+		"movl %0, %%ecx\n\t"
+		"movl %%ecx, %%edx\n\t"
+		"andl $3, %%edx\n\t"
+		"shrl $2, %%ecx\n\t"
+		"\n"
+		"xorl %%eax, %%eax\n\t"
+		"movb %1, %%al\n\t"
+		"movl %%eax, %%ebx\n\t"
+		"shll $8, %%ebx\n\t"
+		"orl %%ebx, %%eax\n\t"
+		"movl %%eax, %%ebx\n\t"
+		"shll $16, %%ebx\n\t"
+		"orl %%ebx, %%eax\n\t"
+		"\n"
+		"movl %2, %%edi\n\t"
+		"rep stosl\n\t"
+		"movl %%edx, %%ecx\n\t"
+		"rep stosb"
 	: "+d" (l)
 	: "m" (v), "m" (dst)
 	: "eax", "ebx", "cc", "ecx", "edi" ,"memory");
+	/* clang-format on */
 }
 
 

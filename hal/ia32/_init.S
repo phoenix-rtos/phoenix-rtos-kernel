@@ -260,7 +260,7 @@ _init_core:
 	mov $0xfff, %ax
 	mov %ax, %es
 	lgdt %es:0
-	mov $0, %ax
+	xorw %ax, %ax
 	mov %ax, %ss
 	movl $INIT_ESP, %esp
 	movl $SYSPAGE_SEG, %eax
@@ -269,7 +269,7 @@ _init_core:
 
 	/* Enable protected mode */
 	mov %cr0, %eax
-	orl $1, %eax
+	orb $1, %al
 	mov %eax, %cr0
 	ljmpl $SEL_KCODE , $(INIT_CORE_BASE_ADDR + _init_core_prot - _init_core)
 .code32
