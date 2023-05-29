@@ -232,16 +232,16 @@ static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	int lb;
 
-	__asm__ volatile
-	(" \
-		movl %1, %%eax; \
-		bsrl %%eax, %0; \
-		jnz 1f; \
-		xorl %0, %0; \
-	1:"
-	:"=r" (lb)
-	:"g" (v)
-	:"eax");
+	/* clang-format off */
+	__asm__ volatile (
+		"bsrl %1, %0\n\t"
+		"jnz 1f\n\t"
+		"xorl %0, %0\n"
+		"1:"
+	: "=r" (lb)
+	: "rm" (v)
+	: );
+	/* clang-format on */
 
 	return lb;
 }
@@ -251,16 +251,16 @@ static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	int fb;
 
-	__asm__ volatile
-	(" \
-		mov %1, %%eax; \
-		bsfl %%eax, %0; \
-		jnz 1f; \
-		xorl %0, %0; \
-	1:"
-	:"=r" (fb)
-	:"g" (v)
-	:"eax");
+	/* clang-format off */
+	__asm__ volatile (
+		"bsfl %1, %0\n\t"
+		"jnz 1f\n\t"
+		"xorl %0, %0\n"
+		"1:"
+	: "=r" (fb)
+	: "rm" (v)
+	: );
+	/* clang-format on */
 
 	return fb;
 }

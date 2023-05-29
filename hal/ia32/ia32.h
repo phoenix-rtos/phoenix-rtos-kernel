@@ -26,28 +26,26 @@ static inline u8 hal_inb(void *addr)
 {
 	u8 b;
 
-	__asm__ volatile
-	(" \
-		movl %1, %%edx; \
-		inb %%dx, %%al; \
-		movb %%al, %0;" \
-	:"=b" (b) \
-	:"g" (addr) \
-	:"edx", "eax");
+	/* clang-format off */
+	__asm__ volatile (
+		"inb %1, %0\n\t"
+	: "=a" (b)
+	: "d" (addr)
+	: );
+	/* clang-format on */
 	return b;
 }
 
 
 static inline void hal_outb(void *addr, u8 b)
 {
-	__asm__ volatile
-	(" \
-		movl %0, %%edx; \
-		movb %1, %%al; \
-		outb %%al, %%dx"
+	/* clang-format off */
+	__asm__ volatile (
+		"outb %1, %0"
 	:
-	:"g" (addr), "b" (b)
-	:"eax", "edx");
+	: "d" (addr), "a" (b)
+	: );
+	/* clang-format on */
 
 	return;
 }
@@ -57,14 +55,13 @@ static inline u16 hal_inw(void *addr)
 {
 	u16 w;
 
-	__asm__ volatile
-	(" \
-		movl %1, %%edx; \
-		inw %%dx, %%ax; \
-		movw %%ax, %0;" \
-	:"=g" (w) \
-	:"g" (addr) \
-	:"edx", "eax");
+	/* clang-format off */
+	__asm__ volatile (
+		"inw %1, %0\n\t"
+	: "=a" (w)
+	: "d" (addr)
+	: );
+	/* clang-format on */
 
 	return w;
 }
@@ -72,14 +69,13 @@ static inline u16 hal_inw(void *addr)
 
 static inline void hal_outw(void *addr, u16 w)
 {
-	__asm__ volatile
-	(" \
-		movl %0, %%edx; \
-		movw %1, %%ax; \
-		outw %%ax, %%dx"
-		:
-		:"g" (addr), "g" (w)
-		:"eax", "edx");
+	/* clang-format off */
+	__asm__ volatile (
+		"outw %1, %0"
+	:
+	: "d" (addr), "a" (w)
+	: );
+	/* clang-format on */
 
 	return;
 }
@@ -89,14 +85,13 @@ static inline u32 hal_inl(void *addr)
 {
 	u32 l;
 
-	__asm__ volatile
-	(" \
-		movl %1, %%edx; \
-		inl %%dx, %%eax; \
-		movl %%eax, %0;" \
-		:"=g" (l) \
-		:"g" (addr) \
-		:"eax", "edx", "memory");
+	/* clang-format off */
+	__asm__ volatile (
+		"inl %1, %0\n\t"
+	: "=a" (l)
+	: "d" (addr)
+	: );
+	/* clang-format on */
 
 	return l;
 }
@@ -104,14 +99,13 @@ static inline u32 hal_inl(void *addr)
 
 static inline void hal_outl(void *addr, u32 l)
 {
-	__asm__ volatile
-	(" \
-		movl %0, %%edx; \
-		movl %1, %%eax; \
-		outl %%eax, %%dx"
-		:
-		:"g" (addr), "g" (l)
-		:"eax", "edx");
+	/* clang-format off */
+	__asm__ volatile (
+		"outl %1, %0"
+	:
+	: "d" (addr), "a" (l)
+	: );
+	/* clang-format on */
 
 	return;
 }
@@ -141,13 +135,14 @@ static inline void hal_cpuFlushTLB(void *vaddr)
 
 	do {
 
-		__asm__ volatile
-		(" \
-			movl %%cr3, %0; \
-			movl %0, %%cr3"
-			:"=r" (tmpreg)
-			:
-			:"memory");
+		/* clang-format off */
+		__asm__ volatile (
+			"movl %%cr3, %0\n\t"
+			"movl %0, %%cr3"
+		: "=r" (tmpreg)
+		:
+		: "memory");
+		/* clang-format on */
 
 	} while (0);
 
@@ -157,13 +152,13 @@ static inline void hal_cpuFlushTLB(void *vaddr)
 
 static inline void hal_cpuSwitchSpace(addr_t cr3)
 {
-	__asm__ volatile
-	(" \
-		movl %0, %%eax; \
-		movl %%eax, %%cr3;"
+	/* clang-format off */
+	__asm__ volatile (
+		"movl %0, %%cr3"
 	:
-	:"g" (cr3)
-	: "eax", "memory");
+	: "r" (cr3)
+	: "memory");
+	/* clang-format on */
 
 	return;
 }

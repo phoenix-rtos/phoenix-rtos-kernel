@@ -93,10 +93,12 @@ u32 cpu_getEFLAGS(void)
 {
 	u32 eflags;
 
-	__asm__ volatile(
-		"pushf; "
-		"popl %0; "
-	: "=a" (eflags));
+	/* clang-format off */
+	__asm__ volatile (
+		"pushf\n\t"
+		"popl %0"
+	: "=r" (eflags));
+	/* clang-format on */
 
 	return eflags;
 }
@@ -159,8 +161,9 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 void _hal_cpuSetKernelStack(void *kstack)
 {
-	cpu.tss[hal_cpuGetID()].ss0 = SEL_KDATA;
-	cpu.tss[hal_cpuGetID()].esp0 = (u32)kstack;
+	const unsigned int id = hal_cpuGetID();
+	cpu.tss[id].ss0 = SEL_KDATA;
+	cpu.tss[id].esp0 = (u32)kstack;
 }
 
 
@@ -182,46 +185,46 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 void hal_longjmp(cpu_context_t *ctx)
 {
 	/* clang-format off */
-	__asm__ volatile(" \
-		cli; \
-		movl %0, %%eax;\
-		addl $4, %%eax;\
-		movl %%eax, %%esp;\
-		movw 28(%%esp), %%dx;\
-		cmpw %[kdata], %%dx;\
-		je .Lignore_gs;\
-		call hal_cpuGetTlsIndex;\
-		shl $3, %%eax;\
-		orb $3, %%al;\
-		movw %%ax, 28(%%esp);\
-		.Lignore_gs: \
-		popl %%edi;\
-		popl %%esi;\
-		popl %%ebp;\
-		popl %%edx;\
-		popl %%ecx;\
-		popl %%ebx;\
-		popl %%eax;\
-		popw %%gs;\
-		popw %%fs;\
-		popw %%es;\
-		popw %%ds;\
-		testl %[cr0ts], %c[fpuContextSize](%%esp);\
-		movl %%eax, %c[fpuContextSize](%%esp);\
-		movl %%cr0, %%eax;\
-		jz .hal_longjmp_fpu;\
-		orl %[cr0ts], %%eax;\
-		mov %%eax, %%cr0;\
-		addl %[fpuContextSize], %%esp;\
-		popl %%eax;\
-		iret;\
-		.hal_longjmp_fpu: \
-		andl %[not_cr0ts], %%eax;\
-		mov %%eax, %%cr0;\
-		frstor (%%esp);\
-		addl %[fpuContextSize], %%esp;\
-		popl %%eax;\
-		iret"
+	__asm__ volatile (
+		"cli\n\t"
+		"movl %0, %%eax\n\t"
+		"addl $4, %%eax\n\t"
+		"movl %%eax, %%esp\n\t"
+		"movw 28(%%esp), %%dx\n\t"
+		"cmpw %[kdata], %%dx\n\t"
+		"je .Lignore_gs\n\t"
+		"call hal_cpuGetTlsIndex\n\t"
+		"shl $3, %%eax\n\t"
+		"orb $3, %%al\n\t"
+		"movw %%ax, 28(%%esp)\n\t"
+		".Lignore_gs:"
+		"popl %%edi\n\t"
+		"popl %%esi\n\t"
+		"popl %%ebp\n\t"
+		"popl %%edx\n\t"
+		"popl %%ecx\n\t"
+		"popl %%ebx\n\t"
+		"popl %%eax\n\t"
+		"popw %%gs\n\t"
+		"popw %%fs\n\t"
+		"popw %%es\n\t"
+		"popw %%ds\n\t"
+		"testl %[cr0ts], %c[fpuContextSize](%%esp)\n\t"
+		"movl %%eax, %c[fpuContextSize](%%esp)\n\t"
+		"movl %%cr0, %%eax\n\t"
+		"jz .Lhal_longjmp_fpu\n\t"
+		"orl %[cr0ts], %%eax\n\t"
+		"mov %%eax, %%cr0\n\t"
+		"addl %[fpuContextSize], %%esp\n\t"
+		"popl %%eax\n\t"
+		"iret\n\n"
+		".Lhal_longjmp_fpu:\n\t"
+		"andl %[not_cr0ts], %%eax\n\t"
+		"mov %%eax, %%cr0\n\t"
+		"frstor (%%esp)\n\t"
+		"addl %[fpuContextSize], %%esp\n\t"
+		"popl %%eax\n\t"
+		"iret\n"
 	:
 	: "g" (ctx), [cr0ts] "i" (CR0_TS_BIT), [not_cr0ts] "i" (~CR0_TS_BIT), [fpuContextSize] "i" (FPU_CONTEXT_SIZE), [kdata] "i" (SEL_KDATA));
 	/* clang-format on */
@@ -231,35 +234,35 @@ void hal_longjmp(cpu_context_t *ctx)
 void hal_jmp(void *f, void *kstack, void *stack, int argc)
 {
 	if (stack == NULL) {
-		__asm__ volatile
-		(" \
-			movl %0, %%esp;\
-			movl %1, %%eax;\
-			call *%%eax"
+		/* clang-format off */
+		__asm__ volatile (
+			"movl %0, %%esp\n\t"
+			"movl %1, %%eax\n\t"
+			"call *%%eax"
 		:
-		:"r" (kstack), "r" (f));
+		: "r" (kstack), "r" (f));
+		/* clang-format on */
 	}
 	else {
 		/* clang-format off */
-		__asm__ volatile
-		(" \
-			sti;\
-			movl %[func], %%eax;\
-			movl %[ustack], %%ebx;\
-			movl %[ucs], %%ecx;\
-			movl %[uds], %%edx;\
-			movl %[kstack], %%esp;\
-			pushl %%edx;\
-			pushl %%ebx;\
-			pushfl;\
-			pushl %%ecx;\
-			movw %%dx, %%ds;\
-			movw %%dx, %%es;\
-			movw %%dx, %%fs;\
-			shrl $16, %%edx;\
-			movw %%dx, %%gs;\
-			pushl %%eax;\
-			iret"
+		__asm__ volatile (
+			"sti\n\t"
+			"movl %[func], %%eax\n\t"
+			"movl %[ustack], %%ebx\n\t"
+			"movl %[ucs], %%ecx\n\t"
+			"movl %[uds], %%edx\n\t"
+			"movl %[kstack], %%esp\n\t"
+			"pushl %%edx\n\t"
+			"pushl %%ebx\n\t"
+			"pushfl\n\t"
+			"pushl %%ecx\n\t"
+			"movw %%dx, %%ds\n\t"
+			"movw %%dx, %%es\n\t"
+			"movw %%dx, %%fs\n\t"
+			"shrl $16, %%edx\n\t"
+			"movw %%dx, %%gs\n\t"
+			"pushl %%eax\n\t"
+			"iret"
 		:
 		: [kstack] "g" (kstack), [func] "g" (f), [ustack] "g" (stack), [ucs] "g" (SEL_UCODE), [uds] "g" ((8 * hal_cpuGetTlsIndex() | 3) << 16 | SEL_UDATA)
 		: "eax", "ebx", "ecx", "edx");
@@ -273,12 +276,13 @@ void hal_jmp(void *f, void *kstack, void *stack, int argc)
 
 static void hal_cpuid(u32 leaf, u32 index, u32 *ra, u32 *rb, u32 *rc, u32 *rd)
 {
-	__asm__ volatile
-	(" \
-		cpuid"
+	/* clang-format off */
+	__asm__ volatile (
+		"cpuid"
 	: "=a" (*ra), "=b" (*rb), "=c" (*rc), "=d" (*rd)
 	: "a" (leaf), "c" (index)
 	: "memory");
+	/* clang-format on */
 }
 
 
@@ -290,15 +294,8 @@ unsigned int hal_cpuGetCount(void)
 
 static inline unsigned int _hal_cpuGetID(void)
 {
-	u32 id;
-
 	/* 0xfee00020 - Local APIC ID Register */
-	__asm__ volatile
-	(" \
-		movl (0xfee00020), %0"
-	: "=r" (id));
-
-	return id;
+	return *(volatile u32 *)0xfee00020u;
 }
 
 
@@ -312,23 +309,16 @@ unsigned int hal_cpuGetID(void)
 
 void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 {
+	/* 0xfee00300 - Interrupt Command Register (ICR); bits 0-31 */
+	volatile u32 *p = (void *)0xfee00300;
+
 	if (_hal_cpuGetID() == 0xffffffff) {
 		return;
 	}
 
-	/* 0xfee00300 - Interrupt Command Register (ICR); bits 0-31 */
-	__asm__ volatile
-	(" \
-		movl %0, %%eax; \
-		orl $0x000c4000, %%eax; \
-		movl %%eax, (0xfee00300); \
-	0:; \
-		btl $12, (0xfee00300); \
-		jc 0b"
-	:
-	:  "r" (intr)
-	: "eax");
-	/* clang-format on */
+	*p = intr | 0xc4000;
+	while (*p & (1 << 12)) {
+	}
 }
 
 
@@ -380,10 +370,10 @@ void *_cpu_initCore(void)
 	   NE - FPU exceptions are handled internally*/
 	/* clang-format off */
 	__asm__ volatile (
-		"fninit;"
-		"movl %%cr0, %%eax;"
-		"orl $0x2A, %%eax;"
-		"mov %%eax, %%cr0;"
+		"fninit\n\t"
+		"movl %%cr0, %%eax\n\t"
+		"orb $0x2a, %%al\n\t"
+		"movl %%eax, %%cr0"
 	:
 	:
 	: "eax");
@@ -392,7 +382,7 @@ void *_cpu_initCore(void)
 	/* clang-format off */
 	/* Set task register */
 	__asm__ volatile (
-		"ltr %0;"
+		"ltr %0"
 	:
 	: "r" ((u16)(hal_cpuGetTssIndex() * 8)));
 	/* clang-format on */
@@ -537,9 +527,13 @@ void hal_cpuReboot(void)
 	hal_outb((void *)0xcf9, 0xe);
 
 	/* 3. Triple fault (interrupt with null idt) */
-	__asm__ volatile(
-		"lidt %0; "
-		"int3; " ::"m"(idtr0));
+	/* clang-format off */
+	__asm__ volatile (
+		"lidt %0\n\t"
+		"int3"
+	:
+	: "m"(idtr0));
+	/* clang-format on */
 
 	/* 4. Nothing worked, halt */
 	for (;;) {

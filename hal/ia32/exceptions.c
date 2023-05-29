@@ -94,11 +94,13 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 {
 	u32 cr2;
 
-	__asm__ volatile
-	("movl %%cr2, %0"
-	:"=r" (cr2)
+	/* clang-format off */
+	__asm__ volatile (
+		"movl %%cr2, %0"
+	: "=r" (cr2)
 	:
-	:"eax");
+	: );
+	/* clang-format on */
 
 	return (void *)cr2;
 }
@@ -123,14 +125,14 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 	n &= 0x1f;
 
-	__asm__ volatile
-	(" \
-		xorl %%eax, %%eax; \
-		movw %%ss, %%ax; \
-		movl %%eax, %0"
-	:"=r" (ss)
+	/* clang-format off */
+	__asm__ volatile(
+		"xorl %0, %0\n\t"
+		"movw %%ss, %w0"
+	: "=r" (ss)
 	:
-	:"eax");
+	: );
+	/* clang-format on */
 
 	hal_strcpy(buff, "\nException: ");
 	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
@@ -164,14 +166,13 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s("\ndr6=", &buff[i], ctx->dr6, 16, 1);
 	i += hal_i2s(" dr7=", &buff[i], ctx->dr7, 16, 1);
 
-	__asm__ volatile
-	(" \
-		xorl %%eax, %%eax; \
-		movl %%cr2, %%eax; \
-		movl %%eax, %0"
-	:"=r" (ss)
+	/* clang-format off */
+	__asm__ volatile (
+		"movl %%cr2, %0"
+	: "=r" (ss)
 	:
-	:"eax");
+	: );
+	/* clang-format on */
 
 	i += hal_i2s(" cr2=", &buff[i], ss, 16, 1);
 	/* i += hal_i2s(" thr=", &buff[i], _proc_current(), 16, 1); */
