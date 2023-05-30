@@ -153,40 +153,7 @@ name:; \
 .size name, .-name
 
 
-/* Interrupt routine for scheduler */
-.globl _interrupts_irq0
-.type _interrupts_irq0, @function
-.align 4, 0x90
-_interrupts_irq0:
-	call interrupts_pushContext
-	movl $SEL_KDATA, %eax
-	movw %ax, %ds
-	movw %ax, %es
-	movw %ax, %fs
-	movw %ax, %gs
-
-	call _interrupts_multilockSet
-
-	/* Dispatch IRQ */
-	pushl %esp
-	pushl $0
-	call interrupts_dispatchIRQ
-	movl %eax, %ebx
-	addl $8, %esp
-
-	pushl $0
-	call _interrupts_apicACK
-	addl $4, %esp
-
-	/* Unlock scheduler */
-	popl %esp
-	call _interrupts_multilockClear
-	pushl %esp
-
-	jmp interrupts_popContext
-.size _interrupts_irq0, .-_interrupts_irq0
-
-
+INTERRUPT(_interrupts_irq0, 0, interrupts_dispatchIRQ)
 INTERRUPT(_interrupts_irq1, 1, interrupts_dispatchIRQ)
 INTERRUPT(_interrupts_irq2, 2, interrupts_dispatchIRQ)
 INTERRUPT(_interrupts_irq3, 3, interrupts_dispatchIRQ)
