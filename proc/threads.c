@@ -44,7 +44,6 @@ struct {
 	rbtree_t id;
 
 	intr_handler_t timeintrHandler;
-	intr_handler_t scheduleHandler;
 
 #ifdef PENDSV_IRQ
 	intr_handler_t pendsvHandler;
@@ -454,7 +453,8 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return EOK;
+	/* Invoke scheduler */
+	return 1;
 }
 
 
@@ -1970,9 +1970,6 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	hal_memset(&threads_common.timeintrHandler, NULL, sizeof(threads_common.timeintrHandler));
 	hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
-
-	hal_memset(&threads_common.scheduleHandler, NULL, sizeof(threads_common.scheduleHandler));
-	hal_timerRegister(threads_schedule, NULL, &threads_common.scheduleHandler);
 
 	return EOK;
 }

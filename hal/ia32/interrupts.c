@@ -142,9 +142,6 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts.spinlocks[n], &sc);
 
-	if (n == 0) {
-		return 0;
-	}
 	return reschedule;
 }
 
