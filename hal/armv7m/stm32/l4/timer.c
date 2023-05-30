@@ -43,7 +43,8 @@ static struct {
 
 	volatile u32 *lptim;
 	volatile time_t upper;
-	volatile int wakeup;
+
+	intr_handler_t timerh;
 } timer_common;
 
 
@@ -72,7 +73,6 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)n;
 	(void)ctx;
 	(void)arg;
-	int ret = 0;
 	u32 isr = *(timer_common.lptim + lptim_isr), clr = 0;
 
 	/* Clear CMPOK. Has to be done before active IRQs (errata) */
@@ -81,27 +81,22 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 		hal_cpuDataMemoryBarrier();
 	}
 
-	/* Clear CMPM */
+	/* Clear ARRM */
 	if ((isr & (1 << 1)) != 0) {
 		++timer_common.upper;
 		clr |= (1 << 1);
 	}
 
-	/* Clear ARRM */
+	/* Clear CMPM */
 	if ((isr & (1 << 0)) != 0) {
 		clr |= (1 << 0);
-
-		if (timer_common.wakeup != 0) {
-			ret = 1;
-			timer_common.wakeup = 0;
-		}
 	}
 
 	*(timer_common.lptim + lptim_icr) = clr;
 
 	hal_cpuDataMemoryBarrier();
 
-	return ret;
+	return 0;
 }
 
 
@@ -176,7 +171,6 @@ void timer_setAlarm(time_t us)
 	while ((*(timer_common.lptim + lptim_isr) & (1 << 3)) == 0) {
 	}
 	hal_cpuDataMemoryBarrier();
-	timer_common.wakeup = 1;
 
 	hal_spinlockClear(&timer_common.sp, &sc);
 }
@@ -196,11 +190,25 @@ time_t hal_timerGetUs(void)
 
 int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
+	int err;
+
 	h->f = f;
 	h->n = SYSTICK_IRQ;
 	h->data = data;
 
-	return hal_interruptsSetHandler(h);
+	err = hal_interruptsSetHandler(h);
+
+	/* Register LPTIM1 irq on system interrupt too to cause
+	 * reschedule after wakeup ASAP */
+	if (err == 0) {
+		timer_common.timerh.f = f;
+		timer_common.timerh.n = lptim1_irq;
+		timer_common.timerh.data = data;
+		timer_common.timerh.got = NULL;
+		err = hal_interruptsSetHandler(&timer_common.timerh);
+	}
+
+	return err;
 }
 
 
@@ -208,7 +216,6 @@ void _hal_timerInit(u32 interval)
 {
 	timer_common.lptim = (void *)0x40007c00;
 	timer_common.upper = 0;
-	timer_common.wakeup = 0;
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 
