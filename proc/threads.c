@@ -433,8 +433,10 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (hal_cpuGetID())
-		return EOK;
+	if (hal_cpuGetID() != 0) {
+		/* Invoke scheduler */
+		return 1;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	now = hal_timerGetUs();
@@ -442,8 +444,9 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	for (;; i++) {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 
-		if (t == NULL || t->wakeup > now)
+		if (t == NULL || t->wakeup > now) {
 			break;
+		}
 
 		_proc_threadDequeue(t);
 		hal_cpuSetReturnValue(t->context, -ETIME);
