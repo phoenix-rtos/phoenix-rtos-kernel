@@ -47,8 +47,7 @@
 
 #ifndef __ASSEMBLY__
 
-/* TODO: increase systick frequency */
-#define SYSTICK_INTERVAL 10
+#define SYSTICK_INTERVAL 1000
 
 
 #define PUTONSTACK(kstack, t, v) \

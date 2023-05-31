@@ -127,7 +127,7 @@ time_t hal_timerGetUs(void)
 	val = timer_common.jiffies;
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return val * 100000ULL;
+	return val * 1000ULL;
 }
 
 
