@@ -140,7 +140,11 @@ extern time_t hal_timerGetUs(void);
 static inline void hal_cpuHalt(void)
 {
 	/* must be performed in supervisor mode with interrupts enabled */
-	__asm__ volatile("wr %g0, %asr19");
+	/* clang-format off */
+
+	__asm__ volatile ("wr %g0, %asr19");
+
+	/* clang-format on */
 }
 
 
@@ -166,7 +170,11 @@ static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 
 static inline void hal_cpuSetGot(void *got)
 {
-	__asm__ volatile("mov %0, %%g6" ::"r"(got));
+	/* clang-format off */
+
+	__asm__ volatile ("mov %0, %%g6" ::"r" (got));
+
+	/* clang-format on */
 }
 
 
@@ -176,7 +184,7 @@ static inline void *hal_cpuGetGot(void)
 
 	/* clang-format off */
 
-	__asm__ volatile("mov %%g6, %0" : "=r"(got));
+	__asm__ volatile ("mov %%g6, %0" : "=r" (got));
 
 	/* clang-format on */
 
@@ -204,7 +212,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return 1;  //(ctx->psr & PSR_S) >> 7;
+	return (ctx->psr & PSR_S) >> 7;
 }
 
 
@@ -225,12 +233,15 @@ static inline unsigned int hal_cpuGetCount(void)
 
 static inline unsigned int hal_cpuGetID(void)
 {
-	/* TODO: doesn't work for some reason */
-	// u32 asr17;
+	u32 asr17;
 
-	// __asm__ volatile("rd %%asr17, %0"
-	// 				 : "=r"(asr17));
-	return 0;  // asr17 >> 28;
+	/* clang-format off */
+
+	__asm__ volatile ("rd %%asr17, %0" : "=r" (asr17));
+
+	/* clang-format on */
+
+	return asr17 >> 28;
 }
 
 
@@ -241,17 +252,21 @@ static inline void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 
 static inline void hal_cpuDisableInterrupts(void)
 {
-	__asm__ volatile(
-		"ta 0x09;" ::
-			: "memory");
+	/* clang-format off */
+
+	__asm__ volatile ("ta 0x09;" ::: "memory");
+
+	/* clang-format on */
 }
 
 
 static inline void hal_cpuEnableInterrupts(void)
 {
-	__asm__ volatile(
-		"ta 0x0a;" ::
-			: "memory");
+	/* clang-format off */
+
+	__asm__ volatile ("ta 0x0a;" ::: "memory");
+
+	/* clang-format on */
 }
 
 
