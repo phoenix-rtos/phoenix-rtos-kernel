@@ -35,7 +35,9 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)arg;
 	(void)ctx;
 
-	timer.jiffies += timer.interval;
+	if (hal_cpuGetID() == 0) {
+		timer.jiffies += timer.interval;
+	}
 	return 0;
 }
 
