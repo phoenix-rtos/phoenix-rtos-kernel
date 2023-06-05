@@ -79,11 +79,11 @@ __attribute__((section(".init"))) void _hal_timerInit(u32 interval)
 	t = (u32)((interval * 1190) / 1000);
 
 	/* First generator, operation - CE write, work mode 2, binary counting */
-	hal_outb((void *)0x43, 0x34);
+	hal_outb(PORT_PIT_COMMAND, 0x34);
 
 	/* Set counter */
-	hal_outb((void *)0x40, (u8)(t & 0xff));
-	hal_outb((void *)0x40, (u8)(t >> 8));
+	hal_outb(PORT_PIT_DATA_CHANNEL0, (u8)(t & 0xff));
+	hal_outb(PORT_PIT_DATA_CHANNEL0, (u8)(t >> 8));
 
 	hal_spinlockCreate(&timer.sp, "timer");
 	timer.handler.f = timer_irqHandler;

@@ -100,10 +100,24 @@
 #define SEL_UCODE 27
 #define SEL_UDATA 35
 
+/* The first index in GDT that can be used for TSS and TLS entries */
 #define GDT_FREE_SEL_IDX 5
 
 #define CR0_TS_BIT       8u
 #define FPU_CONTEXT_SIZE 108u /* sizeof(fpu_context_t) */
+
+/* IO Ports */
+/* Ports of (8259A) PIC (Programmable Interrupt Controller) */
+#define PORT_PIC_MASTER_COMMAND ((void *)0x20)
+#define PORT_PIC_MASTER_DATA    ((void *)0x21)
+#define PORT_PIC_SLAVE_COMMAND  ((void *)0xa0)
+#define PORT_PIC_SLAVE_DATA     ((void *)0xa1)
+/* Ports of PIT (Programmable Interval Timer) */
+#define PORT_PIT_DATA_CHANNEL0 ((void *)0x40)
+#define PORT_PIT_COMMAND       ((void *)0x43)
+/* Ports of 8042 PS/2 Controller */
+#define PORT_PS2_DATA    ((void *)0x60)
+#define PORT_PS2_COMMAND ((void *)0x64)
 
 #ifndef __ASSEMBLY__
 

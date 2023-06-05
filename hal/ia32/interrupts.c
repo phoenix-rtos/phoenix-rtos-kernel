@@ -108,11 +108,11 @@ void _interrupts_apicACK(unsigned int n)
 	}
 
 	if (n < 8) {
-		hal_outb((void *)0x20, 0x60 | n);
+		hal_outb(PORT_PIC_MASTER_COMMAND, 0x60 | n);
 	}
 	else {
-		hal_outb((void *)0x20, 0x62);
-		hal_outb((void *)0xa0, 0x60 | (n - 8));
+		hal_outb(PORT_PIC_MASTER_COMMAND, 0x62);
+		hal_outb(PORT_PIC_SLAVE_COMMAND, 0x60 | (n - 8));
 	}
 	return;
 }
@@ -219,15 +219,15 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	_interrupts_multilock = 1;
 
 	/* Initialize interrupt controllers (8259A) */
-	hal_outb((void *)0x20, 0x11);  /* ICW1 */
-	hal_outb((void *)0x21, 0x20);  /* ICW2 (Master) */
-	hal_outb((void *)0x21, 0x04);  /* ICW3 (Master) */
-	hal_outb((void *)0x21, 0x01);  /* ICW4 */
+	hal_outb(PORT_PIC_MASTER_COMMAND, 0x11); /* ICW1 */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x20);    /* ICW2 (Master) */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x04);    /* ICW3 (Master) */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x01);    /* ICW4 */
 
-	hal_outb((void *)0xa0, 0x11);  /* ICW1 (Slave) */
-	hal_outb((void *)0xa1, 0x28);  /* ICW2 (Slave) */
-	hal_outb((void *)0xa1, 0x02);  /* ICW3 (Slave) */
-	hal_outb((void *)0xa1, 0x01);  /* ICW4 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_COMMAND, 0x11); /* ICW1 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x28);    /* ICW2 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x02);    /* ICW3 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x01);    /* ICW4 (Slave) */
 
 	/* Set stubs for hardware interrupts */
 	_interrupts_setIDTEntry(32 + 0,  _interrupts_irq0, IGBITS_IRQEXC);
