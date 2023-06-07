@@ -40,13 +40,16 @@ void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 		nop; \
 	1: \
 		ldstub [%0], %%g2; \
-		stbar; \
 		tst %%g2; \
-		bnz 1b; \
+		be 3f; \
 		nop; \
+	2: \
 		ldub [%0], %%g2; \
 		tst %%g2; \
-		bz 1b; \
+		bne 2b; \
+		nop; \
+		ba,a 1b; \
+	3: \
 		nop; \
 	"
 	:
@@ -62,8 +65,8 @@ void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 	/* clang-format off */
 
 	__asm__ volatile(" \
-	stb %%g0, [%0]; \
 	stbar; \
+	stub %%g0, [%0]; \
 	rd %%psr, %%g2; \
 	and %%g2, "XSTR(PSR_CWP) ", %%g2; \
 	ld [%1], %%g3; \
@@ -84,7 +87,7 @@ void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 
 void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 {
-	spinlock->lock = 0;
+	spinlock->lock = 0u;
 	spinlock->name = name;
 
 	if (spinlock_common.first != NULL) {
