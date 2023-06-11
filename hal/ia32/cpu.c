@@ -143,68 +143,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-int hal_cpuReschedule(spinlock_t *spinlock, spinlock_ctx_t *scp)
-{
-	int err;
-
-	hal_cpuDisableInterrupts();
-
-	if (spinlock != NULL) {
-		hal_cpuGetCycles((void *)&spinlock->e);
-
-		/* Calculate maximum and minimum lock time */
-		if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax) {
-			spinlock->dmax = spinlock->e - spinlock->b;
-		}
-
-		if (spinlock->e - spinlock->b < spinlock->dmin) {
-			spinlock->dmin = spinlock->e - spinlock->b;
-		}
-
-		__asm__ volatile(
-			"xorl %%eax, %%eax; "
-			"incl %%eax; "
-			"xchgl %0, %%eax; "
-		:: "m" (spinlock->lock)
-		: "eax", "memory");
-
-		err = *scp;
-	}
-	else {
-		err = cpu_getEFLAGS();
-	}
-
-	__asm__ volatile(
-		"pushl %%eax; "
-		"pushl %%cs; "
-		"leal 1f, %%eax; "
-		"pushl %%eax; "
-		"xorl %%eax, %%eax; "
-		"call interrupts_pushContext; "
-
-		"call _interrupts_multilockSet; "
-
-		"leal (%%esp), %%eax; "
-		"pushl $0; "
-		"pushl %%eax; "
-		"pushl $0; "
-		"movl %1, %%eax; "
-		"call *%%eax; "
-		"cli; "
-		"addl $12, %%esp; "
-
-		"call _interrupts_multilockClear; "
-
-		"jmp interrupts_popContext; "
-		"1: "
-	: "+a" (err)
-	: "g" (threads_schedule)
-	: "ecx", "edx", "esp", "memory");
-
-	return err;
-}
-
-
 void _hal_cpuSetKernelStack(void *kstack)
 {
 	cpu.tss[hal_cpuGetID()].ss0 = SEL_KDATA;
