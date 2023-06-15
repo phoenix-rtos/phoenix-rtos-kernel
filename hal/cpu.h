@@ -121,6 +121,9 @@ extern char *hal_cpuFeatures(char *features, unsigned int len);
 extern void cpu_sendIPI(unsigned int cpu, unsigned int intr);
 
 
+extern void hal_cpuReboot(void);
+
+
 /* thread local storage */
 
 

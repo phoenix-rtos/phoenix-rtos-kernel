@@ -160,6 +160,12 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
+void hal_cpuReboot(void)
+{
+	/* TODO */
+}
+
+
 void _hal_cpuInit(void)
 {
 	return;

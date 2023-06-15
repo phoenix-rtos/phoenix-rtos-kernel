@@ -259,6 +259,16 @@ void hal_wdgReload(void)
 }
 
 
+void hal_cpuReboot(void)
+{
+#ifdef CPU_STM32
+	_stm32_nvicSystemReset();
+#elif defined(CPU_IMXRT)
+	_imxrt_nvicSystemReset();
+#endif
+}
+
+
 /* cache management */
 
 
