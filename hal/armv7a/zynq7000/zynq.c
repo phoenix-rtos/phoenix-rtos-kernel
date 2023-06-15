@@ -524,6 +524,12 @@ static void zynq_softRst(void)
 }
 
 
+void hal_cpuReboot(void)
+{
+	zynq_softRst();
+}
+
+
 /* TODO */
 void hal_wdgReload(void)
 {
