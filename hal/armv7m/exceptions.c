@@ -98,15 +98,13 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
-#ifdef NDEBUG
-#ifdef CPU_STM32
-	_stm32_nvicSystemReset();
-#elif defined(CPU_IMXRT)
-	_imxrt_nvicSystemReset();
+#ifndef NDEBUG
+	hal_cpuReboot();
 #endif
-#else
-	hal_cpuHalt();
-#endif
+
+	for (;;) {
+		hal_cpuHalt();
+	}
 }
 
 

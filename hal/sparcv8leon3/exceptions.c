@@ -128,6 +128,10 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
+#ifndef NDEBUG
+	hal_cpuReboot();
+#endif
+
 	for (;;) {
 		hal_cpuHalt();
 	}
