@@ -157,13 +157,6 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" edi=", &buff[i], ctx->edi, 16, 1);
 	i += hal_i2s("  gs=", &buff[i], (u32)ctx->gs, 16, 1);
 
-	i += hal_i2s("\ndr0=", &buff[i], ctx->dr0, 16, 1);
-	i += hal_i2s(" dr1=", &buff[i], ctx->dr1, 16, 1);
-	i += hal_i2s(" dr2=", &buff[i], ctx->dr2, 16, 1);
-	i += hal_i2s(" dr3=", &buff[i], ctx->dr3, 16, 1);
-	i += hal_i2s("\ndr4=", &buff[i], ctx->dr4, 16, 1);
-	i += hal_i2s(" dr5=", &buff[i], ctx->dr5, 16, 1);
-
 	__asm__ volatile
 	(" \
 		xorl %%eax, %%eax; \

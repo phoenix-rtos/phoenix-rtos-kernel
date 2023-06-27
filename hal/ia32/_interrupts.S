@@ -49,13 +49,11 @@
 interrupts_pushContext:
 	xchgl (%esp), %edx
 	movl %edx, -(4 * CTXPUSHL)(%esp)
-	popl %edx
 	/* Check TS flag in CR0 register */
-	pushl %eax
-	movl %cr0, %eax
+	movl %cr0, %edx
 	subl $FPU_CONTEXT_SIZE, %esp
-	andl $CR0_TS_BIT, %eax
-	xchgl FPU_CONTEXT_SIZE(%esp), %eax
+	andl $CR0_TS_BIT, %edx
+	xchgl FPU_CONTEXT_SIZE(%esp), %edx
 	jnz .Linterrupts_pushRegisters
 	/* Save FPU context */
 	fsave (%esp)

@@ -5,9 +5,9 @@
  *
  * Exception stubs
  *
- * Copyright 2012, 2016 Phoenix Systems
+ * Copyright 2012, 2016, 2023 Phoenix Systems
  * Copyright 2001, 2005 Pawel Pisarczyk
- * Author: Pawel Pisarczyk
+ * Author: Pawel Pisarczyk, Andrzej Stalke
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -18,26 +18,24 @@
 
 #include <arch/cpu.h>
 
-#define CTXPUSHL 43 /* 10 + 5 + 28 */
+#define CTXSIZE 148 /* REGISTERS + CR0 + FPU_CONTEXT */
 
 .text
 
 .align 4, 0x90
 exception_pushContext:
 	/* Save return address for ret */
-	xchg (%esp), %edx
-	movl %edx, -(4 * CTXPUSHL)(%esp)
-	popl %edx
+	xchgl (%esp), %edx
+	movl %edx, -CTXSIZE(%esp)
 	/* Check TS flag in CR0 register */
-	pushl %eax
-	movl %cr0, %eax
+	movl %cr0, %edx
 	subl $FPU_CONTEXT_SIZE, %esp
-	andl $CR0_TS_BIT, %eax
-	xchgl FPU_CONTEXT_SIZE(%esp), %eax
-	jnz .exception_pushRegisters
+	andl $CR0_TS_BIT, %edx
+	xchgl FPU_CONTEXT_SIZE(%esp), %edx
+	jnz .Lexception_pushRegisters
 	/* Save FPU context */
 	fsave (%esp)
-.exception_pushRegisters:
+.Lexception_pushRegisters:
 	pushw %ds
 	pushw %es
 	pushw %fs
@@ -49,38 +47,12 @@ exception_pushContext:
 	pushl %ebp
 	pushl %esi
 	pushl %edi
-
-	movl %dr5, %eax
-	pushl %eax
-	movl %dr4, %eax
-	pushl %eax
-	movl %dr3, %eax
-	pushl %eax
-	movl %dr2, %eax
-	pushl %eax
-	movl %dr1, %eax
-	pushl %eax
-	movl %dr0, %eax
-	pushl %eax
 	subl $4, %esp
 	ret
 .size exception_pushContext, .-exception_pushContext
 
 .align 4, 0x90
 exception_popContext:
-	popl %eax
-	movl %eax, %dr0
-	popl %eax
-	movl %eax, %dr1
-	popl %eax
-	movl %eax, %dr2
-	popl %eax
-	movl %eax, %dr3
-	popl %eax
-	movl %eax, %dr4
-	popl %eax
-	movl %eax, %dr5
-
 	popl %edi
 	popl %esi
 	popl %ebp
@@ -96,14 +68,14 @@ exception_popContext:
 	testl $CR0_TS_BIT, FPU_CONTEXT_SIZE(%esp)
 	movl %eax, FPU_CONTEXT_SIZE(%esp)
 	movl %cr0, %eax
-	jz .exception_popFPU
+	jz .Lexception_popFPU
 	orl $CR0_TS_BIT, %eax
 	movl %eax, %cr0
 	addl $FPU_CONTEXT_SIZE, %esp
 	popl %eax
 	addl $4, %esp
 	iret
-	.exception_popFPU:
+	.Lexception_popFPU:
 	andl $~CR0_TS_BIT, %eax
 	mov %eax, %cr0
 	frstor (%esp)
@@ -122,12 +94,12 @@ exceptions_exc7_handler:
 	clts
 	movl 8(%esp), %eax /* eax := ctx */
 	/* ctx->cr0Bits &= ~CR0_TS_BIT */
-	movl 168(%eax), %ecx /* ecx := ctx->cr0Bits */
+	movl (CTXSIZE - 4)(%eax), %ecx /* ecx := ctx->cr0Bits */
 	andl $~CR0_TS_BIT, %ecx /* ecx := ctx->cr0Bits & ~CR0_TS_BIT */
-	movl %ecx, 168(%eax)
+	movl %ecx, (CTXSIZE - 4)(%eax)
 	/* Init FPU */
 	fninit
-	fsave 60(%eax) /* Set ctx->fpuContext */
+	fsave (CTXSIZE - FPU_CONTEXT_SIZE - 4)(%eax) /* Set ctx->fpuContext */
 	ret
 
 .size exceptions_exc7_handler, .-exceptions_exc7_handler
@@ -151,11 +123,9 @@ sym:
 	movw %ax, %gs;\
 	;\
 	/* Call exception handler */ ;\
-	leal 0(%esp), %eax;\
-	pushl %eax;\
-	movl exceptions + (exc) * 4, %eax;\
+	pushl %esp;\
 	pushl $exc;\
-	call *%eax;\
+	call *(exceptions + (exc) * 4);\
 	addl $8, %esp;\
 	;\
 	jmp exception_popContext

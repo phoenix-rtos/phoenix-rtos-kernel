@@ -30,12 +30,6 @@
 #pragma pack(push, 1)
 
 typedef struct {
-	u32 dr0;
-	u32 dr1;
-	u32 dr2;
-	u32 dr3;
-	u32 dr4;
-	u32 dr5;
 	u32 edi;
 	u32 esi;
 	u32 ebp;
