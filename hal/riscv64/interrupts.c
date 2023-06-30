@@ -107,9 +107,6 @@ if (cn != 0) {
 	plic_complete(1, cn);
 }
 
-	if (n == 0)
-		return 0;
-
 	return res;
 }
 
