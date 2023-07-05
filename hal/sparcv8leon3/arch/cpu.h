@@ -81,6 +81,29 @@
 	} while (0)
 
 
+typedef struct {
+	/* local */
+	u32 l0;
+	u32 l1;
+	u32 l2;
+	u32 l3;
+	u32 l4;
+	u32 l5;
+	u32 l6;
+	u32 l7;
+
+	/* in */
+	u32 i0;
+	u32 i1;
+	u32 i2;
+	u32 i3;
+	u32 i4;
+	u32 i5;
+	u32 fp;
+	u32 i7;
+} cpu_winContext_t;
+
+
 typedef struct _cpu_context_t {
 	u32 savesp;
 
@@ -107,26 +130,6 @@ typedef struct _cpu_context_t {
 	u32 o5;
 	u32 sp;
 	u32 o7;
-
-	/* local */
-	u32 l0;
-	u32 l1;
-	u32 l2;
-	u32 l3;
-	u32 l4;
-	u32 l5;
-	u32 l6;
-	u32 l7;
-
-	/* in */
-	u32 i0;
-	u32 i1;
-	u32 i2;
-	u32 i3;
-	u32 i4;
-	u32 i5;
-	u32 fp;
-	u32 i7;
 } cpu_context_t;
 
 
