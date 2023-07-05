@@ -30,13 +30,16 @@ _interrupts_save_context:
 	/* This function saves all valid windows on stack.
 	 * Before calling, following registers must be set:
 	 * %g1 - call address
-	 * %g3 - 1 << (CWP + 1) (mod NWINDOWS)
+	 * %g3 - bit set for CWP
 	 * %g4 - wim
 	 *
 	 * Clobbers %g1, %g3
 	 */
 
 save_context_loop:
+	sll %g3, 1, %l0
+	srl %g3, (NWINDOWS - 1), %g3
+	or %g3, %l0, %g3
 	/* check if restore won't underflow */
 	andcc %g3, %g4, %g0
 	bnz save_context_done
@@ -53,13 +56,10 @@ save_context_loop:
 	std %i0, [%sp + 0x20]
 	std %i2, [%sp + 0x28]
 	std %i4, [%sp + 0x30]
-	std %i6, [%sp + 0x38]
+	std %fp, [%sp + 0x38]
 
-	/* calculate new CWP mask */
-	sll %g3, 1, %l0
-	srl %g3, (NWINDOWS - 1), %g3
 	ba save_context_loop
-	or %g3, %l0, %g3
+	nop
 
 save_context_done:
 	jmpl %g1 + 8, %g0
@@ -96,10 +96,7 @@ _interrupts_restore_context:
 	ldd [%sp + 0x30], %i0
 	ldd [%sp + 0x38], %i2
 	ldd [%sp + 0x40], %i4
-	/* don't restore %i6 (task's sp) yet */
-	ld  [%sp + 0x4c], %i7
-
-	add %sp, 0x50, %fp
+	ldd [%sp + 0x48], %fp
 
 	/* switch window to the task's window and restore context */
 	restore
@@ -111,17 +108,18 @@ _interrupts_restore_context:
 	ldd [%sp + 0x20], %i0
 	ldd [%sp + 0x28], %i2
 	ldd [%sp + 0x30], %i4
-	ldd [%sp + 0x38], %i6
+	ldd [%sp + 0x38], %fp
 
 	rd %psr, %g2
 
 	/* go back to handler's window */
 	save
 
-	ld [%sp + 0x48], %i6
-
 	jmpl %g1 + 8, %g0
 	nop
+.size _interrupts_restore_context, . - _interrupts_restore_context
+
+
 .global _interrupts_dispatch
 .type _interrupts_dispatch, #function
 
@@ -163,7 +161,7 @@ _interrupts_dispatch:
 	std %i0, [%sp + 0x20]
 	std %i2, [%sp + 0x28]
 	std %i4, [%sp + 0x30]
-	std %i6, [%sp + 0x38]
+	std %fp, [%sp + 0x38]
 	restore
 
 irq_wovfl_done:
@@ -175,14 +173,12 @@ irq_wovfl_done:
 
 	sethi %hi(hal_cpuKernelStack), %l6
 	ld [%l6 + %lo(hal_cpuKernelStack)], %l7
-	sub %l7, 0x90, %l7
 	ba irq_kstack_set
-	mov %fp, %sp
+	sub %l7, 0x50, %sp
 
 irq_no_kstack_switch:
 	/* we came from kernel, make space for context */
 	sub %fp, 0x50, %sp
-	mov %sp, %l7
 
 irq_kstack_set:
 	/* Save context on kernel stack - we have enough space for 1 window.
@@ -193,27 +189,26 @@ irq_kstack_set:
 	 * %sp, %y, %psr, PC, nPC, %g1, %g2 (in %l4), %g3 (in %l5), %g4-%g7, %i0-%i7
 	 */
 
-	st  %sp, [%l7 + 0x00] /* sp */
+	st  %sp, [%sp + 0x00] /* sp */
 	rd  %y, %g2
-	st  %g2, [%l7 + 0x04] /* y */
+	st  %g2, [%sp + 0x04] /* y */
 
-	std %l0, [%l7 + 0x08] /* psr, PC */
-	st  %l2, [%l7 + 0x10] /* nPC */
-	st  %g1, [%l7 + 0x14] /* g1 */
-	std %l4, [%l7 + 0x18] /* g2, g3 */
-	std %g4, [%l7 + 0x20] /* g4, g5 */
-	std %g6, [%l7 + 0x28] /* g6, g7 */
+	std %l0, [%sp + 0x08] /* psr, PC */
+	st  %l2, [%sp + 0x10] /* nPC */
+	st  %g1, [%sp + 0x14] /* g1 */
+	std %l4, [%sp + 0x18] /* g2, g3 */
+	std %g4, [%sp + 0x20] /* g4, g5 */
+	std %g6, [%sp + 0x28] /* g6, g7 */
 
 	/* input registers here are the outputs of the interrupted window */
 
-	std %i0, [%l7 + 0x30] /* i0, i1 */
-	std %i2, [%l7 + 0x38] /* i2, i3 */
-	std %i4, [%l7 + 0x40] /* i4, i5 */
-	std %i6, [%l7 + 0x48] /* fp, i7 */
+	std %i0, [%sp + 0x30] /* i0, i1 */
+	std %i2, [%sp + 0x38] /* i2, i3 */
+	std %i4, [%sp + 0x40] /* i4, i5 */
+	std %fp, [%sp + 0x48] /* fp (task's sp), i7 */
 
-	/* necessary context is saved, swap to kernel stack */
-	add %l7, 0x50, %fp
-	sub %l7, 0x60, %sp
+	mov %sp, %l7
+	sub %sp, 0x60, %sp
 
 	mov %l7, %o1 /* (cpu_context_t *) */
 
@@ -248,25 +243,17 @@ irq_kstack_set:
 	 * The rest will be restored on window underflows.
 	 */
 
-	/* CWP ranges from 0 to (NWINDOWS - 1) */
 	rd %psr, %g3
 	and %g3, PSR_CWP, %g3
-	add %g3, 1, %g3
-	cmp %g3, NWINDOWS
-	bne irq_cwp_done
-	nop
-	/* we'd end up in non-existent window #31, it means it's #0 */
-	mov 0, %g3
 
-irq_cwp_done:
 	/* Current state of registers:
 	 * %g2 - %sp of new task
-	 * %g3 - CWP + 1 (mod NWINDOWS)
+	 * %g3 - CWP
 	 * freely usable: %g4, %g5
 	 */
 
-	/* set bit in register %g3, which corresponds to CWP + 1
-	 * %g3 = 1 << %g3 (CWP + 1)
+	/* set bit in register %g3, which corresponds to CWP
+	 * %g3 = 1 << %g3 (CWP)
 	 */
 	mov 1, %g4
 	sll %g4, %g3, %g3
@@ -282,9 +269,10 @@ irq_cwp_done:
 	 * %g2 points to the new task's context.
 	 */
 
-	ld [%g2 + 0x08], %g1
 	mov %g0, %wim /* we don't need it now */
-	andn %g1, (PSR_ET | PSR_PIL), %g1 /* disable traps, enable interrupts */
+	ld [%g2 + 0x08], %g1
+	nop
+	andn %g1, PSR_ET, %g1 /* leave traps disabled */
 
 	/* Set %psr of the new task.
 	 * This will cause window to be switched
@@ -302,12 +290,12 @@ irq_cwp_done:
 	and %g2, PSR_CWP, %g2
 	add %g2, 1, %g2
 	cmp %g2, NWINDOWS
-	bne irq_cwp_done2
+	bne irq_cwp_done
 	nop
 	mov 0, %g2
 
-irq_cwp_done2:
-	/* set %wim to 1 << %g2 (CWP + 1) */
+irq_cwp_done:
+	/* set %wim to 1 << %g2 (CWP + 2) */
 	mov 1, %g3
 	sll %g3, %g2, %g2
 	mov %g2, %wim
@@ -315,7 +303,9 @@ irq_cwp_done2:
 	/* restore %g1, %g2, %g3 */
 	ld  [%sp + 0x14], %g1
 
-	ba irq_switch_return
+	andn %l0, PSR_ET, %l0
+
+	ba irq_return
 	ldd [%sp + 0x18], %g2
 
 
@@ -333,9 +323,7 @@ irq_no_switch:
 	ldd [%sp + 0x30], %i0
 	ldd [%sp + 0x38], %i2
 	ldd [%sp + 0x40], %i4
-	ldd [%sp + 0x48], %i6
-
-	ld  [%sp + 0x00], %sp
+	ldd [%sp + 0x48], %fp
 
 	/* Check if restore would cause window underflow.
 	 * After restore: CWP = CWP + 1 (mod NWINDOWS)
@@ -345,13 +333,13 @@ irq_no_switch:
 	and	%l0, PSR_CWP, %l5
 	add %l5, 1, %l5
 	cmp %l5, NWINDOWS
-	bne irq_cwp_done3
+	bne irq_cwp_done2
 	rd %wim, %l4
 
 	/* we'd end up in non-existent window #31, it means it's #0 */
 	mov 0, %l5
 
-irq_cwp_done3:
+irq_cwp_done2:
 	/* l4 = wim, l5 = CWP + 1 (mod NWINDOWS)
 	 * check if wim >> (CWP + 1) == 1 (window underflow)
 	 */
@@ -377,7 +365,7 @@ irq_cwp_done3:
 	ldd [%sp + 0x20], %i0
 	ldd [%sp + 0x28], %i2
 	ldd [%sp + 0x30], %i4
-	ldd [%sp + 0x38], %i6
+	ldd [%sp + 0x38], %fp
 	save
 
 irq_return:
@@ -386,7 +374,6 @@ irq_return:
 	nop
 	nop
 
-irq_switch_return:
 	jmp %l1
 	rett %l2
 .size _interrupts_dispatch, . - _interrupts_dispatch
@@ -427,81 +414,36 @@ _interrupts_enable:
 .global	hal_cpuReschedule
 .type	hal_cpuReschedule, #function
 hal_cpuReschedule:
-	save %sp, -0xb0, %sp
+	save %sp, -0x50, %sp
 
-	/* disable interrupts */
-	ta 0x09
-	/* this is voluntary reschedule,
-	 * no need to store caller-saves registers
-	 * (outputs of previous window and g1-g5)
-	 */
-	/* disable traps */
 	pwr 0, %psr
 	nop
 	nop
 	nop
+
+	/* this is voluntary reschedule,
+	 * no need to store caller-saves registers
+	 * (outputs of previous window and g1-g5)
+	 */
+
 	rd %psr, %g2
 
-	add %sp, 0x60, %l1    /* save pointer to context */
-	st  %l1, [%l1 + 0x00]
-	st  %g0, [%l1 + 0x04]
-	st  %g2, [%l1 + 0x08] /* psr */
-	add %i7, 0x8, %g2
-	st  %g2, [%l1 + 0x0c] /* pc */
-	add %g2, 0x4, %g2
-	st  %g2, [%l1 + 0x10] /* npc */
+	or %g2, PSR_PS, %g2
 
-	std %g6, [%l1 + 0x28]
+	mov %sp, %l1    /* save pointer to context */
 
-	st %i6, [%l1 + 0x48]
-	st %g0, [%l1 + 0x30] /* default return value */
+	st  %sp, [%sp + 0x00]
+	st  %g0, [%sp + 0x04]
+	st  %g2, [%sp + 0x08] /* psr */
+	add %i7, 0x8, %g3
+	st  %g3, [%sp + 0x0c] /* pc */
+	add %g3, 0x4, %g3
+	st  %g3, [%sp + 0x10] /* npc */
+	std %g6, [%sp + 0x28]
+	st  %g0, [%sp + 0x30] /* default return value */
+	st  %fp, [%sp + 0x48]
 
-	/* This time, unlike in interrupts,
-	 * we know we'll be switching context.
-	 *
-	 * Save used register windows on stack
-	 * and load only the window we'll be returning to.
-	 * The rest will be restored on window underflows.
-	 */
-
-	/* CWP ranges from 0 to (NWINDOWS - 1) */
-	rd %psr, %g2
-	and %g2, PSR_CWP, %g3
-	add %g3, 1, %g3
-	cmp %g3, NWINDOWS
-	bne r_cwp_done
-	nop
-	/* we'd end up in non-existent window #31, it means it's #0 */
-	mov 0, %g3
-
-r_cwp_done:
-	/* Current state of registers:
-	 * %l1 - %sp of old task
-	 * %g2 - %psr
-	 * %g3 - CWP + 1 (mod NWINDOWS)
-	 * freely usable: %g4, %g5
-	 */
-
-	/* set bit in register %g3, which corresponds to CWP + 1
-	 * %g3 = 1 << %g3 (CWP + 1)
-	 */
-	mov 1, %g4
-	sll %g4, %g3, %g3
-
-	rd %wim, %g4
-
-	sethi %hi(_interrupts_save_context), %g5
-	jmpl %g5 + %lo(_interrupts_save_context), %g1 /* clobbers %g1, %g3 */
-	nop
-
-	/* restore psr so it's the same as before context save,
-	 * enable traps (we have free space on stack)
-	 */
-	or %g2, PSR_ET, %g2
-	wr %g2, %psr
-	nop
-	nop
-	nop
+	sub %sp, 0x60, %sp
 
 	/* check if spinlock is not NULL */
 	cmp %i0, %g0
@@ -510,37 +452,52 @@ r_cwp_done:
 
 r_spinlock:
 	/* clear spinlock */
-	stb %g0, [%i0 + 0x0c]
 	stbar
-	ldub [%i0 + 0x0c], %o0
-	cmp %o0, %g0
-	bne r_spinlock
-	nop
+	stub %g0, [%i0 + 0x0c]
 
 r_spinlock_done:
+	/* disable interrupts, enable traps */
+	or %g2, (PSR_PIL | PSR_ET), %g2
+	wr %g2, %psr
+	nop
+	nop
+	nop
+
 	clr %o0
 	mov %l1, %o1 /* cpu_context_t * */
 	call threads_schedule
 	clr %o2
 
+	/* disable traps */
 	pwr 0, %psr
 	nop
 	nop
 	nop
 
-	ld [%l1], %g2
-	/* context is switched, %g2 points to new context */
+	ld [%l1], %g2 /* ctx pointer */
 
-	mov %g0, %wim /* we don't need it now */
+	rd %psr, %g3
+	and %g3, PSR_CWP, %g3
+
+	/* set bit in register %g3, which corresponds to CWP
+	 * %g3 = 1 << %g3 (CWP)
+	 */
+	mov 1, %g4
+	sll %g4, %g3, %g3
+
+	sethi %hi(_interrupts_save_context), %g5
+	jmpl %g5 + %lo(_interrupts_save_context), %g1 /* clobbers %g1, %g3 */
+	rd %wim, %g4
 
 	/* Set %psr of the new task.
 	 * This will cause window to be switched
 	 * so that the new task's window is CWP + 1.
 	 */
 
+	mov %g0, %wim /* we don't need it now */
 	ld [%g2 + 0x08], %g1
+	nop
 	andn %g1, PSR_ET, %g1 /* disable traps */
-	or %g1, PSR_PIL, %g1  /* disable interrupts */
 	wr %g1, %psr
 
 	sethi %hi(_interrupts_restore_context), %g5
@@ -551,44 +508,30 @@ r_spinlock_done:
 	and %g2, PSR_CWP, %g2
 	add %g2, 1, %g2
 	cmp %g2, NWINDOWS
-	bne r_cwp_done2
+	bne r_cwp_done
 	nop
 	mov 0, %g2
 
-r_cwp_done2:
+r_cwp_done:
 	/* set %wim to 1 << %g2 (CWP + 1) */
 	mov 1, %g3
 	sll %g3, %g2, %g2
-	mov %g2, %wim
-
-	/* enable traps */
-	rd %psr, %l0
-	or %l0, PSR_ET, %l0
-	/* check if we're returning to user or kernel space */
-	andcc %l0, PSR_PS, %g0
-	bnz r_restore_psr
-	nop
-
-	/* user space */
-	andn %l0, PSR_S, %l0
-
-r_restore_psr:
-	wr %l0, %psr
-	nop
-	nop
+	wr %g2, %wim
 	nop
 
 	/* restore %g1, %g2, %g3 */
 	ld  [%sp + 0x14], %g1
 	ldd [%sp + 0x18], %g2
 
-	/* Return from hal_cpuReschedule is done through a trap.
-	 * It allows to safely resume thread execution even
-	 * if the thread was interrupted in the delay slot
-	 * of a branch instruction (both PC and nPC have to be updated).
-	 */
-	ta 0x0b
-	/* no return back here */
+	andn %l0, PSR_ET, %l0
+	wr %l0, %psr
+	nop
+	nop
+	nop
+
+	/* Set both PC and nPC */
+	jmp %l1
+	rett %l2
 .size hal_cpuReschedule, . - hal_cpuReschedule
 
 
@@ -596,74 +539,78 @@ r_restore_psr:
 .global	hal_jmp
 .type	hal_jmp, #function
 hal_jmp:
-	ta 0x09
+	save %sp, -0x60, %sp
+	pwr 0, %psr
+	nop
+	nop
+	nop
 	/* calculate new wim */
-	rd %psr, %g1
-	and %g1, PSR_CWP, %g1
-	add %g1, 1, %g1
-	cmp %g1, NWINDOWS
+	rd %psr, %l0
+	and %l0, PSR_CWP, %l1
+	add %l1, 1, %l1
+	cmp %l1, NWINDOWS
 	bne 1f
 	nop
 
-	mov 0, %g1
+	mov 0, %l1
 1:
-	mov 1, %g2
-	sll %g2, %g1, %g1
-	wr %g1, %wim
+	mov 1, %l2
+	sll %l2, %l1, %l1
+	wr %l1, %wim
 	nop
 	nop
 	nop
 
-	mov %o0, %o4
-	mov %o2, %o5
-	cmp %o5, %g0 /* stack != NULL */
+	cmp %i2, %g0 /* stack != NULL */
 	bne 3f
 	nop
-	mov %o1, %sp /* sp = kstack */
-	subcc %o3, 1, %o3
+	mov %i1, %fp /* fp = kstack */
+	subcc %i3, 1, %i3
 	bneg 2f
 	nop
-	subcc %o3, 1, %o3
+	subcc %i3, 1, %i3
 	bneg 2f
-	ld [%sp], %o0
-	subcc %o3, 1, %o3
+	ld [%fp], %o0
+	subcc %i3, 1, %i3
 	bneg 2f
-	ld [%sp + 4], %o1
-	subcc %o3, 1, %o3
+	ld [%fp + 4], %o1
+	subcc %i3, 1, %i3
 	bneg 2f
-	ld [%sp + 8], %o2
-	ld [%sp + 12], %o3
+	ld [%fp + 8], %o2
+	ld [%fp + 12], %o3
 2:
-	andn %sp, 0x7, %sp
-	sub %sp, 0x60, %sp
-	ta  0x0a
-	call %o4
+	andn %fp, 0x7, %fp
+	sub %fp, 0x60, %sp
+	wr %l0, PSR_ET, %psr
+	nop
+	nop
+	nop
+	call %i0
 	nop
 3:
-	subcc %o3, 1, %o3
+	subcc %i3, 1, %i3
 	bneg 4f
 	nop
-	subcc %o3, 1, %o3
+	subcc %i3, 1, %i3
 	bneg 4f
-	ld [%o5], %o0
-	subcc %o3, 1, %o3
+	ld [%i2], %o0
+	subcc %i3, 1, %i3
 	bneg 4f
-	ld [%o5 + 4], %o1
-	subcc %o3, 1, %o3
+	ld [%i2 + 4], %o1
+	subcc %i3, 1, %i3
 	bneg 4f
-	ld [%o5 + 8], %o2
-	ld [%o5 + 12], %o3
+	ld [%i2 + 8], %o2
+	ld [%i2 + 12], %o3
 4:
-	andn %o5, 0x7, %sp
-	sub %sp, 0x70, %sp
-	rd %psr, %l0
-	andn %l0, PSR_S, %l0
-	wr %l0, %psr
+	andn %i2, 0x7, %fp
+	sub %fp, 0x60, %sp
+	andn %l0, (PSR_S | PSR_PIL), %l0
+	wr %l0, PSR_ET, %psr
 	nop
 	nop
 	nop
-	ta  0x0a
-	call %o4
+	mov %i2, %o0
+	call %i0
 	nop
 .size hal_jmp, . - hal_jmp
 
@@ -702,7 +649,7 @@ hal_longjmp:
 	ldd [%sp + 0x70], %i0
 	ldd [%sp + 0x78], %i2
 	ldd [%sp + 0x80], %i4
-	ldd [%sp + 0x88], %i6
+	ldd [%sp + 0x88], %fp
 
 	/* calculate new wim */
 	and %g2, PSR_CWP, %g1

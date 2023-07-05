@@ -32,7 +32,10 @@ ptr_t hal_cpuKernelStack;
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;
+	cpu_winContext_t *wctx;
+
 	*nctx = NULL;
+
 	if (kstack == NULL) {
 		return -1;
 	}
@@ -40,15 +43,28 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		return -1;
 	}
 
-	/* Align user stack to 8 bytes, SPARC requires 96 bytes always free on stack */
 	if (ustack != NULL) {
-		ustack = (void *)(((ptr_t)ustack & ~0x7) - 0x60);
+		/* Align user stack to 8 bytes */
+		ustack = (void *)((ptr_t)ustack & ~0x7);
+		ctx = (cpu_context_t *)((ptr_t)kstack + kstacksz - sizeof(cpu_context_t));
+		wctx = (cpu_winContext_t *)((ptr_t)ustack - sizeof(cpu_winContext_t));
+
+		hal_memset(ctx, 0, sizeof(cpu_context_t));
+		hal_memset(wctx, 0, sizeof(cpu_winContext_t));
+
+		wctx->fp = (ptr_t)ustack;
+		ctx->psr = (PSR_S | PSR_ET) & (~PSR_CWP);
 	}
+	else {
+		ctx = (cpu_context_t *)((ptr_t)kstack + kstacksz - sizeof(cpu_context_t) - sizeof(cpu_winContext_t));
+		wctx = (cpu_winContext_t *)((ptr_t)ctx + sizeof(cpu_context_t));
 
-	/* Prepare initial kernel stack */
-	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
+		hal_memset(ctx, 0, (sizeof(cpu_context_t) + sizeof(cpu_winContext_t)));
 
-	hal_memset(ctx, 0, sizeof(cpu_context_t));
+		wctx->fp = (ptr_t)kstack + kstacksz;
+		/* supervisor mode, enable traps, cwp = 0 */
+		ctx->psr = (PSR_S | PSR_ET | PSR_PS) & (~PSR_CWP);
+	}
 
 	ctx->o0 = (u32)arg;
 	ctx->o1 = 0xf1111111;
@@ -58,22 +74,22 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->o5 = 0xf5555555;
 	ctx->o7 = 0xf7777777;
 
-	ctx->l0 = 0xeeeeeee0;
-	ctx->l1 = 0xeeeeeee1;
-	ctx->l2 = 0xeeeeeee2;
-	ctx->l3 = 0xeeeeeee3;
-	ctx->l4 = 0xeeeeeee4;
-	ctx->l5 = 0xeeeeeee5;
-	ctx->l6 = 0xeeeeeee6;
-	ctx->l7 = 0xeeeeeee7;
+	wctx->l0 = 0xeeeeeee0;
+	wctx->l1 = 0xeeeeeee1;
+	wctx->l2 = 0xeeeeeee2;
+	wctx->l3 = 0xeeeeeee3;
+	wctx->l4 = 0xeeeeeee4;
+	wctx->l5 = 0xeeeeeee5;
+	wctx->l6 = 0xeeeeeee6;
+	wctx->l7 = 0xeeeeeee7;
 
-	ctx->i0 = (u32)arg;
-	ctx->i1 = 0x10000001;
-	ctx->i2 = 0x10000002;
-	ctx->i3 = 0x10000003;
-	ctx->i4 = 0x10000004;
-	ctx->i5 = 0x10000005;
-	ctx->i7 = (u32)start - 8;
+	wctx->i0 = 0x10000000;
+	wctx->i1 = 0x10000001;
+	wctx->i2 = 0x10000002;
+	wctx->i3 = 0x10000003;
+	wctx->i4 = 0x10000004;
+	wctx->i5 = 0x10000005;
+	wctx->i7 = (u32)start - 8;
 
 	ctx->g1 = 0x11111111;
 	ctx->g2 = 0x22222222;
@@ -83,18 +99,8 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->g6 = 0x66666666;
 	ctx->g7 = 0x77777777;
 
-	if (ustack != NULL) {
-		ctx->sp = (u32)ustack;
-		/* TODO: correct PSR settings when register windows are used */
-		ctx->psr = (PSR_S | PSR_ET) & (~PSR_CWP);
-	}
-	else {
-		ctx->sp = (u32)kstack + kstacksz - 0x60;
-		/* supervisor mode, enable traps, cwp = 0 */
-		ctx->psr = (PSR_S | PSR_ET | PSR_PS) & (~PSR_CWP);
-	}
-	ctx->fp = ctx->sp + 0x60;
-	ctx->savesp = ctx->sp;
+	ctx->sp = (u32)wctx;
+	ctx->savesp = (u32)ctx;
 
 	ctx->pc = (u32)start;
 	ctx->npc = (u32)start + 4;

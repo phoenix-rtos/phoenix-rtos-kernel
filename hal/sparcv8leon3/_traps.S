@@ -142,7 +142,7 @@ _start:
 	/* Reserved for OS */
 	TRAP(_interrupts_disable)  /* 0x89 - disable interrupts (reserved for OS) */
 	TRAP(_interrupts_enable)   /* 0x8a - enable interrupts (reserved for OS) */
-	TRAP(_traps_rescheduleRet) /* 0x8b - return from reschedule (reserved for OS) */
+	BAD_TRAP
 
 	/* 0x8c - 0xFF - reserved for OS */
 
@@ -186,7 +186,7 @@ _traps_winUnderflowHandler:
 	ldd [%sp + 0x20], %i0
 	ldd [%sp + 0x28], %i2
 	ldd [%sp + 0x30], %i4
-	ldd [%sp + 0x38], %i6
+	ldd [%sp + 0x38], %fp
 	save
 	save
 	jmp %l1
@@ -203,7 +203,7 @@ _traps_winUnderflowHandler:
 .type _traps_winOverflowHandler, #function
 
 _traps_winOverflowHandler:
-	/* move to next window and save it on stack (using d-word store) */
+	/* move to next window and save it on stack */
 	save
 	std %l0, [%sp + 0x00]
 	std %l2, [%sp + 0x08]
@@ -212,7 +212,7 @@ _traps_winOverflowHandler:
 	std %i0, [%sp + 0x20]
 	std %i2, [%sp + 0x28]
 	std %i4, [%sp + 0x30]
-	std %i6, [%sp + 0x38]
+	std %fp, [%sp + 0x38]
 	/* calculate new wim */
 	mov %wim, %l3
 	sll	%l3, (NWINDOWS - 1), %l4 /* %l4 = wim << (NWINDOWS - 1) */
@@ -248,22 +248,16 @@ _traps_flushWindows:
 	mov %g5, %l7
 
 	and %l0, PSR_CWP, %g3
-	add %g3, 1, %g3
-	cmp %g3, NWINDOWS
-	bne fw_cwp_done
-	nop
 
-	mov 0, %g3
-fw_cwp_done:
 	/* Current state of registers:
-	 * %g3 = CWP + 1
+	 * %g3 = CWP
 	 * %g4 = %wim
 	 */
 
-	mov %g3, %g2 /* save CWP + 1 in %g2 */
+	mov %g3, %g2 /* save CWP in %g2 */
 
-	/* set bit in register %g3, which corresponds to CWP + 1
-	 * %g3 = 1 << %g3 (CWP + 1)
+	/* set bit in register %g3, which corresponds to CWP
+	 * %g3 = 1 << %g3 (CWP)
 	 */
 
 	mov 1, %g4
@@ -277,19 +271,25 @@ fw_cwp_done:
 
 flush_win_done:
 	/* calculate new wim for CWP + 2
-	 * currently %g2 = CWP + 1
+	 * currently %g2 = CWP
 	 */
-	add %g2, 1, %g2
+	add %g2, 2, %g2
 	cmp %g2, NWINDOWS
-	bne fw_cwp_done2
+	bl fw_cwp_done
 	nop
 
+	be fw_cwp_done
 	mov 0, %g2
-fw_cwp_done2:
+	mov 1, %g2
+
+fw_cwp_done:
 	/* %g2 = CWP + 2 (mod NWINDOWS) */
 	mov 1, %g3
 	sll %g3, %g2, %g3
 	wr %g3, %wim
+	nop
+	nop
+	nop
 
 	/* restore %psr */
 	mov %g5, %psr
@@ -343,7 +343,7 @@ _exceptions_dispatch:
 	std %i0, [%sp + 0x60]
 	std %i2, [%sp + 0x68]
 	std %i4, [%sp + 0x70]
-	std %i6, [%sp + 0x78]
+	std %fp, [%sp + 0x78]
 
 	/* save sp */
 	add %sp, 0x98, %l0
@@ -427,24 +427,25 @@ _traps_syscall:
 	std %i0, [%sp + 0x20]
 	std %i2, [%sp + 0x28]
 	std %i4, [%sp + 0x30]
-	std %i6, [%sp + 0x38]
+	std %fp, [%sp + 0x38]
 	restore
 
 s_wovfl_done:
+	sub %fp, 0x18, %sp
+	/* write arguments to stack */
+	std %i0, [%sp]
+	std %i2, [%sp + 0x8]
+	std %i4, [%sp + 0x10]
+
+	mov %sp, %o1 /* ustack */
+
 	/* swap to kernel stack */
 	sethi %hi(hal_cpuKernelStack), %l5
 	ld [%l5 + %lo(hal_cpuKernelStack)], %sp
 
 	/* allocate stack frame for syscall handler */
 	sub %sp, 0x60, %sp
-
-	/* write arguments to stack */
-	std %i0, [%sp + 0x20]
-	std %i2, [%sp + 0x28]
-	std %i4, [%sp + 0x30]
-
 	mov %g4, %o0 /* syscall number */
-	add %sp, 0x20, %o1 /* ustack */
 
 	/* enable traps, interrupts */
 	andn %l0, (PSR_PIL), %l1
@@ -462,7 +463,6 @@ s_wovfl_done:
 	nop
 	nop
 	nop
-
 
 	/* Check if restore would cause underflow.
 	 * After restore: CWP = CWP + 1
@@ -503,7 +503,7 @@ s_cwp_done:
 	ldd [%sp + 0x20], %i0
 	ldd [%sp + 0x28], %i2
 	ldd [%sp + 0x30], %i4
-	ldd [%sp + 0x38], %i6
+	ldd [%sp + 0x38], %fp
 	save
 
 s_wunfl_done:
@@ -512,6 +512,7 @@ s_wunfl_done:
 	/* swap window if needed (after vfork) */
 	andn %l0, PSR_CWP, %l0
 	or %l0, %g5, %l0
+	andn %l0, (PSR_PS | PSR_ET), %l0
 	wr %l0, %psr
 	nop
 	nop
@@ -520,31 +521,3 @@ s_wunfl_done:
 	jmp %l2
 	rett %l2 + 4
 .size _traps_syscall, . - _traps_syscall
-
-/* hal_cpuReschedule return trap handler.
- *
- * Returning through this trap handler allows us
- * to set both PC and nPC (using the jmp-rett pair).
- * Setting nPC is necessary if execution was interrupted
- * in the delay slot of a branch instruction.
- *
- * PC in %l1, nPC in %l2 (previous window)
- */
-
-.global _traps_rescheduleRet
-.type _traps_rescheduleRet, #function
-_traps_rescheduleRet:
-	/* restore as if we didn't trap - the window we've prepared is CWP + 2 */
-	restore
-
-	rd %psr, %l0
-	/* enable interrupts */
-	andn %l0, PSR_PIL, %l0
-	wr %l0, %psr
-	nop
-	nop
-	nop
-
-	jmp %l1
-	rett %l2
-.size _traps_rescheduleRet, . - _traps_rescheduleRet
