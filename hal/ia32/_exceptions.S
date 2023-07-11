@@ -50,9 +50,9 @@ exception_pushContext:
 	pushl %esi
 	pushl %edi
 
-	movl %dr5, %eax
+	movl %dr7, %eax
 	pushl %eax
-	movl %dr4, %eax
+	movl %dr6, %eax
 	pushl %eax
 	movl %dr3, %eax
 	pushl %eax
@@ -77,9 +77,9 @@ exception_popContext:
 	popl %eax
 	movl %eax, %dr3
 	popl %eax
-	movl %eax, %dr4
+	movl %eax, %dr6
 	popl %eax
-	movl %eax, %dr5
+	movl %eax, %dr7
 
 	popl %edi
 	popl %esi

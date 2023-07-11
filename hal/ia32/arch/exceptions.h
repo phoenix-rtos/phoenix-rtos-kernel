@@ -34,8 +34,8 @@ typedef struct {
 	u32 dr1;
 	u32 dr2;
 	u32 dr3;
-	u32 dr4;
-	u32 dr5;
+	u32 dr6;
+	u32 dr7;
 	u32 edi;
 	u32 esi;
 	u32 ebp;
