@@ -57,7 +57,7 @@ int hal_platformctl(void *ptr)
 }
 
 
-void _nrf91_platformInit(void)
+void _hal_platformInit(void)
 {
 	hal_spinlockCreate(&nrf91_common.pltctlSp, "pltctl");
 }
@@ -103,7 +103,7 @@ int _nrf91_gpioConfig(u8 pin, u8 dir, u8 pull)
 		*(nrf91_common.gpio + gpio_cnf + pin) &= ~0x2;
 	}
 
-	if (pull) {
+	if (pull != 0) {
 		*(nrf91_common.gpio + gpio_cnf + pin) = (pull << 2);
 	}
 
@@ -201,7 +201,7 @@ void _nrf91_init(void)
 	*(nrf91_common.power + power_intenclr) = 0x64u;
 
 	/* Disable all clock interrupts */
-	*(nrf91_common.power + power_intenclr) = 0x3u;
+	*(nrf91_common.power + clock_intenclr) = 0x3u;
 
 	hal_cpuDataMemoryBarrier();
 
