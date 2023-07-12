@@ -77,6 +77,13 @@ _start:
 	str r1, [r0]
 	isb
 	dmb
+
+	/* Init MSP to a first value in _init_vectors (.bss end + 1024 + 256) */
+	ldr r0, [r1]
+	bic r0, 7
+	msr msp, r0
+	isb
+
 	bl _nrf91_init
 
 	bl main
@@ -151,6 +158,7 @@ _exceptions_dispatch:
 
 	mrs r0, ipsr
 	mov r1, sp
+
 	b exceptions_dispatch
 .size _exceptions_dispatch, .-_exceptions_dispatch
 .ltorg

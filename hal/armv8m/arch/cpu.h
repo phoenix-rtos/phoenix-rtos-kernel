@@ -17,7 +17,7 @@
 #define _HAL_ARMV8M_CPU_H_
 
 
-#if defined(CPU_NRF9160)
+#if defined(__CPU_NRF9160)
 #define CPU_NRF91
 #endif
 
@@ -60,6 +60,19 @@
 		ustack += (sizeof(t) + 3) & ~0x3u; \
 	} while (0)
 
+
+typedef struct {
+	u32 r0;
+	u32 r1;
+	u32 r2;
+	u32 r3;
+	u32 r12;
+	u32 lr;
+	u32 pc;
+	u32 psr;
+} cpu_hwContext_t;
+
+
 typedef struct _cpu_context_t {
 	u32 savesp_s;
 	u32 padding;
@@ -77,14 +90,7 @@ typedef struct _cpu_context_t {
 	u32 irq_ret;
 
 	/* Saved by hardware */
-	u32 r0;
-	u32 r1;
-	u32 r2;
-	u32 r3;
-	u32 r12;
-	u32 lr;
-	u32 pc;
-	u32 psr;
+	cpu_hwContext_t hwctx;
 
 } cpu_context_t;
 
@@ -103,6 +109,9 @@ static inline void hal_cpuEnableInterrupts(void)
 
 static inline void hal_cpuHalt(void)
 {
+	__asm__ volatile("\
+		wfi; \
+		nop; ");
 }
 
 
@@ -163,7 +172,7 @@ static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 
 static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
 {
-	ctx->r0 = retval;
+	ctx->hwctx.r0 = retval;
 }
 
 

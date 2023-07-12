@@ -34,7 +34,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	cpu_hwContext_t *hwctx;
 
 	/* If we came from userspace HW ctx in on psp stack (according to EXC_RETURN) */
-	if (ctx->excret | (1u << 2)) {
+	if ((ctx->excret & (1u << 2)) != 0) {
 		hwctx = (void *)ctx->psp;
 		msp -= sizeof(cpu_hwContext_t);
 		psp += sizeof(cpu_hwContext_t);
@@ -50,10 +50,10 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	hal_strcpy(&buff[i], mnemonics[n]);
 	i += hal_strlen(mnemonics[n]);
 
-	i += hal_i2s("\n r0=", &buff[i], ctx->r0, 16, 1);
-	i += hal_i2s("  r1=", &buff[i], ctx->r1, 16, 1);
-	i += hal_i2s("  r2=", &buff[i], ctx->r2, 16, 1);
-	i += hal_i2s("  r3=", &buff[i], ctx->r3, 16, 1);
+	i += hal_i2s("\n r0=", &buff[i], hwctx->r0, 16, 1);
+	i += hal_i2s("  r1=", &buff[i], hwctx->r1, 16, 1);
+	i += hal_i2s("  r2=", &buff[i], hwctx->r2, 16, 1);
+	i += hal_i2s("  r3=", &buff[i], hwctx->r3, 16, 1);
 
 	i += hal_i2s("\n r4=", &buff[i], ctx->r4, 16, 1);
 	i += hal_i2s("  r5=", &buff[i], ctx->r5, 16, 1);
@@ -65,13 +65,13 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" r10=", &buff[i], ctx->r10, 16, 1);
 	i += hal_i2s(" r11=", &buff[i], ctx->r11, 16, 1);
 
-	i += hal_i2s("\nr12=", &buff[i], ctx->r12, 16, 1);
-	i += hal_i2s("  sp=", &buff[i], (u32)ctx - 17 * 4, 16, 1);
-	i += hal_i2s("  lr=", &buff[i], ctx->lr, 16, 1);
-	i += hal_i2s("  pc=", &buff[i], ctx->pc, 16, 1);
+	i += hal_i2s("\nr12=", &buff[i], hwctx->r12, 16, 1);
+	i += hal_i2s(" psr=", &buff[i], hwctx->psr, 16, 1);
+	i += hal_i2s("  lr=", &buff[i], hwctx->lr, 16, 1);
+	i += hal_i2s("  pc=", &buff[i], hwctx->pc, 16, 1);
 
-	i += hal_i2s("\npsp_s=", &buff[i], ctx->psp_s, 16, 1);
-	i += hal_i2s(" psr=", &buff[i], ctx->psr, 16, 1);
+	i += hal_i2s("\npsp=", &buff[i], psp, 16, 1);
+	i += hal_i2s(" msp=", &buff[i], msp, 16, 1);
 	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
 	i += hal_i2s(" bfa=", &buff[i], *(u32 *)0xe000ed38, 16, 1);
 
@@ -91,18 +91,27 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 	hal_consolePrint(ATTR_BOLD, buff);
 
 #ifdef NDEBUG
-#ifdef CPU_NRF91
-	_interrupts_nvicSystemReset();
+	hal_cpuReboot();
 #endif
-#else
-	hal_cpuHalt();
-#endif
+
+	for (;;) {
+		hal_cpuHalt();
+	}
 }
 
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
-	return ctx->pc;
+	cpu_hwContext_t *hwctx;
+
+	if ((ctx->excret & (1u << 2)) != 0) {
+		hwctx = (void *)ctx->psp;
+	}
+	else {
+		hwctx = &ctx->mspctx;
+	}
+
+	return hwctx->pc;
 }
 
 

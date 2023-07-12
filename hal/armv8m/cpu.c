@@ -71,10 +71,11 @@ void hal_cpuSetDevBusy(int s)
 	hal_spinlockClear(&cpu_common.busySp, &scp);
 }
 
-
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
+int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
+
+	(void)tls;
 
 	*nctx = 0;
 	if (kstack == NULL) {
@@ -105,25 +106,26 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->r11 = 0xbbbbbbbbu;
 
 	if (ustack != NULL) {
-		((u32 *)ctx->psp)[0] = (u32)arg;    /* r0 */
-		((u32 *)ctx->psp)[1] = 0x11111111u; /* r1 */
-		((u32 *)ctx->psp)[2] = 0x22222222u; /* r2 */
-		((u32 *)ctx->psp)[3] = 0x33333333u; /* r3 */
-		((u32 *)ctx->psp)[4] = 0xccccccccu; /* r12 */
-		((u32 *)ctx->psp)[5] = 0xeeeeeeeeu; /* lr */
-		((u32 *)ctx->psp)[6] = (u32)start;  /* pc */
-		((u32 *)ctx->psp)[7] = 0x01000000u; /* psr */
+		((cpu_hwContext_t *)ctx->psp)->r0 = (u32)arg;
+		((cpu_hwContext_t *)ctx->psp)->r1 = 0x11111111;
+		((cpu_hwContext_t *)ctx->psp)->r2 = 0x22222222;
+		((cpu_hwContext_t *)ctx->psp)->r3 = 0x33333333;
+		((cpu_hwContext_t *)ctx->psp)->r12 = 0xcccccccc;
+		((cpu_hwContext_t *)ctx->psp)->lr = 0xeeeeeeee;
+		((cpu_hwContext_t *)ctx->psp)->pc = (u32)start;
+		((cpu_hwContext_t *)ctx->psp)->psr = 0x01000000;
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
-		ctx->r0 = (u32)arg;
-		ctx->r1 = 0x11111111u;
-		ctx->r2 = 0x22222222u;
-		ctx->r3 = 0x33333333u;
-		ctx->r12 = 0xccccccccu;
-		ctx->lr = 0xeeeeeeeeu;
-		ctx->pc = (u32)start;
-		ctx->psr = 0x01000000u;
+		ctx->hwctx.r0 = (u32)arg;
+		ctx->hwctx.r1 = 0x11111111u;
+		ctx->hwctx.r2 = 0x22222222u;
+		ctx->hwctx.r3 = 0x33333333u;
+		ctx->hwctx.r12 = 0xccccccccu;
+		ctx->hwctx.lr = 0xeeeeeeeeu;
+		ctx->hwctx.pc = (u32)start;
+		ctx->hwctx.psr = 0x01000000u;
+
 		ctx->irq_ret = RET_THREAD_MSP;
 	}
 
@@ -225,6 +227,12 @@ void hal_wdgReload(void)
 }
 
 
+void hal_cpuReboot(void)
+{
+	_interrupts_nvicSystemReset();
+}
+
+
 /* TODO: add implementation */
 void hal_cleanDCache(ptr_t start, size_t len)
 {
@@ -238,9 +246,7 @@ void _hal_cpuInit(void)
 
 	hal_spinlockCreate(&cpu_common.busySp, "devBusy");
 
-#ifdef CPU_NRF91
-	_nrf91_platformInit();
-#endif
+	_hal_platformInit();
 }
 
 

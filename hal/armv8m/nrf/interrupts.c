@@ -89,8 +89,8 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 void _interrupts_nvicSetIRQ(s8 irqn, u8 state)
 {
-	volatile u32 *ptr = interrupts.nvic + ((u8)irqn >> 5) + (state ? nvic_iser : nvic_icer);
-	*ptr = 1 << (irqn & 0x1F);
+	volatile u32 *ptr = interrupts.nvic + ((u8)irqn >> 5) + ((state != 0) ? nvic_iser : nvic_icer);
+	*ptr = 1u << (irqn & 0x1f);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -133,19 +133,22 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	interrupts.counters[n]++;
 
-	if ((h = interrupts.handlers[n]) != NULL) {
+	h = interrupts.handlers[n];
+	if (h != NULL) {
 		do {
 			hal_cpuSetGot(h->got);
-			if (h->f(n, ctx, h->data)) {
+			if (h->f(n, ctx, h->data) != 0) {
 				reschedule = 1;
 			}
-		} while ((h = h->next) != interrupts.handlers[n]);
+			h = h->next;
+		} while (h != interrupts.handlers[n]);
 	}
 
 	hal_spinlockClear(&interrupts.spinlock, &sc);
 
-	if (reschedule)
+	if (reschedule != 0) {
 		threads_schedule(n, ctx, NULL);
+	}
 }
 
 

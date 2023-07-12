@@ -33,13 +33,10 @@ enum { scb_actlr = 2, scb_cpuid = 832, scb_icsr, scb_vtor, scb_aircr, scb_scr, s
 /* clang-format on */
 
 
-extern void _nrf91_platformInit(void);
-
-
 extern int hal_platformctl(void *);
 
 
-extern void _nrf91_platformInit(void);
+extern void _hal_platformInit(void);
 
 
 extern int _nrf91_systickInit(u32 interval);
