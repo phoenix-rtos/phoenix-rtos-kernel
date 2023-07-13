@@ -462,8 +462,6 @@ init_syspage:
 	orr r1, r1, #(1 << 6)
 	mcr p15, 0, r1, c1, c0, 1
 
-
-#ifndef CPU_IMX6UL
 	/* Set ARM clock to 792 MHz */
 	/* Set ARM clock divider to 1 */
 	ldr r0, =0x20c4000
@@ -472,9 +470,6 @@ init_syspage:
 	dsb
 
 	mov r2, #3
-#else
-	mov r2, #2
-#endif
 
 	/* Enable usermode device accesses */
 	/* AIPSTZ1, 2, 3 */

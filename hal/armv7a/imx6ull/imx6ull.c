@@ -178,12 +178,8 @@ static int _imx6ull_setIOmux(int mux, char sion, char mode)
 	volatile u32 *base = imx6ull_common.iomux;
 
 	if (mux >= pctl_mux_boot_mode0 && mux <= pctl_mux_tamper9) {
-#ifdef CPU_IMX6UL
-		mux = (mux - pctl_mux_boot_mode0) + 5;
-#else
 		mux = (mux - pctl_mux_boot_mode0);
 		base = imx6ull_common.iomux_snvs;
-#endif
 	}
 	else if (mux < pctl_mux_jtag_mod || mux > pctl_mux_csi_d7)
 		return -1;
@@ -200,12 +196,8 @@ static int _imx6ull_setIOpad(int pad, char hys, char pus, char pue, char pke, ch
 	volatile u32 *base = imx6ull_common.iomux;
 
 	if (pad >= pctl_pad_test_mode && pad <= pctl_pad_tamper9) {
-#ifdef CPU_IMX6UL
-		pad = (pad - pctl_pad_test_mode) + 163;
-#else
 		pad = pad - pctl_pad_test_mode + 12;
 		base = imx6ull_common.iomux_gpr;
-#endif
 	}
 	else if (pad < pctl_pad_jtag_mod || pad > pctl_pad_csi_d7)
 		return -1;
@@ -252,12 +244,8 @@ static int _imx6ull_getIOmux(int mux, char *sion, char *mode)
 		return -1;
 
 	if (mux >= pctl_mux_boot_mode0 && mux <= pctl_mux_tamper9) {
-#ifdef CPU_IMX6UL
-		mux = (mux - pctl_mux_boot_mode0) + 5;
-#else
 		mux = (mux - pctl_mux_boot_mode0);
 		base = imx6ull_common.iomux_snvs;
-#endif
 	}
 	else if (mux < pctl_mux_jtag_mod || mux > pctl_mux_csi_d7)
 		return -1;
@@ -280,12 +268,8 @@ static int _imx6ull_getIOpad(int pad, char *hys, char *pus, char *pue, char *pke
 		return -1;
 
 	if (pad >= pctl_pad_test_mode && pad <= pctl_pad_tamper9) {
-#ifdef CPU_IMX6UL
-		pad = (pad - pctl_pad_test_mode) + 163;
-#else
 		pad = pad - pctl_pad_test_mode + 12;
 		base = imx6ull_common.iomux_gpr;
-#endif
 	}
 	else if (pad < pctl_pad_jtag_mod || pad > pctl_pad_csi_d7)
 		return -1;
