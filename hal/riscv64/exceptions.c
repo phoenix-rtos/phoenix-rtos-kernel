@@ -119,7 +119,7 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
-#ifndef NDEBUG
+#ifdef NDEBUG
 	hal_cpuReboot();
 #endif
 
