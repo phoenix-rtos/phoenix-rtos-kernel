@@ -54,7 +54,7 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	/* Switch into the handler address space */
 	pmap_switch(ui->process->pmapp);
 
-#ifdef TARGET_RISCV64
+#ifdef __TARGET_RISCV64
 	/* Clear PGHD_USER attribute in interrupt handler code page (RISC-V specification forbids user code execution in kernel mode) */
 	/* Assumes that entire interrupt handler code lies within one page */
 	int attr = PGHD_READ | PGHD_WRITE | PGHD_EXEC | PGHD_PRESENT;
@@ -65,7 +65,7 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	ret = ui->f(ui->handler.n, ui->arg);
 	userintr_common.active = NULL;
 
-#ifdef TARGET_RISCV64
+#ifdef __TARGET_RISCV64
 	/* Restore PGHD_USER attribute */
 	attr |= PGHD_USER;
 	pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1)), attr, NULL);

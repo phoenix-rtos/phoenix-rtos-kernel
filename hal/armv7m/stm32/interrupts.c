@@ -20,11 +20,11 @@
 #include "../../../proc/userintr.h"
 
 
-#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE)
+#if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE)
 #define SIZE_INTERRUPTS     84
 #endif
 
-#ifdef CPU_STM32L4X6
+#ifdef __CPU_STM32L4X6
 #define SIZE_INTERRUPTS     97
 #endif
 
