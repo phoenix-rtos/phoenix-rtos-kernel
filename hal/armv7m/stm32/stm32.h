@@ -19,11 +19,11 @@
 #include <arch/types.h>
 #include "../pmap.h"
 
-#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE)
+#if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE)
 #include "../../../include/arch/stm32l1.h"
 #endif
 
-#ifdef CPU_STM32L4X6
+#ifdef __CPU_STM32L4X6
 #include "../../../include/arch/stm32l4.h"
 #endif
 

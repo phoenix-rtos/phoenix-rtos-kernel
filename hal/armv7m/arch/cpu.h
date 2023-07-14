@@ -17,11 +17,11 @@
 #define _HAL_ARMV7M_CPU_H_
 
 
-#if defined(CPU_STM32L152XD) || defined(CPU_STM32L152XE) || defined(CPU_STM32L4X6)
+#if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE) || defined(__CPU_STM32L4X6)
 #define CPU_STM32
 #endif
 
-#if defined(CPU_IMXRT105X) || defined(CPU_IMXRT106X) || defined(CPU_IMXRT117X)
+#if defined(__CPU_IMXRT105X) || defined(__CPU_IMXRT106X) || defined(__CPU_IMXRT117X)
 #define CPU_IMXRT
 #endif
 
@@ -159,7 +159,7 @@ static inline void hal_cpuEnableInterrupts(void)
 
 static inline void hal_cpuHalt(void)
 {
-#ifndef CPU_IMXRT117X
+#ifndef __CPU_IMXRT117X
 	__asm__ volatile ("\
 		wfi; \
 		nop; ");
