@@ -22,6 +22,21 @@
 #include "config.h"
 
 
+#define GPTIMER0_BASE  0x80003000
+#define WATCHDOG_CTRL  0x78
+#define DIS_LVDS_ADDR  0x8000d030
+#define CGU_UNLOCK     0x80006000
+#define CGU_EN         0x80006004
+#define CGU_RESET      0x80006008
+#define BO_VMON        0x8010c018
+#define BOOTSTRAP_ADDR 0x80008000
+#define BOOTSTRAP_SPIM 0x400BC003
+#define TESTCFG_ADDR   0x8000E000
+#define TESTCFG_DISR   0x3
+#define SPIM_CTRL_ADDR 0xFFF00104
+#define SPIM_EDAC_ADDR 0xFFF00114
+
+
 #define STR(x)  #x
 #define XSTR(x) STR(x)
 
@@ -168,7 +183,43 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 
 void hal_cpuReboot(void)
 {
-	/* TODO */
+	/* Reset to the built-in bootloader */
+	hal_cpuDisableInterrupts();
+
+	/* Disable watchdog boot sequence */
+	*(volatile u32 *)(GPTIMER0_BASE + WATCHDOG_CTRL) = 0;
+
+	/* Clear Brownout */
+	*(volatile u32 *)(CGU_UNLOCK) = 0x8000000;
+	*(volatile u32 *)(CGU_EN) = 0x8000000;
+	*(volatile u32 *)(CGU_RESET) = 0;
+	*(volatile u32 *)(CGU_UNLOCK) = 0;
+
+	*(volatile u32 *)(BO_VMON) = 0x7F;
+	*(volatile u32 *)(BO_VMON) = 0;
+
+	/* Disable LVDS */
+	*(volatile u32 *)(DIS_LVDS_ADDR) = 0x00888888;
+
+	/* Disable watchdog reset */
+	*(volatile u32 *)(TESTCFG_ADDR) = TESTCFG_DISR;
+
+	/* Enable alt scaler and disable EDAC for SPI memory */
+	*(volatile u32 *)(SPIM_CTRL_ADDR) = 0x4;
+	*(volatile u32 *)(SPIM_EDAC_ADDR) = 0;
+
+	/* Reboot to SPIM */
+	*(volatile u32 *)(BOOTSTRAP_ADDR) = BOOTSTRAP_SPIM;
+
+	/* clang-format off */
+	__asm__ volatile (
+		"jmp %%g0\n\t"
+		"nop\n\t"
+		:::
+	);
+	/* clang-format on */
+
+	__builtin_unreachable();
 }
 
 
