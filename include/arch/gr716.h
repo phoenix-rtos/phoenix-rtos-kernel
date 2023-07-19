@@ -16,6 +16,8 @@
 #ifndef _PHOENIX_ARCH_GR716_H_
 #define _PHOENIX_ARCH_GR716_H_
 
+#define PCTL_REBOOT_MAGIC 0xaa55aa55UL
+
 /* clang-format off */
 
 enum { cgu_primary = 0, cgu_secondary };
@@ -37,7 +39,7 @@ enum { cgudev_grdmac0 = 0, cgudev_grdmac1, cgudev_grdmac2, cgudev_grdmac3, cgude
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_iocfg = 0, pctl_cguctrl } type;
+	enum { pctl_iocfg = 0, pctl_cguctrl, pctl_reboot } type;
 
 	union {
 		struct {
@@ -56,6 +58,10 @@ typedef struct {
 			unsigned char cgu;
 			unsigned int cgudev;
 		} cguctrl;
+
+		struct {
+			unsigned int magic;
+		} reboot;
 	};
 } __attribute__((packed)) platformctl_t;
 

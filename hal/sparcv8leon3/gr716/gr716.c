@@ -15,6 +15,7 @@
 
 #include "gr716.h"
 #include "../sparcv8leon3.h"
+#include "../../cpu.h"
 #include "../../spinlock.h"
 #include "../../../include/arch/gr716.h"
 
@@ -316,6 +317,15 @@ int hal_platformctl(void *ptr)
 				ret = _gr716_getIOCfg(data->iocfg.pin, &data->iocfg.opt,
 					&data->iocfg.dir, &data->iocfg.pullup, &data->iocfg.pulldn);
 			}
+			break;
+
+		case pctl_reboot:
+			if ((data->action == pctl_set) && (data->reboot.magic == PCTL_REBOOT_MAGIC)) {
+				hal_cpuReboot();
+			}
+			break;
+
+		default:
 			break;
 	}
 	hal_spinlockClear(&gr716_common.pltctlSp, &sc);
