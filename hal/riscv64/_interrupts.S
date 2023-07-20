@@ -5,8 +5,8 @@
  *
  * Interrupt stubs
  *
- * Copyright 2018, 2020 Phoenix Systems
- * Author; Pawel Pisarczyk, Julia Kosowska
+ * Copyright 2018, 2020, 2023 Phoenix Systems
+ * Author: Pawel Pisarczyk, Julia Kosowska, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -15,32 +15,46 @@
 
 #define __ASSEMBLY__
 
-#define SR_FS           0x00006000
-#define SR_SUM          0x00040000
-#define SR_MER          0x00080000
+
+#define SR_SIE 0x00000002
+#define SR_FS  0x00006000
+#define SR_SUM 0x00040000
+#define SR_MXR 0x00080000
+
 
 #include <arch/cpu.h>
 
 .text
 
 .macro SAVE
-	csrc sstatus, 2
-	addi sp, sp, -16
-
-//	j 1f
-
-	/* If coming from userspace sscratch register holds kernel stack */
+	/* If coming from userspace, save thread pointer in sscratch and load kernel sp.
+	 * If coming from kernel, sscratch is 0, so we don't swap.
+	 */
 	csrrw tp, sscratch, tp
-	beqz tp, 1f
+	bnez tp, 1f
 
-	/* save user stack and task register in case of priv. switch */
-	sd sp, -8(tp)        /* usp */
-	csrr sp, sscratch
-	sd sp, -16(tp)       /* tp */
-	mv sp, tp
-	addi sp, sp, -16
+	/* Current stack is kernel stack */
+	sd sp, -8(sp)
+
+	addi sp, sp, -296
+	j 2f
+
 1:
-	addi sp, sp, -280
+	/* Save context, tp now holds kernel stack pointer.
+	 * Original tp is saved in sscratch
+	 */
+
+	/* Save task's stack pointer */
+	sd sp, -8(tp)
+
+	/* Swap to current stack */
+	addi sp, tp, -296
+
+2:
+	/* restore tp & sscratch */
+	csrrw tp, sscratch, tp
+
+	/* Save context */
 	sd x1, (sp)          /* ra */
 	sd x3, 8(sp)         /* gp */
 	sd x5, 16(sp)        /* t0 */
@@ -71,26 +85,28 @@
 	sd x30, 216(sp)      /* t5 */
 	sd x31, 224(sp)      /* t6 */
 
-	mv s0, sp
+	sd sp, 232(sp)       /* ksp */
 
 	/* Disable FPU */
 	li t0, SR_FS
 	csrc sstatus, t0
 	/* Allow supervisor access to user space and reading from execute pages (for the time being) */
-	li t0, SR_SUM | SR_MER
+	li t0, SR_SUM | SR_MXR
 	csrs sstatus, t0
 
-	csrrc s1, sstatus, 2
+	csrrc s1, sstatus, SR_SIE
 	csrr s2, sepc
 	csrr s3, sbadaddr
 	csrr s4, scause
+	csrr s5, sscratch
 
-	sd s0, 232(sp)
-	sd s1, 240(sp)
-	sd s2, 248(sp)
-	sd s3, 256(sp)
-	sd s4, 264(sp)
-	sd tp, 272(sp)
+	sd s1, 240(sp)   /* sstatus */
+	sd s2, 248(sp)   /* sepc */
+	sd s3, 256(sp)   /* sbadaddr */
+	sd s4, 264(sp)   /* scause */
+	sd s5, 272(sp)   /* sscratch */
+
+	sd tp, 280(sp)   /* tp */
 
 	/* Kernel mode entered */
 	csrw sscratch, zero
@@ -98,16 +114,15 @@
 
 
 .macro RESTORE
-
 	/* Switch kernel stack */
 	ld sp, 232(sp)
 	ld tp, 272(sp)
 
-	/* Kernel mode left */
+	/* Kernel mode left - this loads ksp to sscratch if returning to userspace, else 0 */
 	csrw sscratch, tp
 
 	ld a0, 240(sp)
-	andi a0, a0, ~2
+	andi a0, a0, ~SR_SIE
 	csrw sstatus, a0
 
 	ld a2, 248(sp)
@@ -143,29 +158,12 @@
 	ld x30, 216(sp)      /* t5 */
 	ld x31, 224(sp)      /* t6 */
 
-//	csrr s0, sstatus
-	addi sp, sp, 280
-//	j 1f
+	ld tp, 280(sp)       /* tp */
 
-	beqz tp, 1f
-	addi sp, sp, 16
-	ld tp, -16(sp)
+	addi sp, sp, 296
+
+	/* Restore task's stack pointer */
 	ld sp, -8(sp)
-
-1:
-	addi sp, sp, 16
-//	li tp, 0
-.endm
-
-
-.macro CHECKSIGNAL
-//	mv a0, zero
-//	call _proc_sigwant
-//	beqz a0, 1f
-//	mv a0, sp
-//	call proc_sighandle
-	/* Not reached */
-1:
 .endm
 
 
@@ -173,8 +171,6 @@
 .type interrupts_handleintexc, @function
 interrupts_handleintexc:
 .align 8
-	csrc sstatus, 2
-//	csrc sie, 8
 	SAVE
 	mv a0, sp
 
@@ -187,7 +183,7 @@ interrupts_handleintexc:
 	li a0, 0xa
 	j 34f
 
-33:	
+33:
 	li t1, 0x8000000000000005
 	bne s4, t1, 34f
 	call handler
@@ -197,7 +193,6 @@ interrupts_handleintexc:
 	call interrupts_dispatchIRQ
 	j 4f
 
-//	call interrupts_checkSignal
 2:
 	mv a0, s4
 	andi a0, a0, 0xf
@@ -207,36 +202,33 @@ interrupts_handleintexc:
 3:
 	addi s2, s2, 4 /* move pc past ecall instruction */
 	sd s2, 248(sp)
-	mv a0, a7
-	ld a1, 288(sp)      /* usp */
-	li t0, 16
-	add a1, a1, t0
+	mv a0, a7 /* syscall number */
+	ld a1, 288(sp) /* ustack */
 
-csrs sstatus, 2
+	csrs sstatus, SR_SIE
 	call syscalls_dispatch
 	sd a0, 56(sp)
-	csrc sstatus, 2
+	csrc sstatus, SR_SIE
 	j 5f
 4:
 	beq a0, zero, 5f
 	li a0, 0
 	mv a1, sp
-	call threads_schedule;
+	call threads_schedule
 
 5:
-	CHECKSIGNAL
 	RESTORE
 	sret
-
 .size interrupts_handleintexc, .-interrupts_handleintexc
 
 
 
 .global hal_cpuReschedule
 hal_cpuReschedule:
-	csrrc tp, sstatus, 2
+	/* Disable interrupts */
+	csrc sstatus, SR_SIE
 
-	/* Change correctly status register */
+	/* Save return address */
 	csrw sepc, ra
 
 	SAVE
@@ -267,7 +259,6 @@ hal_cpuReschedule:
 	mv a2, zero
 	call threads_schedule
 
-	CHECKSIGNAL
 	RESTORE
 	sret
 .size hal_cpuReschedule, .-hal_cpuReschedule
@@ -284,66 +275,61 @@ hal_longjmp:
 
 .global hal_jmp  /* void hal_jmp(void *f, void *kstack, void *stack, int argc) */
 hal_jmp:
-       mv s0, a0
-       mv s1, a1
-       mv s2, a2
-       mv s3, a3
-       csrc sstatus, 2 /* disable interrupts */
+	mv s0, a0
+	mv s1, a1
+	mv s2, a2
+	mv s3, a3
+	csrc sstatus, SR_SIE /* disable interrupts */
 
-       bnez a2, 2f
+	bnez a2, 2f
 
-       mv sp, s1
-       addi s3, s3, -1
-       blt s3, zero, 1f
-       ld a0, (sp)
-       addi sp, sp, 8
-       addi s3, s3, -1
-       blt s3, zero, 1f
-       ld a1, (sp)
-       addi sp, sp, 8
-       addi s3, s3, -1
-       blt s3, zero, 1f
-       ld a2, (sp)
-       addi sp, sp, 8
-       addi s3, s3, -1
-       blt s3, zero, 1f
-       ld a3, (sp)
-       addi sp, sp, 8
+	mv sp, s1
+	addi s3, s3, -1
+	blt s3, zero, 1f
+	ld a0, (sp)
+	addi sp, sp, 8
+	addi s3, s3, -1
+	blt s3, zero, 1f
+	ld a1, (sp)
+	addi sp, sp, 8
+	addi s3, s3, -1
+	blt s3, zero, 1f
+	ld a2, (sp)
+	addi sp, sp, 8
+	addi s3, s3, -1
+	blt s3, zero, 1f
+	ld a3, (sp)
+	addi sp, sp, 8
 1:
-       csrs sstatus, 2 /* enable interrupts */
-       jr s0
+	csrs sstatus, SR_SIE /* enable interrupts */
+	jr s0
 
 2:
-//       csrc sstatus, 2 /* disable interrupts */
+	csrw sscratch, s1 /* kernel stack pointer */
 
-       csrw sscratch, s1 /* kernel stack pointer */
+	mv sp, s2 /* user stack pointer */
+	addi sp, sp, 8 /* skip return address */
 
-       mv sp, s2 /* user stack pointer */
-       addi sp, sp, 8 /* skip return address */
-
-       addi s3, s3, -1
-       blt s3, zero, 3f
-       ld a0, (sp)
-       addi sp, sp, 8
-       addi s3, s3, -1
-       blt s3, zero, 3f
-       ld a1, (sp)
-       addi sp, sp, 8
-       addi s3, s3, -1
-       blt s3, zero, 3f
-       ld a2, (sp)
-       addi sp, sp, 8
-       addi s3, s3, -1
-       blt s3, zero, 3f
-       ld a3, (sp)
-       addi sp, sp, 8
+	addi s3, s3, -1
+	blt s3, zero, 3f
+	ld a0, (sp)
+	addi sp, sp, 8
+	addi s3, s3, -1
+	blt s3, zero, 3f
+	ld a1, (sp)
+	addi sp, sp, 8
+	addi s3, s3, -1
+	blt s3, zero, 3f
+	ld a2, (sp)
+	addi sp, sp, 8
+	addi s3, s3, -1
+	blt s3, zero, 3f
+	ld a3, (sp)
+	addi sp, sp, 8
 3:
-//	csrs sstatus, 2 /* enable interrupts */
+	li t0, 0x120
+	csrc sstatus, t0 /* sret will return to usermode */
+	csrw sepc, s0 /* address to return to */
 
-       li t0, 0x120
-       csrc sstatus, t0 /* sret will return to usermode */
-       csrw sepc, s0 /* address to return to */
-
-       sret
-
+	sret
 .size hal_jmp, .-hal_jmp

@@ -43,6 +43,7 @@ _start:
 	/* Mask all interrupts */
 	csrw sie, zero
 	csrw sscratch, zero
+	mv tp, zero
 
 	la sp, pmap_common + 4 * SIZE_PAGE
 
