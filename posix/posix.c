@@ -23,8 +23,8 @@
 #include "posix_private.h"
 #include "../lib/cbuffer.h"
 
-#ifdef CPU_STM32
-#define MAX_FD_COUNT 8
+#ifdef NOMMU
+#define MAX_FD_COUNT 32
 #else
 #define MAX_FD_COUNT 512
 #endif
