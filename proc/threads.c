@@ -832,10 +832,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	t->startTime = hal_timerGetUs();
 	t->lastTime = t->startTime;
 
-	/* Prepare initial stack */
-	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, (stack == NULL) ? NULL : (unsigned char *)stack + stacksz, arg);
-	threads_canaryInit(t, stack);
-
 	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
@@ -851,6 +847,10 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 		t->tls.tls_sz = 0;
 		t->tls.arm_m_tls = NULL;
 	}
+
+	/* Prepare initial stack */
+	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, (stack == NULL) ? NULL : (unsigned char *)stack + stacksz, arg, &t->tls);
+	threads_canaryInit(t, stack);
 
 	thread_alloc(t);
 	if (id != NULL) {

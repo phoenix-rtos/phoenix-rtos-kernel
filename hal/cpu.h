@@ -67,7 +67,7 @@ extern void hal_cpuSetGot(void *got);
 extern void *hal_cpuGetGot(void);
 
 
-extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg);
+extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
 
 
 extern int hal_cpuReschedule(struct _spinlock_t *spinlock, spinlock_ctx_t *scp);

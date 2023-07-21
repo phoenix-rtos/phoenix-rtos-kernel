@@ -90,9 +90,11 @@ u32 cpu_getEFLAGS(void)
 }
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
+int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
+
+	(void)tls;
 
 	*nctx = NULL;
 	if (kstack == NULL) {

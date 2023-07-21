@@ -111,7 +111,7 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 /* context management */
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
+int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
 
@@ -172,8 +172,9 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		ctx->sp = (u64)ustack;
 		ctx->sstatus = csr_read(sstatus) | SR_SPIE | SR_SUM;
 		ctx->sscratch = (u64)ctx;
-		ctx->tp = ctx->ksp;
-	} else {
+		ctx->tp = tls->tls_base;
+	}
+	else {
 		ctx->sstatus = csr_read(sstatus) | SR_SPIE | SR_SPP;
 		ctx->sscratch = 0;
 		ctx->tp = 0;
@@ -293,5 +294,5 @@ void _hal_cpuInit(void)
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	ctx->tp = tls->tls_base;
+	__asm__ volatile("mv tp, %0" ::"r"(tls->tls_base));
 }
