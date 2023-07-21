@@ -44,7 +44,7 @@
 ptr_t hal_cpuKernelStack;
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
+int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
 	cpu_winContext_t *wctx;
@@ -69,6 +69,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 		wctx->fp = (ptr_t)ustack;
 		ctx->psr = (PSR_S | PSR_ET) & (~PSR_CWP);
+		ctx->g7 = tls->tls_base + tls->tbss_sz + tls->tdata_sz;
 	}
 	else {
 		ctx = (cpu_context_t *)((ptr_t)kstack + kstacksz - sizeof(cpu_context_t) - sizeof(cpu_winContext_t));
@@ -79,6 +80,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		wctx->fp = (ptr_t)kstack + kstacksz;
 		/* supervisor mode, enable traps, cwp = 0 */
 		ctx->psr = (PSR_S | PSR_ET | PSR_PS) & (~PSR_CWP);
+		ctx->g7 = 0x77777777;
 	}
 
 	ctx->o0 = (u32)arg;
@@ -112,7 +114,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->g4 = 0x44444444;
 	ctx->g5 = 0x55555555;
 	ctx->g6 = 0x66666666;
-	ctx->g7 = 0x77777777;
 
 	ctx->sp = (u32)wctx;
 	ctx->savesp = (u32)ctx;
@@ -293,6 +294,5 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	/* thread register (g7) points to the end of TLS */
-	ctx->g7 = tls->tls_base + tls->tbss_sz + tls->tdata_sz;
+	__asm__ volatile("mov %0, %%g7" ::"r"(tls->tls_base + tls->tbss_sz + tls->tdata_sz));
 }
