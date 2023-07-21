@@ -395,26 +395,184 @@ static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbss
 }
 
 
-#ifndef NOMMU
-
-/* TODO - adding error handling and unmapping of already mapped segments */
-int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+static int process_isPtrValid(void *mapStart, size_t mapSize, void *ptrStart, size_t ptrSize)
 {
-	void *vaddr = NULL;
-	size_t memsz = 0, filesz = 0;
+	void *mapEnd = ((char *)mapStart) + mapSize;
+	void *ptrEnd = ((char *)ptrStart) + ptrSize;
+
+	/* clang-format off */
+	return ((ptrSize == 0) ||
+		((ptrEnd > mapStart) && (ptrEnd <= mapEnd) &&
+		(ptrStart >= mapStart) && (ptrStart < ptrEnd))) ?
+		1 : 0;
+	/* clang-format on */
+}
+
+
+/* Ensure kernel won't make a bad access on a malformed elf during load. */
+static int process_validateElf32(void *iehdr, size_t size)
+{
 	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
-	Elf32_Shdr *shdr;
-	unsigned i, prot, flags, misalign = 0;
+	Elf32_Shdr *shdr, *shstrshdr;
+	char *snameTab;
+	size_t memsz, filesz;
+	unsigned i, misalign;
+	offs_t offs;
+
+	if (size < sizeof(*ehdr)) {
+		return -ENOEXEC;
+	}
+
+	/* Validate header. */
+	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
+			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+		(ehdr->e_shnum == 0)) {
+		return -ENOEXEC;
+	}
+
+	phdr = (void *)ehdr + ehdr->e_phoff;
+	if (process_isPtrValid(iehdr, size, phdr, sizeof(*phdr) * ehdr->e_phnum) == 0) {
+		return -ENOEXEC;
+	}
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if ((phdr->p_type != PT_LOAD) &&
+			(process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0)) {
+			return -ENOEXEC;
+		}
+
+		offs = phdr->p_offset & ~(phdr->p_align - 1);
+		misalign = phdr->p_offset & (phdr->p_align - 1);
+		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
+		memsz = phdr->p_memsz + misalign;
+		if ((offs >= size) || (memsz < filesz)) {
+			return -ENOEXEC;
+		}
+	}
+
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
+	if (process_isPtrValid(iehdr, size, shdr, sizeof(*shdr) * ehdr->e_shnum) == 0) {
+		return -ENOEXEC;
+	}
+
+	shstrshdr = shdr + ehdr->e_shstrndx;
+	if (process_isPtrValid(iehdr, size, shstrshdr, sizeof(*shstrshdr)) == 0) {
+		return -ENOEXEC;
+	}
+	snameTab = (char *)ehdr + shstrshdr->sh_offset;
+	if (process_isPtrValid(iehdr, size, snameTab, shstrshdr->sh_size) == 0) {
+		return -ENOEXEC;
+	}
+	/* Strings must end with NULL character. */
+	if ((shstrshdr->sh_size != 0) && (snameTab[shstrshdr->sh_size - 1] != '\0')) {
+		return -ENOEXEC;
+	}
+
+	for (i = 0; i < ehdr->e_shnum; i++) {
+		if (((shdr[i].sh_type != SHT_NOBITS) &&
+				(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
+			(shdr->sh_name >= shstrshdr->sh_size)) {
+			return -ENOEXEC;
+		}
+	}
+
+	return 0;
+}
+
+
+#ifndef NOMMU
+
+
+static int process_validateElf64(void *iehdr, size_t size)
+{
+	Elf64_Ehdr *ehdr = iehdr;
+	Elf64_Phdr *phdr;
+	Elf64_Shdr *shdr, *shstrshdr;
+	char *snameTab;
+	size_t memsz, filesz;
+	unsigned i, misalign;
+	offs_t offs;
+
+	if (size < sizeof(*ehdr)) {
+		return -ENOEXEC;
+	}
+
+	/* Validate header. */
+	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
+			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) == 0)) ||
+		(ehdr->e_shnum == 0)) {
+		return -ENOEXEC;
+	}
+
+	phdr = (void *)ehdr + ehdr->e_phoff;
+	if (process_isPtrValid(iehdr, size, phdr, sizeof(*phdr) * ehdr->e_phnum) == 0) {
+		return -ENOEXEC;
+	}
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if ((phdr->p_type != PT_LOAD) &&
+			(process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0)) {
+			return -ENOEXEC;
+		}
+
+		offs = phdr->p_offset & ~(phdr->p_align - 1);
+		misalign = phdr->p_offset & (phdr->p_align - 1);
+		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
+		memsz = phdr->p_memsz + misalign;
+		if ((offs >= size) || (memsz < filesz)) {
+			return -ENOEXEC;
+		}
+	}
+
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
+	if (process_isPtrValid(iehdr, size, shdr, sizeof(*shdr) * ehdr->e_shnum) == 0) {
+		return -ENOEXEC;
+	}
+
+	shstrshdr = shdr + ehdr->e_shstrndx;
+	if (process_isPtrValid(iehdr, size, shstrshdr, sizeof(*shstrshdr)) == 0) {
+		return -ENOEXEC;
+	}
+	snameTab = (char *)ehdr + shstrshdr->sh_offset;
+	if (process_isPtrValid(iehdr, size, snameTab, shstrshdr->sh_size) == 0) {
+		return -ENOEXEC;
+	}
+	/* Strings must end with NULL character. */
+	if (snameTab[shstrshdr->sh_size - 1] != '\0') {
+		return -ENOEXEC;
+	}
+
+	for (i = 0; i < ehdr->e_shnum; i++) {
+		if ((process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
+			(shdr->sh_name >= shstrshdr->sh_size)) {
+			return -ENOEXEC;
+		}
+	}
+
+	return 0;
+}
+
+
+/* TODO - adding error handling and unmapping of already mapped segments */
+int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+{
+	void *vaddr;
+	size_t memsz, filesz;
+	Elf32_Ehdr *ehdr = iehdr;
+	Elf32_Phdr *phdr;
+	Elf32_Shdr *shdr, *shstrshdr;
+	unsigned i, prot, flags, misalign;
 	offs_t offs;
 	char *snameTab;
 
-	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
-	shdr += ehdr->e_shstrndx;
-	snameTab = (char *)ehdr + shdr->sh_offset;
+	if (process_validateElf32(iehdr, size) < 0) {
+		return -ENOEXEC;
+	}
 
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
+	shstrshdr = shdr + ehdr->e_shstrndx;
+	snameTab = (char *)ehdr + shstrshdr->sh_offset;
 	/* Find .tdata and .tbss sections */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0; i < ehdr->e_shnum; i++, shdr++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
 			tls->tls_base = (ptr_t)shdr->sh_addr;
 			tls->tdata_sz += shdr->sh_size;
@@ -429,65 +587,75 @@ int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 	}
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
+		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0)) {
 			*ustacksz = round_page(phdr->p_memsz);
 		}
 
-		if (phdr->p_type != PT_LOAD || phdr->p_vaddr == 0)
+		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0)) {
 			continue;
+		}
 
-		vaddr = (void *)((unsigned long)phdr->p_vaddr & ~(phdr->p_align - 1));
+		vaddr = (void *)((ptr_t)(phdr->p_vaddr & ~(phdr->p_align - 1)));
 		offs = phdr->p_offset & ~(phdr->p_align - 1);
 		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? phdr->p_filesz + misalign : 0;
+		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;
 
 		prot = PROT_USER;
 		flags = MAP_NONE;
 
-		if (phdr->p_flags & PF_R)
+		if ((phdr->p_flags & PF_R) != 0) {
 			prot |= PROT_READ;
+		}
 
-		if (phdr->p_flags & PF_W)
+		if ((phdr->p_flags & PF_W) != 0) {
 			prot |= PROT_WRITE;
+		}
 
-		if (phdr->p_flags & PF_X)
+		if ((phdr->p_flags & PF_X) != 0) {
 			prot |= PROT_EXEC;
+		}
 
-		if (filesz && (prot & PROT_WRITE))
+		if ((filesz != 0) && ((prot & PROT_WRITE) != 0)) {
 			flags |= MAP_NEEDSCOPY;
+		}
 
-		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)
+		if ((filesz != 0) && (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
 			return -ENOMEM;
+		}
 
 		if (filesz != memsz) {
-			if (round_page(memsz) - round_page(filesz) && vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)
+			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
 				return -ENOMEM;
+			}
 
-			hal_memset(vaddr + filesz, 0, round_page((unsigned long)vaddr + memsz) - (unsigned long)vaddr - filesz);
+			hal_memset(vaddr + filesz, 0, round_page((ptr_t)vaddr + memsz) - ((ptr_t)vaddr + filesz));
 		}
 	}
 	return EOK;
 }
 
 
-int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
-	void *vaddr = NULL;
-	size_t memsz = 0, filesz = 0;
+	void *vaddr;
+	size_t memsz, filesz;
 	Elf64_Ehdr *ehdr = iehdr;
 	Elf64_Phdr *phdr;
-	Elf64_Shdr *shdr;
-	unsigned i, prot, flags, misalign = 0;
+	Elf64_Shdr *shdr, *shstrshdr;
+	unsigned i, prot, flags, misalign;
 	offs_t offs;
 	char *snameTab;
 
-	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
-	shdr += ehdr->e_shstrndx;
-	snameTab = (char *)ehdr + shdr->sh_offset;
+	if (process_validateElf64(iehdr, size) < 0) {
+		return -ENOEXEC;
+	}
 
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
+	shstrshdr = shdr + ehdr->e_shstrndx;
+	snameTab = (char *)ehdr + shstrshdr->sh_offset;
 	/* Find .tdata and .tbss sections */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0; i < ehdr->e_shnum; i++, shdr++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
 			tls->tls_base = (ptr_t)shdr->sh_addr;
 			tls->tdata_sz += shdr->sh_size;
@@ -502,42 +670,49 @@ int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 	}
 
 	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
+		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0)) {
 			*ustacksz = round_page(phdr->p_memsz);
 		}
 
-		if (phdr->p_type != PT_LOAD || phdr->p_vaddr == 0)
+		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0)) {
 			continue;
+		}
 
-		vaddr = (void *)((unsigned long)phdr->p_vaddr & ~(phdr->p_align - 1));
+		vaddr = (void *)((ptr_t)(phdr->p_vaddr & ~(phdr->p_align - 1)));
 		offs = phdr->p_offset & ~(phdr->p_align - 1);
 		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? phdr->p_filesz + misalign : 0;
+		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;
 
 		prot = PROT_USER;
 		flags = MAP_NONE;
 
-		if (phdr->p_flags & PF_R)
+		if ((phdr->p_flags & PF_R) != 0) {
 			prot |= PROT_READ;
+		}
 
-		if (phdr->p_flags & PF_W)
+		if ((phdr->p_flags & PF_W) != 0) {
 			prot |= PROT_WRITE;
+		}
 
-		if (phdr->p_flags & PF_X)
+		if ((phdr->p_flags & PF_X) != 0) {
 			prot |= PROT_EXEC;
+		}
 
-		if (filesz && (prot & PROT_WRITE))
+		if ((filesz != 0) && ((prot & PROT_WRITE) != 0)) {
 			flags |= MAP_NEEDSCOPY;
+		}
 
-		if (filesz && vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)
+		if ((filesz != 0) && (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
 			return -ENOMEM;
+		}
 
 		if (filesz != memsz) {
-			if (round_page(memsz) - round_page(filesz) && vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)
+			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
 				return -ENOMEM;
+			}
 
-			hal_memset(vaddr + filesz, 0, round_page((unsigned long)vaddr + memsz) - (unsigned long)vaddr - filesz);
+			hal_memset(vaddr + filesz, 0, round_page((ptr_t)vaddr + memsz) - ((ptr_t)vaddr + filesz));
 		}
 	}
 	return EOK;
@@ -550,7 +725,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	Elf64_Ehdr *ehdr;
 	vm_map_t *map = process->mapp;
 	size_t ustacksz = SIZE_USTACK;
-	int err;
+	int err = EOK;
 	hal_tls_t tlsNew;
 	ptr_t tbssAddr = 0;
 
@@ -562,28 +737,22 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 
 	size = round_page(size);
 
-	if ((ehdr = vm_mmap(process_common.kmap, NULL, NULL, size, PROT_READ, o, base, MAP_NONE)) == NULL)
+	ehdr = vm_mmap(process_common.kmap, NULL, NULL, size, PROT_READ, o, base, MAP_NONE);
+	if (ehdr == NULL) {
 		return -ENOMEM;
-
-	/* Test ELF header */
-	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4)) {
-		vm_munmap(process_common.kmap, ehdr, size);
-		return -ENOEXEC;
 	}
 
 	*entry = (void *)(unsigned long)ehdr->e_entry;
 
-	err = EOK;
-
 	switch (ehdr->e_ident[4]) {
 		/* 32-bit binary */
 		case 1:
-			err = process_load32(map, o, base, ehdr, &ustacksz, &tlsNew, &tbssAddr);
+			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
 			break;
 
 		/* 64-bit binary */
 		case 2:
-			err = process_load64(map, o, base, ehdr, &ustacksz, &tlsNew, &tbssAddr);
+			err = process_load64(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
 			break;
 
 		default:
@@ -591,13 +760,15 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	}
 	vm_munmap(process_common.kmap, ehdr, size);
 
-	if (err < 0)
+	if (err < 0) {
 		return err;
+	}
 
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
 	/* Allocate and map user stack */
-	if ((stack = vm_mmap(map, map->pmap.end - ustacksz, NULL, ustacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL) {
+	stack = vm_mmap(map, map->pmap.end - ustacksz, NULL, ustacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
+	if (stack == NULL) {
 		return -ENOMEM;
 	}
 
@@ -622,8 +793,9 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 {
 	size_t i;
 
-	if ((ptr_t)(*addr) == 0)
+	if ((ptr_t)(*addr) == 0) {
 		return 0;
+	}
 
 	for (i = 0; i < relocsz; ++i) {
 		if ((ptr_t)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
@@ -641,7 +813,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	void *stack, *paddr;
 	Elf32_Ehdr *ehdr;
 	Elf32_Phdr *phdr;
-	Elf32_Shdr *shdr;
+	Elf32_Shdr *shdr, *shstrshdr;
 #ifdef __sparc__
 	Elf32_Rela *rela;
 	Elf32_Sym *sym;
@@ -650,7 +822,7 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	Elf32_Rel *rel;
 #endif
 	unsigned prot, flags, reloffs;
-	int i, j, relocsz = 0, reltype, badreloc = 0;
+	int i, j, relocsz = 0, reltype, badreloc = 0, err;
 	void *relptr;
 	char *snameTab;
 	ptr_t *got;
@@ -659,38 +831,41 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	hal_tls_t tlsNew;
 	ptr_t tbssAddr = 0;
 
-	if (o != (void *)-1)
+	if (o != (void *)-1) {
 		return -ENOEXEC;
+	}
 
 	ehdr = (void *)(ptr_t)base;
 
-	/* Test ELF header */
-	if (hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) || ehdr->e_shnum == 0)
-		return -ENOEXEC;
+	err = process_validateElf32(ehdr, size);
+	if (err < 0) {
+		return err;
+	}
 
 	hal_memset(reloc, 0, sizeof(reloc));
 
 	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-
 		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
 			stacksz = round_page(phdr->p_memsz);
 		}
 
-		if (phdr->p_type != PT_LOAD)
+		if (phdr->p_type != PT_LOAD) {
 			continue;
+		}
 
 		reloffs = 0;
 		prot = PROT_USER;
 		flags = MAP_NONE;
 		paddr = (char *)ehdr + phdr->p_offset;
 
-		if (phdr->p_flags & PF_R)
+		if ((phdr->p_flags & PF_R) != 0) {
 			prot |= PROT_READ;
+		}
 
-		if (phdr->p_flags & PF_X) {
+		if ((phdr->p_flags & PF_X) != 0) {
 			prot |= PROT_EXEC;
 
-			if (process->imapp != NULL &&
+			if ((process->imapp != NULL) &&
 					(((ptr_t)base < (ptr_t)process->imapp->start) ||
 					((ptr_t)base > (ptr_t)process->imapp->stop))) {
 				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
@@ -705,17 +880,20 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 			}
 		}
 
-		if (phdr->p_flags & PF_W) {
+		if ((phdr->p_flags & PF_W) != 0) {
 			prot |= PROT_WRITE;
 
 			reloffs = phdr->p_vaddr % SIZE_PAGE;
 
-			if ((paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), prot, NULL, -1, flags)) == NULL)
+			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), prot, NULL, -1, flags);
+			if (paddr == NULL) {
 				return -ENOMEM;
+			}
 
-			if (phdr->p_filesz) {
-				if (phdr->p_offset + round_page(phdr->p_filesz) > size)
+			if (phdr->p_filesz != 0) {
+				if ((phdr->p_offset + round_page(phdr->p_filesz)) > size) {
 					return -ENOEXEC;
+				}
 
 				hal_memcpy((char *)paddr + reloffs, (char *)ehdr + phdr->p_offset, phdr->p_filesz);
 			}
@@ -724,8 +902,9 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 			hal_memset((char *)paddr + reloffs + phdr->p_filesz, 0, round_page(phdr->p_memsz + reloffs) - phdr->p_filesz - reloffs);
 		}
 
-		if (j >= sizeof(reloc) / sizeof(reloc[0]))
+		if (j >= (sizeof(reloc) / sizeof(reloc[0]))) {
 			return -ENOMEM;
+		}
 
 		reloc[j].vbase = (void *)phdr->p_vaddr;
 		reloc[j].pbase = (void *)((char *)paddr + reloffs);
@@ -736,40 +915,46 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	}
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
-	shdr += ehdr->e_shstrndx;
+	shstrshdr = shdr + ehdr->e_shstrndx;
 
-	snameTab = (char *)ehdr + shdr->sh_offset;
+	snameTab = (char *)ehdr + shstrshdr->sh_offset;
 
 	/* Find .got section */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if (hal_strcmp(&snameTab[shdr->sh_name], ".got") == 0)
+	for (i = 0; i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], ".got") == 0) {
 			break;
+		}
 	}
 
-	if (i >= ehdr->e_shnum)
+	if (i >= ehdr->e_shnum) {
 		return -ENOEXEC;
+	}
 
 	got = (ptr_t *)shdr->sh_addr;
-	if (process_relocate(reloc, relocsz, (char **)&got) < 0)
+	if (process_relocate(reloc, relocsz, (char **)&got) < 0) {
 		return -ENOEXEC;
+	}
 
 	/* Perform .got relocations */
 	/* This is non classic approach to .got relocation. We use .got itselft
 	 * instead of .rel section. */
 	for (i = 0; i < shdr->sh_size / 4; ++i) {
-		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0)
+		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
 			return -ENOEXEC;
+		}
 	}
 
 	*entry = (void *)(unsigned long)ehdr->e_entry;
-	if (process_relocate(reloc, relocsz, (char **)entry) < 0)
+	if (process_relocate(reloc, relocsz, (char **)entry) < 0) {
 		return -ENOEXEC;
+	}
 
 #ifdef __sparc__
 	/* find symtab */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if (hal_strcmp(&snameTab[shdr->sh_name], ".symtab") == 0)
+		if (hal_strcmp(&snameTab[shdr->sh_name], ".symtab") == 0) {
 			break;
+		}
 	}
 
 	if (i >= ehdr->e_shnum) {
@@ -779,11 +964,14 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 
 	/* Perform data, init_array and fini_array relocation */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if (hal_strncmp(&snameTab[shdr->sh_name], ".rela", 5) != 0)
+		/* strncmp as there may be multiple .rela.* sections for different sections.  */
+		if (hal_strncmp(&snameTab[shdr->sh_name], ".rela", 5) != 0) {
 			continue;
+		}
 
-		if (!shdr->sh_size || !shdr->sh_entsize)
+		if ((shdr->sh_size == 0) || (shdr->sh_entsize == 0)) {
 			continue;
+		}
 
 		for (j = 0; j < shdr->sh_size / shdr->sh_entsize; ++j) {
 			rela = (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize));
@@ -796,12 +984,12 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 				}
 
 				/* Don't modify ELF file! */
-				if ((ptr_t)relptr >= (ptr_t)base && (ptr_t)relptr < (ptr_t)base + size) {
+				if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
 					++badreloc;
 					continue;
 				}
 
-				sym = (Elf32_Sym *)(symTab + ELF32_R_SYM(rela->r_info) * sizeof(Elf32_Sym));
+				sym = (Elf32_Sym *)(symTab + (ELF32_R_SYM(rela->r_info) * sizeof(Elf32_Sym)));
 
 				/* Write addend to the address */
 				*(char **)relptr = (char *)(sym->st_value + rela->r_addend);
@@ -815,11 +1003,14 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 #else
 	/* Perform data, init_array and fini_array relocation */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if (hal_strncmp(&snameTab[shdr->sh_name], ".rel", 4) != 0)
+		/* strncmp as there may be multiple .rel.* sections for different sections. */
+		if (hal_strncmp(&snameTab[shdr->sh_name], ".rel", 4) != 0) {
 			continue;
+		}
 
-		if (!shdr->sh_size || !shdr->sh_entsize)
+		if ((shdr->sh_size == 0) || (shdr->sh_entsize == 0)) {
 			continue;
+		}
 
 		for (j = 0; j < shdr->sh_size / shdr->sh_entsize; ++j) {
 			rel = (void *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize));
@@ -828,17 +1019,19 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 			if (reltype == R_ARM_ABS32 || reltype == R_ARM_TARGET1) {
 				relptr = (void *)rel->r_offset;
 
-				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0)
+				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
 					return -ENOEXEC;
+				}
 
 				/* Don't modify ELF file! */
-				if ((ptr_t)relptr >= (ptr_t)base && (ptr_t)relptr < (ptr_t)base + size) {
+				if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
 					++badreloc;
 					continue;
 				}
 
-				if (process_relocate(reloc, relocsz, relptr) < 0)
+				if (process_relocate(reloc, relocsz, relptr) < 0) {
 					return -ENOEXEC;
+				}
 			}
 		}
 	}
@@ -876,19 +1069,23 @@ int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, v
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
 	/* Allocate and map user stack */
-	if ((stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE)) == NULL)
+	stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
+	if (stack == NULL) {
 		return -ENOMEM;
+	}
 
 	process->got = (void *)got;
 	*ustack = stack + stacksz;
 
 	threads_canaryInit(proc_current(), stack);
 
-	if (badreloc) {
-		if (process->path != NULL && process->path[0] != '\0')
+	if (badreloc != 0) {
+		if ((process->path != NULL) && (process->path[0] != '\0')) {
 			lib_printf("app %s: ", process->path);
-		else
+		}
+		else {
 			lib_printf("process %d: ", process->id);
+		}
 
 		lib_printf("Found %d badreloc%c\n", badreloc, (badreloc > 1) ? 's' : ' ');
 	}

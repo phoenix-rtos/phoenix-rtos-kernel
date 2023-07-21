@@ -37,6 +37,7 @@ typedef u64 Elf64_Xword;
 
 #define SHT_SYMTAB    2
 #define SHT_STRTAB    3
+#define SHT_NOBITS    8
 #define SHT_REL       9
 #define SHT_DYNSYM    11
 #define SHT_LOPROC    0x70000000
