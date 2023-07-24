@@ -75,7 +75,9 @@ static time_t hal_timerGetCyc(void)
 
 	if ((*(timer_common.base + gpt_sr) & (1 << 5)) != 0) {
 		lower = *(timer_common.base + gpt_cnt);
-		++upper;
+		if (lower != 0xffffffffUL) {
+			++upper;
+		}
 	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 
