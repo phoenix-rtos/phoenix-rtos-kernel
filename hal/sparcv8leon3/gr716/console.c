@@ -62,28 +62,6 @@ static void _hal_consolePrint(const char *s)
 }
 
 
-static int _hal_consoleSetPin(u8 pin)
-{
-	int err = 0;
-	u8 dir;
-	u8 opt = 0x1, pullup = 0, pulldn = 0;
-
-	switch (pin) {
-		case CONSOLE_TX:
-			dir = GPIO_DIR_OUT;
-			break;
-		case CONSOLE_RX:
-			dir = GPIO_DIR_IN;
-			break;
-		default:
-			err = -1;
-			break;
-	}
-
-	return err == 0 ? _gr716_setIOCfg(pin, opt, dir, pullup, pulldn) : err;
-}
-
-
 static u32 _hal_consoleCalcScaler(u32 baud)
 {
 	u32 scaler = 0;
@@ -119,8 +97,8 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	_hal_consoleSetPin(CONSOLE_TX);
-	_hal_consoleSetPin(CONSOLE_RX);
+	_gr716_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
+	_gr716_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
 	_gr716_cguClkEnable(cgu_primary, CONSOLE_CGU);
 	halconsole_common.uart = CONSOLE_BASE;
 	*(halconsole_common.uart + uart_ctrl) = TX_EN;

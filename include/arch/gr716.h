@@ -39,13 +39,12 @@ enum { cgudev_grdmac0 = 0, cgudev_grdmac1, cgudev_grdmac2, cgudev_grdmac3, cgude
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_iocfg = 0, pctl_cguctrl, pctl_reboot } type;
+	enum { pctl_iomux = 0, pctl_cguctrl, pctl_reboot } type;
 
 	union {
 		struct {
 			unsigned char pin;
 			unsigned char opt;
-			unsigned char dir;
 			unsigned char pullup;
 			unsigned char pulldn;
 		} iocfg;
