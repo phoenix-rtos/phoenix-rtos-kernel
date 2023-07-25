@@ -24,44 +24,6 @@
 #define CGU_BASE1    ((void *)0x80007000)
 
 
-/* GPIO */
-
-enum {
-	gpio_data = 0,    /* Port data reg : 0x00 */
-	gpio_out,         /* Output reg : 0x04 */
-	gpio_dir,         /* Port direction reg : 0x08 */
-	gpio_imask,       /* Interrupt mask reg : 0x0C */
-	gpio_ipol,        /* Interrupt polarity reg : 0x10 */
-	gpio_iedge,       /* Interrupt edge reg : 0x14 */
-					  /* reserved - 0x18 */
-	gpio_cap = 7,     /* Port capability reg : 0x1C */
-	gpio_irqmapr,     /* Interrupt map register n : 0x20 - 0x3C */
-	gpio_iavail = 16, /* Interrupt available reg : 0x40 */
-	gpio_iflag,       /* Interrupt flag reg : 0x44 */
-	gpio_ipen,        /* Interrupt enable reg : 0x48 */
-	gpio_pulse,       /* Pulse reg : 0x4C */
-
-	gpio_ie_lor, /* Interrupt enable logical OR reg : 0x50 */
-	gpio_po_lor, /* Port output logical OR reg : 0x54 */
-	gpio_pd_lor, /* Port direction logical OR reg : 0x58 */
-	gpio_im_lor, /* Interrupt mask logical OR reg : 0x5C */
-
-	gpio_ie_land, /* Interrupt enable logical AND reg : 0x60 */
-	gpio_po_land, /* Port output logical AND reg : 0x64 */
-	gpio_pd_land, /* Port direction logical AND reg : 0x68 */
-	gpio_im_land, /* Interrupt mask logical AND reg : 0x6C */
-
-	gpio_ie_lxor, /* Interrupt enable logical XOR reg : 0x70 */
-	gpio_po_lxor, /* Port output logical XOR reg : 0x74 */
-	gpio_pd_lxor, /* Port direction logical XOR reg : 0x78 */
-	gpio_im_lxor, /* Interrupt mask logical XOR reg : 0x7C */
-
-	gpio_ie_sc,      /* Interrupt enable logical set/clear reg : 0x80 - 0x8C */
-	gpio_po_sc = 36, /* Port output logical set/clear reg : 0x90 - 0x9C */
-	gpio_pd_sc = 40, /* Port direction logical set/clear reg : 0xA0 - 0xAC */
-	gpio_im_sc = 44  /* Interrupt mask logical set/clear reg : 0xB0 - 0xBC */
-};
-
 /* System configuration registers */
 
 enum {
@@ -97,106 +59,15 @@ enum {
 struct {
 	spinlock_t pltctlSp;
 
-	volatile u32 *GRGPIO_0;
-	volatile u32 *GRGPIO_1;
 	volatile u32 *grgpreg_base;
 	volatile u32 *cgu_base0;
 	volatile u32 *cgu_base1;
 } gr716_common;
 
 
-/* GPIO */
-
-static inline int _gr716_gpioPinToPort(u8 pin)
+int _gr716_getIomuxCfg(u8 pin, u8 *opt, u8 *pullup, u8 *pulldn)
 {
-	return (pin >> 5);
-}
-
-
-int _gr716_gpioWritePin(u8 pin, u8 val)
-{
-	int err = 0;
-	u32 msk = val << (pin & 0x1F);
-
-	switch (_gr716_gpioPinToPort(pin)) {
-		case GPIO_PORT_0:
-			*(gr716_common.GRGPIO_0 + gpio_out) = (*(gr716_common.GRGPIO_0 + gpio_out) & ~msk) | msk;
-			break;
-		case GPIO_PORT_1:
-			*(gr716_common.GRGPIO_1 + gpio_out) = (*(gr716_common.GRGPIO_1 + gpio_out) & ~msk) | msk;
-			break;
-		default:
-			err = -1;
-			break;
-	}
-
-	return err;
-}
-
-
-int _gr716_gpioReadPin(u8 pin, u8 *val)
-{
-	int err = 0;
-
-	switch (_gr716_gpioPinToPort(pin)) {
-		case GPIO_PORT_0:
-			*val = (*(gr716_common.GRGPIO_0 + gpio_out) >> (pin & 0x1F)) & 0x1;
-			break;
-		case GPIO_PORT_1:
-			*val = (*(gr716_common.GRGPIO_1 + gpio_out) >> (pin & 0x1F)) & 0x1;
-			break;
-		default:
-			err = -1;
-			break;
-	}
-
-	return err;
-}
-
-
-int _gr716_gpioGetPinDir(u8 pin, u8 *dir)
-{
-	int err = 0;
-
-	switch (_gr716_gpioPinToPort(pin)) {
-		case GPIO_PORT_0:
-			*dir = (*(gr716_common.GRGPIO_0 + gpio_dir) >> (pin & 0x1F)) & 0x1;
-			break;
-		case GPIO_PORT_1:
-			*dir = (*(gr716_common.GRGPIO_1 + gpio_dir) >> (pin & 0x1F)) & 0x1;
-			break;
-		default:
-			err = -1;
-			break;
-	}
-
-	return err;
-}
-
-
-int _gr716_gpioSetPinDir(u8 pin, u8 dir)
-{
-	int err = 0;
-	u32 msk = dir << (pin & 0x1F);
-
-	switch (_gr716_gpioPinToPort(pin)) {
-		case GPIO_PORT_0:
-			*(gr716_common.GRGPIO_0 + gpio_dir) = (*(gr716_common.GRGPIO_0 + gpio_dir) & ~msk) | msk;
-			break;
-		case GPIO_PORT_1:
-			*(gr716_common.GRGPIO_1 + gpio_dir) = (*(gr716_common.GRGPIO_1 + gpio_dir) & ~msk) | msk;
-			break;
-		default:
-			err = -1;
-			break;
-	}
-	return err;
-}
-
-
-int _gr716_getIOCfg(u8 pin, u8 *opt, u8 *dir, u8 *pullup, u8 *pulldn)
-{
-	if (pin > 63 || _gr716_gpioGetPinDir(pin, dir) < 0) {
+	if (pin > 63) {
 		return -1;
 	}
 
@@ -210,11 +81,11 @@ int _gr716_getIOCfg(u8 pin, u8 *opt, u8 *dir, u8 *pullup, u8 *pulldn)
 }
 
 
-int _gr716_setIOCfg(u8 pin, u8 opt, u8 dir, u8 pullup, u8 pulldn)
+int _gr716_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn)
 {
 	volatile u32 old_cfg;
 
-	if (pin > 63 || _gr716_gpioSetPinDir(pin, dir) < 0) {
+	if (pin > 63) {
 		return -1;
 	}
 
@@ -308,14 +179,12 @@ int hal_platformctl(void *ptr)
 			}
 			break;
 
-		case pctl_iocfg:
+		case pctl_iomux:
 			if (data->action == pctl_set) {
-				ret = _gr716_setIOCfg(data->iocfg.pin, data->iocfg.opt,
-					data->iocfg.dir, data->iocfg.pullup, data->iocfg.pulldn);
+				ret = _gr716_setIomuxCfg(data->iocfg.pin, data->iocfg.opt, data->iocfg.pullup, data->iocfg.pulldn);
 			}
 			else if (data->action == pctl_get) {
-				ret = _gr716_getIOCfg(data->iocfg.pin, &data->iocfg.opt,
-					&data->iocfg.dir, &data->iocfg.pullup, &data->iocfg.pulldn);
+				ret = _gr716_getIomuxCfg(data->iocfg.pin, &data->iocfg.opt, &data->iocfg.pullup, &data->iocfg.pulldn);
 			}
 			break;
 
@@ -338,8 +207,6 @@ void _hal_platformInit(void)
 {
 	hal_spinlockCreate(&gr716_common.pltctlSp, "pltctl");
 
-	gr716_common.GRGPIO_0 = GRGPIO0_BASE;
-	gr716_common.GRGPIO_1 = GRGPIO1_BASE;
 	gr716_common.grgpreg_base = GRGPREG_BASE;
 	gr716_common.cgu_base0 = CGU_BASE0;
 	gr716_common.cgu_base1 = CGU_BASE1;
