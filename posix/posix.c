@@ -23,11 +23,8 @@
 #include "posix_private.h"
 #include "../lib/cbuffer.h"
 
-#ifdef NOMMU
-#define MAX_FD_COUNT 32
-#else
-#define MAX_FD_COUNT 512
-#endif
+#define MAX_FD_COUNT     1024
+#define INITIAL_FD_COUNT 32
 
 #if 0
 #define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
@@ -196,7 +193,7 @@ int posix_getOpenFile(int fd, open_file_t **f)
 	}
 
 	proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd >= p->maxfd) || (p->fds[fd].file == NULL)) {
+	if ((fd < 0) || (fd >= p->fdsz) || (p->fds[fd].file == NULL)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -214,19 +211,53 @@ int posix_getOpenFile(int fd, open_file_t **f)
 }
 
 
+static int _posix_allocfd(process_info_t *p, int fd)
+{
+	fildes_t *nfds;
+	int nfdsz = p->fdsz;
+
+	for (; fd < p->maxfd; ++fd) {
+		if (fd >= p->fdsz) {
+			while (fd >= nfdsz) {
+				nfdsz *= 2;
+			}
+
+			if (nfdsz > p->maxfd) {
+				/* fd can't be >= p->maxfd, so it's always ok */
+				nfdsz = p->maxfd;
+			}
+
+			nfds = vm_kmalloc(nfdsz * sizeof(*nfds));
+			if (nfds == NULL) {
+				return -1;
+			}
+
+			hal_memcpy(nfds, p->fds, p->fdsz * sizeof(*nfds));
+			hal_memset(nfds + p->fdsz, 0, (nfdsz - p->fdsz) * sizeof(*nfds));
+
+			vm_kfree(p->fds);
+
+			p->fds = nfds;
+			p->fdsz = nfdsz;
+		}
+
+		if (p->fds[fd].file == NULL) {
+			return fd;
+		}
+	}
+
+	return -1;
+}
+
+
 int posix_newFile(process_info_t *p, int fd)
 {
 	open_file_t *f;
 
 	proc_lockSet(&p->lock);
 
-	for (; fd < p->maxfd; ++fd) {
-		if (p->fds[fd].file == NULL) {
-			break;
-		}
-	}
-
-	if (fd >= p->maxfd) {
+	fd = _posix_allocfd(p, fd);
+	if (fd < 0) {
 		proc_lockClear(&p->lock);
 		return -ENFILE;
 	}
@@ -252,13 +283,8 @@ int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags)
 {
 	int fd = 0;
 
-	for (; fd < p->maxfd; ++fd) {
-		if (p->fds[fd].file == NULL) {
-			break;
-		}
-	}
-
-	if (fd >= p->maxfd) {
+	fd = _posix_allocfd(p, fd);
+	if (fd < 0) {
 		return -ENFILE;
 	}
 
@@ -332,17 +358,19 @@ int posix_clone(int ppid)
 		TRACE("clone: got parent");
 		proc_lockSet(&pp->lock);
 		p->maxfd = pp->maxfd;
+		p->fdsz = pp->fdsz;
 		LIST_ADD(&pp->children, p);
 		p->parent = ppid;
 	}
 	else {
 		p->parent = 0;
 		p->maxfd = MAX_FD_COUNT;
+		p->fdsz = INITIAL_FD_COUNT;
 	}
 
 	p->process = proc->id;
 
-	p->fds = vm_kmalloc(p->maxfd * sizeof(fildes_t));
+	p->fds = vm_kmalloc(p->fdsz * sizeof(fildes_t));
 	if (p->fds == NULL) {
 		proc_lockDone(&p->lock);
 		vm_kfree(p);
@@ -354,9 +382,9 @@ int posix_clone(int ppid)
 	}
 
 	if (pp != NULL) {
-		hal_memcpy(p->fds, pp->fds, pp->maxfd * sizeof(fildes_t));
+		hal_memcpy(p->fds, pp->fds, pp->fdsz * sizeof(fildes_t));
 
-		for (i = 0; i < p->maxfd; ++i) {
+		for (i = 0; i < p->fdsz; ++i) {
 			f = p->fds[i].file;
 			if (f != NULL) {
 				proc_lockSet(&f->lock);
@@ -368,7 +396,7 @@ int posix_clone(int ppid)
 		proc_lockClear(&pp->lock);
 	}
 	else {
-		hal_memset(p->fds, 0, p->maxfd * sizeof(fildes_t));
+		hal_memset(p->fds, 0, p->fdsz * sizeof(fildes_t));
 
 		for (i = 0; i < 3; ++i) {
 			f = vm_kmalloc(sizeof(open_file_t));
@@ -425,7 +453,7 @@ int posix_exec(void)
 	}
 
 	proc_lockSet(&p->lock);
-	for (fd = 0; fd < p->maxfd; ++fd) {
+	for (fd = 0; fd < p->fdsz; ++fd) {
 		if ((p->fds[fd].file != NULL) && ((p->fds[fd].flags & FD_CLOEXEC) != 0)) {
 			posix_fileDeref(p->fds[fd].file);
 			p->fds[fd].file = NULL;
@@ -445,7 +473,7 @@ static int posix_exit(process_info_t *p, int code)
 	p->exitcode = code;
 
 	proc_lockSet(&p->lock);
-	for (fd = 0; fd < p->maxfd; ++fd) {
+	for (fd = 0; fd < p->fdsz; ++fd) {
 		if (p->fds[fd].file != NULL) {
 			posix_fileDeref(p->fds[fd].file);
 		}
@@ -517,13 +545,8 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	proc_lockSet(&p->lock);
 
 	do {
-		for (; fd < p->maxfd; ++fd) {
-			if (p->fds[fd].file == NULL) {
-				break;
-			}
-		}
-
-		if (fd >= p->maxfd) {
+		fd = _posix_allocfd(p, fd);
+		if (fd < 0) {
 			err = -EBADF;
 			break;
 		}
@@ -633,7 +656,7 @@ int posix_close(int fildes)
 	proc_lockSet(&p->lock);
 
 	do {
-		if ((fildes < 0) || (fildes >= p->maxfd)) {
+		if ((fildes < 0) || (fildes >= p->fdsz)) {
 			break;
 		}
 
@@ -759,7 +782,7 @@ int posix_dup(int fildes)
 	proc_lockSet(&p->lock);
 
 	do {
-		if ((fildes < 0) || (fildes >= p->maxfd)) {
+		if ((fildes < 0) || (fildes >= p->fdsz)) {
 			break;
 		}
 
@@ -768,14 +791,8 @@ int posix_dup(int fildes)
 		}
 
 		f = p->fds[fildes].file;
-
-		for (; newfd < p->maxfd; ++newfd) {
-			if (p->fds[newfd].file == NULL) {
-				break;
-			}
-		}
-
-		if (newfd >= p->maxfd) {
+		newfd = _posix_allocfd(p, newfd);
+		if (newfd < 0) {
 			break;
 		}
 
@@ -800,8 +817,9 @@ int posix_dup(int fildes)
 int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 {
 	open_file_t *f, *f2;
+	int nfd2;
 
-	if ((fildes < 0) || (fildes >= p->maxfd)) {
+	if ((fildes < 0) || (fildes >= p->fdsz)) {
 		return -EBADF;
 	}
 
@@ -811,6 +829,16 @@ int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 
 	if (p->fds[fildes].file == NULL) {
 		return -EBADF;
+	}
+
+	if (fildes2 >= p->fdsz) {
+		/* requested fd bigger than current table, resize to match */
+		nfd2 = _posix_allocfd(p, fildes2);
+
+		/* sanity check */
+		if (nfd2 != fildes2) {
+			return -EFAULT;
+		}
 	}
 
 	f = p->fds[fildes].file;
@@ -896,24 +924,13 @@ int posix_pipe(int fildes[2])
 		return -ENOMEM;
 	}
 
-	fildes[0] = 0;
-
 	proc_lockSet(&p->lock);
-	for (; fildes[0] < p->maxfd; ++fildes[0]) {
-		if (p->fds[fildes[0]].file == NULL) {
-			break;
-		}
+	fildes[0] = _posix_allocfd(p, 0);
+	if (fildes[0] >= 0) {
+		fildes[1] = _posix_allocfd(p, fildes[0] + 1);
 	}
 
-	fildes[1] = fildes[0] + 1;
-
-	for (; fildes[1] < p->maxfd; ++fildes[1]) {
-		if (p->fds[fildes[1]].file == NULL) {
-			break;
-		}
-	}
-
-	if ((fildes[0] >= p->maxfd) || (fildes[1] >= p->maxfd)) {
+	if ((fildes[0] < 0) || (fildes[1] < 0)) {
 		proc_lockClear(&p->lock);
 
 		vm_kfree(fo);
@@ -1382,18 +1399,13 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	}
 
 	proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd >= p->maxfd) || (fd2 < 0) || (fd2 >= p->maxfd)) {
+	if ((fd < 0) || (fd >= p->fdsz) || (fd2 < 0) || (fd2 >= p->maxfd)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
 	}
 
-	for (; fd2 < p->maxfd; ++fd2) {
-		if (p->fds[fd2].file == NULL) {
-			break;
-		}
-	}
-
+	fd2 = _posix_allocfd(p, fd2);
 	err = _posix_dup2(p, fd, fd2);
 	if ((err == fd2) && (cloexec != 0)) {
 		p->fds[fd2].flags = FD_CLOEXEC;
@@ -1416,7 +1428,7 @@ static int posix_fcntlSetFd(int fd, unsigned flags)
 	}
 
 	proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd >= p->maxfd)) {
+	if ((fd < 0) || (fd >= p->fdsz)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -1445,7 +1457,7 @@ static int posix_fcntlGetFd(int fd)
 	}
 
 	proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd >= p->maxfd)) {
+	if ((fd < 0) || (fd >= p->fdsz)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
