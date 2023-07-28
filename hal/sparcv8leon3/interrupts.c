@@ -123,6 +123,11 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	int reschedule = 0;
 	spinlock_ctx_t sc;
 
+	if (n == 1) {
+		/* Extended interrupt (16 - 31) */
+		n = *(interrupts_common.int_ctrl + pextack) & 0x3F;
+	}
+
 	if (n >= SIZE_INTERRUPTS) {
 		return;
 	}
@@ -143,6 +148,10 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		threads_schedule(n, ctx, NULL);
 	}
 	interrupts_clearIRQ(n);
+	if (n > 15) {
+		/* Extended interrupt sets bit n and bit 1 of pending register */
+		interrupts_clearIRQ(1);
+	}
 	hal_spinlockClear(&interrupts_common.spinlocks[n], &sc);
 }
 
