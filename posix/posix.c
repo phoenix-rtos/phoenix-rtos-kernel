@@ -196,7 +196,7 @@ int posix_getOpenFile(int fd, open_file_t **f)
 	}
 
 	proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd > p->maxfd) || (p->fds[fd].file == NULL)) {
+	if ((fd < 0) || (fd >= p->maxfd) || (p->fds[fd].file == NULL)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -220,10 +220,13 @@ int posix_newFile(process_info_t *p, int fd)
 
 	proc_lockSet(&p->lock);
 
-	while ((p->fds[fd].file != NULL) && (fd++ < p->maxfd)){
+	for (; fd < p->maxfd; ++fd) {
+		if (p->fds[fd].file == NULL) {
+			break;
+		}
 	}
 
-	if (fd > p->maxfd) {
+	if (fd >= p->maxfd) {
 		proc_lockClear(&p->lock);
 		return -ENFILE;
 	}
@@ -249,10 +252,13 @@ int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags)
 {
 	int fd = 0;
 
-	while ((p->fds[fd].file != NULL) && (fd++ < p->maxfd)) {
+	for (; fd < p->maxfd; ++fd) {
+		if (p->fds[fd].file == NULL) {
+			break;
+		}
 	}
 
-	if (fd > p->maxfd) {
+	if (fd >= p->maxfd) {
 		return -ENFILE;
 	}
 
@@ -331,12 +337,12 @@ int posix_clone(int ppid)
 	}
 	else {
 		p->parent = 0;
-		p->maxfd = MAX_FD_COUNT - 1;
+		p->maxfd = MAX_FD_COUNT;
 	}
 
 	p->process = proc->id;
 
-	p->fds = vm_kmalloc((p->maxfd + 1) * sizeof(fildes_t));
+	p->fds = vm_kmalloc(p->maxfd * sizeof(fildes_t));
 	if (p->fds == NULL) {
 		proc_lockDone(&p->lock);
 		vm_kfree(p);
@@ -348,9 +354,9 @@ int posix_clone(int ppid)
 	}
 
 	if (pp != NULL) {
-		hal_memcpy(p->fds, pp->fds, (pp->maxfd + 1) * sizeof(fildes_t));
+		hal_memcpy(p->fds, pp->fds, pp->maxfd * sizeof(fildes_t));
 
-		for (i = 0; i <= p->maxfd; ++i) {
+		for (i = 0; i < p->maxfd; ++i) {
 			f = p->fds[i].file;
 			if (f != NULL) {
 				proc_lockSet(&f->lock);
@@ -362,7 +368,7 @@ int posix_clone(int ppid)
 		proc_lockClear(&pp->lock);
 	}
 	else {
-		hal_memset(p->fds, 0, (p->maxfd + 1) * sizeof(fildes_t));
+		hal_memset(p->fds, 0, p->maxfd * sizeof(fildes_t));
 
 		for (i = 0; i < 3; ++i) {
 			f = vm_kmalloc(sizeof(open_file_t));
@@ -419,7 +425,7 @@ int posix_exec(void)
 	}
 
 	proc_lockSet(&p->lock);
-	for (fd = 0; fd <= p->maxfd; ++fd) {
+	for (fd = 0; fd < p->maxfd; ++fd) {
 		if ((p->fds[fd].file != NULL) && ((p->fds[fd].flags & FD_CLOEXEC) != 0)) {
 			posix_fileDeref(p->fds[fd].file);
 			p->fds[fd].file = NULL;
@@ -439,7 +445,7 @@ static int posix_exit(process_info_t *p, int code)
 	p->exitcode = code;
 
 	proc_lockSet(&p->lock);
-	for (fd = 0; fd <= p->maxfd; ++fd) {
+	for (fd = 0; fd < p->maxfd; ++fd) {
 		if (p->fds[fd].file != NULL) {
 			posix_fileDeref(p->fds[fd].file);
 		}
@@ -511,10 +517,13 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	proc_lockSet(&p->lock);
 
 	do {
-		while ((p->fds[fd].file != NULL) && (fd++ < p->maxfd)) {
+		for (; fd < p->maxfd; ++fd) {
+			if (p->fds[fd].file == NULL) {
+				break;
+			}
 		}
 
-		if (fd > p->maxfd) {
+		if (fd >= p->maxfd) {
 			err = -EBADF;
 			break;
 		}
@@ -624,7 +633,7 @@ int posix_close(int fildes)
 	proc_lockSet(&p->lock);
 
 	do {
-		if ((fildes < 0) || (fildes > p->maxfd)) {
+		if ((fildes < 0) || (fildes >= p->maxfd)) {
 			break;
 		}
 
@@ -750,7 +759,7 @@ int posix_dup(int fildes)
 	proc_lockSet(&p->lock);
 
 	do {
-		if ((fildes < 0) || (fildes > p->maxfd)) {
+		if ((fildes < 0) || (fildes >= p->maxfd)) {
 			break;
 		}
 
@@ -760,10 +769,13 @@ int posix_dup(int fildes)
 
 		f = p->fds[fildes].file;
 
-		while ((p->fds[newfd].file != NULL) && (newfd++ < p->maxfd)) {
+		for (; newfd < p->maxfd; ++newfd) {
+			if (p->fds[newfd].file == NULL) {
+				break;
+			}
 		}
 
-		if (newfd > p->maxfd) {
+		if (newfd >= p->maxfd) {
 			break;
 		}
 
@@ -789,11 +801,11 @@ int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 {
 	open_file_t *f, *f2;
 
-	if ((fildes < 0) || (fildes > p->maxfd)) {
+	if ((fildes < 0) || (fildes >= p->maxfd)) {
 		return -EBADF;
 	}
 
-	if ((fildes2 < 0) || (fildes2 > p->maxfd)) {
+	if ((fildes2 < 0) || (fildes2 >= p->maxfd)) {
 		return -EBADF;
 	}
 
@@ -887,14 +899,21 @@ int posix_pipe(int fildes[2])
 	fildes[0] = 0;
 
 	proc_lockSet(&p->lock);
-	while (p->fds[fildes[0]].file != NULL && fildes[0]++ < p->maxfd) {
+	for (; fildes[0] < p->maxfd; ++fildes[0]) {
+		if (p->fds[fildes[0]].file == NULL) {
+			break;
+		}
 	}
 
 	fildes[1] = fildes[0] + 1;
-	while (p->fds[fildes[1]].file != NULL && fildes[1]++ < p->maxfd) {
+
+	for (; fildes[1] < p->maxfd; ++fildes[1]) {
+		if (p->fds[fildes[1]].file == NULL) {
+			break;
+		}
 	}
 
-	if ((fildes[0] > p->maxfd) || (fildes[1] > p->maxfd)) {
+	if ((fildes[0] >= p->maxfd) || (fildes[1] >= p->maxfd)) {
 		proc_lockClear(&p->lock);
 
 		vm_kfree(fo);
@@ -1363,13 +1382,16 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	}
 
 	proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd > p->maxfd) || (fd2 < 0) || (fd2 > p->maxfd)) {
+	if ((fd < 0) || (fd >= p->maxfd) || (fd2 < 0) || (fd2 >= p->maxfd)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
 	}
 
-	while ((p->fds[fd2].file != NULL) && (fd2++ < p->maxfd)) {
+	for (; fd2 < p->maxfd; ++fd2) {
+		if (p->fds[fd2].file == NULL) {
+			break;
+		}
 	}
 
 	err = _posix_dup2(p, fd, fd2);
@@ -1394,7 +1416,7 @@ static int posix_fcntlSetFd(int fd, unsigned flags)
 	}
 
 	proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd > p->maxfd)) {
+	if ((fd < 0) || (fd >= p->maxfd)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -1423,7 +1445,7 @@ static int posix_fcntlGetFd(int fd)
 	}
 
 	proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd > p->maxfd)) {
+	if ((fd < 0) || (fd >= p->maxfd)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
