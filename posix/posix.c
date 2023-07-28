@@ -5,8 +5,8 @@
  *
  * POSIX-compatibility module
  *
- * Copyright 2018 Phoenix Systems
- * Author: Jan Sikorski, Michal Miroslaw
+ * Copyright 2018, 2023 Phoenix Systems
+ * Author: Jan Sikorski, Michal Miroslaw, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -29,8 +29,11 @@
 #define MAX_FD_COUNT 512
 #endif
 
-//#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
+#if 0
+#define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
+#else
 #define TRACE(str, ...)
+#endif
 
 #define POLL_INTERVAL 100000
 
@@ -40,6 +43,7 @@ enum { atMode = 0, atUid, atGid, atSize, atBlocks, atIOBlock, atType, atPort, at
 
 /* TODO: copied from libphoenix/posixsrv/posixsrv.h */
 enum { evAdd = 0x1, evDelete = 0x2, evEnable = 0x4, evDisable = 0x8, evOneshot = 0x10, evClear = 0x20, evDispatch = 0x40 };
+
 
 typedef struct {
 	oid_t oid;
@@ -58,7 +62,6 @@ typedef struct _event_t {
 } event_t;
 
 
-
 struct {
 	rbtree_t pid;
 	lock_t lock;
@@ -70,10 +73,12 @@ struct {
 process_info_t *_pinfo_find(unsigned int pid)
 {
 	process_info_t pi, *r;
-	pi.process = pid;
 
-	if ((r = lib_treeof(process_info_t, linkage, lib_rbFind(&posix_common.pid, &pi.linkage))) != NULL)
+	pi.process = pid;
+	r = lib_treeof(process_info_t, linkage, lib_rbFind(&posix_common.pid, &pi.linkage));
+	if (r != NULL) {
 		r->refs++;
+	}
 
 	return r;
 }
@@ -82,6 +87,7 @@ process_info_t *_pinfo_find(unsigned int pid)
 process_info_t *pinfo_find(unsigned int pid)
 {
 	process_info_t *r;
+
 	proc_lockSet(&posix_common.lock);
 	r = _pinfo_find(pid);
 	proc_lockClear(&posix_common.lock);
@@ -93,7 +99,7 @@ void pinfo_put(process_info_t *p)
 {
 	proc_lockSet(&posix_common.lock);
 	p->refs--;
-	if (p->refs) {
+	if (p->refs != 0) {
 		proc_lockClear(&posix_common.lock);
 		return;
 	}
@@ -112,10 +118,10 @@ static char *strrchr(const char *s, int c)
 	const char *p = NULL;
 
 	do {
-		if (*s == c)
+		if (*s == c) {
 			p = s;
-	}
-	while (*(s++));
+		}
+	} while (*(s++) != '\0');
 
 	return (char *)p;
 }
@@ -148,12 +154,15 @@ int posix_fileDeref(open_file_t *f)
 	int err = EOK;
 
 	proc_lockSet(&f->lock);
-	if (!--f->refs) {
+	--f->refs;
+	if (f->refs == 0) {
 		if (f->type == ftUnixSocket) {
 			err = unix_close(f->oid.id);
 		}
 		else {
-			while ((err = proc_close(f->oid, f->status)) == -EINTR) ;
+			do {
+				err = proc_close(f->oid, f->status);
+			} while (err == -EINTR);
 		}
 
 		proc_lockDone(&f->lock);
@@ -181,15 +190,19 @@ int posix_getOpenFile(int fd, open_file_t **f)
 {
 	process_info_t *p;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -ENOSYS;
+	}
 
 	proc_lockSet(&p->lock);
-	if (fd < 0 || fd > p->maxfd || (*f = p->fds[fd].file) == NULL) {
+	if ((fd < 0) || (fd > p->maxfd) || (p->fds[fd].file == NULL)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
 	}
+
+	*f = p->fds[fd].file;
 
 	proc_lockSet(&(*f)->lock);
 	(*f)->refs++;
@@ -207,17 +220,21 @@ int posix_newFile(process_info_t *p, int fd)
 
 	proc_lockSet(&p->lock);
 
-	while (p->fds[fd].file != NULL && fd++ < p->maxfd);
+	while ((p->fds[fd].file != NULL) && (fd++ < p->maxfd)){
+	}
 
 	if (fd > p->maxfd) {
 		proc_lockClear(&p->lock);
 		return -ENFILE;
 	}
 
-	if ((f = p->fds[fd].file = vm_kmalloc(sizeof(open_file_t))) == NULL) {
+	f = vm_kmalloc(sizeof(open_file_t));
+	if (f == NULL) {
 		proc_lockClear(&p->lock);
 		return -ENOMEM;
 	}
+
+	p->fds[fd].file = f;
 
 	hal_memset(f, 0, sizeof(open_file_t));
 	f->refs = 1;
@@ -232,11 +249,12 @@ int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags)
 {
 	int fd = 0;
 
-	while (p->fds[fd].file != NULL && fd++ < p->maxfd)
-		;
+	while ((p->fds[fd].file != NULL) && (fd++ < p->maxfd)) {
+	}
 
-	if (fd > p->maxfd)
+	if (fd > p->maxfd) {
 		return -ENFILE;
+	}
 
 	p->fds[fd].file = f;
 	p->fds[fd].flags = flags;
@@ -250,11 +268,12 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 	process_info_t *p1 = lib_treeof(process_info_t, linkage, n1);
 	process_info_t *p2 = lib_treeof(process_info_t, linkage, n2);
 
-	if (p1->process < p2->process)
+	if (p1->process < p2->process) {
 		return -1;
-
-	else if (p1->process > p2->process)
+	}
+	else if (p1->process > p2->process) {
 		return 1;
+	}
 
 	return 0;
 }
@@ -265,7 +284,7 @@ int posix_truncate(oid_t *oid, off_t length)
 	msg_t msg;
 	int err = -EINVAL;
 
-	if (oid->port != US_PORT && length >= 0) {
+	if ((oid->port != US_PORT) && (length >= 0)) {
 		hal_memset(&msg, 0, sizeof(msg));
 		msg.type = mtTruncate;
 		hal_memcpy(&msg.i.io.oid, oid, sizeof(oid_t));
@@ -409,16 +428,17 @@ int posix_exec(void)
 	TRACE("exec()");
 
 	process_info_t *p;
-	open_file_t *f;
 	int fd;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
 	proc_lockSet(&p->lock);
 	for (fd = 0; fd <= p->maxfd; ++fd) {
-		if ((f = p->fds[fd].file) != NULL && p->fds[fd].flags & FD_CLOEXEC) {
-			posix_fileDeref(f);
+		if ((p->fds[fd].file != NULL) && ((p->fds[fd].flags & FD_CLOEXEC) != 0)) {
+			posix_fileDeref(p->fds[fd].file);
 			p->fds[fd].file = NULL;
 		}
 	}
@@ -431,15 +451,15 @@ int posix_exec(void)
 
 int posix_exit(process_info_t *p, int code)
 {
-	open_file_t *f;
 	int fd;
 
 	p->exitcode = code;
 
 	proc_lockSet(&p->lock);
 	for (fd = 0; fd <= p->maxfd; ++fd) {
-		if ((f = p->fds[fd].file) != NULL)
-			posix_fileDeref(f);
+		if (p->fds[fd].file != NULL) {
+			posix_fileDeref(p->fds[fd].file);
+		}
 	}
 	proc_lockClear(&p->lock);
 
@@ -457,18 +477,24 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 	int namelen;
 
 	namelen = hal_strlen(filename) + 1;
-	if ((name = vm_kmalloc(namelen)) == NULL)
+	name = vm_kmalloc(namelen);
+	if (name == NULL) {
 		return -ENOMEM;
+	}
 	hal_memcpy(name, filename, namelen);
 
 	splitname(name, &basename, &dirname);
 
 	do {
-		if ((err = proc_lookup(dirname, NULL, &dir)) < 0)
+		err = proc_lookup(dirname, NULL, &dir);
+		if (err < 0) {
 			break;
+		}
 
-		if ((err = proc_create(dir.port, type, mode, dev, dir, basename, oid)) < 0)
+		err = proc_create(dir.port, type, mode, dev, dir, basename, oid);
+		if (err < 0) {
 			break;
+		}
 
 		err = EOK;
 	} while (0);
@@ -490,32 +516,39 @@ int posix_open(const char *filename, int oflag, char *ustack)
 
 	hal_memset(&pipesrv, 0xff, sizeof(oid_t));
 
-	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
-		; /* that's fine */
+	(void)proc_lookup("/dev/posix/pipes", NULL, &pipesrv);
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
 	hal_memset(&dev, 0, sizeof(oid_t));
 
 	proc_lockSet(&p->lock);
 
 	do {
-		while (p->fds[fd].file != NULL && fd++ < p->maxfd);
+		while ((p->fds[fd].file != NULL) && (fd++ < p->maxfd)) {
+		}
 
-		if (fd > p->maxfd || (f = p->fds[fd].file = vm_kmalloc(sizeof(open_file_t))) == NULL) {
+		if (fd > p->maxfd) {
 			err = -EBADF;
 			break;
 		}
 
+		f = vm_kmalloc(sizeof(open_file_t));
+		if (f == NULL) {
+			err = -ENOMEM;
+			break;
+		}
+
+		p->fds[fd].file = f;
 		proc_lockInit(&f->lock, "posix.file");
 		proc_lockClear(&p->lock);
 
 		do {
-			if ((err = proc_lookup(filename, &ln, &oid)) == EOK) {
-				/* pass */
-			}
-			else if (err == -ENOENT && oflag & O_CREAT) {
+			err = proc_lookup(filename, &ln, &oid);
+			if ((err == -ENOENT) && ((oflag & O_CREAT) != 0)) {
 				GETFROMSTACK(ustack, mode_t, mode, 2);
 
 				if (posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid) < 0) {
@@ -524,18 +557,22 @@ int posix_open(const char *filename, int oflag, char *ustack)
 				}
 				hal_memcpy(&ln, &oid, sizeof(oid_t));
 			}
-			else {
+			else if (err < 0) {
 				break;
 			}
 
-			if (oid.port != US_PORT && (err = proc_open(oid, oflag)) < 0)
-				break;
+			if (oid.port != US_PORT) {
+				err = proc_open(oid, oflag);
+				if (err < 0) {
+					break;
+				}
+			}
 
 			proc_lockSet(&p->lock);
 			p->fds[fd].flags = oflag & O_CLOEXEC ? FD_CLOEXEC : 0;
 			proc_lockClear(&p->lock);
 
-			if (!err) {
+			if (err == 0) {
 				hal_memcpy(&f->oid, &oid, sizeof(oid));
 			}
 			else {
@@ -549,20 +586,26 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			f->refs = 1;
 
 			/* TODO: check for other types */
-			if (oid.port == US_PORT)
+			if (oid.port == US_PORT) {
 				f->type = ftUnixSocket;
-			else if (oid.port == pipesrv.port)
+			}
+			else if (oid.port == pipesrv.port) {
 				f->type = ftPipe;
-			else
+			}
+			else {
 				f->type = ftRegular;
+			}
 
-			if (oflag & O_APPEND)
+			if ((oflag & O_APPEND) != 0) {
 				f->offset = proc_size(f->oid);
-			else
+			}
+			else {
 				f->offset = 0;
+			}
 
-			if (oflag & O_TRUNC)
+			if ((oflag & O_TRUNC) != 0) {
 				posix_truncate(&f->oid, 0);
+			}
 
 			f->status = oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
 
@@ -590,18 +633,23 @@ int posix_close(int fildes)
 	process_info_t *p;
 	int err = -EBADF;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
 	proc_lockSet(&p->lock);
 
 	do {
-		if (fildes < 0 || fildes > p->maxfd)
+		if ((fildes < 0) || (fildes > p->maxfd)) {
 			break;
+		}
 
-		if ((f = p->fds[fildes].file) == NULL)
+		if (p->fds[fildes].file == NULL) {
 			break;
+		}
 
+		f = p->fds[fildes].file;
 		p->fds[fildes].file = NULL;
 		proc_lockClear(&p->lock);
 
@@ -625,10 +673,12 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 	unsigned int status;
 	int err;
 
-	if ((err = posix_getOpenFile(fildes, &f)) < 0)
+	err = posix_getOpenFile(fildes, &f);
+	if (err < 0) {
 		return err;
+	}
 
-	if (f->status & O_WRONLY) {
+	if ((f->status & O_WRONLY) != 0) {
 		posix_fileDeref(f);
 		return -EBADF;
 	}
@@ -638,10 +688,12 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 	status = f->status;
 	proc_lockClear(&f->lock);
 
-	if (f->type == ftUnixSocket)
+	if (f->type == ftUnixSocket) {
 		rcnt = unix_recvfrom(f->oid.id, buf, nbyte, 0, NULL, 0);
-	else
+	}
+	else {
 		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
+	}
 
 	if (rcnt > 0) {
 		proc_lockSet(&f->lock);
@@ -665,10 +717,12 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 	unsigned int status;
 	int err;
 
-	if ((err = posix_getOpenFile(fildes, &f)) < 0)
+	err = posix_getOpenFile(fildes, &f);
+	if (err < 0) {
 		return err;
+	}
 
-	if (f->status & O_RDONLY) {
+	if ((f->status & O_RDONLY) != 0) {
 		posix_fileDeref(f);
 		return -EBADF;
 	}
@@ -678,10 +732,12 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 	status = f->status;
 	proc_lockClear(&f->lock);
 
-	if (f->type == ftUnixSocket)
+	if (f->type == ftUnixSocket) {
 		rcnt = unix_sendto(f->oid.id, buf, nbyte, 0, NULL, 0);
-	else
+	}
+	else {
 		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
+	}
 
 	if (rcnt > 0) {
 		proc_lockSet(&f->lock);
@@ -703,22 +759,30 @@ int posix_dup(int fildes)
 	int newfd = 0;
 	open_file_t *f;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
 	proc_lockSet(&p->lock);
 
 	do {
-		if (fildes < 0 || fildes > p->maxfd)
+		if ((fildes < 0) || (fildes > p->maxfd)) {
 			break;
+		}
 
-		if ((f = p->fds[fildes].file) == NULL)
+		if (p->fds[fildes].file == NULL) {
 			break;
+		}
 
-		while (p->fds[newfd].file != NULL && newfd++ < p->maxfd);
+		f = p->fds[fildes].file;
 
-		if (newfd > p->maxfd)
+		while ((p->fds[newfd].file != NULL) && (newfd++ < p->maxfd)) {
+		}
+
+		if (newfd > p->maxfd) {
 			break;
+		}
 
 		p->fds[newfd].file = f;
 		p->fds[newfd].flags = 0;
@@ -742,16 +806,22 @@ int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 {
 	open_file_t *f, *f2;
 
-	if (fildes < 0 || fildes > p->maxfd)
+	if ((fildes < 0) || (fildes > p->maxfd)) {
 		return -EBADF;
+	}
 
-	if (fildes2 < 0 || fildes2 > p->maxfd)
+	if ((fildes2 < 0) || (fildes2 > p->maxfd)) {
 		return -EBADF;
+	}
 
-	if ((f = p->fds[fildes].file) == NULL)
+	if (p->fds[fildes].file == NULL) {
 		return -EBADF;
+	}
 
-	if ((f2 = p->fds[fildes2].file) != NULL) {
+	f = p->fds[fildes].file;
+	f2 = p->fds[fildes2].file;
+
+	if (p->fds[fildes2].file != NULL) {
 		p->fds[fildes2].file = NULL;
 		posix_fileDeref(f2);
 	}
@@ -773,8 +843,10 @@ int posix_dup2(int fildes, int fildes2)
 
 	process_info_t *p;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
 	proc_lockSet(&p->lock);
 	fildes2 = _posix_dup2(p, fildes, fildes2);
@@ -795,28 +867,34 @@ int posix_pipe(int fildes[2])
 	oid_t pipesrv;
 	int res;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
 	hal_memset(&oid, 0, sizeof(oid));
 
-	if ((res = proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0) {
+	res = proc_lookup("/dev/posix/pipes", NULL, &pipesrv);
+	if (res < 0) {
 		pinfo_put(p);
-		return res == -EINTR ? res : -ENOSYS;
+		return (res == -EINTR) ? res : -ENOSYS;
 	}
 
-	if ((res = proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid)) < 0) {
+	res = proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid);
+	if (res < 0) {
 		pinfo_put(p);
 		return res;
 	}
 
-	if ((fo = vm_kmalloc(sizeof(open_file_t))) == NULL) {
+	fo = vm_kmalloc(sizeof(open_file_t));
+	if (fo == NULL) {
 		pinfo_put(p);
 		/* FIXME: destroy pipe */
 		return -ENOMEM;
 	}
 
-	if ((fi = vm_kmalloc(sizeof(open_file_t))) == NULL) {
+	fi = vm_kmalloc(sizeof(open_file_t));
+	if (fi == NULL) {
 		vm_kfree(fo);
 		pinfo_put(p);
 		/* FIXME: destroy pipe */
@@ -826,12 +904,14 @@ int posix_pipe(int fildes[2])
 	fildes[0] = 0;
 
 	proc_lockSet(&p->lock);
-	while (p->fds[fildes[0]].file != NULL && fildes[0]++ < p->maxfd);
+	while (p->fds[fildes[0]].file != NULL && fildes[0]++ < p->maxfd) {
+	}
 
 	fildes[1] = fildes[0] + 1;
-	while (p->fds[fildes[1]].file != NULL && fildes[1]++ < p->maxfd);
+	while (p->fds[fildes[1]].file != NULL && fildes[1]++ < p->maxfd) {
+	}
 
-	if (fildes[0] > p->maxfd || fildes[1] > p->maxfd) {
+	if ((fildes[0] > p->maxfd) || (fildes[1] > p->maxfd)) {
 		proc_lockClear(&p->lock);
 
 		vm_kfree(fo);
@@ -874,19 +954,23 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 
 	hal_memset(&oid, 0, sizeof(oid));
 
-	if ((proc_lookup("/dev/posix/pipes", NULL, &pipesrv)) < 0)
+	if (proc_lookup("/dev/posix/pipes", NULL, &pipesrv) < 0) {
 		return -ENOSYS;
+	}
 
-	if (proc_create(pipesrv.port, pxBufferedPipe, 0, oid, pipesrv, NULL, &oid) < 0)
+	if (proc_create(pipesrv.port, pxBufferedPipe, 0, oid, pipesrv, NULL, &oid) < 0) {
 		return -EIO;
+	}
 
 	/* link pipe in posix server */
-	if (proc_link(oid, oid, pathname) < 0)
+	if (proc_link(oid, oid, pathname) < 0) {
 		return -EIO;
+	}
 
 	/* create pipe in filesystem */
-	if (posix_create(pathname, 2 /* otDev */, mode | S_IFIFO, oid, &file) < 0)
+	if (posix_create(pathname, 2 /* otDev */, mode | S_IFIFO, oid, &file) < 0) {
 		return -EIO;
+	}
 
 	return 0;
 }
@@ -900,8 +984,9 @@ int posix_chmod(const char *pathname, mode_t mode)
 	msg_t msg;
 	int err;
 
-	if (proc_lookup(pathname, &oid, NULL) < 0)
+	if (proc_lookup(pathname, &oid, NULL) < 0) {
 		return -ENOENT;
+	}
 
 	hal_memset(&msg, 0, sizeof(msg));
 	hal_memcpy(&msg.i.attr.oid, &oid, sizeof(oid));
@@ -910,10 +995,12 @@ int posix_chmod(const char *pathname, mode_t mode)
 	msg.i.attr.type = atMode;
 	msg.i.attr.val = mode & ALLPERMS;
 
-	if (((err = proc_send(oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
-		return err;
+	err = proc_send(oid.port, &msg);
+	if (err >= 0) {
+		err = msg.o.attr.err;
+	}
 
-	return EOK;
+	return (err < 0) ? err : EOK;
 }
 
 
@@ -927,32 +1014,41 @@ int posix_link(const char *path1, const char *path2)
 	int namelen;
 
 	namelen = hal_strlen(path2) + 1;
-	if ((name = vm_kmalloc(namelen)) == NULL)
+	name = vm_kmalloc(namelen);
+	if (name == NULL) {
 		return -ENOMEM;
+	}
 	hal_memcpy(name, path2, namelen);
 
 	splitname(name, &basename, &dirname);
 
 	do {
-		if ((err = proc_lookup(dirname, NULL, &dir)) < 0)
+		err = proc_lookup(dirname, NULL, &dir);
+		if (err < 0) {
 			break;
+		}
 
-		if ((err = proc_lookup(path1, &oid, &dev)) < 0)
+		err = proc_lookup(path1, &oid, &dev);
+		if (err < 0) {
 			break;
+		}
 
 		if (oid.port != dir.port) {
 			err = -EXDEV;
 			break;
 		}
 
-		if ((err = proc_link(dir, oid, basename)) < 0)
+		err = proc_link(dir, oid, basename);
+		if (err < 0) {
 			break;
-
+		}
 		if (dev.port != oid.port) {
 			/* Signal link to device */
 			/* FIXME: refcount here? */
-			if ((err = proc_link(dev, dev, path2)) < 0)
+			err = proc_link(dev, dev, path2);
+			if (err < 0) {
 				break;
+			}
 		}
 
 		err = EOK;
@@ -973,30 +1069,42 @@ int posix_unlink(const char *pathname)
 	int namelen;
 
 	namelen = hal_strlen(pathname) + 1;
-	if ((name = vm_kmalloc(namelen)) == NULL)
+	name = vm_kmalloc(namelen);
+	if (name == NULL) {
 		return -ENOMEM;
+	}
 	hal_memcpy(name, pathname, namelen);
 
 	splitname(name, &basename, &dirname);
 
 	do {
-		if ((err = proc_lookup(dirname, NULL, &dir)) < 0)
+		err = proc_lookup(dirname, NULL, &dir);
+		if (err < 0) {
 			break;
+		}
 
-		if ((err = proc_lookup(pathname, NULL, &oid)) < 0)
+		err = proc_lookup(pathname, NULL, &oid);
+		if (err < 0) {
 			break;
+		}
 
-		if ((err = proc_unlink(dir, oid, basename)) < 0)
+		err = proc_unlink(dir, oid, basename);
+		if (err < 0) {
 			break;
+		}
 
 		if (dir.port != oid.port) {
-			if (oid.port == US_PORT)
+			if (oid.port == US_PORT) {
 				unix_unlink(oid.id);
-
-			/* Signal unlink to device */
-			/* FIXME: refcount here? */
-			else if ((err = proc_unlink(oid, oid, pathname)) < 0)
-				break;
+			}
+			else {
+				/* Signal unlink to device */
+				/* FIXME: refcount here? */
+				err = proc_unlink(oid, oid, pathname);
+				if (err < 0) {
+					break;
+				}
+			}
 		}
 
 		err = EOK;
@@ -1015,35 +1123,38 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 	off_t scnt;
 	int err;
 
-	if ((err = posix_getOpenFile(fildes, &f)))
+	err = posix_getOpenFile(fildes, &f);
+	if (err != 0) {
 		return err;
+	}
 
 	/* TODO: Find a better way to check fd type */
-	if ((scnt = proc_size(f->oid)) < 0) {
+	scnt = proc_size(f->oid);
+	if (scnt < 0) {
 		posix_fileDeref(f);
 		return -ESPIPE;
 	}
 
 	proc_lockSet(&f->lock);
 	switch (whence) {
-	case SEEK_SET:
-		f->offset = offset;
-		scnt = f->offset;
-		break;
+		case SEEK_SET:
+			f->offset = offset;
+			scnt = f->offset;
+			break;
 
-	case SEEK_CUR:
-		f->offset += offset;
-		scnt = f->offset;
-		break;
+		case SEEK_CUR:
+			f->offset += offset;
+			scnt = f->offset;
+			break;
 
-	case SEEK_END:
-		scnt += offset;
-		f->offset = scnt;
-		break;
+		case SEEK_END:
+			scnt += offset;
+			f->offset = scnt;
+			break;
 
-	default:
-		scnt = -EINVAL;
-		break;
+		default:
+			scnt = -EINVAL;
+			break;
 	}
 	proc_lockClear(&f->lock);
 
@@ -1060,8 +1171,10 @@ int posix_ftruncate(int fildes, off_t length)
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(fildes, &f)))
+	err = posix_getOpenFile(fildes, &f);
+	if (err == 0) {
 		err = posix_truncate(&f->oid, length);
+	}
 
 	posix_fileDeref(f);
 	return err;
@@ -1076,8 +1189,10 @@ int posix_fstat(int fd, struct stat *buf)
 	msg_t msg;
 	int err;
 
-	if ((err = posix_getOpenFile(fd, &f)) < 0)
+	err = posix_getOpenFile(fd, &f);
+	if (err < 0) {
 		return err;
+	}
 
 	hal_memset(buf, 0, sizeof(struct stat));
 	hal_memset(&msg, 0, sizeof(msg_t));
@@ -1092,56 +1207,106 @@ int posix_fstat(int fd, struct stat *buf)
 
 		do {
 			msg.i.attr.type = atMTime;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_mtim.tv_sec = msg.o.attr.val;
 			buf->st_mtim.tv_nsec = 0;
 
 			msg.i.attr.type = atATime;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_atim.tv_sec = msg.o.attr.val;
 			buf->st_atim.tv_nsec = 0;
 
 			msg.i.attr.type = atCTime;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_ctim.tv_sec = msg.o.attr.val;
 			buf->st_ctim.tv_nsec = 0;
 
 			msg.i.attr.type = atLinks;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_nlink = msg.o.attr.val;
 
 			msg.i.attr.type = atMode;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_mode = msg.o.attr.val;
 
 			msg.i.attr.type = atUid;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_uid = msg.o.attr.val;
 
 			msg.i.attr.type = atGid;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_gid = msg.o.attr.val;
 
 			msg.i.attr.type = atSize;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_size = msg.o.attr.val;
 
 			msg.i.attr.type = atBlocks;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_blocks = msg.o.attr.val;
 
 			msg.i.attr.type = atIOBlock;
-			if (((err = proc_send(f->oid.port, &msg)) < 0) || ((err = msg.o.attr.err) < 0))
+			err = proc_send(f->oid.port, &msg);
+			if (err >= 0) {
+				err = msg.o.attr.err;
+			}
+			if (err < 0) {
 				break;
+			}
 			buf->st_blksize = msg.o.attr.val;
 		} while (0);
 	}
@@ -1184,8 +1349,10 @@ int posix_fsync(int fd)
 	msg_t msg;
 	int err;
 
-	if ((err = posix_getOpenFile(fd, &f)) < 0)
+	err = posix_getOpenFile(fd, &f);
+	if (err < 0) {
 		return err;
+	}
 
 	hal_memset(&msg, 0, sizeof(msg_t));
 
@@ -1207,20 +1374,25 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	process_info_t *p;
 	int err;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
 	proc_lockSet(&p->lock);
-	if (fd < 0 || fd > p->maxfd || fd2 < 0 || fd > p->maxfd) {
+	if ((fd < 0) || (fd > p->maxfd) || (fd2 < 0) || (fd2 > p->maxfd)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
 	}
 
-	while (p->fds[fd2].file != NULL && fd2++ < p->maxfd);
+	while ((p->fds[fd2].file != NULL) && (fd2++ < p->maxfd)) {
+	}
 
-	if ((err = _posix_dup2(p, fd, fd2)) == fd2 && cloexec)
+	err = _posix_dup2(p, fd, fd2);
+	if ((err == fd2) && (cloexec != 0)) {
 		p->fds[fd2].flags = FD_CLOEXEC;
+	}
 
 	proc_lockClear(&p->lock);
 	pinfo_put(p);
@@ -1233,20 +1405,24 @@ static int posix_fcntlSetFd(int fd, unsigned flags)
 	process_info_t *p;
 	int err = EOK;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -ENOSYS;
+	}
 
 	proc_lockSet(&p->lock);
-	if (fd < 0 || fd > p->maxfd) {
+	if ((fd < 0) || (fd > p->maxfd)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
 	}
 
-	if (p->fds[fd].file != NULL)
+	if (p->fds[fd].file != NULL) {
 		p->fds[fd].flags = flags;
-	else
+	}
+	else {
 		err = -EBADF;
+	}
 	proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return err;
@@ -1258,20 +1434,24 @@ static int posix_fcntlGetFd(int fd)
 	process_info_t *p;
 	int err;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -ENOSYS;
+	}
 
 	proc_lockSet(&p->lock);
-	if (fd < 0 || fd > p->maxfd) {
+	if ((fd < 0) || (fd > p->maxfd)) {
 		proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
 	}
 
-	if (p->fds[fd].file != NULL)
+	if (p->fds[fd].file != NULL) {
 		err = p->fds[fd].flags;
-	else
+	}
+	else {
 		err = -EBADF;
+	}
 	proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return err;
@@ -1281,11 +1461,12 @@ static int posix_fcntlGetFd(int fd)
 static int posix_fcntlSetFl(int fd, int val)
 {
 	open_file_t *f;
-	int err = EOK;
+	int err;
 	/* Creation and access mode flags shall be ignored */
-	int ignorefl = O_CREAT|O_EXCL|O_NOCTTY|O_TRUNC|O_RDONLY|O_RDWR|O_WRONLY;
+	int ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_RDONLY | O_RDWR | O_WRONLY;
 
-	if (!(err = posix_getOpenFile(fd, &f))) {
+	err = posix_getOpenFile(fd, &f);
+	if (err == 0) {
 		switch (f->type) {
 			case ftInetSocket:
 				err = inet_setfl(f->oid.port, val);
@@ -1308,9 +1489,10 @@ static int posix_fcntlSetFl(int fd, int val)
 static int posix_fcntlGetFl(int fd)
 {
 	open_file_t *f;
-	int err = EOK;
+	int err;
 
-	if (!(err = posix_getOpenFile(fd, &f))) {
+	err = posix_getOpenFile(fd, &f);
+	if (err == 0) {
 		switch (f->type) {
 			case ftInetSocket:
 				err = inet_getfl(f->oid.port);
@@ -1339,64 +1521,65 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 	int cloexec = 0;
 
 	switch (cmd) {
-	case F_DUPFD_CLOEXEC:
-		cloexec = 1;
-	case F_DUPFD:
-		GETFROMSTACK(ustack, int, fd2, 2);
-		err = posix_fcntlDup(fd, fd2, cloexec);
-		break;
+		case F_DUPFD_CLOEXEC:
+			cloexec = 1;
+		case F_DUPFD:
+			GETFROMSTACK(ustack, int, fd2, 2);
+			err = posix_fcntlDup(fd, fd2, cloexec);
+			break;
 
-	case F_GETFD:
-		err = posix_fcntlGetFd(fd);
-		break;
+		case F_GETFD:
+			err = posix_fcntlGetFd(fd);
+			break;
 
-	case F_SETFD:
-		GETFROMSTACK(ustack, unsigned long, arg, 2);
-		err = posix_fcntlSetFd(fd, arg);
-		break;
+		case F_SETFD:
+			GETFROMSTACK(ustack, unsigned long, arg, 2);
+			err = posix_fcntlSetFd(fd, arg);
+			break;
 
-	case F_GETFL:
-		err = posix_fcntlGetFl(fd);
-		break;
+		case F_GETFL:
+			err = posix_fcntlGetFl(fd);
+			break;
 
-	case F_SETFL:
-		GETFROMSTACK(ustack, unsigned int, arg, 2);
-		err = posix_fcntlSetFl(fd, arg);
-		break;
+		case F_SETFL:
+			GETFROMSTACK(ustack, unsigned int, arg, 2);
+			err = posix_fcntlSetFl(fd, arg);
+			break;
 
-	case F_GETLK:
-	case F_SETLK:
-	case F_SETLKW:
-		/* TODO: implement */
-		err = EOK;
-	case F_GETOWN:
-	case F_SETOWN:
-	default:
-		break;
+		case F_GETLK:
+		case F_SETLK:
+		case F_SETLKW:
+			/* TODO: implement */
+			err = EOK;
+		case F_GETOWN:
+		case F_SETOWN:
+		default:
+			break;
 	}
 
 	return err;
 }
 
 
-#define IOCPARM_MASK		0x1fff
-#define IOCPARM_LEN(x)		(((x) >> 16) & IOCPARM_MASK)
+#define IOCPARM_MASK   0x1fff
+#define IOCPARM_LEN(x) (((x) >> 16) & IOCPARM_MASK)
 
+#define IOC_OUT                      0x40000000
+#define IOC_IN                       0x80000000
+#define IOC_INOUT                    (IOC_IN | IOC_OUT)
+#define _IOC(inout, group, num, len) ((unsigned long)(inout | ((len & IOCPARM_MASK) << 16) | ((group) << 8) | (num)))
 
-#define IOC_OUT				0x40000000
-#define IOC_IN				0x80000000
-#define IOC_INOUT			(IOC_IN | IOC_OUT)
-
-#define _IOC(inout,group,num,len)	((unsigned long) (inout | ((len & IOCPARM_MASK) << 16) | ((group) << 8) | (num)))
-#define SIOCGIFCONF			_IOC(IOC_INOUT, 'S', 0x12, sizeof(struct ifconf))
-#define SIOCADDRT			_IOC(IOC_IN, 'S', 0x44, sizeof(struct rtentry))
-#define SIOCDELRT			_IOC(IOC_IN, 'S', 0x45, sizeof(struct rtentry))
+#define SIOCGIFCONF _IOC(IOC_INOUT, 'S', 0x12, sizeof(struct ifconf))
+#define SIOCADDRT   _IOC(IOC_IN, 'S', 0x44, sizeof(struct rtentry))
+#define SIOCDELRT   _IOC(IOC_IN, 'S', 0x45, sizeof(struct rtentry))
 
 
 void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 {
 	size_t size = IOCPARM_LEN(request);
 	ioctl_in_t *ioctl = (ioctl_in_t *)msg->i.raw;
+	struct ifconf *ifc;
+	struct rtentry *rt;
 
 	msg->type = mtDevCtl;
 	msg->i.data = NULL;
@@ -1408,34 +1591,36 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 	ioctl->id = id;
 	ioctl->pid = proc_current()->process->id;
 
-	if (request & IOC_INOUT) {
-		if (request & IOC_IN) {
+	if ((request & IOC_INOUT) != 0) {
+		if ((request & IOC_IN) != 0) {
 			if (size <= (sizeof(msg->i.raw) - sizeof(ioctl_in_t))) {
 				hal_memcpy(ioctl->data, data, size);
-			} else {
+			}
+			else {
 				msg->i.data = data;
 				msg->i.size = size;
 			}
 		}
 
-		if ((request & IOC_OUT) && size > (sizeof(msg->o.raw) - sizeof(ioctl_out_t))) {
+		if (((request & IOC_OUT) != 0) && (size > (sizeof(msg->o.raw) - sizeof(ioctl_out_t)))) {
 			msg->o.data = data;
 			msg->o.size = size;
 		}
-	} else if (size > 0) {
+	}
+	else if (size > 0) {
 		/* the data is passed by value instead of pointer */
-		size = min(size, sizeof(void*));
+		size = min(size, sizeof(void *));
 		hal_memcpy(ioctl->data, &data, size);
 	}
 
 	/* ioctl special case: arg is structure with pointer - has to be custom-packed into message */
 	if (request == SIOCGIFCONF) {
-		struct ifconf *ifc = (struct ifconf*) data;
+		ifc = (struct ifconf *)data;
 		msg->o.data = ifc->ifc_buf;
 		msg->o.size = ifc->ifc_len;
 	}
-	else if (request == SIOCADDRT || request == SIOCDELRT) {
-		struct rtentry *rt = (struct rtentry *)data;
+	else if ((request == SIOCADDRT) || (request == SIOCDELRT)) {
+		rt = (struct rtentry *)data;
 		if (rt->rt_dev != NULL) {
 			msg->o.data = rt->rt_dev;
 			msg->o.size = hal_strlen(rt->rt_dev) + 1;
@@ -1449,15 +1634,16 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 	size_t size = IOCPARM_LEN(request);
 	int err;
 	ioctl_out_t *ioctl = (ioctl_out_t *)msg->o.raw;
+	struct ifconf *ifc;
 
 	err = ioctl->err;
 
-	if ((request & IOC_OUT) && size <= (sizeof(msg->o.raw) - sizeof(ioctl_out_t))) {
+	if (((request & IOC_OUT) != 0) && (size <= (sizeof(msg->o.raw) - sizeof(ioctl_out_t)))) {
 		hal_memcpy(data, ioctl->data, size);
 	}
 
-	if (request == SIOCGIFCONF) { // restore overriden userspace pointer
-		struct ifconf* ifc = (struct ifconf*) data;
+	if (request == SIOCGIFCONF) { /* restore overridden userspace pointer */
+		ifc = (struct ifconf *)data;
 		ifc->ifc_buf = msg->o.data;
 	}
 
@@ -1474,17 +1660,21 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 	msg_t msg;
 	void *data = NULL;
 
-	if (!(err = posix_getOpenFile(fildes, &f))) {
+	err = posix_getOpenFile(fildes, &f);
+	if (err == 0) {
 		switch (request) {
 			/* TODO: handle POSIX defined requests */
-		default:
-			if ((request & IOC_INOUT) || (IOCPARM_LEN(request) > 0))
-				GETFROMSTACK(ustack, void *, data, 2);
+			default:
+				if (((request & IOC_INOUT) != 0) || (IOCPARM_LEN(request) > 0)) {
+					GETFROMSTACK(ustack, void *, data, 2);
+				}
 
-			ioctl_pack(&msg, request, data, f->oid.id);
+				ioctl_pack(&msg, request, data, f->oid.id);
 
-			if ((err = proc_send(f->oid.port, &msg)) == EOK)
-				err = ioctl_processResponse(&msg, request, data);
+				err = proc_send(f->oid.port, &msg);
+				if (err == EOK) {
+					err = ioctl_processResponse(&msg, request, data);
+				}
 		}
 
 		posix_fileDeref(f);
@@ -1501,17 +1691,21 @@ int posix_socket(int domain, int type, int protocol)
 	process_info_t *p;
 	int err, fd;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
-	if ((fd = posix_newFile(p, 0)) < 0) {
+	fd = posix_newFile(p, 0);
+	if (fd < 0) {
 		pinfo_put(p);
 		return -EMFILE;
 	}
 
 	switch (domain) {
 		case AF_UNIX:
-			if ((err = unix_socket(domain, type, protocol)) >= 0) {
+			err = unix_socket(domain, type, protocol);
+			if (err >= 0) {
 				p->fds[fd].file->type = ftUnixSocket;
 				p->fds[fd].file->oid.port = -1;
 				p->fds[fd].file->oid.id = err;
@@ -1521,7 +1715,8 @@ int posix_socket(int domain, int type, int protocol)
 		case AF_INET6:
 		case AF_KEY:
 		case AF_PACKET:
-			if ((err = inet_socket(domain, type, protocol)) >= 0) {
+			err = inet_socket(domain, type, protocol);
+			if (err >= 0) {
 				p->fds[fd].file->type = ftInetSocket;
 				p->fds[fd].file->oid.port = err;
 				p->fds[fd].file->oid.id = 0;
@@ -1538,8 +1733,9 @@ int posix_socket(int domain, int type, int protocol)
 		return err;
 	}
 
-	if (type & SOCK_CLOEXEC)
+	if ((type & SOCK_CLOEXEC) != 0) {
 		p->fds[fd].flags = FD_CLOEXEC;
+	}
 
 	pinfo_put(p);
 	return fd;
@@ -1553,24 +1749,30 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 	process_info_t *p;
 	int err, id[2];
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
-	if (domain != AF_UNIX)
+	if (domain != AF_UNIX) {
 		return -EAFNOSUPPORT;
+	}
 
-	if ((sv[0] = posix_newFile(p, 0)) < 0) {
+	sv[0] = posix_newFile(p, 0);
+	if (sv[0] < 0) {
 		pinfo_put(p);
 		return -EMFILE;
 	}
 
-	if ((sv[1] = posix_newFile(p, 0)) < 0) {
+	sv[1] = posix_newFile(p, 0);
+	if (sv[1] < 0) {
 		posix_putUnusedFile(p, sv[0]);
 		pinfo_put(p);
 		return -EMFILE;
 	}
 
-	if (!(err = unix_socketpair(domain, type, protocol, id))) {
+	err = unix_socketpair(domain, type, protocol, id);
+	if (err == 0) {
 		p->fds[sv[0]].file->type = ftUnixSocket;
 		p->fds[sv[1]].file->type = ftUnixSocket;
 		p->fds[sv[0]].file->oid.port = -1;
@@ -1578,7 +1780,7 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 		p->fds[sv[0]].file->oid.id = id[0];
 		p->fds[sv[1]].file->oid.id = id[1];
 
-		if (type & SOCK_CLOEXEC) {
+		if ((type & SOCK_CLOEXEC) != 0) {
 			p->fds[sv[0]].flags = FD_CLOEXEC;
 			p->fds[sv[1]].flags = FD_CLOEXEC;
 		}
@@ -1601,25 +1803,31 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 	open_file_t *f;
 	int err, fd;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(proc_current()->process->id);
+	if (p == NULL) {
 		return -1;
+	}
 
-	if ((fd = posix_newFile(p, 0)) < 0) {
+	fd = posix_newFile(p, 0);
+	if (fd < 0) {
 		pinfo_put(p);
 		return -EMFILE;
 	}
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
 			case ftInetSocket:
-				if ((err = inet_accept4(f->oid.port, address, address_len, flags)) >= 0) {
+				err = inet_accept4(f->oid.port, address, address_len, flags);
+				if (err >= 0) {
 					p->fds[fd].file->type = ftInetSocket;
 					p->fds[fd].file->oid.port = err;
 					p->fds[fd].file->oid.id = 0;
 				}
 				break;
 			case ftUnixSocket:
-				if ((err = unix_accept4(f->oid.id, address, address_len, flags)) >= 0) {
+				err = unix_accept4(f->oid.id, address, address_len, flags);
+				if (err >= 0) {
 					p->fds[fd].file->type = ftUnixSocket;
 					p->fds[fd].file->oid.port = -1;
 					p->fds[fd].file->oid.id = err;
@@ -1639,8 +1847,9 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 		return err;
 	}
 
-	if (flags & SOCK_CLOEXEC)
+	if ((flags & SOCK_CLOEXEC) != 0) {
 		p->fds[fd].flags = FD_CLOEXEC;
+	}
 
 	pinfo_put(p);
 	return fd;
@@ -1660,17 +1869,18 @@ int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_bind(f->oid.port, address, address_len);
-			break;
-		case ftUnixSocket:
-			err = unix_bind(f->oid.id, address, address_len);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_bind(f->oid.port, address, address_len);
+				break;
+			case ftUnixSocket:
+				err = unix_bind(f->oid.id, address, address_len);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1687,17 +1897,18 @@ int posix_connect(int socket, const struct sockaddr *address, socklen_t address_
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_connect(f->oid.port, address, address_len);
-			break;
-		case ftUnixSocket:
-			err = unix_connect(f->oid.id, address, address_len);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_connect(f->oid.port, address, address_len);
+				break;
+			case ftUnixSocket:
+				err = unix_connect(f->oid.id, address, address_len);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1724,17 +1935,18 @@ int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_l
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_getpeername(f->oid.port, address, address_len);
-			break;
-		case ftUnixSocket:
-			err = unix_getpeername(f->oid.id, address, address_len);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_getpeername(f->oid.port, address, address_len);
+				break;
+			case ftUnixSocket:
+				err = unix_getpeername(f->oid.id, address, address_len);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1751,17 +1963,18 @@ int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_l
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_getsockname(f->oid.port, address, address_len);
-			break;
-		case ftUnixSocket:
-			err = unix_getsockname(f->oid.id, address, address_len);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_getsockname(f->oid.port, address, address_len);
+				break;
+			case ftUnixSocket:
+				err = unix_getsockname(f->oid.id, address, address_len);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1778,17 +1991,18 @@ int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_getsockopt(f->oid.port, level, optname, optval, optlen);
-			break;
-		case ftUnixSocket:
-			err = unix_getsockopt(f->oid.id, level, optname, optval, optlen);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_getsockopt(f->oid.port, level, optname, optval, optlen);
+				break;
+			case ftUnixSocket:
+				err = unix_getsockopt(f->oid.id, level, optname, optval, optlen);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1805,17 +2019,18 @@ int posix_listen(int socket, int backlog)
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_listen(f->oid.port, backlog);
-			break;
-		case ftUnixSocket:
-			err = unix_listen(f->oid.id, backlog);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_listen(f->oid.port, backlog);
+				break;
+			case ftUnixSocket:
+				err = unix_listen(f->oid.id, backlog);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1832,17 +2047,18 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_recvfrom(f->oid.port, message, length, flags, src_addr, src_len);
-			break;
-		case ftUnixSocket:
-			err = unix_recvfrom(f->oid.id, message, length, flags, src_addr, src_len);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_recvfrom(f->oid.port, message, length, flags, src_addr, src_len);
+				break;
+			case ftUnixSocket:
+				err = unix_recvfrom(f->oid.id, message, length, flags, src_addr, src_len);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1859,17 +2075,18 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_sendto(f->oid.port, message, length, flags, dest_addr, dest_len);
-			break;
-		case ftUnixSocket:
-			err = unix_sendto(f->oid.id, message, length, flags, dest_addr, dest_len);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_sendto(f->oid.port, message, length, flags, dest_addr, dest_len);
+				break;
+			case ftUnixSocket:
+				err = unix_sendto(f->oid.id, message, length, flags, dest_addr, dest_len);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1886,7 +2103,8 @@ ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
 			case ftInetSocket:
 				err = inet_recvmsg(f->oid.port, msg, flags);
@@ -1913,7 +2131,8 @@ ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
 			case ftInetSocket:
 				err = inet_sendmsg(f->oid.port, msg, flags);
@@ -1940,17 +2159,18 @@ int posix_shutdown(int socket, int how)
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_shutdown(f->oid.port, how);
-			break;
-		case ftUnixSocket:
-			err = unix_shutdown(f->oid.id, how);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_shutdown(f->oid.port, how);
+				break;
+			case ftUnixSocket:
+				err = unix_shutdown(f->oid.id, how);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -1964,8 +2184,9 @@ int posix_sethostname(const char *name, size_t namelen)
 {
 	TRACE("sethostname(%zu)", namelen);
 
-	if (namelen > HOST_NAME_MAX)
+	if (namelen > HOST_NAME_MAX) {
 		return -EINVAL;
+	}
 
 	hal_strncpy(posix_common.hostname, name, namelen);
 	posix_common.hostname[namelen] = '\0';
@@ -1979,17 +2200,18 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 	open_file_t *f;
 	int err;
 
-	if (!(err = posix_getOpenFile(socket, &f))) {
+	err = posix_getOpenFile(socket, &f);
+	if (err == 0) {
 		switch (f->type) {
-		case ftInetSocket:
-			err = inet_setsockopt(f->oid.port, level, optname, optval, optlen);
-			break;
-		case ftUnixSocket:
-			err = unix_setsockopt(f->oid.id, level, optname, optval, optlen);
-			break;
-		default:
-			err = -ENOTSOCK;
-			break;
+			case ftInetSocket:
+				err = inet_setsockopt(f->oid.port, level, optname, optval, optlen);
+				break;
+			case ftUnixSocket:
+				err = unix_setsockopt(f->oid.id, level, optname, optval, optlen);
+				break;
+			default:
+				err = -ENOTSOCK;
+				break;
 		}
 
 		posix_fileDeref(f);
@@ -2008,8 +2230,9 @@ int posix_futimens(int fildes, const struct timespec *times)
 	int err;
 
 	err = posix_getOpenFile(fildes, &f);
-	if (err < 0)
+	if (err < 0) {
 		return err;
+	}
 
 	hal_memset(&msg, 0, sizeof(msg_t));
 
@@ -2024,8 +2247,9 @@ int posix_futimens(int fildes, const struct timespec *times)
 		msg.i.attr.val = times[0].tv_sec;
 		err = proc_send(f->oid.port, &msg);
 	}
-	if (err >= 0)
+	if (err >= 0) {
 		err = msg.o.attr.err;
+	}
 
 	posix_fileDeref(f);
 
@@ -2036,7 +2260,7 @@ int posix_futimens(int fildes, const struct timespec *times)
 static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 {
 	msg_t msg;
-	size_t ready, i;
+	size_t ready = 0, i;
 	int err;
 	open_file_t *f;
 
@@ -2045,9 +2269,10 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 	msg.type = mtGetAttr;
 	msg.i.attr.type = atPollStatus;
 
-	for (ready = i = 0; i < nfds; ++i) {
-		if (fds[i].fd < 0)
+	for (i = 0; i < nfds; ++i) {
+		if (fds[i].fd < 0) {
 			continue;
+		}
 
 		msg.i.attr.val = fds[i].events;
 
@@ -2058,24 +2283,33 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
 			posix_fileDeref(f);
 
-			if (f->type == ftUnixSocket)
+			if (f->type == ftUnixSocket) {
 				err = unix_poll(msg.i.attr.oid.id, fds[i].events);
-			else if (((err = proc_send(msg.i.attr.oid.port, &msg)) == EOK) && ((err = msg.o.attr.err) == EOK))
-				err = msg.o.attr.val;
+			}
+			else {
+				err = proc_send(msg.i.attr.oid.port, &msg);
+				if (err >= 0) {
+					err = (msg.o.attr.err >= 0) ? msg.o.attr.val : msg.o.attr.err;
+				}
+			}
 		}
 
-		if (err == -EINTR)
+		if (err == -EINTR) {
 			return err;
+		}
 
-		if (err < 0)
+		if (err < 0) {
 			fds[i].revents |= POLLHUP;
-		else if (err > 0)
+		}
+		else if (err > 0) {
 			fds[i].revents |= err;
+		}
 
-		fds[i].revents &= ~(~fds[i].events & (POLLIN|POLLOUT|POLLPRI|POLLRDNORM|POLLWRNORM|POLLRDBAND|POLLWRBAND));
+		fds[i].revents &= ~(~fds[i].events & (POLLIN | POLLOUT | POLLPRI | POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND));
 
-		if (fds[i].revents)
+		if (fds[i].revents != 0) {
 			++ready;
+		}
 	}
 
 	return ready;
@@ -2089,35 +2323,45 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 
 	for (i = n = 0; i < nfds; ++i) {
 		fds[i].revents = 0;
-		if (fds[i].fd >= 0)
+		if (fds[i].fd >= 0) {
 			++n;
+		}
 	}
 
-	if (!n) {
-		if (timeout_ms > 0)
+	if (n == 0) {
+		if (timeout_ms > 0) {
 			proc_threadSleep(timeout_ms * 1000LL);
+		}
 		return 0;
 	}
 
 	if (timeout_ms >= 0) {
 		proc_gettime(&timeout, NULL);
 		timeout += timeout_ms * 1000LL + !timeout_ms;
-	} else
+	}
+	else {
 		timeout = 0;
+	}
 
-	while (!(ready = do_poll_iteration(fds, nfds))) {
-		if (timeout) {
+	ready = do_poll_iteration(fds, nfds);
+	while (ready == 0) {
+		if (timeout != 0) {
 			proc_gettime(&now, NULL);
-			if (now > timeout)
+			if (now > timeout) {
 				break;
+			}
 
 			now = timeout - now;
-			if (now > POLL_INTERVAL)
+			if (now > POLL_INTERVAL) {
 				now = POLL_INTERVAL;
-		} else
+			}
+		}
+		else {
 			now = POLL_INTERVAL;
+		}
 
 		proc_threadSleep(now);
+		ready = do_poll_iteration(fds, nfds);
 	}
 
 	return ready;
@@ -2222,21 +2466,40 @@ static int posix_killOne(pid_t pid, int tid, int sig)
 	thread_t *thr;
 	int err;
 
-	if ((pinfo = pinfo_find(pid)) != NULL || !(err = -EINVAL)) {
-		if ((proc = proc_find(pinfo->process)) != NULL || !(err = -ESRCH)) {
-			if (!tid) {
-				err = threads_sigpost(proc, NULL, sig);
-			}
-			else if ((thr = threads_findThread(tid)) != NULL || !(err = -EINVAL)) {
-				if (thr->process == proc || !(err = -EINVAL))
-					err = threads_sigpost(proc, thr, sig);
-
-				threads_put(thr);
-			}
-			proc_put(proc);
-		}
-		pinfo_put(pinfo);
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
+		return -EINVAL;
 	}
+
+	proc = proc_find(pinfo->process);
+	if (proc == NULL) {
+		pinfo_put(pinfo);
+		return -ESRCH;
+	}
+
+	if (tid == 0) {
+		err = threads_sigpost(proc, NULL, sig);
+	}
+	else {
+		thr = threads_findThread(tid);
+		if (thr == NULL) {
+			proc_put(proc);
+			pinfo_put(pinfo);
+			return -EINVAL;
+		}
+
+		if (thr->process == proc) {
+			err = threads_sigpost(proc, thr, sig);
+		}
+		else {
+			err = -EINVAL;
+		}
+
+		threads_put(thr);
+	}
+
+	proc_put(proc);
+	pinfo_put(pinfo);
 
 	return err;
 }
@@ -2251,8 +2514,9 @@ static int posix_killGroup(pid_t pgid, int sig)
 	for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
 		pinfo = lib_treeof(process_info_t, linkage, node);
 
-		if (pinfo->pgid == pgid)
+		if (pinfo->pgid == pgid) {
 			proc_sigpost(pinfo->process, sig);
+		}
 	}
 	proc_lockClear(&posix_common.lock);
 
@@ -2264,20 +2528,20 @@ int posix_tkill(pid_t pid, int tid, int sig)
 {
 	TRACE("tkill(%p, %d, %d)", pid, tid, sig);
 
-	if (sig < 0 || sig > NSIG)
+	if ((sig < 0) || (sig > NSIG)) {
 		return -EINVAL;
+	}
 
 	/* TODO: handle pid = 0 */
-	if (pid == 0)
+	if (pid == 0) {
 		return -ENOSYS;
+	}
 
-	if (pid == -1)
+	if (pid == -1) {
 		return -ESRCH;
+	}
 
-	if (pid > 0)
-		return posix_killOne(pid, tid, sig);
-
-	return posix_killGroup(-pid, sig);
+	return (pid > 0) ? posix_killOne(pid, tid, sig) : posix_killGroup(-pid, sig);
 }
 
 
@@ -2350,7 +2614,8 @@ pid_t posix_setsid(void)
 
 	pid = proc_current()->process->id;
 
-	if ((pinfo = pinfo_find(pid)) == NULL) {
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
 		return -EPERM;
 	}
 
@@ -2379,30 +2644,36 @@ int posix_waitpid(pid_t child, int *status, int options)
 
 	pid = proc_current()->process->id;
 
-	if ((pinfo = pinfo_find(pid)) == NULL)
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
 		return -EINVAL;
+	}
 
 	proc_lockSet(&pinfo->lock);
 	do {
-		if ((c = pinfo->zombies) == NULL) {
+		c = pinfo->zombies;
+		if (c == NULL) {
 			if (pinfo->children == NULL) {
 				err = -ECHILD;
 				break;
 			}
-			else if (options & 1) {
+			else if ((options & 1) != 0) {
 				err = EOK;
 				break;
 			}
 			else {
-				while ((c = pinfo->zombies) == NULL && !err)
+				while ((pinfo->zombies == NULL) && (err == EOK)) {
 					err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
+				}
+
+				c = pinfo->zombies;
 
 				if (err == -EINTR) {
 					/* pinfo->lock is clear */
 					pinfo_put(pinfo);
 					return -EINTR;
 				}
-				else if (err) {
+				else if (err != 0) {
 					/* Should not happen */
 					break;
 				}
@@ -2410,21 +2681,23 @@ int posix_waitpid(pid_t child, int *status, int options)
 		}
 
 		do {
-			if (child == -1 || (!child && c->pgid == pinfo->pgid) || (child < 0 && c->pgid == -child) || child == c->process) {
+			if ((child == -1) || ((child == 0) && (c->pgid == pinfo->pgid)) || ((child < 0) && (c->pgid == -child)) || (child == c->process)) {
 				LIST_REMOVE(&pinfo->zombies, c);
 				found = 1;
+				break;
 			}
-		}
-		while (!found && (c = c->next) != pinfo->zombies);
-	}
-	while (!found && !(options & 1));
+
+			c = c->next;
+		} while (c != pinfo->zombies);
+	} while ((found == 0) && ((options & 1) == 0));
 	proc_lockClear(&pinfo->lock);
 
-	if (found) {
+	if (found != 0) {
 		err = c->process;
 
-		if (status != NULL)
+		if (status != NULL) {
 			*status = c->exitcode;
+		}
 
 		pinfo_put(c);
 	}
@@ -2438,12 +2711,15 @@ void posix_died(pid_t pid, int exit)
 {
 	process_info_t *pinfo, *ppinfo, *init, *cinfo;
 
-	if ((pinfo = pinfo_find(pid)) == NULL)
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
 		return;
+	}
 
 	posix_exit(pinfo, exit);
 
-	if ((ppinfo = pinfo_find(pinfo->parent)) != NULL) {
+	ppinfo = pinfo_find(pinfo->parent);
+	if (ppinfo != NULL) {
 		proc_lockSet(&ppinfo->lock);
 		LIST_REMOVE(&ppinfo->children, pinfo);
 		LIST_ADD(&ppinfo->zombies, pinfo);
@@ -2481,8 +2757,10 @@ pid_t posix_getppid(pid_t pid)
 	process_info_t *pinfo;
 	int ret = 0;
 
-	if ((pinfo = pinfo_find(pid)) == NULL)
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
 		return -ENOSYS;
+	}
 
 	ret = pinfo->parent;
 
