@@ -21,7 +21,7 @@
 
 #include "posix.h"
 #include "posix_private.h"
-#include "../lib/cbuffer.h"
+#include "../lib/lib.h"
 
 #define MAX_FD_COUNT     1024
 #define INITIAL_FD_COUNT 32
@@ -107,42 +107,6 @@ void pinfo_put(process_info_t *p)
 	vm_kfree(p->fds);
 	proc_lockDone(&p->lock);
 	vm_kfree(p);
-}
-
-
-static char *strrchr(const char *s, int c)
-{
-	const char *p = NULL;
-
-	do {
-		if (*s == c) {
-			p = s;
-		}
-	} while (*(s++) != '\0');
-
-	return (char *)p;
-}
-
-
-void splitname(char *path, char **base, char **dir)
-{
-	char *slash;
-
-	slash = strrchr(path, '/');
-
-	if (slash == NULL) {
-		*dir = ".";
-		*base = path;
-	}
-	else if (slash == path) {
-		*base = path + 1;
-		*dir = "/";
-	}
-	else {
-		*dir = path;
-		*base = slash + 1;
-		*slash = 0;
-	}
 }
 
 
@@ -491,16 +455,13 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 	int err;
 	oid_t dir;
 	char *name, *basename, *dirname;
-	int namelen;
 
-	namelen = hal_strlen(filename) + 1;
-	name = vm_kmalloc(namelen);
+	name = lib_strdup(filename);
 	if (name == NULL) {
 		return -ENOMEM;
 	}
-	hal_memcpy(name, filename, namelen);
 
-	splitname(name, &basename, &dirname);
+	lib_splitname(name, &basename, &dirname);
 
 	do {
 		err = proc_lookup(dirname, NULL, &dir);
@@ -1030,16 +991,13 @@ int posix_link(const char *path1, const char *path2)
 	oid_t oid, dev, dir;
 	int err;
 	char *name, *basename, *dirname;
-	int namelen;
 
-	namelen = hal_strlen(path2) + 1;
-	name = vm_kmalloc(namelen);
+	name = lib_strdup(path2);
 	if (name == NULL) {
 		return -ENOMEM;
 	}
-	hal_memcpy(name, path2, namelen);
 
-	splitname(name, &basename, &dirname);
+	lib_splitname(name, &basename, &dirname);
 
 	do {
 		err = proc_lookup(dirname, NULL, &dir);
@@ -1085,16 +1043,13 @@ int posix_unlink(const char *pathname)
 	oid_t oid, dir;
 	int err;
 	char *name, *basename, *dirname;
-	int namelen;
 
-	namelen = hal_strlen(pathname) + 1;
-	name = vm_kmalloc(namelen);
+	name = lib_strdup(pathname);
 	if (name == NULL) {
 		return -ENOMEM;
 	}
-	hal_memcpy(name, pathname, namelen);
 
-	splitname(name, &basename, &dirname);
+	lib_splitname(name, &basename, &dirname);
 
 	do {
 		err = proc_lookup(dirname, NULL, &dir);

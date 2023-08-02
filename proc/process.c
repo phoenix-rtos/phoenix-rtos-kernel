@@ -268,13 +268,11 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->path = NULL;
 
 	if (path != NULL) {
-		process->path = vm_kmalloc(hal_strlen(path) + 1);
+		process->path = lib_strdup(path);
 		if (process->path == NULL) {
 			vm_kfree(process);
 			return -ENOMEM;
 		}
-
-		hal_strcpy(process->path, path);
 	}
 
 	process->argv = NULL;
@@ -1311,27 +1309,25 @@ int proc_vfork(void)
 #ifndef NOMMU
 static int process_copy(void)
 {
-
 	thread_t *parent, *current = proc_current();
 	process_spawn_t *spawn = current->execdata;
 	process_t *process = current->process;
 	parent = spawn->parent;
-	int len;
 
-	len = hal_strlen(parent->process->path) + 1;
-
-	if ((process->path = vm_kmalloc(len)) == NULL)
+	process->path = lib_strdup(parent->process->path);
+	if (process->path == NULL) {
 		return -ENOMEM;
+	}
 
-	hal_memcpy(process->path, parent->process->path, len);
-
-	if (proc_resourcesCopy(parent->process) < 0)
+	if (proc_resourcesCopy(parent->process) < 0) {
 		return -ENOMEM;
+	}
 
 	vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
 
-	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0)
+	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0) {
 		return -ENOMEM;
+	}
 
 	proc_changeMap(process, &process->map, process->imapp, &process->map.pmap);
 
@@ -1454,7 +1450,6 @@ static int process_execve(thread_t *current)
 
 int proc_execve(const char *path, char **argv, char **envp)
 {
-	int len;
 	thread_t *current;
 	char *kpath;
 	void *kstack;
@@ -1466,12 +1461,10 @@ int proc_execve(const char *path, char **argv, char **envp)
 
 	current = proc_current();
 
-	len = hal_strlen(path) + 1;
-
-	if ((kpath = vm_kmalloc(len)) == NULL)
+	kpath = lib_strdup(path);
+	if (kpath == NULL) {
 		return -ENOMEM;
-
-	hal_memcpy(kpath, path, len);
+	}
 
 	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL) {
 		vm_kfree(kpath);

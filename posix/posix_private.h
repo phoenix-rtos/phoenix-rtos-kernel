@@ -132,8 +132,6 @@ struct rtentry
 	unsigned short rt_irtt;
 };
 
-extern void splitname(char *path, char **base, char **dir);
-
 
 extern int posix_fileDeref(open_file_t *f);
 
