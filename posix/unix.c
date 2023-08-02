@@ -416,7 +416,6 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len)
 {
 	char *path, *name, *dir;
-	size_t len;
 	int err;
 	oid_t odir, dev;
 	unixsock_t *s;
@@ -431,16 +430,14 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 			break;
 		}
 
-		len = hal_strlen(address->sa_data);
-
-		if ((path = vm_kmalloc(len + 1)) == NULL) {
+		path = lib_strdup(address->sa_data);
+		if (path == NULL) {
 			err = -ENOMEM;
 			break;
 		}
 
 		do {
-			hal_memcpy(path, address->sa_data, len + 1);
-			splitname(path, &name, &dir);
+			lib_splitname(path, &name, &dir);
 
 			if (proc_lookup(dir, NULL, &odir) < 0) {
 				err = -ENOTDIR;

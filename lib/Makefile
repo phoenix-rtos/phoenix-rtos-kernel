@@ -5,5 +5,5 @@
 # Author: Pawel Pisarczyk
 #
 
-OBJS += $(addprefix $(PREFIX_O)lib/, assert.o printf.o bsearch.o rand.o strtoul.o rb.o list.o cbuffer.o)
+OBJS += $(addprefix $(PREFIX_O)lib/, assert.o printf.o bsearch.o rand.o strtoul.o rb.o list.o cbuffer.o strutil.o)
 
