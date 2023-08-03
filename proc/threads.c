@@ -1303,7 +1303,7 @@ int proc_join(int tid, time_t timeout)
 {
 	int err = EOK, found = 0, id = 0;
 	process_t *process = proc_current()->process;
-	thread_t *ghost, *firstGhost, *lastChecked = NULL;
+	thread_t *ghost, *firstGhost;
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -1319,7 +1319,6 @@ int proc_join(int tid, time_t timeout)
 						break;
 					}
 					else {
-						lastChecked = ghost;
 						ghost = ghost->procnext;
 					}
 				} while (ghost != NULL && ghost != firstGhost);
@@ -1330,7 +1329,7 @@ int proc_join(int tid, time_t timeout)
 			else {
 				err = _proc_threadWait(&process->reaper, timeout, &sc);
 				firstGhost = process->ghosts;
-				ghost = lastChecked == NULL ? process->ghosts : lastChecked->procnext;
+				ghost = firstGhost;
 			}
 		} while (err != -ETIME && err != -EINTR);
 	}
@@ -1350,7 +1349,7 @@ int proc_join(int tid, time_t timeout)
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	if (ghost->tls.tls_sz != 0) {
+	if ((ghost != NULL) && (ghost->tls.tls_sz != 0)) {
 		process_tlsDestroy(&ghost->tls, process->mapp);
 	}
 
