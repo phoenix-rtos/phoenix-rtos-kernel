@@ -406,23 +406,6 @@ int posix_clone(int ppid)
 }
 
 
-int posix_fork()
-{
-	TRACE("fork()");
-
-	int pid;
-
-	return -ENOSYS;
-
-	// if (!(pid = proc_vfork())) {
-	// 	proc_copyexec();
-	// 	/* Not reached */
-	// }
-
-	return pid;
-}
-
-
 int posix_exec(void)
 {
 	TRACE("exec()");
@@ -449,7 +432,7 @@ int posix_exec(void)
 }
 
 
-int posix_exit(process_info_t *p, int code)
+static int posix_exit(process_info_t *p, int code)
 {
 	int fd;
 
