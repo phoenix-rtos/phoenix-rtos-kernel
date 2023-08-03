@@ -13,6 +13,7 @@
  * %LICENSE%
  */
 
+
 #ifndef _PROC_POSIX_H_
 #define _PROC_POSIX_H_
 
@@ -53,9 +54,6 @@ extern int posix_ftruncate(int fildes, off_t length);
 extern int posix_fcntl(int fd, unsigned int cmd, char *ustack);
 
 
-extern int posix_fork(void);
-
-
 extern int posix_pipe(int fildes[2]);
 
 
@@ -72,9 +70,6 @@ extern int posix_fsync(int fd);
 
 
 extern int posix_clone(int ppid);
-
-
-// extern int posix_exit(process_t *process);
 
 
 extern int posix_exec(void);
