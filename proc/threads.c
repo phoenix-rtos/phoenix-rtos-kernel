@@ -1302,9 +1302,14 @@ void proc_threadBroadcastYield(thread_t **queue)
 int proc_join(int tid, time_t timeout)
 {
 	int err = EOK, found = 0, id = 0;
-	process_t *process = proc_current()->process;
+	thread_t *current = proc_current();
+	process_t *process = current->process;
 	thread_t *ghost, *firstGhost;
 	spinlock_ctx_t sc;
+
+	if (current->id == tid) {
+		return -EDEADLK;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ghost = process->ghosts;
