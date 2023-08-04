@@ -22,9 +22,7 @@
 #include "proc/threads.h"
 #include "proc/msg.h"
 #include "proc/ports.h"
-
-
-#define USRV_ID_LOG 0
+#include "posix/pipe.h"
 
 
 static struct {
@@ -92,9 +90,13 @@ static void usrv_msgthr(void *arg)
 			continue;
 		}
 
-		switch (oid.id) {
+		switch (oid.id & 0xf) {
 			case USRV_ID_LOG:
 				log_msgHandler(&msg, oid, rid);
+				break;
+
+			case USRV_ID_PIPES:
+				pipe_msgHandler(&msg, oid, rid);
 				break;
 
 			default:
@@ -120,4 +122,5 @@ void _usrv_start(void)
 void _usrv_init(void)
 {
 	_log_init();
+	_pipe_init();
 }

@@ -5,5 +5,5 @@
 # Author: Pawel Pisarczyk
 #
 
-OBJS += $(addprefix $(PREFIX_O)posix/, posix.o inet.o unix.o fdpass.o)
+OBJS += $(addprefix $(PREFIX_O)posix/, posix.o inet.o unix.o fdpass.o pipe.o)
 
