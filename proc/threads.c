@@ -1877,11 +1877,11 @@ int proc_threadsList(int n, threadinfo_t *info)
 			info[i].ppid = 0;
 		}
 
+		hal_spinlockSet(&threads_common.spinlock, &sc);
 		info[i].tid = t->id;
 		info[i].priority = t->priorityBase;
 		info[i].state = t->state;
 
-		hal_spinlockSet(&threads_common.spinlock, &sc);
 		now = _proc_gettimeRaw();
 		if (now != t->startTime)
 			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
