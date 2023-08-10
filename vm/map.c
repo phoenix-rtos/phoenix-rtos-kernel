@@ -752,6 +752,22 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 }
 
 
+static void _map_free(map_entry_t *entry)
+{
+	map_common.nfree++;
+	entry->next = map_common.free;
+	map_common.free = entry;
+}
+
+
+void map_free(map_entry_t *entry)
+{
+	proc_lockSet(&map_common.lock);
+	_map_free(entry);
+	proc_lockClear(&map_common.lock);
+}
+
+
 void vm_mapDestroy(process_t *p, vm_map_t *map)
 {
 	map_entry_t *e;
@@ -775,11 +791,34 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 
 	proc_lockDone(&map->lock);
 #else
-	proc_lockSet(&map->lock);
-	while ((e = p->entries) != NULL) {
-		_map_remove(map, e);
-		map_free(e);
+	map_entry_t *next;
+
+	proc_lockSet2(&map->lock, &p->lock);
+	if (p->entries != NULL) {
+		e = p->entries;
+
+		proc_lockSet(&map_common.lock);
+
+		do {
+			next = e->next;
+			/* Remove only entries associated with the map */
+			if (e->map == map) {
+				LIST_REMOVE(&p->entries, e);
+				if (next == e) {
+					next = NULL;
+				}
+				e->process = NULL;
+				lib_rbRemove(&map->tree, &e->linkage);
+				e->map = NULL;
+				_map_free(e);
+			}
+
+			e = next;
+		} while ((e != NULL) && (e != p->entries));
+
+		proc_lockClear(&map_common.lock);
 	}
+	proc_lockClear(&p->lock);
 	proc_lockClear(&map->lock);
 #endif
 }
@@ -1079,16 +1118,6 @@ map_entry_t *map_alloc(void)
 	proc_lockClear(&map_common.lock);
 
 	return e;
-}
-
-
-void map_free(map_entry_t *entry)
-{
-	proc_lockSet(&map_common.lock);
-	map_common.nfree++;
-	entry->next = map_common.free;
-	map_common.free = entry;
-	proc_lockClear(&map_common.lock);
 }
 
 
