@@ -1146,11 +1146,16 @@ int posix_ftruncate(int fildes, off_t length)
 	int err;
 
 	err = posix_getOpenFile(fildes, &f);
-	if (err == 0) {
-		err = posix_truncate(&f->oid, length);
+	if (err >= 0) {
+		if ((f->status & O_RDONLY) == 0) {
+			err = posix_truncate(&f->oid, length);
+		}
+		else {
+			err = -EBADF;
+		}
+		posix_fileDeref(f);
 	}
 
-	posix_fileDeref(f);
 	return err;
 }
 
