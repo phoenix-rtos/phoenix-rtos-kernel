@@ -676,7 +676,7 @@ int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 			continue;
 		}
 
-		vaddr = (void *)((ptr_t)(phdr->p_vaddr & ~(phdr->p_align - 1)));
+		vaddr = (void *)((ptr_t)(phdr->p_vaddr & ~((ptr_t)phdr->p_align - 1)));
 		offs = phdr->p_offset & ~(phdr->p_align - 1);
 		misalign = phdr->p_offset & (phdr->p_align - 1);
 		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
