@@ -497,8 +497,8 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	/* Validate header. */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) == 0)) ||
-		(ehdr->e_shnum == 0)) {
+			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
 
@@ -540,8 +540,9 @@ static int process_validateElf64(void *iehdr, size_t size)
 	}
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
-		if ((process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
-			(shdr->sh_name >= shstrshdr->sh_size)) {
+		if (((shdr[i].sh_type != SHT_NOBITS) &&
+				process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
+				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
 	}
