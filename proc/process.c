@@ -1218,11 +1218,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
-#ifdef __TARGET_RISCV64
-	hal_jmp(entry, current->kstack + current->kstacksz, stack, 3);
-#else
 	hal_jmp(entry, current->kstack + current->kstacksz, stack, 0);
-#endif
 }
 
 
