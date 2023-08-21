@@ -572,13 +572,16 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	process_t *proc;
 	spinlock_ctx_t sc;
 
+	(void)arg;
+	(void)n;
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	if (hal_cpuGetID() == 0) {
 		cpu_sendIPI(0, 32);
 	}
 
-	current = threads_common.current[hal_cpuGetID()];
+	current = _proc_current();
 	threads_common.current[hal_cpuGetID()] = NULL;
 
 	/* Save current thread context */
@@ -671,7 +674,7 @@ thread_t *proc_current(void)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	current = threads_common.current[hal_cpuGetID()];
+	current = _proc_current();
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return current;
@@ -867,16 +870,15 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	}
 
 	if (process != NULL) {
+		hal_cpuSetCtxGot(t->context, process->got);
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
 		LIST_ADD_EX(&process->threads, t, procnext, procprev);
-
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-		hal_cpuSetCtxGot(t->context, process->got);
 	}
-
+	else {
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+	}
 	/* Insert thread to scheduler queue */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	_perf_begin(t);
 	_perf_waking(t);
@@ -1125,7 +1127,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 		return;
 	}
 
-	current = threads_common.current[hal_cpuGetID()];
+	current = _proc_current();
 
 	LIST_ADD(queue, current);
 
@@ -1172,7 +1174,7 @@ int proc_threadSleep(time_t us)
 
 	now = _proc_gettimeRaw();
 
-	current = threads_common.current[hal_cpuGetID()];
+	current = _proc_current();
 	current->state = SLEEP;
 	current->wait = NULL;
 	current->wakeup = now + us;
@@ -1225,8 +1227,9 @@ int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t 
 
 static void _proc_threadWakeup(thread_t **queue)
 {
-	if (*queue != NULL && *queue != wakeupPending)
+	if ((*queue != NULL) && (*queue != wakeupPending)) {
 		_proc_threadDequeue(*queue);
+	}
 }
 
 
@@ -1236,7 +1239,7 @@ int proc_threadWakeup(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (*queue != NULL && *queue != wakeupPending) {
+	if ((*queue != NULL) && (*queue != wakeupPending)) {
 		_proc_threadWakeup(queue);
 		ret = 1;
 	}
@@ -1270,7 +1273,7 @@ void proc_threadWakeupYield(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (*queue != NULL && *queue != wakeupPending) {
+	if ((*queue != NULL) && (*queue != wakeupPending)) {
 		_proc_threadWakeup(queue);
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
@@ -1286,9 +1289,10 @@ void proc_threadBroadcastYield(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (*queue != wakeupPending && *queue != NULL) {
-		while (*queue != NULL)
+	if ((*queue != wakeupPending) && (*queue != NULL)) {
+		while (*queue != NULL) {
 			_proc_threadWakeup(queue);
+		}
 
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
@@ -1302,16 +1306,20 @@ void proc_threadBroadcastYield(thread_t **queue)
 int proc_join(int tid, time_t timeout)
 {
 	int err = EOK, found = 0, id = 0;
-	thread_t *current = proc_current();
-	process_t *process = current->process;
+	thread_t *current;
+	process_t *process;
 	thread_t *ghost, *firstGhost;
 	spinlock_ctx_t sc;
 
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	current = _proc_current();
 	if (current->id == tid) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return -EDEADLK;
 	}
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	process = current->process;
 	ghost = process->ghosts;
 	firstGhost = process->ghosts;
 
@@ -1501,19 +1509,15 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
  */
 
 
+/* Assumes `lock->spinlock` and `threads_common.spinlock` are set. */
 static int _proc_lockTry(thread_t *current, lock_t *lock)
 {
-	spinlock_ctx_t sc;
-
 	if (lock->owner != NULL) {
 		return -EBUSY;
 	}
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
 	LIST_ADD(&current->locks, lock);
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
 	lock->owner = current;
 
 	return EOK;
@@ -1522,19 +1526,24 @@ static int _proc_lockTry(thread_t *current, lock_t *lock)
 
 int proc_lockTry(lock_t *lock)
 {
-	thread_t *current = proc_current();
-	spinlock_ctx_t sc;
+	thread_t *current;
+	spinlock_ctx_t lsc;
+	spinlock_ctx_t tcsc;
 	int err;
 
-	if (!hal_started()) {
+	if (hal_started() == 0) {
 		return -EINVAL;
 	}
 
-	hal_spinlockSet(&lock->spinlock, &sc);
+	hal_spinlockSet(&lock->spinlock, &lsc);
+	hal_spinlockSet(&threads_common.spinlock, &tcsc);
+
+	current = _proc_current();
 
 	err = _proc_lockTry(current, lock);
 
-	hal_spinlockClear(&lock->spinlock, &sc);
+	hal_spinlockClear(&threads_common.spinlock, &tcsc);
+	hal_spinlockClear(&lock->spinlock, &lsc);
 
 	return err;
 }
@@ -1542,15 +1551,18 @@ int proc_lockTry(lock_t *lock)
 
 static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 {
-	thread_t *current = proc_current();
+	thread_t *current;
 	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	current = _proc_current();
 
 	LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
 		lock->name, (current->process != NULL) ? current->process->id : 0, current->id);
 
 	if (_proc_lockTry(current, lock) < 0) {
 		/* Lock owner might inherit our priority */
-		hal_spinlockSet(&threads_common.spinlock, &sc);
 
 		if (current->priority < lock->owner->priority) {
 			_proc_threadSetPriority(lock->owner, current->priority);
@@ -1561,7 +1573,6 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 		do {
 			/* _proc_lockUnlock will give us a lock by it's own */
 			if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
-
 				/* Don't return EINTR if we got lock anyway */
 				if (lock->owner != current) {
 					hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -1576,6 +1587,9 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 			}
 		} while (lock->owner != current);
 	}
+	else {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
 
 	return EOK;
 }
@@ -1586,7 +1600,7 @@ int proc_lockSet(lock_t *lock)
 	spinlock_ctx_t sc;
 	int err;
 
-	if (!hal_started()) {
+	if (hal_started() == 0) {
 		return -EINVAL;
 	}
 
@@ -1605,7 +1619,7 @@ int proc_lockSetInterruptible(lock_t *lock)
 	spinlock_ctx_t sc;
 	int err;
 
-	if (!hal_started()) {
+	if (hal_started() == 0) {
 		return -EINVAL;
 	}
 
@@ -1632,6 +1646,7 @@ static int _proc_lockUnlock(lock_t *lock)
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 		lock->name, (owner->process != NULL) ? owner->process->id : 0, owner->id);
+
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
 		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
@@ -1700,7 +1715,7 @@ int proc_lockClear(lock_t *lock)
 	spinlock_ctx_t sc;
 	int err;
 
-	if (!hal_started()) {
+	if (hal_started() == 0) {
 		return -EINVAL;
 	}
 
@@ -1745,7 +1760,7 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 	spinlock_ctx_t sc;
 	int err;
 
-	if (!hal_started()) {
+	if (hal_started() == 0) {
 		return -EINVAL;
 	}
 
