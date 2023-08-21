@@ -31,13 +31,15 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	(void)tls;
 
 	*nctx = 0;
-	if (kstack == NULL)
+	if (kstack == NULL) {
 		return -1;
-
-	if (kstacksz < sizeof(cpu_context_t))
-		return -1;
+	}
 
 	kstacksz &= ~0x3;
+
+	if (kstacksz < sizeof(cpu_context_t)) {
+		return -1;
+	}
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
@@ -72,18 +74,19 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	/* Enable interrupts, set normal execution mode */
 	if (ustack != NULL) {
 		ctx->psr = USR_MODE;
-		ctx->sp	 = (u32)ustack;
+		ctx->sp = (u32)ustack;
 	}
 	else {
 		ctx->psr = SYS_MODE;
-		ctx->sp	 = (u32)kstack + kstacksz;
+		ctx->sp = (u32)kstack + kstacksz;
 	}
 
 	/* Thumb mode? */
-	if (ctx->pc & 1)
+	if ((ctx->pc & 1) != 0) {
 		ctx->psr |= 1 << 5;
+	}
 
-	ctx->fp	 = ctx->sp;
+	ctx->fp = ctx->sp;
 	*nctx = ctx;
 
 	return 0;

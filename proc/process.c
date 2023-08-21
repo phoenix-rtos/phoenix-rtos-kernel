@@ -1178,7 +1178,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	pmap_switch(current->process->pmapp);
 
 	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
-	if (!err) {
+	if (err == 0) {
 		stack = process_putargs(stack, &spawn->envp, &count);
 		stack = process_putargs(stack, &spawn->argv, &count);
 
@@ -1201,7 +1201,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
-	if (err == EOK && current->process->tls.tls_base != NULL) {
+	if ((err == EOK) && (current->process->tls.tls_base != NULL)) {
 		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
 	}
 
@@ -1338,21 +1338,33 @@ int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, co
 /* (v)fork/exec/exit */
 
 
+static size_t process_parentKstacksz(thread_t *parent)
+{
+	return parent->kstacksz - (hal_cpuGetSP(parent->context) - parent->kstack);
+}
+
+
+static void process_restoreParentKstack(thread_t *current, thread_t *parent)
+{
+	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack, process_parentKstacksz(parent));
+	vm_kfree(current->parentkstack);
+}
+
+
 static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
 {
-	thread_t *parent = spawn->parent;
 	spinlock_ctx_t sc;
-
-	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
-	vm_kfree(current->parentkstack);
 
 	proc_changeMap(current->process, NULL, NULL, NULL);
 
+	/* Only possible in the case of `initthread` exit or failure to fork. */
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
 		vm_objectPut(spawn->object);
 	}
 	else {
+		process_restoreParentKstack(current, spawn->parent);
+
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = state;
 		proc_threadWakeup(&spawn->wq);
@@ -1409,7 +1421,7 @@ static void process_vforkThread(void *arg)
 	hal_spinlockClear(&spawn->sl, &sc);
 
 	/* Copy parent kernel stack */
-	current->parentkstack = vm_kmalloc(parent->kstacksz);
+	current->parentkstack = vm_kmalloc(process_parentKstacksz(parent));
 	if (current->parentkstack == NULL) {
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = -ENOMEM;
@@ -1419,7 +1431,7 @@ static void process_vforkThread(void *arg)
 		proc_threadEnd();
 	}
 
-	hal_memcpy(current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), hal_cpuGetSP(parent->context), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
+	hal_memcpy(current->parentkstack, hal_cpuGetSP(parent->context), process_parentKstacksz(parent));
 
 	current->execkstack = current->kstack;
 	current->execdata = spawn;
@@ -1543,14 +1555,17 @@ int proc_release(void)
 
 	current = proc_current();
 
-	if ((spawn = current->execdata) == NULL)
+	spawn = current->execdata;
+	if (spawn == NULL) {
 		return -EINVAL;
+	}
 
-	if ((parent = spawn->parent) == NULL)
+	parent = spawn->parent;
+	if (parent == NULL) {
 		return -EINVAL;
+	}
 
-	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
-	vm_kfree(current->parentkstack);
+	process_restoreParentKstack(current, parent);
 
 	current->execdata = NULL;
 	current->parentkstack = NULL;
@@ -1610,8 +1625,7 @@ static int process_execve(thread_t *current)
 
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
-		hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack + (hal_cpuGetSP(parent->context) - parent->kstack), parent->kstack + parent->kstacksz - hal_cpuGetSP(parent->context));
-		vm_kfree(current->parentkstack);
+		process_restoreParentKstack(current, parent);
 	}
 	else {
 		/* Reinitialize process */
