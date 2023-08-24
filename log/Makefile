@@ -1,5 +1,5 @@
 #
-# Makefile for phoenix-rtos-kernel/klog
+# Makefile for phoenix-rtos-kernel/log
 #
 # Copyright 2021 Phoenix Systems
 # Author: Maciej Purski

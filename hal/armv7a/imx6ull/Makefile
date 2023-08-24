@@ -1,5 +1,5 @@
 #
-# Makefile for Phoenix-RTOS kernel (ARMv7A HAL imx6ull)
+# Makefile for Phoenix-RTOS kernel (ARMv7-A HAL i.MX 6ULL)
 #
 # Copyright 2021 Phoenix Systems
 #
