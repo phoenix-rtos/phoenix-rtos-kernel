@@ -3,8 +3,6 @@ This repository contains the source for the Phoenix-RTOS microkernel.
 
 Supported targets:
 
- * armv7m3-stm32l152xd
- * armv7m3-stm32l152xe
  * armv7m4-stm32l4x6
  * armv7m7-imxrt105x
  * armv7m7-imxrt106x
@@ -13,6 +11,7 @@ Supported targets:
  * armv7a9-zynq7000
  * ia32-generic
  * riscv64-generic
+ * sparcv8leon3-gr716
 
 ## Building kernel
 To compile the kernel and build the operating system image [phoenix-rtos-project](https://github.com/phoenix-rtos/phoenix-rtos-project) repository should be used. Please read the instruction in this repository.
