@@ -1,5 +1,5 @@
 #
-# Makefile for Phoenix-RTOS kernel (ARMv7A HAL Zynq-7000)
+# Makefile for Phoenix-RTOS kernel (ARMv7-A HAL Zynq-7000)
 #
 # Copyright 2021 Phoenix Systems
 #

@@ -1,5 +1,5 @@
 #
-# Makefile for phoenix-rtos-kernel/posix
+# Makefile for phoenix-rtos-kernel/test
 #
 # Copyright 2020 Phoenix Systems
 # Author: Pawel Pisarczyk

@@ -1,5 +1,5 @@
 #
-# Makefile for Phoenix-RTOS kernel (ARM HAL)
+# Makefile for Phoenix-RTOS kernel (ARMv7-A HAL)
 #
 # Copyright 2018, 2020, 2021 Phoenix Systems
 #

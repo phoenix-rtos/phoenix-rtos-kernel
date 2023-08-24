@@ -1,5 +1,5 @@
 #
-# Makefile for Phoenix-RTOS kernel (ARMv7 HAL)
+# Makefile for Phoenix-RTOS kernel (ARMv7-M HAL STM32L1)
 #
 # Copyright 2016-2017, 2019-2020 Phoenix Systems
 #
