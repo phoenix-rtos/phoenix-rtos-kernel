@@ -220,16 +220,9 @@ static inline void hal_cpuSetDevBusy(int s)
 
 static inline void hal_cpuGetCycles(cycles_t *cb)
 {
-	__asm__ volatile
-	(" \
-		rdtsc; \
-		movl %0, %%edi; \
-		movl %%eax, (%%edi); \
-		movl %%edx, 4(%%edi)"
-		:
-		:"g" (cb)
-		:"eax", "edx", "edi");
-	return;
+	/* clang-format off */
+	__asm__ volatile ("rdtsc" : "=A" (*cb));
+	/* clang-format on */
 }
 
 
