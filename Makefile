@@ -18,7 +18,7 @@ include ../phoenix-rtos-build/Makefile.$(TARGET_SUFF)
 
 # TODO: replace BOARD_CONFIG usage with board_config.h
 CFLAGS += $(BOARD_CONFIG)
-CFLAGS += -I. -I$(PROJECT_PATH)/
+CFLAGS += -I.
 CFLAGS += -DVERSION=\"$(VERSION)\"
 
 # uncomment to enable stack canary checking
