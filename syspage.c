@@ -150,16 +150,16 @@ extern const syspage_prog_t *syspage_progNameResolve(const char *name)
 void syspage_progShow(void)
 {
 	const char *name;
-	const syspage_prog_t *prog = syspage_common.syspage->progs;
+	const syspage_prog_t *prog = syspage_common.syspage->progs, *next;
 
-	if (prog == NULL)
-		return;
-
-	do {
-		name = (prog->argv[0] == 'X') ? prog->argv + 1 : prog->argv;
-		lib_printf(" '%s',", name);
-	} while ((prog = prog->next) != syspage_common.syspage->progs);
-	lib_printf("\b \n");
+	if (prog != NULL) {
+		do {
+			name = (prog->argv[0] == 'X') ? prog->argv + 1 : prog->argv;
+			next = prog->next;
+			lib_printf(" '%s'%c", name, (next == syspage_common.syspage->progs) ? '\n' : ',');
+			prog = next;
+		} while (prog != syspage_common.syspage->progs);
+	}
 }
 
 
