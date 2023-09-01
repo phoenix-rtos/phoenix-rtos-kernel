@@ -51,6 +51,7 @@ _exception_abort:
 	stmfd sp, {r0-r4}
 	mov r0, #4
 	sub r2, lr, #8
+	b _exceptions_dispatch
 .size _exception_abort, .-_exception_abort
 
 
@@ -68,6 +69,12 @@ _exceptions_dispatch:
 	mov sp, r4
 	ldmfd r1, {r4-r8}
 	push {r3-r8}
+	vpush {d16-d31}
+	vpush {d0-d15}
+	vmrs r4,fpscr
+	push {r4}
+	sub sp, sp, #8
+	str sp, [sp]
 	mrc p15, 0, r1, c6, c0, 2
 	push {r1}
 	mrc p15, 0, r1, c5, c0, 1
@@ -76,27 +83,14 @@ _exceptions_dispatch:
 	push {r1}
 	mrc p15, 0, r1, c5, c0, 0
 	push {r1}
-	sub r1, sp, #4
-	push {r1}
+	mov r1, sp
 
 	ldr lr, =exceptions_dispatch
 	blx lr
 
-	ldr sp, [sp]
-	add sp, sp, #20
-
-	pop {r11}
-	pop {r0-r10}
-	mov r12, sp
-	ldr sp, [r12, #0x8]
-	ldr lr, [r12, #0xc]
-	cps #IRQ_MODE
-	push {r11}
-	ldr r11, [r12, #0x0]
-	ldr lr, [r12, #0x10]
-	push {lr}
-	ldr r12, [r12, #0x4]
-	rfefd sp!
+	ldr sp, [sp, #0x10]
+	add sp, sp, #8
+	b _hal_cpuRestoreCtx
 .size _exceptions_dispatch, .-_exceptions_dispatch
 
 

@@ -443,6 +443,15 @@ s_wovfl_done:
 	sethi %hi(hal_cpuKernelStack), %l5
 	ld [%l5 + %lo(hal_cpuKernelStack)], %sp
 
+	/* for signal handling: */
+	sub %sp, 0x50, %sp
+	st  %l0, [%sp + 0x08] /* psr */
+	add %l2, 4, %l3
+	st  %l2, [%sp + 0x0c] /* pc */
+	st  %l3, [%sp + 0x10] /* npc */
+	st  %g6, [%sp + 0x28]
+	std %fp, [%sp + 0x48] /* fp (task's sp), return address */
+
 	/* allocate stack frame for syscall handler */
 	sub %sp, 0x60, %sp
 	mov %g4, %o0 /* syscall number */

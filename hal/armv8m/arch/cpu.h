@@ -210,9 +210,14 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 }
 
 
-static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int sig)
+static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int sig, const int src)
 {
-	return 0;
+	return -1;
+}
+
+
+static inline void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
+{
 }
 
 

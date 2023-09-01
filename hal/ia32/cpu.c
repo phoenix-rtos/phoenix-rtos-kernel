@@ -91,6 +91,14 @@ unsigned int hal_cpuGetTlsIndex(void)
 }
 
 
+/* hal_cpuSupervisorMode is called in asm code, so it must reside in .c file */
+
+inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+{
+	return ((ctx->cs & 3) == 0);
+}
+
+
 u32 cpu_getEFLAGS(void)
 {
 	u32 eflags;
@@ -169,18 +177,31 @@ void _hal_cpuSetKernelStack(void *kstack)
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
-	char *ustack = (char *)ctx->esp;
 
-	PUTONSTACK(ustack, u32, ctx->eip);
-	PUTONSTACK(ustack, int, n);
+	(void)src;
 
-	ctx->eip = (u32)handler;
-	ctx->esp = (u32)ustack;
+	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
+
+	signalCtx->eip = (u32)handler;
+	signalCtx->esp -= sizeof(cpu_context_t);
+
+	PUTONSTACK(signalCtx->esp, u32, ctx->esp);
+	PUTONSTACK(signalCtx->esp, u32, ctx->eip);
+	PUTONSTACK(signalCtx->esp, cpu_context_t *, signalCtx);
+	PUTONSTACK(signalCtx->esp, int, n);
 
 	return 0;
+}
+
+
+void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
+{
+	(void)kstack;
+	GETFROMSTACK(ustack, u32, (*ctx)->eip, 2);
+	GETFROMSTACK(ustack, u32, (*ctx)->esp, 3);
 }
 
 

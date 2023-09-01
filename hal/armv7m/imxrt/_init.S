@@ -109,31 +109,53 @@ _start:
 .type _syscallend, %function
 
 _syscall_dispatch:
-	stmdb sp!, {r4-r8}
+	mov r0, sp
+	sub sp, sp, #(26 * 4) /* space for hw-saved ctx */
+
+	vstmdb sp!, {s16-s31}
+	str r0, [sp, #-8]!
+	mov r12, #0
+	stmdb sp!, {r4-r12}
+
+	add r10, sp, #((16 * 4) + (11 * 4)) /* addr to store hw-saved ctx */
+
 	mrs r0, psp
+	mov r12, r0 /* save original psp */
 
 	ldmia r0!, {r1-r8}
 	orr r7, r7, #1
-	stmdb sp!, {r1-r8}
 
-	add r6, r0, #(18 * 4)
-	stmdb sp!, {r6}
-	sub sp, sp, #(18 * 4)
-	mov r5, #(17 * 4)
+	/* r0-r3, r12, lr, pc, psr */
+	stmia r10!, {r1-r8}
 
-_syscall_dispatch0:
-	ldr r6, [r0, r5]
-	str r6, [sp, r5]
-	subs r5, r5, #4
-	bpl _syscall_dispatch0
+	/* s0-s15, fpscr */
+	vldmia r0!, {s0-s16}
+	vstmia r10!, {s0-s16}
+
+	add r0, r0, #4 /* skip padding */
+
+	sub sp, sp, #12
+	str sp, [sp]     /* savesp */
 
 	ldr r6, =0xe000ef38
+	ldr r2, [r6]     /* fpuctx */
+	str r2, [sp, #4]
+
+	str r12, [sp, #8] /* ustack */
+
+	/* At this point full context is saved on kernel stack */
+	add r2, sp, #(38 * 4)
 	str sp, [r6]
 	isb
 	dmb
 
-	add r0, r0, #(18 * 4)
+	/* Load saved registers again */
+	add r10, sp, #(30 * 4)
+	ldm r10, {r1-r8}
+
 	stmdb r0!, {r1-r4}
+
+	sub sp, sp, #(18 * 4)
 
 	mov r1, r0
 	ldrb r0, [r7, #-3]
@@ -152,23 +174,32 @@ _syscall_dispatch0:
 	bx lr
 
 _syscallend:
-	pop {lr}
-
-	ldmia sp!, {r1-r8}
-	mov r1, r0 /* Put result to user's r0 */
-	stmdb lr!, {r1-r8}
+	/* return value in r0 */
+	ldr lr, [sp, #8] /* psp */
+	add lr, lr, #(26 * 4)
 	msr psp, lr
 	isb
 
-	ldmia sp!, {r4-r8}
+	add r10, sp, #((30 * 4) + (5 * 4))
+	ldm r10, {r2,r3} /* lr, pc */
+
+	add lr, sp, #12
+	ldmia lr!, {r4-r11}
+	add lr, lr, #12
+	mov sp, lr
+	vldmia sp!, {s16-s31}
+	add sp, sp, #(8 * 4)
+	vldmia sp!, {s0-s15}
+	ldr r1, [sp], #8 /* fpscr */
+	vmsr fpscr, r1
 
 	/* Switch stacks */
-	mov r0, #7
-	msr control, r0
+	mov r1, #7
+	msr control, r1
 	isb
 
-	ldmia sp!, {r0-r3, r12, lr}
-	ldr pc, [sp], #8
+	mov lr, r2
+	mov pc, r3
 .size _syscall_dispatch, .-_syscall_dispatch
 .ltorg
 
@@ -191,7 +222,9 @@ _exceptions_dispatch:
 .globl _pendsv
 .type _pendsv, %function
 _pendsv:
+	mov r0, sp
 	vstmdb sp!, {s16-s31}
+	str r0, [sp, #-8]!
 	mrs r0, ipsr
 	mrs r3, psp
 	sub r1, sp, #48
@@ -215,7 +248,13 @@ _pendsv:
 .globl _interrupts_dispatch
 .type _interrupts_dispatch, %function
 _interrupts_dispatch:
+	mov r0, sp
+	and r12, lr, #(1 << 2)
+	cmp r12, #0
+	it ne
+	subne sp, sp, #(26 * 4) /* space for hw-saved ctx */
 	vstmdb sp!, {s16-s31}
+	str r0, [sp, #-8]!
 	isb
 	mrs r0, ipsr
 	mrs r3, psp
@@ -223,6 +262,17 @@ _interrupts_dispatch:
 	ldr r2, =0xe000ef38
 	ldr r2, [r2]
 	stmdb sp!, {r1-r11, lr}
+
+	/* if we came from userspace, copy hw-saved regs to kstack
+	 * in case of signal handling
+	 */
+
+	beq _intd0 /* cmp r12, #0 */
+
+	/* psp in r3 - load hw-saved regs */
+	vldm r3, {s0-s24}
+	add r12, sp, #(30 * 4)
+	vstm r12, {s0-s24}
 
 _intd0:
 	bl interrupts_dispatch
@@ -233,8 +283,21 @@ _intd0:
 	isb
 _intd1:
 	ldmia sp!, {r1-r11, lr}
+	ldr r0, [sp], #8
+
+	and r12, lr, #(1 << 2)
+	cmp r12, #0
+	beq _intd2
+
+	/* userspace return - restore registers in case of signal handling */
+	add r12, sp, #(16 * 4)
+	vldm r12, {s0-s24}
+	vstm r3, {s0-s24}
+_intd2:
 	vldmia sp!, {s16-s31}
 	isb
+
+	mov sp, r0
 
 	ldr r1, =0xe000ef38
 	str r2, [r1]

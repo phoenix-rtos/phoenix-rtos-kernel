@@ -107,6 +107,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	ctx->savesp = (u32)ctx;
 	ctx->psp = (ustack != NULL) ? (u32)ustack - (HWCTXSIZE * sizeof(int)) : NULL;
+	ctx->msp = (ustack != NULL) ? (u32)kstack + kstacksz : (u32)&ctx->hwctx;
 	ctx->r4 = 0x44444444;
 	ctx->r5 = 0x55555555;
 	ctx->r6 = 0x66666666;
@@ -116,30 +117,22 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->r10 = 0xaaaaaaaa;
 	ctx->r11 = 0xbbbbbbbb;
 
+	ctx->hwctx.r0 = (u32)arg;
+	ctx->hwctx.r1 = 0x11111111;
+	ctx->hwctx.r2 = 0x22222222;
+	ctx->hwctx.r3 = 0x33333333;
+	ctx->hwctx.r12 = 0xcccccccc;
+	ctx->hwctx.lr = 0xeeeeeeee;
+	ctx->hwctx.pc = (u32)start;
+	ctx->hwctx.psr = 0x01000000;
 	if (ustack != NULL) {
-		((cpu_hwContext_t *)ctx->psp)->r0 = (u32)arg;
-		((cpu_hwContext_t *)ctx->psp)->r1 = 0x11111111;
-		((cpu_hwContext_t *)ctx->psp)->r2 = 0x22222222;
-		((cpu_hwContext_t *)ctx->psp)->r3 = 0x33333333;
-		((cpu_hwContext_t *)ctx->psp)->r12 = 0xcccccccc;
-		((cpu_hwContext_t *)ctx->psp)->lr = 0xeeeeeeee;
-		((cpu_hwContext_t *)ctx->psp)->pc = (u32)start;
-		((cpu_hwContext_t *)ctx->psp)->psr = 0x01000000;
 #ifdef CPU_IMXRT
 		ctx->fpuctx = ctx->psp + 8 * sizeof(int);
-		((u32 *)ctx->psp)[24] = 0;         /* fpscr */
+		ctx->fpscr = 0;
 #endif
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
-		ctx->hwctx.r0 = (u32)arg;
-		ctx->hwctx.r1 = 0x11111111;
-		ctx->hwctx.r2 = 0x22222222;
-		ctx->hwctx.r3 = 0x33333333;
-		ctx->hwctx.r12 = 0xcccccccc;
-		ctx->hwctx.lr = 0xeeeeeeee;
-		ctx->hwctx.pc = (u32)start;
-		ctx->hwctx.psr = 0x01000000;
 		ctx->fpuctx = (u32)(&ctx->hwctx.psr + 1);
 #ifdef CPU_IMXRT
 		ctx->fpscr = 0;
@@ -149,6 +142,48 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	*nctx = ctx;
 	return 0;
+}
+
+
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
+{
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+
+	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
+
+	signalCtx->psp -= sizeof(cpu_context_t);
+	signalCtx->hwctx.pc = (u32)handler;
+
+	PUTONSTACK(signalCtx->psp, u32, 0); /* alignment */
+	PUTONSTACK(signalCtx->psp, u32, ctx->hwctx.psr);
+	PUTONSTACK(signalCtx->psp, u32, ctx->psp);
+	PUTONSTACK(signalCtx->psp, u32, ctx->hwctx.pc);
+	PUTONSTACK(signalCtx->psp, cpu_context_t *, signalCtx);
+	PUTONSTACK(signalCtx->psp, int, n);
+
+	if (src == SIG_SRC_SCHED) {
+		/* We'll be returning through interrupt dispatcher,
+		 * need to prepare context on ustack to be restored
+		 */
+		signalCtx->psp -= HWCTXSIZE * sizeof(int);
+		hal_memcpy((void *)signalCtx->psp, &signalCtx->hwctx, HWCTXSIZE * sizeof(int));
+	}
+	return 0;
+}
+
+
+void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
+{
+	cpu_context_t *kCtx = (void *)((char *)kstack - sizeof(cpu_context_t));
+
+	GETFROMSTACK(ustack, u32, (*ctx)->hwctx.pc, 2);
+	GETFROMSTACK(ustack, u32, (*ctx)->psp, 3);
+	GETFROMSTACK(ustack, u32, (*ctx)->hwctx.psr, 4);
+	(*ctx)->irq_ret = RET_THREAD_PSP;
+
+	hal_memcpy(kCtx, *ctx, sizeof(cpu_context_t));
+
+	*ctx = kCtx;
 }
 
 

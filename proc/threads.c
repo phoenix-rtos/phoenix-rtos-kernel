@@ -565,11 +565,16 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 }
 
 
+static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, const int src);
+
+
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
-	unsigned int i, sig;
+	unsigned int i;
 	process_t *proc;
+	cpu_context_t *signalCtx, *selCtx;
+
 	(void)arg;
 	(void)n;
 	hal_lockScheduler();
@@ -614,6 +619,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	if (selected != NULL) {
 		threads_common.current[hal_cpuGetID()] = selected;
 		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
+		selCtx = selected->context;
+
+		if (selected->tls.tls_base != NULL) {
+			hal_cpuTlsSet(&selected->tls, selCtx);
+		}
 
 		proc = selected->process;
 		if ((proc != NULL) && (proc->pmapp != NULL)) {
@@ -621,12 +631,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			pmap_switch(proc->pmapp);
 
 			/* Check for signals to handle */
-			if ((sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask) && proc->sighandler != NULL) {
-				sig = hal_cpuGetLastBit(sig);
-
-				if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, sig) == EOK) {
-					selected->sigpend &= ~(1 << sig);
-					proc->sigpend &= ~(1 << sig);
+			if (hal_cpuSupervisorMode(selCtx) == 0) {
+				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
+				if (_threads_checkSignal(selected, proc, signalCtx, SIG_SRC_SCHED) == 0) {
+					LIB_ASSERT_ALWAYS(hal_cpuSupervisorMode(signalCtx) == 0, "supervisor mode in signalCtx");
+					selCtx = signalCtx;
 				}
 			}
 		}
@@ -634,11 +643,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			/* Protects against use after free of process' memory map in SMP environment. */
 			pmap_switch(&threads_common.kmap->pmap);
 		}
-		if (selected->tls.tls_base != NULL) {
-			hal_cpuTlsSet(&selected->tls, selected->context);
-		}
 		_perf_scheduling(selected);
-		hal_cpuRestore(context, selected->context);
+		hal_cpuRestore(context, selCtx);
 
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 		LIB_ASSERT_ALWAYS((selected->execkstack != NULL) || ((void *)selected->context > selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
@@ -1446,15 +1452,15 @@ static time_t _proc_nextWakeup(void)
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	int sigbit = 1 << sig;
-	int kill = 0;
 	spinlock_ctx_t sc;
 
 
 	switch (sig) {
 		case signal_segv:
 		case signal_illegal:
-			if (process->sighandler != NULL)
+			if (process->sighandler != NULL) {
 				break;
+			}
 
 		/* passthrough */
 		case signal_kill:
@@ -1473,14 +1479,8 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	}
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	if (thread != NULL && hal_cpuPushSignal(thread->kstack + thread->kstacksz, thread->process->sighandler, sig) != EOK) {
+	if (thread != NULL) {
 		thread->sigpend |= sigbit;
-
-		if (sig == signal_segv || sig == signal_illegal) {
-			/* If they can't handle those right away, kill */
-			kill = 1;
-			_proc_threadExit(thread);
-		}
 	}
 	else {
 		process->sigpend |= sigbit;
@@ -1489,12 +1489,14 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		if (thread != NULL) {
 			do {
 				if (sigbit & ~thread->sigmask) {
-					if (thread->interruptible)
+					if (thread->interruptible) {
 						_thread_interrupt(thread);
+					}
 
 					break;
 				}
-			} while ((thread = thread->procnext) != process->threads);
+				thread = thread->procnext;
+			} while (thread != process->threads);
 		}
 		else {
 			/* Case for process without any theads
@@ -1508,10 +1510,57 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 	hal_cpuReschedule(&threads_common.spinlock, &sc);
 
-	if (kill)
-		proc_kill(process);
-
 	return EOK;
+}
+
+
+static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, const int src)
+{
+#ifndef KERNEL_SIGNALS_DISABLE
+
+	unsigned int sig;
+
+	sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
+	if ((sig != 0) && (proc->sighandler != NULL)) {
+		sig = hal_cpuGetLastBit(sig);
+
+		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, src) == 0) {
+			selected->sigpend &= ~(1 << sig);
+			proc->sigpend &= ~(1 << sig);
+			return 0;
+		}
+	}
+
+#endif
+
+	return -1;
+}
+
+
+void threads_setupUserReturn(void *retval)
+{
+	spinlock_ctx_t sc;
+	cpu_context_t *ctx, *signalCtx;
+	void *f;
+	void *kstackTop;
+	thread_t *thread;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = _proc_current();
+
+	kstackTop = thread->kstack + thread->kstacksz;
+	ctx = kstackTop - sizeof(*ctx);
+	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
+	hal_cpuSetReturnValue(ctx, retval);
+
+	if (_threads_checkSignal(thread, thread->process, signalCtx, SIG_SRC_SCALL) == 0) {
+		f = thread->process->sighandler;
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0);
+		/* no return */
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
 

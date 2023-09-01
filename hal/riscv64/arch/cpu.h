@@ -208,23 +208,6 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 }
 
 
-static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
-{
-#if 0
-	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
-	char *ustack = (char *)ctx->esp;
-
-	PUTONSTACK(ustack, u32, ctx->eip);
-	PUTONSTACK(ustack, int, n);
-
-	ctx->eip = (u32)handler;
-	ctx->esp = (u32)ustack;
-#endif
-
-	return 0;
-}
-
-
 /* Code used in disabled code vm/object.c - map_pageFault */
 #if 0
 static inline void *hal_cpuGetFaultAddr(void)

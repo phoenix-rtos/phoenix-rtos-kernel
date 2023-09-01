@@ -914,6 +914,31 @@ int syscalls_signalSuspend(void *ustack)
 }
 
 
+void syscalls_sigreturn(void *ustack)
+{
+	thread_t *t = proc_current();
+	cpu_context_t *ctx;
+	unsigned int oldmask;
+
+	GETFROMSTACK(ustack, unsigned int, oldmask, 0);
+	GETFROMSTACK(ustack, cpu_context_t *, ctx, 1);
+
+	hal_cpuDisableInterrupts();
+
+	hal_cpuSigreturn(t->kstack + t->kstacksz, ustack, &ctx);
+
+	t->sigmask = oldmask;
+
+	/* TODO: check if return address belongs to user mapped memory */
+	if (hal_cpuSupervisorMode(ctx) != 0) {
+		proc_kill(t->process);
+	}
+
+	hal_longjmp(ctx);
+
+	/* Not reached */
+}
+
 /* POSIX compatibility syscalls */
 
 
@@ -1514,6 +1539,8 @@ void *syscalls_dispatch(int n, char *ustack)
 	if (proc_current()->exit != 0) {
 		proc_threadEnd();
 	}
+
+	threads_setupUserReturn(retval);
 
 	return retval;
 }

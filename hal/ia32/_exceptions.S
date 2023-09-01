@@ -18,7 +18,7 @@
 
 #include <arch/cpu.h>
 
-#define CTXPUSHL 43 /* 10 + 5 + 28 */
+#define CTXPUSHL 44 /* 11 + 5 + 28 */
 
 .text
 
@@ -27,6 +27,9 @@ exception_pushContext:
 	/* Save return address for ret */
 	xchg (%esp), %edx
 	movl %edx, -(4 * CTXPUSHL)(%esp)
+	popl %edx
+	xchg (%esp), %edx
+	movl %edx, -(4 * CTXPUSHL - 4)(%esp)
 	popl %edx
 	/* Check TS flag in CR0 register */
 	pushl %eax
@@ -49,6 +52,9 @@ exception_pushContext:
 	pushl %ebp
 	pushl %esi
 	pushl %edi
+	movl %esp, %eax
+	subl $4, %eax
+	pushl %eax
 
 	movl %dr7, %eax
 	pushl %eax
@@ -62,12 +68,13 @@ exception_pushContext:
 	pushl %eax
 	movl %dr0, %eax
 	pushl %eax
-	subl $4, %esp
+	subl $8, %esp
 	ret
 .size exception_pushContext, .-exception_pushContext
 
 .align 4, 0x90
 exception_popContext:
+	addl $4, %esp /* skip err */
 	popl %eax
 	movl %eax, %dr0
 	popl %eax
@@ -80,6 +87,7 @@ exception_popContext:
 	movl %eax, %dr6
 	popl %eax
 	movl %eax, %dr7
+	addl $4, %esp /* skip savesp */
 
 	popl %edi
 	popl %esi
@@ -109,7 +117,6 @@ exception_popContext:
 	frstor (%esp)
 	addl $FPU_CONTEXT_SIZE, %esp
 	popl %eax
-	addl $4, %esp
 	iret
 .size exception_popContext, .-exception_popContext
 
@@ -122,12 +129,12 @@ exceptions_exc7_handler:
 	clts
 	movl 8(%esp), %eax /* eax := ctx */
 	/* ctx->cr0Bits &= ~CR0_TS_BIT */
-	movl 168(%eax), %ecx /* ecx := ctx->cr0Bits */
+	movl 176(%eax), %ecx /* ecx := ctx->cr0Bits */
 	andl $~CR0_TS_BIT, %ecx /* ecx := ctx->cr0Bits & ~CR0_TS_BIT */
-	movl %ecx, 168(%eax)
+	movl %ecx, 176(%eax)
 	/* Init FPU */
 	fninit
-	fsave 60(%eax) /* Set ctx->fpuContext */
+	fsave 68(%eax) /* Set ctx->fpuContext */
 	ret
 
 .size exceptions_exc7_handler, .-exceptions_exc7_handler
@@ -157,6 +164,19 @@ sym:
 	pushl $exc;\
 	call *%eax;\
 	addl $8, %esp;\
+	/* cpu_context_t */;\
+	movl %esp, %eax;\
+	addl $28, %eax;\
+	pushl %eax;\
+	call hal_cpuSupervisorMode;\
+	addl $4, %esp;\
+	testl %eax, %eax;\
+	jnz exception_popContext;\
+	/* return value */ ;\
+	movl 56(%esp), %eax;\
+	pushl %eax;\
+	call threads_setupUserReturn;\
+	addl $4, %esp;\
 	;\
 	jmp exception_popContext
 
