@@ -64,27 +64,27 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
-	i += hal_i2s(" r0=", &buff[i], ctx->r0, 16, 1);
-	i += hal_i2s("  r1=", &buff[i], ctx->r1, 16, 1);
-	i += hal_i2s("  r2=", &buff[i], ctx->r2, 16, 1);
-	i += hal_i2s("  r3=", &buff[i], ctx->r3, 16, 1);
+	i += hal_i2s(" r0=", &buff[i], ctx->cpuCtx.r0, 16, 1);
+	i += hal_i2s("  r1=", &buff[i], ctx->cpuCtx.r1, 16, 1);
+	i += hal_i2s("  r2=", &buff[i], ctx->cpuCtx.r2, 16, 1);
+	i += hal_i2s("  r3=", &buff[i], ctx->cpuCtx.r3, 16, 1);
 
-	i += hal_i2s("\n r4=", &buff[i], ctx->r4, 16, 1);
-	i += hal_i2s("  r5=", &buff[i], ctx->r5, 16, 1);
-	i += hal_i2s("  r6=", &buff[i], ctx->r6, 16, 1);
-	i += hal_i2s("  r7=", &buff[i], ctx->r7, 16, 1);
+	i += hal_i2s("\n r4=", &buff[i], ctx->cpuCtx.r4, 16, 1);
+	i += hal_i2s("  r5=", &buff[i], ctx->cpuCtx.r5, 16, 1);
+	i += hal_i2s("  r6=", &buff[i], ctx->cpuCtx.r6, 16, 1);
+	i += hal_i2s("  r7=", &buff[i], ctx->cpuCtx.r7, 16, 1);
 
-	i += hal_i2s("\n r8=", &buff[i], ctx->r8, 16, 1);
-	i += hal_i2s("  r9=", &buff[i], ctx->r9, 16, 1);
-	i += hal_i2s(" r10=", &buff[i], ctx->r10, 16, 1);
-	i += hal_i2s("  fp=", &buff[i], ctx->fp, 16, 1);
+	i += hal_i2s("\n r8=", &buff[i], ctx->cpuCtx.r8, 16, 1);
+	i += hal_i2s("  r9=", &buff[i], ctx->cpuCtx.r9, 16, 1);
+	i += hal_i2s(" r10=", &buff[i], ctx->cpuCtx.r10, 16, 1);
+	i += hal_i2s("  fp=", &buff[i], ctx->cpuCtx.fp, 16, 1);
 
-	i += hal_i2s("\n ip=", &buff[i], ctx->ip, 16, 1);
+	i += hal_i2s("\n ip=", &buff[i], ctx->cpuCtx.ip, 16, 1);
 	i += hal_i2s("  sp=", &buff[i], (u32)ctx + 21 * 4, 16, 1);
-	i += hal_i2s("  lr=", &buff[i], ctx->lr, 16, 1);
-	i += hal_i2s("  pc=", &buff[i], ctx->pc, 16, 1);
+	i += hal_i2s("  lr=", &buff[i], ctx->cpuCtx.lr, 16, 1);
+	i += hal_i2s("  pc=", &buff[i], ctx->cpuCtx.pc, 16, 1);
 
-	i += hal_i2s("\npsr=", &buff[i], ctx->psr, 16, 1);
+	i += hal_i2s("\npsr=", &buff[i], ctx->cpuCtx.psr, 16, 1);
 	i += hal_i2s(" dfs=", &buff[i], ctx->dfsr, 16, 1);
 	i += hal_i2s(" dfa=", &buff[i], ctx->dfar, 16, 1);
 	i += hal_i2s(" ifs=", &buff[i], ctx->ifsr, 16, 1);
@@ -116,6 +116,9 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 }
 
 
+extern void threads_setupUserReturn(void *retval);
+
+
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	if (n == exc_prefetch || n == exc_abort)
@@ -124,6 +127,11 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 		exceptions.undefHandler(n, ctx);
 	else
 		exceptions.defaultHandler(n, ctx);
+
+	/* Handle signals if necessary */
+	if (hal_cpuSupervisorMode(&ctx->cpuCtx) == 0) {
+		threads_setupUserReturn((void *)ctx->cpuCtx.r0);
+	}
 }
 
 
@@ -155,7 +163,7 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
-	return ctx->pc;
+	return ctx->cpuCtx.pc;
 }
 
 

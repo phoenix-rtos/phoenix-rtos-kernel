@@ -148,7 +148,7 @@
 #pragma pack(push, 1)
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
-typedef struct {
+typedef struct _cpu_context_t {
 	u32 savesp;
 	u32 edi;
 	u32 esi;
@@ -324,12 +324,6 @@ static inline void *hal_cpuGetSP(cpu_context_t *ctx)
 static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 {
 	return (void *)ctx->esp;
-}
-
-
-static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
-{
-	return ((ctx->cs & 3) == 0);
 }
 
 /* Atomic operations */

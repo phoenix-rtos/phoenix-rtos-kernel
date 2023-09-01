@@ -120,4 +120,5 @@
 	ID(sys_spawn) \
 	ID(release) \
 	ID(sbi_putchar) \
-	ID(sbi_getchar)
+	ID(sbi_getchar) \
+	ID(sigreturn)

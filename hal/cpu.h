@@ -16,6 +16,9 @@
 #ifndef _HAL_CPU_H_
 #define _HAL_CPU_H_
 
+#define SIG_SRC_SCHED 0
+#define SIG_SRC_SCALL 1
+
 #include <arch/cpu.h>
 #include "spinlock.h"
 
@@ -94,7 +97,10 @@ extern void *hal_cpuGetUserSP(cpu_context_t *ctx);
 extern int hal_cpuSupervisorMode(cpu_context_t *ctx);
 
 
-extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n);
+extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src);
+
+
+extern void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
 
 
 extern void hal_longjmp(cpu_context_t *ctx);

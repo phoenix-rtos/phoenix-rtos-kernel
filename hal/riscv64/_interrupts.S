@@ -160,10 +160,8 @@
 
 	ld tp, 280(sp)       /* tp */
 
-	addi sp, sp, 296
-
 	/* Restore task's stack pointer */
-	ld sp, -8(sp)
+	ld sp, 288(sp)
 .endm
 
 
@@ -171,6 +169,9 @@
 .type interrupts_handleintexc, @function
 interrupts_handleintexc:
 .align 8
+	/* Disable interrupts */
+	csrc sstatus, SR_SIE
+
 	SAVE
 	mv a0, sp
 

@@ -93,25 +93,41 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 
-	/* No signal handling inside IT block */
-	if (ctx->psr & 0x600fc00)
-		return -1;
+	(void)src;
 
-	PUTONSTACK(ctx->sp, u32, ctx->pc | !!(ctx->psr & THUMB_STATE));
-	PUTONSTACK(ctx->sp, int, n);
+	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	ctx->pc = (u32)handler & ~1;
+	signalCtx->pc = (u32)handler & ~1;
+	signalCtx->sp -= sizeof(cpu_context_t);
 
-	if ((u32)handler & 1)
-		ctx->psr |= THUMB_STATE;
-	else
-		ctx->psr &= ~THUMB_STATE;
+	if (((u32)handler & 1) != 0) {
+		signalCtx->psr |= THUMB_STATE;
+	}
+	else {
+		signalCtx->psr &= ~THUMB_STATE;
+	}
+
+	PUTONSTACK(signalCtx->sp, u32, 0); /* alignment */
+	PUTONSTACK(signalCtx->sp, u32, ctx->psr);
+	PUTONSTACK(signalCtx->sp, u32, ctx->sp);
+	PUTONSTACK(signalCtx->sp, u32, ctx->pc);
+	PUTONSTACK(signalCtx->sp, cpu_context_t *, signalCtx);
+	PUTONSTACK(signalCtx->sp, int, n);
 
 	return 0;
+}
+
+
+void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
+{
+	(void)kstack;
+	GETFROMSTACK(ustack, u32, (*ctx)->pc, 2);
+	GETFROMSTACK(ustack, u32, (*ctx)->sp, 3);
+	GETFROMSTACK(ustack, u32, (*ctx)->psr, 4);
 }
 
 

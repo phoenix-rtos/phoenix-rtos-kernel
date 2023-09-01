@@ -108,7 +108,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
-	return ctx->eip;
+	return ctx->cpuCtx.eip;
 }
 
 
@@ -139,25 +139,25 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
-	i += hal_i2s("eax=", &buff[i], ctx->eax, 16, 1);
-	i += hal_i2s("  cs=", &buff[i], (u32)ctx->cs, 16, 1);
-	i += hal_i2s(" eip=", &buff[i], ctx->eip, 16, 1);
-	i += hal_i2s(" eflgs=", &buff[i], ctx->eflags, 16, 1);
+	i += hal_i2s("eax=", &buff[i], ctx->cpuCtx.eax, 16, 1);
+	i += hal_i2s("  cs=", &buff[i], (u32)ctx->cpuCtx.cs, 16, 1);
+	i += hal_i2s(" eip=", &buff[i], ctx->cpuCtx.eip, 16, 1);
+	i += hal_i2s(" eflgs=", &buff[i], ctx->cpuCtx.eflags, 16, 1);
 
-	i += hal_i2s("\nebx=", &buff[i], ctx->ebx, 16, 1);
-	i += hal_i2s("  ss=", &buff[i], /*ss != (u32)ctx->ss ? ss : */(u32)ctx->ss, 16, 1);
-	i += hal_i2s(" esp=", &buff[i], /*ss != (u32)ctx->ss ? (u32)&ctx->eflags + 4 : */ctx->esp, 16, 1);
-	i += hal_i2s(" ebp=", &buff[i], ctx->ebp, 16, 1);
+	i += hal_i2s("\nebx=", &buff[i], ctx->cpuCtx.ebx, 16, 1);
+	i += hal_i2s("  ss=", &buff[i], /*ss != (u32)ctx->ss ? ss : */ (u32)ctx->cpuCtx.ss, 16, 1);
+	i += hal_i2s(" esp=", &buff[i], /*ss != (u32)ctx->ss ? (u32)&ctx->eflags + 4 : */ ctx->cpuCtx.esp, 16, 1);
+	i += hal_i2s(" ebp=", &buff[i], ctx->cpuCtx.ebp, 16, 1);
 
-	i += hal_i2s("\necx=", &buff[i], ctx->ecx, 16, 1);
-	i += hal_i2s("  ds=", &buff[i], (u32)ctx->ds, 16, 1);
-	i += hal_i2s(" esi=", &buff[i], ctx->esp, 16, 1);
-	i += hal_i2s("  fs=", &buff[i], (u32)ctx->fs, 16, 1);
+	i += hal_i2s("\necx=", &buff[i], ctx->cpuCtx.ecx, 16, 1);
+	i += hal_i2s("  ds=", &buff[i], (u32)ctx->cpuCtx.ds, 16, 1);
+	i += hal_i2s(" esi=", &buff[i], ctx->cpuCtx.esp, 16, 1);
+	i += hal_i2s("  fs=", &buff[i], (u32)ctx->cpuCtx.fs, 16, 1);
 
-	i += hal_i2s("\nedx=", &buff[i], ctx->edx, 16, 1);
-	i += hal_i2s("  es=", &buff[i], (u32)ctx->es, 16, 1);
-	i += hal_i2s(" edi=", &buff[i], ctx->edi, 16, 1);
-	i += hal_i2s("  gs=", &buff[i], (u32)ctx->gs, 16, 1);
+	i += hal_i2s("\nedx=", &buff[i], ctx->cpuCtx.edx, 16, 1);
+	i += hal_i2s("  es=", &buff[i], (u32)ctx->cpuCtx.es, 16, 1);
+	i += hal_i2s(" edi=", &buff[i], ctx->cpuCtx.edi, 16, 1);
+	i += hal_i2s("  gs=", &buff[i], (u32)ctx->cpuCtx.gs, 16, 1);
 
 	i += hal_i2s("\ndr0=", &buff[i], ctx->dr0, 16, 1);
 	i += hal_i2s(" dr1=", &buff[i], ctx->dr1, 16, 1);

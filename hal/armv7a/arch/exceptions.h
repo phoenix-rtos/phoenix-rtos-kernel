@@ -17,6 +17,7 @@
 #define _HAL_ARMV7A_EXCEPTIONS_H_
 
 #include "types.h"
+#include "cpu.h"
 
 #define EXC_DEFAULT 128
 
@@ -27,33 +28,12 @@
 
 
 typedef struct _exc_context_t {
-	u32 savesp;
-
 	u32 dfsr;
 	u32 dfar;
 	u32 ifsr;
 	u32 ifar;
 
-	u32 psr;
-
-	u32 r0;
-	u32 r1;
-	u32 r2;
-	u32 r3;
-	u32 r4;
-	u32 r5;
-	u32 r6;
-	u32 r7;
-	u32 r8;
-	u32 r9;
-	u32 r10;
-
-	u32 fp;
-	u32 ip;
-	u32 sp;
-	u32 lr;
-
-	u32 pc;
+	cpu_context_t cpuCtx;
 } exc_context_t;
 
 #endif

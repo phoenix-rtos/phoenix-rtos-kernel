@@ -24,9 +24,6 @@
 #include "arch/types.h"
 
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
-
-
 int hal_platformctl(void *ptr)
 {
 	return EOK;
@@ -38,7 +35,7 @@ int hal_platformctl(void *ptr)
 /* TODO: use clz/ctz instructions */
 unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	int lb = 63;
+	unsigned int lb = 63;
 
 	if (!(v & 0xffffffff00000000L)) {
 		lb -= 32;
@@ -74,7 +71,7 @@ unsigned int hal_cpuGetLastBit(unsigned long v)
 
 unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
-	int fb = 0;
+	unsigned int fb = 0;
 
 	if (!(v & 0xffffffffL)) {
 		fb += 32;
@@ -116,17 +113,19 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	cpu_context_t *ctx;
 
 	*nctx = NULL;
-	if (kstack == NULL)
+	if (kstack == NULL) {
 		return -EINVAL;
+	}
 
-	if (kstacksz < sizeof(cpu_context_t))
+	if (kstacksz < sizeof(cpu_context_t)) {
 		return -EINVAL;
+	}
 
-	ctx = (cpu_context_t *)(kstack + kstacksz - 2 * sizeof(cpu_context_t));
+	ctx = (cpu_context_t *)((char *)kstack + kstacksz - sizeof(cpu_context_t));
 
-	__asm__ __volatile__ (
-		"sd gp, %0"
-		: "=m" (ctx->gp));
+	/* clang-format off */
+	__asm__ volatile("sd gp, %0" : "=m"(ctx->gp));
+	/* clang-format on */
 
 	ctx->pc = (u64)start;
 	ctx->sp = (u64)ctx;
@@ -186,6 +185,35 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
+{
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+
+	(void)src;
+
+	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
+
+	signalCtx->sepc = (u64)handler;
+	signalCtx->sp -= sizeof(cpu_context_t);
+
+	PUTONSTACK(signalCtx->sp, u64, ctx->sp);
+	PUTONSTACK(signalCtx->sp, u64, ctx->sepc);
+	PUTONSTACK(signalCtx->sp, cpu_context_t *, signalCtx);
+	/* Signal number */
+	PUTONSTACK(signalCtx->sp, int, n);
+
+	return 0;
+}
+
+
+void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
+{
+	(void)kstack;
+	GETFROMSTACK(ustack, u64, (*ctx)->sepc, 2);
+	GETFROMSTACK(ustack, u64, (*ctx)->sp, 3);
+}
+
+
 void _hal_cpuSetKernelStack(void *kstack)
 {
 	csr_write(sscratch, kstack);
@@ -227,7 +255,6 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	unsigned int i = 0, l, n = 0;
 	char *compatible, *isa, *mmu;
 	u32 clock;
-
 
 	while (!dtb_getCPU(n++, &compatible, &clock, &isa, &mmu)) {
 

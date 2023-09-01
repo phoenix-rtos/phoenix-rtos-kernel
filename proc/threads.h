@@ -202,13 +202,7 @@ extern int _threads_init(vm_map_t *kmap, vm_object_t *kernel);
 extern int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 
-extern void proc_sighandle(void *kstack);
-
-
-extern int _proc_sigwant(thread_t *thread);
-
-
-extern void proc_sigreturn(int s);
+extern void threads_setupUserReturn(void *retval);
 
 
 #endif

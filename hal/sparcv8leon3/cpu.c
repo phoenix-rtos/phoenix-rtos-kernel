@@ -123,9 +123,43 @@ void _hal_cpuSetKernelStack(void *kstack)
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
 {
+	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+
+	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
+
+	signalCtx->pc = (u32)handler;
+	signalCtx->npc = (u32)handler + 4;
+	signalCtx->sp -= sizeof(cpu_context_t);
+
+	PUTONSTACK(signalCtx->sp, u32, ctx->psr);
+	PUTONSTACK(signalCtx->sp, u32, ctx->sp);
+	PUTONSTACK(signalCtx->sp, u32, ctx->npc);
+	PUTONSTACK(signalCtx->sp, u32, ctx->pc);
+	PUTONSTACK(signalCtx->sp, cpu_context_t *, signalCtx);
+	PUTONSTACK(signalCtx->sp, int, n);
+
+	if (src == SIG_SRC_SCHED) {
+		/* We'll be returning through interrupt dispatcher,
+		 * SPARC requires always 96 bytes free on stack
+		 */
+		signalCtx->sp -= 0x60;
+	}
+
 	return 0;
+}
+
+
+void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
+{
+	(void)kstack;
+	GETFROMSTACK(ustack, u32, (*ctx)->pc, 2);
+	GETFROMSTACK(ustack, u32, (*ctx)->npc, 3);
+	GETFROMSTACK(ustack, u32, (*ctx)->sp, 4);
+	GETFROMSTACK(ustack, u32, (*ctx)->psr, 5);
+	(*ctx)->psr &= ~PSR_S;
+	(*ctx)->psr |= PSR_ET;
 }
 
 

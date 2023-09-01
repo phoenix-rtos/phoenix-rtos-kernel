@@ -170,6 +170,9 @@ inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
 }
 
 
+extern void threads_setupUserReturn(void *retval);
+
+
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	spinlock_ctx_t sc;
@@ -185,7 +188,10 @@ void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	h(n, ctx);
 
-	return;
+	/* Handle signals if necessary */
+	if (hal_cpuSupervisorMode(ctx) == 0) {
+		threads_setupUserReturn((void *)ctx->a0);
+	}
 }
 
 

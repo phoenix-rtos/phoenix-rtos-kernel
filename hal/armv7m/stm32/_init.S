@@ -101,17 +101,30 @@ _syscall_dispatch:
 	msr control, r0
 	isb
 
-	stmdb sp!, {r4-r8}
-	mrs r0, psp
+	mov r0, sp
 
-	/* Store hardware saved registers on kernel stack */
+	/* Prepare context on kernel stack */
+	sub sp, sp, #((14 * 4) + (8 * 4))
+	str sp, [sp]
+
+	add r1, sp, #12
+	mov r12, #0
+	stmia r1!, {r4-r12}
+	str r0, [r1], #8 /* msp */
+	mov r10, r1 /* addr to store hw-saved ctx */
+
+	mrs r0, psp
+	str r0, [sp, #8]
+
+	/* Load hardware saved registers from user stack */
 	ldmia r0!, {r1-r8}
 
 	/* Fix PC LSB not being set */
 	orr r7, r7, #1
 
-	stmdb sp!, {r1-r8}
-	push {r0}
+	/* Store hardware saved registers on kernel stack */
+	add r10, r10, #(5 * 4)
+	stm r10, {r6-r8} /* lr, pc, psr */
 
 	/* Copy arguments back to the user stack */
 	stmdb r0!, {r1-r4}
@@ -130,22 +143,27 @@ _syscall_dispatch:
 	bx lr
 
 _syscallend:
-	pop {lr}
-
-	ldmia sp!, {r1-r8}
-	mov r1, r0 /* Put result to user's r0 */
-	stmdb lr!, {r1-r8}
-
-	ldmia sp!, {r4-r8}
-
-	/* Switch stacks */
-	mov r0, #3
-	msr control, r0
+	/* return value in r0 */
+	ldr lr, [sp, #8] /* psp */
+	add lr, lr, #(8 * 4)
+	msr psp, lr
 	isb
 
-	ldmia sp!, {r0-r3, r12, lr}
-	ldr pc, [sp], #8
+	add r10, sp, #((14 * 4) + (5 * 4))
+	ldm r10, {r2,r3} /* lr, pc */
 
+	add lr, sp, #12
+	ldmia lr!, {r4-r11}
+	add lr, lr, #(11 * 4)
+	mov sp, lr
+
+	/* Switch stacks */
+	mov r1, #3
+	msr control, r1
+	isb
+
+	mov lr, r2
+	mov pc, r3
 .size _syscall_dispatch, .-_syscall_dispatch
 .ltorg
 
@@ -172,6 +190,9 @@ _pendsv:
 	msr control, r0
 	isb
 
+	mov r0, sp
+	str r0, [sp, #-8]!
+
 	mrs r0, ipsr
 	mrs r3, psp
 	sub r1, sp, #48
@@ -197,10 +218,28 @@ _interrupts_dispatch:
 	msr control, r0
 	isb
 
+	mov r0, sp
+	and r12, lr, #(1 << 2)
+	cmp r12, #0
+	it ne
+	subne sp, sp, #(8 * 4) /* space for hw-saved ctx */
+	str r0, [sp, #-8]!
+
 	mrs r0, ipsr
 	mrs r3, psp
 	sub r1, sp, #48
 	stmdb sp!, {r1-r11, lr}
+
+	/* if we came from userspace, copy hw-saved regs to kstack
+	 * in case of signal handling
+	 */
+
+	beq _intd0 /* cmp r12, #0 */
+
+	/* psp in r3 - load hw-saved regs */
+	ldm r3, {r4-r11}
+	add r12, sp, #(14 * 4)
+	stm r12, {r4-r11}
 
 _intd0:
 	bl interrupts_dispatch
@@ -208,7 +247,22 @@ _intd0:
 	mov sp, r1
 	isb
 _intd1:
-	ldmia sp!, {r1-r11, lr}
+	ldr lr, [sp, #(11 * 4)]
+
+	and r12, lr, #(1 << 2)
+	cmp r12, #0
+	beq _intd2
+
+	/* userspace return - restore registers in case of signal handling */
+	ldr r3, [sp, #(2 * 4)] /* psp */
+	add r1, sp, #(14 * 4)
+	ldm r1, {r4-r11}
+	stm r3, {r4-r11}
+
+_intd2:
+	ldmia sp!, {r1-r11}
+	ldr r0, [sp, #4]
+	mov sp, r0
 
 	msr psp, r3
 	isb

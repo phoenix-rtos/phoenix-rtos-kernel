@@ -100,6 +100,9 @@ typedef struct _cpu_context_t {
 	u32 r11;
 	u32 irq_ret;
 
+	u32 msp;
+	u32 pad0;
+
 #ifdef CPU_IMXRT
 	u32 s16;
 	u32 s17;
@@ -258,12 +261,6 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
 	return ((ctx->irq_ret & (1 << 2)) == 0) ? 1 : 0;
-}
-
-
-static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int sig)
-{
-	return 0;
 }
 
 

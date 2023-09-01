@@ -590,7 +590,7 @@ hal_jmp:
 3:
 	subcc %i3, 1, %i3
 	bneg 4f
-	nop
+	mov %i2, %o0
 	subcc %i3, 1, %i3
 	bneg 4f
 	ld [%i2], %o0
@@ -609,7 +609,6 @@ hal_jmp:
 	nop
 	nop
 	nop
-	mov %i2, %o0
 	call %i0
 	nop
 .size hal_jmp, . - hal_jmp
@@ -621,57 +620,49 @@ hal_jmp:
 hal_longjmp:
 	/* disable interrupts */
 	ta 0x09
-	mov %o0, %g1
-	ld [%o0 + 0x08], %g2 /* psr */
-	or %g2, PSR_PIL, %g3 /* disable interrupts */
+	mov %o0, %g2
+	/* flush windows onto stack */
+	ta 0x03
+
 	mov %g0, %wim
-	nop
-	nop
-	nop
+
+	ld [%g2 + 0x08], %g1 /* psr */
+	andn %g1, PSR_ET, %g1 /* disable traps */
+	or %g1, (PSR_PIL | PSR_S), %g3 /* disable interrupts, set supervisor mode */
+
 	/* writing psr might cause window switch */
 	wr %g3, %psr
+
+	sethi %hi(_interrupts_restore_context), %g5
+	jmpl %g5 + %lo(_interrupts_restore_context), %g1
 	nop
-	nop
-	nop
-	mov %g1, %sp
 
-	/* restore context - no need to load caller-saves */
-	ld  [%sp + 0x0c], %o7 /* pc */
-	ldd [%sp + 0x28], %g6
-
-	ld  [%sp + 0x30], %o0
-
-	ldd [%sp + 0x50], %l0
-	ldd [%sp + 0x58], %l2
-	ldd [%sp + 0x60], %l4
-	ldd [%sp + 0x68], %l6
-
-	ldd [%sp + 0x70], %i0
-	ldd [%sp + 0x78], %i2
-	ldd [%sp + 0x80], %i4
-	ldd [%sp + 0x88], %fp
-
-	/* calculate new wim */
-	and %g2, PSR_CWP, %g1
-	add %g1, 1, %g1
-	cmp %g1, NWINDOWS
+	/* check CWP overflow */
+	and %g2, PSR_CWP, %g2
+	add %g2, 1, %g2
+	cmp %g2, NWINDOWS
 	bne 5f
 	nop
-	mov 0, %g1
+	mov 0, %g2
 5:
+	/* set %wim to 1 << %g2 (CWP + 1) */
 	mov 1, %g3
-	sll %g3, %g1, %g1
-	wr %g1, %wim
+	sll %g3, %g2, %g2
+	wr %g2, %wim
 	nop
-	nop
-	nop
+
+	/* restore %g1-%g3 */
+	ld [%sp + 0x14], %g1
+	ldd [%sp + 0x18], %g2
 
 	/* restore psr */
-	wr %g2, PSR_ET, %psr
+	or %l0, PSR_S, %l0
+	andn %l0, PSR_ET, %l0
+	wr %l0, %psr
 	nop
 	nop
 	nop
 
-	jmp %o7
-	add %sp, 0x60, %sp
+	jmp %l1
+	rett %l2
 .size hal_longjmp, . - hal_longjmp
