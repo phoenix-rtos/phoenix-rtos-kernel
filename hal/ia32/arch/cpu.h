@@ -309,9 +309,9 @@ static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 }
 
 
-static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
+static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval)
 {
-	ctx->eax = retval;
+	ctx->eax = (u32)retval;
 }
 
 
