@@ -194,9 +194,9 @@ static inline void *hal_cpuGetGot(void)
 }
 
 
-static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
+static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval)
 {
-	ctx->o0 = retval;
+	ctx->o0 = (u32)retval;
 }
 
 

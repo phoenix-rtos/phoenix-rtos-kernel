@@ -463,7 +463,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		}
 
 		_proc_threadDequeue(t);
-		hal_cpuSetReturnValue(t->context, -ETIME);
+		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
 
 	_threads_updateWakeup(now, t);
@@ -1010,7 +1010,7 @@ int proc_threadPriority(int priority)
 static void _thread_interrupt(thread_t *t)
 {
 	_proc_threadDequeue(t);
-	hal_cpuSetReturnValue(t->context, -EINTR);
+	hal_cpuSetReturnValue(t->context, (void *)-EINTR);
 }
 
 
