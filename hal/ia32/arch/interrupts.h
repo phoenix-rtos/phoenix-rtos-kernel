@@ -20,6 +20,8 @@
 #include "cpu.h"
 
 #define SYSTICK_IRQ 0
+#define SYSCALL_IRQ 0x80
+#define TLB_IRQ     0x81
 
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;

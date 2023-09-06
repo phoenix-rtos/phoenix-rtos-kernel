@@ -19,7 +19,7 @@
 
 #include "types.h"
 
-#define SIZE_PAGE 0x1000
+#define SIZE_PAGE 0x1000u
 
 
 /* Default kernel and user stack sizes */
@@ -118,6 +118,9 @@
 /* Ports of 8042 PS/2 Controller */
 #define PORT_PS2_DATA    ((void *)0x60)
 #define PORT_PS2_COMMAND ((void *)0x64)
+
+/* There are objects in memory that require O(MAX_CPU_COUNT^2) memory. */
+#define MAX_CPU_COUNT 64
 
 #ifndef __ASSEMBLY__
 

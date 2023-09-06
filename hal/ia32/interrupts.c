@@ -23,6 +23,7 @@
 
 #include "../../proc/userintr.h"
 #include "../../include/errno.h"
+#include "tlb.h"
 
 
 /* Hardware interrupt stubs */
@@ -46,6 +47,9 @@ extern void _interrupts_irq15(void);
 extern void _interrupts_unexpected(void);
 
 extern void _interrupts_syscall(void);
+
+
+extern void _interrupts_TLBShootdown(void);
 
 
 #define SIZE_INTERRUPTS 16
@@ -97,13 +101,18 @@ unsigned int _interrupts_multilock;
 
 void _interrupts_apicACK(unsigned int n)
 {
+	/* 0xfee000b0 - EOI Register */
+	volatile u32 *p = (void *)0xfee000b0u;
+	if (n == TLB_IRQ) {
+		*p = 0;
+		return;
+	}
 	if (n >= SIZE_INTERRUPTS) {
 		return;
 	}
 
-	if (hal_cpuGetID()) {
-		/* 0xfee000b0 - EOI Register */
-		__asm__ volatile("movl $0, (0xfee000b0)" ::);
+	if (hal_cpuGetID() != 0) {
+		*p = 0;
 		return;
 	}
 
@@ -260,7 +269,8 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 
 	/* Set stub for syscall */
 /*	_interrupts_setIDTEntry(0x80, _interrupts_syscall, IGBITS_TRAP); */
-	_interrupts_setIDTEntry(0x80, _interrupts_syscall, IGBITS_IRQEXC);
+	_interrupts_setIDTEntry(SYSCALL_IRQ, _interrupts_syscall, IGBITS_IRQEXC);
+	_interrupts_setIDTEntry(TLB_IRQ, _interrupts_TLBShootdown, IGBITS_IRQEXC);
 
 	return;
 }

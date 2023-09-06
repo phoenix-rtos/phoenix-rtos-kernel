@@ -18,7 +18,6 @@
 #define _HAL_IA32_H_
 
 #include <arch/types.h>
-
 /* io access */
 
 
@@ -127,27 +126,6 @@ static inline u64 hal_rdmsr(u32 id)
 
 
 /* memory management */
-
-
-static inline void hal_cpuFlushTLB(void *vaddr)
-{
-	unsigned long tmpreg;
-
-	do {
-
-		/* clang-format off */
-		__asm__ volatile (
-			"movl %%cr3, %0\n\t"
-			"movl %0, %%cr3"
-		: "=r" (tmpreg)
-		:
-		: "memory");
-		/* clang-format on */
-
-	} while (0);
-
-	return;
-}
 
 
 static inline void hal_cpuSwitchSpace(addr_t cr3)

@@ -572,6 +572,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	process_t *proc;
 	(void)arg;
 	(void)n;
+	hal_lockScheduler();
 
 	if (hal_cpuGetID() == 0) {
 		cpu_sendIPI(0, 32);
@@ -658,7 +659,6 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	spinlock_ctx_t sc;
 	int ret;
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	hal_lockScheduler();
 	ret = _threads_schedule(n, context, arg);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return ret;
