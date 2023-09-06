@@ -565,17 +565,13 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 }
 
 
-int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
+int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
 	unsigned int i, sig;
 	process_t *proc;
-	spinlock_ctx_t sc;
-
 	(void)arg;
 	(void)n;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	if (hal_cpuGetID() == 0) {
 		cpu_sendIPI(0, 32);
@@ -618,7 +614,8 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		threads_common.current[hal_cpuGetID()] = selected;
 		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 
-		if (((proc = selected->process) != NULL) && (proc->pmapp != NULL)) {
+		proc = selected->process;
+		if ((proc != NULL) && (proc->pmapp != NULL)) {
 			/* Switch address space */
 			pmap_switch(proc->pmapp);
 
@@ -652,11 +649,20 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Update CPU usage */
 	_threads_cpuTimeCalc(current, selected);
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
 	return EOK;
 }
 
+
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
+{
+	spinlock_ctx_t sc;
+	int ret;
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_lockScheduler();
+	ret = _threads_schedule(n, context, arg);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	return ret;
+}
 
 static thread_t *_proc_current(void)
 {
@@ -1205,8 +1211,8 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 		return EOK;
 	}
 
-	hal_spinlockClear(&threads_common.spinlock, &tsc);
-	err = hal_cpuReschedule(spinlock, scp);
+	hal_spinlockClear(spinlock, &tsc);
+	err = hal_cpuReschedule(&threads_common.spinlock, scp);
 	hal_spinlockSet(spinlock, scp);
 
 	return err;
@@ -1682,7 +1688,8 @@ static void proc_lockUnlock(lock_t *lock)
 	hal_spinlockSet(&lock->spinlock, &sc);
 
 	if (_proc_lockUnlock(lock) > 0) {
-		hal_cpuReschedule(&lock->spinlock, &sc);
+		hal_spinlockClear(&lock->spinlock, &sc);
+		hal_cpuReschedule(NULL, NULL);
 	}
 	else {
 		hal_spinlockClear(&lock->spinlock, &sc);
@@ -1723,7 +1730,8 @@ int proc_lockClear(lock_t *lock)
 
 	err = _proc_lockClear(lock);
 	if (err > 0) {
-		hal_cpuReschedule(&lock->spinlock, &sc);
+		hal_spinlockClear(&lock->spinlock, &sc);
+		hal_cpuReschedule(NULL, NULL);
 		return EOK;
 	}
 

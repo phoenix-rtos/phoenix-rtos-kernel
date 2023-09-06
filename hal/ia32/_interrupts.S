@@ -44,6 +44,14 @@
 .endm
 
 
+.global hal_lockScheduler
+.align 4, 0x90
+hal_lockScheduler:
+	_INTERRUPTS_MULTILOCKSET %eax
+	ret
+.size hal_lockScheduler, .-hal_lockScheduler
+
+
 .global interrupts_pushContext
 .align 4, 0x90
 interrupts_pushContext:
@@ -81,6 +89,7 @@ interrupts_pushContext:
 .align 4, 0x90
 interrupts_popContext:
 	popl %esp
+	_INTERRUPTS_MULTILOCKCLEAR %eax
 	popl %edi
 	popl %esi
 	popl %ebp
@@ -137,10 +146,8 @@ name:; \
 	pushl $0; \
 	pushl %eax; \
 	pushl $0; \
-	_INTERRUPTS_MULTILOCKSET %eax; \
 	call threads_schedule; \
 	addl $12, %esp; \
-	_INTERRUPTS_MULTILOCKCLEAR %eax; \
 	jmp interrupts_popContext; \
 .size name, .-name
 
@@ -180,6 +187,7 @@ _interrupts_syscall:
 	cli
 	addl $8, %esp
 	movl %eax, (4 * CTXPUSHL - EAX_OFFSET)(%esp)	/* Save return value to eax in context */
+	_INTERRUPTS_MULTILOCKSET %eax
 	jmp interrupts_popContext
 .size _interrupts_syscall, .-_interrupts_syscall
 
@@ -226,15 +234,12 @@ hal_cpuReschedule:
 	cmpl 20(%ecx), %eax    /* LO64(spinlock->dmin) */
 	movl %edx, %ebx
 	sbbl 24(%ecx), %ebx    /* HI64(spinlock->dmin) */
-	jnc .Lspinlock_clear
+	jnc .Lupdate_done
 
 	movl %eax, 20(%ecx)    /* LO64(spinlock->dmin) := eax */
 	movl %edx, 24(%ecx)    /* HI64(spinlock->dmin) := edx */
 
-.Lspinlock_clear:
-	xorl %eax, %eax
-	incl %eax
-	xchgl 44(%ecx), %eax   /* atomic(spinlock->lock <=> eax) */
+.Lupdate_done:
 	movl 12(%ebp), %eax
 	pushl (%eax)           /* err := *scp */
 
@@ -244,18 +249,28 @@ hal_cpuReschedule:
 	pushl %eax             /* push far cs:address of return */
 	xorl %eax, %eax
 	call interrupts_pushContext
-	_INTERRUPTS_MULTILOCKSET %eax
 	mov %esp, %eax
 	pushl $0               /* n */
 	pushl %eax             /* cpu context */
 	pushl $0               /* arg */
-	call threads_schedule
 
-	cli                    /* hal_cpuDisableInterrupts() */
+	movl 8(%ebp), %ecx     /* ecx := spinlock */
+	testl %ecx, %ecx
+	jz .Lnospinlock
 
+	_INTERRUPTS_MULTILOCKSET %eax
+	call _threads_schedule
+
+	xorl %eax, %eax
+	incl %eax
+	movl 8(%ebp), %ecx     /* ecx := spinlock */
+	xchgl 44(%ecx), %eax   /* atomic(spinlock->lock <=> eax) */
+.Lexit:
 	addl $12, %esp
-	_INTERRUPTS_MULTILOCKCLEAR %eax
 	jmp interrupts_popContext
+.Lnospinlock:
+	call threads_schedule
+	jmp .Lexit
 
 .Lspinlock_null:
 	pushf                  /* err := cpu_getEFLAGS() */
