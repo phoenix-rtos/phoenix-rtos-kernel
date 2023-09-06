@@ -92,9 +92,6 @@ struct {
 } interrupts;
 
 
-unsigned int _interrupts_multilock;
-
-
 void _interrupts_apicACK(unsigned int n)
 {
 	if (n >= SIZE_INTERRUPTS) {
@@ -214,8 +211,6 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int k;
-
-	_interrupts_multilock = 1;
 
 	/* Initialize interrupt controllers (8259A) */
 	hal_outb((void *)0x20, 0x11);  /* ICW1 */
