@@ -504,7 +504,8 @@ int proc_respond(u32 port, msg_t *msg, unsigned long int rid)
 	kmsg->state = msg_responded;
 	kmsg->src = proc_current()->process;
 	proc_threadWakeup(&kmsg->threads);
-	hal_cpuReschedule(&p->spinlock, &sc);
+	hal_spinlockClear(&p->spinlock, &sc);
+	hal_cpuReschedule(NULL, NULL);
 
 	port_put(p, 0);
 

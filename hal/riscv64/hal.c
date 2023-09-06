@@ -60,6 +60,12 @@ void _hal_start(void)
 	hal_common.started = 1;
 }
 
+
+void hal_lockScheduler(void)
+{
+}
+
+
 __attribute__ ((section (".init"))) void _hal_init(void)
 {
 	_hal_spinlockInit();

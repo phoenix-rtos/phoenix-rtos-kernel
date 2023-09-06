@@ -49,6 +49,11 @@ void _hal_start(void)
 }
 
 
+void hal_lockScheduler(void)
+{
+}
+
+
 void _hal_init(void)
 {
 	_hal_spinlockInit();

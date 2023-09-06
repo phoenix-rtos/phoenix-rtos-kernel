@@ -52,6 +52,11 @@ void _hal_start(void)
 }
 
 
+void hal_lockScheduler(void)
+{
+}
+
+
 __attribute__ ((section (".init"))) void _hal_init(void)
 {
 	_hal_spinlockInit();
