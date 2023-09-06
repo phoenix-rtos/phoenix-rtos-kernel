@@ -24,6 +24,7 @@
 #include "ia32.h"
 #include "halsyspage.h"
 #include "../hal.h"
+#include "tlb.h"
 
 
 struct cpu_feature_t {
@@ -67,8 +68,8 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 struct {
-	tss_t tss[256];
-	char stacks[256][512];
+	tss_t tss[MAX_CPU_COUNT];
+	char stacks[MAX_CPU_COUNT][SIZE_KSTACK];
 	u32 dr5;
 	volatile unsigned int ncpus;
 } cpu;
@@ -184,6 +185,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), int n)
 
 void hal_longjmp(cpu_context_t *ctx)
 {
+	hal_tlbFlushLocal();
 	/* clang-format off */
 	__asm__ volatile (
 		"cli\n\t"
@@ -233,6 +235,7 @@ void hal_longjmp(cpu_context_t *ctx)
 
 void hal_jmp(void *f, void *kstack, void *stack, int argc)
 {
+	hal_tlbFlushLocal();
 	if (stack == NULL) {
 		/* clang-format off */
 		__asm__ volatile (
@@ -306,8 +309,8 @@ unsigned int hal_cpuGetID(void)
 	return (id == 0xffffffff) ? 0 : (id >> 24);
 }
 
-
-void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+/* Sends IPI to everyone but self */
+void cpu_broadcastIPI(unsigned int intr)
 {
 	/* 0xfee00300 - Interrupt Command Register (ICR); bits 0-31 */
 	volatile u32 *p = (void *)0xfee00300;
@@ -322,10 +325,19 @@ void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 }
 
 
+void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+{
+	(void)cpu;
+	/* Currently threads_schedule uses cpu_sendIPI as a broadcast
+	   TODO: Swap cpu_sendIPI and cpu_broadcastIPI in threads_scedule */
+	cpu_broadcastIPI(intr);
+}
+
+
 static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 {
 	u32 descrl, descrh;
-	u32 *gdt;
+	volatile u32 *gdt;
 
 	/* Modify limit for 4KB granularity */
 	if ((type & DBITS_4KB) != 0) {
@@ -360,6 +372,13 @@ void *_cpu_initCore(void)
 
 	_cpu_gdtInsert(hal_cpuGetTssIndex(), (u32)&cpu.tss[id], sizeof(tss_t), DESCR_TSS);
 	_cpu_gdtInsert(hal_cpuGetTlsIndex(), 0x00000000, VADDR_KERNEL, DESCR_TLS);
+	/* clang-format off */
+	__asm__ volatile (
+		"pushw %%gs\n\t"
+		"popw %%gs"
+	:::);
+	/* clang-format on */
+
 
 	cpu.tss[id].ss0 = SEL_KDATA;
 	cpu.tss[id].esp0 = (u32)&cpu.stacks[id][511];
@@ -386,6 +405,8 @@ void *_cpu_initCore(void)
 	:
 	: "r" ((u16)(hal_cpuGetTssIndex() * 8)));
 	/* clang-format on */
+
+	hal_tlbInitCore(id);
 
 	return (void *)cpu.tss[id].esp0;
 }
@@ -603,5 +624,14 @@ void _hal_cpuInit(void)
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->tbss_sz + tls->tdata_sz, VADDR_KERNEL, DESCR_TLS);
+	(void)ctx;
+	hal_tlbFlushLocal();
+	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->tbss_sz + tls->tdata_sz, VADDR_KERNEL - tls->tls_base + tls->tbss_sz + tls->tdata_sz, DESCR_TLS);
+	/* Reload the hidden gs register*/
+	/* clang-format off */
+	__asm__ volatile (
+		"pushw %%gs\n\t"
+		"popw %%gs"
+	:::);
+	/* clang-format on */
 }

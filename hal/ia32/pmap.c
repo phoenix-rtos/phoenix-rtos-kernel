@@ -20,6 +20,7 @@
 #include "../spinlock.h"
 #include "../string.h"
 #include "../console.h"
+#include "tlb.h"
 
 #include "../../include/errno.h"
 #include "../../include/mman.h"
@@ -43,7 +44,7 @@ struct {
 /* Function creates empty page table */
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
-	int i, pages;
+	u32 i, pages;
 	pmap->pdir = vaddr;
 	pmap->cr3 = p->addr;
 
@@ -51,9 +52,10 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 	hal_memset(pmap->pdir, 0, 4096);
 	vaddr = (void *)((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1));
 
-	pages = ((void *)0xffffffff - vaddr) / (SIZE_PAGE << 10);
-	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 10), ++i)
+	pages = ((void *)0xffffffffu - vaddr) / (SIZE_PAGE << 10);
+	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 10), ++i) {
 		pmap->pdir[(u32) vaddr >> 22] = kpmap->pdir[(u32) vaddr >> 22];
+	}
 
 	return EOK;
 }
@@ -64,8 +66,9 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 	int kernel = ((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1)) >> 22;
 
 	while (*i < kernel) {
-		if (pmap->pdir[*i] != NULL)
-			return pmap->pdir[(*i)++] & ~0xfff;
+		if (pmap->pdir[*i] != NULL) {
+			return pmap->pdir[(*i)++] & ~(SIZE_PAGE - 1);
+		}
 		(*i)++;
 	}
 
@@ -82,18 +85,20 @@ void pmap_switch(pmap_t *pmap)
 /* Functions maps page at specified address */
 int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 {
-	unsigned int pdi, pti;
-	addr_t addr, *ptable;
+	u32 pdi, pti;
+	addr_t addr;
+	addr_t *ptable;
 	spinlock_ctx_t sc;
 
 	pdi = (u32)va >> 22;
-	pti = ((u32)va >> 12) & 0x000003ff;
+	pti = ((u32)va >> 12) & 0x000003ffu;
 
 	/* If no page table is allocated add new one */
-	if (!pmap->pdir[pdi]) {
-		if (alloc == NULL)
+	if (pmap->pdir[pdi] == 0) {
+		if (alloc == NULL) {
 			return -EFAULT;
-		pmap->pdir[pdi] = ((alloc->addr & ~0xfff) | /*(attr & 0xfff) |*/ PTHD_USER | PTHD_WRITE | PTHD_PRESENT);
+		}
+		pmap->pdir[pdi] = ((alloc->addr & ~(SIZE_PAGE - 1)) | /*(attr & 0xfff) |*/ PTHD_USER | PTHD_WRITE | PTHD_PRESENT);
 	}
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
@@ -107,16 +112,15 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 
 	/* Map selected page table */
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
-	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ff] = (addr & ~0xfff) | (PGHD_WRITE | PGHD_PRESENT | PGHD_USER);
+	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT | PGHD_USER);
 
-	hal_cpuFlushTLB(pmap_common.ptable);
+	hal_tlbInvalidateEntry(pmap_common.ptable);
 
 	/* And at last map page or only changle attributes of map entry */
-	pmap_common.ptable[pti] = ((pa & ~0xfff) | (attr & 0xfff) | PGHD_PRESENT);
+	pmap_common.ptable[pti] = ((pa & ~(SIZE_PAGE - 1)) | (attr & 0xfffu) | PGHD_PRESENT);
 
-	hal_cpuFlushTLB(va);
-
-	hal_spinlockClear(&pmap_common.lock, &sc);
+	hal_tlbInvalidateEntry(va);
+	hal_tlbCommit(&pmap_common.lock, &sc);
 
 	return EOK;
 }
@@ -124,16 +128,17 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 
 int pmap_remove(pmap_t *pmap, void *vaddr)
 {
-	unsigned int pdi, pti;
+	u32 pdi, pti;
 	addr_t addr, *ptable;
 	spinlock_ctx_t sc;
 
 	pdi = (u32)vaddr >> 22;
-	pti = ((u32)vaddr >> 12) & 0x000003ff;
+	pti = ((u32)vaddr >> 12) & 0x000003ffu;
 
 	/* no page table is allocated => page is not mapped */
-	if (!pmap->pdir[pdi])
+	if (pmap->pdir[pdi] == 0) {
 		return EOK;
+	}
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
 
@@ -146,15 +151,15 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 
 	/* Map selected page table */
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
-	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ff] = (addr & ~0xfff) | (PGHD_WRITE | PGHD_PRESENT);
+	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
 
-	hal_cpuFlushTLB(pmap_common.ptable);
+	hal_tlbInvalidateEntry(pmap_common.ptable);
 
 	/* Unmap page */
 	pmap_common.ptable[pti] = 0;
 
-	hal_cpuFlushTLB(vaddr);
-	hal_spinlockClear(&pmap_common.lock, &sc);
+	hal_tlbInvalidateEntry(vaddr);
+	hal_tlbCommit(&pmap_common.lock, &sc);
 
 	return EOK;
 }
@@ -163,15 +168,16 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 /* Functions returs physical address associated with specified virtual address */
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
-	unsigned int pdi, pti;
+	u32 pdi, pti;
 	addr_t addr, *ptable;
 	spinlock_ctx_t sc;
 
 	pdi = (u32)vaddr >> 22;
-	pti = ((u32)vaddr >> 12) & 0x000003ff;
+	pti = ((u32)vaddr >> 12) & 0x000003ffu;
 
-	if (!pmap->pdir[pdi])
+	if (pmap->pdir[pdi] == 0) {
 		return 0;
+	}
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
 
@@ -179,11 +185,11 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	addr = pmap->pdir[pdi];
 
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
-	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ff] = (addr & ~0xfff) | (PGHD_WRITE | PGHD_PRESENT);
-	hal_cpuFlushTLB(pmap_common.ptable);
+	ptable[((u32)pmap_common.ptable >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
+	hal_tlbInvalidateEntry(pmap_common.ptable);
 
 	addr = (addr_t)pmap_common.ptable[pti];
-	hal_spinlockClear(&pmap_common.lock, &sc);
+	hal_tlbCommit(&pmap_common.lock, &sc);
 
 	/*if (((*paddr) & PGHD_PRESENT) == 0)
 		return -ENOMEM;
@@ -224,16 +230,18 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	page->flags = 0;
 
 	map = syspage->maps;
-	if (map == NULL)
+	if (map == NULL) {
 		return -EINVAL;
+	}
 
 	do {
 		if (a >= map->start && a < map->end) {
 			sysEntry = map->entries;
 			if (sysEntry != NULL) {
 				do {
-					if (!(a >= sysEntry->start && a < sysEntry->end))
+					if (((a >= sysEntry->start) && (a < sysEntry->end)) == 0) {
 						continue;
+					}
 
 					/* Memory reserved for boot rom */
 					if ((sysEntry->type == hal_entryReserved)) {
@@ -253,7 +261,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		}
 		else {
 			/* Skip empty area between maps */
-			if (a > (map->end - 1) && a < map->next->start) {
+			if ((a > (map->end - 1)) && (a < map->next->start)) {
 				a = (map->next->start & ~(SIZE_PAGE - 1)) - SIZE_PAGE;
 				*addr = a + SIZE_PAGE;
 				return -EINVAL;
@@ -314,7 +322,8 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		page->flags |= PAGE_OWNER_KERNEL;
 	}
 
-	if ((prog = syspage->progs) != NULL) {
+	prog = syspage->progs;
+	if (prog != NULL) {
 		do {
 			if (page->addr >= prog->start && page->addr < prog->end) {
 				page->flags &= ~PAGE_FREE;
@@ -334,11 +343,13 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 	void *vaddr;
 
 	vaddr = (void *)((u32)(*start + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
-	if (vaddr >= end)
+	if (vaddr >= end) {
 		return EOK;
+	}
 
-	if (vaddr < (void *)VADDR_KERNEL)
+	if (vaddr < (void *)VADDR_KERNEL) {
 		vaddr = (void *)VADDR_KERNEL;
+	}
 
 	for (; vaddr < end; vaddr += (SIZE_PAGE << 10)) {
 		if (pmap_enter(pmap, 0, vaddr, 0, NULL) < 0) {
@@ -362,8 +373,9 @@ char pmap_marker(page_t *p)
 {
 	static const char *const marksets[4] = { "BBBBBBBBBBBBBBBB", "KYCPMSHKKKKKKKKK", "AAAAAAAAAAAAAAAA", "UUUUUUUUUUUUUUUU" };
 
-	if (p->flags & PAGE_FREE)
+	if ((p->flags & PAGE_FREE) != 0) {
 		return '.';
+	}
 
 	return marksets[(p->flags >> 1) & 3][(p->flags >> 4) & 0xf];
 }
@@ -408,15 +420,18 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.maxAddr = 0x00000000;
 
 	map = syspage->maps;
-	if (map == NULL)
+	if (map == NULL) {
 		return;
+	}
 
 	do {
-		if (map->start < pmap_common.minAddr)
+		if (map->start < pmap_common.minAddr) {
 			pmap_common.minAddr = map->start;
+		}
 
-		if (map->end > pmap_common.maxAddr)
+		if (map->end > pmap_common.maxAddr) {
 			pmap_common.maxAddr = map->end;
+		}
 	} while ((map = map->next) != syspage->maps);
 
 	/* Initialize kernel page table - remove first 4 MB mapping */
@@ -427,12 +442,13 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)VADDR_MAX;
 
-	hal_cpuFlushTLB(NULL);
+	hal_tlbFlushLocal();
 
 	/* Initialize kernel heap start address */
 	(*vstart) = (void *)(((ptr_t)&_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
-	if (*vstart < (void *)0xc00a0000)
+	if (*vstart < (void *)0xc00a0000) {
 		(*vstart) = (void *)(VADDR_KERNEL + 0x00100000);
+	}
 
 	/* Initialize temporary page table (used for page table mapping) */
 	pmap_common.ptable = (*vstart);
@@ -454,8 +470,10 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 		hal_consolePrint(ATTR_NORMAL, "vm: EBDA address not defined, setting to default (0x80000)\n");
 	}
 
-	for (v = *vend; v < (void *)VADDR_KERNEL + (4 << 20); v += SIZE_PAGE)
+	for (v = *vend; v < (void *)VADDR_KERNEL + (4 << 20); v += SIZE_PAGE) {
 		pmap_remove(pmap, v);
+	}
+	hal_tlbFlushLocal();
 
 	return;
 }

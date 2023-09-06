@@ -57,6 +57,7 @@ extern void _hal_start(void);
 
 extern void _hal_init(void);
 
+
 extern void hal_lockScheduler(void);
 
 

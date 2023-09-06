@@ -7,7 +7,7 @@
  *
  * Copyright 2012, 2016, 2020, 2023 Phoenix Systems
  * Copyright 2001, 2005 Pawel Pisarczyk
- * Author; Pawel Pisarczyk, Jan Sikorski, Gerard Swiderski
+ * Author; Pawel Pisarczyk, Jan Sikorski, Gerard Swiderski, Andrzej Stalke
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -47,6 +47,7 @@
 .global hal_lockScheduler
 .align 4, 0x90
 hal_lockScheduler:
+	call hal_tlbShootdown
 	_INTERRUPTS_MULTILOCKSET %eax
 	ret
 .size hal_lockScheduler, .-hal_lockScheduler
@@ -90,6 +91,7 @@ interrupts_pushContext:
 interrupts_popContext:
 	popl %esp
 	_INTERRUPTS_MULTILOCKCLEAR %eax
+.LmultilockCleared:
 	/* Set correct gs */
 	movw 28(%esp), %dx
 	cmpw $SEL_KDATA, %dx
@@ -127,6 +129,9 @@ interrupts_popContext:
 	addl $FPU_CONTEXT_SIZE, %esp
 	popl %eax
 	iret
+interrupts_popContextUnlocked:
+	popl %esp
+	jmp .LmultilockCleared
 .size interrupts_popContext, .-interrupts_popContext
 
 
@@ -150,7 +155,7 @@ name:; \
 	call _interrupts_apicACK; \
 	addl $4, %esp; \
 	cmpl $0, %ebx; \
-	jz interrupts_popContext; \
+	jz interrupts_popContextUnlocked; \
 	movl %esp, %eax; \
 	pushl $0; \
 	pushl %eax; \
@@ -180,6 +185,24 @@ INTERRUPT(_interrupts_irq15, 15, interrupts_dispatchIRQ)
 INTERRUPT(_interrupts_unexpected, 255, _interrupts_unexpected)
 
 
+.globl _interrupts_TLBShootdown
+.type _interrupts_TLBShootdown, @function
+.align 4, 0x90
+_interrupts_TLBShootdown:
+	call interrupts_pushContext
+	movl $SEL_KDATA, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
+	call hal_tlbShootdown
+	pushl $0x81
+	call _interrupts_apicACK
+	addl $4, %esp
+	jmp interrupts_popContextUnlocked
+.size _interrupts_TLBShootdown, .-_interrupts_TLBShootdown
+
+
 .globl _interrupts_syscall
 .type _interrupts_syscall, @function
 .align 4, 0x90
@@ -196,8 +219,7 @@ _interrupts_syscall:
 	cli
 	addl $8, %esp
 	movl %eax, (4 * CTXPUSHL - EAX_OFFSET)(%esp)	/* Save return value to eax in context */
-	_INTERRUPTS_MULTILOCKSET %eax
-	jmp interrupts_popContext
+	jmp interrupts_popContextUnlocked
 .size _interrupts_syscall, .-_interrupts_syscall
 
 
@@ -209,8 +231,6 @@ hal_cpuReschedule:
 	pushl %ebp
 	movl %esp, %ebp
 	pushl %ebx
-
-	cli                    /* hal_cpuDisableInterrupts() */
 
 	movl 8(%ebp), %ecx     /* ecx := spinlock */
 	testl %ecx, %ecx
@@ -253,6 +273,7 @@ hal_cpuReschedule:
 	pushl (%eax)           /* err := *scp */
 
 .Lspinlock_done:
+	cli                    /* hal_cpuDisableInterrupts() */
 	pushl %cs
 	leal .Lreturn, %eax
 	pushl %eax             /* push far cs:address of return */
@@ -267,19 +288,18 @@ hal_cpuReschedule:
 	testl %ecx, %ecx
 	jz .Lnospinlock
 
-	_INTERRUPTS_MULTILOCKSET %eax
 	call _threads_schedule
+	addl $12, %esp
 
 	xorl %eax, %eax
 	incl %eax
 	movl 8(%ebp), %ecx     /* ecx := spinlock */
 	xchgl 44(%ecx), %eax   /* atomic(spinlock->lock <=> eax) */
-.Lexit:
-	addl $12, %esp
 	jmp interrupts_popContext
 .Lnospinlock:
 	call threads_schedule
-	jmp .Lexit
+	addl $12, %esp
+	jmp interrupts_popContext
 
 .Lspinlock_null:
 	pushf                  /* err := cpu_getEFLAGS() */
