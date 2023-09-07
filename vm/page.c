@@ -256,14 +256,16 @@ static unsigned int page_digits(unsigned int n, unsigned int base)
 }
 
 
+#define TTY_COLS 80
 void _page_showPages(void)
 {
 	addr_t a;
 	page_t *p;
-	unsigned int rep, i, k, w = 4;
+	unsigned int rep, i, k, w;
 	char c;
+	char buf[TTY_COLS + 1];
 
-	lib_printf("vm: ");
+	w = lib_sprintf(buf, "vm: ");
 	for (i = 0, a = 0; i < (pages.freesz + pages.allocsz) / SIZE_PAGE; i++) {
 		p = &pages.pages[i];
 
@@ -271,21 +273,19 @@ void _page_showPages(void)
 		if (p->addr > a) {
 			if ((rep = (p->addr - a) / SIZE_PAGE) >= 4) {
 				k = page_digits(rep, 10) + 3;
-				if ((w += k) > 80) {
-					if (w - k < 80)
-						lib_printf("\n");
-					lib_printf("vm: ");
-					w = k + 4;
+				if (w + k > TTY_COLS) {
+					lib_printf("%s\n", buf);
+					w = lib_sprintf(buf, "vm: ");
 				}
-				lib_printf("[%dx]", rep);
+				w += lib_sprintf(buf + w, "[%dx]", rep);
 			}
 			else {
 				for (k = 0; k < rep; k++) {
-					if (++w > 80) {
-						lib_printf("vm: ");
-						w = 5;
+					if (w + 1 > TTY_COLS) {
+						lib_printf("%s\n", buf);
+						w = lib_sprintf(buf, "vm: ");
 					}
-					lib_printf("%c", 'x');
+					w += lib_sprintf(buf + w, "%c", 'x');
 				}
 			}
 		}
@@ -299,21 +299,19 @@ void _page_showPages(void)
 
 		if (rep >= 4) {
 			k = page_digits(rep + 1, 10) + 3;
-			if ((w += k) > 80) {
-				if (w - k < 80)
-					lib_printf("\n");
-				lib_printf("vm: ");
-				w = k + 4;
+			if (w + k > TTY_COLS) {
+				lib_printf("%s\n", buf);
+				w = lib_sprintf(buf, "vm: ");
 			}
-			lib_printf("[%d%c]", rep + 1, c);
+			w += lib_sprintf(buf + w, "[%d%c]", rep + 1, c);
 		}
 		else {
 			for (k = 0; k <= rep; k++) {
-				if (++w > 80) {
-					lib_printf("vm: ");
-					w = 5;
+				if (w + 1 > TTY_COLS) {
+					lib_printf("%s\n", buf);
+					w = lib_sprintf(buf, "vm: ");
 				}
-				lib_printf("%c", pmap_marker(p));
+				w += lib_sprintf(buf + w, "%c", pmap_marker(p));
 			}
 		}
 
@@ -321,8 +319,8 @@ void _page_showPages(void)
 		i += rep;
 	}
 
-	if (w < 80)
-		lib_printf("\n");
+	if (w > 4)
+		lib_printf("%s\n", buf);
 
 	return;
 }

@@ -164,7 +164,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			goto end;
 		}
 
-		/* precission, padding (set default to 6 digits) */
+		/* precision, padding (set default to 6 digits) */
 		u32 flags = 0, min_number_len = 0;
 
 		for (;;) {
@@ -498,6 +498,19 @@ int lib_printf(const char *format, ...)
 
 	va_start(ap, format);
 	ret = lib_vprintf(format, ap);
+	va_end(ap);
+
+	return ret;
+}
+
+
+int lib_sprintf(char *out, const char *format, ...)
+{
+	va_list ap;
+	int ret;
+
+	va_start(ap, format);
+	ret = lib_vsprintf(out, format, ap);
 	va_end(ap);
 
 	return ret;
