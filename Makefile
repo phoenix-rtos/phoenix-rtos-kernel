@@ -14,7 +14,6 @@ SIL ?= @
 MAKEFLAGS += --no-print-directory
 
 include ../phoenix-rtos-build/Makefile.common
-include ../phoenix-rtos-build/Makefile.$(TARGET_SUFF)
 
 # TODO: replace BOARD_CONFIG usage with board_config.h
 CFLAGS += $(BOARD_CONFIG)
