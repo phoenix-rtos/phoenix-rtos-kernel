@@ -18,10 +18,10 @@ include ../phoenix-rtos-build/Makefile.common
 # TODO: replace BOARD_CONFIG usage with board_config.h
 CFLAGS += $(BOARD_CONFIG)
 CFLAGS += -I.
-CFLAGS += -DVERSION=\"$(VERSION)\"
+CPPFLAGS += -DVERSION=\"$(VERSION)\"
 
 # uncomment to enable stack canary checking
-# CFLAGS += -DSTACK_CANARY
+# CPPFLAGS += -DSTACK_CANARY
 
 EXTERNAL_HEADERS_DIR := ./include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)

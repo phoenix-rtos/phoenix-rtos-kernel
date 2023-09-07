@@ -9,11 +9,11 @@ OBJS += $(addprefix $(PREFIX_O)hal/armv7a/imx6ull/, _init.o console.o imx6ull.o 
 $(PREFIX_O)hal/armv7a/imx6ull/_init.o: hal/armv7a/_armv7a.S hal/armv7a/_interrupts.S
 
 ifdef MEMTEST_SHORT
-  CFLAGS += -DMEMTEST_SHORT
+  CPPFLAGS += -DMEMTEST_SHORT
 endif
 
 ifeq ($(KERNEL_PLO_BOOT), y)
-  CFLAGS += -DKERNEL_PLO_BOOT
+  CPPFLAGS += -DKERNEL_PLO_BOOT
 endif
 
 # TODO: remove after introducing plo
