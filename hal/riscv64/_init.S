@@ -15,28 +15,21 @@
 
 #define __ASSEMBLY__
 
-
-#define SBI_SET_TIMER 0
-#define SBI_CONSOLE_PUTCHAR 1
-#define SBI_CONSOLE_GETCHAR 2
-#define SBI_CLEAR_IPI 3
-#define SBI_SEND_IPI 4
-#define SBI_REMOTE_FENCE_I 5
-#define SBI_REMOTE_SFENCE_VMA 6
-#define SBI_REMOTE_SFENCE_VMA_ASID 7
-#define SBI_SHUTDOWN 8
+#include <arch/cpu.h>
+#include <arch/pmap.h>
 
 #define SR_FS           0x00006000
 #define SR_SUM          0x00040000
 #define SR_MER          0x00080000
 
-#include <arch/cpu.h>
-#include <arch/pmap.h>
+#define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
 
 
 .section .init, "x"
 
-/* a1 - contains address of dtb (reserved for use in dtb_parse() ) */
+/* a0 - contains address of syspage
+ * a1 - contains address of dtb (reserved for use in dtb_parse())
+ */
 .globl _start
 .type _start, @function
 _start:
@@ -63,51 +56,37 @@ _start:
 	li t0, SR_SUM | SR_MER
 	csrs sstatus, t0
 
+	la t0, hal_syspage /* t0 = &hal_syspage (phy) */
+	li s1, VADDR_KERNEL
+	la s2, _start      /* s2 = kernel start (phy) */
+	la t1, VADDR_SYSPAGE
+	srli t1, t1, 12
+	slli t1, t1, 12
+	add t2, t1, s1
+	sub t2, t2, s2
+	/* store virt addr of syspage in hal_syspage */
+	sd t2, (t0)
+	la t3, hal_relOffs
+	sub t4, t2, a0 /* t4 = offset between syspage VADDR and syspage PHYADDR */
+	sd t4, (t3)
 
-/* Temporary solution: code allowing skipping phoenix-rtos-loader */
-	la t0, _syspage_data
-	ld t0, 28(t0) /* points to syspage->progs address (circular list) */
-	mv t1, t0
-	beqz t1, dtb
+	/* calculate phy addr of syspage end */
+	lw t2, 4(a0) /* t2 = syspage->size */
+	add t2, t2, t1
 
-	/* Copy application to _end + 4MB */
-	la t4, _end + 4 * 1024 * 1024
-
-	li a2, SIZE_PAGE - 1
-	not a3, a2
-
-update_apps:
-	ld t2, 16(t1) /* prog->start */
-	ld t3, 24(t1) /* prog->end */
-
-	/* Align destination address to SIZE_PAGE */
-	add t4, t4, a2
-	and t4, t4, a3
-
-	/* Set new start in prog->start */
-	sd t4, 16(t1)
-
-copy_app:
-	ld t5, (t2)
-	addi t2, t2, 8
-	sd t5, (t4)
-	addi t4, t4, 8
-	bltu t2, t3, copy_app
-
-	/* Set new end in prog->end */
-	sd t4, 24(t1)
-
-	ld t1, (t1)
-	bne t1, t0, update_apps
-/* End of the the temporary code */
+syspage_cpy:
+	ld t3, (a0)
+	addi a0, a0, 8
+	sd t3, (t1)
+	addi t1, t1, 8
+	bltu t1, t2, syspage_cpy
 
 dtb:
 	call dtb_parse
 	call _pmap_preinit
 
-	li a1, VADDR_KERNEL
-	la a0, _start
-	sub a1, a1, a0
+	/* s1 = VADDR_KERNEL, s2 = _start (phy) */
+	sub a1, s1, s2
 
 	/* Point stvec to virtual address of intruction after satp write */
 	la a0, 1f
@@ -119,15 +98,6 @@ dtb:
 	li t0, 3 * SIZE_PAGE + SIZE_PAGE              /* pdirs + stack */
 	add sp, sp, t0
 	add sp, sp, a1
-
-	/* Initialize syspage pointer */
-	la t0, _syspage_data
-	add t0, t0, a1
-	la t1, hal_syspage
-	sd t0, (t1)
-
-	la a0, hal_relOffs
-	sd a1, (a0)
 
 	la a0, pmap_common
 	srl a0, a0, 12
@@ -143,9 +113,7 @@ dtb:
 	la a0, .Lsecondary_park
 	csrw stvec, a0
 
-	call main
-	li a7, SBI_SHUTDOWN
-	ecall
+	j main
 
 .align 4
 .Lsecondary_park:
@@ -153,10 +121,3 @@ dtb:
 	j .Lsecondary_park
 
 .size _start, .-_start
-
-.align 8
-.global _syspage_data
-_syspage_data:
-	/* fill by syspagen */
-.org _syspage_data + 0x400, 0x0
-_syspage_data_end:

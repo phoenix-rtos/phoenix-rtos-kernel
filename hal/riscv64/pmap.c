@@ -393,6 +393,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Initialize kernel heap start address */
 	(*vstart) = (void *)((e + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	(*vstart) += SIZE_PAGE; /* Reserve space for syspage */
 
 	/* Initialize temporary page table (used for page table mapping) */
 	pmap_common.ptable = (*vstart);
@@ -462,7 +463,8 @@ void _pmap_preinit(void)
 
 	/* Get physical kernel address */
 	pmap_common.kernel = (addr_t)&_start;
-	pmap_common.kernelsz = (addr_t)&_end - (addr_t)&_start;
+	/* Add SIZE_PAGE to kernel size for syspage */
+	pmap_common.kernelsz = (((addr_t)&_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) - (addr_t)&_start + SIZE_PAGE;
 
 	/* pmap_common.pdir2[(VADDR_KERNEL >> 30) % 512] = ((((u64)_start >> 30) << 28) | 0xcf); */
 
