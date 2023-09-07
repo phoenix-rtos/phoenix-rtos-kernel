@@ -7,7 +7,7 @@
 
 OBJS += $(addprefix $(PREFIX_O)vm/, vm.o map.o zone.o kmalloc.o object.o amap.o)
 
-ifneq (, $(findstring NOMMU, $(CFLAGS)))
+ifneq (, $(findstring NOMMU, $(CPPFLAGS)))
 	OBJS += $(PREFIX_O)vm/page-nommu.o
 else
 	OBJS += $(PREFIX_O)vm/page.o
