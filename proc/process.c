@@ -1595,6 +1595,7 @@ int proc_fork(void)
 		current->sigmask = sigmask;
 
 		current->kstack = current->execkstack;
+		hal_cpuDisableInterrupts();
 		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 		if (err < 0) {
@@ -1603,6 +1604,9 @@ int proc_fork(void)
 			PUTONSTACK(kstack, process_spawn_t *, current->execdata);
 			PUTONSTACK(kstack, thread_t *, current);
 			hal_jmp(proc_vforkedExit, kstack, NULL, 3);
+		}
+		else {
+			hal_cpuEnableInterrupts();
 		}
 	}
 #endif
