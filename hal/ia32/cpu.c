@@ -72,6 +72,7 @@ struct {
 	char stacks[MAX_CPU_COUNT][SIZE_KSTACK];
 	u32 dr5;
 	volatile unsigned int ncpus;
+	volatile unsigned int cpus[MAX_CPU_COUNT];
 } cpu;
 
 
@@ -298,15 +299,20 @@ unsigned int hal_cpuGetCount(void)
 static inline unsigned int _hal_cpuGetID(void)
 {
 	/* 0xfee00020 - Local APIC ID Register */
-	return *(volatile u32 *)0xfee00020u;
+	return (*(volatile u32 *)0xfee00020u) >> 24;
 }
 
 
 unsigned int hal_cpuGetID(void)
 {
 	u32 id = _hal_cpuGetID();
-
-	return (id == 0xffffffff) ? 0 : (id >> 24);
+	unsigned int i;
+	for (i = 0; i < cpu.ncpus; ++i) {
+		if (cpu.cpus[i] == id) {
+			return i;
+		}
+	}
+	return 0;
 }
 
 /* Sends IPI to everyone but self */
@@ -315,7 +321,7 @@ void cpu_broadcastIPI(unsigned int intr)
 	/* 0xfee00300 - Interrupt Command Register (ICR); bits 0-31 */
 	volatile u32 *p = (void *)0xfee00300;
 
-	if (_hal_cpuGetID() == 0xffffffff) {
+	if (_hal_cpuGetID() == 0xffu) {
 		return;
 	}
 
@@ -360,11 +366,11 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 
 void *_cpu_initCore(void)
 {
-	const unsigned int id = hal_cpuGetID();
 	/* 0xfee000f0 - Local APIC, Spurious Interrupt Vector Register */
 	volatile u32 *p = (void *)0xfee000f0;
+	const unsigned int id = hal_cpuAtomAdd(&cpu.ncpus, 1);
 
-	cpu.ncpus++;
+	cpu.cpus[id] = _hal_cpuGetID();
 
 	*p = (*p | 0x100);
 
