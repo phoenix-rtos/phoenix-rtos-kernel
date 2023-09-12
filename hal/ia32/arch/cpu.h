@@ -332,6 +332,20 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 	return ((ctx->cs & 3) == 0);
 }
 
+/* Atomic operations */
+
+static inline u32 hal_cpuAtomAdd(volatile u32 *dest, u32 val)
+{
+	/* clang-format off */
+	__asm__ volatile (
+		"lock xaddl %[val], %[dest]\n\t"
+	: [val] "+r" (val), [dest] "+m" (*dest)
+	:
+	: "memory");
+	/* clang-format on */
+	return val;
+}
+
 
 #endif
 
