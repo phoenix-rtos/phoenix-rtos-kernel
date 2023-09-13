@@ -14,6 +14,7 @@
  */
 
 #include "ports.h"
+#include "../lib/lib.h"
 
 
 struct {
@@ -27,7 +28,15 @@ static int ports_cmp(rbnode_t *n1, rbnode_t *n2)
 	port_t *p1 = lib_treeof(port_t, linkage, n1);
 	port_t *p2 = lib_treeof(port_t, linkage, n2);
 
-	return (p1->id - p2->id);
+	if (p1->id > p2->id) {
+		return 1;
+	}
+	else if (p2->id > p1->id) {
+		return -1;
+	}
+	else {
+		return 0;
+	}
 }
 
 
@@ -137,6 +146,35 @@ static int _proc_portAlloc(u32 *id)
 }
 
 
+int proc_portRidAlloc(port_t *p, kmsg_t *kmsg)
+{
+	int ret;
+
+	proc_lockSet(&p->lock);
+	ret = lib_idtreeAlloc(&p->rid, &kmsg->idlinkage);
+	proc_lockClear(&p->lock);
+
+	return ret;
+}
+
+
+kmsg_t *proc_portRidGet(port_t *p, unsigned int rid)
+{
+	kmsg_t *kmsg;
+
+	proc_lockSet(&p->lock);
+
+	kmsg = lib_idtreeof(kmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
+	if (kmsg != NULL) {
+		lib_idtreeRemove(&p->rid, &kmsg->idlinkage);
+	}
+
+	proc_lockClear(&p->lock);
+
+	return kmsg;
+}
+
+
 port_t *proc_portGet(u32 id)
 {
 	port_t *port;
@@ -188,6 +226,7 @@ void port_put(port_t *p, int destroy)
 		LIST_REMOVE(&p->owner->ports, p);
 	proc_lockClear(&p->owner->lock);
 
+	proc_lockDone(&p->lock);
 	hal_spinlockDestroy(&p->spinlock);
 	vm_kfree(p);
 }
@@ -214,6 +253,9 @@ int proc_portCreate(u32 *id)
 
 	port->kmessages = NULL;
 	hal_spinlockCreate(&port->spinlock, "port.spinlock");
+
+	lib_idtreeInit(&port->rid);
+	proc_lockInit(&port->lock, "port.rid");
 
 	port->threads = NULL;
 	port->current = NULL;

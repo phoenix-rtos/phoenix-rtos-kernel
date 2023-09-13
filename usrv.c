@@ -83,7 +83,7 @@ static int usrv_oidGet(const msg_t *msg, oid_t *oid)
 static void usrv_msgthr(void *arg)
 {
 	msg_t msg;
-	unsigned long int rid;
+	msg_rid_t rid;
 	oid_t oid = usrv_common.oid;
 
 	for (;;) {

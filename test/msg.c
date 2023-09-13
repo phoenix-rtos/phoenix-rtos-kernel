@@ -127,7 +127,7 @@ void test_ping(void *arg)
 void test_pong(void *arg)
 {
 	msg_t msg;
-	unsigned long rid;
+	msg_rid_t rid;
 	unsigned int port = (long)arg;
 
 	lib_printf("test_msg/pong: starting\n");
