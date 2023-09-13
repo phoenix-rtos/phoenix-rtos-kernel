@@ -17,6 +17,7 @@
 #define _PROC_PORT_H_
 
 #include "../hal/hal.h"
+#include "../lib/lib.h"
 #include "msg.h"
 #include "process.h"
 #include "threads.h"
@@ -27,6 +28,8 @@ typedef struct _port_t {
 	struct _port_t *next;
 	struct _port_t *prev;
 
+	idtree_t rid;
+
 	u32 id;
 	u32 lmaxgap;
 	u32 rmaxgap;
@@ -35,27 +38,34 @@ typedef struct _port_t {
 	int refs, closed;
 
 	spinlock_t spinlock;
+	lock_t lock;
 	thread_t *threads;
 	msg_t *current;
 } port_t;
 
 
-extern int proc_portCreate(u32 *port);
+int proc_portCreate(u32 *port);
 
 
-extern void proc_portDestroy(u32 port);
+void proc_portDestroy(u32 port);
 
 
-extern void proc_portsDestroy(process_t *proc);
+void proc_portsDestroy(process_t *proc);
 
 
-extern port_t *proc_portGet(u32 id);
+port_t *proc_portGet(u32 id);
 
 
-extern void port_put(port_t *p, int destroy);
+void port_put(port_t *p, int destroy);
 
 
-extern void _port_init(void);
+int proc_portRidAlloc(port_t *p, kmsg_t *kmsg);
+
+
+kmsg_t *proc_portRidGet(port_t *p, unsigned int rid);
+
+
+void _port_init(void);
 
 
 #endif

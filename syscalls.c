@@ -629,11 +629,11 @@ int syscalls_msgRecv(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
-	unsigned long int *rid;
+	msg_rid_t *rid;
 
 	GETFROMSTACK(ustack, u32, port, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
-	GETFROMSTACK(ustack, unsigned long int *, rid, 2);
+	GETFROMSTACK(ustack, msg_rid_t *, rid, 2);
 
 	return proc_recv(port, msg, rid);
 }
@@ -643,11 +643,11 @@ int syscalls_msgRespond(void *ustack)
 {
 	u32 port;
 	msg_t *msg;
-	unsigned long int rid;
+	msg_rid_t rid;
 
 	GETFROMSTACK(ustack, u32, port, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
-	GETFROMSTACK(ustack, unsigned long int, rid, 2);
+	GETFROMSTACK(ustack, msg_rid_t, rid, 2);
 
 	return proc_respond(port, msg, rid);
 }

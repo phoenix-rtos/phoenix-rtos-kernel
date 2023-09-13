@@ -26,6 +26,7 @@
 #include "list.h"
 #include "assert.h"
 #include "strutil.h"
+#include "idtree.h"
 
 
 #define lib_atomicIncrement(ptr) __atomic_add_fetch(ptr, 1, __ATOMIC_RELAXED)

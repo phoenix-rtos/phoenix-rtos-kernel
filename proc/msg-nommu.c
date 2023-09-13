@@ -35,8 +35,10 @@ int proc_send(u32 port, msg_t *msg)
 	thread_t *sender;
 	spinlock_ctx_t sc;
 
-	if ((p = proc_portGet(port)) == NULL)
+	p = proc_portGet(port);
+	if (p == NULL) {
 		return -EINVAL;
+	}
 
 	sender = proc_current();
 
@@ -55,34 +57,54 @@ int proc_send(u32 port, msg_t *msg)
 	}
 	else {
 		LIST_ADD(&p->kmessages, &kmsg);
-
 		proc_threadWakeup(&p->threads);
 
-		while (kmsg.state != msg_responded && kmsg.state != msg_rejected)
-			err = proc_threadWait(&kmsg.threads, &p->spinlock, 0, &sc);
+		while ((kmsg.state != msg_responded) && (kmsg.state != msg_rejected)) {
+			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
+
+			if ((err != EOK) && (kmsg.state == msg_waiting)) {
+				LIST_REMOVE(&p->kmessages, &kmsg);
+				break;
+			}
+		}
+
+		switch (kmsg.state) {
+			case msg_responded:
+				err = EOK; /* Don't report EINTR if we got the response already */
+				break;
+			case msg_rejected:
+				err = -EINVAL;
+				break;
+			default:
+				break;
+		}
 	}
 
 	hal_spinlockClear(&p->spinlock, &sc);
 
 	port_put(p, 0);
 
-	return kmsg.state == msg_rejected ? -EINVAL : err;
+	return err;
 }
 
 
-int proc_recv(u32 port, msg_t *msg, unsigned long int *rid)
+int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p;
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
+	int err = 0;
 
-	if ((p = proc_portGet(port)) == NULL)
+	p = proc_portGet(port);
+	if (p == NULL) {
 		return -EINVAL;
+	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
-	while (p->kmessages == NULL && !p->closed)
-		proc_threadWait(&p->threads, &p->spinlock, 0, &sc);
+	while ((p->kmessages == NULL) && (p->closed == 0) && (err != -EINTR)) {
+		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0, &sc);
+	}
 
 	kmsg = p->kmessages;
 
@@ -99,29 +121,47 @@ int proc_recv(u32 port, msg_t *msg, unsigned long int *rid)
 		return -EINVAL;
 	}
 
+	if (proc_portRidAlloc(p, kmsg) < 0) {
+		hal_spinlockSet(&p->spinlock, &sc);
+		kmsg->state = msg_rejected;
+		proc_threadWakeup(&kmsg->threads);
+		hal_spinlockClear(&p->spinlock, &sc);
+
+		port_put(p, 0);
+
+		return -ENOMEM;
+	}
+
 	kmsg->state = msg_received;
 	LIST_REMOVE(&p->kmessages, kmsg);
 	hal_spinlockClear(&p->spinlock, &sc);
 
-	/* (MOD) */
-	(*rid) = (unsigned long)(kmsg);
+	*rid = lib_idtreeId(&kmsg->idlinkage);
 
 	hal_memcpy(msg, kmsg->msg, sizeof(*msg));
 
 	port_put(p, 0);
+
 	return EOK;
 }
 
 
-int proc_respond(u32 port, msg_t *msg, unsigned long int rid)
+int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 {
 	port_t *p;
 	size_t s = 0;
-	kmsg_t *kmsg = (kmsg_t *)(unsigned long)rid;
+	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
 
-	if ((p = proc_portGet(port)) == NULL)
+	p = proc_portGet(port);
+	if (p == NULL) {
 		return -EINVAL;
+	}
+
+	kmsg = proc_portRidGet(p, rid);
+	if (kmsg == NULL) {
+		return -ENOENT;
+	}
 
 	hal_memcpy(kmsg->msg->o.raw, msg->o.raw, sizeof(msg->o.raw));
 

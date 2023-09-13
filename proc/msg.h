@@ -19,6 +19,7 @@
 #include "../hal/hal.h"
 #include "../include/errno.h"
 #include "../include/msg.h"
+#include "../lib/lib.h"
 #include "threads.h"
 
 
@@ -31,9 +32,13 @@ typedef struct _kmsg_t {
 
 	struct _kmsg_t *next;
 	struct _kmsg_t *prev;
+
+	idnode_t idlinkage;
+
 	thread_t *threads;
 	process_t *src;
 	volatile int state;
+
 #ifndef NOMMU
 	struct _kmsg_layout_t {
 		void *bvaddr;
@@ -57,10 +62,10 @@ typedef struct _kmsg_t {
 extern int proc_send(u32 port, msg_t *msg);
 
 
-extern int proc_recv(u32 port, msg_t *msg, unsigned long int *rid);
+extern int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 
-extern int proc_respond(u32 port, msg_t *msg, unsigned long int rid);
+extern int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
 
 
 extern void _msg_init(vm_map_t *kmap, vm_object_t *kernel);
