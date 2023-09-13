@@ -52,9 +52,9 @@ $(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS)
 	@mkdir -p $(@D)
 	@(printf "LD  %-24s\n" "$(@F)");
 ifeq ($(TARGET_FAMILY),sparcv8leon3)
-	$(SIL)$(LD) $(LDFLAGS) -e _start --section-start .init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) $(GCCLIB) -T ld/sparcv8leon3.ld
+	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T ld/sparcv8leon3.ld
 else
-	$(SIL)$(LD) $(LDFLAGS) -e _start --section-start .init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) $(GCCLIB)
+	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc
 endif
 
 install-headers: $(EXTERNAL_HEADERS)
