@@ -17,6 +17,8 @@
 #include "../include/errno.h"
 #include "../include/ioctl.h"
 #include "../include/limits.h"
+#include "../include/ioctl.h"
+#include "../include/posix/sockios.h"
 #include "../proc/proc.h"
 
 #include "posix.h"
@@ -1536,19 +1538,6 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 
 	return err;
 }
-
-
-#define IOCPARM_MASK   0x1fff
-#define IOCPARM_LEN(x) (((x) >> 16) & IOCPARM_MASK)
-
-#define IOC_OUT                      0x40000000
-#define IOC_IN                       0x80000000
-#define IOC_INOUT                    (IOC_IN | IOC_OUT)
-#define _IOC(inout, group, num, len) ((unsigned long)(inout | ((len & IOCPARM_MASK) << 16) | ((group) << 8) | (num)))
-
-#define SIOCGIFCONF _IOC(IOC_INOUT, 'S', 0x12, sizeof(struct ifconf))
-#define SIOCADDRT   _IOC(IOC_IN, 'S', 0x44, sizeof(struct rtentry))
-#define SIOCDELRT   _IOC(IOC_IN, 'S', 0x45, sizeof(struct rtentry))
 
 
 void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)

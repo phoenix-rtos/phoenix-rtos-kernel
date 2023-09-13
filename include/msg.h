@@ -38,7 +38,7 @@ enum {
 #pragma pack(push, 8)
 
 
-typedef struct _msg_t {
+typedef struct {
 	int type;
 	unsigned int pid;
 	unsigned int priority;
@@ -54,16 +54,16 @@ typedef struct _msg_t {
 			/* READ/WRITE/TRUNCATE */
 			struct {
 				oid_t oid;
-				offs_t offs;
+				off_t offs;
 				size_t len;
-				unsigned mode;
+				unsigned int mode;
 			} io;
 
 			/* CREATE */
 			struct {
 				oid_t dir;
 				int type;
-				unsigned mode;
+				unsigned int mode;
 				oid_t dev;
 			} create;
 
@@ -93,7 +93,7 @@ typedef struct _msg_t {
 			/* READDIR */
 			struct {
 				oid_t dir;
-				offs_t offs;
+				off_t offs;
 			} readdir;
 
 			unsigned char raw[64];
@@ -134,7 +134,6 @@ typedef struct _msg_t {
 		size_t size;
 		void *data;
 	} o;
-
 } msg_t;
 
 
