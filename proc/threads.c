@@ -630,6 +630,10 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 				}
 			}
 		}
+		else {
+			/* Protects against use after free of process' memory map in SMP environment. */
+			pmap_switch(&threads_common.kmap->pmap);
+		}
 		if (selected->tls.tls_base != NULL) {
 			hal_cpuTlsSet(&selected->tls, selected->context);
 		}
