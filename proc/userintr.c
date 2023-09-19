@@ -25,20 +25,26 @@ struct {
 } userintr_common;
 
 
-int userintr_put(userintr_t *ui)
+void userintr_put(userintr_t *ui)
 {
+	thread_t *t = proc_current();
 	int rem;
 
-	if (!(rem = resource_put(&ui->resource))) {
+	LIB_ASSERT(ui != NULL, "process: %s, pid: %d, tid: %d, ui == NULL",
+		t->process->path, t->process->id, t->id);
+
+	rem = resource_put(t->process, &ui->resource);
+	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
+		t->process->path, t->process->id, t->id);
+	if (rem <= 0) {
 		hal_interruptsDeleteHandler(&ui->handler);
 
-		if (ui->cond != NULL)
+		if (ui->cond != NULL) {
 			cond_put(ui->cond);
+		}
 
 		vm_kfree(ui);
 	}
-
-	return rem;
 }
 
 
@@ -86,14 +92,28 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 
 int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, unsigned int c)
 {
-	process_t *process;
+	process_t *process = proc_current()->process;
 	userintr_t *ui;
-	int res;
+	cond_t *cond = NULL;
+	int id, res;
 
-	process = proc_current()->process;
+	if (c > 0) {
+		cond = cond_get(c);
+		if (cond == NULL) {
+			return -EINVAL;
+		}
+	}
 
-	if ((ui = vm_kmalloc(sizeof(userintr_t))) == NULL)
+	ui = vm_kmalloc(sizeof(*ui));
+	if (ui == NULL) {
+		if (cond != NULL) {
+			cond_put(cond);
+		}
 		return -ENOMEM;
+	}
+
+	ui->resource.payload.userintr = ui;
+	ui->resource.type = rtInth;
 
 	ui->handler.next = NULL;
 	ui->handler.prev = NULL;
@@ -104,29 +124,30 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 	ui->f = f;
 	ui->arg = arg;
 	ui->process = process;
-	ui->cond = NULL;
+	ui->cond = cond;
 
-	if (c == 0 || (ui->cond = cond_get(c)) != NULL) {
-		if ((res = hal_interruptsSetHandler(&ui->handler)) == EOK) {
-			if ((res = resource_alloc(process, &ui->resource, rtInth))) {
-				userintr_put(ui);
-				return res;
-			}
-			else {
-				res = -ENOMEM;
-			}
-
-			hal_interruptsDeleteHandler(&ui->handler);
+	res = hal_interruptsSetHandler(&ui->handler);
+	if (res != EOK) {
+		if (cond != NULL) {
+			cond_put(cond);
 		}
-
-		if (c) cond_put(ui->cond);
-	}
-	else {
-		res = -EINVAL;
+		vm_kfree(ui);
+		return res;
 	}
 
-	vm_kfree(ui);
-	return res;
+	id = resource_alloc(process, &ui->resource);
+	if (id < 0) {
+		hal_interruptsDeleteHandler(&ui->handler);
+		if (cond != NULL) {
+			cond_put(cond);
+		}
+		vm_kfree(ui);
+		return -ENOMEM;
+	}
+
+	resource_put(process, &ui->resource);
+
+	return id;
 }
 
 
