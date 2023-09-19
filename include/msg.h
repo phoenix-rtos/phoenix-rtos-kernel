@@ -17,7 +17,7 @@
 #define _PHOENIX_MSG_H_
 
 /* Return id, allocated in msgReceive, used in msgRespond */
-typedef unsigned int msg_rid_t;
+typedef int msg_rid_t;
 
 /*
  * Message types

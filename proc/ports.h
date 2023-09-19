@@ -59,10 +59,10 @@ port_t *proc_portGet(u32 id);
 void port_put(port_t *p, int destroy);
 
 
-int proc_portRidAlloc(port_t *p, kmsg_t *kmsg);
+msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg);
 
 
-kmsg_t *proc_portRidGet(port_t *p, unsigned int rid);
+kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid);
 
 
 void _port_init(void);

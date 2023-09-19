@@ -146,19 +146,19 @@ static int _proc_portAlloc(u32 *id)
 }
 
 
-int proc_portRidAlloc(port_t *p, kmsg_t *kmsg)
+msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg)
 {
-	int ret;
+	msg_rid_t ret;
 
 	proc_lockSet(&p->lock);
-	ret = lib_idtreeAlloc(&p->rid, &kmsg->idlinkage);
+	ret = lib_idtreeAlloc(&p->rid, &kmsg->idlinkage, 0);
 	proc_lockClear(&p->lock);
 
 	return ret;
 }
 
 
-kmsg_t *proc_portRidGet(port_t *p, unsigned int rid)
+kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
 {
 	kmsg_t *kmsg;
 

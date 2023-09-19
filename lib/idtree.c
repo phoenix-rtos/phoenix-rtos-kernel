@@ -16,54 +16,15 @@
 #include "lib.h"
 
 
+#define ID_MAX 0x7fffffff
+
+
 static int lib_idtreeCmp(rbnode_t *n1, rbnode_t *n2)
 {
 	idnode_t *i1 = lib_treeof(idnode_t, linkage, n1);
 	idnode_t *i2 = lib_treeof(idnode_t, linkage, n2);
 
-	if (i1->id > i2->id) {
-		return 1;
-	}
-	else if (i2->id > i1->id) {
-		return -1;
-	}
-	else {
-		return 0;
-	}
-}
-
-
-static int lib_idtreeGapcmp(rbnode_t *n1, rbnode_t *n2)
-{
-	idnode_t *r1 = lib_treeof(idnode_t, linkage, n1);
-	idnode_t *r2 = lib_treeof(idnode_t, linkage, n2);
-	rbnode_t *child = NULL;
-	int ret;
-
-	if ((r1->lmaxgap > 0) && (r1->rmaxgap > 0)) {
-		if (r2->id > r1->id) {
-			child = n1->right;
-			ret = -1;
-		}
-		else {
-			child = n1->left;
-			ret = 1;
-		}
-	}
-	else if (r1->lmaxgap > 0) {
-		child = n1->left;
-		ret = 1;
-	}
-	else if (r1->rmaxgap > 0) {
-		child = n1->right;
-		ret = -1;
-	}
-
-	if (child == NULL) {
-		ret = 0;
-	}
-
-	return ret;
+	return i1->id - i2->id;
 }
 
 
@@ -96,7 +57,7 @@ static void lib_idtreeAugment(rbnode_t *node)
 			}
 		}
 
-		n->rmaxgap = (n->id >= p->id) ? ((unsigned)-1 - n->id - 1) : (p->id - n->id - 1);
+		n->rmaxgap = (n->id >= p->id) ? (ID_MAX - n->id - 1) : (p->id - n->id - 1);
 	}
 	else {
 		r = lib_treeof(idnode_t, linkage, node->right);
@@ -137,30 +98,53 @@ int lib_idtreeId(idnode_t *node)
 }
 
 
-int lib_idtreeAlloc(idtree_t *tree, idnode_t *n)
+int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 {
 	idnode_t *f;
 
-	n->id = 0;
-	if (tree->root != NULL) {
-		f = lib_treeof(idnode_t, linkage, lib_rbFindEx(tree->root, &n->linkage, lib_idtreeGapcmp));
+	if (min > ID_MAX) {
+		return -1;
+	}
 
-		if (f != NULL) {
+	n->id = min;
+
+	f = lib_idtreeFind(tree, min);
+	if (f != NULL) {
+		/* Go back until some space > min is found */
+		while (f->rmaxgap == 0) {
+			f = lib_treeof(idnode_t, linkage, f->linkage.parent);
+			if (f == NULL) {
+				/* Only id < min are available, fail */
+				return -1;
+			}
+		}
+
+		/* Got rmaxgap now */
+		n->id = f->id + 1;
+
+		/* Go right at least once so id > min */
+		f = lib_treeof(idnode_t, linkage, f->linkage.right);
+
+		/* Find minimal free space */
+		while (f != NULL) {
 			if (f->lmaxgap > 0) {
 				n->id = f->id - 1;
+				f = lib_treeof(idnode_t, linkage, f->linkage.left);
 			}
 			else {
 				n->id = f->id + 1;
+				f = lib_treeof(idnode_t, linkage, f->linkage.right);
 			}
-		}
-		else {
-			return -1;
 		}
 	}
 
+	LIB_ASSERT(lib_idtreeFind(tree, n->id) == NULL, "ID alloc failed - got existing ID %d", n->id);
+
 	lib_rbInsert(tree, &n->linkage);
+
 	return n->id;
 }
+
 
 void lib_idtreeInit(idtree_t *tree)
 {
