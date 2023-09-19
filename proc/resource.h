@@ -5,7 +5,7 @@
  *
  * Process resources
  *
- * Copyright 2017, 2018 Phoenix Systems
+ * Copyright 2017, 2018, 2023 Phoenix Systems
  * Author: Pawel Pisarczyk, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
@@ -18,64 +18,47 @@
 
 #include "hal/hal.h"
 #include "threads.h"
+#include "lib/idtree.h"
 
 
-#define resourceof(type, node_field, node) ({					\
-	long _off = (long) &(((type *) 0)->node_field);				\
-	resource_t *tmpnode = (node);					\
-	(type *) ((tmpnode == NULL) ? NULL : ((void *)tmpnode - _off));	\
-})
-
-
-typedef struct {
-	oid_t oid;
-	offs_t offs;
-	unsigned mode;
-} fd_t;
-
-
-enum { rtLock = 0, rtCond, rtFile, rtInth };
+struct _mutex_t;
+struct _cond_t;
+struct _usrintr_t;
 
 
 typedef struct _resource_t {
-	rbnode_t linkage;
-
+	idnode_t linkage;
 	unsigned refs;
+	/* clang-format off */
+	enum { rtLock = 0, rtCond, rtInth } type;
+	/* clang-format on */
 
-	unsigned lgap : 1;
-	unsigned rgap : 1;
-	unsigned type : 2;
-	unsigned id : 28;
+	union {
+		struct _cond_t *cond;
+		struct _mutex_t *mutex;
+		struct _userintr_t *userintr;
+	} payload;
 } resource_t;
 
 
-extern unsigned resource_alloc(process_t *process, resource_t *r, int type);
+extern int resource_alloc(process_t *process, resource_t *r);
 
 
-extern resource_t *resource_get(process_t *process, int type, unsigned int id);
+extern resource_t *resource_get(process_t *process, int id);
 
 
-extern int resource_put(resource_t *r);
+extern int resource_put(process_t *process, resource_t *r);
 
 
-extern void resource_unlink(process_t *process, resource_t *r);
-
-
-extern resource_t *resource_remove(process_t *process, unsigned id);
-
-
-extern resource_t *resource_removeNext(process_t *process);
-
-
-extern void _resource_init(process_t *process);
-
-
-extern int proc_resourceDestroy(process_t *process, unsigned id);
+extern int proc_resourceDestroy(process_t *process, int id);
 
 
 extern void proc_resourcesDestroy(process_t *process);
 
 
 extern int proc_resourcesCopy(process_t *source);
+
+
+extern void _resource_init(process_t *process);
 
 #endif

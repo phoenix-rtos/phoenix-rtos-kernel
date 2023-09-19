@@ -86,6 +86,42 @@ idnode_t *lib_idtreeFind(idtree_t *tree, int id)
 }
 
 
+idnode_t *lib_idtreeMinimum(rbnode_t *node)
+{
+	rbnode_t *x = node;
+
+	if (x != NULL) {
+		while (x->left != NULL) {
+			x = x->left;
+		}
+	}
+
+	return lib_treeof(idnode_t, linkage, x);
+}
+
+
+idnode_t *lib_idtreeNext(rbnode_t *node)
+{
+	rbnode_t *x = node;
+
+	if (x->right != NULL) {
+		return lib_treeof(idnode_t, linkage, lib_rbMinimum(x->right));
+	}
+
+	while ((x->parent != NULL) && (x == x->parent->right)) {
+		x = x->parent;
+	}
+
+	return lib_treeof(idnode_t, linkage, x->parent);
+}
+
+
+int lib_idtreeInsert(idtree_t *tree, idnode_t *z)
+{
+	return lib_rbInsert((rbtree_t *)tree, &z->linkage);
+}
+
+
 void lib_idtreeRemove(idtree_t *tree, idnode_t *node)
 {
 	lib_rbRemove(tree, &node->linkage);

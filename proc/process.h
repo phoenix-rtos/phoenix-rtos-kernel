@@ -22,6 +22,7 @@
 #include "lock.h"
 #include "vm/amap.h"
 #include "syspage.h"
+#include "lib/lib.h"
 #include "arch/types.h"
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
@@ -64,7 +65,7 @@ typedef struct _process_t {
 
 	void *ports;
 
-	rbtree_t resources;
+	idtree_t resources;
 
 	unsigned sigpend;
 	unsigned sigmask;

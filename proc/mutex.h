@@ -16,33 +16,35 @@
 #ifndef _PROC_MUTEX_H_
 #define _PROC_MUTEX_H_
 
+#include "threads.h"
 #include "resource.h"
 
-typedef struct {
+
+typedef struct _mutex_t {
 	resource_t resource;
 	lock_t lock;
 } mutex_t;
 
 
-extern mutex_t *mutex_get(unsigned int h);
+extern mutex_t *mutex_get(int h);
 
 
-extern int mutex_put(mutex_t *mutex);
+extern void mutex_put(mutex_t *mutex);
 
 
-extern int proc_mutexLock(unsigned int h);
+extern int proc_mutexLock(int h);
 
 
-extern int proc_mutexTry(unsigned int h);
+extern int proc_mutexTry(int h);
 
 
-extern int proc_mutexUnlock(unsigned int h);
+extern int proc_mutexUnlock(int h);
 
 
 extern int proc_mutexCreate(void);
 
 
-extern int proc_mutexDestroy(unsigned int h);
+extern int proc_mutexDestroy(int h);
 
 
 #endif

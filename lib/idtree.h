@@ -39,6 +39,15 @@ typedef struct {
 idnode_t *lib_idtreeFind(idtree_t *tree, int id);
 
 
+idnode_t *lib_idtreeMinimum(rbnode_t *node);
+
+
+idnode_t *lib_idtreeNext(rbnode_t *node);
+
+
+int lib_idtreeInsert(idtree_t *tree, idnode_t *z);
+
+
 void lib_idtreeRemove(idtree_t *tree, idnode_t *node);
 
 
