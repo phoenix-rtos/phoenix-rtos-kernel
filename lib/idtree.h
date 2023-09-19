@@ -24,8 +24,8 @@ typedef rbtree_t idtree_t;
 
 typedef struct {
 	rbnode_t linkage;
-	unsigned int lmaxgap, rmaxgap;
-	unsigned int id;
+	int lmaxgap, rmaxgap;
+	int id;
 } idnode_t;
 
 
@@ -45,7 +45,7 @@ void lib_idtreeRemove(idtree_t *tree, idnode_t *node);
 int lib_idtreeId(idnode_t *node);
 
 
-int lib_idtreeAlloc(idtree_t *tree, idnode_t *n);
+int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min);
 
 
 void lib_idtreeInit(idtree_t *tree);
