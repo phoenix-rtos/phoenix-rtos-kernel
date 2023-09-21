@@ -2055,7 +2055,7 @@ unsigned int _imxrt_cpuid(void)
 
 void _imxrt_wdgReload(void)
 {
-#if defined(WATCHDOG) && defined(NDEBUG)
+#if defined(WATCHDOG)
 	hal_cpuDisableInterrupts();
 	*(imxrt_common.rtwdog + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
 	hal_cpuEnableInterrupts();
@@ -2118,7 +2118,7 @@ void _imxrt_init(void)
 	*(imxrt_common.rtwdog + rtwdog_cnt) = RTWDOG_UPDATE_KEY;
 	while (!(*(imxrt_common.rtwdog + rtwdog_cs) & (1 << 11)))
 		;
-#if defined(WATCHDOG) && defined(NDEBUG)
+#if defined(WATCHDOG)
 	/* Enable rtwdog: LPO_CLK (256 prescaler), set timeout to WATCHDOG ms */
 	*(imxrt_common.rtwdog + rtwdog_toval) =
 		WATCHDOG / (256 / (LPO_CLK_FREQ_HZ / 1000));
