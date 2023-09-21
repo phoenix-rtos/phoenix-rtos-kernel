@@ -20,6 +20,12 @@
 #include "../../armv7m.h"
 #include "../../../../include/errno.h"
 
+#include <board_config.h>
+
+#if defined(WATCHDOG) && defined(WATCHDOG_TIMEOUT_MS)
+#warning "This target doesn't support WATCHDOG_TIMEOUT_MS. Watchdog timeout is 31992 ms."
+#endif
+
 
 struct {
 	volatile u32 *rcc;

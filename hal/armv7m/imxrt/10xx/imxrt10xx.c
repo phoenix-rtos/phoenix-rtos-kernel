@@ -23,12 +23,20 @@
 #include "../../../../include/errno.h"
 #include "../../../../include/arch/imxrt.h"
 
+#include <board_config.h>
+
+
 #define RTWDOG_UPDATE_KEY 0xd928c520
 #define RTWDOG_REFRESH_KEY 0xb480a602
 #define LPO_CLK_FREQ_HZ 32000
 
+#if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
+#define WATCHDOG_TIMEOUT_MS (30000)
+#warning "WATCHDOG_TIMEOUT_MS not defined, defaulting to 30000 ms"
+#endif
+
 #if defined(WATCHDOG) && \
-	(WATCHDOG <= 0x0 || WATCHDOG > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
+	(WATCHDOG_TIMEOUT_MS <= 0x0 || WATCHDOG_TIMEOUT_MS > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
 #error "Watchdog timeout out of bounds!"
 #endif
 
@@ -2119,9 +2127,9 @@ void _imxrt_init(void)
 	while (!(*(imxrt_common.rtwdog + rtwdog_cs) & (1 << 11)))
 		;
 #if defined(WATCHDOG)
-	/* Enable rtwdog: LPO_CLK (256 prescaler), set timeout to WATCHDOG ms */
+	/* Enable rtwdog: LPO_CLK (256 prescaler), set timeout to WATCHDOG_TIMEOUT_MS ms */
 	*(imxrt_common.rtwdog + rtwdog_toval) =
-		WATCHDOG / (256 / (LPO_CLK_FREQ_HZ / 1000));
+		WATCHDOG_TIMEOUT_MS / (256 / (LPO_CLK_FREQ_HZ / 1000));
 	*(imxrt_common.rtwdog + rtwdog_cs) =
 		(*(imxrt_common.rtwdog + rtwdog_cs) | (1 << 7)) |
 		(1 << 13) | (1 << 12) | (1 << 8) | (1 << 5);
