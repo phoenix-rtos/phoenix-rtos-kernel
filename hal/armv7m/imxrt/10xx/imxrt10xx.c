@@ -129,7 +129,7 @@ enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr 
 enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 
-enum { rtwdog_cs = 0, rtwdog_cnt, rtwdog_total, rtwdog_win };
+enum { rtwdog_cs = 0, rtwdog_cnt, rtwdog_toval, rtwdog_win };
 
 
 /* platformctl syscall */
@@ -2120,7 +2120,7 @@ void _imxrt_init(void)
 		;
 #if defined(WATCHDOG) && defined(NDEBUG)
 	/* Enable rtwdog: LPO_CLK (256 prescaler), set timeout to WATCHDOG ms */
-	*(imxrt_common.rtwdog + rtwdog_total) =
+	*(imxrt_common.rtwdog + rtwdog_toval) =
 		WATCHDOG / (256 / (LPO_CLK_FREQ_HZ / 1000));
 	*(imxrt_common.rtwdog + rtwdog_cs) =
 		(*(imxrt_common.rtwdog + rtwdog_cs) | (1 << 7)) |
@@ -2129,7 +2129,7 @@ void _imxrt_init(void)
 	*(imxrt_common.rtwdog + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
 #else
 	/* Disable rtwdog, enable update */
-	*(imxrt_common.rtwdog + rtwdog_total) = 0xffffU;
+	*(imxrt_common.rtwdog + rtwdog_toval) = 0xffffU;
 	*(imxrt_common.rtwdog + rtwdog_cs) =
 		(*(imxrt_common.rtwdog + rtwdog_cs) & ~(1 << 7)) | (1 << 5);
 #endif
