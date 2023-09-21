@@ -24,7 +24,9 @@ typedef struct _intr_handler_t {
 	unsigned int n;
 	int (*f)(unsigned int, cpu_context_t *, void *);
 	void *data;
+#ifdef NOMMU
 	void *got;
+#endif
 } intr_handler_t;
 
 

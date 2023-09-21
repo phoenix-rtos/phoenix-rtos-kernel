@@ -34,6 +34,9 @@ _init:
 	sethi %hi(syspage), %g1
 	st %g2, [%g1 + %lo(syspage)]
 
+	sethi %hi(relOffs), %g1
+	st %g0, [%g1 + %lo(relOffs)]
+
 	/* Set PSR to "supervisor", enable traps, disable interrupts, set CWP to 0 */
 	mov %psr, %g1
 	or %g1, (PSR_ET | PSR_S | PSR_PIL), %g1

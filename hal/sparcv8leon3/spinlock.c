@@ -38,6 +38,7 @@ void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 		nop; \
 		nop; \
 		nop; \
+	.align 16; /* GRLIB TN-0011 errata */ \
 	1: \
 		ldstub [%0], %%g2; \
 		tst %%g2; \

@@ -18,15 +18,7 @@
 #include "hal/cpu.h"
 #include "hal/console.h"
 #include "hal/string.h"
-#include "hal/sparcv8leon3/srmmu.h"
 #include "include/mman.h"
-
-
-static struct {
-	void (*defaultHandler)(unsigned int, exc_context_t *);
-	void (*mmuFaultHandler)(unsigned int, exc_context_t *);
-	spinlock_t lock;
-} exceptions_common;
 
 
 static const char *const hal_exceptionsType(int n)
@@ -132,7 +124,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 }
 
 
-__attribute__((noreturn)) static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
+void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	char buff[SIZE_CTXDUMP];
 
@@ -142,42 +134,17 @@ __attribute__((noreturn)) static void exceptions_defaultHandler(unsigned int n, 
 	hal_consolePrint(ATTR_BOLD, buff);
 
 #ifdef NDEBUG
-	// hal_cpuReboot();
+	hal_cpuReboot();
 #endif
 
 	for (;;) {
 		hal_cpuHalt();
-	}
-
-	__builtin_unreachable();
-}
-
-
-extern void threads_setupUserReturn(void *retval);
-
-
-void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
-{
-	if (n == EXC_PAGEFAULT) {
-		exceptions_common.mmuFaultHandler(n, ctx);
-	}
-	else {
-		exceptions_common.defaultHandler(n, ctx);
-	}
-
-	/* Handle signals if necessary */
-	if (hal_cpuSupervisorMode(&ctx->cpuCtx) == 0) {
-		threads_setupUserReturn((void *)ctx->cpuCtx.o0);
 	}
 }
 
 
 int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
-	if (n == EXC_PAGEFAULT) {
-		return hal_srmmuGetFaultSts();
-	}
-
 	return 0;
 }
 
@@ -190,26 +157,15 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 
 void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 {
-	return (void *)hal_srmmuGetFaultAddr();
+	return NULL;
 }
 
 
 int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
 {
-	if (n == EXC_PAGEFAULT) {
-		exceptions_common.mmuFaultHandler = handler;
-	}
-	else {
-		exceptions_common.defaultHandler = handler;
-	}
-
 	return 0;
 }
 
 void _hal_exceptionsInit(void)
 {
-	hal_spinlockCreate(&exceptions_common.lock, "exceptions.lock");
-
-	exceptions_common.defaultHandler = exceptions_defaultHandler;
-	exceptions_common.mmuFaultHandler = exceptions_defaultHandler;
 }

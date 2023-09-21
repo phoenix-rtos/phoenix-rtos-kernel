@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * Interrupts handlers for sparcv8leon3
+ * Interrupts handlers (NOMMU) for sparcv8leon3
  *
  * Copyright 2022, 2023 Phoenix Systems
  * Author: Lukasz Leczkowski
@@ -17,8 +17,6 @@
 
 #include <config.h>
 #include <arch/cpu.h>
-
-#include "gaisler/grlib-tn-0018.h"
 
 .extern hal_cpuKernelStack
 
@@ -35,7 +33,7 @@
  * %l2: npc
  * %l3: irq number
  */
-_interrupts_dispatch:
+ _interrupts_dispatch:
 	/* %g2, g3 used during manual window overflow */
 	mov %g2, %l4
 	mov %g3, %l5
@@ -90,7 +88,10 @@ irq_no_kstack_switch:
 	sub %fp, 0x50, %sp
 
 irq_kstack_set:
-	/* Save context on kernel stack.
+	/* Save context on kernel stack - we have enough space for 1 window.
+	 * Here only a part of thread context is saved,
+	 * all windows are saved only if we're switching context.
+	 *
 	 * Registers saved:
 	 * %sp, %y, %psr, PC, nPC, %g1, %g2 (in %l4), %g3 (in %l5), %g4-%g7, %i0-%i7
 	 */
@@ -118,30 +119,9 @@ irq_kstack_set:
 
 	mov %l7, %o1 /* (cpu_context_t *) */
 
-	mov %l0, %g2
-	mov 1, %g4
-	sll %g4, %g2, %g3 /* %g3 = 1 << %g2[4:0] (CWP) */
-
-	sethi %hi(_interrupts_saveContext), %g5
-	jmpl %g5 + %lo(_interrupts_saveContext), %g1 /* clobbers %g1, %g3, %l2 */
-	rd %wim, %g4
-
-	/* enable traps, disable interrupts, restore CWP */
-	or %g2, (PSR_PIL | PSR_ET), %g2
-	wr %g2, %psr
-
-	and %g2, PSR_CWP, %g2
-	add %g2, 1, %g2
-	cmp %g2, NWINDOWS
-	bne irq_cwp_done0
-	mov 1, %g3
-
-	mov 0, %g2
-
-irq_cwp_done0:
-	/* set %wim to 1 << %g2 (CWP + 1) */
-	sll %g3, %g2, %g2
-	wr %g2, %wim
+	/* enable traps, disable interrupts */
+	or %l0, (PSR_PIL | PSR_ET), %l0
+	wr %l0, %psr
 	nop
 	nop
 	nop
@@ -151,14 +131,10 @@ irq_cwp_done0:
 	mov %l3, %o0 /* irq */
 
 	/* disable traps */
-#ifndef __CPU_GR712RC
 	pwr 0, %psr
 	nop
 	nop
 	nop
-#else
-	ta 0xb
-#endif
 
 	/* l7 still points to bottom of context */
 	mov %l7, %sp
@@ -169,14 +145,47 @@ irq_cwp_done0:
 	be irq_no_switch
 	nop
 
-	/* %g2 points to the new task's context */
+	/* We're switching, save used register windows on stack
+	 * and load only the window we'll be returning to.
+	 * The rest will be restored on window underflows.
+	 */
+
+	rd %psr, %g3
+	and %g3, PSR_CWP, %g3
+
+	/* Current state of registers:
+	 * %g2 - %sp of new task
+	 * %g3 - CWP
+	 * freely usable: %g4, %g5
+	 */
+
+	/* set bit in register %g3, which corresponds to CWP
+	 * %g3 = 1 << %g3 (CWP)
+	 */
+	mov 1, %g4
+	sll %g4, %g3, %g3
+
+	/* save context on stack */
+	sethi %hi(_interrupts_saveContext), %g5
+	jmpl %g5 + %lo(_interrupts_saveContext), %g1 /* clobbers %g1, %g3 */
+	rd %wim, %g4
+
+	/* At this point, we've saved all registers that the previous
+	 * task used, and we're ready to switch to the new task.
+	 *
+	 * %g2 points to the new task's context.
+	 */
 
 	mov %g0, %wim /* we don't need it now */
 	ld [%g2 + 0x08], %g1
 	nop
 	andn %g1, PSR_ET, %g1 /* leave traps disabled */
 
-	/* Set %psr of the new task */
+	/* Set %psr of the new task.
+	 * This will cause window to be switched
+	 * to the window in interrupt handler.
+	 */
+
 	wr %g1, %psr
 	/* no delay needed, we're using global registers */
 
@@ -267,14 +276,10 @@ irq_cwp_done2:
 	save
 
 irq_return:
-	TN_0018_WAIT_ICACHE(%l3, %l4)
-
 	wr %l0, %psr
 	nop
 	nop
 	nop
-
-	TN_0018_FIX(%l3, %l4)
 
 	jmp %l1
 	rett %l2

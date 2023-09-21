@@ -20,9 +20,12 @@
 
 #include "gr716.h"
 
-#define GRGPREG_BASE ((void *)0x8000D000)
+#define GRGPREG_BASE ((void *)0x8000d000)
 #define CGU_BASE0    ((void *)0x80006000)
 #define CGU_BASE1    ((void *)0x80007000)
+
+#define BOOTSTRAP_ADDR 0x80008000
+#define BOOTSTRAP_SPIM 0x400bc003
 
 
 /* System configuration registers */
@@ -66,6 +69,13 @@ struct {
 } gr716_common;
 
 
+void hal_cpuHalt(void)
+{
+	/* must be performed in supervisor mode with int enabled */
+	__asm__ volatile("wr %g0, %asr19");
+}
+
+
 int _gr716_getIomuxCfg(u8 pin, u8 *opt, u8 *pullup, u8 *pulldn)
 {
 	if (pin > 63) {
@@ -82,7 +92,7 @@ int _gr716_getIomuxCfg(u8 pin, u8 *opt, u8 *pullup, u8 *pulldn)
 }
 
 
-int _gr716_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn)
+int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn)
 {
 	volatile u32 old_cfg;
 
@@ -182,7 +192,7 @@ int hal_platformctl(void *ptr)
 
 		case pctl_iomux:
 			if (data->action == pctl_set) {
-				ret = _gr716_setIomuxCfg(data->iocfg.pin, data->iocfg.opt, data->iocfg.pullup, data->iocfg.pulldn);
+				ret = gaisler_setIomuxCfg(data->iocfg.pin, data->iocfg.opt, data->iocfg.pullup, data->iocfg.pulldn);
 			}
 			else if (data->action == pctl_get) {
 				ret = _gr716_getIomuxCfg(data->iocfg.pin, &data->iocfg.opt, &data->iocfg.pullup, &data->iocfg.pulldn);
@@ -201,6 +211,26 @@ int hal_platformctl(void *ptr)
 	hal_spinlockClear(&gr716_common.pltctlSp, &sc);
 
 	return ret;
+}
+
+
+void hal_cpuReboot(void)
+{
+	/* Reset to the built-in bootloader */
+	hal_cpuDisableInterrupts();
+
+	/* Reboot to SPIM */
+	*(volatile u32 *)(BOOTSTRAP_ADDR) = BOOTSTRAP_SPIM;
+
+	/* clang-format off */
+	__asm__ volatile (
+		"jmp %%g0\n\t"
+		"nop\n\t"
+		:::
+	);
+	/* clang-format on */
+
+	__builtin_unreachable();
 }
 
 
