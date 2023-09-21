@@ -21,6 +21,7 @@
 
 
 #include <arch/types.h>
+#include <board_config.h>
 
 
 #define UART0_BASE ((void *)0x80300000)
@@ -29,8 +30,6 @@
 #define UART3_BASE ((void *)0x80303000)
 #define UART4_BASE ((void *)0x80304000)
 #define UART5_BASE ((void *)0x80305000)
-
-#define SYSCLK_FREQ 50000000 /* 50 MHz */
 
 
 extern int _gr716_getIomuxCfg(u8 pin, u8 *opt, u8 *pullup, u8 *pulldn);
