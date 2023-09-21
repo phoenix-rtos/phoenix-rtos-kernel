@@ -4,8 +4,14 @@
 # Copyright 2022 Phoenix Systems
 #
 
-include hal/sparcv8leon3/$(TARGET_SUBFAMILY)/Makefile
+include hal/$(TARGET_SUFF)/gaisler/Makefile
 
-CFLAGS += -Ihal/sparcv8leon3 -Ihal/sparcv8leon3/$(TARGET_SUBFAMILY)
+CFLAGS := -Ihal/$(TARGET_SUFF) $(CFLAGS)
 
-OBJS += $(addprefix $(PREFIX_O)hal/sparcv8leon3/, cpu.o exceptions.o hal.o interrupts.o pmap.o spinlock.o string.o _init.o _interrupts.o _traps.o)
+OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/, cpu.o hal.o spinlock.o string.o _traps.o)
+
+ifeq ($(findstring -DNOMMU,$(CPPFLAGS)),-DNOMMU)
+  OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/, exceptions-nommu.o pmap-nommu.o _interrupts-nommu.o)
+else
+  OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/, exceptions.o pmap.o srmmu.o _interrupts.o)
+endif

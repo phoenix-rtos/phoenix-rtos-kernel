@@ -17,9 +17,16 @@
 #include "hal/console.h"
 #include "hal/cpu.h"
 #include "include/arch/gr716.h"
-#include "gr716.h"
+#include "gaisler.h"
 
 #include <board_config.h>
+
+
+extern unsigned int _end;
+
+
+#define CONCAT_(a, b) a##b
+#define CONCAT(a, b)  CONCAT_(a, b)
 
 
 /* UART control bits */
@@ -29,11 +36,16 @@
 #define TX_FIFO_FULL (1 << 9)
 
 /* Console config */
-#define CONSOLE_RX       UART2_RX
-#define CONSOLE_TX       UART2_TX
-#define CONSOLE_BASE     UART2_BASE
-#define CONSOLE_CGU      cgudev_apbuart2
+#define CONSOLE_RX       CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _RX))
+#define CONSOLE_TX       CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _TX))
+#define CONSOLE_CGU      CONCAT(cgudev_apbuart, UART_CONSOLE_KERNEL)
 #define CONSOLE_BAUDRATE UART_BAUDRATE
+
+#ifdef NOMMU
+#define VADDR_CONSOLE CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _BASE))
+#else
+#define VADDR_CONSOLE (void *)((u32)VADDR_PERIPH_BASE + PAGE_OFFS_CONSOLE)
+#endif
 
 
 enum {
@@ -97,10 +109,12 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	_gr716_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
-	_gr716_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
+	gaisler_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
+	gaisler_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
+#ifdef __CPU_GR716
 	_gr716_cguClkEnable(cgu_primary, CONSOLE_CGU);
-	halconsole_common.uart = CONSOLE_BASE;
+#endif
+	halconsole_common.uart = VADDR_CONSOLE;
 	*(halconsole_common.uart + uart_ctrl) = TX_EN;
 	*(halconsole_common.uart + uart_scaler) = _hal_consoleCalcScaler(CONSOLE_BAUDRATE);
 	hal_cpuDataStoreBarrier();

@@ -4,4 +4,4 @@
 # Copyright 2022 Phoenix Systems
 #
 
-OBJS += $(addprefix $(PREFIX_O)hal/sparcv8leon3/gr716/, console.o gr716.o timer.o)
+OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/gaisler/$(TARGET_SUBFAMILY)/, gr716.o _init.o)

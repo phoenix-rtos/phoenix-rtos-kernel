@@ -16,7 +16,8 @@
 #ifndef _HAL_LEON3_CPU_H_
 #define _HAL_LEON3_CPU_H_
 
-#include "types.h"
+
+#ifdef NOMMU
 
 #define SIZE_PAGE 0x200
 
@@ -27,6 +28,21 @@
 
 #ifndef SIZE_USTACK
 #define SIZE_USTACK (8 * SIZE_PAGE)
+#endif
+
+#else
+
+#define SIZE_PAGE 0x1000
+
+/* Default kernel and user stack sizes */
+#ifndef SIZE_KSTACK
+#define SIZE_KSTACK (SIZE_PAGE)
+#endif
+
+#ifndef SIZE_USTACK
+#define SIZE_USTACK (SIZE_PAGE)
+#endif
+
 #endif
 
 
@@ -41,11 +57,25 @@
 #define PSR_ICC (0xf << 20) /* Integer condition codes */
 
 
-/* Trap Base Register */
-#define TBR_TT 0x3f /* Trap type */
+/* Cache control register */
+#define CCR_ICS (3 << 0)  /* ICache state */
+#define CCR_DCS (3 << 2)  /* DCache state */
+#define CCR_IF  (1 << 4)  /* ICache freeze on interrupt */
+#define CCR_DF  (1 << 5)  /* DCache freeze on interrupt */
+#define CCR_DP  (1 << 14) /* DCache flush pending */
+#define CCR_IP  (1 << 15) /* ICache flush pending */
+#define CCR_IB  (1 << 16) /* ICache burst fetch en */
+#define CCR_FI  (1 << 21) /* Flush ICache */
+#define CCR_FD  (1 << 22) /* Flush DCache */
+#define CCR_DS  (1 << 23) /* DCache snooping */
 
 
 #ifndef __ASSEMBLY__
+
+
+#include "types.h"
+#include "gaisler/gaisler.h"
+
 
 #define SYSTICK_INTERVAL 1000
 
@@ -139,17 +169,6 @@ extern time_t hal_timerGetUs(void);
 /* performance */
 
 
-static inline void hal_cpuHalt(void)
-{
-	/* must be performed in supervisor mode with interrupts enabled */
-	/* clang-format off */
-
-	__asm__ volatile ("wr %g0, %asr19");
-
-	/* clang-format on */
-}
-
-
 static inline void hal_cpuSetDevBusy(int s)
 {
 }
@@ -229,7 +248,7 @@ static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 
 static inline unsigned int hal_cpuGetCount(void)
 {
-	return 1;
+	return NUM_CPUS;
 }
 
 

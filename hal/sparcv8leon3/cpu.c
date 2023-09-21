@@ -18,19 +18,43 @@
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"
+#include "hal/sparcv8leon3/sparcv8leon3.h"
 
-#include "config.h"
 
-
-#define BOOTSTRAP_ADDR 0x80008000
-#define BOOTSTRAP_SPIM 0x400BC003
-
+#define ASR17_FPU_MSK (3 << 10)
 
 #define STR(x)  #x
 #define XSTR(x) STR(x)
 
 
-ptr_t hal_cpuKernelStack;
+ptr_t hal_cpuKernelStack[NUM_CPUS];
+
+
+static const char *hal_cpuGetFpuOption(void)
+{
+	u32 asr;
+
+	/* clang-format off */
+	__asm__ volatile("rd %%asr17, %0" : "=r"(asr));
+	/* clang-format on */
+
+	switch ((asr & ASR17_FPU_MSK) >> 10) {
+		case 0x0:
+			return "No FPU";
+
+		case 0x1:
+			return "GRFPU";
+
+		case 0x2:
+			return "Meiko FPU";
+
+		case 0x3:
+			return "GRFPU-Lite";
+
+		default:
+			return "Unknown";
+	}
+}
 
 
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
@@ -119,7 +143,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 void _hal_cpuSetKernelStack(void *kstack)
 {
-	hal_cpuKernelStack = (ptr_t)kstack;
+	hal_cpuKernelStack[hal_cpuGetID()] = (ptr_t)kstack;
 }
 
 
@@ -173,10 +197,13 @@ char *hal_cpuInfo(char *info)
 char *hal_cpuFeatures(char *features, unsigned int len)
 {
 	unsigned int n = 0;
+	const char *fpu = hal_cpuGetFpuOption();
 
 	if ((len - n) > 12) {
-		hal_strcpy(features, "GRFPU-Lite, ");
-		n += 12;
+		hal_strcpy(features, fpu);
+		n += hal_strlen(fpu);
+		hal_strcpy(features + n, ", ");
+		n += 2;
 	}
 	if ((len - n) > 10 + hal_strlen(XSTR(NWINDOWS))) {
 		hal_strcpy(features + n, XSTR(NWINDOWS) " windows, ");
@@ -195,6 +222,8 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 
 void hal_cleanDCache(ptr_t start, size_t len)
 {
+	(void)start;
+	(void)len;
 }
 
 
@@ -202,26 +231,6 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	hal_spinlockClear(spinlock, sc);
 	hal_cpuHalt();
-}
-
-
-void hal_cpuReboot(void)
-{
-	/* Reset to the built-in bootloader */
-	hal_cpuDisableInterrupts();
-
-	/* Reboot to SPIM */
-	*(volatile u32 *)(BOOTSTRAP_ADDR) = BOOTSTRAP_SPIM;
-
-	/* clang-format off */
-	__asm__ volatile (
-		"jmp %%g0\n\t"
-		"nop\n\t"
-		:::
-	);
-	/* clang-format on */
-
-	__builtin_unreachable();
 }
 
 

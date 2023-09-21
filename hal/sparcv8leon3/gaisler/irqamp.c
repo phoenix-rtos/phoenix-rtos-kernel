@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * Interrupt handling for sparcv8leon3
+ * Interrupt handling - IRQAMP controller
  *
  * Copyright 2022 Phoenix Systems
  * Author: Lukasz Leczkowski
@@ -18,7 +18,17 @@
 #include "hal/interrupts.h"
 #include "proc/userintr.h"
 
-#include <config.h>
+#include "config.h"
+
+
+extern unsigned int _end;
+
+
+#ifdef NOMMU
+#define VADDR_INT_CTRL INT_CTRL_BASE
+#else
+#define VADDR_INT_CTRL (void *)((u32)VADDR_PERIPH_BASE + PAGE_OFFS_INT_CTRL)
+#endif
 
 #define SIZE_INTERRUPTS 32
 #define SIZE_HANDLERS   4
@@ -123,7 +133,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	int reschedule = 0;
 	spinlock_ctx_t sc;
 
-	if (n == 1) {
+	if (n == EXTENDED_IRQN) {
 		/* Extended interrupt (16 - 31) */
 		n = *(interrupts_common.int_ctrl + pextack) & 0x3F;
 	}
@@ -138,7 +148,9 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	h = interrupts_common.handlers[n];
 	if (h != NULL) {
 		do {
+#ifdef NOMMU
 			hal_cpuSetGot(h->got);
+#endif
 			reschedule |= h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.handlers[n]);
@@ -150,7 +162,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	interrupts_clearIRQ(n);
 	if (n > 15) {
 		/* Extended interrupt sets bit n and bit 1 of pending register */
-		interrupts_clearIRQ(1);
+		interrupts_clearIRQ(EXTENDED_IRQN);
 	}
 	hal_spinlockClear(&interrupts_common.spinlocks[n], &sc);
 }
@@ -177,7 +189,9 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlocks[h->n], &sc);
+#ifdef NOMMU
 	h->got = hal_cpuGetGot();
+#endif
 	_intr_add(&interrupts_common.handlers[h->n], h);
 	interrupts_enableIRQ(h->n);
 	hal_spinlockClear(&interrupts_common.spinlocks[h->n], &sc);
@@ -225,5 +239,5 @@ void _hal_interruptsInit(void)
 		interrupts_common.counters[i] = 0;
 	}
 
-	interrupts_common.int_ctrl = (void *)INT_CTRL_BASE;
+	interrupts_common.int_ctrl = (void *)VADDR_INT_CTRL;
 }

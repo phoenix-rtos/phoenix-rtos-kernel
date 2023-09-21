@@ -31,8 +31,8 @@
 #endif /* __ASSEMBLY__ */
 
 
-#define NWINDOWS      31
-#define INT_CTRL_BASE ((void *)0x80002000)
+#define NWINDOWS 31
+#define NUM_CPUS 1
 
 
 #endif
