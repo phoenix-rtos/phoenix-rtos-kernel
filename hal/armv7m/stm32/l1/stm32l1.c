@@ -962,7 +962,7 @@ unsigned int _stm32_cpuid(void)
 
 void _stm32_wdgReload(void)
 {
-#if defined(WATCHDOG) && defined(NDEBUG)
+#if defined(WATCHDOG)
 	*(stm32_common.iwdg + iwdg_kr) = 0xaaaa;
 #endif
 }
@@ -1117,7 +1117,7 @@ void _stm32_init(void)
 	/* Clear pending interrupts */
 	*(stm32_common.exti + exti_pr) |= 0xffffff;
 
-#if defined(WATCHDOG) && defined(NDEBUG)
+#if defined(WATCHDOG)
 	/* Init watchdog */
 	/* Enable write access to IWDG */
 	*(stm32_common.iwdg + iwdg_kr) = 0x5555;
