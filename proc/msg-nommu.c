@@ -107,18 +107,25 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	kmsg = p->kmessages;
+	if (kmsg != NULL) {
+		kmsg->state = msg_received;
+		LIST_REMOVE(&p->kmessages, kmsg);
+	}
 
 	if (p->closed) {
 		/* Port is being removed */
 		if (kmsg != NULL) {
 			kmsg->state = msg_rejected;
-			LIST_REMOVE(&p->kmessages, kmsg);
 			proc_threadWakeup(&kmsg->threads);
 		}
 
-		hal_spinlockClear(&p->spinlock, &sc);
+		err = -EINVAL;
+	}
+	hal_spinlockClear(&p->spinlock, &sc);
+
+	if (err < 0) {
 		port_put(p, 0);
-		return -EINVAL;
+		return err;
 	}
 
 	if (proc_portRidAlloc(p, kmsg) < 0) {
@@ -128,13 +135,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		hal_spinlockClear(&p->spinlock, &sc);
 
 		port_put(p, 0);
-
 		return -ENOMEM;
 	}
-
-	kmsg->state = msg_received;
-	LIST_REMOVE(&p->kmessages, kmsg);
-	hal_spinlockClear(&p->spinlock, &sc);
 
 	*rid = lib_idtreeId(&kmsg->idlinkage);
 
