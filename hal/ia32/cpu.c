@@ -25,7 +25,7 @@
 #include "ia32.h"
 #include "halsyspage.h"
 #include "tlb.h"
-
+#include "init.h"
 
 struct cpu_feature_t {
 	const char *name;
@@ -299,18 +299,6 @@ void hal_jmp(void *f, void *kstack, void *stack, int argc)
 /* core management */
 
 
-static void hal_cpuid(u32 leaf, u32 index, u32 *ra, u32 *rb, u32 *rc, u32 *rd)
-{
-	/* clang-format off */
-	__asm__ volatile (
-		"cpuid"
-	: "=a" (*ra), "=b" (*rb), "=c" (*rc), "=d" (*rd)
-	: "a" (leaf), "c" (index)
-	: "memory");
-	/* clang-format on */
-}
-
-
 unsigned int hal_cpuGetCount(void)
 {
 	return cpu.ncpus;
@@ -319,8 +307,12 @@ unsigned int hal_cpuGetCount(void)
 
 static inline unsigned int _hal_cpuGetID(void)
 {
-	/* 0xfee00020 - Local APIC ID Register */
-	return (*(volatile u32 *)0xfee00020u) >> 24;
+	if (hal_isLapicPresent() == 1) {
+		return (*(volatile u32 *)(hal_config.localApicAddr + LAPIC_ID_REG)) >> 24;
+	}
+	else {
+		return 0;
+	}
 }
 
 
@@ -339,25 +331,28 @@ unsigned int hal_cpuGetID(void)
 /* Sends IPI to everyone but self */
 void cpu_broadcastIPI(unsigned int intr)
 {
-	/* 0xfee00300 - Interrupt Command Register (ICR); bits 0-31 */
-	volatile u32 *p = (void *)0xfee00300;
-
-	if (_hal_cpuGetID() == 0xffu) {
-		return;
-	}
-
-	*p = intr | 0xc4000;
-	while (*p & (1 << 12)) {
+	volatile u32 *p;
+	if (hal_isLapicPresent() == 1) {
+		p = hal_config.localApicAddr + LAPIC_ICR_REG_0_31;
+		*p = intr | 0xc4000;
+		while (*p & (1 << 12)) {
+		}
 	}
 }
 
 
 void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 {
-	(void)cpu;
-	/* Currently threads_schedule uses cpu_sendIPI as a broadcast
-	   TODO: Swap cpu_sendIPI and cpu_broadcastIPI in threads_scedule */
-	cpu_broadcastIPI(intr);
+	volatile u32 *p, *q;
+	if (hal_isLapicPresent() == 1) {
+		p = hal_config.localApicAddr + LAPIC_ICR_REG_0_31;
+		q = hal_config.localApicAddr + LAPIC_ICR_REG_32_63;
+		/* Set destination */
+		*q = (cpu & 0xff) << 24;
+		*p = intr & 0xcdfff;
+		while (*p & (1 << 12)) {
+		}
+	}
 }
 
 
@@ -387,24 +382,21 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 
 void *_cpu_initCore(void)
 {
-	/* 0xfee000f0 - Local APIC, Spurious Interrupt Vector Register */
-	volatile u32 *p = (void *)0xfee000f0;
+	volatile u32 *p;
 	const unsigned int id = hal_cpuAtomAdd(&cpu.ncpus, 1);
 
-	cpu.cpus[id] = _hal_cpuGetID();
+	if (hal_isLapicPresent() == 1) {
+		p = hal_config.localApicAddr + LAPIC_SPUR_IRQ_REG;
+		*p = (*p | 0x1ffu);
+	}
 
-	*p = (*p | 0x100);
+	cpu.cpus[id] = _hal_cpuGetID();
 
 	hal_memset(&cpu.tss[id], 0, sizeof(tss_t));
 
 	_cpu_gdtInsert(hal_cpuGetTssIndex(), (u32)&cpu.tss[id], sizeof(tss_t), DESCR_TSS);
 	_cpu_gdtInsert(hal_cpuGetTlsIndex(), 0x00000000, VADDR_KERNEL, DESCR_TLS);
-	/* clang-format off */
-	__asm__ volatile (
-		"pushw %%gs\n\t"
-		"popw %%gs"
-	:::);
-	/* clang-format on */
+	hal_cpuReloadTlsSegment();
 
 
 	cpu.tss[id].ss0 = SEL_KDATA;
@@ -655,10 +647,5 @@ void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 	hal_tlbFlushLocal();
 	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->tbss_sz + tls->tdata_sz, VADDR_KERNEL - tls->tls_base + tls->tbss_sz + tls->tdata_sz, DESCR_TLS);
 	/* Reload the hidden gs register*/
-	/* clang-format off */
-	__asm__ volatile (
-		"pushw %%gs\n\t"
-		"popw %%gs"
-	:::);
-	/* clang-format on */
+	hal_cpuReloadTlsSegment();
 }

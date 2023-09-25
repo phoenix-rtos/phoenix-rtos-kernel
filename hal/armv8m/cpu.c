@@ -250,6 +250,11 @@ void _hal_cpuInit(void)
 }
 
 
+void cpu_broadcastIPI(unsigned int intr)
+{
+}
+
+
 /* Not safe to call if TLS is not present (tls_base mustn't be NULL) */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {

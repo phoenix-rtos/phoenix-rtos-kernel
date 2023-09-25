@@ -24,6 +24,8 @@
 #define SYSPAGE_SEG 0x200
 #define INIT_CORE_BASE_ADDR 0x11000
 
+#define PAGING_ENABLE 0x80000000
+
 .code32
 .section .init, "x"
 
@@ -61,20 +63,6 @@ _init_plo:
 	/* Store system page address in esi register */
 	movl (%eax), %esi
 
-	/* Test presence of PS/2 keyboard */
-	inb $0x64, %al
-	cmp $0xff, %al
-	jz _init_setupPaging
-
-	/* Disable A20 line mask */
-	call _init_empty8042
-	movb $0xd1, %al
-	outb %al, $0x64
-	call _init_empty8042
-	movb $0xdf, %al
-	outb %al, $0x60
-	call _init_empty8042
-
 _init_setupPaging:
 
 	/* Create empty page directory for first 4 MB mapping */
@@ -86,7 +74,7 @@ _init_setupPaging:
 	addl $16, %ebx
 	movl (%ebx), %edi
 	cld
-	rep; stosl
+	rep stosl
 
 	/* Map first 4MB of memory at VADDR_KERNEL and at 0 addresses */
 	movl (%ebx), %ecx
@@ -111,18 +99,6 @@ _init_setupPaging:
 	jge 1b
 	cld
 
-	/* Map LAPIC registers linearly into the kernel address space */
-	movl %ecx, %ebx
-	movl %ecx, %edi
-	addl $0x1000, %edi
-
-	std
-	subl $20, %edi
-	movl $0xfec0019b, %eax
-	movl %eax, (%edi)
-	cld
-	movl %ebx, %ecx
-
 	/* Set kernel page directory */
 	movl %ecx, %cr3
 
@@ -133,33 +109,25 @@ _init_setupPaging:
 
 	/* Now enable paging */
 	movl %cr0, %eax
-	orl $0x80000000, %eax
+	orl $PAGING_ENABLE, %eax
 	movl %eax, %cr0
 
-	/* Store pointer to syspage in kernel variable */
-	addl $VADDR_KERNEL, %esi
-	movl %esi, syspage
-
-	/* Relocate stack, GDT and IDT */
+	/* Relocate stack */
 	addl $VADDR_KERNEL, %esp
-	addl $2, %esi
-	addl $VADDR_KERNEL, (%esi)
-	addl $8, %esi
-	addl $VADDR_KERNEL, (%esi)
 
-	movl syspage, %eax
-	lgdt (%eax)
-	addl $8, %eax
-	lidt (%eax)
+	pushl %esi
+	lea _hal_configInit, %eax
+	call *%eax
+	addl $4, %esp
 
-	/* Test LAPIC presence */
-	movl (0xfee00020), %ebx
-	cmp $0xffffffff, %ebx
+	/* Test LAPIC presence: it's necessary to start other cores */
+	movl hal_config, %eax
+	testl %eax, %eax
 	jz b3
 
 _start_initap:
 	/* Get SYSPAGE address before paging */
-	subl $8, %eax
+	movl syspage, %eax
 	subl $VADDR_KERNEL, %eax
 	movl %eax, %esi
 
@@ -180,23 +148,21 @@ _start_initap:
 	subl $VADDR_KERNEL, %eax
 	movl %eax, %esi
 	movl $0x200, %ecx
-	cld;
-	rep; movsb
-
-//jmp b3
+	cld
+	rep movsb
 
 	/* Send INI IPI */
-	movl $0x000c4500, %eax /* 11 00 0 1 0 0 0 101 00000000 */;
-	mov %eax, (0xfee00300)
-b0:
-	btl $12, (0xfee00300)
-	jc b0
+	pushl $0x000c4500 /* 11 00 0 1 0 0 0 101 00000000 */
+	pushl 0xff
+	call cpu_sendIPI
+	addl $8, %esp
 
 	/* Send SIPI IPI (with real memory-address 0x00011000) */
-	movl $0x000c4611, %eax /* 11 00 0 0 1 0 0 0 110 00010001 */
-	mov %eax, (0xfee00300)
-b1:	btl $12, (0xfee00300)
-	jc b1
+	pushl $0x000c4611 /* 11 00 0 0 1 0 0 0 110 00010001 */
+	pushl 0xff
+	call cpu_sendIPI
+	addl $8, %esp
+
 b3:
 	/* Now jump to main function */
 	pushl $0
@@ -207,44 +173,6 @@ b3:
 	ret
 	hlt
 .size _start, .-_start
-
-
-/* Function flushes keyboard controler buffer */
-.globl _init_empty8042
-.align 4, 0x90
-.type _init_empty8042, @function
-_init_empty8042:
-	pushf
-	pushl %eax
-	pushl %ecx
-2:
-	/* Short delay */
-	mov $0x1000, %ecx
-3:
-	rep; loop 3b
-
-	/* Test if output buffer is empty */
-	inb $0x64, %al
-	test $1, %al
-	jz 5f
-
-	/* Second delay */
-	mov $0x1000, %ecx
-4:
-	rep; loop 4b
-
-	/* Read character */
-	in $0x60, %al
-	jmp 2b
-5:
-	/* Test input keyboard buffer - if it isn't empy repeat all steps */
-	test $2, %al
-	jnz 2b
-	pop %eax
-	pop %ecx
-	popf
-	ret
-.size _init_empty8042, .-_init_empty8042
 
 
 .code16
@@ -296,7 +224,7 @@ _init_core_prot:
 	movl %eax, %cr4
 
 	movl %cr0, %eax
-	orl $0x80000000, %eax
+	orl $PAGING_ENABLE, %eax
 	movl %eax, %cr0
 
 	/* Switch to virtual addresses */
