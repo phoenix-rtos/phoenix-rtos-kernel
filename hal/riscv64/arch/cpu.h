@@ -234,11 +234,6 @@ static inline unsigned int hal_cpuGetID(void)
 }
 
 
-static inline void cpu_sendIPI(unsigned int cpu, unsigned int intr)
-{
-}
-
-
 #endif
 
 #endif

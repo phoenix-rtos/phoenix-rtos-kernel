@@ -26,6 +26,7 @@ extern void cpu_broadcastIPI(unsigned int intr);
 struct task_tlb {
 	void (*func)(void *);
 	const void *entry;
+	size_t count;
 	volatile size_t confirmations;
 	spinlock_t *spinlock;
 };
@@ -61,7 +62,11 @@ static void tlb_invalidate(void *arg)
 {
 	struct task_tlb *task = arg;
 	spinlock_ctx_t sc;
-	hal_tlbInvalidateLocalEntry(task->entry);
+	size_t i;
+	const void *entry;
+	for (i = 0, entry = task->entry; i < task->count; ++i, entry += SIZE_PAGE) {
+		hal_tlbInvalidateLocalEntry(entry);
+	}
 	hal_spinlockSet(task->spinlock, &sc);
 	--task->confirmations;
 	hal_spinlockClear(task->spinlock, &sc);
@@ -71,6 +76,7 @@ static void tlb_invalidate(void *arg)
 /* Must be protected by pmap_common.lock */
 void hal_tlbFlush(void)
 {
+	/* TODO: Make sure that we aren't pushing into full queue */
 	unsigned int i;
 	const unsigned int n = hal_cpuGetCount(), id = hal_cpuGetID();
 	size_t tasks_size;
@@ -81,6 +87,7 @@ void hal_tlbFlush(void)
 
 	tlb_common.tlbs[id].tasks[tasks_size].func = tlb_flush;
 	tlb_common.tlbs[id].tasks[tasks_size].entry = NULL;
+	tlb_common.tlbs[id].tasks[tasks_size].count = 0;
 	tlb_common.tlbs[id].tasks[tasks_size].confirmations = n - 1;
 	tlb_common.tlbs[id].tasks[tasks_size].spinlock = &tlb_common.tlbs[id].task_spinlock;
 
@@ -99,8 +106,9 @@ void hal_tlbFlush(void)
 
 
 /* Must be protected by pmap_common.lock */
-void hal_tlbInvalidateEntry(const void *vaddr)
+void hal_tlbInvalidateEntry(const void *vaddr, size_t count)
 {
+	/* TODO: Make sure that we aren't pushing into full queue */
 	unsigned int i;
 	const unsigned int n = hal_cpuGetCount(), id = hal_cpuGetID();
 	size_t tasks_size;
@@ -111,6 +119,7 @@ void hal_tlbInvalidateEntry(const void *vaddr)
 
 	tlb_common.tlbs[id].tasks[tasks_size].func = tlb_invalidate;
 	tlb_common.tlbs[id].tasks[tasks_size].entry = vaddr;
+	tlb_common.tlbs[id].tasks[tasks_size].count = count;
 	tlb_common.tlbs[id].tasks[tasks_size].confirmations = n - 1;
 	tlb_common.tlbs[id].tasks[tasks_size].spinlock = &tlb_common.tlbs[id].task_spinlock;
 

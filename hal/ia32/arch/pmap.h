@@ -5,9 +5,9 @@
  *
  * pmap interface - machine dependent part of VM subsystem
  *
- * Copyright 2012 Phoenix Systems
+ * Copyright 2012, 2023 Phoenix Systems
  * Copyright 2001, 2005-2006 Pawel Pisarczyk
- * Author: Pawel Pisarczyk
+ * Author: Pawel Pisarczyk, Andrzej Stalke
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -23,14 +23,24 @@
 #define VADDR_MAX      0xffffffff
 #define VADDR_USR_MAX  VADDR_KERNEL
 
-
+/* Attributes specifying different types of caching */
+#define PGHD_PCD       0x10
+#define PGHD_PWT       0x08
+#define PGHD_CACHE_WB  0x0
+#define PGHD_CACHE_WT  PGHD_PWT
+#define PGHD_CACHE_UCM PGHD_PCD
+#define PGHD_CACHE_UC  (PGHD_PCD | PGHD_PWT)
 /* Architecure dependent page attributes */
 #define PGHD_PRESENT    0x01
 #define PGHD_USER       0x04
 #define PGHD_WRITE      0x02
 #define PGHD_EXEC       0x00
-#define PGHD_DEV        0x00
-#define PGHD_NOT_CACHED 0x00
+#define PGHD_DEV        PGHD_CACHE_UC
+#define PGHD_NOT_CACHED PGHD_CACHE_UCM
+
+#define PGHD_4MB        0x80
+#define PGHD_4MB_GLOBAL 0x100
+#define PGHD_4MB_PAT    0x1000
 
 
 /* Architecure dependent page table attributes */
@@ -80,6 +90,11 @@ typedef struct _pmap_t {
 	void *pmapv;
 	page_t *pmapp;
 } pmap_t;
+
+int pmap_getPage(page_t *page, addr_t *addr);
+
+
+int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, int attr, page_t *alloc, int tlbInval);
 
 #endif
 

@@ -579,7 +579,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	hal_lockScheduler();
 
 	if (hal_cpuGetID() == 0) {
-		cpu_sendIPI(0, 32);
+		cpu_broadcastIPI(32);
 	}
 
 	current = _proc_current();

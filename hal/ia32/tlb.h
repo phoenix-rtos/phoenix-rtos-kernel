@@ -51,7 +51,7 @@ static inline void hal_tlbInvalidateLocalEntry(void const *vaddr)
 void hal_tlbFlush(void);
 
 
-void hal_tlbInvalidateEntry(void const *vaddr);
+void hal_tlbInvalidateEntry(const void *vaddr, size_t count);
 
 
 void hal_tlbCommit(spinlock_t *spinlock, spinlock_ctx_t *ctx);

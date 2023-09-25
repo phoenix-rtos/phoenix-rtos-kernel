@@ -122,6 +122,58 @@
 /* There are objects in memory that require O(MAX_CPU_COUNT^2) memory. */
 #define MAX_CPU_COUNT 64
 
+#define LAPIC_DEFAULT_ADDRESS 0xfee00000u
+
+/* Local APIC offsets */
+#define LAPIC_ID_REG          0x20u
+#define LAPIC_VERSION_REG     0x30u
+#define LAPIC_TASK_PRIO_REG   0x80u
+#define LAPIC_ARBI_PRIO_REG   0x90u
+#define LAPIC_PROC_PRIO_REG   0xa0u
+#define LAPIC_EOI_REG         0xb0u
+#define LAPIC_REMO_READ_REG   0xc0u
+#define LAPIC_LOGI_DEST_REG   0xd0u
+#define LAPIC_DEST_FORM_REG   0xe0u
+#define LAPIC_SPUR_IRQ_REG    0xf0u
+#define LAPIC_ISR_REG_0_31    0x100u
+#define LAPIC_ISR_REG_32_63   0x110u
+#define LAPIC_ISR_REG_64_95   0x120u
+#define LAPIC_ISR_REG_96_127  0x130u
+#define LAPIC_ISR_REG_128_159 0x140u
+#define LAPIC_ISR_REG_160_191 0x150u
+#define LAPIC_ISR_REG_192_223 0x160u
+#define LAPIC_ISR_REG_224_255 0x170u
+#define LAPIC_TMR_REG_0_31    0x180u
+#define LAPIC_TMR_REG_32_63   0x190u
+#define LAPIC_TMR_REG_64_95   0x1a0u
+#define LAPIC_TMR_REG_96_127  0x1b0u
+#define LAPIC_TMR_REG_128_159 0x1c0u
+#define LAPIC_TMR_REG_160_191 0x1d0u
+#define LAPIC_TMR_REG_192_223 0x1e0u
+#define LAPIC_TMR_REG_224_255 0x1f0u
+#define LAPIC_IRR_REG_0_31    0x200u
+#define LAPIC_IRR_REG_32_63   0x210u
+#define LAPIC_IRR_REG_64_95   0x220u
+#define LAPIC_IRR_REG_96_127  0x230u
+#define LAPIC_IRR_REG_128_159 0x240u
+#define LAPIC_IRR_REG_160_191 0x250u
+#define LAPIC_IRR_REG_192_223 0x260u
+#define LAPIC_IRR_REG_224_255 0x270u
+#define LAPIC_ERR_STAT_REG    0x280u
+#define LAPIC_LVT_CMCI_REG    0x2f0u
+#define LAPIC_ICR_REG_0_31    0x300u
+#define LAPIC_ICR_REG_32_63   0x310u
+#define LAPIC_LVT_TIMER_REG   0x320u
+#define LAPIC_LVT_THERMO_REG  0x330u
+#define LAPIC_LVT_PMC_REG     0x340u
+#define LAPIC_LVT_LINT0_REG   0x350u
+#define LAPIC_LVT_LINT1_REG   0x360u
+#define LAPIC_LVT_ERR_REG     0x370u
+#define LAPIC_LVT_TMR_IC_REG  0x380u
+#define LAPIC_LVT_TMR_CC_REG  0x390u
+#define LAPIC_LVT_TMR_DC_REG  0x3e0u
+
+
 #ifndef __ASSEMBLY__
 
 
@@ -338,6 +390,29 @@ static inline u32 hal_cpuAtomAdd(volatile u32 *dest, u32 val)
 	: "memory");
 	/* clang-format on */
 	return val;
+}
+
+
+static inline void hal_cpuid(u32 leaf, u32 index, u32 *ra, u32 *rb, u32 *rc, u32 *rd)
+{
+	/* clang-format off */
+	__asm__ volatile (
+		"cpuid"
+	: "=a" (*ra), "=b" (*rb), "=c" (*rc), "=d" (*rd)
+	: "a" (leaf), "c" (index)
+	: "memory");
+	/* clang-format on */
+}
+
+
+static inline void hal_cpuReloadTlsSegment(void)
+{
+	/* clang-format off */
+	__asm__ volatile (
+		"pushw %%gs\n\t"
+		"popw %%gs"
+	:::);
+	/* clang-format on */
 }
 
 

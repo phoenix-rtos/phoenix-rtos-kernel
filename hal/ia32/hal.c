@@ -65,7 +65,7 @@ void hal_wdgReload(void)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_init(void)
+void _hal_init(void)
 {
 
 	_hal_spinlockInit();
