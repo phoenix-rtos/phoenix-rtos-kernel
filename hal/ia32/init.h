@@ -34,7 +34,8 @@
 #define FADT_PCIe_ASPM_CONTROLS  (1u << 4)
 #define FADT_NO_CMOS_RTC         (1u << 5)
 
-#define HAL_MEM_ENTRIES 64
+#define HAL_MEM_ENTRIES        64
+#define MMIO_DEVICES_VIRT_ADDR (void *)0xfe000000
 
 typedef struct {
 	char magic[4];
@@ -46,13 +47,13 @@ typedef struct {
 	u32 oemRevision;
 	u32 creatorId;
 	u32 creatorRevision;
-} __attribute__ ((packed)) sdt_header_t;
+} __attribute__((packed)) sdt_header_t;
 
 
 typedef struct {
 	sdt_header_t header;
 	addr_t sdt[];
-} __attribute__ ((packed)) rsdt_t;
+} __attribute__((packed)) rsdt_t;
 
 
 typedef struct {
@@ -61,7 +62,7 @@ typedef struct {
 	char oemId[6];
 	u8 revision;
 	addr_t rsdt;
-} __attribute__ ((packed)) rsdp_t;
+} __attribute__((packed)) rsdp_t;
 
 
 typedef struct {
@@ -168,6 +169,7 @@ typedef struct {
 	addr_t *ptable;
 	madt_header_t *madt;
 	fadt_header_t *fadt;
+	void *devices; /* Address space, where memory mapped devices go */
 	struct {
 		u32 count;
 		hal_memEntry_t entries[HAL_MEM_ENTRIES];
@@ -185,6 +187,9 @@ static inline int hal_isLapicPresent(void)
 
 
 void _hal_configInit(syspage_t *s);
+
+
+void *_hal_configMapDevice(u32 *pdir, addr_t start, size_t size, int attr);
 
 
 #endif

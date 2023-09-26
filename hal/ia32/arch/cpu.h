@@ -256,6 +256,18 @@ typedef struct {
 
 #pragma pack(pop)
 
+typedef struct {
+	tss_t tss[MAX_CPU_COUNT];
+	char stacks[MAX_CPU_COUNT][SIZE_KSTACK];
+	u32 dr5;
+	unsigned int ncpus;
+	volatile unsigned int readyCount;
+	unsigned int cpus[MAX_CPU_COUNT];
+} hal_cpu_t;
+
+extern hal_cpu_t cpu;
+void hal_cpuSendIPI(unsigned int cpu, unsigned int intrAndFlags);
+
 
 /* interrupts */
 

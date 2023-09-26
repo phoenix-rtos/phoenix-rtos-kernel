@@ -35,9 +35,7 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)arg;
 	(void)ctx;
 
-	if (hal_cpuGetID() == 0) {
-		timer.jiffies += timer.interval;
-	}
+	timer.jiffies += timer.interval;
 	return 0;
 }
 
@@ -72,6 +70,8 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 __attribute__((section(".init"))) void _hal_timerInit(u32 interval)
 {
 	unsigned int t;
+
+	interval /= hal_cpuGetCount();
 
 	timer.interval = interval;
 	timer.jiffies = 0;

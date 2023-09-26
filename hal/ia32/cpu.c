@@ -67,13 +67,7 @@ static const struct cpu_feature_t cpufeatures[] = {
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
-struct {
-	tss_t tss[MAX_CPU_COUNT];
-	char stacks[MAX_CPU_COUNT][SIZE_KSTACK];
-	u32 dr5;
-	volatile unsigned int ncpus;
-	volatile unsigned int cpus[MAX_CPU_COUNT];
-} cpu;
+hal_cpu_t cpu;
 
 
 /* context management */
@@ -325,6 +319,7 @@ unsigned int hal_cpuGetID(void)
 			return i;
 		}
 	}
+	/* Critical error */
 	return 0;
 }
 
@@ -341,7 +336,7 @@ void cpu_broadcastIPI(unsigned int intr)
 }
 
 
-void cpu_sendIPI(unsigned int cpu, unsigned int intr)
+void hal_cpuSendIPI(unsigned int cpu, unsigned int intrAndFlags)
 {
 	volatile u32 *p, *q;
 	if (hal_isLapicPresent() == 1) {
@@ -349,7 +344,7 @@ void cpu_sendIPI(unsigned int cpu, unsigned int intr)
 		q = hal_config.localApicAddr + LAPIC_ICR_REG_32_63;
 		/* Set destination */
 		*q = (cpu & 0xff) << 24;
-		*p = intr & 0xcdfff;
+		*p = intrAndFlags & 0xcdfff;
 		while (*p & (1 << 12)) {
 		}
 	}
@@ -383,14 +378,13 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 void *_cpu_initCore(void)
 {
 	volatile u32 *p;
-	const unsigned int id = hal_cpuAtomAdd(&cpu.ncpus, 1);
+	const unsigned int id = hal_cpuGetID();
+	hal_cpuAtomAdd(&cpu.readyCount, 1);
 
 	if (hal_isLapicPresent() == 1) {
 		p = hal_config.localApicAddr + LAPIC_SPUR_IRQ_REG;
-		*p = (*p | 0x1ffu);
+		*p = (*p | 0x11ffu);
 	}
-
-	cpu.cpus[id] = _hal_cpuGetID();
 
 	hal_memset(&cpu.tss[id], 0, sizeof(tss_t));
 
@@ -433,26 +427,17 @@ void *_cpu_initCore(void)
 
 static void _hal_cpuInitCores(void)
 {
-	unsigned int i, k;
-
 	/* Prepare descriptors for user segments */
 	_cpu_gdtInsert(3, 0x00000000, VADDR_KERNEL, DESCR_UCODE);
 	_cpu_gdtInsert(4, 0x00000000, VADDR_KERNEL, DESCR_UDATA);
 
 	/* Initialize BSP */
-	cpu.ncpus = 0;
+	cpu.readyCount = 0;
 	_cpu_initCore();
 
 	*(u32 *)(syspage->hs.stack + VADDR_KERNEL - 4) = 0;
 
-	for (;;) {
-		k = cpu.ncpus;
-		i = 0;
-		while ((cpu.ncpus == k) && (++i < 50000000))
-			;
-		if (i >= 50000000) {
-			break;
-		}
+	while (cpu.readyCount < cpu.ncpus) {
 	}
 }
 
@@ -635,8 +620,6 @@ void hal_cleanDCache(ptr_t start, size_t len)
 
 void _hal_cpuInit(void)
 {
-	cpu.ncpus = 0;
-
 	_hal_cpuInitCores();
 }
 

@@ -17,6 +17,7 @@
 #define __ASSEMBLY__
 
 #include <arch/cpu.h>
+#include <arch/interrupts.h>
 
 .extern _interrupts_multilock
 
@@ -152,9 +153,9 @@ name:; \
 	movl %eax, %ebx; \
 	addl $8, %esp; \
 	push $intr; \
-	call _interrupts_apicACK; \
+	call _interrupts_eoi; \
 	addl $4, %esp; \
-	cmpl $0, %ebx; \
+	testl %ebx, %ebx; \
 	jz interrupts_popContextUnlocked; \
 	movl %esp, %eax; \
 	pushl $0; \
@@ -196,8 +197,8 @@ _interrupts_TLBShootdown:
 	movw %ax, %fs
 	movw %ax, %gs
 	call hal_tlbShootdown
-	pushl $0x81
-	call _interrupts_apicACK
+	pushl $TLB_IRQ
+	call _interrupts_eoi
 	addl $4, %esp
 	jmp interrupts_popContextUnlocked
 .size _interrupts_TLBShootdown, .-_interrupts_TLBShootdown
