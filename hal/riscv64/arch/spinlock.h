@@ -23,15 +23,10 @@ typedef u64 spinlock_ctx_t;
 
 typedef struct _spinlock_t {
 	const char *name;
-	cycles_t b;
-	cycles_t e;
-	cycles_t dmin;
-	cycles_t dmax;
 	struct _spinlock_t *next;
 	struct _spinlock_t *prev;
 
 	u64 lock;
-	u64 sstatus;
 } spinlock_t;
 
 #endif

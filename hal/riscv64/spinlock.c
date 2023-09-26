@@ -28,8 +28,6 @@ static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 	spinlock->lock = 1;
 
 	spinlock->name = name;
-	spinlock->dmin = (cycles_t)-1;
-	spinlock->dmax = (cycles_t)0;
 
 	if (spinlocks.first != NULL) {
 		spinlocks.first->prev->next = spinlock;
@@ -48,44 +46,35 @@ static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
+	/* clang-format off */
 	__asm__ volatile
 	(" \
 		csrrc t0, sstatus, 2; \
-		sd t0, %0; \
+		sd t0, (%0); \
 		mv t0, zero; \
-1: \
+	1: \
 		amoswap.w.aq t0, t0, %1; \
 		beqz t0, 1b"
 	:
-	: "m" (spinlock->sstatus), "A" (spinlock->lock)
+	: "r" (sc), "A" (spinlock->lock)
 	: "t0", "memory");
-
-	/* (MOD) inefficiency because of rdcycles instruction */
-	/* hal_cpuGetCycles((void *)&spinlock->b); */
+	/* clang-format on */
 }
 
 
 void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
-	/* (MOD) inefficiency because of rdcycles instruction */
-	/* hal_cpuGetCycles((void *)&spinlock->e);*/
-
-	/* Calculate maximum and minimum lock time */
-	/*if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
-		spinlock->dmax = spinlock->e - spinlock->b;
-
-	if (spinlock->e - spinlock->b < spinlock->dmin)
-		spinlock->dmin = spinlock->e - spinlock->b;*/
-
+	/* clang-format off */
 	__asm__ volatile
 	(" \
 		li t1, 1; \
 		amoswap.w.rl t1, t1, %0; \
-		ld t0, %1; \
+		ld t0, (%1); \
 		csrw sstatus, t0"
 	:
-	: "A" (spinlock->lock), "m" (spinlock->sstatus)
+	: "A" (spinlock->lock), "r" (sc)
 	: "t0", "t1", "memory");
+	/* clang-format on */
 
 	return;
 }

@@ -1215,6 +1215,7 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 		return EOK;
 	}
 
+	/* tsc and scp are swapped intentionally, we need to enable interrupts */
 	hal_spinlockClear(spinlock, &tsc);
 	err = hal_cpuReschedule(&threads_common.spinlock, scp);
 	hal_spinlockSet(spinlock, scp);
