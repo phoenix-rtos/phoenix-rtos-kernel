@@ -235,12 +235,13 @@ hal_cpuReschedule:
 
 	beqz a0, 1f
 
-	/* Set spinlock */
-	ld t0, 64(a0)            /* Modify saved status */
+	/* Modify saved status */
+	ld t0, (a1)
 	sd t0, 240(sp)
 
+	/* Clear spinlock */
 	li t0, 1
-	addi a0, a0, 56
+	addi a0, a0, 24
 	amoswap.w.rl t0, t0, (a0)
 1:
 	ld t0, 240(sp)
