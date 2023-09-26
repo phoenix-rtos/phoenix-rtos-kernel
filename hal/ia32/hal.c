@@ -75,8 +75,8 @@ void _hal_init(void)
 	_hal_exceptionsInit();
 	_hal_interruptsInit();
 
-	_hal_timerInit(SYSTICK_INTERVAL);
 	_hal_cpuInit();
+	_hal_timerInit(SYSTICK_INTERVAL);
 	_hal_pciInit();
 
 	hal_common.started = 0;

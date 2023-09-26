@@ -28,64 +28,6 @@ struct {
 } init_common;
 
 
-static inline int _hal_findFreePage(page_t *page)
-{
-	int ret;
-	while (init_common.pageIterator < 0xffff0000) {
-		ret = pmap_getPage(page, &init_common.pageIterator);
-		if (ret == EOK) {
-			if ((page->flags & PAGE_FREE) != 0) {
-				break;
-			}
-		}
-		else {
-			break;
-		}
-	}
-	return ret;
-}
-
-
-static int _hal_configMapPage(u32 *pdir, addr_t pa, void *va, int attr)
-{
-	page_t page;
-	int ret = _pmap_enter(pdir, hal_config.ptable, pa, va, attr, NULL, 0);
-	if (ret < 0) {
-		ret = _hal_findFreePage(&page);
-		if (ret == EOK) {
-			ret = _pmap_enter(pdir, hal_config.ptable, pa, va, attr, &page, 0);
-		}
-	}
-	return ret;
-}
-
-
-static void *_hal_configMapObject(u32 *pdir, addr_t start, size_t size, int attr)
-{
-	void *result;
-	addr_t end = start + size, pa;
-	u32 offset;
-	int ret;
-
-	if ((end & ~(SIZE_PAGE - 1)) != 0) {
-		end += SIZE_PAGE;
-		end &= ~(SIZE_PAGE - 1);
-	}
-	offset = start;
-	start &= ~(SIZE_PAGE - 1);
-	offset -= start;
-	result = hal_config.heapStart;
-	for (pa = start; pa < end; pa += SIZE_PAGE, hal_config.heapStart += SIZE_PAGE) {
-		ret = _hal_configMapPage(pdir, pa, hal_config.heapStart, attr);
-		if (ret != EOK) {
-			hal_config.heapStart = result;
-			return NULL;
-		}
-	}
-	return result + offset;
-}
-
-
 static int _hal_addMemEntry(addr_t start, u32 length, u32 flags)
 {
 	u64 end, pageCount;
@@ -112,22 +54,99 @@ static int _hal_addMemEntry(addr_t start, u32 length, u32 flags)
 }
 
 
-static void _hal_acpiInit(hal_config_t *config)
+static inline int _hal_findFreePage(page_t *page)
+{
+	int ret;
+	while (init_common.pageIterator < 0xffff0000) {
+		ret = pmap_getPage(page, &init_common.pageIterator);
+		if ((ret != EOK) || ((page->flags & PAGE_FREE) != 0)) {
+			break;
+		}
+	}
+	return ret;
+}
+
+
+static inline int _hal_configMapPage(u32 *pdir, addr_t pa, void *va, int attr)
+{
+	page_t page;
+	addr_t *ptable;
+	int ret = _pmap_enter(pdir, hal_config.ptable, pa, va, attr, NULL, 0);
+	if (ret < 0) {
+		ret = _hal_findFreePage(&page);
+		if (ret == EOK) {
+			ret = _hal_addMemEntry(page.addr, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+			if (ret == 0) {
+				ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
+				ptable[((u32)hal_config.ptable >> 12) & 0x000003ffu] = (page.addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
+				hal_tlbInvalidateLocalEntry(hal_config.ptable);
+				hal_memset(hal_config.ptable, 0, SIZE_PAGE);
+				ret = _pmap_enter(pdir, hal_config.ptable, pa, va, attr, &page, 0);
+			}
+		}
+	}
+	return ret;
+}
+
+
+static void *_hal_configMapObject(u32 *pdir, addr_t start, void **va, size_t size, int attr)
+{
+	void *result;
+	addr_t end = start + size, pa;
+	u32 offset;
+	int ret;
+
+	if ((end & (SIZE_PAGE - 1)) != 0) {
+		end += SIZE_PAGE;
+		end &= ~(SIZE_PAGE - 1);
+	}
+	offset = start;
+	start &= ~(SIZE_PAGE - 1);
+	offset -= start;
+	result = *va;
+	for (pa = start; pa < end; pa += SIZE_PAGE, *va += SIZE_PAGE) {
+		ret = _hal_configMapPage(pdir, pa, *va, attr);
+		if (ret != EOK) {
+			*va = result;
+			return NULL;
+		}
+	}
+	return result + offset;
+}
+
+
+static void *_hal_configMapObjectBeforeStack(u32 *pdir, addr_t start, size_t size, int attr)
+{
+	return _hal_configMapObject(pdir, start, &hal_config.heapStart, size, attr);
+}
+
+
+void *_hal_configMapDevice(u32 *pdir, addr_t start, size_t size, int attr)
+{
+	return _hal_configMapObject(pdir, start, &hal_config.devices, size, attr | PGHD_DEV);
+}
+
+
+static int _hal_acpiInit(hal_config_t *config)
 {
 	addr_t *pdir = (addr_t *)(VADDR_KERNEL + syspage->hs.pdir);
 
 	if (syspage->hs.acpi_version != ACPI_NONE) {
 		if (syspage->hs.madt != 0) {
-			hal_config.madt = _hal_configMapObject(pdir, syspage->hs.madt, syspage->hs.madtLength, PGHD_WRITE);
+			hal_config.madt = _hal_configMapObjectBeforeStack(pdir, syspage->hs.madt, syspage->hs.madtLength, PGHD_WRITE);
 		}
 		if (syspage->hs.fadt != 0) {
-			hal_config.fadt = _hal_configMapObject(pdir, syspage->hs.fadt, syspage->hs.fadtLength, PGHD_WRITE);
+			hal_config.fadt = _hal_configMapObjectBeforeStack(pdir, syspage->hs.fadt, syspage->hs.fadtLength, PGHD_WRITE);
 		}
 
 		if (hal_config.madt != NULL) {
-			config->localApicAddr = _hal_configMapObject(pdir, hal_config.madt->localApicAddr, SIZE_PAGE, PGHD_WRITE | PGHD_CACHE_UC);
+			config->localApicAddr = _hal_configMapDevice(pdir, hal_config.madt->localApicAddr, SIZE_PAGE, PGHD_WRITE);
 		}
 		config->acpi = syspage->hs.acpi_version;
+		return EOK;
+	}
+	else {
+		return -EFAULT;
 	}
 }
 
@@ -138,7 +157,7 @@ static inline void _hal_configMemoryInit(void)
 
 	/* BIOS Data Area */
 	_hal_addMemEntry(0, SIZE_PAGE, PAGE_OWNER_KERNEL);
-	/* Add GDT and IDT to memory map. Note: according to IA32 specification, size of gdtr and idtr is 1 more 
+	/* Add GDT and IDT to memory map. Note: according to IA32 specification, size of gdtr and idtr is 1 more
 	   than the value we extract from syspage. */
 	_hal_addMemEntry(syspage->hs.gdtr.addr - VADDR_KERNEL, syspage->hs.gdtr.size + 1, PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
 	_hal_addMemEntry(syspage->hs.idtr.addr - VADDR_KERNEL, syspage->hs.idtr.size + 1, PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
@@ -187,7 +206,7 @@ void _hal_configInit(syspage_t *s)
 	u32 *pdir;
 
 	hal_config.localApicAddr = NULL;
-	hal_config.acpi = NULL;
+	hal_config.acpi = ACPI_NONE;
 	hal_config.ebda = s->hs.ebda;
 	hal_config.flags = 0;
 	hal_config.minAddr = 0;
@@ -196,6 +215,7 @@ void _hal_configInit(syspage_t *s)
 	hal_config.ptable = NULL;
 	hal_config.madt = NULL;
 	hal_config.fadt = NULL;
+	hal_config.devices = MMIO_DEVICES_VIRT_ADDR;
 	hal_config.memMap.count = 0;
 
 	init_common.pageIterator = 0;
@@ -221,8 +241,7 @@ void _hal_configInit(syspage_t *s)
 
 	_hal_configMemoryInit();
 
-	_hal_acpiInit(&hal_config);
-	if (hal_config.acpi == NULL) {
+	if ((_hal_acpiInit(&hal_config) != EOK) || (hal_config.madt == NULL)) {
 		/* TODO: Try to find and load MP tables */
 	}
 
@@ -230,7 +249,7 @@ void _hal_configInit(syspage_t *s)
 		pdir = (u32 *)syspage->hs.pdir;
 		/* Check presence of APIC with CPUID */
 		if ((rd & 0x200) != 0) {
-			hal_config.localApicAddr = _hal_configMapObject(pdir, LAPIC_DEFAULT_ADDRESS, SIZE_PAGE, PGHD_WRITE | PGHD_CACHE_UC);
+			hal_config.localApicAddr = _hal_configMapDevice(pdir, LAPIC_DEFAULT_ADDRESS, SIZE_PAGE, PGHD_WRITE);
 		}
 	}
 }

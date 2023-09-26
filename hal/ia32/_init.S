@@ -154,13 +154,13 @@ _start_initap:
 	/* Send INI IPI */
 	pushl $0x000c4500 /* 11 00 0 1 0 0 0 101 00000000 */
 	pushl 0xff
-	call cpu_sendIPI
+	call hal_cpuSendIPI
 	addl $8, %esp
 
 	/* Send SIPI IPI (with real memory-address 0x00011000) */
 	pushl $0x000c4611 /* 11 00 0 0 1 0 0 0 110 00010001 */
 	pushl 0xff
-	call cpu_sendIPI
+	call hal_cpuSendIPI
 	addl $8, %esp
 
 b3:
