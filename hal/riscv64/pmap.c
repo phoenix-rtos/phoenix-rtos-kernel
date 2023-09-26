@@ -387,7 +387,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Initialize kernel page table - remove first 4 MB mapping */
 	pmap->pdir2 = pmap_common.pdir2;
-	pmap->satp = (((ptr_t)pmap_common.pdir2 >> 12) | 0x8000000000000000ULL);
 
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)VADDR_MAX;
@@ -409,6 +408,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	for (v = *vend; v < (void *)VADDR_KERNEL + (2 << 20); v += SIZE_PAGE)
 		pmap_remove(pmap, v);
+
+	pmap->satp = ((pmap_resolve(pmap, (void *)pmap_common.pdir2) >> 12) | 0x8000000000000000ULL);
 
 	hal_cpuFlushTLB(NULL);
 
