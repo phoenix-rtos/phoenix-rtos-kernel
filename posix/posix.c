@@ -2686,43 +2686,70 @@ int posix_waitpid(pid_t child, int *status, int options)
 
 void posix_died(pid_t pid, int exit)
 {
-	process_info_t *pinfo, *ppinfo, *init, *cinfo;
+	process_info_t *pinfo, *ppinfo, *init, *cinfo, *zinfo, *zombies;
+	int waited, adopted = 1;
 
 	pinfo = pinfo_find(pid);
-	if (pinfo == NULL) {
-		return;
-	}
+	LIB_ASSERT_ALWAYS(pinfo != NULL, "pinfo not found, pid: %d", pid);
+
+	init = pinfo_find(1);
+	LIB_ASSERT_ALWAYS(init != NULL, "init not found");
+
+	ppinfo = pinfo_find(pinfo->parent);
 
 	posix_exit(pinfo, exit);
 
-	ppinfo = pinfo_find(pinfo->parent);
+	/* We might not find a parent if it died just now */
 	if (ppinfo != NULL) {
+		/* Make a zombie, wakeup waitpid */
 		proc_lockSet(&ppinfo->lock);
-		LIST_REMOVE(&ppinfo->children, pinfo);
-		LIST_ADD(&ppinfo->zombies, pinfo);
-		proc_threadBroadcast(&ppinfo->wait);
-		proc_lockClear(&ppinfo->lock);
-
-		init = pinfo_find(1);
-		if (init != NULL) {
-			proc_lockSet2(&pinfo->lock, &init->lock);
-			while (pinfo->children != NULL) {
-				cinfo = pinfo->children;
-
-				/* Treat cinfo->parent as atomic, no need for lock */
-				cinfo->parent = 1;
-
-				LIST_REMOVE(&pinfo->children, cinfo);
-				LIST_ADD(&init->children, cinfo);
-			}
-			proc_lockClear(&pinfo->lock);
-			proc_lockClear(&init->lock);
-			pinfo_put(init);
+		/* Check if we didn't get adopted by the init in the meantime */
+		if ((ppinfo != init) && (LIST_BELONGS(&ppinfo->children, pinfo) != 0)) {
+			LIST_REMOVE(&ppinfo->children, pinfo);
+			LIST_ADD(&ppinfo->zombies, pinfo);
+			waited = proc_threadBroadcast(&ppinfo->wait);
+			adopted = 0;
 		}
-
-		posix_sigchild(pinfo->parent);
-
+		proc_lockClear(&ppinfo->lock);
 		pinfo_put(ppinfo);
+	}
+
+	proc_lockSet2(&pinfo->lock, &init->lock);
+	/* Collect all zombies */
+	zombies = pinfo->zombies;
+	pinfo->zombies = NULL;
+
+	/* Adopt children */
+	while (pinfo->children != NULL) {
+		cinfo = pinfo->children;
+		LIST_REMOVE(&pinfo->children, cinfo);
+		/* Treat as atomic */
+		cinfo->parent = 1;
+		LIST_ADD(&init->children, cinfo);
+	}
+
+	if (adopted != 0) {
+		LIB_ASSERT(LIST_BELONGS(&init->children, pinfo) != 0,
+			"zombie's neither parent nor init child, pid: %d, ppid: %d", pid, pinfo->parent);
+		/* We were adopted by the init at some point */
+		LIST_REMOVE(&init->children, pinfo);
+		LIST_ADD(&zombies, pinfo);
+		waited = 1;
+	}
+	proc_lockClear(&pinfo->lock);
+	proc_lockClear(&init->lock);
+	pinfo_put(init);
+
+	/* Reap all orphaned zombies */
+	while (zombies != NULL) {
+		zinfo = zombies;
+		LIST_REMOVE(&zombies, zinfo);
+		pinfo_put(zinfo);
+	}
+
+	/* Signal parent if no one was waiting in waitpid() */
+	if (waited == 0) {
+		posix_sigchild(pinfo->parent);
 	}
 
 	pinfo_put(pinfo);
