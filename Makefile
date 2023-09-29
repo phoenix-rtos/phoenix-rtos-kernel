@@ -15,8 +15,6 @@ MAKEFLAGS += --no-print-directory
 
 include ../phoenix-rtos-build/Makefile.common
 
-# TODO: replace BOARD_CONFIG usage with board_config.h
-CFLAGS += $(BOARD_CONFIG)
 CFLAGS += -I.
 CPPFLAGS += -DVERSION=\"$(VERSION)\"
 
