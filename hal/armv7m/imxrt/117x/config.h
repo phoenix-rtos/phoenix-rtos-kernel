@@ -45,7 +45,7 @@
 #define GPT_IRQ  GPT1_IRQ
 
 #define GPT_BUS_CLK       pctl_clk_gpt1
-#define GPT_FREQ_MHZ      16
+#define GPT_FREQ_MHZ      24
 #define GPT_OSC_PRESCALER 8
 #define GPT_PRESCALER     (GPT_FREQ_MHZ / GPT_OSC_PRESCALER)
 #endif
