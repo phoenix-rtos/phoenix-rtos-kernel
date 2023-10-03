@@ -35,11 +35,13 @@
 #define POLL_INTERVAL 100000
 
 
+/* clang-format off */
 enum { atMode = 0, atUid, atGid, atSize, atBlocks, atIOBlock, atType, atPort, atPollStatus, atEventMask, atCTime, atMTime, atATime, atLinks, atDev };
 
 
 /* TODO: copied from libphoenix/posixsrv/posixsrv.h */
 enum { evAdd = 0x1, evDelete = 0x2, evEnable = 0x4, evDisable = 0x8, evOneshot = 0x10, evClear = 0x20, evDispatch = 0x40 };
+/* clang-format on */
 
 
 typedef struct {
@@ -2445,7 +2447,7 @@ static int posix_killOne(pid_t pid, int tid, int sig)
 
 	pinfo = pinfo_find(pid);
 	if (pinfo == NULL) {
-		return -EINVAL;
+		return -ESRCH;
 	}
 
 	proc = proc_find(pinfo->process);
@@ -2546,7 +2548,7 @@ int posix_setpgid(pid_t pid, pid_t pgid)
 
 	pinfo = pinfo_find(pid);
 	if (pinfo == NULL) {
-		return -EINVAL;
+		return -ESRCH;
 	}
 
 	proc_lockSet(&pinfo->lock);
@@ -2572,7 +2574,7 @@ pid_t posix_getpgid(pid_t pid)
 
 	pinfo = pinfo_find(pid);
 	if (pinfo == NULL) {
-		return -EINVAL;
+		return -ESRCH;
 	}
 
 	proc_lockSet(&pinfo->lock);
@@ -2622,9 +2624,7 @@ int posix_waitpid(pid_t child, int *status, int options)
 	pid = proc_current()->process->id;
 
 	pinfo = pinfo_find(pid);
-	if (pinfo == NULL) {
-		return -EINVAL;
-	}
+	LIB_ASSERT_ALWAYS(pinfo != NULL, "pinfo not found, pid: %d", pid);
 
 	proc_lockSet(&pinfo->lock);
 	do {
