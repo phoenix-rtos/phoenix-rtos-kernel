@@ -16,6 +16,7 @@
 #ifndef _PHOENIX_ARCH_ZYNQ7000_H_
 #define _PHOENIX_ARCH_ZYNQ7000_H_
 
+/* clang-format off */
 
 /* AMBA peripherals */
 enum {
@@ -52,8 +53,10 @@ enum {
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_ambaclock = 0, pctl_devclock, pctl_mioclock, pctl_mio, pctl_devreset, pctl_reboot } type;
+	enum { pctl_ambaclock = 0, pctl_devclock, pctl_mioclock,
+		pctl_mio, pctl_devreset, pctl_reboot, pctl_sdwpcd } type;
 
+	/* clang-format on */
 	union {
 		struct {
 			int dev;
@@ -99,6 +102,12 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+
+		struct {
+			char dev;
+			unsigned char wpPin;
+			unsigned char cdPin;
+		} SDWpCd;
 	};
 } __attribute__((packed)) platformctl_t;
 

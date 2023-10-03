@@ -524,6 +524,37 @@ static void zynq_softRst(void)
 }
 
 
+static int _zynq_setSDWpCd(char dev, unsigned char wpPin, unsigned char cdPin)
+{
+	if ((dev != 0) && (dev != 1)) {
+		return -1;
+	}
+
+	if ((cdPin > 63) || (wpPin > 63)) {
+		return -1;
+	}
+
+	_zynq_slcrUnlock();
+	*(zynq_common.slcr + slcr_sd0_wp_cd_sel + dev) = ((u32)cdPin << 16) | (wpPin);
+	_zynq_slcrLock();
+	return 0;
+}
+
+
+static int _zynq_getSDWpCd(char dev, unsigned char *wpPin, unsigned char *cdPin)
+{
+	u32 val = 0;
+	if ((dev != 0) && (dev != 1)) {
+		return -1;
+	}
+
+	val = *(zynq_common.slcr + slcr_sd0_wp_cd_sel + dev);
+	*wpPin = val & 0x3f;
+	*cdPin = (val >> 16) & 0x3f;
+	return 0;
+}
+
+
 void hal_cpuReboot(void)
 {
 	zynq_softRst();
@@ -596,6 +627,14 @@ int hal_platformctl(void *ptr)
 		case pctl_reboot:
 			zynq_softRst();
 			break;
+
+		case pctl_sdwpcd:
+			if (data->action == pctl_set) {
+				ret = _zynq_setSDWpCd(data->SDWpCd.dev, data->SDWpCd.wpPin, data->SDWpCd.cdPin);
+			}
+			else { /* data->action == pctl_get */
+				ret = _zynq_getSDWpCd(data->SDWpCd.dev, &data->SDWpCd.wpPin, &data->SDWpCd.cdPin);
+			}
 
 		default:
 			break;
