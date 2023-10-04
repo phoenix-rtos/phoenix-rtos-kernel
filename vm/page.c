@@ -14,12 +14,12 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
+#include "lib/lib.h"
+#include "proc/proc.h"
+#include "include/errno.h"
+#include "include/mman.h"
 #include "page.h"
-#include "../include/errno.h"
-#include "../include/mman.h"
-#include "../lib/lib.h"
-#include "../proc/proc.h"
 
 
 #define SIZE_VM_SIZES 32

@@ -16,9 +16,9 @@
 #ifndef _VM_OBJECT_H_
 #define _VM_OBJECT_H_
 
-#include "../hal/hal.h"
-#include "../lib/lib.h"
-#include "../proc/lock.h"
+#include "hal/hal.h"
+#include "lib/lib.h"
+#include "proc/lock.h"
 #include "amap.h"
 
 struct _vm_map_t;

@@ -13,15 +13,15 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../lib/lib.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "lib/lib.h"
 #include "page.h"
 #include "kmalloc.h"
 #include "object.h"
 #include "map.h"
-#include "../proc/name.h"
-#include "../proc/threads.h"
+#include "proc/name.h"
+#include "proc/threads.h"
 
 
 struct {
