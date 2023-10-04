@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../lib/lib.h"
-#include "../vm/vm.h"
-#include "../proc/proc.h"
+#include "hal/hal.h"
+#include "lib/lib.h"
+#include "vm/vm.h"
+#include "proc/proc.h"
 
 
 static int test_rbCheckEx(rbnode_t *node, int level)

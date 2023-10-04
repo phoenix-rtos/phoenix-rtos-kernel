@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../proc/proc.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "proc/proc.h"
 
 
 unsigned test_randsize(unsigned *seed, unsigned bufsz)

@@ -14,9 +14,9 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../proc/proc.h"
-#include "../syspage.h"
+#include "hal/hal.h"
+#include "proc/proc.h"
+#include "syspage.h"
 
 
 struct {
