@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
 #include "lib.h"
 
 

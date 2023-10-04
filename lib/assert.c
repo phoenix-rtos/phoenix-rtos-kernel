@@ -17,8 +17,8 @@
 #include <stdarg.h>
 #include "assert.h"
 #include "printf.h"
-#include "../log/log.h"
-#include "../hal/hal.h"
+#include "log/log.h"
+#include "hal/hal.h"
 
 
 void lib_assertPanic(const char *func, int line, const char *fmt, ...)

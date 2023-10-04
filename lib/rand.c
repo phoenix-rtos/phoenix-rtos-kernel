@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
 
 
 int lib_rand(unsigned int *seedp)

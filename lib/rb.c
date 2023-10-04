@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
+#include "hal/hal.h"
+#include "include/errno.h"
 #include "lib.h"
 
 
