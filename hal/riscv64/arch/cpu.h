@@ -34,7 +34,7 @@
 #ifndef __ASSEMBLY__
 
 /* FIXME: This header has to be attached to be used in syscalls.c - ugly ifdef */
-#include "../sbi.h"
+#include "hal/riscv64/sbi.h"
 
 #define SYSTICK_INTERVAL 1000
 

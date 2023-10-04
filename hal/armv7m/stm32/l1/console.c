@@ -14,7 +14,7 @@
  */
 
 #include "cpu.h"
-#include "../../../console.h"
+#include "hal/console.h"
 #include "stm32.h"
 
 

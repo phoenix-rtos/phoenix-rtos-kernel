@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include "../console.h"
+#include "hal/console.h"
 #include "ia32.h"
 #include "halsyspage.h"
 

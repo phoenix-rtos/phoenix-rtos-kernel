@@ -14,10 +14,10 @@
  */
 
 #include "config.h"
-#include "../../armv8m.h"
-#include "../../../timer.h"
-#include "../../../interrupts.h"
-#include "../../../spinlock.h"
+#include "hal/armv8m/armv8m.h"
+#include "hal/timer.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
 
 
 /* nrf9160 timer module provides instances from 0 to 2 */

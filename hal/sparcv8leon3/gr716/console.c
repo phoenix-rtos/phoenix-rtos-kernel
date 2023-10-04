@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
+#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/console.h"
+#include "hal/cpu.h"
+#include "include/arch/gr716.h"
 #include "gr716.h"
-#include "../sparcv8leon3.h"
-#include "../../console.h"
-#include "../../cpu.h"
-#include "../../../include/arch/gr716.h"
 
 #include <board_config.h>
 

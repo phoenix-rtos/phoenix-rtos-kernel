@@ -16,7 +16,7 @@
 #ifndef _HAL_ZYNQ_H_
 #define _HAL_ZYNQ_H_
 
-#include "../../cpu.h"
+#include "hal/cpu.h"
 
 
 extern int _zynq_setMIO(unsigned int pin, char disableRcvr, char pullup, char ioType, char speed, char l0, char l1, char l2, char l3, char triEnable);

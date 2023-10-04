@@ -18,8 +18,8 @@
 
 #ifndef __ASSEMBLY__
 
-#include "../../include/arch/syspage-ia32.h"
-#include "../../include/syspage.h"
+#include "include/arch/syspage-ia32.h"
+#include "include/syspage.h"
 
 #endif
 

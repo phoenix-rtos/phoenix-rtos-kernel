@@ -13,11 +13,12 @@
  * %LICENSE%
  */
 
+#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
+#include "include/arch/gr716.h"
+
 #include "gr716.h"
-#include "../sparcv8leon3.h"
-#include "../../cpu.h"
-#include "../../spinlock.h"
-#include "../../../include/arch/gr716.h"
 
 #define GRGPREG_BASE ((void *)0x8000D000)
 #define CGU_BASE0    ((void *)0x80006000)

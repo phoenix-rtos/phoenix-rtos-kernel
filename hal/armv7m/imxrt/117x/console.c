@@ -17,10 +17,10 @@
 #define UART_CONSOLE 11
 #endif
 
+#include "hal/armv7m/armv7m.h"
+#include "hal/console.h"
+#include "include/arch/imxrt1170.h"
 #include "imxrt117x.h"
-#include "../../armv7m.h"
-#include "../../../console.h"
-#include "../../../../include/arch/imxrt1170.h"
 
 #define CONCAT3(a, b, c) a##b##c
 #define CONSOLE_BAUD(n)  (CONCAT3(UART, n, _BAUDRATE))

@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include "../string.h"
+#include "hal/string.h"
 
 
 void *memcpy(void *dst, const void *src, unsigned int l)

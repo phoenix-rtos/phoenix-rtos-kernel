@@ -15,11 +15,11 @@
 
 #include "nrf91.h"
 
-#include "../../../console.h"
-#include "../../../cpu.h"
-#include "../../../string.h"
-#include "../../spinlock.h"
-#include "../../armv8m.h"
+#include "hal/console.h"
+#include "hal/cpu.h"
+#include "hal/string.h"
+#include "hal/spinlock.h"
+#include "hal/armv8m/armv8m.h"
 #include <board_config.h>
 
 #define TX_DMA_SIZE 64

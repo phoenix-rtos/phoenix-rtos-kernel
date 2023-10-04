@@ -13,12 +13,12 @@
  * %LICENSE%
  */
 
+#include "hal/armv7m/armv7m.h"
+#include "hal/spinlock.h"
+#include "include/errno.h"
+#include "include/arch/imxrt1170.h"
 #include "imxrt117x.h"
 #include "config.h"
-#include "../../armv7m.h"
-#include "../../spinlock.h"
-#include "../../../include/errno.h"
-#include "../../../include/arch/imxrt1170.h"
 
 
 enum { stk_ctrl = 0, stk_load, stk_val, stk_calib };

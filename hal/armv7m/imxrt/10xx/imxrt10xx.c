@@ -13,15 +13,15 @@
  * %LICENSE%
  */
 
+#include "hal/armv7m/armv7m.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
+
+#include "include/errno.h"
+#include "include/arch/imxrt.h"
+
 #include "imxrt10xx.h"
 #include "config.h"
-
-#include "../../armv7m.h"
-#include "../../../cpu.h"
-#include "../../../spinlock.h"
-
-#include "../../../../include/errno.h"
-#include "../../../../include/arch/imxrt.h"
 
 #include <board_config.h>
 

@@ -13,12 +13,12 @@
  * %LICENSE%
  */
 
-#include "../cpu.h"
-#include "../interrupts.h"
-#include "../spinlock.h"
-#include "../string.h"
-#include "../hal.h"
-#include "../timer.h"
+#include "hal/cpu.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
+#include "hal/string.h"
+#include "hal/hal.h"
+#include "hal/timer.h"
 
 #include "config.h"
 

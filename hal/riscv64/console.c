@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "../console.h"
-#include "../spinlock.h"
+#include "hal/console.h"
+#include "hal/spinlock.h"
 #include "sbi.h"
 
 

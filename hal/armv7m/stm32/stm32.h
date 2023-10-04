@@ -17,14 +17,14 @@
 #define _HAL_STM32_H_
 
 #include <arch/types.h>
-#include "../pmap.h"
+#include "hal/pmap.h"
 
 #if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE)
-#include "../../../include/arch/stm32l1.h"
+#include "include/arch/stm32l1.h"
 #endif
 
 #ifdef __CPU_STM32L4X6
-#include "../../../include/arch/stm32l4.h"
+#include "include/arch/stm32l4.h"
 #endif
 
 

@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../stm32.h"
-#include "../interrupts.h"
-#include "../../../../include/errno.h"
+#include "hal/armv7m/stm32/stm32.h"
+#include "hal/interrupts.h"
+#include "include/errno.h"
 
 #include <board_config.h>
 

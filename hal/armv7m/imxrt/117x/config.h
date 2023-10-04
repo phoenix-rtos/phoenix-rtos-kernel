@@ -22,9 +22,9 @@
 #define TIMER_CYC2US(x) (x)
 
 #ifndef __ASSEMBLY__
+#include "include/arch/syspage-imxrt.h"
+#include "include/arch/imxrt1170.h"
 #include "imxrt117x.h"
-#include "../../include/arch/syspage-imxrt.h"
-#include "../../include/arch/imxrt1170.h"
 
 #define HAL_NAME_PLATFORM "NXP i.MX RT117x "
 

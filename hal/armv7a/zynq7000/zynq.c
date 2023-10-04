@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../../cpu.h"
-#include "../../spinlock.h"
-#include "../../include/arch/zynq7000.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
+#include "include/arch/zynq7000.h"
 
 
 /* SLCR (System Level Control Registers) */

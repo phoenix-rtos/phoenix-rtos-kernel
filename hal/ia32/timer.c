@@ -14,10 +14,10 @@
  * %LICENSE%
  */
 
-#include "../timer.h"
-#include "../cpu.h"
-#include "../interrupts.h"
-#include "../spinlock.h"
+#include "hal/timer.h"
+#include "hal/cpu.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
 #include "ia32.h"
 
 struct {

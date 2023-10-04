@@ -13,15 +13,15 @@
  * %LICENSE%
  */
 
-#include "../../interrupts.h"
-#include "../../spinlock.h"
-#include "../../cpu.h"
-#include "../armv8m.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
+#include "hal/cpu.h"
+#include "hal/armv8m/armv8m.h"
+#include "hal/armv8m/nrf/91/nrf91.h"
+
+#include "proc/userintr.h"
+
 #include "config.h"
-#include "91/nrf91.h"
-
-#include "../../../proc/userintr.h"
-
 
 #ifdef CPU_NRF91
 /* Based on INTLINESNUM value (ICTR cpu register) */

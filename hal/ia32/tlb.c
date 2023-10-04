@@ -14,9 +14,9 @@
  */
 
 #include "tlb.h"
-#include "../string.h"
-#include "../cpu.h"
-#include "../interrupts.h"
+#include "hal/string.h"
+#include "hal/cpu.h"
+#include "hal/interrupts.h"
 
 /* Maximum number of TLB operations */
 #define MAX_CPU_TASK_COUNT 2

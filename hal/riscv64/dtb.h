@@ -15,7 +15,7 @@
 
 #ifndef _HAL_DTB_H_
 
-#include "../cpu.h"
+#include "hal/cpu.h"
 
 #define ntoh16(x) (((x << 8) & 0xff00) | ((x >> 8) & 0xff))
 #define ntoh32(x) ((ntoh16(x) << 16) | ntoh16(x >> 16))

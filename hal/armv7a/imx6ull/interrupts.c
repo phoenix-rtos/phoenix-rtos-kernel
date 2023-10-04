@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
-#include "../../cpu.h"
-#include "../../interrupts.h"
+#include "hal/cpu.h"
+#include "hal/interrupts.h"
 
-#include "../../proc/userintr.h"
+#include "proc/userintr.h"
 
 #define SIZE_INTERRUPTS 159
 #define SIZE_HANDLERS   4

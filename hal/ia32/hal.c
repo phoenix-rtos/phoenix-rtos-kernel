@@ -14,13 +14,13 @@
  * %LICENSE%
  */
 
-#include "../spinlock.h"
-#include "../console.h"
-#include "../exceptions.h"
-#include "../interrupts.h"
-#include "../cpu.h"
-#include "../pmap.h"
-#include "../timer.h"
+#include "hal/spinlock.h"
+#include "hal/console.h"
+#include "hal/exceptions.h"
+#include "hal/interrupts.h"
+#include "hal/cpu.h"
+#include "hal/pmap.h"
+#include "hal/timer.h"
 #include "pci.h"
 #include "halsyspage.h"
 

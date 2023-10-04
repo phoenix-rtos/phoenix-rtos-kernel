@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include "../pmap.h"
+#include "hal/pmap.h"
 #include <arch/cpu.h>
 
 /* Linker symbols */

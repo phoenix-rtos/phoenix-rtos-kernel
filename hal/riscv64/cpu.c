@@ -13,12 +13,12 @@
  * %LICENSE%
  */
 
-#include "../../include/errno.h"
-#include "../hal.h"
-#include "../cpu.h"
-#include "../spinlock.h"
-#include "../string.h"
-#include "../pmap.h"
+#include "include/errno.h"
+#include "hal/hal.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
+#include "hal/string.h"
+#include "hal/pmap.h"
 #include "riscv64.h"
 #include "dtb.h"
 #include "arch/types.h"

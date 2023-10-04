@@ -13,13 +13,13 @@
  * %LICENSE%
  */
 
+#include "hal/cpu.h"
+#include "hal/string.h"
+#include "hal/spinlock.h"
+#include "hal/hal.h"
+
 #include "armv7a.h"
 #include "config.h"
-
-#include "../cpu.h"
-#include "../string.h"
-#include "../spinlock.h"
-#include "../hal.h"
 
 
 /* Function creates new cpu context on top of given thread kernel stack */

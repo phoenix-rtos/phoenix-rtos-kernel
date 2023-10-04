@@ -15,14 +15,14 @@
  */
 
 #include "halsyspage.h"
-#include "../interrupts.h"
-#include "../spinlock.h"
-#include "../cpu.h"
-#include "../pmap.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
+#include "hal/cpu.h"
+#include "hal/pmap.h"
 #include "ia32.h"
 
-#include "../../proc/userintr.h"
-#include "../../include/errno.h"
+#include "proc/userintr.h"
+#include "include/errno.h"
 #include "tlb.h"
 
 

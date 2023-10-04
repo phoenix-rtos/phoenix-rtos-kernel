@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "../spinlock.h"
-#include "../cpu.h"
+#include "hal/spinlock.h"
+#include "hal/cpu.h"
 
 struct {
 	spinlock_t spinlock;

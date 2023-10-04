@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
-#include "../../cpu.h"
-#include "../../spinlock.h"
-#include "../../interrupts.h"
-#include "../../proc/userintr.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
+#include "hal/interrupts.h"
+#include "proc/userintr.h"
 
 #include <config.h>
 

@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../armv7a.h"
-#include "../../timer.h"
-#include "../../spinlock.h"
+#include "hal/armv7a/armv7a.h"
+#include "hal/timer.h"
+#include "hal/spinlock.h"
 
 #define TIMER_IRQ_ID 88
 

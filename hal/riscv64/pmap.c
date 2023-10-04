@@ -13,16 +13,16 @@
  * %LICENSE%
  */
 
-#include "../pmap.h"
-#include "../spinlock.h"
-#include "../string.h"
-#include "../console.h"
+#include "hal/pmap.h"
+#include "hal/spinlock.h"
+#include "hal/string.h"
+#include "hal/console.h"
 #include "riscv64.h"
 #include "dtb.h"
 #include "lib/lib.h"
 
-#include "../../include/errno.h"
-#include "../../include/mman.h"
+#include "include/errno.h"
+#include "include/mman.h"
 
 #include "halsyspage.h"
 

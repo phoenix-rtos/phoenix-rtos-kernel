@@ -13,13 +13,13 @@
  * %LICENSE%
  */
 
-#include "../exceptions.h"
-#include "../cpu.h"
-#include "../spinlock.h"
-#include "../console.h"
-#include "../string.h"
+#include "hal/exceptions.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
+#include "hal/console.h"
+#include "hal/string.h"
 
-#include "../../include/mman.h"
+#include "include/mman.h"
 
 #define SIZE_EXCEPTIONS   16
 
