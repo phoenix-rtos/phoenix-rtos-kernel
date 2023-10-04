@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "../include/errno.h"
-#include "../lib/lib.h"
+#include "include/errno.h"
+#include "lib/lib.h"
 #include "proc.h"
 
 

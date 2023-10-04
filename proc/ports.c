@@ -14,7 +14,7 @@
  */
 
 #include "ports.h"
-#include "../lib/lib.h"
+#include "lib/lib.h"
 
 
 struct {

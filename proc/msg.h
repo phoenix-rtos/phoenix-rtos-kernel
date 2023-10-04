@@ -16,10 +16,10 @@
 #ifndef _PROC_MSG_H_
 #define _PROC_MSG_H_
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../include/msg.h"
-#include "../lib/lib.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "include/msg.h"
+#include "lib/lib.h"
 #include "threads.h"
 
 

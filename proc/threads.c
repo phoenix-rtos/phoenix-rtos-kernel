@@ -14,16 +14,16 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../include/signal.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "include/signal.h"
 #include "threads.h"
-#include "../lib/lib.h"
-#include "../posix/posix.h"
+#include "lib/lib.h"
+#include "posix/posix.h"
+#include "log/log.h"
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
-#include "../log/log.h"
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
 static thread_t *const wakeupPending = (void *)-1;
