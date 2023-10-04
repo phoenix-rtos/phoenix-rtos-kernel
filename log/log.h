@@ -15,7 +15,7 @@
 #ifndef _LOG_H_
 #define _LOG_H_
 
-#include "../proc/msg.h"
+#include "proc/msg.h"
 
 
 extern int log_write(const char *data, size_t len);
