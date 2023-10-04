@@ -13,12 +13,12 @@
  * %LICENSE%
  */
 
-#include "../exceptions.h"
-#include "../spinlock.h"
-#include "../cpu.h"
-#include "../console.h"
-#include "../string.h"
-#include "../../include/mman.h"
+#include "hal/exceptions.h"
+#include "hal/spinlock.h"
+#include "hal/cpu.h"
+#include "hal/console.h"
+#include "hal/string.h"
+#include "include/mman.h"
 
 
 #define EXC_ASYNC_EXTERNAL      0x16

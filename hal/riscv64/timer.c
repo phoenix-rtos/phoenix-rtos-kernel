@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../timer.h"
-#include "../interrupts.h"
-#include "../spinlock.h"
+#include "hal/timer.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
 #include "riscv64.h"
 #include "sbi.h"
 

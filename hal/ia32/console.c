@@ -14,10 +14,10 @@
  * %LICENSE%
  */
 
-#include "../console.h"
-#include "../string.h"
-#include "../spinlock.h"
-#include "../pmap.h"
+#include "hal/console.h"
+#include "hal/string.h"
+#include "hal/spinlock.h"
+#include "hal/pmap.h"
 #include "ia32.h"
 
 

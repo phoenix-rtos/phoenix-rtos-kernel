@@ -14,7 +14,7 @@
  */
 
 #include <arch/cpu.h>
-#include "../spinlock.h"
+#include "hal/spinlock.h"
 
 #define STR(x)  #x
 #define XSTR(x) STR(x)

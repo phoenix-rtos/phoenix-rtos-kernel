@@ -22,8 +22,8 @@
 
 #include "gr716.h"
 
-#include "../../include/arch/syspage-sparcv8leon3.h"
-#include "../../include/syspage.h"
+#include "include/arch/syspage-sparcv8leon3.h"
+#include "include/syspage.h"
 
 #define HAL_NAME_PLATFORM "SPARCv8 LEON3-GR716"
 

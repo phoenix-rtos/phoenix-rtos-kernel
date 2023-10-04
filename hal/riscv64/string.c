@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-#include "../string.h"
+#include "hal/string.h"
 
 
 int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)

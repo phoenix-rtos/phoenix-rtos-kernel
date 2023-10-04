@@ -14,7 +14,7 @@
  */
 
 
-#include "../../cpu.h"
+#include "hal/cpu.h"
 
 
 static void test_ddrPutch(char c)

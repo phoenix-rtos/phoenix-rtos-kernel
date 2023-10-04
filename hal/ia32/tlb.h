@@ -17,7 +17,7 @@
 #define _HAL_TLB_H_
 
 #include <arch/types.h>
-#include "../spinlock.h"
+#include "hal/spinlock.h"
 
 static inline void hal_tlbFlushLocal(void)
 {

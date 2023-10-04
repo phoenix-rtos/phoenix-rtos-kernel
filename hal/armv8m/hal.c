@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include "../hal.h"
+#include "hal/hal.h"
 struct {
 	int started;
 } hal_common;

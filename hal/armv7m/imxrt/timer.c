@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "../../../timer.h"
-#include "../../armv7m.h"
+#include "hal/timer.h"
+#include "hal/armv7m/armv7m.h"
 #include "config.h"
 #include <arch/cpu.h>
 #include <arch/interrupts.h>

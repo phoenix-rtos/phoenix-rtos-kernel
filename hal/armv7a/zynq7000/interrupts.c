@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#include "../../cpu.h"
-#include "../../spinlock.h"
-#include "../../interrupts.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
+#include "hal/interrupts.h"
 
-#include "../../proc/userintr.h"
+#include "proc/userintr.h"
 
 #define _intr_add(list, t) \
 	do { \

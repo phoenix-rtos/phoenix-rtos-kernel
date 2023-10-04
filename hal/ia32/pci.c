@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../../include/errno.h"
-#include "../cpu.h"
-#include "../spinlock.h"
+#include "include/errno.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
 #include "pci.h"
 #include "ia32.h"
 

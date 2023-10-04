@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
-#include "cpu.h"
-#include "stm32.h"
-#include "interrupts.h"
-#include "spinlock.h"
+#include "hal/armv7m/stm32/stm32.h"
+#include "hal/cpu.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
 
 static struct {
 	intr_handler_t handler;

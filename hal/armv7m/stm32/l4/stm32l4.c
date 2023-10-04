@@ -13,12 +13,12 @@
  * %LICENSE%
  */
 
-#include "../stm32.h"
-#include "../stm32-timer.h"
+#include "hal/armv7m/stm32/stm32.h"
+#include "hal/armv7m/stm32/stm32-timer.h"
 
-#include "../../../cpu.h"
-#include "../../armv7m.h"
-#include "../../../../include/errno.h"
+#include "hal/cpu.h"
+#include "hal/armv7m/armv7m.h"
+#include "include/errno.h"
 
 #include <board_config.h>
 

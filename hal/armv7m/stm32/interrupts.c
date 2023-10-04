@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#include "../../interrupts.h"
-#include "../../spinlock.h"
-#include "../../cpu.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
+#include "hal/cpu.h"
 
-#include "../../../proc/userintr.h"
+#include "proc/userintr.h"
 
 
 #if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE)

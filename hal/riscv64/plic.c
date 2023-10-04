@@ -15,7 +15,7 @@
 
 #include "plic.h"
 
-#include "../../include/errno.h"
+#include "include/errno.h"
 
 
 struct {

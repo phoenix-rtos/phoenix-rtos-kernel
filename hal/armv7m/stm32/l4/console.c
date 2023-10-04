@@ -13,12 +13,11 @@
  * %LICENSE%
  */
 
+#include "hal/console.h"
+#include "hal/cpu.h"
+#include "hal/armv7m/armv7m.h"
+
 #include "stm32.h"
-
-#include "../../../console.h"
-#include "../../../cpu.h"
-#include "../../armv7m.h"
-
 
 struct {
 	volatile u32 *base;

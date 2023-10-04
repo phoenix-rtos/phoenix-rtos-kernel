@@ -13,17 +13,16 @@
  * %LICENSE%
  */
 
-#include "../interrupts.h"
-#include "../spinlock.h"
-#include "../cpu.h"
+#include "hal/interrupts.h"
+#include "hal/spinlock.h"
+#include "hal/cpu.h"
 #include "sbi.h"
 #include "plic.h"
 #include "dtb.h"
 #include "riscv64.h"
 
-#include "../../proc/userintr.h"
-#include "../../include/errno.h"
-
+#include "proc/userintr.h"
+#include "include/errno.h"
 
 
 #define SIZE_INTERRUPTS 16

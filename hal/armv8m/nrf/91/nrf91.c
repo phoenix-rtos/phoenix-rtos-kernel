@@ -15,9 +15,9 @@
 
 #include "nrf91.h"
 
-#include "../../../cpu.h"
-#include "../../armv8m.h"
-#include "../../../../include/errno.h"
+#include "hal/cpu.h"
+#include "hal/armv8m/armv8m.h"
+#include "include/errno.h"
 
 
 static struct {

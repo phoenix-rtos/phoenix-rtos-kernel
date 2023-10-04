@@ -14,10 +14,10 @@
  */
 
 #include "dtb.h"
-#include "../string.h"
-#include "../pmap.h"
+#include "hal/string.h"
+#include "hal/pmap.h"
 
-#include "../../include/errno.h"
+#include "include/errno.h"
 
 extern void _end(void);
 

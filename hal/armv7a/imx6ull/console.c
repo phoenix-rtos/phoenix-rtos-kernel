@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "../../console.h"
-#include "../../cpu.h"
+#include "hal/console.h"
+#include "hal/cpu.h"
 
 #define UART uart1
 

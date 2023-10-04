@@ -14,16 +14,16 @@
  * %LICENSE%
  */
 
-#include "../../include/errno.h"
-#include "../../include/arch/ia32.h"
-#include "../cpu.h"
-#include "../spinlock.h"
-#include "../string.h"
-#include "../pmap.h"
+#include "include/errno.h"
+#include "include/arch/ia32.h"
+#include "hal/cpu.h"
+#include "hal/spinlock.h"
+#include "hal/string.h"
+#include "hal/pmap.h"
+#include "hal/hal.h"
 #include "pci.h"
 #include "ia32.h"
 #include "halsyspage.h"
-#include "../hal.h"
 #include "tlb.h"
 
 

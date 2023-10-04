@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
-#include "../exceptions.h"
-#include "../cpu.h"
-#include "../console.h"
-#include "../string.h"
+#include "hal/exceptions.h"
+#include "hal/cpu.h"
+#include "hal/console.h"
+#include "hal/string.h"
 #include "config.h"
 
 

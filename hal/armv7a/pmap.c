@@ -14,13 +14,13 @@
  */
 
 #include "armv7a.h"
-#include "../pmap.h"
-#include "../cpu.h"
-#include "../string.h"
-#include "../spinlock.h"
+#include "hal/pmap.h"
+#include "hal/cpu.h"
+#include "hal/string.h"
+#include "hal/spinlock.h"
 
-#include "../../include/errno.h"
-#include "../../include/mman.h"
+#include "include/errno.h"
+#include "include/mman.h"
 
 #include "halsyspage.h"
 

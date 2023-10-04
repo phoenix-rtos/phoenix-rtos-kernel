@@ -17,9 +17,9 @@
 #define _HAL_NRF91_H_
 
 #include <arch/types.h>
-#include "../pmap.h"
+#include "hal/pmap.h"
 
-#include "../../../include/arch/nrf9160.h"
+#include "include/arch/nrf9160.h"
 
 
 /* clang-format off */

@@ -768,5 +768,5 @@ kernel_ttl2:
 	ldr pc, =main
 .size _start, .-_start
 
-#include "../_interrupts.S"
-#include "../_armv7a.S"
+#include "hal/armv7a/_interrupts.S"
+#include "hal/armv7a/_armv7a.S"
