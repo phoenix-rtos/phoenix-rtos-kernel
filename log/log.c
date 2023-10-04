@@ -23,9 +23,11 @@
 #include "../proc/threads.h"
 #include "../proc/ports.h"
 
+#include <board_config.h>
 
-#ifndef SIZE_LOG
-#define SIZE_LOG 2048
+
+#ifndef KERNEL_LOG_SIZE
+#define KERNEL_LOG_SIZE 2048
 #endif
 
 #define TCGETS 0x405c7401
@@ -51,7 +53,7 @@ typedef struct _log_reader_t {
 
 
 static struct {
-	char buf[SIZE_LOG];
+	char buf[KERNEL_LOG_SIZE];
 	offs_t head;
 	offs_t tail;
 	lock_t lock;
@@ -69,25 +71,25 @@ static int _log_empty(void)
 
 static int _log_full(void)
 {
-	return ((log_common.tail - log_common.head) == SIZE_LOG) ? 1 : 0;
+	return ((log_common.tail - log_common.head) == KERNEL_LOG_SIZE) ? 1 : 0;
 }
 
 
 static char _log_pop(void)
 {
-	return log_common.buf[log_common.head++ % SIZE_LOG];
+	return log_common.buf[log_common.head++ % KERNEL_LOG_SIZE];
 }
 
 
 static void _log_push(char c)
 {
-	log_common.buf[log_common.tail++ % SIZE_LOG] = c;
+	log_common.buf[log_common.tail++ % KERNEL_LOG_SIZE] = c;
 }
 
 
 static char _log_getc(offs_t off)
 {
-	return log_common.buf[off % SIZE_LOG];
+	return log_common.buf[off % KERNEL_LOG_SIZE];
 }
 
 
