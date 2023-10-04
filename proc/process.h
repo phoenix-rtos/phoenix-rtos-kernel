@@ -17,11 +17,11 @@
 #ifndef _PROC_PROCESS_H_
 #define _PROC_PROCESS_H_
 
-#include "../hal/hal.h"
-#include "../vm/vm.h"
+#include "hal/hal.h"
+#include "vm/vm.h"
 #include "lock.h"
-#include "../vm/amap.h"
-#include "../syspage.h"
+#include "vm/amap.h"
+#include "syspage.h"
 #include "arch/types.h"
 
 #define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)

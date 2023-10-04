@@ -14,12 +14,12 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../include/signal.h"
-#include "../vm/vm.h"
-#include "../lib/lib.h"
-#include "../posix/posix.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "include/signal.h"
+#include "vm/vm.h"
+#include "lib/lib.h"
+#include "posix/posix.h"
 #include "process.h"
 #include "threads.h"
 #include "elf.h"

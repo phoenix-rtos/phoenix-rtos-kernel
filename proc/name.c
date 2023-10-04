@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../lib/lib.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "lib/lib.h"
 #include "proc.h"
 
 #define HASH_LEN 5 /* Number of entries in dcache = 2 ^ HASH_LEN */

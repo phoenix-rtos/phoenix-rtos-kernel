@@ -17,11 +17,11 @@
 #ifndef _PROC_THREADS_H_
 #define _PROC_THREADS_H_
 
-#include "../hal/hal.h"
-#include "../lib/lib.h"
+#include "hal/hal.h"
+#include "lib/lib.h"
+#include "include/sysinfo.h"
 #include "process.h"
 #include "lock.h"
-#include "../include/sysinfo.h"
 
 #define MAX_TID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
 

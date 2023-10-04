@@ -16,7 +16,7 @@
 #ifndef _PROC_NAME_H_
 #define _PROC_NAME_H_
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
 
 
 typedef struct {

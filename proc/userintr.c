@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
+#include "lib/lib.h"
 #include "resource.h"
 #include "userintr.h"
 #include "cond.h"
-#include "../lib/lib.h"
 #include "proc.h"
 
 
