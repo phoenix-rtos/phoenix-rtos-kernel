@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../proc/proc.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "proc/proc.h"
 
 #include "posix.h"
 #include "posix_private.h"

@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../include/errno.h"
-#include "../proc/proc.h"
-#include "../lib/lib.h"
+#include "include/errno.h"
+#include "proc/proc.h"
+#include "lib/lib.h"
 
 #include "posix.h"
 #include "posix_private.h"

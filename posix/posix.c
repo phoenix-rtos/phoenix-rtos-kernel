@@ -13,15 +13,15 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../include/ioctl.h"
-#include "../include/limits.h"
-#include "../proc/proc.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "include/ioctl.h"
+#include "include/limits.h"
+#include "proc/proc.h"
 
 #include "posix.h"
 #include "posix_private.h"
-#include "../lib/lib.h"
+#include "lib/lib.h"
 
 #define MAX_FD_COUNT     1024
 #define INITIAL_FD_COUNT 32

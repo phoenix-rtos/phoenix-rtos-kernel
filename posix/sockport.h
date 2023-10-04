@@ -16,7 +16,7 @@
 #ifndef _SYS_SOCKPORT_H_
 #define _SYS_SOCKPORT_H_
 
-#include "../proc/msg.h"
+#include "proc/msg.h"
 #include "sockdefs.h"
 
 enum {
