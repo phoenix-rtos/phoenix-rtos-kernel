@@ -14,9 +14,9 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../lib/lib.h"
-#include "../include/sysinfo.h"
+#include "hal/hal.h"
+#include "lib/lib.h"
+#include "include/sysinfo.h"
 #include "page.h"
 #include "map.h"
 #include "amap.h"

@@ -14,13 +14,13 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
+#include "proc/proc.h"
+#include "lib/lib.h"
+#include "include/errno.h"
 #include "page.h"
-#include "../include/errno.h"
-#include "../lib/lib.h"
 #include "map.h"
-#include "../proc/proc.h"
-#include "../syspage.h"
+#include "syspage.h"
 
 
 extern unsigned int __bss_start;

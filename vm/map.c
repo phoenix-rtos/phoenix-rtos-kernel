@@ -13,13 +13,13 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../include/signal.h"
-#include "../lib/lib.h"
-#include "../syspage.h"
+#include "hal/hal.h"
+#include "lib/lib.h"
+#include "proc/proc.h"
+#include "include/errno.h"
+#include "include/signal.h"
+#include "syspage.h"
 #include "map.h"
-#include "../proc/proc.h"
 #include "amap.h"
 
 

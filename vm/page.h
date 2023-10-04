@@ -17,8 +17,8 @@
 #ifndef _VM_PAGE_H_
 #define _VM_PAGE_H_
 
-#include "../hal/hal.h"
-#include "../include/sysinfo.h"
+#include "hal/hal.h"
+#include "include/sysinfo.h"
 
 
 //extern page_t *_page_alloc(size_t size, u8 flags);

@@ -16,7 +16,7 @@
 #ifndef _VM_KMALLOC_H_
 #define _VM_KMALLOC_H_
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
 
 
 extern void *vm_kmalloc(size_t size);

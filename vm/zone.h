@@ -16,7 +16,7 @@
 #ifndef _VM_ZALLOC_H_
 #define _VM_ZALLOC_H_
 
-#include "../lib/lib.h"
+#include "lib/lib.h"
 
 
 typedef struct _vm_zone_t {

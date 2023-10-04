@@ -16,11 +16,11 @@
 #ifndef _VM_MAP_H_
 #define _VM_MAP_H_
 
-#include "../hal/hal.h"
-#include "../include/sysinfo.h"
-#include "../include/mman.h"
-#include "../lib/lib.h"
-#include "../syspage.h"
+#include "hal/hal.h"
+#include "include/sysinfo.h"
+#include "include/mman.h"
+#include "lib/lib.h"
+#include "syspage.h"
 #include "object.h"
 #include "proc/lock.h"
 #include "vm/amap.h"

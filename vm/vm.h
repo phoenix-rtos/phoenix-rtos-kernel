@@ -16,8 +16,8 @@
 #ifndef _VM_VM_H_
 #define _VM_VM_H_
 
-#include "../hal/hal.h"
-#include "../include/sysinfo.h"
+#include "hal/hal.h"
+#include "include/sysinfo.h"
 #include "page.h"
 #include "map.h"
 #include "zone.h"

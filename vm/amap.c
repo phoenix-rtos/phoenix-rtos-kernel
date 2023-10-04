@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../include/errno.h"
-#include "../lib/lib.h"
+#include "hal/hal.h"
+#include "include/errno.h"
+#include "lib/lib.h"
 #include "page.h"
-#include "../proc/proc.h"
+#include "proc/proc.h"
 #include "amap.h"
 #include "map.h"
 
