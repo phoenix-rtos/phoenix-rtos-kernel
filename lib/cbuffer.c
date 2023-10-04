@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
 #include "lib.h"
-#include "../vm/vm.h"
+#include "vm/vm.h"
 
 
 int _cbuffer_init(cbuffer_t *buf, void *data, size_t sz)

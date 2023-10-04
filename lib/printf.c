@@ -16,9 +16,9 @@
 
 #include <stdarg.h>
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
 
-#include "../log/log.h"
+#include "log/log.h"
 
 /* Flags used for printing */
 #define FLAG_SIGNED        0x1

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
-#include "../vm/kmalloc.h"
+#include "hal/hal.h"
+#include "vm/kmalloc.h"
 
 
 static char *lib_strrchr(char *s, int c)
