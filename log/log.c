@@ -13,15 +13,15 @@
  * %LICENSE%
  */
 
-#include "../hal/hal.h"
+#include "hal/hal.h"
 
-#include "../include/ioctl.h"
+#include "include/ioctl.h"
 
-#include "../posix/posix.h"
+#include "posix/posix.h"
 
 #include "log.h"
-#include "../proc/threads.h"
-#include "../proc/ports.h"
+#include "proc/threads.h"
+#include "proc/ports.h"
 
 
 #ifndef SIZE_LOG
