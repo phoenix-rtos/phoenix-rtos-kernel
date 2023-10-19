@@ -5,7 +5,7 @@
  *
  * i.MX RT1170 basic peripherals control functions
  *
- * Copyright 2017, 2019-2022 Phoenix Systems
+ * Copyright 2017, 2019-2023 Phoenix Systems
  * Author: Aleksander Kaminski, Jan Sikorski, Gerard Swiderski
  *
  * This file is part of Phoenix-RTOS.
@@ -15,11 +15,30 @@
 
 #include "hal/armv7m/armv7m.h"
 #include "hal/spinlock.h"
+#include "hal/cpu.h"
 #include "include/errno.h"
 #include "include/arch/imxrt1170.h"
 #include "imxrt117x.h"
 #include "config.h"
 
+#include <board_config.h>
+
+#define RTWDOG_UNLOCK_KEY  0xd928c520u
+#define RTWDOG_REFRESH_KEY 0xb480a602u
+#define LPO_CLK_FREQ_HZ    32000
+
+#if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
+#define WATCHDOG_TIMEOUT_MS (30000)
+#warning "WATCHDOG_TIMEOUT_MS not defined, defaulting to 30000 ms"
+#endif
+
+#if defined(WATCHDOG) && \
+	((WATCHDOG_TIMEOUT_MS <= 0) || (WATCHDOG_TIMEOUT_MS > (0xffff * 256 / (LPO_CLK_FREQ_HZ / 1000))))
+#error "Watchdog timeout out of bounds!"
+#endif
+
+
+/* clang-format off */
 
 enum { stk_ctrl = 0, stk_load, stk_val, stk_calib };
 
@@ -48,7 +67,9 @@ enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr 
 enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 
-enum { rtwdog_cs = 0, rtwdog_cnt, rtwdog_total, rtwdog_win };
+enum { rtwdog_cs = 0, rtwdog_cnt, rtwdog_toval, rtwdog_win };
+
+/* clang-format on */
 
 
 struct {
@@ -59,7 +80,8 @@ struct {
 	volatile u32 *src;
 	volatile u16 *wdog1;
 	volatile u16 *wdog2;
-	volatile u32 *wdog3;
+	volatile u32 *rtwdog3;
+	volatile u32 *rtwdog4;
 	volatile u32 *iomux_snvs;
 	volatile u32 *iomux_lpsr;
 	volatile u32 *iomuxc;
@@ -82,6 +104,11 @@ unsigned int _imxrt_cpuid(void)
 
 void _imxrt_wdgReload(void)
 {
+#if defined(WATCHDOG)
+	hal_cpuDisableInterrupts();
+	*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
+	hal_cpuEnableInterrupts();
+#endif
 }
 
 
@@ -812,7 +839,8 @@ void _imxrt_init(void)
 	imxrt_common.stk = (void *)0xe000e010;
 	imxrt_common.wdog1 = (void *)0x40030000;
 	imxrt_common.wdog2 = (void *)0x40034000;
-	imxrt_common.wdog3 = (void *)0x40038000;
+	imxrt_common.rtwdog3 = (void *)0x40038000;
+	imxrt_common.rtwdog4 = (void *)0x40c10000;
 	imxrt_common.src = (void *)0x40c04000;
 	imxrt_common.iomux_snvs = (void *)0x40c94000;
 	imxrt_common.iomux_lpsr = (void *)0x40c08000;
@@ -826,6 +854,57 @@ void _imxrt_init(void)
 	imxrt_common.resetFlags = *(imxrt_common.src + src_srsr) & 0x1f;
 	*(imxrt_common.src + src_srsr) |= 0x1f;
 	hal_cpuDataSyncBarrier();
+
+	/* Disable watchdogs (WDOG1, WDOG2) */
+	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1u << 2u)) != 0u) {
+		*(imxrt_common.wdog1 + wdog_wcr) &= ~(1u << 2u);
+	}
+	if ((*(imxrt_common.wdog2 + wdog_wcr) & (1u << 2u)) != 0u) {
+		*(imxrt_common.wdog2 + wdog_wcr) &= ~(1u << 2u);
+	}
+
+	/* WDOG3: Unlock rtwdog update */
+	*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
+	while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 11u)) == 0u) {
+	}
+
+#if defined(WATCHDOG)
+	/* Set watchdog timeout */
+	*(imxrt_common.rtwdog3 + rtwdog_toval) =
+		(u32)(WATCHDOG_TIMEOUT_MS / (256 / (LPO_CLK_FREQ_HZ / 1000)));
+	/*
+	 * WDOG3: set no window mode; no interrupt; use 32bit commands; prescaler=256;
+	 * clk=rc_32k; enable watcdog and allow later reconfiguration without reset
+	 */
+	*(imxrt_common.rtwdog3 + rtwdog_cs) = *(imxrt_common.rtwdog3 + rtwdog_cs) |
+		(1u << 13u) | (1u << 12u) | (1u << 8u) | (1u << 7u) | (1u << 5u);
+
+	/* WDOG3: Refresh rtwdog */
+	*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
+#else
+	/* WDOG3: Disable rtwdog, but allow later reconfiguration without reset */
+	*(imxrt_common.rtwdog3 + rtwdog_toval) = 0xffffu;
+	*(imxrt_common.rtwdog3 + rtwdog_cs) =
+		(*(imxrt_common.rtwdog3 + rtwdog_cs) & ~(1u << 7u)) | (1u << 5u);
+#endif
+
+	/* WDOG3: Wait until new config takes effect */
+	while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 10u)) == 0u) {
+	}
+
+	/* WDOG4: Unlock rtwdog update */
+	*(imxrt_common.rtwdog4 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
+	while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 11u)) == 0u) {
+	}
+
+	/* WDOG4: Disable rtwdog, but allow later reconfiguration without reset */
+	*(imxrt_common.rtwdog4 + rtwdog_toval) = 0xffffu;
+	*(imxrt_common.rtwdog4 + rtwdog_cs) =
+		(*(imxrt_common.rtwdog4 + rtwdog_cs) & ~(1u << 7u)) | (1u << 5u);
+
+	/* WDOG4: Wait until new config takes effect */
+	while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 10u)) == 0u) {
+	}
 
 	/* Enable system HP timer clock gate */
 	_imxrt_setDevClock(GPT_BUS_CLK, 0, 0, 0, 0, 1);
