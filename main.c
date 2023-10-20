@@ -86,8 +86,9 @@ void main_initthr(void *unused)
 		} while ((prog = prog->next) != syspage_progList());
 	}
 
-	for (;;)
+	for (;;) {
 		proc_reap();
+	}
 }
 
 

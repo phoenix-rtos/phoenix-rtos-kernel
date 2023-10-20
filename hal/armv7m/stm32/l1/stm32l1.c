@@ -660,7 +660,8 @@ void _stm32_nvicSystemReset(void)
 
 	__asm__ volatile ("dsb");
 
-	for(;;);
+	for (;;) {
+	}
 }
 
 
