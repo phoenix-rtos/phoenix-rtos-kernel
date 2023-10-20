@@ -24,6 +24,7 @@
 #define PGHD_EXEC       0x00u
 #define PGHD_DEV        0x00u
 #define PGHD_NOT_CACHED 0x00u
+#define PGHD_READ       0x00u
 
 /* Page flags */
 #define PAGE_FREE 0x00000001u

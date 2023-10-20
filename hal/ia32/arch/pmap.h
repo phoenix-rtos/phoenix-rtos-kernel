@@ -35,6 +35,7 @@
 #define PGHD_USER       0x04
 #define PGHD_WRITE      0x02
 #define PGHD_EXEC       0x00
+#define PGHD_READ       0x00
 #define PGHD_DEV        PGHD_CACHE_UC
 #define PGHD_NOT_CACHED PGHD_CACHE_UCM
 

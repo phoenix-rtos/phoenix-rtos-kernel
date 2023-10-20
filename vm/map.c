@@ -470,7 +470,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 			attr |= PGHD_WRITE | PGHD_PRESENT;
 
 		if (prot & PROT_READ)
-			attr |= PGHD_PRESENT;
+			attr |= PGHD_READ | PGHD_PRESENT;
 
 		if (prot & PROT_EXEC)
 			attr |= PGHD_EXEC;
@@ -631,7 +631,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 		attr |= PGHD_WRITE | PGHD_PRESENT;
 
 	if (prot & PROT_READ)
-		attr |= PGHD_PRESENT;
+		attr |= PGHD_READ | PGHD_PRESENT;
 
 	if (prot & PROT_USER)
 		attr |= PGHD_USER;
