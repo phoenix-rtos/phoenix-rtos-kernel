@@ -741,16 +741,16 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOMEM;
 	}
 
-	*entry = (void *)(unsigned long)ehdr->e_entry;
-
 	switch (ehdr->e_ident[4]) {
 		/* 32-bit binary */
 		case 1:
+			*entry = (void *)(ptr_t)((Elf32_Ehdr *)ehdr)->e_entry;
 			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
 			break;
 
 		/* 64-bit binary */
 		case 2:
+			*entry = (void *)(ptr_t)ehdr->e_entry;
 			err = process_load64(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
 			break;
 
