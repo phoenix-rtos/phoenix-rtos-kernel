@@ -443,7 +443,6 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *t;
-	unsigned int i = 0;
 	time_t now;
 	spinlock_ctx_t sc;
 
@@ -455,7 +454,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	now = _proc_gettimeRaw();
 
-	for (;; i++) {
+	for (;;) {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 
 		if (t == NULL || t->wakeup > now) {
