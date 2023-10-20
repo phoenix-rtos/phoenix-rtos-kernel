@@ -149,7 +149,8 @@ void test_vm_kmalloc(void)
 
 //vm_mapDumpArenas();
 
-	for(;;);
+	for (;;) {
+	}
 }
 
 
@@ -170,7 +171,8 @@ static void _test_vm_msgsimthr(void *arg)
 	lib_printf("test: M, No memory!\n");
 	proc_lockClear(&lock);
 
-	for (;;);
+	for (;;) {
+	}
 }
 
 
@@ -220,7 +222,8 @@ lib_printf("\n");
 	lib_printf("test: U, No memory [%d]!\n", allocsz);
 	proc_lockClear(&lock);
 
-	for(;;);
+	for (;;) {
+	}
 }
 
 

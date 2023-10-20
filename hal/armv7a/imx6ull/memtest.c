@@ -249,7 +249,7 @@ int test_ddrAll(void)
 	u32 address = 0x80000000, size = 128 * 1024 * 1024;
 	int errors;
 
-	while (1) {
+	for (;;) {
 		++i;
 
 		test_ddrPrintStr("\n\nPass #");

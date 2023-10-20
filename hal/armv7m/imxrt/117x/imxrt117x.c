@@ -456,7 +456,8 @@ void _imxrt_nvicSystemReset(void)
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 
-	for(;;);
+	for (;;) {
+	}
 }
 
 
