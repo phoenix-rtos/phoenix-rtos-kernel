@@ -1145,6 +1145,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 {
 #ifdef NOMMU
 	size_t mapsCnt, id = 0;
+	int result;
 
 	map_entry_t *entry;
 	const mapent_t *sysEntry;
@@ -1156,10 +1157,8 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	map_common.maps = (vm_map_t **)(*bss);
 
 	while ((*top) - (*bss) < sizeof(vm_map_t *) * mapsCnt) {
-		if (_page_sbrk(&map_common.kmap->pmap, bss, top) < 0) {
-			lib_printf("vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)\n", *bss);
-			for (;;);
-		}
+		result = _page_sbrk(&map_common.kmap->pmap, bss, top);
+		LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)", *bss);
 	}
 
 	(*bss) += (sizeof(vm_map_t *) * mapsCnt);
@@ -1179,10 +1178,8 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 		/* Allocate new map */
 		else {
 			while ((*top) - (*bss) < sizeof(vm_map_t)) {
-				if (_page_sbrk(&map_common.kmap->pmap, bss, top) < 0) {
-					lib_printf("vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)\n", *bss);
-					for (;;);
-				}
+				result = _page_sbrk(&map_common.kmap->pmap, bss, top);
+				LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)", *bss);
 			}
 
 			map_common.maps[id] = (*bss);
@@ -1230,7 +1227,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 
 int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
-	int i, prot;
+	int result, i, prot;
 	void *vaddr;
 	size_t poolsz, freesz, size;
 	map_entry_t *e;
@@ -1252,10 +1249,8 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	map_common.nfree = map_common.ntotal = freesz / (4 * SIZE_PAGE + sizeof(map_entry_t));
 
 	while ((*top) - (*bss) < sizeof(map_entry_t) * map_common.ntotal) {
-		if (_page_sbrk(&map_common.kmap->pmap, bss, top) < 0) {
-			lib_printf("vm: Problem with extending kernel heap for map_entry_t pool (vaddr=%p)\n", *bss);
-			for (;;);
-		}
+		result = _page_sbrk(&map_common.kmap->pmap, bss, top);
+		LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for map_entry_t pool (vaddr=%p)", *bss);
 	}
 
 	map_common.entries = (*bss);
@@ -1271,11 +1266,8 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	(*bss) += poolsz;
 	lib_printf("vm: Initializing memory mapper: (%d*%d) %d\n", map_common.nfree, sizeof(map_entry_t), poolsz);
 
-	if (_map_mapsInit(kmap, kernel, bss, top) < 0) {
-		lib_printf("vm: Problem with maps initialization.\n");
-		for (;;);
-	}
-
+	result = _map_mapsInit(kmap, kernel, bss, top);
+	LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with maps initialization.");
 
 	/* Map kernel segments */
 	for (i = 0;; i++) {
