@@ -1,4 +1,3 @@
-
 /*
  * Phoenix-RTOS
  *
@@ -32,6 +31,11 @@ void lib_assertPanic(const char *func, int line, const char *fmt, ...)
 	lib_vprintf(fmt, ap);
 	va_end(ap);
 	lib_putch('\n');
+
+#ifdef NDEBUG
+	hal_cpuReboot();
+#endif
+
 	for (;;) {
 		hal_cpuHalt();
 	}
