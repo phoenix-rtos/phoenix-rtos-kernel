@@ -951,6 +951,7 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 
 	oid_t oid, file;
 	oid_t pipesrv;
+	int ret;
 
 	hal_memset(&oid, 0, sizeof(oid));
 
@@ -958,18 +959,21 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 		return -ENOSYS;
 	}
 
-	if (proc_create(pipesrv.port, pxBufferedPipe, 0, oid, pipesrv, NULL, &oid) < 0) {
-		return -EIO;
+	ret = proc_create(pipesrv.port, pxBufferedPipe, 0, oid, pipesrv, NULL, &oid);
+	if (ret < 0) {
+		return ret;
 	}
 
 	/* link pipe in posix server */
-	if (proc_link(oid, oid, pathname) < 0) {
-		return -EIO;
+	ret = proc_link(oid, oid, pathname);
+	if (ret < 0) {
+		return ret;
 	}
 
 	/* create pipe in filesystem */
-	if (posix_create(pathname, 2 /* otDev */, mode | S_IFIFO, oid, &file) < 0) {
-		return -EIO;
+	ret = posix_create(pathname, 2 /* otDev */, mode | S_IFIFO, oid, &file);
+	if (ret < 0) {
+		return ret;
 	}
 
 	return 0;
