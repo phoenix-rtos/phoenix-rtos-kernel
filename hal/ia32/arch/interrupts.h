@@ -34,6 +34,8 @@
 #define IOAPIC_INTPOL   (1u << 13)
 #define IOAPIC_DESTMOD  (1u << 11)
 
+#define LAPIC_EOI 0
+
 /* Interrupt source override polarity flags */
 #define MADT_ISO_POLAR_MASK 0x3
 #define MADT_ISO_POLAR_BUS  0x0

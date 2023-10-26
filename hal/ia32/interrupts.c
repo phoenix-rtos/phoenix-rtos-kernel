@@ -163,14 +163,13 @@ static inline void _hal_ioapicRoundRobin(unsigned int n)
 
 static inline void _hal_interrupts_8259EOI(unsigned int n)
 {
-	volatile u32 *p = hal_config.localApicAddr + LAPIC_EOI_REG;
 	if ((hal_isLapicPresent() != 0) && (n == TLB_IRQ)) {
-		*p = 0;
+		_hal_lapicWrite(LAPIC_EOI_REG, LAPIC_EOI);
 		return;
 	}
 	/* Check for rare case, when we use 8259 PIC with multiple cores and APIC */
 	if (hal_cpuGetID() != 0) {
-		*p = 0;
+		_hal_lapicWrite(LAPIC_EOI_REG, LAPIC_EOI);
 		return;
 	}
 	if (n < 8) {
@@ -185,9 +184,8 @@ static inline void _hal_interrupts_8259EOI(unsigned int n)
 
 static inline void _hal_interruptsApicEOI(unsigned int n)
 {
-	volatile u32 *p = hal_config.localApicAddr + LAPIC_EOI_REG;
 	_hal_ioapicRoundRobin(n);
-	*p = 0;
+	_hal_lapicWrite(LAPIC_EOI_REG, LAPIC_EOI);
 }
 
 

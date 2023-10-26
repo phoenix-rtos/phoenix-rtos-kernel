@@ -27,6 +27,8 @@
 #include "tlb.h"
 #include "init.h"
 
+extern void hal_timerInitCore(const unsigned int id);
+
 struct cpu_feature_t {
 	const char *name;
 	s32 eax;
@@ -302,7 +304,7 @@ unsigned int hal_cpuGetCount(void)
 static inline unsigned int _hal_cpuGetID(void)
 {
 	if (hal_isLapicPresent() == 1) {
-		return (*(volatile u32 *)(hal_config.localApicAddr + LAPIC_ID_REG)) >> 24;
+		return _hal_lapicRead(LAPIC_ID_REG) >> 24;
 	}
 	else {
 		return 0;
@@ -326,11 +328,9 @@ unsigned int hal_cpuGetID(void)
 /* Sends IPI to everyone but self */
 void cpu_broadcastIPI(unsigned int intr)
 {
-	volatile u32 *p;
 	if (hal_isLapicPresent() == 1) {
-		p = hal_config.localApicAddr + LAPIC_ICR_REG_0_31;
-		*p = intr | 0xc4000;
-		while (*p & (1 << 12)) {
+		_hal_lapicWrite(LAPIC_ICR_REG_0_31, intr | 0xc4000);
+		while ((_hal_lapicRead(LAPIC_ICR_REG_0_31) & (1 << 12)) != 0) {
 		}
 	}
 }
@@ -338,14 +338,12 @@ void cpu_broadcastIPI(unsigned int intr)
 
 void hal_cpuSendIPI(unsigned int cpu, unsigned int intrAndFlags)
 {
-	volatile u32 *p, *q;
 	if (hal_isLapicPresent() == 1) {
-		p = hal_config.localApicAddr + LAPIC_ICR_REG_0_31;
-		q = hal_config.localApicAddr + LAPIC_ICR_REG_32_63;
 		/* Set destination */
-		*q = (cpu & 0xff) << 24;
-		*p = intrAndFlags & 0xcdfff;
-		while (*p & (1 << 12)) {
+		/* TODO: Disable interrupts while we're writing */
+		_hal_lapicWrite(LAPIC_ICR_REG_32_63, (cpu & 0xff) << 24);
+		_hal_lapicWrite(LAPIC_ICR_REG_0_31, intrAndFlags & 0xcdfff);
+		while ((_hal_lapicRead(LAPIC_ICR_REG_0_31) & (1 << 12)) != 0) {
 		}
 	}
 }
@@ -377,13 +375,11 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 
 void *_cpu_initCore(void)
 {
-	volatile u32 *p;
 	const unsigned int id = hal_cpuGetID();
 	hal_cpuAtomAdd(&cpu.readyCount, 1);
 
 	if (hal_isLapicPresent() == 1) {
-		p = hal_config.localApicAddr + LAPIC_SPUR_IRQ_REG;
-		*p = (*p | 0x11ffu);
+		_hal_lapicWrite(LAPIC_SPUR_IRQ_REG, _hal_lapicRead(LAPIC_SPUR_IRQ_REG) | 0x11ffu);
 	}
 
 	hal_memset(&cpu.tss[id], 0, sizeof(tss_t));
@@ -420,6 +416,7 @@ void *_cpu_initCore(void)
 	/* clang-format on */
 
 	hal_tlbInitCore(id);
+	hal_timerInitCore(id);
 
 	return (void *)cpu.tss[id].esp0;
 }
@@ -433,6 +430,7 @@ static void _hal_cpuInitCores(void)
 
 	/* Initialize BSP */
 	cpu.readyCount = 0;
+	_hal_timerInit(SYSTICK_INTERVAL);
 	_cpu_initCore();
 
 	*(u32 *)(syspage->hs.stack + VADDR_KERNEL - 4) = 0;
