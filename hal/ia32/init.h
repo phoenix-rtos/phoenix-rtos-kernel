@@ -186,6 +186,18 @@ static inline int hal_isLapicPresent(void)
 }
 
 
+static inline void _hal_lapicWrite(u32 reg, u32 value)
+{
+	*(volatile u32 *)(hal_config.localApicAddr + reg) = value;
+}
+
+
+static inline u32 _hal_lapicRead(u32 reg)
+{
+	return *(volatile u32 *)(hal_config.localApicAddr + reg);
+}
+
+
 void _hal_configInit(syspage_t *s);
 
 
