@@ -91,15 +91,20 @@ void *syscalls_mmap(void *ustack)
 }
 
 
-void syscalls_munmap(void *ustack)
+int syscalls_munmap(void *ustack)
 {
 	void *vaddr;
 	size_t size;
+	int err;
 
 	GETFROMSTACK(ustack, void *, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 
-	vm_munmap(proc_current()->process->mapp, vaddr, size);
+	err = vm_munmap(proc_current()->process->mapp, vaddr, size);
+	if (err < 0) {
+		return err;
+	}
+	return 0;
 }
 
 
@@ -818,7 +823,7 @@ addr_t syscalls_va2pa(void *ustack)
 }
 
 
-void syscalls_signalHandle(void *ustack)
+int syscalls_signalHandle(void *ustack)
 {
 	void *handler;
 	unsigned mask, mmask;
@@ -831,6 +836,8 @@ void syscalls_signalHandle(void *ustack)
 	thread = proc_current();
 	thread->process->sigmask = (mask & mmask) | (thread->process->sigmask & ~mmask);
 	thread->process->sighandler = handler;
+
+	return EOK;
 }
 
 
