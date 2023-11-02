@@ -449,8 +449,9 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 	thread_t *current;
 	map_entry_t *e;
 
-	if (!size || (size & (SIZE_PAGE - 1)))
+	if ((size == 0) || ((size & (SIZE_PAGE - 1)) != 0)) {
 		return NULL;
+	}
 
 	/* NULL page indicates that proc sybsystem is ready */
 	if (p == NULL && (current = proc_current()) != NULL)
@@ -508,8 +509,9 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 
 void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
 {
-	if (map == NULL)
+	if (map == NULL) {
 		map = map_common.kmap;
+	}
 
 	proc_lockSet(&map->lock);
 	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, offs, flags);

@@ -729,6 +729,24 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 }
 
 
+int posix_getOid(int fildes, oid_t *oid)
+{
+	open_file_t *f;
+	int err;
+
+	err = posix_getOpenFile(fildes, &f);
+	if (err < 0) {
+		return err;
+	}
+
+	hal_memcpy(oid, &f->oid, sizeof(oid_t));
+
+	posix_fileDeref(f);
+
+	return EOK;
+}
+
+
 int posix_dup(int fildes)
 {
 	TRACE("dup(%d)", fildes);

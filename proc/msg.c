@@ -22,7 +22,10 @@
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
 
 
+/* clang-format off */
 enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
+/* clang-format on */
+
 
 
 struct {
@@ -115,7 +118,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			return NULL;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, OID_PHYSMEM, bpa, flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, (void *)-1, bpa, flags);
 		ml->bvaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
@@ -159,7 +162,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			nep = nbp;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, OID_PHYSMEM, epa, flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, (void *)-1, epa, flags);
 		ml->evaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
