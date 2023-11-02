@@ -220,7 +220,7 @@ void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map
 }
 
 
-static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, u8 prot, vm_object_t *o, offs_t offs, u8 flags, map_entry_t **entry)
+static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags, map_entry_t **entry)
 {
 	void *v;
 	map_entry_t *prev, *next, *e;
@@ -441,7 +441,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
-void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, offs_t offs, u8 flags)
+void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
 {
 	int attr = PROT_NONE;
 	void *w;
@@ -506,7 +506,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 }
 
 
-void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, offs_t offs, u8 flags)
+void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
 {
 	if (map == NULL)
 		map = map_common.kmap;
@@ -522,7 +522,7 @@ void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_ob
  * Fault routines
  */
 
-int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, offs_t offs)
+int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off_t offs)
 {
 	map_entry_t t, *e;
 

@@ -43,7 +43,7 @@ typedef struct _log_rmsg_t {
 
 
 typedef struct _log_reader_t {
-	offs_t ridx;
+	off_t ridx;
 	pid_t pid;
 	unsigned nonblocking;
 	log_rmsg_t *msgs;
@@ -54,8 +54,8 @@ typedef struct _log_reader_t {
 
 static struct {
 	char buf[KERNEL_LOG_SIZE];
-	offs_t head;
-	offs_t tail;
+	off_t head;
+	off_t tail;
 	lock_t lock;
 	log_reader_t *readers;
 	volatile int updated;
@@ -87,7 +87,7 @@ static void _log_push(char c)
 }
 
 
-static char _log_getc(offs_t off)
+static char _log_getc(off_t off)
 {
 	return log_common.buf[off % KERNEL_LOG_SIZE];
 }

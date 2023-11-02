@@ -41,7 +41,7 @@ extern int vm_objectGet(vm_object_t **o, oid_t oid);
 extern int vm_objectPut(vm_object_t *o);
 
 
-extern page_t *vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, offs_t offs);
+extern page_t *vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off_t offs);
 
 
 extern vm_object_t *vm_objectContiguous(size_t size);

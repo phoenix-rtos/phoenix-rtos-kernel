@@ -55,7 +55,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 {
 	vm_object_t t, *no = NULL;
 	size_t i, n;
-	offs_t sz;
+	off_t sz;
 	int err = -ENOMEM;
 
 	t.oid.port = oid.port;
@@ -72,7 +72,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 		if (sz < 0) {
 			err = (int)sz;
 		}
-		else if ((sizeof(offs_t) <= sizeof(size_t)) || (sz <= (offs_t)((size_t)-1))) {
+		else if ((sizeof(off_t) <= sizeof(size_t)) || (sz <= (off_t)((size_t)-1))) {
 			n = round_page((size_t)sz) / SIZE_PAGE;
 			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
 		}
@@ -156,7 +156,7 @@ int vm_objectPut(vm_object_t *o)
 }
 
 
-static page_t *object_fetch(oid_t oid, offs_t offs)
+static page_t *object_fetch(oid_t oid, off_t offs)
 {
 	page_t *p;
 	void *v;
@@ -189,7 +189,7 @@ static page_t *object_fetch(oid_t oid, offs_t offs)
 }
 
 
-page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, offs_t offs)
+page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off_t offs)
 {
 	page_t *p;
 

@@ -37,7 +37,7 @@ typedef struct {
 	thread_t *parent;
 
 	vm_object_t *object;
-	offs_t offset;
+	off_t offset;
 	size_t size;
 	vm_map_t *map;
 	vm_map_t *imap;
@@ -416,7 +416,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 	char *snameTab;
 	size_t memsz, filesz;
 	unsigned i, misalign;
-	offs_t offs;
+	off_t offs;
 
 	if (size < sizeof(*ehdr)) {
 		return -ENOEXEC;
@@ -489,7 +489,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 	char *snameTab;
 	size_t memsz, filesz;
 	unsigned i, misalign;
-	offs_t offs;
+	off_t offs;
 
 	if (size < sizeof(*ehdr)) {
 		return -ENOEXEC;
@@ -552,7 +552,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 
 /* TODO - adding error handling and unmapping of already mapped segments */
-int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
 	void *vaddr;
 	size_t memsz, filesz;
@@ -560,7 +560,7 @@ int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
 	unsigned i, prot, flags, misalign;
-	offs_t offs;
+	off_t offs;
 	char *snameTab;
 
 	if (process_validateElf32(iehdr, size) < 0) {
@@ -635,7 +635,7 @@ int process_load32(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 }
 
 
-int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
 	void *vaddr;
 	size_t memsz, filesz;
@@ -643,7 +643,7 @@ int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 	Elf64_Phdr *phdr;
 	Elf64_Shdr *shdr, *shstrshdr;
 	unsigned i, prot, flags, misalign;
-	offs_t offs;
+	off_t offs;
 	char *snameTab;
 
 	if (process_validateElf64(iehdr, size) < 0) {
@@ -718,7 +718,7 @@ int process_load64(vm_map_t *map, vm_object_t *o, offs_t base, void *iehdr, size
 }
 
 
-int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
+int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
 {
 	void *stack;
 	Elf64_Ehdr *ehdr;
@@ -807,7 +807,7 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 }
 
 
-int process_load(process_t *process, vm_object_t *o, offs_t base, size_t size, void **ustack, void **entry)
+int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
 {
 	void *stack, *paddr;
 	Elf32_Ehdr *ehdr;
@@ -1236,7 +1236,7 @@ static void proc_spawnThread(void *arg)
 }
 
 
-int proc_spawn(vm_object_t *object, vm_map_t *imap, vm_map_t *map, offs_t offset, size_t size, const char *path, char **argv, char **envp)
+int proc_spawn(vm_object_t *object, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
 {
 	int pid;
 	process_spawn_t spawn;
