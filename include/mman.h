@@ -17,17 +17,27 @@
 #define _PHOENIX_MMAN_H_
 
 
-enum { MAP_NONE = 0x0, MAP_NEEDSCOPY = 0x1, MAP_UNCACHED = 0x2, MAP_DEVICE = 0x4, MAP_NOINHERIT = 0x8,
-	MAP_SHARED = 0x0, MAP_PRIVATE = 0x0, MAP_FIXED = 0x0, MAP_ANONYMOUS = 0x0 };
+#define MAP_NONE       0x0
+#define MAP_NEEDSCOPY  0x1
+#define MAP_UNCACHED   0x2
+#define MAP_DEVICE     0x4
+#define MAP_NOINHERIT  0x8
+#define MAP_PHYSMEM    0x10
+#define MAP_CONTIGUOUS 0x20
+#define MAP_ANONYMOUS  0x40
+#define MAP_SHARED     0x0
+#define MAP_PRIVATE    0x0
+#define MAP_FIXED      0x0
 
 
-enum { PROT_NONE = 0x0, PROT_READ = 0x1, PROT_WRITE = 0x2, PROT_EXEC = 0x4, PROT_USER = 0x8 };
+#define PROT_NONE  0x0
+#define PROT_READ  0x1
+#define PROT_WRITE 0x2
+#define PROT_EXEC  0x4
+#define PROT_USER  0x8
 
 
-/* Predefined oids */
-#define OID_NULL       NULL
-#define OID_PHYSMEM    (void *)-1
-#define OID_CONTIGUOUS (void *)-2
+#define MAP_FAILED (void *)-1
 
 
 #endif

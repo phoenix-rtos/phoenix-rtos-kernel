@@ -52,39 +52,47 @@ void *syscalls_mmap(void *ustack)
 {
 	void *vaddr;
 	size_t size;
-	int prot, flags;
-	oid_t *oid;
+	int prot, flags, fildes;
 	off_t offs;
 	vm_object_t *o;
+	oid_t oid;
 
 	GETFROMSTACK(ustack, void *, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
-	GETFROMSTACK(ustack, oid_t *, oid, 4);
+	GETFROMSTACK(ustack, int, fildes, 4);
 	GETFROMSTACK(ustack, off_t, offs, 5);
 
-	if (oid == OID_NULL) {
-		o = NULL;
-	}
-	else if (oid == OID_PHYSMEM) {
-		o = (void *)-1;
-	}
-	else if (oid == OID_CONTIGUOUS) {
-		o = vm_objectContiguous(size);
-		if (o == NULL) {
-			return (void *)-1;
+	if ((flags & MAP_ANONYMOUS) != 0) {
+		if ((flags & MAP_PHYSMEM) != 0) {
+			o = (void *)-1;
+		}
+		else if ((flags & MAP_CONTIGUOUS) != 0) {
+			o = vm_objectContiguous(size);
+			if (o == NULL) {
+				return MAP_FAILED;
+			}
+		}
+		else {
+			return MAP_FAILED;
 		}
 	}
-	else if (vm_objectGet(&o, *oid) != EOK) {
-		return NULL;
+
+	else {
+		if (posix_getOid(fildes, &oid) != EOK) {
+			return MAP_FAILED;
+		}
+		if (vm_objectGet(&o, oid) != EOK) {
+			return MAP_FAILED;
+		}
 	}
 
 	vaddr = vm_mmap(proc_current()->process->mapp, vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
 	vm_objectPut(o);
 
 	if (vaddr == NULL) {
-		return (void *)-1;
+		return MAP_FAILED;
 	}
 
 	return vaddr;
