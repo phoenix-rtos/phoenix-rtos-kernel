@@ -208,7 +208,7 @@ static int amap_unmap(vm_map_t *map, void *v)
 }
 
 
-page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int aoffs, offs_t offs, int prot)
+page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int aoffs, off_t offs, int prot)
 {
 	page_t *p = NULL;
 	anon_t *a;

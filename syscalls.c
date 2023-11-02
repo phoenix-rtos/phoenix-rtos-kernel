@@ -54,7 +54,7 @@ void *syscalls_mmap(void *ustack)
 	size_t size;
 	int prot, flags;
 	oid_t *oid;
-	offs_t offs;
+	off_t offs;
 	vm_object_t *o;
 
 	GETFROMSTACK(ustack, void *, vaddr, 0);
@@ -62,7 +62,7 @@ void *syscalls_mmap(void *ustack)
 	GETFROMSTACK(ustack, int, prot, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
 	GETFROMSTACK(ustack, oid_t *, oid, 4);
-	GETFROMSTACK(ustack, offs_t, offs, 5);
+	GETFROMSTACK(ustack, off_t, offs, 5);
 
 	if (oid == OID_NULL) {
 		o = NULL;

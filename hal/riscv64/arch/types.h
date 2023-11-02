@@ -34,7 +34,9 @@ typedef u64 addr_t;
 typedef u64 cycles_t;
 
 typedef u64 usec_t;
+/* FIXME: offs_t should be eradicated */
 typedef s64 offs_t;
+typedef offs_t off_t;
 
 typedef unsigned long size_t;
 typedef unsigned long long time_t;
