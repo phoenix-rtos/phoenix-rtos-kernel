@@ -40,7 +40,10 @@ struct {
 } map_common;
 
 
-map_entry_t *map_alloc(void);
+static map_entry_t *map_alloc(void);
+
+
+static map_entry_t *map_allocN(int n);
 
 
 void map_free(map_entry_t *entry);
@@ -235,8 +238,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	if ((v = _map_find(map, vaddr, size, &prev, &next)) == NULL)
 		return NULL;
 
-	rmerge = next != NULL && v + size == next->vaddr && next->object == o && next->flags == flags && next->prot == prot;
-	lmerge = prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot;
+	rmerge = next != NULL && v + size == next->vaddr && next->object == o && next->flags == flags && next->prot == prot && next->protOrig == prot;
+	lmerge = prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot && prev->protOrig == prot;
 
 	if (offs != -1) {
 		if (offs & (SIZE_PAGE - 1))
@@ -326,6 +329,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->offs = offs;
 		e->flags = flags;
 		e->prot = prot;
+		e->protOrig = prot;
 
 		e->amap = NULL;
 		e->aoffs = 0;
@@ -422,6 +426,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 
 		s->flags = e->flags;
 		s->prot = e->prot;
+		s->protOrig = e->protOrig;
 		s->object = vm_objectRef(e->object);
 		s->offs = (e->offs == -1) ? -1 : e->offs + (vaddr + size - e->vaddr);
 		s->vaddr = vaddr + size;
@@ -441,9 +446,44 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
+int vm_flagsToAttr(int flags)
+{
+	int attr = 0;
+	if ((flags & MAP_UNCACHED) != 0) {
+		attr |= PGHD_NOT_CACHED;
+	}
+	if ((flags & MAP_DEVICE) != 0) {
+		attr |= PGHD_DEV;
+	}
+
+	return attr;
+}
+
+
+static int vm_protToAttr(int prot)
+{
+	int attr = 0;
+
+	if ((prot & PROT_READ) != 0) {
+		attr |= (PGHD_READ | PGHD_PRESENT);
+	}
+	if ((prot & PROT_WRITE) != 0) {
+		attr |= (PGHD_WRITE | PGHD_PRESENT);
+	}
+	if ((prot & PROT_EXEC) != 0) {
+		attr |= PGHD_EXEC;
+	}
+	if ((prot & PROT_USER) != 0) {
+		attr |= PGHD_USER;
+	}
+
+	return attr;
+}
+
+
 void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
 {
-	int attr = PROT_NONE;
+	int attr;
 	void *w;
 	process_t *process = NULL;
 	thread_t *current;
@@ -463,26 +503,11 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 		return NULL;
 
 	if (p != NULL) {
-		if (prot & PROT_USER)
-			attr |= PGHD_USER;
+		attr = vm_protToAttr(prot) | vm_flagsToAttr(flags);
 
-		if (prot & PROT_WRITE)
-			attr |= PGHD_WRITE | PGHD_PRESENT;
-
-		if (prot & PROT_READ)
-			attr |= PGHD_READ | PGHD_PRESENT;
-
-		if (prot & PROT_EXEC)
-			attr |= PGHD_EXEC;
-
-		if (flags & MAP_UNCACHED)
-			attr |= PGHD_NOT_CACHED;
-
-		if (flags & MAP_DEVICE)
-			attr |= PGHD_DEV;
-
-		for (w = vaddr; w < vaddr + size; w += SIZE_PAGE)
+		for (w = vaddr; w < (vaddr + size); w += SIZE_PAGE) {
 			page_map(&map->pmap, w, (p++)->addr, attr);
+		}
 
 		return vaddr;
 	}
@@ -596,23 +621,21 @@ int vm_mapForce(vm_map_t *map, void *paddr, int prot)
 }
 
 
+static int map_checkProt(int baseProt, int newProt)
+{
+	return (baseProt | newProt) ^ baseProt;
+}
+
+
 static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 {
-	int attr = 0, offs;
+	int attr, offs;
 	page_t *p = NULL;
+	int flagsCheck = map_checkProt(e->prot, prot);
 
-	if (prot & PROT_WRITE && !(e->prot & PROT_WRITE))
-		return PROT_WRITE;
-
-	if (prot & PROT_READ && !(e->prot & PROT_READ))
-		return PROT_READ;
-
-	if (prot & PROT_USER && !(e->prot & PROT_USER))
-		return PROT_USER;
-
-	if (prot & PROT_EXEC && !(e->prot & PROT_EXEC))
-		return PROT_EXEC;
-
+	if (flagsCheck != 0) {
+		return flagsCheck;
+	}
 	if ((prot & PROT_WRITE && e->flags & MAP_NEEDSCOPY) || (e->object == NULL && e->amap == NULL)) {
 		if ((e->amap = amap_create(e->amap, &e->aoffs, e->size)) == NULL)
 			return -ENOMEM;
@@ -627,23 +650,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 	else /* if (e->object != VM_OBJ_PHYSMEM) FIXME disabled until memory objects are created for syspage progs */
 		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, (e->offs < 0) ? e->offs : e->offs + offs, prot);
 
-	if (prot & PROT_WRITE)
-		attr |= PGHD_WRITE | PGHD_PRESENT;
-
-	if (prot & PROT_READ)
-		attr |= PGHD_READ | PGHD_PRESENT;
-
-	if (prot & PROT_USER)
-		attr |= PGHD_USER;
-
-	if (prot & PROT_EXEC)
-		attr |= PGHD_EXEC;
-
-	if (e->flags & MAP_UNCACHED)
-		attr |= PGHD_NOT_CACHED;
-
-	if (e->flags & MAP_DEVICE)
-		attr |= PGHD_DEV;
+	attr = vm_protToAttr(prot) | vm_flagsToAttr(e->flags);
 
 	if ((p == NULL) && (e->object == VM_OBJ_PHYSMEM)) {
 		if (page_map(&map->pmap, paddr, e->offs + offs, attr) < 0) {
@@ -713,6 +720,141 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 
 	proc_lockSet(&map->lock);
 	result = _vm_munmap(map, vaddr, size);
+	proc_lockClear(&map->lock);
+
+	return result;
+}
+
+
+static void vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src)
+{
+	hal_memcpy(dst, src, sizeof(map_entry_t));
+	dst->amap = amap_ref(src->amap);
+	amap_getanons(dst->amap, dst->aoffs, dst->size);
+	dst->object = vm_objectRef(src->object);
+}
+
+
+static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entry_t *new, size_t len)
+{
+	vm_mapEntryCopy(new, e);
+
+	new->vaddr += len;
+	new->size -= len;
+	new->aoffs += len;
+
+	e->size = len;
+	e->rmaxgap = 0;
+	map_augment(&e->linkage);
+
+	_map_add(p, m, new);
+}
+
+
+int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
+{
+	int result = EOK;
+	void *currVaddr;
+	size_t lenLeft = len, currSize, needed;
+	process_t *p = proc_current()->process;
+	addr_t pa;
+	int attr;
+	map_entry_t *e, *buf = NULL, *prev;
+	map_entry_t t;
+
+	if (((((ptr_t)vaddr) & (SIZE_PAGE - 1)) != 0) || (len == 0) || ((len & (SIZE_PAGE - 1)) != 0)) {
+		return -EINVAL;
+	}
+
+	proc_lockSet(&map->lock);
+
+	/* Validate */
+
+	t.size = SIZE_PAGE;
+	t.vaddr = vaddr;
+
+	needed = 0;
+	do {
+		e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
+		if (e == NULL) {
+			result = -ENOMEM;
+			break;
+		}
+		if (map_checkProt(e->protOrig, prot) != 0) {
+			result = -EACCES;
+			break;
+		}
+
+		currSize = e->size;
+		/* First entry may not be aligned. */
+		if (e->vaddr < t.vaddr) {
+			currSize -= (t.vaddr - e->vaddr);
+			needed++;
+		}
+		/* Last entry may not be changed fully. */
+		if (lenLeft < currSize) {
+			needed++;
+		}
+		lenLeft -= min(lenLeft, currSize);
+		t.vaddr += currSize;
+	} while (lenLeft != 0);
+
+	if ((result == EOK) && (needed != 0)) {
+		buf = map_allocN(needed);
+		if (buf == NULL) {
+			result = -ENOMEM;
+		}
+	}
+
+	if (result == EOK) {
+		t.vaddr = vaddr;
+		prev = NULL;
+		lenLeft = len;
+		do {
+			e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
+
+			if (prev == NULL) {
+				/* First entry */
+				if (e->vaddr < t.vaddr) {
+					/* Split */
+					prev = e;
+
+					e = buf;
+					buf = buf->next;
+
+					vm_mapEntrySplit(p, map, prev, e, t.vaddr - prev->vaddr);
+				}
+			}
+			else if ((prev->protOrig == e->protOrig) && (prev->object == e->object) && (prev->flags == e->flags)) {
+				/* Merge */
+				prev->rmaxgap = e->rmaxgap;
+				prev->size += e->size;
+
+				_entry_put(map, e);
+
+				map_augment(&prev->linkage);
+				e = prev;
+			}
+
+			if (lenLeft < e->size) {
+				vm_mapEntrySplit(p, map, e, buf, lenLeft);
+			}
+
+			e->prot = prot;
+
+			attr = vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags);
+			for (currVaddr = e->vaddr; currVaddr < (e->vaddr + e->size); currVaddr += SIZE_PAGE) {
+				pa = pmap_resolve(&map->pmap, currVaddr);
+				if (pa != 0) {
+					result = pmap_enter(&map->pmap, pa, currVaddr, attr, NULL);
+				}
+			}
+
+			lenLeft -= e->size;
+			prev = e;
+		} while (lenLeft != 0);
+	}
+
 	proc_lockClear(&map->lock);
 
 	return result;
@@ -863,10 +1005,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			return -ENOMEM;
 		}
 
-		hal_memcpy(f, e, sizeof(map_entry_t));
-		f->amap = amap_ref(e->amap);
-		amap_getanons(f->amap, f->aoffs, f->size);
-		f->object = vm_objectRef(e->object);
+		vm_mapEntryCopy(f, e);
 		_map_add(proc, dst, f);
 
 		if ((e->prot & PROT_WRITE) && !(e->flags & MAP_DEVICE)) {
@@ -935,6 +1074,7 @@ void vm_mapinfo(meminfo_t *info)
 					info->entry.map[size].size = e->size;
 					info->entry.map[size].flags = e->flags;
 					info->entry.map[size].prot = e->prot;
+					info->entry.map[size].protOrig = e->protOrig;
 					info->entry.map[size].anonsz = ~0;
 
 					if (e->amap != NULL) {
@@ -969,6 +1109,7 @@ void vm_mapinfo(meminfo_t *info)
 					info->entry.map[size].size = e->size;
 					info->entry.map[size].flags = e->flags;
 					info->entry.map[size].prot = e->prot;
+					info->entry.map[size].protOrig = e->protOrig;
 					info->entry.map[size].anonsz = ~0;
 
 					if (e->amap != NULL) {
@@ -1019,6 +1160,7 @@ void vm_mapinfo(meminfo_t *info)
 				info->entry.kmap[size].size = e->size;
 				info->entry.kmap[size].flags = e->flags;
 				info->entry.kmap[size].prot = e->prot;
+				info->entry.kmap[size].protOrig = e->protOrig;
 				info->entry.kmap[size].anonsz = ~0;
 
 				if (e->amap != NULL) {
@@ -1101,13 +1243,15 @@ void vm_mapinfo(meminfo_t *info)
  * Entry pool management
  */
 
-map_entry_t *map_alloc(void)
+
+static map_entry_t *map_allocN(int n)
 {
-	map_entry_t *e;
+	map_entry_t *e, *tmp;
+	int i;
 
 	proc_lockSet(&map_common.lock);
 
-	if (!map_common.nfree) {
+	if (map_common.nfree < n) {
 		proc_lockClear(&map_common.lock);
 #ifndef NDEBUG
 		lib_printf("vm: Entry pool exhausted!\n");
@@ -1115,13 +1259,24 @@ map_entry_t *map_alloc(void)
 		return NULL;
 	}
 
-	map_common.nfree--;
+	map_common.nfree -= n;
 	e = map_common.free;
-	map_common.free = e->next;
+	tmp = e;
+	for (i = 0; i < (n - 1); i++) {
+		tmp = tmp->next;
+	}
+	map_common.free = tmp->next;
+	tmp->next = NULL;
 
 	proc_lockClear(&map_common.lock);
 
 	return e;
+}
+
+
+static map_entry_t *map_alloc(void)
+{
+	return map_allocN(1);
 }
 
 
@@ -1209,6 +1364,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 				entry->flags = MAP_NONE;
 				/* TODO: initialize map properties based on attributes in syspage */
 				entry->prot = PROT_READ | PROT_EXEC;
+				entry->protOrig = entry->prot;
 				entry->amap = NULL;
 
 				if (_map_add(NULL, map_common.maps[id], entry) < 0)
@@ -1290,6 +1446,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		e->offs = -1;
 		e->flags = MAP_NONE;
 		e->prot = prot;
+		e->protOrig = prot;
 		e->amap = NULL;
 		_map_add(NULL, map_common.kmap, e);
 	}

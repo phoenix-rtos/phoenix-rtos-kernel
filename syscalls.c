@@ -111,7 +111,25 @@ int syscalls_munmap(void *ustack)
 	if (err < 0) {
 		return err;
 	}
-	return 0;
+	return EOK;
+}
+
+
+int syscalls_mprotect(void *ustack)
+{
+	void *vaddr;
+	size_t len;
+	int prot, err;
+
+	GETFROMSTACK(ustack, void *, vaddr, 0);
+	GETFROMSTACK(ustack, size_t, len, 1);
+	GETFROMSTACK(ustack, int, prot, 2);
+
+	err = vm_mprotect(proc_current()->process->mapp, vaddr, len, PROT_USER | prot);
+	if (err < 0) {
+		return err;
+	}
+	return EOK;
 }
 
 

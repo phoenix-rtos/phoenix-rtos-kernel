@@ -47,6 +47,7 @@ typedef struct _entryinfo_t {
 
 	unsigned char flags;
 	unsigned char prot;
+	unsigned char protOrig;
 	off_t offs;
 
 	enum { OBJECT_ANONYMOUS, OBJECT_MEMORY, OBJECT_OID } object;

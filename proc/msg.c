@@ -27,7 +27,6 @@ enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
 /* clang-format on */
 
 
-
 struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
@@ -100,13 +99,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		return NULL;
 	}
 
-	if ((flags & MAP_DEVICE) != 0) {
-		attr |= PGHD_DEV;
-	}
-
-	if ((flags & MAP_UNCACHED) != 0) {
-		attr |= PGHD_NOT_CACHED;
-	}
+	attr |= vm_flagsToAttr(flags);
 
 	if (boffs > 0) {
 		ml->boffs = boffs;
