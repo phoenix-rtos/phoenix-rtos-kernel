@@ -326,7 +326,7 @@ unsigned int hal_cpuGetID(void)
 }
 
 /* Sends IPI to everyone but self */
-void cpu_broadcastIPI(unsigned int intr)
+void hal_cpuBroadcastIPI(unsigned int intr)
 {
 	if (hal_isLapicPresent() == 1) {
 		_hal_lapicWrite(LAPIC_ICR_REG_0_31, intr | 0xc4000);

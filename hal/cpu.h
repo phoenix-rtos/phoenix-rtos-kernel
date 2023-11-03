@@ -124,7 +124,7 @@ extern char *hal_cpuInfo(char *info);
 extern char *hal_cpuFeatures(char *features, unsigned int len);
 
 
-extern void cpu_broadcastIPI(unsigned int intr);
+extern void hal_cpuBroadcastIPI(unsigned int intr);
 
 
 extern void hal_cpuReboot(void);
