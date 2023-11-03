@@ -67,6 +67,7 @@ typedef struct _map_entry_t {
 
 	unsigned short flags;
 	unsigned short prot;
+	unsigned short protOrig;
 	struct _vm_object_t *object;
 	off_t offs;
 } map_entry_t;
@@ -96,7 +97,13 @@ extern int vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 extern int _vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 
 
+extern int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot);
+
+
 extern void vm_mapDump(vm_map_t *map);
+
+
+extern int vm_flagsToAttr(int flags);
 
 
 extern int vm_mapCreate(vm_map_t *map, void *start, void *stop);
