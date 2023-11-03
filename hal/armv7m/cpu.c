@@ -338,7 +338,7 @@ void _hal_cpuInit(void)
 }
 
 
-void cpu_broadcastIPI(unsigned int intr)
+void hal_cpuBroadcastIPI(unsigned int intr)
 {
 }
 

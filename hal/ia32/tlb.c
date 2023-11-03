@@ -21,7 +21,7 @@
 /* Maximum number of TLB operations */
 #define MAX_CPU_TASK_COUNT 2
 
-extern void cpu_broadcastIPI(unsigned int intr);
+extern void hal_cpuBroadcastIPI(unsigned int intr);
 
 struct task_tlb {
 	void (*func)(void *);
@@ -143,7 +143,7 @@ void hal_tlbCommit(spinlock_t *spinlock, spinlock_ctx_t *ctx)
 	spinlock_ctx_t sc;
 	const unsigned int id = hal_cpuGetID();
 	size_t i, confirmations;
-	cpu_broadcastIPI(TLB_IRQ);
+	hal_cpuBroadcastIPI(TLB_IRQ);
 	hal_spinlockSet(&tlb_common.tlbs[id].core_spinlock, &sc);
 	hal_spinlockClear(spinlock, &sc);
 

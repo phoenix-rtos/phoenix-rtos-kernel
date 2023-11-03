@@ -302,7 +302,7 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 }
 
 
-void cpu_broadcastIPI(unsigned int intr)
+void hal_cpuBroadcastIPI(unsigned int intr)
 {
 }
 

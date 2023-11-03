@@ -240,7 +240,7 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
-void cpu_broadcastIPI(unsigned int intr)
+void hal_cpuBroadcastIPI(unsigned int intr)
 {
 }
 
