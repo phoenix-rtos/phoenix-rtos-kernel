@@ -89,6 +89,9 @@ typedef struct _cpu_context_t {
 	u32 r11;
 	u32 irq_ret;
 
+	u32 msp;
+	u32 pad0;
+
 	/* Saved by hardware */
 	cpu_hwContext_t hwctx;
 
@@ -170,9 +173,9 @@ static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 }
 
 
-static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, int retval)
+static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval)
 {
-	ctx->hwctx.r0 = retval;
+	ctx->hwctx.r0 = (u32)retval;
 }
 
 
@@ -196,17 +199,6 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
 	return ((ctx->irq_ret & (1 << 2)) == 0) ? 1 : 0;
-}
-
-
-static inline int hal_cpuPushSignal(void *kstack, void (*handler)(void), int sig, const int src)
-{
-	return -1;
-}
-
-
-static inline void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
-{
 }
 
 
