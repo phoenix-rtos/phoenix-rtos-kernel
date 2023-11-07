@@ -192,7 +192,7 @@ void timer_setAlarm(time_t us)
 }
 
 
-void hal_timerSetWakeup(u32 when)
+void hal_timerSetWakeup(u32 waitUs)
 {
 }
 

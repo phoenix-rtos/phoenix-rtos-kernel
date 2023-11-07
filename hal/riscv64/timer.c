@@ -41,7 +41,7 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-void hal_timerSetWakeup(u32 when)
+void hal_timerSetWakeup(u32 waitUs)
 {
 }
 
