@@ -98,7 +98,7 @@ time_t hal_timerGetUs(void)
 }
 
 
-void hal_timerSetWakeup(u32 when)
+void hal_timerSetWakeup(u32 waitUs)
 {
 }
 

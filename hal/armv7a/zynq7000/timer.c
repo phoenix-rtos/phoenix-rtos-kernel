@@ -90,7 +90,7 @@ static time_t hal_timerGetCyc(void)
 }
 
 
-void hal_timerSetWakeup(u32 when)
+void hal_timerSetWakeup(u32 waitUs)
 {
 }
 

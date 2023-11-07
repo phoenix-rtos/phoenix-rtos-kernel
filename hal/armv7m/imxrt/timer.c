@@ -85,17 +85,17 @@ static time_t hal_timerGetCyc(void)
 }
 
 
-void hal_timerSetWakeup(u32 when)
+void hal_timerSetWakeup(u32 waitUs)
 {
 	spinlock_ctx_t sc;
 
-	if (when > timer_common.interval) {
-		when = timer_common.interval;
+	if (waitUs > timer_common.interval) {
+		waitUs = timer_common.interval;
 	}
 
 	hal_spinlockSet(&timer_common.sp, &sc);
 	/* Modulo handled implicitly */
-	*(timer_common.base + gpt_ocr2) = hal_timerUs2Cyc(when) + *(timer_common.base + gpt_cnt);
+	*(timer_common.base + gpt_ocr2) = hal_timerUs2Cyc(waitUs) + *(timer_common.base + gpt_cnt);
 	*(timer_common.base + gpt_sr) |= 1 << 1;
 	hal_cpuDataMemoryBarrier();
 	hal_spinlockClear(&timer_common.sp, &sc);
