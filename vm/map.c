@@ -77,7 +77,7 @@ static void map_augment(rbnode_t *node)
 				break;
 		}
 
-		n->lmaxgap = (size_t) (n->vaddr <= p->vaddr) ? (n->vaddr - n->map->start) : (n->vaddr - p->vaddr) - p->size;
+		n->lmaxgap = (size_t)(n->vaddr <= p->vaddr) ? (n->vaddr - n->map->start) : (n->vaddr - p->vaddr) - p->size;
 	}
 	else {
 		map_entry_t *l = lib_treeof(map_entry_t, linkage, node->left);
@@ -91,7 +91,7 @@ static void map_augment(rbnode_t *node)
 				break;
 		}
 
-		n->rmaxgap = (size_t) (n->vaddr >= p->vaddr) ? (n->map->stop - n->vaddr) - n->size : (p->vaddr - n->vaddr) - n->size;
+		n->rmaxgap = (size_t)(n->vaddr >= p->vaddr) ? (n->map->stop - n->vaddr) - n->size : (p->vaddr - n->vaddr) - n->size;
 	}
 	else {
 		map_entry_t *r = lib_treeof(map_entry_t, linkage, node->right);
@@ -228,7 +228,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	amap_t *amap;
 
 #ifdef NOMMU
-	if (o == (void *)-1)
+	if (o == VM_OBJ_PHYSMEM)
 		return (void *)(ptr_t)offs;
 #endif
 
@@ -425,12 +425,12 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		s->object = vm_objectRef(e->object);
 		s->offs = (e->offs == -1) ? -1 : e->offs + (vaddr + size - e->vaddr);
 		s->vaddr = vaddr + size;
-		s->size = (size_t) (e->vaddr + e->size - s->vaddr);
+		s->size = (size_t)(e->vaddr + e->size - s->vaddr);
 		s->aoffs = e->aoffs + (vaddr + size - e->vaddr);
 
 		s->amap = amap_ref(e->amap);
 
-		e->size = (size_t) (vaddr - e->vaddr);
+		e->size = (size_t)(vaddr - e->vaddr);
 		e->rmaxgap = size;
 
 		map_augment(&e->linkage);
@@ -624,7 +624,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 
 	if (e->amap == NULL)
 		p = vm_objectPage(map, NULL, e->object, paddr, (e->offs < 0) ? e->offs : e->offs + offs);
-	else /* if (e->object != (void *)-1) FIXME disabled until memory objects are created for syspage progs */
+	else /* if (e->object != VM_OBJ_PHYSMEM) FIXME disabled until memory objects are created for syspage progs */
 		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, (e->offs < 0) ? e->offs : e->offs + offs, prot);
 
 	if (prot & PROT_WRITE)
@@ -645,9 +645,10 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 	if (e->flags & MAP_DEVICE)
 		attr |= PGHD_DEV;
 
-	if (p == NULL && e->object == (void *)-1) {
-		if (page_map(&map->pmap, paddr, e->offs + offs, attr) < 0)
+	if ((p == NULL) && (e->object == VM_OBJ_PHYSMEM)) {
+		if (page_map(&map->pmap, paddr, e->offs + offs, attr) < 0) {
 			return -ENOMEM;
+		}
 	}
 	else if (p == NULL) {
 		return -ENOMEM;
@@ -675,7 +676,9 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 
 #ifdef PAGEFAULTSTOP
 	process_dumpException(n, ctx);
+	/* clang-format off */
 	__asm__ volatile ("1: b 1b");
+	/* clang-format on */
 #endif
 
 	if (hal_exceptionsPC(ctx) >= VADDR_KERNEL) /* output exception ASAP to avoid being deadlocked on spinlock */
@@ -928,10 +931,10 @@ void vm_mapinfo(meminfo_t *info)
 				if (info->entry.map != NULL && info->entry.mapsz > size) {
 					e = lib_treeof(map_entry_t, linkage, n);
 
-					info->entry.map[size].vaddr  = e->vaddr;
-					info->entry.map[size].size   = e->size;
-					info->entry.map[size].flags  = e->flags;
-					info->entry.map[size].prot   = e->prot;
+					info->entry.map[size].vaddr = e->vaddr;
+					info->entry.map[size].size = e->size;
+					info->entry.map[size].flags = e->flags;
+					info->entry.map[size].prot = e->prot;
 					info->entry.map[size].anonsz = ~0;
 
 					if (e->amap != NULL) {
@@ -942,14 +945,14 @@ void vm_mapinfo(meminfo_t *info)
 						}
 					}
 
-					info->entry.map[size].offs   = e->offs;
+					info->entry.map[size].offs = e->offs;
 
-					if (e->object == NULL)
+					if (e->object == NULL) {
 						info->entry.map[size].object = OBJECT_ANONYMOUS;
-
-					else if (e->object == (void *)-1)
+					}
+					else if (e->object == VM_OBJ_PHYSMEM) {
 						info->entry.map[size].object = OBJECT_MEMORY;
-
+					}
 					else {
 						info->entry.map[size].object = OBJECT_OID;
 						info->entry.map[size].oid = e->object->oid;
@@ -963,9 +966,9 @@ void vm_mapinfo(meminfo_t *info)
 			do {
 				if (info->entry.map != NULL && info->entry.mapsz > size) {
 					info->entry.map[size].vaddr = e->vaddr;
-					info->entry.map[size].size  = e->size;
+					info->entry.map[size].size = e->size;
 					info->entry.map[size].flags = e->flags;
-					info->entry.map[size].prot  = e->prot;
+					info->entry.map[size].prot = e->prot;
 					info->entry.map[size].anonsz = ~0;
 
 					if (e->amap != NULL) {
@@ -976,14 +979,14 @@ void vm_mapinfo(meminfo_t *info)
 						}
 					}
 
-					info->entry.map[size].offs  = e->offs;
+					info->entry.map[size].offs = e->offs;
 
-					if (e->object == NULL)
+					if (e->object == NULL) {
 						info->entry.map[size].object = OBJECT_ANONYMOUS;
-
-					else if (e->object == (void *)-1)
+					}
+					else if (e->object == VM_OBJ_PHYSMEM) {
 						info->entry.map[size].object = OBJECT_MEMORY;
-
+					}
 					else {
 						info->entry.map[size].object = OBJECT_OID;
 						info->entry.map[size].oid = e->object->oid;
@@ -992,8 +995,7 @@ void vm_mapinfo(meminfo_t *info)
 
 				++size;
 				e = e->next;
-			}
-			while (e != process->entries);
+			} while (e != process->entries);
 #endif
 
 			proc_lockClear(&map->lock);
@@ -1014,9 +1016,9 @@ void vm_mapinfo(meminfo_t *info)
 				e = lib_treeof(map_entry_t, linkage, n);
 
 				info->entry.kmap[size].vaddr = e->vaddr;
-				info->entry.kmap[size].size  = e->size;
+				info->entry.kmap[size].size = e->size;
 				info->entry.kmap[size].flags = e->flags;
-				info->entry.kmap[size].prot  = e->prot;
+				info->entry.kmap[size].prot = e->prot;
 				info->entry.kmap[size].anonsz = ~0;
 
 				if (e->amap != NULL) {
@@ -1027,14 +1029,14 @@ void vm_mapinfo(meminfo_t *info)
 					}
 				}
 
-				info->entry.kmap[size].offs   = e->offs;
+				info->entry.kmap[size].offs = e->offs;
 
-				if (e->object == NULL)
+				if (e->object == NULL) {
 					info->entry.kmap[size].object = OBJECT_ANONYMOUS;
-
-				else if (e->object == (void *)-1)
+				}
+				else if (e->object == VM_OBJ_PHYSMEM) {
 					info->entry.kmap[size].object = OBJECT_MEMORY;
-
+				}
 				else {
 					info->entry.kmap[size].object = OBJECT_OID;
 					info->entry.kmap[size].oid = e->object->oid;

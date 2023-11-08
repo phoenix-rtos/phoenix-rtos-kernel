@@ -830,7 +830,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	hal_tls_t tlsNew;
 	ptr_t tbssAddr = 0;
 
-	if (o != (void *)-1) {
+	if (o != VM_OBJ_PHYSMEM) {
 		return -ENOEXEC;
 	}
 
@@ -1327,7 +1327,7 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 
 int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
 {
-	return proc_spawn((void *)-1, imap, map, program->start, program->end - program->start, path, argv, NULL);
+	return proc_spawn(VM_OBJ_PHYSMEM, imap, map, program->start, program->end - program->start, path, argv, NULL);
 }
 
 

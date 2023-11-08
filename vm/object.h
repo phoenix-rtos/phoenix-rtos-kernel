@@ -21,6 +21,7 @@
 #include "proc/lock.h"
 #include "amap.h"
 
+
 struct _vm_map_t;
 
 typedef struct _vm_object_t {
@@ -30,6 +31,9 @@ typedef struct _vm_object_t {
 	size_t size;
 	page_t *pages[];
 } vm_object_t;
+
+
+#define VM_OBJ_PHYSMEM ((vm_object_t *)-1)
 
 
 extern vm_object_t *vm_objectRef(vm_object_t *o);
