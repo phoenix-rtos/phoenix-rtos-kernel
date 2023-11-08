@@ -66,7 +66,7 @@ void *syscalls_mmap(void *ustack)
 
 	if ((flags & MAP_ANONYMOUS) != 0) {
 		if ((flags & MAP_PHYSMEM) != 0) {
-			o = (void *)-1;
+			o = VM_OBJ_PHYSMEM;
 		}
 		else if ((flags & MAP_CONTIGUOUS) != 0) {
 			o = vm_objectContiguous(size);
@@ -75,10 +75,9 @@ void *syscalls_mmap(void *ustack)
 			}
 		}
 		else {
-			return MAP_FAILED;
+			o = NULL;
 		}
 	}
-
 	else {
 		if (posix_getOid(fildes, &oid) != EOK) {
 			return MAP_FAILED;

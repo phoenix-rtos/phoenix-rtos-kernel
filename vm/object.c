@@ -112,7 +112,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 
 vm_object_t *vm_objectRef(vm_object_t *o)
 {
-	if (o != NULL && o != (void *)-1) {
+	if ((o != NULL) && (o != VM_OBJ_PHYSMEM)) {
 		proc_lockSet(&object_common.lock);
 		o->refs++;
 		proc_lockClear(&object_common.lock);
@@ -126,8 +126,9 @@ int vm_objectPut(vm_object_t *o)
 {
 	int i;
 
-	if (o == NULL || o == (void *)-1)
+	if ((o == NULL) || (o == VM_OBJ_PHYSMEM)) {
 		return EOK;
+	}
 
 	proc_lockSet(&object_common.lock);
 
@@ -299,8 +300,6 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	return EOK;
 }
-
-
 
 
 #if 0
