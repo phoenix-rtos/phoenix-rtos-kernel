@@ -138,6 +138,9 @@ static int _hal_acpiInit(hal_config_t *config)
 		if (syspage->hs.fadt != 0) {
 			hal_config.fadt = _hal_configMapObjectBeforeStack(pdir, syspage->hs.fadt, syspage->hs.fadtLength, PGHD_WRITE);
 		}
+		if (syspage->hs.hpet != 0) {
+			hal_config.hpet = _hal_configMapObjectBeforeStack(pdir, syspage->hs.hpet, syspage->hs.hpetLength, PGHD_WRITE);
+		}
 
 		if (hal_config.madt != NULL) {
 			config->localApicAddr = _hal_configMapDevice(pdir, hal_config.madt->localApicAddr, SIZE_PAGE, PGHD_WRITE);
@@ -200,6 +203,83 @@ static inline void _hal_configMemoryInit(void)
 }
 
 
+void _hal_gasAllocDevice(const hal_gas_t *gas, hal_gasMapped_t *mgas, size_t size)
+{
+	addr_t *pdir = (addr_t *)(VADDR_KERNEL + syspage->hs.pdir);
+	mgas->addressSpaceId = gas->addressSpaceId;
+	mgas->registerWidth = gas->registerWidth;
+	mgas->registerOffset = gas->registerOffset;
+	mgas->accessSize = gas->accessSize;
+
+	switch (gas->addressSpaceId) {
+		case GAS_ADDRESS_SPACE_ID_MEMORY:
+			mgas->address = _hal_configMapDevice(pdir, (addr_t)gas->address, size, PGHD_WRITE);
+			break;
+		default:
+			mgas->address = (void *)((u32)gas->address);
+			break;
+	}
+}
+
+
+int _hal_gasWrite32(hal_gasMapped_t *gas, u32 offset, u32 val)
+{
+	int ret;
+	switch (gas->addressSpaceId) {
+		case GAS_ADDRESS_SPACE_ID_MEMORY:
+			*(volatile u32 *)(gas->address + offset) = val;
+			ret = 0;
+			break;
+		case GAS_ADDRESS_SPACE_ID_IOPORT:
+			hal_outl(gas->address + offset, val);
+			ret = 0;
+			break;
+		case GAS_ADDRESS_SPACE_ID_PCI:
+			/* TODO */
+			ret = 1;
+			break;
+		case GAS_ADDRESS_SPACE_ID_PCIBAR:
+			/* TODO */
+			ret = 1;
+			break;
+		default:
+			/* Unspecified */
+			ret = 1;
+			break;
+	}
+	return ret;
+}
+
+
+int _hal_gasRead32(hal_gasMapped_t *gas, u32 offset, u32 *val)
+{
+	int ret;
+	switch (gas->addressSpaceId) {
+		case GAS_ADDRESS_SPACE_ID_MEMORY:
+			*val = *(volatile u32 *)(gas->address + offset);
+			ret = 0;
+			break;
+		case GAS_ADDRESS_SPACE_ID_IOPORT:
+			*val = hal_inl(gas->address + offset);
+			ret = 0;
+			break;
+		case GAS_ADDRESS_SPACE_ID_PCI:
+			/* TODO */
+			ret = 1;
+			break;
+		case GAS_ADDRESS_SPACE_ID_PCIBAR:
+			/* TODO */
+			ret = 1;
+			break;
+		default:
+			/* Unspecified */
+			ret = 1;
+			break;
+	}
+	return ret;
+}
+
+
 void _hal_configInit(syspage_t *s)
 {
 	unsigned int ra, rb, rc, rd;
@@ -215,6 +295,7 @@ void _hal_configInit(syspage_t *s)
 	hal_config.ptable = NULL;
 	hal_config.madt = NULL;
 	hal_config.fadt = NULL;
+	hal_config.hpet = NULL;
 	hal_config.devices = MMIO_DEVICES_VIRT_ADDR;
 	hal_config.memMap.count = 0;
 

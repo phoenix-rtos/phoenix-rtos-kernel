@@ -50,6 +50,42 @@ typedef struct {
 } __attribute__((packed)) sdt_header_t;
 
 
+#define GAS_ADDRESS_SPACE_ID_MEMORY 0x0
+#define GAS_ADDRESS_SPACE_ID_IOPORT 0x1
+#define GAS_ADDRESS_SPACE_ID_PCI    0x2
+#define GAS_ADDRESS_SPACE_ID_EMBEDD 0x03 /* EMBEDDED_CONTROLLER */
+#define GAS_ADDRESS_SPACE_ID_SMBUS  0x04
+#define GAS_ADDRESS_SPACE_ID_CMOS   0x05
+#define GAS_ADDRESS_SPACE_ID_PCIBAR 0x06 /* PCI_BAR_TARGET */
+#define GAS_ADDRESS_SPACE_ID_IPMI   0x07
+#define GAS_ADDRESS_SPACE_ID_GPIO   0x08
+#define GAS_ADDRESS_SPACE_ID_GSB    0x09 /* Generic Serial Bus*/
+#define GAS_ADDRESS_SPACE_ID_PCC    0x0A /* Platform Communications Channel */
+#define GAS_ADDRESS_SPACE_ID_PRM    0x0B /* Platform Runtime Mechanism */
+
+#define GAS_ACCESS_SIZE_UNDEFINED 0
+#define GAS_ACCESS_SIZE_BYTE      1
+#define GAS_ACCESS_SIZE_WORD      2
+#define GAS_ACCESS_SIZE_DWORD     3
+#define GAS_ACCESS_SIZE_QWORD     4
+
+typedef struct {
+	u8 addressSpaceId;
+	u8 registerWidth;
+	u8 registerOffset;
+	u8 accessSize;
+	u64 address;
+} __attribute__ ((packed)) hal_gas_t;
+
+typedef struct {
+	u8 addressSpaceId;
+	u8 registerWidth;
+	u8 registerOffset;
+	u8 accessSize;
+	void *address;
+} hal_gasMapped_t;
+
+
 typedef struct {
 	sdt_header_t header;
 	addr_t sdt[];
@@ -80,15 +116,18 @@ typedef struct {
 	addr_t localApicAddr;
 	u32 flags;
 	u8 entries[]; /* It is an array of variable length elements */
-} __attribute__ ((packed)) madt_header_t;
+} __attribute__ ((packed)) hal_madtHeader_t;
+
 
 typedef struct {
-	u8 addressSpaceId;
-	u8 registerWidth;
-	u8 registerOffset;
-	u8 accessSize;
-	u64 address;
-} __attribute__ ((packed)) generic_address_structure_t;
+	sdt_header_t header;
+	u32 eventTimerBlockID;
+	hal_gas_t baseAddress;
+	u8 hpetNumber;
+	u16 minPeriodicClockTick;
+	u8 pageProtection;
+} __attribute__ ((packed)) hal_hpetHeader_t;
+
 
 typedef struct {
 	sdt_header_t header;
@@ -130,25 +169,25 @@ typedef struct {
 	u16 iapcBootArch;      /* IAPC_BOOT_ARCH */
 	u8 reserved2;
 	u32 flags;
-	generic_address_structure_t resetReg; /* RESET_REG */
-	u8 resetValue;                        /* RESET_VALUE */
-	u16 armBootArch;                      /* ARM_BOOT_ARCH */
+	hal_gas_t resetReg; /* RESET_REG */
+	u8 resetValue;      /* RESET_VALUE */
+	u16 armBootArch;    /* ARM_BOOT_ARCH */
 	u8 fadtMinorVersion;
-	u64 xFirmwareCtrl;                           /* X_FIRMWARE_CTRL */
-	u64 xDsdt;                                   /* X_DSDT */
-	generic_address_structure_t xPm1aEvtBlk;     /* X_PM1a_EVT_BLK */
-	generic_address_structure_t xPm1bEvtBlk;     /* X_PM1b_EVT_BLK */
-	generic_address_structure_t xPm1aCntBlk;     /* X_PM1a_CNT_BLK */
-	generic_address_structure_t xPm1bCntBlk;     /* X_PM1b_CNT_BLK */
-	generic_address_structure_t xPm2CntBlk;      /* X_PM2_CNT_BLK */
-	generic_address_structure_t xPmTmrBlk;       /* X_PM_TMR_BLK */
-	generic_address_structure_t xGpe0Blk;        /* X_GPE0_BLK */
-	generic_address_structure_t xGpe1Blk;        /* X_GPE1_BLK */
-	generic_address_structure_t sleepControlReg; /* SLEEP_CONTROL_REG */
-	generic_address_structure_t sleepStatusReg;  /* SLEEP_STATUS_REG */
+	u64 xFirmwareCtrl;         /* X_FIRMWARE_CTRL */
+	u64 xDsdt;                 /* X_DSDT */
+	hal_gas_t xPm1aEvtBlk;     /* X_PM1a_EVT_BLK */
+	hal_gas_t xPm1bEvtBlk;     /* X_PM1b_EVT_BLK */
+	hal_gas_t xPm1aCntBlk;     /* X_PM1a_CNT_BLK */
+	hal_gas_t xPm1bCntBlk;     /* X_PM1b_CNT_BLK */
+	hal_gas_t xPm2CntBlk;      /* X_PM2_CNT_BLK */
+	hal_gas_t xPmTmrBlk;       /* X_PM_TMR_BLK */
+	hal_gas_t xGpe0Blk;        /* X_GPE0_BLK */
+	hal_gas_t xGpe1Blk;        /* X_GPE1_BLK */
+	hal_gas_t sleepControlReg; /* SLEEP_CONTROL_REG */
+	hal_gas_t sleepStatusReg;  /* SLEEP_STATUS_REG */
 	u64 hypervisorVendorIdentity;
 
-} __attribute__ ((packed)) fadt_header_t;
+} __attribute__ ((packed)) hal_fadtHeader_t;
 
 
 typedef struct {
@@ -167,8 +206,9 @@ typedef struct {
 	addr_t maxAddr;
 	void *heapStart;
 	addr_t *ptable;
-	madt_header_t *madt;
-	fadt_header_t *fadt;
+	hal_madtHeader_t *madt;
+	hal_fadtHeader_t *fadt;
+	hal_hpetHeader_t *hpet;
 	void *devices; /* Address space, where memory mapped devices go */
 	struct {
 		u32 count;
@@ -203,5 +243,13 @@ void _hal_configInit(syspage_t *s);
 
 void *_hal_configMapDevice(u32 *pdir, addr_t start, size_t size, int attr);
 
+
+void _hal_gasAllocDevice(const hal_gas_t *gas, hal_gasMapped_t *mgas, size_t size);
+
+
+int _hal_gasWrite32(hal_gasMapped_t *gas, u32 offset, u32 val);
+
+
+int _hal_gasRead32(hal_gasMapped_t *gas, u32 offset, u32 *val);
 
 #endif
