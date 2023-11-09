@@ -39,10 +39,12 @@ typedef struct {
 	unsigned int ebda;
 	unsigned int acpi_version;
 	unsigned int localApicAddr;
-	unsigned int madt;
+	unsigned long madt; /* addr_t */
 	unsigned int madtLength;
-	unsigned int fadt;
+	unsigned long fadt; /* addr_t */
 	unsigned int fadtLength;
+	unsigned long hpet; /* addr_t */
+	unsigned int hpetLength;
 } __attribute__((packed)) hal_syspage_t;
 
 

@@ -371,7 +371,7 @@ static int _hal_ioapicInit(void)
 		u32 flags;
 	} __attribute__((packed)) *localApic;
 
-	madt_header_t *madt = hal_config.madt;
+	hal_madtHeader_t *madt = hal_config.madt;
 	size_t i;
 	u32 high, low, n;
 	void *ptr;
