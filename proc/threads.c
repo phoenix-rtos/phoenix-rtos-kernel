@@ -1183,21 +1183,26 @@ int proc_threadSleep(time_t us)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	now = _proc_gettimeRaw();
+	/* Handle usleep(0) (yield) */
+	if (us != 0) {
+		now = _proc_gettimeRaw();
 
-	current = _proc_current();
-	current->state = SLEEP;
-	current->wait = NULL;
-	current->wakeup = now + us;
-	current->interruptible = 1;
+		current = _proc_current();
+		current->state = SLEEP;
+		current->wait = NULL;
+		current->wakeup = now + us;
+		current->interruptible = 1;
 
-	lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
+		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 
-	_perf_enqueued(current);
-	_threads_updateWakeup(now, NULL);
+		_perf_enqueued(current);
+		_threads_updateWakeup(now, NULL);
+	}
 
-	if ((err = hal_cpuReschedule(&threads_common.spinlock, &sc)) == -ETIME)
+	err = hal_cpuReschedule(&threads_common.spinlock, &sc);
+	if (err == -ETIME) {
 		err = EOK;
+	}
 
 	return err;
 }
