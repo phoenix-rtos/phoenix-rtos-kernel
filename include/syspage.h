@@ -26,6 +26,32 @@ enum { console_default = 0, console_com0, console_com1, console_com2, console_co
 	   console_com15, console_vga0 };
 
 
+typedef struct {
+	struct {
+		unsigned short size;
+		unsigned int addr;
+	} __attribute__((packed)) gdtr;
+	unsigned short pad1;
+	struct {
+		unsigned short size;
+		unsigned int addr;
+	} __attribute__((packed)) idtr;
+	unsigned short pad2;
+	unsigned int pdir;
+	unsigned int ptable;
+	unsigned int stack;
+	unsigned int stacksz;
+
+	unsigned int ebda;
+	unsigned int acpi_version;
+	unsigned int localApicAddr;
+	unsigned int madt;
+	unsigned int madtLength;
+	unsigned int fadt;
+	unsigned int fadtLength;
+} __attribute__((packed)) hal_syspage_t;
+
+
 typedef struct _mapent_t {
 	struct _mapent_t *next, *prev;
 	enum { hal_entryReserved = 0, hal_entryTemp, hal_entryAllocated, hal_entryInvalid } type;

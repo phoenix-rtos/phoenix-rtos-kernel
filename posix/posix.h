@@ -17,6 +17,7 @@
 #ifndef _PROC_POSIX_H_
 #define _PROC_POSIX_H_
 
+#include <arch/types.h>
 #include "include/posix.h"
 #include "sockport.h"
 

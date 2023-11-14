@@ -18,7 +18,7 @@
 
 #include "cpu.h"
 /* TODO: remove config file after cleaning up 'includes' directory */
-#include "config.h"
+// #include "config.h"
 #include "string.h"
 #include "console.h"
 #include "pmap.h"

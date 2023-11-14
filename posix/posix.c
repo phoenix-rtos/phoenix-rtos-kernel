@@ -1644,7 +1644,7 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 		ifc->ifc_buf = msg->o.data;
 	}
 
-	return err;
+	return request; //err
 }
 
 

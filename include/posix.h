@@ -16,6 +16,8 @@
 #ifndef _PHOENIX_POSIX_H_
 #define _PHOENIX_POSIX_H_
 
+#include <arch/types.h>
+
 enum { F_DUPFD = 0, F_DUPFD_CLOEXEC, F_GETFD, F_SETFD, F_GETFL, F_SETFL,
        F_GETOWN, F_SETOWN, F_GETLK, F_SETLK, F_SETLKW };
 
