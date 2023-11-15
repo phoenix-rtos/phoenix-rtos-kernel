@@ -57,7 +57,7 @@
 #include <arch/types.h>
 
 
-void hal_srmmuFlushTLB(void *vaddr, u8 type);
+void hal_srmmuFlushTLB(const void *vaddr, u8 type);
 
 
 u32 hal_srmmuGetFaultSts(void);

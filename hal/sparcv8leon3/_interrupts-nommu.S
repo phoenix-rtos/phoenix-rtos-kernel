@@ -136,6 +136,8 @@ irq_kstack_set:
 	nop
 	nop
 
+	MULTILOCK_CLEAR
+
 	/* l7 still points to bottom of context */
 	mov %l7, %sp
 

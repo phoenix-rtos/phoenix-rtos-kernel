@@ -76,6 +76,11 @@ void hal_cpuHalt(void)
 }
 
 
+void _hal_cpuInit(void)
+{
+}
+
+
 int _gr716_getIomuxCfg(u8 pin, u8 *opt, u8 *pullup, u8 *pulldn)
 {
 	if (pin > 63) {

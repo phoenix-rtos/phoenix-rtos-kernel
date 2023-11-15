@@ -67,6 +67,13 @@ _init:
 
 	wr %g0, PSR_S, %psr
 
+	/* Get CPU ID */
+	rd %asr17, %g1
+	srl %g1, 28, %g1
+	cmp %g1, %g0
+	bnz _init_core
+	nop
+
 	/* %g2 = syspage pa (from plo) */
 	set PHY_ADDR(syspage), %g3
 	set_page_align VADDR_SYSPAGE, %g1
@@ -220,3 +227,71 @@ set_pdir3:
 	call %g1
 	mov %g0, %g1
 .size _init, . - _init
+
+
+.global _init_core
+.type _init_core, #function
+_init_core:
+	/* Flush and enable cache */
+	flush
+	set 0x81000f, %g1
+	sta %g1, [%g0] ASI_CACHE_CTRL
+
+	/* Set context table pointer */
+	set ADDR_CTXTAB, %g3
+	set ADDR_PDIR1, %g4
+	calc_ptd %g4, %g4
+	st %g4, [%g3]
+	srl %g3, 6, %g3
+	sll %g3, 2, %g3
+	set MMU_CTX_PTR, %g4
+	sta %g3, [%g4] ASI_MMU_REGS
+
+	clr %fp
+	set VADDR_STACK, %sp
+
+	/* Get CPU ID */
+	rd %asr17, %g1
+	srl %g1, 28, %g1
+	sll %g1, 12, %g1
+	add %sp, %g1, %sp
+	sub %sp, 0x60, %sp
+
+	/* Enable MMU */
+	mov 0x1, %g1
+	sta %g1, [%g0] ASI_MMU_REGS
+
+	/* Set up trap table */
+	sethi %hi(_trap_table), %g1
+	wr %g1, %tbr
+
+	mov %psr, %g1
+	or %g1, (PSR_ET | PSR_S | PSR_PIL), %g1
+	andn %g1, (PSR_CWP), %g1
+	wr %g1, %psr
+
+	/* Switch to virtual memory */
+	sethi %hi(_vmem_switch), %g1
+	jmp %g1 + %lo(_vmem_switch)
+	wr %g0, 0x2, %wim
+
+_vmem_switch:
+	call hal_cpuInitCore
+	nop
+
+	/* Enable interrupts and wait to be scheduled */
+	mov %psr, %g1
+	andn %g1, (PSR_PIL), %g1
+	wr %g1, %psr
+	nop
+	nop
+	nop
+
+	/* GR712RC errata 1.7.8 */
+	set 0xfffffff0, %g1
+_init_core_loop:
+	wr %g0, %asr19
+	lda [%g1] ASI_MMU_BYPASS, %g0
+	ba _init_core_loop
+	nop
+.size _init_core, . - _init_core

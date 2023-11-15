@@ -234,12 +234,6 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
-void _hal_cpuInit(void)
-{
-	return;
-}
-
-
 unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	int lb = 31;
@@ -299,11 +293,6 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 		fb += 1;
 
 	return fb;
-}
-
-
-void hal_cpuBroadcastIPI(unsigned int intr)
-{
 }
 
 

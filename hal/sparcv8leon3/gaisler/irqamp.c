@@ -121,6 +121,16 @@ struct {
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
+void hal_cpuBroadcastIPI(unsigned int intr)
+{
+}
+
+
+void hal_cpuStartCores(void)
+{
+}
+
+
 static void interrupts_clearIRQ(unsigned int n)
 {
 	*(interrupts_common.int_ctrl + int_pend) &= ~(1 << n);

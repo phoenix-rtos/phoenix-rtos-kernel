@@ -69,6 +69,21 @@
 #define CCR_FD  (1 << 22) /* Flush DCache */
 #define CCR_DS  (1 << 23) /* DCache snooping */
 
+/* Basic address space identifiers */
+#define ASI_USER_INSTR  0x08
+#define ASI_SUPER_INSTR 0x09
+#define ASI_USER_DATA   0x0a
+#define ASI_SUPER_DATA  0x0b
+
+/* Interrupts multilock */
+
+/* clang-format off */
+#define MULTILOCK_CLEAR \
+	stbar; \
+	set hal_multilock, %g1; \
+	stub %g0, [%g1]
+/* clang-format on */
+
 
 #ifndef __ASSEMBLY__
 
@@ -76,6 +91,8 @@
 #include "types.h"
 #include "gaisler/gaisler.h"
 
+
+#define MAX_CPU_COUNT NUM_CPUS
 
 #define SYSTICK_INTERVAL 1000
 
@@ -281,6 +298,29 @@ static inline void hal_cpuEnableInterrupts(void)
 	/* clang-format off */
 
 	__asm__ volatile ("ta 0x0a;" ::: "memory");
+
+	/* clang-format on */
+}
+
+
+static inline void hal_cpuAtomicInc(volatile u32 *dst)
+{
+	/* clang-format off */
+
+	__asm__ volatile (
+		"ld [%0], %%g1\n\t"
+	"1: \n\t"
+		"mov %%g1, %%g2\n\t"
+		"inc %%g1\n\t"
+	".align 16\n\t" /* GRLIB TN-0011 errata */
+		"casa [%0] %c1, %%g2, %%g1\n\t"
+		"cmp %%g1, %%g2\n\t"
+		"bne 1b\n\t"
+		"nop\n\t"
+		:
+		: "r"(dst), "i"(ASI_SUPER_DATA)
+		: "g1", "g2", "memory"
+	);
 
 	/* clang-format on */
 }

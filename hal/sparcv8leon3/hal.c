@@ -14,6 +14,8 @@
  */
 
 #include "hal/hal.h"
+#include <arch/tlb.h>
+
 
 struct {
 	int started;
@@ -21,6 +23,7 @@ struct {
 
 syspage_t *syspage;
 unsigned int relOffs;
+u32 hal_multilock;
 
 
 extern void _hal_cpuInit(void);
@@ -52,20 +55,48 @@ void _hal_start(void)
 
 void hal_lockScheduler(void)
 {
+#ifndef NOMMU
+	hal_tlbShootdown();
+#endif
+
+	/* clang-format off */
+
+	__asm__ volatile (
+	".align 16\n\t" /* GRLIB TN-0011 errata */
+	"1: \n\t"
+		"ldstub [%0], %%g2\n\t"
+		"tst %%g2\n\t"
+		"be 3f\n\t"
+		"nop\n\t"
+	"2: \n\t"
+		"ldub [%0], %%g2\n\t"
+		"tst %%g2\n\t"
+		"bne 2b\n\t"
+		"nop\n\t"
+		"ba,a 1b\n\t"
+	"3: \n\t"
+		"nop\n\t"
+	:
+	: "r"(&hal_multilock)
+	: "g2", "memory", "cc"
+	);
+
+	/* clang-format on */
 }
 
 
 void _hal_init(void)
 {
 	_hal_spinlockInit();
-	_hal_platformInit();
 	_hal_exceptionsInit();
 	_hal_interruptsInit();
+	_hal_platformInit();
 	_hal_cpuInit();
 	_hal_consoleInit();
 	_hal_timerInit(SYSTICK_INTERVAL);
 
 	hal_common.started = 0;
+	hal_multilock = 0u;
 
 	return;
 }

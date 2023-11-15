@@ -13,5 +13,5 @@ OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/, cpu.o hal.o spinlock.o strin
 ifeq ($(findstring -DNOMMU,$(CPPFLAGS)),-DNOMMU)
   OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/, exceptions-nommu.o pmap-nommu.o _interrupts-nommu.o)
 else
-  OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/, exceptions.o pmap.o srmmu.o _interrupts.o)
+  OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/, exceptions.o pmap.o srmmu.o tlb.o _interrupts.o)
 endif
