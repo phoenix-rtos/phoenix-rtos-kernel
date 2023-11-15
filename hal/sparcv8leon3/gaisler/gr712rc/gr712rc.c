@@ -13,7 +13,11 @@
  * %LICENSE%
  */
 
+#include <arch/tlb.h>
+
 #include "hal/cpu.h"
+#include "hal/interrupts.h"
+#include "hal/tlb/tlb.h"
 #include "hal/sparcv8leon3/sparcv8leon3.h"
 
 #include "include/arch/gr712rc.h"
@@ -32,7 +36,11 @@
 static struct {
 	spinlock_t pltctlSp;
 	volatile u32 *cguBase;
+	intr_handler_t tlbIrqHandler;
 } gr712rc_common;
+
+
+volatile u32 hal_cpusStarted;
 
 
 void hal_cpuHalt(void)
@@ -49,6 +57,24 @@ void hal_cpuHalt(void)
 		: "r"(addr), "i"(ASI_MMU_BYPASS)
 	);
 	/* clang-format on */
+}
+
+
+void hal_cpuInitCore(void)
+{
+	hal_tlbInitCore(hal_cpuGetID());
+	hal_cpuAtomicInc(&hal_cpusStarted);
+}
+
+
+void _hal_cpuInit(void)
+{
+	hal_cpusStarted = 0;
+	hal_cpuInitCore();
+	hal_cpuStartCores();
+
+	while (hal_cpusStarted != NUM_CPUS) {
+	}
 }
 
 
@@ -165,4 +191,10 @@ void _hal_platformInit(void)
 	hal_spinlockCreate(&gr712rc_common.pltctlSp, "pltctl");
 
 	gr712rc_common.cguBase = VADDR_CGU;
+
+	gr712rc_common.tlbIrqHandler.f = hal_tlbIrqHandler;
+	gr712rc_common.tlbIrqHandler.n = TLB_IRQ;
+	gr712rc_common.tlbIrqHandler.data = NULL;
+
+	hal_interruptsSetHandler(&gr712rc_common.tlbIrqHandler);
 }

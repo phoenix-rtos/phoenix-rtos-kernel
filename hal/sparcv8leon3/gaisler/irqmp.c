@@ -95,6 +95,32 @@ struct {
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
+void hal_cpuBroadcastIPI(unsigned int intr)
+{
+	unsigned int id = hal_cpuGetID(), i;
+
+	for (i = 0; i < hal_cpuGetCount(); ++i) {
+		if (i != id) {
+			*(interrupts_common.int_ctrl + INT_FORCE_0 + i) |= (1 << intr);
+		}
+	}
+}
+
+
+void hal_cpuStartCores(void)
+{
+	unsigned int id = hal_cpuGetID(), i;
+	u32 msk = 0;
+
+	if (id == 0) {
+		for (i = 1; i < NUM_CPUS; ++i) {
+			msk |= (1 << i);
+		}
+		*(interrupts_common.int_ctrl + INT_MPSTAT) = msk;
+	}
+}
+
+
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
@@ -134,13 +160,28 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 static void interrupts_enableIRQ(unsigned int irqn)
 {
-	*(interrupts_common.int_ctrl + INT_MASK_0) |= (1 << irqn);
+	int i;
+
+	/* TLB and Systick IRQ should fire on all cores */
+	if ((irqn == TLB_IRQ) || (irqn == TIMER_IRQ)) {
+		for (i = 0; i < hal_cpuGetCount(); ++i) {
+			*(interrupts_common.int_ctrl + INT_MASK_0 + i) |= (1 << irqn);
+		}
+	}
+	else {
+		/* Other IRQs only on core 0 - no easy way to manage them */
+		*(interrupts_common.int_ctrl + INT_MASK_0) |= (1 << irqn);
+	}
 }
 
 
 static void interrupts_disableIRQ(unsigned int irqn)
 {
-	*(interrupts_common.int_ctrl + INT_MASK_0) &= ~(1 << irqn);
+	int i;
+
+	for (i = 0; i < hal_cpuGetCount(); ++i) {
+		*(interrupts_common.int_ctrl + INT_MASK_0 + i) &= ~(1 << irqn);
+	}
 }
 
 
@@ -204,4 +245,5 @@ void _hal_interruptsInit(void)
 	}
 
 	interrupts_common.int_ctrl = (void *)VADDR_INT_CTRL;
+	*(interrupts_common.int_ctrl + INT_CLEAR) = 0xffffffff;
 }

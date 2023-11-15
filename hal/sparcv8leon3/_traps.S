@@ -398,11 +398,11 @@ exc_wovfl_done:
 	ld [%l6 + %l7], %l7
 	ba exc_kstack_set
 	sub %l7, 0x60, %sp
- 
+
  exc_no_kstack_switch:
 	/* we came from kernel, make space for context */
 	sub %fp, 0x60, %sp
- 
+
  exc_kstack_set:
 	/* Save context on kernel stack */
 
@@ -450,7 +450,7 @@ exc_wovfl_done:
 	/* trap type */
 	set TBR_TT_MSK, %g2
 	and %g1, %g2, %o0
-	
+
 	/* void exceptions_dispatch(unsigned int n, exc_context_t *ctx) */
 	call exceptions_dispatch
 	srl %o0, TBR_TT_SHIFT, %o0
@@ -953,6 +953,8 @@ r_return:
 #else
 	ta 0xb
 #endif
+
+	MULTILOCK_CLEAR
 
 	ld [%l1], %g2 /* ctx pointer */
 

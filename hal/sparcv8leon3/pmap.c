@@ -13,13 +13,14 @@
  * %LICENSE%
  */
 
-#include <arch/cpu.h>
+#include <arch/tlb.h>
 
 #include "hal/cpu.h"
 #include "hal/pmap.h"
 #include "hal/string.h"
 #include "hal/spinlock.h"
 #include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/tlb/tlb.h"
 
 #include "include/errno.h"
 #include "include/mman.h"
@@ -62,7 +63,7 @@ struct {
 	u32 pdir3[64][64] __attribute__((aligned(SIZE_PAGE)));
 
 	u8 heap[SIZE_PAGE] __attribute__((aligned(SIZE_PAGE)));
-	u8 stack[SIZE_KSTACK] __attribute__((aligned(8)));
+	u8 stack[NUM_CPUS][SIZE_KSTACK] __attribute__((aligned(SIZE_PAGE)));
 	u32 ctxMap[MAX_CONTEXTS / 32]; /* Bitmap of context numbers, 0 = taken, 1 = free */
 	u32 numCtxFree;
 	addr_t minAddr;
@@ -162,22 +163,6 @@ static void _pmap_contextDealloc(pmap_t *pmap)
 		pmap_common.numCtxFree++;
 	}
 	pmap->context = CONTEXT_INVALID;
-}
-
-
-static void _pmap_flushTLB(u32 context, void *vaddr)
-{
-	if (hal_srmmuGetContext() == context) {
-		if ((ptr_t)vaddr < VADDR_USR_MAX) {
-			hal_srmmuFlushTLB(vaddr, TLB_FLUSH_L3);
-		}
-		else {
-			hal_srmmuFlushTLB(vaddr, TLB_FLUSH_CTX);
-		}
-	}
-	else {
-		hal_srmmuFlushTLB(vaddr, TLB_FLUSH_ALL);
-	}
 }
 
 
@@ -366,10 +351,13 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 
 	if (newEntry == 0) {
 		/* Flush TLB only if entry existed earlier */
-		_pmap_flushTLB(pmap->context, vaddr);
+		hal_tlbInvalidateEntry(pmap, vaddr, 1);
+		hal_tlbCommit(&pmap_common.lock, &sc);
+	}
+	else {
+		hal_spinlockClear(&pmap_common.lock, &sc);
 	}
 
-	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	return EOK;
 }
@@ -402,9 +390,9 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 	hal_cpuStorePaddr(&((u32 *)addr)[idx3], 0);
 	hal_cpuflushDCache();
 
-	_pmap_flushTLB(pmap->context, vaddr);
+	hal_tlbInvalidateEntry(pmap, vaddr, 1);
 
-	hal_spinlockClear(&pmap_common.lock, &sc);
+	hal_tlbCommit(&pmap_common.lock, &sc);
 
 	return EOK;
 }
@@ -452,9 +440,9 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	}
 
 	page->flags = PAGE_OWNER_KERNEL;
-	stack = (addr_t)pmap_common.stack;
+	stack = (addr_t)pmap_common.stack - VADDR_KERNEL + min;
 
-	if ((page->addr >= stack) && (page->addr < stack + SIZE_KSTACK)) {
+	if ((page->addr >= stack) && (page->addr < stack + sizeof(pmap_common.stack))) {
 		page->flags |= PAGE_KERNEL_STACK;
 		return EOK;
 	}

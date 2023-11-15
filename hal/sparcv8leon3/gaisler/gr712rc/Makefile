@@ -4,4 +4,6 @@
 # Copyright 2023 Phoenix Systems
 #
 
+include hal/tlb/Makefile
+
 OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/gaisler/$(TARGET_SUBFAMILY)/, gr712rc.o _init.o)
