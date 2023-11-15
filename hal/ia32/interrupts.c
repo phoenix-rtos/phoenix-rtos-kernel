@@ -23,8 +23,9 @@
 
 #include "proc/userintr.h"
 #include "include/errno.h"
-#include "tlb.h"
 #include "init.h"
+
+#include <arch/tlb.h>
 
 
 /* Hardware interrupt stubs */

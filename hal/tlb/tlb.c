@@ -6,30 +6,36 @@
  * TLB handling
  *
  * Copyright 2023 Phoenix Systems
- * Author; Andrzej Stalke
+ * Author: Andrzej Stalke, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
-#include "tlb.h"
+#include <arch/pmap.h>
+#include <arch/tlb.h>
+
 #include "hal/string.h"
 #include "hal/cpu.h"
 #include "hal/interrupts.h"
 
+#include "tlb.h"
+
+
 /* Maximum number of TLB operations */
 #define MAX_CPU_TASK_COUNT 2
 
-extern void hal_cpuBroadcastIPI(unsigned int intr);
 
 struct task_tlb {
 	void (*func)(void *);
 	const void *entry;
+	const pmap_t *pmap;
 	size_t count;
 	volatile size_t confirmations;
 	spinlock_t *spinlock;
 };
+
 
 struct cpu_tlb {
 	struct task_tlb *todo[MAX_CPU_TASK_COUNT * MAX_CPU_COUNT];
@@ -47,25 +53,20 @@ static struct {
 } tlb_common;
 
 
-static void tlb_flush(void *arg)
-{
-	struct task_tlb *task = arg;
-	spinlock_ctx_t sc;
-	hal_tlbFlushLocal();
-	hal_spinlockSet(task->spinlock, &sc);
-	--task->confirmations;
-	hal_spinlockClear(task->spinlock, &sc);
-}
-
-
 static void tlb_invalidate(void *arg)
 {
 	struct task_tlb *task = arg;
 	spinlock_ctx_t sc;
 	size_t i;
 	const void *entry;
-	for (i = 0, entry = task->entry; i < task->count; ++i, entry += SIZE_PAGE) {
-		hal_tlbInvalidateLocalEntry(entry);
+
+	if ((task->entry == NULL) && (task->count == 0)) {
+		hal_tlbFlushLocal(task->pmap);
+	}
+	else {
+		for (i = 0, entry = task->entry; i < task->count; ++i, entry += SIZE_PAGE) {
+			hal_tlbInvalidateLocalEntry(task->pmap, entry);
+		}
 	}
 	hal_spinlockSet(task->spinlock, &sc);
 	--task->confirmations;
@@ -73,40 +74,7 @@ static void tlb_invalidate(void *arg)
 }
 
 
-/* Must be protected by pmap_common.lock */
-void hal_tlbFlush(void)
-{
-	/* TODO: Make sure that we aren't pushing into full queue */
-	unsigned int i;
-	const unsigned int n = hal_cpuGetCount(), id = hal_cpuGetID();
-	size_t tasks_size;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&tlb_common.tlbs[id].task_spinlock, &sc);
-	tasks_size = tlb_common.tlbs[id].tasks_size;
-
-	tlb_common.tlbs[id].tasks[tasks_size].func = tlb_flush;
-	tlb_common.tlbs[id].tasks[tasks_size].entry = NULL;
-	tlb_common.tlbs[id].tasks[tasks_size].count = 0;
-	tlb_common.tlbs[id].tasks[tasks_size].confirmations = n - 1;
-	tlb_common.tlbs[id].tasks[tasks_size].spinlock = &tlb_common.tlbs[id].task_spinlock;
-
-	++tlb_common.tlbs[id].tasks_size;
-	hal_spinlockClear(&tlb_common.tlbs[id].task_spinlock, &sc);
-
-	for (i = 0; i < n; ++i) {
-		if (i != id) {
-			hal_spinlockSet(&tlb_common.tlbs[i].todo_spinlock, &sc);
-			tlb_common.tlbs[i].todo[tlb_common.tlbs[i].todo_size++] = &tlb_common.tlbs[id].tasks[tasks_size];
-			hal_spinlockClear(&tlb_common.tlbs[i].todo_spinlock, &sc);
-		}
-	}
-	hal_tlbFlushLocal();
-}
-
-
-/* Must be protected by pmap_common.lock */
-void hal_tlbInvalidateEntry(const void *vaddr, size_t count)
+void hal_tlbInvalidateEntry(const pmap_t *pmap, const void *vaddr, size_t count)
 {
 	/* TODO: Make sure that we aren't pushing into full queue */
 	unsigned int i;
@@ -118,6 +86,7 @@ void hal_tlbInvalidateEntry(const void *vaddr, size_t count)
 	tasks_size = tlb_common.tlbs[id].tasks_size;
 
 	tlb_common.tlbs[id].tasks[tasks_size].func = tlb_invalidate;
+	tlb_common.tlbs[id].tasks[tasks_size].pmap = pmap;
 	tlb_common.tlbs[id].tasks[tasks_size].entry = vaddr;
 	tlb_common.tlbs[id].tasks[tasks_size].count = count;
 	tlb_common.tlbs[id].tasks[tasks_size].confirmations = n - 1;
@@ -133,11 +102,10 @@ void hal_tlbInvalidateEntry(const void *vaddr, size_t count)
 			hal_spinlockClear(&tlb_common.tlbs[i].todo_spinlock, &sc);
 		}
 	}
-	hal_tlbInvalidateLocalEntry(vaddr);
+	hal_tlbInvalidateLocalEntry(pmap, vaddr);
 }
 
 
-/* Must be protected by pmap_common.lock */
 void hal_tlbCommit(spinlock_t *spinlock, spinlock_ctx_t *ctx)
 {
 	spinlock_ctx_t sc;
@@ -185,5 +153,5 @@ void hal_tlbInitCore(const unsigned int id)
 	hal_spinlockCreate(&tlb_common.tlbs[id].core_spinlock, "tlb_common.tlbs.core_spinlock");
 	tlb_common.tlbs[id].tasks_size = 0;
 	tlb_common.tlbs[id].todo_size = 0;
-	hal_tlbFlushLocal();
+	hal_tlbFlushLocal(NULL);
 }

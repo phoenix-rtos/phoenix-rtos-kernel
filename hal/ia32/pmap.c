@@ -14,13 +14,15 @@
  * %LICENSE%
  */
 
+#include <arch/tlb.h>
+
 #include "halsyspage.h"
 #include "ia32.h"
 #include "hal/pmap.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"
 #include "hal/console.h"
-#include "tlb.h"
+#include "hal/tlb/tlb.h"
 #include "init.h"
 
 #include "include/errno.h"
@@ -103,16 +105,16 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, int attr, page_t *al
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
 	ptable[((u32)pt >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT | PGHD_USER);
 
-	hal_tlbInvalidateLocalEntry(pt);
+	hal_tlbInvalidateLocalEntry(NULL, pt);
 
 	/* And at last map page or only changle attributes of map entry */
 	pt[pti] = ((pa & ~(SIZE_PAGE - 1)) | (attr & 0xfffu) | PGHD_PRESENT);
 
 	if (tlbInval != 0) {
-		hal_tlbInvalidateEntry(va, 1);
+		hal_tlbInvalidateEntry(NULL, va, 1);
 	}
 	else {
-		hal_tlbInvalidateLocalEntry(va);
+		hal_tlbInvalidateLocalEntry(NULL, va);
 	}
 
 	return EOK;
@@ -165,18 +167,18 @@ int _pmap_removeMany(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tlbIn
 		/* Map selected page table */
 		ptable[((u32)pt >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
 
-		hal_tlbInvalidateLocalEntry(pt);
+		hal_tlbInvalidateLocalEntry(NULL, pt);
 
 		/* Unmap page */
 		pt[pti] = 0;
 	}
 
 	if (tlbInval != 0) {
-		hal_tlbInvalidateEntry(vaddr, count);
+		hal_tlbInvalidateEntry(NULL, vaddr, count);
 	}
 	else {
 		for (i = 0; i < count; ++i, vaddr += SIZE_PAGE) {
-			hal_tlbInvalidateLocalEntry(vaddr);
+			hal_tlbInvalidateLocalEntry(NULL, vaddr);
 		}
 	}
 	return EOK;
@@ -226,7 +228,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
 	ptable[((u32)hal_config.ptable >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
-	hal_tlbInvalidateLocalEntry(hal_config.ptable);
+	hal_tlbInvalidateLocalEntry(NULL, hal_config.ptable);
 
 	addr = (addr_t)hal_config.ptable[pti];
 	hal_tlbCommit(&pmap_common.lock, &sc);
@@ -350,7 +352,7 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 		}
 		*start = vaddr;
 	}
-	hal_tlbFlushLocal();
+	hal_tlbFlushLocal(NULL);
 
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = end;
@@ -411,7 +413,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)VADDR_MAX;
 
-	hal_tlbFlushLocal();
+	hal_tlbFlushLocal(NULL);
 
 	/* Initialize kernel heap start address */
 	(*vstart) = hal_config.heapStart;
@@ -424,7 +426,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	(*vstart) += 0x500;
 
 	pmap_removeMany(pmap, *vend, ((void *)VADDR_KERNEL + (4 << 20) - *vend) / SIZE_PAGE);
-	hal_tlbFlushLocal();
+	hal_tlbFlushLocal(NULL);
 
 	return;
 }
