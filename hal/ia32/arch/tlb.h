@@ -6,22 +6,27 @@
  * TLB handling
  *
  * Copyright 2023 Phoenix Systems
- * Author; Andrzej Stalke
+ * Author: Andrzej Stalke, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
-#ifndef _HAL_TLB_H_
-#define _HAL_TLB_H_
 
-#include <arch/types.h>
-#include "hal/spinlock.h"
+#ifndef _HAL_IA32_TLB_H_
+#define _HAL_IA32_TLB_H_
 
-static inline void hal_tlbFlushLocal(void)
+
+#include "pmap.h"
+#include "hal/tlb/tlb.h"
+
+
+static inline void hal_tlbFlushLocal(const pmap_t *pmap)
 {
 	u32 tmpreg;
+	(void)pmap;
+
 	/* clang-format off */
 	__asm__ volatile (
 		"movl %%cr3, %0\n\t"
@@ -35,8 +40,10 @@ static inline void hal_tlbFlushLocal(void)
 }
 
 
-static inline void hal_tlbInvalidateLocalEntry(void const *vaddr)
+static inline void hal_tlbInvalidateLocalEntry(const pmap_t *pmap, const void *vaddr)
 {
+	(void)pmap;
+
 	/* clang-format off */
 	__asm__ volatile (
 		"invlpg (%0)"
@@ -48,18 +55,5 @@ static inline void hal_tlbInvalidateLocalEntry(void const *vaddr)
 	return;
 }
 
-void hal_tlbFlush(void);
-
-
-void hal_tlbInvalidateEntry(const void *vaddr, size_t count);
-
-
-void hal_tlbCommit(spinlock_t *spinlock, spinlock_ctx_t *ctx);
-
-
-void hal_tlbShootdown(void);
-
-
-void hal_tlbInitCore(const unsigned int id);
 
 #endif

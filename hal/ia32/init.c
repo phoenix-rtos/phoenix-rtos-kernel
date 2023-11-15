@@ -18,7 +18,8 @@
 #include "init.h"
 #include "ia32.h"
 #include "include/errno.h"
-#include "tlb.h"
+
+#include <arch/tlb.h>
 
 extern unsigned int _end;
 extern syspage_t *syspage;
@@ -79,7 +80,7 @@ static inline int _hal_configMapPage(u32 *pdir, addr_t pa, void *va, int attr)
 			if (ret == 0) {
 				ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
 				ptable[((u32)hal_config.ptable >> 12) & 0x000003ffu] = (page.addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
-				hal_tlbInvalidateLocalEntry(hal_config.ptable);
+				hal_tlbInvalidateLocalEntry(NULL, hal_config.ptable);
 				hal_memset(hal_config.ptable, 0, SIZE_PAGE);
 				ret = _pmap_enter(pdir, hal_config.ptable, pa, va, attr, &page, 0);
 			}

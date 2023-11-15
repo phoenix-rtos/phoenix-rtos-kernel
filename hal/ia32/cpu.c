@@ -21,13 +21,17 @@
 #include "hal/string.h"
 #include "hal/pmap.h"
 #include "hal/hal.h"
+#include "hal/tlb/tlb.h"
 #include "pci.h"
 #include "ia32.h"
 #include "halsyspage.h"
-#include "tlb.h"
 #include "init.h"
 
+#include <arch/tlb.h>
+
+
 extern void hal_timerInitCore(const unsigned int id);
+
 
 struct cpu_feature_t {
 	const char *name;
@@ -203,7 +207,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 
 void hal_longjmp(cpu_context_t *ctx)
 {
-	hal_tlbFlushLocal();
+	hal_tlbFlushLocal(NULL);
 	/* clang-format off */
 	__asm__ volatile (
 		"cli\n\t"
@@ -253,7 +257,7 @@ void hal_longjmp(cpu_context_t *ctx)
 
 void hal_jmp(void *f, void *kstack, void *stack, int argc)
 {
-	hal_tlbFlushLocal();
+	hal_tlbFlushLocal(NULL);
 	if (stack == NULL) {
 		/* clang-format off */
 		__asm__ volatile (
@@ -625,7 +629,7 @@ void _hal_cpuInit(void)
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
 	(void)ctx;
-	hal_tlbFlushLocal();
+	hal_tlbFlushLocal(NULL);
 	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->tbss_sz + tls->tdata_sz, VADDR_KERNEL - tls->tls_base + tls->tbss_sz + tls->tdata_sz, DESCR_TLS);
 	/* Reload the hidden gs register*/
 	hal_cpuReloadTlsSegment();
