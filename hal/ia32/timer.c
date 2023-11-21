@@ -56,6 +56,12 @@ struct {
 	spinlock_t sp;
 	u32 intervalUs;
 
+	int (*schedulerIrq)(unsigned int, cpu_context_t *, void *);
+	void (*schedulerSetWakeup)(u32 waitUs);
+	time_t (*timestampGetUs)(void);
+	time_t (*timestampBusyWaitUs)(time_t waitUs);
+	void (*schedulerInitCore)(unsigned int id);
+
 	timerType_t schedulerTimerType;
 	timerType_t timestampTimerType;
 	union {
@@ -77,17 +83,8 @@ struct {
 			u32 wait[MAX_CPU_COUNT]; /* Wait time (in cycles) of this CPU */
 		} lapic;
 	} schedulerTimer;
-} timer;
+} timer_common;
 
-
-int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
-{
-	h->f = f;
-	h->n = SYSTICK_IRQ;
-	h->data = data;
-
-	return hal_interruptsSetHandler(h);
-}
 
 /* Programmable Interval Timer (Intel 8253/8254) */
 
@@ -98,7 +95,7 @@ static int hal_pitTimerIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)arg;
 	(void)ctx;
 
-	(void)hal_cpuAtomAdd((volatile u32 *)&timer.timestampTimer.pit.jiffies, timer.intervalUs);
+	(void)hal_cpuAtomAdd((volatile u32 *)&timer_common.timestampTimer.pit.jiffies, timer_common.intervalUs);
 	return 0;
 }
 
@@ -135,19 +132,54 @@ static inline u16 _hal_pitReadTimer(void)
 }
 
 
+static time_t _hal_pitGetUs(void)
+{
+	return timer_common.timestampTimer.pit.jiffies;
+}
+
+
+static time_t _hal_pitBusyWaitUs(time_t waitUs)
+{
+	u64 sumTicks = 0;
+	s64 ticks;
+	u16 startPitDelta, pitDelta = 0;
+
+	for (ticks = (((s64)PIT_FREQUENCY) * ((s64)waitUs)) / 1000; ticks > 0; ticks -= pitDelta) {
+		if (ticks <= 0xf000) {
+			startPitDelta = 0xfff + ticks;
+		}
+		else {
+			startPitDelta = 0xffff;
+		}
+		pitDelta = startPitDelta;
+		_hal_pitSetTimer(startPitDelta, PIT_OPERATING_ONE_SHOT);
+		while (pitDelta > 0x0fff) {
+			pitDelta = _hal_pitReadTimer();
+		}
+		pitDelta = startPitDelta - pitDelta;
+		sumTicks += pitDelta;
+	}
+	return (sumTicks * 1000) / PIT_FREQUENCY;
+}
+
+
 static void _hal_pitInit(u32 intervalUs)
 {
 	intervalUs /= hal_cpuGetCount();
-	timer.intervalUs = intervalUs;
+	timer_common.intervalUs = intervalUs;
 
 	_hal_pitSetTimer(_hal_pitCalculateDivider(intervalUs), PIT_OPERATING_RATE_GEN);
 
-	timer.timestampTimerType = timer_pit;
-	timer.schedulerTimerType = timer_pit;
+	timer_common.timestampTimerType = timer_pit;
+	timer_common.schedulerTimerType = timer_pit;
 
-	timer.timestampTimer.pit.jiffies = 0;
+	timer_common.schedulerIrq = hal_pitTimerIrqHandler;
+	timer_common.schedulerSetWakeup = NULL;
+	timer_common.timestampGetUs = _hal_pitGetUs;
+	timer_common.timestampBusyWaitUs = _hal_pitBusyWaitUs;
 
-	(void)hal_timerRegister(hal_pitTimerIrqHandler, NULL, &timer.handler);
+
+	timer_common.timestampTimer.pit.jiffies = 0;
 }
 
 
@@ -197,13 +229,13 @@ static inline void _hal_lapicTimerConfigure(u32 mode, u32 mask, u32 vector)
 
 static inline u32 _hal_lapicTimerCyc2Us(u64 cycles)
 {
-	return (u32)(((cycles << LAPIC_TIMER_DEFAULT_DIVIDER) * 1000) / (u64)timer.schedulerTimer.lapic.frequency);
+	return (u32)(((cycles << LAPIC_TIMER_DEFAULT_DIVIDER) * 1000) / (u64)timer_common.schedulerTimer.lapic.frequency);
 }
 
 
 static inline u64 _hal_lapicTimerUs2Cyc(u32 us)
 {
-	return (((u64)us) * (u64)timer.schedulerTimer.lapic.frequency) / (1000 << LAPIC_TIMER_DEFAULT_DIVIDER);
+	return (((u64)us) * (u64)timer_common.schedulerTimer.lapic.frequency) / (1000 << LAPIC_TIMER_DEFAULT_DIVIDER);
 }
 
 
@@ -211,13 +243,13 @@ static int hal_lapicTimerIrqHandler(unsigned int n, cpu_context_t *ctx, void *ar
 {
 	spinlock_ctx_t sc;
 	const unsigned int id = hal_cpuGetID();
-	hal_spinlockSet(&timer.sp, &sc);
-	if ((timer.timestampTimerType == timer_lapic) && (id == 0)) {
-		timer.timestampTimer.lapic.cycles += timer.schedulerTimer.lapic.wait[id];
+	hal_spinlockSet(&timer_common.sp, &sc);
+	if ((timer_common.timestampTimerType == timer_lapic) && (id == 0)) {
+		timer_common.timestampTimer.lapic.cycles += timer_common.schedulerTimer.lapic.wait[id];
 	}
-	timer.schedulerTimer.lapic.wait[id] = _hal_lapicTimerUs2Cyc(timer.intervalUs);
-	_hal_lapicTimerStart(timer.schedulerTimer.lapic.wait[id]);
-	hal_spinlockClear(&timer.sp, &sc);
+	timer_common.schedulerTimer.lapic.wait[id] = _hal_lapicTimerUs2Cyc(timer_common.intervalUs);
+	_hal_lapicTimerStart(timer_common.schedulerTimer.lapic.wait[id]);
+	hal_spinlockClear(&timer_common.sp, &sc);
 	return 0;
 }
 
@@ -228,14 +260,14 @@ static int hal_lapicTimerIrqHandler(unsigned int n, cpu_context_t *ctx, void *ar
 static inline u32 _hal_hpetRead(u32 offset)
 {
 	u32 ret;
-	(void)_hal_gasRead32(&timer.timestampTimer.hpet.addr, offset, &ret);
+	(void)_hal_gasRead32(&timer_common.timestampTimer.hpet.addr, offset, &ret);
 	return ret;
 }
 
 
 static inline void _hal_hpetWrite(u32 offset, u32 val)
 {
-	(void)_hal_gasWrite32(&timer.timestampTimer.hpet.addr, offset, val);
+	(void)_hal_gasWrite32(&timer_common.timestampTimer.hpet.addr, offset, val);
 }
 
 
@@ -270,9 +302,21 @@ static inline void _hal_hpetSetCounter(u64 val)
 static time_t _hal_hpetGetUs(void)
 {
 	u64 ret = _hal_hpetGetCounter();
-	ret *= (u64)timer.timestampTimer.hpet.period;
+	ret *= (u64)timer_common.timestampTimer.hpet.period;
 	ret /= 1000000000LLU;
 	return ret;
+}
+
+
+static time_t _hal_hpetBusyWaitUs(time_t waitUs)
+{
+	time_t startUs, endUs;
+
+	startUs = _hal_hpetGetUs();
+	do {
+		endUs = _hal_hpetGetUs();
+	} while (endUs - startUs < waitUs);
+	return endUs - startUs;
 }
 
 
@@ -281,85 +325,84 @@ static int _hal_hpetInit(void)
 	if (hal_config.hpet == NULL) {
 		return -1;
 	}
-	_hal_gasAllocDevice(&hal_config.hpet->baseAddress, &timer.timestampTimer.hpet.addr, 0x400);
-	if (_hal_gasRead32(&timer.timestampTimer.hpet.addr, HPET_ID + sizeof(u32), &timer.timestampTimer.hpet.period) != 0) {
+	_hal_gasAllocDevice(&hal_config.hpet->baseAddress, &timer_common.timestampTimer.hpet.addr, 0x400);
+	if (_hal_gasRead32(&timer_common.timestampTimer.hpet.addr, HPET_ID + sizeof(u32), &timer_common.timestampTimer.hpet.period) != 0) {
 		return -1;
 	}
 	_hal_hpetSetCounter(0LLU);
-	timer.timestampTimerType = timer_hpet;
+	timer_common.timestampTimerType = timer_hpet;
+	timer_common.timestampGetUs = _hal_hpetGetUs;
+	timer_common.timestampBusyWaitUs = _hal_hpetBusyWaitUs;
 	_hal_hpetEnable(1);
 	return 0;
 }
 
 
+static void _hal_lapicSetWakeup(u32 waitUs)
+{
+	const unsigned int id = hal_cpuGetID();
+	if ((timer_common.timestampTimerType == timer_lapic) && (id == 0)) {
+		timer_common.timestampTimer.lapic.cycles += (timer_common.schedulerTimer.lapic.wait[id] - _hal_lapicTimerGetCounter());
+	}
+	timer_common.schedulerTimer.lapic.wait[id] = _hal_lapicTimerUs2Cyc(waitUs);
+	_hal_lapicTimerStart(timer_common.schedulerTimer.lapic.wait[id]);
+}
+
+
+static time_t _hal_lapicGetUs(void)
+{
+	return _hal_lapicTimerCyc2Us(timer_common.timestampTimer.lapic.cycles);
+}
+
+
+static void _hal_lapicInitCore(unsigned int id)
+{
+	_hal_lapicTimerConfigure(LAPIC_TIMER_ONE_SHOT, 0, SYSTICK_IRQ + INTERRUPTS_VECTOR_OFFSET);
+	_hal_lapicTimerSetDivider(LAPIC_TIMER_DEFAULT_DIVIDER);
+	timer_common.schedulerTimer.lapic.wait[id] = 1;
+	_hal_lapicTimerStart(1);
+}
+
+
 static int _hal_lapicTimerInit(u32 intervalUs)
 {
-	u64 freq, hpetDelta;
-	time_t hpetStart, hpetEnd;
+	u64 freq, delta;
 	u32 lapicDelta;
-	u16 pitDelta;
 	if (hal_isLapicPresent() == 0) {
 		return -1;
 	}
 	_hal_lapicTimerConfigure(LAPIC_TIMER_ONE_SHOT, 0, SYSTICK_IRQ + INTERRUPTS_VECTOR_OFFSET);
 	_hal_lapicTimerSetDivider(LAPIC_TIMER_DEFAULT_DIVIDER);
 	lapicDelta = 0xffffffffu;
-	switch (timer.timestampTimerType) {
-		case timer_pit:
-			pitDelta = 0xffff;
-			_hal_pitSetTimer(pitDelta, PIT_OPERATING_ONE_SHOT);
-			_hal_lapicTimerStart(lapicDelta);
-			while (pitDelta > 0x0fff) { /* Wait is around 51.500 ms*/
-				pitDelta = _hal_pitReadTimer();
-			}
-			lapicDelta -= _hal_lapicTimerGetCounter();
-			_hal_lapicTimerStop();
-			pitDelta = 0xffff - pitDelta; /* timePassed = pitDelta / PIT_FREQUENCY */
 
-			freq = ((u64)lapicDelta) * ((u64)PIT_FREQUENCY);
-			freq <<= LAPIC_TIMER_DEFAULT_DIVIDER;
-			freq /= (u64)pitDelta; /* Frequency in kHz, with current technology it should fit in 32 bit */
-			timer.timestampTimerType = timer_lapic;
-			timer.timestampTimer.lapic.cycles = 0;
-			break;
-		case timer_hpet:
-			_hal_pitSetTimer(0, PIT_OPERATING_ONE_SHOT); /* Disable PIT */
-			hpetStart = _hal_hpetGetUs();
-			_hal_lapicTimerStart(lapicDelta);
-			do {
-				hpetEnd = _hal_hpetGetUs();
-			} while (hpetEnd - hpetStart < 100000); /* 100ms */
-			lapicDelta -= _hal_lapicTimerGetCounter();
-			_hal_lapicTimerStop();
-			hpetDelta = hpetEnd - hpetStart;
+	_hal_lapicTimerStart(lapicDelta);
+	delta = timer_common.timestampBusyWaitUs(100000);
+	lapicDelta -= _hal_lapicTimerGetCounter();
+	_hal_lapicTimerStop();
 
-			freq = (((u64)lapicDelta) * 1000) << LAPIC_TIMER_DEFAULT_DIVIDER;
-			freq /= hpetDelta;
-			break;
-		default:
-			return -1;
+	freq = ((((u64)lapicDelta) * 1000) << LAPIC_TIMER_DEFAULT_DIVIDER) / delta;
+
+	timer_common.schedulerTimerType = timer_lapic;
+	timer_common.intervalUs = intervalUs;
+
+	timer_common.schedulerTimer.lapic.frequency = freq;
+	timer_common.schedulerIrq = hal_lapicTimerIrqHandler;
+	timer_common.schedulerSetWakeup = _hal_lapicSetWakeup;
+	timer_common.schedulerInitCore = _hal_lapicInitCore;
+	if (timer_common.timestampGetUs == _hal_pitGetUs) {
+		timer_common.timestampTimerType = timer_lapic;
+		timer_common.timestampBusyWaitUs = NULL; /* Unused after this point, so NULL */
+		timer_common.timestampGetUs = _hal_lapicGetUs;
+		timer_common.timestampTimer.lapic.cycles = 0;
 	}
-	timer.schedulerTimerType = timer_lapic;
-	timer.intervalUs = intervalUs;
-
-	timer.schedulerTimer.lapic.frequency = freq;
-
-	(void)hal_timerRegister(hal_lapicTimerIrqHandler, NULL, &timer.handler);
 	return 0;
 }
 
 
-void hal_timerInitCore(const unsigned int id)
+void hal_timerInitCore(unsigned int id)
 {
-	switch (timer.schedulerTimerType) {
-		case timer_lapic:
-			_hal_lapicTimerConfigure(LAPIC_TIMER_ONE_SHOT, 0, SYSTICK_IRQ + INTERRUPTS_VECTOR_OFFSET);
-			_hal_lapicTimerSetDivider(LAPIC_TIMER_DEFAULT_DIVIDER);
-			timer.schedulerTimer.lapic.wait[id] = 1;
-			_hal_lapicTimerStart(1);
-			break;
-		default:
-			break;
+	if (timer_common.schedulerInitCore != NULL) {
+		timer_common.schedulerInitCore(id);
 	}
 }
 
@@ -368,22 +411,9 @@ time_t hal_timerGetUs(void)
 {
 	spinlock_ctx_t sc;
 	time_t ret;
-	hal_spinlockSet(&timer.sp, &sc);
-	switch (timer.timestampTimerType) {
-		case timer_lapic:
-			ret = _hal_lapicTimerCyc2Us(timer.timestampTimer.lapic.cycles);
-			break;
-		case timer_pit:
-			ret = timer.timestampTimer.pit.jiffies;
-			break;
-		case timer_hpet:
-			ret = _hal_hpetGetUs();
-			break;
-		default:
-			ret = -1;
-			break;
-	}
-	hal_spinlockClear(&timer.sp, &sc);
+	hal_spinlockSet(&timer_common.sp, &sc);
+	ret = timer_common.timestampGetUs();
+	hal_spinlockClear(&timer_common.sp, &sc);
 
 	return ret;
 }
@@ -391,40 +421,47 @@ time_t hal_timerGetUs(void)
 
 void hal_timerSetWakeup(u32 waitUs)
 {
-	unsigned int id;
 	spinlock_ctx_t sc;
-	if (waitUs > timer.intervalUs) {
-		waitUs = timer.intervalUs;
+	if (waitUs > timer_common.intervalUs) {
+		waitUs = timer_common.intervalUs;
 	}
 
-	hal_spinlockSet(&timer.sp, &sc);
-	switch (timer.schedulerTimerType) {
-		case timer_lapic:
-			id = hal_cpuGetID();
-			if ((timer.timestampTimerType == timer_lapic) && (id == 0)) {
-				timer.timestampTimer.lapic.cycles += (timer.schedulerTimer.lapic.wait[id] - _hal_lapicTimerGetCounter());
-			}
-			timer.schedulerTimer.lapic.wait[id] = _hal_lapicTimerUs2Cyc(waitUs);
-			_hal_lapicTimerStart(timer.schedulerTimer.lapic.wait[id]);
-			break;
-		default:
-			/* Not supported */
-			break;
+	hal_spinlockSet(&timer_common.sp, &sc);
+	if (timer_common.schedulerSetWakeup != NULL) {
+		timer_common.schedulerSetWakeup(waitUs);
 	}
-	hal_spinlockClear(&timer.sp, &sc);
+	hal_spinlockClear(&timer_common.sp, &sc);
+}
+
+
+int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+{
+	h->f = f;
+	h->n = SYSTICK_IRQ;
+	h->data = data;
+
+	return hal_interruptsSetHandler(h);
 }
 
 
 void _hal_timerInit(u32 intervalUs)
 {
-	timer.schedulerTimerType = timer_unknown;
-	timer.timestampTimerType = timer_pit;
+	_hal_pitSetTimer(0, PIT_OPERATING_ONE_SHOT); /* Disable PIT's regular IRQ */
+	timer_common.schedulerTimerType = timer_unknown;
+	timer_common.timestampTimerType = timer_pit;
 
-	hal_spinlockCreate(&timer.sp, "timer");
+	timer_common.schedulerIrq = hal_pitTimerIrqHandler;
+	timer_common.schedulerSetWakeup = NULL;
+	timer_common.schedulerInitCore = NULL;
+	timer_common.timestampGetUs = _hal_pitGetUs;
+	timer_common.timestampBusyWaitUs = _hal_pitBusyWaitUs;
+
+	hal_spinlockCreate(&timer_common.sp, "timer");
 
 	(void)_hal_hpetInit();
 
 	if (_hal_lapicTimerInit(intervalUs) != 0) {
 		_hal_pitInit(intervalUs);
 	}
+	(void)hal_timerRegister(timer_common.schedulerIrq, NULL, &timer_common.handler);
 }
