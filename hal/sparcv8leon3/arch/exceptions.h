@@ -25,6 +25,7 @@
 
 #ifndef NOMMU
 #define EXC_PAGEFAULT 1
+#define EXC_PAGEFAULT_DATA 9
 #endif
 
 #define SIZE_CTXDUMP 512
