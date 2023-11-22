@@ -116,7 +116,8 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using default timer", len);
+	hal_strncpy(features, "Using General Purpose Timer", len);
+	features[len - 1] = '\0';
 	return features;
 }
 
