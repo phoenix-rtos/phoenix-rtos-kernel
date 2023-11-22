@@ -426,7 +426,7 @@ exc_wovfl_done:
 
 	rd %wim, %g2
 	rd %tbr, %g3
-	std %g2, [%sp + 0x50] /* wim */
+	std %g2, [%sp + 0x50] /* wim, tbr */
 
 	mov %sp, %l7
 	sub %sp, 0x60, %sp
@@ -446,14 +446,14 @@ exc_wovfl_done:
 	wr %g2, %psr
 	nop
 	nop
+	nop
 
 	/* trap type */
-	set TBR_TT_MSK, %g2
-	and %g1, %g2, %o0
-
+	ld [%l7 + 0x54], %o0
+	srl %o0, TBR_TT_SHIFT, %o0
 	/* void exceptions_dispatch(unsigned int n, exc_context_t *ctx) */
 	call exceptions_dispatch
-	srl %o0, TBR_TT_SHIFT, %o0
+	and %o0, 0xff, %o0
 
 	/* disable traps */
 #ifndef __CPU_GR712RC

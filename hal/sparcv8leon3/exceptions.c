@@ -47,7 +47,7 @@ static const char *const hal_exceptionsType(int n)
 		case 0x8:
 			return " #FP exception";
 		case 0x9:
-			return " #Page fault - data load";
+			return " #Page fault - data access";
 		case 0xa:
 			return " #Tag overflow";
 		case 0xb:
@@ -158,7 +158,7 @@ extern void threads_setupUserReturn(void *retval);
 
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
-	if (n == EXC_PAGEFAULT) {
+	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
 		exceptions_common.mmuFaultHandler(n, ctx);
 	}
 	else {
@@ -174,7 +174,7 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
-	if (n == EXC_PAGEFAULT) {
+	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
 		return hal_srmmuGetFaultSts();
 	}
 
@@ -196,7 +196,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
 {
-	if (n == EXC_PAGEFAULT) {
+	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
 		exceptions_common.mmuFaultHandler = handler;
 	}
 	else {
