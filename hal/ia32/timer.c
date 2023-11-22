@@ -20,6 +20,7 @@
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
 #include "ia32.h"
+#include "hal/string.h"
 
 #define PIT_FREQUENCY 1193 /* kHz */
 
@@ -58,9 +59,12 @@ struct {
 
 	int (*schedulerIrq)(unsigned int, cpu_context_t *, void *);
 	void (*schedulerSetWakeup)(u32 waitUs);
+	void (*schedulerInitCore)(unsigned int id);
+	unsigned int (*schedulerName)(char *s, unsigned int *len);
+
 	time_t (*timestampGetUs)(void);
 	time_t (*timestampBusyWaitUs)(time_t waitUs);
-	void (*schedulerInitCore)(unsigned int id);
+	unsigned int (*timestampName)(char *s, unsigned int *len);
 
 	timerType_t schedulerTimerType;
 	timerType_t timestampTimerType;
@@ -87,6 +91,15 @@ struct {
 
 
 /* Programmable Interval Timer (Intel 8253/8254) */
+
+static unsigned int _hal_pitName(char *s, unsigned int *len)
+{
+	static const char text[] = "Programmable Interval Timer";
+	const unsigned int n = sizeof(text) - 1;
+	hal_strncpy(s, text, *len);
+	*len -= n;
+	return n;
+}
 
 
 static int hal_pitTimerIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -186,6 +199,16 @@ static void _hal_pitInit(u32 intervalUs)
 /* Local APIC Timer */
 
 
+static unsigned int _hal_lapicName(char *s, unsigned int *len)
+{
+	static const char text[] = "Local APIC Timer";
+	const unsigned int n = sizeof(text) - 1;
+	hal_strncpy(s, text, *len);
+	*len -= n;
+	return n;
+}
+
+
 static inline void _hal_lapicTimerSetDivider(u8 divider)
 {
 	/* Divider is a power of 2 */
@@ -255,6 +278,16 @@ static int hal_lapicTimerIrqHandler(unsigned int n, cpu_context_t *ctx, void *ar
 
 
 /* High Precision Event Timers */
+
+
+static unsigned int _hal_hpetName(char *s, unsigned int *len)
+{
+	static const char text[] = "High Precision Timer";
+	const unsigned int n = sizeof(text) - 1;
+	hal_strncpy(s, text, *len);
+	*len -= n;
+	return n;
+}
 
 
 static inline u32 _hal_hpetRead(u32 offset)
@@ -333,6 +366,7 @@ static int _hal_hpetInit(void)
 	timer_common.timestampTimerType = timer_hpet;
 	timer_common.timestampGetUs = _hal_hpetGetUs;
 	timer_common.timestampBusyWaitUs = _hal_hpetBusyWaitUs;
+	timer_common.timestampName = _hal_hpetName;
 	_hal_hpetEnable(1);
 	return 0;
 }
@@ -389,11 +423,13 @@ static int _hal_lapicTimerInit(u32 intervalUs)
 	timer_common.schedulerIrq = hal_lapicTimerIrqHandler;
 	timer_common.schedulerSetWakeup = _hal_lapicSetWakeup;
 	timer_common.schedulerInitCore = _hal_lapicInitCore;
+	timer_common.schedulerName = _hal_lapicName;
 	if (timer_common.timestampGetUs == _hal_pitGetUs) {
 		timer_common.timestampTimerType = timer_lapic;
 		timer_common.timestampBusyWaitUs = NULL; /* Unused after this point, so NULL */
 		timer_common.timestampGetUs = _hal_lapicGetUs;
 		timer_common.timestampTimer.lapic.cycles = 0;
+		timer_common.timestampName = _hal_lapicName;
 	}
 	return 0;
 }
@@ -444,6 +480,30 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 }
 
 
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	static const char textScheduling[] = "Timers: scheduling = ";
+	static const char textTimestamp[] = ", timestamp = ";
+	const size_t textSchedulingLength = sizeof(textScheduling) - 1;
+	const size_t textTimestampLength = sizeof(textTimestamp) - 1;
+
+	unsigned int off = 0;
+	(void)hal_strncpy(features + off, textScheduling, len);
+	off += textSchedulingLength;
+	len -= textSchedulingLength;
+
+	off += timer_common.schedulerName(features + off, &len);
+
+	(void)hal_strncpy(features + off, textTimestamp, len);
+	off += textTimestampLength;
+	len -= textTimestampLength;
+
+	off += timer_common.timestampName(features + off, &len);
+	features[off] = '\0';
+	return features;
+}
+
+
 void _hal_timerInit(u32 intervalUs)
 {
 	_hal_pitSetTimer(0, PIT_OPERATING_ONE_SHOT); /* Disable PIT's regular IRQ */
@@ -453,8 +513,10 @@ void _hal_timerInit(u32 intervalUs)
 	timer_common.schedulerIrq = hal_pitTimerIrqHandler;
 	timer_common.schedulerSetWakeup = NULL;
 	timer_common.schedulerInitCore = NULL;
+	timer_common.schedulerName = _hal_pitName;
 	timer_common.timestampGetUs = _hal_pitGetUs;
 	timer_common.timestampBusyWaitUs = _hal_pitBusyWaitUs;
+	timer_common.timestampName = _hal_pitName;
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 

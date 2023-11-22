@@ -31,4 +31,7 @@ extern int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), vo
 
 extern void _hal_timerInit(u32 interval);
 
+
+extern char *hal_timerFeatures(char *features, unsigned int len);
+
 #endif

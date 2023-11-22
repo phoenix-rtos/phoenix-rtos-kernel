@@ -18,6 +18,7 @@
 #include "config.h"
 #include <arch/cpu.h>
 #include <arch/interrupts.h>
+#include "hal/string.h"
 
 
 enum { gpt_cr = 0, gpt_pr, gpt_sr, gpt_ir, gpt_ocr1, gpt_ocr2, gpt_ocr3, gpt_icr1, gpt_icr2, gpt_cnt };
@@ -115,6 +116,13 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
+}
+
+
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	hal_strncpy(features, "Using default timer", len);
+	return features;
 }
 
 

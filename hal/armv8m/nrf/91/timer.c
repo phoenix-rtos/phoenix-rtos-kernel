@@ -18,6 +18,7 @@
 #include "hal/timer.h"
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
+#include "hal/string.h"
 
 
 /* nrf9160 timer module provides instances from 0 to 2 */
@@ -86,6 +87,13 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
+}
+
+
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	hal_strncpy(features, "Using default timer", len);
+	return features;
 }
 
 

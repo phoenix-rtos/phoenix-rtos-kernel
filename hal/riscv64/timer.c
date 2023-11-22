@@ -18,7 +18,7 @@
 #include "hal/spinlock.h"
 #include "riscv64.h"
 #include "sbi.h"
-
+#include "hal/string.h"
 
 
 struct {
@@ -66,6 +66,13 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
+}
+
+
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	hal_strncpy(features, "Using default timer", len);
+	return features;
 }
 
 
