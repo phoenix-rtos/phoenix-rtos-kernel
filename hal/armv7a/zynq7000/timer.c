@@ -16,6 +16,7 @@
 #include "hal/armv7a/armv7a.h"
 #include "hal/timer.h"
 #include "hal/spinlock.h"
+#include "hal/string.h"
 
 #define TIMER_SRC_CLK_CPU_1x 111111115 /* Hz */
 #define TIMER_IRQ_ID         42
@@ -131,6 +132,13 @@ static void hal_timerSetPrescaler(u32 freq)
 	}
 
 	timer_common.ticksPerFreq = ticks;
+}
+
+
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	hal_strncpy(features, "Using default timer", len);
+	return features;
 }
 
 

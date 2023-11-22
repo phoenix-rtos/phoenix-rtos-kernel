@@ -17,6 +17,7 @@
 #include "hal/timer.h"
 #include "hal/spinlock.h"
 #include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/string.h"
 
 #ifdef NOMMU
 #define VADDR_GPTIMER0 GPTIMER0_BASE
@@ -110,6 +111,13 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
+}
+
+
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	hal_strncpy(features, "Using default timer", len);
+	return features;
 }
 
 

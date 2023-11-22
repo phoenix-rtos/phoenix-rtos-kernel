@@ -103,6 +103,7 @@ int main(void)
 	lib_printf("hal: %s\n", hal_cpuInfo(s));
 	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
 	lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
+	lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
 	syspage_init();
 
 	_vm_init(&main_common.kmap, &main_common.kernel);

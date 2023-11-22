@@ -16,6 +16,7 @@
 #include "hal/armv7a/armv7a.h"
 #include "hal/timer.h"
 #include "hal/spinlock.h"
+#include "hal/string.h"
 
 #define TIMER_IRQ_ID 88
 
@@ -120,6 +121,13 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
+}
+
+
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	hal_strncpy(features, "Using default timer", len);
+	return features;
 }
 
 

@@ -17,6 +17,7 @@
 #include "hal/cpu.h"
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
+#include "hal/string.h"
 
 static struct {
 	intr_handler_t handler;
@@ -45,6 +46,13 @@ void timer_jiffiesAdd(time_t t)
 	hal_spinlockSet(&timer_common.sp, &sc);
 	timer_common.jiffies += t;
 	hal_spinlockClear(&timer_common.sp, &sc);
+}
+
+
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	hal_strncpy(features, "Using default timer", len);
+	return features;
 }
 
 

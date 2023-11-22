@@ -18,6 +18,7 @@
 #include "hal/timer.h"
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
+#include "hal/string.h"
 
 /*
  * Prescaler settings (32768 Hz input frequency):
@@ -225,6 +226,13 @@ int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *dat
 	}
 
 	return err;
+}
+
+
+char *hal_timerFeatures(char *features, unsigned int len)
+{
+	hal_strncpy(features, "Using default timer", len);
+	return features;
 }
 
 
