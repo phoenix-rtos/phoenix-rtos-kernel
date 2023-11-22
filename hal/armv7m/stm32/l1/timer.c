@@ -51,7 +51,8 @@ void timer_jiffiesAdd(time_t t)
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using default timer", len);
+	hal_strncpy(features, "Using SysTick timer", len);
+	features[len - 1] = '\0';
 	return features;
 }
 

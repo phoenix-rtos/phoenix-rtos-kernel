@@ -137,7 +137,8 @@ static void hal_timerSetPrescaler(u32 freq)
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using default timer", len);
+	hal_strncpy(features, "Using Triple Timer Counter", len);
+	features[len - 1] = '\0';
 	return features;
 }
 
