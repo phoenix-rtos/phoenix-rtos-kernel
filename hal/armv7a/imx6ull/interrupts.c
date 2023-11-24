@@ -105,7 +105,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (reschedule)
 		threads_schedule(n, ctx, NULL);
 
-	*(interrupts.gic + eoir) = (*(interrupts.gic + eoir) & ~0x3ff) | n;
+	*(interrupts.gic + eoir) = n;
 
 	hal_spinlockClear(&interrupts.spinlock[n], &sc);
 
