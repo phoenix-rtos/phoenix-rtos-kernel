@@ -248,17 +248,26 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 
 	/* clang-format off */
 
-	__asm__ volatile(" \
+	__asm__ volatile
+	(" \
 		cmp %2, %%g0; \
-		be 2f; \
+		be 3f; \
 	1: \
 		ldub [%1], %%g1; \
-		stb %%g1, [%0]; \
-		inc %0; \
-		deccc %2; \
-		bnz 1b; \
 		inc %1; \
-	2: "
+		stb %%g1, [%0]; \
+		deccc %2; \
+		bz 3f; \
+		inc %0; \
+		cmp %%g1, %%g0; \
+		bne 1b; \
+		nop; \
+	2: \
+		stb %%g0, [%0]; \
+		deccc %2; \
+		bnz 2b; \
+		inc %0; \
+	3: "
 	 : "+r"(p), "+r"(src), "+r"(n)
 	 :
 	 : "%g1", "memory", "cc");
