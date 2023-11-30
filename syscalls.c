@@ -1068,15 +1068,20 @@ int syscalls_sys_unlink(char *ustack)
 }
 
 
-off_t syscalls_sys_lseek(char *ustack)
+int syscalls_sys_lseek(char *ustack)
 {
 	int fildes;
-	off_t offset;
+	off_t *offset;
 	int whence;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
-	GETFROMSTACK(ustack, off_t, offset, 1);
+	GETFROMSTACK(ustack, off_t *, offset, 1);
 	GETFROMSTACK(ustack, int, whence, 2);
+
+	/* TODO verify pointer */
+	if (offset == NULL) {
+		return -EINVAL;
+	}
 
 	return posix_lseek(fildes, offset, whence);
 }
