@@ -582,6 +582,20 @@ _traps_syscall:
 	restore
 
 s_wovfl_done:
+	/* for signal handling: */
+	restore
+
+	std %l0, [%sp + 0x00]
+	std %l2, [%sp + 0x08]
+	std %l4, [%sp + 0x10]
+	std %l6, [%sp + 0x18]
+	std %i0, [%sp + 0x20]
+	std %i2, [%sp + 0x28]
+	std %i4, [%sp + 0x30]
+	std %fp, [%sp + 0x38]
+
+	save
+
 	/* write arguments to stack reserved space */
 	st %i0, [%fp + 0x44]
 	st %i1, [%fp + 0x48]
@@ -606,7 +620,8 @@ s_wovfl_done:
 	add %l2, 4, %l3
 	st  %l2, [%sp + 0x0c] /* pc */
 	st  %l3, [%sp + 0x10] /* npc */
-	st  %g6, [%sp + 0x28]
+	std %g4, [%sp + 0x20]
+	std %g6, [%sp + 0x28]
 	std %fp, [%sp + 0x48] /* fp (task's sp), return address */
 
 	/* allocate stack frame for syscall handler */
