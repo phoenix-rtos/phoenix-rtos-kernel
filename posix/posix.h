@@ -48,7 +48,7 @@ extern int posix_link(const char *path1, const char *path2);
 extern int posix_unlink(const char *pathname);
 
 
-extern off_t posix_lseek(int fildes, off_t offset, int whence);
+extern int posix_lseek(int fildes, off_t *offset, int whence);
 
 
 extern int posix_ftruncate(int fildes, off_t length);

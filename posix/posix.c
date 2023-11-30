@@ -1113,13 +1113,13 @@ int posix_unlink(const char *pathname)
 }
 
 
-off_t posix_lseek(int fildes, off_t offset, int whence)
+int posix_lseek(int fildes, off_t *offset, int whence)
 {
 	TRACE("seek(%d, %d, %d)", fildes, offset, whence);
 
 	open_file_t *f;
 	off_t scnt;
-	int err;
+	int err = 0;
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err != 0) {
@@ -1136,29 +1136,36 @@ off_t posix_lseek(int fildes, off_t offset, int whence)
 	proc_lockSet(&f->lock);
 	switch (whence) {
 		case SEEK_SET:
-			f->offset = offset;
-			scnt = f->offset;
+			scnt = *offset;
 			break;
 
 		case SEEK_CUR:
-			f->offset += offset;
-			scnt = f->offset;
+			scnt = f->offset + *offset;
 			break;
 
 		case SEEK_END:
-			scnt += offset;
-			f->offset = scnt;
+			scnt += *offset;
 			break;
 
 		default:
-			scnt = -EINVAL;
+			scnt = -1;
 			break;
 	}
+
+	if (scnt >= 0) {
+		f->offset = scnt;
+	}
+	else {
+		err = -EINVAL;
+	}
+
 	proc_lockClear(&f->lock);
 
 	posix_fileDeref(f);
 
-	return scnt;
+	*offset = scnt;
+
+	return err;
 }
 
 
