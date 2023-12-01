@@ -1366,11 +1366,11 @@ int posix_fsync(int fd)
 
 	hal_memset(&msg, 0, sizeof(msg_t));
 
-	/* TODO: add mtSync message type in kernel */
+	/* FIXME: Replace this hack, pass oid via msg_t root struct */
 	msg.type = 0xf52; /* mtSync */
 
-	/* TODO: allow passing f->oid.id in mtSync message */
-	/* Please note that we sync whole fs/dev for now */
+	hal_memcpy(msg.i.raw, &f->oid, sizeof(f->oid));
+
 	err = proc_send(f->oid.port, &msg);
 
 	posix_fileDeref(f);
