@@ -25,7 +25,7 @@
 #include "lib/lib.h"
 #include "arch/types.h"
 
-#define MAX_PID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
+#define MAX_PID MAX_ID
 
 typedef struct _process_t {
 	lock_t lock;
@@ -38,8 +38,7 @@ typedef struct _process_t {
 	char *path;
 	char **argv;
 	char **envp;
-	unsigned int id;
-	rbnode_t idlinkage;
+	idnode_t idlinkage;
 
 	vm_map_t map;
 	map_entry_t *entries;
@@ -76,7 +75,13 @@ typedef struct _process_t {
 } process_t;
 
 
-extern process_t *proc_find(unsigned int pid);
+static inline int process_getPid(process_t *process)
+{
+	return process->idlinkage.id;
+}
+
+
+extern process_t *proc_find(int pid);
 
 
 extern int proc_put(process_t *proc);

@@ -31,11 +31,11 @@ void userintr_put(userintr_t *ui)
 	int rem;
 
 	LIB_ASSERT(ui != NULL, "process: %s, pid: %d, tid: %d, ui == NULL",
-		t->process->path, t->process->id, t->id);
+		t->process->path, process_getPid(t->process), t->id);
 
 	rem = resource_put(t->process, &ui->resource);
 	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
-		t->process->path, t->process->id, t->id);
+		t->process->path, process_getPid(t->process), t->id);
 	if (rem <= 0) {
 		hal_interruptsDeleteHandler(&ui->handler);
 

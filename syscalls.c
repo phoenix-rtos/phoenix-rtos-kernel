@@ -238,13 +238,13 @@ int syscalls_threadJoin(void *ustack)
 
 int syscalls_getpid(void *ustack)
 {
-	return proc_current()->process->id;
+	return process_getPid(proc_current()->process);
 }
 
 
 int syscalls_getppid(void *ustack)
 {
-	return posix_getppid(proc_current()->process->id);
+	return posix_getppid(process_getPid(proc_current()->process));
 }
 
 

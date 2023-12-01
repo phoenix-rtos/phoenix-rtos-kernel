@@ -16,9 +16,6 @@
 #include "lib.h"
 
 
-#define ID_MAX 0x7fffffff
-
-
 static int lib_idtreeCmp(rbnode_t *n1, rbnode_t *n2)
 {
 	idnode_t *i1 = lib_treeof(idnode_t, linkage, n1);
@@ -57,7 +54,7 @@ static void lib_idtreeAugment(rbnode_t *node)
 			}
 		}
 
-		n->rmaxgap = (n->id >= p->id) ? (ID_MAX - n->id - 1) : (p->id - n->id - 1);
+		n->rmaxgap = (n->id >= p->id) ? (MAX_ID - n->id - 1) : (p->id - n->id - 1);
 	}
 	else {
 		r = lib_treeof(idnode_t, linkage, node->right);
@@ -138,7 +135,7 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 {
 	idnode_t *f;
 
-	if (min > ID_MAX) {
+	if (min > MAX_ID) {
 		return -1;
 	}
 

@@ -728,7 +728,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 				break;
 			}
 			else if (s->state & US_PEER_CLOSED) {
-				posix_tkill(proc_current()->process->id, 0, SIGPIPE);
+				posix_tkill(process_getPid(proc_current()->process), 0, SIGPIPE);
 				err = -EPIPE;
 				break;
 			}

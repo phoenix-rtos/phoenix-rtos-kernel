@@ -153,7 +153,7 @@ int posix_getOpenFile(int fd, open_file_t **f)
 {
 	process_info_t *p;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -ENOSYS;
 	}
@@ -334,7 +334,7 @@ int posix_clone(int ppid)
 		p->fdsz = INITIAL_FD_COUNT;
 	}
 
-	p->process = proc->id;
+	p->process = process_getPid(proc);
 
 	p->fds = vm_kmalloc(p->fdsz * sizeof(fildes_t));
 	if (p->fds == NULL) {
@@ -413,7 +413,7 @@ int posix_exec(void)
 	process_info_t *p;
 	int fd;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -498,7 +498,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 
 	(void)proc_lookup("/dev/posix/pipes", NULL, &pipesrv);
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -611,7 +611,7 @@ int posix_close(int fildes)
 	process_info_t *p;
 	int err = -EBADF;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -755,7 +755,7 @@ int posix_dup(int fildes)
 	int newfd = 0;
 	open_file_t *f;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -847,7 +847,7 @@ int posix_dup2(int fildes, int fildes2)
 
 	process_info_t *p;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -871,7 +871,7 @@ int posix_pipe(int fildes[2])
 	oid_t pipesrv;
 	int res;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -1384,7 +1384,7 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	process_info_t *p;
 	int err;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -1413,7 +1413,7 @@ static int posix_fcntlSetFd(int fd, unsigned flags)
 	process_info_t *p;
 	int err = EOK;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -ENOSYS;
 	}
@@ -1442,7 +1442,7 @@ static int posix_fcntlGetFd(int fd)
 	process_info_t *p;
 	int err;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -ENOSYS;
 	}
@@ -1597,7 +1597,7 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 
 	ioctl->request = request;
 	ioctl->id = id;
-	ioctl->pid = proc_current()->process->id;
+	ioctl->pid = process_getPid(proc_current()->process);
 
 	if ((request & IOC_INOUT) != 0) {
 		if ((request & IOC_IN) != 0) {
@@ -1699,7 +1699,7 @@ int posix_socket(int domain, int type, int protocol)
 	process_info_t *p;
 	int err, fd;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -1757,7 +1757,7 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 	process_info_t *p;
 	int err, id[2];
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -1811,7 +1811,7 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 	open_file_t *f;
 	int err, fd;
 
-	p = pinfo_find(proc_current()->process->id);
+	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
 		return -1;
 	}
@@ -2568,7 +2568,7 @@ int posix_setpgid(pid_t pid, pid_t pgid)
 	}
 
 	if (pid == 0) {
-		pid = proc_current()->process->id;
+		pid = process_getPid(proc_current()->process);
 	}
 
 	if (pgid == 0) {
@@ -2598,7 +2598,7 @@ pid_t posix_getpgid(pid_t pid)
 	}
 
 	if (pid == 0) {
-		pid = proc_current()->process->id;
+		pid = process_getPid(proc_current()->process);
 	}
 
 	pinfo = pinfo_find(pid);
@@ -2620,7 +2620,7 @@ pid_t posix_setsid(void)
 	process_info_t *pinfo;
 	pid_t pid;
 
-	pid = proc_current()->process->id;
+	pid = process_getPid(proc_current()->process);
 
 	pinfo = pinfo_find(pid);
 	if (pinfo == NULL) {
@@ -2650,7 +2650,7 @@ int posix_waitpid(pid_t child, int *status, int options)
 	int err = EOK;
 	int found = 0;
 
-	pid = proc_current()->process->id;
+	pid = process_getPid(proc_current()->process);
 
 	pinfo = pinfo_find(pid);
 	LIB_ASSERT_ALWAYS(pinfo != NULL, "pinfo not found, pid: %d", pid);
