@@ -44,7 +44,7 @@ extern char *hal_strcpy(char *dest, const char *src);
 extern char *hal_strncpy(char *dest, const char *src, size_t n);
 
 
-extern unsigned long hal_i2s(char *prefix, char *s, unsigned long i, unsigned char b, char zero);
+extern unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned char b, char zero);
 
 
 #endif
