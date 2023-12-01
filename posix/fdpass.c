@@ -132,8 +132,10 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 		return 0;
 	}
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(process_getPid(proc_current()->process));
+	if (p == NULL) {
 		return -1;
+	}
 
 	proc_lockSet(&p->lock);
 
@@ -181,8 +183,10 @@ int fdpass_discard(fdpack_t **packs)
 	fdpack_t *pack;
 	open_file_t *file;
 
-	if ((p = pinfo_find(proc_current()->process->id)) == NULL)
+	p = pinfo_find(process_getPid(proc_current()->process));
+	if (p == NULL) {
 		return -1;
+	}
 
 	proc_lockSet(&p->lock);
 

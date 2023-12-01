@@ -27,7 +27,7 @@ cond_t *cond_get(int c)
 	thread_t *t = proc_current();
 	resource_t *r = resource_get(t->process, c);
 	LIB_ASSERT((r == NULL) || (r->type == rtCond), "process: %s, pid: %d, tid: %d, handle: %d, resource type mismatch",
-		t->process->path, t->process->id, t->id, c);
+		t->process->path, process_getPid(t->process), t->id, c);
 	return ((r != NULL) && (r->type == rtCond)) ? r->payload.cond : NULL;
 }
 
@@ -38,11 +38,11 @@ void cond_put(cond_t *cond)
 	int rem;
 
 	LIB_ASSERT(cond != NULL, "process: %s, pid: %d, tid: %d, cond == NULL",
-		t->process->path, t->process->id, t->id);
+		t->process->path, process_getPid(t->process), t->id);
 
 	rem = resource_put(t->process, &cond->resource);
 	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
-		t->process->path, t->process->id, t->id);
+		t->process->path, process_getPid(t->process), t->id);
 	if (rem <= 0) {
 		proc_threadBroadcastYield(&cond->queue);
 		vm_kfree(cond);

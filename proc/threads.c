@@ -195,7 +195,7 @@ static void _perf_begin(thread_t *t)
 	ev.type = perf_levBegin;
 	ev.prio = t->priority;
 	ev.tid = perf_idpack(t->id);
-	ev.pid = t->process != NULL ? perf_idpack(t->process->id) : -1;
+	ev.pid = t->process != NULL ? perf_idpack(process_getPid(t->process)) : -1;
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
@@ -240,7 +240,7 @@ void perf_fork(process_t *p)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levFork;
-	ev.pid = perf_idpack(p->id);
+	ev.pid = perf_idpack(process_getPid(p));
 	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
 	ev.tid = perf_idpack(_proc_current()->id);
 
@@ -265,7 +265,7 @@ void perf_kill(process_t *p)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levKill;
-	ev.pid = perf_idpack(p->id);
+	ev.pid = perf_idpack(process_getPid(p));
 	ev.tid = perf_idpack(_proc_current()->id);
 
 	now = _proc_gettimeRaw();
@@ -643,12 +643,12 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 		LIB_ASSERT_ALWAYS((selected->execkstack != NULL) || ((void *)selected->context > selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
-			"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded", (selected->process != NULL) ? selected->process->id : 0,
+			"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded", (selected->process != NULL) ? process_getPid(selected->process) : 0,
 			selected->id, selected->kstack, selected->context);
 
 		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
 			(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
-			"pid: %d, tid: %d, path: %s, user stack corrupted", selected->process->id, selected->id, selected->process->path);
+			"pid: %d, tid: %d, path: %s, user stack corrupted", process_getPid(selected->process), selected->id, selected->process->path);
 #endif
 	}
 
@@ -1619,7 +1619,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 	current = _proc_current();
 
 	LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
-		lock->name, (current->process != NULL) ? current->process->id : 0, current->id);
+		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, current->id);
 
 	if (_proc_lockTry(current, lock) < 0) {
 		/* Lock owner might inherit our priority */
@@ -1705,7 +1705,7 @@ static int _proc_lockUnlock(lock_t *lock)
 	(void)current; /* Unused in non-debug build */
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
-		lock->name, (owner->process != NULL) ? owner->process->id : 0, owner->id);
+		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, owner->id);
 
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
@@ -1727,7 +1727,7 @@ static int _proc_lockUnlock(lock_t *lock)
 	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
 
 	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
-		(current->process != NULL) ? current->process->id : 0, current->id, current->priorityBase, current->priority);
+		(current->process != NULL) ? process_getPid(current->process) : 0, current->id, current->priorityBase, current->priority);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1757,10 +1757,10 @@ static int _proc_lockClear(lock_t *lock)
 	thread_t *current = proc_current();
 
 	LIB_ASSERT(lock->owner != NULL, "lock: %s, pid: %d, tid: %d, unlock on not locked lock",
-		lock->name, (current->process != NULL) ? current->process->id : 0, current->id);
+		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, current->id);
 
 	LIB_ASSERT(lock->owner == current, "lock: %s, pid: %d, tid: %d, owner: %d, unlocking someone's else lock",
-		lock->name, (current->process != NULL) ? current->process->id : 0, current->id, lock->owner->id);
+		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, current->id, lock->owner->id);
 #endif
 
 	if (lock->owner == NULL) {
@@ -1945,7 +1945,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
-			info[i].pid = t->process->id;
+			info[i].pid = process_getPid(t->process);
 			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
 			info[i].ppid = 0;
 		}

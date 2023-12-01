@@ -53,34 +53,20 @@ struct {
 	process_t *first;
 	size_t stacksz;
 	lock_t lock;
-	rbtree_t id;
-	unsigned idcounter;
+	idtree_t id;
+	int idcounter;
 } process_common;
 
 
-static int proc_idcmp(rbnode_t *n1, rbnode_t *n2)
+process_t *proc_find(int pid)
 {
-	process_t *p1 = lib_treeof(process_t, idlinkage, n1);
-	process_t *p2 = lib_treeof(process_t, idlinkage, n2);
-
-	if (p1->id < p2->id)
-		return -1;
-
-	else if (p1->id > p2->id)
-		return 1;
-
-	return 0;
-}
-
-
-process_t *proc_find(unsigned pid)
-{
-	process_t *p, s;
-	s.id = pid;
+	process_t *p;
 
 	proc_lockSet(&process_common.lock);
-	if ((p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage))) != NULL)
+	p = lib_idtreeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
+	if (p != NULL) {
 		p->refs++;
+	}
 	proc_lockClear(&process_common.lock);
 
 	return p;
@@ -94,7 +80,7 @@ static void process_destroy(process_t *p)
 
 	perf_kill(p);
 
-	posix_died(p->id, p->exit);
+	posix_died(process_getPid(p), p->exit);
 
 	proc_changeMap(p, NULL, NULL, NULL);
 
@@ -127,12 +113,16 @@ int proc_put(process_t *p)
 	int remaining;
 
 	proc_lockSet(&process_common.lock);
-	if (!(remaining = --p->refs))
-		lib_rbRemove(&process_common.id, &p->idlinkage);
+	remaining = --p->refs;
+	LIB_ASSERT(remaining >= 0, "pid: %d, refcnt became negative", process_getPid(p));
+	if (remaining <= 0) {
+		lib_idtreeRemove(&process_common.id, &p->idlinkage);
+	}
 	proc_lockClear(&process_common.lock);
 
-	if (!remaining)
+	if (remaining <= 0) {
 		process_destroy(p);
+	}
 
 	return remaining;
 }
@@ -141,115 +131,36 @@ int proc_put(process_t *p)
 void proc_get(process_t *p)
 {
 	proc_lockSet(&process_common.lock);
+	LIB_ASSERT(p->refs > 0, "pid: %d, got reference on process with zero references",
+		process_getPid(p));
 	++p->refs;
 	proc_lockClear(&process_common.lock);
 }
 
 
-static unsigned _process_alloc(unsigned id)
+static int process_alloc(process_t *process)
 {
-	process_t *p = lib_treeof(process_t, idlinkage, process_common.id.root);
+	int id;
 
-	while (p != NULL) {
-		if (p->lgap && id < p->id) {
-			if (p->idlinkage.left == NULL)
-				return max(id, p->id - p->lgap);
-
-			p = lib_treeof(process_t, idlinkage, p->idlinkage.left);
-			continue;
-		}
-
-		if (p->rgap) {
-			if (p->idlinkage.right == NULL)
-				return max(id, p->id + 1);
-
-			p = lib_treeof(process_t, idlinkage, p->idlinkage.right);
-			continue;
-		}
-
-		for (;; p = lib_treeof(process_t, idlinkage, p->idlinkage.parent)) {
-			if (p->idlinkage.parent == NULL)
-				return NULL;
-
-			if ((p == lib_treeof(process_t, idlinkage, p->idlinkage.parent->left)) && lib_treeof(process_t, idlinkage, p->idlinkage.parent)->rgap)
-				break;
-		}
-		p = lib_treeof(process_t, idlinkage, p->idlinkage.parent);
-
-		if (p->idlinkage.right == NULL)
-			return p->id + 1;
-
-		p = lib_treeof(process_t, idlinkage, p->idlinkage.right);
+	proc_lockSet(&process_common.lock);
+	id = lib_idtreeAlloc(&process_common.id, &process->idlinkage, process_common.idcounter);
+	if (id < 0) {
+		/* Try from the start */
+		process_common.idcounter = 1;
+		id = lib_idtreeAlloc(&process_common.id, &process->idlinkage, process_common.idcounter);
 	}
 
-	return id;
-}
-
-
-static unsigned process_alloc(process_t *process)
-{
-	proc_lockSet(&process_common.lock);
-	process->id = _process_alloc(process_common.idcounter);
-
-	if (!process->id)
-		process->id = _process_alloc(process_common.idcounter = 1);
-
-	if (process_common.idcounter == MAX_PID)
-		process_common.idcounter = 1;
-
-	if (process->id) {
-		lib_rbInsert(&process_common.id, &process->idlinkage);
-		process_common.idcounter++;
+	if (id >= 0) {
+		if (process_common.idcounter == MAX_PID) {
+			process_common.idcounter = 1;
+		}
+		else {
+			process_common.idcounter++;
+		}
 	}
 	proc_lockClear(&process_common.lock);
 
-	return process->id;
-}
-
-
-static void process_augment(rbnode_t *node)
-{
-	rbnode_t *it;
-	process_t *n = lib_treeof(process_t, idlinkage, node);
-	process_t *p = n, *r, *l;
-
-	if (node->left == NULL) {
-		for (it = node; it->parent != NULL; it = it->parent) {
-			p = lib_treeof(process_t, idlinkage, it->parent);
-			if (it->parent->right == it)
-				break;
-		}
-
-		n->lgap = !!((n->id <= p->id) ? n->id : n->id - p->id - 1);
-	}
-	else {
-		l = lib_treeof(process_t, idlinkage, node->left);
-		n->lgap = max((int)l->lgap, (int)l->rgap);
-	}
-
-	if (node->right == NULL) {
-		for (it = node; it->parent != NULL; it = it->parent) {
-			p = lib_treeof(process_t, idlinkage, it->parent);
-			if (it->parent->left == it)
-				break;
-		}
-
-		n->rgap = !!((n->id >= p->id) ? MAX_PID - n->id - 1 : p->id - n->id - 1);
-	}
-	else {
-		r = lib_treeof(process_t, idlinkage, node->right);
-		n->rgap = max((int)r->lgap, (int)r->rgap);
-	}
-
-	for (it = node; it->parent != NULL; it = it->parent) {
-		n = lib_treeof(process_t, idlinkage, it);
-		p = lib_treeof(process_t, idlinkage, it->parent);
-
-		if (it->parent->left == it)
-			p->lgap = max((int)n->lgap, (int)n->rgap);
-		else
-			p->rgap = max((int)n->lgap, (int)n->rgap);
-	}
+	return id;
 }
 
 
@@ -313,7 +224,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 		return -EINVAL;
 	}
 
-	return process->id;
+	return process_getPid(process);
 }
 
 
@@ -341,11 +252,11 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	process = thread->process;
 
 	if ((intr = userintr_active()) != NULL)
-		lib_printf("in interrupt (%u) handler of process \"%s\" (PID: %u)\n", intr->handler.n, intr->process->path, intr->process->id);
+		lib_printf("in interrupt (%u) handler of process \"%s\" (PID: %u)\n", intr->handler.n, intr->process->path, process_getPid(intr->process));
 	else if (process == NULL)
 		lib_printf("in kernel thread %lu\n", thread->id);
 	else
-		lib_printf("in thread %lu, process \"%s\" (PID: %u)\n", thread->id, process->path, process->id);
+		lib_printf("in thread %lu, process \"%s\" (PID: %u)\n", thread->id, process->path, process_getPid(process));
 }
 
 
@@ -1083,7 +994,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			lib_printf("app %s: ", process->path);
 		}
 		else {
-			lib_printf("process %d: ", process->id);
+			lib_printf("process %d: ", process_getPid(process));
 		}
 
 		lib_printf("Found %d badreloc%c\n", badreloc, (badreloc > 1) ? 's' : ' ');
@@ -1229,7 +1140,7 @@ static void proc_spawnThread(void *arg)
 
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL) {
-		posix_clone(spawn->parent->process->id);
+		posix_clone(process_getPid(spawn->parent->process));
 	}
 
 	process_exec(current, spawn);
@@ -1402,7 +1313,7 @@ static void process_vforkThread(void *arg)
 
 	current = proc_current();
 	parent = spawn->parent;
-	posix_clone(parent->process->id);
+	posix_clone(process_getPid(parent->process));
 
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
@@ -1742,16 +1653,14 @@ int proc_execve(const char *path, char **argv, char **envp)
 
 int proc_sigpost(int pid, int sig)
 {
-	process_t s, *p;
-	int err;
-
-	s.id = pid;
+	process_t *p;
+	int err = -EINVAL;
 
 	proc_lockSet(&process_common.lock);
-	if ((p = lib_treeof(process_t, idlinkage, lib_rbFind(&process_common.id, &s.idlinkage))) != NULL)
+	p = lib_idtreeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
+	if (p != NULL) {
 		err = threads_sigpost(p, NULL, sig);
-	else
-		err = -EINVAL;
+	}
 	proc_lockClear(&process_common.lock);
 
 	return err;
@@ -1765,7 +1674,7 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	process_common.kernel = kernel;
 	process_common.idcounter = 1;
 	proc_lockInit(&process_common.lock, "process.common");
-	lib_rbInit(&process_common.id, proc_idcmp, process_augment);
+	lib_idtreeInit(&process_common.id);
 
 	hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
