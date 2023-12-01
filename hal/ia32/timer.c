@@ -92,28 +92,32 @@ struct {
 } timer_common;
 
 
-/* Programmable Interval Timer (Intel 8253/8254) */
-
-static unsigned int _hal_pitName(char *s, unsigned int *len)
+static unsigned int _hal_timersName(char *s, const char *prefix, unsigned long val, const char *suffix, unsigned int *len)
 {
-	static const char suffix[] = "kHz)";
-	unsigned int off = 0, n;
-
-	n = hal_i2s("Programmable Interval Timer (", s + off, PIT_FREQUENCY, 10, 0);
+	unsigned int off = 0, n = hal_strlen(prefix) + sizeof(val) * 10 / 4;
 	if (*len < n) {
-		n = *len;
+		return off;
 	}
+	n = hal_i2s(prefix, s + off, val, 10, 0);
 	off += n;
 	*len -= n;
 
 	hal_strncpy(s + off, suffix, *len);
-	n = sizeof(suffix) - 1;
+	n = hal_strlen(suffix);
 	if (*len < n) {
 		n = *len;
 	}
 	off += n;
 	*len -= n;
 	return off;
+}
+
+
+/* Programmable Interval Timer (Intel 8253/8254) */
+
+static unsigned int _hal_pitName(char *s, unsigned int *len)
+{
+	return _hal_timersName(s, "Programmable Interval Timer (", PIT_FREQUENCY, "kHz)", len);
 }
 
 
@@ -216,24 +220,7 @@ static int _hal_pitInit(u32 intervalUs)
 
 static unsigned int _hal_lapicTimerName(char *s, unsigned int *len)
 {
-	static const char suffix[] = "kHz)";
-	unsigned int off = 0, n;
-
-	n = hal_i2s("Local APIC Timer (", s + off, timer_common.lapicData.frequency, 10, 0);
-	if (*len < n) {
-		n = *len;
-	}
-	off += n;
-	*len -= n;
-
-	hal_strncpy(s + off, suffix, *len);
-	n = sizeof(suffix) - 1;
-	if (*len < n) {
-		n = *len;
-	}
-	off += n;
-	*len -= n;
-	return off;
+	return _hal_timersName(s, "Local APIC Timer (", timer_common.lapicData.frequency, "kHz)", len);
 }
 
 
@@ -310,22 +297,7 @@ static int _hal_lapicTimerIrqHandler(unsigned int n, cpu_context_t *ctx, void *a
 
 static unsigned int _hal_hpetName(char *s, unsigned int *len)
 {
-	static const char suffix[] = "kHz)";
-	unsigned int off = 0, n;
-
-	n = hal_i2s("High Precision Timer (", s + off, (u32)(1000000000000LLU / ((u64)timer_common.hpetData.period)), 10, 0);
-	if (*len < n) {
-		n = *len;
-	}
-	off += n;
-	*len -= n;
-
-	hal_strncpy(s + off, suffix, *len);
-	n = sizeof(suffix) - 1;
-	off += n;
-	*len -= n;
-
-	return off;
+	return _hal_timersName(s, "High Precision Timer (", (u32)(1000000000000ULL / ((u64)timer_common.hpetData.period)), "kHz)", len);
 }
 
 
@@ -375,7 +347,7 @@ static time_t _hal_hpetGetUs(void)
 {
 	u64 ret = _hal_hpetGetCounter();
 	ret *= (u64)timer_common.hpetData.period;
-	ret /= 1000000000LLU;
+	ret /= 1000000000ULL;
 	return ret;
 }
 
@@ -402,7 +374,7 @@ static int _hal_hpetInit(u32 intervalUs)
 	if (_hal_gasRead32(&timer_common.hpetData.addr, HPET_ID + sizeof(u32), &timer_common.hpetData.period) != 0) {
 		return -1;
 	}
-	_hal_hpetSetCounter(0LLU);
+	_hal_hpetSetCounter(0ULL);
 	_hal_hpetEnable(1);
 	return 0;
 }
@@ -512,20 +484,24 @@ char *hal_timerFeatures(char *features, unsigned int len)
 	const size_t textSchedulingLength = sizeof(textScheduling) - 1;
 	const size_t textTimestampLength = sizeof(textTimestamp) - 1;
 
-	unsigned int off = 0;
+	unsigned int off = 0, n;
+	if (len == 0) {
+		return features;
+	}
 	(void)hal_strncpy(features + off, textScheduling, len);
-	off += textSchedulingLength;
-	len -= textSchedulingLength;
+	n = (textSchedulingLength < len) ? textSchedulingLength : len;
+	off += n;
+	len -= n;
 
 	off += timer_common.schedulerTimer->name(features + off, &len);
 
 	(void)hal_strncpy(features + off, textTimestamp, len);
-	off += textTimestampLength;
-	len -= textTimestampLength;
+	n = (textTimestampLength < len) ? textTimestampLength : len;
+	off += n;
+	len -= n;
 
 	off += timer_common.timestampTimer->name(features + off, &len);
 	features[off] = '\0';
-	(features + off)[len - 1] = '\0';
 	return features;
 }
 
