@@ -23,6 +23,7 @@
 #include <arch/types.h>
 #include <board_config.h>
 
+#include "hal/sparcv8leon3/gaisler/ambapp.h"
 #include "hal/sparcv8leon3/gaisler/gaisler.h"
 
 /* Timer registers */

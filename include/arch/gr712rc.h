@@ -28,7 +28,7 @@ enum { cgudev_eth = 0, cgudev_spw0, cgudev_spw1, cgudev_spw2, cgudev_spw3, cgude
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_iomux = 0, pctl_cguctrl, pctl_reboot } type;
+	enum { pctl_iomux = 0, pctl_cguctrl, pctl_ambapp, pctl_reboot } type;
 
 	union {
 		struct {
@@ -45,6 +45,11 @@ typedef struct {
 			};
 			unsigned int cgudev;
 		} cguctrl;
+
+		struct {
+			struct _ambapp_dev_t *dev;
+			unsigned int *instance;
+		} ambapp;
 
 		struct {
 			unsigned int magic;
