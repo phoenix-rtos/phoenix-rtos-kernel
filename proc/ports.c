@@ -28,10 +28,10 @@ static int ports_cmp(rbnode_t *n1, rbnode_t *n2)
 	port_t *p1 = lib_treeof(port_t, linkage, n1);
 	port_t *p2 = lib_treeof(port_t, linkage, n2);
 
-	if (p1->id > p2->id) {
+	if ((p1->id) > (p2->id)) {
 		return 1;
 	}
-	else if (p2->id > p1->id) {
+	else if ((p2->id) > (p1->id)) {
 		return -1;
 	}
 	else {
@@ -47,8 +47,8 @@ static int ports_gapcmp(rbnode_t *n1, rbnode_t *n2)
 	rbnode_t *child = NULL;
 	int ret = 1;
 
-	if (p1->lmaxgap > 0 && p1->rmaxgap > 0) {
-		if (p2->id > p1->id) {
+	if ((p1->lmaxgap > 0) && (p1->rmaxgap > 0)) {
+		if ((p2->id) > (p1->id)) {
 			child = n1->right;
 			ret = -1;
 		}
@@ -66,8 +66,9 @@ static int ports_gapcmp(rbnode_t *n1, rbnode_t *n2)
 		ret = -1;
 	}
 
-	if (child == NULL)
+	if (child == NULL) {
 		return 0;
+	}
 
 	return ret;
 }
@@ -82,8 +83,9 @@ static void ports_augment(rbnode_t *node)
 	if (node->left == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(port_t, linkage, it->parent);
-			if (it->parent->right == it)
+			if (it->parent->right == it) {
 				break;
+			}
 		}
 
 		n->lmaxgap = (n->id <= p->id) ? n->id : n->id - p->id - 1;
@@ -96,8 +98,9 @@ static void ports_augment(rbnode_t *node)
 	if (node->right == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(port_t, linkage, it->parent);
-			if (it->parent->left == it)
+			if (it->parent->left == it) {
 				break;
+			}
 		}
 
 		n->rmaxgap = (n->id >= p->id) ? (unsigned)-1 - n->id - 1 : p->id - n->id - 1;
@@ -111,10 +114,12 @@ static void ports_augment(rbnode_t *node)
 		n = lib_treeof(port_t, linkage, it);
 		p = lib_treeof(port_t, linkage, it->parent);
 
-		if (it->parent->left == it)
+		if (it->parent->left == it) {
 			p->lmaxgap = max(n->lmaxgap, n->rmaxgap);
-		else
+		}
+		else {
 			p->rmaxgap = max(n->lmaxgap, n->rmaxgap);
+		}
 	}
 }
 
@@ -132,12 +137,15 @@ static int _proc_portAlloc(u32 *id)
 	t.id = 0;
 	p = lib_treeof(port_t, linkage, lib_rbFindEx(port_common.tree.root, &t.linkage, ports_gapcmp));
 	if (p != NULL) {
-		if (p->lmaxgap > 0)
+		if (p->lmaxgap > 0) {
 			*id = p->id - 1;
-		else if (p->rmaxgap > 0)
+		}
+		else if (p->rmaxgap > 0) {
 			*id = p->id + 1;
-		else
+		}
+		else {
 			return -ENOMEM;
+		}
 
 		return EOK;
 	}
@@ -204,13 +212,15 @@ void port_put(port_t *p, int destroy)
 	hal_spinlockSet(&p->spinlock, &sc);
 	p->refs--;
 
-	if (destroy)
+	if (destroy != 0) {
 		p->closed = 1;
+	}
 
-	if (p->refs) {
-		if (destroy)
+	if (p->refs != 0) {
+		if (destroy != 0) {
 			/* Wake receivers up */
 			proc_threadBroadcast(&p->threads);
+		}
 
 		hal_spinlockClear(&p->spinlock, &sc);
 		proc_lockClear(&port_common.port_lock);
@@ -222,8 +232,9 @@ void port_put(port_t *p, int destroy)
 	proc_lockClear(&port_common.port_lock);
 
 	proc_lockSet(&p->owner->lock);
-	if (p->next != NULL)
+	if (p->next != NULL) {
 		LIST_REMOVE(&p->owner->ports, p);
+	}
 	proc_lockClear(&p->owner->lock);
 
 	proc_lockDone(&p->lock);
@@ -238,9 +249,10 @@ int proc_portCreate(u32 *id)
 	thread_t *curr;
 	process_t *proc = NULL;
 
-
-	if ((port = vm_kmalloc(sizeof(port_t))) == NULL)
+	port = vm_kmalloc(sizeof(port_t));
+	if (port == NULL) {
 		return -ENOMEM;
+	}
 
 	proc_lockSet(&port_common.port_lock);
 	if (_proc_portAlloc(&port->id) != EOK) {
@@ -265,10 +277,14 @@ int proc_portCreate(u32 *id)
 	*id = port->id;
 	proc_lockClear(&port_common.port_lock);
 
-	if ((curr = proc_current()) != NULL && (proc = curr->process) != NULL) {
-		proc_lockSet(&proc->lock);
-		LIST_ADD((&proc->ports), port);
-		proc_lockClear(&proc->lock);
+	curr = proc_current();
+	if (curr != NULL) {
+		proc = curr->process;
+		if (proc != NULL) {
+			proc_lockSet(&proc->lock);
+			LIST_ADD((&proc->ports), port);
+			proc_lockClear(&proc->lock);
+		}
 	}
 
 	port->owner = proc;
@@ -287,18 +303,24 @@ void proc_portDestroy(u32 port)
 	thread_t *curr;
 	process_t *proc = NULL;
 
-	if ((p = proc_portGet(port)) == NULL)
+	p = proc_portGet(port);
+	if (p == NULL) {
 		return;
+	}
 
-	if (p->closed) {
+	if (p->closed != 0) {
 		port_put(p, 0);
 		return;
 	}
 
-	if ((curr = proc_current()) != NULL && (proc = curr->process) != NULL) {
-		if (p->owner != proc) {
-			port_put(p, 0);
-			return;
+	curr = proc_current();
+	if (curr != NULL) {
+		proc = curr->process;
+		if (proc != NULL) {
+			if (p->owner != proc) {
+				port_put(p, 0);
+				return;
+			}
 		}
 	}
 
@@ -311,7 +333,7 @@ void proc_portsDestroy(process_t *proc)
 {
 	port_t *p;
 
-	while (proc_lockSet(&proc->lock), (p = proc->ports) != NULL) {
+	for (proc_lockSet(&proc->lock), p = proc->ports; p != NULL; proc_lockSet(&proc->lock), p = proc->ports) {
 		LIST_REMOVE(&proc->ports, p);
 		proc_lockClear(&proc->lock);
 		port_put(p, 1);

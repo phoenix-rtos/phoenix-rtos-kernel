@@ -52,7 +52,7 @@ int proc_send(u32 port, msg_t *msg)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
-	if (p->closed) {
+	if (p->closed != 0) {
 		err = -EINVAL;
 	}
 	else {

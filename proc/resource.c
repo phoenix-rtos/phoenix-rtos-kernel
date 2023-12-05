@@ -38,33 +38,38 @@ static unsigned _resource_alloc(rbtree_t *tree, unsigned id)
 	resource_t *r = lib_treeof(resource_t, linkage, tree->root);
 
 	while (r != NULL) {
-		if (r->lgap && id < r->id) {
-			if (r->linkage.left == NULL)
+		if ((r->lgap != 0) && (id < r->id)) {
+			if (r->linkage.left == NULL) {
 				return max(id, r->id - r->lgap);
+			}
 
 			r = lib_treeof(resource_t, linkage, r->linkage.left);
 			continue;
 		}
 
-		if (r->rgap) {
-			if (r->linkage.right == NULL)
+		if (r->rgap != 0) {
+			if (r->linkage.right == NULL) {
 				return max(id, r->id + 1);
+			}
 
 			r = lib_treeof(resource_t, linkage, r->linkage.right);
 			continue;
 		}
 
 		for (;; r = lib_treeof(resource_t, linkage, r->linkage.parent)) {
-			if (r->linkage.parent == NULL)
+			if (r->linkage.parent == NULL) {
 				return NULL;
+			}
 
-			if ((r == lib_treeof(resource_t, linkage, r->linkage.parent->left)) && lib_treeof(resource_t, linkage, r->linkage.parent)->rgap)
+			if ((r == lib_treeof(resource_t, linkage, r->linkage.parent->left)) && (lib_treeof(resource_t, linkage, r->linkage.parent)->rgap != 0)) {
 				break;
+			}
 		}
 		r = lib_treeof(resource_t, linkage, r->linkage.parent);
 
-		if (r->linkage.right == NULL)
+		if (r->linkage.right == NULL) {
 			return r->id + 1;
+		}
 
 		r = lib_treeof(resource_t, linkage, r->linkage.right);
 	}
@@ -82,8 +87,9 @@ static void resource_augment(rbnode_t *node)
 	if (node->left == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(resource_t, linkage, it->parent);
-			if (it->parent->right == it)
+			if (it->parent->right == it) {
 				break;
+			}
 		}
 
 		n->lgap = !!((n->id <= p->id) ? n->id : n->id - p->id - 1);
@@ -96,8 +102,9 @@ static void resource_augment(rbnode_t *node)
 	if (node->right == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(resource_t, linkage, it->parent);
-			if (it->parent->left == it)
+			if (it->parent->left == it) {
 				break;
+			}
 		}
 
 		n->rgap = !!((n->id >= p->id) ? MAX_PID - n->id - 1 : p->id - n->id - 1);
@@ -111,10 +118,12 @@ static void resource_augment(rbnode_t *node)
 		n = lib_treeof(resource_t, linkage, it);
 		p = lib_treeof(resource_t, linkage, it->parent);
 
-		if (it->parent->left == it)
+		if (it->parent->left == it) {
 			p->lgap = max((int)n->lgap, (int)n->rgap);
-		else
+		}
+		else {
 			p->rgap = max((int)n->lgap, (int)n->rgap);
+		}
 	}
 }
 
@@ -139,8 +148,10 @@ resource_t *resource_get(process_t *process, int type, unsigned int id)
 	t.id = id;
 
 	proc_lockSet(&process->lock);
-	if ((r = lib_treeof(resource_t, linkage, lib_rbFind(&process->resources, &t.linkage))) != NULL && r->type == type)
+	r = lib_treeof(resource_t, linkage, lib_rbFind(&process->resources, &t.linkage));
+	if ((r != NULL) && (r->type == type)) {
 		lib_atomicIncrement(&r->refs);
+	}
 	proc_lockClear(&process->lock);
 
 	return r;
@@ -168,8 +179,10 @@ resource_t *resource_remove(process_t *process, unsigned id)
 	t.id = id;
 
 	proc_lockSet(&process->lock);
-	if ((r = lib_treeof(resource_t, linkage, lib_rbFind(&process->resources, &t.linkage))) != NULL)
+	r = lib_treeof(resource_t, linkage, lib_rbFind(&process->resources, &t.linkage));
+	if (r != NULL) {
 		lib_rbRemove(&process->resources, &r->linkage);
+	}
 	proc_lockClear(&process->lock);
 
 	return r;
@@ -181,8 +194,10 @@ resource_t *resource_removeNext(process_t *process)
 	resource_t *r;
 
 	proc_lockSet(&process->lock);
-	if ((r = lib_treeof(resource_t, linkage, lib_rbMinimum(process->resources.root))) != NULL)
+	r = lib_treeof(resource_t, linkage, lib_rbMinimum(process->resources.root));
+	if (r != NULL) {
 		lib_rbRemove(&process->resources, &r->linkage);
+	}
 	proc_lockClear(&process->lock);
 
 	return r;
@@ -221,11 +236,14 @@ int proc_resourceDestroy(process_t *process, unsigned id)
 {
 	resource_t *r;
 
-	if ((r = resource_remove(process, id)) == NULL)
+	r = resource_remove(process, id);
+	if (r == NULL) {
 		return -EINVAL;
+	}
 
-	if (proc_resourcePut(r))
+	if (proc_resourcePut(r)) {
 		return -EBUSY;
+	}
 
 	return EOK;
 }
@@ -235,8 +253,9 @@ void proc_resourcesDestroy(process_t *process)
 {
 	resource_t *r;
 
-	while ((r = resource_removeNext(process)))
+	for (r = resource_removeNext(process); r != 0; r = resource_removeNext(process)) {
 		proc_resourcePut(r);
+	}
 }
 
 
@@ -270,7 +289,7 @@ int proc_resourcesCopy(process_t *source)
 			break;
 		}
 
-		if (err > 0 && err != r->id) {
+		if ((err > 0) && (err != r->id)) {
 			/* Reinsert resource to match original resource id */
 			newr = resource_remove(process, err);
 			if (newr == NULL) {
@@ -281,13 +300,15 @@ int proc_resourcesCopy(process_t *source)
 			err = lib_rbInsert(&process->resources, &newr->linkage);
 		}
 
-		if (err < 0)
+		if (err < 0) {
 			break;
+		}
 	}
 	proc_lockClear(&source->lock);
 
-	if (err > 0)
+	if (err > 0) {
 		err = EOK;
+	}
 
 	return err;
 }

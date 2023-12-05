@@ -28,9 +28,9 @@ mutex_t *mutex_get(unsigned int h)
 
 int mutex_put(mutex_t *mutex)
 {
-	int rem;
+	int rem = resource_put(&mutex->resource);
 
-	if (!(rem = resource_put(&mutex->resource))) {
+	if (rem == 0) {
 		proc_lockDone(&mutex->lock);
 		vm_kfree(mutex);
 	}
@@ -39,18 +39,20 @@ int mutex_put(mutex_t *mutex)
 }
 
 
-int proc_mutexCreate()
+int proc_mutexCreate(void)
 {
 	process_t *process;
 	mutex_t *mutex;
 	int id;
 
 	process = proc_current()->process;
-
-	if ((mutex = vm_kmalloc(sizeof(mutex_t))) == NULL)
+	mutex = vm_kmalloc(sizeof(mutex_t));
+	if (mutex == NULL) {
 		return -ENOMEM;
+	}
 
-	if (!(id = resource_alloc(process, &mutex->resource, rtLock))) {
+	id = resource_alloc(process, &mutex->resource, rtLock);
+	if (id == 0) {
 		vm_kfree(mutex);
 		id = -ENOMEM;
 	}
@@ -68,13 +70,16 @@ int proc_mutexLock(unsigned int h)
 	mutex_t *mutex;
 	int err = EOK;
 
-	if ((mutex = mutex_get(h)) == NULL)
+	mutex = mutex_get(h);
+	if (mutex == NULL) {
 		return -EINVAL;
+	}
 
 	err = proc_lockSetInterruptible(&mutex->lock);
 
-	if (!mutex_put(mutex))
+	if (mutex_put(mutex) == 0) {
 		err = -EINVAL;
+	}
 
 	return err;
 }
@@ -85,13 +90,16 @@ int proc_mutexTry(unsigned int h)
 	mutex_t *mutex;
 	int err = EOK;
 
-	if ((mutex = mutex_get(h)) == NULL)
+	mutex = mutex_get(h);
+	if (mutex == NULL) {
 		return -EINVAL;
+	}
 
 	err = proc_lockTry(&mutex->lock);
 
-	if (!mutex_put(mutex))
+	if (mutex_put(mutex) == 0) {
 		err = -EINVAL;
+	}
 
 	return err;
 }
@@ -102,13 +110,16 @@ int proc_mutexUnlock(unsigned int h)
 	mutex_t *mutex;
 	int err = EOK;
 
-	if ((mutex = mutex_get(h)) == NULL)
+	mutex = mutex_get(h);
+	if (mutex == NULL) {
 		return -EINVAL;
+	}
 
 	err = proc_lockClear(&mutex->lock);
 
-	if (!mutex_put(mutex))
+	if (mutex_put(mutex) == 0) {
 		err = -EINVAL;
+	}
 
 	return err;
 }

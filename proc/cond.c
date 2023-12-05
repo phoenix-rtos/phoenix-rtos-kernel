@@ -23,10 +23,10 @@
 
 int cond_put(cond_t *cond)
 {
-	int rem;
-
-	if (!(rem = resource_put(&cond->resource)))
+	int rem = resource_put(&cond->resource);
+	if (rem == 0) {
 		vm_kfree(cond);
+	}
 
 	return rem;
 }
@@ -38,7 +38,7 @@ cond_t *cond_get(unsigned int c)
 }
 
 
-int proc_condCreate()
+int proc_condCreate(void)
 {
 	process_t *process;
 	cond_t *cond;
@@ -46,10 +46,13 @@ int proc_condCreate()
 
 	process = proc_current()->process;
 
-	if ((cond = vm_kmalloc(sizeof(cond_t))) == NULL)
+	cond = vm_kmalloc(sizeof(cond_t));
+	if (cond == NULL) {
 		return -ENOMEM;
+	}
 
-	if (!(id = resource_alloc(process, &cond->resource, rtCond))) {
+	id = resource_alloc(process, &cond->resource, rtCond);
+	if (id == 0) {
 		vm_kfree(cond);
 		id = -ENOMEM;
 	}
@@ -68,18 +71,23 @@ int proc_condWait(unsigned int c, unsigned int m, time_t timeout)
 	mutex_t *mutex;
 	int err = -EINVAL;
 
-	if ((cond = cond_get(c)) == NULL)
+	cond = cond_get(c);
+	if (cond == NULL) {
 		return err;
-
-	if ((mutex = mutex_get(m)) != NULL) {
-		err = proc_lockWait(&cond->queue, &mutex->lock, timeout);
-
-		if (!mutex_put(mutex))
-			err = -EINVAL;
 	}
 
-	if (!cond_put(cond))
+	mutex = mutex_get(m);
+	if (mutex != NULL) {
+		err = proc_lockWait(&cond->queue, &mutex->lock, timeout);
+
+		if (mutex_put(mutex) == 0) {
+			err = -EINVAL;
+		}
+	}
+
+	if (cond_put(cond) == 0) {
 		err = -EINVAL;
+	}
 
 	return err;
 }
@@ -90,13 +98,16 @@ int proc_condSignal(unsigned int c)
 	cond_t *cond;
 	int err = EOK;
 
-	if ((cond = cond_get(c)) == NULL)
+	cond = cond_get(c);
+	if (cond == NULL) {
 		return -EINVAL;
+	}
 
 	proc_threadWakeupYield(&cond->queue);
 
-	if (!cond_put(cond))
+	if (cond_put(cond) == 0) {
 		err = -EINVAL;
+	}
 
 	return err;
 }
@@ -107,13 +118,16 @@ int proc_condBroadcast(unsigned int c)
 	cond_t *cond;
 	int err = EOK;
 
-	if ((cond = cond_get(c)) == NULL)
+	cond = cond_get(c);
+	if (cond == NULL) {
 		return -EINVAL;
+	}
 
 	proc_threadBroadcastYield(&cond->queue);
 
-	if (!cond_put(cond))
+	if (cond_put(cond) == 0) {
 		err = -EINVAL;
+	}
 
 	return err;
 }

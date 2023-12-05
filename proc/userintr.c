@@ -27,13 +27,14 @@ struct {
 
 int userintr_put(userintr_t *ui)
 {
-	int rem;
+	int rem = resource_put(&ui->resource);
 
-	if (!(rem = resource_put(&ui->resource))) {
+	if (rem == 0) {
 		hal_interruptsDeleteHandler(&ui->handler);
 
-		if (ui->cond != NULL)
+		if (ui->cond != NULL) {
 			cond_put(ui->cond);
+		}
 
 		vm_kfree(ui);
 	}
@@ -48,8 +49,9 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	int ret, reschedule = 0;
 	process_t *p = NULL;
 
-	if (proc_current() != NULL)
+	if (proc_current() != NULL) {
 		p = (proc_current())->process;
+	}
 
 	/* Switch into the handler address space */
 	pmap_switch(ui->process->pmapp);
@@ -71,14 +73,15 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1)), attr, NULL);
 #endif
 
-	if (ret >= 0 && ui->cond != NULL) {
+	if ((ret >= 0) && (ui->cond != NULL)) {
 		reschedule = 1;
 		proc_threadWakeup(&ui->cond->queue);
 	}
 
 	/* Restore process address space */
-	if ((p != NULL) && (p->pmapp != NULL))
+	if ((p != NULL) && (p->pmapp != NULL)) {
 		pmap_switch(p->pmapp);
+	}
 
 	return reschedule;
 }
@@ -92,8 +95,10 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 
 	process = proc_current()->process;
 
-	if ((ui = vm_kmalloc(sizeof(userintr_t))) == NULL)
+	ui = vm_kmalloc(sizeof(userintr_t));
+	if (ui == NULL) {
 		return -ENOMEM;
+	}
 
 	ui->handler.next = NULL;
 	ui->handler.prev = NULL;
@@ -106,9 +111,12 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 	ui->process = process;
 	ui->cond = NULL;
 
-	if (c == 0 || (ui->cond = cond_get(c)) != NULL) {
-		if ((res = hal_interruptsSetHandler(&ui->handler)) == EOK) {
-			if ((res = resource_alloc(process, &ui->resource, rtInth))) {
+	if ((c == 0) || ((ui->cond = cond_get(c)) != NULL)) {
+
+		res = hal_interruptsSetHandler(&ui->handler);
+		if (res == EOK) {
+			res = resource_alloc(process, &ui->resource, rtInth);
+			if (res != 0) {
 				userintr_put(ui);
 				return res;
 			}
@@ -119,7 +127,9 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 			hal_interruptsDeleteHandler(&ui->handler);
 		}
 
-		if (c) cond_put(ui->cond);
+		if (c != 0) {
+			cond_put(ui->cond);
+		}
 	}
 	else {
 		res = -EINVAL;

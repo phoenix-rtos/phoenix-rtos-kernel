@@ -43,8 +43,9 @@ static unsigned int dcache_strHash(const char *str)
 	unsigned int hash = 0;
 	unsigned char c;
 
-	while ((c = *str++) != '\0')
+	for (c = *str++; c != '\0'; c = *str++) {
 		hash += (c << 4) + (c >> 4) * 11;
+	}
 
 	return hash & ((1 << HASH_LEN) - 1);
 }
@@ -54,8 +55,9 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 {
 	dcache_entry_t *entry = name_common.dcache[hash];
 
-	while (entry != NULL && hal_strcmp(entry->name, name) != 0)
+	while ((entry != NULL) && (hal_strcmp(entry->name, name) != 0)) {
 		entry = entry->next;
+	}
 
 	return entry;
 }
@@ -74,20 +76,24 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 	}
 	proc_lockClear(&name_common.dcache_lock);
 
-	if (name[0] == '/' && name[1] == 0) {
+	if ((name[0] == '/') && (name[1] == 0)) {
 		name_common.root_oid.port = port;
-		if (oid != NULL)
+		if (oid != NULL) {
 			name_common.root_oid.id = oid->id;
+		}
 		name_common.root_registered = 1;
 		return EOK;
 	}
 
-	if ((entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1)) == NULL)
+	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1);
+	if (entry == NULL) {
 		return -ENOMEM;
+	}
 
 	entry->oid.port = port;
-	if (oid != NULL)
+	if (oid != NULL) {
 		entry->oid.id = oid->id;
+	}
 	hal_strcpy(entry->name, name);
 
 	proc_lockSet(&name_common.dcache_lock);
@@ -107,7 +113,7 @@ void proc_portUnregister(const char *name)
 	proc_lockSet(&name_common.dcache_lock);
 	entry = name_common.dcache[hash];
 
-	while (entry != NULL && hal_strcmp(entry->name, name) != 0) {
+	while ((entry != NULL) && (hal_strcmp(entry->name, name) != 0)) {
 		/* Find entry to remove */
 		prev = entry;
 		entry = entry->next;
@@ -119,10 +125,12 @@ void proc_portUnregister(const char *name)
 		return;
 	}
 
-	if (prev != NULL)
+	if (prev != NULL) {
 		prev->next = entry->next;
-	else
+	}
+	else {
 		name_common.dcache[hash] = NULL;
+	}
 	proc_lockClear(&name_common.dcache_lock);
 
 	vm_kfree(entry);
@@ -138,15 +146,18 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
 
-	if (name == NULL || (file == NULL && dev == NULL))
+	if ((name == NULL) || ((file == NULL) && (dev == NULL))) {
 		return -EINVAL;
+	}
 
-	if (name[0] == '/' && name[1] == 0) {
-		if (name_common.root_registered) {
-			if (file != NULL)
+	if ((name[0] == '/') && (name[1] == 0)) {
+		if (name_common.root_registered != 0) {
+			if (file != NULL) {
 				*file = name_common.root_oid;
-			if (dev != NULL)
+			}
+			if (dev != NULL) {
 				*dev = name_common.root_oid;
+			}
 			return EOK;
 		}
 
@@ -155,11 +166,14 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 	/* Search cache for full path */
 	proc_lockSet(&name_common.dcache_lock);
-	if ((entry = _dcache_entryLookup(dcache_strHash(name), name)) != NULL) {
-		if (file != NULL)
+	entry = _dcache_entryLookup(dcache_strHash(name), name);
+	if (entry != NULL) {
+		if (file != NULL) {
 			*file = entry->oid;
-		if (dev != NULL)
+		}
+		if (dev != NULL) {
 			*dev = entry->oid;
+		}
 		proc_lockClear(&name_common.dcache_lock);
 		return EOK;
 	}
@@ -175,7 +189,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		pptr = pstack;
 	}
 	else {
-		if ((pheap = vm_kmalloc(len + 1)) == NULL)
+		pheap = vm_kmalloc(len + 1);
+		if (pheap == NULL)
 			return -ENOMEM;
 		pptr = pheap;
 	}
@@ -184,17 +199,19 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	hal_strcpy(pptr, name);
 
 	while (i > 1) {
-		while (i > 0 && pptr[i] != '/') {
+		while ((i > 0) && (pptr[i] != '/')) {
 			--i;
 		}
 
-		if (i == 0)
+		if (i == 0) {
 			break;
+		}
 
 		pptr[i] = '\0';
 
 		proc_lockSet(&name_common.dcache_lock);
-		if ((entry = _dcache_entryLookup(dcache_strHash(pptr), pptr)) != NULL) {
+		entry = _dcache_entryLookup(dcache_strHash(pptr), pptr);
+		if (entry != NULL) {
 			srv = entry->oid;
 			proc_lockClear(&name_common.dcache_lock);
 			break;
@@ -202,15 +219,18 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		proc_lockClear(&name_common.dcache_lock);
 	}
 
-	if (!name_common.root_registered && !i) {
-		if (pheap != NULL)
+	if ((name_common.root_registered == 0) && (i == 0)) {
+		if (pheap != NULL) {
 			vm_kfree(pheap);
+		}
 		return -EINVAL;
 	}
 
-	if ((msg = vm_kmalloc(sizeof(msg_t))) == NULL) {
-		if (pheap != NULL)
+	msg = vm_kmalloc(sizeof(msg_t));
+	if (msg == NULL) {
+		if (pheap != NULL) {
 			vm_kfree(pheap);
+		}
 		return -ENOMEM;
 	}
 
@@ -224,13 +244,17 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		hal_memcpy(pptr, name + i + 1, len - i);
 		msg->i.data = pptr;
 
-		if ((err = proc_send(srv.port, msg)) < 0)
+		err = proc_send(srv.port, msg);
+		if (err < 0) {
 			break;
+		}
 
 		srv = msg->o.lookup.dev;
 
-		if ((err = msg->o.lookup.err) < 0)
+		err = msg->o.lookup.err;
+		if (err < 0) {
 			break;
+		}
 
 		if (i + err > len) {
 			err = -EINVAL;
@@ -241,15 +265,18 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 	while (i != len);
 
-	if (file != NULL)
+	if (file != NULL) {
 		*file = msg->o.lookup.fil;
-	if (dev != NULL)
+	}
+	if (dev != NULL) {
 		*dev = msg->o.lookup.dev;
+	}
 
 	vm_kfree(msg);
-	if (pheap != NULL)
+	if (pheap != NULL) {
 		vm_kfree(pheap);
-	return err < 0 ? err : EOK;
+	}
+	return (err < 0) ? err : EOK;
 #endif
 
 }
@@ -257,8 +284,9 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 {
-	if (file != NULL)
+	if (file != NULL) {
 		file->id = 0;
+	}
 
 	return proc_portLookup((char *)name, file, dev);
 }
@@ -269,8 +297,9 @@ int proc_open(oid_t oid, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -278,8 +307,10 @@ int proc_open(oid_t oid, unsigned mode)
 	hal_memcpy(&msg->i.openclose.oid, &oid, sizeof(oid_t));
 	msg->i.openclose.flags = mode;
 
-	if (!(err = proc_send(oid.port, msg)))
+	err = proc_send(oid.port, msg);
+	if (err == 0) {
 		err = msg->o.io.err;
+	}
 
 	vm_kfree(msg);
 	return err;
@@ -291,8 +322,9 @@ int proc_close(oid_t oid, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -302,8 +334,9 @@ int proc_close(oid_t oid, unsigned mode)
 
 	err = proc_send(oid.port, msg);
 
-	if (err == EOK)
+	if (err == EOK) {
 		err = msg->o.io.err;
+	}
 
 	vm_kfree(msg);
 
@@ -316,8 +349,9 @@ int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, 
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -327,12 +361,13 @@ int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, 
 	msg->i.create.dev = dev;
 	msg->i.create.dir = dir;
 	msg->i.data = name;
-	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
+	msg->i.size = (name == NULL) ? 0 : hal_strlen(name) + 1;
 
 	err = proc_send(port, msg);
 
-	if (!err)
+	if (err == 0) {
 		err = msg->o.create.err;
+	}
 
 	hal_memcpy(oid, &msg->o.create.oid, sizeof(oid_t));
 	vm_kfree(msg);
@@ -345,8 +380,9 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -359,8 +395,9 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 
 	err = proc_send(dir.port, msg);
 
-	if (!err)
+	if (err == 0) {
 		err = msg->o.io.err;
+	}
 
 	vm_kfree(msg);
 	return err;
@@ -372,8 +409,9 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -386,8 +424,9 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 
 	err = proc_send(dir.port, msg);
 
-	if (!err)
+	if (err == 0) {
 		err = msg->o.io.err;
+	}
 
 	vm_kfree(msg);
 	return err;
@@ -399,8 +438,9 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -415,8 +455,9 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 
 	err = proc_send(oid.port, msg);
 
-	if (err >= 0)
+	if (err >= 0) {
 		err = msg->o.io.err;
+	}
 
 	vm_kfree(msg);
 	return err;
@@ -428,8 +469,9 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -444,8 +486,9 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 
 	err = proc_send(oid.port, msg);
 
-	if (err >= 0)
+	if (err >= 0) {
 		err = msg->o.io.err;
+	}
 
 	vm_kfree(msg);
 	return err;
@@ -457,8 +500,9 @@ off_t proc_size(oid_t oid)
 	off_t err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -466,8 +510,13 @@ off_t proc_size(oid_t oid)
 	hal_memcpy(&msg->i.attr.oid, &oid, sizeof(oid_t));
 	msg->i.attr.type = 3; /* atSize */
 
-	if (((err = proc_send(oid.port, msg)) == EOK) && ((err = msg->o.attr.err) == EOK))
-		err = msg->o.attr.val;
+	err = proc_send(oid.port, msg);
+	if (err == EOK) {
+		err = msg->o.attr.err;
+		if (err == EOK) {
+			err = msg->o.attr.val;
+		}
+	}
 
 	vm_kfree(msg);
 	return err;
