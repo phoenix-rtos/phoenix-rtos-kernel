@@ -41,7 +41,7 @@ struct {
 
 	/* Synchronized by mutex */
 	unsigned int idcounter;
-	rbtree_t id;
+	idtree_t id;
 
 	intr_handler_t timeintrHandler;
 
@@ -85,36 +85,13 @@ static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
 	thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
 	thread_t *t2 = lib_treeof(thread_t, sleeplinkage, n2);
 
-	if (t1->wakeup > t2->wakeup)
-		return 1;
-
-	else if (t1->wakeup < t2->wakeup)
-		return -1;
-
-	else if (t1->id < t2->id)
-		return -1;
-
-	else if (t1->id > t2->id)
-		return 1;
-
-	return 0;
+	if (t1->wakeup != t2->wakeup) {
+		return (t1->wakeup > t2->wakeup) ? 1 : -1;
+	}
+	else {
+		return (proc_getTid(t1) > proc_getTid(t2)) ? 1 : -1;
+	}
 }
-
-
-static int threads_idcmp(rbnode_t *n1, rbnode_t *n2)
-{
-	thread_t *t1 = lib_treeof(thread_t, idlinkage, n1);
-	thread_t *t2 = lib_treeof(thread_t, idlinkage, n2);
-
-	if (t1->id < t2->id)
-		return -1;
-
-	else if (t1->id > t2->id)
-		return 1;
-
-	return 0;
-}
-
 
 /*
  * Thread monitoring
@@ -153,7 +130,7 @@ static void _perf_event(thread_t *t, int type)
 
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
-	ev.tid = perf_idpack(t->id);
+	ev.tid = perf_idpack(proc_getTid(t));
 
 	_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
 }
@@ -194,7 +171,7 @@ static void _perf_begin(thread_t *t)
 	ev.sbz = 0;
 	ev.type = perf_levBegin;
 	ev.prio = t->priority;
-	ev.tid = perf_idpack(t->id);
+	ev.tid = perf_idpack(proc_getTid(t));
 	ev.pid = t->process != NULL ? perf_idpack(process_getPid(t->process)) : -1;
 
 	now = _proc_gettimeRaw();
@@ -217,7 +194,7 @@ void perf_end(thread_t *t)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levEnd;
-	ev.tid = perf_idpack(t->id);
+	ev.tid = perf_idpack(proc_getTid(t));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
@@ -242,7 +219,7 @@ void perf_fork(process_t *p)
 	ev.type = perf_levFork;
 	ev.pid = perf_idpack(process_getPid(p));
 	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
-	ev.tid = perf_idpack(_proc_current()->id);
+	ev.tid = perf_idpack(proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
@@ -266,7 +243,7 @@ void perf_kill(process_t *p)
 	ev.sbz = 0;
 	ev.type = perf_levKill;
 	ev.pid = perf_idpack(process_getPid(p));
-	ev.tid = perf_idpack(_proc_current()->id);
+	ev.tid = perf_idpack(proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
@@ -290,7 +267,7 @@ void perf_exec(process_t *p, char *path)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levExec;
-	ev.tid = perf_idpack(_proc_current()->id);
+	ev.tid = perf_idpack(proc_getTid(_proc_current()));
 
 	plen = hal_strlen(path);
 	plen = min(plen, sizeof(ev.path) - 1);
@@ -515,19 +492,16 @@ static void thread_destroy(thread_t *thread)
 
 thread_t *threads_findThread(int tid)
 {
-	thread_t *thread, t;
+	thread_t *t;
 
-	t.id = tid;
 	proc_lockSet(&threads_common.lock);
-
-	thread = lib_treeof(thread_t, idlinkage, lib_rbFind(&threads_common.id, &t.idlinkage));
-	if (thread != NULL) {
-		thread->refs++;
+	t = lib_idtreeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.id, tid));
+	if (t != NULL) {
+		++t->refs;
 	}
-
 	proc_lockClear(&threads_common.lock);
 
-	return thread;
+	return t;
 }
 
 
@@ -536,12 +510,10 @@ void threads_put(thread_t *thread)
 	int refs;
 
 	proc_lockSet(&threads_common.lock);
-
 	refs = --thread->refs;
 	if (refs <= 0) {
-		lib_rbRemove(&threads_common.id, &thread->idlinkage);
+		lib_idtreeRemove(&threads_common.id, &thread->idlinkage);
 	}
-
 	proc_lockClear(&threads_common.lock);
 
 	if (refs <= 0) {
@@ -643,12 +615,14 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 		LIB_ASSERT_ALWAYS((selected->execkstack != NULL) || ((void *)selected->context > selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
-			"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded", (selected->process != NULL) ? process_getPid(selected->process) : 0,
-			selected->id, selected->kstack, selected->context);
+			"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
+			(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+			selected->kstack, selected->context);
 
 		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
 			(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
-			"pid: %d, tid: %d, path: %s, user stack corrupted", process_getPid(selected->process), selected->id, selected->process->path);
+			"pid: %d, tid: %d, path: %s, user stack corrupted",
+			process_getPid(selected->process), proc_getTid(selected), selected->process->path);
 #endif
 	}
 
@@ -668,6 +642,7 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return ret;
 }
+
 
 static thread_t *_proc_current(void)
 {
@@ -692,110 +667,29 @@ thread_t *proc_current(void)
 }
 
 
-static unsigned _thread_alloc(unsigned id)
+static int thread_alloc(thread_t *thread)
 {
-	thread_t *p = lib_treeof(thread_t, idlinkage, threads_common.id.root);
+	int id;
 
-	while (p != NULL) {
-		if (p->lgap && id < p->id) {
-			if (p->idlinkage.left == NULL)
-				return max(id, p->id - p->lgap);
-
-			p = lib_treeof(thread_t, idlinkage, p->idlinkage.left);
-			continue;
-		}
-
-		if (p->rgap) {
-			if (p->idlinkage.right == NULL)
-				return max(id, p->id + 1);
-
-			p = lib_treeof(thread_t, idlinkage, p->idlinkage.right);
-			continue;
-		}
-
-		for (;; p = lib_treeof(thread_t, idlinkage, p->idlinkage.parent)) {
-			if (p->idlinkage.parent == NULL)
-				return NULL;
-
-			if ((p == lib_treeof(thread_t, idlinkage, p->idlinkage.parent->left)) && lib_treeof(thread_t, idlinkage, p->idlinkage.parent)->rgap)
-				break;
-		}
-		p = lib_treeof(thread_t, idlinkage, p->idlinkage.parent);
-
-		if (p->idlinkage.right == NULL)
-			return p->id + 1;
-
-		p = lib_treeof(thread_t, idlinkage, p->idlinkage.right);
+	proc_lockSet(&threads_common.lock);
+	id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, threads_common.idcounter);
+	if (id < 0) {
+		/* Try from the start */
+		threads_common.idcounter = 0;
+		id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, threads_common.idcounter);
 	}
 
-	return id;
-}
-
-
-static unsigned thread_alloc(thread_t *thread)
-{
-	proc_lockSet(&threads_common.lock);
-	thread->id = _thread_alloc(threads_common.idcounter);
-
-	if (!thread->id)
-		thread->id = _thread_alloc(threads_common.idcounter = 1);
-
-	if (threads_common.idcounter == MAX_TID)
-		threads_common.idcounter = 1;
-
-	if (thread->id) {
-		lib_rbInsert(&threads_common.id, &thread->idlinkage);
-		threads_common.idcounter++;
+	if (id >= 0) {
+		if (threads_common.idcounter == MAX_TID) {
+			threads_common.idcounter = 0;
+		}
+		else {
+			threads_common.idcounter++;
+		}
 	}
 	proc_lockClear(&threads_common.lock);
 
-	return thread->id;
-}
-
-
-static void thread_augment(rbnode_t *node)
-{
-	rbnode_t *it;
-	thread_t *n = lib_treeof(thread_t, idlinkage, node);
-	thread_t *p = n, *r, *l;
-
-	if (node->left == NULL) {
-		for (it = node; it->parent != NULL; it = it->parent) {
-			p = lib_treeof(thread_t, idlinkage, it->parent);
-			if (it->parent->right == it)
-				break;
-		}
-
-		n->lgap = !!((n->id <= p->id) ? n->id : n->id - p->id - 1);
-	}
-	else {
-		l = lib_treeof(thread_t, idlinkage, node->left);
-		n->lgap = max((int)l->lgap, (int)l->rgap);
-	}
-
-	if (node->right == NULL) {
-		for (it = node; it->parent != NULL; it = it->parent) {
-			p = lib_treeof(thread_t, idlinkage, it->parent);
-			if (it->parent->left == it)
-				break;
-		}
-
-		n->rgap = !!((n->id >= p->id) ? MAX_TID - n->id - 1 : p->id - n->id - 1);
-	}
-	else {
-		r = lib_treeof(thread_t, idlinkage, node->right);
-		n->rgap = max((int)r->lgap, (int)r->rgap);
-	}
-
-	for (it = node; it->parent != NULL; it = it->parent) {
-		n = lib_treeof(thread_t, idlinkage, it);
-		p = lib_treeof(thread_t, idlinkage, it->parent);
-
-		if (it->parent->left == it)
-			p->lgap = max((int)n->lgap, (int)n->rgap);
-		else
-			p->rgap = max((int)n->lgap, (int)n->rgap);
-	}
+	return id;
 }
 
 
@@ -855,9 +749,16 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
 
+	if (thread_alloc(t) < 0) {
+		vm_kfree(t->kstack);
+		vm_kfree(t);
+		return -ENOMEM;
+	}
+
 	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
+			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
 			vm_kfree(t->kstack);
 			vm_kfree(t);
 			return err;
@@ -871,14 +772,13 @@ int proc_threadCreate(process_t *process, void (*start)(void *), unsigned int *i
 		t->tls.arm_m_tls = NULL;
 	}
 
+	if (id != NULL) {
+		*id = proc_getTid(t);
+	}
+
 	/* Prepare initial stack */
 	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, (stack == NULL) ? NULL : (unsigned char *)stack + stacksz, arg, &t->tls);
 	threads_canaryInit(t, stack);
-
-	thread_alloc(t);
-	if (id != NULL) {
-		*id = t->id;
-	}
 
 	if (process != NULL) {
 		hal_cpuSetCtxGot(t->context, process->got);
@@ -967,7 +867,7 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 		if (i == hal_cpuGetCount()) {
 			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread) != 0,
 				"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
-				thread, thread->id, thread->priority);
+				thread, proc_getTid(thread), thread->priority);
 			LIST_REMOVE(&threads_common.ready[thread->priority], thread);
 			LIST_ADD(&threads_common.ready[priority], thread);
 		}
@@ -1331,7 +1231,7 @@ int proc_join(int tid, time_t timeout)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
-	if (current->id == tid) {
+	if (proc_getTid(current) == tid) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return -EDEADLK;
 	}
@@ -1344,7 +1244,7 @@ int proc_join(int tid, time_t timeout)
 		do {
 			if (firstGhost != NULL) {
 				do {
-					if (ghost->id == tid) {
+					if (proc_getTid(ghost) == tid) {
 						found = 1;
 						break;
 					}
@@ -1375,7 +1275,7 @@ int proc_join(int tid, time_t timeout)
 
 	if (ghost != NULL) {
 		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
-		id = ghost->id;
+		id = proc_getTid(ghost);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1453,7 +1353,6 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	int sigbit = 1 << sig;
 	spinlock_ctx_t sc;
-
 
 	switch (sig) {
 		case signal_segv:
@@ -1619,7 +1518,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 	current = _proc_current();
 
 	LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
-		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, current->id);
+		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 	if (_proc_lockTry(current, lock) < 0) {
 		/* Lock owner might inherit our priority */
@@ -1705,7 +1604,7 @@ static int _proc_lockUnlock(lock_t *lock)
 	(void)current; /* Unused in non-debug build */
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
-		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, owner->id);
+		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
 
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
@@ -1727,7 +1626,8 @@ static int _proc_lockUnlock(lock_t *lock)
 	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
 
 	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
-		(current->process != NULL) ? process_getPid(current->process) : 0, current->id, current->priorityBase, current->priority);
+		(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->priorityBase,
+		current->priority);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1757,10 +1657,11 @@ static int _proc_lockClear(lock_t *lock)
 	thread_t *current = proc_current();
 
 	LIB_ASSERT(lock->owner != NULL, "lock: %s, pid: %d, tid: %d, unlock on not locked lock",
-		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, current->id);
+		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 	LIB_ASSERT(lock->owner == current, "lock: %s, pid: %d, tid: %d, owner: %d, unlocking someone's else lock",
-		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, current->id, lock->owner->id);
+		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0,
+		proc_getTid(current), proc_getTid(lock->owner));
 #endif
 
 	if (lock->owner == NULL) {
@@ -1955,7 +1856,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		info[i].tid = t->id;
+		info[i].tid = proc_getTid(t);
 		info[i].priority = t->priorityBase;
 		info[i].state = t->state;
 
@@ -2028,7 +1929,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 
 		++i;
-		t = lib_treeof(thread_t, idlinkage, lib_rbNext(&t->idlinkage));
+		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
 	}
 
 	proc_lockClear(&threads_common.lock);
@@ -2059,7 +1960,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.ready[i] = NULL;
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
-	lib_rbInit(&threads_common.id, threads_idcmp, thread_augment);
+	lib_idtreeInit(&threads_common.id);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
 

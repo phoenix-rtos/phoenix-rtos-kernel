@@ -254,9 +254,9 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	if ((intr = userintr_active()) != NULL)
 		lib_printf("in interrupt (%u) handler of process \"%s\" (PID: %u)\n", intr->handler.n, intr->process->path, process_getPid(intr->process));
 	else if (process == NULL)
-		lib_printf("in kernel thread %lu\n", thread->id);
+		lib_printf("in kernel thread %lu\n", proc_getTid(thread));
 	else
-		lib_printf("in thread %lu, process \"%s\" (PID: %u)\n", thread->id, process->path, process_getPid(process));
+		lib_printf("in thread %lu, process \"%s\" (PID: %u)\n", proc_getTid(thread), process->path, process_getPid(process));
 }
 
 
