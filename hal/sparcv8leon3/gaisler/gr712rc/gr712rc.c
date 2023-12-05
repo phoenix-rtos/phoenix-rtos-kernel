@@ -161,6 +161,12 @@ int hal_platformctl(void *ptr)
 			}
 			break;
 
+		case pctl_ambapp:
+			if (data->action == pctl_get) {
+				ret = ambapp_findSlave(data->ambapp.dev, data->ambapp.instance);
+			}
+			break;
+
 		case pctl_reboot:
 			if ((data->action == pctl_set) && (data->reboot.magic == PCTL_REBOOT_MAGIC)) {
 				hal_cpuReboot();

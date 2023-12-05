@@ -23,6 +23,9 @@
 #include "hal/sparcv8leon3/srmmu.h"
 
 
+#define LEON3_IOAREA 0xfff00000u
+
+
 static inline void hal_cpuDataStoreBarrier(void)
 {
 	__asm__ volatile("stbar;");
@@ -78,13 +81,21 @@ static inline void hal_cpuflushICache(void)
  */
 static inline void hal_cpuStorePaddr(u32 *paddr, u32 val)
 {
+#ifndef NOMMU
 	hal_cpuStoreAlternate((addr_t)paddr, ASI_MMU_BYPASS, val);
+#else
+	*paddr = val;
+#endif
 }
 
 /* Bypass MMU - load from physical address */
 static inline u32 hal_cpuLoadPaddr(u32 *paddr)
 {
+#ifndef NOMMU
 	return hal_cpuLoadAlternate((addr_t)paddr, ASI_MMU_BYPASS);
+#else
+	return *paddr;
+#endif
 }
 
 
