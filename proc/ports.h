@@ -5,7 +5,7 @@
  *
  * Ports
  *
- * Copyright 2017, 2018 Phoenix Systems
+ * Copyright 2017, 2018, 2023 Phoenix Systems
  * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
@@ -24,15 +24,12 @@
 
 
 typedef struct _port_t {
-	rbnode_t linkage;
+	idnode_t linkage;
 	struct _port_t *next;
 	struct _port_t *prev;
 
 	idtree_t rid;
 
-	u32 id;
-	u32 lmaxgap;
-	u32 rmaxgap;
 	kmsg_t *kmessages;
 	process_t *owner;
 	int refs, closed;
@@ -43,6 +40,8 @@ typedef struct _port_t {
 	msg_t *current;
 } port_t;
 
+/* FIXME - use int for port handle.
+ * Or even better, use dedicated type. */
 
 int proc_portCreate(u32 *port);
 
