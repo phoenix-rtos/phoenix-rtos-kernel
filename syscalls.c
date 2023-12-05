@@ -255,7 +255,7 @@ int syscalls_getppid(void *ustack)
 
 int syscalls_gettid(void *ustack)
 {
-	return (int)proc_current()->id;
+	return proc_getTid(proc_current());
 }
 
 

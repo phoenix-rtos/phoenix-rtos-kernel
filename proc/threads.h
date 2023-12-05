@@ -23,7 +23,7 @@
 #include "process.h"
 #include "lock.h"
 
-#define MAX_TID ((1LL << (__CHAR_BIT__ * (sizeof(unsigned)) - 1)) - 1)
+#define MAX_TID MAX_ID
 
 /* Parent thread states */
 enum { PREFORK = 0, FORKING = 1, FORKED };
@@ -40,16 +40,13 @@ typedef struct _thread_t {
 	struct _lock_t *locks;
 
 	rbnode_t sleeplinkage;
-	rbnode_t idlinkage;
-	unsigned lgap : 1;
-	unsigned rgap : 1;
+	idnode_t idlinkage;
 
 	struct _process_t *process;
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
 	int refs;
-	unsigned long id;
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
@@ -86,6 +83,12 @@ typedef struct _thread_t {
 
 	cpu_context_t *context;
 } thread_t;
+
+
+static inline int proc_getTid(thread_t *t)
+{
+	return t->idlinkage.id;
+}
 
 
 extern int perf_start(unsigned pid);
