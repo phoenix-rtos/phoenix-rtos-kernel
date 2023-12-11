@@ -311,14 +311,12 @@ void hal_cpuReboot(void)
 
 void hal_cleanDCache(ptr_t start, size_t len)
 {
-	(void)start;
-	(void)len;
-
 #ifdef CPU_IMXRT
-	/* Clean the whole cache, no harm in being overzealous */
-	_imxrt_cleanDCache();
+	_imxrt_cleanInvalDCacheAddr((void *)start, len);
 #else
 	/* TODO */
+	(void)start;
+	(void)len;
 #endif
 }
 

@@ -234,7 +234,7 @@ extern void _imxrt_disableMPU(void);
 extern void _imxrt_enableDCache(void);
 
 
-extern void _imxrt_cleanDCache(void);
+extern void _imxrt_cleanInvalDCacheAddr(void *addr, u32 sz);
 
 
 extern void _imxrt_disableDCache(void);
