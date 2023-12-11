@@ -17,7 +17,6 @@
 #include "include/errno.h"
 #include "mutex.h"
 #include "threads.h"
-#include "file.h"
 #include "cond.h"
 #include "resource.h"
 #include "name.h"

@@ -55,10 +55,6 @@
 	ID(mmdump) \
 	ID(platformctl) \
 	ID(wdgreload) \
-	ID(fileAdd) \
-	ID(fileSet) \
-	ID(fileGet) \
-	ID(fileRemove) \
 	ID(threadsinfo) \
 	ID(meminfo) \
 	ID(perf_start) \
