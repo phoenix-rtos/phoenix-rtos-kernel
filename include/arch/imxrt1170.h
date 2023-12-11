@@ -18,7 +18,7 @@
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 
-
+/* clang-format off */
 /* CCM - Clock gating */
 
 enum { pctl_clk_cm7 = 0, pctl_clk_cm4, pctl_clk_bus, pctl_clk_bus_lpsr, pctl_clk_semc, pctl_clk_cssys,
@@ -308,7 +308,7 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
 	enum { pctl_devclock = 0, pctl_iogpr, pctl_iolpsrgpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot, pctl_devcache,
-		pctl_lpcg } type;
+		pctl_lpcg, pctl_cleanInvalDCache } type;
 
 	union {
 		struct {
@@ -357,7 +357,19 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+
+		struct {
+			unsigned char state;
+		} devcache;
+
+		struct {
+			void *addr;
+			unsigned int sz;
+		} cleanInvalDCache;
 	};
 } __attribute__((packed)) platformctl_t;
+
+
+/* clang-format on */
 
 #endif

@@ -517,28 +517,29 @@ void _imxrt_disableDCache(void)
 }
 
 
-void _imxrt_cleanDCache(void)
+void _imxrt_cleanInvalDCacheAddr(void *addr, u32 sz)
 {
-	register u32 ccsidr, sets, ways;
+	u32 daddr;
+	int dsize;
 
-	*(imxrt_common.scb + scb_csselr) = 0;
+	if (sz == 0u) {
+		return;
+	}
+
+	daddr = (((u32)addr) & ~0x1fu);
+	dsize = sz + ((u32)addr & 0x1fu);
 
 	hal_cpuDataSyncBarrier();
-	ccsidr = *(imxrt_common.scb + scb_ccsidr);
 
-	/* Clean D$ */
-	sets = (ccsidr >> 13) & 0x7fff;
 	do {
-		ways = (ccsidr >> 3) & 0x3ff;
-		do {
-			*(imxrt_common.scb + scb_dccsw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
-		} while (ways-- != 0);
-	} while(sets-- != 0);
+		*(imxrt_common.scb + scb_dccimvac) = daddr;
+		daddr += 0x20u;
+		dsize -= 0x20;
+	} while (dsize > 0);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 }
-
 
 
 void _imxrt_enableICache(void)
@@ -722,98 +723,119 @@ int hal_platformctl(void *ptr)
 	hal_spinlockSet(&imxrt_common.pltctlSp, &sc);
 
 	switch (data->type) {
-
-	case pctl_devclock:
-		if (data->action == pctl_set) {
-			ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.div, data->devclock.mux,
-				data->devclock.mfd, data->devclock.mfn, data->devclock.state);
-		}
-		else if (data->action == pctl_get) {
-			if (!(ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state))) {
-				data->devclock.div = div;
-				data->devclock.mux = mux;
-				data->devclock.mfd = mfd;
-				data->devclock.mfn = mfn;
-				data->devclock.state = state;
+		case pctl_devclock:
+			if (data->action == pctl_set) {
+				ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.div, data->devclock.mux,
+					data->devclock.mfd, data->devclock.mfn, data->devclock.state);
 			}
-		}
-		break;
-
-	case pctl_lpcg:
-		if (data->action == pctl_set) {
-			if (data->lpcg.op == pctl_lpcg_op_direct) {
-				ret = _imxrt_setDirectLPCG(data->lpcg.dev, data->lpcg.state);
-			}
-			else if (data->lpcg.op == pctl_lpcg_op_level) {
-				ret = _imxrt_setLevelLPCG(data->lpcg.dev, data->lpcg.state);
-			}
-		}
-		else if (data->action == pctl_get) {
-			if (data->lpcg.op == pctl_lpcg_op_direct) {
-				ret = _imxrt_getDirectLPCG(data->lpcg.dev, &state);
-				if (ret == EOK) {
-					data->lpcg.state = state;
+			else if (data->action == pctl_get) {
+				if (!(ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state))) {
+					data->devclock.div = div;
+					data->devclock.mux = mux;
+					data->devclock.mfd = mfd;
+					data->devclock.mfn = mfn;
+					data->devclock.state = state;
 				}
 			}
-		}
-		break;
+			break;
 
-	case pctl_iogpr:
-		if (data->action == pctl_set) {
-			ret = _imxrt_setIOgpr(data->iogpr.field, data->iogpr.val);
-		}
-		else if (data->action == pctl_get) {
-			if ((ret = _imxrt_getIOgpr(data->iogpr.field, &t)) == 0)
-				data->iogpr.val = t;
-		}
-		break;
+		case pctl_lpcg:
+			if (data->action == pctl_set) {
+				if (data->lpcg.op == pctl_lpcg_op_direct) {
+					ret = _imxrt_setDirectLPCG(data->lpcg.dev, data->lpcg.state);
+				}
+				else if (data->lpcg.op == pctl_lpcg_op_level) {
+					ret = _imxrt_setLevelLPCG(data->lpcg.dev, data->lpcg.state);
+				}
+			}
+			else if (data->action == pctl_get) {
+				if (data->lpcg.op == pctl_lpcg_op_direct) {
+					ret = _imxrt_getDirectLPCG(data->lpcg.dev, &state);
+					if (ret == EOK) {
+						data->lpcg.state = state;
+					}
+				}
+			}
+			break;
 
-	case pctl_iolpsrgpr:
-		if (data->action == pctl_set) {
-			ret = _imxrt_setIOlpsrGpr(data->iogpr.field, data->iogpr.val);
-		}
-		else if (data->action == pctl_get) {
-			if ((ret = _imxrt_getIOlpsrGpr(data->iogpr.field, &t)) == 0)
-				data->iogpr.val = t;
-		}
-		break;
+		case pctl_iogpr:
+			if (data->action == pctl_set) {
+				ret = _imxrt_setIOgpr(data->iogpr.field, data->iogpr.val);
+			}
+			else if (data->action == pctl_get) {
+				if ((ret = _imxrt_getIOgpr(data->iogpr.field, &t)) == 0)
+					data->iogpr.val = t;
+			}
+			break;
 
-	case pctl_iomux:
-		if (data->action == pctl_set)
-			ret = _imxrt_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
-		else if (data->action == pctl_get)
-			ret = _imxrt_getIOmux(data->iomux.mux, &data->iomux.sion, &data->iomux.mode);
-		break;
+		case pctl_iolpsrgpr:
+			if (data->action == pctl_set) {
+				ret = _imxrt_setIOlpsrGpr(data->iogpr.field, data->iogpr.val);
+			}
+			else if (data->action == pctl_get) {
+				if ((ret = _imxrt_getIOlpsrGpr(data->iogpr.field, &t)) == 0)
+					data->iogpr.val = t;
+			}
+			break;
 
-	case pctl_iopad:
-		if (data->action == pctl_set)
-			ret = _imxrt_setIOpad(data->iopad.pad, data->iopad.sre, data->iopad.dse, data->iopad.pue,
-				data->iopad.pus, data->iopad.ode, data->iopad.apc);
-		else if (data->action == pctl_get)
-			ret = _imxrt_getIOpad(data->iopad.pad, &data->iopad.sre, &data->iopad.dse, &data->iopad.pue,
-				&data->iopad.pus, &data->iopad.ode, &data->iopad.apc);
-		break;
+		case pctl_iomux:
+			if (data->action == pctl_set)
+				ret = _imxrt_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
+			else if (data->action == pctl_get)
+				ret = _imxrt_getIOmux(data->iomux.mux, &data->iomux.sion, &data->iomux.mode);
+			break;
 
-	case pctl_ioisel:
-		if (data->action == pctl_set)
-			ret = _imxrt_setIOisel(data->ioisel.isel, data->ioisel.daisy);
-		else if (data->action == pctl_get)
-			ret = _imxrt_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
-		break;
+		case pctl_iopad:
+			if (data->action == pctl_set)
+				ret = _imxrt_setIOpad(data->iopad.pad, data->iopad.sre, data->iopad.dse, data->iopad.pue,
+					data->iopad.pus, data->iopad.ode, data->iopad.apc);
+			else if (data->action == pctl_get)
+				ret = _imxrt_getIOpad(data->iopad.pad, &data->iopad.sre, &data->iopad.dse, &data->iopad.pue,
+					&data->iopad.pus, &data->iopad.ode, &data->iopad.apc);
+			break;
 
-	case pctl_reboot:
-		if (data->action == pctl_set) {
-			if (data->reboot.magic == PCTL_REBOOT_MAGIC)
-				_imxrt_nvicSystemReset();
-		}
-		else if (data->action == pctl_get) {
-			data->reboot.reason = imxrt_common.resetFlags;
-			ret = EOK;
-		}
-		break;
+		case pctl_ioisel:
+			if (data->action == pctl_set)
+				ret = _imxrt_setIOisel(data->ioisel.isel, data->ioisel.daisy);
+			else if (data->action == pctl_get)
+				ret = _imxrt_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
+			break;
 
-	default:
-		break;
+		case pctl_reboot:
+			if (data->action == pctl_set) {
+				if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+					_imxrt_nvicSystemReset();
+			}
+			else if (data->action == pctl_get) {
+				data->reboot.reason = imxrt_common.resetFlags;
+				ret = EOK;
+			}
+			break;
+
+		case pctl_devcache:
+			if (data->action == pctl_set) {
+				if (data->devcache.state == 0) {
+					_imxrt_disableDCache();
+					_imxrt_disableICache();
+				}
+				else {
+					_imxrt_enableDCache();
+					_imxrt_enableICache();
+				}
+
+				ret = EOK;
+			}
+			break;
+
+		case pctl_cleanInvalDCache:
+			if (data->action == pctl_set) {
+				_imxrt_cleanInvalDCacheAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz);
+				ret = EOK;
+			}
+			break;
+
+		default:
+			break;
 	}
 
 	hal_spinlockClear(&imxrt_common.pltctlSp, &sc);
