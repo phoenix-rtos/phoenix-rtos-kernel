@@ -87,6 +87,8 @@ void *syscalls_mmap(void *ustack)
 		}
 	}
 
+	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
+
 	vaddr = vm_mmap(proc_current()->process->mapp, vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
 	vm_objectPut(o);
 
