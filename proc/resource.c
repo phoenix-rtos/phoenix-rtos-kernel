@@ -57,14 +57,7 @@ resource_t *resource_get(process_t *process, int id)
 
 int resource_put(process_t *process, resource_t *r)
 {
-	int rem;
-
-	proc_lockSet(&process->lock);
-	--r->refs;
-	rem = r->refs;
-	proc_lockClear(&process->lock);
-
-	return rem;
+	return lib_atomicDecrement(&r->refs);
 }
 
 
