@@ -79,7 +79,7 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 
 	if (ret >= 0 && ui->cond != NULL) {
 		reschedule = 1;
-		proc_threadWakeup(&ui->cond->queue);
+		proc_threadBroadcast(&ui->cond->queue);
 	}
 
 	/* Restore process address space */
