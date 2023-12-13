@@ -115,7 +115,13 @@ void _hal_consoleInit(void)
 	_gr716_cguClkEnable(cgu_primary, CONSOLE_CGU);
 #endif
 	halconsole_common.uart = VADDR_CONSOLE;
-	*(halconsole_common.uart + uart_ctrl) = TX_EN;
+	*(halconsole_common.uart + uart_ctrl) = 0;
+
+	/* Clear UART FIFO */
+	while ((*(halconsole_common.uart + uart_status) & (1 << 0)) != 0) {
+		(void)*(halconsole_common.uart + uart_data);
+	}
 	*(halconsole_common.uart + uart_scaler) = _hal_consoleCalcScaler(CONSOLE_BAUDRATE);
+	*(halconsole_common.uart + uart_ctrl) = TX_EN;
 	hal_cpuDataStoreBarrier();
 }
