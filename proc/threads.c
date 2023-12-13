@@ -1174,11 +1174,14 @@ int proc_threadBroadcast(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (*queue != wakeupPending) {
-		while (*queue != NULL) {
+	if ((*queue != NULL) && (*queue != wakeupPending)) {
+		do {
 			_proc_threadWakeup(queue);
 			ret++;
-		}
+		} while (*queue != NULL);
+	}
+	else {
+		(*queue) = wakeupPending;
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return ret;
