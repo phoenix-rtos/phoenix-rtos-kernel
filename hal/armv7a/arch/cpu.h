@@ -49,18 +49,14 @@
 #define SYSTICK_INTERVAL 1000
 
 
-#define PUTONSTACK(kstack, t, v) \
-	do { \
-		(kstack) -= (sizeof(t) + 3) & ~0x3; \
-		*((t *)kstack) = (v); \
-	} while (0)
+#define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
 		ustack = (void *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
 		(v) = *(t *)ustack; \
-		ustack += (sizeof(t) + 3) & ~0x3; \
+		ustack += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
 
 typedef struct _cpu_context_t {

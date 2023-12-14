@@ -258,7 +258,7 @@ hal_longjmp:
 .ltorg
 
 
-.globl hal_jmp
+.globl hal_jmp /* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
 .type hal_jmp, %function
 hal_jmp:
 	cpsid if
@@ -266,37 +266,29 @@ hal_jmp:
 	mov r5, r1
 	mov r6, r2
 	mov r7, r3
-	cmp r6, #0
+	ldr r8, [sp]
+	/* ustack != NULL means that the jump is to user */
+	cmp r6, #NULL
 	bne 2f
 	mov sp, r5
+	/* pass args */
 	subs r7, #1
 	bmi 1f
-	pop {r0}
+	ldr r0, [r8]
 	subs r7, #1
 	bmi 1f
-	pop {r1}
+	ldr r1, [r8, #4]
 	subs r7, #1
 	bmi 1f
-	pop {r2}
+	ldr r2, [r8, #8]
 	subs r7, #1
 	bmi 1f
-	pop {r3}
+	ldr r3, [r8, #12]
 1:	cpsie if
 	blx r4
+	/* Handle userspace jump */
 2:	mov sp, r6
-	subs r7, #1
-	bmi 3f
-	pop {r0}
-	subs r7, #1
-	bmi 3f
-	pop {r1}
-	subs r7, #1
-	bmi 3f
-	pop {r2}
-	subs r7, #1
-	bmi 3f
-	pop {r3}
-3:	cps #0x12
+	cps #IRQ_MODE
 	mov r5, #0x10
 	tst r4, #1
 	orrne r5, r5, #(1 << 5)

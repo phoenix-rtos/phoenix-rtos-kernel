@@ -363,32 +363,32 @@ hal_cpuReschedule0:
 .ltorg
 
 
-.globl hal_jmp /* void hal_jmp(void *f, void *kstack, void *stack, int argc) */
+.globl hal_jmp /* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
 .type hal_jmp, %function
 hal_jmp:
-	push {r0-r3}
-	pop {r4-r7}
-
 	cpsid if
 	isb
 
-	cmp r2, #NULL
+	push {r0-r3}
+	pop {r4-r8} /* kargs has been passed on the stack */
+
+	cmp r6, #NULL
 	bne hal_jmp_user
 
 	mov sp, r5
 	isb
 	subs r7, #1
 	bmi 1f
-	pop {r0}
+	ldr r0, [r8]
 	subs r7, #1
 	bmi 1f
-	pop {r1}
+	ldr r1, [r8, #4]
 	subs r7, #1
 	bmi 1f
-	pop {r2}
+	ldr r2, [r8, #8]
 	subs r7, #1
 	bmi 1f
-	pop {r3}
+	ldr r3, [r8, #12]
 1:
 	cpsie if
 	isb
@@ -400,19 +400,6 @@ hal_jmp_user:
 	isb
 	msr msp, r5
 	isb
-	subs r7, #1
-	bmi 2f
-	pop {r0}
-	subs r7, #1
-	bmi 2f
-	pop {r1}
-	subs r7, #1
-	bmi 2f
-	pop {r2}
-	subs r7, #1
-	bmi 2f
-	pop {r3}
-2:
 	msr psp, r6
 	cpsie if
 	isb

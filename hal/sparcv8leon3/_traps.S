@@ -1088,7 +1088,7 @@ r_cwp_done1:
 /**************** Jump functions ****************/
 
 
-/* void hal_jmp(void *f, void *kstack, void *stack, int argc) */
+/* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
 .global	hal_jmp
 .type	hal_jmp, #function
 hal_jmp:
@@ -1127,16 +1127,15 @@ hal_jmp:
 	nop
 	subcc %i3, 1, %i3
 	bneg 2f
-	ld [%fp], %o0
+	ld [%i4], %o0
 	subcc %i3, 1, %i3
 	bneg 2f
-	ld [%fp + 4], %o1
+	ld [%i4 + 4], %o1
 	subcc %i3, 1, %i3
 	bneg 2f
-	ld [%fp + 8], %o2
-	ld [%fp + 12], %o3
+	ld [%i4 + 8], %o2
+	ld [%i4 + 12], %o3
 2:
-	andn %fp, 0x7, %fp
 	sub %fp, 0x60, %sp
 	wr %l0, PSR_ET, %psr
 	nop
@@ -1145,21 +1144,7 @@ hal_jmp:
 	call %i0
 	nop
 3:
-	subcc %i3, 1, %i3
-	bneg 4f
-	mov %i2, %o0
-	subcc %i3, 1, %i3
-	bneg 4f
-	ld [%i2], %o0
-	subcc %i3, 1, %i3
-	bneg 4f
-	ld [%i2 + 4], %o1
-	subcc %i3, 1, %i3
-	bneg 4f
-	ld [%i2 + 8], %o2
-	ld [%i2 + 12], %o3
-4:
-	andn %i2, 0x7, %fp
+	mov %i2, %fp
 	sub %fp, 0x60, %sp
 
 	/* Enable traps, disable interrupts */

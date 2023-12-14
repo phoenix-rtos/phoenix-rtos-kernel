@@ -26,6 +26,15 @@
 struct _hal_tls_t;
 
 
+typedef ptr_t arg_t;
+
+
+struct stackArg {
+	const void *argp;
+	size_t sz;
+};
+
+
 /* interrupts */
 
 
@@ -103,7 +112,7 @@ extern void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
 extern void hal_longjmp(cpu_context_t *ctx);
 
 
-extern void hal_jmp(void *f, void *kstack, void *stack, int argc);
+extern void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargs);
 
 
 /* core management */
@@ -137,6 +146,12 @@ extern void hal_cpuTlsSet(struct _hal_tls_t *tls, cpu_context_t *ctx);
 
 
 extern void hal_cleanDCache(ptr_t start, size_t len);
+
+
+/* stack management */
+
+
+extern void hal_stackPutArgs(void **stack, size_t argc, const struct stackArg *argv);
 
 
 #endif

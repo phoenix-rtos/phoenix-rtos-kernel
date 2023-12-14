@@ -180,11 +180,7 @@
 #define SYSTICK_INTERVAL 10000
 
 
-#define PUTONSTACK(kstack, t, v) \
-	do { \
-		(kstack) -= ((sizeof(t) + 3) & ~3);	\
-		*((t *)kstack) = (v); \
-	} while (0)
+#define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \
@@ -192,7 +188,7 @@
 		if (n == 0) \
 			ustack += 4; \
 		v = *(t *)ustack; \
-		ustack += ((sizeof(t) + 3) & ~3); \
+		ustack += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
 
 

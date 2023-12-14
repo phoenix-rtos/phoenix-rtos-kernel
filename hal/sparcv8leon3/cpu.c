@@ -150,19 +150,21 @@ void _hal_cpuSetKernelStack(void *kstack)
 int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
-
+	const struct stackArg args[] = {
+		{ &ctx->psr, sizeof(ctx->psr) },
+		{ &ctx->sp, sizeof(ctx->sp) },
+		{ &ctx->npc, sizeof(ctx->npc) },
+		{ &ctx->pc, sizeof(ctx->pc) },
+		{ &signalCtx, sizeof(signalCtx) },
+		{ &n, sizeof(n) },
+	};
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
 	signalCtx->pc = (u32)handler;
 	signalCtx->npc = (u32)handler + 4;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
-	PUTONSTACK(signalCtx->sp, u32, ctx->psr);
-	PUTONSTACK(signalCtx->sp, u32, ctx->sp);
-	PUTONSTACK(signalCtx->sp, u32, ctx->npc);
-	PUTONSTACK(signalCtx->sp, u32, ctx->pc);
-	PUTONSTACK(signalCtx->sp, cpu_context_t *, signalCtx);
-	PUTONSTACK(signalCtx->sp, int, n);
+	hal_stackPutArgs((void **)&signalCtx->sp, sizeof(args) / sizeof(args[0]), args);
 
 	if (src == SIG_SRC_SCHED) {
 		/* We'll be returning through interrupt dispatcher,
