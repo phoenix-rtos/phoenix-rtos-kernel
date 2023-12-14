@@ -34,7 +34,7 @@ OBJS := $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o usrv.o)
 
 all: $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf
 
-include hal/$(TARGET_SUFF)/Makefile
+include hal/Makefile
 include vm/Makefile
 include proc/Makefile
 include posix/Makefile

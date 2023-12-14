@@ -96,6 +96,13 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	const struct stackArg args[] = {
+		{ &ctx->psr, sizeof(ctx->psr) },
+		{ &ctx->sp, sizeof(ctx->sp) },
+		{ &ctx->pc, sizeof(ctx->pc) },
+		{ &signalCtx, sizeof(signalCtx) },
+		{ &n, sizeof(n) },
+	};
 
 	(void)src;
 
@@ -111,12 +118,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		signalCtx->psr &= ~THUMB_STATE;
 	}
 
-	PUTONSTACK(signalCtx->sp, u32, 0); /* alignment */
-	PUTONSTACK(signalCtx->sp, u32, ctx->psr);
-	PUTONSTACK(signalCtx->sp, u32, ctx->sp);
-	PUTONSTACK(signalCtx->sp, u32, ctx->pc);
-	PUTONSTACK(signalCtx->sp, cpu_context_t *, signalCtx);
-	PUTONSTACK(signalCtx->sp, int, n);
+	hal_stackPutArgs((void **)&signalCtx->sp, sizeof(args) / sizeof(args[0]), args);
 
 	return 0;
 }

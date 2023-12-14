@@ -180,6 +180,12 @@ void _hal_cpuSetKernelStack(void *kstack)
 int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	const struct stackArg args[] = {
+		{ &ctx->esp, sizeof(ctx->esp) },
+		{ &ctx->eip, sizeof(ctx->eip) },
+		{ &signalCtx, sizeof(signalCtx) },
+		{ &n, sizeof(n) },
+	};
 
 	(void)src;
 
@@ -188,10 +194,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	signalCtx->eip = (u32)handler;
 	signalCtx->esp -= sizeof(cpu_context_t);
 
-	PUTONSTACK(signalCtx->esp, u32, ctx->esp);
-	PUTONSTACK(signalCtx->esp, u32, ctx->eip);
-	PUTONSTACK(signalCtx->esp, cpu_context_t *, signalCtx);
-	PUTONSTACK(signalCtx->esp, int, n);
+	hal_stackPutArgs((void **)&signalCtx->esp, sizeof(args) / sizeof(args[0]), args);
 
 	return 0;
 }
@@ -255,10 +258,25 @@ void hal_longjmp(cpu_context_t *ctx)
 }
 
 
-void hal_jmp(void *f, void *kstack, void *stack, int argc)
+void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargv)
 {
+	/* We support passing at most 4 args on every architecture. */
+	struct stackArg args[4];
+	size_t i;
+
+	if (kargc > 4) {
+		kargc = 4;
+	}
+
+	for (i = 0; i < kargc; i++) {
+		/* Args on stack are in reverse order. */
+		args[i].argp = &kargv[kargc - i - 1];
+		args[i].sz = sizeof(arg_t);
+	}
+	hal_stackPutArgs(&kstack, kargc, args);
+
 	hal_tlbFlushLocal(NULL);
-	if (stack == NULL) {
+	if (ustack == NULL) {
 		/* clang-format off */
 		__asm__ volatile (
 			"movl %0, %%esp\n\t"
@@ -289,7 +307,7 @@ void hal_jmp(void *f, void *kstack, void *stack, int argc)
 			"pushl %%eax\n\t"
 			"iret"
 		:
-		: [kstack] "g" (kstack), [func] "g" (f), [ustack] "g" (stack), [ucs] "g" (SEL_UCODE), [uds] "g" ((8 * hal_cpuGetTlsIndex() | 3) << 16 | SEL_UDATA)
+		: [kstack] "g" (kstack), [func] "g" (f), [ustack] "g" (ustack), [ucs] "g" (SEL_UCODE), [uds] "g" ((8 * hal_cpuGetTlsIndex() | 3) << 16 | SEL_UDATA)
 		: "eax", "ebx", "ecx", "edx");
 		/* clang-format on */
 	}

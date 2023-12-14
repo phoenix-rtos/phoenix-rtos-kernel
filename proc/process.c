@@ -1072,7 +1072,14 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 {
 	void *stack, *entry;
 	int err, count;
+	void *cleanupFn = NULL;
 	spinlock_ctx_t sc;
+	const struct stackArg args[] = {
+		{ &spawn->envp, sizeof(spawn->envp) },
+		{ &spawn->argv, sizeof(spawn->argv) },
+		{ &count, sizeof(count) },
+		{ &cleanupFn, sizeof(cleanupFn) }
+	};
 
 	current->process->argv = spawn->argv;
 	current->process->envp = spawn->envp;
@@ -1092,12 +1099,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	if (err == 0) {
 		stack = process_putargs(stack, &spawn->envp, &count);
 		stack = process_putargs(stack, &spawn->argv, &count);
-
-		/* temporary? put arguments to main on stack */
-		PUTONSTACK(stack, char **, spawn->envp);
-		PUTONSTACK(stack, char **, spawn->argv);
-		PUTONSTACK(stack, int, count);
-		PUTONSTACK(stack, void *, NULL); /* return address */
+		hal_stackPutArgs(&stack, sizeof(args) / sizeof(args[0]), args);
 	}
 
 	if (spawn->parent == NULL) {
@@ -1129,7 +1131,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
-	hal_jmp(entry, current->kstack + current->kstacksz, stack, 0);
+	hal_jmp(entry, current->kstack + current->kstacksz, stack, 0, NULL);
 }
 
 
@@ -1286,19 +1288,20 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 void proc_exit(int code)
 {
 	thread_t *current = proc_current();
-	process_spawn_t *spawn;
+	process_spawn_t *spawn = current->execdata;
 	void *kstack;
+	arg_t args[3];
 
 	current->process->exit = code;
 
-	if ((spawn = current->execdata) != NULL) {
+	if (spawn != NULL) {
 		kstack = current->kstack = current->execkstack;
 		kstack += current->kstacksz;
 
-		PUTONSTACK(kstack, int, FORKED);
-		PUTONSTACK(kstack, process_spawn_t *, spawn);
-		PUTONSTACK(kstack, thread_t *, current);
-		hal_jmp(proc_vforkedExit, kstack, NULL, 3);
+		args[0] = (arg_t)current;
+		args[1] = (arg_t)spawn;
+		args[2] = (arg_t)FORKED;
+		hal_jmp(proc_vforkedExit, kstack, NULL, 3, args);
 	}
 
 	proc_kill(current->process);
@@ -1493,6 +1496,7 @@ int proc_fork(void)
 	thread_t *current;
 	void *kstack;
 	unsigned sigmask;
+	arg_t args[3];
 
 	err = proc_vfork();
 	if (err == 0) {
@@ -1511,10 +1515,11 @@ int proc_fork(void)
 
 		if (err < 0) {
 			kstack = current->kstack + current->kstacksz;
-			PUTONSTACK(kstack, int, err);
-			PUTONSTACK(kstack, process_spawn_t *, current->execdata);
-			PUTONSTACK(kstack, thread_t *, current);
-			hal_jmp(proc_vforkedExit, kstack, NULL, 3);
+
+			args[0] = (arg_t)current;
+			args[1] = (arg_t)current->execdata;
+			args[2] = (arg_t)err;
+			hal_jmp(proc_vforkedExit, kstack, NULL, 3, args);
 		}
 		else {
 			hal_cpuEnableInterrupts();
@@ -1577,6 +1582,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	char *kpath;
 	void *kstack;
 	process_spawn_t sspawn, *spawn;
+	arg_t args[1];
 
 	oid_t oid;
 	vm_object_t *object;
@@ -1639,8 +1645,8 @@ int proc_execve(const char *path, char **argv, char **envp)
 		kstack = current->kstack = current->execkstack;
 		kstack += current->kstacksz;
 
-		PUTONSTACK(kstack, thread_t *, current);
-		hal_jmp(process_execve, kstack, NULL, 1);
+		args[0] = (arg_t)current;
+		hal_jmp(process_execve, kstack, NULL, 1, args);
 	}
 	else {
 		process_execve(current);

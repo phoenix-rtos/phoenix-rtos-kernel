@@ -148,26 +148,32 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
+	struct stackArg args[] = {
+		{ &ctx->hwctx.psr, sizeof(ctx->hwctx.psr) },
+		{ &ctx->psp, sizeof(ctx->psp) },
+		{ &ctx->hwctx.pc, sizeof(ctx->hwctx.pc) },
+		{ &signalCtx, sizeof(signalCtx) },
+		{ &n, sizeof(n) },
+		{ 0, 0 } /* Reserve space for optional HWCTX */
+	};
+	size_t argc = (sizeof(args) / sizeof(args[0])) - 1;
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
 	signalCtx->psp -= sizeof(cpu_context_t);
 	signalCtx->hwctx.pc = (u32)handler;
 
-	PUTONSTACK(signalCtx->psp, u32, 0); /* alignment */
-	PUTONSTACK(signalCtx->psp, u32, ctx->hwctx.psr);
-	PUTONSTACK(signalCtx->psp, u32, ctx->psp);
-	PUTONSTACK(signalCtx->psp, u32, ctx->hwctx.pc);
-	PUTONSTACK(signalCtx->psp, cpu_context_t *, signalCtx);
-	PUTONSTACK(signalCtx->psp, int, n);
-
 	if (src == SIG_SRC_SCHED) {
 		/* We'll be returning through interrupt dispatcher,
 		 * need to prepare context on ustack to be restored
 		 */
-		signalCtx->psp -= HWCTXSIZE * sizeof(int);
-		hal_memcpy((void *)signalCtx->psp, &signalCtx->hwctx, HWCTXSIZE * sizeof(int));
+		args[argc].argp = &signalCtx->hwctx;
+		args[argc].sz = HWCTXSIZE * sizeof(int);
+		argc++;
 	}
+
+	hal_stackPutArgs((void **)&signalCtx->psp, argc, args);
+
 	return 0;
 }
 
@@ -189,6 +195,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 
 void hal_longjmp(cpu_context_t *ctx)
 {
+	/* clang-format off */
 	__asm__ volatile
 	(" \
 		cpsid if; \
@@ -199,6 +206,7 @@ void hal_longjmp(cpu_context_t *ctx)
 	:
 	: "r" (&_cpu_nctx), "r" (ctx)
 	: "memory");
+	/* clang-format on */
 }
 
 

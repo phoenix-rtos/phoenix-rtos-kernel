@@ -260,7 +260,7 @@ hal_longjmp:
 .size hal_longjmp, .-hal_longjmp
 
 
-.global hal_jmp  /* void hal_jmp(void *f, void *kstack, void *stack, int argc) */
+.global hal_jmp  /* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
 hal_jmp:
 	mv s0, a0
 	mv s1, a1
@@ -271,46 +271,25 @@ hal_jmp:
 	bnez a2, 2f
 
 	mv sp, s1
+
 	addi s3, s3, -1
 	blt s3, zero, 1f
-	ld a0, (sp)
-	addi sp, sp, 8
+	ld a0, (a4)
 	addi s3, s3, -1
 	blt s3, zero, 1f
-	ld a1, (sp)
-	addi sp, sp, 8
+	ld a1, 8(a4)
 	addi s3, s3, -1
 	blt s3, zero, 1f
-	ld a2, (sp)
-	addi sp, sp, 8
+	ld a2, 16(a4)
 	addi s3, s3, -1
 	blt s3, zero, 1f
-	ld a3, (sp)
-	addi sp, sp, 8
+	ld a3, 24(a4)
 1:
 	csrs sstatus, SSTATUS_SIE /* enable interrupts */
 	jr s0
 
 2:
 	mv sp, s2 /* user stack pointer */
-
-	addi s3, s3, -1
-	blt s3, zero, 3f
-	ld a0, (sp)
-	addi sp, sp, 8
-	addi s3, s3, -1
-	blt s3, zero, 3f
-	ld a1, (sp)
-	addi sp, sp, 8
-	addi s3, s3, -1
-	blt s3, zero, 3f
-	ld a2, (sp)
-	addi sp, sp, 8
-	addi s3, s3, -1
-	blt s3, zero, 3f
-	ld a3, (sp)
-	addi sp, sp, 8
-3:
 	li t0, 0x120
 	csrc sstatus, t0 /* sret will return to usermode */
 	csrw sepc, s0 /* address to return to */
