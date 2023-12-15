@@ -166,6 +166,11 @@ static inline void hal_cpuHalt(void)
 	__asm__ volatile ("\
 		wfi; \
 		nop; ");
+#else
+	/* FIXME - this might be unsafe in some cases,
+	 * it's ok for idle thread usage though. */
+	for (;;) {
+	}
 #endif
 }
 
