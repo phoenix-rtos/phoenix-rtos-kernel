@@ -16,6 +16,7 @@
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
+#include "hal/list.h"
 #include "sbi.h"
 #include "plic.h"
 #include "dtb.h"
@@ -26,40 +27,6 @@
 
 
 #define SIZE_INTERRUPTS 16
-
-
-#define _intr_add(list, t) \
-	do { \
-		if (t == NULL) \
-			break; \
-		if (*list == NULL) { \
-			t->next = t; \
-			t->prev = t; \
-			(*list) = t; \
-			break; \
-		} \
-		t->prev = (*list)->prev; \
-		(*list)->prev->next = t; \
-		t->next = (*list); \
-		(*list)->prev = t; \
-	} while (0)
-
-
-#define _intr_remove(list, t) \
-	do { \
-		if (t == NULL) \
-			break; \
-		if ((t->next == t) && (t->prev == t)) \
-			(*list) = NULL; \
-		else { \
-			t->prev->next = t->next; \
-			t->next->prev = t->prev; \
-			if (t == (*list)) \
-				(*list) = t->next; \
-		} \
-		t->next = NULL; \
-		t->prev = NULL; \
-	} while (0)
 
 
 struct {
@@ -79,14 +46,14 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 	if (n >= SIZE_INTERRUPTS)
 		return 0;
 
-if (dtb_getPLIC() && (n != 0)) {
+	if (dtb_getPLIC() && (n != 0)) {
 
-	cn = plic_claim(1);
-	if (cn == 0) {
-		return 0;
+		cn = plic_claim(1);
+		if (cn == 0) {
+			return 0;
+		}
+		n = cn;
 	}
-	n = cn;
-}
 
 	hal_spinlockSet(&interrupts.spinlocks[n], &sc);
 
@@ -102,9 +69,9 @@ if (dtb_getPLIC() && (n != 0)) {
 
 	hal_spinlockClear(&interrupts.spinlocks[n], &sc);
 
-if (cn != 0) {
-	plic_complete(1, cn);
-}
+	if (cn != 0) {
+		plic_complete(1, cn);
+	}
 
 	return res;
 }
@@ -118,7 +85,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 		return -EINVAL;
 
 	hal_spinlockSet(&interrupts.spinlocks[h->n], &sc);
-	_intr_add(&interrupts.handlers[h->n], h);
+	HAL_LIST_ADD(&interrupts.handlers[h->n], h);
 
 	if (dtb_getPLIC() && (h->n)) {
 		plic_priority(h->n, 2);
@@ -139,7 +106,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 		return -EINVAL;
 
 	hal_spinlockSet(&interrupts.spinlocks[h->n], &sc);
-	_intr_remove(&interrupts.handlers[h->n], h);
+	HAL_LIST_REMOVE(&interrupts.handlers[h->n], h);
 	hal_spinlockClear(&interrupts.spinlocks[h->n], &sc);
 
 	return EOK;
@@ -172,7 +139,7 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 extern void interrupts_handleintexc(void *);
 
 
-__attribute__ ((section (".init"))) void _hal_interruptsInit(void)
+__attribute__((section(".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int k;
 
