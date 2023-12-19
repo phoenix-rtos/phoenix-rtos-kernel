@@ -929,6 +929,6 @@ void _imxrt_init(void)
 	while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 10u)) == 0u) {
 	}
 
-	/* Enable system HP timer clock gate */
-	_imxrt_setDevClock(GPT_BUS_CLK, 0, 0, 0, 0, 1);
+	/* Enable system HP timer clock gate, select SYS_PLL3_DIV2 as BUS clk */
+	_imxrt_setDevClock(GPT_BUS_CLK, 0, 4, 0, 0, 1);
 }
