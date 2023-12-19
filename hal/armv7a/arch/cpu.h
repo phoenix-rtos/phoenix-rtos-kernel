@@ -167,16 +167,6 @@ static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval)
 }
 
 
-static inline u32 hal_cpuGetPC(void)
-{
-	void *pc;
-
-	__asm__ volatile ("mov %0, pc" : "=r" (pc));
-
-	return (u32)pc;
-}
-
-
 static inline void *hal_cpuGetSP(cpu_context_t *ctx)
 {
 	return (void *)ctx;

@@ -82,9 +82,6 @@ extern void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next);
 extern void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval);
 
 
-extern u32 hal_cpuGetPC(void);
-
-
 extern void _hal_cpuSetKernelStack(void *kstack);
 
 
