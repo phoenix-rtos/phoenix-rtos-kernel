@@ -5,8 +5,8 @@
  *
  * Spinlock
  *
- * Copyright 2017, 2022 Phoenix Systems
- * Author: Pawel Pisarczyk, Damian Loewnau
+ * Copyright 2017, 2022, 2023 Phoenix Systems
+ * Author: Pawel Pisarczyk, Damian Loewnau, Hubert Badocha
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -14,11 +14,12 @@
  */
 
 #include "hal/spinlock.h"
+#include "hal/list.h"
 
 static struct {
 	spinlock_t spinlock;
 	spinlock_t *first;
-} spinlocks;
+} spinlock_common;
 
 
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
@@ -69,18 +70,7 @@ void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 	spinlock->lock = 1u;
 	spinlock->name = name;
 
-	if (spinlocks.first != NULL) {
-		spinlocks.first->prev->next = spinlock;
-		spinlock->prev = spinlocks.first->prev;
-		spinlock->next = spinlocks.first;
-		spinlocks.first->prev = spinlock;
-	}
-	else {
-		spinlocks.first = spinlock;
-		spinlock->next = spinlock;
-		spinlock->prev = spinlock;
-	}
-	return;
+	HAL_LIST_ADD(&spinlock_common.first, spinlock);
 }
 
 
@@ -88,9 +78,9 @@ void hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&spinlocks.spinlock, &sc);
+	hal_spinlockSet(&spinlock_common.spinlock, &sc);
 	_hal_spinlockCreate(spinlock, name);
-	hal_spinlockClear(&spinlocks.spinlock, &sc);
+	hal_spinlockClear(&spinlock_common.spinlock, &sc);
 }
 
 
@@ -98,10 +88,10 @@ void hal_spinlockDestroy(spinlock_t *spinlock)
 {
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&spinlocks.spinlock, &sc);
+	hal_spinlockSet(&spinlock_common.spinlock, &sc);
 
 	if (spinlock->next == spinlock) {
-		spinlocks.first = NULL;
+		spinlock_common.first = NULL;
 	}
 	else {
 		spinlock->prev->next = spinlock->next;
@@ -109,12 +99,12 @@ void hal_spinlockDestroy(spinlock_t *spinlock)
 	}
 	spinlock->prev = spinlock->next = NULL;
 
-	hal_spinlockClear(&spinlocks.spinlock, &sc);
+	hal_spinlockClear(&spinlock_common.spinlock, &sc);
 }
 
 
 __attribute__((section(".init"))) void _hal_spinlockInit(void)
 {
-	spinlocks.first = NULL;
-	_hal_spinlockCreate(&spinlocks.spinlock, "spinlocks.spinlock");
+	spinlock_common.first = NULL;
+	_hal_spinlockCreate(&spinlock_common.spinlock, "spinlock_common.spinlock");
 }

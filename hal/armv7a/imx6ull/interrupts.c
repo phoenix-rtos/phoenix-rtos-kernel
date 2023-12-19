@@ -15,45 +15,12 @@
 
 #include "hal/cpu.h"
 #include "hal/interrupts.h"
+#include "hal/list.h"
 
 #include "proc/userintr.h"
 
 #define SIZE_INTERRUPTS 159
 #define SIZE_HANDLERS   4
-
-
-#define _intr_add(list, t) \
-	do { \
-		if (t == NULL) \
-			break; \
-		if (*list == NULL) { \
-			t->next = t; \
-			t->prev = t; \
-			(*list) = t; \
-			break; \
-		} \
-		t->prev = (*list)->prev; \
-		(*list)->prev->next = t; \
-		t->next = (*list); \
-		(*list)->prev = t; \
-	} while (0)
-
-
-#define _intr_remove(list, t) \
-	do { \
-		if (t == NULL) \
-			break; \
-		if ((t->next == t) && (t->prev == t)) \
-			(*list) = NULL; \
-		else { \
-			t->prev->next = t->next; \
-			t->next->prev = t->prev; \
-			if (t == (*list)) \
-				(*list) = t->next; \
-		} \
-		t->next = NULL; \
-		t->prev = NULL; \
-	} while (0)
 
 
 enum { /* 1024 reserved */ ctlr = 0x400, typer, iidr, /* 29 reserved */ igroupr0 = 0x420, /* 16 registers */
@@ -156,7 +123,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock[h->n], &sc);
-	_intr_add(&interrupts.handlers[h->n], h);
+	HAL_LIST_ADD(&interrupts.handlers[h->n], h);
 
 	interrupts_setPriority(h->n, h->n >> 5);
 	interrupts_setConf(h->n, 0x3);
@@ -185,7 +152,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock[h->n], &sc);
-	_intr_remove(&interrupts.handlers[h->n], h);
+	HAL_LIST_REMOVE(&interrupts.handlers[h->n], h);
 
 	if (interrupts.handlers[h->n] == NULL)
 		interrupts_disableIRQ(h->n);

@@ -15,43 +15,10 @@
 
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
+#include "hal/list.h"
 #include "config.h"
 
 #include "proc/userintr.h"
-
-
-#define _intr_add(list, t) \
-	do { \
-		if (t == NULL) \
-			break; \
-		if (*list == NULL) { \
-			t->next = t; \
-			t->prev = t; \
-			(*list) = t; \
-			break; \
-		} \
-		t->prev = (*list)->prev; \
-		(*list)->prev->next = t; \
-		t->next = (*list); \
-		(*list)->prev = t; \
-	} while (0)
-
-
-#define _intr_remove(list, t) \
-	do { \
-		if (t == NULL) \
-			break; \
-		if ((t->next == t) && (t->prev == t)) \
-			(*list) = NULL; \
-		else { \
-			t->prev->next = t->next; \
-			t->next->prev = t->prev; \
-			if (t == (*list)) \
-				(*list) = t->next; \
-		} \
-		t->next = NULL; \
-		t->prev = NULL; \
-	} while (0)
 
 
 struct {
@@ -102,7 +69,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	hal_spinlockSet(&interrupts.spinlock, &sc);
 	h->got = hal_cpuGetGot();
 
-	_intr_add(&interrupts.handlers[h->n], h);
+	HAL_LIST_ADD(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10) {
 		_imxrt_nvicSetPriority(h->n - 0x10, 0);
@@ -122,7 +89,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 		return -1;
 
 	hal_spinlockSet(&interrupts.spinlock, &sc);
-	_intr_remove(&interrupts.handlers[h->n], h);
+	HAL_LIST_REMOVE(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10 && interrupts.handlers[h->n] == NULL)
 		_imxrt_nvicSetIRQ(h->n - 0x10, 0);

@@ -15,6 +15,7 @@
 
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
+#include "hal/list.h"
 #include "hal/interrupts.h"
 #include "proc/userintr.h"
 
@@ -32,40 +33,6 @@ extern unsigned int _end;
 
 #define SIZE_INTERRUPTS 32
 #define SIZE_HANDLERS   4
-
-
-#define _intr_add(list, t) \
-	do { \
-		if (t == NULL) \
-			break; \
-		if (*list == NULL) { \
-			t->next = t; \
-			t->prev = t; \
-			(*list) = t; \
-			break; \
-		} \
-		t->prev = (*list)->prev; \
-		(*list)->prev->next = t; \
-		t->next = (*list); \
-		(*list)->prev = t; \
-	} while (0)
-
-
-#define _intr_remove(list, t) \
-	do { \
-		if (t == NULL) \
-			break; \
-		if ((t->next == t) && (t->prev == t)) \
-			(*list) = NULL; \
-		else { \
-			t->prev->next = t->next; \
-			t->next->prev = t->prev; \
-			if (t == (*list)) \
-				(*list) = t->next; \
-		} \
-		t->next = NULL; \
-		t->prev = NULL; \
-	} while (0)
 
 
 /* Interrupt controller */
@@ -197,7 +164,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 #ifdef NOMMU
 	h->got = hal_cpuGetGot();
 #endif
-	_intr_add(&interrupts_common.handlers[h->n], h);
+	HAL_LIST_ADD(&interrupts_common.handlers[h->n], h);
 	interrupts_enableIRQ(h->n);
 	hal_spinlockClear(&interrupts_common.spinlocks[h->n], &sc);
 
@@ -214,7 +181,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlocks[h->n], &sc);
-	_intr_remove(&interrupts_common.handlers[h->n], h);
+	HAL_LIST_REMOVE(&interrupts_common.handlers[h->n], h);
 
 	if (interrupts_common.handlers[h->n] == NULL) {
 		interrupts_disableIRQ(h->n);

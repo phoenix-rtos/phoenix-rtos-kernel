@@ -5,8 +5,8 @@
  *
  * Spinlock
  *
- * Copyright 2022 Phoenix Systems
- * Author: Lukasz Leczkowski
+ * Copyright 2022, 2023 Phoenix Systems
+ * Author: Lukasz Leczkowski, Hubert Badocha
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -15,6 +15,7 @@
 
 #include <arch/cpu.h>
 #include "hal/spinlock.h"
+#include "hal/list.h"
 
 #define STR(x)  #x
 #define XSTR(x) STR(x)
@@ -91,17 +92,7 @@ void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 	spinlock->lock = 0u;
 	spinlock->name = name;
 
-	if (spinlock_common.first != NULL) {
-		spinlock_common.first->prev->next = spinlock;
-		spinlock->prev = spinlock_common.first->prev;
-		spinlock->next = spinlock_common.first;
-		spinlock_common.first->prev = spinlock;
-	}
-	else {
-		spinlock_common.first = spinlock;
-		spinlock->prev = spinlock;
-		spinlock->next = spinlock;
-	}
+	HAL_LIST_ADD(&spinlock_common.first, spinlock);
 }
 
 
@@ -121,14 +112,8 @@ void hal_spinlockDestroy(spinlock_t *spinlock)
 
 	hal_spinlockSet(&spinlock_common.spinlock, &sc);
 
-	if (spinlock->next == spinlock) {
-		spinlock_common.first = NULL;
-	}
-	else {
-		spinlock->prev->next = spinlock->next;
-		spinlock->next->prev = spinlock->prev;
-	}
-	spinlock->prev = spinlock->next = NULL;
+	HAL_LIST_REMOVE(&spinlock_common.first, spinlock);
+
 	hal_spinlockClear(&spinlock_common.spinlock, &sc);
 }
 
