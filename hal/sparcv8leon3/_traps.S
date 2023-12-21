@@ -74,7 +74,7 @@ _start:
 	BAD_TRAP                         /* 0x01 - instruction access exception */
 	BAD_TRAP                         /* 0x02 - illegal instruction */
 	BAD_TRAP                         /* 0x03 - privileged instruction */
-	BAD_TRAP                         /* 0x04 - fp disabled */
+	TRAP(_traps_fpDisabledHandler)   /* 0x04 - fp disabled */
 	TRAP(_traps_winOverflowHandler)  /* 0x05 - window overflow */
 	TRAP(_traps_winUnderflowHandler) /* 0x06 - window underflow */
 	BAD_TRAP                         /* 0x07 - mem address not aligned */
@@ -187,6 +187,28 @@ _traps_stErrHandler:
 .size _traps_stErrHandler, . - _traps_stErrHandler
 
 #endif
+
+/* FPU disabled handler (enables FPU) */
+
+.type _traps_fpDisabledHandler, #function
+_traps_fpDisabledHandler:
+	/* check if FPU present */
+	rd %asr17, %l3
+	srl %l3, 10, %l3
+	andcc %l3, 0x3, %g0
+	bz _exceptions_dispatch
+	nop
+	/* enable FPU */
+	set PSR_EF, %l3
+	or %l0, %l3, %l0
+	wr %l0, %psr
+	nop
+	nop
+	nop
+
+	jmp %l1
+	rett %l2
+.size _traps_fpDisabledHandler, . - _traps_fpDisabledHandler
 
 
 /* Window underflow handler
@@ -397,14 +419,22 @@ exc_wovfl_done:
 	sll %l7, 2, %l7
 	ld [%l6 + %l7], %l7
 	ba exc_kstack_set
-	sub %l7, 0x60, %sp
+	sub %l7, CPU_EXC_SIZE, %sp
 
- exc_no_kstack_switch:
+exc_no_kstack_switch:
 	/* we came from kernel, make space for context */
-	sub %fp, 0x60, %sp
+	sub %fp, CPU_EXC_SIZE, %sp
 
- exc_kstack_set:
+exc_kstack_set:
 	/* Save context on kernel stack */
+	set PSR_EF, %g2
+	andcc %l0, %g2, %g0
+	bz exc_fpu_done
+	nop
+
+	FPU_SAVE
+
+exc_fpu_done:
 
 	st  %sp, [%sp + 0x00] /* sp */
 	rd  %y, %g2
@@ -426,7 +456,7 @@ exc_wovfl_done:
 
 	rd %wim, %g2
 	rd %tbr, %g3
-	std %g2, [%sp + 0x50] /* wim, tbr */
+	std %g2, [%sp + 0xd8] /* wim, tbr */
 
 	mov %sp, %l7
 	sub %sp, 0x60, %sp
@@ -449,7 +479,7 @@ exc_wovfl_done:
 	nop
 
 	/* trap type */
-	ld [%l7 + 0x54], %o0
+	ld [%l7 + 0xdc], %o0
 	srl %o0, TBR_TT_SHIFT, %o0
 	/* void exceptions_dispatch(unsigned int n, exc_context_t *ctx) */
 	call exceptions_dispatch
@@ -464,6 +494,7 @@ exc_wovfl_done:
 #else
 	ta 0xb
 #endif
+	mov %l7, %sp
 	/* restore current window */
 	ld  [%sp + 0x04], %g1 /* y */
 	ldd [%sp + 0x08], %l0 /* psr, PC */
@@ -479,6 +510,14 @@ exc_wovfl_done:
 	ldd [%sp + 0x40], %i4
 	ldd [%sp + 0x48], %fp
 
+	set PSR_EF, %l5
+	andcc %l0, %l5, %g0
+	bz exc_restore_fpu_done
+	nop
+
+	FPU_RESTORE
+
+exc_restore_fpu_done:
 	/* Check if restore would cause window underflow.
 	 * After restore: CWP = CWP + 1 (mod NWINDOWS)
 	 * i.e. wim >> (CWP + 1) == 1
@@ -615,15 +654,22 @@ s_wovfl_done:
 	ld [%l5 + %sp], %sp
 
 	/* for signal handling: */
-	sub %sp, 0x50, %sp
+	sub %sp, CPU_CTX_SIZE, %sp
 	st  %l0, [%sp + 0x08] /* psr */
 	add %l2, 4, %l3
 	st  %l2, [%sp + 0x0c] /* pc */
 	st  %l3, [%sp + 0x10] /* npc */
 	std %g4, [%sp + 0x20]
 	std %g6, [%sp + 0x28]
+
+	set PSR_EF, %g2
+	andcc %l0, %g2, %g0
+	bz s_fpu_done
 	std %fp, [%sp + 0x48] /* fp (task's sp), return address */
 
+	FPU_SAVE
+
+s_fpu_done:
 	/* allocate stack frame for syscall handler */
 	sub %sp, 0x60, %sp
 	mov %g4, %o0 /* syscall number */
@@ -844,6 +890,14 @@ _interrupts_restoreContext:
 	ldd [%sp + 0x40], %i4
 	ldd [%sp + 0x48], %fp
 
+	set PSR_EF, %g2
+	andcc %l0, %g2, %g0
+	bz restore_fpu_done
+	nop
+
+	FPU_RESTORE
+
+restore_fpu_done:
 	/* switch window to the task's window and restore context */
 	restore
 
@@ -868,7 +922,7 @@ _interrupts_restoreContext:
 .global	hal_cpuReschedule
 .type	hal_cpuReschedule, #function
 hal_cpuReschedule:
-	save %sp, -0x50, %sp
+	save %sp, -CPU_CTX_SIZE, %sp
 
 #ifndef __CPU_GR712RC
 	pwr 0, %psr
@@ -886,6 +940,14 @@ hal_cpuReschedule:
 	rd %psr, %l0
 	or %l0, PSR_PS, %l0
 
+	set PSR_EF, %g2
+	andcc %l0, %g2, %g0
+	bz r_fpu_done
+	nop
+
+	FPU_SAVE
+
+r_fpu_done:
 	mov %sp, %l1    /* save pointer to context */
 
 	st  %sp, [%sp + 0x00]
