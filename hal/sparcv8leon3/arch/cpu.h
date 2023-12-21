@@ -45,6 +45,8 @@
 
 #endif
 
+#define CPU_CTX_SIZE 0xd8
+#define CPU_EXC_SIZE 0xe8
 
 /* Processor State Register */
 #define PSR_CWP 0x1f        /* Current window pointer */
@@ -82,8 +84,49 @@
 	stbar; \
 	set hal_multilock, %g1; \
 	stub %g0, [%g1]
-/* clang-format on */
 
+/* FP context save */
+#define FPU_SAVE \
+	std %f0, [%sp + 0x50]; \
+	std %f2, [%sp + 0x58]; \
+	std %f4, [%sp + 0x60]; \
+	std %f6, [%sp + 0x68]; \
+	std %f8, [%sp + 0x70]; \
+	std %f10, [%sp + 0x78]; \
+	std %f12, [%sp + 0x80]; \
+	std %f14, [%sp + 0x88]; \
+	std %f16, [%sp + 0x90]; \
+	std %f18, [%sp + 0x98]; \
+	std %f20, [%sp + 0xa0]; \
+	std %f22, [%sp + 0xa8]; \
+	std %f24, [%sp + 0xb0]; \
+	std %f26, [%sp + 0xb8]; \
+	std %f28, [%sp + 0xc0]; \
+	std %f30, [%sp + 0xc8]; \
+	st  %fsr, [%sp + 0xd0]; \
+	st  %g0, [%sp + 0xd4]
+
+
+#define FPU_RESTORE \
+	ldd [%sp + 0x50], %f0; \
+	ldd [%sp + 0x58], %f2; \
+	ldd [%sp + 0x60], %f4; \
+	ldd [%sp + 0x68], %f6; \
+	ldd [%sp + 0x70], %f8; \
+	ldd [%sp + 0x78], %f10; \
+	ldd [%sp + 0x80], %f12; \
+	ldd [%sp + 0x88], %f14; \
+	ldd [%sp + 0x90], %f16; \
+	ldd [%sp + 0x98], %f18; \
+	ldd [%sp + 0xa0], %f20; \
+	ldd [%sp + 0xa8], %f22; \
+	ldd [%sp + 0xb0], %f24; \
+	ldd [%sp + 0xb8], %f26; \
+	ldd [%sp + 0xc0], %f28; \
+	ldd [%sp + 0xc8], %f30; \
+	ld  [%sp + 0xd0], %fsr
+
+/* clang-format on */
 
 #ifndef __ASSEMBLY__
 
@@ -126,6 +169,45 @@
 		} \
 		ustack += (sizeof(t) + 3) & ~0x3; \
 	} while (0)
+
+
+typedef struct {
+	u32 f0;
+	u32 f1;
+	u32 f2;
+	u32 f3;
+	u32 f4;
+	u32 f5;
+	u32 f6;
+	u32 f7;
+	u32 f8;
+	u32 f9;
+	u32 f10;
+	u32 f11;
+	u32 f12;
+	u32 f13;
+	u32 f14;
+	u32 f15;
+	u32 f16;
+	u32 f17;
+	u32 f18;
+	u32 f19;
+	u32 f20;
+	u32 f21;
+	u32 f22;
+	u32 f23;
+	u32 f24;
+	u32 f25;
+	u32 f26;
+	u32 f27;
+	u32 f28;
+	u32 f29;
+	u32 f30;
+	u32 f31;
+
+	u32 fsr;
+	u32 pad;
+} cpu_fpContext_t;
 
 
 typedef struct {
@@ -177,6 +259,8 @@ typedef struct _cpu_context_t {
 	u32 o5;
 	u32 sp;
 	u32 o7;
+
+	cpu_fpContext_t fpCtx;
 } cpu_context_t;
 
 

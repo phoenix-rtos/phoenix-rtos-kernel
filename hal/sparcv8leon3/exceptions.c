@@ -199,7 +199,7 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
 		exceptions_common.mmuFaultHandler = handler;
 	}
-	else {
+	else if (n == EXC_DEFAULT) {
 		exceptions_common.defaultHandler = handler;
 	}
 

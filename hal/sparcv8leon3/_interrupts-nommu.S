@@ -81,13 +81,21 @@ irq_wovfl_done:
 	sll %l7, 2, %l7
 	ld [%l6 + %l7], %l7
 	ba irq_kstack_set
-	sub %l7, 0x50, %sp
+	sub %l7, CPU_CTX_SIZE, %sp
 
 irq_no_kstack_switch:
 	/* we came from kernel, make space for context */
-	sub %fp, 0x50, %sp
+	sub %fp, CPU_CTX_SIZE, %sp
 
 irq_kstack_set:
+	set PSR_EF, %g2
+	andcc %l0, %g2, %g0
+	bz irq_fpu_done
+	nop
+
+	FPU_SAVE
+
+irq_fpu_done:
 	/* Save context on kernel stack - we have enough space for 1 window.
 	 * Here only a part of thread context is saved,
 	 * all windows are saved only if we're switching context.
