@@ -21,10 +21,10 @@
 
 #include "include/mman.h"
 
-#define SIZE_EXCEPTIONS   16
+#define SIZE_EXCEPTIONS 16
 
 
-struct {
+static struct {
 	void (*handlers[SIZE_EXCEPTIONS])(unsigned int, exc_context_t *);
 	void (*defaultHandler)(unsigned int, exc_context_t *);
 	spinlock_t spinlock;
@@ -36,10 +36,11 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	unsigned int i = 0;
 
 	static const char *mnemonics[] = {
-		"0 Instruction adrress missaligned", "1 Instruction access fault",  "2 Illegal instruction", "3 Breakpoint",
-		"4 Reserved",  "5 Load access fault",  "6 AMO address misaligned",  "7 Store/AMO access fault",
-		"8 Environment call",  "9 Reserved",    "10 Reserved", "11 Reserved",
-		"12 Instruction page fault", "13 Load page fault", "14 Reserved", "15 Store/AMO page fault" };
+		"0 Instruction address missaligned", "1 Instruction access fault", "2 Illegal instruction", "3 Breakpoint",
+		"4 Reserved", "5 Load access fault", "6 AMO address misaligned", "7 Store/AMO access fault",
+		"8 Environment call", "9 Reserved", "10 Reserved", "11 Reserved",
+		"12 Instruction page fault", "13 Load page fault", "14 Reserved", "15 Store/AMO page fault"
+	};
 
 	n &= 0xf;
 
@@ -107,8 +108,6 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	buff[i++] = '\n';
 
 	buff[i] = 0;
-
-	return;
 }
 
 
@@ -126,8 +125,6 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 	for (;;) {
 		hal_cpuHalt();
 	}
-
-	return;
 }
 
 
@@ -140,19 +137,24 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	int prot = PROT_NONE;
+	u64 cause = ctx->scause;
 
-	u64 num = ctx->scause;
+	(void)n;
 
 	prot |= PROT_READ;
 
-	if (num == 6 || num== 7 || num == 15)
+	if ((cause == 6) || (cause == 7) || (cause == 15)) {
 		prot |= PROT_WRITE;
+	}
 
-	if (num <= 3 || num == 12)
+	if ((cause <= 3) || (cause == 12)) {
 		prot |= PROT_EXEC;
+	}
 
-	if ((ctx->sstatus & 0x100) == 0) // from user code
+	if ((ctx->sstatus & 0x100) == 0) {
+		/* from user code */
 		prot |= PROT_USER;
+	}
 
 	return prot;
 }
@@ -179,8 +181,9 @@ void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	void (*h)(unsigned int, exc_context_t *);
 
-	if (n >= SIZE_EXCEPTIONS)
+	if (n >= SIZE_EXCEPTIONS) {
 		return;
+	}
 
 	hal_spinlockSet(&exceptions_common.spinlock, &sc);
 	h = exceptions_common.handlers[n];
@@ -217,8 +220,9 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 		return 0;
 	}
 
-	if (n >= SIZE_EXCEPTIONS)
+	if (n >= SIZE_EXCEPTIONS) {
 		return -1;
+	}
 
 	hal_spinlockSet(&exceptions_common.spinlock, &sc);
 	exceptions_common.handlers[n] = handler;
@@ -229,15 +233,14 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 
 
 /* Function initializes exception handling */
-__attribute__ ((section (".init"))) void _hal_exceptionsInit(void)
+__attribute__((section(".init"))) void _hal_exceptionsInit(void)
 {
 	unsigned int k;
 
 	hal_spinlockCreate(&exceptions_common.spinlock, "exceptions_common.spinlock");
 	exceptions_common.defaultHandler = (void *)exceptions_defaultHandler;
 
-	for (k = 0; k < SIZE_EXCEPTIONS; k++)
+	for (k = 0; k < SIZE_EXCEPTIONS; k++) {
 		exceptions_common.handlers[k] = exceptions_trampoline;
-
-	return;
+	}
 }

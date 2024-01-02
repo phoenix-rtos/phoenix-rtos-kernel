@@ -321,10 +321,14 @@ void _hal_cpuInit(void)
 
 void hal_cpuBroadcastIPI(unsigned int intr)
 {
+	(void)intr;
+	/* TODO */
 }
 
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
+	(void)ctx;
+
 	__asm__ volatile("mv tp, %0" ::"r"(tls->tls_base));
 }

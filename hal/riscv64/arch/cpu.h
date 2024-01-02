@@ -126,13 +126,13 @@ typedef struct {
 
 static inline void hal_cpuDisableInterrupts(void)
 {
-	__asm__ ("csrc sstatus, 2");
+	__asm__ volatile("csrc sstatus, 2");
 }
 
 
 static inline void hal_cpuEnableInterrupts(void)
 {
-	__asm__ ("csrs sstatus, 2");
+	__asm__ volatile("csrs sstatus, 2");
 }
 
 
@@ -141,21 +141,21 @@ static inline void hal_cpuEnableInterrupts(void)
 
 static inline void hal_cpuHalt(void)
 {
-	__asm__ ("wfi");
+	__asm__ volatile("wfi");
 }
 
 
 static inline void hal_cpuSetDevBusy(int s)
 {
+	(void)s;
 }
 
 
 static inline void hal_cpuGetCycles(cycles_t *cb)
 {
-	__asm__ __volatile__ (
-		"rdcycle %0"
-		: "=r" (*(cycles_t *)cb));
-	return;
+	/* clang-format off */
+	__asm__ volatile("rdcycle %0" : "=r"(*(cycles_t *)cb));
+	/* clang-format on */
 }
 
 
@@ -164,11 +164,14 @@ static inline void hal_cpuGetCycles(cycles_t *cb)
 
 static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 {
+	(void)ctx;
+	(void)got;
 }
 
 
 static inline void hal_cpuSetGot(void *got)
 {
+	(void)got;
 }
 
 
@@ -204,7 +207,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return (ctx->sscratch == 0);
+	return (ctx->sscratch == 0) ? 1 : 0;
 }
 
 

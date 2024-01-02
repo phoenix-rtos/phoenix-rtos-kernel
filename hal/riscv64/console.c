@@ -18,24 +18,27 @@
 #include "sbi.h"
 
 
-struct {
+static struct {
 	spinlock_t spinlock;
 } console_common;
 
 
 void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++)
-		hal_consolePutch(*s);
+	while (*s != '\0') {
+		hal_consolePutch(*s++);
+	}
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD)
+	if (attr == ATTR_BOLD) {
 		_hal_consolePrint(CONSOLE_BOLD);
-	else if (attr != ATTR_USER)
+	}
+	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
+	}
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
@@ -47,14 +50,12 @@ void hal_consolePutch(char c)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&console_common.spinlock, &sc);
-	sbi_ecall(1, 0, c, 0, 0, 0, 0, 0);
+	sbi_ecall(SBI_PUTCHAR, 0, c, 0, 0, 0, 0, 0);
 	hal_spinlockClear(&console_common.spinlock, &sc);
 }
 
 
-__attribute__ ((section (".init"))) void _hal_consoleInit(void)
+__attribute__((section(".init"))) void _hal_consoleInit(void)
 {
 	hal_spinlockCreate(&console_common.spinlock, "console.spinlock");
-
-	return;
 }

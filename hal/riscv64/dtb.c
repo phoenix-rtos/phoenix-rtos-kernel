@@ -36,7 +36,7 @@ struct _fdt_header_t {
 };
 
 
-struct {
+static struct {
 	struct _fdt_header_t *fdth;
 
 	void *start;

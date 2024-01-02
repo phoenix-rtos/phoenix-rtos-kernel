@@ -24,13 +24,14 @@
 #include "config.h"
 #include "halsyspage.h"
 
-struct {
+static struct {
 	int started;
 } hal_common;
 
 
 syspage_t *hal_syspage;
 addr_t hal_relOffs;
+
 
 void *hal_syspageRelocate(void *data)
 {
@@ -66,7 +67,7 @@ void hal_lockScheduler(void)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_init(void)
+__attribute__((section(".init"))) void _hal_init(void)
 {
 	_hal_spinlockInit();
 	_hal_consoleInit();
@@ -80,6 +81,4 @@ __attribute__ ((section (".init"))) void _hal_init(void)
 	_hal_cpuInit();
 #endif
 	hal_common.started = 0;
-
-	return;
 }
