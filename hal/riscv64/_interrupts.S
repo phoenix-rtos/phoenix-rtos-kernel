@@ -90,8 +90,8 @@
 	/* Disable FPU */
 	li t0, SR_FS
 	csrc sstatus, t0
-	/* Allow supervisor access to user space and reading from execute pages (for the time being) */
-	li t0, SR_SUM | SR_MXR
+	/* Allow supervisor access to user space */
+	li t0, SR_SUM
 	csrs sstatus, t0
 
 	csrrc s1, sstatus, SR_SIE
@@ -165,62 +165,51 @@
 .endm
 
 
-.global interrupts_handleintexc
-.type interrupts_handleintexc, @function
-interrupts_handleintexc:
+.global _interrupts_dispatch
+.type _interrupts_dispatch, @function
+_interrupts_dispatch:
 .align 8
 	/* Disable interrupts */
 	csrc sstatus, SR_SIE
 
 	SAVE
-	mv a0, sp
-
-	li t1, 8
-	beq s4, t1, 3f
-	bge s4, zero, 2f
-
-	li t1, 0x8000000000000009
-	bne s4, t1, 33f
-	li a0, 0xa
-	j 34f
-
-33:
-	li t1, 0x8000000000000005
-	bne s4, t1, 34f
-	call handler
-	mv a0, zero
-34:
 	mv a1, sp
-	call interrupts_dispatchIRQ
-	j 4f
 
-2:
-	mv a0, s4
-	andi a0, a0, 0xf
-	mv a1, sp
-	call exceptions_dispatch
-	j 5f
-3:
+	/* Check interrupt source */
+	li s1, SCAUSE_INTR
+	and s0, s4, s1
+	andi a0, s4, 0xff /* Exception code */
+	beqz s0, _interrupts_notIrq
+
+	/* IRQ */
+	call interrupts_dispatch
+	j _interrupts_return
+
+_interrupts_notIrq:
+	li t1, SCAUSE_ECALL
+	bne a0, t1, _interrupts_exception
+
+	/* Syscall */
 	addi s2, s2, 4 /* move pc past ecall instruction */
 	sd s2, 248(sp)
-	mv a0, a7 /* syscall number */
+	mv a0, a7      /* syscall number */
 	ld a1, 288(sp) /* ustack */
 
 	csrs sstatus, SR_SIE
 	call syscalls_dispatch
 	sd a0, 56(sp)
 	csrc sstatus, SR_SIE
-	j 5f
-4:
-	beq a0, zero, 5f
-	li a0, 0
-	mv a1, sp
-	call threads_schedule
 
-5:
+	j _interrupts_return
+
+_interrupts_exception:
+	mv a1, sp
+	call exceptions_dispatch
+
+_interrupts_return:
 	RESTORE
 	sret
-.size interrupts_handleintexc, .-interrupts_handleintexc
+.size _interrupts_dispatch, .-_interrupts_dispatch
 
 
 

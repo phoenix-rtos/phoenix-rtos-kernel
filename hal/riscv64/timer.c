@@ -19,15 +19,17 @@
 #include "riscv64.h"
 #include "sbi.h"
 #include "hal/string.h"
+#include "hal/console.h"
 
+#include <board_config.h>
 
-struct {
+static struct {
 	intr_handler_t handler;
 	volatile time_t jiffies;
 	spinlock_t sp;
 
-	u32 interval;
-} timer;
+	u64 interval;
+} timer_common;
 
 
 static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -36,7 +38,9 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)arg;
 	(void)ctx;
 
-	timer.jiffies += timer.interval;
+	++timer_common.jiffies;
+	sbi_ecall(SBI_SETTIMER, 0, csr_read(time) + timer_common.interval, 0, 0, 0, 0, 0);
+
 	return 0;
 }
 
@@ -51,11 +55,11 @@ time_t hal_timerGetUs(void)
 	spinlock_ctx_t sc;
 	time_t ret;
 
-	hal_spinlockSet(&timer.sp, &sc);
-	ret = timer.jiffies;
-	hal_spinlockClear(&timer.sp, &sc);
+	hal_spinlockSet(&timer_common.sp, &sc);
+	ret = timer_common.jiffies;
+	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return ret;
+	return ret * 1000ULL;
 }
 
 
@@ -79,19 +83,14 @@ char *hal_timerFeatures(char *features, unsigned int len)
 
 __attribute__((section(".init"))) void _hal_timerInit(u32 interval)
 {
-	cycles_t c = hal_cpuGetCycles2() / 1000;
+	timer_common.interval = interval * (TIMER_FREQ / 1000000ULL);
+	timer_common.jiffies = 0;
 
-	timer.interval = interval;
-	timer.jiffies = 0;
+	hal_spinlockCreate(&timer_common.sp, "timer");
+	timer_common.handler.f = timer_irqHandler;
+	timer_common.handler.n = SYSTICK_IRQ;
+	timer_common.handler.data = NULL;
+	hal_interruptsSetHandler(&timer_common.handler);
 
-	sbi_ecall(SBI_SETTIMER, 0, c + 1000L, 0, 0, 0, 0, 0);
-	csr_set(sie, SIE_STIE);
-
-	hal_spinlockCreate(&timer.sp, "timer");
-	timer.handler.f = timer_irqHandler;
-	timer.handler.n = SYSTICK_IRQ;
-	timer.handler.data = NULL;
-	hal_interruptsSetHandler(&timer.handler);
-
-	return;
+	sbi_ecall(SBI_SETTIMER, 0, csr_read(time) + timer_common.interval, 0, 0, 0, 0, 0);
 }

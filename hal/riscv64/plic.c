@@ -15,115 +15,128 @@
 
 #include "plic.h"
 
-#include "include/errno.h"
+#include <board_config.h>
+
+/* clang-format off */
+
+/* PLIC register offsets */
+#define PLIC_PRIORITY(irqn)            (0x0000 + (n) * 4)
+#define PLIC_REG_PENDING(irqn)         (0x1000 + ((irqn) / 32) * 4)
+#define PLIC_REG_ENABLE(context, irqn) (0x2000 + (context) * 0x80 + ((irqn) / 32) * 4)
+#define PLIC_REG_THRESHOLD(context)    (0x200000 + (context) * 0x1000)
+#define PLIC_REG_CLAIM(context)        (0x200004 + (context) * 0x1000)
+
+/* clang-format on */
 
 
-struct {
+static struct {
 	volatile u8 *regw;
-	unsigned int baseEnable;
-	unsigned int baseContext;
 } plic_common;
 
 
-static inline u32 plic_read(unsigned int reg)
+u32 plic_read(unsigned int reg)
 {
 	return (u32)(*(volatile u32 *)(plic_common.regw + reg));
 }
 
 
-static inline void plic_write(unsigned int reg, u32 v)
+void plic_write(unsigned int reg, u32 v)
 {
-	*(volatile u32 *)(plic_common.regw + reg) = v; 
-	return;
+	*(volatile u32 *)(plic_common.regw + reg) = v;
 }
 
 
 void plic_priority(unsigned int n, unsigned int priority)
 {
-	plic_write(n * 4, priority);
-	return;
+	plic_write(PLIC_PRIORITY(n), priority);
 }
 
 
 u32 plic_priorityGet(unsigned int n)
 {
-	return plic_read(n * 4);
+	return plic_read(PLIC_PRIORITY(n));
 }
 
 
 int plic_isPending(unsigned int n)
 {
-	u32 reg = n / 32;
 	u32 bitshift = n % 32;
 
-	return ((plic_read(0x1000 + 4 * reg) >> bitshift) & 1);
+	return ((plic_read(PLIC_REG_PENDING(n)) >> bitshift) & 1);
 }
 
 
-void plic_tresholdSet(unsigned int hart, unsigned int priority)
+void plic_tresholdSet(unsigned int context, unsigned int priority)
 {
-	plic_write(plic_common.baseContext + hart * 0x1000, priority);
-	return;
+	plic_write(PLIC_REG_THRESHOLD(context), priority);
 }
 
 
-u32 plic_tresholdGet(unsigned int hart)
+u32 plic_tresholdGet(unsigned int context)
 {
-	return plic_read(plic_common.baseContext + hart * 0x1000);
+	return plic_read(PLIC_REG_THRESHOLD(context));
 }
 
 
-unsigned int plic_claim(unsigned int hart)
+unsigned int plic_claim(unsigned int context)
 {
-	return plic_read(plic_common.baseContext + hart * 0x1000 + 4);
+	return plic_read(PLIC_REG_CLAIM(context));
 }
 
 
-int plic_complete(unsigned int hart, unsigned int n)
+void plic_complete(unsigned int context, unsigned int n)
 {
-	plic_write(plic_common.baseContext + hart * 0x1000 + 4, n);
-	return EOK;
+	plic_write(PLIC_REG_CLAIM(context), n);
 }
 
 
-int plic_enableInterrupt(unsigned int hart, unsigned int n, char enable)
+static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enable)
 {
-	u32 reg = n / 32;
 	u32 bitshift = n % 32;
-	u32 w;
+	u32 val;
 
-	if (n >= 128)
-		return -ENOENT;
+	if (n >= PLIC_IRQ_SIZE) {
+		return -1;
+	}
 
-	w = plic_read(plic_common.baseEnable + hart * 0x80);
+	val = plic_read(PLIC_REG_ENABLE(context, n));
 
-	if (enable)
-		w |= (1 << bitshift);
-	else
-		w &= ~(1 << bitshift);
+	if (enable != 0) {
+		val |= (1 << bitshift);
+	}
+	else {
+		val &= ~(1 << bitshift);
+	}
 
-	plic_write(plic_common.baseEnable + hart * 0x80 + 4 * reg, w);
+	plic_write(PLIC_REG_ENABLE(context, n), val);
 
-	return EOK;
+	return 0;
 }
 
 
-int _plic_init(void)
+int plic_enableInterrupt(unsigned int hart, unsigned int n)
+{
+	return plic_modifyInterrupt(hart, n, 1);
+}
+
+
+int plic_disableInterrupt(unsigned int hart, unsigned int n)
+{
+	return plic_modifyInterrupt(hart, n, 0);
+}
+
+
+void _plic_init(void)
 {
 	unsigned int i;
 
-	plic_common.baseEnable = 0x2000;
-	plic_common.baseContext = 0x200000;
-
-	plic_common.regw = (void *)((u64)((1L << 39) - 1024 * 1024 * 1024 + 0x0c000000)| (u64)0xffffff8000000000);
+	plic_common.regw = (void *)((u64)((1L << 39) - 1024 * 1024 * 1024 + 0x0c000000) | (u64)0xffffff8000000000);
 
 	/* Disable and mask external interrupts */
-	for (i = 1; i < 127; i++) {
+	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
 		plic_priority(i, 0);
-		plic_enableInterrupt(1, i, 0);
+		plic_disableInterrupt(1, i);
 	}
 
 	plic_tresholdSet(1, 1);
-
-	return EOK;
 }

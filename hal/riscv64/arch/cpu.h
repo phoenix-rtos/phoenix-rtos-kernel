@@ -30,6 +30,14 @@
 #define SIZE_USTACK (8 * SIZE_PAGE)
 #endif
 
+/* CSR bits */
+#define SCAUSE_INTR (1u << 63)
+
+#define SCAUSE_ECALL 8u /* Environment call from S-mode */
+
+/* Interrupts */
+#define CLINT_IRQ_FLG (1u << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
+
 
 #ifndef __ASSEMBLY__
 
