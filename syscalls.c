@@ -1468,7 +1468,7 @@ void syscalls_sbi_putchar(char *ustack)
 #ifdef __TARGET_RISCV64
 	char c;
 	GETFROMSTACK(ustack, char, c, 0);
-	sbi_ecall(SBI_PUTCHAR, 0, c, 0, 0, 0, 0, 0);
+	(void)hal_sbiPutchar(c);
 #endif
 }
 
@@ -1476,9 +1476,7 @@ void syscalls_sbi_putchar(char *ustack)
 int syscalls_sbi_getchar(char *ustack)
 {
 #ifdef __TARGET_RISCV64
-	sbiret_t ret;
-	ret = sbi_ecall(SBI_GETCHAR, 0, 0, 0, 0, 0, 0, 0);
-	return (int)ret.error;
+	return (int)hal_sbiGetchar();
 #else
 	return -1;
 #endif

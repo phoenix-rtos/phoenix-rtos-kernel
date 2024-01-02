@@ -39,7 +39,7 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)ctx;
 
 	++timer_common.jiffies;
-	sbi_ecall(SBI_SETTIMER, 0, csr_read(time) + timer_common.interval, 0, 0, 0, 0, 0);
+	hal_sbiSetTimer(csr_read(time) + timer_common.interval);
 
 	return 0;
 }
@@ -92,5 +92,5 @@ __attribute__((section(".init"))) void _hal_timerInit(u32 interval)
 	timer_common.handler.data = NULL;
 	hal_interruptsSetHandler(&timer_common.handler);
 
-	sbi_ecall(SBI_SETTIMER, 0, csr_read(time) + timer_common.interval, 0, 0, 0, 0, 0);
+	hal_sbiSetTimer(csr_read(time) + timer_common.interval);
 }
