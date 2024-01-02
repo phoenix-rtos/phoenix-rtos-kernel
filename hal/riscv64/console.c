@@ -50,7 +50,7 @@ void hal_consolePutch(char c)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&console_common.spinlock, &sc);
-	sbi_ecall(SBI_PUTCHAR, 0, c, 0, 0, 0, 0, 0);
+	hal_sbiPutchar(c);
 	hal_spinlockClear(&console_common.spinlock, &sc);
 }
 
