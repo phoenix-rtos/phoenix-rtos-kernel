@@ -20,7 +20,6 @@
 
 #define SR_FS           0x00006000
 #define SR_SUM          0x00040000
-#define SR_MER          0x00080000
 
 #define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
 
@@ -52,8 +51,8 @@ _start:
 	 */
 	li t0, SR_FS
 	csrc sstatus, t0
-	/* Allow supervisor access to user space and reading from execute pages (for the time being) */
-	li t0, SR_SUM | SR_MER
+	/* Allow supervisor access to user space */
+	li t0, SR_SUM
 	csrs sstatus, t0
 
 	la t0, hal_syspage /* t0 = &hal_syspage (phy) */

@@ -20,7 +20,8 @@
 #include "cpu.h"
 
 
-#define SYSTICK_IRQ 0
+#define SYSTICK_IRQ (5u | CLINT_IRQ_FLG)
+
 
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;

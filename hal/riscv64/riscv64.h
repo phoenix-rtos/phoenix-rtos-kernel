@@ -75,18 +75,13 @@ static inline void hal_cpuFlushTLB(void *vaddr)
 
 static inline void hal_cpuSwitchSpace(addr_t pdir)
 {
-	__asm__ volatile("sfence.vma; csrw sptbr, %0" ::"r"(pdir));
+	/* clang-format off */
+	__asm__ volatile(
+		"sfence.vma\n\t"
+		"csrw sptbr, %0\n\t"
+		::"r"(pdir));
+	/* clang-format on */
 }
 
-
-static inline cycles_t hal_cpuGetCycles2(void)
-{
-	register cycles_t n;
-
-	__asm__ __volatile__(
-		"rdtime %0"
-		: "=r"(n));
-	return n;
-}
 
 #endif

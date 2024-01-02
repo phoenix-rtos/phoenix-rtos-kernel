@@ -19,31 +19,34 @@
 #include <arch/types.h>
 
 
-extern void plic_priority(unsigned int n, unsigned int priority);
+void plic_priority(unsigned int n, unsigned int priority);
 
 
-extern u32 plic_priorityGet(unsigned int n);
+u32 plic_priorityGet(unsigned int n);
 
 
-extern int plic_isPending(unsigned int n);
+int plic_isPending(unsigned int n);
 
 
-extern void plic_tresholdSet(unsigned int hart, unsigned int priority);
+void plic_tresholdSet(unsigned int context, unsigned int priority);
 
 
-extern u32 plic_tresholdGet(unsigned int hart);
+u32 plic_tresholdGet(unsigned int context);
 
 
-extern unsigned int plic_claim(unsigned int hart);
+unsigned int plic_claim(unsigned int context);
 
 
-extern int plic_complete(unsigned int hart, unsigned int n);
+void plic_complete(unsigned int context, unsigned int n);
 
 
-extern int plic_enableInterrupt(unsigned int hart, unsigned int n, char enable);
+int plic_enableInterrupt(unsigned int context, unsigned int n);
 
 
-extern int _plic_init(void);
+int plic_disableInterrupt(unsigned int context, unsigned int n);
+
+
+void _plic_init(void);
 
 
 #endif
