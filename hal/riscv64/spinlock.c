@@ -18,7 +18,7 @@
 #include "hal/list.h"
 
 
-struct {
+static struct {
 	spinlock_t spinlock;
 	spinlock_t *first;
 } spinlock_common;
@@ -90,7 +90,7 @@ void hal_spinlockDestroy(spinlock_t *spinlock)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_spinlockInit(void)
+__attribute__((section(".init"))) void _hal_spinlockInit(void)
 {
 	spinlock_common.first = NULL;
 	_hal_spinlockCreate(&spinlock_common.spinlock, "spinlock_common.spinlock");
