@@ -18,8 +18,6 @@
 #include <arch/cpu.h>
 #include <arch/pmap.h>
 
-#define SR_FS           0x00006000
-#define SR_SUM          0x00040000
 
 #define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
 
@@ -49,10 +47,10 @@ _start:
 	 * Disable FPU to detect illegal usage of
 	 * floating point in kernel space
 	 */
-	li t0, SR_FS
+	li t0, SSTATUS_FS
 	csrc sstatus, t0
 	/* Allow supervisor access to user space */
-	li t0, SR_SUM
+	li t0, SSTATUS_SUM
 	csrs sstatus, t0
 
 	la t0, hal_syspage /* t0 = &hal_syspage (phy) */
