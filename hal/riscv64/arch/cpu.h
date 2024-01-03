@@ -30,10 +30,20 @@
 #define SIZE_USTACK (8 * SIZE_PAGE)
 #endif
 
-/* CSR bits */
+/* Supervisor Cause Register */
 #define SCAUSE_INTR (1u << 63)
 
+/* Exception codes */
 #define SCAUSE_ECALL 8u /* Environment call from S-mode */
+
+/* Supervisor Status Register */
+#define SSTATUS_SIE  (1u << 1)  /* Supervisor Interrupt Enable */
+#define SSTATUS_SPP  (1u << 8)  /* Previous Supervisor */
+#define SSTATUS_SPIE (1u << 5)  /* Previous Supervisor IE */
+#define SSTATUS_FS   (3u << 13) /* FPU status */
+#define SSTATUS_SUM  (1u << 18) /* Supervisor may access User Memory */
+#define SSTATUS_MXR  (1u << 19) /* Make eXecutable Readable */
+
 
 /* Interrupts */
 #define CLINT_IRQ_FLG (1u << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
@@ -115,18 +125,6 @@ typedef struct {
 } cpu_context_t;
 
 #pragma pack(pop)
-
-
-/* CSR routines */
-
-
-#define SR_SIE  0x00000002UL /* Supervisor Interrupt Enable */
-#define SR_SPIE 0x00000020UL /* Previous Supervisor IE */
-#define SR_SPP  0x00000100UL /* Previously Supervisor */
-#define SR_SUM  0x00040000UL /* Supervisor may access User Memory */
-
-#define SIE_STIE 0x00000020UL
-#define SIE_SEIE 0x00000200UL
 
 
 /* interrupts */

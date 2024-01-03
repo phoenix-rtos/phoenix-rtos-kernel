@@ -15,13 +15,6 @@
 
 #define __ASSEMBLY__
 
-
-#define SR_SIE 0x00000002
-#define SR_FS  0x00006000
-#define SR_SUM 0x00040000
-#define SR_MXR 0x00080000
-
-
 #include <arch/cpu.h>
 
 .text
@@ -88,13 +81,13 @@
 	sd sp, 232(sp)       /* ksp */
 
 	/* Disable FPU */
-	li t0, SR_FS
+	li t0, SSTATUS_FS
 	csrc sstatus, t0
 	/* Allow supervisor access to user space */
-	li t0, SR_SUM
+	li t0, SSTATUS_SUM
 	csrs sstatus, t0
 
-	csrrc s1, sstatus, SR_SIE
+	csrrc s1, sstatus, SSTATUS_SIE
 	csrr s2, sepc
 	csrr s3, sbadaddr
 	csrr s4, scause
@@ -122,7 +115,7 @@
 	csrw sscratch, tp
 
 	ld a0, 240(sp)
-	andi a0, a0, ~SR_SIE
+	andi a0, a0, ~SSTATUS_SIE
 	csrw sstatus, a0
 
 	ld a2, 248(sp)
@@ -170,7 +163,7 @@
 _interrupts_dispatch:
 .align 8
 	/* Disable interrupts */
-	csrc sstatus, SR_SIE
+	csrc sstatus, SSTATUS_SIE
 
 	SAVE
 	mv a1, sp
@@ -195,10 +188,10 @@ _interrupts_notIrq:
 	mv a0, a7      /* syscall number */
 	ld a1, 288(sp) /* ustack */
 
-	csrs sstatus, SR_SIE
+	csrs sstatus, SSTATUS_SIE
 	call syscalls_dispatch
 	sd a0, 56(sp)
-	csrc sstatus, SR_SIE
+	csrc sstatus, SSTATUS_SIE
 
 	j _interrupts_return
 
@@ -216,7 +209,7 @@ _interrupts_return:
 .global hal_cpuReschedule
 hal_cpuReschedule:
 	/* Disable interrupts */
-	csrc sstatus, SR_SIE
+	csrc sstatus, SSTATUS_SIE
 
 	/* Save return address */
 	csrw sepc, ra
@@ -270,7 +263,7 @@ hal_jmp:
 	mv s1, a1
 	mv s2, a2
 	mv s3, a3
-	csrc sstatus, SR_SIE /* disable interrupts */
+	csrc sstatus, SSTATUS_SIE /* disable interrupts */
 
 	bnez a2, 2f
 
@@ -292,7 +285,7 @@ hal_jmp:
 	ld a3, (sp)
 	addi sp, sp, 8
 1:
-	csrs sstatus, SR_SIE /* enable interrupts */
+	csrs sstatus, SSTATUS_SIE /* enable interrupts */
 	jr s0
 
 2:
