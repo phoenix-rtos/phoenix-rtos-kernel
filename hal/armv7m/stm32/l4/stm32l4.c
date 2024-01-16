@@ -200,8 +200,17 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 		t = *(stm32_common.rcc + rcc_bdcr) & ~(1 << 15);
 		*(stm32_common.rcc + rcc_bdcr) = t | (state << 15);
 	}
-	else
+	else if (d == pctl_hsi48) {
+		/* Enable HSI48 */
+		*(stm32_common.rcc + rcc_crrcr) |= 1;
+		hal_cpuDataMemoryBarrier();
+		/* And wait for it to turn on */
+		while ((*(stm32_common.rcc + rcc_crrcr) & (1u << 1)) == 0) {
+		}
+	}
+	else {
 		return -EINVAL;
+	}
 
 	hal_cpuDataMemoryBarrier();
 
@@ -212,22 +221,33 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 int _stm32_rccGetDevClock(unsigned int d, u32 *state)
 {
 	/* there are gaps in numeration so values need to compared with both begin and end */
-	if (d >= ahb1_begin && d <= ahb1_end)
+	if ((d >= ahb1_begin) && (d <= ahb1_end)) {
 		*state = !!(*(stm32_common.rcc + rcc_ahb1enr) & (1 << (d - ahb1_begin)));
-	else if (d >= ahb2_begin && d <= ahb2_end)
+	}
+	else if ((d >= ahb2_begin) && (d <= ahb2_end)) {
 		*state = !!(*(stm32_common.rcc + rcc_ahb2enr) & (1 << (d - ahb2_begin)));
-	else if (d >= ahb3_begin && d <= ahb3_end)
+	}
+	else if ((d >= ahb3_begin) && (d <= ahb3_end)) {
 		*state = !!(*(stm32_common.rcc + rcc_ahb3enr) & (1 << (d - ahb3_begin)));
-	else if (d >= apb1_1_begin && d <= apb1_1_end)
+	}
+	else if ((d >= apb1_1_begin) && (d <= apb1_1_end)) {
 		*state = !!(*(stm32_common.rcc + rcc_apb1enr1) & (1 << (d - apb1_1_begin)));
-	else if (d >= apb1_2_begin && d <= apb1_2_end)
+	}
+	else if ((d >= apb1_2_begin) && (d <= apb1_2_end)) {
 		*state = !!(*(stm32_common.rcc + rcc_apb1enr2) & (1 << (d - apb1_2_begin)));
-	else if (d >= apb2_begin && d <= apb2_end)
+	}
+	else if ((d >= apb2_begin) && (d <= apb2_end)) {
 		*state = !!(*(stm32_common.rcc + rcc_apb2enr) & (1 << (d - apb2_begin)));
-	else if (d == pctl_rtc)
+	}
+	else if (d == pctl_rtc) {
 		*state = !!(*(stm32_common.rcc + rcc_bdcr) & (1 << 15));
-	else
+	}
+	else if (d == pctl_hsi48) {
+		*state = ((*(stm32_common.rcc + rcc_crrcr) & (1u << 1)) == 0) ? 0 : 1;
+	}
+	else {
 		return -EINVAL;
+	}
 
 	return EOK;
 }

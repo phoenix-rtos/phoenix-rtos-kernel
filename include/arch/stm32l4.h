@@ -53,7 +53,10 @@ enum {
 	pctl_tim15, pctl_tim16, pctl_tim17, pctl_sai1 = 160 + 21, pctl_sai2, pctl_dfsdm1 = 160 + 24,
 
 	/* MISC */
-	pctl_rtc = 192
+	pctl_rtc = 192,
+
+	/* HSI */
+	pctl_hsi48 = 256
 };
 
 
