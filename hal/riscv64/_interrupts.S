@@ -17,35 +17,44 @@
 
 #include <arch/cpu.h>
 
+.extern hal_cpuKernelStack
+
 .text
 
 .macro SAVE
-	/* If coming from userspace, save thread pointer in sscratch and load kernel sp.
-	 * If coming from kernel, sscratch is 0, so we don't swap.
-	 */
-	csrrw tp, sscratch, tp
-	bnez tp, 1f
+	/* Save a0 to sscratch */
+	csrw sscratch, a0
 
-	/* Current stack is kernel stack */
+	/* Read sstatus to a0 */
+	csrr a0, sstatus
+
+	/* Determine in which mode we were executing before interrupt
+	 * SPP = 0 -> user mode, 1 -> kernel mode
+	 */
+	andi a0, a0, 0x100
+	beqz a0, 1f
+
+	/* Kernel mode */
 	sd sp, -8(sp)
 
 	addi sp, sp, -296
 	j 2f
 
 1:
-	/* Save context, tp now holds kernel stack pointer.
-	 * Original tp is saved in sscratch
+	/* User mode
+	 * Load kernel stack pointer from hal_cpuKernelStack
 	 */
+	ld a0, hal_cpuKernelStack
 
 	/* Save task's stack pointer */
-	sd sp, -8(tp)
+	sd sp, -8(a0)
 
-	/* Swap to current stack */
-	addi sp, tp, -296
+	/* Swap to kernel stack */
+	addi sp, a0, -296
 
 2:
-	/* restore tp & sscratch */
-	csrrw tp, sscratch, tp
+	/* restore a0 */
+	csrr a0, sscratch
 
 	/* Save context */
 	sd x1, (sp)          /* ra */
@@ -91,28 +100,19 @@
 	csrr s2, sepc
 	csrr s3, sbadaddr
 	csrr s4, scause
-	csrr s5, sscratch
 
 	sd s1, 240(sp)   /* sstatus */
 	sd s2, 248(sp)   /* sepc */
 	sd s3, 256(sp)   /* sbadaddr */
 	sd s4, 264(sp)   /* scause */
-	sd s5, 272(sp)   /* sscratch */
 
 	sd tp, 280(sp)   /* tp */
-
-	/* Kernel mode entered */
-	csrw sscratch, zero
 .endm
 
 
 .macro RESTORE
 	/* Switch kernel stack */
 	ld sp, 232(sp)
-	ld tp, 272(sp)
-
-	/* Kernel mode left - this loads ksp to sscratch if returning to userspace, else 0 */
-	csrw sscratch, tp
 
 	ld a0, 240(sp)
 	andi a0, a0, ~SSTATUS_SIE
@@ -210,6 +210,9 @@ _interrupts_return:
 hal_cpuReschedule:
 	/* Disable interrupts */
 	csrc sstatus, SSTATUS_SIE
+	/* Set SPP to supervisor mode */
+	li t0, SSTATUS_SPP
+	csrs sstatus, t0
 
 	/* Save return address */
 	csrw sepc, ra
@@ -230,10 +233,10 @@ hal_cpuReschedule:
 	ld t0, 240(sp)
 	sd zero, 56(sp)
 
-	ori t0, t0, 0x100
-	andi t1, t0, 0x2
+	ori t0, t0, SSTATUS_SPP
+	andi t1, t0, SSTATUS_SIE
 	sll t1, t1, 4
-	andi t0, t0, ~2
+	andi t0, t0, ~SSTATUS_SIE
 	or t0, t0, t1
 
 	/* Save modified flags in old context */
@@ -289,8 +292,6 @@ hal_jmp:
 	jr s0
 
 2:
-	csrw sscratch, s1 /* kernel stack pointer */
-
 	mv sp, s2 /* user stack pointer */
 
 	addi s3, s3, -1

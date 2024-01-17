@@ -24,6 +24,9 @@
 #include "arch/types.h"
 
 
+ptr_t hal_cpuKernelStack;
+
+
 int hal_platformctl(void *ptr)
 {
 	return EOK;
@@ -127,8 +130,8 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	__asm__ volatile("sd gp, %0" : "=m"(ctx->gp));
 	/* clang-format on */
 
-	ctx->pc = (u64)start;
-	ctx->sp = (u64)ctx;
+	ctx->pc = (u64)0;
+	ctx->sp = (u64)kstack + kstacksz;
 
 	ctx->t0 = 0;
 	ctx->t1 = 0x0101010101010101;
@@ -169,13 +172,11 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	if (ustack != NULL) {
 		ctx->sp = (u64)ustack;
-		ctx->sstatus = csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SUM;
-		ctx->sscratch = (u64)ctx;
+		ctx->sstatus = (csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SUM) & ~SSTATUS_SPP;
 		ctx->tp = tls->tls_base;
 	}
 	else {
 		ctx->sstatus = csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SPP;
-		ctx->sscratch = 0;
 		ctx->tp = 0;
 	}
 
@@ -216,7 +217,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 
 void _hal_cpuSetKernelStack(void *kstack)
 {
-	csr_write(sscratch, kstack);
+	hal_cpuKernelStack = (ptr_t)kstack;
 }
 
 
