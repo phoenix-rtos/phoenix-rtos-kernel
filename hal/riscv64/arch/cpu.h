@@ -213,7 +213,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return (ctx->sscratch == 0) ? 1 : 0;
+	return ((ctx->sstatus & SSTATUS_SPP) != 0) ? 1 : 0;
 }
 
 
