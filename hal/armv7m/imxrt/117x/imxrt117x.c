@@ -56,8 +56,11 @@ enum { scb_cpuid = 0, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp0,
 	scb_itcmcr = 164, scb_dtcmcr, scb_ahbpcr, scb_cacr, scb_ahbscr, /* reserved */ scb_abfsr = 170 };
 
 
-enum { src_scr = 0, src_sbmr1, src_srsr, src_sbmr2 = 7, src_gpr1, src_gpr2, src_gpr3, src_gpr4,
-	src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
+enum { src_scr = 0, src_srmr, src_sbmr1, src_sbmr2, src_srsr,
+	src_gpr1, src_gpr2, src_gpr3, src_gpr4, src_gpr5,
+	src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10,
+	src_gpr11, src_gpr12, src_gpr13, src_gpr14, src_gpr15,
+	src_gpr16, src_gpr17, src_gpr18, src_gpr19, src_gpr20 };
 
 
 enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr = 128,
