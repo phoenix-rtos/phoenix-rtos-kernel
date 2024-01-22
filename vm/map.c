@@ -508,6 +508,12 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 		return NULL;
 	}
 
+	if ((flags & MAP_FIXED) != 0) {
+		if (_vm_munmap(map, vaddr, size) < 0) {
+			return NULL;
+		}
+	}
+
 	/* NULL page indicates that proc sybsystem is ready */
 	if (p == NULL && (current = proc_current()) != NULL)
 		process = current->process;
