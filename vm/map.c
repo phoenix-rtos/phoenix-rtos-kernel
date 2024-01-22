@@ -380,66 +380,77 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	t.vaddr = vaddr;
 	t.size = size;
 
-	e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
-
-	if (e == NULL)
-		return -EINVAL;
-
-	/* Note: what if NEEDS_COPY? */
-	amap_putanons(e->amap, e->aoffs + vaddr - e->vaddr, size);
-
-	for (offs = vaddr - e->vaddr; offs < vaddr + size - e->vaddr; offs += SIZE_PAGE)
-		pmap_remove(&map->pmap, e->vaddr + offs);
-
-	if (e->vaddr == vaddr) {
-		if (e->size == size) {
-			_entry_put(map, e);
+	/* Region to unmap can span across multiple entries. */
+	/* rbFind finds any entry having an overlap with the region in an unspecified order. */
+	for (;;) {
+		e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
+		if (e == NULL) {
+			break;
 		}
-		else {
-			e->aoffs += size;
-			e->vaddr += size;
-			e->size -= size;
-			e->lmaxgap += size;
 
-			if ((s = lib_treeof(map_entry_t, linkage, lib_rbPrev(&e->linkage))) != NULL) {
-				s->rmaxgap += size;
+		/* Note: what if NEEDS_COPY? */
+		amap_putanons(e->amap, (e->aoffs + vaddr) - e->vaddr, size);
+
+		for (offs = (vaddr - e->vaddr); offs < ((vaddr + size) - e->vaddr); offs += SIZE_PAGE) {
+			pmap_remove(&map->pmap, e->vaddr + offs);
+		}
+
+		if (e->vaddr == vaddr) {
+			if (e->size == size) {
+				_entry_put(map, e);
+			}
+			else {
+				e->aoffs += size;
+				e->vaddr += size;
+				e->size -= size;
+				e->lmaxgap += size;
+
+				s = lib_treeof(map_entry_t, linkage, lib_rbPrev(&e->linkage));
+				if (s != NULL) {
+					s->rmaxgap += size;
+					map_augment(&s->linkage);
+				}
+
+				map_augment(&e->linkage);
+			}
+		}
+		else if ((e->vaddr + e->size) == (vaddr + size)) {
+			e->size -= size;
+			e->rmaxgap += size;
+
+			s = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
+			if (s != NULL) {
+				s->lmaxgap += size;
 				map_augment(&s->linkage);
 			}
 
 			map_augment(&e->linkage);
 		}
-	}
-	else if (e->vaddr + e->size == vaddr + size) {
-		e->size -= size;
-		e->rmaxgap += size;
+		else {
+			s = map_alloc();
+			/* This case if only possible if unmapped region if in the middle of single entry,
+			 * so there is no possibility of partially unmapping. */
+			if (s == NULL) {
+				return -ENOMEM;
+			}
 
-		if ((s = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage))) != NULL) {
-			s->lmaxgap += size;
-			map_augment(&s->linkage);
+			s->flags = e->flags;
+			s->prot = e->prot;
+			s->protOrig = e->protOrig;
+			s->object = vm_objectRef(e->object);
+			s->offs = (e->offs == -1) ? -1 : (e->offs + ((vaddr + size) - e->vaddr));
+			s->vaddr = vaddr + size;
+			s->size = (size_t)((e->vaddr + e->size) - s->vaddr);
+			s->aoffs = e->aoffs + ((vaddr + size) - e->vaddr);
+
+			s->amap = amap_ref(e->amap);
+
+			e->size = (size_t)(vaddr - e->vaddr);
+			e->rmaxgap = size;
+
+			map_augment(&e->linkage);
+			_map_add(proc, map, s);
 		}
-
-		map_augment(&e->linkage);
-	}
-	else {
-		if ((s = map_alloc()) == NULL)
-			return -ENOMEM;
-
-		s->flags = e->flags;
-		s->prot = e->prot;
-		s->protOrig = e->protOrig;
-		s->object = vm_objectRef(e->object);
-		s->offs = (e->offs == -1) ? -1 : e->offs + (vaddr + size - e->vaddr);
-		s->vaddr = vaddr + size;
-		s->size = (size_t)(e->vaddr + e->size - s->vaddr);
-		s->aoffs = e->aoffs + (vaddr + size - e->vaddr);
-
-		s->amap = amap_ref(e->amap);
-
-		e->size = (size_t)(vaddr - e->vaddr);
-		e->rmaxgap = size;
-
-		map_augment(&e->linkage);
-		_map_add(proc, map, s);
 	}
 
 	return EOK;
