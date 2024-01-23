@@ -60,6 +60,9 @@ int lib_idtreeId(idnode_t *node);
 int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min);
 
 
+void lib_idtreeDump(rbnode_t *node);
+
+
 void lib_idtreeInit(idtree_t *tree);
 
 #endif
