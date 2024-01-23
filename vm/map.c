@@ -388,6 +388,10 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 			break;
 		}
 
+#ifdef NOMMU
+		proc = e->process;
+#endif
+
 		/* Note: what if NEEDS_COPY? */
 		amap_putanons(e->amap, (e->aoffs + vaddr) - e->vaddr, size);
 
