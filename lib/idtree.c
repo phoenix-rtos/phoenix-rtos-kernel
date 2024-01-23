@@ -179,6 +179,19 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 }
 
 
+static void _lib_idtreeDump(rbnode_t *node)
+{
+	idnode_t *n = lib_treeof(idnode_t, linkage, node);
+	lib_printf("%d <0x%p>]", n->id, n);
+}
+
+
+void lib_idtreeDump(rbnode_t *node)
+{
+	lib_rbDump(node, _lib_idtreeDump);
+}
+
+
 void lib_idtreeInit(idtree_t *tree)
 {
 	lib_rbInit(tree, lib_idtreeCmp, lib_idtreeAugment);
