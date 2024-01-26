@@ -13,14 +13,16 @@
  * %LICENSE%
  */
 
-#ifndef UART_CONSOLE
-#define UART_CONSOLE 1
-#endif
-
 #include "hal/armv7m/armv7m.h"
 #include "hal/console.h"
 #include "include/arch/imxrt.h"
 #include "imxrt10xx.h"
+
+#include <board_config.h>
+
+#ifndef UART_CONSOLE
+#define UART_CONSOLE 1
+#endif
 
 #define CONCAT3(a, b, c) a##b##c
 #define CONSOLE_BAUD(n)  (CONCAT3(UART, n, _BAUDRATE))
