@@ -959,33 +959,35 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 
 	proc_lockDone(&map->lock);
 #else
-	map_entry_t *next;
+	map_entry_t *temp = NULL;
 
 	proc_lockSet2(&map->lock, &p->lock);
-	if (p->entries != NULL) {
+
+	while (p->entries != NULL) {
 		e = p->entries;
+		LIST_REMOVE(&p->entries, e);
 
-		proc_lockSet(&map_common.lock);
-
-		do {
-			next = e->next;
-			/* Remove only entries associated with the map */
-			if (e->map == map) {
-				LIST_REMOVE(&p->entries, e);
-				if (next == e) {
-					next = NULL;
-				}
-				e->process = NULL;
-				lib_rbRemove(&map->tree, &e->linkage);
-				e->map = NULL;
-				_map_free(e);
-			}
-
-			e = next;
-		} while ((e != NULL) && (e != p->entries));
-
-		proc_lockClear(&map_common.lock);
+		/* Sieve-out entries not belonging to the map at hand */
+		if (e->map != map) {
+			LIST_ADD(&temp, e);
+		}
+		else {
+			amap_put(e->amap);
+			vm_objectPut(e->object);
+			lib_rbRemove(&map->tree, &e->linkage);
+			e->map = NULL;
+			e->process = NULL;
+			map_free(e);
+		}
 	}
+
+	/* Restore not removed entries */
+	while (temp != NULL) {
+		e = temp;
+		LIST_REMOVE(&temp, e);
+		LIST_ADD(&p->entries, e);
+	}
+
 	proc_lockClear(&p->lock);
 	proc_lockClear(&map->lock);
 #endif
