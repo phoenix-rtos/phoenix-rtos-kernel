@@ -35,9 +35,9 @@
 	beqz a0, 1f
 
 	/* Kernel mode */
-	sd sp, -8(sp)
+	sd sp, -272(sp)
 
-	addi sp, sp, -296
+	addi sp, sp, -CPU_CTX_SIZE
 	j 2f
 
 1:
@@ -47,10 +47,10 @@
 	ld a0, hal_cpuKernelStack
 
 	/* Save task's stack pointer */
-	sd sp, -8(a0)
+	sd sp, -272(a0)
 
 	/* Swap to kernel stack */
-	addi sp, a0, -296
+	addi sp, a0, -CPU_CTX_SIZE
 
 2:
 	/* restore a0 */
@@ -89,9 +89,58 @@
 
 	sd sp, 232(sp)       /* ksp */
 
-	/* Disable FPU */
+	/* Check FPU status */
+	csrr t0, sstatus
+	srli t0, t0, 13
+
+	/* If FPU is clean or dirty, save context */
+	andi t0, t0, 2
+	beqz t0, 3f
+
+	/* Save FPU context */
+	fsd f0, 296(sp)
+	fsd f1, 304(sp)
+	fsd f2, 312(sp)
+	fsd f3, 320(sp)
+	fsd f4, 328(sp)
+	fsd f5, 336(sp)
+	fsd f6, 344(sp)
+	fsd f7, 352(sp)
+	fsd f8, 360(sp)
+	fsd f9, 368(sp)
+	fsd f10, 376(sp)
+	fsd f11, 384(sp)
+	fsd f12, 392(sp)
+	fsd f13, 400(sp)
+	fsd f14, 408(sp)
+	fsd f15, 416(sp)
+	fsd f16, 424(sp)
+	fsd f17, 432(sp)
+	fsd f18, 440(sp)
+	fsd f19, 448(sp)
+	fsd f20, 456(sp)
+	fsd f21, 464(sp)
+	fsd f22, 472(sp)
+	fsd f23, 480(sp)
+	fsd f24, 488(sp)
+	fsd f25, 496(sp)
+	fsd f26, 504(sp)
+	fsd f27, 512(sp)
+	fsd f28, 520(sp)
+	fsd f29, 528(sp)
+	fsd f30, 536(sp)
+	fsd f31, 544(sp)
+
+	frcsr t0
+	sd t0, 552(sp)
+
+	/* Set FPU status to clean */
 	li t0, SSTATUS_FS
 	csrc sstatus, t0
+	li t0, (2 << 13)
+	csrs sstatus, t0
+3:
+
 	/* Allow supervisor access to user space */
 	li t0, SSTATUS_SUM
 	csrs sstatus, t0
@@ -118,6 +167,49 @@
 	andi a0, a0, ~SSTATUS_SIE
 	csrw sstatus, a0
 
+	/* Check FPU status */
+	srl t0, a0, 13
+	/* If FPU is clean, restore context */
+	andi t0, t0, 2
+	beqz t0, 1f
+
+	fld f0, 296(sp)
+	fld f1, 304(sp)
+	fld f2, 312(sp)
+	fld f3, 320(sp)
+	fld f4, 328(sp)
+	fld f5, 336(sp)
+	fld f6, 344(sp)
+	fld f7, 352(sp)
+	fld f8, 360(sp)
+	fld f9, 368(sp)
+	fld f10, 376(sp)
+	fld f11, 384(sp)
+	fld f12, 392(sp)
+	fld f13, 400(sp)
+	fld f14, 408(sp)
+	fld f15, 416(sp)
+	fld f16, 424(sp)
+	fld f17, 432(sp)
+	fld f18, 440(sp)
+	fld f19, 448(sp)
+	fld f20, 456(sp)
+	fld f21, 464(sp)
+	fld f22, 472(sp)
+	fld f23, 480(sp)
+	fld f24, 488(sp)
+	fld f25, 496(sp)
+	fld f26, 504(sp)
+	fld f27, 512(sp)
+	fld f28, 520(sp)
+	fld f29, 528(sp)
+	fld f30, 536(sp)
+	fld f31, 544(sp)
+
+	ld t0, 552(sp)
+	fscsr t1, t0
+
+1:
 	ld a2, 248(sp)
 	csrw sepc, a2
 
@@ -196,6 +288,112 @@ _interrupts_notIrq:
 	j _interrupts_return
 
 _interrupts_exception:
+	/* On some implementations (notably SPIKE), FPU instruction while FPU disabled
+	 * causes illegal instruction exception. Opcode is checked against FPU instructions.
+	 * If it is an FPU instruction, FPU is enabled for the thread.
+	 */
+
+	/* Check if illegal instruction */
+	li t0, SCAUSE_ILLEGAL
+	bne a0, t0, _interrupts_exceptionNotFpu
+
+	/* Check if FPU disabled */
+	ld t3, 240(sp)
+	li t2, SSTATUS_FS
+	and t2, t3, t2
+	bnez t2, _interrupts_exceptionNotFpu
+
+	/* Get failing instruction */
+	csrr t0, sepc
+	lw t2, (t0)
+	andi t0, t2, 0x7f
+
+	/* Check opcode:
+	 * 0000111 - LOAD-FP
+	 * 0100111 - STORE-FP
+	 * 1000011 - MADD
+	 * 1000111 - MSUB
+	 * 1001011 - NMSUB
+	 * 1001111 - NMADD
+	 * 1010011 - OP-FP
+	 */
+
+	xori t1, t0, 0x53 /* OP-FP */
+	beqz t1, _interrupts_exceptionFpu
+
+	ori t1, t0, 0x20
+	xori t1, t1, 0x27 /* LOAD/STORE-FP */
+	beqz t1, _interrupts_exceptionFpu
+
+	ori t1, t0, 0x0c
+	xori t1, t1, 0x4f /* MADD/NMADD/MSUB/NMSUB */
+	beqz t1, _interrupts_exceptionFpu
+
+	/* Check FP CSRs.
+	 * 1110011 - SYSTEM opcode
+	 */
+
+	xori t1, t0, 0x73
+	bnez t1, _interrupts_exceptionNotFpu /* Not CSR */
+
+	/* EBREAK/ECALL check: funct3 */
+	srli t1, t2, 12
+	andi t1, t1, 0x7
+	beqz t1, _interrupts_exceptionNotFpu
+
+	/* Check CSR number */
+	srli t1, t2, 20
+
+	/* FP CSRs range: 0x001-0x003 */
+	beqz t1, _interrupts_exceptionNotFpu
+	andi t1, t1, ~0x3
+	bnez t1, _interrupts_exceptionNotFpu
+
+	/* TODO: If ever needed: add support for Compressed extension */
+
+_interrupts_exceptionFpu:
+	/* Set `initial` FPU state - t3 hold previous sstatus */
+	li t1, (1 << 13)
+	csrs sstatus, t1
+	or t3, t3, t1
+	sd t3, 240(sp)
+
+	fmv.d.x f0, zero
+	fmv.d.x f1, zero
+	fmv.d.x f2, zero
+	fmv.d.x f3, zero
+	fmv.d.x f4, zero
+	fmv.d.x f5, zero
+	fmv.d.x f6, zero
+	fmv.d.x f7, zero
+	fmv.d.x f8, zero
+	fmv.d.x f9, zero
+	fmv.d.x f10, zero
+	fmv.d.x f11, zero
+	fmv.d.x f12, zero
+	fmv.d.x f13, zero
+	fmv.d.x f14, zero
+	fmv.d.x f15, zero
+	fmv.d.x f16, zero
+	fmv.d.x f17, zero
+	fmv.d.x f18, zero
+	fmv.d.x f19, zero
+	fmv.d.x f20, zero
+	fmv.d.x f21, zero
+	fmv.d.x f22, zero
+	fmv.d.x f23, zero
+	fmv.d.x f24, zero
+	fmv.d.x f25, zero
+	fmv.d.x f26, zero
+	fmv.d.x f27, zero
+	fmv.d.x f28, zero
+	fmv.d.x f29, zero
+	fmv.d.x f30, zero
+	fmv.d.x f31, zero
+
+	j _interrupts_return
+
+_interrupts_exceptionNotFpu:
 	mv a1, sp
 	call exceptions_dispatch
 
