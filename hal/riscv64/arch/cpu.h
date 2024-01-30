@@ -34,7 +34,8 @@
 #define SCAUSE_INTR (1u << 63)
 
 /* Exception codes */
-#define SCAUSE_ECALL 8u /* Environment call from S-mode */
+#define SCAUSE_ILLEGAL 2u /* Illegal instruction */
+#define SCAUSE_ECALL   8u /* Environment call from S-mode */
 
 /* Supervisor Status Register */
 #define SSTATUS_SIE  (1u << 1)  /* Supervisor Interrupt Enable */
@@ -47,6 +48,9 @@
 
 /* Interrupts */
 #define CLINT_IRQ_FLG (1u << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
+
+
+#define CPU_CTX_SIZE 0x230u
 
 
 #ifndef __ASSEMBLY__
@@ -72,6 +76,49 @@
 
 
 #pragma pack(push, 1)
+
+
+typedef struct {
+	u64 ft0;
+	u64 ft1;
+	u64 ft2;
+	u64 ft3;
+	u64 ft4;
+	u64 ft5;
+	u64 ft6;
+	u64 ft7;
+
+	u64 fs0;
+	u64 fs1;
+
+	u64 fa0;
+	u64 fa1;
+	u64 fa2;
+	u64 fa3;
+	u64 fa4;
+	u64 fa5;
+	u64 fa6;
+	u64 fa7;
+
+	u64 fs2;
+	u64 fs3;
+	u64 fs4;
+	u64 fs5;
+	u64 fs6;
+	u64 fs7;
+	u64 fs8;
+	u64 fs9;
+	u64 fs10;
+	u64 fs11;
+
+	u64 ft8;
+	u64 ft9;
+	u64 ft10;
+	u64 ft11;
+
+	u64 fcsr;
+} cpu_fpContext_t;
+
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
 typedef struct {
@@ -122,7 +169,9 @@ typedef struct {
 	u64 tp;
 	u64 sp;
 
+	cpu_fpContext_t fpCtx;
 } cpu_context_t;
+
 
 #pragma pack(pop)
 
