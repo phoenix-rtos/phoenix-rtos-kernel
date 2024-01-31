@@ -694,6 +694,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 	off_t offs;
 	unsigned int status;
 	int err;
+	thread_t *curr;
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err < 0) {
@@ -712,9 +713,14 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 
 	if (f->type == ftUnixSocket) {
 		rcnt = unix_sendto(f->oid.id, buf, nbyte, 0, NULL, 0);
+		/* SIGPIPE handled by `send` */
 	}
 	else {
 		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
+		if (rcnt == -EPIPE) {
+			curr = proc_current();
+			(void)posix_tkill(process_getPid(curr->process), proc_getTid(curr), SIGPIPE);
+		}
 	}
 
 	if (rcnt > 0) {
