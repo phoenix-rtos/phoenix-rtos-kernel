@@ -60,7 +60,8 @@ enum { src_scr = 0, src_srmr, src_sbmr1, src_sbmr2, src_srsr,
 	src_gpr1, src_gpr2, src_gpr3, src_gpr4, src_gpr5,
 	src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10,
 	src_gpr11, src_gpr12, src_gpr13, src_gpr14, src_gpr15,
-	src_gpr16, src_gpr17, src_gpr18, src_gpr19, src_gpr20 };
+	src_gpr16, src_gpr17, src_gpr18, src_gpr19, src_gpr20,
+	src_authen = 128, src_ctrl, src_setpoint, src_domain, src_stat };
 
 
 enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr = 128,
@@ -393,6 +394,19 @@ u32 _imxrt_scbGetPriority(s8 excpn)
 	ptr = &((u8*)(imxrt_common.scb + scb_shp0))[excpn - 4];
 
 	return *ptr >> 4;
+}
+
+
+/* SRC */
+
+
+void _imxrt_resetSlice(unsigned int index)
+{
+	*(imxrt_common.src + src_ctrl + 8 * index) |= 1u;
+	hal_cpuDataMemoryBarrier();
+
+	while ((*(imxrt_common.src + src_stat + 8 * index) & 1u) != 0) {
+	}
 }
 
 
@@ -834,6 +848,15 @@ int hal_platformctl(void *ptr)
 			if (data->action == pctl_set) {
 				_imxrt_cleanInvalDCacheAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz);
 				ret = EOK;
+			}
+			break;
+
+		case pctl_resetSlice:
+			if (data->action == pctl_set) {
+				if (data->resetSlice.index >= pctl_resetSliceMega && data->resetSlice.index <= pctl_resetSliceCM7Mem) {
+					_imxrt_resetSlice(data->resetSlice.index);
+					ret = EOK;
+				}
 			}
 			break;
 
