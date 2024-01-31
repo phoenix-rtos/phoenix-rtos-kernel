@@ -278,6 +278,14 @@ enum {
 };
 
 
+/* SRC - Reset slices */
+enum {
+	pctl_resetSliceMega = 0, pctl_resetSliceDisplay, pctl_resetSliceWakeup, pctl_resetSliceLpsr,
+	pctl_resetSliceCM4Core, pctl_resetSliceCM7Core, pctl_resetSliceCM4Debug, pctl_resetSliceCM7Debug,
+	pctl_resetSliceUSBPHY1, pctl_resetSliceUSBPHY2, pctl_resetSliceCM4Mem, pctl_resetSliceCM7Mem
+};
+
+
 /* Interrupts numbers */
 enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq, lpuart3_irq, lpuart4_irq, lpuart5_irq,
 	lpuart6_irq, lpuart7_irq, lpuart8_irq, lpuart9_irq, lpuart10_irq, lpuart11_irq, lpuart12_irq, lpi2c1_irq,
@@ -308,7 +316,7 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
 	enum { pctl_devclock = 0, pctl_iogpr, pctl_iolpsrgpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot, pctl_devcache,
-		pctl_lpcg, pctl_cleanInvalDCache } type;
+		pctl_lpcg, pctl_cleanInvalDCache, pctl_resetSlice } type;
 
 	union {
 		struct {
@@ -366,6 +374,10 @@ typedef struct {
 			void *addr;
 			unsigned int sz;
 		} cleanInvalDCache;
+
+		struct {
+			unsigned int index;
+		} resetSlice;
 	};
 } __attribute__((packed)) platformctl_t;
 
