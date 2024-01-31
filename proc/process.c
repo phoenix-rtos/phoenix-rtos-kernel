@@ -1039,24 +1039,20 @@ void *proc_copyargs(char **args)
 
 static void *process_putargs(void *stack, char ***argsp, int *count)
 {
-	int argc, len;
+	int argc;
+	size_t len;
 	char **args_stack, **args = *argsp;
 
-	if (args == NULL) {
-		*count = 0;
-		return stack;
+	for (argc = 0; (args != NULL) && (args[argc] != NULL); ++argc) {
 	}
-
-	for (argc = 0; args[argc] != NULL; ++argc)
-		;
 
 	stack -= (argc + 1) * sizeof(char *);
 	args_stack = stack;
 	args_stack[argc] = NULL;
 
-	for (argc = 0; args[argc] != NULL; ++argc) {
+	for (argc = 0; (args != NULL) && (args[argc] != NULL); ++argc) {
 		len = hal_strlen(args[argc]) + 1;
-		stack -= (len + sizeof(long) - 1) & ~(sizeof(long) - 1);
+		stack -= SIZE_STACK_ARG(len);
 		hal_memcpy(stack, args[argc], len);
 		args_stack[argc] = stack;
 	}
