@@ -1006,13 +1006,19 @@ static void _proc_threadDequeue(thread_t *t)
 {
 	unsigned int i;
 
+	if (t->state == GHOST) {
+		return;
+	}
+
 	_perf_waking(t);
 
-	if (t->wait != NULL)
+	if (t->wait != NULL) {
 		LIST_REMOVE(t->wait, t);
+	}
 
-	if (t->wakeup)
+	if (t->wakeup) {
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
+	}
 
 	t->wakeup = 0;
 	t->wait = NULL;
@@ -1021,12 +1027,14 @@ static void _proc_threadDequeue(thread_t *t)
 
 	/* MOD */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
-		if (t == threads_common.current[i])
+		if (t == threads_common.current[i]) {
 			break;
+		}
 	}
 
-	if (i == hal_cpuGetCount())
+	if (i == hal_cpuGetCount()) {
 		LIST_ADD(&threads_common.ready[t->priority], t);
+	}
 }
 
 
