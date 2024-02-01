@@ -97,7 +97,9 @@ static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
  * Thread monitoring
  */
 
-static void _proc_threadWakeup(thread_t **queue);
+static int _proc_threadWakeup(thread_t **queue);
+static int _proc_threadBroadcast(thread_t **queue);
+
 
 static unsigned perf_idpack(unsigned id)
 {
@@ -1142,11 +1144,19 @@ int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t 
 }
 
 
-static void _proc_threadWakeup(thread_t **queue)
+static int _proc_threadWakeup(thread_t **queue)
 {
+	int ret = 1;
+
 	if ((*queue != NULL) && (*queue != wakeupPending)) {
 		_proc_threadDequeue(*queue);
 	}
+	else {
+		*queue = wakeupPending;
+		ret = 0;
+	}
+
+	return ret;
 }
 
 
@@ -1156,14 +1166,20 @@ int proc_threadWakeup(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if ((*queue != NULL) && (*queue != wakeupPending)) {
-		_proc_threadWakeup(queue);
-		ret = 1;
-	}
-	else {
-		(*queue) = wakeupPending;
-	}
+	ret = _proc_threadWakeup(queue);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+	return ret;
+}
+
+
+static int _proc_threadBroadcast(thread_t **queue)
+{
+	int ret = 0;
+
+	do {
+		ret += _proc_threadWakeup(queue);
+	} while ((*queue != NULL) && (*queue != wakeupPending));
+
 	return ret;
 }
 
@@ -1174,16 +1190,9 @@ int proc_threadBroadcast(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if ((*queue != NULL) && (*queue != wakeupPending)) {
-		do {
-			_proc_threadWakeup(queue);
-			ret++;
-		} while (*queue != NULL);
-	}
-	else {
-		(*queue) = wakeupPending;
-	}
+	ret = _proc_threadBroadcast(queue);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+
 	return ret;
 }
 
@@ -1193,12 +1202,10 @@ void proc_threadWakeupYield(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if ((*queue != NULL) && (*queue != wakeupPending)) {
-		_proc_threadWakeup(queue);
+	if (_proc_threadWakeup(queue) != 0) {
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 	else {
-		(*queue) = wakeupPending;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 }
@@ -1209,15 +1216,10 @@ void proc_threadBroadcastYield(thread_t **queue)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if ((*queue != wakeupPending) && (*queue != NULL)) {
-		while (*queue != NULL) {
-			_proc_threadWakeup(queue);
-		}
-
+	if (_proc_threadBroadcast(queue) != 0) {
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 	else {
-		*queue = wakeupPending;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 }
