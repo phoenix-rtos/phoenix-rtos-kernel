@@ -27,9 +27,12 @@
 #define SBI_BASE_GET_MIMPLID   0x6
 
 /* Timer extension */
-#define SBI_EXT_TIME 0x54494D45
-
+#define SBI_EXT_TIME      0x54494D45
 #define SBI_TIME_SETTIMER 0x0
+
+/* System reset extension */
+#define SBI_EXT_SRST   0x53525354
+#define SBI_SRST_RESET 0x0
 
 /* Legacy extensions */
 #define SBI_LEGACY_SETTIMER               0x0
@@ -123,6 +126,14 @@ static void hal_sbiSetTimerv02(u64 stime)
 void hal_sbiSetTimer(u64 stime)
 {
 	sbi_common.setTimer(stime);
+}
+
+
+void hal_sbiReset(u32 type, u32 reason)
+{
+	if (hal_sbiProbeExtension(SBI_EXT_SRST).error == 0) {
+		(void)hal_sbiEcall(SBI_EXT_SRST, SBI_SRST_RESET, type, reason, 0, 0, 0, 0);
+	}
 }
 
 

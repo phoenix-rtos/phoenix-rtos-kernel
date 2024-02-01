@@ -24,8 +24,11 @@
 #include "config.h"
 #include "halsyspage.h"
 
+#include "include/arch/riscv64.h"
+
 static struct {
 	int started;
+	spinlock_t pltctlSp;
 } hal_common;
 
 
@@ -67,6 +70,30 @@ void hal_lockScheduler(void)
 }
 
 
+int hal_platformctl(void *ptr)
+{
+	platformctl_t *pctl = ptr;
+	spinlock_ctx_t sc;
+	int ret = -1;
+
+	hal_spinlockSet(&hal_common.pltctlSp, &sc);
+
+	switch (pctl->type) {
+		case pctl_reboot:
+			if ((pctl->action == pctl_set) && (pctl->task.reboot.magic == PCTL_REBOOT_MAGIC)) {
+				hal_cpuReboot();
+			}
+			break;
+
+		default:
+			break;
+	}
+	hal_spinlockClear(&hal_common.pltctlSp, &sc);
+
+	return ret;
+}
+
+
 __attribute__((section(".init"))) void _hal_init(void)
 {
 	_hal_sbiInit();
@@ -81,5 +108,6 @@ __attribute__((section(".init"))) void _hal_init(void)
 #if 0
 	_hal_cpuInit();
 #endif
+	hal_spinlockCreate(&hal_common.pltctlSp, "pltctl");
 	hal_common.started = 0;
 }
