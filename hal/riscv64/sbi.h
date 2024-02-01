@@ -25,6 +25,16 @@ typedef struct {
 } sbiret_t;
 
 
+/* Reset types */
+#define SBI_RESET_TYPE_SHUTDOWN 0x0
+#define SBI_RESET_TYPE_COLD     0x1
+#define SBI_RESET_TYPE_WARM     0x2
+
+/* Reset reason */
+#define SBI_RESET_REASON_NONE    0x0
+#define SBI_RESET_REASON_SYSFAIL 0x1
+
+
 /* Legacy SBI v0.1 calls */
 
 
@@ -44,6 +54,9 @@ sbiret_t hal_sbiProbeExtension(long extid);
 
 
 void hal_sbiSetTimer(u64 stime);
+
+
+void hal_sbiReset(u32 type, u32 reason);
 
 
 void _hal_sbiInit(void);

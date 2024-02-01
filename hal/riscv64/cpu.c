@@ -27,12 +27,6 @@
 ptr_t hal_cpuKernelStack;
 
 
-int hal_platformctl(void *ptr)
-{
-	return EOK;
-}
-
-
 /* bit operations */
 
 /* TODO: use clz/ctz instructions */
@@ -301,7 +295,7 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 
 void hal_cpuReboot(void)
 {
-	/* TODO */
+	hal_sbiReset(SBI_RESET_TYPE_COLD, SBI_RESET_REASON_NONE);
 }
 
 
