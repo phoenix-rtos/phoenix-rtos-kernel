@@ -481,7 +481,7 @@ static void thread_destroy(thread_t *thread)
 
 		LIST_REMOVE_EX(&process->threads, thread, procnext, procprev);
 		LIST_ADD_EX(&process->ghosts, thread, procnext, procprev);
-		_proc_threadWakeup(&process->reaper);
+		_proc_threadBroadcast(&process->reaper);
 
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		proc_put(process);
@@ -976,9 +976,10 @@ void proc_reap(void)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	while ((ghost = threads_common.ghosts) == NULL)
+	while (threads_common.ghosts == NULL) {
 		_proc_threadWait(&threads_common.reaper, 0, &sc);
-
+	}
+	ghost = threads_common.ghosts;
 	LIST_REMOVE(&threads_common.ghosts, ghost);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
