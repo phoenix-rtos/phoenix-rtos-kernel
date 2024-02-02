@@ -16,7 +16,6 @@
 #ifndef _HAL_LEON3_EXCEPTIONS_H_
 #define _HAL_LEON3_EXCEPTIONS_H_
 
-#include "types.h"
 #include <arch/cpu.h>
 
 #define EXC_DEFAULT 128

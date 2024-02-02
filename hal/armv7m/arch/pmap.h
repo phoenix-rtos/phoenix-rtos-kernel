@@ -16,7 +16,7 @@
 #ifndef _HAL_PMAP_ARMV7M_H_
 #define _HAL_PMAP_ARMV7M_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 /* Architecure dependent page attributes - used for mapping */
 #define PGHD_PRESENT    0x01

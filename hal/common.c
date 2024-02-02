@@ -17,7 +17,7 @@
 #include "hal/cpu.h"
 #include "hal/string.h"
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 /* STACK_ALIGN is most strict stack alignment constraint across all supported architectures. */
 #define STACK_ALIGN 16

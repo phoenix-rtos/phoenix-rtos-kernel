@@ -131,7 +131,7 @@
 #ifndef __ASSEMBLY__
 
 
-#include "types.h"
+#include "hal/types.h"
 #include "gaisler/gaisler.h"
 
 

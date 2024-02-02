@@ -16,7 +16,7 @@
 #ifndef _HAL_PLIC_H_
 #define _HAL_PLIC_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 
 void plic_priority(unsigned int n, unsigned int priority);

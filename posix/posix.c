@@ -17,9 +17,10 @@
 #include "include/errno.h"
 #include "include/ioctl.h"
 #include "include/limits.h"
+#include "include/posix-fcntl.h"
+
 #include "proc/proc.h"
 
-#include "posix.h"
 #include "posix_private.h"
 #include "lib/lib.h"
 

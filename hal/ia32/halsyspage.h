@@ -16,7 +16,7 @@
 #ifndef _HAL_SYSPAGE_H_
 #define _HAL_SYSPAGE_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 #include "config.h"
 
 extern syspage_t *syspage;

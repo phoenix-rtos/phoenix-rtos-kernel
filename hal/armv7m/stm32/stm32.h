@@ -16,15 +16,15 @@
 #ifndef _HAL_STM32_H_
 #define _HAL_STM32_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 #include "hal/pmap.h"
 
 #if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE)
-#include "include/arch/stm32l1.h"
+#include "include/arch/armv7m/stm32/l1/stm32l1.h"
 #endif
 
 #ifdef __CPU_STM32L4X6
-#include "include/arch/stm32l4.h"
+#include "include/arch/armv7m/stm32/l4/stm32l4.h"
 #endif
 
 

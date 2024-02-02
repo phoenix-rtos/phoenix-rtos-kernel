@@ -16,7 +16,7 @@
 #ifndef _HAL_ACPI_H
 #define _HAL_ACPI_H
 
-#include <arch/types.h>
+#include "hal/types.h"
 #include "config.h"
 #include "arch/pmap.h"
 

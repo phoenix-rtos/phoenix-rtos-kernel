@@ -15,7 +15,7 @@
 
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
-#include "include/arch/zynq7000.h"
+#include "include/arch/armv7a/zynq7000/zynq7000.h"
 
 
 /* SLCR (System Level Control Registers) */

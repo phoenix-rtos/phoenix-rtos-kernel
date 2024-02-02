@@ -15,7 +15,7 @@
 
 #include "hal/armv7m/armv7m.h"
 #include "hal/console.h"
-#include "include/arch/imxrt1170.h"
+#include "include/arch/armv7m/imxrt/11xx/imxrt1170.h"
 #include "imxrt117x.h"
 
 #include <board_config.h>

@@ -24,7 +24,7 @@
 #include "config.h"
 #include "halsyspage.h"
 
-#include "include/arch/riscv64.h"
+#include "include/arch/riscv64/riscv64.h"
 
 static struct {
 	int started;

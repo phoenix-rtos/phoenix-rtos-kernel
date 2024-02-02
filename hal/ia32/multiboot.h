@@ -40,7 +40,7 @@
 
 #ifndef __ASSEMBLY__
 
-#include "arch/types.h"
+#include "hal/types.h"
 
 typedef struct {
 	u32 flags;

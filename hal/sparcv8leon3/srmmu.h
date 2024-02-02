@@ -54,7 +54,7 @@
 #ifndef __ASSEMBLY__
 
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 
 void hal_srmmuFlushTLB(const void *vaddr, u8 type);

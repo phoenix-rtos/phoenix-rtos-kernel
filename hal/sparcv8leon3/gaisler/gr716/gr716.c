@@ -16,7 +16,7 @@
 #include "hal/sparcv8leon3/sparcv8leon3.h"
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
-#include "include/arch/gr716.h"
+#include "include/arch/sparcv8leon3/gr716/gr716.h"
 
 #include "gr716.h"
 

@@ -16,10 +16,10 @@
 #ifndef _HAL_NRF91_H_
 #define _HAL_NRF91_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 #include "hal/pmap.h"
 
-#include "include/arch/nrf9160.h"
+#include "include/arch/armv8m/nrf/91/nrf9160.h"
 
 
 /* clang-format off */

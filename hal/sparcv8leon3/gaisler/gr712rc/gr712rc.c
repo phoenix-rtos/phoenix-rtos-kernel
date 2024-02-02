@@ -20,7 +20,7 @@
 #include "hal/tlb/tlb.h"
 #include "hal/sparcv8leon3/sparcv8leon3.h"
 
-#include "include/arch/gr712rc.h"
+#include "include/arch/sparcv8leon3/gr712rc/gr712rc.h"
 
 #include "config.h"
 

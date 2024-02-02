@@ -18,7 +18,7 @@
 
 
 #include <arch/cpu.h>
-#include <arch/types.h>
+#include "hal/types.h"
 
 #include "hal/sparcv8leon3/srmmu.h"
 

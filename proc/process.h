@@ -23,7 +23,6 @@
 #include "vm/amap.h"
 #include "syspage.h"
 #include "lib/lib.h"
-#include "arch/types.h"
 
 #define MAX_PID MAX_ID
 

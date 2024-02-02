@@ -16,7 +16,7 @@
 #ifndef _HAL_PMAP_ARMV7A_H_
 #define _HAL_PMAP_ARMV7A_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 /* Predefined virtual adresses */
 #define VADDR_KERNEL   0xc0000000   /* base virtual address of kernel space */

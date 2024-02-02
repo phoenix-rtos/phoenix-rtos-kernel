@@ -15,7 +15,7 @@
  */
 
 #include "include/errno.h"
-#include "include/arch/ia32.h"
+#include "include/arch/ia32/ia32.h"
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"

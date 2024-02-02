@@ -17,7 +17,7 @@
 #ifndef _HAL_STRING_H_
 #define _HAL_STRING_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 
 extern void hal_memcpy(void *dst, const void *src, size_t l);

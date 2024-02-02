@@ -17,7 +17,7 @@
 #define _HAL_IMXRT1170_H_
 
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 
 extern int hal_platformctl(void *ptr);

@@ -17,7 +17,7 @@
 #ifndef _HAL_IA32_H_
 #define _HAL_IA32_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 /* io access */
 
 

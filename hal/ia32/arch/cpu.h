@@ -17,7 +17,7 @@
 #ifndef _HAL_IA32_CPU_H_
 #define _HAL_IA32_CPU_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 #define SIZE_PAGE 0x1000u
 
@@ -194,6 +194,17 @@
 
 
 #pragma pack(push, 1)
+
+typedef struct {
+	u16 _controlWord, controlWord;
+	u16 _statusWord, statusWord;
+	u16 _tagWord, tagWord;
+	u32 fip;
+	u32 fips;
+	u32 fdp;
+	u16 _fds, fds;
+	ld80 fpuContext[8];
+} fpu_context_t;
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
 typedef struct _cpu_context_t {

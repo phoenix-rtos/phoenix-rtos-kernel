@@ -17,7 +17,7 @@
 #define _HAL_IMXRT_H_
 
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 /* iMXRT peripherals */
 

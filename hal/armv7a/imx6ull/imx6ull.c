@@ -16,7 +16,7 @@
 #include "hal/cpu.h"
 #include "hal/armv7a/armv7a.h"
 #include "hal/spinlock.h"
-#include "include/arch/imx6ull.h"
+#include "include/arch/armv7a/imx6ull/imx6ull.h"
 
 /* CCM registers */
 enum { ccm_ccr = 0, ccm_ccdr, ccm_csr, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr,

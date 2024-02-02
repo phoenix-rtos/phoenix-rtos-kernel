@@ -21,7 +21,7 @@
 #include "hal/pmap.h"
 #include "riscv64.h"
 #include "dtb.h"
-#include "arch/types.h"
+#include "hal/types.h"
 
 
 ptr_t hal_cpuKernelStack;
