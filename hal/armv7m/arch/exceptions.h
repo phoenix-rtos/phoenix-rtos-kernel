@@ -2,7 +2,6 @@
 #ifndef _HAL_ARMV7M_EXCEPTIONS_H_
 #define _HAL_ARMV7M_EXCEPTIONS_H_
 
-#include "types.h"
 #include "cpu.h"
 
 #define EXC_DEFAULT 128

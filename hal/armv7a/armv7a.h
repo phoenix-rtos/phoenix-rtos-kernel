@@ -16,7 +16,7 @@
 #ifndef _HAL_ARMV7A_H_
 #define _HAL_ARMV7A_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 
 /* Barriers */

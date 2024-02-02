@@ -17,7 +17,7 @@
 #ifndef _HAL_IA32_SPINLOCK_H_
 #define _HAL_IA32_SPINLOCK_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 typedef u32 spinlock_ctx_t;
 

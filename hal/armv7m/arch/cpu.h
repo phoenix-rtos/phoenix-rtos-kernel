@@ -25,7 +25,7 @@
 #define CPU_IMXRT
 #endif
 
-#include "types.h"
+#include "hal/types.h"
 
 #define SIZE_PAGE 0x200
 

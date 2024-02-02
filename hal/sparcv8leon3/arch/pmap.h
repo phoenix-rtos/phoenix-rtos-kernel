@@ -73,7 +73,7 @@
 #ifndef __ASSEMBLY__
 
 
-#include "types.h"
+#include "hal/types.h"
 
 
 typedef struct _page_t {

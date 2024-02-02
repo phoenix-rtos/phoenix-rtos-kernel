@@ -16,7 +16,6 @@
 #include "hal/sparcv8leon3/sparcv8leon3.h"
 #include "hal/console.h"
 #include "hal/cpu.h"
-#include "include/arch/gr716.h"
 #include "gaisler.h"
 
 #include <board_config.h>

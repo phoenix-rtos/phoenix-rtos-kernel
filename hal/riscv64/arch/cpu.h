@@ -16,7 +16,7 @@
 #ifndef _HAL_RISCV64_CPU_H_
 #define _HAL_RISCV64_CPU_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 #define SIZE_PAGE 0x1000
 

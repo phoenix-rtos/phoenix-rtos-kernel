@@ -16,7 +16,7 @@
 #ifndef _HAL_ARMV7A_SPINLOCK_H_
 #define _HAL_ARMV7A_SPINLOCK_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 typedef struct _spinlock_t {
 	const char *name;

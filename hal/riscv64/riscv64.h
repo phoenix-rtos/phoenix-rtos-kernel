@@ -17,7 +17,7 @@
 #define _HAL_RISCV64_H_
 
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 
 #define csr_set(csr, val) \

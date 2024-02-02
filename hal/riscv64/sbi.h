@@ -16,7 +16,7 @@
 #ifndef _HAL_SBI_H_
 #define _HAL_SBI_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 
 typedef struct {

@@ -16,7 +16,7 @@
 #ifndef _HAL_ARMV7A_CPU_H_
 #define _HAL_ARMV7A_CPU_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 #define SIZE_PAGE       0x1000
 #define SIZE_PDIR       0x4000

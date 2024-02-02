@@ -58,7 +58,7 @@
 
 #ifndef __ASSEMBLY__
 
-#include "types.h"
+#include "hal/types.h"
 
 
 #define SIZE_PDIR SIZE_PAGE

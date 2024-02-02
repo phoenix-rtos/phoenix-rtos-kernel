@@ -24,7 +24,7 @@
 
 #define HAL_NAME_PLATFORM "NXP i.MX 6ULL "
 
-#include "include/arch/syspage-imx6ull.h"
+#include "include/arch/armv7a/imx6ull/syspage.h"
 #include "include/syspage.h"
 
 #endif

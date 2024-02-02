@@ -16,41 +16,20 @@
 #ifndef _HAL_ARMV7A_TYPES_H_
 #define _HAL_ARMV7A_TYPES_H_
 
-#define NULL 0
+
+#include "include/types.h"
+
 
 #ifndef __ASSEMBLY__
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
 
-typedef char s8;
-typedef short s16;
-typedef int s32;
-typedef long long s64;
-
-typedef u32 addr_t;
-typedef u32 cycles_t;
-
-typedef u64 usec_t;
-/* FIXME: offs_t should be eradicated */
-typedef s64 offs_t;
-typedef offs_t off_t;
+typedef __u32 cycles_t;
+typedef __u32 ptr_t;
 
 typedef unsigned int size_t;
-typedef unsigned long long time_t;
 
-typedef u32 ptr_t;
-
-typedef u64 id_t;
-
-/* Object identifier - contains server port and object id */
-typedef struct _oid_t {
-	u32 port;
-	id_t id;
-} oid_t;
 
 #endif
+
 
 #endif

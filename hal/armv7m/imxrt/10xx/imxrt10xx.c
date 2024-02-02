@@ -18,7 +18,7 @@
 #include "hal/spinlock.h"
 
 #include "include/errno.h"
-#include "include/arch/imxrt.h"
+#include "include/arch/armv7m/imxrt/10xx/imxrt10xx.h"
 
 #include "imxrt10xx.h"
 #include "config.h"

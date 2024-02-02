@@ -22,8 +22,8 @@
 #define TIMER_CYC2US(x) (x)
 
 #ifndef __ASSEMBLY__
-#include "include/arch/syspage-imxrt.h"
-#include "include/arch/imxrt.h"
+#include "include/arch/armv7m/imxrt/syspage.h"
+#include "include/arch/armv7m/imxrt/10xx/imxrt10xx.h"
 #include "imxrt10xx.h"
 
 #define HAL_NAME_PLATFORM "NXP i.MX RT10xx "

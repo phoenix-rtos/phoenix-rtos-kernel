@@ -16,7 +16,7 @@
 #ifndef _HAL_PCI_H_
 #define _HAL_PCI_H_
 
-#include "include/arch/ia32.h"
+#include "include/arch/ia32/ia32.h"
 
 
 extern int hal_pciSetBusmaster(pci_dev_t *dev, u8 enable);

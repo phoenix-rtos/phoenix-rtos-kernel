@@ -17,7 +17,7 @@
 #define _HAL_SPARCV8LEON3_AMBAPP_H_
 
 
-#include "include/arch/sparcv8leon3.h"
+#include "include/arch/sparcv8leon3/sparcv8leon3.h"
 
 
 int ambapp_findMaster(ambapp_dev_t *dev, unsigned int *instance);

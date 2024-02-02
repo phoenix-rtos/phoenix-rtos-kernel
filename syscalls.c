@@ -19,7 +19,6 @@
 #include "include/sysinfo.h"
 #include "include/mman.h"
 #include "include/syscalls.h"
-#include "include/posix.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"

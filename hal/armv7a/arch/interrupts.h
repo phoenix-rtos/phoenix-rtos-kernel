@@ -16,7 +16,7 @@
 #ifndef _HAL_ARMV7A_INTERRUPTS_H_
 #define _HAL_ARMV7A_INTERRUPTS_H_
 
-#include "types.h"
+#include "cpu.h"
 
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;

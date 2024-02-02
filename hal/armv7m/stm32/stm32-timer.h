@@ -16,7 +16,7 @@
 #ifndef _HAL_STM32TIMER_H_
 #define _HAL_STM32TIMER_H_
 
-#include <arch/types.h>
+#include "hal/types.h"
 
 extern void timer_jiffiesAdd(time_t t);
 

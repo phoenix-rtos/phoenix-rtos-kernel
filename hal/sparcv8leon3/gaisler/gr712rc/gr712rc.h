@@ -20,11 +20,14 @@
 #ifndef __ASSEMBLY__
 
 
-#include <arch/types.h>
+#include "hal/types.h"
 #include <board_config.h>
 
 #include "hal/sparcv8leon3/gaisler/ambapp.h"
 #include "hal/sparcv8leon3/gaisler/gaisler.h"
+
+#include "include/arch/sparcv8leon3/gr712rc/gr712rc.h"
+
 
 /* Timer registers */
 

@@ -16,7 +16,7 @@
 #ifndef _HAL_PMAP_ARMV8M_H_
 #define _HAL_PMAP_ARMV8M_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 #define PGHD_PRESENT    0x01u
 #define PGHD_USER       0x04u

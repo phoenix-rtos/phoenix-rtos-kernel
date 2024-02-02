@@ -16,7 +16,7 @@
 #ifndef _HAL_RISCV64_SPINLOCK_H_
 #define _HAL_RISCV64_SPINLOCK_H_
 
-#include "types.h"
+#include "hal/types.h"
 
 
 typedef u64 spinlock_ctx_t;

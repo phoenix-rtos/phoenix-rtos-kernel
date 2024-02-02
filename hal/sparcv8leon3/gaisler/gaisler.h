@@ -17,7 +17,7 @@
 #define _GAISLER_H_
 
 #include <config.h>
-#include <arch/types.h>
+#include "hal/types.h"
 
 
 int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn);

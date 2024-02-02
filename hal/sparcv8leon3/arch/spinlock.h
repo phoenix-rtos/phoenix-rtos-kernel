@@ -17,7 +17,7 @@
 #define _HAL_LEON3_SPINLOCK_H_
 
 
-#include "types.h"
+#include "hal/types.h"
 
 
 typedef u32 spinlock_ctx_t;

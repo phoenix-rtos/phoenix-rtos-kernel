@@ -21,7 +21,7 @@
 #define CPU_NRF91
 #endif
 
-#include "types.h"
+#include "hal/types.h"
 
 #define SIZE_PAGE 0x200
 

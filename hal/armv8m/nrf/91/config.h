@@ -18,7 +18,8 @@
 
 
 #ifndef __ASSEMBLY__
-#include "include/arch/syspage-nrf91.h"
+
+#include "include/arch/armv8m/nrf/syspage.h"
 #include "nrf91.h"
 
 #define HAL_NAME_PLATFORM "NRF91 "

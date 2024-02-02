@@ -17,7 +17,15 @@
 #ifndef _PROC_POSIX_H_
 #define _PROC_POSIX_H_
 
-#include "include/posix.h"
+
+#include "include/types.h"
+#include "include/posix-fcntl.h"
+#include "include/posix-poll.h"
+#include "include/posix-socket.h"
+#include "include/posix-stat.h"
+#include "include/posix-stdio.h"
+#include "include/posix-timespec.h"
+#include "include/posix-uio.h"
 #include "sockport.h"
 
 
