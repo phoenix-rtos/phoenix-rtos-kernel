@@ -70,6 +70,9 @@ extern void hal_cpuInvalASID(u8 asid);
 extern void hal_cpuInvalVA(ptr_t vaddr);
 
 
+extern void hal_cpuInvalVAASID(ptr_t vaddr);
+
+
 /* Invalidate entire Unified TLB*/
 extern void hal_cpuInvalTLB(void);
 

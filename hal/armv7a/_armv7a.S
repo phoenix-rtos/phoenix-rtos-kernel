@@ -137,11 +137,23 @@ hal_cpuInvalASID:
 .ltorg
 
 
+.globl hal_cpuInvalVAASID
+.type hal_cpuInvalVAASID, %function
+hal_cpuInvalVAASID:
+	dsb
+	mcr p15, 0, r0, c8, c7, 1 /* TLBIMVA */
+	dsb
+	isb
+	bx lr
+.size hal_cpuInvalVAASID, .-hal_cpuInvalVAASID
+.ltorg
+
+
 .globl hal_cpuInvalVA
 .type hal_cpuInvalVA, %function
 hal_cpuInvalVA:
 	dsb
-	mcr p15, 0, r0, c8, c7, 1 /* UTLBIMVA */
+	mcr p15, 0, r0, c8, c7, 3 /* TLBIMVAA */
 	dsb
 	isb
 	bx lr
