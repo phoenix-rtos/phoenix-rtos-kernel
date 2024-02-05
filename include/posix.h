@@ -165,6 +165,7 @@ struct stat {
 #define MSG_OOB      0x04
 #define MSG_DONTWAIT 0x08
 #define MSG_MORE     0x10
+#define MSG_NOSIGNAL 0x20
 
 #define SCM_RIGHTS 1
 

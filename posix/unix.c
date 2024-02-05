@@ -698,6 +698,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 	unixsock_t *s, *conn;
 	int err;
 	spinlock_ctx_t sc;
+	thread_t *curr;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -728,12 +729,20 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 				break;
 			}
 			else if (s->state & US_PEER_CLOSED) {
-				posix_tkill(process_getPid(proc_current()->process), 0, SIGPIPE);
+				curr = proc_current();
+				(void)posix_tkill(process_getPid(curr->process), proc_getTid(curr), SIGPIPE);
 				err = -EPIPE;
 				break;
 			}
 			else if ((conn = unixsock_get_connected(s)) == NULL) {
-				err = -ENOTCONN;
+				if (((s->type == SOCK_STREAM) || (s->type == SOCK_SEQPACKET)) && ((flags & MSG_NOSIGNAL) == 0)) {
+					curr = proc_current();
+					(void)posix_tkill(process_getPid(curr->process), proc_getTid(curr), SIGPIPE);
+					err = -EPIPE;
+				}
+				else {
+					err = -ENOTCONN;
+				}
 				break;
 			}
 		}
