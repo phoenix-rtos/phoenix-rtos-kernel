@@ -24,17 +24,24 @@ CPPFLAGS += -DVERSION=\"$(VERSION)\"
 EXTERNAL_HEADERS_DIR := ./include
 EXTERNAL_HEADERS := $(shell find $(EXTERNAL_HEADERS_DIR) -name \*.h)
 
-SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
-HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
-ifeq (/,$(SYSROOT))
-  $(error Sysroot is not supported by toolchain. Use Phoenix-RTOS cross-toolchain to compile)
+ifeq ($(TARGET_FAMILY),host)
+  HEADERS_INSTALL_DIR := $(PREFIX_BUILD)/include/phoenix
+else
+  SYSROOT := $(shell $(CC) $(CFLAGS) -print-sysroot)
+  HEADERS_INSTALL_DIR := $(SYSROOT)/usr/include/phoenix
+  ifeq (/,$(SYSROOT))
+    $(error Sysroot is not supported by toolchain. Use Phoenix-RTOS cross-toolchain to compile)
+  endif
 endif
 
 OBJS := $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o usrv.o)
 
 all: $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf
 
-include hal/Makefile
+ifneq ($(TARGET_FAMILY),host)
+  include hal/Makefile
+endif
+
 include vm/Makefile
 include proc/Makefile
 include posix/Makefile
