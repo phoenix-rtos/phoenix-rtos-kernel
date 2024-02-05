@@ -41,8 +41,6 @@
 
 typedef __s64 off64_t;
 typedef off64_t off_t;
-/* FIXME: offs_t should be eradicated */
-typedef off64_t offs_t;
 
 /* Object identifier - contains server port and object id */
 typedef struct _oid_t {

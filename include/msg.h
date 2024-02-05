@@ -57,7 +57,7 @@ typedef struct _msg_t {
 			/* READ/WRITE/TRUNCATE */
 			struct {
 				oid_t oid;
-				offs_t offs;
+				off_t offs;
 				size_t len;
 				unsigned mode;
 			} io;
@@ -96,7 +96,7 @@ typedef struct _msg_t {
 			/* READDIR */
 			struct {
 				oid_t dir;
-				offs_t offs;
+				off_t offs;
 			} readdir;
 
 			unsigned char raw[64];
