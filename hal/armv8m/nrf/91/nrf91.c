@@ -27,11 +27,14 @@ static struct {
 	volatile u32 *gpio;
 	u32 cpuclk;
 	spinlock_t pltctlSp;
+
+	u32 resetFlags;
 } nrf91_common;
 
 
 /* clang-format off */
-enum { power_tasks_constlat = 30, power_tasks_lowpwr, power_inten = 192, power_intenset, power_intenclr, power_status = 272};
+enum { power_tasks_constlat = 30, power_tasks_lowpwr, power_inten = 192, power_intenset,
+	power_intenclr, power_resetreas = 256, power_status = 272};
 
 
 enum { clock_tasks_hfclkstart = 0, clock_inten = 192, clock_intenset, clock_intenclr, clock_hfclkrun = 258, clock_hfclkstat };
@@ -47,13 +50,37 @@ enum { fpu_cpacr = 34, fpu_fpccr = 141, fpu_fpcar, fpu_fpdscr };
 /* clang-format on */
 
 
+extern void _interrupts_nvicSystemReset(void);
+
+
 /* platformctl syscall */
 
 
-/* TODO: add platformctl implementation */
 int hal_platformctl(void *ptr)
 {
-	return -ENOSYS;
+	platformctl_t *data = ptr;
+	int ret = -EINVAL;
+
+	switch (data->type) {
+		case pctl_reboot:
+			if (data->action == pctl_set) {
+				if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
+					_interrupts_nvicSystemReset();
+				}
+			}
+			else {
+				if (data->action == pctl_get) {
+					data->reboot.reason = nrf91_common.resetFlags;
+					ret = 0;
+				}
+			}
+			break;
+		default:
+			ret = -EINVAL;
+			break;
+	}
+
+	return ret;
 }
 
 
@@ -189,6 +216,10 @@ void _nrf91_init(void)
 	nrf91_common.power = (void *)0x50005000;
 	nrf91_common.clock = (void *)0x50005000;
 	nrf91_common.gpio = (void *)0x50842500;
+	/* Store reset reason and then clean it */
+	nrf91_common.resetFlags = *(nrf91_common.power + power_resetreas);
+	*(nrf91_common.power + power_resetreas) = 0x70017;
+
 
 	/* Based on nRF9160 product specification there is fixed cpu frequency */
 	nrf91_common.cpuclk = 64 * 1000 * 1000;
