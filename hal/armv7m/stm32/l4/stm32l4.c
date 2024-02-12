@@ -146,6 +146,7 @@ int hal_platformctl(void *ptr)
 		}
 		else if (data->action == pctl_get) {
 			data->reboot.reason = stm32_common.resetFlags;
+			ret = EOK;
 		}
 	}
 
