@@ -750,6 +750,12 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 					_cbuffer_write(&conn->buffer, &len, sizeof(len));
 					_cbuffer_write(&conn->buffer, buf, err = len);
 				}
+				else if (conn->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+					err = -EMSGSIZE;
+					proc_lockClear(&conn->lock);
+					break;
+				}
+
 				if (err > 0 && fdpack)
 					LIST_ADD(&conn->fdpacks, fdpack);
 				proc_lockClear(&conn->lock);

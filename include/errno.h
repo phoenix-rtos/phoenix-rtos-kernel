@@ -59,6 +59,7 @@
 #define EWOULDBLOCK  EAGAIN  /* Operation would block */
 
 #define ENOTSOCK        88
+#define EMSGSIZE        90
 #define EPROTOTYPE      91
 #define ENOPROTOOPT     92
 #define EPROTONOSUPPORT 93
