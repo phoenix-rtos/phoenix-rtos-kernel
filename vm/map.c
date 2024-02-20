@@ -864,6 +864,10 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 			e->prot = prot;
 
 			attr = vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags);
+			/* If an entry needs copy, enter it as a readonly to copy it on first access. */
+			if ((e->flags & MAP_NEEDSCOPY) != 0) {
+				attr &= ~(vm_protToAttr(PROT_WRITE));
+			}
 			for (currVaddr = e->vaddr; currVaddr < (e->vaddr + e->size); currVaddr += SIZE_PAGE) {
 				pa = pmap_resolve(&map->pmap, currVaddr);
 				if (pa != 0) {
