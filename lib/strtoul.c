@@ -56,7 +56,7 @@ unsigned long lib_strtoul(char *nptr, char **endptr, int base)
 		++nptr;
 	}
 
-	if (*endptr != NULL) {
+	if (endptr != NULL) {
 		*endptr = nptr;
 	}
 
