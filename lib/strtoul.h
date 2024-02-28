@@ -17,10 +17,10 @@
 #define _LIB_STROUL_H_
 
 
-extern unsigned int lib_strtoul(char *nptr, char **endptr, int base);
+extern unsigned long lib_strtoul(char *nptr, char **endptr, int base);
 
 
-extern int lib_strtol(char *nptr, char **endptr, int base);
+extern long lib_strtol(char *nptr, char **endptr, int base);
 
 
 #endif
