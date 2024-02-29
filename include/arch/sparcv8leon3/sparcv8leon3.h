@@ -17,6 +17,15 @@
 #define _PHOENIX_ARCH_SPARCV8LEON3_H_
 
 
+#if defined(__CPU_GR716)
+#include "gr716/gr716.h"
+#elif defined(__CPU_GR712RC)
+#include "gr712rc/gr712rc.h"
+#else
+#error "Unsupported TARGET"
+#endif
+
+
 /* GRLIB Cores' IDs - pages 10-18 GRLIB IP CORE Manual
  * https://www.gaisler.com/products/grlib/grip.pdf#page=10
  */
