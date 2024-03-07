@@ -15,6 +15,8 @@
 
 #include "hal/hal.h"
 #include "include/errno.h"
+#include "include/events.h"
+#include "include/file.h"
 #include "include/ioctl.h"
 #include "include/limits.h"
 #include "include/posix-fcntl.h"
@@ -34,15 +36,6 @@
 #endif
 
 #define POLL_INTERVAL 100000
-
-
-/* clang-format off */
-enum { atMode = 0, atUid, atGid, atSize, atBlocks, atIOBlock, atType, atPort, atPollStatus, atEventMask, atCTime, atMTime, atATime, atLinks, atDev };
-
-
-/* TODO: copied from libphoenix/posixsrv/posixsrv.h */
-enum { evAdd = 0x1, evDelete = 0x2, evEnable = 0x4, evDisable = 0x8, evOneshot = 0x10, evClear = 0x20, evDispatch = 0x40 };
-/* clang-format on */
 
 
 typedef struct {
