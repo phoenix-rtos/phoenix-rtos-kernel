@@ -17,9 +17,6 @@
 #define _PHOENIX_POSIX_TYPES_H_
 
 
-#include "posix-types.h"
-
-
 typedef int pid_t;
 typedef int mode_t;
 typedef int gid_t;
