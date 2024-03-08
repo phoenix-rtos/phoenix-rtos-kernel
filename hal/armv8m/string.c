@@ -17,35 +17,6 @@
 #include "hal/string.h"
 
 
-void hal_memcpy(void *dst, const void *src, unsigned int l)
-{
-	/* clang-format off */
-	__asm__ volatile
-	(" \
-		orr r3, %0, %1; \
-		lsls r3, r3, #30; \
-		bne 2f; \
-	1: \
-		cmp %2, #4; \
-		ittt hs; \
-		ldrhs r3, [%1], #4; \
-		strhs r3, [%0], #4; \
-		subshs %2, #4; \
-		bhs 1b; \
-	2: \
-		cmp %2, #0; \
-		ittt ne; \
-		ldrbne r3, [%1], #1; \
-		strbne r3, [%0], #1; \
-		subsne %2, #1; \
-		bne 2b"
-	: "+r" (dst), "+r" (src), "+r" (l)
-	:
-	: "r3", "memory", "cc");
-
-}
-
-
 int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
 	int res = 0;
@@ -71,36 +42,6 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 	: "r3", "r4", "memory", "cc");
 
 	return res;
-}
-
-
-void hal_memset(void *dst, int v, unsigned int l)
-{
-	unsigned int v1 = v & 0xffu;
-	unsigned int tmp;
-
-	tmp = (v1 << 8) | v1;
-	tmp |= (tmp << 16u);
-
-	__asm__ volatile
-	(" \
-		lsls r3, %0, #30; \
-		bne 2f; \
-	1: \
-		cmp %2, #4; \
-		itt hs; \
-		strhs %1, [%0], #4; \
-		subshs %2, #4; \
-		bhs 1b; \
-	2: \
-		cmp %2, #0; \
-		itt ne; \
-		strbne %1, [%0], #1; \
-		subsne %2, #1; \
-		bne 2b"
-	: "+r"(dst), "+r" (tmp), "+r" (l)
-	:
-	: "r3", "memory", "cc");
 }
 
 
