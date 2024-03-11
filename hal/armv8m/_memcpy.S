@@ -15,7 +15,7 @@
 
 #define DST r0
 #define SRC r1
-#define LEN r12
+#define LEN r5
 
 .thumb
 .syntax unified
@@ -42,7 +42,7 @@
 .globl hal_memcpy
 .type hal_memcpy, %function
 hal_memcpy:
-	str DST, [sp, #-8]!
+	push {r0, r5}
 	mov LEN, r2
 	cmp LEN, #64
 
@@ -76,7 +76,7 @@ hal_memcpy:
 	bne 1b
 
 .Lreturn:
-	ldr r0, [sp], #8
+	pop {r0, r5}
 	bx lr
 
 
