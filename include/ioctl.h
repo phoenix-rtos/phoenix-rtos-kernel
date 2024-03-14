@@ -18,16 +18,9 @@
 
 
 typedef struct {
-	id_t id;
-	unsigned pid;
 	unsigned long request;
 	char data[];
 } ioctl_in_t;
 
-
-typedef struct {
-	int err;
-	char data[];
-} ioctl_out_t;
 
 #endif

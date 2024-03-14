@@ -137,7 +137,7 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	msg.pid = r->pid;
 	msg.o.data = rmsg->odata;
 	msg.o.size = rmsg->osize;
-	msg.o.io.err = err;
+	msg.o.err = err;
 
 	proc_respond(rmsg->oid.port, &msg, rmsg->rid);
 
@@ -321,16 +321,11 @@ static void log_close(pid_t pid)
 
 static int log_devctl(msg_t *msg)
 {
-	ioctl_in_t *in = (ioctl_in_t *)msg->i.raw;
-	ioctl_out_t *out = (ioctl_out_t *)msg->o.raw;
-
 	/*
 	 * We need to handle isatty(), which
 	 * only checks if a device responds to TCGETS
 	 */
-	out->err = (in->request == TCGETS) ? EOK : -EINVAL;
-
-	return 0;
+	return (((ioctl_in_t *)msg->i.raw)->request == TCGETS) ? EOK : -EINVAL;
 }
 
 
@@ -342,44 +337,44 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 	switch (msg->type) {
 		case mtOpen:
 			if (msg->i.openclose.flags & O_WRONLY) {
-				msg->o.io.err = EOK;
+				msg->o.err = EOK;
 			}
 			else {
-				msg->o.io.err = log_readerAdd(msg->pid, msg->i.openclose.flags & O_NONBLOCK);
+				msg->o.err = log_readerAdd(msg->pid, msg->i.openclose.flags & O_NONBLOCK);
 			}
 			break;
 		case mtRead:
 			r = log_readerFind(msg->pid);
 			if (r == NULL) {
-				msg->o.io.err = -EINVAL;
+				msg->o.err = -EINVAL;
 			}
 			else {
-				msg->o.io.err = log_read(r, msg->o.data, msg->o.size);
-				if ((msg->o.io.err == 0) && (r->nonblocking == 0)) {
-					msg->o.io.err = log_readerBlock(r, msg, oid, rid);
-					if (msg->o.io.err == EOK) {
+				msg->o.err = log_read(r, msg->o.data, msg->o.size);
+				if ((msg->o.err == 0) && (r->nonblocking == 0)) {
+					msg->o.err = log_readerBlock(r, msg, oid, rid);
+					if (msg->o.err == EOK) {
 						respond = 0;
 					}
 				}
-				else if ((msg->o.io.err == 0) && (r->nonblocking != 0)) {
-					msg->o.io.err = -EAGAIN;
+				else if ((msg->o.err == 0) && (r->nonblocking != 0)) {
+					msg->o.err = -EAGAIN;
 				}
 				log_readerPut(&r);
 			}
 			break;
 		case mtWrite:
-			msg->o.io.err = log_write(msg->i.data, msg->i.size);
+			msg->o.err = log_write(msg->i.data, msg->i.size);
 			log_scrub();
 			break;
 		case mtClose:
 			log_close(msg->pid);
-			msg->o.io.err = 0;
+			msg->o.err = 0;
 			break;
 		case mtDevCtl:
-			log_devctl(msg);
+			msg->o.err = log_devctl(msg);
 			break;
 		default:
-			msg->o.io.err = -EINVAL;
+			msg->o.err = -EINVAL;
 			break;
 	}
 

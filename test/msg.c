@@ -88,7 +88,7 @@ void test_ping(void *arg)
 			return;
 		}
 
-		if (msg.o.io.err < 0) {
+		if (msg.o.err < 0) {
 			lib_printf("\ntest_msg/ping: pong returned error\n");
 			return;
 		}
@@ -136,12 +136,12 @@ void test_pong(void *arg)
 
 		if (proc_recv(port, &msg, &rid) < 0) {
 			lib_printf("test_msg/pong: receive failed\n");
-			msg.o.io.err = 1;
+			msg.o.err = 1;
 		}
 
 		if (msg.i.size != msg.o.size) {
 			lib_printf("test_msg/pong: i/o buffers are of different sizes: 0x%zx and 0x%zx\n", msg.i.size, msg.o.size);
-			msg.o.io.err = 1;
+			msg.o.err = 1;
 		}
 		else
 			hal_memcpy(msg.o.data, msg.i.data, msg.i.size);

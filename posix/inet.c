@@ -270,7 +270,7 @@ int inet_socket(int domain, int type, int protocol)
 	if ((err = socksrvcall(&msg)) < 0)
 		return err;
 
-	return msg.o.lookup.err < 0 ? msg.o.lookup.err : msg.o.lookup.dev.port;
+	return (msg.o.err < 0) ? msg.o.err : msg.o.lookup.dev.port;
 }
 
 

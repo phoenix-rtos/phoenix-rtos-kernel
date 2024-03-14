@@ -23,13 +23,14 @@ typedef int msg_rid_t;
  * Message types
  */
 
+/* clang-format off */
 
 enum {
 	/* File operations */
 	mtOpen = 0, mtClose, mtRead, mtWrite, mtTruncate, mtDevCtl,
 
 	/* Object operations */
-	mtCreate, mtDestroy, mtSetAttr, mtGetAttr,
+	mtCreate, mtDestroy, mtSetAttr, mtGetAttr, mtGetAttrAll,
 
 	/* Directory operations */
 	mtLookup, mtLink, mtUnlink, mtReaddir,
@@ -37,26 +38,52 @@ enum {
 	mtCount
 };
 
+/* clang-format on */
+
 
 #pragma pack(push, 8)
+
+
+struct _attr {
+	long long val;
+	int err;
+};
+
+
+struct _attrAll {
+	struct _attr mode;
+	struct _attr uid;
+	struct _attr gid;
+	struct _attr size;
+	struct _attr blocks;
+	struct _attr ioblock;
+	struct _attr type;
+	struct _attr port;
+	struct _attr pollStatus;
+	struct _attr eventMask;
+	struct _attr cTime;
+	struct _attr mTime;
+	struct _attr aTime;
+	struct _attr links;
+	struct _attr dev;
+};
 
 
 typedef struct _msg_t {
 	int type;
 	unsigned int pid;
 	unsigned int priority;
+	oid_t oid;
 
 	struct {
 		union {
 			/* OPEN/CLOSE */
 			struct {
-				oid_t oid;
 				int flags;
 			} openclose;
 
 			/* READ/WRITE/TRUNCATE */
 			struct {
-				oid_t oid;
 				off_t offs;
 				size_t len;
 				unsigned mode;
@@ -64,38 +91,24 @@ typedef struct _msg_t {
 
 			/* CREATE */
 			struct {
-				oid_t dir;
 				int type;
 				unsigned mode;
 				oid_t dev;
 			} create;
 
-			/* DESTROY */
-			struct {
-				oid_t oid;
-			} destroy;
-
 			/* SETATTR/GETATTR */
 			struct {
-				oid_t oid;
 				long long val;
 				int type;
 			} attr;
 
-			/* LOOKUP */
-			struct {
-				oid_t dir;
-			} lookup;
-
 			/* LINK/UNLINK */
 			struct {
-				oid_t dir;
 				oid_t oid;
 			} ln;
 
 			/* READDIR */
 			struct {
-				oid_t dir;
 				off_t offs;
 			} readdir;
 
@@ -103,37 +116,31 @@ typedef struct _msg_t {
 		};
 
 		size_t size;
-		void *data;
+		const void *data;
 	} i;
 
 	struct {
 		union {
-			struct {
-				int err;
-			} io;
-
 			/* ATTR */
 			struct {
 				long long val;
-				int err;
 			} attr;
 
 			/* CREATE */
 			struct {
 				oid_t oid;
-				int err;
 			} create;
 
 			/* LOOKUP */
 			struct {
 				oid_t fil;
 				oid_t dev;
-				int err;
 			} lookup;
 
 			unsigned char raw[64];
 		};
 
+		int err;
 		size_t size;
 		void *data;
 	} o;

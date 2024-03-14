@@ -32,54 +32,6 @@ static struct {
 } usrv_common;
 
 
-static int usrv_oidGet(const msg_t *msg, oid_t *oid)
-{
-	int err = EOK;
-	ioctl_in_t *ioctl;
-
-	switch (msg->type) {
-		case mtOpen:
-		case mtClose:
-			oid->id = msg->i.openclose.oid.id;
-			break;
-
-		case mtRead:
-		case mtWrite:
-		case mtTruncate:
-			oid->id = msg->i.io.oid.id;
-			break;
-
-		case mtCreate:
-			oid->id = msg->i.create.dir.id;
-			break;
-
-		case mtDestroy:
-			oid->id = msg->i.destroy.oid.id;
-			break;
-
-		case mtGetAttr:
-		case mtSetAttr:
-			oid->id = msg->i.attr.oid.id;
-			break;
-
-		case mtLookup:
-			oid->id = msg->i.lookup.dir.id;
-			break;
-
-		case mtDevCtl:
-			ioctl = (ioctl_in_t *)msg->i.raw;
-			oid->id = ioctl->id;
-			break;
-
-		default:
-			err = -EINVAL;
-			break;
-	}
-
-	return err;
-}
-
-
 static void usrv_msgthr(void *arg)
 {
 	msg_t msg;
@@ -87,10 +39,11 @@ static void usrv_msgthr(void *arg)
 	oid_t oid = usrv_common.oid;
 
 	for (;;) {
-		/* TODO: when the oid_t is added to the msg_t then usrv_oidGet should be removed */
-		if (proc_recv(oid.port, &msg, &rid) != 0 || usrv_oidGet(&msg, &oid) != 0) {
+		if (proc_recv(oid.port, &msg, &rid) != 0) {
 			continue;
 		}
+
+		oid.id = msg.oid.id;
 
 		switch (oid.id) {
 			case USRV_ID_LOG:
@@ -98,7 +51,7 @@ static void usrv_msgthr(void *arg)
 				break;
 
 			default:
-				msg.o.io.err = -ENOSYS;
+				msg.o.err = -ENOSYS;
 				proc_respond(oid.port, &msg, rid);
 				break;
 		}

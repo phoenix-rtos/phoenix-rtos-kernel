@@ -253,17 +253,15 @@ static void msg_ipack(kmsg_t *kmsg)
 				offset = sizeof(kmsg->msg.i.create);
 				break;
 
+			case mtLookup:
 			case mtDestroy:
-				offset = sizeof(kmsg->msg.i.destroy);
+			case mtGetAttrAll:
+				offset = 0;
 				break;
 
 			case mtSetAttr:
 			case mtGetAttr:
 				offset = sizeof(kmsg->msg.i.attr);
-				break;
-
-			case mtLookup:
-				offset = sizeof(kmsg->msg.i.lookup);
 				break;
 
 			case mtLink:
@@ -308,7 +306,8 @@ static int msg_opack(kmsg_t *kmsg)
 		case mtLink:
 		case mtUnlink:
 		case mtReaddir:
-			offset = sizeof(kmsg->msg.o.io);
+		case mtGetAttrAll:
+			offset = 0;
 			break;
 
 		case mtCreate:
@@ -405,9 +404,10 @@ int proc_send(u32 port, msg_t *msg)
 
 	if (err == EOK) {
 		hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
+		msg->o.err = kmsg.msg.o.err;
 
 		/* If msg.o.data has been packed to msg.o.raw */
-		if ((kmsg.msg.o.data > (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw))) {
+		if ((kmsg.msg.o.data >= (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw))) {
 			hal_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
 		}
 	}
@@ -475,14 +475,14 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	kmsg->o.eoffs = 0;
 	kmsg->o.ep = NULL;
 
-	if ((kmsg->msg.i.data > (void *)kmsg->msg.i.raw) && (kmsg->msg.i.data < (void *)kmsg->msg.i.raw + sizeof(kmsg->msg.i.raw))) {
+	if ((kmsg->msg.i.data >= (void *)kmsg->msg.i.raw) && (kmsg->msg.i.data < (void *)kmsg->msg.i.raw + sizeof(kmsg->msg.i.raw))) {
 		ipacked = 1;
 	}
 
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
 	if (ipacked == 0) {
-		kmsg->msg.i.data = msg_map(0, kmsg, kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
+		kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 	}
 
 	opacked = msg_opack(kmsg);
@@ -560,6 +560,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	msg_release(kmsg);
 
 	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
+	kmsg->msg.o.err = msg->o.err;
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
