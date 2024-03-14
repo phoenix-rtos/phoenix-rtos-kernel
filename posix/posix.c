@@ -279,7 +279,7 @@ int posix_truncate(oid_t *oid, off_t length)
 	if ((oid->port != US_PORT) && (length >= 0)) {
 		hal_memset(&msg, 0, sizeof(msg));
 		msg.type = mtTruncate;
-		hal_memcpy(&msg.i.io.oid, oid, sizeof(oid_t));
+		hal_memcpy(&msg.oid, oid, sizeof(oid_t));
 		msg.i.io.len = length;
 		err = proc_send(oid->port, &msg);
 	}
@@ -987,7 +987,7 @@ int posix_chmod(const char *pathname, mode_t mode)
 	}
 
 	hal_memset(&msg, 0, sizeof(msg));
-	hal_memcpy(&msg.i.attr.oid, &oid, sizeof(oid));
+	hal_memcpy(&msg.oid, &oid, sizeof(oid));
 
 	msg.type = mtSetAttr;
 	msg.i.attr.type = atMode;
@@ -995,7 +995,7 @@ int posix_chmod(const char *pathname, mode_t mode)
 
 	err = proc_send(oid.port, &msg);
 	if (err >= 0) {
-		err = msg.o.attr.err;
+		err = msg.o.err;
 	}
 
 	return (err < 0) ? err : EOK;
@@ -1192,6 +1192,7 @@ int posix_fstat(int fd, struct stat *buf)
 	open_file_t *f;
 	msg_t msg;
 	int err;
+	struct _attrAll attrs;
 
 	err = posix_getOpenFile(fd, &f);
 	if (err < 0) {
@@ -1206,112 +1207,85 @@ int posix_fstat(int fd, struct stat *buf)
 	buf->st_rdev = f->oid.port;
 
 	if (f->type == ftRegular) {
-		msg.type = mtGetAttr;
-		hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
+		msg.type = mtGetAttrAll;
+		hal_memcpy(&msg.oid, &f->oid, sizeof(oid_t));
+		msg.o.data = &attrs;
+		msg.o.size = sizeof(attrs);
 
 		do {
-			msg.i.attr.type = atMTime;
 			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
 			if (err < 0) {
 				break;
 			}
-			buf->st_mtim.tv_sec = msg.o.attr.val;
+
+			err = msg.o.err;
+			if (err < 0) {
+				break;
+			}
+
+			err = attrs.mTime.err;
+			if (err < 0) {
+				break;
+			}
+			buf->st_mtim.tv_sec = attrs.mTime.val;
 			buf->st_mtim.tv_nsec = 0;
 
-			msg.i.attr.type = atATime;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.aTime.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_atim.tv_sec = msg.o.attr.val;
+
+			buf->st_atim.tv_sec = attrs.aTime.val;
 			buf->st_atim.tv_nsec = 0;
 
-			msg.i.attr.type = atCTime;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.cTime.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_ctim.tv_sec = msg.o.attr.val;
+			buf->st_ctim.tv_sec = attrs.cTime.val;
 			buf->st_ctim.tv_nsec = 0;
 
-			msg.i.attr.type = atLinks;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.links.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_nlink = msg.o.attr.val;
+			buf->st_nlink = attrs.links.val;
 
-			msg.i.attr.type = atMode;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.mode.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_mode = msg.o.attr.val;
+			buf->st_mode = attrs.mode.val;
 
-			msg.i.attr.type = atUid;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.uid.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_uid = msg.o.attr.val;
+			buf->st_uid = attrs.uid.val;
 
-			msg.i.attr.type = atGid;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.gid.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_gid = msg.o.attr.val;
+			buf->st_gid = attrs.gid.val;
 
-			msg.i.attr.type = atSize;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.size.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_size = msg.o.attr.val;
+			buf->st_size = attrs.size.val;
 
-			msg.i.attr.type = atBlocks;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.blocks.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_blocks = msg.o.attr.val;
+			buf->st_blocks = attrs.blocks.val;
 
-			msg.i.attr.type = atIOBlock;
-			err = proc_send(f->oid.port, &msg);
-			if (err >= 0) {
-				err = msg.o.attr.err;
-			}
+			err = attrs.ioblock.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_blksize = msg.o.attr.val;
+			buf->st_blksize = attrs.ioblock.val;
 		} while (0);
 	}
 	else {
@@ -1576,13 +1550,14 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 #define SIOCDELRT   _IOC(IOC_IN, 'S', 0x45, sizeof(struct rtentry))
 
 
-void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
+static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid)
 {
 	size_t size = IOCPARM_LEN(request);
 	ioctl_in_t *ioctl = (ioctl_in_t *)msg->i.raw;
 	struct ifconf *ifc;
 	struct rtentry *rt;
 
+	hal_memcpy(&msg->oid, oid, sizeof(*oid));
 	msg->type = mtDevCtl;
 	msg->i.data = NULL;
 	msg->i.size = 0;
@@ -1590,8 +1565,6 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 	msg->o.size = 0;
 
 	ioctl->request = request;
-	ioctl->id = id;
-	ioctl->pid = process_getPid(proc_current()->process);
 
 	if ((request & IOC_INOUT) != 0) {
 		if ((request & IOC_IN) != 0) {
@@ -1604,7 +1577,7 @@ void ioctl_pack(msg_t *msg, unsigned long request, void *data, id_t id)
 			}
 		}
 
-		if (((request & IOC_OUT) != 0) && (size > (sizeof(msg->o.raw) - sizeof(ioctl_out_t)))) {
+		if (((request & IOC_OUT) != 0) && (size > sizeof(msg->o.raw))) {
 			msg->o.data = data;
 			msg->o.size = size;
 		}
@@ -1635,13 +1608,12 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 {
 	size_t size = IOCPARM_LEN(request);
 	int err;
-	ioctl_out_t *ioctl = (ioctl_out_t *)msg->o.raw;
 	struct ifconf *ifc;
 
-	err = ioctl->err;
+	err = msg->o.err;
 
-	if (((request & IOC_OUT) != 0) && (size <= (sizeof(msg->o.raw) - sizeof(ioctl_out_t)))) {
-		hal_memcpy(data, ioctl->data, size);
+	if (((request & IOC_OUT) != 0) && (size <= sizeof(msg->o.raw))) {
+		hal_memcpy(data, msg->o.raw, size);
 	}
 
 	if (request == SIOCGIFCONF) { /* restore overridden userspace pointer */
@@ -1671,7 +1643,7 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 					GETFROMSTACK(ustack, void *, data, 2);
 				}
 
-				ioctl_pack(&msg, request, data, f->oid.id);
+				ioctl_pack(&msg, request, data, &f->oid);
 
 				err = proc_send(f->oid.port, &msg);
 				if (err == EOK) {
@@ -2239,18 +2211,18 @@ int posix_futimens(int fildes, const struct timespec *times)
 	hal_memset(&msg, 0, sizeof(msg_t));
 
 	msg.type = mtSetAttr;
-	hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
+	hal_memcpy(&msg.oid, &f->oid, sizeof(oid_t));
 
 	msg.i.attr.type = atMTime;
 	msg.i.attr.val = times[1].tv_sec;
 	err = proc_send(f->oid.port, &msg);
-	if ((err >= 0) && (msg.o.attr.err >= 0)) {
+	if ((err >= 0) && (msg.o.err >= 0)) {
 		msg.i.attr.type = atATime;
 		msg.i.attr.val = times[0].tv_sec;
 		err = proc_send(f->oid.port, &msg);
 	}
 	if (err >= 0) {
-		err = msg.o.attr.err;
+		err = msg.o.err;
 	}
 
 	posix_fileDeref(f);
@@ -2282,16 +2254,16 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			err = POLLNVAL;
 		}
 		else {
-			hal_memcpy(&msg.i.attr.oid, &f->oid, sizeof(oid_t));
+			hal_memcpy(&msg.oid, &f->oid, sizeof(oid_t));
 			posix_fileDeref(f);
 
 			if (f->type == ftUnixSocket) {
-				err = unix_poll(msg.i.attr.oid.id, fds[i].events);
+				err = unix_poll(msg.oid.id, fds[i].events);
 			}
 			else {
-				err = proc_send(msg.i.attr.oid.port, &msg);
+				err = proc_send(msg.oid.port, &msg);
 				if (err >= 0) {
-					err = (msg.o.attr.err >= 0) ? msg.o.attr.val : msg.o.attr.err;
+					err = (msg.o.err >= 0) ? msg.o.attr.val : msg.o.err;
 				}
 			}
 		}

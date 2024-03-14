@@ -166,6 +166,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	}
 
 	hal_memcpy(kmsg->msg->o.raw, msg->o.raw, sizeof(msg->o.raw));
+	kmsg->msg->o.err = msg->o.err;
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
