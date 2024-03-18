@@ -201,7 +201,7 @@ extern int inet_getfl(unsigned socket);
 extern int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags);
 
 
-extern int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len);
+extern int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len, oid_t *odir, oid_t *dev);
 
 
 extern int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len);

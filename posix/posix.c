@@ -1850,7 +1850,7 @@ int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len
 				err = inet_bind(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_bind(f->oid.id, address, address_len);
+				err = unix_bind(f->oid.id, address, address_len, &f->oid, &f->ln);
 				break;
 			default:
 				err = -ENOTSOCK;

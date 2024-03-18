@@ -413,11 +413,10 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 }
 
 
-int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len)
+int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len, oid_t *odir, oid_t *dev)
 {
 	char *path, *name, *dir;
 	int err;
-	oid_t odir, dev;
 	unixsock_t *s;
 	void *v = NULL;
 
@@ -439,7 +438,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 		do {
 			lib_splitname(path, &name, &dir);
 
-			if (proc_lookup(dir, NULL, &odir) < 0) {
+			if (proc_lookup(dir, NULL, odir) < 0) {
 				err = -ENOTDIR;
 				break;
 			}
@@ -453,9 +452,9 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 				_cbuffer_init(&s->buffer, v, s->buffsz);
 			}
 
-			dev.port = US_PORT;
-			dev.id = socket;
-			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
+			dev->port = US_PORT;
+			dev->id = socket;
+			err = proc_create(odir->port, 2 /* otDev */, S_IFSOCK, *dev, *odir, name, dev);
 
 			if (err) {
 				if (s->type == SOCK_DGRAM) {
