@@ -82,7 +82,7 @@
 	ID(sys_pipe) \
 	ID(sys_mkfifo) \
 	ID(sys_chmod) \
-	ID(sys_fstat) \
+	ID(fdResolve) \
 	ID(sys_fsync) \
 	\
 	ID(sys_accept) \

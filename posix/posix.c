@@ -1185,137 +1185,24 @@ int posix_ftruncate(int fildes, off_t length)
 }
 
 
-int posix_fstat(int fd, struct stat *buf)
+int posix_fdResolve(int fd, oid_t *oid, oid_t *dev)
 {
-	TRACE("fstat(%d)", fd);
+	TRACE("fdResolve(%d)", fd);
 
-	open_file_t *f;
-	msg_t msg;
 	int err;
-	struct _attrAll attrs;
+	open_file_t *f;
 
 	err = posix_getOpenFile(fd, &f);
 	if (err < 0) {
 		return err;
 	}
 
-	hal_memset(buf, 0, sizeof(struct stat));
-	hal_memset(&msg, 0, sizeof(msg_t));
-
-	buf->st_dev = f->ln.port;
-	buf->st_ino = (int)f->ln.id; /* FIXME */
-	buf->st_rdev = f->oid.port;
-
-	if (f->type == ftRegular) {
-		msg.type = mtGetAttrAll;
-		hal_memcpy(&msg.oid, &f->oid, sizeof(oid_t));
-		msg.o.data = &attrs;
-		msg.o.size = sizeof(attrs);
-
-		do {
-			err = proc_send(f->oid.port, &msg);
-			if (err < 0) {
-				break;
-			}
-
-			err = msg.o.err;
-			if (err < 0) {
-				break;
-			}
-
-			err = attrs.mTime.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_mtim.tv_sec = attrs.mTime.val;
-			buf->st_mtim.tv_nsec = 0;
-
-			err = attrs.aTime.err;
-			if (err < 0) {
-				break;
-			}
-
-			buf->st_atim.tv_sec = attrs.aTime.val;
-			buf->st_atim.tv_nsec = 0;
-
-			err = attrs.cTime.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_ctim.tv_sec = attrs.cTime.val;
-			buf->st_ctim.tv_nsec = 0;
-
-			err = attrs.links.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_nlink = attrs.links.val;
-
-			err = attrs.mode.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_mode = attrs.mode.val;
-
-			err = attrs.uid.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_uid = attrs.uid.val;
-
-			err = attrs.gid.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_gid = attrs.gid.val;
-
-			err = attrs.size.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_size = attrs.size.val;
-
-			err = attrs.blocks.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_blocks = attrs.blocks.val;
-
-			err = attrs.ioblock.err;
-			if (err < 0) {
-				break;
-			}
-			buf->st_blksize = attrs.ioblock.val;
-		} while (0);
-	}
-	else {
-		switch (f->type) {
-			case ftRegular:
-				break;
-			case ftPipe:
-			case ftFifo:
-				buf->st_mode = S_IFIFO;
-				break;
-			case ftInetSocket:
-			case ftUnixSocket:
-				buf->st_mode = S_IFSOCK;
-				break;
-			case ftTty:
-				buf->st_mode = S_IFCHR;
-				break;
-			default:
-				buf->st_mode = 0;
-				break;
-		}
-
-		buf->st_uid = 0;
-		buf->st_gid = 0;
-		buf->st_size = proc_size(f->oid);
-	}
+	hal_memcpy(oid, &f->ln, sizeof(oid_t));
+	hal_memcpy(dev, &f->oid, sizeof(oid_t));
 
 	posix_fileDeref(f);
 
-	return err;
+	return EOK;
 }
 
 
