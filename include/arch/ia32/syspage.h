@@ -45,6 +45,8 @@ typedef struct {
 	unsigned int fadtLength;
 	unsigned long hpet; /* addr_t */
 	unsigned int hpetLength;
+	unsigned long mcfg; /* addr_t */
+	unsigned int mcfgLength;
 } __attribute__((packed)) hal_syspage_t;
 
 
