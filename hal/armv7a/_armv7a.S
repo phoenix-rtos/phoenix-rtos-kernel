@@ -281,9 +281,8 @@ hal_jmp:
 	cps #IRQ_MODE
 	mov r5, #0x10
 	tst r4, #1
-	orrne r5, r5, #(1 << 5)
-	push {r5}
-	push {r4}
+	orrne r5, r5, #THUMB_STATE
+	push {r4, r5}
 	rfefd sp!
 .size hal_jmp, .-hal_jmp
 .ltorg

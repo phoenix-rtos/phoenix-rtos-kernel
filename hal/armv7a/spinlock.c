@@ -25,6 +25,7 @@ static struct {
 
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
+	/* clang-format off */
 	__asm__ volatile(" \
 		mrs r1, cpsr; \
 		cpsid if; \
@@ -41,24 +42,27 @@ void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 	:
 	: "r" (sc), "r" (&spinlock->lock)
 	: "r1", "r2", "memory", "cc");
+	/* clang-format on */
 }
 
 
 void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
+	/* clang-format off */
 	__asm__ volatile (" \
+		dmb; \
 	1 : \
 		ldrexb r1, [%0]; \
 		add r1, r1, #1; \
-		dmb; \
 		strexb r2, r1, [%0]; \
 		cmp r2, #0; \
 		bne 1b; \
 		ldrb r1, [%1]; \
-		msr cpsr_c, r1;"
+		msr cpsr_c, r1"
 	:
 	: "r" (&spinlock->lock), "r" (sc)
 	: "r1", "r2", "memory");
+	/* clang-format on */
 }
 
 
