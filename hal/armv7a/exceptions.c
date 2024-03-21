@@ -80,7 +80,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s("  fp=", &buff[i], ctx->cpuCtx.fp, 16, 1);
 
 	i += hal_i2s("\n ip=", &buff[i], ctx->cpuCtx.ip, 16, 1);
-	i += hal_i2s("  sp=", &buff[i], (u32)ctx + 21 * 4, 16, 1);
+	i += hal_i2s("  sp=", &buff[i], ctx->cpuCtx.sp, 16, 1);
 	i += hal_i2s("  lr=", &buff[i], ctx->cpuCtx.lr, 16, 1);
 	i += hal_i2s("  pc=", &buff[i], ctx->cpuCtx.pc, 16, 1);
 

@@ -14,6 +14,7 @@
  */
 
 #include "hal/cpu.h"
+#include "hal/armv7a/armv7a.h"
 #include "hal/spinlock.h"
 #include "include/arch/armv7a/zynq7000/zynq7000.h"
 
@@ -79,6 +80,7 @@ extern unsigned int _end;
 
 static void _zynq_slcrLock(void)
 {
+	hal_cpuDataMemoryBarrier(); /* Ensure previous writes are committed before locking */
 	*(zynq_common.slcr + slcr_lock) = 0x0000767b;
 }
 
@@ -86,6 +88,7 @@ static void _zynq_slcrLock(void)
 static void _zynq_slcrUnlock(void)
 {
 	*(zynq_common.slcr + slcr_unlock) = 0x0000df0d;
+	hal_cpuDataMemoryBarrier(); /* Ensure subsequent writes are committed after unlocking */
 }
 
 

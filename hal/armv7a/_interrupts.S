@@ -19,14 +19,21 @@
 
 .arm
 
+.macro push_fpu_state reg_tmp
+	vpush {d16-d31}
+	vpush {d0-d15}
+	vmrs \reg_tmp, fpscr
+	push {\reg_tmp}
+.endm
+
 .globl _exception_undef
 .type _exception_undef, %function
 _exception_undef:
 	cpsid if
 	stmfd sp, {r0-r4}
-	mov r0, #1
+	mov r0, #1 /* exc_undef */
 	mrs r3, spsr
-	tst r3, #0x20
+	tst r3, #THUMB_STATE
 	subeq r2, lr, #4
 	subne r2, lr, #2
 	b _exceptions_dispatch
@@ -38,7 +45,7 @@ _exception_undef:
 _exception_prefetch:
 	cpsid if
 	stmfd sp, {r0-r4}
-	mov r0, #3
+	mov r0, #3 /* exc_prefetch */
 	sub r2, lr, #4
 	b _exceptions_dispatch
 .size _exception_prefetch, .-_exception_prefetch
@@ -49,7 +56,7 @@ _exception_prefetch:
 _exception_abort:
 	cpsid if
 	stmfd sp, {r0-r4}
-	mov r0, #4
+	mov r0, #4 /* exc_abort */
 	sub r2, lr, #8
 	b _exceptions_dispatch
 .size _exception_abort, .-_exception_abort
@@ -58,9 +65,13 @@ _exception_abort:
 .globl _exceptions_dispatch
 .type _exceptions_dispatch, %function
 _exceptions_dispatch:
+	/* Contents of registers:
+	 * r0 - exception number
+	 * r2 - PC of the instruction that caused the exception
+	 * registers r0-r4 from previous context are saved below SP */
 	mrs r3, spsr
 	sub r1, sp, #0x14
-	mrc p15, 0, r4, c13, c0, 4
+	mrc p15, 0, r4, c13, c0, 4 /* TPIDRPRW */
 	cps #SYS_MODE
 	tst r3, #0x0f
 	movne r4, sp
@@ -69,24 +80,25 @@ _exceptions_dispatch:
 	mov sp, r4
 	ldmfd r1, {r4-r8}
 	push {r3-r8}
-	vpush {d16-d31}
-	vpush {d0-d15}
-	vmrs r4,fpscr
-	push {r4}
+
+	push_fpu_state r4
+
 	sub sp, sp, #8
 	str sp, [sp]
-	mrc p15, 0, r1, c6, c0, 2
+
+	/* Push exception context */
+	mrc p15, 0, r1, c6, c0, 2 /* IFAR */
 	push {r1}
-	mrc p15, 0, r1, c5, c0, 1
+	mrc p15, 0, r1, c5, c0, 1 /* IFSR */
 	push {r1}
-	mrc p15, 0, r1, c6, c0, 0
+	mrc p15, 0, r1, c6, c0, 0 /* DFAR */
 	push {r1}
-	mrc p15, 0, r1, c5, c0, 0
+	mrc p15, 0, r1, c5, c0, 0 /* DFSR */
 	push {r1}
+
 	mov r1, sp
 
-	ldr lr, =exceptions_dispatch
-	blx lr
+	blx exceptions_dispatch
 
 	ldr sp, [sp, #0x10]
 	add sp, sp, #8
@@ -122,19 +134,14 @@ _hal_cpuRestoreCtx:
 .type hal_cpuReschedule, %function
 hal_cpuReschedule:
 	cpsid if
+	/* Store CPU registers */
+	str sp, [sp, #-12]
+	push {lr} /* Push LR as both PC and LR */
 	push {lr}
-	stmfd sp, {r0-r14}
-	sub sp, sp, #0x3c
-
-	mov r3, r1 /* Save spinlock context for later */
-
-	/* Default return value - EOK */
-	mov r1, #0
-	str r1, [sp]
-
-	ldr r1, [sp, #0x34]
-	add r1, #4
-	str r1, [sp, #0x34]
+	sub sp, #4 /* Skip over SP, already saved */
+	push {r1-r12}
+	mov r3, #0
+	push {r3} /* Push default return value (EOK) as R0 */
 
 	mrs r4, cpsr
 
@@ -144,30 +151,26 @@ hal_cpuReschedule:
 	add r0, #12
 
 /* Spinlock clear */
-spinlock:
-	ldrexb r1, [r0]
-	add r1, r1, #1
 	dmb
-	strexb r2, r1, [r0]
+spinlock:
+	ldrexb r3, [r0]
+	add r3, r3, #1
+	strexb r2, r3, [r0]
 	cmp r2, #0
 	bne spinlock
-	ldrb r1, [r3]
+	ldrb r1, [r1]
 
 	bic r4, #0xff
 	and r1, #0xff
 	orr r4, r4, r1
 1:
-	/* store CPSR with adjusted M and I flags */
+	/* store CPSR with adjusted I, F, T flags */
+	bic r4, #0xe0
 	and r5, lr, #1 /* extract Thumb flag from LR address */
 	orr r4, r4, r5, lsl #5
-	bic r4, #0xc0
 	push {r4}
 
-	/* Store fpu context */
-	vpush {d16-d31}
-	vpush {d0-d15}
-	vmrs r4,fpscr
-	push {r4}
+	push_fpu_state r4
 
 	sub r1, sp, #8
 	push {r1}
@@ -212,11 +215,7 @@ _interrupts_dispatch:
 	ldmfd r0, {r3-r6}
 	push {r2-r6}
 
-	/* Store fpu context */
-	vpush {d16-d31}
-	vpush {d0-d15}
-	vmrs r4,fpscr
-	push {r4}
+	push_fpu_state r4
 
 	/* save SP on top of the stack and pass it as arg1 to IRQ handler (it is cpu_context_t *) */
 	sub r1, sp, #8
@@ -247,20 +246,18 @@ _syscalls_dispatch:
 	biceq r0, r0, #0xff000000
 	ldrneh r0, [r2, #-2]
 	bicne r0, r0, #0xff00
-	mrc p15, 0, r4, c13, c0, 4
+	mrc p15, 0, r4, c13, c0, 4 /* TPIDRPRW */
 
 	cpsie af, #SYS_MODE
 
+	/* Store CPU state onto kernel stack */
 	stmfd r4!, {r2}
 	stmfd r4!, {r5-r14}
 	mov r2, sp
 	mov sp, r4
 	ldmfd r1, {r4-r8}
 	push {r3-r8}
-	vpush {d16-d31}
-	vpush {d0-d15}
-	vmrs r4,fpscr
-	push {r4}
+	push_fpu_state r4
 	sub r1, sp, #8
 	push {r1}
 	push {r1}
@@ -272,8 +269,6 @@ _syscalls_dispatch:
 	blx syscalls_dispatch
 
 	cpsid if
-
-	str r0, [sp, #272]
 
 	ldr sp, [sp]
 	add sp, sp, #8

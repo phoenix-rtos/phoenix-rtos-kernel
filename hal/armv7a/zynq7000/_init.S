@@ -24,21 +24,26 @@
 .extern relOffs
 .extern _end
 
-#define ADDR_TTL1     (pmap_common - VADDR_KERNEL + ADDR_DDR)
-#define ADDR_TTL2_K   (ADDR_TTL1 + 4 * SIZE_PAGE)
-#define ADDR_TTL2_EXC (ADDR_TTL2_K + SIZE_PAGE)
-#define ADDR_STACK    0x004ff000
+#define PA_KERNEL (ADDR_DDR)
+#define PA_OF(va) ((va) - VADDR_KERNEL + PA_KERNEL)
+#define TTL1_OFFSET_OF(va) ((va >> 20) << 2)
 
-#define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
-#define VADDR_UART0   (VADDR_SYSPAGE + 2 * SIZE_PAGE)
-#define VADDR_UART1   (VADDR_UART0 + SIZE_PAGE)
-#define VADDR_GIC     (VADDR_UART1 + SIZE_PAGE)
-#define VADDR_TTC     (VADDR_GIC + 4 * SIZE_PAGE)
+#define VA_TTL1     (pmap_common) /* u32 kpdir[0x1000] */
+#define VA_TTL2_K   (VA_TTL1 + 4 * SIZE_PAGE) /* u32 kptab[0x400] */
+#define VA_TTL2_EXC (VA_TTL2_K + SIZE_PAGE) /* u32 excptab[0x400] */
+#define VA_TTL_END  (VA_TTL2_EXC + SIZE_PAGE)
+#define PA_STACK    (ADDR_DDR + 4 * 1024 * 1024 - SIZE_PAGE)
 
-#define PADDR_UART0 0xe0000000
-#define PADDR_UART1 0xe0001000
-#define PADDR_SLCR  0xf8000000
-#define PADDR_TTC   0xf8001000
+#define VA_SYSPAGE (_end + SIZE_PAGE - 1)
+#define VA_UART0   (VA_SYSPAGE + 2 * SIZE_PAGE)
+#define VA_UART1   (VA_UART0 + SIZE_PAGE)
+#define VA_GIC     (VA_UART1 + SIZE_PAGE)
+#define VA_TTC     (VA_GIC + 4 * SIZE_PAGE)
+
+#define PA_UART0 0xe0000000
+#define PA_UART1 0xe0001000
+#define PA_SLCR  0xf8000000
+#define PA_TTC   0xf8001000
 
 .arm
 
@@ -58,6 +63,13 @@ _vector_table:
 	b _interrupts_dispatch
 	b _interrupts_dispatch
 
+/*
+	Fill 4 words in memory starting from r0 with value r1 incremented by r2 after every step
+	r0 - pointer to destination, set past-the-end on return
+	r1 - initial value, set past-the-end on return
+	r2 - increment step, constant
+	r3 - will be set to 0
+ */
 _cpy4:
 	mov r3, #4
 	str r1, [r0], #4
@@ -69,48 +81,9 @@ _cpy4:
 
 /* startup code */
 _start:
+	/* r9 now contains PA of syspage from PLO */
 	cpsid aif, #SYS_MODE
 
-	ldr r0, =relOffs
-	ldr r1, =#VADDR_SYSPAGE
-	lsr r1, #12
-	lsl r1, #12
-
-	sub r0, r0, #VADDR_KERNEL
-	add r0, r0, #ADDR_DDR
-	sub r2, r1, r9
-	str r2, [r0]
-
-	ldr r0, [r9, #4] /* syspage size address - syspage address + sizeof(hal_syspage_t) */
-	add r2, r9, r0   /* end of the syspage */
-
-	ldr r0, =syspage
-	sub r0, r0, #VADDR_KERNEL
-	add r0, r0, #ADDR_DDR
-	str r1, [r0]
-
-	sub r1, r1, #VADDR_KERNEL
-	add r1, r1, #ADDR_DDR
-
-syspage_cpy:
-	ldr r3, [r9], #4
-	str r3, [r1], #4
-	cmp r9, r2
-	blo syspage_cpy
-
-	/* Only CPU0 performs initialization, others go into WFI */
-	mrc p15, 0, r1, c0, c0, 5       /* Read Multiprocessor Affinity Register */
-	and r1, r1, #0xf                /* Extract CPU ID                        */
-	cmp r1, #0
-	beq initialize
-
-wait_loop:
-/* TODO: make appropriate action when other core than CPU0 is running */
-	wfi
-	b wait_loop
-
-
-initialize:
 	/* Enable PMU */
 	mrc p15, 0, r0, c9, c12, 0       /* Read PMCR (Performance Monitor Control Register)  */
 	orr r0, #0x7                     /* Cycle counter reset - bit[2], Performance counter reset - bit[1], enable all counters - bit[0] */
@@ -162,52 +135,86 @@ set_loop:
 	/* Invalidate TLB */
 	mcr p15, 0, r1, c8, c7, 0
 
-	/* Init TTL1 */
-	ldr r5, =ADDR_TTL1
-	mov r1, #0
-	mov r2, #(4096 * 6 - 4)           /* Size of kpdir, kptab and excptab in pmap_common */
-clear_ttl1:
-	str r1, [r5, r2]
-	subs r2, #4
-	bne clear_ttl1
-	str r1, [r5]
+	/* Read CPU ID, only core 0 continues initialization */
+	mrc p15, 0, r1, c0, c0, 5       /* Read Multiprocessor Affinity Register */
+	ands r1, r1, #0xf               /* Extract CPU ID                        */
+	beq structs_init
+wait_loop:
+	wfi
+	b wait_loop
 
-	/* In order to execute first stage of kernel */
-	/* Map 4 MB P 0x00100000 -> V 0x00100000 */
-	add r0, r5, #((ADDR_DDR >> 20) << 2)                  /* Entry address: TTL1 base address + entry index * 4 B (entry size)           */
-	ldr r1, =((ADDR_DDR & ~0xfffff) | (0x1 << 10) | 0x2)  /* Section entry: base addres - DDR, AP = 01, APX = 0 (privileged access only) */
-	mov r2, #0x100000                                     /* Size of section: 1 MB                                                       */
-	bl _cpy4                                              /* Fill 4 entries in TTL1                                                      */
+structs_init:
+	/* init memory structures (relOffs, syspage, TTLs) */
+	ldr r1, =#VA_SYSPAGE
+	lsr r1, #12
+	lsl r1, #12
+	sub r2, r1, r9
+
+	ldr r0, =#PA_OF(relOffs)
+	str r2, [r0]
+
+	ldr r0, [r9, #4] /* load syspage size from syspage address + sizeof(hal_syspage_t) */
+	add r2, r9, r0   /* set r2 to end of the syspage */
+
+	ldr r0, =#PA_OF(syspage)
+	str r1, [r0]
+
+	sub r1, r1, #VADDR_KERNEL
+	add r1, r1, #ADDR_DDR
+	mov r0, r9
+
+syspage_cpy:
+	ldr r3, [r0], #4
+	str r3, [r1], #4
+	cmp r0, r2
+	blo syspage_cpy
+
+	/* Initialize MMU translation tables */
+	/* Clear everything to 0 (invalid entry) */
+	ldr r5, =PA_OF(VA_TTL1)
+	mov r1, #0
+	mov r2, #(VA_TTL_END - VA_TTL1)
+clear_ttls:
+	subs r2, #4
+	str r1, [r5, r2]
+	bne clear_ttls
+
+	/* Needed to execute first stage of kernel, should be unmapped later */
+	/* Map 4 MB V 0x00100000 -> P 0x00100000 */
+	add r0, r5, #TTL1_OFFSET_OF(PA_KERNEL)                  /* Entry address: TTL1 base address + entry index * 4 B (entry size)           */
+	ldr r1, =((PA_KERNEL & ~0xfffff) | (0x1 << 10) | 0x2)  /* Section entry: base address - DDR, AP = 01, APX = 0 (privileged access only) */
+	mov r2, #0x100000                                      /* Size of section: 1 MB                                                       */
+	bl _cpy4                                               /* Fill 4 entries in TTL1                                                      */
 
 
 	/* Kernel TTL1 entries
-	 * map 4 MB P 0x00100000 -> V 0xc0000000 */
-	add r0, r5, #((VADDR_KERNEL >> 20) << 2)              /* Entry address: virtual kernel address + entry index * 4 B (entry size)  */
-	ldr r1, =(ADDR_TTL2_K + 1)                            /* Ptr to kernel's TTL2 (pmap_common.kptab); bits [1:0] = 1 defines TTL2   */
-	mov r2, #0x400                                        /* Size of TTL2                                                            */
-	bl _cpy4                                              /* Fill TTL1 with 4 TTL2's addresses; pmap_common.kptab consists of 4 TTL2 */
+	 * map 4 MB V VADDR_KERNEL -> TTL2 in pmap_common.kptab */
+	add r0, r5, #TTL1_OFFSET_OF(VADDR_KERNEL)              /* Entry address: virtual kernel address + entry index * 4 B (entry size)  */
+	ldr r1, =(PA_OF(VA_TTL2_K) + 1)                        /* Ptr to kernel's TTL2 (pmap_common.kptab); bits [1:0] = 1 defines TTL2   */
+	mov r2, #0x400                                         /* Size of TTL2                                                            */
+	bl _cpy4                                               /* Fill TTL1 with 4 TTL2's addresses; pmap_common.kptab consists of 4 TTL2 */
 
 
-	/* Exceptions vectors and stack TTL1 entry
-	 * map 4MB V 0xffc00000 -> TTL2 of pmap_common.excptab */
-	ldr r0, =(ADDR_TTL1 + (0xffc << 2))                   /* Entry address: TTL1 address + index (0xffc - 4 entries in TTL1) * 4 B*/
-	ldr r1, =(ADDR_TTL2_EXC + 1)                          /* Ptr to exception's TTL2 (pmap_common.excptab); bits [1:0] = 1 defines TTL2 */
-	bl _cpy4                                              /* Fill TTL1 with 4 TTL2's addresses; pmap_common.excptab consists of 4 TTL2  */
+	/* Exception vectors and stack TTL1 entry
+	 * map 4MB V 0xffc00000 -> TTL2 in pmap_common.excptab */
+	ldr r0, =(PA_OF(VA_TTL1) + TTL1_OFFSET_OF(0xffc00000)) /* Entry address: TTL1 address + index (0xffc - 4 entries in TTL1) * 4 B*/
+	ldr r1, =(PA_OF(VA_TTL2_EXC) + 1)                      /* Ptr to exceptions' TTL2 (pmap_common.excptab); bits [1:0] = 1 defines TTL2 */
+	bl _cpy4                                               /* Fill TTL1 with 4 TTL2's addresses; pmap_common.excptab consists of 4 TTL2  */
 
 	ldr r8, =(ADDR_DDR)
 
 	/* Exceptions vectors TTL2 entry */
-	/* Map P 0x00100000 -> V 0xffff0000 */
-	ldr r0, =(ADDR_TTL2_EXC + (0x3f0 << 2))               /* Entry address: 4 entries from the end in last TTL2 in pmap_common.excptab    */
+	/* Map V 0xffff0000 -> P 0x00100000 */
+	ldr r0, =(PA_OF(VA_TTL2_EXC) + (0x3f0 << 2))          /* Entry address: 4 entries from the end in last TTL2 in pmap_common.excptab    */
 	orr r1, r8, #0x1a                                     /* Ptr to physical address. Attributes: XN = 0, B = 0, C = 0, AP = 0x3, TEX = 0 */
 	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
 
-	/* Stack TTL2 entry */
-	/* Map P ADDR_STACK -> V 0xfffff000 */
-	ldr r0, =(ADDR_TTL2_EXC + (0x3ff << 2))               /* Entry address: the last entry in 4 TTL2 in pmap_common.excptab               */
-	ldr r1, =((ADDR_STACK & ~0xfff) | 0x1e)               /* Ptr to physical address. Attributes: XN = 0, B = 1, C = 1, AP = 0x3, TEX = 0 */
-	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
 
+	/* Stack TTL2 entry */
+	/* Map V 0xfffff000 -> P PA_STACK  */
+	ldr r0, =(PA_OF(VA_TTL2_EXC) + (0x3ff << 2))        /* Entry address: the last entry in 4 TTL2 in pmap_common.excptab               */
+	ldr r1, =((PA_STACK & ~0xfff) | 0x1e)               /* Ptr to physical address. Attributes: XN = 0, B = 1, C = 1, AP = 0x3, TEX = 0 */
+	str r1, [r0]
 
 	/* Set vector table pointer to virtual address */
 	ldr r0, =_vector_table
@@ -215,8 +222,8 @@ clear_ttl1:
 
 
 	/* Kernel TTL2 entries (pmap_common.kptab) */
-	ldr r0, =ADDR_TTL2_K
-	ldr r1, =((ADDR_DDR & ~0xfff) + (1024 * SIZE_PAGE) | 0x1e)    /* Ptr to physical address. Attributes: XN = 0, B = 1, C = 1, AP = 0x3, TEX = 0 */
+	ldr r0, =PA_OF(VA_TTL2_K)
+	ldr r1, =((PA_KERNEL & ~0xfff) + (1024 * SIZE_PAGE) | 0x1e)    /* Ptr past-the-end of physical addresses. Attributes: XN = 0, B = 1, C = 1, AP = 0x3, TEX = 0 */
 	mov r2, #(4 * 1024)                                           /* size of pmap_common.kptab, it contains 4 TTL2 */
 	/* Map the whole kernel memory */
 kernel_ttl2:
@@ -226,10 +233,10 @@ kernel_ttl2:
 	bne kernel_ttl2
 
 
-	/* Kernel page directory: change attributes of pmap_common structure */
+	/* Change memory attributes of kernel page directory within TTL2 */
 	ldr r1, =(pmap_common - VADDR_KERNEL)    /* offset of pmap_common.kpdir                             */
-	add r0, r1, lsr #10                      /* r0 = ADDR_TTL2_K + (offset of: pmap_common.kpdir >> 10) */
-	add r1, r1, #ADDR_DDR                    /* physical address of pmap_common.kpdir                   */
+	add r0, r1, lsr #10                      /* r0 = PA_OF(VA_TTL2_K) + (offset of: pmap_common.kpdir >> 10) */
+	add r1, r1, #PA_KERNEL                   /* physical address of pmap_common.kpdir                   */
 	orr r1, r1, #0x1f                        /* Attributes: XN = 1, B = 1, C = 1, AP = 0x3, TEX = 0     */
 	mov r2, #0x1000
 	bl _cpy4
@@ -237,21 +244,21 @@ kernel_ttl2:
 	bl _cpy4
 	bl _cpy4
 
-	/* Kernel page tables */
+	/* Also change attributes of kernel page tables */
 	bl _cpy4
 
 	/* Map perpehrals addresses */
 	/* Map UART0 4 KB P 0xE0000000 -> V CEIL(_end, SIZE_PAGE) */
-	ldr r0, =(VADDR_UART0 - VADDR_KERNEL)
+	ldr r0, =(VA_UART0 - VADDR_KERNEL)
 	lsr r0, #12
 	lsl r0, #2
-	ldr r1, =ADDR_TTL2_K
+	ldr r1, =PA_OF(VA_TTL2_K)
 	add r0, r0, r1
-	ldr r1, =(PADDR_UART0 | 0x12)
+	ldr r1, =(PA_UART0 | 0x12)
 	str r1, [r0], #4
 
 	/* Map UART1 4KB P 0xE0001000 -> V CEIL(_end + SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =(PADDR_UART1 | 0x12)
+	ldr r1, =(PA_UART1 | 0x12)
 	str r1, [r0], #4
 
 	/* Map GIC 16 KB after UARTs */
@@ -263,18 +270,18 @@ kernel_ttl2:
 	bl _cpy4
 
 	/* Map SLCR after GIC */
-	ldr r1, =(PADDR_SLCR | 0x12)
+	ldr r1, =(PA_SLCR | 0x12)
 	str r1, [r0], #4
 
 	/* Map TTC after SLCR */
-	ldr r1, =(PADDR_TTC | 0x12)
+	ldr r1, =(PA_TTC | 0x12)
 	str r1, [r0], #4
 
 
 	/* Initialize MMU */
 	mov r1, #1
 	mcr p15, 0, r1, c2, c0, 2        /* Write Translation Table Base Control Register */
-	ldr r1, =ADDR_TTL1
+	ldr r1, =PA_OF(VA_TTL1)
 	orr r1, r1, #(1 | (1 << 6))      /* Inner cacheability                            */
 	orr r1, r1, #(3 << 3)            /* Outer cacheability                            */
 	mcr p15, 0, r1, c2, c0, 0        /* Write Translation Table Base Register 0       */
@@ -283,6 +290,9 @@ kernel_ttl2:
 	/* Set all Domains to Client */
 	ldr r1, =0x55555555
 	mcr p15, 0, r1, c3, c0, 0        /* Write Domain Access Control Register */
+
+	mov r1, #0
+	mcr p15, 0, r1, c13, c0, 1 		 /* Set ASID == 0 in CONTEXTIDR */
 
 	/* Enable L1 Caches */
 	mrc p15, 0, r1, c1, c0, 0        /* Read SCTLR (System Control Register) data  */
@@ -300,9 +310,15 @@ kernel_ttl2:
 	dsb
 	isb
 
+	/* Reset fault status/address registers to a known value */
+	mov r0, #0xFFFFFFFF
+	mcr p15, 0, r0, c5, c0, 0 /* DFSR */
+	mcr p15, 0, r0, c6, c0, 0 /* DFAR */
+	mcr p15, 0, r0, c5, c0, 1 /* IFSR */
+	mcr p15, 0, r0, c6, c0, 2 /* IFAR */
 
 	/* Setup stacks */
-	eor r0, r0        /* initial SP */
+	eor r0, r0          /* initialize SP to top of memory */
 
 	/* FIQ mode stack */
 	msr CPSR_c, #(FIQ_MODE | NO_INT)
@@ -342,6 +358,7 @@ kernel_ttl2:
 	orr r0, r0, #(0x1 << 30)                  /* FPU enable bit                                     */
 	vmsr fpexc, r0
 
+	/* Jump to main() in virtual memory */
 	ldr pc, =main
 
 #include "hal/armv7a/_interrupts.S"
