@@ -105,9 +105,8 @@ __attribute__((section(".init"))) void _hal_init(void)
 
 	_hal_timerInit(SYSTICK_INTERVAL);
 
-#if 0
 	_hal_cpuInit();
-#endif
+
 	hal_spinlockCreate(&hal_common.pltctlSp, "pltctl");
 	hal_common.started = 0;
 }

@@ -302,7 +302,7 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 }
 
 
-#if 0
+#if 0 /* Disabled until lazy mapping is enabled */
 void map_pageFault(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread;
