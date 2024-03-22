@@ -18,7 +18,6 @@
 
 #include <arch/cpu.h>
 #include <arch/pmap.h>
-#include "multiboot.h"
 
 #define INIT_ESP 0x6000
 #define SYSPAGE_SEG 0x200
@@ -34,22 +33,6 @@
 .align 4, 0x90
 .type _start, @function
 _start:
-	cmpl $MULTIBOOT_INFO_MAGIC, %eax
-	jne _init_plo
-
-	/* setup initial kernel stack (one page) */
-	movl $(multiboot_common + SIZE_PAGE), %esp
-	subl $VADDR_KERNEL, %esp
-
-
-	/* convert multiboot info to syspage etc. */
-	push %ebx
-	call _multiboot_init
-	movl %eax, %esi
-	popl %ebx
-	jmp _init_setupPaging
-
-_init_plo:
 	movw $SEL_KDATA, %ax
 	movw %ax, %ss
 	movw %ax, %ds
@@ -265,18 +248,3 @@ _init_core_stop:
 	jmp _init_core_stop
 
 .size _init_core, .-_init_core
-
-
-/* Multiboot header - used when loading by multiboot compliant loader */
-.align 4
-.type _multiboot_header, @object
-_multiboot_header:
-	.long MULTIBOOT_HDR_MAGIC
-	.long MULTIBOOT_HDR_PAGEALIGN | MULTIBOOT_HDR_MEMINFO | MULTIBOOT_HDR_AOUT
-	.long -(MULTIBOOT_HDR_MAGIC + MULTIBOOT_HDR_PAGEALIGN + MULTIBOOT_HDR_MEMINFO + MULTIBOOT_HDR_AOUT)
-	.long _multiboot_header - VADDR_KERNEL
-	.long .init - VADDR_KERNEL
-	.long .bss - VADDR_KERNEL
-	.long end - VADDR_KERNEL
-	.long _start - VADDR_KERNEL
-.size _multiboot_header, .-_multiboot_header
