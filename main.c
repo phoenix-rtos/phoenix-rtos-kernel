@@ -110,7 +110,7 @@ int main(void)
 	_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
 
-#if 0
+#if 0 /* Basic kernel tests */
 	/* Start tests */
 	test_proc_threads1();
 	test_vm_kmallocsim();

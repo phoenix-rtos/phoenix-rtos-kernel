@@ -264,7 +264,7 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 
 
 /* Code used in disabled code vm/object.c - map_pageFault */
-#if 0
+#if 0 /* Disabled until lazy mapping is enabled */
 static inline void *hal_cpuGetFaultAddr(void)
 {
 	u64 badaddress;
@@ -287,6 +287,9 @@ static inline unsigned int hal_cpuGetID(void)
 {
 	return 0;
 }
+
+
+void _hal_cpuInit(void);
 
 
 #endif

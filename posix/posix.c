@@ -29,7 +29,7 @@
 #define MAX_FD_COUNT     1024
 #define INITIAL_FD_COUNT 32
 
-#if 0
+#if 0 /* Debug */
 #define TRACE(str, ...) lib_printf("posix %x: " str "\n", proc_current()->process->id, ##__VA_ARGS__)
 #else
 #define TRACE(str, ...)

@@ -50,8 +50,7 @@ typedef struct _process_t {
 	unsigned lgap : 1;
 	unsigned rgap : 1;
 
-/* TODO: Process shall keep information permissions */
-#if 0
+#if 0 /* TODO: Process shall keep information permissions */
 	u32 uid;
 	u32 euid;
 	u32 suid;
