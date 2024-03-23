@@ -697,6 +697,20 @@ int syscalls_lookup(void *ustack)
 }
 
 
+int syscalls_fdResolve(void *ustack)
+{
+	int fd;
+	oid_t *oid;
+	oid_t *dev;
+
+	GETFROMSTACK(ustack, int, fd, 0);
+	GETFROMSTACK(ustack, oid_t *, oid, 1);
+	GETFROMSTACK(ustack, oid_t *, dev, 2);
+
+	return posix_fdResolve(fd, oid, dev);
+}
+
+
 /*
  * Time management
  */
@@ -1066,18 +1080,6 @@ int syscalls_sys_mkfifo(char *ustack)
 	GETFROMSTACK(ustack, mode_t, mode, 1);
 
 	return posix_mkfifo(path, mode);
-}
-
-
-int syscalls_sys_fstat(char *ustack)
-{
-	int fd;
-	struct stat *buf;
-
-	GETFROMSTACK(ustack, int, fd, 0);
-	GETFROMSTACK(ustack, struct stat *, buf, 1);
-
-	return posix_fstat(fd, buf);
 }
 
 

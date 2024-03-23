@@ -74,7 +74,7 @@ extern int posix_mkfifo(const char *path, mode_t mode);
 extern int posix_chmod(const char *path, mode_t mode);
 
 
-extern int posix_fstat(int fd, struct stat *buf);
+extern int posix_fdResolve(int fd, oid_t *oid, oid_t *dev);
 
 
 extern int posix_fsync(int fd);
