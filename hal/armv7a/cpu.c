@@ -162,6 +162,10 @@ char *hal_cpuInfo(char *info)
 	info[n++] = 'p';
 	info[n++] = '0' + (midr & 0xf);
 
+	info[n++] = ' ';
+	info[n++] = 'x';
+	info[n++] = '0' + hal_cpuGetCount();
+
 	info[n] = '\0';
 
 	return info;
@@ -239,17 +243,6 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	hal_spinlockClear(spinlock, sc);
 	hal_cpuHalt();
-}
-
-
-void hal_cpuBroadcastIPI(unsigned int intr)
-{
-}
-
-
-void hal_cpuSmpSync(void)
-{
-	/* Nothing to do */
 }
 
 

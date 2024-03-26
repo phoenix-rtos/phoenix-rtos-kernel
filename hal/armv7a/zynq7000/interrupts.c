@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+#include "hal/armv7a/armv7a.h"
+
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
 #include "hal/interrupts.h"
@@ -25,7 +27,12 @@
 #define SIZE_HANDLERS   4
 #define SPI_FIRST_IRQID 32
 
+#define SGI_FLT_USE_LIST   0 /* Send SGI to CPUs according to targetList */
+#define SGI_FLT_OTHER_CPUS 1 /* Send SGI to all CPUs except the one that called this function */
+#define SGI_FLT_THIS_CPU   2 /* Send SGI to the CPU that called this function */
 
+
+/* clang-format off */
 enum {
 	/* Interrupt interface registers */
 	cicr = 0x40, cpmr, cbpr, ciar, ceoir, crpr, chpir, cabpr,
@@ -41,6 +48,7 @@ enum {
 enum {
 	reserved = 0, high_lvl = 1, rising_edge = 3
 };
+/* clang-format on */
 
 
 struct {
@@ -69,16 +77,18 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 extern unsigned int _end;
 
 
-void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
+int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
 
-	n = *(interrupts_common.gic + ciar) & 0x3ff;
+	u32 ciarValue = *(interrupts_common.gic + ciar);
+	n = ciarValue & 0x3ff;
 
-	if (n >= SIZE_INTERRUPTS)
-		return;
+	if (n >= SIZE_INTERRUPTS) {
+		return 0;
+	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[n], &sc);
 
@@ -93,11 +103,11 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (reschedule)
 		threads_schedule(n, ctx, NULL);
 
-	*(interrupts_common.gic + ceoir) = n;
+	*(interrupts_common.gic + ceoir) = ciarValue;
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
 
-	return;
+	return reschedule;
 }
 
 
@@ -220,6 +230,8 @@ void _hal_interruptsInit(void)
 		interrupts_setCPU(i, 0x1);
 	}
 
+	/* SGI and PPI interrupts are fixed to always be on both CPUs */
+
 	/* Disable interrupts */
 	*(interrupts_common.gic + dicer0) = 0xffffffff;
 	*(interrupts_common.gic + dicer0 + 1) = 0xffffffff;
@@ -236,4 +248,17 @@ void _hal_interruptsInit(void)
 
 	/* EnableS = 1; EnableNS = 1; AckCtl = 1; FIQEn = 0 */
 	*(interrupts_common.gic + cicr) |= 0x7;
+}
+
+
+static void hal_cpuSendSGI(u8 targetFilter, u8 targetList, u8 intID)
+{
+	*(interrupts_common.gic + dsgir) = ((targetFilter & 0x3) << 24) | (targetList << 16) | (intID & 0xf);
+	hal_cpuDataMemoryBarrier();
+}
+
+
+void hal_cpuBroadcastIPI(unsigned int intr)
+{
+	hal_cpuSendSGI(SGI_FLT_OTHER_CPUS, 0, intr);
 }

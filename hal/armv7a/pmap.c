@@ -24,6 +24,14 @@
 
 #include "halsyspage.h"
 
+#if NUM_CPUS != 1
+#define hal_cpuInvalVAAll   hal_cpuInvalVA_IS
+#define hal_cpuInvalASIDAll hal_cpuInvalASID_IS
+#else
+#define hal_cpuInvalVAAll   hal_cpuInvalVA
+#define hal_cpuInvalASIDAll hal_cpuInvalASID
+#endif
+
 extern unsigned int _end;
 extern unsigned int _etext;
 
@@ -142,6 +150,7 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 	addr_t tmp;
 
 	if (pmap->asid_ix != 0) {
+		hal_cpuInvalASIDAll(pmap_common.asids[pmap->asid_ix]);
 		if (pmap->asid_ix != pmap_common.asidptr) {
 			pmap_common.asid_map[pmap->asid_ix] = last = pmap_common.asid_map[pmap_common.asidptr];
 			last->asid_ix = pmap->asid_ix;
@@ -237,13 +246,16 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, int attributes,
 	int pti = ID_PTABLE((ptr_t)va);
 
 	hal_cpuCleanDataCache((ptr_t)&ptable[pti], (ptr_t)&ptable[pti] + sizeof(ptr_t));
+	ptr_t oldEntry = ptable[pti];
 	if (attributes & PGHD_PRESENT)
 		ptable[pti] = (pa & ~0xfff) | attrMap[attributes & 0x1f];
 	else
 		ptable[pti] = 0;
 
 	hal_cpuDataSyncBarrier();
-	hal_cpuInvalVA(((ptr_t)va & ~0xfff) | asid);
+	if ((oldEntry & 0x3) != 0) {
+		hal_cpuInvalVAAll(((ptr_t)va & ~0xfff) | asid);
+	}
 
 	hal_cpuBranchInval();
 	hal_cpuICacheInval();
@@ -263,10 +275,7 @@ static void _pmap_addTable(pmap_t *pmap, int pdi, addr_t pa)
 	pmap->pdir[pdi + 2] = pa + 0x800;
 	pmap->pdir[pdi + 3] = pa + 0xc00;
 
-	hal_cpuInvalASID(pmap_common.asids[pmap->asid_ix]);
-
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
+	hal_cpuInvalASIDAll(pmap_common.asids[pmap->asid_ix]);
 }
 
 
@@ -561,7 +570,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Remove initial kernel mapping */
 	for (i = 0; i < 4; ++i) {
 		pmap->pdir[ID_PDIR(pmap_common.minAddr) + i] = 0;
-		hal_cpuInvalVA(pmap_common.minAddr + i * (1 << 2));
+		hal_cpuInvalVAAll(pmap_common.minAddr + i * (1 << 2));
 	}
 
 	pmap->start = (void *)VADDR_KERNEL;

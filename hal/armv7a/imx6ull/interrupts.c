@@ -48,16 +48,18 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 extern unsigned int _end;
 
 
-void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
+int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
 
-	n = *(interrupts.gic + iar) & 0x3ff;
+	u32 iarValue = *(interrupts.gic + iar);
+	n = iarValue & 0x3ff;
 
-	if (n >= SIZE_INTERRUPTS)
-		return;
+	if (n >= SIZE_INTERRUPTS) {
+		return 0;
+	}
 
 	hal_spinlockSet(&interrupts.spinlock[n], &sc);
 
@@ -72,11 +74,11 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (reschedule)
 		threads_schedule(n, ctx, NULL);
 
-	*(interrupts.gic + eoir) = n;
+	*(interrupts.gic + eoir) = iarValue;
 
 	hal_spinlockClear(&interrupts.spinlock[n], &sc);
 
-	return;
+	return reschedule;
 }
 
 
@@ -203,4 +205,9 @@ void _hal_interruptsInit(void)
 	*(interrupts.gic + cctlr) |= 1;
 	*(interrupts.gic + bpr) = 0;
 	*(interrupts.gic + pmr) = 0xff;
+}
+
+
+void hal_cpuBroadcastIPI(unsigned int intr)
+{
 }

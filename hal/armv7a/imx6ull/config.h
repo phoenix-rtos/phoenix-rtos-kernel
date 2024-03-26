@@ -19,6 +19,7 @@
 #define ADDR_DDR   0x80000000
 #define SIZE_DDR   0x7ffffff
 
+#define NUM_CPUS 1
 
 #ifndef __ASSEMBLY__
 
