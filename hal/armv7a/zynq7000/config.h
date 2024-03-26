@@ -27,6 +27,8 @@
 #define ADDR_DDR 0x00100000
 #define SIZE_DDR 0x7ffffff
 
+#define NUM_CPUS 2
+
 #ifndef __ASSEMBLY__
 
 #define HAL_NAME_PLATFORM "Xilinx Zynq-7000 "

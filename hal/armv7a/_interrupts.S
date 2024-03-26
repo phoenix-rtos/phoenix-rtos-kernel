@@ -19,11 +19,22 @@
 
 .arm
 
+.extern schedulerLocked
+
 .macro push_fpu_state reg_tmp
 	vpush {d16-d31}
 	vpush {d0-d15}
 	vmrs \reg_tmp, fpscr
 	push {\reg_tmp}
+.endm
+
+.macro unlock_scheduler
+	ldr r0, =schedulerLocked
+	mov r1, #0
+	dmb
+	str r1, [r0]
+	dmb
+	isb
 .endm
 
 .globl _exception_undef
@@ -109,6 +120,9 @@ _exceptions_dispatch:
 .globl _hal_cpuRestoreCtx
 .type _hal_cpuRestoreCtx, %function
 _hal_cpuRestoreCtx:
+	/* CLREX should be executed as part of context switch */
+	clrex
+
 	/* Restore fpu context */
 	pop {r4}
 	vmsr fpscr, r4
@@ -180,6 +194,8 @@ spinlock:
 
 	ldr sp, [sp]
 	add sp, sp, #8
+
+	unlock_scheduler
 	b _hal_cpuRestoreCtx
 .size hal_cpuReschedule, .-hal_cpuReschedule
 
@@ -230,6 +246,11 @@ _interrupts_dispatch:
 
 	ldr sp, [sp]
 	add sp, sp, #8
+
+	cmp r0, #0
+	beq 1f
+	unlock_scheduler
+1:
 	b _hal_cpuRestoreCtx
 .size _interrupts_dispatch, .-_interrupts_dispatch
 

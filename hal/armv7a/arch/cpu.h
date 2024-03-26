@@ -17,6 +17,7 @@
 #define _HAL_ARMV7A_CPU_H_
 
 #include "hal/types.h"
+#include "config.h"
 
 #define SIZE_PAGE       0x1000
 #define SIZE_PDIR       0x2000
@@ -183,14 +184,67 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 
 static inline unsigned int hal_cpuGetID(void)
 {
-	return 0;
+	unsigned mpidr;
+	/* clang-format off */
+	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
+	/* clang-format on */
+	return mpidr & 0xf;
 }
 
 
-static inline unsigned int hal_cpuGetCount(void)
+static inline void hal_cpuSignalEvent(void)
 {
-	return 1;
+	/* clang-format off */
+	__asm__ volatile ("sev");
+	/* clang-format on */
 }
+
+
+static inline void hal_cpuWaitForEvent(void)
+{
+	/* clang-format off */
+	__asm__ volatile ("dsb\n wfe");
+	/* clang-format on */
+}
+
+
+static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
+{
+	u32 result;
+	/* clang-format off */
+	__asm__ volatile (
+		"dmb\n"
+		"ldr %0, [%1]\n"
+		"dmb\n"
+		: "=r"(result)
+		: "r"(dst)
+	);
+	/* clang-format on */
+	return result;
+}
+
+
+static inline void hal_cpuAtomicInc(volatile u32 *dst)
+{
+	/* clang-format off */
+	__asm__ volatile (
+		"dmb\n"
+	"1:\n"
+		"ldrex r2, [%0]\n"
+		"add r2, r2, #1\n"
+		"strex r1, r2, [%0]\n"
+		"cmp r1, #0\n"
+		"bne 1b\n"
+		"dmb\n"
+		:
+		: "r"(dst)
+		: "r1", "r2", "memory"
+	);
+	/* clang-format on */
+}
+
+
+extern unsigned int hal_cpuGetCount(void);
 
 
 #endif

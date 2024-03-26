@@ -74,6 +74,18 @@ extern void hal_cpuInvalVA(ptr_t vaddr);
 extern void hal_cpuInvalTLB(void);
 
 
+/* Invalidate TLB entries by ASID Match on all cores in Inner Shareable domain */
+extern void hal_cpuInvalASID_IS(u8 asid);
+
+
+/* Invalidate Unified TLB by MVA on all cores in Inner Shareable domain */
+extern void hal_cpuInvalVA_IS(ptr_t vaddr);
+
+
+/* Invalidate entire Unified TLB on all cores in Inner Shareable domain */
+extern void hal_cpuInvalTLB_IS(void);
+
+
 /* Read Translation Table Base Register 0 with properties */
 extern addr_t hal_cpuGetTTBR0(void);
 

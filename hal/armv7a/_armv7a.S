@@ -161,6 +161,43 @@ hal_cpuInvalTLB:
 .ltorg
 
 
+.globl hal_cpuInvalASID_IS
+.type hal_cpuInvalASID_IS, %function
+hal_cpuInvalASID_IS:
+	dsb
+	and r0, r0, #0xff
+	mcr p15, 0, r0, c8, c3, 2 /* TLBIASIDIS */
+	dsb
+	isb
+	bx lr
+.size hal_cpuInvalASID_IS, .-hal_cpuInvalASID_IS
+.ltorg
+
+
+.globl hal_cpuInvalVA_IS
+.type hal_cpuInvalVA_IS, %function
+hal_cpuInvalVA_IS:
+	dsb
+	mcr p15, 0, r0, c8, c3, 1 /* TLBIMVAIS */
+	dsb
+	isb
+	bx lr
+.size hal_cpuInvalVA_IS, .-hal_cpuInvalVA_IS
+.ltorg
+
+
+.globl hal_cpuInvalTLB_IS
+.type hal_cpuInvalTLB_IS, %function
+hal_cpuInvalTLB_IS:
+	dsb
+	mcr p15, 0, r0, c8, c3, 0 /* TLBIALLIS */
+	dsb
+	isb
+	bx lr
+.size hal_cpuInvalTLB_IS, .-hal_cpuInvalTLB_IS
+.ltorg
+
+
 .globl hal_cpuGetTTBR0
 .type hal_cpuGetTTBR0, %function
 hal_cpuGetTTBR0:

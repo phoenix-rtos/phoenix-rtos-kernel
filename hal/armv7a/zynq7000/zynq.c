@@ -13,6 +13,7 @@
  * %LICENSE%
  */
 
+#include "hal/armv7a/armv7a.h"
 #include "hal/cpu.h"
 #include "hal/armv7a/armv7a.h"
 #include "hal/spinlock.h"
@@ -72,6 +73,7 @@ enum {
 struct {
 	spinlock_t pltctlSp;
 	volatile u32 *slcr;
+	unsigned int nCpus;
 } zynq_common;
 
 
@@ -653,4 +655,48 @@ void _hal_platformInit(void)
 {
 	hal_spinlockCreate(&zynq_common.pltctlSp, "pltctl");
 	zynq_common.slcr = (void *)(((u32)&_end + 9 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+}
+
+
+unsigned int hal_cpuGetCount(void)
+{
+	return zynq_common.nCpus;
+}
+
+
+static u32 checkNumCPUs(void)
+{
+	/* First check if MPIDR indicates uniprocessor system or no MP extensions */
+	unsigned mpidr;
+	/* clang-format off */
+	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
+	/* clang-format on */
+	if ((mpidr >> 30) != 0x2) {
+		return 1;
+	}
+
+	/* Otherwise we are in a multiprocessor system and we can check SCU for number of cores in SMP */
+	volatile u32 *scu = (void *)(((u32)&_end + 5 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	/* We cannot use SCU_CPU_Power_Status_Register because it's not implemented correctly on QEMU */
+	u32 powerStatus = (*(scu + 1)) >> 4; /* SCU_CONFIGURATION_REGISTER */
+	u32 cpusAvailable = 0;
+	for (int i = 0; i < 4; i++, powerStatus >>= 1) {
+		if ((powerStatus & 0x1) == 1) {
+			cpusAvailable++;
+		}
+	}
+
+	return cpusAvailable;
+}
+
+
+void _hal_cpuInit(void)
+{
+	zynq_common.nCpus = checkNumCPUs();
+}
+
+
+void hal_cpuSmpSync(void)
+{
+	/* TODO: not implemented yet */
 }
