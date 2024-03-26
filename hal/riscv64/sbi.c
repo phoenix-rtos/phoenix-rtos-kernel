@@ -137,6 +137,21 @@ void hal_sbiReset(u32 type, u32 reason)
 }
 
 
+sbiret_t sbi_sendIPI(unsigned long hart_mask, unsigned long hart_mask_base)
+{
+}
+
+
+sbiret_t sbi_hartGetStatus(unsigned long hartid)
+{
+}
+
+
+sbiret_t sbi_hartStart(unsigned long hartid, unsigned long start_addr, unsigned long opaque)
+{
+}
+
+
 void _hal_sbiInit(void)
 {
 	sbiret_t ret = hal_sbiGetSpecVersion();

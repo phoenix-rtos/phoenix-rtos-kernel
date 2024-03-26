@@ -24,7 +24,7 @@
 #include "hal/types.h"
 
 
-ptr_t hal_cpuKernelStack;
+ptr_t hal_cpuKernelStack[MAX_NUM_CPUS];
 
 
 /* bit operations */
@@ -213,7 +213,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 
 void _hal_cpuSetKernelStack(void *kstack)
 {
-	hal_cpuKernelStack = (ptr_t)kstack;
+	hal_cpuKernelStack[hal_cpuGetID()] = (ptr_t)kstack;
 }
 
 
@@ -312,6 +312,9 @@ void hal_cleanDCache(ptr_t start, size_t len)
 
 void _hal_cpuInit(void)
 {
+	/* Set CPU count */
+	long err;
+	unsigned int n = 0;
 	_hal_cpuInitCores();
 }
 

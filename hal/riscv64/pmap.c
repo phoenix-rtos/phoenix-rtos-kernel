@@ -40,7 +40,7 @@ struct {
 	u64 pdir1[512];
 	u64 pdir0[512];
 
-	u64 stack[512];
+	u64 stack[MAX_NUM_CPUS][512];
 	u8 heap[SIZE_PAGE];
 
 	u64 iopdir[512];

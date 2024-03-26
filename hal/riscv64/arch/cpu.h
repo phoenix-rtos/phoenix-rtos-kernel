@@ -20,6 +20,7 @@
 
 #define SIZE_PAGE 0x1000
 
+#define MAX_NUM_CPUS 16
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
@@ -285,7 +286,11 @@ static inline unsigned int hal_cpuGetCount(void)
 
 static inline unsigned int hal_cpuGetID(void)
 {
-	return 0;
+	unsigned int id;
+	/* clang-format off */
+	__asm__ volatile ("mv %0, tp" : "=r"(id));
+	/* clang-format on */
+	return 0;// id;
 }
 
 

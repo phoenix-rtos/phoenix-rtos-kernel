@@ -18,7 +18,7 @@
 
 
 typedef struct {
-	int dummy;
+	unsigned long boothartId;
 } __attribute__((packed)) hal_syspage_t;
 
 #endif
