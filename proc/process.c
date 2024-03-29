@@ -1285,19 +1285,21 @@ void proc_exit(int code)
 {
 	thread_t *current = proc_current();
 	process_spawn_t *spawn = current->execdata;
-	void *kstack;
 	arg_t args[3];
 
 	current->process->exit = code;
 
 	if (spawn != NULL) {
-		kstack = current->kstack = current->execkstack;
-		kstack += current->kstacksz;
+		hal_cpuDisableInterrupts();
+		if (spawn->parent != NULL) {
+			current->kstack = current->execkstack;
+			_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
+		}
 
 		args[0] = (arg_t)current;
 		args[1] = (arg_t)spawn;
 		args[2] = (arg_t)FORKED;
-		hal_jmp(proc_vforkedExit, kstack, NULL, 3, args);
+		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 3, args);
 	}
 
 	proc_kill(current->process);
@@ -1341,12 +1343,12 @@ static void process_vforkThread(void *arg)
 
 	current->execkstack = current->kstack;
 	current->execdata = spawn;
-	current->kstack = parent->kstack;
 
 	hal_memcpy(&current->process->tls, &parent->process->tls, sizeof(hal_tls_t));
 	hal_memcpy(&current->tls, &parent->tls, sizeof(hal_tls_t));
 
 	hal_cpuDisableInterrupts();
+	current->kstack = parent->kstack;
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 	if (current->tls.tls_base != NULL) {
@@ -1490,7 +1492,6 @@ int proc_fork(void)
 	int err = -ENOSYS;
 #ifndef NOMMU
 	thread_t *current;
-	void *kstack;
 	unsigned sigmask;
 	arg_t args[3];
 
@@ -1505,17 +1506,15 @@ int proc_fork(void)
 		err = process_copy();
 		current->sigmask = sigmask;
 
-		current->kstack = current->execkstack;
 		hal_cpuDisableInterrupts();
+		current->kstack = current->execkstack;
 		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 		if (err < 0) {
-			kstack = current->kstack + current->kstacksz;
-
 			args[0] = (arg_t)current;
 			args[1] = (arg_t)current->execdata;
 			args[2] = (arg_t)err;
-			hal_jmp(proc_vforkedExit, kstack, NULL, 3, args);
+			hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 3, args);
 		}
 		else {
 			hal_cpuEnableInterrupts();
@@ -1576,7 +1575,6 @@ int proc_execve(const char *path, char **argv, char **envp)
 {
 	thread_t *current;
 	char *kpath;
-	void *kstack;
 	process_spawn_t sspawn, *spawn;
 	arg_t args[1];
 
@@ -1638,11 +1636,12 @@ int proc_execve(const char *path, char **argv, char **envp)
 	current->process->path = kpath;
 
 	if (spawn->parent != NULL) {
-		kstack = current->kstack = current->execkstack;
-		kstack += current->kstacksz;
+		hal_cpuDisableInterrupts();
+		current->kstack = current->execkstack;
+		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 		args[0] = (arg_t)current;
-		hal_jmp(process_execve, kstack, NULL, 1, args);
+		hal_jmp(process_execve, current->kstack + current->kstacksz, NULL, 1, args);
 	}
 	else {
 		process_execve(current);
