@@ -73,7 +73,7 @@ typedef struct _process_t {
 } process_t;
 
 
-static inline int process_getPid(process_t *process)
+static inline int process_getPid(const process_t *process)
 {
 	return process->idlinkage.id;
 }
