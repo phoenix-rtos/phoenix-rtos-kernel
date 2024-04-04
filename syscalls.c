@@ -47,16 +47,18 @@ void syscalls_debug(void *ustack)
  */
 
 
-void *syscalls_mmap(void *ustack)
+int syscalls_sys_mmap(void *ustack)
 {
-	void *vaddr;
+	void **vaddr;
 	size_t size;
 	int prot, flags, fildes;
 	off_t offs;
 	vm_object_t *o;
 	oid_t oid;
+	process_t *proc = proc_current()->process;
+	int err;
 
-	GETFROMSTACK(ustack, void *, vaddr, 0);
+	GETFROMSTACK(ustack, void **, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
@@ -70,7 +72,7 @@ void *syscalls_mmap(void *ustack)
 		else if ((flags & MAP_CONTIGUOUS) != 0) {
 			o = vm_objectContiguous(size);
 			if (o == NULL) {
-				return MAP_FAILED;
+				return -ENOMEM;
 			}
 		}
 		else {
@@ -78,28 +80,31 @@ void *syscalls_mmap(void *ustack)
 		}
 	}
 	else {
-		if (posix_getOid(fildes, &oid) != EOK) {
-			return MAP_FAILED;
+		err = posix_getOid(fildes, &oid);
+		if (err < 0) {
+			return err;
 		}
-		if (vm_objectGet(&o, oid) != EOK) {
-			return MAP_FAILED;
+		err = vm_objectGet(&o, oid);
+		if (err < 0) {
+			return err;
 		}
 	}
 
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
 
-	vaddr = vm_mmap(proc_current()->process->mapp, vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
+	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
 	vm_objectPut(o);
 
-	if (vaddr == NULL) {
-		return MAP_FAILED;
+	if ((*vaddr) == NULL) {
+		/* TODO: pass specific errno from vm_mmap */
+		return -ENOMEM;
 	}
 
-	return vaddr;
+	return EOK;
 }
 
 
-int syscalls_munmap(void *ustack)
+int syscalls_sys_munmap(void *ustack)
 {
 	void *vaddr;
 	size_t size;

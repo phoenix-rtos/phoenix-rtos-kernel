@@ -17,8 +17,8 @@
 /* clang-format off */
 #define SYSCALLS(ID) \
 	ID(debug) \
-	ID(mmap) \
-	ID(munmap) \
+	ID(sys_mmap) \
+	ID(sys_munmap) \
 	ID(sys_fork) \
 	ID(vforksvc) \
 	ID(exec) \
