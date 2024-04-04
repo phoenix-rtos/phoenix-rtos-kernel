@@ -1216,7 +1216,16 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 	}
 
 	sysMap = (dmap == NULL) ? syspage_mapIdResolve(prog->dmaps[0]) : syspage_mapNameResolve(dmap);
-	codeMap = (imap == NULL) ? syspage_mapIdResolve(prog->imaps[0]) : syspage_mapNameResolve(imap);
+
+	if (imap != NULL) {
+		codeMap = syspage_mapNameResolve(imap);
+		if (codeMap == NULL) {
+			return -EINVAL;
+		}
+	}
+	else {
+		codeMap = syspage_mapIdResolve(prog->imaps[0]);
+	}
 
 	if (codeMap != NULL) {
 		if ((codeMap->attr & (mAttrRead | mAttrExec)) != (mAttrRead | mAttrExec)) {
