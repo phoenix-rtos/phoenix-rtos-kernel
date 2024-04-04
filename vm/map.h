@@ -127,6 +127,9 @@ extern int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no
 extern vm_map_t *vm_getSharedMap(int map);
 
 
+extern int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);
+
+
 extern int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **start, void **end);
 
 

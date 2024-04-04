@@ -1060,6 +1060,55 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 }
 
 
+static int _vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
+{
+/* Disabled for now on NOMMU, as we can now receive memory
+ * from different maps and processes via msg */
+#ifndef NOMMU
+	map_entry_t e, *f;
+
+	if (size == 0) {
+		return 0;
+	}
+
+	e.vaddr = (void *)ptr;
+	e.size = size;
+
+	f = lib_treeof(map_entry_t, linkage, lib_rbFind(&proc->mapp->tree, &e.linkage));
+	if ((f == NULL) && (proc->imapp != NULL)) {
+		f = lib_treeof(map_entry_t, linkage, lib_rbFind(&proc->imapp->tree, &e.linkage));
+	}
+
+	if (f == NULL) {
+		return -1;
+	}
+
+#ifdef NOMMU
+	if (f->process != proc) {
+		return -1;
+	}
+#endif
+
+#endif
+
+	return 0;
+}
+
+
+int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
+{
+	int ret;
+
+	proc_lockSet(&proc->mapp->lock);
+	ret = _vm_mapBelongs(proc, ptr, size);
+	proc_lockClear(&proc->mapp->lock);
+
+	LIB_ASSERT(ret == 0, "Fault @0x%p (%zu) path: %s, pid: %d\n", ptr, size, proc->path, process_getPid(proc));
+
+	return ret;
+}
+
+
 void vm_mapinfo(meminfo_t *info)
 {
 	rbnode_t *n;

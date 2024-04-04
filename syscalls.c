@@ -37,6 +37,8 @@ void syscalls_debug(void *ustack)
 {
 	const char *s;
 
+	/* FIXME: pass strlen(s) from userspace */
+
 	GETFROMSTACK(ustack, const char *, s, 0);
 	hal_consolePrint(ATTR_USER, s);
 }
@@ -64,6 +66,10 @@ int syscalls_sys_mmap(void *ustack)
 	GETFROMSTACK(ustack, int, flags, 3);
 	GETFROMSTACK(ustack, int, fildes, 4);
 	GETFROMSTACK(ustack, off_t, offs, 5);
+
+	if (vm_mapBelongs(proc, vaddr, sizeof(*vaddr)) < 0) {
+		return -EFAULT;
+	}
 
 	if ((flags & MAP_ANONYMOUS) != 0) {
 		if ((flags & MAP_PHYSMEM) != 0) {
@@ -106,6 +112,7 @@ int syscalls_sys_mmap(void *ustack)
 
 int syscalls_sys_munmap(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	void *vaddr;
 	size_t size;
 	int err;
@@ -113,7 +120,7 @@ int syscalls_sys_munmap(void *ustack)
 	GETFROMSTACK(ustack, void *, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 
-	err = vm_munmap(proc_current()->process->mapp, vaddr, size);
+	err = vm_munmap(proc->mapp, vaddr, size);
 	if (err < 0) {
 		return err;
 	}
@@ -123,6 +130,7 @@ int syscalls_sys_munmap(void *ustack)
 
 int syscalls_mprotect(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	void *vaddr;
 	size_t len;
 	int prot, err;
@@ -131,7 +139,7 @@ int syscalls_mprotect(void *ustack)
 	GETFROMSTACK(ustack, size_t, len, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
 
-	err = vm_mprotect(proc_current()->process->mapp, vaddr, len, PROT_USER | prot);
+	err = vm_mprotect(proc->mapp, vaddr, len, PROT_USER | prot);
 	if (err < 0) {
 		return err;
 	}
@@ -168,6 +176,8 @@ int syscalls_sys_spawn(void *ustack)
 	char **argv;
 	char **envp;
 
+	/* FIXME pass fields lengths from userspace */
+
 	GETFROMSTACK(ustack, char *, path, 0);
 	GETFROMSTACK(ustack, char **, argv, 1);
 	GETFROMSTACK(ustack, char **, envp, 2);
@@ -181,6 +191,8 @@ int syscalls_exec(void *ustack)
 	char *path;
 	char **argv;
 	char **envp;
+
+	/* FIXME pass fields lengths from userspace */
 
 	GETFROMSTACK(ustack, char *, path, 0);
 	GETFROMSTACK(ustack, char **, argv, 1);
@@ -196,6 +208,8 @@ int syscalls_spawnSyspage(void *ustack)
 	char *dmap;
 	char *name;
 	char **argv;
+
+	/* FIXME pass fields lengths from userspace */
 
 	GETFROMSTACK(ustack, char *, imap, 0);
 	GETFROMSTACK(ustack, char *, dmap, 1);
@@ -218,11 +232,16 @@ int syscalls_sys_exit(void *ustack)
 
 int syscalls_sys_waitpid(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int pid, *stat, options;
 
 	GETFROMSTACK(ustack, int, pid, 0);
 	GETFROMSTACK(ustack, int *, stat, 1);
 	GETFROMSTACK(ustack, int, options, 2);
+
+	if ((stat != NULL) && (vm_mapBelongs(proc, stat, sizeof(*stat)) < 0)) {
+		return -EFAULT;
+	}
 
 	return posix_waitpid(pid, stat, options);
 }
@@ -265,11 +284,11 @@ int syscalls_gettid(void *ustack)
 
 int syscalls_beginthreadex(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	void (*start)(void *);
 	unsigned int priority, stacksz;
 	void *stack, *arg;
 	int *id;
-	process_t *p;
 	int err;
 
 	GETFROMSTACK(ustack, void *, start, 0);
@@ -279,15 +298,16 @@ int syscalls_beginthreadex(void *ustack)
 	GETFROMSTACK(ustack, void *, arg, 4);
 	GETFROMSTACK(ustack, int *, id, 5);
 
-	p = proc_current()->process;
-	if (p != NULL) {
-		proc_get(p);
+	if ((id != NULL) && (vm_mapBelongs(proc, id, sizeof(*id)) < 0)) {
+		return -EFAULT;
 	}
 
-	err = proc_threadCreate(p, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+	proc_get(proc);
 
-	if ((p != NULL) && (err < 0)) {
-		proc_put(p);
+	err = proc_threadCreate(proc, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+
+	if (err < 0) {
+		proc_put(proc);
 	}
 
 	return err;
@@ -303,6 +323,7 @@ int syscalls_endthread(void *ustack)
 
 int syscalls_nsleep(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	time_t *sec;
 	long int *nsec;
 	time_t start, us, stop, diff;
@@ -311,9 +332,12 @@ int syscalls_nsleep(void *ustack)
 	GETFROMSTACK(ustack, time_t *, sec, 0);
 	GETFROMSTACK(ustack, long int *, nsec, 1);
 
-	/* TODO - user pointer check */
-	if ((sec == NULL) || (nsec == NULL)) {
-		return -EINVAL;
+	if (vm_mapBelongs(proc, sec, sizeof(*sec)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, nsec, sizeof(*nsec)) < 0) {
+		return -EFAULT;
 	}
 
 	/* FIXME - time_t should be signed and we should check for *sec < 0 */
@@ -360,12 +384,17 @@ int syscalls_priority(void *ustack)
 
 int syscalls_threadsinfo(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int n, i;
 	pid_t ppid;
 	threadinfo_t *info;
 
 	GETFROMSTACK(ustack, int, n, 0);
 	GETFROMSTACK(ustack, threadinfo_t *, info, 1);
+
+	if (vm_mapBelongs(proc, info, sizeof(*info) * n) < 0) {
+		return -EFAULT;
+	}
 
 	n = proc_threadsList(n, info);
 
@@ -382,16 +411,21 @@ int syscalls_threadsinfo(void *ustack)
 
 void syscalls_meminfo(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	meminfo_t *info;
 
 	GETFROMSTACK(ustack, meminfo_t *, info, 0);
 
-	vm_meminfo(info);
+	/* TODO: Check subfields too */
+	if (vm_mapBelongs(proc, info, sizeof(*info)) >= 0) {
+		vm_meminfo(info);
+	}
 }
 
 
 int syscalls_syspageprog(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int i;
 	size_t sz;
 	syspageprog_t *prog;
@@ -400,6 +434,10 @@ int syscalls_syspageprog(void *ustack)
 
 	GETFROMSTACK(ustack, syspageprog_t *, prog, 0);
 	GETFROMSTACK(ustack, int, i, 1);
+
+	if ((i >= 0) && (vm_mapBelongs(proc, prog, sizeof(*prog)) < 0)) {
+		return -EFAULT;
+	}
 
 	sz = syspage_progSize();
 	if (i < 0) {
@@ -449,11 +487,16 @@ int syscalls_perf_start(void *ustack)
 
 int syscalls_perf_read(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	void *buffer;
 	size_t sz;
 
 	GETFROMSTACK(ustack, void *, buffer, 0);
 	GETFROMSTACK(ustack, size_t, sz, 1);
+
+	if (vm_mapBelongs(proc, buffer, sz) < 0) {
+		return -EFAULT;
+	}
 
 	return perf_read(buffer, sz);
 }
@@ -471,10 +514,15 @@ int syscalls_perf_finish(void *ustack)
 
 int syscalls_mutexCreate(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	handle_t *h;
 	int res;
 
 	GETFROMSTACK(ustack, handle_t *, h, 0);
+
+	if (vm_mapBelongs(proc, h, sizeof(*h)) < 0) {
+		return -EFAULT;
+	}
 
 	if ((res = proc_mutexCreate()) < 0)
 		return res;
@@ -518,10 +566,15 @@ int syscalls_mutexUnlock(void *ustack)
 
 int syscalls_condCreate(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	handle_t *h;
 	int res;
 
 	GETFROMSTACK(ustack, handle_t *, h, 0);
+
+	if (vm_mapBelongs(proc, h, sizeof(*h)) < 0) {
+		return -EFAULT;
+	}
 
 	if ((res = proc_condCreate()) < 0)
 		return res;
@@ -584,6 +637,7 @@ int syscalls_resourceDestroy(void *ustack)
 
 int syscalls_interrupt(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	unsigned int n;
 	void *f;
 	void *data;
@@ -596,6 +650,10 @@ int syscalls_interrupt(void *ustack)
 	GETFROMSTACK(ustack, void *, data, 2);
 	GETFROMSTACK(ustack, handle_t, cond, 3);
 	GETFROMSTACK(ustack, handle_t *, handle, 4);
+
+	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
+		return -EFAULT;
+	}
 
 	res = userintr_setHandler(n, f, data, cond);
 	if (res < 0) {
@@ -617,9 +675,14 @@ int syscalls_interrupt(void *ustack)
 
 int syscalls_portCreate(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	u32 *port;
 
 	GETFROMSTACK(ustack, u32 *, port, 0);
+
+	if (vm_mapBelongs(proc, port, sizeof(*port)) < 0) {
+		return -EFAULT;
+	}
 
 	return proc_portCreate(port);
 }
@@ -637,6 +700,7 @@ void syscalls_portDestroy(void *ustack)
 
 u32 syscalls_portRegister(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	unsigned int port;
 	char *name;
 	oid_t *oid;
@@ -645,17 +709,40 @@ u32 syscalls_portRegister(void *ustack)
 	GETFROMSTACK(ustack, char *, name, 1);
 	GETFROMSTACK(ustack, oid_t *, oid, 2);
 
+	/* FIXME: Pass strlen(name) from userspace */
+
+	if (vm_mapBelongs(proc, oid, sizeof(*oid)) < 0) {
+		return -EFAULT;
+	}
+
 	return proc_portRegister(port, name, oid);
 }
 
 
 int syscalls_msgSend(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	u32 port;
 	msg_t *msg;
 
 	GETFROMSTACK(ustack, u32, port, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	if (msg->i.data != NULL) {
+		if (vm_mapBelongs(proc, msg->i.data, msg->i.size) < 0) {
+			return -EFAULT;
+		}
+	}
+
+	if (msg->o.data != NULL) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+			return -EFAULT;
+		}
+	}
 
 	return proc_send(port, msg);
 }
@@ -663,6 +750,7 @@ int syscalls_msgSend(void *ustack)
 
 int syscalls_msgRecv(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	u32 port;
 	msg_t *msg;
 	msg_rid_t *rid;
@@ -671,12 +759,21 @@ int syscalls_msgRecv(void *ustack)
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 	GETFROMSTACK(ustack, msg_rid_t *, rid, 2);
 
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
+		return -EFAULT;
+	}
+
 	return proc_recv(port, msg, rid);
 }
 
 
 int syscalls_msgRespond(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	u32 port;
 	msg_t *msg;
 	msg_rid_t rid;
@@ -685,18 +782,41 @@ int syscalls_msgRespond(void *ustack)
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
 	GETFROMSTACK(ustack, msg_rid_t, rid, 2);
 
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+#ifndef NOMMU /* o.data has client memory pointer on NOMMU */
+	if (msg->o.data != NULL) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+			return -EFAULT;
+		}
+	}
+#endif
+
 	return proc_respond(port, msg, rid);
 }
 
 
 int syscalls_lookup(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	char *name;
 	oid_t *file, *dev;
 
 	GETFROMSTACK(ustack, char *, name, 0);
 	GETFROMSTACK(ustack, oid_t *, file, 1);
 	GETFROMSTACK(ustack, oid_t *, dev, 2);
+
+	/* FIXME: Pass strlen(name) from userspace */
+
+	if ((file != NULL) && (vm_mapBelongs(proc, file, sizeof(*file)) < 0)) {
+		return -EFAULT;
+	}
+
+	if ((dev != NULL) && (vm_mapBelongs(proc, dev, sizeof(*dev)) < 0)) {
+		return -EFAULT;
+	}
 
 	return proc_portLookup(name, file, dev);
 }
@@ -709,10 +829,19 @@ int syscalls_lookup(void *ustack)
 
 int syscalls_gettime(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	time_t *praw, *poffs;
 
 	GETFROMSTACK(ustack, time_t *, praw, 0);
 	GETFROMSTACK(ustack, time_t *, poffs, 1);
+
+	if ((praw != NULL) && (vm_mapBelongs(proc, praw, sizeof(*praw)) < 0)) {
+		return -EFAULT;
+	}
+
+	if ((poffs != NULL) && (vm_mapBelongs(proc, poffs, sizeof(*poffs)) < 0)) {
+		return -EFAULT;
+	}
 
 	proc_gettime(praw, poffs);
 
@@ -762,6 +891,7 @@ void syscalls_mmdump(void *ustack)
 
 int syscalls_platformctl(void *ustack)
 {
+	/* FIXME: Allow access to sizeof(platformctl_t) to allow checks */
 	void *ptr;
 	GETFROMSTACK(ustack, void *, ptr, 0);
 	return hal_platformctl(ptr);
@@ -920,6 +1050,8 @@ int syscalls_sys_open(char *ustack)
 	const char *filename;
 	int oflag;
 
+	/* FIXME: pass strlen(filename) from userspace */
+
 	GETFROMSTACK(ustack, const char *, filename, 0);
 	GETFROMSTACK(ustack, int, oflag, 1);
 
@@ -939,6 +1071,7 @@ int syscalls_sys_close(char *ustack)
 
 ssize_t syscalls_sys_read(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int fildes;
 	void *buf;
 	size_t nbyte;
@@ -946,6 +1079,14 @@ ssize_t syscalls_sys_read(char *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
+
+	if ((buf == NULL) && (nbyte != 0)) {
+		return -EFAULT;
+	}
+
+	if ((buf != NULL) && (nbyte != 0) && (vm_mapBelongs(proc, buf, nbyte) < 0)) {
+		return -EFAULT;
+	}
 
 	return posix_read(fildes, buf, nbyte);
 }
@@ -953,6 +1094,7 @@ ssize_t syscalls_sys_read(char *ustack)
 
 ssize_t syscalls_sys_write(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int fildes;
 	void *buf;
 	size_t nbyte;
@@ -960,6 +1102,14 @@ ssize_t syscalls_sys_write(char *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
+
+	if ((buf == NULL) && (nbyte != 0)) {
+		return -EFAULT;
+	}
+
+	if ((buf != NULL) && (nbyte != 0) && (vm_mapBelongs(proc, buf, nbyte) < 0)) {
+		return -EFAULT;
+	}
 
 	return posix_write(fildes, buf, nbyte);
 }
@@ -992,6 +1142,8 @@ int syscalls_sys_link(char *ustack)
 	const char *path1;
 	const char *path2;
 
+	/* FIXME pass strlen(path1) and strlen(path2) from userspace */
+
 	GETFROMSTACK(ustack, const char *, path1, 0);
 	GETFROMSTACK(ustack, const char *, path2, 1);
 
@@ -1003,6 +1155,8 @@ int syscalls_sys_unlink(char *ustack)
 {
 	const char *pathname;
 
+	/* FIXME: pass strlen(pathname) from userspace */
+
 	GETFROMSTACK(ustack, const char *, pathname, 0);
 
 	return posix_unlink(pathname);
@@ -1011,6 +1165,7 @@ int syscalls_sys_unlink(char *ustack)
 
 int syscalls_sys_lseek(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int fildes;
 	off_t *offset;
 	int whence;
@@ -1019,9 +1174,8 @@ int syscalls_sys_lseek(char *ustack)
 	GETFROMSTACK(ustack, off_t *, offset, 1);
 	GETFROMSTACK(ustack, int, whence, 2);
 
-	/* TODO verify pointer */
-	if (offset == NULL) {
-		return -EINVAL;
+	if (vm_mapBelongs(proc, offset, sizeof(*offset)) < 0) {
+		return -EFAULT;
 	}
 
 	return posix_lseek(fildes, offset, whence);
@@ -1054,9 +1208,14 @@ int syscalls_sys_fcntl(char *ustack)
 
 int syscalls_sys_pipe(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int *fildes;
 
 	GETFROMSTACK(ustack, int *, fildes, 0);
+
+	if (vm_mapBelongs(proc, fildes, sizeof(*fildes) * 2) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_pipe(fildes);
 }
@@ -1067,6 +1226,8 @@ int syscalls_sys_mkfifo(char *ustack)
 	const char *path;
 	mode_t mode;
 
+	/* FIXME: pass strlen(path) from userspace */
+
 	GETFROMSTACK(ustack, const char *, path, 0);
 	GETFROMSTACK(ustack, mode_t, mode, 1);
 
@@ -1076,11 +1237,16 @@ int syscalls_sys_mkfifo(char *ustack)
 
 int syscalls_sys_fstat(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int fd;
 	struct stat *buf;
 
 	GETFROMSTACK(ustack, int, fd, 0);
 	GETFROMSTACK(ustack, struct stat *, buf, 1);
+
+	if (vm_mapBelongs(proc, buf, sizeof(*buf)) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_fstat(fd, buf);
 }
@@ -1101,6 +1267,8 @@ int syscalls_sys_chmod(char *ustack)
 	const char *path;
 	mode_t mode;
 
+	/* FIXME: pass strlen(path) from userspace */
+
 	GETFROMSTACK(ustack, const char *, path, 0);
 	GETFROMSTACK(ustack, mode_t, mode, 1);
 
@@ -1110,6 +1278,7 @@ int syscalls_sys_chmod(char *ustack)
 
 int syscalls_sys_accept(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	struct sockaddr *address;
 	socklen_t *address_len;
@@ -1118,12 +1287,23 @@ int syscalls_sys_accept(char *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
 
+	if (address != NULL) {
+		if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
+			return -EFAULT;
+		}
+
+		if (vm_mapBelongs(proc, address, *address_len) < 0) {
+			return -EFAULT;
+		}
+	}
+
 	return posix_accept(socket, address, address_len);
 }
 
 
 int syscalls_sys_accept4(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	struct sockaddr *address;
 	socklen_t *address_len;
@@ -1134,12 +1314,23 @@ int syscalls_sys_accept4(char *ustack)
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
 	GETFROMSTACK(ustack, int, flags, 3);
 
+	if (address != NULL) {
+		if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
+			return -EFAULT;
+		}
+
+		if (vm_mapBelongs(proc, address, *address_len) < 0) {
+			return -EFAULT;
+		}
+	}
+
 	return posix_accept4(socket, address, address_len, flags);
 }
 
 
 int syscalls_sys_bind(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	const struct sockaddr *address;
 	socklen_t address_len;
@@ -1147,6 +1338,10 @@ int syscalls_sys_bind(char *ustack)
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, const struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t, address_len, 2);
+
+	if (vm_mapBelongs(proc, address, address_len) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_bind(socket, address, address_len);
 }
@@ -1154,6 +1349,7 @@ int syscalls_sys_bind(char *ustack)
 
 int syscalls_sys_connect(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	const struct sockaddr *address;
 	socklen_t address_len;
@@ -1162,17 +1358,26 @@ int syscalls_sys_connect(char *ustack)
 	GETFROMSTACK(ustack, const struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t, address_len, 2);
 
+	if (vm_mapBelongs(proc, address, address_len) < 0) {
+		return -EFAULT;
+	}
+
 	return posix_connect(socket, address, address_len);
 }
 
 
 int syscalls_sys_gethostname(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	char *name;
 	size_t namelen;
 
 	GETFROMSTACK(ustack, char *, name, 0);
 	GETFROMSTACK(ustack, size_t, namelen, 1);
+
+	if (vm_mapBelongs(proc, name, namelen) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_gethostname(name, namelen);
 }
@@ -1180,6 +1385,7 @@ int syscalls_sys_gethostname(char *ustack)
 
 int syscalls_sys_getpeername(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	struct sockaddr *address;
 	socklen_t *address_len;
@@ -1187,6 +1393,14 @@ int syscalls_sys_getpeername(char *ustack)
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
+
+	if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, address, *address_len) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_getpeername(socket, address, address_len);
 }
@@ -1194,6 +1408,7 @@ int syscalls_sys_getpeername(char *ustack)
 
 int syscalls_sys_getsockname(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	struct sockaddr *address;
 	socklen_t *address_len;
@@ -1202,12 +1417,21 @@ int syscalls_sys_getsockname(char *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
 
+	if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, address, *address_len) < 0) {
+		return -EFAULT;
+	}
+
 	return posix_getsockname(socket, address, address_len);
 }
 
 
 int syscalls_sys_getsockopt(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	int level;
 	int optname;
@@ -1219,6 +1443,16 @@ int syscalls_sys_getsockopt(char *ustack)
 	GETFROMSTACK(ustack, int, optname, 2);
 	GETFROMSTACK(ustack, void *, optval, 3);
 	GETFROMSTACK(ustack, socklen_t *, optlen, 4);
+
+	if (optval != NULL) {
+		if (vm_mapBelongs(proc, optlen, sizeof(*optlen)) < 0) {
+			return -EFAULT;
+		}
+
+		if (vm_mapBelongs(proc, optval, *optlen) < 0) {
+			return -EFAULT;
+		}
+	}
 
 	return posix_getsockopt(socket, level, optname, optval, optlen);
 }
@@ -1238,6 +1472,7 @@ int syscalls_sys_listen(char *ustack)
 
 ssize_t syscalls_sys_recvfrom(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	void *message;
 	size_t length;
@@ -1252,12 +1487,27 @@ ssize_t syscalls_sys_recvfrom(char *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, src_addr, 4);
 	GETFROMSTACK(ustack, socklen_t *, src_len, 5);
 
+	if (vm_mapBelongs(proc, message, length) < 0) {
+		return -EFAULT;
+	}
+
+	if (src_addr != NULL) {
+		if (vm_mapBelongs(proc, src_len, sizeof(*src_len)) < 0) {
+			return -EFAULT;
+		}
+
+		if (vm_mapBelongs(proc, src_addr, *src_len) < 0) {
+			return -EFAULT;
+		}
+	}
+
 	return posix_recvfrom(socket, message, length, flags, src_addr, src_len);
 }
 
 
 ssize_t syscalls_sys_sendto(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	const void *message;
 	size_t length;
@@ -1272,19 +1522,51 @@ ssize_t syscalls_sys_sendto(char *ustack)
 	GETFROMSTACK(ustack, const struct sockaddr *, dest_addr, 4);
 	GETFROMSTACK(ustack, socklen_t, dest_len, 5);
 
+	if (vm_mapBelongs(proc, message, length) < 0) {
+		return -EFAULT;
+	}
+
+	if ((dest_addr != NULL) && (vm_mapBelongs(proc, dest_addr, dest_len) < 0)) {
+		return -EFAULT;
+	}
+
 	return posix_sendto(socket, message, length, flags, dest_addr, dest_len);
 }
 
 
 ssize_t syscalls_sys_recvmsg(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	struct msghdr *msg;
 	int flags;
+	size_t i;
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, struct msghdr *, msg, 1);
 	GETFROMSTACK(ustack, int, flags, 2);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * msg->msg_iovlen) < 0)) {
+		return -EFAULT;
+	}
+
+	for (i = 0; i < msg->msg_iovlen; ++i) {
+		if ((msg->msg_iov[i].iov_base != NULL) && (vm_mapBelongs(proc, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len) < 0)) {
+			return -EFAULT;
+		}
+	}
+
+	if ((msg->msg_control != NULL) && (vm_mapBelongs(proc, msg->msg_control, msg->msg_controllen) < 0)) {
+		return -EFAULT;
+	}
+
+	if ((msg->msg_name != NULL) && (vm_mapBelongs(proc, msg->msg_name, msg->msg_namelen) < 0)) {
+		return -EFAULT;
+	}
 
 	return posix_recvmsg(socket, msg, flags);
 }
@@ -1292,13 +1574,37 @@ ssize_t syscalls_sys_recvmsg(char *ustack)
 
 ssize_t syscalls_sys_sendmsg(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	const struct msghdr *msg;
 	int flags;
+	size_t i;
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, const struct msghdr *, msg, 1);
 	GETFROMSTACK(ustack, int, flags, 2);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * msg->msg_iovlen) < 0)) {
+		return -EFAULT;
+	}
+
+	for (i = 0; i < msg->msg_iovlen; ++i) {
+		if ((msg->msg_iov[i].iov_base != NULL) && (vm_mapBelongs(proc, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len) < 0)) {
+			return -EFAULT;
+		}
+	}
+
+	if ((msg->msg_control != NULL) && (vm_mapBelongs(proc, msg->msg_control, msg->msg_controllen) < 0)) {
+		return -EFAULT;
+	}
+
+	if ((msg->msg_name != NULL) && (vm_mapBelongs(proc, msg->msg_name, msg->msg_namelen) < 0)) {
+		return -EFAULT;
+	}
 
 	return posix_sendmsg(socket, msg, flags);
 }
@@ -1320,6 +1626,7 @@ int syscalls_sys_socket(char *ustack)
 
 int syscalls_sys_socketpair(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int domain;
 	int type;
 	int protocol;
@@ -1329,6 +1636,10 @@ int syscalls_sys_socketpair(char *ustack)
 	GETFROMSTACK(ustack, int, type, 1);
 	GETFROMSTACK(ustack, int, protocol, 2);
 	GETFROMSTACK(ustack, int *, sv, 3);
+
+	if (vm_mapBelongs(proc, sv, sizeof(*sv) * 2) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_socketpair(domain, type, protocol, sv);
 }
@@ -1348,11 +1659,16 @@ int syscalls_sys_shutdown(char *ustack)
 
 int syscalls_sys_sethostname(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *name;
 	size_t namelen;
 
 	GETFROMSTACK(ustack, const char *, name, 0);
 	GETFROMSTACK(ustack, size_t, namelen, 1);
+
+	if (vm_mapBelongs(proc, name, namelen) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_sethostname(name, namelen);
 }
@@ -1360,6 +1676,7 @@ int syscalls_sys_sethostname(char *ustack)
 
 int syscalls_sys_setsockopt(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int socket;
 	int level;
 	int optname;
@@ -1371,6 +1688,10 @@ int syscalls_sys_setsockopt(char *ustack)
 	GETFROMSTACK(ustack, int, optname, 2);
 	GETFROMSTACK(ustack, const void *, optval, 3);
 	GETFROMSTACK(ustack, socklen_t, optlen, 4);
+
+	if ((optval != NULL) && (optlen != 0) && (vm_mapBelongs(proc, optval, optlen) < 0)) {
+		return -EFAULT;
+	}
 
 	return posix_setsockopt(socket, level, optname, optval, optlen);
 }
@@ -1390,6 +1711,7 @@ int syscalls_sys_ioctl(char *ustack)
 
 int syscalls_sys_poll(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	struct pollfd *fds;
 	nfds_t nfds;
 	int timeout_ms;
@@ -1398,17 +1720,26 @@ int syscalls_sys_poll(char *ustack)
 	GETFROMSTACK(ustack, nfds_t, nfds, 1);
 	GETFROMSTACK(ustack, int, timeout_ms, 2);
 
+	if (vm_mapBelongs(proc, fds, sizeof(*fds) * nfds) < 0) {
+		return -EFAULT;
+	}
+
 	return posix_poll(fds, nfds, timeout_ms);
 }
 
 
 int syscalls_sys_futimens(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	int fildes;
 	const struct timespec *times;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, const struct timespec *, times, 1);
+
+	if ((times != NULL) && (vm_mapBelongs(proc, times, sizeof(*times)) < 0)) {
+		return -EFAULT;
+	}
 
 	return posix_futimens(fildes, times);
 }
