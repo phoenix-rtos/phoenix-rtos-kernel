@@ -1312,6 +1312,7 @@ void proc_exit(int code)
 	}
 
 	proc_kill(current->process);
+	hal_cpuReschedule(NULL, NULL);
 }
 
 
