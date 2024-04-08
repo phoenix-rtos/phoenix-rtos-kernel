@@ -31,6 +31,8 @@
 #define SGI_FLT_OTHER_CPUS 1 /* Send SGI to all CPUs except the one that called this function */
 #define SGI_FLT_THIS_CPU   2 /* Send SGI to the CPU that called this function */
 
+#define DEFAULT_CPU_MASK 0x3
+
 
 /* clang-format off */
 enum {
@@ -133,7 +135,7 @@ static void interrupts_setConf(unsigned int irqn, u32 conf)
 }
 
 
-static void interrupts_setCPU(unsigned int irqn, u32 cpuID)
+void _zynq_interrupts_setCPU(unsigned int irqn, u32 cpuID)
 {
 	u32 mask;
 
@@ -167,7 +169,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	HAL_LIST_ADD(&interrupts_common.handlers[h->n], h);
 
 	interrupts_setPriority(h->n, 0xa);
-	interrupts_setCPU(h->n, 0x1);
+	_zynq_interrupts_setCPU(h->n, DEFAULT_CPU_MASK);
 	interrupts_enableIRQ(h->n);
 
 	hal_spinlockClear(&interrupts_common.spinlock[h->n], &sc);
@@ -228,7 +230,7 @@ void _hal_interruptsInit(void)
 	/* Set required configuration and CPU_0 as a default processor */
 	for (i = SPI_FIRST_IRQID; i < SIZE_INTERRUPTS; ++i) {
 		interrupts_setConf(i, spiConf[i - SPI_FIRST_IRQID]);
-		interrupts_setCPU(i, 0x1);
+		_zynq_interrupts_setCPU(i, DEFAULT_CPU_MASK);
 	}
 
 	/* SGI and PPI interrupts are fixed to always be on both CPUs */

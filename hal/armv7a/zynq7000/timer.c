@@ -18,6 +18,8 @@
 #include "hal/spinlock.h"
 #include "hal/string.h"
 
+#include "zynq.h"
+
 #define TIMER_SRC_CLK_CPU_1x 111111115 /* Hz */
 #define TIMER_IRQ_ID         42
 
@@ -47,13 +49,18 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)arg;
 	(void)ctx;
 
-	u32 st = *(timer_common.ttc + isr);
-
+	spinlock_ctx_t sc;
+	hal_spinlockSet(&timer_common.sp, &sc);
 	/* Interval IRQ */
-	if (st & 0x1) {
+	if ((*(timer_common.ttc + isr) & 1) != 0) {
 		timer_common.jiffies += timer_common.ticksPerFreq;
 	}
 
+	hal_spinlockClear(&timer_common.sp, &sc);
+
+	u32 nextID = hal_cpuGetID() + 1;
+	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? 1 : (1 << nextID);
+	_zynq_interrupts_setCPU(n, nextTargetCPU);
 	hal_cpuDataSyncBarrier();
 
 	return 0;
@@ -62,7 +69,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 static time_t hal_timerCyc2Us(time_t cyc)
 {
-	return (cyc * 1000LL) / (time_t)(timer_common.ticksPerFreq);
+	return (cyc * 1000LL) / (time_t)(timer_common.ticksPerFreq * hal_cpuGetCount());
 }
 
 
@@ -167,7 +174,7 @@ void _hal_timerInit(u32 interval)
 	/* Reset counters and restart counting */
 	*(timer_common.ttc + cnt_ctrl) = 0x10;
 
-	hal_timerSetPrescaler(interval);
+	hal_timerSetPrescaler(interval * hal_cpuGetCount());
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 	timer_common.handler.f = _timer_irqHandler;
