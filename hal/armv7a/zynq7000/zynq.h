@@ -25,4 +25,7 @@ extern int _zynq_setMIO(unsigned int pin, char disableRcvr, char pullup, char io
 extern int _zynq_setAmbaClk(u32 dev, u32 state);
 
 
+extern void _zynq_interrupts_setCPU(unsigned int irqn, u32 cpuID);
+
+
 #endif
