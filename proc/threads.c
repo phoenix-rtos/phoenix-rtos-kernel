@@ -615,6 +615,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		_perf_scheduling(selected);
 		hal_cpuRestore(context, selCtx);
 
+		LIB_ASSERT_ALWAYS((selected->kstack + selected->kstacksz) >= ((char *)selCtx + sizeof(*selCtx)),
+			"pid: %d, tid: %d, kstackTop: %p, selCtx: 0x%p stack underrun",
+			(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+			selected->kstack + selected->kstacksz, selCtx);
+
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 		LIB_ASSERT_ALWAYS((selected->execkstack != NULL) || ((void *)selected->context > selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
 			"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
