@@ -334,7 +334,7 @@ _interrupts_exception:
 	 */
 
 	xori t1, t0, 0x73
-	bnez t1, _interrupts_exceptionNotFpu /* Not CSR */
+	bnez t1, 1f /* Not CSR, check compressed */
 
 	/* EBREAK/ECALL check: funct3 */
 	srli t1, t2, 12
@@ -347,9 +347,36 @@ _interrupts_exception:
 	/* FP CSRs range: 0x001-0x003 */
 	beqz t1, _interrupts_exceptionNotFpu
 	andi t1, t1, ~0x3
+	beqz t1, _interrupts_exceptionFpu
+
+1:
+	/* Compressed RV64 FP instructions: (16-bit)
+	 * [funct3]...[op]
+	 *     001 ... 00  c.fld
+	 *     001 ... 10  c.fldsp
+	 *     101 ... 00  c.fsd
+	 *     101 ... 10  c.fsdsp
+	 *
+	 * If RV32 support is added, also check:
+	 *     011 ... 00  c.flw
+	 *     011 ... 10  c.flwsp
+	 *     111 ... 00  c.fsw
+	 *     111 ... 10  c.fswsp
+	 *
+	 * Noncompressed RV instructions have op[1:0] = 11.
+	 * We are interested in op[1:0] = 00 | 10.
+	 */
+
+	/* op[0] */
+	andi t1, t2, 0x1
 	bnez t1, _interrupts_exceptionNotFpu
 
-	/* TODO: If ever needed: add support for Compressed extension */
+	/* funct3 */
+	srli t2, t2, 13
+	andi t2, t2, 0x7
+	ori t2, t2, (1 << 2)
+	xori t2, t2, 5
+	bnez t2, _interrupts_exceptionNotFpu
 
 _interrupts_exceptionFpu:
 	/* Set `initial` FPU state - t3 hold previous sstatus */
