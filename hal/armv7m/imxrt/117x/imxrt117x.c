@@ -182,7 +182,7 @@ static volatile u32 *_imxrt_IOpadGetReg(int pad)
 	}
 
 	if (pad < pctl_pad_gpio_lpsr_00) {
-		return imxrt_common.iomux_snvs + pad + 14 - pctl_pad_test_mode;
+		return imxrt_common.iomux_snvs + pad + 13 - pctl_pad_test_mode;
 	}
 
 	return imxrt_common.iomux_lpsr + pad + 16 - pctl_pad_gpio_lpsr_00;
@@ -714,7 +714,11 @@ int _imxrt_setLevelLPCG(int clock, int level)
 
 static int _imxrt_setIOgpr(int which, unsigned int what)
 {
-	if ((which < 0) || (which > 76)) {
+	/*
+	 * GPR19, GPR56 - GPR58, GPR60 - GPR61 don't exist
+	 * GPR63, GPR75, GPR76 are read only
+	 */
+	if ((which < 0) || (which == 19) || ((which > 55) && (which < 62) && (which != 59)) || (which == 63) || (which > 74)) {
 		return -EINVAL;
 	}
 
@@ -727,7 +731,10 @@ static int _imxrt_setIOgpr(int which, unsigned int what)
 
 static int _imxrt_getIOgpr(int which, unsigned int *what)
 {
-	if ((which < 0) || (which > 76) || (what == NULL)) {
+	/*
+	 * GPR19, GPR56 - GPR58, GPR60 - GPR61 don't exist
+	 */
+	if ((which < 0) || (which == 19) || ((which > 55) && (which < 62) && (which != 59)) || (which > 76) || (what == NULL)) {
 		return -EINVAL;
 	}
 
@@ -739,7 +746,11 @@ static int _imxrt_getIOgpr(int which, unsigned int *what)
 
 static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 {
-	if ((which < 0) || (which > 41)) {
+	/*
+	 * GPR0 - GPR25, GPR27 - GPR32 don't exist
+	 * GPR40 and GPR41 are read only
+	 */
+	if ((which < 26) || ((which > 26) && (which < 33)) || (which > 39)) {
 		return -EINVAL;
 	}
 
@@ -752,7 +763,10 @@ static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 
 static int _imxrt_getIOlpsrGpr(int which, unsigned int *what)
 {
-	if ((which < 0) || (which > 41) || (what == NULL)) {
+	/*
+	 * GPR0 - GPR25, GPR27 - GPR32 don't exist
+	 */
+	if ((which < 26) || ((which > 26) && (which < 33)) || (which > 41) || (what == NULL)) {
 		return -EINVAL;
 	}
 
