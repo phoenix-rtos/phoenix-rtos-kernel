@@ -223,6 +223,11 @@ _exceptions_dispatch:
 .type _pendsv, %function
 _pendsv:
 	mov r0, sp
+
+	tst lr, #(1 << 2)
+	it ne
+	subne sp, sp, #(26 * 4) /* space for hw-saved ctx */
+
 	vstmdb sp!, {s16-s31}
 	str r0, [sp, #-8]!
 	mrs r0, ipsr
@@ -232,6 +237,14 @@ _pendsv:
 	ldr r2, [r2]
 	stmdb sp!, {r1-r11, lr}
 
+	beq _pendsv0 /* tst lr, #(1 << 2) */
+
+	/* psp in r3 - load hw-saved regs */
+	vldm r3, {s0-s24}
+	add r12, sp, #(30 * 4)
+	vstm r12, {s0-s24}
+
+_pendsv0:
 	ldr r5, =_cpu_nctx
 	ldr r6, [r5]
 	cmp r6, #0
@@ -249,10 +262,11 @@ _pendsv:
 .type _interrupts_dispatch, %function
 _interrupts_dispatch:
 	mov r0, sp
-	and r12, lr, #(1 << 2)
-	cmp r12, #0
+
+	tst lr, #(1 << 2)
 	it ne
 	subne sp, sp, #(26 * 4) /* space for hw-saved ctx */
+
 	vstmdb sp!, {s16-s31}
 	str r0, [sp, #-8]!
 	isb
@@ -267,7 +281,7 @@ _interrupts_dispatch:
 	 * in case of signal handling
 	 */
 
-	beq _intd0 /* cmp r12, #0 */
+	beq _intd0 /* tst lr, #(1 << 2) */
 
 	/* psp in r3 - load hw-saved regs */
 	vldm r3, {s0-s24}
@@ -285,8 +299,7 @@ _intd1:
 	ldmia sp!, {r1-r11, lr}
 	ldr r0, [sp], #8
 
-	and r12, lr, #(1 << 2)
-	cmp r12, #0
+	tst lr, #(1 << 2)
 	beq _intd2
 
 	/* userspace return - restore registers in case of signal handling */
