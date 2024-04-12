@@ -1365,7 +1365,7 @@ static void process_vforkThread(void *arg)
 	}
 
 	/* Start execution from parent suspend point */
-	hal_longjmp(parent->context);
+	proc_longjmp(parent->context);
 
 	/* This part of code left unexecuted */
 	return;

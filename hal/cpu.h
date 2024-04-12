@@ -109,9 +109,6 @@ extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t 
 extern void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
 
 
-extern void hal_longjmp(cpu_context_t *ctx);
-
-
 extern void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargs);
 
 

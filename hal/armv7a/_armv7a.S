@@ -248,16 +248,6 @@ _hal_cpuSetKernelStack:
 .ltorg
 
 
-.globl hal_longjmp
-.type hal_longjmp, %function
-hal_longjmp:
-	cpsid if
-	add sp, r0, #8
-	b _hal_cpuRestoreCtx
-.size hal_longjmp, .-hal_longjmp
-.ltorg
-
-
 .globl hal_jmp /* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
 .type hal_jmp, %function
 hal_jmp:
