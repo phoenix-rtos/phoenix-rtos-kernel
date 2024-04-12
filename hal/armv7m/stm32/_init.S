@@ -191,6 +191,9 @@ _pendsv:
 	isb
 
 	mov r0, sp
+	tst lr, #(1 << 2)
+	it ne
+	subne sp, sp, #(8 * 4) /* space for hw-saved ctx */
 	str r0, [sp, #-8]!
 
 	mrs r0, ipsr
@@ -198,6 +201,14 @@ _pendsv:
 	sub r1, sp, #48
 	stmdb sp!, {r1-r11, lr}
 
+	beq _pendsv0 /* tst lr, #(1 << 2) */
+
+	/* psp in r3 - load hw-saved regs */
+	ldm r3, {r4-r11}
+	add r12, sp, #(14 * 4)
+	stm r12, {r4-r11}
+
+_pendsv0:
 	ldr r5, =_cpu_nctx
 	ldr r6, [r5]
 	cmp r6, #0
@@ -219,8 +230,7 @@ _interrupts_dispatch:
 	isb
 
 	mov r0, sp
-	and r12, lr, #(1 << 2)
-	cmp r12, #0
+	tst lr, #(1 << 2)
 	it ne
 	subne sp, sp, #(8 * 4) /* space for hw-saved ctx */
 	str r0, [sp, #-8]!
@@ -234,7 +244,7 @@ _interrupts_dispatch:
 	 * in case of signal handling
 	 */
 
-	beq _intd0 /* cmp r12, #0 */
+	beq _intd0 /* tst lr, #(1 << 2) */
 
 	/* psp in r3 - load hw-saved regs */
 	ldm r3, {r4-r11}
@@ -249,8 +259,7 @@ _intd0:
 _intd1:
 	ldr lr, [sp, #(11 * 4)]
 
-	and r12, lr, #(1 << 2)
-	cmp r12, #0
+	tst lr, #(1 << 2)
 	beq _intd2
 
 	/* userspace return - restore registers in case of signal handling */
