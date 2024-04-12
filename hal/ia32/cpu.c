@@ -208,56 +208,6 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 }
 
 
-void hal_longjmp(cpu_context_t *ctx)
-{
-	hal_tlbFlushLocal(NULL);
-	/* clang-format off */
-	__asm__ volatile (
-		"cli\n\t"
-		"movl %0, %%eax\n\t"
-		"addl $4, %%eax\n\t"
-		"movl %%eax, %%esp\n\t"
-		"movw 28(%%esp), %%dx\n\t"
-		"cmpw %[kdata], %%dx\n\t"
-		"je .Lignore_gs\n\t"
-		"call hal_cpuGetTlsIndex\n\t"
-		"shl $3, %%eax\n\t"
-		"orb $3, %%al\n\t"
-		"movw %%ax, 28(%%esp)\n\t"
-		".Lignore_gs:"
-		"popl %%edi\n\t"
-		"popl %%esi\n\t"
-		"popl %%ebp\n\t"
-		"popl %%edx\n\t"
-		"popl %%ecx\n\t"
-		"popl %%ebx\n\t"
-		"popl %%eax\n\t"
-		"popw %%gs\n\t"
-		"popw %%fs\n\t"
-		"popw %%es\n\t"
-		"popw %%ds\n\t"
-		"testl %[cr0ts], %c[fpuContextSize](%%esp)\n\t"
-		"movl %%eax, %c[fpuContextSize](%%esp)\n\t"
-		"movl %%cr0, %%eax\n\t"
-		"jz .Lhal_longjmp_fpu\n\t"
-		"orl %[cr0ts], %%eax\n\t"
-		"mov %%eax, %%cr0\n\t"
-		"addl %[fpuContextSize], %%esp\n\t"
-		"popl %%eax\n\t"
-		"iret\n\n"
-		".Lhal_longjmp_fpu:\n\t"
-		"andl %[not_cr0ts], %%eax\n\t"
-		"mov %%eax, %%cr0\n\t"
-		"frstor (%%esp)\n\t"
-		"addl %[fpuContextSize], %%esp\n\t"
-		"popl %%eax\n\t"
-		"iret\n"
-	:
-	: "g" (ctx), [cr0ts] "i" (CR0_TS_BIT), [not_cr0ts] "i" (~CR0_TS_BIT), [fpuContextSize] "i" (FPU_CONTEXT_SIZE), [kdata] "i" (SEL_KDATA));
-	/* clang-format on */
-}
-
-
 void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargv)
 {
 	/* We support passing at most 4 args on every architecture. */

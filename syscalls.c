@@ -1027,7 +1027,6 @@ void syscalls_sigreturn(void *ustack)
 	GETFROMSTACK(ustack, cpu_context_t *, ctx, 1);
 
 	hal_cpuDisableInterrupts();
-
 	hal_cpuSigreturn(t->kstack + t->kstacksz, ustack, &ctx);
 
 	t->sigmask = oldmask;
@@ -1037,7 +1036,7 @@ void syscalls_sigreturn(void *ustack)
 		proc_kill(t->process);
 	}
 
-	hal_longjmp(ctx);
+	proc_longjmp(ctx);
 
 	/* Not reached */
 }

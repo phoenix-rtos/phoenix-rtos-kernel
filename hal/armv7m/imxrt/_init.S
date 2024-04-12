@@ -20,8 +20,6 @@
 .syntax unified
 .cpu cortex-m7
 
-
-.extern _cpu_nctx
 .extern syscalls
 .extern syspage
 
@@ -52,7 +50,7 @@ _init_vectors:
 .word _syscall_dispatch    /* SVC */
 .word _exceptions_dispatch /* Debug */
 .word 0
-.word _pendsv              /* PendSV */
+.word _interrupts_dispatch /* PendSV */
 .word _interrupts_dispatch /* Systick */
 
 .rept 240
@@ -219,44 +217,6 @@ _exceptions_dispatch:
 .size _exceptions_dispatch, .-_exceptions_dispatch
 .ltorg
 
-.globl _pendsv
-.type _pendsv, %function
-_pendsv:
-	mov r0, sp
-
-	tst lr, #(1 << 2)
-	it ne
-	subne sp, sp, #(26 * 4) /* space for hw-saved ctx */
-
-	vstmdb sp!, {s16-s31}
-	str r0, [sp, #-8]!
-	mrs r0, ipsr
-	mrs r3, psp
-	sub r1, sp, #48
-	ldr r2, =0xe000ef38
-	ldr r2, [r2]
-	stmdb sp!, {r1-r11, lr}
-
-	beq _pendsv0 /* tst lr, #(1 << 2) */
-
-	/* psp in r3 - load hw-saved regs */
-	vldm r3, {s0-s24}
-	add r12, sp, #(30 * 4)
-	vstm r12, {s0-s24}
-
-_pendsv0:
-	ldr r5, =_cpu_nctx
-	ldr r6, [r5]
-	cmp r6, #0
-	beq _intd0
-	mov sp, r6
-	isb
-	mov r6, #0
-	str r6, [r5]
-	dmb
-	b _intd1
-.size _pendsv, .-_pendsv
-.ltorg
 
 .globl _interrupts_dispatch
 .type _interrupts_dispatch, %function
@@ -366,9 +326,8 @@ spinlock:
 	cmp r4, #0
 	bne spinlock
 	pop {r3-r4}
-	ldr r2, [r2]
-	msr primask, r2
 hal_cpuReschedule0:
+	cpsie if
 	isb
 	dmb
 	bx lr

@@ -538,6 +538,20 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 }
 
 
+__attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
+{
+	spinlock_ctx_t sc;
+	thread_t *current;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	current = _proc_current();
+	current->longjmpctx = ctx;
+	hal_cpuReschedule(&threads_common.spinlock, &sc);
+	for (;;) {
+	}
+}
+
+
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, const int src);
 
 
@@ -590,20 +604,15 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 		selCtx = selected->context;
 
-		if (selected->tls.tls_base != NULL) {
-			hal_cpuTlsSet(&selected->tls, selCtx);
-		}
-
 		proc = selected->process;
 		if ((proc != NULL) && (proc->pmapp != NULL)) {
 			/* Switch address space */
 			pmap_switch(proc->pmapp);
 
 			/* Check for signals to handle */
-			if (hal_cpuSupervisorMode(selCtx) == 0) {
+			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
 				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
 				if (_threads_checkSignal(selected, proc, signalCtx, SIG_SRC_SCHED) == 0) {
-					LIB_ASSERT_ALWAYS(hal_cpuSupervisorMode(signalCtx) == 0, "supervisor mode in signalCtx");
 					selCtx = signalCtx;
 				}
 			}
@@ -612,14 +621,26 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			/* Protects against use after free of process' memory map in SMP environment. */
 			pmap_switch(&threads_common.kmap->pmap);
 		}
+
+		if (selected->longjmpctx != NULL) {
+			selCtx = selected->longjmpctx;
+			selected->longjmpctx = NULL;
+		}
+
+		if (selected->tls.tls_base != NULL) {
+			hal_cpuTlsSet(&selected->tls, selCtx);
+		}
+
 		_perf_scheduling(selected);
 		hal_cpuRestore(context, selCtx);
 
 #if defined(STACK_CANARY) || !defined(NDEBUG)
-		LIB_ASSERT_ALWAYS((selected->execkstack != NULL) || ((void *)selected->context > selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
-			"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
-			(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
-			selected->kstack, selected->context);
+		if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
+			LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
+				"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
+				(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+				selected->kstack, selCtx);
+		}
 
 		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
 			(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
@@ -750,6 +771,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->maxWait = 0;
 	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
+	t->longjmpctx = NULL;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->kstack);

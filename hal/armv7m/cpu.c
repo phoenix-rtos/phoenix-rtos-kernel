@@ -28,9 +28,6 @@ struct {
 } cpu_common;
 
 
-volatile cpu_context_t *_cpu_nctx;
-
-
 /* performance */
 
 
@@ -193,23 +190,6 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 }
 
 
-void hal_longjmp(cpu_context_t *ctx)
-{
-	/* clang-format off */
-	__asm__ volatile
-	(" \
-		cpsid if; \
-		str %1, [%0]; \
-		bl _hal_invokePendSV; \
-		cpsie if; \
-	1:	b 1b"
-	:
-	: "r" (&_cpu_nctx), "r" (ctx)
-	: "memory");
-	/* clang-format on */
-}
-
-
 /* core management */
 
 
@@ -332,7 +312,6 @@ void hal_cleanDCache(ptr_t start, size_t len)
 void _hal_cpuInit(void)
 {
 	cpu_common.busy = 0;
-	_cpu_nctx = NULL;
 
 	hal_spinlockCreate(&cpu_common.busySp, "devBusy");
 

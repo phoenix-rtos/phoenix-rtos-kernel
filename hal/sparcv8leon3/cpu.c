@@ -184,7 +184,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 	GETFROMSTACK(ustack, u32, (*ctx)->npc, 3);
 	GETFROMSTACK(ustack, u32, (*ctx)->sp, 4);
 	GETFROMSTACK(ustack, u32, (*ctx)->psr, 5);
-	(*ctx)->psr &= ~PSR_S;
+	(*ctx)->psr &= ~PSR_PS;
 	(*ctx)->psr |= PSR_ET;
 }
 

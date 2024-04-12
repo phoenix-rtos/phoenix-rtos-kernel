@@ -174,22 +174,6 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 }
 
 
-void hal_longjmp(cpu_context_t *ctx)
-{
-	/* clang-format off */
-	__asm__ volatile(" \
-		cpsid if; \
-		str %1, [%0]; \
-		bl _hal_invokePendSV; \
-		cpsie if; \
-	1:	b 1b"
-	:
-	: "r" (&_cpu_nctx), "r" (ctx)
-	: "memory");
-	/* clang-format on */
-}
-
-
 /* core management */
 
 

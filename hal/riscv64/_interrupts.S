@@ -449,15 +449,6 @@ hal_cpuReschedule:
 .size hal_cpuReschedule, .-hal_cpuReschedule
 
 
-.global hal_longjmp
-hal_longjmp:
-	mv sp, a0
-	sd a0, 232(sp)
-	RESTORE
-	sret
-.size hal_longjmp, .-hal_longjmp
-
-
 .global hal_jmp  /* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
 hal_jmp:
 	mv s0, a0
