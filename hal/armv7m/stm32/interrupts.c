@@ -133,7 +133,7 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
 
 	_stm32_scbSetPriority(SYSTICK_IRQ, 1);
-	_stm32_scbSetPriority(PENDSV_IRQ, 1);
+	_stm32_scbSetPriority(PENDSV_IRQ, 0);
 	_stm32_scbSetPriority(SVC_IRQ, 0);
 
 	/* Set no subprorities in Interrupt Group Priority */
