@@ -546,8 +546,8 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	current = _proc_current();
 	current->longjmpctx = ctx;
-	hal_cpuReschedule(&threads_common.spinlock, &sc);
 	for (;;) {
+		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 }
 
