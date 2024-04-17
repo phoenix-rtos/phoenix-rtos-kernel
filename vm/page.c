@@ -37,7 +37,7 @@ struct {
 } pages;
 
 
-page_t *_page_alloc(size_t size, u8 flags)
+static page_t *_page_alloc(size_t size, u8 flags)
 {
 	unsigned int start, stop, i;
 	page_t *lh, *rh;

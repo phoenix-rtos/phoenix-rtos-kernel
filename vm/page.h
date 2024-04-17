@@ -21,9 +21,6 @@
 #include "include/sysinfo.h"
 
 
-//extern page_t *_page_alloc(size_t size, u8 flags);
-
-
 extern page_t *vm_pageAlloc(size_t size, u8 flags);
 
 
