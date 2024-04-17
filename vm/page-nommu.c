@@ -38,7 +38,7 @@ struct {
 } pages;
 
 
-page_t *_page_alloc(size_t size, u8 flags)
+static page_t *_page_alloc(size_t size, u8 flags)
 {
 	page_t *lh = pages.freeq;
 
