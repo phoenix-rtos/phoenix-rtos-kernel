@@ -19,7 +19,7 @@
 #include "hal/types.h"
 
 #define SIZE_PAGE       0x1000
-#define SIZE_PDIR       0x4000
+#define SIZE_PDIR       0x2000
 
 #ifndef SIZE_KSTACK
 #define SIZE_KSTACK (8 * 1024)

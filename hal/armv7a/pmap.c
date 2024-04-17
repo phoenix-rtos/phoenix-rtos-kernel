@@ -167,8 +167,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 	pmap->addr = p->addr;
 	pmap->asid_ix = 0;
 
-	hal_memset(pmap->pdir, 0, (VADDR_KERNEL) >> 18);
-	hal_memcpy(&pmap->pdir[ID_PDIR(VADDR_KERNEL)], &kpmap->pdir[ID_PDIR(VADDR_KERNEL)], (VADDR_MAX - VADDR_KERNEL + 1) >> 18);
+	hal_memset(pmap->pdir, 0, SIZE_PDIR);
 
 	hal_cpuDataMemoryBarrier();
 	hal_cpuDataSyncBarrier();
@@ -387,7 +386,9 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
-	if (!(addr = pmap->pdir[pdi])) {
+	u32 *pdir = ((ptr_t)vaddr >= VADDR_USR_MAX) ? pmap_common.kpdir : pmap->pdir;
+	addr = pdir[pdi];
+	if (addr == 0) {
 		hal_spinlockClear(&pmap_common.lock, &sc);
 		return 0;
 	}
