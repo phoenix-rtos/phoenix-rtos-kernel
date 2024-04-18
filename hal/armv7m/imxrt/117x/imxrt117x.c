@@ -121,14 +121,17 @@ void _imxrt_wdgReload(void)
 
 static volatile u32 *_imxrt_IOmuxGetReg(int mux)
 {
-	if (mux < pctl_mux_gpio_emc_b1_00 || mux > pctl_mux_gpio_lpsr_15)
+	if ((mux < pctl_mux_gpio_emc_b1_00) || (mux > pctl_mux_gpio_lpsr_15)) {
 		return NULL;
+	}
 
-	if (mux < pctl_mux_wakeup)
+	if (mux < pctl_mux_wakeup) {
 		return imxrt_common.iomuxc + 4 + mux - pctl_mux_gpio_emc_b1_00;
+	}
 
-	if (mux < pctl_mux_gpio_lpsr_00)
+	if (mux < pctl_mux_gpio_lpsr_00) {
 		return imxrt_common.iomux_snvs + mux - pctl_mux_wakeup;
+	}
 
 	return imxrt_common.iomux_lpsr + mux - pctl_mux_gpio_lpsr_00;
 }
@@ -138,8 +141,10 @@ int _imxrt_setIOmux(int mux, char sion, char mode)
 {
 	volatile u32 *reg;
 
-	if ((reg = _imxrt_IOmuxGetReg(mux)) == NULL)
+	reg = _imxrt_IOmuxGetReg(mux);
+	if (reg == NULL) {
 		return -EINVAL;
+	}
 
 	(*reg) = (!!sion << 4) | (mode & 0xf);
 	hal_cpuDataMemoryBarrier();
@@ -153,8 +158,10 @@ static int _imxrt_getIOmux(int mux, char *sion, char *mode)
 	u32 t;
 	volatile u32 *reg;
 
-	if ((reg = _imxrt_IOmuxGetReg(mux)) == NULL)
+	reg = _imxrt_IOmuxGetReg(mux);
+	if (reg == NULL) {
 		return -EINVAL;
+	}
 
 	t = (*reg);
 	*sion = !!(t & (1 << 4));
@@ -166,14 +173,17 @@ static int _imxrt_getIOmux(int mux, char *sion, char *mode)
 
 static volatile u32 *_imxrt_IOpadGetReg(int pad)
 {
-	if (pad < pctl_pad_gpio_emc_b1_00 || pad > pctl_pad_gpio_lpsr_15)
+	if ((pad < pctl_pad_gpio_emc_b1_00) || (pad > pctl_pad_gpio_lpsr_15)) {
 		return NULL;
+	}
 
-	if (pad < pctl_pad_test_mode)
+	if (pad < pctl_pad_test_mode) {
 		return imxrt_common.iomuxc + pad + 149 - pctl_pad_gpio_emc_b1_00;
+	}
 
-	if (pad < pctl_pad_gpio_lpsr_00)
+	if (pad < pctl_pad_gpio_lpsr_00) {
 		return imxrt_common.iomux_snvs + pad + 14 - pctl_pad_test_mode;
+	}
 
 	return imxrt_common.iomux_lpsr + pad + 16 - pctl_pad_gpio_lpsr_00;
 }
@@ -185,17 +195,22 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 	volatile u32 *reg;
 	char pull;
 
-	if ((reg = _imxrt_IOpadGetReg(pad)) == NULL)
+	reg = _imxrt_IOpadGetReg(pad);
+	if (reg == NULL) {
 		return -EINVAL;
+	}
 
-	if (pad >= pctl_pad_gpio_emc_b1_00 && pad <= pctl_pad_gpio_disp_b2_15) {
+	if ((pad >= pctl_pad_gpio_emc_b1_00) && (pad <= pctl_pad_gpio_disp_b2_15)) {
 		/* Fields have slightly diffrent meaning... */
-		if (!pue)
+		if (pue == 0) {
 			pull = 3;
-		else if (pus)
+		}
+		else if (pus != 0) {
 			pull = 1;
-		else
+		}
+		else {
 			pull = 2;
+		}
 
 		t = *reg & ~0x1e;
 		t |= (!!dse << 1) | (pull << 2) | (!!ode << 4);
@@ -204,7 +219,7 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 		t = *reg & ~0x1f;
 		t |= (!!sre) | (!!dse << 1) | (!!pue << 2) | (!!pus << 3);
 
-		if (pad >= pctl_pad_test_mode && pad <= pctl_pad_gpio_snvs_09) {
+		if ((pad >= pctl_pad_test_mode) && (pad <= pctl_pad_gpio_snvs_09)) {
 			t &= ~(1 << 6);
 			t |= !!ode << 6;
 		}
@@ -231,12 +246,14 @@ static int _imxrt_getIOpad(int pad, char *sre, char *dse, char *pue, char *pus, 
 	char pull;
 	volatile u32 *reg;
 
-	if ((reg = _imxrt_IOpadGetReg(pad)) == NULL)
+	reg = _imxrt_IOpadGetReg(pad);
+	if (reg == NULL) {
 		return -EINVAL;
+	}
 
 	t = (*reg);
 
-	if (pad >= pctl_pad_gpio_emc_b1_00 && pad <= pctl_pad_gpio_disp_b2_15) {
+	if ((pad >= pctl_pad_gpio_emc_b1_00) && (pad <= pctl_pad_gpio_disp_b2_15)) {
 		pull = (t >> 2) & 3;
 
 		if (pull == 3) {
@@ -244,10 +261,12 @@ static int _imxrt_getIOpad(int pad, char *sre, char *dse, char *pue, char *pus, 
 		}
 		else {
 			*pue = 1;
-			if (pull & 1)
+			if ((pull & 1) != 0) {
 				*pus = 1;
-			else
+			}
+			else {
 				*pus = 0;
+			}
 		}
 
 		*ode = (t >> 4) & 1;
@@ -258,10 +277,12 @@ static int _imxrt_getIOpad(int pad, char *sre, char *dse, char *pue, char *pus, 
 		*pue = (t >> 2) & 1;
 		*pus = (t >> 3) & 1;
 
-		if (pad >= pctl_pad_test_mode && pad <= pctl_pad_gpio_snvs_09)
+		if ((pad >= pctl_pad_test_mode) && (pad <= pctl_pad_gpio_snvs_09)) {
 			*ode = (t >> 6) & 1;
-		else
+		}
+		else {
 			*ode = (t >> 5) & 1;
+		}
 	}
 
 	*dse = (t >> 1) & 1;
@@ -273,8 +294,9 @@ static int _imxrt_getIOpad(int pad, char *sre, char *dse, char *pue, char *pus, 
 
 static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 {
-	if (isel < pctl_isel_flexcan1_rx || isel > pctl_isel_sai4_txsync)
+	if ((isel < pctl_isel_flexcan1_rx) || (isel > pctl_isel_sai4_txsync)) {
 		return NULL;
+	}
 
 	switch (isel) {
 		case pctl_isel_flexcan1_rx:
@@ -318,8 +340,9 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 			break;
 	}
 
-	if (isel >= pctl_isel_can3_canrx)
+	if (isel >= pctl_isel_can3_canrx) {
 		return imxrt_common.iomux_lpsr + 32 + isel - pctl_isel_can3_canrx;
+	}
 
 	return imxrt_common.iomuxc + 294 + isel - pctl_isel_flexcan1_rx;
 }
@@ -330,8 +353,10 @@ int _imxrt_setIOisel(int isel, char daisy)
 	volatile u32 *reg;
 	u32 mask;
 
-	if ((reg = _imxrt_IOiselGetReg(isel, &mask)) == NULL)
+	reg = _imxrt_IOiselGetReg(isel, &mask);
+	if (reg == NULL) {
 		return -EINVAL;
+	}
 
 	(*reg) = daisy & mask;
 	hal_cpuDataMemoryBarrier();
@@ -345,8 +370,10 @@ static int _imxrt_getIOisel(int isel, char *daisy)
 	volatile u32 *reg;
 	u32 mask;
 
-	if ((reg = _imxrt_IOiselGetReg(isel, &mask)) == NULL)
+	reg = _imxrt_IOiselGetReg(isel, &mask);
+	if (reg == NULL) {
 		return -EINVAL;
+	}
 
 	*daisy = (*reg) & mask;
 
@@ -485,7 +512,7 @@ void _imxrt_enableDCache(void)
 {
 	u32 ccsidr, sets, ways;
 
-	if (!(*(imxrt_common.scb + scb_ccr) & (1 << 16))) {
+	if ((*(imxrt_common.scb + scb_ccr) & (1 << 16)) == 0) {
 		*(imxrt_common.scb + scb_csselr) = 0;
 		hal_cpuDataSyncBarrier();
 
@@ -561,7 +588,7 @@ void _imxrt_cleanInvalDCacheAddr(void *addr, u32 sz)
 
 void _imxrt_enableICache(void)
 {
-	if (!(*(imxrt_common.scb + scb_ccr) & (1 << 17))) {
+	if ((*(imxrt_common.scb + scb_ccr) & (1 << 17)) == 0) {
 		hal_cpuDataSyncBarrier();
 		hal_cpuInstrBarrier();
 		*(imxrt_common.scb + scb_iciallu) = 0; /* Invalidate I$ */
@@ -592,8 +619,9 @@ int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state)
 	unsigned int t;
 	volatile u32 *reg = imxrt_common.ccm + (clock * 0x20);
 
-	if (clock < pctl_clk_cm7 || clock > pctl_clk_ccm_clko2)
+	if ((clock < pctl_clk_cm7) || (clock > pctl_clk_ccm_clko2)) {
 		return -1;
+	}
 
 	t = *reg & ~0x01ff07ffu;
 	*reg = t | (!state << 24) | ((mfn & 0xf) << 20) | ((mfd & 0xf) << 16) | ((mux & 0x7) << 8) | (div & 0xff);
@@ -610,8 +638,9 @@ int _imxrt_getDevClock(int clock, int *div, int *mux, int *mfd, int *mfn, int *s
 	unsigned int t;
 	volatile u32 *reg = imxrt_common.ccm + (clock * 0x20);
 
-	if (clock < pctl_clk_cm7 || clock > pctl_clk_ccm_clko2)
+	if ((clock < pctl_clk_cm7) || (clock > pctl_clk_ccm_clko2)) {
 		return -1;
+	}
 
 	t = *reg;
 
@@ -630,7 +659,7 @@ int _imxrt_setDirectLPCG(int clock, int state)
 	u32 t;
 	volatile u32 *reg;
 
-	if (clock < pctl_lpcg_m7 || clock > pctl_lpcg_uniq_edt_i) {
+	if ((clock < pctl_lpcg_m7) || (clock > pctl_lpcg_uniq_edt_i)) {
 		return -EINVAL;
 	}
 
@@ -648,7 +677,7 @@ int _imxrt_setDirectLPCG(int clock, int state)
 
 int _imxrt_getDirectLPCG(int clock, int *state)
 {
-	if (clock < pctl_lpcg_m7 || clock > pctl_lpcg_uniq_edt_i) {
+	if ((clock < pctl_lpcg_m7) || (clock > pctl_lpcg_uniq_edt_i)) {
 		return -EINVAL;
 	}
 
@@ -662,11 +691,11 @@ int _imxrt_setLevelLPCG(int clock, int level)
 {
 	volatile u32 *reg;
 
-	if (clock < pctl_lpcg_m7 || clock > pctl_lpcg_uniq_edt_i) {
+	if ((clock < pctl_lpcg_m7) || (clock > pctl_lpcg_uniq_edt_i)) {
 		return -EINVAL;
 	}
 
-	if (level < 0 || level > 4) {
+	if ((level < 0) || (level > 4)) {
 		return -EINVAL;
 	}
 
@@ -685,8 +714,9 @@ int _imxrt_setLevelLPCG(int clock, int level)
 
 static int _imxrt_setIOgpr(int which, unsigned int what)
 {
-	if (which < 0 || which > 76)
+	if ((which < 0) || (which > 76)) {
 		return -EINVAL;
+	}
 
 	*(imxrt_common.gpr + which) = what;
 	hal_cpuDataSyncBarrier();
@@ -697,8 +727,9 @@ static int _imxrt_setIOgpr(int which, unsigned int what)
 
 static int _imxrt_getIOgpr(int which, unsigned int *what)
 {
-	if (which < 0 || which > 76 || what == NULL)
+	if ((which < 0) || (which > 76) || (what == NULL)) {
 		return -EINVAL;
+	}
 
 	*what = *(imxrt_common.gpr + which);
 
@@ -708,8 +739,9 @@ static int _imxrt_getIOgpr(int which, unsigned int *what)
 
 static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 {
-	if (which < 0 || which > 41)
+	if ((which < 0) || (which > 41)) {
 		return -EINVAL;
+	}
 
 	*(imxrt_common.lpsrgpr + which) = what;
 	hal_cpuDataSyncBarrier();
@@ -720,8 +752,9 @@ static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 
 static int _imxrt_getIOlpsrGpr(int which, unsigned int *what)
 {
-	if (which < 0 || which > 41 || what == NULL)
+	if ((which < 0) || (which > 41) || (what == NULL)) {
 		return -EINVAL;
+	}
 
 	*what = *(imxrt_common.lpsrgpr + which);
 
@@ -746,7 +779,8 @@ int hal_platformctl(void *ptr)
 					data->devclock.mfd, data->devclock.mfn, data->devclock.state);
 			}
 			else if (data->action == pctl_get) {
-				if (!(ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state))) {
+				ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state);
+				if (ret == 0) {
 					data->devclock.div = div;
 					data->devclock.mux = mux;
 					data->devclock.mfd = mfd;
@@ -780,8 +814,10 @@ int hal_platformctl(void *ptr)
 				ret = _imxrt_setIOgpr(data->iogpr.field, data->iogpr.val);
 			}
 			else if (data->action == pctl_get) {
-				if ((ret = _imxrt_getIOgpr(data->iogpr.field, &t)) == 0)
+				ret = _imxrt_getIOgpr(data->iogpr.field, &t);
+				if (ret == 0) {
 					data->iogpr.val = t;
+				}
 			}
 			break;
 
@@ -790,38 +826,47 @@ int hal_platformctl(void *ptr)
 				ret = _imxrt_setIOlpsrGpr(data->iogpr.field, data->iogpr.val);
 			}
 			else if (data->action == pctl_get) {
-				if ((ret = _imxrt_getIOlpsrGpr(data->iogpr.field, &t)) == 0)
+				ret = _imxrt_getIOlpsrGpr(data->iogpr.field, &t);
+				if (ret == 0) {
 					data->iogpr.val = t;
+				}
 			}
 			break;
 
 		case pctl_iomux:
-			if (data->action == pctl_set)
+			if (data->action == pctl_set) {
 				ret = _imxrt_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
-			else if (data->action == pctl_get)
+			}
+			else if (data->action == pctl_get) {
 				ret = _imxrt_getIOmux(data->iomux.mux, &data->iomux.sion, &data->iomux.mode);
+			}
 			break;
 
 		case pctl_iopad:
-			if (data->action == pctl_set)
+			if (data->action == pctl_set) {
 				ret = _imxrt_setIOpad(data->iopad.pad, data->iopad.sre, data->iopad.dse, data->iopad.pue,
 					data->iopad.pus, data->iopad.ode, data->iopad.apc);
-			else if (data->action == pctl_get)
+			}
+			else if (data->action == pctl_get) {
 				ret = _imxrt_getIOpad(data->iopad.pad, &data->iopad.sre, &data->iopad.dse, &data->iopad.pue,
 					&data->iopad.pus, &data->iopad.ode, &data->iopad.apc);
+			}
 			break;
 
 		case pctl_ioisel:
-			if (data->action == pctl_set)
+			if (data->action == pctl_set) {
 				ret = _imxrt_setIOisel(data->ioisel.isel, data->ioisel.daisy);
-			else if (data->action == pctl_get)
+			}
+			else if (data->action == pctl_get) {
 				ret = _imxrt_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
+			}
 			break;
 
 		case pctl_reboot:
 			if (data->action == pctl_set) {
-				if (data->reboot.magic == PCTL_REBOOT_MAGIC)
+				if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
 					_imxrt_nvicSystemReset();
+				}
 			}
 			else if (data->action == pctl_get) {
 				data->reboot.reason = imxrt_common.resetFlags;
@@ -853,7 +898,7 @@ int hal_platformctl(void *ptr)
 
 		case pctl_resetSlice:
 			if (data->action == pctl_set) {
-				if (data->resetSlice.index >= pctl_resetSliceMega && data->resetSlice.index <= pctl_resetSliceCM7Mem) {
+				if ((data->resetSlice.index >= pctl_resetSliceMega) && (data->resetSlice.index <= pctl_resetSliceCM7Mem)) {
 					_imxrt_resetSlice(data->resetSlice.index);
 					ret = EOK;
 				}
