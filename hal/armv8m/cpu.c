@@ -28,9 +28,6 @@ struct {
 } cpu_common;
 
 
-volatile cpu_context_t *_cpu_nctx;
-
-
 extern void _interrupts_nvicSystemReset(void);
 
 
@@ -143,6 +140,9 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	signalCtx->psp -= sizeof(cpu_context_t);
 	signalCtx->hwctx.pc = (u32)handler;
+
+	/* Set default PSR, clear potential ICI/IT flags */
+	signalCtx->hwctx.psr = 0x01000000;
 
 	if (src == SIG_SRC_SCHED) {
 		/* We'll be returning through interrupt dispatcher,
