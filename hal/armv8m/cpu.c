@@ -266,7 +266,6 @@ void hal_cleanDCache(ptr_t start, size_t len)
 void _hal_cpuInit(void)
 {
 	cpu_common.busy = 0;
-	_cpu_nctx = NULL;
 
 	hal_spinlockCreate(&cpu_common.busySp, "devBusy");
 
