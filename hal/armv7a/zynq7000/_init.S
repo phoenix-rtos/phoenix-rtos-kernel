@@ -45,6 +45,16 @@
 #define PA_SLCR  0xf8000000
 #define PA_TTC   0xf8001000
 
+/* Attributes for kernel pages:
+ * Small page, XN = 0 (allow Execute), TEX = 1 C = 1 B = 1 (Outer and Inner Write-Back, Write-Allocate),
+ * AP = 0x1 (R/W from PL1 only), S = 1 (Shareable), nG = 0 (Global) */
+#define KERNEL_PAGE_ATTR 0x45E
+
+/* Attributes for device pages:
+ * Small page, XN = 1 (Execute Never), TEX = 0 C = 0 B = 1 (Shared Device),
+ * AP = 0x1 (R/W from PL1 only), S = 0 (unused), nG = 0 (Global) */
+#define DEVICE_PAGE_ATTR 0x17
+
 .arm
 
 .section .init, "ax"
@@ -206,14 +216,14 @@ clear_ttls:
 	/* Exceptions vectors TTL2 entry */
 	/* Map V 0xffff0000 -> P 0x00100000 */
 	ldr r0, =(PA_OF(VA_TTL2_EXC) + (0x3f0 << 2))          /* Entry address: 4 entries from the end in last TTL2 in pmap_common.excptab    */
-	orr r1, r8, #0x1a                                     /* Ptr to physical address. Attributes: XN = 0, B = 0, C = 0, AP = 0x3, TEX = 0 */
+	orr r1, r8, #0x1a                                     /* Ptr to physical address. Attributes: XN = 0, B = 0, C = 0, AP = 0x1, TEX = 0 */
 	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
 
 
 	/* Stack TTL2 entry */
 	/* Map V 0xfffff000 -> P PA_STACK  */
 	ldr r0, =(PA_OF(VA_TTL2_EXC) + (0x3ff << 2))        /* Entry address: the last entry in 4 TTL2 in pmap_common.excptab               */
-	ldr r1, =((PA_STACK & ~0xfff) | 0x1e)               /* Ptr to physical address. Attributes: XN = 0, B = 1, C = 1, AP = 0x3, TEX = 0 */
+	ldr r1, =((PA_STACK & ~0xfff) | KERNEL_PAGE_ATTR)
 	str r1, [r0]
 
 	/* Set vector table pointer to virtual address */
@@ -223,8 +233,8 @@ clear_ttls:
 
 	/* Kernel TTL2 entries (pmap_common.kptab) */
 	ldr r0, =PA_OF(VA_TTL2_K)
-	ldr r1, =((PA_KERNEL & ~0xfff) + (1024 * SIZE_PAGE) | 0x1e)    /* Ptr past-the-end of physical addresses. Attributes: XN = 0, B = 1, C = 1, AP = 0x3, TEX = 0 */
-	mov r2, #(4 * 1024)                                           /* size of pmap_common.kptab, it contains 4 TTL2 */
+	ldr r1, =((PA_KERNEL & ~0xfff) + (1024 * SIZE_PAGE) | KERNEL_PAGE_ATTR) /* Ptr past-the-end of physical addresses */
+	mov r2, #(4 * 1024)                                 /* size of pmap_common.kptab, it contains 4 TTL2 */
 	/* Map the whole kernel memory */
 kernel_ttl2:
 	subs r2, r2, #4
@@ -237,7 +247,8 @@ kernel_ttl2:
 	ldr r1, =(pmap_common - VADDR_KERNEL)    /* offset of pmap_common.kpdir                             */
 	add r0, r1, lsr #10                      /* r0 = PA_OF(VA_TTL2_K) + (offset of: pmap_common.kpdir >> 10) */
 	add r1, r1, #PA_KERNEL                   /* physical address of pmap_common.kpdir                   */
-	orr r1, r1, #0x1f                        /* Attributes: XN = 1, B = 1, C = 1, AP = 0x3, TEX = 0     */
+	ldr r3, =#(KERNEL_PAGE_ATTR | 0x01)      /* Attributes: default + XN bit     */
+	orr r1, r1, r3
 	mov r2, #0x1000
 	bl _cpy4
 	bl _cpy4
@@ -254,38 +265,37 @@ kernel_ttl2:
 	lsl r0, #2
 	ldr r1, =PA_OF(VA_TTL2_K)
 	add r0, r0, r1
-	ldr r1, =(PA_UART0 | 0x12)
+	ldr r1, =(PA_UART0 | DEVICE_PAGE_ATTR)
 	str r1, [r0], #4
 
 	/* Map UART1 4KB P 0xE0001000 -> V CEIL(_end + SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =(PA_UART1 | 0x12)
+	ldr r1, =(PA_UART1 | DEVICE_PAGE_ATTR)
 	str r1, [r0], #4
 
 	/* Map GIC 16 KB after UARTs */
 	mrc p15, 4, r1, c15, c0, 0           /* Get GIC paddr */
 	lsr r1, #16
 	lsl r1, #16
-	orr r1, r1, #0x12
+	orr r1, r1, #DEVICE_PAGE_ATTR
 	mov r2, #(1 << 12)
 	bl _cpy4
 
 	/* Map SLCR after GIC */
-	ldr r1, =(PA_SLCR | 0x12)
+	ldr r1, =(PA_SLCR | DEVICE_PAGE_ATTR)
 	str r1, [r0], #4
 
 	/* Map TTC after SLCR */
-	ldr r1, =(PA_TTC | 0x12)
+	ldr r1, =(PA_TTC | DEVICE_PAGE_ATTR)
 	str r1, [r0], #4
 
 
 	/* Initialize MMU */
 	mov r1, #1
-	mcr p15, 0, r1, c2, c0, 2        /* Write Translation Table Base Control Register */
+	mcr p15, 0, r1, c2, c0, 2                  /* Write Translation Table Base Control Register */
 	ldr r1, =PA_OF(VA_TTL1)
-	orr r1, r1, #(1 | (1 << 6))      /* Inner cacheability                            */
-	orr r1, r1, #(3 << 3)            /* Outer cacheability                            */
-	mcr p15, 0, r1, c2, c0, 0        /* Write Translation Table Base Register 0       */
-	mcr p15, 0, r1, c2, c0, 1        /* Write Translation Table Base Register 1       */
+	orr r1, r1, #(1 | (1 << 6) | (3 << 3) | 2) /* Inner and outer cacheability */
+	mcr p15, 0, r1, c2, c0, 0                  /* Write Translation Table Base Register 0       */
+	mcr p15, 0, r1, c2, c0, 1                  /* Write Translation Table Base Register 1       */
 
 	/* Set all Domains to Client */
 	ldr r1, =0x55555555
