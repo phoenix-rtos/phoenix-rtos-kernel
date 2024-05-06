@@ -321,7 +321,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 
 		p->next = *pages;
 		*pages = p;
-		page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE);
+		page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
 	}
 
 	return data;

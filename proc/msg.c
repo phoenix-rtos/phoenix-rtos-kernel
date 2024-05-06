@@ -48,7 +48,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		return NULL;
 	}
 
-	attr = PGHD_PRESENT;
+	attr = PGHD_READ | PGHD_PRESENT;
 	prot = PROT_READ;
 
 	if (dir != 0) {

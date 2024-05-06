@@ -60,22 +60,9 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	/* Switch into the handler address space */
 	pmap_switch(ui->process->pmapp);
 
-#ifdef __TARGET_RISCV64
-	/* Clear PGHD_USER attribute in interrupt handler code page (RISC-V specification forbids user code execution in kernel mode) */
-	/* Assumes that entire interrupt handler code lies within one page */
-	int attr = PGHD_READ | PGHD_WRITE | PGHD_EXEC | PGHD_PRESENT;
-	pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1)), attr, NULL);
-#endif
-
 	userintr_common.active = ui;
 	ret = ui->f(ui->handler.n, ui->arg);
 	userintr_common.active = NULL;
-
-#ifdef __TARGET_RISCV64
-	/* Restore PGHD_USER attribute */
-	attr |= PGHD_USER;
-	pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1)), attr, NULL);
-#endif
 
 	if (ret >= 0 && ui->cond != NULL) {
 		reschedule = 1;
@@ -125,6 +112,15 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 	ui->arg = arg;
 	ui->process = process;
 	ui->cond = cond;
+
+#ifdef __TARGET_RISCV64
+	/* Clear PGHD_USER attribute in interrupt handler code page (RISC-V specification forbids user code execution in kernel mode).
+	 * Assumes that entire interrupt handler code lies within one page and is aligned to page boundary.
+	 * No other user code should be placed in the same page.
+	 */
+	int attr = PGHD_READ | PGHD_EXEC | PGHD_PRESENT;
+	pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1)), attr, NULL);
+#endif
 
 	res = hal_interruptsSetHandler(&ui->handler);
 	if (res != EOK) {
