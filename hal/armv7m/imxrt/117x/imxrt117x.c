@@ -16,6 +16,8 @@
 #include "hal/armv7m/armv7m.h"
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
+#include "hal/armv7m/imxrt/halsyspage.h"
+
 #include "include/errno.h"
 #include "include/arch/armv7m/imxrt/11xx/imxrt1170.h"
 #include "imxrt117x.h"
@@ -95,7 +97,6 @@ struct {
 
 	spinlock_t pltctlSp;
 
-	u32 resetFlags;
 	u32 cpuclk;
 } imxrt_common;
 
@@ -883,7 +884,7 @@ int hal_platformctl(void *ptr)
 				}
 			}
 			else if (data->action == pctl_get) {
-				data->reboot.reason = imxrt_common.resetFlags;
+				data->reboot.reason = syspage->hs.bootReason;
 				ret = EOK;
 			}
 			break;
@@ -957,11 +958,6 @@ void _imxrt_init(void)
 	imxrt_common.lpsrgpr = (void *)0x40c0c000;
 
 	imxrt_common.cpuclk = 696000000;
-
-	/* Store reset flags and then clean them */
-	imxrt_common.resetFlags = *(imxrt_common.src + src_srsr) & 0x1f;
-	*(imxrt_common.src + src_srsr) |= 0x1f;
-	hal_cpuDataSyncBarrier();
 
 	/* Disable watchdogs (WDOG1, WDOG2) */
 	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1u << 2u)) != 0u) {

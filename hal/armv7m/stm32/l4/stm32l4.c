@@ -15,6 +15,7 @@
 
 #include "hal/armv7m/stm32/stm32.h"
 #include "hal/armv7m/stm32/stm32-timer.h"
+#include "hal/armv7m/stm32/halsyspage.h"
 
 #include "hal/cpu.h"
 #include "hal/armv7m/armv7m.h"
@@ -41,8 +42,6 @@ struct {
 	volatile u32 *flash;
 
 	u32 cpuclk;
-
-	u32 resetFlags;
 
 	spinlock_t pltctlSp;
 } stm32_common;
@@ -145,7 +144,7 @@ int hal_platformctl(void *ptr)
 				_stm32_nvicSystemReset();
 		}
 		else if (data->action == pctl_get) {
-			data->reboot.reason = stm32_common.resetFlags;
+			data->reboot.reason = syspage->hs.bootReason;
 			ret = EOK;
 		}
 	}
@@ -876,10 +875,6 @@ void _stm32_init(void)
 	stm32_common.gpio[7] = (void *)0x48001c00; /* GPIOH */
 	stm32_common.gpio[8] = (void *)0x48002000; /* GPIOI */
 	stm32_common.flash = (void *)0x40022000;
-
-	/* Store reset flags and then clean them */
-	stm32_common.resetFlags = (*(stm32_common.rcc + rcc_csr) >> 24);
-	*(stm32_common.rcc + rcc_csr) |= 1 << 23;
 
 	/* Enable System configuration controller */
 	_stm32_rccSetDevClock(pctl_syscfg, 1);
