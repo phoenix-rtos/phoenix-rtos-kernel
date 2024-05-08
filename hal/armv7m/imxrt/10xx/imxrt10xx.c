@@ -16,6 +16,7 @@
 #include "hal/armv7m/armv7m.h"
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
+#include "hal/armv7m/imxrt/halsyspage.h"
 
 #include "include/errno.h"
 #include "include/arch/armv7m/imxrt/10xx/imxrt10xx.h"
@@ -58,8 +59,6 @@ struct {
 	volatile u16 *wdog2;
 	volatile u32 *rtwdog;
 	volatile u32 *src;
-
-	u32 resetFlags;
 
 	u32 xtaloscFreq;
 	u32 cpuclk;
@@ -569,7 +568,7 @@ int hal_platformctl(void *ptr)
 				}
 			}
 			else if (data->action == pctl_get) {
-				data->reboot.reason = imxrt_common.resetFlags;
+				data->reboot.reason = syspage->hs.bootReason;
 				ret = EOK;
 			}
 			break;
@@ -2184,11 +2183,6 @@ void _imxrt_init(void)
 
 	imxrt_common.xtaloscFreq = 24000000;
 	imxrt_common.cpuclk = 528000000; /* Default system clock */
-
-
-	/* Store reset flags and then clean them */
-	imxrt_common.resetFlags = *(imxrt_common.src + src_srsr) & 0x1f;
-	*(imxrt_common.src + src_srsr) |= 0x1f;
 
 	/* Disable watchdogs */
 	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1 << 2)) != 0) {

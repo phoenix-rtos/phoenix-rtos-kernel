@@ -18,7 +18,9 @@
 
 
 #ifndef __ASSEMBLY__
+#include "hal/types.h"
 #include "include/arch/armv7m/stm32/syspage.h"
+#include "include/syspage.h"
 #include "stm32.h"
 #include "stm32-timer.h"
 

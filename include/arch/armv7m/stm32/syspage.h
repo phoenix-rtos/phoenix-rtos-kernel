@@ -28,6 +28,7 @@ typedef struct {
 		} table[16] __attribute__((aligned(8)));
 		unsigned int map[16]; /* ((unsigned int)-1) = map is not assigned */
 	} __attribute__((packed)) mpu;
+	unsigned int bootReason;
 } __attribute__((packed)) hal_syspage_t;
 
 #endif
