@@ -270,6 +270,11 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 
 	threads_sigpost(thread->process, thread, signal_kill);
+
+	/* Don't allow current thread to return to the userspace,
+	 * it will crash anyway. */
+	thread->exit = THREAD_END_NOW;
+
 	hal_cpuReschedule(NULL, NULL);
 }
 
