@@ -589,8 +589,13 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		LIST_REMOVE(&threads_common.ready[i], selected);
 
-		if (!selected->exit || hal_cpuSupervisorMode(selected->context))
+		if (selected->exit == 0) {
 			break;
+		}
+
+		if ((hal_cpuSupervisorMode(selected->context) != 0) && (selected->exit < THREAD_END_NOW)) {
+			break;
+		}
 
 		selected->state = GHOST;
 		LIST_ADD(&threads_common.ghosts, selected);
@@ -960,7 +965,7 @@ void proc_threadEnd(void)
 
 static void _proc_threadExit(thread_t *t)
 {
-	t->exit = 1;
+	t->exit = THREAD_END;
 	if (t->interruptible)
 		_thread_interrupt(t);
 }

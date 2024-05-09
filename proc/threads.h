@@ -23,7 +23,9 @@
 #include "process.h"
 #include "lock.h"
 
-#define MAX_TID MAX_ID
+#define MAX_TID        MAX_ID
+#define THREAD_END     1
+#define THREAD_END_NOW 2
 
 /* Parent thread states */
 enum { PREFORK = 0, FORKING = 1, FORKED };
@@ -55,7 +57,7 @@ typedef struct _thread_t {
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
 	unsigned state : 2;
-	unsigned exit : 1;
+	unsigned exit : 2;
 	unsigned interruptible : 1;
 
 	unsigned sigmask;
