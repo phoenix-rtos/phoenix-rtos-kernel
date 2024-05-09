@@ -17,6 +17,7 @@
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "include/signal.h"
+#include "include/auxv.h"
 #include "vm/vm.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
@@ -56,6 +57,12 @@ struct {
 	idtree_t id;
 	int idcounter;
 } process_common;
+
+
+struct auxv32 {
+	Elf32_Word type;
+	Elf32_Word value;
+};
 
 
 process_t *proc_find(int pid)
@@ -463,7 +470,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 
 /* TODO - adding error handling and unmapping of already mapped segments */
-int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr, struct auxv32 **auxData)
 {
 	void *vaddr;
 	size_t memsz, filesz;
@@ -477,6 +484,16 @@ int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 	if (process_validateElf32(iehdr, size) < 0) {
 		return -ENOEXEC;
 	}
+
+	(*auxData)->type = AT_ENTRY;
+	(*auxData)->value = ehdr->e_entry;
+	(*auxData)++;
+	(*auxData)->type = AT_PHNUM;
+	(*auxData)->value = ehdr->e_phnum;
+	(*auxData)++;
+	(*auxData)->type = AT_PHENT;
+	(*auxData)->value = ehdr->e_phentsize;
+	(*auxData)++;
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	shstrshdr = shdr + ehdr->e_shstrndx;
@@ -501,6 +518,11 @@ int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 			*ustacksz = round_page(phdr->p_memsz);
 		}
 
+		if (phdr->p_type == PT_PHDR) {
+			(*auxData)->type = AT_PHDR;
+			(*auxData)->value = phdr->p_vaddr;
+			(*auxData)++;
+		}
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0)) {
 			continue;
 		}
@@ -629,13 +651,193 @@ int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 }
 
 
-int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
+int process_getInterpreterPath32(const Elf32_Ehdr *ehdr, const char **interpreterPath)
+{
+	const Elf32_Phdr *phdrs = (const void *)ehdr + ehdr->e_phoff;
+	Elf32_Half i;
+	Elf32_Word letter;
+
+	*interpreterPath = NULL;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if (phdrs[i].p_type != PT_INTERP) {
+			continue;
+		}
+
+		if (phdrs[i].p_filesz == 0) {
+			return -EINVAL;
+		}
+
+		*interpreterPath = (const char *)ehdr + phdrs[i].p_offset;
+		/* Check that interpreter path is of specified length. */
+		for (letter = 0; letter < phdrs[i].p_filesz; letter++) {
+			if ((*interpreterPath)[letter] == '\0') {
+				break;
+			}
+		}
+		if (letter != (phdrs[i].p_filesz - 1)) {
+			return -EINVAL;
+		}
+	}
+
+	return EOK;
+}
+
+
+int process_doLoadInterpreter32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, void **baseAddr, void **interpreterEntry)
+{
+	void *vaddr;
+	size_t memsz, filesz;
+	Elf32_Ehdr *ehdr = iehdr;
+	Elf32_Phdr *phdrs = (void *)ehdr + ehdr->e_phoff;
+	unsigned i, prot, flags;
+	Elf32_Off offs, misalign;
+	Elf32_Word al;
+	Elf32_Addr loadLow, loadHigh;
+	size_t loadSize;
+
+	if (process_validateElf32(iehdr, size) < 0) {
+		return -ENOEXEC;
+	}
+
+	/* Dynamic linker needs to be mapped in a contignous part of memory. */
+	/* Get lowest and highest loaded address to to obtain total size. */
+	loadLow = ~(Elf32_Addr)0;
+	loadHigh = 0;
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if (phdrs[i].p_type == PT_LOAD) {
+			loadLow = min(loadLow, phdrs[i].p_vaddr);
+			loadHigh = max(loadHigh, phdrs[i].p_vaddr + phdrs[i].p_memsz);
+		}
+	}
+
+	/* No loadable section found. */
+	if (loadHigh < loadLow) {
+		return -ENOEXEC;
+	}
+	/* Find a place in vm where interpreter will fit. */
+	loadSize = round_page(loadHigh - loadLow);
+	*baseAddr = vm_mmap(map, (void *)(ptr_t)loadLow, NULL, loadSize, PROT_USER, NULL, -1, MAP_NONE);
+	if ((*baseAddr) == NULL) {
+		return -ENOMEM;
+	}
+	if (vm_munmap(map, *baseAddr, loadSize) < 0) {
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if (phdrs[i].p_type != PT_LOAD) {
+			continue;
+		}
+
+		al = max(phdrs[i].p_align, 1);
+		vaddr = ((char *)*baseAddr) + ((phdrs[i].p_vaddr & ~(al - 1)) - loadLow);
+		offs = phdrs[i].p_offset & ~(al - 1);
+		misalign = phdrs[i].p_offset & (al - 1);
+		filesz = (phdrs[i].p_filesz != 0) ? (phdrs[i].p_filesz + misalign) : 0;
+		memsz = phdrs[i].p_memsz + misalign;
+
+		prot = PROT_USER;
+		flags = MAP_FIXED;
+
+		if ((phdrs[i].p_flags & PF_R) != 0) {
+			prot |= PROT_READ;
+		}
+
+		if ((phdrs[i].p_flags & PF_W) != 0) {
+			prot |= PROT_WRITE;
+		}
+
+		if ((phdrs[i].p_flags & PF_X) != 0) {
+			prot |= PROT_EXEC;
+		}
+
+		if (filesz != 0) {
+			if ((prot & PROT_WRITE) != 0) {
+				flags |= MAP_NEEDSCOPY;
+			}
+			if (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL) {
+				return -ENOMEM;
+			}
+		}
+
+		if (filesz != memsz) {
+			if (round_page(memsz) != round_page(filesz)) {
+				if (vm_mmap(map, vaddr + round_page(filesz), NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_FIXED) != NULL) {
+					return -ENOMEM;
+				}
+			}
+			hal_memset(vaddr + filesz, 0, round_page((ptr_t)vaddr + memsz) - ((ptr_t)vaddr + filesz));
+		}
+	}
+
+	*interpreterEntry = ((char *)(*baseAddr) + (ehdr->e_entry - loadLow));
+
+	return EOK;
+}
+
+
+/* *interpreterEntry is changed only if interpreter is found and loaded properly. */
+int process_loadInterpreter32(vm_map_t *map, vm_object_t *o, off_t base, const void *iehdr, size_t size, void **interpreterEntry, struct auxv32 **auxData)
+{
+	const Elf32_Ehdr *ehdr = iehdr;
+	int err;
+	const char *interpreterPath;
+	oid_t interpOid;
+	vm_object_t *interpO;
+	off_t interpBase = 0;
+	void *interpIehdr;
+	size_t interpSize;
+	void *baseAddr;
+
+	err = process_getInterpreterPath32(ehdr, &interpreterPath);
+	if (err < 0) {
+		return err;
+	}
+	if (interpreterPath == NULL) {
+		return EOK;
+	}
+
+	/* Load interpreter. */
+	err = proc_lookup(interpreterPath, NULL, &interpOid);
+	if (err < 0) {
+		return err;
+	}
+
+	err = vm_objectGet(&interpO, interpOid);
+	if (err < 0) {
+		return err;
+	}
+	interpSize = round_page(interpO->size);
+	interpIehdr = vm_mmap(process_common.kmap, NULL, NULL, interpSize, PROT_READ, interpO, interpBase, MAP_NONE);
+	if (interpIehdr == NULL) {
+		vm_objectPut(interpO);
+		return -ENOMEM;
+	}
+	err = process_doLoadInterpreter32(map, interpO, interpBase, interpIehdr, interpSize, &baseAddr, interpreterEntry);
+
+	vm_munmap(process_common.kmap, interpIehdr, interpSize);
+	vm_objectPut(interpO);
+
+	if (err < 0) {
+		return err;
+	}
+
+	(*auxData)->type = AT_BASE;
+	(*auxData)->value = (Elf32_Word)(ptr_t)baseAddr;
+	(*auxData)++;
+
+	return EOK;
+}
+
+
+int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry, struct auxv32 **auxData)
 {
 	void *stack;
 	Elf64_Ehdr *ehdr;
 	vm_map_t *map = process->mapp;
 	size_t ustacksz = SIZE_USTACK;
-	int err = EOK;
+	int err;
 	hal_tls_t tlsNew;
 	ptr_t tbssAddr = 0;
 
@@ -652,19 +854,20 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOMEM;
 	}
 
-	switch (ehdr->e_ident[4]) {
-		/* 32-bit binary */
-		case 1:
+	switch (ehdr->e_ident[EI_CLASS]) {
+		case ELFCLASS32:
 			*entry = (void *)(ptr_t)((Elf32_Ehdr *)ehdr)->e_entry;
-			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
+			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr, auxData);
+			if (err == 0) {
+				err = process_loadInterpreter32(map, o, base, ehdr, size, entry, auxData);
+			}
 			break;
 
-		/* 64-bit binary */
-		case 2:
+		case ELFCLASS64:
 			*entry = (void *)(ptr_t)ehdr->e_entry;
 			err = process_load64(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
+			/* FIXME: loading interpreter on 64 bit ELFs is not supported */
 			break;
-
 		default:
 			err = -ENOEXEC;
 	}
@@ -687,6 +890,25 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	threads_canaryInit(proc_current(), stack);
 
 	return EOK;
+}
+
+
+static void *process_putauxv(void *stack, struct auxv32 *auxDataBegin, struct auxv32 *auxDataEnd)
+{
+	size_t sz;
+
+	auxDataEnd->type = AT_PAGESZ;
+	auxDataEnd->value = SIZE_PAGE;
+	auxDataEnd++;
+	auxDataEnd->type = AT_NULL;
+	auxDataEnd->value = 0;
+	auxDataEnd++;
+
+	sz = ((ptr_t)auxDataEnd - (ptr_t)auxDataBegin);
+	stack = (char *)stack - SIZE_STACK_ARG(sz);
+	hal_memcpy(stack, auxDataBegin, sz);
+
+	return stack;
 }
 
 #else
@@ -1091,8 +1313,20 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 
 	pmap_switch(current->process->pmapp);
 
+
+#ifndef NOMMU
+	/* TODO: 64 */
+	struct auxv32 auxData[AUXV_TYPE_COUNT];
+	struct auxv32 *auxDataEnd = auxData;
+	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry, &auxDataEnd);
+#else
 	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
+#endif
 	if (err == 0) {
+#ifndef NOMMU
+		stack = process_putauxv(stack, auxData, auxDataEnd);
+#endif
+
 		stack = process_putargs(stack, &spawn->envp, &count);
 		stack = process_putargs(stack, &spawn->argv, &count);
 		hal_stackPutArgs(&stack, sizeof(args) / sizeof(args[0]), args);
