@@ -240,6 +240,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	process_t *process;
 	userintr_t *intr;
 	char buff[SIZE_CTXDUMP];
+	int len;
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
@@ -251,12 +252,19 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	thread = proc_current();
 	process = thread->process;
 
-	if ((intr = userintr_active()) != NULL)
-		lib_printf("in interrupt (%u) handler of process \"%s\" (PID: %u)\n", intr->handler.n, intr->process->path, process_getPid(intr->process));
-	else if (process == NULL)
-		lib_printf("in kernel thread %lu\n", proc_getTid(thread));
-	else
-		lib_printf("in thread %lu, process \"%s\" (PID: %u)\n", proc_getTid(thread), process->path, process_getPid(process));
+	intr = userintr_active();
+
+	if (intr != NULL) {
+		len = lib_sprintf(buff, "in interrupt (%u) handler of process \"%s\" (PID: %u)\n", intr->handler.n, intr->process->path, process_getPid(intr->process));
+	}
+	else if (process == NULL) {
+		len = lib_sprintf(buff, "in kernel thread %lu\n", proc_getTid(thread));
+	}
+	else {
+		len = lib_sprintf(buff, "in thread %lu, process \"%s\" (PID: %u)\n", proc_getTid(thread), process->path, process_getPid(process));
+	}
+
+	posix_write(2, buff, len);
 }
 
 

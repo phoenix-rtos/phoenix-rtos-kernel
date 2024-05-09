@@ -336,3 +336,27 @@ hal_jmp_user:
 
 .size hal_jmp, .-hal_jmp
 .ltorg
+
+
+.globl hal_exceptionJump /* void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *)) */
+.type hal_exceptionJump, %function
+hal_exceptionJump:
+	push {r4-r11, lr}
+	ldr r7, =0x01000000
+	mov r6, r2
+	ldr r5, =1f
+	orr r5, #1
+	push {r0-r7}
+
+	mov lr, #0
+	msr control, lr
+	mov lr, 0xfffffff9
+	cpsie if
+	dsb
+	bx lr
+
+1:	pop {r4-r11, lr}
+	bx lr
+
+.size hal_exceptionJump, .-hal_exceptionJump
+.ltorg
