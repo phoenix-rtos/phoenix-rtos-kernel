@@ -16,7 +16,7 @@
 #include "include/errno.h"
 #include "lib/lib.h"
 #include "proc.h"
-
+#include "hal/riscv64/riscv64.h"
 
 #define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
@@ -33,8 +33,50 @@ struct {
 } msg_common;
 
 
+typedef struct {
+	u64 time;
+	size_t size;
+	ptr_t alignment;
+} times_t;
+
+times_t sendTimes[1000];
+times_t recvTimes[1000];
+times_t respondTimes[1000];
+
+size_t nrespond;
+size_t nsend;
+size_t nrecv;
+
+u8 buffer[500 * SIZE_PAGE];
+
+
+void msg_dumpTimes(void)
+{
+	size_t i;
+
+	lib_printf("Send times: (%zu)\n", nsend);
+	lib_printf("Time,Size,Alignment\n");
+	for (i = 0; i < nsend; i++) {
+		lib_printf("%lu,%zu,%lu\n", sendTimes[i].time, sendTimes[i].size, sendTimes[i].alignment);
+	}
+
+	lib_printf("\nRecv times: (%zu)\n", nrecv);
+	lib_printf("Time,Size,Alignment\n");
+	for (i = 0; i < nrecv; i++) {
+		lib_printf("%lu,%zu,%lu\n", recvTimes[i].time, recvTimes[i].size, recvTimes[i].alignment);
+	}
+
+	lib_printf("\nRespond times: (%zu)\n", nrespond);
+	lib_printf("Time,Size,Alignment\n");
+	for (i = 0; i < nrespond; i++) {
+		lib_printf("%lu,%zu,%lu\n", respondTimes[i].time, respondTimes[i].size, respondTimes[i].alignment);
+	}
+}
+
+
 static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
 {
+	return NULL;
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
 	unsigned int n = 0, i, attr, prot;
@@ -179,6 +221,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 static void msg_release(kmsg_t *kmsg)
 {
+	return;
 	process_t *process;
 	vm_map_t *map;
 
@@ -358,6 +401,8 @@ int proc_send(u32 port, msg_t *msg)
 
 	sender = proc_current();
 
+	u64 now = csr_read(cycle);
+
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
 	kmsg.src = sender->process;
 	kmsg.threads = NULL;
@@ -367,6 +412,13 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.msg.priority = sender->priority;
 
 	msg_ipack(&kmsg);
+	hal_memcpy(buffer, msg->i.data, msg->i.size);
+	kmsg.msg.i.data = buffer;
+
+	now = csr_read(cycle) - now;
+	sendTimes[nsend].size = kmsg.msg.i.size;
+	sendTimes[nsend].alignment = (ptr_t)kmsg.msg.i.data & (SIZE_PAGE - 1);
+	sendTimes[nsend++].time = now;
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
@@ -479,10 +531,12 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		ipacked = 1;
 	}
 
+	u64 now = csr_read(cycle);
+
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
 	if (ipacked == 0) {
-		kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
+		// kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 	}
 
 	opacked = msg_opack(kmsg);
@@ -507,10 +561,19 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	*rid = lib_idtreeId(&kmsg->idlinkage);
 
+	void *ibuf = msg->i.data;
+
 	hal_memcpy(msg, &kmsg->msg, sizeof(*msg));
+	hal_memcpy(ibuf, buffer, kmsg->msg.i.size);
+	msg->i.data = ibuf;
+
+	now = csr_read(cycle) - now;
+	recvTimes[nrecv].size = kmsg->msg.i.size;
+	recvTimes[nrecv].alignment = (ptr_t)kmsg->msg.i.data & (SIZE_PAGE - 1);
+	recvTimes[nrecv++].time = now;
 
 	if (ipacked != 0) {
-		msg->i.data = msg->i.raw + (kmsg->msg.i.data - (void *)kmsg->msg.i.raw);
+		// msg->i.data = msg->i.raw + (kmsg->msg.i.data - (void *)kmsg->msg.i.raw);
 	}
 
 	if (opacked != 0) {
@@ -540,6 +603,8 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		return -ENOENT;
 	}
 
+	u64 now = csr_read(cycle);
+
 	/* Copy shadow pages */
 	if (kmsg->i.bp != NULL) {
 		hal_memcpy(kmsg->i.bvaddr + kmsg->i.boffs, kmsg->i.w + kmsg->i.boffs, min(SIZE_PAGE - kmsg->i.boffs, kmsg->msg.i.size));
@@ -562,6 +627,11 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
 	kmsg->msg.o.err = msg->o.err;
 
+	now = csr_read(cycle) - now;
+	respondTimes[nrespond].size = kmsg->msg.i.size;
+	respondTimes[nrespond].alignment = (ptr_t)kmsg->msg.i.data & (SIZE_PAGE - 1);
+	respondTimes[nrespond++].time = now;
+
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
 	kmsg->src = proc_current()->process;
@@ -577,6 +647,9 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel)
 {
+	nrecv = 0;
+	nrespond = 0;
+	nsend = 0;
 	msg_common.kmap = kmap;
 	msg_common.kernel = kernel;
 }

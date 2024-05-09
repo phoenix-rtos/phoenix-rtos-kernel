@@ -1796,13 +1796,16 @@ pid_t syscalls_sys_setsid(char *ustack)
 	return posix_setsid();
 }
 
+extern void msg_dumpTimes(void);
+
 
 void syscalls_sbi_putchar(char *ustack)
 {
+	msg_dumpTimes();
 #ifdef __TARGET_RISCV64
-	char c;
-	GETFROMSTACK(ustack, char, c, 0);
-	(void)hal_sbiPutchar(c);
+	// char c;
+	// GETFROMSTACK(ustack, char, c, 0);
+	// (void)hal_sbiPutchar(c);
 #endif
 }
 

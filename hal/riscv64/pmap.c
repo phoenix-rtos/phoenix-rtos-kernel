@@ -418,9 +418,9 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Create initial heap */
 	pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_PRESENT, NULL);
 
-	for (v = *vend; v < (void *)((char *)VADDR_KERNEL + (2 << 20)); v += SIZE_PAGE) {
-		pmap_remove(pmap, v);
-	}
+	// for (v = *vend; v < (void *)((char *)VADDR_KERNEL + (2 << 20)); v += SIZE_PAGE) {
+	// 	pmap_remove(pmap, v);
+	// }
 
 	pmap->satp = ((pmap_resolve(pmap, (char *)pmap_common.pdir2) >> 12) | 0x8000000000000000ULL);
 

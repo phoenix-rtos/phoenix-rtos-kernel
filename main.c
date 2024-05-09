@@ -45,7 +45,7 @@ void main_initthr(void *unused)
 
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
-	_usrv_start();
+	// _usrv_start();
 
 	lib_printf("main: Starting syspage programs:");
 	syspage_progShow();
