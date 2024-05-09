@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+#include <board_config.h>
+
 #include "hal/exceptions.h"
 #include "hal/cpu.h"
 #include "hal/console.h"
@@ -20,6 +22,13 @@
 #include "config.h"
 
 #define SIZE_FPUCTX (16 * sizeof(u32))
+
+static struct {
+	void (*handler)(unsigned int, exc_context_t *);
+} hal_exception_common;
+
+
+extern void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *));
 
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
@@ -91,9 +100,11 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 }
 
 
-void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
+__attribute__((noreturn)) static void exceptions_fatal(unsigned int n, exc_context_t *ctx)
 {
-	char buff[512];
+	char buff[SIZE_CTXDUMP];
+
+	hal_cpuDisableInterrupts();
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
@@ -105,6 +116,24 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 	for (;;) {
 		hal_cpuHalt();
 	}
+}
+
+
+void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
+{
+	if ((hal_exception_common.handler != NULL) &&
+			((ctx->excret & (1 << 2)) != 0)) {
+
+		/* Need to enter the kernel by returning to the
+		 * thread mode. Otherwise we won't be able to
+		 * enable interrupts. */
+		hal_exceptionJump(n, ctx, hal_exception_common.handler);
+	}
+
+	/* Early exception, exception in kernel or proc module
+	 * handler failed to kill the process and we're back
+	 * here. This is a fatal error, crash the system */
+	exceptions_fatal(n, ctx);
 }
 
 
@@ -137,10 +166,18 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
 {
+#ifndef KERNEL_REBOOT_ON_EXCEPTION
+	/* Instruction trapping TODO, handle general fault for now */
+	if (n == EXC_DEFAULT) {
+		hal_exception_common.handler = handler;
+	}
+#endif
+
 	return 0;
 }
 
 
 void _hal_exceptionsInit(void)
 {
+	hal_exception_common.handler = NULL;
 }
