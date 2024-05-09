@@ -76,7 +76,6 @@ void msg_dumpTimes(void)
 
 static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
 {
-	return NULL;
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
 	unsigned int n = 0, i, attr, prot;
@@ -221,7 +220,6 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 static void msg_release(kmsg_t *kmsg)
 {
-	return;
 	process_t *process;
 	vm_map_t *map;
 
@@ -412,8 +410,6 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.msg.priority = sender->priority;
 
 	msg_ipack(&kmsg);
-	hal_memcpy(buffer, msg->i.data, msg->i.size);
-	kmsg.msg.i.data = buffer;
 
 	now = csr_read(cycle) - now;
 	sendTimes[nsend].size = kmsg.msg.i.size;
@@ -536,7 +532,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
 	if (ipacked == 0) {
-		// kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
+		kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 	}
 
 	opacked = msg_opack(kmsg);
@@ -561,11 +557,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	*rid = lib_idtreeId(&kmsg->idlinkage);
 
-	void *ibuf = msg->i.data;
-
 	hal_memcpy(msg, &kmsg->msg, sizeof(*msg));
-	hal_memcpy(ibuf, buffer, kmsg->msg.i.size);
-	msg->i.data = ibuf;
 
 	now = csr_read(cycle) - now;
 	recvTimes[nrecv].size = kmsg->msg.i.size;
@@ -573,7 +565,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	recvTimes[nrecv++].time = now;
 
 	if (ipacked != 0) {
-		// msg->i.data = msg->i.raw + (kmsg->msg.i.data - (void *)kmsg->msg.i.raw);
+		msg->i.data = msg->i.raw + (kmsg->msg.i.data - (void *)kmsg->msg.i.raw);
 	}
 
 	if (opacked != 0) {
