@@ -71,6 +71,7 @@ static const u8 spiConf[] = {
 	/* IRQID: 88-95 */ high_lvl, high_lvl, high_lvl, high_lvl, rising_edge, reserved, reserved, reserved
 };
 
+void _hal_interruptsInitPerCPU(void);
 
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
@@ -240,6 +241,12 @@ void _hal_interruptsInit(void)
 	/* enable_secure = 1 */
 	*(interrupts_common.gic + ddcr) |= 0x3;
 
+	_hal_interruptsInitPerCPU();
+}
+
+
+void _hal_interruptsInitPerCPU(void)
+{
 	*(interrupts_common.gic + cicr) &= ~0x3;
 
 	/* Initialize CPU Interface of the gic

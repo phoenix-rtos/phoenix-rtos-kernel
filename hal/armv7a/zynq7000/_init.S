@@ -22,6 +22,7 @@
 .extern pmap_common
 .extern syspage
 .extern relOffs
+.extern nCpusStarted
 .extern _end
 
 #define PA_KERNEL (ADDR_DDR)
@@ -102,10 +103,10 @@ _start:
 	orr r0, #1 << 31                 /* Enable cycle counter                              */
 	mcr p15, 0, r0, c9, c12, 1       /* Write CESR (Count Enable Set Register)            */
 
-	/* Enable SMP */
-	mrc p15, 0, r1, c1, c0, 1
-	orr r1, r1, #(1 << 6)
-	mcr p15, 0, r1, c1, c0, 1
+	/* Enable SMP and cache/TLB maintenance broadcast */
+	mrc p15, 0, r1, c1, c0, 1			/* read ACTLR (Auxiliary System Control Register) */
+	orr r1, r1, #((1 << 6) | (1 << 0)) 	/* bit 6: SMP, bit 0: Cache and TLB maintenance broadcast */
+	mcr p15, 0, r1, c1, c0, 1			/* write ACTLR (Auxiliary System Control Register) */
 
 	/* Disable MMU */
 	mrc p15, 0, r1, c1, c0, 0        /* Read SCTLR (System Control Register) data  */
@@ -118,6 +119,11 @@ _start:
 	bic r1, r1, #(0x1 << 12)         /* Disable ICache                             */
 	bic r1, r1, #(0x1 << 2)          /* Disable DCache                             */
 	mcr p15, 0, r1, c1, c0, 0        /* Write SCTLR (System Control Register) data */
+
+	/* Invalidate SCU (Snoop Control Unit) */
+	ldr	r1, =0xf8f0000c
+	ldr	r0, =0xffff
+	str	r0, [r1]
 
 	/* Invalidate L1 ICache */
 	mov r1, #0
@@ -145,15 +151,15 @@ set_loop:
 	/* Invalidate TLB */
 	mcr p15, 0, r1, c8, c7, 0
 
-	/* Read CPU ID, only core 0 continues initialization */
-	mrc p15, 0, r1, c0, c0, 5       /* Read Multiprocessor Affinity Register */
-	ands r1, r1, #0xf               /* Extract CPU ID                        */
-	beq structs_init
-wait_loop:
-	wfi
-	b wait_loop
+	ldr r2, =PA_OF(nCpusStarted)
+	mov r1, #0
+	str r1, [r2]
 
-structs_init:
+	/* Read CPU ID, core 0 inits memory structures, the rest wait */
+	mrc p15, 0, r1, c0, c0, 5       /* Read Multiprocessor Affinity Register */
+	ands r1, r1, #0xf                /* Extract CPU ID                        */
+	bne wait_for_structs_init
+
 	/* init memory structures (relOffs, syspage, TTLs) */
 	ldr r1, =#VA_SYSPAGE
 	lsr r1, #12
@@ -189,7 +195,7 @@ clear_ttls:
 	str r1, [r5, r2]
 	bne clear_ttls
 
-	/* Needed to execute first stage of kernel, should be unmapped later */
+	/* Needed to execute first stage of kernel, should be unmapped after all CPUs have jumped to virtual memory */
 	/* Map 4 MB V 0x00100000 -> P 0x00100000 */
 	add r0, r5, #TTL1_OFFSET_OF(PA_KERNEL)                  /* Entry address: TTL1 base address + entry index * 4 B (entry size)           */
 	ldr r1, =((PA_KERNEL & ~0xfffff) | (0x1 << 10) | 0x2)  /* Section entry: base address - DDR, AP = 01, APX = 0 (privileged access only) */
@@ -220,16 +226,16 @@ clear_ttls:
 	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
 
 
-	/* Stack TTL2 entry */
+	/* Stacks TTL2 entry (one stack per CPU) */
 	/* Map V 0xfffff000 -> P PA_STACK  */
 	ldr r0, =(PA_OF(VA_TTL2_EXC) + (0x3ff << 2))        /* Entry address: the last entry in 4 TTL2 in pmap_common.excptab               */
 	ldr r1, =((PA_STACK & ~0xfff) | KERNEL_PAGE_ATTR)
-	str r1, [r0]
-
-	/* Set vector table pointer to virtual address */
-	ldr r0, =_vector_table
-	mcr p15, 0, r0, c12, c0, 0                            /* Write to VBAR (Vector Base Address Register) */
-
+	mov r2, #NUM_CPUS
+stack_for_cpu:
+	str r1, [r0], #-4                                   /* Fill TTL2 entry                                                              */
+	sub r1, #SIZE_PAGE
+	subs r2, #1
+	bne stack_for_cpu
 
 	/* Kernel TTL2 entries (pmap_common.kptab) */
 	ldr r0, =PA_OF(VA_TTL2_K)
@@ -288,6 +294,19 @@ kernel_ttl2:
 	ldr r1, =(PA_TTC | DEVICE_PAGE_ATTR)
 	str r1, [r0], #4
 
+	b per_core_init
+
+wait_for_structs_init:
+	dsb
+	wfe
+	ldr r0, [r2]
+	cmp r0, #0
+	beq wait_for_structs_init
+
+per_core_init:
+	/* Set vector table pointer to virtual address */
+	ldr r0, =_vector_table
+	mcr p15, 0, r0, c12, c0, 0                            /* Write to VBAR (Vector Base Address Register) */
 
 	/* Initialize MMU */
 	mov r1, #1
@@ -312,6 +331,11 @@ kernel_ttl2:
 	bic r1, r1, #(0x1 << 28)         /* Disable TEX remap                          */
 	mcr p15, 0, r1, c1, c0, 0        /* Write SCTLR (System Control Register) data */
 
+	/* Enable SCU */
+	ldr	r1, =0xf8f00000
+	ldr	r0, [r1]
+	orr	r0, r0, #0x1
+	str	r0, [r1]
 
 	/* Enable MMU */
 	mrc p15, 0, r1, c1, c0, 0        /* Read Control Register configuration data  */
@@ -327,8 +351,13 @@ kernel_ttl2:
 	mcr p15, 0, r0, c5, c0, 1 /* IFSR */
 	mcr p15, 0, r0, c6, c0, 2 /* IFAR */
 
+	/* Get CPU ID so we can calculate which stack to use */
+	mrc p15, 0, r1, c0, c0, 5       /* Read Multiprocessor Affinity Register */
+	and r1, r1, #0xf                /* Extract CPU ID                        */
+
 	/* Setup stacks */
 	eor r0, r0          /* initialize SP to top of memory */
+	sub r0, r1, lsl #12 /* every subsequent CPU goes one page down */
 
 	/* FIQ mode stack */
 	msr CPSR_c, #(FIQ_MODE | NO_INT)
@@ -368,8 +397,19 @@ kernel_ttl2:
 	orr r0, r0, #(0x1 << 30)                  /* FPU enable bit                                     */
 	vmsr fpexc, r0
 
-	/* Jump to main() in virtual memory */
-	ldr pc, =main
+	/* Jump to virtual memory */
+	cmp r1, #0
+	ldreq pc, =main
+	ldr pc, =other_core_main
+
+other_core_main:
+	blx _hal_interruptsInitPerCPU
+	blx _hal_cpuInit
+	cpsie aif
+other_core_wait:
+	wfi
+	b other_core_wait
+
 
 #include "hal/armv7a/_interrupts.S"
 #include "hal/armv7a/_armv7a.S"
