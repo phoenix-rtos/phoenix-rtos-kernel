@@ -78,6 +78,7 @@ struct {
 
 
 extern unsigned int _end;
+volatile unsigned int nCpusStarted = 0;
 
 
 static void _zynq_slcrLock(void)
@@ -693,6 +694,17 @@ static u32 checkNumCPUs(void)
 void _hal_cpuInit(void)
 {
 	zynq_common.nCpus = checkNumCPUs();
+	hal_cpuAtomicInc(&nCpusStarted);
+	if (hal_cpuAtomicGet(&nCpusStarted) == 1) {
+		/* This is necessary because other CPU is still in physical memory
+		 * with L1 cache turned off so SCU cannot enforce cache coherence */
+		hal_cpuFlushDataCache((ptr_t)&nCpusStarted, (ptr_t)((&nCpusStarted) + 1));
+	}
+
+	hal_cpuSignalEvent();
+	while (hal_cpuAtomicGet(&nCpusStarted) != zynq_common.nCpus) {
+		hal_cpuWaitForEvent();
+	}
 }
 
 
