@@ -1513,7 +1513,7 @@ int proc_fork(void)
 {
 	int err = -ENOSYS;
 #ifndef NOMMU
-	thread_t *current;
+	thread_t *current, *parent;
 	unsigned sigmask;
 	arg_t args[3];
 
@@ -1531,6 +1531,11 @@ int proc_fork(void)
 		hal_cpuDisableInterrupts();
 		current->kstack = current->execkstack;
 		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
+
+		/* Copy parent context to child kstack in case of signal handling on fork return */
+		parent = ((process_spawn_t *)current->execdata)->parent;
+		hal_memcpy(current->kstack + current->kstacksz - sizeof(cpu_context_t),
+			parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
 
 		if (err < 0) {
 			args[0] = (arg_t)current;
