@@ -206,7 +206,7 @@ void vm_pageFreeAt(pmap_t *pmap, void *vaddr)
 }
 
 
-void _page_initSizes(void)
+static void _page_initSizes(void)
 {
 	unsigned int i, k, idx;
 	page_t *p;
@@ -344,7 +344,7 @@ void _page_showPages(void)
 }
 
 
-int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
+static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 {
 	page_t *ap = NULL;
 
