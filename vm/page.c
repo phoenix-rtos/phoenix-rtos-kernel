@@ -43,19 +43,22 @@ static page_t *_page_alloc(size_t size, u8 flags)
 	page_t *lh, *rh;
 
 	/* Establish first index */
-	size = size < SIZE_PAGE ? SIZE_PAGE : size;
+	size = (size < SIZE_PAGE) ? SIZE_PAGE : size;
 
 	start = hal_cpuGetLastBit(size);
-	if (hal_cpuGetFirstBit(size) < start)
+	if (hal_cpuGetFirstBit(size) < start) {
 		start++;
+	}
 
 	/* Find segment */
 	stop = start;
 
-	while ((stop < SIZE_VM_SIZES) && (pages.sizes[stop] == NULL))
+	while ((stop < SIZE_VM_SIZES) && (pages.sizes[stop] == NULL)) {
 		stop++;
-	if (stop == SIZE_VM_SIZES)
+	}
+	if (stop == SIZE_VM_SIZES) {
 		return NULL;
+	}
 
 	lh = pages.sizes[stop];
 
@@ -103,11 +106,12 @@ void _page_free(page_t *p)
 	page_t *lh = p, *rh = p;
 
 #if 1
-	if (lh->flags & PAGE_FREE) {
+	if ((lh->flags & PAGE_FREE) != 0) {
 		hal_cpuDisableInterrupts();
 		lib_printf("page: double free (%p)\n", lh);
 		hal_cpuEnableInterrupts();
-		for (;;) ;
+		for (;;) {
+		}
 	}
 #endif
 
@@ -120,17 +124,21 @@ void _page_free(page_t *p)
 		pages.allocsz -= SIZE_PAGE;
 	}
 
-	if (p->addr & ((1 << (idx + 1)) - 1))
+	if ((p->addr & ((1 << (idx + 1)) - 1)) != 0) {
 		lh = p - (1 << idx) / SIZE_PAGE;
-	else
+	}
+	else {
 		rh = p + (1 << idx) / SIZE_PAGE;
+	}
 
-	while (lh >= pages.pages && (rh < pages.pages + (pages.allocsz + pages.freesz) / SIZE_PAGE) && (lh->flags & PAGE_FREE) && (rh->flags & PAGE_FREE) && (lh->idx == rh->idx) && (lh->addr + (1 << lh->idx) == rh->addr) && (idx < SIZE_VM_SIZES)) {
+	while ((lh >= pages.pages) && (rh < (pages.pages + (pages.allocsz + pages.freesz) / SIZE_PAGE)) && ((lh->flags & PAGE_FREE) != 0) && ((rh->flags & PAGE_FREE) != 0) && (lh->idx == rh->idx) && ((lh->addr + (1 << lh->idx)) == rh->addr) && (idx < SIZE_VM_SIZES)) {
 
-		if (p == lh)
+		if (p == lh) {
 			LIST_REMOVE(&pages.sizes[idx], rh);
-		else
+		}
+		else {
 			LIST_REMOVE(&pages.sizes[idx], lh);
+		}
 
 		rh->idx = hal_cpuGetFirstBit(SIZE_PAGE);
 		lh->idx++;
@@ -138,10 +146,12 @@ void _page_free(page_t *p)
 
 		p = lh;
 
-		if (p->addr & ((1 << (idx + 1)) - 1))
+		if ((p->addr & ((1 << (idx + 1)) - 1)) != 0) {
 			lh = p - (1 << idx) / SIZE_PAGE;
-		else
+		}
+		else {
 			rh = p + (1 << idx) / SIZE_PAGE;
+		}
 	}
 
 	LIST_ADD(&pages.sizes[idx], p);
@@ -164,11 +174,13 @@ static int _page_get_cmp(void *key, void *item)
 	addr_t a = (addr_t)key;
 	page_t *p = (page_t *)item;
 
-	if (a == p->addr)
+	if (a == p->addr) {
 		return 0;
+	}
 
-	if (a > p->addr)
+	if (a > p->addr) {
 		return 1;
+	}
 
 	return -1;
 }
@@ -204,19 +216,21 @@ void _page_initSizes(void)
 
 	for (i = 0; i < (pages.allocsz + pages.freesz) / SIZE_PAGE;) {
 		p = &pages.pages[i];
-		if (!(p->flags & PAGE_FREE)) {
+		if ((p->flags & PAGE_FREE) == 0) {
 			i++;
 			continue;
 		}
 
 		idx = hal_cpuGetFirstBit(p->addr);
 
-		if (idx >= SIZE_VM_SIZES)
+		if (idx >= SIZE_VM_SIZES) {
 			idx = SIZE_VM_SIZES - 1;
+		}
 
 		for (k = 0; (k < ((1 << idx) / SIZE_PAGE) - 1) && (i + k < pages.freesz + pages.allocsz - 1); k++) {
-			if (!(pages.pages[i + 1 + k ].flags & PAGE_FREE))
+			if ((pages.pages[i + 1 + k].flags & PAGE_FREE) == 0) {
 				break;
+			}
 		}
 
 		idx = hal_cpuGetLastBit((1 + k) * SIZE_PAGE);
@@ -249,8 +263,9 @@ static unsigned int page_digits(unsigned int n, unsigned int base)
 {
 	unsigned int d = 1;
 
-	while (n /= base)
+	while ((n /= base) != 0) {
 		d++;
+	}
 
 	return d;
 }
@@ -271,7 +286,8 @@ void _page_showPages(void)
 
 		/* Print markers in case of memory gap */
 		if (p->addr > a) {
-			if ((rep = (p->addr - a) / SIZE_PAGE) >= 4) {
+			rep = (p->addr - a) / SIZE_PAGE;
+			if (rep >= 4) {
 				k = page_digits(rep, 10) + 3;
 				if (w + k > TTY_COLS) {
 					lib_printf("%s\n", buf);
@@ -293,8 +309,9 @@ void _page_showPages(void)
 		/* Print markers with repetitions */
 		c = pmap_marker(p);
 		for (rep = 0; (i + rep + 1) < (pages.freesz + pages.allocsz) / SIZE_PAGE; rep++) {
-			if ((c != pmap_marker(&pages.pages[i + rep + 1])) || (pages.pages[i + rep + 1].addr - pages.pages[i + rep].addr > SIZE_PAGE))
+			if ((c != pmap_marker(&pages.pages[i + rep + 1])) || (pages.pages[i + rep + 1].addr - pages.pages[i + rep].addr > SIZE_PAGE)) {
 				break;
+			}
 		}
 
 		if (rep >= 4) {
@@ -319,8 +336,9 @@ void _page_showPages(void)
 		i += rep;
 	}
 
-	if (w > 4)
+	if (w > 4) {
 		lib_printf("%s\n", buf);
+	}
 
 	return;
 }
@@ -331,8 +349,10 @@ int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 	page_t *ap = NULL;
 
 	while (pmap_enter(pmap, pa, vaddr, attrs, ap) < 0) {
-		if (/*vaddr > (void *)VADDR_KERNEL ||*/ (ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+		if (/*vaddr > (void *)VADDR_KERNEL ||*/ ap == NULL) {
 			return -ENOMEM;
+		}
 	}
 	return EOK;
 }
@@ -353,13 +373,16 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 int _page_sbrk(pmap_t *pmap, void **start, void **end)
 {
 	page_t *np, *ap = NULL;
-
-	if ((np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP)) == NULL)
+	np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP);
+	if (np == NULL) {
 		return -ENOMEM;
+	}
 
 	while (pmap_enter(pmap, np->addr, (*end), PGHD_WRITE | PGHD_PRESENT, ap) < 0) {
-		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+		if (ap == NULL) {
 			return -ENOMEM;
+		}
 	}
 
 	(*end) += SIZE_PAGE;
@@ -393,8 +416,9 @@ void vm_pageinfo(meminfo_t *info)
 
 			c = pmap_marker(p);
 			for (rep = 0; (i + rep + 1) < (pages.freesz + pages.allocsz) / SIZE_PAGE; rep++) {
-				if ((c != pmap_marker(pages.pages + i + rep + 1)) || ((pages.pages[i + rep + 1].addr - pages.pages[i + rep].addr) > SIZE_PAGE))
+				if ((c != pmap_marker(pages.pages + i + rep + 1)) || ((pages.pages[i + rep + 1].addr - pages.pages[i + rep].addr) > SIZE_PAGE)) {
 					break;
+				}
 			}
 
 			if (info->page.mapsz > size && info->page.map != NULL) {
@@ -428,8 +452,9 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	pages.allocsz = 0;
 	pages.bootsz = 0;
 
-	for (k = 0; k < SIZE_VM_SIZES; k++)
+	for (k = 0; k < SIZE_VM_SIZES; k++) {
 		pages.sizes[k] = NULL;
+	}
 
 	addr = 0;
 	pages.pages = (page_t *)*bss;
@@ -443,12 +468,14 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 			}
 		}
 
-		if ((err = pmap_getPage(page, &addr)) == -ENOMEM)
+		err = pmap_getPage(page, &addr);
+		if (err == -ENOMEM) {
 			break;
+		}
 
 		if (err == EOK) {
 
-			if (page->flags & PAGE_FREE) {
+			if ((page->flags & PAGE_FREE) != 0) {
 				page->idx = hal_cpuGetFirstBit(SIZE_PAGE);
 				LIST_ADD(&pages.sizes[hal_cpuGetFirstBit(SIZE_PAGE)], page);
 				pages.freesz += SIZE_PAGE;
@@ -456,15 +483,17 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 			else {
 				page->idx = 0;
 				pages.allocsz += SIZE_PAGE;
-				if (((page->flags >> 1) & 7) == PAGE_OWNER_BOOT)
+				if (((page->flags >> 1) & 7) == PAGE_OWNER_BOOT) {
 					pages.bootsz += SIZE_PAGE;
+				}
 			}
 			page = page + 1;
 		}
 
 		/* Wrap over 0 */
-		if (addr < SIZE_PAGE)
+		if (addr < SIZE_PAGE) {
 			break;
+		}
 	}
 
 	(*bss) = page;
@@ -475,10 +504,13 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	/* Initialize kernel space for user processes */
 	for (p = NULL, vaddr = (*top);;) {
 
-		if (!_pmap_kernelSpaceExpand(pmap, &vaddr, (*top) + max((pages.freesz + pages.allocsz) / 4, (1 << 23)), p))
+		if (_pmap_kernelSpaceExpand(pmap, &vaddr, (*top) + max((pages.freesz + pages.allocsz) / 4, (1 << 23)), p) == 0) {
 			break;
-		if ((p = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+		}
+		p = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+		if (p == NULL) {
 			return;
+		}
 	}
 
 	/* Show statistics on the console */
