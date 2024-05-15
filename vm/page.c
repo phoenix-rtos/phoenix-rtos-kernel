@@ -105,7 +105,6 @@ void _page_free(page_t *p)
 	unsigned int idx, i;
 	page_t *lh = p, *rh = p;
 
-#if 1
 	if ((lh->flags & PAGE_FREE) != 0) {
 		hal_cpuDisableInterrupts();
 		lib_printf("page: double free (%p)\n", lh);
@@ -113,7 +112,6 @@ void _page_free(page_t *p)
 		for (;;) {
 		}
 	}
-#endif
 
 	idx = p->idx;
 
@@ -240,21 +238,6 @@ static void _page_initSizes(void)
 
 		i += ((1UL << idx) / SIZE_PAGE);
 	}
-	return;
-}
-
-
-void _page_showSizes(void)
-{
-	unsigned int i;
-
-	for (i = 0; i < SIZE_VM_SIZES; i++) {
-		lib_printf("[");
-		if (pages.sizes[i] != NULL)
-			lib_printf("%p", pages.sizes[i]->addr);
-		lib_printf("]");
-	}
-	lib_printf("\n");
 	return;
 }
 
