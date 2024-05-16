@@ -93,6 +93,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" bfa=", &buff[i], *(u32 *)0xe000ed38, 16, 1);
 
 	i += hal_i2s("\ncfs=", &buff[i], *(u32 *)0xe000ed28, 16, 1);
+	i += hal_i2s(" mma=", &buff[i], *(u32 *)0xe000ed34, 16, 1);
 
 	buff[i++] = '\n';
 

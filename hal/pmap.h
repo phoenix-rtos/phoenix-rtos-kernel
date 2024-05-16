@@ -31,6 +31,10 @@ extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
 extern addr_t pmap_destroy(pmap_t *pmap, int *i);
 
 
+/* Available only on NOMMU */
+extern int pmap_addMap(pmap_t *pmap, unsigned int map);
+
+
 extern void pmap_switch(pmap_t *pmap);
 
 

@@ -53,19 +53,10 @@ typedef struct _page_t {
 
 
 typedef struct _pmap_t {
-	u32 mpr;
 	void *start;
 	void *end;
+	u32 regions;
 } pmap_t;
-
-
-typedef struct _mpur_t {
-	u8 region;
-	u32 base;
-	u32 size;
-	u8 subregions;
-	int attr;
-} mpur_t;
 
 #endif
 

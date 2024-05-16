@@ -150,15 +150,6 @@ extern void _stm32_systickSet(u8 state);
 extern u32 _stm32_systickGet(void);
 
 
-extern void _stm32_mpuReadRegion(u8 region, mpur_t *reg);
-
-
-extern void _stm32_mpuEnableRegion(u8 region, u8 state);
-
-
-extern void _stm32_mpuUpdateRegion(mpur_t *reg);
-
-
 extern unsigned int _stm32_cpuid(void);
 
 
