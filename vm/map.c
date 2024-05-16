@@ -945,8 +945,9 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 	rbnode_t *n;
 	int i = 0;
 
-	while ((a = pmap_destroy(&map->pmap, &i)))
-		vm_pageFree(_page_get(a));
+	while ((a = pmap_destroy(&map->pmap, &i))) {
+		vm_pageFree(page_get(a));
+	}
 
 	vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
 	vm_pageFree(map->pmap.pmapp);

@@ -118,7 +118,13 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attr)
 }
 
 
-page_t *_page_get(addr_t addr)
+static page_t *_page_get(addr_t addr)
+{
+	return NULL;
+}
+
+
+page_t *page_get(addr_t addr)
 {
 	return NULL;
 }

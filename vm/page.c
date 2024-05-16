@@ -174,7 +174,7 @@ static int _page_get_cmp(void *key, void *item)
 }
 
 
-page_t *_page_get(addr_t addr)
+static page_t *_page_get(addr_t addr)
 {
 	page_t *p;
 	size_t np = (pages.freesz + pages.allocsz) / SIZE_PAGE;
@@ -182,6 +182,16 @@ page_t *_page_get(addr_t addr)
 	addr =  addr & ~(SIZE_PAGE - 1);
 	p = lib_bsearch((void *)addr, pages.pages, np, sizeof(page_t),  _page_get_cmp);
 
+	return p;
+}
+
+
+page_t *page_get(addr_t addr)
+{
+	page_t *p;
+	proc_lockSet(&pages.lock);
+	p = _page_get(addr);
+	proc_lockClear(&pages.lock);
 	return p;
 }
 

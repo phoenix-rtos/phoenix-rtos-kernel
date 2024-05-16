@@ -197,8 +197,9 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 	if (o == NULL)
 		return vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 
-	if (o == (void *)-1)
-		return _page_get(offs);
+	if (o == (void *)-1) {
+		return page_get(offs);
+	}
 
 	proc_lockSet(&object_common.lock);
 
