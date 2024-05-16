@@ -41,6 +41,7 @@ typedef struct {
 	size_t size;
 	vm_map_t *map;
 	vm_map_t *imap;
+	syspage_prog_t *prog;
 
 	char **argv;
 	char **envp;
@@ -1080,8 +1081,9 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 static void process_exec(thread_t *current, process_spawn_t *spawn)
 {
 	void *stack, *entry;
-	int err, count;
+	int err = 0, count;
 	void *cleanupFn = NULL;
+	unsigned int i;
 	spinlock_ctx_t sc;
 	const struct stackArg args[] = {
 		{ &spawn->envp, sizeof(spawn->envp) },
@@ -1096,15 +1098,31 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 #ifndef NOMMU
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
 	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
+	(void)i;
 #else
+	pmap_create(&current->process->map.pmap, NULL, NULL, NULL);
 	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
-
 	current->process->entries = NULL;
+
+	if (spawn->prog != NULL) {
+		/* Add instruction maps */
+		for (i = 0; (i < spawn->prog->imapSz) && (err == 0); ++i) {
+			err = pmap_addMap(current->process->pmapp, spawn->prog->imaps[i]);
+		}
+
+		/* Add data/io maps */
+		for (i = 0; (i < spawn->prog->dmapSz) && (err == 0); ++i) {
+			err = pmap_addMap(current->process->pmapp, spawn->prog->dmaps[i]);
+		}
+	}
 #endif
 
 	pmap_switch(current->process->pmapp);
 
-	err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
+	if (err == 0) {
+		err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
+	}
+
 	if (err == 0) {
 		stack = process_putargs(stack, &spawn->envp, &count);
 		stack = process_putargs(stack, &spawn->argv, &count);
@@ -1127,7 +1145,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
 	}
 
-	if (err < 0) {
+	if (err != 0) {
 		current->process->exit = err;
 		proc_threadEnd();
 	}
@@ -1158,7 +1176,7 @@ static void proc_spawnThread(void *arg)
 }
 
 
-int proc_spawn(vm_object_t *object, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
+static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
 {
 	int pid;
 	process_spawn_t spawn;
@@ -1182,6 +1200,7 @@ int proc_spawn(vm_object_t *object, vm_map_t *imap, vm_map_t *map, off_t offset,
 	spawn.parent = proc_current();
 	spawn.map = map;
 	spawn.imap = imap;
+	spawn.prog = prog;
 
 	hal_spinlockCreate(&spawn.sl, "spawnsl");
 
@@ -1214,7 +1233,7 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	if ((err = vm_objectGet(&object, oid)) < 0)
 		return err;
 
-	return proc_spawn(object, NULL, NULL, 0, object->size, path, argv, envp);
+	return proc_spawn(object, NULL, NULL, NULL, 0, object->size, path, argv, envp);
 }
 
 
@@ -1258,7 +1277,7 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 
 int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
 {
-	return proc_spawn(VM_OBJ_PHYSMEM, imap, map, program->start, program->end - program->start, path, argv, NULL);
+	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, program->start, program->end - program->start, path, argv, NULL);
 }
 
 
@@ -1410,6 +1429,7 @@ int proc_vfork(void)
 	spawn->wq = NULL;
 	spawn->state = PREFORK;
 	spawn->parent = current;
+	spawn->prog = NULL;
 
 	pid = proc_start(process_vforkThread, spawn, NULL);
 	if (pid < 0) {
@@ -1655,6 +1675,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	spawn->object = object;
 	spawn->offset = 0;
 	spawn->size = object->size;
+	spawn->prog = NULL;
 
 	vm_kfree(current->process->path);
 	vm_kfree(current->process->envp);

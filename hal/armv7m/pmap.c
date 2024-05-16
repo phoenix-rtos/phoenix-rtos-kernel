@@ -14,7 +14,14 @@
  */
 
 #include "hal/pmap.h"
+#include "config.h"
+#include "syspage.h"
+#include "halsyspage.h"
 #include <arch/cpu.h>
+#include "armv7m.h"
+
+enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rasr, mpu_rbar_a1, mpu_rasr_a1, mpu_rbar_a2, mpu_rasr_a2,
+	   mpu_rbar_a3, mpu_rasr_a3 };
 
 /* Linker symbols */
 extern unsigned int _end;
@@ -22,10 +29,16 @@ extern unsigned int __bss_start;
 
 extern void *_init_vectors;
 
+static struct {
+	volatile u32 *mpu;
+	u32 kernelCodeRegion;
+} pmap_common;
+
 
 /* Function creates empty page table */
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
+	pmap->regions = pmap_common.kernelCodeRegion;
 	return 0;
 }
 
@@ -36,9 +49,53 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 }
 
 
+static int pmap_map2region(unsigned int map)
+{
+	int i;
+
+	for (i = 0; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
+		if (map == syspage->hs.mpu.map[i]) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+
+int pmap_addMap(pmap_t *pmap, unsigned int map)
+{
+	int region = pmap_map2region(map);
+	if (region < 0) {
+		return region;
+	}
+
+	pmap->regions |= (1 << region);
+
+	return 0;
+}
+
+
 void pmap_switch(pmap_t *pmap)
 {
-	return;
+	unsigned int i;
+
+	if (pmap != NULL) {
+		for (i = 0; i < syspage->hs.mpu.allocCnt; ++i) {
+			/* Select region */
+			*(pmap_common.mpu + mpu_rnr) = i;
+			hal_cpuDataMemoryBarrier();
+
+			/* Enable/disable region according to the mask */
+			if ((pmap->regions & (1 << i)) != 0) {
+				*(pmap_common.mpu + mpu_rasr) |= 1;
+			}
+			else {
+				*(pmap_common.mpu + mpu_rasr) &= ~1;
+			}
+			hal_cpuDataMemoryBarrier();
+		}
+	}
 }
 
 
@@ -93,6 +150,12 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
+	const syspage_map_t *ikmap;
+	int ikregion;
+	u32 t;
+	addr_t pc;
+	unsigned int i;
+
 	(*vstart) = (void *)(((ptr_t)_init_vectors + 7) & ~7);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
@@ -100,4 +163,63 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Initial size of kernel map */
 	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
+
+	/* Configure MPU */
+	pmap_common.mpu = (void *)0xe000ed90;
+
+	/* Disable MPU just in case */
+	*(pmap_common.mpu + mpu_ctrl) &= ~1;
+	hal_cpuDataMemoryBarrier();
+
+	/* Allow unlimited kernel access */
+	*(pmap_common.mpu + mpu_ctrl) |= (1 << 2);
+	hal_cpuDataMemoryBarrier();
+
+	for (i = 0; i < syspage->hs.mpu.allocCnt; ++i) {
+		t = syspage->hs.mpu.table[i].rbar;
+		if ((t & (1 << 4)) == 0) {
+			continue;
+		}
+
+		*(pmap_common.mpu + mpu_rbar) = t;
+		hal_cpuDataMemoryBarrier();
+
+		/* Disable regions for now */
+		t = syspage->hs.mpu.table[i].rasr & ~1;
+		*(pmap_common.mpu + mpu_rasr) = t;
+		hal_cpuDataMemoryBarrier();
+	}
+
+	/* Enable MPU */
+	*(pmap_common.mpu + mpu_ctrl) |= 1;
+	hal_cpuDataMemoryBarrier();
+
+	/* FIXME HACK
+	 * allow all programs to execute (and read) kernel code map.
+	 * Needed because of hal_jmp, syscalls handler and signals handler.
+	 * In these functions we need to switch to the user mode when still
+	 * executing kernel code. This will cause memory management fault
+	 * if the application does not have access to the kernel instruction
+	 * map. Possible fix - place return to the user code in the separate
+	 * region and allow this region instead. */
+
+	/* Find kernel code region */
+	__asm__ volatile ("\tmov %0, pc;" : "=r" (pc));
+	ikmap = syspage_mapAddrResolve(pc);
+	if (ikmap == NULL) {
+		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");
+		for (;;) {
+			hal_cpuHalt();
+		}
+	}
+
+	ikregion = pmap_map2region(ikmap->id);
+	if (ikregion < 0) {
+		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map has no assigned region. Bad system config\n");
+		for (;;) {
+			hal_cpuHalt();
+		}
+	}
+
+	pmap_common.kernelCodeRegion = (1 << ikregion);
 }

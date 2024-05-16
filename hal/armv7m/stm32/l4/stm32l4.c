@@ -36,7 +36,6 @@ struct {
 	volatile u32 *rtc;
 	volatile u32 *nvic;
 	volatile u32 *exti;
-	volatile u32 *mpu;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
 	volatile u32 *flash;
@@ -862,7 +861,6 @@ void _stm32_init(void)
 	stm32_common.rtc = (void *)0x40002800;
 	stm32_common.nvic = (void *)0xe000e100;
 	stm32_common.exti = (void *)0x40010400;
-	stm32_common.mpu = (void *)0xe000ed90;
 	stm32_common.syscfg = (void *)0x40010000;
 	stm32_common.iwdg = (void *)0x40003000;
 	stm32_common.gpio[0] = (void *)0x48000000; /* GPIOA */

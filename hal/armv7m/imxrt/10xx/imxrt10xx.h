@@ -225,12 +225,6 @@ extern int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char
 extern int _imxrt_setIOisel(int isel, char daisy);
 
 
-extern void _imxrt_enableMPU(void);
-
-
-extern void _imxrt_disableMPU(void);
-
-
 extern void _imxrt_enableDCache(void);
 
 

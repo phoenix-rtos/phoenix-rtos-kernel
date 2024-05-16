@@ -37,6 +37,12 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 }
 
 
+int pmap_addMap(pmap_t *pmap, unsigned int map)
+{
+	return 0;
+}
+
+
 void pmap_switch(pmap_t *pmap)
 {
 	return;

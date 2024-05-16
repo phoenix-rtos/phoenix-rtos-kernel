@@ -1395,7 +1395,6 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	(*bss) += (sizeof(vm_map_t *) * mapsCnt);
 	map = syspage_mapList();
 
-
 	do {
 		if (kmap->pmap.start >= (void *)map->start && kmap->pmap.end <= (void *)map->end) {
 			kmap->pmap.start = (void *)map->start;
