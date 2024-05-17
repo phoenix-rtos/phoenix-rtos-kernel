@@ -5,8 +5,8 @@
  *
  * CPU related routines (RISCV64)
  *
- * Copyright 2018 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -20,10 +20,14 @@
 
 #define SIZE_PAGE 0x1000
 
+#define MAX_CPU_COUNT 8
+
+#define SIZE_INITIAL_KSTACK (4 * SIZE_PAGE)
+#define INITIAL_KSTACK_BIT  (14)
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (16 * 512)
+#define SIZE_KSTACK (4 * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_USTACK
@@ -45,9 +49,11 @@
 #define SSTATUS_SUM  (1u << 18) /* Supervisor may access User Memory */
 #define SSTATUS_MXR  (1u << 19) /* Make eXecutable Readable */
 
-
 /* Interrupts */
 #define CLINT_IRQ_FLG (1u << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
+
+/* Supervisor Interrupt Pending Register */
+#define SIP_SSIP (1u << 1)
 
 
 #define CPU_CTX_SIZE 0x230u
@@ -70,9 +76,6 @@
 		(v) = *(t *)ustack; \
 		ustack += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
-
-
-#pragma pack(push, 1)
 
 
 typedef struct {
@@ -114,7 +117,7 @@ typedef struct {
 	u64 ft11;
 
 	u64 fcsr;
-} cpu_fpContext_t;
+} __attribute__((packed, aligned(8))) cpu_fpContext_t;
 
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
@@ -167,10 +170,7 @@ typedef struct {
 	u64 sp;
 
 	cpu_fpContext_t fpCtx;
-} cpu_context_t;
-
-
-#pragma pack(pop)
+} __attribute__((packed, aligned(8))) cpu_context_t;
 
 
 /* interrupts */
@@ -207,6 +207,22 @@ static inline void hal_cpuGetCycles(cycles_t *cb)
 {
 	/* clang-format off */
 	__asm__ volatile("rdcycle %0" : "=r"(*(cycles_t *)cb));
+	/* clang-format on */
+}
+
+
+/* Atomic operations */
+
+
+static inline void hal_cpuAtomicAdd(volatile u32 *dst, u32 v)
+{
+	/* clang-format off */
+	__asm__ volatile (
+		"fence iorw, ow\n\t"
+		"amoadd.w.aq zero, %1, (%0)"
+		: "+r"(dst)
+		: "r"(v)
+	);
 	/* clang-format on */
 }
 
@@ -263,6 +279,9 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 }
 
 
+void hal_cpuRfenceI(void);
+
+
 /* Code used in disabled code vm/object.c - map_pageFault */
 #if 0 /* Disabled until lazy mapping is enabled */
 static inline void *hal_cpuGetFaultAddr(void)
@@ -272,24 +291,6 @@ static inline void *hal_cpuGetFaultAddr(void)
 	return (void *)badaddress;
 }
 #endif
-
-
-/* core management */
-
-
-static inline unsigned int hal_cpuGetCount(void)
-{
-	return 1;
-}
-
-
-static inline unsigned int hal_cpuGetID(void)
-{
-	return 0;
-}
-
-
-void _hal_cpuInit(void);
 
 
 #endif

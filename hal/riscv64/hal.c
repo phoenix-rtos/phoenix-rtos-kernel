@@ -5,35 +5,35 @@
  *
  * Hardware Abstraction Layer (RISCV64)
  *
- * Copyright 2018, 2020 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2020, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
-#include "hal/hal.h"
-#include "hal/spinlock.h"
-#include "hal/console.h"
-#include "hal/exceptions.h"
-#include "hal/interrupts.h"
-#include "hal/cpu.h"
-#include "hal/pmap.h"
-#include "hal/timer.h"
-#include "config.h"
-#include "halsyspage.h"
+#include <arch/tlb.h>
 
+#include "hal/hal.h"
+#include "hal/tlb/tlb.h"
+
+#include "riscv64.h"
 #include "include/arch/riscv64/riscv64.h"
 
+
 static struct {
-	int started;
+	volatile u32 started;
 	spinlock_t pltctlSp;
 } hal_common;
 
 
 syspage_t *hal_syspage;
 addr_t hal_relOffs;
+volatile u32 hal_multilock;
+
+
+extern void _hal_cpuInit(void);
 
 
 void *hal_syspageRelocate(void *data)
@@ -61,12 +61,28 @@ int hal_started(void)
 
 void _hal_start(void)
 {
-	hal_common.started = 1;
+	hal_cpuAtomicAdd(&hal_common.started, 1);
 }
 
 
 void hal_lockScheduler(void)
 {
+	hal_tlbShootdown();
+	/* Clear pending IPI - we've done the shootdown */
+	csr_clear(sip, SIP_SSIP);
+
+	/* clang-format off */
+	__asm__ volatile (
+		"li t0, 1\n\t"
+	"1:\n\t"
+		"amoswap.w.aq t0, t0, %0\n\t"
+		"bnez t0, 1b\n\t"
+		"fence r, rw"
+		:
+		: "A" (hal_multilock)
+		: "t0", "memory"
+	);
+	/* clang-format on */
 }
 
 
@@ -105,8 +121,9 @@ __attribute__((section(".init"))) void _hal_init(void)
 
 	_hal_timerInit(SYSTICK_INTERVAL);
 
-	_hal_cpuInit();
-
 	hal_spinlockCreate(&hal_common.pltctlSp, "pltctl");
 	hal_common.started = 0;
+	hal_multilock = 0u;
+
+	_hal_cpuInit();
 }

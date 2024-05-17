@@ -34,6 +34,17 @@
 #define SBI_EXT_SRST   0x53525354
 #define SBI_SRST_RESET 0x0
 
+/* IPI extension */
+#define SBI_EXT_IPI  0x735049
+#define SBI_IPI_SEND 0x0
+
+/* HSM extension */
+#define SBI_EXT_HSM     0x48534D
+#define SBI_HSM_START   0x0
+#define SBI_HSM_STOP    0x1
+#define SBI_HSM_STATUS  0x2
+#define SBI_HSM_SUSPEND 0x3
+
 /* Legacy extensions */
 #define SBI_LEGACY_SETTIMER               0x0
 #define SBI_LEGACY_PUTCHAR                0x1
@@ -44,6 +55,10 @@
 #define SBI_LEGACY_REMOTE_SFENCE_VMA      0x6
 #define SBI_LEGACY_REMOTE_SFENCE_VMA_ASID 0x7
 #define SBI_LEGACY_SHUTDOWN               0x8
+
+/* RFENCE extension */
+#define SBI_EXT_RFENCE 0x52464E43
+#define SBI_RFNC_I     0x0
 
 /* clang-format off */
 #define SBI_MINOR(x) ((x) & 0xffffff)
@@ -131,9 +146,33 @@ void hal_sbiSetTimer(u64 stime)
 
 void hal_sbiReset(u32 type, u32 reason)
 {
-	if (hal_sbiProbeExtension(SBI_EXT_SRST).error == 0) {
+	if (hal_sbiProbeExtension(SBI_EXT_SRST).error == SBI_SUCCESS) {
 		(void)hal_sbiEcall(SBI_EXT_SRST, SBI_SRST_RESET, type, reason, 0, 0, 0, 0);
 	}
+}
+
+
+sbiret_t hal_sbiSendIPI(unsigned long hart_mask, unsigned long hart_mask_base)
+{
+	return hal_sbiEcall(SBI_EXT_IPI, SBI_IPI_SEND, hart_mask, hart_mask_base, 0, 0, 0, 0);
+}
+
+
+sbiret_t hal_sbiHartGetStatus(unsigned long hartid)
+{
+	return hal_sbiEcall(SBI_EXT_HSM, SBI_HSM_STATUS, hartid, 0, 0, 0, 0, 0);
+}
+
+
+sbiret_t hal_sbiHartStart(unsigned long hartid, unsigned long start_addr, unsigned long opaque)
+{
+	return hal_sbiEcall(SBI_EXT_HSM, SBI_HSM_START, hartid, start_addr, opaque, 0, 0, 0);
+}
+
+
+void hal_sbiRfenceI(unsigned long hart_mask, unsigned long hart_mask_base)
+{
+	hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_I, hart_mask, hart_mask_base, 0, 0, 0, 0);
 }
 
 
@@ -143,7 +182,7 @@ void _hal_sbiInit(void)
 	sbi_common.specVersion = ret.value;
 
 	ret = hal_sbiProbeExtension(SBI_EXT_TIME);
-	if (ret.error == 0) {
+	if (ret.error == SBI_SUCCESS) {
 		sbi_common.setTimer = hal_sbiSetTimerv02;
 	}
 	else {

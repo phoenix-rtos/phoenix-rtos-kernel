@@ -5,8 +5,8 @@
  *
  * pmap interface - machine dependent part of VM subsystem (RISCV64)
  *
- * Copyright 2018 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -32,15 +32,6 @@
 #define PGHD_DEV        0x00
 #define PGHD_NOT_CACHED 0x00
 
-
-/* Architecure dependent page table attributes */
-#define PTHD_PRESENT 0x01
-#define PTHD_READ    0x02
-#define PTHD_WRITE   0x04
-#define PTHD_EXEC    0x08
-#define PTHD_USER    0x10
-
-
 /* Page flags */
 #define PAGE_FREE 0x00000001
 
@@ -54,6 +45,9 @@
 #define PAGE_KERNEL_PMAP    (4 << 4)
 #define PAGE_KERNEL_STACK   (5 << 4)
 #define PAGE_KERNEL_HEAP    (6 << 4)
+
+/* satp register */
+#define SATP_MODE_SV39 (8UL << 60)
 
 
 #ifndef __ASSEMBLY__
@@ -82,6 +76,10 @@ typedef struct _pmap_t {
 	void *pmapv;
 	page_t *pmapp;
 } pmap_t;
+
+
+/* Get kernel physical address */
+addr_t pmap_getKernelStart(void);
 
 
 #endif

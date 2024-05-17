@@ -5,8 +5,8 @@
  *
  * RISCV64 PLIC interrupt controler driver
  *
- * Copyright 2020 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2020, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -14,13 +14,14 @@
  */
 
 #include "plic.h"
+#include "hal/cpu.h"
 
 #include <board_config.h>
 
 /* clang-format off */
 
 /* PLIC register offsets */
-#define PLIC_PRIORITY(irqn)            (0x0000 + (n) * 4)
+#define PLIC_PRIORITY(irqn)            (0x0000 + (irqn) * 4)
 #define PLIC_REG_PENDING(irqn)         (0x1000 + ((irqn) / 32) * 4)
 #define PLIC_REG_ENABLE(context, irqn) (0x2000 + (context) * 0x80 + ((irqn) / 32) * 4)
 #define PLIC_REG_THRESHOLD(context)    (0x200000 + (context) * 0x1000)
@@ -114,29 +115,36 @@ static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enabl
 }
 
 
-int plic_enableInterrupt(unsigned int hart, unsigned int n)
+int plic_enableInterrupt(unsigned int context, unsigned int n)
 {
-	return plic_modifyInterrupt(hart, n, 1);
+	return plic_modifyInterrupt(context, n, 1);
 }
 
 
-int plic_disableInterrupt(unsigned int hart, unsigned int n)
+int plic_disableInterrupt(unsigned int context, unsigned int n)
 {
-	return plic_modifyInterrupt(hart, n, 0);
+	return plic_modifyInterrupt(context, n, 0);
 }
 
 
-void _plic_init(void)
+void plic_initCore(void)
+{
+	size_t i;
+	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
+		plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), i);
+	}
+	plic_tresholdSet(PLIC_SCONTEXT(hal_cpuGetID()), 1);
+}
+
+
+void plic_init(void)
 {
 	unsigned int i;
 
-	plic_common.regw = (void *)((u64)((1L << 39) - 1024 * 1024 * 1024 + 0x0c000000) | (u64)0xffffff8000000000);
+	plic_common.regw = (void *)(0xffffffffc0000000 + PLIC_BASE);
 
 	/* Disable and mask external interrupts */
 	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
 		plic_priority(i, 0);
-		plic_disableInterrupt(1, i);
 	}
-
-	plic_tresholdSet(1, 1);
 }

@@ -5,8 +5,8 @@
  *
  * Exception handling (RISCV64)
  *
- * Copyright 2018, 2020 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2020, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -104,6 +104,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" sbaddaddr : ", &buff[i], (u64)ctx->sbadaddr, 16, 1);
 	i += hal_i2s(" scause : ", &buff[i], (u64)ctx->scause, 16, 1);
 	i += hal_i2s(" sscratch : ", &buff[i], (u64)ctx->sscratch, 16, 1);
+	buff[i++] = '\n';
+	i += hal_i2s(" cpu id : ", &buff[i], hal_cpuGetID(), 16, 0);
 
 	buff[i++] = '\n';
 

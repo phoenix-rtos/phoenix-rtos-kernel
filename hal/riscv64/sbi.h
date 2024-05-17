@@ -25,6 +25,19 @@ typedef struct {
 } sbiret_t;
 
 
+/* Standard SBI Errors */
+#define SBI_SUCCESS               0
+#define SBI_ERR_FAILED            -1
+#define SBI_ERR_NOT_SUPPORTED     -2
+#define SBI_ERR_INVALID_PARAM     -3
+#define SBI_ERR_DENIED            -4
+#define SBI_ERR_INVALID_ADDRESS   -5
+#define SBI_ERR_ALREADY_AVAILABLE -6
+#define SBI_ERR_ALREADY_STARTED   -7
+#define SBI_ERR_ALREADY_STOPPED   -8
+#define SBI_ERR_NO_SHMEM          -9
+
+
 /* Reset types */
 #define SBI_RESET_TYPE_SHUTDOWN 0x0
 #define SBI_RESET_TYPE_COLD     0x1
@@ -57,6 +70,18 @@ void hal_sbiSetTimer(u64 stime);
 
 
 void hal_sbiReset(u32 type, u32 reason);
+
+
+sbiret_t hal_sbiSendIPI(unsigned long hart_mask, unsigned long hart_mask_base);
+
+
+sbiret_t hal_sbiHartGetStatus(unsigned long hartid);
+
+
+sbiret_t hal_sbiHartStart(unsigned long hartid, unsigned long start_addr, unsigned long opaque);
+
+
+void hal_sbiRfenceI(unsigned long hart_mask, unsigned long hart_mask_base);
 
 
 void _hal_sbiInit(void);

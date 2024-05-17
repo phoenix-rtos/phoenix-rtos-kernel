@@ -5,26 +5,41 @@
  *
  * CPU related routines (RISCV64)
  *
- * Copyright 2018, 2020 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2020, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
+#include <arch/tlb.h>
+
+#include "hal/tlb/tlb.h"
 #include "include/errno.h"
 #include "hal/hal.h"
-#include "hal/cpu.h"
-#include "hal/spinlock.h"
-#include "hal/string.h"
-#include "hal/pmap.h"
 #include "riscv64.h"
 #include "dtb.h"
-#include "hal/types.h"
 
 
-ptr_t hal_cpuKernelStack;
+extern addr_t hal_relOffs;
+
+
+struct hal_perHartData {
+	unsigned long hartId;
+	ptr_t kstack;
+	ptr_t scratch;
+} __attribute__((packed, aligned(8))) hal_riscvHartData[MAX_CPU_COUNT];
+
+
+static struct {
+	volatile u32 cpuCnt;
+	volatile u32 cpusStarted;
+	intr_handler_t tlbIrqHandler;
+} cpu_common;
+
+
+extern void hal_timerInitCore(void);
 
 
 /* bit operations */
@@ -213,12 +228,8 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 
 void _hal_cpuSetKernelStack(void *kstack)
 {
-	hal_cpuKernelStack = (ptr_t)kstack;
-}
-
-
-void _hal_cpuInitCores(void)
-{
+	struct hal_perHartData *data = (void *)csr_read(sscratch);
+	data->kstack = (ptr_t)kstack;
 }
 
 
@@ -233,7 +244,7 @@ char *hal_cpuInfo(char *info)
 	hal_memcpy(info, model, l);
 	i += l;
 
-	hal_memcpy(&info[i], " (", 2);
+	hal_strcpy(&info[i], " (");
 	i += 2;
 
 	l = hal_strlen(compatible);
@@ -241,6 +252,13 @@ char *hal_cpuInfo(char *info)
 	i += l;
 
 	info[i++] = ')';
+	i += hal_i2s(" - ", &info[i], hal_cpuGetCount(), 10, 0);
+	hal_strcpy(&info[i], " core");
+	i += 5;
+	if (hal_cpuGetCount() > 1) {
+		hal_strcpy(&info[i], "s");
+		i += 1;
+	}
 	info[i] = 0;
 
 	return info;
@@ -310,16 +328,72 @@ void hal_cleanDCache(ptr_t start, size_t len)
 }
 
 
-void _hal_cpuInit(void)
+/* core management */
+
+
+unsigned int hal_cpuGetCount(void)
 {
-	_hal_cpuInitCores();
+	return cpu_common.cpuCnt;
+}
+
+
+unsigned int hal_cpuGetID(void)
+{
+	return ((struct hal_perHartData *)csr_read(sscratch))->hartId;
 }
 
 
 void hal_cpuBroadcastIPI(unsigned int intr)
 {
 	(void)intr;
-	/* TODO */
+
+	unsigned long hart_mask = (1UL << cpu_common.cpuCnt) - 1;
+	hart_mask &= ~(1UL << hal_cpuGetID());
+
+	(void)hal_sbiSendIPI(hart_mask, 0);
+}
+
+
+void hal_cpuRfenceI(void)
+{
+	unsigned long hart_mask = (1 << hal_cpuGetCount()) - 1;
+	hal_sbiRfenceI(hart_mask, 0);
+}
+
+
+__attribute__((section(".init"))) void hal_cpuInitCore(void)
+{
+	hal_interruptsInitCore();
+	hal_tlbInitCore(hal_cpuGetID());
+	hal_timerInitCore();
+	hal_cpuAtomicAdd(&cpu_common.cpusStarted, 1);
+}
+
+
+__attribute__((section(".init"))) void _hal_cpuInit(void)
+{
+	long err;
+
+	cpu_common.tlbIrqHandler.f = hal_tlbIrqHandler;
+	cpu_common.tlbIrqHandler.n = TLB_IRQ;
+	cpu_common.tlbIrqHandler.data = NULL;
+	cpu_common.cpusStarted = 0;
+	cpu_common.cpuCnt = 0;
+
+	(void)hal_interruptsSetHandler(&cpu_common.tlbIrqHandler);
+
+	hal_cpuInitCore();
+
+	/* Start other harts */
+	do {
+		err = hal_sbiHartStart(cpu_common.cpuCnt, pmap_getKernelStart(), hal_syspageAddr() - hal_relOffs).error;
+		if ((err == SBI_SUCCESS) || (err == SBI_ERR_ALREADY_AVAILABLE)) {
+			cpu_common.cpuCnt++;
+		}
+	} while (err != SBI_ERR_INVALID_PARAM);
+
+	while (cpu_common.cpusStarted != cpu_common.cpuCnt) {
+	}
 }
 
 
