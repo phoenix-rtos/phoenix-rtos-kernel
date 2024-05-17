@@ -133,6 +133,9 @@ extern void hal_cpuBroadcastIPI(unsigned int intr);
 extern void hal_cpuReboot(void);
 
 
+extern void hal_cpuSmpSync(void);
+
+
 /* thread local storage */
 
 

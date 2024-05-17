@@ -354,6 +354,16 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 }
 
 
+/* Sync instruction & data stores across SMP */
+void hal_cpuSmpSync(void)
+{
+	unsigned long hart_mask = (1 << hal_cpuGetCount()) - 1;
+	RISCV_FENCE(rw, rw);
+	hal_cpuInstrBarrier();
+	hal_sbiRfenceI(hart_mask, 0);
+}
+
+
 void hal_cpuRfenceI(void)
 {
 	unsigned long hart_mask = (1 << hal_cpuGetCount()) - 1;

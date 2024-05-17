@@ -247,6 +247,12 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 }
 
 
+void hal_cpuSmpSync(void)
+{
+	/* Nothing to do */
+}
+
+
 /* cache management */
 
 

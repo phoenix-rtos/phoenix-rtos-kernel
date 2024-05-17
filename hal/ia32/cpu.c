@@ -267,6 +267,12 @@ void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kar
 /* core management */
 
 
+void hal_cpuSmpSync(void)
+{
+	/* Nothing to do */
+}
+
+
 unsigned int hal_cpuGetCount(void)
 {
 	return cpu.ncpus;

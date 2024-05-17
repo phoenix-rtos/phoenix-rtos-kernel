@@ -1158,6 +1158,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
+	hal_cpuSmpSync();
 	hal_jmp(entry, current->kstack + current->kstacksz, stack, 0, NULL);
 }
 
@@ -1500,6 +1501,8 @@ static int process_copy(void)
 
 	proc_changeMap(process, &process->map, process->imapp, &process->map.pmap);
 
+	hal_cpuSmpSync();
+
 	pmap_switch(process->pmapp);
 	return EOK;
 }
@@ -1565,6 +1568,8 @@ int proc_fork(void)
 		parent = ((process_spawn_t *)current->execdata)->parent;
 		hal_memcpy(current->kstack + current->kstacksz - sizeof(cpu_context_t),
 			parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
+
+		hal_cpuSmpSync();
 
 		if (err < 0) {
 			args[0] = (arg_t)current;
