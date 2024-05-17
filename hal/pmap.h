@@ -35,6 +35,10 @@ extern addr_t pmap_destroy(pmap_t *pmap, int *i);
 extern int pmap_addMap(pmap_t *pmap, unsigned int map);
 
 
+/* Available only on NOMMU */
+extern int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size);
+
+
 extern void pmap_switch(pmap_t *pmap);
 
 

@@ -67,6 +67,13 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 }
 
 
+int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
+{
+	/* No MPU, always allowed */
+	return 1;
+}
+
+
 int pmap_getPage(page_t *page, addr_t *addr)
 {
 	return 0;

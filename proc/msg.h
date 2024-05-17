@@ -50,6 +50,9 @@ typedef struct _kmsg_t {
 		u64 eoffs;
 		page_t *ep;
 	} i, o;
+#else
+	void *imapped;
+	void *omapped;
 #endif
 } kmsg_t;
 

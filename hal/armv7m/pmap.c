@@ -78,10 +78,10 @@ int pmap_addMap(pmap_t *pmap, unsigned int map)
 
 void pmap_switch(pmap_t *pmap)
 {
-	unsigned int i;
+	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 
 	if (pmap != NULL) {
-		for (i = 0; i < syspage->hs.mpu.allocCnt; ++i) {
+		for (i = 0; i < cnt; ++i) {
 			/* Select region */
 			*(pmap_common.mpu + mpu_rnr) = i;
 			hal_cpuDataMemoryBarrier();
@@ -114,6 +114,22 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
 	return (addr_t)vaddr;
+}
+
+
+int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
+{
+	const syspage_map_t *map = syspage_mapAddrResolve((addr_t)vaddr);
+	int region;
+	if (map == NULL) {
+		return 0;
+	}
+	region = pmap_map2region(map->id);
+	if (region < 0) {
+		return 0;
+	}
+
+	return ((pmap->regions & (1 << region)) != 0) ? 1 : 0;
 }
 
 
@@ -154,7 +170,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	int ikregion;
 	u32 t;
 	addr_t pc;
-	unsigned int i;
+	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 
 	(*vstart) = (void *)(((ptr_t)_init_vectors + 7) & ~7);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
@@ -175,7 +191,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	*(pmap_common.mpu + mpu_ctrl) |= (1 << 2);
 	hal_cpuDataMemoryBarrier();
 
-	for (i = 0; i < syspage->hs.mpu.allocCnt; ++i) {
+	for (i = 0; i < cnt; ++i) {
 		t = syspage->hs.mpu.table[i].rbar;
 		if ((t & (1 << 4)) == 0) {
 			continue;
