@@ -14,7 +14,7 @@
  */
 
 #include "hal/spinlock.h"
-#include "hal/cpu.h"
+#include "hal/console.h"
 #include "hal/list.h"
 
 
@@ -26,8 +26,7 @@ static struct {
 
 static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 {
-	spinlock->lock = 1;
-
+	spinlock->lock = 0;
 	spinlock->name = name;
 
 	HAL_LIST_ADD(&spinlock_common.first, spinlock);
@@ -37,14 +36,14 @@ static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	/* clang-format off */
-	__asm__ volatile
-	(" \
-		csrrc t0, sstatus, 2; \
-		sd t0, (%0); \
-		mv t0, zero; \
-	1: \
-		amoswap.w.aq t0, t0, %1; \
-		beqz t0, 1b"
+	__asm__ volatile (
+		"csrrc t0, sstatus, 2\n\t"
+		"sd t0, (%0)\n\t"
+		"li t0, 1\n\t"
+	"1:\n\t"
+		"amoswap.w.aq t0, t0, %1\n\t"
+		"bnez t0, 1b\n\t"
+		"fence r, rw"
 	:
 	: "r" (sc), "A" (spinlock->lock)
 	: "t0", "memory");
@@ -55,15 +54,14 @@ void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	/* clang-format off */
-	__asm__ volatile
-	(" \
-		li t1, 1; \
-		amoswap.w.rl t1, t1, %0; \
-		ld t0, (%1); \
-		csrw sstatus, t0"
+	__asm__ volatile (
+		"fence rw, w\n\t"
+		"amoswap.w.rl zero, zero, %0\n\t"
+		"ld t0, (%1)\n\t"
+		"csrw sstatus, t0"
 	:
 	: "A" (spinlock->lock), "r" (sc)
-	: "t0", "t1", "memory");
+	: "t0", "memory");
 	/* clang-format on */
 }
 

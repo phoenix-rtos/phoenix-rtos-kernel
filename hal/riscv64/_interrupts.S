@@ -5,7 +5,7 @@
  *
  * Interrupt stubs
  *
- * Copyright 2018, 2020, 2023 Phoenix Systems
+ * Copyright 2018, 2020, 2023, 2024 Phoenix Systems
  * Author: Pawel Pisarczyk, Julia Kosowska, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
@@ -18,12 +18,20 @@
 #include <arch/cpu.h>
 
 .extern hal_cpuKernelStack
+.extern hal_multilock
 
 .text
 
+.macro MULTILOCK_CLEAR
+	la t0, hal_multilock
+	fence rw, w
+	amoswap.w.rl zero, zero, (t0)
+.endm
+
+
 .macro SAVE
-	/* Save a0 to sscratch */
-	csrw sscratch, a0
+	csrrw a1, sscratch, a1  /* a1 = &hal_riscvHartData[hartId] */
+	sd a0, 16(a1)           /* Save a0 */
 
 	/* Read sstatus to a0 */
 	csrr a0, sstatus
@@ -44,7 +52,7 @@
 	/* User mode
 	 * Load kernel stack pointer from hal_cpuKernelStack
 	 */
-	ld a0, hal_cpuKernelStack
+	ld a0, 8(a1)
 
 	/* Save task's stack pointer */
 	sd sp, -272(a0)
@@ -53,8 +61,9 @@
 	addi sp, a0, -CPU_CTX_SIZE
 
 2:
-	/* restore a0 */
-	csrr a0, sscratch
+	/* restore a0, a1 */
+	ld a0, 16(a1)
+	csrrw a1, sscratch, a1
 
 	/* Save context */
 	sd x1, (sp)          /* ra */
@@ -140,12 +149,7 @@
 	li t0, (2 << 13)
 	csrs sstatus, t0
 3:
-
-	/* Allow supervisor access to user space */
-	li t0, SSTATUS_SUM
-	csrs sstatus, t0
-
-	csrrc s1, sstatus, SSTATUS_SIE
+	csrr s1, sstatus
 	csrr s2, sepc
 	csrr s3, sbadaddr
 	csrr s4, scause
@@ -154,15 +158,11 @@
 	sd s2, 248(sp)   /* sepc */
 	sd s3, 256(sp)   /* sbadaddr */
 	sd s4, 264(sp)   /* scause */
-
 	sd tp, 280(sp)   /* tp */
 .endm
 
 
 .macro RESTORE
-	/* Switch kernel stack */
-	ld sp, 232(sp)
-
 	ld a0, 240(sp)
 	andi a0, a0, ~SSTATUS_SIE
 	csrw sstatus, a0
@@ -247,6 +247,8 @@
 
 	/* Restore task's stack pointer */
 	ld sp, 288(sp)
+
+	fence.i
 .endm
 
 
@@ -268,7 +270,11 @@ _interrupts_dispatch:
 
 	/* IRQ */
 	call interrupts_dispatch
-	j _interrupts_return
+
+	/* clear multilock only if rescheduled */
+	bnez a0, _interrupts_return
+
+	tail _interrupts_returnUnlocked
 
 _interrupts_notIrq:
 	li t1, SCAUSE_ECALL
@@ -285,7 +291,7 @@ _interrupts_notIrq:
 	sd a0, 56(sp)
 	csrc sstatus, SSTATUS_SIE
 
-	j _interrupts_return
+	tail _interrupts_returnUnlocked
 
 _interrupts_exception:
 	/* On some implementations (notably SPIKE), FPU instruction while FPU disabled
@@ -418,20 +424,22 @@ _interrupts_exceptionFpu:
 	fmv.d.x f30, zero
 	fmv.d.x f31, zero
 
-	j _interrupts_return
+	tail _interrupts_returnUnlocked
 
 _interrupts_exceptionNotFpu:
+	/* Save sscratch to be able to get hart ID */
+	csrr s5, sscratch
+	sd s5, 272(sp)
+
 	mv a1, sp
 	call exceptions_dispatch
 
-_interrupts_return:
-	RESTORE
-	sret
+	tail _interrupts_returnUnlocked
 .size _interrupts_dispatch, .-_interrupts_dispatch
 
 
-
 .global hal_cpuReschedule
+.type hal_cpuReschedule, @function
 hal_cpuReschedule:
 	/* Disable interrupts */
 	csrc sstatus, SSTATUS_SIE
@@ -444,45 +452,66 @@ hal_cpuReschedule:
 
 	SAVE
 
-	beqz a0, 1f
-
-	/* Modify saved status */
-	ld t0, (a1)
-	sd t0, 240(sp)
-
-	/* Clear spinlock */
-	li t0, 1
-	addi a0, a0, 24
-	amoswap.w.rl t0, t0, (a0)
-1:
-	ld t0, 240(sp)
+	/* Default return value (0) */
 	sd zero, 56(sp)
 
-	ori t0, t0, SSTATUS_SPP
-	andi t1, t0, SSTATUS_SIE
-	sll t1, t1, 4
-	andi t0, t0, ~SSTATUS_SIE
-	or t0, t0, t1
+	beqz a0, .LnoSpinlock
 
-	/* Save modified flags in old context */
+.Lspinlocked:
+	/* Modify saved status */
+	ld t0, (a1)
+	ori t0, t0, SSTATUS_SPP
 	sd t0, 240(sp)
 
+	/* Save spinlock */
+	mv s0, a0
+
+	mv a0, zero
+	mv a1, sp
+	mv a2, zero
+	call _threads_schedule
+
+	/* Clear spinlock */
+	addi s0, s0, 24
+	fence
+	amoswap.w.rl zero, zero, (s0)
+
+	tail _interrupts_return
+
+.LnoSpinlock:
+	mv a0, zero
 	mv a1, sp
 	mv a2, zero
 	call threads_schedule
 
-	RESTORE
-	sret
+	tail _interrupts_return
 .size hal_cpuReschedule, .-hal_cpuReschedule
 
 
+.type _interrupts_return, @function
+_interrupts_return:
+	/* Switch stack */
+	ld sp, 232(sp)
+	MULTILOCK_CLEAR
+
+.Lmultilock_cleared:
+	RESTORE
+	sret
+
+_interrupts_returnUnlocked:
+	ld sp, 232(sp)
+	j .Lmultilock_cleared
+.size _interrupts_return, .-_interrupts_return
+
+
 .global hal_jmp  /* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
+.type hal_jmp, @function
 hal_jmp:
+	csrc sstatus, SSTATUS_SIE /* disable interrupts */
 	mv s0, a0
 	mv s1, a1
 	mv s2, a2
 	mv s3, a3
-	csrc sstatus, SSTATUS_SIE /* disable interrupts */
 
 	bnez a2, 2f
 
@@ -510,5 +539,6 @@ hal_jmp:
 	csrc sstatus, t0 /* sret will return to usermode */
 	csrw sepc, s0 /* address to return to */
 
+	fence.i
 	sret
 .size hal_jmp, .-hal_jmp

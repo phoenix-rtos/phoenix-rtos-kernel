@@ -5,8 +5,8 @@
  *
  * Interrupt handling (RISCV64)
  *
- * Copyright 2018, 2020 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2020, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -17,12 +17,11 @@
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
 #include "hal/list.h"
-#include "sbi.h"
+#include "hal/string.h"
 #include "plic.h"
 #include "dtb.h"
 #include "riscv64.h"
 
-#include "proc/userintr.h"
 #include "include/errno.h"
 
 #include <board_config.h>
@@ -55,16 +54,17 @@ static struct {
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
-static void interrupts_dispatchPlic(cpu_context_t *ctx)
+static int interrupts_dispatchPlic(cpu_context_t *ctx)
 {
 	int reschedule = 0;
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
 
-	unsigned int irq = plic_claim(1);
+	unsigned int irq = plic_claim(PLIC_SCONTEXT(hal_cpuGetID()));
+	RISCV_FENCE(o, i);
 
 	if (irq == 0) {
-		return;
+		return 0;
 	}
 
 	hal_spinlockSet(&interrupts_common.plic.spinlocks[irq], &sc);
@@ -85,11 +85,13 @@ static void interrupts_dispatchPlic(cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts_common.plic.spinlocks[irq], &sc);
 
-	plic_complete(1, irq);
+	plic_complete(PLIC_SCONTEXT(hal_cpuGetID()), irq);
+
+	return reschedule;
 }
 
 
-static void interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
+static int interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	int reschedule = 0;
@@ -112,17 +114,18 @@ static void interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 	}
 
 	hal_spinlockClear(&interrupts_common.clint.spinlocks[n], &sc);
+
+	return reschedule;
 }
 
 
-void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
+int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	if ((n == EXT_IRQ) && (dtb_getPLIC() != 0)) {
-		interrupts_dispatchPlic(ctx);
+		return interrupts_dispatchPlic(ctx);
 	}
-	else {
-		interrupts_dispatchClint(n, ctx);
-	}
+
+	return interrupts_dispatchClint(n, ctx);
 }
 
 
@@ -139,10 +142,10 @@ static int interrupts_setPlic(intr_handler_t *h, enum irq_state enable)
 	if (enable == irq_enable) {
 		HAL_LIST_ADD(&interrupts_common.plic.handlers[h->n], h);
 		plic_priority(h->n, 2);
-		plic_enableInterrupt(1, h->n);
+		plic_enableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
 	}
 	else {
-		plic_disableInterrupt(1, h->n);
+		plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
 		HAL_LIST_REMOVE(&interrupts_common.plic.handlers[h->n], h);
 	}
 
@@ -170,7 +173,6 @@ static int interrupts_setClint(intr_handler_t *h, enum irq_state enable)
 		csr_clear(sie, 1u << h->n);
 		HAL_LIST_REMOVE(&interrupts_common.clint.handlers[h->n], h);
 	}
-
 
 	hal_spinlockClear(&interrupts_common.clint.spinlocks[h->n], &sc);
 
@@ -236,6 +238,16 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 extern void _interrupts_dispatch(void *);
 
 
+void hal_interruptsInitCore(void)
+{
+	csr_write(stvec, _interrupts_dispatch);
+
+	if (dtb_getPLIC()) {
+		plic_initCore();
+	}
+}
+
+
 __attribute__((section(".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int i;
@@ -252,13 +264,9 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 		hal_spinlockCreate(&interrupts_common.plic.spinlocks[i], "interrupts_common.plic");
 	}
 
-	/* Enable HART interrupts */
-	csr_write(sscratch, 0);
-	csr_write(sie, -1);
-	csr_write(stvec, _interrupts_dispatch);
-
 	/* Initialize PLIC if present */
 	if (dtb_getPLIC()) {
-		_plic_init();
+		plic_init();
 	}
+	csr_write(sie, -1);
 }

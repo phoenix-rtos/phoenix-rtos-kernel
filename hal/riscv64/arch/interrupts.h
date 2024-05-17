@@ -5,9 +5,9 @@
  *
  * Exception and interrupt handling
  *
- * Copyright 2016, 2012, 2020 Phoenix Systems
+ * Copyright 2016, 2012, 2020, 2024 Phoenix Systems
  * Copyright 2001, 2005, 2006 Pawel Pisarczyk
- * Author: Pawel Pisarczyk
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -20,6 +20,7 @@
 #include "cpu.h"
 
 
+#define TLB_IRQ     (1u | CLINT_IRQ_FLG)
 #define SYSTICK_IRQ (5u | CLINT_IRQ_FLG)
 
 
@@ -30,5 +31,9 @@ typedef struct _intr_handler_t {
 	int (*f)(unsigned int, cpu_context_t *, void *);
 	void *data;
 } intr_handler_t;
+
+
+void hal_interruptsInitCore(void);
+
 
 #endif
