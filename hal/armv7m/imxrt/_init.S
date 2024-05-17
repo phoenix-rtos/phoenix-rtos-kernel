@@ -91,7 +91,7 @@ _start:
 	isb
 	dmb
 	ldr r0, [r1]
-	bic r0, 7
+	bic r0, #7
 	msr msp, r0
 	isb
 	bl _imxrt_init
@@ -397,7 +397,7 @@ hal_exceptionJump:
 
 	mov lr, #0
 	msr control, lr
-	mov lr, 0xffffffe9
+	mov lr, 0xfffffff9
 	cpsie if
 	dsb
 	bx lr
