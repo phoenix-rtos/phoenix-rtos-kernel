@@ -302,3 +302,8 @@ void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
 	__asm__ volatile("mov %0, %%g7" ::"r"(tls->tls_base + tls->tbss_sz + tls->tdata_sz));
 }
+
+
+void hal_cpuSmpSync(void)
+{
+}

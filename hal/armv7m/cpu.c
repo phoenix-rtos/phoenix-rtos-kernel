@@ -331,6 +331,11 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 }
 
 
+void hal_cpuSmpSync(void)
+{
+}
+
+
 /* Not safe to call if TLS is not present (tls_base mustn't be NULL) */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
