@@ -16,6 +16,7 @@
 #include "include/errno.h"
 #include "lib/lib.h"
 #include "proc.h"
+#include "vm/vm.h"
 
 
 enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
@@ -88,12 +89,27 @@ int proc_send(u32 port, msg_t *msg)
 }
 
 
+static void proc_msgReject(kmsg_t *kmsg, port_t *p)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&p->spinlock, &sc);
+	kmsg->state = msg_rejected;
+	proc_threadWakeup(&kmsg->threads);
+	hal_spinlockClear(&p->spinlock, &sc);
+
+	port_put(p, 0);
+}
+
+
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p;
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
 	int err = 0;
+	thread_t *current = proc_current();
+	void *idata = NULL;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -129,18 +145,50 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	if (proc_portRidAlloc(p, kmsg) < 0) {
-		hal_spinlockSet(&p->spinlock, &sc);
-		kmsg->state = msg_rejected;
-		proc_threadWakeup(&kmsg->threads);
-		hal_spinlockClear(&p->spinlock, &sc);
-
-		port_put(p, 0);
+		proc_msgReject(kmsg, p);
 		return -ENOMEM;
 	}
 
 	*rid = lib_idtreeId(&kmsg->idlinkage);
 
 	hal_memcpy(msg, kmsg->msg, sizeof(*msg));
+
+	kmsg->imapped = NULL;
+	kmsg->omapped = NULL;
+
+	if ((kmsg->msg->i.data != NULL) && (kmsg->msg->i.size != 0) && (current->process != NULL) &&
+			(pmap_isAllowed(current->process->pmapp, kmsg->msg->i.data, kmsg->msg->i.size) == 0)) {
+
+		idata = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->i.size),
+			PROT_READ | PROT_USER, NULL, -1, MAP_ANONYMOUS);
+		if (idata == NULL) {
+			/* Free RID */
+			(void)proc_portRidGet(p, *rid);
+			proc_msgReject(kmsg, p);
+			return -ENOMEM;
+		}
+		hal_memcpy(idata, kmsg->msg->i.data, kmsg->msg->i.size);
+		kmsg->imapped = idata;
+		msg->i.data = idata;
+	}
+
+	if ((kmsg->msg->o.data != NULL) && (kmsg->msg->o.size != 0) && (current->process != NULL) &&
+			(pmap_isAllowed(current->process->pmapp, kmsg->msg->o.data, kmsg->msg->o.size) == 0)) {
+
+		msg->o.data = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->o.size),
+			PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_ANONYMOUS);
+		if (msg->o.data == NULL) {
+			if (idata != NULL) {
+				vm_munmap(current->process->mapp, idata, round_page(kmsg->msg->i.size));
+			}
+
+			/* Free RID */
+			(void)proc_portRidGet(p, *rid);
+			proc_msgReject(kmsg, p);
+			return -ENOMEM;
+		}
+		kmsg->omapped = msg->o.data;
+	}
 
 	port_put(p, 0);
 
@@ -154,6 +202,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	size_t s = 0;
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
+	thread_t *current = proc_current();
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -168,9 +217,18 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_memcpy(kmsg->msg->o.raw, msg->o.raw, sizeof(msg->o.raw));
 	kmsg->msg->o.err = msg->o.err;
 
+	if (kmsg->imapped != NULL) {
+		vm_munmap(current->process->mapp, kmsg->imapped, round_page(kmsg->msg->i.size));
+	}
+
+	if (kmsg->omapped != NULL) {
+		hal_memcpy(kmsg->msg->o.data, kmsg->omapped, kmsg->msg->o.size);
+		vm_munmap(current->process->mapp, kmsg->omapped, round_page(kmsg->msg->o.size));
+	}
+
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
-	kmsg->src = proc_current()->process;
+	kmsg->src = current->process;
 	proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
