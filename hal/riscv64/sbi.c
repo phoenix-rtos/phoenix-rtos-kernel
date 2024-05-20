@@ -45,6 +45,12 @@
 #define SBI_HSM_STATUS  0x2
 #define SBI_HSM_SUSPEND 0x3
 
+/* RFENCE extension */
+#define SBI_EXT_RFENCE           0x52464E43
+#define SBI_RFNC_I               0x0
+#define SBI_RFNC_SFENCE_VMA      0x1
+#define SBI_RFNC_SFENCE_VMA_ASID 0x2
+
 /* Legacy extensions */
 #define SBI_LEGACY_SETTIMER               0x0
 #define SBI_LEGACY_PUTCHAR                0x1
@@ -55,10 +61,6 @@
 #define SBI_LEGACY_REMOTE_SFENCE_VMA      0x6
 #define SBI_LEGACY_REMOTE_SFENCE_VMA_ASID 0x7
 #define SBI_LEGACY_SHUTDOWN               0x8
-
-/* RFENCE extension */
-#define SBI_EXT_RFENCE 0x52464E43
-#define SBI_RFNC_I     0x0
 
 /* clang-format off */
 #define SBI_MINOR(x) ((x) & 0xffffff)
@@ -173,6 +175,18 @@ sbiret_t hal_sbiHartStart(unsigned long hartid, unsigned long start_addr, unsign
 void hal_sbiRfenceI(unsigned long hart_mask, unsigned long hart_mask_base)
 {
 	hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_I, hart_mask, hart_mask_base, 0, 0, 0, 0);
+}
+
+
+sbiret_t hal_sbiSfenceVma(unsigned long hart_mask, unsigned long hart_mask_base, unsigned long vaddr, unsigned long size)
+{
+	return hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_SFENCE_VMA, hart_mask, hart_mask_base, vaddr, size, 0, 0);
+}
+
+
+sbiret_t hal_sbiSfenceVmaAsid(unsigned long hart_mask, unsigned long hart_mask_base, unsigned long vaddr, unsigned long size, unsigned long asid)
+{
+	return hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_SFENCE_VMA_ASID, hart_mask, hart_mask_base, vaddr, size, asid, 0);
 }
 
 

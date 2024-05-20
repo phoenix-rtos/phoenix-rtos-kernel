@@ -84,6 +84,12 @@ sbiret_t hal_sbiHartStart(unsigned long hartid, unsigned long start_addr, unsign
 void hal_sbiRfenceI(unsigned long hart_mask, unsigned long hart_mask_base);
 
 
+sbiret_t hal_sbiSfenceVma(unsigned long hart_mask, unsigned long hart_mask_base, unsigned long vaddr, unsigned long size);
+
+
+sbiret_t hal_sbiSfenceVmaAsid(unsigned long hart_mask, unsigned long hart_mask_base, unsigned long vaddr, unsigned long size, unsigned long asid);
+
+
 void _hal_sbiInit(void);
 
 

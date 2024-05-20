@@ -65,19 +65,6 @@
 	})
 
 
-static inline void hal_cpuFlushTLB(const void *vaddr)
-{
-	/* clang-format off */
-	__asm__ volatile (
-		"sfence.vma %0, zero"
-		:
-		: "r"(vaddr)
-		: "memory"
-	);
-	/* clang-format on */
-}
-
-
 static inline void hal_cpuSwitchSpace(addr_t pdir)
 {
 	/* clang-format off */

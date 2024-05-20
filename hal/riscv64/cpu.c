@@ -13,9 +13,6 @@
  * %LICENSE%
  */
 
-#include <arch/tlb.h>
-
-#include "hal/tlb/tlb.h"
 #include "include/errno.h"
 #include "hal/hal.h"
 #include "riscv64.h"
@@ -35,7 +32,6 @@ struct hal_perHartData {
 static struct {
 	volatile u32 cpuCnt;
 	volatile u32 cpusStarted;
-	intr_handler_t tlbIrqHandler;
 } cpu_common;
 
 
@@ -371,10 +367,33 @@ void hal_cpuRfenceI(void)
 }
 
 
+void hal_cpuLocalFlushTLB(const struct _pmap_t *pmap, const void *vaddr)
+{
+	(void)pmap; /* TODO: ASID support */
+
+	/* clang-format off */
+	__asm__ volatile (
+		"sfence.vma %0, zero"
+		:
+		: "r"(vaddr)
+		: "memory"
+	);
+	/* clang-format on */
+}
+
+
+void hal_cpuRemoteFlushTLB(const struct _pmap_t *pmap, const void *vaddr, size_t size)
+{
+	(void)pmap; /* TODO: ASID support */
+
+	unsigned long hart_mask = (1 << hal_cpuGetCount()) - 1;
+	hal_sbiSfenceVma(hart_mask, 0, (unsigned long)vaddr, size);
+}
+
+
 __attribute__((section(".init"))) void hal_cpuInitCore(void)
 {
 	hal_interruptsInitCore();
-	hal_tlbInitCore(hal_cpuGetID());
 	hal_timerInitCore();
 	hal_cpuAtomicAdd(&cpu_common.cpusStarted, 1);
 }
@@ -384,13 +403,8 @@ __attribute__((section(".init"))) void _hal_cpuInit(void)
 {
 	long err;
 
-	cpu_common.tlbIrqHandler.f = hal_tlbIrqHandler;
-	cpu_common.tlbIrqHandler.n = TLB_IRQ;
-	cpu_common.tlbIrqHandler.data = NULL;
 	cpu_common.cpusStarted = 0;
 	cpu_common.cpuCnt = 0;
-
-	(void)hal_interruptsSetHandler(&cpu_common.tlbIrqHandler);
 
 	hal_cpuInitCore();
 
