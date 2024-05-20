@@ -353,17 +353,23 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 /* Sync instruction & data stores across SMP */
 void hal_cpuSmpSync(void)
 {
-	unsigned long hart_mask = (1 << hal_cpuGetCount()) - 1;
-	RISCV_FENCE(rw, rw);
-	hal_cpuInstrBarrier();
-	hal_sbiRfenceI(hart_mask, 0);
+	unsigned long hart_mask;
+	if (hal_cpuGetCount() > 1) {
+		hart_mask = (1 << hal_cpuGetCount()) - 1;
+		RISCV_FENCE(rw, rw);
+		hal_cpuInstrBarrier();
+		hal_sbiRfenceI(hart_mask, 0);
+	}
 }
 
 
 void hal_cpuRfenceI(void)
 {
-	unsigned long hart_mask = (1 << hal_cpuGetCount()) - 1;
-	hal_sbiRfenceI(hart_mask, 0);
+	unsigned long hart_mask;
+	if (hal_cpuGetCount() > 1) {
+		hart_mask = (1 << hal_cpuGetCount()) - 1;
+		hal_sbiRfenceI(hart_mask, 0);
+	}
 }
 
 
@@ -386,8 +392,15 @@ void hal_cpuRemoteFlushTLB(const struct _pmap_t *pmap, const void *vaddr, size_t
 {
 	(void)pmap; /* TODO: ASID support */
 
-	unsigned long hart_mask = (1 << hal_cpuGetCount()) - 1;
-	hal_sbiSfenceVma(hart_mask, 0, (unsigned long)vaddr, size);
+	unsigned long hart_mask;
+
+	if (hal_cpuGetCount() > 1) {
+		hart_mask = (1 << hal_cpuGetCount()) - 1;
+		hal_sbiSfenceVma(hart_mask, 0, (unsigned long)vaddr, size);
+	}
+	else {
+		hal_cpuLocalFlushTLB(pmap, vaddr);
+	}
 }
 
 
