@@ -173,6 +173,9 @@ typedef struct {
 } __attribute__((packed, aligned(8))) cpu_context_t;
 
 
+struct _pmap_t;
+
+
 /* interrupts */
 
 
@@ -280,6 +283,12 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 
 
 void hal_cpuRfenceI(void);
+
+
+void hal_cpuLocalFlushTLB(const struct _pmap_t *pmap, const void *vaddr);
+
+
+void hal_cpuRemoteFlushTLB(const struct _pmap_t *pmap, const void *vaddr, size_t size);
 
 
 /* Code used in disabled code vm/object.c - map_pageFault */

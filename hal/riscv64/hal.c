@@ -13,12 +13,7 @@
  * %LICENSE%
  */
 
-#include <arch/tlb.h>
-
 #include "hal/hal.h"
-#include "hal/tlb/tlb.h"
-
-#include "riscv64.h"
 #include "include/arch/riscv64/riscv64.h"
 
 
@@ -67,10 +62,6 @@ void _hal_start(void)
 
 void hal_lockScheduler(void)
 {
-	hal_tlbShootdown();
-	/* Clear pending IPI - we've done the shootdown */
-	csr_clear(sip, SIP_SSIP);
-
 	/* clang-format off */
 	__asm__ volatile (
 		"li t0, 1\n\t"
