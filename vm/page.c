@@ -100,10 +100,12 @@ page_t *vm_pageAlloc(size_t size, u8 flags)
 }
 
 
-void _page_free(page_t *p)
+void vm_pageFree(page_t *p)
 {
 	unsigned int idx, i;
 	page_t *lh = p, *rh = p;
+
+	proc_lockSet(&pages.lock);
 
 	if ((lh->flags & PAGE_FREE) != 0) {
 		hal_cpuDisableInterrupts();
@@ -154,14 +156,6 @@ void _page_free(page_t *p)
 
 	LIST_ADD(&pages.sizes[idx], p);
 
-	return;
-}
-
-
-void vm_pageFree(page_t *lh)
-{
-	proc_lockSet(&pages.lock);
-	_page_free(lh);
 	proc_lockClear(&pages.lock);
 	return;
 }
@@ -193,14 +187,6 @@ page_t *_page_get(addr_t addr)
 	p = lib_bsearch((void *)addr, pages.pages, np, sizeof(page_t),  _page_get_cmp);
 
 	return p;
-}
-
-
-void vm_pageFreeAt(pmap_t *pmap, void *vaddr)
-{
-	proc_lockSet(&pages.lock);
-	_page_free(_page_get(pmap_resolve(pmap, vaddr)));
-	proc_lockClear(&pages.lock);
 }
 
 

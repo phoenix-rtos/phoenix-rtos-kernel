@@ -24,16 +24,10 @@
 extern page_t *vm_pageAlloc(size_t size, u8 flags);
 
 
-extern void _page_free(page_t *lh);
-
-
 extern void vm_pageFree(page_t *lh);
 
 
 extern page_t *_page_get(addr_t addr);
-
-
-extern void vm_pageFreeAt(pmap_t *pmap, void *vaddr);
 
 
 extern void _page_showPages(void);
