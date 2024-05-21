@@ -72,24 +72,17 @@ page_t *vm_pageAlloc(size_t size, u8 flags)
 }
 
 
-void _page_free(page_t *lh)
+void vm_pageFree(page_t *lh)
 {
+	proc_lockSet(&pages.lock);
+
 	lh->next = pages.freeq;
 	pages.freeq = lh;
 
 	pages.freesz += (1 << lh->idx);
 	pages.allocsz -= (1 << lh->idx);
 
-	return;
-}
-
-
-void vm_pageFree(page_t *lh)
-{
-	proc_lockSet(&pages.lock);
-	_page_free(lh);
 	proc_lockClear(&pages.lock);
-
 	return;
 }
 
@@ -121,11 +114,6 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attr)
 page_t *_page_get(addr_t addr)
 {
 	return NULL;
-}
-
-
-void vm_pageFreeAt(pmap_t *pmap, void *vaddr)
-{
 }
 
 

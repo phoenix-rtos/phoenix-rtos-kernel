@@ -50,7 +50,7 @@ void test_vm_alloc(void)
 			break;
 		}
 
-		_page_free(p);
+		vm_pageFree(p);
 
 		lib_printf("\rtest: size=%d, n=%d", size, n);
 
