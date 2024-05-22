@@ -748,10 +748,10 @@ static int _imxrt_getIOgpr(int which, unsigned int *what)
 static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 {
 	/*
-	 * GPR0 - GPR25, GPR27 - GPR32 don't exist
+	 * GPR27 - GPR32 don't exist
 	 * GPR40 and GPR41 are read only
 	 */
-	if ((which < 26) || ((which > 26) && (which < 33)) || (which > 39)) {
+	if ((which < 0) || ((which > 26) && (which < 33)) || (which > 39)) {
 		return -EINVAL;
 	}
 
@@ -765,9 +765,9 @@ static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 static int _imxrt_getIOlpsrGpr(int which, unsigned int *what)
 {
 	/*
-	 * GPR0 - GPR25, GPR27 - GPR32 don't exist
+	 * GPR27 - GPR32 don't exist
 	 */
-	if ((which < 26) || ((which > 26) && (which < 33)) || (which > 41) || (what == NULL)) {
+	if ((which < 0) || ((which > 26) && (which < 33)) || (which > 41) || (what == NULL)) {
 		return -EINVAL;
 	}
 
