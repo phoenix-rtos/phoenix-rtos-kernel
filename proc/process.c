@@ -1352,6 +1352,7 @@ static void process_vforkThread(void *arg)
 	process_spawn_t *spawn = arg;
 	thread_t *current, *parent;
 	spinlock_ctx_t sc;
+	int ret;
 
 	current = proc_current();
 	parent = spawn->parent;
@@ -1387,6 +1388,18 @@ static void process_vforkThread(void *arg)
 
 	hal_memcpy(&current->process->tls, &parent->process->tls, sizeof(hal_tls_t));
 	hal_memcpy(&current->tls, &parent->tls, sizeof(hal_tls_t));
+
+	ret = proc_resourcesCopy(parent->process);
+	if (ret < 0) {
+		vm_kfree(current->parentkstack);
+
+		hal_spinlockSet(&spawn->sl, &sc);
+		spawn->state = ret;
+		proc_threadWakeup(&spawn->wq);
+		hal_spinlockClear(&spawn->sl, &sc);
+
+		proc_threadEnd();
+	}
 
 	hal_cpuDisableInterrupts();
 	current->kstack = parent->kstack;
@@ -1476,10 +1489,6 @@ static int process_copy(void)
 
 	process->path = lib_strdup(parent->process->path);
 	if (process->path == NULL) {
-		return -ENOMEM;
-	}
-
-	if (proc_resourcesCopy(parent->process) < 0) {
 		return -ENOMEM;
 	}
 
