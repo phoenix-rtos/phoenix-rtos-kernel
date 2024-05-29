@@ -287,6 +287,10 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned cha
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
 
+	if ((zero == 0) && (i == 0)) {
+		s[m++] = '0';
+	}
+
 	for (k = m, l = (unsigned long)-1; l != 0; i /= b, l /= b) {
 		if ((zero == 0) && (i == 0)) {
 			break;
