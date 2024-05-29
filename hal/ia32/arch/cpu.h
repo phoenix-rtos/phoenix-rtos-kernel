@@ -196,13 +196,13 @@
 #pragma pack(push, 1)
 
 typedef struct {
-	u16 _controlWord, controlWord;
-	u16 _statusWord, statusWord;
-	u16 _tagWord, tagWord;
+	u16 controlWord, _controlWord;
+	u16 statusWord, _statusWord;
+	u16 tagWord, _tagWord;
 	u32 fip;
 	u32 fips;
 	u32 fdp;
-	u16 _fds, fds;
+	u16 fds, _fds;
 	ld80 fpuContext[8];
 } fpu_context_t;
 
