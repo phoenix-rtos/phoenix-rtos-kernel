@@ -111,6 +111,23 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 	return ctx->cpuCtx.eip;
 }
 
+#ifndef NDEBUG
+static unsigned long hal_ld80ToHexString(char *buffer, const u8 *value)
+{
+	static const char digits[] = "0123456789abcdef";
+	size_t i;
+	u8 val;
+	for (i = 10; i > 0; --i) {
+		val = value[i - 1];
+		*buffer = digits[val / 16];
+		buffer++;
+		*buffer = digits[val % 16];
+		buffer++;
+	}
+	return 20;
+}
+#endif
+
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 {
@@ -121,6 +138,9 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 		"24 #",   "25 #",   "26 #",   "27 #",       "28 #",   "29 #",   "30 #SE", "31 #" };
 
 	size_t i = 0;
+#ifndef NDEBUG
+	size_t j;
+#endif
 	u32 ss;
 
 	n &= 0x1f;
@@ -177,6 +197,27 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" cr2=", &buff[i], ss, 16, 1);
 	/* i += hal_i2s(" thr=", &buff[i], _proc_current(), 16, 1); */
 
+#ifndef NDEBUG
+	/* Dump FPU context, if it exists */
+	if ((ctx->cpuCtx.cr0Bits & CR0_TS_BIT) == 0) {
+		i += hal_i2s("\nfcw=", &buff[i], ctx->cpuCtx.fpuContext.controlWord, 16, 1);
+		i += hal_i2s(" fsw=", &buff[i], ctx->cpuCtx.fpuContext.statusWord, 16, 1);
+		i += hal_i2s(" ftw=", &buff[i], ctx->cpuCtx.fpuContext.tagWord, 16, 1);
+		i += hal_i2s(" fip=", &buff[i], ctx->cpuCtx.fpuContext.fip, 16, 1);
+		i += hal_i2s("\nfdp=", &buff[i], ctx->cpuCtx.fpuContext.fdp, 16, 1);
+		i += hal_i2s(" fds=", &buff[i], ctx->cpuCtx.fpuContext.fds, 16, 1);
+		i += hal_i2s(" fips=", &buff[i], ctx->cpuCtx.fpuContext.fips, 16, 1);
+
+		buff[i++] = '\n';
+		for (j = 0; j < 8; ++j) {
+			i += hal_i2s("fpr", &buff[i], j, 10, 0);
+			buff[i++] = '=';
+			i += hal_ld80ToHexString(&buff[i], ctx->cpuCtx.fpuContext.fpuContext[j]);
+			buff[i++] = ((j & 1) != 0) ? '\n' : ' ';
+		}
+	}
+#endif
+
 	buff[i++] = '\n';
 
 	buff[i] = 0;
@@ -187,7 +228,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 {
-	char buff[512];
+	char buff[SIZE_CTXDUMP];
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
