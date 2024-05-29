@@ -282,14 +282,15 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned cha
 {
 	static const char digits[] = "0123456789abcdef";
 	char c;
-	unsigned int l, k, m;
+	unsigned long l, k, m;
 
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
 
-	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+	for (k = m, l = (unsigned long)-1; l != 0; i /= b, l /= b) {
+		if ((zero == 0) && (i == 0)) {
 			break;
+		}
 		s[k++] = digits[i % b];
 	}
 

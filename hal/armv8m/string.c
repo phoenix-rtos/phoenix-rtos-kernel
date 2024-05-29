@@ -178,8 +178,8 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned cha
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
 
-	for (k = m, l = (unsigned long)-1; l; i /= b, l /= b) {
-		if (!zero && !i) {
+	for (k = m, l = (unsigned long)-1; l != 0; i /= b, l /= b) {
+		if ((zero == 0) && (i == 0)) {
 			break;
 		}
 		s[k++] = digits[i % b];
