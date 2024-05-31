@@ -159,6 +159,23 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
+#ifndef NDEBUG
+	switch (n) {
+		case 10: /* #TS */
+		case 11: /* #NP */
+		case 12: /* #SS */
+		case 13: /* #GP */
+		case 14: /* #PF */
+		case 17: /* #AC */
+		case 21: /* #CP */
+			i += hal_i2s("err=", &buff[i], ctx->err, 16, 1);
+			buff[i++] = '\n';
+			break;
+		default:
+			break;
+	}
+#endif
+
 	i += hal_i2s("eax=", &buff[i], ctx->cpuCtx.eax, 16, 1);
 	i += hal_i2s("  cs=", &buff[i], (u32)ctx->cpuCtx.cs, 16, 1);
 	i += hal_i2s(" eip=", &buff[i], ctx->cpuCtx.eip, 16, 1);
