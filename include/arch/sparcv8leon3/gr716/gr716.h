@@ -53,7 +53,7 @@ typedef struct {
 			union {
 				enum { disable = 0, enable } state;
 				int stateVal;
-			};
+			} v;
 			unsigned char cgu;
 			unsigned int cgudev;
 		} cguctrl;
@@ -66,7 +66,7 @@ typedef struct {
 		struct {
 			unsigned int magic;
 		} reboot;
-	};
+	} task;
 } __attribute__((packed)) platformctl_t;
 
 /* clang-format on */

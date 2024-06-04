@@ -181,37 +181,37 @@ int hal_platformctl(void *ptr)
 	switch (data->type) {
 		case pctl_cguctrl:
 			if (data->action == pctl_set) {
-				if (data->cguctrl.state == disable) {
-					_gr716_cguClkDisable(data->cguctrl.cgu, data->cguctrl.cgudev);
+				if (data->task.cguctrl.v.state == disable) {
+					_gr716_cguClkDisable(data->task.cguctrl.cgu, data->task.cguctrl.cgudev);
 				}
 				else {
-					_gr716_cguClkEnable(data->cguctrl.cgu, data->cguctrl.cgudev);
+					_gr716_cguClkEnable(data->task.cguctrl.cgu, data->task.cguctrl.cgudev);
 				}
 				ret = 0;
 			}
 			else if (data->action == pctl_get) {
-				data->cguctrl.stateVal = _gr716_cguClkStatus(data->cguctrl.cgu, data->cguctrl.cgudev);
+				data->task.cguctrl.v.stateVal = _gr716_cguClkStatus(data->task.cguctrl.cgu, data->task.cguctrl.cgudev);
 				ret = 0;
 			}
 			break;
 
 		case pctl_iomux:
 			if (data->action == pctl_set) {
-				ret = gaisler_setIomuxCfg(data->iocfg.pin, data->iocfg.opt, data->iocfg.pullup, data->iocfg.pulldn);
+				ret = gaisler_setIomuxCfg(data->task.iocfg.pin, data->task.iocfg.opt, data->task.iocfg.pullup, data->task.iocfg.pulldn);
 			}
 			else if (data->action == pctl_get) {
-				ret = _gr716_getIomuxCfg(data->iocfg.pin, &data->iocfg.opt, &data->iocfg.pullup, &data->iocfg.pulldn);
+				ret = _gr716_getIomuxCfg(data->task.iocfg.pin, &data->task.iocfg.opt, &data->task.iocfg.pullup, &data->task.iocfg.pulldn);
 			}
 			break;
 
 		case pctl_ambapp:
 			if (data->action == pctl_get) {
-				ret = ambapp_findSlave(data->ambapp.dev, data->ambapp.instance);
+				ret = ambapp_findSlave(data->task.ambapp.dev, data->task.ambapp.instance);
 			}
 			break;
 
 		case pctl_reboot:
-			if ((data->action == pctl_set) && (data->reboot.magic == PCTL_REBOOT_MAGIC)) {
+			if ((data->action == pctl_set) && (data->task.reboot.magic == PCTL_REBOOT_MAGIC)) {
 				hal_cpuReboot();
 			}
 			break;
