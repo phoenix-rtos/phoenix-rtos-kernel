@@ -15,7 +15,7 @@
 
 #include "hal/console.h"
 #include "hal/spinlock.h"
-#include "sbi.h"
+#include "hal/riscv64/sbi.h"
 
 
 static struct {

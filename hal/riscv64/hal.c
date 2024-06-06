@@ -13,13 +13,12 @@
  * %LICENSE%
  */
 
+#include "dtb.h"
 #include "hal/hal.h"
-#include "include/arch/riscv64/riscv64.h"
 
 
 static struct {
 	volatile u32 started;
-	spinlock_t pltctlSp;
 } hal_common;
 
 
@@ -29,6 +28,9 @@ volatile u32 hal_multilock;
 
 
 extern void _hal_cpuInit(void);
+
+
+extern void _hal_platformInit(void);
 
 
 void *hal_syspageRelocate(void *data)
@@ -77,44 +79,22 @@ void hal_lockScheduler(void)
 }
 
 
-int hal_platformctl(void *ptr)
-{
-	platformctl_t *pctl = ptr;
-	spinlock_ctx_t sc;
-	int ret = -1;
-
-	hal_spinlockSet(&hal_common.pltctlSp, &sc);
-
-	switch (pctl->type) {
-		case pctl_reboot:
-			if ((pctl->action == pctl_set) && (pctl->task.reboot.magic == PCTL_REBOOT_MAGIC)) {
-				hal_cpuReboot();
-			}
-			break;
-
-		default:
-			break;
-	}
-	hal_spinlockClear(&hal_common.pltctlSp, &sc);
-
-	return ret;
-}
-
-
 __attribute__((section(".init"))) void _hal_init(void)
 {
-	_hal_sbiInit();
+	hal_common.started = 0;
+	hal_multilock = 0u;
+
 	_hal_spinlockInit();
-	_hal_consoleInit();
+	_dtb_init();
+	_pmap_halInit();
+	_hal_sbiInit();
 
 	_hal_exceptionsInit();
 	_hal_interruptsInit();
 
+	_hal_consoleInit();
 	_hal_timerInit(SYSTICK_INTERVAL);
 
-	hal_spinlockCreate(&hal_common.pltctlSp, "pltctl");
-	hal_common.started = 0;
-	hal_multilock = 0u;
-
+	_hal_platformInit();
 	_hal_cpuInit();
 }

@@ -22,6 +22,7 @@
 #define VADDR_MAX     0xffffffffffffffffL
 #define VADDR_USR_MAX VADDR_KERNEL
 
+#define VADDR_DTB 0xffffffffc0000000UL
 
 /* Architecure dependent page attributes */
 #define PGHD_PRESENT    0x01
@@ -80,6 +81,15 @@ typedef struct _pmap_t {
 
 /* Get kernel physical address */
 addr_t pmap_getKernelStart(void);
+
+
+void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+
+
+void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+
+
+void _pmap_halInit(void);
 
 
 #endif

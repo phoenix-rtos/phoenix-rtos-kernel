@@ -22,12 +22,24 @@
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_reboot = 0 } type;
+	enum { pctl_reboot = 0, pctl_iomux, pctl_ambapp } type;
 
 	union {
 		struct {
 			unsigned int magic;
 		} reboot;
+
+		struct {
+			unsigned char pin;
+			unsigned char opt;
+			unsigned char pullup;
+			unsigned char pulldn;
+		} iocfg;
+
+		struct {
+			struct _ambapp_dev_t *dev;
+			unsigned int *instance;
+		} ambapp;
 	} task;
 } __attribute__((packed)) platformctl_t;
 
