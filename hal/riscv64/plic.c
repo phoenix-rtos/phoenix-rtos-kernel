@@ -13,8 +13,11 @@
  * %LICENSE%
  */
 
+#include <arch/pmap.h>
+
 #include "plic.h"
 #include "hal/cpu.h"
+#include "riscv64.h"
 
 #include <board_config.h>
 
@@ -29,6 +32,9 @@
 
 /* clang-format on */
 
+/* Value calculated from MAX_CPU_COUNT (2 contexts/cpu), TODO(?): get from DTB */
+#define PLIC_SIZE PLIC_REG_THRESHOLD(2 * MAX_CPU_COUNT)
+
 
 static struct {
 	volatile u8 *regw;
@@ -37,12 +43,15 @@ static struct {
 
 u32 plic_read(unsigned int reg)
 {
-	return (u32)(*(volatile u32 *)(plic_common.regw + reg));
+	u32 ret = *(volatile u32 *)(plic_common.regw + reg);
+	RISCV_FENCE(i, r);
+	return ret;
 }
 
 
 void plic_write(unsigned int reg, u32 v)
 {
+	RISCV_FENCE(w, o);
 	*(volatile u32 *)(plic_common.regw + reg) = v;
 }
 
@@ -141,7 +150,7 @@ void plic_init(void)
 {
 	unsigned int i;
 
-	plic_common.regw = (void *)(0xffffffffc0000000 + PLIC_BASE);
+	plic_common.regw = _pmap_halMap((addr_t)PLIC_BASE, NULL, PLIC_SIZE, PGHD_READ | PGHD_WRITE | PGHD_PRESENT);
 
 	/* Disable and mask external interrupts */
 	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
