@@ -247,8 +247,6 @@
 
 	/* Restore task's stack pointer */
 	ld sp, 288(sp)
-
-	fence.i
 .endm
 
 

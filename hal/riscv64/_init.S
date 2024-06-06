@@ -103,8 +103,10 @@ syspage_cpy:
 	bltu t1, t2, syspage_cpy
 
 dtb:
-	mv a1, a2
-	call dtb_parse
+	mv s4, a2
+	mv a0, a2
+	call dtb_save
+	mv a0, s4
 	call _pmap_preinit
 
 _init_core:

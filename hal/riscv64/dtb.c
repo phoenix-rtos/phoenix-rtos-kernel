@@ -5,8 +5,8 @@
  *
  * DTB parser
  *
- * Copyright 2018, 2020 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2020, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -15,7 +15,8 @@
 
 #include "dtb.h"
 #include "hal/string.h"
-#include "hal/pmap.h"
+
+#include <arch/pmap.h>
 
 #include "include/errno.h"
 
@@ -39,8 +40,6 @@ struct _fdt_header_t {
 static struct {
 	struct _fdt_header_t *fdth;
 
-	void *start;
-
 	char *model;
 	char *compatible;
 
@@ -59,7 +58,7 @@ static struct {
 
 	struct {
 		size_t nreg;
-		u64 *reg;
+		u8 *reg;
 	} memory;
 
 	struct {
@@ -80,40 +79,40 @@ char *dtb_getString(u32 i)
 
 void dtb_parseSystem(void *dtb, u32 si, u32 l)
 {
-	if (!hal_strcmp(dtb_getString(si), "model"))
+	if (!hal_strcmp(dtb_getString(si), "model")) {
 		dtb_common.model = dtb;
-	else if (!hal_strcmp(dtb_getString(si), "compatible"))
+	}
+	else if (!hal_strcmp(dtb_getString(si), "compatible")) {
 		dtb_common.compatible = dtb;
-
-	return;
+	}
 }
 
 
 void dtb_parseCPU(void *dtb, u32 si, u32 l)
 {
-	if (!hal_strcmp(dtb_getString(si), "compatible"))
+	if (!hal_strcmp(dtb_getString(si), "compatible")) {
 		dtb_common.cpus[dtb_common.ncpus].compatible = dtb;
-	else if (!hal_strcmp(dtb_getString(si), "riscv,isa"))
+	}
+	else if (!hal_strcmp(dtb_getString(si), "riscv,isa")) {
 		dtb_common.cpus[dtb_common.ncpus].isa = dtb;
-	else if (!hal_strcmp(dtb_getString(si), "mmu-type"))
+	}
+	else if (!hal_strcmp(dtb_getString(si), "mmu-type")) {
 		dtb_common.cpus[dtb_common.ncpus].mmu = dtb;
-	else if (!hal_strcmp(dtb_getString(si), "clock-frequency"))
+	}
+	else if (!hal_strcmp(dtb_getString(si), "clock-frequency")) {
 		dtb_common.cpus[dtb_common.ncpus].clock = ntoh32(*(u32 *)dtb);
-
-	return;
+	}
 }
 
 
 void dtb_parseInterruptController(void *dtb, u32 si, u32 l)
 {
-	return;
 }
 
 
 void dtb_parseSOCInterruptController(void *dtb, u32 si, u32 l)
 {
 	dtb_common.soc.intctl.exist = 1;
-	return;
 }
 
 
@@ -127,23 +126,15 @@ int dtb_parseMemory(void *dtb, u32 si, u32 l)
 }
 
 
-#if 0 /* Debug function */
-static void dtb_print(char *s) {
-	while (*s != 0) {
-		__asm__ (
-			"li t0, 0x10000000;" \
-			"ld t1, (%0);" \
-			"sd t1, (t0);" \
-			:: "r" (s) : "t0", "t1", "memory"
-		);
-		s++;
-	}
-}
-#endif
-
-void dtb_parse(void *arg, void *dtb)
+void dtb_save(void *dtb)
 {
-	extern char _start;
+	dtb_common.fdth = (struct _fdt_header_t *)dtb;
+}
+
+
+void dtb_parse(void)
+{
+	void *dtb;
 	unsigned int d = 0;
 	u32 token, si;
 	size_t l;
@@ -157,11 +148,9 @@ void dtb_parse(void *arg, void *dtb)
 		stateSOCInterruptController
 	} state = stateIdle;
 
-	/* Copy DTB into BSS */
-	dtb_common.fdth = (struct _fdt_header_t *)dtb;
-
-	if (dtb_common.fdth->magic != ntoh32(0xd00dfeed))
+	if (dtb_common.fdth->magic != ntoh32(0xd00dfeed)) {
 		return;
+	}
 
 	dtb = (void *)dtb_common.fdth + ntoh32(dtb_common.fdth->off_dt_struct);
 	dtb_common.soc.intctl.exist = 0;
@@ -173,30 +162,24 @@ void dtb_parse(void *arg, void *dtb)
 
 		/* FDT_NODE_BEGIN */
 		if (token == 1) {
-#if 0 /* Debug */
-			char buff[2] = " ";
-			dtb_print(dtb);
-			dtb_print(" ");
-			buff[0] = '0' + d;
-			dtb_print(buff);
-			dtb_print(" ");
-			buff[0] = '0' + state;
-			dtb_print(buff);
-			dtb_print("\n");
-#endif
-
-			if (!d && (*(char *)dtb == 0))
+			if ((d == 0) && (*(char *)dtb == 0)) {
 				state = stateSystem;
-			else if ((d == 1) && !hal_strncmp(dtb, "memory@", 7))
+			}
+			else if ((d == 1) && (hal_strncmp(dtb, "memory@", 7) == 0)) {
 				state = stateMemory;
-			else if ((d == 2) && !hal_strncmp(dtb, "cpu@", 4))
+			}
+			else if ((d == 2) && (hal_strncmp(dtb, "cpu@", 4) == 0)) {
 				state = stateCPU;
-			else if ((state == stateCPU) && !hal_strncmp(dtb, "interrupt-controller", 20))
+			}
+			else if ((state == stateCPU) && (hal_strncmp(dtb, "interrupt-controller", 20) == 0)) {
 				state = stateCPUInterruptController;
-			else if ((d == 1) && !hal_strncmp(dtb, "soc", 3))
+			}
+			else if ((d == 1) && hal_strncmp(dtb, "soc", 3)) {
 				state = stateSOC;
-			else if ((state == stateSOC) && (!hal_strncmp(dtb, "interrupt-controller@", 21) || !hal_strncmp(dtb, "plic@", 5)))
+			}
+			else if ((state == stateSOC) && ((hal_strncmp(dtb, "interrupt-controller@", 21) == 0) || (hal_strncmp(dtb, "plic@", 5) == 0))) {
 				state = stateSOCInterruptController;
+			}
 
 			dtb += ((hal_strlen(dtb) + 3) & ~3);
 			d++;
@@ -212,28 +195,28 @@ void dtb_parse(void *arg, void *dtb)
 			dtb += 4;
 
 			switch (state) {
-			case stateSystem:
-				dtb_parseSystem(dtb, si, l);
-				break;
+				case stateSystem:
+					dtb_parseSystem(dtb, si, l);
+					break;
 
-			case stateMemory:
-				dtb_parseMemory(dtb, si, l);
-				break;
+				case stateMemory:
+					dtb_parseMemory(dtb, si, l);
+					break;
 
-			case stateCPU:
-				dtb_parseCPU(dtb, si, l);
-				break;
+				case stateCPU:
+					dtb_parseCPU(dtb, si, l);
+					break;
 
-			case stateCPUInterruptController:
-				dtb_parseInterruptController(dtb, si, l);
-				break;
+				case stateCPUInterruptController:
+					dtb_parseInterruptController(dtb, si, l);
+					break;
 
-			case stateSOCInterruptController:
-				dtb_parseSOCInterruptController(dtb, si, l);
-				break;
+				case stateSOCInterruptController:
+					dtb_parseSOCInterruptController(dtb, si, l);
+					break;
 
-			default:
-				break;
+				default:
+					break;
 			}
 
 			dtb += l;
@@ -242,75 +225,63 @@ void dtb_parse(void *arg, void *dtb)
 		/* FDT_NODE_END */
 		else if (token == 2) {
 			switch (state) {
-			case stateCPU:
-				dtb_common.ncpus++;
-			case stateMemory:
-				state = stateSystem;
-				break;
+				case stateCPU:
+					dtb_common.ncpus++;
+				case stateMemory:
+					state = stateSystem;
+					break;
 
-			case stateCPUInterruptController:
-				state = stateCPU;
-				break;
+				case stateCPUInterruptController:
+					state = stateCPU;
+					break;
 
-			case stateSOCInterruptController:
-				state = stateSOC;
-				break;
+				case stateSOCInterruptController:
+					state = stateSOC;
+					break;
 
-			default:
-				break;
+				default:
+					break;
 			}
 			d--;
 		}
-		else if (token == 9)
+		else if (token == 9) {
 			break;
+		}
 	}
-
-//	lib_printf("model: %s (%s)\n", dtb_common.model, dtb_common.compatible);
-//	lib_printf("cpu: %s@%dMHz(%s+%s)\n", dtb_common.cpus[0].compatible, dtb_common.cpus[0].clock / 1000000, dtb_common.cpus[0].isa, dtb_common.cpus[0].mmu);
-	dtb_common.start = &_start;
 }
 
 
-static void *dtb_relocate(void *addr)
+void dtb_getSystem(char **model, char **compatible)
 {
-	return (void *)((u64)((1L << 39) - (u64)2 * 1024 * 1024 * 1024 + addr - 0x80000000L) | (u64)0xffffff8000000000);
-}
-
-
-const void dtb_getSystem(char **model, char **compatible)
-{
-	*model = dtb_relocate(dtb_common.model);
-	*compatible = dtb_relocate(dtb_common.compatible);
-
-	return;
+	*model = dtb_common.model;
+	*compatible = dtb_common.compatible;
 }
 
 
 int dtb_getCPU(unsigned int n, char **compatible, u32 *clock, char **isa, char **mmu)
 {
-	if (n >= dtb_common.ncpus)
+	if (n >= dtb_common.ncpus) {
 		return -EINVAL;
+	}
 
-	*compatible = dtb_relocate(dtb_common.cpus[n].compatible);
+	*compatible = dtb_common.cpus[n].compatible;
 	*clock = dtb_common.cpus[n].clock;
-	*isa = dtb_relocate(dtb_common.cpus[n].isa);
-	*mmu = dtb_relocate(dtb_common.cpus[n].mmu);
+	*isa = dtb_common.cpus[n].isa;
+	*mmu = dtb_common.cpus[n].mmu;
 
 	return EOK;
 }
 
 
-void dtb_getMemory(u64 **reg, size_t *nreg)
+void dtb_getMemory(u8 **reg, size_t *nreg)
 {
-	*reg = dtb_relocate(dtb_common.memory.reg);
+	*reg = dtb_common.memory.reg;
 	*nreg = dtb_common.memory.nreg;
-	return;
 }
 
 
 int dtb_getPLIC(void)
 {
-//	*reg = dtb_relocate(dtb_common.memory.reg);
 	return dtb_common.soc.intctl.exist;
 }
 
@@ -319,7 +290,7 @@ void dtb_getReservedMemory(u64 **reg)
 {
 	struct _fdt_header_t *fdth;
 
-	fdth = dtb_relocate(dtb_common.fdth);
+	fdth = dtb_common.fdth;
 
 	*reg = (u64 *)((void *)fdth + ntoh32(fdth->off_mem_rsvmap));
 
@@ -329,12 +300,18 @@ void dtb_getReservedMemory(u64 **reg)
 
 void dtb_getDTBArea(u64 *dtb, u32 *dtbsz)
 {
-	struct _fdt_header_t *fdth;
+	*dtb = (u64)dtb_common.fdth - VADDR_DTB;
+	*dtbsz = ntoh32(dtb_common.fdth->totalsize);
+}
 
-	*dtb = (u64)dtb_common.fdth;
 
-	fdth = dtb_relocate(dtb_common.fdth);
-	*dtbsz = ntoh32(fdth->totalsize);
+void _dtb_init(void)
+{
+	void *dtb = dtb_common.fdth;
+	hal_memset(&dtb_common, 0, sizeof(dtb_common));
 
-	return;
+	/* DTB is mapped on giga-page */
+	dtb_common.fdth = (void *)(((ptr_t)dtb & 0x3fffffffUL) + VADDR_DTB);
+
+	dtb_parse();
 }
