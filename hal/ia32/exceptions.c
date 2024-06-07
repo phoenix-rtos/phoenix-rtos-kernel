@@ -140,6 +140,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	size_t i = 0;
 #ifndef NDEBUG
 	size_t j;
+	u32 cr0, cr3, cr4;
 #endif
 	u32 ss;
 
@@ -203,18 +204,25 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s("\ndr6=", &buff[i], ctx->dr6, 16, 1);
 	i += hal_i2s(" dr7=", &buff[i], ctx->dr7, 16, 1);
 
-	/* clang-format off */
-	__asm__ volatile (
-		"movl %%cr2, %0"
-	: "=r" (ss)
-	:
-	: );
-	/* clang-format on */
+	ss = (u32)hal_exceptionsFaultAddr(n, ctx);
 
-	i += hal_i2s(" cr2=", &buff[i], ss, 16, 1);
 	/* i += hal_i2s(" thr=", &buff[i], _proc_current(), 16, 1); */
 
 #ifndef NDEBUG
+	/* clang-format off */
+	__asm__ volatile (
+		"movl %%cr0, %0\n\r"
+		"movl %%cr3, %1\n\r"
+		"movl %%cr4, %2"
+	: "=r" (cr0), "=r" (cr3), "=r" (cr4)
+	:
+	: );
+	/* clang-format on */
+	i += hal_i2s("\ncr0=", &buff[i], cr0, 16, 1);
+	i += hal_i2s(" cr2=", &buff[i], ss, 16, 1);
+	i += hal_i2s(" cr3=", &buff[i], cr3, 16, 1);
+	i += hal_i2s(" cr4=", &buff[i], cr4, 16, 1);
+
 	/* Dump FPU context, if it exists */
 	if ((ctx->cpuCtx.cr0Bits & CR0_TS_BIT) == 0) {
 		i += hal_i2s("\nfcw=", &buff[i], ctx->cpuCtx.fpuContext.controlWord, 16, 1);
@@ -233,6 +241,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 			buff[i++] = ((j & 1) != 0) ? '\n' : ' ';
 		}
 	}
+#else
+	i += hal_i2s(" cr2=", &buff[i], ss, 16, 1);
 #endif
 
 	buff[i++] = '\n';
