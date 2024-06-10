@@ -303,7 +303,7 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 
 
 /* Function setups interrupt stub in IDT */
-__attribute__ ((section (".init"))) void _exceptions_setIDTStub(unsigned int n, void *addr)
+__attribute__ ((section (".init"))) static void _exceptions_setIDTStub(unsigned int n, void *addr)
 {
 	u32 w0, w1;
 	u32 *idtr;
