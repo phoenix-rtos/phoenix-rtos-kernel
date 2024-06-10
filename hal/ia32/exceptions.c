@@ -133,7 +133,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 {
 	static const char *const mnemonics[] = {
 		"0 #DE",  "1 #DB",  "2 #NMI", "3 #BP",      "4 #OF",  "5 #BR",  "6 #UD",  "7 #NM",
-		"8 #BF",  "9 #",    "10 #TS", "11 #NP",     "12 #SS", "13 #GP", "14 #PF", "15 #",
+		"8 #DF",  "9 #",    "10 #TS", "11 #NP",     "12 #SS", "13 #GP", "14 #PF", "15 #",
 		"16 #MF", "17 #AC", "18 #MC", "19 #XM/#XF", "20 #VE", "21 #",   "22 #",   "23 #",
 		"24 #",   "25 #",   "26 #",   "27 #",       "28 #",   "29 #",   "30 #SE", "31 #" };
 
