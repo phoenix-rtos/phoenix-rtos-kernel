@@ -99,8 +99,8 @@
 	sd sp, 232(sp)       /* ksp */
 
 	/* Check FPU status */
-	csrr t0, sstatus
-	srli t0, t0, 13
+	csrr s1, sstatus
+	srli t0, s1, 13
 
 	/* If FPU is clean or dirty, save context */
 	andi t0, t0, 2
@@ -148,15 +148,13 @@
 	csrc sstatus, t0
 	li t0, (2 << 13)
 	csrs sstatus, t0
-3:
 	csrr s1, sstatus
+3:
 	csrr s2, sepc
-	csrr s3, sbadaddr
 	csrr s4, scause
 
 	sd s1, 240(sp)   /* sstatus */
 	sd s2, 248(sp)   /* sepc */
-	sd s3, 256(sp)   /* sbadaddr */
 	sd s4, 264(sp)   /* scause */
 	sd tp, 280(sp)   /* tp */
 .endm
@@ -308,8 +306,7 @@ _interrupts_exception:
 	bnez t2, _interrupts_exceptionNotFpu
 
 	/* Get failing instruction */
-	csrr t0, sepc
-	lw t2, (t0)
+	csrr t2, stval
 	andi t0, t2, 0x7f
 
 	/* Check opcode:
@@ -425,8 +422,10 @@ _interrupts_exceptionFpu:
 	tail _interrupts_returnUnlocked
 
 _interrupts_exceptionNotFpu:
+	csrr s3, sbadaddr
 	/* Save sscratch to be able to get hart ID */
 	csrr s5, sscratch
+	sd s3, 256(sp)   /* sbadaddr */
 	sd s5, 272(sp)
 
 	mv a1, sp
