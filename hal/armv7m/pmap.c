@@ -31,7 +31,7 @@ extern void *_init_vectors;
 
 static struct {
 	volatile u32 *mpu;
-	u32 kernelCodeRegion;
+	unsigned int kernelCodeRegion;
 } pmap_common;
 
 
@@ -49,28 +49,29 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 }
 
 
-static int pmap_map2region(unsigned int map)
+static unsigned int pmap_map2region(unsigned int map)
 {
 	int i;
+	unsigned int mask = 0;
 
 	for (i = 0; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
 		if (map == syspage->hs.mpu.map[i]) {
-			return i;
+			mask |= (1 << i);
 		}
 	}
 
-	return -1;
+	return mask;
 }
 
 
 int pmap_addMap(pmap_t *pmap, unsigned int map)
 {
-	int region = pmap_map2region(map);
-	if (region < 0) {
-		return region;
+	unsigned int rmask = pmap_map2region(map);
+	if (rmask == 0) {
+		return -1;
 	}
 
-	pmap->regions |= (1 << region);
+	pmap->regions |= rmask;
 
 	return 0;
 }
@@ -120,16 +121,13 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 {
 	const syspage_map_t *map = syspage_mapAddrResolve((addr_t)vaddr);
-	int region;
+	unsigned int rmask;
 	if (map == NULL) {
 		return 0;
 	}
-	region = pmap_map2region(map->id);
-	if (region < 0) {
-		return 0;
-	}
+	rmask = pmap_map2region(map->id);
 
-	return ((pmap->regions & (1 << region)) != 0) ? 1 : 0;
+	return ((pmap->regions & rmask) == 0) ? 0 : 1;
 }
 
 
@@ -167,7 +165,7 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
 	const syspage_map_t *ikmap;
-	int ikregion;
+	unsigned int ikregion;
 	u32 t;
 	addr_t pc;
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
@@ -230,12 +228,12 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	}
 
 	ikregion = pmap_map2region(ikmap->id);
-	if (ikregion < 0) {
+	if (ikregion == 0) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map has no assigned region. Bad system config\n");
 		for (;;) {
 			hal_cpuHalt();
 		}
 	}
 
-	pmap_common.kernelCodeRegion = (1 << ikregion);
+	pmap_common.kernelCodeRegion = ikregion;
 }
