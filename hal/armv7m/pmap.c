@@ -19,6 +19,7 @@
 #include "halsyspage.h"
 #include <arch/cpu.h>
 #include "armv7m.h"
+#include <arch/spinlock.h>
 
 enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rasr, mpu_rbar_a1, mpu_rasr_a1, mpu_rbar_a2, mpu_rasr_a2,
 	   mpu_rbar_a3, mpu_rasr_a3 };
@@ -32,6 +33,7 @@ extern void *_init_vectors;
 static struct {
 	volatile u32 *mpu;
 	unsigned int kernelCodeRegion;
+	spinlock_t lock;
 } pmap_common;
 
 
@@ -80,8 +82,10 @@ int pmap_addMap(pmap_t *pmap, unsigned int map)
 void pmap_switch(pmap_t *pmap)
 {
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
+	spinlock_ctx_t sc;
 
 	if (pmap != NULL) {
+		hal_spinlockSet(&pmap_common.lock, &sc);
 		for (i = 0; i < cnt; ++i) {
 			/* Select region */
 			*(pmap_common.mpu + mpu_rnr) = i;
@@ -96,6 +100,7 @@ void pmap_switch(pmap_t *pmap)
 			}
 			hal_cpuDataMemoryBarrier();
 		}
+		hal_spinlockClear(&pmap_common.lock, &sc);
 	}
 }
 
@@ -236,4 +241,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	}
 
 	pmap_common.kernelCodeRegion = ikregion;
+
+	hal_spinlockCreate(&pmap_common.lock, "pmap");
 }
