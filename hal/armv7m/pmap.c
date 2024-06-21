@@ -34,6 +34,7 @@ static struct {
 	volatile u32 *mpu;
 	unsigned int kernelCodeRegion;
 	spinlock_t lock;
+	unsigned int regionCnt;
 } pmap_common;
 
 
@@ -81,7 +82,7 @@ int pmap_addMap(pmap_t *pmap, unsigned int map)
 
 void pmap_switch(pmap_t *pmap)
 {
-	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
+	unsigned int i, cnt = pmap_common.regionCnt;
 	spinlock_ctx_t sc;
 
 	if (pmap != NULL) {
@@ -173,7 +174,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	unsigned int ikregion;
 	u32 t;
 	addr_t pc;
-	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
+	unsigned int i;
 
 	(*vstart) = (void *)(((ptr_t)_init_vectors + 7) & ~7);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
@@ -194,7 +195,9 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	*(pmap_common.mpu + mpu_ctrl) |= (1 << 2);
 	hal_cpuDataMemoryBarrier();
 
-	for (i = 0; i < cnt; ++i) {
+	pmap_common.regionCnt = syspage->hs.mpu.allocCnt;
+
+	for (i = 0; i < pmap_common.regionCnt; ++i) {
 		t = syspage->hs.mpu.table[i].rbar;
 		if ((t & (1 << 4)) == 0) {
 			continue;
