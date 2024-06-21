@@ -135,6 +135,13 @@ exceptions_exc7_handler:
 	/* Init FPU */
 	fninit
 	fsave 68(%eax) /* Set ctx->fpuContext */
+	/*
+		Set task-switched flag back on, because it may cause issues during hal_jmp.
+		If it is needed, then it will be removed again by exception_popContext.or interrupts_popContext.
+	*/
+	movl %cr0, %eax
+	orl $CR0_TS_BIT, %eax
+	movl %eax, %cr0
 	ret
 
 .size exceptions_exc7_handler, .-exceptions_exc7_handler
