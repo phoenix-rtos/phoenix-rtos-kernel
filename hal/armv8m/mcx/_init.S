@@ -5,7 +5,7 @@
  *
  * Low-level initialization for Cortex-M33 (ARMv8) architecture
  *
- * Copyright 2012, 2016-2017, 2022 Phoenix Systems
+ * Copyright 2012, 2016-2017, 2022, 2024 Phoenix Systems
  * Author: Jacek Popko, Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski, Damian Loewnau
  *
  * This file is part of Phoenix-RTOS.
@@ -82,9 +82,9 @@ _start:
 	msr msp, r0
 	isb
 
-	bl _nrf91_init
+	bl _mcxn94x_init
 
-	bl main
+	b main
 .size _start, .-_start
 .ltorg
 
@@ -156,7 +156,6 @@ _syscallend:
 	mov r1, #3
 	msr control, r1
 	isb
-	dsb
 
 	mov lr, r2
 	mov pc, r3
@@ -241,6 +240,7 @@ _intd2:
 	ror r1, r1, #2
 	msr control, r1
 	isb
+	dsb
 
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch

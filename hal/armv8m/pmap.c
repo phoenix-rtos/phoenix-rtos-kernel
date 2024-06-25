@@ -36,6 +36,12 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 }
 
 
+int pmap_addMap(pmap_t *pmap, unsigned int map)
+{
+	return 0;
+}
+
+
 void pmap_switch(pmap_t *pmap)
 {
 }
@@ -56,6 +62,12 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
 	return (addr_t)vaddr;
+}
+
+
+int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
+{
+	return 1;
 }
 
 
