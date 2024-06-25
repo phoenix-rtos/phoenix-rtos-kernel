@@ -32,7 +32,6 @@ extern unsigned int _end;
 #endif
 
 #define SIZE_INTERRUPTS 32
-#define SIZE_HANDLERS   4
 
 
 /* Interrupt controller */

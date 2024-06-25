@@ -182,8 +182,10 @@ char *hal_cpuInfo(char *info)
 	int i;
 	unsigned int cpuinfo;
 
-#ifdef CPU_NRF91
+#if defined(__CPU_NRF9160)
 	cpuinfo = _nrf91_cpuid();
+#elif defined(__CPU_MCXN94X)
+	cpuinfo = _mcxn94x_cpuid();
 #else
 	hal_strcpy(info, "unknown");
 	return info;

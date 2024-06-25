@@ -30,9 +30,6 @@
 #endif
 
 
-#define SIZE_HANDLERS       4
-
-
 struct {
 	spinlock_t spinlock;
 	intr_handler_t *handlers[SIZE_INTERRUPTS];

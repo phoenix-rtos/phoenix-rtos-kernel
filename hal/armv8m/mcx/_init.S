@@ -5,7 +5,7 @@
  *
  * Low-level initialization for Cortex-M33 (ARMv8) architecture
  *
- * Copyright 2012, 2016-2017, 2022 Phoenix Systems
+ * Copyright 2012, 2016-2017, 2022, 2024 Phoenix Systems
  * Author: Jacek Popko, Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski, Damian Loewnau
  *
  * This file is part of Phoenix-RTOS.
@@ -49,7 +49,7 @@ _init_vectors:
 .word _interrupts_dispatch /* PendSV */
 .word _interrupts_dispatch /* Systick */
 
-.rept 67                    /* Max number of ext interrupts - last peripheral id + 1 */
+.rept 156                  /* Max number of ext interrupts - last peripheral id + 1 */
 .word _interrupts_dispatch
 .endr
 .size _init_vectors, .-_init_vectors
@@ -82,9 +82,9 @@ _start:
 	msr msp, r0
 	isb
 
-	bl _nrf91_init
+	bl _mcxn94x_init
 
-	bl main
+	b main
 .size _start, .-_start
 .ltorg
 
@@ -156,7 +156,6 @@ _syscallend:
 	mov r1, #3
 	msr control, r1
 	isb
-	dsb
 
 	mov lr, r2
 	mov pc, r3
@@ -188,8 +187,7 @@ _interrupts_dispatch:
 	isb
 
 	mov r0, sp
-	and r12, lr, #(1 << 2)
-	cmp r12, #0
+	tst  lr, #(1 << 2)
 	it ne
 	subne sp, sp, #(8 * 4) /* space for hw-saved ctx */
 	str r0, [sp, #-8]!
@@ -203,7 +201,7 @@ _interrupts_dispatch:
 	 * in case of signal handling
 	 */
 
-	beq _intd0 /* cmp r12, #0 */
+	beq _intd0 /* tst  lr, #(1 << 2) */
 
 	/* psp in r3 - load hw-saved regs */
 	ldm r3, {r4-r11}
@@ -218,8 +216,7 @@ _intd0:
 _intd1:
 	ldr lr, [sp, #(11 * 4)]
 
-	and r12, lr, #(1 << 2)
-	cmp r12, #0
+	tst  lr, #(1 << 2)
 	beq _intd2
 
 	/* userspace return - restore registers in case of signal handling */
@@ -241,6 +238,7 @@ _intd2:
 	ror r1, r1, #2
 	msr control, r1
 	isb
+	dsb
 
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
@@ -257,27 +255,25 @@ _hal_invokePendSV:
 .size _hal_invokePendSV, .-_hal_invokePendSV
 .ltorg
 
-.globl hal_cpuReschedule
+
+.globl hal_cpuReschedule /* int hal_cpuReschedule(struct _spinlock_t *spinlock, spinlock_ctx_t *scp); */
 .type hal_cpuReschedule, %function
 hal_cpuReschedule:
-	push {r0-r2, lr}
-	eor r0, r0, r0 /* default return value */
+	push {r4, lr}
+	movs r4, r0
 	bl _hal_invokePendSV
-	pop {r1-r3, lr}
-	cmp r1, #NULL
-	beq hal_cpuReschedule0
-	push {r3-r4}
-	add r1, r1, #12
-
-spinlock:
-	ldrexb r3, [r1]
-	add r3, r3, #1
+	cbz r4, .Lhal_cpuReschedule0
+	adds r4, r4, #12
+.Lspinlock:
+	ldrexb r2, [r4]
+	adds r2, r2, #1
 	dmb
-	strexb r4, r3, [r1]
-	cmp r4, #0
-	bne spinlock
-	pop {r3-r4}
-hal_cpuReschedule0:
+	strexb r3, r2, [r4]
+	cmp r3, #0
+	bne .Lspinlock
+.Lhal_cpuReschedule0:
+	pop {r4, lr}
+	movs r0, #0 /* default return value */
 	cpsie if
 	isb
 	dmb

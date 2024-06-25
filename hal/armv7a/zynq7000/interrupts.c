@@ -24,7 +24,6 @@
 
 
 #define SIZE_INTERRUPTS 95
-#define SIZE_HANDLERS   4
 #define SPI_FIRST_IRQID 32
 
 #define SGI_FLT_USE_LIST   0 /* Send SGI to CPUs according to targetList */
