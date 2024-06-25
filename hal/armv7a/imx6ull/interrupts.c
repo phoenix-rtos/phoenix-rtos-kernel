@@ -20,8 +20,6 @@
 #include "proc/userintr.h"
 
 #define SIZE_INTERRUPTS 159
-#define SIZE_HANDLERS   4
-
 
 enum { /* 1024 reserved */ ctlr = 0x400, typer, iidr, /* 29 reserved */ igroupr0 = 0x420, /* 16 registers */
 	/* 16 reserved */ isenabler0 = 0x440, /* 16 registers */ /* 16 reserved */ icenabler0 = 0x460, /* 16 registers */

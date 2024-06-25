@@ -16,11 +16,6 @@
 #ifndef _HAL_ARMV8M_CPU_H_
 #define _HAL_ARMV8M_CPU_H_
 
-
-#if defined(__CPU_NRF9160)
-#define CPU_NRF91
-#endif
-
 #include "hal/types.h"
 
 #define SIZE_PAGE 0x200

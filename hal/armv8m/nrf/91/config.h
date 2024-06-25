@@ -22,6 +22,9 @@
 #include "include/arch/armv8m/nrf/syspage.h"
 #include "nrf91.h"
 
+/* Based on INTLINESNUM value (ICTR cpu register) */
+#define SIZE_INTERRUPTS 256
+
 #define HAL_NAME_PLATFORM "NRF91 "
 #endif
 

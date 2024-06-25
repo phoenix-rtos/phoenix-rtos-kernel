@@ -5,8 +5,8 @@
  *
  * Interrupt handling
  *
- * Copyright 2017, 2020, 2022 Phoenix Systems
- * Author: Pawel Pisarczyk, Hubert Buczynski, Damian Loewnau
+ * Copyright 2017, 2020, 2022, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Hubert Buczynski, Damian Loewnau, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -18,7 +18,7 @@
 #include "hal/cpu.h"
 #include "hal/list.h"
 #include "hal/armv8m/armv8m.h"
-#include "hal/armv8m/nrf/91/nrf91.h"
+#include "hal/armv8m/mcx/n94x/mcxn94x.h"
 
 #include "proc/userintr.h"
 
@@ -63,6 +63,16 @@ void _interrupts_nvicSetPriority(s8 irqn, u32 priority)
 }
 
 
+void _interrupts_nvicSetPending(s8 irqn)
+{
+	volatile u32 *ptr = interrupts.nvic + ((u8)irqn >> 5) + nvic_ispr;
+
+	*ptr = 1u << (irqn & 0x1f);
+
+	hal_cpuDataSyncBarrier();
+}
+
+
 void _interrupts_nvicSystemReset(void)
 {
 	*(interrupts.scb + scb_aircr) = ((0x5fau << 16) | (*(interrupts.scb + scb_aircr) & (0x700u)) | (1u << 2));
@@ -70,6 +80,7 @@ void _interrupts_nvicSystemReset(void)
 	hal_cpuDataSyncBarrier();
 
 	for (;;) {
+		hal_cpuHalt();
 	}
 }
 
@@ -175,12 +186,12 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
 
-	_nrf91_scbSetPriority(SYSTICK_IRQ, 1);
-	_nrf91_scbSetPriority(PENDSV_IRQ, 1);
-	_nrf91_scbSetPriority(SVC_IRQ, 0);
+	_mcxn94x_scbSetPriority(SYSTICK_IRQ, 1);
+	_mcxn94x_scbSetPriority(PENDSV_IRQ, 1);
+	_mcxn94x_scbSetPriority(SVC_IRQ, 0);
 
 	/* Set no subprorities in Interrupt Group Priority */
-	_nrf91_scbSetPriorityGrouping(3);
+	_mcxn94x_scbSetPriorityGrouping(3);
 
 	return;
 }
