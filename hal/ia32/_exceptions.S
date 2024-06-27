@@ -158,6 +158,9 @@ sym:
 #define EXCSTUB(exc)\
 	cli;\
 	call exception_pushContext;\
+	movl %cr0, %eax;\
+	orl $CR0_TS_BIT, %eax;\
+	movl %eax, %cr0;\
 	movl $SEL_KDATA, %eax;\
 	movw %ax, %ds;\
 	movw %ax, %es;\
