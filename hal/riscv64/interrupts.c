@@ -252,6 +252,7 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int i;
 
+	csr_write(stvec, _interrupts_dispatch);
 	for (i = 0; i < CLINT_IRQ_SIZE; i++) {
 		interrupts_common.clint.handlers[i] = NULL;
 		interrupts_common.clint.counters[i] = 0;

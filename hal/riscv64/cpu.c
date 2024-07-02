@@ -373,9 +373,9 @@ void hal_cpuRfenceI(void)
 }
 
 
-void hal_cpuLocalFlushTLB(const struct _pmap_t *pmap, const void *vaddr)
+void hal_cpuLocalFlushTLB(u32 asid, const void *vaddr)
 {
-	(void)pmap; /* TODO: ASID support */
+	(void)asid; /* TODO: ASID support */
 
 	/* clang-format off */
 	__asm__ volatile (
@@ -388,10 +388,9 @@ void hal_cpuLocalFlushTLB(const struct _pmap_t *pmap, const void *vaddr)
 }
 
 
-void hal_cpuRemoteFlushTLB(const struct _pmap_t *pmap, const void *vaddr, size_t size)
+void hal_cpuRemoteFlushTLB(u32 asid, const void *vaddr, size_t size)
 {
-	(void)pmap; /* TODO: ASID support */
-
+	size_t i;
 	unsigned long hart_mask;
 
 	if (hal_cpuGetCount() > 1) {
@@ -399,7 +398,9 @@ void hal_cpuRemoteFlushTLB(const struct _pmap_t *pmap, const void *vaddr, size_t
 		hal_sbiSfenceVma(hart_mask, 0, (unsigned long)vaddr, size);
 	}
 	else {
-		hal_cpuLocalFlushTLB(pmap, vaddr);
+		for (i = 0; i < size; i += SIZE_PAGE) {
+			hal_cpuLocalFlushTLB(asid, (void *)((unsigned long)vaddr + i));
+		}
 	}
 }
 

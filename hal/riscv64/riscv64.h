@@ -98,4 +98,10 @@ static inline void hal_cpuInstrBarrier(void)
 }
 
 
+void hal_cpuDCacheInval(void *va, size_t size);
+
+
+void hal_cpuDCacheFlush(void *va, size_t size);
+
+
 #endif

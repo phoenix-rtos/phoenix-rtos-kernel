@@ -5,8 +5,8 @@
  *
  * DTB parser
  *
- * Copyright 2018 Phoenix Systems
- * Author: Pawel Pisarczyk
+ * Copyright 2018, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -22,25 +22,31 @@
 #define ntoh64(x) ((ntoh32(x) << 32) | ntoh32(x >> 32))
 
 
-extern void dtb_parse(void *arg, void *dtb);
+void dtb_save(void *dtb);
 
 
-extern const void dtb_getSystem(char **model, char **compatible);
+void dtb_parse(void);
 
 
-extern int dtb_getCPU(unsigned int n, char **compatible, u32 *clock, char **isa, char **mmu);
+void dtb_getSystem(char **model, char **compatible);
 
 
-extern void dtb_getMemory(u64 **reg, size_t *nreg);
+int dtb_getCPU(unsigned int n, char **compatible, u32 *clock, char **isa, char **mmu);
 
 
-extern int dtb_getPLIC(void);
+void dtb_getMemory(u8 **reg, size_t *nreg);
 
 
-extern void dtb_getReservedMemory(u64 **reg);
+int dtb_getPLIC(void);
 
 
-extern void dtb_getDTBArea(u64 *dtb, u32 *dtbsz);
+void dtb_getReservedMemory(u64 **reg);
+
+
+void dtb_getDTBArea(u64 *dtb, u32 *dtbsz);
+
+
+void _dtb_init(void);
 
 
 #endif

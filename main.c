@@ -96,6 +96,7 @@ int main(void)
 {
 	char s[128];
 
+	syspage_init();
 	_hal_init();
 	_usrv_init();
 
@@ -104,7 +105,6 @@ int main(void)
 	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
 	lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
 	lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
-	syspage_init();
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
 	_proc_init(&main_common.kmap, &main_common.kernel);

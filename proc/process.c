@@ -313,7 +313,7 @@ static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbss
 	}
 	process_tls->tdata_sz = tls->tdata_sz;
 	process_tls->tbss_sz = tls->tbss_sz;
-	process_tls->tls_sz = tls->tbss_sz + tls->tdata_sz + sizeof(void *);
+	process_tls->tls_sz = (tls->tbss_sz + tls->tdata_sz + sizeof(void *) + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
 	process_tls->arm_m_tls = tls->arm_m_tls;
 }
 
@@ -1759,7 +1759,7 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
 		/* At the end of TLS there must be a pointer to itself */
-		*(ptr_t *)(dest->tls_base + dest->tdata_sz + dest->tbss_sz) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
+		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1) & ~(sizeof(ptr_t) - 1)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
 		err = EOK;
 	}
 	else {

@@ -5,8 +5,8 @@
  *
  * Configuration file for riscv64
  *
- * Copyright 2021 Phoenix Systems
- * Author: Hubert Buczynski
+ * Copyright 2024 Phoenix Systems
+ * Author: Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -20,6 +20,9 @@
 
 #include "include/arch/riscv64/syspage.h"
 #include "include/syspage.h"
+
+
+#define AHB_IOAREA 0xfff00000u
 
 #endif
 

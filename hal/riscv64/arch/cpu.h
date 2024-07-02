@@ -285,10 +285,10 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 void hal_cpuRfenceI(void);
 
 
-void hal_cpuLocalFlushTLB(const struct _pmap_t *pmap, const void *vaddr);
+void hal_cpuLocalFlushTLB(u32 asid, const void *vaddr);
 
 
-void hal_cpuRemoteFlushTLB(const struct _pmap_t *pmap, const void *vaddr, size_t size);
+void hal_cpuRemoteFlushTLB(u32 asid, const void *vaddr, size_t size);
 
 
 /* Code used in disabled code vm/object.c - map_pageFault */
