@@ -777,6 +777,31 @@ static int _imxrt_getIOlpsrGpr(int which, unsigned int *what)
 }
 
 
+static int _imxrt_setSharedGpr(int which, unsigned int what)
+{
+	if ((which < 0) || (which > 7)) {
+		return -EINVAL;
+	}
+
+	*(imxrt_common.ccm + 0x1200 + which * 0x8) = what;
+	hal_cpuDataSyncBarrier();
+
+	return 0;
+}
+
+
+static int _imxrt_getSharedGpr(int which, unsigned int *what)
+{
+	if ((which < 0) || (which > 7) || (what == NULL)) {
+		return -EINVAL;
+	}
+
+	*what = *(imxrt_common.ccm + 0x1200 + which * 0x8);
+
+	return 0;
+}
+
+
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
@@ -916,6 +941,18 @@ int hal_platformctl(void *ptr)
 				if ((data->resetSlice.index >= pctl_resetSliceMega) && (data->resetSlice.index <= pctl_resetSliceCM7Mem)) {
 					_imxrt_resetSlice(data->resetSlice.index);
 					ret = EOK;
+				}
+			}
+			break;
+
+		case pctl_sharedGpr:
+			if (data->action == pctl_set) {
+				ret = _imxrt_setSharedGpr(data->iogpr.field, data->iogpr.val);
+			}
+			else if (data->action == pctl_get) {
+				ret = _imxrt_getSharedGpr(data->iogpr.field, &t);
+				if (ret == 0) {
+					data->iogpr.val = t;
 				}
 			}
 			break;
