@@ -174,7 +174,7 @@ void dtb_parse(void)
 			else if ((state == stateCPU) && (hal_strncmp(dtb, "interrupt-controller", 20) == 0)) {
 				state = stateCPUInterruptController;
 			}
-			else if ((d == 1) && hal_strncmp(dtb, "soc", 3)) {
+			else if ((d == 1) && (hal_strncmp(dtb, "soc", 3) == 0)) {
 				state = stateSOC;
 			}
 			else if ((state == stateSOC) && ((hal_strncmp(dtb, "interrupt-controller@", 21) == 0) || (hal_strncmp(dtb, "plic@", 5) == 0))) {
