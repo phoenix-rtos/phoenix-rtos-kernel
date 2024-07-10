@@ -129,6 +129,9 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 		return -EINVAL;
 	}
 
+	/* Align user stack to 16 bytes */
+	ustack = (void *)((ptr_t)ustack & ~0xf);
+
 	ctx = (cpu_context_t *)((char *)kstack + kstacksz - sizeof(cpu_context_t));
 
 	/* clang-format off */
