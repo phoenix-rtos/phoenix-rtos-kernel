@@ -13,9 +13,9 @@
  * %LICENSE%
  */
 
-#include "hal/hal.h"
 #include "lib/assert.h"
 #include "include/errno.h"
+#include "include/time.h"
 #include "threads.h"
 #include "cond.h"
 #include "mutex.h"
@@ -50,11 +50,15 @@ void cond_put(cond_t *cond)
 }
 
 
-int proc_condCreate(void)
+int proc_condCreate(const struct condAttr *attr)
 {
 	process_t *p = proc_current()->process;
 	cond_t *cond;
 	int id;
+
+	if ((attr->clock != PH_CLOCK_RELATIVE) && (attr->clock != PH_CLOCK_REALTIME) && (attr->clock != PH_CLOCK_MONOTONIC)) {
+		return -EINVAL;
+	}
 
 	cond = vm_kmalloc(sizeof(*cond));
 	if (cond == NULL) {
@@ -71,6 +75,8 @@ int proc_condCreate(void)
 	}
 
 	cond->queue = NULL;
+
+	hal_memcpy(&cond->attr, attr, sizeof(cond->attr));
 
 	(void)resource_put(p, &cond->resource);
 

@@ -150,7 +150,7 @@ int proc_resourcesCopy(process_t *source)
 				break;
 
 			case rtCond:
-				err = proc_condCreate();
+				err = proc_condCreate(&r->payload.cond->attr);
 				break;
 
 			default:
