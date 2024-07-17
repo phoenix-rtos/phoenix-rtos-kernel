@@ -1072,7 +1072,6 @@ static void _proc_threadDequeue(thread_t *t)
 static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interruptible)
 {
 	thread_t *current;
-	time_t now;
 
 	if (*queue == wakeupPending) {
 		(*queue) = NULL;
@@ -1089,10 +1088,9 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->interruptible = interruptible;
 
 	if (timeout) {
-		now = _proc_gettimeRaw();
-		current->wakeup = now + timeout;
+		current->wakeup = timeout;
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
-		_threads_updateWakeup(now, NULL);
+		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
 	}
 
 	_perf_enqueued(current);
@@ -1271,9 +1269,11 @@ int proc_join(int tid, time_t timeout)
 	process_t *process;
 	thread_t *ghost, *firstGhost;
 	spinlock_ctx_t sc;
+	time_t now, abstimeout;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
+	now = _proc_gettimeRaw();
 	current = _proc_current();
 	if (proc_getTid(current) == tid) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1283,6 +1283,8 @@ int proc_join(int tid, time_t timeout)
 	process = current->process;
 	ghost = process->ghosts;
 	firstGhost = process->ghosts;
+
+	abstimeout = (timeout == 0) ? 0 : now + timeout;
 
 	if (tid >= 0) {
 		do {
@@ -1301,7 +1303,7 @@ int proc_join(int tid, time_t timeout)
 				break;
 			}
 			else {
-				err = _proc_threadWait(&process->reaper, timeout, &sc);
+				err = _proc_threadWait(&process->reaper, abstimeout, &sc);
 				firstGhost = process->ghosts;
 				ghost = firstGhost;
 			}
@@ -1310,7 +1312,7 @@ int proc_join(int tid, time_t timeout)
 	else {
 		/* compatibility with existing code */
 		while ((ghost = process->ghosts) == NULL) {
-			err = _proc_threadWait(&process->reaper, timeout, &sc);
+			err = _proc_threadWait(&process->reaper, abstimeout, &sc);
 			if (err == -EINTR || err == -ETIME) {
 				break;
 			}
