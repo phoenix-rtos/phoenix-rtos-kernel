@@ -88,7 +88,8 @@ int proc_condWait(int c, int m, time_t timeout)
 {
 	cond_t *cond;
 	mutex_t *mutex;
-	int err;
+	int err = 0;
+	time_t offs, abstime = 0;
 
 	cond = cond_get(c);
 	if (cond == NULL) {
@@ -101,7 +102,43 @@ int proc_condWait(int c, int m, time_t timeout)
 		return -EINVAL;
 	}
 
-	err = proc_lockWait(&cond->queue, &mutex->lock, timeout);
+	if (timeout != 0) {
+		switch (cond->attr.clock) {
+			case PH_CLOCK_REALTIME:
+				proc_gettime(&abstime, &offs);
+				if (abstime + offs > timeout) {
+					err = -ETIME;
+					break;
+				}
+
+				abstime = timeout - offs;
+				break;
+
+			case PH_CLOCK_MONOTONIC:
+				proc_gettime(&abstime, NULL);
+				if (abstime > timeout) {
+					err = -ETIME;
+					break;
+				}
+
+				abstime = timeout;
+				break;
+
+			case PH_CLOCK_RELATIVE:
+				proc_gettime(&abstime, NULL);
+				abstime += timeout;
+				break;
+
+			default:
+				/* Wrong clock type, should never happen */
+				err = -EINVAL;
+				break;
+		}
+	}
+
+	if (err == 0) {
+		err = proc_lockWait(&cond->queue, &mutex->lock, abstime);
+	}
 
 	mutex_put(mutex);
 	cond_put(cond);
