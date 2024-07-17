@@ -36,7 +36,7 @@
 	ID(phMutexLock) \
 	ID(mutexTry) \
 	ID(mutexUnlock) \
-	ID(condCreate) \
+	ID(phCondCreate) \
 	ID(phCondWait) \
 	ID(condSignal) \
 	ID(condBroadcast) \

@@ -30,4 +30,12 @@ struct lockAttr {
 };
 
 
+/* Condvar attributes */
+
+
+struct condAttr {
+	int clock;
+};
+
+
 #endif
