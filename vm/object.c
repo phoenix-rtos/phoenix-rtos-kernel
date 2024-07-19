@@ -288,7 +288,7 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 	object_common.kernel = kernel;
 	object_common.kmap = kmap;
 
-	proc_lockInit(&object_common.lock, "object.common");
+	proc_lockInit(&object_common.lock, &proc_lockAttrDefault, "object.common");
 	lib_rbInit(&object_common.tree, object_cmp, NULL);
 
 	kernel->refs = 0;

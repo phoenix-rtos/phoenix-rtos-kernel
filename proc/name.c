@@ -487,7 +487,7 @@ off_t proc_size(oid_t oid)
 
 void _name_init(void)
 {
-	proc_lockInit(&name_common.dcache_lock, "name.common");
+	proc_lockInit(&name_common.dcache_lock, &proc_lockAttrDefault, "name.common");
 
 	hal_memset(name_common.dcache, NULL, sizeof(name_common.dcache));
 	name_common.root_registered = 0;
