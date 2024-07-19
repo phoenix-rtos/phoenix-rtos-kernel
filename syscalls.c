@@ -19,6 +19,7 @@
 #include "include/sysinfo.h"
 #include "include/mman.h"
 #include "include/syscalls.h"
+#include "include/threads.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
@@ -512,20 +513,29 @@ int syscalls_perf_finish(void *ustack)
  */
 
 
-int syscalls_mutexCreate(void *ustack)
+int syscalls_phMutexCreate(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	handle_t *h;
+	const struct lockAttr *attr;
 	int res;
 
 	GETFROMSTACK(ustack, handle_t *, h, 0);
+	GETFROMSTACK(ustack, const struct lockAttr *, attr, 1);
 
 	if (vm_mapBelongs(proc, h, sizeof(*h)) < 0) {
 		return -EFAULT;
 	}
 
-	if ((res = proc_mutexCreate()) < 0)
+	if (vm_mapBelongs(proc, attr, sizeof(*attr)) < 0) {
+		return -EFAULT;
+	}
+
+	res = proc_mutexCreate(attr);
+
+	if (res < 0) {
 		return res;
+	}
 
 	*h = res;
 	return EOK;

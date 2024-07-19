@@ -32,7 +32,7 @@
 	ID(beginthreadex) \
 	ID(endthread) \
 	ID(nsleep) \
-	ID(mutexCreate) \
+	ID(phMutexCreate) \
 	ID(phMutexLock) \
 	ID(mutexTry) \
 	ID(mutexUnlock) \

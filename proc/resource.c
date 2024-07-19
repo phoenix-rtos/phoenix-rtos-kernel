@@ -146,7 +146,7 @@ int proc_resourcesCopy(process_t *source)
 
 		switch (r->type) {
 			case rtLock:
-				err = proc_mutexCreate();
+				err = proc_mutexCreate(&r->payload.mutex->lock.attr);
 				break;
 
 			case rtCond:
