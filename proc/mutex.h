@@ -16,7 +16,7 @@
 #ifndef _PROC_MUTEX_H_
 #define _PROC_MUTEX_H_
 
-#include "threads.h"
+#include "include/threads.h"
 #include "resource.h"
 
 
@@ -41,7 +41,7 @@ extern int proc_mutexTry(int h);
 extern int proc_mutexUnlock(int h);
 
 
-extern int proc_mutexCreate(void);
+extern int proc_mutexCreate(const struct lockAttr *attr);
 
 
 extern int proc_mutexDestroy(int h);

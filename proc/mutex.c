@@ -13,7 +13,6 @@
  * %LICENSE%
  */
 
-#include "hal/hal.h"
 #include "include/errno.h"
 #include "lib/assert.h"
 #include "mutex.h"
@@ -49,11 +48,15 @@ void mutex_put(mutex_t *mutex)
 }
 
 
-int proc_mutexCreate(void)
+int proc_mutexCreate(const struct lockAttr *attr)
 {
 	process_t *p = proc_current()->process;
 	mutex_t *mutex;
 	int id;
+
+	if ((attr->type != PH_LOCK_NORMAL) && (attr->type != PH_LOCK_RECURSIVE) && (attr->type != PH_LOCK_ERRORCHECK)) {
+		return -EINVAL;
+	}
 
 	mutex = vm_kmalloc(sizeof(*mutex));
 	if (mutex == NULL) {
@@ -69,7 +72,7 @@ int proc_mutexCreate(void)
 		return -ENOMEM;
 	}
 
-	proc_lockInit(&mutex->lock, &proc_lockAttrDefault, "user.mutex");
+	proc_lockInit(&mutex->lock, attr, "user.mutex");
 
 	(void)resource_put(p, &mutex->resource);
 
