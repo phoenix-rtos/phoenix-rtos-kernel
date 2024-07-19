@@ -179,7 +179,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 		return NULL;
 	}
 
-	proc_lockInit(&r->lock, "unix.socket");
+	proc_lockInit(&r->lock, &proc_lockAttrDefault, "unix.socket");
 
 	r->id = *id;
 	r->refs = 1;
@@ -1031,5 +1031,5 @@ int unix_poll(unsigned socket, short events)
 void unix_sockets_init(void)
 {
 	lib_rbInit(&unix_common.tree, unixsock_cmp, unixsock_augment);
-	proc_lockInit(&unix_common.lock, "unix.common");
+	proc_lockInit(&unix_common.lock, &proc_lockAttrDefault, "unix.common");
 }

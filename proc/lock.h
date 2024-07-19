@@ -17,6 +17,7 @@
 #define _PROC_LOCK_H_
 
 #include "hal/hal.h"
+#include "include/threads.h"
 
 
 typedef struct _lock_t {
@@ -25,7 +26,12 @@ typedef struct _lock_t {
 	struct _thread_t *queue;     /* Waiting threads */
 	struct _lock_t *prev, *next; /* Doubly linked list */
 	const char *name;
+	struct lockAttr attr;
+	unsigned int depth; /* Used with recursive locks */
 } lock_t;
+
+
+extern const struct lockAttr proc_lockAttrDefault;
 
 
 extern int proc_lockSet(lock_t *lock);
@@ -46,7 +52,7 @@ extern int proc_lockClear(lock_t *lock);
 extern int proc_lockSetInterruptible(lock_t *lock);
 
 
-extern int proc_lockInit(lock_t *lock, const char *name);
+extern int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name);
 
 
 extern int proc_lockDone(lock_t *lock);

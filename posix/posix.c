@@ -233,7 +233,7 @@ int posix_newFile(process_info_t *p, int fd)
 	hal_memset(f, 0, sizeof(open_file_t));
 	f->refs = 1;
 	f->offset = 0;
-	proc_lockInit(&f->lock, "posix.file");
+	proc_lockInit(&f->lock, &proc_lockAttrDefault, "posix.file");
 	proc_lockClear(&p->lock);
 	return fd;
 }
@@ -306,7 +306,7 @@ int posix_clone(int ppid)
 	}
 
 	hal_memset(&console, 0, sizeof(console));
-	proc_lockInit(&p->lock, "posix.process");
+	proc_lockInit(&p->lock, &proc_lockAttrDefault, "posix.process");
 	p->children = NULL;
 	p->zombies = NULL;
 	p->wait = NULL;
@@ -371,7 +371,7 @@ int posix_clone(int ppid)
 				return -ENOMEM;
 			}
 
-			proc_lockInit(&f->lock, "posix.file");
+			proc_lockInit(&f->lock, &proc_lockAttrDefault, "posix.file");
 			f->refs = 1;
 			f->offset = 0;
 			f->type = ftTty;
@@ -515,7 +515,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 		}
 
 		p->fds[fd].file = f;
-		proc_lockInit(&f->lock, "posix.file");
+		proc_lockInit(&f->lock, &proc_lockAttrDefault, "posix.file");
 		proc_lockClear(&p->lock);
 
 		do {
@@ -918,7 +918,7 @@ int posix_pipe(int fildes[2])
 	p->fds[fildes[0]].flags = p->fds[fildes[1]].flags = 0;
 
 	p->fds[fildes[0]].file = fo;
-	proc_lockInit(&fo->lock, "posix.file");
+	proc_lockInit(&fo->lock, &proc_lockAttrDefault, "posix.file");
 	hal_memcpy(&fo->oid, &oid, sizeof(oid));
 	fo->refs = 1;
 	fo->offset = 0;
@@ -926,7 +926,7 @@ int posix_pipe(int fildes[2])
 	fo->status = O_RDONLY;
 
 	p->fds[fildes[1]].file = fi;
-	proc_lockInit(&fi->lock, "posix.file");
+	proc_lockInit(&fi->lock, &proc_lockAttrDefault, "posix.file");
 	hal_memcpy(&fi->oid, &oid, sizeof(oid));
 	fi->refs = 1;
 	fi->offset = 0;
@@ -2771,7 +2771,7 @@ pid_t posix_getppid(pid_t pid)
 
 void posix_init(void)
 {
-	proc_lockInit(&posix_common.lock, "posix.common");
+	proc_lockInit(&posix_common.lock, &proc_lockAttrDefault, "posix.common");
 	lib_rbInit(&posix_common.pid, pinfo_cmp, NULL);
 	unix_sockets_init();
 	posix_common.fresh = 0;

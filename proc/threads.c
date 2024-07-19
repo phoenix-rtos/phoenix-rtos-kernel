@@ -25,6 +25,9 @@
 #include "msg.h"
 #include "ports.h"
 
+
+const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
+
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
 static thread_t *const wakeupPending = (void *)-1;
 
@@ -1553,10 +1556,29 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
+	int ret;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
+
+	if ((lock->attr.type == PH_LOCK_ERRORCHECK) && (lock->owner == current)) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return -EDEADLK;
+	}
+
+	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->owner == current)) {
+		if ((lock->depth + 1) == 0) {
+			ret = -EAGAIN;
+		}
+		else {
+			lock->depth++;
+			ret = EOK;
+		}
+
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return ret;
+	}
 
 	LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
 		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
@@ -1590,6 +1612,8 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
+
+	lock->depth = 1;
 
 	return EOK;
 }
@@ -1642,10 +1666,24 @@ static int _proc_lockUnlock(lock_t *lock)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
-	(void)current; /* Unused in non-debug build */
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
+
+	if ((lock->attr.type == PH_LOCK_ERRORCHECK) || (lock->attr.type == PH_LOCK_RECURSIVE)) {
+		if (lock->owner != current) {
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			return -EPERM;
+		}
+	}
+
+	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->depth > 0)) {
+		lock->depth--;
+		if (lock->depth != 0) {
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			return 0;
+		}
+	}
 
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
@@ -1801,12 +1839,14 @@ int proc_lockDone(lock_t *lock)
 }
 
 
-int proc_lockInit(lock_t *lock, const char *name)
+int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name)
 {
 	hal_spinlockCreate(&lock->spinlock, "lock.spinlock");
 	lock->owner = NULL;
 	lock->queue = NULL;
 	lock->name = name;
+
+	hal_memcpy(&lock->attr, attr, sizeof(struct lockAttr));
 
 	return EOK;
 }
@@ -1991,7 +2031,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	threads_common.perfGather = 0;
 
-	proc_lockInit(&threads_common.lock, "threads.common");
+	proc_lockInit(&threads_common.lock, &proc_lockAttrDefault, "threads.common");
 
 	for (i = 0; i < sizeof(threads_common.stackCanary); ++i)
 		threads_common.stackCanary[i] = (i & 1) ? 0xaa : 0x55;

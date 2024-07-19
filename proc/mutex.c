@@ -69,7 +69,7 @@ int proc_mutexCreate(void)
 		return -ENOMEM;
 	}
 
-	proc_lockInit(&mutex->lock, "user.mutex");
+	proc_lockInit(&mutex->lock, &proc_lockAttrDefault, "user.mutex");
 
 	(void)resource_put(p, &mutex->resource);
 

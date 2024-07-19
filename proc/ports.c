@@ -135,7 +135,7 @@ int proc_portCreate(u32 *id)
 	hal_spinlockCreate(&port->spinlock, "port.spinlock");
 
 	lib_idtreeInit(&port->rid);
-	proc_lockInit(&port->lock, "port.rid");
+	proc_lockInit(&port->lock, &proc_lockAttrDefault, "port.rid");
 
 	port->threads = NULL;
 	port->current = NULL;
@@ -197,5 +197,5 @@ void proc_portsDestroy(process_t *proc)
 void _port_init(void)
 {
 	lib_idtreeInit(&port_common.tree);
-	proc_lockInit(&port_common.port_lock, "port.common");
+	proc_lockInit(&port_common.port_lock, &proc_lockAttrDefault, "port.common");
 }
