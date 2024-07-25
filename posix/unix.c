@@ -687,9 +687,16 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 		for (;;) {
 			proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
+				if (flags & MSG_PEEK) {
+					/* TODO: peek control data */
+					err = _cbuffer_peek(&s->buffer, buf, len);
+					proc_lockClear(&s->lock);
+					break;
+				}
 				err = _cbuffer_read(&s->buffer, buf, len);
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+				/* TODO: handle MSG_PEEK */
 				_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
 				_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
 
