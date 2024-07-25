@@ -56,4 +56,6 @@ extern int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz);
 extern int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz);
 
 
+extern int _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz);
+
 #endif

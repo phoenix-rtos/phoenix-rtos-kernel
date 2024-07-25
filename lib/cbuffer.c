@@ -57,6 +57,19 @@ int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 
 int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 {
+	int bytes = _cbuffer_peek(buf, data, sz);
+
+	if (bytes > 0) {
+		buf->r = (buf->r + bytes) & (buf->sz - 1);
+		buf->full = 0;
+	}
+
+	return bytes;
+}
+
+
+int _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
+{
 	int bytes = 0;
 
 	if (!sz || (buf->r == buf->w && !buf->full))
@@ -75,9 +88,6 @@ int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 			bytes += min(sz, buf->w);
 		}
 	}
-
-	buf->r = (buf->r + bytes) & (buf->sz - 1);
-	buf->full = 0;
 
 	return bytes;
 }
