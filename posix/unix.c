@@ -681,6 +681,9 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 	size_t rlen = 0;
 	int err;
 	spinlock_ctx_t sc;
+	int peek;
+
+	peek = (flags & MSG_PEEK) != 0;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
@@ -696,24 +699,35 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 		for (;;) {
 			proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
-				err = _cbuffer_read(&s->buffer, buf, len);
+				if (peek != 0) {
+					err = _cbuffer_peek(&s->buffer, buf, len);
+				}
+				else {
+					err = _cbuffer_read(&s->buffer, buf, len);
+				}
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+				/* TODO: handle MSG_PEEK */
 				_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
 				_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
 
 				if (len < rlen)
 					_cbuffer_discard(&s->buffer, rlen - len);
 			}
-			if (err > 0 && control && controllen && *controllen > 0)
-				fdpass_unpack(&s->fdpacks, control, controllen);
+			/* TODO: peek control data */
+			if (peek == 0) {
+				if (err > 0 && control && controllen && *controllen > 0) {
+					fdpass_unpack(&s->fdpacks, control, controllen);
+				}
+			}
 			proc_lockClear(&s->lock);
 
 			if (err > 0) {
-				hal_spinlockSet(&s->spinlock, &sc);
-				proc_threadWakeup(&s->writeq);
-				hal_spinlockClear(&s->spinlock, &sc);
-
+				if (peek == 0) {
+					hal_spinlockSet(&s->spinlock, &sc);
+					proc_threadWakeup(&s->writeq);
+					hal_spinlockClear(&s->spinlock, &sc);
+				}
 				break;
 			}
 			else if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED)) {
