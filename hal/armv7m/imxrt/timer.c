@@ -50,13 +50,13 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 {
 	if ((*(timer_common.base + gpt_sr) & (1 << 5)) != 0) { /* Roll-over */
 		++timer_common.upper;
-		*(timer_common.base + gpt_sr) |= (1 << 5);
+		*(timer_common.base + gpt_sr) = (1 << 5);
 	}
 
 	if ((*(timer_common.base + gpt_sr) & (1 << 1)) != 0) { /* Compare match ch2 */
 		*(timer_common.base + gpt_ocr2) += hal_timerUs2Cyc(timer_common.interval);
 		hal_cpuDataMemoryBarrier();
-		*(timer_common.base + gpt_sr) |= 1 << 1;
+		*(timer_common.base + gpt_sr) = (1 << 1);
 	}
 
 	hal_cpuDataMemoryBarrier();
@@ -97,7 +97,7 @@ void hal_timerSetWakeup(u32 waitUs)
 	hal_spinlockSet(&timer_common.sp, &sc);
 	/* Modulo handled implicitly */
 	*(timer_common.base + gpt_ocr2) = hal_timerUs2Cyc(waitUs) + *(timer_common.base + gpt_cnt);
-	*(timer_common.base + gpt_sr) |= 1 << 1;
+	*(timer_common.base + gpt_sr) = (1 << 1);
 	hal_cpuDataMemoryBarrier();
 	hal_spinlockClear(&timer_common.sp, &sc);
 }
