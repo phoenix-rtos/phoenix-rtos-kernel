@@ -18,7 +18,7 @@
 #include "hal/cpu.h"
 #include "hal/console.h"
 #include "hal/string.h"
-#include "hal/sparcv8leon3/srmmu.h"
+#include "hal/sparcv8leon/srmmu.h"
 #include "include/mman.h"
 
 

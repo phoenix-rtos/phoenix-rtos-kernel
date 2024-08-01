@@ -16,7 +16,7 @@
 #include <hal/hal.h>
 #include "hal/timer.h"
 #include "hal/spinlock.h"
-#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/string.h"
 
 #ifdef NOMMU

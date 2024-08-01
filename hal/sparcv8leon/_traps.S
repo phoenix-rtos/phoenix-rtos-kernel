@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * Trap table for sparcv8leon3
+ * Trap table for sparcv8leon
  *
  * Copyright 2022 Phoenix Systems
  * Author: Lukasz Leczkowski

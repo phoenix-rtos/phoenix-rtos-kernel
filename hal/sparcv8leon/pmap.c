@@ -19,7 +19,7 @@
 #include "hal/pmap.h"
 #include "hal/string.h"
 #include "hal/spinlock.h"
-#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/tlb/tlb.h"
 
 #include "include/errno.h"

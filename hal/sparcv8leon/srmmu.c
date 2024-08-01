@@ -15,7 +15,7 @@
 
 
 #include "srmmu.h"
-#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/sparcv8leon/sparcv8leon.h"
 
 
 void hal_srmmuFlushTLB(const void *vaddr, u8 type)

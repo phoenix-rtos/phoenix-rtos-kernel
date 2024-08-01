@@ -19,7 +19,7 @@
 #include <arch/cpu.h>
 #include <arch/pmap.h>
 
-#include "hal/sparcv8leon3/srmmu.h"
+#include "hal/sparcv8leon/srmmu.h"
 
 #define ADDR_SRAM 0x40000000
 

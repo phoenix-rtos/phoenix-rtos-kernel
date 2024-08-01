@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * HAL internal functions for sparcv8leon3-gr716
+ * HAL internal functions for sparcv8leon-gr716
  *
  * Copyright 2022 Phoenix Systems
  * Author: Lukasz Leczkowski
@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
-#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
-#include "include/arch/sparcv8leon3/gr716/gr716.h"
+#include "include/arch/sparcv8leon/gr716/gr716.h"
 
 #include "gr716.h"
 

@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * Hardware Abstraction Layer (sparcv8leon3)
+ * Hardware Abstraction Layer (sparcv8leon)
  *
  * Copyright 2022 Phoenix Systems
  * Author: Lukasz Leczkowski

@@ -1,5 +1,5 @@
 #
-# Makefile for Phoenix-RTOS kernel (sparcv8leon3-gr716 HAL)
+# Makefile for Phoenix-RTOS kernel (sparcv8leon-gr716 HAL)
 #
 # Copyright 2022 Phoenix Systems
 #

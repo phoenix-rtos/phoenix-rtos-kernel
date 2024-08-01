@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * sparcv8leon3 related routines
+ * sparcv8leon related routines
  *
  * Copyright 2022 Phoenix Systems
  * Author: Lukasz Leczkowski
@@ -20,7 +20,7 @@
 #include <arch/cpu.h>
 #include "hal/types.h"
 
-#include "hal/sparcv8leon3/srmmu.h"
+#include "hal/sparcv8leon/srmmu.h"
 
 
 #define LEON3_IOAREA 0xfff00000u

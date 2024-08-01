@@ -56,8 +56,8 @@ DEPS := $(patsubst %.o, %.c.d, $(OBJS))
 $(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS)
 	@mkdir -p $(@D)
 	@(printf "LD  %-24s\n" "$(@F)");
-ifeq ($(TARGET_FAMILY),sparcv8leon3)
-	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T ld/sparcv8leon3.ld
+ifeq ($(TARGET_FAMILY),sparcv8leon)
+	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T ld/sparcv8leon.ld
 else
 	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc
 endif

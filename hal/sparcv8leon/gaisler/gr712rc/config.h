@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * Configuration file for sparcv8leon3-gr712rc
+ * Configuration file for sparcv8leon-gr712rc
  *
  * Copyright 2023 Phoenix Systems
  * Author: Lukasz Leczkowski
@@ -22,7 +22,7 @@
 
 #include "gr712rc.h"
 
-#include "include/arch/sparcv8leon3/syspage.h"
+#include "include/arch/sparcv8leon/syspage.h"
 #include "include/syspage.h"
 
 #define HAL_NAME_PLATFORM "SPARCv8 LEON3-GR712RC"

@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * HAL internal functions for sparcv8leon3-gr716
+ * HAL internal functions for sparcv8leon-gr716
  *
  * Copyright 2022 Phoenix Systems
  * Author: Lukasz Leczkowski
@@ -23,10 +23,10 @@
 #include "hal/types.h"
 #include <board_config.h>
 
-#include "hal/sparcv8leon3/gaisler/ambapp.h"
-#include "hal/sparcv8leon3/gaisler/gaisler.h"
+#include "hal/sparcv8leon/gaisler/ambapp.h"
+#include "hal/sparcv8leon/gaisler/gaisler.h"
 
-#include "include/arch/sparcv8leon3/gr716/gr716.h"
+#include "include/arch/sparcv8leon/gr716/gr716.h"
 
 
 #define TIMER_IRQ 9

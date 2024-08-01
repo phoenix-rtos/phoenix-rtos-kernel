@@ -14,7 +14,7 @@
  */
 
 #include "hal/hal.h"
-#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/sparcv8leon/sparcv8leon.h"
 
 #include "lib/lib.h"
 

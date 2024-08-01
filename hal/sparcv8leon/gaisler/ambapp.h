@@ -18,7 +18,7 @@
 
 
 #include "include/gaisler/ambapp.h"
-#include "include/arch/sparcv8leon3/sparcv8leon3.h"
+#include "include/arch/sparcv8leon/sparcv8leon.h"
 
 
 int ambapp_findMaster(ambapp_dev_t *dev, unsigned int *instance);

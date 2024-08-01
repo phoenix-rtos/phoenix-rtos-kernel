@@ -18,7 +18,7 @@
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"
-#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/sparcv8leon/sparcv8leon.h"
 
 
 #define ASR17_FPU_MSK (3 << 10)

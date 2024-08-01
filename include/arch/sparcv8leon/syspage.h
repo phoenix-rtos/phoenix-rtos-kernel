@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * HAL syspage for sparcv8leon3
+ * HAL syspage for sparcv8leon
  *
  * Copyright 2023 Phoenix Systems
  * Author: Lukasz Leczkowski

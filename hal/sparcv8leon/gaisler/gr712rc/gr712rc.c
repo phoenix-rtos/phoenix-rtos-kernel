@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * HAL internal functions for sparcv8leon3-gr712rc
+ * HAL internal functions for sparcv8leon-gr712rc
  *
  * Copyright 2023 Phoenix Systems
  * Author: Lukasz Leczkowski
@@ -18,9 +18,9 @@
 #include "hal/cpu.h"
 #include "hal/interrupts.h"
 #include "hal/tlb/tlb.h"
-#include "hal/sparcv8leon3/sparcv8leon3.h"
+#include "hal/sparcv8leon/sparcv8leon.h"
 
-#include "include/arch/sparcv8leon3/gr712rc/gr712rc.h"
+#include "include/arch/sparcv8leon/gr712rc/gr712rc.h"
 
 #include "config.h"
 
