@@ -168,14 +168,15 @@ irq_cwp_done0:
 	ta 0xb
 #endif
 
-	MULTILOCK_CLEAR
-
 	/* l7 still points to bottom of context */
 	mov %l7, %sp
 
 	/* check if we're going to switch context (sp != *(sp)) */
 	ld [%sp], %g2
 	cmp %sp, %g2
+
+	MULTILOCK_CLEAR
+
 	be irq_no_switch
 	nop
 
