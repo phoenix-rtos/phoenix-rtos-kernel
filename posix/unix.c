@@ -246,11 +246,12 @@ static void unixsock_put(unixsock_t *s)
 	if (--s->refs <= 0) {
 		lib_rbRemove(&unix_common.tree, &s->linkage);
 
-		/* FIXME: handle connecting socket */
-
-		if (s->connect != NULL) {
+		/* FIXME: Use LIST_REMOVE here */
+		while (s->connect != NULL && s->connect->next != s->connect) {
 			s->connect->state |= US_PEER_CLOSED;
 			s->connect->connect = NULL;
+			proc_threadWakeup(&s->connect->queue);
+			s->connect = s->connect->next;
 		}
 
 		proc_lockClear(&unix_common.lock);
@@ -539,18 +540,18 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
-		if (s->connect != NULL || (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED))) {
+		if (s->connect != NULL) {
 			err = -EISCONN;
-			break;
-		}
-
-		if (proc_lookup(address->sa_data, NULL, &oid) < 0) {
-			err = -ECONNREFUSED;
 			break;
 		}
 
 		if (s->type != SOCK_STREAM && s->type != SOCK_SEQPACKET) {
 			err = -EOPNOTSUPP;
+			break;
+		}
+
+		if (proc_lookup(address->sa_data, NULL, &oid) < 0) {
+			err = -ECONNREFUSED;
 			break;
 		}
 
@@ -572,8 +573,6 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 
 			_cbuffer_init(&s->buffer, v, s->buffsz);
 
-			/* FIXME: handle remote socket removal */
-
 			hal_spinlockSet(&remote->spinlock, &sc);
 			LIST_ADD(&remote->connect, s);
 			proc_threadWakeup(&remote->queue);
@@ -588,13 +587,19 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 				break;
 			}
 
-			while (s->connect == NULL)
+			while (s->connect == NULL && !(s->state & US_PEER_CLOSED))
 				proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 
 			s->state &= ~US_CONNECTING;
-			hal_spinlockClear(&s->spinlock, &sc);
 
-			err = EOK;
+			if (s->state & US_PEER_CLOSED) {
+				err = -ECONNREFUSED;
+			}
+			else {
+				err = EOK;
+			}
+
+			hal_spinlockClear(&s->spinlock, &sc);
 		} while (0);
 
 		unixsock_put(remote);
