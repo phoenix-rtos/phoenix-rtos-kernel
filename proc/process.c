@@ -815,7 +815,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			}
 
 			if (phdr->p_filesz != 0) {
-				if ((phdr->p_offset + round_page(phdr->p_filesz)) > size) {
+				if ((phdr->p_offset + phdr->p_filesz) > size) {
 					return -ENOEXEC;
 				}
 
