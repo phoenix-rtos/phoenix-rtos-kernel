@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-#include "ambapp.h"
+#include "hal/gaisler/ambapp.h"
 
 #include "hal/hal.h"
 #include "include/arch/riscv64/riscv64.h"
