@@ -17,7 +17,7 @@
 #include <arch/tlb.h>
 
 
-struct {
+static struct {
 	int started;
 } hal_common;
 
@@ -87,16 +87,15 @@ void hal_lockScheduler(void)
 
 void _hal_init(void)
 {
+	hal_common.started = 0;
+	hal_multilock = 0u;
+
 	_hal_spinlockInit();
 	_hal_exceptionsInit();
+	_pmap_halInit();
 	_hal_interruptsInit();
 	_hal_platformInit();
 	_hal_cpuInit();
 	_hal_consoleInit();
 	_hal_timerInit(SYSTICK_INTERVAL);
-
-	hal_common.started = 0;
-	hal_multilock = 0u;
-
-	return;
 }

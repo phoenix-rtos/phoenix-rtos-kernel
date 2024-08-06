@@ -77,6 +77,9 @@
 #define ASI_USER_DATA   0x0a
 #define ASI_SUPER_DATA  0x0b
 
+/* AMBA PnP */
+#define AHB_IOAREA 0xfff00000u
+
 /* Interrupts multilock */
 
 /* clang-format off */

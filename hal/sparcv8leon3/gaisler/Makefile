@@ -10,7 +10,7 @@ include hal/$(TARGET_SUFF)/gaisler/$(TARGET_SUBFAMILY)/Makefile
 
 CFLAGS := -Ihal/$(TARGET_SUFF)/gaisler/$(TARGET_SUBFAMILY) $(CFLAGS)
 
-OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/gaisler/, ambapp.o console.o timer.o)
+OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/gaisler/, console.o timer.o)
 
 ifeq ($(TARGET_SUBFAMILY), gr712rc)
   OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/gaisler/, irqmp.o)

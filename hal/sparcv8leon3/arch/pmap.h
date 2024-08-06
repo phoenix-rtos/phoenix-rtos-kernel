@@ -112,6 +112,15 @@ typedef struct _pmap_t {
 #endif /* NOMMU */
 
 
+void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+
+
+void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+
+
+void _pmap_halInit(void);
+
+
 #endif /* __ASSEMBLY__ */
 
 

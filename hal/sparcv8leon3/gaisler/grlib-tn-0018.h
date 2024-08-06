@@ -13,6 +13,9 @@
  * %LICENSE%
  */
 
+#ifndef _GRLIB_TN_0018_H_
+#define _GRLIB_TN_0018_H_
+
 #ifdef LEON3_TN_0018_FIX
 
 
@@ -52,4 +55,7 @@
 
 /* clang-format on */
 
-#endif
+#endif /* LEON3_TN_0018_FIX */
+
+
+#endif /* _GRLIB_TN_0018_H_ */

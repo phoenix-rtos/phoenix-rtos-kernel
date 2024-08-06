@@ -20,13 +20,15 @@
 #include "hal/tlb/tlb.h"
 #include "hal/sparcv8leon3/sparcv8leon3.h"
 
+#include "hal/gaisler/ambapp.h"
+
 #include "include/arch/sparcv8leon3/gr712rc/gr712rc.h"
 
 #include "config.h"
 
 /* Clock gating unit */
 
-#define VADDR_CGU (void *)((u32)VADDR_PERIPH_BASE + PAGE_OFFS_CGU)
+#define CGU_BASE ((void *)0x80000D00)
 
 #define CGU_UNLOCK     0 /* Unlock register        : 0x00 */
 #define CGU_CLK_EN     1 /* Clock enable register  : 0x04 */
@@ -194,13 +196,20 @@ void hal_cpuReboot(void)
 
 void _hal_platformInit(void)
 {
+	ptr_t base;
+
 	hal_spinlockCreate(&gr712rc_common.pltctlSp, "pltctl");
 
-	gr712rc_common.cguBase = VADDR_CGU;
+	base = (ptr_t)_pmap_halMap((addr_t)CGU_BASE, NULL, SIZE_PAGE, PGHD_WRITE | PGHD_READ | PGHD_DEV | PGHD_PRESENT);
+	base += ((addr_t)CGU_BASE & (SIZE_PAGE - 1));
+
+	gr712rc_common.cguBase = (volatile u32 *)base;
 
 	gr712rc_common.tlbIrqHandler.f = hal_tlbIrqHandler;
 	gr712rc_common.tlbIrqHandler.n = TLB_IRQ;
 	gr712rc_common.tlbIrqHandler.data = NULL;
 
 	hal_interruptsSetHandler(&gr712rc_common.tlbIrqHandler);
+
+	ambapp_init();
 }
