@@ -15,13 +15,11 @@
 
 #include "hal/sparcv8leon3/sparcv8leon3.h"
 #include "hal/console.h"
-#include "hal/cpu.h"
 #include "gaisler.h"
 
+#include <arch/pmap.h>
+
 #include <board_config.h>
-
-
-extern unsigned int _end;
 
 
 #define CONCAT_(a, b) a##b
@@ -35,16 +33,11 @@ extern unsigned int _end;
 #define TX_FIFO_FULL (1 << 9)
 
 /* Console config */
-#define CONSOLE_RX       CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _RX))
-#define CONSOLE_TX       CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _TX))
-#define CONSOLE_CGU      CONCAT(cgudev_apbuart, UART_CONSOLE_KERNEL)
-#define CONSOLE_BAUDRATE UART_BAUDRATE
-
-#ifdef NOMMU
-#define VADDR_CONSOLE CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _BASE))
-#else
-#define VADDR_CONSOLE (void *)((u32)VADDR_PERIPH_BASE + PAGE_OFFS_CONSOLE)
-#endif
+#define CONSOLE_RX        CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _RX))
+#define CONSOLE_TX        CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _TX))
+#define CONSOLE_CGU       CONCAT(cgudev_apbuart, UART_CONSOLE_KERNEL)
+#define CONSOLE_BAUDRATE  UART_BAUDRATE
+#define UART_CONSOLE_BASE CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _BASE))
 
 
 enum {
@@ -150,7 +143,12 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	halconsole_common.uart = VADDR_CONSOLE;
+	ptr_t base;
+
+	base = (ptr_t)_pmap_halMap((addr_t)UART_CONSOLE_BASE, NULL, SIZE_PAGE, PGHD_WRITE | PGHD_READ | PGHD_DEV | PGHD_PRESENT);
+	base += ((addr_t)UART_CONSOLE_BASE & (SIZE_PAGE - 1));
+
+	halconsole_common.uart = (volatile u32 *)base;
 
 	*(halconsole_common.uart + uart_ctrl) = 0;
 

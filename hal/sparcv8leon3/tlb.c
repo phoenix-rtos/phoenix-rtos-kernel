@@ -32,7 +32,7 @@ void hal_tlbFlushLocal(const pmap_t *pmap)
 
 void hal_tlbInvalidateLocalEntry(const pmap_t *pmap, const void *vaddr)
 {
-	if (hal_srmmuGetContext() == pmap->context) {
+	if ((pmap != NULL) && (hal_srmmuGetContext() == pmap->context)) {
 		if ((ptr_t)vaddr < VADDR_USR_MAX) {
 			hal_srmmuFlushTLB(vaddr, TLB_FLUSH_L3);
 		}

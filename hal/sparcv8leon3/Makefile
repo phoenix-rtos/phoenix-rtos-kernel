@@ -5,6 +5,7 @@
 #
 
 include hal/$(TARGET_SUFF)/gaisler/Makefile
+include hal/gaisler/Makefile
 
 CFLAGS := -Ihal/$(TARGET_SUFF) $(CFLAGS)
 

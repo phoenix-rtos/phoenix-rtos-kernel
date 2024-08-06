@@ -106,6 +106,22 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 }
 
 
+void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
+{
+	(void)va;
+	(void)size;
+	(void)attr;
+
+	return (void *)(paddr & ~(SIZE_PAGE - 1));
+}
+
+
+void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
+{
+	return _pmap_halMap(paddr, va, size, attr);
+}
+
+
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
 	(*vstart) = (void *)(((ptr_t)_init_stack + 7) & ~7);
@@ -115,4 +131,9 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Initial size of kernel map */
 	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
+}
+
+
+void _pmap_halInit(void)
+{
 }

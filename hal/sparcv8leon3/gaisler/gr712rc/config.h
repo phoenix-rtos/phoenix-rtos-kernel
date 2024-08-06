@@ -27,21 +27,8 @@
 
 #define HAL_NAME_PLATFORM "SPARCv8 LEON3-GR712RC"
 
-#define SIZE_EXTEND_BSS (2 * SIZE_PAGE)
-
-#define ADDR_SRAM 0x40000000
-#define SIZE_SRAM (128 * 1024 * 1024) /* 128 MB */
-
-extern unsigned int _end;
-
-#define VADDR_PERIPH_BASE (void *)(((u32)(&_end) + 2 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
-
-/* Peripherals' offsets */
-
-#define PAGE_OFFS_CONSOLE  0x100
-#define PAGE_OFFS_INT_CTRL 0x200
-#define PAGE_OFFS_GPTIMER0 0x300
-#define PAGE_OFFS_CGU      0xd00
+#define ADDR_RAM 0x40000000
+#define SIZE_RAM (128 * 1024 * 1024) /* 128 MB */
 
 
 #endif /* __ASSEMBLY__ */

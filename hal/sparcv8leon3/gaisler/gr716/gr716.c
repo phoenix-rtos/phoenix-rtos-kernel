@@ -16,6 +16,9 @@
 #include "hal/sparcv8leon3/sparcv8leon3.h"
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
+
+#include "hal/gaisler/ambapp.h"
+
 #include "include/arch/sparcv8leon3/gr716/gr716.h"
 
 #include "gr716.h"
@@ -252,4 +255,6 @@ void _hal_platformInit(void)
 	gr716_common.grgpreg_base = GRGPREG_BASE;
 	gr716_common.cgu_base0 = CGU_BASE0;
 	gr716_common.cgu_base1 = CGU_BASE1;
+
+	ambapp_init();
 }

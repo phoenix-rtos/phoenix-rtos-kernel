@@ -32,8 +32,6 @@
 
 #define VADDR_SYSPAGE     (_end + SIZE_PAGE - 1)
 #define PADDR_SYSPAGE     PHY_ADDR(VADDR_SYSPAGE)
-#define VADDR_PERIPH_BASE (_end + 2 * SIZE_PAGE - 1)
-#define PADDR_PERIPH_BASE 0x80000000
 
 #define VADDR_STACK (pmap_common + 7 * SIZE_PAGE)
 
@@ -182,22 +180,6 @@ set_pdir3:
 	cmp %g1, %g5
 	bne set_pdir2
 	nop
-
-	/* Map peripherals */
-	sethi %hi(VADDR_PERIPH_BASE), %g1
-	set PADDR_PERIPH_BASE, %g2
-	set ADDR_PDIR3, %g3
-
-	srl %g1, 12, %g1
-	and %g1, 0x3f, %g1
-	sll %g1, 2, %g1   /* pdir3 offs */
-	add %g3, %g1, %g1 /* %g1 = &pmap_common.pdir3[0][pdir3 offs] */
-
-	/* calculate PTE */
-	srl %g2, 12, %g2
-	sll %g2, 8, %g2
-	or %g2, ((0x5 << 2) | PAGE_ENTRY), %g2 /* non-cachable, supervisor RW */
-	st %g2, [%g1]
 
 	/* Enable MMU */
 	mov 0x1, %g1

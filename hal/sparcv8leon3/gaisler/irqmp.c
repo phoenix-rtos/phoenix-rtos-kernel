@@ -14,22 +14,14 @@
  */
 
 #include "hal/cpu.h"
-#include "hal/spinlock.h"
 #include "hal/list.h"
+#include "hal/string.h"
+#include "hal/spinlock.h"
 #include "hal/interrupts.h"
-#include "proc/userintr.h"
 
-#include "config.h"
+#include <arch/pmap.h>
 
-
-extern unsigned int _end;
-
-
-#ifdef NOMMU
-#define VADDR_INT_CTRL INT_CTRL_BASE
-#else
-#define VADDR_INT_CTRL (void *)((u32)VADDR_PERIPH_BASE + PAGE_OFFS_INT_CTRL)
-#endif
+#include <config.h>
 
 #define SIZE_INTERRUPTS 32
 
@@ -50,7 +42,7 @@ extern unsigned int _end;
 #define INT_EXTID_1 49 /* Extended interrupt ID register (CPU 1) : 0xC4 */
 
 
-struct {
+static struct {
 	volatile u32 *int_ctrl;
 	spinlock_t spinlocks[SIZE_INTERRUPTS];
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
@@ -200,9 +192,11 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 	return features;
 }
 
+
 void _hal_interruptsInit(void)
 {
 	int i;
+	ptr_t base;
 
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
 		hal_spinlockCreate(&interrupts_common.spinlocks[i], "interrupts_common");
@@ -210,6 +204,10 @@ void _hal_interruptsInit(void)
 		interrupts_common.counters[i] = 0;
 	}
 
-	interrupts_common.int_ctrl = (void *)VADDR_INT_CTRL;
+	base = (ptr_t)_pmap_halMap((addr_t)INT_CTRL_BASE, NULL, SIZE_PAGE, PGHD_WRITE | PGHD_READ | PGHD_DEV | PGHD_PRESENT);
+	base += ((addr_t)INT_CTRL_BASE & (SIZE_PAGE - 1));
+
+	interrupts_common.int_ctrl = (volatile u32 *)base;
+
 	*(interrupts_common.int_ctrl + INT_CLEAR) = 0xffffffff;
 }
