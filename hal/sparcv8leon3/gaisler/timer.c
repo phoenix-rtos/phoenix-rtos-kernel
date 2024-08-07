@@ -34,15 +34,21 @@
 #define TIMER_INT_PENDING (1 << 4)
 #define TIMER_CHAIN       (1 << 5)
 
+/* Timer registers */
 
-/* clang-format off */
+#define GPT_SCALER     0             /* Scaler value register                 : 0x00 */
+#define GPT_SRELOAD    1             /* Scaler reload value register          : 0x04 */
+#define GPT_CONFIG     2             /* Configuration register                : 0x08 */
+#define GPT_LATCHCFG   3             /* Latch configuration register          : 0x0C */
+#define GPT_TCNTVAL(n) (n * 4)       /* Timer n counter value reg (n=1,2,...) : 0xn0 */
+#define GPT_TRLDVAL(n) ((n * 4) + 1) /* Timer n reload value register         : 0xn4 */
+#define GPT_TCTRL(n)   ((n * 4) + 2) /* Timer n control register              : 0xn8 */
+#define GPT_TLATCH(n)  ((n * 4) + 3) /* Timer n latch register                : 0xnC */
 
-enum { timer1 = 0, timer2, timer3, timer4 };
-
-/* clang-format on */
+#define TIMER_DEFAULT 1
 
 
-struct {
+static struct {
 	volatile u32 *timer0_base;
 	intr_handler_t handler;
 	volatile time_t jiffies;
@@ -53,14 +59,14 @@ struct {
 
 static int _timer_irqHandler(unsigned int irq, cpu_context_t *ctx, void *data)
 {
-	volatile u32 st = *(timer_common.timer0_base + GPT_TCTRL1) & TIMER_INT_PENDING;
+	volatile u32 st = *(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) & TIMER_INT_PENDING;
 
 	if (st != 0) {
 		++timer_common.jiffies;
 		/* Clear irq status - set & clear to handle different GPTIMER core versions  */
-		*(timer_common.timer0_base + GPT_TCTRL1) |= TIMER_INT_PENDING;
+		*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) |= TIMER_INT_PENDING;
 		hal_cpuDataStoreBarrier();
-		*(timer_common.timer0_base + GPT_TCTRL1) &= ~TIMER_INT_PENDING;
+		*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) &= ~TIMER_INT_PENDING;
 		hal_cpuDataStoreBarrier();
 	}
 
@@ -70,7 +76,7 @@ static int _timer_irqHandler(unsigned int irq, cpu_context_t *ctx, void *data)
 
 static inline void timer_setReloadValue(int timer, u32 val)
 {
-	*(timer_common.timer0_base + GPT_TRLDVAL1 + timer * 4) = val;
+	*(timer_common.timer0_base + GPT_TRLDVAL(timer)) = val;
 }
 
 
@@ -124,23 +130,25 @@ char *hal_timerFeatures(char *features, unsigned int len)
 
 void _hal_timerInit(u32 interval)
 {
+	volatile u32 st;
+
 	timer_common.jiffies = 0;
 	timer_common.timer0_base = VADDR_GPTIMER0;
 
 	/* Disable timer interrupts - bits cleared when written 1 */
-	volatile u32 st = *(timer_common.timer0_base + GPT_TCTRL1) & (TIMER_INT_ENABLE | TIMER_INT_PENDING);
-	*(timer_common.timer0_base + GPT_TCTRL1) = st;
+	st = *(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) & (TIMER_INT_ENABLE | TIMER_INT_PENDING);
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) = st;
 	/* Disable timer */
-	*(timer_common.timer0_base + GPT_TCTRL1) = 0;
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) = 0;
 	/* Reset counter and reload value */
-	*(timer_common.timer0_base + GPT_TCNTVAL1) = 0;
-	*(timer_common.timer0_base + GPT_TRLDVAL1) = 0;
+	*(timer_common.timer0_base + GPT_TCNTVAL(TIMER_DEFAULT)) = 0;
+	timer_setReloadValue(TIMER_DEFAULT, 0);
 
 	timer_common.handler.f = NULL;
 	timer_common.handler.n = TIMER_IRQ;
 	timer_common.handler.data = NULL;
 
-	timer_setPrescaler(timer1, interval);
+	timer_setPrescaler(TIMER_DEFAULT, interval);
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 	timer_common.handler.f = _timer_irqHandler;
@@ -150,5 +158,5 @@ void _hal_timerInit(u32 interval)
 
 	/* Enable timer and interrupts */
 	/* Load reload value into counter register */
-	*(timer_common.timer0_base + GPT_TCTRL1) |= TIMER_ENABLE | TIMER_INT_ENABLE | TIMER_LOAD | TIMER_PERIODIC;
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) |= TIMER_ENABLE | TIMER_INT_ENABLE | TIMER_LOAD | TIMER_PERIODIC;
 }
