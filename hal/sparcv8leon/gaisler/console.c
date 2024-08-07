@@ -76,6 +76,26 @@ static void console_iomuxCfg(void)
 	gaisler_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
 }
 
+#elif defined(__CPU_GR740)
+
+static void console_cguClkEnable(void)
+{
+	_gr740_cguClkEnable(CONSOLE_CGU);
+}
+
+
+static int console_cguClkStatus(void)
+{
+	return _gr740_cguClkStatus(CONSOLE_CGU);
+}
+
+
+static void console_iomuxCfg(void)
+{
+	gaisler_setIomuxCfg(CONSOLE_TX, iomux_alternateio, 0, 0);
+	gaisler_setIomuxCfg(CONSOLE_RX, iomux_alternateio, 0, 0);
+}
+
 #else
 
 static void console_cguClkEnable(void)
@@ -146,6 +166,7 @@ void _hal_consoleInit(void)
 	halconsole_common.uart = _pmap_halMapDevice(PAGE_ALIGN(UART_CONSOLE_BASE), PAGE_OFFS(UART_CONSOLE_BASE), SIZE_PAGE);
 
 	*(halconsole_common.uart + uart_ctrl) = 0;
+	hal_cpuDataStoreBarrier();
 
 	console_iomuxCfg();
 
@@ -158,6 +179,7 @@ void _hal_consoleInit(void)
 		(void)*(halconsole_common.uart + uart_data);
 	}
 	*(halconsole_common.uart + uart_scaler) = _hal_consoleCalcScaler(CONSOLE_BAUDRATE);
+	hal_cpuDataStoreBarrier();
 	*(halconsole_common.uart + uart_ctrl) = TX_EN;
 	hal_cpuDataStoreBarrier();
 }
