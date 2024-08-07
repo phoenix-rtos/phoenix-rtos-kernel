@@ -45,6 +45,7 @@
 
 static struct {
 	volatile u32 *timer0_base;
+	u32 wdog;
 	intr_handler_t handler;
 	volatile time_t jiffies;
 	spinlock_t sp;
@@ -63,6 +64,9 @@ static int _timer_irqHandler(unsigned int irq, cpu_context_t *ctx, void *data)
 		hal_cpuDataStoreBarrier();
 		*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) &= ~TIMER_INT_PENDING;
 		hal_cpuDataStoreBarrier();
+
+		/* Kick watchdog (on GR740 there's a fixed PLL watchdog, restarted on watchdog timer tctrl write) */
+		*(timer_common.timer0_base + GPT_TCTRL(timer_common.wdog)) |= TIMER_LOAD;
 	}
 
 	return 0;
@@ -105,6 +109,20 @@ void hal_timerSetWakeup(u32 waitUs)
 }
 
 
+void hal_timerWdogReboot(void)
+{
+	/* Reboot system using watchdog */
+	*(timer_common.timer0_base + GPT_SRELOAD) = 0;
+	*(timer_common.timer0_base + GPT_SCALER) = 0;
+	hal_cpuDataStoreBarrier();
+	*(timer_common.timer0_base + GPT_TRLDVAL(timer_common.wdog)) = 1;
+	hal_cpuDataStoreBarrier();
+
+	/* Interrupt must be enabled for the watchdog to work */
+	*(timer_common.timer0_base + GPT_TCTRL(timer_common.wdog)) = TIMER_LOAD | TIMER_INT_ENABLE | TIMER_ENABLE;
+}
+
+
 int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
 	h->f = f;
@@ -130,6 +148,7 @@ void _hal_timerInit(u32 interval)
 	timer_common.jiffies = 0;
 
 	timer_common.timer0_base = _pmap_halMapDevice(PAGE_ALIGN(GPTIMER0_BASE), PAGE_OFFS(GPTIMER0_BASE), SIZE_PAGE);
+	timer_common.wdog = *(timer_common.timer0_base + GPT_CONFIG) & 0x7;
 
 	/* Disable timer interrupts - bits cleared when written 1 */
 	st = *(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) & (TIMER_INT_ENABLE | TIMER_INT_PENDING);
