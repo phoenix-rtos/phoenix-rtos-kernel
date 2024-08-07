@@ -153,7 +153,7 @@ static void unixsock_augment(rbnode_t *node)
 }
 
 
-static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
+static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock, int refs)
 {
 	unixsock_t *r, t;
 
@@ -182,7 +182,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 	proc_lockInit(&r->lock, &proc_lockAttrDefault, "unix.socket");
 
 	r->id = *id;
-	r->refs = 1;
+	r->refs = refs;
 	r->type = type;
 	r->nonblock = nonblock;
 	r->buffsz = US_DEF_BUFFER_SIZE;
@@ -223,9 +223,16 @@ static unixsock_t *unixsock_get_connected(unixsock_t *s)
 	unixsock_t *r;
 
 	proc_lockSet(&unix_common.lock);
+
 	r = s->connect;
-	if (r != NULL)
+
+	if (r != NULL) {
+		if (s->nonblock && (s->state & US_CONNECTING) != 0) {
+			s->state &= ~US_CONNECTING;
+		}
 		r->refs++;
+	}
+
 	proc_lockClear(&unix_common.lock);
 
 	return r;
@@ -290,7 +297,7 @@ int unix_socket(int domain, int type, int protocol)
 	if (protocol != PF_UNSPEC)
 		return -EPROTONOSUPPORT;
 
-	if ((s = unixsock_alloc(&id, type, nonblock)) == NULL)
+	if ((s = unixsock_alloc(&id, type, nonblock, 1)) == NULL)
 		return -ENOMEM;
 
 	return id;
@@ -313,10 +320,10 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 	if (protocol != PF_UNSPEC)
 		return -EPROTONOSUPPORT;
 
-	if ((s[0] = unixsock_alloc(&id[0], type, nonblock)) == NULL)
+	if ((s[0] = unixsock_alloc(&id[0], type, nonblock, 1)) == NULL)
 		return -ENOMEM;
 
-	if ((s[1] = unixsock_alloc(&id[1], type, nonblock)) == NULL) {
+	if ((s[1] = unixsock_alloc(&id[1], type, nonblock, 1)) == NULL) {
 		unixsock_put(s[0]);
 		return -ENOMEM;
 	}
@@ -347,7 +354,6 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 }
 
 
-/* TODO: nonblocking accept */
 int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags)
 {
 	unixsock_t *s, *conn, *new;
@@ -373,7 +379,14 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		if ((new = unixsock_alloc(&newid, s->type, nonblock)) == NULL) {
+		if (s->nonblock && (s->connect == NULL)) {
+			err = -EWOULDBLOCK;
+			break;
+		}
+
+		/* alloc new socket with 2 refs: first ref for presence in the tree, second
+		 * ref returned to the caller */
+		if ((new = unixsock_alloc(&newid, s->type, nonblock, 2)) == NULL) {
 			err = -ENOMEM;
 			break;
 		}
@@ -394,15 +407,17 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 
 		LIST_REMOVE(&s->connect, conn);
 		s->state &= ~US_ACCEPTING;
+		hal_spinlockClear(&s->spinlock, &sc);
 
 		/* FIXME: handle connecting socket removal */
 
+		hal_spinlockSet(&conn->spinlock, &sc);
 		conn->state &= ~US_PEER_CLOSED;
 		conn->connect = new;
 		new->connect = conn;
 
 		proc_threadWakeup(&conn->queue);
-		hal_spinlockClear(&s->spinlock, &sc);
+		hal_spinlockClear(&conn->spinlock, &sc);
 
 		err = new->id;
 		unixsock_put(new);
@@ -505,7 +520,6 @@ int unix_listen(unsigned socket, int backlog)
 }
 
 
-/* TODO: nonblocking connect */
 /* TODO: SOCK_DGRAM support */
 int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len)
 {
@@ -524,6 +538,11 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
+		if (s->state & US_CONNECTING) {
+			err = -EALREADY;
+			break;
+		}
+
 		if (s->connect != NULL || (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED))) {
 			err = -EISCONN;
 			break;
@@ -539,6 +558,8 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
+		// FIXME: caller may block indefinitely if remote gets closed after
+		//  successful unixsock_get call
 		if (oid.port != US_PORT || (remote = unixsock_get(oid.id)) == NULL) {
 			err = -ECONNREFUSED;
 			break;
@@ -566,6 +587,12 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 
 			hal_spinlockSet(&s->spinlock, &sc);
 			s->state |= US_CONNECTING;
+
+			if (s->nonblock && (s->connect == NULL)) {
+				hal_spinlockClear(&s->spinlock, &sc);
+				err = -EINPROGRESS;
+				break;
+			}
 
 			while (s->connect == NULL)
 				proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
@@ -620,6 +647,13 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 					err = -EINVAL;
 				}
 				break;
+			case SO_ERROR:
+				if (s->connect == NULL && s->nonblock && (s->state & US_CONNECTING)) {
+					/* non-blocking connect() in progress, not connected yet */
+					err = -EINPROGRESS;
+				}
+				/* TODO: implement default SO_ERROR purpose: read and clear pending socket error info */
+				break;
 
 			default:
 				err = -ENOPROTOOPT;
@@ -653,9 +687,16 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 		for (;;) {
 			proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
+				if (flags & MSG_PEEK) {
+					/* TODO: peek control data */
+					err = _cbuffer_peek(&s->buffer, buf, len);
+					proc_lockClear(&s->lock);
+					break;
+				}
 				err = _cbuffer_read(&s->buffer, buf, len);
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+				/* TODO: handle MSG_PEEK */
 				_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
 				_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
 
@@ -997,8 +1038,9 @@ int unix_poll(unsigned socket, short events)
 	else {
 		if (events & (POLLIN | POLLRDNORM | POLLRDBAND)) {
 			proc_lockSet(&s->lock);
-			if (_cbuffer_avail(&s->buffer) > 0)
+			if (_cbuffer_avail(&s->buffer) > 0 || (s->connect != NULL && (s->state & US_LISTENING))) {
 				err |= events & (POLLIN | POLLRDNORM | POLLRDBAND);
+			}
 			proc_lockClear(&s->lock);
 		}
 
@@ -1006,12 +1048,14 @@ int unix_poll(unsigned socket, short events)
 			if ((conn = unixsock_get_connected(s)) != NULL) {
 				proc_lockSet(&conn->lock);
 				if (conn->type == SOCK_STREAM) {
-					if (_cbuffer_free(&conn->buffer) > 0)
+					if (_cbuffer_free(&conn->buffer) > 0) {
 						err |= events & (POLLOUT | POLLRDNORM | POLLRDBAND);
+					}
 				}
 				else {
-					if (_cbuffer_free(&conn->buffer) > sizeof(size_t)) /* SOCK_DGRAM or SOCK_SEQPACKET */
+					if (_cbuffer_free(&conn->buffer) > sizeof(size_t)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 						err |= events & (POLLOUT | POLLRDNORM | POLLRDBAND);
+					}
 				}
 				proc_lockClear(&conn->lock);
 				unixsock_put(conn);
