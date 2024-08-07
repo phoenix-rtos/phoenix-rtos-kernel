@@ -5,7 +5,7 @@
  *
  * HAL console
  *
- * Copyright 2022 Phoenix Systems
+ * Copyright 2022-2024 Phoenix Systems
  * Author: Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
@@ -48,17 +48,59 @@ extern unsigned int _end;
 
 
 enum {
-	uart_data,   /* Data register           : 0x00 */
-	uart_status, /* Status register         : 0x04 */
-	uart_ctrl,   /* Control register        : 0x08 */
-	uart_scaler, /* Scaler reload register  : 0x0C */
-	uart_dbg     /* FIFO debug register     : 0x10 */
+	uart_data = 0, /* Data register           : 0x00 */
+	uart_status,   /* Status register         : 0x04 */
+	uart_ctrl,     /* Control register        : 0x08 */
+	uart_scaler,   /* Scaler reload register  : 0x0C */
+	uart_dbg       /* FIFO debug register     : 0x10 */
 };
 
 
-struct {
+static struct {
 	volatile u32 *uart;
 } halconsole_common;
+
+
+/* CPU-specific functions */
+
+#if defined(__CPU_GR716)
+
+static void console_cguClkEnable(void)
+{
+	_gr716_cguClkEnable(cgu_primary, CONSOLE_CGU);
+}
+
+
+static int console_cguClkStatus(void)
+{
+	return _gr716_cguClkStatus(cgu_primary, CONSOLE_CGU);
+}
+
+
+static void console_iomuxCfg(void)
+{
+	gaisler_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
+	gaisler_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
+}
+
+#else
+
+static void console_cguClkEnable(void)
+{
+}
+
+
+static int console_cguClkStatus(void)
+{
+	return 1;
+}
+
+
+static void console_iomuxCfg(void)
+{
+}
+
+#endif
 
 
 static void _hal_consolePrint(const char *s)
@@ -108,13 +150,15 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	gaisler_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
-	gaisler_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
-#ifdef __CPU_GR716
-	_gr716_cguClkEnable(cgu_primary, CONSOLE_CGU);
-#endif
 	halconsole_common.uart = VADDR_CONSOLE;
+
 	*(halconsole_common.uart + uart_ctrl) = 0;
+
+	console_iomuxCfg();
+
+	if (console_cguClkStatus() == 0) {
+		console_cguClkEnable();
+	}
 
 	/* Clear UART FIFO */
 	while ((*(halconsole_common.uart + uart_status) & (1 << 0)) != 0) {
