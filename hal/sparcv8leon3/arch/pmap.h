@@ -76,6 +76,10 @@
 #include "hal/types.h"
 
 
+#define PAGE_ALIGN(addr) (((addr_t)addr) & ~(SIZE_PAGE - 1))
+#define PAGE_OFFS(addr)  (((addr_t)addr) & (SIZE_PAGE - 1))
+
+
 typedef struct _page_t {
 	addr_t addr;
 	u8 idx;
@@ -116,6 +120,9 @@ void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
 
 
 void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+
+
+void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size);
 
 
 void _pmap_halInit(void);

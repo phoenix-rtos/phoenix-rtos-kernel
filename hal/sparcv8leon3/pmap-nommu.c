@@ -122,6 +122,14 @@ void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
 }
 
 
+void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size)
+{
+	(void)size;
+
+	return (void *)(paddr + pageOffs);
+}
+
+
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
 	(*vstart) = (void *)(((ptr_t)_init_stack + 7) & ~7);

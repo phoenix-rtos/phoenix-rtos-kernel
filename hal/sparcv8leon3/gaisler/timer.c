@@ -125,15 +125,11 @@ char *hal_timerFeatures(char *features, unsigned int len)
 
 void _hal_timerInit(u32 interval)
 {
-	ptr_t base;
 	volatile u32 st;
 
 	timer_common.jiffies = 0;
 
-	base = (ptr_t)_pmap_halMap((addr_t)GPTIMER0_BASE, NULL, SIZE_PAGE, PGHD_READ | PGHD_WRITE | PGHD_DEV | PGHD_PRESENT);
-	base += ((addr_t)GPTIMER0_BASE & (SIZE_PAGE - 1));
-
-	timer_common.timer0_base = (volatile u32 *)base;
+	timer_common.timer0_base = _pmap_halMapDevice(PAGE_ALIGN(GPTIMER0_BASE), PAGE_OFFS(GPTIMER0_BASE), SIZE_PAGE);
 
 	/* Disable timer interrupts - bits cleared when written 1 */
 	st = *(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) & (TIMER_INT_ENABLE | TIMER_INT_PENDING);
