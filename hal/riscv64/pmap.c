@@ -625,6 +625,16 @@ void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
 }
 
 
+void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size)
+{
+	void *ret;
+
+	ret = _pmap_halMap(paddr, NULL, size, PGHD_WRITE | PGHD_READ | PGHD_DEV | PGHD_PRESENT);
+
+	return (void *)((ptr_t)ret + pageOffs);
+}
+
+
 /* Function initializes low-level page mapping interface */
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
