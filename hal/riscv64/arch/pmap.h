@@ -58,6 +58,9 @@
 
 #define SIZE_PDIR SIZE_PAGE
 
+#define PAGE_ALIGN(addr) (((addr_t)addr) & ~(SIZE_PAGE - 1))
+#define PAGE_OFFS(addr)  (((addr_t)addr) & (SIZE_PAGE - 1))
+
 
 /* Structure describing page - its should be aligned to 2^N boundary */
 typedef struct _page_t {
@@ -87,6 +90,9 @@ void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
 
 
 void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+
+
+void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size);
 
 
 void _pmap_halInit(void);

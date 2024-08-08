@@ -150,7 +150,7 @@ void plic_init(void)
 {
 	unsigned int i;
 
-	plic_common.regw = _pmap_halMap((addr_t)PLIC_BASE, NULL, PLIC_SIZE, PGHD_READ | PGHD_WRITE | PGHD_PRESENT);
+	plic_common.regw = _pmap_halMapDevice(PAGE_ALIGN(PLIC_BASE), PAGE_OFFS(PLIC_BASE), PLIC_SIZE);
 
 	/* Disable and mask external interrupts */
 	for (i = 1; i < PLIC_IRQ_SIZE; i++) {

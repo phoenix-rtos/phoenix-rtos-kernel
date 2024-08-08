@@ -38,7 +38,7 @@ enum {
 };
 
 
-struct {
+static struct {
 	volatile u32 *uart;
 } halconsole_common;
 
@@ -86,7 +86,7 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	halconsole_common.uart = _pmap_halMap((addr_t)UART0_BASE, NULL, SIZE_PAGE, PGHD_READ | PGHD_WRITE | PGHD_PRESENT);
+	halconsole_common.uart = _pmap_halMapDevice(PAGE_ALIGN(UART0_BASE), PAGE_OFFS(UART0_BASE), SIZE_PAGE);
 	*(halconsole_common.uart + uart_ctrl) = 0;
 
 	/* Clear UART FIFO */
