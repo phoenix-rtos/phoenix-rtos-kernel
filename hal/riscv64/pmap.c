@@ -557,6 +557,11 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr,
 	paddr &= ~(SIZE_PAGE - 1);
 	end = CEIL_PAGE(paddr + size);
 
+	/* Handle overflow, but allow mapping to the end of the physical address space (end = 0) */
+	if ((end != 0) && (end < paddr)) {
+		return NULL;
+	}
+
 	if (va == NULL) {
 		pva = (void **)&pmap_common.vkernelEnd;
 		va = *pva;
@@ -568,7 +573,7 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr,
 
 	ret = va;
 
-	while (paddr < end) {
+	while (paddr != end) {
 		while (_pmap_map(pmap_common.pdir2, paddr, *pva, attr, alloc) < 0) {
 			if (_pmap_findFreePage(&page) < 0) {
 				if (remoteFlush != 0) {
