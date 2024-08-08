@@ -201,7 +201,6 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 void _hal_interruptsInit(void)
 {
 	int i;
-	ptr_t base;
 
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
 		hal_spinlockCreate(&interrupts_common.spinlocks[i], "interrupts_common");
@@ -209,8 +208,5 @@ void _hal_interruptsInit(void)
 		interrupts_common.counters[i] = 0;
 	}
 
-	base = (ptr_t)_pmap_halMap((addr_t)INT_CTRL_BASE, NULL, SIZE_PAGE, PGHD_WRITE | PGHD_READ | PGHD_DEV | PGHD_PRESENT);
-	base += ((addr_t)INT_CTRL_BASE & (SIZE_PAGE - 1));
-
-	interrupts_common.int_ctrl = (volatile u32 *)base;
+	interrupts_common.int_ctrl = _pmap_halMapDevice(PAGE_ALIGN(INT_CTRL_BASE), PAGE_OFFS(INT_CTRL_BASE), SIZE_PAGE);
 }

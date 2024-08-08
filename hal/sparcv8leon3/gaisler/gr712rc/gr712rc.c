@@ -196,14 +196,9 @@ void hal_cpuReboot(void)
 
 void _hal_platformInit(void)
 {
-	ptr_t base;
-
 	hal_spinlockCreate(&gr712rc_common.pltctlSp, "pltctl");
 
-	base = (ptr_t)_pmap_halMap((addr_t)CGU_BASE, NULL, SIZE_PAGE, PGHD_WRITE | PGHD_READ | PGHD_DEV | PGHD_PRESENT);
-	base += ((addr_t)CGU_BASE & (SIZE_PAGE - 1));
-
-	gr712rc_common.cguBase = (volatile u32 *)base;
+	gr712rc_common.cguBase = _pmap_halMapDevice(PAGE_ALIGN(CGU_BASE), PAGE_OFFS(CGU_BASE), SIZE_PAGE);
 
 	gr712rc_common.tlbIrqHandler.f = hal_tlbIrqHandler;
 	gr712rc_common.tlbIrqHandler.n = TLB_IRQ;

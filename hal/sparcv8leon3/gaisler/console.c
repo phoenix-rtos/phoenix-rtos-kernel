@@ -143,12 +143,7 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	ptr_t base;
-
-	base = (ptr_t)_pmap_halMap((addr_t)UART_CONSOLE_BASE, NULL, SIZE_PAGE, PGHD_WRITE | PGHD_READ | PGHD_DEV | PGHD_PRESENT);
-	base += ((addr_t)UART_CONSOLE_BASE & (SIZE_PAGE - 1));
-
-	halconsole_common.uart = (volatile u32 *)base;
+	halconsole_common.uart = _pmap_halMapDevice(PAGE_ALIGN(UART_CONSOLE_BASE), PAGE_OFFS(UART_CONSOLE_BASE), SIZE_PAGE);
 
 	*(halconsole_common.uart + uart_ctrl) = 0;
 
