@@ -9,4 +9,4 @@ ifneq (, $(findstring mcxn94x, $(TARGET_SUBFAMILY)))
     include hal/armv8m/mcx/n94x/Makefile
 endif
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv8m/mcx/, _init.o interrupts.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv8m/mcx/, _init.o)

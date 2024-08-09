@@ -14,7 +14,6 @@
  */
 
 #include "config.h"
-#include "hal/armv8m/armv8m.h"
 #include "hal/timer.h"
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"

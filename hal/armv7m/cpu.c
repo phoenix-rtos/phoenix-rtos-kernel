@@ -57,11 +57,7 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 
 void hal_cpuGetCycles(cycles_t *cb)
 {
-#ifdef CPU_STM32
-	*cb = _stm32_systickGet();
-#elif defined(CPU_IMXRT)
 	*cb = (cycles_t)hal_timerGetUs();
-#endif
 }
 
 
@@ -199,16 +195,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 char *hal_cpuInfo(char *info)
 {
 	int i;
-	unsigned int cpuinfo;
-
-#ifdef CPU_STM32
-	cpuinfo = _stm32_cpuid();
-#elif defined(CPU_IMXRT)
-	cpuinfo = _imxrt_cpuid();
-#else
-	hal_strcpy(info, "unknown");
-	return info;
-#endif
+	unsigned int cpuinfo = _hal_scbCpuid();
 
 	hal_strcpy(info, HAL_NAME_PLATFORM);
 	i = sizeof(HAL_NAME_PLATFORM) - 1;
@@ -289,11 +276,7 @@ void hal_wdgReload(void)
 
 void hal_cpuReboot(void)
 {
-#ifdef CPU_STM32
-	_stm32_nvicSystemReset();
-#elif defined(CPU_IMXRT)
-	_imxrt_nvicSystemReset();
-#endif
+	_hal_scbSystemReset();
 }
 
 
@@ -302,13 +285,7 @@ void hal_cpuReboot(void)
 
 void hal_cleanDCache(ptr_t start, size_t len)
 {
-#ifdef CPU_IMXRT
-	_imxrt_cleanInvalDCacheAddr((void *)start, len);
-#else
-	/* TODO */
-	(void)start;
-	(void)len;
-#endif
+	_hal_scbCleanInvalDCacheAddr((void *)start, len);
 }
 
 

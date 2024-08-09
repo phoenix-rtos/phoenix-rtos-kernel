@@ -14,7 +14,6 @@
  */
 
 #include "config.h"
-#include "hal/armv8m/armv8m.h"
 #include "hal/timer.h"
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
@@ -120,7 +119,7 @@ void hal_timerSetWakeup(u32 waitUs)
 			((*(timer_common.base + ostimer_oseventctrl) & 1) == 0)) {
 		/* We just missed the timer value and be the interrupt won't
 		 * be generated. Trigger the interrupt manually instead. */
-		_interrupts_nvicSetPending(ostimer0_irq - 0x10);
+		_hal_nvicSetPending(ostimer0_irq - 0x10);
 	}
 
 	hal_spinlockClear(&timer_common.lock, &sc);

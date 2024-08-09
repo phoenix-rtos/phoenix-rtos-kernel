@@ -70,20 +70,6 @@ _start:
 	ldr r8, =syspage
 	str r9, [r8]
 
-	/* Enable FPU */
-	ldr r0, =0xe000ed88
-	ldr r1, [r0]
-	orr r1, r1, #(0xf << 20)
-	str r1, [r0]
-	isb
-	dmb
-
-	/* Enable FPU ctx */
-	mrs r0, control
-	orr r0, r0, #(1 << 2)
-	msr control, r0
-	isb
-
 	/* Init vector table and stack pointer */
 	ldr r0, =0xe000ed08
 	ldr r1, =_init_vectors

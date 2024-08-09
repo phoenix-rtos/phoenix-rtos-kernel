@@ -68,6 +68,7 @@ void hal_cpuSetDevBusy(int s)
 	hal_spinlockClear(&cpu_common.busySp, &scp);
 }
 
+
 int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
@@ -180,16 +181,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 char *hal_cpuInfo(char *info)
 {
 	int i;
-	unsigned int cpuinfo;
-
-#if defined(__CPU_NRF9160)
-	cpuinfo = _nrf91_cpuid();
-#elif defined(__CPU_MCXN94X)
-	cpuinfo = _mcxn94x_cpuid();
-#else
-	hal_strcpy(info, "unknown");
-	return info;
-#endif
+	unsigned int cpuinfo = _hal_scbCpuid();
 
 	hal_strcpy(info, HAL_NAME_PLATFORM);
 	i = sizeof(HAL_NAME_PLATFORM) - 1;
@@ -255,7 +247,7 @@ void hal_wdgReload(void)
 
 void hal_cpuReboot(void)
 {
-	_interrupts_nvicSystemReset();
+	_hal_scbSystemReset();
 }
 
 
