@@ -22,14 +22,6 @@
 #include "include/arch/armv8m/mcx/n94x/mcxn94x.h"
 
 
-/* clang-format off */
-enum {
-	scb_actlr = 2, scb_cpuid = 832, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp1, scb_shp2,
-	scb_shp3, scb_shcsr, scb_cfsr, scb_mmsr, scb_bfsr, scb_ufsr, scb_hfsr, scb_mmar, scb_bfar, scb_afsr
-};
-/* clang-format on */
-
-
 extern int _mcxn94x_portPinConfig(int pin, int mux, int options);
 
 

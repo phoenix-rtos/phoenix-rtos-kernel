@@ -14,7 +14,6 @@
  */
 
 #include "hal/armv7m/stm32/config.h"
-#include "hal/armv7m/armv7m.h"
 #include "hal/timer.h"
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"

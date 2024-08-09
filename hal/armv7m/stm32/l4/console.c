@@ -15,7 +15,6 @@
 
 #include "hal/console.h"
 #include "hal/cpu.h"
-#include "hal/armv7m/armv7m.h"
 
 #include "stm32.h"
 

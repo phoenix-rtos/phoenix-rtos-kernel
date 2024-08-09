@@ -15,8 +15,10 @@
 
 #include "nrf91.h"
 
+#include "hal/arm/nvic.h"
+#include "hal/arm/scb.h"
+
 #include "hal/cpu.h"
-#include "hal/armv8m/armv8m.h"
 #include "include/errno.h"
 
 
@@ -157,62 +159,8 @@ int _nrf91_gpioSet(u8 pin, u8 val)
 }
 
 
-/* SCB */
-
-
-void _nrf91_scbSetPriorityGrouping(u32 group)
-{
-	u32 t;
-
-	/* Get register value and clear bits to set */
-	t = *(nrf91_common.scb + scb_aircr) & ~0xffff0700;
-
-	/* Set AIRCR.PRIGROUP to 3: 16 priority groups and 16 subgroups
-	   The value is same as for armv7m4-stm32l4x6 target
-	   Setting various priorities is not supported on Phoenix-RTOS, so it's just default value */
-	*(nrf91_common.scb + scb_aircr) = t | 0x5fa0000 | ((group & 7) << 8);
-}
-
-
-u32 _nrf91_scbGetPriorityGrouping(void)
-{
-	return (*(nrf91_common.scb + scb_aircr) & 0x700) >> 8;
-}
-
-
-void _nrf91_scbSetPriority(s8 excpn, u32 priority)
-{
-	volatile u8 *ptr;
-
-	ptr = &((u8 *)(nrf91_common.scb + scb_shp1))[excpn - 4];
-
-	/* We set only group priority field */
-	*ptr = (priority << 4) & 0xff;
-}
-
-
-u32 _nrf91_scbGetPriority(s8 excpn)
-{
-	volatile u8 *ptr;
-
-	ptr = &((u8 *)(nrf91_common.scb + scb_shp1))[excpn - 4];
-
-	return *ptr >> 4;
-}
-
-
-/* CPU info */
-
-
-unsigned int _nrf91_cpuid(void)
-{
-	return *(nrf91_common.scb + scb_cpuid);
-}
-
-
 void _nrf91_init(void)
 {
-	nrf91_common.scb = (void *)0xe000e000;
 	nrf91_common.power = (void *)0x50005000;
 	nrf91_common.clock = (void *)0x50005000;
 	nrf91_common.gpio = (void *)0x50842500;
@@ -220,6 +168,8 @@ void _nrf91_init(void)
 	nrf91_common.resetFlags = *(nrf91_common.power + power_resetreas);
 	*(nrf91_common.power + power_resetreas) = 0x70017;
 
+	_hal_scbInit();
+	_hal_nvicInit();
 
 	/* Based on nRF9160 product specification there is fixed cpu frequency */
 	nrf91_common.cpuclk = 64 * 1000 * 1000;
@@ -243,10 +193,6 @@ void _nrf91_init(void)
 	*(nrf91_common.clock + clock_hfclkrun) = 0u;
 	hal_cpuDataMemoryBarrier();
 
-	/* Enable UsageFault, BusFault and MemManage exceptions */
-	*(nrf91_common.scb + scb_shcsr) |= (1u << 16) | (1u << 17) | (1u << 18);
-
 	/* Disable FPU */
-	*(nrf91_common.scb + fpu_cpacr) = 0u;
-	*(nrf91_common.scb + fpu_fpccr) = 0u;
+	_hal_scbSetFPU(0);
 }
