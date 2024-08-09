@@ -19,7 +19,6 @@
 #include "hal/cpu.h"
 #include "hal/string.h"
 #include "hal/spinlock.h"
-#include "hal/armv8m/armv8m.h"
 #include <board_config.h>
 
 

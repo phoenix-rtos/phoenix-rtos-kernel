@@ -5,8 +5,8 @@
  *
  * Interrupt handling
  *
- * Copyright 2017, 2020, 2022 Phoenix Systems
- * Author: Pawel Pisarczyk, Hubert Buczynski, Damian Loewnau
+ * Copyright 2017, 2020, 2022, 2024 Phoenix Systems
+ * Author: Pawel Pisarczyk, Hubert Buczynski, Damian Loewnau, Aleksander Kaminski
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -17,61 +17,20 @@
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
 #include "hal/list.h"
-#include "hal/armv8m/armv8m.h"
-#include "hal/armv8m/nrf/91/nrf91.h"
+#include "hal/armv8m/mcx/n94x/mcxn94x.h"
 
 #include "proc/userintr.h"
 
 #include "config.h"
 
 static struct {
-	volatile u32 *nvic;
-	volatile u32 *scb;
 	spinlock_t spinlock;
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
 } interrupts;
 
 
-/* clang-format off */
-enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr = 128,
-	nvic_ip = 192 };
-/* clang-format on */
-
-
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
-
-
-void _interrupts_nvicSetIRQ(s8 irqn, u8 state)
-{
-	volatile u32 *ptr = interrupts.nvic + ((u8)irqn >> 5) + ((state != 0) ? nvic_iser : nvic_icer);
-	*ptr = 1u << (irqn & 0x1f);
-
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-}
-
-
-void _interrupts_nvicSetPriority(s8 irqn, u32 priority)
-{
-	volatile u32 *ptr;
-
-	ptr = ((u32 *)(interrupts.nvic + nvic_ip)) + (irqn / 4);
-
-	/* We set only group priority field */
-	*ptr = (priority << (8 * (irqn % 4) + 4));
-}
-
-
-void _interrupts_nvicSystemReset(void)
-{
-	*(interrupts.scb + scb_aircr) = ((0x5fau << 16) | (*(interrupts.scb + scb_aircr) & (0x700u)) | (1u << 2));
-
-	hal_cpuDataSyncBarrier();
-
-	for (;;) {
-	}
-}
 
 
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
@@ -122,8 +81,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	HAL_LIST_ADD(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10) {
-		_interrupts_nvicSetPriority(h->n - 0x10, 1);
-		_interrupts_nvicSetIRQ(h->n - 0x10, 1);
+		_hal_nvicSetPriority(h->n - 0x10, 1);
+		_hal_nvicSetIRQ(h->n - 0x10, 1);
 	}
 	hal_spinlockClear(&interrupts.spinlock, &sc);
 
@@ -143,7 +102,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	HAL_LIST_REMOVE(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10 && interrupts.handlers[h->n] == NULL) {
-		_interrupts_nvicSetIRQ(h->n - 0x10, 0);
+		_hal_nvicSetIRQ(h->n - 0x10, 0);
 	}
 
 	hal_spinlockClear(&interrupts.spinlock, &sc);
@@ -170,17 +129,14 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 		interrupts.counters[n] = 0;
 	}
 
-	interrupts.nvic = (void *)0xe000e100;
-	interrupts.scb = (void *)0xe000e000;
-
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
 
-	_nrf91_scbSetPriority(SYSTICK_IRQ, 1);
-	_nrf91_scbSetPriority(PENDSV_IRQ, 1);
-	_nrf91_scbSetPriority(SVC_IRQ, 0);
+	_hal_scbSetPriority(SYSTICK_IRQ, 1);
+	_hal_scbSetPriority(PENDSV_IRQ, 1);
+	_hal_scbSetPriority(SVC_IRQ, 0);
 
 	/* Set no subprorities in Interrupt Group Priority */
-	_nrf91_scbSetPriorityGrouping(3);
+	_hal_scbSetPriorityGrouping(3);
 
 	return;
 }

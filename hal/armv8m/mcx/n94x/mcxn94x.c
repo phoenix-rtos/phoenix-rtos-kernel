@@ -15,8 +15,10 @@
 
 #include "mcxn94x.h"
 
+#include "hal/arm/nvic.h"
+#include "hal/arm/scb.h"
+
 #include "hal/cpu.h"
-#include "hal/armv8m/armv8m.h"
 #include "include/errno.h"
 
 
@@ -141,7 +143,6 @@ enum {
 
 
 static struct {
-	volatile u32 *scb;
 	volatile u32 *syscon;
 	volatile u32 *port[6];
 	volatile u32 *inputmux;
@@ -549,7 +550,7 @@ int hal_platformctl(void *ptr)
 		case pctl_reboot:
 			if (data->action == pctl_set) {
 				if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
-					_interrupts_nvicSystemReset();
+					_hal_scbSystemReset();
 				}
 			}
 			else {
@@ -613,43 +614,8 @@ void _hal_platformInit(void)
 }
 
 
-/* SCB */
-
-
-void _mcxn94x_scbSetPriorityGrouping(u32 group)
-{
-	u32 t;
-
-	/* Get register value and clear bits to set */
-	t = *(n94x_common.scb + scb_aircr) & ~0xffff0700;
-
-	/* Set AIRCR.PRIGROUP to 3: 16 priority groups and 16 subgroups
-	   The value is same as for armv7m4-stm32l4x6 target
-	   Setting various priorities is not supported on Phoenix-RTOS, so it's just default value */
-	*(n94x_common.scb + scb_aircr) = t | 0x5fa0000 | ((group & 7) << 8);
-}
-
-
-void _mcxn94x_scbSetPriority(s8 excpn, u32 priority)
-{
-	volatile u8 *ptr;
-
-	ptr = &((u8 *)(n94x_common.scb + scb_shp1))[excpn - 4];
-
-	/* We set only group priority field */
-	*ptr = (priority << 4) & 0xff;
-}
-
-
-unsigned int _mcxn94x_cpuid(void)
-{
-	return *(n94x_common.scb + scb_cpuid);
-}
-
-
 void _mcxn94x_init(void)
 {
-	n94x_common.scb = (void *)0xe000e000;
 	n94x_common.syscon = (void *)0x40000000;
 	n94x_common.port[0] = (void *)0x40116000;
 	n94x_common.port[1] = (void *)0x40117000;
@@ -658,6 +624,9 @@ void _mcxn94x_init(void)
 	n94x_common.port[4] = (void *)0x4011a000;
 	n94x_common.port[5] = (void *)0x40042000;
 	n94x_common.inputmux = (void *)0x40006000;
+
+	_hal_scbInit();
+	_hal_nvicInit();
 
 	/* resetFlags TODO */
 }

@@ -19,7 +19,6 @@
 #include "hal/cpu.h"
 #include "hal/string.h"
 #include "hal/spinlock.h"
-#include "hal/armv8m/armv8m.h"
 #include <board_config.h>
 
 #define TX_DMA_SIZE 64
@@ -44,11 +43,11 @@ static struct {
 
 
 /* clang-format off */
-enum { uarte_startrx = 0, uarte_stoprx, uarte_starttx, uarte_stoptx, 
-	uarte_events_cts = 64, uarte_events_txdrdy = 71, uarte_events_endtx, uarte_events_error, uarte_events_txstarted = 84, 
-	uarte_inten = 192, uarte_errorsrc = 288, uarte_intenset, uarte_intenclr, uarte_enable = 320, 
-	uarte_psel_rts = 322, uarte_psel_txd, uarte_psel_cts, uarte_psel_rxd, uarte_baudrate = 329, 
-	uarte_rxd_ptr = 333, uarte_rxd_maxcnt, uarte_rxd_amount, uarte_txd_ptr = 337, uarte_txd_maxcnt, uarte_txd_amount, 
+enum { uarte_startrx = 0, uarte_stoprx, uarte_starttx, uarte_stoptx,
+	uarte_events_cts = 64, uarte_events_txdrdy = 71, uarte_events_endtx, uarte_events_error, uarte_events_txstarted = 84,
+	uarte_inten = 192, uarte_errorsrc = 288, uarte_intenset, uarte_intenclr, uarte_enable = 320,
+	uarte_psel_rts = 322, uarte_psel_txd, uarte_psel_cts, uarte_psel_rxd, uarte_baudrate = 329,
+	uarte_rxd_ptr = 333, uarte_rxd_maxcnt, uarte_rxd_amount, uarte_txd_ptr = 337, uarte_txd_maxcnt, uarte_txd_amount,
 	uarte_config = 347 };
 /* clang-format on */
 

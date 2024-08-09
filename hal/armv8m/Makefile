@@ -13,4 +13,8 @@ else ifneq (, $(findstring mcx, $(TARGET_SUBFAMILY)))
     CFLAGS += -Ihal/armv8m
 endif
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv8m/, string.o spinlock.o cpu.o hal.o pmap.o exceptions.o _memcpy.o _memset.o)
+include hal/arm/Makefile
+CFLAGS += -Ihal/arm
+
+OBJS += $(addprefix $(PREFIX_O)hal/armv8m/, string.o spinlock.o cpu.o hal.o \
+  pmap.o exceptions.o _memcpy.o _memset.o interrupts.o)

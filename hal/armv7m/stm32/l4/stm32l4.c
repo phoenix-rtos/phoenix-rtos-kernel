@@ -18,8 +18,10 @@
 #include "hal/armv7m/stm32/halsyspage.h"
 
 #include "hal/cpu.h"
-#include "hal/armv7m/armv7m.h"
 #include "include/errno.h"
+
+#include "hal/arm/nvic.h"
+#include "hal/arm/scb.h"
 
 #include <board_config.h>
 
@@ -32,9 +34,7 @@ struct {
 	volatile u32 *rcc;
 	volatile u32 *gpio[9];
 	volatile u32 *pwr;
-	volatile u32 *scb;
 	volatile u32 *rtc;
-	volatile u32 *nvic;
 	volatile u32 *exti;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
@@ -74,20 +74,8 @@ enum { rtc_tr = 0, rtc_dr, rtc_cr, rtc_isr, rtc_prer, rtc_wutr, rtc_alrmar = rtc
 	rtc_bkpr };
 
 
-enum { scb_actlr = 2, scb_cpuid = 832, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp1, scb_shp2,
-	scb_shp3, scb_shcsr, scb_cfsr, scb_mmsr, scb_bfsr, scb_ufsr, scb_hfsr, scb_mmar, scb_bfar, scb_afsr,
-	scb_cpacr = 866, scb_fpccr = 973, scb_fpcar, scb_fpdscr };
-
-
-enum { nvic_iser = 0, nvic_icer = 32, nvic_ispr = 64, nvic_icpr = 96, nvic_iabr = 128,
-	nvic_ip = 192, nvic_stir = 896 };
-
-
 enum { exti_imr1 = 0, exti_emr1, exti_rtsr1, exti_ftsr1, exti_swier1, exti_pr1, exti_imr2 = 8, exti_emr2,
 	exti_rtsr2, exti_ftsr2, exti_swier2, exti_pr2 };
-
-
-enum { syst_csr = 4, syst_rvr, syst_cvr, syst_calib };
 
 
 enum { syscfg_memrmp = 0, syscfg_cfgr1, syscfg_exticr1, syscfg_exticr2, syscfg_exticr3, syscfg_exticr4,
@@ -139,8 +127,9 @@ int hal_platformctl(void *ptr)
 		break;
 	case pctl_reboot:
 		if (data->action == pctl_set) {
-			if (data->reboot.magic == PCTL_REBOOT_MAGIC)
-				_stm32_nvicSystemReset();
+			if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
+				_hal_scbSystemReset();
+			}
 		}
 		else if (data->action == pctl_get) {
 			data->reboot.reason = syspage->hs.bootReason;
@@ -485,9 +474,7 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	hal_cpuDataMemoryBarrier();
 
 	/* Set SLEEPDEEP bit of Cortex System Control Register */
-	*(stm32_common.scb + scb_scr) |= 1 << 2;
-
-	*(stm32_common.scb + syst_csr) &= ~1;
+	_hal_scbSetDeepSleep(1);
 
 	timer_setAlarm(us);
 
@@ -498,9 +485,7 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 		nop; ");
 
 	/* Reset SLEEPDEEP bit of Cortex System Control Register */
-	*(stm32_common.scb + scb_scr) &= ~(1 << 2);
-
-	*(stm32_common.scb + syst_csr) |= 1;
+	_hal_scbSetDeepSleep(0);
 
 	if (restoreMsi != 0) {
 		/* Restore pre-sleep MSI clock */
@@ -513,112 +498,6 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	}
 
 	return 0;
-}
-
-
-/* SCB */
-
-
-void _stm32_scbSetPriorityGrouping(u32 group)
-{
-	u32 t;
-
-	/* Get register value and clear bits to set */
-	t = *(stm32_common.scb + scb_aircr) & ~0xffff0700;
-
-	/* Store new value */
-	*(stm32_common.scb + scb_aircr) = t | 0x5fa0000 | ((group & 7) << 8);
-}
-
-
-u32 _stm32_scbGetPriorityGrouping(void)
-{
-	return (*(stm32_common.scb + scb_aircr) & 0x700) >> 8;
-}
-
-
-void _stm32_scbSetPriority(s8 excpn, u32 priority)
-{
-	volatile u8 *ptr;
-
-	ptr = &((u8*)(stm32_common.scb + scb_shp1))[excpn - 4];
-
-	*ptr = (priority << 4) & 0xff;
-}
-
-
-u32 _stm32_scbGetPriority(s8 excpn)
-{
-	volatile u8 *ptr;
-
-	ptr = &((u8*)(stm32_common.scb + scb_shp1))[excpn - 4];
-
-	return *ptr >> 4;
-}
-
-
-/* NVIC (Nested Vectored Interrupt Controller */
-
-
-void _stm32_nvicSetIRQ(s8 irqn, u8 state)
-{
-	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + (state ? nvic_iser: nvic_icer);
-	*ptr = 1 << (irqn & 0x1F);
-
-	hal_cpuDataSyncBarrier();
-	hal_cpuInstrBarrier();
-}
-
-
-u32 _stm32_nvicGetPendingIRQ(s8 irqn)
-{
-	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + nvic_ispr;
-	return !!(*ptr & (1 << (irqn & 0x1F)));
-}
-
-
-void _stm32_nvicSetPendingIRQ(s8 irqn, u8 state)
-{
-	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + (state ? nvic_ispr: nvic_icpr);
-	*ptr = 1 << (irqn & 0x1F);
-}
-
-
-u32 _stm32_nvicGetActive(s8 irqn)
-{
-	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + nvic_iabr;
-	return !!(*ptr & (1 << (irqn & 0x1F)));
-}
-
-
-void _stm32_nvicSetPriority(s8 irqn, u32 priority)
-{
-	volatile u8 *ptr;
-
-	ptr = ((u8*)(stm32_common.nvic + nvic_ip)) + irqn;
-
-	*ptr = (priority << 4) & 0xff;
-}
-
-
-u8 _stm32_nvicGetPriority(s8 irqn)
-{
-	volatile u8 *ptr;
-
-	ptr = ((u8*)(stm32_common.nvic + nvic_ip)) + irqn;
-
-	return *ptr >> 4;
-}
-
-
-void _stm32_nvicSystemReset(void)
-{
-	*(stm32_common.scb + scb_aircr) = ((0x5fa << 16) | (*(stm32_common.scb + scb_aircr) & (0x700)) | (1 << 0x02));
-
-	__asm__ volatile ("dsb");
-
-	for (;;) {
-	}
 }
 
 
@@ -699,30 +578,13 @@ int _stm32_extiSoftInterrupt(u32 line)
 int _stm32_systickInit(u32 interval)
 {
 	u64 load = ((u64) interval * stm32_common.cpuclk) / 1000000;
-	if (load > 0x00ffffff)
+	if (load > 0x00ffffff) {
 		return -EINVAL;
+	}
 
-	*(stm32_common.scb + syst_rvr) = (u32)load;
-	*(stm32_common.scb + syst_cvr) = 0;
-
-	/* Enable systick */
-	*(stm32_common.scb + syst_csr) |= 0x7;
+	_hal_scbSystickInit(load);
 
 	return EOK;
-}
-
-
-u32 _stm32_systickGet(void)
-{
-	u32 cb;
-
-	cb = ((*(stm32_common.scb + syst_rvr) - *(stm32_common.scb + syst_cvr)) * 1000) / *(stm32_common.scb + syst_rvr);
-
-	/* Add 1000 us if there's systick pending */
-	if (*(stm32_common.scb + scb_icsr) & (1 << 26))
-		cb += 1000;
-
-	return cb;
 }
 
 
@@ -828,15 +690,6 @@ int _stm32_gpioGetPort(unsigned int d, u16 *val)
 }
 
 
-/* CPU info */
-
-
-unsigned int _stm32_cpuid(void)
-{
-	return *(stm32_common.scb + scb_cpuid);
-}
-
-
 /* Watchdog */
 
 
@@ -857,9 +710,7 @@ void _stm32_init(void)
 	/* Base addresses init */
 	stm32_common.rcc = (void *)0x40021000;
 	stm32_common.pwr = (void *)0x40007000;
-	stm32_common.scb = (void *)0xe000e000;
 	stm32_common.rtc = (void *)0x40002800;
-	stm32_common.nvic = (void *)0xe000e100;
 	stm32_common.exti = (void *)0x40010400;
 	stm32_common.syscfg = (void *)0x40010000;
 	stm32_common.iwdg = (void *)0x40003000;
@@ -873,6 +724,9 @@ void _stm32_init(void)
 	stm32_common.gpio[7] = (void *)0x48001c00; /* GPIOH */
 	stm32_common.gpio[8] = (void *)0x48002000; /* GPIOI */
 	stm32_common.flash = (void *)0x40022000;
+
+	_hal_scbInit();
+	_hal_nvicInit();
 
 	/* Enable System configuration controller */
 	_stm32_rccSetDevClock(pctl_syscfg, 1);
@@ -964,12 +818,8 @@ void _stm32_init(void)
 	*(u32 *)0xE0042004 = 0;
 #endif
 
-	/* Enable UsageFault, BusFault and MemManage exceptions */
-	*(stm32_common.scb + scb_shcsr) |= (1 << 16) | (1 << 17) | (1 << 18);
-
 	/* Disable FPU */
-	*(stm32_common.scb + scb_cpacr) = 0;
-	*(stm32_common.scb + scb_fpccr) = 0;
+	_hal_scbSetFPU(0);
 
 	/* Enable internal wakeup line */
 	*(stm32_common.pwr + pwr_cr3) |= 1 << 15;

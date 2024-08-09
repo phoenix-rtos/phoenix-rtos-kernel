@@ -18,7 +18,6 @@
 #include "syspage.h"
 #include "halsyspage.h"
 #include <arch/cpu.h>
-#include "armv7m.h"
 #include <arch/spinlock.h>
 
 enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rasr, mpu_rbar_a1, mpu_rasr_a1, mpu_rbar_a2, mpu_rasr_a2,
