@@ -303,7 +303,7 @@ void hal_cpuReboot(void)
 void hal_cleanDCache(ptr_t start, size_t len)
 {
 #ifdef CPU_IMXRT
-	_imxrt_cleanInvalDCacheAddr((void *)start, len);
+	_imxrt_cleanInvalDCacheAddr((void *)start, len, 1);
 #else
 	/* TODO */
 	(void)start;

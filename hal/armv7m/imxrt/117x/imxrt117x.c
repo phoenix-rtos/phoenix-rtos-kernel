@@ -53,7 +53,7 @@ enum { scb_cpuid = 0, scb_icsr, scb_vtor, scb_aircr, scb_scr, scb_ccr, scb_shp0,
 	scb_pfr1, scb_dfr, scb_afr, scb_mmfr0, scb_mmfr1, scb_mmfr2, scb_mmf3, scb_isar0, scb_isar1,
 	scb_isar2, scb_isar3, scb_isar4, /* reserved */ scb_clidr = 30, scb_ctr, scb_ccsidr, scb_csselr,
 	scb_cpacr, /* 93 reserved */ scb_stir = 128, /* 15 reserved */ scb_mvfr0 = 144, scb_mvfr1,
-	scb_mvfr2, /* reserved */ scb_iciallu = 148, /* reserved */ scb_icimvau = 150, scb_scimvac,
+	scb_mvfr2, /* reserved */ scb_iciallu = 148, /* reserved */ scb_icimvau = 150, scb_dcimvac,
 	scb_dcisw, scb_dccmvau, scb_dccmvac, scb_dccsw, scb_dccimvac, scb_dccisw, /* 6 reserved */
 	scb_itcmcr = 164, scb_dtcmcr, scb_ahbpcr, scb_cacr, scb_ahbscr, /* reserved */ scb_abfsr = 170 };
 
@@ -562,7 +562,7 @@ void _imxrt_disableDCache(void)
 }
 
 
-void _imxrt_cleanInvalDCacheAddr(void *addr, u32 sz)
+void _imxrt_cleanInvalDCacheAddr(void *addr, u32 sz, int clean)
 {
 	u32 daddr;
 	int dsize;
@@ -576,8 +576,9 @@ void _imxrt_cleanInvalDCacheAddr(void *addr, u32 sz)
 
 	hal_cpuDataSyncBarrier();
 
+	const int reg = (clean != 0) ? scb_dccimvac : scb_dcimvac;
 	do {
-		*(imxrt_common.scb + scb_dccimvac) = daddr;
+		*(imxrt_common.scb + reg) = daddr;
 		daddr += 0x20u;
 		dsize -= 0x20;
 	} while (dsize > 0);
@@ -931,7 +932,14 @@ int hal_platformctl(void *ptr)
 
 		case pctl_cleanInvalDCache:
 			if (data->action == pctl_set) {
-				_imxrt_cleanInvalDCacheAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz);
+				_imxrt_cleanInvalDCacheAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz, 1);
+				ret = EOK;
+			}
+			break;
+
+		case pctl_invalDCache:
+			if (data->action == pctl_set) {
+				_imxrt_cleanInvalDCacheAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz, 0);
 				ret = EOK;
 			}
 			break;

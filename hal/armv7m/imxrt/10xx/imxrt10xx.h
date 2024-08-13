@@ -228,7 +228,7 @@ extern int _imxrt_setIOisel(int isel, char daisy);
 extern void _imxrt_enableDCache(void);
 
 
-extern void _imxrt_cleanInvalDCacheAddr(void *addr, u32 sz);
+extern void _imxrt_cleanInvalDCacheAddr(void *addr, u32 sz, int clean);
 
 
 extern void _imxrt_disableDCache(void);
