@@ -159,7 +159,7 @@ irq_cwp_done0:
 	mov %l3, %o0 /* irq */
 
 	/* disable traps */
-#ifndef __CPU_GR712RC
+#ifdef LEON3_USE_PWR
 	pwr 0, %psr
 	nop
 	nop

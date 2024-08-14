@@ -139,10 +139,14 @@ irq_fpu_done:
 	mov %l3, %o0 /* irq */
 
 	/* disable traps */
+#ifdef LEON3_USE_PWR
 	pwr 0, %psr
 	nop
 	nop
 	nop
+#else
+	ta 0xb
+#endif
 
 	MULTILOCK_CLEAR
 
