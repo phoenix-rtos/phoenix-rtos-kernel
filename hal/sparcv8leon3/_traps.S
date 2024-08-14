@@ -170,7 +170,7 @@ _start:
 
 .type _traps_stErrHandler, #function
 _traps_stErrHandler:
-	sta %g0, [%g0] ASI_CCTRL
+	sta %g0, [%g0] ASI_CACHE_CTRL
 
 	TN_0018_WAIT_ICACHE(%l3, %l4)
 

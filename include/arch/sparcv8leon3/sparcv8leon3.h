@@ -21,6 +21,8 @@
 #include "gr716/gr716.h"
 #elif defined(__CPU_GR712RC)
 #include "gr712rc/gr712rc.h"
+#elif defined(__CPU_GENERIC)
+#include "generic/generic.h"
 #else
 #error "Unsupported TARGET"
 #endif
