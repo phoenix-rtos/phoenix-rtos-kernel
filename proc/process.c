@@ -215,6 +215,8 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->lazy = 1;
 #endif
 
+	process->hasInterpreter = 0;
+
 	proc_changeMap(process, NULL, NULL, NULL);
 
 	/* Initialize resources tree for mutex and cond handles */
@@ -315,6 +317,7 @@ static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbss
 	}
 	process_tls->tdata_sz = tls->tdata_sz;
 	process_tls->tbss_sz = tls->tbss_sz;
+	// TODO: Add missing space for linkers additional data.
 	process_tls->tls_sz = (tls->tbss_sz + tls->tdata_sz + sizeof(void *) + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
 	process_tls->arm_m_tls = tls->arm_m_tls;
 }
@@ -564,9 +567,6 @@ int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 		}
 		loadOff = ((Elf32_Addr)(*baseAddr) - loadLow);
 		*entry = (char *)(*entry) + loadOff;
-		char dupa[32];
-		lib_sprintf(dupa, "ENTRY %p %x\n", *entry, loadOff);
-		hal_consolePrint(ATTR_BOLD, dupa);
 	}
 
 	if (auxData != NULL) {
@@ -676,7 +676,7 @@ const char *process_getInterpreterPath32(const Elf32_Ehdr *ehdr)
 
 
 /* *interpreterEntry is changed only if interpreter is found and loaded properly. */
-int process_loadInterpreter32(vm_map_t *map, const void *iehdr, void **interpreterEntry, struct auxInfo **auxData)
+int process_loadInterpreter32(vm_map_t *map, const void *iehdr, void **interpreterEntry, struct auxInfo **auxData, int *hasInterp)
 {
 	const Elf32_Ehdr *ehdr = iehdr;
 	int err;
@@ -724,6 +724,8 @@ int process_loadInterpreter32(vm_map_t *map, const void *iehdr, void **interpret
 	if (err < 0) {
 		return err;
 	}
+
+	*hasInterp = 1;
 
 	(*auxData)->a_type = AT_BASE;
 	(*auxData)->a_v = (u64)(ptr_t)baseAddr;
@@ -781,9 +783,6 @@ int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 		}
 		loadOff = ((Elf64_Addr)(ptr_t)(*baseAddr) - loadLow);
 		*entry = (char *)(*entry) + loadOff;
-		char dupa[32];
-		lib_sprintf(dupa, "ENTRY %p %x\n", *entry, loadOff);
-		hal_consolePrint(ATTR_BOLD, dupa);
 	}
 
 	if (auxData != NULL) {
@@ -894,7 +893,7 @@ const char *process_getInterpreterPath64(const Elf64_Ehdr *ehdr)
 
 
 /* *interpreterEntry is changed only if interpreter is found and loaded properly. */
-int process_loadInterpreter64(vm_map_t *map, const void *iehdr, void **interpreterEntry, struct auxInfo **auxData)
+int process_loadInterpreter64(vm_map_t *map, const void *iehdr, void **interpreterEntry, struct auxInfo **auxData, int *hasInterp)
 {
 	const Elf64_Ehdr *ehdr = iehdr;
 	int err;
@@ -943,6 +942,8 @@ int process_loadInterpreter64(vm_map_t *map, const void *iehdr, void **interpret
 		return err;
 	}
 
+	*hasInterp = 1;
+
 	(*auxData)->a_type = AT_BASE;
 	(*auxData)->a_v = (u64)(ptr_t)baseAddr;
 	(*auxData)++;
@@ -978,14 +979,14 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		case ELFCLASS32:
 			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr, entry, NULL, auxData);
 			if (err == 0) {
-				err = process_loadInterpreter32(map, ehdr, entry, auxData);
+				err = process_loadInterpreter32(map, ehdr, entry, auxData, &process->hasInterpreter);
 			}
 			break;
 
 		case ELFCLASS64:
 			err = process_load64(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr, entry, NULL, auxData);
 			if (err == 0) {
-				err = process_loadInterpreter64(map, ehdr, entry, auxData);
+				err = process_loadInterpreter64(map, ehdr, entry, auxData, &process->hasInterpreter);
 			}
 			break;
 		default:
@@ -1402,8 +1403,8 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
-	if ((err == EOK) && (current->process->tls.tls_base != NULL)) {
-		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
+	if ((err == EOK) && ((current->process->tls.tls_base != NULL) || (current->process->hasInterpreter != 0))) {
+		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp, current->process->hasInterpreter);
 	}
 
 	if (err != 0) {
@@ -2006,17 +2007,31 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 }
 
 
-int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
+int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map, int hasInterpreter)
 {
 	int err;
+	/* FIXME: Hack to add support for dynamic binaries. */
+	/* Binary may not have any TLS section albeit loaded libraries may use it. */
+	/* RTLD relies on having enough space for static TLS sections of shared libraries. */
+	/* Thus free space for it is added. */
+	size_t freeSpaceBefore, freeSpaceAfter;
+	if (hasInterpreter == 0) {
+		freeSpaceAfter = 0;
+		freeSpaceBefore = 0;
+	}
+	else {
+		freeSpaceAfter = 64;
+		freeSpaceBefore = SIZE_PAGE / 2;
+	}
 	dest->tdata_sz = source->tdata_sz;
 	dest->tbss_sz = source->tbss_sz;
-	dest->tls_sz = round_page(source->tls_sz);
+	dest->tls_sz = round_page(source->tls_sz + freeSpaceBefore + freeSpaceAfter);
 	dest->arm_m_tls = source->arm_m_tls;
 
 	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
 	if (dest->tls_base != NULL) {
+		dest->tls_base += freeSpaceBefore;
 		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
 		/* At the end of TLS there must be a pointer to itself */
