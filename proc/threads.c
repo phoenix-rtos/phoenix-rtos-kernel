@@ -787,8 +787,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 		return -ENOMEM;
 	}
 
-	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
-		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
+	if ((process != NULL) && ((process->tls.tls_base != NULL) || (process->hasInterpreter != 0))) {
+		err = process_tlsInit(&t->tls, &process->tls, process->mapp, process->hasInterpreter);
 		if (err != EOK) {
 			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
 			vm_kfree(t->kstack);
