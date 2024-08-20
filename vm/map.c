@@ -370,12 +370,47 @@ void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
 }
 
 
+static void vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src, int refAnons)
+{
+	hal_memcpy(dst, src, sizeof(map_entry_t));
+	src->amap = amap_ref(dst->amap);
+	/* In case of splitting the entry the anons shouldn't be reffed as they just change the owner. */
+	if (refAnons != 0) {
+		amap_getanons(dst->amap, dst->aoffs, dst->size);
+	}
+	src->object = vm_objectRef(dst->object);
+}
+
+
+static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entry_t *new, size_t len)
+{
+	vm_mapEntryCopy(new, e, 0);
+
+	new->vaddr += len;
+	new->size -= len;
+	new->aoffs += len;
+	new->offs = (new->offs == -1) ? -1 : (new->offs + len);
+	new->lmaxgap = 0;
+
+	e->size = len;
+	e->rmaxgap = 0;
+	map_augment(&e->linkage);
+
+	_map_add(p, m, new);
+}
+
+
 int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 {
-	long offs;
+	ptr_t pvaddr;
 	map_entry_t *e, *s;
 	map_entry_t t;
 	process_t *proc = proc_current()->process;
+	size_t overlapEOffset;
+	size_t overlapSize;
+	ptr_t overlapStart, overlapEnd;
+	ptr_t eAoffs;
+	int putEntry;
 
 	t.vaddr = vaddr;
 	t.size = size;
@@ -392,39 +427,41 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		proc = e->process;
 #endif
 
-		/* Note: what if NEEDS_COPY? */
-		amap_putanons(e->amap, (e->aoffs + vaddr) - e->vaddr, size);
+		overlapStart = max((ptr_t)e->vaddr, (ptr_t)vaddr);
+		overlapEnd = min((ptr_t)e->vaddr + e->size, (ptr_t)vaddr + size);
+		overlapSize = (size_t)(overlapEnd - overlapStart);
+		overlapEOffset = (size_t)(overlapStart - (ptr_t)e->vaddr);
+		eAoffs = e->aoffs;
 
-		for (offs = (vaddr - e->vaddr); offs < ((vaddr + size) - e->vaddr); offs += SIZE_PAGE) {
-			pmap_remove(&map->pmap, e->vaddr + offs);
-		}
+		putEntry = 0;
 
-		if (e->vaddr == vaddr) {
-			if (e->size == size) {
-				_entry_put(map, e);
+		if ((ptr_t)e->vaddr == overlapStart) {
+			if (e->size == overlapSize) {
+				putEntry = 1;
 			}
 			else {
-				e->aoffs += size;
-				e->vaddr += size;
-				e->size -= size;
-				e->lmaxgap += size;
+				e->aoffs += overlapSize;
+				e->offs = (e->offs == -1) ? -1 : (e->offs + overlapSize);
+				e->vaddr += overlapSize;
+				e->size -= overlapSize;
+				e->lmaxgap += overlapSize;
 
 				s = lib_treeof(map_entry_t, linkage, lib_rbPrev(&e->linkage));
 				if (s != NULL) {
-					s->rmaxgap += size;
+					s->rmaxgap += overlapSize;
 					map_augment(&s->linkage);
 				}
 
 				map_augment(&e->linkage);
 			}
 		}
-		else if ((e->vaddr + e->size) == (vaddr + size)) {
-			e->size -= size;
-			e->rmaxgap += size;
+		else if ((ptr_t)(e->vaddr + e->size) == overlapEnd) {
+			e->size -= overlapSize;
+			e->rmaxgap += overlapSize;
 
 			s = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
 			if (s != NULL) {
-				s->lmaxgap += size;
+				s->lmaxgap += overlapSize;
 				map_augment(&s->linkage);
 			}
 
@@ -432,28 +469,27 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		}
 		else {
 			s = map_alloc();
-			/* This case if only possible if unmapped region if in the middle of single entry,
+			/* This case if only possible if an unmapped region is in the middle of a single entry,
 			 * so there is no possibility of partially unmapping. */
 			if (s == NULL) {
 				return -ENOMEM;
 			}
+			vm_mapEntrySplit(proc, map, e, s, overlapEOffset);
 
-			s->flags = e->flags;
-			s->prot = e->prot;
-			s->protOrig = e->protOrig;
-			s->object = vm_objectRef(e->object);
-			s->offs = (e->offs == -1) ? -1 : (e->offs + ((vaddr + size) - e->vaddr));
-			s->vaddr = vaddr + size;
-			s->size = (size_t)((e->vaddr + e->size) - s->vaddr);
-			s->aoffs = e->aoffs + ((vaddr + size) - e->vaddr);
+			continue; /* Process in next iteration. */
+		}
 
-			s->amap = amap_ref(e->amap);
+		/* Perform amap and pmap changes only when we are sure we have enough space to perform corresponding map changes. */
 
-			e->size = (size_t)(vaddr - e->vaddr);
-			e->rmaxgap = size;
+		/* Note: what if NEEDS_COPY? */
+		amap_putanons(e->amap, eAoffs + (int)overlapEOffset, overlapSize);
 
-			map_augment(&e->linkage);
-			_map_add(proc, map, s);
+		for (pvaddr = overlapStart; pvaddr < overlapEnd; pvaddr += SIZE_PAGE) {
+			pmap_remove(&map->pmap, (void *)pvaddr);
+		}
+
+		if (putEntry != 0) {
+			_entry_put(map, e);
 		}
 	}
 
@@ -744,36 +780,6 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	proc_lockClear(&map->lock);
 
 	return result;
-}
-
-
-static void vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src, int refAnons)
-{
-	hal_memcpy(dst, src, sizeof(map_entry_t));
-	dst->amap = amap_ref(src->amap);
-	/* In case of splitting the entry the anons shouldn't be reffed as they just change the owner. */
-	if (refAnons != 0) {
-		amap_getanons(dst->amap, dst->aoffs, dst->size);
-	}
-	dst->object = vm_objectRef(src->object);
-}
-
-
-static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entry_t *new, size_t len)
-{
-	vm_mapEntryCopy(new, e, 0);
-
-	new->vaddr += len;
-	new->size -= len;
-	new->aoffs += len;
-	new->offs = (new->offs == -1) ? -1 : (new->offs + len);
-	new->lmaxgap = 0;
-
-	e->size = len;
-	e->rmaxgap = 0;
-	map_augment(&e->linkage);
-
-	_map_add(p, m, new);
 }
 
 
