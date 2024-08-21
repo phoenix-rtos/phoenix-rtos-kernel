@@ -132,7 +132,7 @@ int syscalls_sys_munmap(void *ustack)
 }
 
 
-int syscalls_mprotect(void *ustack)
+int syscalls_sys_mprotect(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	void *vaddr;

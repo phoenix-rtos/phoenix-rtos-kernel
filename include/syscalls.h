@@ -121,7 +121,7 @@
 	ID(sbi_getchar) \
 	ID(sigreturn) \
 	\
-	ID(mprotect) \
+	ID(sys_mprotect) \
 	\
 	ID(sys_statvfs)
 /* clang-format on */
