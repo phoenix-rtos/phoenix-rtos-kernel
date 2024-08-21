@@ -947,7 +947,7 @@ int unix_setfl(unsigned socket, int flags)
 	s->nonblock = (flags & O_NONBLOCK) != 0;
 
 	unixsock_put(s);
-	return flags;
+	return 0;
 }
 
 
@@ -959,7 +959,10 @@ int unix_getfl(unsigned socket)
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
 
-	flags = s->nonblock ? O_NONBLOCK : 0;
+	flags = O_RDWR;
+	if (s->nonblock) {
+		flags |= O_NONBLOCK;
+	}
 
 	unixsock_put(s);
 	return flags;
