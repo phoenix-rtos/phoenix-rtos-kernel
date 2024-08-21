@@ -747,22 +747,27 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
-static void vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src)
+static void vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src, int refAnons)
 {
 	hal_memcpy(dst, src, sizeof(map_entry_t));
 	dst->amap = amap_ref(src->amap);
-	amap_getanons(dst->amap, dst->aoffs, dst->size);
+	/* In case of splitting the entry the anons shouldn't be reffed as they just change the owner. */
+	if (refAnons != 0) {
+		amap_getanons(dst->amap, dst->aoffs, dst->size);
+	}
 	dst->object = vm_objectRef(src->object);
 }
 
 
 static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entry_t *new, size_t len)
 {
-	vm_mapEntryCopy(new, e);
+	vm_mapEntryCopy(new, e, 0);
 
 	new->vaddr += len;
 	new->size -= len;
 	new->aoffs += len;
+	new->offs = (new->offs == -1) ? -1 : (new->offs + len);
+	new->lmaxgap = 0;
 
 	e->size = len;
 	e->rmaxgap = 0;
@@ -1028,7 +1033,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			return -ENOMEM;
 		}
 
-		vm_mapEntryCopy(f, e);
+		vm_mapEntryCopy(f, e, 1);
 		_map_add(proc, dst, f);
 
 		if ((e->prot & PROT_WRITE) && !(e->flags & MAP_DEVICE)) {
