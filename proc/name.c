@@ -233,12 +233,11 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 			break;
 		}
 
-		if (i + err > len) {
+		i += err + 1;
+		if (i > len) {
 			err = -EINVAL;
 			break;
 		}
-
-		i += err + 1;
 	} while (i != len);
 
 	if (file != NULL)
