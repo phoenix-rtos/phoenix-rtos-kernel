@@ -450,14 +450,17 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 			s->prot = e->prot;
 			s->protOrig = e->protOrig;
 			s->object = vm_objectRef(e->object);
-			s->offs = (e->offs == -1) ? -1 : (e->offs + overlapEOffset + overlapSize);
+			// s->offs = (e->offs == -1) ? -1 : (e->offs + overlapEOffset + overlapSize);
+			s->offs = (e->offs == -1) ? -1 : (e->offs + (overlapEnd - (ptr_t)e->vaddr));
 			s->vaddr = (void *)overlapEnd;
-			s->size = e->size - (overlapEOffset + overlapSize);
+			// s->size = e->size - (overlapEOffset + overlapSize);
+			s->size = (size_t)((e->vaddr + e->size) - s->vaddr);
 			s->aoffs = e->aoffs + (overlapEnd - (ptr_t)e->vaddr);
 
 			s->amap = amap_ref(e->amap);
 
-			e->size = overlapEOffset;
+			// e->size = overlapEOffset;
+			e->size = (size_t)(overlapStart - (ptr_t)e->vaddr);
 			e->rmaxgap = overlapSize;
 
 			map_augment(&e->linkage);
