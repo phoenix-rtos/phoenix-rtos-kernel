@@ -373,6 +373,7 @@ void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
 int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 {
 	ptr_t pvaddr;
+	long offs;
 	map_entry_t *e, *s;
 	map_entry_t t;
 	process_t *proc = proc_current()->process;
@@ -470,10 +471,16 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		/* Perform amap and pmap changes only when we are sure we have enough space to perform corresponding map changes. */
 
 		/* Note: what if NEEDS_COPY? */
-		amap_putanons(e->amap, e->aoffs + overlapEOffset, overlapSize);
+		// amap_putanons(e->amap, e->aoffs + overlapEOffset, overlapSize);
 
-		for (pvaddr = overlapStart; pvaddr < overlapEnd; pvaddr += SIZE_PAGE) {
-			pmap_remove(&map->pmap, (void *)pvaddr);
+		// for (pvaddr = overlapStart; pvaddr < overlapEnd; pvaddr += SIZE_PAGE) {
+		// 	pmap_remove(&map->pmap, (void *)pvaddr);
+		// }
+
+		amap_putanons(e->amap, (e->aoffs + overlapStart) - (ptr_t)e->vaddr, overlapSize);
+
+		for (offs = (overlapStart - (ptr_t)e->vaddr); offs < (overlapEnd - (ptr_t)e->vaddr); offs += SIZE_PAGE) {
+			pmap_remove(&map->pmap, e->vaddr + offs);
 		}
 
 		if (putEntry != 0) {
