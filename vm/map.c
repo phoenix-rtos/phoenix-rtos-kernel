@@ -372,7 +372,7 @@ void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
 
 int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 {
-	long offs;
+	ptr_t pvaddr;
 	map_entry_t *e, *s;
 	map_entry_t t;
 	process_t *proc = proc_current()->process;
@@ -450,14 +450,14 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 			s->prot = e->prot;
 			s->protOrig = e->protOrig;
 			s->object = vm_objectRef(e->object);
-			s->offs = (e->offs == -1) ? -1 : (e->offs + (overlapEnd - (ptr_t)e->vaddr));
+			s->offs = (e->offs == -1) ? -1 : (e->offs + overlapEOffset + overlapSize);
 			s->vaddr = (void *)overlapEnd;
-			s->size = (size_t)((e->vaddr + e->size) - s->vaddr);
+			s->size = e->size - (overlapEOffset + overlapSize);
 			s->aoffs = e->aoffs + (overlapEnd - (ptr_t)e->vaddr);
 
 			s->amap = amap_ref(e->amap);
 
-			e->size = (size_t)(overlapStart - (ptr_t)e->vaddr);
+			e->size = overlapEOffset;
 			e->rmaxgap = overlapSize;
 
 			map_augment(&e->linkage);
@@ -467,10 +467,10 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		/* Perform amap and pmap changes only when we are sure we have enough space to perform corresponding map changes. */
 
 		/* Note: what if NEEDS_COPY? */
-		amap_putanons(e->amap, (e->aoffs + overlapStart) - (ptr_t)e->vaddr, overlapSize);
+		amap_putanons(e->amap, e->aoffs + overlapEOffset, overlapSize);
 
-		for (offs = (overlapStart - (ptr_t)e->vaddr); offs < (overlapEnd - (ptr_t)e->vaddr); offs += SIZE_PAGE) {
-			pmap_remove(&map->pmap, e->vaddr + offs);
+		for (pvaddr = overlapStart; pvaddr < overlapEnd; pvaddr += SIZE_PAGE) {
+			pmap_remove(&map->pmap, (void *)pvaddr);
 		}
 
 		if (putEntry != 0) {
