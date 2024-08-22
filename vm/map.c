@@ -376,13 +376,17 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	map_entry_t *e, *s;
 	map_entry_t t;
 	process_t *proc = proc_current()->process;
+	size_t overlapEOffset;
+	size_t overlapSize;
+	ptr_t overlapStart, overlapEnd;
+	int putEntry;
 
 	t.vaddr = vaddr;
 	t.size = size;
 
 	/* Region to unmap can span across multiple entries. */
 	/* rbFind finds any entry having an overlap with the region in an unspecified order. */
-	for (;;) {
+	for (int i = 0;; i++) {
 		e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
 		if (e == NULL) {
 			break;
@@ -392,39 +396,43 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		proc = e->process;
 #endif
 
-		/* Note: what if NEEDS_COPY? */
-		amap_putanons(e->amap, (e->aoffs + vaddr) - e->vaddr, size);
+		overlapStart = max((ptr_t)e->vaddr, (ptr_t)vaddr);
+		overlapEnd = min((ptr_t)e->vaddr + e->size, (ptr_t)vaddr + size);
+		overlapSize = (size_t)(overlapEnd - overlapStart);
+		overlapEOffset = (size_t)(overlapStart - (ptr_t)e->vaddr);
 
-		for (offs = (vaddr - e->vaddr); offs < ((vaddr + size) - e->vaddr); offs += SIZE_PAGE) {
-			pmap_remove(&map->pmap, e->vaddr + offs);
-		}
+		putEntry = 0;
 
-		if (e->vaddr == vaddr) {
-			if (e->size == size) {
-				_entry_put(map, e);
+		LIB_ASSERT_ALWAYS(!i, "i, MUNMAP %zx %zx %zx %zx\n", overlapStart, vaddr, overlapSize, size);
+		LIB_ASSERT_ALWAYS(overlapStart == (ptr_t)vaddr && overlapSize == size, "sizes, MUNMAP %zx %zx %zx %zx\n", overlapStart, vaddr, overlapSize, size);
+		LIB_ASSERT_ALWAYS((size & (SIZE_PAGE - 1)) == 0, "align, MUNMAP %zx %zx %zx %zx\n", overlapStart, vaddr, overlapSize, size);
+
+		if ((ptr_t)e->vaddr == overlapStart) {
+			if (e->size == overlapSize) {
+				putEntry = 1;
 			}
 			else {
-				e->aoffs += size;
-				e->vaddr += size;
-				e->size -= size;
-				e->lmaxgap += size;
+				e->aoffs += overlapSize;
+				e->vaddr += overlapSize;
+				e->size -= overlapSize;
+				e->lmaxgap += overlapSize;
 
 				s = lib_treeof(map_entry_t, linkage, lib_rbPrev(&e->linkage));
 				if (s != NULL) {
-					s->rmaxgap += size;
+					s->rmaxgap += overlapSize;
 					map_augment(&s->linkage);
 				}
 
 				map_augment(&e->linkage);
 			}
 		}
-		else if ((e->vaddr + e->size) == (vaddr + size)) {
-			e->size -= size;
-			e->rmaxgap += size;
+		else if ((ptr_t)(e->vaddr + e->size) == overlapEnd) {
+			e->size -= overlapSize;
+			e->rmaxgap += overlapSize;
 
 			s = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
 			if (s != NULL) {
-				s->lmaxgap += size;
+				s->lmaxgap += overlapSize;
 				map_augment(&s->linkage);
 			}
 
@@ -432,7 +440,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		}
 		else {
 			s = map_alloc();
-			/* This case if only possible if unmapped region if in the middle of single entry,
+			/* This case if only possible if an unmapped region is in the middle of a single entry,
 			 * so there is no possibility of partially unmapping. */
 			if (s == NULL) {
 				return -ENOMEM;
@@ -442,18 +450,31 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 			s->prot = e->prot;
 			s->protOrig = e->protOrig;
 			s->object = vm_objectRef(e->object);
-			s->offs = (e->offs == -1) ? -1 : (e->offs + ((vaddr + size) - e->vaddr));
-			s->vaddr = vaddr + size;
+			s->offs = (e->offs == -1) ? -1 : (e->offs + (overlapEnd - (ptr_t)e->vaddr));
+			s->vaddr = (void *)overlapEnd;
 			s->size = (size_t)((e->vaddr + e->size) - s->vaddr);
-			s->aoffs = e->aoffs + ((vaddr + size) - e->vaddr);
+			s->aoffs = e->aoffs + (overlapEnd - (ptr_t)e->vaddr);
 
 			s->amap = amap_ref(e->amap);
 
-			e->size = (size_t)(vaddr - e->vaddr);
-			e->rmaxgap = size;
+			e->size = (size_t)(overlapStart - (ptr_t)e->vaddr);
+			e->rmaxgap = overlapSize;
 
 			map_augment(&e->linkage);
 			_map_add(proc, map, s);
+		}
+
+		/* Perform amap and pmap changes only when we are sure we have enough space to perform corresponding map changes. */
+
+		/* Note: what if NEEDS_COPY? */
+		amap_putanons(e->amap, (e->aoffs + overlapStart) - (ptr_t)e->vaddr, overlapSize);
+
+		for (offs = (overlapStart - (ptr_t)e->vaddr); offs < (overlapEnd - (ptr_t)e->vaddr); offs += SIZE_PAGE) {
+			pmap_remove(&map->pmap, e->vaddr + offs);
+		}
+
+		if (putEntry != 0) {
+			_entry_put(map, e);
 		}
 	}
 
