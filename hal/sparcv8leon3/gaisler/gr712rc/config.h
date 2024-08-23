@@ -28,7 +28,7 @@
 #define HAL_NAME_PLATFORM "SPARCv8 LEON3-GR712RC"
 
 #define ADDR_RAM 0x40000000
-#define SIZE_RAM (128 * 1024 * 1024) /* 128 MB */
+#define SIZE_RAM (4 * 1024 * 1024) /* 128 MB */
 
 
 #endif /* __ASSEMBLY__ */

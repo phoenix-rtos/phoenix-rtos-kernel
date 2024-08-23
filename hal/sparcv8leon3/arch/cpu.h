@@ -40,7 +40,7 @@
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (SIZE_PAGE)
+#define SIZE_USTACK (6 * SIZE_PAGE)
 #endif
 
 #endif
