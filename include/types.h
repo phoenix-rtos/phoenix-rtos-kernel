@@ -32,7 +32,7 @@
 #elif defined(__riscv) && (__riscv_xlen == 64)
 #include "arch/riscv64/types.h"
 #elif defined(__sparc__)
-#include "arch/sparcv8leon3/types.h"
+#include "arch/sparcv8leon/types.h"
 #else
 #error "unsupported architecture"
 #endif

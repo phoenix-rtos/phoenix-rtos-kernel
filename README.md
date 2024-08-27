@@ -11,7 +11,9 @@ Supported targets:
  * armv7a9-zynq7000
  * ia32-generic
  * riscv64-generic
- * sparcv8leon3-gr716
+ * sparcv8leon-gr716
+ * sparcv8leon-gr712rc
+ * sparcv8leon-generic
 
 ## Building kernel
 To compile the kernel and build the operating system image [phoenix-rtos-project](https://github.com/phoenix-rtos/phoenix-rtos-project) repository should be used. Please read the instruction in this repository.
