@@ -711,6 +711,7 @@ void _pmap_halInit(void)
 
 	pmap_common.pageIterator = pmap_common.minAddr;
 	pmap_common.memMap.count = 0;
+	pmap_common.kernelsz = CEIL_PAGE(&_end) - (addr_t)VADDR_KERNEL;
 	pmap_common.vkernelEnd = VADDR_KERNEL + pmap_common.kernelsz;
 }
 
@@ -721,8 +722,6 @@ void _pmap_preinit(addr_t dtb)
 
 	/* Get physical kernel address */
 	pmap_common.kernel = (addr_t)&_start;
-	/* Add SIZE_PAGE to kernel size for syspage */
-	pmap_common.kernelsz = CEIL_PAGE(&_end) - (addr_t)&_start + SIZE_PAGE;
 
 	hal_memset(pmap_common.pdir0, 0, SIZE_PAGE);
 	hal_memset(pmap_common.pdir1, 0, SIZE_PAGE);
