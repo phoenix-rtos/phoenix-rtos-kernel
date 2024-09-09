@@ -53,14 +53,22 @@ include log/Makefile
 DEPS := $(patsubst %.o, %.c.d, $(OBJS))
 -include $(DEPS)
 
-$(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS)
+
+# By default ld adds program headers to first LOAD segment.
+# However, in kernel headers are not used and it is expected that kernel address space starts at _start.
+# This target creates linker script that do not add program headers into the first loadable segment.
+# 1) Get internal linker script with prefix and suffix containing noise.
+# 2) Match only internal linker script which is between two lines of =
+# 3) Remove those lines
+# 4) Remove "+ SIZEOF_HEADERS", which causes inclusion of program headers.
+$(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt:
+	$(SIL)$(LD) $(LDFLAGS_PREFIX)--verbose 2>/dev/null | sed -n '/^==*$$/,/^==*$$/p' | sed '1,1d; $$d' | sed s/"\s*+\s*SIZEOF_HEADERS"// > "$@"
+
+
+$(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS) $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt
 	@mkdir -p $(@D)
 	@(printf "LD  %-24s\n" "$(@F)");
-ifeq ($(TARGET_FAMILY),sparcv8leon3)
-	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T ld/sparcv8leon3.ld
-else
-	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc
-endif
+	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt
 
 install-headers: $(EXTERNAL_HEADERS)
 	@printf "Installing kernel headers\n"
