@@ -30,7 +30,7 @@
 #define ADDR_PDIR2     (ADDR_PDIR1 + 0x400)
 #define ADDR_PDIR3     (ADDR_CTXTAB + 0x1000)
 
-#define VADDR_SYSPAGE     (_end + SIZE_PAGE - 1)
+#define VADDR_SYSPAGE     _hal_syspageCopied
 #define PADDR_SYSPAGE     PHY_ADDR(VADDR_SYSPAGE)
 
 #define VADDR_STACK (pmap_common + 7 * SIZE_PAGE)
@@ -44,13 +44,6 @@
 	srl \paddr, 6, \out
 	sll \out, 2, \out
 	or \out, PAGE_DESCR, \out
-.endm
-
-
-.macro set_page_align addr out
-	sethi %hi(\addr), \out
-	srl \out, 12, \out
-	sll \out, 12, \out
 .endm
 
 
@@ -74,7 +67,7 @@ _init:
 
 	/* %g2 = syspage pa (from plo) */
 	set PHY_ADDR(syspage), %g3
-	set_page_align VADDR_SYSPAGE, %g1
+	set VADDR_SYSPAGE, %g1
 
 	/* store VADDR_SYSPAGE in syspage */
 	st %g1, [%g3]
@@ -84,7 +77,7 @@ _init:
 	sub %g1, %g2, %l0
 	st %l0, [%g4]
 
-	set_page_align PADDR_SYSPAGE, %g3
+	set PADDR_SYSPAGE, %g3
 	/* calculate pa of syspage end */
 	ld [%g2 + 4], %l1 /* %l1 = syspage->size */
 	add %g2, %l1, %l2 /* %l2 = plo syspage end */
@@ -277,3 +270,10 @@ _init_core_loop:
 	ba _init_core_loop
 	nop
 .size _init_core, . - _init_core
+
+
+.section ".bss"
+.align 4
+_hal_syspageCopied:
+	.zero 0x400
+.size _hal_syspageCopied, . - _hal_syspageCopied

@@ -725,13 +725,13 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	_pmap_enter(pmap, (addr_t)pmap_common.start, (*vstart), PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL, 0);
 
 	/* Map kernel text & rodata as RX */
-	for (i = VADDR_KERNEL; i < CEIL_PAGE((ptr_t)(&__bss_start)); i += SIZE_PAGE) {
+	for (i = VADDR_KERNEL; i < CEIL_PAGE((ptr_t)(&_etext)); i += SIZE_PAGE) {
 		addr = pmap_common.kernel + (i - VADDR_KERNEL);
 		_pmap_enter(pmap, addr, (void *)i, PGHD_READ | PGHD_EXEC | PGHD_PRESENT, NULL, 0);
 	}
 
-	/* Map kernel bss and copied syspage as RW */
-	for (i = CEIL_PAGE((ptr_t)(&__bss_start)); i < CEIL_PAGE((ptr_t)(&_end)) + SIZE_PAGE; i += SIZE_PAGE) {
+	/* Map kernel bss as RW */
+	for (i = CEIL_PAGE((ptr_t)(&__bss_start)); i < CEIL_PAGE((ptr_t)(&_end)); i += SIZE_PAGE) {
 		addr = pmap_common.kernel + (i - VADDR_KERNEL);
 		_pmap_enter(pmap, addr, (void *)i, PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL, 0);
 	}
@@ -755,6 +755,6 @@ void _pmap_halInit(void)
 	pmap_common.memMap.count = 0;
 
 	pmap_common.kernel = syspage->pkernel;
-	pmap_common.kernelsz = CEIL_PAGE(&_end) - (addr_t)&_start + SIZE_PAGE;
-	pmap_common.vkernelEnd = VADDR_KERNEL + pmap_common.kernelsz;
+	pmap_common.kernelsz = CEIL_PAGE(&_end) - VADDR_KERNEL;
+	pmap_common.vkernelEnd = CEIL_PAGE(&_end);
 }
