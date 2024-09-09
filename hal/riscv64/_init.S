@@ -19,7 +19,7 @@
 #include <arch/pmap.h>
 
 
-#define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
+#define VADDR_SYSPAGE _hal_syspageCopied
 
 
 .section .init, "x"
@@ -81,8 +81,6 @@ _start:
 
 	la t0, hal_syspage /* t0 = &hal_syspage (phy) */
 	la t1, VADDR_SYSPAGE
-	srli t1, t1, 12
-	slli t1, t1, 12
 	add t2, t1, s1
 	sub t2, t2, s2
 	/* store virt addr of syspage in hal_syspage */
@@ -173,3 +171,10 @@ _init_core:
 	j .Lsecondary_park
 
 .size _start, .-_start
+
+
+.section ".bss"
+.align 3
+_hal_syspageCopied:
+	.zero 0x600
+.size _hal_syspageCopied, .-_hal_syspageCopied
