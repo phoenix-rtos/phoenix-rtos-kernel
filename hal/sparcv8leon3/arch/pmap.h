@@ -21,7 +21,6 @@
 
 /* Predefined virtual addresses */
 
-#define VADDR_KERNEL  0xc0000000 /* base virtual address of kernel space */
 #define VADDR_MIN     0x00000000
 #define VADDR_MAX     0xffffffff
 #define VADDR_USR_MAX 0x80000000

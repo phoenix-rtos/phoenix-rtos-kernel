@@ -16,6 +16,9 @@ MAKEFLAGS += --no-print-directory
 include ../phoenix-rtos-build/Makefile.common
 
 CFLAGS += -I.
+ifeq ($(HAVE_MMU),y)
+CPPFLAGS += -DVADDR_KERNEL=$(VADDR_KERNEL)
+endif
 CPPFLAGS += -DVERSION=\"$(VERSION)\"
 
 # uncomment to enable stack canary checking
@@ -56,11 +59,7 @@ DEPS := $(patsubst %.o, %.c.d, $(OBJS))
 $(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS)
 	@mkdir -p $(@D)
 	@(printf "LD  %-24s\n" "$(@F)");
-ifeq ($(TARGET_FAMILY),sparcv8leon3)
-	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T ld/sparcv8leon3.ld
-else
-	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc
-endif
+	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(KERNEL_INIT_START) -o $@ $(OBJS) -lgcc
 
 install-headers: $(EXTERNAL_HEADERS)
 	@printf "Installing kernel headers\n"
