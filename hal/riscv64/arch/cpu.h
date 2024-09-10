@@ -162,7 +162,7 @@ typedef struct {
 	u64 ksp;
 	u64 sstatus;
 	u64 sepc;
-	u64 sbadaddr;
+	u64 stval;
 	u64 scause;
 	u64 sscratch;
 
@@ -296,7 +296,7 @@ void hal_cpuRemoteFlushTLB(u32 asid, const void *vaddr, size_t size);
 static inline void *hal_cpuGetFaultAddr(void)
 {
 	u64 badaddress;
-	badaddress = csr_read(sbadaddr);
+	badaddress = csr_read(stval);
 	return (void *)badaddress;
 }
 #endif
