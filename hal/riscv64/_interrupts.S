@@ -422,10 +422,10 @@ _interrupts_exceptionFpu:
 	tail _interrupts_returnUnlocked
 
 _interrupts_exceptionNotFpu:
-	csrr s3, sbadaddr
+	csrr s3, stval
 	/* Save sscratch to be able to get hart ID */
 	csrr s5, sscratch
-	sd s3, 256(sp)   /* sbadaddr */
+	sd s3, 256(sp)   /* stval */
 	sd s5, 272(sp)
 
 	mv a1, sp

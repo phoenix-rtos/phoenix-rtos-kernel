@@ -101,7 +101,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s(" sstatus : ", &buff[i], (u64)ctx->sstatus, 16, 1);
 	i += hal_i2s(" sepc : ", &buff[i], (u64)ctx->sepc, 16, 1);
 	buff[i++] = '\n';
-	i += hal_i2s(" sbaddaddr : ", &buff[i], (u64)ctx->sbadaddr, 16, 1);
+	i += hal_i2s(" stval : ", &buff[i], (u64)ctx->stval, 16, 1);
 	i += hal_i2s(" scause : ", &buff[i], (u64)ctx->scause, 16, 1);
 	i += hal_i2s(" sscratch : ", &buff[i], (u64)ctx->sscratch, 16, 1);
 	buff[i++] = '\n';
@@ -164,7 +164,7 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 
 inline void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 {
-	return (void *)ctx->sbadaddr;
+	return (void *)ctx->stval;
 }
 
 
