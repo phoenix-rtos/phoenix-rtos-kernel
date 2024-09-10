@@ -359,9 +359,11 @@ static int process_validateElf32(void *iehdr, size_t size)
 		return -ENOEXEC;
 	}
 	for (i = 0; i < ehdr->e_phnum; i++) {
-		if ((phdr->p_type != PT_LOAD) &&
-			(process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0)) {
-			return -ENOEXEC;
+		if (phdr->p_type != PT_LOAD) {
+			if (process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0) {
+				return -ENOEXEC;
+			}
+			continue;
 		}
 
 		offs = phdr->p_offset & ~(phdr->p_align - 1);
@@ -432,9 +434,11 @@ static int process_validateElf64(void *iehdr, size_t size)
 		return -ENOEXEC;
 	}
 	for (i = 0; i < ehdr->e_phnum; i++) {
-		if ((phdr->p_type != PT_LOAD) &&
-			(process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0)) {
-			return -ENOEXEC;
+		if (phdr->p_type != PT_LOAD) {
+			if (process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0) {
+				return -ENOEXEC;
+			}
+			continue;
 		}
 
 		offs = phdr->p_offset & ~(phdr->p_align - 1);
