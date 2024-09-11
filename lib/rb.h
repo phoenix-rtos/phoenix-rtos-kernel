@@ -20,7 +20,7 @@
 #define lib_treeof(type, node_field, node) ({ \
 	long _off = (long)&(((type *)0)->node_field); \
 	rbnode_t *tmpnode = (node); \
-	(type *)((tmpnode == NULL) ? NULL : ((void *)tmpnode - _off)); \
+	(type *)((tmpnode == NULL) ? NULL : ((char *)tmpnode - _off)); \
 })
 
 
