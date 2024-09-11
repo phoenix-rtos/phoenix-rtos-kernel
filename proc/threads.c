@@ -40,7 +40,7 @@ struct {
 	time_t utcoffs;
 
 	/* Synchronized by spinlock */
-	rbtree_t sleeping;
+	bheap_t sleeping;
 
 	/* Synchronized by mutex */
 	unsigned int idcounter;
@@ -83,17 +83,16 @@ static time_t _proc_gettimeRaw(void)
 }
 
 
-static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
+static int threads_sleepcmp(bhnode_t *n1, bhnode_t *n2)
 {
-	thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
-	thread_t *t2 = lib_treeof(thread_t, sleeplinkage, n2);
+	thread_t *t1 = lib_bhof(thread_t, sleeplinkage, n1);
+	thread_t *t2 = lib_bhof(thread_t, sleeplinkage, n2);
 
-	if (t1->wakeup != t2->wakeup) {
-		return (t1->wakeup > t2->wakeup) ? 1 : -1;
+	if (t1->wakeup == t2->wakeup) {
+		return 0;
 	}
-	else {
-		return (proc_getTid(t1) > proc_getTid(t2)) ? 1 : -1;
-	}
+
+	return (t1->wakeup < t2->wakeup) ? 1 : -1;
 }
 
 /*
@@ -395,28 +394,26 @@ int perf_finish()
  */
 
 
-static void _threads_updateWakeup(time_t now, thread_t *min)
+static void _threads_updateWakeup(time_t now)
 {
-	thread_t *t;
+	thread_t *t = lib_bhof(thread_t, sleeplinkage, lib_bhPeek(&threads_common.sleeping));
 	time_t wakeup;
 
-	if (min != NULL)
-		t = min;
-	else
-		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
-
 	if (t != NULL) {
-		if (now >= t->wakeup)
+		if (now >= t->wakeup) {
 			wakeup = 1;
-		else
+		}
+		else {
 			wakeup = t->wakeup - now;
+		}
 	}
 	else {
 		wakeup = SYSTICK_INTERVAL;
 	}
 
-	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8)
+	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8) {
 		wakeup = SYSTICK_INTERVAL;
+	}
 
 	hal_timerSetWakeup(wakeup);
 }
@@ -437,9 +434,9 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	now = _proc_gettimeRaw();
 
 	for (;;) {
-		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
+		t = lib_bhof(thread_t, sleeplinkage, lib_bhPeek(&threads_common.sleeping));
 
-		if (t == NULL || t->wakeup > now) {
+		if ((t == NULL) || (t->wakeup > now)) {
 			break;
 		}
 
@@ -447,7 +444,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
 
-	_threads_updateWakeup(now, t);
+	_threads_updateWakeup(now);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1047,8 +1044,8 @@ static void _proc_threadDequeue(thread_t *t)
 		LIST_REMOVE(t->wait, t);
 	}
 
-	if (t->wakeup) {
-		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
+	if (t->wakeup != 0) {
+		lib_bhRemove(&threads_common.sleeping, &t->sleeplinkage);
 	}
 
 	t->wakeup = 0;
@@ -1089,8 +1086,8 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 
 	if (timeout) {
 		current->wakeup = timeout;
-		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
-		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
+		lib_bhInsert(&threads_common.sleeping, &current->sleeplinkage);
+		_threads_updateWakeup(_proc_gettimeRaw());
 	}
 
 	_perf_enqueued(current);
@@ -1132,10 +1129,10 @@ int proc_threadSleep(time_t us)
 		current->wakeup = now + us;
 		current->interruptible = 1;
 
-		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
+		lib_bhInsert(&threads_common.sleeping, &current->sleeplinkage);
 
 		_perf_enqueued(current);
-		_threads_updateWakeup(now, NULL);
+		_threads_updateWakeup(now);
 	}
 
 	err = hal_cpuReschedule(&threads_common.spinlock, &sc);
@@ -1377,13 +1374,15 @@ static time_t _proc_nextWakeup(void)
 	time_t wakeup = 0;
 	time_t now;
 
-	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
+	thread = lib_bhof(thread_t, sleeplinkage, lib_bhPeek(&threads_common.sleeping));
 	if (thread != NULL) {
 		now = _proc_gettimeRaw();
-		if (now >= thread->wakeup)
+		if (now >= thread->wakeup) {
 			wakeup = 0;
-		else
+		}
+		else {
 			wakeup = thread->wakeup - now;
+		}
 	}
 
 	return wakeup;
@@ -2042,7 +2041,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++)
 		threads_common.ready[i] = NULL;
 
-	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
+	lib_bhInit(&threads_common.sleeping, threads_sleepcmp);
 	lib_idtreeInit(&threads_common.id);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
