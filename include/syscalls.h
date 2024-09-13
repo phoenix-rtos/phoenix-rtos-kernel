@@ -29,8 +29,8 @@
 	ID(getpid) \
 	ID(getppid) \
 	ID(gettid) \
-	ID(beginthreadex) \
-	ID(endthread) \
+	ID(beginthreadexsvc) \
+	ID(endthreadsvc) \
 	ID(nsleep) \
 	ID(phMutexCreate) \
 	ID(phMutexLock) \
@@ -121,5 +121,8 @@
 	ID(sbi_getchar) \
 	ID(sigreturn) \
 	\
-	ID(mprotect)
+	ID(mprotect) \
+	\
+	ID(tlsSetPtr) \
+	ID(tlsSetReg)
 /* clang-format on */

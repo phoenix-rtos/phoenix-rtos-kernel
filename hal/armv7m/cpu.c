@@ -81,11 +81,9 @@ void hal_cpuSetDevBusy(int s)
 }
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
+int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;
-
-	(void)tls;
 
 	*nctx = 0;
 	if (kstack == NULL)
@@ -336,8 +334,17 @@ void hal_cpuSmpSync(void)
 }
 
 
-/* Not safe to call if TLS is not present (tls_base mustn't be NULL) */
-void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
+void hal_cpuTlsSet(ptr_t tlsPtr, ptr_t tlsReg)
 {
-	*(ptr_t *)tls->arm_m_tls = tls->tls_base - 8;
+	if (tlsReg != NULL) {
+		*(ptr_t *)tlsReg = tlsPtr;
+	}
+}
+
+
+void hal_cpuSetCtxTls(cpu_context_t *ctx, ptr_t tlsPtr)
+{
+	/* TLS pointer is not stored in context */
+	(void)ctx;
+	(void)tlsPtr;
 }

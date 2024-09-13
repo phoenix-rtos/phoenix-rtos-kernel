@@ -29,15 +29,6 @@
 #include "types.h"
 
 
-typedef struct _hal_tls_t {
-	ptr_t tls_base;
-	ptr_t arm_m_tls;
-	size_t tdata_sz;
-	size_t tbss_sz;
-	size_t tls_sz;
-} hal_tls_t;
-
-
 extern void *hal_syspageRelocate(void *data);
 
 

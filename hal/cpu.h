@@ -23,9 +23,6 @@
 #include "spinlock.h"
 
 
-struct _hal_tls_t;
-
-
 typedef ptr_t arg_t;
 
 
@@ -79,7 +76,7 @@ extern void hal_cpuSetGot(void *got);
 extern void *hal_cpuGetGot(void);
 
 
-extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
+extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg);
 
 
 extern int hal_cpuReschedule(struct _spinlock_t *spinlock, spinlock_ctx_t *scp);
@@ -139,7 +136,10 @@ extern void hal_cpuSmpSync(void);
 /* thread local storage */
 
 
-extern void hal_cpuTlsSet(struct _hal_tls_t *tls, cpu_context_t *ctx);
+extern void hal_cpuTlsSet(ptr_t tlsPtr, ptr_t tlsReg);
+
+
+extern void hal_cpuSetCtxTls(cpu_context_t *ctx, ptr_t tlsPtr);
 
 
 /* cache management */

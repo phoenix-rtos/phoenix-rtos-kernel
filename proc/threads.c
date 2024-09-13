@@ -635,8 +635,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			selected->longjmpctx = NULL;
 		}
 
-		if (selected->tls.tls_base != NULL) {
-			hal_cpuTlsSet(&selected->tls, selCtx);
+		if (selected->process != NULL) {
+			hal_cpuTlsSet(selected->tlsPtr, selected->process->tlsReg);
 		}
 
 		_perf_scheduling(selected);
@@ -737,11 +737,10 @@ void threads_canaryInit(thread_t *t, void *ustack)
 }
 
 
-int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
+int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg, void *tls)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
-	int err;
 
 	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *)) {
 		return -EINVAL;
@@ -787,30 +786,18 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 		return -ENOMEM;
 	}
 
-	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
-		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
-		if (err != EOK) {
-			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
-			vm_kfree(t->kstack);
-			vm_kfree(t);
-			return err;
-		}
-	}
-	else {
-		t->tls.tls_base = NULL;
-		t->tls.tdata_sz = 0;
-		t->tls.tbss_sz = 0;
-		t->tls.tls_sz = 0;
-		t->tls.arm_m_tls = NULL;
-	}
-
 	if (id != NULL) {
 		*id = proc_getTid(t);
 	}
 
 	/* Prepare initial stack */
-	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, (stack == NULL) ? NULL : (unsigned char *)stack + stacksz, arg, &t->tls);
+	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, (stack == NULL) ? NULL : (unsigned char *)stack + stacksz, arg);
 	threads_canaryInit(t, stack);
+
+	if (tls != NULL) {
+		t->tlsPtr = (ptr_t)tls;
+		hal_cpuSetCtxTls(t->context, t->tlsPtr);
+	}
 
 	if (process != NULL) {
 		hal_cpuSetCtxGot(t->context, process->got);
@@ -997,6 +984,36 @@ void proc_threadsDestroy(thread_t **threads)
 		while ((t = t->procnext) != *threads);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+void proc_tlsSetPtr(void *tlsPtr)
+{
+	thread_t *t;
+	void *kstackTop;
+	cpu_context_t *ctx;
+
+	t = proc_current();
+
+	kstackTop = t->kstack + t->kstacksz;
+	ctx = kstackTop - sizeof(cpu_context_t);
+
+	t->tlsPtr = (ptr_t)tlsPtr;
+
+	hal_cpuTlsSet(t->tlsPtr, t->process->tlsReg);
+	hal_cpuSetCtxTls(ctx, t->tlsPtr);
+}
+
+
+void proc_tlsSetReg(void *tlsReg)
+{
+	thread_t *t;
+
+	t = proc_current();
+
+	t->process->tlsReg = (ptr_t)tlsReg;
+
+	hal_cpuTlsSet(t->tlsPtr, t->process->tlsReg);
 }
 
 
@@ -1324,10 +1341,6 @@ int proc_join(int tid, time_t timeout)
 		id = proc_getTid(ghost);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
-
-	if ((ghost != NULL) && (ghost->tls.tls_sz != 0)) {
-		process_tlsDestroy(&ghost->tls, process->mapp);
-	}
 
 	vm_kfree(ghost);
 	return err < 0 ? err : id;
@@ -2056,7 +2069,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
-		proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1, SIZE_KSTACK, NULL, 0, NULL);
+		proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1, SIZE_KSTACK, NULL, 0, NULL, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */

@@ -69,7 +69,8 @@ typedef struct _process_t {
 	void *sighandler;
 
 	void *got;
-	hal_tls_t tls;
+
+	ptr_t tlsReg;
 } process_t;
 
 
@@ -128,12 +129,6 @@ extern int _process_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
 extern void process_dumpException(unsigned int n, exc_context_t *exc);
-
-
-extern int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map);
-
-
-extern int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map);
 
 
 #endif
