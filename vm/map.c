@@ -1125,6 +1125,7 @@ void vm_mapinfo(meminfo_t *info)
 	rbnode_t *n;
 	map_entry_t *e;
 	vm_map_t *map;
+	const syspage_map_t *spMap;
 	unsigned int size;
 	process_t *process;
 	int i;
@@ -1314,6 +1315,14 @@ void vm_mapinfo(meminfo_t *info)
 				info->maps.map[size].pend = (addr_t)map->pmap.end;
 				info->maps.map[size].vstart = (ptr_t)map->start;
 				info->maps.map[size].vend = (ptr_t)map->stop;
+				spMap = syspage_mapIdResolve(size);
+				if ((spMap != NULL) && (spMap->name != NULL)) {
+					hal_strncpy(info->maps.map[size].name, spMap->name, sizeof(info->maps.map[size].name));
+					info->maps.map[size].name[sizeof(info->maps.map[size].name) - 1] = '\0';
+				}
+				else {
+					info->maps.map[size].name[0] = '\0';
+				}
 			}
 		}
 
