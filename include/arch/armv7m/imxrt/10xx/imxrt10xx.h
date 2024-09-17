@@ -383,7 +383,7 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
 	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot, pctl_devcache,
-		pctl_cleanInvalDCache, pctl_invalDCache } type;
+		pctl_cleanInvalDCache, pctl_invalDCache, pctl_rttDetails } type;
 
 	union {
 		struct {
@@ -432,6 +432,12 @@ typedef struct {
 			void *addr;
 			unsigned int sz;
 		} cleanInvalDCache;
+		struct {
+			void *cbAddr;
+			unsigned int cbSize;
+			void *bufAddr;
+			unsigned int bufSize;
+		} rttDetails;
 	};
 } __attribute__((packed)) platformctl_t;
 

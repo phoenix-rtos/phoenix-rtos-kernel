@@ -22,6 +22,7 @@
 #include "include/arch/armv7m/imxrt/10xx/imxrt10xx.h"
 
 #include "imxrt10xx.h"
+#include "syspage.h"
 #include "config.h"
 
 #include <board_config.h>
@@ -30,6 +31,9 @@
 #define RTWDOG_UPDATE_KEY 0xd928c520
 #define RTWDOG_REFRESH_KEY 0xb480a602
 #define LPO_CLK_FREQ_HZ 32000
+#ifndef RTT_CB_SIZE
+#define RTT_CB_SIZE 256
+#endif
 
 #if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
 #define WATCHDOG_TIMEOUT_MS (30000)
@@ -599,6 +603,21 @@ int hal_platformctl(void *ptr)
 				ret = EOK;
 			}
 			break;
+
+		case pctl_rttDetails:
+			if (data->action == pctl_get) {
+				const syspage_map_t *map = syspage_mapNameResolve("rtt");
+				if (map == NULL) {
+					ret = -ENOENT;
+				}
+				else {
+					data->rttDetails.cbAddr = (void *)(map->end - RTT_CB_SIZE);
+					data->rttDetails.cbSize = RTT_CB_SIZE;
+					data->rttDetails.bufAddr = (void *)map->start;
+					data->rttDetails.bufSize = map->end - map->start - RTT_CB_SIZE;
+					ret = EOK;
+				}
+			}
 
 		default:
 			break;
