@@ -70,6 +70,7 @@ typedef struct {
 	addr_t vend;
 	size_t alloc;
 	size_t free;
+	char name[16];
 } mapinfo_t;
 
 
