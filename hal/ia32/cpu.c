@@ -568,6 +568,17 @@ int hal_platformctl(void *ptr)
 			}
 			break;
 
+		case pctl_graphmode:
+			if (data->action == pctl_get) {
+				data->graphmode.width = syspage->hs.graphmode.width;
+				data->graphmode.height = syspage->hs.graphmode.height;
+				data->graphmode.bpp = syspage->hs.graphmode.bpp;
+				data->graphmode.pitch = syspage->hs.graphmode.pitch;
+				data->graphmode.framebuffer = syspage->hs.graphmode.framebuffer;
+				return EOK;
+			}
+			break;
+
 		default:
 			break;
 	}

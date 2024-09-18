@@ -47,6 +47,14 @@ typedef struct {
 	unsigned int hpetLength;
 	unsigned long mcfg; /* addr_t */
 	unsigned int mcfgLength;
+
+	struct {
+		unsigned short width;
+		unsigned short height;
+		unsigned short bpp;
+		unsigned short pitch;
+		unsigned long framebuffer;       /* addr_t */
+	} __attribute__((packed)) graphmode; /* Graphics mode info */
 } __attribute__((packed)) hal_syspage_t;
 
 

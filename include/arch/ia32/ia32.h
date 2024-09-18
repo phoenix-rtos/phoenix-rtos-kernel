@@ -71,9 +71,11 @@ typedef struct {
 } __attribute__((packed)) pci_dev_t;
 
 
+/* clang-format off */
+
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_pci = 0, pctl_busmaster, pctl_reboot } type;
+	enum { pctl_pci = 0, pctl_busmaster, pctl_reboot, pctl_graphmode } type;
 
 	union {
 		struct {
@@ -91,8 +93,18 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+
+		struct {
+			unsigned short width;
+			unsigned short height;
+			unsigned short bpp;
+			unsigned short pitch;
+			unsigned long framebuffer; /* addr_t */
+		} graphmode;
 	};
 } platformctl_t;
+
+/* clang-format on */
 
 
 #endif
