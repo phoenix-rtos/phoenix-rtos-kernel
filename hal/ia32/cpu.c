@@ -525,7 +525,7 @@ void hal_cpuReboot(void)
 	hal_outb(PORT_PS2_COMMAND, 0xfe);
 
 	/* 2. Try to reboot by PCI reset */
-	hal_outb((void *)0xcf9, 0xe);
+	hal_outb((u16)0xcf9, 0xe);
 
 	/* 3. Triple fault (interrupt with null idt) */
 	/* clang-format off */

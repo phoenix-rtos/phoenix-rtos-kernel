@@ -108,16 +108,16 @@
 
 /* IO Ports */
 /* Ports of (8259A) PIC (Programmable Interrupt Controller) */
-#define PORT_PIC_MASTER_COMMAND ((void *)0x20)
-#define PORT_PIC_MASTER_DATA    ((void *)0x21)
-#define PORT_PIC_SLAVE_COMMAND  ((void *)0xa0)
-#define PORT_PIC_SLAVE_DATA     ((void *)0xa1)
+#define PORT_PIC_MASTER_COMMAND ((u16)0x20)
+#define PORT_PIC_MASTER_DATA    ((u16)0x21)
+#define PORT_PIC_SLAVE_COMMAND  ((u16)0xa0)
+#define PORT_PIC_SLAVE_DATA     ((u16)0xa1)
 /* Ports of PIT (Programmable Interval Timer) */
-#define PORT_PIT_DATA_CHANNEL0 ((void *)0x40)
-#define PORT_PIT_COMMAND       ((void *)0x43)
+#define PORT_PIT_DATA_CHANNEL0 ((u16)0x40)
+#define PORT_PIT_COMMAND       ((u16)0x43)
 /* Ports of 8042 PS/2 Controller */
-#define PORT_PS2_DATA    ((void *)0x60)
-#define PORT_PS2_COMMAND ((void *)0x64)
+#define PORT_PS2_DATA    ((u16)0x60)
+#define PORT_PS2_COMMAND ((u16)0x64)
 
 /* There are objects in memory that require O(MAX_CPU_COUNT^2) memory. */
 #define MAX_CPU_COUNT 64

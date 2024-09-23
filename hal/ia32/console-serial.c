@@ -33,19 +33,21 @@ enum {
 
 static inline void _console_uartWrite(unsigned int reg, u8 val)
 {
-	if (!console_common.type)
-		hal_outb(console_common.base + reg, val);
-	else
+	if (console_common.type == 0) {
+		hal_outb((u16)((addr_t)console_common.base + reg), val);
+	}
+	else {
 		*(u8 *)(console_common.base + reg) = val;
+	}
 	return;
 }
 
 
 static inline u8 _console_uartRead(unsigned int reg)
 {
-	if (!console_common.type)
-		return hal_inb(console_common.base + reg);
-
+	if (console_common.type == 0) {
+		return hal_inb((u16)((addr_t)console_common.base + reg));
+	}
 	return *(u8 *)(console_common.base + reg);
 }
 
