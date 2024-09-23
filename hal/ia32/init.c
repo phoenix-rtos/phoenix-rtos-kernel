@@ -232,7 +232,7 @@ int _hal_gasWrite32(hal_gasMapped_t *gas, u32 offset, u32 val)
 			ret = 0;
 			break;
 		case GAS_ADDRESS_SPACE_ID_IOPORT:
-			hal_outl(gas->address + offset, val);
+			hal_outl((u16)(addr_t)(gas->address + offset), val);
 			ret = 0;
 			break;
 		case GAS_ADDRESS_SPACE_ID_PCI:
@@ -261,7 +261,7 @@ int _hal_gasRead32(hal_gasMapped_t *gas, u32 offset, u32 *val)
 			ret = 0;
 			break;
 		case GAS_ADDRESS_SPACE_ID_IOPORT:
-			*val = hal_inl(gas->address + offset);
+			*val = hal_inl((u16)(addr_t)(gas->address + offset));
 			ret = 0;
 			break;
 		case GAS_ADDRESS_SPACE_ID_PCI:

@@ -21,7 +21,7 @@
 /* io access */
 
 
-static inline u8 hal_inb(void *addr)
+static inline u8 hal_inb(u16 addr)
 {
 	u8 b;
 
@@ -29,20 +29,20 @@ static inline u8 hal_inb(void *addr)
 	__asm__ volatile (
 		"inb %1, %0\n\t"
 	: "=a" (b)
-	: "d" ((u16)(addr_t)addr)
+	: "d" (addr)
 	: );
 	/* clang-format on */
 	return b;
 }
 
 
-static inline void hal_outb(void *addr, u8 b)
+static inline void hal_outb(u16 addr, u8 b)
 {
 	/* clang-format off */
 	__asm__ volatile (
 		"outb %1, %0"
 	:
-	: "d" ((u16)(addr_t)addr), "a" (b)
+	: "d" (addr), "a" (b)
 	: );
 	/* clang-format on */
 
@@ -50,7 +50,7 @@ static inline void hal_outb(void *addr, u8 b)
 }
 
 
-static inline u16 hal_inw(void *addr)
+static inline u16 hal_inw(u16 addr)
 {
 	u16 w;
 
@@ -58,7 +58,7 @@ static inline u16 hal_inw(void *addr)
 	__asm__ volatile (
 		"inw %1, %0\n\t"
 	: "=a" (w)
-	: "d" ((u16)(addr_t)addr)
+	: "d" (addr)
 	: );
 	/* clang-format on */
 
@@ -66,13 +66,13 @@ static inline u16 hal_inw(void *addr)
 }
 
 
-static inline void hal_outw(void *addr, u16 w)
+static inline void hal_outw(u16 addr, u16 w)
 {
 	/* clang-format off */
 	__asm__ volatile (
 		"outw %1, %0"
 	:
-	: "d" ((u16)(addr_t)addr), "a" (w)
+	: "d" (addr), "a" (w)
 	: );
 	/* clang-format on */
 
@@ -80,7 +80,7 @@ static inline void hal_outw(void *addr, u16 w)
 }
 
 
-static inline u32 hal_inl(void *addr)
+static inline u32 hal_inl(u16 addr)
 {
 	u32 l;
 
@@ -96,7 +96,7 @@ static inline u32 hal_inl(void *addr)
 }
 
 
-static inline void hal_outl(void *addr, u32 l)
+static inline void hal_outl(u16 addr, u32 l)
 {
 	/* clang-format off */
 	__asm__ volatile (

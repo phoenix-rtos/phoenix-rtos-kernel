@@ -28,16 +28,16 @@ struct {
 /* Reads word from PCI configuration space */
 static u32 _hal_pciGet(u8 bus, u8 dev, u8 func, u8 reg)
 {
-	hal_outl((void *)0xcf8, 0x80000000 | ((u32)bus << 16 ) | ((u32)dev << 11) | ((u32)func << 8) | (reg << 2));
-	return hal_inl((void *)0xcfc);
+	hal_outl((u16)0xcf8, 0x80000000 | ((u32)bus << 16) | ((u32)dev << 11) | ((u32)func << 8) | (reg << 2));
+	return hal_inl((u16)0xcfc);
 }
 
 
 /* Writes word to PCI configuration space */
 static void _hal_pciSet(u8 bus, u8 dev, u8 func, u8 reg, u32 val)
 {
-	hal_outl((void *)0xcf8, 0x80000000 | ((u32)bus << 16 ) | ((u32)dev << 11) | ((u32)func << 8) | (reg << 2));
-	hal_outl((void *)0xcfc, val);
+	hal_outl((u16)0xcf8, 0x80000000 | ((u32)bus << 16) | ((u32)dev << 11) | ((u32)func << 8) | (reg << 2));
+	hal_outl((u16)0xcfc, val);
 }
 
 
