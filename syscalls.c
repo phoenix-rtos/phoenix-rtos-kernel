@@ -68,6 +68,8 @@ int syscalls_sys_mmap(void *ustack)
 	GETFROMSTACK(ustack, int, fildes, 4);
 	GETFROMSTACK(ustack, off_t, offs, 5);
 
+	size = round_page(size);
+
 	if (vm_mapBelongs(proc, vaddr, sizeof(*vaddr)) < 0) {
 		return -EFAULT;
 	}
