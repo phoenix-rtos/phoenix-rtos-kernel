@@ -114,11 +114,9 @@ u32 cpu_getEFLAGS(void)
 }
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
+int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;
-
-	(void)tls;
 
 	*nctx = NULL;
 	if (kstack == NULL) {
@@ -600,11 +598,20 @@ void _hal_cpuInit(void)
 }
 
 
-void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
+void hal_cpuTlsSet(ptr_t tlsPtr, ptr_t tlsReg)
 {
-	(void)ctx;
+	(void)tlsReg;
+
 	hal_tlbFlushLocal(NULL);
-	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->tbss_sz + tls->tdata_sz, VADDR_KERNEL - tls->tls_base + tls->tbss_sz + tls->tdata_sz, DESCR_TLS);
+	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tlsPtr, VADDR_KERNEL, DESCR_TLS);
 	/* Reload the hidden gs register*/
 	hal_cpuReloadTlsSegment();
+}
+
+
+void hal_cpuSetCtxTls(cpu_context_t *ctx, ptr_t tlsPtr)
+{
+	/* TLS pointer is not stored in context */
+	(void)ctx;
+	(void)tlsPtr;
 }

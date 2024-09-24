@@ -23,12 +23,10 @@
 
 
 /* Function creates new cpu context on top of given thread kernel stack */
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
+int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;
 	int i;
-
-	(void)tls;
 
 	*nctx = 0;
 	if (kstack == NULL) {
@@ -232,13 +230,19 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 }
 
 
-void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
+void hal_cpuTlsSet(ptr_t tlsPtr, ptr_t tlsReg)
 {
-	/* In theory there should be 8-byte thread control block but
-	 * it's stored elsewhere so we need to subtract 8 from the pointer
-	 */
-	ptr_t ptr = tls->tls_base - 8;
-	__asm__ volatile("mcr p15, 0, %[value], cr13, cr0, 3;" ::[value] "r"(ptr));
+	(void)tlsReg;
+
+	__asm__ volatile("mcr p15, 0, %[value], cr13, cr0, 3;" ::[value] "r"(tlsPtr));
+}
+
+
+void hal_cpuSetCtxTls(cpu_context_t *ctx, ptr_t tlsPtr)
+{
+	/* TLS pointer is not stored in context */
+	(void)ctx;
+	(void)tlsPtr;
 }
 
 

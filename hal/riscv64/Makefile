@@ -11,3 +11,8 @@ include hal/$(TARGET_SUFF)/$(TARGET_SUBFAMILY)/Makefile
 
 CFLAGS += -Ihal/$(TARGET_SUFF) -Ihal/$(TARGET_SUFF)/$(TARGET_SUBFAMILY)
 
+# binutils 2.41 silently introduced gp relaxations which for some reason make kernel impossible to build
+# TODO: investigate further
+ifeq ($(shell expr $(LD_VERSION_MINOR) ">=" 41), 1)
+LDFLAGS += $(LDFLAGS_PREFIX)--no-relax-gp
+endif

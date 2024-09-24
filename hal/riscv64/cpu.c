@@ -116,7 +116,7 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 /* context management */
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
+int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg)
 {
 	cpu_context_t *ctx;
 
@@ -178,14 +178,14 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->sepc = (u64)start;
 	ctx->ksp = (u64)ctx;
 
+	ctx->tp = 0;
+
 	if (ustack != NULL) {
 		ctx->sp = (u64)ustack;
 		ctx->sstatus = (csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SUM) & ~SSTATUS_SPP;
-		ctx->tp = tls->tls_base;
 	}
 	else {
 		ctx->sstatus = csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SPP;
-		ctx->tp = 0;
 	}
 
 	*nctx = ctx;
@@ -438,9 +438,15 @@ __attribute__((section(".init"))) void _hal_cpuInit(void)
 }
 
 
-void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
+void hal_cpuTlsSet(ptr_t tlsPtr, ptr_t tlsReg)
 {
-	(void)ctx;
+	/* TLS pointer is set during user state restoration, as it's part of cpu context. */
+	(void)tlsReg;
+	(void)tlsPtr;
+}
 
-	__asm__ volatile("mv tp, %0" ::"r"(tls->tls_base));
+
+void hal_cpuSetCtxTls(cpu_context_t *ctx, ptr_t tlsPtr)
+{
+	ctx->tp = tlsPtr;
 }

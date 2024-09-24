@@ -285,7 +285,7 @@ int syscalls_gettid(void *ustack)
 }
 
 
-int syscalls_beginthreadex(void *ustack)
+int syscalls_beginthreadexsvc(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	void (*start)(void *);
@@ -293,6 +293,7 @@ int syscalls_beginthreadex(void *ustack)
 	void *stack, *arg;
 	int *id;
 	int err;
+	void *tls;
 
 	GETFROMSTACK(ustack, void *, start, 0);
 	GETFROMSTACK(ustack, unsigned int, priority, 1);
@@ -300,6 +301,7 @@ int syscalls_beginthreadex(void *ustack)
 	GETFROMSTACK(ustack, unsigned int, stacksz, 3);
 	GETFROMSTACK(ustack, void *, arg, 4);
 	GETFROMSTACK(ustack, int *, id, 5);
+	GETFROMSTACK(ustack, void *, tls, 6);
 
 	if ((id != NULL) && (vm_mapBelongs(proc, id, sizeof(*id)) < 0)) {
 		return -EFAULT;
@@ -307,7 +309,7 @@ int syscalls_beginthreadex(void *ustack)
 
 	proc_get(proc);
 
-	err = proc_threadCreate(proc, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+	err = proc_threadCreate(proc, start, id, priority, SIZE_KSTACK, stack, stacksz, arg, tls);
 
 	if (err < 0) {
 		proc_put(proc);
@@ -317,10 +319,29 @@ int syscalls_beginthreadex(void *ustack)
 }
 
 
-int syscalls_endthread(void *ustack)
+void syscalls_endthreadsvc(void *ustack)
 {
 	proc_threadEnd();
-	return EOK;
+}
+
+
+void syscalls_tlsSetPtr(void *ustack)
+{
+	void *tlsPtr;
+
+	GETFROMSTACK(ustack, void *, tlsPtr, 0);
+
+	proc_tlsSetPtr(tlsPtr);
+}
+
+
+void syscalls_tlsSetReg(void *ustack)
+{
+	void *tlsReg;
+
+	GETFROMSTACK(ustack, void *, tlsReg, 0);
+
+	proc_tlsSetReg(tlsReg);
 }
 
 
