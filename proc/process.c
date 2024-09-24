@@ -797,7 +797,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 					return -ENOMEM;
 				}
 
-				hal_memcpy((char *)paddr, (char *)ehdr + phdr->p_offset, phdr->p_memsz);
+				hal_memcpy((char *)paddr, (char *)ehdr + phdr->p_offset, phdr->p_filesz);
 
 				/* Need to make cache and memory coherent, so $I is coherent too */
 				hal_cleanDCache((ptr_t)paddr, phdr->p_memsz);
