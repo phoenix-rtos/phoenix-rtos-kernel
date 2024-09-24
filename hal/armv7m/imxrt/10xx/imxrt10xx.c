@@ -2234,7 +2234,6 @@ void _imxrt_init(void)
 
 	/* Power down all unused PLL */
 	_imxrt_ccmDeinitAudioPll();
-	_imxrt_ccmDeinitEnetPll();
 
 	/* Wait for any pending CCM div/mux handshake process to complete */
 	while ((*(imxrt_common.ccm + ccm_cdhipr) & 0x1002b) != 0) {
