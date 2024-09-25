@@ -15,7 +15,7 @@ MAKEFLAGS += --no-print-directory
 
 include ../phoenix-rtos-build/Makefile.common
 
-CFLAGS += -I.
+CFLAGS += -I. -ffreestanding
 CPPFLAGS += -DVERSION=\"$(VERSION)\"
 
 # uncomment to enable stack canary checking
