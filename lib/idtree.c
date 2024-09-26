@@ -16,10 +16,10 @@
 #include "lib.h"
 
 
-static int lib_idtreeCmp(rbnode_t *n1, rbnode_t *n2)
+static int lib_idtreeCmp(const rbnode_t *n1, const rbnode_t *n2)
 {
-	idnode_t *i1 = lib_treeof(idnode_t, linkage, n1);
-	idnode_t *i2 = lib_treeof(idnode_t, linkage, n2);
+	const idnode_t *i1 = lib_treeof(idnode_t, linkage, n1);
+	const idnode_t *i2 = lib_treeof(idnode_t, linkage, n2);
 
 	return i1->id - i2->id;
 }
@@ -179,9 +179,9 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 }
 
 
-static void _lib_idtreeDump(rbnode_t *node)
+static void _lib_idtreeDump(const rbnode_t *node)
 {
-	idnode_t *n = lib_treeof(idnode_t, linkage, node);
+	const idnode_t *n = lib_treeof(idnode_t, linkage, node);
 	lib_printf("%d <0x%p>]", n->id, n);
 }
 

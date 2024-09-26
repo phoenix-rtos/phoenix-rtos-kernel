@@ -88,7 +88,7 @@ typedef struct _thread_t {
 } thread_t;
 
 
-static inline int proc_getTid(thread_t *t)
+static inline int proc_getTid(const thread_t *t)
 {
 	return t->idlinkage.id;
 }

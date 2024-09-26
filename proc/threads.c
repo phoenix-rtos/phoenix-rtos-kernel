@@ -83,10 +83,10 @@ static time_t _proc_gettimeRaw(void)
 }
 
 
-static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
+static int threads_sleepcmp(const rbnode_t *n1, const rbnode_t *n2)
 {
-	thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
-	thread_t *t2 = lib_treeof(thread_t, sleeplinkage, n2);
+	const thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
+	const thread_t *t2 = lib_treeof(thread_t, sleeplinkage, n2);
 
 	if (t1->wakeup != t2->wakeup) {
 		return (t1->wakeup > t2->wakeup) ? 1 : -1;

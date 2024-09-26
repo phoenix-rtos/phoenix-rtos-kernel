@@ -255,10 +255,10 @@ int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags)
 }
 
 
-static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
+static int pinfo_cmp(const rbnode_t *n1, const rbnode_t *n2)
 {
-	process_info_t *p1 = lib_treeof(process_info_t, linkage, n1);
-	process_info_t *p2 = lib_treeof(process_info_t, linkage, n2);
+	const process_info_t *p1 = lib_treeof(process_info_t, linkage, n1);
+	const process_info_t *p2 = lib_treeof(process_info_t, linkage, n2);
 
 	if (p1->process < p2->process) {
 		return -1;

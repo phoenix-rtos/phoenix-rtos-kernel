@@ -52,10 +52,10 @@ void map_free(map_entry_t *entry);
 static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot);
 
 
-static int map_cmp(rbnode_t *n1, rbnode_t *n2)
+static int map_cmp(const rbnode_t *n1, const rbnode_t *n2)
 {
-	map_entry_t *e1 = lib_treeof(map_entry_t, linkage, n1);
-	map_entry_t *e2 = lib_treeof(map_entry_t, linkage, n2);
+	const map_entry_t *e1 = lib_treeof(map_entry_t, linkage, n1);
+	const map_entry_t *e2 = lib_treeof(map_entry_t, linkage, n2);
 
 	if (e2->vaddr + e2->size <= e1->vaddr)
 		return 1;
@@ -113,9 +113,9 @@ static void map_augment(rbnode_t *node)
 }
 
 
-void map_dump(rbnode_t *node)
+void map_dump(const rbnode_t *node)
 {
-	map_entry_t *e = lib_treeof(map_entry_t, linkage, node);
+	const map_entry_t *e = lib_treeof(map_entry_t, linkage, node);
 	lib_printf("%p+%x, %x, %x", e->vaddr, e->size, e->lmaxgap, e->rmaxgap);
 }
 

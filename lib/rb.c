@@ -368,13 +368,13 @@ rbnode_t *lib_rbNext(rbnode_t *node)
 }
 
 
-rbnode_t *lib_rbFind(rbtree_t *tree, rbnode_t *node)
+rbnode_t *lib_rbFind(rbtree_t *tree, const rbnode_t *node)
 {
 	return lib_rbFindEx(tree->root, node, tree->compare);
 }
 
 
-rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare)
+rbnode_t *lib_rbFindEx(rbnode_t *root, const rbnode_t *node, rbcomp_t compare)
 {
 	rbnode_t *it = root;
 	int c;
@@ -394,7 +394,7 @@ rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare)
 #define RB_DUMP_DEPTH	16
 
 
-void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned char d[RB_DUMP_DEPTH])
+void lib_rbDumpEx(const rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned char d[RB_DUMP_DEPTH])
 {
 	unsigned int i;
 
@@ -430,7 +430,7 @@ void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned c
 }
 
 
-void lib_rbDump(rbnode_t *node, rbdump_t dump)
+void lib_rbDump(const rbnode_t *node, rbdump_t dump)
 {
 	unsigned int depth = 0;
 	unsigned char d[RB_DUMP_DEPTH];

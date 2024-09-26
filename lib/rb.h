@@ -19,7 +19,7 @@
 
 #define lib_treeof(type, node_field, node) ({ \
 	long _off = (long)&(((type *)0)->node_field); \
-	rbnode_t *tmpnode = (node); \
+	const rbnode_t *tmpnode = (node); \
 	(type *)((tmpnode == NULL) ? NULL : ((void *)tmpnode - _off)); \
 })
 
@@ -37,13 +37,13 @@ typedef struct _rbnode_t {
 } rbnode_t;
 
 
-typedef int (*rbcomp_t)(rbnode_t *n1, rbnode_t *n2);
+typedef int (*rbcomp_t)(const rbnode_t *n1, const rbnode_t *n2);
 
 
 typedef void (*rbaugment_t)(rbnode_t *node);
 
 
-typedef void (*rbdump_t)(rbnode_t *node);
+typedef void (*rbdump_t)(const rbnode_t *node);
 
 
 typedef struct _rbtree_t {
@@ -74,13 +74,13 @@ extern rbnode_t *lib_rbPrev(rbnode_t *node);
 extern rbnode_t *lib_rbNext(rbnode_t *node);
 
 
-extern rbnode_t *lib_rbFind(rbtree_t *tree, rbnode_t *node);
+extern rbnode_t *lib_rbFind(rbtree_t *tree, const rbnode_t *node);
 
 
-extern rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare);
+extern rbnode_t *lib_rbFindEx(rbnode_t *root, const rbnode_t *node, rbcomp_t compare);
 
 
-extern void lib_rbDump(rbnode_t *node, rbdump_t dump);
+extern void lib_rbDump(const rbnode_t *node, rbdump_t dump);
 
 
 #endif

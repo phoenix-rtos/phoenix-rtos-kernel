@@ -32,10 +32,10 @@ struct {
 } object_common;
 
 
-static int object_cmp(rbnode_t *n1, rbnode_t *n2)
+static int object_cmp(const rbnode_t *n1, const rbnode_t *n2)
 {
-	vm_object_t *o1 = lib_treeof(vm_object_t, linkage, n1);
-	vm_object_t *o2 = lib_treeof(vm_object_t, linkage, n2);
+	const vm_object_t *o1 = lib_treeof(vm_object_t, linkage, n1);
+	const vm_object_t *o2 = lib_treeof(vm_object_t, linkage, n2);
 
 	if (o1->oid.id > o2->oid.id)
 		return 1;

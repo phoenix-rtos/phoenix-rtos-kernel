@@ -65,20 +65,20 @@ static struct {
 } unix_common;
 
 
-static int unixsock_cmp(rbnode_t *n1, rbnode_t *n2)
+static int unixsock_cmp(const rbnode_t *n1, const rbnode_t *n2)
 {
-	unixsock_t *r1 = lib_treeof(unixsock_t, linkage, n1);
-	unixsock_t *r2 = lib_treeof(unixsock_t, linkage, n2);
+	const unixsock_t *r1 = lib_treeof(unixsock_t, linkage, n1);
+	const unixsock_t *r2 = lib_treeof(unixsock_t, linkage, n2);
 
 	return (r1->id - r2->id);
 }
 
 
-static int unixsock_gapcmp(rbnode_t *n1, rbnode_t *n2)
+static int unixsock_gapcmp(const rbnode_t *n1, const rbnode_t *n2)
 {
-	unixsock_t *r1 = lib_treeof(unixsock_t, linkage, n1);
-	unixsock_t *r2 = lib_treeof(unixsock_t, linkage, n2);
-	rbnode_t *child = NULL;
+	const unixsock_t *r1 = lib_treeof(unixsock_t, linkage, n1);
+	const unixsock_t *r2 = lib_treeof(unixsock_t, linkage, n2);
+	const rbnode_t *child = NULL;
 	int ret = 1;
 
 	if (r1->lmaxgap > 0 && r1->rmaxgap > 0) {

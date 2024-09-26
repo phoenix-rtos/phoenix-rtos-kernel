@@ -65,10 +65,10 @@ typedef struct _test_t {
 } test_t;
 
 
-static int test_compare(rbnode_t *n1, rbnode_t *n2)
+static int test_compare(const rbnode_t *n1, const rbnode_t *n2)
 {
-	test_t *t1 = lib_treeof(test_t, node, n1);
-	test_t *t2 = lib_treeof(test_t, node, n2);
+	const test_t *t1 = lib_treeof(test_t, node, n1);
+	const test_t *t2 = lib_treeof(test_t, node, n2);
 
 	if (t1->num == t2->num)
 		return 0;
