@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * HAL console (i.MX RT1170 UART)
+ * HAL console (i.MX RT1170 UART + RTT)
  *
  * Copyright 2016-2017, 2019 Phoenix Systems
  * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski
@@ -14,21 +14,35 @@
  */
 
 #include "hal/console.h"
+#include "hal/arm/rtt.h"
 #include "include/arch/armv7m/imxrt/11xx/imxrt1170.h"
 #include "imxrt117x.h"
+#include "lib/helpers.h"
 #include <arch/cpu.h>
 
 #include <board_config.h>
 
-#ifndef UART_CONSOLE
-#define UART_CONSOLE 11
+#ifndef UART_CONSOLE_KERNEL
+#ifdef UART_CONSOLE
+#define UART_CONSOLE_KERNEL UART_CONSOLE
+#else
+#define UART_CONSOLE_KERNEL 11
+#endif
+#endif
+
+#ifndef RTT_CONSOLE_KERNEL
+#if RTT_ENABLED
+#define RTT_CONSOLE_KERNEL 0
+#else
+#define RTT_CONSOLE_KERNEL
+#endif
 #endif
 
 #define CONCAT3(a, b, c) a##b##c
 #define CONSOLE_BAUD(n)  (CONCAT3(UART, n, _BAUDRATE))
 
-#if CONSOLE_BAUD(UART_CONSOLE)
-#define CONSOLE_BAUDRATE CONSOLE_BAUD(UART_CONSOLE)
+#if !ISEMPTY(UART_CONSOLE_KERNEL) && CONSOLE_BAUD(UART_CONSOLE_KERNEL)
+#define CONSOLE_BAUDRATE CONSOLE_BAUD(UART_CONSOLE_KERNEL)
 #else
 #define CONSOLE_BAUDRATE 115200
 #endif
@@ -63,16 +77,23 @@ void hal_consolePrint(int attr, const char *s)
 
 void hal_consolePutch(char c)
 {
+#if RTT_ENABLED && !ISEMPTY(RTT_CONSOLE_KERNEL)
+	_hal_rttWrite(RTT_CONSOLE_KERNEL, &c, 1);
+#endif
+
+#if !ISEMPTY(UART_CONSOLE_KERNEL)
 	while (!(*(console_common.uart + uart_stat) & (1 << 23)))
 		;
 
 	*(console_common.uart + uart_data) = c;
+#endif
 }
 
 
-void _hal_consoleInit(void)
+#if !ISEMPTY(UART_CONSOLE_KERNEL)
+static void _hal_uartInit(void)
 {
-	u32 t, console = UART_CONSOLE - 1;
+	u32 t, console = UART_CONSOLE_KERNEL - 1;
 
 	static const struct {
 		volatile u32 *base;
@@ -155,4 +176,17 @@ void _hal_consoleInit(void)
 
 	/* Enable TX and RX */
 	*(console_common.uart + uart_ctrl) |= (1 << 19) | (1 << 18);
+}
+#endif
+
+
+void _hal_consoleInit(void)
+{
+#if RTT_ENABLED && !ISEMPTY(RTT_CONSOLE_KERNEL)
+	_hal_rttInit();
+#endif
+
+#if !ISEMPTY(UART_CONSOLE_KERNEL)
+	_hal_uartInit();
+#endif
 }
