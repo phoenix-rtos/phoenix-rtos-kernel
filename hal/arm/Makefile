@@ -7,4 +7,4 @@
 # TODO handle other common ARM stuff (e.g GIC) and
 # select relevant components here
 
-OBJS += $(addprefix $(PREFIX_O)hal/arm/, scs.o)
+OBJS += $(addprefix $(PREFIX_O)hal/arm/, scs.o rtt.o)
