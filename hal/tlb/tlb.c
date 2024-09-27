@@ -82,6 +82,11 @@ void hal_tlbInvalidateEntry(const pmap_t *pmap, const void *vaddr, size_t count)
 	size_t tasks_size;
 	spinlock_ctx_t sc;
 
+	if (id >= MAX_CPU_COUNT) {
+		/* Impossible make gcc array bound checker happy. */
+		return;
+	}
+
 	hal_spinlockSet(&tlb_common.tlbs[id].task_spinlock, &sc);
 	tasks_size = tlb_common.tlbs[id].tasks_size;
 
