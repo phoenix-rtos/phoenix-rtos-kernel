@@ -15,8 +15,7 @@
 
 #include "nrf91.h"
 
-#include "hal/arm/nvic.h"
-#include "hal/arm/scb.h"
+#include "hal/arm/scs.h"
 
 #include "hal/cpu.h"
 #include "include/errno.h"
@@ -168,8 +167,7 @@ void _nrf91_init(void)
 	nrf91_common.resetFlags = *(nrf91_common.power + power_resetreas);
 	*(nrf91_common.power + power_resetreas) = 0x70017;
 
-	_hal_scbInit();
-	_hal_nvicInit();
+	_hal_scsInit();
 
 	/* Based on nRF9160 product specification there is fixed cpu frequency */
 	nrf91_common.cpuclk = 64 * 1000 * 1000;

@@ -53,7 +53,7 @@
 
 #ifndef __ASSEMBLY__
 
-#include "hal/arm/scb.h"
+#include "hal/arm/scs.h"
 #include "hal/arm/barriers.h"
 
 #define SYSTICK_INTERVAL 1000

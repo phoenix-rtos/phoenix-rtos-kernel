@@ -20,8 +20,7 @@
 #include "hal/cpu.h"
 #include "include/errno.h"
 
-#include "hal/arm/nvic.h"
-#include "hal/arm/scb.h"
+#include "hal/arm/scs.h"
 
 #include <board_config.h>
 
@@ -725,8 +724,7 @@ void _stm32_init(void)
 	stm32_common.gpio[8] = (void *)0x48002000; /* GPIOI */
 	stm32_common.flash = (void *)0x40022000;
 
-	_hal_scbInit();
-	_hal_nvicInit();
+	_hal_scsInit();
 
 	/* Enable System configuration controller */
 	_stm32_rccSetDevClock(pctl_syscfg, 1);
