@@ -15,8 +15,7 @@
 
 #include "mcxn94x.h"
 
-#include "hal/arm/nvic.h"
-#include "hal/arm/scb.h"
+#include "hal/arm/scs.h"
 
 #include "hal/cpu.h"
 #include "include/errno.h"
@@ -625,8 +624,7 @@ void _mcxn94x_init(void)
 	n94x_common.port[5] = (void *)0x40042000;
 	n94x_common.inputmux = (void *)0x40006000;
 
-	_hal_scbInit();
-	_hal_nvicInit();
+	_hal_scsInit();
 
 	/* resetFlags TODO */
 }

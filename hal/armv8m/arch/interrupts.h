@@ -18,7 +18,7 @@
 #define _HAL_ARMV8M_INTERRUPTS_H_
 
 #include "cpu.h"
-#include "hal/arm/nvic.h"
+#include "hal/arm/scs.h"
 
 #define SVC_IRQ     11
 #define PENDSV_IRQ  14

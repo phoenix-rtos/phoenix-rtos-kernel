@@ -22,8 +22,7 @@
 #include "imxrt117x.h"
 #include "config.h"
 
-#include "hal/arm/nvic.h"
-#include "hal/arm/scb.h"
+#include "hal/arm/scs.h"
 
 #include <board_config.h>
 
@@ -756,8 +755,7 @@ void _imxrt_init(void)
 
 	imxrt_common.cpuclk = 696000000;
 
-	_hal_scbInit();
-	_hal_nvicInit();
+	_hal_scsInit();
 
 	/* Disable watchdogs (WDOG1, WDOG2) */
 	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1u << 2u)) != 0u) {
