@@ -549,7 +549,7 @@ int hal_platformctl(void *ptr)
 		case pctl_reboot:
 			if (data->action == pctl_set) {
 				if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
-					_hal_scbSystemReset();
+					_hal_scsSystemReset();
 				}
 			}
 			else {

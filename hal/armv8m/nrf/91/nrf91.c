@@ -192,5 +192,5 @@ void _nrf91_init(void)
 	hal_cpuDataMemoryBarrier();
 
 	/* Disable FPU */
-	_hal_scbSetFPU(0);
+	_hal_scsFPUSet(0);
 }

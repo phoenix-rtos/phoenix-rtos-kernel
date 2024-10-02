@@ -92,7 +92,7 @@ static struct {
 } scs_common;
 
 
-void _hal_nvicSetIRQ(s8 irqn, u8 state)
+void _hal_scsIRQSet(s8 irqn, u8 state)
 {
 	volatile u32 *ptr = (state != 0) ? scs_common.scs->iser : scs_common.scs->icer;
 
@@ -103,7 +103,7 @@ void _hal_nvicSetIRQ(s8 irqn, u8 state)
 }
 
 
-void _hal_nvicSetPriority(s8 irqn, u32 priority)
+void _hal_scsIRQPrioritySet(s8 irqn, u32 priority)
 {
 	volatile u8 *ptr = (volatile u8 *)scs_common.scs->ip;
 
@@ -114,7 +114,7 @@ void _hal_nvicSetPriority(s8 irqn, u32 priority)
 }
 
 
-void _hal_nvicSetPending(s8 irqn)
+void _hal_scsIRQPendingSet(s8 irqn)
 {
 	volatile u32 *ptr = scs_common.scs->ispr;
 
@@ -125,21 +125,21 @@ void _hal_nvicSetPending(s8 irqn)
 }
 
 
-int _hal_nvicGetPendingIRQ(s8 irqn)
+int _hal_scsIRQPendingGet(s8 irqn)
 {
 	volatile u32 *ptr = &scs_common.scs->ispr[(u8)irqn >> 5];
 	return ((*ptr & (1 << (irqn & 0x1f))) != 0) ? 1 : 0;
 }
 
 
-int _hal_nvicGetActive(s8 irqn)
+int _hal_scsIRQActiveGet(s8 irqn)
 {
 	volatile u32 *ptr = &scs_common.scs->iabr[(u8)irqn >> 5];
 	return ((*ptr & (1 << (irqn & 0x1f))) != 0) ? 1 : 0;
 }
 
 
-void _hal_scbSetPriorityGrouping(u32 group)
+void _hal_scsPriorityGroupingSet(u32 group)
 {
 	u32 t;
 
@@ -153,13 +153,13 @@ void _hal_scbSetPriorityGrouping(u32 group)
 }
 
 
-u32 _hal_scbGetPriorityGrouping(void)
+u32 _hal_scsPriorityGroupingGet(void)
 {
 	return (scs_common.scs->aircr & 0x700) >> 8;
 }
 
 
-void _hal_scbSetPriority(s8 excpn, u32 priority)
+void _hal_scsExceptionPrioritySet(s8 excpn, u32 priority)
 {
 	volatile u8 *ptr = (u8 *)&scs_common.scs->shpr1 + excpn - 4;
 
@@ -168,7 +168,7 @@ void _hal_scbSetPriority(s8 excpn, u32 priority)
 }
 
 
-u32 _imxrt_scbGetPriority(s8 excpn)
+u32 _imxrt_scsExceptionPriorityGet(s8 excpn)
 {
 	volatile u8 *ptr = (u8 *)&scs_common.scs->shpr1 + excpn - 4;
 
@@ -176,7 +176,7 @@ u32 _imxrt_scbGetPriority(s8 excpn)
 }
 
 
-void _hal_scbSystemReset(void)
+void _hal_scsSystemReset(void)
 {
 	scs_common.scs->aircr = ((0x5fau << 16) | (scs_common.scs->aircr & (0x700u)) | (1u << 2));
 
@@ -188,13 +188,13 @@ void _hal_scbSystemReset(void)
 }
 
 
-unsigned int _hal_scbCpuid(void)
+unsigned int _hal_scsCpuID(void)
 {
 	return scs_common.scs->cpuid;
 }
 
 
-void _hal_scbSetFPU(int state)
+void _hal_scsFPUSet(int state)
 {
 	if (state != 0) {
 		scs_common.scs->cpacr |= 0xf << 20;
@@ -209,7 +209,7 @@ void _hal_scbSetFPU(int state)
 
 static int _hal_scbCacheIsSupported(void)
 {
-	u32 partno = ((_hal_scbCpuid() >> 4) & 0xfff);
+	u32 partno = ((_hal_scsCpuID() >> 4) & 0xfff);
 
 	/* Only supported on Cortex-M7 for now */
 	if (partno == 0xc27) {
@@ -220,7 +220,7 @@ static int _hal_scbCacheIsSupported(void)
 }
 
 
-void _hal_scbEnableDCache(void)
+void _hal_scsDCacheEnable(void)
 {
 	u32 ccsidr, sets, ways;
 
@@ -252,7 +252,7 @@ void _hal_scbEnableDCache(void)
 }
 
 
-void _hal_scbDisableDCache(void)
+void _hal_scsDCacheDisable(void)
 {
 	register u32 ccsidr, sets, ways;
 
@@ -281,7 +281,7 @@ void _hal_scbDisableDCache(void)
 }
 
 
-void _hal_scbCleanInvalDCacheAddr(void *addr, u32 sz)
+void _hal_scsDCacheCleanInvalAddr(void *addr, u32 sz)
 {
 	u32 daddr;
 	int dsize;
@@ -310,7 +310,7 @@ void _hal_scbCleanInvalDCacheAddr(void *addr, u32 sz)
 }
 
 
-void _hal_scbEnableICache(void)
+void _hal_scsICacheEnable(void)
 {
 	if (_hal_scbCacheIsSupported() == 0) {
 		return;
@@ -329,7 +329,7 @@ void _hal_scbEnableICache(void)
 }
 
 
-void _hal_scbDisableICache(void)
+void _hal_scsICacheDisable(void)
 {
 	if (_hal_scbCacheIsSupported() == 0) {
 		return;
@@ -344,7 +344,7 @@ void _hal_scbDisableICache(void)
 }
 
 
-void _hal_scbSetDeepSleep(int state)
+void _hal_scsDeepSleepSet(int state)
 {
 	if (state != 0) {
 		scs_common.scs->scr |= 1 << 2;
@@ -357,7 +357,7 @@ void _hal_scbSetDeepSleep(int state)
 }
 
 
-void _hal_scbSystickInit(u32 load)
+void _hal_scsSystickInit(u32 load)
 {
 	scs_common.scs->rvr = load;
 	scs_common.scs->cvr = 0;
