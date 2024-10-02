@@ -666,7 +666,7 @@ int hal_platformctl(void *ptr)
 		case pctl_reboot:
 			if (data->action == pctl_set) {
 				if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
-					_hal_scbSystemReset();
+					_hal_scsSystemReset();
 				}
 			}
 			else if (data->action == pctl_get) {
@@ -678,12 +678,12 @@ int hal_platformctl(void *ptr)
 		case pctl_devcache:
 			if (data->action == pctl_set) {
 				if (data->devcache.state == 0) {
-					_hal_scbDisableDCache();
-					_hal_scbDisableICache();
+					_hal_scsDCacheDisable();
+					_hal_scsICacheDisable();
 				}
 				else {
-					_hal_scbEnableDCache();
-					_hal_scbEnableICache();
+					_hal_scsDCacheEnable();
+					_hal_scsICacheEnable();
 				}
 
 				ret = EOK;
@@ -692,7 +692,7 @@ int hal_platformctl(void *ptr)
 
 		case pctl_cleanInvalDCache:
 			if (data->action == pctl_set) {
-				_hal_scbCleanInvalDCacheAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz);
+				_hal_scsDCacheCleanInvalAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz);
 				ret = EOK;
 			}
 			break;
@@ -812,5 +812,5 @@ void _imxrt_init(void)
 	_imxrt_setDevClock(GPT_BUS_CLK, 0, 4, 0, 0, 1);
 
 	/* Enable FPU */
-	_hal_scbSetFPU(1);
+	_hal_scsFPUSet(1);
 }

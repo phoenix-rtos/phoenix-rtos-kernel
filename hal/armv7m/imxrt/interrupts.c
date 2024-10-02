@@ -72,8 +72,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	HAL_LIST_ADD(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10) {
-		_hal_nvicSetPriority(h->n - 0x10, 0);
-		_hal_nvicSetIRQ(h->n - 0x10, 1);
+		_hal_scsIRQPrioritySet(h->n - 0x10, 0);
+		_hal_scsIRQSet(h->n - 0x10, 1);
 	}
 	hal_spinlockClear(&interrupts.spinlock, &sc);
 
@@ -92,7 +92,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	HAL_LIST_REMOVE(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10 && interrupts.handlers[h->n] == NULL)
-		_hal_nvicSetIRQ(h->n - 0x10, 0);
+		_hal_scsIRQSet(h->n - 0x10, 0);
 
 	hal_spinlockClear(&interrupts.spinlock, &sc);
 
@@ -120,12 +120,12 @@ __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
 
-	_hal_scbSetPriority(SYSTICK_IRQ, 0);
-	_hal_scbSetPriority(PENDSV_IRQ, 0);
-	_hal_scbSetPriority(SVC_IRQ, 0);
+	_hal_scsExceptionPrioritySet(SYSTICK_IRQ, 0);
+	_hal_scsExceptionPrioritySet(PENDSV_IRQ, 0);
+	_hal_scsExceptionPrioritySet(SVC_IRQ, 0);
 
 	/* Set no subprorities in Interrupt Group Priority */
-	_hal_scbSetPriorityGrouping(3);
+	_hal_scsPriorityGroupingSet(3);
 
 	return;
 }

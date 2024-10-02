@@ -195,7 +195,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 char *hal_cpuInfo(char *info)
 {
 	int i;
-	unsigned int cpuinfo = _hal_scbCpuid();
+	unsigned int cpuinfo = _hal_scsCpuID();
 
 	hal_strcpy(info, HAL_NAME_PLATFORM);
 	i = sizeof(HAL_NAME_PLATFORM) - 1;
@@ -276,7 +276,7 @@ void hal_wdgReload(void)
 
 void hal_cpuReboot(void)
 {
-	_hal_scbSystemReset();
+	_hal_scsSystemReset();
 }
 
 
@@ -285,7 +285,7 @@ void hal_cpuReboot(void)
 
 void hal_cleanDCache(ptr_t start, size_t len)
 {
-	_hal_scbCleanInvalDCacheAddr((void *)start, len);
+	_hal_scsDCacheCleanInvalAddr((void *)start, len);
 }
 
 

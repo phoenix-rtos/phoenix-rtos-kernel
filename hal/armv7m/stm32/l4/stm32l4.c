@@ -127,7 +127,7 @@ int hal_platformctl(void *ptr)
 	case pctl_reboot:
 		if (data->action == pctl_set) {
 			if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
-				_hal_scbSystemReset();
+				_hal_scsSystemReset();
 			}
 		}
 		else if (data->action == pctl_get) {
@@ -473,7 +473,7 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	hal_cpuDataMemoryBarrier();
 
 	/* Set SLEEPDEEP bit of Cortex System Control Register */
-	_hal_scbSetDeepSleep(1);
+	_hal_scsDeepSleepSet(1);
 
 	timer_setAlarm(us);
 
@@ -484,7 +484,7 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 		nop; ");
 
 	/* Reset SLEEPDEEP bit of Cortex System Control Register */
-	_hal_scbSetDeepSleep(0);
+	_hal_scsDeepSleepSet(0);
 
 	if (restoreMsi != 0) {
 		/* Restore pre-sleep MSI clock */
@@ -581,7 +581,7 @@ int _stm32_systickInit(u32 interval)
 		return -EINVAL;
 	}
 
-	_hal_scbSystickInit(load);
+	_hal_scsSystickInit(load);
 
 	return EOK;
 }
@@ -817,7 +817,7 @@ void _stm32_init(void)
 #endif
 
 	/* Disable FPU */
-	_hal_scbSetFPU(0);
+	_hal_scsFPUSet(0);
 
 	/* Enable internal wakeup line */
 	*(stm32_common.pwr + pwr_cr3) |= 1 << 15;

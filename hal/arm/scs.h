@@ -21,61 +21,61 @@
 #include "hal/types.h"
 
 
-void _hal_nvicSetIRQ(s8 irqn, u8 state);
+void _hal_scsIRQSet(s8 irqn, u8 state);
 
 
-void _hal_nvicSetPriority(s8 irqn, u32 priority);
+void _hal_scsIRQPrioritySet(s8 irqn, u32 priority);
 
 
-void _hal_nvicSetPending(s8 irqn);
+void _hal_scsIRQPendingSet(s8 irqn);
 
 
-int _hal_nvicGetPendingIRQ(s8 irqn);
+int _hal_scsIRQPendingGet(s8 irqn);
 
 
-int _hal_nvicGetActive(s8 irqn);
+int _hal_scsIRQActiveGet(s8 irqn);
 
 
-void _hal_scbSetPriorityGrouping(u32 group);
+void _hal_scsPriorityGroupingSet(u32 group);
 
 
-u32 _hal_scbGetPriorityGrouping(void);
+u32 _hal_scsPriorityGroupingGet(void);
 
 
-void _hal_scbSetPriority(s8 excpn, u32 priority);
+void _hal_scsExceptionPrioritySet(s8 excpn, u32 priority);
 
 
-u32 _imxrt_scbGetPriority(s8 excpn);
+u32 _imxrt_scsExceptionPriorityGet(s8 excpn);
 
 
-void _hal_scbSystemReset(void);
+void _hal_scsSystemReset(void);
 
 
-unsigned int _hal_scbCpuid(void);
+unsigned int _hal_scsCpuID(void);
 
 
-void _hal_scbSetFPU(int state);
+void _hal_scsFPUSet(int state);
 
 
-void _hal_scbEnableDCache(void);
+void _hal_scsDCacheEnable(void);
 
 
-void _hal_scbDisableDCache(void);
+void _hal_scsDCacheDisable(void);
 
 
-void _hal_scbCleanInvalDCacheAddr(void *addr, u32 sz);
+void _hal_scsDCacheCleanInvalAddr(void *addr, u32 sz);
 
 
-void _hal_scbEnableICache(void);
+void _hal_scsICacheEnable(void);
 
 
-void _hal_scbDisableICache(void);
+void _hal_scsICacheDisable(void);
 
 
-void _hal_scbSetDeepSleep(int state);
+void _hal_scsDeepSleepSet(int state);
 
 
-void _hal_scbSystickInit(u32 load);
+void _hal_scsSystickInit(u32 load);
 
 
 void _hal_scsInit(void);
