@@ -645,7 +645,10 @@ int hal_platformctl(void *ptr)
 			break;
 
 		case pctl_reboot:
-			zynq_softRst();
+			if ((data->action == pctl_set) && (data->reboot.magic == PCTL_REBOOT_MAGIC)) {
+				zynq_softRst();
+			}
+			/* TODO add boot reason for pctl_get */
 			break;
 
 		case pctl_sdwpcd:
