@@ -36,12 +36,14 @@
 
 void syscalls_debug(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *s;
 
-	/* FIXME: pass strlen(s) from userspace */
-
 	GETFROMSTACK(ustack, const char *, s, 0);
-	hal_consolePrint(ATTR_USER, s);
+
+	if (vm_mapStringBelongs(proc, s) == 0) {
+		hal_consolePrint(ATTR_USER, s);
+	}
 }
 
 
@@ -173,17 +175,58 @@ int syscalls_release(void *ustack)
 }
 
 
+static int syscalls_sanitizeVector(process_t *proc, char **v)
+{
+	size_t i;
+
+	if (v == NULL) {
+		return 0;
+	}
+
+	if (vm_mapBelongs(proc, v, sizeof(v)) < 0) {
+		return -1;
+	}
+
+	for (i = 0;; ++i) {
+		if (vm_mapBelongs(proc, &v[i], sizeof(v)) < 0) {
+			return -1;
+		}
+
+		if (v[i] == NULL) {
+			break;
+		}
+
+		if (vm_mapStringBelongs(proc, v[i]) < 0) {
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+
 int syscalls_sys_spawn(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	char *path;
 	char **argv;
 	char **envp;
 
-	/* FIXME pass fields lengths from userspace */
-
 	GETFROMSTACK(ustack, char *, path, 0);
 	GETFROMSTACK(ustack, char **, argv, 1);
 	GETFROMSTACK(ustack, char **, envp, 2);
+
+	if (vm_mapStringBelongs(proc, path) < 0) {
+		return -EFAULT;
+	}
+
+	if (syscalls_sanitizeVector(proc, argv) < 0) {
+		return -EFAULT;
+	}
+
+	if (syscalls_sanitizeVector(proc, envp) < 0) {
+		return -EFAULT;
+	}
 
 	return proc_fileSpawn(path, argv, envp);
 }
@@ -191,15 +234,26 @@ int syscalls_sys_spawn(void *ustack)
 
 int syscalls_exec(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	char *path;
 	char **argv;
 	char **envp;
 
-	/* FIXME pass fields lengths from userspace */
-
 	GETFROMSTACK(ustack, char *, path, 0);
 	GETFROMSTACK(ustack, char **, argv, 1);
 	GETFROMSTACK(ustack, char **, envp, 2);
+
+	if (vm_mapStringBelongs(proc, path) < 0) {
+		return -EFAULT;
+	}
+
+	if (syscalls_sanitizeVector(proc, argv) < 0) {
+		return -EFAULT;
+	}
+
+	if (syscalls_sanitizeVector(proc, envp) < 0) {
+		return -EFAULT;
+	}
 
 	return proc_execve(path, argv, envp);
 }
@@ -207,17 +261,32 @@ int syscalls_exec(void *ustack)
 
 int syscalls_spawnSyspage(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	char *imap;
 	char *dmap;
 	char *name;
 	char **argv;
 
-	/* FIXME pass fields lengths from userspace */
-
 	GETFROMSTACK(ustack, char *, imap, 0);
 	GETFROMSTACK(ustack, char *, dmap, 1);
 	GETFROMSTACK(ustack, char *, name, 2);
 	GETFROMSTACK(ustack, char **, argv, 3);
+
+	if (vm_mapStringBelongs(proc, imap) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapStringBelongs(proc, dmap) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapStringBelongs(proc, name) < 0) {
+		return -EFAULT;
+	}
+
+	if (syscalls_sanitizeVector(proc, argv) < 0) {
+		return -EFAULT;
+	}
 
 	return proc_syspageSpawnName(imap, dmap, name, argv);
 }
@@ -729,7 +798,9 @@ u32 syscalls_portRegister(void *ustack)
 	GETFROMSTACK(ustack, char *, name, 1);
 	GETFROMSTACK(ustack, oid_t *, oid, 2);
 
-	/* FIXME: Pass strlen(name) from userspace */
+	if (vm_mapStringBelongs(proc, name) < 0) {
+		return -EFAULT;
+	}
 
 	if (vm_mapBelongs(proc, oid, sizeof(*oid)) < 0) {
 		return -EFAULT;
@@ -828,7 +899,9 @@ int syscalls_lookup(void *ustack)
 	GETFROMSTACK(ustack, oid_t *, file, 1);
 	GETFROMSTACK(ustack, oid_t *, dev, 2);
 
-	/* FIXME: Pass strlen(name) from userspace */
+	if (vm_mapStringBelongs(proc, name) < 0) {
+		return -EFAULT;
+	}
 
 	if ((file != NULL) && (vm_mapBelongs(proc, file, sizeof(*file)) < 0)) {
 		return -EFAULT;
@@ -1066,13 +1139,16 @@ void syscalls_sigreturn(void *ustack)
 
 int syscalls_sys_open(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *filename;
 	int oflag;
 
-	/* FIXME: pass strlen(filename) from userspace */
-
 	GETFROMSTACK(ustack, const char *, filename, 0);
 	GETFROMSTACK(ustack, int, oflag, 1);
+
+	if (vm_mapStringBelongs(proc, filename) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_open(filename, oflag, ustack);
 }
@@ -1158,13 +1234,20 @@ int syscalls_sys_dup2(char *ustack)
 
 int syscalls_sys_link(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *path1;
 	const char *path2;
 
-	/* FIXME pass strlen(path1) and strlen(path2) from userspace */
-
 	GETFROMSTACK(ustack, const char *, path1, 0);
 	GETFROMSTACK(ustack, const char *, path2, 1);
+
+	if (vm_mapStringBelongs(proc, path1) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapStringBelongs(proc, path2) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_link(path1, path2);
 }
@@ -1172,11 +1255,14 @@ int syscalls_sys_link(char *ustack)
 
 int syscalls_sys_unlink(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *pathname;
 
-	/* FIXME: pass strlen(pathname) from userspace */
-
 	GETFROMSTACK(ustack, const char *, pathname, 0);
+
+	if (vm_mapStringBelongs(proc, pathname) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_unlink(pathname);
 }
@@ -1242,13 +1328,16 @@ int syscalls_sys_pipe(char *ustack)
 
 int syscalls_sys_mkfifo(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *path;
 	mode_t mode;
 
-	/* FIXME: pass strlen(path) from userspace */
-
 	GETFROMSTACK(ustack, const char *, path, 0);
 	GETFROMSTACK(ustack, mode_t, mode, 1);
+
+	if (vm_mapStringBelongs(proc, path) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_mkfifo(path, mode);
 }
@@ -1283,13 +1372,16 @@ int syscalls_sys_fsync(char *ustack)
 
 int syscalls_sys_chmod(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *path;
 	mode_t mode;
 
-	/* FIXME: pass strlen(path) from userspace */
-
 	GETFROMSTACK(ustack, const char *, path, 0);
 	GETFROMSTACK(ustack, mode_t, mode, 1);
+
+	if (vm_mapStringBelongs(proc, path) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_chmod(path, mode);
 }

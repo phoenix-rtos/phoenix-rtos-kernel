@@ -1105,7 +1105,9 @@ static int _vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t
 	return 0;
 }
 
-
+/* FIXME checked pages should be marked somehow.
+ * Right now they might be unmapped by some other
+ * thread in the user process */
 int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
 	int ret;
@@ -1117,6 +1119,32 @@ int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
 	LIB_ASSERT(ret == 0, "Fault @0x%p (%zu) path: %s, pid: %d\n", ptr, size, proc->path, process_getPid(proc));
 
 	return ret;
+}
+
+
+int vm_mapStringBelongs(const struct _process_t *proc, const char *str)
+{
+	const char *page = (const char *)((ptr_t)str & (SIZE_PAGE - 1));
+	size_t offs = str - page;
+
+	proc_lockSet(&proc->mapp->lock);
+
+	while (_vm_mapBelongs(proc, page, SIZE_PAGE) == 0) {
+		while (offs < SIZE_PAGE) {
+			if (page[offs] == '\0') {
+				proc_lockClear(&proc->mapp->lock);
+				return 0;
+			}
+
+			++offs;
+		}
+
+		page += SIZE_PAGE;
+		offs = 0;
+	}
+	proc_lockClear(&proc->mapp->lock);
+
+	return -1;
 }
 
 
