@@ -1158,13 +1158,24 @@ int syscalls_sys_dup2(char *ustack)
 
 int syscalls_sys_link(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *path1;
 	const char *path2;
-
-	/* FIXME pass strlen(path1) and strlen(path2) from userspace */
+	size_t len1;
+	size_t len2;
 
 	GETFROMSTACK(ustack, const char *, path1, 0);
-	GETFROMSTACK(ustack, const char *, path2, 1);
+	GETFROMSTACK(ustack, size_t, len1, 1);
+	GETFROMSTACK(ustack, const char *, path2, 2);
+	GETFROMSTACK(ustack, size_t, len2, 3);
+
+	if (vm_mapBelongs(proc, path1, len1) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, path2, len2) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_link(path1, path2);
 }
@@ -1172,11 +1183,16 @@ int syscalls_sys_link(char *ustack)
 
 int syscalls_sys_unlink(char *ustack)
 {
+	process_t *proc = proc_current()->process;
 	const char *pathname;
-
-	/* FIXME: pass strlen(pathname) from userspace */
+	size_t len;
 
 	GETFROMSTACK(ustack, const char *, pathname, 0);
+	GETFROMSTACK(ustack, size_t, len, 1);
+
+	if (vm_mapBelongs(proc, pathname, len) < 0) {
+		return -EFAULT;
+	}
 
 	return posix_unlink(pathname);
 }
