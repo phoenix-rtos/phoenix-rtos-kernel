@@ -1486,7 +1486,7 @@ void threads_setupUserReturn(void *retval)
 {
 	spinlock_ctx_t sc;
 	cpu_context_t *ctx, *signalCtx;
-	void *f;
+	void (*f)(void);
 	void *kstackTop;
 	thread_t *thread;
 
@@ -1501,7 +1501,7 @@ void threads_setupUserReturn(void *retval)
 	if (_threads_checkSignal(thread, thread->process, signalCtx, SIG_SRC_SCALL) == 0) {
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
-		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
+		hal_jmp((void *)f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
 	}
 
