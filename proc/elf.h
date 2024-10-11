@@ -38,6 +38,7 @@ typedef u64 Elf64_Xword;
 #define EI_MAG2  2
 #define EI_MAG3  3
 #define EI_CLASS 4
+#define EI_OSABI 7
 
 #define ELFMAG0 0x7f
 #define ELFMAG1 'E'
@@ -47,6 +48,8 @@ typedef u64 Elf64_Xword;
 #define ELFCLASSNONE 0
 #define ELFCLASS32   1
 #define ELFCLASS64   2
+
+#define ELFOSABIFDPIC 65
 
 #define EI_NIDENT 16
 
@@ -196,8 +199,11 @@ typedef struct {
 
 
 #define R_ARM_ABS32    2
+#define R_ARM_RELATIVE 23
 #define R_ARM_GOT_BREL 26
 #define R_ARM_TARGET1  38
+#define R_ARM_FUNCDESC 163
+#define R_ARM_FUNCDESC_VALUE 164
 #define R_SPARC_32     3
 
 
