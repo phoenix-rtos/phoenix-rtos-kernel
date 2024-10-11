@@ -215,6 +215,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #endif
 
 	process->hasInterpreter = 0;
+	process->fdpic = 0;
 
 	proc_changeMap(process, NULL, NULL, NULL);
 
@@ -1169,6 +1170,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	ptr_t symTab;
 #else
 	Elf32_Rel *rel;
+	Elf32_Sym *sym;
+	ptr_t symTab = NULL;
 #endif
 	unsigned prot, flags, reloffs;
 	int i, j, relocsz = 0, reltype, badreloc = 0, err;
@@ -1191,6 +1194,10 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	err = process_validateElf32(ehdr, size);
 	if (err < 0) {
 		return err;
+	}
+
+	if (ehdr->e_ident[EI_OSABI] == ELFOSABIFDPIC) {
+		process->fdpic = 1;
 	}
 
 	hal_memset(reloc, 0, sizeof(reloc));
@@ -1286,12 +1293,14 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
-	/* Perform .got relocations */
-	/* This is non classic approach to .got relocation. We use .got itselft
-	 * instead of .rel section. */
-	for (i = 0; i < shdr->sh_size / 4; ++i) {
-		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
-			return -ENOEXEC;
+	if (process->fdpic == 0) {
+		/* Perform .got relocations */
+		/* This is non classic approach to .got relocation. We use .got itselft
+		* instead of .rel section. */
+		for (i = 0; i < shdr->sh_size / 4; ++i) {
+			if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
+				return -ENOEXEC;
+			}
 		}
 	}
 
@@ -1352,6 +1361,20 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		}
 	}
 #else
+	if (process->fdpic != 0) {
+		/* find symtab */
+		for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+			if (hal_strcmp(&snameTab[shdr->sh_name], ".dynsym") == 0) {
+				break;
+			}
+		}
+
+		if (i >= ehdr->e_shnum) {
+			return -ENOEXEC;
+		}
+		symTab = (ptr_t)ehdr + (ptr_t)shdr->sh_offset;
+	}
+
 	/* Perform data, init_array and fini_array relocation */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
 		/* strncmp as there may be multiple .rel.* sections for different sections. */
@@ -1367,21 +1390,58 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			rel = (void *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize));
 			reltype = ELF32_R_TYPE(rel->r_info);
 
-			if (reltype == R_ARM_ABS32 || reltype == R_ARM_TARGET1) {
-				relptr = (void *)rel->r_offset;
+			if (process->fdpic == 0) {
+				if (reltype == R_ARM_ABS32 || reltype == R_ARM_TARGET1) {
+					relptr = (void *)rel->r_offset;
 
-				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
-					return -ENOEXEC;
+					if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+						return -ENOEXEC;
+					}
+
+					/* Don't modify ELF file! */
+					if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
+						++badreloc;
+						continue;
+					}
+
+					if (process_relocate(reloc, relocsz, relptr) < 0) {
+						return -ENOEXEC;
+					}
 				}
+			}
+			else {
+				if (reltype == R_ARM_RELATIVE) {
+					relptr = (void *)rel->r_offset;
 
-				/* Don't modify ELF file! */
-				if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
-					++badreloc;
-					continue;
+					if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+						return -ENOEXEC;
+					}
+
+					/* Don't modify ELF file! */
+					if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
+						++badreloc;
+						continue;
+					}
+
+					if (process_relocate(reloc, relocsz, relptr) < 0) {
+						return -ENOEXEC;
+					}
 				}
+				else if (reltype == R_ARM_FUNCDESC_VALUE) {
+					relptr = (void *)rel->r_offset;
 
-				if (process_relocate(reloc, relocsz, relptr) < 0) {
-					return -ENOEXEC;
+					if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+						return -ENOEXEC;
+					}
+
+					sym = (Elf32_Sym *)(symTab + (ELF32_R_SYM(rel->r_info) * sizeof(Elf32_Sym)));
+
+					/* Add section address. */
+					*(Elf32_Addr *)relptr += sym->st_value;
+					if (process_relocate(reloc, relocsz, relptr) < 0) {
+						return -ENOEXEC;
+					}
+					((Elf32_Addr *)relptr)[1] = (Elf32_Addr)got;
 				}
 			}
 		}
