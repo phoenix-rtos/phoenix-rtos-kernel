@@ -742,6 +742,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	thread_t *t;
 	spinlock_ctx_t sc;
 	int err;
+	void *got = NULL;
 
 	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *)) {
 		return -EINVAL;
@@ -809,11 +810,20 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	}
 
 	/* Prepare initial stack */
+	if (process != NULL) {
+		if (process->fdpic != 0) {
+			/* TODO: check if the address is still valid */
+			got = ((void **)start)[1];
+			start = ((void **)start)[0];
+		} else {
+			got = process->got;
+		}
+	}
 	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, (stack == NULL) ? NULL : (unsigned char *)stack + stacksz, arg, &t->tls);
 	threads_canaryInit(t, stack);
 
 	if (process != NULL) {
-		hal_cpuSetCtxGot(t->context, process->got);
+		hal_cpuSetCtxGot(t->context, got);
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
 		LIST_ADD_EX(&process->threads, t, procnext, procprev);
@@ -1500,6 +1510,11 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	if (_threads_checkSignal(thread, thread->process, signalCtx, SIG_SRC_SCALL) == 0) {
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+		/* TODO: check if the address is still valid */
+		if (thread->process->fdpic != 0) {
+			hal_cpuSetGot(((void **)f)[1]);
+			f = ((void **)f)[0];
+		}
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
 	}

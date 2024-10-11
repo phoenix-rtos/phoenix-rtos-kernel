@@ -26,6 +26,9 @@
 static int hal_isRelReloc(int relType);
 
 
+static int hal_isFuncdescValueReloc(int relType);
+
+
 #endif
 
 

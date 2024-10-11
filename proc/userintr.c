@@ -53,6 +53,7 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	userintr_t *ui = arg;
 	int ret, reschedule = 0;
 	process_t *p = NULL;
+	int (*f)(unsigned int, void *);
 
 	if (proc_current() != NULL)
 		p = (proc_current())->process;
@@ -61,7 +62,15 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	pmap_switch(ui->process->pmapp);
 
 	userintr_common.active = ui;
-	ret = ui->f(ui->handler.n, ui->arg);
+	if (ui->process->fdpic == 0) {
+		f = ui->f;
+	}
+	else {
+		/* TODO: check if the address is still valid */
+		hal_cpuSetGot(((void **)ui->f)[1]);
+		f = ((void **)ui->f)[0];
+	}
+	ret = f(ui->handler.n, ui->arg);
 	userintr_common.active = NULL;
 
 	if (ret >= 0 && ui->cond != NULL) {

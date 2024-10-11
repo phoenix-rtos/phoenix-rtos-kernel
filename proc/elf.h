@@ -38,6 +38,7 @@ typedef u64 Elf64_Xword;
 #define EI_MAG2  2
 #define EI_MAG3  3
 #define EI_CLASS 4
+#define EI_OSABI 7
 
 #define ELFMAG0 0x7f
 #define ELFMAG1 'E'
@@ -47,6 +48,8 @@ typedef u64 Elf64_Xword;
 #define ELFCLASSNONE 0
 #define ELFCLASS32   1
 #define ELFCLASS64   2
+
+#define ELFOSABIFDPIC 65
 
 #define EI_NIDENT 16
 

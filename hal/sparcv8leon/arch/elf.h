@@ -20,3 +20,9 @@ static inline int hal_isRelReloc(int relType)
 {
 	return (relType == R_SPARC_32) ? 1 : 0;
 }
+
+
+static inline int hal_isFuncdescValueReloc(int relType)
+{
+	return 0;
+}

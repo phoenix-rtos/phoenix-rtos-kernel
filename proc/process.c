@@ -216,6 +216,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #endif
 
 	process->hasInterpreter = 0;
+	process->fdpic = 0;
 
 	proc_changeMap(process, NULL, NULL, NULL);
 
@@ -1049,6 +1050,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
 	Elf32_Rela rela;
+	Elf32_Sym *sym;
+	ptr_t symTab = NULL;
 	unsigned prot, flags, reloffs;
 	int i, j, relocsz = 0, badreloc = 0, err;
 	void *relptr;
@@ -1070,6 +1073,10 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	err = process_validateElf32(ehdr, size);
 	if (err < 0) {
 		return err;
+	}
+
+	if (ehdr->e_ident[EI_OSABI] == ELFOSABIFDPIC) {
+		process->fdpic = 1;
 	}
 
 	hal_memset(reloc, 0, sizeof(reloc));
@@ -1165,13 +1172,27 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
-	/* Perform .got relocations */
-	/* This is non classic approach to .got relocation. We use .got itselft
-	 * instead of .rel section. */
-	for (i = 0; i < shdr->sh_size / 4; ++i) {
-		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
+	if (process->fdpic == 0) {
+		/* Perform .got relocations */
+		/* This is non classic approach to .got relocation. We use .got itselft
+		* instead of .rel section. */
+		for (i = 0; i < shdr->sh_size / 4; ++i) {
+			if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
+				return -ENOEXEC;
+			}
+		}
+	} else {
+		/* find symtab */
+		for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+			if (hal_strcmp(&snameTab[shdr->sh_name], ".dynsym") == 0) {
+				break;
+			}
+		}
+
+		if (i >= ehdr->e_shnum) {
 			return -ENOEXEC;
 		}
+		symTab = (ptr_t)ehdr + (ptr_t)shdr->sh_offset;
 	}
 
 	*entry = (void *)(unsigned long)ehdr->e_entry;
@@ -1194,27 +1215,41 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			/* Valid for both Elf32_Rela and Elf32_Rel, due to correct size being stored in shdr->sh_entsize. */
 			/* For .rel. section make sure not to access addend field! */
 			hal_memcpy(&rela, (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize)), shdr->sh_entsize);
+			
+			if (hal_isRelReloc(ELF32_R_TYPE(rela.r_info)) != 0) {
+				relptr = (void *)rela.r_offset;
+				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+					return -ENOEXEC;
+				}
 
-			if (hal_isRelReloc(ELF32_R_TYPE(rela.r_info)) == 0) {
-				continue;
+				/* Don't modify ELF file! */
+				if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
+					++badreloc;
+					continue;
+				}
+
+				/* NOTE: Build process on NOMMU compiles a position-dependend binary but kernel treats it as a PIE. */
+				/* There is no need to look at the symbol and perform calculations as it is already done by static linker. */
+
+				if (process_relocate(reloc, relocsz, relptr) < 0) {
+					return -ENOEXEC;
+				}
 			}
+			else if ((process->fdpic != 0) && (hal_isFuncdescValueReloc(ELF32_R_TYPE(rela.r_info)) != 0)) {
+				relptr = (void *)rela.r_offset;
 
-			relptr = (void *)rela.r_offset;
-			if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
-				return -ENOEXEC;
-			}
+				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+					return -ENOEXEC;
+				}
 
-			/* Don't modify ELF file! */
-			if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
-				++badreloc;
-				continue;
-			}
+				sym = (Elf32_Sym *)(symTab + (ELF32_R_SYM(rela.r_info) * sizeof(Elf32_Sym)));
 
-			/* NOTE: Build process on NOMMU compiles a position-dependend binary but kernel treats it as a PIE. */
-			/* There is no need to look at the symbol and perform calculations as it is already done by static linker. */
-
-			if (process_relocate(reloc, relocsz, relptr) < 0) {
-				return -ENOEXEC;
+				/* Add section address. */
+				*(Elf32_Addr *)relptr += sym->st_value;
+				if (process_relocate(reloc, relocsz, relptr) < 0) {
+					return -ENOEXEC;
+				}
+				((Elf32_Addr *)relptr)[1] = (Elf32_Addr)got;
 			}
 		}
 	}

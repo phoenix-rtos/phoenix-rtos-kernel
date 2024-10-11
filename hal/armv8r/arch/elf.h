@@ -17,13 +17,22 @@
 #define _HAL_ARMV8R_ELF_H_
 
 
-#define R_ARM_ABS32   2
-#define R_ARM_TARGET1 38
+#define R_ARM_ABS32          2
+#define R_ARM_RELATIVE       23
+#define R_ARM_TARGET1        38
+#define R_ARM_FUNCDESC       163
+#define R_ARM_FUNCDESC_VALUE 164
 
 
 static inline int hal_isRelReloc(int relType)
 {
-	return ((relType == R_ARM_ABS32) || (relType == R_ARM_TARGET1)) ? 1 : 0;
+	return ((relType == R_ARM_ABS32) || (relType == R_ARM_TARGET1) || (relType == R_ARM_RELATIVE)) ? 1 : 0;
+}
+
+
+static inline int hal_isFuncdescValueReloc(int relType)
+{
+	return (relType == R_ARM_FUNCDESC_VALUE) ? 1 : 0;
 }
 
 #endif

@@ -71,6 +71,7 @@ typedef struct _process_t {
 	void *got;
 	hal_tls_t tls;
 	int hasInterpreter;
+	int fdpic;
 } process_t;
 
 
