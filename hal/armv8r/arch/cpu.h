@@ -61,9 +61,9 @@
 
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (void *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		ustack = (void *)(((addr_t)ustack + sizeof(typeof(v)) - 1) & ~(sizeof(typeof(v)) - 1)); \
+		(v) = *(typeof(v) *)ustack; \
+		ustack += SIZE_STACK_ARG(sizeof(typeof(v))); \
 	} while (0)
 
 typedef struct _cpu_context_t {
