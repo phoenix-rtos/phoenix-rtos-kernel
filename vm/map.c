@@ -693,21 +693,25 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
 	if (flagsCheck != 0) {
 		return flagsCheck;
 	}
-	if ((prot & PROT_WRITE && e->flags & MAP_NEEDSCOPY) || (e->object == NULL && e->amap == NULL)) {
-		if ((e->amap = amap_create(e->amap, &e->aoffs, e->size)) == NULL)
+	if ((((prot & PROT_WRITE) != 0) && ((e->flags & MAP_NEEDSCOPY) != 0)) || ((e->object == NULL) && (e->amap == NULL))) {
+		e->amap = amap_create(e->amap, &e->aoffs, e->size);
+		if (e->amap == NULL) {
 			return -ENOMEM;
+		}
 
 		e->flags &= ~MAP_NEEDSCOPY;
 	}
 
-	offs = paddr - e->vaddr;
+	offs = (paddr - e->vaddr);
 
-	if (e->amap == NULL)
-		p = vm_objectPage(map, NULL, e->object, paddr, (e->offs < 0) ? e->offs : e->offs + offs);
-	else /* if (e->object != VM_OBJ_PHYSMEM) FIXME disabled until memory objects are created for syspage progs */
-		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, (e->offs < 0) ? e->offs : e->offs + offs, prot);
+	if (e->amap == NULL) {
+		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs < 0) ? e->offs : (e->offs + offs)));
+	}
+	else { /* if (e->object != VM_OBJ_PHYSMEM) FIXME disabled until memory objects are created for syspage progs */
+		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, ((e->offs < 0) ? e->offs : (e->offs + offs)), prot);
+	}
 
-	attr = vm_protToAttr(prot) | vm_flagsToAttr(e->flags);
+	attr = (vm_protToAttr(prot) | vm_flagsToAttr(e->flags));
 
 	if ((p == NULL) && (e->object == VM_OBJ_PHYSMEM)) {
 		if (page_map(&map->pmap, paddr, e->offs + offs, attr) < 0) {
@@ -1029,10 +1033,12 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 	for (n = lib_rbMinimum(src->tree.root); n != NULL; n = lib_rbNext(n)) {
 		e = lib_treeof(map_entry_t, linkage, n);
 
-		if (e->flags & MAP_NOINHERIT)
+		if ((e->flags & MAP_NOINHERIT) != 0) {
 			continue;
+		}
 
-		if ((f = map_alloc()) == NULL) {
+		f = map_alloc();
+		if (f == NULL) {
 			proc_lockClear(&dst->lock);
 			proc_lockClear(&src->lock);
 			vm_mapDestroy(proc, dst);
@@ -1042,7 +1048,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 		vm_mapEntryCopy(f, e, 1);
 		_map_add(proc, dst, f);
 
-		if ((e->prot & PROT_WRITE) && !(e->flags & MAP_DEVICE)) {
+		if (((e->prot & PROT_WRITE) != 0) && ((e->flags & MAP_DEVICE) == 0)) {
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 
@@ -1052,10 +1058,10 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			}
 		}
 
-		if (proc == NULL || !proc->lazy) {
+		if ((proc == NULL) || (proc->lazy == 0)) {
 			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
-				if (_map_force(dst, f, f->vaddr + offs, f->prot) < 0 ||
-					_map_force(src, e, e->vaddr + offs, e->prot) < 0) {
+				if ((_map_force(dst, f, f->vaddr + offs, f->prot) < 0) ||
+						(_map_force(src, e, e->vaddr + offs, e->prot) < 0)) {
 					proc_lockClear(&dst->lock);
 					proc_lockClear(&src->lock);
 					return -ENOMEM;
