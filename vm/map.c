@@ -795,6 +795,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 	process_t *p = proc_current()->process;
 	addr_t pa;
 	int attr;
+	int needscopyNonLazy;
 	map_entry_t *e, *buf = NULL, *prev;
 	map_entry_t t;
 
@@ -879,16 +880,31 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 			e->prot = prot;
 
 			attr = vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags);
+			needscopyNonLazy = 0;
+			/* If an entry needs copy, enter it as a readonly to copy it on first access. */
+			if ((e->flags & MAP_NEEDSCOPY) != 0) {
+				if ((p == NULL) || (p->lazy == 0)) {
+					needscopyNonLazy = 1;
+				}
+				else {
+					attr &= ~PGHD_WRITE;
+				}
+			}
 			for (currVaddr = e->vaddr; currVaddr < (e->vaddr + e->size); currVaddr += SIZE_PAGE) {
-				pa = pmap_resolve(&map->pmap, currVaddr);
-				if (pa != 0) {
-					result = pmap_enter(&map->pmap, pa, currVaddr, attr, NULL);
+				if (needscopyNonLazy == 0) {
+					pa = pmap_resolve(&map->pmap, currVaddr);
+					if (pa != 0) {
+						result = pmap_enter(&map->pmap, pa, currVaddr, attr, NULL);
+					}
+				}
+				else {
+					result = _map_force(map, e, currVaddr, prot);
 				}
 			}
 
 			lenLeft -= e->size;
 			prev = e;
-		} while (lenLeft != 0);
+		} while ((lenLeft != 0) && (result == EOK));
 	}
 
 	proc_lockClear(&map->lock);
@@ -1048,7 +1064,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 		vm_mapEntryCopy(f, e, 1);
 		_map_add(proc, dst, f);
 
-		if (((e->prot & PROT_WRITE) != 0) && ((e->flags & MAP_DEVICE) == 0)) {
+		if (((e->protOrig & PROT_WRITE) != 0) && ((e->flags & MAP_DEVICE) == 0)) {
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 
