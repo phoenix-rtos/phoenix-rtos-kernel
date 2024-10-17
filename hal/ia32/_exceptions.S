@@ -27,9 +27,10 @@ exception_pushContext:
 	/* Save return address for ret */
 	xchg (%esp), %edx
 	movl %edx, -(4 * CTXPUSHL)(%esp)
-	popl %edx
-	xchg (%esp), %edx
+	/* Save error code */
+	mov 4(%esp), %edx
 	movl %edx, -(4 * CTXPUSHL - 4)(%esp)
+	addl $4, %esp
 	popl %edx
 	/* Check TS flag in CR0 register */
 	pushl %eax
@@ -109,7 +110,6 @@ exception_popContext:
 	movl %eax, %cr0
 	addl $FPU_CONTEXT_SIZE, %esp
 	popl %eax
-	addl $4, %esp
 	iret
 	.exception_popFPU:
 	andl $~CR0_TS_BIT, %eax
@@ -272,10 +272,12 @@ EXCDEF(_exceptions_exc18);
 .size _exceptions_exc18, .-_exceptions_exc18
 
 EXCDEF(_exceptions_exc19);
+	pushl $0
 	EXCSTUB(19);
 .size _exceptions_exc19, .-_exceptions_exc19
 
 EXCDEF(_exceptions_exc20);
+	pushl $0
 	EXCSTUB(20);
 .size _exceptions_exc20, .-_exceptions_exc20
 
@@ -283,31 +285,39 @@ EXCDEF(_exceptions_exc21);
 	EXCSTUB(21);
 .size _exceptions_exc21, .-_exceptions_exc21
 
+/* Marked as reserved on ia32 without error code data, set according to amd64 spec. */
 EXCDEF(_exceptions_exc22);
+	pushl $0
 	EXCSTUB(22);
 .size _exceptions_exc22, .-_exceptions_exc22
 
 EXCDEF(_exceptions_exc23);
+	pushl $0
 	EXCSTUB(23);
 .size _exceptions_exc23, .-_exceptions_exc23
 
 EXCDEF(_exceptions_exc24);
+	pushl $0
 	EXCSTUB(24);
 .size _exceptions_exc24, .-_exceptions_exc24
 
 EXCDEF(_exceptions_exc25);
+	pushl $0
 	EXCSTUB(25);
 .size _exceptions_exc25, .-_exceptions_exc25
 
 EXCDEF(_exceptions_exc26);
+	pushl $0
 	EXCSTUB(26);
 .size _exceptions_exc26, .-_exceptions_exc26
 
 EXCDEF(_exceptions_exc27);
+	pushl $0
 	EXCSTUB(27);
 .size _exceptions_exc27, .-_exceptions_exc27
 
 EXCDEF(_exceptions_exc28);
+	pushl $0
 	EXCSTUB(28);
 .size _exceptions_exc28, .-_exceptions_exc28
 
@@ -320,5 +330,6 @@ EXCDEF(_exceptions_exc30);
 .size _exceptions_exc30, .-_exceptions_exc30
 
 EXCDEF(_exceptions_exc31);
+	pushl $0
 	EXCSTUB(31);
 .size _exceptions_exc31, .-_exceptions_exc31
