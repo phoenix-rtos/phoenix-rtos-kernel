@@ -294,7 +294,7 @@ int syscalls_beginthreadex(void *ustack)
 	int *id;
 	int err;
 
-	GETFROMSTACK(ustack, void *, start, 0);
+	GETFROMSTACK(ustack, void (*)(void *), start, 0);
 	GETFROMSTACK(ustack, unsigned int, priority, 1);
 	GETFROMSTACK(ustack, void *, stack, 2);
 	GETFROMSTACK(ustack, unsigned int, stacksz, 3);
@@ -659,14 +659,14 @@ int syscalls_interrupt(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	unsigned int n;
-	void *f;
+	int (*f)(unsigned int, void *);
 	void *data;
 	handle_t cond;
 	handle_t *handle;
 	int res;
 
 	GETFROMSTACK(ustack, unsigned int, n, 0);
-	GETFROMSTACK(ustack, void *, f, 1);
+	GETFROMSTACK(ustack, int (*)(unsigned int, void *), f, 1);
 	GETFROMSTACK(ustack, void *, data, 2);
 	GETFROMSTACK(ustack, handle_t, cond, 3);
 	GETFROMSTACK(ustack, handle_t *, handle, 4);
@@ -941,11 +941,11 @@ addr_t syscalls_va2pa(void *ustack)
 
 int syscalls_signalHandle(void *ustack)
 {
-	void *handler;
+	void (*handler)(void);
 	unsigned mask, mmask;
 	thread_t *thread;
 
-	GETFROMSTACK(ustack, void *, handler, 0);
+	GETFROMSTACK(ustack, void (*)(void), handler, 0);
 	GETFROMSTACK(ustack, unsigned, mask, 1);
 	GETFROMSTACK(ustack, unsigned, mmask, 2);
 
