@@ -17,7 +17,10 @@
 #ifndef _TEST_TEST_H_
 #define _TEST_TEST_H_
 
-#include "vm.h"
-#include "proc.h"
+#include "test/bheap.h"
+#include "test/msg.h"
+#include "test/proc.h"
+#include "test/rb.h"
+#include "test/vm.h"
 
 #endif
