@@ -150,10 +150,10 @@
 	do { \
 		/* 8-byte values might have been put on stack unaligned */ \
 		/* clang-format off */ \
-		if (sizeof(t) == 8 && ((ptr_t)(ustack) & 0x7) != 0) { \
+		if (sizeof(typeof(v)) == 8 && ((ptr_t)(ustack) & 0x7) != 0) { \
 			/* clang-format on */ \
 			union { \
-				t val; \
+				typeof(v) val; \
 				struct { \
 					u32 lo; \
 					u32 hi; \
@@ -164,9 +164,9 @@
 			v = data##n.val; \
 		} \
 		else { \
-			(v) = *(t *)ustack; \
+			(v) = *(typeof(v) *)ustack; \
 		} \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		ustack += SIZE_STACK_ARG(sizeof(typeof(v))); \
 	} while (0)
 
 
