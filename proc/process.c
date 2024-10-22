@@ -15,6 +15,7 @@
  */
 
 #include "hal/hal.h"
+#include "hal/elf.h"
 #include "include/errno.h"
 #include "include/signal.h"
 #include "vm/vm.h"
@@ -742,15 +743,12 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	Elf32_Ehdr *ehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
-#ifdef __sparc__
-	Elf32_Rela *rela;
-	Elf32_Sym *sym;
-	ptr_t symTab;
-#else
-	Elf32_Rel *rel;
-#endif
+	Elf32_Rela rela;
+	int isrela;
+	Elf32_Addr symval;
+	Elf32_Sym *symTab = NULL;
 	unsigned prot, flags, reloffs;
-	int i, j, relocsz = 0, reltype, badreloc = 0, err;
+	int i, j, relocsz = 0, badreloc = 0, err;
 	void *relptr;
 	char *snameTab;
 	ptr_t *got;
@@ -877,93 +875,75 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
-#ifdef __sparc__
 	/* find symtab */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".symtab") == 0) {
+			symTab = (void *)((ptr_t)ehdr + (ptr_t)shdr->sh_offset);
 			break;
 		}
 	}
 
-	if (i >= ehdr->e_shnum) {
-		return -ENOEXEC;
-	}
-	symTab = (ptr_t)ehdr + (ptr_t)shdr->sh_offset;
-
 	/* Perform data, init_array and fini_array relocation */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		/* strncmp as there may be multiple .rela.* sections for different sections.  */
-		if (hal_strncmp(&snameTab[shdr->sh_name], ".rela", 5) != 0) {
-			continue;
-		}
-
 		if ((shdr->sh_size == 0) || (shdr->sh_entsize == 0)) {
 			continue;
 		}
 
-		for (j = 0; j < shdr->sh_size / shdr->sh_entsize; ++j) {
-			rela = (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize));
-			reltype = ELF32_R_TYPE(rela->r_info);
-
-			if (reltype == R_SPARC_32) {
-				relptr = (void *)rela->r_offset;
-				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
-					return -ENOEXEC;
-				}
-
-				/* Don't modify ELF file! */
-				if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
-					++badreloc;
-					continue;
-				}
-
-				sym = (Elf32_Sym *)(symTab + (ELF32_R_SYM(rela->r_info) * sizeof(Elf32_Sym)));
-
-				/* Write addend to the address */
-				*(char **)relptr = (char *)(sym->st_value + rela->r_addend);
-
-				if (process_relocate(reloc, relocsz, relptr) < 0) {
-					return -ENOEXEC;
-				}
-			}
+		/* strncmp as there may be multiple .rela.* or .rel.* sections for different sections.  */
+		if (hal_strncmp(&snameTab[shdr->sh_name], ".rela.", 6) == 0) {
+			isrela = 1;
 		}
-	}
-#else
-	/* Perform data, init_array and fini_array relocation */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		/* strncmp as there may be multiple .rel.* sections for different sections. */
-		if (hal_strncmp(&snameTab[shdr->sh_name], ".rel", 4) != 0) {
+		else if (hal_strncmp(&snameTab[shdr->sh_name], ".rel.", 5) == 0) {
+			isrela = 0;
+		}
+		else {
 			continue;
 		}
 
-		if ((shdr->sh_size == 0) || (shdr->sh_entsize == 0)) {
-			continue;
-		}
+		for (j = 0; j < (shdr->sh_size / shdr->sh_entsize); ++j) {
+			/* Valid for both Elf32_Rela and Elf32_Rel, due to correct size being stored in shdr->sh_entsize. */
+			/* For .rel. section make sure not to access addend field! */
+			hal_memcpy(&rela, (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize)), shdr->sh_entsize);
 
-		for (j = 0; j < shdr->sh_size / shdr->sh_entsize; ++j) {
-			rel = (void *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize));
-			reltype = ELF32_R_TYPE(rel->r_info);
+			if (hal_isRelReloc(ELF32_R_TYPE(rela.r_info)) == 0) {
+				continue;
+			}
 
-			if (reltype == R_ARM_ABS32 || reltype == R_ARM_TARGET1) {
-				relptr = (void *)rel->r_offset;
+			relptr = (void *)rela.r_offset;
+			if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+				return -ENOEXEC;
+			}
 
-				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+			/* Don't modify ELF file! */
+			if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
+				++badreloc;
+				continue;
+			}
+
+			if (symTab == NULL) {
+				/* Accept files stripped from symtab if only SYM_UND is present, eg. files stripped with strip.py */
+				if (ELF32_R_SYM(rela.r_info) != 0) {
 					return -ENOEXEC;
 				}
+				symval = 0;
+			}
+			else {
+				symval = symTab[ELF32_R_SYM(rela.r_info)].st_value;
+			}
 
-				/* Don't modify ELF file! */
-				if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
-					++badreloc;
-					continue;
-				}
+			if (isrela == 0) {
+				/* If Rel is used addend is stored in the location. */
+				*(char **)relptr += symval;
+			}
+			else {
+				*(char **)relptr = (char *)(symval + rela.r_addend);
+			}
 
-				if (process_relocate(reloc, relocsz, relptr) < 0) {
-					return -ENOEXEC;
-				}
+			if (process_relocate(reloc, relocsz, relptr) < 0) {
+				return -ENOEXEC;
 			}
 		}
 	}
-#endif
 
 	tlsNew.tls_base = NULL;
 	tlsNew.tdata_sz = 0;
