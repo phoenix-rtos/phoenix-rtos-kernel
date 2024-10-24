@@ -29,8 +29,8 @@
 	ID(getpid) \
 	ID(getppid) \
 	ID(gettid) \
-	ID(beginthreadex) \
-	ID(endthread) \
+	ID(beginthreadexsvc) \
+	ID(endthreadsvc) \
 	ID(nsleep) \
 	ID(phMutexCreate) \
 	ID(phMutexLock) \
