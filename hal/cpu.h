@@ -79,6 +79,9 @@ extern void hal_cpuSetGot(void *got);
 extern void *hal_cpuGetGot(void);
 
 
+extern void hal_cpuSetFDPICInitRegs(void *loadmapPtr, void *loadmapInterpPtr);
+
+
 extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
 
 

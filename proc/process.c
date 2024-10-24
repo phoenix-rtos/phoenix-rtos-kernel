@@ -429,6 +429,78 @@ static void *process_putauxv(void *stack, struct auxInfo *auxDataBegin, struct a
 }
 
 
+/* This data structure represents a PT_LOAD segment.  */
+struct elf32_fdpic_loadseg {
+	/* Core address to which the segment is mapped.  */
+	Elf32_Addr addr;
+	/* VMA recorded in the program header.  */
+	Elf32_Addr p_vaddr;
+	/* Size of this segment in memory.  */
+	Elf32_Word p_memsz;
+};
+
+
+struct elf32_fdpic_loadmap {
+	/* Protocol version number, must be zero.  */
+	Elf32_Half version;
+	/* Number of segments in this map.  */
+	Elf32_Half nsegs;
+	/* The actual memory map.  */
+	struct elf32_fdpic_loadseg segs[/*nsegs*/];
+};
+
+
+#define LOADMAP_MAXSIZE 8
+
+
+struct elf32_fdpic_loadmap_max {
+	Elf32_Half version;
+	Elf32_Half nsegs;
+	struct elf32_fdpic_loadseg segs[LOADMAP_MAXSIZE];
+};
+
+
+struct elf32_fdpic_data {
+	struct elf32_fdpic_loadmap_max loadmap;
+	struct elf32_fdpic_loadmap_max loadmapInterp;
+	void *loadmapPtr;
+	void *loadmapInterpPtr;
+	void *dynp;
+};
+
+
+static void *process_putloadmap(void *stack, struct elf32_fdpic_loadmap *loadmap) {
+	size_t sz;
+
+	sz = sizeof(struct elf32_fdpic_loadmap) + loadmap->nsegs * sizeof(struct elf32_fdpic_loadseg);
+	stack = (char *)stack - SIZE_STACK_ARG(sz);
+	hal_memcpy(stack, loadmap, sz);
+
+	return stack;
+}
+
+
+static void *process_putFDPIC(void *stack, struct elf32_fdpic_data *fdpic) {
+	if (fdpic->loadmap.nsegs != 0) {
+		stack = process_putloadmap(stack, (struct elf32_fdpic_loadmap *)&fdpic->loadmap);
+		fdpic->loadmapPtr = stack;
+	}
+	else {
+		fdpic->loadmapPtr = NULL;
+	}
+
+	if (fdpic->loadmapInterp.nsegs != 0) {
+		stack = process_putloadmap(stack, (struct elf32_fdpic_loadmap *)&fdpic->loadmapInterp);
+		fdpic->loadmapInterpPtr = stack;
+	}
+	else {
+		fdpic->loadmapInterpPtr = NULL;
+	}
+
+	return stack;
+}
+
+
 #ifndef NOMMU
 
 
@@ -1066,7 +1138,7 @@ int process_loadInterpreter32(vm_map_t *map, vm_object_t *o, off_t base, const v
 }
 
 
-int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry, struct auxInfo **auxData)
+int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry, struct auxInfo **auxData, struct elf32_fdpic_loadmap *loadmap, struct elf32_fdpic_loadmap *loadmapInterp)
 {
 	void *stack;
 	Elf64_Ehdr *ehdr;
@@ -1075,6 +1147,10 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	int err;
 	hal_tls_t tlsNew;
 	ptr_t tbssAddr = 0;
+
+	/* FDPIC currently supported on NOMMU. */
+	(void)loadmap;
+	(void)loadmapInterp;
 
 	tlsNew.tls_base = NULL;
 	tlsNew.tdata_sz = 0;
@@ -1131,15 +1207,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 #else
 
-struct _reloc {
-	void *vbase;
-	void *pbase;
-	size_t size;
-	unsigned int misalign;
-};
-
-
-static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
+static int process_relocate(struct elf32_fdpic_loadmap *loadmap, char **addr)
 {
 	size_t i;
 
@@ -1147,9 +1215,9 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 		return 0;
 	}
 
-	for (i = 0; i < relocsz; ++i) {
-		if ((ptr_t)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
-			(*addr) = (void *)((ptr_t)(*addr) - (ptr_t)reloc[i].vbase + (ptr_t)reloc[i].pbase);
+	for (i = 0; i < loadmap->nsegs; ++i) {
+		if ((ptr_t)loadmap->segs[i].p_vaddr <= (ptr_t)(*addr) && (ptr_t)loadmap->segs[i].p_vaddr + loadmap->segs[i].p_memsz > (ptr_t)(*addr)) {
+			(*addr) = (void *)((ptr_t)(*addr) - (ptr_t)loadmap->segs[i].p_vaddr + (ptr_t)loadmap->segs[i].addr);
 			return 0;
 		}
 	}
@@ -1158,53 +1226,32 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 }
 
 
-int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry, struct auxInfo **auxData)
+int process_doLoad(vm_map_t *map, vm_map_t *imap, vm_object_t *o, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr, struct auxInfo **auxData, int *fdpic, void **got, void **entry, struct elf32_fdpic_loadmap *loadmap)
 {
-	void *stack, *paddr;
+	void *paddr;
 	Elf32_Ehdr *ehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
-#ifdef __sparc__
-	Elf32_Rela *rela;
-	Elf32_Sym *sym;
-	ptr_t symTab;
-#else
-	Elf32_Rel *rel;
-	Elf32_Sym *sym;
-	ptr_t symTab = NULL;
-#endif
 	unsigned prot, flags, reloffs;
-	int i, j, relocsz = 0, reltype, badreloc = 0, err;
-	void *relptr;
+	int i, err;
 	char *snameTab;
-	ptr_t *got;
-	struct _reloc reloc[8];
-	size_t stacksz = SIZE_USTACK;
-	hal_tls_t tlsNew;
-	ptr_t tbssAddr = 0;
-
-	(void)auxData; /* FIXME: Aux data is currently only supported on MMU platforms. */
 
 	if (o != VM_OBJ_PHYSMEM) {
 		return -ENOEXEC;
 	}
 
-	ehdr = (void *)(ptr_t)base;
+	ehdr = (void *)(ptr_t)iehdr;
 
 	err = process_validateElf32(ehdr, size);
 	if (err < 0) {
 		return err;
 	}
 
-	if (ehdr->e_ident[EI_OSABI] == ELFOSABIFDPIC) {
-		process->fdpic = 1;
-	}
+	*fdpic = (ehdr->e_ident[EI_OSABI] == ELFOSABIFDPIC);
 
-	hal_memset(reloc, 0, sizeof(reloc));
-
-	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
 		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
-			stacksz = round_page(phdr->p_memsz);
+			*ustacksz = round_page(phdr->p_memsz);
 		}
 
 		if (phdr->p_type != PT_LOAD) {
@@ -1223,10 +1270,10 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		if ((phdr->p_flags & PF_X) != 0) {
 			prot |= PROT_EXEC;
 
-			if ((process->imapp != NULL) &&
-					(((ptr_t)base < (ptr_t)process->imapp->start) ||
-					((ptr_t)base > (ptr_t)process->imapp->stop))) {
-				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
+			if ((imap != NULL) &&
+					(((ptr_t)iehdr < (ptr_t)imap->start) ||
+					((ptr_t)iehdr > (ptr_t)imap->stop))) {
+				paddr = vm_mmap(imap, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
 				}
@@ -1243,7 +1290,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 			reloffs = phdr->p_vaddr % SIZE_PAGE;
 
-			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), prot, NULL, -1, flags);
+			paddr = vm_mmap(map, NULL, NULL, round_page(phdr->p_memsz + reloffs), prot, NULL, -1, flags);
 			if (paddr == NULL) {
 				return -ENOMEM;
 			}
@@ -1260,16 +1307,14 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			hal_memset((char *)paddr + reloffs + phdr->p_filesz, 0, round_page(phdr->p_memsz + reloffs) - phdr->p_filesz - reloffs);
 		}
 
-		if (j >= (sizeof(reloc) / sizeof(reloc[0]))) {
+		if (loadmap->nsegs >= LOADMAP_MAXSIZE) {
 			return -ENOMEM;
 		}
 
-		reloc[j].vbase = (void *)phdr->p_vaddr;
-		reloc[j].pbase = (void *)((char *)paddr + reloffs);
-		reloc[j].size = phdr->p_memsz;
-		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1);
-		++relocsz;
-		++j;
+		loadmap->segs[loadmap->nsegs].p_vaddr = phdr->p_vaddr;
+		loadmap->segs[loadmap->nsegs].addr = (Elf32_Addr)((char *)paddr + reloffs);
+		loadmap->segs[loadmap->nsegs].p_memsz = phdr->p_memsz;
+		loadmap->nsegs++;
 	}
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
@@ -1288,8 +1333,113 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
+	*got = (void *)shdr->sh_addr;
+	if (process_relocate(loadmap, (char **)got) < 0) {
+		return -ENOEXEC;
+	}
+
+	*entry = (void *)(unsigned long)ehdr->e_entry;
+	if (process_relocate(loadmap, (char **)entry) < 0) {
+		return -ENOEXEC;
+	}
+
+	/* NOTE: TLS is not supported in the interpreter. */
+	if (tls != NULL) {
+		tls->tls_base = NULL;
+		tls->tdata_sz = 0;
+		tls->tbss_sz = 0;
+		tls->tls_sz = 0;
+		tls->arm_m_tls = NULL;
+
+		/* Perform .tdata, .tbss and .armtls relocations */
+		for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+			if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
+				tls->tls_base = (ptr_t)shdr->sh_addr;
+				tls->tdata_sz += shdr->sh_size;
+				if (process_relocate(loadmap, (char **)&tls->tls_base) < 0) {
+					return -ENOEXEC;
+				}
+			}
+			else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
+				*tbssAddr = (ptr_t)shdr->sh_addr;
+				tls->tbss_sz += shdr->sh_size;
+				if (process_relocate(loadmap, (char **)tbssAddr) < 0) {
+					return -ENOEXEC;
+				}
+			}
+			else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
+				tls->arm_m_tls = (ptr_t)shdr->sh_addr;
+				if (process_relocate(loadmap, (char **)&tls->arm_m_tls) < 0) {
+					return -ENOEXEC;
+				}
+			}
+		}
+	}
+
+	if (auxData != NULL) {
+		(*auxData)->a_type = AT_ENTRY;
+		(*auxData)->a_v = (u64)(ptr_t)*entry;
+		(*auxData)++;
+		(*auxData)->a_type = AT_PHNUM;
+		(*auxData)->a_v = (u64)ehdr->e_phnum;
+		(*auxData)++;
+		(*auxData)->a_type = AT_PHENT;
+		(*auxData)->a_v = (u64)ehdr->e_phentsize;
+		(*auxData)++;
+
+		for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+			if (phdr->p_type == PT_PHDR) {
+				(*auxData)->a_type = AT_PHDR;
+				(*auxData)->a_v = phdr->p_vaddr;
+				if (process_relocate(loadmap, (char **)&(*auxData)->a_v) < 0) {
+					return -ENOEXEC;
+				}
+				(*auxData)++;
+				break;
+			}
+		}
+	}
+
+	return EOK;
+}
+
+
+int process_relocateAll(process_t *process, off_t base, size_t size, struct elf32_fdpic_loadmap *loadmap)
+{
+	Elf32_Ehdr *ehdr = (void *)(ptr_t)base;
+	Elf32_Shdr *shdr, *shstrshdr;
+#ifdef __sparc__
+	Elf32_Rela *rela;
+	Elf32_Sym *sym;
+	ptr_t symTab;
+#else
+	Elf32_Rel *rel;
+	Elf32_Sym *sym;
+	ptr_t symTab = NULL;
+#endif
+	int i, j, reltype, badreloc = 0;
+	void *relptr;
+	char *snameTab;
+	ptr_t *got;
+
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
+	shstrshdr = shdr + ehdr->e_shstrndx;
+
+	snameTab = (char *)ehdr + shstrshdr->sh_offset;
+
+	/* Find .got section */
+	for (i = 0; i < ehdr->e_shnum; i++, shdr++) {
+		if (hal_strcmp(&snameTab[shdr->sh_name], ".got") == 0) {
+			break;
+		}
+	}
+
+	if (i >= ehdr->e_shnum) {
+		return -ENOEXEC;
+	}
+
 	got = (ptr_t *)shdr->sh_addr;
-	if (process_relocate(reloc, relocsz, (char **)&got) < 0) {
+	if (process_relocate(loadmap, (char **)&got) < 0) {
 		return -ENOEXEC;
 	}
 
@@ -1298,15 +1448,10 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		/* This is non classic approach to .got relocation. We use .got itselft
 		* instead of .rel section. */
 		for (i = 0; i < shdr->sh_size / 4; ++i) {
-			if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
+			if (process_relocate(loadmap, (char **)&got[i]) < 0) {
 				return -ENOEXEC;
 			}
 		}
-	}
-
-	*entry = (void *)(unsigned long)ehdr->e_entry;
-	if (process_relocate(reloc, relocsz, (char **)entry) < 0) {
-		return -ENOEXEC;
 	}
 
 #ifdef __sparc__
@@ -1339,7 +1484,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 			if (reltype == R_SPARC_32) {
 				relptr = (void *)rela->r_offset;
-				if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+				if (process_relocate(loadmap, (char **)&relptr) < 0) {
 					return -ENOEXEC;
 				}
 
@@ -1354,7 +1499,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				/* Write addend to the address */
 				*(char **)relptr = (char *)(sym->st_value + rela->r_addend);
 
-				if (process_relocate(reloc, relocsz, relptr) < 0) {
+				if (process_relocate(loadmap, relptr) < 0) {
 					return -ENOEXEC;
 				}
 			}
@@ -1394,7 +1539,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				if (reltype == R_ARM_ABS32 || reltype == R_ARM_TARGET1) {
 					relptr = (void *)rel->r_offset;
 
-					if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+					if (process_relocate(loadmap, (char **)&relptr) < 0) {
 						return -ENOEXEC;
 					}
 
@@ -1404,7 +1549,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 						continue;
 					}
 
-					if (process_relocate(reloc, relocsz, relptr) < 0) {
+					if (process_relocate(loadmap, relptr) < 0) {
 						return -ENOEXEC;
 					}
 				}
@@ -1413,7 +1558,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				if (reltype == R_ARM_RELATIVE) {
 					relptr = (void *)rel->r_offset;
 
-					if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+					if (process_relocate(loadmap, (char **)&relptr) < 0) {
 						return -ENOEXEC;
 					}
 
@@ -1423,14 +1568,14 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 						continue;
 					}
 
-					if (process_relocate(reloc, relocsz, relptr) < 0) {
+					if (process_relocate(loadmap, relptr) < 0) {
 						return -ENOEXEC;
 					}
 				}
 				else if (reltype == R_ARM_FUNCDESC_VALUE) {
 					relptr = (void *)rel->r_offset;
 
-					if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+					if (process_relocate(loadmap, (char **)&relptr) < 0) {
 						return -ENOEXEC;
 					}
 
@@ -1438,7 +1583,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 					/* Add section address. */
 					*(Elf32_Addr *)relptr += sym->st_value;
-					if (process_relocate(reloc, relocsz, relptr) < 0) {
+					if (process_relocate(loadmap, relptr) < 0) {
 						return -ENOEXEC;
 					}
 					((Elf32_Addr *)relptr)[1] = (Elf32_Addr)got;
@@ -1447,48 +1592,6 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		}
 	}
 #endif
-
-	tlsNew.tls_base = NULL;
-	tlsNew.tdata_sz = 0;
-	tlsNew.tbss_sz = 0;
-	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = NULL;
-
-	/* Perform .tdata, .tbss and .armtls relocations */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
-			tlsNew.tls_base = (ptr_t)shdr->sh_addr;
-			tlsNew.tdata_sz += shdr->sh_size;
-			if (process_relocate(reloc, relocsz, (char **)&tlsNew.tls_base) < 0) {
-				return -ENOEXEC;
-			}
-		}
-		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
-			tbssAddr = (ptr_t)shdr->sh_addr;
-			tlsNew.tbss_sz += shdr->sh_size;
-			if (process_relocate(reloc, relocsz, (char **)&tbssAddr) < 0) {
-				return -ENOEXEC;
-			}
-		}
-		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
-			tlsNew.arm_m_tls = (ptr_t)shdr->sh_addr;
-			if (process_relocate(reloc, relocsz, (char **)&tlsNew.arm_m_tls) < 0) {
-				return -ENOEXEC;
-			}
-		}
-	}
-	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
-
-	/* Allocate and map user stack */
-	stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
-	if (stack == NULL) {
-		return -ENOMEM;
-	}
-
-	process->got = (void *)got;
-	*ustack = stack + stacksz;
-
-	threads_canaryInit(proc_current(), stack);
 
 	if (badreloc != 0) {
 		if ((process->path != NULL) && (process->path[0] != '\0')) {
@@ -1500,6 +1603,93 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 		lib_printf("Found %d badreloc%c\n", badreloc, (badreloc > 1) ? 's' : ' ');
 	}
+
+	return EOK;
+}
+
+
+const char *process_getInterpreterPath(const Elf32_Ehdr *ehdr)
+{
+	/* TODO: validate interpreter in valideElf32. */
+	const Elf32_Phdr *phdrs = (const void *)ehdr + ehdr->e_phoff;
+	Elf32_Half i;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if (phdrs[i].p_type == PT_INTERP) {
+			return (const char *)ehdr + phdrs[i].p_offset;
+		}
+	}
+
+	return NULL;
+}
+
+
+int process_loadInterpreter(process_t* process, vm_map_t *map, vm_map_t *imap, const void *iehdr, void **interpEntry, struct auxInfo **auxData, void **interpGot, int *hasInterpreter, struct elf32_fdpic_loadmap *interpLoadmap)
+{
+	const Elf32_Ehdr *ehdr = iehdr;
+	const char *interpreterPath;
+	int err;
+	size_t stacksz;
+	int fdpic;
+	const syspage_prog_t *prog;
+	const syspage_map_t *codeMap;
+
+	interpreterPath = process_getInterpreterPath(ehdr);
+	if (interpreterPath == NULL) {
+		return EOK;
+	}
+
+	/* TODO: loading from fs. */
+	prog = syspage_progNameResolve("ld.elf_so");
+	if (prog == NULL) {
+		return -ENOENT;
+	}
+
+	codeMap = syspage_mapIdResolve(prog->imaps[0]);
+
+	err = process_doLoad(map, vm_getSharedMap(codeMap->id), VM_OBJ_PHYSMEM, (void *)prog->start, prog->end - prog->start, &stacksz, NULL, NULL, NULL, &fdpic, interpGot, interpEntry, interpLoadmap);
+	if (err < 0) {
+		return err;
+	}
+
+	*hasInterpreter = 1;
+	return EOK;
+}
+
+
+int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry, struct auxInfo **auxData, struct elf32_fdpic_loadmap *loadmap, struct elf32_fdpic_loadmap *interpLoadmap)
+{
+	void *stack;
+	int err;
+	size_t stacksz = SIZE_USTACK;
+	hal_tls_t tlsNew;
+	ptr_t tbssAddr = 0;
+
+	err = process_doLoad(process->mapp, process->imapp, o, (void *)(ptr_t)base, size, &stacksz, &tlsNew, &tbssAddr, auxData, &process->fdpic, &process->got, entry, loadmap);
+	if (err < 0) {
+		return err;
+	}
+	err = process_loadInterpreter(process, process->mapp, process->imapp, (void *)(ptr_t)base, entry, auxData, &process->got, &process->hasInterpreter, interpLoadmap);
+	if (err < 0) {
+		return err;
+	}
+	if (process->hasInterpreter == 0) {
+		err = process_relocateAll(process, base, size, loadmap);
+		if (err < 0) {
+			return err;
+		}
+	}
+	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
+
+	/* Allocate and map user stack */
+	stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
+	if (stack == NULL) {
+		return -ENOMEM;
+	}
+
+	*ustack = stack + stacksz;
+
+	threads_canaryInit(proc_current(), stack);
 
 	return EOK;
 }
@@ -1580,6 +1770,9 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	};
 	struct auxInfo auxData[AUXV_TYPE_COUNT];
 	struct auxInfo *auxDataEnd = auxData;
+	struct elf32_fdpic_data fdpicData;
+
+	hal_memset(&fdpicData, 0, sizeof(fdpicData));
 
 	current->process->argv = spawn->argv;
 	current->process->envp = spawn->envp;
@@ -1609,10 +1802,13 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	pmap_switch(current->process->pmapp);
 
 	if (err == 0) {
-		err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry, &auxDataEnd);
+		err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry, &auxDataEnd, (struct elf32_fdpic_loadmap *)&fdpicData.loadmap, (struct elf32_fdpic_loadmap *)&fdpicData.loadmapInterp);
 	}
 
 	if (err == 0) {
+		if (current->process->fdpic != 0) {
+			stack = process_putFDPIC(stack, &fdpicData);
+		}
 		stack = process_putauxv(stack, auxData, auxDataEnd);
 
 		stack = process_putargs(stack, &spawn->envp, &count);
@@ -1647,6 +1843,10 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 
 	if (current->tls.tls_base != NULL) {
 		hal_cpuTlsSet(&current->tls, current->context);
+	}
+
+	if (current->process->fdpic != 0) {
+		hal_cpuSetFDPICInitRegs(fdpicData.loadmapPtr, fdpicData.loadmapInterpPtr);
 	}
 
 	hal_cpuSmpSync();

@@ -409,6 +409,13 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 }
 
 
+static inline void hal_cpuSetFDPICInitRegs(void *loadmapPtr, void *loadmapInterpPtr)
+{
+	(void)loadmapPtr;
+	(void)loadmapInterpPtr;
+}
+
+
 #endif /* __ASSEMBLY__ */
 
 
