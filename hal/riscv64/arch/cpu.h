@@ -291,6 +291,13 @@ void hal_cpuLocalFlushTLB(u32 asid, const void *vaddr);
 void hal_cpuRemoteFlushTLB(u32 asid, const void *vaddr, size_t size);
 
 
+static inline void hal_cpuSetFDPICInitRegs(void *loadmapPtr, void *loadmapInterpPtr)
+{
+	(void)loadmapPtr;
+	(void)loadmapInterpPtr;
+}
+
+
 /* Code used in disabled code vm/object.c - map_pageFault */
 #if 0 /* Disabled until lazy mapping is enabled */
 static inline void *hal_cpuGetFaultAddr(void)

@@ -247,6 +247,13 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 extern unsigned int hal_cpuGetCount(void);
 
 
+static inline void hal_cpuSetFDPICInitRegs(void *loadmapPtr, void *loadmapInterpPtr)
+{
+	(void)loadmapPtr;
+	(void)loadmapInterpPtr;
+}
+
+
 #endif
 
 #endif

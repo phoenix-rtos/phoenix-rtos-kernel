@@ -435,6 +435,13 @@ static inline void hal_cpuReloadTlsSegment(void)
 }
 
 
+static inline void hal_cpuSetFDPICInitRegs(void *loadmapPtr, void *loadmapInterpPtr)
+{
+	(void)loadmapPtr;
+	(void)loadmapInterpPtr;
+}
+
+
 #endif
 
 #endif
