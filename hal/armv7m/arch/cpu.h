@@ -267,6 +267,18 @@ static inline unsigned int hal_cpuGetCount(void)
 }
 
 
+static inline void hal_cpuSetFDPICInitRegs(void *loadmapPtr, void *loadmapInterpPtr)
+{
+	__asm__ volatile (
+		"mov r7, %0\n\t"
+		"mov r8, %1\n\t"
+		:
+		: "r"(loadmapPtr), "r"(loadmapInterpPtr)
+		: "r7", "r8"
+	);
+}
+
+
 #endif
 
 #endif
