@@ -30,8 +30,8 @@ exception_pushContext:
 	/* Save error code */
 	mov 4(%esp), %edx
 	movl %edx, -(4 * CTXPUSHL - 4)(%esp)
-	addl $4, %esp
 	popl %edx
+	addl $4, %esp
 	/* Check TS flag in CR0 register */
 	pushl %eax
 	movl %cr0, %eax
