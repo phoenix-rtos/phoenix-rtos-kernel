@@ -24,19 +24,16 @@
 
 .align 4, 0x90
 exception_pushContext:
-	/* Save return address for ret */
-	xchg (%esp), %edx
-	movl %edx, -(4 * CTXPUSHL)(%esp)
 	/* Save error code */
-	mov 4(%esp), %edx
-	movl %edx, -(4 * CTXPUSHL - 4)(%esp)
-	popl %edx
-	addl $4, %esp
+	xchgl 4(%esp), %eax
+	movl %eax, -(4 * CTXPUSHL - 4)(%esp)
+	/* Save return address for ret */
+	movl (%esp), %eax
+	movl %eax, -(4 * CTXPUSHL)(%esp)
 	/* Check TS flag in CR0 register */
-	pushl %eax
 	movl %cr0, %eax
-	subl $FPU_CONTEXT_SIZE, %esp
 	andl $CR0_TS_BIT, %eax
+	subl $FPU_CONTEXT_SIZE - 4, %esp
 	xchgl FPU_CONTEXT_SIZE(%esp), %eax
 	jnz .exception_pushRegisters
 	/* Save FPU context */
