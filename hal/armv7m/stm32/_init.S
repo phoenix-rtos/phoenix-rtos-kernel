@@ -294,26 +294,26 @@ hal_jmp:
 	cpsid if
 	isb
 
-	push {r0-r3}
-	pop {r4-r8} /* kargs has been passed on the stack */
-
-	cmp r6, #NULL
+	cmp r2, #NULL
 	bne hal_jmp_user
 
-	mov sp, r5
+	/* kargs has been passed on the stack */
+	ldr r5, [sp]
+	mov r4, r0
+	mov sp, r1
 	isb
-	subs r7, #1
+	subs r3, #1
 	bmi 1f
-	ldr r0, [r8]
-	subs r7, #1
+	ldr r0, [r5]
+	subs r3, #1
 	bmi 1f
-	ldr r1, [r8, #4]
-	subs r7, #1
+	ldr r1, [r5, #4]
+	subs r3, #1
 	bmi 1f
-	ldr r2, [r8, #8]
-	subs r7, #1
+	ldr r2, [r5, #8]
+	subs r3, #1
 	bmi 1f
-	ldr r3, [r8, #12]
+	ldr r3, [r5, #12]
 1:
 	cpsie if
 	isb
@@ -323,16 +323,16 @@ hal_jmp:
 hal_jmp_user:
 	cpsid if
 	isb
-	msr msp, r5
+	msr msp, r1
 	isb
-	msr psp, r6
+	msr psp, r2
 	cpsie if
 	isb
-	mov r5, USERCONTROL
-	msr control, r5
+	mov r1, USERCONTROL
+	msr control, r1
 	isb
 	dmb
-	bx r4
+	bx r0
 
 .size hal_jmp, .-hal_jmp
 .ltorg

@@ -289,37 +289,35 @@ _hal_cpuSetKernelStack:
 .type hal_jmp, %function
 hal_jmp:
 	cpsid if
-	mov r4, r0
-	mov r5, r1
-	mov r6, r2
-	mov r7, r3
-	ldr r8, [sp]
 	/* ustack != NULL means that the jump is to user */
-	cmp r6, #NULL
+	cmp r2, #NULL
 	bne 2f
-	mov sp, r5
+	/* kargs are passed on the stack */
+	ldr r5, [sp]
+	mov r4, r0
+	mov sp, r1
 	/* pass args */
-	subs r7, #1
+	subs r3, #1
 	bmi 1f
-	ldr r0, [r8]
-	subs r7, #1
+	ldr r0, [r5]
+	subs r3, #1
 	bmi 1f
-	ldr r1, [r8, #4]
-	subs r7, #1
+	ldr r1, [r5, #4]
+	subs r3, #1
 	bmi 1f
-	ldr r2, [r8, #8]
-	subs r7, #1
+	ldr r2, [r5, #8]
+	subs r3, #1
 	bmi 1f
-	ldr r3, [r8, #12]
+	ldr r3, [r5, #12]
 1:	cpsie if
 	blx r4
 	/* Handle userspace jump */
-2:	mov sp, r6
+2:	mov sp, r2
 	cps #IRQ_MODE
-	mov r5, #0x10
-	tst r4, #1
-	orrne r5, r5, #THUMB_STATE
-	push {r4, r5}
+	mov r1, #0x10
+	tst r0, #1
+	orrne r1, r1, #THUMB_STATE
+	push {r0, r1}
 	rfefd sp!
 .size hal_jmp, .-hal_jmp
 .ltorg
