@@ -192,12 +192,15 @@ _traps_stErrHandler:
 
 .type _traps_fpDisabledHandler, #function
 _traps_fpDisabledHandler:
+/* NOTE: QEMU does not have FPU info in the asr17, assume the FPU is present. */
+#ifndef __CPU_GENERIC
 	/* check if FPU present */
 	rd %asr17, %l3
 	srl %l3, 10, %l3
 	andcc %l3, 0x3, %g0
 	bz _exceptions_dispatch
 	nop
+#endif
 	/* enable FPU */
 	set PSR_EF, %l3
 	or %l0, %l3, %l0
