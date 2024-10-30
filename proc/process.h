@@ -66,7 +66,7 @@ typedef struct _process_t {
 
 	unsigned sigpend;
 	unsigned sigmask;
-	void *sighandler;
+	void (*sighandler)(void);
 
 	void *got;
 	hal_tls_t tls;

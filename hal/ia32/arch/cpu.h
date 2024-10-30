@@ -187,10 +187,9 @@
 	do { \
 		if (n == 0) \
 			ustack += 4; \
-		v = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		v = *(typeof(v) *)ustack; \
+		ustack += SIZE_STACK_ARG(sizeof(typeof(v))); \
 	} while (0)
-
 
 
 #pragma pack(push, 1)
