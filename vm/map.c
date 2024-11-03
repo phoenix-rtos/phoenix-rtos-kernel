@@ -798,6 +798,10 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 		return -EINVAL;
 	}
 
+#ifdef NOMMU
+	return EOK;
+#endif
+
 	proc_lockSet(&map->lock);
 
 	/* Validate */
