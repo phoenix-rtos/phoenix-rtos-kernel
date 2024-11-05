@@ -123,6 +123,7 @@ int syscalls_sys_munmap(void *ustack)
 	GETFROMSTACK(ustack, void *, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 
+	size = round_page(size);
 	err = vm_munmap(proc->mapp, vaddr, size);
 	if (err < 0) {
 		return err;
