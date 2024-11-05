@@ -412,6 +412,10 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	ptr_t eAoffs;
 	int putEntry;
 
+	if (((size & (SIZE_PAGE - 1)) != 0) || (((ptr_t)vaddr & (SIZE_PAGE - 1)) != 0)) {
+		return -EINVAL;
+	}
+
 	t.vaddr = vaddr;
 	t.size = size;
 
