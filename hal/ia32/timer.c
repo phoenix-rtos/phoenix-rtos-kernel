@@ -345,10 +345,8 @@ static inline void _hal_hpetSetCounter(u64 val)
 
 static time_t _hal_hpetGetUs(void)
 {
-	u64 ret = _hal_hpetGetCounter();
-	ret *= (u64)timer_common.hpetData.period;
-	ret /= 1000000000ULL;
-	return ret;
+	/* Convert period from femtoseconds to nanoseconds and scale the counter */
+	return (_hal_hpetGetCounter() * (u64)((timer_common.hpetData.period + (500 * 1000)) / (1000 * 1000))) / 1000;
 }
 
 
