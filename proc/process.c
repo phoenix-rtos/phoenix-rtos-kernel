@@ -744,9 +744,6 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
 	Elf32_Rela rela;
-	int isrela;
-	Elf32_Addr symval;
-	Elf32_Sym *symTab = NULL;
 	unsigned prot, flags, reloffs;
 	int i, j, relocsz = 0, badreloc = 0, err;
 	void *relptr;
@@ -875,28 +872,14 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
-	/* find symtab */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if (hal_strcmp(&snameTab[shdr->sh_name], ".symtab") == 0) {
-			symTab = (void *)((ptr_t)ehdr + (ptr_t)shdr->sh_offset);
-			break;
-		}
-	}
-
 	/* Perform data, init_array and fini_array relocation */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
 		if ((shdr->sh_size == 0) || (shdr->sh_entsize == 0)) {
 			continue;
 		}
 
-		/* strncmp as there may be multiple .rela.* or .rel.* sections for different sections.  */
-		if (hal_strncmp(&snameTab[shdr->sh_name], ".rela.", 6) == 0) {
-			isrela = 1;
-		}
-		else if (hal_strncmp(&snameTab[shdr->sh_name], ".rel.", 5) == 0) {
-			isrela = 0;
-		}
-		else {
+		/* strncmp as there may be multiple .rela.* or .rel.* sections for different sections. */
+		if ((hal_strncmp(&snameTab[shdr->sh_name], ".rela.", 6) != 0) && (hal_strncmp(&snameTab[shdr->sh_name], ".rel.", 5) != 0)) {
 			continue;
 		}
 
@@ -920,24 +903,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				continue;
 			}
 
-			if (symTab == NULL) {
-				/* Accept files stripped from symtab if only SYM_UND is present, eg. files stripped with strip.py */
-				if (ELF32_R_SYM(rela.r_info) != 0) {
-					return -ENOEXEC;
-				}
-				symval = 0;
-			}
-			else {
-				symval = symTab[ELF32_R_SYM(rela.r_info)].st_value;
-			}
-
-			if (isrela == 0) {
-				/* If Rel is used addend is stored in the location. */
-				*(char **)relptr += symval;
-			}
-			else {
-				*(char **)relptr = (char *)(symval + rela.r_addend);
-			}
+			/* NOTE: Build process on NOMMU compiles a position-dependend binary but kernel treats it as a PIE. */
+			/* There is no need to look at the symbol and perform calculations as it is already done by static linker. */
 
 			if (process_relocate(reloc, relocsz, relptr) < 0) {
 				return -ENOEXEC;
