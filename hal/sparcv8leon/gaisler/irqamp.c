@@ -90,12 +90,6 @@ void hal_cpuStartCores(void)
 }
 
 
-static void interrupts_clearIRQ(unsigned int n)
-{
-	*(interrupts_common.int_ctrl + int_pend) &= ~(1 << n);
-}
-
-
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
@@ -128,11 +122,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (reschedule != 0) {
 		threads_schedule(n, ctx, NULL);
 	}
-	interrupts_clearIRQ(n);
-	if (n > 15) {
-		/* Extended interrupt sets bit n and bit 1 of pending register */
-		interrupts_clearIRQ(EXTENDED_IRQN);
-	}
+
 	hal_spinlockClear(&interrupts_common.spinlocks[n], &sc);
 }
 
