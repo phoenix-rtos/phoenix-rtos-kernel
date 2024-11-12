@@ -125,6 +125,7 @@ static void interrupts_enableIRQ(unsigned int irqn)
 		for (i = 0; i < hal_cpuGetCount(); ++i) {
 			*(interrupts_common.int_ctrl + INT_MASK_0 + i) |= (1 << irqn);
 		}
+		*(interrupts_common.int_ctrl + INT_BRDCAST) |= (1 << irqn);
 	}
 	else {
 		/* Other IRQs only on core 0 - no easy way to manage them */
