@@ -120,8 +120,8 @@ static void interrupts_enableIRQ(unsigned int irqn)
 {
 	int i;
 
-	/* TLB and Systick IRQ should fire on all cores */
-	if ((irqn == TLB_IRQ) || (irqn == TIMER_IRQ)) {
+	/* TLB and Wakeup Timer IRQ should fire on all cores */
+	if ((irqn == TLB_IRQ) || (irqn == TIMER0_2_IRQ)) {
 		for (i = 0; i < hal_cpuGetCount(); ++i) {
 			*(interrupts_common.int_ctrl + INT_MASK_0 + i) |= (1 << irqn);
 		}

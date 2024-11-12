@@ -40,32 +40,56 @@
 #define GPT_TCTRL(n)   ((n * 4) + 2) /* Timer n control register              : 0xn8 */
 #define GPT_TLATCH(n)  ((n * 4) + 3) /* Timer n latch register                : 0xnC */
 
-#define TIMER_DEFAULT 1
+#define TIMER_TIMEBASE 1
+#define TIMER_WAKEUP   2
+
+#define TIMEBASE_INTERVAL 0xffffffffu
 
 
 static struct {
 	volatile u32 *timer0_base;
-	intr_handler_t handler;
+	intr_handler_t timebaseHandler;
+	intr_handler_t wakeupHandler;
 	volatile time_t jiffies;
 	spinlock_t sp;
-	u32 ticksPerFreq;
+	u64 ticksPerFreq;
 } timer_common;
+
+
+static void timer_clearIrq(int timer)
+{
+	/* Clear irq status - set & clear to handle different GPTIMER core versions  */
+	*(timer_common.timer0_base + GPT_TCTRL(timer)) |= TIMER_INT_PENDING;
+	hal_cpuDataStoreBarrier();
+	*(timer_common.timer0_base + GPT_TCTRL(timer)) &= ~TIMER_INT_PENDING;
+	hal_cpuDataStoreBarrier();
+}
 
 
 static int _timer_irqHandler(unsigned int irq, cpu_context_t *ctx, void *data)
 {
-	volatile u32 st = *(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) & TIMER_INT_PENDING;
+	u32 st;
+	spinlock_ctx_t sc;
+	int timer = (irq == TIMER0_1_IRQ) ? TIMER_TIMEBASE : TIMER_WAKEUP;
+	int ret = 0;
+
+	hal_spinlockSet(&timer_common.sp, &sc);
+
+	st = *(timer_common.timer0_base + GPT_TCTRL(timer)) & TIMER_INT_PENDING;
 
 	if (st != 0) {
-		++timer_common.jiffies;
-		/* Clear irq status - set & clear to handle different GPTIMER core versions  */
-		*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) |= TIMER_INT_PENDING;
-		hal_cpuDataStoreBarrier();
-		*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) &= ~TIMER_INT_PENDING;
-		hal_cpuDataStoreBarrier();
+		if (timer == TIMER_TIMEBASE) {
+			++timer_common.jiffies;
+		}
+		else {
+			ret = 1;
+		}
+		timer_clearIrq(timer);
 	}
 
-	return 0;
+	hal_spinlockClear(&timer_common.sp, &sc);
+
+	return ret;
 }
 
 
@@ -75,40 +99,53 @@ static inline void timer_setReloadValue(int timer, u32 val)
 }
 
 
-static void timer_setPrescaler(int timer, u32 freq)
-{
-	u32 prescaler = SYSCLK_FREQ / 1000000; /* 1 MHz */
-	u32 ticks = (SYSCLK_FREQ / prescaler) / freq;
-
-	timer_setReloadValue(timer, ticks - 1);
-	*(timer_common.timer0_base + GPT_SRELOAD) = prescaler - 1;
-
-	timer_common.ticksPerFreq = ticks;
-}
-
-
 time_t hal_timerGetUs(void)
 {
+	u32 regVal;
 	time_t val;
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
+
+	regVal = *(timer_common.timer0_base + GPT_TCNTVAL(TIMER_TIMEBASE));
+
+	/* Check if there's pending irq */
+	if ((*(timer_common.timer0_base + GPT_TCTRL(TIMER_TIMEBASE)) & TIMER_INT_PENDING) != 0) {
+		++timer_common.jiffies;
+		timer_clearIrq(TIMER_TIMEBASE);
+		/* Timer might've just wrapped-around, take counter value again */
+		regVal = *(timer_common.timer0_base + GPT_TCNTVAL(TIMER_TIMEBASE));
+	}
 	val = timer_common.jiffies;
+
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return val * 1000ULL;
+	return val * timer_common.ticksPerFreq + timer_common.ticksPerFreq - regVal;
 }
 
 
 void hal_timerSetWakeup(u32 waitUs)
 {
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&timer_common.sp, &sc);
+
+	/* Disable timer */
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_WAKEUP)) = 0;
+	timer_clearIrq(TIMER_WAKEUP);
+
+	/* Configure one shot timer */
+	timer_setReloadValue(TIMER_WAKEUP, waitUs - 1);
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_WAKEUP)) = TIMER_ENABLE | TIMER_INT_ENABLE | TIMER_LOAD;
+
+	hal_spinlockClear(&timer_common.sp, &sc);
 }
 
 
 int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
 	h->f = f;
-	h->n = TIMER_IRQ;
+	h->n = TIMER0_2_IRQ;
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
@@ -125,34 +162,39 @@ char *hal_timerFeatures(char *features, unsigned int len)
 
 void _hal_timerInit(u32 interval)
 {
-	volatile u32 st;
+	u32 st, prescaler;
 
 	timer_common.jiffies = 0;
 
 	timer_common.timer0_base = _pmap_halMapDevice(PAGE_ALIGN(GPTIMER0_BASE), PAGE_OFFS(GPTIMER0_BASE), SIZE_PAGE);
 
 	/* Disable timer interrupts - bits cleared when written 1 */
-	st = *(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) & (TIMER_INT_ENABLE | TIMER_INT_PENDING);
-	*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) = st;
-	/* Disable timer */
-	*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) = 0;
-	/* Reset counter and reload value */
-	*(timer_common.timer0_base + GPT_TCNTVAL(TIMER_DEFAULT)) = 0;
-	timer_setReloadValue(TIMER_DEFAULT, 0);
+	st = *(timer_common.timer0_base + GPT_TCTRL(TIMER_TIMEBASE)) & (TIMER_INT_ENABLE | TIMER_INT_PENDING);
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_TIMEBASE)) = st;
+	/* Disable timers */
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_TIMEBASE)) = 0;
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_WAKEUP)) = 0;
 
-	timer_common.handler.f = NULL;
-	timer_common.handler.n = TIMER_IRQ;
-	timer_common.handler.data = NULL;
+	/* Set prescaler for 1 MHz timer tick */
+	prescaler = SYSCLK_FREQ / 1000000;
+	*(timer_common.timer0_base + GPT_SRELOAD) = prescaler - 1;
 
-	timer_setPrescaler(TIMER_DEFAULT, interval);
+	timer_setReloadValue(TIMER_TIMEBASE, TIMEBASE_INTERVAL);
+
+	timer_common.ticksPerFreq = (u64)TIMEBASE_INTERVAL + 1;
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
-	timer_common.handler.f = _timer_irqHandler;
-	timer_common.handler.n = TIMER_IRQ;
-	timer_common.handler.data = NULL;
-	hal_interruptsSetHandler(&timer_common.handler);
+	timer_common.timebaseHandler.f = _timer_irqHandler;
+	timer_common.timebaseHandler.n = TIMER0_1_IRQ;
+	timer_common.timebaseHandler.data = NULL;
+	hal_interruptsSetHandler(&timer_common.timebaseHandler);
+
+	timer_common.wakeupHandler.f = _timer_irqHandler;
+	timer_common.wakeupHandler.n = TIMER0_2_IRQ;
+	timer_common.wakeupHandler.data = NULL;
+	hal_interruptsSetHandler(&timer_common.wakeupHandler);
 
 	/* Enable timer and interrupts */
 	/* Load reload value into counter register */
-	*(timer_common.timer0_base + GPT_TCTRL(TIMER_DEFAULT)) |= TIMER_ENABLE | TIMER_INT_ENABLE | TIMER_LOAD | TIMER_PERIODIC;
+	*(timer_common.timer0_base + GPT_TCTRL(TIMER_TIMEBASE)) = TIMER_ENABLE | TIMER_INT_ENABLE | TIMER_LOAD | TIMER_PERIODIC;
 }
