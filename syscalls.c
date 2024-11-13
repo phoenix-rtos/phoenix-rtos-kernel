@@ -330,7 +330,7 @@ int syscalls_nsleep(void *ustack)
 	process_t *proc = proc_current()->process;
 	time_t *sec;
 	long int *nsec;
-	time_t start, us, stop, diff;
+	time_t start, us, stop, elapsed, unslept;
 	int ret;
 
 	GETFROMSTACK(ustack, time_t *, sec, 0);
@@ -360,10 +360,11 @@ int syscalls_nsleep(void *ustack)
 
 	if (ret == -EINTR) {
 		proc_gettime(&stop, NULL);
-		diff = stop - start;
-		if (diff < us) {
-			*sec = diff / (1000 * 1000);
-			*nsec = (diff % (1000 * 1000)) * 1000;
+		elapsed = stop - start;
+		if (us > elapsed) {
+			unslept = us - elapsed;
+			*sec = unslept / (1000 * 1000);
+			*nsec = (unslept % (1000 * 1000)) * 1000;
 		}
 	}
 
