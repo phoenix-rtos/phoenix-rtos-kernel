@@ -50,9 +50,7 @@ exception_pushContext:
 	pushl %ebp
 	pushl %esi
 	pushl %edi
-	movl %esp, %eax
-	subl $4, %eax
-	pushl %eax
+	pushl %esp
 
 	movl %dr7, %eax
 	pushl %eax
