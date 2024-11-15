@@ -37,7 +37,7 @@ exception_pushContext:
 	xchgl FPU_CONTEXT_SIZE(%esp), %eax
 	jnz .exception_pushRegisters
 	/* Save FPU context */
-	fsave (%esp)
+	fnsave (%esp)
 .exception_pushRegisters:
 	pushw %ds
 	pushw %es
@@ -129,7 +129,7 @@ exceptions_exc7_handler:
 	movl %ecx, 176(%eax)
 	/* Init FPU */
 	fninit
-	fsave 68(%eax) /* Set ctx->fpuContext */
+	fnsave 68(%eax) /* Set ctx->fpuContext */
 	ret
 
 .size exceptions_exc7_handler, .-exceptions_exc7_handler
