@@ -57,13 +57,12 @@ hal_lockScheduler:
 .global interrupts_pushContext
 .align 4, 0x90
 interrupts_pushContext:
-	xchgl (%esp), %edx
-	movl %edx, -(4 * CTXPUSHL)(%esp)
-	popl %edx
-	/* Check TS flag in CR0 register */
-	pushl %eax
-	movl %cr0, %eax
+	/* Save return address. */
+	xchgl (%esp), %eax
+	movl %eax, -(4 * CTXPUSHL)(%esp)
 	subl $FPU_CONTEXT_SIZE, %esp
+	/* Check TS flag in CR0 register */
+	movl %cr0, %eax
 	andl $CR0_TS_BIT, %eax
 	xchgl FPU_CONTEXT_SIZE(%esp), %eax
 	jnz .Linterrupts_pushRegisters
