@@ -68,7 +68,7 @@ interrupts_pushContext:
 	xchgl FPU_CONTEXT_SIZE(%esp), %eax
 	jnz .Linterrupts_pushRegisters
 	/* Save FPU context */
-	fsave (%esp)
+	fnsave (%esp)
 .Linterrupts_pushRegisters:
 	pushw %ds
 	pushw %es
