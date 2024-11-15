@@ -30,10 +30,10 @@ exception_pushContext:
 	/* Save return address for ret */
 	movl (%esp), %eax
 	movl %eax, -(4 * CTXPUSHL)(%esp)
+	subl $FPU_CONTEXT_SIZE - 4, %esp
 	/* Check TS flag in CR0 register */
 	movl %cr0, %eax
 	andl $CR0_TS_BIT, %eax
-	subl $FPU_CONTEXT_SIZE - 4, %esp
 	xchgl FPU_CONTEXT_SIZE(%esp), %eax
 	jnz .exception_pushRegisters
 	/* Save FPU context */
