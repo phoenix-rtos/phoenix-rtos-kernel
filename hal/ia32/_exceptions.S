@@ -141,7 +141,6 @@ sym:
 
 /* Exception handling macro */
 #define EXCSTUB(exc)\
-	cli;\
 	call exception_pushContext;\
 	movl $SEL_KDATA, %eax;\
 	movw %ax, %ds;\

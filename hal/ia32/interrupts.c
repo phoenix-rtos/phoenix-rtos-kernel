@@ -493,7 +493,6 @@ void _hal_interruptsInit(void)
 	}
 
 	/* Set stub for syscall */
-/*	_interrupts_setIDTEntry(0x80, _interrupts_syscall, IGBITS_TRAP); */
 	_interrupts_setIDTEntry(SYSCALL_IRQ, _interrupts_syscall, flags | IGBITS_DPL3);
 	_interrupts_setIDTEntry(TLB_IRQ, _interrupts_TLBShootdown, flags);
 
