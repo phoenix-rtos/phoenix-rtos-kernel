@@ -91,27 +91,24 @@ exception_popContext:
 	popl %edx
 	popl %ecx
 	popl %ebx
+	/* FPU context */
+	testl $CR0_TS_BIT, (12 + FPU_CONTEXT_SIZE)(%esp)
+	jz .Linterrupts_popFPU
+	movl %cr0, %eax
+	orl $CR0_TS_BIT, %eax
+	movl %eax, %cr0
+	jmp .Linterrupts_popFPUend
+.Linterrupts_popFPU:
+	clts
+	frstor 12(%esp)
+.Linterrupts_popFPUend:
 	popl %eax
 	popw %gs
 	popw %fs
 	popw %es
 	popw %ds
-	/* FPU context */
-	testl $CR0_TS_BIT, FPU_CONTEXT_SIZE(%esp)
-	movl %eax, FPU_CONTEXT_SIZE(%esp)
-	movl %cr0, %eax
-	jz .exception_popFPU
-	orl $CR0_TS_BIT, %eax
-	movl %eax, %cr0
-	addl $FPU_CONTEXT_SIZE, %esp
-	popl %eax
-	iret
-	.exception_popFPU:
-	andl $~CR0_TS_BIT, %eax
-	mov %eax, %cr0
-	frstor (%esp)
-	addl $FPU_CONTEXT_SIZE, %esp
-	popl %eax
+	/* Skip over FPU context and cr0Bits. */
+	addl $FPU_CONTEXT_SIZE + 4, %esp
 	iret
 .size exception_popContext, .-exception_popContext
 
