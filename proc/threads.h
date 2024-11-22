@@ -41,7 +41,7 @@ typedef struct _thread_t {
 	struct _thread_t *prev;
 	struct _lock_t *locks;
 
-	rbnode_t sleeplinkage;
+	bhnode_t sleeplinkage;
 	idnode_t idlinkage;
 
 	struct _process_t *process;
