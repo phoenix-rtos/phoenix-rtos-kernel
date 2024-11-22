@@ -27,6 +27,7 @@ typedef struct {
 	unsigned short subvendor;
 	unsigned short subdevice;
 	unsigned short cl;
+	unsigned short progif;
 } __attribute__((packed)) pci_id_t;
 
 
