@@ -5,8 +5,8 @@
  *
  * PCI driver
  *
- * Copyright 2018, 2019, 2020 Phoenix Systems
- * Author: Aleksander Kaminski, Kamil Amanowicz, Lukasz Kosinski
+ * Copyright 2018, 2019, 2020, 2024 Phoenix Systems
+ * Author: Aleksander Kaminski, Kamil Amanowicz, Lukasz Kosinski, Adam Greloch
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -84,19 +84,24 @@ static int _hal_pciGetCaps(pci_dev_t *dev, void *caps)
 }
 
 
-int hal_pciSetBusmaster(pci_dev_t *dev, u8 enable)
+/* Sets a bit in PCI configuration command register */
+int _hal_pciSetCmdRegBit(pci_dev_t *dev, u8 bit, u8 enable)
 {
 	spinlock_ctx_t sc;
 	u32 dv;
 
-	if (dev == NULL)
+	if (dev == NULL) {
 		return -EINVAL;
+	}
 
 	hal_spinlockSet(&pci_common.spinlock, &sc);
 	dv = _hal_pciGet(dev->bus, dev->dev, dev->func, 1);
-	dv &= ~(1 << 2);
-	if (enable)
-		dv |= (1 << 2);
+	if (enable != 0) {
+		dv |= (1 << bit);
+	}
+	else {
+		dv &= ~(1 << bit);
+	}
 	_hal_pciSet(dev->bus, dev->dev, dev->func, 1, dv);
 	hal_spinlockClear(&pci_common.spinlock, &sc);
 
@@ -153,6 +158,24 @@ int hal_pciSetUsbOwnership(pci_usbownership_t *usbownership)
 	dev->command = dv & 0xffff;
 
 	return EOK;
+}
+
+
+int hal_pciSetConfigOption(pci_pcicfg_t *pcicfg)
+{
+	pci_dev_t *dev = &pcicfg->dev;
+	u8 enable = pcicfg->enable;
+
+	switch (pcicfg->cfg) {
+		case pci_cfg_interruptdisable:
+			return _hal_pciSetCmdRegBit(dev, 10, enable);
+		case pci_cfg_memoryspace:
+			return _hal_pciSetCmdRegBit(dev, 1, enable);
+		case pci_cfg_busmaster:
+			return _hal_pciSetCmdRegBit(dev, 2, enable);
+		default:
+			return -EINVAL;
+	}
 }
 
 
