@@ -72,23 +72,30 @@ typedef struct {
 } __attribute__((packed)) pci_dev_t;
 
 
-/* clang-format off */
 
 typedef struct {
+	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_pci = 0, pctl_busmaster, pctl_reboot, pctl_graphmode } type;
+	enum { pctl_pci = 0, pctl_busmaster, pctl_usbownership, pctl_reboot, pctl_graphmode } type;
+	/* clang-format on */
 
 	union {
 		struct {
 			pci_id_t id;
 			pci_dev_t dev;
-			void* caps;
+			void *caps;
 		} pci;
 
 		struct {
 			pci_dev_t dev;
 			int enable;
 		} busmaster;
+
+		struct {
+			pci_dev_t dev;
+			short osOwned;
+			short eecp;
+		} usbownership;
 
 		struct {
 			unsigned int magic;
@@ -104,8 +111,6 @@ typedef struct {
 		} graphmode;
 	};
 } platformctl_t;
-
-/* clang-format on */
 
 
 #endif
