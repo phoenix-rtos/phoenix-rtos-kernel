@@ -22,21 +22,21 @@
 #include "imxrt117x.h"
 #include "config.h"
 
+#include "hal/arm/barriers.h"
 #include "hal/arm/scs.h"
 
 #include <board_config.h>
 
 #define RTWDOG_UNLOCK_KEY  0xd928c520u
 #define RTWDOG_REFRESH_KEY 0xb480a602u
-#define LPO_CLK_FREQ_HZ    32000
-
-#if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
+#if WATCHDOG && !defined(WATCHDOG_TIMEOUT_MS)
 #define WATCHDOG_TIMEOUT_MS (30000)
 #warning "WATCHDOG_TIMEOUT_MS not defined, defaulting to 30000 ms"
 #endif
 
-#if defined(WATCHDOG) && \
-	((WATCHDOG_TIMEOUT_MS <= 0) || (WATCHDOG_TIMEOUT_MS > (0xffff * 256 / (LPO_CLK_FREQ_HZ / 1000))))
+/* 1500 ms is the sum of the minimum sensible watchdog timeout (500 ms) and time for WICT interrupt
+to fire before watchdog times out (1000 ms) */
+#if WATCHDOG && (WATCHDOG_TIMEOUT_MS < 1500 || WATCHDOG_TIMEOUT_MS > 128000)
 #error "Watchdog timeout out of bounds!"
 #endif
 
@@ -88,11 +88,13 @@ struct {
 
 void _imxrt_wdgReload(void)
 {
-#if defined(WATCHDOG)
-	hal_cpuDisableInterrupts();
-	*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
-	hal_cpuEnableInterrupts();
-#endif
+	/* If the watchdog was enabled (e.g. by bootrom), then it has to be serviced
+	and WATCHDOG flag doesn't matter */
+	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1u << 2)) != 0u) {
+		*(imxrt_common.wdog1 + wdog_wsr) = 0x5555;
+		hal_cpuDataMemoryBarrier();
+		*(imxrt_common.wdog1 + wdog_wsr) = 0xaaaa;
+	}
 }
 
 
@@ -751,6 +753,8 @@ void _imxrt_platformInit(void)
 
 void _imxrt_init(void)
 {
+	u32 tmp;
+
 	imxrt_common.aips[0] = (void *)0x40000000;
 	imxrt_common.aips[1] = (void *)0x40400000;
 	imxrt_common.aips[2] = (void *)0x40800000;
@@ -772,55 +776,71 @@ void _imxrt_init(void)
 
 	_hal_scsInit();
 
-	/* Disable watchdogs (WDOG1, WDOG2) */
-	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1u << 2u)) != 0u) {
-		*(imxrt_common.wdog1 + wdog_wcr) &= ~(1u << 2u);
-	}
-	if ((*(imxrt_common.wdog2 + wdog_wcr) & (1u << 2u)) != 0u) {
-		*(imxrt_common.wdog2 + wdog_wcr) &= ~(1u << 2u);
-	}
+	/* WDOG1 and WDOG2 can't be disabled once enabled */
 
-	/* WDOG3: Unlock rtwdog update */
-	*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
-	while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 11u)) == 0u) {
-	}
+	/* Enabling the watchdog and setting the timeout are separate actions controlled by WATCHDOG and
+	WATCHDOG_TIMEOUT_MS, so it is possible to e.g. change the timeout if the watchdog was already
+	enabled by plo or bootrom, but not enabling it if it was disabled. */
 
-#if defined(WATCHDOG)
-	/* Set watchdog timeout */
-	*(imxrt_common.rtwdog3 + rtwdog_toval) =
-		(u32)(WATCHDOG_TIMEOUT_MS / (256 / (LPO_CLK_FREQ_HZ / 1000)));
-	/*
-	 * WDOG3: set no window mode; no interrupt; use 32bit commands; prescaler=256;
-	 * clk=rc_32k; enable watcdog and allow later reconfiguration without reset
-	 */
-	*(imxrt_common.rtwdog3 + rtwdog_cs) = *(imxrt_common.rtwdog3 + rtwdog_cs) |
-		(1u << 13u) | (1u << 12u) | (1u << 8u) | (1u << 7u) | (1u << 5u);
-
-	/* WDOG3: Refresh rtwdog */
-	*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
-#else
-	/* WDOG3: Disable rtwdog, but allow later reconfiguration without reset */
-	*(imxrt_common.rtwdog3 + rtwdog_toval) = 0xffffu;
-	*(imxrt_common.rtwdog3 + rtwdog_cs) =
-		(*(imxrt_common.rtwdog3 + rtwdog_cs) & ~(1u << 7u)) | (1u << 5u);
+#if defined(WATCHDOG_TIMEOUT_MS)
+	/* Set the timeout (always possible) */
+	tmp = (*(imxrt_common.wdog1 + wdog_wcr) & ~(0xffu << 8));
+	*(imxrt_common.wdog1 + wdog_wcr) = tmp | (((WATCHDOG_TIMEOUT_MS - 500u) / 500u) << 8);
+	hal_cpuDataMemoryBarrier();
+#endif
+#if WATCHDOG
+	/* Enable the watchdog */
+	*(imxrt_common.wdog1 + wdog_wcr) |= (1u << 2);
+	hal_cpuDataMemoryBarrier();
+#endif
+#if defined(WATCHDOG_TIMEOUT_MS)
+	/* Reload the watchdog with a new timeout value in case it was already enabled by
+	bootrom/plo and was running with a different timeout */
+	_imxrt_wdgReload();
 #endif
 
-	/* WDOG3: Wait until new config takes effect */
-	while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 10u)) == 0u) {
+	/* Disable WDOG3 and WDOG4 in case plo didn't do this */
+
+	if ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 7)) != 0u) {
+		/* WDOG3: Unlock rtwdog update */
+		*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
+		hal_cpuDataMemoryBarrier();
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 11u)) == 0u) {
+		}
+
+		/* WDOG3: Disable rtwdog, but allow later reconfiguration without reset */
+		*(imxrt_common.rtwdog3 + rtwdog_toval) = 0xffffu;
+		tmp = (*(imxrt_common.rtwdog3 + rtwdog_cs) & ~(1u << 7u));
+		*(imxrt_common.rtwdog3 + rtwdog_cs) = tmp | (1u << 5u);
+
+		/* WDOG3: Wait until new config takes effect */
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 10u)) == 0u) {
+		}
+
+		/* WDOG3: Wait until registers are locked (in case low power mode will be used promptly) */
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 11)) != 0u) {
+		}
 	}
 
-	/* WDOG4: Unlock rtwdog update */
-	*(imxrt_common.rtwdog4 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
-	while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 11u)) == 0u) {
-	}
+	if ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 7)) != 0u) {
+		/* WDOG4: Unlock rtwdog update */
+		*(imxrt_common.rtwdog4 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
+		hal_cpuDataMemoryBarrier();
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 11u)) == 0u) {
+		}
 
-	/* WDOG4: Disable rtwdog, but allow later reconfiguration without reset */
-	*(imxrt_common.rtwdog4 + rtwdog_toval) = 0xffffu;
-	*(imxrt_common.rtwdog4 + rtwdog_cs) =
-		(*(imxrt_common.rtwdog4 + rtwdog_cs) & ~(1u << 7u)) | (1u << 5u);
+		/* WDOG4: Disable rtwdog, but allow later reconfiguration without reset */
+		*(imxrt_common.rtwdog4 + rtwdog_toval) = 0xffffu;
+		tmp = (*(imxrt_common.rtwdog4 + rtwdog_cs) & ~(1u << 7u));
+		*(imxrt_common.rtwdog4 + rtwdog_cs) = tmp | (1u << 5u);
 
-	/* WDOG4: Wait until new config takes effect */
-	while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 10u)) == 0u) {
+		/* WDOG4: Wait until new config takes effect */
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 10u)) == 0u) {
+		}
+
+		/* WDOG4: Wait until registers are locked (in case low power mode will be used promptly) */
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 11)) != 0u) {
+		}
 	}
 
 	/* Enable system HP timer clock gate, select SYS_PLL3_DIV2 as BUS clk */
