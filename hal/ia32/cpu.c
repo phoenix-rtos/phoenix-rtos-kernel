@@ -558,6 +558,10 @@ int hal_platformctl(void *ptr)
 		case pctl_busmaster:
 			if (data->action == pctl_set) {
 				return hal_pciSetBusmaster(&data->busmaster.dev, data->busmaster.enable);
+
+		case pctl_usbownership:
+			if (data->action == pctl_set) {
+				return hal_pciSetUsbOwnership(&data->usbownership);
 			}
 			break;
 

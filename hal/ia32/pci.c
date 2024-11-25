@@ -106,6 +106,56 @@ int hal_pciSetBusmaster(pci_dev_t *dev, u8 enable)
 }
 
 
+int hal_pciSetUsbOwnership(pci_usbownership_t *usbownership)
+{
+	spinlock_ctx_t sc;
+	u32 dv;
+	pci_dev_t *dev = &usbownership->dev;
+	u8 osOwned = usbownership->osOwned;
+	u8 reg = (usbownership->eecp) >> 2U; /* eecp is a pci config offset */
+
+	if (dev == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&pci_common.spinlock, &sc);
+	dv = _hal_pciGet(dev->bus, dev->dev, dev->func, reg);
+
+	/* set HC OS Owned Semaphore */
+	if (osOwned != 0) {
+		dv |= (1 << 24);
+	}
+	else {
+		dv &= ~(1 << 24);
+	}
+	_hal_pciSet(dev->bus, dev->dev, dev->func, reg, dv);
+
+	for (;;) {
+		dv = _hal_pciGet(dev->bus, dev->dev, dev->func, reg);
+
+		/*
+		 * When transferring ownership we need to wait until HC OS Owned Semaphore (bit 24)
+		 * and HC BIOS Owned Semaphore (bit 16) get set appropriately (EHCI Spec, 2.1.7)
+		 */
+
+		/* OS took over when HC OS Owned is 1, HC BIOS Owned is 0 */
+		if ((osOwned != 0) && ((dv & (1 << 24)) != 0) && ((dv & (1 << 16)) == 0)) {
+			break;
+		}
+
+		/* BIOS took over when HC OS Owned is 0, HC BIOS Owned is 1 */
+		if ((osOwned == 0) && ((dv & (1 << 24)) == 0) && ((dv & (1 << 16)) != 0)) {
+			break;
+		}
+	}
+	hal_spinlockClear(&pci_common.spinlock, &sc);
+
+	dev->command = dv & 0xffff;
+
+	return EOK;
+}
+
+
 int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 {
 	spinlock_ctx_t sc;
