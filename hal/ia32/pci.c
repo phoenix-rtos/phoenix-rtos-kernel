@@ -106,6 +106,44 @@ int hal_pciSetBusmaster(pci_dev_t *dev, u8 enable)
 }
 
 
+int hal_pciSetUsbOwnership(pci_dev_t *dev, u8 eecp, u8 osOwned)
+{
+	spinlock_ctx_t sc;
+	u32 dv;
+	u8 reg = eecp >> 2U; /* eecp is a pci config offset */
+
+	if (dev == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&pci_common.spinlock, &sc);
+	dv = _hal_pciGet(dev->bus, dev->dev, dev->func, reg);
+	if (osOwned != 0) {
+		dv |= (1 << 24);
+	}
+	else {
+		dv &= ~(1 << 24);
+	}
+	_hal_pciSet(dev->bus, dev->dev, dev->func, reg, dv);
+
+	for (;;) {
+		dv = _hal_pciGet(dev->bus, dev->dev, dev->func, reg);
+		if ((osOwned != 0) && ((dv & (1 << 24)) != 0) && ((dv & (1 << 16)) == 0)) {
+			break;
+		}
+
+		if ((osOwned == 0) && ((dv & (1 << 24)) == 0) && ((dv & (1 << 16)) != 0)) {
+			break;
+		}
+	}
+	hal_spinlockClear(&pci_common.spinlock, &sc);
+
+	dev->command = dv & 0xffff;
+
+	return EOK;
+}
+
+
 int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 {
 	spinlock_ctx_t sc;
