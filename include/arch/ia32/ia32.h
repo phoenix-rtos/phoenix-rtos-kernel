@@ -5,8 +5,8 @@
  *
  * IA32 basic peripherals control functions
  *
- * Copyright 2018, 2019, 2020 Phoenix Systems
- * Author: Aleksander Kaminski, Kamil Amanowicz, Lukasz Kosinski
+ * Copyright 2018, 2019, 2020, 2024 Phoenix Systems
+ * Author: Aleksander Kaminski, Kamil Amanowicz, Lukasz Kosinski, Adam Greloch
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -80,9 +80,18 @@ typedef struct {
 
 
 typedef struct {
+	pci_dev_t dev;
+	/* clang-format off */
+	enum { pci_cfg_interruptdisable, pci_cfg_memoryspace, pci_cfg_busmaster} cfg;
+	/* clang-format on */
+	short enable;
+} pci_pcicfg_t;
+
+
+typedef struct {
 	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_pci = 0, pctl_busmaster, pctl_usbownership, pctl_reboot, pctl_graphmode } type;
+	enum { pctl_pci = 0, pctl_pcicfg, pctl_usbownership, pctl_reboot, pctl_graphmode } type;
 	/* clang-format on */
 
 	union {
@@ -92,10 +101,7 @@ typedef struct {
 			void *caps;
 		} pci;
 
-		struct {
-			pci_dev_t dev;
-			int enable;
-		} busmaster;
+		pci_pcicfg_t pcicfg;
 
 		pci_usbownership_t usbownership;
 
