@@ -156,8 +156,7 @@ sym:
 	call *%eax;\
 	addl $8, %esp;\
 	/* cpu_context_t */;\
-	movl %esp, %eax;\
-	addl $28, %eax;\
+	leal 28(%esp), %eax;\
 	pushl %eax;\
 	call hal_cpuSupervisorMode;\
 	addl $4, %esp;\
