@@ -209,13 +209,13 @@ _interrupts_syscall:
 	movw %dx, %ds
 	movw %dx, %es
 	movl (4 * CTXPUSHL + 12)(%esp), %edx
+	pushl %esp
 	pushl %edx
 	pushl %eax
 	sti
 	call syscalls_dispatch
 	cli
-	addl $8, %esp
-	movl %eax, (4 * CTXPUSHL - EAX_OFFSET)(%esp)	/* Save return value to eax in context */
+	addl $12, %esp
 	jmp interrupts_popContextUnlocked
 .size _interrupts_syscall, .-_interrupts_syscall
 
