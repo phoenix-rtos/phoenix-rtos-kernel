@@ -116,7 +116,7 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 }
 
 
-extern void threads_setupUserReturn(void *retval);
+extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
@@ -130,7 +130,7 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 	/* Handle signals if necessary */
 	if (hal_cpuSupervisorMode(&ctx->cpuCtx) == 0) {
-		threads_setupUserReturn((void *)ctx->cpuCtx.r0);
+		threads_setupUserReturn((void *)ctx->cpuCtx.r0, &ctx->cpuCtx);
 	}
 }
 

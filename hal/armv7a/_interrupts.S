@@ -259,31 +259,29 @@ _interrupts_dispatch:
 .type _syscalls_dispatch, %function
 _syscalls_dispatch:
 	stmfd sp, {r0-r4}^
-	sub r1, sp, #0x14
+	sub r2, sp, #0x14
 	mrs r3, spsr
-	mov r2, lr
+	mov r1, lr
 	tst r3, #THUMB_STATE
-	ldreq r0, [r2, #-4]
+	ldreq r0, [r1, #-4]
 	biceq r0, r0, #0xff000000
-	ldrneh r0, [r2, #-2]
+	ldrneh r0, [r1, #-2]
 	bicne r0, r0, #0xff00
 	mrc p15, 0, r4, c13, c0, 4 /* TPIDRPRW */
 
 	cpsie af, #SYS_MODE
 
 	/* Store CPU state onto kernel stack */
-	stmfd r4!, {r2}
+	stmfd r4!, {r1}
 	stmfd r4!, {r5-r14}
-	mov r2, sp
+	mov r1, sp
 	mov sp, r4
-	ldmfd r1, {r4-r8}
+	ldmfd r2, {r4-r8}
 	push {r3-r8}
 	push_fpu_state r4
-	sub r1, sp, #8
-	push {r1}
-	push {r1}
-
-	mov r1, r2
+	sub r2, sp, #8
+	push {r2}
+	push {r2}
 
 	cpsie if
 
