@@ -127,6 +127,7 @@ _syscall_dispatch:
 	/* Copy arguments back to the user stack */
 	stmdb r0!, {r1-r4}
 	mov r1, r0
+	mov r2, sp
 	ldrb r0, [r7, #-3]
 
 	/* Prepare pseudo context */
