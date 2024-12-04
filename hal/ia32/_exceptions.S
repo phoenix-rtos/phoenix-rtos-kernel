@@ -162,11 +162,14 @@ sym:
 	addl $4, %esp;\
 	testl %eax, %eax;\
 	jnz exception_popContext;\
+	/* cpu_context_t */;\
+	leal 28(%esp), %eax;\
 	/* return value */ ;\
-	movl 56(%esp), %eax;\
+	movl 56(%esp), %ebx;\
 	pushl %eax;\
+	pushl %ebx;\
 	call threads_setupUserReturn;\
-	addl $4, %esp;\
+	addl $8, %esp;\
 	;\
 	jmp exception_popContext
 

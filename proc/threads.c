@@ -1482,10 +1482,10 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 }
 
 
-void threads_setupUserReturn(void *retval)
+void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 {
 	spinlock_ctx_t sc;
-	cpu_context_t *ctx, *signalCtx;
+	cpu_context_t *signalCtx;
 	void *f;
 	void *kstackTop;
 	thread_t *thread;
@@ -1494,7 +1494,6 @@ void threads_setupUserReturn(void *retval)
 	thread = _proc_current();
 
 	kstackTop = thread->kstack + thread->kstacksz;
-	ctx = kstackTop - sizeof(*ctx);
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
 	hal_cpuSetReturnValue(ctx, retval);
 
