@@ -22,6 +22,7 @@
 #include "hal/pmap.h"
 #include "hal/hal.h"
 #include "hal/tlb/tlb.h"
+#include "acpi.h"
 #include "pci.h"
 #include "ia32.h"
 #include "halsyspage.h"
@@ -548,6 +549,12 @@ int hal_platformctl(void *ptr)
 	platformctl_t *data = (platformctl_t *)ptr;
 
 	switch (data->type) {
+		case pctl_acpi:
+			if (data->action == pctl_get) {
+				return hal_acpiGet(data->acpi.var, &data->acpi.value);
+			}
+			break;
+
 		case pctl_pci:
 			if (data->action == pctl_get) {
 				return hal_pciGetDevice(&data->pci.id, &data->pci.dev, data->pci.caps);
