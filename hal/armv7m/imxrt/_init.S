@@ -128,7 +128,6 @@ _syscall_dispatch:
 	str r12, [sp, #8] /* ustack */
 
 	/* At this point full context is saved on kernel stack */
-	add r2, sp, #(38 * 4)
 	str sp, [r6]
 	isb
 	dmb
@@ -139,6 +138,7 @@ _syscall_dispatch:
 
 	stmdb r0!, {r1-r4}
 
+	mov r2, sp
 	sub sp, sp, #(18 * 4)
 
 	mov r1, r0
