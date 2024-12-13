@@ -174,7 +174,7 @@ inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
 }
 
 
-extern void threads_setupUserReturn(void *retval);
+extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
@@ -195,7 +195,7 @@ void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	/* Handle signals if necessary */
 	if (hal_cpuSupervisorMode(ctx) == 0) {
-		threads_setupUserReturn((void *)ctx->a0);
+		threads_setupUserReturn((void *)ctx->a0, ctx);
 	}
 }
 

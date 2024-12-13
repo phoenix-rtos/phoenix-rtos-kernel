@@ -281,10 +281,9 @@ _interrupts_notIrq:
 	sd s2, 248(sp)
 	mv a0, a7      /* syscall number */
 	ld a1, 288(sp) /* ustack */
-
+	mv a2, sp
 	csrs sstatus, SSTATUS_SIE
 	call syscalls_dispatch
-	sd a0, 56(sp)
 	csrc sstatus, SSTATUS_SIE
 
 	tail _interrupts_returnUnlocked

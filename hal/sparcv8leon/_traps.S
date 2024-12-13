@@ -684,9 +684,9 @@ s_fpu_done:
 	nop
 	nop
 
-	/* void *syscalls_dispatch(int n, char *ustack) */
+	/* void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx) */
 	call syscalls_dispatch
-	nop
+	add %sp, 0x60, %o2
 
 	/* disable traps */
 #ifdef LEON3_USE_PWR

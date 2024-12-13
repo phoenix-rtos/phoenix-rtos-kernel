@@ -1854,7 +1854,7 @@ const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
 const char *const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
 
 
-void *syscalls_dispatch(int n, char *ustack)
+void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 {
 	void *retval;
 
@@ -1868,7 +1868,7 @@ void *syscalls_dispatch(int n, char *ustack)
 		proc_threadEnd();
 	}
 
-	threads_setupUserReturn(retval);
+	threads_setupUserReturn(retval, ctx);
 
 	return retval;
 }
