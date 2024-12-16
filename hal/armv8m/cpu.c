@@ -192,8 +192,13 @@ char *hal_cpuInfo(char *info)
 	}
 
 	if (((cpuinfo >> 4) & 0xfffu) == 0xd21u) {
+#ifdef MCX_USE_CPU1
+		hal_strcpy(info + i, "Micro Cortex-M33 ");
+		i += 17;
+#else
 		hal_strcpy(info + i, "Cortex-M33 ");
 		i += 11;
+#endif
 	}
 
 	*(info + i++) = 'r';
