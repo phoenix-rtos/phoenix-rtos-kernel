@@ -46,6 +46,14 @@ extern void _interrupts_irq12(void);
 extern void _interrupts_irq13(void);
 extern void _interrupts_irq14(void);
 extern void _interrupts_irq15(void);
+extern void _interrupts_irq16(void);
+extern void _interrupts_irq17(void);
+extern void _interrupts_irq18(void);
+extern void _interrupts_irq19(void);
+extern void _interrupts_irq20(void);
+extern void _interrupts_irq21(void);
+extern void _interrupts_irq22(void);
+extern void _interrupts_irq23(void);
 
 extern void _interrupts_unexpected(void);
 
@@ -55,7 +63,8 @@ extern void _interrupts_syscall(void);
 extern void _interrupts_TLBShootdown(void);
 
 
-#define SIZE_INTERRUPTS 16
+#define ISA_INTERRUPTS  16
+#define SIZE_INTERRUPTS 24
 
 
 struct {
@@ -209,6 +218,20 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 }
 
 
+static inline void _hal_ioapicUnmaskPCI(unsigned int n)
+{
+	u32 high, low;
+
+	_hal_ioapicReadIRQ(interrupts_common.irqs[n].ioapic, n, &high, &low);
+
+	if ((low & IOAPIC_IRQ_MASK) != 0) {
+		/* PCI interrupts are active low level triggered */
+		low |= (IOAPIC_INTPOL | IOAPIC_TRIGGER);
+		_hal_ioapicWriteIRQ(interrupts_common.irqs[n].ioapic, n, high, low & ~IOAPIC_IRQ_MASK);
+	}
+}
+
+
 int hal_interruptsSetHandler(intr_handler_t *h)
 {
 	spinlock_ctx_t sc;
@@ -219,6 +242,10 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 	hal_spinlockSet(&interrupts_common.interrupts[h->n].spinlock, &sc);
 	HAL_LIST_ADD(&interrupts_common.interrupts[h->n].handler, h);
+	if (h->n >= ISA_INTERRUPTS) {
+		/* Assume IRQs above ISA_INTERRUPTS are PCI interrupts */
+		_hal_ioapicUnmaskPCI(h->n);
+	}
 	hal_spinlockClear(&interrupts_common.interrupts[h->n].spinlock, &sc);
 
 	return EOK;
@@ -429,8 +456,8 @@ static int _hal_ioapicInit(void)
 		}
 	}
 
-	/* Enable all IRQS */
-	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
+	/* Enable all ISA IRQs */
+	for (i = 0; i < ISA_INTERRUPTS; ++i) {
 		_hal_ioapicReadIRQ(interrupts_common.irqs[i].ioapic, i, &high, &low);
 		_hal_ioapicWriteIRQ(interrupts_common.irqs[i].ioapic, i, high, low & ~IOAPIC_IRQ_MASK);
 	}
@@ -480,6 +507,14 @@ void _hal_interruptsInit(void)
 	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 13, _interrupts_irq13, flags);
 	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 14, _interrupts_irq14, flags);
 	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 15, _interrupts_irq15, flags);
+	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 16, _interrupts_irq16, flags);
+	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 17, _interrupts_irq17, flags);
+	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 18, _interrupts_irq18, flags);
+	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 19, _interrupts_irq19, flags);
+	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 20, _interrupts_irq20, flags);
+	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 21, _interrupts_irq21, flags);
+	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 22, _interrupts_irq22, flags);
+	_interrupts_setIDTEntry(INTERRUPTS_VECTOR_OFFSET + 23, _interrupts_irq23, flags);
 
 	for (k = 0; k < SIZE_INTERRUPTS; k++) {
 		hal_spinlockCreate(&interrupts_common.interrupts[k].spinlock, "interrupts_common.interrupts[].spinlock");
