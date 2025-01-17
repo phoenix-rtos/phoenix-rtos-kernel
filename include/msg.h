@@ -35,7 +35,9 @@ enum {
 	/* Directory operations */
 	mtLookup, mtLink, mtUnlink, mtReaddir,
 
-	mtCount
+	mtCount,
+
+	mtStat = 0xf53 /* Moved from libphoenix. */
 };
 
 /* clang-format on */

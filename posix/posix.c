@@ -477,6 +477,77 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 	return err;
 }
 
+int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
+{
+	oid_t oid, dev;
+	oid_t *oidp, *devp;
+	open_file_t *f;
+	msg_t msg;
+	int err = EOK;
+
+	if (((path == NULL) && (fildes < 0)) ||
+			((path != NULL) && (fildes != -1))) {
+		return -EINVAL;
+	}
+
+	if (path == NULL) {
+		err = posix_getOpenFile(fildes, &f);
+		if (err < 0) {
+			return err;
+		}
+		oidp = &f->oid;
+		devp = NULL;
+	}
+	else {
+		if (proc_lookup(path, &oid, &dev) < 0) {
+			return -ENOENT;
+		}
+		oidp = &oid;
+		devp = &dev;
+	}
+
+	/* Detect mountpoint */
+	if ((devp != NULL) && (oidp->port != devp->port)) {
+		hal_memset(&msg, 0, sizeof(msg));
+		msg.type = mtGetAttr;
+		hal_memcpy(&msg.oid, oidp, sizeof(*oidp));
+		msg.i.attr.type = atMode;
+
+		if ((proc_send(oidp->port, &msg) < 0) || (msg.o.err < 0)) {
+			return -EIO;
+		}
+
+		if (S_ISDIR(msg.o.attr.val)) {
+			oidp = devp;
+		}
+	}
+
+	hal_memset(buf, 0, sizeof(*buf));
+
+	hal_memset(&msg, 0, sizeof(msg));
+	msg.type = mtStat;
+	msg.o.data = buf;
+	msg.o.size = sizeof(*buf);
+
+	if (proc_send(oidp->port, &msg) < 0) {
+		err = -EIO;
+	}
+	else {
+		err = msg.o.err;
+	}
+
+	if (path == NULL) {
+		if (err == EOK) {
+			err = posix_fileDeref(f);
+		}
+		else {
+			(void)posix_fileDeref(f);
+		}
+	}
+
+	return err;
+}
+
 
 /* TODO: handle O_CREAT and O_EXCL */
 int posix_open(const char *filename, int oflag, char *ustack)

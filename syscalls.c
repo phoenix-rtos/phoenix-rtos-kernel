@@ -1273,6 +1273,25 @@ int syscalls_sys_fstat(char *ustack)
 }
 
 
+int syscalls_sys_statvfs(char *ustack)
+{
+	process_t *proc = proc_current()->process;
+	int fd;
+	const char *path;
+	struct statvfs *buf;
+
+	GETFROMSTACK(ustack, const char *, path, 0);
+	GETFROMSTACK(ustack, int, fd, 1);
+	GETFROMSTACK(ustack, struct statvfs *, buf, 2);
+
+	if (vm_mapBelongs(proc, buf, sizeof(*buf)) < 0) {
+		return -EFAULT;
+	}
+
+	return posix_statvfs(path, fd, buf);
+}
+
+
 int syscalls_sys_fsync(char *ustack)
 {
 	int fd;
