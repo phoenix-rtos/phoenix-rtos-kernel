@@ -72,6 +72,8 @@ typedef struct {
 } __attribute__((packed)) pci_dev_t;
 
 
+typedef enum { acpi_rsdpAddr = 0 } acpi_var_t;
+
 /* clang-format off */
 typedef enum { pci_cfg_interruptdisable, pci_cfg_memoryspace, pci_cfg_busmaster} pci_cfg_t;
 /* clang-format on */
@@ -80,10 +82,15 @@ typedef enum { pci_cfg_interruptdisable, pci_cfg_memoryspace, pci_cfg_busmaster}
 typedef struct {
 	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_pci = 0, pctl_pcicfg, pctl_usbownership, pctl_reboot, pctl_graphmode } type;
+	enum { pctl_pci = 0, pctl_acpi, pctl_pcicfg, pctl_usbownership, pctl_reboot, pctl_graphmode } type;
 	/* clang-format on */
 
 	union {
+		struct {
+			acpi_var_t var;
+			int value;
+		} acpi;
+
 		struct {
 			pci_id_t id;
 			pci_dev_t dev;

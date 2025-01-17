@@ -38,6 +38,7 @@ typedef struct {
 
 	unsigned int ebda;
 	unsigned int acpi_version;
+	unsigned long rsdp; /* addr_t */
 	unsigned int localApicAddr;
 	unsigned long madt; /* addr_t */
 	unsigned int madtLength;
