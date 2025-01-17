@@ -23,6 +23,7 @@
 #include "include/posix-poll.h"
 #include "include/posix-socket.h"
 #include "include/posix-stat.h"
+#include "include/posix-statvfs.h"
 #include "include/posix-stdio.h"
 #include "include/posix-timespec.h"
 #include "include/posix-uio.h"
@@ -75,6 +76,9 @@ extern int posix_chmod(const char *path, mode_t mode);
 
 
 extern int posix_fstat(int fd, struct stat *buf);
+
+
+extern int posix_statvfs(const char *path, int fd, struct statvfs *buf);
 
 
 extern int posix_fsync(int fd);

@@ -27,6 +27,8 @@ typedef int ino_t; /* FIXME: should be unsigned long long to encode id_t? */
 typedef int nlink_t;
 typedef int blksize_t;
 typedef long long blkcnt_t;
+typedef unsigned long long fsblkcnt_t;
+typedef unsigned long long fsfilcnt_t;
 
 
 #endif
