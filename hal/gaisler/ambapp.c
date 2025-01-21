@@ -89,7 +89,7 @@ static int ambapp_apbFind(addr_t apb, ambapp_dev_t *dev, unsigned int *instance)
 	hal_spinlockSet(&ambapp_common.lock, &sc);
 
 	/* Map bridge PnP */
-	apbdev = pmap_halMap((addr_t)apbdev, (void *)ambapp_common.apbpnp, SIZE_PAGE, PGHD_READ | PGHD_PRESENT);
+	apbdev = pmap_halMap((addr_t)apbdev, (void *)ambapp_common.apbpnp, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
 
 	for (i = 0; i < AMBAPP_APB_NSLAVES; i++) {
 		id = apbdev[i].id;
@@ -230,6 +230,7 @@ void ambapp_init(void)
 {
 	hal_spinlockCreate(&ambapp_common.lock, "ambapp_common.lock");
 
-	ambapp_common.ahbpnp = (ptr_t)_pmap_halMap(AMBAPP_AHB_MSTR, NULL, SIZE_PAGE, PGHD_READ | PGHD_PRESENT);
-	ambapp_common.apbpnp = (ptr_t)_pmap_halMap(NULL, NULL, SIZE_PAGE, PGHD_READ | PGHD_PRESENT);
+	/* NOTE: on GR740 uncacheable areas (AMBA PnP) must be mapped as such */
+	ambapp_common.ahbpnp = (ptr_t)_pmap_halMap(AMBAPP_AHB_MSTR, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
+	ambapp_common.apbpnp = (ptr_t)_pmap_halMap(NULL, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
 }

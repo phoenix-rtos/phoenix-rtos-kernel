@@ -22,6 +22,7 @@
 #include "hal/spinlock.h"
 #include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/tlb/tlb.h"
+#include "gaisler/l2cache.h"
 
 #include "include/errno.h"
 #include "include/mman.h"
@@ -226,7 +227,7 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 				pdir3 = PTD_TO_ADDR(hal_cpuLoadPaddr(&((u32 *)pdir2)[j]));
 				if (pdir3 != NULL) {
 					hal_cpuStorePaddr(&((u32 *)pdir2)[j], 0);
-					hal_cpuflushDCache();
+					hal_cpuflushDCacheL1();
 
 					return pdir3;
 				}
@@ -278,13 +279,20 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	return addr;
 }
 
-
 void pmap_switch(pmap_t *pmap)
 {
 	spinlock_ctx_t sc;
 	addr_t paddr;
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
+	if (hal_srmmuGetContext() == CONTEXT_SHARED) {
+		hal_cpuflushICacheL1();
+		hal_cpuflushDCacheL1();
+#ifdef LEON_HAS_L2CACHE
+		l2c_flushRange(l2c_flush_inv_all, 0, 0);
+#endif
+	}
+
 	if ((pmap->context == CONTEXT_INVALID) || ((pmap->context == CONTEXT_SHARED) && (pmap_common.numCtxFree != 0))) {
 		pmap->context = _pmap_contextAlloc();
 		paddr = PTD(_pmap_resolve(pmap, pmap->pdir1) + ((u32)pmap->pdir1 & 0xfff));
@@ -292,8 +300,6 @@ void pmap_switch(pmap_t *pmap)
 	}
 
 	hal_srmmuSetContext(pmap->context);
-	hal_cpuflushICache();
-	hal_cpuflushDCache();
 
 	if (pmap->context == CONTEXT_SHARED) {
 		paddr = PTD(_pmap_resolve(pmap, pmap->pdir1) + ((u32)pmap->pdir1 & 0xfff));
@@ -322,7 +328,7 @@ static int _pmap_map(u32 *pdir1, addr_t pa, void *vaddr, int attr, page_t *alloc
 		for (size_t i = 0; i < (SIZE_PAGE / sizeof(u32)); i++) {
 			hal_cpuStorePaddr((u32 *)alloc->addr + i, 0);
 		}
-		hal_cpuflushDCache();
+		hal_cpuflushDCacheL1();
 
 		pdir1[idx1] = PTD(alloc->addr);
 
@@ -348,17 +354,28 @@ static int _pmap_map(u32 *pdir1, addr_t pa, void *vaddr, int attr, page_t *alloc
 		}
 
 		hal_cpuStorePaddr(&((u32 *)pdir2)[idx2], PTD(alloc->addr));
-		hal_cpuflushDCache();
+		hal_cpuflushDCacheL1();
 
 		addr = PTD_TO_ADDR(hal_cpuLoadPaddr(&((u32 *)pdir2)[idx2]));
 
 		alloc = NULL;
 	}
 
+#ifdef LEON_HAS_L2CACHE
+	if ((attr & (PGHD_NOT_CACHED | PGHD_DEV)) == 0) {
+		l2c_flushRange(l2c_flush_inv_line, (ptr_t)vaddr, SIZE_PAGE);
+	}
+#endif
+
 	entry = PTE(pa, ((attr & (PGHD_NOT_CACHED | PGHD_DEV)) != 0) ? UNCACHED : CACHED, acc, ((attr & PGHD_PRESENT) != 0) ? PAGE_ENTRY : 0);
 
 	hal_cpuStorePaddr(&((u32 *)addr)[idx3], entry);
-	hal_cpuflushDCache();
+	hal_cpuflushDCacheL1();
+
+	if ((attr & PGHD_EXEC) != 0) {
+		hal_cpuflushICacheL1();
+	}
+
 
 	return EOK;
 }
@@ -423,9 +440,13 @@ int pmap_remove(pmap_t *pmap, void *vaddr)
 		return EOK;
 	}
 
+	hal_cpuflushDCacheL1();
+#ifdef LEON_HAS_L2CACHE
+	l2c_flushRange(l2c_flush_inv_line, (ptr_t)vaddr, SIZE_PAGE);
+#endif
 	addr = PTD_TO_ADDR(descr);
 	hal_cpuStorePaddr(&((u32 *)addr)[idx3], 0);
-	hal_cpuflushDCache();
+	hal_cpuflushDCacheL1();
 
 	hal_tlbInvalidateEntry(pmap, vaddr, 1);
 

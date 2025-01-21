@@ -62,13 +62,13 @@ static inline void hal_cpuStoreAlternate(addr_t addr, const u32 asi, u32 val)
 }
 
 
-static inline void hal_cpuflushDCache(void)
+static inline void hal_cpuflushDCacheL1(void)
 {
 	hal_cpuStoreAlternate(0, ASI_FLUSH_DCACHE, 0);
 }
 
 
-static inline void hal_cpuflushICache(void)
+static inline void hal_cpuflushICacheL1(void)
 {
 	u32 ccr = hal_cpuLoadAlternate(0, ASI_CACHE_CTRL);
 	ccr |= CCR_FI;

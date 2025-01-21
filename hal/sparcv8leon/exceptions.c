@@ -142,7 +142,7 @@ __attribute__((noreturn)) static void exceptions_defaultHandler(unsigned int n, 
 	hal_consolePrint(ATTR_BOLD, buff);
 
 #ifdef NDEBUG
-	// hal_cpuReboot();
+	hal_cpuReboot();
 #endif
 
 	for (;;) {
