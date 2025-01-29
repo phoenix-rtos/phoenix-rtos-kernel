@@ -788,7 +788,6 @@ int posix_dup(int fildes)
 }
 
 
-/* FIXME: handle fildes == fildes2 */
 int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 {
 	open_file_t *f, *f2;
@@ -804,6 +803,10 @@ int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 
 	if (p->fds[fildes].file == NULL) {
 		return -EBADF;
+	}
+
+	if (fildes == fildes2) {
+		return fildes2;
 	}
 
 	if (fildes2 >= p->fdsz) {
