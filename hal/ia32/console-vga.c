@@ -18,6 +18,7 @@
 #include "hal/string.h"
 #include "hal/spinlock.h"
 #include "hal/pmap.h"
+#include "hal/ia32/console.h"
 #include "ia32.h"
 
 
@@ -44,7 +45,7 @@ static const unsigned char ansi2bg[] = {
 };
 
 
-struct {
+static struct {
 	volatile u16 *vram;      /* Video memory */
 	u16 crtc;                /* CRT controller register */
 	unsigned int rows;       /* Console height */
@@ -325,7 +326,7 @@ static void _hal_consolePrint(const char *s)
 }
 
 
-void hal_consolePrint(int attr, const char *s)
+void hal_consoleVGAPrint(int attr, const char *s)
 {
 	if (attr == ATTR_BOLD)
 		_hal_consolePrint(CONSOLE_BOLD);
@@ -337,14 +338,14 @@ void hal_consolePrint(int attr, const char *s)
 }
 
 
-void hal_consolePutch(char c)
+void hal_consoleVGAPutch(char c)
 {
 	const char str[] = { c, '\0' };
 	_hal_consolePrint(str);
 }
 
 
-__attribute__((section(".init"))) void _hal_consoleInit(void)
+__attribute__((section(".init"))) void _hal_consoleVGAInit(void)
 {
 	unsigned char color;
 
