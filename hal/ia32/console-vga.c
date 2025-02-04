@@ -344,7 +344,7 @@ void hal_consolePutch(char c)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_consoleInit(void)
+__attribute__((section(".init"))) void _hal_consoleInit(void)
 {
 	unsigned char color;
 
