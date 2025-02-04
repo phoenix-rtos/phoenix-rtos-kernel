@@ -25,10 +25,12 @@ struct {
 } console_common;
 
 
+/* clang-format off */
 enum {
 	thr = 0, rbr = 0, dll = 0, ier = 1, dlh = 1, iir = 2, fcr = 2,
 	lcr = 3, mcr = 4, lsr = 5, msr = 6, scr = 7
 };
+/* clang-format on */
 
 
 static inline void _console_uartWrite(unsigned int reg, u8 val)
@@ -81,11 +83,11 @@ void hal_consolePutch(char c)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_consoleInit(void)
+__attribute__((section(".init"))) void _hal_consoleInit(void)
 {
 	void *bases[] = {
-		(void *)0x3f8, (void *)0x2f8, (void *)0x3e8, (void *)0x2e8,   /* regular PC COMs */
-		(void *)0x9000f000u, (void *)0x9000b000u                      /* Galileo UARTs */
+		(void *)0x3f8, (void *)0x2f8, (void *)0x3e8, (void *)0x2e8, /* regular PC COMs */
+		(void *)0x9000f000u, (void *)0x9000b000u                    /* Galileo UARTs */
 	};
 
 
