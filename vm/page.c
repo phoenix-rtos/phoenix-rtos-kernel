@@ -211,7 +211,7 @@ static void _page_initSizes(void)
 			idx = SIZE_VM_SIZES - 1;
 		}
 
-		for (k = 0; (k < ((1 << idx) / SIZE_PAGE) - 1) && (i + k < pages.freesz + pages.allocsz - 1); k++) {
+		for (k = 0; (k < ((1 << idx) / SIZE_PAGE) - 1) && ((i + k) < (((pages.allocsz + pages.freesz) / SIZE_PAGE) - 1)); k++) {
 			if ((pages.pages[i + 1 + k].flags & PAGE_FREE) == 0) {
 				break;
 			}
