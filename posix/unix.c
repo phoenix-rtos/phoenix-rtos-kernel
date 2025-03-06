@@ -1063,17 +1063,17 @@ int unix_poll(unsigned socket, short events)
 			proc_lockClear(&s->lock);
 		}
 
-		if (events & (POLLOUT | POLLRDNORM | POLLRDBAND)) {
+		if (events & (POLLOUT | POLLWRNORM | POLLWRBAND)) {
 			if ((conn = unixsock_get_connected(s)) != NULL) {
 				proc_lockSet(&conn->lock);
 				if (conn->type == SOCK_STREAM) {
 					if (_cbuffer_free(&conn->buffer) > 0) {
-						err |= events & (POLLOUT | POLLRDNORM | POLLRDBAND);
+						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
 				else {
 					if (_cbuffer_free(&conn->buffer) > sizeof(size_t)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-						err |= events & (POLLOUT | POLLRDNORM | POLLRDBAND);
+						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
 				proc_lockClear(&conn->lock);
