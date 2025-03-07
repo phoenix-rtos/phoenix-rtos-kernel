@@ -90,7 +90,7 @@ static inline void hal_cpuEnableInterrupts(void)
 
 static inline void hal_cpuHalt(void)
 {
-	__asm__ volatile("wfi");
+	// __asm__ volatile("wfi");
 }
 
 
