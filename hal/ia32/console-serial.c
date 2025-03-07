@@ -14,21 +14,24 @@
  */
 
 #include "hal/console.h"
+#include "hal/ia32/console.h"
 #include "ia32.h"
 #include "halsyspage.h"
 
 
-struct {
+static struct {
 	u8 type;
 	u8 speed;
 	void *base;
 } console_common;
 
 
+/* clang-format off */
 enum {
 	thr = 0, rbr = 0, dll = 0, ier = 1, dlh = 1, iir = 2, fcr = 2,
 	lcr = 3, mcr = 4, lsr = 5, msr = 6, scr = 7
 };
+/* clang-format on */
 
 
 static inline void _console_uartWrite(unsigned int reg, u8 val)
@@ -52,14 +55,24 @@ static inline u8 _console_uartRead(unsigned int reg)
 }
 
 
-static void _hal_consolePrint(const char *s)
+void hal_consoleSerialPutch(char c)
 {
-	for (; *s; s++)
-		hal_consolePutch(*s);
+	/* Wait for transmitter readiness */
+	while (!(_console_uartRead(lsr) & 0x20))
+		;
+
+	_console_uartWrite(thr, c);
 }
 
 
-void hal_consolePrint(int attr, const char *s)
+static void _hal_consolePrint(const char *s)
+{
+	for (; *s; s++)
+		hal_consoleSerialPutch(*s);
+}
+
+
+void hal_consoleSerialPrint(int attr, const char *s)
 {
 	if (attr == ATTR_BOLD)
 		_hal_consolePrint(CONSOLE_BOLD);
@@ -71,21 +84,11 @@ void hal_consolePrint(int attr, const char *s)
 }
 
 
-void hal_consolePutch(char c)
-{
-	/* Wait for transmitter readiness */
-	while (!(_console_uartRead(lsr) & 0x20))
-		;
-
-	_console_uartWrite(thr, c);
-}
-
-
-__attribute__ ((section (".init"))) void _hal_consoleInit(void)
+__attribute__((section(".init"))) void _hal_consoleSerialInit(void)
 {
 	void *bases[] = {
-		(void *)0x3f8, (void *)0x2f8, (void *)0x3e8, (void *)0x2e8,   /* regular PC COMs */
-		(void *)0x9000f000u, (void *)0x9000b000u                      /* Galileo UARTs */
+		(void *)0x3f8, (void *)0x2f8, (void *)0x3e8, (void *)0x2e8, /* regular PC COMs */
+		(void *)0x9000f000u, (void *)0x9000b000u                    /* Galileo UARTs */
 	};
 
 
