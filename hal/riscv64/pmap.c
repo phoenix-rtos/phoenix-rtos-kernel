@@ -129,11 +129,39 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 
 addr_t pmap_destroy(pmap_t *pmap, int *i)
 {
-	int kernel = VADDR_KERNEL / ((u64)SIZE_PAGE << 18);
+	const int idx2 = PDIR2_IDX(VADDR_KERNEL);
+	addr_t pdir1, entry;
+	size_t j;
+	spinlock_ctx_t sc;
 
-	while (*i < kernel) {
-		if (pmap->pdir2[*i] != NULL) {
-			return (pmap->pdir2[(*i)++] & (u64)~0x3ff) << 2;
+
+	while (*i < idx2) {
+		entry = pmap->pdir2[*i];
+		if ((entry & PTE_V) != 0) {
+			pdir1 = PTE_TO_ADDR(entry);
+			hal_spinlockSet(&pmap_common.lock, &sc);
+
+			/* Map pdir0 into scratch ptable */
+			pmap_common.pdir0[PDIR0_IDX(pmap_common.ptable)] = PTE(pdir1, 0xc7);
+			hal_cpuLocalFlushTLB(0, pmap_common.ptable);
+			hal_cpuDCacheInval(pmap_common.ptable, sizeof(pmap_common.ptable));
+
+			for (j = 0; j < 512; j++) {
+				entry = pmap_common.ptable[j];
+				if ((entry & PTE_V) != 0) {
+					pmap_common.ptable[j] = 0;
+					hal_spinlockClear(&pmap_common.lock, &sc);
+
+					return PTE_TO_ADDR(entry);
+				}
+			}
+			hal_spinlockClear(&pmap_common.lock, &sc);
+
+			pmap->pdir2[*i] = 0;
+
+			(*i)++;
+
+			return pdir1;
 		}
 		(*i)++;
 	}
