@@ -19,6 +19,7 @@
 
 
 #include "include/types.h"
+#include "include/utsname.h"
 #include "include/posix-fcntl.h"
 #include "include/posix-poll.h"
 #include "include/posix-socket.h"
@@ -103,6 +104,9 @@ extern int posix_connect(int socket, const struct sockaddr *address, socklen_t a
 
 
 extern int posix_gethostname(char *name, size_t namelen);
+
+
+extern int posix_uname(struct utsname *name);
 
 
 extern int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);

@@ -1966,6 +1966,25 @@ int posix_connect(int socket, const struct sockaddr *address, socklen_t address_
 }
 
 
+int posix_uname(struct utsname *name)
+{
+	TRACE("uname()");
+
+	hal_strncpy(name->sysname, "Phoenix-RTOS", sizeof(name->sysname) - 1);
+	name->sysname[sizeof(name->sysname) - 1] = '\0';
+	hal_strncpy(name->nodename, posix_common.hostname, sizeof(name->nodename) - 1);
+	name->nodename[sizeof(name->nodename) - 1] = '\0';
+	hal_strncpy(name->release, RELEASE, sizeof(name->release) - 1);
+	name->release[sizeof(name->release) - 1] = '\0';
+	hal_strncpy(name->version, VERSION, sizeof(name->version) - 1);
+	name->version[sizeof(name->version) - 1] = '\0';
+	hal_strncpy(name->machine, TARGET_FAMILY, sizeof(name->machine) - 1);
+	name->machine[sizeof(name->machine) - 1] = '\0';
+
+	return 0;
+}
+
+
 int posix_gethostname(char *name, size_t namelen)
 {
 	TRACE("gethostname(%zu)", namelen);

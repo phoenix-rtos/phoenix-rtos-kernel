@@ -20,6 +20,7 @@
 #include "include/mman.h"
 #include "include/syscalls.h"
 #include "include/threads.h"
+#include "include/utsname.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
@@ -1855,6 +1856,19 @@ int syscalls_sbi_getchar(char *ustack)
 #else
 	return -1;
 #endif
+}
+
+
+int syscalls_sys_uname(char *ustack)
+{
+	struct utsname *name;
+	GETFROMSTACK(ustack, struct utsname *, name, 0);
+
+	if (vm_mapBelongs(proc_current()->process, name, sizeof(*name)) < 0) {
+		return -EFAULT;
+	}
+
+	return posix_uname(name);
 }
 
 
