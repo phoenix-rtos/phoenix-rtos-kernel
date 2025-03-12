@@ -123,5 +123,6 @@
 	\
 	ID(sys_mprotect) \
 	\
-	ID(sys_statvfs)
+	ID(sys_statvfs) \
+	ID(sys_uname)
 /* clang-format on */
