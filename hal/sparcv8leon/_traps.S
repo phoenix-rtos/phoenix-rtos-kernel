@@ -489,7 +489,7 @@ exc_fpu_done:
 	and %o0, 0xff, %o0
 
 	/* disable traps */
-#ifdef LEON3_USE_PWR
+#ifdef LEON_USE_PWR
 	pwr 0, %psr
 	nop
 	nop
@@ -689,7 +689,7 @@ s_fpu_done:
 	add %sp, 0x60, %o2
 
 	/* disable traps */
-#ifdef LEON3_USE_PWR
+#ifdef LEON_USE_PWR
 	pwr 0, %psr
 	nop
 	nop
@@ -927,7 +927,7 @@ restore_fpu_done:
 hal_cpuReschedule:
 	save %sp, -CPU_CTX_SIZE, %sp
 
-#ifdef LEON3_USE_PWR
+#ifdef LEON_USE_PWR
 	pwr 0, %psr
 	nop
 	nop
@@ -1025,7 +1025,7 @@ r_no_spinlock:
 
 r_return:
 	/* disable traps */
-#ifdef LEON3_USE_PWR
+#ifdef LEON_USE_PWR
 	pwr 0, %psr
 	nop
 	nop
@@ -1096,7 +1096,7 @@ r_cwp_done1:
 .type	hal_jmp, #function
 hal_jmp:
 	save %sp, -0x60, %sp
-#ifdef LEON3_USE_PWR
+#ifdef LEON_USE_PWR
 	pwr 0, %psr
 	nop
 	nop
