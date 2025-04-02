@@ -402,7 +402,6 @@ static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entr
 
 int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 {
-	ptr_t pvaddr;
 	map_entry_t *e, *s;
 	map_entry_t t;
 	process_t *proc = proc_current()->process;
@@ -488,9 +487,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		/* Note: what if NEEDS_COPY? */
 		amap_putanons(e->amap, eAoffs + (int)overlapEOffset, overlapSize);
 
-		for (pvaddr = overlapStart; pvaddr < overlapEnd; pvaddr += SIZE_PAGE) {
-			pmap_remove(&map->pmap, (void *)pvaddr);
-		}
+		pmap_remove(&map->pmap, (void *)overlapStart, (void *)overlapEnd);
 
 		if (putEntry != 0) {
 			_entry_put(map, e);
@@ -580,9 +577,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 		if (_map_force(map, e, w, prot)) {
 			amap_putanons(e->amap, e->aoffs, w - vaddr);
 
-			do
-				pmap_remove(&map->pmap, w);
-			while (w > vaddr && (w -= SIZE_PAGE));
+			pmap_remove(&map->pmap, vaddr, (void *)((ptr_t)w + SIZE_PAGE));
 
 			_entry_put(map, e);
 			return NULL;

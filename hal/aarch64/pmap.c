@@ -214,7 +214,7 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 }
 
 
-static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, void *vaddr, unsigned lvl)
+static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, ptr_t vaddr, unsigned lvl)
 {
 	addr_t pa;
 	int oldCachedRW, newNoncached;
@@ -231,10 +231,10 @@ static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, void *
 	oldCachedRW = ((oldEntry & DESCR_AP2) == 0) && (ATTR_FROM_DESCR(oldEntry) == MAIR_IDX_CACHED);
 	newNoncached = ((newEntry & DESCR_VALID) == 0) || (ATTR_FROM_DESCR(newEntry) != MAIR_IDX_CACHED);
 	if (oldCachedRW && newNoncached) {
-		pa = _pmap_hwTranslate((ptr_t)vaddr);
+		pa = _pmap_hwTranslate(vaddr);
 		if (((pa & 1) == 0) && (DESCR_PA(oldEntry) == (pa & ((1uL << 48) - (1uL << 12))))) {
 			/* VA is currently mapped - simply flush cache by virtual address */
-			hal_cpuFlushDataCache((ptr_t)vaddr, (ptr_t)vaddr + SIZE_PAGE);
+			hal_cpuFlushDataCache(vaddr, vaddr + SIZE_PAGE);
 		}
 		else {
 			/* Temporarily map to pmap_common.scratch_page */
@@ -246,7 +246,7 @@ static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, void *
 }
 
 
-static void _pmap_cacheOpAfterChange(descr_t newEntry, void *vaddr, unsigned lvl)
+static void _pmap_cacheOpAfterChange(descr_t newEntry, ptr_t vaddr, unsigned lvl)
 {
 	if ((newEntry & DESCR_VALID) == 0) {
 		return;
@@ -259,7 +259,7 @@ static void _pmap_cacheOpAfterChange(descr_t newEntry, void *vaddr, unsigned lvl
 
 	/* Instruction cache may contain old data */
 	if ((newEntry & (DESCR_PXN | DESCR_UXN)) == 0) {
-		hal_cpuInvalInstrCache((ptr_t)vaddr, (ptr_t)vaddr + SIZE_PAGE);
+		hal_cpuInvalInstrCache(vaddr, vaddr + SIZE_PAGE);
 	}
 }
 
@@ -439,7 +439,7 @@ static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 		}
 	}
 
-	_pmap_cacheOpBeforeChange(oldDescr, descr, va, 3);
+	_pmap_cacheOpBeforeChange(oldDescr, descr, (ptr_t)va, 3);
 	hal_cpuDataSyncBarrier();
 	if ((oldDescr & DESCR_VALID) != 0) {
 		/* D8.16.1 Using break-before-make when updating translation table entries */
@@ -449,7 +449,7 @@ static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 
 	pmap_common.scratch_tt[idx] = descr;
 	hal_cpuDataSyncBarrier();
-	_pmap_cacheOpAfterChange(descr, va, 3);
+	_pmap_cacheOpAfterChange(descr, (ptr_t)va, 3);
 }
 
 
@@ -509,43 +509,62 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, int attr, page_t *alloc)
 }
 
 
-void _pmap_remove(pmap_t *pmap, void *vaddr)
+void _pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 {
 	unsigned lvl;
 	volatile descr_t *tt;
 	descr_t entry;
 	addr_t addr;
+	ptr_t vaddr;
+	int foundttl3 = 0, descrValid = 1;
 
-	tt = pmap->ttl1;
-	for (lvl = 1; lvl <= 3; lvl++) {
-		entry = tt[TTL_IDX(lvl, vaddr)];
-		if ((entry & DESCR_VALID) == 0) {
-			return;
+	for (vaddr = (ptr_t)vstart; vaddr < (ptr_t)vend; vaddr += SIZE_PAGE) {
+		if ((foundttl3 == 0) || (TTL_IDX(3, vaddr) == 0)) {
+			foundttl3 = 0; /* Set when IDX = 0 */
+
+			tt = pmap->ttl1;
+
+			for (lvl = 1; (lvl <= 3); lvl++) {
+				entry = tt[TTL_IDX(lvl, vaddr)];
+				if ((entry & DESCR_VALID) == 0) {
+					descrValid = 0;
+					break;
+				}
+				else if (lvl == 3) {
+					foundttl3 = 1;
+					break;
+				}
+				else if ((entry & DESCR_TABLE) == 0) {
+					break;
+				}
+				else {
+					addr = DESCR_PA(entry);
+					_pmap_mapScratch(pmap_common.scratch_tt, addr);
+					tt = pmap_common.scratch_tt;
+				}
+			}
 		}
-		else if ((lvl == 3) || ((entry & DESCR_TABLE) == 0)) {
-			break;
+
+		if (descrValid == 1) {
+			_pmap_cacheOpBeforeChange(entry, 0, vaddr, lvl);
+			hal_cpuDataSyncBarrier();
+			tt[TTL_IDX(lvl, vaddr)] = 0;
+			pmap_tlbInval(vaddr, pmap->asid);
+			_pmap_cacheOpAfterChange(0, vaddr, lvl);
 		}
 		else {
-			addr = DESCR_PA(entry);
-			_pmap_mapScratch(pmap_common.scratch_tt, addr);
-			tt = pmap_common.scratch_tt;
+			descrValid = 1;
 		}
 	}
-
-	_pmap_cacheOpBeforeChange(entry, 0, vaddr, lvl);
-	hal_cpuDataSyncBarrier();
-	tt[TTL_IDX(lvl, vaddr)] = 0;
-	pmap_tlbInval((ptr_t)vaddr, pmap->asid);
-	_pmap_cacheOpAfterChange(0, vaddr, lvl);
 }
 
 
-int pmap_remove(pmap_t *pmap, void *vaddr)
+int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 {
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
-	_pmap_remove(pmap, vaddr);
+	_pmap_remove(pmap, vstart, vend);
 	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	return EOK;
