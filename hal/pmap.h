@@ -45,8 +45,8 @@ extern void pmap_switch(pmap_t *pmap);
 extern int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, int attrs, page_t *alloc);
 
 
-/* Function removes mapping for given address */
-extern int pmap_remove(pmap_t *pmap, void *vaddr);
+/* Function removes mapping in range [vstart, vend) */
+extern int pmap_remove(pmap_t *pmap, void *vaddr, void *vend);
 
 
 extern addr_t pmap_resolve(pmap_t *pmap, void *vaddr);
