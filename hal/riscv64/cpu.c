@@ -180,11 +180,11 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	if (ustack != NULL) {
 		ctx->sp = (u64)ustack;
-		ctx->sstatus = (csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SUM) & ~SSTATUS_SPP;
+		ctx->sstatus = (csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SUM) & ~(SSTATUS_SPP | SSTATUS_FS);
 		ctx->tp = tls->tls_base;
 	}
 	else {
-		ctx->sstatus = csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SPP;
+		ctx->sstatus = (csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SPP) & ~SSTATUS_FS;
 		ctx->tp = 0;
 	}
 
