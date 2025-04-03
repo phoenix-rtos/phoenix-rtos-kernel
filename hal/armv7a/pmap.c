@@ -66,6 +66,7 @@ extern unsigned int _etext;
 #define PDIR_TYPE_L2TABLE 0x00001
 #define PDIR_TYPE_INVALID 0x00000
 
+#define SCRATCH_ATTRS (PGHD_PRESENT | PGHD_READ | PGHD_WRITE)
 
 struct {
 	u32 kpdir[0x1000]; /* Has to be first in the structure */
@@ -285,7 +286,7 @@ static void _pmap_addTable(pmap_t *pmap, int pdi, addr_t pa)
 
 static void _pmap_mapScratch(addr_t pa, unsigned char asid)
 {
-	_pmap_writeEntry(pmap_common.kptab, pmap_common.sptab, pa, PGHD_PRESENT | PGHD_READ | PGHD_WRITE, asid);
+	_pmap_writeEntry(pmap_common.kptab, pmap_common.sptab, pa, SCRATCH_ATTRS, asid);
 }
 
 
@@ -353,32 +354,37 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 }
 
 
-int pmap_remove(pmap_t *pmap, void *vaddr)
+int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 {
 	unsigned int pdi, pti;
 	addr_t addr;
-	unsigned char asid;
 	spinlock_ctx_t sc;
-
-	pdi = ID_PDIR((ptr_t)vaddr);
-	pti = ID_PTABLE((ptr_t)vaddr);
+	ptr_t vaddr;
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
-	if (!(addr = pmap->pdir[pdi])) {
-		hal_spinlockClear(&pmap_common.lock, &sc);
-		return EOK;
+
+	const u8 asid = pmap_common.asids[pmap->asid_ix];
+
+	for (vaddr = (ptr_t)vstart; vaddr < (ptr_t)vend; vaddr += SIZE_PAGE) {
+		pdi = ID_PDIR(vaddr);
+		pti = ID_PTABLE(vaddr);
+
+		addr = pmap->pdir[pdi];
+		if (addr == PDIR_TYPE_INVALID) {
+			continue;
+		}
+
+		/* Map page table corresponding to vaddr */
+		if (pmap_common.kptab[ID_PTABLE(pmap_common.sptab)] != ((addr & ~0xfff) | attrMap[SCRATCH_ATTRS])) {
+			_pmap_mapScratch(addr, asid);
+		}
+
+		if (pmap_common.sptab[pti] == 0) {
+			continue;
+		}
+
+		_pmap_writeEntry(pmap_common.sptab, (void *)vaddr, 0, 0, asid);
 	}
-
-	/* Map page table corresponding to vaddr */
-	asid = pmap_common.asids[pmap->asid_ix];
-	_pmap_mapScratch(addr, asid);
-
-	if (pmap_common.sptab[pti] == 0) {
-		hal_spinlockClear(&pmap_common.lock, &sc);
-		return EOK;
-	}
-
-	_pmap_writeEntry(pmap_common.sptab, vaddr, 0, 0, asid);
 
 	hal_spinlockClear(&pmap_common.lock, &sc);
 
@@ -552,7 +558,6 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
 	int i;
-	void *v;
 
 	pmap_common.asidptr = 0;
 	pmap->asid_ix = 0;
@@ -594,6 +599,5 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Create initial heap */
 	pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL);
 
-	for (v = *vend; v < (void *)VADDR_KERNEL + (4 * 1024 * 1024); v += SIZE_PAGE)
-		pmap_remove(pmap, v);
+	pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (4 * 1024 * 1024)));
 }

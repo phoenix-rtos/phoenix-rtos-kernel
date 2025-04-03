@@ -34,9 +34,9 @@
 #define CONTEXT_INVALID 0xffffffffu
 #define CONTEXT_SHARED  255
 
-#define PDIR1_IDX(vaddr) ((u32)(vaddr) >> 24)
-#define PDIR2_IDX(vaddr) (((u32)(vaddr) >> 18) & 0x3f)
-#define PDIR3_IDX(vaddr) (((u32)(vaddr) >> 12) & 0x3f)
+#define PDIR1_IDX(vaddr) ((ptr_t)(vaddr) >> 24)
+#define PDIR2_IDX(vaddr) (((ptr_t)(vaddr) >> 18) & 0x3f)
+#define PDIR3_IDX(vaddr) (((ptr_t)(vaddr) >> 12) & 0x3f)
 
 #define UNCACHED 0
 #define CACHED   1
@@ -198,9 +198,9 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 	pmap->context = CONTEXT_INVALID;
 	hal_memset(pmap->pdir1, 0, 256 * sizeof(u32));
 	hal_memcpy(
-		&pmap->pdir1[PDIR1_IDX(VADDR_KERNEL)],
-		&kpmap->pdir1[PDIR1_IDX(VADDR_KERNEL)],
-		(VADDR_MAX - VADDR_KERNEL + 1) >> 24);
+			&pmap->pdir1[PDIR1_IDX(VADDR_KERNEL)],
+			&kpmap->pdir1[PDIR1_IDX(VADDR_KERNEL)],
+			(VADDR_MAX - VADDR_KERNEL + 1) >> 24);
 
 	return 0;
 }
@@ -417,38 +417,51 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 }
 
 
-int pmap_remove(pmap_t *pmap, void *vaddr)
+int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 {
-	u8 idx1 = PDIR1_IDX(vaddr), idx2 = PDIR2_IDX(vaddr), idx3 = PDIR3_IDX(vaddr);
-	addr_t addr, descr;
+	size_t idx1, idx2, idx3;
+	addr_t addr = 0, descr;
 	spinlock_ctx_t sc;
+	ptr_t vaddr;
+	int foundidx3 = 0;
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
 
-	descr = pmap->pdir1[idx1];
+	for (vaddr = (ptr_t)vstart; vaddr < (ptr_t)vend; vaddr += SIZE_PAGE) {
+		idx1 = PDIR1_IDX(vaddr);
+		idx2 = PDIR2_IDX(vaddr);
+		idx3 = PDIR3_IDX(vaddr);
 
-	if ((descr & 0x3) == PAGE_INVALID) {
-		hal_spinlockClear(&pmap_common.lock, &sc);
-		return EOK;
-	}
+		if ((foundidx3 == 0) || (idx3 == 0)) {
+			foundidx3 = 0; /* Set when idx3 = 0 */
+			descr = pmap->pdir1[idx1];
 
-	addr = PTD_TO_ADDR(descr);
-	descr = hal_cpuLoadPaddr(&((u32 *)addr)[idx2]);
+			if ((descr & 0x3) == PAGE_INVALID) {
+				continue;
+			}
 
-	if ((descr & 0x3) == PAGE_INVALID) {
-		hal_spinlockClear(&pmap_common.lock, &sc);
-		return EOK;
-	}
+			addr = PTD_TO_ADDR(descr);
+			descr = hal_cpuLoadPaddr(&((u32 *)addr)[idx2]);
 
-	hal_cpuflushDCacheL1();
+			if ((descr & 0x3) == PAGE_INVALID) {
+				continue;
+			}
+			addr = PTD_TO_ADDR(descr);
+			foundidx3 = 1;
+		}
+
+		hal_cpuflushDCacheL1();
 #ifdef LEON_HAS_L2CACHE
-	l2c_flushRange(l2c_flush_inv_line, (ptr_t)vaddr, SIZE_PAGE);
+		l2c_flushRange(l2c_flush_inv_line, (ptr_t)vaddr, SIZE_PAGE);
 #endif
-	addr = PTD_TO_ADDR(descr);
-	hal_cpuStorePaddr(&((u32 *)addr)[idx3], 0);
-	hal_cpuflushDCacheL1();
+		hal_cpuStorePaddr(&((u32 *)addr)[idx3], 0);
 
-	hal_tlbInvalidateEntry(pmap, vaddr, 1);
+#ifdef __CPU_GR712RC /* Errata */
+		hal_cpuflushDCacheL1();
+#endif
+	}
+
+	hal_tlbInvalidateEntry(pmap, vstart, CEIL_PAGE((ptr_t)vend - (ptr_t)vstart) / SIZE_PAGE);
 
 	hal_tlbCommit(&pmap_common.lock, &sc);
 

@@ -139,7 +139,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
 }
 
 
-int _pmap_removeMany(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tlbInval)
+static int _pmap_remove(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tlbInval)
 {
 	u32 pdi, pti;
 	addr_t addr, *ptable;
@@ -185,12 +185,13 @@ int _pmap_removeMany(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tlbIn
 }
 
 
-static int pmap_removeMany(pmap_t *pmap, void *vaddr, size_t count)
+int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 {
 	spinlock_ctx_t sc;
 	int ret;
+	size_t count = ((ptr_t)vend - (ptr_t)vstart) / SIZE_PAGE;
 	hal_spinlockSet(&pmap_common.lock, &sc);
-	ret = _pmap_removeMany(pmap->pdir, hal_config.ptable, vaddr, count, 1);
+	ret = _pmap_remove(pmap->pdir, hal_config.ptable, vstart, count, 1);
 	if (ret == EOK) {
 		hal_tlbCommit(&pmap_common.lock, &sc);
 	}
@@ -198,12 +199,6 @@ static int pmap_removeMany(pmap_t *pmap, void *vaddr, size_t count)
 		hal_spinlockClear(&pmap_common.lock, &sc);
 	}
 	return ret;
-}
-
-
-int pmap_remove(pmap_t *pmap, void *vaddr)
-{
-	return pmap_removeMany(pmap, vaddr, 1);
 }
 
 
@@ -425,8 +420,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Move heap start above BIOS Data Area */
 	(*vstart) += 0x500;
 
-	pmap_removeMany(pmap, *vend, ((void *)VADDR_KERNEL + (4 << 20) - *vend) / SIZE_PAGE);
+	pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (4 << 20)));
 	hal_tlbFlushLocal(NULL);
-
-	return;
 }

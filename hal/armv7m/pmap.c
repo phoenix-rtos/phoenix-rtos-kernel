@@ -110,7 +110,7 @@ int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 }
 
 
-int pmap_remove(pmap_t *pmap, void *vaddr)
+int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 {
 	return 0;
 }
