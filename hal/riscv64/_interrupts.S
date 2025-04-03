@@ -385,6 +385,7 @@ _interrupts_exceptionFpu:
 	or t3, t3, t1
 	sd t3, 240(sp)
 
+	fscsr zero, zero
 	fmv.d.x f0, zero
 	fmv.d.x f1, zero
 	fmv.d.x f2, zero
