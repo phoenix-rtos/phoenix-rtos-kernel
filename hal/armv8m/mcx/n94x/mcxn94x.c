@@ -597,6 +597,20 @@ int hal_platformctl(void *ptr)
 			}
 			break;
 
+		case pctl_cpuid:
+			if (data->action != pctl_get) {
+				ret = -ENOSYS;
+			}
+			else {
+#ifdef MCX_USE_CPU1
+				data->cpuid = 1;
+#else
+				data->cpuid = 0;
+#endif
+				ret = 0;
+			}
+			break;
+
 		default:
 			ret = -EINVAL;
 			break;

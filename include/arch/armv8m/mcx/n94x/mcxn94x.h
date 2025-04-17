@@ -139,7 +139,7 @@ enum {
 
 typedef struct {
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclk = 0, pctl_devrst, pctl_pinConf, pctl_reboot } type;
+	enum { pctl_devclk = 0, pctl_devrst, pctl_pinConf, pctl_reboot, pctl_cpuid } type;
 
 	union {
 		struct {
@@ -164,6 +164,8 @@ typedef struct {
 			int mux;
 			int options;
 		} pinConf;
+
+		int cpuid;
 	};
 } __attribute__((packed)) platformctl_t;
 
