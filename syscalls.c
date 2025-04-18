@@ -287,7 +287,7 @@ int syscalls_gettid(void *ustack)
 }
 
 
-int syscalls_beginthreadex(void *ustack)
+int syscalls_beginthreadexsvc(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	void (*start)(void *);
@@ -319,7 +319,7 @@ int syscalls_beginthreadex(void *ustack)
 }
 
 
-int syscalls_endthread(void *ustack)
+int syscalls_endthreadsvc(void *ustack)
 {
 	proc_threadEnd();
 	return EOK;
