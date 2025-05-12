@@ -21,6 +21,7 @@
 #include "include/syscalls.h"
 #include "include/threads.h"
 #include "include/utsname.h"
+#include "include/perf.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
@@ -484,10 +485,12 @@ int syscalls_syspageprog(void *ustack)
 int syscalls_perf_start(void *ustack)
 {
 	unsigned pid;
+	perf_mode_t mode;
 
 	GETFROMSTACK(ustack, unsigned, pid, 0);
+	GETFROMSTACK(ustack, perf_mode_t, mode, 1);
 
-	return perf_start(pid);
+	return perf_start(pid, mode);
 }
 
 

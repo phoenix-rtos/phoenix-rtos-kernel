@@ -31,6 +31,10 @@ const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
 static thread_t *const wakeupPending = (void *)-1;
 
+
+#define THREADS_PERF_BUFSIZE    (4 << 20)
+#define THREADS_PERF_CSTACKSIZE (SIZE_PAGE)
+
 struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
@@ -55,10 +59,12 @@ struct {
 	thread_t *volatile ghosts;
 	thread_t *reaper;
 
-	int perfGather;
+	perf_mode_t perfMode;
 	time_t perfLastTimestamp;
 	cbuffer_t perfBuffer;
 	page_t *perfPages;
+	intr_handler_t perfIntrHandler;
+	ptr_t *perfCstackBuffer;
 
 	/* Debug */
 	unsigned char stackCanary[16];
@@ -128,8 +134,9 @@ static void _perf_event(thread_t *t, int type)
 			t->maxWait = wait;
 	}
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfMode != perf_mode_threads) {
 		return;
+	}
 
 	ev.type = type;
 
@@ -170,8 +177,9 @@ static void _perf_begin(thread_t *t)
 	perf_levent_begin_t ev;
 	time_t now;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfMode != perf_mode_threads) {
 		return;
+	}
 
 	ev.sbz = 0;
 	ev.type = perf_levBegin;
@@ -193,8 +201,9 @@ void perf_end(thread_t *t)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfMode != perf_mode_threads) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
@@ -216,8 +225,9 @@ void perf_fork(process_t *p)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfMode != perf_mode_threads) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
@@ -241,8 +251,9 @@ void perf_kill(process_t *p)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfMode != perf_mode_threads) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
@@ -266,8 +277,9 @@ void perf_exec(process_t *p, char *path)
 	int plen;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfMode != perf_mode_threads) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
@@ -331,30 +343,92 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 }
 
 
-int perf_start(unsigned pid)
+static int threads_perfCallsIntr(unsigned int n, cpu_context_t *context, void *arg)
+{
+	int d;
+	spinlock_ctx_t sc;
+
+	ptr_t *buf = threads_common.perfCstackBuffer;
+	thread_t *current = _proc_current();
+	u32 tid = proc_getTid(current);
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	if (threads_common.perfMode != perf_mode_calls) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return 0;
+	}
+
+	d = hal_perfStackUnwind(context, current->kstack, current->kstacksz, buf, THREADS_PERF_CSTACKSIZE);
+	if (d > 0) {
+		/* TODO: pack a struct? */
+		_cbuffer_write(&threads_common.perfBuffer, &tid, sizeof(u32));
+		_cbuffer_write(&threads_common.perfBuffer, &d, sizeof(int));
+		_cbuffer_write(&threads_common.perfBuffer, buf, d * sizeof(ptr_t));
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return 0;
+}
+
+
+int perf_start(unsigned pid, perf_mode_t mode)
 {
 	void *data;
 	spinlock_ctx_t sc;
+	int ret;
 
-	if (!pid)
+	if (pid == 0) {
 		return -EINVAL;
+	}
 
-	if (threads_common.perfGather)
-		return -EINVAL;
-
-	/* Allocate 4M for events */
-	data = perf_bufferAlloc(&threads_common.perfPages, 4 << 20);
-
-	if (data == NULL)
-		return -ENOMEM;
-
-	_cbuffer_init(&threads_common.perfBuffer, data, 4 << 20);
-
-	/* Start gathering events */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	threads_common.perfGather = 1;
-	threads_common.perfLastTimestamp = _proc_gettimeRaw();
+	if (threads_common.perfMode != perf_mode_off) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return -EINVAL;
+	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	switch (mode) {
+		case perf_mode_off:
+			return -EINVAL;
+		case perf_mode_threads:
+			data = perf_bufferAlloc(&threads_common.perfPages, THREADS_PERF_BUFSIZE);
+
+			if (data == NULL) {
+				return -ENOMEM;
+			}
+
+			_cbuffer_init(&threads_common.perfBuffer, data, THREADS_PERF_BUFSIZE);
+
+			/* Start gathering events */
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+			threads_common.perfMode = mode;
+			threads_common.perfLastTimestamp = _proc_gettimeRaw();
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			break;
+		case perf_mode_calls:
+			ret = hal_auxTimerRegister(threads_perfCallsIntr, NULL, &threads_common.perfIntrHandler);
+			if (ret < 0) {
+				return -ENOSYS;
+			}
+
+			/* FIXME: perf_bufferAlloc locks threads_common.spinlock?? why */
+			data = perf_bufferAlloc(&threads_common.perfPages, THREADS_PERF_BUFSIZE + THREADS_PERF_CSTACKSIZE);
+
+			if (data == NULL) {
+				return -ENOMEM;
+			}
+
+			_cbuffer_init(&threads_common.perfBuffer, data, THREADS_PERF_BUFSIZE);
+			threads_common.perfCstackBuffer = (ptr_t *)((char *)data + THREADS_PERF_BUFSIZE);
+
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+			/* Start gathering events */
+			threads_common.perfMode = mode;
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			break;
+	}
 
 	return EOK;
 }
@@ -372,19 +446,27 @@ int perf_read(void *buffer, size_t bufsz)
 }
 
 
-int perf_finish()
+int perf_finish(void)
 {
 	spinlock_ctx_t sc;
+	perf_mode_t prev;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (threads_common.perfGather) {
-		threads_common.perfGather = 0;
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+	prev = threads_common.perfMode;
+	threads_common.perfMode = perf_mode_off;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-		perf_bufferFree(threads_common.perfBuffer.data, &threads_common.perfPages);
+	switch (prev) {
+		case perf_mode_off:
+			break;
+		case perf_mode_threads:
+			perf_bufferFree(threads_common.perfBuffer.data, &threads_common.perfPages);
+			break;
+		case perf_mode_calls:
+			hal_interruptsDeleteHandler(&threads_common.perfIntrHandler);
+			perf_bufferFree(threads_common.perfBuffer.data, &threads_common.perfPages);
+			break;
 	}
-	else
-		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return EOK;
 }
@@ -2030,7 +2112,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.idcounter = 0;
 	threads_common.prev = 0;
 
-	threads_common.perfGather = 0;
+	threads_common.perfMode = perf_mode_off;
 
 	proc_lockInit(&threads_common.lock, &proc_lockAttrDefault, "threads.common");
 

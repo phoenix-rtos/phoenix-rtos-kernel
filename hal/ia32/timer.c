@@ -37,10 +37,14 @@
 
 /* 64 bit registers, access must be aligned
    Trying to use exclusive-access mechanisms (ex. lock mov, xchg, etc.) is undefined */
-#define HPET_ID         0x00
-#define HPET_CONFIG     0x10
-#define HPET_IRQ_STATUS 0x20
-#define HPET_COUNTER    0xf0
+#define HPET_ID          0x00
+#define HPET_CONFIG      0x10
+#define HPET_IRQ_STATUS  0x20
+#define HPET_COUNTER     0xf0
+#define HPET_TMR0_CONFIG 0x100
+
+#define HPET_TMR0_CMP_LO 0x108
+#define HPET_TMR0_CMP_HI 0x10c
 
 #define HPET_ID_LEGACY_CAPABLE           (1u << 15)
 #define HPET_LEGACY_TMR1_IRQ             8
@@ -49,9 +53,17 @@
 #define HPET_CONFIG_TMR_CAN_BE_PERIODIC  (1u << 4)
 #define HPET_CONFIG_TMR_PERIODIC_CAN_SET (1u << 6)
 #define HPET_CONFIG_TMR_32BIT_MODE       (1u << 8)
+#define HPET_CONFIG_TMR_FSB_EN           (1u << 14)
+
+/* TODO: make these paremeters in aux timer allocation API */
+#define HPET_AUX_TIMER_INTERVAL 50000
+#define HPET_AUX_TIMER_IRQ      14
+#define HPET_AUX_TIMER_ID       0
 
 typedef struct {
+	/* clang-format off */
 	enum { timer_undefined, timer_pit, timer_lapic, timer_hpet } type;
+	/* clang-format on */
 	unsigned int (*name)(char *s, unsigned int *len);
 	int (*init)(u32 intervalUs);
 
@@ -68,6 +80,8 @@ typedef struct {
 
 struct {
 	intr_handler_t handler;
+	intr_handler_t auxHandler;
+
 	spinlock_t sp;
 	u32 intervalUs;
 
@@ -372,8 +386,30 @@ static int _hal_hpetInit(u32 intervalUs)
 	if (_hal_gasRead32(&timer_common.hpetData.addr, HPET_ID + sizeof(u32), &timer_common.hpetData.period) != 0) {
 		return -1;
 	}
+
+	u8 irq = HPET_AUX_TIMER_IRQ;
+	u32 val = _hal_hpetRead(HPET_TMR0_CONFIG + HPET_AUX_TIMER_ID * 0x20);
+
+	/* set irq */
+	val = (val & ~(0x1f << 9)) | ((irq & 0x1f) << 9);
+
+	val &= ~((u32)(HPET_CONFIG_TMR_32BIT_MODE | HPET_CONFIG_TMR_FSB_EN));
+
+	val |= HPET_CONFIG_TMR_IRQ_EN | HPET_CONFIG_TMR_PERIODIC | HPET_CONFIG_TMR_PERIODIC_CAN_SET;
+
+	_hal_hpetWrite(HPET_TMR0_CONFIG + HPET_AUX_TIMER_ID * 0x20, val);
+
+	val = _hal_hpetRead(HPET_TMR0_CONFIG + HPET_AUX_TIMER_ID * 0x20);
+
 	_hal_hpetSetCounter(0ULL);
+
+	time_t next = _hal_hpetGetCounter() + HPET_AUX_TIMER_INTERVAL;
+
+	_hal_hpetWrite(HPET_TMR0_CMP_LO + HPET_AUX_TIMER_ID * 0x20, (u32)(next));
+	_hal_hpetWrite(HPET_TMR0_CMP_HI + HPET_AUX_TIMER_ID * 0x20, (u32)(next >> 32));
+
 	_hal_hpetEnable(1);
+
 	return 0;
 }
 
@@ -548,6 +584,21 @@ static const hal_timer_t _hal_hpetTimer = {
 	.timestampGetUs = _hal_hpetGetUs,
 	.timestampBusyWaitUs = _hal_hpetBusyWaitUs,
 };
+
+
+/* TODO: add aux timer to hal_timer_t */
+int hal_auxTimerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+{
+	if (timer_common.timestampTimer != &_hal_hpetTimer) {
+		return -1;
+	}
+
+	h->f = f;
+	h->n = HPET_AUX_TIMER_IRQ;
+	h->data = data;
+
+	return hal_interruptsSetHandler(h);
+}
 
 
 void _hal_timerInit(u32 intervalUs)

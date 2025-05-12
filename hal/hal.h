@@ -27,6 +27,7 @@
 #include "exceptions.h"
 #include "timer.h"
 #include "types.h"
+#include "perf.h"
 
 
 typedef struct _hal_tls_t {

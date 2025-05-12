@@ -20,6 +20,7 @@
 #include "hal/hal.h"
 #include "lib/lib.h"
 #include "include/sysinfo.h"
+#include "include/perf.h"
 #include "process.h"
 #include "lock.h"
 
@@ -27,6 +28,7 @@
 #define THREAD_END     1
 #define THREAD_END_NOW 2
 
+/* clang-format off */
 /* Parent thread states */
 enum { PREFORK = 0, FORKING = 1, FORKED };
 
@@ -34,6 +36,7 @@ enum { PREFORK = 0, FORKING = 1, FORKED };
 enum { OWNSTACK = 0, PARENTSTACK };
 
 enum { READY = 0, SLEEP, GHOST };
+/* clang-format on */
 
 
 typedef struct _thread_t {
@@ -94,7 +97,7 @@ static inline int proc_getTid(thread_t *t)
 }
 
 
-extern int perf_start(unsigned pid);
+extern int perf_start(unsigned pid, perf_mode_t mode);
 
 
 extern int perf_read(void *buffer, size_t bufsz);

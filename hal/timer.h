@@ -29,6 +29,10 @@ extern void hal_timerSetWakeup(u32 waitUs);
 extern int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h);
 
 
+/* TODO: merge with hal_timerRegister */
+extern int hal_auxTimerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h);
+
+
 extern void _hal_timerInit(u32 interval);
 
 
