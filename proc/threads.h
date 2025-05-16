@@ -27,6 +27,8 @@
 #define THREAD_END     1
 #define THREAD_END_NOW 2
 
+/* clang-format off */
+
 /* Parent thread states */
 enum { PREFORK = 0, FORKING = 1, FORKED };
 
@@ -34,6 +36,8 @@ enum { PREFORK = 0, FORKING = 1, FORKED };
 enum { OWNSTACK = 0, PARENTSTACK };
 
 enum { READY = 0, SLEEP, GHOST };
+
+/* clang-format on */
 
 
 typedef struct _thread_t {
