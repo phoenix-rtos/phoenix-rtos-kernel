@@ -24,6 +24,7 @@
 
 #include "hal/arm/barriers.h"
 #include "hal/arm/scs.h"
+#include "hal/arm/rtt.h"
 
 #include <board_config.h>
 
@@ -776,6 +777,7 @@ void _imxrt_init(void)
 	imxrt_common.cpuclk = 696000000;
 
 	_hal_scsInit();
+	_hal_rttInit();
 
 	/* WDOG1 and WDOG2 can't be disabled once enabled */
 

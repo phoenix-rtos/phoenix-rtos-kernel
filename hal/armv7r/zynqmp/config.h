@@ -19,6 +19,7 @@
 
 #define NUM_CPUS        1
 #define SIZE_INTERRUPTS 188
+#define TIMER_IRQ_ID    68
 
 #ifndef __ASSEMBLY__
 

@@ -24,6 +24,8 @@
 
 #include "include/errno.h"
 
+#include "perf/trace-events.h"
+
 #include <board_config.h>
 
 
@@ -48,6 +50,8 @@ static struct {
 		unsigned int counters[PLIC_IRQ_SIZE];
 		intr_handler_t *handlers[PLIC_IRQ_SIZE];
 	} plic;
+
+	int trace_irqs;
 } interrupts_common;
 
 
@@ -59,12 +63,18 @@ static int interrupts_dispatchPlic(cpu_context_t *ctx)
 	int reschedule = 0;
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
+	int trace;
 
 	unsigned int irq = plic_claim(PLIC_SCONTEXT(hal_cpuGetID()));
 	RISCV_FENCE(o, i);
 
 	if (irq == 0) {
 		return 0;
+	}
+
+	trace = interrupts_common.trace_irqs != 0 && irq != SYSTICK_IRQ;
+	if (trace != 0) {
+		trace_eventInterruptEnter(irq);
 	}
 
 	hal_spinlockSet(&interrupts_common.plic.spinlocks[irq], &sc);
@@ -87,6 +97,10 @@ static int interrupts_dispatchPlic(cpu_context_t *ctx)
 
 	plic_complete(PLIC_SCONTEXT(hal_cpuGetID()), irq);
 
+	if (trace != 0) {
+		trace_eventInterruptExit(irq);
+	}
+
 	return reschedule;
 }
 
@@ -96,6 +110,12 @@ static int interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
+	int trace;
+
+	trace = interrupts_common.trace_irqs != 0 && n != SYSTICK_IRQ;
+	if (trace != 0) {
+		trace_eventInterruptEnter(n);
+	}
 
 	hal_spinlockSet(&interrupts_common.clint.spinlocks[n], &sc);
 
@@ -114,6 +134,10 @@ static int interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 	}
 
 	hal_spinlockClear(&interrupts_common.clint.spinlocks[n], &sc);
+
+	if (trace != 0) {
+		trace_eventInterruptExit(n);
+	}
 
 	return reschedule;
 }
@@ -248,9 +272,17 @@ void hal_interruptsInitCore(void)
 }
 
 
+void _hal_interruptsTrace(int enable)
+{
+	interrupts_common.trace_irqs = !!enable;
+}
+
+
 __attribute__((section(".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int i;
+
+	interrupts_common.trace_irqs = 0;
 
 	csr_write(stvec, _interrupts_dispatch);
 	for (i = 0; i < CLINT_IRQ_SIZE; i++) {

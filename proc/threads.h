@@ -88,19 +88,19 @@ typedef struct _thread_t {
 } thread_t;
 
 
-static inline int proc_getTid(thread_t *t)
+static inline int proc_getTid(const thread_t *t)
 {
 	return t->idlinkage.id;
 }
 
 
-extern int perf_start(unsigned pid);
+extern int perf_threadsStart(unsigned pid);
 
 
-extern int perf_read(void *buffer, size_t bufsz);
+extern int perf_threadsRead(void *buffer, size_t bufsz);
 
 
-extern int perf_finish(void);
+extern int perf_threadsFinish(void);
 
 
 extern void perf_fork(process_t *p);

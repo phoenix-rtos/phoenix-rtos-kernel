@@ -18,6 +18,8 @@
 
 #define SIZE_INTERRUPTS (171 + 16)
 
+#define TIMER_IRQ_ID ostimer0_irq
+
 #ifndef __ASSEMBLY__
 
 #include "include/arch/armv8m/mcx/syspage.h"

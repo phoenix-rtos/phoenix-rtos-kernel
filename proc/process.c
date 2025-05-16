@@ -29,6 +29,7 @@
 #include "msg.h"
 #include "ports.h"
 #include "userintr.h"
+#include "perf/trace-events.h"
 
 
 typedef struct {
@@ -81,6 +82,7 @@ static void process_destroy(process_t *p)
 	vm_map_t *mapp = p->mapp, *imapp = p->imapp;
 
 	perf_kill(p);
+	trace_eventProcessKill(p);
 
 	posix_died(process_getPid(p), p->exit);
 

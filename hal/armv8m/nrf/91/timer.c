@@ -82,7 +82,7 @@ time_t hal_timerGetUs(void)
 int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
 	h->f = f;
-	h->n = SYSTICK_IRQ;
+	h->n = TIMER_IRQ_ID;
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);

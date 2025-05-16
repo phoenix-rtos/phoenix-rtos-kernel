@@ -187,7 +187,7 @@ static void _hal_uartInit(void)
 void _hal_consoleInit(void)
 {
 #if RTT_ENABLED && !ISEMPTY(RTT_CONSOLE_KERNEL)
-	_hal_rttInit();
+	_hal_rttSetup();
 #endif
 
 #if !ISEMPTY(UART_CONSOLE_KERNEL)
