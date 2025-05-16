@@ -31,4 +31,8 @@ extern char *hal_interruptsFeatures(char *features, unsigned int len);
 extern void _hal_interruptsInit(void);
 
 
+/* controls trace of non-systick interrupts */
+extern void _hal_interruptsTrace(int enable);
+
+
 #endif
