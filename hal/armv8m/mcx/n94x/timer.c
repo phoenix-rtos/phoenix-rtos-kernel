@@ -119,7 +119,7 @@ void hal_timerSetWakeup(u32 waitUs)
 			((*(timer_common.base + ostimer_oseventctrl) & 1) == 0)) {
 		/* We just missed the timer value and be the interrupt won't
 		 * be generated. Trigger the interrupt manually instead. */
-		_hal_scsIRQPendingSet(ostimer0_irq - 0x10);
+		_hal_scsIRQPendingSet(TIMER_IRQ_ID - 0x10);
 	}
 
 	hal_spinlockClear(&timer_common.lock, &sc);
@@ -142,7 +142,7 @@ time_t hal_timerGetUs(void)
 int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
 {
 	h->f = f;
-	h->n = ostimer0_irq;
+	h->n = TIMER_IRQ_ID;
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
