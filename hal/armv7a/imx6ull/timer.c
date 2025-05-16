@@ -17,8 +17,7 @@
 #include "hal/timer.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"
-
-#define TIMER_IRQ_ID 88
+#include "config.h"
 
 static struct {
 	volatile u32 *epit1;

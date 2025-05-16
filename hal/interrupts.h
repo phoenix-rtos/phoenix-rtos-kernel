@@ -31,4 +31,8 @@ char *hal_interruptsFeatures(char *features, size_t len);
 void _hal_interruptsInit(void);
 
 
+/* controls trace of non-systick interrupts */
+void _hal_interruptsTrace(int enable);
+
+
 #endif
