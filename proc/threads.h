@@ -214,4 +214,6 @@ extern int threads_sigpost(process_t *process, thread_t *thread, int sig);
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
+extern cpu_context_t *_threads_userContext(thread_t *thread);
+
 #endif
