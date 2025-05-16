@@ -20,11 +20,15 @@
 #include "include/mman.h"
 #include "include/syscalls.h"
 #include "include/threads.h"
+#include "include/perf.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
 #include "posix/posix.h"
 #include "syspage.h"
+
+#include "perf/perf.h"
+#include "perf/events.h"
 
 #define SYSCALLS_NAME(name)   syscalls_##name,
 #define SYSCALLS_STRING(name) #name,
@@ -483,10 +487,12 @@ int syscalls_syspageprog(void *ustack)
 int syscalls_perf_start(void *ustack)
 {
 	unsigned pid;
+	perf_mode_t mode;
 
-	GETFROMSTACK(ustack, unsigned, pid, 0);
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+	GETFROMSTACK(ustack, unsigned, pid, 1);
 
-	return perf_start(pid);
+	return perf_start(mode, pid);
 }
 
 
@@ -495,22 +501,29 @@ int syscalls_perf_read(void *ustack)
 	process_t *proc = proc_current()->process;
 	void *buffer;
 	size_t sz;
+	perf_mode_t mode;
 
-	GETFROMSTACK(ustack, void *, buffer, 0);
-	GETFROMSTACK(ustack, size_t, sz, 1);
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+	GETFROMSTACK(ustack, void *, buffer, 1);
+	GETFROMSTACK(ustack, size_t, sz, 2);
 
 	if (vm_mapBelongs(proc, buffer, sz) < 0) {
 		return -EFAULT;
 	}
 
-	return perf_read(buffer, sz);
+	return perf_read(mode, buffer, sz);
 }
 
 
 int syscalls_perf_finish(void *ustack)
 {
-	return perf_finish();
+	perf_mode_t mode;
+
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+
+	return perf_finish(mode);
 }
+
 
 /*
  * Mutexes
@@ -1844,12 +1857,19 @@ const char *const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
 void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 {
 	void *retval;
+	int tid;
 
 	if (n >= (sizeof(syscalls) / sizeof(syscalls[0]))) {
 		return (void *)-EINVAL;
 	}
 
+	tid = proc_getTid(proc_current());
+
+	perf_traceEventsSyscallEnter(n, tid);
+
 	retval = ((void *(*)(char *))syscalls[n])(ustack);
+
+	perf_traceEventsSyscallExit(n, tid);
 
 	if (proc_current()->exit != 0) {
 		proc_threadEnd();

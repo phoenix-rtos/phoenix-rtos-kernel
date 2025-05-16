@@ -20,6 +20,7 @@
 
 #include "proc/userintr.h"
 
+#include "perf/events.h"
 
 #if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE)
 #define SIZE_INTERRUPTS     84
@@ -34,6 +35,7 @@ struct {
 	spinlock_t spinlock;
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
+	int trace_irqs;
 } interrupts;
 
 
@@ -45,9 +47,15 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
+	int trace;
 
 	if (n >= SIZE_INTERRUPTS)
 		return;
+
+	trace = interrupts.trace_irqs != 0 && n != SYSTICK_IRQ;
+	if (trace != 0) {
+		perf_traceEventsInterruptEnter(n);
+	}
 
 	hal_spinlockSet(&interrupts.spinlock, &sc);
 
@@ -62,6 +70,10 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	}
 
 	hal_spinlockClear(&interrupts.spinlock, &sc);
+
+	if (trace != 0) {
+		perf_traceEventsInterruptExit(n);
+	}
 
 	if (reschedule)
 		threads_schedule(n, ctx, NULL);
@@ -118,9 +130,17 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 }
 
 
+void _hal_interruptsTrace(int enable)
+{
+	interrupts.trace_irqs = !!enable;
+}
+
+
 __attribute__ ((section (".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int n;
+
+	interrupts.trace_irqs = 0;
 
 	for (n = 0; n < SIZE_INTERRUPTS; ++n) {
 		interrupts.handlers[n] = NULL;

@@ -48,6 +48,7 @@ include posix/Makefile
 include lib/Makefile
 include test/Makefile
 include log/Makefile
+include perf/Makefile
 
 # incremental build quick-fix, WARN: assuming the sources are in c
 DEPS := $(patsubst %.o, %.c.d, $(OBJS))
