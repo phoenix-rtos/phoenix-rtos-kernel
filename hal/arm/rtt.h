@@ -32,6 +32,10 @@ typedef enum {
 int _hal_rttInit(void);
 
 
+/* Setup rtt based on syspage map */
+int _hal_rttSetup(void);
+
+
 /* Non-blocking write to channel */
 int _hal_rttWrite(unsigned int chan, const void *buf, unsigned int count);
 

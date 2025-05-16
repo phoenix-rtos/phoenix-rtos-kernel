@@ -16,6 +16,7 @@
 #ifndef _HAL_CONFIG_H_
 #define _HAL_CONFIG_H_
 
+#define TIMER_IRQ_ID SYSTICK_IRQ
 
 #ifndef __ASSEMBLY__
 
