@@ -22,6 +22,8 @@
 #include "map.h"
 #include "amap.h"
 
+#include "perf/events.h"
+
 
 extern unsigned int __bss_start;
 
@@ -132,12 +134,17 @@ static int _map_add(process_t *p, vm_map_t *map, map_entry_t *entry)
 #endif
 
 	entry->map = map;
+
+	perf_traceEventsMapAdd(entry->map, entry->size);
+
 	return lib_rbInsert(&map->tree, &entry->linkage);
 }
 
 
 static void _map_remove(vm_map_t *map, map_entry_t *entry)
 {
+	perf_traceEventsMapRemove(entry->map, entry->size);
+
 #ifdef NOMMU
 	process_t *p = entry->process;
 	if (p != NULL) {
@@ -287,6 +294,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->size += size + next->size;
 		e->rmaxgap = next->rmaxgap;
 
+		perf_traceEventsMapAdd(e->map, size + next->size);
+
 		map_augment(&e->linkage);
 		_entry_put(map, next);
 	}
@@ -296,6 +305,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->offs = offs;
 		e->size += size;
 		e->lmaxgap -= size;
+
+		perf_traceEventsMapAdd(e->map, size);
 
 		if (e->aoffs)
 			e->aoffs -= size;
@@ -311,6 +322,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e = prev;
 		e->size += size;
 		e->rmaxgap -= size;
+
+		perf_traceEventsMapAdd(e->map, size);
 
 		if (next != NULL) {
 			next->lmaxgap -= size;
@@ -449,6 +462,8 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 				e->size -= overlapSize;
 				e->lmaxgap += overlapSize;
 
+				perf_traceEventsMapRemove(e->map, overlapSize);
+
 				s = lib_treeof(map_entry_t, linkage, lib_rbPrev(&e->linkage));
 				if (s != NULL) {
 					s->rmaxgap += overlapSize;
@@ -461,6 +476,8 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		else if ((ptr_t)(e->vaddr + e->size) == overlapEnd) {
 			e->size -= overlapSize;
 			e->rmaxgap += overlapSize;
+
+			perf_traceEventsMapRemove(e->map, overlapSize);
 
 			s = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
 			if (s != NULL) {
