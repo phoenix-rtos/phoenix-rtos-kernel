@@ -32,8 +32,7 @@ typedef u64 Elf64_Off;
 typedef s64 Elf64_Sword;
 typedef u64 Elf64_Xword;
 
-
-#define EI_NIDENT     16
+#define EI_NIDENT 16
 
 #define SHT_SYMTAB    2
 #define SHT_STRTAB    3
@@ -45,19 +44,20 @@ typedef u64 Elf64_Xword;
 #define SHT_LOUSER    0x80000000
 #define SHT_HIUSER    0xffffffff
 
-#define STT_LOPROC    13
-#define STT_HIPROC    15
+#define STT_LOPROC 13
+#define STT_HIPROC 15
 
-#define PT_LOAD       1
-#define PT_DYNAMIC    2
-#define PT_INTERP     3
-#define PT_GNU_STACK  0x6474e551
-#define PT_LOPROC     0x70000000
-#define PT_HIPROC     0x7fffffff
+#define PT_LOAD      1
+#define PT_DYNAMIC   2
+#define PT_INTERP    3
+#define PT_GNU_STACK 0x6474e551
+#define PT_LOPROC    0x70000000
+#define PT_HIPROC    0x7fffffff
 
-#define PF_X          0x1
-#define PF_W          0x2
-#define PF_R          0x4
+#define PF_X 0x1
+#define PF_W 0x2
+#define PF_R 0x4
+
 
 #pragma pack(push, 1)
 
@@ -67,8 +67,8 @@ typedef struct {
 	Elf32_Half e_machine;
 	Elf32_Word e_version;
 	Elf32_Addr e_entry;
-	Elf32_Off  e_phoff;
-	Elf32_Off  e_shoff;
+	Elf32_Off e_phoff;
+	Elf32_Off e_shoff;
 	Elf32_Word e_flags;
 	Elf32_Half e_hsize;
 	Elf32_Half e_phentsize;
@@ -106,12 +106,12 @@ typedef struct {
 
 
 typedef struct {
-	u32           st_name;
-	Elf32_Addr    st_value;
-	u32           st_size;
+	u32 st_name;
+	Elf32_Addr st_value;
+	u32 st_size;
 	unsigned char st_info;
 	unsigned char st_other;
-	u16           st_shndx;
+	u16 st_shndx;
 } Elf32_Sym;
 
 
