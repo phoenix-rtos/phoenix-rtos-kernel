@@ -24,6 +24,7 @@
 #include "syscalls.h"
 #include "syspage.h"
 #include "test/test.h"
+#include "perf/perf.h"
 
 
 struct {
@@ -107,6 +108,7 @@ int main(void)
 	lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
+	_perf_init(&main_common.kmap);
 	_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
 
