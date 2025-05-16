@@ -122,7 +122,7 @@ typedef struct {
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
 typedef struct {
-	u64 pc;
+	u64 ra; /* x1 */
 	u64 gp; /* x3 */
 
 	u64 t0; /* x5 */
