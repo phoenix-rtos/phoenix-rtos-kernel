@@ -26,6 +26,14 @@
 #define RTT_CB_SIZE 256U
 #endif
 
+#ifndef RTT_ENABLED
+#define RTT_ENABLED 0
+#endif
+
+#ifndef RTT_ENABLED_PLO
+#define RTT_ENABLED_PLO 0
+#endif
+
 
 struct rtt_pipe {
 	const char *name;
@@ -144,10 +152,33 @@ int _hal_rttReset(unsigned int chan, rtt_dir_t dir)
 }
 
 
+int _hal_rttIsReady(void)
+{
+	return common.rtt != NULL;
+}
+
+
 int _hal_rttInit(void)
 {
-	const syspage_map_t *map = syspage_mapNameResolve(RTT_SYSPAGE_MAP_NAME);
+	common.rtt = NULL;
+	return 0;
+}
 
+
+int _hal_rttSetup(void)
+{
+	const syspage_map_t *map;
+
+	if (_hal_rttIsReady() != 0) {
+		/* RTT already set up */
+		return 0;
+	}
+
+	if (RTT_ENABLED == 0 || RTT_ENABLED_PLO == 0) {
+		return -ENOSYS;
+	}
+
+	map = syspage_mapNameResolve(RTT_SYSPAGE_MAP_NAME);
 	if (map == NULL) {
 		return -ENOENT;
 	}
@@ -158,5 +189,6 @@ int _hal_rttInit(void)
 
 	/* TODO: Place CB always at the start of the map? */
 	common.rtt = (void *)(map->end - RTT_CB_SIZE);
+
 	return 0;
 }

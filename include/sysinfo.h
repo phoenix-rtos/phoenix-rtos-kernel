@@ -37,7 +37,7 @@ typedef struct _threadinfo_t {
 	time_t wait;
 
 	char name[128];
-} threadinfo_t;
+} __attribute__((packed)) threadinfo_t;
 
 
 typedef struct _entryinfo_t {

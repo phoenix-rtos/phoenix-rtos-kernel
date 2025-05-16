@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
+#include "perf/trace-events.h"
 
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
@@ -155,24 +156,28 @@ static void _perf_event(thread_t *t, int type)
 static void _perf_scheduling(thread_t *t)
 {
 	_perf_event(t, perf_evScheduling);
+	trace_eventThreadScheduling(proc_getTid(t));
 }
 
 
 static void _perf_preempted(thread_t *t)
 {
 	_perf_event(t, perf_evPreempted);
+	trace_eventThreadPreempted(proc_getTid(t));
 }
 
 
 static void _perf_enqueued(thread_t *t)
 {
 	_perf_event(t, perf_evEnqueued);
+	trace_eventThreadEnqueued(proc_getTid(t));
 }
 
 
 static void _perf_waking(thread_t *t)
 {
 	_perf_event(t, perf_evWaking);
+	trace_eventThreadWaking(proc_getTid(t));
 }
 
 
@@ -350,7 +355,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 }
 
 
-int perf_start(unsigned int pid)
+int perf_threadsStart(unsigned int pid)
 {
 	void *data;
 	spinlock_ctx_t sc;
@@ -378,25 +383,32 @@ int perf_start(unsigned int pid)
 	threads_common.perfLastTimestamp = _proc_gettimeRaw();
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return EOK;
+	return 1;
 }
 
 
-int perf_read(void *buffer, size_t bufsz)
+int perf_threadsRead(void *buffer, size_t bufsz)
 {
 	spinlock_ctx_t sc;
+	int ret;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	bufsz = _cbuffer_read(&threads_common.perfBuffer, buffer, bufsz);
+	if (threads_common.perfGather != 0) {
+		ret = _cbuffer_read(&threads_common.perfBuffer, buffer, bufsz);
+	}
+	else {
+		ret = -EINVAL;
+	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return (int)bufsz;
+	return ret;
 }
 
 
-int perf_finish(void)
+int perf_threadsFinish(void)
 {
 	spinlock_ctx_t sc;
+	int ret;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if (threads_common.perfGather != 0) {
@@ -404,12 +416,14 @@ int perf_finish(void)
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		perf_bufferFree(threads_common.perfBuffer.data, &threads_common.perfPages);
+		ret = EOK;
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+		ret = -EINVAL;
 	}
 
-	return EOK;
+	return ret;
 }
 
 
@@ -501,6 +515,7 @@ static void thread_destroy(thread_t *thread)
 	spinlock_ctx_t sc;
 
 	perf_end(thread);
+	trace_eventThreadEnd(thread);
 
 	/* No need to protect thread->locks access with threads_common.spinlock */
 	/* The destroyed thread is a ghost and no thread (except for the current one) can access it */
@@ -597,13 +612,16 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	unsigned int i;
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx;
+	int cpuId = hal_cpuGetID();
 
 	(void)arg;
 	(void)n;
 	hal_lockScheduler();
 
+	trace_eventSchedEnter(cpuId);
+
 	current = _proc_current();
-	threads_common.current[hal_cpuGetID()] = NULL;
+	threads_common.current[cpuId] = NULL;
 
 	/* Save current thread context */
 	if (current != NULL) {
@@ -695,6 +713,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Update CPU usage */
 	_threads_cpuTimeCalc(current, selected);
 
+	trace_eventSchedExit(cpuId);
+
 	return EOK;
 }
 
@@ -704,9 +724,11 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	spinlock_ctx_t sc;
 	int ret;
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ret = _threads_schedule(n, context, arg);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+
 	return ret;
 }
 
@@ -859,6 +881,9 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	else {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 	}
+
+	trace_eventThreadCreate(t);
+
 	/* Insert thread to scheduler queue */
 
 	_perf_begin(t);
@@ -941,6 +966,7 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 	}
 
 	thread->priority = priority;
+	trace_eventThreadPriority(proc_getTid(thread), thread->priority);
 }
 
 
@@ -993,6 +1019,8 @@ int proc_threadPriority(int signedPriority)
 	else {
 		(void)hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
+
+	trace_eventThreadPriority(proc_getTid(current), current->priority);
 
 	return ret;
 }
@@ -1728,15 +1756,20 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
-	int ret;
+	int ret = EOK, tid;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
+	tid = proc_getTid(current);
+
+	_trace_eventLockSetEnter(lock, tid);
 
 	if ((lock->attr.type == PH_LOCK_ERRORCHECK) && (lock->owner == current)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
-		return -EDEADLK;
+		ret = -EDEADLK;
+		_trace_eventLockSetExit(lock, tid, ret);
+		return ret;
 	}
 
 	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->owner == current)) {
@@ -1749,6 +1782,7 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 		}
 
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+		_trace_eventLockSetExit(lock, tid, ret);
 		return ret;
 	}
 
@@ -1769,7 +1803,9 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
 				/* Can happen when thread_destroy is called on lock owner and current */
 				if (lock->owner == NULL) {
-					return -EINTR;
+					ret = -EINTR;
+					_trace_eventLockSetExit(lock, tid, ret);
+					return ret;
 				}
 				/* Don't return EINTR if we got lock anyway */
 				if (lock->owner != current) {
@@ -1780,7 +1816,9 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 
 					hal_spinlockClear(&threads_common.spinlock, &sc);
 
-					return -EINTR;
+					ret = -EINTR;
+					_trace_eventLockSetExit(lock, tid, ret);
+					return ret;
 				}
 			}
 		} while (lock->owner != current);
@@ -1791,7 +1829,8 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 
 	lock->depth = 1;
 
-	return EOK;
+	_trace_eventLockSetExit(lock, tid, ret);
+	return ret;
 }
 
 
@@ -1843,6 +1882,8 @@ static int _proc_lockUnlock(lock_t *lock)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
+
+	_trace_eventLockClear(lock, proc_getTid(current));
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 			lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
@@ -2022,10 +2063,22 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name)
 	lock->owner = NULL;
 	lock->queue = NULL;
 	lock->name = name;
+	lock->epoch = -1;
 
 	hal_memcpy(&lock->attr, attr, sizeof(struct lockAttr));
 
 	return EOK;
+}
+
+
+int _proc_lockSetTraceEpoch(lock_t *lock, int epoch)
+{
+	int prev;
+
+	prev = lock->epoch;
+	lock->epoch = epoch;
+
+	return prev;
 }
 
 

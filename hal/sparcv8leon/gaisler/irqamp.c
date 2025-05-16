@@ -232,6 +232,12 @@ char *hal_interruptsFeatures(char *features, size_t len)
 }
 
 
+void _hal_interruptsTrace(int enable)
+{
+	/* TODO */
+}
+
+
 void _hal_interruptsInit(void)
 {
 	unsigned int i;
