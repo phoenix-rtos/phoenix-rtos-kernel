@@ -50,7 +50,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	buff += hal_strlen(buff);
 
 	i += hal_i2s("zero: ", &buff[i], 0, 16, 1);
-	i += hal_i2s("  ra : ", &buff[i], (u64)ctx->pc, 16, 1);
+	i += hal_i2s("  ra : ", &buff[i], (u64)ctx->ra, 16, 1);
 	i += hal_i2s("   sp : ", &buff[i], (u64)ctx->sp, 16, 1);
 	i += hal_i2s("   gp : ", &buff[i], (u64)ctx->gp, 16, 1);
 	buff[i++] = '\n';
@@ -170,7 +170,7 @@ inline void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 
 inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
-	return ctx->pc;
+	return ctx->sepc;
 }
 
 
