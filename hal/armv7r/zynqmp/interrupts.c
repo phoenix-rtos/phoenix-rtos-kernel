@@ -19,8 +19,11 @@
 #include "hal/spinlock.h"
 #include "hal/interrupts.h"
 #include "hal/list.h"
+#include "config.h"
 
 #include "proc/userintr.h"
+
+#include "perf/events.h"
 
 
 #define SPI_FIRST_IRQID 32
@@ -83,6 +86,7 @@ struct {
 	spinlock_t spinlock[SIZE_INTERRUPTS];
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
+	int trace_irqs;
 } interrupts_common;
 
 
@@ -96,12 +100,18 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
+	int trace;
 
 	u32 ciarValue = *(interrupts_common.gicc + gicc_iar);
 	n = ciarValue & 0x3ff;
 
 	if (n >= SIZE_INTERRUPTS) {
 		return 0;
+	}
+
+	trace = interrupts_common.trace_irqs != 0 && n != TIMER_IRQ_ID;
+	if (trace != 0) {
+		perf_traceEventsInterruptEnter(n);
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[n], &sc);
@@ -121,6 +131,10 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	*(interrupts_common.gicc + gicc_eoir) = ciarValue;
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
+
+	if (trace != 0) {
+		perf_traceEventsInterruptExit(n);
+	}
 
 	return reschedule;
 }
@@ -251,10 +265,18 @@ int _interrupts_gicv2_classify(unsigned int irqn)
 }
 
 
+void _hal_interruptsTrace(int enable)
+{
+	interrupts_common.trace_irqs = !!enable;
+}
+
+
 /* Function initializes interrupt handling */
 void _hal_interruptsInit(void)
 {
 	u32 i;
+
+	interrupts_common.trace_irqs = 0;
 
 	interrupts_common.gicd = (void *)0xf9000000;
 	interrupts_common.gicc = (void *)0xf9001000;

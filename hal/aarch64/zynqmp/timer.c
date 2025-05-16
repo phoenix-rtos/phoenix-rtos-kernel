@@ -21,11 +21,11 @@
 
 #include "hal/aarch64/arch/pmap.h"
 #include "zynqmp.h"
+#include "config.h"
 
 
 #define TTC0_BASE_ADDR       ((addr_t)0x00ff110000)
 #define TIMER_SRC_CLK_CPU_1x 99990000
-#define TIMER_IRQ_ID         68
 
 struct {
 	volatile u32 *ttc;

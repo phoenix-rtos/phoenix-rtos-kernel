@@ -26,6 +26,14 @@
 #define RTT_CB_SIZE 256
 #endif
 
+#ifndef RTT_ENABLED
+#define RTT_ENABLED 0
+#endif
+
+#ifndef RTT_ENABLED_PLO
+#define RTT_ENABLED_PLO 0
+#endif
+
 
 struct rtt_pipe {
 	const char *name;
@@ -140,9 +148,19 @@ int _hal_rttReset(unsigned int chan, rtt_dir_t dir)
 }
 
 
+int _hal_rttInitialized(void)
+{
+	return common.rtt != NULL;
+}
+
+
 int _hal_rttInit(void)
 {
 	const syspage_map_t *map = syspage_mapNameResolve(RTT_SYSPAGE_MAP_NAME);
+
+	if (RTT_ENABLED == 0 || RTT_ENABLED_PLO == 0) {
+		return -ENOSYS;
+	}
 
 	if (map == NULL) {
 		return -ENOENT;

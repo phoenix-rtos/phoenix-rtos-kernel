@@ -17,11 +17,11 @@
 #include "hal/timer.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"
+#include "config.h"
 
 #include "zynq.h"
 
 #define TIMER_SRC_CLK_CPU_1x 111111115 /* Hz */
-#define TIMER_IRQ_ID         42
 
 struct {
 	volatile u32 *ttc;
