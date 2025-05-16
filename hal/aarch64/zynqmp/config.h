@@ -24,6 +24,7 @@
 #define ASID_BITS       16
 #define NUM_CPUS        4
 #define SIZE_INTERRUPTS 188
+#define TIMER_IRQ_ID    68
 
 #ifndef __ASSEMBLY__
 

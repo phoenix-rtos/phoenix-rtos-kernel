@@ -25,11 +25,14 @@
 #include "include/threads.h"
 #include "include/utsname.h"
 #include "include/time.h"
+#include "include/perf.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
 #include "posix/posix.h"
 #include "syspage.h"
+#include "perf/perf.h"
+#include "perf/trace-events.h"
 
 #define SYSCALLS_NAME(name) syscalls_##name,
 
@@ -463,37 +466,67 @@ int syscalls_syspageprog(u8 *ustack)
 }
 
 
-int syscalls_perf_start(u8 *ustack)
+int syscalls_sys_perf_start(u8 *ustack)
 {
-	unsigned int pid;
+	process_t *proc = proc_current()->process;
+	perf_mode_t mode;
+	unsigned flags;
+	void *arg;
+	size_t sz;
 
-	GETFROMSTACK(ustack, unsigned int, pid, 0);
+	GETFROMSTACK(ustack, int, mode, 0);
+	GETFROMSTACK(ustack, unsigned, flags, 1);
+	GETFROMSTACK(ustack, void *, arg, 2);
+	GETFROMSTACK(ustack, size_t, sz, 3);
 
-	return perf_start(pid);
+	if (arg != NULL && vm_mapBelongs(proc, arg, sz) < 0) {
+		return -EFAULT;
+	}
+
+	return perf_start(mode, flags, arg, sz);
 }
 
 
-int syscalls_perf_read(u8 *ustack)
+int syscalls_sys_perf_read(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	void *buffer;
 	size_t sz;
+	perf_mode_t mode;
+	int chan;
 
-	GETFROMSTACK(ustack, void *, buffer, 0);
-	GETFROMSTACK(ustack, size_t, sz, 1);
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+	GETFROMSTACK(ustack, void *, buffer, 1);
+	GETFROMSTACK(ustack, size_t, sz, 2);
+	GETFROMSTACK(ustack, int, chan, 3);
 
 	if (vm_mapBelongs(proc, buffer, sz) < 0) {
 		return -EFAULT;
 	}
 
-	return perf_read(buffer, sz);
+	return perf_read(mode, buffer, sz, chan);
 }
 
 
-int syscalls_perf_finish(u8 *ustack)
+int syscalls_sys_perf_stop(u8 *ustack)
 {
-	return perf_finish();
+	perf_mode_t mode;
+
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+
+	return perf_stop(mode);
 }
+
+
+int syscalls_sys_perf_finish(u8 *ustack)
+{
+	perf_mode_t mode;
+
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+
+	return perf_finish(mode);
+}
+
 
 /*
  * Mutexes
@@ -1851,13 +1884,20 @@ const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
 void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
 {
 	void *retval;
+	int tid;
 
 	if (n >= (int)(sizeof(syscalls) / sizeof(syscalls[0]))) {
 		return (void *)-EINVAL;
 	}
 
+	tid = proc_getTid(proc_current());
+
+	trace_eventSyscallEnter(n, tid);
+
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
-	retval = ((void *(*)(u8 * arg)) syscalls[n])(ustack);
+	retval = ((void *(*)(u8 *arg))syscalls[n])(ustack);
+
+	trace_eventSyscallExit(n, tid);
 
 	if (proc_current()->exit != 0U) {
 		proc_threadEnd();
