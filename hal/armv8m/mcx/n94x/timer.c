@@ -117,7 +117,7 @@ void hal_timerSetWakeup(u32 waitUs)
 	if ((hal_timerGetCyc() >= val) && (((val >> 32) & 0x400U) == 0U) && ((tmp & 1U) == 0U)) {
 		/* We just missed the timer value and be the interrupt won't
 		 * be generated. Trigger the interrupt manually instead. */
-		_hal_scsIRQPendingSet((u32)ostimer0_irq - 0x10U);
+		_hal_scsIRQPendingSet((u32)TIMER_IRQ_ID - 0x10U);
 	}
 
 	hal_spinlockClear(&timer_common.lock, &sc);
@@ -140,7 +140,7 @@ time_t hal_timerGetUs(void)
 int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 {
 	h->f = f;
-	h->n = ostimer0_irq;
+	h->n = TIMER_IRQ_ID;
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);

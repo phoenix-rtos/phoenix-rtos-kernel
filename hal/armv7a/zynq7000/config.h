@@ -29,6 +29,8 @@
 
 #define NUM_CPUS 2
 
+#define TIMER_IRQ_ID 42U
+
 #ifndef __ASSEMBLY__
 
 #define HAL_NAME_PLATFORM "Xilinx Zynq-7000 "

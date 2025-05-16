@@ -22,6 +22,7 @@
 #include "include/arch/armv7m/imxrt/10xx/imxrt10xx.h"
 
 #include "hal/arm/scs.h"
+#include "hal/arm/rtt.h"
 
 #include "imxrt10xx.h"
 #include "config.h"
@@ -1980,6 +1981,7 @@ void _imxrt_init(void)
 	imxrt_common.cpuclk = 528000000U; /* Default system clock */
 
 	_hal_scsInit();
+	_hal_rttInit();
 
 	/* Disable watchdogs */
 	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1U << 2)) != 0U) {

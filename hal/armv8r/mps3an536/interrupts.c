@@ -21,6 +21,9 @@
 
 #include "include/errno.h"
 
+#include "perf/trace-events.h"
+
+#include <board_config.h>
 
 #define SIZE_INTERRUPTS 126U
 #define PPI_FIRST_IRQID 16U
@@ -102,6 +105,7 @@ static struct {
 	volatile u32 *gic;
 	spinlock_t lock;
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
+	int trace_irqs;
 } interrupts_common;
 
 
@@ -143,12 +147,18 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	unsigned int reschedule = 0;
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
+	int trace;
 
 	n = gic_acknowledge();
 
 	if (n >= SIZE_INTERRUPTS) {
 		/* Spurious interrupt */
 		return 0;
+	}
+
+	trace = interrupts_common.trace_irqs != 0 && n != TIMER_IRQ;
+	if (trace != 0) {
+		trace_eventInterruptEnter(n);
 	}
 
 	hal_spinlockSet(&interrupts_common.lock, &sc);
@@ -169,6 +179,10 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	hal_spinlockClear(&interrupts_common.lock, &sc);
 
 	gic_EOI(n);
+
+	if (trace != 0) {
+		trace_eventInterruptExit(n);
+	}
 
 	return (int)reschedule;
 }
@@ -323,6 +337,12 @@ char *hal_interruptsFeatures(char *features, size_t len)
 	features[len - 1U] = '\0';
 
 	return features;
+}
+
+
+void _hal_interruptsTrace(int enable)
+{
+	interrupts_common.trace_irqs = !!enable;
 }
 
 
