@@ -2129,3 +2129,12 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	return EOK;
 }
+
+
+cpu_context_t *_threads_userContext(thread_t *thread)
+{
+	if (hal_cpuSupervisorMode(thread->context) != 0) {
+		return (cpu_context_t *)((char *)(thread->kstack + thread->kstacksz) - sizeof(cpu_context_t));
+	}
+	return thread->context;
+}
