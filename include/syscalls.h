@@ -14,6 +14,9 @@
  */
 
 
+/* TODO: merge trace with perf syscalls */
+
+
 /* clang-format off */
 #define SYSCALLS(ID) \
 	ID(debug) \
@@ -124,5 +127,9 @@
 	ID(sys_mprotect) \
 	\
 	ID(sys_statvfs) \
-	ID(sys_uname)
+	ID(sys_uname) \
+	\
+	ID(trace_start) \
+	ID(trace_read) \
+	ID(trace_finish)
 /* clang-format on */

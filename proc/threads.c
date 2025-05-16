@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
+#include "trace/events.h"
 
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
@@ -1563,6 +1564,8 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 
 	current = _proc_current();
 
+	trace_eventsLockSet(lock, proc_getTid(current));
+
 	if ((lock->attr.type == PH_LOCK_ERRORCHECK) && (lock->owner == current)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return -EDEADLK;
@@ -1667,6 +1670,8 @@ static int _proc_lockUnlock(lock_t *lock)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
+
+	trace_eventsLockClear(lock, proc_getTid(current));
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));

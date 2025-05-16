@@ -1,0 +1,61 @@
+/* CTF 1.8 */
+
+typealias integer { size = 8; align = 8; signed = true; } := i8;
+typealias integer { size = 8; align = 8; signed = false; } := u8;
+typealias integer { size = 16; align = 8; signed = false; } := u16;
+typealias integer { size = 32; align = 8; signed = false; } := u32;
+typealias integer { size = 32; align = 8; signed = true; } := i32;
+typealias integer { size = 64; align = 8; signed = false; } := u64;
+typealias integer { size = 8; align = 8; signed = false; encoding = ASCII; } := str;
+
+trace {
+	major = 1;
+	minor = 8;
+	byte_order = le;
+};
+
+clock {
+    name = monotonic;
+    freq = 1000000000;
+};
+
+stream {
+	event.header := struct {
+		u64 timestamp;
+		u32 id;
+	};
+};
+
+event {
+	name = lock_set;
+	id = 0x10;
+	fields := struct {
+		u32 tid;
+		str name[16];
+	};
+};
+
+event {
+	name = lock_clear;
+	id = 0x11;
+	fields := struct {
+		u32 tid;
+		str name[16];
+	};
+};
+
+event {
+	name = interrupt_enter;
+	id = 0x20;
+	fields := struct {
+		u32 irq;
+	};
+};
+
+event {
+	name = interrupt_exit;
+	id = 0x21;
+	fields := struct {
+		u32 irq;
+	};
+};

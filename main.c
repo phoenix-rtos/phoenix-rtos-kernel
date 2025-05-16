@@ -24,6 +24,7 @@
 #include "syscalls.h"
 #include "syspage.h"
 #include "test/test.h"
+#include "trace/trace.h"
 
 
 struct {
@@ -108,6 +109,7 @@ int main(void)
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
 	_proc_init(&main_common.kmap, &main_common.kernel);
+	_trace_init(&main_common.kmap);
 	_syscalls_init();
 
 #if 0 /* Basic kernel tests */

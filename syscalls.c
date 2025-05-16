@@ -27,6 +27,8 @@
 #include "posix/posix.h"
 #include "syspage.h"
 
+#include "trace/trace.h"
+
 #define SYSCALLS_NAME(name)   syscalls_##name,
 #define SYSCALLS_STRING(name) #name,
 
@@ -512,6 +514,36 @@ int syscalls_perf_finish(void *ustack)
 {
 	return perf_finish();
 }
+
+
+int syscalls_trace_start(void *ustack)
+{
+	return trace_start();
+}
+
+
+int syscalls_trace_read(void *ustack)
+{
+	process_t *proc = proc_current()->process;
+	void *buffer;
+	size_t sz;
+
+	GETFROMSTACK(ustack, void *, buffer, 0);
+	GETFROMSTACK(ustack, size_t, sz, 1);
+
+	if (vm_mapBelongs(proc, buffer, sz) < 0) {
+		return -EFAULT;
+	}
+
+	return trace_read(buffer, sz);
+}
+
+
+int syscalls_trace_finish(void *ustack)
+{
+	return trace_finish();
+}
+
 
 /*
  * Mutexes
