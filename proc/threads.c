@@ -2071,3 +2071,9 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	return EOK;
 }
+
+
+cpu_context_t *_threads_userContext(thread_t *thread)
+{
+	return (void *)((char *)(thread->kstack + thread->kstacksz) - sizeof(cpu_context_t));
+}
