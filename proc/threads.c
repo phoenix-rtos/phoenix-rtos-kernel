@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
+#include "perf/events.h"
 
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
@@ -144,24 +145,28 @@ static void _perf_event(thread_t *t, int type)
 static void _perf_scheduling(thread_t *t)
 {
 	_perf_event(t, perf_evScheduling);
+	perf_traceEventsThreadScheduling(proc_getTid(t));
 }
 
 
 static void _perf_preempted(thread_t *t)
 {
 	_perf_event(t, perf_evPreempted);
+	perf_traceEventsThreadPreempted(proc_getTid(t));
 }
 
 
 static void _perf_enqueued(thread_t *t)
 {
 	_perf_event(t, perf_evEnqueued);
+	perf_traceEventsThreadEnqueued(proc_getTid(t));
 }
 
 
 static void _perf_waking(thread_t *t)
 {
 	_perf_event(t, perf_evWaking);
+	perf_traceEventsThreadWaking(proc_getTid(t));
 }
 
 
@@ -331,7 +336,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 }
 
 
-int perf_start(unsigned pid)
+int perf_threadsStart(unsigned pid)
 {
 	void *data;
 	spinlock_ctx_t sc;
@@ -360,7 +365,7 @@ int perf_start(unsigned pid)
 }
 
 
-int perf_read(void *buffer, size_t bufsz)
+int perf_threadsRead(void *buffer, size_t bufsz)
 {
 	spinlock_ctx_t sc;
 
@@ -372,7 +377,7 @@ int perf_read(void *buffer, size_t bufsz)
 }
 
 
-int perf_finish()
+int perf_threadsFinish(void)
 {
 	spinlock_ctx_t sc;
 
@@ -558,6 +563,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, const int src);
 
 
+/* TODO: pass cpuId from caller */
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
@@ -668,9 +674,17 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	spinlock_ctx_t sc;
 	int ret;
+
+	int cpuId = hal_cpuGetID();
+
+	perf_traceEventsSchedEnter(cpuId);
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ret = _threads_schedule(n, context, arg);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	perf_traceEventsSchedExit(cpuId);
+
 	return ret;
 }
 
@@ -821,6 +835,9 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	else {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 	}
+
+	perf_traceEventsThreadCreate(t);
+
 	/* Insert thread to scheduler queue */
 
 	_perf_begin(t);
@@ -961,6 +978,7 @@ void proc_threadEnd(void)
 	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
 	_proc_threadWakeup(&threads_common.reaper);
+	perf_traceEventsThreadEnd(t);
 
 	hal_cpuReschedule(&threads_common.spinlock, &sc);
 }
@@ -1563,6 +1581,8 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 
 	current = _proc_current();
 
+	perf_traceEventsLockSet(lock, proc_getTid(current));
+
 	if ((lock->attr.type == PH_LOCK_ERRORCHECK) && (lock->owner == current)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return -EDEADLK;
@@ -1671,6 +1691,8 @@ static int _proc_lockUnlock(lock_t *lock)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
+
+	perf_traceEventsLockClear(lock, proc_getTid(current));
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));

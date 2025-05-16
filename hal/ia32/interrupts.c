@@ -26,6 +26,8 @@
 #include "include/errno.h"
 #include "init.h"
 
+#include "perf/events.h"
+
 #include <arch/tlb.h>
 
 
@@ -74,6 +76,8 @@ struct {
 		pic_8259 } pic;
 	u32 systickIRQ;
 	spinlock_t sp_ioapic;
+
+	int trace_irqs;
 } interrupts_common;
 
 
@@ -184,12 +188,18 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
+	int trace;
 
 	if (n >= SIZE_INTERRUPTS) {
 		return 0;
 	}
 
 	hal_spinlockSet(&interrupts_common.interrupts[n].spinlock, &sc);
+
+	trace = interrupts_common.trace_irqs != 0 && n != SYSTICK_IRQ;
+	if (trace != 0) {
+		perf_traceEventsInterruptEnter(n);
+	}
 
 	interrupts_common.interrupts[n].counter++;
 
@@ -201,6 +211,10 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 			}
 			h = h->next;
 		} while (h != interrupts_common.interrupts[n].handler);
+	}
+
+	if (trace != 0) {
+		perf_traceEventsInterruptExit(n);
 	}
 
 	hal_spinlockClear(&interrupts_common.interrupts[n].spinlock, &sc);
@@ -439,10 +453,18 @@ static int _hal_ioapicInit(void)
 }
 
 
+void _hal_interruptsTrace(int enable)
+{
+	interrupts_common.trace_irqs = !!enable;
+}
+
+
 void _hal_interruptsInit(void)
 {
 	static const u32 flags = IGBITS_PRES | IGBITS_SYSTEM | IGBITS_IRQEXC;
 	unsigned int k;
+
+	interrupts_common.trace_irqs = 0;
 
 	_interrupts_multilock = 1;
 	interrupts_common.pic = pic_undefined;
