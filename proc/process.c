@@ -272,10 +272,13 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 
 void process_exception(unsigned int n, exc_context_t *ctx)
 {
-	thread_t *thread = proc_current();
+	thread_t *thread;
+
+	threads_saveUserContext(hal_excToCpuCtx(ctx));
 
 	process_dumpException(n, ctx);
 
+	thread = proc_current();
 	if (thread->process == NULL)
 		hal_cpuHalt();
 
@@ -291,8 +294,13 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 
 static void process_illegal(unsigned int n, exc_context_t *ctx)
 {
-	thread_t *thread = proc_current();
-	process_t *process = thread->process;
+	thread_t *thread;
+	process_t *process;
+
+	threads_saveUserContext(hal_excToCpuCtx(ctx));
+
+	thread = proc_current();
+	process = thread->process;
 
 	if (process == NULL)
 		hal_cpuHalt();

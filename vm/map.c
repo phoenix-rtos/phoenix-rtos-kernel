@@ -737,6 +737,8 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	void *vaddr, *paddr;
 	int prot;
 
+	threads_saveUserContext(hal_excToCpuCtx(ctx));
+
 	prot = hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
 	paddr = (void *)((unsigned long)vaddr & ~(SIZE_PAGE - 1));

@@ -1891,6 +1891,8 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 {
 	void *retval;
 
+	threads_saveUserContext(ctx);
+
 	if (n >= (sizeof(syscalls) / sizeof(syscalls[0]))) {
 		return (void *)-EINVAL;
 	}
@@ -1900,6 +1902,8 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 	if (proc_current()->exit != 0) {
 		proc_threadEnd();
 	}
+
+	threads_saveUserContext(NULL);
 
 	threads_setupUserReturn(retval, ctx);
 

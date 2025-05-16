@@ -84,6 +84,7 @@ typedef struct _thread_t {
 	time_t lastTime;
 
 	cpu_context_t *context;
+	cpu_context_t *userContext;
 	cpu_context_t *longjmpctx;
 } thread_t;
 
@@ -213,5 +214,10 @@ extern int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
+
+extern void threads_saveUserContext(cpu_context_t *ctx);
+
+
+extern cpu_context_t *_threads_userContext(thread_t *thread);
 
 #endif

@@ -779,6 +779,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->maxWait = 0;
 	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
+	t->userContext = NULL;
 	t->longjmpctx = NULL;
 
 	if (thread_alloc(t) < 0) {
@@ -2070,4 +2071,32 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
 
 	return EOK;
+}
+
+
+void threads_saveUserContext(cpu_context_t *ctx)
+{
+	thread_t *thread;
+	spinlock_ctx_t sc;
+
+	if (ctx != NULL && hal_cpuSupervisorMode(ctx) != 0) {
+		return;
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = _proc_current();
+	thread->userContext = ctx;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+cpu_context_t *_threads_userContext(thread_t *thread)
+{
+	if (thread->userContext != NULL) {
+		return thread->userContext;
+	}
+	else if (hal_cpuSupervisorMode(thread->context) == 0) {
+		return thread->context;
+	}
+	return NULL;
 }
