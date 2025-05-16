@@ -37,6 +37,8 @@ enum { OWNSTACK = 0, PARENTSTACK };
 
 enum { READY = 0, SLEEP, GHOST };
 
+enum { RUNNING = 0, FREEZER, FREEZING, FROZEN };
+
 /* clang-format on */
 
 
@@ -63,6 +65,7 @@ typedef struct _thread_t {
 	unsigned state : 2;
 	unsigned exit : 2;
 	unsigned interruptible : 1;
+	unsigned freeze : 2;
 
 	unsigned sigmask;
 	unsigned sigpend;
@@ -222,5 +225,11 @@ extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 extern cpu_context_t *_threads_userContext(thread_t *thread);
+
+
+extern void proc_freeze(process_t *proc);
+
+
+extern void proc_unfreeze(process_t *proc);
 
 #endif
