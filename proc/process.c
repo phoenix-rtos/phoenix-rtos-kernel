@@ -29,6 +29,7 @@
 #include "msg.h"
 #include "ports.h"
 #include "userintr.h"
+#include "perf/events.h"
 
 
 typedef struct {
