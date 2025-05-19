@@ -1,3 +1,18 @@
+/*
+ * Phoenix-RTOS
+ *
+ * Operating system kernel
+ *
+ * Process coredump
+ *
+ * Copyright 2025 Phoenix Systems
+ * Author: Jakub Klimek
+ *
+ * This file is part of Phoenix-RTOS.
+ *
+ * %LICENSE%
+ */
+
 #ifndef _COREDUMP_H_
 #define _COREDUMP_H_
 
