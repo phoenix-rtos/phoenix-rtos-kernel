@@ -348,10 +348,68 @@ static void coredump_dumpPhdrs(coredump_threadinfo_t *threadInfo, size_t threadC
 	currentOffset += NOTES_SIZE;
 
 	/* Memory */
+#ifdef COREDUMP_MEM_ALL
+	proc_lockSet(&process->mapp->lock);
+	e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
+	while (e != NULL) {
+		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+			coredump_dumpPhdr(PT_LOAD, currentOffset, e->vaddr, e->size, e->flags, state);
+			currentOffset += e->size;
+		}
+		e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
+	}
+	proc_lockClear(&process->mapp->lock);
+#else
 	userSp = hal_cpuGetUserSP(ctx);
 	stackSize = coredump_stackSize(userSp, process);
 	coredump_dumpPhdr(PT_LOAD, currentOffset, userSp, stackSize, PROT_READ | PROT_WRITE, state);
 	currentOffset += stackSize;
+
+#ifdef COREDUMP_MEM_ALL_STACKS
+	for (i = 1; i < threadCnt; i++) {
+		userSp = hal_cpuGetUserSP(threadInfo[i].userContext);
+		stackSize = coredump_stackSize(userSp, process);
+		coredump_dumpPhdr(PT_LOAD, currentOffset, userSp, stackSize, PROT_READ | PROT_WRITE, state);
+		currentOffset += stackSize;
+	}
+#endif
+
+#endif /* COREDUMP_MEM_ALL */
+}
+
+
+static void coredump_dumpAllMemory(process_t *process, coredump_state_t *state)
+{
+	map_entry_t *e;
+
+	proc_lockSet(&process->mapp->lock);
+	e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
+	while (e != NULL) {
+		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+			coredump_encodeChunk(state, e->vaddr, e->size);
+		}
+		e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
+	}
+	proc_lockClear(&process->mapp->lock);
+}
+
+static size_t coredump_segmentCount(process_t *process)
+{
+	map_entry_t *e;
+	size_t segCnt = 0;
+
+	proc_lockSet(&process->mapp->lock);
+
+	e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
+	while (e != NULL) {
+		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+			segCnt++;
+		}
+		e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
+	}
+
+	proc_lockClear(&process->mapp->lock);
+	return segCnt;
 }
 
 
@@ -383,7 +441,13 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	threadCnt = coredump_threadsInfo(process, COREDUMP_THREADS_NUM, cctx, threadInfo);
 	threadInfo[0].cursig = n;
 
+#ifdef COREDUMP_MEM_ALL
+	segCnt = coredump_segmentCount(process);
+#elif COREDUMP_MEM_ALL_STACKS
+	segCnt = threadCnt;
+#else
 	segCnt = 1;
+#endif
 
 	coredump_init(&state, process->path, hal_exceptionMnemonic(n));
 	coredump_dumpElfHeader(segCnt, &state);
@@ -394,7 +458,18 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	coredump_encodeChunk(&state, (u8 *)buff, SIZE_COREDUMP_GENAUX);
 
 	/* MEMORY */
+#ifdef COREDUMP_MEM_ALL
+	coredump_dumpAllMemory(process, &state);
+#else
 	coredump_dumpStack(process, cctx, &state);
+
+#ifdef COREDUMP_MEM_ALL_STACKS
+	for (i = 1; i < threadCnt; i++) {
+		coredump_dumpStack(process, threadInfo[i].userContext, &state);
+	}
+#endif
+
+#endif
 
 	coredump_finalize(&state);
 
