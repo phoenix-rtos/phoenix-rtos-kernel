@@ -274,6 +274,7 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 
+	coredump_dump(n, ctx);
 	process_dumpException(n, ctx);
 
 	if (thread->process == NULL)
