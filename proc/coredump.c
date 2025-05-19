@@ -7,6 +7,8 @@
 #include "proc/process.h"
 #include <stddef.h>
 
+#ifdef COREDUMP
+
 #define COREDUMP_OUTBUF_SIZE 128
 #ifndef COREDUMP_THREADS_NUM
 #define COREDUMP_THREADS_NUM 1
@@ -435,6 +437,7 @@ static size_t coredump_segmentCount(process_t *process)
 	return segCnt;
 }
 
+#endif /* COREDUMP */
 
 void coredump_dump(unsigned int n, exc_context_t *ctx)
 {
