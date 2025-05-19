@@ -182,3 +182,9 @@ void _hal_exceptionsInit(void)
 {
 	hal_exception_common.handler = NULL;
 }
+
+
+extern cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
+{
+	return NULL; /* unsupported */
+}

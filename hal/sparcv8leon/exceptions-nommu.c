@@ -169,3 +169,9 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 void _hal_exceptionsInit(void)
 {
 }
+
+
+cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
+{
+	return &ctx->cpuCtx;
+}

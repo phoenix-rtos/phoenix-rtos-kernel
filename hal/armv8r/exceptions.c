@@ -235,3 +235,9 @@ void _hal_exceptionsInit(void)
 	exceptions.abortHandler = exceptions_defaultHandler;
 	exceptions.defaultHandler = exceptions_defaultHandler;
 }
+
+
+cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
+{
+	return &ctx->cpuCtx;
+}

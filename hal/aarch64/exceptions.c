@@ -310,3 +310,9 @@ void _hal_exceptionsInit(void)
 		exceptions.handler[i] = exceptions_trampoline;
 	}
 }
+
+
+cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
+{
+	return &ctx->cpuCtx;
+}
