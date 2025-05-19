@@ -1596,6 +1596,10 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 		do {
 			/* _proc_lockUnlock will give us a lock by it's own */
 			if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
+				/* Can happen when thread_destroy is called on lock owner and current */
+				if (lock->owner == NULL) {
+					return -EINTR;
+				}
 				/* Don't return EINTR if we got lock anyway */
 				if (lock->owner != current) {
 					hal_spinlockSet(&threads_common.spinlock, &sc);
