@@ -276,6 +276,7 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 
 	threads_saveUserContext(hal_excToCpuCtx(ctx));
 
+	coredump_dump(n, ctx);
 	process_dumpException(n, ctx);
 
 	thread = proc_current();
