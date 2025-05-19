@@ -22,6 +22,7 @@
 #include "include/sysinfo.h"
 #include "process.h"
 #include "lock.h"
+#include "coredump.h"
 
 #define MAX_TID        MAX_ID
 #define THREAD_END     1

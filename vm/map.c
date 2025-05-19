@@ -742,6 +742,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	paddr = (void *)((unsigned long)vaddr & ~(SIZE_PAGE - 1));
 
 #ifdef PAGEFAULTSTOP
+	coredump_dump(n, ctx);
 	process_dumpException(n, ctx);
 	/* clang-format off */
 	__asm__ volatile ("1: b 1b");
@@ -761,6 +762,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 		map = map_common.kmap;
 
 	if (vm_mapForce(map, paddr, prot)) {
+		coredump_dump(n, ctx);
 		process_dumpException(n, ctx);
 
 		if (thread->process == NULL) {
