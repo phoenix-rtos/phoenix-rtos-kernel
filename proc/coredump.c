@@ -7,6 +7,9 @@
 #include "proc/process.h"
 #include <stddef.h>
 
+#ifndef COREDUMP_THREADS_NUM
+#define COREDUMP_THREADS_NUM 1
+#endif
 
 #define CORE_BUF_SIZE_MAX max(SIZE_COREDUMP_GREGSET, max(SIZE_COREDUMP_THREADAUX, SIZE_COREDUMP_GENAUX))
 
@@ -359,7 +362,7 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 #else
 
 	char buff[CORE_BUF_SIZE_MAX];
-	coredump_threadinfo_t threadInfo[1];
+	coredump_threadinfo_t threadInfo[COREDUMP_THREADS_NUM];
 	size_t segCnt;
 	size_t threadCnt;
 	size_t i;
@@ -377,7 +380,7 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	*/
 	proc_freeze(process);
 
-	threadCnt = coredump_threadsInfo(process, 1, cctx, threadInfo);
+	threadCnt = coredump_threadsInfo(process, COREDUMP_THREADS_NUM, cctx, threadInfo);
 	threadInfo[0].cursig = n;
 
 	segCnt = 1;
