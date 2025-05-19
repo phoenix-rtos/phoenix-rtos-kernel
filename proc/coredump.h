@@ -15,6 +15,7 @@
 #define _COREDUMP_H_
 
 #include "arch/exceptions.h"
+#include "process.h"
 
 typedef struct {
 	int tid;
@@ -24,5 +25,8 @@ typedef struct {
 
 
 extern void coredump_dump(unsigned int n, exc_context_t *ctx);
+
+
+extern size_t coredump_threadsInfo(process_t *process, int ignoreCurrent, size_t n, coredump_threadinfo_t *info);
 
 #endif
