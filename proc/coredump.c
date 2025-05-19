@@ -31,6 +31,10 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 
 #define COREDUMP_OUTBUF_SIZE 128
 
+#ifndef PROC_COREDUMP_THREADS_NUM
+#define PROC_COREDUMP_THREADS_NUM 1
+#endif
+
 #define CORE_BUF_SIZE_MAX max(SIZE_COREDUMP_GREGSET, max(SIZE_COREDUMP_THREADAUX, SIZE_COREDUMP_GENAUX))
 
 #define COREDUMP_START "\n_____________COREDUMP_START_____________\n"
@@ -475,7 +479,7 @@ static void coredump_dumpPhdrs(coredump_threadinfo_t *threadInfo, size_t threadC
 void coredump_dump(unsigned int n, exc_context_t *ctx)
 {
 	char buff[CORE_BUF_SIZE_MAX] __attribute__((aligned(8)));
-	coredump_threadinfo_t threadInfo[1];
+	coredump_threadinfo_t threadInfo[PROC_COREDUMP_THREADS_NUM];
 	size_t segCnt;
 	size_t threadCnt;
 	coredump_state_t state;
@@ -491,7 +495,7 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	 */
 	proc_freeze(process);
 
-	threadCnt = coredump_threadsInfo(process, 1, hal_excToCpuCtx(ctx), threadInfo);
+	threadCnt = coredump_threadsInfo(process, PROC_COREDUMP_THREADS_NUM, hal_excToCpuCtx(ctx), threadInfo);
 	threadInfo[0].cursig = n;
 
 	segCnt = 1;
