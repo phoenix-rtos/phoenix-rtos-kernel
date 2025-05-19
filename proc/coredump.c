@@ -7,6 +7,15 @@
 #include "proc/process.h"
 #include <stddef.h>
 
+#ifndef PROC_COREDUMP
+
+void coredump_dump(unsigned int n, exc_context_t *ctx)
+{
+	return;
+}
+
+#else
+
 #define MEM_NONE       0
 #define MEM_EXC_STACK  1
 #define MEM_ALL_STACKS 2
@@ -531,10 +540,6 @@ static size_t coredump_segmentCount(process_t *process)
 
 void coredump_dump(unsigned int n, exc_context_t *ctx)
 {
-#ifndef COREDUMP
-	return;
-#else
-
 	char buff[CORE_BUF_SIZE_MAX] __attribute__((aligned(8)));
 	coredump_threadinfo_t threadInfo[PROC_COREDUMP_THREADS_NUM];
 	size_t segCnt;
@@ -595,5 +600,5 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	coredump_finalize(&state);
 
 	proc_unfreeze(process);
-#endif /* COREDUMP */
 }
+#endif /* PROC_COREDUMP */
