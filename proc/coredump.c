@@ -7,6 +7,7 @@
 #include "proc/process.h"
 #include <stddef.h>
 
+#define COREDUMP_OUTBUF_SIZE 128
 #ifndef COREDUMP_THREADS_NUM
 #define COREDUMP_THREADS_NUM 1
 #endif
@@ -61,6 +62,9 @@ static const char b64_table[] =
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 typedef struct {
+	char outBuf[COREDUMP_OUTBUF_SIZE];
+	size_t outCur;
+
 	u32 b64_buf;
 	int b64_bits;
 
@@ -81,10 +85,23 @@ static void coredump_write(const char *data, size_t len)
 }
 
 
+static void coredump_writeBuf(coredump_state_t *state, const char *data, size_t len)
+{
+	size_t i;
+	for (i = 0; i < len; i++) {
+		state->outBuf[state->outCur++] = data[i];
+		if (state->outCur == sizeof(state->outBuf) - 1) {
+			state->outBuf[state->outCur] = '\0';
+			coredump_write(state->outBuf, state->outCur);
+			state->outCur = 0;
+		}
+	}
+}
+
+
 static void coredump_b64EncodeByte(coredump_state_t *state, const u8 byte)
 {
-	char c[2];
-	c[1] = '\0';
+	char c[1];
 
 	state->b64_buf <<= 8;
 	state->b64_buf |= byte;
@@ -92,7 +109,7 @@ static void coredump_b64EncodeByte(coredump_state_t *state, const u8 byte)
 	while (state->b64_bits >= 6) {
 		state->b64_bits -= 6;
 		c[0] = b64_table[(state->b64_buf >> state->b64_bits) & 0x3F];
-		coredump_write(c, 1);
+		coredump_writeBuf(state, c, 1);
 	}
 }
 
@@ -115,24 +132,25 @@ static void coredump_init(coredump_state_t *state, const char *path, const char 
 	char *textBuff;
 	size_t i;
 
+	state->outCur = 0;
+	state->b64_buf = 0;
+	state->b64_bits = 0;
+	state->rle_last = -1;
+	state->rle_count = 0;
+	state->crc32 = -1;
+
 	coredump_write(COREDUMP_START, sizeof(COREDUMP_START) - 1);
-	textBuff = vm_kmalloc(hal_strlen(path) + hal_strlen(mnemonic) + 3);
+	textBuff = vm_kmalloc(hal_strlen(path) + hal_strlen(mnemonic) + 4);
 	hal_strcpy(textBuff, path);
 	i = hal_strlen(path);
 	hal_strcpy(textBuff + i, ": ");
 	i += 2;
 	hal_strcpy(textBuff + i, mnemonic);
 	i += hal_strlen(mnemonic);
+	textBuff[i++] = '\n';
 	textBuff[i] = '\0';
 	coredump_write(textBuff, i);
 	vm_kfree(textBuff);
-	coredump_write("\n", 1);
-
-	state->b64_buf = 0;
-	state->b64_bits = 0;
-	state->rle_last = -1;
-	state->rle_count = 0;
-	state->crc32 = -1;
 }
 
 
@@ -194,13 +212,18 @@ static void coredump_finalize(coredump_state_t *state)
 	if (state->b64_bits > 0) {
 		c[0] = b64_table[(state->b64_buf << (6 - state->b64_bits)) & 0x3F];
 		c[1] = '\0';
-		coredump_write(c, 1);
+		coredump_writeBuf(state, c, 1);
 		if (state->b64_bits == 4) {
-			coredump_write("=", 1);
+			coredump_writeBuf(state, "=", 1);
 		}
 		else if (state->b64_bits == 2) {
-			coredump_write("==", 2);
+			coredump_writeBuf(state, "==", 2);
 		}
+	}
+
+	if (state->outCur > 0) {
+		state->outBuf[state->outCur] = '\0';
+		coredump_write(state->outBuf, state->outCur);
 	}
 
 	coredump_write(COREDUMP_END, sizeof(COREDUMP_END) - 1);
