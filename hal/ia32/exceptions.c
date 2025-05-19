@@ -23,6 +23,7 @@
 
 #include "include/mman.h"
 #include "include/errno.h"
+#include "proc/elf.h"
 
 
 /* Exception stubs */
@@ -112,18 +113,23 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 }
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+const char *hal_exceptionMnemonic(int n)
 {
 	static const char *const mnemonics[] = {
-		"0 #DE",  "1 #DB",  "2 #NMI", "3 #BP",      "4 #OF",  "5 #BR",  "6 #UD",  "7 #NM",
-		"8 #BF",  "9 #",    "10 #TS", "11 #NP",     "12 #SS", "13 #GP", "14 #PF", "15 #",
-		"16 #MF", "17 #AC", "18 #MC", "19 #XM/#XF", "20 #VE", "21 #",   "22 #",   "23 #",
-		"24 #",   "25 #",   "26 #",   "27 #",       "28 #",   "29 #",   "30 #SE", "31 #" };
+		"0 #DE", "1 #DB", "2 #NMI", "3 #BP", "4 #OF", "5 #BR", "6 #UD", "7 #NM",
+		"8 #BF", "9 #", "10 #TS", "11 #NP", "12 #SS", "13 #GP", "14 #PF", "15 #",
+		"16 #MF", "17 #AC", "18 #MC", "19 #XM/#XF", "20 #VE", "21 #", "22 #", "23 #",
+		"24 #", "25 #", "26 #", "27 #", "28 #", "29 #", "30 #SE", "31 #"
+	};
 
+	return mnemonics[n & 0x1f];
+}
+
+
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+{
 	size_t i = 0;
 	u32 ss;
-
-	n &= 0x1f;
 
 	/* clang-format off */
 	__asm__ volatile(
@@ -135,7 +141,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	/* clang-format on */
 
 	hal_strcpy(buff, "\nException: ");
-	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
+	hal_strcpy(buff += hal_strlen(buff), hal_exceptionMnemonic(n));
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
@@ -300,4 +306,53 @@ __attribute__ ((section (".init"))) void _hal_exceptionsInit(void)
 	exceptions.handlers[7] = exceptions_exc7_handler;
 
 	return;
+}
+
+
+cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
+{
+	return &ctx->cpuCtx;
+}
+
+
+void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
+{
+	u32 *regs = (u32 *)buff;
+	*(regs++) = ctx->ebx;
+	*(regs++) = ctx->ecx;
+	*(regs++) = ctx->edx;
+	*(regs++) = ctx->esi;
+	*(regs++) = ctx->edi;
+	*(regs++) = ctx->ebp;
+	*(regs++) = ctx->eax;
+	*(regs++) = ctx->ds;
+	*(regs++) = ctx->es;
+	*(regs++) = ctx->fs;
+	*(regs++) = ctx->gs;
+	*(regs++) = 0;
+	*(regs++) = ctx->eip;
+	*(regs++) = ctx->cs;
+	*(regs++) = ctx->eflags;
+	*(regs++) = ctx->esp;
+	*(regs++) = ctx->ss;
+}
+
+
+void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
+{
+	static const char FPREGSET_NAME[] = "CORE";
+	Elf32_Nhdr nhdr;
+	nhdr.n_namesz = sizeof(FPREGSET_NAME);
+	nhdr.n_descsz = sizeof(ctx->fpuContext);
+	nhdr.n_type = NT_FPREGSET;
+	hal_memcpy(buff, &nhdr, sizeof(nhdr));
+	buff = (char *)buff + sizeof(nhdr);
+	hal_memcpy(buff, FPREGSET_NAME, sizeof(FPREGSET_NAME));
+	buff = (char *)buff + ((sizeof(FPREGSET_NAME) + 3) & ~3);
+	hal_memcpy(buff, &ctx->fpuContext, sizeof(ctx->fpuContext));
+}
+
+
+void hal_coredumpGeneralAux(void *buff)
+{
 }

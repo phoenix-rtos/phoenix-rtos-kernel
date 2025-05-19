@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
+#include "coredump.h"
 
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
@@ -2157,4 +2158,55 @@ void proc_unfreeze(process_t *process)
 		thread = thread->procnext;
 	} while (thread != process->threads);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+size_t coredump_threadsInfo(process_t *process, size_t n, cpu_context_t *ectx, coredump_threadinfo_t *info)
+{
+	thread_t *thread;
+	thread_t *current;
+	spinlock_ctx_t sc;
+	cpu_context_t *cctx;
+	size_t i = 0;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (ectx != NULL) {
+		current = _proc_current();
+		info[i].tid = proc_getTid(current);
+		info[i].cursig = 0;
+		info[i].userContext = ectx;
+		i++;
+	}
+	else {
+		current = NULL;
+	}
+	if (i >= n) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return i;
+	}
+
+	thread = process->threads;
+	do {
+		if (thread == current) { /* already dumped from exc_context_t */
+			thread = thread->procnext;
+			continue;
+		}
+
+		cctx = _threads_userContext(thread);
+		if (cctx == NULL) {
+			thread = thread->procnext;
+			continue;
+		}
+
+		info[i].tid = proc_getTid(thread);
+		info[i].cursig = 0;
+		info[i].userContext = cctx;
+		i++;
+
+		thread = thread->procnext;
+	} while ((i < n) && (thread != process->threads));
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	return i;
 }
