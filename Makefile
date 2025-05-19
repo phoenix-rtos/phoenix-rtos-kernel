@@ -25,7 +25,7 @@ MAKEFLAGS += --no-print-directory
 
 include ../phoenix-rtos-build/Makefile.common
 
-CFLAGS += -I. #-ffreestanding
+CFLAGS += -I. -ffreestanding
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DRELEASE=\"$(RELEASE)\" -DTARGET_FAMILY=\"$(TARGET_FAMILY)\"
 
 # Add aliases to standard C library functions as required by GCC
