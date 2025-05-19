@@ -20,6 +20,7 @@
 #include "hal/string.h"
 
 #include "include/mman.h"
+#include "proc/elf.h"
 
 #define SIZE_EXCEPTIONS 16
 
@@ -31,21 +32,26 @@ static struct {
 } exceptions_common;
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+const char *hal_exceptionMnemonic(int n)
 {
-	unsigned int i = 0;
-
 	static const char *mnemonics[] = {
 		"0 Instruction address missaligned", "1 Instruction access fault", "2 Illegal instruction", "3 Breakpoint",
 		"4 Reserved", "5 Load access fault", "6 AMO address misaligned", "7 Store/AMO access fault",
 		"8 Environment call", "9 Reserved", "10 Reserved", "11 Reserved",
 		"12 Instruction page fault", "13 Load page fault", "14 Reserved", "15 Store/AMO page fault"
 	};
+	return mnemonics[n];
+}
+
+
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+{
+	unsigned int i = 0;
 
 	n &= 0xf;
 
 	hal_strcpy(buff, "\nException: ");
-	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
+	hal_strcpy(buff += hal_strlen(buff), hal_exceptionMnemonic(n));
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
@@ -245,4 +251,72 @@ __attribute__((section(".init"))) void _hal_exceptionsInit(void)
 	for (k = 0; k < SIZE_EXCEPTIONS; k++) {
 		exceptions_common.handlers[k] = exceptions_trampoline;
 	}
+}
+
+
+cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
+{
+	return ctx;
+}
+
+
+void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
+{
+	u64 *regs = (u64 *)buff;
+
+
+	*(regs++) = ctx->sepc;
+	*(regs++) = ctx->ra;
+	*(regs++) = ctx->sp;
+	*(regs++) = ctx->gp;
+	*(regs++) = ctx->tp;
+	*(regs++) = ctx->t0;
+	*(regs++) = ctx->t1;
+	*(regs++) = ctx->t2;
+	*(regs++) = ctx->s0;
+	*(regs++) = ctx->s1;
+	*(regs++) = ctx->a0;
+	*(regs++) = ctx->a1;
+	*(regs++) = ctx->a2;
+	*(regs++) = ctx->a3;
+	*(regs++) = ctx->a4;
+	*(regs++) = ctx->a5;
+	*(regs++) = ctx->a6;
+	*(regs++) = ctx->a7;
+	*(regs++) = ctx->s2;
+	*(regs++) = ctx->s3;
+	*(regs++) = ctx->s4;
+	*(regs++) = ctx->s5;
+	*(regs++) = ctx->s6;
+	*(regs++) = ctx->s7;
+	*(regs++) = ctx->s8;
+	*(regs++) = ctx->s9;
+	*(regs++) = ctx->s10;
+	*(regs++) = ctx->s11;
+	*(regs++) = ctx->t3;
+	*(regs++) = ctx->t4;
+	*(regs++) = ctx->t5;
+	*(regs++) = ctx->t6;
+}
+
+
+void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
+{
+	const char FPREGSET_NAME[] = "CORE";
+	Elf64_Nhdr nhdr;
+	nhdr.n_namesz = sizeof(FPREGSET_NAME);
+	nhdr.n_descsz = sizeof(ctx->fpCtx);
+	nhdr.n_type = NT_FPREGSET;
+	hal_memcpy(buff, &nhdr, sizeof(nhdr));
+	buff += sizeof(nhdr);
+	hal_memcpy(buff, FPREGSET_NAME, sizeof(FPREGSET_NAME));
+	buff += (sizeof(FPREGSET_NAME) + 3) & ~3;
+
+	hal_memcpy(buff, &ctx->fpCtx, sizeof(ctx->fpCtx));
+	buff += sizeof(ctx->fpCtx);
+}
+
+
+void hal_coredumpGeneralAux(void *buff)
+{
 }
