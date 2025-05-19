@@ -32,6 +32,15 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 
 #define COREDUMP_OUTBUF_SIZE 128
 
+#define MEM_NONE       0
+#define MEM_EXC_STACK  1
+#define MEM_ALL_STACKS 2
+#define MEM_ALL        3
+
+#ifndef PROC_COREDUMP_MEM_OPT
+#define PROC_COREDUMP_MEM_OPT MEM_EXC_STACK
+#endif
+
 #ifndef PROC_COREDUMP_THREADS_NUM
 #define PROC_COREDUMP_THREADS_NUM 1
 #endif
@@ -447,10 +456,69 @@ static void coredump_dumpAllPhdrs(coredump_threadinfo_t *threadInfo, size_t thre
 	currentOffset += NOTES_SIZE;
 
 	/* Memory */
-	userSp = hal_cpuGetUserSP(threadInfo[0].userContext);
-	stackSize = coredump_stackSize(userSp, process);
-	coredump_dumpPhdr(PT_LOAD, currentOffset, userSp, stackSize, PROT_READ | PROT_WRITE, state);
-	currentOffset += stackSize;
+	if (PROC_COREDUMP_MEM_OPT == MEM_ALL) {
+		proc_lockSet(&process->mapp->lock);
+		e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
+		while (e != NULL) {
+			if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+				coredump_dumpPhdr(PT_LOAD, currentOffset, e->vaddr, e->size, e->prot, state);
+				currentOffset += e->size;
+			}
+			e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
+		}
+		proc_lockClear(&process->mapp->lock);
+	}
+	else if (PROC_COREDUMP_MEM_OPT == MEM_EXC_STACK) {
+		/* exception thread is put into threadInfo at index 0 */
+		userSp = hal_cpuGetUserSP(threadInfo[0].userContext);
+		stackSize = coredump_stackSize(userSp, process);
+		coredump_dumpPhdr(PT_LOAD, currentOffset, userSp, stackSize, PROT_READ | PROT_WRITE, state);
+		currentOffset += stackSize;
+	}
+	else if (PROC_COREDUMP_MEM_OPT == MEM_ALL_STACKS) {
+		for (i = 0; i < threadCnt; i++) {
+			userSp = hal_cpuGetUserSP(threadInfo[i].userContext);
+			stackSize = coredump_stackSize(userSp, process);
+			coredump_dumpPhdr(PT_LOAD, currentOffset, userSp, stackSize, PROT_READ | PROT_WRITE, state);
+			currentOffset += stackSize;
+		}
+	}
+}
+
+
+static void coredump_dumpAllMemory(process_t *process, coredump_state_t *state)
+{
+	map_entry_t *e;
+
+	proc_lockSet(&process->mapp->lock);
+	e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
+	while (e != NULL) {
+		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+			coredump_encodeChunk(state, e->vaddr, e->size);
+		}
+		e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
+	}
+	proc_lockClear(&process->mapp->lock);
+}
+
+
+static size_t coredump_segmentCount(process_t *process)
+{
+	map_entry_t *e;
+	size_t segCnt = 0;
+
+	proc_lockSet(&process->mapp->lock);
+
+	e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
+	while (e != NULL) {
+		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+			segCnt++;
+		}
+		e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
+	}
+
+	proc_lockClear(&process->mapp->lock);
+	return segCnt;
 }
 
 
@@ -472,6 +540,7 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	size_t threadCnt;
 	coredump_state_t state;
 	process_t *process;
+	size_t i;
 
 	process = proc_current()->process;
 
@@ -486,7 +555,20 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	coredump_currentThreadInfo(hal_excToCpuCtx(ctx), n, &threadInfo[0]);
 	threadCnt = 1 + coredump_threadsInfo(process, 1, PROC_COREDUMP_THREADS_NUM - 1, &threadInfo[1]);
 
-	segCnt = 1;
+	switch (PROC_COREDUMP_MEM_OPT) {
+		case MEM_ALL:
+			segCnt = coredump_segmentCount(process);
+			break;
+		case MEM_ALL_STACKS:
+			segCnt = threadCnt;
+			break;
+		case MEM_EXC_STACK:
+			segCnt = 1;
+			break;
+		default:
+			segCnt = 0;
+			break;
+	}
 
 	coredump_init(&state, process->path, hal_exceptionMnemonic(n));
 	coredump_dumpElfHeader(segCnt, &state);
@@ -497,7 +579,18 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	coredump_encodeChunk(&state, (u8 *)buff, SIZE_COREDUMP_GENAUX);
 
 	/* MEMORY */
-	coredump_dumpStack(process, cctx, &state);
+	if (PROC_COREDUMP_MEM_OPT == MEM_ALL) {
+		coredump_dumpAllMemory(process, &state);
+	}
+	else if (PROC_COREDUMP_MEM_OPT == MEM_EXC_STACK) {
+		/* exception thread is put into threadInfo at index 0 */
+		coredump_dumpStack(process, threadInfo[0].userContext, &state);
+	}
+	else if (PROC_COREDUMP_MEM_OPT == MEM_ALL_STACKS) {
+		for (i = 0; (i < threadCnt) && (i < PROC_COREDUMP_THREADS_NUM); i++) {
+			coredump_dumpStack(process, threadInfo[i].userContext, &state);
+		}
+	}
 
 	coredump_finalize(&state);
 
