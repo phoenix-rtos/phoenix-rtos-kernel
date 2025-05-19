@@ -1,3 +1,18 @@
+/*
+ * Phoenix-RTOS
+ *
+ * Operating system kernel
+ *
+ * Process coredump
+ *
+ * Copyright 2025 Phoenix Systems
+ * Author: Jakub Klimek
+ *
+ * This file is part of Phoenix-RTOS.
+ *
+ * %LICENSE%
+ */
+
 #include "coredump.h"
 #include "arch/cpu.h"
 #include "arch/exceptions.h"
