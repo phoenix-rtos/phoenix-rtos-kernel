@@ -22,6 +22,7 @@
 #include "include/sysinfo.h"
 #include "process.h"
 #include "lock.h"
+#include "coredump.h"
 
 #define MAX_TID        MAX_ID
 #define THREAD_END     1
@@ -228,5 +229,8 @@ extern void proc_freeze(process_t *proc);
 
 
 extern void proc_unfreeze(process_t *proc);
+
+
+extern size_t coredump_threadsInfo(process_t *process, size_t n, cpu_context_t *ectx, coredump_threadinfo_t *info);
 
 #endif
