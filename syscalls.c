@@ -1018,24 +1018,11 @@ unsigned int syscalls_signalMask(void *ustack)
 
 int syscalls_signalSuspend(void *ustack)
 {
-	unsigned int mask, old;
-	int ret;
-	thread_t *t;
 
+	unsigned int mask;
 	GETFROMSTACK(ustack, unsigned, mask, 0);
 
-	t = proc_current();
-
-	old = t->sigmask;
-	t->sigmask = mask;
-
-	do {
-		ret = proc_threadSleep(1ULL << 52);
-	} while (ret != -EINTR);
-
-	t->sigmask = old;
-
-	return ret;
+	return threads_sigsuspend(mask);
 }
 
 
