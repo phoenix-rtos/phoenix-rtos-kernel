@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
+#include "coredump.h"
 
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
@@ -576,8 +577,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	if (current != NULL) {
 		current->context = context;
 
-		/* Move thread to the end of queue */
-		if (current->state == READY) {
+		if ((hal_cpuSupervisorMode(current->context) == 0) && (current->freeze != RUNNING)) {
+			current->freeze = FROZEN;
+		}
+		else if (current->state == READY) {
+			/* Move thread to the end of queue */
 			LIST_ADD(&threads_common.ready[current->priority], current);
 			_perf_preempted(current);
 		}
@@ -591,6 +595,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		}
 
 		LIST_REMOVE(&threads_common.ready[i], selected);
+
+		if ((hal_cpuSupervisorMode(selected->context) == 0) && (selected->freeze != RUNNING)) {
+			selected->freeze = FROZEN;
+			continue;
+		}
 
 		if (selected->exit == 0) {
 			break;
@@ -767,6 +776,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->sigmask = t->sigpend = 0;
 	t->refs = 1;
 	t->interruptible = 0;
+	t->freeze = RUNNING;
 	t->exit = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
@@ -779,6 +789,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->maxWait = 0;
 	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
+	t->userContext = NULL;
 	t->longjmpctx = NULL;
 
 	if (thread_alloc(t) < 0) {
@@ -1055,6 +1066,11 @@ static void _proc_threadDequeue(thread_t *t)
 	t->wait = NULL;
 	t->state = READY;
 	t->interruptible = 0;
+
+	if (t->freeze > FREEZER) {
+		t->freeze = FROZEN;
+		return;
+	}
 
 	/* MOD */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
@@ -2074,4 +2090,154 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
 
 	return EOK;
+}
+
+
+void threads_saveUserContext(cpu_context_t *ctx)
+{
+	thread_t *thread;
+	spinlock_ctx_t sc;
+
+	if (ctx != NULL && hal_cpuSupervisorMode(ctx) != 0) {
+		return;
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = _proc_current();
+	thread->userContext = ctx;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+cpu_context_t *_threads_userContext(thread_t *thread)
+{
+	if (thread->userContext != NULL) {
+		return thread->userContext;
+	}
+	else if (hal_cpuSupervisorMode(thread->context) == 0) {
+		return thread->context;
+	}
+	return NULL;
+}
+
+
+/* Does not freeze current thread until it's rescheduled in userspace! */
+void proc_freeze(process_t *process)
+{
+	spinlock_ctx_t sc;
+	thread_t *thread, *current;
+	int i;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = process->threads;
+	current = _proc_current();
+
+	/* Kernelspace and currently executing threads can't be instantly frozen */
+	do {
+		if ((hal_cpuSupervisorMode(thread->context) != 0) && thread->state == READY) {
+			thread->freeze = FREEZING;
+		}
+		else {
+			thread->freeze = FROZEN;
+		}
+		thread = thread->procnext;
+	} while (thread != process->threads);
+
+	for (i = 0; i < hal_cpuGetCount(); i++) {
+		if (i != hal_cpuGetID() && threads_common.current[i]->process == process) {
+			threads_common.current[i]->freeze = FREEZING;
+		}
+	}
+	current->freeze = FREEZER;
+
+	/* Threads can become frozen if entered sleep or were rescheduled in userspace */
+	do {
+		while ((thread->freeze != FROZEN) && (thread != current)) {
+			if (thread->state == SLEEP) {
+				thread->freeze = FROZEN;
+			}
+
+			hal_cpuReschedule(&threads_common.spinlock, &sc);
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+		}
+		thread = thread->procnext;
+	} while (thread != process->threads);
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+void proc_unfreeze(process_t *process)
+{
+	spinlock_ctx_t sc;
+	thread_t *thread;
+	thread_t *current;
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	current = _proc_current();
+	thread = process->threads;
+
+	do {
+		thread->freeze = RUNNING;
+		if ((thread->state == READY) && (thread != current) && (LIST_BELONGS(&threads_common.ready[thread->priority], thread) == 0)) {
+			LIST_ADD(&threads_common.ready[thread->priority], thread);
+		}
+
+		thread = thread->procnext;
+	} while (thread != process->threads);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+size_t coredump_threadsInfo(process_t *process, size_t n, cpu_context_t *ectx, coredump_threadinfo_t *info)
+{
+	thread_t *thread;
+	thread_t *current;
+	spinlock_ctx_t sc;
+	cpu_context_t *cctx;
+	size_t i = 0;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (ectx != NULL) {
+		current = _proc_current();
+		info[i].tid = proc_getTid(current);
+		info[i].cursig = 0;
+		info[i].sigmask = current->sigmask;
+		info[i].sigpend = current->sigpend;
+		info[i].userContext = ectx;
+		i++;
+	}
+	else {
+		current = NULL;
+	}
+	if (i >= n) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return i;
+	}
+
+	thread = process->threads;
+	do {
+		if (thread == current) { /* already dumped from exc_context_t */
+			thread = thread->procnext;
+			continue;
+		}
+
+		cctx = _threads_userContext(thread);
+		if (cctx == NULL) {
+			thread = thread->procnext;
+			continue;
+		}
+
+		info[i].tid = proc_getTid(thread);
+		info[i].cursig = 0;
+		info[i].sigmask = thread->sigmask;
+		info[i].sigpend = thread->sigpend;
+		info[i].userContext = cctx;
+		i++;
+
+		thread = thread->procnext;
+	} while ((i < n) && (thread != process->threads));
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	return i;
 }
