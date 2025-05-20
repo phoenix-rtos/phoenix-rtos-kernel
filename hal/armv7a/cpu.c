@@ -96,7 +96,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src)
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	const struct stackArg args[] = {
@@ -104,6 +104,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &ctx->sp, sizeof(ctx->sp) },
 		{ &ctx->pc, sizeof(ctx->pc) },
 		{ &signalCtx, sizeof(signalCtx) },
+		{ &oldmask, sizeof(oldmask) },
 		{ &n, sizeof(n) },
 	};
 

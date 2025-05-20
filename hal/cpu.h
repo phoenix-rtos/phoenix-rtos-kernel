@@ -103,7 +103,8 @@ extern void *hal_cpuGetUserSP(cpu_context_t *ctx);
 extern int hal_cpuSupervisorMode(cpu_context_t *ctx);
 
 
-extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, const int src);
+/* oldmask: mask to be restored in sigreturn after handling the signal */
+extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src);
 
 
 extern void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
