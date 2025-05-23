@@ -1643,22 +1643,15 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 #define IOCPARM_MASK   0x1fffUL
 #define IOCPARM_LEN(x) (((x) >> 16) & IOCPARM_MASK)
 
-#define IOC_OUT                      0x40000000UL
-#define IOC_IN                       0x80000000UL
-#define IOC_INOUT                    (IOC_IN | IOC_OUT)
-#define _IOC(inout, group, num, len) ((unsigned long)((inout) | (((len) & IOCPARM_MASK) << 16) | (((unsigned int)(group)) << 8) | (num)))
-
-#define SIOCGIFCONF _IOC(IOC_INOUT, 'S', 0x12U, sizeof(struct ifconf))
-#define SIOCADDRT   _IOC(IOC_IN, 'S', 0x44U, sizeof(struct rtentry))
-#define SIOCDELRT   _IOC(IOC_IN, 'S', 0x45U, sizeof(struct rtentry))
+#define IOC_VOID  0x20000000UL
+#define IOC_OUT   0x40000000UL
+#define IOC_IN    0x80000000UL
+#define IOC_INOUT (IOC_IN | IOC_OUT)
 
 
-static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid)
+static void ioctl_pack(msg_t *msg, unsigned long request, void *data, size_t size, oid_t *oid)
 {
-	size_t size = IOCPARM_LEN(request);
 	ioctl_in_t *ioctl = (ioctl_in_t *)msg->i.raw;
-	struct ifconf *ifc;
-	struct rtentry *rt;
 
 	hal_memcpy(&msg->oid, oid, sizeof(*oid));
 	msg->type = mtDevCtl;
@@ -1668,6 +1661,7 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 	msg->o.size = 0;
 
 	ioctl->request = request;
+	ioctl->size = size;
 
 	if ((request & IOC_INOUT) != 0U) {
 		if ((request & IOC_IN) != 0U) {
@@ -1691,44 +1685,19 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 		hal_memcpy(ioctl->data, &data, size);
 	}
 	else {
-		/* No action required */
-	}
-
-
-	/* ioctl special case: arg is structure with pointer - has to be custom-packed into message */
-	if (request == SIOCGIFCONF) {
-		ifc = (struct ifconf *)data;
-		msg->o.data = ifc->ifc_buf;
-		msg->o.size = ifc->ifc_len;
-	}
-	else if ((request == SIOCADDRT) || (request == SIOCDELRT)) {
-		rt = (struct rtentry *)data;
-		if (rt->rt_dev != NULL) {
-			msg->o.data = rt->rt_dev;
-			msg->o.size = hal_strlen(rt->rt_dev) + 1U;
-		}
-	}
-	else {
-		/* No action required */
+		/* Nothing to do */
 	}
 }
 
 
-static int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
+static int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data, size_t size)
 {
-	size_t size = IOCPARM_LEN(request);
 	int err;
-	struct ifconf *ifc;
 
 	err = msg->o.err;
 
 	if (((request & IOC_OUT) != 0U) && (size <= sizeof(msg->o.raw))) {
 		hal_memcpy(data, msg->o.raw, size);
-	}
-
-	if (request == SIOCGIFCONF) { /* restore overridden userspace pointer */
-		ifc = (struct ifconf *)data;
-		ifc->ifc_buf = msg->o.data;
 	}
 
 	return err;
@@ -1743,19 +1712,36 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 	int err;
 	msg_t msg;
 	void *data = NULL;
+	size_t size = IOCPARM_LEN(request);
 
 	err = posix_getOpenFile(fildes, &f);
-	if (err == 0) {
-		/* TODO: handle POSIX defined requests with `switch (request)` */
-		if (((request & IOC_INOUT) != 0U) || (IOCPARM_LEN(request) > 0U)) {
-			GETFROMSTACK(ustack, void *, data, 2U);
+	if (err == EOK) {
+		/* TODO: handle POSIX defined requests */
+		if (size > 0U) {
+			GETFROMSTACK(ustack, void *, data, 2);
+			/* the actual size of the pointed-to structure: >= IOCPARM_LEN(request) */
+			GETFROMSTACK(ustack, size_t, size, 3);
+
+			if ((request & IOC_INOUT) != 0U) {
+				if (data == NULL) {
+					err = -EFAULT;
+				}
+				else if (vm_mapBelongs(proc_current()->process, data, size) < 0) {
+					err = -EFAULT;
+				}
+				else {
+					/* Nothing to do */
+				}
+			}
 		}
 
-		ioctl_pack(&msg, request, data, &f->oid);
-
-		err = proc_send(f->oid.port, &msg);
 		if (err == EOK) {
-			err = ioctl_processResponse(&msg, request, data);
+			ioctl_pack(&msg, request, data, size, &f->oid);
+
+			err = proc_send(f->oid.port, &msg);
+			if (err == EOK) {
+				err = ioctl_processResponse(&msg, request, data, size);
+			}
 		}
 
 		(void)posix_fileDeref(f);

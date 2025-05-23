@@ -123,26 +123,6 @@ typedef struct _process_info_t {
 } process_info_t;
 
 
-/* SIOCGIFCONF ioctl special case: arg is structure with pointer */
-struct ifconf {
-	unsigned int ifc_len; /* size of buffer */
-	char *ifc_buf;        /* buffer address */
-};
-
-/* SIOADDRT and SIOCDELRT ioctls special case: arg is structure with pointer */
-struct rtentry {
-	struct sockaddr rt_dst;
-	struct sockaddr rt_gateway;
-	struct sockaddr rt_genmask;
-	short rt_flags;
-	short rt_metric;
-	char *rt_dev;
-	unsigned long rt_mss;
-	unsigned long rt_window;
-	unsigned short rt_irtt;
-};
-
-
 int posix_fileDeref(open_file_t *f);
 
 
