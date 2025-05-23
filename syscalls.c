@@ -1714,6 +1714,7 @@ int syscalls_sys_ioctl(u8 *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, unsigned long, request, 1);
 
+	/* vm_mapBelongs on optional data pointer checked in posix_ioctl */
 	return posix_ioctl(fildes, request, ustack);
 }
 
