@@ -2707,7 +2707,6 @@ int posix_waitpid(pid_t child, int *status, int options)
 	process_info_t *pinfo, *c;
 	pid_t pid;
 	int err = EOK;
-	int found = 0;
 
 	pid = process_getPid(proc_current()->process);
 
@@ -2715,59 +2714,56 @@ int posix_waitpid(pid_t child, int *status, int options)
 	LIB_ASSERT_ALWAYS(pinfo != NULL, "pinfo not found, pid: %d", pid);
 
 	proc_lockSet(&pinfo->lock);
-	do {
-		c = pinfo->zombies;
-		if (c == NULL) {
-			if (pinfo->children == NULL) {
-				err = -ECHILD;
-				break;
-			}
-			else if ((options & 1) != 0) {
-				err = EOK;
-				break;
-			}
-			else {
-				while ((pinfo->zombies == NULL) && (err == EOK)) {
-					err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
-				}
+	for (;;) {
+		/* Do this in the loop in case someone has a bad idea of doing multithreaded waitpid */
+		if ((pinfo->children == NULL) && (pinfo->zombies == NULL)) {
+			err = -ECHILD;
+			break;
+		}
 
-				c = pinfo->zombies;
+		if (pinfo->zombies != NULL) {
+			c = pinfo->zombies;
+			do {
+				if ((child == -1) || ((child == 0) && (c->pgid == pinfo->pgid)) ||
+						((child < 0) && (c->pgid == -child)) || (child == c->process)) {
+					LIST_REMOVE(&pinfo->zombies, c);
+					err = c->process;
+					if (status != NULL) {
+						*status = c->exitcode;
+					}
+					proc_lockClear(&pinfo->lock);
 
-				if (err == -EINTR) {
-					/* pinfo->lock is clear */
+					pinfo_put(c);
 					pinfo_put(pinfo);
-					return -EINTR;
+					return err;
 				}
-				else if (err != 0) {
-					/* Should not happen */
-					break;
-				}
-			}
+
+				c = c->next;
+			} while (c != pinfo->zombies);
+		}
+
+		if ((options & 1) != 0) { /* WNOHANG */
+			err = EOK;
+			break;
 		}
 
 		do {
-			if ((child == -1) || ((child == 0) && (c->pgid == pinfo->pgid)) || ((child < 0) && (c->pgid == -child)) || (child == c->process)) {
-				LIST_REMOVE(&pinfo->zombies, c);
-				found = 1;
-				break;
-			}
+			err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
+		} while ((pinfo->zombies == NULL) && (err == EOK));
 
-			c = c->next;
-		} while (c != pinfo->zombies);
-	} while ((found == 0) && ((options & 1) == 0));
-	proc_lockClear(&pinfo->lock);
-
-	if (found != 0) {
-		err = c->process;
-
-		if (status != NULL) {
-			*status = c->exitcode;
+		if (err == -EINTR) {
+			/* pinfo->lock is clear */
+			pinfo_put(pinfo);
+			return -EINTR;
 		}
-
-		pinfo_put(c);
+		else if (err != 0) {
+			/* Should not happen */
+			break;
+		}
 	}
-
+	proc_lockClear(&pinfo->lock);
 	pinfo_put(pinfo);
+
 	return err;
 }
 
