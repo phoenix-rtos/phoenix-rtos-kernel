@@ -30,6 +30,10 @@
 #endif
 #endif
 
+#ifndef RTT_ENABLED
+#define RTT_ENABLED 0
+#endif
+
 #ifndef RTT_CONSOLE_KERNEL
 #if RTT_ENABLED
 #define RTT_CONSOLE_KERNEL 0
