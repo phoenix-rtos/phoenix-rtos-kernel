@@ -29,14 +29,15 @@
 
 #define RTWDOG_UNLOCK_KEY  0xd928c520u
 #define RTWDOG_REFRESH_KEY 0xb480a602u
-#if WATCHDOG && !defined(WATCHDOG_TIMEOUT_MS)
+
+#if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
 #define WATCHDOG_TIMEOUT_MS (30000)
 #warning "WATCHDOG_TIMEOUT_MS not defined, defaulting to 30000 ms"
 #endif
 
 /* 1500 ms is the sum of the minimum sensible watchdog timeout (500 ms) and time for WICT interrupt
 to fire before watchdog times out (1000 ms) */
-#if WATCHDOG && (WATCHDOG_TIMEOUT_MS < 1500 || WATCHDOG_TIMEOUT_MS > 128000)
+#if defined(WATCHDOG) && (WATCHDOG_TIMEOUT_MS < 1500 || WATCHDOG_TIMEOUT_MS > 128000)
 #error "Watchdog timeout out of bounds!"
 #endif
 
@@ -788,7 +789,7 @@ void _imxrt_init(void)
 	*(imxrt_common.wdog1 + wdog_wcr) = tmp | (((WATCHDOG_TIMEOUT_MS - 500u) / 500u) << 8);
 	hal_cpuDataMemoryBarrier();
 #endif
-#if WATCHDOG
+#if defined(WATCHDOG)
 	/* Enable the watchdog */
 	*(imxrt_common.wdog1 + wdog_wcr) |= (1u << 2);
 	hal_cpuDataMemoryBarrier();
