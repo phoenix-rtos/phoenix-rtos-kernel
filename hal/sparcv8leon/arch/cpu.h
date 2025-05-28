@@ -89,45 +89,45 @@
 	stub %g0, [%g1]
 
 /* FP context save */
-#define FPU_SAVE \
-	std %f0, [%sp + 0x50]; \
-	std %f2, [%sp + 0x58]; \
-	std %f4, [%sp + 0x60]; \
-	std %f6, [%sp + 0x68]; \
-	std %f8, [%sp + 0x70]; \
-	std %f10, [%sp + 0x78]; \
-	std %f12, [%sp + 0x80]; \
-	std %f14, [%sp + 0x88]; \
-	std %f16, [%sp + 0x90]; \
-	std %f18, [%sp + 0x98]; \
-	std %f20, [%sp + 0xa0]; \
-	std %f22, [%sp + 0xa8]; \
-	std %f24, [%sp + 0xb0]; \
-	std %f26, [%sp + 0xb8]; \
-	std %f28, [%sp + 0xc0]; \
-	std %f30, [%sp + 0xc8]; \
-	st  %fsr, [%sp + 0xd0]; \
-	st  %g0, [%sp + 0xd4]
+#define FPU_SAVE(spOffs) \
+	std %f0, [%sp + (spOffs) + 0x00]; \
+	std %f2, [%sp + (spOffs) + 0x08]; \
+	std %f4, [%sp + (spOffs) + 0x10]; \
+	std %f6, [%sp + (spOffs) + 0x18]; \
+	std %f8, [%sp + (spOffs) + 0x20]; \
+	std %f10, [%sp + (spOffs) + 0x28]; \
+	std %f12, [%sp + (spOffs) + 0x30]; \
+	std %f14, [%sp + (spOffs) + 0x38]; \
+	std %f16, [%sp + (spOffs) + 0x40]; \
+	std %f18, [%sp + (spOffs) + 0x48]; \
+	std %f20, [%sp + (spOffs) + 0x50]; \
+	std %f22, [%sp + (spOffs) + 0x58]; \
+	std %f24, [%sp + (spOffs) + 0x60]; \
+	std %f26, [%sp + (spOffs) + 0x68]; \
+	std %f28, [%sp + (spOffs) + 0x70]; \
+	std %f30, [%sp + (spOffs) + 0x78]; \
+	st  %fsr, [%sp + (spOffs) + 0x80]; \
+	st  %g0, [%sp + (spOffs) + 0x84]
 
 
-#define FPU_RESTORE \
-	ldd [%sp + 0x50], %f0; \
-	ldd [%sp + 0x58], %f2; \
-	ldd [%sp + 0x60], %f4; \
-	ldd [%sp + 0x68], %f6; \
-	ldd [%sp + 0x70], %f8; \
-	ldd [%sp + 0x78], %f10; \
-	ldd [%sp + 0x80], %f12; \
-	ldd [%sp + 0x88], %f14; \
-	ldd [%sp + 0x90], %f16; \
-	ldd [%sp + 0x98], %f18; \
-	ldd [%sp + 0xa0], %f20; \
-	ldd [%sp + 0xa8], %f22; \
-	ldd [%sp + 0xb0], %f24; \
-	ldd [%sp + 0xb8], %f26; \
-	ldd [%sp + 0xc0], %f28; \
-	ldd [%sp + 0xc8], %f30; \
-	ld  [%sp + 0xd0], %fsr
+#define FPU_RESTORE(spOffs) \
+	ldd [%sp + (spOffs) + 0x00], %f0; \
+	ldd [%sp + (spOffs) + 0x08], %f2; \
+	ldd [%sp + (spOffs) + 0x10], %f4; \
+	ldd [%sp + (spOffs) + 0x18], %f6; \
+	ldd [%sp + (spOffs) + 0x20], %f8; \
+	ldd [%sp + (spOffs) + 0x28], %f10; \
+	ldd [%sp + (spOffs) + 0x30], %f12; \
+	ldd [%sp + (spOffs) + 0x38], %f14; \
+	ldd [%sp + (spOffs) + 0x40], %f16; \
+	ldd [%sp + (spOffs) + 0x48], %f18; \
+	ldd [%sp + (spOffs) + 0x50], %f20; \
+	ldd [%sp + (spOffs) + 0x58], %f22; \
+	ldd [%sp + (spOffs) + 0x60], %f24; \
+	ldd [%sp + (spOffs) + 0x68], %f26; \
+	ldd [%sp + (spOffs) + 0x70], %f28; \
+	ldd [%sp + (spOffs) + 0x78], %f30; \
+	ld  [%sp + (spOffs) + 0x80], %fsr
 
 /* clang-format on */
 
