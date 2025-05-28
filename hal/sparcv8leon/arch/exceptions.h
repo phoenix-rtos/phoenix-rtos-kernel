@@ -27,16 +27,16 @@
 #define EXC_PAGEFAULT_DATA 9
 #endif
 
-#define SIZE_CTXDUMP 512
+#define SIZE_CTXDUMP 550
 
 #pragma pack(push, 1)
 
 typedef struct _exc_context_t {
-	cpu_context_t cpuCtx;
-
 	/* special */
 	u32 wim;
 	u32 tbr;
+
+	cpu_context_t cpuCtx;
 } exc_context_t;
 
 #pragma pack(pop)
