@@ -435,31 +435,31 @@ exc_kstack_set:
 	bz exc_fpu_done
 	nop
 
-	FPU_SAVE
+	FPU_SAVE(0x58)
 
 exc_fpu_done:
+	rd %wim, %g2
+	st %g2, [%sp + 0x00] /* wim */
+	rd %tbr, %g2
+	st %g2, [%sp + 0x04] /* tbr */
 
-	st  %sp, [%sp + 0x00] /* sp */
+	st  %sp, [%sp + 0x08] /* sp */
 	rd  %y, %g2
-	st  %g2, [%sp + 0x04] /* y */
+	st  %g2, [%sp + 0x0c] /* y */
 
-	std %l0, [%sp + 0x08] /* psr, PC */
-	st  %l2, [%sp + 0x10] /* nPC */
-	st  %g1, [%sp + 0x14] /* g1 */
-	std %l4, [%sp + 0x18] /* g2, g3 */
-	std %g4, [%sp + 0x20] /* g4, g5 */
-	std %g6, [%sp + 0x28] /* g6, g7 */
+	std %l0, [%sp + 0x10] /* psr, PC */
+	st  %l2, [%sp + 0x18] /* nPC */
+	st  %g1, [%sp + 0x1c] /* g1 */
+	std %l4, [%sp + 0x20] /* g2, g3 */
+	std %g4, [%sp + 0x28] /* g4, g5 */
+	std %g6, [%sp + 0x30] /* g6, g7 */
 
 	/* input registers here are the outputs of the interrupted window */
 
-	std %i0, [%sp + 0x30] /* i0, i1 */
-	std %i2, [%sp + 0x38] /* i2, i3 */
-	std %i4, [%sp + 0x40] /* i4, i5 */
-	std %fp, [%sp + 0x48] /* fp (task's sp), i7 */
-
-	rd %wim, %g2
-	rd %tbr, %g3
-	std %g2, [%sp + 0xd8] /* wim, tbr */
+	std %i0, [%sp + 0x38] /* i0, i1 */
+	std %i2, [%sp + 0x40] /* i2, i3 */
+	std %i4, [%sp + 0x48] /* i4, i5 */
+	std %fp, [%sp + 0x50] /* fp (task's sp), i7 */
 
 	mov %sp, %l7
 	sub %sp, 0x60, %sp
@@ -482,7 +482,7 @@ exc_fpu_done:
 	nop
 
 	/* trap type */
-	ld [%l7 + 0xdc], %o0
+	ld [%l7 + 0x04], %o0
 	srl %o0, TBR_TT_SHIFT, %o0
 	/* void exceptions_dispatch(unsigned int n, exc_context_t *ctx) */
 	call exceptions_dispatch
@@ -499,26 +499,26 @@ exc_fpu_done:
 #endif
 	mov %l7, %sp
 	/* restore current window */
-	ld  [%sp + 0x04], %g1 /* y */
-	ldd [%sp + 0x08], %l0 /* psr, PC */
+	ld  [%sp + 0x0c], %g1 /* y */
+	ldd [%sp + 0x10], %l0 /* psr, PC */
 	wr  %g1, %y
-	ld  [%sp + 0x10], %l2 /* nPC */
-	ld  [%sp + 0x14], %g1
-	ldd [%sp + 0x18], %g2
-	ldd [%sp + 0x20], %g4
-	ldd [%sp + 0x28], %g6
+	ld  [%sp + 0x18], %l2 /* nPC */
+	ld  [%sp + 0x1c], %g1
+	ldd [%sp + 0x20], %g2
+	ldd [%sp + 0x28], %g4
+	ldd [%sp + 0x30], %g6
 
-	ldd [%sp + 0x30], %i0
-	ldd [%sp + 0x38], %i2
-	ldd [%sp + 0x40], %i4
-	ldd [%sp + 0x48], %fp
+	ldd [%sp + 0x38], %i0
+	ldd [%sp + 0x40], %i2
+	ldd [%sp + 0x48], %i4
+	ldd [%sp + 0x50], %fp
 
 	set PSR_EF, %l5
 	andcc %l0, %l5, %g0
 	bz exc_restore_fpu_done
 	nop
 
-	FPU_RESTORE
+	FPU_RESTORE(0x58)
 
 exc_restore_fpu_done:
 	/* Check if restore would cause window underflow.
@@ -670,7 +670,7 @@ s_wovfl_done:
 	bz s_fpu_done
 	std %fp, [%sp + 0x48] /* fp (task's sp), return address */
 
-	FPU_SAVE
+	FPU_SAVE(0x50)
 
 s_fpu_done:
 	/* allocate stack frame for syscall handler */
@@ -898,7 +898,7 @@ _interrupts_restoreContext:
 	bz restore_fpu_done
 	nop
 
-	FPU_RESTORE
+	FPU_RESTORE(0x50)
 
 restore_fpu_done:
 	/* switch window to the task's window and restore context */
@@ -948,7 +948,7 @@ hal_cpuReschedule:
 	bz r_fpu_done
 	nop
 
-	FPU_SAVE
+	FPU_SAVE(0x50)
 
 r_fpu_done:
 	mov %sp, %l1    /* save pointer to context */

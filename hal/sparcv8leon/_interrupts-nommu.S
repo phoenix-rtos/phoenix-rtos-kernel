@@ -93,7 +93,7 @@ irq_kstack_set:
 	bz irq_fpu_done
 	nop
 
-	FPU_SAVE
+	FPU_SAVE(0x50)
 
 irq_fpu_done:
 	/* Save context on kernel stack - we have enough space for 1 window.
