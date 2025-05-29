@@ -19,6 +19,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "include/mman.h"
+#include "proc/elf.h"
 
 
 /* Set to 1 to print text descriptions of exceptions for architecture extensions */
@@ -38,7 +39,7 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 }
 
 
-static const char *exceptionClassStr(int excClass)
+const char *hal_exceptionMnemonic(int excClass)
 {
 	switch (excClass) {
 		case 0b000000:
@@ -139,7 +140,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	buff[i++] = '0' + n % 10;
 	buff[i++] = ':';
 	buff[i++] = ' ';
-	toAdd = exceptionClassStr(n);
+	toAdd = hal_exceptionMnemonic(n);
 	hal_strcpy(&buff[i], toAdd);
 	i += hal_strlen(toAdd);
 
@@ -315,4 +316,45 @@ void _hal_exceptionsInit(void)
 cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
 {
 	return &ctx->cpuCtx;
+}
+
+
+void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
+{
+	hal_memcpy(buff, ctx->x, sizeof(ctx->x));
+	buff += sizeof(ctx->x);
+	u64 *regs = (u64 *)buff;
+	*(regs++) = ctx->sp;
+	*(regs++) = ctx->pc;
+	*(regs++) = ctx->psr;
+}
+
+
+void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
+{
+	static const char FPREGSET_NAME[] = "CORE";
+	Elf64_Nhdr nhdr;
+	u32 tmp;
+
+	nhdr.n_namesz = sizeof(FPREGSET_NAME);
+	nhdr.n_descsz = sizeof(ctx->freg) + sizeof(u32) * 4;
+	nhdr.n_type = NT_FPREGSET;
+	hal_memcpy(buff, &nhdr, sizeof(nhdr));
+	buff = (char *)buff + sizeof(nhdr);
+	hal_memcpy(buff, FPREGSET_NAME, sizeof(FPREGSET_NAME));
+	buff = (char *)buff + ((sizeof(FPREGSET_NAME) + 3) & ~3);
+
+	hal_memcpy(buff, &ctx->freg, sizeof(ctx->freg));
+	buff = (char *)buff + sizeof(ctx->freg);
+	tmp = ctx->fpsr;
+	hal_memcpy(buff, &tmp, sizeof(u32));
+	buff = (char *)buff + sizeof(u32);
+	tmp = ctx->fpcr;
+	hal_memcpy(buff, &tmp, sizeof(u32));
+	/* and 8 bytes of padding */
+}
+
+
+void hal_coredumpGeneralAux(void *buff)
+{
 }
