@@ -22,7 +22,12 @@
 
 #define EXC_UNDEFINED 3
 
-#define SIZE_CTXDUMP 512 /* Size of dumped context */
+#define SIZE_CTXDUMP            512 /* Size of dumped context */
+#define SIZE_COREDUMP_GREGSET   72
+#define SIZE_COREDUMP_THREADAUX 280 /* vfp context note */
+#define SIZE_COREDUMP_GENAUX    36  /* auxv HWCAP note */
+
+#define HAL_ELF_MACHINE 40 /* ARM */
 
 typedef struct _exc_context_t {
 	u32 dfsr;
