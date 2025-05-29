@@ -844,15 +844,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 #else
 
-struct _reloc {
-	void *vbase;
-	void *pbase;
-	size_t size;
-	unsigned int misalign;
-};
-
-
-static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
+static int process_relocate(reloc_t *reloc, size_t relocsz, char **addr)
 {
 	size_t i;
 
@@ -878,7 +870,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	Elf32_Phdr *phdr, *phdrCurr;
 	Elf32_Shdr *shdr, *shstrshdr, *shdrCurr;
 	Elf32_Rela rela;
-	unsigned int relocsz = 0, reloffs;
+	unsigned int reloffs;
 	vm_prot_t prot;
 	vm_flags_t flags;
 	int badreloc = 0, err;
@@ -886,7 +878,6 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	void *relptr;
 	char *snameTab;
 	ptr_t *got;
-	struct _reloc reloc[8];
 	size_t stacksz = SIZE_USTACK;
 	process_tlsInfo_t tlsNew;
 
@@ -901,7 +892,8 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		return err;
 	}
 
-	hal_memset(reloc, 0, sizeof(reloc));
+	process->relocsz = 0;
+	hal_memset(process->reloc, 0, sizeof(process->reloc));
 	hal_memset(&tlsNew, 0, sizeof(tlsNew));
 	phdr = (void *)ehdr + ehdr->e_phoff;
 
@@ -970,15 +962,14 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 			hal_memset((char *)paddr + reloffs + phdrCurr->p_filesz, 0, round_page(phdrCurr->p_memsz + reloffs) - phdrCurr->p_filesz - reloffs);
 		}
 
-		if (relocsz >= (sizeof(reloc) / sizeof(reloc[0]))) {
+		if (process->relocsz >= (sizeof(process->reloc) / sizeof(process->reloc[0]))) {
 			return -ENOMEM;
 		}
 
-		reloc[relocsz].vbase = (void *)phdrCurr->p_vaddr;
-		reloc[relocsz].pbase = (void *)((char *)paddr + reloffs);
-		reloc[relocsz].size = phdrCurr->p_memsz;
-		reloc[relocsz].misalign = phdrCurr->p_offset & (phdrCurr->p_align - 1U);
-		++relocsz;
+		process->reloc[process->relocsz].vbase = (void *)phdrCurr->p_vaddr;
+		process->reloc[process->relocsz].pbase = (void *)((char *)paddr + reloffs);
+		process->reloc[process->relocsz].size = phdrCurr->p_memsz;
+		++process->relocsz;
 	}
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
@@ -1000,7 +991,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	}
 
 	got = (ptr_t *)shdr->sh_addr;
-	if (process_relocate(reloc, relocsz, (char **)&got) < 0) {
+	if (process_relocate(process->reloc, process->relocsz, (char **)&got) < 0) {
 		return -ENOEXEC;
 	}
 
@@ -1008,13 +999,13 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	/* This is non classic approach to .got relocation. We use .got itselft
 	 * instead of .rel section. */
 	for (i = 0U; i < shdr->sh_size / 4U; ++i) {
-		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
+		if (process_relocate(process->reloc, process->relocsz, (char **)&got[i]) < 0) {
 			return -ENOEXEC;
 		}
 	}
 
 	*entry = (void *)(unsigned long)ehdr->e_entry;
-	if (process_relocate(reloc, relocsz, (char **)entry) < 0) {
+	if (process_relocate(process->reloc, process->relocsz, (char **)entry) < 0) {
 		return -ENOEXEC;
 	}
 
@@ -1041,7 +1032,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 			}
 
 			relptr = (void *)rela.r_offset;
-			if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+			if (process_relocate(process->reloc, process->relocsz, (char **)&relptr) < 0) {
 				return -ENOEXEC;
 			}
 
@@ -1054,7 +1045,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 			/* NOTE: Build process on NOMMU compiles a position-dependend binary but kernel treats it as a PIE. */
 			/* There is no need to look at the symbol and perform calculations as it is already done by static linker. */
 
-			if (process_relocate(reloc, relocsz, relptr) < 0) {
+			if (process_relocate(process->reloc, process->relocsz, relptr) < 0) {
 				return -ENOEXEC;
 			}
 		}
@@ -1066,7 +1057,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		shdrCurr = &shdr[i];
 		if (hal_strcmp(&snameTab[shdrCurr->sh_name], "armtls") == 0) {
 			tlsNew.arm_m_tls = (ptr_t)shdrCurr->sh_addr;
-			if (process_relocate(reloc, relocsz, (char **)&tlsNew.arm_m_tls) < 0) {
+			if (process_relocate(process->reloc, process->relocsz, (char **)&tlsNew.arm_m_tls) < 0) {
 				return -ENOEXEC;
 			}
 		}
@@ -1075,7 +1066,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	/* Perform relocation for TLS memory (if it exists) */
 	if (tlsNew.p_memsz != 0U) {
 		relptr = (void *)tlsNew.p_addr;
-		if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
+		if (process_relocate(process->reloc, process->relocsz, (char **)&relptr) < 0) {
 			return -ENOEXEC;
 		}
 
