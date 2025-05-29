@@ -20,6 +20,7 @@
 #include "hal/string.h"
 
 #include "include/mman.h"
+#include "proc/coredump.h"
 #include "proc/elf.h"
 
 #define SIZE_EXCEPTIONS 16
@@ -124,6 +125,8 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
+
+	coredump_dump(n, ctx);
 
 #ifdef NDEBUG
 	hal_cpuReboot();
