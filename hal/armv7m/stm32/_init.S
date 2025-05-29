@@ -172,11 +172,18 @@ _syscallend:
 _exceptions_dispatch:
 	cpsid if
 
-	mrs r0, psp
-	stmdb sp!, {r0, r4-r11, lr}
+	/* if we came from userspace, make space for hw-saved regs */
+	tst lr, #(1 << 2)
+	it ne
+	subne sp, sp, #(8 * 4) /* space for hw-saved ctx */
+
+	mov r0, sp
+	str r0, [sp, #-8]!
 
 	mrs r0, ipsr
-	mov r1, sp
+	mrs r3, psp
+	sub r1, sp, #48
+	stmdb sp!, {r1-r11, lr}
 
 	b exceptions_dispatch
 .size _exceptions_dispatch, .-_exceptions_dispatch
