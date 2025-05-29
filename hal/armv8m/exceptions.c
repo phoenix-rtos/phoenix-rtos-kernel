@@ -20,7 +20,7 @@
 #include "config.h"
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+const char *hal_exceptionMnemonic(int n)
 {
 	static const char *mnemonics[] = {
 		"0 #InitialSP", "1 #Reset", "2 #NMI", "3 #HardFault",
@@ -28,6 +28,13 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 		"8 #", "9 #", "10 #", "11 #SVC",
 		"12 #Debug", "13 #", "14 #PendSV", "15 #SysTick"
 	};
+
+	return mnemonics[n & 0xf];
+}
+
+
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+{
 	size_t i = 0;
 	u32 msp = (u32)ctx + sizeof(*ctx);
 	u32 psp = ctx->psp;
@@ -43,12 +50,10 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 		hwctx = &ctx->hwctx;
 	}
 
-	n &= 0xf;
-
 	hal_strcpy(buff, "\nException: ");
 	i = sizeof("\nException: ") - 1;
-	hal_strcpy(&buff[i], mnemonics[n]);
-	i += hal_strlen(mnemonics[n]);
+	hal_strcpy(&buff[i], hal_exceptionMnemonic(n));
+	i += hal_strlen(hal_exceptionMnemonic(n));
 
 	i += hal_i2s("\n r0=", &buff[i], hwctx->r0, 16, 1);
 	i += hal_i2s("  r1=", &buff[i], hwctx->r1, 16, 1);
@@ -140,5 +145,38 @@ void _hal_exceptionsInit(void)
 
 cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
 {
-	return NULL; /* unsupported */
+	return ctx;
+}
+
+
+void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
+{
+	u32 *regs = (u32 *)buff;
+	*(regs++) = ctx->hwctx.r0;
+	*(regs++) = ctx->hwctx.r1;
+	*(regs++) = ctx->hwctx.r2;
+	*(regs++) = ctx->hwctx.r3;
+	*(regs++) = ctx->r4;
+	*(regs++) = ctx->r5;
+	*(regs++) = ctx->r6;
+	*(regs++) = ctx->r7;
+	*(regs++) = ctx->r8;
+	*(regs++) = ctx->r9;
+	*(regs++) = ctx->r10;
+	*(regs++) = ctx->r11;
+	*(regs++) = ctx->hwctx.r12;
+	*(regs++) = ctx->psp;
+	*(regs++) = ctx->hwctx.lr;
+	*(regs++) = ctx->hwctx.pc;
+	*(regs++) = ctx->hwctx.psr;
+}
+
+
+void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
+{
+}
+
+
+void hal_coredumpGeneralAux(void *buff)
+{
 }
