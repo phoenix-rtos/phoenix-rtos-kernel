@@ -50,6 +50,8 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 #define COREDUMP_START "\n_____________COREDUMP_START_____________\n"
 #define COREDUMP_END   "\n______________COREDUMP_END______________\n"
 
+#define EM_SPARC 2
+
 #define PRSTATUS_NAME "CORE"
 
 #define NT_LMA      0x00414D4C /* ASCII for "LMA" (load memory address) */
@@ -325,6 +327,11 @@ static void coredump_dumpThreadNotes(coredump_threadinfo_t *threads, size_t thre
 		prstatus.pr_pid = threads[i].tid;
 		coredump_encodeChunk(state, (u8 *)&prstatus, offsetof(elf_prstatus, pr_reg));
 		hal_coredumpGRegset(buff, threads[i].userContext);
+		if (HAL_ELF_MACHINE == EM_SPARC) {
+			/* SPARC uses Solaris prstatus structure instead of Linux due to GDB limited support */
+			*(short *)((char *)buff + 64) = prstatus.pr_cursig;
+			*(pid_t *)((char *)buff + 236) = prstatus.pr_pid;
+		}
 		coredump_encodeChunk(state, (u8 *)buff, SIZE_COREDUMP_GREGSET);
 		coredump_encodeChunk(state, (u8 *)&prstatus.pr_reg, sizeof(prstatus) - offsetof(elf_prstatus, pr_reg));
 

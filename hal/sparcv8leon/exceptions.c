@@ -20,6 +20,7 @@
 #include "hal/string.h"
 #include "hal/sparcv8leon/srmmu.h"
 #include "include/mman.h"
+#include "proc/elf.h"
 
 
 static struct {
@@ -29,7 +30,7 @@ static struct {
 } exceptions_common;
 
 
-static const char *const hal_exceptionsType(int n)
+const char *const hal_exceptionMnemonic(int n)
 {
 	switch (n) {
 		case 0x0:
@@ -80,7 +81,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	size_t i = hal_i2s("\033[0m\nException: 0x", buff, n, 16, 0);
 	buff[i] = '\0';
 
-	hal_strcpy(buff += hal_strlen(buff), hal_exceptionsType(n));
+	hal_strcpy(buff += hal_strlen(buff), hal_exceptionMnemonic(n));
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
@@ -218,4 +219,87 @@ void _hal_exceptionsInit(void)
 cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
 {
 	return &ctx->cpuCtx;
+}
+
+
+void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
+{
+	cpu_winContext_t *win = (cpu_winContext_t *)ctx->sp;
+
+	/* GDB support for sparc linux is limited. It's better to imitate Solaris.
+	   This padding is for Solaris prstatus structures */
+	hal_memset(buff, 0, 284);
+	buff = (char *)buff + 284;
+
+	u32 *regs = (u32 *)buff;
+	*(regs++) = 0;
+	*(regs++) = ctx->g1;
+	*(regs++) = ctx->g2;
+	*(regs++) = ctx->g3;
+	*(regs++) = ctx->g4;
+	*(regs++) = ctx->g5;
+	*(regs++) = ctx->g6;
+	*(regs++) = ctx->g7;
+	*(regs++) = ctx->o0;
+	*(regs++) = ctx->o1;
+	*(regs++) = ctx->o2;
+	*(regs++) = ctx->o3;
+	*(regs++) = ctx->o4;
+	*(regs++) = ctx->o5;
+	*(regs++) = ctx->sp;
+	*(regs++) = ctx->o7;
+
+	*(regs++) = win->l0;
+	*(regs++) = win->l1;
+	*(regs++) = win->l2;
+	*(regs++) = win->l3;
+	*(regs++) = win->l4;
+	*(regs++) = win->l5;
+	*(regs++) = win->l6;
+	*(regs++) = win->l7;
+	*(regs++) = win->i0;
+	*(regs++) = win->i1;
+	*(regs++) = win->i2;
+	*(regs++) = win->i3;
+	*(regs++) = win->i4;
+	*(regs++) = win->i5;
+	*(regs++) = win->fp;
+	*(regs++) = win->i7;
+
+	*(regs++) = ctx->psr;
+	*(regs++) = ctx->pc;
+	*(regs++) = ctx->npc;
+	*(regs++) = ctx->y;
+	*(regs++) = 0;
+	/* last byte of 152 Solaris's regset will be padded by elf_prstatus.pr_fpvalid */
+}
+
+
+void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
+{
+	static const char FPREGSET_NAME[] = "CORE";
+	Elf32_Nhdr nhdr;
+
+	nhdr.n_namesz = sizeof(FPREGSET_NAME);
+	nhdr.n_descsz = 99 * sizeof(u32);
+	nhdr.n_type = NT_FPREGSET;
+	hal_memcpy(buff, &nhdr, sizeof(nhdr));
+	buff = (char *)buff + sizeof(nhdr);
+	hal_memcpy(buff, FPREGSET_NAME, sizeof(FPREGSET_NAME));
+	buff = (char *)buff + ((sizeof(FPREGSET_NAME) + 3) & ~3);
+
+	hal_memcpy(buff, &ctx->fpCtx, 32 * sizeof(u32));
+	buff = (char *)buff + 32 * sizeof(u32);
+	*(u32 *)buff = 0;
+	buff = (char *)buff + sizeof(u32);
+	*(u32 *)buff = ctx->fpCtx.fsr;
+	buff = (char *)buff + sizeof(u32);
+	*(u32 *)buff = (u32)((1 << 8) | (8 << 16));
+	buff = (char *)buff + sizeof(u32);
+	hal_memset(buff, 0, 64 * sizeof(u32));
+}
+
+
+void hal_coredumpGeneralAux(void *buff)
+{
 }
