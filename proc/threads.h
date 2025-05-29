@@ -211,6 +211,9 @@ extern int _threads_init(vm_map_t *kmap, vm_object_t *kernel);
 extern int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 
+extern int threads_sigsuspend(unsigned int mask);
+
+
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 

@@ -555,7 +555,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 }
 
 
-static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, const int src);
+static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
@@ -620,7 +620,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			/* Check for signals to handle */
 			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
 				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
-				if (_threads_checkSignal(selected, proc, signalCtx, SIG_SRC_SCHED) == 0) {
+				if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
 					selCtx = signalCtx;
 				}
 			}
@@ -1459,7 +1459,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 }
 
 
-static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, const int src)
+static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src)
 {
 #ifndef KERNEL_SIGNALS_DISABLE
 
@@ -1469,7 +1469,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 	if ((sig != 0) && (proc->sighandler != NULL)) {
 		sig = hal_cpuGetLastBit(sig);
 
-		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, src) == 0) {
+		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, oldmask, src) == 0) {
 			selected->sigpend &= ~(1 << sig);
 			proc->sigpend &= ~(1 << sig);
 			return 0;
@@ -1497,7 +1497,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
 	hal_cpuSetReturnValue(ctx, retval);
 
-	if (_threads_checkSignal(thread, thread->process, signalCtx, SIG_SRC_SCALL) == 0) {
+	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
@@ -1505,6 +1505,60 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	}
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+int threads_sigsuspend(unsigned int mask)
+{
+	thread_t *thread;
+	spinlock_ctx_t sc;
+	cpu_context_t *ctx, *signalCtx;
+	void *kstackTop, *f;
+	unsigned int oldmask;
+
+
+	/* changing sigmask and sleep shall be atomic - do it under lock (sigpost is done also under threads_common.spinlock) */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = _proc_current();
+
+	/* setup syscall return value - sigsuspend always returns -EINTR */
+	kstackTop = thread->kstack + thread->kstacksz;
+	ctx = kstackTop - sizeof(*ctx);
+	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
+	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
+
+	oldmask = thread->sigmask;
+	thread->sigmask = mask;
+
+	/* check for pending signals before sleep - with the new mask */
+	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+		f = thread->process->sighandler;
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
+		/* no return */
+	}
+
+	/* Sleep forever (atomic lock release), interruptible */
+	thread_t *tqueue = NULL;
+	_proc_threadEnqueue(&tqueue, 0, 1);
+	hal_cpuReschedule(&threads_common.spinlock, &sc);
+	/* after wakeup */
+
+	/* check for pending signals before restoring the old mask */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+		f = thread->process->sighandler;
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
+		/* no return */
+	}
+
+	/* interrupted by signal but no sighandler installed */
+	thread->sigmask = oldmask;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	/* sigsuspend always exits with -EINTR */
+	return -EINTR;
 }
 
 
