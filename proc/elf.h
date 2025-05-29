@@ -107,6 +107,16 @@ typedef u64 Elf64_Xword;
 #define NT_AUXV     6
 #define NT_ARM_VFP  0x400
 
+#define AT_HWCAP 16
+#define AT_NULL  0
+
+#define COMPAT_HWCAP_VFP      (1 << 6)
+#define COMPAT_HWCAP_NEON     (1 << 12)
+#define COMPAT_HWCAP_VFPv3    (1 << 13)
+#define COMPAT_HWCAP_VFPv3D16 (1 << 14)
+#define HWCAP_VFPv3           (COMPAT_HWCAP_VFP | COMPAT_HWCAP_NEON | COMPAT_HWCAP_VFPv3)
+#define HWCAP_VFPv3D16        (COMPAT_HWCAP_VFP | COMPAT_HWCAP_VFPv3 | COMPAT_HWCAP_VFPv3D16)
+
 #pragma pack(push, 1)
 
 typedef struct {

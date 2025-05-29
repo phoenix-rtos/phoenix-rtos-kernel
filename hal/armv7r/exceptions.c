@@ -19,6 +19,8 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "include/mman.h"
+#include "proc/coredump.h"
+#include "proc/elf.h"
 
 
 #define EXC_ASYNC_EXTERNAL      0x16
@@ -51,18 +53,23 @@ enum { exc_reset = 0, exc_undef, exc_svc, exc_prefetch, exc_abort };
 /* clang-format on */
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+const char *hal_exceptionMnemonic(int n)
 {
 	static const char *const mnemonics[] = {
 		"0 #Reset", "1 #Undef", "2 #Syscall", "3 #Prefetch",
 		"4 #Abort", "5 #Reserved", "6 #FIRQ", "7 #IRQ"
 	};
+
+	return mnemonics[n & 0x7];
+}
+
+
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+{
 	size_t i = 0;
 
-	n &= 0x7;
-
 	hal_strcpy(buff, "\nException: ");
-	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
+	hal_strcpy(buff += hal_strlen(buff), hal_exceptionMnemonic(n));
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
@@ -105,6 +112,7 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 	hal_cpuDisableInterrupts();
 
+	coredump_dump(n, ctx);
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
@@ -240,4 +248,70 @@ void _hal_exceptionsInit(void)
 cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
 {
 	return &ctx->cpuCtx;
+}
+
+
+void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
+{
+	u32 *regs = (u32 *)buff;
+	*(regs++) = ctx->r0;
+	*(regs++) = ctx->r1;
+	*(regs++) = ctx->r2;
+	*(regs++) = ctx->r3;
+	*(regs++) = ctx->r4;
+	*(regs++) = ctx->r5;
+	*(regs++) = ctx->r6;
+	*(regs++) = ctx->r7;
+	*(regs++) = ctx->r8;
+	*(regs++) = ctx->r9;
+	*(regs++) = ctx->r10;
+	*(regs++) = ctx->fp;
+	*(regs++) = ctx->ip;
+	*(regs++) = ctx->sp;
+	*(regs++) = ctx->lr;
+	*(regs++) = ctx->pc;
+	*(regs++) = ctx->psr;
+}
+
+
+void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
+{
+	static const char ARMVFP_NAME[] = "LINUX";
+	Elf32_Nhdr nhdr;
+	nhdr.n_namesz = sizeof(ARMVFP_NAME);
+	nhdr.n_descsz = sizeof(ctx->freg) * 2 + sizeof(ctx->fpsr);
+	nhdr.n_type = NT_ARM_VFP;
+	hal_memcpy(buff, &nhdr, sizeof(nhdr));
+	buff = (char *)buff + sizeof(nhdr);
+	hal_memcpy(buff, ARMVFP_NAME, sizeof(ARMVFP_NAME));
+	buff = (char *)buff + ((sizeof(ARMVFP_NAME) + 3) & ~3);
+	hal_memcpy(buff, ctx->freg, sizeof(ctx->freg));
+	buff = (char *)buff + sizeof(ctx->freg);
+	buff = (char *)buff + sizeof(ctx->freg); /* padding to match full VFPv3 */
+	hal_memcpy(buff, &ctx->fpsr, sizeof(ctx->fpsr));
+}
+
+
+void hal_coredumpGeneralAux(void *buff)
+{
+	static const char AUXV_NAME[] = "CORE";
+	Elf32_Nhdr nhdr;
+	struct {
+		u32 a_type;
+		u32 a_val;
+	} auxv[2];
+
+	nhdr.n_namesz = sizeof(AUXV_NAME);
+	nhdr.n_descsz = sizeof(auxv);
+	nhdr.n_type = NT_AUXV;
+	hal_memcpy(buff, &nhdr, sizeof(nhdr));
+	buff = (char *)buff + sizeof(nhdr);
+	hal_memcpy(buff, AUXV_NAME, sizeof(AUXV_NAME));
+	buff = (char *)buff + ((sizeof(AUXV_NAME) + 3) & ~3);
+
+	auxv[0].a_type = AT_HWCAP;
+	auxv[0].a_val = HWCAP_VFPv3D16;
+	auxv[1].a_type = AT_NULL;
+	auxv[1].a_val = 0;
+	hal_memcpy(buff, auxv, sizeof(auxv));
 }

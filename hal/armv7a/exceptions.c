@@ -286,15 +286,6 @@ void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 }
 
 
-#define COMPAT_HWCAP_VFP   (1 << 6)
-#define COMPAT_HWCAP_NEON  (1 << 12)
-#define COMPAT_HWCAP_VFPv3 (1 << 13)
-#define HWCAP_VFPv3        (COMPAT_HWCAP_VFP | COMPAT_HWCAP_NEON | COMPAT_HWCAP_VFPv3)
-
-#define AT_HWCAP 16
-#define AT_NULL  0
-
-
 void hal_coredumpGeneralAux(void *buff)
 {
 	static const char AUXV_NAME[] = "CORE";
