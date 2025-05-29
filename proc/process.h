@@ -27,6 +27,14 @@
 
 #define MAX_PID MAX_ID
 
+#ifdef NOMMU
+typedef struct _reloc {
+	void *vbase;
+	void *pbase;
+	size_t size;
+} reloc_t;
+#endif
+
 typedef struct _process_t {
 	lock_t lock;
 
@@ -40,6 +48,11 @@ typedef struct _process_t {
 	char **envp;
 	idnode_t idlinkage;
 
+#ifdef NOMMU
+	reloc_t reloc[8];
+	int relocsz;
+#endif
+
 	vm_map_t map;
 	map_entry_t *entries;
 	vm_map_t *mapp;
@@ -47,6 +60,7 @@ typedef struct _process_t {
 	pmap_t *pmapp;
 	int exit;
 
+	unsigned coredump : 1;
 	unsigned lazy : 1;
 	unsigned lgap : 1;
 	unsigned rgap : 1;
