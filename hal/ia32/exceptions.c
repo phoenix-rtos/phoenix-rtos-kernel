@@ -23,6 +23,7 @@
 
 #include "include/mman.h"
 #include "include/errno.h"
+#include "proc/coredump.h"
 #include "proc/elf.h"
 
 
@@ -197,6 +198,8 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
+
+	coredump_dump(n, ctx);
 
 #ifdef NDEBUG
 	hal_cpuReboot();
