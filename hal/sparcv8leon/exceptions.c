@@ -20,6 +20,7 @@
 #include "hal/string.h"
 #include "hal/sparcv8leon/srmmu.h"
 #include "include/mman.h"
+#include "proc/coredump.h"
 #include "proc/elf.h"
 
 
@@ -141,6 +142,8 @@ __attribute__((noreturn)) static void exceptions_defaultHandler(unsigned int n, 
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
+
+	coredump_dump(n, ctx);
 
 #ifdef NDEBUG
 	hal_cpuReboot();
