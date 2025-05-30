@@ -47,11 +47,20 @@ stream {
 };
 
 event {
+	name = lock_name;
+	id = 0x01;
+	fields := struct {
+		u32 lid;
+		str name[16];
+	};
+};
+
+event {
 	name = lock_set;
 	id = 0x02;
 	fields := struct {
 		u32 tid;
-		str name[16];
+		u32 lid;
 	};
 };
 
@@ -60,7 +69,7 @@ event {
 	id = 0x03;
 	fields := struct {
 		u32 tid;
-		str name[16];
+		u32 lid;
 	};
 };
 

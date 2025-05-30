@@ -79,6 +79,12 @@ int perf_traceIsRunning(void)
 }
 
 
+static void perf_traceDumpLocks(void)
+{
+	proc_locksIter(perf_traceEventsLockName);
+}
+
+
 int perf_traceStart(void)
 {
 	spinlock_ctx_t sc;
@@ -100,6 +106,9 @@ int perf_traceStart(void)
 
 	_hal_interruptsTrace(1);
 	hal_spinlockClear(&trace_common.spinlock, &sc);
+
+	/* emit names of already set/cleared locks */
+	perf_traceDumpLocks();
 
 	return EOK;
 }

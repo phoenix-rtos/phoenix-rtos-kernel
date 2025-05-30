@@ -88,6 +88,9 @@ typedef struct _thread_t {
 } thread_t;
 
 
+typedef void (*proc_locksIter_cb)(const lock_t *lock);
+
+
 static inline int proc_getTid(thread_t *t)
 {
 	return t->idlinkage.id;
@@ -212,6 +215,9 @@ extern int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
+
+
+extern int proc_locksIter(proc_locksIter_cb cb);
 
 
 #endif

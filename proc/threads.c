@@ -44,8 +44,12 @@ struct {
 	rbtree_t sleeping;
 
 	/* Synchronized by mutex */
-	unsigned int idcounter;
-	idtree_t id;
+	int threadIdCounter;
+	idtree_t threadId;
+
+	spinlock_t idSpinlock;
+	int lockIdCounter;
+	idtree_t lockId;
 
 	intr_handler_t timeintrHandler;
 
@@ -505,7 +509,7 @@ thread_t *threads_findThread(int tid)
 	thread_t *t;
 
 	proc_lockSet(&threads_common.lock);
-	t = lib_idtreeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.id, tid));
+	t = lib_idtreeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.threadId, tid));
 	if (t != NULL) {
 		++t->refs;
 	}
@@ -522,7 +526,7 @@ void threads_put(thread_t *thread)
 	proc_lockSet(&threads_common.lock);
 	refs = --thread->refs;
 	if (refs <= 0) {
-		lib_idtreeRemove(&threads_common.id, &thread->idlinkage);
+		lib_idtreeRemove(&threads_common.threadId, &thread->idlinkage);
 	}
 	proc_lockClear(&threads_common.lock);
 
@@ -712,27 +716,50 @@ thread_t *proc_current(void)
 }
 
 
+static int _id_alloc(idtree_t *idtree, idnode_t *n, int *counter, int max)
+{
+	int id;
+
+	id = lib_idtreeAlloc(idtree, n, *counter);
+	if (id < 0) {
+		/* Try from the start */
+		*counter = 0;
+		id = lib_idtreeAlloc(idtree, n, *counter);
+	}
+
+	if (id >= 0) {
+		if (*counter == max) {
+			*counter = 0;
+		}
+		else {
+			(*counter)++;
+		}
+	}
+
+	return id;
+}
+
+
 static int thread_alloc(thread_t *thread)
 {
 	int id;
 
 	proc_lockSet(&threads_common.lock);
-	id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, threads_common.idcounter);
-	if (id < 0) {
-		/* Try from the start */
-		threads_common.idcounter = 0;
-		id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, threads_common.idcounter);
-	}
-
-	if (id >= 0) {
-		if (threads_common.idcounter == MAX_TID) {
-			threads_common.idcounter = 0;
-		}
-		else {
-			threads_common.idcounter++;
-		}
-	}
+	id = _id_alloc(&threads_common.threadId, &thread->idlinkage, &threads_common.threadIdCounter, MAX_TID);
 	proc_lockClear(&threads_common.lock);
+
+	return id;
+}
+
+
+static int lock_alloc(lock_t *lock)
+{
+	int id;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.idSpinlock, &sc);
+	id = _id_alloc(&threads_common.lockId, &lock->idlinkage, &threads_common.lockIdCounter, MAX_ID);
+	hal_spinlockClear(&threads_common.idSpinlock, &sc);
 
 	return id;
 }
@@ -804,7 +831,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
-			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
+			lib_idtreeRemove(&threads_common.threadId, &t->idlinkage);
 			vm_kfree(t->kstack);
 			vm_kfree(t);
 			return err;
@@ -1571,11 +1598,22 @@ int proc_lockTry(lock_t *lock)
 }
 
 
+static void _proc_updateLockIdTree(lock_t *lock)
+{
+	if (lock->idlinkage.id == -1) {
+		lock_alloc(lock);
+		perf_traceEventsLockName(lock);
+	}
+}
+
+
 static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
 	int ret;
+
+	_proc_updateLockIdTree(lock);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -1687,6 +1725,8 @@ static int _proc_lockUnlock(lock_t *lock)
 	thread_t *owner = lock->owner, *current;
 	spinlock_ctx_t sc;
 	int ret = 0, lockPriority;
+
+	_proc_updateLockIdTree(lock);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -1859,6 +1899,12 @@ int proc_lockDone(lock_t *lock)
 		_proc_lockUnlock(lock);
 	}
 
+	if (lock->idlinkage.id != -1) {
+		hal_spinlockSet(&threads_common.idSpinlock, &sc);
+		lib_idtreeRemove(&threads_common.lockId, &lock->idlinkage);
+		hal_spinlockClear(&threads_common.idSpinlock, &sc);
+	}
+
 	hal_spinlockClear(&lock->spinlock, &sc);
 	hal_spinlockDestroy(&lock->spinlock);
 
@@ -1872,8 +1918,26 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name)
 	lock->owner = NULL;
 	lock->queue = NULL;
 	lock->name = name;
+	lock->idlinkage.id = -1;
 
 	hal_memcpy(&lock->attr, attr, sizeof(struct lockAttr));
+
+	return EOK;
+}
+
+
+int proc_locksIter(proc_locksIter_cb cb)
+{
+	lock_t *lock;
+	idnode_t *n;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.idSpinlock, &sc);
+	for (n = lib_idtreeMinimum(threads_common.lockId.root); n != NULL; n = lib_idtreeNext(&n->linkage)) {
+		lock = lib_idtreeof(lock_t, idlinkage, n);
+		cb(lock);
+	}
+	hal_spinlockClear(&threads_common.idSpinlock, &sc);
 
 	return EOK;
 }
@@ -1949,7 +2013,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 	proc_lockSet(&threads_common.lock);
 
-	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
+	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.threadId.root));
 
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
@@ -2029,7 +2093,8 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;
-	threads_common.idcounter = 0;
+	threads_common.threadIdCounter = 0;
+	threads_common.lockIdCounter = 0;
 	threads_common.prev = 0;
 
 	threads_common.perfGather = 0;
@@ -2044,11 +2109,13 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.ready[i] = NULL;
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
-	lib_idtreeInit(&threads_common.id);
+	lib_idtreeInit(&threads_common.threadId);
+	lib_idtreeInit(&threads_common.lockId);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
 
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
+	hal_spinlockCreate(&threads_common.idSpinlock, "threads.idSpinlock");
 
 	/* Allocate and initialize current threads array */
 	if ((threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount())) == NULL)

@@ -23,6 +23,7 @@
 
 /* CTF event IDs */
 enum {
+	PERF_EVENT_LOCK_NAME = 0x01,
 	PERF_EVENT_LOCK_SET = 0x02,
 	PERF_EVENT_LOCK_CLEAR = 0x03,
 	PERF_EVENT_INTERRUPT_ENTER = 0x04,
@@ -52,17 +53,30 @@ extern void perf_traceEventsWrite(u8 event, void *data, size_t sz);
 	} while (0)
 
 
+static inline void perf_traceEventsLockName(const lock_t *lock)
+{
+	struct {
+		u32 lid;
+		char name[16];
+	} __attribute__((packed)) ev;
+
+	PERF_EVENT_BODY(PERF_EVENT_LOCK_NAME, ev, {
+		ev.lid = proc_lockGetId(lock);
+		hal_strcpy(ev.name, lock->name);
+	});
+}
+
+
 static inline void perf_traceEventsLockSet(lock_t *lock, u32 tid)
 {
-	/* TODO: pass the lock name only on lock initialization or during some threadinfo() analogous call */
 	struct {
 		u32 tid;
-		char name[16];
+		u32 lid;
 	} __attribute__((packed)) ev;
 
 	PERF_EVENT_BODY(PERF_EVENT_LOCK_SET, ev, {
 		ev.tid = tid;
-		hal_strcpy(ev.name, lock->name);
+		ev.lid = proc_lockGetId(lock);
 	});
 }
 
@@ -71,12 +85,12 @@ static inline void perf_traceEventsLockClear(lock_t *lock, u32 tid)
 {
 	struct {
 		u32 tid;
-		char name[16];
+		u32 lid;
 	} __attribute__((packed)) ev;
 
 	PERF_EVENT_BODY(PERF_EVENT_LOCK_CLEAR, ev, {
 		ev.tid = tid;
-		hal_strcpy(ev.name, lock->name);
+		ev.lid = proc_lockGetId(lock);
 	});
 }
 
