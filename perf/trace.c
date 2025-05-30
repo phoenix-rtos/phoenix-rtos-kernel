@@ -24,6 +24,7 @@ struct {
 	spinlock_t spinlock;
 
 	int gather;
+	int epoch;
 
 	int nonMonotonicity;
 
@@ -71,6 +72,16 @@ void perf_traceEventsWrite(u8 event, const void *data, size_t sz)
 }
 
 
+void _perf_traceUpdateLockEpoch(lock_t *lock)
+{
+	int prev = _proc_lockSetTraceEpoch(lock, trace_common.epoch);
+
+	if (prev != trace_common.epoch) {
+		_perf_traceEventsLockName(lock);
+	}
+}
+
+
 int perf_traceIsRunning(void)
 {
 	return trace_common.gather;
@@ -96,6 +107,8 @@ int perf_traceStart(void)
 	trace_common.gather = 1;
 	trace_common.nonMonotonicity = 0;
 	trace_common.bufferFull = 0;
+
+	trace_common.epoch++;
 
 	_hal_interruptsTrace(1);
 	hal_spinlockClear(&trace_common.spinlock, &sc);
@@ -152,6 +165,7 @@ int _perf_traceInit(vm_map_t *kmap)
 {
 	trace_common.gather = 0;
 	trace_common.prev = 0;
+	trace_common.epoch = 0;
 
 	hal_spinlockCreate(&trace_common.spinlock, "trace.spinlock");
 

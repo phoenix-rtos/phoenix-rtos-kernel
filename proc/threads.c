@@ -1635,7 +1635,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 
 	current = _proc_current();
 
-	perf_traceEventsLockSet(lock, proc_getTid(current));
+	_perf_traceEventsLockSet(lock, proc_getTid(current));
 
 	if ((lock->attr.type == PH_LOCK_ERRORCHECK) && (lock->owner == current)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1746,7 +1746,7 @@ static int _proc_lockUnlock(lock_t *lock)
 
 	current = _proc_current();
 
-	perf_traceEventsLockClear(lock, proc_getTid(current));
+	_perf_traceEventsLockClear(lock, proc_getTid(current));
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
@@ -1926,10 +1926,22 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name)
 	lock->owner = NULL;
 	lock->queue = NULL;
 	lock->name = name;
+	lock->epoch = -1;
 
 	hal_memcpy(&lock->attr, attr, sizeof(struct lockAttr));
 
 	return EOK;
+}
+
+
+int _proc_lockSetTraceEpoch(lock_t *lock, int epoch)
+{
+	int prev;
+
+	prev = lock->epoch;
+	lock->epoch = epoch;
+
+	return prev;
 }
 
 

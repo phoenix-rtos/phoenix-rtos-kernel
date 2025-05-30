@@ -23,6 +23,7 @@
 
 /* CTF event IDs */
 enum {
+	PERF_EVENT_LOCK_NAME = 0x01,
 	PERF_EVENT_LOCK_SET = 0x02,
 	PERF_EVENT_LOCK_CLEAR = 0x03,
 	PERF_EVENT_INTERRUPT_ENTER = 0x04,
@@ -43,6 +44,10 @@ enum {
 extern void perf_traceEventsWrite(u8 event, const void *data, size_t sz);
 
 
+/* Updates lock epoch counter. If lock hasn't been used in this trace epoch, emits LOCK_NAME event. */
+extern void _perf_traceUpdateLockEpoch(lock_t *lock);
+
+
 #define PERF_EVENT_BODY(event_id, ev, ...) \
 	do { \
 		if (perf_traceIsRunning() == 0) { \
@@ -52,31 +57,49 @@ extern void perf_traceEventsWrite(u8 event, const void *data, size_t sz);
 	} while (0)
 
 
-static inline void perf_traceEventsLockSet(const lock_t *lock, u32 tid)
+/* assumes lock->spinlock is set */
+static inline void _perf_traceEventsLockName(const lock_t *lock)
 {
-	/* TODO: pass the lock name only on lock initialization or during some threadinfo() analogous call */
 	struct {
-		u32 tid;
+		u32 lid;
 		char name[16];
 	} __attribute__((packed)) ev;
 
-	PERF_EVENT_BODY(PERF_EVENT_LOCK_SET, ev, {
-		ev.tid = tid;
+	PERF_EVENT_BODY(PERF_EVENT_LOCK_NAME, ev, {
+		ev.lid = (u32)lock;
 		hal_strcpy(ev.name, lock->name);
 	});
 }
 
 
-static inline void perf_traceEventsLockClear(const lock_t *lock, u32 tid)
+/* assumes lock->spinlock is set */
+static inline void _perf_traceEventsLockSet(lock_t *lock, u32 tid)
 {
 	struct {
 		u32 tid;
-		char name[16];
+		u32 lid;
+	} __attribute__((packed)) ev;
+
+	PERF_EVENT_BODY(PERF_EVENT_LOCK_SET, ev, {
+		_perf_traceUpdateLockEpoch(lock);
+		ev.tid = tid;
+		ev.lid = (u32)lock;
+	});
+}
+
+
+/* assumes lock->spinlock is set */
+static inline void _perf_traceEventsLockClear(lock_t *lock, u32 tid)
+{
+	struct {
+		u32 tid;
+		u32 lid;
 	} __attribute__((packed)) ev;
 
 	PERF_EVENT_BODY(PERF_EVENT_LOCK_CLEAR, ev, {
+		_perf_traceUpdateLockEpoch(lock);
 		ev.tid = tid;
-		hal_strcpy(ev.name, lock->name);
+		ev.lid = (u32)lock;
 	});
 }
 
