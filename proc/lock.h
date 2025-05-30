@@ -17,14 +17,18 @@
 #define _PROC_LOCK_H_
 
 #include "hal/hal.h"
+#include "lib/lib.h"
 #include "include/threads.h"
 
 
 typedef struct _lock_t {
 	spinlock_t spinlock;         /* Spinlock */
+
 	struct _thread_t *owner;     /* Owner thread */
 	struct _thread_t *queue;     /* Waiting threads */
 	struct _lock_t *prev, *next; /* Doubly linked list */
+	idnode_t idlinkage;
+
 	const char *name;
 	struct lockAttr attr;
 	unsigned int depth; /* Used with recursive locks */
@@ -57,6 +61,12 @@ extern int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *
 
 
 extern int proc_lockDone(lock_t *lock);
+
+
+static inline int proc_lockGetId(const lock_t *lock)
+{
+	return lock->idlinkage.id;
+}
 
 
 #endif
