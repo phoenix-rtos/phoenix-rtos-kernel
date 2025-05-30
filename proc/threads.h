@@ -22,10 +22,13 @@
 #include "include/sysinfo.h"
 #include "process.h"
 #include "lock.h"
+#include "coredump.h"
 
 #define MAX_TID        MAX_ID
 #define THREAD_END     1
 #define THREAD_END_NOW 2
+
+/* clang-format off */
 
 /* Parent thread states */
 enum { PREFORK = 0, FORKING = 1, FORKED };
@@ -34,6 +37,10 @@ enum { PREFORK = 0, FORKING = 1, FORKED };
 enum { OWNSTACK = 0, PARENTSTACK };
 
 enum { READY = 0, SLEEP, GHOST };
+
+enum { RUNNING = 0, FREEZER, FREEZING, FROZEN };
+
+/* clang-format on */
 
 
 typedef struct _thread_t {
@@ -59,6 +66,7 @@ typedef struct _thread_t {
 	unsigned state : 2;
 	unsigned exit : 2;
 	unsigned interruptible : 1;
+	unsigned freeze : 2;
 
 	unsigned sigmask;
 	unsigned sigpend;
@@ -213,5 +221,16 @@ extern int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
+
+extern cpu_context_t *_threads_userContext(thread_t *thread);
+
+
+extern void proc_freeze(process_t *proc);
+
+
+extern void proc_unfreeze(process_t *proc);
+
+
+extern size_t coredump_threadsInfo(process_t *process, size_t n, cpu_context_t *ectx, coredump_threadinfo_t *info);
 
 #endif
