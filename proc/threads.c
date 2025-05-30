@@ -2092,13 +2092,11 @@ void proc_threadsDump(u8 priority)
 
 int proc_threadsList(int n, threadinfo_t *info)
 {
-	int i = 0, argc;
-	size_t len, space;
+	int i = 0;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
 	time_t now;
-	char *name;
 	spinlock_ctx_t sc;
 
 	(void)proc_lockSet(&threads_common.lock);
@@ -2140,34 +2138,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 		if (t->process != NULL) {
 			map = t->process->mapp;
-
-			if (t->process->path != NULL) {
-				space = sizeof(info[i].name);
-				name = info[i].name;
-
-				if (t->process->argv != NULL) {
-					for (argc = 0; t->process->argv[argc] != NULL; ++argc) {
-						if ((int)space <= 0) {
-							break;
-						}
-						len = min(hal_strlen(t->process->argv[argc]) + 1U, space);
-						hal_memcpy(name, t->process->argv[argc], len);
-						name[len - 1U] = ' ';
-						name += len;
-						space -= len;
-					}
-					*(name - 1) = '\0';
-				}
-				else {
-					len = hal_strlen(t->process->path) + 1U;
-					hal_memcpy(info[i].name, t->process->path, min(space, len));
-				}
-
-				info[i].name[sizeof(info[i].name) - 1U] = '\0';
-			}
-			else {
-				info[i].name[0] = '\0';
-			}
+			process_getName(t->process, info[i].name, sizeof(info[i].name));
 		}
 		else {
 			map = threads_common.kmap;
