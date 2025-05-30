@@ -1734,3 +1734,35 @@ int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map)
 {
 	return vm_munmap(map, (void *)tls->tls_base, tls->tls_sz);
 }
+
+
+void process_getName(const process_t *process, char *buf, size_t sz)
+{
+	int len = 0, argc, space;
+	char *sbuf;
+
+	if (process->path != NULL) {
+		space = sz;
+		sbuf = buf;
+
+		if (process->argv != NULL) {
+			for (argc = 0; process->argv[argc] != NULL && space > 0; ++argc) {
+				len = min(hal_strlen(process->argv[argc]) + 1, space);
+				hal_memcpy(sbuf, process->argv[argc], len);
+				sbuf[len - 1] = ' ';
+				sbuf += len;
+				space -= len;
+			}
+			*(sbuf - 1) = 0;
+		}
+		else {
+			len = hal_strlen(process->path) + 1;
+			hal_memcpy(buf, process->path, min(space, len));
+		}
+
+		buf[sz - 1] = 0;
+	}
+	else {
+		buf[0] = 0;
+	}
+}
