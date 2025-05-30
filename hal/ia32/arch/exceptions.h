@@ -26,7 +26,7 @@
 
 #define SIZE_CTXDUMP            512 /* Size of dumped context */
 #define SIZE_COREDUMP_GREGSET   68
-#define SIZE_COREDUMP_THREADAUX 128 /* vfp context note */
+#define SIZE_COREDUMP_THREADAUX 128 /* fp context note */
 #define SIZE_COREDUMP_GENAUX    0
 
 #define HAL_ELF_MACHINE 3 /* IA32 */
