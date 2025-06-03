@@ -10,9 +10,9 @@
 
 #define SIZE_CTXDUMP          320 /* Size of dumped context */
 #define SIZE_COREDUMP_GREGSET 72
-#ifdef CPU_IMXRT
-#define SIZE_COREDUMP_THREADAUX 280 /* vfp context note */
-#define SIZE_COREDUMP_GENAUX    36  /* auxv HWCAP note */
+#if defined(CPU_IMXRT) && defined(PROC_COREDUMP_FPUCTX)
+#define SIZE_COREDUMP_THREADAUX 280
+#define SIZE_COREDUMP_GENAUX    36 /* auxv HWCAP note */
 #else
 #define SIZE_COREDUMP_THREADAUX 0
 #define SIZE_COREDUMP_GENAUX    0
