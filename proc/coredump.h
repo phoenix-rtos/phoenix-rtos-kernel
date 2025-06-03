@@ -22,6 +22,7 @@ typedef struct {
 	int tid;
 	short cursig;
 	cpu_context_t *userContext;
+	void *ustack;
 } coredump_threadinfo_t;
 
 
