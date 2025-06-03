@@ -22,10 +22,15 @@
 
 #define EXC_UNDEFINED 3
 
-#define SIZE_CTXDUMP            512 /* Size of dumped context */
-#define SIZE_COREDUMP_GREGSET   72
-#define SIZE_COREDUMP_THREADAUX 280 /* vfp context note */
-#define SIZE_COREDUMP_GENAUX    36  /* auxv HWCAP note */
+#define SIZE_CTXDUMP          512 /* Size of dumped context */
+#define SIZE_COREDUMP_GREGSET 72
+#ifdef PROC_COREDUMP_FPUCTX
+#define SIZE_COREDUMP_THREADAUX 280
+#define SIZE_COREDUMP_GENAUX    36 /* auxv HWCAP note */
+#else
+#define SIZE_COREDUMP_THREADAUX 0
+#define SIZE_COREDUMP_GENAUX    0
+#endif
 
 #define HAL_ELF_MACHINE 40 /* ARM */
 
