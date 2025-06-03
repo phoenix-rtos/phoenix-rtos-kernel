@@ -654,15 +654,15 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 		if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
 			LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
-				"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
-				(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
-				selected->kstack, selCtx);
+					"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
+					(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+					selected->kstack, selCtx);
 		}
 
-		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
-			(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
-			"pid: %d, tid: %d, path: %s, user stack corrupted",
-			process_getPid(selected->process), proc_getTid(selected), selected->process->path);
+		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) || hal_cpuSupervisorMode(selected->context) ||
+						(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
+				"pid: %d, tid: %d, path: %s, user stack corrupted",
+				process_getPid(selected->process), proc_getTid(selected), selected->process->path);
 #endif
 	}
 
@@ -2236,6 +2236,7 @@ size_t coredump_threadsInfo(process_t *process, size_t n, cpu_context_t *ectx, c
 		current = _proc_current();
 		info[i].tid = proc_getTid(current);
 		info[i].cursig = 0;
+		info[i].ustack = current->ustack;
 		info[i].userContext = ectx;
 		i++;
 	}
@@ -2262,6 +2263,7 @@ size_t coredump_threadsInfo(process_t *process, size_t n, cpu_context_t *ectx, c
 
 		info[i].tid = proc_getTid(thread);
 		info[i].cursig = 0;
+		info[i].ustack = thread->ustack;
 		info[i].userContext = cctx;
 		i++;
 
