@@ -111,7 +111,7 @@ static void coredump_writeBuf(coredump_state_t *state, const char *data, size_t 
 	while (state->outCur + len >= sizeof(state->outBuf) - 1) {
 		hal_memcpy(state->outBuf + state->outCur, data, sizeof(state->outBuf) - 1 - state->outCur);
 		state->outBuf[sizeof(state->outBuf) - 1] = '\0';
-		coredump_write(state->outBuf, sizeof(state->outBuf) - 1);
+		coredump_write(state->outBuf, sizeof(state->outBuf));
 		data += sizeof(state->outBuf) - 1 - state->outCur;
 		len -= sizeof(state->outBuf) - 1 - state->outCur;
 		state->outCur = 0;
@@ -120,7 +120,7 @@ static void coredump_writeBuf(coredump_state_t *state, const char *data, size_t 
 	state->outCur += len;
 	if (state->outCur >= sizeof(state->outBuf) - 1) {
 		state->outBuf[sizeof(state->outBuf) - 1] = '\0';
-		coredump_write(state->outBuf, sizeof(state->outBuf) - 1);
+		coredump_write(state->outBuf, sizeof(state->outBuf));
 		state->outCur = 0;
 	}
 }
@@ -245,7 +245,7 @@ static void coredump_finalize(coredump_state_t *state)
 	}
 
 	if (state->outCur > 0) {
-		state->outBuf[state->outCur] = '\0';
+		state->outBuf[state->outCur++] = '\0';
 		coredump_write(state->outBuf, state->outCur);
 	}
 
