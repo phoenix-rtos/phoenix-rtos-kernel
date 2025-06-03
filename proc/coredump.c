@@ -363,13 +363,13 @@ static void coredump_dumpThreadNotes(coredump_threadinfo_t *threads, size_t thre
 }
 
 
-static size_t coredump_stackSize(void *userSp, process_t *process)
+static size_t coredump_findStack(void **currentSP, void *ustack, process_t *process)
 {
 	map_entry_t t;
 	map_entry_t *e;
 	size_t stackSize;
 
-	t.vaddr = userSp;
+	t.vaddr = ustack;
 	t.size = 1;
 
 	proc_lockSet(&process->mapp->lock);
@@ -379,7 +379,10 @@ static size_t coredump_stackSize(void *userSp, process_t *process)
 		proc_lockClear(&process->mapp->lock);
 		return 0;
 	}
-	stackSize = e->vaddr + e->size - userSp;
+	if ((*currentSP >= (void *)((char *)e->vaddr + e->size)) || (*currentSP < e->vaddr)) {
+		*currentSP = e->vaddr;
+	}
+	stackSize = (char *)e->vaddr + e->size - (char *)*currentSP;
 
 	proc_lockClear(&process->mapp->lock);
 
@@ -387,13 +390,13 @@ static size_t coredump_stackSize(void *userSp, process_t *process)
 }
 
 
-static void coredump_dumpStack(process_t *process, cpu_context_t *ctx, coredump_state_t *state)
+static void coredump_dumpStack(process_t *process, coredump_threadinfo_t *threadInfo, coredump_state_t *state)
 {
 	void *userSp;
 	size_t stackSize;
 
-	userSp = hal_cpuGetUserSP(ctx);
-	stackSize = coredump_stackSize(userSp, process);
+	userSp = hal_cpuGetUserSP(threadInfo->userContext);
+	stackSize = coredump_findStack(&userSp, threadInfo->ustack, process);
 
 	coredump_encodeChunk(state, userSp, stackSize);
 }
@@ -502,14 +505,14 @@ static void coredump_dumpPhdrs(coredump_threadinfo_t *threadInfo, size_t threadC
 	}
 	else if (PROC_COREDUMP_MEM_OPT == MEM_EXC_STACK) {
 		userSp = hal_cpuGetUserSP(threadInfo[0].userContext);
-		stackSize = coredump_stackSize(userSp, process);
+		stackSize = coredump_findStack(&userSp, threadInfo[0].ustack, process);
 		coredump_dumpPhdr(PT_LOAD, currentOffset, userSp, stackSize, PROT_READ | PROT_WRITE, state);
 		currentOffset += stackSize;
 	}
 	else if (PROC_COREDUMP_MEM_OPT == MEM_ALL_STACKS) {
 		for (i = 0; i < threadCnt; i++) {
 			userSp = hal_cpuGetUserSP(threadInfo[i].userContext);
-			stackSize = coredump_stackSize(userSp, process);
+			stackSize = coredump_findStack(&userSp, threadInfo[i].ustack, process);
 			coredump_dumpPhdr(PT_LOAD, currentOffset, userSp, stackSize, PROT_READ | PROT_WRITE, state);
 			currentOffset += stackSize;
 		}
@@ -604,11 +607,11 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 		coredump_dumpAllMemory(process, &state);
 	}
 	else if (PROC_COREDUMP_MEM_OPT == MEM_EXC_STACK) {
-		coredump_dumpStack(process, threadInfo[0].userContext, &state);
+		coredump_dumpStack(process, &threadInfo[0], &state);
 	}
 	else if (PROC_COREDUMP_MEM_OPT == MEM_ALL_STACKS) {
 		for (i = 0; (i < threadCnt) && (i < PROC_COREDUMP_THREADS_NUM); i++) {
-			coredump_dumpStack(process, threadInfo[i].userContext, &state);
+			coredump_dumpStack(process, &threadInfo[i], &state);
 		}
 	}
 
