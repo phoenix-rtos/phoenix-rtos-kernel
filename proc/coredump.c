@@ -361,6 +361,9 @@ static size_t coredump_findStack(void **currentSP, void *ustack, process_t *proc
 		*currentSP = e->vaddr;
 	}
 	stackSize = (char *)e->vaddr + e->size - (char *)*currentSP;
+#ifdef PROC_COREDUMP_MAX_STACK_BYTES
+	stackSize = min(stackSize, PROC_COREDUMP_MAX_STACK_BYTES);
+#endif
 
 	proc_lockClear(&process->mapp->lock);
 
