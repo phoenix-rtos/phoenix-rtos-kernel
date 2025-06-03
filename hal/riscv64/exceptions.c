@@ -303,6 +303,7 @@ void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
 
 void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 {
+#ifdef PROC_COREDUMP_FPUCTX
 	static const char FPREGSET_NAME[] = "CORE";
 	Elf64_Nhdr nhdr;
 	nhdr.n_namesz = sizeof(FPREGSET_NAME);
@@ -314,6 +315,7 @@ void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 	buff = (char *)buff + ((sizeof(FPREGSET_NAME) + 3) & ~3);
 
 	hal_memcpy(buff, &ctx->fpCtx, sizeof(ctx->fpCtx));
+#endif
 }
 
 
