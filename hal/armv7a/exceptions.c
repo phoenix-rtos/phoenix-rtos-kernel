@@ -274,6 +274,7 @@ void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
 
 void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 {
+#ifdef PROC_COREDUMP_FPUCTX
 	static const char ARMVFP_NAME[] = "LINUX";
 	Elf32_Nhdr nhdr;
 	nhdr.n_namesz = sizeof(ARMVFP_NAME);
@@ -286,11 +287,13 @@ void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 	hal_memcpy(buff, ctx->freg, sizeof(ctx->freg));
 	buff = (char *)buff + sizeof(ctx->freg);
 	hal_memcpy(buff, &ctx->fpsr, sizeof(ctx->fpsr));
+#endif
 }
 
 
 void hal_coredumpGeneralAux(void *buff)
 {
+#ifdef PROC_COREDUMP_FPUCTX
 	static const char AUXV_NAME[] = "CORE";
 	Elf32_Nhdr nhdr;
 	struct {
@@ -311,4 +314,5 @@ void hal_coredumpGeneralAux(void *buff)
 	auxv[1].a_type = AT_NULL;
 	auxv[1].a_val = 0;
 	hal_memcpy(buff, auxv, sizeof(auxv));
+#endif
 }
