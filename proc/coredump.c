@@ -157,9 +157,6 @@ static void coredump_b64encodeRleLength(coredump_state_t *state)
 
 static void coredump_init(coredump_state_t *state, const char *path, const char *mnemonic)
 {
-	char *textBuff;
-	size_t i;
-
 	state->outCur = 0;
 	state->b64_buf = 0;
 	state->b64_bits = 0;
@@ -168,17 +165,10 @@ static void coredump_init(coredump_state_t *state, const char *path, const char 
 	state->crc32 = -1;
 
 	coredump_write(COREDUMP_START, sizeof(COREDUMP_START) - 1);
-	textBuff = vm_kmalloc(hal_strlen(path) + hal_strlen(mnemonic) + 4);
-	hal_strcpy(textBuff, path);
-	i = hal_strlen(path);
-	hal_strcpy(textBuff + i, ": ");
-	i += 2;
-	hal_strcpy(textBuff + i, mnemonic);
-	i += hal_strlen(mnemonic);
-	textBuff[i++] = '\n';
-	textBuff[i] = '\0';
-	coredump_write(textBuff, i);
-	vm_kfree(textBuff);
+	coredump_write(path, hal_strlen(path));
+	coredump_write(": ", 2);
+	coredump_write(mnemonic, hal_strlen(mnemonic));
+	coredump_write(";\n", 2);
 }
 
 
