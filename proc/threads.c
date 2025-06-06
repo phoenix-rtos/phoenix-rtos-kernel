@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
+#include "perf/events.h"
 
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
@@ -144,24 +145,28 @@ static void _perf_event(thread_t *t, int type)
 static void _perf_scheduling(thread_t *t)
 {
 	_perf_event(t, perf_evScheduling);
+	perf_traceEventsThreadScheduling(proc_getTid(t));
 }
 
 
 static void _perf_preempted(thread_t *t)
 {
 	_perf_event(t, perf_evPreempted);
+	perf_traceEventsThreadPreempted(proc_getTid(t));
 }
 
 
 static void _perf_enqueued(thread_t *t)
 {
 	_perf_event(t, perf_evEnqueued);
+	perf_traceEventsThreadEnqueued(proc_getTid(t));
 }
 
 
 static void _perf_waking(thread_t *t)
 {
 	_perf_event(t, perf_evWaking);
+	perf_traceEventsThreadWaking(proc_getTid(t));
 }
 
 
@@ -331,7 +336,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 }
 
 
-int perf_start(unsigned pid)
+int perf_threadsStart(unsigned pid)
 {
 	void *data;
 	spinlock_ctx_t sc;
@@ -360,7 +365,7 @@ int perf_start(unsigned pid)
 }
 
 
-int perf_read(void *buffer, size_t bufsz)
+int perf_threadsRead(void *buffer, size_t bufsz)
 {
 	spinlock_ctx_t sc;
 
@@ -372,7 +377,7 @@ int perf_read(void *buffer, size_t bufsz)
 }
 
 
-int perf_finish()
+int perf_threadsFinish(void)
 {
 	spinlock_ctx_t sc;
 
@@ -558,6 +563,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
+/* TODO: pass cpuId from caller */
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
@@ -668,9 +674,17 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	spinlock_ctx_t sc;
 	int ret;
+
+	int cpuId = hal_cpuGetID();
+
+	perf_traceEventsSchedEnter(cpuId);
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ret = _threads_schedule(n, context, arg);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	perf_traceEventsSchedExit(cpuId);
+
 	return ret;
 }
 
@@ -821,6 +835,9 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	else {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 	}
+
+	perf_traceEventsThreadCreate(t);
+
 	/* Insert thread to scheduler queue */
 
 	_perf_begin(t);
@@ -961,6 +978,7 @@ void proc_threadEnd(void)
 	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
 	_proc_threadWakeup(&threads_common.reaper);
+	perf_traceEventsThreadEnd(t);
 
 	hal_cpuReschedule(&threads_common.spinlock, &sc);
 }
@@ -1617,6 +1635,8 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 
 	current = _proc_current();
 
+	_perf_traceEventsLockSet(lock, proc_getTid(current));
+
 	if ((lock->attr.type == PH_LOCK_ERRORCHECK) && (lock->owner == current)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return -EDEADLK;
@@ -1725,6 +1745,8 @@ static int _proc_lockUnlock(lock_t *lock)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
+
+	_perf_traceEventsLockClear(lock, proc_getTid(current));
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
@@ -1904,10 +1926,22 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name)
 	lock->owner = NULL;
 	lock->queue = NULL;
 	lock->name = name;
+	lock->epoch = -1;
 
 	hal_memcpy(&lock->attr, attr, sizeof(struct lockAttr));
 
 	return EOK;
+}
+
+
+int _proc_lockSetTraceEpoch(lock_t *lock, int epoch)
+{
+	int prev;
+
+	prev = lock->epoch;
+	lock->epoch = epoch;
+
+	return prev;
 }
 
 
@@ -1972,12 +2006,11 @@ void proc_threadsDump(unsigned int priority)
 
 int proc_threadsList(int n, threadinfo_t *info)
 {
-	int i = 0, len, argc, space;
+	int i = 0;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
 	time_t now;
-	char *name;
 	spinlock_ctx_t sc;
 
 	proc_lockSet(&threads_common.lock);
@@ -2016,30 +2049,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		if (t->process != NULL) {
 			map = t->process->mapp;
 
-			if (t->process->path != NULL) {
-				space = sizeof(info[i].name);
-				name = info[i].name;
-
-				if (t->process->argv != NULL) {
-					for (argc = 0; t->process->argv[argc] != NULL && space > 0; ++argc) {
-						len = min(hal_strlen(t->process->argv[argc]) + 1, space);
-						hal_memcpy(name, t->process->argv[argc], len);
-						name[len - 1] = ' ';
-						name += len;
-						space -= len;
-					}
-					*(name - 1) = 0;
-				}
-				else {
-					len = hal_strlen(t->process->path) + 1;
-					hal_memcpy(info[i].name, t->process->path, min(space, len));
-				}
-
-				info[i].name[sizeof(info[i].name) - 1] = 0;
-			}
-			else {
-				info[i].name[0] = 0;
-			}
+			process_getName(t->process, info[i].name, sizeof(info[i].name));
 		}
 		else {
 			map = threads_common.kmap;

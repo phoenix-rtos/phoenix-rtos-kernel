@@ -1,0 +1,176 @@
+/* CTF 1.8 */
+typealias integer { size = 8; align = 8; signed = true; } := i8;
+typealias integer { size = 8; align = 8; signed = false; } := u8;
+typealias integer { size = 16; align = 8; signed = false; } := u16;
+typealias integer { size = 32; align = 8; signed = false; } := u32;
+typealias integer { size = 32; align = 8; signed = true; } := i32;
+typealias integer { size = 64; align = 8; signed = false; } := u64;
+typealias integer { size = 8; align = 8; signed = false; encoding = ASCII; } := str;
+
+trace {
+	major = 1;
+	minor = 8;
+	byte_order = le;
+};
+
+clock {
+    name = monotonic;
+    freq = 1000000;
+};
+
+
+typealias struct _threadinfo_t {
+	u32 pid;
+	u32 tid;
+	u32 ppid;
+
+	i32 load;
+	u64 cpuTime;
+	i32 priority;
+	i32 state;
+	i32 vmem;
+	u64 wait;
+
+	str name[128];
+} := threadinfo_t;
+
+stream {
+	event.header := struct {
+		u64 timestamp;
+		u8 id;
+	};
+
+	packet.context := struct {
+			u32 len;
+			threadinfo_t threads[len];
+	};
+};
+
+event {
+	name = lock_name;
+	id = 0x01;
+	fields := struct {
+		u32 lid;
+		str name[16];
+	};
+};
+
+event {
+	name = lock_set;
+	id = 0x02;
+	fields := struct {
+		u32 tid;
+		u32 lid;
+	};
+};
+
+event {
+	name = lock_clear;
+	id = 0x03;
+	fields := struct {
+		u32 tid;
+		u32 lid;
+	};
+};
+
+event {
+	name = interrupt_enter;
+	id = 0x04;
+	fields := struct {
+		u8 irq;
+	};
+};
+
+event {
+	name = interrupt_exit;
+	id = 0x05;
+	fields := struct {
+		u8 irq;
+	};
+};
+
+event {
+	name = thread_scheduling;
+	id = 0x06;
+	fields := struct {
+		u32 tid;
+	};
+};
+
+event {
+	name = thread_preempted;
+	id = 0x07;
+	fields := struct {
+		u32 tid;
+	};
+};
+
+event {
+	name = thread_enqueued;
+	id = 0x08;
+	fields := struct {
+		u32 tid;
+	};
+};
+
+event {
+	name = thread_waking;
+	id = 0x09;
+	fields := struct {
+		u32 tid;
+	};
+};
+
+event {
+	name = thread_create;
+	id = 0x0a;
+	fields := struct {
+		u32 pid;
+		u32 tid;
+		u32 prio;
+		str name[128];
+	};
+};
+
+event {
+	name = thread_end;
+	id = 0x0b;
+	fields := struct {
+		u32 pid;
+		u32 tid;
+	};
+};
+
+event {
+	name = syscall_enter;
+	id = 0x10;
+	fields := struct {
+		u8 n;
+		u32 tid;
+	};
+};
+
+event {
+	name = syscall_exit;
+	id = 0x11;
+	fields := struct {
+		u8 n;
+		u32 tid;
+	};
+};
+
+event {
+	name = sched_enter;
+	id = 0x12;
+	fields := struct {
+		u8 cpu;
+	};
+};
+
+event {
+	name = sched_exit;
+	id = 0x13;
+	fields := struct {
+		u8 cpu;
+	};
+};
