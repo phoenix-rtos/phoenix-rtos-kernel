@@ -19,6 +19,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "include/mman.h"
+#include "proc/coredump.h"
 #include "proc/elf.h"
 
 
@@ -111,6 +112,8 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
+
+	coredump_dump(n, ctx);
 
 #ifdef NDEBUG
 	hal_cpuReboot();
@@ -271,6 +274,7 @@ void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
 
 void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 {
+#ifdef PROC_COREDUMP_FPUCTX
 	static const char ARMVFP_NAME[] = "LINUX";
 	Elf32_Nhdr nhdr;
 	nhdr.n_namesz = sizeof(ARMVFP_NAME);
@@ -283,25 +287,13 @@ void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 	hal_memcpy(buff, ctx->freg, sizeof(ctx->freg));
 	buff = (char *)buff + sizeof(ctx->freg);
 	hal_memcpy(buff, &ctx->fpsr, sizeof(ctx->fpsr));
+#endif
 }
-
-
-#define COMPAT_HWCAP_VFP   (1 << 6)
-#define COMPAT_HWCAP_NEON  (1 << 12)
-#define COMPAT_HWCAP_VFPv3 (1 << 13)
-#define HWCAP_VFPv3        (COMPAT_HWCAP_VFP | COMPAT_HWCAP_NEON | COMPAT_HWCAP_VFPv3)
-
-#define AT_HWCAP 16
-#define AT_NULL  0
-
-typedef struct {
-	u32 a_type;
-	u32 a_val;
-} elf_auxv_t;
 
 
 void hal_coredumpGeneralAux(void *buff)
 {
+#ifdef PROC_COREDUMP_FPUCTX
 	static const char AUXV_NAME[] = "CORE";
 	Elf32_Nhdr nhdr;
 	elf_auxv_t auxv[2];
@@ -319,4 +311,5 @@ void hal_coredumpGeneralAux(void *buff)
 	auxv[1].a_type = AT_NULL;
 	auxv[1].a_val = 0;
 	hal_memcpy(buff, auxv, sizeof(auxv));
+#endif
 }
