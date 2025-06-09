@@ -50,8 +50,16 @@
 #define EXC_BKPT_AA32               0x38
 #define EXC_BRK_AA64                0x3c
 
-#define SIZE_CTXDUMP 1024 /* Size of dumped context string */
+#define SIZE_CTXDUMP          1024 /* Size of dumped context string */
+#define SIZE_COREDUMP_GREGSET 272
+#ifdef PROC_COREDUMP_FPUCTX
+#define SIZE_COREDUMP_THREADAUX 548
+#else
+#define SIZE_COREDUMP_THREADAUX 0
+#endif
+#define SIZE_COREDUMP_GENAUX 0
 
+#define HAL_ELF_MACHINE 183 /* AARCH64 */
 
 typedef struct _exc_context_t {
 	u64 esr;
