@@ -32,8 +32,50 @@ typedef u64 Elf64_Off;
 typedef s64 Elf64_Sword;
 typedef u64 Elf64_Xword;
 
+#define ELFMAG  "\177ELF"
+#define SELFMAG 4
 
-#define EI_NIDENT     16
+#define EI_CLASS     4 /* File class byte index */
+#define ELFCLASSNONE 0 /* Invalid class */
+#define ELFCLASS32   1 /* 32-bit objects */
+#define ELFCLASS64   2 /* 64-bit objects */
+#define ELFCLASSNUM  3
+
+#define EI_DATA     5 /* Data encoding byte index */
+#define ELFDATANONE 0 /* Invalid data encoding */
+#define ELFDATA2LSB 1 /* 2's complement, little endian */
+#define ELFDATA2MSB 2 /* 2's complement, big endian */
+#define ELFDATANUM  3
+
+#define EI_VERSION 6 /* File version byte index */
+					 /* Value must be EV_CURRENT */
+
+#define EI_OSABI            7            /* OS ABI identification */
+#define ELFOSABI_NONE       0            /* UNIX System V ABI */
+#define ELFOSABI_SYSV       0            /* Alias.  */
+#define ELFOSABI_HPUX       1            /* HP-UX */
+#define ELFOSABI_NETBSD     2            /* NetBSD.  */
+#define ELFOSABI_GNU        3            /* Object uses GNU ELF extensions.  */
+#define ELFOSABI_LINUX      ELFOSABI_GNU /* Compatibility alias.  */
+#define ELFOSABI_SOLARIS    6            /* Sun Solaris.  */
+#define ELFOSABI_AIX        7            /* IBM AIX.  */
+#define ELFOSABI_IRIX       8            /* SGI Irix.  */
+#define ELFOSABI_FREEBSD    9            /* FreeBSD.  */
+#define ELFOSABI_TRU64      10           /* Compaq TRU64 UNIX.  */
+#define ELFOSABI_MODESTO    11           /* Novell Modesto.  */
+#define ELFOSABI_OPENBSD    12           /* OpenBSD.  */
+#define ELFOSABI_ARM_AEABI  64           /* ARM EABI */
+#define ELFOSABI_ARM        97           /* ARM */
+#define ELFOSABI_STANDALONE 255          /* Standalone (embedded) application */
+
+#define EI_NIDENT 16
+
+#define ET_NONE 0 /* No file type */
+#define ET_REL  1 /* Relocatable file */
+#define ET_EXEC 2 /* Executable file */
+#define ET_DYN  3 /* Shared object file */
+#define ET_CORE 4 /* Core file */
+#define ET_NUM  5 /* Number of defined types */
 
 #define SHT_SYMTAB    2
 #define SHT_STRTAB    3
@@ -45,19 +87,25 @@ typedef u64 Elf64_Xword;
 #define SHT_LOUSER    0x80000000
 #define SHT_HIUSER    0xffffffff
 
-#define STT_LOPROC    13
-#define STT_HIPROC    15
+#define STT_LOPROC 13
+#define STT_HIPROC 15
 
-#define PT_LOAD       1
-#define PT_DYNAMIC    2
-#define PT_INTERP     3
-#define PT_GNU_STACK  0x6474e551
-#define PT_LOPROC     0x70000000
-#define PT_HIPROC     0x7fffffff
+#define PT_LOAD      1
+#define PT_DYNAMIC   2
+#define PT_INTERP    3
+#define PT_NOTE      4
+#define PT_GNU_STACK 0x6474e551
+#define PT_LOPROC    0x70000000
+#define PT_HIPROC    0x7fffffff
 
-#define PF_X          0x1
-#define PF_W          0x2
-#define PF_R          0x4
+#define PF_X 0x1
+#define PF_W 0x2
+#define PF_R 0x4
+
+#define NT_PRSTATUS 1
+#define NT_FPREGSET 2
+#define NT_AUXV     6
+#define NT_ARM_VFP  0x400
 
 #pragma pack(push, 1)
 
@@ -67,10 +115,10 @@ typedef struct {
 	Elf32_Half e_machine;
 	Elf32_Word e_version;
 	Elf32_Addr e_entry;
-	Elf32_Off  e_phoff;
-	Elf32_Off  e_shoff;
+	Elf32_Off e_phoff;
+	Elf32_Off e_shoff;
 	Elf32_Word e_flags;
-	Elf32_Half e_hsize;
+	Elf32_Half e_ehsize;
 	Elf32_Half e_phentsize;
 	Elf32_Half e_phnum;
 	Elf32_Half e_shentsize;
@@ -106,12 +154,19 @@ typedef struct {
 
 
 typedef struct {
-	u32           st_name;
-	Elf32_Addr    st_value;
-	u32           st_size;
+	Elf32_Word n_namesz;
+	Elf32_Word n_descsz;
+	Elf32_Word n_type;
+} Elf32_Nhdr;
+
+
+typedef struct {
+	u32 st_name;
+	Elf32_Addr st_value;
+	u32 st_size;
 	unsigned char st_info;
 	unsigned char st_other;
-	u16           st_shndx;
+	u16 st_shndx;
 } Elf32_Sym;
 
 
@@ -156,6 +211,13 @@ typedef struct {
 	Elf64_Xword p_memsz;
 	Elf64_Xword p_align;
 } Elf64_Phdr;
+
+
+typedef struct {
+	Elf64_Word n_namesz;
+	Elf64_Word n_descsz;
+	Elf64_Word n_type;
+} Elf64_Nhdr;
 
 
 typedef struct {

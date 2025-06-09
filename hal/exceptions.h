@@ -28,6 +28,9 @@ extern void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx);
 extern ptr_t hal_exceptionsPC(exc_context_t *ctx);
 
 
+extern const char *hal_exceptionMnemonic(int n);
+
+
 extern void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n);
 
 
@@ -35,5 +38,17 @@ extern int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int
 
 
 extern void _hal_exceptionsInit(void);
+
+
+extern cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx);
+
+
+extern void hal_coredumpGRegset(void *buff, cpu_context_t *ctx);
+
+
+extern void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx);
+
+
+extern void hal_coredumpGeneralAux(void *buff);
 
 #endif
