@@ -25,6 +25,8 @@ MAKEFLAGS += --no-print-directory
 
 include ../phoenix-rtos-build/Makefile.common
 
+LDGEN ?= $(CC)
+
 CFLAGS += -I. -ffreestanding
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DRELEASE=\"$(RELEASE)\" -DTARGET_FAMILY=\"$(TARGET_FAMILY)\"
 
@@ -71,14 +73,16 @@ DEPS := $(patsubst %.o, %.c.d, $(OBJS))
 # 2) Match only internal linker script which is between two lines of =
 # 3) Remove those lines
 # 4) Remove "+ SIZEOF_HEADERS", which causes inclusion of program headers.
-$(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt:
-	$(SIL)$(LD) $(LDFLAGS_PREFIX)--verbose 2>/dev/null | sed -n '/^==*$$/,/^==*$$/p' | sed '1,1d; $$d' | sed s/"\s*+\s*SIZEOF_HEADERS"// > "$@"
 
-
-$(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS) $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt
+$(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS) $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ld
 	@mkdir -p $(@D)
 	@(printf "LD  %-24s\n" "$(@F)");
-	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt
+	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ld
+
+$(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ld: | $(PREFIX_O)/.
+	@echo "GEN $(@F)"
+	$(SIL)$(LDGEN) $(LDSFLAGS) -MP -MF $@.d -MMD -D__LINKER__ -undef -xc -E -P ld/$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt > $@
+	$(SIL)$(SED) -i.tmp -e 's`.*\.o[ \t]*:`$@:`' $@.d && rm $@.d.tmp
 
 install-headers: $(EXTERNAL_HEADERS)
 	@printf "Installing kernel headers\n"
