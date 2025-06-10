@@ -70,7 +70,6 @@ _Static_assert(sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) <=
 #define MAX_PRIO ((u8)(sizeof(threads_common.ready) / sizeof(threads_common.ready[0])) - 1U)
 
 
-static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
 static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp);
 
@@ -326,7 +325,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 	thread_t *current;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	current = _proc_current();
+	current = proc_current();
 	current->longjmpctx = ctx;
 	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
 	for (;;) {
@@ -352,7 +351,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	trace_eventSchedEnter(cpuId);
 
-	current = _proc_current();
+	current = proc_current();
 	threads_common.current[cpuId] = NULL;
 
 	/* Save current thread context */
@@ -465,26 +464,9 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 }
 
 
-static thread_t *_proc_current(void)
-{
-	thread_t *current;
-
-	current = threads_common.current[hal_cpuGetID()];
-
-	return current;
-}
-
-
 thread_t *proc_current(void)
 {
-	thread_t *current;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	current = _proc_current();
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
-	return current;
+	return threads_common.current[hal_cpuGetID()];
 }
 
 
@@ -720,7 +702,7 @@ int proc_threadPriority(int signedPriority)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	current = _proc_current();
+	current = proc_current();
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (signedPriority >= 0) {
@@ -902,7 +884,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, u8 interruptib
 		return;
 	}
 
-	current = _proc_current();
+	current = proc_current();
 
 	LIST_ADD(queue, current);
 
@@ -942,7 +924,7 @@ static int _proc_threadSleepAbs(time_t abs, time_t now, spinlock_ctx_t *sc)
 {
 	/* Handle usleep(0) (yield) */
 	if (abs > now) {
-		thread_t *current = _proc_current();
+		thread_t *current = proc_current();
 
 		current->state = SLEEP;
 		current->wait = NULL;
@@ -1148,7 +1130,7 @@ int proc_join(int tid, time_t timeout)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	now = _proc_gettimeRaw();
-	current = _proc_current();
+	current = proc_current();
 	if (proc_getTid(current) == tid) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return -EDEADLK;
@@ -1371,7 +1353,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	thread_t *thread;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	thread = _proc_current();
+	thread = proc_current();
 
 	kstackTop = thread->kstack + thread->kstacksz;
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
@@ -1400,7 +1382,7 @@ int threads_sigsuspend(unsigned int mask)
 
 	/* changing sigmask and sleep shall be atomic - do it under lock (sigpost is done also under threads_common.spinlock) */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	thread = _proc_current();
+	thread = proc_current();
 
 	/* setup syscall return value - sigsuspend always returns -EINTR */
 	kstackTop = thread->kstack + thread->kstacksz;
@@ -1479,7 +1461,7 @@ int proc_lockTry(lock_t *lock)
 	hal_spinlockSet(&lock->spinlock, &lsc);
 	hal_spinlockSet(&threads_common.spinlock, &tcsc);
 
-	current = _proc_current();
+	current = proc_current();
 
 	err = _proc_lockTry(current, lock);
 
@@ -1498,7 +1480,7 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	current = _proc_current();
+	current = proc_current();
 	tid = proc_getTid(current);
 
 	_trace_eventLockSetEnter(lock, tid);
@@ -1619,7 +1601,7 @@ static int _proc_lockUnlock(lock_t *lock)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	current = _proc_current();
+	current = proc_current();
 
 	_trace_eventLockClear(lock, proc_getTid(current));
 
