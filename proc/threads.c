@@ -66,7 +66,6 @@ struct {
 } threads_common;
 
 
-static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
 static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp);
 
@@ -224,7 +223,7 @@ void perf_fork(process_t *p)
 	ev.type = perf_levFork;
 	ev.pid = perf_idpack(process_getPid(p));
 	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.tid = perf_idpack(proc_getTid(proc_current()));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
@@ -248,7 +247,7 @@ void perf_kill(process_t *p)
 	ev.sbz = 0;
 	ev.type = perf_levKill;
 	ev.pid = perf_idpack(process_getPid(p));
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.tid = perf_idpack(proc_getTid(proc_current()));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
@@ -272,7 +271,7 @@ void perf_exec(process_t *p, char *path)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levExec;
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.tid = perf_idpack(proc_getTid(proc_current()));
 
 	plen = hal_strlen(path);
 	plen = min(plen, sizeof(ev.path) - 1);
@@ -547,7 +546,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 	thread_t *current;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	current = _proc_current();
+	current = proc_current();
 	current->longjmpctx = ctx;
 	hal_cpuReschedule(&threads_common.spinlock, &sc);
 	for (;;) {
@@ -569,7 +568,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	(void)n;
 	hal_lockScheduler();
 
-	current = _proc_current();
+	current = proc_current();
 	threads_common.current[hal_cpuGetID()] = NULL;
 
 	/* Save current thread context */
@@ -675,26 +674,9 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 }
 
 
-static thread_t *_proc_current(void)
-{
-	thread_t *current;
-
-	current = threads_common.current[hal_cpuGetID()];
-
-	return current;
-}
-
-
 thread_t *proc_current(void)
 {
-	thread_t *current;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	current = _proc_current();
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
-	return current;
+	return threads_common.current[hal_cpuGetID()];
 }
 
 
@@ -925,7 +907,7 @@ int proc_threadPriority(int priority)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	current = _proc_current();
+	current = proc_current();
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (priority >= 0) {
@@ -1097,7 +1079,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 		return;
 	}
 
-	current = _proc_current();
+	current = proc_current();
 
 	LIST_ADD(queue, current);
 
@@ -1145,7 +1127,7 @@ int proc_threadSleep(time_t us)
 	if (us != 0) {
 		now = _proc_gettimeRaw();
 
-		current = _proc_current();
+		current = proc_current();
 		current->state = SLEEP;
 		current->wait = NULL;
 		current->wakeup = now + us;
@@ -1293,7 +1275,7 @@ int proc_join(int tid, time_t timeout)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	now = _proc_gettimeRaw();
-	current = _proc_current();
+	current = proc_current();
 	if (proc_getTid(current) == tid) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return -EDEADLK;
@@ -1510,7 +1492,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	thread_t *thread;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	thread = _proc_current();
+	thread = proc_current();
 
 	kstackTop = thread->kstack + thread->kstacksz;
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
@@ -1538,7 +1520,7 @@ int threads_sigsuspend(unsigned int mask)
 
 	/* changing sigmask and sleep shall be atomic - do it under lock (sigpost is done also under threads_common.spinlock) */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	thread = _proc_current();
+	thread = proc_current();
 
 	/* setup syscall return value - sigsuspend always returns -EINTR */
 	kstackTop = thread->kstack + thread->kstacksz;
@@ -1615,7 +1597,7 @@ int proc_lockTry(lock_t *lock)
 	hal_spinlockSet(&lock->spinlock, &lsc);
 	hal_spinlockSet(&threads_common.spinlock, &tcsc);
 
-	current = _proc_current();
+	current = proc_current();
 
 	err = _proc_lockTry(current, lock);
 
@@ -1634,7 +1616,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	current = _proc_current();
+	current = proc_current();
 
 	if ((lock->attr.type == PH_LOCK_ERRORCHECK) && (lock->owner == current)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1743,7 +1725,7 @@ static int _proc_lockUnlock(lock_t *lock)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	current = _proc_current();
+	current = proc_current();
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
