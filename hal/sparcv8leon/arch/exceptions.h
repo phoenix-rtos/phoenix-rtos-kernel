@@ -27,7 +27,16 @@
 #define EXC_PAGEFAULT_DATA 9
 #endif
 
-#define SIZE_CTXDUMP 550
+#define SIZE_CTXDUMP          550
+#define SIZE_COREDUMP_GREGSET 432
+#ifdef PROC_COREDUMP_FPUCTX
+#define SIZE_COREDUMP_THREADAUX 416
+#else
+#define SIZE_COREDUMP_THREADAUX 0
+#endif
+#define SIZE_COREDUMP_GENAUX 0
+
+#define HAL_ELF_MACHINE 2 /* SPARC */
 
 #pragma pack(push, 1)
 
