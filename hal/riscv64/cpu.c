@@ -138,7 +138,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	__asm__ volatile("sd gp, %0" : "=m"(ctx->gp));
 	/* clang-format on */
 
-	ctx->pc = (u64)0;
+	ctx->ra = (u64)0;
 	ctx->sp = (u64)kstack + kstacksz;
 
 	ctx->t0 = 0;
