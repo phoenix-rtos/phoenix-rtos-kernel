@@ -26,6 +26,7 @@
 #include "ia32.h"
 #include "halsyspage.h"
 #include "init.h"
+#include "proc/threads.h"
 
 #include <arch/tlb.h>
 
@@ -175,6 +176,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 
 int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
+	cpu_context_t excctx, *oldctx;
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	const struct stackArg args[] = {
 		{ &ctx->esp, sizeof(ctx->esp) },
@@ -186,13 +188,21 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	(void)src;
 
-	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
+
+	if (!hal_setexcjmp(&excctx, &oldctx)) {
+		hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
-	signalCtx->eip = (u32)handler;
-	signalCtx->esp -= sizeof(cpu_context_t);
+		signalCtx->eip = (u32)handler;
+		signalCtx->esp -= sizeof(cpu_context_t);
 
-	hal_stackPutArgs((void **)&signalCtx->esp, sizeof(args) / sizeof(args[0]), args);
+		hal_stackPutArgs((void **)&signalCtx->esp, sizeof(args) / sizeof(args[0]), args);
+	}
+	else {
+		threads_setexcjmp(oldctx, NULL);
+		return -EFAULT;
+	}
+	threads_setexcjmp(oldctx, NULL);
 
 	return 0;
 }
