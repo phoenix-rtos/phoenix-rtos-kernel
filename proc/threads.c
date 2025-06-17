@@ -21,6 +21,7 @@
 #include "lib/lib.h"
 #include "posix/posix.h"
 #include "log/log.h"
+#include "process.h"
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
@@ -35,11 +36,15 @@ struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	thread_t *ready[8];
-	thread_t **current;
-	time_t utcoffs;
 
 	/* Synchronized by spinlock */
+	thread_t *ready[8];
+	/*
+	 * Write to current[i] only by i'th cpu, with spinlock set.
+	 * Read from current[i] by i'th cpu allowed without spinlock.
+	 */
+	thread_t **current;
+	time_t utcoffs;
 	rbtree_t sleeping;
 
 	/* Synchronized by mutex */
@@ -554,6 +559,23 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 }
 
 
+void threads_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx)
+{
+	thread_t *current = proc_current();
+
+	if (oldctx != NULL) {
+		*oldctx = current->excjmpctx;
+	}
+	current->excjmpctx = ctx;
+}
+
+
+excjmp_context_t *threads_getexcjmp(void)
+{
+	return proc_current()->excjmpctx;
+}
+
+
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
@@ -762,6 +784,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
 	t->longjmpctx = NULL;
+	t->excjmpctx = NULL;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->kstack);
@@ -1465,16 +1488,19 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 #ifndef KERNEL_SIGNALS_DISABLE
 
 	unsigned int sig;
+	int ret;
 
 	sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
 	if ((sig != 0) && (proc->sighandler != NULL)) {
 		sig = hal_cpuGetLastBit(sig);
 
-		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, oldmask, src) == 0) {
+		ret = hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, oldmask, src);
+		if (ret == 0) {
 			selected->sigpend &= ~(1 << sig);
 			proc->sigpend &= ~(1 << sig);
 			return 0;
 		}
+		return ret;
 	}
 
 #endif
@@ -1490,6 +1516,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	void *f;
 	void *kstackTop;
 	thread_t *thread;
+	int ret;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	thread = proc_current();
@@ -1498,11 +1525,22 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
 	hal_cpuSetReturnValue(ctx, retval);
 
-	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+	ret = _threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL);
+	if (ret == 0) {
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
+	}
+	else if (ret == -EFAULT) {
+#ifndef NDEBUG
+		hal_consolePrint(ATTR_BOLD, "EFAULT in _threads_checkSignal, killing whole process\n");
+#endif
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		proc_kill(thread->process);
+		thread->exit = THREAD_END_NOW;
+		hal_cpuReschedule(NULL, NULL);
+		return;
 	}
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);

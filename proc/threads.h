@@ -85,6 +85,7 @@ typedef struct _thread_t {
 
 	cpu_context_t *context;
 	cpu_context_t *longjmpctx;
+	excjmp_context_t *excjmpctx;
 } thread_t;
 
 
@@ -203,6 +204,12 @@ extern time_t proc_nextWakeup(void);
 
 
 extern void proc_longjmp(cpu_context_t *ctx);
+
+
+extern void threads_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx);
+
+
+extern excjmp_context_t *threads_getexcjmp(void);
 
 
 extern void proc_threadsDump(unsigned int priority);

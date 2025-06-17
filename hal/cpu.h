@@ -20,6 +20,7 @@
 #define SIG_SRC_SCALL 1
 
 #include <arch/cpu.h>
+#include <arch/exceptions.h>
 #include "spinlock.h"
 
 
@@ -111,6 +112,9 @@ extern void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
 
 
 extern void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargs);
+
+
+extern int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx);
 
 
 /* core management */

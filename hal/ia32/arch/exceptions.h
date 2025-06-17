@@ -40,6 +40,8 @@ typedef struct {
 	cpu_context_t cpuCtx;
 } exc_context_t;
 
+typedef cpu_context_t excjmp_context_t;
+
 #pragma pack(pop)
 
 #endif
