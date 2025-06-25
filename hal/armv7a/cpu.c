@@ -15,6 +15,8 @@
 #include "hal/string.h"
 #include "hal/spinlock.h"
 #include "hal/hal.h"
+#include "arch/exceptions.h"
+#include "include/errno.h"
 
 #include "armv7a.h"
 #include "config.h"

@@ -25,4 +25,9 @@
 
 typedef cpu_context_t exc_context_t;
 
+
+typedef struct _excjmp_context_t {
+	/* FIXME: implement kernel fault handling */
+} excjmp_context_t;
+
 #endif

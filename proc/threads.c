@@ -437,6 +437,28 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 }
 
 
+#ifdef EXCJMP_SUPPORTED
+void threads_setexcjmp(volatile excjmp_context_t *ctx)
+{
+	thread_t *current = proc_current();
+	if (current == NULL) {
+		return;
+	}
+	current->excjmpctx = ctx;
+}
+
+
+volatile excjmp_context_t *threads_getexcjmp(void)
+{
+	thread_t *current = proc_current();
+	if (current == NULL) {
+		return NULL;
+	}
+	return current->excjmpctx;
+}
+#endif
+
+
 static time_t _threads_claimSleepingMin(time_t wakeup, time_t now, sched_window_t *window, unsigned int cpuId)
 {
 	if ((window->sleepMinClaimed != (unsigned int)-1) && (window->sleepMinClaimed != cpuId)) {
@@ -745,6 +767,9 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->startTime = t->readyTime;
 	t->lastTime = t->readyTime;
 	t->longjmpctx = NULL;
+#ifdef EXCJMP_SUPPORTED
+	t->excjmpctx = NULL;
+#endif
 
 	if (process != NULL && (process->tls.tdata_sz != 0U || process->tls.tbss_sz != 0U)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
