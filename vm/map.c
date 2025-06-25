@@ -794,6 +794,9 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	vm_map_t *map;
 	void *vaddr, *paddr;
 	vm_prot_t prot;
+#ifdef EXCJMP_SUPPORTED
+	volatile excjmp_context_t *jmpctx;
+#endif
 
 	prot = (vm_prot_t)hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
@@ -807,8 +810,18 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 #endif
 
 	if (hal_exceptionsPC(ctx) >= VADDR_KERNEL) {
-		/* output exception ASAP to avoid being deadlocked on spinlock */
-		process_dumpException(n, ctx);
+#ifdef EXCJMP_SUPPORTED
+		/* FIXME: make proc_current() lockless to avoid deadlock on spinlock here */
+		jmpctx = threads_getexcjmp();
+		if ((proc_current()->process->lazy == 0U) && (jmpctx != NULL) && (hal_excjmpInstall(jmpctx, ctx) == 0)) {
+			return;
+		}
+		else
+#endif
+		{
+			/* output exception ASAP to avoid being deadlocked on spinlock */
+			process_dumpException(n, ctx);
+		}
 	}
 
 	hal_cpuEnableInterrupts();
@@ -823,6 +836,12 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	}
 
 	if (vm_mapForce(map, paddr, prot) != 0) {
+#ifdef EXCJMP_SUPPORTED
+		jmpctx = threads_getexcjmp();
+		if (thread->process->lazy != 0U && (jmpctx != NULL) && (hal_excjmpInstall(jmpctx, ctx) == 0)) {
+			return;
+		}
+#endif
 		process_dumpException(n, ctx);
 
 		LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel");

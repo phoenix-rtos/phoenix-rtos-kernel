@@ -35,6 +35,8 @@
 #define EXC_DEBUG               0x02U
 #define EXC_ALIGMENT            0x01U
 
+#define PSR_THUMB_STATE (1U << 5)
+
 
 static struct {
 	excHandlerFn_t undefHandler;
@@ -113,6 +115,33 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 	}
 #endif
+}
+
+
+int hal_excjmpInstall(volatile excjmp_context_t *jmpctx, exc_context_t *excctx)
+{
+	cpu_context_t *ctx = &excctx->cpuCtx;
+	ctx->psr = jmpctx->psr;
+	if ((jmpctx->ret & 1U) != 0U) {
+		ctx->psr |= PSR_THUMB_STATE;
+	}
+	else {
+		ctx->psr &= ~PSR_THUMB_STATE;
+	}
+	ctx->r4 = jmpctx->r4;
+	ctx->r5 = jmpctx->r5;
+	ctx->r6 = jmpctx->r6;
+	ctx->r7 = jmpctx->r7;
+	ctx->r8 = jmpctx->r8;
+	ctx->r9 = jmpctx->r9;
+	ctx->r10 = jmpctx->r10;
+	ctx->fp = jmpctx->fp;
+	ctx->pc = jmpctx->ret & ~1U;
+	ctx->sp = jmpctx->sp;
+
+	/* Mark fault happened in return value */
+	ctx->r0 = 1;
+	return 0;
 }
 
 

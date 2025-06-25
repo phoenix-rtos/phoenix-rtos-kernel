@@ -17,4 +17,6 @@
 
 #define HOST_NAME_MAX 255U
 
+#define STR_MAX 2048U
+
 #endif
