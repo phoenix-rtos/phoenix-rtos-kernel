@@ -293,3 +293,38 @@ _syscalls_dispatch:
 	add sp, sp, #8
 	b _hal_cpuRestoreCtx
 .size _syscalls_dispatch, .-_syscalls_dispatch
+
+
+.globl hal_excjmp
+.type hal_excjmp, %function
+hal_excjmp:
+	ldr r1, [r0], #4
+	msr cpsr_fsxc, r1
+	ldr sp, [r0], #4
+	ldr lr, [r0], #4
+	ldm r0, {r4-r11}
+
+	mov r0, #1
+	bx lr
+.size hal_excjmp, .-hal_excjmp
+
+
+/* int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx) */
+.globl hal_setexcjmp
+.type hal_setexcjmp, %function
+hal_setexcjmp:
+	mrs r2, cpsr
+	str r2, [r0], #4
+	str sp, [r0], #4
+	str lr, [r0], #4
+	stm r0, {r4-r11}
+
+	mov r4, lr
+	sub r0, #12
+	bl threads_setexcjmp
+
+	mov lr, r4
+
+	mov r0, #0
+	bx lr
+.size hal_setexcjmp, .-hal_setexcjmp

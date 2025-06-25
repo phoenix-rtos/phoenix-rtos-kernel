@@ -119,8 +119,19 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
+extern excjmp_context_t *threads_getexcjmp(void);
+
+
+extern void hal_excjmp(excjmp_context_t *ctx);
+
+
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
+	excjmp_context_t *excctx = threads_getexcjmp();
+	if (excctx != NULL) {
+		hal_excjmp(excctx);
+	}
+
 	if (n == exc_prefetch || n == exc_abort)
 		exceptions.abortHandler(n, ctx);
 	else if (n == exc_undef)
