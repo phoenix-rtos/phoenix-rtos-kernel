@@ -831,11 +831,18 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	else {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 	}
-	/* Insert thread to scheduler queue */
+
+	if (process != NULL) {
+		t->exit = process->exit == 0 ? 0 : THREAD_END;
+		t->freeze = process->freeze == RUNNING ? RUNNING : FROZEN;
+	}
+	if (t->freeze != FROZEN) {
+		/* Insert thread to scheduler queue */
+		LIST_ADD(&threads_common.ready[priority], t);
+	}
 
 	_perf_begin(t);
 	_perf_waking(t);
-	LIST_ADD(&threads_common.ready[priority], t);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -2163,8 +2170,14 @@ void proc_freeze(process_t *process)
 	int i;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	thread = process->threads;
 	current = _proc_current();
+	while (process->freeze != RUNNING) {
+		current->freeze = FROZEN;
+		hal_cpuReschedule(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+	}
+	thread = process->threads;
+	process->freeze = FREEZING;
 
 	/* Kernelspace and currently executing threads can't be instantly frozen */
 	do {
@@ -2197,6 +2210,7 @@ void proc_freeze(process_t *process)
 		thread = thread->procnext;
 	} while (thread != process->threads);
 
+	process->freeze = FROZEN;
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -2218,6 +2232,7 @@ void proc_unfreeze(process_t *process)
 
 		thread = thread->procnext;
 	} while (thread != process->threads);
+	process->freeze = RUNNING;
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
