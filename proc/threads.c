@@ -780,6 +780,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->exit = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
+	t->waitlock = NULL;
 	t->locks = NULL;
 	t->stick = 0;
 	t->utick = 0;
@@ -1073,8 +1074,7 @@ static void _proc_threadDequeue(thread_t *t)
 	t->state = READY;
 	t->interruptible = 0;
 
-	if (t->freeze > FREEZER) {
-		t->freeze = FROZEN;
+	if (t->freeze == FROZEN) {
 		return;
 	}
 
@@ -1667,6 +1667,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 			_proc_threadSetPriority(lock->owner, current->priority);
 		}
 
+		current->waitlock = lock;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		do {
@@ -1774,6 +1775,7 @@ static int _proc_lockUnlock(lock_t *lock)
 		if (lockPriority < lock->owner->priority) {
 			_proc_threadSetPriority(lock->queue, lockPriority);
 		}
+		lock->owner->waitlock = NULL;
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
 		ret = 1;
@@ -1926,6 +1928,7 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name)
 	lock->owner = NULL;
 	lock->queue = NULL;
 	lock->name = name;
+	lock->kind = LOCK_KERNEL_ONLY;
 
 	hal_memcpy(&lock->attr, attr, sizeof(struct lockAttr));
 
@@ -2162,7 +2165,34 @@ cpu_context_t *_threads_userContext(thread_t *thread)
 }
 
 
-/* Does not freeze current thread until it's rescheduled in userspace! */
+int _threads_usesKernelOnlyLock(thread_t *thread)
+{
+	lock_t *lock;
+
+	if ((thread->waitlock != NULL) && (thread->waitlock->kind == LOCK_KERNEL_ONLY)) {
+		return 1;
+	}
+
+	lock = thread->locks;
+	if (lock == NULL) {
+		return 0;
+	}
+
+	do {
+		if (lock->kind == LOCK_KERNEL_ONLY) {
+			return 1;
+		}
+		lock = lock->next;
+	} while (lock != thread->locks);
+
+	return 0;
+}
+
+
+/*
+ * Does not freeze current thread until it's rescheduled in userspace!
+ * Do not enter this function while holding any KERNEL_ONLY locks!
+ */
 void proc_freeze(process_t *process)
 {
 	spinlock_ctx_t sc;
@@ -2181,7 +2211,8 @@ void proc_freeze(process_t *process)
 
 	/* Kernelspace and currently executing threads can't be instantly frozen */
 	do {
-		if ((hal_cpuSupervisorMode(thread->context) != 0) && (thread->state == READY)) {
+		if (((thread->state == READY) && (hal_cpuSupervisorMode(thread->context) != 0)) ||
+				((thread->state == SLEEP) && (_threads_usesKernelOnlyLock(thread) != 0))) {
 			thread->freeze = FREEZING;
 		}
 		else {
@@ -2197,13 +2228,14 @@ void proc_freeze(process_t *process)
 	}
 	current->freeze = FREEZER;
 
-	/* Threads can become frozen if entered sleep or were rescheduled in userspace */
+	/* Threads can become frozen when rescheduled from userspace */
 	do {
 		while ((thread->freeze != FROZEN) && (thread != current)) {
-			if (thread->state == SLEEP) {
+			if ((thread->state == SLEEP) && (_threads_usesKernelOnlyLock(thread) == 0)) {
+				/* Ignore waiting on user locks, as it can lead to deadlock with freezer process */
 				thread->freeze = FROZEN;
+				continue;
 			}
-
 			hal_cpuReschedule(&threads_common.spinlock, &sc);
 			hal_spinlockSet(&threads_common.spinlock, &sc);
 		}

@@ -59,6 +59,7 @@ typedef struct _thread_t {
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
+	lock_t *waitlock;
 	volatile time_t wakeup;
 
 	unsigned priorityBase : 4;
