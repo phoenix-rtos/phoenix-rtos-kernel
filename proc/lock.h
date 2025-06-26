@@ -20,6 +20,11 @@
 #include "include/threads.h"
 
 
+/* clang-format off */
+enum { LOCK_KERNEL_ONLY = 0, LOCK_USER };
+/* clang-format on */
+
+
 typedef struct _lock_t {
 	spinlock_t spinlock;         /* Spinlock */
 	struct _thread_t *owner;     /* Owner thread */
@@ -27,6 +32,7 @@ typedef struct _lock_t {
 	struct _lock_t *prev, *next; /* Doubly linked list */
 	const char *name;
 	struct lockAttr attr;
+	unsigned int kind;
 	unsigned int depth; /* Used with recursive locks */
 } lock_t;
 

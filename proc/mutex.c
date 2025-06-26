@@ -73,6 +73,7 @@ int proc_mutexCreate(const struct lockAttr *attr)
 	}
 
 	proc_lockInit(&mutex->lock, attr, "user.mutex");
+	mutex->lock.kind = LOCK_USER;
 
 	(void)resource_put(p, &mutex->resource);
 
