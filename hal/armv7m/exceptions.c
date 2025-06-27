@@ -20,6 +20,8 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "config.h"
+#include "proc/coredump.h"
+#include "proc/elf.h"
 
 #define SIZE_FPUCTX (16 * sizeof(u32))
 
@@ -31,21 +33,28 @@ static struct {
 extern void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *));
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+const char *hal_exceptionMnemonic(int n)
 {
 	static const char *mnemonics[] = {
-		"0 #InitialSP",   "1 #Reset",    "2 #NMI",        "3 #HardFault",
+		"0 #InitialSP", "1 #Reset", "2 #NMI", "3 #HardFault",
 		"4 #MemMgtFault", "5 #BusFault", "6 #UsageFault", "7 #",
-		"8 #",            "9 #",         "10 #",          "11 #SVC",
-		"12 #Debug",      "13 #",        "14 #PendSV",    "15 #SysTick"
+		"8 #", "9 #", "10 #", "11 #SVC",
+		"12 #Debug", "13 #", "14 #PendSV", "15 #SysTick"
 	};
+
+	return mnemonics[n & 0xf];
+}
+
+
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+{
 	size_t i = 0;
 	u32 msp = (u32)ctx + sizeof(*ctx);
 	u32 psp = ctx->psp;
 	cpu_hwContext_t *hwctx;
 
 	/* If we came from userspace HW ctx in on psp stack */
-	if (ctx->excret == RET_THREAD_PSP) {
+	if (ctx->irq_ret == RET_THREAD_PSP) {
 		hwctx = (void *)ctx->psp;
 		msp -= sizeof(cpu_hwContext_t);
 		psp += sizeof(cpu_hwContext_t);
@@ -54,16 +63,14 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 #endif
 	}
 	else {
-		hwctx = &ctx->mspctx;
+		hwctx = &ctx->hwctx;
 #ifdef CPU_IMXRT
 		msp += SIZE_FPUCTX;
 #endif
 	}
 
-	n &= 0xf;
-
 	hal_strcpy(buff, "\nException: ");
-	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
+	hal_strcpy(buff += hal_strlen(buff), hal_exceptionMnemonic(n));
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
@@ -89,7 +96,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 	i += hal_i2s("\npsp=", &buff[i], psp, 16, 1);
 	i += hal_i2s(" msp=", &buff[i], msp, 16, 1);
-	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
+	i += hal_i2s(" exr=", &buff[i], ctx->irq_ret, 16, 1);
 	i += hal_i2s(" bfa=", &buff[i], *(u32 *)0xe000ed38, 16, 1);
 
 	i += hal_i2s("\ncfs=", &buff[i], *(u32 *)0xe000ed28, 16, 1);
@@ -110,6 +117,8 @@ __attribute__((noreturn)) static void exceptions_fatal(unsigned int n, exc_conte
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
+	coredump_dump(n, ctx);
+
 #ifdef NDEBUG
 	hal_cpuReboot();
 #endif
@@ -123,7 +132,7 @@ __attribute__((noreturn)) static void exceptions_fatal(unsigned int n, exc_conte
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	if ((hal_exception_common.handler != NULL) &&
-			((ctx->excret & (1 << 2)) != 0)) {
+			((ctx->irq_ret & (1 << 2)) != 0)) {
 
 		/* Need to enter the kernel by returning to the
 		 * thread mode. Otherwise we won't be able to
@@ -142,11 +151,11 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
 	cpu_hwContext_t *hwctx;
 
-	if (ctx->excret == RET_THREAD_PSP) {
+	if (ctx->irq_ret == RET_THREAD_PSP) {
 		hwctx = (void *)ctx->psp;
 	}
 	else {
-		hwctx = &ctx->mspctx;
+		hwctx = &ctx->hwctx;
 	}
 
 	return hwctx->pc;
@@ -186,5 +195,89 @@ void _hal_exceptionsInit(void)
 
 extern cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
 {
-	return NULL; /* unsupported */
+	return ctx;
+}
+
+
+void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
+{
+	u32 psp = ctx->psp;
+	cpu_hwContext_t *hwctx;
+
+	/* If we came from userspace HW ctx in on psp stack */
+	if (ctx->irq_ret == RET_THREAD_PSP) {
+		hwctx = (void *)ctx->psp;
+		psp += sizeof(cpu_hwContext_t);
+#ifdef CPU_IMXRT /* FIXME - check if FPU was enabled instead */
+		psp += SIZE_FPUCTX;
+#endif
+	}
+	else {
+		hwctx = &ctx->hwctx;
+	}
+
+	u32 *regs = (u32 *)buff;
+	*(regs++) = hwctx.r0;
+	*(regs++) = hwctx.r1;
+	*(regs++) = hwctx.r2;
+	*(regs++) = hwctx.r3;
+	*(regs++) = ctx->r4;
+	*(regs++) = ctx->r5;
+	*(regs++) = ctx->r6;
+	*(regs++) = ctx->r7;
+	*(regs++) = ctx->r8;
+	*(regs++) = ctx->r9;
+	*(regs++) = ctx->r10;
+	*(regs++) = ctx->r11;
+	*(regs++) = hwctx.r12;
+	*(regs++) = psp;
+	*(regs++) = hwctx.lr;
+	*(regs++) = hwctx.pc;
+	*(regs++) = hwctx.psr;
+}
+
+
+void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
+{
+#if defined(CPU_IMXRT) && defined(PROC_COREDUMP_FPUCTX)
+	static const char ARMVFP_NAME[] = "LINUX";
+	Elf32_Nhdr nhdr;
+	nhdr.n_namesz = sizeof(ARMVFP_NAME);
+	nhdr.n_descsz = sizeof(u64) * 32 + sizeof(ctx->fpscr);
+	nhdr.n_type = NT_ARM_VFP;
+	hal_memcpy(buff, &nhdr, sizeof(nhdr));
+	buff = (char *)buff + sizeof(nhdr);
+	hal_memcpy(buff, ARMVFP_NAME, sizeof(ARMVFP_NAME));
+	buff = (char *)buff + ((sizeof(ARMVFP_NAME) + 3) & ~3);
+	hal_memcpy(buff, &ctx->s0, sizeof(u32) * 16);
+	buff = (char *)buff + sizeof(u32) * 16;
+	hal_memcpy(buff, &ctx->s16, sizeof(u32) * 16);
+	buff = (char *)buff + sizeof(u32) * 16;
+	buff = (char *)buff + sizeof(u64) * 16; /* padding to match full VFPv3 */
+	hal_memcpy(buff, &ctx->fpscr, sizeof(ctx->fpscr));
+#endif
+}
+
+
+void hal_coredumpGeneralAux(void *buff)
+{
+#if defined(CPU_IMXRT) && defined(PROC_COREDUMP_FPUCTX)
+	static const char AUXV_NAME[] = "CORE";
+	Elf32_Nhdr nhdr;
+	elf_auxv_t auxv[2];
+
+	nhdr.n_namesz = sizeof(AUXV_NAME);
+	nhdr.n_descsz = sizeof(auxv);
+	nhdr.n_type = NT_AUXV;
+	hal_memcpy(buff, &nhdr, sizeof(nhdr));
+	buff = (char *)buff + sizeof(nhdr);
+	hal_memcpy(buff, AUXV_NAME, sizeof(AUXV_NAME));
+	buff = (char *)buff + ((sizeof(AUXV_NAME) + 3) & ~3);
+
+	auxv[0].a_type = AT_HWCAP;
+	auxv[0].a_val = HWCAP_VFPv3D16;
+	auxv[1].a_type = AT_NULL;
+	auxv[1].a_val = 0;
+	hal_memcpy(buff, auxv, sizeof(auxv));
+#endif
 }

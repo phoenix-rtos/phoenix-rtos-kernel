@@ -23,6 +23,7 @@
 
 #include "include/mman.h"
 #include "include/errno.h"
+#include "proc/coredump.h"
 #include "proc/elf.h"
 
 
@@ -198,6 +199,8 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
+	coredump_dump(n, ctx);
+
 #ifdef NDEBUG
 	hal_cpuReboot();
 #endif
@@ -340,6 +343,7 @@ void hal_coredumpGRegset(void *buff, cpu_context_t *ctx)
 
 void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 {
+#ifdef PROC_COREDUMP_FPUCTX
 	static const char FPREGSET_NAME[] = "CORE";
 	Elf32_Nhdr nhdr;
 	nhdr.n_namesz = sizeof(FPREGSET_NAME);
@@ -350,6 +354,7 @@ void hal_coredumpThreadAux(void *buff, cpu_context_t *ctx)
 	hal_memcpy(buff, FPREGSET_NAME, sizeof(FPREGSET_NAME));
 	buff = (char *)buff + ((sizeof(FPREGSET_NAME) + 3) & ~3);
 	hal_memcpy(buff, &ctx->fpuContext, sizeof(ctx->fpuContext));
+#endif
 }
 
 
