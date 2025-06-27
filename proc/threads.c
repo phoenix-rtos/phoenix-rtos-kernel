@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "msg.h"
 #include "ports.h"
+#include "coredump.h"
 
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
@@ -576,8 +577,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	if (current != NULL) {
 		current->context = context;
 
-		/* Move thread to the end of queue */
-		if (current->state == READY) {
+		if ((hal_cpuSupervisorMode(current->context) == 0) && (current->freeze != RUNNING)) {
+			current->freeze = FROZEN;
+		}
+		else if (current->state == READY) {
+			/* Move thread to the end of queue */
 			LIST_ADD(&threads_common.ready[current->priority], current);
 			_perf_preempted(current);
 		}
@@ -591,6 +595,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		}
 
 		LIST_REMOVE(&threads_common.ready[i], selected);
+
+		if ((hal_cpuSupervisorMode(selected->context) == 0) && (selected->freeze != RUNNING)) {
+			selected->freeze = FROZEN;
+			continue;
+		}
 
 		if (selected->exit == 0) {
 			break;
@@ -645,15 +654,15 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 		if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
 			LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
-				"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
-				(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
-				selected->kstack, selCtx);
+					"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
+					(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+					selected->kstack, selCtx);
 		}
 
-		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
-			(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
-			"pid: %d, tid: %d, path: %s, user stack corrupted",
-			process_getPid(selected->process), proc_getTid(selected), selected->process->path);
+		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) || hal_cpuSupervisorMode(selected->context) ||
+						(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
+				"pid: %d, tid: %d, path: %s, user stack corrupted",
+				process_getPid(selected->process), proc_getTid(selected), selected->process->path);
 #endif
 	}
 
@@ -767,9 +776,11 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->sigmask = t->sigpend = 0;
 	t->refs = 1;
 	t->interruptible = 0;
+	t->freeze = RUNNING;
 	t->exit = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
+	t->waitlock = NULL;
 	t->locks = NULL;
 	t->stick = 0;
 	t->utick = 0;
@@ -821,11 +832,18 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	else {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 	}
-	/* Insert thread to scheduler queue */
+
+	if (process != NULL) {
+		t->exit = process->exit == 0 ? 0 : THREAD_END;
+		t->freeze = process->freeze == RUNNING ? RUNNING : FROZEN;
+	}
+	if (t->freeze != FROZEN) {
+		/* Insert thread to scheduler queue */
+		LIST_ADD(&threads_common.ready[priority], t);
+	}
 
 	_perf_begin(t);
 	_perf_waking(t);
-	LIST_ADD(&threads_common.ready[priority], t);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1055,6 +1073,10 @@ static void _proc_threadDequeue(thread_t *t)
 	t->wait = NULL;
 	t->state = READY;
 	t->interruptible = 0;
+
+	if (t->freeze == FROZEN) {
+		return;
+	}
 
 	/* MOD */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
@@ -1645,6 +1667,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 			_proc_threadSetPriority(lock->owner, current->priority);
 		}
 
+		current->waitlock = lock;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		do {
@@ -1752,6 +1775,7 @@ static int _proc_lockUnlock(lock_t *lock)
 		if (lockPriority < lock->owner->priority) {
 			_proc_threadSetPriority(lock->queue, lockPriority);
 		}
+		lock->owner->waitlock = NULL;
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
 		ret = 1;
@@ -1904,6 +1928,7 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name)
 	lock->owner = NULL;
 	lock->queue = NULL;
 	lock->name = name;
+	lock->kind = LOCK_KERNEL_ONLY;
 
 	hal_memcpy(&lock->attr, attr, sizeof(struct lockAttr));
 
@@ -2128,4 +2153,170 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
 
 	return EOK;
+}
+
+
+cpu_context_t *_threads_userContext(thread_t *thread)
+{
+	if (hal_cpuSupervisorMode(thread->context) != 0) {
+		return (cpu_context_t *)((char *)(thread->kstack + thread->kstacksz) - sizeof(cpu_context_t));
+	}
+	return thread->context;
+}
+
+
+int _threads_usesKernelOnlyLock(thread_t *thread)
+{
+	lock_t *lock;
+
+	if ((thread->waitlock != NULL) && (thread->waitlock->kind == LOCK_KERNEL_ONLY)) {
+		return 1;
+	}
+
+	lock = thread->locks;
+	if (lock == NULL) {
+		return 0;
+	}
+
+	do {
+		if (lock->kind == LOCK_KERNEL_ONLY) {
+			return 1;
+		}
+		lock = lock->next;
+	} while (lock != thread->locks);
+
+	return 0;
+}
+
+
+/*
+ * Does not freeze current thread until it's rescheduled in userspace!
+ * Do not enter this function while holding any KERNEL_ONLY locks!
+ */
+void proc_freeze(process_t *process)
+{
+	spinlock_ctx_t sc;
+	thread_t *thread, *current;
+	int i;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	current = _proc_current();
+	while (process->freeze != RUNNING) {
+		current->freeze = FROZEN;
+		hal_cpuReschedule(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+	}
+	thread = process->threads;
+	process->freeze = FREEZING;
+
+	/* Kernelspace and currently executing threads can't be instantly frozen */
+	do {
+		if (((thread->state == READY) && (hal_cpuSupervisorMode(thread->context) != 0)) ||
+				((thread->state == SLEEP) && (_threads_usesKernelOnlyLock(thread) != 0))) {
+			thread->freeze = FREEZING;
+		}
+		else {
+			thread->freeze = FROZEN;
+		}
+		thread = thread->procnext;
+	} while (thread != process->threads);
+
+	for (i = 0; i < hal_cpuGetCount(); i++) {
+		if ((i != hal_cpuGetID()) && (threads_common.current[i]->process == process)) {
+			threads_common.current[i]->freeze = FREEZING;
+		}
+	}
+	current->freeze = FREEZER;
+
+	/* Threads can become frozen when rescheduled from userspace */
+	do {
+		while ((thread->freeze != FROZEN) && (thread != current)) {
+			if ((thread->state == SLEEP) && (_threads_usesKernelOnlyLock(thread) == 0)) {
+				/* Ignore waiting on user locks, as it can lead to deadlock with freezer process */
+				thread->freeze = FROZEN;
+				continue;
+			}
+			hal_cpuReschedule(&threads_common.spinlock, &sc);
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+		}
+		thread = thread->procnext;
+	} while (thread != process->threads);
+
+	process->freeze = FROZEN;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+void proc_unfreeze(process_t *process)
+{
+	spinlock_ctx_t sc;
+	thread_t *thread;
+	thread_t *current;
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	current = _proc_current();
+	thread = process->threads;
+
+	do {
+		thread->freeze = RUNNING;
+		if ((thread->state == READY) && (thread != current) && (LIST_BELONGS(&threads_common.ready[thread->priority], thread) == 0)) {
+			LIST_ADD(&threads_common.ready[thread->priority], thread);
+		}
+
+		thread = thread->procnext;
+	} while (thread != process->threads);
+	process->freeze = RUNNING;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+size_t coredump_threadsInfo(process_t *process, size_t n, cpu_context_t *ectx, coredump_threadinfo_t *info)
+{
+	thread_t *thread;
+	thread_t *current;
+	spinlock_ctx_t sc;
+	cpu_context_t *cctx;
+	size_t i = 0;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (ectx != NULL) {
+		current = _proc_current();
+		info[i].tid = proc_getTid(current);
+		info[i].cursig = 0;
+		info[i].ustack = current->ustack;
+		info[i].userContext = ectx;
+		i++;
+	}
+	else {
+		current = NULL;
+	}
+	if (i >= n) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return i;
+	}
+
+	thread = process->threads;
+	do {
+		if (thread == current) { /* already dumped from exc_context_t */
+			thread = thread->procnext;
+			continue;
+		}
+
+		cctx = _threads_userContext(thread);
+		if (cctx == NULL) {
+			thread = thread->procnext;
+			continue;
+		}
+
+		info[i].tid = proc_getTid(thread);
+		info[i].cursig = 0;
+		info[i].ustack = thread->ustack;
+		info[i].userContext = cctx;
+		i++;
+
+		thread = thread->procnext;
+	} while ((i < n) && (thread != process->threads));
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	return i;
 }

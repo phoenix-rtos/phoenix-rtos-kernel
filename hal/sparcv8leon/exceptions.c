@@ -213,3 +213,9 @@ void _hal_exceptionsInit(void)
 	exceptions_common.defaultHandler = exceptions_defaultHandler;
 	exceptions_common.mmuFaultHandler = exceptions_defaultHandler;
 }
+
+
+cpu_context_t *hal_excToCpuCtx(exc_context_t *ctx)
+{
+	return &ctx->cpuCtx;
+}
