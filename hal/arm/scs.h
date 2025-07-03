@@ -78,6 +78,13 @@ void _hal_scsDeepSleepSet(int state);
 void _hal_scsSystickInit(u32 load);
 
 
+/* Reads the SysTick current value and returns it.
+ * If `overflow_out` is not NULL, also reads and clears the timer overflow flag.
+ * If overflow has occurred, the returned timestamp is guaranteed to be
+ * after the overflow. */
+u32 _hal_scsSystickGetCount(u8 *overflow_out);
+
+
 void _hal_scsInit(void);
 
 
