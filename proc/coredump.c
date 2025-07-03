@@ -50,7 +50,12 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 #define COREDUMP_START "\n_____________COREDUMP_START_____________\n"
 #define COREDUMP_END   "\n______________COREDUMP_END______________\n"
 
+#define EM_SPARC 2
+
 #define PRSTATUS_NAME "CORE"
+
+#define NT_LMA      0x00414D4C /* ASCII for "LMA" (load memory address) */
+#define NT_LMA_NAME "PHOENIX"
 
 typedef struct {
 	struct elf_siginfo {
@@ -322,6 +327,11 @@ static void coredump_dumpThreadNotes(coredump_threadinfo_t *threads, size_t thre
 		prstatus.pr_pid = threads[i].tid;
 		coredump_encodeChunk(state, (u8 *)&prstatus, offsetof(elf_prstatus, pr_reg));
 		hal_coredumpGRegset(buff, threads[i].userContext);
+		if (HAL_ELF_MACHINE == EM_SPARC) {
+			/* SPARC uses Solaris prstatus structure instead of Linux due to GDB limited support */
+			*(short *)((char *)buff + 64) = prstatus.pr_cursig;
+			*(pid_t *)((char *)buff + 236) = prstatus.pr_pid;
+		}
 		coredump_encodeChunk(state, (u8 *)buff, SIZE_COREDUMP_GREGSET);
 		coredump_encodeChunk(state, (u8 *)&prstatus.pr_reg, sizeof(prstatus) - offsetof(elf_prstatus, pr_reg));
 
@@ -351,6 +361,9 @@ static size_t coredump_findStack(void **currentSP, void *ustack, process_t *proc
 		*currentSP = e->vaddr;
 	}
 	stackSize = (char *)e->vaddr + e->size - (char *)*currentSP;
+#ifdef PROC_COREDUMP_MAX_STACK_BYTES
+	stackSize = min(stackSize, PROC_COREDUMP_MAX_STACK_BYTES);
+#endif
 
 	proc_lockClear(&process->mapp->lock);
 
@@ -433,6 +446,26 @@ static void coredump_dumpPhdr(u32 type, size_t offset, void *vaddr, size_t size,
 }
 
 
+#ifdef NOMMU
+static void coredump_dumpLMA(process_t *process, coredump_state_t *state)
+{
+	int i;
+	Elf32_Nhdr nhdr = {
+		.n_type = NT_LMA,
+		.n_namesz = sizeof(NT_LMA_NAME),
+		.n_descsz = process->relocsz * 2 * sizeof(Elf32_Addr)
+	};
+	coredump_encodeChunk(state, (u8 *)&nhdr, sizeof(nhdr));
+	coredump_encodeChunk(state, (u8 *)NT_LMA_NAME, sizeof(NT_LMA_NAME));
+
+	for (i = 0; i < process->relocsz; i++) {
+		coredump_encodeChunk(state, (u8 *)&process->reloc[i].pbase, sizeof(process->reloc[i].pbase));
+		coredump_encodeChunk(state, (u8 *)&process->reloc[i].vbase, sizeof(process->reloc[i].vbase));
+	}
+}
+#endif /* NOMMU */
+
+
 static void coredump_dumpAllPhdrs(coredump_threadinfo_t *threadInfo, size_t threadCnt, size_t segCnt, process_t *process, coredump_state_t *state)
 {
 	static const size_t THREAD_NOTES_SIZE = sizeof(Elf32_Nhdr) +
@@ -440,7 +473,13 @@ static void coredump_dumpAllPhdrs(coredump_threadinfo_t *threadInfo, size_t thre
 			sizeof(elf_prstatus) +
 			SIZE_COREDUMP_GREGSET +
 			SIZE_COREDUMP_THREADAUX;
-	const size_t NOTES_SIZE = SIZE_COREDUMP_GENAUX + threadCnt * (THREAD_NOTES_SIZE);
+#ifdef NOMMU
+	const size_t LMA_NOTE_SIZE = (sizeof(Elf32_Nhdr) + align4(sizeof(NT_LMA_NAME)) +
+			process->relocsz * 2 * sizeof(Elf32_Addr));
+#else
+	const size_t LMA_NOTE_SIZE = 0;
+#endif
+	const size_t NOTES_SIZE = SIZE_COREDUMP_GENAUX + threadCnt * (THREAD_NOTES_SIZE) + LMA_NOTE_SIZE;
 	size_t currentOffset;
 	size_t stackSize;
 	void *userSp;
@@ -461,6 +500,17 @@ static void coredump_dumpAllPhdrs(coredump_threadinfo_t *threadInfo, size_t thre
 	/* Memory */
 	if (PROC_COREDUMP_MEM_OPT == MEM_ALL) {
 		proc_lockSet(&process->mapp->lock);
+#ifdef NOMMU
+		e = process->entries;
+		do {
+			if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+				coredump_dumpPhdr(PT_LOAD, currentOffset, e->vaddr, e->size, e->prot, state);
+				currentOffset += e->size;
+			}
+
+			e = e->next;
+		} while (e != process->entries);
+#else  /* NOMMU */
 		e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
 		while (e != NULL) {
 			if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
@@ -469,6 +519,7 @@ static void coredump_dumpAllPhdrs(coredump_threadinfo_t *threadInfo, size_t thre
 			}
 			e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
 		}
+#endif /* NOMMU */
 		proc_lockClear(&process->mapp->lock);
 	}
 	else if (PROC_COREDUMP_MEM_OPT == MEM_EXC_STACK) {
@@ -494,6 +545,16 @@ static void coredump_dumpAllMemory(process_t *process, coredump_state_t *state)
 	map_entry_t *e;
 
 	proc_lockSet(&process->mapp->lock);
+#ifdef NOMMU
+	e = process->entries;
+	do {
+		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+			coredump_encodeChunk(state, e->vaddr, e->size);
+		}
+
+		e = e->next;
+	} while (e != process->entries);
+#else  /* NOMMU */
 	e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
 	while (e != NULL) {
 		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
@@ -501,6 +562,7 @@ static void coredump_dumpAllMemory(process_t *process, coredump_state_t *state)
 		}
 		e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
 	}
+#endif /* NOMMU */
 	proc_lockClear(&process->mapp->lock);
 }
 
@@ -511,7 +573,16 @@ static size_t coredump_segmentCount(process_t *process)
 	size_t segCnt = 0;
 
 	proc_lockSet(&process->mapp->lock);
+#ifdef NOMMU
+	e = process->entries;
+	do {
+		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
+			segCnt++;
+		}
 
+		e = e->next;
+	} while (e != process->entries);
+#else  /* NOMMU */
 	e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(process->mapp->tree.root));
 	while (e != NULL) {
 		if ((e->prot & PROT_READ) && (e->prot & PROT_WRITE)) {
@@ -519,7 +590,7 @@ static size_t coredump_segmentCount(process_t *process)
 		}
 		e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
 	}
-
+#endif /* NOMMU */
 	proc_lockClear(&process->mapp->lock);
 	return segCnt;
 }
@@ -581,6 +652,10 @@ void coredump_dump(unsigned int n, exc_context_t *ctx)
 	coredump_dumpThreadNotes(threadInfo, threadCnt, &state, buff);
 	hal_coredumpGeneralAux(buff);
 	coredump_encodeChunk(&state, (u8 *)buff, SIZE_COREDUMP_GENAUX);
+
+#ifdef NOMMU
+	coredump_dumpLMA(process, &state);
+#endif
 
 	/* MEMORY */
 	if (PROC_COREDUMP_MEM_OPT == MEM_ALL) {
