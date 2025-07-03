@@ -194,6 +194,8 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->ghosts = NULL;
 	process->reaper = NULL;
 	process->refs = 1;
+	process->exit = 0;
+	process->freeze = RUNNING;
 
 	proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
@@ -274,10 +276,12 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 
-	process_dumpException(n, ctx);
+	coredump_dump(n, ctx);
 
 	if (thread->process == NULL)
 		hal_cpuHalt();
+
+	process_dumpException(n, ctx);
 
 	threads_sigpost(thread->process, thread, signal_kill);
 
@@ -296,6 +300,8 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 
 	if (process == NULL)
 		hal_cpuHalt();
+
+	process_dumpException(n, ctx);
 
 	threads_sigpost(process, thread, signal_illegal);
 }
