@@ -639,7 +639,7 @@ static int _pmap_findFreePage(page_t *page)
 
 static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr, int remoteFlush)
 {
-	void *ret;
+	void *baseVa;
 	void **pva;
 	addr_t end;
 	page_t *alloc = NULL;
@@ -666,19 +666,19 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr,
 		pva = &va;
 	}
 
-	ret = va;
+	baseVa = va;
 
 	while (paddr != end) {
 		while (_pmap_map(pmap_common.pdir1, paddr, *pva, attr, alloc) < 0) {
 			if (_pmap_findFreePage(&page) < 0) {
 				if (remoteFlush != 0) {
-					hal_tlbInvalidateEntry(NULL, va, CEIL_PAGE((ptr_t)*pva - (ptr_t)va) / SIZE_PAGE);
+					hal_tlbInvalidateEntry(NULL, baseVa, CEIL_PAGE((ptr_t)*pva - (ptr_t)baseVa) / SIZE_PAGE);
 				}
 				return NULL;
 			}
 			if (_pmap_addMemEntry(page.addr, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE) != EOK) {
 				if (remoteFlush != 0) {
-					hal_tlbInvalidateEntry(NULL, va, CEIL_PAGE((ptr_t)*pva - (ptr_t)va) / SIZE_PAGE);
+					hal_tlbInvalidateEntry(NULL, baseVa, CEIL_PAGE((ptr_t)*pva - (ptr_t)baseVa) / SIZE_PAGE);
 				}
 				return NULL;
 			}
@@ -694,10 +694,10 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr,
 	}
 
 	if (remoteFlush != 0) {
-		hal_tlbInvalidateEntry(NULL, va, CEIL_PAGE(size) / SIZE_PAGE);
+		hal_tlbInvalidateEntry(NULL, baseVa, CEIL_PAGE(size) / SIZE_PAGE);
 	}
 
-	return ret;
+	return baseVa;
 }
 
 
