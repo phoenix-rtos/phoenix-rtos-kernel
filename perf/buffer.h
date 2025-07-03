@@ -33,4 +33,7 @@ extern int _trace_bufferRead(void *buf, size_t bufsz);
 extern int _trace_bufferWrite(const void *data, size_t sz);
 
 
+extern int _trace_bufferWaitUntilAvail(size_t sz);
+
+
 #endif

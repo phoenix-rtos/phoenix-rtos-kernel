@@ -107,6 +107,12 @@ int _trace_bufferWrite(const void *data, size_t sz)
 }
 
 
+int trace_bufferWaitUntilAvail(size_t sz)
+{
+	return 0;
+}
+
+
 int _trace_bufferFinish(void)
 {
 	_trace_bufferFree(buffer_common.buffer.data, &buffer_common.pages);
