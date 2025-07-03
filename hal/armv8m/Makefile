@@ -11,6 +11,9 @@ ifneq (, $(findstring nrf, $(TARGET_SUBFAMILY)))
 else ifneq (, $(findstring mcx, $(TARGET_SUBFAMILY)))
     include hal/armv8m/mcx/Makefile
     CFLAGS += -Ihal/armv8m
+else ifneq (, $(findstring stm32, $(TARGET_SUBFAMILY)))
+    include hal/armv8m/stm32/Makefile
+    CFLAGS += -Ihal/armv8m
 endif
 
 include hal/arm/Makefile
