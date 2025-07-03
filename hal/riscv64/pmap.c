@@ -615,7 +615,7 @@ static int _pmap_findFreePage(page_t *page)
 
 static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr, int remoteFlush)
 {
-	void *ret;
+	void *baseVa;
 	void **pva;
 	addr_t end;
 	page_t *alloc = NULL;
@@ -643,7 +643,7 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr,
 		pva = &va;
 	}
 
-	ret = va;
+	baseVa = va;
 
 	satpVal = csr_read(satp);
 
@@ -651,13 +651,13 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr,
 		while (_pmap_map(pmap_common.pdir2, satpVal, paddr, *pva, attr, alloc) < 0) {
 			if (_pmap_findFreePage(&page) < 0) {
 				if (remoteFlush != 0) {
-					hal_cpuRemoteFlushTLB(0, va, (ptr_t)*pva - (ptr_t)va);
+					hal_cpuRemoteFlushTLB(0, baseVa, (ptr_t)*pva - (ptr_t)baseVa);
 				}
 				return NULL;
 			}
 			if (_pmap_addMemEntry(page.addr, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE) != EOK) {
 				if (remoteFlush != 0) {
-					hal_cpuRemoteFlushTLB(0, va, (ptr_t)*pva - (ptr_t)va);
+					hal_cpuRemoteFlushTLB(0, baseVa, (ptr_t)*pva - (ptr_t)baseVa);
 				}
 				return NULL;
 			}
@@ -673,10 +673,10 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, int attr,
 	}
 
 	if (remoteFlush != 0) {
-		hal_cpuRemoteFlushTLB(0, va, size);
+		hal_cpuRemoteFlushTLB(0, baseVa, size);
 	}
 
-	return ret;
+	return baseVa;
 }
 
 
