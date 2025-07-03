@@ -45,6 +45,7 @@ struct {
 	/* Synchronized by mutex */
 	unsigned int idcounter;
 	idtree_t id;
+	int tcnt;
 
 	intr_handler_t timeintrHandler;
 
@@ -518,6 +519,7 @@ void threads_put(thread_t *thread)
 	refs = --thread->refs;
 	if (refs <= 0) {
 		lib_idtreeRemove(&threads_common.id, &thread->idlinkage);
+		threads_common.tcnt--;
 	}
 	proc_lockClear(&threads_common.lock);
 
@@ -718,6 +720,8 @@ static int thread_alloc(thread_t *thread)
 			threads_common.idcounter++;
 		}
 	}
+
+	threads_common.tcnt++;
 	proc_lockClear(&threads_common.lock);
 
 	return id;
@@ -790,7 +794,10 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
+			proc_lockSet(&threads_common.lock);
 			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
+			threads_common.tcnt--;
+			proc_lockClear(&threads_common.lock);
 			vm_kfree(t->kstack);
 			vm_kfree(t);
 			return err;
@@ -830,6 +837,18 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return EOK;
+}
+
+
+int proc_threadCount(void)
+{
+	int res;
+
+	proc_lockSet(&threads_common.lock);
+	res = threads_common.tcnt;
+	proc_lockClear(&threads_common.lock);
+
+	return res;
 }
 
 
@@ -2063,6 +2082,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.utcoffs = 0;
 	threads_common.idcounter = 0;
 	threads_common.prev = 0;
+	threads_common.tcnt = 0;
 
 	threads_common.perfGather = 0;
 
