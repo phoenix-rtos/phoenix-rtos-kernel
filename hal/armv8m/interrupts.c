@@ -17,7 +17,6 @@
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
 #include "hal/list.h"
-#include "hal/armv8m/mcx/n94x/mcxn94x.h"
 
 #include "proc/userintr.h"
 
