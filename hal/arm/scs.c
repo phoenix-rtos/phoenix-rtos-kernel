@@ -367,6 +367,27 @@ void _hal_scsSystickInit(u32 load)
 }
 
 
+u32 _hal_scsSystickGetCount(u8 *overflow_out)
+{
+	u8 overflow;
+	u32 ret = scs_common.scs->cvr;
+	if (overflow_out != NULL) {
+		/* An overflow may occur between reading CVR and CSR. For this reason,
+		 * if overflow flag is set, read the timer again to ensure we don't return
+		 * a timestamp from the previous epoch.
+		 */
+		overflow = (scs_common.scs->csr >> 16) & 1;
+		if (overflow != 0) {
+			ret = scs_common.scs->cvr;
+		}
+
+		*overflow_out = overflow;
+	}
+
+	return ret;
+}
+
+
 void _hal_scsInit(void)
 {
 	scs_common.scs = (void *)0xe000e000;
