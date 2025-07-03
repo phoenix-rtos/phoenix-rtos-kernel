@@ -19,6 +19,24 @@
 #include "hal/string.h"
 #include "config.h"
 
+#define CFSR  ((volatile u32 *)0xe000ed28)
+#define MMFAR ((volatile u32 *)0xe000ed34)
+#define BFAR  ((volatile u32 *)0xe000ed38)
+
+enum exceptions {
+	exc_Reset = 1,
+	exc_NMI = 2,
+	exc_HardFault = 3,
+	exc_MemMgtFault = 4,
+	exc_BusFault = 5,
+	exc_UsageFault = 6,
+	exc_SecureFault = 7,
+	exc_SVC = 11,
+	exc_Debug = 12,
+	exc_PendSV = 14,
+	exc_SysTick = 15,
+};
+
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 {
@@ -31,6 +49,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	size_t i = 0;
 	u32 msp = (u32)ctx + sizeof(*ctx);
 	u32 psp = ctx->psp;
+	u32 cfsr, far;
 	cpu_hwContext_t *hwctx;
 
 	/* If we came from userspace HW ctx in on psp stack (according to EXC_RETURN) */
@@ -73,9 +92,29 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s("\npsp=", &buff[i], psp, 16, 1);
 	i += hal_i2s(" msp=", &buff[i], msp, 16, 1);
 	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
-	i += hal_i2s(" bfa=", &buff[i], *(u32 *)0xe000ed38, 16, 1);
 
-	i += hal_i2s("\ncfs=", &buff[i], *(u32 *)0xe000ed28, 16, 1);
+	if (n == exc_BusFault) {
+		cfsr = (*CFSR >> 8) & 0xff;
+		i += hal_i2s(" bfs=", &buff[i], cfsr, 16, 1);
+		/* Check BFARVALID */
+		if ((cfsr & 0x80) != 0) {
+			far = *BFAR;
+			i += hal_i2s("\nbfa=", &buff[i], far, 16, 1);
+		}
+	}
+	else if (n == exc_UsageFault) {
+		cfsr = *CFSR >> 16;
+		i += hal_i2s(" ufs=", &buff[i], cfsr, 16, 1);
+	}
+	else if (n == exc_MemMgtFault) {
+		cfsr = *CFSR & 0xff;
+		i += hal_i2s(" mfs=", &buff[i], cfsr, 16, 1);
+		/* Check MMFARVALID */
+		if ((cfsr & 0x80) != 0) {
+			far = *MMFAR;
+			i += hal_i2s("\nmfa=", &buff[i], far, 16, 1);
+		}
+	}
 
 	buff[i++] = '\n';
 
