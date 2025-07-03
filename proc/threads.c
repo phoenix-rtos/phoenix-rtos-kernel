@@ -2090,7 +2090,7 @@ void proc_threadsDump(u8 priority)
 }
 
 
-int proc_threadsList(int n, threadinfo_t *info)
+int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 {
 	int i = 0;
 	thread_t *t;
@@ -2098,6 +2098,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 	vm_map_t *map;
 	time_t now;
 	spinlock_ctx_t sc;
+	threadinfo_t tinfo;
 
 	(void)proc_lockSet(&threads_common.lock);
 
@@ -2105,54 +2106,55 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
-			info[i].pid = process_getPid(t->process);
-			/* TODO: info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0; */
-			info[i].ppid = 0;
+			tinfo.pid = process_getPid(t->process);
+			// tinfo.ppid = t->process->parent != NULL ? t->process->parent->id : 0;
+			/* TODO: tinfo.ppid = t->process->parent != NULL ? t->process->parent->id : 0; */
+			tinfo.ppid = 0;
 		}
 		else {
-			info[i].pid = 0;
-			info[i].ppid = 0;
+			tinfo.pid = 0;
+			tinfo.ppid = 0;
 		}
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		info[i].tid = (unsigned int)proc_getTid(t);
-		info[i].priority = (int)t->priorityBase;
-		info[i].state = (int)t->state;
+		tinfo.tid = (unsigned int)proc_getTid(t);
+		tinfo.priority = (int)t->priorityBase;
+		tinfo.state = (int)t->state;
 
 		now = _proc_gettimeRaw();
 		if (now != t->startTime) {
-			info[i].load = (int)((t->cpuTime * 1000) / (now - t->startTime));
+			tinfo.load = (int)((t->cpuTime * 1000) / (now - t->startTime));
 		}
 		else {
-			info[i].load = 0;
+			tinfo.load = 0;
 		}
-		info[i].cpuTime = t->cpuTime;
+		tinfo.cpuTime = t->cpuTime;
 
 		if (t->state == READY && t->maxWait < now - t->readyTime) {
-			info[i].wait = now - t->readyTime;
+			tinfo.wait = now - t->readyTime;
 		}
 		else {
-			info[i].wait = t->maxWait;
+			tinfo.wait = t->maxWait;
 		}
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		if (t->process != NULL) {
 			map = t->process->mapp;
-			process_getName(t->process, info[i].name, sizeof(info[i].name));
+			process_getName(t->process, tinfo.name, sizeof(tinfo.name));
 		}
 		else {
 			map = threads_common.kmap;
-			hal_memcpy(info[i].name, "[idle]", sizeof("[idle]"));
+			hal_memcpy(tinfo.name, "[idle]", sizeof("[idle]"));
 		}
 
-		info[i].vmem = 0;
+		tinfo.vmem = 0;
 
 #ifdef NOMMU
 		if (t->process != NULL) {
 			entry = t->process->entries;
 			if (entry != NULL) {
 				do {
-					info[i].vmem += (int)entry->size;
+					tinfo.vmem += (int)entry->size;
 					entry = entry->next;
 				} while (entry != t->process->entries);
 			}
@@ -2164,7 +2166,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
 
 			while (entry != NULL) {
-				info[i].vmem += (int)entry->size;
+				tinfo.vmem += (int)entry->size;
 				entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
 			}
 			(void)proc_lockClear(&map->lock);
@@ -2172,6 +2174,8 @@ int proc_threadsList(int n, threadinfo_t *info)
 		else {
 			/* No action required */
 		}
+
+		cb(arg, i, &tinfo);
 
 		++i;
 		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
@@ -2194,6 +2198,19 @@ int proc_threadsOther(thread_t *t)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return ret;
+}
+
+
+static void proc_threadsListCb(void *arg, int i, threadinfo_t *tinfo)
+{
+	threadinfo_t *tinfos = (threadinfo_t *)arg;
+	hal_memcpy(tinfos + i, tinfo, sizeof(threadinfo_t));
+}
+
+
+int proc_threadsList(int n, threadinfo_t *tinfos)
+{
+	return proc_threadsIter(n, proc_threadsListCb, tinfos);
 }
 
 
