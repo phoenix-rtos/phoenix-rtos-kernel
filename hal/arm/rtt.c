@@ -34,7 +34,7 @@ struct rtt_pipe {
 	volatile unsigned int wr;
 	volatile unsigned int rd;
 	unsigned int flags;
-};
+} __attribute__((packed));
 
 
 struct rtt_desc {
@@ -42,7 +42,7 @@ struct rtt_desc {
 	unsigned int txChannels;
 	unsigned int rxChannels;
 	struct rtt_pipe channels[];
-};
+} __attribute__((packed));
 
 
 static struct {
@@ -140,9 +140,19 @@ int _hal_rttReset(unsigned int chan, rtt_dir_t dir)
 }
 
 
+int _hal_rttInitialized(void)
+{
+	return common.rtt != NULL;
+}
+
+
 int _hal_rttInit(void)
 {
 	const syspage_map_t *map = syspage_mapNameResolve(RTT_SYSPAGE_MAP_NAME);
+
+	if (RTT_ENABLED == 0 || RTT_ENABLED_PLO == 0) {
+		return -ENOSYS;
+	}
 
 	if (map == NULL) {
 		return -ENOENT;

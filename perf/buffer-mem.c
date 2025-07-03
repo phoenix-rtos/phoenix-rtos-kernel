@@ -107,6 +107,13 @@ int _trace_bufferWrite(const void *data, size_t sz)
 }
 
 
+int _trace_bufferWaitUntilAvail(size_t sz)
+{
+	/* overwrite intentionally to prevent deadlock */
+	return 0;
+}
+
+
 int _trace_bufferFinish(void)
 {
 	_trace_bufferFree(buffer_common.buffer.data, &buffer_common.pages);

@@ -37,12 +37,12 @@ static struct {
 	u64 prev;
 	int epoch;
 	u8 errorFlags;
-	u64 eventTrimTimestamp;
+	u64 eventDelayTimestamp;
 } trace_common;
 
 
 #define TRACE_NON_MONOTONICITY (1 << 1)
-#define TRACE_EVENT_TRIM       (1 << 2)
+#define TRACE_EVENT_DELAYED    (1 << 2)
 #define TRACE_BUFFER_WRITE_ERR (1 << 3)
 
 
@@ -67,7 +67,8 @@ void perf_traceEventsWrite(u8 event, const void *data, size_t sz, u64 *ts)
 	spinlock_ctx_t sc;
 	u64 eventTs;
 	unsigned int wbytes = 0;
-	int ret;
+	int ret, retries;
+	int eventSz = sizeof(eventTs) + sizeof(event) + sz;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
 	if (trace_common.running != 0) {
@@ -83,6 +84,8 @@ void perf_traceEventsWrite(u8 event, const void *data, size_t sz, u64 *ts)
 		}
 
 		do {
+			retries = _trace_bufferWaitUntilAvail(eventSz);
+
 			ret = _trace_bufferWrite(&eventTs, sizeof(eventTs));
 			if (ret != sizeof(eventTs)) {
 				break;
@@ -105,14 +108,14 @@ void perf_traceEventsWrite(u8 event, const void *data, size_t sz, u64 *ts)
 		if (ret < 0) {
 			trace_common.errorFlags |= TRACE_BUFFER_WRITE_ERR;
 		}
-		else if ((trace_common.errorFlags & TRACE_EVENT_TRIM) == 0 && wbytes < sizeof(eventTs) + sizeof(event) + sz) {
+		else if ((trace_common.errorFlags & TRACE_EVENT_DELAYED) == 0 && retries > 0) {
 			/*
-			 * Record first occurrence of event trim to caution the user about possible
-			 * loss of events. This may happen if e.g. the buffer is implemented as RTT
+			 * Record first occurrence of event delay to caution the user about possible
+			 * loss of timestamp precision. This may happen if e.g. the buffer is implemented as RTT
 			 * and the receiver (debug probe) can't keep up with the event generation rate
 			 */
-			trace_common.errorFlags |= TRACE_EVENT_TRIM;
-			trace_common.eventTrimTimestamp = eventTs;
+			trace_common.errorFlags |= TRACE_EVENT_DELAYED;
+			trace_common.eventDelayTimestamp = eventTs;
 		}
 	}
 	hal_spinlockClear(&trace_common.spinlock, &sc);
@@ -208,14 +211,14 @@ int perf_traceFinish(void)
 	spinlock_ctx_t sc;
 	int ret = EOK;
 	u8 errorFlags = 0;
-	u64 eventTrimTimestamp;
+	u64 eventDelayTimestamp;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
 	if (trace_common.running != 0) {
 		trace_common.running = 0;
 		trace_common.gather = 0;
 		errorFlags = trace_common.errorFlags;
-		eventTrimTimestamp = trace_common.eventTrimTimestamp;
+		eventDelayTimestamp = trace_common.eventDelayTimestamp;
 		_hal_interruptsTrace(0);
 		_trace_bufferFinish();
 	}
@@ -228,8 +231,8 @@ int perf_traceFinish(void)
 		lib_printf("kernel (%s:%d): timer non-monotonicity detected during event gathering\n", __func__, __LINE__);
 	}
 
-	if ((errorFlags & TRACE_EVENT_TRIM) != 0) {
-		lib_printf("kernel (%s:%d): event trim detected at ts=%llu - some events were corrupted/lost\n", __func__, __LINE__, eventTrimTimestamp);
+	if ((errorFlags & TRACE_EVENT_DELAYED) != 0) {
+		lib_printf("kernel (%s:%d): event delay detected at ts=%llu - event receiver couldn't keep up\n", __func__, __LINE__, eventDelayTimestamp);
 	}
 
 	if ((errorFlags & TRACE_BUFFER_WRITE_ERR) != 0) {
@@ -247,7 +250,7 @@ int _perf_traceInit(vm_map_t *kmap)
 	trace_common.prev = 0;
 	trace_common.epoch = 0;
 	trace_common.errorFlags = 0;
-	trace_common.eventTrimTimestamp = 0;
+	trace_common.eventDelayTimestamp = 0;
 
 	hal_spinlockCreate(&trace_common.spinlock, "trace.spinlock");
 
