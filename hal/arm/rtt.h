@@ -44,4 +44,8 @@ int _hal_rttTxAvail(unsigned int chan);
 int _hal_rttReset(unsigned int chan, rtt_dir_t dir);
 
 
+/* Check whether driver has been already initialized */
+int _hal_rttInitialized(void);
+
+
 #endif /* end of HAL_ARM_RTT_H_ */
