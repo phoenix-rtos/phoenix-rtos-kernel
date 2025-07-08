@@ -35,6 +35,44 @@
  */
 
 
+int syscalls_phFutexWait(void *ustack)
+{
+	process_t *process;
+	_Atomic(u32) *addr;
+	GETFROMSTACK(ustack, _Atomic(u32) *, addr, 0);
+	u32 value;
+	GETFROMSTACK(ustack, u32, value, 1);
+	time_t timeout;
+	GETFROMSTACK(ustack, time_t, timeout, 2);
+	int clockType;
+	GETFROMSTACK(ustack, int, clockType, 3);
+
+	process = proc_current()->process;
+
+	if (vm_mapBelongs(process, addr, sizeof(*addr)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_futexWait(addr, value, timeout, clockType);
+}
+
+int syscalls_phFutexWakeup(void *ustack)
+{
+	process_t *process;
+	_Atomic(u32) *addr;
+	GETFROMSTACK(ustack, _Atomic(u32) *, addr, 0);
+	u32 n_threads;
+	GETFROMSTACK(ustack, u32, n_threads, 1);
+
+	process = proc_current()->process;
+
+	if (vm_mapBelongs(process, addr, sizeof(*addr)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_futexWakeup(process, addr, n_threads);
+}
+
 void syscalls_debug(void *ustack)
 {
 	const char *s;
@@ -513,138 +551,13 @@ int syscalls_perf_finish(void *ustack)
 	return perf_finish();
 }
 
-/*
- * Mutexes
- */
-
-
-int syscalls_phMutexCreate(void *ustack)
-{
-	process_t *proc = proc_current()->process;
-	handle_t *h;
-	const struct lockAttr *attr;
-	int res;
-
-	GETFROMSTACK(ustack, handle_t *, h, 0);
-	GETFROMSTACK(ustack, const struct lockAttr *, attr, 1);
-
-	if (vm_mapBelongs(proc, h, sizeof(*h)) < 0) {
-		return -EFAULT;
-	}
-
-	if (vm_mapBelongs(proc, attr, sizeof(*attr)) < 0) {
-		return -EFAULT;
-	}
-
-	res = proc_mutexCreate(attr);
-
-	if (res < 0) {
-		return res;
-	}
-
-	*h = res;
-	return EOK;
-}
-
-
-int syscalls_phMutexLock(void *ustack)
-{
-	handle_t h;
-
-	GETFROMSTACK(ustack, handle_t, h, 0);
-	return proc_mutexLock(h);
-}
-
-
-int syscalls_mutexTry(void *ustack)
-{
-	handle_t h;
-
-	GETFROMSTACK(ustack, handle_t, h, 0);
-	return proc_mutexTry(h);
-}
-
-
-int syscalls_mutexUnlock(void *ustack)
-{
-	handle_t h;
-
-	GETFROMSTACK(ustack, handle_t, h, 0);
-	return proc_mutexUnlock(h);
-}
-
-
-/*
- * Conditional variables
- */
-
-
-int syscalls_phCondCreate(void *ustack)
-{
-	process_t *proc = proc_current()->process;
-	const struct condAttr *attr;
-	handle_t *h;
-	int res;
-
-	GETFROMSTACK(ustack, handle_t *, h, 0);
-	GETFROMSTACK(ustack, const struct condAttr *, attr, 1);
-
-	if (vm_mapBelongs(proc, h, sizeof(*h)) < 0) {
-		return -EFAULT;
-	}
-
-	if (vm_mapBelongs(proc, attr, sizeof(*attr)) < 0) {
-		return -EFAULT;
-	}
-
-	res = proc_condCreate(attr);
-	if (res < 0) {
-		return res;
-	}
-
-	*h = res;
-	return EOK;
-}
-
-
-int syscalls_phCondWait(void *ustack)
-{
-	handle_t h;
-	handle_t m;
-	time_t timeout;
-
-	GETFROMSTACK(ustack, handle_t, h, 0);
-	GETFROMSTACK(ustack, handle_t, m, 1);
-	GETFROMSTACK(ustack, time_t, timeout, 2);
-
-	return proc_condWait(h, m, timeout);
-}
-
-
-int syscalls_condSignal(void *ustack)
-{
-	handle_t h;
-
-	GETFROMSTACK(ustack, handle_t, h, 0);
-	return proc_condSignal(h);
-}
-
-
-int syscalls_condBroadcast(void *ustack)
-{
-	handle_t h;
-
-	GETFROMSTACK(ustack, handle_t, h, 0);
-	return proc_condBroadcast(h);
-}
-
 
 /*
  * Resources
  */
 
 
-int syscalls_resourceDestroy(void *ustack)
+int syscalls_phResourceDestroy(void *ustack)
 {
 	handle_t h;
 
@@ -658,27 +571,31 @@ int syscalls_resourceDestroy(void *ustack)
  */
 
 
-int syscalls_interrupt(void *ustack)
+int syscalls_phInterrupt(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	unsigned int n;
 	void *f;
 	void *data;
-	handle_t cond;
 	handle_t *handle;
 	int res;
+	_Atomic(u32) *condFutex = NULL;
 
 	GETFROMSTACK(ustack, unsigned int, n, 0);
 	GETFROMSTACK(ustack, void *, f, 1);
 	GETFROMSTACK(ustack, void *, data, 2);
-	GETFROMSTACK(ustack, handle_t, cond, 3);
+	GETFROMSTACK(ustack, _Atomic(u32) *, condFutex, 3);
 	GETFROMSTACK(ustack, handle_t *, handle, 4);
 
 	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
 		return -EFAULT;
 	}
 
-	res = userintr_setHandler(n, f, data, cond);
+	if (condFutex != NULL && vm_mapBelongs(proc, condFutex, sizeof(*condFutex)) < 0) {
+		return -EINVAL;
+	}
+
+	res = userintr_setHandler(n, f, data, condFutex);
 	if (res < 0) {
 		return res;
 	}
