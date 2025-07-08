@@ -37,36 +37,36 @@
 
 int syscalls_futex_wait(void *ustack)
 {
-    unsigned int *addr;
-    GETFROMSTACK(ustack, unsigned int *, addr, 0);
-    unsigned int value;
-    GETFROMSTACK(ustack, unsigned int, value, 1);
-    time_t timeout;
-    GETFROMSTACK(ustack, time_t, timeout, 2);
+	unsigned int *addr;
+	GETFROMSTACK(ustack, unsigned int *, addr, 0);
+	unsigned int value;
+	GETFROMSTACK(ustack, unsigned int, value, 1);
+	time_t timeout;
+	GETFROMSTACK(ustack, time_t, timeout, 2);
 
-    process_t *process = proc_current()->process;
+	process_t *process = proc_current()->process;
 
 	if (vm_mapBelongs(process, addr, sizeof(*addr)) < 0) {
-        return -EFAULT;
-    }
+		return -EFAULT;
+	}
 
-    return futex_wait(addr, value, timeout);
+	return futex_wait(addr, value, timeout);
 }
 
 int syscalls_futex_wakeup(void *ustack)
 {
-    unsigned int *addr;
-    GETFROMSTACK(ustack, unsigned int *, addr, 0);
-    unsigned int n_threads;
-    GETFROMSTACK(ustack, unsigned int, n_threads, 1);
+	unsigned int *addr;
+	GETFROMSTACK(ustack, unsigned int *, addr, 0);
+	unsigned int n_threads;
+	GETFROMSTACK(ustack, unsigned int, n_threads, 1);
 
-    process_t *process = proc_current()->process;
+	process_t *process = proc_current()->process;
 
 	if (vm_mapBelongs(process, addr, sizeof(*addr)) < 0) {
-        return -EFAULT;
-    }
+		return -EFAULT;
+	}
 
-    return futex_wakeup(addr, n_threads);
+	return futex_wakeup(addr, n_threads);
 }
 
 void syscalls_debug(void *ustack)

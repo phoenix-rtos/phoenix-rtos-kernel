@@ -134,7 +134,7 @@ void proc_get(process_t *p)
 {
 	proc_lockSet(&process_common.lock);
 	LIB_ASSERT(p->refs > 0, "pid: %d, got reference on process with zero references",
-		process_getPid(p));
+			process_getPid(p));
 	++p->refs;
 	proc_lockClear(&process_common.lock);
 }
@@ -216,7 +216,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	proc_changeMap(process, NULL, NULL, NULL);
 
-    hal_memset(process->futex_sleepqueues, 0, sizeof(process->futex_sleepqueues));
+	hal_memset(process->futex_sleepqueues, 0, sizeof(process->futex_sleepqueues));
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
@@ -352,8 +352,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 
 	/* Validate header. */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
-		(ehdr->e_shnum == 0)) {
+				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
 
@@ -398,8 +398,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-				(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
-			(shdr->sh_name >= shstrshdr->sh_size)) {
+					(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
+				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
 	}
@@ -427,7 +427,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	/* Validate header. */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
 			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
@@ -473,7 +473,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-				process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
+					process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
 				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
@@ -792,7 +792,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 			if ((process->imapp != NULL) &&
 					(((ptr_t)base < (ptr_t)process->imapp->start) ||
-					((ptr_t)base > (ptr_t)process->imapp->stop))) {
+							((ptr_t)base > (ptr_t)process->imapp->stop))) {
 				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
@@ -1520,7 +1520,7 @@ int proc_fork(void)
 		/* Copy parent context to child kstack in case of signal handling on fork return */
 		parent = ((process_spawn_t *)current->execdata)->parent;
 		hal_memcpy(current->kstack + current->kstacksz - sizeof(cpu_context_t),
-			parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
+				parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
 
 		hal_cpuSmpSync();
 

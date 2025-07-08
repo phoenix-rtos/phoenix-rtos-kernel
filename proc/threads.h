@@ -28,12 +28,17 @@
 #define THREAD_END_NOW 2
 
 /* Parent thread states */
-enum { PREFORK = 0, FORKING = 1, FORKED };
+enum { PREFORK = 0,
+	FORKING = 1,
+	FORKED };
 
 /* Child thread states */
-enum { OWNSTACK = 0, PARENTSTACK };
+enum { OWNSTACK = 0,
+	PARENTSTACK };
 
-enum { READY = 0, SLEEP, GHOST };
+enum { READY = 0,
+	SLEEP,
+	GHOST };
 
 
 typedef struct _thread_t {

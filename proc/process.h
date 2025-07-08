@@ -72,7 +72,7 @@ typedef struct _process_t {
 	void *got;
 	hal_tls_t tls;
 
-    futex_sleepqueue_t futex_sleepqueues[FUTEX_SLEEPQUEUES_SIZE];
+	futex_sleepqueue_t futex_sleepqueues[FUTEX_SLEEPQUEUES_SIZE];
 } process_t;
 
 

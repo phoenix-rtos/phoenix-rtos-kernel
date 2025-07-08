@@ -18,7 +18,7 @@
 #define _SYSCALLS_H_
 
 
-extern const void * const syscalls[];
+extern const void *const syscalls[];
 
 
 extern void _syscalls_init(void);

@@ -19,7 +19,10 @@
 #include "vm/vm.h"
 
 
-enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
+enum { msg_rejected = -1,
+	msg_waiting = 0,
+	msg_received,
+	msg_responded };
 
 
 struct {
@@ -160,7 +163,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 			(pmap_isAllowed(current->process->pmapp, kmsg->msg->i.data, kmsg->msg->i.size) == 0)) {
 
 		idata = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->i.size),
-			PROT_READ | PROT_USER, NULL, -1, MAP_ANONYMOUS);
+				PROT_READ | PROT_USER, NULL, -1, MAP_ANONYMOUS);
 		if (idata == NULL) {
 			/* Free RID */
 			(void)proc_portRidGet(p, *rid);
@@ -176,7 +179,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 			(pmap_isAllowed(current->process->pmapp, kmsg->msg->o.data, kmsg->msg->o.size) == 0)) {
 
 		msg->o.data = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->o.size),
-			PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_ANONYMOUS);
+				PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_ANONYMOUS);
 		if (msg->o.data == NULL) {
 			if (idata != NULL) {
 				vm_munmap(current->process->mapp, idata, round_page(kmsg->msg->i.size));
