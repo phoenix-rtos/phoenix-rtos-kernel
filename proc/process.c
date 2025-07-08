@@ -29,7 +29,7 @@
 #include "msg.h"
 #include "ports.h"
 #include "userintr.h"
-
+#include "futex.h"
 
 typedef struct {
 	spinlock_t sl;
@@ -94,6 +94,7 @@ static void process_destroy(process_t *p)
 		vm_mapDestroy(p, imapp);
 	}
 
+    proc_freeFutexTable(p->futex_table);
 	proc_resourcesDestroy(p);
 	proc_portsDestroy(p);
 	proc_lockDone(&p->lock);
@@ -216,6 +217,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	proc_changeMap(process, NULL, NULL, NULL);
 
+    process->futex_table = proc_newFutexTable();
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
 	process_alloc(process);

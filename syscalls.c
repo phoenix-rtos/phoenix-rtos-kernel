@@ -35,6 +35,56 @@
  */
 
 
+int syscalls_futex_wait(void *ustack)
+{
+    int *address;
+    GETFROMSTACK(ustack, int*, address, 0);
+    int value;
+    GETFROMSTACK(ustack, int, value, 0);
+    time_t timeout;
+    GETFROMSTACK(ustack, time_t, timeout, 0);
+    (void)address;
+    (void)value;
+    (void)timeout;
+
+    process_t *process = proc_current()->process;
+
+    /* check that the provided futex address is within <process> address space */
+    if (vm_mapBelongs(process, address, sizeof(*address)) < 0) {
+        return -EFAULT;
+    }
+
+    return proc_futexWait(process, address, value, timeout);
+}
+
+int syscalls_futex_wakeup(void *ustack)
+{
+    int *address;
+    GETFROMSTACK(ustack, int*, address, 0);
+    int value;
+    GETFROMSTACK(ustack, int, value, 0);
+    int n_threads;
+    GETFROMSTACK(ustack, int, n_threads, 0);
+    (void)address;
+    (void)value;
+    (void)n_threads;
+
+    process_t *process = proc_current()->process;
+
+    /* check that the provided futex address is within <process> address space */
+    if (vm_mapBelongs(process, address, sizeof(*address)) < 0) {
+        return -EFAULT;
+    }
+
+    return 123;
+    /* return proc_futexWakeup(process, address, value, n_threads); */
+}
+
+int syscalls_futex_requeue(void *ustack)
+{
+    return 123;
+}
+
 void syscalls_debug(void *ustack)
 {
 	const char *s;

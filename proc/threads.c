@@ -1196,7 +1196,6 @@ static int _proc_threadWakeup(thread_t **queue)
 	return ret;
 }
 
-
 int proc_threadWakeup(thread_t **queue)
 {
 	int ret = 0;
@@ -1207,7 +1206,6 @@ int proc_threadWakeup(thread_t **queue)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return ret;
 }
-
 
 static int _proc_threadBroadcast(thread_t **queue)
 {

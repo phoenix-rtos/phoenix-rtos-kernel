@@ -124,5 +124,9 @@
 	ID(sys_mprotect) \
 	\
 	ID(sys_statvfs) \
-	ID(sys_uname)
+	ID(sys_uname) \
+    \
+    ID(futex_wait) \
+    ID(futex_wakeup) \
+    ID(futex_requeue)
 /* clang-format on */
