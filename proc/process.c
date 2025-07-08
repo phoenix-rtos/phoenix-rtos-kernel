@@ -216,6 +216,8 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	proc_changeMap(process, NULL, NULL, NULL);
 
+    hal_memset(process->futex_sleepqueues, 0, sizeof(process->futex_sleepqueues));
+
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
 	process_alloc(process);
