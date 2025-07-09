@@ -1146,6 +1146,36 @@ int proc_threadSleep(time_t us)
 	return err;
 }
 
+/*
+ * TODO: come up with a better, more readable name.
+ * This function was made so that we can get the raw errno of hal_cpuReschedule()
+ * after going to sleep.
+ */
+int proc_threadSleep2(thread_t *thread, time_t us)
+{
+	time_t now;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	/* Handle usleep(0) (yield) */
+	if (us != 0) {
+		now = _proc_gettimeRaw();
+
+		thread->state = SLEEP;
+		thread->wait = NULL;
+		thread->wakeup = now + us;
+		thread->interruptible = 1;
+
+		lib_rbInsert(&threads_common.sleeping, &thread->sleeplinkage);
+
+		_perf_enqueued(thread);
+		_threads_updateWakeup(now, NULL);
+	}
+
+	return hal_cpuReschedule(&threads_common.spinlock, &sc);
+}
+
 
 static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, int interruptible, spinlock_ctx_t *scp)
 {

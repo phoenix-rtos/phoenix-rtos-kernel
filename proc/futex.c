@@ -31,7 +31,6 @@ int futex_wait(unsigned int *address, unsigned int value, time_t timeout)
 	LIST_ADD(&sleepqueue->futex_list, &futex);
 	proc_lockClear(&process->lock);
 
-	lib_printf("address = %p, *address = %u, value = %u, timeout = %d\n", address, *address, value, timeout);
 	if (*address != value) {
 		proc_lockSet(&process->lock);
 		LIST_REMOVE(&sleepqueue->futex_list, &futex);
@@ -39,7 +38,7 @@ int futex_wait(unsigned int *address, unsigned int value, time_t timeout)
 		return -EAGAIN;
 	}
 
-	int err = proc_threadSleep(timeout * 1000 * 1000);
+	int err = proc_threadSleep2(futex.waiting_thread, timeout * 1000 * 1000);
 	if (err < 0) {
 		proc_lockSet(&process->lock);
 		LIST_REMOVE(&sleepqueue->futex_list, &futex);
@@ -50,8 +49,6 @@ int futex_wait(unsigned int *address, unsigned int value, time_t timeout)
 
 int futex_wakeup(unsigned int *address, unsigned int n_threads)
 {
-	lib_printf("address = %p, *address = %u, n_threads = %u\n", address, *address, n_threads);
-
 	if (n_threads == 0) {
 		return 0;
 	}
@@ -73,7 +70,6 @@ int futex_wakeup(unsigned int *address, unsigned int n_threads)
 		if (i == n_threads) {
 			break;
 		}
-		lib_printf("WAKEUP\n");
 		int err = proc_threadWakeup(&f->waiting_thread);
 		if (err < 0) {
 			return err;
