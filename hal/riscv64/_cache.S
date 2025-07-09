@@ -15,7 +15,6 @@
 
 #define __ASSEMBLY__
 
-#include "asm-macros.h"
 #include <board_config.h>
 
 .text
@@ -39,7 +38,7 @@ hal_cpuDCacheInval:
 	beq a0, a5, 2f
 
 1:
-	CBO_INVAL(REG_A0)
+	cbo.inval (a0)
 	add a0, a0, a4
 	bgtu a5, a0, 1b
 
@@ -68,7 +67,7 @@ hal_cpuDCacheFlush:
 	beq a0, a5, 2f
 
 1:
-	CBO_FLUSH(REG_A0)
+	cbo.flush (a0)
 	add a0, a0, a4
 	bgtu a5, a0, 1b
 

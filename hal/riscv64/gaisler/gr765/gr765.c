@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * HAL internal functions for riscv64-noelv
+ * HAL internal functions for riscv64-gr765
  *
  * Copyright 2024 Phoenix Systems
  * Author: Lukasz Leczkowski
@@ -20,7 +20,7 @@
 
 static struct {
 	spinlock_t lock;
-} noelv_common;
+} gr765_common;
 
 
 int hal_platformctl(void *ptr)
@@ -29,7 +29,7 @@ int hal_platformctl(void *ptr)
 	spinlock_ctx_t sc;
 	int ret = -1;
 
-	hal_spinlockSet(&noelv_common.lock, &sc);
+	hal_spinlockSet(&gr765_common.lock, &sc);
 
 	switch (pctl->type) {
 		case pctl_reboot:
@@ -51,7 +51,7 @@ int hal_platformctl(void *ptr)
 		default:
 			break;
 	}
-	hal_spinlockClear(&noelv_common.lock, &sc);
+	hal_spinlockClear(&gr765_common.lock, &sc);
 
 	return ret;
 }
@@ -59,6 +59,6 @@ int hal_platformctl(void *ptr)
 
 void _hal_platformInit(void)
 {
-	hal_spinlockCreate(&noelv_common.lock, "noelv_common.lock");
+	hal_spinlockCreate(&gr765_common.lock, "gr765_common.lock");
 	ambapp_init();
 }
