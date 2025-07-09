@@ -7,9 +7,15 @@
 OBJS += $(addprefix $(PREFIX_O)hal/$(TARGET_SUFF)/, _init.o _cache.o _string.o _interrupts.o hal.o spinlock.o interrupts.o \
 	cpu.o pmap.o dtb.o timer.o string.o exceptions.o plic.o sbi.o)
 
-include hal/$(TARGET_SUFF)/$(TARGET_SUBFAMILY)/Makefile
+CFLAGS += -Ihal/$(TARGET_SUFF)
 
-CFLAGS += -Ihal/$(TARGET_SUFF) -Ihal/$(TARGET_SUFF)/$(TARGET_SUBFAMILY)
+ifneq ($(filter $(TARGET_SUBFAMILY),grfpga gr765),)
+  include hal/$(TARGET_SUFF)/gaisler/Makefile
+  CFLAGS += -Ihal/$(TARGET_SUFF)/gaisler/$(TARGET_SUBFAMILY)
+else
+  include hal/$(TARGET_SUFF)/$(TARGET_SUBFAMILY)/Makefile
+  CFLAGS += -Ihal/$(TARGET_SUFF)/$(TARGET_SUBFAMILY)
+endif
 
 # binutils 2.41 silently introduced gp relaxations which for some reason make kernel impossible to build
 # TODO: investigate further
