@@ -934,7 +934,7 @@ int proc_threadPriority(int priority)
 		}
 		else if (priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
-			if (current->locks == NULL) {
+			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
 				current->priority = priority;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
