@@ -913,7 +913,7 @@ int proc_threadPriority(int priority)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
-	int ret;
+	int ret, reschedule = 0;
 
 	if (priority < -1) {
 		return -EINVAL;
@@ -926,15 +926,32 @@ int proc_threadPriority(int priority)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
+
+	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (priority >= 0) {
-		if ((priority < current->priority) || (current->locks == NULL)) {
+		if (priority < current->priority) {
 			current->priority = priority;
 		}
+		else if (priority > current->priority) {
+			/* Make sure that the inherited priority from the lock is not reduced */
+			if (current->locks == NULL) {
+				current->priority = priority;
+				/* Trigger immediate rescheduling if the task has lowered its priority */
+				reschedule = 1;
+			}
+		}
+
 		current->priorityBase = priority;
 	}
+
 	ret = current->priorityBase;
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	if (reschedule != 0) {
+		hal_cpuReschedule(&threads_common.spinlock, &sc);
+	}
+	else {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
 
 	return ret;
 }
