@@ -37,10 +37,10 @@
 
 int syscalls_futex_wait(void *ustack)
 {
-	unsigned int *addr;
-	GETFROMSTACK(ustack, unsigned int *, addr, 0);
-	unsigned int value;
-	GETFROMSTACK(ustack, unsigned int, value, 1);
+	u32 *addr;
+	GETFROMSTACK(ustack, u32 *, addr, 0);
+	u32 value;
+	GETFROMSTACK(ustack, u32, value, 1);
 	time_t timeout;
 	GETFROMSTACK(ustack, time_t, timeout, 2);
 
@@ -55,10 +55,10 @@ int syscalls_futex_wait(void *ustack)
 
 int syscalls_futex_wakeup(void *ustack)
 {
-	unsigned int *addr;
-	GETFROMSTACK(ustack, unsigned int *, addr, 0);
-	unsigned int n_threads;
-	GETFROMSTACK(ustack, unsigned int, n_threads, 1);
+	u32 *addr;
+	GETFROMSTACK(ustack, u32 *, addr, 0);
+	u32 n_threads;
+	GETFROMSTACK(ustack, u32, n_threads, 1);
 
 	process_t *process = proc_current()->process;
 

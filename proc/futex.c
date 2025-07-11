@@ -7,12 +7,12 @@
 
 static inline futex_sleepqueue_t *futex_getSleepQueue(process_t *process, futex_t *f)
 {
-	unsigned int key = f->address >> 3;
+	u32 key = f->address >> 3;
 	key ^= key >> FUTEX_SLEEPQUEUES_BITS;
 	return &process->futex_sleepqueues[key & FUTEX_SLEEPQUEUES_MASK];
 }
 
-int futex_wait(unsigned int *address, unsigned int value, time_t timeout)
+int futex_wait(u32 *address, u32 value, time_t timeout)
 {
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
@@ -48,7 +48,7 @@ int futex_wait(unsigned int *address, unsigned int value, time_t timeout)
 	return err;
 }
 
-int futex_wakeup(unsigned int *address, unsigned int n_threads)
+int futex_wakeup(u32 *address, u32 n_threads)
 {
 	/* lib_printf("address = %p, *address = %u, n_threads = %u\n", address, *address, n_threads); */
 	thread_t *thread = proc_current();

@@ -22,7 +22,7 @@ typedef struct {
 	futex_t *futex_list;
 } futex_sleepqueue_t;
 
-int futex_wait(unsigned int *address, unsigned int value, time_t timeout);
-int futex_wakeup(unsigned int *address, unsigned int n_threads);
+int futex_wait(u32 *address, u32 value, time_t timeout);
+int futex_wakeup(u32 *address, u32 n_threads);
 
 #endif
