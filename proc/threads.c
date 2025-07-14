@@ -616,8 +616,11 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 
 	trace_eventThreadCreate(t);
 
-	/* Insert thread to scheduler queue */
+	if ((process != NULL) && (_proc_current() != NULL) && (_proc_current()->process == process) && (_proc_current()->exit != 0U)) {
+		t->exit = THREAD_END;
+	}
 
+	/* Insert thread to scheduler queue */
 	_threads_waking(t);
 	LIST_ADD(&threads_common.ready[priority], t);
 
