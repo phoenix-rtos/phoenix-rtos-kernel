@@ -1400,29 +1400,69 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	int sigbit = 1 << sig;
 	spinlock_ctx_t sc;
 
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
 	switch (sig) {
-		case signal_segv:
-		case signal_illegal:
-			if (process->sighandler != NULL) {
+		case SIGHUP:
+		case SIGINT:
+		case SIGQUIT:
+		case SIGILL:
+		case SIGTRAP:
+		case SIGABRT: /* And SIGIOT */
+		case SIGEMT:
+		case SIGFPE:
+		case SIGBUS:
+		case SIGSEGV:
+		case SIGSYS:
+		case SIGPIPE:
+		case SIGALRM:
+		case SIGTERM:
+		case SIGIO:
+		case SIGXCPU:
+		case SIGXFSZ:
+		case SIGVTALRM:
+		case SIGPROF:
+		case SIGUSR1:
+		case SIGUSR2:
+			if (process->sigactions[sig - 1].sa_handler != SIG_DFL) {
 				break;
 			}
-
 		/* passthrough */
-		case signal_kill:
+		case SIGKILL:
+			hal_spinlockClear(&threads_common.spinlock, &sc);
 			proc_kill(process);
 			return EOK;
 
-		case signal_cancel:
+		case SIGURG:
+		case SIGCHLD:
+		case SIGWINCH:
+		case SIGINFO:
+		case SIGCONT: /* TODO: Continue process. */
+		case SIGTSTP: /* TODO: Stop process. */
+		case SIGTTIN: /* TODO: Stop process. */
+		case SIGTTOU: /* TODO: Stop process. */
+			if (process->sigactions[sig - 1].sa_handler != NULL) {
+				break;
+			}
+		/* passthrough*/
+		case SIGSTOP: /* TODO: Stop process. */
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			return EOK;
+
+		case PH_SIGCANCEL:
+			hal_spinlockClear(&threads_common.spinlock, &sc);
 			proc_threadDestroy(thread);
 			return EOK;
 
-		case 0:
-			return EOK;
-
 		default:
-			break;
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			return -EINVAL;
 	}
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (process->sigactions[sig - 1].sa_handler == SIG_IGN) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return EOK;
+	}
 
 	if (thread != NULL) {
 		thread->sigpend |= sigbit;
@@ -1464,15 +1504,26 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 #ifndef KERNEL_SIGNALS_DISABLE
 
 	unsigned int sig;
+	void (*handler)(int);
 
 	sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
-	if ((sig != 0) && (proc->sighandler != NULL)) {
+	if (sig != 0) {
 		sig = hal_cpuGetLastBit(sig);
-
-		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, oldmask, src) == 0) {
-			selected->sigpend &= ~(1 << sig);
-			proc->sigpend &= ~(1 << sig);
-			return 0;
+		handler = proc->sigactions[sig - 1].sa_handler;
+		if ((handler != SIG_DFL) && (handler != SIG_IGN)) {
+			/* POSIX: sa_mask should be ORed with current process signal mask */
+			selected->sigmask |= proc->sigactions[sig - 1].sa_mask;
+			if ((proc->sigactions[sig - 1].sa_flags & SA_NODEFER) == 0) {
+				selected->sigmask |= (1 << sig);
+			}
+			if ((proc->sigactions[sig - 1].sa_flags & SA_RESETHAND) != 0) {
+				proc->sigactions[sig - 1].sa_handler = SIG_DFL;
+			}
+			if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sigtrampoline, handler, signalCtx, sig, oldmask, src) == 0) {
+				selected->sigpend &= ~(1 << sig);
+				proc->sigpend &= ~(1 << sig);
+				return 0;
+			}
 		}
 	}
 
@@ -1498,7 +1549,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	hal_cpuSetReturnValue(ctx, retval);
 
 	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
-		f = thread->process->sighandler;
+		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -1532,7 +1583,7 @@ int threads_sigsuspend(unsigned int mask)
 
 	/* check for pending signals before sleep - with the new mask */
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
-		f = thread->process->sighandler;
+		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -1547,7 +1598,7 @@ int threads_sigsuspend(unsigned int mask)
 	/* check for pending signals before restoring the old mask */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
-		f = thread->process->sighandler;
+		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -2128,4 +2179,40 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
 
 	return EOK;
+}
+
+
+/* TODO: Handle flags */
+void threads_setSigaction(int sig, void (*trampoline)(void), const struct sigaction *act, struct sigaction *old)
+{
+	thread_t *thread;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = _proc_current();
+
+	thread->process->sigtrampoline = trampoline;
+	if (old != NULL) {
+		hal_memcpy(old, &thread->process->sigactions[sig - 1], sizeof(struct sigaction));
+	}
+	if (act != NULL) {
+		hal_memcpy(&thread->process->sigactions[sig - 1], act, sizeof(struct sigaction));
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+unsigned threads_updateSigmask(unsigned mask, unsigned mmask)
+{
+	thread_t *t;
+	unsigned old;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	t = _proc_current();
+	old = t->sigmask;
+	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	return old;
 }

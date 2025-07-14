@@ -217,4 +217,10 @@ extern int threads_sigsuspend(unsigned int mask);
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
+extern void threads_setSigaction(int sig, void (*trampoline)(void), const struct sigaction *act, struct sigaction *old);
+
+
+extern unsigned threads_updateSigmask(unsigned mask, unsigned mmask);
+
+
 #endif
