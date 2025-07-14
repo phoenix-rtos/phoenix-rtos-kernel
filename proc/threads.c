@@ -854,7 +854,7 @@ void threads_canaryInit(thread_t *t, void *ustack)
 
 int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t priority, size_t kstacksz, void *stack, size_t stacksz, unsigned int sigmask, void *arg)
 {
-	thread_t *t;
+	thread_t *t, *creator;
 	spinlock_ctx_t sc;
 	int err;
 
@@ -942,6 +942,11 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 		hal_cpuSetCtxGot(t->context, process->got);
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
+		creator = _proc_current();
+		if ((creator != NULL) && (creator->process == process) && (creator->exit != 0U)) {
+			t->exit = creator->exit;
+		}
+
 		LIST_ADD_EX(&process->threads, t, procnext, procprev);
 	}
 	else {
@@ -951,7 +956,6 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	trace_eventThreadCreate(t);
 
 	/* Insert thread to scheduler queue */
-
 	_threads_waking(t);
 	_readyAdd(t);
 
