@@ -50,7 +50,7 @@ int syscalls_phFutexWait(void *ustack)
 		return -EFAULT;
 	}
 
-	return futex_wait(addr, value, timeout);
+	return proc_futexWait(addr, value, timeout);
 }
 
 int syscalls_phFutexWakeup(void *ustack)
@@ -66,7 +66,7 @@ int syscalls_phFutexWakeup(void *ustack)
 		return -EFAULT;
 	}
 
-	return futex_wakeup(addr, n_threads);
+	return proc_futexWakeup(addr, n_threads);
 }
 
 void syscalls_debug(void *ustack)

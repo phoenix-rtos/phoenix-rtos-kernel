@@ -9,7 +9,7 @@
 #define FUTEX_SLEEPQUEUES_SIZE (1U << FUTEX_SLEEPQUEUES_BITS)
 #define FUTEX_SLEEPQUEUES_MASK (FUTEX_SLEEPQUEUES_SIZE - 1)
 
-int futex_wait(u32 *address, u32 value, time_t timeout);
-int futex_wakeup(u32 *address, u32 n_threads);
+int proc_futexWait(u32 *address, u32 value, time_t timeout);
+int proc_futexWakeup(u32 *address, u32 n_threads);
 
 #endif

@@ -19,7 +19,7 @@ static inline thread_t **futex_getSleepQueue(process_t *process, addr_t address)
 	return list;
 }
 
-int futex_wait(u32 *address, u32 value, time_t timeout)
+int proc_futexWait(u32 *address, u32 value, time_t timeout)
 {
 	thread_t *current_thread = proc_current();
 	process_t *current_process = current_thread->process;
@@ -42,7 +42,7 @@ int futex_wait(u32 *address, u32 value, time_t timeout)
 	return err;
 }
 
-int futex_wakeup(u32 *address, u32 n_threads)
+int proc_futexWakeup(u32 *address, u32 n_threads)
 {
 	thread_t *current_thread = proc_current();
 	process_t *current_process = current_thread->process;
