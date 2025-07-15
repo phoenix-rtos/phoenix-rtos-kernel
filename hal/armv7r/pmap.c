@@ -32,6 +32,7 @@ u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
 static struct {
 	unsigned int kernelCodeRegion;
 	spinlock_t lock;
+	int mpu_enabled;
 } pmap_common;
 
 
@@ -112,6 +113,10 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 
 static unsigned int pmap_map2region(unsigned int map)
 {
+	if (pmap_common.mpu_enabled == 0) {
+		return 1;
+	}
+
 	int i;
 	unsigned int mask = 0;
 
@@ -127,6 +132,10 @@ static unsigned int pmap_map2region(unsigned int map)
 
 int pmap_addMap(pmap_t *pmap, unsigned int map)
 {
+	if (pmap_common.mpu_enabled == 0) {
+		return 0;
+	}
+
 	unsigned int rmask = pmap_map2region(map);
 	if (rmask == 0) {
 		return -1;
@@ -142,6 +151,9 @@ void pmap_switch(pmap_t *pmap)
 {
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 	spinlock_ctx_t sc;
+	if (pmap_common.mpu_enabled == 0) {
+		return;
+	}
 
 	if (pmap != NULL) {
 		hal_spinlockSet(&pmap_common.lock, &sc);
@@ -178,8 +190,13 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 
 int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 {
-	const syspage_map_t *map = syspage_mapAddrResolve((addr_t)vaddr);
+	const syspage_map_t *map;
 	unsigned int rmask;
+	if (pmap_common.mpu_enabled == 0) {
+		return 1;
+	}
+
+	map = syspage_mapAddrResolve((addr_t)vaddr);
 	if (map == NULL) {
 		return 0;
 	}
@@ -238,6 +255,15 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	pmap->regions = (1 << cnt) - 1;
 
+	if (cnt == 0) {
+		hal_spinlockCreate(&pmap_common.lock, "pmap");
+		pmap_common.mpu_enabled = 0;
+		pmap_common.kernelCodeRegion = 0;
+		return;
+	}
+
+	pmap_common.mpu_enabled = 1;
+
 	/* Disable MPU that may have been enabled before */
 	pmap_mpu_disable();
 
@@ -249,8 +275,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 		}
 
 		pmap_mpu_setMemRegionRbar(t);
-		/* Disable regions for now */
-		pmap_mpu_setMemRegionRasr(syspage->hs.mpu.table[i].rasr & ~1);
+		pmap_mpu_setMemRegionRasr(syspage->hs.mpu.table[i].rasr); /* Enable all regions */
 	}
 
 	/* Enable MPU */
