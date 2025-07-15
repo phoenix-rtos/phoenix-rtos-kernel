@@ -11,11 +11,11 @@ static inline thread_t **futex_getSleepQueue(process_t *process, addr_t address)
 	thread_t **list;
 	spinlock_ctx_t ctx;
 
-	hal_spinlockSet(&process->spinlock, &ctx);
+	hal_spinlockSet(&process->futex_sleepqueues.spinlock, &ctx);
 	key = address >> 3;
 	key ^= key >> FUTEX_SLEEPQUEUES_BITS;
-	list = &process->futex_sleepqueues[key & FUTEX_SLEEPQUEUES_MASK];
-	hal_spinlockClear(&process->spinlock, &ctx);
+	list = &process->futex_sleepqueues.items[key & FUTEX_SLEEPQUEUES_MASK];
+	hal_spinlockClear(&process->futex_sleepqueues.spinlock, &ctx);
 	return list;
 }
 
@@ -36,9 +36,9 @@ int proc_futexWait(u32 *address, u32 value, time_t timeout)
 
 	proc_gettime(&now, NULL);
 
-	hal_spinlockSet(&current_process->spinlock, &ctx);
-	err = proc_threadWaitInterruptible(sleep_queue, &current_process->spinlock, now + timeout, &ctx);
-	hal_spinlockClear(&current_process->spinlock, &ctx);
+	hal_spinlockSet(&current_process->futex_sleepqueues.spinlock, &ctx);
+	err = proc_threadWaitInterruptible(sleep_queue, &current_process->futex_sleepqueues.spinlock, now + timeout, &ctx);
+	hal_spinlockClear(&current_process->futex_sleepqueues.spinlock, &ctx);
 	return err;
 }
 
