@@ -35,7 +35,7 @@
  */
 
 
-int syscalls_futex_wait(void *ustack)
+int syscalls_phFutexWait(void *ustack)
 {
 	u32 *addr;
 	GETFROMSTACK(ustack, u32 *, addr, 0);
@@ -53,7 +53,7 @@ int syscalls_futex_wait(void *ustack)
 	return futex_wait(addr, value, timeout);
 }
 
-int syscalls_futex_wakeup(void *ustack)
+int syscalls_phFutexWakeup(void *ustack)
 {
 	u32 *addr;
 	GETFROMSTACK(ustack, u32 *, addr, 0);

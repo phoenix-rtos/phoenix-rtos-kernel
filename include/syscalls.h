@@ -126,6 +126,6 @@
 	ID(sys_statvfs) \
 	ID(sys_uname) \
 	\
-	ID(futex_wait) \
-	ID(futex_wakeup)
+	ID(phFutexWait) \
+	ID(phFutexWakeup)
 /* clang-format on */
