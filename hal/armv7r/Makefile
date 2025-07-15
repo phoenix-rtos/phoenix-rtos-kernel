@@ -7,6 +7,9 @@
 ifneq (, $(findstring zynqmp, $(TARGET_SUBFAMILY)))
   include hal/armv7r/zynqmp/Makefile
   CFLAGS += -Ihal/armv7r/zynqmp
+else ifneq (, $(findstring tda4vm, $(TARGET_SUBFAMILY)))
+  include hal/armv7r/tda4vm/Makefile
+  CFLAGS += -Ihal/armv7r/tda4vm
 else
   $(error Unsupported TARGET)
 endif
