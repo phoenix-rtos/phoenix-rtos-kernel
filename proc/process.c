@@ -194,6 +194,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->ghosts = NULL;
 	process->reaper = NULL;
 	process->refs = 1;
+	process->dead = 0;
 
 	proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
