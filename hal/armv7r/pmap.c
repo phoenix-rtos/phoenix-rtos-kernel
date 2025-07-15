@@ -261,9 +261,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 		pmap_common.kernelCodeRegion = 0;
 		return;
 	}
-	else {
-		pmap_common.mpu_enabled = 1;
-	}
+
+	pmap_common.mpu_enabled = 1;
 
 	/* Disable MPU that may have been enabled before */
 	pmap_mpu_disable();
