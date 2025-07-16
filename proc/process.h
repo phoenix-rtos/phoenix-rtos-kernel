@@ -28,9 +28,9 @@
 #define MAX_PID MAX_ID
 
 typedef struct {
-	struct _thread_t *items[FUTEX_SLEEPQUEUES_SIZE];
-    spinlock_t spinlock;
-} futex_sleepqueues_t;
+	struct _thread_t *threads;
+	spinlock_t spinlock;
+} futex_sleepqueue_t;
 
 typedef struct _process_t {
 	lock_t lock;
@@ -77,7 +77,7 @@ typedef struct _process_t {
 	void *got;
 	hal_tls_t tls;
 
-	futex_sleepqueues_t futex_sleepqueues;
+	futex_sleepqueue_t futex_sleepqueues[FUTEX_SLEEPQUEUES_SIZE];
 } process_t;
 
 

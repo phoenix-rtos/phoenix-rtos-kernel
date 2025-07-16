@@ -5,18 +5,17 @@
 #include "threads.h"
 #include "futex.h"
 
-static inline thread_t **futex_getSleepQueue(process_t *process, addr_t address)
+static futex_sleepqueue_t *futex_getSleepQueue(process_t *process, addr_t address)
 {
 	u32 key;
-	thread_t **list;
-	spinlock_ctx_t ctx;
+	futex_sleepqueue_t *futex_sleepqueue;
 
-	hal_spinlockSet(&process->futex_sleepqueues.spinlock, &ctx);
+	proc_lockSet(&process->lock);
 	key = address >> 3;
 	key ^= key >> FUTEX_SLEEPQUEUES_BITS;
-	list = &process->futex_sleepqueues.items[key & FUTEX_SLEEPQUEUES_MASK];
-	hal_spinlockClear(&process->futex_sleepqueues.spinlock, &ctx);
-	return list;
+	futex_sleepqueue = &process->futex_sleepqueues[key & FUTEX_SLEEPQUEUES_MASK];
+	proc_lockClear(&process->lock);
+	return futex_sleepqueue;
 }
 
 int proc_futexWait(u32 *address, u32 value, time_t timeout)
@@ -25,20 +24,20 @@ int proc_futexWait(u32 *address, u32 value, time_t timeout)
 	process_t *current_process = current_thread->process;
 	addr_t key = (addr_t)address;
 	spinlock_ctx_t ctx;
-	thread_t **sleep_queue;
+	futex_sleepqueue_t *sleepqueue;
 	int err;
 	time_t now;
 
 	if (*address != value) {
 		return -EAGAIN;
 	}
-	sleep_queue = futex_getSleepQueue(current_process, key);
+	sleepqueue = futex_getSleepQueue(current_process, key);
 
 	proc_gettime(&now, NULL);
 
-	hal_spinlockSet(&current_process->futex_sleepqueues.spinlock, &ctx);
-	err = proc_threadWaitInterruptible(sleep_queue, &current_process->futex_sleepqueues.spinlock, now + timeout, &ctx);
-	hal_spinlockClear(&current_process->futex_sleepqueues.spinlock, &ctx);
+	hal_spinlockSet(&sleepqueue->spinlock, &ctx);
+	err = proc_threadWaitInterruptible(&sleepqueue->threads, &sleepqueue->spinlock, now + timeout, &ctx);
+	hal_spinlockClear(&sleepqueue->spinlock, &ctx);
 	return err;
 }
 
@@ -48,19 +47,23 @@ int proc_futexWakeup(u32 *address, u32 n_threads)
 	process_t *current_process = current_thread->process;
 	addr_t key = (addr_t)address;
 	int err;
-	thread_t **sleep_queue;
+	spinlock_ctx_t ctx;
+	futex_sleepqueue_t *sleepqueue;
 
 	if (n_threads == 0) {
 		return 0;
 	}
 
-	sleep_queue = futex_getSleepQueue(current_process, key);
+	sleepqueue = futex_getSleepQueue(current_process, key);
 
+	hal_spinlockSet(&sleepqueue->spinlock, &ctx);
 	for (int i = 0; i < n_threads; i++) {
-		err = proc_threadWakeup(sleep_queue);
+		err = proc_threadWakeup(&sleepqueue->threads);
 		if (err < 0) {
+			hal_spinlockClear(&sleepqueue->spinlock, &ctx);
 			return err;
 		}
 	}
+	hal_spinlockClear(&sleepqueue->spinlock, &ctx);
 	return n_threads;
 }
