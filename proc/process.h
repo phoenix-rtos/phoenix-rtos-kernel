@@ -27,11 +27,6 @@
 
 #define MAX_PID MAX_ID
 
-typedef struct {
-	struct _thread_t *threads;
-	spinlock_t spinlock;
-} futex_sleepqueue_t;
-
 typedef struct _process_t {
 	lock_t lock;
 
