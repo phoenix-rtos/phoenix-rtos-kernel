@@ -41,6 +41,7 @@ enum {
 	PERF_EVENT_LOCK_SET_ACQUIRED = 0x2E,
 	PERF_EVENT_LOCK_SET_EXIT = 0x2F,
 	PERF_EVENT_LOCK_CLEAR = 0x30,
+	PERF_EVENT_THREAD_PRIORITY = 0x40,
 };
 
 
@@ -245,6 +246,20 @@ static inline void perf_traceEventsSchedEnter(u8 cpuId)
 static inline void perf_traceEventsSchedExit(u8 cpuId)
 {
 	PERF_EVENT_BODY(PERF_EVENT_SCHED_EXIT, cpuId, NULL);
+}
+
+
+static inline void perf_traceEventsThreadPriority(u16 tid, u8 priority)
+{
+	struct {
+		u16 tid;
+		u8 priority;
+	} __attribute__((packed)) ev;
+
+	PERF_EVENT_BODY(PERF_EVENT_THREAD_PRIORITY, ev, NULL, {
+		ev.tid = tid;
+		ev.priority = priority;
+	});
 }
 
 

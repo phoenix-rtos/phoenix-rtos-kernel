@@ -18,7 +18,7 @@
 #include "buffer.h"
 
 
-#define TRACE_BUFFER_SIZE (4 << 20) /* 4 MB */
+#define TRACE_BUFFER_SIZE (8 << 20) /* 8 MB */
 
 
 static struct {

@@ -194,4 +194,12 @@ event {
 	};
 };
 
+event {
+	name = thread_priority;
+	id = 0x40;
+	fields := struct {
+		u16 tid;
+		u8 priority;
+	};
+};
 

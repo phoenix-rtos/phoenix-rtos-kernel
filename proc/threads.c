@@ -970,6 +970,8 @@ int proc_threadPriority(int priority)
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
+	perf_traceEventsThreadPriority(proc_getTid(current), current->priority);
+
 	return ret;
 }
 
