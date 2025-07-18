@@ -26,6 +26,9 @@ extern int perf_traceStart(void);
 extern int perf_traceRead(void *buf, size_t bufsz);
 
 
+extern int perf_traceStop(void);
+
+
 extern int perf_traceFinish(void);
 
 
