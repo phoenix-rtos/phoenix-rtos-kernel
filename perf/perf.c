@@ -50,6 +50,17 @@ int perf_read(perf_mode_t mode, void *buf, size_t bufsz)
 }
 
 
+int perf_stop(perf_mode_t mode)
+{
+	switch (mode) {
+		case perf_mode_trace:
+			return perf_traceStop();
+		default:
+			return -ENOSYS;
+	}
+}
+
+
 int perf_finish(perf_mode_t mode)
 {
 	switch (mode) {

@@ -34,6 +34,7 @@ static struct {
 
 	/* guarded by spinlock */
 	int running;
+	int stopped;
 	u64 prev;
 	int epoch;
 	u8 errorFlags;
@@ -156,6 +157,15 @@ static void _perf_emitThreadinfo(void)
 }
 
 
+static void _perf_enableTracing(int enable)
+{
+	int val = !!enable;
+	trace_common.running = val;
+	trace_common.gather = val;
+	_hal_interruptsTrace(val);
+}
+
+
 int perf_traceStart(void)
 {
 	spinlock_ctx_t sc;
@@ -174,13 +184,9 @@ int perf_traceStart(void)
 		}
 
 		_perf_emitThreadinfo();
-
-		trace_common.running = 1;
-		trace_common.gather = 1;
 		trace_common.errorFlags = 0;
 		trace_common.epoch++;
-
-		_hal_interruptsTrace(1);
+		_perf_enableTracing(1);
 	} while (0);
 	hal_spinlockClear(&trace_common.spinlock, &sc);
 
@@ -194,8 +200,27 @@ int perf_traceRead(void *buf, size_t bufsz)
 	int ret;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
-	if (trace_common.running != 0) {
+	if (trace_common.running != 0 || trace_common.stopped != 0) {
 		ret = _trace_bufferRead(buf, bufsz);
+	}
+	else {
+		ret = -EINVAL;
+	}
+	hal_spinlockClear(&trace_common.spinlock, &sc);
+
+	return ret;
+}
+
+
+int perf_traceStop(void)
+{
+	int ret = EOK;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&trace_common.spinlock, &sc);
+	if (trace_common.stopped == 0 && trace_common.running != 0) {
+		_perf_enableTracing(0);
+		trace_common.stopped = 1;
 	}
 	else {
 		ret = -EINVAL;
@@ -214,12 +239,11 @@ int perf_traceFinish(void)
 	u64 eventDelayTimestamp;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
-	if (trace_common.running != 0) {
-		trace_common.running = 0;
-		trace_common.gather = 0;
+	if (trace_common.running != 0 || trace_common.stopped != 0) {
+		_perf_enableTracing(0);
+		trace_common.stopped = 0;
 		errorFlags = trace_common.errorFlags;
 		eventDelayTimestamp = trace_common.eventDelayTimestamp;
-		_hal_interruptsTrace(0);
 		_trace_bufferFinish();
 	}
 	else {
@@ -246,6 +270,7 @@ int perf_traceFinish(void)
 int _perf_traceInit(vm_map_t *kmap)
 {
 	trace_common.running = 0;
+	trace_common.stopped = 0;
 	trace_common.gather = 0;
 	trace_common.prev = 0;
 	trace_common.epoch = 0;

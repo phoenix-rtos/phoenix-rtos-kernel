@@ -515,6 +515,16 @@ int syscalls_perf_read(void *ustack)
 }
 
 
+int syscalls_perf_stop(void *ustack)
+{
+	perf_mode_t mode;
+
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+
+	return perf_stop(mode);
+}
+
+
 int syscalls_perf_finish(void *ustack)
 {
 	perf_mode_t mode;
