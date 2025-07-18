@@ -200,8 +200,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->ports = NULL;
 
 	process->sigpend = 0;
-	process->sigmask = 0;
-	process->sighandler = NULL;
+	hal_memset(process->sigactions, 0, sizeof(process->sigactions));
 	process->tls.tls_base = NULL;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
@@ -279,7 +278,7 @@ void process_exception(unsigned int n, exc_context_t *ctx)
 	if (thread->process == NULL)
 		hal_cpuHalt();
 
-	threads_sigpost(thread->process, thread, signal_kill);
+	threads_sigpost(thread->process, thread, SIGKILL);
 
 	/* Don't allow current thread to return to the userspace,
 	 * it will crash anyway. */
@@ -297,7 +296,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 	if (process == NULL)
 		hal_cpuHalt();
 
-	threads_sigpost(process, thread, signal_illegal);
+	threads_sigpost(process, thread, SIGILL);
 }
 
 
@@ -1312,8 +1311,7 @@ static void process_vforkThread(void *arg)
 
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
-	current->process->sigmask = parent->process->sigmask;
-	current->process->sighandler = parent->process->sighandler;
+	hal_memcpy(current->process->sigactions, parent->process->sigactions, sizeof(parent->process->sigactions));
 	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl, &sc);
@@ -1500,16 +1498,16 @@ int proc_fork(void)
 	unsigned sigmask;
 	arg_t args[3];
 
+	sigmask = threads_updateSigmask(0, 0);
+
 	err = proc_vfork();
 	if (err == 0) {
 		current = proc_current();
 
 		/* Mask all signals - during process_copy(), incoming signal might try
 		 * to access our not-yet existent stack */
-		sigmask = current->sigmask;
-		current->sigmask = 0xffffffff;
+		threads_updateSigmask(0xffffffff, 0xffffffff);
 		err = process_copy();
-		current->sigmask = sigmask;
 
 		hal_cpuDisableInterrupts();
 		current->kstack = current->execkstack;
@@ -1518,7 +1516,10 @@ int proc_fork(void)
 		/* Copy parent context to child kstack in case of signal handling on fork return */
 		parent = ((process_spawn_t *)current->execdata)->parent;
 		hal_memcpy(current->kstack + current->kstacksz - sizeof(cpu_context_t),
-			parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
+				parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
+
+		/* Restore parent signal mask */
+		threads_updateSigmask(sigmask, 0xffffffff);
 
 		hal_cpuSmpSync();
 
@@ -1542,6 +1543,7 @@ static int process_execve(thread_t *current)
 	process_spawn_t *spawn = current->execdata;
 	thread_t *parent = spawn->parent;
 	vm_map_t *map, *imap;
+	int i;
 
 	/* The old user stack is no longer valid */
 	current->ustack = NULL;
@@ -1571,8 +1573,14 @@ static int process_execve(thread_t *current)
 	current->parentkstack = NULL;
 	current->execdata = NULL;
 
-	current->process->sighandler = NULL;
 	current->process->sigpend = 0;
+
+	/* POSIX: signals ignored by the calling process should remain ignored */
+	for (i = 1; i < NSIG; ++i) {
+		if (current->process->sigactions[i - 1].sa_handler != SIG_IGN) {
+			current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+		}
+	}
 
 	/* Close cloexec file descriptors */
 	posix_exec();

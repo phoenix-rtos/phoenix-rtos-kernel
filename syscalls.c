@@ -942,19 +942,24 @@ addr_t syscalls_va2pa(void *ustack)
 }
 
 
-int syscalls_signalHandle(void *ustack)
+int syscalls_signalAction(void *ustack)
 {
-	void *handler;
-	unsigned mask, mmask;
-	thread_t *thread;
+	int sig;
+	struct sigaction *act;
+	struct sigaction *old;
+	void (*trampoline)(void);
 
-	GETFROMSTACK(ustack, void *, handler, 0);
-	GETFROMSTACK(ustack, unsigned, mask, 1);
-	GETFROMSTACK(ustack, unsigned, mmask, 2);
+	GETFROMSTACK(ustack, int, sig, 0);
+	GETFROMSTACK(ustack, struct sigaction *, act, 1);
+	GETFROMSTACK(ustack, struct sigaction *, old, 2);
+	GETFROMSTACK(ustack, void *, trampoline, 3);
 
-	thread = proc_current();
-	thread->process->sigmask = (mask & mmask) | (thread->process->sigmask & ~mmask);
-	thread->process->sighandler = handler;
+	/* POSIX: SIGKILL and SIGSTOP cannot be caught or ignored */
+	if ((sig <= 0) || (sig >= NSIG) || (sig == SIGKILL) || (sig == SIGSTOP)) {
+		return -EINVAL;
+	}
+
+	threads_setSigaction(sig, trampoline, act, old);
 
 	return EOK;
 }
@@ -1003,15 +1008,11 @@ int syscalls_signalPost(void *ustack)
 unsigned int syscalls_signalMask(void *ustack)
 {
 	unsigned mask, mmask, old;
-	thread_t *t;
 
 	GETFROMSTACK(ustack, unsigned, mask, 0);
 	GETFROMSTACK(ustack, unsigned, mmask, 1);
 
-	t = proc_current();
-
-	old = t->sigmask;
-	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
+	old = threads_updateSigmask(mask, mmask);
 
 	return old;
 }
@@ -1039,7 +1040,7 @@ void syscalls_sigreturn(void *ustack)
 	hal_cpuDisableInterrupts();
 	hal_cpuSigreturn(t->kstack + t->kstacksz, ustack, &ctx);
 
-	t->sigmask = oldmask;
+	threads_updateSigmask(oldmask, 0xffffffffUL);
 
 	/* TODO: check if return address belongs to user mapped memory */
 	if (hal_cpuSupervisorMode(ctx) != 0) {
