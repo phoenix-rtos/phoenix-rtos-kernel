@@ -1474,11 +1474,13 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		if (thread != NULL) {
 			do {
 				if (sigbit & ~thread->sigmask) {
-					if (thread->interruptible) {
+					if (thread->interruptible != 0) {
 						_thread_interrupt(thread);
 					}
 
-					break;
+					if (thread->state == READY) {
+						break;
+					}
 				}
 				thread = thread->procnext;
 			} while (thread != process->threads);
