@@ -24,26 +24,26 @@ int _perf_init(vm_map_t *kmap)
 }
 
 
-int perf_start(perf_mode_t mode, unsigned pid)
+int perf_start(perf_mode_t mode, unsigned flags, void *arg)
 {
 	switch (mode) {
 		case perf_mode_threads:
-			return perf_threadsStart(pid);
+			return perf_threadsStart((unsigned)arg);
 		case perf_mode_trace:
-			return perf_traceStart();
+			return perf_traceStart(flags);
 		default:
 			return -ENOSYS;
 	}
 }
 
 
-int perf_read(perf_mode_t mode, void *buf, size_t bufsz)
+int perf_read(perf_mode_t mode, void *buf, size_t bufsz, int chan)
 {
 	switch (mode) {
 		case perf_mode_threads:
 			return perf_threadsRead(buf, bufsz);
 		case perf_mode_trace:
-			return perf_traceRead(buf, bufsz);
+			return perf_traceRead(chan, buf, bufsz);
 		default:
 			return -ENOSYS;
 	}

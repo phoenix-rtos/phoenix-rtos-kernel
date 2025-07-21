@@ -20,10 +20,10 @@
 extern int _perf_traceInit(vm_map_t *kmap);
 
 
-extern int perf_traceStart(void);
+extern int perf_traceStart(unsigned flags);
 
 
-extern int perf_traceRead(void *buf, size_t bufsz);
+extern int perf_traceRead(u8 chan, void *buf, size_t bufsz);
 
 
 extern int perf_traceStop(void);

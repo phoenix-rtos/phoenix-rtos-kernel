@@ -486,13 +486,15 @@ int syscalls_syspageprog(void *ustack)
 
 int syscalls_perf_start(void *ustack)
 {
-	unsigned pid;
 	perf_mode_t mode;
+	unsigned flags;
+	void *arg;
 
 	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
-	GETFROMSTACK(ustack, unsigned, pid, 1);
+	GETFROMSTACK(ustack, unsigned, flags, 1);
+	GETFROMSTACK(ustack, void *, arg, 2);
 
-	return perf_start(mode, pid);
+	return perf_start(mode, flags, arg);
 }
 
 
@@ -502,16 +504,18 @@ int syscalls_perf_read(void *ustack)
 	void *buffer;
 	size_t sz;
 	perf_mode_t mode;
+	int chan;
 
 	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
 	GETFROMSTACK(ustack, void *, buffer, 1);
 	GETFROMSTACK(ustack, size_t, sz, 2);
+	GETFROMSTACK(ustack, int, chan, 3);
 
 	if (vm_mapBelongs(proc, buffer, sz) < 0) {
 		return -EFAULT;
 	}
 
-	return perf_read(mode, buffer, sz);
+	return perf_read(mode, buffer, sz, chan);
 }
 
 

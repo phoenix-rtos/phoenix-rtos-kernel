@@ -19,30 +19,10 @@ clock {
 };
 
 
-typealias struct _threadinfo_t {
-	u32 pid;
-	u32 tid;
-	u32 ppid;
-
-	i32 load;
-	u64 cpuTime;
-	i32 priority;
-	i32 state;
-	i32 vmem;
-	u64 wait;
-
-	str name[128];
-} := threadinfo_t;
-
 stream {
 	event.header := struct {
 		u64 timestamp;
 		u8 id;
-	};
-
-	packet.context := struct {
-			u32 len;
-			threadinfo_t threads[len];
 	};
 };
 

@@ -12,20 +12,44 @@
  */
 
 
+#include "include/perf.h"
 #include "include/errno.h"
 #include "vm/vm.h"
 
 #include "buffer.h"
+#include "trace.h"
 
 
-#define TRACE_BUFFER_SIZE (8 << 20) /* 8 MB */
+#define TRACE_EVENT_BUFFER_SIZE (2 << 20) /* 8 MB */
+#define TRACE_META_BUFFER_SIZE  (1 << 20) /* 1 MB */
 
 
 static struct {
 	vm_map_t *kmap;
-	cbuffer_t buffer;
-	page_t *pages;
+	struct {
+		cbuffer_t buffer;
+		page_t *pages;
+	} meta, event;
 } buffer_common;
+
+
+static inline cbuffer_t *getBuffer(u8 chan)
+{
+	cbuffer_t *cbuf = NULL;
+	switch (chan) {
+		case perf_trace_channel_meta:
+			cbuf = &buffer_common.meta.buffer;
+			break;
+		case perf_trace_channel_event:
+			cbuf = &buffer_common.event.buffer;
+			break;
+		default:
+			cbuf = NULL;
+			break;
+	}
+	LIB_ASSERT(cbuf != NULL, "wrong chan id: %d", chan);
+	return cbuf;
+}
 
 
 static void _trace_bufferFree(void *data, page_t **pages)
@@ -48,7 +72,7 @@ static void *_trace_bufferAlloc(page_t **pages, size_t sz)
 {
 	page_t *p;
 	void *v, *data;
-	int err;
+	int err = EOK;
 
 	*pages = NULL;
 	data = vm_mapFind(buffer_common.kmap, NULL, sz, MAP_NONE, PROT_READ | PROT_WRITE);
@@ -85,38 +109,72 @@ static void *_trace_bufferAlloc(page_t **pages, size_t sz)
 
 int _trace_bufferStart(void)
 {
-	void *data = _trace_bufferAlloc(&buffer_common.pages, TRACE_BUFFER_SIZE);
+	void *data = _trace_bufferAlloc(&buffer_common.event.pages, TRACE_EVENT_BUFFER_SIZE);
 
 	if (data == NULL) {
 		return -ENOMEM;
 	}
 
-	return _cbuffer_init(&buffer_common.buffer, data, TRACE_BUFFER_SIZE);
+	if (_cbuffer_init(&buffer_common.event.buffer, data, TRACE_EVENT_BUFFER_SIZE) < 0) {
+		_trace_bufferFree(buffer_common.event.buffer.data, &buffer_common.event.pages);
+		return -ENOMEM;
+	}
+
+	data = _trace_bufferAlloc(&buffer_common.meta.pages, TRACE_META_BUFFER_SIZE);
+	if (data == NULL) {
+		_trace_bufferFree(buffer_common.event.buffer.data, &buffer_common.event.pages);
+		return -ENOMEM;
+	}
+
+	if (_cbuffer_init(&buffer_common.meta.buffer, data, TRACE_META_BUFFER_SIZE) < 0) {
+		_trace_bufferFree(buffer_common.meta.buffer.data, &buffer_common.meta.pages);
+		_trace_bufferFree(buffer_common.event.buffer.data, &buffer_common.event.pages);
+		return -ENOMEM;
+	}
+
+	return 0;
 }
 
 
-int _trace_bufferRead(void *buf, size_t bufsz)
+int _trace_bufferRead(u8 chan, void *buf, size_t bufsz)
 {
-	return _cbuffer_read(&buffer_common.buffer, buf, bufsz);
+	cbuffer_t *cbuf = getBuffer(chan);
+	return _cbuffer_read(cbuf, buf, bufsz);
 }
 
 
-int _trace_bufferWrite(const void *data, size_t sz)
+int _trace_bufferWrite(u8 chan, const void *data, size_t sz)
 {
-	return _cbuffer_write(&buffer_common.buffer, data, sz);
+	cbuffer_t *cbuf = getBuffer(chan);
+	return _cbuffer_write(cbuf, data, sz);
 }
 
 
-int _trace_bufferWaitUntilAvail(size_t sz)
+int _trace_bufferWaitUntilAvail(u8 chan, size_t sz)
 {
 	/* overwrite intentionally to prevent deadlock */
 	return 0;
 }
 
 
+int _trace_bufferAvail(u8 chan)
+{
+	cbuffer_t *cbuf = getBuffer(chan);
+	return _cbuffer_free(cbuf);
+}
+
+
+int _trace_bufferDiscard(u8 chan, size_t sz)
+{
+	cbuffer_t *cbuf = getBuffer(chan);
+	return _cbuffer_discard(cbuf, sz);
+}
+
+
 int _trace_bufferFinish(void)
 {
-	_trace_bufferFree(buffer_common.buffer.data, &buffer_common.pages);
+	_trace_bufferFree(buffer_common.meta.buffer.data, &buffer_common.meta.pages);
+	_trace_bufferFree(buffer_common.event.buffer.data, &buffer_common.event.pages);
 
 	return EOK;
 }

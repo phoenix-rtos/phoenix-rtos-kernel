@@ -12,6 +12,7 @@
  */
 
 
+#include "include/perf.h"
 #include "buffer.h"
 #include "events.h"
 #include "trace.h"
@@ -37,6 +38,7 @@ static struct {
 	int stopped;
 	u64 prev;
 	int epoch;
+	unsigned flags;
 	u8 errorFlags;
 	u64 eventDelayTimestamp;
 } trace_common;
@@ -62,62 +64,76 @@ static u64 _perf_traceGettimeRaw(void)
 }
 
 
-/* WARN: should be callable from interrupt handler */
-void perf_traceEventsWrite(u8 event, const void *data, size_t sz, u64 *ts)
+void _perf_traceEventsWrite(u8 chan, u8 event, const void *data, size_t sz, u64 *ts)
 {
-	spinlock_ctx_t sc;
 	u64 eventTs;
 	unsigned int wbytes = 0;
-	int ret, retries;
+	int ret, try = 0;
 	int eventSz = sizeof(eventTs) + sizeof(event) + sz;
+
+	if (ts == NULL || *ts == 0) {
+		eventTs = _perf_traceGettimeRaw();
+		if (ts != NULL) {
+			*ts = eventTs;
+		}
+	}
+	else {
+		/* use timestamp provided by the caller */
+		eventTs = *ts;
+	}
+
+	do {
+		if (_trace_bufferAvail(chan) < eventSz) {
+			if ((trace_common.flags & PERF_TRACE_FLAG_ROLLING) != 0) {
+				_trace_bufferDiscard(chan, eventSz);
+			}
+			else {
+				try = _trace_bufferWaitUntilAvail(chan, eventSz);
+			}
+		}
+
+		ret = _trace_bufferWrite(chan, &eventTs, sizeof(eventTs));
+		if (ret != sizeof(eventTs)) {
+			break;
+		}
+		wbytes += ret;
+
+		ret = _trace_bufferWrite(chan, &event, sizeof(event));
+		if (ret != sizeof(event)) {
+			break;
+		}
+		wbytes += ret;
+
+		ret = _trace_bufferWrite(chan, data, sz);
+		if (ret != sz) {
+			break;
+		}
+		wbytes += ret;
+	} while (0);
+
+	if (ret < 0) {
+		trace_common.errorFlags |= TRACE_BUFFER_WRITE_ERR;
+	}
+	else if ((trace_common.errorFlags & TRACE_EVENT_DELAYED) == 0 && try > 0) {
+		/*
+		 * Record first occurrence of event delay to caution the user about possible
+		 * loss of timestamp precision. This may happen if e.g. the buffer is implemented as RTT
+		 * and the receiver (debug probe) can't keep up with the event generation rate
+		 */
+		trace_common.errorFlags |= TRACE_EVENT_DELAYED;
+		trace_common.eventDelayTimestamp = eventTs;
+	}
+}
+
+
+/* WARN: should be callable from interrupt handler */
+void perf_traceEventsWrite(u8 chan, u8 event, const void *data, size_t sz, u64 *ts)
+{
+	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
 	if (trace_common.running != 0) {
-		if (ts == NULL || *ts == 0) {
-			eventTs = _perf_traceGettimeRaw();
-			if (ts != NULL) {
-				*ts = eventTs;
-			}
-		}
-		else {
-			/* use timestamp provided by the caller */
-			eventTs = *ts;
-		}
-
-		do {
-			retries = _trace_bufferWaitUntilAvail(eventSz);
-
-			ret = _trace_bufferWrite(&eventTs, sizeof(eventTs));
-			if (ret != sizeof(eventTs)) {
-				break;
-			}
-			wbytes += ret;
-
-			ret = _trace_bufferWrite(&event, sizeof(event));
-			if (ret != sizeof(event)) {
-				break;
-			}
-			wbytes += ret;
-
-			ret = _trace_bufferWrite(data, sz);
-			if (ret != sz) {
-				break;
-			}
-			wbytes += ret;
-		} while (0);
-
-		if (ret < 0) {
-			trace_common.errorFlags |= TRACE_BUFFER_WRITE_ERR;
-		}
-		else if ((trace_common.errorFlags & TRACE_EVENT_DELAYED) == 0 && retries > 0) {
-			/*
-			 * Record first occurrence of event delay to caution the user about possible
-			 * loss of timestamp precision. This may happen if e.g. the buffer is implemented as RTT
-			 * and the receiver (debug probe) can't keep up with the event generation rate
-			 */
-			trace_common.errorFlags |= TRACE_EVENT_DELAYED;
-			trace_common.eventDelayTimestamp = eventTs;
-		}
+		_perf_traceEventsWrite(chan, event, data, sz, ts);
 	}
 	hal_spinlockClear(&trace_common.spinlock, &sc);
 }
@@ -142,7 +158,20 @@ int perf_traceIsRunning(void)
 
 static void _perf_traceEmitThreadsCb(void *arg, int i, threadinfo_t *tinfo)
 {
-	_trace_bufferWrite(tinfo, sizeof(threadinfo_t));
+	struct {
+		u16 pid;
+		u16 tid;
+		u8 priority;
+		char name[128];
+	} __attribute__((packed)) ev;
+
+	ev.tid = tinfo->tid;
+	ev.priority = tinfo->priority;
+	ev.pid = tinfo->pid;
+
+	hal_memcpy(ev.name, tinfo->name, sizeof(tinfo->name));
+
+	_perf_traceEventsWrite(perf_trace_channel_meta, PERF_EVENT_THREAD_CREATE, &ev, sizeof(ev), NULL);
 }
 
 
@@ -150,9 +179,9 @@ static void _perf_emitThreadinfo(void)
 {
 	u32 n, tcnt = proc_threadCount();
 
-	_trace_bufferWrite(&tcnt, sizeof(tcnt));
 	n = proc_threadsIter(0xFFFF, _perf_traceEmitThreadsCb, NULL);
 
+	(void)n;
 	LIB_ASSERT(n == tcnt, "thread count mismatch: %d != %d", n, tcnt);
 }
 
@@ -166,7 +195,7 @@ static void _perf_enableTracing(int enable)
 }
 
 
-int perf_traceStart(void)
+int perf_traceStart(unsigned flags)
 {
 	spinlock_ctx_t sc;
 	int ret;
@@ -183,6 +212,8 @@ int perf_traceStart(void)
 			break;
 		}
 
+		trace_common.flags = flags;
+
 		_perf_emitThreadinfo();
 		trace_common.errorFlags = 0;
 		trace_common.epoch++;
@@ -194,14 +225,14 @@ int perf_traceStart(void)
 }
 
 
-int perf_traceRead(void *buf, size_t bufsz)
+int perf_traceRead(u8 chan, void *buf, size_t bufsz)
 {
 	spinlock_ctx_t sc;
 	int ret;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
 	if (trace_common.running != 0 || trace_common.stopped != 0) {
-		ret = _trace_bufferRead(buf, bufsz);
+		ret = _trace_bufferRead(chan, buf, bufsz);
 	}
 	else {
 		ret = -EINVAL;
