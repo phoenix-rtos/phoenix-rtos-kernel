@@ -17,6 +17,7 @@
 #ifndef _PERF_EVENTS_H_
 #define _PERF_EVENTS_H_
 
+#include "include/perf.h"
 #include "hal/types.h"
 #include "proc/proc.h"
 #include "trace.h"
@@ -42,23 +43,28 @@ enum {
 	PERF_EVENT_LOCK_SET_EXIT = 0x2F,
 	PERF_EVENT_LOCK_CLEAR = 0x30,
 	PERF_EVENT_THREAD_PRIORITY = 0x40,
+	PERF_EVENT_THREAD_INFOS = 0x41,
 };
 
 
-extern void perf_traceEventsWrite(u8 event, const void *data, size_t sz, u64 *ts);
+extern void perf_traceEventsWrite(u8 chan, u8 event, const void *data, size_t sz, u64 *ts);
 
 
 /* Updates lock epoch counter. If lock hasn't been used in this trace epoch, emits LOCK_NAME event. */
 extern void _perf_traceUpdateLockEpoch(lock_t *lock);
 
 
-#define PERF_EVENT_BODY(event_id, ev, ts, ...) \
+#define PERF_EVENT_BODY_CHAN(chan, event_id, ev, ts, ...) \
 	do { \
 		if (perf_traceIsRunning() == 0) { \
 			return; \
 		} \
-		__VA_ARGS__ perf_traceEventsWrite(event_id, &ev, sizeof(ev), ts); \
+		__VA_ARGS__ perf_traceEventsWrite(chan, event_id, &ev, sizeof(ev), ts); \
 	} while (0)
+
+
+#define PERF_META_BODY(event_id, ev, ts, ...)  PERF_EVENT_BODY_CHAN(perf_trace_channel_meta, event_id, ev, ts, __VA_ARGS__)
+#define PERF_EVENT_BODY(event_id, ev, ts, ...) PERF_EVENT_BODY_CHAN(perf_trace_channel_event, event_id, ev, ts, __VA_ARGS__)
 
 
 /* assumes lock->spinlock is set */
@@ -69,7 +75,7 @@ static inline void _perf_traceEventsLockName(const lock_t *lock)
 		char name[16];
 	} __attribute__((packed)) ev;
 
-	PERF_EVENT_BODY(PERF_EVENT_LOCK_NAME, ev, NULL, {
+	PERF_META_BODY(PERF_EVENT_LOCK_NAME, ev, NULL, {
 		ev.lid = (ptr_t)lock;
 		hal_strcpy(ev.name, lock->name);
 	});
@@ -179,7 +185,7 @@ static inline void perf_traceEventsThreadCreate(const thread_t *t)
 		char name[128];
 	} __attribute__((packed)) ev;
 
-	PERF_EVENT_BODY(PERF_EVENT_THREAD_CREATE, ev, NULL, {
+	PERF_META_BODY(PERF_EVENT_THREAD_CREATE, ev, NULL, {
 		ev.tid = proc_getTid(t);
 		ev.priority = t->priority;
 

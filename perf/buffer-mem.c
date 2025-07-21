@@ -12,20 +12,37 @@
  */
 
 
+#include "include/perf.h"
 #include "include/errno.h"
 #include "vm/vm.h"
 
 #include "buffer.h"
 
 
-#define TRACE_BUFFER_SIZE (8 << 20) /* 8 MB */
+#ifndef PERF_EVENT_CHANNEL_BUFSIZE
+#define PERF_EVENT_CHANNEL_BUFSIZE (8 << 20) /* 8 MB */
+#endif
+
+#ifndef PERF_META_CHANNEL_BUFSIZE
+#define PERF_META_CHANNEL_BUFSIZE (1 << 20) /* 1 MB */
+#endif
 
 
 static struct {
 	vm_map_t *kmap;
-	cbuffer_t buffer;
-	page_t *pages;
+	struct {
+		cbuffer_t buffer;
+		page_t *pages;
+		size_t bufsize;
+	} chans[perf_trace_channel_count];
 } buffer_common;
+
+
+static inline cbuffer_t *getBuffer(u8 chan)
+{
+	LIB_ASSERT(chan < perf_trace_channel_count, "invalid chan id: %d", chan);
+	return &buffer_common.chans[chan].buffer;
+}
 
 
 static void _trace_bufferFree(void *data, page_t **pages)
@@ -48,7 +65,7 @@ static void *_trace_bufferAlloc(page_t **pages, size_t sz)
 {
 	page_t *p;
 	void *v, *data;
-	int err;
+	int err = EOK;
 
 	*pages = NULL;
 	data = vm_mapFind(buffer_common.kmap, NULL, sz, MAP_NONE, PROT_READ | PROT_WRITE);
@@ -85,38 +102,70 @@ static void *_trace_bufferAlloc(page_t **pages, size_t sz)
 
 int _trace_bufferStart(void)
 {
-	void *data = _trace_bufferAlloc(&buffer_common.pages, TRACE_BUFFER_SIZE);
+	void *data;
+	size_t i, j;
 
-	if (data == NULL) {
-		return -ENOMEM;
+	for (i = 0; i < perf_trace_channel_count; i++) {
+		data = _trace_bufferAlloc(&buffer_common.chans[i].pages, buffer_common.chans[i].bufsize);
+		if (data == NULL) {
+			for (j = 0; j < i; j++) {
+				_trace_bufferFree(buffer_common.chans[j].buffer.data, &buffer_common.chans[j].pages);
+			}
+			return -ENOMEM;
+		}
+
+		if (_cbuffer_init(&buffer_common.chans[i].buffer, data, buffer_common.chans[i].bufsize) < 0) {
+			for (j = 0; j <= i; j++) {
+				_trace_bufferFree(buffer_common.chans[j].buffer.data, &buffer_common.chans[j].pages);
+			}
+			return -ENOMEM;
+		}
 	}
 
-	return _cbuffer_init(&buffer_common.buffer, data, TRACE_BUFFER_SIZE);
+	return 0;
 }
 
 
-int _trace_bufferRead(void *buf, size_t bufsz)
+int _trace_bufferRead(u8 chan, void *buf, size_t bufsz)
 {
-	return _cbuffer_read(&buffer_common.buffer, buf, bufsz);
+	cbuffer_t *cbuf = getBuffer(chan);
+	return _cbuffer_read(cbuf, buf, bufsz);
 }
 
 
-int _trace_bufferWrite(const void *data, size_t sz)
+int _trace_bufferWrite(u8 chan, const void *data, size_t sz)
 {
-	return _cbuffer_write(&buffer_common.buffer, data, sz);
+	cbuffer_t *cbuf = getBuffer(chan);
+	return _cbuffer_write(cbuf, data, sz);
 }
 
 
-int _trace_bufferWaitUntilAvail(size_t sz)
+int _trace_bufferWaitUntilAvail(u8 chan, size_t sz)
 {
 	/* overwrite intentionally to prevent deadlock */
 	return 0;
 }
 
 
+int _trace_bufferAvail(u8 chan)
+{
+	cbuffer_t *cbuf = getBuffer(chan);
+	return _cbuffer_free(cbuf);
+}
+
+
+int _trace_bufferDiscard(u8 chan, size_t sz)
+{
+	cbuffer_t *cbuf = getBuffer(chan);
+	return _cbuffer_discard(cbuf, sz);
+}
+
+
 int _trace_bufferFinish(void)
 {
-	_trace_bufferFree(buffer_common.buffer.data, &buffer_common.pages);
+	for (size_t i = 0; i < perf_trace_channel_count; i++) {
+		_trace_bufferFree(buffer_common.chans[i].buffer.data, &buffer_common.chans[i].pages);
+	}
 
 	return EOK;
 }
@@ -125,6 +174,9 @@ int _trace_bufferFinish(void)
 int trace_bufferInit(vm_map_t *kmap)
 {
 	buffer_common.kmap = kmap;
+
+	buffer_common.chans[perf_trace_channel_event].bufsize = PERF_EVENT_CHANNEL_BUFSIZE;
+	buffer_common.chans[perf_trace_channel_meta].bufsize = PERF_META_CHANNEL_BUFSIZE;
 
 	return EOK;
 }
