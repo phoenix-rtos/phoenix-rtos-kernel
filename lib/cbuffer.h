@@ -39,10 +39,13 @@ static inline size_t _cbuffer_avail(cbuffer_t *buf)
 }
 
 
-static inline int _cbuffer_discard(cbuffer_t *buf, size_t sz)
+static inline size_t _cbuffer_discard(cbuffer_t *buf, size_t sz)
 {
-	int cnt = min(_cbuffer_free(buf), sz);
+	size_t cnt = min(_cbuffer_avail(buf), sz);
 	buf->r = (buf->r + cnt) & (buf->sz - 1);
+	if (cnt > 0) {
+		buf->full = 0;
+	}
 	return cnt;
 }
 
