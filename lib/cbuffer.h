@@ -20,7 +20,6 @@ typedef struct {
 	size_t sz, r, w;
 	char full, mark;
 	void *data;
-	page_t *pages;
 } cbuffer_t;
 
 
