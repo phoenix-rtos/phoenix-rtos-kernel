@@ -369,30 +369,40 @@ int perf_threadsStart(unsigned pid)
 int perf_threadsRead(void *buffer, size_t bufsz)
 {
 	spinlock_ctx_t sc;
+	int ret;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	bufsz = _cbuffer_read(&threads_common.perfBuffer, buffer, bufsz);
+	if (threads_common.perfGather != 0) {
+		ret = _cbuffer_read(&threads_common.perfBuffer, buffer, bufsz);
+	}
+	else {
+		ret = -EINVAL;
+	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return bufsz;
+	return ret;
 }
 
 
 int perf_threadsFinish(void)
 {
 	spinlock_ctx_t sc;
+	int ret;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (threads_common.perfGather) {
+	if (threads_common.perfGather != 0) {
 		threads_common.perfGather = 0;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		perf_bufferFree(threads_common.perfBuffer.data, &threads_common.perfPages);
+		ret = EOK;
 	}
-	else
+	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+		ret = -EINVAL;
+	}
 
-	return EOK;
+	return ret;
 }
 
 
