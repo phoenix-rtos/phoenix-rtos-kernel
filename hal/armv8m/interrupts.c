@@ -17,7 +17,6 @@
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
 #include "hal/list.h"
-#include "hal/armv8m/mcx/n94x/mcxn94x.h"
 
 #include "proc/userintr.h"
 
@@ -132,7 +131,7 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
 
 	_hal_scsExceptionPrioritySet(SYSTICK_IRQ, 1);
-	_hal_scsExceptionPrioritySet(PENDSV_IRQ, 1);
+	_hal_scsExceptionPrioritySet(PENDSV_IRQ, 0);
 	_hal_scsExceptionPrioritySet(SVC_IRQ, 0);
 
 	/* Set no subprorities in Interrupt Group Priority */
