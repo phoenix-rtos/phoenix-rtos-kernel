@@ -28,8 +28,20 @@
 #define RTT_PERF_EVENT_CHANNEL 3
 #endif
 
-#if defined(RTT_ENABLED) && defined(RTT_ENABLED_PLO) && RTT_ENABLED && !RTT_ENABLED_PLO
+#ifndef PERF_RTT_ENABLED
+#define PERF_RTT_ENABLED 0
+#endif
+
+#if PERF_RTT_ENABLED && (!defined(RTT_ENABLED_PLO) || !RTT_ENABLED_PLO || !defined(RTT_ENABLED) || !RTT_ENABLED)
 #error "RTT_ENABLED requires RTT_ENABLED_PLO"
+#endif
+
+#ifndef RTT_PERF_BUFFERS
+#define RTT_PERF_BUFFERS 0
+#endif
+
+#if PERF_RTT_ENABLED && !RTT_PERF_BUFFERS
+#error "buffer-rtt used but RTT_PERF_BUFFERS is disabled"
 #endif
 
 
@@ -106,6 +118,7 @@ int trace_bufferInit(vm_map_t *kmap)
 {
 	common.initialized = 0;
 
+#if PERF_RTT_ENABLED
 	if (_hal_rttInitialized() == 0) {
 		/* RTT may be still uninitialized, e.g. if the RTT console is disabled */
 		if (_hal_rttInit() < 0) {
@@ -117,6 +130,9 @@ int trace_bufferInit(vm_map_t *kmap)
 
 	common.chans[perf_trace_channel_event].rtt = RTT_PERF_EVENT_CHANNEL;
 	common.chans[perf_trace_channel_meta].rtt = RTT_PERF_META_CHANNEL;
+#else
+	return -ENOSYS;
+#endif
 
 	return EOK;
 }
