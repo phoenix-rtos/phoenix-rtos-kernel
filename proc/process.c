@@ -84,6 +84,9 @@ static void process_destroy(process_t *p)
 
 	posix_died(process_getPid(p), p->exit);
 
+	/* Destroy resources (especially rtInth) before changing map to prevent race */
+	proc_resourcesDestroy(p);
+
 	proc_changeMap(p, NULL, NULL, NULL);
 
 	if (mapp != NULL) {
@@ -94,7 +97,6 @@ static void process_destroy(process_t *p)
 		vm_mapDestroy(p, imapp);
 	}
 
-	proc_resourcesDestroy(p);
 	proc_portsDestroy(p);
 	proc_lockDone(&p->lock);
 
