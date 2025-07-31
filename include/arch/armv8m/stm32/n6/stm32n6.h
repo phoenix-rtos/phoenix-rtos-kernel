@@ -433,6 +433,124 @@ enum {
 };
 
 
+/* STM32N6 resource identifiers for non-RIF-aware slave peripherals */
+enum pctl_risups {
+	pctl_risup_spi1 = 0,
+	pctl_risup_spi2,
+	pctl_risup_spi3,
+	pctl_risup_spi4,
+	pctl_risup_spi5,
+	pctl_risup_spi6,
+	pctl_risup_sai1,
+	pctl_risup_sai2 = 8,
+	pctl_risup_i2c1,
+	pctl_risup_i2c2,
+	pctl_risup_i2c3,
+	pctl_risup_i2c4,
+	pctl_risup_i3c1,
+	pctl_risup_i3c2,
+	pctl_risup_usart1,
+	pctl_risup_usart2,
+	pctl_risup_usart3,
+	pctl_risup_uart4,
+	pctl_risup_uart5,
+	pctl_risup_usart6,
+	pctl_risup_uart7,
+	pctl_risup_uart8,
+	pctl_risup_uart9,
+	pctl_risup_usart10,
+	pctl_risup_lpuart1,
+	pctl_risup_fdcan1,
+	pctl_risup_tim1,
+	pctl_risup_tim2,
+	pctl_risup_tim3,
+	pctl_risup_tim4,
+	pctl_risup_tim5,
+	pctl_risup_tim6,
+	pctl_risup_tim7,
+	pctl_risup_tim8,
+	pctl_risup_tim9,
+	pctl_risup_tim10,
+	pctl_risup_tim11,
+	pctl_risup_tim12,
+	pctl_risup_tim13,
+	pctl_risup_tim14,
+	pctl_risup_tim15,
+	pctl_risup_tim16,
+	pctl_risup_tim17,
+	pctl_risup_tim18,
+	pctl_risup_gfxtim,
+	pctl_risup_lptim1,
+	pctl_risup_lptim2,
+	pctl_risup_lptim3,
+	pctl_risup_lptim4,
+	pctl_risup_lptim5,
+	pctl_risup_adf1,
+	pctl_risup_mdf1,
+	pctl_risup_sdmmc1,
+	pctl_risup_sdmmc2,
+	pctl_risup_mdios,
+	pctl_risup_otg1_hs,
+	pctl_risup_otg2_hs,
+	pctl_risup_ucpd1,
+	pctl_risup_eth1 = 60,
+	pctl_risup_spdifrx,
+	pctl_risup_syscfg,
+	pctl_risup_adc12 = 64,
+	pctl_risup_vrefbuf,
+	pctl_risup_crc = 67,
+	pctl_risup_iwdg,
+	pctl_risup_wwdg,
+	pctl_risup_rng = 76,
+	pctl_risup_pka,
+	pctl_risup_saes,
+	pctl_risup_hash,
+	pctl_risup_cryp1,
+	pctl_risup_mce1,
+	pctl_risup_mce2,
+	pctl_risup_mce3,
+	pctl_risup_mce4,
+	pctl_risup_xspi1 = 86,
+	pctl_risup_xspi2,
+	pctl_risup_xspi3,
+	pctl_risup_xspim,
+	pctl_risup_fmc,
+	pctl_risup_csi2host = 92,
+	pctl_risup_dcmipp,
+	pctl_risup_dcmi,
+	pctl_risup_jpeg = 96,
+	pctl_risup_venc,
+	pctl_risup_icache,
+	pctl_risup_gpu,
+	pctl_risup_gfxmmu,
+	pctl_risup_dma2d,
+	pctl_risup_ltdc_cmn,
+	pctl_risup_ltdc_l1,
+	pctl_risup_ltdc_l2,
+	pctl_risup_npu = 106,
+	pctl_risups_count,
+};
+
+
+/* STM32N6 resource identifiers for bus mastering peripherals */
+enum pctl_rimcs {
+	pctl_rimc_trace = 0,
+	pctl_rimc_npu,
+	pctl_rimc_sdmmc1,
+	pctl_rimc_sdmmc2,
+	pctl_rimc_otg1,
+	pctl_rimc_otg2,
+	pctl_rimc_eth1,
+	pctl_rimc_gpu,
+	pctl_rimc_dma2d,
+	pctl_rimc_dcmipp,
+	pctl_rimc_ltdc_l1,
+	pctl_rimc_ltdc_l2,
+	pctl_rimc_venc,
+	pctl_rimcs_count,
+};
+
+
 typedef struct {
 	enum {
 		pctl_set = 0,
@@ -443,7 +561,10 @@ typedef struct {
 		pctl_devclk = 0,
 		pctl_cpuclk,
 		pctl_gpioPrivilege,
-		pctl_ipclk,
+		pctl_risup, /* Change allowed access for non-RIF-aware slave peripherals */
+		pctl_rimc,  /* Change access rights for bus masters */
+		pctl_ipclk, /* Independent peripheral clock settings (muxes and dividers) */
+		pctl_otp,
 		pctl_reboot,
 	} type;
 
@@ -453,25 +574,35 @@ typedef struct {
 			unsigned int state;   /* State in Run and Sleep modes: 1 - clock enabled, 0 - clock disabled */
 			unsigned int lpState; /* State in Sleep mode: 1 - enabled, 0 - disabled */
 		} devclk;
-
 		struct {
 			unsigned int hz;
 		} cpuclk;
-
-		struct {
-			unsigned int ipclk;
-			unsigned int setting;
-		} ipclk;
-
 		struct {
 			unsigned int port; /* one of pctl_gpio* enum values */
 			/* Bitmask of pins
 			 * 1 - Pin can be changed by only privileged code,
-			 * 0 - Pin can be changed by userspace code or privileged code
-			 */
+			 * 0 - Pin can be changed by userspace code or privileged code */
 			unsigned int mask;
 		} gpioPrivilege;
-
+		struct {
+			unsigned int index; /* one of pctl_risup_* enum values */
+			int privileged;     /* 1 - set to privileged only, 0 - no change, -1 - set to unprivileged or privileged */
+			int secure;         /* 1 - set to secure only, 0 - no change, -1 - set to non-secure or secure */
+			int lock;           /* 1 - lock from changes until reset, 0 - no change */
+		} risup;
+		struct {
+			unsigned int index; /* one of pctl_rimc_* enum values */
+			int privileged;     /* 1 - set to privileged, 0 - no change, -1 - set to unprivileged */
+			int secure;         /* 1 - set to secure 0 - no change, -1 - set to non-secure */
+		} rimc;
+		struct {
+			unsigned int ipclk;
+			unsigned int setting;
+		} ipclk;
+		struct {
+			unsigned int addr; /* OTP word */
+			unsigned int val;  /* Value to be written / value returned */
+		} otp;
 		struct {
 			unsigned int magic;
 			unsigned int reason;

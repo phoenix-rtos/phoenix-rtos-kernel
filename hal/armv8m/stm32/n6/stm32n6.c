@@ -49,6 +49,7 @@
 #define RTC_BASE    ((void *)0x56004000)
 #define SYSCFG_BASE ((void *)0x56008000)
 #define EXTI_BASE   ((void *)0x56025000)
+#define RIFSC_BASE  ((void *)0x54024000)
 
 #define EXTI_LINES 78
 
@@ -61,6 +62,7 @@ static struct {
 	volatile u32 *exti;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
+	volatile u32 *rifsc;
 
 	u32 cpuclk;
 	u32 perclk;
@@ -125,6 +127,27 @@ int hal_platformctl(void *ptr)
 				}
 			}
 			break;
+		case pctl_risup:
+			if (data->action == pctl_set) {
+				ret = _stm32_rifsc_risup_change(data->risup.index, data->risup.secure, data->risup.privileged, data->risup.lock);
+			}
+			break;
+		case pctl_rimc:
+			if (data->action == pctl_set) {
+				ret = _stm32_rifsc_rimc_change(data->rimc.index, data->rimc.secure, data->rimc.privileged);
+			}
+			break;
+		case pctl_otp:
+			if (data->action == pctl_set) {
+				ret = _stm32_bsec_otp_write(data->otp.addr, data->otp.val);
+			}
+			else if (data->action == pctl_get) {
+				ret = _stm32_bsec_otp_read(data->otp.addr, &state);
+				if (ret == EOK) {
+					data->otp.val = state;
+				}
+			}
+			break;
 		case pctl_reboot:
 			if (data->action == pctl_set) {
 				if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
@@ -148,6 +171,64 @@ int hal_platformctl(void *ptr)
 void _hal_platformInit(void)
 {
 	hal_spinlockCreate(&stm32_common.pltctlSp, "pltctl");
+}
+
+
+/* RIFSC (resource isolation framework security controller) */
+
+
+int _stm32_rifsc_risup_change(unsigned int index, int secure, int privileged, int lock)
+{
+	u32 reg, shift;
+	if (index >= pctl_risups_count) {
+		return -EINVAL;
+	}
+
+	reg = index / 32;
+	shift = index % 32;
+	if (secure > 0) {
+		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + reg) |= (1 << shift);
+	}
+	else if (secure < 0) {
+		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + reg) &= ~(1 << shift);
+	}
+
+	if (privileged > 0) {
+		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + reg) |= (1 << shift);
+	}
+	else if (privileged < 0) {
+		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + reg) &= ~(1 << shift);
+	}
+
+	if (lock != 0) {
+		*(stm32_common.rifsc + rifsc_risc_rcfglockr0 + reg) = (1 << shift);
+	}
+
+	return EOK;
+}
+
+
+int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged)
+{
+	if (index >= pctl_rimcs_count) {
+		return -EINVAL;
+	}
+
+	if (secure > 0) {
+		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + index) |= (1 << 8);
+	}
+	else if (secure < 0) {
+		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + index) &= ~(1 << 8);
+	}
+
+	if (privileged > 0) {
+		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + index) |= (1 << 9);
+	}
+	else if (privileged < 0) {
+		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + index) &= ~(1 << 9);
+	}
+
+	return EOK;
 }
 
 
@@ -618,6 +699,7 @@ void _stm32_init(void)
 	stm32_common.rtc = RTC_BASE;
 	stm32_common.exti = EXTI_BASE;
 	stm32_common.syscfg = SYSCFG_BASE;
+	stm32_common.rifsc = RIFSC_BASE;
 	stm32_common.gpio[0] = GPIOA_BASE;
 	stm32_common.gpio[1] = GPIOB_BASE;
 	stm32_common.gpio[2] = GPIOC_BASE;
@@ -643,6 +725,9 @@ void _stm32_init(void)
 
 	/* Enable power module */
 	_stm32_rccSetDevClock(pctl_pwr, 1, 1);
+
+	_stm32_rccSetDevClock(pctl_rifsc, 1, 1);
+	_stm32_bsec_init();
 
 	/* TODO: would be nice to have clock configuration options or the frequency passed from PLO */
 	stm32_common.cpuclk = 600 * 1000 * 1000;
