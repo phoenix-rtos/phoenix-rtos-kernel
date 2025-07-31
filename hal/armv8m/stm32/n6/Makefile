@@ -6,4 +6,4 @@
 
 CFLAGS += -Ihal/armv8m/stm32/n6
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv8m/stm32/n6/, stm32n6.o console.o timer.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv8m/stm32/n6/, bsec.o console.o stm32n6.o timer.o)

@@ -139,6 +139,24 @@ extern int _stm32_extiClearPending(u32 line);
 extern void _stm32_wdgReload(void);
 
 
+extern int _stm32_rifsc_risup_change(unsigned int index, int secure, int privileged, int lock);
+
+
+extern int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged);
+
+
+extern int _stm32_bsec_otp_checkFuseValid(unsigned int addr);
+
+
+extern int _stm32_bsec_otp_read(unsigned int addr, u32 *val);
+
+
+extern int _stm32_bsec_otp_write(unsigned int addr, u32 val);
+
+
+extern void _stm32_bsec_init(void);
+
+
 extern void _stm32_init(void);
 
 
