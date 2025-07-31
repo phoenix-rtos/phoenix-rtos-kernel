@@ -950,6 +950,7 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 	}
 
 	thread->priority = priority;
+	perf_traceEventsThreadPriority(proc_getTid(thread), thread->priority);
 }
 
 
