@@ -1083,10 +1083,12 @@ ssize_t syscalls_sys_read(char *ustack)
 	int fildes;
 	void *buf;
 	size_t nbyte;
+	off_t offset;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
+	GETFROMSTACK(ustack, off_t, offset, 3);
 
 	if ((buf == NULL) && (nbyte != 0)) {
 		return -EFAULT;
@@ -1096,7 +1098,7 @@ ssize_t syscalls_sys_read(char *ustack)
 		return -EFAULT;
 	}
 
-	return posix_read(fildes, buf, nbyte);
+	return posix_read(fildes, buf, nbyte, offset);
 }
 
 
@@ -1106,10 +1108,12 @@ ssize_t syscalls_sys_write(char *ustack)
 	int fildes;
 	void *buf;
 	size_t nbyte;
+	off_t offset;
 
 	GETFROMSTACK(ustack, int, fildes, 0);
 	GETFROMSTACK(ustack, void *, buf, 1);
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
+	GETFROMSTACK(ustack, off_t, offset, 3);
 
 	if ((buf == NULL) && (nbyte != 0)) {
 		return -EFAULT;
@@ -1119,7 +1123,7 @@ ssize_t syscalls_sys_write(char *ustack)
 		return -EFAULT;
 	}
 
-	return posix_write(fildes, buf, nbyte);
+	return posix_write(fildes, buf, nbyte, offset);
 }
 
 

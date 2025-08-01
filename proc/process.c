@@ -249,8 +249,8 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
-	posix_write(2, buff, hal_strlen(buff));
-	posix_write(2, "\n", 1);
+	posix_write(2, buff, hal_strlen(buff), -1);
+	posix_write(2, "\n", 1, -1);
 
 	/* use proc_current() as late as possible - to be able to print exceptions in scheduler */
 	thread = proc_current();
@@ -268,7 +268,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 		len = lib_sprintf(buff, "in thread %lu, process \"%s\" (PID: %u)\n", proc_getTid(thread), process->path, process_getPid(process));
 	}
 
-	posix_write(2, buff, len);
+	posix_write(2, buff, len, -1);
 }
 
 
