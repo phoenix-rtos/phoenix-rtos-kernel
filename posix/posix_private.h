@@ -73,6 +73,9 @@ enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };
 enum { pxBufferedPipe, pxPipe, pxPTY };
 
 
+#define F_SEEKABLE(type) ((type) == ftRegular)
+
+
 typedef struct {
 	oid_t ln;
 	oid_t oid;
