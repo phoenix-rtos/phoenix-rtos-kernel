@@ -706,13 +706,13 @@ int posix_close(int fildes)
 }
 
 
-ssize_t posix_read(int fildes, void *buf, size_t nbyte)
+ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 {
-	TRACE("read(%d, %p, %u)", fildes, buf, nbyte);
+	TRACE("read(%d, %p, %zu, %jd)", fildes, buf, nbyte, (intmax_t)offset);
 
 	open_file_t *f;
 	ssize_t rcnt;
-	off_t offs;
+	off_t offs = offset;
 	unsigned int status;
 	int err;
 
@@ -726,8 +726,16 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 		return -EBADF;
 	}
 
+	if (offset >= 0 && !F_SEEKABLE(f->type)) {
+		posix_fileDeref(f);
+		return -ESPIPE;
+	}
+
 	proc_lockSet(&f->lock);
-	offs = f->offset;
+	/* offset < 0 means use current fd offset */
+	if (offset < 0) {
+		offs = f->offset;
+	}
 	status = f->status;
 	proc_lockClear(&f->lock);
 
@@ -738,7 +746,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
 	}
 
-	if (rcnt > 0) {
+	if (rcnt > 0 && offset < 0) {
 		proc_lockSet(&f->lock);
 		f->offset += rcnt;
 		proc_lockClear(&f->lock);
@@ -750,13 +758,13 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 }
 
 
-ssize_t posix_write(int fildes, void *buf, size_t nbyte)
+ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 {
-	TRACE("write(%d, %p, %u)", fildes, buf, nbyte);
+	TRACE("write(%d, %p, %zu, %jd)", fildes, buf, nbyte, (intmax_t)offset);
 
 	open_file_t *f;
 	ssize_t rcnt;
-	off_t offs;
+	off_t offs = offset;
 	unsigned int status;
 	int err;
 
@@ -770,8 +778,16 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 		return -EBADF;
 	}
 
+	if (offset >= 0 && !F_SEEKABLE(f->type)) {
+		posix_fileDeref(f);
+		return -ESPIPE;
+	}
+
 	proc_lockSet(&f->lock);
-	offs = f->offset;
+	/* offset < 0 means use current fd offset */
+	if (offset < 0) {
+		offs = f->offset;
+	}
 	status = f->status;
 	proc_lockClear(&f->lock);
 
@@ -782,7 +798,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
 	}
 
-	if (rcnt > 0) {
+	if (rcnt > 0 && offset < 0) {
 		proc_lockSet(&f->lock);
 		f->offset += rcnt;
 		proc_lockClear(&f->lock);
