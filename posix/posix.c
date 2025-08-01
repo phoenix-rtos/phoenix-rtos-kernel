@@ -794,6 +794,78 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 }
 
 
+ssize_t posix_pread(int fildes, void *buf, size_t nbyte, off_t offset)
+{
+	TRACE("read(%d, %p, %u)", fildes, buf, nbyte);
+
+	open_file_t *f;
+	ssize_t rcnt;
+	unsigned int status;
+	int err;
+
+	err = posix_getOpenFile(fildes, &f);
+	if (err < 0) {
+		return err;
+	}
+
+	if ((f->status & O_WRONLY) != 0) {
+		posix_fileDeref(f);
+		return -EBADF;
+	}
+
+	proc_lockSet(&f->lock);
+	status = f->status;
+	proc_lockClear(&f->lock);
+
+	if (f->type == ftUnixSocket) {
+		rcnt = unix_recvfrom(f->oid.id, buf, nbyte, 0, NULL, 0);
+	}
+	else {
+		rcnt = proc_read(f->oid, offset, buf, nbyte, status);
+	}
+
+	posix_fileDeref(f);
+
+	return rcnt;
+}
+
+
+ssize_t posix_pwrite(int fildes, void *buf, size_t nbyte, off_t offset)
+{
+	TRACE("write(%d, %p, %u)", fildes, buf, nbyte);
+
+	open_file_t *f;
+	ssize_t rcnt;
+	unsigned int status;
+	int err;
+
+	err = posix_getOpenFile(fildes, &f);
+	if (err < 0) {
+		return err;
+	}
+
+	if ((f->status & O_RDONLY) != 0) {
+		posix_fileDeref(f);
+		return -EBADF;
+	}
+
+	proc_lockSet(&f->lock);
+	status = f->status;
+	proc_lockClear(&f->lock);
+
+	if (f->type == ftUnixSocket) {
+		rcnt = unix_sendto(f->oid.id, buf, nbyte, 0, NULL, 0);
+	}
+	else {
+		rcnt = proc_write(f->oid, offset, buf, nbyte, status);
+	}
+
+	posix_fileDeref(f);
+
+	return rcnt;
+}
+
+
 int posix_getOid(int fildes, oid_t *oid)
 {
 	open_file_t *f;
