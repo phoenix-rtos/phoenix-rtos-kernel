@@ -155,7 +155,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
+int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(int signo), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	struct stackArg args[] = {
@@ -164,6 +164,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &ctx->hwctx.pc, sizeof(ctx->hwctx.pc) },
 		{ &signalCtx, sizeof(signalCtx) },
 		{ &oldmask, sizeof(oldmask) },
+		{ &handler, sizeof(handler) },
 		{ &n, sizeof(n) },
 		{ 0, 0 } /* Reserve space for optional HWCTX */
 	};
@@ -174,7 +175,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	signalCtx->psp -= sizeof(cpu_context_t);
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
-	signalCtx->hwctx.pc = (u32)handler;
+	signalCtx->hwctx.pc = (u32)trampoline;
 
 	/* Set default PSR, clear potential ICI/IT flags */
 	signalCtx->hwctx.psr = 0x01000000U;
