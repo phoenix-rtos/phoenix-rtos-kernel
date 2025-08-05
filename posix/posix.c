@@ -2617,7 +2617,7 @@ int posix_tkill(pid_t pid, int tid, int sig)
 {
 	TRACE("tkill(%p, %d, %d)", pid, tid, sig);
 
-	if ((sig < 0) || (sig > NSIG)) {
+	if ((sig < 0) || (sig >= NSIG_TOTAL)) {
 		return -EINVAL;
 	}
 

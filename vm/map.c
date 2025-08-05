@@ -827,7 +827,16 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 
 		LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel");
 
-		(void)threads_sigpost(thread->process, thread, signal_segv);
+		/*
+		 * FIXME: In case signal is ignored or blocked, the process should be terminated
+		 * to avoid exception dump loop. In case it is handled, we should provide a mechanism
+		 * to force delivery of this signal before another pending ones.
+		 */
+		(void)threads_sigpost(thread->process, thread, SIGSEGV);
+	}
+
+	if (thread->exit != 0U) {
+		proc_threadEnd();
 	}
 }
 #endif

@@ -147,6 +147,12 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 		return;
 	}
 
+	/*
+	 * NOTE: in case of EXC_UNDEFINED implementation, threads_setupUserReturn()
+	 * has to be called before returning to userspace to avoid fault loop
+	 * with installed signal handlers.
+	 */
+
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
