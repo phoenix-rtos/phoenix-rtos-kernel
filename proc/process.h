@@ -18,6 +18,7 @@
 #define _PH_PROC_PROCESS_H_
 
 #include "hal/hal.h"
+#include "include/signal.h"
 #include "vm/vm.h"
 #include "lock.h"
 #include "vm/amap.h"
@@ -27,7 +28,7 @@
 #define MAX_PID MAX_ID
 
 
-typedef void (*sighandlerFn_t)(void);
+typedef void (*sigtrampolineFn_t)(void);
 
 
 typedef struct _process_t {
@@ -61,8 +62,8 @@ typedef struct _process_t {
 	idtree_t resources;
 
 	unsigned int sigpend;
-	unsigned int sigmask;
-	sighandlerFn_t sighandler;
+	sigtrampolineFn_t sigtrampoline;
+	struct sigaction sigactions[NSIG - 1]; /* indices are offset by 1, as signal 0 is invalid */
 
 	void *got;
 	hal_tls_t tls;
