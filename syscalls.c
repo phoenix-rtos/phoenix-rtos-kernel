@@ -1015,17 +1015,33 @@ addr_t syscalls_va2pa(u8 *ustack)
 }
 
 
-int syscalls_signalHandle(u8 *ustack)
+int syscalls_signalAction(u8 *ustack)
 {
-	sighandlerFn_t handler;
-	thread_t *thread;
+	process_t *proc = proc_current()->process;
+	int sig;
+	struct sigaction *act;
+	struct sigaction *old;
+	sigtrampolineFn_t trampoline;
 
-	GETFROMSTACK(ustack, sighandlerFn_t, handler, 0U);
+	GETFROMSTACK(ustack, int, sig, 0U);
+	GETFROMSTACK(ustack, struct sigaction *, act, 1U);
+	GETFROMSTACK(ustack, struct sigaction *, old, 2U);
+	GETFROMSTACK(ustack, sigtrampolineFn_t, trampoline, 3U);
 
-	thread = proc_current();
-	thread->process->sighandler = handler;
+	if ((act != NULL) && (vm_mapBelongs(proc, act, sizeof(*act)) < 0)) {
+		return -EFAULT;
+	}
 
-	return EOK;
+	if ((old != NULL) && (vm_mapBelongs(proc, old, sizeof(*old)) < 0)) {
+		return -EFAULT;
+	}
+
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Use of common address verification routine" */
+	if ((trampoline != NULL) && (vm_mapBelongs(proc, (void *)trampoline, 1U) < 0)) {
+		return -EFAULT;
+	}
+
+	return threads_setSigaction(sig, trampoline, act, old);
 }
 
 
@@ -1968,11 +1984,14 @@ void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
 
 	trace_eventSyscallExit(n, proc_getTid(thread));
 
+	if (thread->exit == 0U) {
+		threads_setupUserReturn(retval, ctx);
+	}
+
+	/* setupUserReturn could deliver a terminating signal */
 	if (thread->exit != 0U) {
 		proc_threadEnd();
 	}
-
-	threads_setupUserReturn(retval, ctx);
 
 	return retval;
 }
