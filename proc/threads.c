@@ -1399,10 +1399,6 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		if (thread != NULL) {
 			do {
 				if ((sigbit & ~thread->sigmask) != 0U) {
-					if (thread->interruptible != 0U) {
-						_thread_interrupt(thread);
-					}
-
 					break;
 				}
 				thread = thread->procnext;
@@ -1418,11 +1414,16 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 	}
 
-	if (((sigbit & ~thread->sigmask) != 0U) &&
-	    ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL))) {
-		(void)_threads_sigdefault(process, thread, sig);
-		thread->sigpend &= ~sigbit;
-		process->sigpend &= ~sigbit;
+	if ((sigbit & ~thread->sigmask) != 0U) {
+		if (thread->interruptible != 0U) {
+			_thread_interrupt(thread);
+		}
+
+		if ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL)) {
+			(void)_threads_sigdefault(process, thread, sig);
+			thread->sigpend &= ~sigbit;
+			process->sigpend &= ~sigbit;
+		}
 	}
 
 	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
