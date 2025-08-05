@@ -500,6 +500,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			/* Check for signals to handle */
 			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
 				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
+				/* NOTE: Terminating signals are handled during delivery and should not reach this point */
 				if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
 					selCtx = signalCtx;
 				}
@@ -1507,6 +1508,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	u32 sigbit;
 	spinlock_ctx_t sc;
+	int performedAction = -1;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -1539,10 +1541,6 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		if (thread != NULL) {
 			do {
 				if ((sigbit & ~thread->sigmask) != 0U) {
-					if (thread->interruptible != 0U) {
-						_thread_interrupt(thread);
-					}
-
 					break;
 				}
 				thread = thread->procnext;
@@ -1558,11 +1556,16 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 	}
 
-	if (((sigbit & ~thread->sigmask) != 0U) &&
-	    ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL))) {
-		(void)_threads_sigdefault(process, thread, sig);
-		thread->sigpend &= ~sigbit;
-		process->sigpend &= ~sigbit;
+	if ((sigbit & ~thread->sigmask) != 0U) {
+		if ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL)) {
+			performedAction = _threads_sigdefault(process, thread, sig);
+			thread->sigpend &= ~sigbit;
+			process->sigpend &= ~sigbit;
+		}
+
+		if ((performedAction != SIGNAL_IGNORE) && (thread->interruptible != 0U)) {
+			_thread_interrupt(thread);
+		}
 	}
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
