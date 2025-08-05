@@ -131,6 +131,12 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 		hal_exceptionJump(n, ctx, hal_exception_common.handler);
 	}
 
+	/*
+	 * NOTE: in case of EXC_UNDEFINED implementation, threads_setupUserReturn()
+	 * has to be called before returning to userspace to avoid fault loop
+	 * with installed signal handlers.
+	 */
+
 	/* Early exception, exception in kernel or proc module
 	 * handler failed to kill the process and we're back
 	 * here. This is a fatal error, crash the system */
