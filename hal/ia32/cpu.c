@@ -177,7 +177,7 @@ void _hal_cpuSetKernelStack(void *kstack)
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
+int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void *handler, cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	const struct stackArg args[] = {
@@ -186,13 +186,14 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &signalCtx, sizeof(signalCtx) },
 		{ &oldmask, sizeof(oldmask) },
 		{ &n, sizeof(n) },
+		{ &handler, sizeof(handler) },
 	};
 
 	(void)src;
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	signalCtx->eip = (u32)handler;
+	signalCtx->eip = (u32)trampoline;
 	signalCtx->esp -= sizeof(cpu_context_t);
 
 	hal_stackPutArgs((void **)&signalCtx->esp, sizeof(args) / sizeof(args[0]), args);

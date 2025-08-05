@@ -217,4 +217,7 @@ extern int threads_sigsuspend(unsigned int mask);
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
+extern int threads_setSigaction(int sig, void (*trampoline)(void), const struct sigaction *act, struct sigaction *old);
+
+
 #endif
