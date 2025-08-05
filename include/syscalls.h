@@ -65,7 +65,7 @@
 	ID(sys_perf_stop) \
 	ID(syspageprog) \
 	ID(va2pa) \
-	ID(signalHandle) \
+	ID(signalAction) \
 	ID(signalPost) \
 	ID(signalMask) \
 	ID(signalSuspend) \

@@ -208,8 +208,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ports = NULL;
 
 	process->sigpend = 0;
-	process->sigmask = 0;
-	process->sighandler = NULL;
+	hal_memset(process->sigactions, 0, sizeof(process->sigactions));
 	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
@@ -234,12 +233,6 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	}
 
 	return process_getPid(process);
-}
-
-
-void proc_kill(process_t *proc)
-{
-	proc_threadsDestroy(&proc->threads, NULL);
 }
 
 
@@ -287,7 +280,7 @@ static void process_exception(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 	}
 
-	(void)threads_sigpost(thread->process, thread, signal_kill);
+	(void)threads_sigpost(thread->process, thread, SIGKILL);
 
 	/* Don't allow current thread to return to the userspace,
 	 * it will crash anyway. */
@@ -306,7 +299,11 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 	}
 
-	(void)threads_sigpost(process, thread, signal_illegal);
+	(void)threads_sigpost(process, thread, SIGILL);
+
+	if (thread->exit != 0U) {
+		proc_threadEnd();
+	}
 }
 
 
@@ -1383,8 +1380,8 @@ static void process_vforkThread(void *arg)
 
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
-	current->process->sigmask = parent->process->sigmask;
-	current->process->sighandler = parent->process->sighandler;
+	current->process->sigtrampoline = parent->process->sigtrampoline;
+	hal_memcpy(current->process->sigactions, parent->process->sigactions, sizeof(parent->process->sigactions));
 	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl, &sc);
@@ -1433,6 +1430,9 @@ static void process_vforkThread(void *arg)
 	if (current->tls.tls_base != 0U) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
+
+	/* POSIX: A child created via fork inherits a copy of its parent's signal mask */
+	current->sigmask = parent->sigmask;
 
 	/* Start execution from parent suspend point */
 	proc_longjmp(parent->context);
@@ -1623,6 +1623,7 @@ static int process_execve(thread_t *current)
 	process_spawn_t *spawn = current->execdata;
 	thread_t *parent = spawn->parent;
 	vm_map_t *map, *imap;
+	int i;
 
 	/* The old user stack is no longer valid */
 	current->ustack = NULL;
@@ -1660,8 +1661,15 @@ static int process_execve(thread_t *current)
 	current->parentkstack = NULL;
 	current->execdata = NULL;
 
-	current->process->sighandler = NULL;
 	current->process->sigpend = 0;
+
+	/* POSIX: signals ignored by the calling process should remain ignored */
+	for (i = 1; i < NSIG; ++i) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+		if (current->process->sigactions[i - 1].sa_handler != SIG_IGN) {
+			current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+		}
+	}
 
 	/* Close cloexec file descriptors */
 	(void)posix_exec();
