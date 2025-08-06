@@ -1644,6 +1644,27 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 }
 
 
+static void _threads_setSigmask(thread_t *thread, unsigned int sigmask)
+{
+	/*
+	 * POSIX: It is not possible to block those signals which cannot be ignored.
+	 * This shall be enforced by the system without causing an error to be indicated.
+	 */
+	sigmask &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
+	thread->sigmask = sigmask;
+}
+
+
+void threads_setSigmask(thread_t *thread, unsigned int sigmask)
+{
+	spinlock_ctx_t sc;
+	/* Update sigmask under spinlock to avoid terminating signals delivery races with sigpost */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_threads_setSigmask(thread, sigmask);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
 int threads_setSigaction(int sig, sigtrampolineFn_t trampoline, const struct sigaction *act, struct sigaction *old)
 {
 	process_t *process;
@@ -1826,7 +1847,7 @@ int threads_sigsuspend(unsigned int mask)
 	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
 
 	oldmask = thread->sigmask;
-	thread->sigmask = mask;
+	_threads_setSigmask(thread, mask);
 
 	/* check for pending signals before sleep - with the new mask */
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
@@ -1861,7 +1882,7 @@ int threads_sigsuspend(unsigned int mask)
 	}
 
 	/* interrupted by signal but no sighandler installed */
-	thread->sigmask = oldmask;
+	_threads_setSigmask(thread, oldmask);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	/* sigsuspend always exits with -EINTR */

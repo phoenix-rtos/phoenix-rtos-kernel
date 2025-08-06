@@ -224,6 +224,9 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 __attribute__((noreturn)) void threads_halt(void);
 
 
+void threads_setSigmask(thread_t *thread, unsigned int sigmask);
+
+
 int threads_setSigaction(int sig, void (*trampoline)(void), const struct sigaction *act, struct sigaction *old);
 
 
