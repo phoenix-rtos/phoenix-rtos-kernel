@@ -214,18 +214,18 @@ int posix_newFile(process_info_t *p, int fd)
 {
 	open_file_t *f;
 
+	f = vm_kmalloc(sizeof(open_file_t));
+	if (f == NULL) {
+		return -ENOMEM;
+	}
+
 	proc_lockSet(&p->lock);
 
 	fd = _posix_allocfd(p, fd);
 	if (fd < 0) {
 		proc_lockClear(&p->lock);
+		vm_kfree(f);
 		return -ENFILE;
-	}
-
-	f = vm_kmalloc(sizeof(open_file_t));
-	if (f == NULL) {
-		proc_lockClear(&p->lock);
-		return -ENOMEM;
 	}
 
 	p->fds[fd].file = f;
