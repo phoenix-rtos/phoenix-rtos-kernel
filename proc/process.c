@@ -204,11 +204,13 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->sigpend = 0;
 	process->sigmask = 0;
 	process->sighandler = NULL;
-	process->tls.tls_base = NULL;
+	/* MISRA Rule 20.7: ptr_t is typedef of unsigned int, NULL is not pointer to void*/
+	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
 	process->tls.tls_sz = 0;
-	process->tls.arm_m_tls = NULL;
+	/* MISRA Rule 20.7: ptr_t is typedef of unsigned int, NULL is not pointer to void*/
+	process->tls.arm_m_tls = 0;
 
 #ifndef NOMMU
 	process->lazy = 0;
@@ -306,14 +308,15 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 
 static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
 {
-	if (tls->tls_base != NULL) {
+	/* MISRA change: NULL can not be longe used as we changed it to voit pointer!!! */
+	if (tls->tls_base != 0) {
 		process_tls->tls_base = tls->tls_base;
 	}
-	else if (tbssAddr != NULL) {
+	else if (tbssAddr != 0) {
 		process_tls->tls_base = tbssAddr;
 	}
 	else {
-		process_tls->tls_base = NULL;
+		process_tls->tls_base = 0;
 	}
 	process_tls->tdata_sz = tls->tdata_sz;
 	process_tls->tbss_sz = tls->tbss_sz;
@@ -915,11 +918,12 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		}
 	}
 
-	tlsNew.tls_base = NULL;
+	/* MISRA Rule x.x: NULL is now a voind ptrs and we can not use it here!!!*/
+	tlsNew.tls_base = 0;
 	tlsNew.tdata_sz = 0;
 	tlsNew.tbss_sz = 0;
 	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = NULL;
+	tlsNew.arm_m_tls = 0;
 
 	/* Perform .tdata, .tbss and .armtls relocations */
 	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
@@ -1095,7 +1099,8 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
-	if ((err == EOK) && (current->process->tls.tls_base != NULL)) {
+	/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+	if ((err == EOK) && (current->process->tls.tls_base != 0)) {
 		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
 	}
 
@@ -1108,7 +1113,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 	hal_cpuSetGot(current->process->got);
 
-	if (current->tls.tls_base != NULL) {
+	if (current->tls.tls_base != 0) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
@@ -1363,7 +1368,8 @@ static void process_vforkThread(void *arg)
 	current->kstack = parent->kstack;
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
-	if (current->tls.tls_base != NULL) {
+	/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+	if (current->tls.tls_base != 0) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
@@ -1717,7 +1723,8 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 
 	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
-	if (dest->tls_base != NULL) {
+	/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+	if (dest->tls_base != 0) {
 		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
 		/* At the end of TLS there must be a pointer to itself */
