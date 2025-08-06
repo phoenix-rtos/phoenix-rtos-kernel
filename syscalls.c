@@ -1015,6 +1015,11 @@ unsigned int syscalls_signalMask(void *ustack)
 	old = t->sigmask;
 	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
 
+	/* POSIX: It is not possible to block those signals which cannot be ignored.
+	 * This shall be enforced by the system without causing an error to be indicated.
+	 */
+	t->sigmask &= ~((1u << SIGKILL) | (1u << SIGSTOP));
+
 	return old;
 }
 
