@@ -270,7 +270,8 @@ int _kmalloc_init(void)
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		lib_printf("BAD HDRIDX!\n");
-		return NULL;
+		/* MISRA Rule x.x, NULL return changed to -1 return as NULL is now representeed as void pointer onto 0 */
+		return -1;
 	}
 
 	/* Initialize sizes */

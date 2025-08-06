@@ -652,7 +652,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			selected->longjmpctx = NULL;
 		}
 
-		if (selected->tls.tls_base != NULL) {
+		/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+		if (selected->tls.tls_base != 0) {
 			hal_cpuTlsSet(&selected->tls, selCtx);
 		}
 
@@ -815,11 +816,12 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 		}
 	}
 	else {
-		t->tls.tls_base = NULL;
+		/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+		t->tls.tls_base = 0;
 		t->tls.tdata_sz = 0;
 		t->tls.tbss_sz = 0;
 		t->tls.tls_sz = 0;
-		t->tls.arm_m_tls = NULL;
+		t->tls.arm_m_tls = 0;
 	}
 
 	if (id != NULL) {
@@ -2162,7 +2164,8 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_interruptsSetHandler(&threads_common.pendsvHandler);
 #endif
 
-	hal_memset(&threads_common.timeintrHandler, NULL, sizeof(threads_common.timeintrHandler));
+	/* MISRA Rule x.x: this memset used NULL as reference of 0 value, NULL is now voit pointer !!!*/
+	hal_memset(&threads_common.timeintrHandler, 0, sizeof(threads_common.timeintrHandler));
 	hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
 
 	return EOK;
