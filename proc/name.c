@@ -514,6 +514,8 @@ void _name_init(void)
 {
 	proc_lockInit(&name_common.dcache_lock, &proc_lockAttrDefault, "name.common");
 
-	hal_memset(name_common.dcache, NULL, sizeof(name_common.dcache));
+	/* MISRA change, NULL used to pass 0, and after changing NULL to void pointer to 0 
+	 * it's no longer compatible with this funciton */
+	hal_memset(name_common.dcache, 0, sizeof(name_common.dcache));
 	name_common.root_registered = 0;
 }
