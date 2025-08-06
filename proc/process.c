@@ -1403,7 +1403,7 @@ static void process_vforkThread(void *arg)
 	current->process->posix = 1U;
 
 	/* POSIX: A child created via fork inherits a copy of its parent's signal mask */
-	current->sigmask = parent->sigmask;
+	threads_setSigmask(current, parent->sigmask);
 
 	/* No reaper race, parent is kept until current thread releases */
 	ret = proc_cloneSigactions(parent->process, current->process);
@@ -1627,9 +1627,9 @@ int proc_fork(void)
 		/* Mask all signals - during process_copy(), incoming signal might try
 		 * to access our not-yet existent stack */
 		sigmask = current->sigmask;
-		current->sigmask = 0xffffffffU;
+		threads_setSigmask(current, 0xffffffffU);
 		err = process_copy();
-		current->sigmask = sigmask;
+		threads_setSigmask(current, sigmask);
 
 		hal_cpuDisableInterrupts();
 		current->kstack = current->execkstack;
