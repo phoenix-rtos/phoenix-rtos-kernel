@@ -2614,7 +2614,8 @@ int posix_tkill(pid_t pid, int tid, int sig)
 
 void posix_sigchild(pid_t ppid)
 {
-	posix_tkill(ppid, NULL, SIGCHLD);
+	/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+	posix_tkill(ppid, 0, SIGCHLD);
 }
 
 
