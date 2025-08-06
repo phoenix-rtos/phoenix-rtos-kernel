@@ -1030,7 +1030,7 @@ int syscalls_signalPost(u8 *ustack)
 
 unsigned int syscalls_signalMask(u8 *ustack)
 {
-	unsigned int mask, mmask, old;
+	unsigned int mask, mmask, old, new;
 	thread_t *t;
 
 	GETFROMSTACK(ustack, unsigned int, mask, 0U);
@@ -1039,7 +1039,14 @@ unsigned int syscalls_signalMask(u8 *ustack)
 	t = proc_current();
 
 	old = t->sigmask;
-	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
+	new = (mask & mmask) | (old & ~mmask);
+
+	/* POSIX: It is not possible to block those signals which cannot be ignored.
+	 * This shall be enforced by the system without causing an error to be indicated.
+	 */
+	new &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
+
+	t->sigmask = new;
 
 	return old;
 }
