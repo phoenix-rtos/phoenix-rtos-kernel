@@ -1288,7 +1288,7 @@ int syscalls_signalPost(u8 *ustack)
 
 unsigned int syscalls_signalMask(u8 *ustack)
 {
-	unsigned int mask, mmask, old;
+	unsigned int mask, mmask, old, new;
 	thread_t *t;
 
 	GETFROMSTACK(ustack, unsigned int, mask, 0U);
@@ -1297,7 +1297,9 @@ unsigned int syscalls_signalMask(u8 *ustack)
 	t = proc_current();
 
 	old = t->sigmask;
-	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
+	new = (mask & mmask) | (old & ~mmask);
+
+	threads_setSigmask(t, new);
 
 	return old;
 }
@@ -1324,7 +1326,7 @@ void syscalls_sigreturn(u8 *ustack)
 	hal_cpuDisableInterrupts();
 	hal_cpuSigreturn(t->kstack + t->kstacksz, ustack, &ctx);
 
-	t->sigmask = oldmask;
+	threads_setSigmask(t, oldmask);
 
 	/* TODO: check if return address belongs to user mapped memory */
 	if (hal_cpuSupervisorMode(ctx) != 0) {
