@@ -105,6 +105,7 @@ static void process_destroy(process_t *p)
 		vm_kfree(ghost);
 	}
 
+	vm_kfree(p->sigactions);
 	vm_kfree(p->path);
 	vm_kfree(p->argv);
 	vm_kfree(p->envp);
@@ -202,7 +203,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->ports = NULL;
 
 	process->sigpend = 0;
-	hal_memset(process->sigactions, 0, sizeof(process->sigactions));
+	process->sigactions = NULL;
 	process->tls.tls_base = NULL;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
@@ -1303,7 +1304,7 @@ static void process_vforkThread(void *arg)
 	process_spawn_t *spawn = arg;
 	thread_t *current, *parent;
 	spinlock_ctx_t sc;
-	int ret;
+	int ret, i;
 
 	current = proc_current();
 	parent = spawn->parent;
@@ -1312,7 +1313,27 @@ static void process_vforkThread(void *arg)
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
 	current->process->sigtrampoline = parent->process->sigtrampoline;
-	hal_memcpy(current->process->sigactions, parent->process->sigactions, sizeof(parent->process->sigactions));
+
+	if (parent->process->sigactions != NULL) {
+		for (i = 1; i < NSIG; ++i) {
+			if (parent->process->sigactions[i - 1].sa_handler == SIG_DFL) {
+				continue;
+			}
+
+			current->process->sigactions = vm_kmalloc(sizeof(struct sigaction) * (NSIG - 1));
+			if (current->process->sigactions == NULL) {
+				hal_spinlockSet(&spawn->sl, &sc);
+				spawn->state = -ENOMEM;
+				proc_threadWakeup(&spawn->wq);
+				hal_spinlockClear(&spawn->sl, &sc);
+
+				proc_threadEnd();
+			}
+			hal_memcpy(current->process->sigactions, parent->process->sigactions, sizeof(struct sigaction) * (NSIG - 1));
+			break;
+		}
+	}
+
 	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl, &sc);
@@ -1577,9 +1598,22 @@ static int process_execve(thread_t *current)
 	current->process->sigpend = 0;
 
 	/* POSIX: signals ignored by the calling process should remain ignored */
-	for (i = 1; i < NSIG; ++i) {
-		if (current->process->sigactions[i - 1].sa_handler != SIG_IGN) {
-			current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+	if (current->process->sigactions != NULL) {
+		for (i = 1; i < NSIG; ++i) {
+			if (current->process->sigactions[i - 1].sa_handler == SIG_IGN) {
+				break;
+			}
+		}
+		if (i == NSIG) {
+			vm_kfree(current->process->sigactions);
+			current->process->sigactions = NULL;
+		}
+		else {
+			for (i = 1; i < NSIG; ++i) {
+				if (current->process->sigactions[i - 1].sa_handler != SIG_IGN) {
+					current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+				}
+			}
 		}
 	}
 
