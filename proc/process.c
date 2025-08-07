@@ -113,6 +113,7 @@ static void process_destroy(process_t *p)
 		vm_kfree(ghost);
 	}
 
+	vm_kfree(p->sigactions);
 	vm_kfree(p->path);
 	vm_kfree(p->argv);
 	vm_kfree(p->envp);
@@ -211,7 +212,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ports = NULL;
 
 	process->sigpend = 0;
-	hal_memset(process->sigactions, 0, sizeof(process->sigactions));
+	process->sigactions = NULL;
 	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
@@ -1410,8 +1411,10 @@ static void process_vforkThread(void *arg)
 	/* POSIX: A child created via fork inherits a copy of its parent's signal mask */
 	current->sigmask = parent->sigmask;
 
-	current->process->sigtrampoline = parent->process->sigtrampoline;
-	hal_memcpy(current->process->sigactions, parent->process->sigactions, sizeof(parent->process->sigactions));
+	ret = proc_cloneSigactions(parent->process, current->process);
+	if (ret < 0) {
+		proc_spawnThreadEnd(spawn, ret);
+	}
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	while (spawn->state < FORKING) {
@@ -1668,7 +1671,7 @@ static int process_execve(thread_t *current)
 	process_spawn_t *spawn = current->execdata;
 	thread_t *parent = spawn->parent;
 	vm_map_t *map, *imap;
-	int i;
+	int i, keep;
 
 	/* The old user stack is no longer valid */
 	current->ustack = NULL;
@@ -1709,10 +1712,20 @@ static int process_execve(thread_t *current)
 	current->process->sigpend = 0;
 
 	/* POSIX: signals ignored by the calling process should remain ignored */
-	for (i = 1; i < NSIG; ++i) {
-		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
-		if (current->process->sigactions[i - 1].sa_handler != SIG_IGN) {
-			current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+	if (current->process->sigactions != NULL) {
+		keep = 0;
+		for (i = 1; i < NSIG; ++i) {
+			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+			if (current->process->sigactions[i - 1].sa_handler == SIG_IGN) {
+				keep = 1;
+			}
+			else {
+				current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+			}
+		}
+		if (keep == 0) {
+			vm_kfree(current->process->sigactions);
+			current->process->sigactions = NULL;
 		}
 	}
 

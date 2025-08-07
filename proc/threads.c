@@ -1390,7 +1390,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	}
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
-	if (process->sigactions[sig - 1].sa_handler == SIG_IGN) {
+	if ((process->sigactions != NULL) && (process->sigactions[sig - 1].sa_handler == SIG_IGN)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return EOK;
 	}
@@ -1426,7 +1426,8 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 	}
 
-	if (((sigbit & ~thread->sigmask) != 0U) && (process->sigactions[sig - 1].sa_handler == SIG_DFL)) {
+	if (((sigbit & ~thread->sigmask) != 0U) &&
+	    ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL))) {
 		(void)_threads_sigdefault(process, thread, sig);
 		thread->sigpend &= ~sigbit;
 		process->sigpend &= ~sigbit;
@@ -1449,7 +1450,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 	sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
 	while (sig != 0U) {
 		sig = hal_cpuGetLastBit(sig);
-		handler = proc->sigactions[sig - 1U].sa_handler;
+		handler = (proc->sigactions == NULL) ? SIG_DFL : proc->sigactions[sig - 1U].sa_handler;
 
 		if (handler == SIG_DFL) {
 			defaultAction = _threads_sigdefault(proc, selected, (int)sig);
@@ -1495,29 +1496,93 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 int threads_setSigaction(int sig, sigtrampolineFn_t trampoline, const struct sigaction *act, struct sigaction *old)
 {
 	process_t *process;
+	struct sigaction *sa = NULL;
 	spinlock_ctx_t sc;
 
 	if ((sig <= 0) || (sig >= NSIG)) {
 		return -EINVAL;
 	}
 
+	if ((act != NULL) && (threads_sigmutable(sig) == 0)) {
+		return -EINVAL;
+	}
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	process = _proc_current()->process;
+
+	/* allocate sigactions array if required */
+	if ((act != NULL) && (process->sigactions == NULL) && (act->sa_handler != SIG_DFL)) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		sa = vm_kmalloc(sizeof(struct sigaction) * (u8)(NSIG - 1));
+		if (sa == NULL) {
+			return -ENOMEM;
+		}
+
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		/* for a running process this array should never get freed, but allocation race can happen here */
+		if (process->sigactions == NULL) {
+			hal_memset(sa, 0, sizeof(struct sigaction) * (u8)(NSIG - 1));
+			process->sigactions = sa;
+			sa = NULL;
+		}
+	}
+
+	if (old != NULL) {
+		/* sigactions can be null if act.sa_handler == SIG_DFL */
+		if (process->sigactions == NULL) {
+			old->sa_handler = SIG_DFL;
+			old->sa_flags = 0;
+			old->sa_mask = 0;
+		}
+		else {
+			hal_memcpy(old, &process->sigactions[sig - 1], sizeof(struct sigaction));
+		}
+	}
+
+	/* sigactions can be null if act.sa_handler == SIG_DFL */
+	if ((act != NULL) && (process->sigactions != NULL)) {
+		hal_memcpy(&process->sigactions[sig - 1], act, sizeof(struct sigaction));
+	}
 
 	if (trampoline != NULL) {
 		process->sigtrampoline = trampoline;
 	}
-	if (old != NULL) {
-		hal_memcpy(old, &process->sigactions[sig - 1], sizeof(struct sigaction));
-	}
-	if (act != NULL) {
-		if (threads_sigmutable(sig) == 0) {
-			hal_spinlockClear(&threads_common.spinlock, &sc);
-			return -EINVAL;
-		}
 
-		hal_memcpy(&process->sigactions[sig - 1], act, sizeof(struct sigaction));
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	if (sa != NULL) {
+		vm_kfree(sa);
 	}
+	return 0;
+}
+
+
+int proc_cloneSigactions(process_t *parent, process_t *child)
+{
+	spinlock_ctx_t sc;
+	int i;
+
+	/* In case of one of parent threads is updating signal handlers */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (parent->sigactions != NULL) {
+		for (i = 1; i < NSIG; ++i) {
+			if (parent->sigactions[i - 1].sa_handler == SIG_DFL) {
+				continue;
+			}
+
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			child->sigactions = vm_kmalloc(sizeof(struct sigaction) * (u8)(NSIG - 1));
+			if (child->sigactions == NULL) {
+				return -ENOMEM;
+			}
+
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+			hal_memcpy(child->sigactions, parent->sigactions, sizeof(struct sigaction) * (u8)(NSIG - 1));
+			break;
+		}
+	}
+
+	child->sigtrampoline = parent->sigtrampoline;
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return 0;
