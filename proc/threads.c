@@ -1529,7 +1529,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	}
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
-	if (process->sigactions[sig - 1].sa_handler == SIG_IGN) {
+	if ((process->sigactions != NULL) && (process->sigactions[sig - 1].sa_handler == SIG_IGN)) {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return EOK;
 	}
@@ -1565,7 +1565,8 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 	}
 
-	if (((sigbit & ~thread->sigmask) != 0U) && (process->sigactions[sig - 1].sa_handler == SIG_DFL)) {
+	if (((sigbit & ~thread->sigmask) != 0U) &&
+	    ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL))) {
 		(void)_threads_sigdefault(process, thread, sig);
 		thread->sigpend &= ~sigbit;
 		process->sigpend &= ~sigbit;
@@ -1595,7 +1596,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 			deliveryMask &= ~(u32)(1UL << curSig);
 			continue;
 		}
-		handler = proc->sigactions[curSig - 1U].sa_handler;
+		handler = (proc->sigactions == NULL) ? SIG_DFL : proc->sigactions[curSig - 1U].sa_handler;
 
 		if (handler == SIG_DFL) {
 			defaultAction = _threads_sigdefault(proc, selected, (int)curSig);
@@ -1646,32 +1647,135 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 int threads_setSigaction(int sig, sigtrampolineFn_t trampoline, const struct sigaction *act, struct sigaction *old)
 {
 	process_t *process;
+	struct sigaction *sa = NULL;
 	spinlock_ctx_t sc;
 
 	if ((sig <= 0) || (sig >= NSIG)) {
 		return -EINVAL;
 	}
 
+	if ((act != NULL) && (threads_sigmutable(sig) == 0)) {
+		return -EINVAL;
+	}
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	process = _proc_current()->process;
+
+	/* allocate sigactions array if required */
+	if ((act != NULL) && (process->sigactions == NULL) && (act->sa_handler != SIG_DFL)) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		sa = vm_kmalloc(sizeof(struct sigaction) * (size_t)(NSIG - 1));
+		if (sa == NULL) {
+			return -ENOMEM;
+		}
+
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		/* for a running process this array should never get freed, but allocation race can happen here */
+		if (process->sigactions == NULL) {
+			hal_memset(sa, 0, sizeof(struct sigaction) * (size_t)(NSIG - 1));
+			process->sigactions = sa;
+			sa = NULL;
+		}
+	}
+
+	if (old != NULL) {
+		/* sigactions can be null if act.sa_handler == SIG_DFL */
+		if (process->sigactions == NULL) {
+			old->sa_handler = SIG_DFL;
+			old->sa_flags = 0;
+			old->sa_mask = 0;
+		}
+		else {
+			hal_memcpy(old, &process->sigactions[sig - 1], sizeof(struct sigaction));
+		}
+	}
+
+	/* sigactions can be null if act.sa_handler == SIG_DFL */
+	if ((act != NULL) && (process->sigactions != NULL)) {
+		hal_memcpy(&process->sigactions[sig - 1], act, sizeof(struct sigaction));
+		/* POSIX: It is not possible to block those signals which cannot be ignored. */
+		process->sigactions[sig - 1].sa_mask &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
+	}
 
 	if (trampoline != NULL) {
 		process->sigtrampoline = trampoline;
 	}
-	if (old != NULL) {
-		hal_memcpy(old, &process->sigactions[sig - 1], sizeof(struct sigaction));
-	}
-	if (act != NULL) {
-		if (threads_sigmutable(sig) == 0) {
-			hal_spinlockClear(&threads_common.spinlock, &sc);
-			return -EINVAL;
-		}
 
-		hal_memcpy(&process->sigactions[sig - 1], act, sizeof(struct sigaction));
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	if (sa != NULL) {
+		vm_kfree(sa);
 	}
+	return 0;
+}
+
+
+int proc_cloneSigactions(process_t *parent, process_t *child)
+{
+	spinlock_ctx_t sc;
+	int i;
+
+	/* In case of one of parent threads is updating signal handlers */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (parent->sigactions != NULL) {
+		for (i = 1; i < NSIG; ++i) {
+			if (parent->sigactions[i - 1].sa_handler == SIG_DFL) {
+				continue;
+			}
+
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			child->sigactions = vm_kmalloc(sizeof(struct sigaction) * (size_t)(NSIG - 1));
+			if (child->sigactions == NULL) {
+				return -ENOMEM;
+			}
+
+			/* For a running process sigactions should never get freed */
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+			hal_memcpy(child->sigactions, parent->sigactions, sizeof(struct sigaction) * (size_t)(NSIG - 1));
+			break;
+		}
+	}
+
+	child->sigtrampoline = parent->sigtrampoline;
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return 0;
+}
+
+
+void proc_resetExecSigactions(void)
+{
+	spinlock_ctx_t sc;
+	thread_t *current;
+	int i, keep = 0;
+	struct sigaction *sa = NULL;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	current = _proc_current();
+	if (current->process->sigactions != NULL) {
+		keep = 0;
+		for (i = 1; i < NSIG; ++i) {
+			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+			if (current->process->sigactions[i - 1].sa_handler == SIG_IGN) {
+				keep = 1;
+			}
+			else {
+				current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+			}
+		}
+		if (keep == 0) {
+			sa = current->process->sigactions;
+			current->process->sigactions = NULL;
+		}
+	}
+
+	current->process->sigtrampoline = NULL;
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (keep == 0) {
+		vm_kfree(sa);
+	}
 }
 
 
