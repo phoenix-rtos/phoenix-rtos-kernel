@@ -63,7 +63,7 @@ typedef struct _process_t {
 
 	unsigned int sigpend;
 	sigtrampolineFn_t sigtrampoline;
-	struct sigaction sigactions[NSIG - 1]; /* indices are offset by 1, as signal 0 is invalid */
+	struct sigaction *sigactions; /* indices are offset by 1, as signal 0 is invalid */
 
 	void *got;
 	hal_tls_t tls;
