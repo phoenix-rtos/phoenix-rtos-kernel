@@ -173,7 +173,7 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 }
 
 
-unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned char b, char zero)
+unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zero)
 {
 	static const char digits[] = "0123456789abcdef";
 	char c;
@@ -183,8 +183,9 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned cha
 	hal_memcpy(s, prefix, m);
 
 	for (k = m, l = (unsigned long)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+		if (zero == 0U && i == 0U) {
 			break;
+		}
 		s[k++] = digits[i % b];
 	}
 

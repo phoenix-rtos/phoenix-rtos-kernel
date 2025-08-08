@@ -49,7 +49,7 @@ static map_entry_t *map_allocN(int n);
 void map_free(map_entry_t *entry);
 
 
-static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot);
+static unsigned _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned prot);
 
 
 static int map_cmp(rbnode_t *n1, rbnode_t *n2)
@@ -57,11 +57,13 @@ static int map_cmp(rbnode_t *n1, rbnode_t *n2)
 	map_entry_t *e1 = lib_treeof(map_entry_t, linkage, n1);
 	map_entry_t *e2 = lib_treeof(map_entry_t, linkage, n2);
 
-	if (e2->vaddr + e2->size <= e1->vaddr)
+	if (e2->vaddr + e2->size <= e1->vaddr) {
 		return 1;
+	}
 
-	if (e1->vaddr + e1->size <= e2->vaddr)
+	if (e1->vaddr + e1->size <= e2->vaddr) {
 		return -1;
+	}
 
 	return 0;
 }
@@ -76,11 +78,12 @@ static void map_augment(rbnode_t *node)
 	if (node->left == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(map_entry_t, linkage, it->parent);
-			if (it->parent->right == it)
+			if (it->parent->right == it) {
 				break;
+			}
 		}
 
-		n->lmaxgap = (size_t)(n->vaddr <= p->vaddr) ? (n->vaddr - n->map->start) : (n->vaddr - p->vaddr) - p->size;
+		n->lmaxgap = (size_t)((n->vaddr <= p->vaddr) ? (n->vaddr - n->map->start) : (n->vaddr - p->vaddr) - p->size);
 	}
 	else {
 		map_entry_t *l = lib_treeof(map_entry_t, linkage, node->left);
@@ -90,11 +93,12 @@ static void map_augment(rbnode_t *node)
 	if (node->right == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(map_entry_t, linkage, it->parent);
-			if (it->parent->left == it)
+			if (it->parent->left == it) {
 				break;
+			}
 		}
 
-		n->rmaxgap = (size_t)(n->vaddr >= p->vaddr) ? (n->map->stop - n->vaddr) - n->size : (p->vaddr - n->vaddr) - n->size;
+		n->rmaxgap = (size_t)((n->vaddr >= p->vaddr) ? (n->map->stop - n->vaddr) - n->size : (p->vaddr - n->vaddr) - n->size);
 	}
 	else {
 		map_entry_t *r = lib_treeof(map_entry_t, linkage, node->right);
@@ -105,10 +109,12 @@ static void map_augment(rbnode_t *node)
 		n = lib_treeof(map_entry_t, linkage, it);
 		p = lib_treeof(map_entry_t, linkage, it->parent);
 
-		if (it->parent->left == it)
+		if (it->parent->left == it) {
 			p->lmaxgap = max(n->lmaxgap, n->rmaxgap);
-		else
+		}
+		else {
 			p->rmaxgap = max(n->lmaxgap, n->rmaxgap);
+		}
 	}
 }
 
@@ -169,20 +175,21 @@ void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map
 	*prev = NULL;
 	*next = NULL;
 
-	if (((void *)map->stop - size) < vaddr)
+	if (((void *)map->stop - size) < vaddr) {
 		return NULL;
-
-	if (vaddr < map->start)
+	}
+	if (vaddr < map->start){
 		vaddr = map->start;
+	}
 
 	while (e != NULL) {
 
 		if ((size <= e->lmaxgap) && ((vaddr + size) <= e->vaddr)) {
 			*next = e;
 
-			if (e->linkage.left == NULL)
+			if (e->linkage.left == NULL) {
 				return max(vaddr, e->vaddr - e->lmaxgap);
-
+			}
 			e = lib_treeof(map_entry_t, linkage, e->linkage.left);
 			continue;
 		}
@@ -190,31 +197,35 @@ void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map
 		if ((size <= e->rmaxgap) /*&& (vaddr + size) <= (e->vaddr + e->size + e->rmaxgap)*/) {
 			*prev = e;
 
-			if (e->linkage.right == NULL)
+			if (e->linkage.right == NULL) {
 				return max(vaddr, e->vaddr + e->size);
-
+			}
 			e = lib_treeof(map_entry_t, linkage, e->linkage.right);
 			continue;
 		}
 
 		for (;; e = lib_treeof(map_entry_t, linkage, e->linkage.parent)) {
-			if (e->linkage.parent == NULL)
+			if (e->linkage.parent == NULL) {
 				return NULL;
+			}
 
-			if ((e == lib_treeof(map_entry_t, linkage, e->linkage.parent->left)) && ((lib_treeof(map_entry_t, linkage, e->linkage.parent)->rmaxgap >= size)))
+			if ((e == lib_treeof(map_entry_t, linkage, e->linkage.parent->left)) && ((lib_treeof(map_entry_t, linkage, e->linkage.parent)->rmaxgap >= size))){
 				break;
+			}
 		}
 		e = lib_treeof(map_entry_t, linkage, e->linkage.parent);
 
 		for (*next = e; (*next)->linkage.parent != NULL; *next = lib_treeof(map_entry_t, linkage, (*next)->linkage.parent))
-			if ((*next) == lib_treeof(map_entry_t, linkage, (*next)->linkage.parent->left))
+			if ((*next) == lib_treeof(map_entry_t, linkage, (*next)->linkage.parent->left)) {
 				break;
+			}
 
 		*next = lib_treeof(map_entry_t, linkage, (*next)->linkage.parent);
 
 		*prev = e;
-		if (e->linkage.right == NULL)
+		if (e->linkage.right == NULL) {
 			return e->vaddr + e->size;
+		}
 
 		e = lib_treeof(map_entry_t, linkage, e->linkage.right);
 	}
@@ -242,38 +253,42 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	lmerge = prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot && prev->protOrig == prot;
 
 	if (offs != -1) {
-		if (offs & (SIZE_PAGE - 1))
+		if ((offs & (SIZE_PAGE - 1U)) != 0){
 			return NULL;
+		}
 
-		if (rmerge)
-			rmerge &= next->offs == offs + size;
+		if (rmerge != 0U) {
+			rmerge &= (unsigned)(next->offs == offs + size);
+		}
 
-		if (lmerge)
-			lmerge &= offs == prev->offs + prev->size;
+		if (lmerge != 0U) {
+			lmerge &= (unsigned)(offs == prev->offs + prev->size);
+		}
 	}
 
 #ifdef NOMMU
-	rmerge = rmerge && proc == next->process;
-	lmerge = lmerge && proc == prev->process;
+	rmerge = rmerge != 0 && (proc == next->process);
+	lmerge = lmerge != 0 && (proc == prev->process);
 #endif
 
 #if 1
 	if (o == NULL) {
-		if (lmerge && rmerge && (next->amap == prev->amap)) {
+		if (lmerge != 0U && rmerge !=0 && (next->amap == prev->amap)) {
 			/* Both use the same amap, can merge */
 		}
 		else {
 			/* Can't merge to the left if amap array size is too small */
-			if (lmerge && (amap = prev->amap) != NULL && (amap->size * SIZE_PAGE - prev->aoffs - prev->size) < size)
+			if (lmerge != 0U && (amap = prev->amap) != NULL && (amap->size * SIZE_PAGE - prev->aoffs - prev->size) < size) {
 				lmerge = 0;
-
+			}
 			/* Can't merge to the right if amap offset is too small */
-			if (rmerge && (amap = next->amap) != NULL && next->aoffs < size)
+			if (rmerge != 0U && (amap = next->amap) != NULL && next->aoffs < size) {
 				rmerge = 0;
-
+			}
 			/* amaps differ, we can only merge one way */
-			if (lmerge && rmerge)
+			if (lmerge != 0U && rmerge != 0U) {
 				rmerge = 0;
+			}
 		}
 	}
 #else
@@ -282,7 +297,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		rmerge = lmerge = 0;
 #endif
 
-	if (rmerge && lmerge) {
+	if (rmerge != 0 && lmerge != 0) {
 		e = prev;
 		e->size += size + next->size;
 		e->rmaxgap = next->rmaxgap;
@@ -290,15 +305,16 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		map_augment(&e->linkage);
 		_entry_put(map, next);
 	}
-	else if (rmerge) {
+	else if (rmerge != 0) {
 		e = next;
 		e->vaddr = v;
 		e->offs = offs;
 		e->size += size;
 		e->lmaxgap -= size;
 
-		if (e->aoffs)
+		if (e->aoffs != 0) {
 			e->aoffs -= size;
+		}
 
 		if (prev != NULL) {
 			prev->rmaxgap -= size;
@@ -320,8 +336,9 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		map_augment(&e->linkage);
 	}
 	else {
-		if ((e = map_alloc()) == NULL)
+		if ((e = map_alloc()) == NULL) {
 			return NULL;
+		}
 
 		e->vaddr = v;
 		e->size = size;
@@ -350,11 +367,12 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	}
 
 	/* Clear anon entries */
-	if (e->amap != NULL)
+	if (e->amap != NULL) {
 		amap_clear(e->amap, e->aoffs + (v - e->vaddr), size);
-
-	if (entry != NULL)
+	}
+	if (entry != NULL) {
 		*entry = e;
+	}
 
 	return v;
 }
@@ -411,7 +429,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	ptr_t eAoffs;
 	int putEntry;
 
-	if (((size & (SIZE_PAGE - 1)) != 0) || (((ptr_t)vaddr & (SIZE_PAGE - 1)) != 0)) {
+	if ((size & (SIZE_PAGE - 1U)) != 0 || ((ptr_t)vaddr & (SIZE_PAGE - 1U)) != 0) {
 		return -EINVAL;
 	}
 
@@ -498,13 +516,13 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
-int vm_flagsToAttr(int flags)
+unsigned vm_flagsToAttr(unsigned flags)
 {
-	int attr = 0;
-	if ((flags & MAP_UNCACHED) != 0) {
+	unsigned attr = 0;
+	if ((flags & MAP_UNCACHED) != 0U) {
 		attr |= PGHD_NOT_CACHED;
 	}
-	if ((flags & MAP_DEVICE) != 0) {
+	if ((flags & MAP_DEVICE) != 0U) {
 		attr |= PGHD_DEV;
 	}
 
@@ -512,20 +530,20 @@ int vm_flagsToAttr(int flags)
 }
 
 
-static int vm_protToAttr(int prot)
+static unsigned vm_protToAttr(unsigned prot)
 {
-	int attr = 0;
+	unsigned attr = 0;
 
-	if ((prot & PROT_READ) != 0) {
+	if ((prot & PROT_READ) != 0U) {
 		attr |= (PGHD_READ | PGHD_PRESENT);
 	}
-	if ((prot & PROT_WRITE) != 0) {
+	if ((prot & PROT_WRITE) != 0U) {
 		attr |= (PGHD_WRITE | PGHD_PRESENT);
 	}
-	if ((prot & PROT_EXEC) != 0) {
+	if ((prot & PROT_EXEC) != 0U) {
 		attr |= PGHD_EXEC;
 	}
-	if ((prot & PROT_USER) != 0) {
+	if ((prot & PROT_USER) != 0U) {
 		attr |= PGHD_USER;
 	}
 
@@ -535,30 +553,33 @@ static int vm_protToAttr(int prot)
 
 void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
 {
-	int attr;
+	unsigned attr;
 	void *w;
 	process_t *process = NULL;
 	thread_t *current;
 	map_entry_t *e;
 
-	if ((size == 0) || ((size & (SIZE_PAGE - 1)) != 0)) {
+	if ((size == 0U) || ((size & (SIZE_PAGE - 1U)) != 0U)) {
 		return NULL;
 	}
 
-	if ((flags & MAP_FIXED) != 0) {
+	if ((flags & MAP_FIXED) != 0U) {
 		if (_vm_munmap(map, vaddr, size) < 0) {
 			return NULL;
 		}
 	}
 
 	/* NULL page indicates that proc sybsystem is ready */
-	if (p == NULL && (current = proc_current()) != NULL)
+	if (p == NULL && (current = proc_current()) != NULL) {
 		process = current->process;
-	else if (p != NULL && p->idx != 0)
-		size = 1 << p->idx;
+	}
+	else if (p != NULL && p->idx != 0) {
+		size = 0x1U << p->idx;
+	}
 
-	if ((vaddr = _map_map(map, vaddr, process, size, prot, o, offs, flags, &e)) == NULL)
+	if ((vaddr = _map_map(map, vaddr, process, size, prot, o, offs, flags, &e)) == NULL) {
 		return NULL;
+	}
 
 	if (p != NULL) {
 		attr = vm_protToAttr(prot) | vm_flagsToAttr(flags);
@@ -570,8 +591,9 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 		return vaddr;
 	}
 
-	if (process != NULL && process->lazy)
+	if (process != NULL && process->lazy != 0U) {
 		return vaddr;
+	}
 
 	for (w = vaddr; w < vaddr + size; w += SIZE_PAGE) {
 		if (_map_force(map, e, w, prot)) {
@@ -632,7 +654,7 @@ int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off
 
 int vm_mapFlags(vm_map_t *map, void *vaddr)
 {
-	int flags;
+	unsigned flags;
 	map_entry_t t, *e;
 
 	proc_lockSet(&map->lock);
@@ -654,7 +676,7 @@ int vm_mapFlags(vm_map_t *map, void *vaddr)
 }
 
 
-int vm_mapForce(vm_map_t *map, void *paddr, int prot)
+int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot)
 {
 	map_entry_t t, *e;
 	int err;
@@ -677,17 +699,17 @@ int vm_mapForce(vm_map_t *map, void *paddr, int prot)
 }
 
 
-static int map_checkProt(int baseProt, int newProt)
+static unsigned map_checkProt(unsigned baseProt, unsigned newProt)
 {
 	return (baseProt | newProt) ^ baseProt;
 }
 
 
-static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, int prot)
+static unsigned _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned prot)
 {
-	int attr, offs;
+	unsigned attr, offs;
 	page_t *p = NULL;
-	int flagsCheck = map_checkProt(e->prot, prot);
+	unsigned flagsCheck = map_checkProt(e->prot, prot);
 
 	if (flagsCheck != 0) {
 		return flagsCheck;
@@ -786,19 +808,19 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
-int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
+unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 {
-	int result = EOK;
+	unsigned int result = EOK;
 	void *currVaddr;
 	size_t lenLeft = len, currSize, needed;
 	process_t *p = proc_current()->process;
 	addr_t pa;
-	int attr;
+	unsigned int attr;
 	int needscopyNonLazy;
 	map_entry_t *e, *buf = NULL, *prev;
 	map_entry_t t;
 
-	if (((((ptr_t)vaddr) & (SIZE_PAGE - 1)) != 0) || (len == 0) || ((len & (SIZE_PAGE - 1)) != 0)) {
+	if (((((ptr_t)vaddr) & (SIZE_PAGE - 1U)) != 0U) || (len == 0U) || ((len & (SIZE_PAGE - 1U)) != 0U)) {
 		return -EINVAL;
 	}
 
@@ -1027,13 +1049,15 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 static void remap_readonly(vm_map_t *map, map_entry_t *e, int offs)
 {
 	addr_t a;
-	int attr = PGHD_PRESENT;
+	unsigned int attr = PGHD_PRESENT;
 
-	if (e->prot & PROT_USER)
+	if ((e->prot & PROT_USER) != 0) {
 		attr |= PGHD_USER;
+	}
 
-	if ((a = pmap_resolve(&map->pmap, e->vaddr + offs)))
+	if ((a = pmap_resolve(&map->pmap, e->vaddr + offs))) {
 		page_map(&map->pmap, e->vaddr + offs, a, attr);
+	}
 }
 
 
@@ -1215,7 +1239,7 @@ void vm_mapinfo(meminfo_t *info)
 					info->entry.map[size].flags = e->flags;
 					info->entry.map[size].prot = e->prot;
 					info->entry.map[size].protOrig = e->protOrig;
-					info->entry.map[size].anonsz = ~0;
+					info->entry.map[size].anonsz = ~0x0U;
 
 					if (e->amap != NULL) {
 						info->entry.map[size].anonsz = 0;
@@ -1266,10 +1290,10 @@ void vm_mapinfo(meminfo_t *info)
 				info->entry.kmap[size].flags = e->flags;
 				info->entry.kmap[size].prot = e->prot;
 				info->entry.kmap[size].protOrig = e->protOrig;
-				info->entry.kmap[size].anonsz = ~0;
+				info->entry.kmap[size].anonsz = ~0x0U;
 
 				if (e->amap != NULL) {
-					info->entry.kmap[size].anonsz = 0;
+					info->entry.kmap[size].anonsz = 0x0U;
 					for (i = 0; i < e->amap->size; ++i) {
 						if (e->amap->anons[i] != NULL)
 							info->entry.kmap[size].anonsz += SIZE_PAGE;

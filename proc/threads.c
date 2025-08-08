@@ -124,12 +124,14 @@ static void _perf_event(thread_t *t, int type)
 	else if (type == perf_evScheduling) {
 		wait = now - t->readyTime;
 
-		if (t->maxWait < wait)
+		if (t->maxWait < wait) {
 			t->maxWait = wait;
+		}
 	}
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	ev.type = type;
 
@@ -170,8 +172,9 @@ static void _perf_begin(thread_t *t)
 	perf_levent_begin_t ev;
 	time_t now;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	ev.sbz = 0;
 	ev.type = perf_levBegin;
@@ -193,8 +196,9 @@ void perf_end(thread_t *t)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
@@ -216,8 +220,9 @@ void perf_fork(process_t *p)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
@@ -241,8 +246,9 @@ void perf_kill(process_t *p)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
@@ -266,8 +272,9 @@ void perf_exec(process_t *p, char *path)
 	int plen;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
@@ -311,8 +318,9 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 	*pages = NULL;
 	data = vm_mapFind(threads_common.kmap, NULL, sz, MAP_NONE, PROT_READ | PROT_WRITE);
 
-	if (data == NULL)
+	if (data == NULL) {
 		return NULL;
+	}
 
 	for (v = data; v < data + sz; v += SIZE_PAGE) {
 		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
@@ -336,19 +344,22 @@ int perf_start(unsigned pid)
 	void *data;
 	spinlock_ctx_t sc;
 
-	if (!pid)
+	if (pid == 0) {
 		return -EINVAL;
+	}
 
-	if (threads_common.perfGather)
+	if (threads_common.perfGather == 1) {
 		return -EINVAL;
+	}
 
 	/* Allocate 4M for events */
-	data = perf_bufferAlloc(&threads_common.perfPages, 4 << 20);
+	data = perf_bufferAlloc(&threads_common.perfPages, 0x4UL << 20);
 
-	if (data == NULL)
+	if (data == NULL) {
 		return -ENOMEM;
+	}
 
-	_cbuffer_init(&threads_common.perfBuffer, data, 4 << 20);
+	_cbuffer_init(&threads_common.perfBuffer, data, 0x4UL << 20);
 
 	/* Start gathering events */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -400,23 +411,28 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 	thread_t *t;
 	time_t wakeup;
 
-	if (min != NULL)
+	if (min != NULL) {
 		t = min;
-	else
+	}
+	else {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
+	}
 
 	if (t != NULL) {
-		if (now >= t->wakeup)
+		if (now >= t->wakeup) {
 			wakeup = 1;
-		else
+		}
+		else {
 			wakeup = t->wakeup - now;
+		}
 	}
 	else {
 		wakeup = SYSTICK_INTERVAL;
 	}
 
-	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8)
+	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8) {
 		wakeup = SYSTICK_INTERVAL;
+	}
 
 	hal_timerSetWakeup(wakeup);
 }
@@ -536,8 +552,9 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 		current->lastTime = now;
 	}
 
-	if (selected != NULL && current != selected)
+	if (selected != NULL && current != selected) {
 		selected->lastTime = now;
+	}
 }
 
 
@@ -730,8 +747,9 @@ void threads_canaryInit(thread_t *t, void *ustack)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	if ((t->ustack = ustack) != NULL)
+	if ((t->ustack = ustack) != NULL) {
 		hal_memcpy(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
+	}
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
@@ -986,8 +1004,9 @@ void proc_threadEnd(void)
 static void _proc_threadExit(thread_t *t)
 {
 	t->exit = THREAD_END;
-	if (t->interruptible)
+	if (t->interruptible) {
 		_thread_interrupt(t);
+	}
 }
 
 
@@ -1120,9 +1139,10 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *sc
 
 	_proc_threadEnqueue(queue, timeout, 0);
 
-	if (*queue == NULL)
+	if (*queue == NULL) {
 		return EOK;
-
+	}
+		
 	err = hal_cpuReschedule(&threads_common.spinlock, scp);
 	hal_spinlockSet(&threads_common.spinlock, scp);
 
@@ -1414,7 +1434,7 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	int sigbit = 1 << sig;
+	unsigned sigbit = 0x1U << sig;
 	spinlock_ctx_t sc;
 
 	switch (sig) {
@@ -1487,8 +1507,8 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 		sig = hal_cpuGetLastBit(sig);
 
 		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, oldmask, src) == 0) {
-			selected->sigpend &= ~(1 << sig);
-			proc->sigpend &= ~(1 << sig);
+			selected->sigpend &= ~(0x1U << sig);
+			proc->sigpend &= ~(0x1U << sig);
 			return 0;
 		}
 	}
@@ -1973,9 +1993,10 @@ void proc_threadsDump(unsigned int priority)
 	do {
 		lib_printf("[%p] ", t);
 
-		if (t == NULL)
+		if (t == NULL) {
 			break;
-
+		}
+		
 		t = t->next;
 	} while (t != threads_common.ready[priority]);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -2110,7 +2131,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	proc_lockInit(&threads_common.lock, &proc_lockAttrDefault, "threads.common");
 
 	for (i = 0; i < sizeof(threads_common.stackCanary); ++i)
-		threads_common.stackCanary[i] = (i & 1) ? 0xaa : 0x55;
+		threads_common.stackCanary[i] = ((i & 1U) != 0) ? 0xaa : 0x55;
 
 	/* Initiaizlie scheduler queue */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++)

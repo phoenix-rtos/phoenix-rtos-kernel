@@ -21,18 +21,18 @@
 #include "log/log.h"
 
 /* Flags used for printing */
-#define FLAG_SIGNED        0x1
-#define FLAG_64BIT         0x2
-#define FLAG_SPACE         0x10
-#define FLAG_ZERO          0x20
-#define FLAG_PLUS          0x40
-#define FLAG_HEX           0x80
-#define FLAG_LARGE_DIGITS  0x100
+#define FLAG_SIGNED        0x1UL
+#define FLAG_64BIT         0x2UL
+#define FLAG_SPACE         0x10UL
+#define FLAG_ZERO          0x20UL
+#define FLAG_PLUS          0x40UL
+#define FLAG_HEX           0x80UL
+#define FLAG_LARGE_DIGITS  0x100UL
 
 
 static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_len)
 {
-	const char *digits = (flags & FLAG_LARGE_DIGITS) ? "0123456789ABCDEF" : "0123456789abcdef";
+	const char *digits = (flags & FLAG_LARGE_DIGITS) != 0 ? "0123456789ABCDEF" : "0123456789abcdef";
 	char tmp_buf[32];
 	char sign = 0;
 	char *tmp = tmp_buf;
@@ -40,8 +40,8 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 	u32 num32 = (u32)num64;
 	u32 num_high = (u32)(num64 >> 32);
 
-	if (flags & FLAG_SIGNED) {
-		if (flags & FLAG_64BIT) {
+	if ((flags & FLAG_SIGNED) != 0) {
+		if ((flags & FLAG_64BIT) != 0) {
 			if ((s32)num_high < 0) {
 				num64 = -(s64)num64;
 				num32 = (u32)num64;
@@ -53,46 +53,47 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 			num32 = -(s32)num32;
 			sign = '-';
 		}
-
+ 
 		if (sign == 0) {
-			if (flags & FLAG_SPACE) {
+			if ((flags & FLAG_SPACE) != 0) {
 				sign = ' ';
 			}
-			else if (flags & FLAG_PLUS) {
+			else if ((flags & FLAG_PLUS) != 0) {
 				sign = '+';
 			}
 		}
 	}
 
-	if ((flags & FLAG_64BIT) && num_high == 0x0)
+	if ((flags & FLAG_64BIT) != 0 && num_high == 0x0U) {
 		flags &= ~FLAG_64BIT;
+	}
 
 	if (num64 == 0) {
 		*tmp++ = '0';
 	}
-	else if (flags & FLAG_HEX) {
-		if (flags & FLAG_64BIT) {
+	else if ((flags & FLAG_HEX) != 0) {
+		if ((flags & FLAG_64BIT) != 0) {
 			int i;
 
 			for (i = 0; i < 8; ++i) {
-				*tmp++ = digits[num32 & 0x0f];
+				*tmp++ = digits[num32 & 0x0fU];
 				num32 >>= 4;
 			}
 
 			while (num_high != 0) {
-				*tmp++ = digits[num_high & 0x0f];
+				*tmp++ = digits[num_high & 0x0fU];
 				num_high >>= 4;
 			}
 		}
 		else {
 			while (num32 != 0) {
-				*tmp++ = digits[num32 & 0x0f];
+				*tmp++ = digits[num32 & 0x0fU];
 				num32 >>= 4;
 			}
 		}
 	}
 	else {
-		if (flags & FLAG_64BIT) { // TODO: optimize
+		if ((flags & FLAG_64BIT) != 0) { // TODO: optimize
 			while (num64 != 0) {
 				*tmp++ = digits[num64 % 10];
 				num64 /= 10;
@@ -107,26 +108,30 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 	}
 
 	const int digits_cnt = tmp - tmp_buf;
-	int pad_len = min_number_len - digits_cnt - (sign ? 1 : 0);
+	int pad_len = min_number_len - digits_cnt - (sign != 0 ? 1 : 0);
 
 	/* pad, if needed */
-	if (pad_len > 0 && !(flags & FLAG_ZERO)) {
-		while (pad_len-- > 0)
+	if (pad_len > 0 && (flags & FLAG_ZERO) == 0) {
+		while (pad_len-- > 0) {
 			*out++ = ' ';
+		}
 	}
 
-	if (sign)
+	if (sign != 0) {
 		*out++ = sign;
+	}
 
 	/* pad, if needed */
-	if (pad_len > 0 && (flags & FLAG_ZERO)) {
-		while (pad_len-- > 0)
+	if (pad_len > 0 && (flags & FLAG_ZERO) != 0) {
+		while (pad_len-- > 0) {
 			*out++ = '0';
+		}
 	}
 
 	/* copy reversed */
-	while ((--tmp) >= tmp_buf)
+	while ((--tmp) >= tmp_buf) {
 		*out++ = *tmp;
+	}
 
 	return out;
 }
@@ -150,9 +155,9 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 	for (;;) {
 		char fmt = *format++;
-		if (!fmt)
+		if (fmt == 0) {
 			goto end;
-
+		}
 		if (fmt != '%') {
 			*out++ = fmt;
 			continue;
@@ -168,51 +173,62 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		u32 flags = 0, min_number_len = 0;
 
 		for (;;) {
-			if (fmt == ' ')
+			if (fmt == ' ') {
 				flags |= FLAG_SPACE;
-			else if (fmt == '0')
+			}
+			else if (fmt == '0') {
 				flags |= FLAG_ZERO;
-			else if (fmt == '+')
+			}
+			else if (fmt == '+') {
 				flags |= FLAG_PLUS;
-			else
+			}
+			else {
 				break;
+			}
 
 			fmt = *format++;
-			if (fmt == 0)
+			if (fmt == 0) {
 				goto bad_format;
+			}
 		}
 
 		/* leading number digits-cnt */
 		while (fmt >= '0' && fmt <= '9') {
 			min_number_len = min_number_len * 10 + fmt - '0';
 			fmt = *format++;
-			if (fmt == 0)
+			if (fmt == 0) {
 				goto bad_format;
+			}
 		}
 
 		/* fractional number digits-cnt (only a single digit is acceptable in this impl.) */
-		if (fmt == '.')
+		if (fmt == '.') {
 			goto bad_format;
+		}
 
 		if (fmt == 'l') {
 			fmt = *format++;
-			if (fmt == 0)
+			if (fmt == 0) {
 				goto bad_format;
+			}
 
 			if (fmt == 'l') {
 				flags |= FLAG_64BIT;
 				fmt = *format++;
-				if (fmt == 0)
+				if (fmt == 0) {
 					goto bad_format;
+				}
 			}
 		}
 
 		if (fmt == 'z') {
 			fmt = *format++;
-			if (fmt == 0)
+			if (fmt == 0) {
 				goto bad_format;
-			if (sizeof(void *) == sizeof(u64)) // FIXME "size_t" is undefined?
+			}
+			if (sizeof(void *) == sizeof(u64)) { // FIXME "size_t" is undefined?
 				flags |= FLAG_64BIT;
+			}
 		}
 
 		u64 number = 0;
@@ -221,9 +237,9 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			case 's':
 			{
 				const char *s = va_arg(args, char *);
-				if (s == NULL)
+				if (s == NULL) {
 					s = "(null)";
-
+				}
 				const unsigned int s_len = hal_strlen(s);
 				hal_memcpy(out, s, s_len);
 				out += s_len;
@@ -260,8 +276,9 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				}
 				number = (u64)(size_t)s;
 				flags |= (FLAG_ZERO | FLAG_HEX);
-				if (sizeof(void *) == sizeof(u64))
+				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
+				}
 				min_number_len = sizeof(void *) * 2;
 				goto handle_number;
 			}
@@ -278,10 +295,12 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		continue;
 
 get_number:;
-		if (flags & FLAG_64BIT)
+		if (flags & FLAG_64BIT) {
 			number = va_arg(args, u64);
-		else
+		}
+		else {
 			number = va_arg(args, u32);
+		}
 
 handle_number:;
 		out = printf_sprintf_int(out, number, flags, min_number_len);
@@ -334,19 +353,24 @@ int lib_vprintf(const char *format, va_list ap)
 		min_number_len = 0;
 
 		for (;;) {
-			if (fmt == ' ')
+			if (fmt == ' ') {
 				flags |= FLAG_SPACE;
-			else if (fmt == '0')
+			}
+			else if (fmt == '0') {
 				flags |= FLAG_ZERO;
-			else if (fmt == '+')
+			}
+			else if (fmt == '+') {
 				flags |= FLAG_PLUS;
-			else
+			}
+			else {
 				break;
+			}
 
 			fmt = *format++;
 
-			if (fmt == '\0')
+			if (fmt == '\0') {
 				goto end;
+			}
 		}
 
 		/* leading number digits-cnt */
@@ -354,38 +378,44 @@ int lib_vprintf(const char *format, va_list ap)
 			min_number_len = min_number_len * 10 + fmt - '0';
 			fmt = *format++;
 
-			if (fmt == '\0')
+			if (fmt == '\0') {
 				goto end;
+			}
 		}
 
 		/* fractional number digits-cnt (only a single digit is acceptable in this impl.) */
-		if (fmt == '.')
+		if (fmt == '.') {
 			goto end;
+		}
 
 
 		if (fmt == 'l') {
 			fmt = *format++;
 
-			if (fmt == '\0')
+			if (fmt == '\0') {
 				goto end;
+			}
 
 			if (fmt == 'l') {
 				flags |= FLAG_64BIT;
 				fmt = *format++;
 
-				if (fmt == '\0')
+				if (fmt == '\0') {
 					goto end;
+				}
 			}
 		}
 
 		if (fmt == 'z') {
 			fmt = *format++;
 
-			if (fmt == '\0')
+			if (fmt == '\0') {
 				goto end;
+			}
 
-			if (sizeof(void *) == sizeof(u64))
+			if (sizeof(void *) == sizeof(u64)) {
 				flags |= FLAG_64BIT;
+			}
 		}
 
 		number = 0;
@@ -394,8 +424,9 @@ int lib_vprintf(const char *format, va_list ap)
 			case 's': {
 				s = va_arg(ap, char *);
 
-				if (s == NULL)
+				if (s == NULL) {
 					s = "(null)";
+				}
 
 				while (*s != '\0') {
 					lib_putch(*s++);
@@ -440,8 +471,9 @@ int lib_vprintf(const char *format, va_list ap)
 				number = (u64)(size_t)s;
 				flags |= (FLAG_ZERO | FLAG_HEX);
 
-				if (sizeof(void *) == sizeof(u64))
+				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
+				}
 
 				min_number_len = sizeof(void *) * 2;
 				goto handle_number;
@@ -465,10 +497,12 @@ int lib_vprintf(const char *format, va_list ap)
 
 get_number:;
 
-		if (flags & FLAG_64BIT)
+		if (flags & FLAG_64BIT) {
 			number = va_arg(ap, u64);
-		else
+		}
+		else {
 			number = va_arg(ap, u32);
+		}
 
 handle_number:;
 		eptr = printf_sprintf_int(buff, number, flags, min_number_len);
@@ -484,9 +518,10 @@ handle_number:;
 
 end:
 	s = CONSOLE_NORMAL;
-	while (*s)
+	while (*s != 0) {
 		lib_putch(*(s++));
-
+	}
+	
 	return i;
 }
 

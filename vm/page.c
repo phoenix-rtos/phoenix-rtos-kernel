@@ -327,7 +327,7 @@ static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 }
 
 
-int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
+int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attrs)
 {
 	int err;
 
