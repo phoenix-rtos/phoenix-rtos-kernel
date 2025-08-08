@@ -208,7 +208,7 @@ static int amap_unmap(vm_map_t *map, void *v)
 }
 
 
-page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int aoffs, off_t offs, int prot)
+page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int aoffs, off_t offs, unsigned prot)
 {
 	page_t *p = NULL;
 	anon_t *a;
@@ -219,7 +219,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 	if ((a = amap->anons[aoffs / SIZE_PAGE]) != NULL) {
 		proc_lockSet(&a->lock);
 		p = a->page;
-		if (!(a->refs > 1 && (prot & PROT_WRITE))) {
+		if (!(a->refs > 1 && (prot & PROT_WRITE) != 0)) {
 			proc_lockClear(&a->lock);
 			proc_lockClear(&amap->lock);
 			return p;
@@ -233,7 +233,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 
 		return NULL;
 	}
-	else if (o != NULL && !(prot & PROT_WRITE)) {
+	else if (o != NULL && (prot & PROT_WRITE) == 0) {
 		proc_lockClear(&amap->lock);
 		return p;
 	}

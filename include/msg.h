@@ -81,7 +81,7 @@ typedef struct _msg_t {
 		union {
 			/* OPEN/CLOSE */
 			struct {
-				int flags;
+				unsigned int flags;
 			} openclose;
 
 			/* READ/WRITE/TRUNCATE */

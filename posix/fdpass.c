@@ -72,8 +72,9 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
 		cnt = (cmsg_end - cmsg_data) / sizeof(int);
 
-		if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+		if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS) {
 			return -EINVAL;
+		}
 
 		tot_cnt += cnt;
 	}
@@ -84,8 +85,9 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		return 0;
 	}
 
-	if ((pack = vm_kmalloc(sizeof(fdpack_t) + sizeof(fildes_t) * tot_cnt)) == NULL)
+	if ((pack = vm_kmalloc(sizeof(fdpack_t) + sizeof(fildes_t) * tot_cnt)) == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(pack, 0, sizeof(fdpack_t));
 
@@ -97,7 +99,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
 		cnt = (cmsg_end - cmsg_data) / sizeof(int);
 
-		while (cnt) {
+		while (cnt != 0) {
 			hal_memcpy(&fd, cmsg_data, sizeof(int));
 
 			if ((err = posix_getOpenFile(fd, &file)) < 0) {
@@ -127,7 +129,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	unsigned int cnt, flags;
 	int fd;
 
-	if (!(*packs) || *controllen < CMSG_LEN(sizeof(int))) {
+	if (*packs == 0 || *controllen < CMSG_LEN(sizeof(int))) {
 		*controllen = 0;
 		return 0;
 	}
@@ -149,7 +151,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	cnt = 0;
 
 	/* unpack and add file descriptors */
-	while (pack && pack->cnt && *controllen >= CMSG_LEN(sizeof(int) * (cnt + 1))) {
+	while (pack != NULL && pack->cnt != NULL && *controllen >= CMSG_LEN(sizeof(int) * (cnt + 1))) {
 		FDPACK_POP_FILE_AND_FLAGS(pack, file, flags);
 
 		fd = _posix_addOpenFile(p, file, flags);

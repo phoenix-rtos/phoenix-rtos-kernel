@@ -26,11 +26,11 @@
 #define US_MIN_BUFFER_SIZE SIZE_PAGE
 #define US_MAX_BUFFER_SIZE 65536
 
-#define US_BOUND       (1 << 0)
-#define US_LISTENING   (1 << 1)
-#define US_ACCEPTING   (1 << 2)
-#define US_CONNECTING  (1 << 3)
-#define US_PEER_CLOSED (1 << 4)
+#define US_BOUND       (1U << 0)
+#define US_LISTENING   (1U << 1)
+#define US_ACCEPTING   (1U << 2)
+#define US_CONNECTING  (1U << 3)
+#define US_PEER_CLOSED (1U << 4)
 
 typedef struct _unixsock_t {
 	rbnode_t linkage;
@@ -47,9 +47,9 @@ typedef struct _unixsock_t {
 	size_t buffsz;
 	fdpack_t *fdpacks;
 
-	char type;
-	char state;
-	char nonblock;
+	__u8 type;
+	__u8 state;
+	__u8 nonblock;
 
 	spinlock_t spinlock;
 
@@ -153,7 +153,7 @@ static void unixsock_augment(rbnode_t *node)
 }
 
 
-static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
+static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 {
 	unixsock_t *r, t;
 
@@ -278,11 +278,11 @@ int unix_lookupSocket(const char *path)
 }
 
 
-int unix_socket(int domain, int type, int protocol)
+int unix_socket(int domain, unsigned type, int protocol)
 {
 	unixsock_t *s;
 	unsigned id;
-	int nonblock;
+	unsigned nonblock;
 
 	nonblock = (type & SOCK_NONBLOCK) != 0;
 	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
@@ -303,7 +303,7 @@ int unix_socket(int domain, int type, int protocol)
 }
 
 
-int unix_socketpair(int domain, int type, int protocol, int sv[2])
+int unix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 {
 	unixsock_t *s[2];
 	unsigned id[2];
@@ -364,7 +364,7 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 }
 
 
-int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags)
+int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, unsigned flags)
 {
 	unixsock_t *s, *conn, *new;
 	int err;
@@ -384,7 +384,7 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		if (!(s->state & US_LISTENING)) {
+		if ((s->state & US_LISTENING) == 0) {
 			err = -EINVAL;
 			break;
 		}
@@ -447,11 +447,12 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 	unixsock_t *s;
 	void *v = NULL;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
-		if (s->state & US_BOUND) {
+		if ((s->state & US_BOUND) != 0) {
 			err = -EINVAL;
 			break;
 		}
@@ -483,7 +484,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 			dev.id = socket;
 			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
 
-			if (err) {
+			if (err != 0) {
 				if (s->type == SOCK_DGRAM) {
 					_cbuffer_init(&s->buffer, NULL, 0);
 					vm_kfree(v);
@@ -554,7 +555,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
-		if (s->connect != NULL || (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED))) {
+		if (s->connect != NULL || (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED) != 0)) {
 			err = -EISCONN;
 			break;
 		}
@@ -576,7 +577,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 		}
 
 		do {
-			if (!(remote->state & US_LISTENING)) {
+			if ((remote->state & US_LISTENING) == 0) {
 				err = -ECONNREFUSED;
 				break;
 			}
@@ -675,21 +676,22 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 }
 
 
-static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
 	unixsock_t *s;
 	size_t rlen = 0;
 	int err;
 	spinlock_ctx_t sc;
-	int peek;
+	unsigned peek;
 
 	peek = (flags & MSG_PEEK) != 0;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
-		if (s->type != SOCK_DGRAM && !s->connect && !(s->state & US_PEER_CLOSED)) {
+		if (s->type != SOCK_DGRAM && s->connect == 0 && (s->state & US_PEER_CLOSED) == 0) {
 			err = -ENOTCONN;
 			break;
 		}
@@ -711,12 +713,13 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 				_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
 				_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
 
-				if (len < rlen)
+				if (len < rlen) {
 					_cbuffer_discard(&s->buffer, rlen - len);
+				}
 			}
 			/* TODO: peek control data */
 			if (peek == 0) {
-				if (err > 0 && control && controllen && *controllen > 0) {
+				if (err > 0 && control != NULL && controllen != NULL && *controllen > 0) {
 					fdpass_unpack(&s->fdpacks, control, controllen);
 				}
 			}
@@ -730,11 +733,11 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 				}
 				break;
 			}
-			else if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED)) {
+			else if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED) != 0) {
 				err = 0; /* EOS */
 				break;
 			}
-			else if (s->nonblock || (flags & MSG_DONTWAIT)) {
+			else if (s->nonblock != 0 || (flags & MSG_DONTWAIT) != 0) {
 				err = -EWOULDBLOCK;
 				break;
 			}
@@ -750,27 +753,29 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 }
 
 
-static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
+static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
 {
 	unixsock_t *s, *conn;
 	int err;
 	spinlock_ctx_t sc;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
 		if (s->type == SOCK_DGRAM) {
-			if (dest_addr && dest_len != 0) {
-				if ((err = unix_lookupSocket(dest_addr->sa_data)) < 0)
+			if (dest_addr != NULL && dest_len != 0) {
+				if ((err = unix_lookupSocket(dest_addr->sa_data)) < 0) {
 					break;
+				}
 
 				if ((conn = unixsock_get(err)) == NULL) {
 					err = -ENOTSOCK;
 					break;
 				}
 			}
-			else if (s->state & US_PEER_CLOSED) {
+			else if ((s->state & US_PEER_CLOSED) != 0) {
 				err = -ECONNREFUSED;
 				break;
 			}
@@ -780,7 +785,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 			}
 		}
 		else {
-			if (dest_addr || dest_len != 0) {
+			if (dest_addr != NULL || dest_len != 0) {
 				err = -EISCONN;
 				break;
 			}
@@ -813,8 +818,10 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 					break;
 				}
 
-				if (err > 0 && fdpack)
+				if (err > 0 && fdpack != NULL) {
 					LIST_ADD(&conn->fdpacks, fdpack);
+				}
+				
 				proc_lockClear(&conn->lock);
 
 				if (err > 0) {
@@ -824,7 +831,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 
 					break;
 				}
-				else if (s->nonblock || (flags & MSG_DONTWAIT)) {
+				else if (s->nonblock != 0 || (flags & MSG_DONTWAIT) != 0) {
 					err = -EWOULDBLOCK;
 					break;
 				}
@@ -843,27 +850,28 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 }
 
 
-ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
 	return recv(socket, msg, len, flags, src_addr, src_len, NULL, NULL);
 }
 
 
-ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len)
 {
 	return send(socket, msg, len, flags, dest_addr, dest_len, NULL);
 }
 
 
-ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags)
+ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, unsigned flags)
 {
 	ssize_t err;
 	void *buf = NULL;
 	size_t len = 0;
 
 	/* multiple buffers are not supported */
-	if (msg->msg_iovlen > 1)
+	if (msg->msg_iovlen > 1) {
 		return -EINVAL;
+	}
 
 	if (msg->msg_iovlen > 0) {
 		buf = msg->msg_iov->iov_base;
@@ -881,7 +889,7 @@ ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags)
 }
 
 
-ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
+ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, unsigned flags)
 {
 	ssize_t err;
 	fdpack_t *fdpack = NULL;
@@ -889,12 +897,14 @@ ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
 	size_t len = 0;
 
 	/* multiple buffers are not supported */
-	if (msg->msg_iovlen > 1)
+	if (msg->msg_iovlen > 1) {
 		return -EINVAL;
+	}
 
 	if (msg->msg_controllen > 0) {
-		if ((err = fdpass_pack(&fdpack, msg->msg_control, msg->msg_controllen)) < 0)
+		if ((err = fdpass_pack(&fdpack, msg->msg_control, msg->msg_controllen)) < 0) {
 			return err;
+		}
 	}
 
 	if (msg->msg_iovlen > 0) {
@@ -905,7 +915,7 @@ ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
 	err = send(socket, buf, len, flags, msg->msg_name, msg->msg_namelen, fdpack);
 
 	/* file descriptors are passed only when some bytes have been sent */
-	if (fdpack && err <= 0)
+	if (fdpack != NULL && err <= 0)
 		fdpass_discard(&fdpack);
 
 	return err;
@@ -994,7 +1004,7 @@ int unix_setsockopt(unsigned socket, int level, int optname, const void *optval,
 }
 
 
-int unix_setfl(unsigned socket, int flags)
+int unix_setfl(unsigned socket, unsigned flags)
 {
 	unixsock_t *s;
 
@@ -1011,13 +1021,13 @@ int unix_setfl(unsigned socket, int flags)
 int unix_getfl(unsigned socket)
 {
 	unixsock_t *s;
-	int flags;
+	unsigned flags;
 
 	if ((s = unixsock_get(socket)) == NULL)
 		return -ENOTSOCK;
 
 	flags = O_RDWR;
-	if (s->nonblock) {
+	if (s->nonblock != 0) {
 		flags |= O_NONBLOCK;
 	}
 
@@ -1046,10 +1056,10 @@ int unix_close(unsigned socket)
 }
 
 
-int unix_poll(unsigned socket, short events)
+int unix_poll(unsigned socket, unsigned short events)
 {
 	unixsock_t *s, *conn;
-	int err = 0;
+	unsigned err = 0;
 
 	if ((s = unixsock_get(socket)) == NULL) {
 		err = POLLNVAL;

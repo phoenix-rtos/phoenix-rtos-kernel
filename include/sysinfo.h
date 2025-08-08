@@ -77,20 +77,20 @@ typedef struct {
 typedef struct _meminfo_t {
 	struct {
 		unsigned int alloc, free, boot, sz;
-		int mapsz;
+		unsigned int mapsz;
 		pageinfo_t *map;
 	} page;
 
 	struct {
 		unsigned int pid, total, free, sz;
-		int mapsz, kmapsz;
+		unsigned int mapsz, kmapsz;
 		entryinfo_t *kmap, *map;
 	} entry;
 
 	struct {
 		size_t total;
 		size_t free;
-		int mapsz;
+		unsigned int mapsz;
 		mapinfo_t *map;
 	} maps;
 } meminfo_t;
