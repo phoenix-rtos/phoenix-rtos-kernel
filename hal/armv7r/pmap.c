@@ -21,11 +21,14 @@
 #include <arch/cpu.h>
 #include <arch/spinlock.h>
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Definition in assembly code" */
 /* Linker symbols */
 extern unsigned int _end;
 extern unsigned int __bss_start;
+/* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
+
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Global variable used in assembler code" */
 u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
 
 
@@ -42,34 +45,37 @@ static void pmap_mpu_setMemRegionNumber(u32 num)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static void pmap_mpu_setMemRegionRasr(u32 rasr)
 {
 	/* ARMv7-R uses the same region attribute bits as ARMv7-M, but they are split over two registers */
-	u32 rser = rasr & 0xffff;
+	u32 rser = rasr & 0xffffU;
 	u32 racr = rasr >> 16;
 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 2" ::"r"(rser));
 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 4" ::"r"(racr));
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static void pmap_mpu_setMemRegionStatus(int enable)
 {
 	u32 val;
 	__asm__ volatile("mrc p15, 0, %0, c6, c1, 2" : "=r"(val));
 	if (enable != 0) {
-		val |= 1;
+		val |= 0x1U;
 	}
 	else {
-		val &= ~1;
+		val &= ~0x1U;
 	}
 
 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 2" ::"r"(val));
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static void pmap_mpu_setMemRegionRbar(u32 addr)
 {
-	addr &= ~((1 << 5) - 1);
+	addr &= ~((0x1U << 5) - 1U);
 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 0" ::"r"(addr));
 }
 
@@ -117,12 +123,12 @@ static unsigned int pmap_map2region(unsigned int map)
 		return 1;
 	}
 
-	int i;
-	unsigned int mask = 0;
+	unsigned int i;
+	unsigned int mask = 0U;
 
-	for (i = 0; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
+	for (i = 0U; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
 		if (map == syspage->hs.mpu.map[i]) {
-			mask |= (1 << i);
+			mask |= (1UL << i);
 		}
 	}
 
@@ -137,7 +143,7 @@ int pmap_addMap(pmap_t *pmap, unsigned int map)
 	}
 
 	unsigned int rmask = pmap_map2region(map);
-	if (rmask == 0) {
+	if (rmask == 0U) {
 		return -1;
 	}
 
@@ -162,7 +168,7 @@ void pmap_switch(pmap_t *pmap)
 			pmap_mpu_setMemRegionNumber(i);
 
 			/* Enable/disable region according to the mask */
-			pmap_mpu_setMemRegionStatus((pmap->regions & (1 << i)) != 0);
+			pmap_mpu_setMemRegionStatus(((pmap->regions & (1UL << i)) != 0U) ? 1 : 0);
 		}
 
 		hal_spinlockClear(&pmap_common.lock, &sc);
@@ -170,13 +176,13 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, int attrs, page_t *alloc)
 {
 	return 0;
 }
 
 
-int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
+int pmap_remove(pmap_t *pmap, void *vaddr, void *vend)
 {
 	return 0;
 }
@@ -202,7 +208,7 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	}
 	rmask = pmap_map2region(map->id);
 
-	return ((pmap->regions & rmask) == 0) ? 0 : 1;
+	return ((pmap->regions & rmask) == 0U) ? 0 : 1;
 }
 
 
@@ -214,7 +220,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 
 char pmap_marker(page_t *p)
 {
-	return 0;
+	return '\0';
 }
 
 
@@ -226,13 +232,13 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 
 int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
 {
-	if (i != 0) {
+	if (i != 0U) {
 		return -1;
 	}
 
 	/* Returns region above basic kernel's .bss section */
 	*vaddr = (void *)&_end;
-	*size = (((size_t)(*top) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) - (size_t)&_end;
+	*size = (((size_t)(*top) + SIZE_PAGE - 0x1U) & ~(SIZE_PAGE - 0x1U)) - (size_t)&_end;
 
 	return 0;
 }
@@ -245,17 +251,18 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	u32 t;
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 
-	(*vstart) = (void *)(((ptr_t)&_end + 7) & ~7u);
+	(*vstart) = (void *)(((ptr_t)&_end + 7U) & ~7U);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)&__bss_start;
 
 	/* Initial size of kernel map */
-	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
 
-	pmap->regions = (1 << cnt) - 1;
+	pmap->end = (void *)((addr_t)&__bss_start + 32U * 1024U);
 
-	if (cnt == 0) {
+	pmap->regions = (1UL << cnt) - 1U;
+
+	if (cnt == 0U) {
 		hal_spinlockCreate(&pmap_common.lock, "pmap");
 		pmap_common.mpu_enabled = 0;
 		pmap_common.kernelCodeRegion = 0;
@@ -270,7 +277,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	for (i = 0; i < cnt; ++i) {
 		pmap_mpu_setMemRegionNumber(i);
 		t = syspage->hs.mpu.table[i].rbar;
-		if ((t & (1 << 4)) == 0) {
+		if ((t & (0x1U << 4)) == 0U) {
 			continue;
 		}
 
@@ -291,7 +298,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	 * region and allow this region instead. */
 
 	/* Find kernel code region */
-	ikmap = syspage_mapAddrResolve((addr_t)(void *)_pmap_init);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "We need address of this function in numeric type" */
+	ikmap = syspage_mapAddrResolve((addr_t)_pmap_init);
 	if (ikmap == NULL) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");
 		for (;;) {
@@ -300,7 +308,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	}
 
 	ikregion = pmap_map2region(ikmap->id);
-	if (ikregion == 0) {
+	if (ikregion == 0U) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map has no assigned region. Bad system config\n");
 		for (;;) {
 			hal_cpuHalt();

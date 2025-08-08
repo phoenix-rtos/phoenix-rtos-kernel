@@ -73,7 +73,7 @@ struct _attrAll {
 
 typedef struct _msg_t {
 	int type;
-	unsigned int pid;
+	int pid;
 	unsigned int priority;
 	oid_t oid;
 
@@ -81,7 +81,7 @@ typedef struct _msg_t {
 		union {
 			/* OPEN/CLOSE */
 			struct {
-				int flags;
+				unsigned int flags;
 			} openclose;
 
 			/* READ/WRITE/TRUNCATE */

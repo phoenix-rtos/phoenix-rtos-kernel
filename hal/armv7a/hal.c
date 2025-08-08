@@ -26,7 +26,6 @@ unsigned int relOffs;
 u32 schedulerLocked = 0;
 
 
-extern void _hal_platformInit(void);
 extern void _hal_cpuInit(void);
 
 
@@ -81,7 +80,7 @@ void hal_lockScheduler(void)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_init(void)
+__attribute__((section(".init"))) void _hal_init(void)
 {
 	schedulerLocked = 0;
 	_hal_spinlockInit();

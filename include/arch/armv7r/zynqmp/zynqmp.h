@@ -18,15 +18,15 @@
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 
-#define PCTL_MIO_DRIVE_2mA     (0x0)
-#define PCTL_MIO_DRIVE_4mA     (0x1)
-#define PCTL_MIO_DRIVE_8mA     (0x2)
-#define PCTL_MIO_DRIVE_12mA    (0x3)
-#define PCTL_MIO_SCHMITT_nCMOS (1 << 3)
-#define PCTL_MIO_PULL_UP_nDOWN (1 << 4)
-#define PCTL_MIO_PULL_ENABLE   (1 << 5)
-#define PCTL_MIO_SLOW_nFAST    (1 << 6)
-#define PCTL_MIO_TRI_ENABLE    (1 << 7)
+#define PCTL_MIO_DRIVE_2mA     (0x0U)
+#define PCTL_MIO_DRIVE_4mA     (0x1U)
+#define PCTL_MIO_DRIVE_8mA     (0x2U)
+#define PCTL_MIO_DRIVE_12mA    (0x3U)
+#define PCTL_MIO_SCHMITT_nCMOS (0x1U << 3)
+#define PCTL_MIO_PULL_UP_nDOWN (0x1U << 4)
+#define PCTL_MIO_PULL_ENABLE   (0x1U << 5)
+#define PCTL_MIO_SLOW_nFAST    (0x1U << 6)
+#define PCTL_MIO_TRI_ENABLE    (0x1U << 7)
 
 
 /* clang-format off */
@@ -86,7 +86,7 @@ enum {
 
 /* Devices' reset controllers */
 enum {
-	pctl_devreset_lpd_gem0 = 0, pctl_devreset_lpd_gem1, pctl_devreset_lpd_gem2, pctl_devreset_lpd_gem3, pctl_devreset_lpd_qspi,
+	pctl_devreset_lpd_gem0 = 0x0, pctl_devreset_lpd_gem1, pctl_devreset_lpd_gem2, pctl_devreset_lpd_gem3, pctl_devreset_lpd_qspi,
 	pctl_devreset_lpd_uart0, pctl_devreset_lpd_uart1, pctl_devreset_lpd_spi0, pctl_devreset_lpd_spi1, pctl_devreset_lpd_sdio0,
 	pctl_devreset_lpd_sdio1, pctl_devreset_lpd_can0, pctl_devreset_lpd_can1, pctl_devreset_lpd_i2c0, pctl_devreset_lpd_i2c1,
 	pctl_devreset_lpd_ttc0, pctl_devreset_lpd_ttc1, pctl_devreset_lpd_ttc2, pctl_devreset_lpd_ttc3, pctl_devreset_lpd_swdt,
@@ -132,30 +132,30 @@ typedef struct {
 	/* clang-format on */
 	union {
 		struct {
-			int dev;
-			char src;    /* 0, 2, 3 for most devices, 0, 2, 3, 4 for pctl_devclock_lpd_timestamp */
-			char div0;   /* 0 ~ 63 */
-			char div1;   /* 0 ~ 63 if supported by selected generator, otherwise 0 */
-			char active; /* 0, 1 for most devices, some have additional active bits  */
+			__u32 dev;
+			__u8 src;    /* 0, 2, 3 for most devices, 0, 2, 3, 4 for pctl_devclock_lpd_timestamp */
+			__u8 div0;   /* 0 ~ 63 */
+			__u8 div1;   /* 0 ~ 63 if supported by selected generator, otherwise 0 */
+			__u8 active; /* 0, 1 for most devices, some have additional active bits  */
 		} devclock;
 
 		struct {
-			unsigned pin;
-			char l3;
-			char l2;
-			char l1;
-			char l0;
-			char config;
+			__u32 pin;
+			__u8 l3;
+			__u8 l2;
+			__u8 l1;
+			__u8 l0;
+			__u8 config;
 		} mio;
 
 		struct {
-			int dev;
-			unsigned int state;
+			__u32 dev;
+			__u32 state;
 		} devreset;
 
 		struct {
-			unsigned int magic;
-			unsigned int reason;
+			__u32 magic;
+			__u32 reason;
 		} reboot;
 	};
 } __attribute__((packed)) platformctl_t;

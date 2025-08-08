@@ -20,7 +20,7 @@
 #include "include/arch/aarch64/zynqmp/zynqmp.h"
 
 
-extern int _zynqmp_setMIO(unsigned pin, char l0, char l1, char l2, char l3, char config);
+extern int _zynqmp_setMIO(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config);
 
 
 extern int _zynq_setDevRst(int dev, unsigned int state);

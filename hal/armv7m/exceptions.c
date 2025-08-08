@@ -31,7 +31,7 @@ static struct {
 extern void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *));
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	static const char *mnemonics[] = {
 		"0 #InitialSP",   "1 #Reset",    "2 #NMI",        "3 #HardFault",

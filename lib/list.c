@@ -19,8 +19,9 @@
 
 void lib_listAdd(void **list, void *t, size_t noff, size_t poff)
 {
-	if (t == NULL)
+	if (t == NULL) {
 		return;
+	}
 	if (*list == NULL) {
 		*((addr_t *)(t + noff)) = (addr_t)t;
 		*((addr_t *)(t + poff)) = (addr_t)t;
@@ -37,19 +38,21 @@ void lib_listAdd(void **list, void *t, size_t noff, size_t poff)
 
 void lib_listRemove(void **list, void *t, size_t noff, size_t poff)
 {
-	if (t == NULL)
+	if (t == NULL) {
 		return;
+	}
 	if (*((addr_t *)(t + noff)) == (addr_t)t && *((addr_t *)(t + poff)) == (addr_t)t) {
 		*list = NULL;
 	}
 	else {
 		*((addr_t *)((void *)(*((addr_t *)(t + poff))) + noff)) = *((addr_t *)(t + noff));
 		*((addr_t *)((void *)(*((addr_t *)(t + noff))) + poff)) = *((addr_t *)(t + poff));
-		if (t == *list)
+		if (t == *list) {
 			*list = (void *)*((addr_t *)(t + noff));
+		}
 	}
-	*((addr_t *)(t + noff)) = NULL;
-	*((addr_t *)(t + poff)) = NULL;
+	*((addr_t *)(t + noff)) = 0U;
+	*((addr_t *)(t + poff)) = 0U;
 }
 
 

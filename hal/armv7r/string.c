@@ -16,6 +16,7 @@
 #include "hal/string.h"
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
 	int res = 0;
@@ -45,6 +46,7 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 unsigned int hal_strlen(const char *s)
 {
 	unsigned int k = 0;
@@ -66,6 +68,7 @@ unsigned int hal_strlen(const char *s)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_strcmp(const char *s1, const char *s2)
 {
 	int res = 0;
@@ -96,6 +99,7 @@ int hal_strcmp(const char *s1, const char *s2)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_strncmp(const char *s1, const char *s2, unsigned int count)
 {
 	int res = 0;
@@ -129,6 +133,7 @@ int hal_strncmp(const char *s1, const char *s2, unsigned int count)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 char *hal_strcpy(char *dest, const char *src)
 {
 	char *p = dest;
@@ -149,6 +154,7 @@ char *hal_strcpy(char *dest, const char *src)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 char *hal_strncpy(char *dest, const char *src, size_t n)
 {
 	char *p = dest;
@@ -173,7 +179,7 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 }
 
 
-unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned char b, char zero)
+unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zero)
 {
 	static const char digits[] = "0123456789abcdef";
 	char c;
@@ -181,11 +187,14 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned cha
 
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
+	k = m;
 
-	for (k = m, l = (unsigned long)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+	for (l = (unsigned long)-1; l != 0U; l /= b) {
+		if ((zero == 0U) && (i == 0U)) {
 			break;
+		}
 		s[k++] = digits[i % b];
+		i /= b;
 	}
 
 	l = k--;

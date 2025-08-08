@@ -27,7 +27,7 @@ enum {
 	sockmGetNameInfo, sockmGetAddrInfo,
 };
 
-enum { MAX_SOCKNAME_LEN = sizeof(((msg_t *)0)->o.raw) - 2 * sizeof(size_t) };
+enum { MAX_SOCKNAME_LEN = sizeof(((msg_t *)0)->o.raw) - 2U * sizeof(size_t) };
 
 
 #define PATH_SOCKSRV "/dev/netsocket"
@@ -46,7 +46,7 @@ typedef union sockport_msg_ {
 		int optname;
 	} opt;
 	struct {
-		int flags;
+		unsigned flags;
 		size_t addrlen;
 		char addr[MAX_SOCKNAME_LEN];
 	} send;

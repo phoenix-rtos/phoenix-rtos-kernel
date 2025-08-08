@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
+
 #include "hal/hal.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
@@ -21,23 +23,27 @@
 
 static int test_rbCheckEx(rbnode_t *node, int level)
 {
-	if (node == NULL)
+	if (node == NULL) {
 		return 1;
+	}
 
 	if (node->color == RB_RED) {
 		if ((node->left != NULL && node->left->color == RB_RED) ||
-		    (node->right != NULL && node->right->color == RB_RED))
+				(node->right != NULL && node->right->color == RB_RED)) {
 			return -1;
+		}
 	}
 
 	int left = test_rbCheckEx(node->left, level + 1);
 	int right = test_rbCheckEx(node->right, level + 1);
 
-	if (left == -1 || right == -1)
+	if (left == -1 || right == -1) {
 		return -1;
+	}
 
-	if (left != right)
+	if (left != right) {
 		return -1;
+	}
 
 	return left + ((node->color == RB_BLACK) ? 1 : 0);
 }
@@ -45,14 +51,17 @@ static int test_rbCheckEx(rbnode_t *node, int level)
 
 static int test_rbCheck(rbtree_t *tree)
 {
-	if (tree->root == NULL)
+	if (tree->root == NULL) {
 		return 0;
+	}
 
-	if (tree->root->color != RB_BLACK)
+	if (tree->root->color != RB_BLACK) {
 		return -1;
+	}
 
-	if (test_rbCheckEx(tree->root, 0) < 0)
+	if (test_rbCheckEx(tree->root, 0) < 0) {
 		return -1;
+	}
 
 	return 0;
 }
@@ -70,14 +79,15 @@ static int test_compare(rbnode_t *n1, rbnode_t *n2)
 	test_t *t1 = lib_treeof(test_t, node, n1);
 	test_t *t2 = lib_treeof(test_t, node, n2);
 
-	if (t1->num == t2->num)
+	if (t1->num == t2->num) {
 		return 0;
+	}
 
 	return (t1->num > t2->num) ? 1 : -1;
 }
 
 
-#define RB_TEST_SIZE	7
+#define RB_TEST_SIZE 7
 int count;
 
 
@@ -98,8 +108,9 @@ static int rb_processVector(int insert, rbtree_t *tree, int vector[])
 			t.num = vector[i];
 
 			test_t *to_remove = lib_treeof(test_t, node, lib_rbFind(tree, &t.node));
-			if (to_remove == NULL)
+			if (to_remove == NULL) {
 				return -1;
+			}
 
 			lib_rbRemove(tree, &to_remove->node);
 			vm_kfree(to_remove);
@@ -114,14 +125,16 @@ static void test_rbGenerateTest(int level, int insert, int vector[], int selecte
 {
 	int i, j;
 	for (i = 0; i < RB_TEST_SIZE; ++i) {
-		if (selected[i])
+		if (selected[i]) {
 			continue;
+		}
 
 		selected[i] = 1;
 		vector[level] = i + 1;
 
-		if (level != (RB_TEST_SIZE - 1))
+		if (level != (RB_TEST_SIZE - 1)) {
 			test_rbGenerateTest(level + 1, insert, vector, selected, input);
+		}
 		else {
 			if (insert) {
 				int remove_vector[RB_TEST_SIZE] = { 0 };
@@ -137,8 +150,9 @@ static void test_rbGenerateTest(int level, int insert, int vector[], int selecte
 
 				if (rb_processVector(1, &tree, input) < 0) {
 					lib_printf("error: RB insert - ");
-					for (j = 0; j < RB_TEST_SIZE; ++j)
+					for (j = 0; j < RB_TEST_SIZE; ++j) {
 						lib_printf("%d ", input[j]);
+					}
 
 					lib_printf("\n");
 					hal_cpuHalt();
@@ -146,8 +160,9 @@ static void test_rbGenerateTest(int level, int insert, int vector[], int selecte
 
 				if (rb_processVector(0, &tree, vector) < 0) {
 					lib_printf("error: RB remove - ");
-					for (j = 0; j < RB_TEST_SIZE; ++j)
+					for (j = 0; j < RB_TEST_SIZE; ++j) {
 						lib_printf("%d ", vector[j]);
+					}
 
 					lib_printf("\n");
 					hal_cpuHalt();
@@ -184,3 +199,5 @@ void test_rb(void)
 {
 	proc_threadCreate(NULL, test_rb_autothr, NULL, 1, 512, NULL, 0, NULL);
 }
+
+/* parasoft-end-suppress ALL "tests don't need to comply with MISRA" */

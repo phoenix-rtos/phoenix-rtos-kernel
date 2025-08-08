@@ -69,7 +69,7 @@ void hal_cpuSetDevBusy(int s)
 }
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
+int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
 
@@ -93,7 +93,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	hal_memset(ctx, 0, sizeof(*ctx));
 
 	ctx->savesp_s = (u32)ctx;
-	ctx->psp = (ustack != NULL) ? (u32)ustack - (HWCTXSIZE * sizeof(int)) : NULL;
+	ctx->psp = (ustack != NULL) ? (u32)ustack - (HWCTXSIZE * sizeof(int)) : 0;
 	ctx->msp = (ustack != NULL) ? (u32)kstack + kstacksz : (u32)&ctx->hwctx;
 	ctx->r4 = 0x44444444u;
 	ctx->r5 = 0x55555555u;
