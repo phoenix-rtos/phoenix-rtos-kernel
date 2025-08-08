@@ -14,23 +14,26 @@
  */
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "hal/armv7r/armv7r.h"
 #include "hal/spinlock.h"
 #include "include/arch/armv7r/zynqmp/zynqmp.h"
+#include "zynqmp.h"
 
 #include "hal/armv7r/halsyspage.h"
-#include "zynqmp_regs.h"
+#include "zynqmp_regs.h" /*TBC - hal/armv7r/zynqmp_regs.h*/
 
-#define IOU_SLCR_BASE_ADDRESS 0xff180000
-#define APU_BASE_ADDRESS      0xfd5c0000
-#define CRF_APB_BASE_ADDRESS  0xfd1a0000
-#define CRL_APB_BASE_ADDRESS  0xff5e0000
+#define IOU_SLCR_BASE_ADDRESS 0xff180000U
+#define APU_BASE_ADDRESS      0xfd5c0000U
+#define CRF_APB_BASE_ADDRESS  0xfd1a0000U
+#define CRL_APB_BASE_ADDRESS  0xff5e0000U
 
 
 /* PLO entrypoint */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern void _start(void);
 
-struct {
+static struct {
 	volatile u32 *iou_slcr;
 	volatile u32 *crf_apb;
 	volatile u32 *crl_apb;
@@ -38,20 +41,20 @@ struct {
 } zynq_common;
 
 
-static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, char src, char div0, char div1, char active)
+static int _zynqmp_setBasicGenerator(volatile u32 *reg, u32 dev, u8 src, u8 div0, u8 div1, u8 active)
 {
 	u32 val = src;
-	if (dev == pctl_devclock_lpd_timestamp) {
-		val &= 0x7;
+	if (dev == (unsigned int)pctl_devclock_lpd_timestamp) {
+		val &= 0x7U;
 	}
 	else {
-		val &= 0x3;
+		val &= 0x3U;
 	}
 
-	val |= ((div0 & 0x3f) << 8) | ((div1 & 0x3f) << 16) | (active << 24);
-	if (dev == pctl_devclock_lpd_cpu_r5) {
+	val |= (((u32)div0 & 0x3fU) << 8) | (((u32)div1 & 0x3fU) << 16) | ((u32)active << 24);
+	if (dev == (unsigned int)pctl_devclock_lpd_cpu_r5) {
 		/* According to docs turning this bit off could lead to system hang - ensure it is on */
-		val |= (1 << 24);
+		val |= (0x01UL << 24);
 	}
 
 	*reg = val;
@@ -60,61 +63,63 @@ static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, char src, char 
 }
 
 
-int _zynqmp_setDevClock(int dev, char src, char div0, char div1, char active)
+static int _zynqmp_setDevClock(u32 dev, u8 src, u8 div0, u8 div1, u8 active)
 {
-	if ((dev >= pctl_devclock_lpd_usb3_dual) && (dev <= pctl_devclock_lpd_timestamp)) {
-		unsigned regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
+	if ((dev >= (unsigned int)pctl_devclock_lpd_usb3_dual) && (dev <= (unsigned int)pctl_devclock_lpd_timestamp)) {
+		unsigned regOffset = (dev - (unsigned int)pctl_devclock_lpd_usb3_dual) + (unsigned int)crl_apb_usb3_dual_ref_ctrl;
 		return _zynqmp_setBasicGenerator(zynq_common.crl_apb + regOffset, dev, src, div0, div1, active);
 	}
 	else if ((dev >= pctl_devclock_fpd_acpu) && (dev <= pctl_devclock_fpd_dbg_tstmp)) {
-		unsigned regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
+		unsigned regOffset = (dev - (unsigned int)pctl_devclock_fpd_acpu) + (unsigned long)crf_apb_acpu_ctrl;
 		return _zynqmp_setBasicGenerator(zynq_common.crf_apb + regOffset, dev, src, div0, div1, active);
 	}
-
-	return -1;
+	else {
+		return -1;
+	}
 }
 
 
-static int _zynqmp_getBasicGenerator(volatile u32 *reg, char *src, char *div0, char *div1, char *active)
+static int _zynqmp_getBasicGenerator(volatile u32 *reg, u8 *src, u8 *div0, u8 *div1, u8 *active)
 {
 	u32 val = *reg;
-	*src = val & 0x7;
-	*div0 = (val >> 8) & 0x3f;
-	*div1 = (val >> 16) & 0x3f;
-	*active = val >> 24;
+	*src = (u8)(val & 0x7U);
+	*div0 = (u8)((val >> 8) & 0x3fU);
+	*div1 = (u8)((val >> 16) & 0x3fU);
+	*active = (u8)(val >> 24U);
 	return 0;
 }
 
 
-int _zynqmp_getDevClock(int dev, char *src, char *div0, char *div1, char *active)
+static int _zynqmp_getDevClock(u32 dev, u8 *src, u8 *div0, u8 *div1, u8 *active)
 {
-	if ((dev >= pctl_devclock_lpd_usb3_dual) && (dev <= pctl_devclock_lpd_timestamp)) {
-		unsigned regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
+	if ((dev >= (unsigned int)pctl_devclock_lpd_usb3_dual) && (dev <= (unsigned int)pctl_devclock_lpd_timestamp)) {
+		unsigned regOffset = (dev - (unsigned int)pctl_devclock_lpd_usb3_dual) + (unsigned int)crl_apb_usb3_dual_ref_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crl_apb + regOffset, src, div0, div1, active);
 	}
 	else if ((dev >= pctl_devclock_fpd_acpu) && (dev <= pctl_devclock_fpd_dbg_tstmp)) {
-		unsigned regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
+		unsigned regOffset = (dev - (unsigned int)pctl_devclock_fpd_acpu) + (unsigned int)crf_apb_acpu_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crf_apb + regOffset, src, div0, div1, active);
 	}
-
-	return -1;
+	else {
+		return -1;
+	}
 }
 
 
-static void _zynqmp_setMIOMuxing(unsigned pin, char l0, char l1, char l2, char l3)
+static void _zynqmp_setMIOMuxing(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3)
 {
-	u32 val = ((l0 & 0x1) << 1) | ((l1 & 0x1) << 2) | ((l2 & 0x3) << 3) | ((l3 & 0x7) << 5);
-	*(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) = (*(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & ~0xff) | val;
+	u32 val = ((l0 & 0x1UL) << 1) | ((l1 & 0x1UL) << 2) | ((l2 & 0x3UL) << 3) | ((l3 & 0x7UL) << 5);
+	*(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) = (*(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & ~0xffU) | val;
 }
 
 
-static void _zynqmp_setMIOTristate(unsigned pin, char config)
+static void _zynqmp_setMIOTristate(unsigned pin, u8 config)
 {
-	u32 reg = pin / 32 + iou_slcr_mio_mst_tri0;
-	u32 bit = pin % 32;
-	u32 mask = 1 << bit;
+	u32 reg = pin / 32U + (unsigned int)iou_slcr_mio_mst_tri0;
+	u32 bit = pin % 32U;
+	u32 mask = 0x01UL << bit;
 
-	if ((config & PCTL_MIO_TRI_ENABLE) != 0) {
+	if ((config & PCTL_MIO_TRI_ENABLE) != 0U) {
 		*(zynq_common.iou_slcr + reg) |= mask;
 	}
 	else {
@@ -122,20 +127,20 @@ static void _zynqmp_setMIOTristate(unsigned pin, char config)
 	}
 }
 
-static void _zynqmp_setMIOControl(unsigned pin, char config)
+static void _zynqmp_setMIOControl(unsigned pin, u8 config)
 {
-	u32 reg = (pin / 26) * (iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + iou_slcr_bank0_ctrl0;
-	u32 bit = pin % 26;
-	u32 mask = 1 << bit;
-	int i;
+	u32 reg = (pin / 26U) * (unsigned int)(iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + (unsigned int)iou_slcr_bank0_ctrl0;
+	u32 bit = pin % 26U;
+	u32 mask = 0x01UL << bit;
+	unsigned int i;
 
-	for (i = 0; i <= 6; i++) {
-		if (i == 2) {
+	for (i = 0U; i <= 6U; i++) {
+		if (i == 2U) {
 			/* ctrl2 registers don't exist, skip */
 			continue;
 		}
 
-		if ((config & (1 << i)) != 0) {
+		if ((config & (0x1U << i)) != 0U) {
 			*(zynq_common.iou_slcr + reg + i) |= mask;
 		}
 		else {
@@ -145,9 +150,9 @@ static void _zynqmp_setMIOControl(unsigned pin, char config)
 }
 
 
-int _zynqmp_setMIO(unsigned pin, char l0, char l1, char l2, char l3, char config)
+int _zynqmp_setMIO(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config)
 {
-	if (pin > 77) {
+	if (pin > 77U) {
 		return -1;
 	}
 
@@ -159,52 +164,52 @@ int _zynqmp_setMIO(unsigned pin, char l0, char l1, char l2, char l3, char config
 }
 
 
-static void _zynqmp_getMIOMuxing(unsigned pin, char *l0, char *l1, char *l2, char *l3)
+static void _zynqmp_getMIOMuxing(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3)
 {
-	u32 val = *(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & 0xff;
-	*l0 = (val >> 1) & 0x1;
-	*l1 = (val >> 2) & 0x1;
-	*l2 = (val >> 3) & 0x3;
-	*l3 = (val >> 5) & 0x7;
+	u32 val = *(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & 0xffU;
+	*l0 = (u8)(val >> 1) & 0x1U;
+	*l1 = (u8)(val >> 2) & 0x1U;
+	*l2 = (u8)(val >> 3) & 0x3U;
+	*l3 = (u8)(val >> 5) & 0x7U;
 }
 
 
-static void _zynqmp_getMIOTristate(unsigned pin, char *config)
+static void _zynqmp_getMIOTristate(unsigned pin, u8 *config)
 {
-	u32 reg = pin / 32 + iou_slcr_mio_mst_tri0;
-	u32 bit = pin % 32;
-	if (*(zynq_common.iou_slcr + reg) & (1 << bit)) {
+	u32 reg = pin / 32U + (unsigned int)iou_slcr_mio_mst_tri0;
+	u32 bit = pin % 32U;
+	if ((*(zynq_common.iou_slcr + reg) & (1UL << bit)) != 0U) {
 		*config |= PCTL_MIO_TRI_ENABLE;
 	}
 }
 
-static void _zynqmp_getMIOControl(unsigned pin, char *config)
+static void _zynqmp_getMIOControl(unsigned pin, u8 *config)
 {
-	u32 reg = (pin / 26) * (iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + iou_slcr_bank0_ctrl0;
-	u32 bit = pin % 26;
-	u32 mask = 1 << bit;
-	int i;
+	u32 reg = (pin / 26U) * (unsigned int)(iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + (unsigned int)iou_slcr_bank0_ctrl0;
+	u32 bit = pin % 26U;
+	u32 mask = 0x01UL << bit;
+	unsigned int i;
 
-	for (i = 0; i <= 6; i++) {
-		if (i == 2) {
+	for (i = 0U; i <= 6U; i++) {
+		if (i == 2U) {
 			/* ctrl2 registers don't exist, skip */
 			continue;
 		}
 
-		if ((*(zynq_common.iou_slcr + reg + i) & mask) != 0) {
-			*config |= (1 << i);
+		if ((*(zynq_common.iou_slcr + reg + i) & mask) != 0U) {
+			*config |= (0x1U << i);
 		}
 	}
 }
 
 
-static int _zynqmp_getMIO(unsigned pin, char *l0, char *l1, char *l2, char *l3, char *config)
+static int _zynqmp_getMIO(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *config)
 {
-	if (pin > 77) {
+	if (pin > 77U) {
 		return -1;
 	}
 
-	*config = 0;
+	*config = 0U;
 	_zynqmp_getMIOMuxing(pin, l0, l1, l2, l3);
 	_zynqmp_getMIOTristate(pin, config);
 	_zynqmp_getMIOControl(pin, config);
@@ -215,83 +220,83 @@ static int _zynqmp_getMIO(unsigned pin, char *l0, char *l1, char *l2, char *l3, 
 
 static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
 {
-	static const u32 lookup[] = {
-		[pctl_devreset_lpd_gem0] = crl_apb_rst_lpd_iou0 | (0 << 12),
-		[pctl_devreset_lpd_gem1] = crl_apb_rst_lpd_iou0 | (1 << 12),
-		[pctl_devreset_lpd_gem2] = crl_apb_rst_lpd_iou0 | (2 << 12),
-		[pctl_devreset_lpd_gem3] = crl_apb_rst_lpd_iou0 | (3 << 12),
-		[pctl_devreset_lpd_qspi] = crl_apb_rst_lpd_iou2 | (0 << 12),
-		[pctl_devreset_lpd_uart0] = crl_apb_rst_lpd_iou2 | (1 << 12),
-		[pctl_devreset_lpd_uart1] = crl_apb_rst_lpd_iou2 | (2 << 12),
-		[pctl_devreset_lpd_spi0] = crl_apb_rst_lpd_iou2 | (3 << 12),
-		[pctl_devreset_lpd_spi1] = crl_apb_rst_lpd_iou2 | (4 << 12),
-		[pctl_devreset_lpd_sdio0] = crl_apb_rst_lpd_iou2 | (5 << 12),
-		[pctl_devreset_lpd_sdio1] = crl_apb_rst_lpd_iou2 | (6 << 12),
-		[pctl_devreset_lpd_can0] = crl_apb_rst_lpd_iou2 | (7 << 12),
-		[pctl_devreset_lpd_can1] = crl_apb_rst_lpd_iou2 | (8 << 12),
-		[pctl_devreset_lpd_i2c0] = crl_apb_rst_lpd_iou2 | (9 << 12),
-		[pctl_devreset_lpd_i2c1] = crl_apb_rst_lpd_iou2 | (10 << 12),
-		[pctl_devreset_lpd_ttc0] = crl_apb_rst_lpd_iou2 | (11 << 12),
-		[pctl_devreset_lpd_ttc1] = crl_apb_rst_lpd_iou2 | (12 << 12),
-		[pctl_devreset_lpd_ttc2] = crl_apb_rst_lpd_iou2 | (13 << 12),
-		[pctl_devreset_lpd_ttc3] = crl_apb_rst_lpd_iou2 | (14 << 12),
-		[pctl_devreset_lpd_swdt] = crl_apb_rst_lpd_iou2 | (15 << 12),
-		[pctl_devreset_lpd_nand] = crl_apb_rst_lpd_iou2 | (16 << 12),
-		[pctl_devreset_lpd_lpd_dma] = crl_apb_rst_lpd_iou2 | (17 << 12),
-		[pctl_devreset_lpd_gpio] = crl_apb_rst_lpd_iou2 | (18 << 12),
-		[pctl_devreset_lpd_iou_cc] = crl_apb_rst_lpd_iou2 | (19 << 12),
-		[pctl_devreset_lpd_timestamp] = crl_apb_rst_lpd_iou2 | (20 << 12),
-		[pctl_devreset_lpd_rpu_r50] = crl_apb_rst_lpd_top | (0 << 12),
-		[pctl_devreset_lpd_rpu_r51] = crl_apb_rst_lpd_top | (1 << 12),
-		[pctl_devreset_lpd_rpu_amba] = crl_apb_rst_lpd_top | (2 << 12),
-		[pctl_devreset_lpd_ocm] = crl_apb_rst_lpd_top | (3 << 12),
-		[pctl_devreset_lpd_rpu_pge] = crl_apb_rst_lpd_top | (4 << 12),
-		[pctl_devreset_lpd_usb0_corereset] = crl_apb_rst_lpd_top | (6 << 12),
-		[pctl_devreset_lpd_usb1_corereset] = crl_apb_rst_lpd_top | (7 << 12),
-		[pctl_devreset_lpd_usb0_hiberreset] = crl_apb_rst_lpd_top | (8 << 12),
-		[pctl_devreset_lpd_usb1_hiberreset] = crl_apb_rst_lpd_top | (9 << 12),
-		[pctl_devreset_lpd_usb0_apb] = crl_apb_rst_lpd_top | (10 << 12),
-		[pctl_devreset_lpd_usb1_apb] = crl_apb_rst_lpd_top | (11 << 12),
-		[pctl_devreset_lpd_ipi] = crl_apb_rst_lpd_top | (14 << 12),
-		[pctl_devreset_lpd_apm] = crl_apb_rst_lpd_top | (15 << 12),
-		[pctl_devreset_lpd_rtc] = crl_apb_rst_lpd_top | (16 << 12),
-		[pctl_devreset_lpd_sysmon] = crl_apb_rst_lpd_top | (17 << 12),
-		[pctl_devreset_lpd_s_axi_lpd] = crl_apb_rst_lpd_top | (19 << 12),
-		[pctl_devreset_lpd_lpd_swdt] = crl_apb_rst_lpd_top | (20 << 12),
-		[pctl_devreset_lpd_fpd] = crl_apb_rst_lpd_top | (23 << 12),
-		[pctl_devreset_lpd_dbg_fpd] = crl_apb_rst_lpd_dbg | (0 << 12),
-		[pctl_devreset_lpd_dbg_lpd] = crl_apb_rst_lpd_dbg | (1 << 12),
-		[pctl_devreset_lpd_rpu_dbg0] = crl_apb_rst_lpd_dbg | (4 << 12),
-		[pctl_devreset_lpd_rpu_dbg1] = crl_apb_rst_lpd_dbg | (5 << 12),
-		[pctl_devreset_lpd_dbg_ack] = crl_apb_rst_lpd_dbg | (15 << 12),
-		[pctl_devreset_fpd_sata] = crf_apb_rst_fpd_top | (1 << 12),
-		[pctl_devreset_fpd_gt] = crf_apb_rst_fpd_top | (2 << 12),
-		[pctl_devreset_fpd_gpu] = crf_apb_rst_fpd_top | (3 << 12),
-		[pctl_devreset_fpd_gpu_pp0] = crf_apb_rst_fpd_top | (4 << 12),
-		[pctl_devreset_fpd_gpu_pp1] = crf_apb_rst_fpd_top | (5 << 12),
-		[pctl_devreset_fpd_fpd_dma] = crf_apb_rst_fpd_top | (6 << 12),
-		[pctl_devreset_fpd_s_axi_hpc_0_fpd] = crf_apb_rst_fpd_top | (7 << 12),
-		[pctl_devreset_fpd_s_axi_hpc_1_fpd] = crf_apb_rst_fpd_top | (8 << 12),
-		[pctl_devreset_fpd_s_axi_hp_0_fpd] = crf_apb_rst_fpd_top | (9 << 12),
-		[pctl_devreset_fpd_s_axi_hp_1_fpd] = crf_apb_rst_fpd_top | (10 << 12),
-		[pctl_devreset_fpd_s_axi_hpc_2_fpd] = crf_apb_rst_fpd_top | (11 << 12),
-		[pctl_devreset_fpd_s_axi_hpc_3_fpd] = crf_apb_rst_fpd_top | (12 << 12),
-		[pctl_devreset_fpd_swdt] = crf_apb_rst_fpd_top | (15 << 12),
-		[pctl_devreset_fpd_dp] = crf_apb_rst_fpd_top | (16 << 12),
-		[pctl_devreset_fpd_pcie_ctrl] = crf_apb_rst_fpd_top | (17 << 12),
-		[pctl_devreset_fpd_pcie_bridge] = crf_apb_rst_fpd_top | (18 << 12),
-		[pctl_devreset_fpd_pcie_cfg] = crf_apb_rst_fpd_top | (19 << 12),
-		[pctl_devreset_fpd_acpu0] = crf_apb_rst_fpd_apu | (0 << 12),
-		[pctl_devreset_fpd_acpu1] = crf_apb_rst_fpd_apu | (1 << 12),
-		[pctl_devreset_fpd_acpu2] = crf_apb_rst_fpd_apu | (2 << 12),
-		[pctl_devreset_fpd_acpu3] = crf_apb_rst_fpd_apu | (3 << 12),
-		[pctl_devreset_fpd_apu_l2] = crf_apb_rst_fpd_apu | (8 << 12),
-		[pctl_devreset_fpd_acpu0_pwron] = crf_apb_rst_fpd_apu | (10 << 12),
-		[pctl_devreset_fpd_acpu1_pwron] = crf_apb_rst_fpd_apu | (11 << 12),
-		[pctl_devreset_fpd_acpu2_pwron] = crf_apb_rst_fpd_apu | (12 << 12),
-		[pctl_devreset_fpd_acpu3_pwron] = crf_apb_rst_fpd_apu | (13 << 12),
-		[pctl_devreset_fpd_ddr_apm] = crf_apb_rst_ddr_ss | (2 << 12),
-		[pctl_devreset_fpd_ddr_reserved] = crf_apb_rst_ddr_ss | (3 << 12),
+	static const u32 lookup[76] = {
+		[pctl_devreset_lpd_gem0] = (unsigned int)crl_apb_rst_lpd_iou0 | (0UL << 12),
+		[pctl_devreset_lpd_gem1] = (unsigned int)crl_apb_rst_lpd_iou0 | (1UL << 12),
+		[pctl_devreset_lpd_gem2] = (unsigned int)crl_apb_rst_lpd_iou0 | (2UL << 12),
+		[pctl_devreset_lpd_gem3] = (unsigned int)crl_apb_rst_lpd_iou0 | (3UL << 12),
+		[pctl_devreset_lpd_qspi] = (unsigned int)crl_apb_rst_lpd_iou2 | (0UL << 12),
+		[pctl_devreset_lpd_uart0] = (unsigned int)crl_apb_rst_lpd_iou2 | (1UL << 12),
+		[pctl_devreset_lpd_uart1] = (unsigned int)crl_apb_rst_lpd_iou2 | (2UL << 12),
+		[pctl_devreset_lpd_spi0] = (unsigned int)crl_apb_rst_lpd_iou2 | (3UL << 12),
+		[pctl_devreset_lpd_spi1] = (unsigned int)crl_apb_rst_lpd_iou2 | (4UL << 12),
+		[pctl_devreset_lpd_sdio0] = (unsigned int)crl_apb_rst_lpd_iou2 | (5UL << 12),
+		[pctl_devreset_lpd_sdio1] = (unsigned int)crl_apb_rst_lpd_iou2 | (6UL << 12),
+		[pctl_devreset_lpd_can0] = (unsigned int)crl_apb_rst_lpd_iou2 | (7UL << 12),
+		[pctl_devreset_lpd_can1] = (unsigned int)crl_apb_rst_lpd_iou2 | (8UL << 12),
+		[pctl_devreset_lpd_i2c0] = (unsigned int)crl_apb_rst_lpd_iou2 | (9UL << 12),
+		[pctl_devreset_lpd_i2c1] = (unsigned int)crl_apb_rst_lpd_iou2 | (10UL << 12),
+		[pctl_devreset_lpd_ttc0] = (unsigned int)crl_apb_rst_lpd_iou2 | (11UL << 12),
+		[pctl_devreset_lpd_ttc1] = (unsigned int)crl_apb_rst_lpd_iou2 | (12UL << 12),
+		[pctl_devreset_lpd_ttc2] = (unsigned int)crl_apb_rst_lpd_iou2 | (13UL << 12),
+		[pctl_devreset_lpd_ttc3] = (unsigned int)crl_apb_rst_lpd_iou2 | (14UL << 12),
+		[pctl_devreset_lpd_swdt] = (unsigned int)crl_apb_rst_lpd_iou2 | (15UL << 12),
+		[pctl_devreset_lpd_nand] = (unsigned int)crl_apb_rst_lpd_iou2 | (16UL << 12),
+		[pctl_devreset_lpd_lpd_dma] = (unsigned int)crl_apb_rst_lpd_iou2 | (17UL << 12),
+		[pctl_devreset_lpd_gpio] = (unsigned int)crl_apb_rst_lpd_iou2 | (18UL << 12),
+		[pctl_devreset_lpd_iou_cc] = (unsigned int)crl_apb_rst_lpd_iou2 | (19UL << 12),
+		[pctl_devreset_lpd_timestamp] = (unsigned int)crl_apb_rst_lpd_iou2 | (20UL << 12),
+		[pctl_devreset_lpd_rpu_r50] = (unsigned int)crl_apb_rst_lpd_top | (0UL << 12),
+		[pctl_devreset_lpd_rpu_r51] = (unsigned int)crl_apb_rst_lpd_top | (1UL << 12),
+		[pctl_devreset_lpd_rpu_amba] = (unsigned int)crl_apb_rst_lpd_top | (2UL << 12),
+		[pctl_devreset_lpd_ocm] = (unsigned int)crl_apb_rst_lpd_top | (3UL << 12),
+		[pctl_devreset_lpd_rpu_pge] = (unsigned int)crl_apb_rst_lpd_top | (4UL << 12),
+		[pctl_devreset_lpd_usb0_corereset] = (unsigned int)crl_apb_rst_lpd_top | (6UL << 12),
+		[pctl_devreset_lpd_usb1_corereset] = (unsigned int)crl_apb_rst_lpd_top | (7UL << 12),
+		[pctl_devreset_lpd_usb0_hiberreset] = (unsigned int)crl_apb_rst_lpd_top | (8UL << 12),
+		[pctl_devreset_lpd_usb1_hiberreset] = (unsigned int)crl_apb_rst_lpd_top | (9UL << 12),
+		[pctl_devreset_lpd_usb0_apb] = (unsigned int)crl_apb_rst_lpd_top | (10UL << 12),
+		[pctl_devreset_lpd_usb1_apb] = (unsigned int)crl_apb_rst_lpd_top | (11UL << 12),
+		[pctl_devreset_lpd_ipi] = (unsigned int)crl_apb_rst_lpd_top | (14UL << 12),
+		[pctl_devreset_lpd_apm] = (unsigned int)crl_apb_rst_lpd_top | (15UL << 12),
+		[pctl_devreset_lpd_rtc] = (unsigned int)crl_apb_rst_lpd_top | (16UL << 12),
+		[pctl_devreset_lpd_sysmon] = (unsigned int)crl_apb_rst_lpd_top | (17UL << 12),
+		[pctl_devreset_lpd_s_axi_lpd] = (unsigned int)crl_apb_rst_lpd_top | (19UL << 12),
+		[pctl_devreset_lpd_lpd_swdt] = (unsigned int)crl_apb_rst_lpd_top | (20UL << 12),
+		[pctl_devreset_lpd_fpd] = (unsigned int)crl_apb_rst_lpd_top | (23UL << 12),
+		[pctl_devreset_lpd_dbg_fpd] = (unsigned int)crl_apb_rst_lpd_dbg | (0UL << 12),
+		[pctl_devreset_lpd_dbg_lpd] = (unsigned int)crl_apb_rst_lpd_dbg | (1UL << 12),
+		[pctl_devreset_lpd_rpu_dbg0] = (unsigned int)crl_apb_rst_lpd_dbg | (4UL << 12),
+		[pctl_devreset_lpd_rpu_dbg1] = (unsigned int)crl_apb_rst_lpd_dbg | (5UL << 12),
+		[pctl_devreset_lpd_dbg_ack] = (unsigned int)crl_apb_rst_lpd_dbg | (15UL << 12),
+		[pctl_devreset_fpd_sata] = (unsigned int)crf_apb_rst_fpd_top | (1UL << 12),
+		[pctl_devreset_fpd_gt] = (unsigned int)crf_apb_rst_fpd_top | (2UL << 12),
+		[pctl_devreset_fpd_gpu] = (unsigned int)crf_apb_rst_fpd_top | (3UL << 12),
+		[pctl_devreset_fpd_gpu_pp0] = (unsigned int)crf_apb_rst_fpd_top | (4UL << 12),
+		[pctl_devreset_fpd_gpu_pp1] = (unsigned int)crf_apb_rst_fpd_top | (5UL << 12),
+		[pctl_devreset_fpd_fpd_dma] = (unsigned int)crf_apb_rst_fpd_top | (6UL << 12),
+		[pctl_devreset_fpd_s_axi_hpc_0_fpd] = (unsigned int)crf_apb_rst_fpd_top | (7UL << 12),
+		[pctl_devreset_fpd_s_axi_hpc_1_fpd] = (unsigned int)crf_apb_rst_fpd_top | (8UL << 12),
+		[pctl_devreset_fpd_s_axi_hp_0_fpd] = (unsigned int)crf_apb_rst_fpd_top | (9UL << 12),
+		[pctl_devreset_fpd_s_axi_hp_1_fpd] = (unsigned int)crf_apb_rst_fpd_top | (10UL << 12),
+		[pctl_devreset_fpd_s_axi_hpc_2_fpd] = (unsigned int)crf_apb_rst_fpd_top | (11UL << 12),
+		[pctl_devreset_fpd_s_axi_hpc_3_fpd] = (unsigned int)crf_apb_rst_fpd_top | (12UL << 12),
+		[pctl_devreset_fpd_swdt] = (unsigned int)crf_apb_rst_fpd_top | (15UL << 12),
+		[pctl_devreset_fpd_dp] = (unsigned int)crf_apb_rst_fpd_top | (16UL << 12),
+		[pctl_devreset_fpd_pcie_ctrl] = (unsigned int)crf_apb_rst_fpd_top | (17UL << 12),
+		[pctl_devreset_fpd_pcie_bridge] = (unsigned int)crf_apb_rst_fpd_top | (18UL << 12),
+		[pctl_devreset_fpd_pcie_cfg] = (unsigned int)crf_apb_rst_fpd_top | (19UL << 12),
+		[pctl_devreset_fpd_acpu0] = (unsigned int)crf_apb_rst_fpd_apu | (0UL << 12),
+		[pctl_devreset_fpd_acpu1] = (unsigned int)crf_apb_rst_fpd_apu | (1UL << 12),
+		[pctl_devreset_fpd_acpu2] = (unsigned int)crf_apb_rst_fpd_apu | (2UL << 12),
+		[pctl_devreset_fpd_acpu3] = (unsigned int)crf_apb_rst_fpd_apu | (3UL << 12),
+		[pctl_devreset_fpd_apu_l2] = (unsigned int)crf_apb_rst_fpd_apu | (8UL << 12),
+		[pctl_devreset_fpd_acpu0_pwron] = (unsigned int)crf_apb_rst_fpd_apu | (10UL << 12),
+		[pctl_devreset_fpd_acpu1_pwron] = (unsigned int)crf_apb_rst_fpd_apu | (11UL << 12),
+		[pctl_devreset_fpd_acpu2_pwron] = (unsigned int)crf_apb_rst_fpd_apu | (12UL << 12),
+		[pctl_devreset_fpd_acpu3_pwron] = (unsigned int)crf_apb_rst_fpd_apu | (13UL << 12),
+		[pctl_devreset_fpd_ddr_apm] = (unsigned int)crf_apb_rst_ddr_ss | (2UL << 12),
+		[pctl_devreset_fpd_ddr_reserved] = (unsigned int)crf_apb_rst_ddr_ss | (3UL << 12),
 	};
 
 	if ((dev < pctl_devreset_lpd_gem0) || (dev > pctl_devreset_fpd_ddr_reserved)) {
@@ -299,13 +304,13 @@ static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
 	}
 
 	if (dev >= pctl_devreset_fpd_sata) {
-		*reg = zynq_common.crf_apb + (lookup[dev] & ((1 << 12) - 1));
+		*reg = zynq_common.crf_apb + (lookup[dev] & ((0x1UL << 12) - 1U));
 	}
 	else {
-		*reg = zynq_common.crl_apb + (lookup[dev] & ((1 << 12) - 1));
+		*reg = zynq_common.crl_apb + (lookup[dev] & ((0x1UL << 12) - 1U));
 	}
 
-	*bit = (1u << (lookup[dev] >> 12));
+	*bit = (0x1UL << (lookup[dev] >> 12U));
 	return 0;
 }
 
@@ -319,7 +324,7 @@ int _zynq_setDevRst(int dev, unsigned int state)
 		return -1;
 	}
 
-	if (state != 0) {
+	if (state != 0U) {
 		*reg |= bit;
 	}
 	else {
@@ -340,7 +345,7 @@ static int _zynq_getDevRst(int dev, unsigned int *state)
 		return -1;
 	}
 
-	*state = ((*reg & bit) != 0) ? 1 : 0;
+	*state = ((*reg & bit) != 0U) ? 1 : 0;
 	return 0;
 }
 
@@ -348,7 +353,7 @@ static int _zynq_getDevRst(int dev, unsigned int *state)
 static void zynqmp_softRst(void)
 {
 	/* Equivalent to PS_SRST_B signal */
-	*(zynq_common.crl_apb + crl_apb_reset_ctrl) |= (1 << 4);
+	*(zynq_common.crl_apb + crl_apb_reset_ctrl) |= (1UL << 4);
 }
 
 
@@ -375,26 +380,39 @@ int hal_platformctl(void *ptr)
 
 	switch (data->type) {
 		case pctl_devclock:
-			if (data->action == pctl_set)
+			if (data->action == pctl_set) {
 				ret = _zynqmp_setDevClock(data->devclock.dev, data->devclock.src, data->devclock.div0, data->devclock.div1, data->devclock.active);
-			else if (data->action == pctl_set)
+			}
+			else if (data->action == pctl_set) {
 				ret = _zynqmp_getDevClock(data->devclock.dev, &data->devclock.src, &data->devclock.div0, &data->devclock.div1, &data->devclock.active);
+			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_mio:
-			if (data->action == pctl_set)
+			if (data->action == pctl_set) {
 				ret = _zynqmp_setMIO(data->mio.pin, data->mio.l0, data->mio.l1, data->mio.l2, data->mio.l3, data->mio.config);
-			else if (data->action == pctl_get)
+			}
+			else if (data->action == pctl_get) {
 				ret = _zynqmp_getMIO(data->mio.pin, &data->mio.l0, &data->mio.l1, &data->mio.l2, &data->mio.l3, &data->mio.config);
+			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_devreset:
 			if (data->action == pctl_set) {
-				ret = _zynq_setDevRst(data->devreset.dev, data->devreset.state);
+				ret = _zynq_setDevRst((int)data->devreset.dev, data->devreset.state);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getDevRst(data->devreset.dev, &t);
+				ret = _zynq_getDevRst((int)data->devreset.dev, &t);
 				data->devreset.state = t;
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -404,11 +422,15 @@ int hal_platformctl(void *ptr)
 			}
 			else if (data->action == pctl_get) {
 				ret = 0;
-				data->reboot.reason = syspage->hs.resetReason;
+				data->reboot.reason = (unsigned int)syspage->hs.resetReason;
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
 		default:
+			/* Error by default */
 			break;
 	}
 
