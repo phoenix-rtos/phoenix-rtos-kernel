@@ -254,10 +254,11 @@ vm_object_t *vm_objectContiguous(size_t size)
 	page_t *p;
 	int i, n;
 
-	if ((p = vm_pageAlloc(size, PAGE_OWNER_APP)) == NULL)
+	if ((p = vm_pageAlloc(size, PAGE_OWNER_APP)) == NULL) {
 		return NULL;
+	}
 
-	size = 1 << p->idx;
+	size = 0x1U << p->idx;
 	n = size / SIZE_PAGE;
 
 	if ((o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
@@ -272,9 +273,10 @@ vm_object_t *vm_objectContiguous(size_t size)
 	o->refs = 1;
 	o->size = size;
 
-	for (i = 0; i < n; ++i)
+	for (i = 0; i < n; ++i) {
 		o->pages[i] = p + i;
-
+	}
+	
 	return o;
 }
 

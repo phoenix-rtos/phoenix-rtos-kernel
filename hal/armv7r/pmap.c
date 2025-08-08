@@ -18,7 +18,7 @@
 #include "config.h"
 #include "syspage.h"
 #include "halsyspage.h"
-#include <arch/cpu.h>
+#include <arch/cpu.h> /*Should be given full path arm7rarch/cpu.h -TBC*/
 #include <arch/spinlock.h>
 
 
@@ -45,7 +45,7 @@ static void pmap_mpu_setMemRegionNumber(u32 num)
 static void pmap_mpu_setMemRegionRasr(u32 rasr)
 {
 	/* ARMv7-R uses the same region attribute bits as ARMv7-M, but they are split over two registers */
-	u32 rser = rasr & 0xffff;
+	u32 rser = rasr & 0xffffU;
 	u32 racr = rasr >> 16;
 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 2" ::"r"(rser));
 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 4" ::"r"(racr));
@@ -57,10 +57,10 @@ static void pmap_mpu_setMemRegionStatus(int enable)
 	u32 val;
 	__asm__ volatile("mrc p15, 0, %0, c6, c1, 2" : "=r"(val));
 	if (enable != 0) {
-		val |= 1;
+		val |= 0x1U;
 	}
 	else {
-		val &= ~1;
+		val &= ~0x1U;
 	}
 
 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 2" ::"r"(val));
@@ -69,7 +69,7 @@ static void pmap_mpu_setMemRegionStatus(int enable)
 
 static void pmap_mpu_setMemRegionRbar(u32 addr)
 {
-	addr &= ~((1 << 5) - 1);
+	addr &= ~((0x1U << 5) - 1U);
 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 0" ::"r"(addr));
 }
 
@@ -117,12 +117,12 @@ static unsigned int pmap_map2region(unsigned int map)
 		return 1;
 	}
 
-	int i;
-	unsigned int mask = 0;
+	unsigned int i;
+	unsigned int mask = 0U;
 
-	for (i = 0; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
+	for (i = 0U; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
 		if (map == syspage->hs.mpu.map[i]) {
-			mask |= (1 << i);
+			mask |= (0x1U << i);
 		}
 	}
 
@@ -137,7 +137,7 @@ int pmap_addMap(pmap_t *pmap, unsigned int map)
 	}
 
 	unsigned int rmask = pmap_map2region(map);
-	if (rmask == 0) {
+	if (rmask == 0U) {
 		return -1;
 	}
 
@@ -162,7 +162,7 @@ void pmap_switch(pmap_t *pmap)
 			pmap_mpu_setMemRegionNumber(i);
 
 			/* Enable/disable region according to the mask */
-			pmap_mpu_setMemRegionStatus((pmap->regions & (1 << i)) != 0);
+			pmap_mpu_setMemRegionStatus((int)((pmap->regions & (0x1U << i)) != 0U));
 		}
 
 		hal_spinlockClear(&pmap_common.lock, &sc);
@@ -226,13 +226,13 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 
 int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
 {
-	if (i != 0) {
+	if (i != 0U) {
 		return -1;
 	}
 
 	/* Returns region above basic kernel's .bss section */
 	*vaddr = (void *)&_end;
-	*size = (((size_t)(*top) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) - (size_t)&_end;
+	*size = (((size_t)(*top) + SIZE_PAGE - 0x1U) & ~(SIZE_PAGE - 0x1U)) - (size_t)&_end;
 
 	return 0;
 }
@@ -245,7 +245,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	u32 t;
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 
-	(*vstart) = (void *)(((ptr_t)&_end + 7) & ~7u);
+	(*vstart) = (void *)(((ptr_t)&_end + 7U) & ~7u);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)&__bss_start;
@@ -253,7 +253,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Initial size of kernel map */
 	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
 
-	pmap->regions = (1 << cnt) - 1;
+	pmap->regions = (0x1U << cnt) - 1U;
 
 	if (cnt == 0) {
 		hal_spinlockCreate(&pmap_common.lock, "pmap");
@@ -270,7 +270,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	for (i = 0; i < cnt; ++i) {
 		pmap_mpu_setMemRegionNumber(i);
 		t = syspage->hs.mpu.table[i].rbar;
-		if ((t & (1 << 4)) == 0) {
+		if ((t & (0x1U << 4)) == 0U) {
 			continue;
 		}
 

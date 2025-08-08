@@ -296,9 +296,10 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
 
-	if (process == NULL)
+	if (process == NULL) {
 		hal_cpuHalt();
-
+	}
+	
 	threads_sigpost(process, thread, signal_illegal);
 }
 
@@ -371,7 +372,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 
 		offs = phdr->p_offset & ~(phdr->p_align - 1);
 		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
+		filesz = (phdr->p_filesz != 0) ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;
 		if ((offs >= size) || (memsz < filesz)) {
 			return -ENOEXEC;

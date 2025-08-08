@@ -16,7 +16,7 @@
 #ifndef _HAL_ARMV7R_CPU_H_
 #define _HAL_ARMV7R_CPU_H_
 
-#define SIZE_PAGE 0x1000
+#define SIZE_PAGE 0x1000U
 
 #define SIZE_INITIAL_KSTACK  SIZE_PAGE
 #define INITIAL_KSTACK_SHIFT 12
@@ -200,7 +200,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return ctx->psr & 0xf;
+	return ctx->psr & 0xfU;
 }
 
 
@@ -210,7 +210,7 @@ static inline unsigned int hal_cpuGetID(void)
 	/* clang-format off */
 	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
 	/* clang-format on */
-	return mpidr & 0xf;
+	return mpidr & 0xfU;
 }
 
 

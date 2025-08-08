@@ -336,7 +336,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 
 	switch (msg->type) {
 		case mtOpen:
-			if (msg->i.openclose.flags & O_WRONLY) {
+			if ((msg->i.openclose.flags & O_WRONLY) != 0) {
 				msg->o.err = EOK;
 			}
 			else {

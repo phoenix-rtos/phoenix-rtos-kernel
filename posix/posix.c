@@ -47,11 +47,11 @@ typedef struct {
 
 typedef struct _event_t {
 	oid_t oid;
-	unsigned type;
+	unsigned int type;
 
-	unsigned flags;
-	unsigned count;
-	unsigned data;
+	unsigned int flags;
+	unsigned int count;
+	unsigned int data;
 } event_t;
 
 
@@ -550,7 +550,7 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 
 
 /* TODO: handle O_CREAT and O_EXCL */
-int posix_open(const char *filename, int oflag, char *ustack)
+int posix_open(const char *filename, unsigned oflag, char *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
 	oid_t ln, oid, dev, pipesrv;
@@ -612,7 +612,7 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			}
 
 			proc_lockSet(&p->lock);
-			p->fds[fd].flags = oflag & O_CLOEXEC ? FD_CLOEXEC : 0;
+			p->fds[fd].flags = (oflag & O_CLOEXEC) != 0 ? FD_CLOEXEC : 0;
 			proc_lockClear(&p->lock);
 
 			if (err == 0) {
@@ -1508,12 +1508,12 @@ static int posix_fcntlGetFd(int fd)
 }
 
 
-static int posix_fcntlSetFl(int fd, int val)
+static int posix_fcntlSetFl(int fd, unsigned val)
 {
 	open_file_t *f;
 	int err;
 	/* Creation and access mode flags shall be ignored */
-	int ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_RDONLY | O_RDWR | O_WRONLY;
+	unsigned ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_RDONLY | O_RDWR | O_WRONLY;
 
 	err = posix_getOpenFile(fd, &f);
 	if (err == 0) {
@@ -1611,17 +1611,17 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 }
 
 
-#define IOCPARM_MASK   0x1fff
+#define IOCPARM_MASK   0x1fffUL
 #define IOCPARM_LEN(x) (((x) >> 16) & IOCPARM_MASK)
 
-#define IOC_OUT                      0x40000000
-#define IOC_IN                       0x80000000
+#define IOC_OUT                      0x40000000UL
+#define IOC_IN                       0x80000000UL
 #define IOC_INOUT                    (IOC_IN | IOC_OUT)
-#define _IOC(inout, group, num, len) ((unsigned long)(inout | ((len & IOCPARM_MASK) << 16) | ((group) << 8) | (num)))
+#define _IOC(inout, group, num, len) ((unsigned long)(inout | ((len & IOCPARM_MASK) << 16) | (((unsigned)group) << 8) | (num)))
 
-#define SIOCGIFCONF _IOC(IOC_INOUT, 'S', 0x12, sizeof(struct ifconf))
-#define SIOCADDRT   _IOC(IOC_IN, 'S', 0x44, sizeof(struct rtentry))
-#define SIOCDELRT   _IOC(IOC_IN, 'S', 0x45, sizeof(struct rtentry))
+#define SIOCGIFCONF _IOC(IOC_INOUT, 'S', 0x12U, sizeof(struct ifconf))
+#define SIOCADDRT   _IOC(IOC_IN, 'S', 0x44U, sizeof(struct rtentry))
+#define SIOCDELRT   _IOC(IOC_IN, 'S', 0x45U, sizeof(struct rtentry))
 
 
 static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid)
@@ -1732,7 +1732,7 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 }
 
 
-int posix_socket(int domain, int type, int protocol)
+int posix_socket(int domain, unsigned type, int protocol)
 {
 	TRACE("socket(%d, %d, %d)", domain, type, protocol);
 
@@ -1790,7 +1790,7 @@ int posix_socket(int domain, int type, int protocol)
 }
 
 
-int posix_socketpair(int domain, int type, int protocol, int sv[2])
+int posix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 {
 	TRACE("socketpair(%d, %d, %d, %p)", domain, type, protocol, sv);
 
@@ -1843,7 +1843,7 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 }
 
 
-int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
+int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, unsigned flags)
 {
 	TRACE("accept4(%d, %s, %d)", socket, address == NULL ? NULL : address->sa_data, flags);
 
@@ -2107,7 +2107,7 @@ int posix_listen(int socket, int backlog)
 }
 
 
-ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+ssize_t posix_recvfrom(int socket, void *message, size_t length, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
 	TRACE("recvfrom(%d, %d, %s)", socket, length, src_addr == NULL ? NULL : src_addr->sa_data);
 
@@ -2135,7 +2135,7 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 }
 
 
-ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+ssize_t posix_sendto(int socket, const void *message, size_t length, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len)
 {
 	TRACE("sendto(%d, %s, %d, %s)", socket, message, length, dest_addr == NULL ? NULL : dest_addr->sa_data);
 
@@ -2163,7 +2163,7 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 }
 
 
-ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
+ssize_t posix_recvmsg(int socket, struct msghdr *msg, unsigned flags)
 {
 	TRACE("recvmsg(%d, %p, %d)", socket, msg, flags);
 
@@ -2191,7 +2191,7 @@ ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
 }
 
 
-ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
+ssize_t posix_sendmsg(int socket, const struct msghdr *msg, unsigned flags)
 {
 	TRACE("sendmsg(%d, %p, %d)", socket, msg, flags);
 
@@ -2328,7 +2328,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 {
 	msg_t msg;
 	size_t ready = 0, i;
-	int err;
+	unsigned err;
 	open_file_t *f;
 
 	hal_memset(&msg, 0, sizeof(msg));
@@ -2404,7 +2404,7 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 
 	if (timeout_ms >= 0) {
 		proc_gettime(&timeout, NULL);
-		timeout += timeout_ms * 1000LL + !timeout_ms;
+		timeout += timeout_ms * 1000LL + (long long)(timeout_ms == 0);
 	}
 	else {
 		timeout = 0;
@@ -2702,7 +2702,7 @@ pid_t posix_setsid(void)
 }
 
 
-int posix_waitpid(pid_t child, int *status, int options)
+int posix_waitpid(pid_t child, int *status, unsigned options)
 {
 	process_info_t *pinfo, *c;
 	pid_t pid;
@@ -2742,7 +2742,7 @@ int posix_waitpid(pid_t child, int *status, int options)
 			} while (c != pinfo->zombies);
 		}
 
-		if ((options & 1) != 0) { /* WNOHANG */
+		if ((options & 1U) != 0) { /* WNOHANG */
 			err = EOK;
 			break;
 		}

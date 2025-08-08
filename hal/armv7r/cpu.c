@@ -32,19 +32,19 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 
 	(void)tls;
 
-	*nctx = 0;
+	*nctx = NULL;
 	if (kstack == NULL) {
 		return -1;
 	}
 
-	kstacksz &= ~0x3;
+	kstacksz &= ~0x3U;
 
 	if (kstacksz < sizeof(cpu_context_t)) {
 		return -1;
 	}
 
 	/* Align user stack to 8 bytes */
-	ustack = (void *)((ptr_t)ustack & ~0x7);
+	ustack = (void *)((ptr_t)ustack & ~0x7U);
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
@@ -52,7 +52,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	/* Set all registers to sNAN */
 	for (i = 0; i < 32; i += 2) {
 		ctx->freg[i] = 0;
-		ctx->freg[i + 1] = 0xfff10000;
+		ctx->freg[i + 1] = 0xfff10000UL;
 	}
 
 	ctx->fpsr = 0;
@@ -60,19 +60,19 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->padding = 0;
 
 	ctx->r0 = (u32)arg;
-	ctx->r1 = 0x11111111;
-	ctx->r2 = 0x22222222;
-	ctx->r3 = 0x33333333;
-	ctx->r4 = 0x44444444;
-	ctx->r5 = 0x55555555;
-	ctx->r6 = 0x66666666;
-	ctx->r7 = 0x77777777;
-	ctx->r8 = 0x88888888;
-	ctx->r9 = 0x99999999;
-	ctx->r10 = 0xaaaaaaaa;
+	ctx->r1 = 0x11111111UL;
+	ctx->r2 = 0x22222222UL;
+	ctx->r3 = 0x33333333UL;
+	ctx->r4 = 0x44444444UL;
+	ctx->r5 = 0x55555555UL;
+	ctx->r6 = 0x66666666UL;
+	ctx->r7 = 0x77777777UL;
+	ctx->r8 = 0x88888888UL;
+	ctx->r9 = 0x99999999UL;
+	ctx->r10 = 0xaaaaaaaaUL;
 
-	ctx->ip = 0xcccccccc;
-	ctx->lr = 0xeeeeeeee;
+	ctx->ip = 0xccccccccUL;
+	ctx->lr = 0xeeeeeeeeUL;
 
 	ctx->pc = (u32)start;
 
@@ -87,8 +87,8 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	}
 
 	/* Thumb mode? */
-	if ((ctx->pc & 1) != 0) {
-		ctx->psr |= 1 << 5;
+	if ((ctx->pc & 0x1U) != 0U) {
+		ctx->psr |= 0x1U << 5;
 	}
 
 	ctx->fp = ctx->sp;
@@ -114,10 +114,10 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	signalCtx->pc = (u32)handler & ~1;
+	signalCtx->pc = (u32)handler & ~0x1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
-	if (((u32)handler & 1) != 0) {
+	if (((u32)handler & 0x1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}
 	else {
@@ -149,20 +149,20 @@ char *hal_cpuInfo(char *info)
 
 	midr = hal_cpuGetMIDR();
 
-	if (((midr >> 16) & 0xf) == 0xf) {
+	if (((midr >> 16) & 0xfU) == 0xfU) {
 		hal_strcpy(&info[n], "ARMv7 ");
 		n += 6;
 	}
 
-	if (((midr >> 4) & 0xfff) == 0xc15) {
+	if (((midr >> 4) & 0xfffUL) == 0xc15UL) {
 		hal_strcpy(&info[n], "Cortex-R5 ");
 		n += hal_strlen("Cortex-R5 ");
 	}
 
 	info[n++] = 'r';
-	info[n++] = '0' + ((midr >> 20) & 0xf);
+	info[n++] = '0' + ((midr >> 20) & 0xfUL);
 	info[n++] = 'p';
-	info[n++] = '0' + (midr & 0xf);
+	info[n++] = '0' + (midr & 0xfUL);
 
 	info[n++] = ' ';
 	info[n++] = 'x';
@@ -179,50 +179,51 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	unsigned int n = 0;
 	u32 pfr0 = hal_cpuGetPFR0(), pfr1 = hal_cpuGetPFR1();
 
-	if (!len)
+	if (len == 0U) {
 		return features;
+	}
 
-	if ((pfr0 >> 12) & 0xf && len - n > 9) {
+	if (((pfr0 >> 12) & 0xfUL) != 0U && len - n > 9U) {
 		hal_strcpy(&features[n], "ThumbEE, ");
-		n += 9;
+		n += 9U;
 	}
 
-	if ((pfr0 >> 8) & 0xf && len - n > 9) {
+	if (((pfr0 >> 8) & 0xfUL) != 0U && len - n > 9U) {
 		hal_strcpy(&features[n], "Jazelle, ");
-		n += 9;
+		n += 9U;
 	}
 
-	if ((pfr0 >> 4) & 0xf && len - n > 7) {
+	if (((pfr0 >> 4) & 0xfUL) != 0U && len - n > 7U) {
 		hal_strcpy(&features[n], "Thumb, ");
-		n += 7;
+		n += 7U;
 	}
 
-	if (pfr0 & 0xf && len - n > 5) {
+	if ((pfr0 & 0xfUL) != 0U && len - n > 5U) {
 		hal_strcpy(&features[n], "ARM, ");
-		n += 5;
+		n += 5U;
 	}
 
-	if ((pfr1 >> 16) & 0xf && len - n > 15) {
+	if (((pfr1 >> 16) & 0xfUL) != 0U && len - n > 15U) {
 		hal_strcpy(&features[n], "Generic Timer, ");
-		n += 15;
+		n += 15U;
 	}
 
-	if ((pfr1 >> 12) & 0xf && len - n > 16) {
+	if (((pfr1 >> 12) & 0xfUL) != 0U && len - n > 16U) {
 		hal_strcpy(&features[n], "Virtualization, ");
-		n += 16;
+		n += 16U;
 	}
 
-	if ((pfr1 >> 8) & 0xf && len - n > 5) {
+	if (((pfr1 >> 8) & 0xfUL) != 0U && len - n > 5U) {
 		hal_strcpy(&features[n], "MCU, ");
-		n += 5;
+		n += 5U;
 	}
 
-	if ((pfr1 >> 4) & 0xf && len - n > 10) {
+	if (((pfr1 >> 4) & 0xfUL) != 0U && len - n > 10U) {
 		hal_strcpy(&features[n], "Security, ");
-		n += 10;
+		n += 10U;
 	}
 
-	if (n > 0) {
+	if (n > 0U) {
 		features[n - 2] = '\0';
 	}
 	else {
@@ -238,7 +239,7 @@ void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 	/* In theory there should be 8-byte thread control block but
 	 * it's stored elsewhere so we need to subtract 8 from the pointer
 	 */
-	ptr_t ptr = tls->tls_base - 8;
+	ptr_t ptr = tls->tls_base - 8U;
 	__asm__ volatile("mcr p15, 0, %[value], cr13, cr0, 3;" ::[value] "r"(ptr));
 }
 

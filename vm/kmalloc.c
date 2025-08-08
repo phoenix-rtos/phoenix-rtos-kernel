@@ -60,7 +60,7 @@ void *_kmalloc_alloc(u8 hdridx, u8 idx)
 
 	b = _vm_zalloc(z, NULL);
 	if (b != NULL) {
-		kmalloc_common.allocsz += (1 << idx);
+		kmalloc_common.allocsz += (0x1U << idx);
 
 		if (idx == hdridx)
 			kmalloc_common.hdrblocks--;
@@ -116,7 +116,7 @@ int _kmalloc_addZone(u8 hdridx, u8 idx)
 	}
 
 	/* Add new zone */
-	if (_vm_zoneCreate(nz, 1 << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1), SIZE_PAGE / (1 << idx))) < 0) {
+	if (_vm_zoneCreate(nz, 0x1UL << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1), SIZE_PAGE / (0x1UL << idx))) < 0) {
 		_kmalloc_free(hdridx, nz);
 		return -ENOMEM;
 	}
@@ -124,8 +124,9 @@ int _kmalloc_addZone(u8 hdridx, u8 idx)
 	LIST_ADD(&kmalloc_common.sizes[idx], nz);
 	lib_rbInsert(&kmalloc_common.tree, &nz->linkage);
 
-	if (idx == hdridx)
+	if (idx == hdridx) {
 		kmalloc_common.hdrblocks += nz->blocks;
+	}
 
 	return EOK;
 }
@@ -142,28 +143,35 @@ void *vm_kmalloc(size_t size)
 	size = size < 16 ? 16 : size;
 
 	idx = hal_cpuGetLastBit(size);
-	if (hal_cpuGetFirstBit(size) < idx)
+	if (hal_cpuGetFirstBit(size) < idx) {
 		idx++;
-	if (idx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *))
+	}
+	if (idx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		return NULL;
+	}
 
 	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
-	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx)
+	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
 		hdridx++;
-	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *))
+	}
+	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)){
 		return NULL;
+	}
 
 	proc_lockSet(&kmalloc_common.lock);
 
-	if (kmalloc_common.hdrblocks == 1)
+	if (kmalloc_common.hdrblocks == 1) {
 		err = _kmalloc_addZone(hdridx, hdridx);
+	}
 
-	if (!err && (z = kmalloc_common.sizes[idx]) == NULL)
+	if (err == 0 && (z = kmalloc_common.sizes[idx]) == NULL) {
 		err = _kmalloc_addZone(hdridx, idx);
+	}
 
 	/* Alloc new fragment */
-	if (!err)
+	if (err == 0) {
 		b = _kmalloc_alloc(hdridx, idx);
+	}
 
 	proc_lockClear(&kmalloc_common.lock);
 
@@ -177,8 +185,9 @@ static void *_kmalloc_freeAtom(u8 hdridx, void *p)
 	u8 idx;
 
 	z = _kmalloc_free(hdridx, p);
-	if (z == NULL)
+	if (z == NULL) {
 		return NULL;
+	}
 
 	idx = hal_cpuGetLastBit(z->blocksz);
 
@@ -188,8 +197,9 @@ static void *_kmalloc_freeAtom(u8 hdridx, void *p)
 		_vm_zoneDestroy(z);
 		lib_rbRemove(&kmalloc_common.tree, &z->linkage);
 
-		if (idx == hdridx)
+		if (idx == hdridx) {
 			kmalloc_common.hdrblocks -= z->blocks;
+		}
 		return z;
 	}
 
@@ -202,15 +212,18 @@ void vm_kfree(void *p)
 	unsigned int hdridx;
 
 	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
-	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx)
+	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
 		hdridx++;
-	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *))
+	}
+	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		return;
+	}
 
 	proc_lockSet(&kmalloc_common.lock);
 
-	while (p != NULL)
+	while (p != NULL) {
 		p = _kmalloc_freeAtom(hdridx, p);
+	}
 
 	proc_lockClear(&kmalloc_common.lock);
 }
@@ -252,16 +265,18 @@ int _kmalloc_init(void)
 	proc_lockInit(&kmalloc_common.lock, &proc_lockAttrDefault, "kmalloc.common");
 
 	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
-	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx)
+	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
 		hdridx++;
+	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		lib_printf("BAD HDRIDX!\n");
 		return NULL;
 	}
 
 	/* Initialize sizes */
-	for (i = 0; i < sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *); i++)
+	for (i = 0; i < sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *); i++) {
 		kmalloc_common.sizes[i] = NULL;
+	}
 	kmalloc_common.used = NULL;
 
 	/* Initialize allocated zone tree */
@@ -270,7 +285,7 @@ int _kmalloc_init(void)
 	kmalloc_common.zonehdrs = 16;
 
 	/* Add first zone_t zone */
-	_vm_zoneCreate(&kmalloc_common.firstzone, 1 << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (1 << hdridx)));
+	_vm_zoneCreate(&kmalloc_common.firstzone, 0x1U << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1U << hdridx)));
 	LIST_ADD(&kmalloc_common.sizes[hdridx], &kmalloc_common.firstzone);
 	lib_rbInsert(&kmalloc_common.tree, &kmalloc_common.firstzone.linkage);
 
