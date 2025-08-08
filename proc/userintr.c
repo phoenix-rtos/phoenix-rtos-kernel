@@ -13,12 +13,13 @@
  * %LICENSE%
  */
 
+#include <stdatomic.h>
 #include "lib/lib.h"
 #include "resource.h"
 #include "userintr.h"
 #include "cond.h"
 #include "proc.h"
-
+#include "futex.h"
 
 struct {
 	userintr_t *volatile active;
@@ -38,10 +39,6 @@ void userintr_put(userintr_t *ui)
 		t->process->path, process_getPid(t->process), proc_getTid(t));
 	if (rem <= 0) {
 		hal_interruptsDeleteHandler(&ui->handler);
-
-		if (ui->cond != NULL) {
-			cond_put(ui->cond);
-		}
 
 		vm_kfree(ui);
 	}
@@ -64,9 +61,10 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	ret = ui->f(ui->handler.n, ui->arg);
 	userintr_common.active = NULL;
 
-	if (ret >= 0 && ui->cond != NULL) {
+	if (ret >= 0 && ui->condFutex != NULL) {
 		reschedule = 1;
-		proc_threadBroadcast(&ui->cond->queue);
+		atomic_fetch_or_explicit(ui->condFutex, 1, memory_order_relaxed);
+		proc_futexWakeup(ui->process, ui->condFutex, FUTEX_WAKEUP_ALL);
 	}
 
 	/* Restore process address space */
@@ -77,25 +75,14 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, handle_t c)
+int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, _Atomic(u32) *condFutex)
 {
 	process_t *process = proc_current()->process;
 	userintr_t *ui;
-	cond_t *cond = NULL;
 	int id, res;
-
-	if (c > 0) {
-		cond = cond_get(c);
-		if (cond == NULL) {
-			return -EINVAL;
-		}
-	}
 
 	ui = vm_kmalloc(sizeof(*ui));
 	if (ui == NULL) {
-		if (cond != NULL) {
-			cond_put(cond);
-		}
 		return -ENOMEM;
 	}
 
@@ -111,7 +98,7 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 	ui->f = f;
 	ui->arg = arg;
 	ui->process = process;
-	ui->cond = cond;
+	ui->condFutex = condFutex;
 
 #ifdef __TARGET_RISCV64
 	/* Clear PGHD_USER attribute in interrupt handler code page (RISC-V specification forbids user code execution in kernel mode).
@@ -124,9 +111,6 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 
 	res = hal_interruptsSetHandler(&ui->handler);
 	if (res != EOK) {
-		if (cond != NULL) {
-			cond_put(cond);
-		}
 		vm_kfree(ui);
 		return res;
 	}
@@ -134,9 +118,6 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 	id = resource_alloc(process, &ui->resource);
 	if (id < 0) {
 		hal_interruptsDeleteHandler(&ui->handler);
-		if (cond != NULL) {
-			cond_put(cond);
-		}
 		vm_kfree(ui);
 		return -ENOMEM;
 	}
