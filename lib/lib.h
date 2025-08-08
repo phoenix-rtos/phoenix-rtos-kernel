@@ -65,7 +65,7 @@ static inline int abs(int val)
 }
 
 
-#define round_page(x) (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
+#define round_page(x) (((x) + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U))
 
 
 #endif

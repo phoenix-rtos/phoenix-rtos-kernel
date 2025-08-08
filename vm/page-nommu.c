@@ -53,8 +53,8 @@ static page_t *_page_alloc(size_t size, u8 flags)
 	if (hal_cpuGetFirstBit(size) < lh->idx)
 		lh->idx++;
 
-	pages.freesz -= (1 << lh->idx);
-	pages.allocsz += (1 << lh->idx);
+	pages.freesz -= (0x1U << lh->idx);
+	pages.allocsz += (0x1U << lh->idx);
 
 	return lh;
 }
@@ -79,8 +79,8 @@ void vm_pageFree(page_t *lh)
 	lh->next = pages.freeq;
 	pages.freeq = lh;
 
-	pages.freesz += (1 << lh->idx);
-	pages.allocsz -= (1 << lh->idx);
+	pages.freesz += (0x1U << lh->idx);
+	pages.allocsz -= (0x1U << lh->idx);
 
 	proc_lockClear(&pages.lock);
 	return;

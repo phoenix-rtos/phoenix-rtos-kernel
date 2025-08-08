@@ -17,14 +17,14 @@
 #include "lib.h"
 
 
-static int strtoul_isalnum(char c)
+static int strtoul_isalnum(u8 c)
 {
 	if ((c >= '0') && (c <= '9')) {
 		return 1;
 	}
 
 	/* test letter */
-	c &= ~0x20;
+	c &= ~0x20U;
 	if ((c >= 'A') && (c <= 'Z')) {
 		return 1;
 	}
@@ -33,7 +33,7 @@ static int strtoul_isalnum(char c)
 }
 
 
-unsigned long lib_strtoul(char *nptr, char **endptr, int base)
+unsigned long lib_strtoul(u8 *nptr, u8 **endptr, int base)
 {
 	unsigned long t, v = 0;
 
@@ -41,10 +41,10 @@ unsigned long lib_strtoul(char *nptr, char **endptr, int base)
 		nptr += 2;
 	}
 
-	while (strtoul_isalnum(*nptr)) {
+	while (strtoul_isalnum(*nptr) != 0) {
 		t = *nptr - '0';
 		if (t > 9) {
-			t = (*nptr | 0x20) - 'a' + 10;
+			t = (*nptr | 0x20U) - 'a' + 10;
 		}
 
 		if (t >= base) {
@@ -64,7 +64,7 @@ unsigned long lib_strtoul(char *nptr, char **endptr, int base)
 }
 
 
-long lib_strtol(char *nptr, char **endptr, int base)
+long lib_strtol(u8 *nptr, u8 **endptr, int base)
 {
 	int sign = 1;
 
