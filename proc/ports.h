@@ -43,7 +43,7 @@ typedef struct _port_t {
 /* FIXME - use int for port handle.
  * Or even better, use dedicated type. */
 
-int proc_portCreate(u32 *port);
+int proc_portCreate(u32 *id);
 
 
 void proc_portDestroy(u32 port);

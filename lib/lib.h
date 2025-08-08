@@ -28,22 +28,22 @@
 #include "idtree.h"
 
 
-#define lib_atomicIncrement(ptr) __atomic_add_fetch(ptr, 1, __ATOMIC_RELAXED)
+#define lib_atomicIncrement(ptr) __atomic_add_fetch((ptr), 1, __ATOMIC_RELAXED)
 
 
-#define lib_atomicDecrement(ptr) __atomic_add_fetch(ptr, -1, __ATOMIC_ACQ_REL)
+#define lib_atomicDecrement(ptr) __atomic_add_fetch((ptr), -1, __ATOMIC_ACQ_REL)
 
 
 #define max(a, b) ({ \
-	__typeof__ (a) _a = (a); \
-	__typeof__ (b) _b = (b); \
+	__typeof__(a) _a = (a); \
+	__typeof__(b) _b = (b); \
 	_a > _b ? _a : _b; \
 })
 
 
 #define min(a, b) ({ \
-	__typeof__ (a) _a = (a); \
-	__typeof__ (b) _b = (b); \
+	__typeof__(a) _a = (a); \
+	__typeof__(b) _b = (b); \
 	_a > _b ? _b : _a; \
 })
 
@@ -52,21 +52,15 @@
 
 
 #define swap(a, b) ({ \
-	__typeof__ (a) tmp = (a); \
+	__typeof__(a) tmp = (a); \
 	(a) = (b); \
 	(b) = (tmp); \
 })
 
 
-static inline int abs(int val)
-{
-	return (val < 0 ? -val : val);
-}
+#define round_page(x) (((x) + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U))
 
-
-#define round_page(x) (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
-
-
+/* parasoft-suppress-next-line MISRAC2012-RULE_20_7-a "__builtin_offsetof is built-in function and handles it arguments safely" */
 #define offsetof(st, m) __builtin_offsetof(st, m)
 
 

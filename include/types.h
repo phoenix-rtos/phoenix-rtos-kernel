@@ -21,8 +21,10 @@
 #include "arch/ia32/types.h"
 #elif defined(__ARM_ARCH_6M__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
 #include "arch/armv7m/types.h"
-#elif defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_8A__) || defined(__ARM_ARCH_7__)
+#elif defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_8A__) || defined(__ARM_ARCH_7__)
 #include "arch/armv7a/types.h"
+#elif defined(__ARM_ARCH_7R__)
+#include "arch/armv7r/types.h"
 #elif defined(__ARM_ARCH_4T__) || defined(__ARM_ARCH_5TE__) /* not currently supported, map to 7M for libgcc to compile */
 #include "arch/armv7m/types.h"
 #elif defined(__ARM_ARCH_8M_BASE__) || defined(__ARM_ARCH_8M_MAIN__)
@@ -31,14 +33,17 @@
 #include "arch/armv8r/types.h"
 #elif defined(__aarch64__)
 #include "arch/aarch64/types.h"
+/* parasoft-begin-suppress MISRAC2012-RULE_20_9 "macro defined in riscv architecture,
+ * we won't check value of __riscv_xlen if __riscv is not defined"
+ */
 #elif defined(__riscv) && (__riscv_xlen == 64)
 #include "arch/riscv64/types.h"
+/*parasoft-end-suppress MISRAC2012-RULE_20_9*/
 #elif defined(__sparc__)
 #include "arch/sparcv8leon/types.h"
 #else
 #error "unsupported architecture"
 #endif
-
 
 #include "posix-types.h"
 

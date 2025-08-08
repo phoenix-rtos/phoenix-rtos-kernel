@@ -55,7 +55,7 @@ typedef struct {
 } __attribute__((packed)) fsfcntl_t;
 
 
-extern int proc_portRegister(unsigned int port, const char *name, oid_t *oid);
+extern int proc_portRegister(unsigned port, const char *name, oid_t *oid);
 
 
 extern void proc_portUnregister(const char *name);
@@ -67,7 +67,7 @@ extern int proc_portLookup(const char *name, oid_t *file, oid_t *dev);
 extern int proc_lookup(const char *name, oid_t *file, oid_t *dev);
 
 
-extern int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode);
+extern int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode);
 
 
 extern int proc_link(oid_t dir, oid_t oid, const char *name);
@@ -76,19 +76,19 @@ extern int proc_link(oid_t dir, oid_t oid, const char *name);
 extern int proc_unlink(oid_t dir, oid_t oid, const char *name);
 
 
-extern int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid);
+extern int proc_create(unsigned int port, int type, unsigned int mode, oid_t dev, oid_t dir, char *name, oid_t *oid);
 
 
-extern int proc_close(oid_t oid, unsigned mode);
+extern int proc_close(oid_t oid, unsigned int mode);
 
 
-extern int proc_open(oid_t oid, unsigned mode);
+extern int proc_open(oid_t oid, unsigned int mode);
 
 
 extern off_t proc_size(oid_t oid);
 
 
-extern int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode);
+extern int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode);
 
 
 extern void _name_init(void);

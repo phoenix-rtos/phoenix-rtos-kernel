@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
+
 #include "test.h"
 
 #include "vm.h"
@@ -24,8 +26,10 @@
 void test_run(void)
 {
 	test_proc_threads1();
-//	test_vm_alloc();
-//	test_vm_kmalloc();
-//	test_rb();
-//	test_msg();
+	//	test_vm_alloc();
+	//	test_vm_kmalloc();
+	//	test_rb();
+	//	test_msg();
 }
+
+/* parasoft-end-suppress ALL "tests don't need to comply with MISRA" */

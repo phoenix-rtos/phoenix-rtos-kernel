@@ -22,7 +22,7 @@
 
 struct utsname {
 	char sysname[16];
-	char nodename[HOST_NAME_MAX + 1];
+	char nodename[HOST_NAME_MAX + 1U];
 	char release[16];
 	char version[32];
 	char machine[16];

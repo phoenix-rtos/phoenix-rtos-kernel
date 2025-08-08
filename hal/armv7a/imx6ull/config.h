@@ -16,8 +16,8 @@
 #ifndef _HAL_CONFIG_H_
 #define _HAL_CONFIG_H_
 
-#define ADDR_DDR   0x80000000
-#define SIZE_DDR   0x7ffffff
+#define ADDR_DDR 0x80000000
+#define SIZE_DDR 0x7ffffff
 
 #define NUM_CPUS 1
 

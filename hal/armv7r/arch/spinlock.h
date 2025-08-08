@@ -24,6 +24,7 @@ typedef struct _spinlock_t {
 	struct _spinlock_t *prev;
 
 	u8 lock;
+
 } __attribute__((packed)) spinlock_t;
 
 

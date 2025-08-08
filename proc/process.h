@@ -66,7 +66,7 @@ typedef struct _process_t {
 
 	unsigned sigpend;
 	unsigned sigmask;
-	void *sighandler;
+	void (*sighandler)(void);
 
 	void *got;
 	hal_tls_t tls;
@@ -82,10 +82,10 @@ static inline int process_getPid(const process_t *process)
 extern process_t *proc_find(int pid);
 
 
-extern int proc_put(process_t *proc);
+extern int proc_put(process_t *p);
 
 
-extern void proc_get(process_t *proc);
+extern void proc_get(process_t *p);
 
 
 extern void proc_kill(process_t *proc);
@@ -94,7 +94,7 @@ extern void proc_kill(process_t *proc);
 extern void proc_reap(void);
 
 
-extern int proc_start(void (*initthr)(void *), void *arg, const char *path);
+extern int proc_start(void (*initthr)(void *harg), void *arg, const char *path);
 
 
 extern int proc_fileSpawn(const char *path, char **argv, char **envp);
@@ -103,7 +103,7 @@ extern int proc_fileSpawn(const char *path, char **argv, char **envp);
 extern int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, char **argv);
 
 
-extern int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv);
+extern int proc_syspageSpawn(const syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv);
 
 
 extern int proc_execve(const char *path, char **argv, char **envp);
@@ -127,7 +127,7 @@ extern void proc_exit(int code);
 extern int _process_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
-extern void process_dumpException(unsigned int n, exc_context_t *exc);
+extern void process_dumpException(unsigned int n, exc_context_t *ctx);
 
 
 extern int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map);

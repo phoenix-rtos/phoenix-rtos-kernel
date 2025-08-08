@@ -19,17 +19,17 @@
 #include "hal/types.h"
 #include "config.h"
 
-#define SIZE_PAGE 0x1000uL
+#define SIZE_PAGE 0x1000UL
 #define SIZE_PDIR SIZE_PAGE
 
-#define SIZE_INITIAL_KSTACK (2 * SIZE_PAGE) /* Must be multiple of page size */
+#define SIZE_INITIAL_KSTACK (2U * SIZE_PAGE) /* Must be multiple of page size */
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (2 * SIZE_PAGE)
+#define SIZE_KSTACK (2U * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 #define MODE_nAARCH64 0x10
@@ -215,7 +215,7 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 }
 
 
-extern unsigned int hal_cpuGetCount(void);
+unsigned int hal_cpuGetCount(void);
 
 
 #endif

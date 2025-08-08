@@ -22,9 +22,11 @@
 #define ATTR_BOLD   0x0f
 #define ATTR_USER   0x07
 
-#define CONSOLE_CYAN   "\033[36m"
-#define CONSOLE_NORMAL "\033[0m"
-#define CONSOLE_BOLD   "\033[1m"
+/* clang-format off */
+#define CONSOLE_CYAN   "\033" "[36m"
+#define CONSOLE_NORMAL "\033" "[0m"
+#define CONSOLE_BOLD   "\033" "[1m"
+/* clang-format on */
 
 
 extern void hal_consolePrint(int attr, const char *s);

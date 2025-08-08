@@ -16,17 +16,17 @@
 #ifndef _HAL_ARMV8R_CPU_H_
 #define _HAL_ARMV8R_CPU_H_
 
-#define SIZE_PAGE 0x1000
+#define SIZE_PAGE 0x1000U
 
 #define SIZE_INITIAL_KSTACK  SIZE_PAGE
 #define INITIAL_KSTACK_SHIFT 12
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (8 * 1024)
+#define SIZE_KSTACK (8U * 1024U)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 /* ARMv8 processor modes */
@@ -274,7 +274,7 @@ static inline void hal_cpuSmpSync(void)
 }
 
 
-extern unsigned int hal_cpuGetCount(void);
+unsigned int hal_cpuGetCount(void);
 
 
 #endif

@@ -34,38 +34,38 @@
 #define PF_KEY    AF_KEY
 #define PF_PACKET AF_PACKET
 
-#define SOCK_STREAM    1
-#define SOCK_DGRAM     2
-#define SOCK_RAW       3
-#define SOCK_SEQPACKET 4
-#define SOCK_RDM       5
+#define SOCK_STREAM    1U
+#define SOCK_DGRAM     2U
+#define SOCK_RAW       3U
+#define SOCK_SEQPACKET 4U
+#define SOCK_RDM       5U
 
 #define SOL_SOCKET 0xFFF
 
-#define SO_ACCEPTCONN   0x0002
-#define SO_BROADCAST    0x0020
-#define SO_DEBUG        0x0001
-#define SO_DONTROUTE    0x0010
+#define SO_ACCEPTCONN   0x0002U
+#define SO_BROADCAST    0x0020U
+#define SO_DEBUG        0x0001U
+#define SO_DONTROUTE    0x0010U
 #define SO_ERROR        0x1007
-#define SO_KEEPALIVE    0x0008
-#define SO_LINGER       0x0080
-#define SO_OOBINLINE    0x0100
+#define SO_KEEPALIVE    0x0008U
+#define SO_LINGER       0x0080U
+#define SO_OOBINLINE    0x0100U
 #define SO_RCVBUF       0x1002
-#define SO_RCVLOWAT     0x1004
-#define SO_RCVTIMEO     0x1006
-#define SO_REUSEADDR    0x0004
-#define SO_SNDBUF       0x1001
-#define SO_SNDLOWAT     0x1003
-#define SO_SNDTIMEO     0x1005
-#define SO_TYPE         0x1008
-#define SO_BINDTODEVICE 0x100b
+#define SO_RCVLOWAT     0x1004U
+#define SO_RCVTIMEO     0x1006U
+#define SO_REUSEADDR    0x0004U
+#define SO_SNDBUF       0x1001U
+#define SO_SNDLOWAT     0x1003U
+#define SO_SNDTIMEO     0x1005U
+#define SO_TYPE         0x1008U
+#define SO_BINDTODEVICE 0x100bU
 
-#define MSG_PEEK     0x01
-#define MSG_WAITALL  0x02
-#define MSG_OOB      0x04
-#define MSG_DONTWAIT 0x08
-#define MSG_MORE     0x10
-#define MSG_NOSIGNAL 0x20
+#define MSG_PEEK     0x01U
+#define MSG_WAITALL  0x02U
+#define MSG_OOB      0x04U
+#define MSG_DONTWAIT 0x08U
+#define MSG_MORE     0x10U
+#define MSG_NOSIGNAL 0x20U
 
 #define SCM_RIGHTS 1
 

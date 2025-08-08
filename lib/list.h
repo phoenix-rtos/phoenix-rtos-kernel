@@ -27,34 +27,34 @@ extern void lib_listRemove(void **list, void *t, size_t noff, size_t poff);
 
 extern int lib_listBelongs(void **list, void *t, size_t noff, size_t poff);
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7-a "typeof is built-in function and handles it arguments safely" */
 #define LIST_ADD_EX(list, t, next, prev) \
 	do { \
-		LIB_STATIC_ASSERT_SAME_TYPE(*(list), t); \
+		LIB_STATIC_ASSERT_SAME_TYPE(*(list), (t)); \
 		lib_listAdd((void **)(list), (void *)(t), offsetof(typeof(*(t)), next), offsetof(typeof(*(t)), prev)); \
 	} while (0)
 
 
-#define LIST_ADD(list, t) LIST_ADD_EX(list, t, next, prev)
+#define LIST_ADD(list, t) LIST_ADD_EX((list), (t), next, prev)
 
 
 #define LIST_REMOVE_EX(list, t, next, prev) \
 	do { \
-		LIB_STATIC_ASSERT_SAME_TYPE(*(list), t); \
+		LIB_STATIC_ASSERT_SAME_TYPE(*(list), (t)); \
 		lib_listRemove((void **)(list), (void *)(t), offsetof(typeof(*(t)), next), offsetof(typeof(*(t)), prev)); \
 	} while (0)
 
 
-#define LIST_REMOVE(list, t) LIST_REMOVE_EX(list, t, next, prev)
+#define LIST_REMOVE(list, t) LIST_REMOVE_EX((list), (t), next, prev)
 
 
 #define LIST_BELONGS_EX(list, t, next, prev) \
 	({ \
-		LIB_STATIC_ASSERT_SAME_TYPE(*(list), t); \
+		LIB_STATIC_ASSERT_SAME_TYPE(*(list), (t)); \
 		lib_listBelongs((void **)(list), (void *)(t), offsetof(typeof(*(t)), next), offsetof(typeof(*(t)), prev)); \
 	})
+/* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 
-
-#define LIST_BELONGS(list, t) LIST_BELONGS_EX(list, t, next, prev)
+#define LIST_BELONGS(list, t) LIST_BELONGS_EX((list), (t), next, prev)
 
 #endif

@@ -18,6 +18,8 @@
 #include "hal/arm/scs.h"
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
+
 #include "include/errno.h"
 
 
@@ -176,7 +178,7 @@ u64 _mcxn94x_sysconGray2Bin(u64 gray)
 	hal_cpuDataMemoryBarrier();
 
 	ret = *(n94x_common.syscon + syscon_binarycodelsb);
-	ret |= ((u64)*(n94x_common.syscon + syscon_binarycodemsb)) << 32;
+	ret |= (u64)(*(n94x_common.syscon + syscon_binarycodemsb)) << 32;
 
 	return ret;
 }
@@ -425,7 +427,7 @@ static int _mcxn94x_sysconGetRegs(int dev, volatile u32 **selr, volatile u32 **d
 			*divr = n94x_common.syscon + syscon_sai1clkdiv;
 			break;
 
-		/* enet TODO */
+			/* enet TODO */
 
 		case pctl_micfil:
 			*selr = n94x_common.syscon + syscon_micfilfclksel;
@@ -565,7 +567,7 @@ int hal_platformctl(void *ptr)
 		case pctl_devclk:
 			if (data->action == pctl_set) {
 				ret = _mcxn94x_sysconSetDevClk(data->devClk.dev, data->devClk.sel,
-					data->devClk.div, data->devClk.enable);
+						data->devClk.div, data->devClk.enable);
 			}
 			else if (data->action == pctl_get) {
 				ret = _mcxn94x_sysconGetDevClk(data->devClk.dev, &sel, &div, &enable);
@@ -595,7 +597,7 @@ int hal_platformctl(void *ptr)
 			}
 			else {
 				ret = _mcxn94x_portPinConfig(data->pinConf.pin, data->pinConf.mux,
-					data->pinConf.options);
+						data->pinConf.options);
 			}
 			break;
 

@@ -47,9 +47,6 @@ extern int _gr716_cguClkStatus(u32 cgu, u32 device);
 extern int hal_platformctl(void *ptr);
 
 
-extern void _hal_platformInit(void);
-
-
 #endif /* __ASSEMBLY__ */
 
 

@@ -70,16 +70,16 @@ extern int posix_fcntl(int fd, unsigned int cmd, char *ustack);
 extern int posix_pipe(int fildes[2]);
 
 
-extern int posix_mkfifo(const char *path, mode_t mode);
+extern int posix_mkfifo(const char *pathname, mode_t mode);
 
 
-extern int posix_chmod(const char *path, mode_t mode);
+extern int posix_chmod(const char *pathname, mode_t mode);
 
 
 extern int posix_fstat(int fd, struct stat *buf);
 
 
-extern int posix_statvfs(const char *path, int fd, struct statvfs *buf);
+extern int posix_statvfs(const char *path, int fildes, struct statvfs *buf);
 
 
 extern int posix_fsync(int fd);
@@ -178,7 +178,7 @@ extern pid_t posix_setsid(void);
 extern void posix_died(pid_t pid, int exit);
 
 
-extern int posix_waitpid(pid_t child, int *status, int options);
+extern int posix_waitpid(pid_t child, int *status, unsigned options);
 
 
 extern void posix_init(void);
