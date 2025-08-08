@@ -326,7 +326,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 		return NULL;
 	}
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1-k "data will never be -1" */
-	for (v = data; (size_t)v < (size_t)data + sz; v += SIZE_PAGE) {
+	for (v = data; (ptr_t)v < (ptr_t)data + sz; v += SIZE_PAGE) {
 		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 
 		if (p == NULL) {

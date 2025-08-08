@@ -96,7 +96,7 @@ static int _zynqmp_getDevClock(u32 dev, u8 *src, u8 *div0, u8 *div1, u8 *active)
 		unsigned regOffset = (dev - (unsigned int)pctl_devclock_lpd_usb3_dual) + (unsigned int)crl_apb_usb3_dual_ref_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crl_apb + regOffset, src, div0, div1, active);
 	}
-	else if ((dev >= (unsigned int)pctl_devclock_fpd_acpu) && (dev <= (unsigned int)pctl_devclock_fpd_dbg_tstmp)) {
+	else if ((dev >= pctl_devclock_fpd_acpu) && (dev <= pctl_devclock_fpd_dbg_tstmp)) {
 		unsigned regOffset = (dev - (unsigned int)pctl_devclock_fpd_acpu) + (unsigned int)crf_apb_acpu_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crf_apb + regOffset, src, div0, div1, active);
 	}

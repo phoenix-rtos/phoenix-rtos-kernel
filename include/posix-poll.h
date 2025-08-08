@@ -34,8 +34,8 @@ typedef unsigned int nfds_t;
 
 struct pollfd {
 	int fd;
-	short events;
-	short revents;
+	unsigned short events;
+	unsigned short revents;
 };
 
 
