@@ -21,27 +21,27 @@
 #include "include/mman.h"
 
 
-#define EXC_ASYNC_EXTERNAL      0x16
-#define EXC_PERM_PAGE           0x0f
-#define EXC_SYNC_EXTERNAL_TTW2  0x0e
-#define EXC_PERM_SECTION        0x0d
-#define EXC_SYNC_EXTERNAL_TTW1  0x0c
-#define EXC_DOMAIN_PAGE         0x0b
-#define EXC_DOMAIN_SECTION      0x0a
-#define EXC_SYNC_EXTERNAL       0x08
-#define EXC_TRANSLATION_PAGE    0x07
-#define EXC_ACCESS_PAGE         0x06
-#define EXC_TRANSLATION_SECTION 0x05
-#define EXC_CACHE               0x04
-#define EXC_ACCESS_SECTION      0x03
-#define EXC_DEBUG               0x02
-#define EXC_ALIGMENT            0x01
+#define EXC_ASYNC_EXTERNAL      0x16U
+#define EXC_PERM_PAGE           0x0fU
+#define EXC_SYNC_EXTERNAL_TTW2  0x0eU
+#define EXC_PERM_SECTION        0x0dU
+#define EXC_SYNC_EXTERNAL_TTW1  0x0cU
+#define EXC_DOMAIN_PAGE         0x0bU
+#define EXC_DOMAIN_SECTION      0x0aU
+#define EXC_SYNC_EXTERNAL       0x08U
+#define EXC_TRANSLATION_PAGE    0x07U
+#define EXC_ACCESS_PAGE         0x06U
+#define EXC_TRANSLATION_SECTION 0x05U
+#define EXC_CACHE               0x04U
+#define EXC_ACCESS_SECTION      0x03U
+#define EXC_DEBUG               0x02U
+#define EXC_ALIGMENT            0x01U
 
 
-struct {
-	void (*undefHandler)(unsigned int, exc_context_t *);
-	void (*abortHandler)(unsigned int, exc_context_t *);
-	void (*defaultHandler)(unsigned int, exc_context_t *);
+static struct {
+	void (*undefHandler)(unsigned int n, exc_context_t *ctx);
+	void (*abortHandler)(unsigned int n, exc_context_t *ctx);
+	void (*defaultHandler)(unsigned int n, exc_context_t *ctx);
 	spinlock_t lock;
 } exceptions;
 
@@ -51,7 +51,7 @@ enum { exc_reset = 0, exc_undef, exc_svc, exc_prefetch, exc_abort };
 /* clang-format on */
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	static const char *const mnemonics[] = {
 		"0 #Reset", "1 #Undef", "2 #Syscall", "3 #Prefetch",
@@ -59,43 +59,43 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	};
 	size_t i = 0;
 
-	n &= 0x7;
+	n &= 0x7U;
 
-	hal_strcpy(buff, "\nException: ");
-	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
-	hal_strcpy(buff += hal_strlen(buff), "\n");
+	(void)hal_strcpy(buff, "\nException: ");
+	(void)hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
+	(void)hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
-	i += hal_i2s(" r0=", &buff[i], ctx->cpuCtx.r0, 16, 1);
-	i += hal_i2s("  r1=", &buff[i], ctx->cpuCtx.r1, 16, 1);
-	i += hal_i2s("  r2=", &buff[i], ctx->cpuCtx.r2, 16, 1);
-	i += hal_i2s("  r3=", &buff[i], ctx->cpuCtx.r3, 16, 1);
+	i += hal_i2s(" r0=", &buff[i], ctx->cpuCtx.r0, 16U, 1U);
+	i += hal_i2s("  r1=", &buff[i], ctx->cpuCtx.r1, 16U, 1U);
+	i += hal_i2s("  r2=", &buff[i], ctx->cpuCtx.r2, 16U, 1U);
+	i += hal_i2s("  r3=", &buff[i], ctx->cpuCtx.r3, 16U, 1U);
 
-	i += hal_i2s("\n r4=", &buff[i], ctx->cpuCtx.r4, 16, 1);
-	i += hal_i2s("  r5=", &buff[i], ctx->cpuCtx.r5, 16, 1);
-	i += hal_i2s("  r6=", &buff[i], ctx->cpuCtx.r6, 16, 1);
-	i += hal_i2s("  r7=", &buff[i], ctx->cpuCtx.r7, 16, 1);
+	i += hal_i2s("\n r4=", &buff[i], ctx->cpuCtx.r4, 16U, 1U);
+	i += hal_i2s("  r5=", &buff[i], ctx->cpuCtx.r5, 16U, 1U);
+	i += hal_i2s("  r6=", &buff[i], ctx->cpuCtx.r6, 16U, 1U);
+	i += hal_i2s("  r7=", &buff[i], ctx->cpuCtx.r7, 16U, 1U);
 
-	i += hal_i2s("\n r8=", &buff[i], ctx->cpuCtx.r8, 16, 1);
-	i += hal_i2s("  r9=", &buff[i], ctx->cpuCtx.r9, 16, 1);
-	i += hal_i2s(" r10=", &buff[i], ctx->cpuCtx.r10, 16, 1);
-	i += hal_i2s("  fp=", &buff[i], ctx->cpuCtx.fp, 16, 1);
+	i += hal_i2s("\n r8=", &buff[i], ctx->cpuCtx.r8, 16U, 1U);
+	i += hal_i2s("  r9=", &buff[i], ctx->cpuCtx.r9, 16U, 1U);
+	i += hal_i2s(" r10=", &buff[i], ctx->cpuCtx.r10, 16U, 1U);
+	i += hal_i2s("  fp=", &buff[i], ctx->cpuCtx.fp, 16U, 1U);
 
-	i += hal_i2s("\n ip=", &buff[i], ctx->cpuCtx.ip, 16, 1);
-	i += hal_i2s("  sp=", &buff[i], ctx->cpuCtx.sp, 16, 1);
-	i += hal_i2s("  lr=", &buff[i], ctx->cpuCtx.lr, 16, 1);
-	i += hal_i2s("  pc=", &buff[i], ctx->cpuCtx.pc, 16, 1);
+	i += hal_i2s("\n ip=", &buff[i], ctx->cpuCtx.ip, 16U, 1U);
+	i += hal_i2s("  sp=", &buff[i], ctx->cpuCtx.sp, 16U, 1U);
+	i += hal_i2s("  lr=", &buff[i], ctx->cpuCtx.lr, 16U, 1U);
+	i += hal_i2s("  pc=", &buff[i], ctx->cpuCtx.pc, 16U, 1U);
 
-	i += hal_i2s("\npsr=", &buff[i], ctx->cpuCtx.psr, 16, 1);
-	i += hal_i2s(" dfs=", &buff[i], ctx->dfsr, 16, 1);
-	i += hal_i2s(" dfa=", &buff[i], ctx->dfar, 16, 1);
-	i += hal_i2s(" ifs=", &buff[i], ctx->ifsr, 16, 1);
+	i += hal_i2s("\npsr=", &buff[i], ctx->cpuCtx.psr, 16U, 1U);
+	i += hal_i2s(" dfs=", &buff[i], ctx->dfsr, 16U, 1U);
+	i += hal_i2s(" dfa=", &buff[i], ctx->dfar, 16U, 1U);
+	i += hal_i2s(" ifs=", &buff[i], ctx->ifsr, 16U, 1U);
 
-	i += hal_i2s("\nifa=", &buff[i], ctx->ifar, 16, 1);
+	i += hal_i2s("\nifa=", &buff[i], ctx->ifar, 16U, 1U);
 
 	buff[i++] = '\n';
 
-	buff[i] = 0;
+	buff[i] = '\0';
 }
 
 
@@ -120,13 +120,13 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
-
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "function is used in assembly" */
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
-	if (n == exc_prefetch || n == exc_abort) {
+	if (n == (unsigned int)exc_prefetch || n == (unsigned int)exc_abort) {
 		exceptions.abortHandler(n, ctx);
 	}
-	else if (n == exc_undef) {
+	else if (n == (unsigned int)exc_undef) {
 		exceptions.undefHandler(n, ctx);
 	}
 	else {
@@ -142,30 +142,30 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
-	int prot;
+	unsigned int prot;
 	u32 status;
 
-	if (n == exc_prefetch) {
+	if (n == (unsigned int)exc_prefetch) {
 		prot = PROT_EXEC | PROT_READ;
-		status = ctx->ifsr & 0x1f;
+		status = ctx->ifsr & 0x1fU;
 	}
-	else if (n == exc_abort) {
+	else if (n == (unsigned int)exc_abort) {
 		prot = PROT_READ;
-		status = ctx->dfsr & 0x1f;
+		status = ctx->dfsr & 0x1fU;
 
-		if (ctx->dfsr & (1 << 11)) {
+		if ((ctx->dfsr & ((unsigned int)0x1 << 11)) != 0U) {
 			prot |= PROT_WRITE;
 		}
 	}
 	else {
-		return PROT_NONE;
+		return (int)PROT_NONE;
 	}
 
 	if (status == EXC_PERM_SECTION || status == EXC_PERM_PAGE) {
 		prot |= PROT_USER;
 	}
 
-	return prot;
+	return (int)prot;
 }
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)
@@ -179,12 +179,12 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 	u32 status;
 	void *addr = NULL;
 
-	if (n == exc_prefetch) {
-		status = ctx->ifsr & 0x1f;
+	if (n == (unsigned int)exc_prefetch) {
+		status = ctx->ifsr & 0x1fU;
 		addr = (void *)ctx->ifar;
 	}
-	else if (n == exc_abort) {
-		status = ctx->dfsr & 0x1f;
+	else if (n == (unsigned int)exc_abort) {
+		status = ctx->dfsr & 0x1fU;
 		addr = (void *)ctx->dfar;
 	}
 	else {
@@ -193,14 +193,15 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 
 	if (status != EXC_ACCESS_SECTION && status != EXC_ACCESS_PAGE &&
 			status != EXC_PERM_SECTION && status != EXC_PERM_PAGE &&
-			status != EXC_TRANSLATION_PAGE && status != EXC_TRANSLATION_SECTION)
+			status != EXC_TRANSLATION_PAGE && status != EXC_TRANSLATION_SECTION) {
 		return NULL;
+	}
 
 	return addr;
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int n, exc_context_t *ctx))
 {
 	int ret = 0;
 	spinlock_ctx_t sc;

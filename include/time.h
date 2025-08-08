@@ -21,7 +21,7 @@
 #define PH_CLOCK_REALTIME  1
 #define PH_CLOCK_MONOTONIC 2
 
-#define TIMER_ABSTIME 1
+#define TIMER_ABSTIME 1U
 
 
 #endif

@@ -19,7 +19,7 @@
 #include "rb.h"
 
 
-#define MAX_ID ((1LL << (__CHAR_BIT__ * (sizeof(int)) - 1)) - 1)
+#define MAX_ID ((1ULL << ((size_t)__CHAR_BIT__ * (sizeof(int)) - 1U)) - 1ULL)
 
 
 typedef rbtree_t idtree_t;
@@ -31,12 +31,13 @@ typedef struct {
 	int id;
 } idnode_t;
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7-a 'type' within (type *) can not be put in the parentheses due to compilation error */
 #define lib_idtreeof(type, node_field, node) ({ \
 	long _off = (long)&(((type *)0)->node_field); \
 	idnode_t *tmpnode = (node); \
 	(type *)((tmpnode == NULL) ? NULL : ((void *)tmpnode - _off)); \
 })
+/* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 
 
 idnode_t *lib_idtreeFind(idtree_t *tree, int id);
@@ -57,7 +58,7 @@ void lib_idtreeRemove(idtree_t *tree, idnode_t *node);
 int lib_idtreeId(idnode_t *node);
 
 
-int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min);
+int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int minimum);
 
 
 void lib_idtreeDump(rbnode_t *node);

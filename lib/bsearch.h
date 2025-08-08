@@ -18,7 +18,6 @@
 #define LIB_BSEARCH_H_
 
 
-extern void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *, void *));
-
+extern void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *n1, void *n2));
 
 #endif

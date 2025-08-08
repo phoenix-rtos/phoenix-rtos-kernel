@@ -31,7 +31,7 @@ const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
 static thread_t *const wakeupPending = (void *)-1;
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
@@ -52,7 +52,7 @@ struct {
 	intr_handler_t pendsvHandler;
 #endif
 
-	thread_t *volatile ghosts;
+	thread_t *ghosts;
 	thread_t *reaper;
 
 	int perfGather;
@@ -88,6 +88,7 @@ static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
 	thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
 	thread_t *t2 = lib_treeof(thread_t, sleeplinkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	if (t1->wakeup != t2->wakeup) {
 		return (t1->wakeup > t2->wakeup) ? 1 : -1;
 	}
@@ -124,20 +125,25 @@ static void _perf_event(thread_t *t, int type)
 	else if (type == perf_evScheduling) {
 		wait = now - t->readyTime;
 
-		if (t->maxWait < wait)
+		if (t->maxWait < wait) {
 			t->maxWait = wait;
+		}
+	}
+	else {
+		/* No action required */
 	}
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
-	ev.type = type;
+	ev.type = (u8)type & 0x03U;
 
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
-	ev.tid = perf_idpack(proc_getTid(t));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
-	_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
+	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
 }
 
 
@@ -170,42 +176,44 @@ static void _perf_begin(thread_t *t)
 	perf_levent_begin_t ev;
 	time_t now;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	ev.sbz = 0;
 	ev.type = perf_levBegin;
 	ev.prio = t->priority;
-	ev.tid = perf_idpack(proc_getTid(t));
-	ev.pid = t->process != NULL ? perf_idpack(process_getPid(t->process)) : -1;
+	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
+	ev.pid = t->process != NULL ? perf_idpack((unsigned int)process_getPid(t->process)) : (unsigned int)-1;
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
-	_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
+	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
 }
 
 
-void perf_end(thread_t *t)
+static void perf_end(thread_t *t)
 {
 	perf_levent_end_t ev;
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levEnd;
-	ev.tid = perf_idpack(proc_getTid(t));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
-	_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
+	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -216,21 +224,22 @@ void perf_fork(process_t *p)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levFork;
-	ev.pid = perf_idpack(process_getPid(p));
+	ev.pid = perf_idpack((unsigned int)process_getPid(p));
 	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
-	_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
+	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -241,20 +250,21 @@ void perf_kill(process_t *p)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levKill;
-	ev.pid = perf_idpack(process_getPid(p));
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.pid = perf_idpack((unsigned int)process_getPid(p));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
-	_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
+	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -263,27 +273,28 @@ void perf_exec(process_t *p, char *path)
 {
 	perf_levent_exec_t ev;
 	time_t now;
-	int plen;
+	unsigned int plen;
 	spinlock_ctx_t sc;
 
-	if (!threads_common.perfGather)
+	if (threads_common.perfGather == 0) {
 		return;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levExec;
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	plen = hal_strlen(path);
-	plen = min(plen, sizeof(ev.path) - 1);
+	plen = min(plen, sizeof(ev.path) - 1U);
 	hal_memcpy(ev.path, path, plen);
-	ev.path[plen] = 0;
+	ev.path[plen] = '\0';
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
-	_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev) - sizeof(ev.path) + plen + 1);
+	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev) - sizeof(ev.path) + plen + 1U);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -299,7 +310,7 @@ static void perf_bufferFree(void *data, page_t **pages)
 		sz += SIZE_PAGE;
 	}
 
-	vm_munmap(threads_common.kmap, data, sz);
+	(void)vm_munmap(threads_common.kmap, data, sz);
 }
 
 
@@ -311,10 +322,11 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 	*pages = NULL;
 	data = vm_mapFind(threads_common.kmap, NULL, sz, MAP_NONE, PROT_READ | PROT_WRITE);
 
-	if (data == NULL)
+	if (data == NULL) {
 		return NULL;
-
-	for (v = data; v < data + sz; v += SIZE_PAGE) {
+	}
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1-k "data will never be -1" */
+	for (v = data; (size_t)v < (size_t)data + sz; v += SIZE_PAGE) {
 		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 
 		if (p == NULL) {
@@ -324,7 +336,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 
 		p->next = *pages;
 		*pages = p;
-		page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
+		(void)page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
 	}
 
 	return data;
@@ -336,19 +348,22 @@ int perf_start(unsigned pid)
 	void *data;
 	spinlock_ctx_t sc;
 
-	if (!pid)
+	if (pid == 0U) {
 		return -EINVAL;
+	}
 
-	if (threads_common.perfGather)
+	if (threads_common.perfGather == 1) {
 		return -EINVAL;
+	}
 
 	/* Allocate 4M for events */
-	data = perf_bufferAlloc(&threads_common.perfPages, 4 << 20);
+	data = perf_bufferAlloc(&threads_common.perfPages, 0x4UL << 20);
 
-	if (data == NULL)
+	if (data == NULL) {
 		return -ENOMEM;
+	}
 
-	_cbuffer_init(&threads_common.perfBuffer, data, 4 << 20);
+	(void)_cbuffer_init(&threads_common.perfBuffer, data, 0x4UL << 20);
 
 	/* Start gathering events */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -368,23 +383,24 @@ int perf_read(void *buffer, size_t bufsz)
 	bufsz = _cbuffer_read(&threads_common.perfBuffer, buffer, bufsz);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return bufsz;
+	return (int)bufsz;
 }
 
 
-int perf_finish()
+int perf_finish(void)
 {
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (threads_common.perfGather) {
+	if (threads_common.perfGather != 0) {
 		threads_common.perfGather = 0;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		perf_bufferFree(threads_common.perfBuffer.data, &threads_common.perfPages);
 	}
-	else
+	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
 
 	return EOK;
 }
@@ -395,40 +411,45 @@ int perf_finish()
  */
 
 
-static void _threads_updateWakeup(time_t now, thread_t *min)
+static void _threads_updateWakeup(time_t now, thread_t *minimum)
 {
 	thread_t *t;
 	time_t wakeup;
 
-	if (min != NULL)
-		t = min;
-	else
+	if (minimum != NULL) {
+		t = minimum;
+	}
+	else {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
+	}
 
 	if (t != NULL) {
-		if (now >= t->wakeup)
+		if (now >= t->wakeup) {
 			wakeup = 1;
-		else
+		}
+		else {
 			wakeup = t->wakeup - now;
+		}
 	}
 	else {
 		wakeup = SYSTICK_INTERVAL;
 	}
 
-	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8)
+	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8) {
 		wakeup = SYSTICK_INTERVAL;
+	}
 
-	hal_timerSetWakeup(wakeup);
+	hal_timerSetWakeup((unsigned int)wakeup);
 }
 
 
-int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
+static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *t;
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (hal_cpuGetID() != 0) {
+	if (hal_cpuGetID() != 0U) {
 		/* Invoke scheduler */
 		return 1;
 	}
@@ -484,10 +505,10 @@ static void thread_destroy(thread_t *thread)
 
 		LIST_REMOVE_EX(&process->threads, thread, procnext, procprev);
 		LIST_ADD_EX(&process->ghosts, thread, procnext, procprev);
-		_proc_threadBroadcast(&process->reaper);
+		(void)_proc_threadBroadcast(&process->reaper);
 
 		hal_spinlockClear(&threads_common.spinlock, &sc);
-		proc_put(process);
+		(void)proc_put(process);
 	}
 	else {
 		vm_kfree(thread);
@@ -499,12 +520,12 @@ thread_t *threads_findThread(int tid)
 {
 	thread_t *t;
 
-	proc_lockSet(&threads_common.lock);
+	(void)proc_lockSet(&threads_common.lock);
 	t = lib_idtreeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.id, tid));
 	if (t != NULL) {
 		++t->refs;
 	}
-	proc_lockClear(&threads_common.lock);
+	(void)proc_lockClear(&threads_common.lock);
 
 	return t;
 }
@@ -514,12 +535,12 @@ void threads_put(thread_t *thread)
 {
 	int refs;
 
-	proc_lockSet(&threads_common.lock);
+	(void)proc_lockSet(&threads_common.lock);
 	refs = --thread->refs;
 	if (refs <= 0) {
 		lib_idtreeRemove(&threads_common.id, &thread->idlinkage);
 	}
-	proc_lockClear(&threads_common.lock);
+	(void)proc_lockClear(&threads_common.lock);
 
 	if (refs <= 0) {
 		thread_destroy(thread);
@@ -536,8 +557,9 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 		current->lastTime = now;
 	}
 
-	if (selected != NULL && current != selected)
+	if (selected != NULL && current != selected) {
 		selected->lastTime = now;
+	}
 }
 
 
@@ -549,7 +571,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	current = _proc_current();
 	current->longjmpctx = ctx;
-	hal_cpuReschedule(&threads_common.spinlock, &sc);
+	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
 	for (;;) {
 	}
 }
@@ -558,6 +580,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
@@ -577,14 +600,15 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		current->context = context;
 
 		/* Move thread to the end of queue */
-		if (current->state == READY) {
+		if (current->state == (unsigned int)READY) {
 			LIST_ADD(&threads_common.ready[current->priority], current);
 			_perf_preempted(current);
 		}
 	}
 
 	/* Get next thread */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *);) {
+	i = 0;
+	while (i < sizeof(threads_common.ready) / sizeof(thread_t *)) {
 		if ((selected = threads_common.ready[i]) == NULL) {
 			i++;
 			continue;
@@ -592,7 +616,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		LIST_REMOVE(&threads_common.ready[i], selected);
 
-		if (selected->exit == 0) {
+		if (selected->exit == 0U) {
 			break;
 		}
 
@@ -602,7 +626,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		selected->state = GHOST;
 		LIST_ADD(&threads_common.ghosts, selected);
-		_proc_threadWakeup(&threads_common.reaper);
+		(void)_proc_threadWakeup(&threads_common.reaper);
 	}
 
 	LIB_ASSERT(selected != NULL, "no threads to schedule");
@@ -635,7 +659,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			selected->longjmpctx = NULL;
 		}
 
-		if (selected->tls.tls_base != NULL) {
+		if (selected->tls.tls_base != 0U) {
 			hal_cpuTlsSet(&selected->tls, selCtx);
 		}
 
@@ -645,15 +669,15 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 		if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
 			LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
-				"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
-				(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
-				selected->kstack, selCtx);
+					"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
+					(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+					selected->kstack, selCtx);
 		}
 
 		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
-			(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
-			"pid: %d, tid: %d, path: %s, user stack corrupted",
-			process_getPid(selected->process), proc_getTid(selected), selected->process->path);
+						(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
+				"pid: %d, tid: %d, path: %s, user stack corrupted",
+				process_getPid(selected->process), proc_getTid(selected), selected->process->path);
 #endif
 	}
 
@@ -664,6 +688,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	spinlock_ctx_t sc;
@@ -702,23 +727,23 @@ static int thread_alloc(thread_t *thread)
 {
 	int id;
 
-	proc_lockSet(&threads_common.lock);
-	id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, threads_common.idcounter);
+	(void)proc_lockSet(&threads_common.lock);
+	id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, (int)threads_common.idcounter);
 	if (id < 0) {
 		/* Try from the start */
 		threads_common.idcounter = 0;
-		id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, threads_common.idcounter);
+		id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, (int)threads_common.idcounter);
 	}
 
 	if (id >= 0) {
 		if (threads_common.idcounter == MAX_TID) {
-			threads_common.idcounter = 0;
+			threads_common.idcounter = 0U;
 		}
 		else {
 			threads_common.idcounter++;
 		}
 	}
-	proc_lockClear(&threads_common.lock);
+	(void)proc_lockClear(&threads_common.lock);
 
 	return id;
 }
@@ -730,14 +755,15 @@ void threads_canaryInit(thread_t *t, void *ustack)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	if ((t->ustack = ustack) != NULL)
+	if ((t->ustack = ustack) != NULL) {
 		hal_memcpy(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
+	}
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
 
-int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
+int proc_threadCreate(process_t *process, void (*start)(void *harg), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
@@ -773,8 +799,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->locks = NULL;
 	t->stick = 0;
 	t->utick = 0;
-	t->priorityBase = priority;
-	t->priority = priority;
+	t->priorityBase = (u8)priority & 0xffU;
+	t->priority = (u8)priority & 0xffU;
 	t->cpuTime = 0;
 	t->maxWait = 0;
 	proc_gettime(&t->startTime, NULL);
@@ -787,7 +813,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 		return -ENOMEM;
 	}
 
-	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
+	if (process != NULL && (process->tls.tdata_sz != 0U || process->tls.tbss_sz != 0U)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
 			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
@@ -797,11 +823,11 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 		}
 	}
 	else {
-		t->tls.tls_base = NULL;
+		t->tls.tls_base = 0;
 		t->tls.tdata_sz = 0;
 		t->tls.tbss_sz = 0;
 		t->tls.tls_sz = 0;
-		t->tls.arm_m_tls = NULL;
+		t->tls.arm_m_tls = 0;
 	}
 
 	if (id != NULL) {
@@ -809,7 +835,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	}
 
 	/* Prepare initial stack */
-	hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, (stack == NULL) ? NULL : (unsigned char *)stack + stacksz, arg, &t->tls);
+	(void)hal_cpuCreateContext(&t->context, start, t->kstack, t->kstacksz, (stack == NULL) ? NULL : (unsigned char *)stack + stacksz, arg, &t->tls);
 	threads_canaryInit(t, stack);
 
 	if (process != NULL) {
@@ -835,7 +861,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 
 static unsigned int _proc_lockGetPriority(lock_t *lock)
 {
-	unsigned int priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1;
+	unsigned int priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1U;
 	thread_t *thread = lock->queue;
 
 	if (thread != NULL) {
@@ -853,7 +879,7 @@ static unsigned int _proc_lockGetPriority(lock_t *lock)
 
 static unsigned int _proc_threadGetLockPriority(thread_t *thread)
 {
-	unsigned int ret, priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1;
+	unsigned int ret, priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1U;
 	lock_t *lock = thread->locks;
 
 	if (lock != NULL) {
@@ -889,7 +915,7 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 		priority = thread->priorityBase;
 	}
 
-	if (thread->state == READY) {
+	if (thread->state == (unsigned char)READY) {
 		for (i = 0; i < hal_cpuGetCount(); i++) {
 			if (thread == threads_common.current[i]) {
 				break;
@@ -898,14 +924,14 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 
 		if (i == hal_cpuGetCount()) {
 			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread) != 0,
-				"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
-				thread, proc_getTid(thread), thread->priority);
+					"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
+					thread, proc_getTid(thread), thread->priority);
 			LIST_REMOVE(&threads_common.ready[thread->priority], thread);
 			LIST_ADD(&threads_common.ready[priority], thread);
 		}
 	}
 
-	thread->priority = priority;
+	thread->priority = (u8)priority & 0xffU;
 }
 
 
@@ -919,7 +945,7 @@ int proc_threadPriority(int priority)
 		return -EINVAL;
 	}
 
-	if ((priority >= 0) && (priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
+	if ((priority >= 0) && ((unsigned int)priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
 		return -EINVAL;
 	}
 
@@ -929,28 +955,31 @@ int proc_threadPriority(int priority)
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (priority >= 0) {
-		if (priority < current->priority) {
-			current->priority = priority;
+		if ((unsigned int)priority < current->priority) {
+			current->priority = (u8)priority & 0xffU;
 		}
-		else if (priority > current->priority) {
+		else if ((unsigned int)priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
-			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
-				current->priority = priority;
+			if ((current->locks == NULL) || ((unsigned int)priority <= _proc_threadGetLockPriority(current))) {
+				current->priority = (u8)priority & 0xffU;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
 			}
 		}
+		else {
+			/* No action required */
+		}
 
-		current->priorityBase = priority;
+		current->priorityBase = (u8)priority & 0xffU;
 	}
 
-	ret = current->priorityBase;
+	ret = (int)current->priorityBase;
 
 	if (reschedule != 0) {
-		hal_cpuReschedule(&threads_common.spinlock, &sc);
+		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 	else {
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		(void)hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 
 	return ret;
@@ -964,30 +993,33 @@ static void _thread_interrupt(thread_t *t)
 }
 
 
-void proc_threadEnd(void)
+__attribute__((noreturn)) void proc_threadEnd(void)
 {
 	thread_t *t;
 	int cpu;
 	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	(void)hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	cpu = hal_cpuGetID();
+	cpu = (int)hal_cpuGetID();
 	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
 	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
-	_proc_threadWakeup(&threads_common.reaper);
+	(void)_proc_threadWakeup(&threads_common.reaper);
 
-	hal_cpuReschedule(&threads_common.spinlock, &sc);
+	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+
+	__builtin_unreachable();
 }
 
 
 static void _proc_threadExit(thread_t *t)
 {
 	t->exit = THREAD_END;
-	if (t->interruptible)
+	if (t->interruptible != 0U) {
 		_thread_interrupt(t);
+	}
 }
 
 
@@ -1026,7 +1058,7 @@ void proc_reap(void)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	while (threads_common.ghosts == NULL) {
-		_proc_threadWait(&threads_common.reaper, 0, &sc);
+		(void)_proc_threadWait(&threads_common.reaper, 0, &sc);
 	}
 	ghost = threads_common.ghosts;
 	LIST_REMOVE(&threads_common.ghosts, ghost);
@@ -1056,7 +1088,7 @@ static void _proc_threadDequeue(thread_t *t)
 {
 	unsigned int i;
 
-	if (t->state == GHOST) {
+	if (t->state == (unsigned char)GHOST) {
 		return;
 	}
 
@@ -1066,7 +1098,7 @@ static void _proc_threadDequeue(thread_t *t)
 		LIST_REMOVE(t->wait, t);
 	}
 
-	if (t->wakeup) {
+	if (t->wakeup != 0) {
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
 	}
 
@@ -1104,11 +1136,11 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->state = SLEEP;
 	current->wakeup = 0;
 	current->wait = queue;
-	current->interruptible = interruptible;
+	current->interruptible = (u8)interruptible & 0x01U;
 
-	if (timeout) {
+	if (timeout != 0) {
 		current->wakeup = timeout;
-		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
+		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
 	}
 
@@ -1122,11 +1154,12 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *sc
 
 	_proc_threadEnqueue(queue, timeout, 0);
 
-	if (*queue == NULL)
+	if (*queue == NULL) {
 		return EOK;
+	}
 
 	err = hal_cpuReschedule(&threads_common.spinlock, scp);
-	hal_spinlockSet(&threads_common.spinlock, scp);
+	(void)hal_spinlockSet(&threads_common.spinlock, scp);
 
 	return err;
 }
@@ -1143,7 +1176,7 @@ static int _proc_threadSleepAbs(time_t abs, time_t now, spinlock_ctx_t *sc)
 		current->wakeup = abs;
 		current->interruptible = 1;
 
-		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
+		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
 
 		_perf_enqueued(current);
 		_threads_updateWakeup(now, NULL);
@@ -1178,7 +1211,7 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
 		return -EINVAL;
 	}
 
-	us = ((*sec) * 1000 * 1000) + (((*nsec) + 999) / 1000);
+	us = ((*sec) * 1000LL * 1000LL) + (((time_t)(*nsec) + 999LL) / 1000LL);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -1195,7 +1228,7 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
 			if (us > elapsed) {
 				unslept = us - elapsed;
 				*sec = unslept / (1000 * 1000);
-				*nsec = (unslept % (1000 * 1000)) * 1000;
+				*nsec = (long int)(unslept % (1000 * 1000)) * 1000;
 			}
 			else {
 				*sec = 0;
@@ -1301,7 +1334,7 @@ void proc_threadWakeupYield(thread_t **queue)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if (_proc_threadWakeup(queue) != 0) {
-		hal_cpuReschedule(&threads_common.spinlock, &sc);
+		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1315,7 +1348,7 @@ void proc_threadBroadcastYield(thread_t **queue)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if (_proc_threadBroadcast(queue) != 0) {
-		hal_cpuReschedule(&threads_common.spinlock, &sc);
+		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1386,8 +1419,8 @@ int proc_join(int tid, time_t timeout)
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	if ((ghost != NULL) && (ghost->tls.tls_sz != 0)) {
-		process_tlsDestroy(&ghost->tls, process->mapp);
+	if ((ghost != NULL) && (ghost->tls.tls_sz != 0U)) {
+		(void)process_tlsDestroy(&ghost->tls, process->mapp);
 	}
 
 	vm_kfree(ghost);
@@ -1441,10 +1474,12 @@ static time_t _proc_nextWakeup(void)
 	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 	if (thread != NULL) {
 		now = _proc_gettimeRaw();
-		if (now >= thread->wakeup)
+		if (now >= thread->wakeup) {
 			wakeup = 0;
-		else
+		}
+		else {
 			wakeup = thread->wakeup - now;
+		}
 	}
 
 	return wakeup;
@@ -1458,11 +1493,13 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	int sigbit = 1 << sig;
+	unsigned sigbit = 0x01UL << (unsigned int)sig;
+
 	spinlock_ctx_t sc;
 
 	switch (sig) {
 		case signal_segv:
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional passthrough" */
 		case signal_illegal:
 			if (process->sighandler != NULL) {
 				break;
@@ -1481,6 +1518,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 			return EOK;
 
 		default:
+			/* Handles any value of 'sig' not covered by the case labels. */
 			break;
 	}
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -1494,8 +1532,8 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 		if (thread != NULL) {
 			do {
-				if (sigbit & ~thread->sigmask) {
-					if (thread->interruptible) {
+				if ((sigbit & ~thread->sigmask) != 0U) {
+					if (thread->interruptible != 0U) {
 						_thread_interrupt(thread);
 					}
 
@@ -1514,7 +1552,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 	}
 
-	hal_cpuReschedule(&threads_common.spinlock, &sc);
+	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
 
 	return EOK;
 }
@@ -1527,12 +1565,12 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 	unsigned int sig;
 
 	sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
-	if ((sig != 0) && (proc->sighandler != NULL)) {
+	if ((sig != 0U) && (proc->sighandler != NULL)) {
 		sig = hal_cpuGetLastBit(sig);
 
-		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, oldmask, src) == 0) {
-			selected->sigpend &= ~(1 << sig);
-			proc->sigpend &= ~(1 << sig);
+		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, (int)sig, oldmask, src) == 0) {
+			selected->sigpend &= ~(0x1U << sig);
+			proc->sigpend &= ~(0x1U << sig);
 			return 0;
 		}
 	}
@@ -1559,6 +1597,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	hal_cpuSetReturnValue(ctx, retval);
 
 	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
@@ -1569,7 +1608,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 }
 
 
-int threads_sigsuspend(unsigned int mask)
+int threads_sigsuspend(unsigned int amask)
 {
 	thread_t *thread;
 	spinlock_ctx_t sc;
@@ -1589,10 +1628,11 @@ int threads_sigsuspend(unsigned int mask)
 	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
 
 	oldmask = thread->sigmask;
-	thread->sigmask = mask;
+	thread->sigmask = amask;
 
 	/* check for pending signals before sleep - with the new mask */
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
@@ -1602,12 +1642,13 @@ int threads_sigsuspend(unsigned int mask)
 	/* Sleep forever (atomic lock release), interruptible */
 	thread_t *tqueue = NULL;
 	_proc_threadEnqueue(&tqueue, 0, 1);
-	hal_cpuReschedule(&threads_common.spinlock, &sc);
+	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
 	/* after wakeup */
 
 	/* check for pending signals before restoring the old mask */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
@@ -1684,7 +1725,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 	}
 
 	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->owner == current)) {
-		if ((lock->depth + 1) == 0) {
+		if (((int)lock->depth + 1) == 0) {
 			ret = -EAGAIN;
 		}
 		else {
@@ -1697,7 +1738,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 	}
 
 	LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
-		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
+			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 	if (_proc_lockTry(current, lock) < 0) {
 		/* Lock owner might inherit our priority */
@@ -1788,7 +1829,7 @@ static int _proc_lockUnlock(lock_t *lock)
 	current = _proc_current();
 
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
-		lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
+			lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
 
 	if ((lock->attr.type == PH_LOCK_ERRORCHECK) || (lock->attr.type == PH_LOCK_RECURSIVE)) {
 		if (lock->owner != current) {
@@ -1797,9 +1838,9 @@ static int _proc_lockUnlock(lock_t *lock)
 		}
 	}
 
-	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->depth > 0)) {
+	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->depth > 0U)) {
 		lock->depth--;
-		if (lock->depth != 0) {
+		if (lock->depth != 0U) {
 			hal_spinlockClear(&threads_common.spinlock, &sc);
 			return 0;
 		}
@@ -1809,9 +1850,9 @@ static int _proc_lockUnlock(lock_t *lock)
 	if (lock->queue != NULL) {
 		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
 		lock->owner = lock->queue;
-		lockPriority = _proc_lockGetPriority(lock);
-		if (lockPriority < lock->owner->priority) {
-			_proc_threadSetPriority(lock->queue, lockPriority);
+		lockPriority = (int)_proc_lockGetPriority(lock);
+		if ((unsigned int)lockPriority < lock->owner->priority) {
+			_proc_threadSetPriority(lock->queue, (unsigned int)lockPriority);
 		}
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
@@ -1825,8 +1866,8 @@ static int _proc_lockUnlock(lock_t *lock)
 	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
 
 	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
-		(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->priorityBase,
-		current->priority);
+			(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->priorityBase,
+			current->priority);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1842,7 +1883,7 @@ static void proc_lockUnlock(lock_t *lock)
 
 	if (_proc_lockUnlock(lock) > 0) {
 		hal_spinlockClear(&lock->spinlock, &sc);
-		hal_cpuReschedule(NULL, NULL);
+		(void)hal_cpuReschedule(NULL, NULL);
 	}
 	else {
 		hal_spinlockClear(&lock->spinlock, &sc);
@@ -1856,11 +1897,11 @@ static int _proc_lockClear(lock_t *lock)
 	thread_t *current = proc_current();
 
 	LIB_ASSERT(lock->owner != NULL, "lock: %s, pid: %d, tid: %d, unlock on not locked lock",
-		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
+			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 	LIB_ASSERT(lock->owner == current, "lock: %s, pid: %d, tid: %d, owner: %d, unlocking someone's else lock",
-		lock->name, (current->process != NULL) ? process_getPid(current->process) : 0,
-		proc_getTid(current), proc_getTid(lock->owner));
+			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0,
+			proc_getTid(current), proc_getTid(lock->owner));
 #endif
 
 	if (lock->owner == NULL) {
@@ -1880,12 +1921,12 @@ int proc_lockClear(lock_t *lock)
 		return -EINVAL;
 	}
 
-	hal_spinlockSet(&lock->spinlock, &sc);
+	(void)hal_spinlockSet(&lock->spinlock, &sc);
 
 	err = _proc_lockClear(lock);
 	if (err > 0) {
 		hal_spinlockClear(&lock->spinlock, &sc);
-		hal_cpuReschedule(NULL, NULL);
+		(void)hal_cpuReschedule(NULL, NULL);
 		return EOK;
 	}
 
@@ -1905,7 +1946,7 @@ int proc_lockSet2(lock_t *l1, lock_t *l2)
 	}
 
 	while (proc_lockTry(l2) < 0) {
-		proc_lockClear(l1);
+		(void)proc_lockClear(l1);
 		err = proc_lockSet(l2);
 		if (err < 0) {
 			return err;
@@ -1932,7 +1973,7 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 	if (err >= 0) {
 		err = proc_threadWaitEx(queue, &lock->spinlock, timeout, 1, &sc);
 		if (err != -EINTR) {
-			_proc_lockSet(lock, 0, &sc);
+			(void)_proc_lockSet(lock, 0, &sc);
 		}
 	}
 
@@ -1949,7 +1990,7 @@ int proc_lockDone(lock_t *lock)
 	hal_spinlockSet(&lock->spinlock, &sc);
 
 	if (lock->owner != NULL) {
-		_proc_lockUnlock(lock);
+		(void)_proc_lockUnlock(lock);
 	}
 
 	hal_spinlockClear(&lock->spinlock, &sc);
@@ -2017,8 +2058,9 @@ void proc_threadsDump(unsigned int priority)
 	do {
 		lib_printf("[%p] ", t);
 
-		if (t == NULL)
+		if (t == NULL) {
 			break;
+		}
 
 		t = t->next;
 	} while (t != threads_common.ready[priority]);
@@ -2033,7 +2075,8 @@ void proc_threadsDump(unsigned int priority)
 
 int proc_threadsList(int n, threadinfo_t *info)
 {
-	int i = 0, len, argc, space;
+	int i = 0, argc;
+	unsigned int len, space;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
@@ -2041,7 +2084,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 	char *name;
 	spinlock_ctx_t sc;
 
-	proc_lockSet(&threads_common.lock);
+	(void)proc_lockSet(&threads_common.lock);
 
 	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
 
@@ -2057,21 +2100,25 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		info[i].tid = proc_getTid(t);
-		info[i].priority = t->priorityBase;
-		info[i].state = t->state;
+		info[i].tid = (unsigned int)proc_getTid(t);
+		info[i].priority = (int)t->priorityBase;
+		info[i].state = (int)t->state;
 
 		now = _proc_gettimeRaw();
-		if (now != t->startTime)
-			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
-		else
+		if (now != t->startTime) {
+			info[i].load = (int)((t->cpuTime * 1000) / (now - t->startTime));
+		}
+		else {
 			info[i].load = 0;
+		}
 		info[i].cpuTime = t->cpuTime;
 
-		if (t->state == READY && t->maxWait < now - t->readyTime)
+		if (t->state == (unsigned int)READY && t->maxWait < now - t->readyTime) {
 			info[i].wait = now - t->readyTime;
-		else
+		}
+		else {
 			info[i].wait = t->maxWait;
+		}
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		if (t->process != NULL) {
@@ -2082,24 +2129,27 @@ int proc_threadsList(int n, threadinfo_t *info)
 				name = info[i].name;
 
 				if (t->process->argv != NULL) {
-					for (argc = 0; t->process->argv[argc] != NULL && space > 0; ++argc) {
-						len = min(hal_strlen(t->process->argv[argc]) + 1, space);
+					for (argc = 0; t->process->argv[argc] != NULL; ++argc) {
+						if ((int)space <= 0) {
+							break;
+						}
+						len = min(hal_strlen(t->process->argv[argc]) + 1U, space);
 						hal_memcpy(name, t->process->argv[argc], len);
-						name[len - 1] = ' ';
+						name[len - 1U] = ' ';
 						name += len;
 						space -= len;
 					}
-					*(name - 1) = 0;
+					*(name - 1) = '\0';
 				}
 				else {
-					len = hal_strlen(t->process->path) + 1;
+					len = hal_strlen(t->process->path) + 1U;
 					hal_memcpy(info[i].name, t->process->path, min(space, len));
 				}
 
-				info[i].name[sizeof(info[i].name) - 1] = 0;
+				info[i].name[sizeof(info[i].name) - 1U] = '\0';
 			}
 			else {
-				info[i].name[0] = 0;
+				info[i].name[0] = '\0';
 			}
 		}
 		else {
@@ -2110,30 +2160,36 @@ int proc_threadsList(int n, threadinfo_t *info)
 		info[i].vmem = 0;
 
 #ifdef NOMMU
-		if ((t->process != NULL) && (entry = t->process->entries) != NULL) {
-			do {
-				info[i].vmem += entry->size;
-				entry = entry->next;
-			} while (entry != t->process->entries);
+		if (t->process != NULL) {
+			entry = t->process->entries;
+			if (entry != NULL) {
+				do {
+					info[i].vmem += (int)entry->size;
+					entry = entry->next;
+				} while (entry != t->process->entries);
+			}
 		}
 		else
 #endif
-		if (map != NULL) {
-			proc_lockSet(&map->lock);
+				if (map != NULL) {
+			(void)proc_lockSet(&map->lock);
 			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
 
 			while (entry != NULL) {
-				info[i].vmem += entry->size;
+				info[i].vmem += (int)entry->size;
 				entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
 			}
-			proc_lockClear(&map->lock);
+			(void)proc_lockClear(&map->lock);
+		}
+		else {
+			/* No action required */
 		}
 
 		++i;
 		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
 	}
 
-	proc_lockClear(&threads_common.lock);
+	(void)proc_lockClear(&threads_common.lock);
 
 	return i;
 }
@@ -2165,14 +2221,16 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	threads_common.perfGather = 0;
 
-	proc_lockInit(&threads_common.lock, &proc_lockAttrDefault, "threads.common");
+	(void)proc_lockInit(&threads_common.lock, &proc_lockAttrDefault, "threads.common");
 
-	for (i = 0; i < sizeof(threads_common.stackCanary); ++i)
-		threads_common.stackCanary[i] = (i & 1) ? 0xaa : 0x55;
+	for (i = 0U; i < sizeof(threads_common.stackCanary); ++i) {
+		threads_common.stackCanary[i] = ((i & 1U) != 0U) ? 0xaaU : 0x55U;
+	}
 
 	/* Initiaizlie scheduler queue */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++)
+	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
 		threads_common.ready[i] = NULL;
+	}
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
 	lib_idtreeInit(&threads_common.id);
@@ -2182,25 +2240,26 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 
 	/* Allocate and initialize current threads array */
-	if ((threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount())) == NULL)
+	if ((threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount())) == NULL) {
 		return -ENOMEM;
+	}
 
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
-		proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1, SIZE_KSTACK, NULL, 0, NULL);
+		(void)proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1U, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */
 #ifdef PENDSV_IRQ
-	hal_memset(&threads_common.pendsvHandler, NULL, sizeof(threads_common.pendsvHandler));
+	hal_memset(&threads_common.pendsvHandler, 0, sizeof(threads_common.pendsvHandler));
 	threads_common.pendsvHandler.f = threads_schedule;
 	threads_common.pendsvHandler.n = PENDSV_IRQ;
 	hal_interruptsSetHandler(&threads_common.pendsvHandler);
 #endif
 
-	hal_memset(&threads_common.timeintrHandler, NULL, sizeof(threads_common.timeintrHandler));
-	hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
+	hal_memset(&threads_common.timeintrHandler, 0, sizeof(threads_common.timeintrHandler));
+	(void)hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
 
 	return EOK;
 }

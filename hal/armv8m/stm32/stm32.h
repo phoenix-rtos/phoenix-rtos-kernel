@@ -57,9 +57,6 @@ enum gpio_pupds {
 extern int hal_platformctl(void *);
 
 
-extern void _hal_platformInit(void);
-
-
 /* Sets peripheral's bus clock */
 extern int _stm32_rccSetDevClock(unsigned int dev, u32 status, u32 lpStatus);
 

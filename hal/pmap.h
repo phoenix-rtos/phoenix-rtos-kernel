@@ -19,9 +19,10 @@
 #include <arch/pmap.h>
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1 "Used only in targets with MMU" */
 static inline int pmap_belongs(pmap_t *pmap, void *addr)
 {
-	return addr >= pmap->start && addr < pmap->end;
+	return ((ptr_t)addr >= (ptr_t)pmap->start && (ptr_t)addr < (ptr_t)pmap->end) ? 1 : 0;
 }
 
 
@@ -66,6 +67,6 @@ extern int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t
 extern int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top);
 
 
-extern void _pmap_init(pmap_t *pmap, void **start, void **end);
+extern void _pmap_init(pmap_t *pmap, void **vstart, void **vend);
 
 #endif

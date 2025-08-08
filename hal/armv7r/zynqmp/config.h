@@ -18,7 +18,7 @@
 
 
 #define NUM_CPUS        1
-#define SIZE_INTERRUPTS 188
+#define SIZE_INTERRUPTS 188U
 
 #ifndef __ASSEMBLY__
 

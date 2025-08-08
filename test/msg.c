@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
+
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "proc/proc.h"
@@ -22,12 +24,14 @@ unsigned test_randsize(unsigned *seed, unsigned bufsz)
 {
 	unsigned sz;
 
-	if (lib_rand(seed) % 2)
-		sz = (lib_rand(seed) % (bufsz / SIZE_PAGE)) * SIZE_PAGE;
-	else
-		sz = 1 + (lib_rand(seed) % bufsz);
+	if (lib_rand(seed) % 2) {
+		sz = ((unsigned int)lib_rand(seed) % (bufsz / SIZE_PAGE)) * SIZE_PAGE;
+	}
+	else {
+		sz = 1U + ((unsigned int)lib_rand(seed) % bufsz);
+	}
 
-	return sz ? sz : 1;
+	return (sz != 0U) ? sz : 1U;
 }
 
 
@@ -35,17 +39,21 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 {
 	unsigned offs = (bufsz - size) / SIZE_PAGE;
 
-	if (offs && lib_rand(seed) % 2)
-		offs = (lib_rand(seed) % offs) * SIZE_PAGE;
-	else if (offs && lib_rand(seed) % 10)
-		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1));
-	else if (offs && lib_rand(seed) % 10)
-		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1)) / 2;
-	else if (bufsz - size)
-		offs = lib_rand(seed) % (bufsz - size);
-	else
+	if (offs != 0U && lib_rand(seed) % 2 != 0) {
+		offs = ((unsigned int)lib_rand(seed) % offs) * SIZE_PAGE;
+	}
+	else if (offs != 0U && lib_rand(seed) % 10 != 0) {
+		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1U));
+	}
+	else if (offs != 0U && lib_rand(seed) % 10 != 0) {
+		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1U)) / 2U;
+	}
+	else if (bufsz - size != 0U) {
+		offs = (unsigned int)lib_rand(seed) % (bufsz - size);
+	}
+	else {
 		offs = 0;
-
+	}
 	return offs;
 }
 
@@ -53,11 +61,11 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 void test_ping(void *arg)
 {
 	msg_t msg;
-	unsigned bufsz = 4 * SIZE_PAGE, offs[2], i, k;
+	unsigned bufsz = 4U * SIZE_PAGE, offs[2], i, k;
 	void *buf[2];
-	unsigned int seed = (long)test_ping;
+	unsigned int seed = (unsigned long)test_ping;
 	unsigned int count = 0;
-	unsigned int port = (long)arg;
+	unsigned int port = (unsigned long)arg;
 
 
 	lib_printf("test: msg/ping: starting\n");
@@ -70,7 +78,7 @@ void test_ping(void *arg)
 		return;
 	}
 
-	for (k = 0; !count || k < count; ++k) {
+	for (k = 0; count == 0U || k < count; ++k) {
 		lib_printf("\rtest_msg/ping: % 20d OK", k);
 
 		hal_memset(&msg, 0, sizeof(msg));
@@ -80,8 +88,9 @@ void test_ping(void *arg)
 		msg.i.data = buf[0] + (offs[0] = test_offset(&seed, msg.i.size, bufsz));
 		msg.o.data = buf[1] + (offs[1] = test_offset(&seed, msg.o.size, bufsz));
 
-		for (i = 0; i < msg.o.size; ++i)
+		for (i = 0; i < msg.o.size; ++i) {
 			((unsigned char *)msg.i.data)[i] = (unsigned char)lib_rand(&seed);
+		}
 
 		if (proc_send(port, &msg) < 0) {
 			lib_printf("\ntest_msg/ping: send failed\n");
@@ -128,7 +137,7 @@ void test_pong(void *arg)
 {
 	msg_t msg;
 	msg_rid_t rid;
-	unsigned int port = (long)arg;
+	unsigned int port = (unsigned long)arg;
 
 	lib_printf("test_msg/pong: starting\n");
 
@@ -143,10 +152,11 @@ void test_pong(void *arg)
 			lib_printf("test_msg/pong: i/o buffers are of different sizes: 0x%zx and 0x%zx\n", msg.i.size, msg.o.size);
 			msg.o.err = 1;
 		}
-		else
+		else {
 			hal_memcpy(msg.o.data, msg.i.data, msg.i.size);
+		}
 
-		proc_respond(port, &msg, rid);
+		(void)proc_respond(port, &msg, rid);
 	}
 
 	return;
@@ -165,3 +175,6 @@ void test_msg(void)
 	proc_threadCreate(NULL, test_pong, NULL, 4, 1024, NULL, 0, (void *)(long)port);
 	proc_threadCreate(NULL, test_ping, NULL, 4, 1024, NULL, 0, (void *)(long)port);
 }
+
+
+/* parasoft-end-suppress ALL */

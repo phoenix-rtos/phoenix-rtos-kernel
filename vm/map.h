@@ -41,7 +41,7 @@ typedef struct _vm_map_t {
 
 struct _process_t;
 
-
+/* TODO: Unify implementation of prot type to be consistent between this map and functions */
 typedef struct _map_entry_t {
 #ifndef NOMMU
 	union {
@@ -65,9 +65,9 @@ typedef struct _map_entry_t {
 	size_t lmaxgap;
 	size_t rmaxgap;
 
-	unsigned short flags;
-	unsigned short prot;
-	unsigned short protOrig;
+	unsigned char flags;
+	unsigned char prot;
+	unsigned char protOrig;
 	struct _vm_object_t *object;
 	off_t offs;
 } map_entry_t;
@@ -82,7 +82,7 @@ extern void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot
 extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
 
 
-extern int vm_mapForce(vm_map_t *map, void *vaddr, int prot);
+extern int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot);
 
 
 extern int vm_mapFlags(vm_map_t *map, void *vaddr);
@@ -97,19 +97,19 @@ extern int vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 extern int _vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 
 
-extern int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot);
+int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot);
 
 
 extern void vm_mapDump(vm_map_t *map);
 
 
-extern int vm_flagsToAttr(int flags);
+extern unsigned vm_flagsToAttr(unsigned flags);
 
 
 extern int vm_mapCreate(vm_map_t *map, void *start, void *stop);
 
 
-extern int vm_mapCopy(struct _process_t *process, vm_map_t *dst, vm_map_t *src);
+extern int vm_mapCopy(struct _process_t *proc, vm_map_t *dst, vm_map_t *src);
 
 
 extern void vm_mapDestroy(struct _process_t *p, vm_map_t *map);
@@ -121,16 +121,13 @@ extern void vm_mapGetStats(size_t *allocsz);
 extern void vm_mapinfo(meminfo_t *info);
 
 
-extern int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no);
-
-
 extern vm_map_t *vm_getSharedMap(int map);
 
 
 extern int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);
 
 
-extern int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **start, void **end);
+extern int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **bss, void **top);
 
 
 #endif

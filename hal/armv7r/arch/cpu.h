@@ -16,17 +16,17 @@
 #ifndef _HAL_ARMV7R_CPU_H_
 #define _HAL_ARMV7R_CPU_H_
 
-#define SIZE_PAGE 0x1000
+#define SIZE_PAGE 0x1000U
 
 #define SIZE_INITIAL_KSTACK  SIZE_PAGE
 #define INITIAL_KSTACK_SHIFT 12
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (8 * 1024)
+#define SIZE_KSTACK (8U * 1024U)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 /* ARMv7 processor modes */
@@ -45,7 +45,7 @@
 #define NO_IRQ      0x80              /* mask to disable IRQ             */
 #define NO_FIQ      0x40              /* mask to disable FIQ             */
 #define NO_INT      (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ     */
-#define THUMB_STATE 0x20
+#define THUMB_STATE 0x20U
 
 
 #ifndef __ASSEMBLY__
@@ -58,13 +58,14 @@
 
 #define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7-a 't' within *(t *) can not be put in the parentheses due to compilation error */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (void *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) = (void *)(((addr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 
 typedef struct _cpu_context_t {
 	u32 savesp;
@@ -119,19 +120,20 @@ static inline void hal_cpuSetDevBusy(int s)
 {
 }
 
-
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	int pos;
+	unsigned int pos;
 
 	/* clang-format off */
 	__asm__ volatile ("clz %0, %1" : "=r" (pos) : "r" (v));
 	/* clang-format on */
 
-	return 31 - pos;
+	return 31U - pos;
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned pos;
@@ -162,6 +164,7 @@ static inline void hal_cpuSetGot(void *got)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline void *hal_cpuGetGot(void)
 {
 	void *got;
@@ -200,82 +203,24 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return ctx->psr & 0xf;
+	return (int)(unsigned int)(ctx->psr & 0xfU);
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetID(void)
 {
 	unsigned mpidr;
 	/* clang-format off */
 	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
 	/* clang-format on */
-	return mpidr & 0xf;
-}
-
-
-static inline void hal_cpuSignalEvent(void)
-{
-	/* clang-format off */
-	__asm__ volatile ("sev");
-	/* clang-format on */
-}
-
-
-static inline void hal_cpuWaitForEvent(void)
-{
-	/* clang-format off */
-	__asm__ volatile (
-		"dsb\n\t"
-		"wfe"
-	);
-	/* clang-format on */
-}
-
-
-static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
-{
-	u32 result;
-	/* clang-format off */
-	__asm__ volatile (
-		"dmb\n\t"
-		"ldr %0, [%1]\n\t"
-		"dmb"
-		: "=r"(result)
-		: "r"(dst)
-	);
-	/* clang-format on */
-	return result;
-}
-
-
-static inline void hal_cpuAtomicInc(volatile u32 *dst)
-{
-	/* clang-format off */
-	__asm__ volatile (
-		"dmb\n"
-	"1:\n\t"
-		"ldrex r2, [%0]\n\t"
-		"add r2, r2, #1\n\t"
-		"strex r1, r2, [%0]\n\t"
-		"cmp r1, #0\n\t"
-		"bne 1b\n\t"
-		"dmb"
-		:
-		: "r"(dst)
-		: "r1", "r2", "memory"
-	);
-	/* clang-format on */
+	return mpidr & 0xfU;
 }
 
 
 static inline void hal_cpuSmpSync(void)
 {
 }
-
-
-extern unsigned int hal_cpuGetCount(void);
-
 
 #endif
 

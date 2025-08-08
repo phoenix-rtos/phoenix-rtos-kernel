@@ -47,7 +47,7 @@ extern int resource_alloc(process_t *process, resource_t *r);
 extern resource_t *resource_get(process_t *process, int id);
 
 
-extern int resource_put(process_t *process, resource_t *r);
+extern unsigned int resource_put(process_t *process, resource_t *r);
 
 
 extern int proc_resourceDestroy(process_t *process, int id);

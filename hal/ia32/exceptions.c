@@ -112,7 +112,7 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 }
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	static const char *const mnemonics[] = {
 		"0 #DE",  "1 #DB",  "2 #NMI", "3 #BP",      "4 #OF",  "5 #BR",  "6 #UD",  "7 #NM",

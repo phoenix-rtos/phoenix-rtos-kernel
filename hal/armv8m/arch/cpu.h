@@ -18,14 +18,14 @@
 
 #include "hal/types.h"
 
-#define SIZE_PAGE 0x200
+#define SIZE_PAGE 0x200U
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (3 * SIZE_PAGE)
+#define SIZE_USTACK (3U * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (4 * SIZE_PAGE)
+#define SIZE_KSTACK (4U * SIZE_PAGE)
 #endif
 
 /* If KERNEL_FPU_SUPPORT == 0, FPU/MVE context handling in the kernel will be disabled.

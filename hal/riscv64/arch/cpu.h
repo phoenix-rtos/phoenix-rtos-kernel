@@ -18,20 +18,20 @@
 
 #include "hal/types.h"
 
-#define SIZE_PAGE 0x1000
+#define SIZE_PAGE 0x1000UL
 
 #define MAX_CPU_COUNT 8
 
-#define SIZE_INITIAL_KSTACK (4 * SIZE_PAGE)
+#define SIZE_INITIAL_KSTACK (4U * SIZE_PAGE)
 #define INITIAL_KSTACK_BIT  (14)
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (4 * SIZE_PAGE)
+#define SIZE_KSTACK (4U * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 /* Supervisor Cause Register */
@@ -42,21 +42,21 @@
 #define SCAUSE_ECALL   8u /* Environment call from S-mode */
 
 /* Supervisor Status Register */
-#define SSTATUS_SIE  (1u << 1)  /* Supervisor Interrupt Enable */
-#define SSTATUS_SPP  (1u << 8)  /* Previous Supervisor */
-#define SSTATUS_SPIE (1u << 5)  /* Previous Supervisor IE */
-#define SSTATUS_FS   (3u << 13) /* FPU status */
-#define SSTATUS_SUM  (1u << 18) /* Supervisor may access User Memory */
-#define SSTATUS_MXR  (1u << 19) /* Make eXecutable Readable */
+#define SSTATUS_SIE  (1U << 1)  /* Supervisor Interrupt Enable */
+#define SSTATUS_SPP  (1U << 8)  /* Previous Supervisor */
+#define SSTATUS_SPIE (1U << 5)  /* Previous Supervisor IE */
+#define SSTATUS_FS   (3U << 13) /* FPU status */
+#define SSTATUS_SUM  (1U << 18) /* Supervisor may access User Memory */
+#define SSTATUS_MXR  (1U << 19) /* Make eXecutable Readable */
 
 /* Interrupts */
 #define CLINT_IRQ_FLG (1u << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
 
 /* Supervisor Interrupt Pending Register */
-#define SIP_SSIP (1u << 1)
+#define SIP_SSIP (1U << 1)
 
 
-#define CPU_CTX_SIZE 0x230u
+#define CPU_CTX_SIZE 0x230U
 
 
 #ifndef __ASSEMBLY__
@@ -67,7 +67,7 @@
 #define SYSTICK_INTERVAL 1000
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 7u) & ~0x7u)
+#define SIZE_STACK_ARG(sz) (((sz) + 7u) & ~0x7U)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \

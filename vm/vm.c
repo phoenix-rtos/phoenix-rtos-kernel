@@ -22,9 +22,10 @@
 #include "amap.h"
 #include "zone.h"
 #include "kmalloc.h"
+#include "vm/vm.h"
 
 
-struct {
+static struct {
 	void *bss;
 	void *top;
 } vm;
@@ -42,12 +43,12 @@ void _vm_init(vm_map_t *kmap, vm_object_t *kernel)
 	_pmap_init(&kmap->pmap, &vm.bss, &vm.top);
 	_page_init(&kmap->pmap, &vm.bss, &vm.top);
 
-	_map_init(kmap, kernel, &vm.bss, &vm.top);
+	(void)_map_init(kmap, kernel, &vm.bss, &vm.top);
 
 	_zone_init(kmap, kernel, &vm.bss, &vm.top);
-	_kmalloc_init();
+	(void)_kmalloc_init();
 
-	_object_init(kmap, kernel);
+	(void)_object_init(kmap, kernel);
 	_amap_init(kmap, kernel);
 
 	return;
