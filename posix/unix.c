@@ -29,13 +29,13 @@
 
 #define US_DEF_BUFFER_SIZE SIZE_PAGE
 #define US_MIN_BUFFER_SIZE SIZE_PAGE
-#define US_MAX_BUFFER_SIZE 65536
+#define US_MAX_BUFFER_SIZE 65536U
 
-#define US_BOUND       (1 << 0)
-#define US_LISTENING   (1 << 1)
-#define US_ACCEPTING   (1 << 2)
-#define US_CONNECTING  (1 << 3)
-#define US_PEER_CLOSED (1 << 4)
+#define US_BOUND       (1U << 0)
+#define US_LISTENING   (1U << 1)
+#define US_ACCEPTING   (1U << 2)
+#define US_CONNECTING  (1U << 3)
+#define US_PEER_CLOSED (1U << 4)
 
 typedef struct _unixsock_t {
 	rbnode_t linkage;
@@ -52,9 +52,9 @@ typedef struct _unixsock_t {
 	size_t buffsz;
 	fdpack_t *fdpacks;
 
-	char type;
-	char state;
-	char nonblock;
+	__u8 type;
+	__u8 state;
+	__u8 nonblock;
 
 	spinlock_t spinlock;
 
@@ -80,10 +80,19 @@ static struct {
 
 static int unixsock_cmp(rbnode_t *n1, rbnode_t *n2)
 {
+	unsigned id_diff;
 	unixsock_t *r1 = lib_treeof(unixsock_t, linkage, n1);
 	unixsock_t *r2 = lib_treeof(unixsock_t, linkage, n2);
 
-	return (r1->id - r2->id);
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
+	if (r1->id < r2->id) {
+		id_diff = r2->id - r1->id;
+		return -1 * (int)(id_diff);
+	}
+	else {
+		id_diff = r1->id - r2->id;
+		return (int)(id_diff);
+	}
 }
 
 
@@ -94,8 +103,10 @@ static int unixsock_gapcmp(rbnode_t *n1, rbnode_t *n2)
 	rbnode_t *child = NULL;
 	int ret = 1;
 
-	if (r1->lmaxgap > 0 && r1->rmaxgap > 0) {
+	/* parasoft-begin-suppress MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
+	if (r1->lmaxgap > 0U && r1->rmaxgap > 0U) {
 		if (r2->id > r1->id) {
+			/* parasoft-end-suppress MISRAC2012-DIR_4_1 */
 			child = n1->right;
 			ret = -1;
 		}
@@ -104,17 +115,21 @@ static int unixsock_gapcmp(rbnode_t *n1, rbnode_t *n2)
 			ret = 1;
 		}
 	}
-	else if (r1->lmaxgap > 0) {
+	else if (r1->lmaxgap > 0U) {
 		child = n1->left;
 		ret = 1;
 	}
-	else if (r1->rmaxgap > 0) {
+	else if (r1->rmaxgap > 0U) {
 		child = n1->right;
 		ret = -1;
 	}
+	else {
+		/* No action required */
+	}
 
-	if (child == NULL)
+	if (child == NULL) {
 		return 0;
+	}
 
 	return ret;
 }
@@ -129,25 +144,29 @@ static void unixsock_augment(rbnode_t *node)
 	if (node->left == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(unixsock_t, linkage, it->parent);
-			if (it->parent->right == it)
+			if (it->parent->right == it) {
 				break;
+			}
 		}
 
-		n->lmaxgap = (n->id <= p->id) ? n->id : n->id - p->id - 1;
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
+		n->lmaxgap = (n->id <= p->id) ? n->id : n->id - p->id - 1U;
 	}
 	else {
 		l = lib_treeof(unixsock_t, linkage, node->left);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = max(l->lmaxgap, l->rmaxgap);
 	}
 
 	if (node->right == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(unixsock_t, linkage, it->parent);
-			if (it->parent->left == it)
+			if (it->parent->left == it) {
 				break;
+			}
 		}
 
-		n->rmaxgap = (n->id >= p->id) ? (unsigned)-1 - n->id - 1 : p->id - n->id - 1;
+		n->rmaxgap = (n->id >= p->id) ? (unsigned)-1 - n->id - 1U : p->id - n->id - 1U;
 	}
 	else {
 		r = lib_treeof(unixsock_t, linkage, node->right);
@@ -158,10 +177,12 @@ static void unixsock_augment(rbnode_t *node)
 		n = lib_treeof(unixsock_t, linkage, it);
 		p = lib_treeof(unixsock_t, linkage, it->parent);
 
-		if (it->parent->left == it)
+		if (it->parent->left == it) {
 			p->lmaxgap = max(n->lmaxgap, n->rmaxgap);
-		else
+		}
+		else {
 			p->rmaxgap = max(n->lmaxgap, n->rmaxgap);
+		}
 	}
 }
 
@@ -171,36 +192,38 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 	unixsock_t *r, t;
 
 	*id = 0;
-	proc_lockSet(&unix_common.lock);
+	(void)proc_lockSet(&unix_common.lock);
 	if (unix_common.tree.root != NULL) {
 		t.id = 0;
 		r = lib_treeof(unixsock_t, linkage, lib_rbFindEx(unix_common.tree.root, &t.linkage, unixsock_gapcmp));
 		if (r != NULL) {
-			if (r->lmaxgap > 0)
-				*id = r->id - 1;
-			else
-				*id = r->id + 1;
+			if (r->lmaxgap > 0U) {
+				*id = r->id - 1U;
+			}
+			else {
+				*id = r->id + 1U;
+			}
 		}
 		else {
-			proc_lockClear(&unix_common.lock);
+			(void)proc_lockClear(&unix_common.lock);
 			return NULL;
 		}
 	}
 
 	if ((r = vm_kmalloc(sizeof(unixsock_t))) == NULL) {
-		proc_lockClear(&unix_common.lock);
+		(void)proc_lockClear(&unix_common.lock);
 		return NULL;
 	}
 
-	proc_lockInit(&r->lock, &proc_lockAttrDefault, "unix.socket");
+	(void)proc_lockInit(&r->lock, &proc_lockAttrDefault, "unix.socket");
 
 	r->id = *id;
 	/* alloc new socket with 2 refs: one ref for the socket's presence in the tree, second
 	 * one for handling by the caller before returning the socket to the user (to protect
 	 * against accidental socket removal by someone else in the meantime) */
 	r->refs = 2;
-	r->type = type;
-	r->nonblock = nonblock;
+	r->type = (u8)type;
+	r->nonblock = (u8)nonblock;
 	r->buffsz = US_DEF_BUFFER_SIZE;
 	r->fdpacks = NULL;
 	r->remote = NULL;
@@ -211,11 +234,11 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 	r->state = 0;
 	r->next = NULL;
 	r->prev = NULL;
-	_cbuffer_init(&r->buffer, NULL, 0);
+	(void)_cbuffer_init(&r->buffer, NULL, 0);
 	hal_spinlockCreate(&r->spinlock, "unix socket");
 
-	lib_rbInsert(&unix_common.tree, &r->linkage);
-	proc_lockClear(&unix_common.lock);
+	(void)lib_rbInsert(&unix_common.tree, &r->linkage);
+	(void)proc_lockClear(&unix_common.lock);
 
 	return r;
 }
@@ -227,10 +250,11 @@ static unixsock_t *unixsock_get(unsigned id)
 
 	t.id = id;
 
-	proc_lockSet(&unix_common.lock);
-	if ((r = lib_treeof(unixsock_t, linkage, lib_rbFind(&unix_common.tree, &t.linkage))) != NULL)
+	(void)proc_lockSet(&unix_common.lock);
+	if ((r = lib_treeof(unixsock_t, linkage, lib_rbFind(&unix_common.tree, &t.linkage))) != NULL) {
 		r->refs++;
-	proc_lockClear(&unix_common.lock);
+	}
+	(void)proc_lockClear(&unix_common.lock);
 
 	return r;
 }
@@ -240,12 +264,12 @@ static unixsock_t *unixsock_get_remote(unixsock_t *s)
 {
 	unixsock_t *r;
 
-	proc_lockSet(&unix_common.lock);
+	(void)proc_lockSet(&unix_common.lock);
 	r = s->remote;
 	if (r != NULL) {
 		r->refs++;
 	}
-	proc_lockClear(&unix_common.lock);
+	(void)proc_lockClear(&unix_common.lock);
 
 	return r;
 }
@@ -255,7 +279,7 @@ static void unixsock_put(unixsock_t *s)
 {
 	unixsock_t *r;
 
-	proc_lockSet(&unix_common.lock);
+	(void)proc_lockSet(&unix_common.lock);
 	s->refs--;
 	if (s->refs <= 0) {
 		lib_rbRemove(&unix_common.tree, &s->linkage);
@@ -284,18 +308,20 @@ static void unixsock_put(unixsock_t *s)
 			/* FIXME: handle connecting socket */
 		}
 
-		proc_lockClear(&unix_common.lock);
+		(void)proc_lockClear(&unix_common.lock);
 
-		proc_lockDone(&s->lock);
+		(void)proc_lockDone(&s->lock);
 		hal_spinlockDestroy(&s->spinlock);
-		if (s->buffer.data)
+		if (s->buffer.data != NULL) {
 			vm_kfree(s->buffer.data);
-		if (s->fdpacks)
-			fdpass_discard(&s->fdpacks);
+		}
+		if (s->fdpacks != NULL) {
+			(void)fdpass_discard(&s->fdpacks);
+		}
 		vm_kfree(s);
 		return;
 	}
-	proc_lockClear(&unix_common.lock);
+	(void)proc_lockClear(&unix_common.lock);
 }
 
 
@@ -305,14 +331,18 @@ int unix_socket(int domain, int type, int protocol)
 	unsigned id;
 	int nonblock;
 
-	nonblock = (type & SOCK_NONBLOCK) != 0;
-	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+	nonblock = (((unsigned int)type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
 
-	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_1 "Result type must be int" */
+	type &= (int)(unsigned int)(~(SOCK_NONBLOCK | SOCK_CLOEXEC));
+
+	if ((unsigned int)type != SOCK_STREAM && (unsigned int)type != SOCK_DGRAM && (unsigned int)type != SOCK_SEQPACKET) {
 		return -EPROTOTYPE;
+	}
 
-	if (protocol != PF_UNSPEC)
+	if (protocol != PF_UNSPEC) {
 		return -EPROTONOSUPPORT;
+	}
 
 	s = unixsock_alloc(&id, type, nonblock);
 	if (s == NULL) {
@@ -320,7 +350,7 @@ int unix_socket(int domain, int type, int protocol)
 	}
 	unixsock_put(s);
 
-	return id;
+	return (int)id;
 }
 
 
@@ -331,14 +361,17 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 	void *v[2];
 	int nonblock;
 
-	nonblock = (type & SOCK_NONBLOCK) != 0;
-	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+	nonblock = (((unsigned int)type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_1 "Result type must be int" */
+	type &= (int)(unsigned int)(~(SOCK_NONBLOCK | SOCK_CLOEXEC));
 
-	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
+	if ((unsigned int)type != SOCK_STREAM && (unsigned int)type != SOCK_DGRAM && (unsigned int)type != SOCK_SEQPACKET) {
 		return -EPROTOTYPE;
+	}
 
-	if (protocol != PF_UNSPEC)
+	if (protocol != PF_UNSPEC) {
 		return -EPROTONOSUPPORT;
+	}
 
 	s[0] = unixsock_alloc(&id[0], type, nonblock);
 	if (s[0] == NULL) {
@@ -369,19 +402,20 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 		return -ENOMEM;
 	}
 
-	_cbuffer_init(&s[0]->buffer, v[0], s[0]->buffsz);
-	_cbuffer_init(&s[1]->buffer, v[1], s[1]->buffsz);
+	(void)_cbuffer_init(&s[0]->buffer, v[0], s[0]->buffsz);
+	(void)_cbuffer_init(&s[1]->buffer, v[1], s[1]->buffsz);
 
 	s[0]->remote = s[1];
 	s[1]->remote = s[0];
 
-	if (type == SOCK_DGRAM) {
+	if (type == (int)SOCK_DGRAM) {
 		LIST_ADD(&s[0]->connected, s[1]);
 		LIST_ADD(&s[1]->connected, s[0]);
 	}
 
-	sv[0] = id[0];
-	sv[1] = id[1];
+	/* TODO: Consider checking value of id before cast to int */
+	sv[0] = (int)id[0];
+	sv[1] = (int)id[1];
 
 	unixsock_put(s[1]);
 	unixsock_put(s[0]);
@@ -390,7 +424,7 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 }
 
 
-int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags)
+int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, unsigned flags)
 {
 	unixsock_t *s, *r, *new;
 	int err;
@@ -399,10 +433,11 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 	spinlock_ctx_t sc;
 	int nonblock;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
-	nonblock = (flags & SOCK_NONBLOCK) != 0;
+	nonblock = ((flags & SOCK_NONBLOCK) != 0U) ? 1 : 0;
 
 	do {
 		if (s->type != SOCK_STREAM && s->type != SOCK_SEQPACKET) {
@@ -410,17 +445,17 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		if (!(s->state & US_LISTENING)) {
+		if ((s->state & US_LISTENING) == 0U) {
 			err = -EINVAL;
 			break;
 		}
 
-		if (s->nonblock != 0 && s->connecting == NULL) {
+		if (s->nonblock != 0U && s->connecting == NULL) {
 			err = -EWOULDBLOCK;
 			break;
 		}
 
-		new = unixsock_alloc(&newid, s->type, nonblock);
+		new = unixsock_alloc(&newid, (int)s->type, nonblock);
 		if (new == NULL) {
 			err = -ENOMEM;
 			break;
@@ -433,17 +468,18 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		_cbuffer_init(&new->buffer, v, new->buffsz);
+		(void)_cbuffer_init(&new->buffer, v, new->buffsz);
 
 		hal_spinlockSet(&s->spinlock, &sc);
 		s->state |= US_ACCEPTING;
 
 		while (s->connecting == NULL) {
-			proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+			(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 		}
 		r = s->connecting;
 
 		LIST_REMOVE(&s->connecting, r);
+
 		s->state &= ~US_ACCEPTING;
 		hal_spinlockClear(&s->spinlock, &sc);
 
@@ -455,10 +491,10 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 		r->remote = new;
 		new->remote = r;
 
-		proc_threadWakeup(&r->queue);
+		(void)proc_threadWakeup(&r->queue);
 		hal_spinlockClear(&r->spinlock, &sc);
 
-		err = new->id;
+		err = (int)new->id;
 		unixsock_put(new);
 	} while (0);
 
@@ -469,22 +505,24 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 
 int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len)
 {
-	char *path, *name, *dir;
+	char *path, *name;
+	const char *dir;
 	int err;
 	oid_t odir, dev;
 	unixsock_t *s;
 	void *v = NULL;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
-		if (s->state & US_BOUND) {
+		if ((s->state & US_BOUND) != 0U) {
 			err = -EINVAL;
 			break;
 		}
 
-		if (address->sa_family != AF_UNIX) {
+		if (address->sa_family != (sa_family_t)AF_UNIX) {
 			err = -EINVAL;
 			break;
 		}
@@ -509,16 +547,16 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 					break;
 				}
 
-				_cbuffer_init(&s->buffer, v, s->buffsz);
+				(void)_cbuffer_init(&s->buffer, v, s->buffsz);
 			}
 
 			dev.port = US_PORT;
 			dev.id = socket;
 			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
 
-			if (err) {
+			if (err != 0) {
 				if (s->type == SOCK_DGRAM) {
-					_cbuffer_init(&s->buffer, NULL, 0);
+					(void)_cbuffer_init(&s->buffer, NULL, 0);
 					vm_kfree(v);
 				}
 				break;
@@ -541,11 +579,12 @@ int unix_listen(unsigned socket, int backlog)
 	unixsock_t *s;
 	int err;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
-		if (s->state & US_LISTENING) {
+		if ((s->state & US_LISTENING) != 0U) {
 			err = -EADDRINUSE;
 			break;
 		}
@@ -573,21 +612,22 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 	void *v;
 	spinlock_ctx_t sc;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
-		if ((s->state & US_LISTENING) != 0) {
+		if ((s->state & US_LISTENING) != 0U) {
 			err = -EADDRINUSE;
 			break;
 		}
 
-		if ((s->state & US_CONNECTING) != 0) {
+		if ((s->state & US_CONNECTING) != 0U) {
 			err = -EALREADY;
 			break;
 		}
 
-		if (s->remote != NULL || (s->state & US_PEER_CLOSED) != 0) {
+		if (s->remote != NULL || (s->state & US_PEER_CLOSED) != 0U) {
 			err = -EISCONN;
 			break;
 		}
@@ -597,7 +637,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
-		if (address->sa_family != AF_UNIX) {
+		if (address->sa_family != (sa_family_t)AF_UNIX) {
 			err = -EINVAL;
 			break;
 		}
@@ -640,7 +680,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 				break;
 			}
 
-			if ((r->state & US_LISTENING) == 0) {
+			if ((r->state & US_LISTENING) == 0U) {
 				err = -ECONNREFUSED;
 				break;
 			}
@@ -650,26 +690,26 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 				break;
 			}
 
-			_cbuffer_init(&s->buffer, v, s->buffsz);
+			(void)_cbuffer_init(&s->buffer, v, s->buffsz);
 
 			/* FIXME: handle remote socket removal */
 
 			hal_spinlockSet(&r->spinlock, &sc);
 			LIST_ADD(&r->connecting, s);
-			proc_threadWakeup(&r->queue);
+			(void)proc_threadWakeup(&r->queue);
 			hal_spinlockClear(&r->spinlock, &sc);
 
 			hal_spinlockSet(&s->spinlock, &sc);
 			s->state |= US_CONNECTING;
 
-			if (s->nonblock != 0 && s->remote == NULL) {
+			if (s->nonblock != 0U && s->remote == NULL) {
 				hal_spinlockClear(&s->spinlock, &sc);
 				err = -EINPROGRESS;
 				break;
 			}
 
 			while (s->remote == NULL) {
-				proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+				(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 			}
 
 			hal_spinlockClear(&s->spinlock, &sc);
@@ -702,9 +742,9 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 	unixsock_t *s;
 	int err = EOK;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
-
+	}
 	do {
 		if (level != SOL_SOCKET) {
 			err = -EINVAL;
@@ -714,7 +754,7 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 		switch (optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
-					*((int *)optval) = s->buffsz;
+					*((unsigned int *)optval) = s->buffsz;  // zamiast (int *) można (unsigned int *)?
 					*optlen = sizeof(int);
 				}
 				else {
@@ -722,7 +762,7 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 				}
 				break;
 			case SO_ERROR:
-				if (s->remote == NULL && s->nonblock != 0 && (s->state & US_CONNECTING) != 0) {
+				if (s->remote == NULL && s->nonblock != 0U && (s->state & US_CONNECTING) != 0U) {
 					/* non-blocking connect() in progress, not connected yet */
 					err = -EINPROGRESS;
 				}
@@ -740,21 +780,22 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 }
 
 
-static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
 	unixsock_t *s;
 	size_t rlen = 0;
-	int err;
+	ssize_t err;
 	spinlock_ctx_t sc;
-	int peek;
+	unsigned peek;
 
-	peek = (flags & MSG_PEEK) != 0;
+	peek = ((flags & MSG_PEEK) != 0U) ? 1U : 0U;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
-		if (s->type != SOCK_DGRAM && s->remote == NULL && (s->state & US_PEER_CLOSED) == 0) {
+		if (s->type != SOCK_DGRAM && s->remote == NULL && (s->state & US_PEER_CLOSED) == 0U) {
 			err = -ENOTCONN;
 			break;
 		}
@@ -762,50 +803,58 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 		err = 0;
 
 		for (;;) {
-			proc_lockSet(&s->lock);
+			(void)proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
-				if (peek != 0) {
-					err = _cbuffer_peek(&s->buffer, buf, len);
+				if (peek != 0U) {
+					err = (int)_cbuffer_peek(&s->buffer, buf, len);
 				}
 				else {
-					err = _cbuffer_read(&s->buffer, buf, len);
+					err = (int)_cbuffer_read(&s->buffer, buf, len);
 				}
 			}
-			else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+			else if (_cbuffer_avail(&s->buffer) > 0U) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 				/* TODO: handle MSG_PEEK */
-				_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
-				_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
+				(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
+				(void)_cbuffer_read(&s->buffer, buf, min(len, rlen));
+				err = (int)min(len, rlen);
 
-				if (len < rlen)
-					_cbuffer_discard(&s->buffer, rlen - len);
+				if (len < rlen) {
+					(void)_cbuffer_discard(&s->buffer, rlen - len);
+				}
+			}
+			else {
+				/* No action required */
 			}
 			/* TODO: peek control data */
-			if (peek == 0) {
-				if (err > 0 && control && controllen && *controllen > 0) {
-					fdpass_unpack(&s->fdpacks, control, controllen);
+			if (peek == 0U) {
+				if (err > 0 && control != NULL && controllen != NULL && *controllen > 0U) {
+					(void)fdpass_unpack(&s->fdpacks, control, controllen);
 				}
 			}
-			proc_lockClear(&s->lock);
+			(void)proc_lockClear(&s->lock);
 
 			if (err > 0) {
-				if (peek == 0) {
+				if (peek == 0U) {
 					hal_spinlockSet(&s->spinlock, &sc);
-					proc_threadWakeup(&s->writeq);
+					(void)proc_threadWakeup(&s->writeq);
 					hal_spinlockClear(&s->spinlock, &sc);
 				}
 				break;
 			}
-			else if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED)) {
+			else if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED) != 0U) {
 				err = 0; /* EOS */
 				break;
 			}
-			else if (s->nonblock || (flags & MSG_DONTWAIT)) {
+			else if (s->nonblock != 0U || (flags & MSG_DONTWAIT) != 0U) {
 				err = -EWOULDBLOCK;
 				break;
 			}
+			else {
+				/* No action required */
+			}
 
 			hal_spinlockSet(&s->spinlock, &sc);
-			proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+			(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 			hal_spinlockClear(&s->spinlock, &sc);
 		}
 	} while (0);
@@ -816,10 +865,10 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 
 
 /* TODO: a connected SOCK_DGRAM socket should only receive data from its peer. */
-static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
+static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
 {
 	unixsock_t *s, *r;
-	int err;
+	ssize_t err;
 	oid_t oid;
 	spinlock_ctx_t sc;
 
@@ -830,8 +879,8 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 
 	do {
 		if (s->type == SOCK_DGRAM) {
-			if (dest_addr && dest_len != 0) {
-				if (dest_addr->sa_family != AF_UNIX) {
+			if (dest_addr != NULL && dest_len != 0U) {
+				if (dest_addr->sa_family != (sa_family_t)AF_UNIX) {
 					err = -EINVAL;
 					break;
 				}
@@ -860,7 +909,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 				}
 			}
 			else {
-				if (s->state & US_PEER_CLOSED) {
+				if ((s->state & US_PEER_CLOSED) != 0U) {
 					hal_spinlockSet(&s->spinlock, &sc);
 					s->state &= ~US_PEER_CLOSED;
 					hal_spinlockClear(&s->spinlock, &sc);
@@ -876,13 +925,13 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 			}
 		}
 		else {
-			if (dest_addr || dest_len != 0) {
+			if (dest_addr != NULL || dest_len != 0U) {
 				err = -EISCONN;
 				break;
 			}
 
-			if (s->state & US_PEER_CLOSED) {
-				posix_tkill(process_getPid(proc_current()->process), 0, SIGPIPE);
+			if ((s->state & US_PEER_CLOSED) != 0U) {
+				(void)posix_tkill(process_getPid(proc_current()->process), 0, SIGPIPE);
 				err = -EPIPE;
 				break;
 			}
@@ -892,44 +941,56 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 				err = -ENOTCONN;
 				break;
 			}
+			else {
+				/* No action required */
+			}
 		}
 
 		err = 0;
 
-		if (len > 0) {
+		if (len > 0U) {
 			for (;;) {
-				proc_lockSet(&r->lock);
+				(void)proc_lockSet(&r->lock);
 				if (s->type == SOCK_STREAM) {
-					err = _cbuffer_write(&r->buffer, buf, len);
+					err = (int)_cbuffer_write(&r->buffer, buf, len);
 				}
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-					_cbuffer_write(&r->buffer, &len, sizeof(len));
-					_cbuffer_write(&r->buffer, buf, err = len);
+					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
+					(void)_cbuffer_write(&r->buffer, buf, len);
+					err = (int)len;
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
-					proc_lockClear(&r->lock);
+					(void)proc_lockClear(&r->lock);
 					break;
 				}
+				else {
+					/* No action required */
+				}
 
-				if (err > 0 && fdpack)
+				if (err > 0 && fdpack != NULL) {
 					LIST_ADD(&r->fdpacks, fdpack);
-				proc_lockClear(&r->lock);
+				}
+
+				(void)proc_lockClear(&r->lock);
 
 				if (err > 0) {
 					hal_spinlockSet(&r->spinlock, &sc);
-					proc_threadWakeup(&r->queue);
+					(void)proc_threadWakeup(&r->queue);
 					hal_spinlockClear(&r->spinlock, &sc);
 
 					break;
 				}
-				else if (s->nonblock || (flags & MSG_DONTWAIT)) {
+				else if (s->nonblock != 0U || (flags & MSG_DONTWAIT) != 0U) {
 					err = -EWOULDBLOCK;
 					break;
 				}
+				else {
+					/* No action required */
+				}
 
 				hal_spinlockSet(&r->spinlock, &sc);
-				proc_threadWait(&r->writeq, &r->spinlock, 0, &sc);
+				(void)proc_threadWait(&r->writeq, &r->spinlock, 0, &sc);
 				hal_spinlockClear(&r->spinlock, &sc);
 			}
 		}
@@ -942,27 +1003,28 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 }
 
 
-ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
 	return recv(socket, msg, len, flags, src_addr, src_len, NULL, NULL);
 }
 
 
-ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len)
 {
 	return send(socket, msg, len, flags, dest_addr, dest_len, NULL);
 }
 
 
-ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags)
+ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, unsigned flags)
 {
 	ssize_t err;
 	void *buf = NULL;
 	size_t len = 0;
 
 	/* multiple buffers are not supported */
-	if (msg->msg_iovlen > 1)
+	if (msg->msg_iovlen > 1) {
 		return -EINVAL;
+	}
 
 	if (msg->msg_iovlen > 0) {
 		buf = msg->msg_iov->iov_base;
@@ -980,7 +1042,7 @@ ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags)
 }
 
 
-ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
+ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, unsigned flags)
 {
 	ssize_t err;
 	fdpack_t *fdpack = NULL;
@@ -988,12 +1050,14 @@ ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
 	size_t len = 0;
 
 	/* multiple buffers are not supported */
-	if (msg->msg_iovlen > 1)
+	if (msg->msg_iovlen > 1) {
 		return -EINVAL;
+	}
 
-	if (msg->msg_controllen > 0) {
-		if ((err = fdpass_pack(&fdpack, msg->msg_control, msg->msg_controllen)) < 0)
+	if (msg->msg_controllen > 0U) {
+		if ((err = fdpass_pack(&fdpack, msg->msg_control, msg->msg_controllen)) < 0) {
 			return err;
+		}
 	}
 
 	if (msg->msg_iovlen > 0) {
@@ -1004,9 +1068,9 @@ ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
 	err = send(socket, buf, len, flags, msg->msg_name, msg->msg_namelen, fdpack);
 
 	/* file descriptors are passed only when some bytes have been sent */
-	if (fdpack && err <= 0)
-		fdpass_discard(&fdpack);
-
+	if (fdpack != NULL && err <= 0) {
+		(void)fdpass_discard(&fdpack);
+	}
 	return err;
 }
 
@@ -1016,8 +1080,9 @@ int unix_shutdown(unsigned socket, int how)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	unixsock_put(s);
 	unixsock_put(s);
@@ -1026,7 +1091,7 @@ int unix_shutdown(unsigned socket, int how)
 
 
 /* TODO: copy data from old buffer */
-static int unix_bufferSetSize(unixsock_t *s, int sz)
+static int unix_bufferSetSize(unixsock_t *s, const size_t sz)
 {
 	void *v[2] = { NULL, NULL };
 
@@ -1034,22 +1099,22 @@ static int unix_bufferSetSize(unixsock_t *s, int sz)
 		return -EINVAL;
 	}
 
-	proc_lockSet(&s->lock);
+	(void)proc_lockSet(&s->lock);
 
 	if (s->buffer.data != NULL) {
 		v[0] = vm_kmalloc(sz);
 		if (v[0] == NULL) {
-			proc_lockClear(&s->lock);
+			(void)proc_lockClear(&s->lock);
 			return -ENOMEM;
 		}
 
 		v[1] = s->buffer.data;
-		_cbuffer_init(&s->buffer, v[0], sz);
+		(void)_cbuffer_init(&s->buffer, v[0], sz);
 	}
 
 	s->buffsz = sz;
 
-	proc_lockClear(&s->lock);
+	(void)proc_lockClear(&s->lock);
 
 	if (v[1] != NULL) {
 		vm_kfree(v[1]);
@@ -1063,8 +1128,9 @@ int unix_setsockopt(unsigned socket, int level, int optname, const void *optval,
 	unixsock_t *s;
 	int err;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
 		if (level != SOL_SOCKET) {
@@ -1075,7 +1141,7 @@ int unix_setsockopt(unsigned socket, int level, int optname, const void *optval,
 		switch (optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && optlen == sizeof(int)) {
-					err = unix_bufferSetSize(s, *((int *)optval));
+					err = unix_bufferSetSize(s, *((const size_t *)optval));
 				}
 				else {
 					err = -EINVAL;
@@ -1093,14 +1159,15 @@ int unix_setsockopt(unsigned socket, int level, int optname, const void *optval,
 }
 
 
-int unix_setfl(unsigned socket, int flags)
+int unix_setfl(unsigned socket, unsigned flags)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
-	s->nonblock = (flags & O_NONBLOCK) != 0;
+	s->nonblock = ((flags & O_NONBLOCK) != 0U) ? 1U : 0U;
 
 	unixsock_put(s);
 	return 0;
@@ -1110,18 +1177,19 @@ int unix_setfl(unsigned socket, int flags)
 int unix_getfl(unsigned socket)
 {
 	unixsock_t *s;
-	int flags;
+	unsigned flags;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	flags = O_RDWR;
-	if (s->nonblock) {
+	if (s->nonblock != 0U) {
 		flags |= O_NONBLOCK;
 	}
 
 	unixsock_put(s);
-	return flags;
+	return (int)flags;
 }
 
 
@@ -1136,8 +1204,9 @@ int unix_close(unsigned socket)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	unixsock_put(s);
 	unixsock_put(s);
@@ -1145,38 +1214,38 @@ int unix_close(unsigned socket)
 }
 
 
-int unix_poll(unsigned socket, short events)
+int unix_poll(unsigned socket, unsigned short events)
 {
 	unixsock_t *s, *r;
-	int err = 0;
+	unsigned err = 0;
 
 	if ((s = unixsock_get(socket)) == NULL) {
 		err = POLLNVAL;
 	}
 	else {
-		if (events & (POLLIN | POLLRDNORM | POLLRDBAND)) {
-			proc_lockSet(&s->lock);
-			if (_cbuffer_avail(&s->buffer) > 0 || (s->connecting != NULL && (s->state & US_LISTENING) != 0)) {
-				err |= events & (POLLIN | POLLRDNORM | POLLRDBAND);
+		if ((events & (POLLIN | POLLRDNORM | POLLRDBAND)) != 0U) {
+			(void)proc_lockSet(&s->lock);
+			if (_cbuffer_avail(&s->buffer) > 0U || (s->connecting != NULL && (s->state & US_LISTENING) != 0U)) {
+				err |= (unsigned int)events & (POLLIN | POLLRDNORM | POLLRDBAND);
 			}
-			proc_lockClear(&s->lock);
+			(void)proc_lockClear(&s->lock);
 		}
 
-		if (events & (POLLOUT | POLLWRNORM | POLLWRBAND)) {
+		if ((events & (POLLOUT | POLLWRNORM | POLLWRBAND)) != 0U) {
 			r = unixsock_get_remote(s);
 			if (r != NULL) {
-				proc_lockSet(&r->lock);
+				(void)proc_lockSet(&r->lock);
 				if (r->type == SOCK_STREAM) {
-					if (_cbuffer_free(&r->buffer) > 0) {
-						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
+					if (_cbuffer_free(&r->buffer) > 0U) {
+						err |= (unsigned int)events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
 				else {
 					if (_cbuffer_free(&r->buffer) > sizeof(size_t)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
+						err |= (unsigned int)events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
-				proc_lockClear(&r->lock);
+				(void)proc_lockClear(&r->lock);
 				unixsock_put(r);
 			}
 			else {
@@ -1187,12 +1256,12 @@ int unix_poll(unsigned socket, short events)
 		unixsock_put(s);
 	}
 
-	return err;
+	return (int)err;
 }
 
 
 void unix_sockets_init(void)
 {
 	lib_rbInit(&unix_common.tree, unixsock_cmp, unixsock_augment);
-	proc_lockInit(&unix_common.lock, &proc_lockAttrDefault, "unix.common");
+	(void)proc_lockInit(&unix_common.lock, &proc_lockAttrDefault, "unix.common");
 }

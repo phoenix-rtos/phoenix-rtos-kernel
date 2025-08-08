@@ -14,7 +14,10 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4-a "Compatible function declaration is not possible for syscalls" */
+
 #include "hal/hal.h"
+#include "hal/cpu.h"
 #include "include/errno.h"
 #include "include/sysinfo.h"
 #include "include/mman.h"
@@ -55,7 +58,8 @@ int syscalls_sys_mmap(void *ustack)
 {
 	void **vaddr;
 	size_t size;
-	int prot, flags, fildes;
+	int prot, fildes;
+	unsigned int flags;
 	off_t offs;
 	vm_object_t *o;
 	oid_t oid;
@@ -65,7 +69,7 @@ int syscalls_sys_mmap(void *ustack)
 	GETFROMSTACK(ustack, void **, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
-	GETFROMSTACK(ustack, int, flags, 3);
+	GETFROMSTACK(ustack, unsigned int, flags, 3);
 	GETFROMSTACK(ustack, int, fildes, 4);
 	GETFROMSTACK(ustack, off_t, offs, 5);
 
@@ -75,11 +79,11 @@ int syscalls_sys_mmap(void *ustack)
 		return -EFAULT;
 	}
 
-	if ((flags & MAP_ANONYMOUS) != 0) {
-		if ((flags & MAP_PHYSMEM) != 0) {
+	if ((flags & MAP_ANONYMOUS) != 0U) {
+		if ((flags & MAP_PHYSMEM) != 0U) {
 			o = VM_OBJ_PHYSMEM;
 		}
-		else if ((flags & MAP_CONTIGUOUS) != 0) {
+		else if ((flags & MAP_CONTIGUOUS) != 0U) {
 			o = vm_objectContiguous(size);
 			if (o == NULL) {
 				return -ENOMEM;
@@ -102,8 +106,9 @@ int syscalls_sys_mmap(void *ustack)
 
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
 
-	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
-	vm_objectPut(o);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3 "prot is popped from stack -> size of int stays" */
+	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (unsigned int)prot, o, (o == NULL) ? -1 : offs, flags);
+	(void)vm_objectPut(o);
 
 	if ((*vaddr) == NULL) {
 		/* TODO: pass specific errno from vm_mmap */
@@ -144,7 +149,8 @@ int syscalls_sys_mprotect(void *ustack)
 	GETFROMSTACK(ustack, size_t, len, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
 
-	err = vm_mprotect(proc->mapp, vaddr, len, PROT_USER | prot);
+	/* parasoft-suppress-next-line MISRAC2012_RULE_10_3 "prot is popped from stack -> size of int stays" */
+	err = (int)vm_mprotect(proc->mapp, vaddr, len, PROT_USER | (unsigned int)prot);
 	if (err < 0) {
 		return err;
 	}
@@ -238,17 +244,17 @@ int syscalls_sys_exit(void *ustack)
 int syscalls_sys_waitpid(void *ustack)
 {
 	process_t *proc = proc_current()->process;
-	int pid, *stat, options;
+	int pid, *status, options;
 
 	GETFROMSTACK(ustack, int, pid, 0);
-	GETFROMSTACK(ustack, int *, stat, 1);
+	GETFROMSTACK(ustack, int *, status, 1);
 	GETFROMSTACK(ustack, int, options, 2);
 
-	if ((stat != NULL) && (vm_mapBelongs(proc, stat, sizeof(*stat)) < 0)) {
+	if ((status != NULL) && (vm_mapBelongs(proc, status, sizeof(*status)) < 0)) {
 		return -EFAULT;
 	}
 
-	return posix_waitpid(pid, stat, options);
+	return posix_waitpid(pid, status, (unsigned int)options);
 }
 
 
@@ -289,14 +295,15 @@ int syscalls_gettid(void *ustack)
 
 int syscalls_beginthreadex(void *ustack)
 {
+	typedef void (*start_func)(void *harg);
 	process_t *proc = proc_current()->process;
-	void (*start)(void *);
+	void (*start)(void *harg);
 	unsigned int priority, stacksz;
 	void *stack, *arg;
 	int *id;
 	int err;
 
-	GETFROMSTACK(ustack, void *, start, 0);
+	GETFROMSTACK(ustack, start_func, start, 0);
 	GETFROMSTACK(ustack, unsigned int, priority, 1);
 	GETFROMSTACK(ustack, void *, stack, 2);
 	GETFROMSTACK(ustack, unsigned int, stacksz, 3);
@@ -309,20 +316,19 @@ int syscalls_beginthreadex(void *ustack)
 
 	proc_get(proc);
 
-	err = proc_threadCreate(proc, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+	err = proc_threadCreate(proc, start, id, priority, (size_t)SIZE_KSTACK, stack, stacksz, arg);
 
 	if (err < 0) {
-		proc_put(proc);
+		(void)proc_put(proc);
 	}
 
 	return err;
 }
 
 
-int syscalls_endthread(void *ustack)
+void syscalls_endthread(void *ustack)
 {
 	proc_threadEnd();
-	return EOK;
 }
 
 
@@ -351,7 +357,7 @@ int syscalls_nsleep(void *ustack)
 
 	proc_gettime(&start, NULL);
 
-	us = ((*sec) * 1000 * 1000) + (((*nsec) + 999) / 1000);
+	us = ((*sec) * 1000LL * 1000LL) + (((*nsec) + 999LL) / 1000LL);
 
 	ret = proc_threadSleep(us);
 
@@ -363,8 +369,8 @@ int syscalls_nsleep(void *ustack)
 		elapsed = stop - start;
 		if (us > elapsed) {
 			unslept = us - elapsed;
-			*sec = unslept / (1000 * 1000);
-			*nsec = (unslept % (1000 * 1000)) * 1000;
+			*sec = unslept / (1000LL * 1000LL);
+			*nsec = ((long int)unslept % (1000L * 1000L)) * 1000L;
 		}
 	}
 
@@ -397,7 +403,7 @@ int syscalls_threadsinfo(void *ustack)
 	GETFROMSTACK(ustack, int, n, 0);
 	GETFROMSTACK(ustack, threadinfo_t *, info, 1);
 
-	if (vm_mapBelongs(proc, info, sizeof(*info) * n) < 0) {
+	if (vm_mapBelongs(proc, info, sizeof(*info) * (unsigned int)n) < 0) {
 		return -EFAULT;
 	}
 
@@ -446,14 +452,14 @@ int syscalls_syspageprog(void *ustack)
 
 	sz = syspage_progSize();
 	if (i < 0) {
-		return sz;
+		return (int)sz;
 	}
 
-	if (i >= sz) {
+	if (i >= (int)sz) {
 		return -EINVAL;
 	}
 
-	progSys = syspage_progIdResolve(i);
+	progSys = syspage_progIdResolve((unsigned int)i);
 	if (progSys == NULL) {
 		return -EINVAL;
 	}
@@ -464,16 +470,16 @@ int syscalls_syspageprog(void *ustack)
 	/* TODO: change syspageprog_t to allocate data for name dynamically */
 
 	name = progSys->argv;
-	for (sz = 0; (name[sz] != '\0') && (name[sz] != ';'); ++sz) {
+	for (sz = 0U; (name[sz] != '\0') && (name[sz] != ';'); ++sz) {
 	}
 
-	sz = min(sizeof(prog->name) - 1, sz);
+	sz = min((sizeof(prog->name) - 1U), sz);
 	if (*name == 'X') {
 		name++;
 		sz--;
 	}
 
-	hal_memcpy(prog->name, name, sz);
+	hal_memcpy(prog->name, name, (size_t)sz);
 	prog->name[sz] = '\0';
 
 	return EOK;
@@ -659,16 +665,17 @@ int syscalls_resourceDestroy(void *ustack)
 
 int syscalls_interrupt(void *ustack)
 {
+	typedef int (*handler_function)(unsigned int harg_1, void *harg_2);
 	process_t *proc = proc_current()->process;
 	unsigned int n;
-	void *f;
+	handler_function f;
 	void *data;
 	handle_t cond;
 	handle_t *handle;
 	int res;
 
 	GETFROMSTACK(ustack, unsigned int, n, 0);
-	GETFROMSTACK(ustack, void *, f, 1);
+	GETFROMSTACK(ustack, handler_function, f, 1);
 	GETFROMSTACK(ustack, void *, data, 2);
 	GETFROMSTACK(ustack, handle_t, cond, 3);
 	GETFROMSTACK(ustack, handle_t *, handle, 4);
@@ -676,6 +683,7 @@ int syscalls_interrupt(void *ustack)
 	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
 		return -EFAULT;
 	}
+
 
 	res = userintr_setHandler(n, f, data, cond);
 	if (res < 0) {
@@ -720,7 +728,7 @@ void syscalls_portDestroy(void *ustack)
 }
 
 
-u32 syscalls_portRegister(void *ustack)
+int syscalls_portRegister(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	unsigned int port;
@@ -937,17 +945,18 @@ addr_t syscalls_va2pa(void *ustack)
 
 	GETFROMSTACK(ustack, void *, va, 0);
 
-	return (pmap_resolve(proc_current()->process->pmapp, (void *)((ptr_t)va & ~0xfff)) & ~0xfff) + ((ptr_t)va & 0xfff);
+	return (pmap_resolve(proc_current()->process->pmapp, (void *)((ptr_t)va & ~0xfffU)) & ~0xfffU) + ((ptr_t)va & 0xfffU);
 }
 
 
 int syscalls_signalHandle(void *ustack)
 {
-	void *handler;
+	typedef void (*handler_func)(void);
+	handler_func handler;
 	unsigned mask, mmask;
 	thread_t *thread;
 
-	GETFROMSTACK(ustack, void *, handler, 0);
+	GETFROMSTACK(ustack, handler_func, handler, 0);
 	GETFROMSTACK(ustack, unsigned, mask, 1);
 	GETFROMSTACK(ustack, unsigned, mmask, 2);
 
@@ -977,20 +986,20 @@ int syscalls_signalPost(void *ustack)
 	if (tid >= 0) {
 		t = threads_findThread(tid);
 		if (t == NULL) {
-			proc_put(proc);
+			(void)proc_put(proc);
 			return -EINVAL;
 		}
 	}
 
 	if ((t != NULL) && (t->process != proc)) {
-		proc_put(proc);
+		(void)proc_put(proc);
 		threads_put(t);
 		return -EINVAL;
 	}
 
 	err = threads_sigpost(proc, t, signal);
 
-	proc_put(proc);
+	(void)proc_put(proc);
 	if (t != NULL) {
 		threads_put(t);
 	}
@@ -1090,11 +1099,11 @@ ssize_t syscalls_sys_read(char *ustack)
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
 	GETFROMSTACK(ustack, off_t, offset, 3);
 
-	if ((buf == NULL) && (nbyte != 0)) {
+	if ((buf == NULL) && (nbyte != 0U)) {
 		return -EFAULT;
 	}
 
-	if ((buf != NULL) && (nbyte != 0) && (vm_mapBelongs(proc, buf, nbyte) < 0)) {
+	if ((buf != NULL) && (nbyte != 0U) && (vm_mapBelongs(proc, buf, nbyte) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1115,11 +1124,11 @@ ssize_t syscalls_sys_write(char *ustack)
 	GETFROMSTACK(ustack, size_t, nbyte, 2);
 	GETFROMSTACK(ustack, off_t, offset, 3);
 
-	if ((buf == NULL) && (nbyte != 0)) {
+	if ((buf == NULL) && (nbyte != 0U)) {
 		return -EFAULT;
 	}
 
-	if ((buf != NULL) && (nbyte != 0) && (vm_mapBelongs(proc, buf, nbyte) < 0)) {
+	if ((buf != NULL) && (nbyte != 0U) && (vm_mapBelongs(proc, buf, nbyte) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1208,10 +1217,10 @@ int syscalls_sys_ftruncate(char *ustack)
 
 int syscalls_sys_fcntl(char *ustack)
 {
-	unsigned int fd;
+	int fd;
 	unsigned int cmd;
 
-	GETFROMSTACK(ustack, unsigned int, fd, 0);
+	GETFROMSTACK(ustack, int, fd, 0);
 	GETFROMSTACK(ustack, unsigned int, cmd, 1);
 
 	return posix_fcntl(fd, cmd, ustack);
@@ -1225,7 +1234,7 @@ int syscalls_sys_pipe(char *ustack)
 
 	GETFROMSTACK(ustack, int *, fildes, 0);
 
-	if (vm_mapBelongs(proc, fildes, sizeof(*fildes) * 2) < 0) {
+	if (vm_mapBelongs(proc, fildes, sizeof(*fildes) * 2U) < 0) {
 		return -EFAULT;
 	}
 
@@ -1581,11 +1590,11 @@ ssize_t syscalls_sys_recvmsg(char *ustack)
 		return -EFAULT;
 	}
 
-	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * msg->msg_iovlen) < 0)) {
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen) < 0)) {
 		return -EFAULT;
 	}
 
-	for (i = 0; i < msg->msg_iovlen; ++i) {
+	for (i = 0; i < (size_t)msg->msg_iovlen; ++i) {
 		if ((msg->msg_iov[i].iov_base != NULL) && (vm_mapBelongs(proc, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len) < 0)) {
 			return -EFAULT;
 		}
@@ -1619,11 +1628,11 @@ ssize_t syscalls_sys_sendmsg(char *ustack)
 		return -EFAULT;
 	}
 
-	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * msg->msg_iovlen) < 0)) {
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen) < 0)) {
 		return -EFAULT;
 	}
 
-	for (i = 0; i < msg->msg_iovlen; ++i) {
+	for (i = 0; i < (size_t)msg->msg_iovlen; ++i) {
 		if ((msg->msg_iov[i].iov_base != NULL) && (vm_mapBelongs(proc, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len) < 0)) {
 			return -EFAULT;
 		}
@@ -1668,7 +1677,7 @@ int syscalls_sys_socketpair(char *ustack)
 	GETFROMSTACK(ustack, int, protocol, 2);
 	GETFROMSTACK(ustack, int *, sv, 3);
 
-	if (vm_mapBelongs(proc, sv, sizeof(*sv) * 2) < 0) {
+	if (vm_mapBelongs(proc, sv, sizeof(*sv) * 2U) < 0) {
 		return -EFAULT;
 	}
 
@@ -1720,7 +1729,7 @@ int syscalls_sys_setsockopt(char *ustack)
 	GETFROMSTACK(ustack, const void *, optval, 3);
 	GETFROMSTACK(ustack, socklen_t, optlen, 4);
 
-	if ((optval != NULL) && (optlen != 0) && (vm_mapBelongs(proc, optval, optlen) < 0)) {
+	if ((optval != NULL) && (optlen != 0U) && (vm_mapBelongs(proc, optval, optlen) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1872,22 +1881,21 @@ int syscalls_notimplemented(void)
 	return -ENOTTY;
 }
 
-
+/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Syscalls are in different types" */
 const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
-const char *const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
-
 
 void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 {
 	void *retval;
 
-	if (n >= (sizeof(syscalls) / sizeof(syscalls[0]))) {
+	if (n >= (int)(sizeof(syscalls) / sizeof(syscalls[0]))) {
 		return (void *)-EINVAL;
 	}
 
-	retval = ((void *(*)(char *))syscalls[n])(ustack);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
+	retval = ((void *(*)(char *harg))syscalls[n])(ustack);
 
-	if (proc_current()->exit != 0) {
+	if (proc_current()->exit != 0U) {
 		proc_threadEnd();
 	}
 
@@ -1901,3 +1909,5 @@ void _syscalls_init(void)
 {
 	lib_printf("syscalls: Initializing syscall table [%d]\n", sizeof(syscalls) / sizeof(syscalls[0]));
 }
+
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */

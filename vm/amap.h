@@ -33,20 +33,20 @@ typedef struct _anon_t {
 typedef struct _amap_t {
 	lock_t lock;
 	unsigned int refs, size;
-	anon_t *anons[];
+	anon_t *anons[0];
 } amap_t;
 
 
-extern page_t *amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, int aoffs, off_t offs, int prot);
+extern page_t *amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, int aoffs, off_t offs, unsigned prot);
 
 
 extern void amap_clear(amap_t *amap, size_t offset, size_t size);
 
 
-extern void amap_putanons(amap_t *amap, int offs, int size);
+extern void amap_putanons(amap_t *amap, int offset, int size);
 
 
-extern void amap_getanons(amap_t *amap, int offs, int size);
+extern void amap_getanons(amap_t *amap, int offset, int size);
 
 
 extern amap_t *amap_create(amap_t *amap, int *offset, size_t size);

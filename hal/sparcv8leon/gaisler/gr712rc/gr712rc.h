@@ -43,10 +43,6 @@ int _gr712rc_cguClkStatus(u32 device);
 
 int hal_platformctl(void *ptr);
 
-
-void _hal_platformInit(void);
-
-
 #endif /* __ASSEMBLY__ */
 
 

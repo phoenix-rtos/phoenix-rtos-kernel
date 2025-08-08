@@ -30,9 +30,6 @@ volatile u32 hal_multilock;
 extern void _hal_cpuInit(void);
 
 
-extern void _hal_platformInit(void);
-
-
 void *hal_syspageRelocate(void *data)
 {
 	return ((u8 *)data + hal_relOffs);

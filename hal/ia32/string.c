@@ -160,7 +160,7 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 }
 
 
-unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, unsigned char b, char zero)
+unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zero)
 {
 	static const char digits[] = "0123456789abcdef";
 	char c;

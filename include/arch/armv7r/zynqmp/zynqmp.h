@@ -18,21 +18,21 @@
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 
-#define PCTL_MIO_DRIVE_2mA     (0x0)
-#define PCTL_MIO_DRIVE_4mA     (0x1)
-#define PCTL_MIO_DRIVE_8mA     (0x2)
-#define PCTL_MIO_DRIVE_12mA    (0x3)
-#define PCTL_MIO_SCHMITT_nCMOS (1 << 3)
-#define PCTL_MIO_PULL_UP_nDOWN (1 << 4)
-#define PCTL_MIO_PULL_ENABLE   (1 << 5)
-#define PCTL_MIO_SLOW_nFAST    (1 << 6)
-#define PCTL_MIO_TRI_ENABLE    (1 << 7)
+#define PCTL_MIO_DRIVE_2mA     (0x0U)
+#define PCTL_MIO_DRIVE_4mA     (0x1U)
+#define PCTL_MIO_DRIVE_8mA     (0x2U)
+#define PCTL_MIO_DRIVE_12mA    (0x3U)
+#define PCTL_MIO_SCHMITT_nCMOS (0x1U << 3)
+#define PCTL_MIO_PULL_UP_nDOWN (0x1U << 4)
+#define PCTL_MIO_PULL_ENABLE   (0x1U << 5)
+#define PCTL_MIO_SLOW_nFAST    (0x1U << 6)
+#define PCTL_MIO_TRI_ENABLE    (0x1U << 7)
 
 
 /* clang-format off */
 /* Devices' clocks controllers */
 enum {
-	pctl_devclock_lpd_usb3_dual = 0x12,
+	pctl_devclock_lpd_usb3_dual = 0x12U,
 	pctl_devclock_lpd_gem0,
 	pctl_devclock_lpd_gem1,
 	pctl_devclock_lpd_gem2,
@@ -48,8 +48,8 @@ enum {
 	pctl_devclock_lpd_spi1,
 	pctl_devclock_lpd_can0,
 	pctl_devclock_lpd_can1,
-	pctl_devclock_lpd_cpu_r5 = 0x24,
-	pctl_devclock_lpd_iou_switch = 0x27,
+	pctl_devclock_lpd_cpu_r5 = 0x24U,
+	pctl_devclock_lpd_iou_switch = 0x27U,
 	pctl_devclock_lpd_csu_pll,
 	pctl_devclock_lpd_pcap,
 	pctl_devclock_lpd_lpd_switch,
@@ -57,36 +57,36 @@ enum {
 	pctl_devclock_lpd_dbg_lpd,
 	pctl_devclock_lpd_nand,
 	pctl_devclock_lpd_lpd_dma,
-	pctl_devclock_lpd_pl0 = 0x30,
+	pctl_devclock_lpd_pl0 = 0x30U,
 	pctl_devclock_lpd_pl1,
 	pctl_devclock_lpd_pl2,
 	pctl_devclock_lpd_pl3,
-	pctl_devclock_lpd_gem_tsu = 0x40,
+	pctl_devclock_lpd_gem_tsu = 0x40U,
 	pctl_devclock_lpd_dll,
 	pctl_devclock_lpd_pssysmon,
-	pctl_devclock_lpd_i2c0 = 0x48,
+	pctl_devclock_lpd_i2c0 = 0x48U,
 	pctl_devclock_lpd_i2c1,
 	pctl_devclock_lpd_timestamp,
-	pctl_devclock_fpd_acpu = 0x50 + 0x18,
+	pctl_devclock_fpd_acpu = 0x50U + 0x18U,
 	pctl_devclock_fpd_dbg_trace,
 	pctl_devclock_fpd_dbg_fpd,
-	pctl_devclock_fpd_dp_video = 0x50 + 0x1c,
+	pctl_devclock_fpd_dp_video = 0x50U + 0x1cU,
 	pctl_devclock_fpd_dp_audio,
-	pctl_devclock_fpd_dp_stc = 0x50 + 0x1f,
+	pctl_devclock_fpd_dp_stc = 0x50U + 0x1fU,
 	pctl_devclock_fpd_ddr,
 	pctl_devclock_fpd_gpu,
-	pctl_devclock_fpd_sata = 0x50 + 0x28,
-	pctl_devclock_fpd_pcie = 0x50 + 0x2d,
+	pctl_devclock_fpd_sata = 0x50U + 0x28U,
+	pctl_devclock_fpd_pcie = 0x50U + 0x2dU,
 	pctl_devclock_fpd_fpd_dma,
 	pctl_devclock_fpd_dpdma,
 	pctl_devclock_fpd_topsw_main,
 	pctl_devclock_fpd_topsw_lsbus,
-	pctl_devclock_fpd_dbg_tstmp = 0x50 + 0x3e,
+	pctl_devclock_fpd_dbg_tstmp = 0x50U + 0x3eU,
 };
 
 /* Devices' reset controllers */
 enum {
-	pctl_devreset_lpd_gem0 = 0, pctl_devreset_lpd_gem1, pctl_devreset_lpd_gem2, pctl_devreset_lpd_gem3, pctl_devreset_lpd_qspi,
+	pctl_devreset_lpd_gem0 = 0x0UL, pctl_devreset_lpd_gem1, pctl_devreset_lpd_gem2, pctl_devreset_lpd_gem3, pctl_devreset_lpd_qspi,
 	pctl_devreset_lpd_uart0, pctl_devreset_lpd_uart1, pctl_devreset_lpd_spi0, pctl_devreset_lpd_spi1, pctl_devreset_lpd_sdio0,
 	pctl_devreset_lpd_sdio1, pctl_devreset_lpd_can0, pctl_devreset_lpd_can1, pctl_devreset_lpd_i2c0, pctl_devreset_lpd_i2c1,
 	pctl_devreset_lpd_ttc0, pctl_devreset_lpd_ttc1, pctl_devreset_lpd_ttc2, pctl_devreset_lpd_ttc3, pctl_devreset_lpd_swdt,
@@ -132,32 +132,32 @@ typedef struct {
 	/* clang-format on */
 	union {
 		struct {
-			int dev;
-			char src;    /* 0, 2, 3 for most devices, 0, 2, 3, 4 for pctl_devclock_lpd_timestamp */
-			char div0;   /* 0 ~ 63 */
-			char div1;   /* 0 ~ 63 if supported by selected generator, otherwise 0 */
-			char active; /* 0, 1 for most devices, some have additional active bits  */
+			__u32 dev;
+			__u8 src;    /* 0, 2, 3 for most devices, 0, 2, 3, 4 for pctl_devclock_lpd_timestamp */
+			__u8 div0;   /* 0 ~ 63 */
+			__u8 div1;   /* 0 ~ 63 if supported by selected generator, otherwise 0 */
+			__u8 active; /* 0, 1 for most devices, some have additional active bits  */
 		} devclock;
 
 		struct {
-			unsigned pin;
-			char l3;
-			char l2;
-			char l1;
-			char l0;
-			char config;
+			__u32 pin;
+			__u8 l3;
+			__u8 l2;
+			__u8 l1;
+			__u8 l0;
+			__u8 config;
 		} mio;
 
 		struct {
-			int dev;
-			unsigned int state;
+			__u32 dev;
+			__u32 state;
 		} devreset;
 
 		struct {
-			unsigned int magic;
-			unsigned int reason;
+			__u32 magic;
+			__u32 reason;
 		} reboot;
 	};
-} __attribute__((packed)) platformctl_t;
+} __attribute__((packed)) platformctl_t; /* __attribute__((packed)) TBC*/
 
 #endif

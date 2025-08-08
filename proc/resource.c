@@ -32,9 +32,9 @@ int resource_alloc(process_t *process, resource_t *r)
 
 	r->refs = 2;
 
-	proc_lockSet(&process->lock);
+	(void)proc_lockSet(&process->lock);
 	id = lib_idtreeAlloc(&process->resources, &r->linkage, RESOURCE_ID_MIN);
-	proc_lockClear(&process->lock);
+	(void)proc_lockClear(&process->lock);
 
 	return id;
 }
@@ -44,20 +44,21 @@ resource_t *resource_get(process_t *process, int id)
 {
 	resource_t *r;
 
-	proc_lockSet(&process->lock);
+	(void)proc_lockSet(&process->lock);
 	r = lib_idtreeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
 	if (r != NULL) {
 		++r->refs;
 	}
-	proc_lockClear(&process->lock);
+	(void)proc_lockClear(&process->lock);
 
 	return r;
 }
 
 
-int resource_put(process_t *process, resource_t *r)
+unsigned int resource_put(process_t *process, resource_t *r)
 {
-	return lib_atomicDecrement(&r->refs);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3 "We need atomic operations that are provided by the compiler" */
+	return lib_atomicDecrement((int *)&r->refs);
 }
 
 
@@ -65,12 +66,12 @@ static resource_t *resource_remove(process_t *process, int id)
 {
 	resource_t *r;
 
-	proc_lockSet(&process->lock);
+	(void)proc_lockSet(&process->lock);
 	r = lib_idtreeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
 	if (r != NULL) {
 		lib_idtreeRemove(&process->resources, &r->linkage);
 	}
-	proc_lockClear(&process->lock);
+	(void)proc_lockClear(&process->lock);
 
 	return r;
 }
@@ -118,15 +119,15 @@ void proc_resourcesDestroy(process_t *process)
 	resource_t *r;
 
 	for (;;) {
-		proc_lockSet(&process->lock);
+		(void)proc_lockSet(&process->lock);
 		r = lib_idtreeof(resource_t, linkage, lib_idtreeMinimum(process->resources.root));
 		if (r == NULL) {
-			proc_lockClear(&process->lock);
+			(void)proc_lockClear(&process->lock);
 			break;
 		}
 
 		lib_idtreeRemove(&process->resources, &r->linkage);
-		proc_lockClear(&process->lock);
+		(void)proc_lockClear(&process->lock);
 
 		proc_resourcePut(r);
 	}
@@ -139,10 +140,12 @@ int proc_resourcesCopy(process_t *source)
 	idnode_t *n;
 	resource_t *r, *newr;
 	int err = EOK;
+	int skip;
 
-	proc_lockSet(&source->lock);
+	(void)proc_lockSet(&source->lock);
 	for (n = lib_idtreeMinimum(source->resources.root); n != NULL; n = lib_idtreeNext(&n->linkage)) {
 		r = lib_idtreeof(resource_t, linkage, n);
+		skip = 0;
 
 		switch (r->type) {
 			case rtLock:
@@ -155,7 +158,12 @@ int proc_resourcesCopy(process_t *source)
 
 			default:
 				/* Don't copy interrupt handlers */
-				continue;
+				skip = 1;
+				break;
+		}
+
+		if (skip != 0) {
+			continue;
 		}
 
 		if ((err > 0) && (err != r->linkage.id)) {
@@ -173,7 +181,7 @@ int proc_resourcesCopy(process_t *source)
 			break;
 		}
 	}
-	proc_lockClear(&source->lock);
+	(void)proc_lockClear(&source->lock);
 
 	return (err >= 0) ? EOK : err;
 }

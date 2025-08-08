@@ -232,5 +232,5 @@ void ambapp_init(void)
 
 	/* NOTE: on GR740 uncacheable areas (AMBA PnP) must be mapped as such */
 	ambapp_common.ahbpnp = (ptr_t)_pmap_halMap(AMBAPP_AHB_MSTR, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
-	ambapp_common.apbpnp = (ptr_t)_pmap_halMap(NULL, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
+	ambapp_common.apbpnp = (ptr_t)_pmap_halMap(0, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
 }

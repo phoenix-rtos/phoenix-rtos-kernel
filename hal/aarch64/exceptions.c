@@ -127,7 +127,7 @@ static const char *exceptionClassStr(int excClass)
 }
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	size_t i = 0, j;
 	const char *toAdd;

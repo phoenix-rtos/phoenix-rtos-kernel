@@ -19,6 +19,7 @@
 #include "hal/armv8m/stm32/halsyspage.h"
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "include/errno.h"
 
 #include "hal/arm/scs.h"

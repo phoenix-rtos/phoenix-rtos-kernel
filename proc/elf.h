@@ -37,7 +37,7 @@ typedef u64 Elf64_Xword;
 
 #define SHT_SYMTAB    2
 #define SHT_STRTAB    3
-#define SHT_NOBITS    8
+#define SHT_NOBITS    8U
 #define SHT_REL       9
 #define SHT_DYNSYM    11
 #define SHT_LOPROC    0x70000000
@@ -48,16 +48,16 @@ typedef u64 Elf64_Xword;
 #define STT_LOPROC    13
 #define STT_HIPROC    15
 
-#define PT_LOAD       1
+#define PT_LOAD       1U
 #define PT_DYNAMIC    2
 #define PT_INTERP     3
-#define PT_GNU_STACK  0x6474e551
-#define PT_LOPROC     0x70000000
-#define PT_HIPROC     0x7fffffff
+#define PT_GNU_STACK  0x6474e551UL
+#define PT_LOPROC     0x70000000UL
+#define PT_HIPROC     0x7fffffffUL
 
-#define PF_X          0x1
-#define PF_W          0x2
-#define PF_R          0x4
+#define PF_X 0x1U
+#define PF_W 0x2U
+#define PF_R 0x4U
 
 #pragma pack(push, 1)
 
@@ -176,7 +176,7 @@ typedef struct {
 
 
 #define ELF32_R_SYM(info)             ((info)>>8)
-#define ELF32_R_TYPE(info)            ((unsigned char)(info))
+#define ELF32_R_TYPE(info)            ((int)(info))
 #define ELF32_R_INFO(sym, type)       (((sym)<<8)+(unsigned char)(type))
 
 

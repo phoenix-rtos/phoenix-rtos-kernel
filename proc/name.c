@@ -24,15 +24,15 @@
 typedef struct _dcache_entry_t {
 	struct _dcache_entry_t *next;
 	oid_t oid;
-	char name[];
+	char name[0];
 } dcache_entry_t;
 
 
-struct {
+static struct {
 	int root_registered;
 	oid_t root_oid;
 
-	dcache_entry_t *dcache[1 << HASH_LEN];
+	dcache_entry_t *dcache[0x1U << HASH_LEN];
 	lock_t dcache_lock;
 } name_common;
 
@@ -43,10 +43,12 @@ static unsigned int dcache_strHash(const char *str)
 	unsigned int hash = 0;
 	unsigned char c;
 
-	while ((c = *str++) != '\0')
-		hash += (c << 4) + (c >> 4) * 11;
+	/* MISRA Rule 10.3: TODO: check if some undesired overflow is not introduced with this cast */
+	while ((c = (unsigned char)*str++) != (unsigned char)'\0') {
+		hash += ((unsigned int)c << 4U) + ((unsigned int)c >> 4U) * 11U;
+	}
 
-	return hash & ((1 << HASH_LEN) - 1);
+	return hash & ((0x1U << HASH_LEN) - 1U);
 }
 
 
@@ -54,8 +56,13 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 {
 	dcache_entry_t *entry = name_common.dcache[hash];
 
-	while (entry != NULL && hal_strcmp(entry->name, name) != 0)
+	while (entry != NULL) {
+		if (hal_strcmp(entry->name, name) == 0) {
+			break;
+		}
+
 		entry = entry->next;
+	}
 
 	return entry;
 }
@@ -67,33 +74,37 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 	unsigned int hash = dcache_strHash(name);
 
 	/* Check if entry already exists */
-	proc_lockSet(&name_common.dcache_lock);
+	(void)proc_lockSet(&name_common.dcache_lock);
 	if (_dcache_entryLookup(hash, name) != NULL) {
-		proc_lockClear(&name_common.dcache_lock);
+		(void)proc_lockClear(&name_common.dcache_lock);
 		return -EEXIST;
 	}
-	proc_lockClear(&name_common.dcache_lock);
+	(void)proc_lockClear(&name_common.dcache_lock);
 
-	if (name[0] == '/' && name[1] == 0) {
+	if (name[0] == '/' && name[1] == '\0') {
 		name_common.root_oid.port = port;
-		if (oid != NULL)
+		if (oid != NULL) {
 			name_common.root_oid.id = oid->id;
+		}
 		name_common.root_registered = 1;
 		return EOK;
 	}
 
-	if ((entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1)) == NULL)
+	if ((entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U)) == NULL) {
 		return -ENOMEM;
+	}
 
 	entry->oid.port = port;
-	if (oid != NULL)
+	if (oid != NULL) {
 		entry->oid.id = oid->id;
-	hal_strcpy(entry->name, name);
+	}
 
-	proc_lockSet(&name_common.dcache_lock);
+	(void)hal_strcpy(entry->name, name);
+
+	(void)proc_lockSet(&name_common.dcache_lock);
 	entry->next = name_common.dcache[hash];
 	name_common.dcache[hash] = entry;
-	proc_lockClear(&name_common.dcache_lock);
+	(void)proc_lockClear(&name_common.dcache_lock);
 
 	return EOK;
 }
@@ -104,7 +115,7 @@ void proc_portUnregister(const char *name)
 	dcache_entry_t *entry, *prev = NULL;
 	unsigned int hash = dcache_strHash(name);
 
-	proc_lockSet(&name_common.dcache_lock);
+	(void)proc_lockSet(&name_common.dcache_lock);
 	entry = name_common.dcache[hash];
 
 	while (entry != NULL && hal_strcmp(entry->name, name) != 0) {
@@ -115,15 +126,17 @@ void proc_portUnregister(const char *name)
 
 	if (entry == NULL) {
 		/* There is no such entry, nothing to do */
-		proc_lockClear(&name_common.dcache_lock);
+		(void)proc_lockClear(&name_common.dcache_lock);
 		return;
 	}
 
-	if (prev != NULL)
+	if (prev != NULL) {
 		prev->next = entry->next;
-	else
+	}
+	else {
 		name_common.dcache[hash] = NULL;
-	proc_lockClear(&name_common.dcache_lock);
+	}
+	(void)proc_lockClear(&name_common.dcache_lock);
 
 	vm_kfree(entry);
 }
@@ -138,15 +151,19 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
 
-	if (name == NULL || (file == NULL && dev == NULL))
+	if (name == NULL || (file == NULL && dev == NULL)) {
 		return -EINVAL;
+	}
 
-	if (name[0] == '/' && name[1] == 0) {
-		if (name_common.root_registered) {
-			if (file != NULL)
+	if (name[0] == '/' && name[1] == '\0') {
+		if (name_common.root_registered != 0) {
+			if (file != NULL) {
 				*file = name_common.root_oid;
-			if (dev != NULL)
+			}
+
+			if (dev != NULL) {
 				*dev = name_common.root_oid;
+			}
 			return EOK;
 		}
 
@@ -154,16 +171,19 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	/* Search cache for full path */
-	proc_lockSet(&name_common.dcache_lock);
+	(void)proc_lockSet(&name_common.dcache_lock);
 	if ((entry = _dcache_entryLookup(dcache_strHash(name), name)) != NULL) {
-		if (file != NULL)
+		if (file != NULL) {
 			*file = entry->oid;
-		if (dev != NULL)
+		}
+
+		if (dev != NULL) {
 			*dev = entry->oid;
-		proc_lockClear(&name_common.dcache_lock);
+		}
+		(void)proc_lockClear(&name_common.dcache_lock);
 		return EOK;
 	}
-	proc_lockClear(&name_common.dcache_lock);
+	(void)proc_lockClear(&name_common.dcache_lock);
 
 	srv = name_common.root_oid;
 
@@ -175,42 +195,47 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		pptr = pstack;
 	}
 	else {
-		if ((pheap = vm_kmalloc(len + 1)) == NULL)
+		if ((pheap = vm_kmalloc(len + 1U)) == NULL) {
 			return -ENOMEM;
+		}
+
 		pptr = pheap;
 	}
 
 	i = len;
-	hal_strcpy(pptr, name);
+	(void)hal_strcpy(pptr, name);
 
-	while (i > 1) {
-		while (i > 0 && pptr[i] != '/') {
+	while (i > 1U) {
+		while (i > 0U && pptr[i] != '/') {
 			--i;
 		}
 
-		if (i == 0)
+		if (i == 0U) {
 			break;
+		}
 
 		pptr[i] = '\0';
 
-		proc_lockSet(&name_common.dcache_lock);
+		(void)proc_lockSet(&name_common.dcache_lock);
 		if ((entry = _dcache_entryLookup(dcache_strHash(pptr), pptr)) != NULL) {
 			srv = entry->oid;
-			proc_lockClear(&name_common.dcache_lock);
+			(void)proc_lockClear(&name_common.dcache_lock);
 			break;
 		}
-		proc_lockClear(&name_common.dcache_lock);
+		(void)proc_lockClear(&name_common.dcache_lock);
 	}
 
-	if (!name_common.root_registered && !i) {
-		if (pheap != NULL)
+	if (name_common.root_registered == 0 && i == 0U) {
+		if (pheap != NULL) {
 			vm_kfree(pheap);
+		}
 		return -EINVAL;
 	}
 
 	if ((msg = vm_kmalloc(sizeof(msg_t))) == NULL) {
-		if (pheap != NULL)
+		if (pheap != NULL) {
 			vm_kfree(pheap);
+		}
 		return -ENOMEM;
 	}
 
@@ -224,8 +249,9 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		hal_memcpy(pptr, name + i + 1, len - i);
 		msg->i.data = pptr;
 
-		if ((err = proc_send(srv.port, msg)) < 0)
+		if ((err = proc_send(srv.port, msg)) < 0) {
 			break;
+		}
 
 		srv = msg->o.lookup.dev;
 		err = msg->o.err;
@@ -233,21 +259,24 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 			break;
 		}
 
-		i += err + 1;
+		i += (unsigned int)err + 1U;
 		if (i > len) {
 			err = -EINVAL;
 			break;
 		}
 	} while (i != len);
 
-	if (file != NULL)
+	if (file != NULL) {
 		*file = msg->o.lookup.fil;
-	if (dev != NULL)
+	}
+	if (dev != NULL) {
 		*dev = msg->o.lookup.dev;
+	}
 
 	vm_kfree(msg);
-	if (pheap != NULL)
+	if (pheap != NULL) {
 		vm_kfree(pheap);
+	}
 	return err < 0 ? err : EOK;
 #endif
 }
@@ -255,10 +284,11 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 {
-	if (file != NULL)
+	if (file != NULL) {
 		file->id = 0;
+	}
 
-	return proc_portLookup((char *)name, file, dev);
+	return proc_portLookup(name, file, dev);
 }
 
 
@@ -267,8 +297,9 @@ int proc_open(oid_t oid, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -291,8 +322,9 @@ int proc_close(oid_t oid, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -312,13 +344,14 @@ int proc_close(oid_t oid, unsigned mode)
 }
 
 
-int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
+int proc_create(unsigned int port, int type, unsigned int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -328,7 +361,7 @@ int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, 
 	hal_memcpy(&msg->i.create.dev, &dev, sizeof(dev));
 	hal_memcpy(&msg->oid, &dir, sizeof(dir));
 	msg->i.data = name;
-	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
+	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1U;
 
 	err = proc_send(port, msg);
 
@@ -347,8 +380,9 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -356,8 +390,8 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
-	msg->i.size = hal_strlen(name) + 1;
-	msg->i.data = (char *)name;
+	msg->i.size = hal_strlen(name) + 1U;
+	msg->i.data = (const void *)name;
 
 	err = proc_send(dir.port, msg);
 
@@ -375,8 +409,9 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -384,8 +419,8 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
-	msg->i.size = hal_strlen(name) + 1;
-	msg->i.data = (char *)name;
+	msg->i.size = hal_strlen(name) + 1U;
+	msg->i.data = name;
 
 	err = proc_send(dir.port, msg);
 
@@ -403,8 +438,9 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -433,8 +469,9 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -463,8 +500,9 @@ off_t proc_size(oid_t oid)
 	off_t err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -486,8 +524,8 @@ off_t proc_size(oid_t oid)
 
 void _name_init(void)
 {
-	proc_lockInit(&name_common.dcache_lock, &proc_lockAttrDefault, "name.common");
+	(void)proc_lockInit(&name_common.dcache_lock, &proc_lockAttrDefault, "name.common");
 
-	hal_memset(name_common.dcache, NULL, sizeof(name_common.dcache));
+	hal_memset(name_common.dcache, 0, sizeof(name_common.dcache));
 	name_common.root_registered = 0;
 }

@@ -109,7 +109,7 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_interruptsInit(void)
+__attribute__((section(".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int n;
 

@@ -31,7 +31,7 @@
 #include "userintr.h"
 
 
-typedef struct {
+typedef struct _process_spawn_t {
 	spinlock_t sl;
 	thread_t *wq;
 	volatile int state;
@@ -42,14 +42,14 @@ typedef struct {
 	size_t size;
 	vm_map_t *map;
 	vm_map_t *imap;
-	syspage_prog_t *prog;
+	const syspage_prog_t *prog;
 
 	char **argv;
 	char **envp;
 } process_spawn_t;
 
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
 	process_t *first;
@@ -64,12 +64,12 @@ process_t *proc_find(int pid)
 {
 	process_t *p;
 
-	proc_lockSet(&process_common.lock);
+	(void)proc_lockSet(&process_common.lock);
 	p = lib_idtreeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
 	if (p != NULL) {
 		p->refs++;
 	}
-	proc_lockClear(&process_common.lock);
+	(void)proc_lockClear(&process_common.lock);
 
 	return p;
 }
@@ -98,7 +98,7 @@ static void process_destroy(process_t *p)
 	}
 
 	proc_portsDestroy(p);
-	proc_lockDone(&p->lock);
+	(void)proc_lockDone(&p->lock);
 
 	while ((ghost = p->ghosts) != NULL) {
 		LIST_REMOVE_EX(&p->ghosts, ghost, procnext, procprev);
@@ -116,13 +116,13 @@ int proc_put(process_t *p)
 {
 	int remaining;
 
-	proc_lockSet(&process_common.lock);
+	(void)proc_lockSet(&process_common.lock);
 	remaining = --p->refs;
 	LIB_ASSERT(remaining >= 0, "pid: %d, refcnt became negative", process_getPid(p));
 	if (remaining <= 0) {
 		lib_idtreeRemove(&process_common.id, &p->idlinkage);
 	}
-	proc_lockClear(&process_common.lock);
+	(void)proc_lockClear(&process_common.lock);
 
 	if (remaining <= 0) {
 		process_destroy(p);
@@ -134,11 +134,11 @@ int proc_put(process_t *p)
 
 void proc_get(process_t *p)
 {
-	proc_lockSet(&process_common.lock);
+	(void)proc_lockSet(&process_common.lock);
 	LIB_ASSERT(p->refs > 0, "pid: %d, got reference on process with zero references",
-		process_getPid(p));
+			process_getPid(p));
 	++p->refs;
-	proc_lockClear(&process_common.lock);
+	(void)proc_lockClear(&process_common.lock);
 }
 
 
@@ -146,7 +146,7 @@ static int process_alloc(process_t *process)
 {
 	int id;
 
-	proc_lockSet(&process_common.lock);
+	(void)proc_lockSet(&process_common.lock);
 	id = lib_idtreeAlloc(&process_common.id, &process->idlinkage, process_common.idcounter);
 	if (id < 0) {
 		/* Try from the start */
@@ -155,20 +155,20 @@ static int process_alloc(process_t *process)
 	}
 
 	if (id >= 0) {
-		if (process_common.idcounter == MAX_PID) {
+		if (process_common.idcounter == (int)MAX_PID) {
 			process_common.idcounter = 1;
 		}
 		else {
 			process_common.idcounter++;
 		}
 	}
-	proc_lockClear(&process_common.lock);
+	(void)proc_lockClear(&process_common.lock);
 
 	return id;
 }
 
 
-int proc_start(void (*initthr)(void *), void *arg, const char *path)
+int proc_start(void (*initthr)(void *harg), void *arg, const char *path)
 {
 	process_t *process;
 	process = vm_kmalloc(sizeof(process_t));
@@ -197,18 +197,18 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->reaper = NULL;
 	process->refs = 1;
 
-	proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
+	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
 	process->ports = NULL;
 
 	process->sigpend = 0;
 	process->sigmask = 0;
 	process->sighandler = NULL;
-	process->tls.tls_base = NULL;
+	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
 	process->tls.tls_sz = 0;
-	process->tls.arm_m_tls = NULL;
+	process->tls.arm_m_tls = 0;
 
 #ifndef NOMMU
 	process->lazy = 0;
@@ -220,11 +220,11 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
-	process_alloc(process);
+	(void)process_alloc(process);
 	perf_fork(process);
 
 	if (proc_threadCreate(process, initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
-		proc_put(process);
+		(void)proc_put(process);
 		return -EINVAL;
 	}
 
@@ -249,8 +249,8 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
-	posix_write(2, buff, hal_strlen(buff), -1);
-	posix_write(2, "\n", 1, -1);
+	(void)posix_write(2, buff, hal_strlen(buff), -1);
+	(void)posix_write(2, "\n", 1, -1);
 
 	/* use proc_current() as late as possible - to be able to print exceptions in scheduler */
 	thread = proc_current();
@@ -268,26 +268,27 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 		len = lib_sprintf(buff, "in thread %lu, process \"%s\" (PID: %u)\n", proc_getTid(thread), process->path, process_getPid(process));
 	}
 
-	posix_write(2, buff, len, -1);
+	(void)posix_write(2, buff, (size_t)len, -1);
 }
 
 
-void process_exception(unsigned int n, exc_context_t *ctx)
+static void process_exception(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 
 	process_dumpException(n, ctx);
 
-	if (thread->process == NULL)
+	if (thread->process == NULL) {
 		hal_cpuHalt();
+	}
 
-	threads_sigpost(thread->process, thread, signal_kill);
+	(void)threads_sigpost(thread->process, thread, signal_kill);
 
 	/* Don't allow current thread to return to the userspace,
 	 * it will crash anyway. */
 	thread->exit = THREAD_END_NOW;
 
-	hal_cpuReschedule(NULL, NULL);
+	(void)hal_cpuReschedule(NULL, NULL);
 }
 
 
@@ -296,27 +297,28 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
 
-	if (process == NULL)
+	if (process == NULL) {
 		hal_cpuHalt();
+	}
 
-	threads_sigpost(process, thread, signal_illegal);
+	(void)threads_sigpost(process, thread, signal_illegal);
 }
 
 
 static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
 {
-	if (tls->tls_base != NULL) {
+	if (tls->tls_base != 0U) {
 		process_tls->tls_base = tls->tls_base;
 	}
-	else if (tbssAddr != NULL) {
+	else if (tbssAddr != 0U) {
 		process_tls->tls_base = tbssAddr;
 	}
 	else {
-		process_tls->tls_base = NULL;
+		process_tls->tls_base = 0;
 	}
 	process_tls->tdata_sz = tls->tdata_sz;
 	process_tls->tbss_sz = tls->tbss_sz;
-	process_tls->tls_sz = (tls->tbss_sz + tls->tdata_sz + sizeof(void *) + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
+	process_tls->tls_sz = (tls->tbss_sz + tls->tdata_sz + sizeof(void *) + sizeof(void *) - 1U) & ~(sizeof(void *) - 1U);
 	process_tls->arm_m_tls = tls->arm_m_tls;
 }
 
@@ -327,9 +329,9 @@ static int process_isPtrValid(void *mapStart, size_t mapSize, void *ptrStart, si
 	void *ptrEnd = ((char *)ptrStart) + ptrSize;
 
 	/* clang-format off */
-	return ((ptrSize == 0) ||
-		((ptrEnd > mapStart) && (ptrEnd <= mapEnd) &&
-		(ptrStart >= mapStart) && (ptrStart < ptrEnd))) ?
+	return ((ptrSize == 0U) ||
+		(((ptr_t)ptrEnd > (ptr_t)mapStart) && ((ptr_t)ptrEnd <= (ptr_t)mapEnd) &&
+		((ptr_t)ptrStart >= (ptr_t)mapStart) && ((ptr_t)ptrStart < (ptr_t)ptrEnd))) ?
 		1 : 0;
 	/* clang-format on */
 }
@@ -351,11 +353,13 @@ static int process_validateElf32(void *iehdr, size_t size)
 	}
 
 	/* Validate header. */
+	/* clang-format off */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
-		(ehdr->e_shnum == 0)) {
+				(hal_strncmp((char *)ehdr->e_ident, "\177" "ELF", 4) != 0)) ||
+			(ehdr->e_shnum == 0U)) {
 		return -ENOEXEC;
 	}
+	/* clang-format on */
 
 	phdr = (void *)ehdr + ehdr->e_phoff;
 	if (process_isPtrValid(iehdr, size, phdr, sizeof(*phdr) * ehdr->e_phnum) == 0) {
@@ -369,11 +373,11 @@ static int process_validateElf32(void *iehdr, size_t size)
 			continue;
 		}
 
-		offs = phdr->p_offset & ~(phdr->p_align - 1);
-		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
+		offs = (off_t)(Elf32_Off)(phdr->p_offset & ~(phdr->p_align - 1U));
+		misalign = phdr->p_offset & (phdr->p_align - 1U);
+		filesz = (phdr->p_filesz != 0U) ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;
-		if ((offs >= size) || (memsz < filesz)) {
+		if ((offs >= (off_t)size) || (memsz < filesz)) {
 			return -ENOEXEC;
 		}
 	}
@@ -392,14 +396,14 @@ static int process_validateElf32(void *iehdr, size_t size)
 		return -ENOEXEC;
 	}
 	/* Strings must end with NULL character. */
-	if ((shstrshdr->sh_size != 0) && (snameTab[shstrshdr->sh_size - 1] != '\0')) {
+	if ((shstrshdr->sh_size != 0U) && (snameTab[shstrshdr->sh_size - 1U] != '\0')) {
 		return -ENOEXEC;
 	}
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-				(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
-			(shdr->sh_name >= shstrshdr->sh_size)) {
+					(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
+				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
 	}
@@ -426,11 +430,13 @@ static int process_validateElf64(void *iehdr, size_t size)
 	}
 
 	/* Validate header. */
+	/* clang-format off */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+				(hal_strncmp((char *)ehdr->e_ident, "\177" "ELF", 4) != 0)) ||
 			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
+	/* clang-format on */
 
 	phdr = (void *)ehdr + ehdr->e_phoff;
 	if (process_isPtrValid(iehdr, size, phdr, sizeof(*phdr) * ehdr->e_phnum) == 0) {
@@ -473,7 +479,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-				process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
+					process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
 				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
@@ -650,7 +656,7 @@ int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 }
 
 
-int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
+static int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
 {
 	void *stack;
 	Elf64_Ehdr *ehdr;
@@ -660,11 +666,11 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	hal_tls_t tlsNew;
 	ptr_t tbssAddr = 0;
 
-	tlsNew.tls_base = NULL;
+	tlsNew.tls_base = 0; /* NULL */
 	tlsNew.tdata_sz = 0;
 	tlsNew.tbss_sz = 0;
 	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = NULL;
+	tlsNew.arm_m_tls = 0; /* NULL */
 
 	size = round_page(size);
 
@@ -724,7 +730,7 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 {
 	size_t i;
 
-	if ((ptr_t)(*addr) == 0) {
+	if ((ptr_t)(*addr) == 0U) {
 		return 0;
 	}
 
@@ -739,15 +745,16 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 }
 
 
-int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
+static int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
 {
 	void *stack, *paddr;
 	Elf32_Ehdr *ehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
 	Elf32_Rela rela;
-	unsigned prot, flags, reloffs;
-	int i, j, relocsz = 0, badreloc = 0, err;
+	unsigned relocsz = 0, prot, flags, reloffs;
+	int badreloc = 0, err;
+	unsigned i, j;
 	void *relptr;
 	char *snameTab;
 	ptr_t *got;
@@ -768,13 +775,16 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	}
 
 	hal_memset(reloc, 0, sizeof(reloc));
+	j = 0U;
+	phdr = (void *)ehdr + ehdr->e_phoff;
 
-	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
+	for (i = 0U; i < ehdr->e_phnum; i++) {
+		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0U) {
 			stacksz = round_page(phdr->p_memsz);
 		}
 
 		if (phdr->p_type != PT_LOAD) {
+			++phdr;
 			continue;
 		}
 
@@ -783,17 +793,17 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		flags = MAP_NONE;
 		paddr = (char *)ehdr + phdr->p_offset;
 
-		if ((phdr->p_flags & PF_R) != 0) {
+		if ((phdr->p_flags & PF_R) != 0U) {
 			prot |= PROT_READ;
 		}
 
-		if ((phdr->p_flags & PF_X) != 0) {
+		if ((phdr->p_flags & PF_X) != 0U) {
 			prot |= PROT_EXEC;
 
 			if ((process->imapp != NULL) &&
 					(((ptr_t)base < (ptr_t)process->imapp->start) ||
-					((ptr_t)base > (ptr_t)process->imapp->stop))) {
-				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
+							((ptr_t)base > (ptr_t)process->imapp->stop))) {
+				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), (u8)prot, NULL, -1, (u8)flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
 				}
@@ -805,17 +815,17 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			}
 		}
 
-		if ((phdr->p_flags & PF_W) != 0) {
+		if ((phdr->p_flags & PF_W) != 0U) {
 			prot |= PROT_WRITE;
 
 			reloffs = phdr->p_vaddr % SIZE_PAGE;
 
-			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), prot, NULL, -1, flags);
+			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), (u8)prot, NULL, -1, (u8)flags);
 			if (paddr == NULL) {
 				return -ENOMEM;
 			}
 
-			if (phdr->p_filesz != 0) {
+			if (phdr->p_filesz != 0U) {
 				if ((phdr->p_offset + phdr->p_filesz) > size) {
 					return -ENOEXEC;
 				}
@@ -834,9 +844,10 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		reloc[j].vbase = (void *)phdr->p_vaddr;
 		reloc[j].pbase = (void *)((char *)paddr + reloffs);
 		reloc[j].size = phdr->p_memsz;
-		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1);
+		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1U);
 		++relocsz;
 		++j;
+		++phdr;
 	}
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
@@ -845,10 +856,11 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	snameTab = (char *)ehdr + shstrshdr->sh_offset;
 
 	/* Find .got section */
-	for (i = 0; i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0U; i < ehdr->e_shnum; i++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".got") == 0) {
 			break;
 		}
+		++shdr;
 	}
 
 	if (i >= ehdr->e_shnum) {
@@ -863,7 +875,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	/* Perform .got relocations */
 	/* This is non classic approach to .got relocation. We use .got itselft
 	 * instead of .rel section. */
-	for (i = 0; i < shdr->sh_size / 4; ++i) {
+	for (i = 0U; i < shdr->sh_size / 4U; ++i) {
 		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
 			return -ENOEXEC;
 		}
@@ -874,18 +886,21 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	/* Perform data, init_array and fini_array relocation */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if ((shdr->sh_size == 0) || (shdr->sh_entsize == 0)) {
+	for (i = 0U; i < ehdr->e_shnum; i++) {
+		if ((shdr->sh_size == 0U) || (shdr->sh_entsize == 0U)) {
+			++shdr;
 			continue;
 		}
 
 		/* strncmp as there may be multiple .rela.* or .rel.* sections for different sections. */
 		if ((hal_strncmp(&snameTab[shdr->sh_name], ".rela.", 6) != 0) && (hal_strncmp(&snameTab[shdr->sh_name], ".rel.", 5) != 0)) {
+			++shdr;
 			continue;
 		}
 
-		for (j = 0; j < (shdr->sh_size / shdr->sh_entsize); ++j) {
+		for (j = 0U; j < (shdr->sh_size / shdr->sh_entsize); ++j) {
 			/* Valid for both Elf32_Rela and Elf32_Rel, due to correct size being stored in shdr->sh_entsize. */
 			/* For .rel. section make sure not to access addend field! */
 			hal_memcpy(&rela, (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize)), shdr->sh_entsize);
@@ -912,16 +927,18 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				return -ENOEXEC;
 			}
 		}
+		++shdr;
 	}
 
-	tlsNew.tls_base = NULL;
+	tlsNew.tls_base = 0;
 	tlsNew.tdata_sz = 0;
 	tlsNew.tbss_sz = 0;
 	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = NULL;
+	tlsNew.arm_m_tls = 0;
 
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	/* Perform .tdata, .tbss and .armtls relocations */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0U; i < ehdr->e_shnum; i++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
 			tlsNew.tls_base = (ptr_t)shdr->sh_addr;
 			tlsNew.tdata_sz += shdr->sh_size;
@@ -942,6 +959,10 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				return -ENOEXEC;
 			}
 		}
+		else {
+			/* No action required */
+		}
+		++shdr;
 	}
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
@@ -972,29 +993,32 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 #endif
 
-void *proc_copyargs(char **args)
+static void *proc_copyargs(char **args)
 {
-	int argc, len = 0;
+	unsigned int argc, len = 0U;
 	void *storage;
 	char **kargs, *p;
 
-	if (args == NULL)
+	if (args == NULL) {
 		return NULL;
+	}
 
-	for (argc = 0; args[argc] != NULL; ++argc)
-		len += hal_strlen(args[argc]) + 1;
+	for (argc = 0U; args[argc] != NULL; ++argc) {
+		len += hal_strlen(args[argc]) + 1U;
+	}
 
-	len += (argc + 1) * sizeof(char *);
+	len += (argc + 1U) * sizeof(char *);
 
-	if ((kargs = storage = vm_kmalloc(len)) == NULL)
+	if ((kargs = storage = vm_kmalloc(len)) == NULL) {
 		return NULL;
+	}
 
 	kargs[argc] = NULL;
 
-	p = (char *)storage + (argc + 1) * sizeof(char *);
+	p = (char *)storage + (argc + 1U) * sizeof(char *);
 
-	while (argc-- > 0) {
-		len = hal_strlen(args[argc]) + 1;
+	while (argc-- > 0U) {
+		len = hal_strlen(args[argc]) + 1U;
 		hal_memcpy(p, args[argc], len);
 		kargs[argc] = p;
 		p += len;
@@ -1006,26 +1030,26 @@ void *proc_copyargs(char **args)
 
 static void *process_putargs(void *stack, char ***argsp, int *count)
 {
-	int argc;
+	unsigned int argc;
 	size_t len;
 	char **args_stack, **args = *argsp;
 
-	for (argc = 0; (args != NULL) && (args[argc] != NULL); ++argc) {
+	for (argc = 0U; (args != NULL) && (args[argc] != NULL); ++argc) {
 	}
 
-	stack -= (argc + 1) * sizeof(char *);
+	stack -= (argc + 1U) * sizeof(char *);
 	args_stack = stack;
 	args_stack[argc] = NULL;
 
 	for (argc = 0; (args != NULL) && (args[argc] != NULL); ++argc) {
-		len = hal_strlen(args[argc]) + 1;
+		len = hal_strlen(args[argc]) + 1U;
 		stack -= SIZE_STACK_ARG(len);
 		hal_memcpy(stack, args[argc], len);
 		args_stack[argc] = stack;
 	}
 
 	*argsp = args_stack;
-	*count = argc;
+	*count = (int)argc;
 
 	return stack;
 }
@@ -1033,7 +1057,7 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 
 static void process_exec(thread_t *current, process_spawn_t *spawn)
 {
-	void *stack, *entry;
+	void *stack, *entry = NULL;
 	int err = 0, count;
 	void *cleanupFn = NULL;
 	unsigned int i;
@@ -1053,18 +1077,24 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 	(void)i;
 #else
-	pmap_create(&current->process->map.pmap, NULL, NULL, NULL);
+	(void)pmap_create(&current->process->map.pmap, NULL, NULL, NULL);
 	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
 	current->process->entries = NULL;
 
 	if (spawn->prog != NULL) {
 		/* Add instruction maps */
-		for (i = 0; (i < spawn->prog->imapSz) && (err == 0); ++i) {
+		for (i = 0; i < spawn->prog->imapSz; ++i) {
+			if (err != 0) {
+				break;
+			}
 			err = pmap_addMap(current->process->pmapp, spawn->prog->imaps[i]);
 		}
 
 		/* Add data/io maps */
-		for (i = 0; (i < spawn->prog->dmapSz) && (err == 0); ++i) {
+		for (i = 0; i < spawn->prog->dmapSz; ++i) {
+			if (err != 0) {
+				break;
+			}
 			err = pmap_addMap(current->process->pmapp, spawn->prog->dmaps[i]);
 		}
 	}
@@ -1085,16 +1115,16 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	if (spawn->parent == NULL) {
 		/* if execing without vfork */
 		hal_spinlockDestroy(&spawn->sl);
-		vm_objectPut(spawn->object);
+		(void)vm_objectPut(spawn->object);
 	}
 	else {
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = FORKED;
-		proc_threadWakeup(&spawn->wq);
+		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
-	if ((err == EOK) && (current->process->tls.tls_base != NULL)) {
+	if ((err == EOK) && (current->process->tls.tls_base != 0U)) {
 		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
 	}
 
@@ -1107,7 +1137,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 	hal_cpuSetGot(current->process->got);
 
-	if (current->tls.tls_base != NULL) {
+	if (current->tls.tls_base != 0U) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
@@ -1123,25 +1153,32 @@ static void proc_spawnThread(void *arg)
 
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL) {
-		posix_clone(process_getPid(spawn->parent->process));
+		(void)posix_clone(process_getPid(spawn->parent->process));
 	}
 
 	process_exec(current, spawn);
 }
 
 
-static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
+static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
 {
 	int pid;
 	process_spawn_t spawn;
 	spinlock_ctx_t sc;
 
-	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL)
-		return -ENOMEM;
+	if (argv != NULL) {
+		argv = proc_copyargs(argv);
+		if (argv == NULL) {
+			return -ENOMEM;
+		}
+	}
 
-	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
-		vm_kfree(argv);
-		return -ENOMEM;
+	if (envp != NULL) {
+		envp = proc_copyargs(envp);
+		if (envp == NULL) {
+			vm_kfree(argv);
+			return -ENOMEM;
+		}
 	}
 
 	spawn.object = object;
@@ -1160,8 +1197,9 @@ static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap,
 
 	if ((pid = proc_start(proc_spawnThread, &spawn, path)) > 0) {
 		hal_spinlockSet(&spawn.sl, &sc);
-		while (spawn.state == FORKING)
-			proc_threadWait(&spawn.wq, &spawn.sl, 0, &sc);
+		while (spawn.state == FORKING) {
+			(void)proc_threadWait(&spawn.wq, &spawn.sl, 0, &sc);
+		}
 		hal_spinlockClear(&spawn.sl, &sc);
 	}
 	else {
@@ -1170,7 +1208,7 @@ static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap,
 	}
 
 	hal_spinlockDestroy(&spawn.sl);
-	vm_objectPut(spawn.object);
+	(void)vm_objectPut(spawn.object);
 	return spawn.state < 0 ? spawn.state : pid;
 }
 
@@ -1181,11 +1219,13 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	oid_t oid;
 	vm_object_t *object;
 
-	if ((err = proc_lookup(path, NULL, &oid)) < 0)
+	if ((err = proc_lookup(path, NULL, &oid)) < 0) {
 		return err;
+	}
 
-	if ((err = vm_objectGet(&object, oid)) < 0)
+	if ((err = vm_objectGet(&object, oid)) < 0) {
 		return err;
+	}
 
 	return proc_spawn(object, NULL, NULL, NULL, 0, object->size, path, argv, envp);
 }
@@ -1214,24 +1254,24 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 	}
 
 	if (codeMap != NULL) {
-		if ((codeMap->attr & (mAttrRead | mAttrExec)) != (mAttrRead | mAttrExec)) {
+		if ((codeMap->attr & ((unsigned int)mAttrRead | (unsigned int)mAttrExec)) != ((unsigned int)mAttrRead | (unsigned int)mAttrExec)) {
 			return -EINVAL;
 		}
 
-		imapp = vm_getSharedMap(codeMap->id);
+		imapp = vm_getSharedMap((int)codeMap->id);
 	}
 
-	if (sysMap != NULL && (sysMap->attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite)) {
-		return proc_syspageSpawn((syspage_prog_t *)prog, imapp, vm_getSharedMap(sysMap->id), name, argv);
+	if (sysMap != NULL && (sysMap->attr & ((unsigned int)mAttrRead | (unsigned int)mAttrWrite)) == ((unsigned int)mAttrRead | (unsigned int)mAttrWrite)) {
+		return proc_syspageSpawn((const syspage_prog_t *)prog, imapp, vm_getSharedMap((int)sysMap->id), name, argv);
 	}
 
 	return -EINVAL;
 }
 
 
-int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
+int proc_syspageSpawn(const syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
 {
-	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, program->start, program->end - program->start, path, argv, NULL);
+	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, (off_t)program->start, program->end - program->start, path, argv, NULL);
 }
 
 
@@ -1240,7 +1280,7 @@ int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, co
 
 static size_t process_parentKstacksz(thread_t *parent)
 {
-	return parent->kstacksz - (hal_cpuGetSP(parent->context) - parent->kstack);
+	return parent->kstacksz - (((size_t)hal_cpuGetSP(parent->context)) - ((size_t)parent->kstack));
 }
 
 
@@ -1261,14 +1301,14 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 	/* Only possible in the case of `initthread` exit or failure to fork. */
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
-		vm_objectPut(spawn->object);
+		(void)vm_objectPut(spawn->object);
 	}
 	else {
 		process_restoreParentKstack(current, spawn->parent);
 
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = state;
-		proc_threadWakeup(&spawn->wq);
+		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
@@ -1295,6 +1335,7 @@ void proc_exit(int code)
 		args[0] = (arg_t)current;
 		args[1] = (arg_t)spawn;
 		args[2] = (arg_t)FORKED;
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
 		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 3, args);
 	}
 
@@ -1311,7 +1352,7 @@ static void process_vforkThread(void *arg)
 
 	current = proc_current();
 	parent = spawn->parent;
-	posix_clone(process_getPid(parent->process));
+	(void)posix_clone(process_getPid(parent->process));
 
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
@@ -1321,7 +1362,7 @@ static void process_vforkThread(void *arg)
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	while (spawn->state < FORKING) {
-		proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
+		(void)proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
 	}
 	hal_spinlockClear(&spawn->sl, &sc);
 
@@ -1330,7 +1371,7 @@ static void process_vforkThread(void *arg)
 	if (current->parentkstack == NULL) {
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = -ENOMEM;
-		proc_threadWakeup(&spawn->wq);
+		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 
 		proc_threadEnd();
@@ -1350,7 +1391,7 @@ static void process_vforkThread(void *arg)
 
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = ret;
-		proc_threadWakeup(&spawn->wq);
+		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 
 		proc_threadEnd();
@@ -1362,7 +1403,7 @@ static void process_vforkThread(void *arg)
 	current->kstack = parent->kstack;
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
-	if (current->tls.tls_base != NULL) {
+	if (current->tls.tls_base != 0U) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
@@ -1380,6 +1421,7 @@ int proc_vfork(void)
 	int pid, isparent = 1, ret;
 	process_spawn_t *spawn;
 	spinlock_ctx_t sc;
+	int state_tmp;
 
 	current = proc_current();
 	if (current == NULL) {
@@ -1411,22 +1453,24 @@ int proc_vfork(void)
 	/* Signal forking state to vfork thread */
 	hal_spinlockSet(&spawn->sl, &sc);
 	spawn->state = FORKING;
-	proc_threadWakeup(&spawn->wq);
+	(void)proc_threadWakeup(&spawn->wq);
 
 	do {
 		/*
 		 * proc_threadWait call stores context on the stack - this allows to execute child
 		 * thread starting from this point
 		 */
-		proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
-		isparent = proc_current() == current;
-	} while ((spawn->state < FORKED) && (spawn->state > 0) && (isparent != 0));
+		(void)proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
+		isparent = (proc_current() == current) ? 1 : 0;
+		/* TODO: If any test fails, revert this change and suppress MISRA Rule 13.5 */
+		state_tmp = spawn->state;
+	} while ((state_tmp < FORKED) && (state_tmp > 0) && (isparent != 0));
 
 	hal_spinlockClear(&spawn->sl, &sc);
 
-	if (isparent) {
+	if (isparent != 0) {
 		hal_spinlockDestroy(&spawn->sl);
-		vm_objectPut(spawn->object);
+		(void)vm_objectPut(spawn->object);
 		ret = spawn->state;
 		vm_kfree(spawn);
 		return (ret < 0) ? ret : pid;
@@ -1495,7 +1539,7 @@ int proc_release(void)
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	spawn->state = FORKED;
-	proc_threadWakeup(&spawn->wq);
+	(void)proc_threadWakeup(&spawn->wq);
 	hal_spinlockClear(&spawn->sl, &sc);
 
 	return EOK;
@@ -1528,7 +1572,7 @@ int proc_fork(void)
 		/* Copy parent context to child kstack in case of signal handling on fork return */
 		parent = ((process_spawn_t *)current->execdata)->parent;
 		hal_memcpy(current->kstack + current->kstacksz - sizeof(cpu_context_t),
-			parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
+				parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
 
 		hal_cpuSmpSync();
 
@@ -1593,7 +1637,7 @@ static int process_execve(thread_t *current)
 	current->process->sigpend = 0;
 
 	/* Close cloexec file descriptors */
-	posix_exec();
+	(void)posix_exec();
 	process_exec(current, spawn);
 
 	/* Not reached */
@@ -1619,15 +1663,21 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return -ENOMEM;
 	}
 
-	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL) {
-		vm_kfree(kpath);
-		return -ENOMEM;
+	if (argv != NULL) {
+		argv = proc_copyargs(argv);
+		if (argv == NULL) {
+			vm_kfree(kpath);
+			return -ENOMEM;
+		}
 	}
 
-	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
-		vm_kfree(kpath);
-		vm_kfree(argv);
-		return -ENOMEM;
+	if (envp != NULL) {
+		envp = proc_copyargs(envp);
+		if (envp == NULL) {
+			vm_kfree(kpath);
+			vm_kfree(argv);
+			return -ENOMEM;
+		}
 	}
 
 	if ((err = proc_lookup(path, NULL, &oid)) < 0) {
@@ -1672,10 +1722,11 @@ int proc_execve(const char *path, char **argv, char **envp)
 		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 		args[0] = (arg_t)current;
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
 		hal_jmp(process_execve, current->kstack + current->kstacksz, NULL, 1, args);
 	}
 	else {
-		process_execve(current);
+		(void)process_execve(current);
 	}
 	/* Not reached */
 
@@ -1688,12 +1739,12 @@ int proc_sigpost(int pid, int sig)
 	process_t *p;
 	int err = -EINVAL;
 
-	proc_lockSet(&process_common.lock);
+	(void)proc_lockSet(&process_common.lock);
 	p = lib_idtreeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
 	if (p != NULL) {
 		err = threads_sigpost(p, NULL, sig);
 	}
-	proc_lockClear(&process_common.lock);
+	(void)proc_lockClear(&process_common.lock);
 
 	return err;
 }
@@ -1705,11 +1756,11 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	process_common.first = NULL;
 	process_common.kernel = kernel;
 	process_common.idcounter = 1;
-	proc_lockInit(&process_common.lock, &proc_lockAttrDefault, "process.common");
+	(void)proc_lockInit(&process_common.lock, &proc_lockAttrDefault, "process.common");
 	lib_idtreeInit(&process_common.id);
 
-	hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
-	hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
+	(void)hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
+	(void)hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
 	return EOK;
 }
 
@@ -1724,11 +1775,11 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 
 	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
-	if (dest->tls_base != NULL) {
+	if (dest->tls_base != 0U) {
 		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
 		/* At the end of TLS there must be a pointer to itself */
-		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1) & ~(sizeof(ptr_t) - 1)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
+		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1U) & ~(sizeof(ptr_t) - 1U)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
 		err = EOK;
 	}
 	else {

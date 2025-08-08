@@ -19,14 +19,14 @@
 #include "posix_private.h"
 
 
-#define MAX_MSG_CONTROLLEN 256
+#define MAX_MSG_CONTROLLEN 256U
 
 
 /* NOTE: file descriptors are added & removed FIFO style */
 typedef struct fdpack_s {
 	struct fdpack_s *next, *prev;
 	unsigned int first, cnt;
-	fildes_t fd[];
+	fildes_t fd[0];
 } fdpack_t;
 
 

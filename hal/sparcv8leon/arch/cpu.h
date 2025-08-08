@@ -19,20 +19,20 @@
 
 #ifdef NOMMU
 
-#define SIZE_PAGE 0x200
+#define SIZE_PAGE 0x200U
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (8 * SIZE_PAGE)
+#define SIZE_KSTACK (8U * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 #else
 
-#define SIZE_PAGE 0x1000
+#define SIZE_PAGE 0x1000U
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
@@ -40,7 +40,7 @@
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (4 * SIZE_PAGE)
+#define SIZE_USTACK (4U * SIZE_PAGE)
 #endif
 
 #endif

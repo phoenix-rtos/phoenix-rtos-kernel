@@ -22,26 +22,15 @@
 /* Barriers */
 
 
-static inline void hal_cpuDataMemoryBarrier(void)
-{
-	__asm__ volatile("dmb");
-}
-
-
 static inline void hal_cpuDataSyncBarrier(void)
 {
 	__asm__ volatile("dsb");
 }
 
 
-static inline void hal_cpuInstrBarrier(void)
-{
-	__asm__ volatile("isb");
-}
-
-
 /* Memory Management */
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Each function has definition in assembly code" */
 
 /* Invalidate entire branch predictor array */
 extern void hal_cpuBranchInval(void);
@@ -72,5 +61,7 @@ extern u32 hal_cpuGetPFR0(void);
 
 
 extern u32 hal_cpuGetPFR1(void);
+
+/* parasoft-end-suppress MISRAC2012-RULE_8_6*/
 
 #endif

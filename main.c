@@ -26,7 +26,7 @@
 #include "test/test.h"
 
 
-struct {
+static struct {
 	vm_map_t kmap;
 	vm_object_t kernel;
 	page_t *page;
@@ -35,7 +35,7 @@ struct {
 } main_common;
 
 
-void main_initthr(void *unused)
+static void main_initthr(void *unused)
 {
 	int res;
 	unsigned int argc;
@@ -51,7 +51,7 @@ void main_initthr(void *unused)
 	syspage_progShow();
 
 	posix_init();
-	posix_clone(-1);
+	(void)posix_clone(-1);
 
 	/* Start programs from syspage */
 	if ((prog = syspage_progList()) != NULL) {
@@ -59,8 +59,9 @@ void main_initthr(void *unused)
 			cmdline = prog->argv;
 			/* If app shouldn't be executed then args should be discarded */
 			if (*cmdline != 'X') {
-				while (*cmdline != ';' && *cmdline != '\0')
+				while (*cmdline != ';' && *cmdline != '\0') {
 					++cmdline;
+				}
 
 				*cmdline = '\0';
 				continue;
@@ -69,20 +70,24 @@ void main_initthr(void *unused)
 			/* 'X' is no longer useful */
 			++prog->argv;
 			cmdline = prog->argv;
-			for (argc = 0; argc < (sizeof(argv) / sizeof(*argv) - 1);) {
+			argc = 0;
+			while (argc < (sizeof(argv) / sizeof(*argv) - 1U)) {
 				argv[argc++] = cmdline;
-				while (*cmdline != ';' && *cmdline != '\0')
+				while (*cmdline != ';' && *cmdline != '\0') {
 					++cmdline;
+				}
 
-				if (*cmdline == '\0')
+				if (*cmdline == '\0') {
 					break;
+				}
 
 				*(cmdline++) = '\0';
 			}
-			argv[argc++] = NULL;
+			argv[argc] = NULL;
 
-			if ((res = proc_syspageSpawn(prog, vm_getSharedMap(prog->imaps[0]), vm_getSharedMap(prog->dmaps[0]), argv[0], argv)) < 0)
+			if ((res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), vm_getSharedMap((int)prog->dmaps[0]), argv[0], argv)) < 0) {
 				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
+			}
 		} while ((prog = prog->next) != syspage_progList());
 	}
 
@@ -101,13 +106,14 @@ int main(void)
 	_usrv_init();
 
 	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v. " RELEASE " rev. " VERSION "\n");
+
 	lib_printf("hal: %s\n", hal_cpuInfo(s));
 	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
 	lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
 	lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
-	_proc_init(&main_common.kmap, &main_common.kernel);
+	(void)_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
 
 #if 0 /* Basic kernel tests */
@@ -120,11 +126,11 @@ int main(void)
 	test_proc_exit();
 #endif
 
-	proc_start(main_initthr, NULL, (const char *)"init");
+	(void)proc_start(main_initthr, NULL, (const char *)"init");
 
 	/* Start scheduling, leave current stack */
 	hal_cpuEnableInterrupts();
-	hal_cpuReschedule(NULL, NULL);
+	(void)hal_cpuReschedule(NULL, NULL);
 
 	return 0;
 }

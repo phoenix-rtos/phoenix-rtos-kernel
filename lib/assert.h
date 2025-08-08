@@ -22,12 +22,12 @@ void lib_assertPanic(const char *func, int line, const char *fmt, ...);
 
 #define LIB_ASSERT_ALWAYS(condition, fmt, ...) \
 	if (!(condition)) { \
-		lib_assertPanic(__FUNCTION__, __LINE__, fmt, ##__VA_ARGS__); \
+		lib_assertPanic(__FUNCTION__, __LINE__, (fmt), ##__VA_ARGS__); \
 	}
 
 #ifndef NDEBUG
 
-#define LIB_ASSERT(condition, fmt, ...) LIB_ASSERT_ALWAYS(condition, fmt, ##__VA_ARGS__)
+#define LIB_ASSERT(condition, fmt, ...) LIB_ASSERT_ALWAYS((condition), (fmt), ##__VA_ARGS__)
 
 #else
 

@@ -159,7 +159,7 @@ hal_cpuReschedule:
 
 	mrs r4, cpsr
 
-	cmp r0, #NULL
+	cmp r0, #0
 	beq 1f
 
 	add r0, #12

@@ -17,16 +17,16 @@
 #define _PHOENIX_POSIX_POLL_H_
 
 
-#define POLLIN     0x1
-#define POLLRDNORM 0x2
-#define POLLRDBAND 0x4
-#define POLLPRI    0x8
-#define POLLOUT    0x10
-#define POLLWRNORM 0x20
-#define POLLWRBAND 0x40
-#define POLLERR    0x80
-#define POLLHUP    0x100
-#define POLLNVAL   0x200
+#define POLLIN     0x1U
+#define POLLRDNORM 0x2U
+#define POLLRDBAND 0x4U
+#define POLLPRI    0x8U
+#define POLLOUT    0x10U
+#define POLLWRNORM 0x20U
+#define POLLWRBAND 0x40U
+#define POLLERR    0x80U
+#define POLLHUP    0x100U
+#define POLLNVAL   0x200U
 
 
 typedef unsigned int nfds_t;
@@ -34,8 +34,8 @@ typedef unsigned int nfds_t;
 
 struct pollfd {
 	int fd;
-	short events;
-	short revents;
+	unsigned short events;
+	unsigned short revents;
 };
 
 
