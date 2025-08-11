@@ -142,6 +142,9 @@ extern void proc_threadDestroy(thread_t *t);
 extern void proc_threadsDestroy(thread_t **threads);
 
 
+extern void proc_crash(thread_t *thread);
+
+
 extern int proc_waitpid(int pid, int *stat, int options);
 
 
