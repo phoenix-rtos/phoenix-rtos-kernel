@@ -40,3 +40,22 @@ void hal_stackPutArgs(void **stackp, size_t argc, const struct stackArg *argv)
 
 	*stackp = (void *)stack;
 }
+
+
+#ifndef HAL_CPU_GETUSERCTX_CUSTOM
+/* Default: userspace context is the saved one, or lies at the kstack top if the thread was in the kernel */
+int hal_cpuGetUserCtx(cpu_context_t *ctx, const void *kstackTop, pmap_t *pmap, cpu_context_t *dst)
+{
+	const cpu_context_t *src = ctx;
+
+	(void)pmap;
+
+	if (hal_cpuSupervisorMode(ctx) != 0) {
+		src = (const cpu_context_t *)((const u8 *)kstackTop - sizeof(cpu_context_t));
+	}
+
+	hal_memcpy(dst, src, sizeof(cpu_context_t));
+
+	return 0;
+}
+#endif

@@ -17,6 +17,7 @@
 #include "include/errno.h"
 #include "include/signal.h"
 #include "include/syscalls.h"
+#include "coredump/coredump.h"
 #include "vm/vm.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
@@ -87,7 +88,24 @@ process_t *proc_find(int pid)
 static void process_destroy(process_t *p)
 {
 	thread_t *ghost;
-	vm_map_t *mapp = p->mapp, *imapp = p->imapp;
+	vm_map_t *mapp, *imapp;
+
+#ifdef COREDUMP_SUPPORT
+	coredump_processDestroyed(p);
+#endif
+
+	ghost = p->ghosts;
+	do {
+		if (ghost->execdata != NULL) {
+			ghost->kstack = ghost->execkstack;
+			proc_vforkedDied(ghost, FORKED);
+		}
+
+		ghost = ghost->procnext;
+	} while (ghost != p->ghosts);
+
+	mapp = p->mapp;
+	imapp = p->imapp;
 
 	trace_eventProcessKill(p);
 
@@ -113,6 +131,9 @@ static void process_destroy(process_t *p)
 
 	while ((ghost = p->ghosts) != NULL) {
 		LIST_REMOVE_EX(&p->ghosts, ghost, procnext, procprev);
+		if (ghost->kstack != NULL) {
+			vm_kfree(ghost->kstack);
+		}
 		vm_kfree(ghost);
 	}
 
@@ -129,6 +150,18 @@ int proc_put(process_t *p)
 	int remaining;
 
 	(void)proc_lockSet(&process_common.lock);
+#ifdef COREDUMP_SUPPORT
+	if ((p->refs == 1) && (p->coredump != 0U)) {
+		p->coredump = 0;
+		(void)proc_lockClear(&process_common.lock);
+
+		if (coredump_enqueue(p) == EOK) {
+			return 1;
+		}
+
+		(void)proc_lockSet(&process_common.lock);
+	}
+#endif
 	remaining = --p->refs;
 	LIB_ASSERT(remaining >= 0, "pid: %d, refcnt became negative", process_getPid(p));
 	if (remaining <= 0) {
@@ -209,6 +242,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ghosts = NULL;
 	process->reaper = NULL;
 	process->refs = 1;
+	process->coredump = 0;
 
 	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
@@ -286,7 +320,8 @@ static void process_exception(unsigned int n, exc_context_t *ctx)
 
 	LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel");
 
-	(void)threads_sigpost(thread->process, thread, SIGKILL);
+	/* No exception to signal mapping (yet) - report as killed */
+	proc_crash(thread, SIGKILL);
 
 	/* Don't allow current thread to return to the userspace,
 	 * it will crash anyway. */
