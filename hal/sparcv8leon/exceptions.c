@@ -18,6 +18,7 @@
 #include "hal/string.h"
 #include "hal/sparcv8leon/srmmu.h"
 #include "include/mman.h"
+#include "proc/threads.h"
 
 
 static struct {
@@ -143,9 +144,9 @@ __attribute__((noreturn)) static void exceptions_defaultHandler(unsigned int n, 
 #ifdef NDEBUG
 	hal_cpuReboot();
 #else
-	for (;;) {
-		hal_cpuHalt();
-	}
+
+	proc_crash(proc_current(), 0);
+	proc_threadEnd();
 
 	__builtin_unreachable();
 #endif

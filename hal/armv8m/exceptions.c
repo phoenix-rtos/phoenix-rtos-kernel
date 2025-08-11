@@ -17,6 +17,7 @@
 #include "hal/string.h"
 #include "hal/timer.h"
 #include "config.h"
+#include "proc/threads.h"
 
 #define SIZE_FPUCTX (18U * sizeof(u32))
 
@@ -157,9 +158,8 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 #ifdef NDEBUG
 	hal_cpuReboot();
 #else
-	for (;;) {
-		hal_cpuHalt();
-	}
+	proc_crash(proc_current(), 0);
+	proc_threadEnd();
 #endif
 }
 
