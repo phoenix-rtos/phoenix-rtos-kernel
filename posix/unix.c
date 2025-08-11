@@ -265,7 +265,8 @@ static void unixsock_put(unixsock_t *s)
 {
 	unixsock_t *r;
 
-	proc_lockSet(&unix_common.lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&unix_common.lock);
 	s->refs--;
 	if (s->refs <= 0) {
 		lib_rbRemove(&unix_common.tree, &s->linkage);
@@ -535,7 +536,8 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 					break;
 				}
 
-				_cbuffer_init(&s->buffer, v, s->buffsz);
+				/* MISRAC2012-RULE_17_7-a */
+				(void)_cbuffer_init(&s->buffer, v, s->buffsz);
 			}
 
 			dev.port = US_PORT;
@@ -544,7 +546,8 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 
 			if (err != 0) {
 				if (s->type == SOCK_DGRAM) {
-					_cbuffer_init(&s->buffer, NULL, 0);
+					/* MISRAC2012-RULE_17_7-a */
+					(void)_cbuffer_init(&s->buffer, NULL, 0);
 					vm_kfree(v);
 				}
 				break;
@@ -677,13 +680,15 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 				break;
 			}
 
-			_cbuffer_init(&s->buffer, v, s->buffsz);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)_cbuffer_init(&s->buffer, v, s->buffsz);
 
 			/* FIXME: handle remote socket removal */
 
 			hal_spinlockSet(&r->spinlock, &sc);
 			LIST_ADD(&r->connecting, s);
-			proc_threadWakeup(&r->queue);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_threadWakeup(&r->queue);
 			hal_spinlockClear(&r->spinlock, &sc);
 
 			hal_spinlockSet(&s->spinlock, &sc);
@@ -696,7 +701,8 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			}
 
 			while (s->remote == NULL) {
-				proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+				/* MISRAC2012-RULE_17_7-a */
+				(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 			}
 
 			hal_spinlockClear(&s->spinlock, &sc);
@@ -790,7 +796,8 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 		err = 0;
 
 		for (;;) {
-			proc_lockSet(&s->lock);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
 				if (peek != 0) {
 					err = _cbuffer_peek(&s->buffer, buf, len);
@@ -817,7 +824,8 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 					(void)fdpass_unpack(&s->fdpacks, control, controllen);
 				}
 			}
-			proc_lockClear(&s->lock);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_lockClear(&s->lock);
 
 			if (err > 0) {
 				if (peek == 0) {
@@ -1080,7 +1088,8 @@ static int unix_bufferSetSize(unixsock_t *s, int sz)
 		return -EINVAL;
 	}
 
-	proc_lockSet(&s->lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&s->lock);
 
 	if (s->buffer.data != NULL) {
 		v[0] = vm_kmalloc(sz);
