@@ -122,7 +122,8 @@ static void map_augment(rbnode_t *node)
 void map_dump(rbnode_t *node)
 {
 	map_entry_t *e = lib_treeof(map_entry_t, linkage, node);
-	lib_printf("%p+%x, %x, %x", e->vaddr, e->size, e->lmaxgap, e->rmaxgap);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)lib_printf("%p+%x, %x, %x", e->vaddr, e->size, e->lmaxgap, e->rmaxgap);
 }
 
 
@@ -130,9 +131,10 @@ static int _map_add(process_t *p, vm_map_t *map, map_entry_t *entry)
 {
 #ifdef NOMMU
 	if (p != NULL) {
-		proc_lockSet(&p->lock);
+		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 135, 137*/
+		(void)proc_lockSet(&p->lock);
 		LIST_ADD(&p->entries, entry);
-		proc_lockClear(&p->lock);
+		(void)proc_lockClear(&p->lock);
 	}
 	entry->process = p;
 #endif
@@ -147,9 +149,10 @@ static void _map_remove(vm_map_t *map, map_entry_t *entry)
 #ifdef NOMMU
 	process_t *p = entry->process;
 	if (p != NULL) {
-		proc_lockSet(&p->lock);
+		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 153, 155*/
+		(void)proc_lockSet(&p->lock);
 		LIST_REMOVE(&p->entries, entry);
-		proc_lockClear(&p->lock);
+		(void)proc_lockClear(&p->lock);
 	}
 	entry->process = NULL;
 #endif
@@ -162,7 +165,8 @@ static void _map_remove(vm_map_t *map, map_entry_t *entry)
 static void _entry_put(vm_map_t *map, map_entry_t *e)
 {
 	amap_put(e->amap);
-	vm_objectPut(e->object);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)vm_objectPut(e->object);
 	_map_remove(map, e);
 	map_free(e);
 }
@@ -178,7 +182,7 @@ void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map
 	if (((void *)map->stop - size) < vaddr) {
 		return NULL;
 	}
-	if (vaddr < map->start){
+	if (vaddr < map->start) {
 		vaddr = map->start;
 	}
 
@@ -209,7 +213,7 @@ void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map
 				return NULL;
 			}
 
-			if ((e == lib_treeof(map_entry_t, linkage, e->linkage.parent->left)) && ((lib_treeof(map_entry_t, linkage, e->linkage.parent)->rmaxgap >= size))){
+			if ((e == lib_treeof(map_entry_t, linkage, e->linkage.parent->left)) && ((lib_treeof(map_entry_t, linkage, e->linkage.parent)->rmaxgap >= size))) {
 				break;
 			}
 		}
@@ -242,19 +246,21 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	amap_t *amap;
 
 #ifdef NOMMU
-	if (o == VM_OBJ_PHYSMEM)
+	if (o == VM_OBJ_PHYSMEM) {
 		/* MISRA Rule 11.6: (unsigned int *) added*/
 		return (void *)(unsigned int *)(ptr_t)offs;
+	}
 #endif
 
-	if ((v = _map_find(map, vaddr, size, &prev, &next)) == NULL)
+	if ((v = _map_find(map, vaddr, size, &prev, &next)) == NULL) {
 		return NULL;
+	}
 
 	rmerge = next != NULL && v + size == next->vaddr && next->object == o && next->flags == flags && next->prot == prot && next->protOrig == prot;
 	lmerge = prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot && prev->protOrig == prot;
 
 	if (offs != -1) {
-		if ((offs & (SIZE_PAGE - 1U)) != 0){
+		if ((offs & (SIZE_PAGE - 1U)) != 0) {
 			return NULL;
 		}
 
@@ -274,7 +280,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 #if 1
 	if (o == NULL) {
-		if (lmerge != 0U && rmerge !=0 && (next->amap == prev->amap)) {
+		if (lmerge != 0U && rmerge != 0 && (next->amap == prev->amap)) {
 			/* Both use the same amap, can merge */
 		}
 		else {
@@ -364,7 +370,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 			}
 		}
 
-		_map_add(proc, map, e);
+		/* MISRA Rule 17.7: Unused returned value, (void) added */
+		(void)_map_add(proc, map, e);
 	}
 
 	/* Clear anon entries */
@@ -381,9 +388,10 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
 {
-	proc_lockSet(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added 392, 394 */
+	(void)proc_lockSet(&map->lock);
 	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, -1, flags, NULL);
-	proc_lockClear(&map->lock);
+	(void)proc_lockClear(&map->lock);
 
 	return vaddr;
 }
@@ -415,7 +423,8 @@ static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entr
 	e->rmaxgap = 0;
 	map_augment(&e->linkage);
 
-	_map_add(p, m, new);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)_map_add(p, m, new);
 }
 
 
@@ -511,7 +520,8 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		amap_putanons(e->amap, eAoffs + (int)overlapEOffset, overlapSize);
 
 		/* MISRA Rule 11.6: (unsigned int *) added x2*/
-		pmap_remove(&map->pmap, (void *)(unsigned int *)overlapStart, (void *)(unsigned int *)overlapEnd);
+		/* MISRA Rule 17.7: Unused returned value, (void) added */
+		(void)pmap_remove(&map->pmap, (void *)(unsigned int *)overlapStart, (void *)(unsigned int *)overlapEnd);
 
 		if (putEntry != 0) {
 			_entry_put(map, e);
@@ -591,7 +601,8 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 		attr = vm_protToAttr(prot) | vm_flagsToAttr(flags);
 
 		for (w = vaddr; w < (vaddr + size); w += SIZE_PAGE) {
-			page_map(&map->pmap, w, (p++)->addr, attr);
+			/* MISRA Rule 17.7: Unused returned value, (void) added */
+			(void)page_map(&map->pmap, w, (p++)->addr, attr);
 		}
 
 		return vaddr;
@@ -606,7 +617,8 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 			amap_putanons(e->amap, e->aoffs, w - vaddr);
 
 			/* MISRA Rule 11.6: (unsigned int *) added x2 */
-			pmap_remove(&map->pmap, vaddr, (void *)(unsigned int *)((ptr_t)(unsigned int *)w + SIZE_PAGE));
+			/* MISRA Rule 17.7: Unused returned value, (void) added */
+			(void)pmap_remove(&map->pmap, vaddr, (void *)(unsigned int *)((ptr_t)(unsigned int *)w + SIZE_PAGE));
 
 			_entry_put(map, e);
 			return NULL;
@@ -623,9 +635,10 @@ void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_ob
 		map = map_common.kmap;
 	}
 
-	proc_lockSet(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 639, 641*/
+	(void)proc_lockSet(&map->lock);
 	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, offs, flags);
-	proc_lockClear(&map->lock);
+	(void)proc_lockClear(&map->lock);
 	return vaddr;
 }
 
@@ -638,7 +651,8 @@ int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off
 {
 	map_entry_t t, *e;
 
-	proc_lockSet(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 655, 671*/
+	(void)proc_lockSet(&map->lock);
 
 	t.vaddr = vaddr;
 	t.size = SIZE_PAGE;
@@ -646,14 +660,16 @@ int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off
 	e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
 
 	if (e == NULL || e->object != o || (amap != NULL && e->amap != *amap) /* More checks? */) {
-		if (amap != NULL)
+		if (amap != NULL) {
 			*amap = NULL;
+		}
 
 		return -EINVAL;
 	}
 
-	if (amap != NULL)
-		proc_lockSet(&(*amap)->lock);
+	if (amap != NULL) {
+		(void)proc_lockSet(&(*amap)->lock);
+	}
 
 	return EOK;
 }
@@ -664,7 +680,8 @@ int vm_mapFlags(vm_map_t *map, void *vaddr)
 	unsigned flags;
 	map_entry_t t, *e;
 
-	proc_lockSet(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 684, 692, 697*/
+	(void)proc_lockSet(&map->lock);
 
 	t.vaddr = vaddr;
 	t.size = SIZE_PAGE;
@@ -672,12 +689,12 @@ int vm_mapFlags(vm_map_t *map, void *vaddr)
 	e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
 
 	if (e == NULL) {
-		proc_lockClear(&map->lock);
+		(void)proc_lockClear(&map->lock);
 		return -EFAULT;
 	}
 
 	flags = e->flags & ~MAP_NEEDSCOPY;
-	proc_lockClear(&map->lock);
+	(void)proc_lockClear(&map->lock);
 
 	return flags;
 }
@@ -688,7 +705,8 @@ int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot)
 	map_entry_t t, *e;
 	int err;
 
-	proc_lockSet(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 709, 717, 722*/
+	(void)proc_lockSet(&map->lock);
 
 	t.vaddr = paddr;
 	t.size = SIZE_PAGE;
@@ -696,12 +714,12 @@ int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot)
 	e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
 
 	if (e == NULL) {
-		proc_lockClear(&map->lock);
+		(void)proc_lockClear(&map->lock);
 		return -EFAULT;
 	}
 
 	err = _map_force(map, e, paddr, prot);
-	proc_lockClear(&map->lock);
+	(void)proc_lockClear(&map->lock);
 	return err;
 }
 
@@ -807,9 +825,10 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 {
 	int result;
 
-	proc_lockSet(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 829, 831*/
+	(void)proc_lockSet(&map->lock);
 	result = _vm_munmap(map, vaddr, size);
-	proc_lockClear(&map->lock);
+	(void)proc_lockClear(&map->lock);
 
 	return result;
 }
@@ -832,7 +851,8 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 		return -EINVAL;
 	}
 
-	proc_lockSet(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)proc_lockSet(&map->lock);
 
 	/* Validate */
 
@@ -936,7 +956,8 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 		} while ((lenLeft != 0) && (result == EOK));
 	}
 
-	proc_lockClear(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)proc_lockClear(&map->lock);
 
 	return result;
 }
@@ -944,12 +965,14 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 
 void vm_mapDump(vm_map_t *map)
 {
-	if (map == NULL)
+	if (map == NULL) {
 		map = map_common.kmap;
+	}
 
-	proc_lockSet(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 973, 975 */
+	(void)proc_lockSet(&map->lock);
 	lib_rbDump(map->tree.root, map_dump);
-	proc_lockClear(&map->lock);
+	(void)proc_lockClear(&map->lock);
 }
 
 
@@ -971,10 +994,12 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 
 	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmap.pmapp, map->pmap.pmapv);
 #else
-	pmap_create(&map->pmap, &map_common.kmap->pmap, NULL, NULL);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)pmap_create(&map->pmap, &map_common.kmap->pmap, NULL, NULL);
 #endif
 
-	proc_lockInit(&map->lock, &proc_lockAttrDefault, "map.map");
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)proc_lockInit(&map->lock, &proc_lockAttrDefault, "map.map");
 	lib_rbInit(&map->tree, map_cmp, map_augment);
 	return EOK;
 }
@@ -990,9 +1015,10 @@ static void _map_free(map_entry_t *entry)
 
 void map_free(map_entry_t *entry)
 {
-	proc_lockSet(&map_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1019, 1021*/
+	(void)proc_lockSet(&map_common.lock);
 	_map_free(entry);
-	proc_lockClear(&map_common.lock);
+	(void)proc_lockClear(&map_common.lock);
 }
 
 
@@ -1021,7 +1047,8 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 #else
 	map_entry_t *temp = NULL;
 
-	proc_lockSet2(&map->lock, &p->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)proc_lockSet2(&map->lock, &p->lock);
 
 	while (p->entries != NULL) {
 		e = p->entries;
@@ -1033,7 +1060,8 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 		}
 		else {
 			amap_put(e->amap);
-			vm_objectPut(e->object);
+			/* MISRA Rule 17.7: Unused returned value, (void) added */
+			(void)vm_objectPut(e->object);
 			lib_rbRemove(&map->tree, &e->linkage);
 			e->map = NULL;
 			e->process = NULL;
@@ -1048,8 +1076,9 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 		LIST_ADD(&p->entries, e);
 	}
 
-	proc_lockClear(&p->lock);
-	proc_lockClear(&map->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1080, 1081*/
+	(void)proc_lockClear(&p->lock);
+	(void)proc_lockClear(&map->lock);
 #endif
 }
 
@@ -1064,7 +1093,8 @@ static void remap_readonly(vm_map_t *map, map_entry_t *e, int offs)
 	}
 
 	if ((a = pmap_resolve(&map->pmap, e->vaddr + offs))) {
-		page_map(&map->pmap, e->vaddr + offs, a, attr);
+		/* MISRA Rule 17.7: Unused returned value, (void) added */
+		(void)page_map(&map->pmap, e->vaddr + offs, a, attr);
 	}
 }
 
@@ -1075,7 +1105,8 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 	map_entry_t *e, *f;
 	int offs;
 
-	proc_lockSet2(&src->lock, &dst->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1109, 1120, 1121, 1127, 1143, 1144, 1151, 1152*/
+	(void)proc_lockSet2(&src->lock, &dst->lock);
 
 	for (n = lib_rbMinimum(src->tree.root); n != NULL; n = lib_rbNext(n)) {
 		e = lib_treeof(map_entry_t, linkage, n);
@@ -1086,14 +1117,14 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 
 		f = map_alloc();
 		if (f == NULL) {
-			proc_lockClear(&dst->lock);
-			proc_lockClear(&src->lock);
+			(void)proc_lockClear(&dst->lock);
+			(void)proc_lockClear(&src->lock);
 			vm_mapDestroy(proc, dst);
 			return -ENOMEM;
 		}
 
 		vm_mapEntryCopy(f, e, 1);
-		_map_add(proc, dst, f);
+		(void)_map_add(proc, dst, f);
 
 		if (((e->protOrig & PROT_WRITE) != 0) && ((e->flags & MAP_DEVICE) == 0)) {
 			e->flags |= MAP_NEEDSCOPY;
@@ -1109,16 +1140,16 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
 				if ((_map_force(dst, f, f->vaddr + offs, f->prot) != 0) ||
 						(_map_force(src, e, e->vaddr + offs, e->prot) != 0)) {
-					proc_lockClear(&dst->lock);
-					proc_lockClear(&src->lock);
+					(void)proc_lockClear(&dst->lock);
+					(void)proc_lockClear(&src->lock);
 					return -ENOMEM;
 				}
 			}
 		}
 	}
 
-	proc_lockClear(&dst->lock);
-	proc_lockClear(&src->lock);
+	(void)proc_lockClear(&dst->lock);
+	(void)proc_lockClear(&src->lock);
 
 	return EOK;
 }
@@ -1163,9 +1194,10 @@ int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
 	int ret;
 
-	proc_lockSet(&proc->mapp->lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1198, 1200 */
+	(void)proc_lockSet(&proc->mapp->lock);
 	ret = _vm_mapBelongs(proc, ptr, size);
-	proc_lockClear(&proc->mapp->lock);
+	(void)proc_lockClear(&proc->mapp->lock);
 
 	LIB_ASSERT(ret == 0, "Fault @0x%p (%zu) path: %s, pid: %d\n", ptr, size, proc->path, process_getPid(proc));
 
@@ -1185,11 +1217,12 @@ void vm_mapinfo(meminfo_t *info)
 	size_t total, free;
 
 
-	proc_lockSet(&map_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1221, 1225, 1236 */
+	(void)proc_lockSet(&map_common.lock);
 	info->entry.total = map_common.ntotal;
 	info->entry.free = map_common.nfree;
 	info->entry.sz = sizeof(map_entry_t);
-	proc_lockClear(&map_common.lock);
+	(void)proc_lockClear(&map_common.lock);
 
 	if (info->entry.mapsz != -1) {
 		process = proc_find(info->entry.pid);
@@ -1200,7 +1233,7 @@ void vm_mapinfo(meminfo_t *info)
 		}
 
 		if ((map = process->mapp) != NULL) {
-			proc_lockSet(&map->lock);
+			(void)proc_lockSet(&map->lock);
 
 #ifndef NOMMU
 			for (size = 0, n = lib_rbMinimum(map->tree.root); n != NULL; n = lib_rbNext(n), ++size) {
@@ -1252,8 +1285,9 @@ void vm_mapinfo(meminfo_t *info)
 					if (e->amap != NULL) {
 						info->entry.map[size].anonsz = 0;
 						for (i = 0; i < e->amap->size; ++i) {
-							if (e->amap->anons[i] != NULL)
+							if (e->amap->anons[i] != NULL) {
 								info->entry.map[size].anonsz += SIZE_PAGE;
+							}
 						}
 					}
 
@@ -1276,18 +1310,19 @@ void vm_mapinfo(meminfo_t *info)
 			} while (e != process->entries);
 #endif
 
-			proc_lockClear(&map->lock);
+			/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1314, 1321, 1325 */
+			(void)proc_lockClear(&map->lock);
 		}
 		else {
 			size = 0;
 		}
 
 		info->entry.mapsz = size;
-		proc_put(process);
+		(void)proc_put(process);
 	}
 
 	if (info->entry.kmapsz != -1) {
-		proc_lockSet(&map_common.kmap->lock);
+		(void)proc_lockSet(&map_common.kmap->lock);
 
 		for (size = 0, n = lib_rbMinimum(map_common.kmap->tree.root); n != NULL; n = lib_rbNext(n), ++size) {
 			if (info->entry.kmap != NULL && info->entry.kmapsz > size) {
@@ -1303,8 +1338,9 @@ void vm_mapinfo(meminfo_t *info)
 				if (e->amap != NULL) {
 					info->entry.kmap[size].anonsz = 0x0U;
 					for (i = 0; i < e->amap->size; ++i) {
-						if (e->amap->anons[i] != NULL)
+						if (e->amap->anons[i] != NULL) {
 							info->entry.kmap[size].anonsz += SIZE_PAGE;
+						}
 					}
 				}
 
@@ -1323,7 +1359,8 @@ void vm_mapinfo(meminfo_t *info)
 			}
 		}
 
-		proc_lockClear(&map_common.kmap->lock);
+		/* MISRA Rule 17.7: Unused returned value, (void) added */
+		(void)proc_lockClear(&map_common.kmap->lock);
 		info->entry.kmapsz = size;
 	}
 
@@ -1372,7 +1409,8 @@ void vm_mapinfo(meminfo_t *info)
 				info->maps.map[size].vend = (ptr_t)(unsigned int *)map->stop;
 				spMap = syspage_mapIdResolve(size);
 				if ((spMap != NULL) && (spMap->name != NULL)) {
-					hal_strncpy(info->maps.map[size].name, spMap->name, sizeof(info->maps.map[size].name));
+					/* MISRA Rule 17.7: Unused returned value, (void) added */
+					(void)hal_strncpy(info->maps.map[size].name, spMap->name, sizeof(info->maps.map[size].name));
 					info->maps.map[size].name[sizeof(info->maps.map[size].name) - 1] = '\0';
 				}
 				else {
@@ -1396,10 +1434,11 @@ static map_entry_t *map_allocN(int n)
 	map_entry_t *e, *tmp;
 	int i;
 
-	proc_lockSet(&map_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1438, 1441, 1457*/
+	(void)proc_lockSet(&map_common.lock);
 
 	if (map_common.nfree < n) {
-		proc_lockClear(&map_common.lock);
+		(void)proc_lockClear(&map_common.lock);
 #ifndef NDEBUG
 		lib_printf("vm: Entry pool exhausted!\n");
 #endif
@@ -1415,7 +1454,7 @@ static map_entry_t *map_allocN(int n)
 	map_common.free = tmp->next;
 	tmp->next = NULL;
 
-	proc_lockClear(&map_common.lock);
+	(void)proc_lockClear(&map_common.lock);
 
 	return e;
 }
@@ -1429,9 +1468,10 @@ static map_entry_t *map_alloc(void)
 
 void vm_mapGetStats(size_t *allocsz)
 {
-	proc_lockSet(&map_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1472, 1474*/
+	(void)proc_lockSet(&map_common.lock);
 	*allocsz = (map_common.ntotal - map_common.nfree) * sizeof(map_entry_t);
-	proc_lockClear(&map_common.lock);
+	(void)proc_lockClear(&map_common.lock);
 }
 
 
@@ -1457,8 +1497,9 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	const mapent_t *sysEntry;
 	const syspage_map_t *map;
 
-	if ((mapsCnt = syspage_mapSize()) == 0)
+	if ((mapsCnt = syspage_mapSize()) == 0) {
 		return -EINVAL;
+	}
 
 	map_common.maps = (vm_map_t **)(*bss);
 
@@ -1490,8 +1531,9 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 
 			map_common.maps[id] = (*bss);
 			/* MISRA Rule 11.6: Added (unsigned int *) x2 */
-			if (vm_mapCreate(map_common.maps[id], (void *)(unsigned int *)map->start, (void *)(unsigned int *)map->end) < 0)
+			if (vm_mapCreate(map_common.maps[id], (void *)(unsigned int *)map->start, (void *)(unsigned int *)map->end) < 0) {
 				return -ENOMEM;
+			}
 
 			(*bss) += sizeof(vm_map_t);
 		}
@@ -1499,11 +1541,13 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 		if ((sysEntry = map->entries) != NULL) {
 			do {
 				/* Skip temporary entries which are used only in phoenix-rtos-loader */
-				if (sysEntry->type == hal_entryTemp)
+				if (sysEntry->type == hal_entryTemp) {
 					continue;
+				}
 
-				if ((entry = map_alloc()) == NULL)
+				if ((entry = map_alloc()) == NULL) {
 					return -ENOMEM;
+				}
 
 				entry->vaddr = (void *)round_page((long)sysEntry->start);
 				entry->size = round_page(sysEntry->end - sysEntry->start);
@@ -1515,8 +1559,9 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 				entry->protOrig = entry->prot;
 				entry->amap = NULL;
 
-				if (_map_add(NULL, map_common.maps[id], entry) < 0)
+				if (_map_add(NULL, map_common.maps[id], entry) < 0) {
 					return -ENOMEM;
+				}
 			} while ((sysEntry = sysEntry->next) != map->entries);
 		}
 
@@ -1540,12 +1585,13 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	size_t poolsz, freesz, size;
 	map_entry_t *e;
 
-	proc_lockInit(&map_common.lock, &proc_lockAttrDefault, "map.common");
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1589, 1594*/
+	(void)proc_lockInit(&map_common.lock, &proc_lockAttrDefault, "map.common");
 
 	kmap->start = kmap->pmap.start;
 	kmap->stop = kmap->pmap.end;
 
-	proc_lockInit(&kmap->lock, &proc_lockAttrDefault, "map.kmap");
+	(void)proc_lockInit(&kmap->lock, &proc_lockAttrDefault, "map.kmap");
 	lib_rbInit(&kmap->tree, map_cmp, map_augment);
 
 	map_common.kmap = kmap;
@@ -1567,13 +1613,15 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 
 	map_common.free = map_common.entries;
 
-	for (i = 0; i < map_common.nfree - 1; ++i)
+	for (i = 0; i < map_common.nfree - 1; ++i) {
 		map_common.entries[i].next = map_common.entries + i + 1;
+	}
 
 	map_common.entries[i].next = NULL;
 
 	(*bss) += poolsz;
-	lib_printf("vm: Initializing memory mapper: (%d*%d) %d\n", map_common.nfree, sizeof(map_entry_t), poolsz);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)lib_printf("vm: Initializing memory mapper: (%d*%d) %d\n", map_common.nfree, sizeof(map_entry_t), poolsz);
 
 	result = _map_mapsInit(kmap, kernel, bss, top);
 	LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with maps initialization.");
@@ -1582,12 +1630,14 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	for (i = 0;; i++) {
 		prot = PROT_READ | PROT_EXEC;
 
-		if (pmap_segment(i, &vaddr, &size, &prot, top) < 0)
+		if (pmap_segment(i, &vaddr, &size, &prot, top) < 0) {
 			break;
+		}
 
 		e = map_alloc();
-		if (e == NULL)
+		if (e == NULL) {
 			break;
+		}
 
 		e->vaddr = (void *)round_page((long)vaddr);
 		e->size = round_page(size);
@@ -1597,7 +1647,8 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		e->prot = prot;
 		e->protOrig = prot;
 		e->amap = NULL;
-		_map_add(NULL, map_common.kmap, e);
+		/* MISRA Rule 17.7: Unused returned value, (void) added */
+		(void)_map_add(NULL, map_common.kmap, e);
 	}
 
 

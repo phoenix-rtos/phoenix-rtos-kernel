@@ -37,15 +37,19 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 	vm_object_t *o1 = lib_treeof(vm_object_t, linkage, n1);
 	vm_object_t *o2 = lib_treeof(vm_object_t, linkage, n2);
 
-	if (o1->oid.id > o2->oid.id)
+	if (o1->oid.id > o2->oid.id) {
 		return 1;
-	if (o1->oid.id < o2->oid.id)
+	}
+	if (o1->oid.id < o2->oid.id) {
 		return -1;
+	}
 
-	if (o1->oid.port > o2->oid.port)
+	if (o1->oid.port > o2->oid.port) {
 		return 1;
-	if (o1->oid.port < o2->oid.port)
+	}
+	if (o1->oid.port < o2->oid.port) {
 		return -1;
+	}
 
 	return 0;
 }
@@ -61,12 +65,13 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 	t.oid.port = oid.port;
 	t.oid.id = oid.id;
 
-	proc_lockSet(&object_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 69, 74, 85, 90, 103, 108*/
+	(void)proc_lockSet(&object_common.lock);
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 
 	if (*o == NULL) {
 		/* Take off the lock to avoid a deadlock in vm_kmalloc */
-		proc_lockClear(&object_common.lock);
+		(void)proc_lockClear(&object_common.lock);
 
 		sz = proc_size(oid);
 		if (sz < 0) {
@@ -77,12 +82,12 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
 		}
 
-		proc_lockSet(&object_common.lock);
+		(void)proc_lockSet(&object_common.lock);
 		/* Check again, somebody could've added the object in the meantime */
 		*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 		if (*o == NULL) {
 			if (no == NULL) {
-				proc_lockClear(&object_common.lock);
+				(void)proc_lockClear(&object_common.lock);
 				return err;
 			}
 			*o = no;
@@ -91,15 +96,16 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			(*o)->size = sz;
 			(*o)->refs = 0;
 
-			for (i = 0; i < n; ++i)
+			for (i = 0; i < n; ++i) {
 				(*o)->pages[i] = NULL;
+			}
 
-			lib_rbInsert(&object_common.tree, &(*o)->linkage);
+			(void)lib_rbInsert(&object_common.tree, &(*o)->linkage);
 		}
 	}
 
 	(*o)->refs++;
-	proc_lockClear(&object_common.lock);
+	(void)proc_lockClear(&object_common.lock);
 
 	/* Did we allocate an object we didn't need in the end? */
 	if (no != NULL) {
@@ -113,9 +119,10 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 vm_object_t *vm_objectRef(vm_object_t *o)
 {
 	if ((o != NULL) && (o != VM_OBJ_PHYSMEM)) {
-		proc_lockSet(&object_common.lock);
+		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 123, 125*/
+		(void)proc_lockSet(&object_common.lock);
 		o->refs++;
-		proc_lockClear(&object_common.lock);
+		(void)proc_lockClear(&object_common.lock);
 	}
 
 	return o;
@@ -130,15 +137,16 @@ int vm_objectPut(vm_object_t *o)
 		return EOK;
 	}
 
-	proc_lockSet(&object_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 141, 144, 149*/
+	(void)proc_lockSet(&object_common.lock);
 
 	if (--o->refs) {
-		proc_lockClear(&object_common.lock);
+		(void)proc_lockClear(&object_common.lock);
 		return EOK;
 	}
 
 	lib_rbRemove(&object_common.tree, &o->linkage);
-	proc_lockClear(&object_common.lock);
+	(void)proc_lockClear(&object_common.lock);
 
 	/* Contiguous object 'holds' all pages in pages[0] */
 	if ((o->oid.port == -1) && (o->oid.id == -1)) {
@@ -146,8 +154,9 @@ int vm_objectPut(vm_object_t *o)
 	}
 	else {
 		for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
-			if (o->pages[i] != NULL)
+			if (o->pages[i] != NULL) {
 				vm_pageFree(o->pages[i]);
+			}
 		}
 	}
 
@@ -162,29 +171,31 @@ static page_t *object_fetch(oid_t oid, off_t offs)
 	page_t *p;
 	void *v;
 
-	if (proc_open(oid, 0) < 0)
+	if (proc_open(oid, 0) < 0) {
 		return NULL;
+	}
 
 	if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL) {
-		proc_close(oid, 0);
+		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 180, 186, 191, 193, 197, 198*/
+		(void)proc_close(oid, 0);
 		return NULL;
 	}
 
 	if ((v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE)) == NULL) {
 		vm_pageFree(p);
-		proc_close(oid, 0);
+		(void)proc_close(oid, 0);
 		return NULL;
 	}
 
 	if (proc_read(oid, offs, v, SIZE_PAGE, 0) < 0) {
-		vm_munmap(object_common.kmap, v, SIZE_PAGE);
+		(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
-		proc_close(oid, 0);
+		(void)proc_close(oid, 0);
 		return NULL;
 	}
 
-	vm_munmap(object_common.kmap, v, SIZE_PAGE);
-	proc_close(oid, 0);
+	(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
+	(void)proc_close(oid, 0);
 
 	return p;
 }
@@ -194,56 +205,64 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 {
 	page_t *p;
 
-	if (o == NULL)
+	if (o == NULL) {
 		return vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	}
 
-	if (o == (void *)-1)
+	if (o == (void *)-1) {
 		return _page_get(offs);
+	}
 
-	proc_lockSet(&object_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added  in lines 217, 220, 225*/
+	(void)proc_lockSet(&object_common.lock);
 
 	if (offs >= o->size) {
-		proc_lockClear(&object_common.lock);
+		(void)proc_lockClear(&object_common.lock);
 		return NULL;
 	}
 
 	if ((p = o->pages[offs / SIZE_PAGE]) != NULL) {
-		proc_lockClear(&object_common.lock);
+		(void)proc_lockClear(&object_common.lock);
 		return p;
 	}
 
 	/* Fetch page from backing store */
 
-	proc_lockClear(&object_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 232, 235, 238*/
+	(void)proc_lockClear(&object_common.lock);
 
-	if (amap != NULL)
-		proc_lockClear(&(*amap)->lock);
+	if (amap != NULL) {
+		(void)proc_lockClear(&(*amap)->lock);
+	}
 
-	proc_lockClear(&map->lock);
+	(void)proc_lockClear(&map->lock);
 
 	p = object_fetch(o->oid, offs);
 
 	if (vm_lockVerify(map, amap, o, vaddr, offs)) {
-		if (p != NULL)
+		if (p != NULL) {
 			vm_pageFree(p);
+		}
 
 		return NULL;
 	}
 
-	proc_lockSet(&object_common.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 251, 260, 265*/
+	(void)proc_lockSet(&object_common.lock);
 
 	if (o->pages[offs / SIZE_PAGE] != NULL) {
 		/* Someone loaded a page in the meantime, use it */
-		if (p != NULL)
+		if (p != NULL) {
 			vm_pageFree(p);
+		}
 
 		p = o->pages[offs / SIZE_PAGE];
-		proc_lockClear(&object_common.lock);
+		(void)proc_lockClear(&object_common.lock);
 		return p;
 	}
 
 	o->pages[offs / SIZE_PAGE] = p;
-	proc_lockClear(&object_common.lock);
+	(void)proc_lockClear(&object_common.lock);
 	return p;
 }
 
@@ -276,7 +295,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 	for (i = 0; i < n; ++i) {
 		o->pages[i] = p + i;
 	}
-	
+
 	return o;
 }
 
@@ -285,20 +304,21 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	vm_object_t *o;
 
-	lib_printf("vm: Initializing memory objects\n");
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 308, 313, 319, 321*/
+	(void)lib_printf("vm: Initializing memory objects\n");
 
 	object_common.kernel = kernel;
 	object_common.kmap = kmap;
 
-	proc_lockInit(&object_common.lock, &proc_lockAttrDefault, "object.common");
+	(void)proc_lockInit(&object_common.lock, &proc_lockAttrDefault, "object.common");
 	lib_rbInit(&object_common.tree, object_cmp, NULL);
 
 	kernel->refs = 0;
 	kernel->oid.port = 0;
 	kernel->oid.id = 0;
-	lib_rbInsert(&object_common.tree, &kernel->linkage);
+	(void)lib_rbInsert(&object_common.tree, &kernel->linkage);
 
-	vm_objectGet(&o, kernel->oid);
+	(void)vm_objectGet(&o, kernel->oid);
 
 	return EOK;
 }
