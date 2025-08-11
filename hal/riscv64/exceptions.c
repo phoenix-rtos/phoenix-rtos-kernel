@@ -18,6 +18,7 @@
 #include "hal/spinlock.h"
 #include "hal/console.h"
 #include "hal/string.h"
+#include "proc/threads.h"
 
 #include "include/mman.h"
 
@@ -123,9 +124,8 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 #ifdef NDEBUG
 	hal_cpuReboot();
 #else
-	for (;;) {
-		hal_cpuHalt();
-	}
+	proc_crash(proc_current());
+	proc_threadEnd();
 #endif
 }
 
