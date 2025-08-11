@@ -28,11 +28,13 @@ void lib_rbInit(rbtree_t *tree, rbcomp_t compare, rbaugment_t augment)
 
 static inline void rb_augment(rbtree_t *tree, rbnode_t *node)
 {
-	if (node == NULL)
+	if (node == NULL) {
 		return;
+	}
 
-	if (tree->augment != NULL)
+	if (tree->augment != NULL) {
 		tree->augment(node);
+	}
 }
 
 
@@ -83,7 +85,7 @@ static void rb_rotateRight(rbtree_t *tree, rbnode_t *x)
 	else {
 		x->parent->left = y;
 	}
-	
+
 	y->right = x;
 	x->parent = y;
 
@@ -166,7 +168,7 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 			}
 
 			if ((w->left == NULL || w->left->color == RB_BLACK) &&
-			    (w->right == NULL || w->right->color == RB_BLACK)) {
+					(w->right == NULL || w->right->color == RB_BLACK)) {
 				w->color = RB_RED;
 				x = x->parent;
 			}
@@ -195,7 +197,7 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 			}
 
 			if ((w->right == NULL || w->right->color == RB_BLACK) &&
-			    (w->left == NULL || w->left->color == RB_BLACK)) {
+					(w->left == NULL || w->left->color == RB_BLACK)) {
 				w->color = RB_RED;
 				x = x->parent;
 			}
@@ -350,11 +352,11 @@ rbnode_t *lib_rbMaximum(rbnode_t *node)
 {
 	rbnode_t *x = node;
 
-	if (x == NULL){
+	if (x == NULL) {
 		return x;
 	}
 
-	while (x->right != NULL){
+	while (x->right != NULL) {
 		x = x->right;
 	}
 
@@ -373,9 +375,8 @@ rbnode_t *lib_rbPrev(rbnode_t *node)
 	while (x->parent != NULL && x == x->parent->left) {
 		x = x->parent;
 	}
-	
-	return x->parent;
 
+	return x->parent;
 }
 
 
@@ -418,7 +419,7 @@ rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare)
 }
 
 
-#define RB_DUMP_DEPTH	16
+#define RB_DUMP_DEPTH 16
 
 
 void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned char d[RB_DUMP_DEPTH])
@@ -426,17 +427,18 @@ void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned c
 	unsigned int i;
 
 	for (i = 0; i < *depth; i++) {
-		lib_printf("%c ", (d[i] != 0)  ? '|' : ' ');
+		/* MISRA Rule 17.7: Unused return value, (void) added in lines 431, 435, 439, 441, 454, 456*/
+		(void)lib_printf("%c ", (d[i] != 0) ? '|' : ' ');
 	}
 
 	if (node == NULL) {
-		lib_printf("%s() *\n", (*depth != 0U) ? "`-" : "");
+		(void)lib_printf("%s() *\n", (*depth != 0U) ? "`-" : "");
 		return;
 	}
 
-	lib_printf("%s(", (*depth != 0U) ? "`-" : "");
+	(void)lib_printf("%s(", (*depth != 0U) ? "`-" : "");
 	dump(node);
-	lib_printf(")%c\n", node->color == RB_BLACK ? '*' : ' ');
+	(void)lib_printf(")%c\n", node->color == RB_BLACK ? '*' : ' ');
 
 	(*depth)++;
 	if ((node->left != NULL) || (node->right != NULL)) {
@@ -449,9 +451,9 @@ void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned c
 		}
 		else {
 			for (i = 0; i < *depth; i++) {
-				lib_printf("%c ", (d[i] != 0) ? '|' : ' ');
+				(void)lib_printf("%c ", (d[i] != 0) ? '|' : ' ');
 			}
-			lib_printf("%s(..)\n", (*depth != 0) ? "`-" : "");
+			(void)lib_printf("%s(..)\n", (*depth != 0) ? "`-" : "");
 		}
 	}
 	(*depth)--;
