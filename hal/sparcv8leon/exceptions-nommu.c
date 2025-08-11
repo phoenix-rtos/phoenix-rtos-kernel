@@ -19,6 +19,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "include/mman.h"
+#include "proc/threads.h"
 
 
 static const char *const hal_exceptionsType(int n)
@@ -137,9 +138,8 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 	hal_cpuReboot();
 #endif
 
-	for (;;) {
-		hal_cpuHalt();
-	}
+	proc_crash(proc_current());
+	proc_threadEnd();
 }
 
 
