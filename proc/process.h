@@ -28,7 +28,7 @@
 #define MAX_PID MAX_ID
 
 #ifdef NOMMU
-typedef struct _reloc {
+typedef struct {
 	void *vbase;
 	void *pbase;
 	size_t size;

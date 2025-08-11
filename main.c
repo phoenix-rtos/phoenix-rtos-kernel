@@ -16,6 +16,7 @@
 
 #include "hal/hal.h"
 
+#include "coredump/coredump.h"
 #include "usrv.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
@@ -46,6 +47,10 @@ void main_initthr(void *unused)
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 	_usrv_start();
+
+#ifndef COREDUMP_DISABLE
+	_coredump_start();
+#endif
 
 	lib_printf("main: Starting syspage programs:");
 	syspage_progShow();
