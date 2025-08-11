@@ -104,7 +104,8 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 
 			if ((err = posix_getOpenFile(fd, &file)) < 0) {
 				/* revert everything we have done so far */
-				fdpass_discard(packs);
+				/*MISRAC2012-RULE_17_7-a*/
+				(void)fdpass_discard(packs);
 				return err;
 			}
 
@@ -139,7 +140,8 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 		return -1;
 	}
 
-	proc_lockSet(&p->lock);
+	/*MISRAC2012-RULE_17_7-a*/
+	(void)(&p->lock);
 
 	cmsg = CMSG_FIRSTHDR(control, *controllen);
 	cmsg_data = CMSG_DATA(cmsg);
@@ -156,7 +158,8 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 
 		fd = _posix_addOpenFile(p, file, flags);
 		if (fd < 0) {
-			posix_fileDeref(file);
+			/*MISRAC2012-RULE_17_7-a*/
+			(void)posix_fileDeref(file);
 		}
 		else {
 			hal_memcpy(cmsg_data, &fd, sizeof(int));
@@ -173,7 +176,8 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 
 	*controllen = cmsg->cmsg_len = CMSG_LEN(sizeof(int) * cnt);
 
-	proc_lockClear(&p->lock);
+	/*MISRAC2012-RULE_17_7-a*/
+	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return 0;
 }
@@ -195,13 +199,15 @@ int fdpass_discard(fdpack_t **packs)
 	while ((pack = *packs)) {
 		while (pack->cnt) {
 			FDPACK_POP_FILE(pack, file);
-			posix_fileDeref(file);
+			/*MISRAC2012-RULE_17_7-a*/
+			(void)posix_fileDeref(file);
 		}
 		LIST_REMOVE(packs, pack);
 		vm_kfree(pack);
 	}
 
-	proc_lockClear(&p->lock);
+	/*MISRAC2012-RULE_17_7-a*/
+	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return 0;
 }

@@ -43,10 +43,11 @@ static unsigned int dcache_strHash(const char *str)
 	unsigned int hash = 0;
 	unsigned char c;
 
-	while ((c = *str++) != '\0')
-		hash += (c << 4) + (c >> 4) * 11;
+	while ((c = *str++) != '\0') {
+		hash += (c << 4U) + (c >> 4U) * 11U;
+	}
 
-	return hash & ((0x1U << HASH_LEN) - 1);
+	return hash & ((0x1U << HASH_LEN) - 1U);
 }
 
 
@@ -54,8 +55,9 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 {
 	dcache_entry_t *entry = name_common.dcache[hash];
 
-	while (entry != NULL && hal_strcmp(entry->name, name) != 0)
+	while (entry != NULL && hal_strcmp(entry->name, name) != 0U) {
 		entry = entry->next;
+	}
 
 	return entry;
 }
@@ -67,17 +69,21 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 	unsigned int hash = dcache_strHash(name);
 
 	/* Check if entry already exists */
-	proc_lockSet(&name_common.dcache_lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&name_common.dcache_lock);
 	if (_dcache_entryLookup(hash, name) != NULL) {
-		proc_lockClear(&name_common.dcache_lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockClear(&name_common.dcache_lock);
 		return -EEXIST;
 	}
-	proc_lockClear(&name_common.dcache_lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockClear(&name_common.dcache_lock);
 
 	if (name[0] == '/' && name[1] == 0) {
 		name_common.root_oid.port = port;
-		if (oid != NULL)
+		if (oid != NULL) {
 			name_common.root_oid.id = oid->id;
+		}
 		name_common.root_registered = 1;
 		return EOK;
 	}
@@ -91,12 +97,15 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 		entry->oid.id = oid->id;
 	}
 
-	hal_strcpy(entry->name, name);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)hal_strcpy(entry->name, name);
 
-	proc_lockSet(&name_common.dcache_lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&name_common.dcache_lock);
 	entry->next = name_common.dcache[hash];
 	name_common.dcache[hash] = entry;
-	proc_lockClear(&name_common.dcache_lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockClear(&name_common.dcache_lock);
 
 	return EOK;
 }
@@ -107,7 +116,8 @@ void proc_portUnregister(const char *name)
 	dcache_entry_t *entry, *prev = NULL;
 	unsigned int hash = dcache_strHash(name);
 
-	proc_lockSet(&name_common.dcache_lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&name_common.dcache_lock);
 	entry = name_common.dcache[hash];
 
 	while (entry != NULL && hal_strcmp(entry->name, name) != 0) {
@@ -118,15 +128,19 @@ void proc_portUnregister(const char *name)
 
 	if (entry == NULL) {
 		/* There is no such entry, nothing to do */
-		proc_lockClear(&name_common.dcache_lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockClear(&name_common.dcache_lock);
 		return;
 	}
 
-	if (prev != NULL)
+	if (prev != NULL) {
 		prev->next = entry->next;
-	else
+	}
+	else {
 		name_common.dcache[hash] = NULL;
-	proc_lockClear(&name_common.dcache_lock);
+	}
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockClear(&name_common.dcache_lock);
 
 	vm_kfree(entry);
 }
@@ -146,7 +160,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	if (name[0] == '/' && name[1] == 0) {
-		if (name_common.root_registered) {
+		if (name_common.root_registered != 0) {
 			if (file != NULL) {
 				*file = name_common.root_oid;
 			}
@@ -161,7 +175,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	/* Search cache for full path */
-	proc_lockSet(&name_common.dcache_lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&name_common.dcache_lock);
 	if ((entry = _dcache_entryLookup(dcache_strHash(name), name)) != NULL) {
 		if (file != NULL) {
 			*file = entry->oid;
@@ -170,10 +185,12 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		if (dev != NULL) {
 			*dev = entry->oid;
 		}
-		proc_lockClear(&name_common.dcache_lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockClear(&name_common.dcache_lock);
 		return EOK;
 	}
-	proc_lockClear(&name_common.dcache_lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockClear(&name_common.dcache_lock);
 
 	srv = name_common.root_oid;
 
@@ -193,7 +210,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	i = len;
-	hal_strcpy(pptr, name);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)hal_strcpy(pptr, name);
 
 	while (i > 1) {
 		while (i > 0 && pptr[i] != '/') {
@@ -206,13 +224,16 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 		pptr[i] = '\0';
 
-		proc_lockSet(&name_common.dcache_lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockSet(&name_common.dcache_lock);
 		if ((entry = _dcache_entryLookup(dcache_strHash(pptr), pptr)) != NULL) {
 			srv = entry->oid;
-			proc_lockClear(&name_common.dcache_lock);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_lockClear(&name_common.dcache_lock);
 			break;
 		}
-		proc_lockClear(&name_common.dcache_lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockClear(&name_common.dcache_lock);
 	}
 
 	if (name_common.root_registered == 0 && i == 0) {
@@ -399,8 +420,9 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -458,8 +480,9 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	if (msg == NULL)
+	if (msg == NULL) {
 		return -ENOMEM;
+	}
 
 	hal_memset(msg, 0, sizeof(msg_t));
 
@@ -512,7 +535,8 @@ off_t proc_size(oid_t oid)
 
 void _name_init(void)
 {
-	proc_lockInit(&name_common.dcache_lock, &proc_lockAttrDefault, "name.common");
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockInit(&name_common.dcache_lock, &proc_lockAttrDefault, "name.common");
 
 	/* MISRA Rule 11.6: NULL used to pass 0, and after changing NULL to void pointer to 0
 	 * it's no longer compatible with this funciton */
