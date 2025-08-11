@@ -136,7 +136,7 @@ void proc_get(process_t *p)
 {
 	proc_lockSet(&process_common.lock);
 	LIB_ASSERT(p->refs > 0, "pid: %d, got reference on process with zero references",
-		process_getPid(p));
+			process_getPid(p));
 	++p->refs;
 	proc_lockClear(&process_common.lock);
 }
@@ -204,12 +204,12 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	process->sigpend = 0;
 	process->sigmask = 0;
 	process->sighandler = NULL;
-	/* MISRA Rule 20.7: ptr_t is typedef of unsigned int, NULL is not pointer to void*/
+	/* MISRA Rule 11.6: ptr_t is typedef of unsigned int, NULL is not pointer to void*/
 	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
 	process->tls.tls_sz = 0;
-	/* MISRA Rule 20.7: ptr_t is typedef of unsigned int, NULL is not pointer to void*/
+	/* MISRA Rule 11.6: ptr_t is typedef of unsigned int, NULL is not pointer to void*/
 	process->tls.arm_m_tls = 0;
 
 #ifndef NOMMU
@@ -308,7 +308,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 
 static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
 {
-	/* MISRA change: NULL can not be longe used as we changed it to voit pointer!!! */
+	/* MISRA Rule 11.6: NULL can not be longe used as we changed it to voit pointer!!! */
 	if (tls->tls_base != 0) {
 		process_tls->tls_base = tls->tls_base;
 	}
@@ -356,8 +356,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 
 	/* Validate header. */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
-		(ehdr->e_shnum == 0)) {
+				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
 
@@ -402,8 +402,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-				(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
-			(shdr->sh_name >= shstrshdr->sh_size)) {
+					(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
+				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
 	}
@@ -431,7 +431,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	/* Validate header. */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
 			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
@@ -477,7 +477,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-				process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
+					process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
 				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
@@ -733,8 +733,9 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 	}
 
 	for (i = 0; i < relocsz; ++i) {
-		if ((ptr_t)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
-			(*addr) = (void *)((ptr_t)(*addr) - (ptr_t)reloc[i].vbase + (ptr_t)reloc[i].pbase);
+		/* MISRA Rule 11.6: (unsigned int *) added in line 735 x 2 and in line x 3 */
+		if ((ptr_t)(unsigned int *)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)(unsigned int *)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
+			(*addr) = (void *)(unsigned int *)((ptr_t)(*addr) - (ptr_t)(unsigned int *)reloc[i].vbase + (ptr_t)(unsigned int *)reloc[i].pbase);
 			return 0;
 		}
 	}
@@ -764,7 +765,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
-	ehdr = (void *)(ptr_t)base;
+	ehdr = (void *)(unsigned int *)(ptr_t)base;
 
 	err = process_validateElf32(ehdr, size);
 	if (err < 0) {
@@ -795,8 +796,9 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			prot |= PROT_EXEC;
 
 			if ((process->imapp != NULL) &&
-					(((ptr_t)base < (ptr_t)process->imapp->start) ||
-					((ptr_t)base > (ptr_t)process->imapp->stop))) {
+					/* MISRA Rule 11.6: Added (unsigned int *) after (ptr_t) in line 799, 800 and 809*/
+					(((ptr_t)base < (ptr_t)(unsigned int *)process->imapp->start) ||
+							((ptr_t)base > (ptr_t)(unsigned int *)process->imapp->stop))) {
 				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
@@ -804,8 +806,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 				hal_memcpy((char *)paddr, (char *)ehdr + phdr->p_offset, phdr->p_filesz);
 
-				/* Need to make cache and memory coherent, so $I is coherent too */
-				hal_cleanDCache((ptr_t)paddr, phdr->p_memsz);
+				/* Need to make cache and memorSy coherent, so $I is coherent too */
+				hal_cleanDCache((ptr_t)(unsigned int *)paddr, phdr->p_memsz);
 			}
 		}
 
@@ -835,7 +837,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			return -ENOMEM;
 		}
 
-		reloc[j].vbase = (void *)phdr->p_vaddr;
+		/* MISRA Rule 11.6: Added (unsinged int *)*/
+		reloc[j].vbase = (void *)(unsigned int *)phdr->p_vaddr;
 		reloc[j].pbase = (void *)((char *)paddr + reloffs);
 		reloc[j].size = phdr->p_memsz;
 		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1);
@@ -873,7 +876,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		}
 	}
 
-	*entry = (void *)(unsigned long)ehdr->e_entry;
+	/* MISRA Rule 11.6: Added (unsinged long *)*/
+	*entry = (void *)(unsigned long *)(unsigned long)ehdr->e_entry;
 	if (process_relocate(reloc, relocsz, (char **)entry) < 0) {
 		return -ENOEXEC;
 	}
@@ -898,13 +902,15 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				continue;
 			}
 
-			relptr = (void *)rela.r_offset;
+			/* MISRA Rule 11.6: Added (unsinged int *)*/
+			relptr = (void *)(unsigned int *)rela.r_offset;
 			if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
 				return -ENOEXEC;
 			}
 
 			/* Don't modify ELF file! */
-			if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
+			/* MISRA Rule 11.6: Added (unsinged int *) x2 */
+			if (((ptr_t)(unsigned int *)relptr >= (ptr_t)base) && ((ptr_t)(unsigned int *)relptr < ((ptr_t)base + size))) {
 				++badreloc;
 				continue;
 			}
@@ -918,7 +924,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		}
 	}
 
-	/* MISRA Rule x.x: NULL is now a voind ptrs and we can not use it here!!!*/
+	/* MISRA Rule 11.6: NULL is now a voind ptrs and we can not use it here!!!*/
 	tlsNew.tls_base = 0;
 	tlsNew.tdata_sz = 0;
 	tlsNew.tbss_sz = 0;
@@ -1099,7 +1105,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
-	/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
 	if ((err == EOK) && (current->process->tls.tls_base != 0)) {
 		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
 	}
@@ -1368,7 +1374,7 @@ static void process_vforkThread(void *arg)
 	current->kstack = parent->kstack;
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
-	/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
 	if (current->tls.tls_base != 0) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
@@ -1535,7 +1541,7 @@ int proc_fork(void)
 		/* Copy parent context to child kstack in case of signal handling on fork return */
 		parent = ((process_spawn_t *)current->execdata)->parent;
 		hal_memcpy(current->kstack + current->kstacksz - sizeof(cpu_context_t),
-			parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
+				parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
 
 		hal_cpuSmpSync();
 
@@ -1721,11 +1727,13 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 	dest->tls_sz = round_page(source->tls_sz);
 	dest->arm_m_tls = source->arm_m_tls;
 
-	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
+	/* MISRA Rule 11.6: Added (unsigned int *) */
+	dest->tls_base = (ptr_t)(unsigned int *)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
-	/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
 	if (dest->tls_base != 0) {
-		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
+		/* MISRA Rule 11.6: Added (unsigned int *) x2 */
+		hal_memcpy((void *)(unsigned int *)dest->tls_base, (void *)(unsigned int *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
 		/* At the end of TLS there must be a pointer to itself */
 		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1) & ~(sizeof(ptr_t) - 1)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
@@ -1740,5 +1748,6 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 
 int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map)
 {
-	return vm_munmap(map, (void *)tls->tls_base, tls->tls_sz);
+	/* MISRA Rule 11.6: Added (unsigned int *) */
+	return vm_munmap(map, (void *)(unsigned int *)tls->tls_base, tls->tls_sz);
 }

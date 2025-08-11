@@ -135,7 +135,8 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 	/* Handle signals if necessary */
 	if (hal_cpuSupervisorMode(&ctx->cpuCtx) == 0) {
-		threads_setupUserReturn((void *)ctx->cpuCtx.r0, &ctx->cpuCtx);
+		/* MISRA Rule 11.6: Casted ctx to a pointer type*/
+		threads_setupUserReturn((void *)(unsigned int *)ctx->cpuCtx.r0, &ctx->cpuCtx);
 	}
 }
 
