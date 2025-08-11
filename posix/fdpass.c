@@ -151,7 +151,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	cnt = 0;
 
 	/* unpack and add file descriptors */
-	while (pack != NULL && pack->cnt != NULL && *controllen >= CMSG_LEN(sizeof(int) * (cnt + 1))) {
+	while (pack != NULL && pack->cnt != 0U && *controllen >= CMSG_LEN(sizeof(int) * (cnt + 1))) {
 		FDPACK_POP_FILE_AND_FLAGS(pack, file, flags);
 
 		fd = _posix_addOpenFile(p, file, flags);
