@@ -275,10 +275,14 @@ static void thread_destroy(thread_t *thread)
 	while (thread->locks != NULL) {
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
-	vm_kfree(thread->kstack);
 
 	process = thread->process;
 	if (process != NULL) {
+		/* kstack of a crashed process is kept for coredumping, it is freed with the ghost */
+		if (process->coredump == 0U) {
+			vm_kfree(thread->kstack);
+			thread->kstack = NULL;
+		}
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
 		LIST_REMOVE_EX(&process->threads, thread, procnext, procprev);
@@ -289,6 +293,7 @@ static void thread_destroy(thread_t *thread)
 		(void)proc_put(process);
 	}
 	else {
+		vm_kfree(thread->kstack);
 		vm_kfree(thread);
 	}
 }
@@ -800,6 +805,7 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	cpu = (int)hal_cpuGetID();
 	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
+	t->context = t->kstack + t->kstacksz - sizeof(cpu_context_t); /* keep sane context for coredump */
 	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
 	(void)_proc_threadWakeup(&threads_common.reaper);
@@ -863,6 +869,29 @@ void proc_reap(void)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	threads_put(ghost);
+}
+
+
+void proc_crash(thread_t *thread, unsigned int signo)
+{
+	process_t *process;
+	spinlock_ctx_t sc;
+
+	if ((thread == NULL) || (thread->process == NULL)) {
+		return;
+	}
+	process = thread->process;
+
+#ifndef COREDUMP_DISABLE
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	/* The thread is going to be destroyed, its pending signals are not delivered anymore.
+	 * Use unused SIGNULL bit to mark which thread caused the crash and keep the POSIX signal number */
+	thread->sigpend = (1U << SIGNULL) | (1U << signo);
+	process->coredump = 1;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+#endif
+
+	proc_threadsDestroy(&process->threads, NULL);
 }
 
 
@@ -1232,8 +1261,17 @@ int proc_join(int tid, time_t timeout)
 	}
 
 	if (ghost != NULL) {
-		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
 		id = proc_getTid(ghost);
+	}
+
+	if ((ghost != NULL) && (ghost->kstack != NULL)) {
+		/* kstack kept for coredumping, keep the ghost till process_destroy */
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return err < 0 ? err : id;
+	}
+
+	if (ghost != NULL) {
+		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1309,6 +1347,44 @@ static time_t _proc_nextWakeup(void)
  */
 
 
+/* Returns POSIX number of a signal whose default action terminates the process with a coredump, 0 otherwise */
+static unsigned int threads_sigcore(int sig)
+{
+	switch (sig) {
+		case signal_segv:
+			return 11U; /* SIGSEGV */
+		case signal_illegal:
+			return 4U; /* SIGILL */
+		case 4:
+			return 8U; /* SIGFPE */
+		case 7:
+			return 3U; /* SIGQUIT */
+		case 8:
+			return 5U; /* SIGTRAP */
+		case 9:
+			return 6U; /* SIGABRT */
+		case 11:
+			return 10U; /* SIGBUS */
+		case 12:
+			return 12U; /* SIGSYS */
+		case 24:
+			return 24U; /* SIGXCPU */
+		case 25:
+			return 25U; /* SIGXFSZ */
+		default:
+			return 0U;
+	}
+}
+
+
+static void threads_sigcrash(process_t *process, thread_t *thread, int sig)
+{
+	/* Same exit status as set by libphoenix when terminating the process on a signal */
+	process->exit = (int)(((unsigned int)sig & 0x7fU) << 8);
+	proc_crash((thread != NULL) ? thread : process->threads, threads_sigcore(sig));
+}
+
+
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	spinlock_ctx_t sc;
@@ -1321,8 +1397,9 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 			if (process->sighandler != NULL) {
 				break;
 			}
+			threads_sigcrash(process, thread, sig);
+			return EOK;
 
-		/* Fall-through */
 		case signal_kill:
 			proc_kill(process);
 			return EOK;
@@ -1343,6 +1420,12 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		return -EINVAL;
 	}
 	sigbit = (u32)1U << (unsigned int)sig;
+
+	/* No user signal handler (e.g. the process requested its termination by a signal) */
+	if ((process->sighandler == NULL) && (threads_sigcore(sig) != 0U)) {
+		threads_sigcrash(process, thread, sig);
+		return EOK;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 

@@ -125,6 +125,13 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg);
 int proc_threadsList(int n, threadinfo_t *info);
 
 
+/* Bit of thread_t.sigpend marking the thread which caused the crash */
+#define SIGNULL 0
+
+
+void proc_crash(thread_t *thread, unsigned int signo);
+
+
 int proc_threadsOther(thread_t *t);
 
 
