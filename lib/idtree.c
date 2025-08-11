@@ -173,7 +173,8 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 
 	LIB_ASSERT(lib_idtreeFind(tree, n->id) == NULL, "ID alloc failed - got existing ID %d", n->id);
 
-	lib_rbInsert(tree, &n->linkage);
+	/* MISRA Rule 17.7: Unused return value, (void) added */
+	(void)lib_rbInsert(tree, &n->linkage);
 
 	return n->id;
 }
@@ -182,7 +183,8 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 static void _lib_idtreeDump(rbnode_t *node)
 {
 	idnode_t *n = lib_treeof(idnode_t, linkage, node);
-	lib_printf("%d <0x%p>]", n->id, n);
+	/* MISRA Rule 17.7: Unused return value, (void) added */
+	(void)lib_printf("%d <0x%p>]", n->id, n);
 }
 
 

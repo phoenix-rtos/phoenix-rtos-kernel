@@ -37,11 +37,12 @@ static void test_proc_indthr(void *arg)
 {
 	char *indicator = "o|/-\\|/-\\";
 
-	lib_printf("test: [proc.threads] Starting indicating thread\n");
+	/* MISRA Rule 17.7: Unused return value, (void) added in lines 41, 45, 62*/
+	(void)lib_printf("test: [proc.threads] Starting indicating thread\n");
 	hal_consolePrint(ATTR_USER, "\033[?25l");
 
 	for (;;) {
-		lib_printf("\rtest: [proc.threads] %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d",
+		(void)lib_printf("\rtest: [proc.threads] %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d",
 				indicator[test_proc_common.rotations[1] % 8],
 				indicator[test_proc_common.rotations[2] % 8],
 				indicator[test_proc_common.rotations[3] % 8],
@@ -58,7 +59,7 @@ static void test_proc_indthr(void *arg)
 				test_proc_common.rotations[6] % 100,
 				test_proc_common.rotations[7] % 100);
 
-		proc_threadSleep(5000);
+		(void)proc_threadSleep(5000);
 	}
 
 	return;
@@ -82,9 +83,10 @@ static void test_proc_timethr(void *arg)
 	for (;;) {
 		hal_spinlockSet(&test_proc_common.spinlock, &sc);
 		test_proc_common.tm++;
-		proc_threadWakeup(&test_proc_common.queue);
+		/* MISRA Rule 17.7: Unused return value, (void) added in lines 87, 89*/
+		(void)proc_threadWakeup(&test_proc_common.queue);
 		hal_spinlockClear(&test_proc_common.spinlock, &sc);
-		proc_threadSleep(10000);
+		(void)proc_threadSleep(10000);
 	}
 }
 
@@ -101,7 +103,8 @@ static void test_proc_rotthr1(void *arg)
 
 	for (;;) {
 		test_proc_common.rotations[i]++;
-		proc_threadSleep(10000 * (i));
+		/* MISRA Rule 17.7: Unused return value, (void) added */
+		(void)proc_threadSleep(10000 * (i));
 	}
 
 	return;
@@ -116,16 +119,17 @@ void test_proc_threads1(void)
 		test_proc_common.rotations[i] = 0;
 	}
 
-	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, stacksz, NULL, 0, NULL);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, stacksz, NULL, 0, (void *)(int *)1);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, stacksz, NULL, 0, (void *)(int *)2);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, stacksz, NULL, 0, (void *)(int *)3);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, stacksz, NULL, 0, (void *)(int *)4);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, stacksz, NULL, 0, (void *)(int *)5);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, stacksz, NULL, 0, (void *)(int *)6);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, stacksz, NULL, 0, (void *)(int *)7);
+	/* MISRA Rule 17.7: Unused return value, (void) added in lines 123-132*/
+	(void)proc_threadCreate(NULL, test_proc_indthr, NULL, 0, stacksz, NULL, 0, NULL);
+	(void)proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, stacksz, NULL, 0, (void *)(int *)1);
+	(void)proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, stacksz, NULL, 0, (void *)(int *)2);
+	(void)proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, stacksz, NULL, 0, (void *)(int *)3);
+	(void)proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, stacksz, NULL, 0, (void *)(int *)4);
+	(void)proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, stacksz, NULL, 0, (void *)(int *)5);
+	(void)proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, stacksz, NULL, 0, (void *)(int *)6);
+	(void)proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, stacksz, NULL, 0, (void *)(int *)7);
 
-	proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 1024, NULL, 0, NULL);
+	(void)proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 1024, NULL, 0, NULL);
 }
 
 
@@ -146,7 +150,8 @@ static void test_proc_rotthr2(void *arg)
 
 		hal_spinlockSet(&test_proc_common.spinlock, &sc);
 		for (;;) {
-			proc_threadWait(&test_proc_common.queue, &test_proc_common.spinlock, 0, &sc);
+			/* MISRA Rule 17.7: Unused return value, (void) added */
+			(void)proc_threadWait(&test_proc_common.queue, &test_proc_common.spinlock, 0, &sc);
 			if (test_proc_common.tm > otm) {
 				otm = test_proc_common.tm;
 				break;
@@ -170,13 +175,14 @@ void test_proc_threads2(void)
 	test_proc_common.queue = NULL;
 	hal_spinlockCreate(&test_proc_common.spinlock, "test_proc_common.spinlock");
 
-	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 1024, NULL, 0, NULL);
-	proc_threadCreate(NULL, test_proc_timethr, NULL, 0, 1024, NULL, 0, NULL);
+	/* MISRA Rule 17.7: Unused return value, (void) added in lines 179-185*/
+	(void)proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 1024, NULL, 0, NULL);
+	(void)proc_threadCreate(NULL, test_proc_timethr, NULL, 0, 1024, NULL, 0, NULL);
 
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 1, 1024, NULL, 0, (void *)(int *)1);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 2, 1024, NULL, 0, (void *)(int *)2);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 3, 1024, NULL, 0, (void *)(int *)3);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 4, 1024, NULL, 0, (void *)(int *)4);
+	(void)proc_threadCreate(NULL, test_proc_rotthr2, NULL, 1, 1024, NULL, 0, (void *)(int *)1);
+	(void)proc_threadCreate(NULL, test_proc_rotthr2, NULL, 2, 1024, NULL, 0, (void *)(int *)2);
+	(void)proc_threadCreate(NULL, test_proc_rotthr2, NULL, 3, 1024, NULL, 0, (void *)(int *)3);
+	(void)proc_threadCreate(NULL, test_proc_rotthr2, NULL, 4, 1024, NULL, 0, (void *)(int *)4);
 }
 
 
@@ -189,23 +195,25 @@ static void test_proc_initthr(void *arg)
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 
-	lib_printf("main: Starting syspage programs (%d) and init\n", syspage_progSize());
-	lib_printf("init: %p\n", proc_current());
+	/* MISRA Rule 17.7: Unused return value, (void) added in lines 199, 200, 205, 208*/
+	(void)lib_printf("main: Starting syspage programs (%d) and init\n", syspage_progSize());
+	(void)lib_printf("init: %p\n", proc_current());
 
 	for (;;) {
 		if ((prog = syspage_progList()) != NULL) {
 			do {
-				proc_syspageSpawn(prog, NULL, NULL, "", argv);
+				(void)proc_syspageSpawn(prog, NULL, NULL, "", argv);
 			} while ((prog = prog->next) != syspage_progList());
 		}
-		proc_threadSleep(120000);
+		(void)proc_threadSleep(120000);
 	}
 }
 
 void test_proc_exit(void)
 {
-	proc_start(test_proc_initthr, NULL, (const char *)"init");
+	/* MISRA Rule 17.7: Unused return value, (void) added in lines 215, 218*/
+	(void)proc_start(test_proc_initthr, NULL, (const char *)"init");
 
 	hal_cpuEnableInterrupts();
-	hal_cpuReschedule(NULL, NULL);
+	(void)hal_cpuReschedule(NULL, NULL);
 }
