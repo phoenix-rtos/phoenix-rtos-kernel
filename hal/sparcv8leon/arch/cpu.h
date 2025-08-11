@@ -46,7 +46,7 @@
 #endif
 
 #define CPU_CTX_SIZE 0xd8
-#define CPU_EXC_SIZE 0xe8
+#define CPU_EXC_SIZE 0xe0
 
 /* Processor State Register */
 #define PSR_CWP 0x1f        /* Current window pointer */
