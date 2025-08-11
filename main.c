@@ -16,6 +16,7 @@
 
 #include "hal/hal.h"
 
+#include "coredump/coredump.h"
 #include "usrv.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
@@ -47,6 +48,10 @@ static void main_initthr(void *unused)
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 	_usrv_start();
+
+#ifndef COREDUMP_DISABLE
+	_coredump_start();
+#endif
 
 	/* Disable "killing" init thread */
 	proc_current()->sigmask = ~0U;

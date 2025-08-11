@@ -126,6 +126,9 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg);
 int proc_threadsList(int n, threadinfo_t *info);
 
 
+void proc_crash(thread_t *thread);
+
+
 int proc_threadsOther(thread_t *t);
 
 

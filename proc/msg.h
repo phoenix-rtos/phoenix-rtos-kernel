@@ -36,7 +36,7 @@ typedef struct _kmsg_t {
 	idnode_t idlinkage;
 
 	thread_t *threads;
-	process_t *src;
+	vm_map_t *src;
 	volatile int state;
 
 #ifndef NOMMU
@@ -60,6 +60,9 @@ typedef struct _kmsg_t {
 /*
  * Message passing
  */
+
+
+int proc_sendFromMap(u32 port, msg_t *msg, vm_map_t *sourceMap);
 
 
 int proc_send(u32 port, msg_t *msg);
