@@ -28,7 +28,8 @@ void lib_listAdd(void **list, void *t, size_t noff, size_t poff)
 	}
 	else {
 		*((addr_t *)(t + poff)) = *((addr_t *)(*list + poff));
-		*((addr_t *)((void *)*((addr_t *)(*list + poff)) + noff)) = (addr_t)t;
+		/* MISRA Rule 11.6: Added (unsigned int *) after (void *) */
+		*((addr_t *)((void *)*(unsigned int *)((addr_t *)(*list + poff)) + noff)) = (addr_t)t;
 		*((addr_t *)(t + noff)) = *((addr_t *)list);
 		*((addr_t *)(*list + poff)) = (addr_t)t;
 	}
@@ -43,12 +44,13 @@ void lib_listRemove(void **list, void *t, size_t noff, size_t poff)
 		*list = NULL;
 	}
 	else {
-		*((addr_t *)((void *)(*((addr_t *)(t + poff))) + noff)) = *((addr_t *)(t + noff));
-		*((addr_t *)((void *)(*((addr_t *)(t + noff))) + poff)) = *((addr_t *)(t + poff));
+		/* MISRA Rule 11.6: In line 47 and 48 after (void *) added (unsigned int *) "*/
+		*((addr_t *)((void *)(unsigned int *)(*((addr_t *)(t + poff))) + noff)) = *((addr_t *)(t + noff));
+		*((addr_t *)((void *)(unsigned int *)(*((addr_t *)(t + noff))) + poff)) = *((addr_t *)(t + poff));
 		if (t == *list)
 			*list = (void *)*((addr_t *)(t + noff));
 	}
-	/* MISRA Rule x.x: NULL changed to void pointer, addr_t unsigned int*/
+	/* MISRA Rule 11.6: NULL changed to void pointer, addr_t unsigned int */
 	*((addr_t *)(t + noff)) = 0;
 	*((addr_t *)(t + poff)) = 0;
 }

@@ -430,11 +430,11 @@ void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned c
 	}
 
 	if (node == NULL) {
-		lib_printf("%s() *\n", (*depth != NULL) ? "`-" : "");
+		lib_printf("%s() *\n", (*depth != 0U) ? "`-" : "");
 		return;
 	}
 
-	lib_printf("%s(", (*depth != NULL) ? "`-" : "");
+	lib_printf("%s(", (*depth != 0U) ? "`-" : "");
 	dump(node);
 	lib_printf(")%c\n", node->color == RB_BLACK ? '*' : ' ');
 

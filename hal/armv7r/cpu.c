@@ -79,10 +79,12 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	/* Enable interrupts, set normal execution mode */
 	if (ustack != NULL) {
 		ctx->psr = MODE_USR;
+		/* MISRA Rule 11.6: */
 		ctx->sp = (u32)ustack;
 	}
 	else {
 		ctx->psr = MODE_SYS;
+		/* MISRA Rule 11.6: */
 		ctx->sp = (u32)kstack + kstacksz;
 	}
 

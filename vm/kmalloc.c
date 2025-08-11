@@ -46,7 +46,7 @@ static int kmalloc_zone_cmp(rbnode_t *n1, rbnode_t *n2)
 		return 1;
 
 	if (((z2->vaddr >= z1->vaddr) && (z2->vaddr < z1->vaddr + z1->blocks * z1->blocksz)) ||
-	    ((z1->vaddr >= z2->vaddr) && (z1->vaddr < z2->vaddr + z2->blocks * z2->blocksz)))
+			((z1->vaddr >= z2->vaddr) && (z1->vaddr < z2->vaddr + z2->blocks * z2->blocksz)))
 		return 0;
 
 	return -1;
@@ -270,7 +270,7 @@ int _kmalloc_init(void)
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		lib_printf("BAD HDRIDX!\n");
-		/* MISRA Rule x.x, NULL return changed to -1 return as NULL is now representeed as void pointer onto 0 */
+		/* MISRA Rule 11.6: NULL return changed to -1 return as NULL is now representeed as void pointer onto 0 */
 		return -1;
 	}
 

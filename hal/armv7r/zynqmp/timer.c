@@ -150,7 +150,8 @@ char *hal_timerFeatures(char *features, unsigned int len)
 
 void _hal_timerInit(u32 interval)
 {
-	timer_common.ttc = (void *)TTC0_BASE_ADDR;
+	/* MISRA Rule 11.6: Casted TTC0_BASE_ADDR to a pointer type*/
+	timer_common.ttc = (void *)(unsigned int *)TTC0_BASE_ADDR;
 	_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
 	timer_common.jiffies = 0;
 

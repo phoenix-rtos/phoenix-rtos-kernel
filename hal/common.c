@@ -37,8 +37,10 @@ void hal_stackPutArgs(void **stackp, size_t argc, const struct stackArg *argv)
 
 	for (i = 0; i < argc; i++) {
 		stack -= SIZE_STACK_ARG(argv[i].sz);
-		hal_memcpy((void *)stack, argv[i].argp, argv[i].sz);
+		/* MISRA Rule 11.6: Casted stack to a pointer type */
+		hal_memcpy((void *)(unsigned int *)stack, argv[i].argp, argv[i].sz);
 	}
 
-	*stackp = (void *)stack;
+	/* MISRA Rule 11.6: Casted stack to a pointer type */
+	*stackp = (void *)(unsigned int *)stack;
 }

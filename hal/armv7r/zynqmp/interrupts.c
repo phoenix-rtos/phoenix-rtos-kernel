@@ -255,9 +255,9 @@ int _interrupts_gicv2_classify(unsigned int irqn)
 void _hal_interruptsInit(void)
 {
 	u32 i;
-
-	interrupts_common.gicd = (void *)0xf9000000U;
-	interrupts_common.gicc = (void *)0xf9001000U;
+	/* MISRA Rule 11.6: Casted 0xf9000000 and 0xf9001000 to a pointer type*/
+	interrupts_common.gicd = (void *)(unsigned int *)0xf9000000U;
+	interrupts_common.gicc = (void *)(unsigned int *)0xf9001000U;
 
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
 		interrupts_common.handlers[i] = NULL;

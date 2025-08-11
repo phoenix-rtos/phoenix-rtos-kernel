@@ -184,7 +184,8 @@ int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
-	return (addr_t)vaddr;
+	/* MISRA Rule 11.6: Casted vaddr to a pointer type*/
+	return (addr_t)(unsigned int *)vaddr;
 }
 
 
@@ -232,7 +233,8 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 
 	/* Returns region above basic kernel's .bss section */
 	*vaddr = (void *)&_end;
-	*size = (((size_t)(*top) + SIZE_PAGE - 0x1U) & ~(SIZE_PAGE - 0x1U)) - (size_t)&_end;
+	/* MISRA Rule 11.6: Casted top to a pointer type*/
+	*size = (((size_t)(unsigned int *)(*top) + SIZE_PAGE - 0x1U) & ~(SIZE_PAGE - 0x1U)) - (size_t)&_end;
 
 	return 0;
 }
@@ -245,12 +247,13 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	u32 t;
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 
-	(*vstart) = (void *)(((ptr_t)&_end + 7U) & ~7u);
+	(*vstart) = (void *)(((ptr_t)&_end + 7U) & ~7U);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)&__bss_start;
 
 	/* Initial size of kernel map */
+	/* MISRA Rule 11.6: */
 	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
 
 	pmap->regions = (0x1U << cnt) - 1U;
@@ -291,7 +294,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	 * region and allow this region instead. */
 
 	/* Find kernel code region */
-	ikmap = syspage_mapAddrResolve((addr_t)(void *)_pmap_init);
+	/* MISRA Rule 11.6: Added (unsigned it *) */
+	ikmap = syspage_mapAddrResolve((addr_t)(unsigned int *)(void *)_pmap_init);
 	if (ikmap == NULL) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");
 		for (;;) {

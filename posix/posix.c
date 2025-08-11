@@ -2614,7 +2614,7 @@ int posix_tkill(pid_t pid, int tid, int sig)
 
 void posix_sigchild(pid_t ppid)
 {
-	/* MISRA Rule x.x: NULL is now a voind pointer!!!*/
+	/* MISRA Rule 11.6: NULL is now a void pointer!!!*/
 	posix_tkill(ppid, 0, SIGCHLD);
 }
 
@@ -2815,7 +2815,7 @@ void posix_died(pid_t pid, int exit)
 
 	if (adopted != 0) {
 		LIB_ASSERT(LIST_BELONGS(&init->children, pinfo) != 0,
-			"zombie's neither parent nor init child, pid: %d, ppid: %d", pid, pinfo->parent);
+				"zombie's neither parent nor init child, pid: %d, ppid: %d", pid, pinfo->parent);
 		/* We were adopted by the init at some point */
 		LIST_REMOVE(&init->children, pinfo);
 		LIST_ADD(&zombies, pinfo);
