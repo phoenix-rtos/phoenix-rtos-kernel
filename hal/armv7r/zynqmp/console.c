@@ -103,10 +103,11 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 	console_common.uart = (void *)(unsigned int *)UART_BASE;
 	console_common.speed = 115200;
 
-	_zynqmp_setMIO(UART_TX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE);
-	_zynqmp_setMIO(UART_RX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE | PCTL_MIO_TRI_ENABLE);
+	/* MISRA Rule 17.7: Unused returned value by function _zynqmp_setMIO, added (void) in lines 107, 108, 110*/
+	(void)_zynqmp_setMIO(UART_TX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE);
+	(void)_zynqmp_setMIO(UART_RX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE | PCTL_MIO_TRI_ENABLE);
 
-	_zynq_setDevRst(UART_RESET, 0);
+	(void)_zynq_setDevRst(UART_RESET, 0);
 
 	*(console_common.uart + idr) = 0xfffU;
 

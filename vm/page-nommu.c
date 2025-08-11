@@ -42,16 +42,18 @@ static page_t *_page_alloc(size_t size, u8 flags)
 {
 	page_t *lh = pages.freeq;
 
-	if (lh == NULL)
+	if (lh == NULL) {
 		return NULL;
+	}
 
 	pages.freeq = lh->next;
 
 	lh->next = NULL;
 	lh->idx = hal_cpuGetLastBit(size);
 
-	if (hal_cpuGetFirstBit(size) < lh->idx)
+	if (hal_cpuGetFirstBit(size) < lh->idx) {
 		lh->idx++;
+	}
 
 	pages.freesz -= (0x1U << lh->idx);
 	pages.allocsz += (0x1U << lh->idx);
@@ -64,9 +66,10 @@ page_t *vm_pageAlloc(size_t size, u8 flags)
 {
 	page_t *p;
 
-	proc_lockSet(&pages.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 70, 72*/
+	(void)proc_lockSet(&pages.lock);
 	p = _page_alloc(size, flags);
-	proc_lockClear(&pages.lock);
+	(void)proc_lockClear(&pages.lock);
 
 	return p;
 }
@@ -74,7 +77,8 @@ page_t *vm_pageAlloc(size_t size, u8 flags)
 
 void vm_pageFree(page_t *lh)
 {
-	proc_lockSet(&pages.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 80, 89*/
+	(void)proc_lockSet(&pages.lock);
 
 	lh->next = pages.freeq;
 	pages.freeq = lh;
@@ -82,7 +86,7 @@ void vm_pageFree(page_t *lh)
 	pages.freesz += (0x1U << lh->idx);
 	pages.allocsz -= (0x1U << lh->idx);
 
-	proc_lockClear(&pages.lock);
+	(void)proc_lockClear(&pages.lock);
 	return;
 }
 
@@ -97,15 +101,16 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attr)
 {
 	page_t *ap;
 
-	proc_lockSet(&pages.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 105, 108, 111, 113*/
+	(void)proc_lockSet(&pages.lock);
 	if (pmap_enter(pmap, pa, vaddr, attr, NULL) < 0) {
 		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL) {
-			proc_lockClear(&pages.lock);
+			(void)proc_lockClear(&pages.lock);
 			return -ENOMEM;
 		}
-		pmap_enter(pmap, pa, vaddr, attr, ap);
+		(void)pmap_enter(pmap, pa, vaddr, attr, ap);
 	}
-	proc_lockClear(&pages.lock);
+	(void)proc_lockClear(&pages.lock);
 
 	return EOK;
 }
@@ -121,11 +126,13 @@ int _page_sbrk(pmap_t *pmap, void **start, void **end)
 {
 	page_t *np;
 
-	if ((np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP)) == NULL)
+	if ((np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP)) == NULL) {
 		return -ENOMEM;
+	}
 
-	if (page_map(pmap, (*end), PGHD_PRESENT | PGHD_WRITE, (addr_t)np) < 0)
+	if (page_map(pmap, (*end), PGHD_PRESENT | PGHD_WRITE, (addr_t)np) < 0) {
 		return -ENOMEM;
+	}
 
 	(*end) += SIZE_PAGE;
 
@@ -141,7 +148,8 @@ void vm_pageGetStats(size_t *freesz)
 
 void vm_pageinfo(meminfo_t *info)
 {
-	proc_lockSet(&pages.lock);
+	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 152, 160*/
+	(void)proc_lockSet(&pages.lock);
 
 	info->page.alloc = pages.allocsz;
 	info->page.free = pages.freesz;
@@ -149,7 +157,7 @@ void vm_pageinfo(meminfo_t *info)
 	info->page.sz = sizeof(page_t);
 	info->page.mapsz = -1;
 
-	proc_lockClear(&pages.lock);
+	(void)proc_lockClear(&pages.lock);
 }
 
 
@@ -159,11 +167,13 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	const syspage_map_t *map;
 	unsigned int i;
 
-	proc_lockInit(&pages.lock, &proc_lockAttrDefault, "page.nommu");
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)proc_lockInit(&pages.lock, &proc_lockAttrDefault, "page.nommu");
 
 	/* TODO: handle error */
-	if ((map = syspage_mapAddrResolve((addr_t)&__bss_start)) == NULL)
+	if ((map = syspage_mapAddrResolve((addr_t)&__bss_start)) == NULL) {
 		return;
+	}
 
 	pages.freesz = map->end - (unsigned int)(*bss);
 	pages.bootsz = 0;
@@ -179,8 +189,9 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	pages.freesz -= pages.freeqsz * sizeof(page_t);
 
 	/* Show statistics one the console */
-	lib_printf("vm: Initializing page allocator %d/%d KB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024,
-		(pages.freesz + pages.allocsz ) / 1024, sizeof(page_t));
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)lib_printf("vm: Initializing page allocator %d/%d KB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024,
+			(pages.freesz + pages.allocsz) / 1024, sizeof(page_t));
 
 	/* Prepare allocation queue */
 	for (p = pages.freeq, i = 0; i < pages.freeqsz; i++) {
