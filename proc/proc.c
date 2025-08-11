@@ -21,8 +21,9 @@
 
 int _proc_init(vm_map_t *kmap, vm_object_t *kernel)
 {
-	_threads_init(kmap, kernel);
-	_process_init(kmap, kernel);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)_threads_init(kmap, kernel);
+	(void)_process_init(kmap, kernel);
 	_port_init();
 	_msg_init(kmap, kernel);
 	_name_init();

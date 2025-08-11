@@ -42,7 +42,8 @@ void mutex_put(mutex_t *mutex)
 	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
 		t->process->path, process_getPid(t->process), proc_getTid(t));
 	if (rem <= 0) {
-		proc_lockDone(&mutex->lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockDone(&mutex->lock);
 		vm_kfree(mutex);
 	}
 }
@@ -72,7 +73,8 @@ int proc_mutexCreate(const struct lockAttr *attr)
 		return -ENOMEM;
 	}
 
-	proc_lockInit(&mutex->lock, attr, "user.mutex");
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockInit(&mutex->lock, attr, "user.mutex");
 
 	(void)resource_put(p, &mutex->resource);
 
