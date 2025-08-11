@@ -194,7 +194,8 @@ int fdpass_discard(fdpack_t **packs)
 		return -1;
 	}
 
-	proc_lockSet(&p->lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&p->lock);
 
 	while ((pack = *packs)) {
 		while (pack->cnt) {
