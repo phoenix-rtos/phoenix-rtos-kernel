@@ -110,9 +110,8 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 #ifdef NDEBUG
 	hal_cpuReboot();
 #else
-	for (;;) {
-		hal_cpuHalt();
-	}
+	proc_crash(proc_current());
+	proc_threadEnd();
 #endif
 }
 
