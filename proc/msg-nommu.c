@@ -58,7 +58,8 @@ int proc_send(u32 port, msg_t *msg)
 	}
 	else {
 		LIST_ADD(&p->kmessages, &kmsg);
-		proc_threadWakeup(&p->threads);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_threadWakeup(&p->threads);
 
 		while ((kmsg.state != msg_responded) && (kmsg.state != msg_rejected)) {
 			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
@@ -95,7 +96,8 @@ static void proc_msgReject(kmsg_t *kmsg, port_t *p)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_rejected;
-	proc_threadWakeup(&kmsg->threads);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
 
 	port_put(p, 0);
@@ -132,7 +134,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		/* Port is being removed */
 		if (kmsg != NULL) {
 			kmsg->state = msg_rejected;
-			proc_threadWakeup(&kmsg->threads);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_threadWakeup(&kmsg->threads);
 		}
 
 		err = -EINVAL;
@@ -179,7 +182,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 			PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_ANONYMOUS);
 		if (msg->o.data == NULL) {
 			if (idata != NULL) {
-				vm_munmap(current->process->mapp, idata, round_page(kmsg->msg->i.size));
+				/* MISRAC2012-RULE_17_7-a */
+				(void)vm_munmap(current->process->mapp, idata, round_page(kmsg->msg->i.size));
 			}
 
 			/* Free RID */
@@ -218,18 +222,21 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	kmsg->msg->o.err = msg->o.err;
 
 	if (kmsg->imapped != NULL) {
-		vm_munmap(current->process->mapp, kmsg->imapped, round_page(kmsg->msg->i.size));
+		/* MISRAC2012-RULE_17_7-a */
+		(void)vm_munmap(current->process->mapp, kmsg->imapped, round_page(kmsg->msg->i.size));
 	}
 
 	if (kmsg->omapped != NULL) {
 		hal_memcpy(kmsg->msg->o.data, kmsg->omapped, kmsg->msg->o.size);
-		vm_munmap(current->process->mapp, kmsg->omapped, round_page(kmsg->msg->o.size));
+		/* MISRAC2012-RULE_17_7-a */
+		(void)vm_munmap(current->process->mapp, kmsg->omapped, round_page(kmsg->msg->o.size));
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
 	kmsg->src = current->process;
-	proc_threadWakeup(&kmsg->threads);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
 

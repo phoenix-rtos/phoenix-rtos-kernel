@@ -171,7 +171,8 @@ static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 	unixsock_t *r, t;
 
 	*id = 0;
-	proc_lockSet(&unix_common.lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&unix_common.lock);
 	if (unix_common.tree.root != NULL) {
 		t.id = 0;
 		r = lib_treeof(unixsock_t, linkage, lib_rbFindEx(unix_common.tree.root, &t.linkage, unixsock_gapcmp));
@@ -182,17 +183,20 @@ static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 				*id = r->id + 1;
 		}
 		else {
-			proc_lockClear(&unix_common.lock);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_lockClear(&unix_common.lock);
 			return NULL;
 		}
 	}
 
 	if ((r = vm_kmalloc(sizeof(unixsock_t))) == NULL) {
-		proc_lockClear(&unix_common.lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockClear(&unix_common.lock);
 		return NULL;
 	}
 
-	proc_lockInit(&r->lock, &proc_lockAttrDefault, "unix.socket");
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockInit(&r->lock, &proc_lockAttrDefault, "unix.socket");
 
 	r->id = *id;
 	/* alloc new socket with 2 refs: one ref for the socket's presence in the tree, second
@@ -211,11 +215,13 @@ static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 	r->state = 0;
 	r->next = NULL;
 	r->prev = NULL;
-	_cbuffer_init(&r->buffer, NULL, 0);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)_cbuffer_init(&r->buffer, NULL, 0);
 	hal_spinlockCreate(&r->spinlock, "unix socket");
 
-	lib_rbInsert(&unix_common.tree, &r->linkage);
-	proc_lockClear(&unix_common.lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)lib_rbInsert(&unix_common.tree, &r->linkage);
+	(void)proc_lockClear(&unix_common.lock);
 
 	return r;
 }
@@ -227,10 +233,13 @@ static unixsock_t *unixsock_get(unsigned id)
 
 	t.id = id;
 
-	proc_lockSet(&unix_common.lock);
-	if ((r = lib_treeof(unixsock_t, linkage, lib_rbFind(&unix_common.tree, &t.linkage))) != NULL)
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&unix_common.lock);
+	if ((r = lib_treeof(unixsock_t, linkage, lib_rbFind(&unix_common.tree, &t.linkage))) != NULL) {
 		r->refs++;
-	proc_lockClear(&unix_common.lock);
+	}
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockClear(&unix_common.lock);
 
 	return r;
 }
@@ -240,9 +249,10 @@ static unixsock_t *unixsock_get_remote(unixsock_t *s)
 {
 	unixsock_t *r;
 
-	proc_lockSet(&unix_common.lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockSet(&unix_common.lock);
 	r = s->remote;
-	if (r != NULL) {
+	if (r != NULL) { 
 		r->refs++;
 	}
 	proc_lockClear(&unix_common.lock);
@@ -284,14 +294,19 @@ static void unixsock_put(unixsock_t *s)
 			/* FIXME: handle connecting socket */
 		}
 
-		proc_lockClear(&unix_common.lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockClear(&unix_common.lock);
 
-		proc_lockDone(&s->lock);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_lockDone(&s->lock);
 		hal_spinlockDestroy(&s->spinlock);
-		if (s->buffer.data)
+		if (s->buffer.data) {
 			vm_kfree(s->buffer.data);
-		if (s->fdpacks)
-			fdpass_discard(&s->fdpacks);
+		}
+		if (s->fdpacks) {
+			/* MISRAC2012-RULE_17_7-a */
+			(void)fdpass_discard(&s->fdpacks);
+		}
 		vm_kfree(s);
 		return;
 	}
@@ -305,14 +320,16 @@ int unix_socket(int domain, unsigned type, int protocol)
 	unsigned id;
 	unsigned nonblock;
 
-	nonblock = (type & SOCK_NONBLOCK) != 0;
+	nonblock = (type & SOCK_NONBLOCK) != 0U;
 	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
-	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
+	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET) {
 		return -EPROTOTYPE;
+	}
 
-	if (protocol != PF_UNSPEC)
+	if (protocol != PF_UNSPEC) {
 		return -EPROTONOSUPPORT;
+	}
 
 	s = unixsock_alloc(&id, type, nonblock);
 	if (s == NULL) {
@@ -331,14 +348,16 @@ int unix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 	void *v[2];
 	int nonblock;
 
-	nonblock = (type & SOCK_NONBLOCK) != 0;
+	nonblock = (type & SOCK_NONBLOCK) != 0U;
 	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
-	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET)
+	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET) {
 		return -EPROTOTYPE;
+	}
 
-	if (protocol != PF_UNSPEC)
+	if (protocol != PF_UNSPEC) {
 		return -EPROTONOSUPPORT;
+	}
 
 	s[0] = unixsock_alloc(&id[0], type, nonblock);
 	if (s[0] == NULL) {
@@ -369,8 +388,9 @@ int unix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 		return -ENOMEM;
 	}
 
-	_cbuffer_init(&s[0]->buffer, v[0], s[0]->buffsz);
-	_cbuffer_init(&s[1]->buffer, v[1], s[1]->buffsz);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)_cbuffer_init(&s[0]->buffer, v[0], s[0]->buffsz);
+	(void)_cbuffer_init(&s[1]->buffer, v[1], s[1]->buffsz);
 
 	s[0]->remote = s[1];
 	s[1]->remote = s[0];
@@ -399,10 +419,11 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 	spinlock_ctx_t sc;
 	int nonblock;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
-	nonblock = (flags & SOCK_NONBLOCK) != 0;
+	nonblock = (flags & SOCK_NONBLOCK) != 0U;
 
 	do {
 		if (s->type != SOCK_STREAM && s->type != SOCK_SEQPACKET) {
@@ -410,7 +431,7 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		if ((s->state & US_LISTENING) == 0) {
+		if ((s->state & US_LISTENING) == 0U) {
 			err = -EINVAL;
 			break;
 		}
@@ -433,17 +454,20 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		_cbuffer_init(&new->buffer, v, new->buffsz);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)_cbuffer_init(&new->buffer, v, new->buffsz);
 
 		hal_spinlockSet(&s->spinlock, &sc);
 		s->state |= US_ACCEPTING;
 
-		while (s->connecting == NULL) {
-			proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+		while (s->connecting == NULL) { {
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 		}
 		r = s->connecting;
-
+		}
 		LIST_REMOVE(&s->connecting, r);
+
 		s->state &= ~US_ACCEPTING;
 		hal_spinlockClear(&s->spinlock, &sc);
 
@@ -455,7 +479,8 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 		r->remote = new;
 		new->remote = r;
 
-		proc_threadWakeup(&r->queue);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)proc_threadWakeup(&r->queue);
 		hal_spinlockClear(&r->spinlock, &sc);
 
 		err = new->id;
@@ -574,8 +599,9 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 	void *v;
 	spinlock_ctx_t sc;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
 		if ((s->state & US_LISTENING) != 0) {
@@ -583,12 +609,12 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
-		if ((s->state & US_CONNECTING) != 0) {
+		if ((s->state & US_CONNECTING) != 0U) {
 			err = -EALREADY;
 			break;
 		}
 
-		if (s->remote != NULL || (s->state & US_PEER_CLOSED) != 0) {
+		if (s->remote != NULL || (s->state & US_PEER_CLOSED) != 0U) {
 			err = -EISCONN;
 			break;
 		}
@@ -641,7 +667,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 				break;
 			}
 
-			if ((r->state & US_LISTENING) == 0) {
+			if ((r->state & US_LISTENING) == 0U) {
 				err = -ECONNREFUSED;
 				break;
 			}
@@ -663,7 +689,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			hal_spinlockSet(&s->spinlock, &sc);
 			s->state |= US_CONNECTING;
 
-			if (s->nonblock != 0 && s->remote == NULL) {
+			if (s->nonblock != 0U && s->remote == NULL) {
 				hal_spinlockClear(&s->spinlock, &sc);
 				err = -EINPROGRESS;
 				break;
@@ -703,9 +729,9 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 	unixsock_t *s;
 	int err = EOK;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
-
+	}
 	do {
 		if (level != SOL_SOCKET) {
 			err = -EINVAL;
@@ -749,7 +775,7 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 	spinlock_ctx_t sc;
 	unsigned peek;
 
-	peek = (flags & MSG_PEEK) != 0;
+	peek = (flags & MSG_PEEK) != 0U;
 
 	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
@@ -775,17 +801,20 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 				/* TODO: handle MSG_PEEK */
-				_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
-				_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
+				/* MISRAC2012-RULE_17_7-a */
+				(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
+				(void)_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
 
 				if (len < rlen) {
-					_cbuffer_discard(&s->buffer, rlen - len);
+					/* MISRAC2012-RULE_17_7-a */
+					(void)_cbuffer_discard(&s->buffer, rlen - len);
 				}
 			}
 			/* TODO: peek control data */
 			if (peek == 0) {
 				if (err > 0 && control != NULL && controllen != NULL && *controllen > 0) {
-					fdpass_unpack(&s->fdpacks, control, controllen);
+					/* MISRAC2012-RULE_17_7-a */
+					(void)fdpass_unpack(&s->fdpacks, control, controllen);
 				}
 			}
 			proc_lockClear(&s->lock);
@@ -793,7 +822,8 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 			if (err > 0) {
 				if (peek == 0) {
 					hal_spinlockSet(&s->spinlock, &sc);
-					proc_threadWakeup(&s->writeq);
+					/* MISRAC2012-RULE_17_7-a */
+					(void)proc_threadWakeup(&s->writeq);
 					hal_spinlockClear(&s->spinlock, &sc);
 				}
 				break;
@@ -808,7 +838,8 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 			}
 
 			hal_spinlockSet(&s->spinlock, &sc);
-			proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 			hal_spinlockClear(&s->spinlock, &sc);
 		}
 	} while (0);
@@ -885,7 +916,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 			}
 
 			if (s->state & US_PEER_CLOSED) {
-				posix_tkill(process_getPid(proc_current()->process), 0, SIGPIPE);
+				(void)posix_tkill(process_getPid(proc_current()->process), 0, SIGPIPE);
 				err = -EPIPE;
 				break;
 			}
@@ -899,30 +930,36 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 
 		err = 0;
 
-		if (len > 0) {
+		if (len > 0U) {
 			for (;;) {
-				proc_lockSet(&r->lock);
+				/* MISRAC2012-RULE_17_7-a */
+				(void)proc_lockSet(&r->lock);
 				if (s->type == SOCK_STREAM) {
 					err = _cbuffer_write(&r->buffer, buf, len);
 				}
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-					_cbuffer_write(&r->buffer, &len, sizeof(len));
-					_cbuffer_write(&r->buffer, buf, err = len);
+					/* MISRAC2012-RULE_17_7-a */
+					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
+					(void)_cbuffer_write(&r->buffer, buf, err = len);
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
-					proc_lockClear(&r->lock);
+					/* MISRAC2012-RULE_17_7-a */
+					(void)proc_lockClear(&r->lock);
 					break;
 				}
 
 				if (err > 0 && fdpack != NULL) {
 					LIST_ADD(&r->fdpacks, fdpack);
 				}
-				proc_lockClear(&r->lock);
+
+				/* MISRAC2012-RULE_17_7-a */
+				(void)proc_lockClear(&r->lock);
 
 				if (err > 0) {
 					hal_spinlockSet(&r->spinlock, &sc);
-					proc_threadWakeup(&r->queue);
+					/* MISRAC2012-RULE_17_7-a */
+					(void)proc_threadWakeup(&r->queue);
 					hal_spinlockClear(&r->spinlock, &sc);
 
 					break;
@@ -933,7 +970,8 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 				}
 
 				hal_spinlockSet(&r->spinlock, &sc);
-				proc_threadWait(&r->writeq, &r->spinlock, 0, &sc);
+				/* MISRAC2012-RULE_17_7-a */
+				(void)proc_threadWait(&r->writeq, &r->spinlock, 0, &sc);
 				hal_spinlockClear(&r->spinlock, &sc);
 			}
 		}
@@ -1011,9 +1049,9 @@ ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, unsigned flags)
 	err = send(socket, buf, len, flags, msg->msg_name, msg->msg_namelen, fdpack);
 
 	/* file descriptors are passed only when some bytes have been sent */
-	if (fdpack != NULL && err <= 0)
-		fdpass_discard(&fdpack);
-
+	if (fdpack != NULL && err <= 0) {
+		(void)fdpass_discard(&fdpack);
+	}
 	return err;
 }
 
@@ -1023,8 +1061,9 @@ int unix_shutdown(unsigned socket, int how)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	unixsock_put(s);
 	unixsock_put(s);
@@ -1046,17 +1085,20 @@ static int unix_bufferSetSize(unixsock_t *s, int sz)
 	if (s->buffer.data != NULL) {
 		v[0] = vm_kmalloc(sz);
 		if (v[0] == NULL) {
-			proc_lockClear(&s->lock);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_lockClear(&s->lock);
 			return -ENOMEM;
 		}
 
 		v[1] = s->buffer.data;
-		_cbuffer_init(&s->buffer, v[0], sz);
+		/* MISRAC2012-RULE_17_7-a */
+		(void)_cbuffer_init(&s->buffer, v[0], sz);
 	}
 
 	s->buffsz = sz;
 
-	proc_lockClear(&s->lock);
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockClear(&s->lock);
 
 	if (v[1] != NULL) {
 		vm_kfree(v[1]);
@@ -1070,8 +1112,9 @@ int unix_setsockopt(unsigned socket, int level, int optname, const void *optval,
 	unixsock_t *s;
 	int err;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
 		if (level != SOL_SOCKET) {
@@ -1104,8 +1147,9 @@ int unix_setfl(unsigned socket, unsigned flags)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	s->nonblock = (flags & O_NONBLOCK) != 0;
 
@@ -1119,8 +1163,9 @@ int unix_getfl(unsigned socket)
 	unixsock_t *s;
 	unsigned flags;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	flags = O_RDWR;
 	if (s->nonblock != 0) {
@@ -1143,8 +1188,9 @@ int unix_close(unsigned socket)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	unixsock_put(s);
 	unixsock_put(s);
@@ -1162,17 +1208,20 @@ int unix_poll(unsigned socket, unsigned short events)
 	}
 	else {
 		if (events & (POLLIN | POLLRDNORM | POLLRDBAND)) {
-			proc_lockSet(&s->lock);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_lockSet(&s->lock);
 			if (_cbuffer_avail(&s->buffer) > 0 || (s->connecting != NULL && (s->state & US_LISTENING) != 0)) {
 				err |= events & (POLLIN | POLLRDNORM | POLLRDBAND);
 			}
-			proc_lockClear(&s->lock);
+			/* MISRAC2012-RULE_17_7-a */
+			(void)proc_lockClear(&s->lock);
 		}
 
 		if (events & (POLLOUT | POLLWRNORM | POLLWRBAND)) {
 			r = unixsock_get_remote(s);
 			if (r != NULL) {
-				proc_lockSet(&r->lock);
+				/* MISRAC2012-RULE_17_7-a */
+				(void)proc_lockSet(&r->lock);
 				if (r->type == SOCK_STREAM) {
 					if (_cbuffer_free(&r->buffer) > 0) {
 						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
@@ -1183,7 +1232,8 @@ int unix_poll(unsigned socket, unsigned short events)
 						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
-				proc_lockClear(&r->lock);
+				/* MISRAC2012-RULE_17_7-a */
+				(void)proc_lockClear(&r->lock);
 				unixsock_put(r);
 			}
 			else {
@@ -1201,5 +1251,6 @@ int unix_poll(unsigned socket, unsigned short events)
 void unix_sockets_init(void)
 {
 	lib_rbInit(&unix_common.tree, unixsock_cmp, unixsock_augment);
-	proc_lockInit(&unix_common.lock, &proc_lockAttrDefault, "unix.common");
+	/* MISRAC2012-RULE_17_7-a */
+	(void)proc_lockInit(&unix_common.lock, &proc_lockAttrDefault, "unix.common");
 }
