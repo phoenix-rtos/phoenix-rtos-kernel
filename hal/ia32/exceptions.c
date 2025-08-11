@@ -188,7 +188,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 {
-	char buff[512];
+	char buff[SIZE_CTXDUMP];
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
