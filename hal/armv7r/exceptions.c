@@ -123,16 +123,23 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	void *interrupted = proc_cpuTimeIntrEnter(&ctx->cpuCtx);
+	excHandlerFn_t handler = NULL;
 
 	if (n == (unsigned int)exc_prefetch || n == (unsigned int)exc_abort) {
-		exceptions.abortHandler(n, ctx);
+		handler = exceptions.abortHandler;
 	}
 	else if (n == (unsigned int)exc_undef) {
-		exceptions.undefHandler(n, ctx);
+		handler = exceptions.undefHandler;
 	}
 	else {
-		exceptions.defaultHandler(n, ctx);
+		/* No action required */
 	}
+
+	/* Exceptions without a specific handler go to the default one (EXC_DEFAULT) */
+	if (handler == NULL) {
+		handler = exceptions.defaultHandler;
+	}
+	handler(n, ctx);
 
 	/* Handle signals if necessary */
 	if (hal_cpuSupervisorMode(&ctx->cpuCtx) == 0) {
@@ -235,7 +242,7 @@ void _hal_exceptionsInit(void)
 {
 	hal_spinlockCreate(&exceptions.lock, "exceptions.lock");
 
-	exceptions.undefHandler = exceptions_defaultHandler;
-	exceptions.abortHandler = exceptions_defaultHandler;
+	exceptions.undefHandler = NULL;
+	exceptions.abortHandler = NULL;
 	exceptions.defaultHandler = exceptions_defaultHandler;
 }
