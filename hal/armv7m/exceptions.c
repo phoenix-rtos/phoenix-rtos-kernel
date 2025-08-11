@@ -21,7 +21,7 @@
 #include "hal/string.h"
 #include "config.h"
 
-#define SIZE_FPUCTX (16 * sizeof(u32))
+#define SIZE_FPUCTX (18 * sizeof(u32))
 
 static struct {
 	void (*handler)(unsigned int, exc_context_t *);
