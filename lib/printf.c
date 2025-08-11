@@ -21,13 +21,13 @@
 #include "log/log.h"
 
 /* Flags used for printing */
-#define FLAG_SIGNED        0x1UL
-#define FLAG_64BIT         0x2UL
-#define FLAG_SPACE         0x10UL
-#define FLAG_ZERO          0x20UL
-#define FLAG_PLUS          0x40UL
-#define FLAG_HEX           0x80UL
-#define FLAG_LARGE_DIGITS  0x100UL
+#define FLAG_SIGNED       0x1UL
+#define FLAG_64BIT        0x2UL
+#define FLAG_SPACE        0x10UL
+#define FLAG_ZERO         0x20UL
+#define FLAG_PLUS         0x40UL
+#define FLAG_HEX          0x80UL
+#define FLAG_LARGE_DIGITS 0x100UL
 
 
 static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_len)
@@ -53,7 +53,7 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 			num32 = -(s32)num32;
 			sign = '-';
 		}
- 
+
 		if (sign == 0) {
 			if ((flags & FLAG_SPACE) != 0) {
 				sign = ' ';
@@ -93,7 +93,7 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 		}
 	}
 	else {
-		if ((flags & FLAG_64BIT) != 0) { // TODO: optimize
+		if ((flags & FLAG_64BIT) != 0) {  // TODO: optimize
 			while (num64 != 0) {
 				*tmp++ = digits[num64 % 10];
 				num64 /= 10;
@@ -144,13 +144,14 @@ void lib_putch(char s)
 	c[0] = s;
 	c[1] = '\0';
 
-	log_write(c, 1);
+	/* MISRA Rule 17.7: Unused return value, (void) added */
+	(void)log_write(c, 1);
 }
 
 
 int lib_vsprintf(char *out, const char *format, va_list args)
 {
-	char * const out_start = out;
+	char *const out_start = out;
 	out[0] = '\0';
 
 	for (;;) {
@@ -226,7 +227,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			if (fmt == 0) {
 				goto bad_format;
 			}
-			if (sizeof(void *) == sizeof(u64)) { // FIXME "size_t" is undefined?
+			if (sizeof(void *) == sizeof(u64)) {  // FIXME "size_t" is undefined?
 				flags |= FLAG_64BIT;
 			}
 		}
@@ -234,8 +235,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		u64 number = 0;
 
 		switch (fmt) {
-			case 's':
-			{
+			case 's': {
 				const char *s = va_arg(args, char *);
 				if (s == NULL) {
 					s = "(null)";
@@ -243,15 +243,12 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				const unsigned int s_len = hal_strlen(s);
 				hal_memcpy(out, s, s_len);
 				out += s_len;
-			}
-			break;
+			} break;
 
-			case 'c':
-			{
-				const char c = (char) va_arg(args,int);
+			case 'c': {
+				const char c = (char)va_arg(args, int);
 				*out++ = c;
-			}
-			break;
+			} break;
 
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
@@ -263,9 +260,8 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				flags |= FLAG_SIGNED;
 			case 'u':
 				goto get_number;
-			case 'p':
-			{
-				const void *s = va_arg(args,void*);
+			case 'p': {
+				const void *s = va_arg(args, void *);
 				if (s == NULL) {
 					*out++ = '(';
 					*out++ = 'n';
@@ -281,20 +277,19 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				}
 				min_number_len = sizeof(void *) * 2;
 				goto handle_number;
-			}
-			break;
+			} break;
 
 			case '%':
 				*out++ = '%';
-			break;
+				break;
 			default:
 				*out++ = '%';
 				*out++ = fmt;
-			break;
+				break;
 		}
 		continue;
 
-get_number:;
+	get_number:;
 		if (flags & FLAG_64BIT) {
 			number = va_arg(args, u64);
 		}
@@ -302,7 +297,7 @@ get_number:;
 			number = va_arg(args, u32);
 		}
 
-handle_number:;
+	handle_number:;
 		out = printf_sprintf_int(out, number, flags, min_number_len);
 		continue;
 	}
@@ -326,13 +321,15 @@ int lib_vprintf(const char *format, va_list ap)
 	char *sptr, *eptr;
 
 	s = CONSOLE_CYAN;
-	while (*s)
+	while (*s) {
 		lib_putch(*(s++));
+	}
 
 	for (;;) {
 		fmt = *format++;
-		if (fmt == '\0')
+		if (fmt == '\0') {
 			goto end;
+		}
 
 		if (fmt != '%') {
 			lib_putch(fmt);
@@ -457,7 +454,7 @@ int lib_vprintf(const char *format, va_list ap)
 				goto get_number;
 
 			case 'p': {
-				const void *s = va_arg(ap,void*);
+				const void *s = va_arg(ap, void *);
 				if (s == NULL) {
 					lib_putch('(');
 					lib_putch('n');
@@ -495,7 +492,7 @@ int lib_vprintf(const char *format, va_list ap)
 
 		continue;
 
-get_number:;
+	get_number:;
 
 		if (flags & FLAG_64BIT) {
 			number = va_arg(ap, u64);
@@ -504,7 +501,7 @@ get_number:;
 			number = va_arg(ap, u32);
 		}
 
-handle_number:;
+	handle_number:;
 		eptr = printf_sprintf_int(buff, number, flags, min_number_len);
 		sptr = buff;
 
@@ -521,7 +518,7 @@ end:
 	while (*s != 0) {
 		lib_putch(*(s++));
 	}
-	
+
 	return i;
 }
 
