@@ -19,6 +19,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "include/mman.h"
+#include "proc/threads.h"
 
 
 #define EXC_ASYNC_EXTERNAL      0x16
@@ -110,9 +111,8 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 	hal_cpuReboot();
 #endif
 
-	for (;;) {
-		hal_cpuHalt();
-	}
+	proc_crash(proc_current());
+	proc_threadEnd();
 }
 
 

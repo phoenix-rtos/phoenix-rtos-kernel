@@ -20,6 +20,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "config.h"
+#include "proc/threads.h"
 
 #define SIZE_FPUCTX (18 * sizeof(u32))
 
@@ -114,9 +115,10 @@ __attribute__((noreturn)) static void exceptions_fatal(unsigned int n, exc_conte
 	hal_cpuReboot();
 #endif
 
-	for (;;) {
-		hal_cpuHalt();
-	}
+	proc_crash(proc_current());
+	proc_threadEnd();
+
+	__builtin_unreachable();
 }
 
 

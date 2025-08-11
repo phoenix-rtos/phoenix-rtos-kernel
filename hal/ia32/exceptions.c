@@ -23,6 +23,7 @@
 
 #include "include/mman.h"
 #include "include/errno.h"
+#include "proc/threads.h"
 
 
 /* Exception stubs */
@@ -196,11 +197,8 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 	hal_cpuReboot();
 #endif
 
-	for (;;) {
-		hal_cpuHalt();
-	}
-
-	return;
+	proc_crash(proc_current());
+	proc_threadEnd();
 }
 
 

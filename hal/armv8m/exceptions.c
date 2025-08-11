@@ -18,6 +18,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "config.h"
+#include "proc/threads.h"
 
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
@@ -94,9 +95,8 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 	hal_cpuReboot();
 #endif
 
-	for (;;) {
-		hal_cpuHalt();
-	}
+	proc_crash(proc_current());
+	proc_threadEnd();
 }
 
 
