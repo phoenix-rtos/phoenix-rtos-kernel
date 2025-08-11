@@ -61,9 +61,10 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 
 	n &= 0x7U;
 
-	hal_strcpy(buff, "\nException: ");
-	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
-	hal_strcpy(buff += hal_strlen(buff), "\n");
+	/* MISRA Rule 17.7: Unused returned value by function hal_strcpy, added (void) in lines 65, 66, 67*/
+	(void)hal_strcpy(buff, "\nException: ");
+	(void)hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
+	(void)hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
 	i += hal_i2s(" r0=", &buff[i], ctx->cpuCtx.r0, 16, 1U);
@@ -197,7 +198,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 			status != EXC_TRANSLATION_PAGE && status != EXC_TRANSLATION_SECTION) {
 		return NULL;
 	}
-	
+
 	return addr;
 }
 

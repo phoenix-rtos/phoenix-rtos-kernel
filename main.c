@@ -47,11 +47,13 @@ void main_initthr(void *unused)
 	_hal_start();
 	_usrv_start();
 
-	lib_printf("main: Starting syspage programs:");
+	/* MISRA Rule 17.7: Unused returned value, (void) added*/
+	(void)lib_printf("main: Starting syspage programs:");
 	syspage_progShow();
 
 	posix_init();
-	posix_clone(-1);
+	/* MISRA Rule 17.7: Unused returned value, (void) added*/
+	(void)posix_clone(-1);
 
 	/* Start programs from syspage */
 	if ((prog = syspage_progList()) != NULL) {
@@ -82,7 +84,8 @@ void main_initthr(void *unused)
 			argv[argc++] = NULL;
 
 			if ((res = proc_syspageSpawn(prog, vm_getSharedMap(prog->imaps[0]), vm_getSharedMap(prog->dmaps[0]), argv[0], argv)) < 0)
-				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
+				/* MISRA Rule 17.7: Unused returned value, (void) added*/
+				(void)lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 		} while ((prog = prog->next) != syspage_progList());
 	}
 
@@ -101,13 +104,15 @@ int main(void)
 	_usrv_init();
 
 	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v. " RELEASE " rev. " VERSION "\n");
-	lib_printf("hal: %s\n", hal_cpuInfo(s));
-	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
-	lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
-	lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
+	/* MISRA Rule 17.7: Unused returned value by function lib_printf, (void) added in lines 108-111*/
+	(void)lib_printf("hal: %s\n", hal_cpuInfo(s));
+	(void)lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
+	(void)lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
+	(void)lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
-	_proc_init(&main_common.kmap, &main_common.kernel);
+	/* MISRA Rule 17.7: Unused returned value, (void) added*/
+	(void)_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
 
 #if 0 /* Basic kernel tests */
@@ -120,11 +125,13 @@ int main(void)
 	test_proc_exit();
 #endif
 
-	proc_start(main_initthr, NULL, (const char *)"init");
+	/* MISRA Rule 17.7: Unused returned value, (void) added*/
+	(void)proc_start(main_initthr, NULL, (const char *)"init");
 
 	/* Start scheduling, leave current stack */
 	hal_cpuEnableInterrupts();
-	hal_cpuReschedule(NULL, NULL);
+	/* MISRA Rule 17.7: Unused returned value, (void) added*/
+	(void)hal_cpuReschedule(NULL, NULL);
 
 	return 0;
 }

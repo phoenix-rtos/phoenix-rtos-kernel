@@ -42,12 +42,15 @@ void _vm_init(vm_map_t *kmap, vm_object_t *kernel)
 	_pmap_init(&kmap->pmap, &vm.bss, &vm.top);
 	_page_init(&kmap->pmap, &vm.bss, &vm.top);
 
-	_map_init(kmap, kernel, &vm.bss, &vm.top);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)_map_init(kmap, kernel, &vm.bss, &vm.top);
 
 	_zone_init(kmap, kernel, &vm.bss, &vm.top);
-	_kmalloc_init();
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)_kmalloc_init();
 
-	_object_init(kmap, kernel);
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)_object_init(kmap, kernel);
 	_amap_init(kmap, kernel);
 
 	return;

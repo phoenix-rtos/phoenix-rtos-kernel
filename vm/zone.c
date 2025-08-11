@@ -52,7 +52,7 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 	for (i = 0; i < blocks; i++) {
 		*((void **)(zone->vaddr + i * blocksz)) = zone->vaddr + (i + 1) * blocksz;
 	}
-	*((void **)(zone->vaddr + (blocks - 1)  * blocksz)) = NULL;
+	*((void **)(zone->vaddr + (blocks - 1) * blocksz)) = NULL;
 
 	zone->first = zone->vaddr;
 	zone->blocks = blocks;
@@ -72,8 +72,9 @@ int _vm_zoneDestroy(vm_zone_t *zone)
 	if (zone->used) {
 		return -EBUSY;
 	}
-	
-	vm_munmap(zone_common.kmap, zone->vaddr, 0x1U << zone->pages->idx);
+
+	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	(void)vm_munmap(zone_common.kmap, zone->vaddr, 0x1U << zone->pages->idx);
 	vm_pageFree(zone->pages);
 
 	zone->vaddr = NULL;

@@ -115,7 +115,8 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	}
 
 	if (reschedule) {
-		threads_schedule(n, ctx, NULL);
+		/* MISRA Rule 17.7: Unused returned value, added (void)*/
+		(void)threads_schedule(n, ctx, NULL);
 	}
 
 	*(interrupts_common.gicc + gicc_eoir) = ciarValue;
@@ -206,7 +207,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using GIC interrupt controller", len);
+	/* MISRA Rule 17.7: Unused returned value, added (void)*/
+	(void)hal_strncpy(features, "Using GIC interrupt controller", len);
 	features[len - 1] = 0;
 
 	return features;

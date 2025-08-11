@@ -146,18 +146,19 @@ char *hal_cpuInfo(char *info)
 	size_t n = 0;
 	u32 midr;
 
-	hal_strcpy(info, HAL_NAME_PLATFORM);
+	/* MISRA Rule 17.7: Unused returned value by hal_strcpy function, (void) added in lines 151, 156, 161*/
+	(void)hal_strcpy(info, HAL_NAME_PLATFORM);
 	n = sizeof(HAL_NAME_PLATFORM) - 1;
 
 	midr = hal_cpuGetMIDR();
 
 	if (((midr >> 16) & 0xfU) == 0xfU) {
-		hal_strcpy(&info[n], "ARMv7 ");
+		(void)hal_strcpy(&info[n], "ARMv7 ");
 		n += 6;
 	}
 
 	if (((midr >> 4) & 0xfffUL) == 0xc15UL) {
-		hal_strcpy(&info[n], "Cortex-R5 ");
+		(void)hal_strcpy(&info[n], "Cortex-R5 ");
 		n += hal_strlen("Cortex-R5 ");
 	}
 
@@ -185,43 +186,45 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 		return features;
 	}
 
+	/* MISRA Rule 17.7: Unused returned value by hal_strcpy function, (void) added in lines 192, 197, 202, 207, 212, 217, 222, 227*/
+
 	if (((pfr0 >> 12) & 0xfUL) != 0U && len - n > 9U) {
-		hal_strcpy(&features[n], "ThumbEE, ");
+		(void)hal_strcpy(&features[n], "ThumbEE, ");
 		n += 9U;
 	}
 
 	if (((pfr0 >> 8) & 0xfUL) != 0U && len - n > 9U) {
-		hal_strcpy(&features[n], "Jazelle, ");
+		(void)hal_strcpy(&features[n], "Jazelle, ");
 		n += 9U;
 	}
 
 	if (((pfr0 >> 4) & 0xfUL) != 0U && len - n > 7U) {
-		hal_strcpy(&features[n], "Thumb, ");
+		(void)hal_strcpy(&features[n], "Thumb, ");
 		n += 7U;
 	}
 
 	if ((pfr0 & 0xfUL) != 0U && len - n > 5U) {
-		hal_strcpy(&features[n], "ARM, ");
+		(void)hal_strcpy(&features[n], "ARM, ");
 		n += 5U;
 	}
 
 	if (((pfr1 >> 16) & 0xfUL) != 0U && len - n > 15U) {
-		hal_strcpy(&features[n], "Generic Timer, ");
+		(void)hal_strcpy(&features[n], "Generic Timer, ");
 		n += 15U;
 	}
 
 	if (((pfr1 >> 12) & 0xfUL) != 0U && len - n > 16U) {
-		hal_strcpy(&features[n], "Virtualization, ");
+		(void)hal_strcpy(&features[n], "Virtualization, ");
 		n += 16U;
 	}
 
 	if (((pfr1 >> 8) & 0xfUL) != 0U && len - n > 5U) {
-		hal_strcpy(&features[n], "MCU, ");
+		(void)hal_strcpy(&features[n], "MCU, ");
 		n += 5U;
 	}
 
 	if (((pfr1 >> 4) & 0xfUL) != 0U && len - n > 10U) {
-		hal_strcpy(&features[n], "Security, ");
+		(void)hal_strcpy(&features[n], "Security, ");
 		n += 10U;
 	}
 
