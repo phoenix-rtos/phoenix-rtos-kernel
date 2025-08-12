@@ -124,5 +124,7 @@
 	ID(sys_mprotect) \
 	\
 	ID(sys_statvfs) \
-	ID(sys_uname)
+	ID(sys_uname) \
+	\
+	ID(getThreadCpuTime)
 /* clang-format on */
