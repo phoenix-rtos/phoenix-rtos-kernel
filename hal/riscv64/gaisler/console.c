@@ -28,6 +28,12 @@
 /* UART status bits */
 #define TX_FIFO_FULL (1 << 9)
 
+#define HAL_CONCAT_(a, b) a##b
+#define HAL_CONCAT(a, b)  HAL_CONCAT_(a, b)
+
+/* Console config */
+#define UART_CONSOLE_BASE HAL_CONCAT(UART, HAL_CONCAT(UART_CONSOLE_KERNEL, _BASE))
+
 
 enum {
 	uart_data = 0, /* Data register           : 0x00 */
@@ -86,7 +92,7 @@ void hal_consolePrint(int attr, const char *s)
 
 void _hal_consoleInit(void)
 {
-	halconsole_common.uart = _pmap_halMapDevice(PAGE_ALIGN(UART0_BASE), PAGE_OFFS(UART0_BASE), SIZE_PAGE);
+	halconsole_common.uart = _pmap_halMapDevice(PAGE_ALIGN(UART_CONSOLE_BASE), PAGE_OFFS(UART_CONSOLE_BASE), SIZE_PAGE);
 	*(halconsole_common.uart + uart_ctrl) = 0;
 
 	/* Clear UART FIFO */
