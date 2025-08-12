@@ -192,12 +192,23 @@ _syscallend:
 
 _exceptions_dispatch:
 	cpsid if
+	isb
 
-	mrs r0, psp
-	stmdb sp!, {r0, r4-r11, lr}
+	/* if we came from userspace, align to match whole cpu_context_t, as hw-saved regs are on user stack */
+	tst lr, #(1 << 2)
+	it ne
+	subne sp, sp, #((8 + 18) * 4) /* space corresponding to hw-saved ctx */
+
+	vstmdb sp!, {s16-s31}
+	mov r0, sp
+	str r0, [sp, #-8]!
 
 	mrs r0, ipsr
-	mov r1, sp
+	mrs r3, psp
+	sub r1, sp, #48
+	ldr r2, =0xe000ef38
+	ldr r2, [r2]
+	stmdb sp!, {r1-r11, lr}
 
 	b exceptions_dispatch
 .size _exceptions_dispatch, .-_exceptions_dispatch
