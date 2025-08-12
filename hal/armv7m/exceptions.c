@@ -21,7 +21,7 @@
 #include "hal/string.h"
 #include "config.h"
 
-#define SIZE_FPUCTX (16 * sizeof(u32))
+#define SIZE_FPUCTX (18 * sizeof(u32))
 
 static struct {
 	void (*handler)(unsigned int, exc_context_t *);
@@ -40,24 +40,19 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 		"12 #Debug",      "13 #",        "14 #PendSV",    "15 #SysTick"
 	};
 	size_t i = 0;
-	u32 msp = (u32)ctx + sizeof(*ctx);
 	u32 psp = ctx->psp;
 	cpu_hwContext_t *hwctx;
 
 	/* If we came from userspace HW ctx in on psp stack */
-	if (ctx->excret == RET_THREAD_PSP) {
+	if (ctx->irq_ret == RET_THREAD_PSP) {
 		hwctx = (void *)ctx->psp;
-		msp -= sizeof(cpu_hwContext_t);
 		psp += sizeof(cpu_hwContext_t);
 #ifdef CPU_IMXRT /* FIXME - check if FPU was enabled instead */
 		psp += SIZE_FPUCTX;
 #endif
 	}
 	else {
-		hwctx = &ctx->mspctx;
-#ifdef CPU_IMXRT
-		msp += SIZE_FPUCTX;
-#endif
+		hwctx = &ctx->hwctx;
 	}
 
 	n &= 0xf;
@@ -88,8 +83,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s("  pc=", &buff[i], hwctx->pc, 16, 1);
 
 	i += hal_i2s("\npsp=", &buff[i], psp, 16, 1);
-	i += hal_i2s(" msp=", &buff[i], msp, 16, 1);
-	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
+	i += hal_i2s(" msp=", &buff[i], ctx->msp, 16, 1);
+	i += hal_i2s(" exr=", &buff[i], ctx->irq_ret, 16, 1);
 	i += hal_i2s(" bfa=", &buff[i], *(u32 *)0xe000ed38, 16, 1);
 
 	i += hal_i2s("\ncfs=", &buff[i], *(u32 *)0xe000ed28, 16, 1);
@@ -123,7 +118,7 @@ __attribute__((noreturn)) static void exceptions_fatal(unsigned int n, exc_conte
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	if ((hal_exception_common.handler != NULL) &&
-			((ctx->excret & (1 << 2)) != 0)) {
+			((ctx->irq_ret & (1 << 2)) != 0)) {
 
 		/* Need to enter the kernel by returning to the
 		 * thread mode. Otherwise we won't be able to
@@ -142,11 +137,11 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
 	cpu_hwContext_t *hwctx;
 
-	if (ctx->excret == RET_THREAD_PSP) {
+	if (ctx->irq_ret == RET_THREAD_PSP) {
 		hwctx = (void *)ctx->psp;
 	}
 	else {
-		hwctx = &ctx->mspctx;
+		hwctx = &ctx->hwctx;
 	}
 
 	return hwctx->pc;
