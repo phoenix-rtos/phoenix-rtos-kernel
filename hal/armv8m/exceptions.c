@@ -47,19 +47,17 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 		"12 #Debug", "13 #", "14 #PendSV", "15 #SysTick"
 	};
 	size_t i = 0;
-	u32 msp = (u32)ctx + sizeof(*ctx);
 	u32 psp = ctx->psp;
 	u32 cfsr, far;
 	cpu_hwContext_t *hwctx;
 
 	/* If we came from userspace HW ctx in on psp stack (according to EXC_RETURN) */
-	if ((ctx->excret & (1u << 2)) != 0) {
+	if ((ctx->irq_ret & (1u << 2)) != 0) {
 		hwctx = (void *)ctx->psp;
-		msp -= sizeof(cpu_hwContext_t);
 		psp += sizeof(cpu_hwContext_t);
 	}
 	else {
-		hwctx = &ctx->mspctx;
+		hwctx = &ctx->hwctx;
 	}
 
 	n &= 0xf;
@@ -90,8 +88,8 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 	i += hal_i2s("  pc=", &buff[i], hwctx->pc, 16, 1);
 
 	i += hal_i2s("\npsp=", &buff[i], psp, 16, 1);
-	i += hal_i2s(" msp=", &buff[i], msp, 16, 1);
-	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
+	i += hal_i2s(" msp=", &buff[i], ctx->msp, 16, 1);
+	i += hal_i2s(" exr=", &buff[i], ctx->irq_ret, 16, 1);
 
 	if (n == exc_BusFault) {
 		cfsr = (*CFSR >> 8) & 0xff;
@@ -143,11 +141,11 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
 	cpu_hwContext_t *hwctx;
 
-	if ((ctx->excret & (1u << 2)) != 0) {
+	if ((ctx->irq_ret & (1u << 2)) != 0) {
 		hwctx = (void *)ctx->psp;
 	}
 	else {
-		hwctx = &ctx->mspctx;
+		hwctx = &ctx->hwctx;
 	}
 
 	return hwctx->pc;
