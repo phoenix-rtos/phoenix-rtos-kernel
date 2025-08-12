@@ -178,7 +178,7 @@ extern int proc_threadBroadcast(thread_t **queue);
 extern void proc_threadBroadcastYield(thread_t **queue);
 
 
-extern int threads_getCpuTime(thread_t *t);
+extern time_t threads_getCpuTime(thread_t *t);
 
 
 extern thread_t *threads_findThread(int tid);

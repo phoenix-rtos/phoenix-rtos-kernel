@@ -2095,6 +2095,12 @@ int proc_threadsList(int n, threadinfo_t *info)
 }
 
 
+time_t threads_getCpuTime(thread_t *t)
+{
+	return t->cpuTime;
+}
+
+
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	unsigned int i;
