@@ -2222,6 +2222,12 @@ int proc_threadsOther(thread_t *t)
 }
 
 
+time_t threads_getCpuTime(thread_t *t)
+{
+	return t->cpuTime;
+}
+
+
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	unsigned int i;

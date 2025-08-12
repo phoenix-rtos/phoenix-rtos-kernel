@@ -177,6 +177,9 @@ time_t proc_uptime(void);
 void proc_gettime(time_t *raw, time_t *offs);
 
 
+extern time_t threads_getCpuTime(thread_t *t);
+
+
 int proc_settime(time_t offs);
 
 

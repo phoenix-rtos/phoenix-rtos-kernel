@@ -372,6 +372,12 @@ int syscalls_priority(u8 *ustack)
 }
 
 
+time_t syscalls_getThreadCpuTime(void *ustack)
+{
+	return threads_getCpuTime(proc_current());
+}
+
+
 /*
  * System state info
  */
