@@ -338,7 +338,7 @@ static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbss
 	}
 	process_tls->tdata_sz = tls->tdata_sz;
 	process_tls->tbss_sz = tls->tbss_sz;
-	process_tls->tls_sz = (tls->tbss_sz + tls->tdata_sz + sizeof(void *) + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
+	process_tls->tls_sz = (tls->tbss_sz + tls->tdata_sz + sizeof(void *) + sizeof(void *) - 1U) & ~(sizeof(void *) - 1U);
 	process_tls->arm_m_tls = tls->arm_m_tls;
 }
 
@@ -349,7 +349,7 @@ static int process_isPtrValid(void *mapStart, size_t mapSize, void *ptrStart, si
 	void *ptrEnd = ((char *)ptrStart) + ptrSize;
 
 	/* clang-format off */
-	return ((ptrSize == 0) ||
+	return ((ptrSize == 0U) ||
 		((ptrEnd > mapStart) && (ptrEnd <= mapEnd) &&
 		(ptrStart >= mapStart) && (ptrStart < ptrEnd))) ?
 		1 : 0;
@@ -375,7 +375,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 	/* Validate header. */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
 				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
-			(ehdr->e_shnum == 0)) {
+			(ehdr->e_shnum == 0U)) {
 		return -ENOEXEC;
 	}
 
@@ -391,9 +391,9 @@ static int process_validateElf32(void *iehdr, size_t size)
 			continue;
 		}
 
-		offs = phdr->p_offset & ~(phdr->p_align - 1);
-		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = (phdr->p_filesz != 0) ? (phdr->p_filesz + misalign) : 0;
+		offs = phdr->p_offset & ~(phdr->p_align - 1U);
+		misalign = phdr->p_offset & (phdr->p_align - 1U);
+		filesz = (phdr->p_filesz != 0U) ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;
 		if ((offs >= size) || (memsz < filesz)) {
 			return -ENOEXEC;
@@ -414,7 +414,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 		return -ENOEXEC;
 	}
 	/* Strings must end with NULL character. */
-	if ((shstrshdr->sh_size != 0) && (snameTab[shstrshdr->sh_size - 1] != '\0')) {
+	if ((shstrshdr->sh_size != 0U) && (snameTab[shstrshdr->sh_size - 1U] != '\0')) {
 		return -ENOEXEC;
 	}
 
@@ -746,7 +746,7 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 {
 	size_t i;
 
-	if ((ptr_t)(*addr) == 0) {
+	if ((ptr_t)(*addr) == 0U) {
 		return 0;
 	}
 
@@ -770,7 +770,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	Elf32_Shdr *shdr, *shstrshdr;
 	Elf32_Rela rela;
 	unsigned prot, flags, reloffs;
-	int i, j, relocsz = 0, badreloc = 0, err;
+	int relocsz = 0, badreloc = 0, err;
+	unsigned i, j;
 	void *relptr;
 	char *snameTab;
 	ptr_t *got;
@@ -792,7 +793,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 	hal_memset(reloc, 0, sizeof(reloc));
 
-	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+	for (i = 0U, j = 0U, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
 		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
 			stacksz = round_page(phdr->p_memsz);
 		}
@@ -806,11 +807,11 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		flags = MAP_NONE;
 		paddr = (char *)ehdr + phdr->p_offset;
 
-		if ((phdr->p_flags & PF_R) != 0) {
+		if ((phdr->p_flags & PF_R) != 0U) {
 			prot |= PROT_READ;
 		}
 
-		if ((phdr->p_flags & PF_X) != 0) {
+		if ((phdr->p_flags & PF_X) != 0U) {
 			prot |= PROT_EXEC;
 
 			if ((process->imapp != NULL) &&
@@ -829,7 +830,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			}
 		}
 
-		if ((phdr->p_flags & PF_W) != 0) {
+		if ((phdr->p_flags & PF_W) != 0U) {
 			prot |= PROT_WRITE;
 
 			reloffs = phdr->p_vaddr % SIZE_PAGE;
@@ -839,7 +840,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				return -ENOMEM;
 			}
 
-			if (phdr->p_filesz != 0) {
+			if (phdr->p_filesz != 0U) {
 				if ((phdr->p_offset + phdr->p_filesz) > size) {
 					return -ENOEXEC;
 				}
@@ -859,7 +860,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		reloc[j].vbase = (void *)(unsigned int *)phdr->p_vaddr;
 		reloc[j].pbase = (void *)((char *)paddr + reloffs);
 		reloc[j].size = phdr->p_memsz;
-		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1);
+		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1U);
 		++relocsz;
 		++j;
 	}
@@ -870,7 +871,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	snameTab = (char *)ehdr + shstrshdr->sh_offset;
 
 	/* Find .got section */
-	for (i = 0; i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0U; i < ehdr->e_shnum; i++, shdr++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".got") == 0) {
 			break;
 		}
@@ -888,7 +889,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	/* Perform .got relocations */
 	/* This is non classic approach to .got relocation. We use .got itselft
 	 * instead of .rel section. */
-	for (i = 0; i < shdr->sh_size / 4; ++i) {
+	for (i = 0U; i < shdr->sh_size / 4; ++i) {
 		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
 			return -ENOEXEC;
 		}
@@ -901,8 +902,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	}
 
 	/* Perform data, init_array and fini_array relocation */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
-		if ((shdr->sh_size == 0) || (shdr->sh_entsize == 0)) {
+	for (i = 0U, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+		if ((shdr->sh_size == 0U) || (shdr->sh_entsize == 0U)) {
 			continue;
 		}
 
@@ -911,7 +912,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			continue;
 		}
 
-		for (j = 0; j < (shdr->sh_size / shdr->sh_entsize); ++j) {
+		for (j = 0U; j < (shdr->sh_size / shdr->sh_entsize); ++j) {
 			/* Valid for both Elf32_Rela and Elf32_Rel, due to correct size being stored in shdr->sh_entsize. */
 			/* For .rel. section make sure not to access addend field! */
 			hal_memcpy(&rela, (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize)), shdr->sh_entsize);
@@ -950,7 +951,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	tlsNew.arm_m_tls = 0;
 
 	/* Perform .tdata, .tbss and .armtls relocations */
-	for (i = 0, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0U, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
 			tlsNew.tls_base = (ptr_t)shdr->sh_addr;
 			tlsNew.tdata_sz += shdr->sh_size;
@@ -1006,7 +1007,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 void *proc_copyargs(char **args)
 {
-	int argc, len = 0;
+	unsigned int argc, len = 0U;
 	void *storage;
 	char **kargs, *p;
 
@@ -1014,11 +1015,11 @@ void *proc_copyargs(char **args)
 		return NULL;
 	}
 
-	for (argc = 0; args[argc] != NULL; ++argc) {
-		len += hal_strlen(args[argc]) + 1;
+	for (argc = 0U; args[argc] != NULL; ++argc) {
+		len += hal_strlen(args[argc]) + 1U;
 	}
 
-	len += (argc + 1) * sizeof(char *);
+	len += (argc + 1U) * sizeof(char *);
 
 	if ((kargs = storage = vm_kmalloc(len)) == NULL) {
 		return NULL;
@@ -1026,10 +1027,10 @@ void *proc_copyargs(char **args)
 
 	kargs[argc] = NULL;
 
-	p = (char *)storage + (argc + 1) * sizeof(char *);
+	p = (char *)storage + (argc + 1U) * sizeof(char *);
 
-	while (argc-- > 0) {
-		len = hal_strlen(args[argc]) + 1;
+	while (argc-- > 0U) {
+		len = hal_strlen(args[argc]) + 1U;
 		hal_memcpy(p, args[argc], len);
 		kargs[argc] = p;
 		p += len;
@@ -1041,19 +1042,19 @@ void *proc_copyargs(char **args)
 
 static void *process_putargs(void *stack, char ***argsp, int *count)
 {
-	int argc;
+	unsigned int argc;
 	size_t len;
 	char **args_stack, **args = *argsp;
 
 	for (argc = 0; (args != NULL) && (args[argc] != NULL); ++argc) {
 	}
 
-	stack -= (argc + 1) * sizeof(char *);
+	stack -= (argc + 1U) * sizeof(char *);
 	args_stack = stack;
 	args_stack[argc] = NULL;
 
 	for (argc = 0; (args != NULL) && (args[argc] != NULL); ++argc) {
-		len = hal_strlen(args[argc]) + 1;
+		len = hal_strlen(args[argc]) + 1U;
 		stack -= SIZE_STACK_ARG(len);
 		hal_memcpy(stack, args[argc], len);
 		args_stack[argc] = stack;
@@ -1133,7 +1134,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	}
 
 	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
-	if ((err == EOK) && (current->process->tls.tls_base != 0)) {
+	if ((err == EOK) && (current->process->tls.tls_base != 0U)) {
 		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
 	}
 
@@ -1146,7 +1147,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 	hal_cpuSetGot(current->process->got);
 
-	if (current->tls.tls_base != 0) {
+	if (current->tls.tls_base != 0U) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
@@ -1414,7 +1415,7 @@ static void process_vforkThread(void *arg)
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
-	if (current->tls.tls_base != 0) {
+	if (current->tls.tls_base != 0U) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
@@ -1780,12 +1781,12 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 	dest->tls_base = (ptr_t)(unsigned int *)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
 	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
-	if (dest->tls_base != 0) {
+	if (dest->tls_base != 0U) {
 		/* MISRA Rule 11.6: Added (unsigned int *) x2 */
 		hal_memcpy((void *)(unsigned int *)dest->tls_base, (void *)(unsigned int *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
 		/* At the end of TLS there must be a pointer to itself */
-		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1) & ~(sizeof(ptr_t) - 1)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
+		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1U) & ~(sizeof(ptr_t) - 1U)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
 		err = EOK;
 	}
 	else {

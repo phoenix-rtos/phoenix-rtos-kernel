@@ -275,7 +275,7 @@ void perf_exec(process_t *p, char *path)
 {
 	perf_levent_exec_t ev;
 	time_t now;
-	int plen;
+	unsigned int plen;
 	spinlock_ctx_t sc;
 
 	if (threads_common.perfGather == 0) {
@@ -288,7 +288,7 @@ void perf_exec(process_t *p, char *path)
 	ev.tid = perf_idpack(proc_getTid(_proc_current()));
 
 	plen = hal_strlen(path);
-	plen = min(plen, sizeof(ev.path) - 1);
+	plen = min(plen, sizeof(ev.path) - 1U);
 	hal_memcpy(ev.path, path, plen);
 	ev.path[plen] = 0;
 
@@ -297,7 +297,7 @@ void perf_exec(process_t *p, char *path)
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
-	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev) - sizeof(ev.path) + plen + 1);
+	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev) - sizeof(ev.path) + plen + 1U);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -353,7 +353,7 @@ int perf_start(unsigned pid)
 	void *data;
 	spinlock_ctx_t sc;
 
-	if (pid == 0) {
+	if (pid == 0U) {
 		return -EINVAL;
 	}
 
@@ -440,7 +440,7 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 		wakeup = SYSTICK_INTERVAL;
 	}
 
-	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8) {
+	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8U) {
 		wakeup = SYSTICK_INTERVAL;
 	}
 
@@ -454,7 +454,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	time_t now;
 	spinlock_ctx_t sc;
 
-	if (hal_cpuGetID() != 0) {
+	if (hal_cpuGetID() != 0U) {
 		/* Invoke scheduler */
 		return 1;
 	}
@@ -627,7 +627,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		LIST_REMOVE(&threads_common.ready[i], selected);
 
-		if (selected->exit == 0) {
+		if (selected->exit == 0U) {
 			break;
 		}
 
@@ -672,7 +672,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		}
 
 		/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
-		if (selected->tls.tls_base != 0) {
+		if (selected->tls.tls_base != 0U) {
 			hal_cpuTlsSet(&selected->tls, selCtx);
 		}
 
@@ -750,7 +750,7 @@ static int thread_alloc(thread_t *thread)
 
 	if (id >= 0) {
 		if (threads_common.idcounter == MAX_TID) {
-			threads_common.idcounter = 0;
+			threads_common.idcounter = 0U;
 		}
 		else {
 			threads_common.idcounter++;
@@ -827,7 +827,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 		return -ENOMEM;
 	}
 
-	if (process != NULL && (process->tls.tdata_sz != 0 || process->tls.tbss_sz != 0)) {
+	if (process != NULL && (process->tls.tdata_sz != 0U || process->tls.tbss_sz != 0U)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
 			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
@@ -877,7 +877,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 
 static unsigned int _proc_lockGetPriority(lock_t *lock)
 {
-	unsigned int priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1;
+	unsigned int priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1U;
 	thread_t *thread = lock->queue;
 
 	if (thread != NULL) {
@@ -895,7 +895,7 @@ static unsigned int _proc_lockGetPriority(lock_t *lock)
 
 static unsigned int _proc_threadGetLockPriority(thread_t *thread)
 {
-	unsigned int ret, priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1;
+	unsigned int ret, priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1U;
 	lock_t *lock = thread->locks;
 
 	if (lock != NULL) {
@@ -951,7 +951,7 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 }
 
 
-int proc_threadPriority(int priority)
+int proc_threadPriority(unsigned int priority)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
@@ -970,7 +970,7 @@ int proc_threadPriority(int priority)
 	current = _proc_current();
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
-	if (priority >= 0) {
+	if (priority >= 0U) {
 		if (priority < current->priority) {
 			current->priority = priority;
 		}
@@ -986,7 +986,7 @@ int proc_threadPriority(int priority)
 		current->priorityBase = priority;
 	}
 
-	ret = current->priorityBase;
+	ret = (int)current->priorityBase;
 
 	if (reschedule != 0) {
 		/* MISRAC2012-RULE_17_7-a */
@@ -1033,7 +1033,7 @@ void proc_threadEnd(void)
 static void _proc_threadExit(thread_t *t)
 {
 	t->exit = THREAD_END;
-	if (t->interruptible) {
+	if (t->interruptible != 0U) {
 		_thread_interrupt(t);
 	}
 }
@@ -1192,7 +1192,7 @@ int proc_threadSleep(time_t us)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	/* Handle usleep(0) (yield) */
-	if (us != 0) {
+	if (us != 0U) {
 		now = _proc_gettimeRaw();
 
 		current = _proc_current();
@@ -1356,7 +1356,7 @@ int proc_join(int tid, time_t timeout)
 	ghost = process->ghosts;
 	firstGhost = process->ghosts;
 
-	abstimeout = (timeout == 0) ? 0 : now + timeout;
+	abstimeout = (timeout == 0U) ? 0U : now + timeout;
 
 	if (tid >= 0) {
 		do {
@@ -1397,7 +1397,7 @@ int proc_join(int tid, time_t timeout)
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	if ((ghost != NULL) && (ghost->tls.tls_sz != 0)) {
+	if ((ghost != NULL) && (ghost->tls.tls_sz != 0U)) {
 		/* MISRAC2012-RULE_17_7-a */
 		(void)process_tlsDestroy(&ghost->tls, process->mapp);
 	}
@@ -1540,7 +1540,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 	unsigned int sig;
 
 	sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
-	if ((sig != 0) && (proc->sighandler != NULL)) {
+	if ((sig != 0U) && (proc->sighandler != NULL)) {
 		sig = hal_cpuGetLastBit(sig);
 
 		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, oldmask, src) == 0) {
@@ -1699,7 +1699,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 	}
 
 	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->owner == current)) {
-		if ((lock->depth + 1) == 0) {
+		if ((lock->depth + 1U) == 0U) {
 			ret = -EAGAIN;
 		}
 		else {
@@ -1812,9 +1812,9 @@ static int _proc_lockUnlock(lock_t *lock)
 		}
 	}
 
-	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->depth > 0)) {
+	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->depth > 0U)) {
 		lock->depth--;
-		if (lock->depth != 0) {
+		if (lock->depth != 0U) {
 			hal_spinlockClear(&threads_common.spinlock, &sc);
 			return 0;
 		}
@@ -2088,16 +2088,20 @@ int proc_threadsList(int n, threadinfo_t *info)
 		info[i].state = t->state;
 
 		now = _proc_gettimeRaw();
-		if (now != t->startTime)
+		if (now != t->startTime) {
 			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
-		else
+		}
+		else {
 			info[i].load = 0;
+		}
 		info[i].cpuTime = t->cpuTime;
 
-		if (t->state == READY && t->maxWait < now - t->readyTime)
+		if (t->state == READY && t->maxWait < now - t->readyTime) {
 			info[i].wait = now - t->readyTime;
-		else
+		}
+		else {
 			info[i].wait = t->maxWait;
+		}
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		if (t->process != NULL) {
@@ -2109,7 +2113,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 				if (t->process->argv != NULL) {
 					for (argc = 0; t->process->argv[argc] != NULL && space > 0; ++argc) {
-						len = min(hal_strlen(t->process->argv[argc]) + 1, space);
+						len = min((int)hal_strlen(t->process->argv[argc]) + 1, space);
 						hal_memcpy(name, t->process->argv[argc], len);
 						name[len - 1] = ' ';
 						name += len;
@@ -2122,7 +2126,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 					hal_memcpy(info[i].name, t->process->path, min(space, len));
 				}
 
-				info[i].name[sizeof(info[i].name) - 1] = 0;
+				info[i].name[sizeof(info[i].name) - 1U] = 0U;
 			}
 			else {
 				info[i].name[0] = 0;
@@ -2183,7 +2187,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&threads_common.lock, &proc_lockAttrDefault, "threads.common");
 
-	for (i = 0; i < sizeof(threads_common.stackCanary); ++i) {
+	for (i = 0U; i < sizeof(threads_common.stackCanary); ++i) {
 		threads_common.stackCanary[i] = ((i & 1U) != 0) ? 0xaa : 0x55;
 	}
 
@@ -2209,7 +2213,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
 		/* MISRAC2012-RULE_17_7-a */
-		(void)proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1, SIZE_KSTACK, NULL, 0, NULL);
+		(void)proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1U, SIZE_KSTACK, NULL, 0, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */

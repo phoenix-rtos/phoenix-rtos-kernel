@@ -35,7 +35,7 @@
 #define TRACE(str, ...)
 #endif
 
-#define POLL_INTERVAL 100000
+#define POLL_INTERVAL 100000U
 
 
 typedef struct {
@@ -59,7 +59,7 @@ struct {
 	rbtree_t pid;
 	lock_t lock;
 	id_t fresh;
-	char hostname[HOST_NAME_MAX + 1];
+	char hostname[HOST_NAME_MAX + 1U];
 } posix_common;
 
 
@@ -119,7 +119,7 @@ int posix_fileDeref(open_file_t *f)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&f->lock);
 	--f->refs;
-	if (f->refs == 0) {
+	if (f->refs == 0U) {
 		if (f->type == ftUnixSocket) {
 			err = unix_close(f->oid.id);
 		}
@@ -200,13 +200,13 @@ static int _posix_allocfd(process_info_t *p, int fd)
 				nfdsz = p->maxfd;
 			}
 
-			nfds = vm_kmalloc(nfdsz * sizeof(*nfds));
+			nfds = vm_kmalloc((unsigned int)nfdsz * sizeof(*nfds));
 			if (nfds == NULL) {
 				return -1;
 			}
 
-			hal_memcpy(nfds, p->fds, p->fdsz * sizeof(*nfds));
-			hal_memset(nfds + p->fdsz, 0, (nfdsz - p->fdsz) * sizeof(*nfds));
+			hal_memcpy(nfds, p->fds, (unsigned int)p->fdsz * sizeof(*nfds));
+			hal_memset(nfds + p->fdsz, 0, (unsigned int)(nfdsz - p->fdsz) * sizeof(*nfds));
 
 			vm_kfree(p->fds);
 
@@ -292,7 +292,7 @@ int posix_truncate(oid_t *oid, off_t length)
 	msg_t msg;
 	int err = -EINVAL;
 
-	if ((oid->port != US_PORT) && (length >= 0)) {
+	if ((oid->port != US_PORT) && (length >= 0U)) {
 		hal_memset(&msg, 0, sizeof(msg));
 		msg.type = mtTruncate;
 		hal_memcpy(&msg.oid, oid, sizeof(oid_t));
@@ -348,7 +348,7 @@ int posix_clone(int ppid)
 
 	p->process = process_getPid(proc);
 
-	p->fds = vm_kmalloc(p->fdsz * sizeof(fildes_t));
+	p->fds = vm_kmalloc((unsigned int)p->fdsz * sizeof(fildes_t));
 	if (p->fds == NULL) {
 		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockDone(&p->lock);
@@ -362,7 +362,7 @@ int posix_clone(int ppid)
 	}
 
 	if (pp != NULL) {
-		hal_memcpy(p->fds, pp->fds, pp->fdsz * sizeof(fildes_t));
+		hal_memcpy(p->fds, pp->fds, (unsigned int)pp->fdsz * sizeof(fildes_t));
 
 		for (i = 0; i < p->fdsz; ++i) {
 			f = p->fds[i].file;
@@ -379,7 +379,7 @@ int posix_clone(int ppid)
 		(void)proc_lockClear(&pp->lock);
 	}
 	else {
-		hal_memset(p->fds, 0, p->fdsz * sizeof(fildes_t));
+		hal_memset(p->fds, 0, (unsigned int)p->fdsz * sizeof(fildes_t));
 
 		for (i = 0; i < 3; ++i) {
 			f = vm_kmalloc(sizeof(open_file_t));
@@ -440,7 +440,7 @@ int posix_exec(void)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	for (fd = 0; fd < p->fdsz; ++fd) {
-		if ((p->fds[fd].file != NULL) && ((p->fds[fd].flags & FD_CLOEXEC) != 0)) {
+		if ((p->fds[fd].file != NULL) && ((p->fds[fd].flags & FD_CLOEXEC) != 0U)) {
 			/* MISRAC2012-RULE_17_7-a */
 			(void)posix_fileDeref(p->fds[fd].file);
 			p->fds[fd].file = NULL;
@@ -624,7 +624,7 @@ int posix_open(const char *filename, unsigned oflag, char *ustack)
 
 		do {
 			err = proc_lookup(filename, &ln, &oid);
-			if ((err == -ENOENT) && ((oflag & O_CREAT) != 0)) {
+			if ((err == -ENOENT) && ((oflag & O_CREAT) != 0U)) {
 				GETFROMSTACK(ustack, mode_t, mode, 2);
 
 				if (posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid) < 0) {
@@ -646,7 +646,7 @@ int posix_open(const char *filename, unsigned oflag, char *ustack)
 
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockSet(&p->lock);
-			p->fds[fd].flags = (oflag & O_CLOEXEC) != 0 ? FD_CLOEXEC : 0;
+			p->fds[fd].flags = (oflag & O_CLOEXEC) != 0U ? FD_CLOEXEC : 0U;
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockClear(&p->lock);
 
@@ -674,14 +674,14 @@ int posix_open(const char *filename, unsigned oflag, char *ustack)
 				f->type = ftRegular;
 			}
 
-			if ((oflag & O_APPEND) != 0) {
+			if ((oflag & O_APPEND) != 0U) {
 				f->offset = proc_size(f->oid);
 			}
 			else {
 				f->offset = 0;
 			}
 
-			if ((oflag & O_TRUNC) != 0) {
+			if ((oflag & O_TRUNC) != 0U) {
 				/* MISRAC2012-RULE_17_7-a */
 				(void)posix_truncate(&f->oid, 0);
 			}
@@ -763,7 +763,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 		return err;
 	}
 
-	if ((f->status & O_WRONLY) != 0) {
+	if ((f->status & O_WRONLY) != 0U) {
 		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 		return -EBADF;
@@ -813,7 +813,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 		return err;
 	}
 
-	if ((f->status & O_RDONLY) != 0) {
+	if ((f->status & O_RDONLY) != 0U) {
 		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 		return -EBADF;
@@ -1321,7 +1321,7 @@ int posix_ftruncate(int fildes, off_t length)
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err >= 0) {
-		if ((f->status & O_RDONLY) == 0) {
+		if ((f->status & O_RDONLY) == 0U) {
 			err = posix_truncate(&f->oid, length);
 		}
 		else {
@@ -1729,8 +1729,8 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 
 	ioctl->request = request;
 
-	if ((request & IOC_INOUT) != 0) {
-		if ((request & IOC_IN) != 0) {
+	if ((request & IOC_INOUT) != 0U) {
+		if ((request & IOC_IN) != 0U) {
 			if (size <= (sizeof(msg->i.raw) - sizeof(ioctl_in_t))) {
 				hal_memcpy(ioctl->data, data, size);
 			}
@@ -1740,12 +1740,12 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 			}
 		}
 
-		if (((request & IOC_OUT) != 0) && (size > sizeof(msg->o.raw))) {
+		if (((request & IOC_OUT) != 0U) && (size > sizeof(msg->o.raw))) {
 			msg->o.data = data;
 			msg->o.size = size;
 		}
 	}
-	else if (size > 0) {
+	else if (size > 0U) {
 		/* the data is passed by value instead of pointer */
 		size = min(size, sizeof(void *));
 		hal_memcpy(ioctl->data, &data, size);
@@ -1761,7 +1761,7 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 		rt = (struct rtentry *)data;
 		if (rt->rt_dev != NULL) {
 			msg->o.data = rt->rt_dev;
-			msg->o.size = hal_strlen(rt->rt_dev) + 1;
+			msg->o.size = hal_strlen(rt->rt_dev) + 1U;
 		}
 	}
 }
@@ -1775,7 +1775,7 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 
 	err = msg->o.err;
 
-	if (((request & IOC_OUT) != 0) && (size <= sizeof(msg->o.raw))) {
+	if (((request & IOC_OUT) != 0U) && (size <= sizeof(msg->o.raw))) {
 		hal_memcpy(data, msg->o.raw, size);
 	}
 
@@ -1802,7 +1802,7 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 		switch (request) {
 			/* TODO: handle POSIX defined requests */
 			default:
-				if (((request & IOC_INOUT) != 0) || (IOCPARM_LEN(request) > 0)) {
+				if (((request & IOC_INOUT) != 0U) || (IOCPARM_LEN(request) > 0U)) {
 					GETFROMSTACK(ustack, void *, data, 2);
 				}
 
@@ -1871,7 +1871,7 @@ int posix_socket(int domain, unsigned type, int protocol)
 		return err;
 	}
 
-	if ((type & SOCK_CLOEXEC) != 0) {
+	if ((type & SOCK_CLOEXEC) != 0U) {
 		p->fds[fd].flags = FD_CLOEXEC;
 	}
 
@@ -1918,7 +1918,7 @@ int posix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 		p->fds[sv[0]].file->oid.id = id[0];
 		p->fds[sv[1]].file->oid.id = id[1];
 
-		if ((type & SOCK_CLOEXEC) != 0) {
+		if ((type & SOCK_CLOEXEC) != 0U) {
 			p->fds[sv[0]].flags = FD_CLOEXEC;
 			p->fds[sv[1]].flags = FD_CLOEXEC;
 		}
@@ -1986,7 +1986,7 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 		return err;
 	}
 
-	if ((flags & SOCK_CLOEXEC) != 0) {
+	if ((flags & SOCK_CLOEXEC) != 0U) {
 		p->fds[fd].flags = FD_CLOEXEC;
 	}
 
@@ -2064,16 +2064,16 @@ int posix_uname(struct utsname *name)
 	TRACE("uname()");
 
 	/* MISRAC2012-RULE_17_7-a - before all hal_strncpy */
-	(void)hal_strncpy(name->sysname, "Phoenix-RTOS", sizeof(name->sysname) - 1);
-	name->sysname[sizeof(name->sysname) - 1] = '\0';
-	(void)hal_strncpy(name->nodename, posix_common.hostname, sizeof(name->nodename) - 1);
-	name->nodename[sizeof(name->nodename) - 1] = '\0';
-	(void)hal_strncpy(name->release, RELEASE, sizeof(name->release) - 1);
-	name->release[sizeof(name->release) - 1] = '\0';
-	(void)hal_strncpy(name->version, VERSION, sizeof(name->version) - 1);
-	name->version[sizeof(name->version) - 1] = '\0';
-	(void)hal_strncpy(name->machine, TARGET_FAMILY, sizeof(name->machine) - 1);
-	name->machine[sizeof(name->machine) - 1] = '\0';
+	(void)hal_strncpy(name->sysname, "Phoenix-RTOS", sizeof(name->sysname) - 1U);
+	name->sysname[sizeof(name->sysname) - 1U] = '\0';
+	(void)hal_strncpy(name->nodename, posix_common.hostname, sizeof(name->nodename) - 1U);
+	name->nodename[sizeof(name->nodename) - 1U] = '\0';
+	(void)hal_strncpy(name->release, RELEASE, sizeof(name->release) - 1U);
+	name->release[sizeof(name->release) - 1U] = '\0';
+	(void)hal_strncpy(name->version, VERSION, sizeof(name->version) - 1U);
+	name->version[sizeof(name->version) - 1U] = '\0';
+	(void)hal_strncpy(name->machine, TARGET_FAMILY, sizeof(name->machine) - 1U);
+	name->machine[sizeof(name->machine) - 1U] = '\0';
 
 	return 0;
 }
@@ -2431,11 +2431,11 @@ int posix_futimens(int fildes, const struct timespec *times)
 }
 
 
-static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
+static unsigned int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 {
 	msg_t msg;
 	size_t ready = 0, i;
-	unsigned err;
+	int err;
 	open_file_t *f;
 
 	hal_memset(&msg, 0, sizeof(msg));
@@ -2477,12 +2477,12 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			fds[i].revents |= POLLHUP;
 		}
 		else if (err > 0) {
-			fds[i].revents |= err;
+			fds[i].revents |= (unsigned short)err;
 		}
 
 		fds[i].revents &= ~(~fds[i].events & (POLLIN | POLLOUT | POLLPRI | POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND));
 
-		if (fds[i].revents != 0) {
+		if (fds[i].revents != 0U) {
 			++ready;
 		}
 	}
@@ -2491,12 +2491,12 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 }
 
 #if 1
-int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
+int posix_poll(struct pollfd *fds, nfds_t nfds, unsigned int timeout_ms)
 {
 	size_t i, n, ready;
 	time_t timeout, now;
 
-	for (i = n = 0; i < nfds; ++i) {
+	for (i = n = 0U; i < nfds; ++i) {
 		fds[i].revents = 0;
 		if (fds[i].fd >= 0) {
 			++n;
@@ -2504,24 +2504,24 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	}
 
 	if (n == 0U) {
-		if (timeout_ms > 0) {
+		if (timeout_ms > 0U) {
 			/* MISRAC2012-RULE_17_7-a */
-			(void)proc_threadSleep(timeout_ms * 1000LL);
+			(void)proc_threadSleep(timeout_ms * 1000ULL);
 		}
 		return 0;
 	}
 
-	if (timeout_ms >= 0) {
+	if (timeout_ms >= 0U) {
 		proc_gettime(&timeout, NULL);
-		timeout += timeout_ms * 1000LL + (long long)(timeout_ms == 0);
+		timeout += timeout_ms * 1000ULL + (unsigned long long)(timeout_ms == 0U);
 	}
 	else {
-		timeout = 0;
+		timeout = 0U;
 	}
 
 	ready = do_poll_iteration(fds, nfds);
-	while (ready == 0) {
-		if (timeout != 0) {
+	while (ready == 0U) {
+		if (timeout != 0U) {
 			proc_gettime(&now, NULL);
 			if (now > timeout) {
 				break;
@@ -2867,7 +2867,7 @@ int posix_waitpid(pid_t child, int *status, unsigned options)
 			} while (c != pinfo->zombies);
 		}
 
-		if ((options & 1U) != 0) { /* WNOHANG */
+		if ((options & 1U) != 0U) { /* WNOHANG */
 			err = EOK;
 			break;
 		}

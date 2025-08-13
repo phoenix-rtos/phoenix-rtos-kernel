@@ -234,7 +234,7 @@ ssize_t inet_recvmsg(unsigned int socket, struct msghdr *msg, unsigned int flags
 
 	if (ret >= 0) {
 		/* control data is not supported */
-		if (msg->msg_controllen > 0) {
+		if (msg->msg_controllen > 0U) {
 			msg->msg_controllen = 0;
 		}
 
@@ -256,7 +256,7 @@ ssize_t inet_sendmsg(unsigned int socket, const struct msghdr *msg, unsigned int
 	}
 
 	/* control data is not supported */
-	if (msg->msg_controllen > 0) {
+	if (msg->msg_controllen > 0U) {
 		return -EINVAL;
 	}
 
@@ -284,7 +284,7 @@ int inet_socket(int domain, unsigned int type, int protocol)
 		return err;
 	}
 
-	return (msg.o.err < 0) ? msg.o.err : msg.o.lookup.dev.port;
+	return (msg.o.err < 0) ? msg.o.err : (int)msg.o.lookup.dev.port;
 }
 
 

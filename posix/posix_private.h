@@ -63,7 +63,7 @@
 #define SIG_DFL (-2)
 #define SIG_IGN (-3)
 
-#define HOST_NAME_MAX 255
+#define HOST_NAME_MAX 255U
 
 
 enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };

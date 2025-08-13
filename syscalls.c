@@ -377,9 +377,9 @@ int syscalls_nsleep(void *ustack)
 
 int syscalls_priority(void *ustack)
 {
-	int priority;
+	unsigned int priority;
 
-	GETFROMSTACK(ustack, int, priority, 0);
+	GETFROMSTACK(ustack, unsigned int, priority, 0);
 
 	return proc_threadPriority(priority);
 }
@@ -1748,11 +1748,11 @@ int syscalls_sys_poll(char *ustack)
 	process_t *proc = proc_current()->process;
 	struct pollfd *fds;
 	nfds_t nfds;
-	int timeout_ms;
+	unsigned int timeout_ms;
 
 	GETFROMSTACK(ustack, struct pollfd *, fds, 0);
 	GETFROMSTACK(ustack, nfds_t, nfds, 1);
-	GETFROMSTACK(ustack, int, timeout_ms, 2);
+	GETFROMSTACK(ustack, unsigned int, timeout_ms, 2);
 
 	if (vm_mapBelongs(proc, fds, sizeof(*fds) * nfds) < 0) {
 		return -EFAULT;

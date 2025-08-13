@@ -29,7 +29,7 @@
 
 #define US_DEF_BUFFER_SIZE SIZE_PAGE
 #define US_MIN_BUFFER_SIZE SIZE_PAGE
-#define US_MAX_BUFFER_SIZE 65536
+#define US_MAX_BUFFER_SIZE 65536U
 
 #define US_BOUND       (1U << 0)
 #define US_LISTENING   (1U << 1)
@@ -94,7 +94,7 @@ static int unixsock_gapcmp(rbnode_t *n1, rbnode_t *n2)
 	rbnode_t *child = NULL;
 	int ret = 1;
 
-	if (r1->lmaxgap > 0 && r1->rmaxgap > 0) {
+	if (r1->lmaxgap > 0U && r1->rmaxgap > 0U) {
 		if (r2->id > r1->id) {
 			child = n1->right;
 			ret = -1;
@@ -104,11 +104,11 @@ static int unixsock_gapcmp(rbnode_t *n1, rbnode_t *n2)
 			ret = 1;
 		}
 	}
-	else if (r1->lmaxgap > 0) {
+	else if (r1->lmaxgap > 0U) {
 		child = n1->left;
 		ret = 1;
 	}
-	else if (r1->rmaxgap > 0) {
+	else if (r1->rmaxgap > 0U) {
 		child = n1->right;
 		ret = -1;
 	}
@@ -129,11 +129,12 @@ static void unixsock_augment(rbnode_t *node)
 	if (node->left == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(unixsock_t, linkage, it->parent);
-			if (it->parent->right == it)
+			if (it->parent->right == it) {
 				break;
+			}
 		}
 
-		n->lmaxgap = (n->id <= p->id) ? n->id : n->id - p->id - 1;
+		n->lmaxgap = (n->id <= p->id) ? n->id : n->id - p->id - 1U;
 	}
 	else {
 		l = lib_treeof(unixsock_t, linkage, node->left);
@@ -143,11 +144,12 @@ static void unixsock_augment(rbnode_t *node)
 	if (node->right == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
 			p = lib_treeof(unixsock_t, linkage, it->parent);
-			if (it->parent->left == it)
+			if (it->parent->left == it) {
 				break;
+			}
 		}
 
-		n->rmaxgap = (n->id >= p->id) ? (unsigned)-1 - n->id - 1 : p->id - n->id - 1;
+		n->rmaxgap = (n->id >= p->id) ? (unsigned)-1 - n->id - 1U : p->id - n->id - 1U;
 	}
 	else {
 		r = lib_treeof(unixsock_t, linkage, node->right);
@@ -177,10 +179,12 @@ static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 		t.id = 0;
 		r = lib_treeof(unixsock_t, linkage, lib_rbFindEx(unix_common.tree.root, &t.linkage, unixsock_gapcmp));
 		if (r != NULL) {
-			if (r->lmaxgap > 0)
-				*id = r->id - 1;
-			else
-				*id = r->id + 1;
+			if (r->lmaxgap > 0U) {
+				*id = r->id - 1U;
+			}
+			else {
+				*id = r->id + 1U;
+			}
 		}
 		else {
 			/* MISRAC2012-RULE_17_7-a */
@@ -437,7 +441,7 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		if (s->nonblock != 0 && s->connecting == NULL) {
+		if (s->nonblock != 0U && s->connecting == NULL) {
 			err = -EWOULDBLOCK;
 			break;
 		}
@@ -506,7 +510,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 	}
 
 	do {
-		if ((s->state & US_BOUND) != 0) {
+		if ((s->state & US_BOUND) != 0U) {
 			err = -EINVAL;
 			break;
 		}
@@ -755,7 +759,7 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 				}
 				break;
 			case SO_ERROR:
-				if (s->remote == NULL && s->nonblock != 0 && (s->state & US_CONNECTING) != 0) {
+				if (s->remote == NULL && s->nonblock != 0U && (s->state & US_CONNECTING) != 0U) {
 					/* non-blocking connect() in progress, not connected yet */
 					err = -EINPROGRESS;
 				}
@@ -788,7 +792,7 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 	}
 
 	do {
-		if (s->type != SOCK_DGRAM && s->remote == NULL && (s->state & US_PEER_CLOSED) == 0) {
+		if (s->type != SOCK_DGRAM && s->remote == NULL && (s->state & US_PEER_CLOSED) == 0U) {
 			err = -ENOTCONN;
 			break;
 		}
@@ -799,14 +803,14 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
-				if (peek != 0) {
+				if (peek != 0U) {
 					err = _cbuffer_peek(&s->buffer, buf, len);
 				}
 				else {
 					err = _cbuffer_read(&s->buffer, buf, len);
 				}
 			}
-			else if (_cbuffer_avail(&s->buffer) > 0) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+			else if (_cbuffer_avail(&s->buffer) > 0U) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 				/* TODO: handle MSG_PEEK */
 				/* MISRAC2012-RULE_17_7-a */
 				(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
@@ -818,8 +822,8 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 				}
 			}
 			/* TODO: peek control data */
-			if (peek == 0) {
-				if (err > 0 && control != NULL && controllen != NULL && *controllen > 0) {
+			if (peek == 0U) {
+				if (err > 0 && control != NULL && controllen != NULL && *controllen > 0U) {
 					/* MISRAC2012-RULE_17_7-a */
 					(void)fdpass_unpack(&s->fdpacks, control, controllen);
 				}
@@ -828,7 +832,7 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 			(void)proc_lockClear(&s->lock);
 
 			if (err > 0) {
-				if (peek == 0) {
+				if (peek == 0U) {
 					hal_spinlockSet(&s->spinlock, &sc);
 					/* MISRAC2012-RULE_17_7-a */
 					(void)proc_threadWakeup(&s->writeq);
@@ -836,11 +840,11 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 				}
 				break;
 			}
-			else if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED) != 0) {
+			else if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED) != 0U) {
 				err = 0; /* EOS */
 				break;
 			}
-			else if (s->nonblock != 0 || (flags & MSG_DONTWAIT) != 0) {
+			else if (s->nonblock != 0U || (flags & MSG_DONTWAIT) != 0U) {
 				err = -EWOULDBLOCK;
 				break;
 			}
@@ -872,7 +876,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 
 	do {
 		if (s->type == SOCK_DGRAM) {
-			if (dest_addr != NULL && dest_len != 0) {
+			if (dest_addr != NULL && dest_len != 0U) {
 				if (dest_addr->sa_family != AF_UNIX) {
 					err = -EINVAL;
 					break;
@@ -902,7 +906,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 				}
 			}
 			else {
-				if ((s->state & US_PEER_CLOSED) != 0) {
+				if ((s->state & US_PEER_CLOSED) != 0U) {
 					hal_spinlockSet(&s->spinlock, &sc);
 					s->state &= ~US_PEER_CLOSED;
 					hal_spinlockClear(&s->spinlock, &sc);
@@ -918,7 +922,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 			}
 		}
 		else {
-			if (dest_addr != NULL || dest_len != 0) {
+			if (dest_addr != NULL || dest_len != 0U) {
 				err = -EISCONN;
 				break;
 			}
@@ -972,7 +976,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 
 					break;
 				}
-				else if (s->nonblock != 0 || (flags & MSG_DONTWAIT) != 0) {
+				else if (s->nonblock != 0U || (flags & MSG_DONTWAIT) != 0U) {
 					err = -EWOULDBLOCK;
 					break;
 				}
@@ -1043,7 +1047,7 @@ ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, unsigned flags)
 		return -EINVAL;
 	}
 
-	if (msg->msg_controllen > 0) {
+	if (msg->msg_controllen > 0U) {
 		if ((err = fdpass_pack(&fdpack, msg->msg_control, msg->msg_controllen)) < 0) {
 			return err;
 		}
@@ -1160,7 +1164,7 @@ int unix_setfl(unsigned socket, unsigned flags)
 		return -ENOTSOCK;
 	}
 
-	s->nonblock = (flags & O_NONBLOCK) != 0;
+	s->nonblock = (flags & O_NONBLOCK) != 0U;
 
 	unixsock_put(s);
 	return 0;
@@ -1177,7 +1181,7 @@ int unix_getfl(unsigned socket)
 	}
 
 	flags = O_RDWR;
-	if (s->nonblock != 0) {
+	if (s->nonblock != 0U) {
 		flags |= O_NONBLOCK;
 	}
 
@@ -1219,7 +1223,7 @@ int unix_poll(unsigned socket, unsigned short events)
 		if (events & (POLLIN | POLLRDNORM | POLLRDBAND)) {
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockSet(&s->lock);
-			if (_cbuffer_avail(&s->buffer) > 0 || (s->connecting != NULL && (s->state & US_LISTENING) != 0)) {
+			if (_cbuffer_avail(&s->buffer) > 0U || (s->connecting != NULL && (s->state & US_LISTENING) != 0U)) {
 				err |= events & (POLLIN | POLLRDNORM | POLLRDBAND);
 			}
 			/* MISRAC2012-RULE_17_7-a */
@@ -1232,7 +1236,7 @@ int unix_poll(unsigned socket, unsigned short events)
 				/* MISRAC2012-RULE_17_7-a */
 				(void)proc_lockSet(&r->lock);
 				if (r->type == SOCK_STREAM) {
-					if (_cbuffer_free(&r->buffer) > 0) {
+					if (_cbuffer_free(&r->buffer) > 0U) {
 						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}

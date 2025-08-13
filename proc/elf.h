@@ -37,7 +37,7 @@ typedef u64 Elf64_Xword;
 
 #define SHT_SYMTAB    2
 #define SHT_STRTAB    3
-#define SHT_NOBITS    8
+#define SHT_NOBITS    8U
 #define SHT_REL       9
 #define SHT_DYNSYM    11
 #define SHT_LOPROC    0x70000000
@@ -48,7 +48,7 @@ typedef u64 Elf64_Xword;
 #define STT_LOPROC    13
 #define STT_HIPROC    15
 
-#define PT_LOAD       1
+#define PT_LOAD       1U
 #define PT_DYNAMIC    2
 #define PT_INTERP     3
 #define PT_GNU_STACK  0x6474e551UL

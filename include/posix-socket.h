@@ -34,13 +34,13 @@
 #define PF_KEY    AF_KEY
 #define PF_PACKET AF_PACKET
 
-#define SOCK_STREAM    1
+#define SOCK_STREAM    1U
 #define SOCK_DGRAM     2U
-#define SOCK_RAW       3
-#define SOCK_SEQPACKET 4
-#define SOCK_RDM       5
+#define SOCK_RAW       3U
+#define SOCK_SEQPACKET 4U
+#define SOCK_RDM       5U
 
-#define SOL_SOCKET 0xFFFU
+#define SOL_SOCKET 0xFFF
 
 #define SO_ACCEPTCONN   0x0002U
 #define SO_BROADCAST    0x0020U
