@@ -24,8 +24,8 @@
 #include "lock.h"
 
 #define MAX_TID        MAX_ID
-#define THREAD_END     1
-#define THREAD_END_NOW 2
+#define THREAD_END     1U
+#define THREAD_END_NOW 2U
 
 /* Parent thread states */
 enum { PREFORK = 0, FORKING = 1, FORKED };
@@ -121,7 +121,7 @@ extern void threads_canaryInit(thread_t *t, void *ustack);
 extern int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
 
 
-extern int proc_threadPriority(int priority);
+extern int proc_threadPriority(unsigned int priority);
 
 
 extern void proc_threadProtect(void);

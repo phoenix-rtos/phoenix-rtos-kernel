@@ -17,6 +17,6 @@
 #define _PHOENIX_LIMITS_H_
 
 
-#define HOST_NAME_MAX 255
+#define HOST_NAME_MAX 255U
 
 #endif

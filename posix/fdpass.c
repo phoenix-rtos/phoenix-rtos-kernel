@@ -63,8 +63,9 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	unsigned int cnt, tot_cnt;
 	int fd, err;
 
-	if (controllen > MAX_MSG_CONTROLLEN)
+	if (controllen > MAX_MSG_CONTROLLEN) {
 		return -ENOMEM;
+	}
 
 	/* calculate total number of file descriptors */
 	for (tot_cnt = 0, cmsg = CMSG_FIRSTHDR(control, controllen); cmsg; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
@@ -79,7 +80,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		tot_cnt += cnt;
 	}
 
-	if (tot_cnt == 0) {
+	if (tot_cnt == 0U) {
 		/* control data valid but no file descriptors */
 		*packs = NULL;
 		return 0;
@@ -99,7 +100,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
 		cnt = (cmsg_end - cmsg_data) / sizeof(int);
 
-		while (cnt != 0) {
+		while (cnt != 0U) {
 			hal_memcpy(&fd, cmsg_data, sizeof(int));
 
 			if ((err = posix_getOpenFile(fd, &file)) < 0) {
@@ -153,7 +154,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	cnt = 0;
 
 	/* unpack and add file descriptors */
-	while (pack != NULL && pack->cnt != 0U && *controllen >= CMSG_LEN(sizeof(int) * (cnt + 1))) {
+	while (pack != NULL && pack->cnt != 0U && *controllen >= CMSG_LEN(sizeof(int) * (cnt + 1U))) {
 		FDPACK_POP_FILE_AND_FLAGS(pack, file, flags);
 
 		fd = _posix_addOpenFile(p, file, flags);
@@ -167,7 +168,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 			++cnt;
 		}
 
-		if (pack->cnt == 0) {
+		if (pack->cnt == 0U) {
 			LIST_REMOVE(packs, pack);
 			vm_kfree(pack);
 			pack = *packs;

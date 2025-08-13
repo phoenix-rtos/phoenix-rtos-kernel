@@ -22,14 +22,14 @@
 
 
 /* File type */
-#define S_IFMT   0xf000U /* File type mask */
-#define S_IFSOCK 0xc000U /* Socket */
-#define S_IFLNK  0xa000U /* Symbolic link */
-#define S_IFREG  0x8000U /* Regular file */
-#define S_IFBLK  0x6000U /* Block device */
-#define S_IFDIR  0x4000U /* Directory */
-#define S_IFCHR  0x2000U /* Character device */
-#define S_IFIFO  0x1000U /* FIFO */
+#define S_IFMT   0xf000ULL /* File type mask */
+#define S_IFSOCK 0xc000ULL /* Socket */
+#define S_IFLNK  0xa000ULL /* Symbolic link */
+#define S_IFREG  0x8000ULL /* Regular file */
+#define S_IFBLK  0x6000ULL /* Block device */
+#define S_IFDIR  0x4000ULL /* Directory */
+#define S_IFCHR  0x2000ULL /* Character device */
+#define S_IFIFO  0x1000ULL /* FIFO */
 
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK) /* Socket */
 #define S_ISLNK(m)  (((m) & S_IFMT) == S_IFLNK)  /* Symbolic link */
