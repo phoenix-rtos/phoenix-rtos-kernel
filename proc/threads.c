@@ -483,10 +483,13 @@ static void thread_destroy(thread_t *thread)
 	while (thread->locks != NULL) {
 		proc_lockUnlock(thread->locks);
 	}
-	vm_kfree(thread->kstack);
 
 	process = thread->process;
 	if (process != NULL) {
+		if (process->coredump == 0) {
+			vm_kfree(thread->kstack);
+			thread->kstack = NULL;
+		}
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
 		LIST_REMOVE_EX(&process->threads, thread, procnext, procprev);
@@ -497,6 +500,7 @@ static void thread_destroy(thread_t *thread)
 		proc_put(process);
 	}
 	else {
+		vm_kfree(thread->kstack);
 		vm_kfree(thread);
 	}
 }
@@ -982,6 +986,7 @@ void proc_threadEnd(void)
 	cpu = hal_cpuGetID();
 	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
+	t->context = t->kstack + t->kstacksz - sizeof(cpu_context_t); /* keep sane context for coredump */
 	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
 	_proc_threadWakeup(&threads_common.reaper);
@@ -1065,6 +1070,35 @@ void proc_kill(process_t *proc)
 	spinlock_ctx_t sc;
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	_proc_kill(proc);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+static void _proc_crash(thread_t *thread)
+{
+	process_t *process;
+	if (thread == NULL) {
+		return;
+	}
+	process = thread->process;
+	if (process == NULL) {
+		return;
+	}
+
+	/* Use unused SIGNULL bit to mark which thread caused the crash */
+	thread->sigpend |= (1u << SIGNULL);
+	process->coredump = 1;
+
+	_proc_kill(process);
+}
+
+
+void proc_crash(thread_t *thread)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_proc_crash(thread);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -1372,8 +1406,17 @@ int proc_join(int tid, time_t timeout)
 	}
 
 	if (ghost != NULL) {
-		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
 		id = proc_getTid(ghost);
+	}
+
+	if (ghost->kstack != NULL) {
+		/* kstack kept for coredumping, keep the ghost till process_destroy */
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return err < 0 ? err : id;
+	}
+
+	if (ghost != NULL) {
+		LIST_REMOVE_EX(&process->ghosts, ghost, procnext, procprev);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1464,23 +1507,30 @@ static int threads_sigmutable(int sig)
 static int _threads_sigdefault(process_t *process, thread_t *thread, int sig)
 {
 	switch (sig) {
-		case SIGHUP:
-		case SIGINT:
-		case SIGQUIT:
-		case SIGILL:
-		case SIGTRAP:
 		case SIGABRT: /* And SIGIOT */
-		case SIGEMT:
-		case SIGFPE:
 		case SIGBUS:
+		case SIGFPE:
+		case SIGILL:
+		case SIGQUIT:
 		case SIGSEGV:
 		case SIGSYS:
+		case SIGTRAP:
+		case SIGXCPU:
+		case SIGXFSZ:
+			process->exit = sig << 8;
+			if (thread != NULL) {
+				thread->sigpend |= (1 << sig);
+			}
+			_proc_crash(thread == NULL ? process->threads : thread);
+			return SIGNAL_TERMINATE;
+
+		case SIGHUP:
+		case SIGINT:
+		case SIGEMT:
 		case SIGPIPE:
 		case SIGALRM:
 		case SIGTERM:
 		case SIGIO:
-		case SIGXCPU:
-		case SIGXFSZ:
 		case SIGVTALRM:
 		case SIGPROF:
 		case SIGUSR1:
@@ -1566,9 +1616,9 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 
 		if ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL)) {
-			_threads_sigdefault(process, thread, sig);
 			thread->sigpend &= ~sigbit;
 			process->sigpend &= ~sigbit;
+			_threads_sigdefault(process, thread, sig);
 		}
 	}
 
