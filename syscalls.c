@@ -942,19 +942,21 @@ addr_t syscalls_va2pa(void *ustack)
 }
 
 
-int syscalls_signalHandle(void *ustack)
+int syscalls_signalAction(void *ustack)
 {
-	void *handler;
-	unsigned mask, mmask;
-	thread_t *thread;
+	int sig;
+	struct sigaction *act;
+	struct sigaction *old;
+	void (*trampoline)(void);
 
-	GETFROMSTACK(ustack, void *, handler, 0);
-	GETFROMSTACK(ustack, unsigned, mask, 1);
-	GETFROMSTACK(ustack, unsigned, mmask, 2);
+	GETFROMSTACK(ustack, int, sig, 0);
+	GETFROMSTACK(ustack, struct sigaction *, act, 1);
+	GETFROMSTACK(ustack, struct sigaction *, old, 2);
+	GETFROMSTACK(ustack, void *, trampoline, 3);
 
-	thread = proc_current();
-	thread->process->sigmask = (mask & mmask) | (thread->process->sigmask & ~mmask);
-	thread->process->sighandler = handler;
+	if (threads_setSigaction(sig, trampoline, act, old) != 0) {
+		return -EINVAL;
+	}
 
 	return EOK;
 }
@@ -1012,6 +1014,11 @@ unsigned int syscalls_signalMask(void *ustack)
 
 	old = t->sigmask;
 	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
+
+	/* POSIX: It is not possible to block those signals which cannot be ignored.
+	 * This shall be enforced by the system without causing an error to be indicated.
+	 */
+	t->sigmask &= ~((1u << SIGKILL) | (1u << SIGSTOP));
 
 	return old;
 }
@@ -1884,11 +1891,11 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 
 	retval = ((void *(*)(char *))syscalls[n])(ustack);
 
+	threads_setupUserReturn(retval, ctx);
+
 	if (proc_current()->exit != 0) {
 		proc_threadEnd();
 	}
-
-	threads_setupUserReturn(retval, ctx);
 
 	return retval;
 }
