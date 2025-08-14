@@ -471,7 +471,7 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 		_proc_threadDequeue(t);
 		/* MISRA Rule 11.6: (int *) added*/
-		hal_cpuSetReturnValue(t->context, (void *)(int *)-ETIME);
+		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
 
 	_threads_updateWakeup(now, t);
@@ -1173,7 +1173,7 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *sc
 	if (*queue == NULL) {
 		return EOK;
 	}
-		
+
 	err = hal_cpuReschedule(&threads_common.spinlock, scp);
 	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_spinlockSet(&threads_common.spinlock, scp);
@@ -2043,7 +2043,7 @@ void proc_threadsDump(unsigned int priority)
 		if (t == NULL) {
 			break;
 		}
-		
+
 		t = t->next;
 	} while (t != threads_common.ready[priority]);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -2148,7 +2148,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 		else
 #endif
-		if (map != NULL) {
+				if (map != NULL) {
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockSet(&map->lock);
 			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));

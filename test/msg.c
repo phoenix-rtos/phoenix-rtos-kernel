@@ -26,10 +26,10 @@ unsigned test_randsize(unsigned *seed, unsigned bufsz)
 		sz = (lib_rand(seed) % (bufsz / SIZE_PAGE)) * SIZE_PAGE;
 	}
 	else {
-		sz = 1 + (lib_rand(seed) % bufsz);
+		sz = 1U + (lib_rand(seed) % bufsz);
 	}
 
-	return (sz != 0) ? sz : 1;
+	return (sz != 0U) ? sz : 1U;
 }
 
 
@@ -37,16 +37,16 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 {
 	unsigned offs = (bufsz - size) / SIZE_PAGE;
 
-	if (offs != 0 && lib_rand(seed) % 2 != 0) {
+	if (offs != 0U && lib_rand(seed) % 2 != 0) {
 		offs = (lib_rand(seed) % offs) * SIZE_PAGE;
 	}
-	else if (offs != 0 && lib_rand(seed) % 10 != 0) {
-		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1));
+	else if (offs != 0U && lib_rand(seed) % 10 != 0) {
+		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1U));
 	}
-	else if (offs != 0 && lib_rand(seed) % 10 != 0) {
-		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1)) / 2;
+	else if (offs != 0U && lib_rand(seed) % 10 != 0) {
+		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1U)) / 2U;
 	}
-	else if (bufsz - size != 0) {
+	else if (bufsz - size != 0U) {
 		offs = lib_rand(seed) % (bufsz - size);
 	}
 	else {
@@ -59,7 +59,7 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 void test_ping(void *arg)
 {
 	msg_t msg;
-	unsigned bufsz = 4 * SIZE_PAGE, offs[2], i, k;
+	unsigned bufsz = 4U * SIZE_PAGE, offs[2], i, k;
 	void *buf[2];
 	unsigned int seed = (long)test_ping;
 	unsigned int count = 0;
@@ -77,7 +77,7 @@ void test_ping(void *arg)
 		return;
 	}
 
-	for (k = 0; count == 0 || k < count; ++k) {
+	for (k = 0; count == 0U || k < count; ++k) {
 		(void)lib_printf("\rtest_msg/ping: % 20d OK", k);
 
 		hal_memset(&msg, 0, sizeof(msg));

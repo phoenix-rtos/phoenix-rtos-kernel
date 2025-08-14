@@ -71,7 +71,7 @@ void main_initthr(void *unused)
 			/* 'X' is no longer useful */
 			++prog->argv;
 			cmdline = prog->argv;
-			for (argc = 0; argc < (sizeof(argv) / sizeof(*argv) - 1);) {
+			for (argc = 0; argc < (sizeof(argv) / sizeof(*argv) - 1U);) {
 				argv[argc++] = cmdline;
 				while (*cmdline != ';' && *cmdline != '\0')
 					++cmdline;
