@@ -119,6 +119,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	signalCtx->pc = (u32)handler & ~0x1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
+	/* MISRA Rule 10.4: THUMB_STATE changed to unsigned type in definition*/
 	if (((u32)handler & 0x1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}
@@ -148,13 +149,15 @@ char *hal_cpuInfo(char *info)
 
 	/* MISRA Rule 17.7: Unused returned value by hal_strcpy function, (void) added in lines 151, 156, 161*/
 	(void)hal_strcpy(info, HAL_NAME_PLATFORM);
-	n = sizeof(HAL_NAME_PLATFORM) - 1;
+	/* MISRA Rule 10.4: changed type by adding U*/
+	n = sizeof(HAL_NAME_PLATFORM) - 1U;
 
 	midr = hal_cpuGetMIDR();
 
 	if (((midr >> 16) & 0xfU) == 0xfU) {
 		(void)hal_strcpy(&info[n], "ARMv7 ");
-		n += 6;
+		/* MISRA Rule 10.4: changed type by adding U*/
+		n += 6U;
 	}
 
 	if (((midr >> 4) & 0xfffUL) == 0xc15UL) {
@@ -229,7 +232,8 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	}
 
 	if (n > 0U) {
-		features[n - 2] = '\0';
+		/* MISRA Rule 10.4: changed type by adding U*/
+		features[n - 2U] = '\0';
 	}
 	else {
 		features[0] = '\0';
