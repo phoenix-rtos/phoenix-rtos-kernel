@@ -43,7 +43,7 @@ static unsigned int dcache_strHash(const char *str)
 	unsigned int hash = 0;
 	unsigned char c;
 
-	while ((c = *str++) != '\0') {
+	while ((c = (unsigned char)*str++) != '\0') {
 		hash += (c << 4U) + (c >> 4U) * 11U;
 	}
 
@@ -355,7 +355,7 @@ int proc_close(oid_t oid, unsigned mode)
 }
 
 
-int proc_create(unsigned port, unsigned type, unsigned mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
+int proc_create(unsigned int port, int type, unsigned int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));

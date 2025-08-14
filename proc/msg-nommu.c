@@ -203,7 +203,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 {
 	port_t *p;
-	size_t s = 0;
+	int s = 0;
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
 	thread_t *current = proc_current();
