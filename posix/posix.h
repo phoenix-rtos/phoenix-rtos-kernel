@@ -43,6 +43,12 @@ extern ssize_t posix_read(int fildes, void *buf, size_t nbyte);
 extern ssize_t posix_write(int fildes, void *buf, size_t nbyte);
 
 
+extern ssize_t posix_pread(int fildes, void *buf, size_t nbyte, off_t offset);
+
+
+extern ssize_t posix_pwrite(int fildes, void *buf, size_t nbyte, off_t offset);
+
+
 extern int posix_getOid(int fildes, oid_t *oid);
 
 

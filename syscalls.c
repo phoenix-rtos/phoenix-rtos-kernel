@@ -1124,6 +1124,56 @@ ssize_t syscalls_sys_write(char *ustack)
 }
 
 
+ssize_t syscalls_sys_pread(char *ustack)
+{
+	process_t *proc = proc_current()->process;
+	int fildes;
+	void *buf;
+	size_t nbyte;
+	off_t offset;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, void *, buf, 1);
+	GETFROMSTACK(ustack, size_t, nbyte, 2);
+	GETFROMSTACK(ustack, off_t, offset, 3);
+
+	if ((buf == NULL) && (nbyte != 0)) {
+		return -EFAULT;
+	}
+
+	if ((buf != NULL) && (nbyte != 0) && (vm_mapBelongs(proc, buf + offset, nbyte) < 0)) {
+		return -EFAULT;
+	}
+
+	return posix_pread(fildes, buf, nbyte, offset);
+}
+
+
+ssize_t syscalls_sys_pwrite(char *ustack)
+{
+	process_t *proc = proc_current()->process;
+	int fildes;
+	void *buf;
+	size_t nbyte;
+	off_t offset;
+
+	GETFROMSTACK(ustack, int, fildes, 0);
+	GETFROMSTACK(ustack, void *, buf, 1);
+	GETFROMSTACK(ustack, size_t, nbyte, 2);
+	GETFROMSTACK(ustack, off_t, offset, 3);
+
+	if ((buf == NULL) && (nbyte != 0)) {
+		return -EFAULT;
+	}
+
+	if ((buf != NULL) && (nbyte != 0) && (vm_mapBelongs(proc, buf + offset, nbyte) < 0)) {
+		return -EFAULT;
+	}
+
+	return posix_pwrite(fildes, buf, nbyte, offset);
+}
+
+
 int syscalls_sys_dup(char *ustack)
 {
 	int fildes;
