@@ -284,7 +284,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	}
 
 	/* MISRAC2012-RULE_17_7-a */
-	(void)posix_write(2, buff, len);
+	(void)posix_write(2, buff, (size_t)len);
 }
 
 
@@ -391,7 +391,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 			continue;
 		}
 
-		offs = phdr->p_offset & ~(phdr->p_align - 1U);
+		offs = (off_t)(phdr->p_offset & ~(phdr->p_align - 1U));
 		misalign = phdr->p_offset & (phdr->p_align - 1U);
 		filesz = (phdr->p_filesz != 0U) ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;

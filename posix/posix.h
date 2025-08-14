@@ -31,7 +31,7 @@
 #include "sockport.h"
 
 
-extern int posix_open(const char *filename, unsigned oflag, char *ustack);
+extern int posix_open(const char *filename, int oflag, char *ustack);
 
 
 extern int posix_close(int fildes);
@@ -94,7 +94,7 @@ extern int posix_exec(void);
 extern int posix_accept(int socket, struct sockaddr *address, socklen_t *address_len);
 
 
-extern int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, unsigned flags);
+extern int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags);
 
 
 extern int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len);
@@ -121,22 +121,22 @@ extern int posix_getsockopt(int socket, int level, int optname, void *optval, so
 extern int posix_listen(int socket, int backlog);
 
 
-extern ssize_t posix_recvfrom(int socket, void *message, size_t length, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len);
+extern ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len);
 
 
-extern ssize_t posix_sendto(int socket, const void *message, size_t length, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+extern ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
-extern ssize_t posix_recvmsg(int socket, struct msghdr *msg, unsigned flags);
+extern ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags);
 
 
-extern ssize_t posix_sendmsg(int socket, const struct msghdr *msg, unsigned flags);
+extern ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags);
 
 
-extern int posix_socket(int domain, unsigned type, int protocol);
+extern int posix_socket(int domain, int type, int protocol);
 
 
-extern int posix_socketpair(int domain, unsigned type, int protocol, int sv[2]);
+extern int posix_socketpair(int domain, int type, int protocol, int sv[2]);
 
 
 extern int posix_shutdown(int socket, int how);

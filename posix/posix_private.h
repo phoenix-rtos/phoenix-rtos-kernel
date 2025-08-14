@@ -144,7 +144,7 @@ extern int posix_newFile(process_info_t *p, int fd);
 extern int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags);
 
 
-extern process_info_t *pinfo_find(unsigned int pid);
+extern process_info_t *pinfo_find(int pid);
 
 
 extern void pinfo_put(process_info_t *p);
@@ -183,7 +183,7 @@ extern ssize_t inet_recvmsg(unsigned socket, struct msghdr *msg, unsigned int fl
 extern ssize_t inet_sendmsg(unsigned socket, const struct msghdr *msg, unsigned int flags);
 
 
-extern int inet_socket(int domain, unsigned int type, int protocol);
+extern int inet_socket(int domain, int type, int protocol);
 
 
 extern int inet_shutdown(unsigned socket, int how);
@@ -192,7 +192,7 @@ extern int inet_shutdown(unsigned socket, int how);
 extern int inet_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
-extern int inet_setfl(unsigned socket, unsigned int flags);
+extern int inet_setfl(unsigned socket, int flags);
 
 
 extern int inet_getfl(unsigned socket);
