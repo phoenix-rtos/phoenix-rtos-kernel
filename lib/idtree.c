@@ -54,6 +54,7 @@ static void lib_idtreeAugment(rbnode_t *node)
 			}
 		}
 
+		/* MISRA Rule 10.4: changed type by adding U */
 		n->rmaxgap = (n->id >= p->id) ? (MAX_ID - n->id - 1) : (p->id - n->id - 1);
 	}
 	else {

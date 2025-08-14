@@ -31,7 +31,8 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 {
 	unsigned int bytes = 0;
 
-	if (sz == 0 || buf->full != 0) {
+	/* MISRA Rule 10.4: changed type by adding U */
+	if (sz == 0U || buf->full != 0U) {
 		return 0;
 	}
 
@@ -42,7 +43,8 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 	else {
 		hal_memcpy(buf->data + buf->w, data, bytes = min(sz, buf->sz - buf->w));
 
-		if (bytes < sz && buf->r != 0) {
+		/* MISRA Rule 10.4: changed type by adding U */
+		if (bytes < sz && buf->r != 0U) {
 			data += bytes;
 			sz -= bytes;
 			hal_memcpy(buf->data, data, min(sz, buf->r));
@@ -50,7 +52,8 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 		}
 	}
 
-	buf->w = (buf->w + bytes) & (buf->sz - 1);
+	/* MISRA Rule 10.4: changed type by adding U */
+	buf->w = (buf->w + bytes) & (buf->sz - 1U);
 	buf->full = buf->w == buf->r;
 
 	return bytes;
@@ -61,8 +64,9 @@ unsigned int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 {
 	unsigned int bytes = _cbuffer_peek(buf, data, sz);
 
-	if (bytes > 0) {
-		buf->r = (buf->r + bytes) & (buf->sz - 1);
+	/* MISRA Rule 10.4: changed type by adding U */
+	if (bytes > 0U) {
+		buf->r = (buf->r + bytes) & (buf->sz - 1U);
 		buf->full = 0;
 	}
 
@@ -74,7 +78,8 @@ unsigned int _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
 {
 	unsigned int bytes = 0;
 
-	if (sz == 0 || (buf->r == buf->w && buf->full == 0)) {
+	/* MISRA Rule 10.4: changed type by adding U */
+	if (sz == 0U || (buf->r == buf->w && buf->full == 0U)) {
 		return 0;
 	}
 	if (buf->w > buf->r) {

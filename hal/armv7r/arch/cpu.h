@@ -45,7 +45,7 @@
 #define NO_IRQ      0x80              /* mask to disable IRQ             */
 #define NO_FIQ      0x40              /* mask to disable FIQ             */
 #define NO_INT      (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ     */
-#define THUMB_STATE 0x20
+#define THUMB_STATE 0x20U
 
 
 #ifndef __ASSEMBLY__

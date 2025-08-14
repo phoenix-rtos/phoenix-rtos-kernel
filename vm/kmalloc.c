@@ -101,7 +101,7 @@ vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 	}
 
 	/* Remove zone from used list */
-	if (z->used == z->blocks - 1) {
+	if (z->used == z->blocks - 1U) {
 		LIST_REMOVE(&kmalloc_common.used, z);
 		LIST_ADD(&kmalloc_common.sizes[idx], z);
 	}
@@ -145,7 +145,7 @@ void *vm_kmalloc(size_t size)
 	int err = EOK;
 
 	/* Establish minimal size */
-	size = size < 16 ? 16 : size;
+	size = size < 16U ? 16U : size;
 
 	idx = hal_cpuGetLastBit(size);
 	if (hal_cpuGetFirstBit(size) < idx) {
@@ -166,7 +166,7 @@ void *vm_kmalloc(size_t size)
 	/* MISRA Rule 17.7: Unused returned value, (void) added */
 	(void)proc_lockSet(&kmalloc_common.lock);
 
-	if (kmalloc_common.hdrblocks == 1) {
+	if (kmalloc_common.hdrblocks == 1U) {
 		err = _kmalloc_addZone(hdridx, hdridx);
 	}
 
@@ -199,7 +199,7 @@ static void *_kmalloc_freeAtom(u8 hdridx, void *p)
 	idx = hal_cpuGetLastBit(z->blocksz);
 
 	/* Remove zone if free */
-	if ((z->used == 0) && (z != &kmalloc_common.firstzone)) {
+	if ((z->used == 0U) && (z != &kmalloc_common.firstzone)) {
 		LIST_REMOVE(&kmalloc_common.sizes[idx], z);
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
 		(void)_vm_zoneDestroy(z);

@@ -50,7 +50,8 @@ static anon_t *amap_putanon(anon_t *a)
 
 void amap_putanons(amap_t *amap, int offset, int size)
 {
-	int i;
+	/* MISRA RUle 10.4: int i -> unsigned int i*/
+	unsigned int i;
 
 	if (amap == NULL) {
 		return;
@@ -114,13 +115,13 @@ amap_t *amap_ref(amap_t *amap)
 
 amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 {
-	int i = size / SIZE_PAGE;
+	unsigned int i = size / SIZE_PAGE;
 	amap_t *new;
 
 	if (amap != NULL) {
 		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 122, 124*/
 		(void)proc_lockSet(&amap->lock);
-		if (amap->refs == 1) {
+		if (amap->refs == 1U) {
 			(void)proc_lockClear(&amap->lock);
 			return amap;
 		}
@@ -130,8 +131,8 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 
 	/* Allocate anon pointer arrays in chunks
 	 * to facilitate merging of amaps */
-	if (i < (512 - sizeof(amap_t)) / sizeof(anon_t *)) {
-		i = (512 - sizeof(amap_t)) / sizeof(anon_t *);
+	if (i < (512U - sizeof(amap_t)) / sizeof(anon_t *)) {
+		i = (512U - sizeof(amap_t)) / sizeof(anon_t *);
 	}
 
 	if ((new = vm_kmalloc(sizeof(amap_t) + i * sizeof(anon_t *))) == NULL) {
@@ -188,7 +189,8 @@ void amap_put(amap_t *amap)
 
 void amap_clear(amap_t *amap, size_t offset, size_t size)
 {
-	int i;
+	/* MISRA Rule 10.4: added unisgned*/
+	unsigned int i;
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 194, 198*/
 	(void)proc_lockSet(&amap->lock);
@@ -248,7 +250,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 	if ((a = amap->anons[aoffs / SIZE_PAGE]) != NULL) {
 		(void)proc_lockSet(&a->lock);
 		p = a->page;
-		if (!(a->refs > 1 && (prot & PROT_WRITE) != 0)) {
+		if (!(a->refs > 1U && (prot & PROT_WRITE) != 0U)) {
 			(void)proc_lockClear(&a->lock);
 			(void)proc_lockClear(&amap->lock);
 			return p;
@@ -263,7 +265,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 
 		return NULL;
 	}
-	else if (o != NULL && (prot & PROT_WRITE) == 0) {
+	else if (o != NULL && (prot & PROT_WRITE) == 0U) {
 		(void)proc_lockClear(&amap->lock);
 		return p;
 	}

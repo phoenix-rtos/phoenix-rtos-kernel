@@ -32,16 +32,18 @@
 
 static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_len)
 {
-	const char *digits = (flags & FLAG_LARGE_DIGITS) != 0 ? "0123456789ABCDEF" : "0123456789abcdef";
+	/* MISRA Rule 10.4: changed type by adding U */
+	const char *digits = (flags & FLAG_LARGE_DIGITS) != 0U ? "0123456789ABCDEF" : "0123456789abcdef";
 	char tmp_buf[32];
-	char sign = 0;
+	char sign = '\0';
 	char *tmp = tmp_buf;
 
 	u32 num32 = (u32)num64;
 	u32 num_high = (u32)(num64 >> 32);
 
-	if ((flags & FLAG_SIGNED) != 0) {
-		if ((flags & FLAG_64BIT) != 0) {
+	/* MISRA Rule 10.4: changed type by adding U */
+	if ((flags & FLAG_SIGNED) != 0U) {
+		if ((flags & FLAG_64BIT) != 0U) {
 			if ((s32)num_high < 0) {
 				num64 = -(s64)num64;
 				num32 = (u32)num64;
@@ -54,25 +56,25 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 			sign = '-';
 		}
 
-		if (sign == 0) {
-			if ((flags & FLAG_SPACE) != 0) {
+		if (sign == '\0') {
+			if ((flags & FLAG_SPACE) != 0U) {
 				sign = ' ';
 			}
-			else if ((flags & FLAG_PLUS) != 0) {
+			else if ((flags & FLAG_PLUS) != 0U) {
 				sign = '+';
 			}
 		}
 	}
 
-	if ((flags & FLAG_64BIT) != 0 && num_high == 0x0U) {
+	if ((flags & FLAG_64BIT) != 0U && num_high == 0x0U) {
 		flags &= ~FLAG_64BIT;
 	}
 
-	if (num64 == 0) {
+	if (num64 == 0U) {
 		*tmp++ = '0';
 	}
-	else if ((flags & FLAG_HEX) != 0) {
-		if ((flags & FLAG_64BIT) != 0) {
+	else if ((flags & FLAG_HEX) != 0U) {
+		if ((flags & FLAG_64BIT) != 0U) {
 			int i;
 
 			for (i = 0; i < 8; ++i) {
@@ -80,49 +82,49 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 				num32 >>= 4;
 			}
 
-			while (num_high != 0) {
+			while (num_high != 0U) {
 				*tmp++ = digits[num_high & 0x0fU];
 				num_high >>= 4;
 			}
 		}
 		else {
-			while (num32 != 0) {
+			while (num32 != 0U) {
 				*tmp++ = digits[num32 & 0x0fU];
 				num32 >>= 4;
 			}
 		}
 	}
 	else {
-		if ((flags & FLAG_64BIT) != 0) {  // TODO: optimize
-			while (num64 != 0) {
-				*tmp++ = digits[num64 % 10];
-				num64 /= 10;
+		if ((flags & FLAG_64BIT) != 0U) {  // TODO: optimize
+			while (num64 != 0U) {
+				*tmp++ = digits[num64 % 10U];
+				num64 /= 10U;
 			}
 		}
 		else {
-			while (num32 != 0) {
-				*tmp++ = digits[num32 % 10];
-				num32 /= 10;
+			while (num32 != 0U) {
+				*tmp++ = digits[num32 % 10U];
+				num32 /= 10U;
 			}
 		}
 	}
 
 	const int digits_cnt = tmp - tmp_buf;
-	int pad_len = min_number_len - digits_cnt - (sign != 0 ? 1 : 0);
+	int pad_len = min_number_len - digits_cnt - (sign != '\0' ? 1 : 0);
 
 	/* pad, if needed */
-	if (pad_len > 0 && (flags & FLAG_ZERO) == 0) {
+	if (pad_len > 0 && (flags & FLAG_ZERO) == 0U) {
 		while (pad_len-- > 0) {
 			*out++ = ' ';
 		}
 	}
 
-	if (sign != 0) {
+	if (sign != '\0') {
 		*out++ = sign;
 	}
 
 	/* pad, if needed */
-	if (pad_len > 0 && (flags & FLAG_ZERO) != 0) {
+	if (pad_len > 0 && (flags & FLAG_ZERO) != 0U) {
 		while (pad_len-- > 0) {
 			*out++ = '0';
 		}
@@ -156,7 +158,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 	for (;;) {
 		char fmt = *format++;
-		if (fmt == 0) {
+		if (fmt == '\0') {
 			goto end;
 		}
 		if (fmt != '%') {
@@ -165,7 +167,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		}
 
 		fmt = *format++;
-		if (fmt == 0) {
+		if (fmt == '\0') {
 			*out++ = '%';
 			goto end;
 		}
@@ -188,16 +190,16 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			}
 
 			fmt = *format++;
-			if (fmt == 0) {
+			if (fmt == '\0') {
 				goto bad_format;
 			}
 		}
 
 		/* leading number digits-cnt */
 		while (fmt >= '0' && fmt <= '9') {
-			min_number_len = min_number_len * 10 + fmt - '0';
+			min_number_len = min_number_len * 10U + fmt - '0';
 			fmt = *format++;
-			if (fmt == 0) {
+			if (fmt == '\0') {
 				goto bad_format;
 			}
 		}
@@ -209,14 +211,14 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 		if (fmt == 'l') {
 			fmt = *format++;
-			if (fmt == 0) {
+			if (fmt == '\0') {
 				goto bad_format;
 			}
 
 			if (fmt == 'l') {
 				flags |= FLAG_64BIT;
 				fmt = *format++;
-				if (fmt == 0) {
+				if (fmt == '\0') {
 					goto bad_format;
 				}
 			}
@@ -224,7 +226,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 		if (fmt == 'z') {
 			fmt = *format++;
-			if (fmt == 0) {
+			if (fmt == '\0') {
 				goto bad_format;
 			}
 			if (sizeof(void *) == sizeof(u64)) {  // FIXME "size_t" is undefined?
@@ -275,7 +277,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}
-				min_number_len = sizeof(void *) * 2;
+				min_number_len = sizeof(void *) * 2U;
 				goto handle_number;
 			} break;
 
@@ -372,7 +374,7 @@ int lib_vprintf(const char *format, va_list ap)
 
 		/* leading number digits-cnt */
 		while (fmt >= '0' && fmt <= '9') {
-			min_number_len = min_number_len * 10 + fmt - '0';
+			min_number_len = min_number_len * 10U + fmt - '0';
 			fmt = *format++;
 
 			if (fmt == '\0') {
@@ -472,7 +474,7 @@ int lib_vprintf(const char *format, va_list ap)
 					flags |= FLAG_64BIT;
 				}
 
-				min_number_len = sizeof(void *) * 2;
+				min_number_len = sizeof(void *) * 2U;
 				goto handle_number;
 
 				break;
@@ -515,7 +517,7 @@ int lib_vprintf(const char *format, va_list ap)
 
 end:
 	s = CONSOLE_NORMAL;
-	while (*s != 0) {
+	while (*s != '\0') {
 		lib_putch(*(s++));
 	}
 

@@ -203,7 +203,8 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	}
 	rmask = pmap_map2region(map->id);
 
-	return ((pmap->regions & rmask) == 0) ? 0 : 1;
+	/* MISRA Rule 10.4: changed type by adding U*/
+	return ((pmap->regions & rmask) == 0U) ? 0 : 1;
 }
 
 
@@ -253,12 +254,13 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap->start = (void *)&__bss_start;
 
 	/* Initial size of kernel map */
-	/* MISRA Rule 11.6: */
-	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
+	/* MISRA Rule 11.6: */ /* MISRA Rule 10.4: changed type by adding U*/
+	pmap->end = (void *)((addr_t)&__bss_start + 32U * 1024U);
 
 	pmap->regions = (0x1U << cnt) - 1U;
 
-	if (cnt == 0) {
+	/* MISRA Rule 10.4: changed type by adding U*/
+	if (cnt == 0U) {
 		hal_spinlockCreate(&pmap_common.lock, "pmap");
 		pmap_common.mpu_enabled = 0;
 		pmap_common.kernelCodeRegion = 0;
@@ -304,7 +306,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	}
 
 	ikregion = pmap_map2region(ikmap->id);
-	if (ikregion == 0) {
+	/* MISRA Rule 10.4: changed type by adding U*/
+	if (ikregion == 0U) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map has no assigned region. Bad system config\n");
 		for (;;) {
 			hal_cpuHalt();

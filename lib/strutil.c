@@ -23,7 +23,10 @@ static char *lib_strrchr(char *s, int c)
 	char *i;
 
 	for (i = s; *i != '\0'; ++i) {
-		if (*i == c) {
+		/* MISRA Rule 10.4: As this function compares to char, the input
+		 * cast can be safely performed
+		 */
+		if (*i == (char)c) {
 			p = i;
 		}
 	}
@@ -34,7 +37,7 @@ static char *lib_strrchr(char *s, int c)
 
 char *lib_strdup(const char *str)
 {
-	size_t len = hal_strlen(str) + 1;
+	size_t len = hal_strlen(str) + 1U;
 	char *ptr = vm_kmalloc(len);
 
 	if (ptr != NULL) {

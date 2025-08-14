@@ -190,8 +190,8 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 
 	/* Show statistics one the console */
 	/* MISRA Rule 17.7: Unused returned value, (void) added */
-	(void)lib_printf("vm: Initializing page allocator %d/%d KB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024,
-			(pages.freesz + pages.allocsz) / 1024, sizeof(page_t));
+	(void)lib_printf("vm: Initializing page allocator %d/%d KB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024U,
+			(pages.freesz + pages.allocsz) / 1024U, sizeof(page_t));
 
 	/* Prepare allocation queue */
 	for (p = pages.freeq, i = 0; i < pages.freeqsz; i++) {

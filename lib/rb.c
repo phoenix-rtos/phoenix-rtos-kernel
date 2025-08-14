@@ -419,7 +419,7 @@ rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare)
 }
 
 
-#define RB_DUMP_DEPTH 16
+#define RB_DUMP_DEPTH 16U
 
 
 void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned char d[RB_DUMP_DEPTH])
@@ -428,7 +428,7 @@ void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned c
 
 	for (i = 0; i < *depth; i++) {
 		/* MISRA Rule 17.7: Unused return value, (void) added in lines 431, 435, 439, 441, 454, 456*/
-		(void)lib_printf("%c ", (d[i] != 0) ? '|' : ' ');
+		(void)lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
 	}
 
 	if (node == NULL) {
@@ -451,9 +451,9 @@ void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned c
 		}
 		else {
 			for (i = 0; i < *depth; i++) {
-				(void)lib_printf("%c ", (d[i] != 0) ? '|' : ' ');
+				(void)lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
 			}
-			(void)lib_printf("%s(..)\n", (*depth != 0) ? "`-" : "");
+			(void)lib_printf("%s(..)\n", (*depth != 0U) ? "`-" : "");
 		}
 	}
 	(*depth)--;

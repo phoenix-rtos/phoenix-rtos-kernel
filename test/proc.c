@@ -43,21 +43,21 @@ static void test_proc_indthr(void *arg)
 
 	for (;;) {
 		(void)lib_printf("\rtest: [proc.threads] %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d",
-				indicator[test_proc_common.rotations[1] % 8],
-				indicator[test_proc_common.rotations[2] % 8],
-				indicator[test_proc_common.rotations[3] % 8],
-				indicator[test_proc_common.rotations[4] % 8],
-				indicator[test_proc_common.rotations[5] % 8],
-				indicator[test_proc_common.rotations[6] % 8],
-				indicator[test_proc_common.rotations[7] % 8],
+				indicator[test_proc_common.rotations[1] % 8U],
+				indicator[test_proc_common.rotations[2] % 8U],
+				indicator[test_proc_common.rotations[3] % 8U],
+				indicator[test_proc_common.rotations[4] % 8U],
+				indicator[test_proc_common.rotations[5] % 8U],
+				indicator[test_proc_common.rotations[6] % 8U],
+				indicator[test_proc_common.rotations[7] % 8U],
 
-				test_proc_common.rotations[1] % 100,
-				test_proc_common.rotations[2] % 100,
-				test_proc_common.rotations[3] % 100,
-				test_proc_common.rotations[4] % 100,
-				test_proc_common.rotations[5] % 100,
-				test_proc_common.rotations[6] % 100,
-				test_proc_common.rotations[7] % 100);
+				test_proc_common.rotations[1] % 100U,
+				test_proc_common.rotations[2] % 100U,
+				test_proc_common.rotations[3] % 100U,
+				test_proc_common.rotations[4] % 100U,
+				test_proc_common.rotations[5] % 100U,
+				test_proc_common.rotations[6] % 100U,
+				test_proc_common.rotations[7] % 100U);
 
 		(void)proc_threadSleep(5000);
 	}
@@ -104,7 +104,7 @@ static void test_proc_rotthr1(void *arg)
 	for (;;) {
 		test_proc_common.rotations[i]++;
 		/* MISRA Rule 17.7: Unused return value, (void) added */
-		(void)proc_threadSleep(10000 * (i));
+		(void)proc_threadSleep(10000U * (i));
 	}
 
 	return;
@@ -167,7 +167,7 @@ void test_proc_threads2(void)
 {
 	unsigned int i;
 	/* MISRA Rule 15.6: Added {} */
-	for (i = 0; i < 8; i++) {
+	for (i = 0; i < 8U; i++) {
 		test_proc_common.rotations[i] = 0;
 	}
 

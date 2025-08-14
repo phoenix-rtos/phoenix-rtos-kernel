@@ -17,14 +17,16 @@
 #include "lib.h"
 
 
-static int strtoul_isalnum(u8 c)
+static int strtoul_isalnum(char c)
 {
 	if ((c >= '0') && (c <= '9')) {
 		return 1;
 	}
 
-	/* test letter */
-	c &= ~0x20U;
+	/* test letter, AND with space char to convert to upper case */
+	// parasoft-suppress-next-line MISRAC2012-RULE_10_1
+	c &= ' ';
+
 	if ((c >= 'A') && (c <= 'Z')) {
 		return 1;
 	}
@@ -33,25 +35,26 @@ static int strtoul_isalnum(u8 c)
 }
 
 
-unsigned long lib_strtoul(u8 *nptr, u8 **endptr, int base)
+unsigned long lib_strtoul(char *nptr, char **endptr, int base)
 {
-	unsigned long t, v = 0;
+	unsigned int t = 0;
+	unsigned long v = 0;
 
 	if ((base == 16) && (nptr[0] == '0') && (nptr[1] == 'x')) {
 		nptr += 2;
 	}
 
 	while (strtoul_isalnum(*nptr) != 0) {
-		t = *nptr - '0';
-		if (t > 9) {
-			t = (*nptr | 0x20U) - 'a' + 10;
+		t = (unsigned int)((unsigned)*nptr - (unsigned)'0');
+		if (t > 9U) {
+			t = (unsigned int)(((unsigned)*nptr | 0x20U) - (unsigned)'a') + 10U;
 		}
 
-		if (t >= base) {
+		if (t >= (unsigned)base) {
 			break;
 		}
 
-		v = (v * base) + t;
+		v = (v * (unsigned long)base) + (unsigned long)t;
 
 		++nptr;
 	}
@@ -64,7 +67,7 @@ unsigned long lib_strtoul(u8 *nptr, u8 **endptr, int base)
 }
 
 
-long lib_strtol(u8 *nptr, u8 **endptr, int base)
+long lib_strtol(char *nptr, char **endptr, int base)
 {
 	int sign = 1;
 

@@ -31,11 +31,11 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 {
 	unsigned int i;
 
-	if ((blocksz == 0) || (blocks == 0)) {
+	if ((blocksz == 0U) || (blocks == 0U)) {
 		return -EINVAL;
 	}
 
-	if ((blocksz & ~(blocksz - 1U)) == 0) {
+	if ((blocksz & ~(blocksz - 1U)) == 0U) {
 		return -EINVAL;
 	}
 
@@ -50,9 +50,9 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 
 	/* Prepare zone for allocations */
 	for (i = 0; i < blocks; i++) {
-		*((void **)(zone->vaddr + i * blocksz)) = zone->vaddr + (i + 1) * blocksz;
+		*((void **)(zone->vaddr + i * blocksz)) = zone->vaddr + (i + 1U) * blocksz;
 	}
-	*((void **)(zone->vaddr + (blocks - 1) * blocksz)) = NULL;
+	*((void **)(zone->vaddr + (blocks - 1U) * blocksz)) = NULL;
 
 	zone->first = zone->vaddr;
 	zone->blocks = blocks;
@@ -115,7 +115,7 @@ void _vm_zfree(vm_zone_t *zone, void *block)
 		return;
 	}
 
-	if (((unsigned long)block & ~(zone->blocksz - 1U)) == 0) {
+	if (((unsigned long)block & ~(zone->blocksz - 1U)) == 0U) {
 		return;
 	}
 

@@ -36,7 +36,7 @@ void test_vm_alloc(void)
 	hal_cpuGetCycles(&b);
 	seed = (unsigned int)b;
 
-	for (n = 0; n < 1000000; n++) {
+	for (n = 0; n < 1000000U; n++) {
 
 		size = lib_rand(&seed) % (0x1UL << 22);
 		minsize = min(minsize, size);
@@ -118,15 +118,15 @@ void test_vm_kmalloc(void)
 	vm_pageGetStats(&freesz);
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 121, 141, 144, 154*/
-	(void)lib_printf("test: Testing kmalloc,   kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024);
+	(void)lib_printf("test: Testing kmalloc,   kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
 
 	hal_cpuGetCycles(&c);
 	s1 = (unsigned int)c;
-	s2 = s1 / 2;
+	s2 = s1 / 2U;
 
-	for (i = 0; i < sizeof(buff) / sizeof(buff[0]); i++)
+	for (i = 0; (unsigned)i < sizeof(buff) / sizeof(buff[0]); i++) {
 		buff[i] = NULL;
-
+	}
 	// vm_mapDumpArenas();
 
 	for (k = 0; k < 1000; k++) {
@@ -143,7 +143,7 @@ void test_vm_kmalloc(void)
 	}
 	(void)lib_printf("\n");
 
-	for (i = 0; i < sizeof(buff) / sizeof(buff[0]); i++) {
+	for (i = 0; (unsigned)i < sizeof(buff) / sizeof(buff[0]); i++) {
 		if (buff[i] != NULL)
 			vm_kfree(buff[i]);
 	}
@@ -151,7 +151,7 @@ void test_vm_kmalloc(void)
 	vm_kmallocGetStats(&kmallocsz);
 	vm_mapGetStats(&mapallocsz);
 	vm_pageGetStats(&freesz);
-	(void)lib_printf("test: Memory after test, kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024);
+	(void)lib_printf("test: Memory after test, kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
 
 	// vm_mapDumpArenas();
 
@@ -204,7 +204,7 @@ static void _test_vm_upgrsimthr(void *arg)
 
 		hal_memset(first, 1, 133);
 
-		for (i = 0; i < 10000; i++) {
+		for (i = 0; i < 10000U; i++) {
 			vm_kmallocGetStats(&allocsz);
 			(void)proc_lockSet(&lock);
 			(void)lib_printf("\rtest: U, [%4d] kmalloc.allocsz=%d", i, allocsz);
@@ -243,6 +243,6 @@ void test_vm_kmallocsim(void)
 
 	(void)proc_threadCreate(0, _test_vm_upgrsimthr, NULL, 0, 512, 0, 0, 0);
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < 16U; i++)
 		(void)proc_threadCreate(0, _test_vm_msgsimthr, NULL, 0, 512, 0, 0, 0);
 }

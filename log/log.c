@@ -30,7 +30,7 @@
 #define KERNEL_LOG_SIZE 2048
 #endif
 
-#define TCGETS 0x405c7401
+#define TCGETS 0x405c7401UL
 
 
 typedef struct _log_rmsg_t {
@@ -343,7 +343,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 
 	switch (msg->type) {
 		case mtOpen:
-			if ((msg->i.openclose.flags & O_WRONLY) != 0) {
+			if ((msg->i.openclose.flags & O_WRONLY) != 0U) {
 				msg->o.err = EOK;
 			}
 			else {
@@ -357,13 +357,13 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			}
 			else {
 				msg->o.err = log_read(r, msg->o.data, msg->o.size);
-				if ((msg->o.err == 0) && (r->nonblocking == 0)) {
+				if ((msg->o.err == 0) && (r->nonblocking == 0U)) {
 					msg->o.err = log_readerBlock(r, msg, oid, rid);
 					if (msg->o.err == EOK) {
 						respond = 0;
 					}
 				}
-				else if ((msg->o.err == 0) && (r->nonblocking != 0)) {
+				else if ((msg->o.err == 0) && (r->nonblocking != 0U)) {
 					msg->o.err = -EAGAIN;
 				}
 				log_readerPut(&r);
@@ -414,7 +414,7 @@ int log_write(const char *data, size_t len)
 			}
 		}
 
-		if (i > 0) {
+		if (i > 0U) {
 			log_common.updated = 1;
 		}
 		/* MISRA Rule 17.7: Unused return value, (void) added */

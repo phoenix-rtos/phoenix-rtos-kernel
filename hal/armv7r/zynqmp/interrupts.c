@@ -100,6 +100,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	u32 ciarValue = *(interrupts_common.gicc + gicc_iar);
 	n = ciarValue & 0x3ffU;
 
+	/* MISRA Rule 10.4: changed type by adding U in definition of SIZE_INTERRUPTS*/
 	if (n >= SIZE_INTERRUPTS) {
 		return 0;
 	}
@@ -110,11 +111,11 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if ((h = interrupts_common.handlers[n]) != NULL) {
 		do {
-			reschedule |= h->f(n, ctx, h->data);
+			reschedule |= (unsigned)h->f(n, ctx, h->data);
 		} while ((h = h->next) != interrupts_common.handlers[n]);
 	}
 
-	if (reschedule) {
+	if (reschedule != 0U) {
 		/* MISRA Rule 17.7: Unused returned value, added (void)*/
 		(void)threads_schedule(n, ctx, NULL);
 	}
@@ -209,7 +210,8 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 {
 	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)hal_strncpy(features, "Using GIC interrupt controller", len);
-	features[len - 1] = 0;
+	/* MISRA Rule 10.4: changed type by adding U */
+	features[len - 1U] = 0;
 
 	return features;
 }
@@ -268,13 +270,15 @@ void _hal_interruptsInit(void)
 	}
 
 	/* Clear pending and disable interrupts */
-	for (i = 0; i < (SIZE_INTERRUPTS + 31) / 32; i++) {
+	/* MISRA Rule 10.4: changed type by adding U */
+	for (i = 0; i < (SIZE_INTERRUPTS + 31U) / 32U; i++) {
 		*(interrupts_common.gicd + gicd_icenabler0 + i) = 0xffffffffU;
 		*(interrupts_common.gicd + gicd_icpendr0 + i) = 0xffffffffU;
 		*(interrupts_common.gicd + gicd_icactiver0 + i) = 0xffffffffU;
 	}
 
-	for (i = 0; i < 4; i++) {
+	/* MISRA Rule 10.4: changed type by adding U */
+	for (i = 0; i < 4U; i++) {
 		*(interrupts_common.gicd + gicd_cpendsgir0 + i) = 0xffffffffU;
 	}
 

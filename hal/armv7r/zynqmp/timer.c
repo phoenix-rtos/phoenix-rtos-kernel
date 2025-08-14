@@ -53,7 +53,8 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	spinlock_ctx_t sc;
 	hal_spinlockSet(&timer_common.sp, &sc);
 	/* Interval IRQ */
-	if ((*(timer_common.ttc + isr) & 0x1U) != 0) {
+	/* MISRA Rule 10.4: changed type by adding U */
+	if ((*(timer_common.ttc + isr) & 0x1U) != 0U) {
 		timer_common.jiffies += timer_common.ticksPerFreq;
 	}
 
@@ -67,7 +68,8 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 static time_t hal_timerCyc2Us(time_t cyc)
 {
-	return (cyc * 1000LL) / (time_t)(timer_common.ticksPerFreq * hal_cpuGetCount());
+	/* MISRA Rule 10.4: changed type by adding U */
+	return (cyc * 1000ULL) / (time_t)(timer_common.ticksPerFreq * hal_cpuGetCount());
 }
 
 

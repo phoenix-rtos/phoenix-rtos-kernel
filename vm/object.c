@@ -216,12 +216,12 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 	/* MISRA Rule 17.7: Unused returned value, (void) added  in lines 217, 220, 225*/
 	(void)proc_lockSet(&object_common.lock);
 
-	if (offs >= o->size) {
+	if ((unsigned long long)offs >= o->size) {
 		(void)proc_lockClear(&object_common.lock);
 		return NULL;
 	}
 
-	if ((p = o->pages[offs / SIZE_PAGE]) != NULL) {
+	if ((p = o->pages[(unsigned long long)offs / SIZE_PAGE]) != NULL) {
 		(void)proc_lockClear(&object_common.lock);
 		return p;
 	}
@@ -250,18 +250,18 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 251, 260, 265*/
 	(void)proc_lockSet(&object_common.lock);
 
-	if (o->pages[offs / SIZE_PAGE] != NULL) {
+	if (o->pages[(unsigned long long)offs / SIZE_PAGE] != NULL) {
 		/* Someone loaded a page in the meantime, use it */
 		if (p != NULL) {
 			vm_pageFree(p);
 		}
 
-		p = o->pages[offs / SIZE_PAGE];
+		p = o->pages[(unsigned long long)offs / SIZE_PAGE];
 		(void)proc_lockClear(&object_common.lock);
 		return p;
 	}
 
-	o->pages[offs / SIZE_PAGE] = p;
+	o->pages[(unsigned long long)offs / SIZE_PAGE] = p;
 	(void)proc_lockClear(&object_common.lock);
 	return p;
 }
@@ -271,7 +271,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 {
 	vm_object_t *o;
 	page_t *p;
-	int i, n;
+	unsigned int i, n;
 
 	if ((p = vm_pageAlloc(size, PAGE_OWNER_APP)) == NULL) {
 		return NULL;

@@ -124,10 +124,10 @@ extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
-	if (n == exc_prefetch || n == exc_abort) {
+	if (n == (unsigned int)exc_prefetch || n == (unsigned int)exc_abort) {
 		exceptions.abortHandler(n, ctx);
 	}
-	else if (n == exc_undef) {
+	else if (n == (unsigned int)exc_undef) {
 		exceptions.undefHandler(n, ctx);
 	}
 	else {
@@ -147,15 +147,16 @@ unsigned hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 	unsigned prot;
 	u32 status;
 
-	if (n == exc_prefetch) {
+	if (n == (unsigned int)exc_prefetch) {
 		prot = PROT_EXEC | PROT_READ;
 		status = ctx->ifsr & 0x1fU;
 	}
-	else if (n == exc_abort) {
+	else if (n == (unsigned int)exc_abort) {
 		prot = PROT_READ;
 		status = ctx->dfsr & 0x1fU;
 
-		if ((ctx->dfsr & (0x1UL << 11)) != 0) {
+		/* MISRA Rule 10.4: changed type by adding U*/
+		if ((ctx->dfsr & (0x1UL << 11)) != 0U) {
 			prot |= PROT_WRITE;
 		}
 	}
@@ -181,11 +182,11 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 	u32 status;
 	void *addr = NULL;
 
-	if (n == exc_prefetch) {
+	if (n == (unsigned int)exc_prefetch) {
 		status = ctx->ifsr & 0x1fU;
 		addr = (void *)ctx->ifar;
 	}
-	else if (n == exc_abort) {
+	else if (n == (unsigned int)exc_abort) {
 		status = ctx->dfsr & 0x1fU;
 		addr = (void *)ctx->dfar;
 	}
