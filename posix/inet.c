@@ -168,10 +168,11 @@ int inet_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 
 	ret = sockcall(socket, &msg);
 
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
-	*optlen = ret;
+	*optlen = (socklen_t)ret;
 	return 0;
 }
 
@@ -268,7 +269,7 @@ ssize_t inet_sendmsg(unsigned int socket, const struct msghdr *msg, unsigned int
 }
 
 
-int inet_socket(int domain, unsigned int type, int protocol)
+int inet_socket(int domain, int type, int protocol)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -317,14 +318,14 @@ int inet_setsockopt(unsigned int socket, int level, int optname, const void *opt
 }
 
 
-int inet_setfl(unsigned int socket, unsigned int flags)
+int inet_setfl(unsigned int socket, int flags)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmSetFl;
-	smi->send.flags = flags;
+	smi->send.flags = (unsigned int)flags;
 
 	return sockcall(socket, &msg);
 }
