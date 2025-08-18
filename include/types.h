@@ -55,5 +55,7 @@ typedef struct _oid_t {
 
 typedef int handle_t;
 
+typedef long long time_t;
+
 
 #endif
