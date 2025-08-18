@@ -66,7 +66,6 @@
 	ID(syspageprog) \
 	ID(va2pa) \
 	ID(signalAction) \
-	ID(signalPost) \
 	ID(signalMask) \
 	ID(signalSuspend) \
 	ID(priority) \

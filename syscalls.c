@@ -988,46 +988,6 @@ int syscalls_signalAction(u8 *ustack)
 }
 
 
-int syscalls_signalPost(u8 *ustack)
-{
-	int pid, tid, signal, err;
-	process_t *proc;
-	thread_t *t = NULL;
-
-	GETFROMSTACK(ustack, int, pid, 0U);
-	GETFROMSTACK(ustack, int, tid, 1U);
-	GETFROMSTACK(ustack, int, signal, 2U);
-
-	proc = proc_find(pid);
-	if (proc == NULL) {
-		return -EINVAL;
-	}
-
-	if (tid >= 0) {
-		t = threads_findThread(tid);
-		if (t == NULL) {
-			(void)proc_put(proc);
-			return -EINVAL;
-		}
-	}
-
-	if ((t != NULL) && (t->process != proc)) {
-		(void)proc_put(proc);
-		threads_put(t);
-		return -EINVAL;
-	}
-
-	err = threads_sigpost(proc, t, signal);
-
-	(void)proc_put(proc);
-	if (t != NULL) {
-		threads_put(t);
-	}
-
-	return err;
-}
-
-
 unsigned int syscalls_signalMask(u8 *ustack)
 {
 	unsigned int mask, mmask, old, new;
