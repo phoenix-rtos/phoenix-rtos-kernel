@@ -26,7 +26,6 @@
 typedef __u64 addr_t;
 
 typedef __s64 ssize_t;
-typedef unsigned long long time_t;
 
 typedef __u64 id_t;
 
