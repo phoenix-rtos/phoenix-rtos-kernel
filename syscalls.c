@@ -345,8 +345,7 @@ int syscalls_nsleep(void *ustack)
 		return -EFAULT;
 	}
 
-	/* FIXME - time_t should be signed and we should check for *sec < 0 */
-	if (((*nsec) < 0) || ((*nsec) >= (1000 * 1000 * 1000))) {
+	if ((*sec < 0) || ((*nsec) < 0) || ((*nsec) >= (1000 * 1000 * 1000))) {
 		return -EINVAL;
 	}
 
