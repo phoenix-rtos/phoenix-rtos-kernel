@@ -116,6 +116,9 @@ extern int proc_sigpost(int pid, int sig);
 extern int proc_vfork(void);
 
 
+extern void proc_vforkedDied(struct _thread_t *current, int state);
+
+
 extern int proc_fork(void);
 
 
