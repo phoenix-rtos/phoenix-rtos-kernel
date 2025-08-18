@@ -267,6 +267,11 @@ static void thread_destroy(thread_t *thread)
 	while (thread->locks != NULL) {
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
+
+	if (thread->execdata != NULL) {
+		thread->kstack = thread->execkstack;
+		proc_vforkedDied(thread, FORKED);
+	}
 	vm_kfree(thread->kstack);
 
 	process = thread->process;
