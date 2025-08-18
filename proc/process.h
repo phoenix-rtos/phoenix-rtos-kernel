@@ -27,6 +27,11 @@
 
 #define MAX_PID MAX_ID
 
+/* Process states */
+#define PREFORK 0
+#define FORKING 1
+#define FORKED  2
+
 
 typedef void (*sigtrampolineFn_t)(void);
 
@@ -113,6 +118,9 @@ int proc_sigpost(int pid, int sig);
 
 
 int proc_vfork(void);
+
+
+void proc_vforkedDied(struct _thread_t *thread, int state);
 
 
 int proc_fork(void);
