@@ -31,11 +31,6 @@
 #include "userintr.h"
 #include "perf/trace-events.h"
 
-/* Process states */
-#define PREFORK 0
-#define FORKING 1
-#define FORKED  2
-
 typedef struct _process_spawn_t {
 	spinlock_t sl;
 	thread_t *wq;
@@ -1314,12 +1309,14 @@ static void process_restoreParentKstack(thread_t *current, thread_t *parent)
 }
 
 
-static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
+void proc_vforkedDied(thread_t *thread, int state)
 {
 	spinlock_ctx_t sc;
+	process_spawn_t *spawn = thread->execdata;
+	thread->execdata = NULL;
 
-	current->ustack = NULL;
-	proc_changeMap(current->process, NULL, NULL, NULL);
+	thread->ustack = NULL;
+	proc_changeMap(thread->process, NULL, NULL, NULL);
 
 	/* Only possible in the case of `initthread` exit or failure to fork. */
 	if (spawn->parent == NULL) {
@@ -1327,15 +1324,20 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 		(void)vm_objectPut(spawn->object);
 	}
 	else {
-		process_restoreParentKstack(current, spawn->parent);
+		process_restoreParentKstack(thread, spawn->parent);
 
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = state;
 		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
+	proc_kill(thread->process);
+}
 
-	proc_kill(current->process);
+
+static void proc_vforkedExit(thread_t *current, int state)
+{
+	proc_vforkedDied(current, state);
 	proc_threadEnd();
 }
 
@@ -1344,7 +1346,7 @@ void proc_exit(int code)
 {
 	thread_t *current = proc_current();
 	process_spawn_t *spawn = current->execdata;
-	arg_t args[3];
+	arg_t args[2];
 
 	current->process->exit = code;
 
@@ -1356,10 +1358,9 @@ void proc_exit(int code)
 		}
 
 		args[0] = (arg_t)current;
-		args[1] = (arg_t)spawn;
-		args[2] = (arg_t)FORKED;
+		args[1] = (arg_t)FORKED;
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
-		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 3, args);
+		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 2, args);
 	}
 
 	proc_kill(current->process);
@@ -1597,7 +1598,7 @@ int proc_fork(void)
 #ifndef NOMMU
 	thread_t *current, *parent;
 	unsigned int sigmask;
-	arg_t args[3];
+	arg_t args[2];
 
 	err = proc_vfork();
 	if (err == 0) {
@@ -1623,10 +1624,9 @@ int proc_fork(void)
 
 		if (err < 0) {
 			args[0] = (arg_t)current;
-			args[1] = (arg_t)current->execdata;
-			args[2] = (arg_t)err;
+			args[1] = (arg_t)err;
 			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
-			hal_jmp(proc_vforkedExit, (unsigned char *)current->kstack + current->kstacksz, NULL, 3, args);
+			hal_jmp(proc_vforkedExit, (unsigned char *)current->kstack + current->kstacksz, NULL, 2, args);
 		}
 		else {
 			hal_cpuEnableInterrupts();
