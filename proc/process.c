@@ -1255,6 +1255,7 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 {
 	spinlock_ctx_t sc;
 
+	current->ustack = NULL;
 	proc_changeMap(current->process, NULL, NULL, NULL);
 
 	/* Only possible in the case of `initthread` exit or failure to fork. */
@@ -1355,6 +1356,8 @@ static void process_vforkThread(void *arg)
 		proc_threadEnd();
 	}
 
+	current->ustack = parent->ustack;
+
 	hal_cpuDisableInterrupts();
 	current->kstack = parent->kstack;
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
@@ -1446,6 +1449,9 @@ static int process_copy(void)
 		return -ENOMEM;
 	}
 
+	/* Avoid ustack access while map is invalid */
+	current->ustack = NULL;
+
 	vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
 
 	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0) {
@@ -1453,6 +1459,8 @@ static int process_copy(void)
 	}
 
 	proc_changeMap(process, &process->map, process->imapp, &process->map.pmap);
+
+	current->ustack = parent->ustack;
 
 	hal_cpuSmpSync();
 
