@@ -609,7 +609,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 		}
 
 		if (oid.port != US_PORT) {
-			err = -ENOTSOCK;
+			err = -ECONNREFUSED;
 			break;
 		}
 
@@ -754,17 +754,9 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, int flags, struct so
 		return -ENOTSOCK;
 
 	do {
-		if (s->type == SOCK_DGRAM) {
-			if (s->state & US_PEER_CLOSED) {
-				err = -ENOTCONN;
-				break;
-			}
-		}
-		else {
-			if (s->remote == NULL && (s->state & US_PEER_CLOSED) == 0) {
-				err = -ENOTCONN;
-				break;
-			}
+		if (s->type != SOCK_DGRAM && s->remote == NULL && (s->state & US_PEER_CLOSED) == 0) {
+			err = -ENOTCONN;
+			break;
 		}
 
 		err = 0;
@@ -851,7 +843,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, int flags, con
 				}
 
 				if (oid.port != US_PORT) {
-					err = -ENOTSOCK;
+					err = -ECONNREFUSED;
 					break;
 				}
 
