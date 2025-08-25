@@ -135,11 +135,11 @@ static void _perf_event(thread_t *t, int type)
 	}
 
 	ev.type = type;
-	/* Rzutowanie na unsigned char działa, ale czy można + przypadek poniżej?*/
+	/* TBD_Julia Rzutowanie na unsigned char działa, ale czy można + przypadek poniżej?*/
 
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
-	ev.tid = perf_idpack((unsigned)proc_getTid(t));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
 	/* MISRAC2012-RULE_17_7-a */
 	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
@@ -182,11 +182,11 @@ static void _perf_begin(thread_t *t)
 	ev.sbz = 0;
 	ev.type = perf_levBegin;
 	ev.prio = t->priority;
-	ev.tid = perf_idpack((unsigned)proc_getTid(t));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 	ev.pid = t->process != NULL ? perf_idpack((unsigned int)process_getPid(t->process)) : -1;
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // Jak w linii 140
+	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // TBD_Julia Jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -210,7 +210,7 @@ void perf_end(thread_t *t)
 	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // Jak w linii 140
+	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // TBD_Julia Jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -238,7 +238,7 @@ void perf_fork(process_t *p)
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
-	// ten błąd czasem potrafi zniknąć (podczas edycji), jak w linii 140
+	// TBD_Julia ten błąd czasem potrafi zniknąć (podczas edycji), jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -264,7 +264,7 @@ void perf_kill(process_t *p)
 	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // Jak w linii 140
+	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // TBD_Julia Jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -295,7 +295,7 @@ void perf_exec(process_t *p, char *path)
 	ev.path[plen] = '\0';
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // Jak w linii 140
+	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // TBD_Julia Jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -753,6 +753,7 @@ static int thread_alloc(thread_t *thread)
 
 	if (id >= 0) {
 		if (threads_common.idcounter == MAX_TID) {
+			// TBD_Julia  MAX_ID specjalnie wcześniej rzutowane było na int
 			threads_common.idcounter = 0U;
 		}
 		else {
@@ -817,7 +818,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->stick = 0;
 	t->utick = 0;
 	t->priorityBase = priority;
-	// można zrzutować na unsigned char? + poniżej
+	// TBD_Julia można zrzutować na unsigned char? + poniżej
 	t->priority = priority;
 	t->cpuTime = 0;
 	t->maxWait = 0;
@@ -955,7 +956,7 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 }
 
 
-int proc_threadPriority(unsigned int priority)
+int proc_threadPriority(int priority)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
@@ -965,7 +966,7 @@ int proc_threadPriority(unsigned int priority)
 		return -EINVAL;
 	}
 
-	if ((priority >= 0U) && (priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
+	if ((priority >= 0) && ((unsigned int)priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
 		return -EINVAL;
 	}
 
@@ -974,20 +975,20 @@ int proc_threadPriority(unsigned int priority)
 	current = _proc_current();
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
-	if (priority >= 0U) {
-		if (priority < current->priority) {
-			current->priority = priority;
+	if (priority >= 0) {
+		if ((unsigned int)priority < current->priority) {
+			current->priority = (unsigned int)priority;
 		}
-		else if (priority > current->priority) {
+		else if ((unsigned int)priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
-			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
-				current->priority = priority;
+			if ((current->locks == NULL) || ((unsigned int)priority <= _proc_threadGetLockPriority(current))) {
+				current->priority = (unsigned int)priority;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
 			}
 		}
 
-		current->priorityBase = priority;
+		current->priorityBase = (unsigned int)priority;
 	}
 
 	ret = (int)current->priorityBase;
@@ -1022,7 +1023,7 @@ void proc_threadEnd(void)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	cpu = hal_cpuGetID();
+	cpu = hal_cpuGetID();  // TBD_Julia Czemu funkcja wyświetla się jako int a w definicji jest unsigned int?
 	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
 	t->state = GHOST;
@@ -1156,7 +1157,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->wakeup = 0;
 	current->wait = queue;
 	current->interruptible = interruptible;
-	/* podczas próby zmiany unsigned int w definicji lub bezpośrednie rzutowanie,
+	/* TBD_Julia podczas próby zmiany unsigned int w definicji lub bezpośrednie rzutowanie,
 	 * to wyskakuje błąd z różnymi wielkościami, od razu rzutować na (unsigned char)?
 	 */
 
@@ -1479,7 +1480,7 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	unsigned sigbit = (unsigned)1 << (unsigned)sig;
+	unsigned sigbit = 0x01UL << (unsigned int)sig;
 
 	spinlock_ctx_t sc;
 
@@ -1835,8 +1836,8 @@ static int _proc_lockUnlock(lock_t *lock)
 		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
 		lock->owner = lock->queue;
 		lockPriority = (int)_proc_lockGetPriority(lock);
-		if ((unsigned)lockPriority < lock->owner->priority) {
-			_proc_threadSetPriority(lock->queue, (unsigned)lockPriority);
+		if ((unsigned int)lockPriority < lock->owner->priority) {
+			_proc_threadSetPriority(lock->queue, (unsigned int)lockPriority);
 		}
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
@@ -2020,7 +2021,7 @@ static void threads_idlethr(void *arg)
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 		wakeup = _proc_nextWakeup();
 
-		if (wakeup > (unsigned)(2 * SYSTICK_INTERVAL)) {
+		if (wakeup > (unsigned int)(2 * SYSTICK_INTERVAL)) {
 			hal_cpuLowPower(wakeup, &threads_common.spinlock, &sc);
 		}
 		else {
@@ -2084,7 +2085,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
-			info[i].pid = (unsigned)process_getPid(t->process);
+			info[i].pid = (unsigned int)process_getPid(t->process);
 			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
 			info[i].ppid = 0;
 		}
@@ -2094,20 +2095,21 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		info[i].tid = (unsigned)proc_getTid(t);
+		info[i].tid = (unsigned int)proc_getTid(t);
 		info[i].priority = (int)t->priorityBase;
 		info[i].state = (int)t->state;
 
 		now = _proc_gettimeRaw();
 		if (now != t->startTime) {
 			info[i].load = (t->cpuTime * 1000U) / (now - t->startTime);
+			// TBD_Julia Zastosować podwójne rzutowanie - najpierw unsigned na całość i później int
 		}
 		else {
 			info[i].load = 0;
 		}
 		info[i].cpuTime = t->cpuTime;
 
-		if (t->state == (unsigned)READY && t->maxWait < now - t->readyTime) {
+		if (t->state == (unsigned int)READY && t->maxWait < now - t->readyTime) {
 			info[i].wait = now - t->readyTime;
 		}
 		else {

@@ -217,7 +217,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 	 * one for handling by the caller before returning the socket to the user (to protect
 	 * against accidental socket removal by someone else in the meantime) */
 	r->refs = 2;
-	r->type = type;  // Czy na unsigned char można zrzutować ten i ten niżej?
+	r->type = type;  // TBD_Julia Czy na unsigned char można zrzutować ten i ten niżej?
 	r->nonblock = nonblock;
 	r->buffsz = US_DEF_BUFFER_SIZE;
 	r->fdpacks = NULL;
@@ -346,13 +346,13 @@ int unix_socket(int domain, unsigned type, int protocol)
 		return -EPROTONOSUPPORT;
 	}
 
-	s = unixsock_alloc(&id, type, nonblock);  // w definicji można zmienić?
+	s = unixsock_alloc(&id, type, nonblock);  // TBD_Julia w definicji można zmienić?
 	if (s == NULL) {
 		return -ENOMEM;
 	}
 	unixsock_put(s);
 
-	return id;  // Można zrzutować na int?
+	return (int)id;
 }
 
 
@@ -415,8 +415,8 @@ int unix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 		LIST_ADD(&s[1]->connected, s[0]);
 	}
 
-	sv[0] = id[0];  // na int można zrzutować?
-	sv[1] = id[1];  // Jak wyżej
+	sv[0] = id[0];  // TBD_Julia na int można zrzutować?
+	sv[1] = id[1];  // TBD_Julia Jak wyżej
 
 	unixsock_put(s[1]);
 	unixsock_put(s[0]);
@@ -498,7 +498,7 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 		(void)proc_threadWakeup(&r->queue);
 		hal_spinlockClear(&r->spinlock, &sc);
 
-		err = new->id;  // Można zrzutować na int?
+		err = (int)new->id;
 		unixsock_put(new);
 	} while (0);
 
@@ -557,7 +557,6 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 			dev.port = US_PORT;
 			dev.id = socket;
 			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
-			// Funkcja jest unsigned long long, można zrzutować na unsigned int?
 
 			if (err != 0) {
 				if (s->type == SOCK_DGRAM) {
@@ -764,7 +763,7 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 		switch (optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
-					*((int *)optval) = s->buffsz;  // zamiast (int *) można (unsigned int *)?
+					*((unsigned int *)optval) = s->buffsz;  // zamiast (int *) można (unsigned int *)?
 					*optlen = sizeof(int);
 				}
 				else {
@@ -817,11 +816,10 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 			(void)proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
 				if (peek != 0U) {
-					err = _cbuffer_peek(&s->buffer, buf, len);
-					// Zrzutować na (int)? Niżej też
+					err = (int)_cbuffer_peek(&s->buffer, buf, len);
 				}
 				else {
-					err = _cbuffer_read(&s->buffer, buf, len);
+					err = (int)_cbuffer_read(&s->buffer, buf, len);
 				}
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0U) { /* SOCK_DGRAM or SOCK_SEQPACKET */
@@ -962,12 +960,12 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 				/* MISRAC2012-RULE_17_7-a */
 				(void)proc_lockSet(&r->lock);
 				if (s->type == SOCK_STREAM) {
-					err = _cbuffer_write(&r->buffer, buf, len);
+					err = (int)_cbuffer_write(&r->buffer, buf, len);
 				}
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					/* MISRAC2012-RULE_17_7-a */
 					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
-					(void)_cbuffer_write(&r->buffer, buf, err = len);
+					(void)_cbuffer_write(&r->buffer, buf, err = len); // TBD_Julia Czy err może by tutaj unsigned?
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
@@ -1099,12 +1097,11 @@ int unix_shutdown(unsigned socket, int how)
 
 
 /* TODO: copy data from old buffer */
-static int unix_bufferSetSize(unixsock_t *s, int sz)
+static int unix_bufferSetSize(unixsock_t *s, unsigned int sz)
 {
 	void *v[2] = { NULL, NULL };
 
 	if (sz < US_MIN_BUFFER_SIZE || sz > US_MAX_BUFFER_SIZE) {
-		// Wszytkie problemy wewnątrz funkcji roziwązuje zmiana int sz na unsigned w deklaracji funkcji
 		return -EINVAL;
 	}
 

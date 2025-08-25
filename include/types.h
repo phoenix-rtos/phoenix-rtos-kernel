@@ -38,7 +38,7 @@
 #else
 #error "unsupported architecture"
 #endif
-
+// TBD_Julia nie ma architektury armv7r???
 
 #include "posix-types.h"
 

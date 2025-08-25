@@ -61,7 +61,7 @@ port_t *proc_portGet(u32 id)
 	port_t *port;
 	spinlock_ctx_t sc;
 
-	if (id > MAX_ID) {
+	if (id > MAX_ID) {  // TBD_ Julia Czy MAX_ID rzutować na unsigned? Wcześniej był problem i rzutowany był na int
 		return NULL;
 	}
 

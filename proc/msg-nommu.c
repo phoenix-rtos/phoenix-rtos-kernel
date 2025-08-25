@@ -51,7 +51,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.threads = NULL;
 	kmsg.state = msg_waiting;
 
-	kmsg.msg->pid = (sender->process != NULL) ? (unsigned)process_getPid(sender->process) : 0U;
+	kmsg.msg->pid = (sender->process != NULL) ? (unsigned int)process_getPid(sender->process) : 0U;
 	kmsg.msg->priority = sender->priority;
 
 	hal_spinlockSet(&p->spinlock, &sc);
