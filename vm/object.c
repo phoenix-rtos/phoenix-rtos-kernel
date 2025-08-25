@@ -93,7 +93,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			*o = no;
 			no = NULL;
 			hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
-			(*o)->size = sz;
+			(*o)->size = sz;  // sz przypisane do off_t (long long)
 			(*o)->refs = 0;
 
 			for (i = 0; i < n; ++i) {
@@ -149,7 +149,8 @@ int vm_objectPut(vm_object_t *o)
 	(void)proc_lockClear(&object_common.lock);
 
 	/* Contiguous object 'holds' all pages in pages[0] */
-	if ((o->oid.port == -1) && (o->oid.id == -1)) {
+	if (((int)o->oid.port == -1) && (o->oid.id == -1)) {
+		// unsigned porównany z -1? rzutować na signed jak lewy przypadek? + 291 linijka
 		vm_pageFree(o->pages[0]);
 	}
 	else {
@@ -277,7 +278,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 		return NULL;
 	}
 
-	size = 0x1U << p->idx;
+	size = 1UL << p->idx;
 	n = size / SIZE_PAGE;
 
 	if ((o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {

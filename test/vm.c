@@ -38,7 +38,7 @@ void test_vm_alloc(void)
 
 	for (n = 0; n < 1000000U; n++) {
 
-		size = lib_rand(&seed) % (0x1UL << 22);
+		size = lib_rand(&seed) % (0x1UL << 22U);
 		minsize = min(minsize, size);
 		maxsize = max(maxsize, size);
 
@@ -94,8 +94,9 @@ void test_vm_zalloc(void)
 	(void)_vm_zoneCreate(&zone, 128, 1024);
 
 	for (;;) {
-		if ((b = _vm_zalloc(&zone, NULL)) == NULL)
+		if ((b = _vm_zalloc(&zone, NULL)) == NULL) {
 			break;
+		}
 
 		(void)lib_printf("\rtest: b=%p", b);
 	}
@@ -144,8 +145,9 @@ void test_vm_kmalloc(void)
 	(void)lib_printf("\n");
 
 	for (i = 0; (unsigned)i < sizeof(buff) / sizeof(buff[0]); i++) {
-		if (buff[i] != NULL)
+		if (buff[i] != NULL) {
 			vm_kfree(buff[i]);
+		}
 	}
 
 	vm_kmallocGetStats(&kmallocsz);
@@ -199,8 +201,9 @@ static void _test_vm_upgrsimthr(void *arg)
 	// vm_mapDump(NULL);
 
 	for (;;) {
-		if ((first = vm_kmalloc(3000)) == NULL)
+		if ((first = vm_kmalloc(3000)) == NULL) {
 			break;
+		}
 
 		hal_memset(first, 1, 133);
 
@@ -210,8 +213,9 @@ static void _test_vm_upgrsimthr(void *arg)
 			(void)lib_printf("\rtest: U, [%4d] kmalloc.allocsz=%d", i, allocsz);
 			(void)proc_lockClear(&lock);
 
-			if ((buff = vm_kmalloc(3000)) == NULL)
+			if ((buff = vm_kmalloc(3000)) == NULL) {
 				break;
+			}
 			hal_memset(buff, 0, 133);
 			vm_kfree(buff);
 			(void)proc_threadSleep(1000);
@@ -243,6 +247,7 @@ void test_vm_kmallocsim(void)
 
 	(void)proc_threadCreate(0, _test_vm_upgrsimthr, NULL, 0, 512, 0, 0, 0);
 
-	for (i = 0; i < 16U; i++)
+	for (i = 0; i < 16U; i++) {
 		(void)proc_threadCreate(0, _test_vm_msgsimthr, NULL, 0, 512, 0, 0, 0);
+	}
 }

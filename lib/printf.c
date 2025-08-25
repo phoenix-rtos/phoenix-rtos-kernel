@@ -42,6 +42,9 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 	u32 num_high = (u32)(num64 >> 32);
 
 	/* MISRA Rule 10.4: changed type by adding U */
+	/* parasoft-begin-suppress MISRAC2012-RULE_10_3
+	 * "This function uses clever tricks to convert radix of the incoming num64"
+	 */
 	if ((flags & FLAG_SIGNED) != 0U) {
 		if ((flags & FLAG_64BIT) != 0U) {
 			if ((s32)num_high < 0) {
@@ -65,6 +68,7 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 			}
 		}
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_10_3 */
 
 	if ((flags & FLAG_64BIT) != 0U && num_high == 0x0U) {
 		flags &= ~FLAG_64BIT;
@@ -197,7 +201,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 		/* leading number digits-cnt */
 		while (fmt >= '0' && fmt <= '9') {
-			min_number_len = min_number_len * 10U + fmt - '0';
+			min_number_len = min_number_len * 10U + ((unsigned int)fmt - (unsigned int)'0');
 			fmt = *format++;
 			if (fmt == '\0') {
 				goto bad_format;
@@ -300,7 +304,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		}
 
 	handle_number:;
-		out = printf_sprintf_int(out, number, flags, min_number_len);
+		out = printf_sprintf_int(out, number, flags, (int)min_number_len);
 		continue;
 	}
 
@@ -374,7 +378,7 @@ int lib_vprintf(const char *format, va_list ap)
 
 		/* leading number digits-cnt */
 		while (fmt >= '0' && fmt <= '9') {
-			min_number_len = min_number_len * 10U + fmt - '0';
+			min_number_len = min_number_len * 10U + ((unsigned int)fmt - (unsigned int)'0');
 			fmt = *format++;
 
 			if (fmt == '\0') {
@@ -504,7 +508,7 @@ int lib_vprintf(const char *format, va_list ap)
 		}
 
 	handle_number:;
-		eptr = printf_sprintf_int(buff, number, flags, min_number_len);
+		eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
 		sptr = buff;
 
 		while (sptr != eptr) {

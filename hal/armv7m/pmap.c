@@ -20,8 +20,17 @@
 #include <arch/cpu.h>
 #include <arch/spinlock.h>
 
-enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rasr, mpu_rbar_a1, mpu_rasr_a1, mpu_rbar_a2, mpu_rasr_a2,
-	   mpu_rbar_a3, mpu_rasr_a3 };
+enum { mpu_type,
+	mpu_ctrl,
+	mpu_rnr,
+	mpu_rbar,
+	mpu_rasr,
+	mpu_rbar_a1,
+	mpu_rasr_a1,
+	mpu_rbar_a2,
+	mpu_rasr_a2,
+	mpu_rbar_a3,
+	mpu_rasr_a3 };
 
 /* Linker symbols */
 extern unsigned int _end;
@@ -143,7 +152,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 
 char pmap_marker(page_t *p)
 {
-	return 0;
+	return '\0';
 }
 
 
@@ -222,7 +231,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	 * region and allow this region instead. */
 
 	/* Find kernel code region */
-	__asm__ volatile ("\tmov %0, pc;" : "=r" (pc));
+	__asm__ volatile("\tmov %0, pc;" : "=r"(pc));
 	ikmap = syspage_mapAddrResolve(pc);
 	if (ikmap == NULL) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");

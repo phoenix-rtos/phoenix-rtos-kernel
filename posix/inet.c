@@ -296,7 +296,7 @@ int inet_shutdown(unsigned int socket, int how)
 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmShutdown;
-	smi->send.flags = how;
+	smi->send.flags = (unsigned)how;
 
 	return sockcall(socket, &msg);
 }

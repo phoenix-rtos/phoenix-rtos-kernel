@@ -164,6 +164,7 @@ static int process_alloc(process_t *process)
 
 	if (id >= 0) {
 		if (process_common.idcounter == MAX_PID) {
+			// lewą stronę zrzutować na unsigned long long czy prawą na int?
 			process_common.idcounter = 1;
 		}
 		else {
@@ -236,7 +237,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	(void)process_alloc(process);
 	perf_fork(process);
 
-	if (proc_threadCreate(process, initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
+	if (proc_threadCreate(process, initthr, NULL, 4, (unsigned)SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
 		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_put(process);
 		return -EINVAL;
@@ -391,11 +392,11 @@ static int process_validateElf32(void *iehdr, size_t size)
 			continue;
 		}
 
-		offs = (off_t)(phdr->p_offset & ~(phdr->p_align - 1U));
+		offs = (off_t)((Elf32_Off)(phdr->p_offset & ~(phdr->p_align - 1U)));
 		misalign = phdr->p_offset & (phdr->p_align - 1U);
 		filesz = (phdr->p_filesz != 0U) ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;
-		if ((offs >= size) || (memsz < filesz)) {
+		if ((offs >= (off_t)size) || (memsz < filesz)) {
 			return -ENOEXEC;
 		}
 	}
@@ -769,8 +770,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
 	Elf32_Rela rela;
-	unsigned prot, flags, reloffs;
-	int relocsz = 0, badreloc = 0, err;
+	unsigned relocsz = 0, prot, flags, reloffs;
+	int badreloc = 0, error;
 	unsigned i, j;
 	void *relptr;
 	char *snameTab;
@@ -786,15 +787,15 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 	ehdr = (void *)(unsigned int *)(ptr_t)base;
 
-	err = process_validateElf32(ehdr, size);
-	if (err < 0) {
-		return err;
+	error = process_validateElf32(ehdr, size);
+	if (error < 0) {
+		return error;
 	}
 
 	hal_memset(reloc, 0, sizeof(reloc));
 
 	for (i = 0U, j = 0U, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
+		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0U) {
 			stacksz = round_page(phdr->p_memsz);
 		}
 
@@ -889,7 +890,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	/* Perform .got relocations */
 	/* This is non classic approach to .got relocation. We use .got itselft
 	 * instead of .rel section. */
-	for (i = 0U; i < shdr->sh_size / 4; ++i) {
+	for (i = 0U; i < shdr->sh_size / 4U; ++i) {
 		if (process_relocate(reloc, relocsz, (char **)&got[i]) < 0) {
 			return -ENOEXEC;
 		}
@@ -1061,7 +1062,7 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 	}
 
 	*argsp = args_stack;
-	*count = argc;
+	*count = (int)argc;
 
 	return stack;
 }
@@ -1177,8 +1178,9 @@ static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap,
 	process_spawn_t spawn;
 	spinlock_ctx_t sc;
 
-	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL)
+	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL) {
 		return -ENOMEM;
+	}
 
 	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
 		vm_kfree(argv);
@@ -1260,15 +1262,15 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 	}
 
 	if (codeMap != NULL) {
-		if ((codeMap->attr & (mAttrRead | mAttrExec)) != (mAttrRead | mAttrExec)) {
+		if ((codeMap->attr & ((unsigned int)mAttrRead | (unsigned int)mAttrExec)) != ((unsigned int)mAttrRead | (unsigned int)mAttrExec)) {
 			return -EINVAL;
 		}
 
-		imapp = vm_getSharedMap(codeMap->id);
+		imapp = vm_getSharedMap((int)codeMap->id);
 	}
 
-	if (sysMap != NULL && (sysMap->attr & (mAttrRead | mAttrWrite)) == (mAttrRead | mAttrWrite)) {
-		return proc_syspageSpawn((syspage_prog_t *)prog, imapp, vm_getSharedMap(sysMap->id), name, argv);
+	if (sysMap != NULL && (sysMap->attr & ((unsigned int)mAttrRead | (unsigned int)mAttrWrite)) == ((unsigned int)mAttrRead | (unsigned int)mAttrWrite)) {
+		return proc_syspageSpawn((syspage_prog_t *)prog, imapp, vm_getSharedMap((int)sysMap->id), name, argv);
 	}
 
 	return -EINVAL;
@@ -1277,7 +1279,7 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 
 int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
 {
-	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, program->start, program->end - program->start, path, argv, NULL);
+	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, (int)program->start, program->end - program->start, path, argv, NULL);
 }
 
 
@@ -1286,7 +1288,8 @@ int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, co
 
 static size_t process_parentKstacksz(thread_t *parent)
 {
-	return parent->kstacksz - (hal_cpuGetSP(parent->context) - parent->kstack);
+	return parent->kstacksz - (hal_cpuGetSP(parent->context) - (parent->kstack));
+	// można zrzutować w nawiasie z obu stron na unsigned int, ale powoduje błąd 11.6, bo są to voidy
 }
 
 
@@ -1474,7 +1477,7 @@ int proc_vfork(void)
 		 */
 		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
-		isparent = proc_current() == current;
+		isparent = (proc_current() == current) ? 1 : 0;
 	} while ((spawn->state < FORKED) && (spawn->state > 0) && (isparent != 0));
 
 	hal_spinlockClear(&spawn->sl, &sc);

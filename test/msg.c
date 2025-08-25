@@ -23,10 +23,10 @@ unsigned test_randsize(unsigned *seed, unsigned bufsz)
 	unsigned sz;
 
 	if (lib_rand(seed) % 2) {
-		sz = (lib_rand(seed) % (bufsz / SIZE_PAGE)) * SIZE_PAGE;
+		sz = ((unsigned)lib_rand(seed) % (bufsz / SIZE_PAGE)) * SIZE_PAGE;
 	}
 	else {
-		sz = 1U + (lib_rand(seed) % bufsz);
+		sz = 1U + ((unsigned)lib_rand(seed) % bufsz);
 	}
 
 	return (sz != 0U) ? sz : 1U;
@@ -38,7 +38,7 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 	unsigned offs = (bufsz - size) / SIZE_PAGE;
 
 	if (offs != 0U && lib_rand(seed) % 2 != 0) {
-		offs = (lib_rand(seed) % offs) * SIZE_PAGE;
+		offs = ((unsigned)lib_rand(seed) % offs) * SIZE_PAGE;
 	}
 	else if (offs != 0U && lib_rand(seed) % 10 != 0) {
 		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1U));
@@ -47,7 +47,7 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1U)) / 2U;
 	}
 	else if (bufsz - size != 0U) {
-		offs = lib_rand(seed) % (bufsz - size);
+		offs = (unsigned)lib_rand(seed) % (bufsz - size);
 	}
 	else {
 		offs = 0;
@@ -61,9 +61,9 @@ void test_ping(void *arg)
 	msg_t msg;
 	unsigned bufsz = 4U * SIZE_PAGE, offs[2], i, k;
 	void *buf[2];
-	unsigned int seed = (long)test_ping;
+	unsigned int seed = (unsigned long)test_ping;
 	unsigned int count = 0;
-	unsigned int port = (long)arg;
+	unsigned int port = (unsigned long)arg;
 
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 70, 76, 81, 95, 100, 105, 129*/
@@ -136,7 +136,7 @@ void test_pong(void *arg)
 {
 	msg_t msg;
 	msg_rid_t rid;
-	unsigned int port = (long)arg;
+	unsigned int port = (unsigned long)arg;
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 142, 147, 152, 159*/
 	(void)lib_printf("test_msg/pong: starting\n");

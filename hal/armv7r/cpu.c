@@ -156,7 +156,6 @@ char *hal_cpuInfo(char *info)
 
 	if (((midr >> 16) & 0xfU) == 0xfU) {
 		(void)hal_strcpy(&info[n], "ARMv7 ");
-		/* MISRA Rule 10.4: changed type by adding U*/
 		n += 6U;
 	}
 
@@ -164,7 +163,9 @@ char *hal_cpuInfo(char *info)
 		(void)hal_strcpy(&info[n], "Cortex-R5 ");
 		n += hal_strlen("Cortex-R5 ");
 	}
-
+	/* parasoft-begin-suppress MISRAC2012-RULE_10_2 | MISRAC2012-RULE_10_3
+	 * "Correctness of char operation in following block is guaranteed by design"
+	 */
 	info[n++] = 'r';
 	info[n++] = '0' + ((midr >> 20) & 0xfUL);
 	info[n++] = 'p';
@@ -175,6 +176,7 @@ char *hal_cpuInfo(char *info)
 	info[n++] = '0' + hal_cpuGetCount();
 
 	info[n] = '\0';
+	/* parasoft-end-suppress MISRAC2012-RULE_10_2 | MISRAC2012-RULE_10_3 */
 
 	return info;
 }
@@ -190,7 +192,6 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	}
 
 	/* MISRA Rule 17.7: Unused returned value by hal_strcpy function, (void) added in lines 192, 197, 202, 207, 212, 217, 222, 227*/
-
 	if (((pfr0 >> 12) & 0xfUL) != 0U && len - n > 9U) {
 		(void)hal_strcpy(&features[n], "ThumbEE, ");
 		n += 9U;

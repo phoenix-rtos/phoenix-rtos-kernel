@@ -69,7 +69,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 static time_t hal_timerCyc2Us(time_t cyc)
 {
 	/* MISRA Rule 10.4: changed type by adding U */
-	return (cyc * 1000ULL) / (time_t)(timer_common.ticksPerFreq * hal_cpuGetCount());
+	return (cyc * 1000ULL) / ((time_t)timer_common.ticksPerFreq * hal_cpuGetCount());
 }
 
 

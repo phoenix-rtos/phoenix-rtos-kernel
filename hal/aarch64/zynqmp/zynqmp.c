@@ -125,7 +125,7 @@ int _zynqmp_getDevClock(int dev, char *src, char *div0, char *div1, char *active
 }
 
 
-static void _zynqmp_setMIOMuxing(unsigned pin, char l0, char l1, char l2, char l3)
+static void _zynqmp_setMIOMuxing(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3)
 {
 	u32 val = ((l0 & 0x1) << 1) | ((l1 & 0x1) << 2) | ((l2 & 0x3) << 3) | ((l3 & 0x7) << 5);
 	*(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) = (*(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & ~0xff) | val;
@@ -169,7 +169,7 @@ static void _zynqmp_setMIOControl(unsigned pin, char config)
 }
 
 
-int _zynqmp_setMIO(unsigned pin, char l0, char l1, char l2, char l3, char config)
+int _zynqmp_setMIO(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config)
 {
 	if (pin > 77) {
 		return -1;
@@ -183,7 +183,7 @@ int _zynqmp_setMIO(unsigned pin, char l0, char l1, char l2, char l3, char config
 }
 
 
-static void _zynqmp_getMIOMuxing(unsigned pin, char *l0, char *l1, char *l2, char *l3)
+static void _zynqmp_getMIOMuxing(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3)
 {
 	u32 val = *(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & 0xff;
 	*l0 = (val >> 1) & 0x1;
@@ -222,7 +222,7 @@ static void _zynqmp_getMIOControl(unsigned pin, char *config)
 }
 
 
-static int _zynqmp_getMIO(unsigned pin, char *l0, char *l1, char *l2, char *l3, char *config)
+static int _zynqmp_getMIO(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *config)
 {
 	if (pin > 77) {
 		return -1;

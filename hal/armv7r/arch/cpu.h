@@ -22,11 +22,11 @@
 #define INITIAL_KSTACK_SHIFT 12
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (8 * 1024)
+#define SIZE_KSTACK (8U * 1024U)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 /* ARMv7 processor modes */
