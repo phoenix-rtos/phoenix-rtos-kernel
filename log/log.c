@@ -134,7 +134,7 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	msg.i.size = 0;
 
 	msg.type = mtRead;
-	msg.pid = (unsigned)r->pid;
+	msg.pid = (unsigned int)r->pid;
 	msg.o.data = rmsg->odata;
 	msg.o.size = rmsg->osize;
 	msg.o.err = err;

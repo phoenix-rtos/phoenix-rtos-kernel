@@ -111,7 +111,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if ((h = interrupts_common.handlers[n]) != NULL) {
 		do {
-			reschedule |= (unsigned)h->f(n, ctx, h->data);
+			reschedule |= (unsigned int)h->f(n, ctx, h->data);
 		} while ((h = h->next) != interrupts_common.handlers[n]);
 	}
 
@@ -292,7 +292,7 @@ void _hal_interruptsInit(void)
 
 	/* Set required configuration and CPU mask */
 	for (i = SPI_FIRST_IRQID; i < SIZE_INTERRUPTS; ++i) {
-		interrupts_setConf(i, (unsigned)_interrupts_gicv2_classify(i));
+		interrupts_setConf(i, (unsigned int)_interrupts_gicv2_classify(i));
 		interrupts_setCPU(i, 0x1);
 	}
 

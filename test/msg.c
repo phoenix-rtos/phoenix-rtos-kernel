@@ -23,10 +23,10 @@ unsigned test_randsize(unsigned *seed, unsigned bufsz)
 	unsigned sz;
 
 	if (lib_rand(seed) % 2) {
-		sz = ((unsigned)lib_rand(seed) % (bufsz / SIZE_PAGE)) * SIZE_PAGE;
+		sz = ((unsigned int)lib_rand(seed) % (bufsz / SIZE_PAGE)) * SIZE_PAGE;
 	}
 	else {
-		sz = 1U + ((unsigned)lib_rand(seed) % bufsz);
+		sz = 1U + ((unsigned int)lib_rand(seed) % bufsz);
 	}
 
 	return (sz != 0U) ? sz : 1U;
@@ -38,7 +38,7 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 	unsigned offs = (bufsz - size) / SIZE_PAGE;
 
 	if (offs != 0U && lib_rand(seed) % 2 != 0) {
-		offs = ((unsigned)lib_rand(seed) % offs) * SIZE_PAGE;
+		offs = ((unsigned int)lib_rand(seed) % offs) * SIZE_PAGE;
 	}
 	else if (offs != 0U && lib_rand(seed) % 10 != 0) {
 		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1U));
@@ -47,7 +47,7 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 		offs = SIZE_PAGE - (size & (SIZE_PAGE - 1U)) / 2U;
 	}
 	else if (bufsz - size != 0U) {
-		offs = (unsigned)lib_rand(seed) % (bufsz - size);
+		offs = (unsigned int)lib_rand(seed) % (bufsz - size);
 	}
 	else {
 		offs = 0;

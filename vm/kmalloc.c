@@ -97,11 +97,11 @@ vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 	kmalloc_common.allocsz -= z->blocksz;
 
 	if ((idx = hal_cpuGetLastBit(z->blocksz)) == hdridx) {
-		/* wszystkie błędy w tym pliku dotyczą zmiennej
-		 * hdridx i idx, są u8 i przypiswane są do nich
-		 * zmienne o większym rozmiarze lub w definicji
-		 * funkcji mają u8 a deklarowane są jako zmienne
-		 * o większym rozmiarze
+		/* TBD_ Julia wszystkie błędy w tym pliku dotyczą
+		 * zmiennej hdridx i idx, są u8 i przypiswane są
+		 * do nichzmienne o większym rozmiarze lub
+		 * w definicji funkcji mają u8 a deklarowane
+		 * są jako zmienne o większym rozmiarze
 		 */
 		kmalloc_common.hdrblocks++;
 	}

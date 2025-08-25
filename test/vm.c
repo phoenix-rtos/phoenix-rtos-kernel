@@ -125,7 +125,7 @@ void test_vm_kmalloc(void)
 	s1 = (unsigned int)c;
 	s2 = s1 / 2U;
 
-	for (i = 0; (unsigned)i < sizeof(buff) / sizeof(buff[0]); i++) {
+	for (i = 0; (unsigned int)i < sizeof(buff) / sizeof(buff[0]); i++) {
 		buff[i] = NULL;
 	}
 	// vm_mapDumpArenas();
@@ -144,7 +144,7 @@ void test_vm_kmalloc(void)
 	}
 	(void)lib_printf("\n");
 
-	for (i = 0; (unsigned)i < sizeof(buff) / sizeof(buff[0]); i++) {
+	for (i = 0; (unsigned int)i < sizeof(buff) / sizeof(buff[0]); i++) {
 		if (buff[i] != NULL) {
 			vm_kfree(buff[i]);
 		}

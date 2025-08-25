@@ -237,7 +237,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 	(void)process_alloc(process);
 	perf_fork(process);
 
-	if (proc_threadCreate(process, initthr, NULL, 4, (unsigned)SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
+	if (proc_threadCreate(process, initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
 		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_put(process);
 		return -EINVAL;
@@ -1289,7 +1289,7 @@ int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, co
 static size_t process_parentKstacksz(thread_t *parent)
 {
 	return parent->kstacksz - (hal_cpuGetSP(parent->context) - (parent->kstack));
-	// można zrzutować w nawiasie z obu stron na unsigned int, ale powoduje błąd 11.6, bo są to voidy
+	// TBD_Julia można zrzutować w nawiasie z obu stron na unsigned int, ale powoduje błąd 11.6, bo są to voidy
 }
 
 

@@ -286,12 +286,12 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		else {
 			/* Can't merge to the left if amap array size is too small */
 			/* MISRA Rule 10.4 casted to unsigned type */
-			if (lmerge != 0U && (amap = prev->amap) != NULL && (amap->size * SIZE_PAGE - (unsigned)prev->aoffs - prev->size) < size) {
+			if (lmerge != 0U && (amap = prev->amap) != NULL && (amap->size * SIZE_PAGE - (unsigned int)prev->aoffs - prev->size) < size) {
 				lmerge = 0;
 			}
 			/* Can't merge to the right if amap offset is too small */
 			if (rmerge != 0U && (amap = next->amap) != NULL && next->aoffs < size) {
-				// Odtąd zaczyna się problem z aoffs, czy można go w definicji zrobić unsigned? w kilku miejscach już jest zrzutowany
+				// TBD_Julia Odtąd zaczyna się problem z aoffs, czy można go w definicji zrobić unsigned? w kilku miejscach już jest zrzutowany
 				rmerge = 0;
 			}
 			/* amaps differ, we can only merge one way */
@@ -876,7 +876,7 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 		currSize = e->size;
 		/* First entry may not be aligned. */
 		if (e->vaddr < t.vaddr) {
-			currSize -= ((unsigned)t.vaddr - (unsigned)e->vaddr);
+			currSize -= ((unsigned int)t.vaddr - (unsigned int)e->vaddr);
 			needed++;
 		}
 		/* Last entry may not be changed fully. */
@@ -888,6 +888,7 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 	} while (lenLeft != 0U);
 
 	if ((result == EOK) && (needed != 0U)) {
+		// TBD_Julia EOK nie można zmienić w definicji, dużo wystąpień w innych plikach, gdzie jako int pasuje
 		buf = map_allocN(needed);
 		if (buf == NULL) {
 			result = -ENOMEM;
@@ -1441,7 +1442,7 @@ static map_entry_t *map_allocN(int n)
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1438, 1441, 1457*/
 	(void)proc_lockSet(&map_common.lock);
 
-	if (map_common.nfree < (unsigned)n) {
+	if (map_common.nfree < (unsigned int)n) {
 		(void)proc_lockClear(&map_common.lock);
 #ifndef NDEBUG
 		lib_printf("vm: Entry pool exhausted!\n");
@@ -1449,7 +1450,7 @@ static map_entry_t *map_allocN(int n)
 		return NULL;
 	}
 
-	map_common.nfree -= (unsigned)n;
+	map_common.nfree -= (unsigned int)n;
 	e = map_common.free;
 	tmp = e;
 	for (i = 0; i < (n - 1); i++) {
@@ -1633,9 +1634,9 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	/* Map kernel segments */
 	for (i = 0;; i++) {
 		prot = PROT_READ | PROT_EXEC;
-		// ze zmienną prot jest błąd jeszcze 2 razy niżej, można w definicji zmienić?
+		// TBD_Julia ze zmienną prot jest błąd jeszcze 2 razy niżej, można w definicji zmienić?
 
-		if (pmap_segment((unsigned)i, &vaddr, &size, &prot, top) < 0) {
+		if (pmap_segment((unsigned int)i, &vaddr, &size, &prot, top) < 0) {
 			break;
 		}
 
