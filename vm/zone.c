@@ -44,7 +44,7 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 	}
 
 	if ((zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, 0x1U << zone->pages->idx, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE)) == NULL) {
-		// teraz to 0x1U ma za duży rozmiar - idx  jest u8
+		// TBD_Julia teraz to 0x1U ma za duży rozmiar - idx  jest u8
 		vm_pageFree(zone->pages);
 		return -ENOMEM;
 	}

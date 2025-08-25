@@ -93,7 +93,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			*o = no;
 			no = NULL;
 			hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
-			(*o)->size = sz;  // sz przypisane do off_t (long long)
+			(*o)->size = sz;  // TBD_Julia sz przypisane do off_t (long long)
 			(*o)->refs = 0;
 
 			for (i = 0; i < n; ++i) {
@@ -150,7 +150,7 @@ int vm_objectPut(vm_object_t *o)
 
 	/* Contiguous object 'holds' all pages in pages[0] */
 	if (((int)o->oid.port == -1) && (o->oid.id == -1)) {
-		// unsigned porównany z -1? rzutować na signed jak lewy przypadek? + 291 linijka
+		// TBD_Julia unsigned porównany z -1? rzutować na signed jak lewy przypadek? + 291 linijka
 		vm_pageFree(o->pages[0]);
 	}
 	else {
