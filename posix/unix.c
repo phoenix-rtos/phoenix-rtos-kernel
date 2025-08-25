@@ -80,10 +80,18 @@ static struct {
 
 static int unixsock_cmp(rbnode_t *n1, rbnode_t *n2)
 {
+	unsigned id_diff;
 	unixsock_t *r1 = lib_treeof(unixsock_t, linkage, n1);
 	unixsock_t *r2 = lib_treeof(unixsock_t, linkage, n2);
 
-	return (r1->id - r2->id);
+	if (r1->id < r2->id) {
+		id_diff = r2->id - r1->id;
+		return -1 * (int)(id_diff);
+	}
+	else {
+		id_diff = r1->id - r2->id;
+		return (int)(id_diff);
+	}
 }
 
 
@@ -113,8 +121,9 @@ static int unixsock_gapcmp(rbnode_t *n1, rbnode_t *n2)
 		ret = -1;
 	}
 
-	if (child == NULL)
+	if (child == NULL) {
 		return 0;
+	}
 
 	return ret;
 }
@@ -160,8 +169,9 @@ static void unixsock_augment(rbnode_t *node)
 		n = lib_treeof(unixsock_t, linkage, it);
 		p = lib_treeof(unixsock_t, linkage, it->parent);
 
-		if (it->parent->left == it)
+		if (it->parent->left == it) {
 			p->lmaxgap = max(n->lmaxgap, n->rmaxgap);
+		}
 		else
 			p->rmaxgap = max(n->lmaxgap, n->rmaxgap);
 	}
@@ -207,7 +217,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 	 * one for handling by the caller before returning the socket to the user (to protect
 	 * against accidental socket removal by someone else in the meantime) */
 	r->refs = 2;
-	r->type = type;
+	r->type = type;  // Czy na unsigned char można zrzutować ten i ten niżej?
 	r->nonblock = nonblock;
 	r->buffsz = US_DEF_BUFFER_SIZE;
 	r->fdpacks = NULL;
@@ -315,7 +325,7 @@ static void unixsock_put(unixsock_t *s)
 		vm_kfree(s);
 		return;
 	}
-	proc_lockClear(&unix_common.lock);
+	(void)proc_lockClear(&unix_common.lock);
 }
 
 
@@ -325,7 +335,7 @@ int unix_socket(int domain, unsigned type, int protocol)
 	unsigned id;
 	unsigned nonblock;
 
-	nonblock = (type & SOCK_NONBLOCK) != 0U;
+	nonblock = ((type & SOCK_NONBLOCK) != 0U) ? 1U : 0U;
 	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
 	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET) {
@@ -336,13 +346,13 @@ int unix_socket(int domain, unsigned type, int protocol)
 		return -EPROTONOSUPPORT;
 	}
 
-	s = unixsock_alloc(&id, type, nonblock);
+	s = unixsock_alloc(&id, type, nonblock);  // w definicji można zmienić?
 	if (s == NULL) {
 		return -ENOMEM;
 	}
 	unixsock_put(s);
 
-	return id;
+	return id;  // Można zrzutować na int?
 }
 
 
@@ -353,7 +363,7 @@ int unix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 	void *v[2];
 	int nonblock;
 
-	nonblock = (type & SOCK_NONBLOCK) != 0U;
+	nonblock = ((type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
 	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
 	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET) {
@@ -405,8 +415,8 @@ int unix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 		LIST_ADD(&s[1]->connected, s[0]);
 	}
 
-	sv[0] = id[0];
-	sv[1] = id[1];
+	sv[0] = id[0];  // na int można zrzutować?
+	sv[1] = id[1];  // Jak wyżej
 
 	unixsock_put(s[1]);
 	unixsock_put(s[0]);
@@ -428,7 +438,7 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 		return -ENOTSOCK;
 	}
 
-	nonblock = (flags & SOCK_NONBLOCK) != 0U;
+	nonblock = ((flags & SOCK_NONBLOCK) != 0U) ? 1 : 0;
 
 	do {
 		if (s->type != SOCK_STREAM && s->type != SOCK_SEQPACKET) {
@@ -488,7 +498,7 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 		(void)proc_threadWakeup(&r->queue);
 		hal_spinlockClear(&r->spinlock, &sc);
 
-		err = new->id;
+		err = new->id;  // Można zrzutować na int?
 		unixsock_put(new);
 	} while (0);
 
@@ -547,6 +557,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 			dev.port = US_PORT;
 			dev.id = socket;
 			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
+			// Funkcja jest unsigned long long, można zrzutować na unsigned int?
 
 			if (err != 0) {
 				if (s->type == SOCK_DGRAM) {
@@ -574,8 +585,9 @@ int unix_listen(unsigned socket, int backlog)
 	unixsock_t *s;
 	int err;
 
-	if ((s = unixsock_get(socket)) == NULL)
+	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
+	}
 
 	do {
 		if (s->state & US_LISTENING) {
@@ -650,6 +662,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 		/* FIXME: caller may block indefinitely if remote gets closed after successful unixsock_get call */
 		r = unixsock_get(oid.id);
 		if (r == NULL) {
+			// TBD_Julia Przypadek po prawej, czy można z ULL na U int?
 			err = -ECONNREFUSED;
 			break;
 		}
@@ -751,7 +764,7 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 		switch (optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
-					*((int *)optval) = s->buffsz;
+					*((int *)optval) = s->buffsz;  // zamiast (int *) można (unsigned int *)?
 					*optlen = sizeof(int);
 				}
 				else {
@@ -785,7 +798,7 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 	spinlock_ctx_t sc;
 	unsigned peek;
 
-	peek = (flags & MSG_PEEK) != 0U;
+	peek = ((flags & MSG_PEEK) != 0U) ? 1U : 0U;
 
 	if ((s = unixsock_get(socket)) == NULL) {
 		return -ENOTSOCK;
@@ -805,6 +818,7 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 			if (s->type == SOCK_STREAM) {
 				if (peek != 0U) {
 					err = _cbuffer_peek(&s->buffer, buf, len);
+					// Zrzutować na (int)? Niżej też
 				}
 				else {
 					err = _cbuffer_read(&s->buffer, buf, len);
@@ -895,6 +909,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 
 				r = unixsock_get(oid.id);
 				if (r == NULL) {
+					// Zrzutować na unsigned? Czy err może przyjmować w tym przypadku ujemne wartości?
 					err = -ENOTSOCK;
 					break;
 				}
@@ -1089,6 +1104,7 @@ static int unix_bufferSetSize(unixsock_t *s, int sz)
 	void *v[2] = { NULL, NULL };
 
 	if (sz < US_MIN_BUFFER_SIZE || sz > US_MAX_BUFFER_SIZE) {
+		// Wszytkie problemy wewnątrz funkcji roziwązuje zmiana int sz na unsigned w deklaracji funkcji
 		return -EINVAL;
 	}
 
@@ -1164,7 +1180,7 @@ int unix_setfl(unsigned socket, unsigned flags)
 		return -ENOTSOCK;
 	}
 
-	s->nonblock = (flags & O_NONBLOCK) != 0U;
+	s->nonblock = ((flags & O_NONBLOCK) != 0U) ? 1U : 0U;
 
 	unixsock_put(s);
 	return 0;
@@ -1186,7 +1202,7 @@ int unix_getfl(unsigned socket)
 	}
 
 	unixsock_put(s);
-	return flags;
+	return (int)flags;
 }
 
 
@@ -1222,9 +1238,9 @@ int unix_poll(unsigned socket, unsigned short events)
 	else {
 		if (events & (POLLIN | POLLRDNORM | POLLRDBAND)) {
 			/* MISRAC2012-RULE_17_7-a */
-			(void)proc_lockSet(&s->lock);
+			(void)proc_lockSet(&r->lock);
 			if (_cbuffer_avail(&s->buffer) > 0U || (s->connecting != NULL && (s->state & US_LISTENING) != 0U)) {
-				err |= events & (POLLIN | POLLRDNORM | POLLRDBAND);
+				err |= (unsigned int)events & (POLLIN | POLLRDNORM | POLLRDBAND);
 			}
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockClear(&s->lock);
@@ -1237,12 +1253,12 @@ int unix_poll(unsigned socket, unsigned short events)
 				(void)proc_lockSet(&r->lock);
 				if (r->type == SOCK_STREAM) {
 					if (_cbuffer_free(&r->buffer) > 0U) {
-						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
+						err |= (unsigned int)events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
 				else {
 					if (_cbuffer_free(&r->buffer) > sizeof(size_t)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-						err |= events & (POLLOUT | POLLWRNORM | POLLWRBAND);
+						err |= (unsigned int)events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
 				/* MISRAC2012-RULE_17_7-a */
@@ -1257,7 +1273,7 @@ int unix_poll(unsigned socket, unsigned short events)
 		unixsock_put(s);
 	}
 
-	return err;
+	return (int)err;
 }
 
 

@@ -104,7 +104,7 @@ static void test_proc_rotthr1(void *arg)
 	for (;;) {
 		test_proc_common.rotations[i]++;
 		/* MISRA Rule 17.7: Unused return value, (void) added */
-		(void)proc_threadSleep(10000U * (i));
+		(void)proc_threadSleep(10000ULL * (i));
 	}
 
 	return;

@@ -18,20 +18,20 @@
 
 #include "hal/types.h"
 
-#define SIZE_PAGE 0x1000
+#define SIZE_PAGE 0x1000U
 
 #define MAX_CPU_COUNT 8
 
-#define SIZE_INITIAL_KSTACK (4 * SIZE_PAGE)
+#define SIZE_INITIAL_KSTACK (4U * SIZE_PAGE)
 #define INITIAL_KSTACK_BIT  (14)
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (4 * SIZE_PAGE)
+#define SIZE_KSTACK (4U * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 /* Supervisor Cause Register */

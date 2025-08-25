@@ -135,10 +135,11 @@ static void _perf_event(thread_t *t, int type)
 	}
 
 	ev.type = type;
+	/* Rzutowanie na unsigned char działa, ale czy można + przypadek poniżej?*/
 
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
 	threads_common.perfLastTimestamp = now;
-	ev.tid = perf_idpack(proc_getTid(t));
+	ev.tid = perf_idpack((unsigned)proc_getTid(t));
 
 	/* MISRAC2012-RULE_17_7-a */
 	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
@@ -181,11 +182,11 @@ static void _perf_begin(thread_t *t)
 	ev.sbz = 0;
 	ev.type = perf_levBegin;
 	ev.prio = t->priority;
-	ev.tid = perf_idpack(proc_getTid(t));
-	ev.pid = t->process != NULL ? perf_idpack(process_getPid(t->process)) : -1;
+	ev.tid = perf_idpack((unsigned)proc_getTid(t));
+	ev.pid = t->process != NULL ? perf_idpack((unsigned int)process_getPid(t->process)) : -1;
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // Jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -206,10 +207,10 @@ void perf_end(thread_t *t)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levEnd;
-	ev.tid = perf_idpack(proc_getTid(t));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // Jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -231,12 +232,13 @@ void perf_fork(process_t *p)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levFork;
-	ev.pid = perf_idpack(process_getPid(p));
+	ev.pid = perf_idpack((unsigned int)process_getPid(p));
 	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	// ten błąd czasem potrafi zniknąć (podczas edycji), jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -258,11 +260,11 @@ void perf_kill(process_t *p)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levKill;
-	ev.pid = perf_idpack(process_getPid(p));
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.pid = perf_idpack((unsigned int)process_getPid(p));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // Jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -285,15 +287,15 @@ void perf_exec(process_t *p, char *path)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levExec;
-	ev.tid = perf_idpack(proc_getTid(_proc_current()));
+	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	plen = hal_strlen(path);
 	plen = min(plen, sizeof(ev.path) - 1U);
 	hal_memcpy(ev.path, path, plen);
-	ev.path[plen] = 0;
+	ev.path[plen] = '\0';
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // Jak w linii 140
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -341,7 +343,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 		p->next = *pages;
 		*pages = p;
 		/* MISRAC2012-RULE_17_7-a */
-		(void)page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
+		(void)page_map(&threads_common.kmap->pmap, v, p->addr, (int)(PGHD_PRESENT | PGHD_WRITE | PGHD_READ));
 	}
 
 	return data;
@@ -389,7 +391,7 @@ int perf_read(void *buffer, size_t bufsz)
 	bufsz = _cbuffer_read(&threads_common.perfBuffer, buffer, bufsz);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return bufsz;
+	return (int)bufsz;
 }
 
 
@@ -404,8 +406,9 @@ int perf_finish(void)
 
 		perf_bufferFree(threads_common.perfBuffer.data, &threads_common.perfPages);
 	}
-	else
+	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
 
 	return EOK;
 }
@@ -440,11 +443,11 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 		wakeup = SYSTICK_INTERVAL;
 	}
 
-	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8U) {
+	if (wakeup > (unsigned int)SYSTICK_INTERVAL + (unsigned int)SYSTICK_INTERVAL / 8U) {
 		wakeup = SYSTICK_INTERVAL;
 	}
 
-	hal_timerSetWakeup(wakeup);
+	hal_timerSetWakeup((unsigned int)wakeup);
 }
 
 
@@ -612,7 +615,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		current->context = context;
 
 		/* Move thread to the end of queue */
-		if (current->state == READY) {
+		if (current->state == (unsigned int)READY) {
 			LIST_ADD(&threads_common.ready[current->priority], current);
 			_perf_preempted(current);
 		}
@@ -741,11 +744,11 @@ static int thread_alloc(thread_t *thread)
 
 	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&threads_common.lock);
-	id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, threads_common.idcounter);
+	id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, (int)threads_common.idcounter);
 	if (id < 0) {
 		/* Try from the start */
 		threads_common.idcounter = 0;
-		id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, threads_common.idcounter);
+		id = lib_idtreeAlloc(&threads_common.id, &thread->idlinkage, (int)threads_common.idcounter);
 	}
 
 	if (id >= 0) {
@@ -814,6 +817,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->stick = 0;
 	t->utick = 0;
 	t->priorityBase = priority;
+	// można zrzutować na unsigned char? + poniżej
 	t->priority = priority;
 	t->cpuTime = 0;
 	t->maxWait = 0;
@@ -931,7 +935,7 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 		priority = thread->priorityBase;
 	}
 
-	if (thread->state == READY) {
+	if (thread->state == (unsigned char)READY) {
 		for (i = 0; i < hal_cpuGetCount(); i++) {
 			if (thread == threads_common.current[i]) {
 				break;
@@ -961,7 +965,7 @@ int proc_threadPriority(unsigned int priority)
 		return -EINVAL;
 	}
 
-	if ((priority >= 0) && (priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
+	if ((priority >= 0U) && (priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
 		return -EINVAL;
 	}
 
@@ -1057,9 +1061,9 @@ void proc_threadsDestroy(thread_t **threads)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if ((t = *threads) != NULL) {
-		do
+		do {
 			_proc_threadExit(t);
-		while ((t = t->procnext) != *threads);
+		} while ((t = t->procnext) != *threads);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
@@ -1103,7 +1107,7 @@ static void _proc_threadDequeue(thread_t *t)
 {
 	unsigned int i;
 
-	if (t->state == GHOST) {
+	if (t->state == (unsigned char)GHOST) {
 		return;
 	}
 
@@ -1152,6 +1156,9 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->wakeup = 0;
 	current->wait = queue;
 	current->interruptible = interruptible;
+	/* podczas próby zmiany unsigned int w definicji lub bezpośrednie rzutowanie,
+	 * to wyskakuje błąd z różnymi wielkościami, od razu rzutować na (unsigned char)?
+	 */
 
 	if (timeout) {
 		current->wakeup = timeout;
@@ -1453,10 +1460,12 @@ static time_t _proc_nextWakeup(void)
 	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 	if (thread != NULL) {
 		now = _proc_gettimeRaw();
-		if (now >= thread->wakeup)
+		if (now >= thread->wakeup) {
 			wakeup = 0;
-		else
+		}
+		else {
 			wakeup = thread->wakeup - now;
+		}
 	}
 
 	return wakeup;
@@ -1470,7 +1479,8 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	unsigned sigbit = 0x1U << sig;
+	unsigned sigbit = (unsigned)1 << (unsigned)sig;
+
 	spinlock_ctx_t sc;
 
 	switch (sig) {
@@ -1543,7 +1553,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 	if ((sig != 0U) && (proc->sighandler != NULL)) {
 		sig = hal_cpuGetLastBit(sig);
 
-		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, sig, oldmask, src) == 0) {
+		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, (int)sig, oldmask, src) == 0) {
 			selected->sigpend &= ~(0x1U << sig);
 			proc->sigpend &= ~(0x1U << sig);
 			return 0;
@@ -1824,9 +1834,9 @@ static int _proc_lockUnlock(lock_t *lock)
 	if (lock->queue != NULL) {
 		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
 		lock->owner = lock->queue;
-		lockPriority = _proc_lockGetPriority(lock);
-		if (lockPriority < lock->owner->priority) {
-			_proc_threadSetPriority(lock->queue, lockPriority);
+		lockPriority = (int)_proc_lockGetPriority(lock);
+		if ((unsigned)lockPriority < lock->owner->priority) {
+			_proc_threadSetPriority(lock->queue, (unsigned)lockPriority);
 		}
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
@@ -2010,7 +2020,7 @@ static void threads_idlethr(void *arg)
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 		wakeup = _proc_nextWakeup();
 
-		if (wakeup > (2 * SYSTICK_INTERVAL)) {
+		if (wakeup > (unsigned)(2 * SYSTICK_INTERVAL)) {
 			hal_cpuLowPower(wakeup, &threads_common.spinlock, &sc);
 		}
 		else {
@@ -2058,7 +2068,8 @@ void proc_threadsDump(unsigned int priority)
 
 int proc_threadsList(int n, threadinfo_t *info)
 {
-	int i = 0, len, argc, space;
+	int i = 0, argc, space;
+	unsigned int len;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
@@ -2073,7 +2084,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
-			info[i].pid = process_getPid(t->process);
+			info[i].pid = (unsigned)process_getPid(t->process);
 			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
 			info[i].ppid = 0;
 		}
@@ -2083,20 +2094,20 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		info[i].tid = proc_getTid(t);
-		info[i].priority = t->priorityBase;
-		info[i].state = t->state;
+		info[i].tid = (unsigned)proc_getTid(t);
+		info[i].priority = (int)t->priorityBase;
+		info[i].state = (int)t->state;
 
 		now = _proc_gettimeRaw();
 		if (now != t->startTime) {
-			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
+			info[i].load = (t->cpuTime * 1000U) / (now - t->startTime);
 		}
 		else {
 			info[i].load = 0;
 		}
 		info[i].cpuTime = t->cpuTime;
 
-		if (t->state == READY && t->maxWait < now - t->readyTime) {
+		if (t->state == (unsigned)READY && t->maxWait < now - t->readyTime) {
 			info[i].wait = now - t->readyTime;
 		}
 		else {
@@ -2108,28 +2119,28 @@ int proc_threadsList(int n, threadinfo_t *info)
 			map = t->process->mapp;
 
 			if (t->process->path != NULL) {
-				space = sizeof(info[i].name);
+				space = (int)sizeof(info[i].name);
 				name = info[i].name;
 
 				if (t->process->argv != NULL) {
 					for (argc = 0; t->process->argv[argc] != NULL && space > 0; ++argc) {
 						len = min((int)hal_strlen(t->process->argv[argc]) + 1, space);
 						hal_memcpy(name, t->process->argv[argc], len);
-						name[len - 1] = ' ';
+						name[len - 1U] = ' ';
 						name += len;
-						space -= len;
+						space -= (int)len;
 					}
-					*(name - 1) = 0;
+					*(name - 1) = '\0';
 				}
 				else {
-					len = hal_strlen(t->process->path) + 1;
+					len = hal_strlen(t->process->path) + 1U;
 					hal_memcpy(info[i].name, t->process->path, min(space, len));
 				}
 
-				info[i].name[sizeof(info[i].name) - 1U] = 0U;
+				info[i].name[sizeof(info[i].name) - 1U] = '\0';
 			}
 			else {
-				info[i].name[0] = 0;
+				info[i].name[0] = '\0';
 			}
 		}
 		else {
@@ -2142,7 +2153,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 #ifdef NOMMU
 		if ((t->process != NULL) && (entry = t->process->entries) != NULL) {
 			do {
-				info[i].vmem += entry->size;
+				info[i].vmem += (int)entry->size;
 				entry = entry->next;
 			} while (entry != t->process->entries);
 		}
@@ -2154,7 +2165,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
 
 			while (entry != NULL) {
-				info[i].vmem += entry->size;
+				info[i].vmem += (int)entry->size;
 				entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
 			}
 			/* MISRAC2012-RULE_17_7-a */
@@ -2188,7 +2199,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	(void)proc_lockInit(&threads_common.lock, &proc_lockAttrDefault, "threads.common");
 
 	for (i = 0U; i < sizeof(threads_common.stackCanary); ++i) {
-		threads_common.stackCanary[i] = ((i & 1U) != 0) ? 0xaa : 0x55;
+		threads_common.stackCanary[i] = ((i & 1U) != 0U) ? 0xaaU : 0x55U;
 	}
 
 	/* Initiaizlie scheduler queue */
@@ -2213,7 +2224,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
 		/* MISRAC2012-RULE_17_7-a */
-		(void)proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1U, SIZE_KSTACK, NULL, 0, NULL);
+		(void)proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1U, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */

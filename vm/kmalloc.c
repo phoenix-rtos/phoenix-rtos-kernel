@@ -62,7 +62,7 @@ void *_kmalloc_alloc(u8 hdridx, u8 idx)
 
 	b = _vm_zalloc(z, NULL);
 	if (b != NULL) {
-		kmalloc_common.allocsz += (0x1U << idx);
+		kmalloc_common.allocsz += (1UL << idx);
 
 		if (idx == hdridx) {
 			kmalloc_common.hdrblocks--;
@@ -97,6 +97,12 @@ vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 	kmalloc_common.allocsz -= z->blocksz;
 
 	if ((idx = hal_cpuGetLastBit(z->blocksz)) == hdridx) {
+		/* wszystkie błędy w tym pliku dotyczą zmiennej
+		 * hdridx i idx, są u8 i przypiswane są do nich
+		 * zmienne o większym rozmiarze lub w definicji
+		 * funkcji mają u8 a deklarowane są jako zmienne
+		 * o większym rozmiarze
+		 */
 		kmalloc_common.hdrblocks++;
 	}
 

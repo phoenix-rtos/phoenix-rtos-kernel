@@ -19,8 +19,9 @@
 
 void lib_listAdd(void **list, void *t, size_t noff, size_t poff)
 {
-	if (t == NULL)
+	if (t == NULL) {
 		return;
+	}
 	if (*list == NULL) {
 		*((addr_t *)(t + noff)) = (addr_t)t;
 		*((addr_t *)(t + poff)) = (addr_t)t;
@@ -38,8 +39,9 @@ void lib_listAdd(void **list, void *t, size_t noff, size_t poff)
 
 void lib_listRemove(void **list, void *t, size_t noff, size_t poff)
 {
-	if (t == NULL)
+	if (t == NULL) {
 		return;
+	}
 	if (*((addr_t *)(t + noff)) == (addr_t)t && *((addr_t *)(t + poff)) == (addr_t)t) {
 		*list = NULL;
 	}
@@ -47,8 +49,9 @@ void lib_listRemove(void **list, void *t, size_t noff, size_t poff)
 		/* MISRA Rule 11.6: In line 47 and 48 after (void *) added (unsigned int *) "*/
 		*((addr_t *)((void *)(unsigned int *)(*((addr_t *)(t + poff))) + noff)) = *((addr_t *)(t + noff));
 		*((addr_t *)((void *)(unsigned int *)(*((addr_t *)(t + noff))) + poff)) = *((addr_t *)(t + poff));
-		if (t == *list)
+		if (t == *list) {
 			*list = (void *)*((addr_t *)(t + noff));
+		}
 	}
 	/* MISRA Rule 11.6: NULL changed to void pointer, addr_t unsigned int */
 	*((addr_t *)(t + noff)) = 0;

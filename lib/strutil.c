@@ -16,8 +16,8 @@
 #include "hal/hal.h"
 #include "vm/kmalloc.h"
 
-
-static char *lib_strrchr(char *s, int c)
+/* MISRA Rule 10.3: int c changed to char c to adhere */
+static char *lib_strrchr(char *s, char c)
 {
 	char *p = NULL;
 	char *i;
@@ -26,7 +26,7 @@ static char *lib_strrchr(char *s, int c)
 		/* MISRA Rule 10.4: As this function compares to char, the input
 		 * cast can be safely performed
 		 */
-		if (*i == (char)c) {
+		if (*i == c) {
 			p = i;
 		}
 	}
@@ -65,6 +65,6 @@ void lib_splitname(char *path, char **base, char **dir)
 	else {
 		*dir = path;
 		*base = slash + 1;
-		*slash = 0;
+		*slash = '\0';
 	}
 }

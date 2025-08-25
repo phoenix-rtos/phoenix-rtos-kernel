@@ -50,8 +50,7 @@ static anon_t *amap_putanon(anon_t *a)
 
 void amap_putanons(amap_t *amap, int offset, int size)
 {
-	/* MISRA RUle 10.4: int i -> unsigned int i*/
-	unsigned int i;
+	int i;
 
 	if (amap == NULL) {
 		return;
@@ -60,6 +59,7 @@ void amap_putanons(amap_t *amap, int offset, int size)
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 60, 62, 64*/
 	(void)proc_lockSet(&amap->lock);
 	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i) {
+		// z tego co widzę to wszystko to int, więc nie wiem w czym jest problem
 		(void)amap_putanon(amap->anons[i]);
 	}
 	(void)proc_lockClear(&amap->lock);
@@ -92,6 +92,7 @@ void amap_getanons(amap_t *amap, int offset, int size)
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 92, 94, 96*/
 	(void)proc_lockSet(&amap->lock);
 	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i) {
+		// Jak wcześniej
 		(void)amap_getanon(amap->anons[i]);
 	}
 	(void)proc_lockClear(&amap->lock);
@@ -152,6 +153,7 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 
 	for (i = 0; i < size / SIZE_PAGE; ++i) {
 		new->anons[i] = (amap == NULL) ? NULL : amap->anons[*offset + i];
+		// zrzutować i na int?
 	}
 
 	while (i < new->size) {

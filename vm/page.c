@@ -183,8 +183,8 @@ page_t *_page_get(addr_t addr)
 	page_t *p;
 	size_t np = (pages.freesz + pages.allocsz) / SIZE_PAGE;
 
-	addr =  addr & ~(SIZE_PAGE - 1);
-	p = lib_bsearch((void *)addr, pages.pages, np, sizeof(page_t),  _page_get_cmp);
+	addr = addr & ~(SIZE_PAGE - 1);
+	p = lib_bsearch((void *)addr, pages.pages, np, sizeof(page_t), _page_get_cmp);
 
 	return p;
 }
@@ -301,7 +301,7 @@ void _page_showPages(void)
 			}
 		}
 
-		a = pages.pages[i + rep ].addr + SIZE_PAGE;
+		a = pages.pages[i + rep].addr + SIZE_PAGE;
 		i += rep;
 	}
 
@@ -327,7 +327,7 @@ static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 }
 
 
-int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attrs)
+int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 {
 	int err;
 
@@ -391,9 +391,9 @@ void vm_pageinfo(meminfo_t *info)
 			}
 
 			if (info->page.mapsz > size && info->page.map != NULL) {
-				info->page.map[size].count  = rep + 1;
+				info->page.map[size].count = rep + 1;
 				info->page.map[size].marker = c;
-				info->page.map[size].addr   = p->addr;
+				info->page.map[size].addr = p->addr;
 			}
 
 			i += rep;
@@ -484,7 +484,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 
 	/* Show statistics on the console */
 	lib_printf("vm: Initializing page allocator (%d+%d)/%dKB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024,
-		pages.bootsz / 1024, (pages.freesz + pages.allocsz ) / 1024, sizeof(page_t));
+			pages.bootsz / 1024, (pages.freesz + pages.allocsz) / 1024, sizeof(page_t));
 
 	_page_showPages();
 

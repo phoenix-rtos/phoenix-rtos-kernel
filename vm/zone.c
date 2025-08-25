@@ -44,6 +44,7 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 	}
 
 	if ((zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, 0x1U << zone->pages->idx, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE)) == NULL) {
+		// teraz to 0x1U ma za duży rozmiar - idx  jest u8
 		vm_pageFree(zone->pages);
 		return -ENOMEM;
 	}
@@ -74,7 +75,7 @@ int _vm_zoneDestroy(vm_zone_t *zone)
 	}
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added */
-	(void)vm_munmap(zone_common.kmap, zone->vaddr, 0x1U << zone->pages->idx);
+	(void)vm_munmap(zone_common.kmap, zone->vaddr, 1UL << zone->pages->idx);
 	vm_pageFree(zone->pages);
 
 	zone->vaddr = NULL;

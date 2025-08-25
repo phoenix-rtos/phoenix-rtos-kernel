@@ -122,7 +122,7 @@ static unsigned int pmap_map2region(unsigned int map)
 
 	for (i = 0U; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
 		if (map == syspage->hs.mpu.map[i]) {
-			mask |= (0x1U << i);
+			mask |= (1UL << i);
 		}
 	}
 
@@ -162,7 +162,7 @@ void pmap_switch(pmap_t *pmap)
 			pmap_mpu_setMemRegionNumber(i);
 
 			/* Enable/disable region according to the mask */
-			pmap_mpu_setMemRegionStatus((int)((pmap->regions & (0x1U << i)) != 0U));
+			pmap_mpu_setMemRegionStatus((int)((pmap->regions & (1UL << i)) != 0U));
 		}
 
 		hal_spinlockClear(&pmap_common.lock, &sc);
@@ -216,7 +216,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 
 char pmap_marker(page_t *p)
 {
-	return 0;
+	return '\0';
 }
 
 
@@ -254,10 +254,10 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap->start = (void *)&__bss_start;
 
 	/* Initial size of kernel map */
-	/* MISRA Rule 11.6: */ /* MISRA Rule 10.4: changed type by adding U*/
+
 	pmap->end = (void *)((addr_t)&__bss_start + 32U * 1024U);
 
-	pmap->regions = (0x1U << cnt) - 1U;
+	pmap->regions = (1UL << cnt) - 1U;
 
 	/* MISRA Rule 10.4: changed type by adding U*/
 	if (cnt == 0U) {

@@ -79,7 +79,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 
 char pmap_marker(page_t *p)
 {
-	return 0;
+	return '\0';
 }
 
 

@@ -96,7 +96,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 
 	buff[i++] = '\n';
 
-	buff[i] = 0;
+	buff[i] = '\0';
 }
 
 

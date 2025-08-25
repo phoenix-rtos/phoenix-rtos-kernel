@@ -134,13 +134,13 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	msg.i.size = 0;
 
 	msg.type = mtRead;
-	msg.pid = r->pid;
+	msg.pid = (unsigned)r->pid;
 	msg.o.data = rmsg->odata;
 	msg.o.size = rmsg->osize;
 	msg.o.err = err;
 
 	/* MISRA Rule 17.7: Unused return value, (void) added */
-	(void)proc_respond(rmsg->oid.port, &msg, rmsg->rid);
+	(void)proc_respond(rmsg->oid.port, &msg, (int)rmsg->rid);
 
 	vm_kfree(rmsg);
 }
@@ -347,11 +347,11 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 				msg->o.err = EOK;
 			}
 			else {
-				msg->o.err = log_readerAdd(msg->pid, msg->i.openclose.flags & O_NONBLOCK);
+				msg->o.err = log_readerAdd((int)msg->pid, msg->i.openclose.flags & O_NONBLOCK);
 			}
 			break;
 		case mtRead:
-			r = log_readerFind(msg->pid);
+			r = log_readerFind((int)msg->pid);
 			if (r == NULL) {
 				msg->o.err = -EINVAL;
 			}
@@ -374,7 +374,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			log_scrub();
 			break;
 		case mtClose:
-			log_close(msg->pid);
+			log_close((int)msg->pid);
 			msg->o.err = 0;
 			break;
 		case mtDevCtl:
@@ -387,7 +387,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 
 	if (respond == 1) {
 		/* MISRA Rule 17.7: Unused return value, (void) added */
-		(void)proc_respond(oid.port, msg, rid);
+		(void)proc_respond(oid.port, msg, (int)rid);
 	}
 }
 
@@ -426,7 +426,7 @@ int log_write(const char *data, size_t len)
 		}
 	}
 
-	return len;
+	return (int)len;
 }
 
 

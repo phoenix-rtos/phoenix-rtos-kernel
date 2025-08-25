@@ -92,7 +92,7 @@ void hal_consolePutch(char c)
 	while ((*(console_common.uart + sr) & (0x1U << 3)) == 0U) {
 		/* Wait until TX fifo is empty */
 	}
-
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3  "To print this char we need to put it into register (*uint)" */
 	*(console_common.uart + fifo) = c;
 }
 

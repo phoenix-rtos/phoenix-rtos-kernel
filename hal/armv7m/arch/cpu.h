@@ -27,14 +27,14 @@
 
 #include "hal/types.h"
 
-#define SIZE_PAGE 0x200
+#define SIZE_PAGE 0x200U
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (3 * SIZE_PAGE)
+#define SIZE_USTACK (3U * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (4 * SIZE_PAGE)
+#define SIZE_KSTACK (4U * SIZE_PAGE)
 #endif
 
 #ifdef CPU_IMXRT
@@ -148,20 +148,20 @@ typedef struct _cpu_context_t {
 
 static inline void hal_cpuDisableInterrupts(void)
 {
-	__asm__ volatile ("cpsid if");
+	__asm__ volatile("cpsid if");
 }
 
 
 static inline void hal_cpuEnableInterrupts(void)
 {
-	__asm__ volatile ("cpsie if");
+	__asm__ volatile("cpsie if");
 }
 
 
 static inline void hal_cpuHalt(void)
 {
 #ifndef __CPU_IMXRT117X
-	__asm__ volatile ("\
+	__asm__ volatile("\
 		wfi; \
 		nop; ");
 #endif
@@ -175,7 +175,7 @@ static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	int pos;
 
-	__asm__ volatile ("clz %0, %1" : "=r" (pos) : "r" (v));
+	__asm__ volatile("clz %0, %1" : "=r"(pos) : "r"(v));
 
 	return 31 - pos;
 }
@@ -185,9 +185,9 @@ static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned pos;
 
-	__asm__ volatile ("\
+	__asm__ volatile("\
 		rbit %0, %1; \
-		clz  %0, %0;" : "=r" (pos) : "r" (v));
+		clz  %0, %0;" : "=r"(pos) : "r"(v));
 
 	return pos;
 }
@@ -203,7 +203,7 @@ static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 
 static inline void hal_cpuSetGot(void *got)
 {
-	__asm__ volatile ("mov r9, %0" :: "r" (got));
+	__asm__ volatile("mov r9, %0" ::"r"(got));
 }
 
 
@@ -211,7 +211,7 @@ static inline void *hal_cpuGetGot(void)
 {
 	void *got;
 
-	__asm__ volatile ("mov %0, r9" : "=r" (got));
+	__asm__ volatile("mov %0, r9" : "=r"(got));
 
 	return got;
 }

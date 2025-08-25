@@ -54,7 +54,7 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 
 	/* MISRA Rule 10.4: changed type by adding U */
 	buf->w = (buf->w + bytes) & (buf->sz - 1U);
-	buf->full = buf->w == buf->r;
+	buf->full = (buf->w == buf->r) ? 1U : 0U;
 
 	return bytes;
 }

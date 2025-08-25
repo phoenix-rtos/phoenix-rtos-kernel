@@ -19,15 +19,15 @@
 #include "hal/types.h"
 #include "config.h"
 
-#define SIZE_PAGE       0x1000
-#define SIZE_PDIR       0x2000
+#define SIZE_PAGE 0x1000U
+#define SIZE_PDIR 0x2000U
 
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (8 * 1024)
+#define SIZE_KSTACK (8U * 1024U)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 #define USR_MODE    0x10
@@ -93,19 +93,19 @@ typedef struct _cpu_context_t {
 
 static inline void hal_cpuDisableInterrupts(void)
 {
-	__asm__ volatile ("cpsid if");
+	__asm__ volatile("cpsid if");
 }
 
 
 static inline void hal_cpuEnableInterrupts(void)
 {
-	__asm__ volatile ("cpsie aif");
+	__asm__ volatile("cpsie aif");
 }
 
 
 static inline void hal_cpuHalt(void)
 {
-	__asm__ volatile ("wfi");
+	__asm__ volatile("wfi");
 }
 
 
@@ -118,7 +118,7 @@ static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	int pos;
 
-	__asm__ volatile ("clz %0, %1" : "=r" (pos) : "r" (v));
+	__asm__ volatile("clz %0, %1" : "=r"(pos) : "r"(v));
 
 	return 31 - pos;
 }
@@ -128,9 +128,9 @@ static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned pos;
 
-	__asm__ volatile ("\
+	__asm__ volatile("\
 		rbit %0, %1; \
-		clz  %0, %0;" : "=r" (pos) : "r" (v));
+		clz  %0, %0;" : "=r"(pos) : "r"(v));
 
 	return pos;
 }

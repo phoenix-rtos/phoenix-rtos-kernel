@@ -27,8 +27,9 @@ size_t syspage_mapSize(void)
 	size_t nb = 0;
 	const syspage_map_t *map = syspage_common.syspage->maps;
 
-	if (map == NULL)
+	if (map == NULL) {
 		return nb;
+	}
 
 	do {
 		++nb;
@@ -48,12 +49,14 @@ const syspage_map_t *syspage_mapIdResolve(unsigned int id)
 {
 	const syspage_map_t *map = syspage_common.syspage->maps;
 
-	if (map == NULL)
+	if (map == NULL) {
 		return NULL;
+	}
 
 	do {
-		if (id == map->id)
+		if (id == map->id) {
 			return map;
+		}
 	} while ((map = map->next) != syspage_common.syspage->maps);
 
 	return NULL;
@@ -64,12 +67,14 @@ const syspage_map_t *syspage_mapAddrResolve(addr_t addr)
 {
 	const syspage_map_t *map = syspage_common.syspage->maps;
 
-	if (map == NULL)
+	if (map == NULL) {
 		return NULL;
+	}
 
 	do {
-		if (addr < map->end && addr >= map->start)
+		if (addr < map->end && addr >= map->start) {
 			return map;
+		}
 	} while ((map = map->next) != syspage_common.syspage->maps);
 
 	return NULL;
@@ -80,12 +85,14 @@ const syspage_map_t *syspage_mapNameResolve(const char *name)
 {
 	const syspage_map_t *map = syspage_common.syspage->maps;
 
-	if (map == NULL)
+	if (map == NULL) {
 		return NULL;
+	}
 
 	do {
-		if (hal_strcmp(name, map->name) == 0)
+		if (hal_strcmp(name, map->name) == 0) {
 			return map;
+		}
 	} while ((map = map->next) != syspage_common.syspage->maps);
 
 	return NULL;
@@ -97,8 +104,9 @@ size_t syspage_progSize(void)
 	size_t nb = 0;
 	const syspage_prog_t *prog = syspage_common.syspage->progs;
 
-	if (prog == NULL)
+	if (prog == NULL) {
 		return nb;
+	}
 
 	do {
 		++nb;
@@ -119,12 +127,14 @@ extern const syspage_prog_t *syspage_progIdResolve(unsigned int id)
 	unsigned int i = 0;
 	const syspage_prog_t *prog = syspage_common.syspage->progs;
 
-	if (prog == NULL)
+	if (prog == NULL) {
 		return NULL;
+	}
 
 	do {
-		if (id == i++)
+		if (id == i++) {
 			return prog;
+		}
 	} while ((prog = prog->next) != syspage_common.syspage->progs);
 
 	return NULL;
@@ -135,12 +145,14 @@ extern const syspage_prog_t *syspage_progNameResolve(const char *name)
 {
 	const syspage_prog_t *prog = syspage_common.syspage->progs;
 
-	if (prog == NULL)
+	if (prog == NULL) {
 		return NULL;
+	}
 
 	do {
-		if (hal_strcmp(name, prog->argv) == 0)
+		if (hal_strcmp(name, prog->argv) == 0) {
 			return prog;
+		}
 	} while ((prog = prog->next) != syspage_common.syspage->progs);
 
 	return NULL;

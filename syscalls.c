@@ -90,7 +90,7 @@ int syscalls_sys_mmap(void *ustack)
 		}
 	}
 	else {
-		err = posix_getOid(fildes, &oid);
+		err = posix_getOid((int)fildes, &oid);
 		if (err < 0) {
 			return err;
 		}
@@ -146,7 +146,7 @@ int syscalls_sys_mprotect(void *ustack)
 	GETFROMSTACK(ustack, size_t, len, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
 
-	err = vm_mprotect(proc->mapp, vaddr, len, PROT_USER | prot);
+	err = (int)vm_mprotect(proc->mapp, vaddr, len, PROT_USER | prot);
 	if (err < 0) {
 		return err;
 	}
@@ -250,7 +250,7 @@ int syscalls_sys_waitpid(void *ustack)
 		return -EFAULT;
 	}
 
-	return posix_waitpid(pid, stat, options);
+	return posix_waitpid(pid, stat, (unsigned)options);
 }
 
 
@@ -311,7 +311,7 @@ int syscalls_beginthreadex(void *ustack)
 
 	proc_get(proc);
 
-	err = proc_threadCreate(proc, start, id, priority, SIZE_KSTACK, stack, stacksz, arg);
+	err = proc_threadCreate(proc, start, id, priority, (size_t)SIZE_KSTACK, stack, stacksz, arg);
 
 	if (err < 0) {
 		/* MISRA Rule 17.7: Unused returned value, added (void)*/
@@ -354,7 +354,7 @@ int syscalls_nsleep(void *ustack)
 
 	proc_gettime(&start, NULL);
 
-	us = ((*sec) * 1000ULL * 1000ULL) + (((*nsec) + 999) / 1000);
+	us = ((*sec) * 1000ULL * 1000ULL) + (((unsigned long long)(*nsec) + 999ULL) / 1000ULL);
 
 	ret = proc_threadSleep(us);
 
@@ -400,7 +400,7 @@ int syscalls_threadsinfo(void *ustack)
 	GETFROMSTACK(ustack, int, n, 0);
 	GETFROMSTACK(ustack, threadinfo_t *, info, 1);
 
-	if (vm_mapBelongs(proc, info, (int)sizeof(*info) * n) < 0) {
+	if (vm_mapBelongs(proc, info, sizeof(*info) * (unsigned)n) < 0) {
 		return -EFAULT;
 	}
 
@@ -456,7 +456,7 @@ int syscalls_syspageprog(void *ustack)
 		return -EINVAL;
 	}
 
-	progSys = syspage_progIdResolve(i);
+	progSys = syspage_progIdResolve((unsigned)i);
 	if (progSys == NULL) {
 		return -EINVAL;
 	}
@@ -476,7 +476,7 @@ int syscalls_syspageprog(void *ustack)
 		sz--;
 	}
 
-	hal_memcpy(prog->name, name, sz);
+	hal_memcpy(prog->name, name, (size_t)sz);
 	prog->name[sz] = '\0';
 
 	return EOK;
@@ -1070,7 +1070,7 @@ int syscalls_sys_open(char *ustack)
 	GETFROMSTACK(ustack, const char *, filename, 0);
 	GETFROMSTACK(ustack, int, oflag, 1);
 
-	return posix_open(filename, oflag, ustack);
+	return posix_open(filename, oflag, ustack);  // int w delkaracji oflag?
 }
 
 
@@ -1217,7 +1217,7 @@ int syscalls_sys_fcntl(char *ustack)
 	GETFROMSTACK(ustack, unsigned int, fd, 0);
 	GETFROMSTACK(ustack, unsigned int, cmd, 1);
 
-	return posix_fcntl(fd, cmd, ustack);
+	return posix_fcntl(fd, cmd, ustack);  // fd zmienić w deklaracji?
 }
 
 
@@ -1358,7 +1358,7 @@ int syscalls_sys_accept4(char *ustack)
 		}
 	}
 
-	return posix_accept4(socket, address, address_len, flags);
+	return posix_accept4(socket, address, address_len, flags);  // przy deklaracji zmienić?
 }
 
 

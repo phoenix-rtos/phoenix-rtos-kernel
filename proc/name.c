@@ -43,8 +43,9 @@ static unsigned int dcache_strHash(const char *str)
 	unsigned int hash = 0;
 	unsigned char c;
 
-	while ((c = (unsigned char)*str++) != '\0') {
-		hash += (c << 4U) + (c >> 4U) * 11U;
+	/* MISRA Rule 10.3: TODO: check if some undesired overflow is not introduced with this cast */
+	while ((c = (unsigned char)*str++) != (unsigned char)'\0') {
+		hash += ((unsigned)c << 4U) + ((unsigned)c >> 4U) * 11U;
 	}
 
 	return hash & ((0x1U << HASH_LEN) - 1U);
@@ -55,7 +56,7 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 {
 	dcache_entry_t *entry = name_common.dcache[hash];
 
-	while (entry != NULL && hal_strcmp(entry->name, name) != 0U) {
+	while (entry != NULL && hal_strcmp(entry->name, name) != 0) {
 		entry = entry->next;
 	}
 
@@ -79,7 +80,7 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&name_common.dcache_lock);
 
-	if (name[0] == '/' && name[1] == 0) {
+	if (name[0] == '/' && name[1] == '\0') {
 		name_common.root_oid.port = port;
 		if (oid != NULL) {
 			name_common.root_oid.id = oid->id;
@@ -88,7 +89,7 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 		return EOK;
 	}
 
-	if ((entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1)) == NULL) {
+	if ((entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U)) == NULL) {
 		return -ENOMEM;
 	}
 
@@ -159,7 +160,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return -EINVAL;
 	}
 
-	if (name[0] == '/' && name[1] == 0) {
+	if (name[0] == '/' && name[1] == '\0') {
 		if (name_common.root_registered != 0) {
 			if (file != NULL) {
 				*file = name_common.root_oid;
@@ -202,7 +203,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		pptr = pstack;
 	}
 	else {
-		if ((pheap = vm_kmalloc(len + 1)) == NULL) {
+		if ((pheap = vm_kmalloc(len + 1U)) == NULL) {
 			return -ENOMEM;
 		}
 
@@ -213,12 +214,12 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_strcpy(pptr, name);
 
-	while (i > 1) {
-		while (i > 0 && pptr[i] != '/') {
+	while (i > 1U) {
+		while (i > 0U && pptr[i] != '/') {
 			--i;
 		}
 
-		if (i == 0) {
+		if (i == 0U) {
 			break;
 		}
 
@@ -236,7 +237,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		(void)proc_lockClear(&name_common.dcache_lock);
 	}
 
-	if (name_common.root_registered == 0 && i == 0) {
+	if (name_common.root_registered == 0 && i == 0U) {
 		if (pheap != NULL) {
 			vm_kfree(pheap);
 		}
@@ -270,7 +271,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 			break;
 		}
 
-		i += err + 1;
+		i += (unsigned)err + 1U;
 		if (i > len) {
 			err = -EINVAL;
 			break;
@@ -372,7 +373,7 @@ int proc_create(unsigned int port, int type, unsigned int mode, oid_t dev, oid_t
 	hal_memcpy(&msg->i.create.dev, &dev, sizeof(dev));
 	hal_memcpy(&msg->oid, &dir, sizeof(dir));
 	msg->i.data = name;
-	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
+	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1U;
 
 	err = proc_send(port, msg);
 
@@ -401,7 +402,7 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
-	msg->i.size = hal_strlen(name) + 1;
+	msg->i.size = hal_strlen(name) + 1U;
 	msg->i.data = (char *)name;
 
 	err = proc_send(dir.port, msg);
@@ -430,7 +431,7 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
-	msg->i.size = hal_strlen(name) + 1;
+	msg->i.size = hal_strlen(name) + 1U;
 	msg->i.data = (char *)name;
 
 	err = proc_send(dir.port, msg);

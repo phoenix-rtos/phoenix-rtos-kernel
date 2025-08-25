@@ -61,8 +61,9 @@ void main_initthr(void *unused)
 			cmdline = prog->argv;
 			/* If app shouldn't be executed then args should be discarded */
 			if (*cmdline != 'X') {
-				while (*cmdline != ';' && *cmdline != '\0')
+				while (*cmdline != ';' && *cmdline != '\0') {
 					++cmdline;
+				}
 
 				*cmdline = '\0';
 				continue;
@@ -73,19 +74,22 @@ void main_initthr(void *unused)
 			cmdline = prog->argv;
 			for (argc = 0; argc < (sizeof(argv) / sizeof(*argv) - 1U);) {
 				argv[argc++] = cmdline;
-				while (*cmdline != ';' && *cmdline != '\0')
+				while (*cmdline != ';' && *cmdline != '\0') {
 					++cmdline;
+				}
 
-				if (*cmdline == '\0')
+				if (*cmdline == '\0') {
 					break;
+				}
 
 				*(cmdline++) = '\0';
 			}
 			argv[argc++] = NULL;
 
-			if ((res = proc_syspageSpawn(prog, vm_getSharedMap(prog->imaps[0]), vm_getSharedMap(prog->dmaps[0]), argv[0], argv)) < 0)
+			if ((res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), vm_getSharedMap((int)prog->dmaps[0]), argv[0], argv)) < 0) {
 				/* MISRA Rule 17.7: Unused returned value, (void) added*/
 				(void)lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
+			}
 		} while ((prog = prog->next) != syspage_progList());
 	}
 

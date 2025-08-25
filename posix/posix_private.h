@@ -20,20 +20,22 @@
 #include "proc/proc.h"
 #include "posix.h"
 
+/* This define is used agains oid_t.id which is __u32
+ * hence the implicit bit value instead of -1
+ */
+#define US_PORT 0xFFFFFFFFU /* FIXME */
 
-#define US_PORT (-1) /* FIXME */
 
-
-#define SIGHUP     1
-#define SIGINT     2
-#define SIGQUIT    3
-#define SIGILL     4
-#define SIGTRAP    5
-#define SIGABRT    6
-#define SIGIOT     SIGABRT
-#define SIGEMT     7
-#define SIGFPE     8
-#define SIGKILL    9
+#define SIGHUP    1
+#define SIGINT    2
+#define SIGQUIT   3
+#define SIGILL    4
+#define SIGTRAP   5
+#define SIGABRT   6
+#define SIGIOT    SIGABRT
+#define SIGEMT    7
+#define SIGFPE    8
+#define SIGKILL   9
 #define SIGBUS    10
 #define SIGSEGV   11
 #define SIGSYS    12
@@ -66,11 +68,18 @@
 #define HOST_NAME_MAX 255U
 
 
-enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };
+enum { ftRegular,
+	ftPipe,
+	ftFifo,
+	ftInetSocket,
+	ftUnixSocket,
+	ftTty };
 
 
 /* FIXME: share with posixsrv */
-enum { pxBufferedPipe, pxPipe, pxPTY };
+enum { pxBufferedPipe,
+	pxPipe,
+	pxPTY };
 
 
 typedef struct {
@@ -113,13 +122,12 @@ typedef struct _process_info_t {
 
 /* SIOCGIFCONF ioctl special case: arg is structure with pointer */
 struct ifconf {
-	unsigned int ifc_len;   /* size of buffer */
-	char *ifc_buf; /* buffer address */
+	unsigned int ifc_len; /* size of buffer */
+	char *ifc_buf;        /* buffer address */
 };
 
 /* SIOADDRT and SIOCDELRT ioctls special case: arg is structure with pointer */
-struct rtentry
-{
+struct rtentry {
 	struct sockaddr rt_dst;
 	struct sockaddr rt_gateway;
 	struct sockaddr rt_genmask;

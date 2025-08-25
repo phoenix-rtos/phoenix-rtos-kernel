@@ -124,7 +124,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
 
-	return reschedule;
+	return (int)reschedule;
 }
 
 
@@ -132,7 +132,7 @@ static void interrupts_enableIRQ(unsigned int irqn)
 {
 	unsigned int irq_reg = irqn / 32U;
 	unsigned int irq_offs = irqn % 32U;
-	*(interrupts_common.gicd + gicd_isenabler0 + irq_reg) = 0x1U << irq_offs;
+	*(interrupts_common.gicd + gicd_isenabler0 + irq_reg) = 1UL << irq_offs;
 }
 
 
@@ -140,7 +140,7 @@ static void interrupts_disableIRQ(unsigned int irqn)
 {
 	unsigned int irq_reg = irqn / 32U;
 	unsigned int irq_offs = irqn % 32U;
-	*(interrupts_common.gicd + gicd_icenabler0 + irq_reg) = 1u << irq_offs;
+	*(interrupts_common.gicd + gicd_icenabler0 + irq_reg) = 1UL << irq_offs;
 }
 
 
@@ -210,8 +210,8 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 {
 	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)hal_strncpy(features, "Using GIC interrupt controller", len);
-	/* MISRA Rule 10.4: changed type by adding U */
-	features[len - 1U] = 0;
+	/* MISRA Rule 10.4: changed type by adding U; MISRA Rule 10.7: 0 changed to '\0'*/
+	features[len - 1U] = '\0';
 
 	return features;
 }
@@ -292,7 +292,7 @@ void _hal_interruptsInit(void)
 
 	/* Set required configuration and CPU mask */
 	for (i = SPI_FIRST_IRQID; i < SIZE_INTERRUPTS; ++i) {
-		interrupts_setConf(i, _interrupts_gicv2_classify(i));
+		interrupts_setConf(i, (unsigned)_interrupts_gicv2_classify(i));
 		interrupts_setCPU(i, 0x1);
 	}
 
