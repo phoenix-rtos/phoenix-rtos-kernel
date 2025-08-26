@@ -25,7 +25,7 @@
 #define TIMER_SRC_CLK_CPU_1x 99990000U
 #define TIMER_IRQ_ID         68U
 
-struct {
+static struct {
 	volatile u32 *ttc;
 	intr_handler_t handler;
 	volatile time_t jiffies;
