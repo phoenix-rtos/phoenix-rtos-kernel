@@ -41,7 +41,7 @@ typedef struct _vm_map_t {
 
 struct _process_t;
 
-
+/* TODO: Unify implementation of prot type to be consisten between this map and functions */
 typedef struct _map_entry_t {
 #ifndef NOMMU
 	union {
@@ -65,9 +65,9 @@ typedef struct _map_entry_t {
 	size_t lmaxgap;
 	size_t rmaxgap;
 
-	unsigned short flags;
-	unsigned short prot;
-	unsigned short protOrig;
+	unsigned char flags;
+	unsigned char prot;
+	unsigned char protOrig;
 	struct _vm_object_t *object;
 	off_t offs;
 } map_entry_t;
@@ -97,7 +97,7 @@ extern int vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 extern int _vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 
 
-unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot);
+int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot);
 
 
 extern void vm_mapDump(vm_map_t *map);

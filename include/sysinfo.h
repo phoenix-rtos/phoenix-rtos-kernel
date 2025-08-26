@@ -50,7 +50,9 @@ typedef struct _entryinfo_t {
 	unsigned char protOrig;
 	off_t offs;
 
-	enum { OBJECT_ANONYMOUS, OBJECT_MEMORY, OBJECT_OID } object;
+	enum { OBJECT_ANONYMOUS,
+		OBJECT_MEMORY,
+		OBJECT_OID } object;
 	oid_t oid;
 } entryinfo_t;
 
@@ -74,29 +76,33 @@ typedef struct {
 } mapinfo_t;
 
 
+/* TODO: Consider changing type of kmaps mapsz from int to unsigned int */
 typedef struct _meminfo_t {
 	struct {
 		unsigned int alloc, free, boot, sz;
-		unsigned int mapsz;
+		int mapsz;
 		pageinfo_t *map;
 	} page;
 
 	struct {
 		unsigned int pid, total, free, sz;
-		unsigned int mapsz, kmapsz;
+		int mapsz, kmapsz;
 		entryinfo_t *kmap, *map;
 	} entry;
 
 	struct {
 		size_t total;
 		size_t free;
-		unsigned int mapsz;
+		int mapsz;
 		mapinfo_t *map;
 	} maps;
 } meminfo_t;
 
 
-enum { perf_evScheduling, perf_evEnqueued, perf_evWaking, perf_evPreempted };
+enum { perf_evScheduling,
+	perf_evEnqueued,
+	perf_evWaking,
+	perf_evPreempted };
 
 
 typedef struct {
@@ -106,7 +112,11 @@ typedef struct {
 } __attribute__((packed)) perf_event_t;
 
 
-enum { perf_levBegin, perf_levEnd, perf_levFork, perf_levKill, perf_levExec };
+enum { perf_levBegin,
+	perf_levEnd,
+	perf_levFork,
+	perf_levKill,
+	perf_levExec };
 
 
 typedef struct {
@@ -137,7 +147,7 @@ typedef struct {
 	unsigned deltaTimestamp : 12;
 	unsigned type : 3;
 
-	unsigned tid: 18;
+	unsigned tid : 18;
 	unsigned ppid : 18;
 	unsigned pid : 18;
 } __attribute__((packed)) perf_levent_fork_t;
@@ -149,7 +159,7 @@ typedef struct {
 	unsigned deltaTimestamp : 12;
 	unsigned type : 3;
 
-	unsigned tid: 18;
+	unsigned tid : 18;
 	unsigned pid : 18;
 } __attribute__((packed)) perf_levent_kill_t;
 
@@ -160,7 +170,7 @@ typedef struct {
 	unsigned deltaTimestamp : 12;
 	unsigned type : 3;
 
-	unsigned tid: 18;
+	unsigned tid : 18;
 	char path[32];
 } __attribute__((packed)) perf_levent_exec_t;
 

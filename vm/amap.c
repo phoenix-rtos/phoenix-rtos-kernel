@@ -58,8 +58,7 @@ void amap_putanons(amap_t *amap, int offset, int size)
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 60, 62, 64*/
 	(void)proc_lockSet(&amap->lock);
-	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i) {
-		// TBD_Julia z tego co widzę to wszystko to int, więc nie wiem w czym jest problem
+	for (i = offset / (int)SIZE_PAGE; i < (offset + size) / (int)SIZE_PAGE; ++i) {
 		(void)amap_putanon(amap->anons[i]);
 	}
 	(void)proc_lockClear(&amap->lock);
@@ -91,8 +90,7 @@ void amap_getanons(amap_t *amap, int offset, int size)
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 92, 94, 96*/
 	(void)proc_lockSet(&amap->lock);
-	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i) {
-		// TBD_Julia Jak wcześniej
+	for (i = offset / (int)SIZE_PAGE; i < (offset + size) / (int)SIZE_PAGE; ++i) {
 		(void)amap_getanon(amap->anons[i]);
 	}
 	(void)proc_lockClear(&amap->lock);
@@ -249,7 +247,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 246, 249, 252, 253, 261, 267*/
 	(void)proc_lockSet(&amap->lock);
 
-	if ((a = amap->anons[aoffs / SIZE_PAGE]) != NULL) {
+	if ((a = amap->anons[aoffs / (int)SIZE_PAGE]) != NULL) {
 		(void)proc_lockSet(&a->lock);
 		p = a->page;
 		if (!(a->refs > 1U && (prot & PROT_WRITE) != 0U)) {
@@ -314,7 +312,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 		(void)proc_lockClear(&a->lock);
 	}
 
-	if ((amap->anons[aoffs / SIZE_PAGE] = anon_new(p)) == NULL) {
+	if ((amap->anons[aoffs / (int)SIZE_PAGE] = anon_new(p)) == NULL) {
 		vm_pageFree(p);
 		p = NULL;
 	}

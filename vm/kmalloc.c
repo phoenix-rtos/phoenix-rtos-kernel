@@ -96,13 +96,7 @@ vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 	_vm_zfree(z, p);
 	kmalloc_common.allocsz -= z->blocksz;
 
-	if ((idx = hal_cpuGetLastBit(z->blocksz)) == hdridx) {
-		/* TBD_ Julia wszystkie błędy w tym pliku dotyczą
-		 * zmiennej hdridx i idx, są u8 i przypiswane są
-		 * do nichzmienne o większym rozmiarze lub
-		 * w definicji funkcji mają u8 a deklarowane
-		 * są jako zmienne o większym rozmiarze
-		 */
+	if ((idx = (u8)hal_cpuGetLastBit(z->blocksz)) == hdridx) {
 		kmalloc_common.hdrblocks++;
 	}
 
@@ -145,7 +139,7 @@ int _kmalloc_addZone(u8 hdridx, u8 idx)
 
 void *vm_kmalloc(size_t size)
 {
-	unsigned int idx, hdridx;
+	u8 idx, hdridx;
 	void *b = NULL;
 	vm_zone_t *z;
 	int err = EOK;
@@ -153,16 +147,16 @@ void *vm_kmalloc(size_t size)
 	/* Establish minimal size */
 	size = size < 16U ? 16U : size;
 
-	idx = hal_cpuGetLastBit(size);
-	if (hal_cpuGetFirstBit(size) < idx) {
+	idx = (u8)hal_cpuGetLastBit(size);
+	if ((u8)hal_cpuGetFirstBit(size) < idx) {
 		idx++;
 	}
 	if (idx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		return NULL;
 	}
 
-	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
-	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
+	hdridx = (u8)hal_cpuGetLastBit(sizeof(vm_zone_t));
+	if ((u8)hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
 		hdridx++;
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
@@ -202,7 +196,7 @@ static void *_kmalloc_freeAtom(u8 hdridx, void *p)
 		return NULL;
 	}
 
-	idx = hal_cpuGetLastBit(z->blocksz);
+	idx = (u8)hal_cpuGetLastBit(z->blocksz);
 
 	/* Remove zone if free */
 	if ((z->used == 0U) && (z != &kmalloc_common.firstzone)) {
@@ -223,10 +217,10 @@ static void *_kmalloc_freeAtom(u8 hdridx, void *p)
 
 void vm_kfree(void *p)
 {
-	unsigned int hdridx;
+	u8 hdridx;
 
-	hdridx = hal_cpuGetLastBit(sizeof(vm_zone_t));
-	if (hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
+	hdridx = (u8)hal_cpuGetLastBit(sizeof(vm_zone_t));
+	if ((u8)hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
 		hdridx++;
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {

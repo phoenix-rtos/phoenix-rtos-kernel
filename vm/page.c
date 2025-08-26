@@ -313,7 +313,7 @@ void _page_showPages(void)
 }
 
 
-static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
+static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attrs)
 {
 	page_t *ap = NULL;
 
@@ -327,7 +327,7 @@ static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
 }
 
 
-int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attrs)
+int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attrs)
 {
 	int err;
 
