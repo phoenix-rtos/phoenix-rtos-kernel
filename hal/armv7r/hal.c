@@ -24,8 +24,8 @@ static struct {
 
 
 syspage_t *syspage;
-static u32 relOffs;
-static u32 schedulerLocked = 0;
+u32 relOffs;
+u32 schedulerLocked = 0;
 
 
 extern void _hal_platformInit(void);
