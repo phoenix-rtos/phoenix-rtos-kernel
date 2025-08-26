@@ -17,7 +17,7 @@
 #include "lib/lib.h"
 
 
-struct {
+static struct {
 	idtree_t tree;
 	lock_t port_lock;
 } port_common;

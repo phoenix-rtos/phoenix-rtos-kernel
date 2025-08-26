@@ -49,7 +49,7 @@ typedef struct {
 } process_spawn_t;
 
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
 	process_t *first;
@@ -289,7 +289,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 }
 
 
-void process_exception(unsigned int n, exc_context_t *ctx)
+static void process_exception(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread = proc_current();
 
@@ -819,7 +819,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 					/* MISRA Rule 11.6: Added (unsigned int *) after (ptr_t) in line 799, 800 and 809*/
 					(((ptr_t)base < (ptr_t)(unsigned int *)process->imapp->start) ||
 							((ptr_t)base > (ptr_t)(unsigned int *)process->imapp->stop))) {
-				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
+				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), (u8)prot, NULL, -1, (u8)flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
 				}
@@ -836,7 +836,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 			reloffs = phdr->p_vaddr % SIZE_PAGE;
 
-			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), prot, NULL, -1, flags);
+			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), (u8)prot, NULL, -1, (u8)flags);
 			if (paddr == NULL) {
 				return -ENOMEM;
 			}
@@ -919,6 +919,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			hal_memcpy(&rela, (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize)), shdr->sh_entsize);
 
 			if (hal_isRelReloc(ELF32_R_TYPE(rela.r_info)) == 0) {
+				// TBD_Bart Thr only thing that macro is doing is casting.
 				continue;
 			}
 
@@ -1006,7 +1007,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 #endif
 
-void *proc_copyargs(char **args)
+static void *proc_copyargs(char **args)
 {
 	unsigned int argc, len = 0U;
 	void *storage;

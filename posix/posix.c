@@ -55,7 +55,7 @@ typedef struct _event_t {
 } event_t;
 
 
-struct {
+static struct {
 	rbtree_t pid;
 	lock_t lock;
 	id_t fresh;
@@ -287,7 +287,7 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
-int posix_truncate(oid_t *oid, off_t length)
+static int posix_truncate(oid_t *oid, off_t length)
 {
 	msg_t msg;
 	int err = -EINVAL;
@@ -921,7 +921,7 @@ int posix_dup(int fildes)
 }
 
 
-int _posix_dup2(process_info_t *p, int fildes, int fildes2)
+static int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 {
 	open_file_t *f, *f2;
 	int nfd2;
@@ -1772,7 +1772,7 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 }
 
 
-int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
+static int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 {
 	size_t size = IOCPARM_LEN(request);
 	int err;
@@ -2463,7 +2463,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			/* MISRAC2012-RULE_17_7-a */
 			(void)posix_fileDeref(f);
 
-			if (f->type == ftUnixSocket) {
+			if (f->type == (char)ftUnixSocket) {
 				err = unix_poll((unsigned int)msg.oid.id, fds[i].events);
 			}
 			else {

@@ -38,7 +38,7 @@
 #define EXC_ALIGMENT            0x01U
 
 
-struct {
+static struct {
 	void (*undefHandler)(unsigned int, exc_context_t *);
 	void (*abortHandler)(unsigned int, exc_context_t *);
 	void (*defaultHandler)(unsigned int, exc_context_t *);
@@ -123,6 +123,7 @@ extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
+/* TBD_Bart Unused function */
 {
 	if (n == (unsigned int)exc_prefetch || n == (unsigned int)exc_abort) {
 		exceptions.abortHandler(n, ctx);

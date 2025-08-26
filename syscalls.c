@@ -14,6 +14,8 @@
  * %LICENSE%
  */
 
+// parasoft-begin-suppress MISRAC2012-RULE_8_4-a "Compatible function declaration is not possible for syscalls"
+
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "include/sysinfo.h"
@@ -1907,3 +1909,5 @@ void _syscalls_init(void)
 	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)lib_printf("syscalls: Initializing syscall table [%d]\n", sizeof(syscalls) / sizeof(syscalls[0]));
 }
+
+// parasoft-end-suppress MISRAC2012-RULE_8_4-a
