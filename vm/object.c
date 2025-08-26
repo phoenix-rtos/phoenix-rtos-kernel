@@ -93,7 +93,8 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			*o = no;
 			no = NULL;
 			hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
-			(*o)->size = sz;  // TBD_Julia sz przypisane do off_t (long long)
+			/* TODO: 64 bits written into 32 bits */
+			(*o)->size = sz;
 			(*o)->refs = 0;
 
 			for (i = 0; i < n; ++i) {
@@ -149,8 +150,7 @@ int vm_objectPut(vm_object_t *o)
 	(void)proc_lockClear(&object_common.lock);
 
 	/* Contiguous object 'holds' all pages in pages[0] */
-	if (((int)o->oid.port == -1) && (o->oid.id == -1)) {
-		// TBD_Julia unsigned porównany z -1? rzutować na signed jak lewy przypadek? + 291 linijka
+	if (((int)o->oid.port == -1) && (o->oid.id == (id_t)(-1))) {
 		vm_pageFree(o->pages[0]);
 	}
 	else {
@@ -211,7 +211,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 	}
 
 	if (o == (void *)-1) {
-		return _page_get(offs);
+		return _page_get((addr_t)offs);
 	}
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added  in lines 217, 220, 225*/
@@ -288,8 +288,8 @@ vm_object_t *vm_objectContiguous(size_t size)
 
 	hal_memset(o, 0, sizeof(*o));
 	/* Mark object as contiguous by setting its oid.port and oid.id to -1 */
-	o->oid.port = -1;
-	o->oid.id = -1;
+	o->oid.port = (u32)(-1);
+	o->oid.id = (id_t)(-1);
 	o->refs = 1;
 	o->size = size;
 

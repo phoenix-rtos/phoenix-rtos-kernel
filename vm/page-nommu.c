@@ -49,7 +49,7 @@ static page_t *_page_alloc(size_t size, u8 flags)
 	pages.freeq = lh->next;
 
 	lh->next = NULL;
-	lh->idx = hal_cpuGetLastBit(size);
+	lh->idx = (u8)hal_cpuGetLastBit(size);
 
 	if (hal_cpuGetFirstBit(size) < lh->idx) {
 		lh->idx++;
@@ -97,18 +97,18 @@ void _page_showPages(void)
 }
 
 
-int page_map(pmap_t *pmap, void *vaddr, addr_t pa, int attr)
+int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attr)
 {
 	page_t *ap;
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 105, 108, 111, 113*/
 	(void)proc_lockSet(&pages.lock);
-	if (pmap_enter(pmap, pa, vaddr, attr, NULL) < 0) {
+	if (pmap_enter(pmap, pa, vaddr, (int)attr, NULL) < 0) {
 		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL) {
 			(void)proc_lockClear(&pages.lock);
 			return -ENOMEM;
 		}
-		(void)pmap_enter(pmap, pa, vaddr, attr, ap);
+		(void)pmap_enter(pmap, pa, vaddr, (int)attr, ap);
 	}
 	(void)proc_lockClear(&pages.lock);
 

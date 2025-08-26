@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+#include <stddef.h>
+
 #include "hal/hal.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
@@ -49,7 +51,7 @@ static map_entry_t *map_allocN(int n);
 void map_free(map_entry_t *entry);
 
 
-static unsigned _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned prot);
+static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int prot);
 
 
 static int map_cmp(rbnode_t *n1, rbnode_t *n2)
@@ -83,7 +85,7 @@ static void map_augment(rbnode_t *node)
 			}
 		}
 
-		n->lmaxgap = (size_t)((n->vaddr <= p->vaddr) ? (n->vaddr - n->map->start) : (n->vaddr - p->vaddr) - (int)p->size);
+		n->lmaxgap = (n->vaddr <= p->vaddr) ? ((size_t)n->vaddr - (size_t)n->map->start) : ((size_t)n->vaddr - (size_t)p->vaddr) - p->size;
 	}
 	else {
 		map_entry_t *l = lib_treeof(map_entry_t, linkage, node->left);
@@ -98,7 +100,7 @@ static void map_augment(rbnode_t *node)
 			}
 		}
 
-		n->rmaxgap = (size_t)((n->vaddr >= p->vaddr) ? (n->map->stop - n->vaddr) - (int)n->size : (p->vaddr - n->vaddr) - (int)n->size);
+		n->rmaxgap = (n->vaddr >= p->vaddr) ? ((size_t)n->map->stop - (size_t)n->vaddr) - n->size : ((size_t)p->vaddr - (size_t)n->vaddr) - n->size;
 	}
 	else {
 		map_entry_t *r = lib_treeof(map_entry_t, linkage, node->right);
@@ -260,16 +262,16 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	lmerge = (prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot && prev->protOrig == prot) ? 1U : 0U;
 
 	if (offs != -1) {
-		if ((offs & (SIZE_PAGE - 1U)) != 0) {
+		if (((u64)offs & (SIZE_PAGE - 1UL)) != 0UL) {
 			return NULL;
 		}
 
 		if (rmerge != 0U) {
-			rmerge &= (next->offs == offs + size) ? 1U : 0U;
+			rmerge &= (next->offs == offs + (s64)size) ? 1U : 0U;
 		}
 
 		if (lmerge != 0U) {
-			lmerge &= (offs == prev->offs + prev->size) ? 1U : 0U;
+			lmerge &= (offs == prev->offs + (s64)prev->size) ? 1U : 0U;
 		}
 	}
 
@@ -285,13 +287,11 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		}
 		else {
 			/* Can't merge to the left if amap array size is too small */
-			/* MISRA Rule 10.4 casted to unsigned type */
-			if (lmerge != 0U && (amap = prev->amap) != NULL && (amap->size * SIZE_PAGE - (unsigned int)prev->aoffs - prev->size) < size) {
+			if (lmerge != 0U && (amap = prev->amap) != NULL && (amap->size * SIZE_PAGE - (size_t)prev->aoffs - prev->size) < size) {
 				lmerge = 0;
 			}
 			/* Can't merge to the right if amap offset is too small */
-			if (rmerge != 0U && (amap = next->amap) != NULL && next->aoffs < size) {
-				// TBD_Julia Odtąd zaczyna się problem z aoffs, czy można go w definicji zrobić unsigned? w kilku miejscach już jest zrzutowany
+			if (rmerge != 0U && (amap = next->amap) != NULL && (size_t)next->aoffs < size) {
 				rmerge = 0;
 			}
 			/* amaps differ, we can only merge one way */
@@ -322,7 +322,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->lmaxgap -= size;
 
 		if (e->aoffs != 0) {
-			e->aoffs -= size;
+			e->aoffs -= (int)size;
 		}
 
 		if (prev != NULL) {
@@ -366,7 +366,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 				e->amap = amap_ref(next->amap);
 				e->aoffs = next->aoffs - (next->vaddr - e->vaddr);
 			}
-			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - prev->aoffs + prev->vaddr) >= (e->vaddr + size)) {
+			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - (size_t)prev->aoffs + (size_t)prev->vaddr) >= ((size_t)e->vaddr + size)) {
 				e->amap = amap_ref(prev->amap);
 				e->aoffs = prev->aoffs + (e->vaddr - prev->vaddr);
 			}
@@ -378,7 +378,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 	/* Clear anon entries */
 	if (e->amap != NULL) {
-		amap_clear(e->amap, e->aoffs + (v - e->vaddr), size);
+		amap_clear(e->amap, (size_t)e->aoffs + ((size_t)v - (size_t)e->vaddr), size);
 	}
 	if (entry != NULL) {
 		*entry = e;
@@ -417,8 +417,8 @@ static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entr
 
 	new->vaddr += len;
 	new->size -= len;
-	new->aoffs += len;
-	new->offs = (new->offs == -1) ? -1 : (new->offs + len);
+	new->aoffs += (int)len;
+	new->offs = (new->offs == -1) ? -1 : (new->offs + (s64)len);
 	new->lmaxgap = 0;
 
 	e->size = len;
@@ -466,7 +466,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		overlapSize = (size_t)(overlapEnd - overlapStart);
 		/* MISRA Rule 11.6: (unsigned int *) added*/
 		overlapEOffset = (size_t)(overlapStart - (ptr_t)(unsigned int *)e->vaddr);
-		eAoffs = e->aoffs;
+		eAoffs = (unsigned int)e->aoffs;
 
 		putEntry = 0;
 
@@ -476,8 +476,8 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 				putEntry = 1;
 			}
 			else {
-				e->aoffs += overlapSize;
-				e->offs = (e->offs == -1) ? -1 : (e->offs + overlapSize);
+				e->aoffs += (int)overlapSize;
+				e->offs = (e->offs == -1) ? -1 : (e->offs + (s64)overlapSize);
 				e->vaddr += overlapSize;
 				e->size -= overlapSize;
 				e->lmaxgap += overlapSize;
@@ -519,7 +519,8 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		/* Perform amap and pmap changes only when we are sure we have enough space to perform corresponding map changes. */
 
 		/* Note: what if NEEDS_COPY? */
-		amap_putanons(e->amap, eAoffs + (int)overlapEOffset, overlapSize);
+		/* TODO: Offset s 64 bits in size and we perform cast to int check if we don't lose info */
+		amap_putanons(e->amap, (int)eAoffs + (int)overlapEOffset, (int)overlapSize);
 
 		/* MISRA Rule 11.6: (unsigned int *) added x2*/
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
@@ -604,7 +605,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 
 		for (w = vaddr; w < (vaddr + size); w += SIZE_PAGE) {
 			/* MISRA Rule 17.7: Unused returned value, (void) added */
-			(void)page_map(&map->pmap, w, (p++)->addr, (int)attr);
+			(void)page_map(&map->pmap, w, (p++)->addr, attr);
 		}
 
 		return vaddr;
@@ -615,7 +616,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 	}
 
 	for (w = vaddr; w < vaddr + size; w += SIZE_PAGE) {
-		if (_map_force(map, e, w, prot)) {
+		if (_map_force(map, e, w, prot) != 0) {
 			amap_putanons(e->amap, e->aoffs, w - vaddr);
 
 			/* MISRA Rule 11.6: (unsigned int *) added x2 */
@@ -698,7 +699,7 @@ int vm_mapFlags(vm_map_t *map, void *vaddr)
 	flags = e->flags & ~MAP_NEEDSCOPY;
 	(void)proc_lockClear(&map->lock);
 
-	return flags;
+	return (int)flags;
 }
 
 
@@ -726,22 +727,23 @@ int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot)
 }
 
 
-static unsigned map_checkProt(unsigned baseProt, unsigned newProt)
+static unsigned map_checkProt(unsigned int baseProt, unsigned int newProt)
 {
 	return (baseProt | newProt) ^ baseProt;
 }
 
 
-static unsigned _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned prot)
+static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int prot)
 {
-	int attr, offs;
+	unsigned int attr;
+	int offs;
 	page_t *p = NULL;
-	unsigned flagsCheck = map_checkProt(e->prot, prot);
+	int flagsCheck = (int)map_checkProt(e->prot, prot);
 
-	if (flagsCheck != 0U) {
+	if (flagsCheck != 0) {
 		return flagsCheck;
 	}
-	if ((((prot & PROT_WRITE) != 0U) && ((e->flags & MAP_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
+	if (((((unsigned int)prot & PROT_WRITE) != 0U) && ((e->flags & MAP_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
 		e->amap = amap_create(e->amap, &e->aoffs, e->size);
 		if (e->amap == NULL) {
 			return -ENOMEM;
@@ -759,10 +761,11 @@ static unsigned _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned 
 		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, ((e->offs < 0) ? e->offs : (e->offs + offs)), prot);
 	}
 
-	attr = (vm_protToAttr(prot) | vm_flagsToAttr(e->flags));
+	attr = vm_protToAttr(prot) | vm_flagsToAttr(e->flags);
 
 	if ((p == NULL) && (e->object == VM_OBJ_PHYSMEM)) {
-		if (page_map(&map->pmap, paddr, e->offs + offs, attr) < 0) {
+		/* TODO: Offset s 64 bits in size and we perform cast to int check if we don't lose info */
+		if (page_map(&map->pmap, paddr, (addr_t)e->offs + (addr_t)offs, attr) < 0) {
 			return -ENOMEM;
 		}
 	}
@@ -770,7 +773,7 @@ static unsigned _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned 
 		return -ENOMEM;
 	}
 	else if (page_map(&map->pmap, paddr, p->addr, attr) < 0) {
-		amap_putanons(e->amap, e->aoffs + offs, SIZE_PAGE);
+		amap_putanons(e->amap, e->aoffs + offs, (int)SIZE_PAGE);
 		return -ENOMEM;
 	}
 
@@ -836,9 +839,9 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
-unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
+int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 {
-	unsigned int result = EOK;
+	int result = EOK;
 	void *currVaddr;
 	size_t lenLeft = len, currSize, needed;
 	process_t *p = proc_current()->process;
@@ -868,7 +871,7 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 			result = -ENOMEM;
 			break;
 		}
-		if (map_checkProt(e->protOrig, prot) != 0U) {
+		if (map_checkProt(e->protOrig, (unsigned int)prot) != 0U) {
 			result = -EACCES;
 			break;
 		}
@@ -888,8 +891,7 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 	} while (lenLeft != 0U);
 
 	if ((result == EOK) && (needed != 0U)) {
-		// TBD_Julia EOK nie można zmienić w definicji, dużo wystąpień w innych plikach, gdzie jako int pasuje
-		buf = map_allocN(needed);
+		buf = map_allocN((int)needed);
 		if (buf == NULL) {
 			result = -ENOMEM;
 		}
@@ -929,9 +931,10 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 				vm_mapEntrySplit(p, map, e, buf, lenLeft);
 			}
 
-			e->prot = prot;
+			/* TODO: int cast to char - check if we don't lose info*/
+			e->prot = (unsigned char)prot;
 
-			attr = vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags);
+			attr = (vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags));
 			needscopyNonLazy = 0;
 			/* If an entry needs copy, enter it as a readonly to copy it on first access. */
 			if ((e->flags & MAP_NEEDSCOPY) != 0U) {
@@ -950,7 +953,7 @@ unsigned vm_mprotect(vm_map_t *map, void *vaddr, size_t len, unsigned prot)
 					}
 				}
 				else {
-					result = _map_force(map, e, currVaddr, prot);
+					result = _map_force(map, e, currVaddr, (unsigned int)prot);
 				}
 			}
 
@@ -1097,7 +1100,7 @@ static void remap_readonly(vm_map_t *map, map_entry_t *e, int offs)
 
 	if ((a = pmap_resolve(&map->pmap, e->vaddr + offs))) {
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
-		(void)page_map(&map->pmap, e->vaddr + offs, a, (int)attr);
+		(void)page_map(&map->pmap, e->vaddr + offs, a, attr);
 	}
 }
 
@@ -1106,7 +1109,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 {
 	rbnode_t *n;
 	map_entry_t *e, *f;
-	unsigned int offs;
+	int offs;
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 1109, 1120, 1121, 1127, 1143, 1144, 1151, 1152*/
 	(void)proc_lockSet2(&src->lock, &dst->lock);
@@ -1133,16 +1136,16 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 
-			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
+			for (offs = 0; offs < (int)f->size; offs += (int)SIZE_PAGE) {
 				remap_readonly(src, e, offs);
 				remap_readonly(dst, f, offs);
 			}
 		}
 
 		if ((proc == NULL) || (proc->lazy == 0U)) {
-			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
-				if ((_map_force(dst, f, f->vaddr + offs, f->prot) != 0U) ||
-						(_map_force(src, e, e->vaddr + offs, e->prot) != 0U)) {
+			for (offs = 0; offs < (int)f->size; offs += (int)SIZE_PAGE) {
+				if ((_map_force(dst, f, f->vaddr + offs, f->prot) != 0) ||
+						(_map_force(src, e, e->vaddr + offs, e->prot) != 0)) {
 					(void)proc_lockClear(&dst->lock);
 					(void)proc_lockClear(&src->lock);
 					return -ENOMEM;
@@ -1214,7 +1217,7 @@ void vm_mapinfo(meminfo_t *info)
 	map_entry_t *e;
 	vm_map_t *map;
 	const syspage_map_t *spMap;
-	unsigned int size;
+	int size;
 	process_t *process;
 	int i;
 	size_t total, free;
@@ -1371,12 +1374,12 @@ void vm_mapinfo(meminfo_t *info)
 		info->maps.total = 0;
 		info->maps.free = 0;
 
-		for (size = 0; size < map_common.mapssz; ++size) {
-			map = vm_getSharedMap((int)size);
+		for (size = 0; (unsigned int)size < map_common.mapssz; ++size) {
+			map = vm_getSharedMap(size);
 			if (map == NULL) {
 				if (size < info->maps.mapsz) {
 					/* Store info that the map doesn't exist */
-					info->maps.map[size].id = (int)size;
+					info->maps.map[size].id = size;
 					info->maps.map[size].free = 0;
 					info->maps.map[size].alloc = 0;
 					info->maps.map[size].pstart = 0;
@@ -1403,7 +1406,7 @@ void vm_mapinfo(meminfo_t *info)
 
 			/* MISRA Rule 10.4: (int)size -> size*/
 			if (size < info->maps.mapsz) {
-				info->maps.map[size].id = (int)size;
+				info->maps.map[size].id = size;
 				info->maps.map[size].free = free;
 				info->maps.map[size].alloc = total - free;
 				/* MISRA Rule 11.6: (usigned int *) added in lines 1335-1348*/
@@ -1411,7 +1414,7 @@ void vm_mapinfo(meminfo_t *info)
 				info->maps.map[size].pend = (addr_t)(unsigned int *)map->pmap.end;
 				info->maps.map[size].vstart = (ptr_t)(unsigned int *)map->start;
 				info->maps.map[size].vend = (ptr_t)(unsigned int *)map->stop;
-				spMap = syspage_mapIdResolve(size);
+				spMap = syspage_mapIdResolve((unsigned int)size);
 				if ((spMap != NULL) && (spMap->name != NULL)) {
 					/* MISRA Rule 17.7: Unused returned value, (void) added */
 					(void)hal_strncpy(info->maps.map[size].name, spMap->name, sizeof(info->maps.map[size].name));
@@ -1507,8 +1510,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	}
 
 	map_common.maps = (vm_map_t **)(*bss);
-
-	while ((*top) - (*bss) < sizeof(vm_map_t *) * mapsCnt) {
+	while ((*top) - (*bss) < (ptrdiff_t)sizeof(vm_map_t *) * (ptrdiff_t)mapsCnt) {
 		result = _page_sbrk(&map_common.kmap->pmap, bss, top);
 		LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)", *bss);
 	}
@@ -1529,7 +1531,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 		}
 		/* Allocate new map */
 		else {
-			while ((*top) - (*bss) < sizeof(vm_map_t)) {
+			while ((*top) - (*bss) < (ptrdiff_t)sizeof(vm_map_t)) {
 				result = _page_sbrk(&map_common.kmap->pmap, bss, top);
 				LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)", *bss);
 			}
@@ -1585,7 +1587,8 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 
 int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
-	int result, i, prot;
+	int result, i;
+	unsigned int prot;
 	void *vaddr;
 	size_t poolsz, freesz, size;
 	map_entry_t *e;
@@ -1608,7 +1611,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	map_common.ntotal = freesz / (3U * SIZE_PAGE + sizeof(map_entry_t));
 	map_common.nfree = map_common.ntotal;
 
-	while ((*top) - (*bss) < sizeof(map_entry_t) * map_common.ntotal) {
+	while ((*top) - (*bss) < (ptrdiff_t)sizeof(map_entry_t) * (ptrdiff_t)map_common.ntotal) {
 		result = _page_sbrk(&map_common.kmap->pmap, bss, top);
 		LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for map_entry_t pool (vaddr=%p)", *bss);
 	}
@@ -1634,9 +1637,8 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	/* Map kernel segments */
 	for (i = 0;; i++) {
 		prot = PROT_READ | PROT_EXEC;
-		// TBD_Julia ze zmienną prot jest błąd jeszcze 2 razy niżej, można w definicji zmienić?
 
-		if (pmap_segment((unsigned int)i, &vaddr, &size, &prot, top) < 0) {
+		if (pmap_segment((unsigned int)i, &vaddr, &size, (int *)&prot, top) < 0) {
 			break;
 		}
 
@@ -1650,8 +1652,8 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		e->object = kernel;
 		e->offs = -1;
 		e->flags = MAP_NONE;
-		e->prot = prot;
-		e->protOrig = prot;
+		e->prot = (unsigned char)prot;
+		e->protOrig = (unsigned char)prot;
 		e->amap = NULL;
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
 		(void)_map_add(NULL, map_common.kmap, e);

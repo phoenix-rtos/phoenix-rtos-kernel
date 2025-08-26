@@ -38,7 +38,7 @@ void test_vm_alloc(void)
 
 	for (n = 0; n < 1000000U; n++) {
 
-		size = lib_rand(&seed) % (0x1UL << 22U);
+		size = (unsigned int)lib_rand(&seed) % (0x1UL << 22U);
 		minsize = min(minsize, size);
 		maxsize = max(maxsize, size);
 
