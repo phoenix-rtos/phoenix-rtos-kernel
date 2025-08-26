@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+// parasoft-begin-suppress ALL "tests don't need to comply with MISRA"
+
 #include "hal/hal.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
@@ -200,3 +202,5 @@ void test_rb(void)
 {
 	(void)proc_threadCreate(NULL, test_rb_autothr, NULL, 1, 512, NULL, 0, NULL);
 }
+
+// parasoft-end-suppress ALL "tests don't need to comply with MISRA"

@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+// parasoft-begin-suppress ALL "tests don't need to comply with MISRA"
+
 #include "test.h"
 
 #include "vm.h"
@@ -29,3 +31,5 @@ void test_run(void)
 //	test_rb();
 //	test_msg();
 }
+
+// parasoft-end-suppress ALL "tests don't need to comply with MISRA"

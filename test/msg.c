@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+// parasoft-begin-suppress ALL "tests don't need to comply with MISRA"
+
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "proc/proc.h"
@@ -176,3 +178,6 @@ void test_msg(void)
 	(void)proc_threadCreate(NULL, test_pong, NULL, 4, 1024, NULL, 0, (void *)(long)port);
 	(void)proc_threadCreate(NULL, test_ping, NULL, 4, 1024, NULL, 0, (void *)(long)port);
 }
+
+
+// parasoft-end-suppress ALL
