@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+ // parasoft-begin-suppress ALL "tests don't need to comply with MISRA"
+
 #include "hal/hal.h"
 #include "lib/lib.h"
 #include "vm/vm.h"
@@ -251,3 +253,5 @@ void test_vm_kmallocsim(void)
 		(void)proc_threadCreate(0, _test_vm_msgsimthr, NULL, 0, 512, 0, 0, 0);
 	}
 }
+
+// parasoft-end-suppress ALL "tests don't need to comply with MISRA"
