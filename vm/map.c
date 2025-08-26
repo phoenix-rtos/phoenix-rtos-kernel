@@ -25,7 +25,7 @@
 
 extern unsigned int __bss_start;
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
 

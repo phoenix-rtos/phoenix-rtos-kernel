@@ -35,7 +35,7 @@
 #endif
 
 
-struct {
+static struct {
 	volatile u32 *uart;
 	u32 speed;
 } console_common;

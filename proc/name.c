@@ -28,7 +28,7 @@ typedef struct _dcache_entry_t {
 } dcache_entry_t;
 
 
-struct {
+static struct {
 	int root_registered;
 	oid_t root_oid;
 

@@ -16,7 +16,7 @@
 #include "fdpass.h"
 
 
-#define CMSG_ALIGN(n)       (((n) + sizeof(socklen_t) - 1) & ~(sizeof(socklen_t) - 1))
+#define CMSG_ALIGN(n)       (((n) + sizeof(socklen_t) - 1U) & ~(sizeof(socklen_t) - 1U))
 #define CMSG_SPACE(n)       (sizeof(struct cmsghdr) + CMSG_ALIGN(n))
 #define CMSG_LEN(n)         (sizeof(struct cmsghdr) + (n))
 #define CMSG_DATA(c)        ((unsigned char *)((struct cmsghdr *)(c) + 1))

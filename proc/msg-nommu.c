@@ -25,7 +25,7 @@ enum { msg_rejected = -1,
 	msg_responded };
 
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
 } msg_common;

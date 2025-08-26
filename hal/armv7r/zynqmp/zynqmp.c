@@ -30,7 +30,7 @@
 /* PLO entrypoint */
 extern void _start(void);
 
-struct {
+static struct {
 	volatile u32 *iou_slcr;
 	volatile u32 *crf_apb;
 	volatile u32 *crl_apb;
@@ -60,7 +60,7 @@ static int _zynqmp_setBasicGenerator(volatile u32 *reg, u32 dev, u8 src, u8 div0
 }
 
 
-int _zynqmp_setDevClock(u32 dev, u8 src, u8 div0, u8 div1, u8 active)
+static int _zynqmp_setDevClock(u32 dev, u8 src, u8 div0, u8 div1, u8 active)
 {
 	if ((dev >= (unsigned int)pctl_devclock_lpd_usb3_dual) && (dev <= (unsigned int)pctl_devclock_lpd_timestamp)) {
 		unsigned regOffset = (dev - (unsigned int)pctl_devclock_lpd_usb3_dual) + (unsigned int)crl_apb_usb3_dual_ref_ctrl;
@@ -86,7 +86,7 @@ static int _zynqmp_getBasicGenerator(volatile u32 *reg, u8 *src, u8 *div0, u8 *d
 }
 
 
-int _zynqmp_getDevClock(u32 dev, u8 *src, u8 *div0, u8 *div1, u8 *active)
+static int _zynqmp_getDevClock(u32 dev, u8 *src, u8 *div0, u8 *div1, u8 *active)
 {
 	if ((dev >= (unsigned int)pctl_devclock_lpd_usb3_dual) && (dev <= (unsigned int)pctl_devclock_lpd_timestamp)) {
 		unsigned regOffset = (dev - (unsigned int)pctl_devclock_lpd_usb3_dual) + (unsigned int)crl_apb_usb3_dual_ref_ctrl;

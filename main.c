@@ -26,7 +26,7 @@
 #include "test/test.h"
 
 
-struct {
+static struct {
 	vm_map_t kmap;
 	vm_object_t kernel;
 	page_t *page;
@@ -35,7 +35,7 @@ struct {
 } main_common;
 
 
-void main_initthr(void *unused)
+static void main_initthr(void *unused)
 {
 	int res;
 	unsigned int argc;
