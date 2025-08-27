@@ -258,14 +258,18 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
+				break;
 			case 'x':
 				flags |= FLAG_HEX;
 				goto get_number;
+				break;
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
+				break;
 			case 'u':
 				goto get_number;
+				break;
 			case 'p': {
 				const void *s = va_arg(args, void *);
 				if (s == NULL) {
@@ -449,15 +453,21 @@ int lib_vprintf(const char *format, va_list ap)
 
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
+				break;
+
 			case 'x':
 				flags |= FLAG_HEX;
 				goto get_number;
+				break;
 
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
+				break;
+
 			case 'u':
 				goto get_number;
+				break;
 
 			case 'p': {
 				const void *s = va_arg(ap, void *);

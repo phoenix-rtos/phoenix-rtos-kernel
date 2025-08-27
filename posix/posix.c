@@ -1667,6 +1667,7 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
 			cloexec = 1;
+			break;
 		case F_DUPFD:
 			GETFROMSTACK(ustack, int, fd2, 2);
 			err = posix_fcntlDup(fd, fd2, cloexec);
@@ -1695,9 +1696,11 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 		case F_SETLKW:
 			/* TODO: implement */
 			err = EOK;
+			break;
 		case F_GETOWN:
 		case F_SETOWN:
 		default:
+			/* Handles any value of 'cmd' not covered by the case labels. */
 			break;
 	}
 
@@ -1817,6 +1820,7 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 				if (err == EOK) {
 					err = ioctl_processResponse(&msg, request, data);
 				}
+				break;
 		}
 
 		/* MISRAC2012-RULE_17_7-a */
