@@ -56,7 +56,7 @@ int proc_send(u32 port, msg_t *msg)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
-	if (p->closed) {
+	if (p->closed != 0) {
 		err = -EINVAL;
 	}
 	else {
@@ -133,7 +133,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		LIST_REMOVE(&p->kmessages, kmsg);
 	}
 
-	if (p->closed) {
+	if (p->closed != 0) {
 		/* Port is being removed */
 		if (kmsg != NULL) {
 			kmsg->state = msg_rejected;

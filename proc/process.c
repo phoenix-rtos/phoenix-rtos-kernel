@@ -1484,7 +1484,7 @@ int proc_vfork(void)
 
 	hal_spinlockClear(&spawn->sl, &sc);
 
-	if (isparent) {
+	if (isparent != 0) {
 		hal_spinlockDestroy(&spawn->sl);
 		/* MISRAC2012-RULE_17_7-a */
 		(void)vm_objectPut(spawn->object);

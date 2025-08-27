@@ -68,7 +68,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	}
 
 	/* calculate total number of file descriptors */
-	for (tot_cnt = 0, cmsg = CMSG_FIRSTHDR(control, controllen); cmsg; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
+	for (tot_cnt = 0, cmsg = CMSG_FIRSTHDR(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
 		cmsg_data = CMSG_DATA(cmsg);
 		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
 		cnt = ((unsigned int)cmsg_end - (unsigned int)cmsg_data) / sizeof(int);
@@ -95,7 +95,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	LIST_ADD(packs, pack);
 
 	/* reference and pack file descriptors */
-	for (cmsg = CMSG_FIRSTHDR(control, controllen); cmsg; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
+	for (cmsg = CMSG_FIRSTHDR(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
 		cmsg_data = CMSG_DATA(cmsg);
 		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
 		cnt = ((unsigned int)cmsg_end - (unsigned int)cmsg_data) / sizeof(int);
@@ -198,8 +198,8 @@ int fdpass_discard(fdpack_t **packs)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 
-	while ((pack = *packs)) {
-		while (pack->cnt) {
+	while ((pack = *packs) != NULL) {
+		while (pack->cnt != 0U) {
 			FDPACK_POP_FILE(pack, file);
 			/*MISRAC2012-RULE_17_7-a*/
 			(void)posix_fileDeref(file);
