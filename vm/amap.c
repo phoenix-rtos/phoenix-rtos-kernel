@@ -35,7 +35,7 @@ static anon_t *amap_putanon(anon_t *a)
 	}
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 37, 39, 44, 45*/
 	(void)proc_lockSet(&a->lock);
-	if (--a->refs) {
+	if (--a->refs != 0U) {
 		(void)proc_lockClear(&a->lock);
 		return a;
 	}
@@ -177,7 +177,7 @@ void amap_put(amap_t *amap)
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 177, 180, 184 */
 	(void)proc_lockSet(&amap->lock);
 
-	if (--amap->refs) {
+	if (--amap->refs != 0U) {
 		(void)proc_lockClear(&amap->lock);
 		return;
 	}

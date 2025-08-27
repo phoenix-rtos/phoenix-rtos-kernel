@@ -332,7 +332,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 		map_augment(&e->linkage);
 	}
-	else if (lmerge) {
+	else if (lmerge != 0U) {
 		e = prev;
 		e->size += size;
 		e->rmaxgap -= size;
@@ -1098,7 +1098,7 @@ static void remap_readonly(vm_map_t *map, map_entry_t *e, int offs)
 		attr |= PGHD_USER;
 	}
 
-	if ((a = pmap_resolve(&map->pmap, e->vaddr + offs))) {
+	if ((a = pmap_resolve(&map->pmap, e->vaddr + offs)) != 0U) {
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
 		(void)page_map(&map->pmap, e->vaddr + offs, a, attr);
 	}

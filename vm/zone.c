@@ -70,7 +70,7 @@ int _vm_zoneDestroy(vm_zone_t *zone)
 		return -EINVAL;
 	}
 
-	if (zone->used) {
+	if (zone->used != 0U) {
 		return -EBUSY;
 	}
 

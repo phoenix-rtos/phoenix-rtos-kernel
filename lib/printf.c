@@ -296,7 +296,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		continue;
 
 	get_number:;
-		if (flags & FLAG_64BIT) {
+		if ((flags & FLAG_64BIT) != 0U) {
 			number = va_arg(args, u64);
 		}
 		else {
@@ -327,7 +327,7 @@ int lib_vprintf(const char *format, va_list ap)
 	char *sptr, *eptr;
 
 	s = CONSOLE_CYAN;
-	while (*s) {
+	while (*s != '\0') {
 		lib_putch(*(s++));
 	}
 
@@ -500,7 +500,7 @@ int lib_vprintf(const char *format, va_list ap)
 
 	get_number:;
 
-		if (flags & FLAG_64BIT) {
+		if ((flags & FLAG_64BIT) != 0U) {
 			number = va_arg(ap, u64);
 		}
 		else {

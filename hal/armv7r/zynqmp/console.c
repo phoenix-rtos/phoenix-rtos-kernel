@@ -63,7 +63,7 @@ enum {
 
 static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++) {
+	for (; *s != '\0'; s++) {
 		hal_consolePutch(*s);
 	}
 

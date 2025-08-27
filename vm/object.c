@@ -141,7 +141,7 @@ int vm_objectPut(vm_object_t *o)
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 141, 144, 149*/
 	(void)proc_lockSet(&object_common.lock);
 
-	if (--o->refs) {
+	if (--o->refs != 0U) {
 		(void)proc_lockClear(&object_common.lock);
 		return EOK;
 	}
@@ -240,7 +240,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 
 	p = object_fetch(o->oid, offs);
 
-	if (vm_lockVerify(map, amap, o, vaddr, offs)) {
+	if (vm_lockVerify(map, amap, o, vaddr, offs) != 0) {
 		if (p != NULL) {
 			vm_pageFree(p);
 		}
