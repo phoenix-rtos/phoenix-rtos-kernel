@@ -400,7 +400,7 @@ int perf_finish(void)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (threads_common.perfGather) {
+	if (threads_common.perfGather != 0) {
 		threads_common.perfGather = 0;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1120,7 +1120,7 @@ static void _proc_threadDequeue(thread_t *t)
 		LIST_REMOVE(t->wait, t);
 	}
 
-	if (t->wakeup) {
+	if (t->wakeup != 0U) {
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
 	}
 
@@ -1163,7 +1163,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	 * to wyskakuje błąd z różnymi wielkościami, od razu rzutować na (unsigned char)?
 	 */
 
-	if (timeout) {
+	if (timeout != 0U) {
 		current->wakeup = timeout;
 		/* MISRAC2012-RULE_17_7-a */
 		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
@@ -1519,8 +1519,8 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 		if (thread != NULL) {
 			do {
-				if (sigbit & ~thread->sigmask) {
-					if (thread->interruptible) {
+				if ((sigbit & ~thread->sigmask) != 0U) {
+					if (thread->interruptible != 0U) {
 						_thread_interrupt(thread);
 					}
 

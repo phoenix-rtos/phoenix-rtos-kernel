@@ -315,10 +315,10 @@ static void unixsock_put(unixsock_t *s)
 		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockDone(&s->lock);
 		hal_spinlockDestroy(&s->spinlock);
-		if (s->buffer.data) {
+		if (s->buffer.data != NULL) {
 			vm_kfree(s->buffer.data);
 		}
-		if (s->fdpacks) {
+		if (s->fdpacks != NULL) {
 			/* MISRAC2012-RULE_17_7-a */
 			(void)fdpass_discard(&s->fdpacks);
 		}
@@ -589,7 +589,7 @@ int unix_listen(unsigned socket, int backlog)
 	}
 
 	do {
-		if (s->state & US_LISTENING) {
+		if ((s->state & US_LISTENING) != 0U) {
 			err = -EADDRINUSE;
 			break;
 		}
@@ -622,7 +622,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 	}
 
 	do {
-		if ((s->state & US_LISTENING) != 0) {
+		if ((s->state & US_LISTENING) != 0U) {
 			err = -EADDRINUSE;
 			break;
 		}
@@ -940,7 +940,8 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 				break;
 			}
 
-			if (s->state & US_PEER_CLOSED) {
+			if ((s->state & US_PEER_CLOSED) != 0U) {
+				/* MISRAC2012-RULE_17_7-a */
 				(void)posix_tkill(process_getPid(proc_current()->process), 0, SIGPIPE);
 				err = -EPIPE;
 				break;
@@ -1233,7 +1234,7 @@ int unix_poll(unsigned socket, unsigned short events)
 		err = POLLNVAL;
 	}
 	else {
-		if (events & (POLLIN | POLLRDNORM | POLLRDBAND)) {
+		if ((events & (POLLIN | POLLRDNORM | POLLRDBAND)) != 0U) {
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockSet(&r->lock);
 			if (_cbuffer_avail(&s->buffer) > 0U || (s->connecting != NULL && (s->state & US_LISTENING) != 0U)) {
