@@ -63,7 +63,7 @@ static struct {
 } posix_common;
 
 
-process_info_t *_pinfo_find(int pid)
+static process_info_t *_pinfo_find(int pid)
 {
 	process_info_t pi, *r;
 

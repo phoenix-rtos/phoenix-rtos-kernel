@@ -26,7 +26,7 @@
 extern unsigned int __bss_start;
 
 
-struct {
+static struct {
 	size_t allocsz;
 	size_t bootsz;
 	size_t freesz;

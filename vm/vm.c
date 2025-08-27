@@ -22,9 +22,10 @@
 #include "amap.h"
 #include "zone.h"
 #include "kmalloc.h"
+#include "vm/vm.h"
 
 
-struct {
+static struct {
 	void *bss;
 	void *top;
 } vm;

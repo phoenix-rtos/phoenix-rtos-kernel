@@ -13,6 +13,7 @@
  * %LICENSE%
  */
 
+
 #include "hal/hal.h"
 #include "lib/lib.h"
 #include "include/errno.h"
@@ -21,7 +22,7 @@
 #include "zone.h"
 
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
 } zone_common;
