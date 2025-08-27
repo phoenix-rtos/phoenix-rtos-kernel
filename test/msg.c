@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
-// parasoft-begin-suppress ALL "tests don't need to comply with MISRA"
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
 
 #include "hal/hal.h"
 #include "include/errno.h"
@@ -180,4 +180,4 @@ void test_msg(void)
 }
 
 
-// parasoft-end-suppress ALL
+/* parasoft-end-suppress ALL */

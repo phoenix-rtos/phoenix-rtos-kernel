@@ -26,7 +26,9 @@
 extern unsigned int _end;
 extern unsigned int __bss_start;
 
+// parasoft-begin-suppress MISRAC2012-RULE_8_4 "Global variable used in assembler code"
 u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
+// parasoft-end-suppress MISRAC2012-RULE_8_4
 
 
 static struct {

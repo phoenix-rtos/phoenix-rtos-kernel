@@ -14,7 +14,7 @@
  * %LICENSE%
  */
 
-// parasoft-begin-suppress ALL "tests don't need to comply with MISRA"
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
 
 #include "hal/hal.h"
 #include "proc/proc.h"
@@ -220,4 +220,4 @@ void test_proc_exit(void)
 	(void)hal_cpuReschedule(NULL, NULL);
 }
 
-// parasoft-end-suppress ALL "tests don't need to comply with MISRA"
+/* parasoft-end-suppress ALL "tests don't need to comply with MISRA" */

@@ -23,9 +23,11 @@ static struct {
 } hal_common;
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Global variables used in assembler code" */
 syspage_t *syspage;
 u32 relOffs;
 u32 schedulerLocked = 0;
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 
 extern void _hal_platformInit(void);

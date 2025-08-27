@@ -430,7 +430,7 @@ int log_write(const char *data, size_t len)
 }
 
 
-void _log_scrub(void)
+static void _log_scrub(void)
 {
 	if (log_common.updated != 0) {
 		_log_readersUpdate();

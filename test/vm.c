@@ -13,7 +13,7 @@
  * %LICENSE%
  */
 
- // parasoft-begin-suppress ALL "tests don't need to comply with MISRA"
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
 
 #include "hal/hal.h"
 #include "lib/lib.h"
@@ -254,4 +254,4 @@ void test_vm_kmallocsim(void)
 	}
 }
 
-// parasoft-end-suppress ALL "tests don't need to comply with MISRA"
+/* parasoft-end-suppress ALL "tests don't need to comply with MISRA" */
