@@ -16,11 +16,11 @@
 #include "lib/lib.h"
 #include "syspage.h"
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Global variable used in assembler code" */
 struct {
 	syspage_t *syspage;
 } syspage_common;
-
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 size_t syspage_mapSize(void)
 {

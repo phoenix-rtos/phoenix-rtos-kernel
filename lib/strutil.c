@@ -15,6 +15,7 @@
 
 #include "hal/hal.h"
 #include "vm/kmalloc.h"
+#include "lib/strutil.h"
 
 /* MISRA Rule 10.3: int c changed to char c to adhere */
 static char *lib_strrchr(char *s, char c)

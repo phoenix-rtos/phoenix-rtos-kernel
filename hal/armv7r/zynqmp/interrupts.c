@@ -91,7 +91,7 @@ void _hal_interruptsInitPerCPU(void);
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
-// parasoft-begin-suppress MISRAC2012-RULE_8_4 "Function is used externaly within assembler code"
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Function is used externaly within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
@@ -127,7 +127,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	return (int)reschedule;
 }
-// parasoft-end-suppress MISRAC2012-RULE_8_4
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 static void interrupts_enableIRQ(unsigned int irqn)
 {
@@ -157,6 +157,7 @@ static void interrupts_setConf(unsigned int irqn, u32 conf)
 
 
 void interrupts_setCPU(unsigned int irqn, unsigned int cpuMask)
+// TBD_Bart
 {
 	unsigned int irq_reg = irqn / 4U;
 	unsigned int irq_offs = (irqn % 4U) * 8U;
