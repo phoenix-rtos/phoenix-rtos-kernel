@@ -24,7 +24,7 @@
 #include "proc/threads.h"
 
 
-struct {
+static struct {
 	rbtree_t tree;
 	vm_object_t *kernel;
 	vm_map_t *kmap;

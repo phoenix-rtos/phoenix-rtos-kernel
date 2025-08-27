@@ -22,7 +22,7 @@
 #include "proc/proc.h"
 
 
-struct {
+static struct {
 	vm_zone_t *sizes[17];
 	vm_zone_t *used;
 	vm_zone_t firstzone;
@@ -55,7 +55,7 @@ static int kmalloc_zone_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
-void *_kmalloc_alloc(u8 hdridx, u8 idx)
+static void *_kmalloc_alloc(u8 hdridx, u8 idx)
 {
 	void *b;
 	vm_zone_t *z = kmalloc_common.sizes[idx];
@@ -78,7 +78,7 @@ void *_kmalloc_alloc(u8 hdridx, u8 idx)
 }
 
 
-vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
+static vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 {
 	vm_zone_t t;
 	vm_zone_t *z;
@@ -110,7 +110,7 @@ vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 }
 
 
-int _kmalloc_addZone(u8 hdridx, u8 idx)
+static int _kmalloc_addZone(u8 hdridx, u8 idx)
 {
 	vm_zone_t *nz;
 

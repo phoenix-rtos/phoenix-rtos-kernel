@@ -121,7 +121,7 @@ static void map_augment(rbnode_t *node)
 }
 
 
-void map_dump(rbnode_t *node)
+static void map_dump(rbnode_t *node)
 {
 	map_entry_t *e = lib_treeof(map_entry_t, linkage, node);
 	/* MISRA Rule 17.7: Unused returned value, (void) added */
@@ -174,7 +174,7 @@ static void _entry_put(vm_map_t *map, map_entry_t *e)
 }
 
 
-void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map_entry_t **next)
+static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map_entry_t **next)
 {
 	map_entry_t *e = lib_treeof(map_entry_t, linkage, map->tree.root);
 

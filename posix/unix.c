@@ -217,7 +217,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 	 * one for handling by the caller before returning the socket to the user (to protect
 	 * against accidental socket removal by someone else in the meantime) */
 	r->refs = 2;
-	r->type = type;  // TBD_Julia Czy na unsigned char można zrzutować ten i ten niżej?
+	r->type = type;  // TBD_Julia Czy na u8 zrzutować + ten niżej?
 	r->nonblock = nonblock;
 	r->buffsz = US_DEF_BUFFER_SIZE;
 	r->fdpacks = NULL;
@@ -965,7 +965,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					/* MISRAC2012-RULE_17_7-a */
 					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
-					(void)_cbuffer_write(&r->buffer, buf, err = len); // TBD_Julia Czy err może by tutaj unsigned?
+					(void)_cbuffer_write(&r->buffer, buf, err = len); // TBD_Julia Czy err zrzutować na size_t?
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
@@ -1151,7 +1151,7 @@ int unix_setsockopt(unsigned socket, int level, int optname, const void *optval,
 		switch (optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && optlen == sizeof(int)) {
-					err = unix_bufferSetSize(s, *((int *)optval));
+					err = unix_bufferSetSize(s, *((int *)optval));  // sz zostało zmienione na unsigned + rzutowanie const voida (przy okazji)
 				}
 				else {
 					err = -EINVAL;

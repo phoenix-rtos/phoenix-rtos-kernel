@@ -32,7 +32,7 @@ const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 /* MISRA Rule 11.6: Added (int *) */
 static thread_t *const wakeupPending = (void *)(int *)-1;
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
@@ -194,7 +194,7 @@ static void _perf_begin(thread_t *t)
 }
 
 
-void perf_end(thread_t *t)
+static void perf_end(thread_t *t)
 {
 	perf_levent_end_t ev;
 	time_t now;
@@ -451,7 +451,7 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 }
 
 
-int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
+static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *t;
 	time_t now;
@@ -596,6 +596,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externaly within assembler code" */
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
@@ -704,6 +705,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externaly within assembler code" */
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	spinlock_ctx_t sc;

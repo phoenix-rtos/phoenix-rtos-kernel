@@ -22,7 +22,7 @@
 #include "map.h"
 
 
-struct {
+static struct {
 	vm_object_t *kernel;
 	vm_map_t *kmap;
 } amap_common;
