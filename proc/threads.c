@@ -1492,6 +1492,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 			if (process->sighandler != NULL) {
 				break;
 			}
+			break;
 
 		/* passthrough */
 		case signal_kill:
@@ -1506,6 +1507,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 			return EOK;
 
 		default:
+			/* Handles any value of 'sig' not covered by the case labels. */
 			break;
 	}
 	hal_spinlockSet(&threads_common.spinlock, &sc);

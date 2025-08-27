@@ -81,6 +81,7 @@ int proc_send(u32 port, msg_t *msg)
 				err = -EINVAL;
 				break;
 			default:
+				/* In case kmsg.state == msg_waiting || msg_received or other udefined cases, err is not changed */
 				break;
 		}
 	}

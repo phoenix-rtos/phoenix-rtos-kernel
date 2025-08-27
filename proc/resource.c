@@ -166,6 +166,7 @@ int proc_resourcesCopy(process_t *source)
 			default:
 				/* Don't copy interrupt handlers */
 				continue;
+				// TBD_Julia powinien break kończyć deafult'a
 		}
 
 		if ((err > 0) && (err != r->linkage.id)) {

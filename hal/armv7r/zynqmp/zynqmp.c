@@ -413,6 +413,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		default:
+			/* Error by default */
 			break;
 	}
 
