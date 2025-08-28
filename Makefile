@@ -28,6 +28,9 @@ include ../phoenix-rtos-build/Makefile.common
 CFLAGS += -I. -ffreestanding
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DRELEASE=\"$(RELEASE)\" -DTARGET_FAMILY=\"$(TARGET_FAMILY)\"
 
+CFLAGS += -fdump-tree-profile_estimate-graph
+CFLAGS += -save-temps -fverbose-asm -g
+
 # uncomment to enable stack canary checking
 # CPPFLAGS += -DSTACK_CANARY
 

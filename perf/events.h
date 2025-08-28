@@ -23,6 +23,13 @@
 #include "trace.h"
 
 
+#define PERF_BENCHMARK_MSG 1
+
+#ifndef PERF_BENCHMARK_MSG
+#define PERF_BENCHMARK_MSG 0
+#endif
+
+
 /* NOTE: must mirror tsdl/metadata event IDs. */
 enum {
 	PERF_EVENT_INTERRUPT_ENTER = 0x20,
@@ -43,6 +50,9 @@ enum {
 	PERF_EVENT_LOCK_SET_EXIT = 0x2F,
 	PERF_EVENT_LOCK_CLEAR = 0x30,
 	PERF_EVENT_THREAD_PRIORITY = 0x40,
+	PERF_EVENT_MSG_SEND = 0x50,
+	PERF_EVENT_MSG_RECV = 0x51,
+	PERF_EVENT_MSG_RESPOND = 0x52,
 };
 
 
@@ -69,8 +79,19 @@ extern void _perf_traceUpdateLockEpoch(lock_t *lock);
  * NOTE: The ev structure passed to PERF_{META,EVENT}_BODY must match the
  * field struct declared in the tsdl/metadata for a given event_id.
  */
-#define PERF_META_BODY(event_id, ev, ts, ...)  PERF_EVENT_BODY_CHAN(perf_trace_channel_meta, event_id, ev, ts, __VA_ARGS__)
-#define PERF_EVENT_BODY(event_id, ev, ts, ...) PERF_EVENT_BODY_CHAN(perf_trace_channel_event, event_id, ev, ts, __VA_ARGS__)
+/* clang-format off */
+#define NOP(ev, ts) do { (void)ev; (void)ts; } while (0)
+/* clang-format on */
+
+#if PERF_BENCHMARK_MSG
+#define PERF_META_BODY(event_id, ev, ts, ...)      NOP(ev, ts)
+#define PERF_EVENT_BODY(event_id, ev, ts, ...)     NOP(ev, ts)
+#define PERF_MSG_EVENT_BODY(event_id, ev, ts, ...) PERF_EVENT_BODY_CHAN(perf_trace_channel_event, event_id, ev, ts, __VA_ARGS__)
+#else
+#define PERF_META_BODY(event_id, ev, ts, ...)      PERF_EVENT_BODY_CHAN(perf_trace_channel_meta, event_id, ev, ts, __VA_ARGS__)
+#define PERF_EVENT_BODY(event_id, ev, ts, ...)     PERF_EVENT_BODY_CHAN(perf_trace_channel_event, event_id, ev, ts, __VA_ARGS__)
+#define PERF_MSG_EVENT_BODY(event_id, ev, ts, ...) NOP(ev, ts)
+#endif
 
 
 /* assumes lock->spinlock is set */
@@ -271,6 +292,62 @@ static inline void perf_traceEventsThreadPriority(u16 tid, u8 priority)
 	PERF_EVENT_BODY(PERF_EVENT_THREAD_PRIORITY, ev, NULL, {
 		ev.tid = tid;
 		ev.priority = priority;
+	});
+}
+
+
+static inline void perf_traceEventsMsgSend(u32 size, u32 cycles)
+{
+	struct {
+		u32 size;
+		u32 cycles;
+	} __attribute__((packed)) ev;
+
+	PERF_MSG_EVENT_BODY(PERF_EVENT_MSG_SEND, ev, NULL, {
+		ev.size = size;
+		ev.cycles = cycles;
+	});
+}
+
+
+static inline void perf_traceEventsMsgRecv(size_t size, size_t cycles)
+{
+	struct {
+		u32 size;
+		u32 cycles;
+	} __attribute__((packed)) ev;
+
+	PERF_MSG_EVENT_BODY(PERF_EVENT_MSG_RECV, ev, NULL, {
+		ev.size = size;
+		ev.cycles = cycles;
+	});
+}
+
+
+static inline void perf_traceEventsMsgRespond(size_t size, size_t cycles)
+{
+	struct {
+		u32 size;
+		u32 cycles;
+	} __attribute__((packed)) ev;
+
+	PERF_MSG_EVENT_BODY(PERF_EVENT_MSG_RESPOND, ev, NULL, {
+		ev.size = size;
+		ev.cycles = cycles;
+	});
+}
+
+
+static inline void perf_traceEventsMsgSendAfterRecv(u32 size, u32 cycles)
+{
+	struct {
+		u32 size;
+		u32 cycles;
+	} __attribute__((packed)) ev;
+
+	PERF_MSG_EVENT_BODY(PERF_EVENT_MSG_SEND_AFTER_RECV, ev, NULL, {
+		ev.size = size;
+		ev.cycles = cycles;
 	});
 }
 

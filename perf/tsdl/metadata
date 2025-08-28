@@ -187,3 +187,29 @@ event {
 	};
 };
 
+event {
+	name = msg_send;
+	id = 0x50;
+	fields := struct {
+		u32 size;
+		u32 cycles;
+	};
+};
+
+event {
+	name = msg_recv;
+	id = 0x51;
+	fields := struct {
+		u32 size;
+		u32 cycles;
+	};
+};
+
+event {
+	name = msg_respond;
+	id = 0x52;
+	fields := struct {
+		u32 size;
+		u32 cycles;
+	};
+};

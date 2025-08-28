@@ -17,6 +17,8 @@
 #include "lib/lib.h"
 #include "proc.h"
 
+#include "perf/events.h"
+
 
 #define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
@@ -345,6 +347,9 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg_t kmsg;
 	thread_t *sender;
 	spinlock_ctx_t sc;
+	cycles_t c0, c1;
+
+	hal_cpuGetCycles(&c0);
 
 	/* TODO - check if msg pointer belongs to user vm_map */
 	if (msg == NULL) {
@@ -367,6 +372,10 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.msg.priority = sender->priority;
 
 	msg_ipack(&kmsg);
+
+	hal_cpuGetCycles(&c1);
+
+	perf_traceEventsMsgSend(kmsg.msg.i.size + kmsg.msg.o.size, c1 - c0);
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
@@ -422,6 +431,9 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	kmsg_t *kmsg;
 	int ipacked = 0, opacked = 0, err = EOK;
 	spinlock_ctx_t sc;
+	cycles_t c0, c1;
+
+	hal_cpuGetCycles(&c0);
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -519,6 +531,10 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	port_put(p, 0);
 
+	hal_cpuGetCycles(&c1);
+
+	perf_traceEventsMsgRecv(kmsg->msg.i.size + kmsg->msg.o.size, c1 - c0);
+
 	return EOK;
 }
 
@@ -529,6 +545,9 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	size_t s = 0;
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
+	cycles_t c0, c1;
+
+	hal_cpuGetCycles(&c0);
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -570,6 +589,10 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_cpuReschedule(NULL, NULL);
 
 	port_put(p, 0);
+
+	hal_cpuGetCycles(&c1);
+
+	perf_traceEventsMsgRespond(kmsg->msg.i.size + kmsg->msg.o.size, c1 - c0);
 
 	return s;
 }

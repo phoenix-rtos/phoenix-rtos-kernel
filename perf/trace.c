@@ -178,7 +178,11 @@ static void _perf_traceEmitThreadsCb(void *arg, int i, threadinfo_t *tinfo)
 
 static void _perf_emitThreadinfo(void)
 {
+#if !PERF_BENCHMARK_MSG
 	(void)proc_threadsIter(0xFFFF, _perf_traceEmitThreadsCb, NULL);
+#else
+	(void)_perf_traceEmitThreadsCb;
+#endif
 }
 
 
