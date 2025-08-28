@@ -26,9 +26,9 @@ typedef struct {
 static inline size_t _cbuffer_free(cbuffer_t *buf)
 {
 	if (buf->w == buf->r) {
-		return (buf->full != 0U) ? 0 : buf->sz;
+		return (buf->full != 0U) ? 0U : buf->sz;
 	}
-	return (buf->r - buf->w + buf->sz) & (buf->sz - 1);
+	return (buf->r - buf->w + buf->sz) & (buf->sz - 1U);
 }
 
 
@@ -41,8 +41,8 @@ static inline size_t _cbuffer_avail(cbuffer_t *buf)
 static inline size_t _cbuffer_discard(cbuffer_t *buf, size_t sz)
 {
 	size_t cnt = min(_cbuffer_avail(buf), sz);
-	buf->r = (buf->r + cnt) & (buf->sz - 1);
-	if (cnt > 0) {
+	buf->r = (buf->r + cnt) & (buf->sz - 1U);
+	if (cnt > 0U) {
 		buf->full = 0;
 	}
 	return cnt;

@@ -23,8 +23,9 @@
 
 #define HAL_LIST_ADD(list, t) \
 	do { \
-		if ((t) == NULL) \
+		if ((t) == NULL) { \
 			break; \
+		} \
 		if (*(list) == NULL) { \
 			(t)->next = (t); \
 			(t)->prev = (t); \
@@ -40,15 +41,18 @@
 
 #define HAL_LIST_REMOVE(list, t) \
 	do { \
-		if ((t) == NULL) \
+		if ((t) == NULL) { \
 			break; \
-		if (((t)->next == (t)) && ((t)->prev == (t))) \
+		} \
+		if (((t)->next == (t)) && ((t)->prev == (t))) { \
 			(*(list)) = NULL; \
+		} \
 		else { \
 			(t)->prev->next = (t)->next; \
 			(t)->next->prev = (t)->prev; \
-			if ((t) == (*(list))) \
+			if ((t) == (*(list))) { \
 				(*(list)) = (t)->next; \
+			} \
 		} \
 		(t)->next = NULL; \
 		(t)->prev = NULL; \

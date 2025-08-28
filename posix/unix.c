@@ -172,8 +172,9 @@ static void unixsock_augment(rbnode_t *node)
 		if (it->parent->left == it) {
 			p->lmaxgap = max(n->lmaxgap, n->rmaxgap);
 		}
-		else
+		else {
 			p->rmaxgap = max(n->lmaxgap, n->rmaxgap);
+		}
 	}
 }
 

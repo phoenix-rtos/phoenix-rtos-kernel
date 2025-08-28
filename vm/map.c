@@ -221,10 +221,11 @@ static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **pr
 		}
 		e = lib_treeof(map_entry_t, linkage, e->linkage.parent);
 
-		for (*next = e; (*next)->linkage.parent != NULL; *next = lib_treeof(map_entry_t, linkage, (*next)->linkage.parent))
+		for (*next = e; (*next)->linkage.parent != NULL; *next = lib_treeof(map_entry_t, linkage, (*next)->linkage.parent)) {
 			if ((*next) == lib_treeof(map_entry_t, linkage, (*next)->linkage.parent->left)) {
 				break;
 			}
+		}
 
 		*next = lib_treeof(map_entry_t, linkage, (*next)->linkage.parent);
 

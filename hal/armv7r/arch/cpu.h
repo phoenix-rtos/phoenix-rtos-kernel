@@ -122,13 +122,13 @@ static inline void hal_cpuSetDevBusy(int s)
 
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	int pos;
+	unsigned int pos;
 
 	/* clang-format off */
 	__asm__ volatile ("clz %0, %1" : "=r" (pos) : "r" (v));
 	/* clang-format on */
 
-	return 31 - pos;
+	return 31U - pos;
 }
 
 
@@ -200,7 +200,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return ctx->psr & 0xfU;
+	return (int)(unsigned int)(ctx->psr & 0xfU);
 }
 
 
