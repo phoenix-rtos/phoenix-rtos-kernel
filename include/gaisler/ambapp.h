@@ -105,6 +105,7 @@
 #define CORE_ID_GRHSSL      0x0c8u
 #define CORE_ID_GRSPFI      0x0bcu
 #define CORE_ID_GRSPW2      0x029u
+#define CORE_ID_GRSPW2_DMA  0x08Au
 #define CORE_ID_GRSPWROUTER 0x03eu
 #define CORE_ID_GRSPWTDP    0x097u
 #define CORE_ID_GRSRIO      0x0a8u
