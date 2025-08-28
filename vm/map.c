@@ -377,6 +377,9 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 				e->amap = amap_ref(prev->amap);
 				e->aoffs = prev->aoffs + (e->vaddr - prev->vaddr);
 			}
+			else {
+				/* No action required */
+			}
 		}
 
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
@@ -605,6 +608,10 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 	else if (p != NULL && p->idx != 0U) {
 		size = 1UL << p->idx;
 	}
+	else {
+		/* No action required */
+	}
+
 
 	if ((vaddr = _map_map(map, vaddr, process, size, prot, o, offs, flags, &e)) == NULL) {
 		return NULL;
@@ -786,6 +793,10 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 		amap_putanons(e->amap, e->aoffs + offs, (int)SIZE_PAGE);
 		return -ENOMEM;
 	}
+	else {
+		/* No action required */
+	}
+
 
 	return EOK;
 }
@@ -936,6 +947,10 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 				map_augment(&prev->linkage);
 				e = prev;
 			}
+			else {
+				/* No action required */
+			}
+
 
 			if (lenLeft < e->size) {
 				vm_mapEntrySplit(p, map, e, buf, lenLeft);

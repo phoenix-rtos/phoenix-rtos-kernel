@@ -366,6 +366,10 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 				else if ((msg->o.err == 0) && (r->nonblocking != 0U)) {
 					msg->o.err = -EAGAIN;
 				}
+				else {
+					/* No action required */
+				}
+
 				log_readerPut(&r);
 			}
 			break;

@@ -70,8 +70,9 @@ static int _zynqmp_setDevClock(u32 dev, u8 src, u8 div0, u8 div1, u8 active)
 		unsigned regOffset = (dev - (unsigned int)pctl_devclock_fpd_acpu) + (unsigned long)crf_apb_acpu_ctrl;
 		return _zynqmp_setBasicGenerator(zynq_common.crf_apb + regOffset, dev, src, div0, div1, active);
 	}
-
-	return -1;
+	else {
+		return -1;
+	}
 }
 
 
@@ -96,8 +97,9 @@ static int _zynqmp_getDevClock(u32 dev, u8 *src, u8 *div0, u8 *div1, u8 *active)
 		unsigned regOffset = (dev - (unsigned int)pctl_devclock_fpd_acpu) + (unsigned int)crf_apb_acpu_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crf_apb + regOffset, src, div0, div1, active);
 	}
-
-	return -1;
+	else {
+		return -1;
+	}
 }
 
 
@@ -381,6 +383,9 @@ int hal_platformctl(void *ptr)
 			else if (data->action == pctl_set) {
 				ret = _zynqmp_getDevClock(data->devclock.dev, &data->devclock.src, &data->devclock.div0, &data->devclock.div1, &data->devclock.active);
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_mio:
@@ -389,6 +394,9 @@ int hal_platformctl(void *ptr)
 			}
 			else if (data->action == pctl_get) {
 				ret = _zynqmp_getMIO(data->mio.pin, &data->mio.l0, &data->mio.l1, &data->mio.l2, &data->mio.l3, &data->mio.config);
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -400,6 +408,9 @@ int hal_platformctl(void *ptr)
 				ret = _zynq_getDevRst((int)data->devreset.dev, &t);
 				data->devreset.state = t;
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_reboot:
@@ -409,6 +420,9 @@ int hal_platformctl(void *ptr)
 			else if (data->action == pctl_get) {
 				ret = 0;
 				data->reboot.reason = (unsigned int)syspage->hs.resetReason;
+			}
+			else {
+				/* No action required */
 			}
 			break;
 

@@ -269,6 +269,10 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 		(void)proc_lockClear(&amap->lock);
 		return p;
 	}
+	else {
+		/* No action required */
+	}
+
 
 	if ((v = amap_map(map, p)) == NULL) {
 		if (a != NULL) {

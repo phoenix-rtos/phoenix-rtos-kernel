@@ -81,6 +81,10 @@ void hal_consolePrint(int attr, const char *s)
 	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
 	}
+	else {
+		/* No action required */
+	}
+
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
