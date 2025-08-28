@@ -19,6 +19,7 @@
 #include "hal/hal.h"
 #include "cond.h"
 #include "resource.h"
+#include "include/types.h"
 
 
 typedef struct _userintr_t {
@@ -27,14 +28,14 @@ typedef struct _userintr_t {
 	process_t *process;
 	int (*f)(unsigned int, void *);
 	void *arg;
-	cond_t *cond;
+	_Atomic(u32) *condFutex;
 } userintr_t;
 
 
 extern void userintr_put(userintr_t *ui);
 
 
-extern int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, handle_t c);
+extern int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, _Atomic(u32) *condFutex);
 
 
 extern userintr_t *userintr_active(void);
