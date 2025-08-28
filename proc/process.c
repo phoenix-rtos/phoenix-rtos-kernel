@@ -1183,13 +1183,19 @@ static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap,
 	process_spawn_t spawn;
 	spinlock_ctx_t sc;
 
-	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL) {
-		return -ENOMEM;
+	if (argv != NULL) {
+		argv = proc_copyargs(argv);
+		if (argv == NULL) {
+			return -ENOMEM;
+		}
 	}
 
-	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
-		vm_kfree(argv);
-		return -ENOMEM;
+	if (envp != NULL) {
+		envp = proc_copyargs(envp);
+		if (envp == NULL) {
+			vm_kfree(argv);
+			return -ENOMEM;
+		}
 	}
 
 	spawn.object = object;
@@ -1677,15 +1683,21 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return -ENOMEM;
 	}
 
-	if (argv != NULL && (argv = proc_copyargs(argv)) == NULL) {
-		vm_kfree(kpath);
-		return -ENOMEM;
+	if (argv != NULL) {
+		argv = proc_copyargs(argv);
+		if (argv == NULL) {
+			vm_kfree(kpath);
+			return -ENOMEM;
+		}
 	}
 
-	if (envp != NULL && (envp = proc_copyargs(envp)) == NULL) {
-		vm_kfree(kpath);
-		vm_kfree(argv);
-		return -ENOMEM;
+	if (envp != NULL) {
+		envp = proc_copyargs(envp);
+		if (envp == NULL) {
+			vm_kfree(kpath);
+			vm_kfree(argv);
+			return -ENOMEM;
+		}
 	}
 
 	if ((err = proc_lookup(path, NULL, &oid)) < 0) {

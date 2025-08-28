@@ -2163,11 +2163,14 @@ int proc_threadsList(int n, threadinfo_t *info)
 		info[i].vmem = 0;
 
 #ifdef NOMMU
-		if ((t->process != NULL) && (entry = t->process->entries) != NULL) {
-			do {
-				info[i].vmem += (int)entry->size;
-				entry = entry->next;
-			} while (entry != t->process->entries);
+		if (t->process != NULL) {
+			entry = t->process->entries;
+			if (entry != NULL) {
+				do {
+					info[i].vmem += (int)entry->size;
+					entry = entry->next;
+				} while (entry != t->process->entries);
+			}
 		}
 		else
 #endif
