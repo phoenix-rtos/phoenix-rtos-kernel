@@ -282,8 +282,9 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 	else if (p1->process > p2->process) {
 		return 1;
 	}
-
-	return 0;
+	else {
+		return 0;
+	}
 }
 
 
@@ -635,6 +636,9 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			}
 			else if (err < 0) {
 				break;
+			}
+			else {
+				/* No action required */
 			}
 
 			if (oid.port != US_PORT) {
@@ -1758,6 +1762,10 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 		size = min(size, sizeof(void *));
 		hal_memcpy(ioctl->data, &data, size);
 	}
+	else {
+		/* No action required */
+	}
+
 
 	/* ioctl special case: arg is structure with pointer - has to be custom-packed into message */
 	if (request == SIOCGIFCONF) {
@@ -1771,6 +1779,9 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 			msg->o.data = rt->rt_dev;
 			msg->o.size = hal_strlen(rt->rt_dev) + 1U;
 		}
+	}
+	else {
+		/* No action required */
 	}
 }
 
@@ -2488,6 +2499,9 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		else if (err > 0) {
 			fds[i].revents |= (unsigned short)err;
 		}
+		else {
+			/* No action required */
+		}
 
 		fds[i].revents &= ~(~fds[i].events & (POLLIN | POLLOUT | POLLPRI | POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND));
 
@@ -2894,6 +2908,9 @@ int posix_waitpid(pid_t child, int *status, unsigned options)
 		else if (err != 0) {
 			/* Should not happen */
 			break;
+		}
+		else {
+			/* No action required */
 		}
 	}
 	/* MISRAC2012-RULE_17_7-a */

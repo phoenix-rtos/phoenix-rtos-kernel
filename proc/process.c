@@ -975,6 +975,9 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				return -ENOEXEC;
 			}
 		}
+		else {
+			/* No action required */
+		}
 	}
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
