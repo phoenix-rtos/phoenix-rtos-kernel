@@ -124,5 +124,8 @@
 	ID(sys_mprotect) \
 	\
 	ID(sys_statvfs) \
-	ID(sys_uname)
+	ID(sys_uname) \
+	\
+	ID(phFutexWait) \
+	ID(phFutexWakeup)
 /* clang-format on */

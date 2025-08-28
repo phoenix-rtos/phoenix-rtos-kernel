@@ -35,6 +35,46 @@
  */
 
 
+int syscalls_phFutexWait(void *ustack)
+{
+	process_t *process;
+	_Atomic(u32) *addr;
+	u32 value;
+	time_t timeout;
+	int clockType;
+
+	GETFROMSTACK(ustack, _Atomic(u32) *, addr, 0);
+	GETFROMSTACK(ustack, u32, value, 1);
+	GETFROMSTACK(ustack, time_t, timeout, 2);
+	GETFROMSTACK(ustack, int, clockType, 3);
+
+	process = proc_current()->process;
+
+	if (vm_mapBelongs(process, addr, sizeof(*addr)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_futexWait(addr, value, timeout, clockType);
+}
+
+int syscalls_phFutexWakeup(void *ustack)
+{
+	process_t *process;
+	_Atomic(u32) *addr;
+	u32 n_threads;
+
+	GETFROMSTACK(ustack, _Atomic(u32) *, addr, 0);
+	GETFROMSTACK(ustack, u32, n_threads, 1);
+
+	process = proc_current()->process;
+
+	if (vm_mapBelongs(process, addr, sizeof(*addr)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_futexWakeup(process, addr, n_threads);
+}
+
 void syscalls_debug(void *ustack)
 {
 	const char *s;

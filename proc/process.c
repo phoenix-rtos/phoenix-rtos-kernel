@@ -93,6 +93,10 @@ static void process_destroy(process_t *p)
 	if (imapp != NULL) {
 		vm_mapDestroy(p, imapp);
 	}
+	for (int i = 0; i < FUTEX_SLEEPQUEUES_SIZE; i++) {
+		hal_spinlockDestroy(&p->futexSleepQueues[i].spinlock);
+	}
+	hal_spinlockDestroy(&p->futexSqSpinlock);
 
 	proc_resourcesDestroy(p);
 	proc_portsDestroy(p);
@@ -215,6 +219,12 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 #endif
 
 	proc_changeMap(process, NULL, NULL, NULL);
+
+	hal_memset(&process->futexSleepQueues, 0, sizeof(process->futexSleepQueues));
+	hal_spinlockCreate(&process->futexSqSpinlock, "futex_sq.spinlock");
+	for (int i = 0; i < FUTEX_SLEEPQUEUES_SIZE; i++) {
+		hal_spinlockCreate(&process->futexSleepQueues[i].spinlock, "futex_sleepqueue.spinlock");
+	}
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
