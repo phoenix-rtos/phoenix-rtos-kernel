@@ -81,6 +81,10 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			n = round_page((size_t)sz) / SIZE_PAGE;
 			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
 		}
+		else {
+			/* No action required */
+		}
+
 
 		(void)proc_lockSet(&object_common.lock);
 		/* Check again, somebody could've added the object in the meantime */

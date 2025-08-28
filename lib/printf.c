@@ -43,7 +43,8 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 
 	/* MISRA Rule 10.4: changed type by adding U */
 	/* parasoft-begin-suppress MISRAC2012-RULE_10_3
-	 * "This function uses clever tricks to convert radix of the incoming num64"
+	 * "This function uses clever tricks to convert
+	 * radix of the incoming num64"
 	 */
 	if ((flags & FLAG_SIGNED) != 0U) {
 		if ((flags & FLAG_64BIT) != 0U) {
@@ -58,6 +59,11 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 			num32 = -(s32)num32;
 			sign = '-';
 		}
+		else
+		{
+			/* No action required */
+		}
+		
 
 		if (sign == '\0') {
 			if ((flags & FLAG_SPACE) != 0U) {
@@ -66,6 +72,10 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 			else if ((flags & FLAG_PLUS) != 0U) {
 				sign = '+';
 			}
+			else
+			{
+				/* No action required */
+			}			
 		}
 	}
 	/* parasoft-end-suppress MISRAC2012-RULE_10_3 */
