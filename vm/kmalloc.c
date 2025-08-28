@@ -170,8 +170,11 @@ void *vm_kmalloc(size_t size)
 		err = _kmalloc_addZone(hdridx, hdridx);
 	}
 
-	if (err == 0 && (z = kmalloc_common.sizes[idx]) == NULL) {
-		err = _kmalloc_addZone(hdridx, idx);
+	if (err == 0) {
+		z = kmalloc_common.sizes[idx];
+		if (z == NULL) {
+			err = _kmalloc_addZone(hdridx, idx);
+		}
 	}
 
 	/* Alloc new fragment */

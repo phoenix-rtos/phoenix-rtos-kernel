@@ -288,12 +288,18 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		}
 		else {
 			/* Can't merge to the left if amap array size is too small */
-			if (lmerge != 0U && (amap = prev->amap) != NULL && (amap->size * SIZE_PAGE - (size_t)prev->aoffs - prev->size) < size) {
-				lmerge = 0;
+			if (lmerge != 0U) {
+				amap = prev->amap;
+				if (amap != NULL && (amap->size * SIZE_PAGE - (size_t)prev->aoffs - prev->size) < size) {
+					lmerge = 0;
+				}
 			}
 			/* Can't merge to the right if amap offset is too small */
-			if (rmerge != 0U && (amap = next->amap) != NULL && (size_t)next->aoffs < size) {
-				rmerge = 0;
+			if (rmerge != 0U) {
+				amap = next->amap;
+				if (amap != NULL && (size_t)next->aoffs < size) {
+					rmerge = 0;
+				}
 			}
 			/* amaps differ, we can only merge one way */
 			if (lmerge != 0U && rmerge != 0U) {
@@ -590,8 +596,11 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 	}
 
 	/* NULL page indicates that proc sybsystem is ready */
-	if (p == NULL && (current = proc_current()) != NULL) {
-		process = current->process;
+	if (p == NULL) {
+		current = proc_current();
+		if (current != NULL) {
+			process = current->process;
+		}
 	}
 	else if (p != NULL && p->idx != 0U) {
 		size = 1UL << p->idx;
