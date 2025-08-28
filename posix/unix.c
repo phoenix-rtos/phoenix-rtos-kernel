@@ -120,6 +120,9 @@ static int unixsock_gapcmp(rbnode_t *n1, rbnode_t *n2)
 		child = n1->right;
 		ret = -1;
 	}
+	else {
+		/* No action required */
+	}
 
 	if (child == NULL) {
 		return 0;
@@ -834,6 +837,9 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 					(void)_cbuffer_discard(&s->buffer, rlen - len);
 				}
 			}
+			else {
+				/* No action required */
+			}
 			/* TODO: peek control data */
 			if (peek == 0U) {
 				if (err > 0 && control != NULL && controllen != NULL && *controllen > 0U) {
@@ -860,6 +866,9 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 			else if (s->nonblock != 0U || (flags & MSG_DONTWAIT) != 0U) {
 				err = -EWOULDBLOCK;
 				break;
+			}
+			else {
+				/* No action required */
 			}
 
 			hal_spinlockSet(&s->spinlock, &sc);
@@ -934,6 +943,9 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 					break;
 				}
 			}
+			else {
+				/* No action required */
+			}
 		}
 		else {
 			if (dest_addr != NULL || dest_len != 0U) {
@@ -952,6 +964,9 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 			if (r == NULL) {
 				err = -ENOTCONN;
 				break;
+			}
+			else {
+				/* No action required */
 			}
 		}
 
@@ -975,6 +990,9 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 					(void)proc_lockClear(&r->lock);
 					break;
 				}
+				else {
+					/* No action required */
+				}
 
 				if (err > 0 && fdpack != NULL) {
 					LIST_ADD(&r->fdpacks, fdpack);
@@ -994,6 +1012,9 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 				else if (s->nonblock != 0U || (flags & MSG_DONTWAIT) != 0U) {
 					err = -EWOULDBLOCK;
 					break;
+				}
+				else {
+					/* No action required */
 				}
 
 				hal_spinlockSet(&r->spinlock, &sc);

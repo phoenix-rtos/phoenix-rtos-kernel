@@ -129,6 +129,9 @@ static void _perf_event(thread_t *t, int type)
 			t->maxWait = wait;
 		}
 	}
+	else {
+		/* No action required */
+	}
 
 	if (threads_common.perfGather == 0) {
 		return;
@@ -988,6 +991,9 @@ int proc_threadPriority(int priority)
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
 			}
+		}
+		else {
+			/* No action required */
 		}
 
 		current->priorityBase = (unsigned int)priority;
@@ -2176,6 +2182,9 @@ int proc_threadsList(int n, threadinfo_t *info)
 			}
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockClear(&map->lock);
+		}
+		else {
+			/* No action required */
 		}
 
 		++i;
