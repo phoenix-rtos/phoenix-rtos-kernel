@@ -132,7 +132,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	unsigned int cnt, flags;
 	int fd;
 
-	if (*packs == 0 || *controllen < CMSG_LEN(sizeof(int))) {
+	if (*packs == NULL || *controllen < CMSG_LEN(sizeof(int))) {
 		*controllen = 0;
 		return 0;
 	}
