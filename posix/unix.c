@@ -270,7 +270,7 @@ static unixsock_t *unixsock_get_remote(unixsock_t *s)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&unix_common.lock);
 	r = s->remote;
-	if (r != NULL) { 
+	if (r != NULL) {
 		r->refs++;
 	}
 	proc_lockClear(&unix_common.lock);
@@ -479,12 +479,12 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 		hal_spinlockSet(&s->spinlock, &sc);
 		s->state |= US_ACCEPTING;
 
-		while (s->connecting == NULL) { {
+		while (s->connecting == NULL) {
 			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
 		}
 		r = s->connecting;
-		}
+
 		LIST_REMOVE(&s->connecting, r);
 
 		s->state &= ~US_ACCEPTING;
@@ -944,9 +944,6 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 					break;
 				}
 			}
-			else {
-				/* No action required */
-			}
 		}
 		else {
 			if (dest_addr != NULL || dest_len != 0U) {
@@ -983,7 +980,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					/* MISRAC2012-RULE_17_7-a */
 					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
-					(void)_cbuffer_write(&r->buffer, buf, err = len); // TBD_Julia Czy err zrzutować na size_t?
+					(void)_cbuffer_write(&r->buffer, buf, err = len);  // TBD_Julia Czy err zrzutować na size_t?
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
@@ -1259,7 +1256,7 @@ int unix_poll(unsigned socket, unsigned short events)
 	else {
 		if ((events & (POLLIN | POLLRDNORM | POLLRDBAND)) != 0U) {
 			/* MISRAC2012-RULE_17_7-a */
-			(void)proc_lockSet(&r->lock);
+			(void)proc_lockSet(&s->lock);
 			if (_cbuffer_avail(&s->buffer) > 0U || (s->connecting != NULL && (s->state & US_LISTENING) != 0U)) {
 				err |= (unsigned int)events & (POLLIN | POLLRDNORM | POLLRDBAND);
 			}
