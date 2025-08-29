@@ -794,13 +794,16 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	}
 
 	hal_memset(reloc, 0, sizeof(reloc));
+	j = 0U;
+	phdr = (void *)ehdr + ehdr->e_phoff;
 
-	for (i = 0U, j = 0U, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
+	for (i = 0U; i < ehdr->e_phnum; i++) {
 		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0U) {
 			stacksz = round_page(phdr->p_memsz);
 		}
 
 		if (phdr->p_type != PT_LOAD) {
+			++phdr;
 			continue;
 		}
 
@@ -865,6 +868,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1U);
 		++relocsz;
 		++j;
+		++phdr;
 	}
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
@@ -873,10 +877,11 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	snameTab = (char *)ehdr + shstrshdr->sh_offset;
 
 	/* Find .got section */
-	for (i = 0U; i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0U; i < ehdr->e_shnum; i++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".got") == 0) {
 			break;
 		}
+		++shdr;
 	}
 
 	if (i >= ehdr->e_shnum) {
@@ -903,14 +908,17 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	/* Perform data, init_array and fini_array relocation */
-	for (i = 0U, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0U; i < ehdr->e_shnum; i++) {
 		if ((shdr->sh_size == 0U) || (shdr->sh_entsize == 0U)) {
+			++shdr;
 			continue;
 		}
 
 		/* strncmp as there may be multiple .rela.* or .rel.* sections for different sections. */
 		if ((hal_strncmp(&snameTab[shdr->sh_name], ".rela.", 6) != 0) && (hal_strncmp(&snameTab[shdr->sh_name], ".rel.", 5) != 0)) {
+			++shdr;
 			continue;
 		}
 
@@ -944,6 +952,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				return -ENOEXEC;
 			}
 		}
+		++shdr;
 	}
 
 	/* MISRA Rule 11.6: NULL is now a voind ptrs and we can not use it here!!!*/
@@ -953,8 +962,9 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	tlsNew.tls_sz = 0;
 	tlsNew.arm_m_tls = 0;
 
+	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	/* Perform .tdata, .tbss and .armtls relocations */
-	for (i = 0U, shdr = (void *)((char *)ehdr + ehdr->e_shoff); i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0U; i < ehdr->e_shnum; i++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
 			tlsNew.tls_base = (ptr_t)shdr->sh_addr;
 			tlsNew.tdata_sz += shdr->sh_size;
@@ -978,6 +988,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		else {
 			/* No action required */
 		}
+		++shdr;
 	}
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 

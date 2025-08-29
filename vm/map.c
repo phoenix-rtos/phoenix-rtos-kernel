@@ -1355,7 +1355,9 @@ void vm_mapinfo(meminfo_t *info)
 	if (info->entry.kmapsz != -1) {
 		(void)proc_lockSet(&map_common.kmap->lock);
 
-		for (size = 0, n = lib_rbMinimum(map_common.kmap->tree.root); n != NULL; n = lib_rbNext(n), ++size) {
+		size = 0;
+
+		for (n = lib_rbMinimum(map_common.kmap->tree.root); n != NULL; n = lib_rbNext(n)) {
 			if (info->entry.kmap != NULL && info->entry.kmapsz > size) {
 				e = lib_treeof(map_entry_t, linkage, n);
 
@@ -1388,6 +1390,7 @@ void vm_mapinfo(meminfo_t *info)
 					info->entry.kmap[size].oid = e->object->oid;
 				}
 			}
+			++size;
 		}
 
 		/* MISRA Rule 17.7: Unused returned value, (void) added */

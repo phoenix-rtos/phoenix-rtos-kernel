@@ -482,7 +482,8 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 
 	int err;
 	oid_t dir;
-	char *name, *basename, *dirname;
+	char *name, *basename;
+	const char *dirname;
 
 	name = lib_strdup(filename);
 	if (name == NULL) {
@@ -1159,7 +1160,8 @@ int posix_link(const char *path1, const char *path2)
 
 	oid_t oid, dev, dir;
 	int err;
-	char *name, *basename, *dirname;
+	char *name, *basename;
+	const char *dirname;
 
 	name = lib_strdup(path2);
 	if (name == NULL) {
@@ -1212,7 +1214,8 @@ int posix_unlink(const char *pathname)
 
 	oid_t oid, dir;
 	int err;
-	char *name, *basename, *dirname;
+	char *name, *basename;
+	const char *dirname;
 
 	name = lib_strdup(pathname);
 	if (name == NULL) {

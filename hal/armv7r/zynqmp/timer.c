@@ -21,7 +21,7 @@
 #include "zynqmp.h"
 
 
-#define TTC0_BASE_ADDR       ((addr_t)0x00ff110000)
+#define TTC0_BASE_ADDR       ((addr_t)0x00ff110000U)
 #define TIMER_SRC_CLK_CPU_1x 99990000U
 #define TIMER_IRQ_ID         68U
 
