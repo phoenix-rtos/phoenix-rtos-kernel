@@ -182,7 +182,7 @@ static void unixsock_augment(rbnode_t *node)
 }
 
 
-static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
+static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 {
 	unixsock_t *r, t;
 
@@ -221,7 +221,7 @@ static unixsock_t *unixsock_alloc(unsigned *id, unsigned type, int nonblock)
 	 * one for handling by the caller before returning the socket to the user (to protect
 	 * against accidental socket removal by someone else in the meantime) */
 	r->refs = 2;
-	r->type = type;  // TBD_Julia Czy na u8 zrzutować + ten niżej?
+	r->type = type;
 	r->nonblock = nonblock;
 	r->buffsz = US_DEF_BUFFER_SIZE;
 	r->fdpacks = NULL;
@@ -333,16 +333,18 @@ static void unixsock_put(unixsock_t *s)
 }
 
 
-int unix_socket(int domain, unsigned type, int protocol)
+int unix_socket(int domain, int type, int protocol)
 {
 	unixsock_t *s;
 	unsigned id;
-	unsigned nonblock;
+	int nonblock;
 
-	nonblock = ((type & SOCK_NONBLOCK) != 0U) ? 1U : 0U;
-	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+	nonblock = (((unsigned int)type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
 
-	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET) {
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_1 "Result type must be int" */
+	type &= (int)(unsigned int)(~(SOCK_NONBLOCK | SOCK_CLOEXEC));
+
+	if ((unsigned int)type != SOCK_STREAM && (unsigned int)type != SOCK_DGRAM && (unsigned int)type != SOCK_SEQPACKET) {
 		return -EPROTOTYPE;
 	}
 
@@ -350,7 +352,7 @@ int unix_socket(int domain, unsigned type, int protocol)
 		return -EPROTONOSUPPORT;
 	}
 
-	s = unixsock_alloc(&id, type, nonblock);  // TBD_Julia w definicji można zmienić?
+	s = unixsock_alloc(&id, type, nonblock);
 	if (s == NULL) {
 		return -ENOMEM;
 	}
@@ -360,17 +362,18 @@ int unix_socket(int domain, unsigned type, int protocol)
 }
 
 
-int unix_socketpair(int domain, unsigned type, int protocol, int sv[2])
+int unix_socketpair(int domain, int type, int protocol, int sv[2])
 {
 	unixsock_t *s[2];
 	unsigned id[2];
 	void *v[2];
 	int nonblock;
 
-	nonblock = ((type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
-	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+	nonblock = (((unsigned int)type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_1 "Result type must be int" */
+	type &= (int)(unsigned int)(~(SOCK_NONBLOCK | SOCK_CLOEXEC));
 
-	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET) {
+	if ((unsigned int)type != SOCK_STREAM && (unsigned int)type != SOCK_DGRAM && (unsigned int)type != SOCK_SEQPACKET) {
 		return -EPROTOTYPE;
 	}
 
@@ -414,13 +417,14 @@ int unix_socketpair(int domain, unsigned type, int protocol, int sv[2])
 	s[0]->remote = s[1];
 	s[1]->remote = s[0];
 
-	if (type == SOCK_DGRAM) {
+	if (type == (int)SOCK_DGRAM) {
 		LIST_ADD(&s[0]->connected, s[1]);
 		LIST_ADD(&s[1]->connected, s[0]);
 	}
 
-	sv[0] = id[0];  // TBD_Julia na int można zrzutować?
-	sv[1] = id[1];  // TBD_Julia Jak wyżej
+	/* TODO: Consider cheecking value of id before cast to int */
+	sv[0] = (int)id[0];
+	sv[1] = (int)id[1];
 
 	unixsock_put(s[1]);
 	unixsock_put(s[0]);
@@ -460,7 +464,7 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 			break;
 		}
 
-		new = unixsock_alloc(&newid, s->type, nonblock);
+		new = unixsock_alloc(&newid, (int)s->type, nonblock);
 		if (new == NULL) {
 			err = -ENOMEM;
 			break;
@@ -530,7 +534,7 @@ int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 			break;
 		}
 
-		if (address->sa_family != AF_UNIX) {
+		if (address->sa_family != (sa_family_t)AF_UNIX) {
 			err = -EINVAL;
 			break;
 		}
@@ -647,7 +651,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 			break;
 		}
 
-		if (address->sa_family != AF_UNIX) {
+		if (address->sa_family != (sa_family_t)AF_UNIX) {
 			err = -EINVAL;
 			break;
 		}
@@ -798,7 +802,7 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 {
 	unixsock_t *s;
 	size_t rlen = 0;
-	int err;
+	ssize_t err;
 	spinlock_ctx_t sc;
 	unsigned peek;
 
@@ -831,7 +835,8 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 				/* TODO: handle MSG_PEEK */
 				/* MISRAC2012-RULE_17_7-a */
 				(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
-				(void)_cbuffer_read(&s->buffer, buf, err = min(len, rlen));
+				(void)_cbuffer_read(&s->buffer, buf, min(len, rlen));
+				err = (int)min(len, rlen);
 
 				if (len < rlen) {
 					/* MISRAC2012-RULE_17_7-a */
@@ -888,7 +893,7 @@ static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, stru
 static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
 {
 	unixsock_t *s, *r;
-	int err;
+	ssize_t err;
 	oid_t oid;
 	spinlock_ctx_t sc;
 
@@ -900,7 +905,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 	do {
 		if (s->type == SOCK_DGRAM) {
 			if (dest_addr != NULL && dest_len != 0U) {
-				if (dest_addr->sa_family != AF_UNIX) {
+				if (dest_addr->sa_family != (sa_family_t)AF_UNIX) {
 					err = -EINVAL;
 					break;
 				}
@@ -918,7 +923,6 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 
 				r = unixsock_get(oid.id);
 				if (r == NULL) {
-					// Zrzutować na unsigned? Czy err może przyjmować w tym przypadku ujemne wartości?
 					err = -ENOTSOCK;
 					break;
 				}
@@ -980,7 +984,8 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					/* MISRAC2012-RULE_17_7-a */
 					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
-					(void)_cbuffer_write(&r->buffer, buf, err = len);  // TBD_Julia Czy err zrzutować na size_t?
+					(void)_cbuffer_write(&r->buffer, buf, len);
+					err = (int)len;
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
@@ -1118,7 +1123,7 @@ int unix_shutdown(unsigned socket, int how)
 
 
 /* TODO: copy data from old buffer */
-static int unix_bufferSetSize(unixsock_t *s, unsigned int sz)
+static int unix_bufferSetSize(unixsock_t *s, const size_t sz)
 {
 	void *v[2] = { NULL, NULL };
 
@@ -1172,7 +1177,7 @@ int unix_setsockopt(unsigned socket, int level, int optname, const void *optval,
 		switch (optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && optlen == sizeof(int)) {
-					err = unix_bufferSetSize(s, *((int *)optval));  // sz zostało zmienione na unsigned + rzutowanie const voida (przy okazji)
+					err = unix_bufferSetSize(s, *((size_t *)optval));
 				}
 				else {
 					err = -EINVAL;

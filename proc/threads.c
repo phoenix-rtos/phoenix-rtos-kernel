@@ -346,7 +346,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 		p->next = *pages;
 		*pages = p;
 		/* MISRAC2012-RULE_17_7-a */
-		(void)page_map(&threads_common.kmap->pmap, v, p->addr, (int)(PGHD_PRESENT | PGHD_WRITE | PGHD_READ));
+		(void)page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
 	}
 
 	return data;
@@ -981,13 +981,13 @@ int proc_threadPriority(int priority)
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (priority >= 0) {
-		if ((unsigned int)priority < current->priority) {
-			current->priority = (unsigned int)priority;
+		if (priority < current->priority) {
+			current->priority = priority;
 		}
 		else if ((unsigned int)priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
-			if ((current->locks == NULL) || ((unsigned int)priority <= _proc_threadGetLockPriority(current))) {
-				current->priority = (unsigned int)priority;
+			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
+				current->priority = priority;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
 			}
@@ -996,7 +996,7 @@ int proc_threadPriority(int priority)
 			/* No action required */
 		}
 
-		current->priorityBase = (unsigned int)priority;
+		current->priorityBase = priority;
 	}
 
 	ret = (int)current->priorityBase;
@@ -1126,7 +1126,7 @@ static void _proc_threadDequeue(thread_t *t)
 		LIST_REMOVE(t->wait, t);
 	}
 
-	if (t->wakeup != 0U) {
+	if (t->wakeup != 0) {
 		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
 	}
 
@@ -1169,7 +1169,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	 * to wyskakuje błąd z różnymi wielkościami, od razu rzutować na (unsigned char)?
 	 */
 
-	if (timeout != 0U) {
+	if (timeout != 0) {
 		current->wakeup = timeout;
 		/* MISRAC2012-RULE_17_7-a */
 		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
@@ -1208,7 +1208,7 @@ int proc_threadSleep(time_t us)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	/* Handle usleep(0) (yield) */
-	if (us != 0U) {
+	if (us != 0) {
 		now = _proc_gettimeRaw();
 
 		current = _proc_current();
@@ -1372,7 +1372,7 @@ int proc_join(int tid, time_t timeout)
 	ghost = process->ghosts;
 	firstGhost = process->ghosts;
 
-	abstimeout = (timeout == 0U) ? 0U : now + timeout;
+	abstimeout = (timeout == 0) ? 0 : now + timeout;
 
 	if (tid >= 0) {
 		do {
@@ -2031,7 +2031,7 @@ static void threads_idlethr(void *arg)
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 		wakeup = _proc_nextWakeup();
 
-		if (wakeup > (unsigned int)(2 * SYSTICK_INTERVAL)) {
+		if (wakeup > (2 * SYSTICK_INTERVAL)) {
 			hal_cpuLowPower(wakeup, &threads_common.spinlock, &sc);
 		}
 		else {
@@ -2111,7 +2111,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 		now = _proc_gettimeRaw();
 		if (now != t->startTime) {
-			info[i].load = (t->cpuTime * 1000U) / (now - t->startTime);
+			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
 			// TBD_Julia Zastosować podwójne rzutowanie - najpierw unsigned na całość i później int
 		}
 		else {
@@ -2136,7 +2136,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 				if (t->process->argv != NULL) {
 					for (argc = 0; t->process->argv[argc] != NULL && space > 0; ++argc) {
-						len = min((int)hal_strlen(t->process->argv[argc]) + 1, space);
+						len = min(hal_strlen(t->process->argv[argc]) + 1, space);
 						hal_memcpy(name, t->process->argv[argc], len);
 						name[len - 1U] = ' ';
 						name += len;

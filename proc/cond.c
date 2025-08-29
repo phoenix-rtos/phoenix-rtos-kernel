@@ -102,7 +102,7 @@ int proc_condWait(int c, int m, time_t timeout)
 		return -EINVAL;
 	}
 
-	if (timeout != 0U) {
+	if (timeout != 0) {
 		switch (cond->attr.clock) {
 			case PH_CLOCK_REALTIME:
 				proc_gettime(&abstime, &offs);
