@@ -140,12 +140,12 @@ typedef struct {
 		} devclock;
 
 		struct {
-			unsigned pin;
-			char l3;
-			char l2;
-			char l1;
-			char l0;
-			char config;
+			__u32 pin;
+			__u8 l3;
+			__u8 l2;
+			__u8 l1;
+			__u8 l0;
+			__u8 config;
 		} mio;
 
 		struct {

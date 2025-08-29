@@ -51,7 +51,7 @@ enum { exc_reset = 0, exc_undef, exc_svc, exc_prefetch, exc_abort };
 /* clang-format on */
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 {
 	static const char *const mnemonics[] = {
 		"0 #Reset", "1 #Undef", "2 #Syscall", "3 #Prefetch",
@@ -143,7 +143,7 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 }
 
 
-unsigned hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	unsigned prot;
 	u32 status;

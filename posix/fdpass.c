@@ -72,7 +72,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	for (cmsg = CMSG_FIRSTHDR(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
 		cmsg_data = CMSG_DATA(cmsg);
 		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
-		cnt = ((unsigned int)cmsg_end - (unsigned int)cmsg_data) / sizeof(int);
+		cnt = ((addr_t)cmsg_end - (addr_t)cmsg_data) / sizeof(int);
 
 		if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS) {
 			return -EINVAL;
@@ -99,7 +99,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	for (cmsg = CMSG_FIRSTHDR(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
 		cmsg_data = CMSG_DATA(cmsg);
 		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
-		cnt = ((unsigned int)cmsg_end - (unsigned int)cmsg_data) / sizeof(int);
+		cnt = ((addr_t)cmsg_end - (addr_t)cmsg_data) / sizeof(int);
 
 		while (cnt != 0U) {
 			hal_memcpy(&fd, cmsg_data, sizeof(int));

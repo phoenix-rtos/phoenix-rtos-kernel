@@ -2247,7 +2247,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	/* Install scheduler on clock interrupt */
 #ifdef PENDSV_IRQ
-	hal_memset(&threads_common.pendsvHandler, NULL, sizeof(threads_common.pendsvHandler));
+	hal_memset(&threads_common.pendsvHandler, 0, sizeof(threads_common.pendsvHandler));
 	threads_common.pendsvHandler.f = threads_schedule;
 	threads_common.pendsvHandler.n = PENDSV_IRQ;
 	hal_interruptsSetHandler(&threads_common.pendsvHandler);
