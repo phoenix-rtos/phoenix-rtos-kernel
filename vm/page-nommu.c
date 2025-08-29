@@ -193,8 +193,9 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	(void)lib_printf("vm: Initializing page allocator %d/%d KB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024U,
 			(pages.freesz + pages.allocsz) / 1024U, sizeof(page_t));
 
+	p = pages.freeq;
 	/* Prepare allocation queue */
-	for (p = pages.freeq, i = 0; i < pages.freeqsz; i++) {
+	for (i = 0; i < pages.freeqsz; i++) {
 		p->next = p + 1;
 		p = p->next;
 	}

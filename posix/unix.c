@@ -513,7 +513,8 @@ int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 
 int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len)
 {
-	char *path, *name, *dir;
+	char *path, *name;
+	const char *dir;
 	int err;
 	oid_t odir, dev;
 	unixsock_t *s;
