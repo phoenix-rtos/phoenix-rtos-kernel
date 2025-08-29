@@ -900,7 +900,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 		currSize = e->size;
 		/* First entry may not be aligned. */
 		if (e->vaddr < t.vaddr) {
-			currSize -= ((unsigned int)t.vaddr - (unsigned int)e->vaddr);
+			currSize -= ((addr_t)t.vaddr - (addr_t)e->vaddr);
 			needed++;
 		}
 		/* Last entry may not be changed fully. */

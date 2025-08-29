@@ -30,7 +30,7 @@ void lib_listAdd(void **list, void *t, size_t noff, size_t poff)
 	else {
 		*((addr_t *)(t + poff)) = *((addr_t *)(*list + poff));
 		/* MISRA Rule 11.6: Added (unsigned int *) after (void *) */
-		*((addr_t *)((void *)*(unsigned int *)((addr_t *)(*list + poff)) + noff)) = (addr_t)t;
+		*((addr_t *)((void *)*(addr_t *)((addr_t *)(*list + poff)) + noff)) = (addr_t)t;
 		*((addr_t *)(t + noff)) = *((addr_t *)list);
 		*((addr_t *)(*list + poff)) = (addr_t)t;
 	}

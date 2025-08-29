@@ -193,7 +193,7 @@ static void _zynqmp_getMIOMuxing(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3)
 }
 
 
-static void _zynqmp_getMIOTristate(unsigned pin, char *config)
+static void _zynqmp_getMIOTristate(unsigned pin, u8 *config)
 {
 	u32 reg = pin / 32 + iou_slcr_mio_mst_tri0;
 	u32 bit = pin % 32;
@@ -202,7 +202,7 @@ static void _zynqmp_getMIOTristate(unsigned pin, char *config)
 	}
 }
 
-static void _zynqmp_getMIOControl(unsigned pin, char *config)
+static void _zynqmp_getMIOControl(unsigned pin, u8 *config)
 {
 	u32 reg = (pin / 26) * (iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + iou_slcr_bank0_ctrl0;
 	u32 bit = pin % 26;

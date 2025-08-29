@@ -683,11 +683,11 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	hal_tls_t tlsNew;
 	ptr_t tbssAddr = 0;
 
-	tlsNew.tls_base = NULL;
+	tlsNew.tls_base = 0; /* NULL */
 	tlsNew.tdata_sz = 0;
 	tlsNew.tbss_sz = 0;
 	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = NULL;
+	tlsNew.arm_m_tls = 0; /* NULL */
 
 	size = round_page(size);
 

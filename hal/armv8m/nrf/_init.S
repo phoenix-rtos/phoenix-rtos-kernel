@@ -265,7 +265,7 @@ hal_cpuReschedule:
 	eor r0, r0, r0 /* default return value */
 	bl _hal_invokePendSV
 	pop {r1-r3, lr}
-	cmp r1, #NULL
+	cmp r1, #0
 	beq hal_cpuReschedule0
 	push {r3-r4}
 	add r1, r1, #12
@@ -293,7 +293,7 @@ hal_jmp:
 	cpsid if
 	isb
 
-	cmp r2, #NULL
+	cmp r2, #0
 	bne hal_jmp_user
 
 	/* kargs has been passed on the stack */

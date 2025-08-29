@@ -215,17 +215,17 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 
 	if (pmap->context != CONTEXT_INVALID) {
 		hal_spinlockSet(&pmap_common.lock, &sc);
-		pmap_common.ctxTable[pmap->context] = NULL;
+		pmap_common.ctxTable[pmap->context] = 0;
 		_pmap_contextDealloc(pmap);
 		hal_spinlockClear(&pmap_common.lock, &sc);
 	}
 
 	while (*i < idx1) {
 		pdir2 = PTD_TO_ADDR(pmap->pdir1[*i]);
-		if (pdir2 != NULL) {
+		if (pdir2 != 0) {
 			for (j = 0; j < 64; j++) {
 				pdir3 = PTD_TO_ADDR(hal_cpuLoadPaddr(&((u32 *)pdir2)[j]));
-				if (pdir3 != NULL) {
+				if (pdir3 != 0) {
 					hal_cpuStorePaddr(&((u32 *)pdir2)[j], 0);
 					hal_cpuflushDCacheL1();
 
