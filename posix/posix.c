@@ -35,7 +35,7 @@
 #define TRACE(str, ...)
 #endif
 
-#define POLL_INTERVAL 100000U
+#define POLL_INTERVAL 100000
 
 
 typedef struct {
@@ -1388,7 +1388,7 @@ int posix_fstat(int fd, struct stat *buf)
 			if (err < 0) {
 				break;
 			}
-			buf->st_mtim.tv_sec = (unsigned long long)attrs.mTime.val;
+			buf->st_mtim.tv_sec = attrs.mTime.val;
 			buf->st_mtim.tv_nsec = 0;
 
 			err = attrs.aTime.err;
@@ -1396,14 +1396,14 @@ int posix_fstat(int fd, struct stat *buf)
 				break;
 			}
 
-			buf->st_atim.tv_sec = (unsigned long long)attrs.aTime.val;
+			buf->st_atim.tv_sec = attrs.aTime.val;
 			buf->st_atim.tv_nsec = 0;
 
 			err = attrs.cTime.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_ctim.tv_sec = (unsigned long long)attrs.cTime.val;
+			buf->st_ctim.tv_sec = attrs.cTime.val;
 			buf->st_ctim.tv_nsec = 0;
 
 			err = attrs.links.err;
@@ -1938,8 +1938,8 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 		p->fds[sv[1]].file->type = (char)ftUnixSocket;
 		p->fds[sv[0]].file->oid.port = US_PORT;
 		p->fds[sv[1]].file->oid.port = US_PORT;
-		p->fds[sv[0]].file->oid.id = id[0];
-		p->fds[sv[1]].file->oid.id = id[1];
+		p->fds[sv[0]].file->oid.id = (id_t)id[0];
+		p->fds[sv[1]].file->oid.id = (id_t)id[1];
 
 		if (((unsigned int)type & SOCK_CLOEXEC) != 0U) {
 			p->fds[sv[0]].flags = FD_CLOEXEC;
@@ -2487,7 +2487,8 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			else {
 				err = proc_send(msg.oid.port, &msg);
 				if (err >= 0) {
-					err = (msg.o.err >= 0) ? msg.o.attr.val : msg.o.err;
+					/* FIXME: 8 byte attr assigned to 4 byte err */
+					err = (msg.o.err >= 0) ? (int)msg.o.attr.val : msg.o.err;
 				}
 			}
 		}
@@ -2517,7 +2518,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 }
 
 #if 1
-int posix_poll(struct pollfd *fds, nfds_t nfds, unsigned int timeout_ms)
+int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 {
 	unsigned int i, n;
 	int ready;
@@ -2531,24 +2532,25 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, unsigned int timeout_ms)
 	}
 
 	if (n == 0U) {
-		if (timeout_ms > 0U) {
+		if (timeout_ms > 0) {
 			/* MISRAC2012-RULE_17_7-a */
-			(void)proc_threadSleep(timeout_ms * 1000ULL);
+			(void)proc_threadSleep(timeout_ms * 1000LL);
 		}
 		return 0;
 	}
 
-	if (timeout_ms >= 0U) {
+	if (timeout_ms >= 0) {
 		proc_gettime(&timeout, NULL);
-		timeout += timeout_ms * 1000ULL + (unsigned long long)(timeout_ms == 0U);
+		timeout += timeout_ms * 1000LL;
+		timeout += (timeout_ms == 0L) ? 1LL : 0LL;
 	}
 	else {
-		timeout = 0U;
+		timeout = 0;
 	}
 
 	ready = do_poll_iteration(fds, nfds);
 	while (ready == 0) {
-		if (timeout != 0U) {
+		if (timeout != 0) {
 			proc_gettime(&now, NULL);
 			if (now > timeout) {
 				break;

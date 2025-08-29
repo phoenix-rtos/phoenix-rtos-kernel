@@ -104,6 +104,7 @@ int syscalls_sys_mmap(void *ustack)
 
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3 "prot is poped from stack -> size of int stays" */
 	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
 	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)vm_objectPut(o);
@@ -146,8 +147,9 @@ int syscalls_sys_mprotect(void *ustack)
 
 	GETFROMSTACK(ustack, void *, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, len, 1);
-	GETFROMSTACK(ustack, int, prot, 2);
+	GETFROMSTACK(ustack, unsigned int, prot, 2);
 
+	/* parasoft-suppress-next-line MISRAC2012_RULE_10_3 "prot is poped from stack -> size of int stays" */
 	err = (int)vm_mprotect(proc->mapp, vaddr, len, PROT_USER | prot);
 	if (err < 0) {
 		return err;
@@ -356,7 +358,7 @@ int syscalls_nsleep(void *ustack)
 
 	proc_gettime(&start, NULL);
 
-	us = ((*sec) * 1000ULL * 1000ULL) + (((unsigned long long)(*nsec) + 999ULL) / 1000ULL);
+	us = ((*sec) * 1000LL * 1000LL) + (((*nsec) + 999LL) / 1000LL);
 
 	ret = proc_threadSleep(us);
 
@@ -368,9 +370,8 @@ int syscalls_nsleep(void *ustack)
 		elapsed = stop - start;
 		if (us > elapsed) {
 			unslept = us - elapsed;
-			*sec = unslept / (1000ULL * 1000ULL);
-			*nsec = (unslept % (1000ULL * 1000ULL)) * 1000ULL;
-			// TBD_Julia Czy nsec można w definicji zmienić? wtedy rzutowanie w 358 można usunąć
+			*sec = unslept / (1000LL * 1000LL);
+			*nsec = ((long int)unslept % (1000L * 1000L)) * 1000L;
 		}
 	}
 
@@ -410,9 +411,9 @@ int syscalls_threadsinfo(void *ustack)
 	n = proc_threadsList(n, info);
 
 	for (i = 0; i < n; ++i) {
-		ppid = posix_getppid(info[i].pid);
+		ppid = posix_getppid((pid_t)info[i].pid);
 		if (ppid > 0) {
-			info[i].ppid = ppid;
+			info[i].ppid = (unsigned int)ppid;
 		}
 	}
 
@@ -438,7 +439,7 @@ int syscalls_syspageprog(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int i;
-	int sz;
+	size_t sz;
 	syspageprog_t *prog;
 	const syspage_prog_t *progSys;
 	const char *name;
@@ -450,12 +451,12 @@ int syscalls_syspageprog(void *ustack)
 		return -EFAULT;
 	}
 
-	sz = (int)syspage_progSize();
+	sz = syspage_progSize();
 	if (i < 0) {
-		return sz;
+		return (int)sz;
 	}
 
-	if (i >= sz) {
+	if (i >= (int)sz) {
 		return -EINVAL;
 	}
 
@@ -470,10 +471,10 @@ int syscalls_syspageprog(void *ustack)
 	/* TODO: change syspageprog_t to allocate data for name dynamically */
 
 	name = progSys->argv;
-	for (sz = 0; (name[sz] != '\0') && (name[sz] != ';'); ++sz) {
+	for (sz = 0U; (name[sz] != '\0') && (name[sz] != ';'); ++sz) {
 	}
 
-	sz = min(sizeof(prog->name) - 1, sz);
+	sz = min((sizeof(prog->name) - 1U), sz);
 	if (*name == 'X') {
 		name++;
 		sz--;
@@ -726,7 +727,7 @@ void syscalls_portDestroy(void *ustack)
 }
 
 
-u32 syscalls_portRegister(void *ustack)
+int syscalls_portRegister(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	unsigned int port;
@@ -1066,7 +1067,7 @@ void syscalls_sigreturn(void *ustack)
 int syscalls_sys_open(char *ustack)
 {
 	const char *filename;
-	unsigned int oflag;
+	int oflag;
 
 	/* FIXME: pass strlen(filename) from userspace */
 
@@ -1214,13 +1215,13 @@ int syscalls_sys_ftruncate(char *ustack)
 
 int syscalls_sys_fcntl(char *ustack)
 {
-	unsigned int fd;
+	int fd;
 	unsigned int cmd;
 
-	GETFROMSTACK(ustack, unsigned int, fd, 0);
+	GETFROMSTACK(ustack, int, fd, 0);
 	GETFROMSTACK(ustack, unsigned int, cmd, 1);
 
-	return posix_fcntl(fd, cmd, ustack);  // TBD_Julia fd zmienić w deklaracji?
+	return posix_fcntl(fd, cmd, ustack);
 }
 
 
@@ -1344,12 +1345,12 @@ int syscalls_sys_accept4(char *ustack)
 	int socket;
 	struct sockaddr *address;
 	socklen_t *address_len;
-	unsigned int flags;
+	int flags;
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1);
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2);
-	GETFROMSTACK(ustack, unsigned int, flags, 3);
+	GETFROMSTACK(ustack, int, flags, 3);
 
 	if (address != NULL) {
 		if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
@@ -1361,7 +1362,7 @@ int syscalls_sys_accept4(char *ustack)
 		}
 	}
 
-	return posix_accept4(socket, address, address_len, flags);  // TBD_Julia przy deklaracji zmienić?
+	return posix_accept4(socket, address, address_len, flags);
 }
 
 
@@ -1513,14 +1514,14 @@ ssize_t syscalls_sys_recvfrom(char *ustack)
 	int socket;
 	void *message;
 	size_t length;
-	unsigned int flags;
+	int flags;
 	struct sockaddr *src_addr;
 	socklen_t *src_len;
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, void *, message, 1);
 	GETFROMSTACK(ustack, size_t, length, 2);
-	GETFROMSTACK(ustack, unsigned int, flags, 3);
+	GETFROMSTACK(ustack, int, flags, 3);
 	GETFROMSTACK(ustack, struct sockaddr *, src_addr, 4);
 	GETFROMSTACK(ustack, socklen_t *, src_len, 5);
 
@@ -1548,14 +1549,14 @@ ssize_t syscalls_sys_sendto(char *ustack)
 	int socket;
 	const void *message;
 	size_t length;
-	unsigned int flags;
+	int flags;
 	const struct sockaddr *dest_addr;
 	socklen_t dest_len;
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, const void *, message, 1);
 	GETFROMSTACK(ustack, size_t, length, 2);
-	GETFROMSTACK(ustack, unsigned int, flags, 3);
+	GETFROMSTACK(ustack, int, flags, 3);
 	GETFROMSTACK(ustack, const struct sockaddr *, dest_addr, 4);
 	GETFROMSTACK(ustack, socklen_t, dest_len, 5);
 
@@ -1576,12 +1577,12 @@ ssize_t syscalls_sys_recvmsg(char *ustack)
 	process_t *proc = proc_current()->process;
 	int socket;
 	struct msghdr *msg;
-	unsigned int flags;
+	int flags;
 	size_t i;
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, struct msghdr *, msg, 1);
-	GETFROMSTACK(ustack, unsigned int, flags, 2);
+	GETFROMSTACK(ustack, int, flags, 2);
 
 	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
 		return -EFAULT;
@@ -1614,12 +1615,12 @@ ssize_t syscalls_sys_sendmsg(char *ustack)
 	process_t *proc = proc_current()->process;
 	int socket;
 	const struct msghdr *msg;
-	unsigned int flags;
+	int flags;
 	size_t i;
 
 	GETFROMSTACK(ustack, int, socket, 0);
 	GETFROMSTACK(ustack, const struct msghdr *, msg, 1);
-	GETFROMSTACK(ustack, unsigned int, flags, 2);
+	GETFROMSTACK(ustack, int, flags, 2);
 
 	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
 		return -EFAULT;
@@ -1751,11 +1752,11 @@ int syscalls_sys_poll(char *ustack)
 	process_t *proc = proc_current()->process;
 	struct pollfd *fds;
 	nfds_t nfds;
-	unsigned int timeout_ms;
+	int timeout_ms;
 
 	GETFROMSTACK(ustack, struct pollfd *, fds, 0);
 	GETFROMSTACK(ustack, nfds_t, nfds, 1);
-	GETFROMSTACK(ustack, unsigned int, timeout_ms, 2);
+	GETFROMSTACK(ustack, int, timeout_ms, 2);
 
 	if (vm_mapBelongs(proc, fds, sizeof(*fds) * nfds) < 0) {
 		return -EFAULT;

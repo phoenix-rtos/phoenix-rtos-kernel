@@ -151,7 +151,7 @@ extern int posix_setsockopt(int socket, int level, int optname, const void *optv
 extern int posix_ioctl(int fildes, unsigned long request, char *ustack);
 
 
-extern int posix_poll(struct pollfd *fds, nfds_t nfds, unsigned int timeout_ms);
+extern int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms);
 
 
 extern int posix_futimens(int fildes, const struct timespec *times);
