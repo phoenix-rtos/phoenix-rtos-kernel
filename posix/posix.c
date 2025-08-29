@@ -785,7 +785,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == (char)ftUnixSocket) {
-		rcnt = unix_recvfrom((unsigned int)f->oid.id, buf, nbyte, 0, NULL, 0);
+		rcnt = unix_recvfrom((unsigned int)f->oid.id, buf, nbyte, 0, NULL, NULL);
 	}
 	else {
 		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
