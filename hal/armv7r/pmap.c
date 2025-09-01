@@ -21,7 +21,6 @@
 #include <arch/cpu.h>
 #include <arch/spinlock.h>
 
-
 /* Linker symbols */
 extern unsigned int _end;
 extern unsigned int __bss_start;
@@ -273,7 +272,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 		if ((t & (1 << 4)) == 0) {
 			continue;
 		}
-
 		pmap_mpu_setMemRegionRbar(t);
 		pmap_mpu_setMemRegionRasr(syspage->hs.mpu.table[i].rasr); /* Enable all regions */
 	}

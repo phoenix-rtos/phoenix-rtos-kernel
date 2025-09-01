@@ -148,6 +148,7 @@ typedef struct {
 		pctl_clksel,
 		pctl_clkdiv,
 		pctl_cpuperfmon,
+		pctl_tisci_clk_freq = 100,
 	} type;
 	/* clang-format on */
 	union {
@@ -191,6 +192,15 @@ typedef struct {
 			char div64;
 			char reset_counter;
 		} cpuperfmon;
+		struct {
+			unsigned int device;
+			unsigned long long int min_freq_hz;
+			unsigned long long int target_freq_hz; 
+			unsigned long long int max_freq_hz;
+			unsigned char clk;
+			unsigned int clk32;
+			unsigned long long int *val;
+		} pctl_tisci_clk_freq;	
 	};
 } __attribute__((packed)) platformctl_t;
 

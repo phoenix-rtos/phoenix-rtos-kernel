@@ -22,7 +22,6 @@
 #include "map.h"
 #include "amap.h"
 
-
 extern unsigned int __bss_start;
 
 struct {
@@ -597,6 +596,7 @@ void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_ob
 	proc_lockSet(&map->lock);
 	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, offs, flags);
 	proc_lockClear(&map->lock);
+
 	return vaddr;
 }
 
@@ -1518,7 +1518,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	vm_pageGetStats(&freesz);
 
 	/* Init map entry pool */
-	map_common.ntotal = freesz / (3 * SIZE_PAGE + sizeof(map_entry_t));
+	map_common.ntotal = freesz / (SIZE_PAGE + sizeof(map_entry_t));
 	map_common.nfree = map_common.ntotal;
 
 	while ((*top) - (*bss) < sizeof(map_entry_t) * map_common.ntotal) {

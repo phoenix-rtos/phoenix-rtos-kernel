@@ -93,16 +93,12 @@ set_loop:
 	cmp r9, r0
 	blo 1b
 
-	/* Get CPU ID */
-	mrc p15, 0, r0, c0, c0, 5
-	and r0, #0xf
-
 	/* Set up stack pointer */
-	add r0, #1
 	ldr r1, =_init_stack
 
 	/* Calculate stack address */
-	add r0, r1, r0, lsl #INITIAL_KSTACK_SHIFT
+	mov r0, #(1 << INITIAL_KSTACK_SHIFT)
+	add r0, r1, r0
 
 	/* FIQ mode stack */
 	msr CPSR_c, #(MODE_FIQ | NO_INT)

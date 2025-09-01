@@ -22,6 +22,7 @@
 #include "hal/armv7r/halsyspage.h"
 #include "tda4vm_regs.h"
 #include "tda4vm.h"
+#include "sciclient/sciclient.h"
 
 #include <board_config.h>
 
@@ -391,14 +392,14 @@ int tda4vm_getPinConfig(unsigned pin, tda4vm_pinConfig_t *config)
 	return 0;
 }
 
-
 __attribute__((noreturn)) void tda4vm_warmReset(void)
-{
-	volatile u32 *base = CTRLMMR_WKUP_BASE_ADDR;
-	*(base + ctrlmmr_wkup_reg_mcu_warm_rst_ctrl) = 0x60000; /* Magic value to trigger reset */
+{ 
+	Tisci_sys_reset();
+
 	while (1) {
-		/* Hang and wait for reset */
+	//	/* Hang and wait for reset */
 	}
+
 
 	__builtin_unreachable();
 }
@@ -534,6 +535,99 @@ static inline void setPMUSERENR(u32 val)
 	asm volatile("mcr p15, 0, %0, c9, c14, 0" ::"r"(val));
 }
 
+/*=====================================================
+ *     platformclt functions provided by SCISERVER    *
+======================================================*/
+int tda4vm_tisci_set_freq(unsigned device, unsigned long long min_freq_hz,
+						  unsigned long long target_freq_hz, unsigned long long max_freq_hz,
+						  unsigned char clk, unsigned clk32)
+{
+	int resp;
+	int baseStatus;
+	u64 resp_freq_hz;
+	int parentNum, baseParent, newParent;
+	int clkSet = 0;
+
+	/** 0. Check if current clock frequency is requested one */
+	resp = Tisci_clk_get_freq(device, clk, clk32, &resp_freq_hz);
+	if (resp == TISCI_PASS && resp_freq_hz >= min_freq_hz && resp_freq_hz <= max_freq_hz) {
+		return 0;
+	}   
+
+	/** 1. Check parent and status of the clock */
+	if (resp == TISCI_PASS) {
+		resp = Tisci_clk_get(device, clk, clk32, &baseStatus);
+		if (resp == TISCI_PASS) {
+			resp = Tisci_clk_get_parent(device, clk, clk32, &baseParent); 
+		}       
+	}
+	
+	/** 2. Check number of parents this clock has */
+	if (resp == TISCI_PASS) {
+		resp = Tisci_clk_get_parent_num(device, clk, clk32, &parentNum);
+	}
+
+	/** 3. Disable clock */
+	if (resp == TISCI_PASS) {
+		resp = Tisci_clk_set(device, clk, clk32, TISCI_MSG_VALUE_CLOCK_SW_STATE_UNREQ);
+	}
+
+	/** 4. Iterate through parents in search of desired frequency */
+	if (resp == TISCI_PASS && parentNum > 1) {
+		newParent = 0;
+		for (int i = 0; i < parentNum; i++) {
+			/** 4.1 . Set new parent 
+			 * TODO: takie into account parent number > 255
+			*/
+			resp = Tisci_clk_set_parent(device, clk, clk32, clk + i + 1, 0);
+			if (resp == TISCI_PASS) {
+				/** 4.2. Query new parent if it can provide required clock */
+				resp = Tisci_clk_query_freq(device, min_freq_hz, target_freq_hz, max_freq_hz,
+											clk, clk32, &resp_freq_hz);
+				if (resp == TISCI_PASS && resp_freq_hz >= min_freq_hz && resp_freq_hz <= max_freq_hz) {
+					newParent = 1;
+					break;
+				}
+			}
+		}
+
+		if (resp == TISCI_PASS && newParent) {
+			resp = Tisci_clk_set_freq(device, resp_freq_hz, resp_freq_hz, resp_freq_hz, clk, clk32);
+			if (resp == TISCI_PASS) {
+				clkSet = 1;
+			}
+		}
+	}
+
+	/** 5. set desired frequency on base parent if parentNum == 1 */
+	if (resp == TISCI_PASS && parentNum == 1) {
+		resp = Tisci_clk_set_freq(device, min_freq_hz, target_freq_hz, max_freq_hz, clk, clk32);
+		if (resp == TISCI_PASS) {
+			resp = Tisci_clk_get_freq(device, clk, clk32, &resp_freq_hz);
+			if (resp == TISCI_PASS && resp_freq_hz >= min_freq_hz && resp_freq_hz <= max_freq_hz) {
+				clkSet = 1;
+			}   
+		}
+	}
+	
+	/** 6. restore clock state */
+	if (resp == TISCI_PASS) {
+		resp = Tisci_clk_set(device, clk, clk32, baseStatus);
+	}
+
+	/** 7. if setting frequency on new parent failed, go back to original parent */
+	if (resp == TISCI_PASS && clkSet == 0) {
+		/** TODO: take into account parent number > 255 */
+		resp = Tisci_clk_set_parent(device, clk, clk32, (u8)baseParent, 0);
+		return -1;
+	}
+
+	if (resp != TISCI_PASS) {
+		return -1;
+	}
+
+	return 0;
+}
 
 int hal_platformctl(void *ptr)
 {
@@ -649,6 +743,22 @@ int hal_platformctl(void *ptr)
 				ret = 0;
 			}
 			break;
+		case pctl_tisci_clk_freq:
+			if (data->action == pctl_get) {
+				ret = Tisci_clk_get_freq(data->pctl_tisci_clk_freq.device,
+										 data->pctl_tisci_clk_freq.clk,
+										 data->pctl_tisci_clk_freq.clk32,
+										 data->pctl_tisci_clk_freq.val);												
+			}
+			else if (data->action == pctl_set) {
+				ret = tda4vm_tisci_set_freq(data->pctl_tisci_clk_freq.device,
+											data->pctl_tisci_clk_freq.min_freq_hz, 
+											data->pctl_tisci_clk_freq.target_freq_hz,
+											data->pctl_tisci_clk_freq.max_freq_hz,
+											data->pctl_tisci_clk_freq.clk,
+											data->pctl_tisci_clk_freq.clk32);
+			}
+			break;
 		default:
 			break;
 	}
@@ -680,3 +790,4 @@ unsigned int hal_cpuGetCount(void)
 {
 	return NUM_CPUS;
 }
+

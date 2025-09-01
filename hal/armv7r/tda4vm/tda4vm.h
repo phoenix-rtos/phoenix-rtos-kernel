@@ -19,6 +19,7 @@
 #include "hal/cpu.h"
 #include "include/arch/armv7r/tda4vm/tda4vm.h"
 
+#define CPU_COUNT		2
 
 typedef struct {
 	u32 mult_int;
@@ -83,6 +84,14 @@ extern int tda4vm_setClkdiv(unsigned sel, unsigned val);
 
 /* Returns < 0 on error, otherwise the clksel setting */
 extern int tda4vm_getClkdiv(unsigned sel);
+
+
+/*=====================================================
+ *     platformclt functions provided by SCISERVER    *
+======================================================*/
+extern int tda4vm_tisci_set_freq(unsigned device, unsigned long long min_freq_hz,
+							 	 unsigned long long target_freq_hz, unsigned long long max_freq_hz,
+							 	 unsigned char clk, unsigned clk32);
 
 
 #endif

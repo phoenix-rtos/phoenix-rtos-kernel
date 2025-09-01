@@ -4,4 +4,4 @@
 # Copyright 2025 Phoenix Systems
 #
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv7r/tda4vm/, _init.o console.o interrupts.o tda4vm.o timer.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv7r/tda4vm/, _init.o console.o interrupts.o tda4vm.o timer.o sciclient/sciclient.o navss/navss.o)
