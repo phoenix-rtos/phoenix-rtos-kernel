@@ -281,7 +281,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 		if ((t & (0x1U << 4)) == 0U) {
 			continue;
 		}
-
 		pmap_mpu_setMemRegionRbar(t);
 		pmap_mpu_setMemRegionRasr(syspage->hs.mpu.table[i].rasr); /* Enable all regions */
 	}

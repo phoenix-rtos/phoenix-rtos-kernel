@@ -23,6 +23,10 @@
 #include "syspage.h"
 #include "test/test.h"
 #include "perf/perf.h"
+#include "hal/armv7r/tda4vm/sciclient/sciclient.h"
+#include "hal/armv7r/tda4vm/navss/navss.h"
+
+#include "hal/armv7r/tda4vm/tda4vm.h"
 
 
 static struct {
@@ -94,6 +98,7 @@ static void main_initthr(void *unused)
 	}
 
 	for (;;) {
+
 		proc_reap();
 	}
 }
@@ -104,6 +109,7 @@ int main(void)
 	char s[128];
 
 	syspage_init();
+	
 	_hal_init();
 	_usrv_init();
 
@@ -119,6 +125,9 @@ int main(void)
 	(void)_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
 
+	/* Chceck if SCISERVER is up and running */
+	Tisci_msg_version();
+
 #if 0 /* Basic kernel tests */
 	/* Start tests */
 	test_proc_threads1();
@@ -132,6 +141,7 @@ int main(void)
 	(void)proc_start(main_initthr, NULL, (const char *)"init");
 
 	/* Start scheduling, leave current stack */
+
 	hal_cpuEnableInterrupts();
 	(void)hal_cpuReschedule(NULL, NULL);
 
