@@ -210,7 +210,7 @@ static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **pr
 			continue;
 		}
 
-		for (;; e = lib_treeof(map_entry_t, linkage, e->linkage.parent)) {
+		while (1) {
 			if (e->linkage.parent == NULL) {
 				return NULL;
 			}
@@ -218,6 +218,7 @@ static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **pr
 			if ((e == lib_treeof(map_entry_t, linkage, e->linkage.parent->left)) && ((lib_treeof(map_entry_t, linkage, e->linkage.parent)->rmaxgap >= size))) {
 				break;
 			}
+			e = lib_treeof(map_entry_t, linkage, e->linkage.parent);
 		}
 		e = lib_treeof(map_entry_t, linkage, e->linkage.parent);
 
@@ -1662,14 +1663,11 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	result = _map_mapsInit(kmap, kernel, bss, top);
 	LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with maps initialization.");
 
+	
 	/* Map kernel segments */
-	for (i = 0;; i++) {
-		prot = PROT_READ | PROT_EXEC;
-
-		if (pmap_segment((unsigned int)i, &vaddr, &size, (int *)&prot, top) < 0) {
-			break;
-		}
-
+	prot = PROT_READ | PROT_EXEC;
+	i = 0;
+	while (pmap_segment((unsigned int)i, &vaddr, &size, (int *)&prot, top) >= 0) {
 		e = map_alloc();
 		if (e == NULL) {
 			break;
@@ -1685,6 +1683,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		e->amap = NULL;
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
 		(void)_map_add(NULL, map_common.kmap, e);
+		i++;
 	}
 
 

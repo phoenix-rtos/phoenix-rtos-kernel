@@ -1113,12 +1113,18 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 
 	if (spawn->prog != NULL) {
 		/* Add instruction maps */
-		for (i = 0; (i < spawn->prog->imapSz) && (err == 0); ++i) {
+		for (i = 0; i < spawn->prog->imapSz; ++i) {
+			if (err != 0) {
+				break;
+			}
 			err = pmap_addMap(current->process->pmapp, spawn->prog->imaps[i]);
 		}
 
 		/* Add data/io maps */
-		for (i = 0; (i < spawn->prog->dmapSz) && (err == 0); ++i) {
+		for (i = 0; i < spawn->prog->dmapSz; ++i) {
+			if (err != 0) {
+				break;
+			}
 			err = pmap_addMap(current->process->pmapp, spawn->prog->dmaps[i]);
 		}
 	}

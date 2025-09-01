@@ -311,7 +311,7 @@ int posix_clone(int ppid)
 
 	process_info_t *p, *pp;
 	process_t *proc;
-	int i;
+	int i, j;
 	oid_t console;
 	open_file_t *f;
 
@@ -386,8 +386,8 @@ int posix_clone(int ppid)
 			f = vm_kmalloc(sizeof(open_file_t));
 			p->fds[i].file = f;
 			if (f == NULL) {
-				for (--i; i >= 0; --i) {
-					posix_putUnusedFile(p, i);
+				for (j = 1; i - j >= 0; j++) {
+					posix_putUnusedFile(p, i - j);
 				}
 				(void)proc_lockDone(&p->lock);
 				vm_kfree(p->fds);
@@ -2524,7 +2524,9 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	int ready;
 	time_t timeout, now;
 
-	for (i = n = 0U; i < nfds; ++i) {
+	n = 0U;
+
+	for (i = 0U; i < nfds; ++i) {
 		fds[i].revents = 0;
 		if (fds[i].fd >= 0) {
 			++n;

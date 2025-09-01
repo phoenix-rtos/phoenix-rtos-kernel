@@ -1269,7 +1269,7 @@ int unix_poll(unsigned socket, unsigned short events)
 			(void)proc_lockClear(&s->lock);
 		}
 
-		if (events & (POLLOUT | POLLWRNORM | POLLWRBAND)) {
+		if ((events & (POLLOUT | POLLWRNORM | POLLWRBAND)) != 0U) {
 			r = unixsock_get_remote(s);
 			if (r != NULL) {
 				/* MISRAC2012-RULE_17_7-a */

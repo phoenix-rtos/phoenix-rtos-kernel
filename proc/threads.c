@@ -446,7 +446,7 @@ static void _threads_updateWakeup(time_t now, thread_t *min)
 		wakeup = SYSTICK_INTERVAL;
 	}
 
-	if (wakeup > (unsigned int)SYSTICK_INTERVAL + (unsigned int)SYSTICK_INTERVAL / 8U) {
+	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8) {
 		wakeup = SYSTICK_INTERVAL;
 	}
 
@@ -626,7 +626,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	}
 
 	/* Get next thread */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *);) {
+	i = 0;
+	while (i < sizeof(threads_common.ready) / sizeof(thread_t *)) {
 		if ((selected = threads_common.ready[i]) == NULL) {
 			i++;
 			continue;
@@ -2079,8 +2080,8 @@ void proc_threadsDump(unsigned int priority)
 
 int proc_threadsList(int n, threadinfo_t *info)
 {
-	int i = 0, argc, space;
-	unsigned int len;
+	int i = 0, argc;
+	unsigned int len, space;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
@@ -2131,16 +2132,19 @@ int proc_threadsList(int n, threadinfo_t *info)
 			map = t->process->mapp;
 
 			if (t->process->path != NULL) {
-				space = (int)sizeof(info[i].name);
+				space = sizeof(info[i].name);
 				name = info[i].name;
 
 				if (t->process->argv != NULL) {
-					for (argc = 0; t->process->argv[argc] != NULL && space > 0; ++argc) {
-						len = min(hal_strlen(t->process->argv[argc]) + 1, space);
+					for (argc = 0; t->process->argv[argc] != NULL; ++argc) {
+						if (space <= 0) {
+							break;
+						}
+						len = min(hal_strlen(t->process->argv[argc]) + 1U, space);
 						hal_memcpy(name, t->process->argv[argc], len);
 						name[len - 1U] = ' ';
 						name += len;
-						space -= (int)len;
+						space -= len;
 					}
 					*(name - 1) = '\0';
 				}
