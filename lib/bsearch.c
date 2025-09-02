@@ -20,7 +20,6 @@
 
 void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *, void *))
 {
-	/* MISRA Rule 10.4: changed type by adding U */
 	unsigned int l = 0, r = nmemb - 1U, m;
 	int cmp;
 
@@ -29,7 +28,6 @@ void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar
 	}
 
 	while (l <= r) {
-		/* MISRA Rule 10.4: changed type by adding U */
 		m = (l + r) / 2U;
 
 		cmp = compar(key, base + m * size);
@@ -39,11 +37,9 @@ void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar
 		}
 
 		if (cmp > 0) {
-			/* MISRA Rule 10.4: changed type by adding U */
 			l = m + 1U;
 		}
 		else {
-			/* MISRA Rule 10.4: changed type by adding U */
 			r = m - 1U;
 		}
 	}

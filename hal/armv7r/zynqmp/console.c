@@ -103,8 +103,7 @@ void hal_consolePutch(char c)
 
 __attribute__((section(".init"))) void _hal_consoleInit(void)
 {
-	/* MISRA Rule 11.6: Casted UART_BASE to a pointer type */
-	console_common.uart = (void *)(unsigned int *)UART_BASE;
+	console_common.uart = (void *)UART_BASE;
 	console_common.speed = 115200;
 
 	/* MISRA Rule 17.7: Unused returned value by function _zynqmp_setMIO, added (void) in lines 107, 108, 110*/

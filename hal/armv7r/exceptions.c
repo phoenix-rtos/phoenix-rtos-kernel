@@ -137,8 +137,7 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 	/* Handle signals if necessary */
 	if (hal_cpuSupervisorMode(&ctx->cpuCtx) == 0) {
-		/* MISRA Rule 11.6: Casted ctx to a pointer type*/
-		threads_setupUserReturn((void *)(unsigned int *)ctx->cpuCtx.r0, &ctx->cpuCtx);
+		threads_setupUserReturn((void *)ctx->cpuCtx.r0, &ctx->cpuCtx);
 	}
 }
 
@@ -156,7 +155,6 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot = PROT_READ;
 		status = ctx->dfsr & 0x1fU;
 
-		/* MISRA Rule 10.4: changed type by adding U*/
 		if ((ctx->dfsr & (0x1UL << 11)) != 0U) {
 			prot |= PROT_WRITE;
 		}

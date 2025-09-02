@@ -327,7 +327,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 
 static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
 {
-	/* MISRA Rule 11.6: NULL can not be longe used as we changed it to voit pointer!!! */
+	/* MISRA Rule 11.6: NULL can no longer be used as we changed it to voit pointer!!! */
 	if (tls->tls_base != 0U) {
 		process_tls->tls_base = tls->tls_base;
 	}
@@ -752,9 +752,8 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 	}
 
 	for (i = 0; i < relocsz; ++i) {
-		/* MISRA Rule 11.6: (unsigned int *) added in line 735 x 2 and in line x 3 */
-		if ((ptr_t)(unsigned int *)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)(unsigned int *)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
-			(*addr) = (void *)(unsigned int *)((ptr_t)(*addr) - (ptr_t)(unsigned int *)reloc[i].vbase + (ptr_t)(unsigned int *)reloc[i].pbase);
+		if ((ptr_t)reloc[i].vbase <= (ptr_t)(*addr) && (ptr_t)reloc[i].vbase + reloc[i].size > (ptr_t)(*addr)) {
+			(*addr) = (void *)((ptr_t)(*addr) - (ptr_t)reloc[i].vbase + (ptr_t)reloc[i].pbase);
 			return 0;
 		}
 	}
@@ -820,9 +819,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			prot |= PROT_EXEC;
 
 			if ((process->imapp != NULL) &&
-					/* MISRA Rule 11.6: Added (unsigned int *) after (ptr_t) in line 799, 800 and 809*/
-					(((ptr_t)base < (ptr_t)(unsigned int *)process->imapp->start) ||
-							((ptr_t)base > (ptr_t)(unsigned int *)process->imapp->stop))) {
+					(((ptr_t)base < (ptr_t)process->imapp->start) ||
+							((ptr_t)base > (ptr_t)process->imapp->stop))) {
 				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), (u8)prot, NULL, -1, (u8)flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
@@ -830,8 +828,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 				hal_memcpy((char *)paddr, (char *)ehdr + phdr->p_offset, phdr->p_filesz);
 
-				/* Need to make cache and memorSy coherent, so $I is coherent too */
-				hal_cleanDCache((ptr_t)(unsigned int *)paddr, phdr->p_memsz);
+				/* Need to make cache and memory coherent, so $I is coherent too */
+				hal_cleanDCache((ptr_t)paddr, phdr->p_memsz);
 			}
 		}
 
@@ -861,8 +859,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 			return -ENOMEM;
 		}
 
-		/* MISRA Rule 11.6: Added (unsinged int *)*/
-		reloc[j].vbase = (void *)(unsigned int *)phdr->p_vaddr;
+		reloc[j].vbase = (void *)phdr->p_vaddr;
 		reloc[j].pbase = (void *)((char *)paddr + reloffs);
 		reloc[j].size = phdr->p_memsz;
 		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1U);
@@ -902,8 +899,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		}
 	}
 
-	/* MISRA Rule 11.6: Added (unsinged long *)*/
-	*entry = (void *)(unsigned long *)(unsigned long)ehdr->e_entry;
+	*entry = (void *)(unsigned long)ehdr->e_entry;
 	if (process_relocate(reloc, relocsz, (char **)entry) < 0) {
 		return -ENOEXEC;
 	}
@@ -932,15 +928,13 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 				continue;
 			}
 
-			/* MISRA Rule 11.6: Added (unsinged int *)*/
-			relptr = (void *)(unsigned int *)rela.r_offset;
+			relptr = (void *)rela.r_offset;
 			if (process_relocate(reloc, relocsz, (char **)&relptr) < 0) {
 				return -ENOEXEC;
 			}
 
 			/* Don't modify ELF file! */
-			/* MISRA Rule 11.6: Added (unsinged int *) x2 */
-			if (((ptr_t)(unsigned int *)relptr >= (ptr_t)base) && ((ptr_t)(unsigned int *)relptr < ((ptr_t)base + size))) {
+			if (((ptr_t)relptr >= (ptr_t)base) && ((ptr_t)relptr < ((ptr_t)base + size))) {
 				++badreloc;
 				continue;
 			}
@@ -1814,13 +1808,11 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 	dest->tls_sz = round_page(source->tls_sz);
 	dest->arm_m_tls = source->arm_m_tls;
 
-	/* MISRA Rule 11.6: Added (unsigned int *) */
-	dest->tls_base = (ptr_t)(unsigned int *)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
+	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
 	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
 	if (dest->tls_base != 0U) {
-		/* MISRA Rule 11.6: Added (unsigned int *) x2 */
-		hal_memcpy((void *)(unsigned int *)dest->tls_base, (void *)(unsigned int *)source->tls_base, dest->tdata_sz);
+		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
 		/* At the end of TLS there must be a pointer to itself */
 		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1U) & ~(sizeof(ptr_t) - 1U)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
@@ -1835,6 +1827,5 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 
 int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map)
 {
-	/* MISRA Rule 11.6: Added (unsigned int *) */
-	return vm_munmap(map, (void *)(unsigned int *)tls->tls_base, tls->tls_sz);
+	return vm_munmap(map, (void *)tls->tls_base, tls->tls_sz);
 }

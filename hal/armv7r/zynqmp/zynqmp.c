@@ -217,7 +217,7 @@ static int _zynqmp_getMIO(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *conf
 
 static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
 {
-	static const u32 lookup[] = {
+	static const u32 lookup[76] = {
 		[pctl_devreset_lpd_gem0] = (unsigned int)crl_apb_rst_lpd_iou0 | (0UL << 12),
 		[pctl_devreset_lpd_gem1] = (unsigned int)crl_apb_rst_lpd_iou0 | (1UL << 12),
 		[pctl_devreset_lpd_gem2] = (unsigned int)crl_apb_rst_lpd_iou0 | (2UL << 12),

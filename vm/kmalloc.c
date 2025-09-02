@@ -120,7 +120,7 @@ static int _kmalloc_addZone(u8 hdridx, u8 idx)
 	}
 
 	/* Add new zone */
-	if (_vm_zoneCreate(nz, 0x1UL << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), SIZE_PAGE / (0x1UL << idx))) < 0U) {
+	if (_vm_zoneCreate(nz, 0x1UL << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), (unsigned int)SIZE_PAGE / (0x1UL << idx))) < 0U) {
 		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 125, 130*/
 		(void)_kmalloc_free(hdridx, nz);
 		return -ENOMEM;
@@ -284,7 +284,7 @@ int _kmalloc_init(void)
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		(void)lib_printf("BAD HDRIDX!\n");
-		/* MISRA Rule 11.6: NULL return changed to -1 return as NULL is now representeed as void pointer onto 0 */
+		/* MISRA Rule 11.6: NULL return changed to -1 return as NULL is now represented as void pointer onto 0 */
 		return -1;
 	}
 
@@ -300,7 +300,7 @@ int _kmalloc_init(void)
 	kmalloc_common.zonehdrs = 16;
 
 	/* Add first zone_t zone */
-	_vm_zoneCreate(&kmalloc_common.firstzone, 0x1U << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1U << hdridx)));
+	(void)_vm_zoneCreate(&kmalloc_common.firstzone, 0x1U << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1U << hdridx)));
 	LIST_ADD(&kmalloc_common.sizes[hdridx], &kmalloc_common.firstzone);
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 303, 308*/
 	(void)lib_rbInsert(&kmalloc_common.tree, &kmalloc_common.firstzone.linkage);

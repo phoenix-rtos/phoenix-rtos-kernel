@@ -100,8 +100,7 @@ static void test_proc_timethr(void *arg)
 
 static void test_proc_rotthr1(void *arg)
 {
-	/* MISRA Rule 11.6: Casted arg to a pointer type */
-	unsigned long i = (unsigned long)(unsigned long *)arg;
+	unsigned long i = (unsigned long)arg;
 
 	for (;;) {
 		test_proc_common.rotations[i]++;
@@ -116,7 +115,6 @@ static void test_proc_rotthr1(void *arg)
 void test_proc_threads1(void)
 {
 	unsigned int i, stacksz = 1384;
-	/* MISRA Rule 15.6: Added {}*/
 	for (i = 0; i < 8U; i++) {
 		test_proc_common.rotations[i] = 0;
 	}
@@ -142,8 +140,7 @@ void test_proc_threads1(void)
 
 static void test_proc_rotthr2(void *arg)
 {
-	/* MISRA Rule 11.6: Casted arg to a pointer type */
-	unsigned long i = (unsigned long)(unsigned long *)arg;
+	unsigned long i = (unsigned long)arg;
 	time_t otm = test_proc_common.tm;
 	spinlock_ctx_t sc;
 
@@ -168,7 +165,6 @@ static void test_proc_rotthr2(void *arg)
 void test_proc_threads2(void)
 {
 	unsigned int i;
-	/* MISRA Rule 15.6: Added {} */
 	for (i = 0; i < 8U; i++) {
 		test_proc_common.rotations[i] = 0;
 	}

@@ -189,7 +189,6 @@ void amap_put(amap_t *amap)
 
 void amap_clear(amap_t *amap, size_t offset, size_t size)
 {
-	/* MISRA Rule 10.4: added unisgned*/
 	unsigned int i;
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 194, 198*/

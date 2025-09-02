@@ -29,8 +29,7 @@
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
-/* MISRA Rule 11.6: Added (int *) */
-static thread_t *const wakeupPending = (void *)(int *)-1;
+static thread_t *const wakeupPending = (void *)-1;
 
 static struct {
 	vm_map_t *kmap;
@@ -476,8 +475,7 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		}
 
 		_proc_threadDequeue(t);
-		/* MISRA Rule 11.6: (int *) added*/
-		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
+				hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
 
 	_threads_updateWakeup(now, t);
@@ -1018,8 +1016,7 @@ int proc_threadPriority(int priority)
 static void _thread_interrupt(thread_t *t)
 {
 	_proc_threadDequeue(t);
-	/* MISRA Rule 11.6: (int *) added*/
-	hal_cpuSetReturnValue(t->context, (void *)(int *)-EINTR);
+	hal_cpuSetReturnValue(t->context, (void *)-EINTR);
 }
 
 
@@ -1621,8 +1618,7 @@ int threads_sigsuspend(unsigned int mask)
 	kstackTop = thread->kstack + thread->kstacksz;
 	ctx = kstackTop - sizeof(*ctx);
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
-	/* MISRA Rule 11.6: (int *) added*/
-	hal_cpuSetReturnValue(ctx, (void *)(int *)-EINTR);
+	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
 
 	oldmask = thread->sigmask;
 	thread->sigmask = mask;

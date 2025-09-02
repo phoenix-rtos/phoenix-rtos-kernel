@@ -79,12 +79,10 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	/* Enable interrupts, set normal execution mode */
 	if (ustack != NULL) {
 		ctx->psr = MODE_USR;
-		/* MISRA Rule 11.6: */
 		ctx->sp = (u32)ustack;
 	}
 	else {
 		ctx->psr = MODE_SYS;
-		/* MISRA Rule 11.6: */
 		ctx->sp = (u32)kstack + kstacksz;
 	}
 
@@ -119,7 +117,6 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	signalCtx->pc = (u32)handler & ~0x1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
-	/* MISRA Rule 10.4: THUMB_STATE changed to unsigned type in definition*/
 	if (((u32)handler & 0x1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}
@@ -149,7 +146,6 @@ char *hal_cpuInfo(char *info)
 
 	/* MISRA Rule 17.7: Unused returned value by hal_strcpy function, (void) added in lines 151, 156, 161*/
 	(void)hal_strcpy(info, HAL_NAME_PLATFORM);
-	/* MISRA Rule 10.4: changed type by adding U*/
 	n = sizeof(HAL_NAME_PLATFORM) - 1U;
 
 	midr = hal_cpuGetMIDR();
@@ -233,7 +229,6 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	}
 
 	if (n > 0U) {
-		/* MISRA Rule 10.4: changed type by adding U*/
 		features[n - 2U] = '\0';
 	}
 	else {

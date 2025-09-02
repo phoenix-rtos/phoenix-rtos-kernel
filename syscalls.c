@@ -944,8 +944,7 @@ addr_t syscalls_va2pa(void *ustack)
 
 	GETFROMSTACK(ustack, void *, va, 0);
 
-	/* MISRA Rule 11.6: (unsigned int *) added x3*/
-	return (pmap_resolve(proc_current()->process->pmapp, (void *)(unsigned int *)((ptr_t)(unsigned int *)va & ~0xfffU)) & ~0xfffU) + ((ptr_t)(unsigned int *)va & 0xfffU);
+	return (pmap_resolve(proc_current()->process->pmapp, (void *)((ptr_t)va & ~0xfffU)) & ~0xfffU) + ((ptr_t)va & 0xfffU);
 }
 
 
@@ -1889,8 +1888,7 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 	void *retval;
 
 	if (n >= (int)(sizeof(syscalls) / sizeof(syscalls[0]))) {
-		/* MISRA Rule 11.6: (int *) added */
-		return (void *)(int *)-EINVAL;
+		return (void *)-EINVAL;
 	}
 
 	retval = ((void *(*)(char *))syscalls[n])(ustack);

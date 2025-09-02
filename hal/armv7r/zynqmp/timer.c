@@ -53,7 +53,6 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	spinlock_ctx_t sc;
 	hal_spinlockSet(&timer_common.sp, &sc);
 	/* Interval IRQ */
-	/* MISRA Rule 10.4: changed type by adding U */
 	if ((*(timer_common.ttc + isr) & 0x1U) != 0U) {
 		timer_common.jiffies += (time_t)timer_common.ticksPerFreq;
 	}
@@ -68,8 +67,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 static time_t hal_timerCyc2Us(time_t cyc)
 {
-	/* MISRA Rule 10.4: changed type by adding U */
-	return (cyc * 1000LL) / (timer_common.ticksPerFreq * hal_cpuGetCount());
+	return (cyc * 1000LL) / ((time_t)timer_common.ticksPerFreq * (time_t)hal_cpuGetCount());
 }
 
 
@@ -153,8 +151,7 @@ char *hal_timerFeatures(char *features, unsigned int len)
 
 void _hal_timerInit(u32 interval)
 {
-	/* MISRA Rule 11.6: Casted TTC0_BASE_ADDR to a pointer type*/
-	timer_common.ttc = (void *)(unsigned int *)TTC0_BASE_ADDR;
+	timer_common.ttc = (void *)TTC0_BASE_ADDR;
 	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
 	timer_common.jiffies = 0;

@@ -186,8 +186,7 @@ int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
-	/* MISRA Rule 11.6: Casted vaddr to a pointer type*/
-	return (addr_t)(unsigned int *)vaddr;
+	return (addr_t)vaddr;
 }
 
 
@@ -205,7 +204,6 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	}
 	rmask = pmap_map2region(map->id);
 
-	/* MISRA Rule 10.4: changed type by adding U*/
 	return ((pmap->regions & rmask) == 0U) ? 0 : 1;
 }
 
@@ -236,8 +234,7 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 
 	/* Returns region above basic kernel's .bss section */
 	*vaddr = (void *)&_end;
-	/* MISRA Rule 11.6: Casted top to a pointer type*/
-	*size = (((size_t)(unsigned int *)(*top) + SIZE_PAGE - 0x1U) & ~(SIZE_PAGE - 0x1U)) - (size_t)&_end;
+	*size = (((size_t)(*top) + SIZE_PAGE - 0x1U) & ~(SIZE_PAGE - 0x1U)) - (size_t)&_end;
 
 	return 0;
 }
@@ -261,7 +258,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	pmap->regions = (1UL << cnt) - 1U;
 
-	/* MISRA Rule 10.4: changed type by adding U*/
 	if (cnt == 0U) {
 		hal_spinlockCreate(&pmap_common.lock, "pmap");
 		pmap_common.mpu_enabled = 0;
@@ -298,8 +294,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	 * region and allow this region instead. */
 
 	/* Find kernel code region */
-	/* MISRA Rule 11.6: Added (unsigned it *) */
-	ikmap = syspage_mapAddrResolve((addr_t)(unsigned int *)(void *)_pmap_init);
+	ikmap = syspage_mapAddrResolve((addr_t)(void *)_pmap_init);
 	if (ikmap == NULL) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");
 		for (;;) {
@@ -308,7 +303,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	}
 
 	ikregion = pmap_map2region(ikmap->id);
-	/* MISRA Rule 10.4: changed type by adding U*/
 	if (ikregion == 0U) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map has no assigned region. Bad system config\n");
 		for (;;) {

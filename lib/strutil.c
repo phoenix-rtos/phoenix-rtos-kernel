@@ -17,16 +17,12 @@
 #include "vm/kmalloc.h"
 #include "lib/strutil.h"
 
-/* MISRA Rule 10.3: int c changed to char c to adhere */
 static char *lib_strrchr(char *s, char c)
 {
 	char *p = NULL;
 	char *i;
 
 	for (i = s; *i != '\0'; ++i) {
-		/* MISRA Rule 10.4: As this function compares to char, the input
-		 * cast can be safely performed
-		 */
 		if (*i == c) {
 			p = i;
 		}

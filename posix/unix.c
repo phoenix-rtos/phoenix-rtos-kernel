@@ -273,7 +273,7 @@ static unixsock_t *unixsock_get_remote(unixsock_t *s)
 	if (r != NULL) {
 		r->refs++;
 	}
-	proc_lockClear(&unix_common.lock);
+	(void)proc_lockClear(&unix_common.lock);
 
 	return r;
 }

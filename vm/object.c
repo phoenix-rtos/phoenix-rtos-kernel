@@ -136,7 +136,7 @@ vm_object_t *vm_objectRef(vm_object_t *o)
 
 int vm_objectPut(vm_object_t *o)
 {
-	int i;
+	unsigned int i;
 
 	if ((o == NULL) || (o == VM_OBJ_PHYSMEM)) {
 		return EOK;

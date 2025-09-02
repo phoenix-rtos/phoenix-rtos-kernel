@@ -251,8 +251,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 #ifdef NOMMU
 	if (o == VM_OBJ_PHYSMEM) {
-		/* MISRA Rule 11.6: (unsigned int *) added*/
-		return (void *)(unsigned int *)(ptr_t)offs;
+		return (void *)(ptr_t)offs;
 	}
 #endif
 
@@ -452,8 +451,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	ptr_t eAoffs;
 	int putEntry;
 
-	/* MISRA Rule 11.6: (unsigned int *) added*/
-	if (((size & (SIZE_PAGE - 1U)) != 0U) || (((ptr_t)(unsigned int *)vaddr & (SIZE_PAGE - 1U)) != 0U)) {
+	if (((size & (SIZE_PAGE - 1U)) != 0U) || (((ptr_t)vaddr & (SIZE_PAGE - 1U)) != 0U)) {
 		return -EINVAL;
 	}
 
@@ -475,14 +473,12 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		overlapStart = max((ptr_t)e->vaddr, (ptr_t)vaddr);
 		overlapEnd = min((ptr_t)e->vaddr + e->size, (ptr_t)vaddr + size);
 		overlapSize = (size_t)(overlapEnd - overlapStart);
-		/* MISRA Rule 11.6: (unsigned int *) added*/
-		overlapEOffset = (size_t)(overlapStart - (ptr_t)(unsigned int *)e->vaddr);
+		overlapEOffset = (size_t)(overlapStart - (ptr_t)e->vaddr);
 		eAoffs = (unsigned int)e->aoffs;
 
 		putEntry = 0;
 
-		/* MISRA Rule 11.6: (unsigned int *) added*/
-		if ((ptr_t)(unsigned int *)e->vaddr == overlapStart) {
+		if ((ptr_t)e->vaddr == overlapStart) {
 			if (e->size == overlapSize) {
 				putEntry = 1;
 			}
@@ -502,8 +498,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 				map_augment(&e->linkage);
 			}
 		}
-		/* MISRA Rule 11.6: (unsigned int *) added*/
-		else if ((ptr_t)(unsigned int *)(e->vaddr + e->size) == overlapEnd) {
+		else if ((ptr_t)(e->vaddr + e->size) == overlapEnd) {
 			e->size -= overlapSize;
 			e->rmaxgap += overlapSize;
 
@@ -533,9 +528,8 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		/* TODO: Offset s 64 bits in size and we perform cast to int check if we don't lose info */
 		amap_putanons(e->amap, (int)eAoffs + (int)overlapEOffset, (int)overlapSize);
 
-		/* MISRA Rule 11.6: (unsigned int *) added x2*/
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
-		(void)pmap_remove(&map->pmap, (void *)(unsigned int *)overlapStart, (void *)(unsigned int *)overlapEnd);
+		(void)pmap_remove(&map->pmap, (void *)overlapStart, (void *)overlapEnd);
 
 		if (putEntry != 0) {
 			_entry_put(map, e);
@@ -637,9 +631,8 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 		if (_map_force(map, e, w, prot) != 0) {
 			amap_putanons(e->amap, e->aoffs, w - vaddr);
 
-			/* MISRA Rule 11.6: (unsigned int *) added x2 */
 			/* MISRA Rule 17.7: Unused returned value, (void) added */
-			(void)pmap_remove(&map->pmap, vaddr, (void *)(unsigned int *)((ptr_t)(unsigned int *)w + SIZE_PAGE));
+			(void)pmap_remove(&map->pmap, vaddr, (void *)((ptr_t)w + SIZE_PAGE));
 
 			_entry_put(map, e);
 			return NULL;
@@ -873,8 +866,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 	map_entry_t *e, *buf = NULL, *prev;
 	map_entry_t t;
 
-	/* MISRA Rule 11.6: (unsigned int *) added */
-	if (((((ptr_t)(unsigned int *)vaddr) & (SIZE_PAGE - 1U)) != 0U) || (len == 0U) || ((len & (SIZE_PAGE - 1U)) != 0U)) {
+	if (((((ptr_t)vaddr) & (SIZE_PAGE - 1U)) != 0U) || (len == 0U) || ((len & (SIZE_PAGE - 1U)) != 0U)) {
 		return -EINVAL;
 	}
 
@@ -1419,8 +1411,7 @@ void vm_mapinfo(meminfo_t *info)
 				continue;
 			}
 
-			/* MISRA Rule 11.6: (unsigned int *) added x2 */
-			total = (ptr_t)(unsigned int *)map->stop - (ptr_t)(unsigned int *)map->start;
+			total = (ptr_t)map->stop - (ptr_t)map->start;
 			if (map->tree.root == NULL) {
 				free = total; /* Map is empty */
 			}
@@ -1433,16 +1424,14 @@ void vm_mapinfo(meminfo_t *info)
 			info->maps.total += total;
 			info->maps.free += free;
 
-			/* MISRA Rule 10.4: (int)size -> size*/
 			if (size < info->maps.mapsz) {
 				info->maps.map[size].id = size;
 				info->maps.map[size].free = free;
 				info->maps.map[size].alloc = total - free;
-				/* MISRA Rule 11.6: (usigned int *) added in lines 1335-1348*/
-				info->maps.map[size].pstart = (addr_t)(unsigned int *)map->pmap.start;
-				info->maps.map[size].pend = (addr_t)(unsigned int *)map->pmap.end;
-				info->maps.map[size].vstart = (ptr_t)(unsigned int *)map->start;
-				info->maps.map[size].vend = (ptr_t)(unsigned int *)map->stop;
+				info->maps.map[size].pstart = (addr_t)map->pmap.start;
+				info->maps.map[size].pend = (addr_t)map->pmap.end;
+				info->maps.map[size].vstart = (ptr_t)map->start;
+				info->maps.map[size].vend = (ptr_t)map->stop;
 				spMap = syspage_mapIdResolve((unsigned int)size);
 				if ((spMap != NULL) && (spMap->name != NULL)) {
 					/* MISRA Rule 17.7: Unused returned value, (void) added */
@@ -1455,7 +1444,6 @@ void vm_mapinfo(meminfo_t *info)
 			}
 		}
 
-		/* MISRA Rule 10.4: (int)size -> size*/
 		info->maps.mapsz = size;
 	}
 }
@@ -1548,13 +1536,12 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	map = syspage_mapList();
 
 	do {
-		/* MISRA Rule 11.6: Added (unsigned int *) in lines 1451 x2, 1452, 1453, 1455 and 1456*/
-		if (kmap->pmap.start >= (void *)(unsigned int *)map->start && kmap->pmap.end <= (void *)(unsigned int *)map->end) {
-			kmap->pmap.start = (void *)(unsigned int *)map->start;
-			kmap->pmap.end = (void *)(unsigned int *)map->end;
+		if (kmap->pmap.start >= (void *)map->start && kmap->pmap.end <= (void *)map->end) {
+			kmap->pmap.start = (void *)map->start;
+			kmap->pmap.end = (void *)map->end;
 
-			kmap->start = (void *)(unsigned int *)map->start;
-			kmap->stop = (void *)(unsigned int *)map->end;
+			kmap->start = (void *)map->start;
+			kmap->stop = (void *)map->end;
 
 			map_common.maps[id] = kmap;
 		}
@@ -1566,8 +1553,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 			}
 
 			map_common.maps[id] = (*bss);
-			/* MISRA Rule 11.6: Added (unsigned int *) x2 */
-			if (vm_mapCreate(map_common.maps[id], (void *)(unsigned int *)map->start, (void *)(unsigned int *)map->end) < 0) {
+			if (vm_mapCreate(map_common.maps[id], (void *)map->start, (void *)map->end) < 0) {
 				return -ENOMEM;
 			}
 
