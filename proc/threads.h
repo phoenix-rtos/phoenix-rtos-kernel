@@ -139,7 +139,7 @@ extern int proc_threadJoin(unsigned int id);
 extern void proc_threadDestroy(thread_t *t);
 
 
-extern void proc_threadsDestroy(thread_t **threads);
+extern void proc_threadsDestroy(thread_t **threads, const thread_t *except);
 
 
 extern int proc_waitpid(int pid, int *stat, int options);
@@ -152,6 +152,9 @@ extern void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_
 
 
 extern int proc_threadsList(int n, threadinfo_t *info);
+
+
+extern int proc_threadsOther(thread_t *t);
 
 
 extern void proc_zombie(process_t *proc);

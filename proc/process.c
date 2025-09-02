@@ -234,7 +234,7 @@ int proc_start(void (*initthr)(void *), void *arg, const char *path)
 
 void proc_kill(process_t *proc)
 {
-	proc_threadsDestroy(&proc->threads);
+	proc_threadsDestroy(&proc->threads, NULL);
 }
 
 
@@ -1555,6 +1555,14 @@ static int process_execve(thread_t *current)
 
 	/* The old user stack is no longer valid */
 	current->ustack = NULL;
+
+	/* Terminate other threads */
+	proc_threadsDestroy(&current->process->threads, current);
+
+	/* Wait for other threads termination before changing memory maps */
+	while (proc_threadsOther(current) != 0) {
+		proc_join(-1, 0);
+	}
 
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
