@@ -1177,7 +1177,7 @@ int unix_setsockopt(unsigned socket, int level, int optname, const void *optval,
 		switch (optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && optlen == sizeof(int)) {
-					err = unix_bufferSetSize(s, *((size_t *)optval));
+					err = unix_bufferSetSize(s, *((const size_t *)optval));
 				}
 				else {
 					err = -EINVAL;

@@ -300,7 +300,7 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 		file->id = 0;
 	}
 
-	return proc_portLookup((char *)name, file, dev);
+	return proc_portLookup(name, file, dev);
 }
 
 
@@ -403,7 +403,7 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
 	msg->i.size = hal_strlen(name) + 1U;
-	msg->i.data = (char *)name;
+	msg->i.data = (const void *)name;
 
 	err = proc_send(dir.port, msg);
 
@@ -432,7 +432,7 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
 	msg->i.size = hal_strlen(name) + 1U;
-	msg->i.data = (char *)name;
+	msg->i.data = name;
 
 	err = proc_send(dir.port, msg);
 

@@ -213,7 +213,7 @@ ssize_t inet_sendto(unsigned int socket, const void *message, size_t length, uns
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmSend;
 	smi->send.flags = flags;
-	msg.i.data = (void *)message;
+	msg.i.data = (const void *)message;
 	msg.i.size = length;
 
 	return sockdestcall(socket, &msg, dest_addr, dest_len);
@@ -311,7 +311,7 @@ int inet_setsockopt(unsigned int socket, int level, int optname, const void *opt
 	msg.type = sockmSetOpt;
 	smi->opt.level = level;
 	smi->opt.optname = optname;
-	msg.i.data = (void *)optval;
+	msg.i.data = optval;
 	msg.i.size = optlen;
 
 	return sockcall(socket, &msg);

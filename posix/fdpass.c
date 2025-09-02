@@ -20,7 +20,9 @@
 #define CMSG_SPACE(n)       (sizeof(struct cmsghdr) + CMSG_ALIGN(n))
 #define CMSG_LEN(n)         (sizeof(struct cmsghdr) + (n))
 #define CMSG_DATA(c)        ((unsigned char *)((struct cmsghdr *)(c) + 1))
+#define CMSG_DATA_CONST(c)        ((const unsigned char *)((const struct cmsghdr *)(c) + 1))
 #define CMSG_FIRSTHDR(d, l) ((l) < sizeof(struct cmsghdr) ? NULL : (struct cmsghdr *)(d))
+#define CMSG_FIRSTHDR_CONST(d, l) ((l) < sizeof(struct cmsghdr) ? NULL : (const struct cmsghdr *)(d))
 
 #define CMSG_NXTHDR(d, l, c) \
 	({ \
@@ -29,6 +31,14 @@
 		char *_e = (char *)(d) + (l); \
 		(_n > _e ? (struct cmsghdr *)NULL : (struct cmsghdr *)_n); \
 	})
+
+#define CMSG_NXTHDR_CONST(d, l, c) \
+	({ \
+		const char *_n = (const char *)c + CMSG_SPACE(c->cmsg_len); \
+		const char *_e = (const char *)(d) + (l); \
+		(_n > _e ? NULL : (const struct cmsghdr *)_n); \
+	})
+
 
 
 #define FDPACK_PUSH(p, of, fl) \
@@ -57,8 +67,8 @@
 int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 {
 	fdpack_t *pack;
-	struct cmsghdr *cmsg;
-	unsigned char *cmsg_data, *cmsg_end;
+	const struct cmsghdr *cmsg;
+	const unsigned char *cmsg_data, *cmsg_end;
 	open_file_t *file;
 	unsigned int cnt, tot_cnt;
 	int fd, err;
@@ -68,10 +78,11 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	}
 
 	tot_cnt = 0;
+	cmsg = CMSG_NXTHDR_CONST(control, controllen, cmsg);
 	/* calculate total number of file descriptors */
-	for (cmsg = CMSG_FIRSTHDR(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
-		cmsg_data = CMSG_DATA(cmsg);
-		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
+	for (cmsg = CMSG_FIRSTHDR_CONST(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR_CONST(control, controllen, cmsg)) {
+		cmsg_data = CMSG_DATA_CONST(cmsg);
+		cmsg_end = (const unsigned char *)cmsg + cmsg->cmsg_len;
 		cnt = ((addr_t)cmsg_end - (addr_t)cmsg_data) / sizeof(int);
 
 		if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS) {
@@ -96,9 +107,9 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	LIST_ADD(packs, pack);
 
 	/* reference and pack file descriptors */
-	for (cmsg = CMSG_FIRSTHDR(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR(control, controllen, cmsg)) {
-		cmsg_data = CMSG_DATA(cmsg);
-		cmsg_end = (unsigned char *)cmsg + cmsg->cmsg_len;
+	for (cmsg = CMSG_FIRSTHDR_CONST(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR_CONST(control, controllen, cmsg)) {
+		cmsg_data = CMSG_DATA_CONST(cmsg);
+		cmsg_end = (const unsigned char *)cmsg + cmsg->cmsg_len;
 		cnt = ((addr_t)cmsg_end - (addr_t)cmsg_data) / sizeof(int);
 
 		while (cnt != 0U) {
