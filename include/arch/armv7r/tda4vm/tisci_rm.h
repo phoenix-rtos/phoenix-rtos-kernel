@@ -48,11 +48,18 @@
 #define TISCI_MSG_RM_RING_CFG   (0x1110U)
 #define TISCI_MSG_RM_PROXY_CFG	(0x1300U)
 
+/** TISCI RM PSIL messages */
+#define TISCI_MSG_RM_PSIL_PAIR     (0x1280U)
+#define TISCI_MSG_RM_PSIL_UNPAIR   (0x1281U)
+#define TISCI_MSG_RM_PSIL_READ     (0x1282U)
+#define TISCI_MSG_RM_PSIL_WRITE    (0x1283U)
+
 /* ========================================================================== */
 /*                           DeviceID definitions                             */
 /* ========================================================================== */
 #define J721E_DEV_MCU_NAVSS0_PROXY0		(234U)
 #define	J721E_DEV_MCU_NAVSS0_RINGACC0	(235U)
+#define J721E_DEV_MCU_NAVSS0			(232U)
 
 #define TISCI_MSG_VALUE_RM_UNUSED_SECONDARY_HOST (0xFFu)
 
@@ -215,6 +222,11 @@
  */
 #define TISCI_MSG_VALUE_RM_MON_MODE_STARVATION     (4U)
 
+
+/* ============================================= */
+/*        TISCI RM RA message structures         */
+/* ============================================= */
+
 /** Configures a Navigator Subsystem ring */
 struct tisci_msg_rm_ring_cfg_req {
     struct tisci_header hdr;
@@ -285,6 +297,65 @@ struct tisci_msg_rm_get_resource_range_resp {
     unsigned short range_num_sec;
 } __attribute__((__packed__));
 
+
+/* ============================================= */
+/*        TISCI RM PSIL message structures       */
+/* ============================================= */
+
+/** Pairs a PSI-L source thread to a destination thread */
+struct tisci_msg_rm_psil_pair_req {
+    struct tisci_header    hdr;
+    unsigned int	nav_id;
+    unsigned int	src_thread;
+    unsigned int	dst_thread;
+} __attribute__((__packed__));
+
+struct tisci_msg_rm_psil_pair_resp {
+    struct tisci_header hdr;
+} __attribute__((__packed__));
+
+/** Unpairs a PSI-L source thread from a destination thread */
+struct tisci_msg_rm_psil_unpair_req {
+    struct tisci_header    hdr;
+    unsigned int	nav_id;
+    unsigned int	src_thread;
+    unsigned int	dst_thread;
+} __attribute__((__packed__));
+
+struct tisci_msg_rm_psil_unpair_resp {
+    struct tisci_header hdr;
+} __attribute__((__packed__));
+
+/** Reads the specified thread real-time configuration register from a
+ *  specified PSI-L thread using the PSI-L configuration proxy.*/
+struct tisci_msg_rm_psil_read_req {
+    struct tisci_header    hdr;
+    unsigned int	valid_params;
+    unsigned short	nav_id;
+    unsigned short	thread;
+    unsigned short	taddr;
+} __attribute__((__packed__));
+
+struct tisci_msg_rm_psil_read_resp {
+    struct tisci_header    hdr;
+    unsigned int	data;
+} __attribute__((__packed__));
+
+
+/** Write to the specified thread real-time configuration register in a
+ *  specified PSI-L thread using the PSI-L configuration proxy. */
+struct tisci_msg_rm_psil_write_req {
+    struct tisci_header    hdr;
+    unsigned int	valid_params;
+    unsigned short	nav_id;
+    unsigned short	thread;
+    unsigned short	taddr;
+    unsigned int	data;
+} __attribute__((__packed__));
+
+struct tisci_msg_rm_psil_write_resp {
+    struct tisci_header hdr;
+} __attribute__((__packed__));
 
 #endif /* RM_TISCI_RA_H */
 

@@ -51,7 +51,7 @@
 #include "hal/interrupts.h"
 #include "include/arch/armv7r/tda4vm/tisci_protocol.h"
 #include "include/arch/armv7r/tda4vm/tisci_pm_clock.h"
-#include "include/arch/armv7r/tda4vm/tisci_rm_ra.h"
+#include "include/arch/armv7r/tda4vm/tisci_rm.h"
 
 
 /* ========================================================================== */
@@ -294,6 +294,19 @@ int Tisci_ra_alloc(u32 *addrLo, u8 index, u32 count);
  */
 int Tisci_prx_alloc(u16 proxyInd);
 
+/** TISCI_MSG_RM_PSIL_PAIR/UNPAIR
+ *  For TX channel: srcThread is UDMA channel, destThread is peripheral
+ *  For RX channel: srcThread is peripheral, UDMA channel is destThread
+ */
+int Tisci_rm_psil_pair(u16 srcThread, u16 dstThread);
+int Tisci_rm_psil_unpair(u16 srcThread, u16 dstThread);
+
+/** TISCI_MSG_RM_PSIL_WRITE/READ
+ *  Write a PSI-L thread’s configuration registers via a PSI-L configuration proxy
+ */
+int Tisci_rm_psil_write(u16 thread, u16 taddr, u32 data);
+int Tisci_rm_psil_read(u16 thread, u16 taddr, u32* data);
+
 /** TISCI_MSG_RM_GET_RESOURCE_RANGE
  *  return value will be composed from all received values
  *  range_start << 48
@@ -302,5 +315,11 @@ int Tisci_prx_alloc(u16 proxyInd);
  *  range_sec_num << 0  
  */
 int Tisci_rm_resource_range(u8 type, u16 subtype, u64 *resp);
+
+
+/** TISCI_MSG_RM_UDMAP_TX_CH_CFG
+ * 	
+ *  TODO:
+ */
 
 #endif	/**  SCICLIENT_H */
