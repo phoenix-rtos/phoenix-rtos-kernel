@@ -158,7 +158,7 @@ extern void hal_cleanDCache(ptr_t start, size_t len);
 /* stack management */
 
 
-extern void hal_stackPutArgs(void **stack, size_t argc, const struct stackArg *argv);
+extern void hal_stackPutArgs(void **stackp, size_t argc, const struct stackArg *argv);
 
 /* parasoft-end-suppress MISRAC2012-RULE_1_5 MISRAC2012-RULE_8_8 */
 #endif

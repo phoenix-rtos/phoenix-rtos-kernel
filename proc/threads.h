@@ -147,7 +147,7 @@ extern void proc_threadDestroy(thread_t *t);
 extern void proc_threadsDestroy(thread_t **threads);
 
 
-extern int proc_waitpid(int pid, int *stat, int options);
+extern int proc_waitpid(int pid, int *status, int options);
 
 
 extern int proc_join(int tid, time_t timeout);

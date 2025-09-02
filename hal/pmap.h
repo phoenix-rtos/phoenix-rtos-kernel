@@ -66,6 +66,6 @@ extern int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t
 extern int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top);
 
 
-extern void _pmap_init(pmap_t *pmap, void **start, void **end);
+extern void _pmap_init(pmap_t *pmap, void **vstart, void **vend);
 
 #endif

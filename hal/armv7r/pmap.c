@@ -172,13 +172,13 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, int attrs, page_t *alloc)
 {
 	return 0;
 }
 
 
-int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
+int pmap_remove(pmap_t *pmap, void *vaddr, void *vend)
 {
 	return 0;
 }

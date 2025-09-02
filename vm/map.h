@@ -82,7 +82,7 @@ extern void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot
 extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
 
 
-extern int vm_mapForce(vm_map_t *map, void *vaddr, unsigned prot);
+extern int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot);
 
 
 extern int vm_mapFlags(vm_map_t *map, void *vaddr);
@@ -109,7 +109,7 @@ extern unsigned vm_flagsToAttr(unsigned flags);
 extern int vm_mapCreate(vm_map_t *map, void *start, void *stop);
 
 
-extern int vm_mapCopy(struct _process_t *process, vm_map_t *dst, vm_map_t *src);
+extern int vm_mapCopy(struct _process_t *proc, vm_map_t *dst, vm_map_t *src);
 
 
 extern void vm_mapDestroy(struct _process_t *p, vm_map_t *map);
@@ -130,7 +130,7 @@ extern vm_map_t *vm_getSharedMap(int map);
 extern int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);
 
 
-extern int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **start, void **end);
+extern int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **bss, void **top);
 
 
 #endif

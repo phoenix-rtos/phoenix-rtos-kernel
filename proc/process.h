@@ -82,10 +82,10 @@ static inline int process_getPid(const process_t *process)
 extern process_t *proc_find(int pid);
 
 
-extern int proc_put(process_t *proc);
+extern int proc_put(process_t *p);
 
 
-extern void proc_get(process_t *proc);
+extern void proc_get(process_t *p);
 
 
 extern void proc_kill(process_t *proc);
@@ -127,7 +127,7 @@ extern void proc_exit(int code);
 extern int _process_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
-extern void process_dumpException(unsigned int n, exc_context_t *exc);
+extern void process_dumpException(unsigned int n, exc_context_t *ctx);
 
 
 extern int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map);

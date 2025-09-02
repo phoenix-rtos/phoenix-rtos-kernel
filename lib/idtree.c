@@ -131,23 +131,23 @@ int lib_idtreeId(idnode_t *node)
 }
 
 
-int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
+int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int minimum)
 {
 	idnode_t *f;
 
-	if (min > MAX_ID) {
+	if (minimum > MAX_ID) {
 		return -1;
 	}
 
-	n->id = min;
+	n->id = minimum;
 
-	f = lib_idtreeFind(tree, min);
+	f = lib_idtreeFind(tree, minimum);
 	if (f != NULL) {
-		/* Go back until some space > min is found */
+		/* Go back until some space > minimum is found */
 		while (f->rmaxgap == 0) {
 			f = lib_treeof(idnode_t, linkage, f->linkage.parent);
 			if (f == NULL) {
-				/* Only id < min are available, fail */
+				/* Only id < minimum are available, fail */
 				return -1;
 			}
 		}
@@ -155,7 +155,7 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 		/* Got rmaxgap now */
 		n->id = f->id + 1;
 
-		/* Go right at least once so id > min */
+		/* Go right at least once so id > minimum */
 		f = lib_treeof(idnode_t, linkage, f->linkage.right);
 
 		/* Find minimal free space */

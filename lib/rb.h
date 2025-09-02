@@ -25,7 +25,8 @@
 
 
 typedef enum _rbcolor_t {
-	RB_RED, RB_BLACK
+	RB_RED,
+	RB_BLACK
 } rbcolor_t;
 
 
@@ -56,10 +57,10 @@ typedef struct _rbtree_t {
 extern void lib_rbInit(rbtree_t *tree, rbcomp_t compare, rbaugment_t augment);
 
 
-extern int lib_rbInsert(rbtree_t *tree, rbnode_t *node);
+extern int lib_rbInsert(rbtree_t *tree, rbnode_t *z);
 
 
-extern void lib_rbRemove(rbtree_t *tree, rbnode_t *node);
+extern void lib_rbRemove(rbtree_t *tree, rbnode_t *z);
 
 
 extern rbnode_t *lib_rbMinimum(rbnode_t *node);

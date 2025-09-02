@@ -442,13 +442,15 @@ static void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, uns
 
 	(*depth)++;
 	if ((node->left != NULL) || (node->right != NULL)) {
-
+		/* FIXME: dead MISRA Rule 17.2*/
+		/* parasoft-begin-suppress MISRAC2012-RULE_17_2 "Dead code, used only for debug (for testing)" */
 		if (*depth < RB_DUMP_DEPTH) {
 			d[*depth] = 1;
 			lib_rbDumpEx(node->left, dump, depth, d);
 			d[*depth] = 0;
 			lib_rbDumpEx(node->right, dump, depth, d);
 		}
+		/* parasoft-end-suppress MISRAC2012-RULE_17_2 */
 		else {
 			for (i = 0; i < *depth; i++) {
 				(void)lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');

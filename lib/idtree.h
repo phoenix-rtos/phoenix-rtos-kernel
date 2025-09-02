@@ -57,7 +57,7 @@ void lib_idtreeRemove(idtree_t *tree, idnode_t *node);
 int lib_idtreeId(idnode_t *node);
 
 
-int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min);
+int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int minimum);
 
 
 void lib_idtreeDump(rbnode_t *node);

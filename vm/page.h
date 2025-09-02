@@ -36,7 +36,7 @@ extern void _page_showPages(void);
 extern int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attr);
 
 
-extern int _page_sbrk(pmap_t *pmap, void **bss, void **top);
+extern int _page_sbrk(pmap_t *pmap, void **start, void **end);
 
 
 extern void vm_pageGetStats(size_t *freesz);

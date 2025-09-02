@@ -227,10 +227,10 @@ extern int unix_getsockopt(unsigned socket, int level, int optname, void *optval
 extern int unix_listen(unsigned socket, int backlog);
 
 
-extern ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len);
+extern ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len);
 
 
-extern ssize_t unix_sendto(unsigned socket, const void *message, size_t length, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+extern ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
 extern ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, unsigned int flags);

@@ -419,13 +419,13 @@ int perf_finish(void)
  */
 
 
-static void _threads_updateWakeup(time_t now, thread_t *min)
+static void _threads_updateWakeup(time_t now, thread_t *minimum)
 {
 	thread_t *t;
 	time_t wakeup;
 
-	if (min != NULL) {
-		t = min;
+	if (minimum != NULL) {
+		t = minimum;
 	}
 	else {
 		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
@@ -473,7 +473,7 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		}
 
 		_proc_threadDequeue(t);
-				hal_cpuSetReturnValue(t->context, (void *)-ETIME);
+		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
 
 	_threads_updateWakeup(now, t);

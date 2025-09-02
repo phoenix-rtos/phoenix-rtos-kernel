@@ -13,6 +13,7 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress MISRAC2012-RULE_17_1 "stdarg.h required for custom functions that are like printf" */
 #include <stdarg.h>
 #include "assert.h"
 #include "printf.h"
@@ -31,6 +32,8 @@ void lib_assertPanic(const char *func, int line, const char *fmt, ...)
 	(void)lib_vprintf(fmt, ap);
 	va_end(ap);
 	lib_putch('\n');
+
+	/* parasoft-end-suppress MISRAC2012-RULE_17_1 */
 
 #ifdef NDEBUG
 	hal_cpuReboot();

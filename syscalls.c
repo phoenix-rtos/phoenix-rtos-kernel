@@ -244,17 +244,17 @@ int syscalls_sys_exit(void *ustack)
 int syscalls_sys_waitpid(void *ustack)
 {
 	process_t *proc = proc_current()->process;
-	int pid, *stat, options;
+	int pid, *status, options;
 
 	GETFROMSTACK(ustack, int, pid, 0);
-	GETFROMSTACK(ustack, int *, stat, 1);
+	GETFROMSTACK(ustack, int *, status, 1);
 	GETFROMSTACK(ustack, int, options, 2);
 
-	if ((stat != NULL) && (vm_mapBelongs(proc, stat, sizeof(*stat)) < 0)) {
+	if ((status != NULL) && (vm_mapBelongs(proc, status, sizeof(*status)) < 0)) {
 		return -EFAULT;
 	}
 
-	return posix_waitpid(pid, stat, (unsigned int)options);
+	return posix_waitpid(pid, status, (unsigned int)options);
 }
 
 

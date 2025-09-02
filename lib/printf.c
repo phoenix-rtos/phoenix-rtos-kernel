@@ -14,6 +14,9 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress MISRAC2012-RULE_17_1 "stdarg.h required for custom functions that are like printf" */
+
+
 #include <stdarg.h>
 
 #include "hal/hal.h"
@@ -569,3 +572,5 @@ int lib_sprintf(char *out, const char *format, ...)
 
 	return ret;
 }
+
+/* parasoft-end-suppress MISRAC2012-RULE_17_1 */
