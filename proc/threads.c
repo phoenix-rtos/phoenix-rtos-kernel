@@ -1002,16 +1002,18 @@ void proc_threadDestroy(thread_t *t)
 }
 
 
-void proc_threadsDestroy(thread_t **threads)
+void proc_threadsDestroyExcept(thread_t **threads, thread_t *except)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if ((t = *threads) != NULL) {
-		do
-			_proc_threadExit(t);
-		while ((t = t->procnext) != *threads);
+		do {
+			if (t != except) {
+				_proc_threadExit(t);
+			}
+		} while ((t = t->procnext) != *threads);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
