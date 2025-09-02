@@ -802,6 +802,146 @@ int Tisci_prx_alloc(u16 proxyInd)
 	return EOK;
 }
 
+int Tisci_rm_psil_pair(u16 srcThread, u16 dstThread)
+{
+	struct tisci_msg_rm_psil_pair_req msgReq;
+	hal_memset(&msgReq, 0, sizeof(msgReq));
+	msgReq.nav_id = J721E_DEV_MCU_NAVSS0;
+	msgReq.src_thread = srcThread;
+	msgReq.dst_thread = dstThread;
+
+	const Sciclient_ReqPrm_t pReq = 
+	{
+		TISCI_MSG_RM_PSIL_PAIR,
+		TISCI_MSG_FLAG_AOP,
+		(u8 *)&msgReq,
+		sizeof(msgReq),
+		0
+	};      
+
+	struct tisci_msg_rm_psil_pair_resp msgResp;
+	hal_memset(&msgResp, 0, sizeof(msgResp));
+	Sciclient_RespPrm_t pResp = 
+	{
+		0,
+		(u8 *)&msgResp,
+		sizeof(msgResp),
+		SCICLIENT_SERVICE_WAIT_FOREVER
+	};  
+
+	if (Sciclient_request_service(&pReq, &pResp)) {
+		return -EAGAIN;
+	}   
+
+	return EOK;
+}
+
+int Tisci_rm_psil_unpair(u16 srcThread, u16 dstThread)
+{
+	struct tisci_msg_rm_psil_unpair_req msgReq;
+	hal_memset(&msgReq, 0, sizeof(msgReq));
+	msgReq.nav_id = J721E_DEV_MCU_NAVSS0;
+	msgReq.src_thread = srcThread;
+	msgReq.dst_thread = dstThread;
+
+	const Sciclient_ReqPrm_t pReq = 
+	{
+		TISCI_MSG_RM_PSIL_UNPAIR,
+		TISCI_MSG_FLAG_AOP,
+		(u8 *)&msgReq,
+		sizeof(msgReq),
+		0
+	};      
+
+	struct tisci_msg_rm_psil_unpair_resp msgResp;
+	hal_memset(&msgResp, 0, sizeof(msgResp));
+	Sciclient_RespPrm_t pResp = 
+	{
+		0,
+		(u8 *)&msgResp,
+		sizeof(msgResp),
+		SCICLIENT_SERVICE_WAIT_FOREVER
+	};  
+
+	if (Sciclient_request_service(&pReq, &pResp)) {
+		return -EAGAIN;
+	}   
+
+	return EOK;
+}
+
+int Tisci_rm_psil_write(u16 thread, u16 taddr, u32 data)
+{
+	struct tisci_msg_rm_psil_write_req msgReq;
+	hal_memset(&msgReq, 0, sizeof(msgReq));
+	msgReq.nav_id = J721E_DEV_MCU_NAVSS0;
+	msgReq.thread = thread;
+	msgReq.taddr = taddr;
+	msgReq.data = data;
+
+	const Sciclient_ReqPrm_t pReq = 
+	{
+		TISCI_MSG_RM_PSIL_WRITE,
+		TISCI_MSG_FLAG_AOP,
+		(u8 *)&msgReq,
+		sizeof(msgReq),
+		0
+	};      
+
+	struct tisci_msg_rm_psil_write_resp msgResp;
+	hal_memset(&msgResp, 0, sizeof(msgResp));
+	Sciclient_RespPrm_t pResp = 
+	{
+		0,
+		(u8 *)&msgResp,
+		sizeof(msgResp),
+		SCICLIENT_SERVICE_WAIT_FOREVER
+	};  
+
+	if (Sciclient_request_service(&pReq, &pResp)) {
+		return -EAGAIN;
+	}   
+
+	return EOK;
+}
+
+int Tisci_rm_psil_read(u16 thread, u16 taddr, u32* data)
+{
+	struct tisci_msg_rm_psil_read_req msgReq;
+	hal_memset(&msgReq, 0, sizeof(msgReq));
+	msgReq.nav_id = J721E_DEV_MCU_NAVSS0;
+	msgReq.thread = thread;
+	msgReq.taddr = taddr;
+
+	const Sciclient_ReqPrm_t pReq = 
+	{
+		TISCI_MSG_RM_PSIL_WRITE,
+		TISCI_MSG_FLAG_AOP,
+		(u8 *)&msgReq,
+		sizeof(msgReq),
+		0
+	};      
+
+	struct tisci_msg_rm_psil_read_resp msgResp;
+	hal_memset(&msgResp, 0, sizeof(msgResp));
+	Sciclient_RespPrm_t pResp = 
+	{
+		0,
+		(u8 *)&msgResp,
+		sizeof(msgResp),
+		SCICLIENT_SERVICE_WAIT_FOREVER
+	};  
+
+	if (Sciclient_request_service(&pReq, &pResp)) {
+		return -EAGAIN;
+	}   
+
+	*data = msgResp.data;
+
+	return EOK;
+}
+
+
 int Tisci_rm_resource_range(u8 type, u16 subtype, u64 *resp)
 {
 	u64 data;
