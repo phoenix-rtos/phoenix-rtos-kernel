@@ -176,7 +176,7 @@ typedef struct {
 
 
 #define ELF32_R_SYM(info)             ((info)>>8)
-#define ELF32_R_TYPE(info)            ((unsigned char)(info))
+#define ELF32_R_TYPE(info)            ((int)(info))
 #define ELF32_R_INFO(sym, type)       (((sym)<<8)+(unsigned char)(type))
 
 

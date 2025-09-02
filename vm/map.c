@@ -1571,7 +1571,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 					return -ENOMEM;
 				}
 
-				entry->vaddr = (void *)round_page((long)sysEntry->start);
+				entry->vaddr = (void *)round_page(sysEntry->start);
 				entry->size = round_page(sysEntry->end - sysEntry->start);
 				entry->object = kernel;
 				entry->offs = -1;
@@ -1659,7 +1659,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 			break;
 		}
 
-		e->vaddr = (void *)round_page((long)vaddr);
+		e->vaddr = (void *)round_page((unsigned int)vaddr);
 		e->size = round_page(size);
 		e->object = kernel;
 		e->offs = -1;

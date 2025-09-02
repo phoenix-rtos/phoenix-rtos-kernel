@@ -106,7 +106,7 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 	hal_cpuDisableInterrupts();
 
-	hal_exceptionsDumpContext(buff, ctx, n);
+	hal_exceptionsDumpContext(buff, ctx, (int)n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
 #ifdef NDEBUG
@@ -160,14 +160,14 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		}
 	}
 	else {
-		return PROT_NONE;
+		return (int)PROT_NONE;
 	}
 
 	if (status == EXC_PERM_SECTION || status == EXC_PERM_PAGE) {
 		prot |= PROT_USER;
 	}
 
-	return prot;
+	return (int)prot;
 }
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)

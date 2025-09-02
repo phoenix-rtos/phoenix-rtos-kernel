@@ -120,7 +120,7 @@ static int _kmalloc_addZone(u8 hdridx, u8 idx)
 	}
 
 	/* Add new zone */
-	if (_vm_zoneCreate(nz, 0x1UL << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), (unsigned int)SIZE_PAGE / (0x1UL << idx))) < 0U) {
+	if (_vm_zoneCreate(nz, 0x1UL << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), SIZE_PAGE / (0x1UL << idx))) < 0) {
 		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 125, 130*/
 		(void)_kmalloc_free(hdridx, nz);
 		return -ENOMEM;

@@ -136,10 +136,9 @@ static void _perf_event(thread_t *t, int type)
 		return;
 	}
 
-	ev.type = type;
-	/* TBD_Julia Rzutowanie na unsigned char działa, ale czy można + przypadek poniżej?*/
+	ev.type = (unsigned)type;
 
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
+	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
 	threads_common.perfLastTimestamp = now;
 	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
@@ -188,7 +187,7 @@ static void _perf_begin(thread_t *t)
 	ev.pid = t->process != NULL ? perf_idpack((unsigned int)process_getPid(t->process)) : -1;
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // TBD_Julia Jak w linii 140
+	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -212,7 +211,7 @@ static void perf_end(thread_t *t)
 	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // TBD_Julia Jak w linii 140
+	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -239,8 +238,7 @@ void perf_fork(process_t *p)
 	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;
-	// TBD_Julia ten błąd czasem potrafi zniknąć (podczas edycji), jak w linii 140
+	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -266,7 +264,7 @@ void perf_kill(process_t *p)
 	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // TBD_Julia Jak w linii 140
+	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -297,7 +295,7 @@ void perf_exec(process_t *p, char *path)
 	ev.path[plen] = '\0';
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = now - threads_common.perfLastTimestamp;  // TBD_Julia Jak w linii 140
+	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -822,7 +820,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->stick = 0;
 	t->utick = 0;
 	t->priorityBase = priority;
-	// TBD_Julia można zrzutować na unsigned char? + poniżej
 	t->priority = priority;
 	t->cpuTime = 0;
 	t->maxWait = 0;

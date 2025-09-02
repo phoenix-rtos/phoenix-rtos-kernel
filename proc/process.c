@@ -261,7 +261,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	char buff[SIZE_CTXDUMP];
 	int len;
 
-	hal_exceptionsDumpContext(buff, ctx, n);
+	hal_exceptionsDumpContext(buff, ctx, (int)n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
 	/* MISRAC2012-RULE_17_7-a */

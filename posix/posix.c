@@ -1865,7 +1865,7 @@ int posix_socket(int domain, int type, int protocol)
 
 	switch (domain) {
 		case AF_UNIX:
-			err = unix_socket(domain, (unsigned int)type, protocol);
+			err = unix_socket(domain, type, protocol);
 			if (err >= 0) {
 				p->fds[fd].file->type = (char)ftUnixSocket;
 				p->fds[fd].file->oid.port = US_PORT;
@@ -1932,7 +1932,7 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 		return -EMFILE;
 	}
 
-	err = unix_socketpair(domain, (unsigned int)type, protocol, id);
+	err = unix_socketpair(domain, type, protocol, id);
 	if (err == 0) {
 		p->fds[sv[0]].file->type = (char)ftUnixSocket;
 		p->fds[sv[1]].file->type = (char)ftUnixSocket;

@@ -16,12 +16,12 @@
 #include "fdpass.h"
 
 
-#define CMSG_ALIGN(n)       (((n) + sizeof(socklen_t) - 1U) & ~(sizeof(socklen_t) - 1U))
-#define CMSG_SPACE(n)       (sizeof(struct cmsghdr) + CMSG_ALIGN(n))
-#define CMSG_LEN(n)         (sizeof(struct cmsghdr) + (n))
-#define CMSG_DATA(c)        ((unsigned char *)((struct cmsghdr *)(c) + 1))
+#define CMSG_ALIGN(n)             (((n) + sizeof(socklen_t) - 1U) & ~(sizeof(socklen_t) - 1U))
+#define CMSG_SPACE(n)             (sizeof(struct cmsghdr) + CMSG_ALIGN(n))
+#define CMSG_LEN(n)               (sizeof(struct cmsghdr) + (n))
+#define CMSG_DATA(c)              ((unsigned char *)((struct cmsghdr *)(c) + 1))
 #define CMSG_DATA_CONST(c)        ((const unsigned char *)((const struct cmsghdr *)(c) + 1))
-#define CMSG_FIRSTHDR(d, l) ((l) < sizeof(struct cmsghdr) ? NULL : (struct cmsghdr *)(d))
+#define CMSG_FIRSTHDR(d, l)       ((l) < sizeof(struct cmsghdr) ? NULL : (struct cmsghdr *)(d))
 #define CMSG_FIRSTHDR_CONST(d, l) ((l) < sizeof(struct cmsghdr) ? NULL : (const struct cmsghdr *)(d))
 
 #define CMSG_NXTHDR(d, l, c) \
@@ -38,7 +38,6 @@
 		const char *_e = (const char *)(d) + (l); \
 		(_n > _e ? NULL : (const struct cmsghdr *)_n); \
 	})
-
 
 
 #define FDPACK_PUSH(p, of, fl) \

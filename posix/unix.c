@@ -221,8 +221,8 @@ static unixsock_t *unixsock_alloc(unsigned *id, int type, int nonblock)
 	 * one for handling by the caller before returning the socket to the user (to protect
 	 * against accidental socket removal by someone else in the meantime) */
 	r->refs = 2;
-	r->type = type;
-	r->nonblock = nonblock;
+	r->type = (u8)type;
+	r->nonblock = (u8)nonblock;
 	r->buffsz = US_DEF_BUFFER_SIZE;
 	r->fdpacks = NULL;
 	r->remote = NULL;
