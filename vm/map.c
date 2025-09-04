@@ -59,11 +59,11 @@ static int map_cmp(rbnode_t *n1, rbnode_t *n2)
 	map_entry_t *e1 = lib_treeof(map_entry_t, linkage, n1);
 	map_entry_t *e2 = lib_treeof(map_entry_t, linkage, n2);
 
-	if (e2->vaddr + e2->size <= e1->vaddr) {
+	if ((ptr_t)e2->vaddr + e2->size <= (ptr_t)e1->vaddr) {
 		return 1;
 	}
 
-	if (e1->vaddr + e1->size <= e2->vaddr) {
+	if ((ptr_t)e1->vaddr + e1->size <= (ptr_t)e2->vaddr) {
 		return -1;
 	}
 
@@ -85,7 +85,7 @@ static void map_augment(rbnode_t *node)
 			}
 		}
 
-		n->lmaxgap = (n->vaddr <= p->vaddr) ? ((size_t)n->vaddr - (size_t)n->map->start) : ((size_t)n->vaddr - (size_t)p->vaddr) - p->size;
+		n->lmaxgap = ((ptr_t)n->vaddr <= (ptr_t)p->vaddr) ? ((size_t)n->vaddr - (size_t)n->map->start) : ((size_t)n->vaddr - (size_t)p->vaddr) - p->size;
 	}
 	else {
 		map_entry_t *l = lib_treeof(map_entry_t, linkage, node->left);
@@ -100,7 +100,7 @@ static void map_augment(rbnode_t *node)
 			}
 		}
 
-		n->rmaxgap = (n->vaddr >= p->vaddr) ? ((size_t)n->map->stop - (size_t)n->vaddr) - n->size : ((size_t)p->vaddr - (size_t)n->vaddr) - n->size;
+		n->rmaxgap = ((ptr_t)n->vaddr >= (ptr_t)p->vaddr) ? ((size_t)n->map->stop - (size_t)n->vaddr) - n->size : ((size_t)p->vaddr - (size_t)n->vaddr) - n->size;
 	}
 	else {
 		map_entry_t *r = lib_treeof(map_entry_t, linkage, node->right);
@@ -181,20 +181,20 @@ static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **pr
 	*prev = NULL;
 	*next = NULL;
 
-	if (((void *)map->stop - size) < vaddr) {
+	if (((ptr_t)map->stop - size) < (ptr_t)vaddr) {
 		return NULL;
 	}
-	if (vaddr < map->start) {
+	if ((ptr_t)vaddr < (ptr_t)map->start) {
 		vaddr = map->start;
 	}
 
 	while (e != NULL) {
 
-		if ((size <= e->lmaxgap) && ((vaddr + size) <= e->vaddr)) {
+		if ((size <= e->lmaxgap) && (((ptr_t)vaddr + size) <= (ptr_t)e->vaddr)) {
 			*next = e;
 
 			if (e->linkage.left == NULL) {
-				return max(vaddr, e->vaddr - e->lmaxgap);
+				return (void *)max((ptr_t)vaddr, (ptr_t)e->vaddr - e->lmaxgap);
 			}
 			e = lib_treeof(map_entry_t, linkage, e->linkage.left);
 			continue;
@@ -204,7 +204,7 @@ static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **pr
 			*prev = e;
 
 			if (e->linkage.right == NULL) {
-				return max(vaddr, e->vaddr + e->size);
+				return (void *)max((ptr_t)vaddr, (ptr_t)e->vaddr + e->size);
 			}
 			e = lib_treeof(map_entry_t, linkage, e->linkage.right);
 			continue;
@@ -1536,7 +1536,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	map = syspage_mapList();
 
 	do {
-		if (kmap->pmap.start >= (void *)map->start && kmap->pmap.end <= (void *)map->end) {
+		if ((ptr_t)kmap->pmap.start >= (ptr_t)map->start && (ptr_t)kmap->pmap.end <= (ptr_t)map->end) {
 			kmap->pmap.start = (void *)map->start;
 			kmap->pmap.end = (void *)map->end;
 

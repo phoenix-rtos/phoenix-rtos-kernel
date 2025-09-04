@@ -112,7 +112,7 @@ void *_vm_zalloc(vm_zone_t *zone, addr_t *addr)
 
 void _vm_zfree(vm_zone_t *zone, void *block)
 {
-	if ((block < zone->vaddr) || (block >= zone->vaddr + zone->blocksz * zone->blocks)) {
+	if (((ptr_t)block < (ptr_t)zone->vaddr) || ((ptr_t)block >= (ptr_t)zone->vaddr + zone->blocksz * zone->blocks)) {
 		return;
 	}
 

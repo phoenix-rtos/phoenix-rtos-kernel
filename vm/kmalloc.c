@@ -42,12 +42,12 @@ static int kmalloc_zone_cmp(rbnode_t *n1, rbnode_t *n2)
 	vm_zone_t *z1 = lib_treeof(vm_zone_t, linkage, n1);
 	vm_zone_t *z2 = lib_treeof(vm_zone_t, linkage, n2);
 
-	if (z1->vaddr > z2->vaddr) {
+	if ((ptr_t)z1->vaddr > (ptr_t)z2->vaddr) {
 		return 1;
 	}
 
-	if (((z2->vaddr >= z1->vaddr) && (z2->vaddr < z1->vaddr + z1->blocks * z1->blocksz)) ||
-			((z1->vaddr >= z2->vaddr) && (z1->vaddr < z2->vaddr + z2->blocks * z2->blocksz))) {
+	if ((((ptr_t)z2->vaddr >= (ptr_t)z1->vaddr) && ((ptr_t)z2->vaddr < (ptr_t)z1->vaddr + z1->blocks * z1->blocksz)) ||
+			(((ptr_t)z1->vaddr >= (ptr_t)z2->vaddr) && ((ptr_t)z1->vaddr < (ptr_t)z2->vaddr + z2->blocks * z2->blocksz))) {
 		return 0;
 	}
 

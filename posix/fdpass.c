@@ -29,14 +29,14 @@
 		struct cmsghdr *_c = (struct cmsghdr *)(c); \
 		char *_n = (char *)_c + CMSG_SPACE(_c->cmsg_len); \
 		char *_e = (char *)(d) + (l); \
-		(_n > _e ? (struct cmsghdr *)NULL : (struct cmsghdr *)_n); \
+		((ptr_t)_n > (ptr_t)_e ? (struct cmsghdr *)NULL : (struct cmsghdr *)_n); \
 	})
 
 #define CMSG_NXTHDR_CONST(d, l, c) \
 	({ \
 		const char *_n = (const char *)(c) + CMSG_SPACE((c)->cmsg_len); \
 		const char *_e = (const char *)(d) + (l); \
-		(_n > _e ? NULL : (const struct cmsghdr *)_n); \
+		((ptr_t)_n > (ptr_t)_e ? NULL : (const struct cmsghdr *)_n); \
 	})
 
 

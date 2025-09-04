@@ -21,7 +21,7 @@
 
 static inline int pmap_belongs(pmap_t *pmap, void *addr)
 {
-	return (addr >= pmap->start && addr < pmap->end) ? 1 : 0;
+	return ((ptr_t)addr >= (ptr_t)pmap->start && (ptr_t)addr < (ptr_t)pmap->end) ? 1 : 0;
 }
 
 

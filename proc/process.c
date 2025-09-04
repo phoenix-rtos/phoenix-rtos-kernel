@@ -351,8 +351,8 @@ static int process_isPtrValid(void *mapStart, size_t mapSize, void *ptrStart, si
 
 	/* clang-format off */
 	return ((ptrSize == 0U) ||
-		((ptrEnd > mapStart) && (ptrEnd <= mapEnd) &&
-		(ptrStart >= mapStart) && (ptrStart < ptrEnd))) ?
+		(((ptr_t)ptrEnd > (ptr_t)mapStart) && ((ptr_t)ptrEnd <= (ptr_t)mapEnd) &&
+		((ptr_t)ptrStart >= (ptr_t)mapStart) && ((ptr_t)ptrStart < (ptr_t)ptrEnd))) ?
 		1 : 0;
 	/* clang-format on */
 }
