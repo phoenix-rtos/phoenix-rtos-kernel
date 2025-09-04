@@ -34,7 +34,7 @@
 
 #define CMSG_NXTHDR_CONST(d, l, c) \
 	({ \
-		const char *_n = (const char *)c + CMSG_SPACE(c->cmsg_len); \
+		const char *_n = (const char *)(c) + CMSG_SPACE((c)->cmsg_len); \
 		const char *_e = (const char *)(d) + (l); \
 		(_n > _e ? NULL : (const struct cmsghdr *)_n); \
 	})
@@ -42,8 +42,8 @@
 
 #define FDPACK_PUSH(p, of, fl) \
 	do { \
-		(p)->fd[(p)->first + (p)->cnt].file = of; \
-		(p)->fd[(p)->first + (p)->cnt].flags = fl; \
+		(p)->fd[(p)->first + (p)->cnt].file = (of); \
+		(p)->fd[(p)->first + (p)->cnt].flags = (fl); \
 		++(p)->cnt; \
 	} while (0)
 

@@ -58,13 +58,14 @@
 
 #define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7-a 't' within *(t *) can not be put in the parentheses due to compilation error */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (void *)(((addr_t)ustack + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) = (void *)(((addr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 
 typedef struct _cpu_context_t {
 	u32 savesp;

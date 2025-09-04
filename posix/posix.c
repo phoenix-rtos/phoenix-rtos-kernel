@@ -1721,7 +1721,7 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 #define IOC_OUT                      0x40000000UL
 #define IOC_IN                       0x80000000UL
 #define IOC_INOUT                    (IOC_IN | IOC_OUT)
-#define _IOC(inout, group, num, len) ((unsigned long)(inout | ((len & IOCPARM_MASK) << 16) | (((unsigned int)group) << 8) | (num)))
+#define _IOC(inout, group, num, len) ((unsigned long)((inout) | (((len) & IOCPARM_MASK) << 16) | (((unsigned int)(group)) << 8) | (num)))
 
 #define SIOCGIFCONF _IOC(IOC_INOUT, 'S', 0x12U, sizeof(struct ifconf))
 #define SIOCADDRT   _IOC(IOC_IN, 'S', 0x44U, sizeof(struct rtentry))
@@ -1821,20 +1821,16 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err == 0) {
-		switch (request) {
-			/* TODO: handle POSIX defined requests */
-			default:
-				if (((request & IOC_INOUT) != 0U) || (IOCPARM_LEN(request) > 0U)) {
-					GETFROMSTACK(ustack, void *, data, 2);
-				}
+		/* TODO: handle POSIX defined requests with `switch (request)` */
+		if (((request & IOC_INOUT) != 0U) || (IOCPARM_LEN(request) > 0U)) {
+			GETFROMSTACK(ustack, void *, data, 2);
+		}
 
-				ioctl_pack(&msg, request, data, &f->oid);
+		ioctl_pack(&msg, request, data, &f->oid);
 
-				err = proc_send(f->oid.port, &msg);
-				if (err == EOK) {
-					err = ioctl_processResponse(&msg, request, data);
-				}
-				break;
+		err = proc_send(f->oid.port, &msg);
+		if (err == EOK) {
+			err = ioctl_processResponse(&msg, request, data);
 		}
 
 		/* MISRAC2012-RULE_17_7-a */

@@ -29,10 +29,10 @@
 #include "idtree.h"
 
 
-#define lib_atomicIncrement(ptr) __atomic_add_fetch(ptr, 1, __ATOMIC_RELAXED)
+#define lib_atomicIncrement(ptr) __atomic_add_fetch((ptr), 1, __ATOMIC_RELAXED)
 
 
-#define lib_atomicDecrement(ptr) __atomic_add_fetch(ptr, -1, __ATOMIC_ACQ_REL)
+#define lib_atomicDecrement(ptr) __atomic_add_fetch((ptr), -1, __ATOMIC_ACQ_REL)
 
 
 #define max(a, b) ({ \
