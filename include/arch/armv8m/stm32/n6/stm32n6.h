@@ -594,6 +594,7 @@ typedef struct {
 			unsigned int index; /* one of pctl_rimc_* enum values */
 			int privileged;     /* 1 - set to privileged, 0 - no change, -1 - set to unprivileged */
 			int secure;         /* 1 - set to secure 0 - no change, -1 - set to non-secure */
+			int cid;            /* value of CID flag for this master on the interconnect. -1 for no change. */
 		} rimc;
 		struct {
 			unsigned int ipclk;

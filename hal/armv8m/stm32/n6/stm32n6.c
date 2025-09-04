@@ -134,7 +134,7 @@ int hal_platformctl(void *ptr)
 			break;
 		case pctl_rimc:
 			if (data->action == pctl_set) {
-				ret = _stm32_rifsc_rimc_change(data->rimc.index, data->rimc.secure, data->rimc.privileged);
+				ret = _stm32_rifsc_rimc_change(data->rimc.index, data->rimc.secure, data->rimc.privileged, data->rimc.cid);
 			}
 			break;
 		case pctl_otp:
@@ -208,24 +208,32 @@ int _stm32_rifsc_risup_change(unsigned int index, int secure, int privileged, in
 }
 
 
-int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged)
+int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged, int cid)
 {
+	u32 tmp;
 	if (index >= pctl_rimcs_count) {
 		return -EINVAL;
 	}
 
 	if (secure > 0) {
-		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + index) |= (1 << 8);
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) |= (1 << 8);
 	}
 	else if (secure < 0) {
-		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + index) &= ~(1 << 8);
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) &= ~(1 << 8);
 	}
 
 	if (privileged > 0) {
-		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + index) |= (1 << 9);
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) |= (1 << 9);
 	}
 	else if (privileged < 0) {
-		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + index) &= ~(1 << 9);
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) &= ~(1 << 9);
+	}
+
+	if ((cid >= 0) && (cid < 0x7)) {
+		tmp = *(stm32_common.rifsc + rifsc_rimc_attr0 + index);
+		tmp &= ~(0x7 << 4);
+		tmp |= (cid & 0x7) << 4;
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) = tmp;
 	}
 
 	return EOK;

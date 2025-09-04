@@ -142,7 +142,7 @@ extern void _stm32_wdgReload(void);
 extern int _stm32_rifsc_risup_change(unsigned int index, int secure, int privileged, int lock);
 
 
-extern int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged);
+extern int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged, int cid);
 
 
 extern int _stm32_bsec_otp_checkFuseValid(unsigned int addr);
