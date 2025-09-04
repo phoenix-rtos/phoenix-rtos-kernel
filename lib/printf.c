@@ -242,6 +242,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			if (fmt == '\0') {
 				goto bad_format;
 			}
+			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
 			if (sizeof(void *) == sizeof(u64)) {  // FIXME "size_t" is undefined?
 				flags |= FLAG_64BIT;
 			}
@@ -291,6 +292,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				}
 				number = (u64)(size_t)s;
 				flags |= (FLAG_ZERO | FLAG_HEX);
+				/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}
@@ -428,7 +430,7 @@ int lib_vprintf(const char *format, va_list ap)
 			if (fmt == '\0') {
 				goto end;
 			}
-
+			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
 			if (sizeof(void *) == sizeof(u64)) {
 				flags |= FLAG_64BIT;
 			}
@@ -492,7 +494,7 @@ int lib_vprintf(const char *format, va_list ap)
 
 				number = (u64)(size_t)s;
 				flags |= (FLAG_ZERO | FLAG_HEX);
-
+				/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}

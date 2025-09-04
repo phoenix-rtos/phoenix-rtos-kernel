@@ -62,6 +62,7 @@ extern void hal_cpuSetDevBusy(int s);
 extern void hal_cpuHalt(void);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern void hal_cpuGetCycles(cycles_t *cb);
 
 
@@ -88,6 +89,7 @@ extern void *hal_cpuGetGot(void);
 extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern int hal_cpuReschedule(struct _spinlock_t *spinlock, spinlock_ctx_t *scp);
 
 
@@ -97,6 +99,7 @@ extern void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next);
 extern void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern void _hal_cpuSetKernelStack(void *kstack);
 
 
@@ -116,6 +119,7 @@ extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t 
 extern void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargs);
 
 

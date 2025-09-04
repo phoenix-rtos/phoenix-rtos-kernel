@@ -23,6 +23,7 @@
 #include "syspage.h"
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern unsigned int __bss_start;
 
 

@@ -25,6 +25,7 @@
 #include "amap.h"
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern unsigned int __bss_start;
 
 static struct {
@@ -32,6 +33,7 @@ static struct {
 	vm_object_t *kernel;
 
 	lock_t lock;
+
 
 	unsigned int ntotal, nfree;
 	map_entry_t *free;

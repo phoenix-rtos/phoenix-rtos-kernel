@@ -21,14 +21,15 @@
 #include <arch/cpu.h> /*Should be given full path arm7rarch/cpu.h -TBC*/
 #include <arch/spinlock.h>
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Definition in assembly code" */
 /* Linker symbols */
 extern unsigned int _end;
 extern unsigned int __bss_start;
+/* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
-// parasoft-begin-suppress MISRAC2012-RULE_8_4 "Global variable used in assembler code"
+
+// parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Global variable used in assembler code"
 u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
-// parasoft-end-suppress MISRAC2012-RULE_8_4
 
 
 static struct {

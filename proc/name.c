@@ -56,7 +56,11 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 {
 	dcache_entry_t *entry = name_common.dcache[hash];
 
-	while (entry != NULL && hal_strcmp(entry->name, name) != 0) {
+	while (entry != NULL) {
+		if (hal_strcmp(entry->name, name) == 0) {
+			break;
+		}
+
 		entry = entry->next;
 	}
 

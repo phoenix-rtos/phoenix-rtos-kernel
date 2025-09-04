@@ -20,12 +20,14 @@
 #include "hal/types.h"
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern void hal_memcpy(void *dst, const void *src, size_t l);
 
 
 extern int hal_memcmp(const void *ptr1, const void *ptr2, size_t num);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern void hal_memset(void *dst, int v, size_t l);
 
 

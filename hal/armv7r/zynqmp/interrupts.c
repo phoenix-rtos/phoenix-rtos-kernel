@@ -86,6 +86,7 @@ static struct {
 } interrupts_common;
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 void _hal_interruptsInitPerCPU(void);
 
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);

@@ -129,25 +129,13 @@ extern int proc_threadCreate(process_t *process, void (*start)(void *harg), int 
 extern int proc_threadPriority(int priority);
 
 
-extern void proc_threadProtect(void);
-
-
-extern void proc_threadUnprotect(void);
-
-
 extern void proc_threadEnd(void);
-
-
-extern int proc_threadJoin(unsigned int id);
 
 
 extern void proc_threadDestroy(thread_t *t);
 
 
 extern void proc_threadsDestroy(thread_t **threads);
-
-
-extern int proc_waitpid(int pid, int *status, int options);
 
 
 extern int proc_join(int tid, time_t timeout);
@@ -157,9 +145,6 @@ extern void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_
 
 
 extern int proc_threadsList(int n, threadinfo_t *info);
-
-
-extern void proc_zombie(process_t *proc);
 
 
 extern int proc_threadSleep(time_t us);
@@ -183,9 +168,6 @@ extern int proc_threadBroadcast(thread_t **queue);
 extern void proc_threadBroadcastYield(thread_t **queue);
 
 
-extern int threads_getCpuTime(thread_t *t);
-
-
 extern thread_t *threads_findThread(int tid);
 
 
@@ -199,9 +181,6 @@ extern void proc_gettime(time_t *raw, time_t *offs);
 
 
 extern int proc_settime(time_t offs);
-
-
-extern time_t proc_nextWakeup(void);
 
 
 extern void proc_longjmp(cpu_context_t *ctx);

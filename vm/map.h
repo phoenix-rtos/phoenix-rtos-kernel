@@ -121,9 +121,6 @@ extern void vm_mapGetStats(size_t *allocsz);
 extern void vm_mapinfo(meminfo_t *info);
 
 
-extern int vm_createSharedMap(ptr_t start, ptr_t stop, unsigned int attr, int no);
-
-
 extern vm_map_t *vm_getSharedMap(int map);
 
 
