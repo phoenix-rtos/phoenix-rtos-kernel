@@ -296,7 +296,7 @@ int syscalls_gettid(void *ustack)
 int syscalls_beginthreadex(void *ustack)
 {
 	process_t *proc = proc_current()->process;
-	void (*start)(void *);
+	void (*start)(void *harg);
 	unsigned int priority, stacksz;
 	void *stack, *arg;
 	int *id;
@@ -1878,9 +1878,10 @@ int syscalls_notimplemented(void)
 	return -ENOTTY;
 }
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_11_1-a */
 const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
 const char *const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
+/* parasoft-end-suppress MISRAC2012-RULE_11_1-a */
 
 
 void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
@@ -1891,7 +1892,7 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 		return (void *)-EINVAL;
 	}
 
-	retval = ((void *(*)(char *))syscalls[n])(ustack);
+	retval = ((void *(*)(char *harg))syscalls[n])(ustack);
 
 	if (proc_current()->exit != 0U) {
 		proc_threadEnd();

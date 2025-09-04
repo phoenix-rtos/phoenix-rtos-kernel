@@ -22,7 +22,7 @@ typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;
 	struct _intr_handler_t *prev;
 	unsigned int n;
-	int (*f)(unsigned int, cpu_context_t *, void *);
+	int (*f)(unsigned int harg_1, cpu_context_t *harg_2, void *harg_3);
 	void *data;
 	void *got;
 } intr_handler_t;

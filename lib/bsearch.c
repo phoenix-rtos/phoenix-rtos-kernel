@@ -18,7 +18,7 @@
 #include "bsearch.h"
 
 
-void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *, void *))
+void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *harg_1, void *harg_2))
 {
 	unsigned int l = 0, r = nmemb - 1U, m;
 	int cmp;

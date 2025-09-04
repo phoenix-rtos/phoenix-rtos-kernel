@@ -81,7 +81,7 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, handle_t c)
+int userintr_setHandler(unsigned int n, int (*f)(unsigned int harg_1, void *harg_2), void *arg, handle_t c)
 {
 	process_t *process = proc_current()->process;
 	userintr_t *ui;
