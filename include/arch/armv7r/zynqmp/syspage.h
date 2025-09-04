@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_SYSPAGE_ARMV7R_ZYNQMP_H_
-#define _PHOENIX_SYSPAGE_ARMV7R_ZYNQMP_H_
+#ifndef _SYSPAGE_ARMV7R_ZYNQMP_H_
+#define _SYSPAGE_ARMV7R_ZYNQMP_H_
 
 
 typedef struct {

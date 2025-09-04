@@ -51,6 +51,7 @@ typedef struct _event_t {
 
 	unsigned int flags;
 	unsigned int count;
+	/* TBD_Julia konflikt nazw w pliku phoenix-rtos-kernel/test/rb.c */
 	unsigned int data;
 } event_t;
 
@@ -58,6 +59,7 @@ typedef struct _event_t {
 static struct {
 	rbtree_t pid;
 	lock_t lock;
+	/* TBD_Julia konflikt nazw w pliku phoenix-rtos-kernel/test/vm.c */
 	id_t fresh;
 	char hostname[HOST_NAME_MAX + 1U];
 } posix_common;
@@ -1673,8 +1675,6 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
-			cloexec = 1;
-			break;
 		case F_DUPFD:
 			GETFROMSTACK(ustack, int, fd2, 2);
 			err = posix_fcntlDup(fd, fd2, cloexec);

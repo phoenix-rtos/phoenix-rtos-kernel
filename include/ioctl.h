@@ -20,6 +20,7 @@
 typedef struct {
 	unsigned long request;
 	char data[];
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "function, which is the standard, with definition in posix may cause this violation" */
 } ioctl_in_t;
 
 

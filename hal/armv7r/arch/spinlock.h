@@ -24,7 +24,9 @@ typedef struct _spinlock_t {
 	struct _spinlock_t *prev;
 
 	u8 lock;
+
 } __attribute__((packed)) spinlock_t;
+// TBD_Julia MISRA Rul2 5.6 konflikt z plikiem w plo i phoenix-rtos-filesystems/jffs2/phoenix-rtos/locks.h
 
 
 typedef u32 spinlock_ctx_t;

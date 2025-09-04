@@ -135,7 +135,7 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int minimum)
 {
 	idnode_t *f;
 
-	if (minimum > MAX_ID) {
+	if ((minimum > MAX_ID) || (minimum < 0)) {
 		return -1;
 	}
 

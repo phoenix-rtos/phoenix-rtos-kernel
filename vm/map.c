@@ -1649,7 +1649,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	result = _map_mapsInit(kmap, kernel, bss, top);
 	LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with maps initialization.");
 
-	
+
 	/* Map kernel segments */
 	prot = PROT_READ | PROT_EXEC;
 	i = 0;

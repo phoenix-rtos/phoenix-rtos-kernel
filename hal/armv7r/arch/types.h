@@ -27,6 +27,7 @@ typedef __u32 cycles_t;
 typedef __u32 ptr_t;
 
 typedef unsigned int size_t;
+// TBD_Julia MISRA Rul2 5.6 konflikt z plikiem w plo, prawdopodobnie gdzieś jeszcze, ale nie znalazłam
 
 
 #endif

@@ -25,6 +25,8 @@ static struct {
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Global variables used in assembler code" */
 syspage_t *syspage;
+/* TBD_Julia konflikt nazw w pliku phoenix-rtos-kernel/syspage.c */
+
 u32 relOffs;
 u32 schedulerLocked = 0;
 /* parasoft-end-suppress MISRAC2012-RULE_8_4 */

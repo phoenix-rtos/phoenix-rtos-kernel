@@ -763,7 +763,7 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 
 
 int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
-// TBD_Julia jak zakomentuje się else to problem znika, ta sama funkcja wyżej w ifndef nie pokazuje tego błedu
+// TBD_Julia jak zakomentuje się else to problem z 8.4 znika, ta sama funkcja wyżej w ifndef nie pokazuje tego błedu
 {
 	void *stack, *paddr;
 	Elf32_Ehdr *ehdr;

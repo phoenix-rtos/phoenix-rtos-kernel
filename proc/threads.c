@@ -1714,7 +1714,7 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 	}
 
 	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->owner == current)) {
-		if ((lock->depth + 1U) == 0U) {
+		if (((int)lock->depth + 1) == 0) {
 			ret = -EAGAIN;
 		}
 		else {

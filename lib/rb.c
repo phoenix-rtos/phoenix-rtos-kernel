@@ -176,7 +176,6 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 				w->left->color = RB_BLACK;
 				w->color = RB_RED;
 				rb_rotateRight(tree, w);
-				w = x->parent->right;
 			}
 			else {
 				w->color = x->parent->color;
@@ -205,7 +204,7 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 				w->right->color = RB_BLACK;
 				w->color = RB_RED;
 				rb_rotateLeft(tree, w);
-				w = x->parent->left;
+				// w = x->parent->left;
 			}
 			else {
 				w->color = x->parent->color;
