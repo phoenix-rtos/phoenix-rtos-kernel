@@ -164,6 +164,19 @@ void lib_putch(char s)
 }
 
 
+static u64 get_number(u64 number, va_list list, u32 flags, u32 min_number_len)
+{
+	if ((flags & FLAG_64BIT) != 0U) {
+		number = va_arg(list, u64);
+	}
+	else {
+		number = va_arg(list, u32);
+	}
+
+	return number;
+}
+
+
 int lib_vsprintf(char *out, const char *format, va_list args)
 {
 	char *const out_start = out;
@@ -172,7 +185,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 	for (;;) {
 		char fmt = *format++;
 		if (fmt == '\0') {
-			goto end;
+			break;
 		}
 		if (fmt != '%') {
 			*out++ = fmt;
@@ -182,7 +195,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		fmt = *format++;
 		if (fmt == '\0') {
 			*out++ = '%';
-			goto end;
+			break;
 		}
 
 		/* precision, padding (set default to 6 digits) */
@@ -204,7 +217,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 			fmt = *format++;
 			if (fmt == '\0') {
-				goto bad_format;
+				break;
 			}
 		}
 
@@ -213,26 +226,26 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			min_number_len = min_number_len * 10U + ((unsigned int)fmt - (unsigned int)'0');
 			fmt = *format++;
 			if (fmt == '\0') {
-				goto bad_format;
+				break;
 			}
 		}
 
 		/* fractional number digits-cnt (only a single digit is acceptable in this impl.) */
 		if (fmt == '.') {
-			goto bad_format;
+			break;
 		}
 
 		if (fmt == 'l') {
 			fmt = *format++;
 			if (fmt == '\0') {
-				goto bad_format;
+				break;
 			}
 
 			if (fmt == 'l') {
 				flags |= FLAG_64BIT;
 				fmt = *format++;
 				if (fmt == '\0') {
-					goto bad_format;
+					break;
 				}
 			}
 		}
@@ -240,7 +253,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		if (fmt == 'z') {
 			fmt = *format++;
 			if (fmt == '\0') {
-				goto bad_format;
+				break;
 			}
 			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
 			if (sizeof(void *) == sizeof(u64)) {  // FIXME "size_t" is undefined?
@@ -271,14 +284,16 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				break;
 			case 'x':
 				flags |= FLAG_HEX;
-				goto get_number;
+				number = get_number(number, args, flags, min_number_len);
+				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
 				break;
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
 				break;
 			case 'u':
-				goto get_number;
+				number = get_number(number, args, flags, min_number_len);
+				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
 				break;
 			case 'p': {
 				const void *s = va_arg(args, void *);
@@ -297,7 +312,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 					flags |= FLAG_64BIT;
 				}
 				min_number_len = sizeof(void *) * 2U;
-				goto handle_number;
+				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
 			} break;
 
 			case '%':
@@ -308,23 +323,8 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				*out++ = fmt;
 				break;
 		}
-		continue;
-
-	get_number:;
-		if ((flags & FLAG_64BIT) != 0U) {
-			number = va_arg(args, u64);
-		}
-		else {
-			number = va_arg(args, u32);
-		}
-
-	handle_number:;
-		out = printf_sprintf_int(out, number, flags, (int)min_number_len);
-		continue;
 	}
 
-bad_format:
-end:
 
 	*out = '\0';
 	return out - out_start;
@@ -349,7 +349,7 @@ int lib_vprintf(const char *format, va_list ap)
 	for (;;) {
 		fmt = *format++;
 		if (fmt == '\0') {
-			goto end;
+			break;
 		}
 
 		if (fmt != '%') {
@@ -363,7 +363,7 @@ int lib_vprintf(const char *format, va_list ap)
 		if (fmt == '\0') {
 			lib_putch('%');
 			i++;
-			goto end;
+			break;
 		}
 
 		/* precission, padding (set default to 6 digits) */
@@ -387,7 +387,7 @@ int lib_vprintf(const char *format, va_list ap)
 			fmt = *format++;
 
 			if (fmt == '\0') {
-				goto end;
+				break;
 			}
 		}
 
@@ -397,13 +397,13 @@ int lib_vprintf(const char *format, va_list ap)
 			fmt = *format++;
 
 			if (fmt == '\0') {
-				goto end;
+				break;
 			}
 		}
 
 		/* fractional number digits-cnt (only a single digit is acceptable in this impl.) */
 		if (fmt == '.') {
-			goto end;
+			break;
 		}
 
 
@@ -411,7 +411,7 @@ int lib_vprintf(const char *format, va_list ap)
 			fmt = *format++;
 
 			if (fmt == '\0') {
-				goto end;
+				break;
 			}
 
 			if (fmt == 'l') {
@@ -419,7 +419,7 @@ int lib_vprintf(const char *format, va_list ap)
 				fmt = *format++;
 
 				if (fmt == '\0') {
-					goto end;
+					break;
 				}
 			}
 		}
@@ -428,7 +428,7 @@ int lib_vprintf(const char *format, va_list ap)
 			fmt = *format++;
 
 			if (fmt == '\0') {
-				goto end;
+				break;
 			}
 			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
 			if (sizeof(void *) == sizeof(u64)) {
@@ -468,7 +468,14 @@ int lib_vprintf(const char *format, va_list ap)
 
 			case 'x':
 				flags |= FLAG_HEX;
-				goto get_number;
+				number = get_number(number, ap, flags, min_number_len);
+				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
+				sptr = buff;
+
+				while (sptr != eptr) {
+					lib_putch(*sptr++);
+					++i;
+				}
 				break;
 
 			case 'd':
@@ -477,7 +484,15 @@ int lib_vprintf(const char *format, va_list ap)
 				break;
 
 			case 'u':
-				goto get_number;
+				number = get_number(number, ap, flags, min_number_len);
+				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
+				sptr = buff;
+
+				while (sptr != eptr) {
+					lib_putch(*sptr++);
+					++i;
+				}
+
 				break;
 
 			case 'p': {
@@ -500,7 +515,14 @@ int lib_vprintf(const char *format, va_list ap)
 				}
 
 				min_number_len = sizeof(void *) * 2U;
-				goto handle_number;
+				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
+				sptr = buff;
+
+				while (sptr != eptr) {
+					lib_putch(*sptr++);
+					++i;
+				}
+
 
 				break;
 			}
@@ -517,30 +539,12 @@ int lib_vprintf(const char *format, va_list ap)
 				break;
 		}
 
-		continue;
-
-	get_number:;
-
-		if ((flags & FLAG_64BIT) != 0U) {
-			number = va_arg(ap, u64);
+		if (fmt == '\0') {
+			break;
 		}
-		else {
-			number = va_arg(ap, u32);
-		}
-
-	handle_number:;
-		eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
-		sptr = buff;
-
-		while (sptr != eptr) {
-			lib_putch(*sptr++);
-			++i;
-		}
-
-		continue;
 	}
 
-end:
+
 	s = CONSOLE_NORMAL;
 	while (*s != '\0') {
 		lib_putch(*(s++));
