@@ -59,11 +59,11 @@ typedef struct _thread_t {
 	struct _thread_t **wait;
 	volatile time_t wakeup;
 
-	unsigned priorityBase : 4U;
-	unsigned priority : 4U;
-	unsigned state : 2U;
-	unsigned exit : 2U;
-	unsigned interruptible : 1U;
+	unsigned priorityBase : 4;
+	unsigned priority : 4;
+	unsigned state : 2;
+	unsigned exit : 2;
+	unsigned interruptible : 1;
 
 	unsigned sigmask;
 	unsigned sigpend;

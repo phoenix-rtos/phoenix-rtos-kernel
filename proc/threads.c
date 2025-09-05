@@ -136,9 +136,9 @@ static void _perf_event(thread_t *t, int type)
 		return;
 	}
 
-	ev.type = (unsigned)type;
+	ev.type = (u8)type & 0x03U;
 
-	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
@@ -187,7 +187,7 @@ static void _perf_begin(thread_t *t)
 	ev.pid = t->process != NULL ? perf_idpack((unsigned int)process_getPid(t->process)) : -1;
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -211,7 +211,7 @@ static void perf_end(thread_t *t)
 	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -238,7 +238,7 @@ void perf_fork(process_t *p)
 	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -264,7 +264,7 @@ void perf_kill(process_t *p)
 	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -295,7 +295,7 @@ void perf_exec(process_t *p, char *path)
 	ev.path[plen] = '\0';
 
 	now = _proc_gettimeRaw();
-	ev.deltaTimestamp = (unsigned int)(time_t)(now - threads_common.perfLastTimestamp);
+	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
 
 	/* MISRAC2012-RULE_17_7-a */
@@ -819,8 +819,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *harg), int *id, un
 	t->locks = NULL;
 	t->stick = 0;
 	t->utick = 0;
-	t->priorityBase = priority;
-	t->priority = priority;
+	t->priorityBase = (u8)priority & 0x0fU;
+	t->priority = (u8)priority & 0x0fU;
 	t->cpuTime = 0;
 	t->maxWait = 0;
 	proc_gettime(&t->startTime, NULL);
@@ -953,7 +953,7 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 		}
 	}
 
-	thread->priority = priority;
+	thread->priority = (u8)priority & 0x0fU;
 }
 
 
@@ -978,12 +978,12 @@ int proc_threadPriority(int priority)
 	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (priority >= 0) {
 		if (priority < current->priority) {
-			current->priority = priority;
+			current->priority = (u8)priority & 0x0fU;
 		}
 		else if ((unsigned int)priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
 			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
-				current->priority = priority;
+				current->priority = (u8)priority & 0x0fU;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
 			}
@@ -992,7 +992,7 @@ int proc_threadPriority(int priority)
 			/* No action required */
 		}
 
-		current->priorityBase = priority;
+		current->priorityBase = (u8)priority & 0x0fU;
 	}
 
 	ret = (int)current->priorityBase;
@@ -1159,7 +1159,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->state = SLEEP;
 	current->wakeup = 0;
 	current->wait = queue;
-	current->interruptible = interruptible;
+	current->interruptible = (u8)interruptible & 0x01U;
 	/* TBD_Julia podczas próby zmiany unsigned int w definicji lub bezpośrednie rzutowanie,
 	 * to wyskakuje błąd z różnymi wielkościami, od razu rzutować na (unsigned char)?
 	 */
@@ -2105,7 +2105,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 		now = _proc_gettimeRaw();
 		if (now != t->startTime) {
-			info[i].load = (t->cpuTime * 1000) / (now - t->startTime);
+			info[i].load = (int)((t->cpuTime * 1000) / (now - t->startTime));
 			// TBD_Julia Zastosować podwójne rzutowanie - najpierw unsigned na całość i później int
 		}
 		else {

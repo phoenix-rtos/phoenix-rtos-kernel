@@ -98,7 +98,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			no = NULL;
 			hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
 			/* TODO: 64 bits written into 32 bits */
-			(*o)->size = sz;
+			(*o)->size = (size_t)sz;
 			(*o)->refs = 0;
 
 			for (i = 0; i < n; ++i) {
