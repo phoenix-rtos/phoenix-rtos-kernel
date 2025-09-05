@@ -1634,7 +1634,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	}
 
 	map_common.entries = (*bss);
-	poolsz = min((unsigned int)(*top) - (unsigned int)(*bss), sizeof(map_entry_t) * map_common.ntotal);
+	poolsz = min((ptr_t)(*top) - (ptr_t)(*bss), sizeof(map_entry_t) * map_common.ntotal);
 
 	map_common.free = map_common.entries;
 
@@ -1661,7 +1661,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 			break;
 		}
 
-		e->vaddr = (void *)round_page((unsigned int)vaddr);
+		e->vaddr = (void *)round_page((ptr_t)vaddr);
 		e->size = round_page(size);
 		e->object = kernel;
 		e->offs = -1;
