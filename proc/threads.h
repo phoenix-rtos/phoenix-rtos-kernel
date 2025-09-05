@@ -139,7 +139,7 @@ extern int proc_threadJoin(unsigned int id);
 extern void proc_threadDestroy(thread_t *t);
 
 
-extern void proc_threadsDestroy(thread_t **threads);
+extern void proc_threadsDestroyExcept(thread_t **threads, thread_t *except);
 
 
 extern int proc_waitpid(int pid, int *stat, int options);
