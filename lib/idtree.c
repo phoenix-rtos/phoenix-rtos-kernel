@@ -54,7 +54,7 @@ static void lib_idtreeAugment(rbnode_t *node)
 			}
 		}
 
-		n->rmaxgap = (n->id >= p->id) ? (MAX_ID - n->id - 1) : (p->id - n->id - 1);
+		n->rmaxgap = (n->id >= p->id) ? ((int)MAX_ID - n->id - 1) : (p->id - n->id - 1);
 	}
 	else {
 		r = lib_treeof(idnode_t, linkage, node->right);
@@ -135,7 +135,7 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int minimum)
 {
 	idnode_t *f;
 
-	if ((minimum > MAX_ID) || (minimum < 0)) {
+	if ((minimum > (int)MAX_ID) || (minimum < 0)) {
 		return -1;
 	}
 

@@ -184,7 +184,7 @@ static void _perf_begin(thread_t *t)
 	ev.type = perf_levBegin;
 	ev.prio = t->priority;
 	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
-	ev.pid = t->process != NULL ? perf_idpack((unsigned int)process_getPid(t->process)) : -1;
+	ev.pid = t->process != NULL ? perf_idpack((unsigned int)process_getPid(t->process)) : (unsigned int)-1;
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
@@ -977,12 +977,12 @@ int proc_threadPriority(int priority)
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (priority >= 0) {
-		if (priority < current->priority) {
+		if ((unsigned int)priority < current->priority) {
 			current->priority = (u8)priority & 0x0fU;
 		}
 		else if ((unsigned int)priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
-			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
+			if ((current->locks == NULL) || ((unsigned int)priority <= _proc_threadGetLockPriority(current))) {
 				current->priority = (u8)priority & 0x0fU;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
@@ -2130,7 +2130,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 				if (t->process->argv != NULL) {
 					for (argc = 0; t->process->argv[argc] != NULL; ++argc) {
-						if (space <= 0) {
+						if ((int)space <= 0) {
 							break;
 						}
 						len = min(hal_strlen(t->process->argv[argc]) + 1U, space);

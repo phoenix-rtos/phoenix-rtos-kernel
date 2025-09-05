@@ -163,8 +163,7 @@ static int process_alloc(process_t *process)
 	}
 
 	if (id >= 0) {
-		if (process_common.idcounter == MAX_PID) {
-			// lewą stronę zrzutować na unsigned long long czy prawą na int?
+		if (process_common.idcounter == (int)MAX_PID) {
 			process_common.idcounter = 1;
 		}
 		else {
