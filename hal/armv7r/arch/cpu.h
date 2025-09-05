@@ -275,7 +275,7 @@ static inline void hal_cpuSmpSync(void)
 }
 
 
-extern unsigned int hal_cpuGetCount(void);
+// unsigned int hal_cpuGetCount(void);
 
 
 #endif

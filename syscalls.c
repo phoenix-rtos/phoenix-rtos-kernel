@@ -17,6 +17,7 @@
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4-a "Compatible function declaration is not possible for syscalls" */
 
 #include "hal/hal.h"
+#include "hal/cpu.h"
 #include "include/errno.h"
 #include "include/sysinfo.h"
 #include "include/mman.h"

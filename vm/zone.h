@@ -26,8 +26,9 @@ typedef struct _vm_zone_t {
 	rbnode_t linkage;
 
 	size_t blocksz;
-	volatile unsigned int blocks;
-	volatile unsigned int used;
+	/* MISRA Rule 13.5: volatile deleted for blocks and used variables */
+	unsigned int blocks;
+	unsigned int used;
 	void *vaddr;
 	void *first;
 	page_t *pages;

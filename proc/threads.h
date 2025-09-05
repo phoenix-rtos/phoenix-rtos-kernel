@@ -57,7 +57,8 @@ typedef struct _thread_t {
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
-	volatile time_t wakeup;
+	/* MISRA Rule 13.5 MISRA Rule 13.3 volatile deleted for wakeup variable*/
+	time_t wakeup;
 
 	unsigned priorityBase : 4;
 	unsigned priority : 4;

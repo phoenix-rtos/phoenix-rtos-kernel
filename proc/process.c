@@ -373,11 +373,13 @@ static int process_validateElf32(void *iehdr, size_t size)
 	}
 
 	/* Validate header. */
+	/* clang-format off */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+				(hal_strncmp((char *)ehdr->e_ident, "\177" "ELF", 4) != 0)) ||
 			(ehdr->e_shnum == 0U)) {
 		return -ENOEXEC;
 	}
+	/* clang-format on */
 
 	phdr = (void *)ehdr + ehdr->e_phoff;
 	if (process_isPtrValid(iehdr, size, phdr, sizeof(*phdr) * ehdr->e_phnum) == 0) {
@@ -1457,6 +1459,7 @@ int proc_vfork(void)
 	int pid, isparent = 1, ret;
 	process_spawn_t *spawn;
 	spinlock_ctx_t sc;
+	int state_tmp;
 
 	current = proc_current();
 	if (current == NULL) {
@@ -1499,7 +1502,9 @@ int proc_vfork(void)
 		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
 		isparent = (proc_current() == current) ? 1 : 0;
-	} while ((spawn->state < FORKED) && (spawn->state > 0) && (isparent != 0));
+		/* TODO: If any test fails, revert this change and suppress MISRA Rule 13.5 */
+		state_tmp = spawn->state;
+	} while ((state_tmp < FORKED) && (state_tmp > 0) && (isparent != 0));
 
 	hal_spinlockClear(&spawn->sl, &sc);
 

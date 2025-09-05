@@ -1164,8 +1164,13 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 
 		if ((proc == NULL) || (proc->lazy == 0U)) {
 			for (offs = 0; offs < (int)f->size; offs += (int)SIZE_PAGE) {
-				if ((_map_force(dst, f, f->vaddr + offs, f->prot) != 0) ||
-						(_map_force(src, e, e->vaddr + offs, e->prot) != 0)) {
+				if (_map_force(dst, f, f->vaddr + offs, f->prot) != 0) {
+					(void)proc_lockClear(&dst->lock);
+					(void)proc_lockClear(&src->lock);
+					return -ENOMEM;
+				}
+
+				if (_map_force(src, e, e->vaddr + offs, e->prot) != 0) {
 					(void)proc_lockClear(&dst->lock);
 					(void)proc_lockClear(&src->lock);
 					return -ENOMEM;

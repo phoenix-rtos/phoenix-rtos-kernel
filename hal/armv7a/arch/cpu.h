@@ -244,7 +244,7 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 }
 
 
-extern unsigned int hal_cpuGetCount(void);
+unsigned int hal_cpuGetCount(void);
 
 
 #endif

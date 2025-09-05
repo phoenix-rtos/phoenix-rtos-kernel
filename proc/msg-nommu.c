@@ -38,6 +38,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg_t kmsg;
 	thread_t *sender;
 	spinlock_ctx_t sc;
+	int state_tmp;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -64,10 +65,13 @@ int proc_send(u32 port, msg_t *msg)
 		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWakeup(&p->threads);
 
-		while ((kmsg.state != msg_responded) && (kmsg.state != msg_rejected)) {
+		/* TODO: If any test fails, revert this change and suppress MISRA Rule 13.5 */
+		state_tmp = kmsg.state;
+		while ((state_tmp != msg_responded) && (state_tmp != msg_rejected)) {
 			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
 
-			if ((err != EOK) && (kmsg.state == msg_waiting)) {
+			state_tmp = kmsg.state;
+			if ((err != EOK) && (state_tmp == msg_waiting)) {
 				LIST_REMOVE(&p->kmessages, &kmsg);
 				break;
 			}
