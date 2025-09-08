@@ -62,4 +62,7 @@ extern void _hal_init(void);
 extern void hal_lockScheduler(void);
 
 
+extern __attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx);
+
+
 #endif

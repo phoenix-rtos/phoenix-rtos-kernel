@@ -97,6 +97,9 @@ extern void _hal_cpuSetKernelStack(void *kstack);
 extern void *hal_cpuGetSP(cpu_context_t *ctx);
 
 
+extern void *hal_cpuGetIP(cpu_context_t *ctx);
+
+
 extern void *hal_cpuGetUserSP(cpu_context_t *ctx);
 
 

@@ -194,3 +194,19 @@ event {
 		u16 pid;
 	};
 };
+
+event {
+	name = ipc_rtt_enter;
+	id = 0x40;
+	fields := struct {
+		u64 tsc;
+	};
+};
+
+event {
+	name = ipc_rtt_exit;
+	id = 0x41;
+	fields := struct {
+		u64 tsc;
+	};
+};

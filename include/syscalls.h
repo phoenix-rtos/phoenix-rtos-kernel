@@ -125,5 +125,9 @@
 	ID(sys_mprotect) \
 	\
 	ID(sys_statvfs) \
-	ID(sys_uname)
+	ID(sys_uname) \
+	\
+	ID(msgCall) \
+	ID(msgRespondAndRecv) \
+	ID(msgConfigure)
 /* clang-format on */
