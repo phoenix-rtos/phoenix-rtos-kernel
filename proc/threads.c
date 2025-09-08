@@ -573,12 +573,128 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
+int threads_getHighestPrio(int maxPrio)
+{
+	int i, ret = maxPrio;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	for (i = 0; i < maxPrio; i++) {
+		if (threads_common.ready[i] != NULL) {
+			ret = i;
+			break;
+		}
+	}
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return ret;
+}
+
+
+cpu_context_t *threads_getUserContext(thread_t *thread)
+{
+	if (hal_cpuSupervisorMode(thread->context) == 0) {
+		return thread->context;
+	}
+	else {
+		return (cpu_context_t *)((char *)thread->kstack + thread->kstacksz - sizeof(cpu_context_t));
+	}
+}
+
+
+void _threads_removeFromQueue(thread_t *t)
+{
+	lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
+}
+
+
+void _threads_switchToThreadFp(cpu_context_t *ctx, thread_t *selected)
+{
+	process_t *proc;
+	cpu_context_t *selCtx;
+
+	proc = selected->process;
+
+	threads_common.current[hal_cpuGetID()] = selected;
+	_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
+	selCtx = selected->context;
+
+	LIB_ASSERT((proc != NULL) && (proc->pmapp != NULL), "eh");
+	pmap_switch(proc->pmapp);
+
+	if (selected->longjmpctx != NULL) {
+		lib_printf("longjump\n");
+		selCtx = selected->longjmpctx;
+		selected->longjmpctx = NULL;
+	}
+
+	if (selected->tls.tls_base != NULL) {
+		hal_cpuTlsSet(&selected->tls, selCtx);
+	}
+
+	hal_cpuRestore(ctx, selCtx);
+}
+
+
+void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
+{
+	process_t *proc;
+	cpu_context_t *signalCtx, *selCtx;
+
+	threads_common.current[hal_cpuGetID()] = selected;
+	_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
+	selCtx = selected->context;
+
+	proc = selected->process;
+	if ((proc != NULL) && (proc->pmapp != NULL)) {
+		/* Switch address space */
+		pmap_switch(proc->pmapp);
+
+		/* Check for signals to handle */
+		if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
+			signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
+			if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
+				selCtx = signalCtx;
+			}
+		}
+	}
+	else {
+		/* Protects against use after free of process' memory map in SMP environment. */
+		pmap_switch(&threads_common.kmap->pmap);
+	}
+
+	if (selected->longjmpctx != NULL) {
+		selCtx = selected->longjmpctx;
+		selected->longjmpctx = NULL;
+	}
+
+	if (selected->tls.tls_base != NULL) {
+		hal_cpuTlsSet(&selected->tls, selCtx);
+	}
+
+	_perf_scheduling(selected);
+	hal_cpuRestore(context, selCtx);
+
+#if defined(STACK_CANARY) || !defined(NDEBUG)
+	if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
+		LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
+				"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
+				(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+				selected->kstack, selCtx);
+	}
+
+	LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
+					(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
+			"pid: %d, tid: %d, path: %s, user stack corrupted",
+			process_getPid(selected->process), proc_getTid(selected), selected->process->path);
+#endif
+}
+
+
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *current, *selected;
 	unsigned int i;
-	process_t *proc;
-	cpu_context_t *signalCtx, *selCtx;
 	int cpuId = hal_cpuGetID();
 
 	(void)arg;
@@ -592,6 +708,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	/* Save current thread context */
 	if (current != NULL) {
+		LIB_ASSERT(current->fastpath != 1, "fastpath caller interrupted by sched (tid=%d state=%d)", proc_getTid(current), current->state);
+
 		current->context = context;
 
 		/* Move thread to the end of queue */
@@ -626,53 +744,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	LIB_ASSERT(selected != NULL, "no threads to schedule");
 
 	if (selected != NULL) {
-		threads_common.current[hal_cpuGetID()] = selected;
-		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
-		selCtx = selected->context;
-
-		proc = selected->process;
-		if ((proc != NULL) && (proc->pmapp != NULL)) {
-			/* Switch address space */
-			pmap_switch(proc->pmapp);
-
-			/* Check for signals to handle */
-			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
-				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
-				if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
-					selCtx = signalCtx;
-				}
-			}
-		}
-		else {
-			/* Protects against use after free of process' memory map in SMP environment. */
-			pmap_switch(&threads_common.kmap->pmap);
-		}
-
-		if (selected->longjmpctx != NULL) {
-			selCtx = selected->longjmpctx;
-			selected->longjmpctx = NULL;
-		}
-
-		if (selected->tls.tls_base != NULL) {
-			hal_cpuTlsSet(&selected->tls, selCtx);
-		}
-
-		_perf_scheduling(selected);
-		hal_cpuRestore(context, selCtx);
-
-#if defined(STACK_CANARY) || !defined(NDEBUG)
-		if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
-			LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
-					"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
-					(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
-					selected->kstack, selCtx);
-		}
-
-		LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
-						(hal_memcmp(selected->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary)) == 0),
-				"pid: %d, tid: %d, path: %s, user stack corrupted",
-				process_getPid(selected->process), proc_getTid(selected), selected->process->path);
-#endif
+		_threads_switchToThread(context, selected);
 	}
 
 	/* Update CPU usage */
@@ -802,6 +874,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
 	t->longjmpctx = NULL;
+	t->fastpath = 0;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->kstack);

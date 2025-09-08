@@ -18,10 +18,16 @@
 #define _SYSCALLS_H_
 
 
+#include "arch/cpu.h"
+
+
 extern const void * const syscalls[];
 
 
 extern void _syscalls_init(void);
+
+
+extern cpu_context_t *_syscall_ctx(void);
 
 
 #endif

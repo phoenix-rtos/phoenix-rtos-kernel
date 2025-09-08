@@ -17,6 +17,9 @@
 #include "lib/lib.h"
 #include "proc.h"
 
+#include "perf/events.h"
+#include "syscalls.h"
+
 
 #define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
@@ -416,6 +419,13 @@ int proc_send(u32 port, msg_t *msg)
 }
 
 
+// #define log_debug(fmt, ...) perf_traceEventsPrintf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
+// #define log_debug(fmt, ...) lib_printf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
+#define log_debug(fmt, ...)
+#define log_err(fmt, ...) lib_printf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
+// #define log_err(fmt, ...)
+
+
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p;
@@ -430,8 +440,17 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
+	p->slot.recvMsg = msg;
+
 	while ((p->kmessages == NULL) && (p->closed == 0) && (err != -EINTR)) {
 		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0, &sc);
+		if (p->slot.caller != NULL) {
+			log_debug("HUH");
+			*msg = p->slot.buf;
+			hal_spinlockClear(&p->spinlock, &sc); /* TODO: how exactly do we even obtain this spinlock if during fastpath? */
+			port_put(p, 0);                       /* <- we must have the spinlock, since otherwise port_put hangs without above spinlockClear */
+			return 222;
+		}
 	}
 
 	kmsg = p->kmessages;
@@ -537,6 +556,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	kmsg = proc_portRidGet(p, rid);
 	if (kmsg == NULL) {
+		port_put(p, 0);
 		return -ENOENT;
 	}
 
@@ -572,6 +592,146 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	port_put(p, 0);
 
 	return s;
+}
+
+
+int proc_call(u32 port, msg_t *msg)
+{
+	port_t *p;
+	thread_t *caller, *recv;
+	spinlock_ctx_t sc;
+
+	log_debug("");
+
+	if (msg == NULL) {
+		return -EINVAL;
+	}
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	caller = proc_current();
+
+	hal_spinlockSet(&p->spinlock, &sc);
+	recv = p->threads;
+
+	if (recv == NULL || caller->priority < recv->priority || threads_getHighestPrio(caller->priority) != caller->priority) {
+		/* TODO: optimize spinlocks and port ref-counting in slow path - add proc_send
+		 * variant that already has them */
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		log_err("slow");
+		return proc_send(port, msg);
+	}
+
+	/* commit to fastpath - point of no return */
+	caller->fastpath = 1;
+
+	perf_traceEventsFastpathCallEnter(proc_getTid(caller));
+
+	log_err("fast (p=%p slot.recvMsg=%p msg=%p type=%d)", p, (void *)&p->slot.recvMsg, (void *)msg, msg->type);
+
+	/* TODO: copy directly to receivers address space. Currently p->slot.recvMsg
+	 * is a temporary buffer and requires two memcpys (here and in respondAndRecv) */
+	p->slot.buf = *msg;
+	p->slot.caller = caller;
+
+	/* TODO: retrieve from syscall context on recv side maybe? */
+	p->slot.callerMsg = msg;
+
+	LIST_REMOVE(&p->threads, recv);
+
+	cpu_context_t *ctx = _syscall_ctx();
+	caller->context = ctx;
+	recv->state = READY;
+	caller->state = BLOCKED_ON_REPLY;
+	_threads_switchToThreadFp(ctx, recv);
+	log_err("recv->ctx=%p ctx->eip=%p\n", recv->context, recv->context->eip);
+
+	hal_spinlockClear(&p->spinlock, &sc);
+	port_put(p, 0);
+
+	log_debug("user return set");
+
+	return 222;
+}
+
+
+int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
+{
+	port_t *p;
+	spinlock_ctx_t sc;
+
+	log_debug("");
+
+	if (rid == NULL) {
+		return -EINVAL;
+	}
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&p->spinlock, &sc);
+
+	thread_t *caller = p->slot.caller;
+	if (caller == NULL || threads_getHighestPrio(caller->priority) != caller->priority) {
+		/* slowpath */
+		log_err("slow");
+		if (caller != NULL) {
+			log_err("prio %d != %d", threads_getHighestPrio(caller->priority), caller->priority);
+		}
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		return proc_recv(port, msg, rid);
+	}
+
+	if (p->kmessages != NULL) {
+		/* slowpath */
+		log_err("slow");
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		return proc_recv(port, msg, rid);
+	}
+
+	/* noone to reply, doing a fastpath and switching to caller thread */
+
+	/* commit to fastpath - point of no return */
+	log_err("fast (slot.callerMsg=%p msg=%p)", (void *)p->slot.callerMsg, (void *)msg);
+
+	thread_t *recv = proc_current();
+
+	recv->state = BLOCKED_ON_RECV;
+	LIST_ADD(&p->threads, recv);
+
+	p->slot.buf.o = msg->o;
+
+	caller->state = READY;
+
+	cpu_context_t *ctx = _syscall_ctx();
+	recv->context = ctx;
+	_threads_switchToThreadFp(ctx, caller);
+	log_err("caller->ctx=%p ctx->eip=%p\n", caller->context, caller->context->eip);
+
+	p->slot.callerMsg->o = p->slot.buf.o;
+	p->slot.caller = NULL;
+
+	log_err("after switch");
+
+	hal_spinlockClear(&p->spinlock, &sc);
+	port_put(p, 0);
+
+	log_debug("pre-setup");
+
+	perf_traceEventsFastpathCallExit(proc_getTid(caller));
+	caller->fastpath = 0;
+
+	// threads_setupUserReturn(0, caller->context);
+
+	return 222;
 }
 
 

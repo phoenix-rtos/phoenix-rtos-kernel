@@ -34,6 +34,18 @@
 #define SYSCALLS_NAME(name)   syscalls_##name,
 #define SYSCALLS_STRING(name) #name,
 
+
+struct {
+	cpu_context_t *ctx;
+} syscalls_common;
+
+
+cpu_context_t *_syscall_ctx(void)
+{
+	return syscalls_common.ctx;
+}
+
+
 /*
  * Kernel
  */
@@ -804,6 +816,23 @@ int syscalls_msgSend(void *ustack)
 }
 
 
+int syscalls_msgCall(void *ustack)
+{
+	process_t *proc = proc_current()->process;
+	u32 port;
+	msg_t *msg;
+
+	GETFROMSTACK(ustack, u32, port, 0);
+	GETFROMSTACK(ustack, msg_t *, msg, 1);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_call(port, msg);
+}
+
+
 int syscalls_msgRecv(void *ustack)
 {
 	process_t *proc = proc_current()->process;
@@ -851,6 +880,37 @@ int syscalls_msgRespond(void *ustack)
 #endif
 
 	return proc_respond(port, msg, rid);
+}
+
+
+int syscalls_msgRespondAndRecv(void *ustack)
+{
+	process_t *proc = proc_current()->process;
+	u32 port;
+	msg_t *msg;
+	msg_rid_t *rid;
+
+	GETFROMSTACK(ustack, u32, port, 0);
+	GETFROMSTACK(ustack, msg_t *, msg, 1);
+	GETFROMSTACK(ustack, msg_rid_t *, rid, 2);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
+		return -EFAULT;
+	}
+
+#ifndef NOMMU /* o.data has client memory pointer on NOMMU */
+	if (msg->o.data != NULL) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+			return -EFAULT;
+		}
+	}
+#endif
+
+	return proc_respondAndRecv(port, msg, rid);
 }
 
 
@@ -1916,7 +1976,13 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 		return (void *)-EINVAL;
 	}
 
+	if (n >= 102) {
+		// lib_printf("ctx=%p eip=%p\n", ctx, ctx->eip);
+	}
+
 	tid = proc_getTid(proc_current());
+
+	syscalls_common.ctx = ctx;
 
 	perf_traceEventsSyscallEnter(n, tid);
 
@@ -1929,6 +1995,10 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 	}
 
 	threads_setupUserReturn(retval, ctx);
+
+	if (n >= 102) {
+		// lib_printf("n=%d ctx=%p eip=%p\n", n, ctx, ctx->eip);
+	}
 
 	return retval;
 }

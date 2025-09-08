@@ -45,6 +45,8 @@ enum {
 	PERF_EVENT_THREAD_PRIORITY = 0x31,
 	PERF_EVENT_MAP_ADD = 0x32,
 	PERF_EVENT_MAP_REMOVE = 0x33,
+	PERF_EVENT_FASTPATH_CALL_ENTER = 0x34,
+	PERF_EVENT_FASTPATH_CALL_EXIT = 0x35,
 };
 
 
@@ -301,6 +303,30 @@ static inline void perf_traceEventsMapRemove(const vm_map_t *map, size_t size)
 	PERF_EVENT_BODY(PERF_EVENT_MAP_REMOVE, ev, NULL, {
 		ev.map = (ptr_t)map;
 		ev.size = size;
+	});
+}
+
+
+static inline void perf_traceEventsFastpathCallEnter(u16 tid)
+{
+	struct {
+		u16 tid;
+	} __attribute__((packed)) ev;
+
+	PERF_EVENT_BODY(PERF_EVENT_FASTPATH_CALL_ENTER, ev, NULL, {
+		ev.tid = tid;
+	});
+}
+
+
+static inline void perf_traceEventsFastpathCallExit(u16 tid)
+{
+	struct {
+		u16 tid;
+	} __attribute__((packed)) ev;
+
+	PERF_EVENT_BODY(PERF_EVENT_FASTPATH_CALL_EXIT, ev, NULL, {
+		ev.tid = tid;
 	});
 }
 

@@ -22,11 +22,11 @@
 
 
 #ifndef PERF_EVENT_CHANNEL_BUFSIZE
-#define PERF_EVENT_CHANNEL_BUFSIZE (4 << 20) /* 4 MB */
+#define PERF_EVENT_CHANNEL_BUFSIZE (16 << 20) /* 4 MB */
 #endif
 
 #ifndef PERF_META_CHANNEL_BUFSIZE
-#define PERF_META_CHANNEL_BUFSIZE (1 << 20) /* 1 MB */
+#define PERF_META_CHANNEL_BUFSIZE (4 << 20) /* 1 MB */
 #endif
 
 

@@ -28,12 +28,20 @@
 #define THREAD_END_NOW 2
 
 /* Parent thread states */
-enum { PREFORK = 0, FORKING = 1, FORKED };
+enum { PREFORK = 0,
+	FORKING = 1,
+	FORKED };
 
 /* Child thread states */
-enum { OWNSTACK = 0, PARENTSTACK };
+enum { OWNSTACK = 0,
+	PARENTSTACK };
 
-enum { READY = 0, SLEEP, GHOST };
+enum { READY = 0,
+	SLEEP,
+	GHOST,
+	BLOCKED_ON_RECV,
+	BLOCKED_ON_SEND,
+	BLOCKED_ON_REPLY };
 
 
 typedef struct _thread_t {
@@ -56,7 +64,7 @@ typedef struct _thread_t {
 
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
-	unsigned state : 2;
+	unsigned state : 4;
 	unsigned exit : 2;
 	unsigned interruptible : 1;
 
@@ -85,6 +93,8 @@ typedef struct _thread_t {
 
 	cpu_context_t *context;
 	cpu_context_t *longjmpctx;
+
+	int fastpath; /* for debug purposes */
 } thread_t;
 
 
@@ -221,6 +231,21 @@ extern int threads_sigsuspend(unsigned int mask);
 
 
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
+
+
+extern void _threads_switchToThread(cpu_context_t *context, thread_t *selected);
+
+
+extern void _threads_switchToThreadFp(cpu_context_t *context, thread_t *selected);
+
+
+extern int threads_getHighestPrio(int maxPrio);
+
+
+extern cpu_context_t *threads_getUserContext(thread_t *thread);
+
+
+extern void _threads_removeFromQueue(thread_t *t);
 
 
 #endif

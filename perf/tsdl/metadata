@@ -204,3 +204,19 @@ event {
 		u32 size;
 	};
 };
+
+event {
+	name = fastpath_call_enter;
+	id = 0x34;
+	fields := struct {
+		u16 tid;
+	};
+};
+
+event {
+	name = fastpath_call_exit;
+	id = 0x35;
+	fields := struct {
+		u16 tid;
+	};
+};
