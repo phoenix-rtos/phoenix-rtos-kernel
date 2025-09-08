@@ -44,6 +44,8 @@ enum {
 	TRACE_EVENT_LOCK_CLEAR = 0x30,
 	TRACE_EVENT_THREAD_PRIORITY = 0x31,
 	TRACE_EVENT_PROCESS_KLL = 0x32,
+	TRACE_EVENT_IPC_RTT_ENTER = 0x40,
+	TRACE_EVENT_IPC_RTT_EXIT = 0x41,
 };
 
 
@@ -66,12 +68,25 @@ extern void _trace_updateLockEpoch(lock_t *lock);
 	} while (0)
 
 
+#define PERF_IPC 1
+
+/* clang-format off */
+#define NO_EVENT(ev, ts) do { (void)ev; (void)ts; } while (0)
+/* clang-format on */
+
 /*
  * NOTE: The ev structure passed to PERF_{META,EVENT}_BODY must match the
  * field struct declared in the tsdl/metadata for a given event_id.
  */
+#if !PERF_IPC
 #define TRACE_META_BODY(event_id, ev, ts, ...)  TRACE_EVENT_BODY_CHAN(trace_channel_meta, event_id, ev, ts, __VA_ARGS__)
 #define TRACE_EVENT_BODY(event_id, ev, ts, ...) TRACE_EVENT_BODY_CHAN(trace_channel_event, event_id, ev, ts, __VA_ARGS__)
+#define TRACE_IPC_BODY(event_id, ev, ts, ...)   NO_EVENT(ev, ts)
+#else
+#define TRACE_META_BODY(event_id, ev, ts, ...)  NO_EVENT(ev, ts)
+#define TRACE_EVENT_BODY(event_id, ev, ts, ...) NO_EVENT(ev, ts)
+#define TRACE_IPC_BODY(event_id, ev, ts, ...)   TRACE_EVENT_BODY_CHAN(trace_channel_event, event_id, ev, ts, __VA_ARGS__)
+#endif
 
 
 /* assumes lock->spinlock is set */
@@ -194,7 +209,7 @@ static inline void trace_eventThreadCreate(const thread_t *t)
 
 	TRACE_META_BODY(TRACE_EVENT_THREAD_CREATE, ev, NULL, {
 		ev.tid = proc_getTid(t);
-		ev.priority = t->priority;
+		ev.priority = t->sched->priority;
 
 		if (t->process != NULL) {
 			ev.pid = process_getPid(t->process);
@@ -282,6 +297,26 @@ static inline void trace_eventProcessKill(const process_t *p)
 
 	TRACE_EVENT_BODY(TRACE_EVENT_PROCESS_KLL, pid, NULL, {
 		pid = process_getPid(p);
+	});
+}
+
+
+static inline void trace_eventIPCEnter(void)
+{
+	u64 tsc;
+
+	TRACE_IPC_BODY(TRACE_EVENT_IPC_RTT_ENTER, tsc, NULL, {
+		hal_cpuGetCycles(&tsc);
+	});
+}
+
+
+static inline void trace_eventIPCExit(void)
+{
+	u64 tsc;
+
+	TRACE_IPC_BODY(TRACE_EVENT_IPC_RTT_EXIT, tsc, NULL, {
+		hal_cpuGetCycles(&tsc);
 	});
 }
 

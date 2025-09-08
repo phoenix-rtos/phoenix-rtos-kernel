@@ -186,3 +186,28 @@ event {
 		u8 priority;
 	};
 };
+
+
+event {
+	name = process_kill;
+	id = 0x32;
+	fields := struct {
+		u16 pid;
+	};
+};
+
+event {
+	name = ipc_rtt_enter;
+	id = 0x40;
+	fields := struct {
+		u64 tsc;
+	};
+};
+
+event {
+	name = ipc_rtt_exit;
+	id = 0x41;
+	fields := struct {
+		u64 tsc;
+	};
+};

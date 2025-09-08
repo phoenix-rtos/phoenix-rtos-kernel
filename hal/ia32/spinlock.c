@@ -64,7 +64,7 @@ void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 		"xchgl %0, %%eax\n\t"
 		"movl %1, %%eax\n\t"
 		"pushl %%eax\n\t"
-		"popf"
+		"popf\n"
 	:
 	: "m" (spinlock->lock), "r" (*sc)
 	: "eax", "memory");

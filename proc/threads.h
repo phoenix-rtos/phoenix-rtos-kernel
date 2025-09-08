@@ -18,6 +18,7 @@
 #define _PROC_THREADS_H_
 
 #include "hal/hal.h"
+#include "include/msg.h"
 #include "lib/lib.h"
 #include "include/sysinfo.h"
 #include "process.h"
@@ -28,17 +29,46 @@
 #define THREAD_END_NOW 2
 
 /* Parent thread states */
-enum { PREFORK = 0, FORKING = 1, FORKED };
+enum { PREFORK = 0,
+	FORKING = 1,
+	FORKED };
 
 /* Child thread states */
-enum { OWNSTACK = 0, PARENTSTACK };
+enum { OWNSTACK = 0,
+	PARENTSTACK };
 
-enum { READY = 0, SLEEP, GHOST };
+enum { READY = 0,
+	SLEEP,
+	GHOST,
+	BLOCKED_ON_RECV,
+	BLOCKED_ON_SEND,
+	BLOCKED_ON_REPLY };
+
+
+typedef struct _sched_context_t {
+	struct _sched_context_t *next;
+	struct _sched_context_t *prev;
+
+	struct _thread_t *t;
+
+	time_t readyTime;
+	time_t maxWait;
+
+	time_t startTime;
+	time_t cpuTime;
+	time_t lastTime;
+
+	unsigned priorityBase : 4;
+	unsigned priority : 4;
+
+	/* debug */
+	struct _thread_t *owner;
+} sched_context_t;
 
 
 typedef struct _thread_t {
-	struct _thread_t *next;
-	struct _thread_t *prev;
+	struct _thread_t *msgnext;
+	struct _thread_t *msgprev;
 	struct _lock_t *locks;
 
 	rbnode_t sleeplinkage;
@@ -48,23 +78,24 @@ typedef struct _thread_t {
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
+	struct _thread_t *qnext;
+	struct _thread_t *qprev;
+
 	int refs;
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
 	volatile time_t wakeup;
 
-	unsigned priorityBase : 4;
-	unsigned priority : 4;
-	unsigned state : 2;
-	unsigned exit : 2;
+	sched_context_t *sched;
+	unsigned state : 4;
 	unsigned interruptible : 1;
+	unsigned exit : 2;
+
+	struct _thread_t *reply;
 
 	unsigned sigmask;
 	unsigned sigpend;
-
-	time_t stick;
-	time_t utick;
 
 	void *kstack;
 	size_t kstacksz;
@@ -76,15 +107,14 @@ typedef struct _thread_t {
 	void *parentkstack, *execkstack;
 	void *execdata;
 
-	time_t readyTime;
-	time_t maxWait;
-
-	time_t startTime;
-	time_t cpuTime;
-	time_t lastTime;
-
 	cpu_context_t *context;
 	cpu_context_t *longjmpctx;
+
+	struct {
+		page_t *p;
+		msg_t *w;
+		msg_t *kw;
+	} utcb;
 } thread_t;
 
 
@@ -206,6 +236,21 @@ extern int threads_sigsuspend(unsigned int mask);
 
 
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
+
+
+extern cpu_context_t *threads_switchTo(thread_t *to, int reply);
+
+
+extern int threads_getHighestPrio(int maxPrio);
+
+
+extern void _threads_removeFromQueue(thread_t *t);
+
+
+extern void threads_becomePassive(void);
+
+
+extern void threads_setState(u8 state);
 
 
 #endif
