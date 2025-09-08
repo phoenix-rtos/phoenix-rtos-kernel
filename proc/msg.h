@@ -57,18 +57,36 @@ typedef struct _kmsg_t {
 } kmsg_t;
 
 
+typedef struct _fmsg_t {
+	struct _fmsg_t *next, *prev;
+	idnode_t idlinkage;
+	thread_t *sender;
+	thread_t *threads;
+	volatile int state;
+} fmsg_t;
+
+
 /*
  * Message passing
  */
 
 
+extern void *proc_configure(void);
+
+
 extern int proc_send(u32 port, msg_t *msg);
+
+
+extern int proc_call(u32 port, msg_t *msg);
 
 
 extern int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 
 extern int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
+
+
+extern int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 
 extern void _msg_init(vm_map_t *kmap, vm_object_t *kernel);

@@ -60,7 +60,7 @@ typedef struct _process_t {
 	u32 umask;
 #endif
 
-	void *ports;
+	struct _port_t *ports;
 
 	idtree_t resources;
 

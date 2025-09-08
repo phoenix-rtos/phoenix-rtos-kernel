@@ -66,7 +66,7 @@ void _usrv_start(void)
 		return;
 	}
 
-	proc_threadCreate(NULL, usrv_msgthr, NULL, 1, SIZE_KSTACK, NULL, 0, NULL);
+	proc_threadCreate(NULL, usrv_msgthr, NULL, 3, SIZE_KSTACK, NULL, 0, NULL);
 }
 
 
