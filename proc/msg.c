@@ -17,6 +17,9 @@
 #include "lib/lib.h"
 #include "proc.h"
 
+#include "perf/trace-events.h"
+#include "syscalls.h"
+
 
 #define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
@@ -364,7 +367,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.state = msg_waiting;
 
 	kmsg.msg.pid = (sender->process != NULL) ? process_getPid(sender->process) : 0;
-	kmsg.msg.priority = sender->priority;
+	kmsg.msg.priority = sender->sched->priority;
 
 	msg_ipack(&kmsg);
 
@@ -416,6 +419,13 @@ int proc_send(u32 port, msg_t *msg)
 }
 
 
+// #define log_debug(fmt, ...) perf_traceEventsPrintf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
+// #define log_debug(fmt, ...) lib_printf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
+#define log_debug(fmt, ...)
+// #define log_err(fmt, ...) lib_printf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
+#define log_err(fmt, ...)
+
+
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p;
@@ -429,6 +439,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
+
+	p->slot.recvMsg = msg;
 
 	while ((p->kmessages == NULL) && (p->closed == 0) && (err != -EINTR)) {
 		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0, &sc);
@@ -537,6 +549,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	kmsg = proc_portRidGet(p, rid);
 	if (kmsg == NULL) {
+		port_put(p, 0);
 		return -ENOENT;
 	}
 
@@ -572,6 +585,198 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	port_put(p, 0);
 
 	return s;
+}
+
+
+void *proc_configure(void)
+{
+	void *vaddr, *kvaddr;
+	thread_t *t;
+	vm_map_t *map;
+	page_t *p;
+	u8 prot, flags, attr;
+
+	t = proc_current();
+	map = &t->process->map;
+
+	if (t->utcb.w != NULL) {
+		return t->utcb.w;
+	}
+
+	prot = PROT_WRITE | PROT_READ | PROT_USER;
+	flags = MAP_NOINHERIT;
+	attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | PGHD_USER | vm_flagsToAttr(flags);
+
+	/* TODO: cleanups on exit */
+
+	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	if (p == NULL) {
+		return NULL;
+	}
+	t->utcb.p = p;
+
+	/* map to current thread space */
+	vaddr = vm_mapFind(map, NULL, SIZE_PAGE, flags, prot);
+	if (vaddr == NULL) {
+		return NULL;
+	}
+	t->utcb.w = vaddr;
+
+	if (page_map(&map->pmap, vaddr, p->addr, attr) < 0) {
+		return NULL;
+	}
+
+	/* map to kernel space */
+	kvaddr = vm_mapFind(msg_common.kmap, NULL, SIZE_PAGE, flags, prot);
+	if (vaddr == NULL) {
+		return NULL;
+	}
+	t->utcb.kw = kvaddr;
+
+	if (page_map(&msg_common.kmap->pmap, kvaddr, p->addr, attr) < 0) {
+		return NULL;
+	}
+
+	return vaddr;
+}
+
+extern void interrupts_popContextUnlocked(void);
+
+
+int proc_call(u32 port, msg_t *msg)
+{
+	port_t *p;
+	thread_t *caller, *recv;
+	spinlock_ctx_t sc;
+
+	if (msg == NULL) {
+		return -EINVAL;
+	}
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	caller = proc_current();
+
+	hal_spinlockSet(&p->spinlock, &sc);
+	recv = p->threads;
+
+	if (recv == NULL ||
+			/* if recv is an active server, check priority */
+			(recv->sched != NULL && caller->sched->priority < recv->sched->priority) ||
+			threads_getHighestPrio(caller->sched->priority) != caller->sched->priority) {
+
+		/* TODO: optimize spinlocks and port ref-counting in slow path - add proc_send
+		 * variant that already has them */
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		log_err("slow");
+		return proc_send(port, msg);
+	}
+
+	/* commit to fastpath - point of no return */
+
+	log_err("fast");
+
+	p->slot.caller = caller;
+
+	log_debug("utcb buf type %d", caller->utcb.kw->type);
+	hal_memcpy(recv->utcb.kw, caller->utcb.kw, sizeof(msg_t));
+
+	LIST_REMOVE_EX(&p->threads, recv, qnext, qprev);
+
+	hal_spinlockClear(&p->spinlock, &sc);
+	port_put(p, 0);
+
+	cpu_context_t *ctx = threads_switchTo(recv, 0);
+	log_debug("recv->ctx=%p ctx->eip=%p\n", recv->context, recv->context->eip);
+
+	asm volatile(
+			"cli\n\t"
+			"movl %0, %%esp\n\t"
+			"jmp interrupts_popContextUnlocked\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+
+	__builtin_unreachable();
+}
+
+
+int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
+{
+	port_t *p;
+	spinlock_ctx_t sc;
+
+	if (rid == NULL) {
+		return -EINVAL;
+	}
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&p->spinlock, &sc);
+
+	log_debug("utcb buf type %d", proc_current()->utcb.kw->type);
+
+	thread_t *recv = proc_current();
+	thread_t *caller = p->slot.caller;
+
+	if (caller == NULL || p->kmessages != NULL) {
+		/* slowpath */
+		log_err("passive");
+		LIST_ADD_EX(&p->threads, recv, qnext, qprev);
+
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+
+		threads_becomePassive();
+		__builtin_unreachable();
+	}
+
+	/* recv SC is actually caller's SC */
+	if (threads_getHighestPrio(recv->sched->priority) != recv->sched->priority) {
+		/* someone to respond but cannot be scheduled directly */
+		log_err("slow: prio %d != %d", threads_getHighestPrio(recv->sched->priority), recv->sched->priority);
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+
+		/* TODO: something along the lines of */
+		// hal_memcpy(&((msg_t *)caller->utcb.w)->o, &((msg_t *)recv->utcb.w)->o, sizeof(msg_t));
+		// caller->state = READY;
+
+		return proc_recv(port, msg, rid);
+	}
+
+	/* noone to reply, doing a fastpath and switching to caller thread */
+
+	/* commit to fastpath - point of no return */
+	log_err("fast");
+
+	LIST_ADD_EX(&p->threads, recv, qnext, qprev);
+
+	hal_memcpy(&caller->utcb.kw->o, &recv->utcb.kw->o, sizeof(msg_t));
+
+	p->slot.caller = NULL;
+
+	hal_spinlockClear(&p->spinlock, &sc);
+	port_put(p, 0);
+
+	cpu_context_t *ctx = threads_switchTo(caller, 1);
+
+	asm volatile(
+			"cli\n\t"
+			"movl %0, %%esp\n\t"
+			"jmp interrupts_popContextUnlocked\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+
+	__builtin_unreachable();
 }
 
 

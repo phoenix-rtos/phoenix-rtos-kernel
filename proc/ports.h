@@ -38,6 +38,13 @@ typedef struct _port_t {
 	lock_t lock;
 	thread_t *threads;
 	msg_t *current;
+
+	struct {
+		msg_t *callerMsg;
+		msg_t *recvMsg;
+		msg_t buf;
+		thread_t *caller;
+	} slot;
 } port_t;
 
 /* FIXME - use int for port handle.

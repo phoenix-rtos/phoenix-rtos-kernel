@@ -152,6 +152,10 @@ int proc_portCreate(u32 *id)
 		proc_lockClear(&proc->lock);
 	}
 
+	port->slot.caller = NULL;
+	port->slot.callerMsg = NULL;
+	// port->slot.recvMsg = NULL;
+
 	return EOK;
 }
 

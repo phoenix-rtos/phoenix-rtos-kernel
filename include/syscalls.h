@@ -126,5 +126,9 @@
 	ID(sys_statvfs) \
 	ID(sys_uname) \
 	\
-	ID(perf_stop)
+	ID(perf_stop) \
+	\
+	ID(msgCall) \
+	ID(msgRespondAndRecv) \
+	ID(msgConfigure)
 /* clang-format on */

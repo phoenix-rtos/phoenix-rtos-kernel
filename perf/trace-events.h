@@ -194,7 +194,7 @@ static inline void trace_eventThreadCreate(const thread_t *t)
 
 	TRACE_META_BODY(TRACE_EVENT_THREAD_CREATE, ev, NULL, {
 		ev.tid = proc_getTid(t);
-		ev.priority = t->priority;
+		ev.priority = t->sched->priority;
 
 		if (t->process != NULL) {
 			ev.pid = process_getPid(t->process);
