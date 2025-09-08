@@ -129,6 +129,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if ((h = interrupts_common.handlers[n]) != NULL) {
 		do {
+			hal_cpuSetGot(h->got);
 			reschedule |= h->f(n, ctx, h->data);
 		} while ((h = h->next) != interrupts_common.handlers[n]);
 	}
@@ -183,6 +184,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[h->n], &sc);
+	h->got = hal_cpuGetGot();
 	HAL_LIST_ADD(&interrupts_common.handlers[h->n], h);
 
 	interrupts_setPriority(h->n, DEFAULT_PRIORITY);
