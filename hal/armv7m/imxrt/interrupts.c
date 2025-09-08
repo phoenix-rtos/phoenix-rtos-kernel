@@ -135,6 +135,24 @@ void _hal_interruptsTrace(int enable)
 	interrupts.trace_irqs = enable;
 }
 
+extern void _syscallend(void);
+
+
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
+{
+	_Static_assert(__builtin_offsetof(cpu_context_t, hwctx.lr) == 140);
+	// ctx->hwctx.pc |= 1;
+	asm volatile(
+			"ldr r1, [%1] \n\t"
+			"msr primask, r1\n\t"
+			"mov sp, %0\n\t"
+			"b _syscallend\n\t"
+			:
+			: "r"(ctx), "r"(sc)
+			: "memory");
+	__builtin_unreachable();
+}
+
 
 __attribute__((section(".init"))) void _hal_interruptsInit(void)
 {

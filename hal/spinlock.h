@@ -17,6 +17,9 @@
 #include <arch/spinlock.h>
 
 
+void hal_spinlockGetCtx(spinlock_ctx_t *sc);
+
+
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc);
 
 

@@ -28,7 +28,6 @@ typedef struct _port_t {
 
 	idtree_t rid;
 
-	kmsg_t *kmessages;
 	process_t *owner;
 	int refs, closed;
 
@@ -36,6 +35,12 @@ typedef struct _port_t {
 	lock_t lock;
 	thread_t *threads;
 	msg_t *current;
+
+	/* to be merged with threads once old impl is ditched */
+	prio_queue_t queue;
+
+	__u8 pulse;
+	__u8 flags;
 } port_t;
 
 /* FIXME - use int for port handle.
@@ -56,13 +61,10 @@ port_t *proc_portGet(u32 id);
 void port_put(port_t *p, int destroy);
 
 
-msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg);
-
-
-kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid);
-
-
 void _port_init(void);
+
+
+void _portDequeueReceivers(port_t *p);
 
 
 #endif

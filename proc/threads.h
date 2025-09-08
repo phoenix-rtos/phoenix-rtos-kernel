@@ -16,6 +16,7 @@
 #define _PH_PROC_THREADS_H_
 
 #include "hal/hal.h"
+#include "include/msg.h"
 #include "lib/lib.h"
 #include "include/sysinfo.h"
 #include "include/sched.h"
@@ -28,20 +29,76 @@
 #define LIB_ASSERT_THREADS(condition, fmt, ...)
 #endif
 
-#define MAX_PRIO 7U /* Maximum priority value, of the lowest criticality (prio=0 is of the HIGHEST) */
+#define NPRIOS   16U
+#define MAX_PRIO (NPRIOS - 1U) /* Maximum priority value, of the lowest criticality (prio=0 is of the HIGHEST) */
 
 #define MAX_TID        MAX_ID
 #define THREAD_END     1U
 #define THREAD_END_NOW 2U
 
 /* Thread states */
-#define READY 0U
-#define SLEEP 1U
-#define GHOST 2U
+#define READY            0U
+#define SLEEP            1U
+#define GHOST            2U
+#define BLOCKED_ON_RECV  3U
+#define BLOCKED_ON_SEND  4U
+#define BLOCKED_ON_REPLY 5U
+
+
+typedef struct _sched_context_t {
+	struct _sched_context_t *next;
+	struct _sched_context_t *prev;
+
+	struct _sched_context_t *dnext;
+	struct _sched_context_t *dprev;
+
+	struct _thread_t *t;
+	struct _thread_t *owner;
+	struct _thread_t *donor;
+	unsigned int priorityBase : 4;
+	unsigned int priority : 4;
+
+	time_t readyTime;
+	time_t maxWait;
+
+	time_t startTime;
+	time_t cpuTime;
+	time_t lastTime;
+} sched_context_t;
+
+
+/* TODO: if not sufficient, implement some crazy heap */
+typedef struct {
+	struct _thread_t *pq[NPRIOS];
+	int nonempty;
+} prio_queue_t;
+
+
+typedef struct _xferBuf_t {
+	/* TODO: do this as a private impl state */
+#ifndef NOMMU
+	void *bvaddr;
+	u64 boffs;
+	page_t *bp;
+
+	void *evaddr;
+	u64 eoffs;
+	page_t *ep;
+#endif
+
+	void *w;
+	void *orig;
+	size_t size;
+	vm_map_t *map;
+} xferBuf_t;
+
+
+#define IPC_IN_FROM_RECV    (1 << 0)
+#define IPC_OUT_FROM_RECV   (1 << 1)
+#define IPC_IN_DATA_MAPPED  (1 << 2)
+#define IPC_OUT_DATA_MAPPED (1 << 3)
 
 typedef struct _thread_t {
-	struct _thread_t *next;
-	struct _thread_t *prev;
 	struct _lock_t *locks;
 
 	rbnode_t sleeplinkage;
@@ -51,23 +108,50 @@ typedef struct _thread_t {
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
+	/* TODO lots of pointers... maybe it'd possible to optimize this? */
+	struct _thread_t *qnext;
+	struct _thread_t *qprev;
+
+	struct _thread_t *tnext;
+	struct _thread_t *tprev;
+
 	int refs;
 	struct _thread_t *blocking;
+	struct _lock_t *waitingOn; /* lock this thread is blocked on (PI chain) */
 
 	struct _thread_t **wait;
 	time_t wakeup;
 
+	sched_context_t *scOwn;     /* thread's base SC - never donated away */
+	sched_context_t *scActive;  /* SC currently being consumed (used by scheduler) */
+	sched_context_t *scDonated; /* SCs donated to the thread */
+
+	struct _thread_t *prevDonor; /* donor stack */
+
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;
-	unsigned int state : 2;
+	unsigned int state : 4;
+	unsigned int interruptible : 1;
 	unsigned int exit : 2;
-	unsigned interruptible : 1;
+	unsigned int passive : 1;
+
+	/* fastpath related */
+	struct _thread_t *reply;
+	struct _thread_t *called;
+	u8 fpCtxSet : 4;
+	u8 callReturnable : 4;
+	u8 saveCtxInReply : 4;
+	u8 respondAndRecv : 4;
+
+	/*
+	 * REVISIT: during threads_destroy of a fastpath receiver we should remove
+	 * ourselves out of addedTo's port queue so that it doesn't contain garbage
+	 * but it's sad we need port-thread bound. Maybe there is a better way?
+	 */
+	struct _port_t *addedTo;
 
 	unsigned int sigmask;
 	unsigned int sigpend;
-
-	time_t stick;
-	time_t utick;
 
 	void *kstack;
 	size_t kstacksz;
@@ -79,15 +163,39 @@ typedef struct _thread_t {
 	void *parentkstack, *execkstack;
 	void *execdata;
 
-	time_t readyTime;
-	time_t maxWait;
-
-	time_t startTime;
-	time_t cpuTime;
-	time_t lastTime;
-
 	cpu_context_t *context;
+	cpu_context_t *fastpathExitCtx;
 	cpu_context_t *longjmpctx;
+
+	struct {
+		xferBuf_t ibl;
+		xferBuf_t obl;
+
+		/* IPC buffer */
+		void *kw;
+		void *w;
+		page_t *p;
+		size_t size;
+		u8 flags;
+
+		/* borrowed IPC buffer */
+		void *bw;
+		size_t bsize;
+
+		u8 pulse;
+
+		msg_t msgDefer;
+		struct _thread_t *defer;
+
+		char rawBuf[MSG_RAW_SIZE];
+
+		/* pointers in process' aspace */
+		msg_t *msgPtr;
+		msg_rid_t *ridPtr;
+	} ipc;
+
+	/* TODO: merge with ipc.flags? */
+	int flags;
 } thread_t;
 
 
@@ -172,6 +280,12 @@ int proc_schedGet(thread_t *t, sched_params_t *params);
 int proc_schedSet(thread_t *t, int policy, sched_params_t *params);
 
 
+int proc_threadBroadcastPrio(prio_queue_t *queue);
+
+
+void proc_threadPrioQueueInit(prio_queue_t *queue);
+
+
 thread_t *threads_findThread(int tid);
 
 
@@ -209,6 +323,12 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 __attribute__((noreturn)) void threads_halt(void);
+
+
+void threads_releaseXferBufs(thread_t *thread);
+
+
+void threads_releaseIpcBuf(thread_t *thread);
 
 
 #endif

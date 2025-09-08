@@ -131,8 +131,12 @@
 	ID(sys_uname) \
 	ID(schedInfo) \
 	ID(schedGet) \
-	ID(schedSet)
-
+	ID(schedSet) \
+  ID(bench_entry_exit_time) \
+	ID(msgRespondAndRecv) \
+	ID(msgPulse) \
+	ID(msgForward) \
+	ID(msgSetup)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 /* clang-format on */
 

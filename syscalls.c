@@ -35,6 +35,9 @@
 
 #define SYSCALLS_NAME(name) syscalls_##name,
 
+/* TODO: remove (DEBUG) */
+#include "log/log.h"
+
 /*
  * Kernel
  */
@@ -1009,14 +1012,42 @@ int syscalls_msgSend(u8 *ustack)
 			return -EFAULT;
 		}
 	}
+	else {
+		msg->i.size = 0;
+	}
 
 	if (msg->o.data != NULL) {
 		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
 			return -EFAULT;
 		}
 	}
+	else {
+		msg->o.size = 0;
+	}
 
 	return proc_send(port, msg);
+}
+
+
+int syscalls_msgPulse(u8 *ustack)
+{
+	u32 port;
+	u8 pulse;
+
+	GETFROMSTACK(ustack, u32, port, 0U);
+	GETFROMSTACK(ustack, u8, pulse, 1U);
+
+	return proc_pulse(port, pulse);
+}
+
+
+void *syscalls_msgSetup(u8 *ustack)
+{
+	size_t sz;
+
+	GETFROMSTACK(ustack, size_t, sz, 0U);
+
+	return proc_setupIpcBuf(proc_current(), sz);
 }
 
 
@@ -1064,9 +1095,76 @@ int syscalls_msgRespond(u8 *ustack)
 			return -EFAULT;
 		}
 	}
+	else {
+		msg->o.size = 0;
+	}
 #endif
 
 	return proc_respond(port, msg, rid);
+}
+
+
+int syscalls_msgForward(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	u32 port;
+	msg_t *msg;
+	msg_rid_t rid;
+
+	GETFROMSTACK(ustack, u32, port, 0U);
+	GETFROMSTACK(ustack, msg_t *, msg, 1U);
+	GETFROMSTACK(ustack, msg_rid_t, rid, 2U);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+#ifndef NOMMU /* o.data has client memory pointer on NOMMU */
+	if (msg->o.data != NULL) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+			return -EFAULT;
+		}
+	}
+	else {
+		msg->o.size = 0;
+	}
+#endif
+
+	return proc_forward(port, msg, rid);
+}
+
+
+int syscalls_msgRespondAndRecv(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	u32 port;
+	msg_t *msg;
+	msg_rid_t *rid;
+
+	GETFROMSTACK(ustack, u32, port, 0U);
+	GETFROMSTACK(ustack, msg_t *, msg, 1U);
+	GETFROMSTACK(ustack, msg_rid_t *, rid, 2U);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
+		return -EFAULT;
+	}
+
+#ifndef NOMMU /* TODO: what about NOMMU? */
+	if (msg->o.data != NULL) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+			return -EFAULT;
+		}
+	}
+	else {
+		msg->o.size = 0;
+	}
+#endif
+
+	return proc_respondAndRecv(port, msg, rid);
 }
 
 
@@ -2101,9 +2199,25 @@ int syscalls_sys_uname(u8 *ustack)
 }
 
 
+cycles_t syscalls_bench_entry_exit_time(void)
+{
+	cycles_t c;
+	hal_cpuGetCycles(&c);
+	return c;
+}
+
+
 /*
  * Empty syscall
  */
+
+
+u64 syscalls_sys_entrytime(char *ustack)
+{
+	cycles_t cb;
+	hal_cpuGetCycles(&cb);
+	return cb;
+}
 
 
 int syscalls_notimplemented(void)

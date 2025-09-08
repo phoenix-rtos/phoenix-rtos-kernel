@@ -23,6 +23,7 @@
 #include "syspage.h"
 #include "test/test.h"
 #include "perf/perf.h"
+#include "proc/msg.h"
 
 
 static struct {

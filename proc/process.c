@@ -30,6 +30,8 @@
 #include "userintr.h"
 #include "perf/trace-events.h"
 
+#include "log/log.h"
+
 /* Process states */
 #define PREFORK 0
 #define FORKING 1
@@ -131,6 +133,7 @@ int proc_put(process_t *p)
 	(void)proc_lockClear(&process_common.lock);
 
 	if (remaining <= 0) {
+		/* FIXME: p is fishy here sometimes? */
 		process_destroy(p);
 	}
 
@@ -253,6 +256,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	userintr_t *intr;
 	char buff[SIZE_CTXDUMP];
 	int len;
+	(void)len;
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
@@ -1671,12 +1675,23 @@ static int process_execve(thread_t *current)
 		(void)proc_join(-1, 0);
 	}
 
+	LIB_ASSERT(current->addedTo == NULL, "HAA");
+	LIB_ASSERT(current->reply == NULL, "heh, reply");
+	LIB_ASSERT(current->called == NULL, "heh, called");
+	LIB_ASSERT(current->passive == 0, "heh, passive?");
+	// LIB_ASSERT(current->inherited == NULL, "heh, inherited?");
+
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
 		process_restoreParentKstack(current, parent);
 	}
 	else {
 		/* Reinitialize process */
+
+		/* TODO: moved here, is ok? */
+		threads_releaseXferBufs(current);
+		threads_releaseIpcBuf(current);
+
 		map = current->process->mapp;
 		imap = current->process->imapp;
 		proc_changeMap(current->process, NULL, NULL, NULL);
@@ -1796,6 +1811,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	else {
 		(void)process_execve(current);
 	}
+	LIB_ASSERT(0, "NOT REACHED");
 	/* Not reached */
 
 	return 0;

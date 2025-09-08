@@ -121,6 +121,7 @@ _hal_cpuRestoreCtx:
 	/* CLREX should be executed as part of context switch */
 	clrex
 
+  /* TODO: lazy FPU */
 	/* Restore fpu context */
 	pop {r4}
 	vmsr fpscr, r4

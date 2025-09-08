@@ -129,6 +129,7 @@ event {
 	id = 0x2b;
 	fields := struct {
 		u8 cpu;
+    u32 dtsc;
 	};
 };
 
@@ -203,5 +204,15 @@ event {
 		u16 tid;
 		u8 prio;
 		str name[128];
+	};
+};
+
+event {
+	name = msg_profile;
+	id = 0x40;
+	fields := struct {
+		u32 tid;
+		u32 syscall;
+		u64 tscs[15];
 	};
 };
