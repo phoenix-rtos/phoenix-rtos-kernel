@@ -252,6 +252,31 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 }
 
 
+msgBuf_t *proc_initMsgBuf(void)
+{
+	void *vaddr;
+	thread_t *t;
+
+	t = proc_current();
+
+	if (t->utcb.w != NULL) {
+		return t->utcb.w;
+	}
+
+	/* TODO: cleanups on exit */
+
+	/* map to current thread space */
+	vaddr = vm_mmap(t->process->mapp, NULL, NULL, round_page(sizeof(msg_t)), PROT_WRITE | PROT_READ | PROT_USER, NULL, -1, MAP_ANONYMOUS);
+	if (vaddr == NULL) {
+		return NULL;
+	}
+	t->utcb.w = vaddr;
+	t->utcb.kw = vaddr;
+
+	return vaddr;
+}
+
+
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	msg_common.kmap = kmap;

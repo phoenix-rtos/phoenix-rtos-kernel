@@ -18,6 +18,7 @@
 #define _PH_PROC_THREADS_H_
 
 #include "hal/hal.h"
+#include "include/msg.h"
 #include "lib/lib.h"
 #include "include/sysinfo.h"
 #include "process.h"
@@ -31,10 +32,63 @@
 #define READY 0U
 #define SLEEP 1U
 #define GHOST 2U
+#define BLOCKED_ON_RECV 3U
+#define BLOCKED_ON_SEND 4U
+#define BLOCKED_ON_REPLY 5U
+
+
+typedef struct _sched_context_t {
+	struct _sched_context_t *next;
+	struct _sched_context_t *prev;
+
+	struct _sched_context_t *dnext;
+	struct _sched_context_t *dprev;
+
+	struct _thread_t *t;
+	struct _thread_t *owner;
+	struct _thread_t *donor;
+	unsigned int priorityBase : 4;
+	unsigned int priority : 4;
+
+	time_t readyTime;
+	time_t maxWait;
+
+	time_t startTime;
+	time_t cpuTime;
+	time_t lastTime;
+} sched_context_t;
+
+
+#define MAX_PRIO 8
+
+
+/* TODO: if not sufficient, implement some crazy heap */
+typedef struct {
+	struct _thread_t *pq[MAX_PRIO];
+	int nonempty;
+} prio_queue_t;
+
+
+typedef struct {
+	void *bvaddr;
+	u64 boffs;
+	page_t *bp;
+
+	void *evaddr;
+	u64 eoffs;
+	page_t *ep;
+
+	void *w;
+	size_t size;
+	vm_map_t *map;
+
+	/* Message buffer */
+	void *bufferStart;
+	void *bufferEnd;
+	void *mappedBase;
+} ipc_buf_layout_t;
 
 typedef struct _thread_t {
-	struct _thread_t *next;
-	struct _thread_t *prev;
 	struct _lock_t *locks;
 
 	rbnode_t sleeplinkage;
@@ -44,23 +98,46 @@ typedef struct _thread_t {
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
+	/* TODO lots of pointers... maybe it'd possible to optimize this? */
+	struct _thread_t *qnext;
+	struct _thread_t *qprev;
+
+	struct _thread_t *tnext;
+	struct _thread_t *tprev;
+
 	int refs;
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
 	time_t wakeup;
 
-	unsigned int priorityBase : 4;
-	unsigned int priority : 4;
-	unsigned int state : 2;
-	unsigned int exit : 2;
+	sched_context_t *sc_own;     /* thread's base SC - never donated away */
+	sched_context_t *sc_active;  /* SC currently being consumed (used by scheduler) */
+	sched_context_t *sc_donated; /* SCs donated to the thread */
+
+	unsigned priorityBase : 4;
+	unsigned priority : 4;
+	unsigned state : 4;
 	unsigned interruptible : 1;
+	unsigned exit : 2;
+	unsigned passive : 1;
+
+	/* fastpath related */
+	struct _thread_t *reply;
+	struct _thread_t *called;
+	int fpCtxSet;
+	int callReturnable;
+	int saveCtxInReply;
+
+	/*
+	 * REVISIT: during threads_destroy of a fastpath receiver we should remove
+	 * ourselves out of addedTo's port queue so that it doesn't contain garbage
+	 * but it's sad we need port-thread bound. Maybe there is a better way?
+	 */
+	struct _port_t *addedTo;
 
 	unsigned int sigmask;
 	unsigned int sigpend;
-
-	time_t stick;
-	time_t utick;
 
 	void *kstack;
 	size_t kstacksz;
@@ -72,15 +149,32 @@ typedef struct _thread_t {
 	void *parentkstack, *execkstack;
 	void *execdata;
 
-	time_t readyTime;
-	time_t maxWait;
-
-	time_t startTime;
-	time_t cpuTime;
-	time_t lastTime;
-
 	cpu_context_t *context;
+	cpu_context_t *fastpathExitCtx;
 	cpu_context_t *longjmpctx;
+
+	struct {
+		ipc_buf_layout_t iil;
+		ipc_buf_layout_t oil;
+
+		u8 pulse;
+		int err;
+
+		char msgbuf[256];
+		size_t msglen;
+
+		/* pointer to in process space */
+		msg_t *msg;
+
+		msg_rid_t *ridPtr;
+		int ishmapped;
+		int oshmapped;
+	} utcb;
+
+	int flags;
+
+	/* Message buffer */
+	struct _thread_t *mappedTo;
 } thread_t;
 
 
@@ -153,6 +247,12 @@ int proc_threadBroadcast(thread_t **queue);
 void proc_threadBroadcastYield(thread_t **queue);
 
 
+int proc_threadBroadcastPrio(prio_queue_t *queue);
+
+
+void proc_threadPrioQueueInit(prio_queue_t *queue);
+
+
 thread_t *threads_findThread(int tid);
 
 
@@ -184,6 +284,18 @@ int threads_sigsuspend(unsigned int mask);
 
 
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
+
+
+extern int threads_getHighestPrio(int maxPrio);
+
+
+extern void _threads_removeFromQueue(thread_t *t);
+
+
+extern void threads_setState(u8 state);
+
+
+extern void threads_releaseIpcBuffers(thread_t *thread);
 
 
 #endif

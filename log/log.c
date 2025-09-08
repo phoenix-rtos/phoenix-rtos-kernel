@@ -127,6 +127,8 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	log_rmsg_t *rmsg;
 	msg_t msg;
 
+	hal_memset(&msg, 0, sizeof(msg));
+
 	rmsg = r->msgs;
 	LIST_REMOVE(&r->msgs, rmsg);
 

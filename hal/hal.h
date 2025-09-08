@@ -69,4 +69,7 @@ void _hal_cpuInit(void);
 void _hal_platformInit(void);
 
 
+extern __attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc);
+
+
 #endif

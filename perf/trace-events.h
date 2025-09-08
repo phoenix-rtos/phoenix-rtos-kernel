@@ -46,6 +46,7 @@ enum {
 	TRACE_EVENT_THREAD_PRIORITY = 0x31,
 	TRACE_EVENT_PROCESS_KILL = 0x32,
 	TRACE_EVENT_PROCESS_EXEC = 0x33,
+	TRACE_EVENT_MSG_PROFILE = 0x40,
 };
 
 
@@ -68,12 +69,25 @@ void _trace_updateLockEpoch(lock_t *lock);
 	} while (0)
 
 
+#define PERF_IPC 1
+
+/* clang-format off */
+#define NO_EVENT(ev, ts) do { (void)ev; (void)ts; } while (0)
+/* clang-format on */
+
 /*
  * NOTE: The ev structure passed to PERF_{META,EVENT}_BODY must match the
  * field struct declared in the tsdl/metadata for a given event_id.
  */
+#if !PERF_IPC
 #define TRACE_META_BODY(event_id, ev, ts, ...)  TRACE_EVENT_BODY_CHAN((u8)(trace_channel_meta), (event_id), (ev), (ts), __VA_ARGS__)
 #define TRACE_EVENT_BODY(event_id, ev, ts, ...) TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
+#define TRACE_IPC_BODY(event_id, ev, ts, ...)   TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
+#else
+#define TRACE_META_BODY(event_id, ev, ts, ...)  NO_EVENT((ev), (ts))
+#define TRACE_EVENT_BODY(event_id, ev, ts, ...) NO_EVENT((ev), (ts))
+#define TRACE_IPC_BODY(event_id, ev, ts, ...)   TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
+#endif
 
 
 /* assumes lock->spinlock is set */
@@ -160,7 +174,7 @@ static inline void _trace_eventLockClear(lock_t *lock, int tid)
 MAYBE_UNUSED static inline void trace_eventInterruptEnter(unsigned int n)
 {
 	u8 ev = 0;
-	TRACE_EVENT_BODY(TRACE_EVENT_INTERRUPT_ENTER, ev, NULL, { ev = (u8)n; });
+	TRACE_IPC_BODY(TRACE_EVENT_INTERRUPT_ENTER, ev, NULL, { ev = (u8)n; });
 }
 
 
@@ -168,35 +182,35 @@ MAYBE_UNUSED static inline void trace_eventInterruptEnter(unsigned int n)
 MAYBE_UNUSED static inline void trace_eventInterruptExit(unsigned int n)
 {
 	u8 ev = 0;
-	TRACE_EVENT_BODY(TRACE_EVENT_INTERRUPT_EXIT, ev, NULL, { ev = (u8)n; });
+	TRACE_IPC_BODY(TRACE_EVENT_INTERRUPT_EXIT, ev, NULL, { ev = (u8)n; });
 }
 
 
 static inline void trace_eventThreadScheduling(int tid)
 {
 	u16 ev = 0;
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_SCHEDULING, ev, NULL, { ev = (u16)tid; });
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_SCHEDULING, ev, NULL, { ev = (u16)tid; });
 }
 
 
 static inline void trace_eventThreadPreempted(int tid)
 {
 	u16 ev = 0;
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_PREEMPTED, ev, NULL, { ev = (u16)tid; });
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_PREEMPTED, ev, NULL, { ev = (u16)tid; });
 }
 
 
 static inline void trace_eventThreadEnqueued(int tid)
 {
 	u16 ev = 0;
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_ENQUEUED, ev, NULL, { ev = (u16)tid; });
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_ENQUEUED, ev, NULL, { ev = (u16)tid; });
 }
 
 
 static inline void trace_eventThreadWaking(int tid)
 {
 	u16 ev = 0;
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_WAKING, ev, NULL, { ev = (u16)tid; });
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_WAKING, ev, NULL, { ev = (u16)tid; });
 }
 
 
@@ -253,7 +267,7 @@ static inline void trace_eventSyscallEnter(int n, int tid)
 	} __attribute__((packed)) ev;
 
 	_Static_assert((u64)syscall_count <= (1UL << 8U * sizeof(u8)) - 1UL, "u8 is too small for syscall ID");
-	TRACE_EVENT_BODY(TRACE_EVENT_SYSCALL_ENTER, ev, NULL, {
+	TRACE_IPC_BODY(TRACE_EVENT_SYSCALL_ENTER, ev, NULL, {
 		ev.n = (u8)n;
 		ev.tid = (u16)tid;
 	});
@@ -267,24 +281,38 @@ static inline void trace_eventSyscallExit(int n, int tid)
 		u16 tid;
 	} __attribute__((packed)) ev;
 
-	TRACE_EVENT_BODY(TRACE_EVENT_SYSCALL_EXIT, ev, NULL, {
+	TRACE_IPC_BODY(TRACE_EVENT_SYSCALL_EXIT, ev, NULL, {
 		ev.n = (u8)n;
 		ev.tid = (u16)tid;
 	});
 }
 
 
-static inline void trace_eventSchedEnter(unsigned int cpuId)
+static inline u32 trace_eventSchedEnter(unsigned int cpuId)
 {
-	u8 ev = 0;
-	TRACE_EVENT_BODY(TRACE_EVENT_SCHED_ENTER, ev, NULL, { ev = (u8)cpuId; });
+	cycles_t tsc = 0;
+	if (trace_isRunning() == 0) {
+		return 0;
+	}
+	hal_cpuGetCycles(&tsc);
+	trace_writeEvent(trace_channel_event, TRACE_EVENT_SCHED_ENTER, &cpuId, sizeof(cpuId), NULL);
+	return (u32)tsc;
 }
 
 
-static inline void trace_eventSchedExit(unsigned int cpuId)
+static inline void trace_eventSchedExit(unsigned int cpuId, u32 enterTsc)
 {
-	u8 ev = 0;
-	TRACE_EVENT_BODY(TRACE_EVENT_SCHED_EXIT, ev, NULL, { ev = (u8)cpuId; });
+	struct {
+		u8 cpuId;
+		u32 dtsc;
+	} __attribute__((packed)) ev;
+	cycles_t tsc;
+
+	TRACE_IPC_BODY(TRACE_EVENT_SCHED_EXIT, ev, NULL, {
+		hal_cpuGetCycles(&tsc);
+		ev.cpuId = cpuId;
+		ev.dtsc = tsc - enterTsc;
+	});
 }
 
 
@@ -295,7 +323,7 @@ static inline void trace_eventThreadPriority(int tid, u8 priority)
 		u8 priority;
 	} __attribute__((packed)) ev;
 
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_PRIORITY, ev, NULL, {
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_PRIORITY, ev, NULL, {
 		ev.tid = (u16)tid;
 		ev.priority = priority;
 	});

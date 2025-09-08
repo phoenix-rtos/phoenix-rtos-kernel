@@ -104,6 +104,9 @@ void *hal_cpuGetSP(cpu_context_t *ctx);
 void *hal_cpuGetUserSP(cpu_context_t *ctx);
 
 
+void *hal_cpuGetIP(cpu_context_t *ctx);
+
+
 int hal_cpuSupervisorMode(cpu_context_t *ctx);
 
 

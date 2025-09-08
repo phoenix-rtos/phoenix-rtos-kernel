@@ -36,6 +36,9 @@
 
 #define SYSCALLS_NAME(name) syscalls_##name,
 
+/* TODO: remove (DEBUG) */
+#include "log/log.h"
+
 /*
  * Kernel
  */
@@ -855,6 +858,18 @@ int syscalls_msgSend(u8 *ustack)
 }
 
 
+int syscalls_msgPulse(u8 *ustack)
+{
+	u32 port;
+	u8 pulse;
+
+	GETFROMSTACK(ustack, u32, port, 0U);
+	GETFROMSTACK(ustack, u8, pulse, 1U);
+
+	return proc_pulse(port, pulse);
+}
+
+
 int syscalls_msgRecv(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
@@ -902,6 +917,29 @@ int syscalls_msgRespond(u8 *ustack)
 #endif
 
 	return proc_respond(port, msg, rid);
+}
+
+
+int syscalls_msgRespondAndRecv(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	u32 port;
+	msg_t *msg;
+	msg_rid_t *rid;
+
+	GETFROMSTACK(ustack, u32, port, 0U);
+	GETFROMSTACK(ustack, msg_t *, msg, 1U);
+	GETFROMSTACK(ustack, msg_rid_t *, rid, 2U);
+
+	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_respondAndRecv(port, msg, rid);
 }
 
 
@@ -1939,6 +1977,14 @@ int syscalls_sys_uname(u8 *ustack)
 /*
  * Empty syscall
  */
+
+
+u64 syscalls_sys_entrytime(char *ustack)
+{
+	cycles_t cb;
+	hal_cpuGetCycles(&cb);
+	return cb;
+}
 
 
 int syscalls_notimplemented(void)

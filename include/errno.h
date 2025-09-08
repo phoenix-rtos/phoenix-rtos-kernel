@@ -72,4 +72,6 @@
 #define EALREADY        114
 #define EINPROGRESS     115
 
+#define EPULSE 116
+
 #endif

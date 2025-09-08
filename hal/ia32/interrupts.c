@@ -346,7 +346,7 @@ static int _hal_ioapicInit(void)
 		u8 reserved;
 		addr_t ioApicAddress;
 		u32 globalSystemInterruptBase;
-	} __attribute__((packed)) *ioapic;
+	} __attribute__((packed)) * ioapic;
 
 	struct {
 		madt_entry_header_t h;
@@ -354,14 +354,14 @@ static int _hal_ioapicInit(void)
 		u8 source;
 		u32 globalSystemInterrupt;
 		u16 flags;
-	} __attribute__((packed)) *sourceOverride;
+	} __attribute__((packed)) * sourceOverride;
 
 	struct {
 		madt_entry_header_t h;
 		u8 acpiProcessorUID;
 		u8 apicID;
 		u32 flags;
-	} __attribute__((packed)) *localApic;
+	} __attribute__((packed)) * localApic;
 
 	hal_madtHeader_t *madt = hal_config.madt;
 	size_t i;
@@ -467,6 +467,21 @@ static int _hal_ioapicInit(void)
 void _hal_interruptsTrace(int enable)
 {
 	interrupts_common.trace_irqs = enable;
+}
+
+
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
+{
+	(void)sc; /* TODO */
+
+	asm volatile(
+			"movl %0, %%esp\n\t"
+			"jmp interrupts_popContextUnlocked\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+
+	__builtin_unreachable();
 }
 
 

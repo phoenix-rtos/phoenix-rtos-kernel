@@ -31,7 +31,7 @@ static ssize_t socksrvcall(msg_t *msg)
 		return err;
 	}
 
-	err = proc_send(oid.port, msg);
+	err = proc_send_returnable(oid.port, msg);
 	if (err < 0) {
 		return err;
 	}
@@ -45,7 +45,7 @@ static ssize_t sockcall(unsigned int socket, msg_t *msg)
 	sockport_resp_t *smo = (void *)msg->o.raw;
 	ssize_t err;
 
-	err = proc_send(socket, msg);
+	err = proc_send_returnable(socket, msg);
 	if (err < 0) {
 		return err;
 	}

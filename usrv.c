@@ -66,7 +66,8 @@ void _usrv_start(void)
 		return;
 	}
 
-	(void)proc_threadCreate(NULL, usrv_msgthr, NULL, 1, (size_t)SIZE_KSTACK, NULL, 0, NULL);
+  /* TODO: up the prio from 3 to 1 */
+	(void)proc_threadCreate(NULL, usrv_msgthr, NULL, 3, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 }
 
 

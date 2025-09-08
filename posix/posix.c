@@ -288,7 +288,7 @@ static int posix_truncate(oid_t *oid, off_t length)
 		msg.type = mtTruncate;
 		hal_memcpy(&msg.oid, oid, sizeof(oid_t));
 		msg.i.io.len = (size_t)length;
-		err = proc_send(oid->port, &msg);
+		err = proc_send_returnable(oid->port, &msg);
 	}
 
 	return err;
@@ -518,7 +518,7 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 		hal_memcpy(&msg.oid, oidp, sizeof(*oidp));
 		msg.i.attr.type = atMode;
 
-		if ((proc_send(oidp->port, &msg) < 0) || (msg.o.err < 0)) {
+		if ((proc_send_returnable(oidp->port, &msg) < 0) || (msg.o.err < 0)) {
 			return -EIO;
 		}
 
@@ -534,7 +534,7 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 	msg.o.data = buf;
 	msg.o.size = sizeof(*buf);
 
-	if (proc_send(oidp->port, &msg) < 0) {
+	if (proc_send_returnable(oidp->port, &msg) < 0) {
 		err = -EIO;
 	}
 	else {
@@ -1092,7 +1092,7 @@ int posix_chmod(const char *pathname, mode_t mode)
 	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3-b */
 	msg.i.attr.val = mode & ALLPERMS;
 
-	err = proc_send(oid.port, &msg);
+	err = proc_send_returnable(oid.port, &msg);
 	if (err >= 0) {
 		err = msg.o.err;
 	}
@@ -1314,7 +1314,7 @@ int posix_fstat(int fd, struct stat *buf)
 		msg.o.size = sizeof(attrs);
 
 		do {
-			err = proc_send(f->oid.port, &msg);
+			err = proc_send_returnable(f->oid.port, &msg);
 			if (err < 0) {
 				break;
 			}
@@ -1440,7 +1440,7 @@ int posix_fsync(int fd)
 
 	hal_memcpy(msg.i.raw, &f->oid, sizeof(f->oid));
 
-	err = proc_send(f->oid.port, &msg);
+	err = proc_send_returnable(f->oid.port, &msg);
 
 	(void)posix_fileDeref(f);
 
@@ -1704,6 +1704,8 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 	void *data = NULL;
 	size_t size = IOCPARM_LEN(request);
 
+	hal_memset(&msg, 0, sizeof(msg));
+
 	err = posix_getOpenFile(fildes, &f);
 	if (err == EOK) {
 		/* TODO: handle POSIX defined requests */
@@ -1728,7 +1730,7 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 		if (err == EOK) {
 			ioctl_pack(&msg, request, data, size, &f->oid);
 
-			err = proc_send(f->oid.port, &msg);
+			err = proc_send_returnable(f->oid.port, &msg);
 			if (err == EOK) {
 				err = ioctl_processResponse(&msg, request, data, size);
 			}
@@ -2317,11 +2319,11 @@ int posix_futimens(int fildes, const struct timespec *times)
 
 	msg.i.attr.type = atMTime;
 	msg.i.attr.val = (long long)times[1].tv_sec;
-	err = proc_send(f->oid.port, &msg);
+	err = proc_send_returnable(f->oid.port, &msg);
 	if ((err >= 0) && (msg.o.err >= 0)) {
 		msg.i.attr.type = atATime;
 		msg.i.attr.val = (long long)times[0].tv_sec;
-		err = proc_send(f->oid.port, &msg);
+		err = proc_send_returnable(f->oid.port, &msg);
 	}
 	if (err >= 0) {
 		err = msg.o.err;
@@ -2367,7 +2369,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 				err = unix_poll((unsigned int)msg.oid.id, events);
 			}
 			else {
-				err = proc_send(msg.oid.port, &msg);
+				err = proc_send_returnable(msg.oid.port, &msg);
 				if (err >= 0) {
 					/* FIXME: 8 byte attr assigned to 4 byte err */
 					err = (msg.o.err >= 0) ? (int)msg.o.attr.val : msg.o.err;

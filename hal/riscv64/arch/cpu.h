@@ -289,6 +289,12 @@ static inline void *hal_cpuGetSP(cpu_context_t *ctx)
 }
 
 
+static inline void *hal_cpuGetIP(cpu_context_t *ctx)
+{
+	return (void *)ctx->sepc;
+}
+
+
 static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 {
 	return (void *)ctx->sp;
@@ -300,6 +306,12 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 	return ((ctx->sstatus & SSTATUS_SPP) != 0U) ? 1 : 0;
 }
 
+
+static inline void hal_cpuGetCycles(cycles_t *cb)
+{
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+	__asm__ volatile("rdcycle %0" : "=r"(*(cycles_t *)cb));
+}
 
 void hal_cpuRfenceI(void);
 
