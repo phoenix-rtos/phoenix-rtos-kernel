@@ -125,6 +125,8 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	log_rmsg_t *rmsg;
 	msg_t msg;
 
+	hal_memset(&msg, 0, sizeof(msg));
+
 	rmsg = r->msgs;
 	LIST_REMOVE(&r->msgs, rmsg);
 
@@ -466,5 +468,5 @@ void _log_init(void)
 	hal_memset(&log_common, 0, sizeof(log_common));
 	(void)proc_lockInit(&log_common.lock, &proc_lockAttrDefault, "log.common");
 
-	log_common.enabled = 1;
+	log_common.enabled = 0;
 }

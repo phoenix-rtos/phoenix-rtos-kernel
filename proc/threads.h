@@ -16,11 +16,13 @@
 #define _PH_PROC_THREADS_H_
 
 #include "hal/hal.h"
+#include "include/msg.h"
 #include "lib/lib.h"
 #include "include/sysinfo.h"
 #include "include/sched.h"
 #include "process.h"
 #include "lock.h"
+#include "sc.h"
 
 #ifdef DEBUG_THREADS
 #define LIB_ASSERT_THREADS(condition, fmt, ...) LIB_ASSERT_ALWAYS((condition), (fmt), ##__VA_ARGS__)
@@ -28,20 +30,53 @@
 #define LIB_ASSERT_THREADS(condition, fmt, ...)
 #endif
 
-#define MAX_PRIO 7U /* Maximum priority value, of the lowest criticality (prio=0 is of the HIGHEST) */
+#define NPRIOS   16U
+#define MAX_PRIO (NPRIOS - 1U) /* Maximum priority value, of the lowest criticality (prio=0 is of the HIGHEST) */
 
 #define MAX_TID        MAX_ID
 #define THREAD_END     1U
 #define THREAD_END_NOW 2U
 
 /* Thread states */
-#define READY 0U
-#define SLEEP 1U
-#define GHOST 2U
+#define READY            0U
+#define SLEEP            1U
+#define GHOST            2U
+#define BLOCKED_ON_RECV  3U
+#define BLOCKED_ON_SEND  4U
+#define BLOCKED_ON_REPLY 5U
+
+#define WAIT_NOTHING 0U
+#define WAIT_LOCK    1U /* a PROTO_INHERIT lock_t, we wait for its owner */
+#define WAIT_RECV    2U /* thread_t, a busy port receiver */
+#define WAIT_CALL    3U /* thread_t, the IPC callee serving our message */
+
+
+typedef struct _xferBuf_t {
+	/* TODO: do this as a private impl state */
+#ifndef NOMMU
+	void *win;
+
+	size_t boffs;
+	page_t *bp;
+
+	size_t eoffs;
+	page_t *ep;
+#else
+	void *orig;
+#endif
+
+	void *w;
+	size_t size;
+	vm_map_t *map;
+} xferBuf_t;
+
+
+#define IPC_IN_FROM_RECV    (1 << 0)
+#define IPC_OUT_FROM_RECV   (1 << 1)
+#define IPC_IN_DATA_MAPPED  (1 << 2)
+#define IPC_OUT_DATA_MAPPED (1 << 3)
 
 typedef struct _thread_t {
-	struct _thread_t *next;
-	struct _thread_t *prev;
 	struct _lock_t *locks;
 
 	rbnode_t sleeplinkage;
@@ -51,23 +86,53 @@ typedef struct _thread_t {
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
+	/* TODO lots of pointers... maybe it'd possible to optimize this? */
+	struct _thread_t *qnext;
+	struct _thread_t *qprev;
+
 	int refs;
-	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
 	time_t wakeup;
 
+	sched_context_t *scOwn;     /* thread's base SC - never donated away */
+	sched_context_t *scActive;  /* SC currently being consumed (used by scheduler) */
+	sched_context_t *scDonated; /* SCs donated to the thread */
+
+	void *blockedOn;           /* blockedKind declares type */
+	sched_context_t *scPushed; /* SC this thread donated through _sc_push(), if any */
+
+	/* busy receivers may be boosted by clients waiting for ready receiver in _portWait() */
+	struct _thread_t *boosters;
+	struct _thread_t *boostNext;
+	struct _thread_t *boostPrev;
+
+	struct _port_t *waitPort; /* port whose queue this thread waits on, if any */
+	struct _port_t *busyPort; /* port whose message this thread serves, if any */
+	struct _thread_t *bnext;  /* busyPort->busy linkage */
+	struct _thread_t *bprev;
+	struct _thread_t *granted; /* receiver this sender was given, if any */
+
+	unsigned int prioceilingLocks : 8;
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;
-	unsigned int state : 2;
+	unsigned int state : 4;
+	unsigned int blockedKind : 2;
+	unsigned int interruptible : 1;
 	unsigned int exit : 2;
-	unsigned interruptible : 1;
+	unsigned int ipcInterrupted : 1;
+	unsigned int onReady : 1; /* 1 iff linked in threads_common.ready[priority] via scActive. Not implied by state == READY! */
+	unsigned int callReturnable : 1;
+	unsigned int respondAndRecv : 1;
+
+	/* fastpath related */
+	struct _thread_t *reply;     /* callers waiting for a response from us */
+	struct _thread_t *replyNext; /* called->reply linkage */
+	struct _thread_t *replyPrev;
+	struct _thread_t *saveCtxIn; /* thread whose context our kernel stack holds */
 
 	unsigned int sigmask;
 	unsigned int sigpend;
-
-	time_t stick;
-	time_t utick;
 
 	void *kstack;
 	size_t kstacksz;
@@ -79,15 +144,51 @@ typedef struct _thread_t {
 	void *parentkstack, *execkstack;
 	void *execdata;
 
-	time_t readyTime;
-	time_t maxWait;
-
-	time_t startTime;
-	time_t cpuTime;
-	time_t lastTime;
-
 	cpu_context_t *context;
+	cpu_context_t *fastpathExitCtx;
 	cpu_context_t *longjmpctx;
+
+	struct {
+		/* the call this thread made, owned by xfer.h */
+		struct {
+			xferBuf_t ibl;
+			xferBuf_t obl;
+			u8 active;
+			u8 ikind;
+			u8 okind;
+			u8 replied; /* the response header waits in reply for the switch to this thread */
+			size_t isize;
+			size_t osize;            /* the most a response may write back, then the size still to copy */
+			void *odata;             /* caller's o.data */
+			struct _thread_t *owner; /* set while the output still waits in owner's IPC buffer */
+			void *bw;                /* the borrowed IPC buffer as the receiver sees it */
+			vm_map_t *bmap;          /* NULL if nothing was mapped for the borrow */
+		} call;
+
+		/* IPC buffer */
+		void *kw;
+		void *w;
+		page_t *p;
+		size_t size;
+		struct _thread_t *heldBy; /* the caller whose output is still in the buffer */
+
+		u8 pulse;
+
+		/* the response header, copied to msgPtr->o once in this thread's aspace */
+		struct {
+			unsigned char raw[MSG_RAW_SIZE];
+			int err;
+			size_t size;
+		} reply;
+
+
+		/* pointers in process' aspace */
+		msg_t *msgPtr;
+		msg_rid_t *ridPtr;
+	} ipc;
+
+	/* TODO: merge with ipc.flags? */
+	int flags; /* atomic: IPC_PULSED and IPC_DELIVERED are set by other threads */
 } thread_t;
 
 
@@ -97,7 +198,47 @@ static inline int proc_getTid(const thread_t *t)
 }
 
 
+/* WARN: blockedKind readers bellow require threads_spinlock. */
+
+
+static inline struct _lock_t *_thread_waitingOn(const thread_t *t)
+{
+	return (t->blockedKind == WAIT_LOCK) ? (struct _lock_t *)t->blockedOn : NULL;
+}
+
+
+static inline thread_t *_thread_waitingRecv(const thread_t *t)
+{
+	return (t->blockedKind == WAIT_RECV) ? (thread_t *)t->blockedOn : NULL;
+}
+
+
+static inline thread_t *_thread_called(const thread_t *t)
+{
+	return (t->blockedKind == WAIT_CALL) ? (thread_t *)t->blockedOn : NULL;
+}
+
+
+static inline void _thread_setBlocked(thread_t *t, unsigned int kind, void *obj)
+{
+	t->blockedOn = obj;
+	t->blockedKind = kind;
+}
+
+
+static inline void _thread_clearBlocked(thread_t *t, unsigned int kind)
+{
+	if (t->blockedKind == kind) {
+		t->blockedOn = NULL;
+		t->blockedKind = WAIT_NOTHING;
+	}
+}
+
+
 thread_t *proc_current(void);
+
+
+thread_t *_proc_current(void);
 
 
 void threads_canaryInit(thread_t *t, void *ustack);
@@ -199,6 +340,43 @@ void proc_threadsDump(u8 priority);
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
+/*
+ * The scheduler lock. Ports (ports.h) and SC donation (sc.h) are protected by
+ * it as well, so everything below whose name starts with an underscore
+ * assumes it is held.
+ */
+extern spinlock_t threads_spinlock;
+
+
+/* Makes t run sc, or nothing at all if sc is NULL. Updates its effective
+ * priority and its ready queue linkage. */
+void _threads_setActiveSc(thread_t *t, sched_context_t *sc);
+
+
+/* Monotonic time in us. */
+time_t _proc_gettimeRaw(void);
+
+
+/* Blocks t on a queue in the given state, without touching the ready queue. */
+void _proc_threadEnqueueThread(thread_t *t, thread_t **queue, u8 state, time_t timeout, int interruptible);
+
+
+/* Removes t from the queue it waits on. Does not wake it. */
+void _proc_threadUnlink(thread_t *t);
+
+
+/* Removes t from its queue and makes it runnable again. */
+void _proc_threadDequeue(thread_t *t);
+
+
+/* Wait time accounting for a thread that just blocked. */
+void _threads_enqueued(thread_t *t);
+
+
+/* Wakes a receiver waiting in msgRecv() with nothing to serve. */
+void _wakeReceiver(thread_t *t);
+
+
 int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 
@@ -209,6 +387,21 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 __attribute__((noreturn)) void threads_halt(void);
+
+
+cpu_context_t *_threads_switchTo(thread_t *dest);
+
+
+cpu_context_t *_threads_getUserContext(thread_t *thread);
+
+
+void _threads_setCurrent(thread_t *t);
+
+
+void _threads_readyAdd(thread_t *t);
+
+
+void _threads_ghostAdd(thread_t *t);
 
 
 #endif

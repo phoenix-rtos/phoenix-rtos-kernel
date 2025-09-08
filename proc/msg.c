@@ -3,446 +3,415 @@
  *
  * Operating system kernel
  *
- * Messages
+ * Message passing
  *
- * Copyright 2017, 2018 Phoenix Systems
- * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski, Jan Sikorski
+ * Copyright 2017, 2018, 2026 Phoenix Systems
+ * Author: Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski, Adam Greloch
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "include/errno.h"
-#include "lib/lib.h"
-#include "proc.h"
+#include "threads.h"
+#include "msg.h"
+#include "ports.h"
+#include "xfer.h"
+#include "perf/trace-events.h"
 
 
-#define FLOOR(x) ((x) & ~(SIZE_PAGE - 1U))
-#define CEIL(x)  (((x) + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U))
-
-
-/* clang-format off */
-enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
-/* clang-format on */
+#define IPC_PULSED    1
+#define IPC_DELIVERED 2
 
 
 static struct {
+	/* TODO: deduplicate kmap pointers across the kernel _common structs */
 	vm_map_t *kmap;
-	vm_object_t *kernel;
+	ptr_t ridCookie;
 } msg_common;
 
 
-static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
+typedef struct {
+	const void *idata;
+	void *odata;
+	size_t isize;
+	size_t osize;
+	oid_t oid;
+	int type;
+	unsigned char raw[MSG_RAW_SIZE];
+} msgHdr_t;
+
+
+static void _msgHdrRead(const msg_t *msg, msgHdr_t *hdr)
 {
-	void *w = NULL, *vaddr;
-	size_t boffs, eoffs;
-	u8 bone, eone;
-	size_t n = 0, i;
-	vm_attr_t attr;
-	vm_prot_t prot;
-	page_t *nep = NULL, *nbp = NULL;
-	vm_map_t *srcmap, *dstmap;
-	struct _kmsg_layout_t *ml = (dir != 0) ? &kmsg->o : &kmsg->i;
+	hal_memcpy(hdr->raw, msg->i.raw, MSG_RAW_SIZE);
+	hal_memcpy(&hdr->oid, &msg->oid, sizeof(hdr->oid));
+
+	hdr->idata = msg->i.data;
+	hdr->isize = msg->i.size;
+	hdr->odata = msg->o.data;
+	hdr->osize = msg->o.size;
+	hdr->type = msg->type;
+}
+
+
+static void _setReplyChain(thread_t *from, thread_t *to)
+{
+	LIB_ASSERT_ALWAYS(from->blockedKind == WAIT_NOTHING, "tid %d already waits, kind %u",
+			proc_getTid(from), from->blockedKind);
+
+	_thread_setBlocked(from, WAIT_CALL, to);
+	LIST_ADD_EX(&to->reply, from, replyNext, replyPrev);
+}
+
+
+/* Undoes _setReplyChain() */
+void _proc_clearReplyChain(thread_t *from)
+{
+	thread_t *called = _thread_called(from);
+
+	LIB_ASSERT_ALWAYS(called != NULL, "tid %d waits for nobody, kind %u",
+			proc_getTid(from), from->blockedKind);
+	LIB_ASSERT(LIST_BELONGS_EX(&called->reply, from, replyNext, replyPrev) != 0,
+			"caller is not on its receiver's list");
+
+	LIST_REMOVE_EX(&called->reply, from, replyNext, replyPrev);
+	_thread_clearBlocked(from, WAIT_CALL);
+}
+
+
+static thread_t *_ridToReply(msg_rid_t rid, thread_t *current)
+{
+	void *reply = (void *)((ptr_t)rid ^ msg_common.ridCookie);
+	thread_t *t;
+
+	if (reply == NULL) {
+		return NULL;
+	}
+
+#ifndef NOMMU
+	if (pmap_belongs(&msg_common.kmap->pmap, reply) == 0) {
+		return NULL;
+	}
+#else
+	if (((ptr_t)reply < (ptr_t)msg_common.kmap->start) ||
+			((ptr_t)reply > (ptr_t)msg_common.kmap->stop - sizeof(thread_t))) {
+		return NULL;
+	}
+#endif
+
+	t = (thread_t *)reply;
+
+	return (_thread_called(t) == current) ? t : NULL;
+}
+
+
+/* WARN: Assumes aspace of recv */
+static void _msgDeliver(thread_t *caller, thread_t *recv, const msgHdr_t *hdr, void *idata, void *odata)
+{
+	msg_t *out = recv->ipc.msgPtr;
+
+	hal_memcpy(out->i.raw, hdr->raw, MSG_RAW_SIZE);
+	hal_memcpy(&out->oid, &hdr->oid, sizeof(out->oid));
+
+	out->i.size = hdr->isize;
+	out->i.data = idata;
+	out->o.size = hdr->osize;
+	out->o.data = odata;
+	out->type = hdr->type;
+	out->pid = (caller->process != NULL) ? process_getPid(caller->process) : 0;
+	out->priority = caller->priority;
+
+	*recv->ipc.ridPtr = (msg_rid_t)((ptr_t)caller ^ msg_common.ridCookie);
+}
+
+
+static int proc_send_ex(u32 port, msg_t *msg, int returnable)
+{
+	thread_t *caller = proc_current();
+	void *idata, *odata;
+	spinlock_ctx_t sc, tsc;
+	cpu_context_t *ctx;
+	thread_t *recv;
+	msgHdr_t hdr;
+	port_t *p;
 	int err;
-	vm_flags_t flags;
-	addr_t bpa, pa, epa;
 
-	if ((size == 0U) || (data == NULL)) {
-		return NULL;
-	}
-
-	attr = PGHD_READ | PGHD_PRESENT;
-	prot = PROT_READ;
-
-	if (dir != 0) {
-		attr |= PGHD_WRITE;
-		prot |= PROT_WRITE;
-	}
-
-	if (to != NULL) {
-		attr |= PGHD_USER;
-		prot |= PROT_USER;
-	}
-
-	boffs = (size_t)(ptr_t)data & (size_t)(SIZE_PAGE - 1U);
-
-	if (FLOOR((ptr_t)data + size) > CEIL((ptr_t)data)) {
-		n = (FLOOR((ptr_t)data + size) - CEIL((ptr_t)data)) / SIZE_PAGE;
-	}
-
-	if ((boffs != 0U) && (FLOOR((ptr_t)data) == FLOOR((ptr_t)data + size))) {
-		/* Data is on one page only and will be copied by boffs handler */
-		eoffs = 0U;
-	}
-	else {
-		eoffs = ((size_t)(ptr_t)data + size) & (size_t)(SIZE_PAGE - 1U);
-	}
-
-	bone = (boffs != 0U) ? 1U : 0U;
-	eone = (eoffs != 0U) ? 1U : 0U;
-
-	srcmap = (from == NULL) ? msg_common.kmap : from->mapp;
-	dstmap = (to == NULL) ? msg_common.kmap : to->mapp;
-
-	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0)) {
-		return data;
-	}
-
-	w = vm_mapFind(dstmap, NULL, (n + bone + eone) * SIZE_PAGE, MAP_NOINHERIT, prot);
-	ml->w = w;
-	if (w == NULL) {
-		return NULL;
-	}
-
-	if (pmap_belongs(&srcmap->pmap, data) != 0) {
-		err = vm_mapFlags(srcmap, data);
-	}
-	else {
-		err = vm_mapFlags(msg_common.kmap, data);
-	}
-
-	if (err < 0) {
-		return NULL;
-	}
-	flags = (vm_flags_t)err;
-
-	attr |= vm_flagsToAttr(flags);
-
-	if (boffs != 0U) {
-		ml->boffs = boffs;
-		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
-
-		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-		ml->bp = nbp;
-		if (nbp == NULL) {
-			return NULL;
+	for (;;) {
+		err = port_claim(port, caller, ((returnable != 0) || (caller->process == NULL)) ? 1 : 0, &p, &recv);
+		if (err < 0) {
+			return err;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, flags);
-		ml->bvaddr = vaddr;
-		if (vaddr == NULL) {
-			return NULL;
+		_msgHdrRead(msg, &hdr);
+
+		err = xfer_begin(caller, recv, hdr.idata, hdr.isize, hdr.odata, hdr.osize, &idata, &odata);
+		if (err < 0) {
+			hal_spinlockSet(&threads_spinlock, &tsc);
+			_portReturnReceiver(p, recv);
+			hal_spinlockClear(&threads_spinlock, &tsc);
+			port_put(p, 0);
+			return err;
 		}
 
-		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w, nbp->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
-			return NULL;
-		}
+		port_put(p, 0);
 
-		hal_memcpy(w + boffs, vaddr + boffs, (size_t)min(size, SIZE_PAGE - boffs));
+		hal_spinlockSet(&threads_spinlock, &sc);
 
-		if (page_map(&dstmap->pmap, w, nbp->addr, attr) < 0) {
-			return NULL;
-		}
-	}
-
-	/* Map pages */
-	vaddr = (void *)CEIL((ptr_t)data);
-
-	for (i = 0; i < n; i++) {
-		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
-		if (page_map(&dstmap->pmap, w + (i + bone) * SIZE_PAGE, pa, attr) < 0) {
-			return NULL;
-		}
-		vaddr += SIZE_PAGE;
-	}
-
-	if (eoffs != 0U) {
-		ml->eoffs = eoffs;
-		vaddr = (void *)FLOOR((ptr_t)data + size);
-		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
-
-		if ((boffs == 0U) || (eoffs >= boffs)) {
-			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-			ml->ep = nep;
-			if (nep == NULL) {
-				return NULL;
-			}
-		}
-		else {
-			nep = nbp;
-		}
-
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, flags);
-		ml->evaddr = vaddr;
-		if (vaddr == NULL) {
-			return NULL;
-		}
-
-		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
-			return NULL;
-		}
-
-		hal_memcpy(w + (n + bone) * SIZE_PAGE, vaddr, eoffs);
-
-		if (page_map(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep->addr, attr) < 0) {
-			return NULL;
-		}
-	}
-
-	return (w + boffs);
-}
-
-
-static void msg_release(kmsg_t *kmsg)
-{
-	process_t *process;
-	vm_map_t *map;
-
-	if (kmsg->i.bp != NULL) {
-		vm_pageFree(kmsg->i.bp);
-		(void)vm_munmap(msg_common.kmap, kmsg->i.bvaddr, SIZE_PAGE);
-		kmsg->i.bp = NULL;
-	}
-
-	if (kmsg->i.eoffs != 0U) {
-		if (kmsg->i.ep != NULL) {
-			vm_pageFree(kmsg->i.ep);
-		}
-		(void)vm_munmap(msg_common.kmap, kmsg->i.evaddr, SIZE_PAGE);
-		kmsg->i.eoffs = 0;
-		kmsg->i.ep = NULL;
-	}
-
-	process = proc_current()->process;
-	if (process != NULL) {
-		map = process->mapp;
-	}
-	else {
-		map = msg_common.kmap;
-	}
-
-	if (kmsg->i.w != NULL) {
-		(void)vm_munmap(map, kmsg->i.w, CEIL((ptr_t)kmsg->msg.i.data + kmsg->msg.i.size) - FLOOR((ptr_t)kmsg->msg.i.data));
-		kmsg->i.w = NULL;
-	}
-
-	if (kmsg->o.bp != NULL) {
-		vm_pageFree(kmsg->o.bp);
-		(void)vm_munmap(msg_common.kmap, kmsg->o.bvaddr, SIZE_PAGE);
-		kmsg->o.bp = NULL;
-	}
-
-	if (kmsg->o.eoffs != 0U) {
-		if (kmsg->o.ep != NULL) {
-			vm_pageFree(kmsg->o.ep);
-		}
-		(void)vm_munmap(msg_common.kmap, kmsg->o.evaddr, SIZE_PAGE);
-		kmsg->o.eoffs = 0;
-		kmsg->o.ep = NULL;
-	}
-
-	if (kmsg->o.w != NULL) {
-		(void)vm_munmap(map, kmsg->o.w, CEIL((ptr_t)kmsg->msg.o.data + kmsg->msg.o.size) - FLOOR((ptr_t)kmsg->msg.o.data));
-		kmsg->o.w = NULL;
-	}
-}
-
-
-static void msg_ipack(kmsg_t *kmsg)
-{
-	size_t offset;
-
-	if (kmsg->msg.i.data != NULL) {
-		switch (kmsg->msg.type) {
-			case mtOpen:
-			case mtClose:
-				offset = sizeof(kmsg->msg.i.openclose);
-				break;
-
-			case mtRead:
-			case mtWrite:
-			case mtTruncate:
-				offset = sizeof(kmsg->msg.i.io);
-				break;
-
-			case mtCreate:
-				offset = sizeof(kmsg->msg.i.create);
-				break;
-
-			case mtLookup:
-			case mtDestroy:
-			case mtGetAttrAll:
-				offset = 0;
-				break;
-
-			case mtSetAttr:
-			case mtGetAttr:
-				offset = sizeof(kmsg->msg.i.attr);
-				break;
-
-			case mtLink:
-			case mtUnlink:
-				offset = sizeof(kmsg->msg.i.ln);
-				break;
-
-			case mtReaddir:
-				offset = sizeof(kmsg->msg.i.readdir);
-				break;
-
-			case mtDevCtl:
-			default:
-				return;
-		}
-
-		if (kmsg->msg.i.size > (sizeof(kmsg->msg.i.raw) - offset)) {
-			return;
-		}
-
-		hal_memcpy(kmsg->msg.i.raw + offset, kmsg->msg.i.data, kmsg->msg.i.size);
-		kmsg->msg.i.data = kmsg->msg.i.raw + offset;
-	}
-}
-
-
-static int msg_opack(kmsg_t *kmsg)
-{
-	size_t offset;
-
-	if (kmsg->msg.o.data == NULL) {
-		return 0;
-	}
-
-	switch (kmsg->msg.type) {
-		case mtOpen:
-		case mtClose:
-		case mtRead:
-		case mtWrite:
-		case mtTruncate:
-		case mtDestroy:
-		case mtLink:
-		case mtUnlink:
-		case mtReaddir:
-		case mtGetAttrAll:
-			offset = 0;
+		if (recv->exit == 0U) {
 			break;
+		}
 
-		case mtCreate:
-			offset = sizeof(kmsg->msg.o.create);
-			break;
-
-		case mtSetAttr:
-		case mtGetAttr:
-			offset = sizeof(kmsg->msg.o.attr);
-			break;
-
-		case mtLookup:
-			offset = sizeof(kmsg->msg.o.lookup);
-			break;
-
-		case mtDevCtl:
-		default:
-			return 0;
+		/* killed since port_claim(), find another receiver */
+		_portReleaseDying(recv);
+		hal_spinlockClear(&threads_spinlock, &sc);
+		xfer_abort(caller);
 	}
 
-	if (kmsg->msg.o.size > (sizeof(kmsg->msg.o.raw) - offset)) {
-		return 0;
+	_setReplyChain(caller, recv);
+	_sc_donate(caller, recv, caller->scActive);
+
+	caller->ipc.msgPtr = msg;
+	caller->state = BLOCKED_ON_REPLY;
+	caller->callReturnable = (returnable != 0) ? 1U : 0U;
+	recv->state = READY;
+
+	ctx = _threads_switchTo(recv);
+
+	hal_spinlockClear(&threads_spinlock, &sc);
+
+	_msgDeliver(caller, recv, &hdr, idata, odata);
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+
+	(void)__atomic_fetch_or(&recv->flags, IPC_DELIVERED, __ATOMIC_RELEASE);
+	hal_cpuSetReturnValue(ctx, EOK);
+	recv->fastpathExitCtx = ctx;
+
+	LIB_ASSERT(_proc_current() == recv, "we should be recv here");
+
+	trace_eventSyscallExit(recv->respondAndRecv ? syscall_msgRespondAndRecv : syscall_msgRecv, proc_getTid(recv));
+
+	if ((recv->process == NULL) || (returnable != 0)) {
+		/*
+		 * The scheduler exits the receiver through fastpathExitCtx, so the
+		 * kernel context here belongs to the caller instead (_threads_schedule).
+		 */
+		recv->saveCtxIn = caller;
+
+		err = hal_cpuReschedule(&threads_spinlock, &sc);
+		if (err < 0) {
+			/* answered by a dying receiver */
+			xfer_abort(caller);
+		}
+
+		/* recv must not be touched here, it may have died serving us and be freed already */
+		LIB_ASSERT(caller->callReturnable == 0, "callReturnable not cleared?");
+		LIB_ASSERT(_proc_current() == caller, "we should be a caller here");
+
+		return err;
 	}
 
-	kmsg->msg.o.data = kmsg->msg.o.raw + offset;
+	hal_spinlockClear(&threads_spinlock, &sc);
 
-	return 1;
+	return EOK;
 }
 
 
 int proc_send(u32 port, msg_t *msg)
 {
+	return proc_send_ex(port, msg, 0);
+}
+
+
+int proc_send_returnable(u32 port, msg_t *msg)
+{
+	return proc_send_ex(port, msg, 1);
+}
+
+
+static void _msgHandOver(thread_t *forward, const msg_t *msg, msg_rid_t rid)
+{
+	/* same aspace, we can copy directly */
+	hal_memcpy(forward->ipc.msgPtr, msg, sizeof(*msg));
+	*forward->ipc.ridPtr = rid;
+
+	(void)__atomic_fetch_or(&forward->flags, IPC_DELIVERED, __ATOMIC_RELEASE);
+	forward->fastpathExitCtx = _threads_getUserContext(forward);
+	hal_cpuSetReturnValue(forward->fastpathExitCtx, EOK);
+
+	trace_eventSyscallExit(forward->respondAndRecv ? syscall_msgRespondAndRecv : syscall_msgRecv, proc_getTid(forward));
+}
+
+
+int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
+{
+	thread_t *recv = proc_current();
+	thread_t *caller, *forward;
+	sched_context_t *donated;
+	spinlock_ctx_t tsc;
 	port_t *p;
-	int err = EOK;
-	kmsg_t kmsg;
-	thread_t *sender;
+	int err;
+
+	err = port_claim(port, recv, 0, &p, &forward);
+	if (err < 0) {
+		return err;
+	}
+
+	hal_spinlockSet(&threads_spinlock, &tsc);
+
+	caller = (forward->process == recv->process) ? _ridToReply(rid, recv) : NULL;
+	if (caller == NULL) {
+		_portReturnReceiver(p, forward);
+	}
+
+	hal_spinlockClear(&threads_spinlock, &tsc);
+
+	if (caller == NULL) {
+		port_put(p, 0);
+		return -EINVAL;
+	}
+
+	err = xfer_forward(caller, recv, forward, msg);
+	if (err < 0) {
+		hal_spinlockSet(&threads_spinlock, &tsc);
+		_portReturnReceiver(p, forward);
+		hal_spinlockClear(&threads_spinlock, &tsc);
+		port_put(p, 0);
+		return err;
+	}
+
+	_msgHandOver(forward, msg, rid);
+
+	hal_spinlockSet(&threads_spinlock, &tsc);
+
+	donated = caller->scPushed;
+
+	/* TODO: optimize these */
+	_proc_clearReplyChain(caller);
+	_sc_return(recv, caller);
+	_setReplyChain(caller, forward);
+	_sc_donate(caller, forward, donated);
+
+	caller->state = BLOCKED_ON_REPLY;
+	forward->state = READY;
+
+	/* could have changed as part of _sc_return */
+	_threads_setCurrent(recv);
+
+	if (forward->onReady == 0U) {
+		_threads_readyAdd(forward);
+	}
+
+	if (forward->priority < recv->priority) {
+		hal_cpuReschedule(&threads_spinlock, &tsc);
+	}
+	else {
+		hal_spinlockClear(&threads_spinlock, &tsc);
+	}
+
+	port_put(p, 0);
+
+	return EOK;
+}
+
+
+/*
+ * Waits for a message. Assumes p->spinlock is set with sc and consumes the
+ * port reference, because this frame is abandoned on a fastpath delivery.
+ */
+static int _recvWait(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
+{
+	spinlock_ctx_t tsc;
+	int flags, refs;
+
+	/*
+	 * Handle dying thread. Syscall return normally handles the exit, but
+	 * this frame may never return there.
+	 */
+	if (recv->exit != 0) {
+		hal_spinlockClear(&p->spinlock, sc);
+		port_put(p, 0);
+		proc_threadEnd();
+	}
+
+	hal_spinlockSet(&threads_spinlock, &tsc);
+
+	(void)__atomic_fetch_and(&recv->flags, ~(int)(IPC_PULSED | IPC_DELIVERED), __ATOMIC_RELAXED);
+
+	/* Must run before scActive is cleared */
+	_portReturnReceiver(p, recv);
+
+	refs = port_release(p);
+	LIB_ASSERT(refs > 0, "last ref?");
+	(void)refs;
+
+	_threads_setActiveSc(recv, NULL);
+
+	/* tsc and sc are swapped intentionally, we need to enable interrupts */
+	hal_spinlockClear(&p->spinlock, &tsc);
+	hal_cpuReschedule(&threads_spinlock, sc);
+
+	/* WARN: unreachable if recv is woken in fastpath proc_send switch */
+
+	flags = __atomic_fetch_and(&recv->flags, ~(int)(IPC_PULSED | IPC_DELIVERED), __ATOMIC_ACQUIRE);
+
+	if ((flags & IPC_PULSED) != 0) {
+		recv->ipc.msgPtr->o.pulse = recv->ipc.pulse;
+		recv->ipc.msgPtr->o.err = EOK;
+		return -EPULSE;
+	}
+
+	return ((flags & IPC_DELIVERED) != 0) ? EOK : -EINTR;
+}
+
+
+/* Consumes the port reference. Assumes the aspace of the calling thread. */
+static int proc_recv_ex(port_t *p, msg_t *msg, msg_rid_t *rid, int rr)
+{
+	thread_t *recv = proc_current();
 	spinlock_ctx_t sc;
-	int state;
 
-	/* TODO - check if msg pointer belongs to user vm_map */
-	if (msg == NULL) {
-		return -EINVAL;
-	}
-
-	p = proc_portGet(port);
-	if (p == NULL) {
-		return -EINVAL;
-	}
-
-	sender = proc_current();
-
-	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
-	kmsg.src = sender->process;
-	kmsg.threads = NULL;
-	kmsg.state = msg_waiting;
-
-	kmsg.msg.pid = (sender->process != NULL) ? process_getPid(sender->process) : 0;
-	kmsg.msg.priority = sender->priority;
-
-	msg_ipack(&kmsg);
+	recv->ipc.ridPtr = rid;
+	recv->ipc.msgPtr = msg;
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
 	if (p->closed != 0) {
-		err = -EINVAL;
-	}
-	else {
-		LIST_ADD(&p->kmessages, &kmsg);
-		(void)proc_threadWakeup(&p->threads);
-
-		state = kmsg.state;
-		while ((state != msg_responded) && (state != msg_rejected)) {
-			if (state == msg_received) {
-				/* FIXME: due to allocation of kmsg on sender's kstack, this thread cannot be properly killed (or, more precisely,
-				 * can't leave this while loop) when message is in msg_received state (between calls to proc_recv and proc_respond).
-				 * This uninterruptible wait is a workaround to prevent spinning on proc_threadWaitInterruptible when thread->exit != 0
-				 * and blocking a whole system (p->spinlock is held). When thread is running normally, the code behaves just like with
-				 * interruptible wait, without spinning on while loop on each interrupt in msg_received state.
-				 */
-				err = proc_threadWait(&kmsg.threads, &p->spinlock, 0, &sc);
-			}
-			else {
-				err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
-			}
-
-			state = kmsg.state;
-			if ((err != EOK) && (state == msg_waiting)) {
-				LIST_REMOVE(&p->kmessages, &kmsg);
-				break;
-			}
-		}
-
-		switch (state) {
-			case msg_responded:
-				err = EOK; /* Don't report EINTR if we got the response already */
-				break;
-			case msg_rejected:
-				err = -EINVAL;
-				break;
-			default:
-				/* No action required */
-				break;
-		}
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		return -EINVAL;
 	}
 
-	hal_spinlockClear(&p->spinlock, &sc);
-	port_put(p, 0);
+	if (p->pulsePending != 0U) {
+		/* a pulse that arrived while nobody was waiting to take it */
+		msg->o.pulse = p->pulse;
+		msg->o.err = EOK;
+		p->pulsePending = 0;
 
-	if (err == EOK) {
-		hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
-		msg->o.err = kmsg.msg.o.err;
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
 
-		/* If msg.o.data has been packed to msg.o.raw */
-		if ((kmsg.msg.o.data >= (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw))) {
-			hal_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
-		}
+		return -EPULSE;
 	}
 
-	return err;
+	recv->respondAndRecv = rr;
+
+	return _recvWait(p, recv, &sc);
 }
 
 
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
+	port_t *p = proc_portGet(port);
+
+	return (p == NULL) ? -EINVAL : proc_recv_ex(p, msg, rid, 0);
+}
+
+
+int proc_pulse(u32 port, u8 pulse)
+{
+	spinlock_ctx_t sc, tsc;
+	thread_t *recv;
 	port_t *p;
-	kmsg_t *kmsg;
-	int ipacked = 0, opacked = 0, err = EOK;
-	spinlock_ctx_t sc;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -450,153 +419,161 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
+	hal_spinlockSet(&threads_spinlock, &tsc);
 
-	while ((p->kmessages == NULL) && (p->closed == 0) && (err != -EINTR)) {
-		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0, &sc);
-	}
+	recv = _portWaitingReceiver(p);
+	if (recv != NULL) {
+		LIB_ASSERT(recv->state != READY, "how is recv ready while on port queue?");
 
-	kmsg = p->kmessages;
-
-	if (p->closed != 0) {
-		/* Port is being removed */
-		if (kmsg != NULL) {
-			kmsg->state = msg_rejected;
-			LIST_REMOVE(&p->kmessages, kmsg);
-			(void)proc_threadWakeup(&kmsg->threads);
-		}
-
-		err = -EINVAL;
+		_wakeReceiver(recv);
+		recv->ipc.pulse = pulse;
+		(void)__atomic_fetch_or(&recv->flags, IPC_PULSED, __ATOMIC_RELEASE);
 	}
 	else {
-		if (err == EOK) {
-			LIST_REMOVE(&p->kmessages, kmsg);
-			kmsg->state = msg_received;
-		}
-	}
-	hal_spinlockClear(&p->spinlock, &sc);
-
-	if (err != EOK) {
-		port_put(p, 0);
-		return err;
+		/* stick the pulse to the port for late receivers */
+		p->pulse = pulse;
+		p->pulsePending = 1;
 	}
 
-	kmsg->i.bvaddr = NULL;
-	kmsg->i.boffs = 0;
-	kmsg->i.w = NULL;
-	kmsg->i.bp = NULL;
-	kmsg->i.evaddr = NULL;
-	kmsg->i.eoffs = 0;
-	kmsg->i.ep = NULL;
+	hal_spinlockClear(&threads_spinlock, &tsc);
 
-	kmsg->o.bvaddr = NULL;
-	kmsg->o.boffs = 0;
-	kmsg->o.w = NULL;
-	kmsg->o.bp = NULL;
-	kmsg->o.evaddr = NULL;
-	kmsg->o.eoffs = 0;
-	kmsg->o.ep = NULL;
-
-	if ((kmsg->msg.i.data >= (void *)kmsg->msg.i.raw) && (kmsg->msg.i.data < (void *)kmsg->msg.i.raw + sizeof(kmsg->msg.i.raw))) {
-		ipacked = 1;
+	if ((recv != NULL) && (recv->priority < proc_current()->priority)) {
+		hal_cpuReschedule(&p->spinlock, &sc);
 	}
-
-	/* Map data in receiver space */
-	/* Don't map if msg is packed */
-	if (ipacked == 0) {
-		kmsg->msg.i.data = msg_map(0, kmsg, (void *)(ptr_t)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
-	}
-
-	opacked = msg_opack(kmsg);
-	if (opacked == 0) {
-		kmsg->msg.o.data = msg_map(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);
-	}
-
-	if (((kmsg->msg.i.size != 0U) && (kmsg->msg.i.data == NULL)) ||
-			((kmsg->msg.o.size != 0U) && (kmsg->msg.o.data == NULL)) ||
-			(proc_portRidAlloc(p, kmsg) < 0)) {
-		msg_release(kmsg);
-
-		hal_spinlockSet(&p->spinlock, &sc);
-		kmsg->state = msg_rejected;
-		(void)proc_threadWakeup(&kmsg->threads);
+	else {
 		hal_spinlockClear(&p->spinlock, &sc);
-
-		port_put(p, 0);
-
-		return -ENOMEM;
-	}
-
-	*rid = lib_idtreeId(&kmsg->idlinkage);
-
-	hal_memcpy(msg, &kmsg->msg, sizeof(*msg));
-
-	if (ipacked != 0) {
-		msg->i.data = msg->i.raw + (kmsg->msg.i.data - (void *)kmsg->msg.i.raw);
-	}
-
-	if (opacked != 0) {
-		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
 	}
 
 	port_put(p, 0);
 
 	return EOK;
+}
+
+
+static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
+{
+	spinlock_ctx_t sc, tsc;
+	thread_t *caller, *recv;
+	int err = EOK, dying = 0;
+
+	hal_spinlockSet(&p->spinlock, &sc);
+	if (p->closed != 0) {
+		hal_spinlockClear(&p->spinlock, &sc);
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&threads_spinlock, &tsc);
+
+	recv = _proc_current();
+	caller = _ridToReply(rid, recv);
+	if (caller == NULL) {
+		err = -EINVAL;
+	}
+	else {
+		/*
+		 * The SC stays with recv until the caller is ready: returned now, it
+		 * would let a thread of middle priority preempt the copy below while the
+		 * caller waits. Only recv can answer the rid, so the chain can wait too.
+		 */
+		dying = (caller->exit != 0U) ? 1 : 0;
+	}
+
+	hal_spinlockClear(&threads_spinlock, &tsc);
+	hal_spinlockClear(&p->spinlock, &sc);
+
+	if (err < 0) {
+		return err;
+	}
+
+	/*
+	 * Defer the copy to _threads_switchToThread(), which switches aspaces
+	 * anyway (doing it here would cost two more pmap switches per respond).
+	 *
+	 * This makes the thread switch WCET unbounded, however (FIXME).
+	 */
+	if (dying != 0) {
+		xfer_abort(caller);
+	}
+	else {
+		hal_memcpy(caller->ipc.reply.raw, msg->o.raw, MSG_RAW_SIZE);
+		caller->ipc.reply.err = msg->o.err;
+		caller->ipc.reply.size = xfer_end(caller, msg->o.size);
+		caller->ipc.call.replied = 1U;
+	}
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+
+	_proc_clearReplyChain(caller);
+	_proc_setCallerMsgReturn(recv, caller, (dying != 0) ? -EPIPE : EOK);
+	_threads_setCurrent(recv);
+
+	LIB_ASSERT(recv->state == READY, "recv should be ready!");
+
+	if (caller->priority < recv->priority) {
+		hal_cpuReschedule(&threads_spinlock, &sc);
+	}
+	else {
+		hal_spinlockClear(&threads_spinlock, &sc);
+	}
+
+	return (dying != 0) ? -EPIPE : EOK;
 }
 
 
 int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 {
-	port_t *p;
-	kmsg_t *kmsg;
+	port_t *p = proc_portGet(port);
+	int err;
+
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	err = proc_respond_ex(p, msg, rid);
+	port_put(p, 0);
+
+	return err;
+}
+
+
+int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
+{
 	spinlock_ctx_t sc;
+	msg_rid_t saved;
+	int err, respond;
+	port_t *p;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
 	}
 
-	kmsg = proc_portRidGet(p, rid);
-	if (kmsg == NULL) {
-		return -ENOENT;
+	hal_spinlockSet(&threads_spinlock, &sc);
+	saved = *rid;
+	respond = (_ridToReply(saved, _proc_current()) != NULL) ? 1 : 0;
+	hal_spinlockClear(&threads_spinlock, &sc);
+
+	if (respond != 0) {
+		err = proc_respond_ex(p, msg, saved);
+		if ((err < 0) && (err != -EPIPE)) {
+			port_put(p, 0);
+			return err;
+		}
 	}
 
-	/* Copy shadow pages */
-	if (kmsg->i.bp != NULL) {
-		hal_memcpy(kmsg->i.bvaddr + kmsg->i.boffs, kmsg->i.w + kmsg->i.boffs, (size_t)min(SIZE_PAGE - kmsg->i.boffs, kmsg->msg.i.size));
-	}
-
-	if (kmsg->i.eoffs != 0U) {
-		hal_memcpy(kmsg->i.evaddr, kmsg->i.w + kmsg->i.boffs + kmsg->msg.i.size - kmsg->i.eoffs, (size_t)kmsg->i.eoffs);
-	}
-
-	if (kmsg->o.bp != NULL) {
-		hal_memcpy(kmsg->o.bvaddr + kmsg->o.boffs, kmsg->o.w + kmsg->o.boffs, (size_t)min(SIZE_PAGE - kmsg->o.boffs, kmsg->msg.o.size));
-	}
-
-	if (kmsg->o.eoffs != 0U) {
-		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, (size_t)kmsg->o.eoffs);
-	}
-
-	msg_release(kmsg);
-
-	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
-	kmsg->msg.o.err = msg->o.err;
-
-	hal_spinlockSet(&p->spinlock, &sc);
-	kmsg->state = msg_responded;
-	kmsg->src = proc_current()->process;
-	(void)proc_threadWakeup(&kmsg->threads);
-	hal_spinlockClear(&p->spinlock, &sc);
-	(void)hal_cpuReschedule(NULL, NULL);
-
-	port_put(p, 0);
-
-	return EOK;
+	return proc_recv_ex(p, msg, rid, 1);
 }
 
 
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel)
 {
+	cycles_t cycles = 0;
+
 	msg_common.kmap = kmap;
-	msg_common.kernel = kernel;
+
+	/* FIXME: trivial to predict, implement good kernel entropy source */
+	do {
+		hal_cpuGetCycles(&cycles);
+		msg_common.ridCookie = (ptr_t)cycles + 1;
+	} while (msg_common.ridCookie == 0);
 }

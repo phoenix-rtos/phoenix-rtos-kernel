@@ -52,7 +52,7 @@ int proc_lockSet2(lock_t *l1, lock_t *l2);
 int proc_lockTry(lock_t *lock);
 
 
-/* `timeout` - in microseconds, absolute time relative to monotonic clock */
+/* timeout - in microseconds, absolute time relative to monotonic clock */
 int proc_lockWait(struct _thread_t **queue, lock_t *lock, time_t timeout);
 
 

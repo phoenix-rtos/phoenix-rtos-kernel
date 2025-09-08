@@ -30,6 +30,8 @@
 #include "userintr.h"
 #include "perf/trace-events.h"
 
+#include "log/log.h"
+
 /* Process states */
 #define PREFORK 0
 #define FORKING 1
@@ -84,6 +86,13 @@ static void process_destroy(process_t *p)
 	thread_t *ghost;
 	vm_map_t *mapp = p->mapp, *imapp = p->imapp;
 
+#ifndef NOMMU
+	/* a vfork child killed before it got a map of its own runs on its parent's */
+	if (mapp != &p->map) {
+		mapp = NULL;
+	}
+#endif
+
 	trace_eventProcessKill(p);
 
 	if (p->posix != 0U) {
@@ -131,6 +140,7 @@ int proc_put(process_t *p)
 	(void)proc_lockClear(&process_common.lock);
 
 	if (remaining <= 0) {
+		/* FIXME: p is fishy here sometimes? */
 		process_destroy(p);
 	}
 
@@ -253,6 +263,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	userintr_t *intr;
 	char buff[SIZE_CTXDUMP];
 	int len;
+	(void)len;
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
@@ -1343,11 +1354,14 @@ static void process_restoreParentKstack(thread_t *current, thread_t *parent)
 __attribute__((noreturn)) static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
 {
 	current->ustack = NULL;
-	proc_changeMap(current->process, NULL, NULL, NULL);
+
+	if (current->process->mapp != &current->process->map) {
+		proc_changeMap(current->process, NULL, NULL, NULL);
+	}
 
 	proc_kill(current->process);
 
-	/* Only possible in the case of `initthread` exit or failure to fork. */
+	/* Only possible in the case of initthread exit or failure to fork. */
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
 		(void)vm_objectPut(spawn->object);
@@ -1671,12 +1685,22 @@ static int process_execve(thread_t *current)
 		(void)proc_join(-1, 0);
 	}
 
+	LIB_ASSERT(current->wait == NULL, "HAA");
+	LIB_ASSERT(current->reply == NULL, "heh, reply");
+	LIB_ASSERT(_thread_called(current) == NULL, "heh, called");
+	// LIB_ASSERT(current->inherited == NULL, "heh, inherited?");
+
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
 		process_restoreParentKstack(current, parent);
 	}
 	else {
 		/* Reinitialize process */
+
+		/* TODO: moved here, is ok? */
+		xfer_abort(current);
+		xfer_releaseIpcBuf(current);
+
 		map = current->process->mapp;
 		imap = current->process->imapp;
 		proc_changeMap(current->process, NULL, NULL, NULL);
@@ -1796,6 +1820,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	else {
 		(void)process_execve(current);
 	}
+	LIB_ASSERT(0, "NOT REACHED");
 	/* Not reached */
 
 	return 0;

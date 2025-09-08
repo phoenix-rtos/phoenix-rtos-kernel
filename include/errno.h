@@ -99,4 +99,6 @@
 #define ENOTSUP         EOPNOTSUPP
 
 
+#define EPULSE 116
+
 #endif

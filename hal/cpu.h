@@ -84,10 +84,10 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 
 /*
  * Perform a voluntary reschedule.
- * Function may be called under the `threads_common.spinlock`. In that case, pointer to this spinlock
+ * Function may be called under the `threads_spinlock`. In that case, pointer to this spinlock
  * must be given in the argument - the spinlock will be cleared once reschedule is performed.
  *
- * * spinlock - must be either NULL or `&threads_common.spinlock`.
+ * * spinlock - must be either NULL or `&threads_spinlock`.
  * * scp - pointer to spinlock context. Must not be NULL if `spinlock` is not NULL.
  */
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
@@ -108,6 +108,9 @@ void *hal_cpuGetSP(cpu_context_t *ctx);
 
 
 void *hal_cpuGetUserSP(cpu_context_t *ctx);
+
+
+void *hal_cpuGetIP(cpu_context_t *ctx);
 
 
 int hal_cpuSupervisorMode(cpu_context_t *ctx);

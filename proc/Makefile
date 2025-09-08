@@ -5,12 +5,12 @@
 # Author: Pawel Pisarczyk
 #
 
-OBJS += $(addprefix $(PREFIX_O)proc/, proc.o threads.o process.o name.o resource.o mutex.o cond.o userintr.o ports.o)
+OBJS += $(addprefix $(PREFIX_O)proc/, proc.o xfer-common.o threads.o process.o name.o resource.o mutex.o cond.o userintr.o ports.o msg.o sc.o)
 
 ifneq (, $(findstring NOMMU, $(CPPFLAGS)))
-        OBJS += $(PREFIX_O)proc/msg-nommu.o
+        OBJS += $(PREFIX_O)proc/xfer-nommu.o
 else
-        OBJS += $(PREFIX_O)proc/msg.o
+        OBJS += $(PREFIX_O)proc/xfer.o
 endif
 
 ifeq ($(DEBUG_THREADS),1)

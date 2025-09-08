@@ -15,6 +15,7 @@
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "proc.h"
+#include "xfer.h"
 
 
 int _proc_init(vm_map_t *kmap, vm_object_t *kernel)
@@ -22,7 +23,7 @@ int _proc_init(vm_map_t *kmap, vm_object_t *kernel)
 	(void)_threads_init(kmap, kernel);
 	(void)_process_init(kmap, kernel);
 	_port_init();
-	_msg_init(kmap, kernel);
+	xfer_init(kmap);
 	_name_init();
 	_userintr_init();
 

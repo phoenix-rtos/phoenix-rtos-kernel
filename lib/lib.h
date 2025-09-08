@@ -24,5 +24,6 @@
 #include "rand.h"
 #include "rb.h"
 #include "strutil.h"
+#include "table.h"
 
 #endif

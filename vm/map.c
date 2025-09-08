@@ -397,6 +397,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot)
 {
+	LIB_ASSERT(map != NULL, "map is null");
+
 	(void)proc_lockSet(&map->lock);
 	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, VM_OFFS_MAX, flags, NULL);
 	(void)proc_lockClear(&map->lock);
@@ -1156,7 +1158,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 		_vm_mapEntryCopy(f, e, 1);
 		(void)_map_add(proc, dst, f);
 
-		if ((e->flags & MAP_DEVICE) == 0U) {
+		if (((e->flags & MAP_DEVICE) == 0U) && ((e->flags & MAP_SHARED) == 0U)) {
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 
