@@ -755,7 +755,6 @@ static int thread_alloc(thread_t *thread)
 
 	if (id >= 0) {
 		if (threads_common.idcounter == MAX_TID) {
-			// TBD_Julia  MAX_ID specjalnie wcześniej rzutowane było na int
 			threads_common.idcounter = 0U;
 		}
 		else {
@@ -1160,9 +1159,6 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->wakeup = 0;
 	current->wait = queue;
 	current->interruptible = (u8)interruptible & 0x01U;
-	/* TBD_Julia podczas próby zmiany unsigned int w definicji lub bezpośrednie rzutowanie,
-	 * to wyskakuje błąd z różnymi wielkościami, od razu rzutować na (unsigned char)?
-	 */
 
 	if (timeout != 0) {
 		current->wakeup = timeout;
@@ -1493,7 +1489,6 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 			if (process->sighandler != NULL) {
 				break;
 			}
-			break;
 
 		/* passthrough */
 		case signal_kill:
@@ -1588,6 +1583,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	hal_cpuSetReturnValue(ctx, retval);
 
 	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
@@ -1598,7 +1594,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 }
 
 
-int threads_sigsuspend(unsigned int mask)
+int threads_sigsuspend(unsigned int amask)
 {
 	thread_t *thread;
 	spinlock_ctx_t sc;
@@ -1618,10 +1614,11 @@ int threads_sigsuspend(unsigned int mask)
 	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
 
 	oldmask = thread->sigmask;
-	thread->sigmask = mask;
+	thread->sigmask = amask;
 
 	/* check for pending signals before sleep - with the new mask */
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
@@ -1638,6 +1635,7 @@ int threads_sigsuspend(unsigned int mask)
 	/* check for pending signals before restoring the old mask */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
@@ -2106,7 +2104,6 @@ int proc_threadsList(int n, threadinfo_t *info)
 		now = _proc_gettimeRaw();
 		if (now != t->startTime) {
 			info[i].load = (int)((t->cpuTime * 1000) / (now - t->startTime));
-			// TBD_Julia Zastosować podwójne rzutowanie - najpierw unsigned na całość i później int
 		}
 		else {
 			info[i].load = 0;

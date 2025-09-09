@@ -144,7 +144,8 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 	}
 
 	/* copy reversed */
-	while ((--tmp) >= tmp_buf) {
+	while (tmp > tmp_buf) {
+		--tmp;
 		*out++ = *tmp;
 	}
 

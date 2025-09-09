@@ -25,7 +25,7 @@
 extern void _hal_platformInit(void);
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
+int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
 	int i;
@@ -74,6 +74,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 	ctx->ip = 0xccccccccUL;
 	ctx->lr = 0xeeeeeeeeUL;
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign to processor register function address" */
 	ctx->pc = (u32)start;
 
 	/* Enable interrupts, set normal execution mode */
@@ -114,9 +115,10 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "program counter must be set to the address of the function" */
 	signalCtx->pc = (u32)handler & ~0x1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
-
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "checking in what processor mode code must be executed" */
 	if (((u32)handler & 0x1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}

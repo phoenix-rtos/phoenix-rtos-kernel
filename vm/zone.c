@@ -103,7 +103,7 @@ void *_vm_zalloc(vm_zone_t *zone, addr_t *addr)
 	zone->used++;
 
 	if (addr != NULL) {
-		*addr = zone->pages->addr + (addr_t)(void *)(block - zone->vaddr);
+		*addr = zone->pages->addr + ((addr_t)block - (addr_t)zone->vaddr);
 	}
 
 	return block;

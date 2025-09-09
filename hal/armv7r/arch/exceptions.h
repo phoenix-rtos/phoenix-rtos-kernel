@@ -32,6 +32,5 @@ typedef struct _exc_context_t {
 
 	cpu_context_t cpuCtx;
 } exc_context_t;
-// TBD_Julia MISRA Rul2 5.6 5.7 konflikt z plikiem w plo
 
 #endif

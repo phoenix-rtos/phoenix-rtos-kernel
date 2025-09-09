@@ -295,7 +295,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	 * region and allow this region instead. */
 
 	/* Find kernel code region */
-	ikmap = syspage_mapAddrResolve((addr_t)(void *)_pmap_init);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "We need address of this function in numeric type" */
+	ikmap = syspage_mapAddrResolve((addr_t)_pmap_init);
 	if (ikmap == NULL) {
 		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");
 		for (;;) {

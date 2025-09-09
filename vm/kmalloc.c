@@ -300,7 +300,7 @@ int _kmalloc_init(void)
 	kmalloc_common.zonehdrs = 16;
 
 	/* Add first zone_t zone */
-	(void)_vm_zoneCreate(&kmalloc_common.firstzone, 0x1U << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1U << hdridx)));
+	(void)_vm_zoneCreate(&kmalloc_common.firstzone, 0x1UL << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1UL << hdridx)));
 	LIST_ADD(&kmalloc_common.sizes[hdridx], &kmalloc_common.firstzone);
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 303, 308*/
 	(void)lib_rbInsert(&kmalloc_common.tree, &kmalloc_common.firstzone.linkage);

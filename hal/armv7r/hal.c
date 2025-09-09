@@ -24,8 +24,11 @@ static struct {
 
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Global variables used in assembler code" */
+/* parasoft-begin-suppress MISRAC2012-RULE_5_8 "Another variable with this name used
+ * inside the structure so it shouldn't cause this violation"
+ */
 syspage_t *syspage;
-/* TBD_Julia konflikt nazw w pliku phoenix-rtos-kernel/syspage.c */
+/* parasoft-end-suppress MISRAC2012-RULE_5_8 */
 
 u32 relOffs;
 u32 schedulerLocked = 0;

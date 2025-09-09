@@ -426,7 +426,6 @@ static void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, uns
 	unsigned int i;
 
 	for (i = 0; i < *depth; i++) {
-		/* MISRA Rule 17.7: Unused return value, (void) added in lines 431, 435, 439, 441, 454, 456*/
 		(void)lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
 	}
 
@@ -440,8 +439,8 @@ static void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, uns
 	(void)lib_printf(")%c\n", node->color == RB_BLACK ? '*' : ' ');
 
 	(*depth)++;
+	/* FIXME: dead MISRA Rule 17.2*/
 	if ((node->left != NULL) || (node->right != NULL)) {
-		/* FIXME: dead MISRA Rule 17.2*/
 		/* parasoft-begin-suppress MISRAC2012-RULE_17_2 "Dead code, used only for debug (for testing)" */
 		if (*depth < RB_DUMP_DEPTH) {
 			d[*depth] = 1;

@@ -17,7 +17,8 @@
 #include "syspage.h"
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Global variable used in assembler code" */
-struct {
+static struct {
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_8 "Variable inside the structure so it shouldn't cause this violation" */
 	syspage_t *syspage;
 } syspage_common;
 /* parasoft-end-suppress MISRAC2012-RULE_8_4 */

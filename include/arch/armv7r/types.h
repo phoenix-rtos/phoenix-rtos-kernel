@@ -23,7 +23,7 @@
 #include "stdtypes.h"
 
 
-typedef __u32 addr_t; // TBD_Julia MISRA Rul2 5.6 konflikt z plikiem w plo + gdzieś jeszcze, ale nie znalazłam
+typedef __u32 addr_t;
 
 typedef int ssize_t;
 

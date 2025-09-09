@@ -31,7 +31,7 @@
 #include "userintr.h"
 
 
-typedef struct {
+typedef struct _process_spawn_t {
 	spinlock_t sl;
 	thread_t *wq;
 	volatile int state;
@@ -450,11 +450,13 @@ static int process_validateElf64(void *iehdr, size_t size)
 	}
 
 	/* Validate header. */
+	/* clang-format off */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+				(hal_strncmp((char *)ehdr->e_ident, "\177" "ELF", 4) != 0)) ||
 			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
+	/* clang-format on */
 
 	phdr = (void *)ehdr + ehdr->e_phoff;
 	if (process_isPtrValid(iehdr, size, phdr, sizeof(*phdr) * ehdr->e_phnum) == 0) {
@@ -786,7 +788,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		return -ENOEXEC;
 	}
 
-	ehdr = (void *)(unsigned int *)(ptr_t)base;
+	ehdr = (void *)(ptr_t)base;
 
 	error = process_validateElf32(ehdr, size);
 	if (error < 0) {
@@ -1311,8 +1313,7 @@ int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, co
 
 static size_t process_parentKstacksz(thread_t *parent)
 {
-	return parent->kstacksz - (hal_cpuGetSP(parent->context) - (parent->kstack));
-	// TBD_Julia można zrzutować w nawiasie z obu stron na unsigned int, ale powoduje błąd 11.6, bo są to voidy
+	return parent->kstacksz - (((size_t)hal_cpuGetSP(parent->context)) - ((size_t)parent->kstack));
 }
 
 
@@ -1369,6 +1370,7 @@ void proc_exit(int code)
 		args[0] = (arg_t)current;
 		args[1] = (arg_t)spawn;
 		args[2] = (arg_t)FORKED;
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
 		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 3, args);
 	}
 
@@ -1757,6 +1759,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
 		args[0] = (arg_t)current;
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
 		hal_jmp(process_execve, current->kstack + current->kstacksz, NULL, 1, args);
 	}
 	else {

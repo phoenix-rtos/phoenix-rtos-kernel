@@ -296,6 +296,7 @@ int syscalls_gettid(void *ustack)
 
 int syscalls_beginthreadex(void *ustack)
 {
+	typedef void (*start_func)(void *);
 	process_t *proc = proc_current()->process;
 	void (*start)(void *harg);
 	unsigned int priority, stacksz;
@@ -303,7 +304,7 @@ int syscalls_beginthreadex(void *ustack)
 	int *id;
 	int err;
 
-	GETFROMSTACK(ustack, void *, start, 0);
+	GETFROMSTACK(ustack, start_func, start, 0);
 	GETFROMSTACK(ustack, unsigned int, priority, 1);
 	GETFROMSTACK(ustack, void *, stack, 2);
 	GETFROMSTACK(ustack, unsigned int, stacksz, 3);
@@ -667,16 +668,17 @@ int syscalls_resourceDestroy(void *ustack)
 
 int syscalls_interrupt(void *ustack)
 {
+	typedef int (*handler_function)(unsigned int harg_1, void *harg_2);
 	process_t *proc = proc_current()->process;
 	unsigned int n;
-	void *f;
+	handler_function f;
 	void *data;
 	handle_t cond;
 	handle_t *handle;
 	int res;
 
 	GETFROMSTACK(ustack, unsigned int, n, 0);
-	GETFROMSTACK(ustack, void *, f, 1);
+	GETFROMSTACK(ustack, handler_function, f, 1);
 	GETFROMSTACK(ustack, void *, data, 2);
 	GETFROMSTACK(ustack, handle_t, cond, 3);
 	GETFROMSTACK(ustack, handle_t *, handle, 4);
@@ -684,6 +686,7 @@ int syscalls_interrupt(void *ustack)
 	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
 		return -EFAULT;
 	}
+
 
 	res = userintr_setHandler(n, f, data, cond);
 	if (res < 0) {
@@ -951,11 +954,12 @@ addr_t syscalls_va2pa(void *ustack)
 
 int syscalls_signalHandle(void *ustack)
 {
-	void *handler;
+	typedef void (*handler_func)(void);
+	handler_func handler;
 	unsigned mask, mmask;
 	thread_t *thread;
 
-	GETFROMSTACK(ustack, void *, handler, 0);
+	GETFROMSTACK(ustack, handler_func, handler, 0);
 	GETFROMSTACK(ustack, unsigned, mask, 1);
 	GETFROMSTACK(ustack, unsigned, mmask, 2);
 
@@ -1074,7 +1078,7 @@ int syscalls_sys_open(char *ustack)
 	GETFROMSTACK(ustack, const char *, filename, 0);
 	GETFROMSTACK(ustack, int, oflag, 1);
 
-	return posix_open(filename, oflag, ustack);  // TBD_Julia int w delkaracji oflag?
+	return posix_open(filename, oflag, ustack);
 }
 
 

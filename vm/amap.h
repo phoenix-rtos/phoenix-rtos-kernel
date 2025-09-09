@@ -33,7 +33,7 @@ typedef struct _anon_t {
 typedef struct _amap_t {
 	lock_t lock;
 	unsigned int refs, size;
-	anon_t *anons[];
+	anon_t *anons[0];
 } amap_t;
 
 

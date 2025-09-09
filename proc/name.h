@@ -22,13 +22,13 @@
 typedef struct {
 	unsigned int id;
 	size_t pos;
-	unsigned char buff[];
+	unsigned char buff[0];
 } __attribute__((packed)) fsdata_t;
 
 
 typedef struct {
 	unsigned int mode;
-	char name[];
+	char name[0];
 } __attribute__((packed)) fsopen_t;
 
 
@@ -37,14 +37,14 @@ typedef unsigned int fsclose_t;
 
 typedef struct {
 	unsigned int port;
-	char name[];
+	char name[0];
 } __attribute__((packed)) fsmount_t;
 
 
 typedef struct {
 	oid_t oid;
 	size_t pos;
-	char path[];
+	char path[0];
 } __attribute__((packed)) fslookup_t;
 
 

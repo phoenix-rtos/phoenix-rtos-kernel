@@ -24,7 +24,7 @@
 typedef struct _dcache_entry_t {
 	struct _dcache_entry_t *next;
 	oid_t oid;
-	char name[];
+	char name[0];
 } dcache_entry_t;
 
 

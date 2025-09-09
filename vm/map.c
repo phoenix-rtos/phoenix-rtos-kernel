@@ -765,7 +765,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 		e->flags &= ~MAP_NEEDSCOPY;
 	}
 
-	offs = (paddr - e->vaddr);
+	offs = ((int)paddr - (int)e->vaddr);
 
 	if (e->amap == NULL) {
 		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs < 0) ? e->offs : (e->offs + offs)));
@@ -1534,7 +1534,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	}
 
 	map_common.maps = (vm_map_t **)(*bss);
-	while ((*top) - (*bss) < (ptrdiff_t)sizeof(vm_map_t *) * (ptrdiff_t)mapsCnt) {
+	while (((int)*top) - ((int)*bss) < (ptrdiff_t)sizeof(vm_map_t *) * (ptrdiff_t)mapsCnt) {
 		result = _page_sbrk(&map_common.kmap->pmap, bss, top);
 		LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)", *bss);
 	}
@@ -1554,7 +1554,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 		}
 		/* Allocate new map */
 		else {
-			while ((*top) - (*bss) < (ptrdiff_t)sizeof(vm_map_t)) {
+			while (((int)*top) - ((int)*bss) < (ptrdiff_t)sizeof(vm_map_t)) {
 				result = _page_sbrk(&map_common.kmap->pmap, bss, top);
 				LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)", *bss);
 			}

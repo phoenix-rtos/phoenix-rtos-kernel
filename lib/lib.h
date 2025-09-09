@@ -59,12 +59,6 @@
 })
 
 
-static inline int abs(int val)
-{
-	return (val < 0 ? -val : val);
-}
-
-
 #define round_page(x) (((x) + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U))
 
 

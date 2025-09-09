@@ -26,7 +26,6 @@ typedef struct _intr_handler_t {
 	void *data;
 	void *got;
 } intr_handler_t;
-// TBD_Julia MISRA Rul2 5.6 konflikt z plikiem w plo
 
 
 #endif

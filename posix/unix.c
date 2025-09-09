@@ -670,7 +670,6 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 		/* FIXME: caller may block indefinitely if remote gets closed after successful unixsock_get call */
 		r = unixsock_get(oid.id);
 		if (r == NULL) {
-			// TBD_Julia Przypadek po prawej, czy można z ULL na U int?
 			err = -ECONNREFUSED;
 			break;
 		}
