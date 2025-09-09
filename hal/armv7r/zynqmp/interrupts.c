@@ -96,7 +96,7 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	unsigned int reschedule = 0;
+	int reschedule = 0;
 	spinlock_ctx_t sc;
 
 	u32 ciarValue = *(interrupts_common.gicc + gicc_iar);
@@ -113,11 +113,13 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if ((h = interrupts_common.handlers[n]) != NULL) {
 		do {
 			hal_cpuSetGot(h->got);
-			reschedule |= (unsigned int)h->f(n, ctx, h->data);
+			if (h->f(n, ctx, h->data) != 0) {
+				reschedule = 1;
+			}
 		} while ((h = h->next) != interrupts_common.handlers[n]);
 	}
 
-	if (reschedule != 0U) {
+	if (reschedule != 0) {
 		/* MISRA Rule 17.7: Unused returned value, added (void)*/
 		(void)threads_schedule(n, ctx, NULL);
 	}
@@ -126,7 +128,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
 
-	return (int)reschedule;
+	return reschedule;
 }
 /* parasoft-end-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 */
 

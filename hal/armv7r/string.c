@@ -184,7 +184,7 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zer
 	k = m;
 
 	for (l = (unsigned long)-1; l != 0U; l /= b) {
-		if (zero == 0U && i == 0U) {
+		if ((zero == 0U) && (i == 0U)) {
 			break;
 		}
 		s[k++] = digits[i % b];

@@ -47,7 +47,7 @@ unsigned long lib_strtoul(char *nptr, char **endptr, int base)
 	while (strtoul_isalnum(*nptr) != 0) {
 		t = (unsigned int)((unsigned int)*nptr - (unsigned int)'0');
 		if (t > 9U) {
-			t = (unsigned int)(((unsigned int)*nptr | 0x20U) - (unsigned int)'a') + 10U;
+			t = ((unsigned int)*nptr | 0x20U) - (unsigned int)'a' + 10U;
 		}
 
 		if (t >= (unsigned int)base) {

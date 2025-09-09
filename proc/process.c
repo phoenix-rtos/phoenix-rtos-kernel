@@ -1003,15 +1003,15 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 	if (badreloc != 0) {
 		if ((process->path != NULL) && (process->path[0] != '\0')) {
 			/* MISRAC2012-RULE_17_7-a */
-			(void)lib_printf("app %s: ", process->path);
+			lib_printf("app %s: ", process->path);
 		}
 		else {
 			/* MISRAC2012-RULE_17_7-a */
-			(void)lib_printf("process %d: ", process_getPid(process));
+			lib_printf("process %d: ", process_getPid(process));
 		}
 
 		/* MISRAC2012-RULE_17_7-a */
-		(void)lib_printf("Found %d badreloc%c\n", badreloc, (badreloc > 1) ? 's' : ' ');
+		lib_printf("Found %d badreloc%c\n", badreloc, (badreloc > 1) ? 's' : ' ');
 	}
 
 	return EOK;

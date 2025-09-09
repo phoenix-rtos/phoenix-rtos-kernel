@@ -170,7 +170,7 @@ void syspage_progShow(void)
 			name = (prog->argv[0] == 'X') ? prog->argv + 1 : prog->argv;
 			next = prog->next;
 			/* MISRA Rule 17.7: Unused returned value, (void) added*/
-			(void)lib_printf(" '%s'%c", name, (next == syspage_common.syspage->progs) ? '\n' : ',');
+			lib_printf(" '%s'%c", name, (next == syspage_common.syspage->progs) ? '\n' : ',');
 			prog = next;
 		} while (prog != syspage_common.syspage->progs);
 	}

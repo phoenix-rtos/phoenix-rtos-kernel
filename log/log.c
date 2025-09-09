@@ -347,11 +347,11 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 				msg->o.err = EOK;
 			}
 			else {
-				msg->o.err = log_readerAdd((int)msg->pid, msg->i.openclose.flags & O_NONBLOCK);
+				msg->o.err = log_readerAdd(msg->pid, msg->i.openclose.flags & O_NONBLOCK);
 			}
 			break;
 		case mtRead:
-			r = log_readerFind((int)msg->pid);
+			r = log_readerFind(msg->pid);
 			if (r == NULL) {
 				msg->o.err = -EINVAL;
 			}
@@ -378,7 +378,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			log_scrub();
 			break;
 		case mtClose:
-			log_close((int)msg->pid);
+			log_close(msg->pid);
 			msg->o.err = 0;
 			break;
 		case mtDevCtl:

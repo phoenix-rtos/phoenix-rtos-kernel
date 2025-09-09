@@ -204,7 +204,6 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 				w->right->color = RB_BLACK;
 				w->color = RB_RED;
 				rb_rotateLeft(tree, w);
-				// w = x->parent->left;
 			}
 			else {
 				w->color = x->parent->color;
@@ -426,17 +425,17 @@ static void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, uns
 	unsigned int i;
 
 	for (i = 0; i < *depth; i++) {
-		(void)lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
+		lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
 	}
 
 	if (node == NULL) {
-		(void)lib_printf("%s() *\n", (*depth != 0U) ? "`-" : "");
+		lib_printf("%s() *\n", (*depth != 0U) ? "`-" : "");
 		return;
 	}
 
-	(void)lib_printf("%s(", (*depth != 0U) ? "`-" : "");
+	lib_printf("%s(", (*depth != 0U) ? "`-" : "");
 	dump(node);
-	(void)lib_printf(")%c\n", node->color == RB_BLACK ? '*' : ' ');
+	lib_printf(")%c\n", node->color == RB_BLACK ? '*' : ' ');
 
 	(*depth)++;
 	/* FIXME: dead MISRA Rule 17.2*/
@@ -451,9 +450,9 @@ static void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, uns
 		/* parasoft-end-suppress MISRAC2012-RULE_17_2 */
 		else {
 			for (i = 0; i < *depth; i++) {
-				(void)lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
+				lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
 			}
-			(void)lib_printf("%s(..)\n", (*depth != 0U) ? "`-" : "");
+			lib_printf("%s(..)\n", (*depth != 0U) ? "`-" : "");
 		}
 	}
 	(*depth)--;

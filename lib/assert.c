@@ -27,7 +27,7 @@ void lib_assertPanic(const char *func, int line, const char *fmt, ...)
 
 	log_disable();
 	hal_cpuDisableInterrupts();
-	(void)lib_printf("kernel (%s:%d): ", func, line);
+	lib_printf("kernel (%s:%d): ", func, line);
 	va_start(ap, fmt);
 	(void)lib_vprintf(fmt, ap);
 	va_end(ap);

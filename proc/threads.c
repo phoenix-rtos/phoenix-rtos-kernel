@@ -2045,13 +2045,13 @@ void proc_threadsDump(unsigned int priority)
 	log_disable();
 
 	/* MISRAC2012-RULE_17_7-a */
-	(void)lib_printf("threads: ");
+	lib_printf("threads: ");
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	t = threads_common.ready[priority];
 	do {
 		/* MISRAC2012-RULE_17_7-a */
-		(void)lib_printf("[%p] ", t);
+		lib_printf("[%p] ", t);
 
 		if (t == NULL) {
 			break;
@@ -2062,7 +2062,7 @@ void proc_threadsDump(unsigned int priority)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	/* MISRAC2012-RULE_17_7-a */
-	(void)lib_printf("\n");
+	lib_printf("\n");
 
 
 	return;
@@ -2223,7 +2223,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	lib_idtreeInit(&threads_common.id);
 
 	/* MISRAC2012-RULE_17_7-a */
-	(void)lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
+	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
 
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 

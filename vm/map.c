@@ -127,7 +127,7 @@ static void map_dump(rbnode_t *node)
 {
 	map_entry_t *e = lib_treeof(map_entry_t, linkage, node);
 	/* MISRA Rule 17.7: Unused returned value, (void) added */
-	(void)lib_printf("%p+%x, %x, %x", e->vaddr, e->size, e->lmaxgap, e->rmaxgap);
+	lib_printf("%p+%x, %x, %x", e->vaddr, e->size, e->lmaxgap, e->rmaxgap);
 }
 
 
@@ -1651,7 +1651,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 
 	(*bss) += poolsz;
 	/* MISRA Rule 17.7: Unused returned value, (void) added */
-	(void)lib_printf("vm: Initializing memory mapper: (%d*%d) %d\n", map_common.nfree, sizeof(map_entry_t), poolsz);
+	lib_printf("vm: Initializing memory mapper: (%d*%d) %d\n", map_common.nfree, sizeof(map_entry_t), poolsz);
 
 	result = _map_mapsInit(kmap, kernel, bss, top);
 	LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with maps initialization.");

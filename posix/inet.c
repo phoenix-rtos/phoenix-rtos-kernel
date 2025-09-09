@@ -38,7 +38,7 @@ static int socksrvcall(msg_t *msg)
 }
 
 
-static ssize_t sockcall(unsigned int socket, msg_t *msg)
+static ssize_t sockcall(int socket, msg_t *msg)
 {
 	sockport_resp_t *smo = (void *)msg->o.raw;
 	int err;
@@ -52,7 +52,7 @@ static ssize_t sockcall(unsigned int socket, msg_t *msg)
 }
 
 
-static ssize_t socknamecall(unsigned int socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
+static ssize_t socknamecall(int socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
 {
 	sockport_resp_t *smo = (void *)msg->o.raw;
 	ssize_t err;
@@ -74,7 +74,7 @@ static ssize_t socknamecall(unsigned int socket, msg_t *msg, struct sockaddr *ad
 }
 
 
-static ssize_t sockdestcall(unsigned int socket, msg_t *msg, const struct sockaddr *address, socklen_t address_len)
+static ssize_t sockdestcall(int socket, msg_t *msg, const struct sockaddr *address, socklen_t address_len)
 {
 	sockport_msg_t *smi = (void *)msg->i.raw;
 
@@ -89,7 +89,7 @@ static ssize_t sockdestcall(unsigned int socket, msg_t *msg, const struct sockad
 }
 
 
-int inet_accept4(unsigned int socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags)
+int inet_accept4(int socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags)
 {
 	ssize_t err;
 	msg_t msg;
@@ -109,7 +109,7 @@ int inet_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 }
 
 
-int inet_bind(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
+int inet_bind(int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	msg_t msg;
 
@@ -120,7 +120,7 @@ int inet_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 }
 
 
-int inet_connect(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
+int inet_connect(int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	msg_t msg;
 
@@ -131,7 +131,7 @@ int inet_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 }
 
 
-int inet_getpeername(unsigned int socket, struct sockaddr *address, socklen_t *address_len)
+int inet_getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
 {
 	msg_t msg;
 
@@ -142,7 +142,7 @@ int inet_getpeername(unsigned int socket, struct sockaddr *address, socklen_t *a
 }
 
 
-int inet_getsockname(unsigned int socket, struct sockaddr *address, socklen_t *address_len)
+int inet_getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
 {
 	msg_t msg;
 
@@ -153,7 +153,7 @@ int inet_getsockname(unsigned int socket, struct sockaddr *address, socklen_t *a
 }
 
 
-int inet_getsockopt(unsigned int socket, int level, int optname, void *optval, socklen_t *optlen)
+int inet_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -177,7 +177,7 @@ int inet_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 }
 
 
-int inet_listen(unsigned int socket, int backlog)
+int inet_listen(int socket, int backlog)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -190,7 +190,7 @@ int inet_listen(unsigned int socket, int backlog)
 }
 
 
-ssize_t inet_recvfrom(unsigned int socket, void *message, size_t length, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len)
+ssize_t inet_recvfrom(int socket, void *message, size_t length, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -205,7 +205,7 @@ ssize_t inet_recvfrom(unsigned int socket, void *message, size_t length, unsigne
 }
 
 
-ssize_t inet_sendto(unsigned int socket, const void *message, size_t length, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+ssize_t inet_sendto(int socket, const void *message, size_t length, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -220,7 +220,7 @@ ssize_t inet_sendto(unsigned int socket, const void *message, size_t length, uns
 }
 
 
-ssize_t inet_recvmsg(unsigned int socket, struct msghdr *msg, unsigned int flags)
+ssize_t inet_recvmsg(int socket, struct msghdr *msg, unsigned int flags)
 {
 	ssize_t ret = 0;
 
@@ -247,7 +247,7 @@ ssize_t inet_recvmsg(unsigned int socket, struct msghdr *msg, unsigned int flags
 }
 
 
-ssize_t inet_sendmsg(unsigned int socket, const struct msghdr *msg, unsigned int flags)
+ssize_t inet_sendmsg(int socket, const struct msghdr *msg, unsigned int flags)
 {
 	ssize_t ret = 0;
 
@@ -289,7 +289,7 @@ int inet_socket(int domain, int type, int protocol)
 }
 
 
-int inet_shutdown(unsigned int socket, int how)
+int inet_shutdown(int socket, int how)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -302,7 +302,7 @@ int inet_shutdown(unsigned int socket, int how)
 }
 
 
-int inet_setsockopt(unsigned int socket, int level, int optname, const void *optval, socklen_t optlen)
+int inet_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -318,7 +318,7 @@ int inet_setsockopt(unsigned int socket, int level, int optname, const void *opt
 }
 
 
-int inet_setfl(unsigned int socket, int flags)
+int inet_setfl(int socket, int flags)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -331,7 +331,7 @@ int inet_setfl(unsigned int socket, int flags)
 }
 
 
-int inet_getfl(unsigned int socket)
+int inet_getfl(int socket)
 {
 	msg_t msg;
 

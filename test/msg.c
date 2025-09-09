@@ -69,18 +69,18 @@ void test_ping(void *arg)
 
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 70, 76, 81, 95, 100, 105, 129*/
-	(void)lib_printf("test: msg/ping: starting\n");
+	lib_printf("test: msg/ping: starting\n");
 
 	buf[0] = vm_kmalloc(bufsz);
 	buf[1] = vm_kmalloc(bufsz);
 
 	if (buf[0] == NULL || buf[1] == NULL) {
-		(void)lib_printf("test_msg/ping: could not allocate buffers\n");
+		lib_printf("test_msg/ping: could not allocate buffers\n");
 		return;
 	}
 
 	for (k = 0; count == 0U || k < count; ++k) {
-		(void)lib_printf("\rtest_msg/ping: % 20d OK", k);
+		lib_printf("\rtest_msg/ping: % 20d OK", k);
 
 		hal_memset(&msg, 0, sizeof(msg));
 
@@ -94,17 +94,17 @@ void test_ping(void *arg)
 		}
 
 		if (proc_send(port, &msg) < 0) {
-			(void)lib_printf("\ntest_msg/ping: send failed\n");
+			lib_printf("\ntest_msg/ping: send failed\n");
 			return;
 		}
 
 		if (msg.o.err < 0) {
-			(void)lib_printf("\ntest_msg/ping: pong returned error\n");
+			lib_printf("\ntest_msg/ping: pong returned error\n");
 			return;
 		}
 
 		if (msg.i.size != msg.o.size) {
-			(void)lib_printf("\ntest_msg/ping: sizes mismatch\n");
+			lib_printf("\ntest_msg/ping: sizes mismatch\n");
 			return;
 		}
 
@@ -128,7 +128,7 @@ void test_ping(void *arg)
 		}*/
 	}
 
-	(void)lib_printf("\n");
+	lib_printf("\n");
 
 	return;
 }
@@ -141,17 +141,17 @@ void test_pong(void *arg)
 	unsigned int port = (unsigned long)arg;
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 142, 147, 152, 159*/
-	(void)lib_printf("test_msg/pong: starting\n");
+	lib_printf("test_msg/pong: starting\n");
 
 	for (;;) {
 
 		if (proc_recv(port, &msg, &rid) < 0) {
-			(void)lib_printf("test_msg/pong: receive failed\n");
+			lib_printf("test_msg/pong: receive failed\n");
 			msg.o.err = 1;
 		}
 
 		if (msg.i.size != msg.o.size) {
-			(void)lib_printf("test_msg/pong: i/o buffers are of different sizes: 0x%zx and 0x%zx\n", msg.i.size, msg.o.size);
+			lib_printf("test_msg/pong: i/o buffers are of different sizes: 0x%zx and 0x%zx\n", msg.i.size, msg.o.size);
 			msg.o.err = 1;
 		}
 		else {
@@ -171,7 +171,7 @@ void test_msg(void)
 
 	if (proc_portCreate(&port) != EOK) {
 		/* MISRA Rule 17.7: Unused return value, (void) added in lines 172, 176, 177*/
-		(void)lib_printf("Failed to create port\n");
+		lib_printf("Failed to create port\n");
 		hal_cpuHalt();
 	}
 

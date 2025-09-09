@@ -184,7 +184,7 @@ static void _lib_idtreeDump(rbnode_t *node)
 {
 	idnode_t *n = lib_treeof(idnode_t, linkage, node);
 	/* MISRA Rule 17.7: Unused return value, (void) added */
-	(void)lib_printf("%d <0x%p>]", n->id, n);
+	lib_printf("%d <0x%p>]", n->id, n);
 }
 
 

@@ -254,17 +254,17 @@ void vm_kmallocDump(void)
 
 	for (i = 0; i < sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *); i++) {
 		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 254, 259, 264*/
-		(void)lib_printf("sizes[%d]=", i);
+		lib_printf("sizes[%d]=", i);
 		z = kmalloc_common.sizes[i];
 
 		if (z != NULL) {
 			do {
-				(void)lib_printf("%p(%d/%d) ", z, z->used, z->blocks);
+				lib_printf("%p(%d/%d) ", z, z->used, z->blocks);
 				z = z->next;
 			} while (z != kmalloc_common.sizes[i]);
 		}
 
-		(void)lib_printf("\n");
+		lib_printf("\n");
 	}
 }
 
@@ -274,7 +274,7 @@ int _kmalloc_init(void)
 	unsigned int hdridx, i;
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 274, 276, 283*/
-	(void)lib_printf("vm: Initializing kernel memory allocator: ");
+	lib_printf("vm: Initializing kernel memory allocator: ");
 
 	(void)proc_lockInit(&kmalloc_common.lock, &proc_lockAttrDefault, "kmalloc.common");
 
@@ -283,7 +283,7 @@ int _kmalloc_init(void)
 		hdridx++;
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
-		(void)lib_printf("BAD HDRIDX!\n");
+		lib_printf("BAD HDRIDX!\n");
 		/* MISRA Rule 11.6: NULL return changed to -1 return as NULL is now represented as void pointer onto 0 */
 		return -1;
 	}
@@ -308,7 +308,7 @@ int _kmalloc_init(void)
 	kmalloc_common.allocsz = 0;
 	kmalloc_common.hdrblocks = kmalloc_common.firstzone.blocks;
 
-	(void)lib_printf("(%d*%d) %d\n", kmalloc_common.hdrblocks, sizeof(vm_zone_t), kmalloc_common.hdrblocks * sizeof(vm_zone_t));
+	lib_printf("(%d*%d) %d\n", kmalloc_common.hdrblocks, sizeof(vm_zone_t), kmalloc_common.hdrblocks * sizeof(vm_zone_t));
 
 	return 0;
 }

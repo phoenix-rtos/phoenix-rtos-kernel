@@ -151,22 +151,22 @@ static void test_rbGenerateTest(int level, int insert, int vector[], int selecte
 
 				if (rb_processVector(1, &tree, input) < 0) {
 					/* MISRA Rule 17.7: Unused return value, (void) added in lines 152, 154, 157, 162, 164, 167*/
-					(void)lib_printf("error: RB insert - ");
+					lib_printf("error: RB insert - ");
 					for (j = 0; j < RB_TEST_SIZE; ++j) {
-						(void)lib_printf("%d ", input[j]);
+						lib_printf("%d ", input[j]);
 					}
 
-					(void)lib_printf("\n");
+					lib_printf("\n");
 					hal_cpuHalt();
 				}
 
 				if (rb_processVector(0, &tree, vector) < 0) {
-					(void)lib_printf("error: RB remove - ");
+					lib_printf("error: RB remove - ");
 					for (j = 0; j < RB_TEST_SIZE; ++j) {
-						(void)lib_printf("%d ", vector[j]);
+						lib_printf("%d ", vector[j]);
 					}
 
-					(void)lib_printf("\n");
+					lib_printf("\n");
 					hal_cpuHalt();
 				}
 			}
@@ -183,7 +183,7 @@ static void test_rb_autothr(void *arg)
 	int selected[RB_TEST_SIZE];
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 184, 194, 201*/
-	(void)lib_printf("test: Start automatic red-black tree test\n");
+	lib_printf("test: Start automatic red-black tree test\n");
 
 	for (;;) {
 		count = 0;
@@ -193,7 +193,7 @@ static void test_rb_autothr(void *arg)
 
 		test_rbGenerateTest(0, 1, vector, selected, NULL);
 
-		(void)lib_printf("success: RB test vector size: %d, test count: %d\n", RB_TEST_SIZE, count);
+		lib_printf("success: RB test vector size: %d, test count: %d\n", RB_TEST_SIZE, count);
 	}
 }
 

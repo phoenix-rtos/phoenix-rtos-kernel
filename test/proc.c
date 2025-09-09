@@ -40,11 +40,11 @@ static void test_proc_indthr(void *arg)
 	char *indicator = "o|/-\\|/-\\";
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 41, 45, 62*/
-	(void)lib_printf("test: [proc.threads] Starting indicating thread\n");
+	lib_printf("test: [proc.threads] Starting indicating thread\n");
 	hal_consolePrint(ATTR_USER, "\033[?25l");
 
 	for (;;) {
-		(void)lib_printf("\rtest: [proc.threads] %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d",
+		lib_printf("\rtest: [proc.threads] %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d",
 				indicator[test_proc_common.rotations[1] % 8U],
 				indicator[test_proc_common.rotations[2] % 8U],
 				indicator[test_proc_common.rotations[3] % 8U],
@@ -194,8 +194,8 @@ static void test_proc_initthr(void *arg)
 	_hal_start();
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 199, 200, 205, 208*/
-	(void)lib_printf("main: Starting syspage programs (%d) and init\n", syspage_progSize());
-	(void)lib_printf("init: %p\n", proc_current());
+	lib_printf("main: Starting syspage programs (%d) and init\n", syspage_progSize());
+	lib_printf("init: %p\n", proc_current());
 
 	for (;;) {
 		if ((prog = syspage_progList()) != NULL) {

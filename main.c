@@ -48,7 +48,7 @@ static void main_initthr(void *unused)
 	_usrv_start();
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added*/
-	(void)lib_printf("main: Starting syspage programs:");
+	lib_printf("main: Starting syspage programs:");
 	syspage_progShow();
 
 	posix_init();
@@ -89,7 +89,7 @@ static void main_initthr(void *unused)
 
 			if ((res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), vm_getSharedMap((int)prog->dmaps[0]), argv[0], argv)) < 0) {
 				/* MISRA Rule 17.7: Unused returned value, (void) added*/
-				(void)lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
+				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 			}
 		} while ((prog = prog->next) != syspage_progList());
 	}
@@ -109,11 +109,11 @@ int main(void)
 	_usrv_init();
 
 	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v. " RELEASE " rev. " VERSION "\n");
-	/* MISRA Rule 17.7: Unused returned value by function lib_printf, (void) added in lines 108-111*/
-	(void)lib_printf("hal: %s\n", hal_cpuInfo(s));
-	(void)lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
-	(void)lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
-	(void)lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
+
+	lib_printf("hal: %s\n", hal_cpuInfo(s));
+	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
+	lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
+	lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
 	/* MISRA Rule 17.7: Unused returned value, (void) added*/

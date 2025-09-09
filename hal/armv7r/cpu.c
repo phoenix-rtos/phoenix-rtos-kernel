@@ -190,42 +190,42 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	}
 
 	/* MISRA Rule 17.7: Unused returned value by hal_strcpy function, (void) added in lines 192, 197, 202, 207, 212, 217, 222, 227*/
-	if (((pfr0 >> 12) & 0xfUL) != 0U && len - n > 9U) {
+	if (((pfr0 >> 12) & 0xfUL) != 0U && (len - n) > 9U) {
 		(void)hal_strcpy(&features[n], "ThumbEE, ");
 		n += 9U;
 	}
 
-	if (((pfr0 >> 8) & 0xfUL) != 0U && len - n > 9U) {
+	if (((pfr0 >> 8) & 0xfUL) != 0U && (len - n) > 9U) {
 		(void)hal_strcpy(&features[n], "Jazelle, ");
 		n += 9U;
 	}
 
-	if (((pfr0 >> 4) & 0xfUL) != 0U && len - n > 7U) {
+	if (((pfr0 >> 4) & 0xfUL) != 0U && (len - n) > 7U) {
 		(void)hal_strcpy(&features[n], "Thumb, ");
 		n += 7U;
 	}
 
-	if ((pfr0 & 0xfUL) != 0U && len - n > 5U) {
+	if ((pfr0 & 0xfUL) != 0U && (len - n) > 5U) {
 		(void)hal_strcpy(&features[n], "ARM, ");
 		n += 5U;
 	}
 
-	if (((pfr1 >> 16) & 0xfUL) != 0U && len - n > 15U) {
+	if (((pfr1 >> 16) & 0xfUL) != 0U && (len - n) > 15U) {
 		(void)hal_strcpy(&features[n], "Generic Timer, ");
 		n += 15U;
 	}
 
-	if (((pfr1 >> 12) & 0xfUL) != 0U && len - n > 16U) {
+	if (((pfr1 >> 12) & 0xfUL) != 0U && (len - n) > 16U) {
 		(void)hal_strcpy(&features[n], "Virtualization, ");
 		n += 16U;
 	}
 
-	if (((pfr1 >> 8) & 0xfUL) != 0U && len - n > 5U) {
+	if (((pfr1 >> 8) & 0xfUL) != 0U && (len - n) > 5U) {
 		(void)hal_strcpy(&features[n], "MCU, ");
 		n += 5U;
 	}
 
-	if (((pfr1 >> 4) & 0xfUL) != 0U && len - n > 10U) {
+	if (((pfr1 >> 4) & 0xfUL) != 0U && (len - n) > 10U) {
 		(void)hal_strcpy(&features[n], "Security, ");
 		n += 10U;
 	}

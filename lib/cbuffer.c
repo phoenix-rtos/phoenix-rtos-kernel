@@ -42,7 +42,7 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 	else {
 		hal_memcpy(buf->data + buf->w, data, bytes = min(sz, buf->sz - buf->w));
 
-		if (bytes < sz && buf->r != 0U) {
+		if ((bytes < sz) && (buf->r != 0U)) {
 			data += bytes;
 			sz -= bytes;
 			hal_memcpy(buf->data, data, min(sz, buf->r));

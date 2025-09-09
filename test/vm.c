@@ -33,7 +33,7 @@ void test_vm_alloc(void)
 	size_t size;
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 34, 50, 56, 66, 67 */
-	(void)lib_printf("test: Page allocator test\n");
+	lib_printf("test: Page allocator test\n");
 
 	hal_cpuGetCycles(&b);
 	seed = (unsigned int)b;
@@ -49,13 +49,13 @@ void test_vm_alloc(void)
 		hal_cpuGetCycles(&e);
 
 		if (p == NULL) {
-			(void)lib_printf("test: Out of memory!");
+			lib_printf("test: Out of memory!");
 			break;
 		}
 
 		vm_pageFree(p);
 
-		(void)lib_printf("\rtest: size=%d, n=%d", size, n);
+		lib_printf("\rtest: size=%d, n=%d", size, n);
 
 		if (e - b > dmax) {
 			dmax = e - b;
@@ -65,8 +65,8 @@ void test_vm_alloc(void)
 		}
 	}
 
-	(void)lib_printf("\n");
-	(void)lib_printf("test: n=%d, dmax=%u, dmin=%u, size=%d:%d\n", n, (u32)dmax, (u32)dmin, minsize, maxsize);
+	lib_printf("\n");
+	lib_printf("test: n=%d, dmax=%u, dmin=%u, size=%d:%d\n", n, (u32)dmax, (u32)dmin, minsize, maxsize);
 	_page_showPages();
 	return;
 }
@@ -77,7 +77,7 @@ void test_vm_mmap(void)
 	vm_map_t map;
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 78, 79*/
-	(void)lib_printf("test: Virtual memory map test\n");
+	lib_printf("test: Virtual memory map test\n");
 	(void)vm_mmap(&map, (void *)0x123, NULL, SIZE_PAGE, 0, NULL, 0, 0);
 
 	vm_mapDump(&map);
@@ -91,7 +91,7 @@ void test_vm_zalloc(void)
 	void *b;
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 92, 94, 100, 102*/
-	(void)lib_printf("test: Zone allocator test\n");
+	lib_printf("test: Zone allocator test\n");
 
 	(void)_vm_zoneCreate(&zone, 128, 1024);
 
@@ -100,9 +100,9 @@ void test_vm_zalloc(void)
 			break;
 		}
 
-		(void)lib_printf("\rtest: b=%p", b);
+		lib_printf("\rtest: b=%p", b);
 	}
-	(void)lib_printf("\n");
+	lib_printf("\n");
 
 	return;
 }
@@ -121,7 +121,7 @@ void test_vm_kmalloc(void)
 	vm_pageGetStats(&freesz);
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 121, 141, 144, 154*/
-	(void)lib_printf("test: Testing kmalloc,   kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
+	lib_printf("test: Testing kmalloc,   kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
 
 	hal_cpuGetCycles(&c);
 	s1 = (unsigned int)c;
@@ -141,10 +141,10 @@ void test_vm_kmalloc(void)
 			buff[i] = NULL;
 		}
 
-		(void)lib_printf("\rtest: [%4d] allocating %5d", k, size);
+		lib_printf("\rtest: [%4d] allocating %5d", k, size);
 		buff[i] = vm_kmalloc(size);
 	}
-	(void)lib_printf("\n");
+	lib_printf("\n");
 
 	for (i = 0; (unsigned int)i < sizeof(buff) / sizeof(buff[0]); i++) {
 		if (buff[i] != NULL) {
@@ -155,7 +155,7 @@ void test_vm_kmalloc(void)
 	vm_kmallocGetStats(&kmallocsz);
 	vm_mapGetStats(&mapallocsz);
 	vm_pageGetStats(&freesz);
-	(void)lib_printf("test: Memory after test, kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
+	lib_printf("test: Memory after test, kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
 
 	// vm_mapDumpArenas();
 
@@ -179,7 +179,7 @@ static void _test_vm_msgsimthr(void *arg)
 	}
 
 	(void)proc_lockSet(&lock);
-	(void)lib_printf("test: M, No memory!\n");
+	lib_printf("test: M, No memory!\n");
 	(void)proc_lockClear(&lock);
 
 	for (;;) {
@@ -196,7 +196,7 @@ static void _test_vm_upgrsimthr(void *arg)
 	vm_kmallocGetStats(&allocsz);
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 194, 195, 196, 209, 210, 211, 217*/
 	(void)proc_lockSet(&lock);
-	(void)lib_printf("test: Simulate kmalloc load [%d]\n", allocsz);
+	lib_printf("test: Simulate kmalloc load [%d]\n", allocsz);
 	(void)proc_lockClear(&lock);
 
 	// vm_kmallocDump();
@@ -212,7 +212,7 @@ static void _test_vm_upgrsimthr(void *arg)
 		for (i = 0; i < 10000U; i++) {
 			vm_kmallocGetStats(&allocsz);
 			(void)proc_lockSet(&lock);
-			(void)lib_printf("\rtest: U, [%4d] kmalloc.allocsz=%d", i, allocsz);
+			lib_printf("\rtest: U, [%4d] kmalloc.allocsz=%d", i, allocsz);
 			(void)proc_lockClear(&lock);
 
 			if ((buff = vm_kmalloc(3000)) == NULL) {
@@ -228,13 +228,13 @@ static void _test_vm_upgrsimthr(void *arg)
 	}
 
 	/* MISRA Rule 17.7: Unused return value, (void) added in lines 225, 230, 231, 232, 242, 244, 247*/
-	(void)lib_printf("\n");
+	lib_printf("\n");
 	// vm_kmallocDump();
 	// vm_mapDump(NULL);
 
 	vm_kmallocGetStats(&allocsz);
 	(void)proc_lockSet(&lock);
-	(void)lib_printf("test: U, No memory [%d]!\n", allocsz);
+	lib_printf("test: U, No memory [%d]!\n", allocsz);
 	(void)proc_lockClear(&lock);
 
 	for (;;) {

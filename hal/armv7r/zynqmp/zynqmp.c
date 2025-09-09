@@ -164,11 +164,11 @@ int _zynqmp_setMIO(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config)
 
 static void _zynqmp_getMIOMuxing(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3)
 {
-	u32 val = *(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & 0xffU;
-	*l0 = (u8)((val >> 1) & 0x1U);
-	*l1 = (u8)((val >> 2) & 0x1U);
-	*l2 = (u8)((val >> 3) & 0x3U);
-	*l3 = (u8)((val >> 5) & 0x7U);
+	u8 val = *(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & 0xffU;
+	*l0 = (val >> 1) & 0x1U;
+	*l1 = (val >> 2) & 0x1U;
+	*l2 = (val >> 3) & 0x3U;
+	*l3 = (val >> 5) & 0x7U;
 }
 
 

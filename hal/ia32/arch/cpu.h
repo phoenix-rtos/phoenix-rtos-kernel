@@ -280,13 +280,13 @@ void hal_cpuSendIPI(unsigned int cpu, unsigned int intrAndFlags);
 
 static inline void hal_cpuDisableInterrupts(void)
 {
-	__asm__ volatile("cli" :);
+	__asm__ volatile("cli");
 }
 
 
 static inline void hal_cpuEnableInterrupts(void)
 {
-	__asm__ volatile("sti" :);
+	__asm__ volatile("sti");
 }
 
 
@@ -295,7 +295,7 @@ static inline void hal_cpuEnableInterrupts(void)
 
 static inline void hal_cpuHalt(void)
 {
-	__asm__ volatile("hlt" :);
+	__asm__ volatile("hlt");
 }
 
 

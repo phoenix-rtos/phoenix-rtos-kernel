@@ -310,7 +310,7 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 	vm_object_t *o;
 
 	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 308, 313, 319, 321*/
-	(void)lib_printf("vm: Initializing memory objects\n");
+	lib_printf("vm: Initializing memory objects\n");
 
 	object_common.kernel = kernel;
 	object_common.kmap = kmap;

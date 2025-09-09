@@ -1912,7 +1912,7 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 void _syscalls_init(void)
 {
 	/* MISRA Rule 17.7: Unused returned value, added (void)*/
-	(void)lib_printf("syscalls: Initializing syscall table [%d]\n", sizeof(syscalls) / sizeof(syscalls[0]));
+	lib_printf("syscalls: Initializing syscall table [%d]\n", sizeof(syscalls) / sizeof(syscalls[0]));
 }
 
 /* parasoft-end-suppress MISRAC2012-RULE_8_4 */

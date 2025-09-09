@@ -592,16 +592,13 @@ int lib_vprintf(const char *format, va_list ap)
 }
 
 
-int lib_printf(const char *format, ...)
+void lib_printf(const char *format, ...)
 {
 	va_list ap;
-	int ret;
 
 	va_start(ap, format);
-	ret = lib_vprintf(format, ap);
+	(void)lib_vprintf(format, ap);
 	va_end(ap);
-
-	return ret;
 }
 
 
