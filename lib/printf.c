@@ -292,6 +292,10 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
+				flags |= FLAG_HEX;
+				number = get_number(number, args, flags);
+				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
+				break;
 			case 'x':
 				flags |= FLAG_HEX;
 				number = get_number(number, args, flags);
@@ -300,6 +304,9 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
+				number = get_number(number, args, flags);
+				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
+				break;
 			case 'u':
 				number = get_number(number, args, flags);
 				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
@@ -481,6 +488,16 @@ int lib_vprintf(const char *format, va_list ap)
 
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
+				flags |= FLAG_HEX;
+				number = get_number(number, ap, flags);
+				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
+				sptr = buff;
+
+				while (sptr != eptr) {
+					lib_putch(*sptr++);
+					++i;
+				}
+				break;
 			case 'x':
 				flags |= FLAG_HEX;
 				number = get_number(number, ap, flags);
@@ -496,6 +513,16 @@ int lib_vprintf(const char *format, va_list ap)
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
+				number = get_number(number, ap, flags);
+				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
+				sptr = buff;
+
+				while (sptr != eptr) {
+					lib_putch(*sptr++);
+					++i;
+				}
+
+				break;
 
 			case 'u':
 				number = get_number(number, ap, flags);
