@@ -164,7 +164,7 @@ void lib_putch(char s)
 }
 
 
-static u64 get_number(u64 number, va_list list, u32 flags, u32 min_number_len)
+static u64 get_number(u64 number, va_list list, u32 flags)
 {
 	if ((flags & FLAG_64BIT) != 0U) {
 		number = va_arg(list, u64);
@@ -187,6 +187,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 		if (fmt == '\0') {
 			break;
 		}
+
 		if (fmt != '%') {
 			*out++ = fmt;
 			continue;
@@ -221,13 +222,21 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			}
 		}
 
+		if (fmt == '\0') {
+			break;
+		}
+
 		/* leading number digits-cnt */
 		while (fmt >= '0' && fmt <= '9') {
-			min_number_len = min_number_len * 10U + ((unsigned int)fmt - (unsigned int)'0');
+			min_number_len = min_number_len * 10U + (unsigned int)fmt - (unsigned int)'0';
 			fmt = *format++;
 			if (fmt == '\0') {
 				break;
 			}
+		}
+
+		if (fmt == '\0') {
+			break;
 		}
 
 		/* fractional number digits-cnt (only a single digit is acceptable in this impl.) */
@@ -255,7 +264,8 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			if (fmt == '\0') {
 				break;
 			}
-			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
+
+			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof(void *) depends on the architecture" */
 			if (sizeof(void *) == sizeof(u64)) {  // FIXME "size_t" is undefined?
 				flags |= FLAG_64BIT;
 			}
@@ -269,6 +279,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				if (s == NULL) {
 					s = "(null)";
 				}
+
 				const unsigned int s_len = hal_strlen(s);
 				hal_memcpy(out, s, s_len);
 				out += s_len;
@@ -281,18 +292,16 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
-				break;
 			case 'x':
 				flags |= FLAG_HEX;
-				number = get_number(number, args, flags, min_number_len);
+				number = get_number(number, args, flags);
 				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
 				break;
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
-				break;
 			case 'u':
-				number = get_number(number, args, flags, min_number_len);
+				number = get_number(number, args, flags);
 				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
 				break;
 			case 'p': {
@@ -307,7 +316,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				}
 				number = (u64)(size_t)s;
 				flags |= (FLAG_ZERO | FLAG_HEX);
-				/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
+				/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof(void *) depends on the architecture" */
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}
@@ -391,6 +400,10 @@ int lib_vprintf(const char *format, va_list ap)
 			}
 		}
 
+		if (fmt == '\0') {
+			break;
+		}
+
 		/* leading number digits-cnt */
 		while (fmt >= '0' && fmt <= '9') {
 			min_number_len = min_number_len * 10U + ((unsigned int)fmt - (unsigned int)'0');
@@ -399,6 +412,10 @@ int lib_vprintf(const char *format, va_list ap)
 			if (fmt == '\0') {
 				break;
 			}
+		}
+
+		if (fmt == '\0') {
+			break;
 		}
 
 		/* fractional number digits-cnt (only a single digit is acceptable in this impl.) */
@@ -464,11 +481,9 @@ int lib_vprintf(const char *format, va_list ap)
 
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
-				break;
-
 			case 'x':
 				flags |= FLAG_HEX;
-				number = get_number(number, ap, flags, min_number_len);
+				number = get_number(number, ap, flags);
 				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
 				sptr = buff;
 
@@ -481,10 +496,9 @@ int lib_vprintf(const char *format, va_list ap)
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
-				break;
 
 			case 'u':
-				number = get_number(number, ap, flags, min_number_len);
+				number = get_number(number, ap, flags);
 				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
 				sptr = buff;
 
@@ -537,10 +551,6 @@ int lib_vprintf(const char *format, va_list ap)
 				lib_putch(fmt);
 				i += 2;
 				break;
-		}
-
-		if (fmt == '\0') {
-			break;
 		}
 	}
 
