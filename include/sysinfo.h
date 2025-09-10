@@ -25,9 +25,9 @@ typedef struct _syspageprog_t {
 
 
 typedef struct _threadinfo_t {
-	unsigned int pid;
+	pid_t pid;
 	unsigned int tid;
-	unsigned int ppid;
+	pid_t ppid;
 
 	int load;
 	time_t cpuTime;

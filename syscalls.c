@@ -58,7 +58,8 @@ int syscalls_sys_mmap(void *ustack)
 {
 	void **vaddr;
 	size_t size;
-	unsigned int prot, flags, fildes;
+	int prot, fildes;
+	unsigned int flags;
 	off_t offs;
 	vm_object_t *o;
 	oid_t oid;
@@ -67,9 +68,9 @@ int syscalls_sys_mmap(void *ustack)
 
 	GETFROMSTACK(ustack, void **, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
-	GETFROMSTACK(ustack, unsigned int, prot, 2);
+	GETFROMSTACK(ustack, int, prot, 2);
 	GETFROMSTACK(ustack, unsigned int, flags, 3);
-	GETFROMSTACK(ustack, unsigned int, fildes, 4);
+	GETFROMSTACK(ustack, int, fildes, 4);
 	GETFROMSTACK(ustack, off_t, offs, 5);
 
 	size = round_page(size);
@@ -93,7 +94,7 @@ int syscalls_sys_mmap(void *ustack)
 		}
 	}
 	else {
-		err = posix_getOid((int)fildes, &oid);
+		err = posix_getOid(fildes, &oid);
 		if (err < 0) {
 			return err;
 		}
@@ -143,15 +144,14 @@ int syscalls_sys_mprotect(void *ustack)
 	process_t *proc = proc_current()->process;
 	void *vaddr;
 	size_t len;
-	unsigned int prot;
-	int err;
+	int prot, err;
 
 	GETFROMSTACK(ustack, void *, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, len, 1);
-	GETFROMSTACK(ustack, unsigned int, prot, 2);
+	GETFROMSTACK(ustack, int, prot, 2);
 
 	/* parasoft-suppress-next-line MISRAC2012_RULE_10_3 "prot is poped from stack -> size of int stays" */
-	err = (int)vm_mprotect(proc->mapp, vaddr, len, PROT_USER | prot);
+	err = (int)vm_mprotect(proc->mapp, vaddr, len, PROT_USER | (unsigned int)prot);
 	if (err < 0) {
 		return err;
 	}
@@ -413,9 +413,9 @@ int syscalls_threadsinfo(void *ustack)
 	n = proc_threadsList(n, info);
 
 	for (i = 0; i < n; ++i) {
-		ppid = posix_getppid((pid_t)info[i].pid);
+		ppid = posix_getppid(info[i].pid);
 		if (ppid > 0) {
-			info[i].ppid = (unsigned int)ppid;
+			info[i].ppid = ppid;
 		}
 	}
 

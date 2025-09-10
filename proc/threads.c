@@ -818,8 +818,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *harg), int *id, un
 	t->locks = NULL;
 	t->stick = 0;
 	t->utick = 0;
-	t->priorityBase = (u8)priority & 0x0fU;
-	t->priority = (u8)priority & 0x0fU;
+	t->priorityBase = (u8)priority & 0xffU;
+	t->priority = (u8)priority & 0xffU;
 	t->cpuTime = 0;
 	t->maxWait = 0;
 	proc_gettime(&t->startTime, NULL);
@@ -952,7 +952,7 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 		}
 	}
 
-	thread->priority = (u8)priority & 0x0fU;
+	thread->priority = (u8)priority & 0xffU;
 }
 
 
@@ -977,12 +977,12 @@ int proc_threadPriority(int priority)
 	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (priority >= 0) {
 		if ((unsigned int)priority < current->priority) {
-			current->priority = (u8)priority & 0x0fU;
+			current->priority = (u8)priority & 0xffU;
 		}
 		else if ((unsigned int)priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
 			if ((current->locks == NULL) || ((unsigned int)priority <= _proc_threadGetLockPriority(current))) {
-				current->priority = (u8)priority & 0x0fU;
+				current->priority = (u8)priority & 0xffU;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
 			}
@@ -991,7 +991,7 @@ int proc_threadPriority(int priority)
 			/* No action required */
 		}
 
-		current->priorityBase = (u8)priority & 0x0fU;
+		current->priorityBase = (u8)priority & 0xffU;
 	}
 
 	ret = (int)current->priorityBase;

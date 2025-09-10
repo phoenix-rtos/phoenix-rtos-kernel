@@ -212,7 +212,7 @@ static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **pr
 			continue;
 		}
 
-		while (1) {
+		for (;;) {
 			if (e->linkage.parent == NULL) {
 				return NULL;
 			}
@@ -765,7 +765,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 		e->flags &= ~MAP_NEEDSCOPY;
 	}
 
-	offs = ((int)paddr - (int)e->vaddr);
+	offs = ((ptr_t)paddr - (ptr_t)e->vaddr);
 
 	if (e->amap == NULL) {
 		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs < 0) ? e->offs : (e->offs + offs)));
@@ -1676,6 +1676,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		e->amap = NULL;
 		/* MISRA Rule 17.7: Unused returned value, (void) added */
 		(void)_map_add(NULL, map_common.kmap, e);
+		prot = PROT_READ | PROT_EXEC;
 		i++;
 	}
 
