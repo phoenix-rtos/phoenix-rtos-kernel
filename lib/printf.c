@@ -165,22 +165,12 @@ void lib_putch(char s)
 }
 
 
-static u64 get_number(u64 number, va_list list, u32 flags)
-{
-	if ((flags & FLAG_64BIT) != 0U) {
-		number = va_arg(list, u64);
-	}
-	else {
-		number = va_arg(list, u32);
-	}
-
-	return number;
-}
-
-
 int lib_vsprintf(char *out, const char *format, va_list args)
 {
 	char *const out_start = out;
+	u64 number;
+	int is_pointer, is_number;
+
 	out[0] = '\0';
 
 	for (;;) {
@@ -272,7 +262,9 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			}
 		}
 
-		u64 number = 0;
+		number = 0;
+		is_number = 0;
+		is_pointer = 0;
 
 		switch (fmt) {
 			case 's': {
@@ -294,24 +286,20 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
 				flags |= FLAG_HEX;
-				number = get_number(number, args, flags);
-				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
+				is_number = 1;
 				break;
 			case 'x':
 				flags |= FLAG_HEX;
-				number = get_number(number, args, flags);
-				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
+				is_number = 1;
 				break;
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
-				number = get_number(number, args, flags);
-				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
+				is_number = 1;
 				break;
 			case 'u':
-				number = get_number(number, args, flags);
-				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
-				break;
+				flags |= FLAG_SIGNED;
+				is_number = 1;
 			case 'p': {
 				const void *s = va_arg(args, void *);
 				if (s == NULL) {
@@ -324,12 +312,11 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				}
 				number = (u64)(size_t)s;
 				flags |= (FLAG_ZERO | FLAG_HEX);
-				/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof(void *) depends on the architecture" */
-				if (sizeof(void *) == sizeof(u64)) {
+				if (sizeof(void *) == sizeof(u64))
 					flags |= FLAG_64BIT;
-				}
-				min_number_len = sizeof(void *) * 2U;
-				out = printf_sprintf_int(out, number, flags, (int)min_number_len);
+				min_number_len = sizeof(void *) * 2;
+				is_number = 1;
+				is_pointer = 1;
 			} break;
 
 			case '%':
@@ -340,8 +327,13 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				*out++ = fmt;
 				break;
 		}
+		if (is_number != 0) {
+			if (is_pointer == 0) {
+				number = (flags & FLAG_64BIT) ? va_arg(args, u64) : va_arg(args, u32);
+			}
+			out = printf_sprintf_int(out, number, flags, min_number_len);
+		}
 	}
-
 
 	*out = '\0';
 	return out - out_start;
@@ -357,6 +349,7 @@ int lib_vprintf(const char *format, va_list ap)
 	u64 number;
 	char buff[24];
 	char *sptr, *eptr;
+	int is_number, is_pointer;
 
 	s = CONSOLE_CYAN;
 	while (*s != '\0') {
@@ -490,50 +483,22 @@ int lib_vprintf(const char *format, va_list ap)
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
 				flags |= FLAG_HEX;
-				number = get_number(number, ap, flags);
-				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
-				sptr = buff;
-
-				while (sptr != eptr) {
-					lib_putch(*sptr++);
-					++i;
-				}
+				is_number = 1;
 				break;
 			case 'x':
 				flags |= FLAG_HEX;
-				number = get_number(number, ap, flags);
-				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
-				sptr = buff;
-
-				while (sptr != eptr) {
-					lib_putch(*sptr++);
-					++i;
-				}
+				is_number = 1;
 				break;
 
 			case 'd':
 			case 'i':
 				flags |= FLAG_SIGNED;
-				number = get_number(number, ap, flags);
-				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
-				sptr = buff;
-
-				while (sptr != eptr) {
-					lib_putch(*sptr++);
-					++i;
-				}
+				is_number = 1;
 
 				break;
 
 			case 'u':
-				number = get_number(number, ap, flags);
-				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
-				sptr = buff;
-
-				while (sptr != eptr) {
-					lib_putch(*sptr++);
-					++i;
-				}
+				is_number = 1;
 
 				break;
 
@@ -555,16 +520,9 @@ int lib_vprintf(const char *format, va_list ap)
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}
-
-				min_number_len = sizeof(void *) * 2U;
-				eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
-				sptr = buff;
-
-				while (sptr != eptr) {
-					lib_putch(*sptr++);
-					++i;
-				}
-
+				min_number_len = sizeof(void *) * 2;
+				is_number = 1;
+				is_pointer = 1;
 
 				break;
 			}
@@ -579,6 +537,18 @@ int lib_vprintf(const char *format, va_list ap)
 				lib_putch(fmt);
 				i += 2;
 				break;
+		}
+		if (is_number == 1) {
+			if (is_pointer == 0) {
+				number = (flags & FLAG_64BIT) ? va_arg(ap, u64) : va_arg(ap, u32);
+			}
+			eptr = printf_sprintf_int(buff, number, flags, min_number_len);
+			sptr = buff;
+
+			while (sptr != eptr) {
+				lib_putch(*sptr++);
+				++i;
+			}
 		}
 	}
 
