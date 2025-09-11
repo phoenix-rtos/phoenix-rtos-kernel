@@ -26,6 +26,8 @@
 #include "ports.h"
 #include "perf/events.h"
 
+#include "syscalls.h"
+
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 
@@ -597,6 +599,7 @@ cpu_context_t *threads_getUserContext(thread_t *thread)
 		return thread->context;
 	}
 	else {
+		// LIB_ASSERT(thread->fastpath != 1, "fastpath stack in kernel! %d eip=%p esp=%p", proc_getTid(thread), thread->context->eip, thread->context->esp);
 		return (cpu_context_t *)((char *)thread->kstack + thread->kstacksz - sizeof(cpu_context_t));
 	}
 }
@@ -608,35 +611,7 @@ void _threads_removeFromQueue(thread_t *t)
 }
 
 
-void _threads_switchToThreadFp(cpu_context_t *ctx, thread_t *selected)
-{
-	process_t *proc;
-	cpu_context_t *selCtx;
-
-	proc = selected->process;
-
-	threads_common.current[hal_cpuGetID()] = selected;
-	_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
-	selCtx = selected->context;
-
-	LIB_ASSERT((proc != NULL) && (proc->pmapp != NULL), "eh");
-	pmap_switch(proc->pmapp);
-
-	if (selected->longjmpctx != NULL) {
-		lib_printf("longjump\n");
-		selCtx = selected->longjmpctx;
-		selected->longjmpctx = NULL;
-	}
-
-	if (selected->tls.tls_base != NULL) {
-		hal_cpuTlsSet(&selected->tls, selCtx);
-	}
-
-	hal_cpuRestore(ctx, selCtx);
-}
-
-
-void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
+static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 {
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx;
@@ -654,6 +629,7 @@ void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 		if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
 			signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
 			if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
+				LIB_ASSERT(selected->fastpath != 1, "fastpath signal %d", proc_getTid(selected));
 				selCtx = signalCtx;
 			}
 		}
@@ -668,6 +644,11 @@ void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 		selected->longjmpctx = NULL;
 	}
 
+	// if (selected->fastpath != 0) {
+	// 	LIB_ASSERT(selected->context == selCtx, "huh");
+	// 	selCtx = _syscall_ctx();
+	// }
+
 	if (selected->tls.tls_base != NULL) {
 		hal_cpuTlsSet(&selected->tls, selCtx);
 	}
@@ -677,10 +658,10 @@ void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 	if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
-		LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
-				"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
-				(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
-				selected->kstack, selCtx);
+		// LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
+		// 		"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
+		// 		(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
+		// 		selected->kstack, selCtx);
 	}
 
 	LIB_ASSERT_ALWAYS((selected->process == NULL) || (selected->ustack == NULL) ||
@@ -688,6 +669,20 @@ void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 			"pid: %d, tid: %d, path: %s, user stack corrupted",
 			process_getPid(selected->process), proc_getTid(selected), selected->process->path);
 #endif
+}
+
+
+void threads_switchToThreadFrom(cpu_context_t *ctx, thread_t *from, thread_t *to, unsigned int fromState)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	from->state = fromState;
+	from->context = ctx;
+	LIB_ASSERT(to->state != READY, "to ready??? (tid=%d)", proc_getTid(to));
+	to->state = READY;
+	_threads_switchToThread(ctx, to);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
 
@@ -708,12 +703,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	/* Save current thread context */
 	if (current != NULL) {
-		LIB_ASSERT(current->fastpath != 1, "fastpath caller interrupted by sched (tid=%d state=%d)", proc_getTid(current), current->state);
-
 		current->context = context;
 
 		/* Move thread to the end of queue */
 		if (current->state == READY) {
+			// LIB_ASSERT(current->fastpath != 1, "fastpath caller preempted! (tid=%d state=%d)", proc_getTid(current), current->state);
 			LIST_ADD(&threads_common.ready[current->priority], current);
 			_perf_preempted(current);
 		}
@@ -721,8 +715,18 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	/* Get next thread */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *);) {
-		if ((selected = threads_common.ready[i]) == NULL) {
+		selected = threads_common.ready[i];
+		// LIB_ASSERT(selected->fastpath != 1, "fastpath caller in ready queue (tid=%d state=%d)", proc_getTid(selected), selected->state);
+
+		if (selected == NULL) {
 			i++;
+			continue;
+		}
+
+		LIB_ASSERT(selected->state == READY, "lazy");
+		if (selected->state != READY) {
+			/* lazy update */
+			LIST_REMOVE(&threads_common.ready[i], selected);
 			continue;
 		}
 
@@ -875,6 +879,9 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->lastTime = t->startTime;
 	t->longjmpctx = NULL;
 	t->fastpath = 0;
+	t->utcb.vaddr = NULL;
+	t->utcb.w = NULL;
+	t->utcb.p = NULL;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->kstack);
@@ -1617,6 +1624,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	hal_cpuSetReturnValue(ctx, retval);
 
 	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+		LIB_ASSERT(thread->fastpath != 1, "signal? (tid=%d)", proc_getTid(thread));
 		f = thread->process->sighandler;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);

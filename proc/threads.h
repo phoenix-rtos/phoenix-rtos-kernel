@@ -95,6 +95,12 @@ typedef struct _thread_t {
 	cpu_context_t *longjmpctx;
 
 	int fastpath; /* for debug purposes */
+
+	struct {
+		page_t *p;
+		void *w;
+		void *vaddr;
+	} utcb;
 } thread_t;
 
 
@@ -233,10 +239,7 @@ extern int threads_sigsuspend(unsigned int mask);
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
-extern void _threads_switchToThread(cpu_context_t *context, thread_t *selected);
-
-
-extern void _threads_switchToThreadFp(cpu_context_t *context, thread_t *selected);
+extern void threads_switchToThreadFrom(cpu_context_t *context, thread_t *from, thread_t *to, unsigned int fromState);
 
 
 extern int threads_getHighestPrio(int maxPrio);

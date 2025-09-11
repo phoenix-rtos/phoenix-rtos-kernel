@@ -129,5 +129,6 @@
 	ID(perf_stop) \
 	\
 	ID(msgCall) \
-	ID(msgRespondAndRecv)
+	ID(msgRespondAndRecv) \
+	ID(msgConfigure)
 /* clang-format on */

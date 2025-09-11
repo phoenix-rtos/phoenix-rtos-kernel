@@ -595,6 +595,48 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 }
 
 
+void *proc_configure(void)
+{
+	unsigned int prot;
+	void *w;
+	thread_t *t;
+	vm_map_t *map;
+	page_t *p;
+
+	t = proc_current();
+	map = &t->process->map;
+	prot = PROT_WRITE | PROT_READ;
+
+	if (t->utcb.w != NULL) {
+		return NULL;
+	}
+
+	w = vm_mapFind(msg_common.kmap, NULL, SIZE_PAGE, MAP_NONE, prot);
+	if (w == NULL) {
+		return NULL;
+	}
+	t->utcb.w = w;
+
+	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	if (p == NULL) {
+		return NULL;
+	}
+	t->utcb.p = p;
+
+	unsigned int flags = vm_mapFlags(msg_common.kmap, w);
+	if (flags < 0) {
+		return NULL;
+	}
+
+	/* TODO: PGHD_PRESENT? what's that? */
+	if (page_map(&map->pmap, w, p->addr, PGHD_READ | PGHD_PRESENT | PGHD_WRITE | PGHD_USER) < 0) {
+		return NULL;
+	}
+
+	return w;
+}
+
+
 int proc_call(u32 port, msg_t *msg)
 {
 	port_t *p;
@@ -620,6 +662,7 @@ int proc_call(u32 port, msg_t *msg)
 	if (recv == NULL || caller->priority < recv->priority || threads_getHighestPrio(caller->priority) != caller->priority) {
 		/* TODO: optimize spinlocks and port ref-counting in slow path - add proc_send
 		 * variant that already has them */
+		caller->fastpath = recv->fastpath = 0;
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
 		log_err("slow");
@@ -631,24 +674,18 @@ int proc_call(u32 port, msg_t *msg)
 
 	perf_traceEventsFastpathCallEnter(proc_getTid(caller));
 
-	log_err("fast (p=%p slot.recvMsg=%p msg=%p type=%d)", p, (void *)&p->slot.recvMsg, (void *)msg, msg->type);
+	// log_debug("fast (ctx=%p, sys ctx=%p, p=%p slot.recvMsg=%p msg=%p type=%d)", caller->context, _syscall_ctx(), p, (void *)&p->slot.recvMsg, (void *)msg, msg->type);
+	log_err("fast");
 
-	/* TODO: copy directly to receivers address space. Currently p->slot.recvMsg
-	 * is a temporary buffer and requires two memcpys (here and in respondAndRecv) */
-	p->slot.buf = *msg;
 	p->slot.caller = caller;
 
-	/* TODO: retrieve from syscall context on recv side maybe? */
-	p->slot.callerMsg = msg;
+	log_debug("utcb buf type %d", ((msg_t *)caller->utcb.w)->type);
+	hal_memcpy(recv->utcb.w, caller->utcb.w, sizeof(msg_t));
 
 	LIST_REMOVE(&p->threads, recv);
 
-	cpu_context_t *ctx = _syscall_ctx();
-	caller->context = ctx;
-	recv->state = READY;
-	caller->state = BLOCKED_ON_REPLY;
-	_threads_switchToThreadFp(ctx, recv);
-	log_err("recv->ctx=%p ctx->eip=%p\n", recv->context, recv->context->eip);
+	threads_switchToThreadFrom(_syscall_ctx(), caller, recv, BLOCKED_ON_REPLY);
+	log_debug("recv->ctx=%p ctx->eip=%p\n", recv->context, recv->context->eip);
 
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
@@ -677,59 +714,59 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
+	log_debug("utcb buf type %d", ((msg_t *)proc_current()->utcb.w)->type);
+
+	thread_t *recv = proc_current();
 	thread_t *caller = p->slot.caller;
-	if (caller == NULL || threads_getHighestPrio(caller->priority) != caller->priority) {
+
+	if (caller == NULL || p->kmessages != NULL) {
 		/* slowpath */
 		log_err("slow");
-		if (caller != NULL) {
-			log_err("prio %d != %d", threads_getHighestPrio(caller->priority), caller->priority);
-		}
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
 		return proc_recv(port, msg, rid);
 	}
 
-	if (p->kmessages != NULL) {
-		/* slowpath */
-		log_err("slow");
+	if (threads_getHighestPrio(caller->priority) != caller->priority) {
+		/* someone to respond but cannot be scheduled directly */
+		log_err("slow: prio %d != %d", threads_getHighestPrio(caller->priority), caller->priority);
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
+
+		/* TODO: something along the lines of */
+		// hal_memcpy(&((msg_t *)caller->utcb.w)->o, &((msg_t *)recv->utcb.w)->o, sizeof(msg_t));
+		// caller->state = READY;
+
 		return proc_recv(port, msg, rid);
 	}
 
 	/* noone to reply, doing a fastpath and switching to caller thread */
+	// recv->fastpath = 1;
 
 	/* commit to fastpath - point of no return */
-	log_err("fast (slot.callerMsg=%p msg=%p)", (void *)p->slot.callerMsg, (void *)msg);
+	log_err("fast");
 
-	thread_t *recv = proc_current();
-
-	recv->state = BLOCKED_ON_RECV;
 	LIST_ADD(&p->threads, recv);
 
-	p->slot.buf.o = msg->o;
+	/* TODO: sane typing in thread_t */
+	hal_memcpy(&((msg_t *)caller->utcb.w)->o, &((msg_t *)recv->utcb.w)->o, sizeof(msg_t));
 
-	caller->state = READY;
-
-	cpu_context_t *ctx = _syscall_ctx();
-	recv->context = ctx;
-	_threads_switchToThreadFp(ctx, caller);
-	log_err("caller->ctx=%p ctx->eip=%p\n", caller->context, caller->context->eip);
-
-	p->slot.callerMsg->o = p->slot.buf.o;
+	log_debug("switching");
 	p->slot.caller = NULL;
 
-	log_err("after switch");
+	threads_switchToThreadFrom(_syscall_ctx(), recv, caller, BLOCKED_ON_RECV);
+	log_debug("after switch");
 
-	hal_spinlockClear(&p->spinlock, &sc);
-	port_put(p, 0);
+	log_debug("caller->ctx=%p ctx->eip=%p\n", caller->context, caller->context->eip);
 
 	log_debug("pre-setup");
 
 	perf_traceEventsFastpathCallExit(proc_getTid(caller));
-	caller->fastpath = 0;
 
-	// threads_setupUserReturn(0, caller->context);
+	caller->fastpath = recv->fastpath = 0;
+
+	hal_spinlockClear(&p->spinlock, &sc);
+	port_put(p, 0);
 
 	return 222;
 }

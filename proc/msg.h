@@ -62,6 +62,9 @@ typedef struct _kmsg_t {
  */
 
 
+extern void *proc_configure(void);
+
+
 extern int proc_send(u32 port, msg_t *msg);
 
 

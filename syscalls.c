@@ -914,6 +914,12 @@ int syscalls_msgRespondAndRecv(void *ustack)
 }
 
 
+void *syscalls_msgConfigure(void *ustack)
+{
+	return proc_configure();
+}
+
+
 int syscalls_lookup(void *ustack)
 {
 	process_t *proc = proc_current()->process;
@@ -1976,8 +1982,8 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 		return (void *)-EINVAL;
 	}
 
-	if (n >= 102) {
-		// lib_printf("ctx=%p eip=%p\n", ctx, ctx->eip);
+	if (n == 103 || n == 104) {
+		lib_printf("enter: n=%d tid=%d ctx=%p eip=%p\n", n, proc_getTid(proc_current()), ctx, ctx->eip);
 	}
 
 	tid = proc_getTid(proc_current());
@@ -1996,8 +2002,8 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 
 	threads_setupUserReturn(retval, ctx);
 
-	if (n >= 102) {
-		// lib_printf("n=%d ctx=%p eip=%p\n", n, ctx, ctx->eip);
+	if (n == 104) {
+		lib_printf("exit: n=%d tid=%d ctx=%p eip=%p\n", n, proc_getTid(proc_current()), ctx, ctx->eip);
 	}
 
 	return retval;
