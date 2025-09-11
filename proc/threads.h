@@ -94,24 +94,6 @@ static inline int proc_getTid(const thread_t *t)
 }
 
 
-extern int perf_threadsStart(unsigned pid);
-
-
-extern int perf_threadsRead(void *buffer, size_t bufsz);
-
-
-extern int perf_threadsFinish(void);
-
-
-extern void perf_fork(process_t *p);
-
-
-extern void perf_kill(process_t *p);
-
-
-extern void perf_exec(process_t *p, char *path);
-
-
 extern thread_t *proc_current(void);
 
 
