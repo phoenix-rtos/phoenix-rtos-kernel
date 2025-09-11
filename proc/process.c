@@ -85,7 +85,6 @@ static void process_destroy(process_t *p)
 	thread_t *ghost;
 	vm_map_t *mapp = p->mapp, *imapp = p->imapp;
 
-	perf_kill(p);
 	trace_eventProcessKill(p);
 
 	posix_died(process_getPid(p), p->exit);
@@ -227,7 +226,6 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
 	(void)process_alloc(process);
-	perf_fork(process);
 
 	if (proc_threadCreate(process, start, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
 		(void)proc_put(process);
