@@ -92,24 +92,6 @@ static inline int proc_getTid(const thread_t *t)
 typedef void (*threadInfoCb_t)(threadinfo_t *info, void *private);
 
 
-int perf_threadsStart(unsigned int pid);
-
-
-int perf_threadsRead(void *buffer, size_t bufsz);
-
-
-int perf_threadsFinish(void);
-
-
-void perf_fork(process_t *p);
-
-
-void perf_kill(process_t *p);
-
-
-void perf_exec(process_t *p, char *path);
-
-
 thread_t *proc_current(void);
 
 
