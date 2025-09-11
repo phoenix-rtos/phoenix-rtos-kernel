@@ -458,6 +458,9 @@ int lib_vprintf(const char *format, va_list ap)
 		}
 
 		number = 0;
+		is_number = 0;
+		is_pointer = 0;
+
 
 		switch (fmt) {
 			case 's': {
