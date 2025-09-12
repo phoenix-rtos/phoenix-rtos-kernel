@@ -16,6 +16,7 @@
 #include <arch/tlb.h>
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "hal/interrupts.h"
 #include "hal/tlb/tlb.h"
 #include "hal/sparcv8leon/gaisler/l2cache.h"

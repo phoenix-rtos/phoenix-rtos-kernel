@@ -26,7 +26,7 @@ extern time_t hal_timerGetUs(void);
 extern void hal_timerSetWakeup(u32 waitUs);
 
 
-extern int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h);
+extern int hal_timerRegister(int (*f)(unsigned int harg_1, cpu_context_t *harg_2, void *harg_3), void *data, intr_handler_t *h);
 
 
 extern void _hal_timerInit(u32 interval);

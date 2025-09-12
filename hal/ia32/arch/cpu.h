@@ -19,16 +19,16 @@
 
 #include "hal/types.h"
 
-#define SIZE_PAGE 0x1000u
+#define SIZE_PAGE 0x1000U
 
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
-#define SIZE_KSTACK (2 * SIZE_PAGE)
+#define SIZE_KSTACK (2U * SIZE_PAGE)
 #endif
 
 #ifndef SIZE_USTACK
-#define SIZE_USTACK (8 * SIZE_PAGE)
+#define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
 
@@ -192,7 +192,6 @@
 	} while (0)
 
 
-
 #pragma pack(push, 1)
 
 typedef struct {
@@ -281,13 +280,13 @@ void hal_cpuSendIPI(unsigned int cpu, unsigned int intrAndFlags);
 
 static inline void hal_cpuDisableInterrupts(void)
 {
-	__asm__ volatile ("cli":);
+	__asm__ volatile("cli");
 }
 
 
 static inline void hal_cpuEnableInterrupts(void)
 {
-	__asm__ volatile ("sti":);
+	__asm__ volatile("sti");
 }
 
 
@@ -296,7 +295,7 @@ static inline void hal_cpuEnableInterrupts(void)
 
 static inline void hal_cpuHalt(void)
 {
-	__asm__ volatile ("hlt":);
+	__asm__ volatile("hlt");
 }
 
 

@@ -18,26 +18,30 @@
 #include "bsearch.h"
 
 
-void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *, void *))
+void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *n1, void *n2))
 {
-	int l = 0, r = nmemb - 1, m;
+	unsigned int l = 0, r = nmemb - 1U, m;
 	int cmp;
 
-	if (nmemb == 0)
+	if (nmemb == 0U) {
 		return NULL;
+	}
 
 	while (l <= r) {
-		m = (l + r) / 2;
+		m = (l + r) / 2U;
 
 		cmp = compar(key, base + m * size);
 
-		if (cmp == 0)
+		if (cmp == 0) {
 			return base + m * size;
+		}
 
-		if (cmp > 0)
-			l = m + 1;
-		else
-			r = m - 1;
+		if (cmp > 0) {
+			l = m + 1U;
+		}
+		else {
+			r = m - 1U;
+		}
 	}
 	return NULL;
 }
