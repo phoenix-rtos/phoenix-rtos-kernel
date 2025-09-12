@@ -15,6 +15,7 @@
 
 #include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "hal/spinlock.h"
 
 #include "hal/gaisler/ambapp.h"

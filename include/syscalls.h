@@ -15,7 +15,7 @@
 
 
 /* clang-format off */
-/* parasoft-begin-suppress MISRAC2012-RULE_20_7-a ID can not be put in parentheses as it is a macro */
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7-a "ID can not be put in parentheses as it is a macro" */
 #define SYSCALLS(ID) \
 	ID(debug) \
 	ID(sys_mmap) \

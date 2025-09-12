@@ -33,8 +33,12 @@
 #include "arch/armv8r/types.h"
 #elif defined(__aarch64__)
 #include "arch/aarch64/types.h"
+/* parasoft-begin-suppress MISRAC2012-RULE_20_9 "macro defined in riscv architecture,
+ * we won't check value of __riscv_xlen if __riscv is not defined"
+ */
 #elif defined(__riscv) && (__riscv_xlen == 64)
 #include "arch/riscv64/types.h"
+/*parasoft-end-suppress MISRAC2012-RULE_20_9*/
 #elif defined(__sparc__)
 #include "arch/sparcv8leon/types.h"
 #else

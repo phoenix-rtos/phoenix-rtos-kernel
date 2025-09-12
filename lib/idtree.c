@@ -21,6 +21,7 @@ static int lib_idtreeCmp(rbnode_t *n1, rbnode_t *n2)
 	idnode_t *i1 = lib_treeof(idnode_t, linkage, n1);
 	idnode_t *i2 = lib_treeof(idnode_t, linkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	return i1->id - i2->id;
 }
 
@@ -39,10 +40,12 @@ static void lib_idtreeAugment(rbnode_t *node)
 			}
 		}
 
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = (n->id <= p->id) ? n->id : (n->id - p->id - 1);
 	}
 	else {
 		l = lib_treeof(idnode_t, linkage, node->left);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = max(l->lmaxgap, l->rmaxgap);
 	}
 
@@ -183,7 +186,7 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int minimum)
 static void _lib_idtreeDump(rbnode_t *node)
 {
 	idnode_t *n = lib_treeof(idnode_t, linkage, node);
-	/* MISRA Rule 17.7: Unused return value, (void) added */
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	lib_printf("%d <0x%p>]", n->id, n);
 }
 

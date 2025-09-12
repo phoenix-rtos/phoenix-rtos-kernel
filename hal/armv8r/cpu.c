@@ -22,9 +22,6 @@
 #include "config.h"
 
 
-extern void _hal_platformInit(void);
-
-
 int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;

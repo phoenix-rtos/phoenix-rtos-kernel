@@ -158,85 +158,85 @@ extern process_info_t *pinfo_find(int pid);
 extern void pinfo_put(process_info_t *p);
 
 
-extern int inet_accept4(int socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags);
+extern int inet_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags);
 
 
-extern int inet_bind(int socket, const struct sockaddr *address, socklen_t address_len);
+extern int inet_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len);
 
 
-extern int inet_connect(int socket, const struct sockaddr *address, socklen_t address_len);
+extern int inet_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len);
 
 
-extern int inet_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
+extern int inet_getpeername(unsigned socket, struct sockaddr *address, socklen_t *address_len);
 
 
-extern int inet_getsockname(int socket, struct sockaddr *address, socklen_t *address_len);
+extern int inet_getsockname(unsigned socket, struct sockaddr *address, socklen_t *address_len);
 
 
-extern int inet_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen);
+extern int inet_getsockopt(unsigned socket, int level, int optname, void *optval, socklen_t *optlen);
 
 
-extern int inet_listen(int socket, int backlog);
+extern int inet_listen(unsigned socket, int backlog);
 
 
-extern ssize_t inet_recvfrom(int socket, void *message, size_t length, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len);
+extern ssize_t inet_recvfrom(unsigned socket, void *message, size_t length, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len);
 
 
-extern ssize_t inet_sendto(int socket, const void *message, size_t length, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+extern ssize_t inet_sendto(unsigned socket, const void *message, size_t length, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
-extern ssize_t inet_recvmsg(int socket, struct msghdr *msg, unsigned int flags);
+extern ssize_t inet_recvmsg(unsigned socket, struct msghdr *msg, unsigned int flags);
 
 
-extern ssize_t inet_sendmsg(int socket, const struct msghdr *msg, unsigned int flags);
+extern ssize_t inet_sendmsg(unsigned socket, const struct msghdr *msg, unsigned int flags);
 
 
 extern int inet_socket(int domain, int type, int protocol);
 
 
-extern int inet_shutdown(int socket, int how);
+extern int inet_shutdown(unsigned socket, int how);
 
 
-extern int inet_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen);
+extern int inet_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
-extern int inet_setfl(int socket, int flags);
+extern int inet_setfl(unsigned socket, int flags);
 
 
-extern int inet_getfl(int socket);
+extern int inet_getfl(unsigned socket);
 
 
-extern int unix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags);
+extern int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags);
 
 
-extern int unix_bind(int socket, const struct sockaddr *address, socklen_t address_len);
+extern int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len);
 
 
-extern int unix_connect(int socket, const struct sockaddr *address, socklen_t address_len);
+extern int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len);
 
 
-extern int unix_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
+extern int unix_getpeername(unsigned socket, struct sockaddr *address, socklen_t *address_len);
 
 
-extern int unix_getsockname(int socket, struct sockaddr *address, socklen_t *address_len);
+extern int unix_getsockname(unsigned socket, struct sockaddr *address, socklen_t *address_len);
 
 
-extern int unix_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen);
+extern int unix_getsockopt(unsigned socket, int level, int optname, void *optval, socklen_t *optlen);
 
 
-extern int unix_listen(int socket, int backlog);
+extern int unix_listen(unsigned socket, int backlog);
 
 
-extern ssize_t unix_recvfrom(int socket, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len);
+extern ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len);
 
 
-extern ssize_t unix_sendto(int socket, const void *msg, size_t len, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+extern ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
-extern ssize_t unix_recvmsg(int socket, struct msghdr *msg, unsigned int flags);
+extern ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, unsigned int flags);
 
 
-extern ssize_t unix_sendmsg(int socket, const struct msghdr *msg, unsigned int flags);
+extern ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, unsigned int flags);
 
 
 extern int unix_socket(int domain, int type, int protocol);
@@ -245,25 +245,25 @@ extern int unix_socket(int domain, int type, int protocol);
 extern int unix_socketpair(int domain, int type, int protocol, int sv[2]);
 
 
-extern int unix_shutdown(int socket, int how);
+extern int unix_shutdown(unsigned socket, int how);
 
 
-extern int unix_unlink(int socket);
+extern int unix_unlink(unsigned socket);
 
 
-extern int unix_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen);
+extern int unix_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
-extern int unix_setfl(int socket, unsigned int flags);
+extern int unix_setfl(unsigned socket, unsigned int flags);
 
 
-extern int unix_getfl(int socket);
+extern int unix_getfl(unsigned socket);
 
 
-extern int unix_close(int socket);
+extern int unix_close(unsigned socket);
 
 
-extern int unix_poll(int socket, unsigned short events);
+extern int unix_poll(unsigned socket, unsigned short events);
 
 
 extern void unix_sockets_init(void);

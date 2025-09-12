@@ -42,6 +42,7 @@ static int kmalloc_zone_cmp(rbnode_t *n1, rbnode_t *n2)
 	vm_zone_t *z1 = lib_treeof(vm_zone_t, linkage, n1);
 	vm_zone_t *z2 = lib_treeof(vm_zone_t, linkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	if ((ptr_t)z1->vaddr > (ptr_t)z2->vaddr) {
 		return 1;
 	}

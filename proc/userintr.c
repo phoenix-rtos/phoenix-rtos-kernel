@@ -28,7 +28,7 @@ static struct {
 void userintr_put(userintr_t *ui)
 {
 	thread_t *t = proc_current();
-	int rem;
+	unsigned int rem;
 
 	LIB_ASSERT(ui != NULL, "process: %s, pid: %d, tid: %d, ui == NULL",
 			t->process->path, process_getPid(t->process), proc_getTid(t));
@@ -36,7 +36,7 @@ void userintr_put(userintr_t *ui)
 	rem = resource_put(t->process, &ui->resource);
 	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
 			t->process->path, process_getPid(t->process), proc_getTid(t));
-	if (rem <= 0) {
+	if (rem <= 0U) {
 		/* MISRAC2012-RULE_17_7-a */
 		(void)hal_interruptsDeleteHandler(&ui->handler);
 

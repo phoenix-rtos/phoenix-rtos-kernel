@@ -159,8 +159,7 @@ static void interrupts_setConf(unsigned int irqn, u32 conf)
 }
 
 
-void interrupts_setCPU(unsigned int irqn, unsigned int cpuMask)
-// TBD_Bart
+static void interrupts_setCPU(unsigned int irqn, unsigned int cpuMask)
 {
 	unsigned int irq_reg = irqn / 4U;
 	unsigned int irq_offs = (irqn % 4U) * 8U;
@@ -235,7 +234,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
-int _interrupts_gicv2_classify(unsigned int irqn)
+static int _interrupts_gicv2_classify(unsigned int irqn)
 {
 	/* ZynqMP specific: most interrupts are high level, some are reserved.
 	 * PL to PS interrupts can be either high level or rising edge, here we configure

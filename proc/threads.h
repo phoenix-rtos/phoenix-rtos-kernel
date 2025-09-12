@@ -130,7 +130,7 @@ extern int proc_threadCreate(process_t *process, void (*start)(void *harg), int 
 extern int proc_threadPriority(int priority);
 
 
-extern void proc_threadEnd(void);
+extern __attribute__((noreturn)) void proc_threadEnd(void);
 
 
 extern void proc_threadDestroy(thread_t *t);

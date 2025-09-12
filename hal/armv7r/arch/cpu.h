@@ -120,7 +120,7 @@ static inline void hal_cpuSetDevBusy(int s)
 {
 }
 
-
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	unsigned int pos;
@@ -133,6 +133,7 @@ static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned pos;
@@ -163,6 +164,7 @@ static inline void hal_cpuSetGot(void *got)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline void *hal_cpuGetGot(void)
 {
 	void *got;
@@ -205,6 +207,7 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetID(void)
 {
 	unsigned mpidr;
@@ -215,68 +218,9 @@ static inline unsigned int hal_cpuGetID(void)
 }
 
 
-static inline void hal_cpuSignalEvent(void)
-{
-	/* clang-format off */
-	__asm__ volatile ("sev");
-	/* clang-format on */
-}
-
-
-static inline void hal_cpuWaitForEvent(void)
-{
-	/* clang-format off */
-	__asm__ volatile (
-		"dsb\n\t"
-		"wfe"
-	);
-	/* clang-format on */
-}
-
-
-static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
-{
-	u32 result;
-	/* clang-format off */
-	__asm__ volatile (
-		"dmb\n\t"
-		"ldr %0, [%1]\n\t"
-		"dmb"
-		: "=r"(result)
-		: "r"(dst)
-	);
-	/* clang-format on */
-	return result;
-}
-
-
-static inline void hal_cpuAtomicInc(volatile u32 *dst)
-{
-	/* clang-format off */
-	__asm__ volatile (
-		"dmb\n"
-	"1:\n\t"
-		"ldrex r2, [%0]\n\t"
-		"add r2, r2, #1\n\t"
-		"strex r1, r2, [%0]\n\t"
-		"cmp r1, #0\n\t"
-		"bne 1b\n\t"
-		"dmb"
-		:
-		: "r"(dst)
-		: "r1", "r2", "memory"
-	);
-	/* clang-format on */
-}
-
-
 static inline void hal_cpuSmpSync(void)
 {
 }
-
-
-// unsigned int hal_cpuGetCount(void);
-
 
 #endif
 

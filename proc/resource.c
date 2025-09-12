@@ -59,9 +59,10 @@ resource_t *resource_get(process_t *process, int id)
 }
 
 
-int resource_put(process_t *process, resource_t *r)
+unsigned int resource_put(process_t *process, resource_t *r)
 {
-	return lib_atomicDecrement(&r->refs);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3 "We need atomic operations that are provided by the compiler" */
+	return lib_atomicDecrement((int *)&r->refs);
 }
 
 
@@ -148,11 +149,13 @@ int proc_resourcesCopy(process_t *source)
 	idnode_t *n;
 	resource_t *r, *newr;
 	int err = EOK;
+	int skip;
 
 	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&source->lock);
 	for (n = lib_idtreeMinimum(source->resources.root); n != NULL; n = lib_idtreeNext(&n->linkage)) {
 		r = lib_idtreeof(resource_t, linkage, n);
+		skip = 0;
 
 		switch (r->type) {
 			case rtLock:
@@ -165,8 +168,12 @@ int proc_resourcesCopy(process_t *source)
 
 			default:
 				/* Don't copy interrupt handlers */
-				continue;
-				// TBD_Julia powinien break kończyć deafult'a
+				skip = 1;
+				break;
+		}
+
+		if (skip != 0) {
+			continue;
 		}
 
 		if ((err > 0) && (err != r->linkage.id)) {

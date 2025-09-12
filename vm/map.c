@@ -61,6 +61,7 @@ static int map_cmp(rbnode_t *n1, rbnode_t *n2)
 	map_entry_t *e1 = lib_treeof(map_entry_t, linkage, n1);
 	map_entry_t *e2 = lib_treeof(map_entry_t, linkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	if ((ptr_t)e2->vaddr + e2->size <= (ptr_t)e1->vaddr) {
 		return 1;
 	}
@@ -87,10 +88,12 @@ static void map_augment(rbnode_t *node)
 			}
 		}
 
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = ((ptr_t)n->vaddr <= (ptr_t)p->vaddr) ? ((size_t)n->vaddr - (size_t)n->map->start) : ((size_t)n->vaddr - (size_t)p->vaddr) - p->size;
 	}
 	else {
 		map_entry_t *l = lib_treeof(map_entry_t, linkage, node->left);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = max(l->lmaxgap, l->rmaxgap);
 	}
 
@@ -126,7 +129,7 @@ static void map_augment(rbnode_t *node)
 static void map_dump(rbnode_t *node)
 {
 	map_entry_t *e = lib_treeof(map_entry_t, linkage, node);
-	/* MISRA Rule 17.7: Unused returned value, (void) added */
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	lib_printf("%p+%x, %x, %x", e->vaddr, e->size, e->lmaxgap, e->rmaxgap);
 }
 
@@ -765,7 +768,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 		e->flags &= ~MAP_NEEDSCOPY;
 	}
 
-	offs = ((ptr_t)paddr - (ptr_t)e->vaddr);
+	offs = ((int)paddr - (int)e->vaddr);
 
 	if (e->amap == NULL) {
 		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs < 0) ? e->offs : (e->offs + offs)));

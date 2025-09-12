@@ -52,7 +52,7 @@ static struct {
 	intr_handler_t pendsvHandler;
 #endif
 
-	thread_t *volatile ghosts;
+	thread_t *ghosts;
 	thread_t *reaper;
 
 	int perfGather;
@@ -88,6 +88,7 @@ static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
 	thread_t *t1 = lib_treeof(thread_t, sleeplinkage, n1);
 	thread_t *t2 = lib_treeof(thread_t, sleeplinkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	if (t1->wakeup != t2->wakeup) {
 		return (t1->wakeup > t2->wakeup) ? 1 : -1;
 	}
@@ -1016,7 +1017,7 @@ static void _thread_interrupt(thread_t *t)
 }
 
 
-void proc_threadEnd(void)
+__attribute__((noreturn)) void proc_threadEnd(void)
 {
 	thread_t *t;
 	int cpu;
@@ -1025,7 +1026,7 @@ void proc_threadEnd(void)
 	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	cpu = hal_cpuGetID();  // TBD_Julia Czemu funkcja wyświetla się jako int a w definicji jest unsigned int?
+	cpu = (int)hal_cpuGetID();
 	t = threads_common.current[cpu];
 	threads_common.current[cpu] = NULL;
 	t->state = GHOST;
@@ -1034,6 +1035,8 @@ void proc_threadEnd(void)
 	(void)_proc_threadWakeup(&threads_common.reaper);
 
 	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+
+	__builtin_unreachable();
 }
 
 
@@ -1485,6 +1488,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 	switch (sig) {
 		case signal_segv:
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional passthrough" */
 		case signal_illegal:
 			if (process->sighandler != NULL) {
 				break;
@@ -2087,7 +2091,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
-			info[i].pid = (unsigned int)process_getPid(t->process);
+			info[i].pid = process_getPid(t->process);
 			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
 			info[i].ppid = 0;
 		}

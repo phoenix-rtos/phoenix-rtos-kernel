@@ -42,7 +42,7 @@ typedef struct _process_spawn_t {
 	size_t size;
 	vm_map_t *map;
 	vm_map_t *imap;
-	syspage_prog_t *prog;
+	const syspage_prog_t *prog;
 
 	char **argv;
 	char **envp;
@@ -676,7 +676,7 @@ int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 }
 
 
-int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
+static int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
 {
 	void *stack;
 	Elf64_Ehdr *ehdr;
@@ -765,8 +765,7 @@ static int process_relocate(struct _reloc *reloc, size_t relocsz, char **addr)
 }
 
 
-int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
-// TBD_Julia jak zakomentuje się else to problem z 8.4 znika, ta sama funkcja wyżej w ifndef nie pokazuje tego błedu
+static int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, void **ustack, void **entry)
 {
 	void *stack, *paddr;
 	Elf32_Ehdr *ehdr;
@@ -1083,7 +1082,7 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 
 static void process_exec(thread_t *current, process_spawn_t *spawn)
 {
-	void *stack, *entry;
+	void *stack, *entry = NULL;
 	int err = 0, count;
 	void *cleanupFn = NULL;
 	unsigned int i;
@@ -1191,7 +1190,7 @@ static void proc_spawnThread(void *arg)
 }
 
 
-static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
+static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
 {
 	int pid;
 	process_spawn_t spawn;
@@ -1295,14 +1294,14 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 	}
 
 	if (sysMap != NULL && (sysMap->attr & ((unsigned int)mAttrRead | (unsigned int)mAttrWrite)) == ((unsigned int)mAttrRead | (unsigned int)mAttrWrite)) {
-		return proc_syspageSpawn((syspage_prog_t *)prog, imapp, vm_getSharedMap((int)sysMap->id), name, argv);
+		return proc_syspageSpawn((const syspage_prog_t *)prog, imapp, vm_getSharedMap((int)sysMap->id), name, argv);
 	}
 
 	return -EINVAL;
 }
 
 
-int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
+int proc_syspageSpawn(const syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
 {
 	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, (int)program->start, program->end - program->start, path, argv, NULL);
 }

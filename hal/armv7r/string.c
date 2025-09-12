@@ -16,6 +16,7 @@
 #include "hal/string.h"
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
 	int res = 0;
@@ -45,6 +46,7 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 unsigned int hal_strlen(const char *s)
 {
 	unsigned int k = 0;
@@ -66,6 +68,7 @@ unsigned int hal_strlen(const char *s)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_strcmp(const char *s1, const char *s2)
 {
 	int res = 0;
@@ -96,6 +99,7 @@ int hal_strcmp(const char *s1, const char *s2)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_strncmp(const char *s1, const char *s2, unsigned int count)
 {
 	int res = 0;
@@ -129,6 +133,7 @@ int hal_strncmp(const char *s1, const char *s2, unsigned int count)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 char *hal_strcpy(char *dest, const char *src)
 {
 	char *p = dest;
@@ -149,6 +154,7 @@ char *hal_strcpy(char *dest, const char *src)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 char *hal_strncpy(char *dest, const char *src, size_t n)
 {
 	char *p = dest;

@@ -14,6 +14,7 @@
  */
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "hal/aarch64/aarch64.h"
 #include "hal/aarch64/interrupts_gicv2.h"
 #include "hal/spinlock.h"

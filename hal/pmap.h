@@ -19,6 +19,7 @@
 #include <arch/pmap.h>
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1 "Used only in targets with MMU" */
 static inline int pmap_belongs(pmap_t *pmap, void *addr)
 {
 	return ((ptr_t)addr >= (ptr_t)pmap->start && (ptr_t)addr < (ptr_t)pmap->end) ? 1 : 0;

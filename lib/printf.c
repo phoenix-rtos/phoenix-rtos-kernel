@@ -300,6 +300,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			case 'u':
 				flags |= FLAG_SIGNED;
 				is_number = 1;
+				break;
 			case 'p': {
 				const void *s = va_arg(args, void *);
 				if (s == NULL) {
@@ -312,9 +313,11 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				}
 				number = (u64)(size_t)s;
 				flags |= (FLAG_ZERO | FLAG_HEX);
-				if (sizeof(void *) == sizeof(u64))
+				/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof(void *) depends on the architecture" */
+				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
-				min_number_len = sizeof(void *) * 2;
+				}
+				min_number_len = sizeof(void *) * 2U;
 				is_number = 1;
 				is_pointer = 1;
 			} break;
@@ -331,7 +334,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			if (is_pointer == 0) {
 				number = (flags & FLAG_64BIT) ? va_arg(args, u64) : va_arg(args, u32);
 			}
-			out = printf_sprintf_int(out, number, flags, min_number_len);
+			out = printf_sprintf_int(out, number, flags, (int)min_number_len);
 		}
 	}
 
@@ -520,7 +523,7 @@ int lib_vprintf(const char *format, va_list ap)
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}
-				min_number_len = sizeof(void *) * 2;
+				min_number_len = sizeof(void *) * 2U;
 				is_number = 1;
 				is_pointer = 1;
 
@@ -542,7 +545,7 @@ int lib_vprintf(const char *format, va_list ap)
 			if (is_pointer == 0) {
 				number = (flags & FLAG_64BIT) ? va_arg(ap, u64) : va_arg(ap, u32);
 			}
-			eptr = printf_sprintf_int(buff, number, flags, min_number_len);
+			eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
 			sptr = buff;
 
 			while (sptr != eptr) {

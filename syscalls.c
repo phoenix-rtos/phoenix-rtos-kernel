@@ -107,7 +107,7 @@ int syscalls_sys_mmap(void *ustack)
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3 "prot is poped from stack -> size of int stays" */
-	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | prot, o, (o == NULL) ? -1 : offs, flags);
+	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (unsigned int)prot, o, (o == NULL) ? -1 : offs, flags);
 	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)vm_objectPut(o);
 
@@ -296,7 +296,7 @@ int syscalls_gettid(void *ustack)
 
 int syscalls_beginthreadex(void *ustack)
 {
-	typedef void (*start_func)(void *);
+	typedef void (*start_func)(void *harg);
 	process_t *proc = proc_current()->process;
 	void (*start)(void *harg);
 	unsigned int priority, stacksz;
@@ -1883,11 +1883,8 @@ int syscalls_notimplemented(void)
 	return -ENOTTY;
 }
 
-/* parasoft-begin-suppress MISRAC2012-RULE_11_1-a */
+/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Syscalls are in different types" */
 const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
-const char *const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
-/* parasoft-end-suppress MISRAC2012-RULE_11_1-a */
-
 
 void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 {
@@ -1897,6 +1894,7 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 		return (void *)-EINVAL;
 	}
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
 	retval = ((void *(*)(char *harg))syscalls[n])(ustack);
 
 	if (proc_current()->exit != 0U) {

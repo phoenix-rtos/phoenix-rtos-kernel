@@ -45,6 +45,7 @@ static void pmap_mpu_setMemRegionNumber(u32 num)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static void pmap_mpu_setMemRegionRasr(u32 rasr)
 {
 	/* ARMv7-R uses the same region attribute bits as ARMv7-M, but they are split over two registers */
@@ -55,6 +56,7 @@ static void pmap_mpu_setMemRegionRasr(u32 rasr)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static void pmap_mpu_setMemRegionStatus(int enable)
 {
 	u32 val;
@@ -70,6 +72,7 @@ static void pmap_mpu_setMemRegionStatus(int enable)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static void pmap_mpu_setMemRegionRbar(u32 addr)
 {
 	addr &= ~((0x1U << 5) - 1U);

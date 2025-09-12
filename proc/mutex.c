@@ -25,7 +25,7 @@ mutex_t *mutex_get(int h)
 	thread_t *t = proc_current();
 	resource_t *r = resource_get(t->process, h);
 	LIB_ASSERT((r == NULL) || (r->type == rtLock), "process: %s, pid: %d, tid: %d, handle: %d, resource type mismatch",
-		t->process->path, process_getPid(t->process), proc_getTid(t), h);
+			t->process->path, process_getPid(t->process), proc_getTid(t), h);
 	return ((r != NULL) && (r->type == rtLock)) ? r->payload.mutex : NULL;
 }
 
@@ -33,15 +33,15 @@ mutex_t *mutex_get(int h)
 void mutex_put(mutex_t *mutex)
 {
 	thread_t *t = proc_current();
-	int rem;
+	unsigned int rem;
 
 	LIB_ASSERT(mutex != NULL, "process: %s, pid: %d, tid: %d, mutex == NULL",
-		t->process->path, process_getPid(t->process), proc_getTid(t));
+			t->process->path, process_getPid(t->process), proc_getTid(t));
 
 	rem = resource_put(t->process, &mutex->resource);
 	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
-		t->process->path, process_getPid(t->process), proc_getTid(t));
-	if (rem <= 0) {
+			t->process->path, process_getPid(t->process), proc_getTid(t));
+	if (rem <= 0U) {
 		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockDone(&mutex->lock);
 		vm_kfree(mutex);

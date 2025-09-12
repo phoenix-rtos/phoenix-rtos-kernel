@@ -37,6 +37,7 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 	vm_object_t *o1 = lib_treeof(vm_object_t, linkage, n1);
 	vm_object_t *o2 = lib_treeof(vm_object_t, linkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	if (o1->oid.id > o2->oid.id) {
 		return 1;
 	}

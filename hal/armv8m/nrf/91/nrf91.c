@@ -17,6 +17,7 @@
 
 #include "hal/arm/scs.h"
 
+#include "hal/hal.h"
 #include "hal/cpu.h"
 #include "include/errno.h"
 

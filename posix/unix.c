@@ -84,6 +84,7 @@ static int unixsock_cmp(rbnode_t *n1, rbnode_t *n2)
 	unixsock_t *r1 = lib_treeof(unixsock_t, linkage, n1);
 	unixsock_t *r2 = lib_treeof(unixsock_t, linkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	if (r1->id < r2->id) {
 		id_diff = r2->id - r1->id;
 		return -1 * (int)(id_diff);
@@ -102,8 +103,10 @@ static int unixsock_gapcmp(rbnode_t *n1, rbnode_t *n2)
 	rbnode_t *child = NULL;
 	int ret = 1;
 
+	/* parasoft-begin-suppress MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	if (r1->lmaxgap > 0U && r1->rmaxgap > 0U) {
 		if (r2->id > r1->id) {
+			/* parasoft-end-suppress MISRAC2012-DIR_4_1 */
 			child = n1->right;
 			ret = -1;
 		}
@@ -146,10 +149,12 @@ static void unixsock_augment(rbnode_t *node)
 			}
 		}
 
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = (n->id <= p->id) ? n->id : n->id - p->id - 1U;
 	}
 	else {
 		l = lib_treeof(unixsock_t, linkage, node->left);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = max(l->lmaxgap, l->rmaxgap);
 	}
 
@@ -433,7 +438,7 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 }
 
 
-int unix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, unsigned flags)
+int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, unsigned flags)
 {
 	unixsock_t *s, *r, *new;
 	int err;
@@ -515,7 +520,7 @@ int unix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, u
 }
 
 
-int unix_bind(int socket, const struct sockaddr *address, socklen_t address_len)
+int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len)
 {
 	char *path, *name;
 	const char *dir;
@@ -588,7 +593,7 @@ int unix_bind(int socket, const struct sockaddr *address, socklen_t address_len)
 
 
 /* TODO: use backlog */
-int unix_listen(int socket, int backlog)
+int unix_listen(unsigned socket, int backlog)
 {
 	unixsock_t *s;
 	int err;
@@ -618,7 +623,7 @@ int unix_listen(int socket, int backlog)
 
 
 /* TODO: add support for disconnecting and reconnecting a SOCK_DGRAM socket using AF_UNSPEC. */
-int unix_connect(int socket, const struct sockaddr *address, socklen_t address_len)
+int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len)
 {
 	unixsock_t *s, *r;
 	int err;
@@ -742,19 +747,19 @@ int unix_connect(int socket, const struct sockaddr *address, socklen_t address_l
 }
 
 
-int unix_getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
+int unix_getpeername(unsigned socket, struct sockaddr *address, socklen_t *address_len)
 {
 	return 0;
 }
 
 
-int unix_getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
+int unix_getsockname(unsigned socket, struct sockaddr *address, socklen_t *address_len)
 {
 	return 0;
 }
 
 
-int unix_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
+int unix_getsockopt(unsigned socket, int level, int optname, void *optval, socklen_t *optlen)
 {
 	unixsock_t *s;
 	int err = EOK;
@@ -797,7 +802,7 @@ int unix_getsockopt(int socket, int level, int optname, void *optval, socklen_t 
 }
 
 
-static ssize_t recv(int socket, void *buf, size_t len, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+static ssize_t recv(unsigned socket, void *buf, size_t len, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
 	unixsock_t *s;
 	size_t rlen = 0;
@@ -889,7 +894,7 @@ static ssize_t recv(int socket, void *buf, size_t len, unsigned flags, struct so
 
 
 /* TODO: a connected SOCK_DGRAM socket should only receive data from its peer. */
-static ssize_t send(int socket, const void *buf, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
+static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
 {
 	unixsock_t *s, *r;
 	ssize_t err;
@@ -1034,19 +1039,19 @@ static ssize_t send(int socket, const void *buf, size_t len, unsigned flags, con
 }
 
 
-ssize_t unix_recvfrom(int socket, void *msg, size_t len, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len)
+ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, unsigned flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
 	return recv(socket, msg, len, flags, src_addr, src_len, NULL, NULL);
 }
 
 
-ssize_t unix_sendto(int socket, const void *msg, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, unsigned flags, const struct sockaddr *dest_addr, socklen_t dest_len)
 {
 	return send(socket, msg, len, flags, dest_addr, dest_len, NULL);
 }
 
 
-ssize_t unix_recvmsg(int socket, struct msghdr *msg, unsigned flags)
+ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, unsigned flags)
 {
 	ssize_t err;
 	void *buf = NULL;
@@ -1073,7 +1078,7 @@ ssize_t unix_recvmsg(int socket, struct msghdr *msg, unsigned flags)
 }
 
 
-ssize_t unix_sendmsg(int socket, const struct msghdr *msg, unsigned flags)
+ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, unsigned flags)
 {
 	ssize_t err;
 	fdpack_t *fdpack = NULL;
@@ -1107,7 +1112,7 @@ ssize_t unix_sendmsg(int socket, const struct msghdr *msg, unsigned flags)
 
 
 /* TODO: proper shutdown, link, unlink */
-int unix_shutdown(int socket, int how)
+int unix_shutdown(unsigned socket, int how)
 {
 	unixsock_t *s;
 
@@ -1158,7 +1163,7 @@ static int unix_bufferSetSize(unixsock_t *s, const size_t sz)
 	return 0;
 }
 
-int unix_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen)
+int unix_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen)
 {
 	unixsock_t *s;
 	int err;
@@ -1194,7 +1199,7 @@ int unix_setsockopt(int socket, int level, int optname, const void *optval, sock
 }
 
 
-int unix_setfl(int socket, unsigned flags)
+int unix_setfl(unsigned socket, unsigned flags)
 {
 	unixsock_t *s;
 
@@ -1209,7 +1214,7 @@ int unix_setfl(int socket, unsigned flags)
 }
 
 
-int unix_getfl(int socket)
+int unix_getfl(unsigned socket)
 {
 	unixsock_t *s;
 	unsigned flags;
@@ -1228,14 +1233,14 @@ int unix_getfl(int socket)
 }
 
 
-int unix_unlink(int socket)
+int unix_unlink(unsigned socket)
 {
 	/* TODO: broken - socket may be phony */
 	return EOK;
 }
 
 
-int unix_close(int socket)
+int unix_close(unsigned socket)
 {
 	unixsock_t *s;
 
@@ -1249,7 +1254,7 @@ int unix_close(int socket)
 }
 
 
-int unix_poll(int socket, unsigned short events)
+int unix_poll(unsigned socket, unsigned short events)
 {
 	unixsock_t *s, *r;
 	unsigned err = 0;

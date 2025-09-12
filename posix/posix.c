@@ -121,7 +121,7 @@ int posix_fileDeref(open_file_t *f)
 	--f->refs;
 	if (f->refs == 0U) {
 		if (f->type == (char)ftUnixSocket) {
-			err = unix_close((unsigned int)f->oid.id);
+			err = unix_close(f->oid.id);
 		}
 		else {
 			do {
@@ -276,6 +276,7 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 	process_info_t *p1 = lib_treeof(process_info_t, linkage, n1);
 	process_info_t *p2 = lib_treeof(process_info_t, linkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	if (p1->process < p2->process) {
 		return -1;
 	}
@@ -785,7 +786,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == (char)ftUnixSocket) {
-		rcnt = unix_recvfrom((unsigned int)f->oid.id, buf, nbyte, 0, NULL, NULL);
+		rcnt = unix_recvfrom(f->oid.id, buf, nbyte, 0, NULL, NULL);
 	}
 	else {
 		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
@@ -835,7 +836,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == (char)ftUnixSocket) {
-		rcnt = unix_sendto((unsigned int)f->oid.id, buf, nbyte, 0, NULL, 0);
+		rcnt = unix_sendto(f->oid.id, buf, nbyte, 0, NULL, 0);
 	}
 	else {
 		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
@@ -1244,7 +1245,7 @@ int posix_unlink(const char *pathname)
 		if (dir.port != oid.port) {
 			if (oid.port == US_PORT) {
 				/* MISRAC2012-RULE_17_7-a */
-				(void)unix_unlink((unsigned int)oid.id);
+				(void)unix_unlink(oid.id);
 			}
 			else {
 				/* Signal unlink to device */

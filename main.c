@@ -85,7 +85,7 @@ static void main_initthr(void *unused)
 
 				*(cmdline++) = '\0';
 			}
-			argv[argc++] = NULL;
+			argv[argc] = NULL;
 
 			if ((res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), vm_getSharedMap((int)prog->dmaps[0]), argv[0], argv)) < 0) {
 				/* MISRA Rule 17.7: Unused returned value, (void) added*/

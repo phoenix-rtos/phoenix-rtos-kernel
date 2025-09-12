@@ -22,9 +22,6 @@
 #include "config.h"
 
 
-extern void _hal_platformInit(void);
-
-
 int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
@@ -241,6 +238,7 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
 	/* In theory there should be 8-byte thread control block but
@@ -264,6 +262,6 @@ void hal_cleanDCache(ptr_t start, size_t len)
 }
 
 
-void _hal_cpuInit(void)
+void _hal_cpuInit(void)  // TBD_Julia delete?
 {
 }
