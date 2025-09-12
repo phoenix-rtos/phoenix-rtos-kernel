@@ -152,7 +152,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	}
 
 	/*MISRAC2012-RULE_17_7-a*/
-	(void)(&p->lock);
+	(void)proc_lockSet(&p->lock);
 
 	cmsg = CMSG_FIRSTHDR(control, *controllen);
 	cmsg_data = CMSG_DATA(cmsg);
