@@ -768,7 +768,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 		e->flags &= ~MAP_NEEDSCOPY;
 	}
 
-	offs = ((int)paddr - (int)e->vaddr);
+	offs = ((ptr_t)paddr - (ptr_t)e->vaddr);
 
 	if (e->amap == NULL) {
 		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs < 0) ? e->offs : (e->offs + offs)));
