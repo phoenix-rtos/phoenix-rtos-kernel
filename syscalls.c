@@ -328,10 +328,9 @@ int syscalls_beginthreadex(void *ustack)
 }
 
 
-int syscalls_endthread(void *ustack)
+void syscalls_endthread(void *ustack)
 {
 	proc_threadEnd();
-	return EOK;
 }
 
 

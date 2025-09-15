@@ -593,9 +593,9 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	open_file_t *f;
 	mode_t mode;
 
-	hal_memset(&pipesrv, 0xff, sizeof(oid_t));
-
-	(void)proc_lookup("/dev/posix/pipes", NULL, &pipesrv);
+	if (proc_lookup("/dev/posix/pipes", NULL, &pipesrv) != 0) {
+		hal_memset(&pipesrv, 0xff, sizeof(oid_t));
+	}
 
 	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
@@ -1531,6 +1531,11 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	}
 
 	fd2 = _posix_allocfd(p, fd2);
+	if (fd2 < 0) {
+		(void)proc_lockClear(&p->lock);
+		pinfo_put(p);
+		return fd2;
+	}
 	err = _posix_dup2(p, fd, fd2);
 	if ((err == fd2) && (cloexec != 0)) {
 		p->fds[fd2].flags = FD_CLOEXEC;
