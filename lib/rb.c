@@ -147,7 +147,7 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 
 	while (x != tree->root && x->color == RB_BLACK) {
 		if (x == x->parent->left || (x == &nil && x->parent->left == NULL)) {
-			w = x->parent->right;
+			w = (x->parent->right == NULL) ? &nil : x->parent->right;
 
 			if (w->color == RB_RED) {
 				w->color = RB_BLACK;
@@ -176,7 +176,7 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 			}
 		}
 		else {
-			w = x->parent->left;
+			w = (x->parent->left == NULL) ? &nil : x->parent->left;
 
 			if (w->color == RB_RED) {
 				w->color = RB_BLACK;
