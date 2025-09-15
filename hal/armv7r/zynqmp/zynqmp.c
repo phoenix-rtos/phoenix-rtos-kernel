@@ -369,7 +369,7 @@ void hal_wdgReload(void)
 }
 
 
-int hal_platformctl(void *ptr)  // TBD_Julia unused - delete or add static?
+int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	unsigned int t = 0;

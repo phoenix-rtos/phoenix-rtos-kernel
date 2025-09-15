@@ -92,7 +92,7 @@ void _hal_interruptsInitPerCPU(void);
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
-/* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externaly within assembler code" */
+/* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
@@ -234,19 +234,19 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
-static int _interrupts_gicv2_classify(unsigned int irqn)
+static unsigned int _interrupts_gicv2_classify(unsigned int irqn)
 {
 	/* ZynqMP specific: most interrupts are high level, some are reserved.
 	 * PL to PS interrupts can be either high level or rising edge, here we configure
 	 * lower half as high level, upper half as rising edge */
 	if ((irqn < 40U) || ((irqn >= 129U) && (irqn <= 135U))) {
-		return 0;
+		return 0U;
 	}
 	else if ((irqn >= 136U) && (irqn <= 143U)) {
-		return 3;
+		return 3U;
 	}
 	else {
-		return 1;
+		return 1U;
 	}
 }
 
@@ -285,7 +285,7 @@ void _hal_interruptsInit(void)
 
 	/* Set required configuration and CPU mask */
 	for (i = SPI_FIRST_IRQID; i < SIZE_INTERRUPTS; ++i) {
-		interrupts_setConf(i, (unsigned int)_interrupts_gicv2_classify(i));
+		interrupts_setConf(i, _interrupts_gicv2_classify(i));
 		interrupts_setCPU(i, 0x1);
 	}
 

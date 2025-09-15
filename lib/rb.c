@@ -298,6 +298,7 @@ void lib_rbRemove(rbtree_t *tree, rbnode_t *z)
 	}
 	else {
 		y = lib_rbMinimum(z->right);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_7-a "We are sure that if we delete node from the tree it's not NULL" */
 		c = y->color;
 		x = y->right;
 
@@ -321,6 +322,7 @@ void lib_rbRemove(rbtree_t *tree, rbnode_t *z)
 		rb_augment(tree, t);
 
 		t = lib_rbMinimum(y->right);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_7-q "rb_augment checks if t in not NULL" */
 		rb_augment(tree, t);
 	}
 

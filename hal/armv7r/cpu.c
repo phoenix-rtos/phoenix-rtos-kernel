@@ -262,6 +262,6 @@ void hal_cleanDCache(ptr_t start, size_t len)
 }
 
 
-void _hal_cpuInit(void)  // TBD_Julia delete?
+void _hal_cpuInit(void)
 {
 }

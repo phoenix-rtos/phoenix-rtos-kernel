@@ -393,7 +393,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 			continue;
 		}
 
-		offs = (off_t)(phdr->p_offset & ~(phdr->p_align - 1U));
+		offs = (off_t)(Elf32_Off)(phdr->p_offset & ~(phdr->p_align - 1U));
 		misalign = phdr->p_offset & (phdr->p_align - 1U);
 		filesz = (phdr->p_filesz != 0U) ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;
@@ -926,7 +926,6 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 			hal_memcpy(&rela, (Elf32_Rela *)((ptr_t)shdr->sh_offset + (ptr_t)ehdr + (j * shdr->sh_entsize)), shdr->sh_entsize);
 
 			if (hal_isRelReloc(ELF32_R_TYPE(rela.r_info)) == 0) {
-				// TBD_Bart Thr only thing that macro is doing is casting.
 				continue;
 			}
 
