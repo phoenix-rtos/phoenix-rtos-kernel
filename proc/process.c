@@ -393,7 +393,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 			continue;
 		}
 
-		offs = (off_t)((Elf32_Off)(phdr->p_offset & ~(phdr->p_align - 1U)));
+		offs = (off_t)(phdr->p_offset & ~(phdr->p_align - 1U));
 		misalign = phdr->p_offset & (phdr->p_align - 1U);
 		filesz = (phdr->p_filesz != 0U) ? (phdr->p_filesz + misalign) : 0;
 		memsz = phdr->p_memsz + misalign;
@@ -773,7 +773,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	Elf32_Shdr *shdr, *shstrshdr;
 	Elf32_Rela rela;
 	unsigned relocsz = 0, prot, flags, reloffs;
-	int badreloc = 0, error;
+	int badreloc = 0, err;
 	unsigned i, j;
 	void *relptr;
 	char *snameTab;
@@ -789,9 +789,9 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 	ehdr = (void *)(ptr_t)base;
 
-	error = process_validateElf32(ehdr, size);
-	if (error < 0) {
-		return error;
+	err = process_validateElf32(ehdr, size);
+	if (err < 0) {
+		return err;
 	}
 
 	hal_memset(reloc, 0, sizeof(reloc));
@@ -1059,7 +1059,7 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 	size_t len;
 	char **args_stack, **args = *argsp;
 
-	for (argc = 0; (args != NULL) && (args[argc] != NULL); ++argc) {
+	for (argc = 0U; (args != NULL) && (args[argc] != NULL); ++argc) {
 	}
 
 	stack -= (argc + 1U) * sizeof(char *);
@@ -1816,7 +1816,7 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 
 	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
-	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
+	/* MISRA Rule 11.6: NULL is now a void pointer!!! */
 	if (dest->tls_base != 0U) {
 		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
