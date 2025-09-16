@@ -751,6 +751,9 @@ void _stm32_init(void)
 		_stm32_rccSetDevClock(gpioDevs[i], 1, 1);
 	}
 
+	_stm32_rccSetDevClock(pctl_risaf, 1, 1);
+	_stm32_risaf_init();
+
 #if defined(WATCHDOG)
 	/* Init watchdog */
 	/* Enable write access to IWDG */
