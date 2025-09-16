@@ -50,8 +50,11 @@
 #define SYSCFG_BASE ((void *)0x56008000)
 #define EXTI_BASE   ((void *)0x56025000)
 #define RIFSC_BASE  ((void *)0x54024000)
+#define GPDMA1_BASE ((void *)0x50021000)
+#define HPDMA1_BASE ((void *)0x58020000)
 
-#define EXTI_LINES 78
+#define EXTI_LINES   78
+#define DMA_CHANNELS 16
 
 
 static struct {
@@ -160,6 +163,16 @@ int hal_platformctl(void *ptr)
 			}
 
 			break;
+		case pctl_dmaPermissions:
+			if (data->action == pctl_set) {
+				ret = _stm32_dmaSetPermissions(
+						data->dmaPermissions.dev,
+						data->dmaPermissions.channel,
+						data->dmaPermissions.secure,
+						data->dmaPermissions.privileged,
+						data->dmaPermissions.lock);
+			}
+			break;
 	}
 
 	hal_spinlockClear(&stm32_common.pltctlSp, &sc);
@@ -234,6 +247,48 @@ int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged, int
 		tmp &= ~(0x7 << 4);
 		tmp |= (cid & 0x7) << 4;
 		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) = tmp;
+	}
+
+	return EOK;
+}
+
+
+/* DMA controller permissions */
+
+
+int _stm32_dmaSetPermissions(int dev, unsigned int channel, int secure, int privileged, int lock)
+{
+	volatile u32 *base;
+	if (dev == pctl_gpdma1) {
+		base = GPDMA1_BASE;
+	}
+	else if (dev == pctl_hpdma1) {
+		base = HPDMA1_BASE;
+	}
+	else {
+		return -EINVAL;
+	}
+
+	if (channel >= DMA_CHANNELS) {
+		return -EINVAL;
+	}
+
+	if (secure > 0) {
+		*(base + gpdma_seccfgr) |= (1 << channel);
+	}
+	else if (secure < 0) {
+		*(base + gpdma_seccfgr) &= ~(1 << channel);
+	}
+
+	if (privileged > 0) {
+		*(base + gpdma_privcfgr) |= (1 << channel);
+	}
+	else if (privileged < 0) {
+		*(base + gpdma_privcfgr) &= ~(1 << channel);
+	}
+
+	if (lock != 0) {
+		*(base + gpdma_rcfglockr) |= (1 << channel);
 	}
 
 	return EOK;

@@ -461,6 +461,14 @@ enum rifsc_regs {
 	rifsc_ppsr0 = 0x3ec,
 };
 
+enum gpdma_regs {
+	gpdma_seccfgr = 0x0,
+	gpdma_privcfgr,
+	gpdma_rcfglockr,
+	gpdma_misr,
+	gpdma_smisr,
+};
+
 enum risaf_regs {
 	risaf_cr = 0x0,
 	risaf_iasr = 0x2,
