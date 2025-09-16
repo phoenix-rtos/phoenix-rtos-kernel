@@ -35,4 +35,8 @@ void lib_assertPanic(const char *func, int line, const char *fmt, ...);
 
 #endif
 
+
+#define LIB_STATIC_ASSERT_SAME_TYPE(t1, t2) _Static_assert(__builtin_types_compatible_p(typeof(t1), typeof(t2)), "type mismatch")
+
+
 #endif
