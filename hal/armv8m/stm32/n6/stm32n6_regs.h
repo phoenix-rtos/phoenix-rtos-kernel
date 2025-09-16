@@ -461,4 +461,24 @@ enum rifsc_regs {
 	rifsc_ppsr0 = 0x3ec,
 };
 
+enum risaf_regs {
+	risaf_cr = 0x0,
+	risaf_iasr = 0x2,
+	risaf_iacr,
+	risaf_iaesr = 0x8,
+	risaf_iaddr,
+	risaf_reg1_cfgr = 0x10,
+	risaf_reg1_startr,
+	risaf_reg1_endr,
+	risaf_reg1_cidcfgr,
+	risaf_reg1_acfgr,
+	risaf_reg1_astartr,
+	risaf_reg1_aendr,
+	risaf_reg1_anestr,
+	risaf_reg1_bcfgr,
+	risaf_reg1_bstartr,
+	risaf_reg1_bendr,
+	risaf_reg1_bnestr,
+};
+
 #endif /* _STM32N6_REGS_H_ */

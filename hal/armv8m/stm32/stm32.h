@@ -157,6 +157,12 @@ extern int _stm32_bsec_otp_write(unsigned int addr, u32 val);
 extern void _stm32_bsec_init(void);
 
 
+extern int _stm32_risaf_configRegion(unsigned int risaf, u8 region, u32 start, u32 end, u8 privCIDMask, u8 readCIDMask, u8 writeCIDMask, int secure, int enable);
+
+
+extern int _stm32_risaf_init(void);
+
+
 extern void _stm32_init(void);
 
 
