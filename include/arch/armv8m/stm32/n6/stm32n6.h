@@ -566,6 +566,7 @@ typedef struct {
 		pctl_ipclk, /* Independent peripheral clock settings (muxes and dividers) */
 		pctl_otp,
 		pctl_reboot,
+		pctl_dmaPermissions,
 	} type;
 
 	union {
@@ -596,6 +597,13 @@ typedef struct {
 			int secure;         /* 1 - set to secure 0 - no change, -1 - set to non-secure */
 			int cid;            /* value of CID flag for this master on the interconnect. -1 for no change. */
 		} rimc;
+		struct {
+			int dev; /* one of pctl_gpdma* or pctl_hpdma* enum values */
+			unsigned int channel;
+			int privileged; /* 1 - set to privileged, 0 - no change, -1 - set to unprivileged */
+			int secure;     /* 1 - set to secure, 0 - no change, -1 - set to non-secure */
+			int lock;       /* 1 - lock from changes until reset, 0 - no change */
+		} dmaPermissions;
 		struct {
 			unsigned int ipclk;
 			unsigned int setting;
