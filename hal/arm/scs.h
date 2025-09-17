@@ -66,6 +66,12 @@ void _hal_scsDCacheDisable(void);
 void _hal_scsDCacheCleanInvalAddr(void *addr, u32 sz);
 
 
+void _hal_scsDCacheCleanAddr(void *addr, u32 sz);
+
+
+void _hal_scsDCacheInvalAddr(void *addr, u32 sz);
+
+
 void _hal_scsICacheEnable(void);
 
 

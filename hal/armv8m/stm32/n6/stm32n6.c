@@ -173,6 +173,24 @@ int hal_platformctl(void *ptr)
 						data->dmaPermissions.lock);
 			}
 			break;
+		case pctl_cleanInvalDCache:
+			if (data->action == pctl_set) {
+				_hal_scsDCacheCleanInvalAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz);
+				ret = EOK;
+			}
+			break;
+		case pctl_cleanDCache:
+			if (data->action == pctl_set) {
+				_hal_scsDCacheCleanAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz);
+				ret = EOK;
+			}
+			break;
+		case pctl_invalDCache:
+			if (data->action == pctl_set) {
+				_hal_scsDCacheInvalAddr(data->cleanInvalDCache.addr, data->cleanInvalDCache.sz);
+				ret = EOK;
+			}
+			break;
 	}
 
 	hal_spinlockClear(&stm32_common.pltctlSp, &sc);

@@ -567,6 +567,9 @@ typedef struct {
 		pctl_otp,
 		pctl_reboot,
 		pctl_dmaPermissions,
+		pctl_cleanInvalDCache,
+		pctl_cleanDCache,
+		pctl_invalDCache,
 	} type;
 
 	union {
@@ -616,6 +619,10 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+		struct {
+			void *addr;
+			unsigned int sz;
+		} opDCache;
 	};
 } __attribute__((packed)) platformctl_t;
 
