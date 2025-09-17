@@ -47,12 +47,10 @@ static void main_initthr(void *unused)
 	_hal_start();
 	_usrv_start();
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added*/
 	lib_printf("main: Starting syspage programs:");
 	syspage_progShow();
 
 	posix_init();
-	/* MISRA Rule 17.7: Unused returned value, (void) added*/
 	(void)posix_clone(-1);
 
 	/* Start programs from syspage */
@@ -88,7 +86,6 @@ static void main_initthr(void *unused)
 			argv[argc] = NULL;
 
 			if ((res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), vm_getSharedMap((int)prog->dmaps[0]), argv[0], argv)) < 0) {
-				/* MISRA Rule 17.7: Unused returned value, (void) added*/
 				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 			}
 		} while ((prog = prog->next) != syspage_progList());
@@ -116,7 +113,6 @@ int main(void)
 	lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
-	/* MISRA Rule 17.7: Unused returned value, (void) added*/
 	(void)_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
 
@@ -130,12 +126,10 @@ int main(void)
 	test_proc_exit();
 #endif
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added*/
 	(void)proc_start(main_initthr, NULL, (const char *)"init");
 
 	/* Start scheduling, leave current stack */
 	hal_cpuEnableInterrupts();
-	/* MISRA Rule 17.7: Unused returned value, (void) added*/
 	(void)hal_cpuReschedule(NULL, NULL);
 
 	return 0;

@@ -74,7 +74,6 @@ int _vm_zoneDestroy(vm_zone_t *zone)
 		return -EBUSY;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added */
 	(void)vm_munmap(zone_common.kmap, zone->vaddr, 1UL << zone->pages->idx);
 	vm_pageFree(zone->pages);
 

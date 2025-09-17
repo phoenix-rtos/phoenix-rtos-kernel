@@ -108,7 +108,6 @@ int syscalls_sys_mmap(void *ustack)
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3 "prot is poped from stack -> size of int stays" */
 	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (unsigned int)prot, o, (o == NULL) ? -1 : offs, flags);
-	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)vm_objectPut(o);
 
 	if ((*vaddr) == NULL) {
@@ -320,7 +319,6 @@ int syscalls_beginthreadex(void *ustack)
 	err = proc_threadCreate(proc, start, id, priority, (size_t)SIZE_KSTACK, stack, stacksz, arg);
 
 	if (err < 0) {
-		/* MISRA Rule 17.7: Unused returned value, added (void)*/
 		(void)proc_put(proc);
 	}
 
@@ -988,14 +986,12 @@ int syscalls_signalPost(void *ustack)
 	if (tid >= 0) {
 		t = threads_findThread(tid);
 		if (t == NULL) {
-			/* MISRA Rule 17.7: Unused returned value, added (void)*/
 			(void)proc_put(proc);
 			return -EINVAL;
 		}
 	}
 
 	if ((t != NULL) && (t->process != proc)) {
-		/* MISRA Rule 17.7: Unused returned value, added (void)*/
 		(void)proc_put(proc);
 		threads_put(t);
 		return -EINVAL;
@@ -1003,7 +999,6 @@ int syscalls_signalPost(void *ustack)
 
 	err = threads_sigpost(proc, t, signal);
 
-	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)proc_put(proc);
 	if (t != NULL) {
 		threads_put(t);
@@ -1908,7 +1903,6 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 
 void _syscalls_init(void)
 {
-	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	lib_printf("syscalls: Initializing syscall table [%d]\n", sizeof(syscalls) / sizeof(syscalls[0]));
 }
 

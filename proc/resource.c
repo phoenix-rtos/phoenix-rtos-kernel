@@ -32,10 +32,8 @@ int resource_alloc(process_t *process, resource_t *r)
 
 	r->refs = 2;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&process->lock);
 	id = lib_idtreeAlloc(&process->resources, &r->linkage, RESOURCE_ID_MIN);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&process->lock);
 
 	return id;
@@ -46,13 +44,11 @@ resource_t *resource_get(process_t *process, int id)
 {
 	resource_t *r;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&process->lock);
 	r = lib_idtreeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
 	if (r != NULL) {
 		++r->refs;
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&process->lock);
 
 	return r;
@@ -70,13 +66,11 @@ static resource_t *resource_remove(process_t *process, int id)
 {
 	resource_t *r;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&process->lock);
 	r = lib_idtreeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
 	if (r != NULL) {
 		lib_idtreeRemove(&process->resources, &r->linkage);
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&process->lock);
 
 	return r;
@@ -125,17 +119,14 @@ void proc_resourcesDestroy(process_t *process)
 	resource_t *r;
 
 	for (;;) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&process->lock);
 		r = lib_idtreeof(resource_t, linkage, lib_idtreeMinimum(process->resources.root));
 		if (r == NULL) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockClear(&process->lock);
 			break;
 		}
 
 		lib_idtreeRemove(&process->resources, &r->linkage);
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&process->lock);
 
 		proc_resourcePut(r);
@@ -151,7 +142,6 @@ int proc_resourcesCopy(process_t *source)
 	int err = EOK;
 	int skip;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&source->lock);
 	for (n = lib_idtreeMinimum(source->resources.root); n != NULL; n = lib_idtreeNext(&n->linkage)) {
 		r = lib_idtreeof(resource_t, linkage, n);
@@ -191,7 +181,6 @@ int proc_resourcesCopy(process_t *source)
 			break;
 		}
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&source->lock);
 
 	return (err >= 0) ? EOK : err;

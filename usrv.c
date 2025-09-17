@@ -52,7 +52,6 @@ static void usrv_msgthr(void *arg)
 
 			default:
 				msg.o.err = -ENOSYS;
-				/* MISRA Rule 17.7: Unused returned value, (void) added*/
 				(void)proc_respond(oid.port, &msg, rid);
 				break;
 		}
@@ -67,7 +66,6 @@ void _usrv_start(void)
 		return;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added*/
 	(void)proc_threadCreate(NULL, usrv_msgthr, NULL, 1, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 }
 

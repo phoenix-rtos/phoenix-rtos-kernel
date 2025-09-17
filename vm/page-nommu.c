@@ -67,7 +67,6 @@ page_t *vm_pageAlloc(size_t size, u8 flags)
 {
 	page_t *p;
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 70, 72*/
 	(void)proc_lockSet(&pages.lock);
 	p = _page_alloc(size, flags);
 	(void)proc_lockClear(&pages.lock);
@@ -78,7 +77,6 @@ page_t *vm_pageAlloc(size_t size, u8 flags)
 
 void vm_pageFree(page_t *lh)
 {
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 80, 89*/
 	(void)proc_lockSet(&pages.lock);
 
 	lh->next = pages.freeq;
@@ -102,7 +100,6 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attr)
 {
 	page_t *ap;
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 105, 108, 111, 113*/
 	(void)proc_lockSet(&pages.lock);
 	if (pmap_enter(pmap, pa, vaddr, (int)attr, NULL) < 0) {
 		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL) {
@@ -149,7 +146,6 @@ void vm_pageGetStats(size_t *freesz)
 
 void vm_pageinfo(meminfo_t *info)
 {
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 152, 160*/
 	(void)proc_lockSet(&pages.lock);
 
 	info->page.alloc = pages.allocsz;
@@ -168,7 +164,6 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	const syspage_map_t *map;
 	unsigned int i;
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added */
 	(void)proc_lockInit(&pages.lock, &proc_lockAttrDefault, "page.nommu");
 
 	/* TODO: handle error */
@@ -190,7 +185,6 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	pages.freesz -= pages.freeqsz * sizeof(page_t);
 
 	/* Show statistics one the console */
-	/* MISRA Rule 17.7: Unused returned value, (void) added */
 	lib_printf("vm: Initializing page allocator %d/%d KB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024U,
 			(pages.freesz + pages.allocsz) / 1024U, sizeof(page_t));
 

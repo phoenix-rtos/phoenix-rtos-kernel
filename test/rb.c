@@ -101,8 +101,7 @@ static int rb_processVector(int insert, rbtree_t *tree, int vector[])
 			test = vm_kmalloc(sizeof(test_t));
 			test->num = vector[i];
 
-			/* MISRA Rule 17.7: Unused return value, (void) added */
-			(void)lib_rbInsert(tree, &test->node);
+			lib_rbInsert(tree, &test->node);
 		}
 		else {
 			test_t t;
@@ -150,7 +149,6 @@ static void test_rbGenerateTest(int level, int insert, int vector[], int selecte
 				++count;
 
 				if (rb_processVector(1, &tree, input) < 0) {
-					/* MISRA Rule 17.7: Unused return value, (void) added in lines 152, 154, 157, 162, 164, 167*/
 					lib_printf("error: RB insert - ");
 					for (j = 0; j < RB_TEST_SIZE; ++j) {
 						lib_printf("%d ", input[j]);
@@ -182,7 +180,6 @@ static void test_rb_autothr(void *arg)
 	int vector[RB_TEST_SIZE];
 	int selected[RB_TEST_SIZE];
 
-	/* MISRA Rule 17.7: Unused return value, (void) added in lines 184, 194, 201*/
 	lib_printf("test: Start automatic red-black tree test\n");
 
 	for (;;) {
@@ -200,7 +197,7 @@ static void test_rb_autothr(void *arg)
 
 void test_rb(void)
 {
-	(void)proc_threadCreate(NULL, test_rb_autothr, NULL, 1, 512, NULL, 0, NULL);
+	proc_threadCreate(NULL, test_rb_autothr, NULL, 1, 512, NULL, 0, NULL);
 }
 
 /* parasoft-end-suppress ALL "tests don't need to comply with MISRA" */

@@ -74,14 +74,11 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 	unsigned int hash = dcache_strHash(name);
 
 	/* Check if entry already exists */
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&name_common.dcache_lock);
 	if (_dcache_entryLookup(hash, name) != NULL) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&name_common.dcache_lock);
 		return -EEXIST;
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&name_common.dcache_lock);
 
 	if (name[0] == '/' && name[1] == '\0') {
@@ -102,14 +99,11 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 		entry->oid.id = oid->id;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_strcpy(entry->name, name);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&name_common.dcache_lock);
 	entry->next = name_common.dcache[hash];
 	name_common.dcache[hash] = entry;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&name_common.dcache_lock);
 
 	return EOK;
@@ -121,7 +115,6 @@ void proc_portUnregister(const char *name)
 	dcache_entry_t *entry, *prev = NULL;
 	unsigned int hash = dcache_strHash(name);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&name_common.dcache_lock);
 	entry = name_common.dcache[hash];
 
@@ -133,7 +126,6 @@ void proc_portUnregister(const char *name)
 
 	if (entry == NULL) {
 		/* There is no such entry, nothing to do */
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&name_common.dcache_lock);
 		return;
 	}
@@ -144,7 +136,6 @@ void proc_portUnregister(const char *name)
 	else {
 		name_common.dcache[hash] = NULL;
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&name_common.dcache_lock);
 
 	vm_kfree(entry);
@@ -180,7 +171,6 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	/* Search cache for full path */
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&name_common.dcache_lock);
 	if ((entry = _dcache_entryLookup(dcache_strHash(name), name)) != NULL) {
 		if (file != NULL) {
@@ -190,11 +180,9 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		if (dev != NULL) {
 			*dev = entry->oid;
 		}
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&name_common.dcache_lock);
 		return EOK;
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&name_common.dcache_lock);
 
 	srv = name_common.root_oid;
@@ -215,7 +203,6 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	i = len;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_strcpy(pptr, name);
 
 	while (i > 1U) {
@@ -229,15 +216,12 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 		pptr[i] = '\0';
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&name_common.dcache_lock);
 		if ((entry = _dcache_entryLookup(dcache_strHash(pptr), pptr)) != NULL) {
 			srv = entry->oid;
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockClear(&name_common.dcache_lock);
 			break;
 		}
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&name_common.dcache_lock);
 	}
 
@@ -540,11 +524,8 @@ off_t proc_size(oid_t oid)
 
 void _name_init(void)
 {
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&name_common.dcache_lock, &proc_lockAttrDefault, "name.common");
 
-	/* MISRA Rule 11.6: NULL used to pass 0, and after changing NULL to void pointer to 0
-	 * it's no longer compatible with this funciton */
 	hal_memset(name_common.dcache, 0, sizeof(name_common.dcache));
 	name_common.root_registered = 0;
 }

@@ -27,10 +27,8 @@ msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg)
 {
 	msg_rid_t ret;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	ret = lib_idtreeAlloc(&p->rid, &kmsg->idlinkage, 0);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 
 	return ret;
@@ -41,7 +39,6 @@ kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
 {
 	kmsg_t *kmsg;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 
 	kmsg = lib_idtreeof(kmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
@@ -49,7 +46,6 @@ kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
 		lib_idtreeRemove(&p->rid, &kmsg->idlinkage);
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 
 	return kmsg;
@@ -65,7 +61,6 @@ port_t *proc_portGet(u32 id)
 		return NULL;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&port_common.port_lock);
 	port = lib_idtreeof(port_t, linkage, lib_idtreeFind(&port_common.tree, (int)id));
 	if (port != NULL) {
@@ -73,7 +68,6 @@ port_t *proc_portGet(u32 id)
 		port->refs++;
 		hal_spinlockClear(&port->spinlock, &sc);
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&port_common.port_lock);
 
 	return port;
@@ -84,7 +78,6 @@ void port_put(port_t *p, int destroy)
 {
 	spinlock_ctx_t sc;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&port_common.port_lock);
 	hal_spinlockSet(&p->spinlock, &sc);
 	p->refs--;
@@ -96,27 +89,22 @@ void port_put(port_t *p, int destroy)
 	if (p->refs != 0) {
 		if (destroy != 0) {
 			/* Wake receivers up */
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_threadBroadcast(&p->threads);
 		}
 
 		hal_spinlockClear(&p->spinlock, &sc);
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&port_common.port_lock);
 		return;
 	}
 
 	hal_spinlockClear(&p->spinlock, &sc);
 	lib_idtreeRemove(&port_common.tree, &p->linkage);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&port_common.port_lock);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->owner->lock);
 	if (p->next != NULL) {
 		LIST_REMOVE(&p->owner->ports, p);
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->owner->lock);
 
 	(void)proc_lockDone(&p->lock);
@@ -136,10 +124,8 @@ int proc_portCreate(u32 *id)
 		return -ENOMEM;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&port_common.port_lock);
 	if (lib_idtreeAlloc(&port_common.tree, &port->linkage, 0) < 0) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&port_common.port_lock);
 		vm_kfree(port);
 		return -ENOMEM;
@@ -149,7 +135,6 @@ int proc_portCreate(u32 *id)
 	hal_spinlockCreate(&port->spinlock, "port.spinlock");
 
 	lib_idtreeInit(&port->rid);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&port->lock, &proc_lockAttrDefault, "port.rid");
 
 	port->threads = NULL;
@@ -159,14 +144,11 @@ int proc_portCreate(u32 *id)
 
 	*id = (u32)port->linkage.id;
 	port->owner = proc;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&port_common.port_lock);
 
 	if (proc != NULL) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&proc->lock);
 		LIST_ADD((&proc->ports), port);
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&proc->lock);
 	}
 
@@ -199,16 +181,13 @@ void proc_portsDestroy(process_t *proc)
 	port_t *p;
 
 	for (;;) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&proc->lock);
 		p = proc->ports;
 		if (p == NULL) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockClear(&proc->lock);
 			break;
 		}
 		LIST_REMOVE(&proc->ports, p);
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&proc->lock);
 		port_put(p, 1);
 	}
@@ -218,6 +197,5 @@ void proc_portsDestroy(process_t *proc)
 void _port_init(void)
 {
 	lib_idtreeInit(&port_common.tree);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&port_common.port_lock, &proc_lockAttrDefault, "port.common");
 }

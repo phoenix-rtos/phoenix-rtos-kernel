@@ -143,7 +143,6 @@ char *hal_cpuInfo(char *info)
 	size_t n = 0;
 	u32 midr;
 
-	/* MISRA Rule 17.7: Unused returned value by hal_strcpy function, (void) added in lines 151, 156, 161*/
 	(void)hal_strcpy(info, HAL_NAME_PLATFORM);
 	n = sizeof(HAL_NAME_PLATFORM) - 1U;
 
@@ -186,7 +185,6 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 		return features;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value by hal_strcpy function, (void) added in lines 192, 197, 202, 207, 212, 217, 222, 227*/
 	if (((pfr0 >> 12) & 0xfUL) != 0U && (len - n) > 9U) {
 		(void)hal_strcpy(&features[n], "ThumbEE, ");
 		n += 9U;

@@ -96,7 +96,7 @@ void hal_consolePutch(char c)
 	while ((*(console_common.uart + sr) & (0x1U << 3)) == 0U) {
 		/* Wait until TX fifo is empty */
 	}
-	
+
 	*(console_common.uart + fifo) = (u32)c;
 }
 
@@ -106,7 +106,6 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 	console_common.uart = (void *)UART_BASE;
 	console_common.speed = 115200;
 
-	/* MISRA Rule 17.7: Unused returned value by function _zynqmp_setMIO, added (void) in lines 107, 108, 110*/
 	(void)_zynqmp_setMIO(UART_TX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE);
 	(void)_zynqmp_setMIO(UART_RX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE | PCTL_MIO_TRI_ENABLE);
 

@@ -122,7 +122,6 @@ static int _kmalloc_addZone(u8 hdridx, u8 idx)
 
 	/* Add new zone */
 	if (_vm_zoneCreate(nz, 0x1UL << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), SIZE_PAGE / (0x1UL << idx))) < 0) {
-		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 125, 130*/
 		(void)_kmalloc_free(hdridx, nz);
 		return -ENOMEM;
 	}
@@ -164,7 +163,6 @@ void *vm_kmalloc(size_t size)
 		return NULL;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added */
 	(void)proc_lockSet(&kmalloc_common.lock);
 
 	if (kmalloc_common.hdrblocks == 1U) {
@@ -183,7 +181,6 @@ void *vm_kmalloc(size_t size)
 		b = _kmalloc_alloc(hdridx, idx);
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added */
 	(void)proc_lockClear(&kmalloc_common.lock);
 
 	return b;
@@ -205,7 +202,6 @@ static void *_kmalloc_freeAtom(u8 hdridx, void *p)
 	/* Remove zone if free */
 	if ((z->used == 0U) && (z != &kmalloc_common.firstzone)) {
 		LIST_REMOVE(&kmalloc_common.sizes[idx], z);
-		/* MISRA Rule 17.7: Unused returned value, (void) added */
 		(void)_vm_zoneDestroy(z);
 		lib_rbRemove(&kmalloc_common.tree, &z->linkage);
 
@@ -231,7 +227,6 @@ void vm_kfree(void *p)
 		return;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 231, 237*/
 	(void)proc_lockSet(&kmalloc_common.lock);
 
 	while (p != NULL) {
@@ -254,7 +249,6 @@ void vm_kmallocDump(void)
 	vm_zone_t *z;
 
 	for (i = 0; i < sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *); i++) {
-		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 254, 259, 264*/
 		lib_printf("sizes[%d]=", i);
 		z = kmalloc_common.sizes[i];
 
@@ -274,7 +268,6 @@ int _kmalloc_init(void)
 {
 	unsigned int hdridx, i;
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 274, 276, 283*/
 	lib_printf("vm: Initializing kernel memory allocator: ");
 
 	(void)proc_lockInit(&kmalloc_common.lock, &proc_lockAttrDefault, "kmalloc.common");
@@ -285,7 +278,6 @@ int _kmalloc_init(void)
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		lib_printf("BAD HDRIDX!\n");
-		/* MISRA Rule 11.6: NULL return changed to -1 return as NULL is now represented as void pointer onto 0 */
 		return -1;
 	}
 
@@ -303,7 +295,6 @@ int _kmalloc_init(void)
 	/* Add first zone_t zone */
 	(void)_vm_zoneCreate(&kmalloc_common.firstzone, 0x1UL << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1UL << hdridx)));
 	LIST_ADD(&kmalloc_common.sizes[hdridx], &kmalloc_common.firstzone);
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 303, 308*/
 	(void)lib_rbInsert(&kmalloc_common.tree, &kmalloc_common.firstzone.linkage);
 
 	kmalloc_common.allocsz = 0;

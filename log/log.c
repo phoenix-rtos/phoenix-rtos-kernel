@@ -139,7 +139,6 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	msg.o.size = rmsg->osize;
 	msg.o.err = err;
 
-	/* MISRA Rule 17.7: Unused return value, (void) added */
 	(void)proc_respond(rmsg->oid.port, &msg, (int)rmsg->rid);
 
 	vm_kfree(rmsg);
@@ -173,7 +172,6 @@ static log_reader_t *log_readerFind(pid_t pid)
 {
 	log_reader_t *r;
 
-	/* MISRA Rule 17.7: Unused return value, (void) added in lines 177, 179*/
 	(void)proc_lockSet(&log_common.lock);
 	r = _log_readerFind(pid);
 	(void)proc_lockClear(&log_common.lock);
@@ -199,7 +197,6 @@ static void _log_readerPut(log_reader_t **r)
 
 static void log_readerPut(log_reader_t **r)
 {
-	/* MISRA Rule 17.7: Unused return value, (void) added in lines 203, 205*/
 	(void)proc_lockSet(&log_common.lock);
 	_log_readerPut(r);
 	(void)proc_lockClear(&log_common.lock);
@@ -227,7 +224,6 @@ static int log_readerAdd(pid_t pid, unsigned nonblocking)
 	r->pid = pid;
 	r->refs = 1;
 
-	/* MISRA Rule 17.7: Unused return value, (void) added in lines 231, 234*/
 	(void)proc_lockSet(&log_common.lock);
 	r->ridx = log_common.head;
 	LIST_ADD(&log_common.readers, r);
@@ -258,7 +254,6 @@ static ssize_t log_read(log_reader_t *r, char *buf, size_t sz)
 {
 	ssize_t ret;
 
-	/* MISRA Rule 17.7: Unused return value, (void) added in lines 262, 264*/
 	(void)proc_lockSet(&log_common.lock);
 	ret = _log_read(r, buf, sz);
 	(void)proc_lockClear(&log_common.lock);
@@ -301,7 +296,6 @@ static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, unsigned long
 	rmsg->rid = rid;
 	rmsg->oid = oid;
 
-	/* MISRA Rule 17.7: Unused return value, (void) added in lines 305, 307*/
 	(void)proc_lockSet(&log_common.lock);
 	LIST_ADD(&r->msgs, rmsg);
 	(void)proc_lockClear(&log_common.lock);
@@ -314,7 +308,6 @@ static void log_close(pid_t pid)
 {
 	log_reader_t *r;
 
-	/* MISRA Rule 17.7: Unused return value, (void) added 318, 325*/
 	(void)proc_lockSet(&log_common.lock);
 	r = _log_readerFind(pid);
 	if (r != NULL) {
@@ -390,7 +383,6 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 	}
 
 	if (respond == 1) {
-		/* MISRA Rule 17.7: Unused return value, (void) added */
 		(void)proc_respond(oid.port, msg, (int)rid);
 	}
 }
@@ -402,7 +394,6 @@ int log_write(const char *data, size_t len)
 	char c;
 
 	if (log_common.enabled != 0) {
-		/* MISRA Rule 17.7: Unused return value, (void) added */
 		(void)proc_lockSet(&log_common.lock);
 
 		/* No need to check log_common.enabled again,
@@ -421,7 +412,6 @@ int log_write(const char *data, size_t len)
 		if (i > 0U) {
 			log_common.updated = 1;
 		}
-		/* MISRA Rule 17.7: Unused return value, (void) added */
 		(void)proc_lockClear(&log_common.lock);
 	}
 	else {
@@ -448,7 +438,6 @@ void log_scrub(void)
 	/* Treat log_common.updated as atomic to
 	 * avoid taking lock in most cases */
 	if (log_common.updated != 0) {
-		/* MISRA Rule 17.7: Unused return value, (void) added in lines 448, 450*/
 		(void)proc_lockSet(&log_common.lock);
 		_log_scrub();
 		(void)proc_lockClear(&log_common.lock);
@@ -463,7 +452,6 @@ void log_scrubTry(void)
 	if (log_common.updated != 0) {
 		if (proc_lockTry(&log_common.lock) == 0) {
 			_log_scrub();
-			/* MISRA Rule 17.7: Unused return value, (void) added */
 			(void)proc_lockClear(&log_common.lock);
 		}
 	}
@@ -479,7 +467,6 @@ void log_disable(void)
 void _log_init(void)
 {
 	hal_memset(&log_common, 0, sizeof(log_common));
-	/* MISRA Rule 17.7: Unused return value, (void) added */
 	(void)proc_lockInit(&log_common.lock, &proc_lockAttrDefault, "log.common");
 
 	log_common.enabled = 1;

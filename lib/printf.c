@@ -160,7 +160,6 @@ void lib_putch(char s)
 	c[0] = s;
 	c[1] = '\0';
 
-	/* MISRA Rule 17.7: Unused return value, (void) added */
 	(void)log_write(c, 1);
 }
 

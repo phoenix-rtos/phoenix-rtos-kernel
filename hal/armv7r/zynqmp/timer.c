@@ -142,7 +142,6 @@ static void hal_timerSetPrescaler(u32 freq)
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)hal_strncpy(features, "Using Triple Timer Counter", len);
 	features[len - 1U] = '\0';
 	return features;
@@ -152,7 +151,6 @@ char *hal_timerFeatures(char *features, unsigned int len)
 void _hal_timerInit(u32 interval)
 {
 	timer_common.ttc = (void *)TTC0_BASE_ADDR;
-	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
 	timer_common.jiffies = 0;
 
@@ -181,7 +179,6 @@ void _hal_timerInit(u32 interval)
 	timer_common.handler.f = _timer_irqHandler;
 	timer_common.handler.n = TIMER_IRQ_ID;
 	timer_common.handler.data = NULL;
-	/* MISRA Rule 17.7: Unused returned value, added (void)*/
 	(void)hal_interruptsSetHandler(&timer_common.handler);
 
 	*(timer_common.ttc + interval_val) |= timer_common.ticksPerFreq & 0xffffU;

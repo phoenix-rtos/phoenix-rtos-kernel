@@ -176,7 +176,6 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int minimum)
 
 	LIB_ASSERT(lib_idtreeFind(tree, n->id) == NULL, "ID alloc failed - got existing ID %d", n->id);
 
-	/* MISRA Rule 17.7: Unused return value, (void) added */
 	(void)lib_rbInsert(tree, &n->linkage);
 
 	return n->id;

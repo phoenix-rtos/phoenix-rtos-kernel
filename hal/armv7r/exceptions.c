@@ -61,7 +61,6 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
 
 	n = (int)(unsigned int)((unsigned int)n & 0x7U);
 
-	/* MISRA Rule 17.7: Unused returned value by function hal_strcpy, added (void) in lines 65, 66, 67*/
 	(void)hal_strcpy(buff, "\nException: ");
 	(void)hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
 	(void)hal_strcpy(buff += hal_strlen(buff), "\n");

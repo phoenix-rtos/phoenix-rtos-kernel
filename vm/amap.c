@@ -33,7 +33,6 @@ static anon_t *amap_putanon(anon_t *a)
 	if (a == NULL) {
 		return NULL;
 	}
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 37, 39, 44, 45*/
 	(void)proc_lockSet(&a->lock);
 	if (--a->refs != 0U) {
 		(void)proc_lockClear(&a->lock);
@@ -56,7 +55,6 @@ void amap_putanons(amap_t *amap, int offset, int size)
 		return;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 60, 62, 64*/
 	(void)proc_lockSet(&amap->lock);
 	for (i = offset / (int)SIZE_PAGE; i < (offset + size) / (int)SIZE_PAGE; ++i) {
 		(void)amap_putanon(amap->anons[i]);
@@ -71,7 +69,6 @@ static anon_t *amap_getanon(anon_t *a)
 		return NULL;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 75, 76*/
 	(void)proc_lockSet(&a->lock);
 	++a->refs;
 	(void)proc_lockClear(&a->lock);
@@ -88,7 +85,6 @@ void amap_getanons(amap_t *amap, int offset, int size)
 		return;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 92, 94, 96*/
 	(void)proc_lockSet(&amap->lock);
 	for (i = offset / (int)SIZE_PAGE; i < (offset + size) / (int)SIZE_PAGE; ++i) {
 		(void)amap_getanon(amap->anons[i]);
@@ -103,7 +99,6 @@ amap_t *amap_ref(amap_t *amap)
 		return NULL;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 107, 109*/
 	(void)proc_lockSet(&amap->lock);
 	amap->refs++;
 	(void)proc_lockClear(&amap->lock);
@@ -118,7 +113,6 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 	amap_t *new;
 
 	if (amap != NULL) {
-		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 122, 124*/
 		(void)proc_lockSet(&amap->lock);
 		if (amap->refs == 1U) {
 			(void)proc_lockClear(&amap->lock);
@@ -136,14 +130,12 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 
 	if ((new = vm_kmalloc(sizeof(amap_t) + i * sizeof(anon_t *))) == NULL) {
 		if (amap != NULL) {
-			/* MISRA Rule 17.7: Unused returned value, (void) added */
 			(void)proc_lockClear(&amap->lock);
 		}
 
 		return NULL;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added*/
 	(void)proc_lockInit(&new->lock, &proc_lockAttrDefault, "amap.map");
 	new->size = i;
 	new->refs = 1;
@@ -159,7 +151,6 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 	}
 
 	if (amap != NULL) {
-		/* MISRA Rule 17.7: Unused returned value, (void) added */
 		(void)proc_lockClear(&amap->lock);
 	}
 
@@ -174,7 +165,6 @@ void amap_put(amap_t *amap)
 		return;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 177, 180, 184 */
 	(void)proc_lockSet(&amap->lock);
 
 	if (--amap->refs != 0U) {
@@ -191,7 +181,6 @@ void amap_clear(amap_t *amap, size_t offset, size_t size)
 {
 	unsigned int i;
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 194, 198*/
 	(void)proc_lockSet(&amap->lock);
 	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; i++) {
 		amap->anons[i] = NULL;
@@ -210,7 +199,6 @@ static anon_t *anon_new(page_t *p)
 
 	a->page = p;
 	a->refs = 1;
-	/* MISRA Rule 17.7: Unused returned value, (void) added */
 	(void)proc_lockInit(&a->lock, &proc_lockAttrDefault, "amap.anon");
 
 	return a;
@@ -243,7 +231,6 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 	anon_t *a;
 	void *v, *w;
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 246, 249, 252, 253, 261, 267*/
 	(void)proc_lockSet(&amap->lock);
 
 	if ((a = amap->anons[aoffs / (int)SIZE_PAGE]) != NULL) {
@@ -275,7 +262,6 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 
 	if ((v = amap_map(map, p)) == NULL) {
 		if (a != NULL) {
-			/* MISRA Rule 17.7: Unused returned value, (void) added in lines 274, 276*/
 			(void)proc_lockClear(&a->lock);
 		}
 		(void)proc_lockClear(&amap->lock);
@@ -285,7 +271,6 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 	if (a != NULL || o != NULL) {
 		/* Copy from object or shared anon */
 		if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL) {
-			/* MISRA Rule 17.7: Unused returned value, (void) added in lines 284, 286, 288, 293, 295, 297, 301, 307, 310, 317*/
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
 				(void)proc_lockClear(&a->lock);

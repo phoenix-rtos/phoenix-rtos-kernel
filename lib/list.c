@@ -51,7 +51,6 @@ void lib_listRemove(void **list, void *t, size_t noff, size_t poff)
 			*list = (void *)*((addr_t *)(t + noff));
 		}
 	}
-	/* MISRA Rule 11.6: NULL changed to void pointer, addr_t unsigned int */
 	*((addr_t *)(t + noff)) = 0;
 	*((addr_t *)(t + poff)) = 0;
 }

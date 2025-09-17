@@ -66,7 +66,6 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 	t.oid.port = oid.port;
 	t.oid.id = oid.id;
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 69, 74, 85, 90, 103, 108*/
 	(void)proc_lockSet(&object_common.lock);
 	*o = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &t.linkage));
 
@@ -125,7 +124,6 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 vm_object_t *vm_objectRef(vm_object_t *o)
 {
 	if ((o != NULL) && (o != VM_OBJ_PHYSMEM)) {
-		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 123, 125*/
 		(void)proc_lockSet(&object_common.lock);
 		o->refs++;
 		(void)proc_lockClear(&object_common.lock);
@@ -143,7 +141,6 @@ int vm_objectPut(vm_object_t *o)
 		return EOK;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 141, 144, 149*/
 	(void)proc_lockSet(&object_common.lock);
 
 	if (--o->refs != 0U) {
@@ -182,7 +179,6 @@ static page_t *object_fetch(oid_t oid, off_t offs)
 	}
 
 	if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL) {
-		/* MISRA Rule 17.7: Unused returned value, (void) added in lines 180, 186, 191, 193, 197, 198*/
 		(void)proc_close(oid, 0);
 		return NULL;
 	}
@@ -219,7 +215,6 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		return _page_get((addr_t)offs);
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added  in lines 217, 220, 225*/
 	(void)proc_lockSet(&object_common.lock);
 
 	if ((unsigned long long)offs >= o->size) {
@@ -234,7 +229,6 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 
 	/* Fetch page from backing store */
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 232, 235, 238*/
 	(void)proc_lockClear(&object_common.lock);
 
 	if (amap != NULL) {
@@ -253,7 +247,6 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		return NULL;
 	}
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 251, 260, 265*/
 	(void)proc_lockSet(&object_common.lock);
 
 	if (o->pages[(unsigned long long)offs / SIZE_PAGE] != NULL) {
@@ -310,7 +303,6 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	vm_object_t *o;
 
-	/* MISRA Rule 17.7: Unused returned value, (void) added in lines 308, 313, 319, 321*/
 	lib_printf("vm: Initializing memory objects\n");
 
 	object_common.kernel = kernel;

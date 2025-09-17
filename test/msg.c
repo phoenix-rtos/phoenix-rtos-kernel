@@ -68,7 +68,6 @@ void test_ping(void *arg)
 	unsigned int port = (unsigned long)arg;
 
 
-	/* MISRA Rule 17.7: Unused return value, (void) added in lines 70, 76, 81, 95, 100, 105, 129*/
 	lib_printf("test: msg/ping: starting\n");
 
 	buf[0] = vm_kmalloc(bufsz);
@@ -140,7 +139,6 @@ void test_pong(void *arg)
 	msg_rid_t rid;
 	unsigned int port = (unsigned long)arg;
 
-	/* MISRA Rule 17.7: Unused return value, (void) added in lines 142, 147, 152, 159*/
 	lib_printf("test_msg/pong: starting\n");
 
 	for (;;) {
@@ -170,13 +168,12 @@ void test_msg(void)
 	unsigned port;
 
 	if (proc_portCreate(&port) != EOK) {
-		/* MISRA Rule 17.7: Unused return value, (void) added in lines 172, 176, 177*/
 		lib_printf("Failed to create port\n");
 		hal_cpuHalt();
 	}
 
-	(void)proc_threadCreate(NULL, test_pong, NULL, 4, 1024, NULL, 0, (void *)(long)port);
-	(void)proc_threadCreate(NULL, test_ping, NULL, 4, 1024, NULL, 0, (void *)(long)port);
+	proc_threadCreate(NULL, test_pong, NULL, 4, 1024, NULL, 0, (void *)(long)port);
+	proc_threadCreate(NULL, test_ping, NULL, 4, 1024, NULL, 0, (void *)(long)port);
 }
 
 

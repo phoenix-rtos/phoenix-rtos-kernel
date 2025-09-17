@@ -81,10 +81,8 @@ process_info_t *pinfo_find(int pid)
 {
 	process_info_t *r;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&posix_common.lock);
 	r = _pinfo_find(pid);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&posix_common.lock);
 	return r;
 }
@@ -92,21 +90,17 @@ process_info_t *pinfo_find(int pid)
 
 void pinfo_put(process_info_t *p)
 {
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&posix_common.lock);
 	p->refs--;
 	if (p->refs != 0) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&posix_common.lock);
 		return;
 	}
 
 	lib_rbRemove(&posix_common.pid, &p->linkage);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&posix_common.lock);
 
 	vm_kfree(p->fds);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockDone(&p->lock);
 	vm_kfree(p);
 }
@@ -116,7 +110,6 @@ int posix_fileDeref(open_file_t *f)
 {
 	int err = EOK;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&f->lock);
 	--f->refs;
 	if (f->refs == 0U) {
@@ -129,12 +122,10 @@ int posix_fileDeref(open_file_t *f)
 			} while (err == -EINTR);
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockDone(&f->lock);
 		vm_kfree(f);
 	}
 	else {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&f->lock);
 	}
 	return err;
@@ -146,7 +137,6 @@ static void posix_putUnusedFile(process_info_t *p, int fd)
 	open_file_t *f;
 
 	f = p->fds[fd].file;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockDone(&f->lock);
 	vm_kfree(f);
 	p->fds[fd].file = NULL;
@@ -162,10 +152,8 @@ int posix_getOpenFile(int fd, open_file_t **f)
 		return -ENOSYS;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	if ((fd < 0) || (fd >= p->fdsz) || (p->fds[fd].file == NULL)) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -173,7 +161,6 @@ int posix_getOpenFile(int fd, open_file_t **f)
 
 	*f = p->fds[fd].file;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&(*f)->lock);
 	(*f)->refs++;
 	(void)proc_lockClear(&(*f)->lock);
@@ -232,12 +219,10 @@ int posix_newFile(process_info_t *p, int fd)
 		return -ENOMEM;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 
 	fd = _posix_allocfd(p, fd);
 	if (fd < 0) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&p->lock);
 		vm_kfree(f);
 		return -ENFILE;
@@ -248,7 +233,6 @@ int posix_newFile(process_info_t *p, int fd)
 	hal_memset(f, 0, sizeof(open_file_t));
 	f->refs = 1;
 	f->offset = 0;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&f->lock, &proc_lockAttrDefault, "posix.file");
 	(void)proc_lockClear(&p->lock);
 	return fd;
@@ -324,7 +308,6 @@ int posix_clone(int ppid)
 	}
 
 	hal_memset(&console, 0, sizeof(console));
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&p->lock, &proc_lockAttrDefault, "posix.process");
 	p->children = NULL;
 	p->zombies = NULL;
@@ -335,7 +318,6 @@ int posix_clone(int ppid)
 	pp = pinfo_find(ppid);
 	if (pp != NULL) {
 		TRACE("clone: got parent");
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&pp->lock);
 		p->maxfd = pp->maxfd;
 		p->fdsz = pp->fdsz;
@@ -352,11 +334,9 @@ int posix_clone(int ppid)
 
 	p->fds = vm_kmalloc((unsigned int)p->fdsz * sizeof(fildes_t));
 	if (p->fds == NULL) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockDone(&p->lock);
 		vm_kfree(p);
 		if (pp != NULL) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockClear(&pp->lock);
 			pinfo_put(pp);
 		}
@@ -369,15 +349,12 @@ int posix_clone(int ppid)
 		for (i = 0; i < p->fdsz; ++i) {
 			f = p->fds[i].file;
 			if (f != NULL) {
-				/* MISRAC2012-RULE_17_7-a */
 				(void)proc_lockSet(&f->lock);
 				++f->refs;
-				/* MISRAC2012-RULE_17_7-a */
 				(void)proc_lockClear(&f->lock);
 			}
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&pp->lock);
 	}
 	else {
@@ -396,7 +373,6 @@ int posix_clone(int ppid)
 				return -ENOMEM;
 			}
 
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockInit(&f->lock, &proc_lockAttrDefault, "posix.file");
 			f->refs = 1;
 			f->offset = 0;
@@ -418,7 +394,6 @@ int posix_clone(int ppid)
 		p->pgid = p->process;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&posix_common.lock);
 	(void)lib_rbInsert(&posix_common.pid, &p->linkage);
 	(void)proc_lockClear(&posix_common.lock);
@@ -439,16 +414,13 @@ int posix_exec(void)
 		return -1;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	for (fd = 0; fd < p->fdsz; ++fd) {
 		if ((p->fds[fd].file != NULL) && ((p->fds[fd].flags & FD_CLOEXEC) != 0U)) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)posix_fileDeref(p->fds[fd].file);
 			p->fds[fd].file = NULL;
 		}
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 
 	pinfo_put(p);
@@ -462,15 +434,12 @@ static int posix_exit(process_info_t *p, int code)
 
 	p->exitcode = code;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	for (fd = 0; fd < p->fdsz; ++fd) {
 		if (p->fds[fd].file != NULL) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)posix_fileDeref(p->fds[fd].file);
 		}
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 
 	return 0;
@@ -604,7 +573,6 @@ int posix_open(const char *filename, int oflag, char *ustack)
 
 	hal_memset(&dev, 0, sizeof(oid_t));
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 
 	do {
@@ -621,7 +589,6 @@ int posix_open(const char *filename, int oflag, char *ustack)
 		}
 
 		p->fds[fd].file = f;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockInit(&f->lock, &proc_lockAttrDefault, "posix.file");
 		(void)proc_lockClear(&p->lock);
 
@@ -650,10 +617,8 @@ int posix_open(const char *filename, int oflag, char *ustack)
 				}
 			}
 
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockSet(&p->lock);
 			p->fds[fd].flags = ((unsigned int)oflag & O_CLOEXEC) != 0U ? FD_CLOEXEC : 0U;
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_lockClear(&p->lock);
 
 			if (err == 0) {
@@ -691,7 +656,6 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			}
 
 			if (((unsigned int)oflag & O_TRUNC) != 0U) {
-				/* MISRAC2012-RULE_17_7-a */
 				(void)posix_truncate(&f->oid, 0);
 			}
 
@@ -701,16 +665,13 @@ int posix_open(const char *filename, int oflag, char *ustack)
 			return fd;
 		} while (0);
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&p->lock);
 		p->fds[fd].file = NULL;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockDone(&f->lock);
 		vm_kfree(f);
 
 	} while (0);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return err;
@@ -729,7 +690,6 @@ int posix_close(int fildes)
 		return -1;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 
 	do {
@@ -743,14 +703,12 @@ int posix_close(int fildes)
 
 		f = p->fds[fildes].file;
 		p->fds[fildes].file = NULL;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&p->lock);
 
 		pinfo_put(p);
 		return posix_fileDeref(f);
 	} while (0);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return err;
@@ -773,16 +731,13 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 	}
 
 	if ((f->status & O_WRONLY) != 0U) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 		return -EBADF;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&f->lock);
 	offs = f->offset;
 	status = f->status;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == (char)ftUnixSocket) {
@@ -793,14 +748,11 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte)
 	}
 
 	if (rcnt > 0) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&f->lock);
 		f->offset += rcnt;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&f->lock);
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_fileDeref(f);
 
 	return rcnt;
@@ -823,16 +775,13 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 	}
 
 	if ((f->status & O_RDONLY) != 0U) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 		return -EBADF;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&f->lock);
 	offs = f->offset;
 	status = f->status;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == (char)ftUnixSocket) {
@@ -843,14 +792,11 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte)
 	}
 
 	if (rcnt > 0) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&f->lock);
 		f->offset += rcnt;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&f->lock);
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_fileDeref(f);
 
 	return rcnt;
@@ -869,7 +815,6 @@ int posix_getOid(int fildes, oid_t *oid)
 
 	hal_memcpy(oid, &f->oid, sizeof(oid_t));
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_fileDeref(f);
 
 	return EOK;
@@ -889,7 +834,6 @@ int posix_dup(int fildes)
 		return -1;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 
 	do {
@@ -909,10 +853,8 @@ int posix_dup(int fildes)
 
 		p->fds[newfd].file = f;
 		p->fds[newfd].flags = 0;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&f->lock);
 		f->refs++;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&f->lock);
 		(void)proc_lockClear(&p->lock);
 		pinfo_put(p);
@@ -920,7 +862,6 @@ int posix_dup(int fildes)
 		return newfd;
 	} while (0);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return -EBADF;
@@ -963,17 +904,14 @@ static int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 
 	if (p->fds[fildes2].file != NULL) {
 		p->fds[fildes2].file = NULL;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f2);
 	}
 
 	p->fds[fildes2].file = f;
 	p->fds[fildes2].flags = 0;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&f->lock);
 	f->refs++;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&f->lock);
 
 	return fildes2;
@@ -991,10 +929,8 @@ int posix_dup2(int fildes, int fildes2)
 		return -1;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	fildes2 = _posix_dup2(p, fildes, fildes2);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 
@@ -1046,7 +982,6 @@ int posix_pipe(int fildes[2])
 		return -ENOMEM;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	fildes[0] = _posix_allocfd(p, 0);
 	if (fildes[0] >= 0) {
@@ -1054,7 +989,6 @@ int posix_pipe(int fildes[2])
 	}
 
 	if ((fildes[0] < 0) || (fildes[1] < 0)) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&p->lock);
 
 		vm_kfree(fo);
@@ -1067,7 +1001,6 @@ int posix_pipe(int fildes[2])
 	p->fds[fildes[0]].flags = p->fds[fildes[1]].flags = 0;
 
 	p->fds[fildes[0]].file = fo;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&fo->lock, &proc_lockAttrDefault, "posix.file");
 	hal_memcpy(&fo->oid, &oid, sizeof(oid));
 	fo->refs = 1;
@@ -1076,7 +1009,6 @@ int posix_pipe(int fildes[2])
 	fo->status = O_RDONLY;
 
 	p->fds[fildes[1]].file = fi;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&fi->lock, &proc_lockAttrDefault, "posix.file");
 	hal_memcpy(&fi->oid, &oid, sizeof(oid));
 	fi->refs = 1;
@@ -1084,7 +1016,6 @@ int posix_pipe(int fildes[2])
 	fi->type = (char)ftPipe;
 	fi->status = O_WRONLY;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return 0;
@@ -1169,7 +1100,6 @@ int posix_link(const char *path1, const char *path2)
 		return -ENOMEM;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)lib_splitname(name, &basename, &dirname);
 
 	do {
@@ -1223,7 +1153,6 @@ int posix_unlink(const char *pathname)
 		return -ENOMEM;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)lib_splitname(name, &basename, &dirname);
 
 	do {
@@ -1244,7 +1173,6 @@ int posix_unlink(const char *pathname)
 
 		if (dir.port != oid.port) {
 			if (oid.port == US_PORT) {
-				/* MISRAC2012-RULE_17_7-a */
 				(void)unix_unlink(oid.id);
 			}
 			else {
@@ -1281,12 +1209,10 @@ int posix_lseek(int fildes, off_t *offset, int whence)
 	/* TODO: Find a better way to check fd type */
 	scnt = proc_size(f->oid);
 	if (scnt < 0) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 		return -ESPIPE;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&f->lock);
 	switch (whence) {
 		case SEEK_SET:
@@ -1313,7 +1239,6 @@ int posix_lseek(int fildes, off_t *offset, int whence)
 		err = -EINVAL;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&f->lock);
 
 	(void)posix_fileDeref(f);
@@ -1339,7 +1264,6 @@ int posix_ftruncate(int fildes, off_t length)
 		else {
 			err = -EBADF;
 		}
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -1475,7 +1399,6 @@ int posix_fstat(int fd, struct stat *buf)
 		buf->st_size = proc_size(f->oid);
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_fileDeref(f);
 
 	return err;
@@ -1504,7 +1427,6 @@ int posix_fsync(int fd)
 
 	err = proc_send(f->oid.port, &msg);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_fileDeref(f);
 
 	return err;
@@ -1521,10 +1443,8 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 		return -1;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	if ((fd < 0) || (fd >= p->fdsz) || (fd2 < 0) || (fd2 >= p->maxfd)) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -1541,7 +1461,6 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 		p->fds[fd2].flags = FD_CLOEXEC;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return err;
@@ -1558,10 +1477,8 @@ static int posix_fcntlSetFd(int fd, int flags)
 		return -ENOSYS;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	if ((fd < 0) || (fd >= p->fdsz)) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -1573,7 +1490,6 @@ static int posix_fcntlSetFd(int fd, int flags)
 	else {
 		err = -EBADF;
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return err;
@@ -1590,10 +1506,8 @@ static int posix_fcntlGetFd(int fd)
 		return -ENOSYS;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&p->lock);
 	if ((fd < 0) || (fd >= p->fdsz)) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -1605,7 +1519,6 @@ static int posix_fcntlGetFd(int fd)
 	else {
 		err = -EBADF;
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
 	return err;
@@ -1633,7 +1546,6 @@ static int posix_fcntlSetFl(int fd, int val)
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -1660,7 +1572,6 @@ static int posix_fcntlGetFl(int fd)
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -1836,7 +1747,6 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 			err = ioctl_processResponse(&msg, request, data);
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -1998,7 +1908,6 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2044,7 +1953,6 @@ int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2073,7 +1981,6 @@ int posix_connect(int socket, const struct sockaddr *address, socklen_t address_
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2085,7 +1992,6 @@ int posix_uname(struct utsname *name)
 {
 	TRACE("uname()");
 
-	/* MISRAC2012-RULE_17_7-a - before all hal_strncpy */
 	(void)hal_strncpy(name->sysname, "Phoenix-RTOS", sizeof(name->sysname) - 1U);
 	name->sysname[sizeof(name->sysname) - 1U] = '\0';
 	(void)hal_strncpy(name->nodename, posix_common.hostname, sizeof(name->nodename) - 1U);
@@ -2105,7 +2011,6 @@ int posix_gethostname(char *name, size_t namelen)
 {
 	TRACE("gethostname(%zu)", namelen);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_strncpy(name, posix_common.hostname, namelen);
 
 	return 0;
@@ -2133,7 +2038,6 @@ int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_l
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2162,7 +2066,6 @@ int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_l
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2191,7 +2094,6 @@ int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2220,7 +2122,6 @@ int posix_listen(int socket, int backlog)
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2249,7 +2150,6 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2278,7 +2178,6 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2307,7 +2206,6 @@ ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2336,7 +2234,6 @@ ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2365,7 +2262,6 @@ int posix_shutdown(int socket, int how)
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2381,7 +2277,6 @@ int posix_sethostname(const char *name, size_t namelen)
 		return -EINVAL;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_strncpy(posix_common.hostname, name, namelen);
 	posix_common.hostname[namelen] = '\0';
 
@@ -2408,7 +2303,6 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 				break;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_fileDeref(f);
 	}
 
@@ -2446,7 +2340,6 @@ int posix_futimens(int fildes, const struct timespec *times)
 		err = msg.o.err;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_fileDeref(f);
 
 	return err;
@@ -2477,7 +2370,6 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		}
 		else {
 			hal_memcpy(&msg.oid, &f->oid, sizeof(oid_t));
-			/* MISRAC2012-RULE_17_7-a */
 			(void)posix_fileDeref(f);
 
 			if (f->type == (char)ftUnixSocket) {
@@ -2534,7 +2426,6 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 
 	if (n == 0U) {
 		if (timeout_ms > 0) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_threadSleep(timeout_ms * 1000LL);
 		}
 		return 0;
@@ -2566,7 +2457,6 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 			now = POLL_INTERVAL;
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadSleep(now);
 		ready = do_poll_iteration(fds, nfds);
 	}
@@ -2690,7 +2580,6 @@ static int posix_killOne(pid_t pid, int tid, int sig)
 	else {
 		thr = threads_findThread(tid);
 		if (thr == NULL) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_put(proc);
 			pinfo_put(pinfo);
 			return -EINVAL;
@@ -2705,7 +2594,6 @@ static int posix_killOne(pid_t pid, int tid, int sig)
 
 		threads_put(thr);
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_put(proc);
 	pinfo_put(pinfo);
 
@@ -2718,17 +2606,14 @@ static int posix_killGroup(pid_t pgid, int sig)
 	process_info_t *pinfo;
 	rbnode_t *node;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&posix_common.lock);
 	for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
 		pinfo = lib_treeof(process_info_t, linkage, node);
 
 		if (pinfo->pgid == pgid) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_sigpost(pinfo->process, sig);
 		}
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&posix_common.lock);
 
 	return EOK;
@@ -2758,8 +2643,6 @@ int posix_tkill(pid_t pid, int tid, int sig)
 
 void posix_sigchild(pid_t ppid)
 {
-	/* MISRA Rule 11.6: NULL is now a void pointer!!!*/
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_tkill(ppid, 0, SIGCHLD);
 }
 
@@ -2785,10 +2668,8 @@ int posix_setpgid(pid_t pid, pid_t pgid)
 		return -ESRCH;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&pinfo->lock);
 	pinfo->pgid = pgid;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&pinfo->lock);
 	pinfo_put(pinfo);
 	return EOK;
@@ -2813,10 +2694,8 @@ pid_t posix_getpgid(pid_t pid)
 		return -ESRCH;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&pinfo->lock);
 	res = pinfo->pgid;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&pinfo->lock);
 	pinfo_put(pinfo);
 
@@ -2837,17 +2716,14 @@ pid_t posix_setsid(void)
 	}
 
 	/* FIXME (pedantic): Should check if any process has my group id */
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&pinfo->lock);
 	if (pinfo->pgid == pid) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&pinfo->lock);
 		pinfo_put(pinfo);
 		return -EPERM;
 	}
 
 	pinfo->pgid = pid;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&pinfo->lock);
 	pinfo_put(pinfo);
 
@@ -2866,7 +2742,6 @@ int posix_waitpid(pid_t child, int *status, unsigned options)
 	pinfo = pinfo_find(pid);
 	LIB_ASSERT_ALWAYS(pinfo != NULL, "pinfo not found, pid: %d", pid);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&pinfo->lock);
 	for (;;) {
 		/* Do this in the loop in case someone has a bad idea of doing multithreaded waitpid */
@@ -2885,7 +2760,6 @@ int posix_waitpid(pid_t child, int *status, unsigned options)
 					if (status != NULL) {
 						*status = c->exitcode;
 					}
-					/* MISRAC2012-RULE_17_7-a */
 					(void)proc_lockClear(&pinfo->lock);
 
 					pinfo_put(c);
@@ -2919,7 +2793,6 @@ int posix_waitpid(pid_t child, int *status, unsigned options)
 			/* No action required */
 		}
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&pinfo->lock);
 	pinfo_put(pinfo);
 
@@ -2940,13 +2813,11 @@ void posix_died(pid_t pid, int exit)
 
 	ppinfo = pinfo_find(pinfo->parent);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_exit(pinfo, exit);
 
 	/* We might not find a parent if it died just now */
 	if (ppinfo != NULL) {
 		/* Make a zombie, wakeup waitpid */
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockSet(&ppinfo->lock);
 		/* Check if we didn't get adopted by the init in the meantime */
 		if ((ppinfo != init) && (LIST_BELONGS(&ppinfo->children, pinfo) != 0)) {
@@ -2955,12 +2826,10 @@ void posix_died(pid_t pid, int exit)
 			waited = proc_threadBroadcast(&ppinfo->wait);
 			adopted = 0;
 		}
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_lockClear(&ppinfo->lock);
 		pinfo_put(ppinfo);
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet2(&pinfo->lock, &init->lock);
 	/* Collect all zombies */
 	zombies = pinfo->zombies;
@@ -2983,7 +2852,6 @@ void posix_died(pid_t pid, int exit)
 		LIST_ADD(&zombies, pinfo);
 		waited = 1;
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&pinfo->lock);
 	(void)proc_lockClear(&init->lock);
 	pinfo_put(init);
@@ -3024,7 +2892,6 @@ pid_t posix_getppid(pid_t pid)
 
 void posix_init(void)
 {
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&posix_common.lock, &proc_lockAttrDefault, "posix.common");
 	lib_rbInit(&posix_common.pid, pinfo_cmp, NULL);
 	unix_sockets_init();

@@ -64,13 +64,11 @@ process_t *proc_find(int pid)
 {
 	process_t *p;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&process_common.lock);
 	p = lib_idtreeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
 	if (p != NULL) {
 		p->refs++;
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&process_common.lock);
 
 	return p;
@@ -100,7 +98,6 @@ static void process_destroy(process_t *p)
 	}
 
 	proc_portsDestroy(p);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockDone(&p->lock);
 
 	while ((ghost = p->ghosts) != NULL) {
@@ -119,14 +116,12 @@ int proc_put(process_t *p)
 {
 	int remaining;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&process_common.lock);
 	remaining = --p->refs;
 	LIB_ASSERT(remaining >= 0, "pid: %d, refcnt became negative", process_getPid(p));
 	if (remaining <= 0) {
 		lib_idtreeRemove(&process_common.id, &p->idlinkage);
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&process_common.lock);
 
 	if (remaining <= 0) {
@@ -139,12 +134,10 @@ int proc_put(process_t *p)
 
 void proc_get(process_t *p)
 {
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&process_common.lock);
 	LIB_ASSERT(p->refs > 0, "pid: %d, got reference on process with zero references",
 			process_getPid(p));
 	++p->refs;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&process_common.lock);
 }
 
@@ -153,7 +146,6 @@ static int process_alloc(process_t *process)
 {
 	int id;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&process_common.lock);
 	id = lib_idtreeAlloc(&process_common.id, &process->idlinkage, process_common.idcounter);
 	if (id < 0) {
@@ -170,7 +162,6 @@ static int process_alloc(process_t *process)
 			process_common.idcounter++;
 		}
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&process_common.lock);
 
 	return id;
@@ -206,7 +197,6 @@ int proc_start(void (*initthr)(void *harg), void *arg, const char *path)
 	process->reaper = NULL;
 	process->refs = 1;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
 	process->ports = NULL;
@@ -214,12 +204,10 @@ int proc_start(void (*initthr)(void *harg), void *arg, const char *path)
 	process->sigpend = 0;
 	process->sigmask = 0;
 	process->sighandler = NULL;
-	/* MISRA Rule 11.6: ptr_t is typedef of unsigned int, NULL is not pointer to void*/
 	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
 	process->tls.tls_sz = 0;
-	/* MISRA Rule 11.6: ptr_t is typedef of unsigned int, NULL is not pointer to void*/
 	process->tls.arm_m_tls = 0;
 
 #ifndef NOMMU
@@ -232,12 +220,10 @@ int proc_start(void (*initthr)(void *harg), void *arg, const char *path)
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)process_alloc(process);
 	perf_fork(process);
 
 	if (proc_threadCreate(process, initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_put(process);
 		return -EINVAL;
 	}
@@ -263,7 +249,6 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, (int)n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_write(2, buff, hal_strlen(buff));
 	(void)posix_write(2, "\n", 1);
 
@@ -283,7 +268,6 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 		len = lib_sprintf(buff, "in thread %lu, process \"%s\" (PID: %u)\n", proc_getTid(thread), process->path, process_getPid(process));
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_write(2, buff, (size_t)len);
 }
 
@@ -298,14 +282,12 @@ static void process_exception(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)threads_sigpost(thread->process, thread, signal_kill);
 
 	/* Don't allow current thread to return to the userspace,
 	 * it will crash anyway. */
 	thread->exit = THREAD_END_NOW;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_cpuReschedule(NULL, NULL);
 }
 
@@ -319,14 +301,12 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)threads_sigpost(process, thread, signal_illegal);
 }
 
 
 static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
 {
-	/* MISRA Rule 11.6: NULL can no longer be used as we changed it to voit pointer!!! */
 	if (tls->tls_base != 0U) {
 		process_tls->tls_base = tls->tls_base;
 	}
@@ -950,7 +930,6 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		++shdr;
 	}
 
-	/* MISRA Rule 11.6: NULL is now a voind ptrs and we can not use it here!!!*/
 	tlsNew.tls_base = 0;
 	tlsNew.tdata_sz = 0;
 	tlsNew.tbss_sz = 0;
@@ -1000,15 +979,12 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 	if (badreloc != 0) {
 		if ((process->path != NULL) && (process->path[0] != '\0')) {
-			/* MISRAC2012-RULE_17_7-a */
 			lib_printf("app %s: ", process->path);
 		}
 		else {
-			/* MISRAC2012-RULE_17_7-a */
 			lib_printf("process %d: ", process_getPid(process));
 		}
 
-		/* MISRAC2012-RULE_17_7-a */
 		lib_printf("Found %d badreloc%c\n", badreloc, (badreloc > 1) ? 's' : ' ');
 	}
 
@@ -1101,7 +1077,6 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 	(void)i;
 #else
-	/* MISRAC2012-RULE_17_7-a */
 	(void)pmap_create(&current->process->map.pmap, NULL, NULL, NULL);
 	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
 	current->process->entries = NULL;
@@ -1140,18 +1115,15 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	if (spawn->parent == NULL) {
 		/* if execing without vfork */
 		hal_spinlockDestroy(&spawn->sl);
-		/* MISRAC2012-RULE_17_7-a */
 		(void)vm_objectPut(spawn->object);
 	}
 	else {
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = FORKED;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
-	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
 	if ((err == EOK) && (current->process->tls.tls_base != 0U)) {
 		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
 	}
@@ -1181,7 +1153,6 @@ static void proc_spawnThread(void *arg)
 
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)posix_clone(process_getPid(spawn->parent->process));
 	}
 
@@ -1227,7 +1198,6 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 	if ((pid = proc_start(proc_spawnThread, &spawn, path)) > 0) {
 		hal_spinlockSet(&spawn.sl, &sc);
 		while (spawn.state == FORKING) {
-			/* MISRAC2012-RULE_17_7-a */
 			(void)proc_threadWait(&spawn.wq, &spawn.sl, 0, &sc);
 		}
 		hal_spinlockClear(&spawn.sl, &sc);
@@ -1238,7 +1208,6 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 	}
 
 	hal_spinlockDestroy(&spawn.sl);
-	/* MISRAC2012-RULE_17_7-a */
 	(void)vm_objectPut(spawn.object);
 	return spawn.state < 0 ? spawn.state : pid;
 }
@@ -1332,7 +1301,6 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 	/* Only possible in the case of `initthread` exit or failure to fork. */
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
-		/* MISRAC2012-RULE_17_7-a */
 		(void)vm_objectPut(spawn->object);
 	}
 	else {
@@ -1340,7 +1308,6 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = state;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
@@ -1385,7 +1352,6 @@ static void process_vforkThread(void *arg)
 
 	current = proc_current();
 	parent = spawn->parent;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_clone(process_getPid(parent->process));
 
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
@@ -1396,7 +1362,6 @@ static void process_vforkThread(void *arg)
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	while (spawn->state < FORKING) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
 	}
 	hal_spinlockClear(&spawn->sl, &sc);
@@ -1406,7 +1371,6 @@ static void process_vforkThread(void *arg)
 	if (current->parentkstack == NULL) {
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = -ENOMEM;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 
@@ -1427,7 +1391,6 @@ static void process_vforkThread(void *arg)
 
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = ret;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 
@@ -1440,7 +1403,6 @@ static void process_vforkThread(void *arg)
 	current->kstack = parent->kstack;
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 
-	/* MISRA Rule 11.6: NULL is now a voind pointer!!!*/
 	if (current->tls.tls_base != 0U) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
@@ -1491,7 +1453,6 @@ int proc_vfork(void)
 	/* Signal forking state to vfork thread */
 	hal_spinlockSet(&spawn->sl, &sc);
 	spawn->state = FORKING;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_threadWakeup(&spawn->wq);
 
 	do {
@@ -1499,7 +1460,6 @@ int proc_vfork(void)
 		 * proc_threadWait call stores context on the stack - this allows to execute child
 		 * thread starting from this point
 		 */
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
 		isparent = (proc_current() == current) ? 1 : 0;
 		/* TODO: If any test fails, revert this change and suppress MISRA Rule 13.5 */
@@ -1510,7 +1470,6 @@ int proc_vfork(void)
 
 	if (isparent != 0) {
 		hal_spinlockDestroy(&spawn->sl);
-		/* MISRAC2012-RULE_17_7-a */
 		(void)vm_objectPut(spawn->object);
 		ret = spawn->state;
 		vm_kfree(spawn);
@@ -1580,7 +1539,6 @@ int proc_release(void)
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	spawn->state = FORKED;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_threadWakeup(&spawn->wq);
 	hal_spinlockClear(&spawn->sl, &sc);
 
@@ -1671,7 +1629,6 @@ static int process_execve(thread_t *current)
 	current->process->sigpend = 0;
 
 	/* Close cloexec file descriptors */
-	/* MISRAC2012-RULE_17_7-a */
 	(void)posix_exec();
 	process_exec(current, spawn);
 
@@ -1761,7 +1718,6 @@ int proc_execve(const char *path, char **argv, char **envp)
 		hal_jmp(process_execve, current->kstack + current->kstacksz, NULL, 1, args);
 	}
 	else {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)process_execve(current);
 	}
 	/* Not reached */
@@ -1775,13 +1731,11 @@ int proc_sigpost(int pid, int sig)
 	process_t *p;
 	int err = -EINVAL;
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockSet(&process_common.lock);
 	p = lib_idtreeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
 	if (p != NULL) {
 		err = threads_sigpost(p, NULL, sig);
 	}
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockClear(&process_common.lock);
 
 	return err;
@@ -1794,11 +1748,9 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	process_common.first = NULL;
 	process_common.kernel = kernel;
 	process_common.idcounter = 1;
-	/* MISRAC2012-RULE_17_7-a */
 	(void)proc_lockInit(&process_common.lock, &proc_lockAttrDefault, "process.common");
 	lib_idtreeInit(&process_common.id);
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	(void)hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
 	return EOK;
@@ -1815,7 +1767,6 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 
 	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
-	/* MISRA Rule 11.6: NULL is now a void pointer!!! */
 	if (dest->tls_base != 0U) {
 		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
 		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);

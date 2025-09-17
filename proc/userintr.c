@@ -37,7 +37,6 @@ void userintr_put(userintr_t *ui)
 	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
 			t->process->path, process_getPid(t->process), proc_getTid(t));
 	if (rem <= 0U) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)hal_interruptsDeleteHandler(&ui->handler);
 
 		if (ui->cond != NULL) {
@@ -68,7 +67,6 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 
 	if (ret >= 0 && ui->cond != NULL) {
 		reschedule = 1;
-		/* MISRAC2012-RULE_17_7-a */
 		(void)proc_threadBroadcast(&ui->cond->queue);
 	}
 
@@ -137,7 +135,6 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int harg_1, void *harg
 
 	id = resource_alloc(process, &ui->resource);
 	if (id < 0) {
-		/* MISRAC2012-RULE_17_7-a */
 		(void)hal_interruptsDeleteHandler(&ui->handler);
 		if (cond != NULL) {
 			cond_put(cond);
@@ -146,7 +143,6 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int harg_1, void *harg
 		return -ENOMEM;
 	}
 
-	/* MISRAC2012-RULE_17_7-a */
 	(void)resource_put(process, &ui->resource);
 
 	return id;
