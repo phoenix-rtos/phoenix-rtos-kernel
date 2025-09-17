@@ -17,6 +17,9 @@
 #include <arch/cpu.h>
 #include "scs.h"
 
+#define CPUID_PARTNO_M7  0xc27UL
+#define CPUID_PARTNO_M55 0xd22UL
+
 
 struct scs_s {
 	u32 _res0[2];
@@ -211,8 +214,8 @@ static int _hal_scbCacheIsSupported(void)
 {
 	u32 partno = ((_hal_scsCpuID() >> 4) & 0xfff);
 
-	/* Only supported on Cortex-M7 for now */
-	if (partno == 0xc27) {
+	/* Only supported on Cortex-M7 and Cortex-M55 for now */
+	if ((partno == CPUID_PARTNO_M7) || (partno == CPUID_PARTNO_M55)) {
 		return 1;
 	}
 
@@ -281,7 +284,7 @@ void _hal_scsDCacheDisable(void)
 }
 
 
-void _hal_scsDCacheCleanInvalAddr(void *addr, u32 sz)
+static void _hal_scsDCacheOpAddr(void *addr, u32 sz, volatile u32 *reg)
 {
 	u32 daddr;
 	int dsize;
@@ -300,13 +303,31 @@ void _hal_scsDCacheCleanInvalAddr(void *addr, u32 sz)
 	hal_cpuDataSyncBarrier();
 
 	do {
-		scs_common.scs->dccimvac = daddr;
+		*reg = daddr;
 		daddr += 0x20u;
 		dsize -= 0x20;
 	} while (dsize > 0);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
+}
+
+
+void _hal_scsDCacheCleanInvalAddr(void *addr, u32 sz)
+{
+	_hal_scsDCacheOpAddr(addr, sz, &scs_common.scs->dccimvac);
+}
+
+
+void _hal_scsDCacheCleanAddr(void *addr, u32 sz)
+{
+	_hal_scsDCacheOpAddr(addr, sz, &scs_common.scs->dccvac);
+}
+
+
+void _hal_scsDCacheInvalAddr(void *addr, u32 sz)
+{
+	_hal_scsDCacheOpAddr(addr, sz, &scs_common.scs->dcimvac);
 }
 
 
