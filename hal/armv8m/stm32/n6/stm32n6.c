@@ -30,6 +30,11 @@
 #endif
 
 
+#ifndef USE_HSE_CLOCK_SOURCE
+#define USE_HSE_CLOCK_SOURCE 1
+#endif
+
+
 #define GPIOA_BASE ((void *)0x56020000)
 #define GPIOB_BASE ((void *)0x56020400)
 #define GPIOC_BASE ((void *)0x56020800)
@@ -812,7 +817,11 @@ void _stm32_init(void)
 
 	/* TODO: would be nice to have clock configuration options or the frequency passed from PLO */
 	stm32_common.cpuclk = 600 * 1000 * 1000;
+#if USE_HSE_CLOCK_SOURCE
 	stm32_common.perclk = 48 * 1000 * 1000;
+#else
+	stm32_common.perclk = 64 * 1000 * 1000;
+#endif
 
 	/* Disable all interrupts */
 	*(stm32_common.rcc + rcc_cier) = 0;
