@@ -57,6 +57,15 @@ typedef struct _kmsg_t {
 } kmsg_t;
 
 
+typedef struct _fmsg_t {
+	struct _fmsg_t *next, *prev;
+	idnode_t idlinkage;
+	thread_t *sender;
+	thread_t *threads;
+	volatile int state;
+} fmsg_t;
+
+
 /*
  * Message passing
  */

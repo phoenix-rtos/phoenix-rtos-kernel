@@ -52,6 +52,35 @@ kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
 }
 
 
+msg_rid_t proc_portRidAlloc_fp(port_t *p, fmsg_t *fmsg)
+{
+	msg_rid_t ret;
+
+	proc_lockSet(&p->lock);
+	ret = lib_idtreeAlloc(&p->rid, &fmsg->idlinkage, 0);
+	proc_lockClear(&p->lock);
+
+	return ret;
+}
+
+
+fmsg_t *proc_portRidGet_fp(port_t *p, msg_rid_t rid)
+{
+	fmsg_t *fmsg;
+
+	proc_lockSet(&p->lock);
+
+	fmsg = lib_idtreeof(fmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
+	if (fmsg != NULL) {
+		lib_idtreeRemove(&p->rid, &fmsg->idlinkage);
+	}
+
+	proc_lockClear(&p->lock);
+
+	return fmsg;
+}
+
+
 port_t *proc_portGet(u32 id)
 {
 	port_t *port;
@@ -155,6 +184,8 @@ int proc_portCreate(u32 *id)
 	port->slot.caller = NULL;
 	port->slot.callerMsg = NULL;
 	// port->slot.recvMsg = NULL;
+
+	port->queue = NULL;
 
 	return EOK;
 }

@@ -329,13 +329,23 @@ int threads_getHighestPrio(int maxPrio)
 {
 	int i, ret = maxPrio;
 	spinlock_ctx_t sc;
+	sched_context_t *sched;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	for (i = 0; i < maxPrio; i++) {
-		if (threads_common.ready[i] != NULL) {
-			ret = i;
-			break;
+	for (i = 0; i < maxPrio;) {
+		sched = threads_common.ready[i];
+		if (sched == NULL) {
+			i++;
+			continue;
 		}
+
+		if (sched->t->state != READY) {
+			LIST_REMOVE(&threads_common.ready[i], sched);
+			continue;
+		}
+
+		ret = i;
+		break;
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 

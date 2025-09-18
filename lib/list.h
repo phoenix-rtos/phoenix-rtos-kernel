@@ -32,6 +32,7 @@ extern int lib_listBelongs(void **list, void *t, size_t noff, size_t poff);
 #define LIST_ADD_EX(list, t, next, prev) \
 	do { \
 		LIB_STATIC_ASSERT_SAME_TYPE(*(list), t); \
+		LIB_ASSERT((ptr_t)list != 0xc030da00, "list is fishy!!" #list); \
 		lib_listAdd((void **)(list), (void *)(t), (size_t) & (((typeof(t))0)->next), (size_t) & (((typeof(t))0)->prev)); \
 	} while (0)
 

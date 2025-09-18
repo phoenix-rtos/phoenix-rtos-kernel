@@ -423,7 +423,8 @@ int proc_send(u32 port, msg_t *msg)
 // #define log_debug(fmt, ...) lib_printf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
 #define log_debug(fmt, ...)
 // #define log_err(fmt, ...) lib_printf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
-#define log_err(fmt, ...)
+#define log_err(fmt, ...) lib_printf("%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+// #define log_err(fmt, ...)
 
 
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
@@ -640,7 +641,93 @@ void *proc_configure(void)
 	return vaddr;
 }
 
+
 extern void interrupts_popContextUnlocked(void);
+
+
+static int _proc_queue_fmsg(port_t *p, spinlock_ctx_t *sc, msg_t *msg)
+{
+	fmsg_t fmsg;
+	int err = EOK;
+
+	fmsg.sender = proc_current();
+	fmsg.threads = NULL;
+	fmsg.state = msg_waiting;
+
+	LIST_ADD(&p->queue, &fmsg);
+
+	while ((fmsg.state != msg_responded) && (fmsg.state != msg_rejected)) {
+		err = proc_threadWaitInterruptible(&fmsg.threads, &p->spinlock, 0, sc);
+
+		if ((err != EOK) && (fmsg.state == msg_waiting)) {
+			LIST_REMOVE(&p->queue, &fmsg);
+			break;
+		}
+	}
+
+	switch (fmsg.state) {
+		case msg_responded:
+			err = EOK; /* Don't report EINTR if we got the response already */
+			break;
+		case msg_rejected:
+			err = -EINVAL;
+			break;
+		default:
+			break;
+	}
+
+	hal_spinlockClear(&p->spinlock, sc);
+	port_put(p, 0);
+
+	return err;
+}
+
+
+static int _proc_recv_fmsg(port_t *p, spinlock_ctx_t *sc, msg_rid_t *rid)
+{
+	fmsg_t *fmsg;
+	thread_t *recv, *caller;
+	int err = EOK;
+
+	LIB_ASSERT(p->queue != NULL, "queue empty?");
+
+	recv = proc_current();
+
+	if (*rid != -1) {
+		fmsg = proc_portRidGet_fp(p, *rid);
+		caller = fmsg->sender;
+
+		hal_memcpy(&caller->utcb.kw->o, &recv->utcb.kw->o, sizeof(recv->utcb.kw->o));
+		fmsg->state = msg_responded;
+		LIST_REMOVE(&p->queue, fmsg);
+
+		log_err("WAKE");
+
+		proc_threadWakeup(&fmsg->threads);
+		hal_spinlockClear(&p->spinlock, sc);
+		hal_cpuReschedule(NULL, NULL);
+	}
+	else {
+		fmsg = p->queue;
+		LIST_REMOVE(&p->queue, fmsg);
+		hal_spinlockClear(&p->spinlock, sc);
+		fmsg->state = msg_received;
+		caller = fmsg->sender;
+
+		log_err("ok do");
+
+		if (proc_portRidAlloc_fp(p, fmsg) < 0) {
+			LIB_ASSERT(0, "todo");
+		}
+
+		*rid = lib_idtreeId(&fmsg->idlinkage);
+		hal_memcpy(&recv->utcb.kw, &caller->utcb.kw, sizeof(msg_t));
+	}
+
+	port_put(p, 0);
+
+	return err;
+}
 
 
 int proc_call(u32 port, msg_t *msg)
@@ -660,25 +747,33 @@ int proc_call(u32 port, msg_t *msg)
 
 	caller = proc_current();
 
+	if (caller->utcb.w == NULL) {
+		return -EINVAL;
+	}
+
 	hal_spinlockSet(&p->spinlock, &sc);
 	recv = p->threads;
 
-	if (recv == NULL ||
+	if (recv == NULL || p->slot.caller != NULL ||
 			/* if recv is an active server, check priority */
 			(recv->sched != NULL && caller->sched->priority < recv->sched->priority) ||
 			threads_getHighestPrio(caller->sched->priority) != caller->sched->priority) {
 
+		log_err("slow");
 		/* TODO: optimize spinlocks and port ref-counting in slow path - add proc_send
 		 * variant that already has them */
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
-		log_err("slow");
-		return proc_send(port, msg);
+		// hal_spinlockClear(&p->spinlock, &sc);
+		// port_put(p, 0);
+
+		/* TODO: don't become passive, but wait on queue */
+		// threads_becomePassive();
+		// __builtin_unreachable();
+		return _proc_queue_fmsg(p, &sc, msg);
 	}
 
 	/* commit to fastpath - point of no return */
 
-	log_err("fast");
+	// log_err("fast");
 
 	p->slot.caller = caller;
 
@@ -726,7 +821,12 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	thread_t *recv = proc_current();
 	thread_t *caller = p->slot.caller;
 
-	if (caller == NULL || p->kmessages != NULL) {
+	if (p->queue != NULL) {
+		log_err("pending recv");
+		return _proc_recv_fmsg(p, &sc, rid);
+	}
+
+	if (caller == NULL) {
 		/* slowpath */
 		log_err("passive");
 		LIST_ADD_EX(&p->threads, recv, qnext, qprev);
@@ -755,7 +855,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	/* noone to reply, doing a fastpath and switching to caller thread */
 
 	/* commit to fastpath - point of no return */
-	log_err("fast");
+	// log_err("fast");
 
 	LIST_ADD_EX(&p->threads, recv, qnext, qprev);
 
