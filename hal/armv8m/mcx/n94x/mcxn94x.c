@@ -488,8 +488,10 @@ int _mcxn94x_sysconSetDevClk(int dev, unsigned int sel, unsigned int div, int en
 		return -1;
 	}
 
-	/* Disable the clock */
-	_mcxn94x_sysconSetDevClkState(dev, 0);
+	/* Disable the clock only if it can be reconfigured */
+	if (selr != NULL || divr != NULL) {
+		_mcxn94x_sysconSetDevClkState(dev, 0);
+	}
 
 	if (selr != NULL) {
 		*selr = sel & 0x7;
