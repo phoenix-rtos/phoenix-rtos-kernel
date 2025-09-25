@@ -18,6 +18,7 @@
 #define _PROC_PROCESS_H_
 
 #include "hal/hal.h"
+#include "include/spawn.h"
 #include "vm/vm.h"
 #include "lock.h"
 #include "vm/amap.h"
@@ -97,7 +98,7 @@ extern void proc_reap(void);
 extern int proc_start(void (*initthr)(void *), void *arg, const char *path);
 
 
-extern int proc_fileSpawn(const char *path, char **argv, char **envp);
+extern int proc_fileSpawn(const char *path, char **argv, char **envp, sys_spawn_attr_t *attr);
 
 
 extern int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, char **argv);

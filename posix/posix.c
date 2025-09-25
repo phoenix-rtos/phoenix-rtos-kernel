@@ -288,13 +288,13 @@ int posix_truncate(oid_t *oid, off_t length)
 }
 
 
-int posix_clone(int ppid)
+int posix_clone(int ppid, sys_spawn_attr_t *spawnAttr)
 {
 	TRACE("clone(%x)", ppid);
 
 	process_info_t *p, *pp;
 	process_t *proc;
-	int i;
+	int i, fd;
 	oid_t console;
 	open_file_t *f;
 
@@ -391,6 +391,37 @@ int posix_clone(int ppid)
 	else {
 		p->pgid = p->process;
 	}
+
+	for (i = 0; i < spawnAttr->fileActionCount; i++) {
+		posix_close(spawnAttr->fileActions[i].fd);
+		switch (spawnAttr->fileActions[i].action) {
+			case POSIX_SPAWN_OPEN:
+				// TODO: handle mode, posix_open takes ustack and does that manually (why???)
+				fd = posix_open(spawnAttr->fileActions[i].path, spawnAttr->fileActions[i].oflag, NULL);
+				if (fd < 0) {
+					// TODO
+				}
+				p->fds[spawnAttr->fileActions[i].fd].file = p->fds[fd].file;
+				p->fds[fd].file = NULL;
+				break;
+			case POSIX_SPAWN_DUP2:
+
+
+			case POSIX_SPAWN_CLOSE:
+				break;
+		}
+	}
+
+	if (spawnAttr->flags & POSIX_SPAWN_SETSID) {
+		posix_setsid();  // TODO: this function changes current process not the one being created
+	}
+
+	if (spawnAttr->flags & POSIX_SPAWN_SETPGROUP) {
+		posix_setpgid(p->process, spawnAttr->pgid);
+	}
+
+	/* TODO: scheduler policy/priority, validate and set */
+	/* TODO: handle sigmask and sigdfl from spawnAttr */
 
 	proc_lockSet(&posix_common.lock);
 	lib_rbInsert(&posix_common.pid, &p->linkage);

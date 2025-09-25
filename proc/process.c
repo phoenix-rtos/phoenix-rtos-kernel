@@ -46,6 +46,7 @@ typedef struct {
 
 	char **argv;
 	char **envp;
+	sys_spawn_attr_t *spawnAttr;
 } process_spawn_t;
 
 
@@ -1123,14 +1124,15 @@ static void proc_spawnThread(void *arg)
 
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL) {
-		posix_clone(process_getPid(spawn->parent->process));
+		posix_clone(process_getPid(spawn->parent->process), spawn->spawnAttr);
+		// TODO: posix_clone error handling
 	}
 
 	process_exec(current, spawn);
 }
 
 
-static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
+static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp, sys_spawn_attr_t *spawnAttr)
 {
 	int pid;
 	process_spawn_t spawn;
@@ -1151,6 +1153,7 @@ static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap,
 	spawn.state = FORKING;
 	spawn.argv = argv;
 	spawn.envp = envp;
+	spawn.spawnAttr = spawnAttr;
 	spawn.parent = proc_current();
 	spawn.map = map;
 	spawn.imap = imap;
@@ -1175,7 +1178,7 @@ static int proc_spawn(vm_object_t *object, syspage_prog_t *prog, vm_map_t *imap,
 }
 
 
-int proc_fileSpawn(const char *path, char **argv, char **envp)
+int proc_fileSpawn(const char *path, char **argv, char **envp, sys_spawn_attr_t *spawnAttr)
 {
 	int err;
 	oid_t oid;
@@ -1187,7 +1190,7 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	if ((err = vm_objectGet(&object, oid)) < 0)
 		return err;
 
-	return proc_spawn(object, NULL, NULL, NULL, 0, object->size, path, argv, envp);
+	return proc_spawn(object, NULL, NULL, NULL, 0, object->size, path, argv, envp, spawnAttr);
 }
 
 
@@ -1231,7 +1234,7 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 
 int proc_syspageSpawn(syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
 {
-	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, program->start, program->end - program->start, path, argv, NULL);
+	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, program->start, program->end - program->start, path, argv, NULL, NULL);
 }
 
 
@@ -1311,7 +1314,8 @@ static void process_vforkThread(void *arg)
 
 	current = proc_current();
 	parent = spawn->parent;
-	posix_clone(process_getPid(parent->process));
+	posix_clone(process_getPid(parent->process), NULL);
+	// TODO: posix_clone error handling
 
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 

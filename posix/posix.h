@@ -85,7 +85,7 @@ extern int posix_statvfs(const char *path, int fd, struct statvfs *buf);
 extern int posix_fsync(int fd);
 
 
-extern int posix_clone(int ppid);
+extern int posix_clone(int ppid, sys_spawn_attr_t *attr);
 
 
 extern int posix_exec(void);

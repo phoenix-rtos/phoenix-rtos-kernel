@@ -177,17 +177,28 @@ int syscalls_release(void *ustack)
 
 int syscalls_sys_spawn(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	char *path;
 	char **argv;
 	char **envp;
+	sys_spawn_attr_t *sa;
 
 	/* FIXME pass fields lengths from userspace */
 
 	GETFROMSTACK(ustack, char *, path, 0);
 	GETFROMSTACK(ustack, char **, argv, 1);
 	GETFROMSTACK(ustack, char **, envp, 2);
+	GETFROMSTACK(ustack, sys_spawn_attr_t *, sa, 3);
 
-	return proc_fileSpawn(path, argv, envp);
+	if ((sa != NULL) && (vm_mapBelongs(proc, sa, sizeof(*sa)) < 0)) {
+		return -EFAULT;
+	}
+
+	if ((sa->fileActions != NULL) && (vm_mapBelongs(proc, sa->fileActions, sa->fileActionCount * sizeof(*sa->fileActions)) < 0)) {
+		return -EFAULT;
+	}
+
+	return proc_fileSpawn(path, argv, envp, sa);
 }
 
 
