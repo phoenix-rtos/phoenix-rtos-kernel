@@ -12,12 +12,11 @@
  *
  * %LICENSE%
  */
-
 #ifndef _LIB_LIST_H_
 #define _LIB_LIST_H_
 
 #include "hal/hal.h"
-#include "lib/assert.h"
+#include "lib/lib.h"
 
 
 extern void lib_listAdd(void **list, void *t, size_t noff, size_t poff);
@@ -32,7 +31,7 @@ extern int lib_listBelongs(void **list, void *t, size_t noff, size_t poff);
 #define LIST_ADD_EX(list, t, next, prev) \
 	do { \
 		LIB_STATIC_ASSERT_SAME_TYPE(*(list), t); \
-		lib_listAdd((void **)(list), (void *)(t), (size_t) & (((typeof(t))0)->next), (size_t) & (((typeof(t))0)->prev)); \
+		lib_listAdd((void **)(list), (void *)(t), offsetof(typeof(*(t)), next), offsetof(typeof(*(t)), prev)); \
 	} while (0)
 
 
@@ -42,7 +41,7 @@ extern int lib_listBelongs(void **list, void *t, size_t noff, size_t poff);
 #define LIST_REMOVE_EX(list, t, next, prev) \
 	do { \
 		LIB_STATIC_ASSERT_SAME_TYPE(*(list), t); \
-		lib_listRemove((void **)(list), (void *)(t), (size_t) & (((typeof(t))0)->next), (size_t) & (((typeof(t))0)->prev)); \
+		lib_listRemove((void **)(list), (void *)(t), offsetof(typeof(*(t)), next), offsetof(typeof(*(t)), prev)); \
 	} while (0)
 
 
@@ -52,7 +51,7 @@ extern int lib_listBelongs(void **list, void *t, size_t noff, size_t poff);
 #define LIST_BELONGS_EX(list, t, next, prev) \
 	({ \
 		LIB_STATIC_ASSERT_SAME_TYPE(*(list), t); \
-		lib_listBelongs((void **)(list), (void *)(t), (size_t) & (((typeof(t))0)->next), (size_t) & (((typeof(t))0)->prev)); \
+		lib_listBelongs((void **)(list), (void *)(t), offsetof(typeof(*(t)), next), offsetof(typeof(*(t)), prev)); \
 	})
 
 
