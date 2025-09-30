@@ -23,6 +23,7 @@
 #include "vm/amap.h"
 #include "syspage.h"
 #include "lib/lib.h"
+#include "futex.h"
 
 #define MAX_PID MAX_ID
 
@@ -70,6 +71,9 @@ typedef struct _process_t {
 
 	void *got;
 	hal_tls_t tls;
+
+	spinlock_t futexSqSpinlock;
+	futex_sleepqueue_t futexSleepQueues[FUTEX_SLEEPQUEUES_SIZE];
 } process_t;
 
 
