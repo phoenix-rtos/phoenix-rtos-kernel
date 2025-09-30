@@ -2151,13 +2151,10 @@ __attribute__((noreturn)) static void _proc_call(port_t *p, thread_t *caller, sp
 {
 	spinlock_ctx_t tsc;
 
-	// hal_lockScheduler();
-
 	thread_t *recv = p->threads;
 	hal_memcpy(recv->utcb.kw, caller->utcb.kw, sizeof(*recv->utcb.kw));
 
 	LIB_ASSERT(recv != NULL, "recv is null");
-
 	LIB_ASSERT(p->slot.caller == NULL, "there is already a caller?");
 
 	p->slot.caller = caller;
@@ -2165,21 +2162,13 @@ __attribute__((noreturn)) static void _proc_call(port_t *p, thread_t *caller, sp
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	LIST_REMOVE_EX(&p->threads, recv, qnext, qprev);
 
-	log_debug("utcb buf type %d", caller->utcb.kw->type);
-
-
-	log_err("SWITCHING %p", recv);
-
-	// port_put(p, 0);
-
 	cpu_context_t *ctx = _threads_switchTo(recv, 0);
-
-	log_err("SWITCHED");
-	log_debug("recv->ctx=%p ctx->eip=%p\n", recv->context, recv->context->eip);
 
 	/* NI - preserve interrupt suppresion set during spinlockSet */
 	hal_spinlockClearNI(&threads_common.spinlock, &tsc);
 	hal_spinlockClearNI(&p->spinlock, sc);
+
+	port_put(p, 0);
 
 	asm volatile(
 			"movl %0, %%esp\n\t"
@@ -2207,8 +2196,6 @@ static int _proc_callSlow(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 	int err;
 
 	while (_mustSlowCall(p, caller) != 0) {
-		log_err("to sleep p=%d", proc_getTid(proc_current()));
-
 		err = proc_threadWaitInterruptible(&p->queue, &p->spinlock, 0, sc);
 		if (err < 0) {
 			hal_spinlockClear(&p->spinlock, sc);
@@ -2216,12 +2203,9 @@ static int _proc_callSlow(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 			LIB_ASSERT_ALWAYS(0, "FAIL");
 			return err;
 		}
-		log_err("woke up");
-
 		/* TODO: abort on server fault/port closure */
 	}
 
-	log_err("im going in");
 	_proc_call(p, caller, sc);
 }
 
@@ -2286,12 +2270,9 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	/* TODO: this should probably be accounted in better way */
 	if (threads_getHighestPrio(recv->sched->priority) != recv->sched->priority) {
 		/* TODO: dead code? */
+		LIB_ASSERT(0, "dead code not dead");
 
 		/* someone to respond but cannot be scheduled directly */
-		log_err("slow: prio %d != %d", threads_getHighestPrio(recv->sched->priority), recv->sched->priority);
-
-		LIB_ASSERT(0, "HAAAAAAAAAAA");
-
 		if (p->slot.caller != NULL) {
 			hal_memcpy(&p->slot.caller->utcb.kw->o, &recv->utcb.kw->o, sizeof(p->slot.caller->utcb.kw->o));
 			p->slot.caller->state = READY;
@@ -2299,7 +2280,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		}
 
 		hal_spinlockClear(&p->spinlock, &sc);
-		// port_put(p, 0);
+		port_put(p, 0);
 		hal_cpuReschedule(NULL, NULL);
 
 		__builtin_unreachable();
@@ -2313,7 +2294,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		LIST_ADD_EX(&p->threads, recv, qnext, qprev);
 
 		hal_spinlockClear(&p->spinlock, &sc);
-		// port_put(p, 0);
+		port_put(p, 0);
 
 		threads_becomePassive();
 		__builtin_unreachable();
@@ -2343,8 +2324,6 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	LIST_ADD_EX(&p->threads, recv, qnext, qprev);
 	p->slot.caller = NULL;
 
-	// port_put(p, 0);
-
 	/*
 	 * TODO: must to some sort of lock_kernel() like qnx to avoid preemptions here
 	 * https://community.qnx.com/sf/wiki/do/viewHtml/projects.core_os/wiki/KernelSystemCall
@@ -2357,6 +2336,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	/* NI - preserve interrupt suppresion set during spinlockSet */
 	hal_spinlockClearNI(&threads_common.spinlock, &tsc);
 	hal_spinlockClearNI(&p->spinlock, &sc);
+
+	port_put(p, 0);
 
 	asm volatile(
 			"movl %0, %%esp\n\t"

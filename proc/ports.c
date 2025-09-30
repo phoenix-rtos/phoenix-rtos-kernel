@@ -19,7 +19,7 @@
 
 struct {
 	idtree_t tree;
-	lock_t port_lock;
+	spinlock_t spinlock;
 } port_common;
 
 
@@ -84,20 +84,20 @@ fmsg_t *proc_portRidGet_fp(port_t *p, msg_rid_t rid)
 port_t *proc_portGet(u32 id)
 {
 	port_t *port;
-	spinlock_ctx_t sc;
+	spinlock_ctx_t sc, psc;
 
 	if (id > MAX_ID) {
 		return NULL;
 	}
 
-	proc_lockSet(&port_common.port_lock);
+	hal_spinlockSet(&port_common.spinlock, &psc);
 	port = lib_idtreeof(port_t, linkage, lib_idtreeFind(&port_common.tree, (int)id));
 	if (port != NULL) {
 		hal_spinlockSet(&port->spinlock, &sc);
 		port->refs++;
 		hal_spinlockClear(&port->spinlock, &sc);
 	}
-	proc_lockClear(&port_common.port_lock);
+	hal_spinlockClear(&port_common.spinlock, &psc);
 
 	return port;
 }
@@ -105,9 +105,9 @@ port_t *proc_portGet(u32 id)
 
 void port_put(port_t *p, int destroy)
 {
-	spinlock_ctx_t sc;
+	spinlock_ctx_t sc, psc;
 
-	proc_lockSet(&port_common.port_lock);
+	hal_spinlockSet(&port_common.spinlock, &psc);
 	hal_spinlockSet(&p->spinlock, &sc);
 	p->refs--;
 
@@ -122,13 +122,13 @@ void port_put(port_t *p, int destroy)
 		}
 
 		hal_spinlockClear(&p->spinlock, &sc);
-		proc_lockClear(&port_common.port_lock);
+		hal_spinlockClear(&port_common.spinlock, &psc);
 		return;
 	}
 
 	hal_spinlockClear(&p->spinlock, &sc);
 	lib_idtreeRemove(&port_common.tree, &p->linkage);
-	proc_lockClear(&port_common.port_lock);
+	hal_spinlockClear(&port_common.spinlock, &psc);
 
 	proc_lockSet(&p->owner->lock);
 	if (p->next != NULL) {
@@ -147,15 +147,16 @@ int proc_portCreate(u32 *id)
 	port_t *port;
 	thread_t *curr = proc_current();
 	process_t *proc = (curr == NULL) ? NULL : curr->process;
+	spinlock_ctx_t sc;
 
 	port = vm_kmalloc(sizeof(port_t));
 	if (port == NULL) {
 		return -ENOMEM;
 	}
 
-	proc_lockSet(&port_common.port_lock);
+	hal_spinlockSet(&port_common.spinlock, &sc);
 	if (lib_idtreeAlloc(&port_common.tree, &port->linkage, 0) < 0) {
-		proc_lockClear(&port_common.port_lock);
+		hal_spinlockClear(&port_common.spinlock, &sc);
 		vm_kfree(port);
 		return -ENOMEM;
 	}
@@ -173,7 +174,7 @@ int proc_portCreate(u32 *id)
 
 	*id = (u32)port->linkage.id;
 	port->owner = proc;
-	proc_lockClear(&port_common.port_lock);
+	hal_spinlockClear(&port_common.spinlock, &sc);
 
 	if (proc != NULL) {
 		proc_lockSet(&proc->lock);
@@ -232,5 +233,5 @@ void proc_portsDestroy(process_t *proc)
 void _port_init(void)
 {
 	lib_idtreeInit(&port_common.tree);
-	proc_lockInit(&port_common.port_lock, &proc_lockAttrDefault, "port.common");
+	hal_spinlockCreate(&port_common.spinlock, "ports.spinlock");
 }
