@@ -25,6 +25,9 @@ extern void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc);
 extern void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc);
 
 
+extern void hal_spinlockClearNI(spinlock_t *spinlock, spinlock_ctx_t *sc);
+
+
 extern void hal_spinlockCreate(spinlock_t *spinlock, const char *name);
 
 

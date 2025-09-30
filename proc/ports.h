@@ -46,7 +46,10 @@ typedef struct _port_t {
 		thread_t *caller;
 	} slot;
 
-	fmsg_t *queue;
+	enum { portState_idle,
+		portState_send,
+		portState_recv } portState;
+	thread_t *queue;
 } port_t;
 
 /* FIXME - use int for port handle.

@@ -60,6 +60,9 @@ typedef struct _sched_context_t {
 
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
+
+	/* debug */
+	struct _thread_t *owner;
 } sched_context_t;
 
 
@@ -242,6 +245,9 @@ extern void _threads_removeFromQueue(thread_t *t);
 
 
 extern void threads_becomePassive(void);
+
+
+extern void threads_setState(u8 state);
 
 
 #endif

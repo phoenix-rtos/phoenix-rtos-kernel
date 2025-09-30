@@ -422,9 +422,10 @@ int proc_send(u32 port, msg_t *msg)
 // #define log_debug(fmt, ...) perf_traceEventsPrintf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
 // #define log_debug(fmt, ...) lib_printf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
 #define log_debug(fmt, ...)
+#define log_err(fmt, ...)
+
 // #define log_err(fmt, ...) lib_printf("(%d)%s: " fmt "\n", proc_getTid(proc_current()), __FUNCTION__, ##__VA_ARGS__)
-#define log_err(fmt, ...) lib_printf("%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
-// #define log_err(fmt, ...)
+// #define log_err(fmt, ...) do { thread_t *t = proc_current(); lib_printf("(%d,%d) %s: " fmt "\n", proc_getTid(t), t->sched->priority, __FUNCTION__, ##__VA_ARGS__); } while (0)
 
 
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
@@ -642,98 +643,87 @@ void *proc_configure(void)
 }
 
 
-extern void interrupts_popContextUnlocked(void);
+#if 0
+extern void interrupts_popContext(void);
 
 
-static int _proc_queue_fmsg(port_t *p, spinlock_ctx_t *sc, msg_t *msg)
+__attribute__((noreturn)) static void _proc_call(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 {
-	fmsg_t fmsg;
-	int err = EOK;
+	hal_cpuDisableInterrupts();
+	hal_lockScheduler();
 
-	fmsg.sender = proc_current();
-	fmsg.threads = NULL;
-	fmsg.state = msg_waiting;
+	thread_t *recv = p->threads;
 
-	LIST_ADD(&p->queue, &fmsg);
+	LIB_ASSERT(recv != NULL, "recv is null");
 
-	while ((fmsg.state != msg_responded) && (fmsg.state != msg_rejected)) {
-		err = proc_threadWaitInterruptible(&fmsg.threads, &p->spinlock, 0, sc);
+	LIB_ASSERT(p->slot.caller == NULL, "there is already a caller?");
 
-		if ((err != EOK) && (fmsg.state == msg_waiting)) {
-			LIST_REMOVE(&p->queue, &fmsg);
-			break;
-		}
-	}
+	p->slot.caller = caller;
 
-	switch (fmsg.state) {
-		case msg_responded:
-			err = EOK; /* Don't report EINTR if we got the response already */
-			break;
-		case msg_rejected:
-			err = -EINVAL;
-			break;
-		default:
-			break;
-	}
+	log_debug("utcb buf type %d", caller->utcb.kw->type);
+	hal_memcpy(recv->utcb.kw, caller->utcb.kw, sizeof(*recv->utcb.kw));
+
+	LIST_REMOVE_EX(&p->threads, recv, qnext, qprev);
+
+	log_err("SWITCHING %p", recv);
 
 	hal_spinlockClear(&p->spinlock, sc);
-	port_put(p, 0);
+	// port_put(p, 0);
 
-	return err;
+	cpu_context_t *ctx = threads_switchTo(recv, 0);
+
+	log_err("SWITCHED");
+	log_debug("recv->ctx=%p ctx->eip=%p\n", recv->context, recv->context->eip);
+
+	asm volatile(
+			"cli\n\t"
+			"movl %0, %%esp\n\t"
+			"jmp interrupts_popContext\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+
+	__builtin_unreachable();
 }
 
 
-static int _proc_recv_fmsg(port_t *p, spinlock_ctx_t *sc, msg_rid_t *rid)
+static inline int _mustSlowCall(port_t *p, thread_t *caller)
 {
-	fmsg_t *fmsg;
-	thread_t *recv, *caller;
-	int err = EOK;
+	return p->fastpath != 0 || p->threads == NULL || p->slot.caller != NULL ||
+			/* if recv is an active server, check priority */
+			(p->threads->sched != NULL && caller->sched->priority < p->threads->sched->priority) ||
+			threads_getHighestPrio(caller->sched->priority) != caller->sched->priority;
+}
 
-	LIB_ASSERT(p->queue != NULL, "queue empty?");
 
-	recv = proc_current();
+static int _proc_callSlow(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
+{
+	int err;
 
-	if (*rid != -1) {
-		fmsg = proc_portRidGet_fp(p, *rid);
-		caller = fmsg->sender;
+	while (_mustSlowCall(p, caller) != 0) {
+		log_err("to sleep p=%d", proc_getTid(proc_current()));
 
-		hal_memcpy(&caller->utcb.kw->o, &recv->utcb.kw->o, sizeof(recv->utcb.kw->o));
-		fmsg->state = msg_responded;
-		LIST_REMOVE(&p->queue, fmsg);
-
-		log_err("WAKE");
-
-		proc_threadWakeup(&fmsg->threads);
-		hal_spinlockClear(&p->spinlock, sc);
-		hal_cpuReschedule(NULL, NULL);
-	}
-	else {
-		fmsg = p->queue;
-		LIST_REMOVE(&p->queue, fmsg);
-		hal_spinlockClear(&p->spinlock, sc);
-		fmsg->state = msg_received;
-		caller = fmsg->sender;
-
-		log_err("ok do");
-
-		if (proc_portRidAlloc_fp(p, fmsg) < 0) {
-			LIB_ASSERT(0, "todo");
+		err = proc_threadWaitInterruptible(&p->queue, &p->spinlock, 0, sc);
+		if (err < 0) {
+			hal_spinlockClear(&p->spinlock, sc);
+			port_put(p, 0);
+			LIB_ASSERT_ALWAYS(0, "FAIL");
+			return err;
 		}
+		log_err("woke up");
 
-		*rid = lib_idtreeId(&fmsg->idlinkage);
-		hal_memcpy(&recv->utcb.kw, &caller->utcb.kw, sizeof(msg_t));
+		/* TODO: abort on server fault/port closure */
 	}
 
-	port_put(p, 0);
-
-	return err;
+	log_err("im going in");
+	_proc_call(p, caller, sc);
 }
 
 
 int proc_call(u32 port, msg_t *msg)
 {
 	port_t *p;
-	thread_t *caller, *recv;
+	thread_t *caller;
 	spinlock_ctx_t sc;
 
 	if (msg == NULL) {
@@ -752,51 +742,16 @@ int proc_call(u32 port, msg_t *msg)
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
-	recv = p->threads;
 
-	if (recv == NULL || p->slot.caller != NULL ||
-			/* if recv is an active server, check priority */
-			(recv->sched != NULL && caller->sched->priority < recv->sched->priority) ||
-			threads_getHighestPrio(caller->sched->priority) != caller->sched->priority) {
-
-		log_err("slow");
-		/* TODO: optimize spinlocks and port ref-counting in slow path - add proc_send
-		 * variant that already has them */
-		// hal_spinlockClear(&p->spinlock, &sc);
-		// port_put(p, 0);
-
-		/* TODO: don't become passive, but wait on queue */
-		// threads_becomePassive();
-		// __builtin_unreachable();
-		return _proc_queue_fmsg(p, &sc, msg);
+	while (_mustSlowCall(p, caller) != 0) {
+		log_err("slow (prio=%d, tid=%d)", caller->sched->priority, proc_getTid(caller));
+		return _proc_callSlow(p, caller, &sc);
 	}
 
 	/* commit to fastpath - point of no return */
 
-	// log_err("fast");
-
-	p->slot.caller = caller;
-
-	log_debug("utcb buf type %d", caller->utcb.kw->type);
-	hal_memcpy(recv->utcb.kw, caller->utcb.kw, sizeof(msg_t));
-
-	LIST_REMOVE_EX(&p->threads, recv, qnext, qprev);
-
-	hal_spinlockClear(&p->spinlock, &sc);
-	port_put(p, 0);
-
-	cpu_context_t *ctx = threads_switchTo(recv, 0);
-	log_debug("recv->ctx=%p ctx->eip=%p\n", recv->context, recv->context->eip);
-
-	asm volatile(
-			"cli\n\t"
-			"movl %0, %%esp\n\t"
-			"jmp interrupts_popContextUnlocked\n\t"
-			:
-			: "r"(ctx)
-			: "memory");
-
-	__builtin_unreachable();
+	log_err("fast (prio=%d, hprio=%d)", caller->sched->priority, threads_getHighestPrio(caller->sched->priority));
+	_proc_call(p, caller, &sc);
 }
 
 
@@ -804,6 +759,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p;
 	spinlock_ctx_t sc;
+	thread_t *caller;
 
 	if (rid == NULL) {
 		return -EINVAL;
@@ -819,65 +775,89 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	log_debug("utcb buf type %d", proc_current()->utcb.kw->type);
 
 	thread_t *recv = proc_current();
-	thread_t *caller = p->slot.caller;
 
-	if (p->queue != NULL) {
-		log_err("pending recv");
-		return _proc_recv_fmsg(p, &sc, rid);
+	/* recv SC is actually caller's SC */
+	/* TODO: this should probably be accounted in better way */
+	if (threads_getHighestPrio(recv->sched->priority) != recv->sched->priority) {
+		/* someone to respond but cannot be scheduled directly */
+		log_err("slow: prio %d != %d", threads_getHighestPrio(recv->sched->priority), recv->sched->priority);
+
+		LIB_ASSERT(0, "HAAAAAAAAAAA");
+
+		if (p->slot.caller != NULL) {
+			hal_memcpy(&p->slot.caller->utcb.kw->o, &recv->utcb.kw->o, sizeof(p->slot.caller->utcb.kw->o));
+			p->slot.caller->state = READY;
+			p->slot.caller = NULL;
+		}
+
+		hal_spinlockClear(&p->spinlock, &sc);
+		// port_put(p, 0);
+		hal_cpuReschedule(NULL, NULL);
+
+		__builtin_unreachable();
+		/* i think this point actually reachable ... */
 	}
 
-	if (caller == NULL) {
+
+	if (p->slot.caller == NULL) {
 		/* slowpath */
 		log_err("passive");
 		LIST_ADD_EX(&p->threads, recv, qnext, qprev);
 
 		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
+		// port_put(p, 0);
 
 		threads_becomePassive();
 		__builtin_unreachable();
 	}
 
-	/* recv SC is actually caller's SC */
-	if (threads_getHighestPrio(recv->sched->priority) != recv->sched->priority) {
-		/* someone to respond but cannot be scheduled directly */
-		log_err("slow: prio %d != %d", threads_getHighestPrio(recv->sched->priority), recv->sched->priority);
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
+	/* TODO: handle caller faults */
+	LIB_ASSERT(p->slot.caller->exit == 0, "exit=%d", p->slot.caller->exit);
+	LIB_ASSERT(p->slot.caller->state != GHOST, "huh");
 
-		/* TODO: something along the lines of */
-		// hal_memcpy(&((msg_t *)caller->utcb.w)->o, &((msg_t *)recv->utcb.w)->o, sizeof(msg_t));
-		// caller->state = READY;
-
-		return proc_recv(port, msg, rid);
+	/* wake next caller if exists */
+	if (p->queue != NULL) {
+		log_err("wake next (prio=%d)", p->queue->sched->priority);
+		proc_threadWakeup(&p->queue);
 	}
 
 	/* noone to reply, doing a fastpath and switching to caller thread */
-
 	/* commit to fastpath - point of no return */
-	// log_err("fast");
+
+	hal_cpuDisableInterrupts();
+	hal_lockScheduler();
+	log_err("fast (%d, %d)", proc_getTid(recv), recv->sched->priority);
 
 	LIST_ADD_EX(&p->threads, recv, qnext, qprev);
 
-	hal_memcpy(&caller->utcb.kw->o, &recv->utcb.kw->o, sizeof(msg_t));
-
+	caller = p->slot.caller;
+	hal_memcpy(&caller->utcb.kw->o, &recv->utcb.kw->o, sizeof(caller->utcb.kw->o));
 	p->slot.caller = NULL;
 
+	p->fastpath = 0;
+
 	hal_spinlockClear(&p->spinlock, &sc);
-	port_put(p, 0);
+	// port_put(p, 0);
+
+	/* 
+	 * TODO: must to some sort of lock_kernel() like qnx to avoid preemptions here
+	 * https://community.qnx.com/sf/wiki/do/viewHtml/projects.core_os/wiki/KernelSystemCall
+	 * preemption may lead to two threads of same priority to do threads_switchTo
+	 * at the same time
+	 */
 
 	cpu_context_t *ctx = threads_switchTo(caller, 1);
 
 	asm volatile(
-			"cli\n\t"
 			"movl %0, %%esp\n\t"
-			"jmp interrupts_popContextUnlocked\n\t"
+			"jmp interrupts_popContext\n\t"
 			:
 			: "r"(ctx)
 			: "memory");
 
 	__builtin_unreachable();
 }
+#endif
 
 
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel)

@@ -72,6 +72,33 @@ void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
+/* TODO: cleaner API for interrupt suppression */
+void hal_spinlockClearNI(spinlock_t *spinlock, spinlock_ctx_t *sc)
+{
+	hal_cpuGetCycles((void *)&spinlock->e);
+
+	/* Calculate maximum and minimum lock time */
+	if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
+		spinlock->dmax = spinlock->e - spinlock->b;
+
+	if (spinlock->e - spinlock->b < spinlock->dmin)
+		spinlock->dmin = spinlock->e - spinlock->b;
+
+	/* clang-format off */
+	__asm__ volatile (
+		"xorl %%eax, %%eax\n\t"
+		"incl %%eax\n\t"
+		"xchgl %0, %%eax\n\t"
+		"movl %1, %%eax\n\t"
+		"pushl %%eax\n\t"
+		"addl $4, %%esp\n\t"
+	:
+	: "m" (spinlock->lock), "r" (*sc)
+	: "eax", "memory");
+	/* clang-format on */
+}
+
+
 static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 {
 
