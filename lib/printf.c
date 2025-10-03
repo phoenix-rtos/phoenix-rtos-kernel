@@ -294,7 +294,6 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				is_number = 1;
 				break;
 			case 'u':
-				flags |= FLAG_SIGNED;
 				is_number = 1;
 				break;
 			case 'p': {
