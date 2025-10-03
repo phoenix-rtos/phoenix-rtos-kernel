@@ -71,7 +71,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *
 	ctx->ip = 0xccccccccUL;
 	ctx->lr = 0xeeeeeeeeUL;
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign to processor register function address" */
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->pc = (u32)start;
 
 	/* Enable interrupts, set normal execution mode */

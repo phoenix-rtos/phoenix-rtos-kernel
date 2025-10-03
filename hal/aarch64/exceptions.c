@@ -38,7 +38,7 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 }
 
 
-static const char *exceptionClassStr(int excClass)
+static const char *exceptionClassStr(unsigned int excClass)
 {
 	switch (excClass) {
 		case 0b000000:

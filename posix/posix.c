@@ -1090,7 +1090,7 @@ int posix_chmod(const char *pathname, mode_t mode)
 
 	msg.type = mtSetAttr;
 	msg.i.attr.type = atMode;
-	// parasoft-suppress-next-line MISRAC2012-RULE_10_3-b ""
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3-b */
 	msg.i.attr.val = mode & ALLPERMS;
 
 	err = proc_send(oid.port, &msg);

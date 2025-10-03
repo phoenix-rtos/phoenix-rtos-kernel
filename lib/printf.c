@@ -43,10 +43,7 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 	u32 num32 = (u32)num64;
 	u32 num_high = (u32)(num64 >> 32);
 
-	/* parasoft-begin-suppress MISRAC2012-RULE_10_3
-	 * "This function uses clever tricks to convert
-	 * radix of the incoming num64"
-	 */
+	/* parasoft-begin-suppress MISRAC2012-RULE_10_3 "This function uses clever tricks to convert radix of the incoming num64" */
 	if ((flags & FLAG_SIGNED) != 0U) {
 		if ((flags & FLAG_64BIT) != 0U) {
 			if ((s32)num_high < 0) {
