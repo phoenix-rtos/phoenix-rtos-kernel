@@ -24,7 +24,7 @@ static int strtoul_isalnum(char c)
 	}
 
 	/* test letter, AND with space char to convert to upper case */
-	// parasoft-suppress-next-line MISRAC2012-RULE_10_1
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_1 */
 	c &= (char)(~0x20U);
 
 	if ((c >= 'A') && (c <= 'Z')) {
