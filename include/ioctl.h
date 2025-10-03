@@ -19,7 +19,7 @@
 
 typedef struct {
 	unsigned long request;
-	char data[];
+	char data[0];
 } ioctl_in_t;
 
 

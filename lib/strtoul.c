@@ -23,8 +23,10 @@ static int strtoul_isalnum(char c)
 		return 1;
 	}
 
-	/* test letter */
-	c &= ~0x20;
+	/* test letter, AND with space char to convert to upper case */
+	/* parasoft-suppress-next-line MISRAC2012-RULE_10_1 */
+	c &= (char)(~0x20U);
+
 	if ((c >= 'A') && (c <= 'Z')) {
 		return 1;
 	}
@@ -35,23 +37,24 @@ static int strtoul_isalnum(char c)
 
 unsigned long lib_strtoul(char *nptr, char **endptr, int base)
 {
-	unsigned long t, v = 0;
+	unsigned int t = 0;
+	unsigned long v = 0;
 
 	if ((base == 16) && (nptr[0] == '0') && (nptr[1] == 'x')) {
 		nptr += 2;
 	}
 
-	while (strtoul_isalnum(*nptr)) {
-		t = *nptr - '0';
-		if (t > 9) {
-			t = (*nptr | 0x20) - 'a' + 10;
+	while (strtoul_isalnum(*nptr) != 0) {
+		t = (unsigned int)*nptr - (unsigned int)'0';
+		if (t > 9U) {
+			t = ((unsigned int)*nptr | 0x20U) - (unsigned int)'a' + 10U;
 		}
 
-		if (t >= base) {
+		if (t >= (unsigned int)base) {
 			break;
 		}
 
-		v = (v * base) + t;
+		v = (v * (unsigned long)base) + (unsigned long)t;
 
 		++nptr;
 	}

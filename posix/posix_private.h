@@ -20,20 +20,22 @@
 #include "proc/proc.h"
 #include "posix.h"
 
+/* This define is used against oid_t.id which is __u32
+ * hence the implicit bit value instead of -1
+ */
+#define US_PORT 0xFFFFFFFFU /* FIXME */
 
-#define US_PORT (-1) /* FIXME */
 
-
-#define SIGHUP     1
-#define SIGINT     2
-#define SIGQUIT    3
-#define SIGILL     4
-#define SIGTRAP    5
-#define SIGABRT    6
-#define SIGIOT     SIGABRT
-#define SIGEMT     7
-#define SIGFPE     8
-#define SIGKILL    9
+#define SIGHUP    1
+#define SIGINT    2
+#define SIGQUIT   3
+#define SIGILL    4
+#define SIGTRAP   5
+#define SIGABRT   6
+#define SIGIOT    SIGABRT
+#define SIGEMT    7
+#define SIGFPE    8
+#define SIGKILL   9
 #define SIGBUS    10
 #define SIGSEGV   11
 #define SIGSYS    12
@@ -63,14 +65,21 @@
 #define SIG_DFL (-2)
 #define SIG_IGN (-3)
 
-#define HOST_NAME_MAX 255
+#define HOST_NAME_MAX 255U
 
 
-enum { ftRegular, ftPipe, ftFifo, ftInetSocket, ftUnixSocket, ftTty };
+enum { ftRegular,
+	ftPipe,
+	ftFifo,
+	ftInetSocket,
+	ftUnixSocket,
+	ftTty };
 
 
 /* FIXME: share with posixsrv */
-enum { pxBufferedPipe, pxPipe, pxPTY };
+enum { pxBufferedPipe,
+	pxPipe,
+	pxPTY };
 
 
 #define F_SEEKABLE(type) ((type) == ftRegular)
@@ -89,7 +98,7 @@ typedef struct {
 
 typedef struct {
 	open_file_t *file;
-	unsigned flags;
+	unsigned int flags;
 } fildes_t;
 
 
@@ -116,13 +125,12 @@ typedef struct _process_info_t {
 
 /* SIOCGIFCONF ioctl special case: arg is structure with pointer */
 struct ifconf {
-	int ifc_len;   /* size of buffer */
-	char *ifc_buf; /* buffer address */
+	unsigned int ifc_len; /* size of buffer */
+	char *ifc_buf;        /* buffer address */
 };
 
 /* SIOADDRT and SIOCDELRT ioctls special case: arg is structure with pointer */
-struct rtentry
-{
+struct rtentry {
 	struct sockaddr rt_dst;
 	struct sockaddr rt_gateway;
 	struct sockaddr rt_genmask;
@@ -147,13 +155,13 @@ extern int posix_newFile(process_info_t *p, int fd);
 extern int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags);
 
 
-extern process_info_t *pinfo_find(unsigned int pid);
+extern process_info_t *pinfo_find(int pid);
 
 
 extern void pinfo_put(process_info_t *p);
 
 
-extern int inet_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags);
+extern int inet_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags);
 
 
 extern int inet_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len);
@@ -174,16 +182,16 @@ extern int inet_getsockopt(unsigned socket, int level, int optname, void *optval
 extern int inet_listen(unsigned socket, int backlog);
 
 
-extern ssize_t inet_recvfrom(unsigned socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len);
+extern ssize_t inet_recvfrom(unsigned socket, void *message, size_t length, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len);
 
 
-extern ssize_t inet_sendto(unsigned socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+extern ssize_t inet_sendto(unsigned socket, const void *message, size_t length, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
-extern ssize_t inet_recvmsg(unsigned socket, struct msghdr *msg, int flags);
+extern ssize_t inet_recvmsg(unsigned socket, struct msghdr *msg, unsigned int flags);
 
 
-extern ssize_t inet_sendmsg(unsigned socket, const struct msghdr *msg, int flags);
+extern ssize_t inet_sendmsg(unsigned socket, const struct msghdr *msg, unsigned int flags);
 
 
 extern int inet_socket(int domain, int type, int protocol);
@@ -201,7 +209,7 @@ extern int inet_setfl(unsigned socket, int flags);
 extern int inet_getfl(unsigned socket);
 
 
-extern int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags);
+extern int unix_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags);
 
 
 extern int unix_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len);
@@ -222,16 +230,16 @@ extern int unix_getsockopt(unsigned socket, int level, int optname, void *optval
 extern int unix_listen(unsigned socket, int backlog);
 
 
-extern ssize_t unix_recvfrom(unsigned socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len);
+extern ssize_t unix_recvfrom(unsigned socket, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len);
 
 
-extern ssize_t unix_sendto(unsigned socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+extern ssize_t unix_sendto(unsigned socket, const void *msg, size_t len, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 
 
-extern ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, int flags);
+extern ssize_t unix_recvmsg(unsigned socket, struct msghdr *msg, unsigned int flags);
 
 
-extern ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, int flags);
+extern ssize_t unix_sendmsg(unsigned socket, const struct msghdr *msg, unsigned int flags);
 
 
 extern int unix_socket(int domain, int type, int protocol);
@@ -249,7 +257,7 @@ extern int unix_unlink(unsigned socket);
 extern int unix_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
-extern int unix_setfl(unsigned socket, int flags);
+extern int unix_setfl(unsigned socket, unsigned int flags);
 
 
 extern int unix_getfl(unsigned socket);
@@ -258,7 +266,7 @@ extern int unix_getfl(unsigned socket);
 extern int unix_close(unsigned socket);
 
 
-extern int unix_poll(unsigned socket, short events);
+extern int unix_poll(unsigned socket, unsigned short events);
 
 
 extern void unix_sockets_init(void);

@@ -19,10 +19,13 @@
 #include "vm/vm.h"
 
 
-enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
+enum { msg_rejected = -1,
+	msg_waiting = 0,
+	msg_received,
+	msg_responded };
 
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
 } msg_common;
@@ -35,6 +38,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg_t kmsg;
 	thread_t *sender;
 	spinlock_ctx_t sc;
+	int state_tmp;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -53,17 +57,20 @@ int proc_send(u32 port, msg_t *msg)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
-	if (p->closed) {
+	if (p->closed != 0) {
 		err = -EINVAL;
 	}
 	else {
 		LIST_ADD(&p->kmessages, &kmsg);
-		proc_threadWakeup(&p->threads);
+		(void)proc_threadWakeup(&p->threads);
 
-		while ((kmsg.state != msg_responded) && (kmsg.state != msg_rejected)) {
+		/* TODO: If any test fails, revert this change and suppress MISRA Rule 13.5 */
+		state_tmp = kmsg.state;
+		while ((state_tmp != msg_responded) && (state_tmp != msg_rejected)) {
 			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
 
-			if ((err != EOK) && (kmsg.state == msg_waiting)) {
+			state_tmp = kmsg.state;
+			if ((err != EOK) && (state_tmp == msg_waiting)) {
 				LIST_REMOVE(&p->kmessages, &kmsg);
 				break;
 			}
@@ -77,6 +84,7 @@ int proc_send(u32 port, msg_t *msg)
 				err = -EINVAL;
 				break;
 			default:
+				/* In case kmsg.state == msg_waiting || msg_received or other udefined cases, err is not changed */
 				break;
 		}
 	}
@@ -95,7 +103,7 @@ static void proc_msgReject(kmsg_t *kmsg, port_t *p)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_rejected;
-	proc_threadWakeup(&kmsg->threads);
+	(void)proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
 
 	port_put(p, 0);
@@ -128,11 +136,11 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		LIST_REMOVE(&p->kmessages, kmsg);
 	}
 
-	if (p->closed) {
+	if (p->closed != 0) {
 		/* Port is being removed */
 		if (kmsg != NULL) {
 			kmsg->state = msg_rejected;
-			proc_threadWakeup(&kmsg->threads);
+			(void)proc_threadWakeup(&kmsg->threads);
 		}
 
 		err = -EINVAL;
@@ -156,11 +164,11 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	kmsg->imapped = NULL;
 	kmsg->omapped = NULL;
 
-	if ((kmsg->msg->i.data != NULL) && (kmsg->msg->i.size != 0) && (current->process != NULL) &&
+	if ((kmsg->msg->i.data != NULL) && (kmsg->msg->i.size != 0U) && (current->process != NULL) &&
 			(pmap_isAllowed(current->process->pmapp, kmsg->msg->i.data, kmsg->msg->i.size) == 0)) {
 
 		idata = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->i.size),
-			PROT_READ | PROT_USER, NULL, -1, MAP_ANONYMOUS);
+				PROT_READ | PROT_USER, NULL, -1, MAP_ANONYMOUS);
 		if (idata == NULL) {
 			/* Free RID */
 			(void)proc_portRidGet(p, *rid);
@@ -172,14 +180,14 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		msg->i.data = idata;
 	}
 
-	if ((kmsg->msg->o.data != NULL) && (kmsg->msg->o.size != 0) && (current->process != NULL) &&
+	if ((kmsg->msg->o.data != NULL) && (kmsg->msg->o.size != 0U) && (current->process != NULL) &&
 			(pmap_isAllowed(current->process->pmapp, kmsg->msg->o.data, kmsg->msg->o.size) == 0)) {
 
 		msg->o.data = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->o.size),
-			PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_ANONYMOUS);
+				PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_ANONYMOUS);
 		if (msg->o.data == NULL) {
 			if (idata != NULL) {
-				vm_munmap(current->process->mapp, idata, round_page(kmsg->msg->i.size));
+				(void)vm_munmap(current->process->mapp, idata, round_page(kmsg->msg->i.size));
 			}
 
 			/* Free RID */
@@ -199,7 +207,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 {
 	port_t *p;
-	size_t s = 0;
+	int s = 0;
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
 	thread_t *current = proc_current();
@@ -218,18 +226,18 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	kmsg->msg->o.err = msg->o.err;
 
 	if (kmsg->imapped != NULL) {
-		vm_munmap(current->process->mapp, kmsg->imapped, round_page(kmsg->msg->i.size));
+		(void)vm_munmap(current->process->mapp, kmsg->imapped, round_page(kmsg->msg->i.size));
 	}
 
 	if (kmsg->omapped != NULL) {
 		hal_memcpy(kmsg->msg->o.data, kmsg->omapped, kmsg->msg->o.size);
-		vm_munmap(current->process->mapp, kmsg->omapped, round_page(kmsg->msg->o.size));
+		(void)vm_munmap(current->process->mapp, kmsg->omapped, round_page(kmsg->msg->o.size));
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
 	kmsg->src = current->process;
-	proc_threadWakeup(&kmsg->threads);
+	(void)proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
 

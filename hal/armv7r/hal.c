@@ -23,13 +23,16 @@ static struct {
 } hal_common;
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Global variables used in assembler code" */
+/* parasoft-begin-suppress MISRAC2012-RULE_5_8 "Another variable with this name used
+ * inside the structure so it shouldn't cause this violation"
+ */
 syspage_t *syspage;
+/* parasoft-end-suppress MISRAC2012-RULE_5_8 */
+
 u32 relOffs;
 u32 schedulerLocked = 0;
-
-
-extern void _hal_platformInit(void);
-extern void _hal_cpuInit(void);
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 
 void *hal_syspageRelocate(void *data)

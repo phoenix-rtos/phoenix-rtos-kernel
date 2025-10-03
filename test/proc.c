@@ -14,6 +14,8 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
+
 #include "hal/hal.h"
 #include "proc/proc.h"
 #include "syspage.h"
@@ -42,21 +44,21 @@ static void test_proc_indthr(void *arg)
 
 	for (;;) {
 		lib_printf("\rtest: [proc.threads] %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d",
-			indicator[test_proc_common.rotations[1] % 8],
-			indicator[test_proc_common.rotations[2] % 8],
-			indicator[test_proc_common.rotations[3] % 8],
-			indicator[test_proc_common.rotations[4] % 8],
-			indicator[test_proc_common.rotations[5] % 8],
-			indicator[test_proc_common.rotations[6] % 8],
-			indicator[test_proc_common.rotations[7] % 8],
+				indicator[test_proc_common.rotations[1] % 8U],
+				indicator[test_proc_common.rotations[2] % 8U],
+				indicator[test_proc_common.rotations[3] % 8U],
+				indicator[test_proc_common.rotations[4] % 8U],
+				indicator[test_proc_common.rotations[5] % 8U],
+				indicator[test_proc_common.rotations[6] % 8U],
+				indicator[test_proc_common.rotations[7] % 8U],
 
-			test_proc_common.rotations[1] % 100,
-			test_proc_common.rotations[2] % 100,
-			test_proc_common.rotations[3] % 100,
-			test_proc_common.rotations[4] % 100,
-			test_proc_common.rotations[5] % 100,
-			test_proc_common.rotations[6] % 100,
-			test_proc_common.rotations[7] % 100);
+				test_proc_common.rotations[1] % 100U,
+				test_proc_common.rotations[2] % 100U,
+				test_proc_common.rotations[3] % 100U,
+				test_proc_common.rotations[4] % 100U,
+				test_proc_common.rotations[5] % 100U,
+				test_proc_common.rotations[6] % 100U,
+				test_proc_common.rotations[7] % 100U);
 
 		proc_threadSleep(5000);
 	}
@@ -96,11 +98,11 @@ static void test_proc_timethr(void *arg)
 
 static void test_proc_rotthr1(void *arg)
 {
-	unsigned int i = (unsigned long)arg;
+	unsigned long i = (unsigned long)arg;
 
 	for (;;) {
 		test_proc_common.rotations[i]++;
-		proc_threadSleep(10000 * i);
+		proc_threadSleep(10000ULL * (i));
 	}
 
 	return;
@@ -110,18 +112,18 @@ static void test_proc_rotthr1(void *arg)
 void test_proc_threads1(void)
 {
 	unsigned int i, stacksz = 1384;
-
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < 8U; i++) {
 		test_proc_common.rotations[i] = 0;
+	}
 
 	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, stacksz, NULL, 0, NULL);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, stacksz, NULL, 0, (void *)1);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, stacksz, NULL, 0, (void *)2);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, stacksz, NULL, 0, (void *)3);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, stacksz, NULL, 0, (void *)4);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, stacksz, NULL, 0, (void *)5);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, stacksz, NULL, 0, (void *)6);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, stacksz, NULL, 0, (void *)7);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, stacksz, NULL, 0, (void *)(int *)1);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, stacksz, NULL, 0, (void *)(int *)2);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, stacksz, NULL, 0, (void *)(int *)3);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, stacksz, NULL, 0, (void *)(int *)4);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, stacksz, NULL, 0, (void *)(int *)5);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, stacksz, NULL, 0, (void *)(int *)6);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, stacksz, NULL, 0, (void *)(int *)7);
 
 	proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 1024, NULL, 0, NULL);
 }
@@ -134,7 +136,7 @@ void test_proc_threads1(void)
 
 static void test_proc_rotthr2(void *arg)
 {
-	unsigned int i = (unsigned long)arg;
+	unsigned long i = (unsigned long)arg;
 	time_t otm = test_proc_common.tm;
 	spinlock_ctx_t sc;
 
@@ -158,9 +160,9 @@ static void test_proc_rotthr2(void *arg)
 void test_proc_threads2(void)
 {
 	unsigned int i;
-
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < 8U; i++) {
 		test_proc_common.rotations[i] = 0;
+	}
 
 	test_proc_common.tm = 0;
 	test_proc_common.queue = NULL;
@@ -169,10 +171,10 @@ void test_proc_threads2(void)
 	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 1024, NULL, 0, NULL);
 	proc_threadCreate(NULL, test_proc_timethr, NULL, 0, 1024, NULL, 0, NULL);
 
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 1, 1024, NULL, 0, (void *)1);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 2, 1024, NULL, 0, (void *)2);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 3, 1024, NULL, 0, (void *)3);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 4, 1024, NULL, 0, (void *)4);
+	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 1, 1024, NULL, 0, (void *)(int *)1);
+	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 2, 1024, NULL, 0, (void *)(int *)2);
+	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 3, 1024, NULL, 0, (void *)(int *)3);
+	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 4, 1024, NULL, 0, (void *)(int *)4);
 }
 
 
@@ -205,3 +207,5 @@ void test_proc_exit(void)
 	hal_cpuEnableInterrupts();
 	hal_cpuReschedule(NULL, NULL);
 }
+
+/* parasoft-end-suppress ALL "tests don't need to comply with MISRA" */

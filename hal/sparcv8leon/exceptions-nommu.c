@@ -66,7 +66,7 @@ static const char *const hal_exceptionsType(int n)
 }
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	cpu_winContext_t *win = (cpu_winContext_t *)ctx->cpuCtx.sp;
 	size_t i = hal_i2s("\033[0m\nException: 0x", buff, n, 16, 0);

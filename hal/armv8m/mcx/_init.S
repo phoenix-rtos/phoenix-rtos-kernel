@@ -289,7 +289,7 @@ hal_jmp:
 	cpsid if
 	isb
 
-	cmp r2, #NULL
+	cmp r2, #0
 	bne hal_jmp_user
 
 	/* kargs has been passed on the stack */
