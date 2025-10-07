@@ -46,6 +46,7 @@ typedef struct _process_t {
 	pmap_t *pmapp;
 	int exit;
 
+	unsigned dead : 1;
 	unsigned lazy : 1;
 	unsigned lgap : 1;
 	unsigned rgap : 1;

@@ -821,8 +821,12 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	else {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 	}
-	/* Insert thread to scheduler queue */
 
+	if ((process != NULL) && (process->dead != 0)) {
+		t->exit = THREAD_END;
+	}
+
+	/* Insert thread to scheduler queue */
 	_perf_begin(t);
 	_perf_waking(t);
 	LIST_ADD(&threads_common.ready[priority], t);
@@ -1009,9 +1013,14 @@ void proc_threadsDestroy(thread_t **threads, const thread_t *except)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if ((t = *threads) != NULL) {
+		t->process->dead = 1;
+
 		do {
 			if (t != except) {
 				_proc_threadExit(t);
+			}
+			else {
+				t->process->dead = 0;
 			}
 		} while ((t = t->procnext) != *threads);
 	}
