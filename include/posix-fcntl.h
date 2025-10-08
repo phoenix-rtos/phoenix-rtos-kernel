@@ -32,6 +32,8 @@
 #define O_NOCTTY   0x2000
 #define O_CLOEXEC  0x4000
 
+#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
+
 /* clang-format off */
 
 /* fcntl() operations */
