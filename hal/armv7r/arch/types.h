@@ -28,7 +28,6 @@ typedef __u32 ptr_t;
 
 typedef unsigned int size_t;
 
-
 #endif
 
 

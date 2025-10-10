@@ -37,9 +37,6 @@ extern int _mcxn94x_sysconDevReset(int dev, int state);
 extern int hal_platformctl(void *ptr);
 
 
-extern void _hal_platformInit(void);
-
-
 extern void _mcxn94x_scbSetPriorityGrouping(u32 group);
 
 

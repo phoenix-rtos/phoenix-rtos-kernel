@@ -62,4 +62,10 @@ extern void _hal_init(void);
 extern void hal_lockScheduler(void);
 
 
+extern void _hal_cpuInit(void);
+
+
+extern void _hal_platformInit(void);
+
+
 #endif

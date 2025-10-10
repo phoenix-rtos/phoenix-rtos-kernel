@@ -14,6 +14,8 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress MISRAC2012-RULE_17_1 "stdarg.h required for custom functions that are like printf" */
+
 #ifndef _LIB_PRINTF_H_
 #define _LIB_PRINTF_H_
 
@@ -25,13 +27,15 @@ extern int lib_sprintf(char *out, const char *format, ...);
 extern int lib_vsprintf(char *out, const char *format, va_list args);
 
 
-extern int lib_printf(const char *fmt, ...);
+extern void lib_printf(const char *format, ...);
 
 
 extern int lib_vprintf(const char *format, va_list ap);
 
 
-extern void lib_putch(char c);
+extern void lib_putch(char s);
 
 
 #endif
+
+/* parasoft-end-suppress MISRAC2012-RULE_17_1 */

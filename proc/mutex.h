@@ -44,7 +44,4 @@ extern int proc_mutexUnlock(int h);
 extern int proc_mutexCreate(const struct lockAttr *attr);
 
 
-extern int proc_mutexDestroy(int h);
-
-
 #endif

@@ -17,7 +17,7 @@
 #define _HAL_TYPES_H_
 
 
-#define NULL 0
+#define NULL ((void *)0)
 
 
 #ifndef __ASSEMBLY__
