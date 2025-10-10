@@ -1605,7 +1605,7 @@ static int process_execve(thread_t *current)
 
 	/* Wait for other threads termination before changing memory maps */
 	while (proc_threadsOther(current) != 0) {
-		proc_join(-1, 0);
+		(void)proc_join(-1, 0);
 	}
 
 	/* Restore kernel stack of parent thread */

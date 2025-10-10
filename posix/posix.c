@@ -736,7 +736,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 	}
 
 	if (offset >= 0 && !F_SEEKABLE(f->type)) {
-		posix_fileDeref(f);
+		(void)posix_fileDeref(f);
 		return -ESPIPE;
 	}
 
@@ -788,7 +788,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 	}
 
 	if (offset >= 0 && !F_SEEKABLE(f->type)) {
-		posix_fileDeref(f);
+		(void)posix_fileDeref(f);
 		return -ESPIPE;
 	}
 

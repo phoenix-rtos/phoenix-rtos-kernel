@@ -82,7 +82,7 @@ enum { pxBufferedPipe,
 	pxPTY };
 
 
-#define F_SEEKABLE(type) ((type) == ftRegular)
+#define F_SEEKABLE(type) ((type) == (char)ftRegular)
 
 
 typedef struct {
