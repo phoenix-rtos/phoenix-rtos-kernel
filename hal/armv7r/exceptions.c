@@ -59,14 +59,14 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	};
 	size_t i = 0;
 
-	n = n & 0x7U;
+	n &= 0x7U;
 
 	(void)hal_strcpy(buff, "\nException: ");
 	(void)hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
 	(void)hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
-	i += hal_i2s(" r0=", &buff[i], ctx->cpuCtx.r0, 16, 1U);
+	i += hal_i2s(" r0=", &buff[i], ctx->cpuCtx.r0, 16U, 1U);
 	i += hal_i2s("  r1=", &buff[i], ctx->cpuCtx.r1, 16, 1U);
 	i += hal_i2s("  r2=", &buff[i], ctx->cpuCtx.r2, 16, 1U);
 	i += hal_i2s("  r3=", &buff[i], ctx->cpuCtx.r3, 16, 1U);
@@ -142,7 +142,7 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
-	unsigned prot;
+	unsigned int prot;
 	u32 status;
 
 	if (n == (unsigned int)exc_prefetch) {

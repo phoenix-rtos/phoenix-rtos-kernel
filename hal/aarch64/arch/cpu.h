@@ -19,7 +19,7 @@
 #include "hal/types.h"
 #include "config.h"
 
-#define SIZE_PAGE 0x1000uL
+#define SIZE_PAGE 0x1000UL
 #define SIZE_PDIR SIZE_PAGE
 
 #define SIZE_INITIAL_KSTACK (2U * SIZE_PAGE) /* Must be multiple of page size */

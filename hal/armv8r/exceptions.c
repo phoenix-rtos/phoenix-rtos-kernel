@@ -57,9 +57,9 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 		"0 #Reset", "1 #Undef", "2 #Syscall", "3 #Prefetch",
 		"4 #Abort", "5 #Reserved", "6 #FIRQ", "7 #IRQ"
 	};
-	size_t i = 0;
+	size_t i = 0U;
 
-	n &= 0x7;
+	n &= 0x7U;
 
 	hal_strcpy(buff, "\nException: ");
 	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);

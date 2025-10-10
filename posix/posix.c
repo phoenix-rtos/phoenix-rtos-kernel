@@ -1616,7 +1616,7 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 
 		case F_SETFD:
 			GETFROMSTACK(ustack, unsigned long, arg, 2);
-			err = posix_fcntlSetFd(fd, (long)arg);
+			err = posix_fcntlSetFd(fd, (int)arg);
 			break;
 
 		case F_GETFL:
@@ -1625,7 +1625,7 @@ int posix_fcntl(int fd, unsigned int cmd, char *ustack)
 
 		case F_SETFL:
 			GETFROMSTACK(ustack, unsigned int, arg, 2);
-			err = posix_fcntlSetFl(fd, (long)arg);
+			err = posix_fcntlSetFl(fd, (int)arg);
 			break;
 
 		case F_GETLK:
