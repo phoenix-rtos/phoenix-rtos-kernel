@@ -2385,8 +2385,12 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 				err = unix_poll((unsigned int)msg.oid.id, (unsigned short)fds[i].events);
 =======
 			if (f->type == (char)ftUnixSocket) {
+<<<<<<< HEAD
 				err = unix_poll((unsigned int)msg.oid.id, fds[i].events);
 >>>>>>> 501d652f (MISRA: Adapting Kernel to MISRA:)
+=======
+				err = unix_poll((unsigned int)msg.oid.id, (unsigned short)fds[i].events);
+>>>>>>> 9f8e8b71 (MISRA: Implementing review comments)
 			}
 			else {
 				err = proc_send(msg.oid.port, &msg);
@@ -2406,10 +2410,14 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		}
 		else if (err > 0) {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents | (unsigned short)err);
 =======
 			fds[i].revents |= (unsigned short)err;
 >>>>>>> 501d652f (MISRA: Adapting Kernel to MISRA:)
+=======
+			fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents | (unsigned short)err);
+>>>>>>> 9f8e8b71 (MISRA: Implementing review comments)
 		}
 		else {
 			/* No action required */
@@ -2417,7 +2425,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 
 		fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents & ~(~(unsigned short)fds[i].events & (POLLIN | POLLOUT | POLLPRI | POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND)));
 
-		if (fds[i].revents != 0U) {
+		if (fds[i].revents != 0) {
 			++ready;
 		}
 	}

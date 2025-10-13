@@ -18,7 +18,7 @@
 #include "config.h"
 #include "syspage.h"
 #include "halsyspage.h"
-#include <arch/cpu.h> /*Should be given full path arm7rarch/cpu.h -TBC*/
+#include <arch/cpu.h>
 #include <arch/spinlock.h>
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Definition in assembly code" */
