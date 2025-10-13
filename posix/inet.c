@@ -213,7 +213,7 @@ ssize_t inet_sendto(unsigned int socket, const void *message, size_t length, uns
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmSend;
 	smi->send.flags = flags;
-	msg.i.data = (const void *)message;
+	msg.i.data = message;
 	msg.i.size = length;
 
 	return sockdestcall(socket, &msg, dest_addr, dest_len);

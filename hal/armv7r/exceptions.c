@@ -153,7 +153,7 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot = PROT_READ;
 		status = ctx->dfsr & 0x1fU;
 
-		if ((ctx->dfsr & (0x1UL << 11)) != 0U) {
+		if ((ctx->dfsr & ((unsigned int)0x1 << 11)) != 0U) {
 			prot |= PROT_WRITE;
 		}
 	}

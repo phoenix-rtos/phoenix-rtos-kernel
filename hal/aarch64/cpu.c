@@ -24,7 +24,7 @@
 #define CONST_STR_SIZE(x) x, (sizeof(x) - 1)
 
 /* Function creates new cpu context on top of given thread kernel stack */
-int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
+int hal_cpuCreateContext(cpu_context_t **nctx, void start(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
 	int i;

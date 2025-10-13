@@ -26,7 +26,7 @@
 typedef struct fdpack_s {
 	struct fdpack_s *next, *prev;
 	unsigned int first, cnt;
-	fildes_t fd[0];
+	fildes_t fd[];
 } fdpack_t;
 
 

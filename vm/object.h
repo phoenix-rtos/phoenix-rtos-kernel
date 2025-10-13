@@ -29,7 +29,7 @@ typedef struct _vm_object_t {
 	oid_t oid;
 	unsigned int refs;
 	size_t size;
-	page_t *pages[0];
+	page_t *pages[];
 } vm_object_t;
 
 

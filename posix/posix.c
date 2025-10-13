@@ -187,13 +187,13 @@ static int _posix_allocfd(process_info_t *p, int fd)
 				nfdsz = p->maxfd;
 			}
 
-			nfds = vm_kmalloc((unsigned int)nfdsz * sizeof(*nfds));
+			nfds = vm_kmalloc((size_t)nfdsz * sizeof(*nfds));
 			if (nfds == NULL) {
 				return -1;
 			}
 
-			hal_memcpy(nfds, p->fds, (unsigned int)p->fdsz * sizeof(*nfds));
-			hal_memset(nfds + p->fdsz, 0, ((unsigned int)nfdsz - (unsigned int)p->fdsz) * sizeof(*nfds));
+			hal_memcpy(nfds, p->fds, (size_t)p->fdsz * sizeof(*nfds));
+			hal_memset(nfds + p->fdsz, 0, ((size_t)nfdsz - (size_t)p->fdsz) * sizeof(*nfds));
 
 			vm_kfree(p->fds);
 
@@ -282,7 +282,7 @@ static int posix_truncate(oid_t *oid, off_t length)
 		hal_memset(&msg, 0, sizeof(msg));
 		msg.type = mtTruncate;
 		hal_memcpy(&msg.oid, oid, sizeof(oid_t));
-		msg.i.io.len = (unsigned int)length;
+		msg.i.io.len = (size_t)length;
 		err = proc_send(oid->port, &msg);
 	}
 
@@ -562,9 +562,9 @@ int posix_open(const char *filename, int oflag, char *ustack)
 	open_file_t *f;
 	mode_t mode;
 
-	if (proc_lookup("/dev/posix/pipes", NULL, &pipesrv) != 0) {
-		hal_memset(&pipesrv, 0xff, sizeof(oid_t));
-	}
+	hal_memset(&pipesrv, 0xff, sizeof(oid_t));
+
+	(void)proc_lookup("/dev/posix/pipes", NULL, &pipesrv);
 
 	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
@@ -1305,7 +1305,7 @@ int posix_fstat(int fd, struct stat *buf)
 	hal_memset(&msg, 0, sizeof(msg_t));
 
 	buf->st_dev = (int)f->ln.port;
-	buf->st_ino = (int)f->ln.id; /* FIXME */
+	buf->st_ino = f->ln.id; /* FIXME */
 	buf->st_rdev = (int)f->oid.port;
 
 	if (f->type == (char)ftRegular) {
@@ -1467,11 +1467,6 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	}
 
 	fd2 = _posix_allocfd(p, fd2);
-	if (fd2 < 0) {
-		(void)proc_lockClear(&p->lock);
-		pinfo_put(p);
-		return fd2;
-	}
 	err = _posix_dup2(p, fd, fd2);
 	if ((err == fd2) && (cloexec != 0)) {
 		p->fds[fd2].flags = FD_CLOEXEC;
@@ -2389,7 +2384,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			(void)posix_fileDeref(f);
 
 			if (f->type == (char)ftUnixSocket) {
-				err = unix_poll((unsigned int)msg.oid.id, fds[i].events);
+				err = unix_poll((unsigned int)msg.oid.id, (unsigned short)fds[i].events);
 			}
 			else {
 				err = proc_send(msg.oid.port, &msg);
@@ -2405,18 +2400,18 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		}
 
 		if (err < 0) {
-			fds[i].revents |= POLLHUP;
+			fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents | POLLHUP);
 		}
 		else if (err > 0) {
-			fds[i].revents |= (unsigned short)err;
+			fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents | (unsigned short)err);
 		}
 		else {
 			/* No action required */
 		}
 
-		fds[i].revents &= ~(~fds[i].events & (POLLIN | POLLOUT | POLLPRI | POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND));
+		fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents & ~(~(unsigned short)fds[i].events & (POLLIN | POLLOUT | POLLPRI | POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND)));
 
-		if (fds[i].revents != 0U) {
+		if (fds[i].revents != 0) {
 			++ready;
 		}
 	}

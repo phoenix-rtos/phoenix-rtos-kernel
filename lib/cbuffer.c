@@ -32,7 +32,7 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 	unsigned int bytes = 0;
 
 	if (sz == 0U || buf->full != 0U) {
-		return 0;
+		return 0U;
 	}
 
 	if (buf->r > buf->w) {
@@ -63,7 +63,7 @@ unsigned int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 
 	if (bytes > 0U) {
 		buf->r = (buf->r + bytes) & (buf->sz - 1U);
-		buf->full = 0;
+		buf->full = 0U;
 	}
 
 	return bytes;
@@ -75,7 +75,7 @@ unsigned int _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
 	unsigned int bytes = 0;
 
 	if (sz == 0U || (buf->r == buf->w && buf->full == 0U)) {
-		return 0;
+		return 0U;
 	}
 	if (buf->w > buf->r) {
 		hal_memcpy(data, buf->data + buf->r, bytes = min(sz, buf->w - buf->r));

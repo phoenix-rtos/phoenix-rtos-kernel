@@ -76,7 +76,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		return -ENOMEM;
 	}
 
-	tot_cnt = 0;
+	tot_cnt = 0U;
 	/* calculate total number of file descriptors */
 	for (cmsg = CMSG_FIRSTHDR_CONST(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR_CONST(control, controllen, cmsg)) {
 		cmsg_data = CMSG_DATA_CONST(cmsg);

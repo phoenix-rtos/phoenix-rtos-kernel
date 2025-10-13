@@ -158,6 +158,6 @@ typedef struct {
 			__u32 reason;
 		} reboot;
 	};
-} __attribute__((packed)) platformctl_t; /* __attribute__((packed)) TBC*/
+} __attribute__((packed)) platformctl_t;
 
 #endif

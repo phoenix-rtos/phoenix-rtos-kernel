@@ -19,7 +19,7 @@
 #include "rb.h"
 
 
-#define MAX_ID ((1ULL << ((unsigned int)__CHAR_BIT__ * (sizeof(int)) - 1U)) - 1ULL)
+#define MAX_ID ((1ULL << ((size_t)__CHAR_BIT__ * (sizeof(int)) - 1U)) - 1ULL)
 
 
 typedef rbtree_t idtree_t;
