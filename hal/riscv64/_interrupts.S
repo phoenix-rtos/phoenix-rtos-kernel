@@ -495,6 +495,7 @@ _interrupts_return:
 	RESTORE
 	sret
 
+.global _interrupts_returnUnlocked
 _interrupts_returnUnlocked:
 	ld sp, 232(sp)
 	j .Lmultilock_cleared

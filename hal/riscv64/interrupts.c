@@ -278,6 +278,18 @@ void _hal_interruptsTrace(int enable)
 }
 
 
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx)
+{
+	asm volatile(
+			"mv sp, %0\n\t"
+			"tail _interrupts_returnUnlocked\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+	__builtin_unreachable();
+}
+
+
 __attribute__((section(".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int i;
