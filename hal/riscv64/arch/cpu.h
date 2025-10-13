@@ -270,6 +270,12 @@ static inline void *hal_cpuGetSP(cpu_context_t *ctx)
 }
 
 
+static inline void *hal_cpuGetIP(cpu_context_t *ctx)
+{
+	return (void *)ctx->sepc;
+}
+
+
 static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 {
 	return (void *)ctx->sp;
