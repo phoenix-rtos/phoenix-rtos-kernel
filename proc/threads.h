@@ -88,28 +88,10 @@ typedef struct _thread_t {
 } thread_t;
 
 
-static inline int proc_getTid(thread_t *t)
+static inline int proc_getTid(const thread_t *t)
 {
 	return t->idlinkage.id;
 }
-
-
-extern int perf_start(unsigned pid);
-
-
-extern int perf_read(void *buffer, size_t bufsz);
-
-
-extern int perf_finish(void);
-
-
-extern void perf_fork(process_t *p);
-
-
-extern void perf_kill(process_t *p);
-
-
-extern void perf_exec(process_t *p, char *path);
 
 
 extern thread_t *proc_current(void);
@@ -149,6 +131,12 @@ extern int proc_join(int tid, time_t timeout);
 
 
 extern void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_t *pmap);
+
+
+typedef void (*proc_threadsListCb_t)(void *arg, int i, threadinfo_t *info);
+
+
+extern int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg);
 
 
 extern int proc_threadsList(int n, threadinfo_t *info);

@@ -21,11 +21,15 @@
 #include "include/syscalls.h"
 #include "include/threads.h"
 #include "include/utsname.h"
+#include "include/perf.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
 #include "posix/posix.h"
 #include "syspage.h"
+
+#include "perf/perf.h"
+#include "perf/trace-events.h"
 
 #define SYSCALLS_NAME(name)   syscalls_##name,
 #define SYSCALLS_STRING(name) #name,
@@ -482,11 +486,22 @@ int syscalls_syspageprog(void *ustack)
 
 int syscalls_perf_start(void *ustack)
 {
-	unsigned pid;
+	process_t *proc = proc_current()->process;
+	perf_mode_t mode;
+	unsigned flags;
+	void *arg;
+	size_t sz;
 
-	GETFROMSTACK(ustack, unsigned, pid, 0);
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+	GETFROMSTACK(ustack, unsigned, flags, 1);
+	GETFROMSTACK(ustack, void *, arg, 2);
+	GETFROMSTACK(ustack, size_t, sz, 3);
 
-	return perf_start(pid);
+	if (arg != NULL && vm_mapBelongs(proc, arg, sz) < 0) {
+		return -EFAULT;
+	}
+
+	return perf_start(mode, flags, arg, sz);
 }
 
 
@@ -495,22 +510,41 @@ int syscalls_perf_read(void *ustack)
 	process_t *proc = proc_current()->process;
 	void *buffer;
 	size_t sz;
+	perf_mode_t mode;
+	int chan;
 
-	GETFROMSTACK(ustack, void *, buffer, 0);
-	GETFROMSTACK(ustack, size_t, sz, 1);
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+	GETFROMSTACK(ustack, void *, buffer, 1);
+	GETFROMSTACK(ustack, size_t, sz, 2);
+	GETFROMSTACK(ustack, int, chan, 3);
 
 	if (vm_mapBelongs(proc, buffer, sz) < 0) {
 		return -EFAULT;
 	}
 
-	return perf_read(buffer, sz);
+	return perf_read(mode, buffer, sz, chan);
+}
+
+
+int syscalls_perf_stop(void *ustack)
+{
+	perf_mode_t mode;
+
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+
+	return perf_stop(mode);
 }
 
 
 int syscalls_perf_finish(void *ustack)
 {
-	return perf_finish();
+	perf_mode_t mode;
+
+	GETFROMSTACK(ustack, perf_mode_t, mode, 0);
+
+	return perf_finish(mode);
 }
+
 
 /*
  * Mutexes
@@ -1880,12 +1914,19 @@ const char *const syscall_strings[] = { SYSCALLS(SYSCALLS_STRING) };
 void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 {
 	void *retval;
+	int tid;
 
 	if (n >= (sizeof(syscalls) / sizeof(syscalls[0]))) {
 		return (void *)-EINVAL;
 	}
 
+	tid = proc_getTid(proc_current());
+
+	trace_eventSyscallEnter(n, tid);
+
 	retval = ((void *(*)(char *))syscalls[n])(ustack);
+
+	trace_eventSyscallExit(n, tid);
 
 	if (proc_current()->exit != 0) {
 		proc_threadEnd();

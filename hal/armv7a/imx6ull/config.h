@@ -21,6 +21,8 @@
 
 #define NUM_CPUS 1
 
+#define TIMER_IRQ_ID 88
+
 #ifndef __ASSEMBLY__
 
 #define HAL_NAME_PLATFORM "NXP i.MX 6ULL "
