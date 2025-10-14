@@ -28,7 +28,6 @@ u64 relOffs;
 u32 schedulerLocked = 0;
 
 
-extern void _hal_platformInit(void);
 extern void _hal_cpuInit(void);
 
 

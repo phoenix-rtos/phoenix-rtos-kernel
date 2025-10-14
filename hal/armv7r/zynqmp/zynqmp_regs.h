@@ -66,7 +66,7 @@ enum {
 
 enum {
 	apu_err_ctrl = 0x0,
-	apu_isr = 0x4,
+	apu_isr = 0x4U,
 	apu_imr,
 	apu_ien,
 	apu_ids,

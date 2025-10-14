@@ -15,9 +15,9 @@
 
 #include "hal/hal.h"
 #include "vm/kmalloc.h"
+#include "lib/strutil.h"
 
-
-static char *lib_strrchr(char *s, int c)
+static char *lib_strrchr(char *s, char c)
 {
 	char *p = NULL;
 	char *i;
@@ -34,7 +34,7 @@ static char *lib_strrchr(char *s, int c)
 
 char *lib_strdup(const char *str)
 {
-	size_t len = hal_strlen(str) + 1;
+	size_t len = hal_strlen(str) + 1U;
 	char *ptr = vm_kmalloc(len);
 
 	if (ptr != NULL) {
@@ -45,7 +45,7 @@ char *lib_strdup(const char *str)
 }
 
 
-void lib_splitname(char *path, char **base, char **dir)
+void lib_splitname(char *path, char **base, const char **dir)
 {
 	char *slash;
 
@@ -62,6 +62,6 @@ void lib_splitname(char *path, char **base, char **dir)
 	else {
 		*dir = path;
 		*base = slash + 1;
-		*slash = 0;
+		*slash = '\0';
 	}
 }

@@ -201,7 +201,7 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 	hal_spinlockClear(&pmap_common.lock, &sc);
 
 	while (*i < max) {
-		if (pmap->pdir[*i] != NULL) {
+		if (pmap->pdir[*i] != 0) {
 			*i += 4;
 			return pmap->pdir[*i - 4] & ~0xfff;
 		}

@@ -20,7 +20,7 @@
 #include "proc.h"
 
 
-struct {
+static struct {
 	userintr_t *volatile active;
 } userintr_common;
 
@@ -28,16 +28,16 @@ struct {
 void userintr_put(userintr_t *ui)
 {
 	thread_t *t = proc_current();
-	int rem;
+	unsigned int rem;
 
 	LIB_ASSERT(ui != NULL, "process: %s, pid: %d, tid: %d, ui == NULL",
-		t->process->path, process_getPid(t->process), proc_getTid(t));
+			t->process->path, process_getPid(t->process), proc_getTid(t));
 
 	rem = resource_put(t->process, &ui->resource);
 	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
-		t->process->path, process_getPid(t->process), proc_getTid(t));
-	if (rem <= 0) {
-		hal_interruptsDeleteHandler(&ui->handler);
+			t->process->path, process_getPid(t->process), proc_getTid(t));
+	if (rem <= 0U) {
+		(void)hal_interruptsDeleteHandler(&ui->handler);
 
 		if (ui->cond != NULL) {
 			cond_put(ui->cond);
@@ -54,8 +54,9 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	int ret, reschedule = 0;
 	process_t *p = NULL;
 
-	if (proc_current() != NULL)
+	if (proc_current() != NULL) {
 		p = (proc_current())->process;
+	}
 
 	/* Switch into the handler address space */
 	pmap_switch(ui->process->pmapp);
@@ -66,18 +67,19 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 
 	if (ret >= 0 && ui->cond != NULL) {
 		reschedule = 1;
-		proc_threadBroadcast(&ui->cond->queue);
+		(void)proc_threadBroadcast(&ui->cond->queue);
 	}
 
 	/* Restore process address space */
-	if ((p != NULL) && (p->pmapp != NULL))
+	if ((p != NULL) && (p->pmapp != NULL)) {
 		pmap_switch(p->pmapp);
+	}
 
 	return reschedule;
 }
 
 
-int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *arg, handle_t c)
+int userintr_setHandler(unsigned int n, int (*f)(unsigned int n, void *arg), void *arg, handle_t c)
 {
 	process_t *process = proc_current()->process;
 	userintr_t *ui;
@@ -133,7 +135,7 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 
 	id = resource_alloc(process, &ui->resource);
 	if (id < 0) {
-		hal_interruptsDeleteHandler(&ui->handler);
+		(void)hal_interruptsDeleteHandler(&ui->handler);
 		if (cond != NULL) {
 			cond_put(cond);
 		}
@@ -141,7 +143,7 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int, void *), void *ar
 		return -ENOMEM;
 	}
 
-	resource_put(process, &ui->resource);
+	(void)resource_put(process, &ui->resource);
 
 	return id;
 }

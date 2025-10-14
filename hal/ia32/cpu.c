@@ -114,7 +114,7 @@ u32 cpu_getEFLAGS(void)
 }
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
+int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
 
@@ -339,7 +339,7 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 	}
 
 	descrh = (base & 0xff000000) | (type & 0x00c00000) | (limit & 0x000f0000) |
-		(type & 0x0000ff00) | ((base >> 16) & 0x000000ff);
+			(type & 0x0000ff00) | ((base >> 16) & 0x000000ff);
 
 	descrl = (base << 16) | (limit & 0xffff);
 

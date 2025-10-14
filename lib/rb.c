@@ -28,11 +28,13 @@ void lib_rbInit(rbtree_t *tree, rbcomp_t compare, rbaugment_t augment)
 
 static inline void rb_augment(rbtree_t *tree, rbnode_t *node)
 {
-	if (node == NULL)
+	if (node == NULL) {
 		return;
+	}
 
-	if (tree->augment != NULL)
+	if (tree->augment != NULL) {
 		tree->augment(node);
+	}
 }
 
 
@@ -41,16 +43,20 @@ static void rb_rotateLeft(rbtree_t *tree, rbnode_t *x)
 	rbnode_t *y = x->right;
 	x->right = y->left;
 
-	if (y->left != NULL)
+	if (y->left != NULL) {
 		y->left->parent = x;
+	}
 
 	y->parent = x->parent;
-	if (x->parent == NULL)
+	if (x->parent == NULL) {
 		tree->root = y;
-	else if (x == x->parent->left)
+	}
+	else if (x == x->parent->left) {
 		x->parent->left = y;
-	else
+	}
+	else {
 		x->parent->right = y;
+	}
 
 	y->left = x;
 	x->parent = y;
@@ -65,16 +71,20 @@ static void rb_rotateRight(rbtree_t *tree, rbnode_t *x)
 	rbnode_t *y = x->left;
 	x->left = y->right;
 
-	if (y->right != NULL)
+	if (y->right != NULL) {
 		y->right->parent = x;
+	}
 
 	y->parent = x->parent;
-	if (x->parent == NULL)
+	if (x->parent == NULL) {
 		tree->root = y;
-	else if (x == x->parent->right)
+	}
+	else if (x == x->parent->right) {
 		x->parent->right = y;
-	else
+	}
+	else {
 		x->parent->left = y;
+	}
 
 	y->right = x;
 	x->parent = y;
@@ -142,8 +152,9 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 	rbnode_t *x = (node == NULL) ? &nil : node;
 	rbnode_t *w;
 
-	if (tree->root == NULL)
+	if (tree->root == NULL) {
 		return;
+	}
 
 	while (x != tree->root && x->color == RB_BLACK) {
 		if (x == x->parent->left || (x == &nil && x->parent->left == NULL)) {
@@ -157,7 +168,7 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 			}
 
 			if ((w->left == NULL || w->left->color == RB_BLACK) &&
-			    (w->right == NULL || w->right->color == RB_BLACK)) {
+					(w->right == NULL || w->right->color == RB_BLACK)) {
 				w->color = RB_RED;
 				x = x->parent;
 			}
@@ -165,7 +176,6 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 				w->left->color = RB_BLACK;
 				w->color = RB_RED;
 				rb_rotateRight(tree, w);
-				w = x->parent->right;
 			}
 			else {
 				w->color = x->parent->color;
@@ -186,7 +196,7 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 			}
 
 			if ((w->right == NULL || w->right->color == RB_BLACK) &&
-			    (w->left == NULL || w->left->color == RB_BLACK)) {
+					(w->left == NULL || w->left->color == RB_BLACK)) {
 				w->color = RB_RED;
 				x = x->parent;
 			}
@@ -194,7 +204,6 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 				w->right->color = RB_BLACK;
 				w->color = RB_RED;
 				rb_rotateLeft(tree, w);
-				w = x->parent->left;
 			}
 			else {
 				w->color = x->parent->color;
@@ -213,18 +222,21 @@ static void lib_rbRemoveBalance(rbtree_t *tree, rbnode_t *parent, rbnode_t *node
 static void rb_transplant(rbtree_t *tree, rbnode_t *u, rbnode_t *v)
 {
 	if (u->parent != NULL) {
-		if (u == u->parent->left)
+		if (u == u->parent->left) {
 			u->parent->left = v;
-		else
+		}
+		else {
 			u->parent->right = v;
-
+		}
 		rb_augment(tree, u->parent);
 	}
-	else
+	else {
 		tree->root = v;
+	}
 
-	if (v != NULL)
+	if (v != NULL) {
 		v->parent = u->parent;
+	}
 
 	rb_augment(tree, v);
 }
@@ -240,19 +252,23 @@ int lib_rbInsert(rbtree_t *tree, rbnode_t *z)
 		y = x;
 
 		c = tree->compare(y, z);
-		if (c == 0)
+		if (c == 0) {
 			return -EEXIST;
+		}
 
 		x = (c > 0) ? x->left : x->right;
 	}
 
 	z->parent = y;
-	if (y == NULL)
+	if (y == NULL) {
 		tree->root = z;
-	else if (c > 0)
+	}
+	else if (c > 0) {
 		y->left = z;
-	else
+	}
+	else {
 		y->right = z;
+	}
 
 	z->left = NULL;
 	z->right = NULL;
@@ -282,11 +298,13 @@ void lib_rbRemove(rbtree_t *tree, rbnode_t *z)
 	}
 	else {
 		y = lib_rbMinimum(z->right);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_7-a "We are sure that if we delete node from the tree it's not NULL" */
 		c = y->color;
 		x = y->right;
 
-		if (y->parent == z)
+		if (y->parent == z) {
 			p = y;
+		}
 		else {
 			p = y->parent;
 
@@ -304,11 +322,13 @@ void lib_rbRemove(rbtree_t *tree, rbnode_t *z)
 		rb_augment(tree, t);
 
 		t = lib_rbMinimum(y->right);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_7-q "rb_augment checks if t in not NULL" */
 		rb_augment(tree, t);
 	}
 
-	if (c == RB_BLACK)
+	if (c == RB_BLACK) {
 		lib_rbRemoveBalance(tree, p, x);
+	}
 }
 
 
@@ -316,11 +336,13 @@ rbnode_t *lib_rbMinimum(rbnode_t *node)
 {
 	rbnode_t *x = node;
 
-	if (x == NULL)
+	if (x == NULL) {
 		return x;
+	}
 
-	while (x->left != NULL)
+	while (x->left != NULL) {
 		x = x->left;
+	}
 
 	return x;
 }
@@ -330,11 +352,13 @@ rbnode_t *lib_rbMaximum(rbnode_t *node)
 {
 	rbnode_t *x = node;
 
-	if (x == NULL)
+	if (x == NULL) {
 		return x;
+	}
 
-	while (x->right != NULL)
+	while (x->right != NULL) {
 		x = x->right;
+	}
 
 	return x;
 }
@@ -344,11 +368,13 @@ rbnode_t *lib_rbPrev(rbnode_t *node)
 {
 	rbnode_t *x = node;
 
-	if (x->left != NULL)
+	if (x->left != NULL) {
 		return lib_rbMaximum(x->left);
+	}
 
-	while (x->parent != NULL && x == x->parent->left)
+	while (x->parent != NULL && x == x->parent->left) {
 		x = x->parent;
+	}
 
 	return x->parent;
 }
@@ -358,12 +384,13 @@ rbnode_t *lib_rbNext(rbnode_t *node)
 {
 	rbnode_t *x = node;
 
-	if (x->right != NULL)
+	if (x->right != NULL) {
 		return lib_rbMinimum(x->right);
+	}
 
-	while (x->parent != NULL && x == x->parent->right)
+	while (x->parent != NULL && x == x->parent->right) {
 		x = x->parent;
-
+	}
 	return x->parent;
 }
 
@@ -381,8 +408,9 @@ rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare)
 
 	while (it != NULL) {
 		c = compare(it, node);
-		if (c == 0)
+		if (c == 0) {
 			return it;
+		}
 
 		it = (c > 0) ? it->left : it->right;
 	}
@@ -391,39 +419,42 @@ rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare)
 }
 
 
-#define RB_DUMP_DEPTH	16
+#define RB_DUMP_DEPTH 16U
 
 
-void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned char d[RB_DUMP_DEPTH])
+static void lib_rbDumpEx(rbnode_t *node, rbdump_t dump, unsigned int *depth, unsigned char d[RB_DUMP_DEPTH])
 {
 	unsigned int i;
 
-	for (i = 0; i < *depth; i++)
-		lib_printf("%c ", d[i] ? '|' : ' ');
+	for (i = 0; i < *depth; i++) {
+		lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
+	}
 
 	if (node == NULL) {
-		lib_printf("%s() *\n", *depth ? "`-" : "");
+		lib_printf("%s() *\n", (*depth != 0U) ? "`-" : "");
 		return;
 	}
 
-	lib_printf("%s(", *depth ? "`-" : "");
+	lib_printf("%s(", (*depth != 0U) ? "`-" : "");
 	dump(node);
 	lib_printf(")%c\n", node->color == RB_BLACK ? '*' : ' ');
 
 	(*depth)++;
+	/* FIXME: dead MISRA Rule 17.2*/
 	if ((node->left != NULL) || (node->right != NULL)) {
-
+		/* parasoft-begin-suppress MISRAC2012-RULE_17_2 "Dead code, used only for debug (for testing)" */
 		if (*depth < RB_DUMP_DEPTH) {
 			d[*depth] = 1;
 			lib_rbDumpEx(node->left, dump, depth, d);
 			d[*depth] = 0;
 			lib_rbDumpEx(node->right, dump, depth, d);
 		}
+		/* parasoft-end-suppress MISRAC2012-RULE_17_2 */
 		else {
-			for (i = 0; i < *depth; i++)
-				lib_printf("%c ", d[i] ? '|' : ' ');
-
-			lib_printf("%s(..)\n", *depth ? "`-" : "");
+			for (i = 0; i < *depth; i++) {
+				lib_printf("%c ", (d[i] != 0U) ? '|' : ' ');
+			}
+			lib_printf("%s(..)\n", (*depth != 0U) ? "`-" : "");
 		}
 	}
 	(*depth)--;

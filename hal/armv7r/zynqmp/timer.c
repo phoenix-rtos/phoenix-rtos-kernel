@@ -21,11 +21,11 @@
 #include "zynqmp.h"
 
 
-#define TTC0_BASE_ADDR       ((addr_t)0x00ff110000)
-#define TIMER_SRC_CLK_CPU_1x 99990000
-#define TIMER_IRQ_ID         68
+#define TTC0_BASE_ADDR       ((addr_t)0x00ff110000U)
+#define TIMER_SRC_CLK_CPU_1x 99990000U
+#define TIMER_IRQ_ID         68U
 
-struct {
+static struct {
 	volatile u32 *ttc;
 	intr_handler_t handler;
 	volatile time_t jiffies;
@@ -53,8 +53,8 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	spinlock_ctx_t sc;
 	hal_spinlockSet(&timer_common.sp, &sc);
 	/* Interval IRQ */
-	if ((*(timer_common.ttc + isr) & 1) != 0) {
-		timer_common.jiffies += timer_common.ticksPerFreq;
+	if ((*(timer_common.ttc + isr) & 0x1U) != 0U) {
+		timer_common.jiffies += (time_t)timer_common.ticksPerFreq;
 	}
 
 	hal_spinlockClear(&timer_common.sp, &sc);
@@ -67,7 +67,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 static time_t hal_timerCyc2Us(time_t cyc)
 {
-	return (cyc * 1000LL) / (time_t)(timer_common.ticksPerFreq * hal_cpuGetCount());
+	return (cyc * 1000LL) / ((time_t)timer_common.ticksPerFreq * (time_t)hal_cpuGetCount());
 }
 
 
@@ -81,9 +81,9 @@ static time_t hal_timerGetCyc(void)
 	jiffies = timer_common.jiffies;
 
 	/* Check if there's pending jiffies increment */
-	if ((*(timer_common.ttc + isr) & 1) != 0) {
+	if ((*(timer_common.ttc + isr) & 0x1U) != 0U) {
 		/* ISR register is clear on read, we have to update jiffies now */
-		timer_common.jiffies += timer_common.ticksPerFreq;
+		timer_common.jiffies += (time_t)timer_common.ticksPerFreq;
 
 		/* Timer might've just wrapped-around,
 		 * take counter value again */
@@ -109,7 +109,7 @@ time_t hal_timerGetUs(void)
 }
 
 
-int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+int hal_timerRegister(int (*f)(unsigned int harg_1, cpu_context_t *harg_2, void *harg_3), void *data, intr_handler_t *h)
 {
 	h->f = f;
 	h->n = TIMER_IRQ_ID;
@@ -124,16 +124,16 @@ static void hal_timerSetPrescaler(u32 freq)
 	u32 ticks = TIMER_SRC_CLK_CPU_1x / freq;
 	u32 prescaler = 0;
 
-	while ((ticks >= 0xffff) && (prescaler < 0x10)) {
+	while ((ticks >= 0xffffU) && (prescaler < 0x10U)) {
 		prescaler++;
-		ticks /= 2;
+		ticks /= 2U;
 	}
 
-	if (prescaler) {
+	if (prescaler != 0U) {
 		/* Enable and set prescaler */
 		prescaler--;
-		*(timer_common.ttc + clk_ctrl) = (*(timer_common.ttc + clk_ctrl) & ~0x1f) | (prescaler << 1);
-		*(timer_common.ttc + clk_ctrl) |= 0x1;
+		*(timer_common.ttc + clk_ctrl) = (*(timer_common.ttc + clk_ctrl) & ~0x1fU) | (prescaler << 1);
+		*(timer_common.ttc + clk_ctrl) |= 0x1U;
 	}
 
 	timer_common.ticksPerFreq = ticks;
@@ -142,8 +142,8 @@ static void hal_timerSetPrescaler(u32 freq)
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using Triple Timer Counter", len);
-	features[len - 1] = '\0';
+	(void)hal_strncpy(features, "Using Triple Timer Counter", len);
+	features[len - 1U] = '\0';
 	return features;
 }
 
@@ -151,14 +151,14 @@ char *hal_timerFeatures(char *features, unsigned int len)
 void _hal_timerInit(u32 interval)
 {
 	timer_common.ttc = (void *)TTC0_BASE_ADDR;
-	_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
+	(void)_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
 	timer_common.jiffies = 0;
 
 	/* Disable timer */
 	*(timer_common.ttc + clk_ctrl) = 0;
 
 	/* Reset count control register */
-	*(timer_common.ttc + cnt_ctrl) = 0x00000021;
+	*(timer_common.ttc + cnt_ctrl) = 0x00000021U;
 
 	/* Reset registers */
 	*(timer_common.ttc + interval_val) = 0;
@@ -168,10 +168,10 @@ void _hal_timerInit(u32 interval)
 	*(timer_common.ttc + match1_cnt2) = 0;
 	*(timer_common.ttc + match2_cnt3) = 0;
 	*(timer_common.ttc + ier) = 0;
-	*(timer_common.ttc + isr) = 0x1f;
+	*(timer_common.ttc + isr) = 0x1fU;
 
 	/* Reset counters and restart counting */
-	*(timer_common.ttc + cnt_ctrl) = 0x10;
+	*(timer_common.ttc + cnt_ctrl) = 0x10U;
 
 	hal_timerSetPrescaler(interval * hal_cpuGetCount());
 
@@ -179,12 +179,12 @@ void _hal_timerInit(u32 interval)
 	timer_common.handler.f = _timer_irqHandler;
 	timer_common.handler.n = TIMER_IRQ_ID;
 	timer_common.handler.data = NULL;
-	hal_interruptsSetHandler(&timer_common.handler);
+	(void)hal_interruptsSetHandler(&timer_common.handler);
 
-	*(timer_common.ttc + interval_val) |= timer_common.ticksPerFreq & 0xffff;
+	*(timer_common.ttc + interval_val) |= timer_common.ticksPerFreq & 0xffffU;
 
 	/* Reset counter */
-	*(timer_common.ttc + cnt_ctrl) = 0x2;
+	*(timer_common.ttc + cnt_ctrl) = 0x2U;
 	/* Enable interval irq timer */
-	*(timer_common.ttc + ier) = 0x1;
+	*(timer_common.ttc + ier) = 0x1U;
 }

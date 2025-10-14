@@ -20,7 +20,7 @@
 char *lib_strdup(const char *str);
 
 
-void lib_splitname(char *path, char **base, char **dir);
+void lib_splitname(char *path, char **base, const char **dir);
 
 
 #endif /* _LIB_STRUTIL_H_ */
