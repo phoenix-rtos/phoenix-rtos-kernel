@@ -257,9 +257,9 @@ void hal_cpuReboot(void)
 }
 
 
-/* TODO: add implementation */
 void hal_cleanDCache(ptr_t start, size_t len)
 {
+	_hal_scsDCacheCleanAddr((void *)start, len);
 }
 
 
