@@ -28,12 +28,31 @@
 #define SIZE_KSTACK (4 * SIZE_PAGE)
 #endif
 
+/* If KERNEL_FPU_SUPPORT == 0, FPU/MVE context handling in the kernel will be disabled.
+ * This flag must be set externally to 1 by the build system to enable FPU handling. */
+#ifndef KERNEL_FPU_SUPPORT
+#define KERNEL_FPU_SUPPORT 0
+#endif
+
 /* values based on EXC_RETURN requirements */
+#define EXC_RETURN_SPSEL (1u << 2) /* 1 - was using process SP, 0 - was using main SP */
+#define EXC_RETURN_FTYPE (1u << 4) /* 1 - standard frame, 0 - frame with FPU state */
+
+#define DEFAULT_PSR 0x01000000
+
+#if KERNEL_FPU_SUPPORT
+#define RET_HANDLER_MSP 0xffffffe1u
+#define RET_THREAD_MSP  0xffffffe9u
+#define RET_THREAD_PSP  0xffffffedu
+#define HWCTXSIZE       (8 + 18)
+#define USERCONTROL     0x7u
+#else
 #define RET_HANDLER_MSP 0xfffffff1u
 #define RET_THREAD_MSP  0xfffffff9u
 #define RET_THREAD_PSP  0xfffffffdu
 #define HWCTXSIZE       8
 #define USERCONTROL     0x3u
+#endif
 
 #ifndef __ASSEMBLY__
 
@@ -68,7 +87,7 @@ typedef struct {
 
 typedef struct _cpu_context_t {
 	u32 savesp_s;
-	u32 padding;
+	u32 fpuctx; /* If KERNEL_FPU_SUPPORT == 0 fpuctx is unused, otherwise it is the value of FPCAR at exception entry. */
 
 	/* Saved by ISR */
 	u32 psp;
@@ -85,9 +104,48 @@ typedef struct _cpu_context_t {
 	u32 msp;
 	u32 pad0;
 
+#if KERNEL_FPU_SUPPORT
+	u32 s16;
+	u32 s17;
+	u32 s18;
+	u32 s19;
+	u32 s20;
+	u32 s21;
+	u32 s22;
+	u32 s23;
+	u32 s24;
+	u32 s25;
+	u32 s26;
+	u32 s27;
+	u32 s28;
+	u32 s29;
+	u32 s30;
+	u32 s31;
+#endif
+
 	/* Saved by hardware */
 	cpu_hwContext_t hwctx;
 
+#if KERNEL_FPU_SUPPORT
+	u32 s0;
+	u32 s1;
+	u32 s2;
+	u32 s3;
+	u32 s4;
+	u32 s5;
+	u32 s6;
+	u32 s7;
+	u32 s8;
+	u32 s9;
+	u32 s10;
+	u32 s11;
+	u32 s12;
+	u32 s13;
+	u32 s14;
+	u32 s15;
+	u32 fpscr;
+	u32 vpr;
+#endif
 } cpu_context_t;
 
 
