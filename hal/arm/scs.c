@@ -409,6 +409,12 @@ u32 _hal_scsSystickGetCount(u8 *overflow_out)
 }
 
 
+u32 _hal_scsGetDefaultFPSCR(void)
+{
+	return scs_common.scs->fpdscr;
+}
+
+
 void _hal_scsInit(void)
 {
 	scs_common.scs = (void *)0xe000e000;

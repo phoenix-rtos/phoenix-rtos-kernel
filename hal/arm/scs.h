@@ -91,6 +91,11 @@ void _hal_scsSystickInit(u32 load);
 u32 _hal_scsSystickGetCount(u8 *overflow_out);
 
 
+/* Get the value to use for FPSCR when creating a new context.
+ * It is stored in FPDSCR register. */
+u32 _hal_scsGetDefaultFPSCR(void);
+
+
 void _hal_scsInit(void);
 
 
