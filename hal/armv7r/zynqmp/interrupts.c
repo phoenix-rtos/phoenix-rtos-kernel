@@ -34,33 +34,33 @@
 
 enum {
 	/* Distributor registers */
-	gicd_ctlr = 0x0U,
+	gicd_ctlr = 0x0,
 	gicd_typer,
 	gicd_iidr,
-	gicd_igroupr0 = 0x20U,     /* 6 registers */
-	gicd_isenabler0 = 0x40U,   /* 6 registers */
-	gicd_icenabler0 = 0x60U,   /* 6 registers */
-	gicd_ispendr0 = 0x80U,     /* 6 registers */
-	gicd_icpendr0 = 0xa0U,     /* 6 registers */
-	gicd_isactiver0 = 0xc0U,   /* 6 registers */
-	gicd_icactiver0 = 0xe0U,   /* 6 registers */
-	gicd_ipriorityr0 = 0x100U, /* 48 registers */
-	gicd_itargetsr0 = 0x200U,  /* 48 registers */
-	gicd_icfgr0 = 0x300U,      /* 12 registers */
-	gicd_ppisr = 0x340U,
+	gicd_igroupr0 = 0x20,     /* 6 registers */
+	gicd_isenabler0 = 0x40,   /* 6 registers */
+	gicd_icenabler0 = 0x60,   /* 6 registers */
+	gicd_ispendr0 = 0x80,     /* 6 registers */
+	gicd_icpendr0 = 0xa0,     /* 6 registers */
+	gicd_isactiver0 = 0xc0,   /* 6 registers */
+	gicd_icactiver0 = 0xe0,   /* 6 registers */
+	gicd_ipriorityr0 = 0x100, /* 48 registers */
+	gicd_itargetsr0 = 0x200,  /* 48 registers */
+	gicd_icfgr0 = 0x300,      /* 12 registers */
+	gicd_ppisr = 0x340,
 	gicd_spisr0, /* 5 registers */
-	gicd_sgir = 0x3c0U,
-	gicd_cpendsgir0 = 0x3c4U, /* 4 registers */
-	gicd_spendsgir0 = 0x3c8U, /* 4 registers */
-	gicd_pidr4 = 0x3f4U,      /* 4 registers */
-	gicd_pidr0 = 0x3f8U,      /* 4 registers */
-	gicd_cidr0 = 0x3fcU,      /* 4 registers */
+	gicd_sgir = 0x3c0,
+	gicd_cpendsgir0 = 0x3c4, /* 4 registers */
+	gicd_spendsgir0 = 0x3c8, /* 4 registers */
+	gicd_pidr4 = 0x3f4,      /* 4 registers */
+	gicd_pidr0 = 0x3f8,      /* 4 registers */
+	gicd_cidr0 = 0x3fc,      /* 4 registers */
 };
 
 
 enum {
 	/* CPU interface registers */
-	gicc_ctlr = 0x0U,
+	gicc_ctlr = 0x0,
 	gicc_pmr,
 	gicc_bpr,
 	gicc_iar,
@@ -71,9 +71,9 @@ enum {
 	gicc_aiar,
 	gicc_aeoir,
 	gicc_ahppir,
-	gicc_apr0 = 0x34U,
-	gicc_nsapr0 = 0x38U,
-	gicc_iidr = 0x3fU,
+	gicc_apr0 = 0x34,
+	gicc_nsapr0 = 0x38,
+	gicc_iidr = 0x3f,
 };
 
 
