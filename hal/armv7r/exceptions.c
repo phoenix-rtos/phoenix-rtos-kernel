@@ -67,31 +67,31 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	buff += hal_strlen(buff);
 
 	i += hal_i2s(" r0=", &buff[i], ctx->cpuCtx.r0, 16U, 1U);
-	i += hal_i2s("  r1=", &buff[i], ctx->cpuCtx.r1, 16, 1U);
-	i += hal_i2s("  r2=", &buff[i], ctx->cpuCtx.r2, 16, 1U);
-	i += hal_i2s("  r3=", &buff[i], ctx->cpuCtx.r3, 16, 1U);
+	i += hal_i2s("  r1=", &buff[i], ctx->cpuCtx.r1, 16U, 1U);
+	i += hal_i2s("  r2=", &buff[i], ctx->cpuCtx.r2, 16U, 1U);
+	i += hal_i2s("  r3=", &buff[i], ctx->cpuCtx.r3, 16U, 1U);
 
-	i += hal_i2s("\n r4=", &buff[i], ctx->cpuCtx.r4, 16, 1U);
-	i += hal_i2s("  r5=", &buff[i], ctx->cpuCtx.r5, 16, 1U);
-	i += hal_i2s("  r6=", &buff[i], ctx->cpuCtx.r6, 16, 1U);
-	i += hal_i2s("  r7=", &buff[i], ctx->cpuCtx.r7, 16, 1U);
+	i += hal_i2s("\n r4=", &buff[i], ctx->cpuCtx.r4, 16U, 1U);
+	i += hal_i2s("  r5=", &buff[i], ctx->cpuCtx.r5, 16U, 1U);
+	i += hal_i2s("  r6=", &buff[i], ctx->cpuCtx.r6, 16U, 1U);
+	i += hal_i2s("  r7=", &buff[i], ctx->cpuCtx.r7, 16U, 1U);
 
-	i += hal_i2s("\n r8=", &buff[i], ctx->cpuCtx.r8, 16, 1U);
-	i += hal_i2s("  r9=", &buff[i], ctx->cpuCtx.r9, 16, 1U);
-	i += hal_i2s(" r10=", &buff[i], ctx->cpuCtx.r10, 16, 1U);
-	i += hal_i2s("  fp=", &buff[i], ctx->cpuCtx.fp, 16, 1U);
+	i += hal_i2s("\n r8=", &buff[i], ctx->cpuCtx.r8, 16U, 1U);
+	i += hal_i2s("  r9=", &buff[i], ctx->cpuCtx.r9, 16U, 1U);
+	i += hal_i2s(" r10=", &buff[i], ctx->cpuCtx.r10, 16U, 1U);
+	i += hal_i2s("  fp=", &buff[i], ctx->cpuCtx.fp, 16U, 1U);
 
-	i += hal_i2s("\n ip=", &buff[i], ctx->cpuCtx.ip, 16, 1U);
-	i += hal_i2s("  sp=", &buff[i], ctx->cpuCtx.sp, 16, 1U);
-	i += hal_i2s("  lr=", &buff[i], ctx->cpuCtx.lr, 16, 1U);
-	i += hal_i2s("  pc=", &buff[i], ctx->cpuCtx.pc, 16, 1U);
+	i += hal_i2s("\n ip=", &buff[i], ctx->cpuCtx.ip, 16U, 1U);
+	i += hal_i2s("  sp=", &buff[i], ctx->cpuCtx.sp, 16U, 1U);
+	i += hal_i2s("  lr=", &buff[i], ctx->cpuCtx.lr, 16U, 1U);
+	i += hal_i2s("  pc=", &buff[i], ctx->cpuCtx.pc, 16U, 1U);
 
-	i += hal_i2s("\npsr=", &buff[i], ctx->cpuCtx.psr, 16, 1U);
-	i += hal_i2s(" dfs=", &buff[i], ctx->dfsr, 16, 1U);
-	i += hal_i2s(" dfa=", &buff[i], ctx->dfar, 16, 1U);
-	i += hal_i2s(" ifs=", &buff[i], ctx->ifsr, 16, 1U);
+	i += hal_i2s("\npsr=", &buff[i], ctx->cpuCtx.psr, 16U, 1U);
+	i += hal_i2s(" dfs=", &buff[i], ctx->dfsr, 16U, 1U);
+	i += hal_i2s(" dfa=", &buff[i], ctx->dfar, 16U, 1U);
+	i += hal_i2s(" ifs=", &buff[i], ctx->ifsr, 16U, 1U);
 
-	i += hal_i2s("\nifa=", &buff[i], ctx->ifar, 16, 1U);
+	i += hal_i2s("\nifa=", &buff[i], ctx->ifar, 16U, 1U);
 
 	buff[i++] = '\n';
 

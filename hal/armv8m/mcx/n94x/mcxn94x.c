@@ -178,7 +178,7 @@ u64 _mcxn94x_sysconGray2Bin(u64 gray)
 	hal_cpuDataMemoryBarrier();
 
 	ret = *(n94x_common.syscon + syscon_binarycodelsb);
-	ret |= ((u64)(*(n94x_common.syscon + syscon_binarycodemsb))) << 32;
+	ret |= (u64)(*(n94x_common.syscon + syscon_binarycodemsb)) << 32;
 
 	return ret;
 }

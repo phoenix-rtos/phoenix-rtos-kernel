@@ -139,7 +139,7 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	msg.o.size = rmsg->osize;
 	msg.o.err = err;
 
-	(void)proc_respond(rmsg->oid.port, &msg, (int)rmsg->rid);
+	(void)proc_respond(rmsg->oid.port, &msg, (msg_rid_t)rmsg->rid);
 
 	vm_kfree(rmsg);
 }

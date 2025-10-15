@@ -82,7 +82,7 @@ enum { pxBufferedPipe,
 	pxPTY };
 
 
-#define F_SEEKABLE(type) ((type) == (char)ftRegular)
+#define F_SEEKABLE(type) ((type) == ftRegular)
 
 
 typedef struct {
@@ -92,7 +92,7 @@ typedef struct {
 	off_t offset;
 	unsigned status;
 	lock_t lock;
-	char type;
+	int type;
 } open_file_t;
 
 
