@@ -31,6 +31,10 @@
 #define O_NDELAY   O_NONBLOCK
 #define O_NOCTTY   0x2000
 #define O_CLOEXEC  0x4000
+#define O_RSYNC    0x8000
+#define O_DSYNC    0x10000
+
+#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
 
 /* clang-format off */
 
