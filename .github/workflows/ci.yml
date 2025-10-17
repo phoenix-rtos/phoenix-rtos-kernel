@@ -12,6 +12,7 @@ on:
       - master
       - 'feature/*'
 
+
 jobs:
   call-ci:
     uses: bartekpaczek/phoenix-rtos-project-fork/.github/workflows/ci-submodule.yml@bpaczek/misra-ci
