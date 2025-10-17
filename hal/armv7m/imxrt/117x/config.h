@@ -52,4 +52,29 @@
 #define GPT_PRESCALER     (GPT_FREQ_MHZ / GPT_OSC_PRESCALER)
 #endif
 
+// #MPUTEST: GPIO CONFIG
+#ifndef MPUTEST_PIN0
+#define MPUTEST_PIN0 0
+#endif
+#ifndef MPUTEST_PIN1
+#define MPUTEST_PIN1 1
+#endif
+
+enum { dr = 0,
+	gdir,
+	psr,
+	icr1,
+	icr2,
+	imr,
+	isr,
+	edge_sel,
+	dr_set = 33,
+	dr_clr,
+	dr_toggle };
+enum { gpio_in = 0,
+	gpio_out };
+
+
+#define GPIO9_BASE ((u32 *)0x40C64000)
+
 #endif

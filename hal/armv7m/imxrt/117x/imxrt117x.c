@@ -13,6 +13,10 @@
  * %LICENSE%
  */
 
+
+#include "hal/console.h"
+#include "lib/lib.h"
+
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
 #include "hal/armv7m/imxrt/halsyspage.h"
@@ -752,6 +756,86 @@ void _imxrt_platformInit(void)
 }
 
 
+extern time_t hal_timerCyc2Us(time_t ticks);
+extern time_t hal_timerGetCyc(void);
+
+
+static void testGPIOlatency(void)  // #MPUTEST: TEST GPIO LATENCY
+{
+	// #MPUTEST: configure GPIOs
+	u32 t;
+
+	const int ITER_CNT = 10 * 1000;
+
+	/* pctl_mux_gpio_ad_XX - GPIO9 pin XX-1 in ALT10 */
+	_imxrt_setIOmux(pctl_mux_gpio_ad_01 + MPUTEST_PIN0, 0, 10);
+	_imxrt_setIOpad(pctl_mux_gpio_ad_01 + MPUTEST_PIN0, 1, 0, 0, 0, 0, 0);
+	_imxrt_setIOmux(pctl_mux_gpio_ad_01 + MPUTEST_PIN1, 0, 10);
+	_imxrt_setIOpad(pctl_mux_gpio_ad_01 + MPUTEST_PIN1, 1, 0, 0, 0, 0, 0);
+
+	/* set dir */
+	t = *(GPIO9_BASE + gdir) & ~(1 << MPUTEST_PIN0);
+	*(GPIO9_BASE + gdir) = t | ((!!gpio_out) << MPUTEST_PIN0);
+	t = *(GPIO9_BASE + gdir) & ~(1 << MPUTEST_PIN1);
+	*(GPIO9_BASE + gdir) = t | ((!!gpio_out) << MPUTEST_PIN1);
+
+
+	*(GPIO9_BASE + dr_clr) = 1u << MPUTEST_PIN0;
+	*(GPIO9_BASE + dr_clr) = 1u << MPUTEST_PIN1;
+
+
+	int avgTwoCycles = 0;
+	int curTwoCycles;
+	int avgOnCycles = 0;
+	int curOnCycles;
+	for (int i = 0; i < ITER_CNT; i++) {
+		curTwoCycles = hal_timerGetCyc();
+
+		/* measure single GPIO toggle with second GPIO */
+		*(GPIO9_BASE + dr_set) = 1u << MPUTEST_PIN0;
+		*(GPIO9_BASE + dr_set) = 1u << MPUTEST_PIN1;
+		*(GPIO9_BASE + dr_clr) = 1u << MPUTEST_PIN0;
+		*(GPIO9_BASE + dr_clr) = 1u << MPUTEST_PIN1;
+
+		curTwoCycles = hal_timerGetCyc() - curTwoCycles;
+		avgTwoCycles = (avgTwoCycles * i + curTwoCycles) / (i + 1);
+
+		for (int i = 0; i < 1000; i++) {
+			__asm__ volatile("nop");
+		}
+	}
+
+	char b[200];
+	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------");
+	lib_sprintf(b, "GPIO latency test (pad toggling) - avg Two PINS ON/OFF: %d cycles (%d us)",
+			avgTwoCycles, (int)hal_timerCyc2Us(avgTwoCycles));
+	hal_consolePrint(ATTR_BOLD, b);
+
+	for (int i = 0; i < 100; i++) {
+		/* Measure time of 1000 ON/OFF switches */
+		curOnCycles = hal_timerGetCyc();
+		*(GPIO9_BASE + dr_set) = 1u << MPUTEST_PIN0;
+		for (int i = 0; i < ITER_CNT; i++) {
+			*(GPIO9_BASE + dr_set) = 1u << MPUTEST_PIN1;
+			*(GPIO9_BASE + dr_clr) = 1u << MPUTEST_PIN1;
+		}
+		*(GPIO9_BASE + dr_clr) = 1u << MPUTEST_PIN0;
+
+		curOnCycles = hal_timerGetCyc() - curOnCycles;
+		avgOnCycles = (avgOnCycles * i + curOnCycles) / (i + 1);
+
+		for (int i = 0; i < 1000; i++) {
+			__asm__ volatile("nop");
+		}
+	}
+
+	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------");
+	lib_sprintf(b, "GPIO latency test (pad toggling) - avg 1 PIN x%d times ON/OFF: %d cycles (%d us)",
+			ITER_CNT, avgOnCycles, (int)hal_timerCyc2Us(avgOnCycles));
+	hal_consolePrint(ATTR_BOLD, b);
+}
+
+
 void _imxrt_init(void)
 {
 	u32 tmp;
@@ -849,4 +933,7 @@ void _imxrt_init(void)
 
 	/* Enable FPU */
 	_hal_scsFPUSet(1);
+
+
+	testGPIOlatency();
 }

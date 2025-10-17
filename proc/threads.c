@@ -615,7 +615,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		proc = selected->process;
 		if ((proc != NULL) && (proc->pmapp != NULL)) {
 			/* Switch address space */
+
+			// #MPUTEST: TEST PMAP_SWITCH TIME
+			*(GPIO9_BASE + dr_set) = 1u << MPUTEST_PIN1;
 			pmap_switch(proc->pmapp);
+			*(GPIO9_BASE + dr_clr) = 1u << MPUTEST_PIN1;
 
 			/* Check for signals to handle */
 			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
