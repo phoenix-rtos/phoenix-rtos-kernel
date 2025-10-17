@@ -52,4 +52,32 @@
 #define GPT_PRESCALER     (GPT_FREQ_MHZ / GPT_OSC_PRESCALER)
 #endif
 
+// #MPUTEST: GPIO CONFIG
+#ifndef MPUTEST_PIN0
+#define MPUTEST_PIN0 0  // GPIO_AD_1
+#endif
+#ifndef MPUTEST_PIN1
+#define MPUTEST_PIN1 1  // GPIO_AD_2
+#endif
+
+enum { dr = 0,
+	gdir,
+	psr,
+	icr1,
+	icr2,
+	imr,
+	isr,
+	edge_sel,
+	dr_set = 33,
+	dr_clr,
+	dr_toggle };
+enum { gpio_in = 0,
+	gpio_out };
+
+
+#define CM7_GPIO3_BASE ((volatile u32 *)0x4200C000)
+
+#define MPUTEST_GPIO_SET(pin) *(CM7_GPIO3_BASE + dr_set) = 1u << pin
+#define MPUTEST_GPIO_CLR(pin) *(CM7_GPIO3_BASE + dr_clr) = 1u << pin
+
 #endif

@@ -18,15 +18,19 @@
 
 
 typedef struct {
+	unsigned int allocCnt;
+	struct {
+		unsigned int rbar;
+		unsigned int rasr;
+	} table[16] __attribute__((aligned(8)));
+	unsigned int map[16]; /* ((unsigned int)-1) = map is not assigned */
+} hal_syspage_prog_t;
+
+
+typedef struct {
 	int resetReason;
 	struct {
 		unsigned int type;
-		unsigned int allocCnt;
-		struct {
-			unsigned int rbar;
-			unsigned int rasr;
-		} table[16] __attribute__((aligned(8)));
-		unsigned int map[16]; /* ((unsigned int)-1) = map is not assigned */
 	} __attribute__((packed)) mpu;
 } __attribute__((packed)) hal_syspage_t;
 

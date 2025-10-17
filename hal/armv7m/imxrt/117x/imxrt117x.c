@@ -13,6 +13,10 @@
  * %LICENSE%
  */
 
+
+#include "hal/console.h"
+#include "lib/lib.h"
+
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
 #include "hal/armv7m/imxrt/halsyspage.h"
@@ -749,6 +753,314 @@ int hal_platformctl(void *ptr)
 void _imxrt_platformInit(void)
 {
 	hal_spinlockCreate(&imxrt_common.pltctlSp, "pltctlSp");
+}
+
+
+extern time_t hal_timerCyc2Us(time_t ticks);
+extern time_t hal_timerGetCyc(void);
+
+
+void testGPIOlatencyConfigure(void)  // #MPUTEST: configure GPIOs
+{
+	u32 t;
+	/* pctl_mux_gpio_ad_XX - GPIO_MUX3 pin XX-1 in ALT5 */
+	_imxrt_setIOmux(pctl_mux_gpio_ad_01 + MPUTEST_PIN0, 0, 5);
+	_imxrt_setIOpad(pctl_mux_gpio_ad_01 + MPUTEST_PIN0, 1, 0, 0, 0, 0, 0);
+	_imxrt_setIOmux(pctl_mux_gpio_ad_01 + MPUTEST_PIN1, 0, 5);
+	_imxrt_setIOpad(pctl_mux_gpio_ad_01 + MPUTEST_PIN1, 1, 0, 0, 0, 0, 0);
+
+
+	/* set up pins of GPIO_MUX3 to CM7 fast GPIO */
+#if MPUTEST_PIN1 >= 16
+	// GPR43
+	*((u32 *)0x400E40AC) |= (1 << (MPUTEST_PIN0 - 16));
+#else
+	// GPR42
+	*((u32 *)0x400E40A8) |= (1 << (MPUTEST_PIN0));
+#endif
+#if MPUTEST_PIN1 >= 16
+	// GPR43
+	*((u32 *)0x400E40AC) |= (1 << (MPUTEST_PIN1 - 16));
+#else
+	// GPR42
+	*((u32 *)0x400E40A8) |= (1 << (MPUTEST_PIN1));
+#endif
+
+	/* set dir */
+	t = *(CM7_GPIO3_BASE + gdir) & ~(1 << MPUTEST_PIN0);
+	*(CM7_GPIO3_BASE + gdir) = t | ((!!gpio_out) << MPUTEST_PIN0);
+	t = *(CM7_GPIO3_BASE + gdir) & ~(1 << MPUTEST_PIN1);
+	*(CM7_GPIO3_BASE + gdir) = t | ((!!gpio_out) << MPUTEST_PIN1);
+
+
+	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+	MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+
+	hal_consolePrint(ATTR_BOLD, "Delay here should take about 1s\n");
+	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000000;) {
+		__asm__ volatile("nop");
+	}
+	hal_consolePrint(ATTR_BOLD, "DELAY DONE\n");
+}
+
+
+typedef struct
+{
+	volatile const u32 CPUID;       /*!< Offset: 0x000 (R/ )  CPUID Base Register */
+	volatile u32 ICSR;              /*!< Offset: 0x004 (R/W)  Interrupt Control and State Register */
+	volatile u32 VTOR;              /*!< Offset: 0x008 (R/W)  Vector Table Offset Register */
+	volatile u32 AIRCR;             /*!< Offset: 0x00C (R/W)  Application Interrupt and Reset Control Register */
+	volatile u32 SCR;               /*!< Offset: 0x010 (R/W)  System Control Register */
+	volatile u32 CCR;               /*!< Offset: 0x014 (R/W)  Configuration Control Register */
+	volatile u8 SHPR[12U];          /*!< Offset: 0x018 (R/W)  System Handlers Priority Registers (4-7, 8-11, 12-15) */
+	volatile u32 SHCSR;             /*!< Offset: 0x024 (R/W)  System Handler Control and State Register */
+	volatile u32 CFSR;              /*!< Offset: 0x028 (R/W)  Configurable Fault Status Register */
+	volatile u32 HFSR;              /*!< Offset: 0x02C (R/W)  HardFault Status Register */
+	volatile u32 DFSR;              /*!< Offset: 0x030 (R/W)  Debug Fault Status Register */
+	volatile u32 MMFAR;             /*!< Offset: 0x034 (R/W)  MemManage Fault Address Register */
+	volatile u32 BFAR;              /*!< Offset: 0x038 (R/W)  BusFault Address Register */
+	volatile u32 AFSR;              /*!< Offset: 0x03C (R/W)  Auxiliary Fault Status Register */
+	volatile const u32 ID_PFR[2U];  /*!< Offset: 0x040 (R/ )  Processor Feature Register */
+	volatile const u32 ID_DFR;      /*!< Offset: 0x048 (R/ )  Debug Feature Register */
+	volatile const u32 ID_AFR;      /*!< Offset: 0x04C (R/ )  Auxiliary Feature Register */
+	volatile const u32 ID_MMFR[4U]; /*!< Offset: 0x050 (R/ )  Memory Model Feature Register */
+	volatile const u32 ID_ISAR[5U]; /*!< Offset: 0x060 (R/ )  Instruction Set Attributes Register */
+	u32 RESERVED0[1U];
+	volatile const u32 CLIDR;  /*!< Offset: 0x078 (R/ )  Cache Level ID register */
+	volatile const u32 CTR;    /*!< Offset: 0x07C (R/ )  Cache Type register */
+	volatile const u32 CCSIDR; /*!< Offset: 0x080 (R/ )  Cache Size ID Register */
+	volatile u32 CSSELR;       /*!< Offset: 0x084 (R/W)  Cache Size Selection Register */
+	volatile u32 CPACR;        /*!< Offset: 0x088 (R/W)  Coprocessor Access Control Register */
+	u32 RESERVED3[93U];
+	volatile u32 STIR; /*!< Offset: 0x200 ( /W)  Software Triggered Interrupt Register */
+	u32 RESERVED4[15U];
+	volatile const u32 MVFR0; /*!< Offset: 0x240 (R/ )  Media and VFP Feature Register 0 */
+	volatile const u32 MVFR1; /*!< Offset: 0x244 (R/ )  Media and VFP Feature Register 1 */
+	volatile const u32 MVFR2; /*!< Offset: 0x248 (R/ )  Media and VFP Feature Register 2 */
+	u32 RESERVED5[1U];
+	volatile u32 ICIALLU; /*!< Offset: 0x250 ( /W)  I-Cache Invalidate All to PoU */
+	u32 RESERVED6[1U];
+	volatile u32 ICIMVAU;  /*!< Offset: 0x258 ( /W)  I-Cache Invalidate by MVA to PoU */
+	volatile u32 DCIMVAC;  /*!< Offset: 0x25C ( /W)  D-Cache Invalidate by MVA to PoC */
+	volatile u32 DCISW;    /*!< Offset: 0x260 ( /W)  D-Cache Invalidate by Set-way */
+	volatile u32 DCCMVAU;  /*!< Offset: 0x264 ( /W)  D-Cache Clean by MVA to PoU */
+	volatile u32 DCCMVAC;  /*!< Offset: 0x268 ( /W)  D-Cache Clean by MVA to PoC */
+	volatile u32 DCCSW;    /*!< Offset: 0x26C ( /W)  D-Cache Clean by Set-way */
+	volatile u32 DCCIMVAC; /*!< Offset: 0x270 ( /W)  D-Cache Clean and Invalidate by MVA to PoC */
+	volatile u32 DCCISW;   /*!< Offset: 0x274 ( /W)  D-Cache Clean and Invalidate by Set-way */
+	volatile u32 BPIALL;   /*!< Offset: 0x278 ( /W)  Branch Predictor Invalidate All */
+	u32 RESERVED7[5U];
+	volatile u32 ITCMCR; /*!< Offset: 0x290 (R/W)  Instruction Tightly-Coupled Memory Control Register */
+	volatile u32 DTCMCR; /*!< Offset: 0x294 (R/W)  Data Tightly-Coupled Memory Control Registers */
+	volatile u32 AHBPCR; /*!< Offset: 0x298 (R/W)  AHBP Control Register */
+	volatile u32 CACR;   /*!< Offset: 0x29C (R/W)  L1 Cache Control Register */
+	volatile u32 AHBSCR; /*!< Offset: 0x2A0 (R/W)  AHB Slave Control Register */
+	u32 RESERVED8[1U];
+	volatile u32 ABFSR; /*!< Offset: 0x2A8 (R/W)  Auxiliary Bus Fault Status Register */
+} SCB_Type;
+
+#define SCS_BASE (0xE000E000UL)         /*!< System Control Space Base Address */
+#define SCB_BASE (SCS_BASE + 0x0D00UL)  /*!< System Control Block Base Address */
+#define SCB      ((SCB_Type *)SCB_BASE) /*!< SCB configuration struct */
+void hal_invalICacheAll(void)           // copied from https://github.com/ARM-software/CMSIS_6/blob/671eba9606a5e3db8b6d45d3475880ff820ca456/CMSIS/Core/Include/m-profile/armv7m_cachel1.h#L93
+{
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
+	SCB->ICIALLU = 0UL;
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
+}
+
+enum { scb_cpuid = 0,
+	scb_icsr,
+	scb_vtor,
+	scb_aircr,
+	scb_scr,
+	scb_ccr,
+	scb_shp0,
+	scb_shp1,
+	scb_shp2,
+	scb_shcsr,
+	scb_cfsr,
+	scb_hfsr,
+	scb_dfsr,
+	scb_mmfar,
+	scb_bfar,
+	scb_afsr,
+	scb_pfr0,
+	scb_pfr1,
+	scb_dfr,
+	scb_afr,
+	scb_mmfr0,
+	scb_mmfr1,
+	scb_mmfr2,
+	scb_mmf3,
+	scb_isar0,
+	scb_isar1,
+	scb_isar2,
+	scb_isar3,
+	scb_isar4,
+	/* reserved */ scb_clidr = 30,
+	scb_ctr,
+	scb_ccsidr,
+	scb_csselr,
+	scb_cpacr,
+	/* 93 reserved */ scb_stir = 128,
+	/* 15 reserved */ scb_mvfr0 = 144,
+	scb_mvfr1,
+	scb_mvfr2,
+	/* reserved */ scb_iciallu = 148,
+	/* reserved */ scb_icimvau = 150,
+	scb_dcimvac,
+	scb_dcisw,
+	scb_dccmvau,
+	scb_dccmvac,
+	scb_dccsw,
+	scb_dccimvac,
+	scb_dccisw, /* 6 reserved */
+	scb_itcmcr = 164,
+	scb_dtcmcr,
+	scb_ahbpcr,
+	scb_cacr,
+	scb_ahbscr,
+	/* reserved */ scb_abfsr = 170 };
+void hal_invalDCacheAll(void)
+{
+	u32 ccsidr, sets, ways;
+
+	/* select Level 1 data cache */
+
+	volatile u32 *scb = (void *)0xe000ed00;
+
+	*(scb + scb_csselr) = 0;
+	hal_cpuDataSyncBarrier();
+	ccsidr = *(scb + scb_ccsidr);
+
+	sets = (ccsidr >> 13) & 0x7fff;
+	do {
+		ways = (ccsidr >> 3) & 0x3ff;
+		do {
+			*(scb + scb_dcisw) = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
+		} while (ways-- != 0U);
+	} while (sets-- != 0U);
+
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
+}
+
+void testGPIOlatency(int cacheopt)  // #MPUTEST: TEST GPIO LATENCY
+{
+	const int ITER_CNT = 10 * 1000;
+
+	for (int i = 0; i < ITER_CNT; i++) {
+		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
+			__asm__ volatile("nop");
+		}
+		MPUTEST_GPIO_SET(MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
+			__asm__ volatile("nop");
+		}
+		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+			__asm__ volatile("nop");
+		}
+		if (cacheopt == 1) {
+			hal_invalDCacheAll();
+			hal_invalICacheAll();
+		}
+	}
+
+	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
+		__asm__ volatile("nop");
+	}
+
+	for (int i = 0; i < ITER_CNT; i++) {
+		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
+			__asm__ volatile("nop");
+		}
+		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PIN1);
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
+			__asm__ volatile("nop");
+		}
+		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+			__asm__ volatile("nop");
+		}
+		if (cacheopt == 1) {
+			hal_invalDCacheAll();
+			hal_invalICacheAll();
+		}
+	}
+
+	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
+		__asm__ volatile("nop");
+	}
+
+	int avgTwoCycles = 0;
+	int curTwoCycles;
+	int avgOnCycles = 0;
+	int curOnCycles;
+	for (int i = 0; i < ITER_CNT; i++) {
+		curTwoCycles = hal_timerGetCyc();
+		/* measure single GPIO toggle with second GPIO */
+		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		curTwoCycles = hal_timerGetCyc() - curTwoCycles;
+		avgTwoCycles = (avgTwoCycles * i + curTwoCycles) / (i + 1);
+
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
+			__asm__ volatile("nop");
+		}
+		if (cacheopt == 1) {
+			hal_invalDCacheAll();
+			hal_invalICacheAll();
+		}
+	}
+
+	char b[200];
+	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
+	lib_sprintf(b, "GPIO latency test (pad toggling) - avg Two PINS ON/OFF: %d cycles (%d us)\n",
+			avgTwoCycles, (int)hal_timerCyc2Us(avgTwoCycles));
+	hal_consolePrint(ATTR_BOLD, b);
+
+	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
+		__asm__ volatile("nop");
+	}
+
+	for (int i = 0; i < 100; i++) {
+		/* Measure time of 1000 ON/OFF switches */
+		curOnCycles = hal_timerGetCyc();
+		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		for (int i = 0; i < ITER_CNT; i++) {
+			MPUTEST_GPIO_SET(MPUTEST_PIN1);
+			MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		}
+		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+
+		curOnCycles = hal_timerGetCyc() - curOnCycles;
+		avgOnCycles = (avgOnCycles * i + curOnCycles) / (i + 1);
+
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+			__asm__ volatile("nop");
+		}
+		if (cacheopt == 1) {
+			hal_invalDCacheAll();
+			hal_invalICacheAll();
+		}
+	}
+
+	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
+	lib_sprintf(b, "GPIO latency test (pad toggling) - avg 1 PIN x%d times ON/OFF: %d cycles (%d us)\n",
+			ITER_CNT, avgOnCycles, (int)hal_timerCyc2Us(avgOnCycles));
+	hal_consolePrint(ATTR_BOLD, b);
 }
 
 

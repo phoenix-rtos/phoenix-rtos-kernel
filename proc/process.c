@@ -1053,7 +1053,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 	(void)i;
 #else
-	pmap_create(&current->process->map.pmap, NULL, NULL, NULL);
+	pmap_create(&current->process->map.pmap, NULL, NULL, &spawn->prog->hal);
 	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
 	current->process->entries = NULL;
 

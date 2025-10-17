@@ -48,6 +48,8 @@ typedef struct _syspage_prog_t {
 
 	size_t dmapSz;
 	unsigned char *dmaps;
+
+	hal_syspage_prog_t hal;
 } __attribute__((packed)) syspage_prog_t;
 
 

@@ -53,4 +53,10 @@ extern void _imxrt_platformInit(void);
 extern void _imxrt_init(void);
 
 
+extern void hal_invalICacheAll(void);
+extern void hal_invalDCacheAll(void);
+extern void testGPIOlatencyConfigure(void);  // #MPUTEST: TEST GPIO LATENCY
+extern void testGPIOlatency(int cacheopt);   // #MPUTEST: TEST GPIO LATENCY
+
+
 #endif
