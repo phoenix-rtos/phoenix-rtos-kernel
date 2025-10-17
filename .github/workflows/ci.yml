@@ -6,7 +6,7 @@ on:
   push:
     branches:
       - master
-      - 'feature/*'
+      - 'bpaczek/*'
   pull_request:
     branches:
       - master
@@ -14,8 +14,7 @@ on:
 
 jobs:
   call-ci:
-    uses: phoenix-rtos/phoenix-rtos-project/.github/workflows/ci-submodule.yml@master
+    uses: bartekpaczek/phoenix-rtos-project-fork/.github/workflows/ci-submodule.yml@bpaczek/misra-ci
     secrets: inherit
     with:
       build_params: all tests
-      nightly: true
