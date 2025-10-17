@@ -57,6 +57,7 @@
 #define RIFSC_BASE  ((void *)0x54024000)
 #define GPDMA1_BASE ((void *)0x50021000)
 #define HPDMA1_BASE ((void *)0x58020000)
+#define DBGMCU_BASE ((void *)0x54001000)
 
 #define EXTI_LINES   78
 #define DMA_CHANNELS 16
@@ -511,6 +512,41 @@ void _stm32_rccClearResetFlags(void)
 }
 
 
+/* DBGMCU */
+
+
+int _stm32_dbgmcuStopTimerInDebug(unsigned int dev, u32 stop)
+{
+	u32 reg;
+	volatile u32 *base = DBGMCU_BASE;
+	if ((pctl_tim2 <= dev) && (dev <= pctl_tim11)) {
+		reg = dbgmcu_apb1lfz1;
+	}
+	else if (((pctl_tim1 <= dev) && (dev <= pctl_tim8)) || ((pctl_tim18 <= dev) && (dev <= pctl_tim9))) {
+		reg = dbgmcu_apb2fz1;
+	}
+	else if (((pctl_lptim2 <= dev) && (dev <= pctl_lptim5)) || (dev == pctl_rtc) || (dev == pctl_iwdg)) {
+		reg = dbgmcu_apb4fz1;
+	}
+	else if (dev == pctl_gfxtim) {
+		reg = dbgmcu_apb5fz1;
+	}
+	else {
+		return -EINVAL;
+	}
+
+	if (stop) {
+		*(base + reg) |= 1 << (dev % 32);
+	}
+	else {
+		*(base + reg) &= ~(1 << (dev % 32));
+	}
+
+	hal_cpuDataSyncBarrier();
+	return EOK;
+}
+
+
 /* RTC */
 
 
@@ -835,6 +871,8 @@ void _stm32_init(void)
 
 	_stm32_rccSetDevClock(pctl_risaf, 1, 1);
 	_stm32_risaf_init();
+
+	_stm32_rccSetDevClock(pctl_dbg, 1, 1);
 
 #if defined(WATCHDOG)
 	/* Init watchdog */

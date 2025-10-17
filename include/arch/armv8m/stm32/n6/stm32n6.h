@@ -164,6 +164,7 @@ enum {
 	pctl_vrefbuf = 0x18f,
 	pctl_rtc,
 	pctl_rtcapb,
+	pctl_iwdg,
 	pctl_r2gret = 0x196,
 	pctl_r2gnpu,
 	pctl_serf = 0x19f,
