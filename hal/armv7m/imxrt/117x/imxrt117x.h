@@ -53,4 +53,8 @@ extern void _imxrt_platformInit(void);
 extern void _imxrt_init(void);
 
 
+extern void testGPIOlatencyConfigure(void);  // #MPUTEST: TEST GPIO LATENCY
+extern void testGPIOlatency(void);  // #MPUTEST: TEST GPIO LATENCY
+
+
 #endif

@@ -33,6 +33,7 @@ static struct {
 	unsigned int kernelCodeRegion;
 	spinlock_t lock;
 	int mpu_enabled;
+	int last_mpu_count;
 } pmap_common;
 
 
@@ -52,19 +53,19 @@ static void pmap_mpu_setMemRegionRasr(u32 rasr)
 }
 
 
-static void pmap_mpu_setMemRegionStatus(int enable)
-{
-	u32 val;
-	__asm__ volatile("mrc p15, 0, %0, c6, c1, 2" : "=r"(val));
-	if (enable != 0) {
-		val |= 1;
-	}
-	else {
-		val &= ~1;
-	}
+// static void pmap_mpu_setMemRegionStatus(int enable)
+// {
+// 	u32 val;
+// 	__asm__ volatile("mrc p15, 0, %0, c6, c1, 2" : "=r"(val));
+// 	if (enable != 0) {
+// 		val |= 1;
+// 	}
+// 	else {
+// 		val &= ~1;
+// 	}
 
-	__asm__ volatile("mcr p15, 0, %0, c6, c1, 2" ::"r"(val));
-}
+// 	__asm__ volatile("mcr p15, 0, %0, c6, c1, 2" ::"r"(val));
+// }
 
 
 static void pmap_mpu_setMemRegionRbar(u32 addr)
@@ -101,6 +102,13 @@ static void pmap_mpu_disable(void)
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
 	pmap->regions = pmap_common.kernelCodeRegion;
+
+	// TODO: temporary hack!
+	if (vaddr != NULL) {
+		hal_memcpy(&pmap->mpu, vaddr, sizeof(pmap->mpu));
+	}
+
+
 	return 0;
 }
 
@@ -111,37 +119,26 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 }
 
 
-static unsigned int pmap_map2region(unsigned int map)
-{
-	if (pmap_common.mpu_enabled == 0) {
-		return 1;
-	}
-
-	int i;
-	unsigned int mask = 0;
-
-	for (i = 0; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
-		if (map == syspage->hs.mpu.map[i]) {
-			mask |= (1 << i);
-		}
-	}
-
-	return mask;
-}
-
-
 int pmap_addMap(pmap_t *pmap, unsigned int map)
 {
-	if (pmap_common.mpu_enabled == 0) {
-		return 0;
-	}
+	// if (pmap_common.mpu_enabled == 0) {
+	// 	return 0;
+	// }
 
-	unsigned int rmask = pmap_map2region(map);
-	if (rmask == 0) {
-		return -1;
-	}
+	// unsigned int rmask = pmap_map2region(map);
+	// if (rmask == 0) {
+	// 	return -1;
+	// }
 
-	pmap->regions |= rmask;
+	// pmap->regions |= rmask;
+	// pmap->mpu.allocCnt = 0;
+	// for (unsigned int i = 0; i < syspage->hs.mpu.allocCnt; ++i) {
+	// 	if (((pmap->regions & (1 << i)) != 0) && ((syspage->hs.mpu.table[i].rbar & (1 << 4)) != 0)) {
+	// 		//TODO: avoid duplicates
+	// 		hal_memcpy(&pmap->mpu.table[pmap->mpu.allocCnt], &syspage->hs.mpu.table[i], sizeof(pmap->mpu.table[i]));
+	// 		pmap->mpu.allocCnt++;
+	// 	}
+	// }
 
 	return 0;
 }
@@ -149,7 +146,8 @@ int pmap_addMap(pmap_t *pmap, unsigned int map)
 
 void pmap_switch(pmap_t *pmap)
 {
-	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
+	unsigned int i;
+	u32 t;
 	spinlock_ctx_t sc;
 	if (pmap_common.mpu_enabled == 0) {
 		return;
@@ -157,13 +155,40 @@ void pmap_switch(pmap_t *pmap)
 
 	if (pmap != NULL) {
 		hal_spinlockSet(&pmap_common.lock, &sc);
-		for (i = 0; i < cnt; ++i) {
-			/* Select region */
-			pmap_mpu_setMemRegionNumber(i);
 
-			/* Enable/disable region according to the mask */
-			pmap_mpu_setMemRegionStatus((pmap->regions & (1 << i)) != 0);
+		pmap_mpu_disable();
+		for (i = 0; i < pmap->mpu.allocCnt; ++i) {
+			pmap_mpu_setMemRegionNumber(i);
+			t = pmap->mpu.table[i].rbar;
+			if ((t & (1 << 4)) == 0) {
+				hal_consolePrint(ATTR_BOLD, "pmap: Trying to enable disabled region\n");
+				continue;
+			}
+
+			pmap_mpu_setMemRegionRbar(t);
+			pmap_mpu_setMemRegionRasr(pmap->mpu.table[i].rasr);
+
+			// char b[64];
+			// lib_sprintf(b, "pmap: MPU region %d: RBAR=%08x RASR=%08x\n", i, t, pmap->mpu.table[i].rasr);
+			// hal_consolePrint(ATTR_BOLD, b);
 		}
+		/* Disable all remaining regions */
+		for (; i < pmap_common.last_mpu_count; i++) {
+			pmap_mpu_setMemRegionNumber(i);
+			pmap_mpu_setMemRegionRasr(0); /* Disable all remaining regions */
+		}
+		pmap_common.last_mpu_count = pmap->mpu.allocCnt;
+
+		/* Enable MPU */
+		pmap_mpu_enable();
+
+		// for (i = 0; i < cnt; ++i) {
+		// 	/* Select region */
+		// 	pmap_mpu_setMemRegionNumber(i);
+
+		// 	/* Enable/disable region according to the mask */
+		// 	pmap_mpu_setMemRegionStatus((pmap->regions & (1 << i)) != 0);
+		// }
 
 		hal_spinlockClear(&pmap_common.lock, &sc);
 	}
@@ -191,7 +216,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 {
 	const syspage_map_t *map;
-	unsigned int rmask;
+	// unsigned int rmask;
 	if (pmap_common.mpu_enabled == 0) {
 		return 1;
 	}
@@ -200,9 +225,16 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	if (map == NULL) {
 		return 0;
 	}
-	rmask = pmap_map2region(map->id);
+	// rmask = pmap_map2region(map->id);
 
-	return ((pmap->regions & rmask) == 0) ? 0 : 1;
+	// return ((pmap->regions & rmask) == 0) ? 0 : 1;
+
+	for (int i = 0; i < sizeof(pmap->mpu.map) / sizeof(pmap->mpu.map[0]); ++i) {
+		if (pmap->mpu.map[i] == map->id) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 
@@ -240,74 +272,75 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	const syspage_map_t *ikmap;
-	unsigned int ikregion;
-	u32 t;
-	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
+	// const syspage_map_t *ikmap;
+	// unsigned int ikregion;
+	// u32 t;
+	// unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 
 	(*vstart) = (void *)(((ptr_t)&_end + 7) & ~7u);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
-	pmap->start = (void *)&__bss_start;
+	// pmap->start = (void *)&__bss_start;
 
-	/* Initial size of kernel map */
-	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
+	// /* Initial size of kernel map */
+	// pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
 
-	pmap->regions = (1 << cnt) - 1;
+	// pmap->regions = (1 << cnt) - 1;
 
-	if (cnt == 0) {
-		hal_spinlockCreate(&pmap_common.lock, "pmap");
-		pmap_common.mpu_enabled = 0;
-		pmap_common.kernelCodeRegion = 0;
-		return;
-	}
+	// if (cnt == 0) {
+	// 	hal_spinlockCreate(&pmap_common.lock, "pmap");
+	// 	pmap_common.mpu_enabled = 0;
+	// 	pmap_common.kernelCodeRegion = 0;
+	// 	return;
+	// }
 
 	pmap_common.mpu_enabled = 1;
 
-	/* Disable MPU that may have been enabled before */
+	// /* Disable MPU that may have been enabled before */
 	pmap_mpu_disable();
 
-	for (i = 0; i < cnt; ++i) {
-		pmap_mpu_setMemRegionNumber(i);
-		t = syspage->hs.mpu.table[i].rbar;
-		if ((t & (1 << 4)) == 0) {
-			continue;
-		}
+	// for (i = 0; i < cnt; ++i) {
+	// 	pmap_mpu_setMemRegionNumber(i);
+	// 	t = syspage->hs.mpu.table[i].rbar;
+	// 	if ((t & (1 << 4)) == 0) {
+	// 		continue;
+	// 	}
 
-		pmap_mpu_setMemRegionRbar(t);
-		pmap_mpu_setMemRegionRasr(syspage->hs.mpu.table[i].rasr); /* Enable all regions */
-	}
+	// 	pmap_mpu_setMemRegionRbar(t);
+	// 	pmap_mpu_setMemRegionRasr(syspage->hs.mpu.table[i].rasr); /* Enable all regions */
+	// }
+	pmap_common.last_mpu_count = 0;  // cnt;
 
-	/* Enable MPU */
-	pmap_mpu_enable();
+	// /* Enable MPU */
+	// pmap_mpu_enable();
 
-	/* FIXME HACK
-	 * allow all programs to execute (and read) kernel code map.
-	 * Needed because of hal_jmp, syscalls handler and signals handler.
-	 * In these functions we need to switch to the user mode when still
-	 * executing kernel code. This will cause memory management fault
-	 * if the application does not have access to the kernel instruction
-	 * map. Possible fix - place return to the user code in the separate
-	 * region and allow this region instead. */
+	// /* FIXME HACK
+	//  * allow all programs to execute (and read) kernel code map.
+	//  * Needed because of hal_jmp, syscalls handler and signals handler.
+	//  * In these functions we need to switch to the user mode when still
+	//  * executing kernel code. This will cause memory management fault
+	//  * if the application does not have access to the kernel instruction
+	//  * map. Possible fix - place return to the user code in the separate
+	//  * region and allow this region instead. */
 
-	/* Find kernel code region */
-	ikmap = syspage_mapAddrResolve((addr_t)(void *)_pmap_init);
-	if (ikmap == NULL) {
-		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");
-		for (;;) {
-			hal_cpuHalt();
-		}
-	}
+	// /* Find kernel code region */
+	// ikmap = syspage_mapAddrResolve((addr_t)(void *)_pmap_init);
+	// if (ikmap == NULL) {
+	// 	hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");
+	// 	for (;;) {
+	// 		hal_cpuHalt();
+	// 	}
+	// }
 
-	ikregion = pmap_map2region(ikmap->id);
-	if (ikregion == 0) {
-		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map has no assigned region. Bad system config\n");
-		for (;;) {
-			hal_cpuHalt();
-		}
-	}
+	// ikregion = pmap_map2region(ikmap->id);
+	// if (ikregion == 0) {
+	// 	hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map has no assigned region. Bad system config\n");
+	// 	for (;;) {
+	// 		hal_cpuHalt();
+	// 	}
+	// }
 
-	pmap_common.kernelCodeRegion = ikregion;
+	// pmap_common.kernelCodeRegion = ikregion;
 
 	hal_spinlockCreate(&pmap_common.lock, "pmap");
 }

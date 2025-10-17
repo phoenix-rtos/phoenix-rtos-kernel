@@ -33,7 +33,7 @@ static struct {
 } timer_common;
 
 
-static time_t hal_timerCyc2Us(time_t ticks)
+time_t hal_timerCyc2Us(time_t ticks)
 {
 	return (ticks * 1024) / ((GPT_FREQ_MHZ * 1024) / (GPT_PRESCALER * GPT_OSC_PRESCALER));
 }
@@ -64,7 +64,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-static time_t hal_timerGetCyc(void)
+time_t hal_timerGetCyc(void)
 {
 	u32 upper, lower;
 	spinlock_ctx_t sc;

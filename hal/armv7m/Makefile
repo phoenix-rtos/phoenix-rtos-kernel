@@ -13,6 +13,26 @@ else ifneq (, $(findstring imxrt, $(TARGET_SUBFAMILY)))
     CFLAGS += -Ihal/armv7m/imxrt -Ihal/armv7m
 endif
 
+
+ifdef MPUTEST_ASMOPT
+    CFLAGS += -DMPUTEST_ASMOPT
+endif
+
+ifdef MPUTEST_FORCEALL
+    CFLAGS += -DMPUTEST_FORCEALL
+endif
+
+ifdef MPUTEST_ORGIMPL
+    CFLAGS += -DMPUTEST_ORGIMPL
+endif
+
+ifdef MPUTEST_ORGIMPL_OPT
+    CFLAGS += -DMPUTEST_ORGIMPL
+    CFLAGS += -DMPUTEST_ORGIMPL_OPT
+endif
+
+
+
 include hal/arm/Makefile
 CFLAGS += -Ihal/arm
 

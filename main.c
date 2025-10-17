@@ -34,6 +34,7 @@ struct {
 	size_t stacksz;
 } main_common;
 
+extern void pmap_switch_bulktest(void);
 
 void main_initthr(void *unused)
 {
@@ -46,6 +47,9 @@ void main_initthr(void *unused)
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 	_usrv_start();
+
+	pmap_switch_bulktest();
+
 
 	lib_printf("main: Starting syspage programs:");
 	syspage_progShow();

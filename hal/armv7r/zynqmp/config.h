@@ -27,6 +27,9 @@
 #include "include/arch/armv7r/zynqmp/syspage.h"
 #include "include/syspage.h"
 
+#define MPUTEST_GPIO_CLR(pin) ;
+#define MPUTEST_GPIO_SET(pin) ;
+
 #endif
 
 #endif
