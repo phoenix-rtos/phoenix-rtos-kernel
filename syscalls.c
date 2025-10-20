@@ -21,6 +21,7 @@
 #include "include/syscalls.h"
 #include "include/threads.h"
 #include "include/utsname.h"
+#include "include/time.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "vm/object.h"
@@ -331,11 +332,16 @@ int syscalls_nsleep(void *ustack)
 	process_t *proc = proc_current()->process;
 	time_t *sec;
 	long int *nsec;
-	time_t start, us, stop, elapsed, unslept;
-	int ret;
+	int clockid;
+	int flags;
 
 	GETFROMSTACK(ustack, time_t *, sec, 0);
 	GETFROMSTACK(ustack, long int *, nsec, 1);
+	GETFROMSTACK(ustack, int, clockid, 2);
+	GETFROMSTACK(ustack, int, flags, 3);
+
+	/* Not used right now, future-proofing */
+	(void)clockid;
 
 	if (vm_mapBelongs(proc, sec, sizeof(*sec)) < 0) {
 		return -EFAULT;
@@ -345,30 +351,7 @@ int syscalls_nsleep(void *ustack)
 		return -EFAULT;
 	}
 
-	if ((*sec < 0) || ((*nsec) < 0) || ((*nsec) >= (1000 * 1000 * 1000))) {
-		return -EINVAL;
-	}
-
-	proc_gettime(&start, NULL);
-
-	us = ((*sec) * 1000 * 1000) + (((*nsec) + 999) / 1000);
-
-	ret = proc_threadSleep(us);
-
-	*sec = 0;
-	*nsec = 0;
-
-	if (ret == -EINTR) {
-		proc_gettime(&stop, NULL);
-		elapsed = stop - start;
-		if (us > elapsed) {
-			unslept = us - elapsed;
-			*sec = unslept / (1000 * 1000);
-			*nsec = (unslept % (1000 * 1000)) * 1000;
-		}
-	}
-
-	return ret;
+	return proc_threadNanoSleep(sec, nsec, ((flags & TIMER_ABSTIME) != 0) ? 1 : 0);
 }
 
 

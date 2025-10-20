@@ -1132,23 +1132,15 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *sc
 }
 
 
-int proc_threadSleep(time_t us)
+static int _proc_threadSleepAbs(time_t abs, time_t now, spinlock_ctx_t *sc)
 {
-	thread_t *current;
-	int err;
-	time_t now;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
 	/* Handle usleep(0) (yield) */
-	if (us != 0) {
-		now = _proc_gettimeRaw();
+	if (abs > now) {
+		thread_t *current = _proc_current();
 
-		current = _proc_current();
 		current->state = SLEEP;
 		current->wait = NULL;
-		current->wakeup = now + us;
+		current->wakeup = abs;
 		current->interruptible = 1;
 
 		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
@@ -1157,12 +1149,62 @@ int proc_threadSleep(time_t us)
 		_threads_updateWakeup(now, NULL);
 	}
 
-	err = hal_cpuReschedule(&threads_common.spinlock, &sc);
-	if (err == -ETIME) {
-		err = EOK;
+	return hal_cpuReschedule(&threads_common.spinlock, sc);
+}
+
+
+static int _proc_threadSleep(time_t us, time_t now, spinlock_ctx_t *sc)
+{
+	return _proc_threadSleepAbs(now + us, now, sc);
+}
+
+
+int proc_threadSleep(time_t us)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	return _proc_threadSleep(us, _proc_gettimeRaw(), &sc);
+}
+
+
+int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
+{
+	time_t us, start, stop, elapsed, unslept;
+	int err;
+	spinlock_ctx_t sc;
+
+	if ((*sec < 0) || ((*nsec) < 0) || ((*nsec) >= (1000 * 1000 * 1000))) {
+		return -EINVAL;
 	}
 
-	return err;
+	us = ((*sec) * 1000 * 1000) + (((*nsec) + 999) / 1000);
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	start = _proc_gettimeRaw();
+
+	if (absolute != 0) {
+		err = _proc_threadSleepAbs(us, start, &sc);
+	}
+	else {
+		err = _proc_threadSleep(us, start, &sc);
+		if (err == -EINTR) {
+			proc_gettime(&stop, NULL);
+			elapsed = stop - start;
+			if (us > elapsed) {
+				unslept = us - elapsed;
+				*sec = unslept / (1000 * 1000);
+				*nsec = (unslept % (1000 * 1000)) * 1000;
+			}
+			else {
+				*sec = 0;
+				*nsec = 0;
+			}
+		}
+	}
+
+	return (err == -ETIME) ? EOK : err;
 }
 
 
