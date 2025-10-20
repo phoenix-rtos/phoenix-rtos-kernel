@@ -18,6 +18,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "config.h"
+#include "proc/threads.h"
 
 #define CFSR  ((volatile u32 *)0xe000ed28)
 #define MMFAR ((volatile u32 *)0xe000ed34)
@@ -133,9 +134,8 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 	hal_cpuReboot();
 #endif
 
-	for (;;) {
-		hal_cpuHalt();
-	}
+	proc_crash(proc_current());
+	proc_threadEnd();
 }
 
 
