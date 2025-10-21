@@ -401,7 +401,7 @@ int hal_platformctl(void *ptr)
 		case pctl_devclock:
 			if (data->action == pctl_set)
 				ret = _zynqmp_setDevClock(data->devclock.dev, data->devclock.src, data->devclock.div0, data->devclock.div1, data->devclock.active);
-			else if (data->action == pctl_set)
+			else if (data->action == pctl_get)
 				ret = _zynqmp_getDevClock(data->devclock.dev, &data->devclock.src, &data->devclock.div0, &data->devclock.div1, &data->devclock.active);
 			break;
 
