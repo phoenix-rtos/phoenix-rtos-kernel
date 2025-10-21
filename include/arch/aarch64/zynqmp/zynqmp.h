@@ -32,7 +32,7 @@
 /* clang-format off */
 /* Devices' clocks controllers */
 enum {
-	pctl_devclock_lpd_usb3_dual = 0x12,
+	pctl_devclock_lpd_usb3_dual = 0x13,
 	pctl_devclock_lpd_gem0,
 	pctl_devclock_lpd_gem1,
 	pctl_devclock_lpd_gem2,
