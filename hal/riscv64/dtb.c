@@ -20,8 +20,6 @@
 
 #include "include/errno.h"
 
-void _end(void);
-
 
 struct _fdt_header_t {
 	u32 magic;
@@ -71,55 +69,61 @@ static struct {
 } dtb_common;
 
 
-char *dtb_getString(u32 i)
+static char *dtb_getString(u32 i)
 {
 	return (char *)((void *)dtb_common.fdth + ntoh32(dtb_common.fdth->off_dt_strings) + i);
 }
 
 
-void dtb_parseSystem(void *dtb, u32 si, u32 l)
+static void dtb_parseSystem(void *dtb, u32 si, u32 l)
 {
-	if (!hal_strcmp(dtb_getString(si), "model")) {
+	if (hal_strcmp(dtb_getString(si), "model") == 0) {
 		dtb_common.model = dtb;
 	}
-	else if (!hal_strcmp(dtb_getString(si), "compatible")) {
+	else if (hal_strcmp(dtb_getString(si), "compatible") == 0) {
 		dtb_common.compatible = dtb;
 	}
+	else {
+		/* No action required */
+	}
 }
 
 
-void dtb_parseCPU(void *dtb, u32 si, u32 l)
+static void dtb_parseCPU(void *dtb, u32 si, u32 l)
 {
-	if (!hal_strcmp(dtb_getString(si), "compatible")) {
+	if (hal_strcmp(dtb_getString(si), "compatible") == 0) {
 		dtb_common.cpus[dtb_common.ncpus].compatible = dtb;
 	}
-	else if (!hal_strcmp(dtb_getString(si), "riscv,isa")) {
+	else if (hal_strcmp(dtb_getString(si), "riscv,isa") == 0) {
 		dtb_common.cpus[dtb_common.ncpus].isa = dtb;
 	}
-	else if (!hal_strcmp(dtb_getString(si), "mmu-type")) {
+	else if (hal_strcmp(dtb_getString(si), "mmu-type") == 0) {
 		dtb_common.cpus[dtb_common.ncpus].mmu = dtb;
 	}
-	else if (!hal_strcmp(dtb_getString(si), "clock-frequency")) {
+	else if (hal_strcmp(dtb_getString(si), "clock-frequency") == 0) {
 		dtb_common.cpus[dtb_common.ncpus].clock = ntoh32(*(u32 *)dtb);
+	}
+	else {
+		/* No action required */
 	}
 }
 
 
-void dtb_parseInterruptController(void *dtb, u32 si, u32 l)
+static void dtb_parseInterruptController(void *dtb, u32 si, u32 l)
 {
 }
 
 
-void dtb_parseSOCInterruptController(void *dtb, u32 si, u32 l)
+static void dtb_parseSOCInterruptController(void *dtb, u32 si, u32 l)
 {
 	dtb_common.soc.intctl.exist = 1;
 }
 
 
-int dtb_parseMemory(void *dtb, u32 si, u32 l)
+static int dtb_parseMemory(void *dtb, u32 si, u32 l)
 {
-	if (!hal_strcmp(dtb_getString(si), "reg")) {
-		dtb_common.memory.nreg = l / 16;
+	if (hal_strcmp(dtb_getString(si), "reg") == 0) {
+		dtb_common.memory.nreg = (size_t)l / 16U;
 		dtb_common.memory.reg = dtb;
 	}
 	return 0;
@@ -148,7 +152,7 @@ void dtb_parse(void)
 		stateSOCInterruptController
 	} state = stateIdle;
 
-	if (dtb_common.fdth->magic != ntoh32(0xd00dfeed)) {
+	if (dtb_common.fdth->magic != ntoh32(0xd00dfeedUL)) {
 		return;
 	}
 
@@ -161,34 +165,37 @@ void dtb_parse(void)
 		dtb += 4;
 
 		/* FDT_NODE_BEGIN */
-		if (token == 1) {
-			if ((d == 0) && (*(char *)dtb == 0)) {
+		if (token == 1U) {
+			if ((d == 0U) && (*(char *)dtb == '\0')) {
 				state = stateSystem;
 			}
-			else if ((d == 1) && (hal_strncmp(dtb, "memory@", 7) == 0)) {
+			else if ((d == 1U) && (hal_strncmp(dtb, "memory@", 7) == 0)) {
 				state = stateMemory;
 			}
-			else if ((d == 2) && (hal_strncmp(dtb, "cpu@", 4) == 0)) {
+			else if ((d == 2U) && (hal_strncmp(dtb, "cpu@", 4) == 0)) {
 				state = stateCPU;
 			}
 			else if ((state == stateCPU) && (hal_strncmp(dtb, "interrupt-controller", 20) == 0)) {
 				state = stateCPUInterruptController;
 			}
-			else if ((d == 1) && (hal_strncmp(dtb, "soc", 3) == 0)) {
+			else if ((d == 1U) && (hal_strncmp(dtb, "soc", 3) == 0)) {
 				state = stateSOC;
 			}
 			else if ((state == stateSOC) && ((hal_strncmp(dtb, "interrupt-controller@", 21) == 0) || (hal_strncmp(dtb, "plic@", 5) == 0))) {
 				state = stateSOCInterruptController;
 			}
+			else {
+				/* No action required */
+			}
 
-			dtb += ((hal_strlen(dtb) + 3) & ~3);
+			dtb += ((hal_strlen(dtb) + 3U) & ~3U);
 			d++;
 		}
 
 		/* FDT_PROP */
-		else if (token == 3) {
-			l = ntoh32(*(u32 *)dtb);
-			l = ((l + 3) & ~3);
+		else if (token == 3U) {
+			l = (size_t)(u32)(ntoh32(*(u32 *)dtb));
+			l = ((l + 3U) & ~3U);
 
 			dtb += 4;
 			si = ntoh32(*(u32 *)dtb);
@@ -196,26 +203,27 @@ void dtb_parse(void)
 
 			switch (state) {
 				case stateSystem:
-					dtb_parseSystem(dtb, si, l);
+					dtb_parseSystem(dtb, si, (u32)l);
 					break;
 
 				case stateMemory:
-					dtb_parseMemory(dtb, si, l);
+					(void)dtb_parseMemory(dtb, si, (u32)l);
 					break;
 
 				case stateCPU:
-					dtb_parseCPU(dtb, si, l);
+					dtb_parseCPU(dtb, si, (u32)l);
 					break;
 
 				case stateCPUInterruptController:
-					dtb_parseInterruptController(dtb, si, l);
+					dtb_parseInterruptController(dtb, si, (u32)l);
 					break;
 
 				case stateSOCInterruptController:
-					dtb_parseSOCInterruptController(dtb, si, l);
+					dtb_parseSOCInterruptController(dtb, si, (u32)l);
 					break;
 
 				default:
+					/* No action required */
 					break;
 			}
 
@@ -223,10 +231,12 @@ void dtb_parse(void)
 		}
 
 		/* FDT_NODE_END */
-		else if (token == 2) {
+		else if (token == 2U) {
 			switch (state) {
+				/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 				case stateCPU:
 					dtb_common.ncpus++;
+					/* Fall-through */
 				case stateMemory:
 					state = stateSystem;
 					break;
@@ -240,12 +250,20 @@ void dtb_parse(void)
 					break;
 
 				default:
+					/* No action required */
 					break;
+			}
+			if (d == 0U) {
+				/* Shouldn't happen */
+				return;
 			}
 			d--;
 		}
-		else if (token == 9) {
+		else if (token == 9U) {
 			break;
+		}
+		else {
+			/* No action required */
 		}
 	}
 }

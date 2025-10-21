@@ -24,7 +24,7 @@
 #include <config.h>
 
 
-#define SIZE_INTERRUPTS 32
+#define SIZE_INTERRUPTS 32U
 
 /* clang-format off */
 
@@ -94,7 +94,7 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 
 	for (i = 0; i < hal_cpuGetCount(); ++i) {
 		if (i != id) {
-			*(interrupts_common.int_ctrl + pc_force + i) |= (1 << intr);
+			*(interrupts_common.int_ctrl + pc_force + i) |= (1UL << intr);
 		}
 	}
 }
@@ -105,22 +105,24 @@ void hal_cpuStartCores(void)
 	unsigned int id = hal_cpuGetID();
 	u32 msk = 0;
 
-	if (id == 0) {
-		msk = ((1 << hal_cpuGetCount()) - 1) & ~(1 << id);
+	if (id == 0U) {
+		msk = ((1UL << hal_cpuGetCount()) - 1U) & ~(1U << id);
 		*(interrupts_common.int_ctrl + int_mpstat) = msk;
 	}
 }
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	int reschedule = 0, cpuid = hal_cpuGetID();
+	unsigned int reschedule = 0;
+	unsigned int cpuid = hal_cpuGetID();
 	spinlock_ctx_t sc;
 
 	if (n == interrupts_common.extendedIrqn) {
 		/* Extended interrupt (16 - 31) */
-		n = *(interrupts_common.int_ctrl + pextack + cpuid) & 0x3f;
+		n = *(interrupts_common.int_ctrl + pextack + cpuid) & 0x3fU;
 	}
 
 	if (n >= SIZE_INTERRUPTS) {
@@ -136,13 +138,13 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 #ifdef NOMMU
 			hal_cpuSetGot(h->got);
 #endif
-			reschedule |= h->f(n, ctx, h->data);
+			reschedule |= (unsigned int)h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.handlers[n]);
 	}
 
-	if (reschedule != 0) {
-		threads_schedule(n, ctx, NULL);
+	if (reschedule != 0U) {
+		(void)threads_schedule(n, ctx, NULL);
 	}
 	hal_spinlockClear(&interrupts_common.spinlocks[n], &sc);
 }
@@ -150,28 +152,28 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 static void interrupts_enableIRQ(unsigned int irqn)
 {
-	int i;
+	unsigned int i;
 
 	/* TLB and Wakeup Timer IRQ should fire on all cores */
-	if ((irqn == TLB_IRQ) || (irqn == TIMER0_2_IRQ)) {
+	if ((irqn == (unsigned int)TLB_IRQ) || (irqn == (unsigned int)TIMER0_2_IRQ)) {
 		for (i = 0; i < hal_cpuGetCount(); ++i) {
-			*(interrupts_common.int_ctrl + pi_mask + i) |= (1 << irqn);
+			*(interrupts_common.int_ctrl + pi_mask + i) |= (1UL << irqn);
 		}
-		*(interrupts_common.int_ctrl + broadcast) |= (1 << irqn);
+		*(interrupts_common.int_ctrl + broadcast) |= (1UL << irqn);
 	}
 	else {
 		/* Other IRQs only on core 0 - no easy way to manage them */
-		*(interrupts_common.int_ctrl + pi_mask) |= (1 << irqn);
+		*(interrupts_common.int_ctrl + pi_mask) |= (1UL << irqn);
 	}
 }
 
 
 static void interrupts_disableIRQ(unsigned int irqn)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < hal_cpuGetCount(); i++) {
-		*(interrupts_common.int_ctrl + pi_mask + i) &= ~(1 << irqn);
+		*(interrupts_common.int_ctrl + pi_mask + i) &= ~(1UL << irqn);
 	}
 }
 
@@ -219,8 +221,8 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using IRQAMP interrupt controller", len);
-	features[len - 1] = 0;
+	(void)hal_strncpy(features, "Using IRQAMP interrupt controller", len);
+	features[len - 1U] = '\0';
 
 	return features;
 }
@@ -228,7 +230,7 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 
 void _hal_interruptsInit(void)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
 		hal_spinlockCreate(&interrupts_common.spinlocks[i], "interrupts_common");
@@ -239,5 +241,5 @@ void _hal_interruptsInit(void)
 	interrupts_common.int_ctrl = _pmap_halMapDevice(PAGE_ALIGN(INT_CTRL_BASE), PAGE_OFFS(INT_CTRL_BASE), SIZE_PAGE);
 
 	/* Read extended irqn */
-	interrupts_common.extendedIrqn = (*(interrupts_common.int_ctrl + int_mpstat) >> 16) & 0xf;
+	interrupts_common.extendedIrqn = (*(interrupts_common.int_ctrl + int_mpstat) >> 16) & 0xfU;
 }

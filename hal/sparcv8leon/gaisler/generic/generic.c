@@ -45,6 +45,7 @@ void hal_cpuHalt(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void hal_cpuInitCore(void)
 {
 	hal_tlbInitCore(hal_cpuGetID());
@@ -107,6 +108,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		default:
+			/* No action required*/
 			break;
 	}
 	hal_spinlockClear(&generic_common.pltctlSp, &sc);
@@ -133,7 +135,7 @@ void _hal_platformInit(void)
 	generic_common.tlbIrqHandler.n = TLB_IRQ;
 	generic_common.tlbIrqHandler.data = NULL;
 
-	hal_interruptsSetHandler(&generic_common.tlbIrqHandler);
+	(void)hal_interruptsSetHandler(&generic_common.tlbIrqHandler);
 
 	ambapp_init();
 }

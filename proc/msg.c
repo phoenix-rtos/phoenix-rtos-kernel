@@ -18,8 +18,8 @@
 #include "proc.h"
 
 
-#define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
-#define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
+#define FLOOR(x) ((x) & ~(SIZE_PAGE - 1U))
+#define CEIL(x)  (((x) + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U))
 
 
 /* clang-format off */
@@ -27,7 +27,7 @@ enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
 /* clang-format on */
 
 
-struct {
+static struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
 } msg_common;
@@ -38,10 +38,12 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
 	u64 bone, eone;
-	unsigned int n = 0, i, attr, prot;
+	size_t n = 0, i;
+	vm_attr_t attr;
+	vm_prot_t prot;
 	page_t *nep = NULL, *nbp = NULL;
 	vm_map_t *srcmap, *dstmap;
-	struct _kmsg_layout_t *ml = dir ? &kmsg->o : &kmsg->i;
+	struct _kmsg_layout_t *ml = (dir != 0) ? &(kmsg->o) : &(kmsg->i);
 	int flags;
 	addr_t bpa, pa, epa;
 
@@ -62,7 +64,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		prot |= PROT_USER;
 	}
 
-	boffs = (ptr_t)data & (SIZE_PAGE - 1U);
+	boffs = (ptr_t)data & (u64)(SIZE_PAGE - 1U);
 
 	if (FLOOR((ptr_t)data + size) > CEIL((ptr_t)data)) {
 		n = (FLOOR((ptr_t)data + size) - CEIL((ptr_t)data)) / SIZE_PAGE;
@@ -73,7 +75,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		eoffs = 0U;
 	}
 	else {
-		eoffs = ((ptr_t)data + size) & (SIZE_PAGE - 1U);
+		eoffs = ((u64)(ptr_t)data + size) & (u64)(SIZE_PAGE - 1U);
 	}
 
 	bone = (boffs != 0U) ? 1U : 0U;
@@ -103,7 +105,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		return NULL;
 	}
 
-	attr |= vm_flagsToAttr(flags);
+	attr |= vm_flagsToAttr((unsigned int)flags);
 
 	if (boffs > 0U) {
 		ml->boffs = boffs;
@@ -115,7 +117,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			return NULL;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, bpa, flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, (u8)flags);
 		ml->bvaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
@@ -126,7 +128,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			return NULL;
 		}
 
-		hal_memcpy(w + boffs, vaddr + boffs, min(size, SIZE_PAGE - boffs));
+		hal_memcpy(w + boffs, vaddr + boffs, (size_t)min(size, SIZE_PAGE - boffs));
 
 		if (page_map(&dstmap->pmap, w, nbp->addr, attr) < 0) {
 			return NULL;
@@ -141,9 +143,10 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		if (page_map(&dstmap->pmap, w + (i + bone) * SIZE_PAGE, pa, attr) < 0) {
 			return NULL;
 		}
+		vaddr += SIZE_PAGE;
 	}
 
-	if (eoffs) {
+	if (eoffs != 0U) {
 		ml->eoffs = eoffs;
 		vaddr = (void *)FLOOR((ptr_t)data + size);
 		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
@@ -159,7 +162,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			nep = nbp;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, epa, flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, (u8)flags);
 		ml->evaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
@@ -188,7 +191,7 @@ static void msg_release(kmsg_t *kmsg)
 
 	if (kmsg->i.bp != NULL) {
 		vm_pageFree(kmsg->i.bp);
-		vm_munmap(msg_common.kmap, kmsg->i.bvaddr, SIZE_PAGE);
+		(void)vm_munmap(msg_common.kmap, kmsg->i.bvaddr, SIZE_PAGE);
 		kmsg->i.bp = NULL;
 	}
 
@@ -196,7 +199,7 @@ static void msg_release(kmsg_t *kmsg)
 		if (kmsg->i.ep != NULL) {
 			vm_pageFree(kmsg->i.ep);
 		}
-		vm_munmap(msg_common.kmap, kmsg->i.evaddr, SIZE_PAGE);
+		(void)vm_munmap(msg_common.kmap, kmsg->i.evaddr, SIZE_PAGE);
 		kmsg->i.eoffs = 0;
 		kmsg->i.ep = NULL;
 	}
@@ -210,27 +213,27 @@ static void msg_release(kmsg_t *kmsg)
 	}
 
 	if (kmsg->i.w != NULL) {
-		vm_munmap(map, kmsg->i.w, CEIL((ptr_t)kmsg->msg.i.data + kmsg->msg.i.size) - FLOOR((ptr_t)kmsg->msg.i.data));
+		(void)vm_munmap(map, kmsg->i.w, CEIL((ptr_t)kmsg->msg.i.data + kmsg->msg.i.size) - FLOOR((ptr_t)kmsg->msg.i.data));
 		kmsg->i.w = NULL;
 	}
 
 	if (kmsg->o.bp != NULL) {
 		vm_pageFree(kmsg->o.bp);
-		vm_munmap(msg_common.kmap, kmsg->o.bvaddr, SIZE_PAGE);
+		(void)vm_munmap(msg_common.kmap, kmsg->o.bvaddr, SIZE_PAGE);
 		kmsg->o.bp = NULL;
 	}
 
-	if (kmsg->o.eoffs) {
+	if (kmsg->o.eoffs != 0U) {
 		if (kmsg->o.ep != NULL) {
 			vm_pageFree(kmsg->o.ep);
 		}
-		vm_munmap(msg_common.kmap, kmsg->o.evaddr, SIZE_PAGE);
+		(void)vm_munmap(msg_common.kmap, kmsg->o.evaddr, SIZE_PAGE);
 		kmsg->o.eoffs = 0;
 		kmsg->o.ep = NULL;
 	}
 
 	if (kmsg->o.w != NULL) {
-		vm_munmap(map, kmsg->o.w, CEIL((ptr_t)kmsg->msg.o.data + kmsg->msg.o.size) - FLOOR((ptr_t)kmsg->msg.o.data));
+		(void)vm_munmap(map, kmsg->o.w, CEIL((ptr_t)kmsg->msg.o.data + kmsg->msg.o.size) - FLOOR((ptr_t)kmsg->msg.o.data));
 		kmsg->o.w = NULL;
 	}
 }
@@ -380,7 +383,7 @@ int proc_send(u32 port, msg_t *msg)
 	}
 	else {
 		LIST_ADD(&p->kmessages, &kmsg);
-		proc_threadWakeup(&p->threads);
+		(void)proc_threadWakeup(&p->threads);
 
 		state = kmsg.state;
 		while ((state != msg_responded) && (state != msg_rejected)) {
@@ -401,6 +404,7 @@ int proc_send(u32 port, msg_t *msg)
 				err = -EINVAL;
 				break;
 			default:
+				/* No action required */
 				break;
 		}
 	}
@@ -442,12 +446,12 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	kmsg = p->kmessages;
 
-	if (p->closed) {
+	if (p->closed != 0) {
 		/* Port is being removed */
 		if (kmsg != NULL) {
 			kmsg->state = msg_rejected;
 			LIST_REMOVE(&p->kmessages, kmsg);
-			proc_threadWakeup(&kmsg->threads);
+			(void)proc_threadWakeup(&kmsg->threads);
 		}
 
 		err = -EINVAL;
@@ -496,14 +500,14 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		kmsg->msg.o.data = msg_map(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);
 	}
 
-	if (((kmsg->msg.i.size != 0) && (kmsg->msg.i.data == NULL)) ||
-			((kmsg->msg.o.size != 0) && (kmsg->msg.o.data == NULL)) ||
+	if (((kmsg->msg.i.size != 0U) && (kmsg->msg.i.data == NULL)) ||
+			((kmsg->msg.o.size != 0U) && (kmsg->msg.o.data == NULL)) ||
 			(proc_portRidAlloc(p, kmsg) < 0)) {
 		msg_release(kmsg);
 
 		hal_spinlockSet(&p->spinlock, &sc);
 		kmsg->state = msg_rejected;
-		proc_threadWakeup(&kmsg->threads);
+		(void)proc_threadWakeup(&kmsg->threads);
 		hal_spinlockClear(&p->spinlock, &sc);
 
 		port_put(p, 0);
@@ -548,19 +552,19 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	/* Copy shadow pages */
 	if (kmsg->i.bp != NULL) {
-		hal_memcpy(kmsg->i.bvaddr + kmsg->i.boffs, kmsg->i.w + kmsg->i.boffs, min(SIZE_PAGE - kmsg->i.boffs, kmsg->msg.i.size));
+		hal_memcpy(kmsg->i.bvaddr + kmsg->i.boffs, kmsg->i.w + kmsg->i.boffs, (size_t)min(SIZE_PAGE - kmsg->i.boffs, kmsg->msg.i.size));
 	}
 
-	if (kmsg->i.eoffs) {
-		hal_memcpy(kmsg->i.evaddr, kmsg->i.w + kmsg->i.boffs + kmsg->msg.i.size - kmsg->i.eoffs, kmsg->i.eoffs);
+	if (kmsg->i.eoffs != 0U) {
+		hal_memcpy(kmsg->i.evaddr, kmsg->i.w + kmsg->i.boffs + kmsg->msg.i.size - kmsg->i.eoffs, (size_t)kmsg->i.eoffs);
 	}
 
 	if (kmsg->o.bp != NULL) {
-		hal_memcpy(kmsg->o.bvaddr + kmsg->o.boffs, kmsg->o.w + kmsg->o.boffs, min(SIZE_PAGE - kmsg->o.boffs, kmsg->msg.o.size));
+		hal_memcpy(kmsg->o.bvaddr + kmsg->o.boffs, kmsg->o.w + kmsg->o.boffs, (size_t)min(SIZE_PAGE - kmsg->o.boffs, kmsg->msg.o.size));
 	}
 
-	if (kmsg->o.eoffs) {
-		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, kmsg->o.eoffs);
+	if (kmsg->o.eoffs != 0U) {
+		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, (size_t)kmsg->o.eoffs);
 	}
 
 	msg_release(kmsg);
@@ -571,13 +575,13 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
 	kmsg->src = proc_current()->process;
-	proc_threadWakeup(&kmsg->threads);
+	(void)proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
-	hal_cpuReschedule(NULL, NULL);
+	(void)hal_cpuReschedule(NULL, NULL);
 
 	port_put(p, 0);
 
-	return s;
+	return (int)s;
 }
 
 

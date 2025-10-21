@@ -21,7 +21,7 @@
 
 typedef struct {
 	long error;
-	long value;
+	unsigned long value;
 } sbiret_t;
 
 

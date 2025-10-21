@@ -21,14 +21,12 @@
 
 #include "include/errno.h"
 
-void _end(void);
 
+#define STR_AND_LEN(x) (x), (sizeof(x) - 1U)
 
-#define STR_AND_LEN(x) x, (sizeof(x) - 1)
-
-#define MAX_CPUS      8
-#define MAX_MEM_BANKS 8
-#define MAX_SERIALS   4
+#define MAX_CPUS      8U
+#define MAX_MEM_BANKS 8U
+#define MAX_SERIALS   4U
 
 struct _fdt_header_t {
 	u32 magic;
@@ -87,13 +85,16 @@ static int dtb_getIntrFromReg(char *reg)
 	num = ntoh32(num);
 	/* Ignore the third cell (flags) - currently we don't have need for it */
 
-	if ((type == 0) && (num < 988)) {
+	if ((type == 0U) && (num < 988U)) {
 		/* Valid SPI interrupt number */
-		return num + 32;
+		return (int)num + 32;
 	}
-	else if ((type == 1) && (num < 16)) {
+	else if ((type == 1U) && (num < 16U)) {
 		/* Valid PPI interrupt number */
-		return num + 16;
+		return (int)num + 16;
+	}
+	else {
+		/* No action required */
 	}
 
 	return -1;
@@ -102,22 +103,28 @@ static int dtb_getIntrFromReg(char *reg)
 
 static void dtb_parseSystem(void *dtb, u32 si, u32 l)
 {
-	if (!hal_strcmp(dtb_getString(si), "model")) {
+	if (hal_strcmp(dtb_getString(si), "model") == 0) {
 		dtb_common.model = dtb;
 	}
-	else if (!hal_strcmp(dtb_getString(si), "compatible")) {
+	else if (hal_strcmp(dtb_getString(si), "compatible") == 0) {
 		dtb_common.compatible = dtb;
+	}
+	else {
+		/* No action required */
 	}
 }
 
 
 static void dtb_parseCPU(void *dtb, u32 si, u32 l)
 {
-	if (!hal_strcmp(dtb_getString(si), "compatible")) {
+	if (hal_strcmp(dtb_getString(si), "compatible") == 0) {
 		dtb_common.cpus[dtb_common.nCpus].compatible = dtb;
 	}
-	else if (!hal_strcmp(dtb_getString(si), "clock-frequency")) {
+	else if (hal_strcmp(dtb_getString(si), "clock-frequency") == 0) {
 		dtb_common.cpus[dtb_common.nCpus].clock = ntoh32(*(u32 *)dtb);
+	}
+	else {
+		/* No action required */
 	}
 }
 
@@ -126,7 +133,7 @@ static void dtb_parseInterruptController(void *dtb, u32 si, u32 l)
 {
 	u64 gicc, gicd;
 	if (hal_strcmp(dtb_getString(si), "reg") == 0) {
-		if (l >= 24) {
+		if (l >= 24U) {
 			hal_memcpy(&gicd, dtb + 0, 8);
 			gicd = ntoh64(gicd);
 			hal_memcpy(&gicc, dtb + 12, 8);
@@ -141,17 +148,20 @@ static void dtb_parseInterruptController(void *dtb, u32 si, u32 l)
 static void dtb_parseSerial(void *dtb, u32 si, u32 l)
 {
 	u64 base;
-	if (!hal_strcmp(dtb_getString(si), "reg")) {
-		if (l >= 8) {
+	if (hal_strcmp(dtb_getString(si), "reg") == 0) {
+		if (l >= 8U) {
 			hal_memcpy(&base, dtb, 8);
 			base = ntoh64(base);
 			dtb_common.serials[dtb_common.nSerials].base = base;
 		}
 	}
-	else if (!hal_strcmp(dtb_getString(si), "interrupts")) {
-		if (l >= 12) {
+	else if (hal_strcmp(dtb_getString(si), "interrupts") == 0) {
+		if (l >= 12U) {
 			dtb_common.serials[dtb_common.nSerials].intr = dtb_getIntrFromReg(dtb);
 		}
+	}
+	else {
+		/* No action required */
 	}
 }
 
@@ -159,19 +169,19 @@ static void dtb_parseSerial(void *dtb, u32 si, u32 l)
 static int dtb_parseMemory(void *dtb, u32 si, u32 l)
 {
 	addr_t start = 0, size = 0;
-	if (!hal_strcmp(dtb_getString(si), "reg")) {
+	if (hal_strcmp(dtb_getString(si), "reg") == 0) {
 		/* TODO: currently we assume 2 cells per address or size.
 		 * More correctly we would need to keep track of #address-cells and #size-cells properties.
 		 */
-		while ((l >= 16) && (dtb_common.nMemBanks < MAX_MEM_BANKS)) {
+		while ((l >= 16U) && (dtb_common.nMemBanks < MAX_MEM_BANKS)) {
 			hal_memcpy(&start, dtb, 8);
 			start = ntoh64(start);
 			hal_memcpy(&size, dtb + 8, 8);
 			size = ntoh64(size);
 			dtb_common.memBanks[dtb_common.nMemBanks].start = start;
-			dtb_common.memBanks[dtb_common.nMemBanks].end = start + size - 1;
+			dtb_common.memBanks[dtb_common.nMemBanks].end = start + size - 1U;
 			dtb_common.nMemBanks++;
-			l -= 16;
+			l -= 16U;
 			dtb += 16;
 		}
 	}
@@ -184,7 +194,7 @@ void dtb_parse(void)
 	void *dtb;
 	unsigned int depth = 0;
 	u32 token, si;
-	size_t l;
+	u32 l;
 	enum {
 		stateIdle,
 		stateSystem,
@@ -195,7 +205,7 @@ void dtb_parse(void)
 		stateSerial,
 	} state = stateIdle;
 
-	if (dtb_common.fdth->magic != ntoh32(0xd00dfeed)) {
+	if (dtb_common.fdth->magic != ntoh32(0xd00dfeedU)) {
 		return;
 	}
 
@@ -206,17 +216,17 @@ void dtb_parse(void)
 		dtb += 4;
 
 		/* FDT_NODE_BEGIN */
-		if (token == 1) {
-			if ((depth == 0) && (*(char *)dtb == 0)) {
+		if (token == 1U) {
+			if ((depth == 0U) && (*(char *)dtb == '\0')) {
 				state = stateSystem;
 			}
-			else if ((depth == 1) && (hal_strncmp(dtb, STR_AND_LEN("memory")) == 0)) {
+			else if ((depth == 1U) && (hal_strncmp(dtb, STR_AND_LEN("memory")) == 0)) {
 				state = stateMemory;
 			}
-			else if ((depth == 1) && (hal_strncmp(dtb, STR_AND_LEN("amba_apu")) == 0)) {
+			else if ((depth == 1U) && (hal_strncmp(dtb, STR_AND_LEN("amba_apu")) == 0)) {
 				state = stateAMBA_APU;
 			}
-			else if ((depth == 2) && ((hal_strncmp(dtb, STR_AND_LEN("cpu")) == 0) || (hal_strncmp(dtb, STR_AND_LEN("apu_cpu")) == 0))) {
+			else if ((depth == 2U) && ((hal_strncmp(dtb, STR_AND_LEN("cpu")) == 0) || (hal_strncmp(dtb, STR_AND_LEN("apu_cpu")) == 0))) {
 				if (dtb_common.nCpus < MAX_CPUS) {
 					state = stateCPU;
 				}
@@ -224,21 +234,24 @@ void dtb_parse(void)
 			else if ((state == stateAMBA_APU) && (hal_strncmp(dtb, STR_AND_LEN("interrupt-controller@")) == 0)) {
 				state = stateInterruptController;
 			}
-			else if ((depth == 2) && (hal_strncmp(dtb, STR_AND_LEN("serial@")) == 0)) {
+			else if ((depth == 2U) && (hal_strncmp(dtb, STR_AND_LEN("serial@")) == 0)) {
 				if (dtb_common.nSerials < MAX_SERIALS) {
 					state = stateSerial;
 					dtb_common.serials[dtb_common.nSerials].intr = -1;
 				}
 			}
+			else {
+				/* No action required */
+			}
 
-			dtb += ((hal_strlen(dtb) + 3) & ~3);
+			dtb += ((hal_strlen(dtb) + 3U) & ~3U);
 			depth++;
 		}
 
 		/* FDT_PROP */
-		else if (token == 3) {
+		else if (token == 3U) {
 			l = ntoh32(*(u32 *)dtb);
-			l = ((l + 3) & ~3);
+			l = ((l + 3U) & ~3U);
 
 			dtb += 4;
 			si = ntoh32(*(u32 *)dtb);
@@ -250,7 +263,7 @@ void dtb_parse(void)
 					break;
 
 				case stateMemory:
-					dtb_parseMemory(dtb, si, l);
+					(void)dtb_parseMemory(dtb, si, l);
 					break;
 
 				case stateInterruptController:
@@ -266,6 +279,7 @@ void dtb_parse(void)
 					break;
 
 				default:
+					/* No action required */
 					break;
 			}
 
@@ -273,10 +287,10 @@ void dtb_parse(void)
 		}
 
 		/* FDT_NODE_END */
-		else if (token == 2) {
+		else if (token == 2U) {
 			switch (state) {
 				case stateAMBA_APU:
-					state = (depth > 2) ? stateAMBA_APU : stateIdle;
+					state = (depth > 2U) ? stateAMBA_APU : stateIdle;
 					break;
 
 				case stateCPU:
@@ -295,8 +309,11 @@ void dtb_parse(void)
 			}
 			depth--;
 		}
-		else if (token == 9) {
+		else if (token == 9U) {
 			break;
+		}
+		else {
+			/* No action required */
 		}
 	}
 }
@@ -346,7 +363,7 @@ void dtb_getSerials(dtb_serial_t **serials, size_t *nSerials)
 void _dtb_init(addr_t dtbPhys)
 {
 	hal_memset(&dtb_common, 0, sizeof(dtb_common));
-	dtb_common.fdth = (void *)((dtbPhys & (SIZE_PAGE - 1)) + VADDR_DTB);
+	dtb_common.fdth = (void *)((dtbPhys & (SIZE_PAGE - 1U)) + VADDR_DTB);
 
 	dtb_parse();
 }

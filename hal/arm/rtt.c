@@ -23,7 +23,7 @@
 #endif
 
 #ifndef RTT_CB_SIZE
-#define RTT_CB_SIZE 256
+#define RTT_CB_SIZE 256U
 #endif
 
 
@@ -78,22 +78,22 @@ int _hal_rttWrite(unsigned int chan, const void *buf, unsigned int count)
 
 	hal_cpuDataMemoryBarrier();
 	dstBuf = common.rtt->channels[chan].ptr;
-	sz = common.rtt->channels[chan].sz - 1;
+	sz = common.rtt->channels[chan].sz - 1U;
 	rd = (common.rtt->channels[chan].rd + sz) & sz;
 	wr = common.rtt->channels[chan].wr & sz;
 	todo = count;
 
 	/* TODO: Support all buffer modes (currently only trim is used, regardless of flags) */
-	while ((todo != 0) && (rd != wr)) {
+	while ((todo != 0U) && (rd != wr)) {
 		dstBuf[wr] = *(const unsigned char *)buf++;
-		wr = (wr + 1) & sz;
+		wr = (wr + 1U) & sz;
 		todo--;
 	}
 
 	hal_cpuDataMemoryBarrier();
 	common.rtt->channels[chan].wr = wr;
 
-	return count - todo;
+	return (int)(unsigned int)(count - todo);
 }
 
 
@@ -108,15 +108,15 @@ int _hal_rttTxAvail(unsigned int chan)
 	}
 
 	hal_cpuDataMemoryBarrier();
-	sz = common.rtt->channels[chan].sz - 1;
+	sz = common.rtt->channels[chan].sz - 1U;
 	rd = (common.rtt->channels[chan].rd + sz) & sz;
 	wr = common.rtt->channels[chan].wr & sz;
 
 	if (wr > rd) {
-		return sz + 1 - (wr - rd);
+		return (int)(unsigned int)(sz + 1U - (wr - rd));
 	}
 	else {
-		return rd - wr;
+		return (int)(unsigned int)(rd - wr);
 	}
 }
 

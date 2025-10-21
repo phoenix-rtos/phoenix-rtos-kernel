@@ -19,37 +19,37 @@
 #include "hal/types.h"
 
 /* Predefined virtual addresses */
-#define VADDR_KERNEL  0xffffffffc0000000 /* base virtual address of kernel space */
-#define VADDR_MIN     0x0000000000000000
-#define VADDR_MAX     0xffffffffffffffff
-#define VADDR_USR_MAX 0x0000008000000000 /* 2^39 bytes - maximum reachable with 3 translation levels at 4K granule */
-#define VADDR_DTB     0xfffffffffff00000 /* Last 1 MB of virtual space */
+#define VADDR_KERNEL  0xffffffffc0000000U /* base virtual address of kernel space */
+#define VADDR_MIN     0x0000000000000000U
+#define VADDR_MAX     0xffffffffffffffffU
+#define VADDR_USR_MAX 0x0000008000000000U /* 2^39 bytes - maximum reachable with 3 translation levels at 4K granule */
+#define VADDR_DTB     0xfffffffffff00000U /* Last 1 MB of virtual space */
 
 
 /* Architecture dependent page attributes */
-#define PGHD_PRESENT    0x20
-#define PGHD_NOT_CACHED 0x10
-#define PGHD_USER       0x08
-#define PGHD_WRITE      0x04
-#define PGHD_EXEC       0x02
-#define PGHD_DEV        0x01
-#define PGHD_READ       0x00
-#define PGHD_MASK       0x1f
+#define PGHD_PRESENT    0x20U
+#define PGHD_NOT_CACHED 0x10U
+#define PGHD_USER       0x08U
+#define PGHD_WRITE      0x04U
+#define PGHD_EXEC       0x02U
+#define PGHD_DEV        0x01U
+#define PGHD_READ       0x00U
+#define PGHD_MASK       0x1fU
 
 
 /* Page flags */
-#define PAGE_FREE 0x00000001
+#define PAGE_FREE 0x00000001U
 
-#define PAGE_OWNER_BOOT   (0 << 1)
-#define PAGE_OWNER_KERNEL (1 << 1)
-#define PAGE_OWNER_APP    (2 << 1)
+#define PAGE_OWNER_BOOT   (0U << 1)
+#define PAGE_OWNER_KERNEL (1U << 1)
+#define PAGE_OWNER_APP    (2U << 1)
 
-#define PAGE_KERNEL_SYSPAGE (1 << 4)
-#define PAGE_KERNEL_CPU     (2 << 4)
-#define PAGE_KERNEL_PTABLE  (3 << 4)
-#define PAGE_KERNEL_PMAP    (4 << 4)
-#define PAGE_KERNEL_STACK   (5 << 4)
-#define PAGE_KERNEL_HEAP    (6 << 4)
+#define PAGE_KERNEL_SYSPAGE (1U << 4)
+#define PAGE_KERNEL_CPU     (2U << 4)
+#define PAGE_KERNEL_PTABLE  (3U << 4)
+#define PAGE_KERNEL_PMAP    (4U << 4)
+#define PAGE_KERNEL_STACK   (5U << 4)
+#define PAGE_KERNEL_HEAP    (6U << 4)
 
 #ifndef __ASSEMBLY__
 

@@ -24,8 +24,8 @@
 #define SIZE_OCRAM_HIGH 64 * 1024
 
 /* TODO: temp solution, defines describe specific platform */
-#define ADDR_DDR 0x00100000
-#define SIZE_DDR 0x7ffffff
+#define ADDR_DDR 0x00100000U
+#define SIZE_DDR 0x7ffffffU
 
 #define NUM_CPUS 2
 

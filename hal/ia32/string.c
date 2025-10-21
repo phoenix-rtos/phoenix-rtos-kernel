@@ -40,13 +40,18 @@ void hal_memcpy(void *dst, const void *src, size_t l)
 
 int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < num; ++i) {
-		if (((const u8 *)ptr1)[i] < ((const u8 *)ptr2)[i])
+		if (((const u8 *)ptr1)[i] < ((const u8 *)ptr2)[i]) {
 			return -1;
-		else if (((const u8 *)ptr1)[i] > ((const u8 *)ptr2)[i])
+		}
+		else if (((const u8 *)ptr1)[i] > ((const u8 *)ptr2)[i]) {
 			return 1;
+		}
+		else {
+			/* No action required */
+		}
 	}
 
 	return 0;
@@ -87,8 +92,9 @@ size_t hal_strlen(const char *s)
 {
 	unsigned int k;
 
-	for (k = 0; *s; s++, k++)
-		;
+	for (k = 0; *s != '\0'; s++) {
+		k++;
+	}
 
 	return k;
 }
@@ -99,18 +105,26 @@ int hal_strcmp(const char *s1, const char *s2)
 	const unsigned char *us1 = (const unsigned char *)s1;
 	const unsigned char *us2 = (const unsigned char *)s2;
 	const unsigned char *p;
-	unsigned int k;
+	unsigned int k = 0;
 
-	for (p = us1, k = 0; *p; p++, k++) {
+	for (p = us1; *p != 0U; p++) {
 
-		if (*p < *(us2 + k))
+		if (*p < *(us2 + k)) {
 			return -1;
-		else if (*p > *(us2 + k))
+		}
+		else if (*p > *(us2 + k)) {
 			return 1;
+		}
+		else {
+			/* No action required */
+		}
+
+		k++;
 	}
 
-	if (*p != *(us2 + k))
+	if (*p != *(us2 + k)) {
 		return -1;
+	}
 
 	return 0;
 }
@@ -120,15 +134,19 @@ int hal_strncmp(const char *s1, const char *s2, size_t n)
 {
 	const unsigned char *us1 = (const unsigned char *)s1;
 	const unsigned char *us2 = (const unsigned char *)s2;
-	unsigned int k;
+	unsigned int k = 0;
 
-	for (k = 0; k < n && *us1 && *us2 && (*us1 == *us2); ++k, ++us1, ++us2)
-		;
+	while (k < n && (*us1 != 0U) && (*us2 != 0U) && (*us1 == *us2)) {
+		++k;
+		++us1;
+		++us2;
+	}
 
-	if (k == n || (!*us1 && !*us2))
+	if (k == n || ((*us1 == 0U) && (*us2 == 0U))) {
 		return 0;
+	}
 
-	return (*us1 < *us2) ? -k - 1 : k + 1;
+	return (*us1 < *us2) ? -((int)k) - 1 : (int)k + 1;
 }
 
 
@@ -146,15 +164,16 @@ char *hal_strcpy(char *dest, const char *src)
 
 char *hal_strncpy(char *dest, const char *src, size_t n)
 {
-	int i = 0;
+	unsigned int i = 0;
 
-	if (n == 0)
+	if (n == 0U) {
 		return dest;
+	}
 
 	do {
 		dest[i] = src[i];
 		i++;
-	} while (i < n && src[i - 1] != '\0');
+	} while (i < n && src[i - 1U] != '\0');
 
 	return dest;
 }
@@ -168,14 +187,19 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zer
 
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
+	k = m;
 
-	for (k = m, l = (unsigned long)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+	for (l = (unsigned long)-1; l != 0U; l /= b) {
+		if ((zero == 0U) && (i == 0U)) {
 			break;
+		}
 		s[k++] = digits[i % b];
+		i /= b;
 	}
 
-	l = k--;
+	if (k != 0U) {
+		l = k--;
+	}
 
 	while (k > m) {
 		c = s[m];

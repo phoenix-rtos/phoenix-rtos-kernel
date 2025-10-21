@@ -36,7 +36,7 @@
 #define MODE_EL0      0x0
 #define MODE_EL1_SP0  0x4
 #define MODE_EL1_SP1  0x5
-#define MODE_MASK     0xf
+#define MODE_MASK     0xfU
 #define NO_DBGE       0x200             /* mask to disable debug exception */
 #define NO_SERR       0x100             /* mask to disable SError exception */
 #define NO_IRQ        0x80              /* mask to disable IRQ */
@@ -52,12 +52,14 @@
 #define SIZE_STACK_ARG(sz) (((sz) + 7U) & ~0x7U)
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "t used as type -  wrong interpretation" */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (u8 *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) = (u8 *)(((addr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7*/
 
 typedef struct _cpu_context_t {
 	u64 savesp;
@@ -101,14 +103,14 @@ static inline void hal_cpuSetDevBusy(int s)
 
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	return 63 - __builtin_clzl(v);
+	return 63U - (unsigned int)__builtin_clzl(v);
 }
 
 
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 
-	return __builtin_ctzl(v);
+	return (unsigned int)__builtin_ctzl(v);
 }
 
 
@@ -119,12 +121,6 @@ static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 
 static inline void hal_cpuSetGot(void *got)
 {
-}
-
-
-static inline void *hal_cpuGetGot(void)
-{
-	return NULL;
 }
 
 
@@ -154,17 +150,18 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return ctx->psr & MODE_MASK;
+	return (int)(unsigned int)(ctx->psr & MODE_MASK);
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetID(void)
 {
 	u64 mpidr;
 	/* clang-format off */
 	__asm__ volatile ("mrs %0, mpidr_el1" : "=r"(mpidr));
 	/* clang-format on */
-	return mpidr & 0xff;
+	return (unsigned int)mpidr & 0xffU;
 }
 
 
@@ -184,6 +181,7 @@ static inline void hal_cpuWaitForEvent(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
 {
 	u32 result;
@@ -213,9 +211,6 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 	);
 	/* clang-format on */
 }
-
-
-unsigned int hal_cpuGetCount(void);
 
 
 #endif

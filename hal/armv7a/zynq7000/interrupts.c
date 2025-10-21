@@ -14,6 +14,7 @@
  */
 
 #include "hal/armv7a/armv7a.h"
+#include "hal/armv7a/zynq7000/zynq.h"
 
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
@@ -23,14 +24,14 @@
 #include "proc/userintr.h"
 
 
-#define SIZE_INTERRUPTS 95
-#define SPI_FIRST_IRQID 32
+#define SIZE_INTERRUPTS 95U
+#define SPI_FIRST_IRQID 32U
 
-#define SGI_FLT_USE_LIST   0 /* Send SGI to CPUs according to targetList */
-#define SGI_FLT_OTHER_CPUS 1 /* Send SGI to all CPUs except the one that called this function */
-#define SGI_FLT_THIS_CPU   2 /* Send SGI to the CPU that called this function */
+#define SGI_FLT_USE_LIST   0U /* Send SGI to CPUs according to targetList */
+#define SGI_FLT_OTHER_CPUS 1U /* Send SGI to all CPUs except the one that called this function */
+#define SGI_FLT_THIS_CPU   2U /* Send SGI to the CPU that called this function */
 
-#define DEFAULT_CPU_MASK 0x3
+#define DEFAULT_CPU_MASK 0x3U
 
 
 /* clang-format off */
@@ -52,7 +53,7 @@ enum {
 /* clang-format on */
 
 
-struct {
+static struct {
 	volatile u32 *gic;
 	spinlock_t spinlock[SIZE_INTERRUPTS];
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
@@ -76,17 +77,19 @@ void _hal_interruptsInitPerCPU(void);
 
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	int reschedule = 0;
+	unsigned int reschedule = 0;
 	spinlock_ctx_t sc;
 
 	u32 ciarValue = *(interrupts_common.gic + ciar);
-	n = ciarValue & 0x3ff;
+	n = ciarValue & 0x3ffU;
 
 	if (n >= SIZE_INTERRUPTS) {
 		return 0;
@@ -99,31 +102,32 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	h = interrupts_common.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= h->f(n, ctx, h->data);
+			reschedule |= (unsigned int)h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.handlers[n]);
 	}
 
-	if (reschedule)
-		threads_schedule(n, ctx, NULL);
+	if (reschedule != 0U) {
+		(void)threads_schedule(n, ctx, NULL);
+	}
 
 	*(interrupts_common.gic + ceoir) = ciarValue;
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
 
-	return reschedule;
+	return (int)reschedule;
 }
 
 
 static void interrupts_enableIRQ(unsigned int irqn)
 {
-	*(interrupts_common.gic + diser0 + (irqn >> 5)) = 1 << (irqn & 0x1f);
+	*(interrupts_common.gic + diser0 + (irqn >> 5)) = 1UL << (irqn & 0x1fU);
 }
 
 
 static void interrupts_disableIRQ(unsigned int irqn)
 {
-	*(interrupts_common.gic + dicer0 + (irqn >> 5)) = 1 << (irqn & 0x1f);
+	*(interrupts_common.gic + dicer0 + (irqn >> 5)) = 1UL << (irqn & 0x1fU);
 }
 
 
@@ -131,8 +135,8 @@ static void interrupts_setConf(unsigned int irqn, u32 conf)
 {
 	u32 mask;
 
-	mask = *(interrupts_common.gic + dicfr0 + (irqn >> 4)) & ~(0x3 << ((irqn & 0xf) << 1));
-	*(interrupts_common.gic + dicfr0 + (irqn >> 4)) = mask | ((conf & 0x3) << ((irqn & 0xf) << 1));
+	mask = *(interrupts_common.gic + dicfr0 + (irqn >> 4)) & ~(0x3U << ((irqn & 0xfU) << 1));
+	*(interrupts_common.gic + dicfr0 + (irqn >> 4)) = mask | ((conf & 0x3U) << ((irqn & 0xfU) << 1));
 }
 
 
@@ -140,22 +144,22 @@ void _zynq_interrupts_setCPU(unsigned int irqn, u32 cpuID)
 {
 	u32 mask;
 
-	mask = *(interrupts_common.gic + diptr0 + (irqn >> 2)) & ~(0x3 << ((irqn & 0x3) << 3));
-	*(interrupts_common.gic + diptr0 + (irqn >> 2)) = mask | ((cpuID & 0x3) << ((irqn & 0x3) << 3));
+	mask = *(interrupts_common.gic + diptr0 + (irqn >> 2)) & ~(0x3U << ((irqn & 0x3U) << 3));
+	*(interrupts_common.gic + diptr0 + (irqn >> 2)) = mask | ((cpuID & 0x3U) << ((irqn & 0x3U) << 3));
 }
 
 
 static void interrupts_setPriority(unsigned int irqn, u32 priority)
 {
-	u32 mask = *(interrupts_common.gic + dipr0 + (irqn >> 2)) & ~(0xff << ((irqn & 0x3) << 3));
+	u32 mask = *(interrupts_common.gic + dipr0 + (irqn >> 2)) & ~(0xffU << ((irqn & 0x3U) << 3));
 
-	*(interrupts_common.gic + dipr0 + (irqn >> 2)) = mask | ((priority & 0xff) << ((irqn & 0x3) << 3));
+	*(interrupts_common.gic + dipr0 + (irqn >> 2)) = mask | ((priority & 0xffU) << ((irqn & 0x3U) << 3));
 }
 
 
 static inline u32 interrupts_getPriority(unsigned int irqn)
 {
-	return (*(interrupts_common.gic + dipr0 + (irqn >> 2)) >> ((irqn & 0x3) << 3)) & 0xff;
+	return (*(interrupts_common.gic + dipr0 + (irqn >> 2)) >> ((irqn & 0x3U) << 3)) & 0xffU;
 }
 
 
@@ -163,8 +167,9 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 {
 	spinlock_ctx_t sc;
 
-	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
+	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS) {
 		return -1;
+	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[h->n], &sc);
 	HAL_LIST_ADD(&interrupts_common.handlers[h->n], h);
@@ -181,8 +186,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using GIC interrupt controller", len);
-	features[len - 1] = 0;
+	(void)hal_strncpy(features, "Using GIC interrupt controller", len);
+	features[len - 1U] = '\0';
 
 	return features;
 }
@@ -192,14 +197,16 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 {
 	spinlock_ctx_t sc;
 
-	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS)
+	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS) {
 		return -1;
+	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[h->n], &sc);
 	HAL_LIST_REMOVE(&interrupts_common.handlers[h->n], h);
 
-	if (interrupts_common.handlers[h->n] == NULL)
+	if (interrupts_common.handlers[h->n] == NULL) {
 		interrupts_disableIRQ(h->n);
+	}
 
 	hal_spinlockClear(&interrupts_common.spinlock[h->n], &sc);
 
@@ -218,15 +225,16 @@ void _hal_interruptsInit(void)
 		hal_spinlockCreate(&interrupts_common.spinlock[i], "interrupts");
 	}
 
-	interrupts_common.gic = (void *)(((u32)&_end + (5 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	interrupts_common.gic = (void *)(((u32)&_end + (5U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
 
 	/* Initialize Distributor of the gic
 	 * enable_secure = 0 */
-	*(interrupts_common.gic + ddcr) &= ~0x3;
+	*(interrupts_common.gic + ddcr) &= ~0x3U;
 
 	/* Set default priorities - 10 for the SGI (IRQID: 0 - 15), PPI (IRQID: 16 - 31), SPI (IRQID: 32 - 95) */
-	for (i = 0; i < SIZE_INTERRUPTS; ++i)
+	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
 		interrupts_setPriority(i, 0xa);
+	}
 
 	/* Set required configuration and CPU_0 as a default processor */
 	for (i = SPI_FIRST_IRQID; i < SIZE_INTERRUPTS; ++i) {
@@ -237,12 +245,12 @@ void _hal_interruptsInit(void)
 	/* SGI and PPI interrupts are fixed to always be on both CPUs */
 
 	/* Disable interrupts */
-	*(interrupts_common.gic + dicer0) = 0xffffffff;
-	*(interrupts_common.gic + dicer0 + 1) = 0xffffffff;
-	*(interrupts_common.gic + dicer0 + 2) = 0xffffffff;
+	*(interrupts_common.gic + dicer0) = 0xffffffffU;
+	*(interrupts_common.gic + dicer0 + 1) = 0xffffffffU;
+	*(interrupts_common.gic + dicer0 + 2) = 0xffffffffU;
 
 	/* enable_secure = 1 */
-	*(interrupts_common.gic + ddcr) |= 0x3;
+	*(interrupts_common.gic + ddcr) |= 0x3U;
 
 	_hal_interruptsInitPerCPU();
 }
@@ -250,25 +258,25 @@ void _hal_interruptsInit(void)
 
 void _hal_interruptsInitPerCPU(void)
 {
-	*(interrupts_common.gic + cicr) &= ~0x3;
+	*(interrupts_common.gic + cicr) &= ~0x3U;
 
 	/* Initialize CPU Interface of the gic
 	 * set the maximum priority mask */
-	*(interrupts_common.gic + cpmr) |= 0x1f;
+	*(interrupts_common.gic + cpmr) |= 0x1fU;
 
 	/* EnableS = 1; EnableNS = 1; AckCtl = 1; FIQEn = 0 */
-	*(interrupts_common.gic + cicr) |= 0x7;
+	*(interrupts_common.gic + cicr) |= 0x7U;
 }
 
 
 static void hal_cpuSendSGI(u8 targetFilter, u8 targetList, u8 intID)
 {
-	*(interrupts_common.gic + dsgir) = ((targetFilter & 0x3) << 24) | (targetList << 16) | (intID & 0xf);
+	*(interrupts_common.gic + dsgir) = (((u32)targetFilter & 0x3U) << 24) | ((u32)targetList << 16) | ((u32)intID & 0xfU);
 	hal_cpuDataMemoryBarrier();
 }
 
 
 void hal_cpuBroadcastIPI(unsigned int intr)
 {
-	hal_cpuSendSGI(SGI_FLT_OTHER_CPUS, 0, intr);
+	hal_cpuSendSGI(SGI_FLT_OTHER_CPUS, 0, (u8)intr);
 }

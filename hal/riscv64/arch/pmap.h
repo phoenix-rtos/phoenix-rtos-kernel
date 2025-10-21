@@ -17,35 +17,35 @@
 #define _PH_HAL_RISCV64_PMAP_H_
 
 /* Predefined virtual addresses */
-#define VADDR_KERNEL  0x0000003fc0000000L /* base virtual address of kernel space */
-#define VADDR_MIN     0x00000000
-#define VADDR_MAX     0xffffffffffffffffL
+#define VADDR_KERNEL  0x0000003fc0000000UL /* base virtual address of kernel space */
+#define VADDR_MIN     0x00000000U
+#define VADDR_MAX     0xffffffffffffffffUL
 #define VADDR_USR_MAX VADDR_KERNEL
 
 #define VADDR_DTB 0xffffffffc0000000UL
 
-/* Architecture dependent page attributes */
-#define PGHD_PRESENT    0x01
-#define PGHD_READ       0x02
-#define PGHD_WRITE      0x04
-#define PGHD_EXEC       0x08
-#define PGHD_USER       0x10
-#define PGHD_DEV        0x00
-#define PGHD_NOT_CACHED 0x00
+/* Architecure dependent page attributes */
+#define PGHD_PRESENT    0x01U
+#define PGHD_READ       0x02U
+#define PGHD_WRITE      0x04U
+#define PGHD_EXEC       0x08U
+#define PGHD_USER       0x10U
+#define PGHD_DEV        0x00U
+#define PGHD_NOT_CACHED 0x00U
 
 /* Page flags */
-#define PAGE_FREE 0x00000001
+#define PAGE_FREE 0x00000001U
 
-#define PAGE_OWNER_BOOT   (0 << 1)
-#define PAGE_OWNER_KERNEL (1 << 1)
-#define PAGE_OWNER_APP    (2 << 1)
+#define PAGE_OWNER_BOOT   (0U << 1)
+#define PAGE_OWNER_KERNEL (1U << 1)
+#define PAGE_OWNER_APP    (2U << 1)
 
-#define PAGE_KERNEL_SYSPAGE (1 << 4)
-#define PAGE_KERNEL_CPU     (2 << 4)
-#define PAGE_KERNEL_PTABLE  (3 << 4)
-#define PAGE_KERNEL_PMAP    (4 << 4)
-#define PAGE_KERNEL_STACK   (5 << 4)
-#define PAGE_KERNEL_HEAP    (6 << 4)
+#define PAGE_KERNEL_SYSPAGE (1U << 4)
+#define PAGE_KERNEL_CPU     (2U << 4)
+#define PAGE_KERNEL_PTABLE  (3U << 4)
+#define PAGE_KERNEL_PMAP    (4U << 4)
+#define PAGE_KERNEL_STACK   (5U << 4)
+#define PAGE_KERNEL_HEAP    (6U << 4)
 
 /* satp register */
 #define SATP_MODE_SV39 (8UL << 60)
@@ -58,8 +58,8 @@
 
 #define SIZE_PDIR SIZE_PAGE
 
-#define PAGE_ALIGN(addr) (((addr_t)addr) & ~(SIZE_PAGE - 1))
-#define PAGE_OFFS(addr)  (((addr_t)addr) & (SIZE_PAGE - 1))
+#define PAGE_ALIGN(addr) (((addr_t)(addr)) & ~(SIZE_PAGE - 1U))
+#define PAGE_OFFS(addr)  (((addr_t)(addr)) & (SIZE_PAGE - 1U))
 
 
 /* Structure describing page - its should be aligned to 2^N boundary */

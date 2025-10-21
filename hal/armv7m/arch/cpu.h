@@ -38,17 +38,17 @@
 #endif
 
 #ifdef CPU_IMXRT
-#define RET_HANDLER_MSP 0xffffffe1
-#define RET_THREAD_MSP  0xffffffe9
-#define RET_THREAD_PSP  0xffffffed
-#define HWCTXSIZE       (8 + 18)
-#define USERCONTROL     0x7
+#define RET_HANDLER_MSP 0xffffffe1U
+#define RET_THREAD_MSP  0xffffffe9U
+#define RET_THREAD_PSP  0xffffffedU
+#define HWCTXSIZE       (8U + 18U)
+#define USERCONTROL     0x7U
 #else
-#define RET_HANDLER_MSP 0xfffffff1
-#define RET_THREAD_MSP  0xfffffff9
-#define RET_THREAD_PSP  0xfffffffd
-#define HWCTXSIZE       8
-#define USERCONTROL     0x3
+#define RET_HANDLER_MSP 0xfffffff1U
+#define RET_THREAD_MSP  0xfffffff9U
+#define RET_THREAD_PSP  0xfffffffdU
+#define HWCTXSIZE       8U
+#define USERCONTROL     0x3U
 #endif
 
 #ifndef __ASSEMBLY__
@@ -62,12 +62,14 @@
 #define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "t used as type -  wrong interpretation" */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (u8 *)(((ptr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) = (u8 *)(((ptr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7*/
 
 
 typedef struct {
@@ -171,16 +173,18 @@ static inline void hal_cpuHalt(void)
 /* bit operations */
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	int pos;
 
 	__asm__ volatile("clz %0, %1" : "=r"(pos) : "r"(v));
 
-	return 31 - pos;
+	return (unsigned int)(int)(31 - pos);
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned int pos;
@@ -207,6 +211,7 @@ static inline void hal_cpuSetGot(void *got)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline void *hal_cpuGetGot(void)
 {
 	void *got;
@@ -248,7 +253,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return ((ctx->irq_ret & (1 << 2)) == 0) ? 1 : 0;
+	return ((ctx->irq_ret & (1U << 2)) == 0U) ? 1 : 0;
 }
 
 

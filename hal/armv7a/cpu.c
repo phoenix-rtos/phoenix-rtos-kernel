@@ -30,19 +30,19 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 
 	(void)tls;
 
-	*nctx = 0;
+	*nctx = NULL;
 	if (kstack == NULL) {
 		return -1;
 	}
 
-	kstacksz &= ~0x3;
+	kstacksz &= ~0x3U;
 
 	if (kstacksz < sizeof(cpu_context_t)) {
 		return -1;
 	}
 
 	/* Align user stack to 8 bytes */
-	ustack = (void *)((ptr_t)ustack & ~0x7);
+	ustack = (void *)((ptr_t)ustack & ~0x7U);
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
@@ -50,7 +50,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	/* Set all registers to sNAN */
 	for (i = 0; i < 64; i += 2) {
 		ctx->freg[i] = 0;
-		ctx->freg[i + 1] = 0xfff10000;
+		ctx->freg[i + 1] = 0xfff10000U;
 	}
 
 	ctx->fpsr = 0;
@@ -65,13 +65,14 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->r5 = 0x55555555;
 	ctx->r6 = 0x66666666;
 	ctx->r7 = 0x77777777;
-	ctx->r8 = 0x88888888;
-	ctx->r9 = 0x99999999;
-	ctx->r10 = 0xaaaaaaaa;
+	ctx->r8 = 0x88888888U;
+	ctx->r9 = 0x99999999U;
+	ctx->r10 = 0xaaaaaaaaU;
 
-	ctx->ip = 0xcccccccc;
-	ctx->lr = 0xeeeeeeee;
+	ctx->ip = 0xccccccccU;
+	ctx->lr = 0xeeeeeeeeU;
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->pc = (u32)start;
 
 	/* Enable interrupts, set normal execution mode */
@@ -85,8 +86,8 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	}
 
 	/* Thumb mode? */
-	if ((ctx->pc & 1) != 0) {
-		ctx->psr |= 1 << 5;
+	if ((ctx->pc & 1U) != 0U) {
+		ctx->psr |= 1U << 5;
 	}
 
 	ctx->fp = ctx->sp;
@@ -112,10 +113,12 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	signalCtx->pc = (u32)handler & ~1;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
+	signalCtx->pc = (u32)handler & ~1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
-	if (((u32)handler & 1) != 0) {
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Checking in what processor mode code must be executed" */
+	if (((u32)handler & 1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}
 	else {
@@ -142,29 +145,32 @@ char *hal_cpuInfo(char *info)
 	size_t n = 0;
 	u32 midr;
 
-	hal_strcpy(info, HAL_NAME_PLATFORM);
-	n = sizeof(HAL_NAME_PLATFORM) - 1;
+	(void)hal_strcpy(info, HAL_NAME_PLATFORM);
+	n = sizeof(HAL_NAME_PLATFORM) - 1U;
 
 	midr = hal_cpuGetMIDR();
 
-	if (((midr >> 16) & 0xf) == 0xf) {
-		hal_strcpy(&info[n], "ARMv7 ");
-		n += 6;
+	if (((midr >> 16) & 0xfU) == 0xfU) {
+		(void)hal_strcpy(&info[n], "ARMv7 ");
+		n += 6U;
 	}
 
-	if (((midr >> 4) & 0xfff) == 0xc07) {
-		hal_strcpy(&info[n], "Cortex-A7 ");
-		n += 10;
+	if (((midr >> 4U) & 0xfffU) == 0xc07U) {
+		(void)hal_strcpy(&info[n], "Cortex-A7 ");
+		n += 10U;
 	}
-	else if (((midr >> 4) & 0xfff) == 0xc09) {
-		hal_strcpy(&info[n], "Cortex-A9 ");
-		n += 10;
+	else if (((midr >> 4) & 0xfffU) == 0xc09U) {
+		(void)hal_strcpy(&info[n], "Cortex-A9 ");
+		n += 10U;
+	}
+	else {
+		/* No action required */
 	}
 
 	info[n++] = 'r';
-	info[n++] = '0' + ((midr >> 20) & 0xf);
+	info[n++] = '0' + ((midr >> 20) & 0xfU);
 	info[n++] = 'p';
-	info[n++] = '0' + (midr & 0xf);
+	info[n++] = '0' + (midr & 0xfU);
 
 	info[n++] = ' ';
 	info[n++] = 'x';
@@ -181,64 +187,68 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	unsigned int n = 0;
 	u32 pfr0 = hal_cpuGetPFR0(), pfr1 = hal_cpuGetPFR1();
 
-	if (!len)
+	if (len == 0U) {
 		return features;
-
-	if ((pfr0 >> 12) & 0xf && len - n > 9) {
-		hal_strcpy(&features[n], "ThumbEE, ");
-		n += 9;
 	}
 
-	if ((pfr0 >> 8) & 0xf && len - n > 9) {
-		hal_strcpy(&features[n], "Jazelle, ");
-		n += 9;
+	if ((((pfr0 >> 12) & 0xfU) != 0U) && len - n > 9U) {
+		(void)hal_strcpy(&features[n], "ThumbEE, ");
+		n += 9U;
 	}
 
-	if ((pfr0 >> 4) & 0xf && len - n > 7) {
-		hal_strcpy(&features[n], "Thumb, ");
-		n += 7;
+	if ((((pfr0 >> 8) & 0xfU) != 0U) && len - n > 9U) {
+		(void)hal_strcpy(&features[n], "Jazelle, ");
+		n += 9U;
 	}
 
-	if (pfr0 & 0xf && len - n > 5) {
-		hal_strcpy(&features[n], "ARM, ");
-		n += 5;
+	if ((((pfr0 >> 4) & 0xfU) != 0U) && len - n > 7U) {
+		(void)hal_strcpy(&features[n], "Thumb, ");
+		n += 7U;
 	}
 
-	if ((pfr1 >> 16) & 0xf && len - n > 15) {
-		hal_strcpy(&features[n], "Generic Timer, ");
-		n += 15;
+	if (((pfr0 & 0xfU) != 0U) && len - n > 5U) {
+		(void)hal_strcpy(&features[n], "ARM, ");
+		n += 5U;
 	}
 
-	if ((pfr1 >> 12) & 0xf && len - n > 16) {
-		hal_strcpy(&features[n], "Virtualization, ");
-		n += 16;
+	if ((((pfr1 >> 16) & 0xfU) != 0U) && len - n > 15U) {
+		(void)hal_strcpy(&features[n], "Generic Timer, ");
+		n += 15U;
 	}
 
-	if ((pfr1 >> 8) & 0xf && len - n > 5) {
-		hal_strcpy(&features[n], "MCU, ");
-		n += 5;
+	if ((((pfr1 >> 12) & 0xfU) != 0U) && len - n > 16U) {
+		(void)hal_strcpy(&features[n], "Virtualization, ");
+		n += 16U;
 	}
 
-	if ((pfr1 >> 4) & 0xf && len - n > 10) {
-		hal_strcpy(&features[n], "Security, ");
-		n += 10;
+	if ((((pfr1 >> 8) & 0xfU) != 0U) && len - n > 5U) {
+		(void)hal_strcpy(&features[n], "MCU, ");
+		n += 5U;
 	}
 
-	if (n > 0)
-		features[n - 2] = '\0';
-	else
+	if ((((pfr1 >> 4) & 0xfU) != 0U) && len - n > 10U) {
+		(void)hal_strcpy(&features[n], "Security, ");
+		n += 10U;
+	}
+
+	if (n > 0U) {
+		features[n - 2U] = '\0';
+	}
+	else {
 		features[0] = '\0';
+	}
 
 	return features;
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
 	/* In theory there should be 8-byte thread control block but
 	 * it's stored elsewhere so we need to subtract 8 from the pointer
 	 */
-	ptr_t ptr = tls->tls_base - 8;
+	ptr_t ptr = tls->tls_base - 8U;
 	__asm__ volatile("mcr p15, 0, %[value], cr13, cr0, 3;" ::[value] "r"(ptr));
 }
 

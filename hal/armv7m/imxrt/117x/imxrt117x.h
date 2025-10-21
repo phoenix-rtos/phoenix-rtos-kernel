@@ -20,19 +20,16 @@
 #include "hal/types.h"
 
 
-int hal_platformctl(void *ptr);
-
-
 void _imxrt_wdgReload(void);
 
 
-int _imxrt_setIOmux(int mux, char sion, char mode);
+int _imxrt_setIOmux(int mux, int sion, int mode);
 
 
-int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, char apc);
+int _imxrt_setIOpad(int pad, u8 sre, u8 dse, u8 pue, u8 pus, u8 ode, u8 apc);
 
 
-int _imxrt_setIOisel(int isel, char daisy);
+int _imxrt_setIOisel(int isel, int daisy);
 
 
 int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state);

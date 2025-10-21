@@ -21,7 +21,7 @@
 
 #include "include/mman.h"
 
-#define SIZE_EXCEPTIONS 16
+#define SIZE_EXCEPTIONS 16U
 
 
 static struct {
@@ -33,7 +33,7 @@ static struct {
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
-	unsigned int i = 0;
+	unsigned long i = 0;
 
 	static const char *mnemonics[] = {
 		"0 Instruction address missaligned", "1 Instruction access fault", "2 Illegal instruction", "3 Breakpoint",
@@ -42,74 +42,74 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 		"12 Instruction page fault", "13 Load page fault", "14 Reserved", "15 Store/AMO page fault"
 	};
 
-	n &= 0xf;
+	n &= 0xfU;
 
-	hal_strcpy(buff, "\nException: ");
-	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
-	hal_strcpy(buff += hal_strlen(buff), "\n");
+	(void)hal_strcpy(buff, "\nException: ");
+	(void)hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
+	(void)hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
 
-	i += hal_i2s("zero: ", &buff[i], 0, 16, 1);
-	i += hal_i2s("  ra : ", &buff[i], (u64)ctx->ra, 16, 1);
-	i += hal_i2s("   sp : ", &buff[i], (u64)ctx->sp, 16, 1);
-	i += hal_i2s("   gp : ", &buff[i], (u64)ctx->gp, 16, 1);
+	i += hal_i2s("zero: ", &buff[i], 0, 16U, 1U);
+	i += hal_i2s("  ra : ", &buff[i], (u64)ctx->ra, 16U, 1U);
+	i += hal_i2s("   sp : ", &buff[i], (u64)ctx->sp, 16U, 1U);
+	i += hal_i2s("   gp : ", &buff[i], (u64)ctx->gp, 16U, 1U);
 	buff[i++] = '\n';
 
-	i += hal_i2s(" tp : ", &buff[i], (u64)ctx->tp, 16, 1);
-	i += hal_i2s("  t0 : ", &buff[i], (u64)ctx->t0, 16, 1);
-	i += hal_i2s("   t1 : ", &buff[i], (u64)ctx->t1, 16, 1);
-	i += hal_i2s("   t2 : ", &buff[i], (u64)ctx->t2, 16, 1);
+	i += hal_i2s(" tp : ", &buff[i], (u64)ctx->tp, 16U, 1U);
+	i += hal_i2s("  t0 : ", &buff[i], (u64)ctx->t0, 16U, 1U);
+	i += hal_i2s("   t1 : ", &buff[i], (u64)ctx->t1, 16U, 1U);
+	i += hal_i2s("   t2 : ", &buff[i], (u64)ctx->t2, 16U, 1U);
 	buff[i++] = '\n';
 
-	i += hal_i2s(" s0 : ", &buff[i], (u64)ctx->s0, 16, 1);
-	i += hal_i2s("  s1 : ", &buff[i], (u64)ctx->s1, 16, 1);
-	i += hal_i2s("   a0 : ", &buff[i], (u64)ctx->a0, 16, 1);
-	i += hal_i2s("   a1 : ", &buff[i], (u64)ctx->a1, 16, 1);
+	i += hal_i2s(" s0 : ", &buff[i], (u64)ctx->s0, 16U, 1U);
+	i += hal_i2s("  s1 : ", &buff[i], (u64)ctx->s1, 16U, 1U);
+	i += hal_i2s("   a0 : ", &buff[i], (u64)ctx->a0, 16U, 1U);
+	i += hal_i2s("   a1 : ", &buff[i], (u64)ctx->a1, 16U, 1U);
 	buff[i++] = '\n';
 
-	i += hal_i2s(" a2 : ", &buff[i], (u64)ctx->a2, 16, 1);
-	i += hal_i2s("  a3 : ", &buff[i], (u64)ctx->a3, 16, 1);
-	i += hal_i2s("   a4 : ", &buff[i], (u64)ctx->a4, 16, 1);
-	i += hal_i2s("   a5 : ", &buff[i], (u64)ctx->a5, 16, 1);
+	i += hal_i2s(" a2 : ", &buff[i], (u64)ctx->a2, 16U, 1U);
+	i += hal_i2s("  a3 : ", &buff[i], (u64)ctx->a3, 16U, 1U);
+	i += hal_i2s("   a4 : ", &buff[i], (u64)ctx->a4, 16U, 1U);
+	i += hal_i2s("   a5 : ", &buff[i], (u64)ctx->a5, 16U, 1U);
 	buff[i++] = '\n';
 
-	i += hal_i2s(" a6 : ", &buff[i], (u64)ctx->a6, 16, 1);
-	i += hal_i2s("  a7 : ", &buff[i], (u64)ctx->a7, 16, 1);
-	i += hal_i2s("   s2 : ", &buff[i], (u64)ctx->s2, 16, 1);
-	i += hal_i2s("   s3 : ", &buff[i], (u64)ctx->s3, 16, 1);
+	i += hal_i2s(" a6 : ", &buff[i], (u64)ctx->a6, 16U, 1U);
+	i += hal_i2s("  a7 : ", &buff[i], (u64)ctx->a7, 16U, 1U);
+	i += hal_i2s("   s2 : ", &buff[i], (u64)ctx->s2, 16U, 1U);
+	i += hal_i2s("   s3 : ", &buff[i], (u64)ctx->s3, 16U, 1U);
 	buff[i++] = '\n';
 
-	i += hal_i2s(" s4 : ", &buff[i], (u64)ctx->s4, 16, 1);
-	i += hal_i2s("  s5 : ", &buff[i], (u64)ctx->s5, 16, 1);
-	i += hal_i2s("   s6 : ", &buff[i], (u64)ctx->s6, 16, 1);
-	i += hal_i2s("   s7 : ", &buff[i], (u64)ctx->s7, 16, 1);
+	i += hal_i2s(" s4 : ", &buff[i], (u64)ctx->s4, 16U, 1U);
+	i += hal_i2s("  s5 : ", &buff[i], (u64)ctx->s5, 16U, 1U);
+	i += hal_i2s("   s6 : ", &buff[i], (u64)ctx->s6, 16U, 1U);
+	i += hal_i2s("   s7 : ", &buff[i], (u64)ctx->s7, 16U, 1U);
 	buff[i++] = '\n';
 
-	i += hal_i2s(" s8 : ", &buff[i], (u64)ctx->s8, 16, 1);
-	i += hal_i2s("  s9 : ", &buff[i], (u64)ctx->s9, 16, 1);
-	i += hal_i2s("  s10 : ", &buff[i], (u64)ctx->s10, 16, 1);
-	i += hal_i2s("  s11 : ", &buff[i], (u64)ctx->s11, 16, 1);
+	i += hal_i2s(" s8 : ", &buff[i], (u64)ctx->s8, 16U, 1U);
+	i += hal_i2s("  s9 : ", &buff[i], (u64)ctx->s9, 16U, 1U);
+	i += hal_i2s("  s10 : ", &buff[i], (u64)ctx->s10, 16U, 1U);
+	i += hal_i2s("  s11 : ", &buff[i], (u64)ctx->s11, 16U, 1U);
 	buff[i++] = '\n';
 
-	i += hal_i2s(" t3 : ", &buff[i], (u64)ctx->t3, 16, 1);
-	i += hal_i2s("  t4 : ", &buff[i], (u64)ctx->t4, 16, 1);
-	i += hal_i2s("   t5 : ", &buff[i], (u64)ctx->t5, 16, 1);
-	i += hal_i2s("   t6 : ", &buff[i], (u64)ctx->t6, 16, 1);
+	i += hal_i2s(" t3 : ", &buff[i], (u64)ctx->t3, 16U, 1U);
+	i += hal_i2s("  t4 : ", &buff[i], (u64)ctx->t4, 16U, 1U);
+	i += hal_i2s("   t5 : ", &buff[i], (u64)ctx->t5, 16U, 1U);
+	i += hal_i2s("   t6 : ", &buff[i], (u64)ctx->t6, 16U, 1U);
 	buff[i++] = '\n';
 
-	i += hal_i2s(" ksp : ", &buff[i], (u64)ctx->ksp, 16, 1);
-	i += hal_i2s(" sstatus : ", &buff[i], (u64)ctx->sstatus, 16, 1);
-	i += hal_i2s(" sepc : ", &buff[i], (u64)ctx->sepc, 16, 1);
+	i += hal_i2s(" ksp : ", &buff[i], (u64)ctx->ksp, 16U, 1U);
+	i += hal_i2s(" sstatus : ", &buff[i], (u64)ctx->sstatus, 16U, 1U);
+	i += hal_i2s(" sepc : ", &buff[i], (u64)ctx->sepc, 16U, 1U);
 	buff[i++] = '\n';
-	i += hal_i2s(" stval : ", &buff[i], (u64)ctx->stval, 16, 1);
-	i += hal_i2s(" scause : ", &buff[i], (u64)ctx->scause, 16, 1);
-	i += hal_i2s(" sscratch : ", &buff[i], (u64)ctx->sscratch, 16, 1);
+	i += hal_i2s(" stval : ", &buff[i], (u64)ctx->stval, 16U, 1U);
+	i += hal_i2s(" scause : ", &buff[i], (u64)ctx->scause, 16U, 1U);
+	i += hal_i2s(" sscratch : ", &buff[i], (u64)ctx->sscratch, 16U, 1U);
 	buff[i++] = '\n';
-	i += hal_i2s(" cpu id : ", &buff[i], hal_cpuGetID(), 16, 0);
+	i += hal_i2s(" cpu id : ", &buff[i], hal_cpuGetID(), 16U, 0U);
 
 	buff[i++] = '\n';
 
-	buff[i] = 0;
+	buff[i] = '\0';
 }
 
 
@@ -145,30 +145,30 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 
 	prot |= PROT_READ;
 
-	if ((cause == 6) || (cause == 7) || (cause == 15)) {
+	if ((cause == 6U) || (cause == 7U) || (cause == 15U)) {
 		prot |= PROT_WRITE;
 	}
 
-	if ((cause <= 3) || (cause == 12)) {
+	if ((cause <= 3U) || (cause == 12U)) {
 		prot |= PROT_EXEC;
 	}
 
-	if ((ctx->sstatus & 0x100) == 0) {
+	if ((ctx->sstatus & 0x100U) == 0U) {
 		/* from user code */
 		prot |= PROT_USER;
 	}
 
-	return prot;
+	return (int)prot;
 }
 
 
-inline void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
+void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 {
 	return (void *)ctx->stval;
 }
 
 
-inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
+ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
 	return ctx->sepc;
 }
@@ -177,6 +177,7 @@ inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	spinlock_ctx_t sc;
@@ -239,7 +240,7 @@ __attribute__((section(".init"))) void _hal_exceptionsInit(void)
 	unsigned int k;
 
 	hal_spinlockCreate(&exceptions_common.spinlock, "exceptions_common.spinlock");
-	exceptions_common.defaultHandler = (void *)exceptions_defaultHandler;
+	exceptions_common.defaultHandler = exceptions_defaultHandler;
 
 	for (k = 0; k < SIZE_EXCEPTIONS; k++) {
 		exceptions_common.handlers[k] = exceptions_trampoline;

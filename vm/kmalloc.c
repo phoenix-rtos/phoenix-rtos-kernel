@@ -154,12 +154,14 @@ void *vm_kmalloc(size_t size)
 	size = size < 16U ? 16U : size;
 
 	idx = (u8)hal_cpuGetLastBit(size);
+	/* parasoft-begin-suppress MISRAC2012-RULE_14_3 "conditional compilation" */
 	if ((u8)hal_cpuGetFirstBit(size) < idx) {
 		idx++;
 	}
 	if (idx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		return NULL;
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_14_3 */
 
 	hdridx = (u8)hal_cpuGetLastBit(sizeof(vm_zone_t));
 	if ((u8)hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
@@ -226,12 +228,14 @@ void vm_kfree(void *p)
 	u8 hdridx;
 
 	hdridx = (u8)hal_cpuGetLastBit(sizeof(vm_zone_t));
+	/* parasoft-begin-suppress MISRAC2012-RULE_14_3 "conditional compilation" */
 	if ((u8)hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
 		hdridx++;
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		return;
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_14_3 */
 
 	(void)proc_lockSet(&kmalloc_common.lock);
 

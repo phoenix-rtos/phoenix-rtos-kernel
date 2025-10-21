@@ -42,25 +42,15 @@
 	})
 
 
-/* Barriers */
+/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 
-static inline void hal_cpuDataMemoryBarrier(void)
-{
-	__asm__ volatile("dmb ish");
-}
+/* Barriers */
 
 
 static inline void hal_cpuDataSyncBarrier(void)
 {
 	__asm__ volatile("dsb ish");
 }
-
-
-static inline void hal_cpuDataSyncBarrierSys(void)
-{
-	__asm__ volatile("dsb sy");
-}
-
 
 static inline void hal_cpuInstrBarrier(void)
 {
@@ -69,13 +59,6 @@ static inline void hal_cpuInstrBarrier(void)
 
 
 /* Memory Management */
-
-
-/* Invalidate all instruction caches to PoU */
-static inline void hal_cpuInvalInstrCacheAll(void)
-{
-	__asm__ volatile("dsb ish\n ic iallu\n dsb ish\n isb\n");
-}
 
 
 /* Invalidate instruction cache by VA to PoU */
@@ -95,6 +78,7 @@ void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Invalidate all data cache to PoC */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly" */
 void hal_cpuInvalDataCacheAll(void);
 
 
@@ -103,32 +87,6 @@ static inline void hal_tlbInvalASID(asid_t asid)
 {
 	u64 arg = (u64)asid << 48;
 	__asm__ volatile("tlbi aside1, %0" : : "r"(arg));
-	hal_cpuDataSyncBarrier();
-}
-
-
-/* Invalidate Unified TLB by VA (all ASIDs) */
-static inline void hal_tlbInvalVA(ptr_t vaddr)
-{
-	u64 arg = (vaddr >> 12) & ((1UL << 44) - 1);
-	__asm__ volatile("tlbi vaae1, %0" : : "r"(arg));
-	hal_cpuDataSyncBarrier();
-}
-
-
-/* Invalidate Unified TLB by VA (selected ASID) */
-static inline void hal_tlbInvalVAASID(ptr_t vaddr, asid_t asid)
-{
-	u64 arg = ((vaddr >> 12) & ((1UL << 44) - 1)) | ((u64)asid << 48);
-	__asm__ volatile("tlbi vae1, %0" : : "r"(arg));
-	hal_cpuDataSyncBarrier();
-}
-
-
-/* Invalidate entire Unified TLB */
-static inline void hal_tlbInvalAll(void)
-{
-	__asm__ volatile("tlbi vmalle1");
 	hal_cpuDataSyncBarrier();
 }
 
@@ -145,7 +103,7 @@ static inline void hal_tlbInvalASID_IS(asid_t asid)
 /* Invalidate Unified TLB by VA (all ASIDs) (broadcast to Inner Shareable domain) */
 static inline void hal_tlbInvalVA_IS(ptr_t vaddr)
 {
-	u64 arg = (vaddr >> 12) & ((1UL << 44) - 1);
+	u64 arg = (vaddr >> 12) & ((1UL << 44) - 1U);
 	__asm__ volatile("tlbi vaae1is, %0" : : "r"(arg));
 	hal_cpuDataSyncBarrier();
 }
@@ -154,7 +112,7 @@ static inline void hal_tlbInvalVA_IS(ptr_t vaddr)
 /* Invalidate Unified TLB by VA (selected ASID) (broadcast to Inner Shareable domain) */
 static inline void hal_tlbInvalVAASID_IS(ptr_t vaddr, asid_t asid)
 {
-	u64 arg = ((vaddr >> 12) & ((1UL << 44) - 1)) | ((u64)asid << 48);
+	u64 arg = ((vaddr >> 12) & ((1UL << 44) - 1U)) | ((u64)asid << 48);
 	__asm__ volatile("tlbi vae1is, %0" : : "r"(arg));
 	hal_cpuDataSyncBarrier();
 }
@@ -181,12 +139,6 @@ static inline void hal_cpuSetTranslationBase(addr_t addr, asid_t asid)
 	sysreg_write(ttbr0_el1, addr | ((u64)asid << 48));
 }
 
-
-static inline asid_t hal_getCurrentAsid(void)
-{
-	return (sysreg_read(ttbr0_el1) >> 48) & 0xffff;
-}
-
 /* Core Management */
 
 struct aarch64_proc_id {
@@ -200,3 +152,5 @@ struct aarch64_proc_id {
 void hal_cpuGetProcID(struct aarch64_proc_id *out);
 
 #endif
+
+/* parasoft-end-suppress MISRAC2012-DIR_4_3 */

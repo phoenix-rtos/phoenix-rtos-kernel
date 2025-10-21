@@ -27,9 +27,9 @@
 #include <board_config.h>
 
 
-#define CLINT_IRQ_SIZE 16
+#define CLINT_IRQ_SIZE 16U
 
-#define EXT_IRQ 9
+#define EXT_IRQ 9U
 
 /* clang-format off */
 enum irq_state { irq_enable = 0, irq_disable };
@@ -56,14 +56,14 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 static int interrupts_dispatchPlic(cpu_context_t *ctx)
 {
-	int reschedule = 0;
+	unsigned int reschedule = 0;
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
 
 	unsigned int irq = plic_claim(PLIC_SCONTEXT(hal_cpuGetID()));
 	RISCV_FENCE(o, i);
 
-	if (irq == 0) {
+	if (irq == 0U) {
 		return 0;
 	}
 
@@ -74,27 +74,27 @@ static int interrupts_dispatchPlic(cpu_context_t *ctx)
 	h = interrupts_common.plic.handlers[irq];
 	if (h != NULL) {
 		do {
-			reschedule |= h->f(irq, NULL, h->data);
+			reschedule |= (unsigned int)h->f(irq, NULL, h->data);
 			h = h->next;
 		} while (h != interrupts_common.plic.handlers[irq]);
 	}
 
-	if (reschedule != 0) {
-		threads_schedule(irq, ctx, NULL);
+	if (reschedule != 0U) {
+		(void)threads_schedule(irq, ctx, NULL);
 	}
 
 	hal_spinlockClear(&interrupts_common.plic.spinlocks[irq], &sc);
 
 	plic_complete(PLIC_SCONTEXT(hal_cpuGetID()), irq);
 
-	return reschedule;
+	return (int)reschedule;
 }
 
 
 static int interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	int reschedule = 0;
+	unsigned int reschedule = 0;
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&interrupts_common.clint.spinlocks[n], &sc);
@@ -104,21 +104,22 @@ static int interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 	h = interrupts_common.clint.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= h->f(n, NULL, h->data);
+			reschedule |= (unsigned int)h->f(n, NULL, h->data);
 			h = h->next;
 		} while (h != interrupts_common.clint.handlers[n]);
 	}
 
-	if (reschedule != 0) {
-		threads_schedule(n, ctx, NULL);
+	if (reschedule != 0U) {
+		(void)threads_schedule(n, ctx, NULL);
 	}
 
 	hal_spinlockClear(&interrupts_common.clint.spinlocks[n], &sc);
 
-	return reschedule;
+	return (int)reschedule;
 }
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	if ((n == EXT_IRQ) && (dtb_getPLIC() != 0)) {
@@ -133,7 +134,7 @@ static int interrupts_setPlic(intr_handler_t *h, enum irq_state enable)
 {
 	spinlock_ctx_t sc;
 
-	if (h->n >= PLIC_IRQ_SIZE) {
+	if (h->n >= (unsigned int)PLIC_IRQ_SIZE) {
 		return -EINVAL;
 	}
 
@@ -142,10 +143,10 @@ static int interrupts_setPlic(intr_handler_t *h, enum irq_state enable)
 	if (enable == irq_enable) {
 		HAL_LIST_ADD(&interrupts_common.plic.handlers[h->n], h);
 		plic_priority(h->n, 2);
-		plic_enableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
+		(void)plic_enableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
 	}
 	else {
-		plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
+		(void)plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
 		HAL_LIST_REMOVE(&interrupts_common.plic.handlers[h->n], h);
 	}
 
@@ -167,10 +168,10 @@ static int interrupts_setClint(intr_handler_t *h, enum irq_state enable)
 
 	if (enable == irq_enable) {
 		HAL_LIST_ADD(&interrupts_common.clint.handlers[h->n], h);
-		csr_set(sie, 1U << h->n);
+		csr_set(sie, 1UL << h->n);
 	}
 	else {
-		csr_clear(sie, 1U << h->n);
+		csr_clear(sie, 1UL << h->n);
 		HAL_LIST_REMOVE(&interrupts_common.clint.handlers[h->n], h);
 	}
 
@@ -188,8 +189,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 		return -EINVAL;
 	}
 
-	if ((h->n & CLINT_IRQ_FLG) != 0) {
-		h->n = h->n & ~CLINT_IRQ_FLG;
+	if ((h->n & CLINT_IRQ_FLG) != 0U) {
+		h->n = h->n & (unsigned int)~CLINT_IRQ_FLG;
 		ret = interrupts_setClint(h, irq_enable);
 	}
 	else {
@@ -208,8 +209,8 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 		return -EINVAL;
 	}
 
-	if ((h->n & CLINT_IRQ_FLG) != 0) {
-		h->n = h->n & ~CLINT_IRQ_FLG;
+	if ((h->n & CLINT_IRQ_FLG) != 0U) {
+		h->n = h->n & (unsigned int)~CLINT_IRQ_FLG;
 		ret = interrupts_setClint(h, irq_disable);
 	}
 	else {
@@ -222,27 +223,31 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
-	if (dtb_getPLIC()) {
-		hal_strncpy(features, "Using PLIC interrupt controller", len);
+	if (dtb_getPLIC() != 0) {
+		(void)hal_strncpy(features, "Using PLIC interrupt controller", len);
 	}
 	else {
-		hal_strncpy(features, "PLIC interrupt controller not found", len);
+		(void)hal_strncpy(features, "PLIC interrupt controller not found", len);
 	}
 
-	features[len - 1] = '\0';
+	if (len != 0U) {
+		features[len - 1U] = '\0';
+	}
 
 	return features;
 }
 
 
-void _interrupts_dispatch(void *);
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly" */
+void _interrupts_dispatch(void);
 
 
 void hal_interruptsInitCore(void)
 {
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	csr_write(stvec, _interrupts_dispatch);
 
-	if (dtb_getPLIC()) {
+	if (dtb_getPLIC() != 0) {
 		plic_initCore();
 	}
 }
@@ -252,6 +257,7 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 {
 	unsigned int i;
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	csr_write(stvec, _interrupts_dispatch);
 	for (i = 0; i < CLINT_IRQ_SIZE; i++) {
 		interrupts_common.clint.handlers[i] = NULL;
@@ -259,14 +265,14 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 		hal_spinlockCreate(&interrupts_common.clint.spinlocks[i], "interrupts_common.clint");
 	}
 
-	for (i = 0; i < PLIC_IRQ_SIZE; i++) {
+	for (i = 0; i < (unsigned int)PLIC_IRQ_SIZE; i++) {
 		interrupts_common.plic.handlers[i] = NULL;
 		interrupts_common.plic.counters[i] = 0;
 		hal_spinlockCreate(&interrupts_common.plic.spinlocks[i], "interrupts_common.plic");
 	}
 
 	/* Initialize PLIC if present */
-	if (dtb_getPLIC()) {
+	if (dtb_getPLIC() != 0) {
 		plic_init();
 	}
 	csr_write(sie, -1);

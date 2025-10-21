@@ -24,7 +24,7 @@
 #include "hal/armv8m/stm32/stm32.h"
 #include "hal/armv8m/stm32/stm32-timer.h"
 
-#define SIZE_INTERRUPTS 211
+#define SIZE_INTERRUPTS 211U
 
 /* Constants for configuring which TIM peripheral is used as system timer */
 #define TIM_SYSTEM_BASE ((void *)0x52003c00) /* TIM18 base address */

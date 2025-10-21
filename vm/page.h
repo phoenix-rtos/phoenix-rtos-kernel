@@ -25,7 +25,7 @@
 page_t *vm_pageAlloc(size_t size, vm_flags_t flags);
 
 
-void vm_pageFree(page_t *lh);
+void vm_pageFree(page_t *p);
 
 
 page_t *_page_get(addr_t addr);

@@ -111,9 +111,9 @@ int main(void)
 	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v. " RELEASE " rev. " VERSION "\n");
 
 	lib_printf("hal: %s\n", hal_cpuInfo(s));
-	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));
-	lib_printf("hal: %s\n", hal_interruptsFeatures(s, sizeof(s)));
-	lib_printf("hal: %s\n", hal_timerFeatures(s, sizeof(s)));
+	lib_printf("hal: %s\n", hal_cpuFeatures(s, (unsigned int)sizeof(s)));
+	lib_printf("hal: %s\n", hal_interruptsFeatures(s, (unsigned int)sizeof(s)));
+	lib_printf("hal: %s\n", hal_timerFeatures(s, (unsigned int)sizeof(s)));
 
 	_vm_init(&main_common.kmap, &main_common.kernel);
 	(void)_proc_init(&main_common.kmap, &main_common.kernel);

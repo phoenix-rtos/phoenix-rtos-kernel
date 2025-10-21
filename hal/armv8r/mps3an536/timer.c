@@ -16,6 +16,7 @@
 #include "hal/interrupts.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"
+#include "hal/hal.h"
 
 #include "hal/armv8r/armv8r.h"
 
@@ -45,7 +46,7 @@ static int hal_timerIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)arg;
 	(void)ctx;
 
-	if ((*(timer_common.base + timer1_mis) & 0x1) != 0) {
+	if ((*(timer_common.base + timer1_mis) & 0x1U) != 0U) {
 		*(timer_common.base + timer1_intclr) = 0;
 		timer_common.time++;
 		hal_cpuDataSyncBarrier();
@@ -57,7 +58,7 @@ static int hal_timerIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 static time_t hal_timerCyc2us(u32 cyc)
 {
-	return cyc / (SYSCLK_FREQ / 1000 * 1000);
+	return (time_t)cyc / (SYSCLK_FREQ / 1000 * 1000);
 }
 
 
@@ -72,7 +73,7 @@ time_t hal_timerGetUs(void)
 	cnt = *(timer_common.base + timer1_value);
 
 	/* Check if we have pending irq */
-	if ((*(timer_common.base + timer1_mis) & 0x1) != 0) {
+	if ((*(timer_common.base + timer1_mis) & 0x1U) != 0U) {
 		jiffies++;
 		cnt = *(timer_common.base + timer1_load);
 		/* Don't update common time here, we'll still get the interrupt */
@@ -93,7 +94,7 @@ void hal_timerSetWakeup(u32 waitUs)
 int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 {
 	h->f = f;
-	h->n = TIMER_IRQ;
+	h->n = (unsigned int)TIMER_IRQ;
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
@@ -102,8 +103,8 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using ARM Dual Timer", len);
-	features[len - 1] = '\0';
+	(void)hal_strncpy(features, "Using ARM Dual Timer", len);
+	features[len - 1U] = '\0';
 	return features;
 }
 
@@ -114,23 +115,23 @@ void _hal_timerInit(u32 interval)
 	timer_common.interval = interval;
 
 	timer_common.handler.f = hal_timerIrqHandler;
-	timer_common.handler.n = TIMER_IRQ;
+	timer_common.handler.n = (unsigned int)TIMER_IRQ;
 	timer_common.handler.data = NULL;
 
 	hal_spinlockCreate(&timer_common.lock, "timer");
 
 	/* Disable timer */
-	*(timer_common.base + timer1_ctrl) &= ~(1 << 7);
+	*(timer_common.base + timer1_ctrl) &= ~(1U << 7);
 	*(timer_common.base + timer1_value) = 0;
 
 	/* Periodic mode, 32-bit, enable interrupt */
-	*(timer_common.base + timer1_ctrl) = (1 << 6) | (1 << 5) | (1 << 1);
+	*(timer_common.base + timer1_ctrl) = (1U << 6) | (1U << 5) | (1U << 1);
 	hal_cpuDataSyncBarrier();
-	*(timer_common.base + timer1_load) = (SYSCLK_FREQ / 1000) - 1;
+	*(timer_common.base + timer1_load) = ((u32)SYSCLK_FREQ / 1000U) - 1U;
 	hal_cpuDataSyncBarrier();
 
-	hal_interruptsSetHandler(&timer_common.handler);
+	(void)hal_interruptsSetHandler(&timer_common.handler);
 
 	/* Enable timer */
-	*(timer_common.base + timer1_ctrl) |= (1 << 7);
+	*(timer_common.base + timer1_ctrl) |= (1U << 7);
 }

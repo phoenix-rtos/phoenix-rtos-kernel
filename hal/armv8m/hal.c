@@ -14,7 +14,7 @@
  */
 
 #include "hal/hal.h"
-struct {
+static struct {
 	int started;
 } hal_common;
 

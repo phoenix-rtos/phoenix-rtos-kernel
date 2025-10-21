@@ -266,7 +266,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 			break;
 		}
 
-		i += (unsigned int)err + 1U;
+		i += (size_t)err + 1U;
 		if (i > len) {
 			err = -EINVAL;
 			break;
@@ -520,7 +520,7 @@ off_t proc_size(oid_t oid)
 		err = msg->o.err;
 	}
 	if (err == EOK) {
-		err = msg->o.attr.val;
+		err = (off_t)msg->o.attr.val;
 	}
 
 	vm_kfree(msg);

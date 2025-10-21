@@ -18,7 +18,7 @@
 
 #define UART uart1
 
-struct {
+static struct {
 	volatile u32 *uart1;
 	volatile u32 *uart2;
 	u8 type;
@@ -26,29 +26,52 @@ struct {
 } console_common;
 
 
-enum { urxd = 0, utxd = 16, ucr1 = 32, ucr2, ucr3, ucr4, ufcr, usr1, usr2,
-	uesc, utim, ubir, ubmr, ubrc, onems, uts, umcr };
+enum { urxd = 0,
+	utxd = 16,
+	ucr1 = 32,
+	ucr2,
+	ucr3,
+	ucr4,
+	ufcr,
+	usr1,
+	usr2,
+	uesc,
+	utim,
+	ubir,
+	ubmr,
+	ubrc,
+	onems,
+	uts,
+	umcr };
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;
 
 
 static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++)
+	for (; *s != '\0'; s++) {
 		hal_consolePutch(*s);
+	}
 
-	while (!(*(console_common.UART + usr1) & 0x2000))
+	while ((*(console_common.UART + usr1) & 0x2000U) == 0U) {
 		;
+	}
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD)
+	if (attr == ATTR_BOLD) {
 		_hal_consolePrint(CONSOLE_BOLD);
-	else if (attr != ATTR_USER)
+	}
+	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
+	}
+	else {
+		/* No action required */
+	}
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
@@ -58,21 +81,24 @@ void hal_consolePrint(int attr, const char *s)
 void hal_consolePutch(char c)
 {
 	/* Wait for transmitter readiness */
-	while (!(*(console_common.UART + usr1) & 0x2000))
+	while ((*(console_common.UART + usr1) & 0x2000U) == 0U) {
 		;
+	}
 
-	*(console_common.UART + utxd) = c;
+	*(console_common.UART + utxd) = (unsigned int)c;
 }
 
 
-__attribute__ ((section (".init"))) void _hal_consoleInit(void)
+__attribute__((section(".init"))) void _hal_consoleInit(void)
 {
-	console_common.uart1 = (void *)(((u32)&_end + (3 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	console_common.uart2 = (void *)(((u32)&_end + (4 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	console_common.uart1 = (void *)(((u32)&_end + (3U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	console_common.uart2 = (void *)(((u32)&_end + (4U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
 	console_common.speed = 115200;
 
-	*(console_common.UART + ucr2) &= ~0x1;
-	while (*(console_common.UART + uts) & 0x1);
+	*(console_common.UART + ucr2) &= ~0x1U;
+	while ((*(console_common.UART + uts) & 0x1U) != 0U) {
+		;
+	}
 
 	*(console_common.UART + ucr1) = 0x1;
 	*(console_common.UART + ucr2) = 0x4026;

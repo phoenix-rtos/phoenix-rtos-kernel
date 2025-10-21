@@ -14,6 +14,8 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
+
 #ifndef _TEST_VM_H_
 #define _TEST_VM_H_
 
@@ -39,3 +41,5 @@ void test_vm_kmallocsim(void);
 
 
 #endif
+
+/* parasoft-end-suppress ALL */

@@ -25,11 +25,11 @@
 
 #include "config.h"
 
-#define L2C_BASE ((addr_t)0xf0000000)
+#define L2C_BASE ((addr_t)0xf0000000U)
 
 /* Clock gating unit */
 
-#define CGU_BASE ((void *)0xffa04000)
+#define CGU_BASE ((void *)0xffa04000U)
 
 enum {
 	cgu_unlock = 0, /* Unlock register        : 0x00 */
@@ -40,7 +40,7 @@ enum {
 
 /* I/O & PLL configuration registers */
 
-#define GRGPREG_BASE ((void *)0xffa0b000)
+#define GRGPREG_BASE ((void *)0xffa0b000U)
 
 enum {
 	ftmfunc = 0, /* FTMCTRL function enable register       : 0x00 */
@@ -74,6 +74,7 @@ void hal_cpuHalt(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 MISRAC2012-RULE_8_4 "Assembly is required for low-level operations. Definition in assembly." */
 void hal_cpuInitCore(void)
 {
 	hal_tlbInitCore(hal_cpuGetID());
@@ -101,23 +102,23 @@ void _hal_cpuInit(void)
 
 int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn)
 {
-	if (pin > 21) {
+	if (pin > 21U) {
 		return -1;
 	}
 
 	switch (opt) {
 		case iomux_gpio:
-			*(gr740_common.grgpregBase + ftmfunc) &= ~(1 << pin);
-			*(gr740_common.grgpregBase + altfunc) &= ~(1 << pin);
+			*(gr740_common.grgpregBase + ftmfunc) &= ~(1UL << pin);
+			*(gr740_common.grgpregBase + altfunc) &= ~(1UL << pin);
 			break;
 
 		case iomux_alternateio:
-			*(gr740_common.grgpregBase + ftmfunc) &= ~(1 << pin);
-			*(gr740_common.grgpregBase + altfunc) |= 1 << pin;
+			*(gr740_common.grgpregBase + ftmfunc) &= ~(1UL << pin);
+			*(gr740_common.grgpregBase + altfunc) |= 1UL << pin;
 			break;
 
 		case iomux_promio:
-			*(gr740_common.grgpregBase + ftmfunc) |= 1 << pin;
+			*(gr740_common.grgpregBase + ftmfunc) |= 1UL << pin;
 			break;
 
 		default:
@@ -131,7 +132,7 @@ int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn)
 
 void _gr740_cguClkEnable(u32 device)
 {
-	u32 msk = 1 << device;
+	u32 msk = 1UL << device;
 
 	*(gr740_common.cguBase + cgu_unlock) |= msk;
 	*(gr740_common.cguBase + cgu_core_reset) |= msk;
@@ -145,7 +146,7 @@ void _gr740_cguClkEnable(u32 device)
 
 void _gr740_cguClkDisable(u32 device)
 {
-	u32 msk = 1 << device;
+	u32 msk = 1UL << device;
 
 	*(gr740_common.cguBase + cgu_unlock) |= msk;
 	*(gr740_common.cguBase + cgu_clk_en) &= ~msk;
@@ -155,9 +156,9 @@ void _gr740_cguClkDisable(u32 device)
 
 int _gr740_cguClkStatus(u32 device)
 {
-	u32 msk = 1 << device;
+	u32 msk = 1UL << device;
 
-	return (*(gr740_common.cguBase + cgu_clk_en) & msk) ? 1 : 0;
+	return (*(gr740_common.cguBase + cgu_clk_en) & msk) != 0U ? 1 : 0;
 }
 
 
@@ -189,6 +190,9 @@ int hal_platformctl(void *ptr)
 				data->task.cguctrl.v.stateVal = _gr740_cguClkStatus(data->task.cguctrl.cgudev);
 				ret = 0;
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_iomux:
@@ -210,6 +214,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 	hal_spinlockClear(&gr740_common.pltctlSp, &sc);
@@ -235,7 +240,7 @@ void _hal_platformInit(void)
 	gr740_common.tlbIrqHandler.n = TLB_IRQ;
 	gr740_common.tlbIrqHandler.data = NULL;
 
-	hal_interruptsSetHandler(&gr740_common.tlbIrqHandler);
+	(void)hal_interruptsSetHandler(&gr740_common.tlbIrqHandler);
 
 	ambapp_init();
 }

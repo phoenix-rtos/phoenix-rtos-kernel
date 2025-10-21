@@ -22,16 +22,22 @@
 #include "hal/cpu.h"
 #include "hal/pmap.h"
 #include "hal/timer.h"
+#include "hal/hal.h"
 #include "pci.h"
 #include "halsyspage.h"
 
 
-struct {
+static struct {
 	int started;
 } hal_common;
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-begin-suppress MISRAC2012-RULE_5_8 "Another variable with this name used
+ * inside the structure so it shouldn't cause this violation"
+ */
 syspage_t *syspage;
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 MISRAC2012-RULE_5_8*/
 
 
 void *hal_syspageRelocate(void *data)

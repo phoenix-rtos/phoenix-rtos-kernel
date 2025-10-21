@@ -40,9 +40,6 @@ void _gr712rc_cguClkDisable(u32 device);
 
 int _gr712rc_cguClkStatus(u32 device);
 
-
-int hal_platformctl(void *ptr);
-
 #endif /* __ASSEMBLY__ */
 
 

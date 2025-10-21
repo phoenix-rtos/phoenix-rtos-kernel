@@ -67,32 +67,32 @@ typedef struct {
 
 		struct {
 			int dev;
-			char divisor0;
-			char divisor1;
-			char srcsel;
-			char clkact0;
-			char clkact1;
+			unsigned char divisor0;
+			unsigned char divisor1;
+			unsigned char srcsel;
+			unsigned char clkact0;
+			unsigned char clkact1;
 		} devclock;
 
 		struct {
 			int mio;
-			char ref0;
-			char mux0;
-			char ref1;
-			char mux1;
+			unsigned char ref0;
+			unsigned char mux0;
+			unsigned char ref1;
+			unsigned char mux1;
 		} mioclock;
 
 		struct {
 			int pin;
-			char disableRcvr;
-			char pullup;
-			char ioType;
-			char speed;
-			char l0;
-			char l1;
-			char l2;
-			char l3;
-			char triEnable;
+			unsigned char disableRcvr;
+			unsigned char pullup;
+			unsigned char ioType;
+			unsigned char speed;
+			unsigned char l0;
+			unsigned char l1;
+			unsigned char l2;
+			unsigned char l3;
+			unsigned char triEnable;
 		} mio;
 
 		struct {
@@ -106,9 +106,9 @@ typedef struct {
 		} reboot;
 
 		struct {
-			char dev;
-			unsigned char wpPin;
-			unsigned char cdPin;
+			int dev;
+			__u8 wpPin;
+			__u8 cdPin;
 		} SDWpCd;
 	};
 } __attribute__((packed)) platformctl_t;

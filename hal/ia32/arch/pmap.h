@@ -18,24 +18,24 @@
 #define _PH_HAL_IA32_PMAP_H_
 
 /* Predefined virtual addresses */
-#define VADDR_KERNEL   0xc0000000   /* base virtual address of kernel space */
-#define VADDR_MIN      0x00000000
-#define VADDR_MAX      0xffffffff
-#define VADDR_USR_MAX  VADDR_KERNEL
+#define VADDR_KERNEL  0xc0000000U /* base virtual address of kernel space */
+#define VADDR_MIN     0x00000000U
+#define VADDR_MAX     0xffffffffU
+#define VADDR_USR_MAX VADDR_KERNEL
 
 /* Attributes specifying different types of caching */
-#define PGHD_PCD       0x10
-#define PGHD_PWT       0x08
-#define PGHD_CACHE_WB  0x0
+#define PGHD_PCD       0x10U
+#define PGHD_PWT       0x08U
+#define PGHD_CACHE_WB  0x0U
 #define PGHD_CACHE_WT  PGHD_PWT
 #define PGHD_CACHE_UCM PGHD_PCD
 #define PGHD_CACHE_UC  (PGHD_PCD | PGHD_PWT)
-/* Architecture dependent page attributes */
-#define PGHD_PRESENT    0x01
-#define PGHD_USER       0x04
-#define PGHD_WRITE      0x02
-#define PGHD_EXEC       0x00
-#define PGHD_READ       0x00
+/* Architecure dependent page attributes */
+#define PGHD_PRESENT    0x01U
+#define PGHD_USER       0x04U
+#define PGHD_WRITE      0x02U
+#define PGHD_EXEC       0x00U
+#define PGHD_READ       0x00U
 #define PGHD_DEV        PGHD_CACHE_UC
 #define PGHD_NOT_CACHED PGHD_CACHE_UCM
 
@@ -44,25 +44,25 @@
 #define PGHD_4MB_PAT    0x1000
 
 
-/* Architecture dependent page table attributes */
-#define PTHD_PRESENT  0x01
-#define PTHD_USER     0x04
-#define PTHD_WRITE    0x02
+/* Architecure dependent page table attributes */
+#define PTHD_PRESENT 0x01U
+#define PTHD_USER    0x04U
+#define PTHD_WRITE   0x02U
 
 
 /* Page flags */
-#define PAGE_FREE            0x00000001
+#define PAGE_FREE 0x00000001U
 
-#define PAGE_OWNER_BOOT      (0 << 1)
-#define PAGE_OWNER_KERNEL    (1 << 1)
-#define PAGE_OWNER_APP       (2 << 1)
+#define PAGE_OWNER_BOOT   (0U << 1)
+#define PAGE_OWNER_KERNEL (1U << 1)
+#define PAGE_OWNER_APP    (2U << 1)
 
-#define PAGE_KERNEL_SYSPAGE  (1 << 4)
-#define PAGE_KERNEL_CPU      (2 << 4)
-#define PAGE_KERNEL_PTABLE   (3 << 4)
-#define PAGE_KERNEL_PMAP     (4 << 4)
-#define PAGE_KERNEL_STACK    (5 << 4)
-#define PAGE_KERNEL_HEAP     (6 << 4)
+#define PAGE_KERNEL_SYSPAGE (1U << 4)
+#define PAGE_KERNEL_CPU     (2U << 4)
+#define PAGE_KERNEL_PTABLE  (3U << 4)
+#define PAGE_KERNEL_PMAP    (4U << 4)
+#define PAGE_KERNEL_STACK   (5U << 4)
+#define PAGE_KERNEL_HEAP    (6U << 4)
 
 
 #ifndef __ASSEMBLY__
@@ -93,10 +93,8 @@ typedef struct _pmap_t {
 	page_t *pmapp;
 } pmap_t;
 
-int pmap_getPage(page_t *page, addr_t *addr);
 
-
-int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page_t *alloc, int tlbInval);
+int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc, int tlbInval);
 
 #endif
 

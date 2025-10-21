@@ -195,7 +195,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 				return -1;
 			}
 
-			hal_memcpy(nfds, p->fds, (size_t)p->fdsz * sizeof(*nfds));
+			hal_memcpy(nfds, p->fds, (unsigned int)p->fdsz * sizeof(*nfds));
 			hal_memset(nfds + p->fdsz, 0, ((size_t)nfdsz - (size_t)p->fdsz) * sizeof(*nfds));
 
 			vm_kfree(p->fds);
@@ -437,13 +437,13 @@ static int posix_exit(process_info_t *p, int code)
 
 	p->exitcode = code;
 
-	(void)proc_lockSet(&p->lock);
+	(void)proc_lockSet(&(p->lock));
 	for (fd = 0; fd < p->fdsz; ++fd) {
 		if (p->fds[fd].file != NULL) {
 			(void)posix_fileDeref(p->fds[fd].file);
 		}
 	}
-	(void)proc_lockClear(&p->lock);
+	(void)proc_lockClear(&(p->lock));
 
 	return 0;
 }
@@ -598,7 +598,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 		do {
 			err = proc_lookup(filename, &ln, &oid);
 			if ((err == -ENOENT) && (((unsigned int)oflag & O_CREAT) != 0U)) {
-				GETFROMSTACK(ustack, mode_t, mode, 2);
+				GETFROMSTACK(ustack, mode_t, mode, 2U);
 
 				if (posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid) < 0) {
 					err = -EIO;
@@ -1467,7 +1467,7 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	}
 
 	fd2 = _posix_allocfd(p, fd2);
-	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7-a "fd2 value is checked within posix_dup2" */
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "Returned value checked in function (_posix_dup2) */
 	err = _posix_dup2(p, fd, fd2);
 	if ((err == fd2) && (cloexec != 0)) {
 		p->fds[fd2].flags = FD_CLOEXEC;
@@ -1748,7 +1748,7 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 	if (err == 0) {
 		/* TODO: handle POSIX defined requests with `switch (request)` */
 		if (((request & IOC_INOUT) != 0U) || (IOCPARM_LEN(request) > 0U)) {
-			GETFROMSTACK(ustack, void *, data, 2);
+			GETFROMSTACK(ustack, void *, data, 2U);
 		}
 
 		ioctl_pack(&msg, request, data, &f->oid);

@@ -23,7 +23,7 @@
 int _zynqmp_setMIO(unsigned int pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config);
 
 
-int _zynq_setDevRst(int dev, unsigned int state);
+int _zynq_setDevRst(u32 dev, unsigned int state);
 
 
 #endif

@@ -53,10 +53,6 @@ enum gpio_pupds {
 };
 
 
-/* platformctl syscall */
-int hal_platformctl(void *);
-
-
 /* Sets peripheral's bus clock */
 int _stm32_rccSetDevClock(unsigned int dev, u32 status, u32 lpStatus);
 
@@ -125,16 +121,7 @@ int _stm32_extiMaskEvent(u32 line, u8 state);
 int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge);
 
 
-int _stm32_syscfgExtiLineConfig(u8 port, u8 pin);
-
-
 int _stm32_extiSoftInterrupt(u32 line);
-
-
-u32 _stm32_extiGetPending(void);
-
-
-int _stm32_extiClearPending(u32 line);
 
 
 void _stm32_wdgReload(void);

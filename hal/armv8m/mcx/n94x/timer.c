@@ -21,9 +21,6 @@
 #include "include/arch/armv8m/mcx/n94x/mcxn94x.h"
 
 
-void _interrupts_nvicSetPending(s8 irqn);
-
-
 /* clang-format off */
 enum { ostimer_evtimerl = 0, ostimer_evtimerh, ostimer_capturel, ostimer_captureh,
 	ostimer_matchl, ostimer_matchh, ostimer_oseventctrl = 7 };
@@ -51,7 +48,7 @@ static u64 timer_bin2gray(u64 bin)
 }
 
 
-static time_t hal_timerCyc2us(time_t ticks)
+static time_t hal_timerCyc2Us(time_t ticks)
 {
 	return (ticks * 1000 * 1000) / 32768;
 }
@@ -66,13 +63,13 @@ static time_t hal_timerUs2Cyc(time_t us)
 static u64 hal_timerGetCyc(void)
 {
 	u32 low = *(timer_common.base + ostimer_evtimerl);
-	u32 high = *(timer_common.base + ostimer_evtimerh) & 0x3ff;
+	u32 high = *(timer_common.base + ostimer_evtimerh) & 0x3ffU;
 	u64 timerval;
 
 	timerval = timer_gray2bin((u64)low | ((u64)high << 32));
 	if (timerval < timer_common.timerLast) {
 		/* Once every ~4 years */
-		timer_common.high += 1 << (42 - 32);
+		timer_common.high += 1UL << (42 - 32);
 	}
 	timer_common.timerLast = timerval;
 
@@ -95,31 +92,31 @@ void hal_timerSetWakeup(u32 waitUs)
 	hal_spinlockSet(&timer_common.lock, &sc);
 
 	/* Clear IRQ flag */
-	*(timer_common.base + ostimer_oseventctrl) |= 1;
+	*(timer_common.base + ostimer_oseventctrl) |= 1U;
 	hal_cpuDataMemoryBarrier();
 
 	/* Wait for MATCH to be write ready (should be instant) */
-	while ((*(timer_common.base + ostimer_oseventctrl) & (1 << 2)) != 0) {
+	while ((*(timer_common.base + ostimer_oseventctrl) & (1U << 2)) != 0U) {
 	}
 
-	inc = hal_timerUs2Cyc(waitUs);
+	inc = (u64)hal_timerUs2Cyc((time_t)waitUs);
 	val = hal_timerGetCyc() + inc;
 	valgray = timer_bin2gray(val);
 
 	/* Write new MATCH value */
-	*(timer_common.base + ostimer_matchl) = valgray & 0xffffffffUL;
-	*(timer_common.base + ostimer_matchh) = (valgray >> 32) & 0x3ff;
+	*(timer_common.base + ostimer_matchl) = (u32)(valgray & 0xffffffffUL);
+	*(timer_common.base + ostimer_matchh) = (u32)((valgray >> 32) & 0x3ffU);
 	hal_cpuDataMemoryBarrier();
 
 	/* Wait for MATCH value transfer from shadow */
-	while ((*(timer_common.base + ostimer_oseventctrl) & (1 << 2)) != 0) {
+	while ((*(timer_common.base + ostimer_oseventctrl) & (1U << 2)) != 0U) {
 	}
 
-	if ((hal_timerGetCyc() >= val) && (((val >> 32) & 0x400) == 0) &&
-			((*(timer_common.base + ostimer_oseventctrl) & 1) == 0)) {
+	if ((hal_timerGetCyc() >= val) && (((val >> 32) & 0x400U) == 0U) &&
+			((*(timer_common.base + ostimer_oseventctrl) & 1U) == 0U)) {
 		/* We just missed the timer value and be the interrupt won't
 		 * be generated. Trigger the interrupt manually instead. */
-		_hal_scsIRQPendingSet(ostimer0_irq - 0x10);
+		_hal_scsIRQPendingSet((u8)ostimer0_irq - 0x10U);
 	}
 
 	hal_spinlockClear(&timer_common.lock, &sc);
@@ -132,7 +129,7 @@ time_t hal_timerGetUs(void)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&timer_common.lock, &sc);
-	ret = hal_timerCyc2us(hal_timerGetCyc());
+	ret = hal_timerCyc2Us((time_t)hal_timerGetCyc());
 	hal_spinlockClear(&timer_common.lock, &sc);
 
 	return ret;
@@ -151,8 +148,8 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using OSTIMER", len);
-	features[len - 1] = '\0';
+	(void)hal_strncpy(features, "Using OSTIMER", len);
+	features[len - 1U] = '\0';
 	return features;
 }
 
@@ -165,11 +162,11 @@ void _hal_timerInit(u32 interval)
 	timer_common.interval = interval;
 
 	/* Use xtal32k clock source, enable the clock, deassert reset */
-	_mcxn94x_sysconSetDevClk(pctl_ostimer, 1, 0, 1);
-	_mcxn94x_sysconDevReset(pctl_ostimer, 0);
+	(void)_mcxn94x_sysconSetDevClk(pctl_ostimer, 1U, 0U, 1);
+	(void)_mcxn94x_sysconDevReset(pctl_ostimer, 0);
 
 	/* Enable MATCH interrupt */
-	*(timer_common.base + ostimer_oseventctrl) |= (1 << 1) | 1;
+	*(timer_common.base + ostimer_oseventctrl) |= (1U << 1) | 1U;
 
 	hal_spinlockCreate(&timer_common.lock, "timer");
 }

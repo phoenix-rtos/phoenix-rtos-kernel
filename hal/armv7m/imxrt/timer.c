@@ -20,7 +20,16 @@
 #include "hal/string.h"
 
 
-enum { gpt_cr = 0, gpt_pr, gpt_sr, gpt_ir, gpt_ocr1, gpt_ocr2, gpt_ocr3, gpt_icr1, gpt_icr2, gpt_cnt };
+enum { gpt_cr = 0,
+	gpt_pr,
+	gpt_sr,
+	gpt_ir,
+	gpt_ocr1,
+	gpt_ocr2,
+	gpt_ocr3,
+	gpt_icr1,
+	gpt_icr2,
+	gpt_cnt };
 
 
 static struct {
@@ -47,15 +56,15 @@ static time_t hal_timerUs2Cyc(time_t us)
 
 static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 {
-	if ((*(timer_common.base + gpt_sr) & (1 << 5)) != 0) { /* Roll-over */
+	if ((*(timer_common.base + gpt_sr) & (1U << 5)) != 0U) { /* Roll-over */
 		++timer_common.upper;
-		*(timer_common.base + gpt_sr) = (1 << 5);
+		*(timer_common.base + gpt_sr) = (1U << 5);
 	}
 
-	if ((*(timer_common.base + gpt_sr) & (1 << 1)) != 0) { /* Compare match ch2 */
-		*(timer_common.base + gpt_ocr2) += hal_timerUs2Cyc(timer_common.interval);
+	if ((*(timer_common.base + gpt_sr) & (1U << 1)) != 0U) { /* Compare match ch2 */
+		*(timer_common.base + gpt_ocr2) += (u32)hal_timerUs2Cyc((time_t)timer_common.interval);
 		hal_cpuDataMemoryBarrier();
-		*(timer_common.base + gpt_sr) = (1 << 1);
+		*(timer_common.base + gpt_sr) = (1U << 1);
 	}
 
 	hal_cpuDataMemoryBarrier();
@@ -73,7 +82,7 @@ static time_t hal_timerGetCyc(void)
 	upper = timer_common.upper;
 	lower = *(timer_common.base + gpt_cnt);
 
-	if ((*(timer_common.base + gpt_sr) & (1 << 5)) != 0) {
+	if ((*(timer_common.base + gpt_sr) & (1U << 5)) != 0U) {
 		lower = *(timer_common.base + gpt_cnt);
 		if (lower != 0xffffffffUL) {
 			++upper;
@@ -81,7 +90,7 @@ static time_t hal_timerGetCyc(void)
 	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return ((time_t)upper << 32) | lower;
+	return (time_t)(u64)(((u64)upper << 32) | lower);
 }
 
 
@@ -95,8 +104,8 @@ void hal_timerSetWakeup(u32 waitUs)
 
 	hal_spinlockSet(&timer_common.sp, &sc);
 	/* Modulo handled implicitly */
-	*(timer_common.base + gpt_ocr2) = hal_timerUs2Cyc(waitUs) + *(timer_common.base + gpt_cnt);
-	*(timer_common.base + gpt_sr) = (1 << 1);
+	*(timer_common.base + gpt_ocr2) = (u32)hal_timerUs2Cyc((time_t)waitUs) + *(timer_common.base + gpt_cnt);
+	*(timer_common.base + gpt_sr) = (1UL << 1);
 	hal_cpuDataMemoryBarrier();
 	hal_spinlockClear(&timer_common.sp, &sc);
 }
@@ -120,8 +129,8 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using General Purpose Timer", len);
-	features[len - 1] = '\0';
+	(void)hal_strncpy(features, "Using General Purpose Timer", len);
+	features[len - 1U] = '\0';
 	return features;
 }
 
@@ -140,26 +149,26 @@ void _hal_timerInit(u32 interval)
 	timer_common.handler.f = _timer_irqHandler;
 	timer_common.handler.n = GPT_IRQ;
 	timer_common.handler.data = NULL;
-	hal_interruptsSetHandler(&timer_common.handler);
+	(void)hal_interruptsSetHandler(&timer_common.handler);
 
 	/* Reset */
-	*(timer_common.base + gpt_cr) |= 1 << 15;
+	*(timer_common.base + gpt_cr) |= 1UL << 15;
 	hal_cpuDataMemoryBarrier();
-	while ((*(timer_common.base + gpt_cr) & (1 << 15)) != 0) {
+	while ((*(timer_common.base + gpt_cr) & (1UL << 15)) != 0U) {
 	}
 
 	/* Set prescaler, prescale OSC by GPT_OSC_PRESCALER to get less than 1/4 bus clk */
-	*(timer_common.base + gpt_pr) = ((GPT_OSC_PRESCALER - 1) << 12) | (GPT_PRESCALER - 1);
+	*(timer_common.base + gpt_pr) = (((u32)GPT_OSC_PRESCALER - 1UL) << 12) | ((u32)GPT_PRESCALER - 1U);
 
 	/* Enable oscillator input and select it as clock source, freerun mode */
 	/* Leave timer running in lp modes, reset counter on enable */
-	*(timer_common.base + gpt_cr) = (1 << 10) | (1 << 9) | (5 << 6) | (1 << 5) | (1 << 4) | (1 << 3) | (1 << 1);
+	*(timer_common.base + gpt_cr) = (1UL << 10) | (1UL << 9) | (5UL << 6) | (1UL << 5) | (1UL << 4) | (1UL << 3) | (1UL << 1);
 	hal_cpuDataMemoryBarrier();
 
 	/* Enable */
-	*(timer_common.base + gpt_cr) |= 1;
+	*(timer_common.base + gpt_cr) |= 1UL;
 	hal_cpuDataMemoryBarrier();
 
 	/* Enable roll-over and ocr2 interrupts */
-	*(timer_common.base + gpt_ir) = (1 << 5) | (1 << 1);
+	*(timer_common.base + gpt_ir) = (1UL << 5) | (1UL << 1);
 }
