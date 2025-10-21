@@ -31,9 +31,6 @@
 int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn);
 
 
-int hal_platformctl(void *ptr);
-
-
 #endif /* __ASSEMBLY__ */
 
 

@@ -24,21 +24,21 @@
 #include "include/errno.h"
 
 
-#define AMBAPP_AHB_MSTR      ((addr_t)0xfffff000)
-#define AMBAPP_AHB_MSTR_OFFS ((ptr_t)0x0)
-#define AMBAPP_AHB_SLV_OFFS  ((ptr_t)0x800)
-#define AMBAPP_APB_OFFS      ((ptr_t)0xff000) /* PnP offset relative to APB bridge base address */
+#define AMBAPP_AHB_MSTR      ((addr_t)0xfffff000U)
+#define AMBAPP_AHB_MSTR_OFFS ((ptr_t)0x0U)
+#define AMBAPP_AHB_SLV_OFFS  ((ptr_t)0x800U)
+#define AMBAPP_APB_OFFS      ((ptr_t)0xff000U) /* PnP offset relative to APB bridge base address */
 
-#define AMBAPP_AHB_NMASTERS 16
-#define AMBAPP_AHB_NSLAVES  16
-#define AMBAPP_APB_NSLAVES  16
+#define AMBAPP_AHB_NMASTERS 16U
+#define AMBAPP_AHB_NSLAVES  16U
+#define AMBAPP_APB_NSLAVES  16U
 
 #define AMBAPP_MAX_APBBRIDGES 16
 
 #define AMBAPP_VEN(id)  ((id) >> 24)
-#define AMBAPP_DEV(id)  (((id) >> 12) & 0xfff)
-#define AMBAPP_VER(id)  (((id) >> 5) & 0x1f)
-#define AMBAPP_IRQN(id) ((id) & 0x1f)
+#define AMBAPP_DEV(id)  (((id) >> 12) & 0xfffU)
+#define AMBAPP_VER(id)  (((id) >> 5) & 0x1fU)
+#define AMBAPP_IRQN(id) ((id) & 0x1fU)
 
 #define AMBAPP_AHB_ADDR(bar)           (ptr_t)(((bar) & 0xfff00000U) & (((bar) & 0xfff0U) << 16))
 #define AMBAPP_AHBIO_ADDR(ioarea, bar) (ptr_t)((ioarea) | ((bar) >> 12))
@@ -70,12 +70,12 @@ static void ambapp_fillApbDev(addr_t apb, ambapp_dev_t *dev, ambapp_apb_dev_t *a
 {
 	u32 info = apbdev->id;
 
-	dev->vendor = AMBAPP_VEN(info);
-	dev->irqn = AMBAPP_IRQN(info);
+	dev->vendor = (unsigned char)AMBAPP_VEN(info);
+	dev->irqn = (unsigned char)AMBAPP_IRQN(info);
 	dev->bus = BUS_AMBA_APB;
 
 	info = apbdev->bar;
-	dev->info.apb.base = (u32 *)AMBAPP_APB_ADDR(apb, info);
+	dev->info.apb.base = ((u32 *)AMBAPP_APB_ADDR(apb, info));
 	dev->info.apb.type = AMBAPP_TYPE(info);
 }
 
@@ -89,7 +89,7 @@ static int ambapp_apbFind(addr_t apb, ambapp_dev_t *dev, unsigned int *instance)
 	hal_spinlockSet(&ambapp_common.lock, &sc);
 
 	/* Map bridge PnP */
-	apbdev = pmap_halMap((addr_t)apbdev, (void *)ambapp_common.apbpnp, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
+	apbdev = pmap_halMap((addr_t)apbdev, (void *)ambapp_common.apbpnp, SIZE_PAGE, (int)(PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT));
 
 	for (i = 0; i < AMBAPP_APB_NSLAVES; i++) {
 		id = apbdev[i].id;
@@ -115,15 +115,15 @@ static void ambapp_fillAhbDev(ambapp_dev_t *dev, ambapp_ahb_dev_t *ahbdev)
 	addr_t addr;
 	u32 info = ahbdev->id;
 
-	dev->vendor = AMBAPP_VEN(info);
-	dev->irqn = AMBAPP_IRQN(info);
+	dev->vendor = (unsigned char)AMBAPP_VEN(info);
+	dev->irqn = (unsigned char)AMBAPP_IRQN(info);
 	dev->bus = BUS_AMBA_AHB;
 
-	for (bar = 0; bar < 4; bar++) {
+	for (bar = 0; bar < 4U; bar++) {
 		info = ahbdev->bar[bar];
 
-		if (info == 0) {
-			dev->info.ahb.base[bar] = 0;
+		if (info == 0U) {
+			dev->info.ahb.base[bar] = NULL;
 			dev->info.ahb.type[bar] = 0;
 		}
 		else {
@@ -151,8 +151,8 @@ static void ambapp_addBridge(addr_t *bridges, size_t len, addr_t addr)
 			return;
 		}
 		if (addr < curr) {
-			for (j = len - 1; j > i; j--) {
-				bridges[j] = bridges[j - 1];
+			for (j = len - 1U; j > i; j--) {
+				bridges[j] = bridges[j - 1U];
 			}
 			bridges[i] = addr;
 			return;
@@ -184,13 +184,16 @@ static int ambapp_ahbFind(ptr_t pnpOff, u32 ndevs, ambapp_dev_t *dev, unsigned i
 
 		else if (AMBAPP_DEV(id) == CORE_ID_APBCTRL) {
 			/* Found APB Bridge */
-			for (bar = 0; bar < 4; bar++) {
+			for (bar = 0; bar < 4U; bar++) {
 				val = ahbdev[i].bar[bar];
 				if (AMBAPP_TYPE(val) == AMBA_TYPE_AHBMEM) {
 					apb = AMBAPP_AHB_ADDR(val);
 					ambapp_addBridge(apbBridges, AMBAPP_AHB_NSLAVES, apb);
 				}
 			}
+		}
+		else {
+			/* No action required */
 		}
 	}
 
@@ -231,6 +234,6 @@ void ambapp_init(void)
 	hal_spinlockCreate(&ambapp_common.lock, "ambapp_common.lock");
 
 	/* NOTE: on GR740 uncacheable areas (AMBA PnP) must be mapped as such */
-	ambapp_common.ahbpnp = (ptr_t)_pmap_halMap(AMBAPP_AHB_MSTR, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
-	ambapp_common.apbpnp = (ptr_t)_pmap_halMap(0, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
+	ambapp_common.ahbpnp = (ptr_t)_pmap_halMap(AMBAPP_AHB_MSTR, NULL, SIZE_PAGE, (int)(PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT));
+	ambapp_common.apbpnp = (ptr_t)_pmap_halMap(0, NULL, SIZE_PAGE, (int)(PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT));
 }

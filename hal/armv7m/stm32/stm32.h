@@ -24,10 +24,6 @@
 #endif
 
 
-/* platformctl syscall */
-int hal_platformctl(void *);
-
-
 void _stm32_platformInit(void);
 
 
@@ -149,9 +145,6 @@ unsigned int _stm32_cpuid(void);
 
 
 void _stm32_wdgReload(void);
-
-
-int _stm32_systickInit(u32 interval);
 
 
 void _stm32_init(void);

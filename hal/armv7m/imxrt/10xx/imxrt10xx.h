@@ -19,8 +19,8 @@
 
 #include "hal/types.h"
 
+/* clang-format off */
 /* iMXRT peripherals */
-
 enum { gpio1 = 0, gpio2, gpio3, gpio4, gpio5 };
 
 
@@ -52,9 +52,7 @@ enum { clk_div_arm = 0, clk_div_periphclk2, clk_div_semc, clk_div_ahb, clk_div_i
 
 /* CPU modes */
 enum { clk_mode_run = 0, clk_mode_wait, clk_mode_stop };
-
-
-int hal_platformctl(void *ptr);
+/* clang-format on */
 
 
 void _imxrt_ccmInitExterlnalClk(void);
@@ -144,12 +142,6 @@ u32 _imxrt_ccmGetSysPfdFreq(int pfd);
 u32 _imxrt_ccmGetUsb1PfdFreq(int pfd);
 
 
-u32 _imxrt_ccmGetSysPfdFreq(int pfd);
-
-
-u32 _imxrt_ccmGetUsb1PfdFreq(int pfd);
-
-
 void _imxrt_ccmSetMux(int mux, u32 val);
 
 
@@ -183,13 +175,13 @@ int _imxrt_gpioGet(unsigned int d, u8 pin, u8 *val);
 int _imxrt_gpioGetPort(unsigned int d, u32 *val);
 
 
-int _imxrt_setIOmux(int mux, char sion, char mode);
+int _imxrt_setIOmux(int mux, int sion, int mode);
 
 
-int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre);
+int _imxrt_setIOpad(int pad, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8 speed, u8 dse, u8 sre);
 
 
-int _imxrt_setIOisel(int isel, char daisy);
+int _imxrt_setIOisel(int isel, int daisy);
 
 
 void _imxrt_wdgReload(void);

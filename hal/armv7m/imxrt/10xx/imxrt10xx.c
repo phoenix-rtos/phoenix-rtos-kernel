@@ -14,6 +14,7 @@
  */
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "hal/spinlock.h"
 #include "hal/armv7m/imxrt/halsyspage.h"
 
@@ -28,9 +29,9 @@
 #include <board_config.h>
 
 
-#define RTWDOG_UPDATE_KEY 0xd928c520
-#define RTWDOG_REFRESH_KEY 0xb480a602
-#define LPO_CLK_FREQ_HZ 32000
+#define RTWDOG_UPDATE_KEY  0xd928c520U
+#define RTWDOG_REFRESH_KEY 0xb480a602U
+#define LPO_CLK_FREQ_HZ    32000U
 
 #if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
 #define WATCHDOG_TIMEOUT_MS (30000)
@@ -38,11 +39,11 @@
 #endif
 
 #if defined(WATCHDOG) && \
-	(WATCHDOG_TIMEOUT_MS <= 0x0 || WATCHDOG_TIMEOUT_MS > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
+		(WATCHDOG_TIMEOUT_MS <= 0x0 || WATCHDOG_TIMEOUT_MS > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
 #error "Watchdog timeout out of bounds!"
 #endif
 
-struct {
+static struct {
 	volatile u32 *gpio[5];
 	volatile u32 *aips[4];
 	volatile u32 *ccm;
@@ -65,60 +66,183 @@ struct {
 } imxrt_common;
 
 
-enum { gpio_dr = 0, gpio_gdir, gpio_psr, gpio_icr1, gpio_icr2, gpio_imr, gpio_isr, gpio_edge_sel };
+enum { gpio_dr = 0,
+	gpio_gdir,
+	gpio_psr,
+	gpio_icr1,
+	gpio_icr2,
+	gpio_imr,
+	gpio_isr,
+	gpio_edge_sel };
 
 
-enum { aipstz_mpr = 0, aipstz_opacr = 16, aipstz_opacr1, aipstz_opacr2, aipstz_opacr3, aipstz_opacr4 };
+enum { aipstz_mpr = 0,
+	aipstz_opacr = 16,
+	aipstz_opacr1,
+	aipstz_opacr2,
+	aipstz_opacr3,
+	aipstz_opacr4 };
 
 
-enum { ccm_ccr = 0, /* reserved */ ccm_csr = 2, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr, ccm_cscmr1, ccm_cscmr2,
-	ccm_cscdr1, ccm_cs1cdr, ccm_cs2cdr, ccm_cdcdr, /* reserved */ ccm_cscdr2 = 14, ccm_cscdr3, /* 2 reserved */
-	ccm_cdhipr = 18, /* 2 reserved */ ccm_clpcr = 21, ccm_cisr, ccm_cimr, ccm_ccosr, ccm_cgpr, ccm_ccgr0, ccm_ccgr1,
-	ccm_ccgr2, ccm_ccgr3, ccm_ccgr4, ccm_ccgr5, ccm_ccgr6, ccm_ccgr7, ccm_cmeor };
+enum { ccm_ccr = 0,
+	/* reserved */ ccm_csr = 2,
+	ccm_ccsr,
+	ccm_cacrr,
+	ccm_cbcdr,
+	ccm_cbcmr,
+	ccm_cscmr1,
+	ccm_cscmr2,
+	ccm_cscdr1,
+	ccm_cs1cdr,
+	ccm_cs2cdr,
+	ccm_cdcdr,
+	/* reserved */ ccm_cscdr2 = 14,
+	ccm_cscdr3, /* 2 reserved */
+	ccm_cdhipr = 18,
+	/* 2 reserved */ ccm_clpcr = 21,
+	ccm_cisr,
+	ccm_cimr,
+	ccm_ccosr,
+	ccm_cgpr,
+	ccm_ccgr0,
+	ccm_ccgr1,
+	ccm_ccgr2,
+	ccm_ccgr3,
+	ccm_ccgr4,
+	ccm_ccgr5,
+	ccm_ccgr6,
+	ccm_ccgr7,
+	ccm_cmeor };
 
 
-enum { ccm_analog_pll_arm, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, ccm_analog_pll_arm_tog,
-	ccm_analog_pll_usb1, ccm_analog_pll_usb1_set, ccm_analog_pll_usb1_clr, ccm_analog_pll_usb1_tog,
-	ccm_analog_pll_usb2, ccm_analog_pll_usb2_set, ccm_analog_pll_usb2_clr, ccm_analog_pll_usb2_tog,
-	ccm_analog_pll_sys, ccm_analog_pll_sys_set, ccm_analog_pll_sys_clr, ccm_analog_pll_sys_tog,
-	ccm_analog_pll_sys_ss, /* 3 reserved */ ccm_analog_pll_sys_num = 20, /* 3 reserved */
-	ccm_analog_pll_sys_denom = 24, /* 3 reserved */ ccm_analog_pll_audio = 28, ccm_analog_pll_audio_set,
-	ccm_analog_pll_audio_clr, ccm_analog_pll_audio_tog, ccm_analog_pll_audio_num, /* 3 reserved */
-	ccm_analog_pll_audio_denom = 36, /* 3 reserved */ ccm_analog_pll_video = 40, ccm_analog_pll_video_set,
-	ccm_analog_pll_video_clr, ccm_analog_pll_video_tog, ccm_analog_pll_video_num, /* 3 reserved */
-	ccm_analog_pll_video_denom = 48, /* 3 reserved */ ccm_analog_pll_enet = 56, ccm_analog_pll_enet_set,
-	ccm_analog_pll_enet_clr, ccm_analog_pll_enet_tog, ccm_analog_pfd_480, ccm_analog_pfd_480_set,
-	ccm_analog_pfd_480_clr, ccm_analog_pfd_480_tog, ccm_analog_pfd_528, ccm_analog_pfd_528_set,
-	ccm_analog_pfd_528_clr, ccm_analog_pfd_528_tog, ccm_analog_misc0 = 84, ccm_analog_misc0_set,
-	ccm_analog_misc0_clr, ccm_analog_misc0_tog, ccm_analog_misc1, ccm_analog_misc1_set, ccm_analog_misc1_clr,
-	ccm_analog_misc1_tog, ccm_analog_misc2, ccm_analog_misc2_set, ccm_analog_misc2_clr, ccm_analog_misc2_tog };
+enum { ccm_analog_pll_arm,
+	ccm_analog_pll_arm_set,
+	ccm_analog_pll_arm_clr,
+	ccm_analog_pll_arm_tog,
+	ccm_analog_pll_usb1,
+	ccm_analog_pll_usb1_set,
+	ccm_analog_pll_usb1_clr,
+	ccm_analog_pll_usb1_tog,
+	ccm_analog_pll_usb2,
+	ccm_analog_pll_usb2_set,
+	ccm_analog_pll_usb2_clr,
+	ccm_analog_pll_usb2_tog,
+	ccm_analog_pll_sys,
+	ccm_analog_pll_sys_set,
+	ccm_analog_pll_sys_clr,
+	ccm_analog_pll_sys_tog,
+	ccm_analog_pll_sys_ss,
+	/* 3 reserved */ ccm_analog_pll_sys_num = 20, /* 3 reserved */
+	ccm_analog_pll_sys_denom = 24,
+	/* 3 reserved */ ccm_analog_pll_audio = 28,
+	ccm_analog_pll_audio_set,
+	ccm_analog_pll_audio_clr,
+	ccm_analog_pll_audio_tog,
+	ccm_analog_pll_audio_num, /* 3 reserved */
+	ccm_analog_pll_audio_denom = 36,
+	/* 3 reserved */ ccm_analog_pll_video = 40,
+	ccm_analog_pll_video_set,
+	ccm_analog_pll_video_clr,
+	ccm_analog_pll_video_tog,
+	ccm_analog_pll_video_num, /* 3 reserved */
+	ccm_analog_pll_video_denom = 48,
+	/* 3 reserved */ ccm_analog_pll_enet = 56,
+	ccm_analog_pll_enet_set,
+	ccm_analog_pll_enet_clr,
+	ccm_analog_pll_enet_tog,
+	ccm_analog_pfd_480,
+	ccm_analog_pfd_480_set,
+	ccm_analog_pfd_480_clr,
+	ccm_analog_pfd_480_tog,
+	ccm_analog_pfd_528,
+	ccm_analog_pfd_528_set,
+	ccm_analog_pfd_528_clr,
+	ccm_analog_pfd_528_tog,
+	ccm_analog_misc0 = 84,
+	ccm_analog_misc0_set,
+	ccm_analog_misc0_clr,
+	ccm_analog_misc0_tog,
+	ccm_analog_misc1,
+	ccm_analog_misc1_set,
+	ccm_analog_misc1_clr,
+	ccm_analog_misc1_tog,
+	ccm_analog_misc2,
+	ccm_analog_misc2_set,
+	ccm_analog_misc2_clr,
+	ccm_analog_misc2_tog };
 
 
-enum { pmu_reg_1p1 = 0, /* 3 reserved */ pmu_reg_3p0 = 4, /* 3 reserved */ pmu_reg_2p5 = 8, /* 3 reserved */
-	pmu_reg_core = 12, /* 3 reserved */ pmu_misc0 = 16, /* 3 reserved */ pmu_misc1 = 20, pmu_misc1_set,
-	pmu_misc1_clr, pmu_misc1_tog, pmu_misc2, pmu_misc2_set, pmu_misc2_clr, pmu_misc2_tog };
+enum { pmu_reg_1p1 = 0,
+	/* 3 reserved */ pmu_reg_3p0 = 4,
+	/* 3 reserved */ pmu_reg_2p5 = 8, /* 3 reserved */
+	pmu_reg_core = 12,
+	/* 3 reserved */ pmu_misc0 = 16,
+	/* 3 reserved */ pmu_misc1 = 20,
+	pmu_misc1_set,
+	pmu_misc1_clr,
+	pmu_misc1_tog,
+	pmu_misc2,
+	pmu_misc2_set,
+	pmu_misc2_clr,
+	pmu_misc2_tog };
 
 
-enum { xtalosc_misc0 = 84, xtalosc_lowpwr_ctrl = 156, xtalosc_lowpwr_ctrl_set, xtalosc_lowpwr_ctrl_clr,
-	xtalosc_lowpwr_ctrl_tog, xtalosc_osc_config0 = 168, xtalosc_osc_config0_set, xtalosc_osc_config0_clr,
-	xtalosc_osc_config0_tog, xtalosc_osc_config1, xtalosc_osc_config1_set, xtalosc_osc_config1_clr,
-	xtalosc_osc_config1_tog, xtalosc_osc_config2, xtalosc_osc_config2_set, xtalosc_osc_config2_clr, xtalosc_osc_config2_tog };
+enum { xtalosc_misc0 = 84,
+	xtalosc_lowpwr_ctrl = 156,
+	xtalosc_lowpwr_ctrl_set,
+	xtalosc_lowpwr_ctrl_clr,
+	xtalosc_lowpwr_ctrl_tog,
+	xtalosc_osc_config0 = 168,
+	xtalosc_osc_config0_set,
+	xtalosc_osc_config0_clr,
+	xtalosc_osc_config0_tog,
+	xtalosc_osc_config1,
+	xtalosc_osc_config1_set,
+	xtalosc_osc_config1_clr,
+	xtalosc_osc_config1_tog,
+	xtalosc_osc_config2,
+	xtalosc_osc_config2_set,
+	xtalosc_osc_config2_clr,
+	xtalosc_osc_config2_tog };
 
 
-enum { osc_rc = 0, osc_xtal };
+enum { osc_rc = 0,
+	osc_xtal };
 
 
-enum { stk_ctrl = 0, stk_load, stk_val, stk_calib };
+enum { stk_ctrl = 0,
+	stk_load,
+	stk_val,
+	stk_calib };
 
 
-enum { src_scr = 0, src_sbmr1, src_srsr, src_sbmr2 = 7, src_gpr1, src_gpr2, src_gpr3, src_gpr4,
-	src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
+enum { src_scr = 0,
+	src_sbmr1,
+	src_srsr,
+	src_sbmr2 = 7,
+	src_gpr1,
+	src_gpr2,
+	src_gpr3,
+	src_gpr4,
+	src_gpr5,
+	src_gpr6,
+	src_gpr7,
+	src_gpr8,
+	src_gpr9,
+	src_gpr10 };
 
 
-enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
+enum { wdog_wcr = 0,
+	wdog_wsr,
+	wdog_wrsr,
+	wdog_wicr,
+	wdog_wmcr };
 
 
-enum { rtwdog_cs = 0, rtwdog_cnt, rtwdog_toval, rtwdog_win };
+enum { rtwdog_cs = 0,
+	rtwdog_cnt,
+	rtwdog_toval,
+	rtwdog_win };
 
 
 /* platformctl syscall */
@@ -136,16 +260,17 @@ static int _imxrt_isValidDev(int dev)
 
 static int _imxrt_getDevClock(int dev, unsigned int *state)
 {
-	int ccgr, flag;
+	int ccgr;
+	unsigned int flag;
 
 	if (_imxrt_isValidDev(dev) == 0) {
 		return -EINVAL;
 	}
 
 	ccgr = dev / 16;
-	flag = 3 << (2 * (dev % 16));
+	flag = 3UL << (2U * ((unsigned int)dev % 16U));
 
-	*state = (*(imxrt_common.ccm + ccm_ccgr0 + ccgr) & flag) >> (2 * (dev % 16));
+	*state = (*(imxrt_common.ccm + ccm_ccgr0 + ccgr) & flag) >> (2U * ((unsigned int)dev % 16U));
 
 	return EOK;
 }
@@ -153,7 +278,8 @@ static int _imxrt_getDevClock(int dev, unsigned int *state)
 
 static int _imxrt_setDevClock(int dev, unsigned int state)
 {
-	int ccgr, flag, mask;
+	int ccgr;
+	unsigned int flag, mask;
 	u32 t;
 
 	if (_imxrt_isValidDev(dev) == 0) {
@@ -161,8 +287,8 @@ static int _imxrt_setDevClock(int dev, unsigned int state)
 	}
 
 	ccgr = dev / 16;
-	flag = (state & 3) << (2 * (dev % 16));
-	mask = 3 << (2 * (dev % 16));
+	flag = (state & 3U) << (2U * ((unsigned int)dev % 16U));
+	mask = 3UL << (2U * ((unsigned int)dev % 16U));
 
 	t = *(imxrt_common.ccm + ccm_ccgr0 + ccgr) & ~mask;
 	*(imxrt_common.ccm + ccm_ccgr0 + ccgr) = t | flag;
@@ -259,8 +385,8 @@ static int _imxrt_setIOgpr(int field, unsigned int val)
 		return err;
 	}
 
-	t = *(imxrt_common.iomuxgpr + (field >> 5)) & ~(mask << (field & 0x1f));
-	*(imxrt_common.iomuxgpr + (field >> 5)) = t | (val & mask) << (field & 0x1f);
+	t = *(imxrt_common.iomuxgpr + ((unsigned int)field >> 5)) & ~(mask << ((unsigned int)field >> 0x1fU));
+	*(imxrt_common.iomuxgpr + ((unsigned int)field >> 5)) = t | (val & mask) << ((unsigned int)field >> 0x1fU);
 
 	return EOK;
 }
@@ -276,7 +402,7 @@ static int _imxrt_getIOgpr(int field, unsigned int *val)
 		return err;
 	}
 
-	*val = (*(imxrt_common.iomuxgpr + (field >> 5)) >> (field & 0x1f)) & mask;
+	*val = (*(imxrt_common.iomuxgpr + ((unsigned int)field >> 5)) >> ((unsigned int)field & 0x1fU)) & mask;
 
 	return EOK;
 }
@@ -296,7 +422,7 @@ static volatile u32 *_imxrt_IOmuxGetReg(int mux)
 }
 
 
-int _imxrt_setIOmux(int mux, char sion, char mode)
+int _imxrt_setIOmux(int mux, int sion, int mode)
 {
 	volatile u32 *reg;
 
@@ -305,13 +431,13 @@ int _imxrt_setIOmux(int mux, char sion, char mode)
 		return -EINVAL;
 	}
 
-	(*reg) = (!!sion << 4) | (mode & 0xf);
+	(*reg) = ((sion == 0 ? 0UL : 1UL) << 4) | ((unsigned int)mode & 0xfU);
 
 	return EOK;
 }
 
 
-static int _imxrt_getIOmux(int mux, char *sion, char *mode)
+static int _imxrt_getIOmux(int mux, int *sion, int *mode)
 {
 	u32 t;
 	volatile u32 *reg;
@@ -322,8 +448,8 @@ static int _imxrt_getIOmux(int mux, char *sion, char *mode)
 	}
 
 	t = (*reg);
-	*sion = !!(t & (1 << 4));
-	*mode = t & 0xf;
+	*sion = (t & (1U << 4)) == 0U ? 0 : 1;
+	*mode = (int)(u32)(t & 0xfU);
 
 	return EOK;
 }
@@ -347,7 +473,7 @@ static volatile u32 *_imxrt_IOpadGetReg(int pad)
 }
 
 
-int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre)
+int _imxrt_setIOpad(int pad, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8 speed, u8 dse, u8 sre)
 {
 	u32 t;
 	volatile u32 *reg;
@@ -357,15 +483,15 @@ int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, c
 		return -EINVAL;
 	}
 
-	t = (!!hys << 16) | ((pus & 0x3) << 14) | (!!pue << 13) | (!!pke << 12);
-	t |= (!!ode << 11) | ((speed & 0x3) << 6) | ((dse & 0x7) << 3) | !!sre;
+	t = ((hys == 0U ? 0UL : 1UL) << 16) | (((u32)pus & 0x3U) << 14) | ((pue == 0U ? 0UL : 1UL) << 13) | ((pke == 0U ? 0UL : 1UL) << 12);
+	t |= ((ode == 0U ? 0UL : 1UL) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | (sre == 0U ? 0UL : 1UL);
 	(*reg) = t;
 
 	return EOK;
 }
 
 
-static int _imxrt_getIOpad(int pad, char *hys, char *pus, char *pue, char *pke, char *ode, char *speed, char *dse, char *sre)
+static int _imxrt_getIOpad(int pad, u8 *hys, u8 *pus, u8 *pue, u8 *pke, u8 *ode, u8 *speed, u8 *dse, u8 *sre)
 {
 	u32 t;
 	volatile u32 *reg;
@@ -377,14 +503,14 @@ static int _imxrt_getIOpad(int pad, char *hys, char *pus, char *pue, char *pke, 
 
 	t = (*reg);
 
-	*hys = (t >> 16) & 0x1;
-	*pus = (t >> 14) & 0x3;
-	*pue = (t >> 13) & 0x1;
-	*pke = (t >> 12) & 0x1;
-	*ode = (t >> 11) & 0x1;
-	*speed = (t >> 6) & 0x3;
-	*dse = (t >> 3) & 0x7;
-	*sre = t & 0x1;
+	*hys = (u8)((t >> 16) & 0x1U);
+	*pus = (u8)((t >> 14) & 0x3U);
+	*pue = (u8)((t >> 13) & 0x1U);
+	*pke = (u8)((t >> 12) & 0x1U);
+	*ode = (u8)((t >> 11) & 0x1U);
+	*speed = (u8)((t >> 6) & 0x3U);
+	*dse = (u8)((t >> 3) & 0x7U);
+	*sre = (u8)(t & 0x1U);
 
 	return EOK;
 }
@@ -452,7 +578,7 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 }
 
 
-int _imxrt_setIOisel(int isel, char daisy)
+int _imxrt_setIOisel(int isel, int daisy)
 {
 	volatile u32 *reg;
 	u32 mask;
@@ -462,13 +588,13 @@ int _imxrt_setIOisel(int isel, char daisy)
 		return -EINVAL;
 	}
 
-	(*reg) = daisy & mask;
+	(*reg) = (u32)daisy & mask;
 
 	return EOK;
 }
 
 
-static int _imxrt_getIOisel(int isel, char *daisy)
+static int _imxrt_getIOisel(int isel, int *daisy)
 {
 	volatile u32 *reg;
 	u32 mask;
@@ -478,7 +604,7 @@ static int _imxrt_getIOisel(int isel, char *daisy)
 		return -EINVAL;
 	}
 
-	*daisy = (*reg) & mask;
+	*daisy = (int)(u32)((*reg) & mask);
 
 	return EOK;
 }
@@ -490,6 +616,7 @@ int hal_platformctl(void *ptr)
 	int ret = -EINVAL;
 	unsigned int state = 0;
 	spinlock_ctx_t sc;
+	int sion = 0, mode = 0, daisy = 0;
 
 	hal_spinlockSet(&imxrt_common.pltctlSp, &sc);
 
@@ -502,6 +629,9 @@ int hal_platformctl(void *ptr)
 				ret = _imxrt_getDevClock(data->devclock.dev, &state);
 				data->devclock.state = state;
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_iogpr:
@@ -512,6 +642,9 @@ int hal_platformctl(void *ptr)
 				ret = _imxrt_getIOgpr(data->iogpr.field, &state);
 				data->iogpr.val = state;
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_iomux:
@@ -519,18 +652,27 @@ int hal_platformctl(void *ptr)
 				ret = _imxrt_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
 			}
 			else if (data->action == pctl_get) {
-				ret = _imxrt_getIOmux(data->iomux.mux, &data->iomux.sion, &data->iomux.mode);
+
+				ret = _imxrt_getIOmux(data->iomux.mux, &sion, &mode);
+				data->iomux.sion = sion;
+				data->iomux.mode = mode;
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
 		case pctl_iopad:
 			if (data->action == pctl_set) {
 				ret = _imxrt_setIOpad(data->iopad.pad, data->iopad.hys, data->iopad.pus, data->iopad.pue,
-					data->iopad.pke, data->iopad.ode, data->iopad.speed, data->iopad.dse, data->iopad.sre);
+						data->iopad.pke, data->iopad.ode, data->iopad.speed, data->iopad.dse, data->iopad.sre);
 			}
 			else if (data->action == pctl_get) {
 				ret = _imxrt_getIOpad(data->iopad.pad, &data->iopad.hys, &data->iopad.pus, &data->iopad.pue,
-					&data->iopad.pke, &data->iopad.ode, &data->iopad.speed, &data->iopad.dse, &data->iopad.sre);
+						&data->iopad.pke, &data->iopad.ode, &data->iopad.speed, &data->iopad.dse, &data->iopad.sre);
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -539,7 +681,11 @@ int hal_platformctl(void *ptr)
 				ret = _imxrt_setIOisel(data->ioisel.isel, data->ioisel.daisy);
 			}
 			else if (data->action == pctl_get) {
-				ret = _imxrt_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
+				ret = _imxrt_getIOisel(data->ioisel.isel, &daisy);
+				data->ioisel.daisy = daisy;
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -553,11 +699,14 @@ int hal_platformctl(void *ptr)
 				data->reboot.reason = syspage->hs.bootReason;
 				ret = EOK;
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_devcache:
 			if (data->action == pctl_set) {
-				if (data->devcache.state == 0) {
+				if (data->devcache.state == 0U) {
 					_hal_scsDCacheDisable();
 					_hal_scsICacheDisable();
 				}
@@ -578,6 +727,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
@@ -595,8 +745,8 @@ static u32 _imxrt_ccmGetPeriphClkFreq(void)
 	u32 freq;
 
 	/* Periph_clk2_clk ---> Periph_clk */
-	if ((*(imxrt_common.ccm + ccm_cbcdr) & (1 << 25)) != 0) {
-		switch ((*(imxrt_common.ccm + ccm_cbcmr) >> 12) & 0x3) {
+	if ((*(imxrt_common.ccm + ccm_cbcdr) & (1UL << 25)) != 0U) {
+		switch ((*(imxrt_common.ccm + ccm_cbcmr) >> 12) & 0x3U) {
 			/* Pll3_sw_clk ---> Periph_clk2_clk ---> Periph_clk */
 			case 0x0:
 				freq = _imxrt_ccmGetPllFreq(clk_pll_usb1);
@@ -612,10 +762,10 @@ static u32 _imxrt_ccmGetPeriphClkFreq(void)
 				break;
 		}
 
-		freq /= ((*(imxrt_common.ccm + ccm_cbcdr) >> 27) & 0x7) + 1;
+		freq /= ((*(imxrt_common.ccm + ccm_cbcdr) >> 27) & 0x7U) + 1U;
 	}
 	else { /* Pre_Periph_clk ---> Periph_clk */
-		switch ((*(imxrt_common.ccm + ccm_cbcmr) >> 18) & 0x3) {
+		switch ((*(imxrt_common.ccm + ccm_cbcmr) >> 18) & 0x3U) {
 			/* PLL2 ---> Pre_Periph_clk ---> Periph_clk */
 			case 0x0:
 				freq = _imxrt_ccmGetPllFreq(clk_pll_sys);
@@ -633,7 +783,7 @@ static u32 _imxrt_ccmGetPeriphClkFreq(void)
 
 			/* PLL1 divided(/2) ---> Pre_Periph_clk ---> Periph_clk */
 			case 0x3:
-				freq = _imxrt_ccmGetPllFreq(clk_pll_arm) / ((*(imxrt_common.ccm + ccm_cacrr) & 0x7) + 1);
+				freq = _imxrt_ccmGetPllFreq(clk_pll_arm) / ((*(imxrt_common.ccm + ccm_cacrr) & 0x7U) + 1U);
 				break;
 
 			default:
@@ -649,33 +799,33 @@ static u32 _imxrt_ccmGetPeriphClkFreq(void)
 void _imxrt_ccmInitExterlnalClk(void)
 {
 	/* Power up */
-	*(imxrt_common.ccm_analog + ccm_analog_misc0_clr) = 1 << 30;
-	while ((*(imxrt_common.xtalosc + xtalosc_lowpwr_ctrl) & (1 << 16)) == 0) {
+	*(imxrt_common.ccm_analog + ccm_analog_misc0_clr) = 1UL << 30;
+	while ((*(imxrt_common.xtalosc + xtalosc_lowpwr_ctrl) & (1UL << 16)) == 0U) {
 	}
 
 	/* Detect frequency */
-	*(imxrt_common.ccm_analog + ccm_analog_misc0_set) = 1 << 16;
-	while ((*(imxrt_common.ccm_analog + ccm_analog_misc0) & (1 << 15)) == 0) {
+	*(imxrt_common.ccm_analog + ccm_analog_misc0_set) = 1UL << 16;
+	while ((*(imxrt_common.ccm_analog + ccm_analog_misc0) & (1UL << 15)) == 0U) {
 	}
 
-	*(imxrt_common.ccm_analog + ccm_analog_misc0_clr) = 1 << 16;
+	*(imxrt_common.ccm_analog + ccm_analog_misc0_clr) = 1UL << 16;
 }
 
 
 void _imxrt_ccmDeinitExternalClk(void)
 {
 	/* Power down */
-	*(imxrt_common.ccm_analog + ccm_analog_misc0_set) = 1 << 30;
+	*(imxrt_common.ccm_analog + ccm_analog_misc0_set) = 1UL << 30;
 }
 
 
 void _imxrt_ccmSwitchOsc(int osc)
 {
 	if (osc == osc_rc) {
-		*(imxrt_common.xtalosc + xtalosc_lowpwr_ctrl_set) = 1 << 4;
+		*(imxrt_common.xtalosc + xtalosc_lowpwr_ctrl_set) = 1UL << 4;
 	}
 	else {
-		*(imxrt_common.xtalosc + xtalosc_lowpwr_ctrl_clr) = 1 << 4;
+		*(imxrt_common.xtalosc + xtalosc_lowpwr_ctrl_clr) = 1UL << 4;
 	}
 }
 
@@ -700,14 +850,14 @@ u32 _imxrt_ccmGetFreq(int name)
 		/* Periph_clk ---> AHB Clock */
 		case clk_cpu:
 		case clk_ahb:
-			freq = _imxrt_ccmGetPeriphClkFreq() / (((*(imxrt_common.ccm + ccm_cbcdr) > 10) & 0x7) + 1);
+			freq = _imxrt_ccmGetPeriphClkFreq() / (((*(imxrt_common.ccm + ccm_cbcdr) > 10U) & 0x7U) + 1U);
 			break;
 
 		case clk_semc:
 			/* SEMC alternative clock ---> SEMC Clock */
-			if ((*(imxrt_common.ccm + ccm_cbcdr) & (1 << 6)) != 0) {
+			if ((*(imxrt_common.ccm + ccm_cbcdr) & (1U << 6)) != 0U) {
 				/* PLL3 PFD1 ---> SEMC alternative clock ---> SEMC Clock */
-				if ((*(imxrt_common.ccm + ccm_cbcdr) & 0x7) != 0) {
+				if ((*(imxrt_common.ccm + ccm_cbcdr) & 0x7U) != 0U) {
 					freq = _imxrt_ccmGetUsb1PfdFreq(clk_pfd1);
 				}
 				/* PLL2 PFD2 ---> SEMC alternative clock ---> SEMC Clock */
@@ -720,13 +870,13 @@ u32 _imxrt_ccmGetFreq(int name)
 				freq = _imxrt_ccmGetPeriphClkFreq();
 			}
 
-			freq /= ((*(imxrt_common.ccm + ccm_cbcdr) >> 16) & 0x7) + 1;
+			freq /= ((*(imxrt_common.ccm + ccm_cbcdr) >> 16) & 0x7U) + 1U;
 			break;
 
 		case clk_ipg:
 			/* Periph_clk ---> AHB Clock ---> IPG Clock */
-			freq = _imxrt_ccmGetPeriphClkFreq() / (((*(imxrt_common.ccm + ccm_cbcdr) >> 10) & 0x7) + 1);
-			freq /= ((*(imxrt_common.ccm + ccm_cbcdr) >> 8) & 0x3) + 1;
+			freq = _imxrt_ccmGetPeriphClkFreq() / (((*(imxrt_common.ccm + ccm_cbcdr) >> 10) & 0x7U) + 1U);
+			freq /= ((*(imxrt_common.ccm + ccm_cbcdr) >> 8) & 0x3U) + 1U;
 			break;
 
 		case clk_osc:
@@ -809,39 +959,39 @@ void _imxrt_ccmSetOscFreq(u32 freq)
 
 void _imxrt_ccmInitArmPll(u32 div)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_arm) = (1 << 13) | (div & 0x7f);
+	*(imxrt_common.ccm_analog + ccm_analog_pll_arm) = (1UL << 13) | (div & 0x7fU);
 
-	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_arm) & (1 << 31)) == 0) {
+	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_arm) & (1UL << 31)) == 0U) {
 	}
 }
 
 
 void _imxrt_ccmDeinitArmPll(void)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_arm) = 1 << 12;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_arm) = 1UL << 12;
 }
 
 
 void _imxrt_ccmInitSysPll(u8 div)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_sys) =  (1 << 13) | (div & 1);
+	*(imxrt_common.ccm_analog + ccm_analog_pll_sys) = (1UL << 13) | ((u32)div & 1U);
 
-	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_sys) & (1 << 31)) == 0) {
+	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_sys) & (1UL << 31)) == 0U) {
 	}
 }
 
 
 void _imxrt_ccmDeinitSysPll(void)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_sys) = 1 << 12;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_sys) = 1UL << 12;
 }
 
 
 void _imxrt_ccmInitUsb1Pll(u8 div)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_usb1) = (1 << 13) | (1 << 12) | (1 << 6) | (div & 0x3);
+	*(imxrt_common.ccm_analog + ccm_analog_pll_usb1) = (1UL << 13) | (1UL << 12) | (1UL << 6) | ((u32)div & 0x3U);
 
-	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_usb1) & (1 << 31)) == 0) {
+	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_usb1) & (1UL << 31)) == 0U) {
 	}
 }
 
@@ -854,9 +1004,9 @@ void _imxrt_ccmDeinitUsb1Pll(void)
 
 void _imxrt_ccmInitUsb2Pll(u8 div)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_usb2) = (1 << 13) | (1 << 12) | (1 << 6) | (div & 0x3);
+	*(imxrt_common.ccm_analog + ccm_analog_pll_usb2) = (1UL << 13) | (1UL << 12) | (1UL << 6) | ((u32)div & 0x3U);
 
-	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_usb2) & (1 << 31)) == 0) {
+	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_usb2) & (1UL << 31)) == 0U) {
 	}
 }
 
@@ -871,47 +1021,47 @@ void _imxrt_ccmInitAudioPll(u8 loopdiv, u8 postdiv, u32 num, u32 denom)
 {
 	u32 pllAudio;
 
-	*(imxrt_common.ccm_analog + ccm_analog_pll_audio_num) = num & 0x3fffffff;
-	*(imxrt_common.ccm_analog + ccm_analog_pll_audio_denom) = denom & 0x3fffffff;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_audio_num) = num & 0x3fffffffU;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_audio_denom) = denom & 0x3fffffffU;
 
-	pllAudio = (1 << 13) | (loopdiv & 0x7f);
+	pllAudio = (1UL << 13) | ((u32)loopdiv & 0x7fU);
 
 	switch (postdiv) {
 		case 16:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (1 << 23) | (1 << 15);
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (1UL << 23) | (1UL << 15);
 			break;
 
 		case 8:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (1 << 23) | (1 << 15);
-			pllAudio |= 1 << 19;
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (1UL << 23) | (1UL << 15);
+			pllAudio |= 1UL << 19;
 			break;
 
 		case 4:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (1 << 23) | (1 << 15);
-			pllAudio |= 1 << 20;
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (1UL << 23) | (1UL << 15);
+			pllAudio |= 1UL << 20;
 			break;
 
 		case 2:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_clr) = (1 << 23) | (1 << 15);
-			pllAudio |= 1 << 19;
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_clr) = (1UL << 23) | (1UL << 15);
+			pllAudio |= 1UL << 19;
 			break;
 
 		default:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_clr) = (1 << 23) | (1 << 15);
-			pllAudio |= 1 << 20;
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_clr) = (1UL << 23) | (1UL << 15);
+			pllAudio |= 1UL << 20;
 			break;
 	}
 
 	*(imxrt_common.ccm_analog + ccm_analog_pll_audio) = pllAudio;
 
-	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_audio) & (1 << 31)) == 0) {
+	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_audio) & (1UL << 31)) == 0U) {
 	}
 }
 
 
 void _imxrt_ccmDeinitAudioPll(void)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_audio) = 1 << 12;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_audio) = 1UL << 12;
 }
 
 
@@ -919,81 +1069,81 @@ void _imxrt_ccmInitVideoPll(u8 loopdiv, u8 postdiv, u32 num, u32 denom)
 {
 	u32 pllVideo;
 
-	*(imxrt_common.ccm_analog + ccm_analog_pll_video_num) = num & 0x3fffffff;
-	*(imxrt_common.ccm_analog + ccm_analog_pll_video_denom) = denom & 0x3fffffff;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_video_num) = num & 0x3fffffffU;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_video_denom) = denom & 0x3fffffffU;
 
-	pllVideo = (1 << 13) | (loopdiv & 0x7f);
+	pllVideo = (1UL << 13) | ((u32)loopdiv & 0x7fU);
 
 	switch (postdiv) {
 		case 16:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (3 << 30);
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (3UL << 30);
 			break;
 
 		case 8:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (3 << 30);
-			pllVideo |= 1 << 19;
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (3UL << 30);
+			pllVideo |= 1UL << 19;
 			break;
 
 		case 4:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (3 << 30);
-			pllVideo |= 1 << 20;
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_set) = (3UL << 30);
+			pllVideo |= 1UL << 20;
 			break;
 
 		case 2:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_clr) = (3 << 30);
-			pllVideo |= 1 << 19;
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_clr) = (3UL << 30);
+			pllVideo |= 1UL << 19;
 			break;
 
 		default:
-			*(imxrt_common.ccm_analog + ccm_analog_misc2_clr) = (3 << 30);
-			pllVideo |= 1 << 20;
+			*(imxrt_common.ccm_analog + ccm_analog_misc2_clr) = (3UL << 30);
+			pllVideo |= 1UL << 20;
 			break;
 	}
 
 	*(imxrt_common.ccm_analog + ccm_analog_pll_video) = pllVideo;
 
-	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_video) & (1 << 31)) == 0) {
+	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_video) & (1UL << 31)) == 0U) {
 	}
 }
 
 
 void _imxrt_ccmDeinitVideoPll(void)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_video) = 1 << 12;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_video) = 1UL << 12;
 }
 
 
 void _imxrt_ccmInitEnetPll(u8 enclk0, u8 enclk1, u8 enclk2, u8 div0, u8 div1)
 {
-	u32 enet_pll = ((div1 & 0x3) << 2) | (div0 & 0x3);
+	u32 enet_pll = (((u32)div1 & 0x3U) << 2) | ((u32)div0 & 0x3U);
 
-	if (enclk0 != 0) {
-		enet_pll |= 1 << 13;
+	if (enclk0 != 0U) {
+		enet_pll |= 1UL << 13;
 	}
 
-	if (enclk1 != 0) {
-		enet_pll |= 1 << 20;
+	if (enclk1 != 0U) {
+		enet_pll |= 1UL << 20;
 	}
 
-	if (enclk2 != 0) {
-		enet_pll |= 1 << 21;
+	if (enclk2 != 0U) {
+		enet_pll |= 1UL << 21;
 	}
 
 	/* enable bypass during clock frequency change */
-	*(imxrt_common.ccm_analog + ccm_analog_pll_enet) = 1 << 16;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_enet) = 1UL << 16;
 
 	*(imxrt_common.ccm_analog + ccm_analog_pll_enet) |= enet_pll;
 
-	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_enet) & (1 << 31)) == 0) {
+	while ((*(imxrt_common.ccm_analog + ccm_analog_pll_enet) & (1UL << 31)) == 0U) {
 	}
 
-	*(imxrt_common.ccm_analog + ccm_analog_pll_enet) &= ~(1 << 16);
+	*(imxrt_common.ccm_analog + ccm_analog_pll_enet) &= ~(1UL << 16);
 }
 
 
 void _imxrt_ccmDeinitEnetPll(void)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pll_enet) = 1 << 12;
+	*(imxrt_common.ccm_analog + ccm_analog_pll_enet) = 1UL << 12;
 }
 
 
@@ -1004,7 +1154,7 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 
 	switch (pll) {
 		case clk_pll_arm:
-			freq = ((_imxrt_ccmGetOscFreq() * (*(imxrt_common.ccm_analog + ccm_analog_pll_arm) & 0x7f)) >> 1);
+			freq = ((_imxrt_ccmGetOscFreq() * (*(imxrt_common.ccm_analog + ccm_analog_pll_arm) & 0x7fU)) >> 1);
 			break;
 
 		case clk_pll_sys:
@@ -1013,41 +1163,43 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			/* PLL output frequency = Fref * (DIV_SELECT + NUM/DENOM). */
 			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_sys_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_sys_denom);
 
-			if ((*(imxrt_common.ccm_analog + ccm_analog_pll_sys) & 1) != 0) {
-				freq *= 22;
+			if ((*(imxrt_common.ccm_analog + ccm_analog_pll_sys) & 1U) != 0U) {
+				freq *= 22U;
 			}
 			else {
-				freq *= 20;
+				freq *= 20U;
 			}
 
 			freq += (u32)tmp;
 			break;
 
 		case clk_pll_usb1:
-			freq = _imxrt_ccmGetOscFreq() * ((*(imxrt_common.ccm_analog + ccm_analog_pll_usb1) & 0x3) ? 22 : 20);
+			freq = _imxrt_ccmGetOscFreq() * ((*(imxrt_common.ccm_analog + ccm_analog_pll_usb1) & 0x3U) == 0U ? 22U : 20U);
 			break;
 
 		case clk_pll_audio:
 			freq = _imxrt_ccmGetOscFreq();
 
-			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_audio) & 0x7f;
+			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_audio) & 0x7fU;
 			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_audio_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_audio_denom);
 			freq = freq * divSel + (u32)tmp;
 
-			switch ((*(imxrt_common.ccm_analog + ccm_analog_pll_audio) >> 19) & 0x3) {
+			switch ((*(imxrt_common.ccm_analog + ccm_analog_pll_audio) >> 19) & 0x3U) {
 				case 0:
 					freq >>= 2;
 					break;
 
 				case 1:
 					freq >>= 1;
+					break;
 
 				default:
+					/* No action required */
 					break;
 			}
 
-			if ((*(imxrt_common.ccm_analog + ccm_analog_misc2) & (1 << 15)) != 0) {
-				if ((*(imxrt_common.ccm_analog + ccm_analog_misc2) & (1 << 31)) != 0) {
+			if ((*(imxrt_common.ccm_analog + ccm_analog_misc2) & (1UL << 15)) != 0U) {
+				if ((*(imxrt_common.ccm_analog + ccm_analog_misc2) & (1UL << 31)) != 0U) {
 					freq >>= 2;
 				}
 				else {
@@ -1059,13 +1211,13 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 		case clk_pll_video:
 			freq = _imxrt_ccmGetOscFreq();
 
-			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_video) & 0x7f;
+			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_video) & 0x7fU;
 
 			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_video_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_video_denom);
 
 			freq = freq * divSel + (u32)tmp;
 
-			switch ((*(imxrt_common.ccm_analog + ccm_analog_pll_video) >> 19) & 0x3) {
+			switch ((*(imxrt_common.ccm_analog + ccm_analog_pll_video) >> 19) & 0x3U) {
 				case 0:
 					freq >>= 2;
 					break;
@@ -1075,11 +1227,12 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 					break;
 
 				default:
+					/* No action required */
 					break;
 			}
 
-			if ((*(imxrt_common.ccm_analog + ccm_analog_misc2) & (1 << 30)) != 0) {
-				if ((*(imxrt_common.ccm_analog + ccm_analog_misc2) & (1 << 31)) != 0) {
+			if ((*(imxrt_common.ccm_analog + ccm_analog_misc2) & (1UL << 30)) != 0U) {
+				if ((*(imxrt_common.ccm_analog + ccm_analog_misc2) & (1UL << 31)) != 0U) {
 					freq >>= 2;
 				}
 				else {
@@ -1089,7 +1242,7 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			break;
 
 		case clk_pll_enet0:
-			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_enet) & 0x3;
+			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_enet) & 0x3U;
 
 			switch (divSel) {
 				case 0:
@@ -1111,7 +1264,7 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			break;
 
 		case clk_pll_enet1:
-			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_enet) & (0x3 << 2);
+			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_enet) & (0x3U << 2);
 
 			switch (divSel) {
 				case 0:
@@ -1138,7 +1291,7 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			break;
 
 		case clk_pll_usb2:
-			freq = _imxrt_ccmGetOscFreq() * ((*(imxrt_common.ccm_analog + ccm_analog_pll_usb2) & 0x3) ? 22 : 20);
+			freq = _imxrt_ccmGetOscFreq() * ((*(imxrt_common.ccm_analog + ccm_analog_pll_usb2) & 0x3U) == 0U ? 22UL : 20UL);
 			break;
 
 		default:
@@ -1152,31 +1305,31 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 
 void _imxrt_ccmInitSysPfd(int pfd, u8 pfdFrac)
 {
-	u32 pfd528 = *(imxrt_common.ccm_analog + ccm_analog_pfd_528) & ~(0xbf << (pfd << 3));
+	u32 pfd528 = *(imxrt_common.ccm_analog + ccm_analog_pfd_528) & ~(0xbfU << ((unsigned int)pfd << 3));
 
-	*(imxrt_common.ccm_analog + ccm_analog_pfd_528) = pfd528 | ((1 << 7) << (pfd << 3));
-	*(imxrt_common.ccm_analog + ccm_analog_pfd_528) = pfd528 | (((u32)pfdFrac & 0x3f) << (pfd << 3));
+	*(imxrt_common.ccm_analog + ccm_analog_pfd_528) = pfd528 | ((1UL << 7U) << ((unsigned int)pfd << 3));
+	*(imxrt_common.ccm_analog + ccm_analog_pfd_528) = pfd528 | (((u32)pfdFrac & 0x3fU) << ((unsigned int)pfd << 3));
 }
 
 
 void _imxrt_ccmDeinitSysPfd(int pfd)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pfd_528) |= (1 << 7) << (pfd << 3);
+	*(imxrt_common.ccm_analog + ccm_analog_pfd_528) |= (1UL << 7U) << ((unsigned int)pfd << 3);
 }
 
 
 void _imxrt_ccmInitUsb1Pfd(int pfd, u8 pfdFrac)
 {
-	u32 pfd480 = *(imxrt_common.ccm_analog + ccm_analog_pfd_480) & ~(0xbf << (pfd << 3));
+	u32 pfd480 = *(imxrt_common.ccm_analog + ccm_analog_pfd_480) & ~(0xbfU << ((unsigned int)pfd << 3));
 
-	*(imxrt_common.ccm_analog + ccm_analog_pfd_480) = pfd480 | ((1 << 7) << (pfd << 3));
-	*(imxrt_common.ccm_analog + ccm_analog_pfd_480) = pfd480 | (((u32)pfdFrac & 0x3f) << (pfd << 3));
+	*(imxrt_common.ccm_analog + ccm_analog_pfd_480) = pfd480 | ((1UL << 7) << ((unsigned int)pfd << 3));
+	*(imxrt_common.ccm_analog + ccm_analog_pfd_480) = pfd480 | (((u32)pfdFrac & 0x3fU) << ((unsigned int)pfd << 3));
 }
 
 
 void _imxrt_ccmDeinitUsb1Pfd(int pfd)
 {
-	*(imxrt_common.ccm_analog + ccm_analog_pfd_480) |= (1 << 7) << (pfd << 3);
+	*(imxrt_common.ccm_analog + ccm_analog_pfd_480) |= (1UL << 7) << ((unsigned int)pfd << 3);
 }
 
 
@@ -1186,19 +1339,19 @@ u32 _imxrt_ccmGetSysPfdFreq(int pfd)
 
 	switch (pfd) {
 		case clk_pfd0:
-			freq /= *(imxrt_common.ccm_analog + ccm_analog_pfd_528) & 0x3f;
+			freq /= *(imxrt_common.ccm_analog + ccm_analog_pfd_528) & 0x3fU;
 			break;
 
 		case clk_pfd1:
-			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_528) >> 8) & 0x3f;
+			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_528) >> 8) & 0x3fU;
 			break;
 
 		case clk_pfd2:
-			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_528) >> 16) & 0x3f;
+			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_528) >> 16) & 0x3fU;
 			break;
 
 		case clk_pfd3:
-			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_528) >> 24) & 0x3f;
+			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_528) >> 24) & 0x3fU;
 			break;
 
 		default:
@@ -1206,7 +1359,7 @@ u32 _imxrt_ccmGetSysPfdFreq(int pfd)
 			break;
 	}
 
-	return freq * 18;
+	return freq * 18U;
 }
 
 
@@ -1214,22 +1367,21 @@ u32 _imxrt_ccmGetUsb1PfdFreq(int pfd)
 {
 	u32 freq = _imxrt_ccmGetPllFreq(clk_pll_usb1);
 
-	switch (pfd)
-	{
+	switch (pfd) {
 		case clk_pfd0:
-			freq /= *(imxrt_common.ccm_analog + ccm_analog_pfd_480) & 0x3f;
+			freq /= *(imxrt_common.ccm_analog + ccm_analog_pfd_480) & 0x3fU;
 			break;
 
 		case clk_pfd1:
-			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_480) >> 8) & 0x3f;
+			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_480) >> 8) & 0x3fU;
 			break;
 
 		case clk_pfd2:
-			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_480) >> 16) & 0x3f;
+			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_480) >> 16) & 0x3fU;
 			break;
 
 		case clk_pfd3:
-			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_480) >> 24) & 0x3f;
+			freq /= (*(imxrt_common.ccm_analog + ccm_analog_pfd_480) >> 24) & 0x3fU;
 			break;
 
 		default:
@@ -1237,7 +1389,7 @@ u32 _imxrt_ccmGetUsb1PfdFreq(int pfd)
 			break;
 	}
 
-	return freq * 18;
+	return freq * 18U;
 }
 
 
@@ -1245,113 +1397,117 @@ void _imxrt_ccmSetMux(int mux, u32 val)
 {
 	switch (mux) {
 		case clk_mux_pll3:
-			*(imxrt_common.ccm + ccm_ccsr) = (*(imxrt_common.ccm + ccm_ccsr) & ~1) | (val & 1);
+			*(imxrt_common.ccm + ccm_ccsr) = (*(imxrt_common.ccm + ccm_ccsr) & ~1U) | (val & 1U);
 			break;
 
 		case clk_mux_periph:
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1 << 25)) | ((val & 1) << 25);
-			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1 << 5)) != 0) {
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 25)) | ((val & 1U) << 25);
+			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1UL << 5)) != 0U) {
 			}
 			break;
 
 		case clk_mux_semcAlt:
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1 << 7)) | ((val & 1) << 7);
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 7)) | ((val & 1U) << 7);
 			break;
 
 		case clk_mux_semc:
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1 << 6)) | ((val & 1) << 6);
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 6)) | ((val & 1U) << 6);
 			break;
 
 		case clk_mux_prePeriph:
-			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3 << 18)) | ((val & 0x3) << 18);
+			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3UL << 18)) | ((val & 0x3U) << 18);
 			break;
 
 		case clk_mux_trace:
-			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3 << 14)) | ((val & 0x3) << 14);
+			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3UL << 14)) | ((val & 0x3U) << 14);
 			break;
 
 		case clk_mux_periphclk2:
-			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3 << 12)) | ((val & 0x3) << 12);
+			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3UL << 12)) | ((val & 0x3U) << 12);
 			break;
 
 		case clk_mux_lpspi:
-			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3 << 4)) | ((val & 0x3) << 4);
+			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3UL << 4)) | ((val & 0x3U) << 4);
 			break;
 
 		case clk_mux_flexspi:
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x3 << 29)) | ((val & 0x3) << 29);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x3UL << 29)) | ((val & 0x3U) << 29);
 			break;
 
 		case clk_mux_usdhc2:
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(1 << 17)) | ((val & 1) << 17);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(1UL << 17)) | ((val & 1U) << 17);
 			break;
 
 		case clk_mux_usdhc1:
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(1 << 16)) | ((val & 1) << 16);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(1UL << 16)) | ((val & 1U) << 16);
 			break;
 
 		case clk_mux_sai3:
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x3 << 14)) | ((val & 0x3) << 14);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x3UL << 14)) | ((val & 0x3U) << 14);
 			break;
 
 		case clk_mux_sai2:
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x3 << 12)) | ((val & 0x3) << 12);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x3UL << 12)) | ((val & 0x3U) << 12);
 			break;
 
 		case clk_mux_sai1:
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x3 << 10)) | ((val & 0x3) << 10);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x3UL << 10)) | ((val & 0x3U) << 10);
 			break;
 
 		case clk_mux_perclk:
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(1 << 6)) | ((val & 1) << 6);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(1UL << 6)) | ((val & 1U) << 6);
 			break;
 
 		case clk_mux_flexio2:
-			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3 << 19)) | ((val & 0x3) << 19);
+			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3UL << 19)) | ((val & 0x3U) << 19);
 			break;
 
 		case clk_mux_can:
-			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3 << 8)) | ((val & 0x3) << 8);
+			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3UL << 8)) | ((val & 0x3U) << 8);
 			break;
 
 		case clk_mux_uart:
-			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(1 << 6)) | ((val & 1) << 6);
+			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(1UL << 6)) | ((val & 1U) << 6);
 			break;
 
 		case clk_mux_enc:
-			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7 << 15)) | ((val & 0x7) << 15);
+			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7UL << 15)) | ((val & 0x7U) << 15);
 			break;
 
 		case clk_mux_ldbDi1:
-			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7 << 12)) | ((val & 0x7) << 12);
+			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7UL << 12)) | ((val & 0x7U) << 12);
 			break;
 
 		case clk_mux_ldbDi0:
-			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7 << 9)) | ((val & 0x7) << 9);
+			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7UL << 9)) | ((val & 0x7U) << 9);
 			break;
 
 		case clk_mux_spdif:
-			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x3 << 20)) | ((val & 0x3) << 20);
+			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x3UL << 20)) | ((val & 0x3U) << 20);
 			break;
 
 		case clk_mux_flexio1:
-			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x3 << 7)) | ((val & 0x3) << 7);
+			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x3UL << 7)) | ((val & 0x3U) << 7);
 			break;
 
 		case clk_mux_lpi2c:
-			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(1 << 18)) | ((val & 1) << 18);
+			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(1UL << 18)) | ((val & 1U) << 18);
 			break;
 
 		case clk_mux_lcdif1pre:
-			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(0x7 << 15)) | ((val & 0x7) << 15);
+			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(0x7UL << 15)) | ((val & 0x7U) << 15);
 			break;
 
 		case clk_mux_lcdif1:
-			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(0x7 << 9)) | ((val & 0x7) << 9);
+			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(0x7UL << 9)) | ((val & 0x7U) << 9);
 			break;
 
 		case clk_mux_csi:
-			*(imxrt_common.ccm + ccm_cscdr3) = (*(imxrt_common.ccm + ccm_cscdr3) & ~(0x3 << 9)) | ((val & 0x3) << 9);
+			*(imxrt_common.ccm + ccm_cscdr3) = (*(imxrt_common.ccm + ccm_cscdr3) & ~(0x3UL << 9)) | ((val & 0x3U) << 9);
+			break;
+
+		default:
+			/* No action required */
 			break;
 	}
 }
@@ -1363,111 +1519,115 @@ u32 _imxrt_ccmGetMux(int mux)
 
 	switch (mux) {
 		case clk_mux_pll3:
-			val = *(imxrt_common.ccm + ccm_ccsr) & 1;
+			val = *(imxrt_common.ccm + ccm_ccsr) & 1U;
 			break;
 
 		case clk_mux_periph:
-			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 25) & 1;
+			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 25) & 1U;
 			break;
 
 		case clk_mux_semcAlt:
-			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 7) & 1;
+			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 7) & 1U;
 			break;
 
 		case clk_mux_semc:
-			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 6) & 1;
+			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 6) & 1U;
 			break;
 
 		case clk_mux_prePeriph:
-			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 18) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 18) & 0x3U;
 			break;
 
 		case clk_mux_trace:
-			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 14) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 14) & 0x3U;
 			break;
 
 		case clk_mux_periphclk2:
-			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 12) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 12) & 0x3U;
 			break;
 
 		case clk_mux_lpspi:
-			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 4) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 4) & 0x3U;
 			break;
 
 		case clk_mux_flexspi:
-			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 29) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 29) & 0x3U;
 			break;
 
 		case clk_mux_usdhc2:
-			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 17) & 1;
+			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 17) & 1U;
 			break;
 
 		case clk_mux_usdhc1:
-			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 16) & 1;
+			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 16) & 1U;
 			break;
 
 		case clk_mux_sai3:
-			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 14) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 14) & 0x3U;
 			break;
 
 		case clk_mux_sai2:
-			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 12) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 12) & 0x3U;
 			break;
 
 		case clk_mux_sai1:
-			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 10) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 10) & 0x3U;
 			break;
 
 		case clk_mux_perclk:
-			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 6) & 1;
+			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 6) & 1U;
 			break;
 
 		case clk_mux_flexio2:
-			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 19) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 19) & 0x3U;
 			break;
 
 		case clk_mux_can:
-			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 8) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 8) & 0x3U;
 			break;
 
 		case clk_mux_uart:
-			val = (*(imxrt_common.ccm + ccm_cscdr1) >> 6) & 1;
+			val = (*(imxrt_common.ccm + ccm_cscdr1) >> 6) & 1U;
 			break;
 
 		case clk_mux_enc:
-			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 15) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 15) & 0x7U;
 			break;
 
 		case clk_mux_ldbDi1:
-			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 12) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 12) & 0x7U;
 			break;
 
 		case clk_mux_ldbDi0:
-			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 9) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 9) & 0x7U;
 			break;
 
 		case clk_mux_spdif:
-			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 20) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 20) & 0x3U;
 			break;
 
 		case clk_mux_flexio1:
-			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 7) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 7) & 0x3U;
 			break;
 
 		case clk_mux_lpi2c:
-			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 18) & 1;
+			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 18) & 1U;
 			break;
 
 		case clk_mux_lcdif1pre:
-			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 15) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 15) & 0x7U;
 			break;
 
 		case clk_mux_lcdif1:
-			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 9) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 9) & 0x7U;
 			break;
 
 		case clk_mux_csi:
-			val = (*(imxrt_common.ccm + ccm_cscdr3) >> 9) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cscdr3) >> 9) & 0x3U;
+			break;
+
+		default:
+			/* No action required */
 			break;
 	}
 
@@ -1479,141 +1639,145 @@ void _imxrt_ccmSetDiv(int div, u32 val)
 {
 	switch (div) {
 		case clk_div_arm: /* CACRR */
-			*(imxrt_common.ccm + ccm_cacrr) = (*(imxrt_common.ccm + ccm_cacrr) & ~0x7) | (val & 0x7);
-			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1 << 16)) != 0) {
+			*(imxrt_common.ccm + ccm_cacrr) = (*(imxrt_common.ccm + ccm_cacrr) & ~0x7U) | (val & 0x7U);
+			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1UL << 16)) != 0U) {
 			}
 			break;
 
 		case clk_div_periphclk2: /* CBCDR */
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x7 << 27)) | ((val & 0x7) << 27);
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x7UL << 27)) | ((val & 0x7U) << 27);
 			break;
 
 		case clk_div_semc: /* CBCDR */
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x7 << 16)) | ((val & 0x7) << 16);
-			while ((*(imxrt_common.ccm + ccm_cdhipr) & 1) != 0) {
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x7UL << 16)) | ((val & 0x7U) << 16);
+			while ((*(imxrt_common.ccm + ccm_cdhipr) & 1U) != 0U) {
 			}
 			break;
 
 		case clk_div_ahb: /* CBCDR */
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x7 << 10)) | ((val & 0x7) << 10);
-			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1 << 1)) != 0) {
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x7UL << 10)) | ((val & 0x7U) << 10);
+			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1UL << 1)) != 0U) {
 			}
 			break;
 
 		case clk_div_ipg: /* CBCDR */
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x3 << 8)) | ((val & 0x3) << 8);
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x3UL << 8)) | ((val & 0x3U) << 8);
 			break;
 
 		case clk_div_lpspi: /* CBCMR */
-			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x7 << 26)) | ((val & 0x7) << 26);
+			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x7UL << 26)) | ((val & 0x7U) << 26);
 			break;
 
 		case clk_div_lcdif1: /* CBCMR */
-			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x7 << 23)) | ((val & 0x7) << 23);
+			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x7UL << 23)) | ((val & 0x7U) << 23);
 			break;
 
 		case clk_div_flexspi: /* CSCMR1 */
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x7 << 23)) | ((val & 0x7) << 23);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~(0x7UL << 23)) | ((val & 0x7U) << 23);
 			break;
 
 		case clk_div_perclk: /* CSCMR1 */
-			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~0x3f) | (val & 0x3f);
+			*(imxrt_common.ccm + ccm_cscmr1) = (*(imxrt_common.ccm + ccm_cscmr1) & ~0x3fU) | (val & 0x3fU);
 			break;
 
 		case clk_div_ldbDi1: /* CSCMR2 */
-			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(1 << 11)) | ((val & 1) << 11);
+			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(1UL << 11)) | ((val & 1U) << 11);
 			break;
 
 		case clk_div_ldbDi0: /* CSCMR2 */
-			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(1 << 10)) | ((val & 1) << 10);
+			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(1UL << 10)) | ((val & 1U) << 10);
 			break;
 
 		case clk_div_can: /* CSCMR2 */
-			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3f << 2)) | ((val & 0x3f) << 2);
+			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3fUL << 2)) | ((val & 0x3fU) << 2);
 			break;
 
 		case clk_div_trace: /* CSCDR1 */
-			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(0x7 << 25)) | ((val & 0x7) << 25);
+			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(0x7UL << 25)) | ((val & 0x7U) << 25);
 			break;
 
 		case clk_div_usdhc2: /* CSCDR1 */
-			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(0x7 << 16)) | ((val & 0x7) << 16);
+			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(0x7UL << 16)) | ((val & 0x7U) << 16);
 			break;
 
 		case clk_div_usdhc1: /* CSCDR1 */
-			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(0x7 << 11)) | ((val & 0x7) << 11);
+			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(0x7UL << 11)) | ((val & 0x7U) << 11);
 			break;
 
 		case clk_div_uart: /* CSCDR1 */
-			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~0x3f) | (val & 0x3f);
+			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~0x3fU) | (val & 0x3fU);
 			break;
 
 		case clk_div_flexio2: /* CS1CDR */
-			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x7 << 25)) | ((val & 0x7) << 25);
+			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x7UL << 25)) | ((val & 0x7U) << 25);
 			break;
 
 		case clk_div_sai3pre: /* CS1CDR */
-			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x7 << 22)) | ((val & 0x7) << 22);
+			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x7UL << 22)) | ((val & 0x7U) << 22);
 			break;
 
 		case clk_div_sai3: /* CS1CDR */
-			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x3f << 16)) | ((val & 0x3f) << 16);
+			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x3fUL << 16)) | ((val & 0x3fU) << 16);
 			break;
 
 		case clk_div_flexio2pre: /* CS1CDR */
-			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x7 << 9)) | ((val & 0x7) << 9);
+			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x7UL << 9)) | ((val & 0x7U) << 9);
 			break;
 
 		case clk_div_sai1pre: /* CS1CDR */
-			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x7 << 6)) | ((val & 0x7) << 6);
+			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~(0x7UL << 6)) | ((val & 0x7U) << 6);
 			break;
 
 		case clk_div_sai1: /* CS1CDR */
-			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~0x3f) | (val & 0x3f);
+			*(imxrt_common.ccm + ccm_cs1cdr) = (*(imxrt_common.ccm + ccm_cs1cdr) & ~0x3fU) | (val & 0x3fU);
 			break;
 
 		case clk_div_enc: /* CS2CDR */
-			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x3f << 21)) | ((val & 0x3f) << 21);
+			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x3fUL << 21)) | ((val & 0x3fU) << 21);
 			break;
 
 		case clk_div_encpre: /* CS2CDR */
-			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7 << 18)) | ((val & 0x7) << 18);
+			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7UL << 18)) | ((val & 0x7U) << 18);
 			break;
 
 		case clk_div_sai2pre: /* CS2CDR */
-			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7 << 6)) | ((val & 0x7) << 6);
+			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~(0x7UL << 6)) | ((val & 0x7U) << 6);
 			break;
 
 		case clk_div_sai2: /* CS2CDR */
-			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~0x3f) | (val & 0x3f);
+			*(imxrt_common.ccm + ccm_cs2cdr) = (*(imxrt_common.ccm + ccm_cs2cdr) & ~0x3fU) | (val & 0x3fU);
 			break;
 
 		case clk_div_spdif0pre: /* CDCDR */
-			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x7 << 25)) | ((val & 0x7) << 25);
+			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x7UL << 25)) | ((val & 0x7U) << 25);
 			break;
 
 		case clk_div_spdif0: /* CDCDR */
-			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x7 << 22)) | ((val & 0x7) << 22);
+			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x7UL << 22)) | ((val & 0x7U) << 22);
 			break;
 
 		case clk_div_flexio1pre: /* CDCDR */
-			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x7 << 12)) | ((val & 0x7) << 12);
+			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x7UL << 12)) | ((val & 0x7U) << 12);
 			break;
 
 		case clk_div_flexio1: /* CDCDR */
-			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x7 << 9)) | ((val & 0x7) << 9);
+			*(imxrt_common.ccm + ccm_cdcdr) = (*(imxrt_common.ccm + ccm_cdcdr) & ~(0x7UL << 9)) | ((val & 0x7U) << 9);
 			break;
 
 		case clk_div_lpi2c: /* CSCDR2 */
-			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(0x3f << 19)) | ((val & 0x3f) << 19);
+			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(0x3fUL << 19)) | ((val & 0x3fU) << 19);
 			break;
 
 		case clk_div_lcdif1pre: /* CSCDR2 */
-			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(0x7 << 12)) | ((val & 0x7) << 12);
+			*(imxrt_common.ccm + ccm_cscdr2) = (*(imxrt_common.ccm + ccm_cscdr2) & ~(0x7UL << 12)) | ((val & 0x7U) << 12);
 			break;
 
 		case clk_div_csi: /* CSCDR3 */
-			*(imxrt_common.ccm + ccm_cscdr3) = (*(imxrt_common.ccm + ccm_cscdr3) & ~(0x7 << 11)) | ((val & 0x7) << 11);
+			*(imxrt_common.ccm + ccm_cscdr3) = (*(imxrt_common.ccm + ccm_cscdr3) & ~(0x7UL << 11)) | ((val & 0x7U) << 11);
+			break;
+
+		default:
+			/* No action required */
 			break;
 	}
 }
@@ -1625,135 +1789,139 @@ u32 _imxrt_ccmGetDiv(int div)
 
 	switch (div) {
 		case clk_div_arm: /* CACRR */
-			val = *(imxrt_common.ccm + ccm_cacrr) & 0x7;
+			val = *(imxrt_common.ccm + ccm_cacrr) & 0x7U;
 			break;
 
 		case clk_div_periphclk2: /* CBCDR */
-			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 27) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 27) & 0x7U;
 			break;
 
 		case clk_div_semc: /* CBCDR */
-			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 16) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 16) & 0x7U;
 			break;
 
 		case clk_div_ahb: /* CBCDR */
-			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 10) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 10) & 0x7U;
 			break;
 
 		case clk_div_ipg: /* CBCDR */
-			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 8) & 0x3;
+			val = (*(imxrt_common.ccm + ccm_cbcdr) >> 8) & 0x3U;
 			break;
 
 		case clk_div_lpspi: /* CBCMR */
-			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 26) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 26) & 0x7U;
 			break;
 
 		case clk_div_lcdif1: /* CBCMR */
-			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 23) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cbcmr) >> 23) & 0x7U;
 			break;
 
 		case clk_div_flexspi: /* CSCMR1 */
-			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 23) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cscmr1) >> 23) & 0x7U;
 			break;
 
 		case clk_div_perclk: /* CSCMR1 */
-			val = *(imxrt_common.ccm + ccm_cscmr1) & 0x3f;
+			val = *(imxrt_common.ccm + ccm_cscmr1) & 0x3fU;
 			break;
 
 		case clk_div_ldbDi1: /* CSCMR2 */
-			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 11) & 1;
+			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 11) & 1U;
 			break;
 
 		case clk_div_ldbDi0: /* CSCMR2 */
-			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 10) & 1;
+			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 10) & 1U;
 			break;
 
 		case clk_div_can: /* CSCMR2 */
-			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 2) & 0x3f;
+			val = (*(imxrt_common.ccm + ccm_cscmr2) >> 2) & 0x3fU;
 			break;
 
 		case clk_div_trace: /* CSCDR1 */
-			val = (*(imxrt_common.ccm + ccm_cscdr1) >> 25) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cscdr1) >> 25) & 0x7U;
 			break;
 
 		case clk_div_usdhc2: /* CSCDR1 */
-			val = (*(imxrt_common.ccm + ccm_cscdr1) >> 16) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cscdr1) >> 16) & 0x7U;
 			break;
 
 		case clk_div_usdhc1: /* CSCDR1 */
-			val = (*(imxrt_common.ccm + ccm_cscdr1) >> 11) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cscdr1) >> 11) & 0x7U;
 			break;
 
 		case clk_div_uart: /* CSCDR1 */
-			val = *(imxrt_common.ccm + ccm_cscdr1) & 0x3f;
+			val = *(imxrt_common.ccm + ccm_cscdr1) & 0x3fU;
 			break;
 
 		case clk_div_flexio2: /* CS1CDR */
-			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 25) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 25) & 0x7U;
 			break;
 
 		case clk_div_sai3pre: /* CS1CDR */
-			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 22) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 22) & 0x7U;
 			break;
 
 		case clk_div_sai3: /* CS1CDR */
-			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 16) & 0x3f;
+			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 16) & 0x3fU;
 			break;
 
 		case clk_div_flexio2pre: /* CS1CDR */
-			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 9) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 9) & 0x7U;
 			break;
 
 		case clk_div_sai1pre: /* CS1CDR */
-			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 6) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs1cdr) >> 6) & 0x7U;
 			break;
 
 		case clk_div_sai1: /* CS1CDR */
-			val = *(imxrt_common.ccm + ccm_cs1cdr) & 0x3f;
+			val = *(imxrt_common.ccm + ccm_cs1cdr) & 0x3fU;
 			break;
 
 		case clk_div_enc: /* CS2CDR */
-			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 21) & 0x3f;
+			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 21) & 0x3fU;
 			break;
 
 		case clk_div_encpre: /* CS2CDR */
-			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 18) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 18) & 0x7U;
 			break;
 
 		case clk_div_sai2pre: /* CS2CDR */
-			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 6) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cs2cdr) >> 6) & 0x7U;
 			break;
 
 		case clk_div_sai2: /* CS2CDR */
-			val = *(imxrt_common.ccm + ccm_cs2cdr) & 0x3f;
+			val = *(imxrt_common.ccm + ccm_cs2cdr) & 0x3fU;
 			break;
 
 		case clk_div_spdif0pre: /* CDCDR */
-			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 25) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 25) & 0x7U;
 			break;
 
 		case clk_div_spdif0: /* CDCDR */
-			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 22) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 22) & 0x7U;
 			break;
 
 		case clk_div_flexio1pre: /* CDCDR */
-			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 12) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 12) & 0x7U;
 			break;
 
 		case clk_div_flexio1: /* CDCDR */
-			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 9) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cdcdr) >> 9) & 0x7U;
 			break;
 
 		case clk_div_lpi2c: /* CSCDR2 */
-			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 19) & 0x3f;
+			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 19) & 0x3fU;
 			break;
 
 		case clk_div_lcdif1pre: /* CSCDR2 */
-			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 12) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cscdr2) >> 12) & 0x7U;
 			break;
 
 		case clk_div_csi: /* CSCDR3 */
-			val = (*(imxrt_common.ccm + ccm_cscdr3) >> 11) & 0x7;
+			val = (*(imxrt_common.ccm + ccm_cscdr3) >> 11) & 0x7U;
+			break;
+
+		default:
+			/* No action required */
 			break;
 	}
 
@@ -1763,15 +1931,16 @@ u32 _imxrt_ccmGetDiv(int div)
 
 void _imxrt_ccmControlGate(int dev, int state)
 {
-	int index = dev >> 4, shift = (dev & 0xf) << 1;
+	unsigned int index = ((unsigned int)dev >> 4);
+	unsigned int shift = ((unsigned int)dev & 0xfU) << 1;
 	u32 t;
 
-	if (index > 7) {
+	if (index > 7U) {
 		return;
 	}
 
-	t = *(imxrt_common.ccm + ccm_ccgr0 + index) & ~(0x3 << shift);
-	*(imxrt_common.ccm + ccm_ccgr0 + index) = t | ((state & 0x3) << shift);
+	t = *(imxrt_common.ccm + ccm_ccgr0 + index) & ~(0x3UL << shift);
+	*(imxrt_common.ccm + ccm_ccgr0 + index) = t | (((unsigned int)state & 0x3U) << shift);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -1780,7 +1949,7 @@ void _imxrt_ccmControlGate(int dev, int state)
 
 void _imxrt_ccmSetMode(int mode)
 {
-	*(imxrt_common.ccm + ccm_clpcr) = (*(imxrt_common.ccm + ccm_clpcr) & ~0x3) | (mode & 0x3);
+	*(imxrt_common.ccm + ccm_clpcr) = (*(imxrt_common.ccm + ccm_clpcr) & ~0x3U) | ((unsigned int)mode & 0x3U);
 }
 
 
@@ -1800,6 +1969,9 @@ static volatile u32 *_imxrt_gpioGetReg(unsigned int d)
 			return imxrt_common.gpio[3];
 		case gpio5:
 			return imxrt_common.gpio[4];
+		default:
+			/* No action required */
+			break;
 	}
 
 	return NULL;
@@ -1810,14 +1982,14 @@ int _imxrt_gpioConfig(unsigned int d, u8 pin, u8 dir)
 {
 	volatile u32 *reg = _imxrt_gpioGetReg(d);
 
-	_imxrt_ccmControlGate(d, 1);
+	_imxrt_ccmControlGate((int)d, 1);
 
-	if ((reg == 0) || (pin > 31)) {
+	if ((reg == NULL) || (pin > 31U)) {
 		return -EINVAL;
 	}
 
-	*(reg + gpio_gdir) &= ~(!dir << pin);
-	*(reg + gpio_gdir) |= !!dir << pin;
+	*(reg + gpio_gdir) &= ~((dir == 0U ? 1UL : 0UL) << pin);
+	*(reg + gpio_gdir) |= (dir == 0U ? 0UL : 1UL) << pin;
 
 	return EOK;
 }
@@ -1827,12 +1999,12 @@ int _imxrt_gpioSet(unsigned int d, u8 pin, u8 val)
 {
 	volatile u32 *reg = _imxrt_gpioGetReg(d);
 
-	if ((reg == 0) || (pin > 31)) {
+	if ((reg == NULL) || (pin > 31U)) {
 		return -EINVAL;
 	}
 
-	*(reg + gpio_dr) &= ~(!val << pin);
-	*(reg + gpio_dr) |= !!val << pin;
+	*(reg + gpio_dr) &= ~((val == 0U ? 1UL : 0UL) << pin);
+	*(reg + gpio_dr) |= (val == 0U ? 0UL : 1UL) << pin;
 
 	return EOK;
 }
@@ -1842,7 +2014,7 @@ int _imxrt_gpioSetPort(unsigned int d, u32 val)
 {
 	volatile u32 *reg = _imxrt_gpioGetReg(d);
 
-	if (reg == 0) {
+	if (reg == NULL) {
 		return -EINVAL;
 	}
 
@@ -1856,11 +2028,11 @@ int _imxrt_gpioGet(unsigned int d, u8 pin, u8 *val)
 {
 	volatile u32 *reg = _imxrt_gpioGetReg(d);
 
-	if ((reg == 0) || (pin > 31)) {
+	if ((reg == NULL) || (pin > 31U)) {
 		return -EINVAL;
 	}
 
-	*val = !!(*(reg + gpio_psr) & (1 << pin));
+	*val = ((*(reg + gpio_psr) & (1UL << pin)) == 0U) ? 1U : 0U;
 
 	return EOK;
 }
@@ -1870,7 +2042,7 @@ int _imxrt_gpioGetPort(unsigned int d, u32 *val)
 {
 	volatile u32 *reg = _imxrt_gpioGetReg(d);
 
-	if (reg == 0) {
+	if (reg == NULL) {
 		return -EINVAL;
 	}
 
@@ -1898,71 +2070,71 @@ void _imxrt_platformInit(void)
 
 void _imxrt_init(void)
 {
-	int i;
+	unsigned int i;
 
-	imxrt_common.gpio[0] = (void *)0x401b8000;
-	imxrt_common.gpio[1] = (void *)0x401bc000;
-	imxrt_common.gpio[2] = (void *)0x401c0000;
-	imxrt_common.gpio[3] = (void *)0x401c4000;
-	imxrt_common.gpio[4] = (void *)0x400c0000;
-	imxrt_common.aips[0] = (void *)0x4007c000;
-	imxrt_common.aips[1] = (void *)0x4017c000;
-	imxrt_common.aips[2] = (void *)0x4027c000;
-	imxrt_common.aips[3] = (void *)0x4037c000;
-	imxrt_common.ccm = (void *)0x400fc000;
-	imxrt_common.ccm_analog = (void *)0x400d8000;
-	imxrt_common.pmu = (void *)0x400d8110;
-	imxrt_common.xtalosc = (void *)0x400d8000;
-	imxrt_common.iomuxgpr = (void *)0x400ac000;
-	imxrt_common.iomuxc = (void *)0x401f8000;
-	imxrt_common.iomuxsnvs = (void *)0x400a8000;
-	imxrt_common.stk = (void *)0xe000e010;
-	imxrt_common.wdog1 = (void *)0x400b8000;
-	imxrt_common.wdog2 = (void *)0x400d0000;
-	imxrt_common.rtwdog = (void *)0x400bc000;
-	imxrt_common.src = (void *)0x400f8000;
+	imxrt_common.gpio[0] = (void *)0x401b8000U;
+	imxrt_common.gpio[1] = (void *)0x401bc000U;
+	imxrt_common.gpio[2] = (void *)0x401c0000U;
+	imxrt_common.gpio[3] = (void *)0x401c4000U;
+	imxrt_common.gpio[4] = (void *)0x400c0000U;
+	imxrt_common.aips[0] = (void *)0x4007c000U;
+	imxrt_common.aips[1] = (void *)0x4017c000U;
+	imxrt_common.aips[2] = (void *)0x4027c000U;
+	imxrt_common.aips[3] = (void *)0x4037c000U;
+	imxrt_common.ccm = (void *)0x400fc000U;
+	imxrt_common.ccm_analog = (void *)0x400d8000U;
+	imxrt_common.pmu = (void *)0x400d8110U;
+	imxrt_common.xtalosc = (void *)0x400d8000U;
+	imxrt_common.iomuxgpr = (void *)0x400ac000U;
+	imxrt_common.iomuxc = (void *)0x401f8000U;
+	imxrt_common.iomuxsnvs = (void *)0x400a8000U;
+	imxrt_common.stk = (void *)0xe000e010U;
+	imxrt_common.wdog1 = (void *)0x400b8000U;
+	imxrt_common.wdog2 = (void *)0x400d0000U;
+	imxrt_common.rtwdog = (void *)0x400bc000U;
+	imxrt_common.src = (void *)0x400f8000U;
 
-	imxrt_common.xtaloscFreq = 24000000;
-	imxrt_common.cpuclk = 528000000; /* Default system clock */
+	imxrt_common.xtaloscFreq = 24000000U;
+	imxrt_common.cpuclk = 528000000U; /* Default system clock */
 
 	_hal_scsInit();
 
 	/* Disable watchdogs */
-	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1 << 2)) != 0) {
-		*(imxrt_common.wdog1 + wdog_wcr) &= ~(1 << 2);
+	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1U << 2)) != 0U) {
+		*(imxrt_common.wdog1 + wdog_wcr) &= ~(1U << 2);
 	}
-	if ((*(imxrt_common.wdog2 + wdog_wcr) & (1 << 2)) != 0) {
-		*(imxrt_common.wdog2 + wdog_wcr) &= ~(1 << 2);
+	if ((*(imxrt_common.wdog2 + wdog_wcr) & (1U << 2)) != 0U) {
+		*(imxrt_common.wdog2 + wdog_wcr) &= ~(1U << 2);
 	}
 
-	_imxrt_setDevClock(pctl_clk_wdog3, clk_state_run);
+	(void)_imxrt_setDevClock(pctl_clk_wdog3, clk_state_run);
 
 	/* RTWDOG unlock update */
 	*(imxrt_common.rtwdog + rtwdog_cnt) = RTWDOG_UPDATE_KEY;
-	while ((*(imxrt_common.rtwdog + rtwdog_cs) & (1 << 11)) == 0) {
+	while ((*(imxrt_common.rtwdog + rtwdog_cs) & (1UL << 11)) == 0U) {
 	}
 #if defined(WATCHDOG)
 	/* Enable rtwdog: LPO_CLK (256 prescaler), set timeout to WATCHDOG_TIMEOUT_MS ms */
 	*(imxrt_common.rtwdog + rtwdog_toval) =
-		WATCHDOG_TIMEOUT_MS / (256 / (LPO_CLK_FREQ_HZ / 1000));
+			WATCHDOG_TIMEOUT_MS / (256 / (LPO_CLK_FREQ_HZ / 1000));
 	*(imxrt_common.rtwdog + rtwdog_cs) =
-		(*(imxrt_common.rtwdog + rtwdog_cs) | (1 << 7)) |
-		(1 << 13) | (1 << 12) | (1 << 8) | (1 << 5);
+			(*(imxrt_common.rtwdog + rtwdog_cs) | (1U << 7)) |
+			(1UL << 13) | (1UL << 12) | (1UL << 8) | (1UL << 5);
 	/* Refresh watchdog */
 	*(imxrt_common.rtwdog + rtwdog_cnt) = RTWDOG_REFRESH_KEY;
 #else
 	/* Disable rtwdog, enable update */
 	*(imxrt_common.rtwdog + rtwdog_toval) = 0xffffU;
 	*(imxrt_common.rtwdog + rtwdog_cs) =
-		(*(imxrt_common.rtwdog + rtwdog_cs) & ~(1 << 7)) | (1 << 5);
+			(*(imxrt_common.rtwdog + rtwdog_cs) & ~(1UL << 7)) | (1UL << 5);
 #endif
 	/* Check update */
-	while ((*(imxrt_common.rtwdog + rtwdog_cs) & (1 << 10)) == 0) {
+	while ((*(imxrt_common.rtwdog + rtwdog_cs) & (1UL << 10)) == 0U) {
 	}
 
 	/* Disable Systick which might be enabled by bootrom */
-	if ((*(imxrt_common.stk + stk_ctrl) & 1) != 0) {
-		*(imxrt_common.stk + stk_ctrl) &= ~1;
+	if ((*(imxrt_common.stk + stk_ctrl) & 1U) != 0U) {
+		*(imxrt_common.stk + stk_ctrl) &= ~1U;
 	}
 
 	/* Configure cache */
@@ -1989,13 +2161,13 @@ void _imxrt_init(void)
 	_imxrt_ccmSetMux(clk_mux_periph, 0x0);
 
 	/* Disable unused clocks */
-	*(imxrt_common.ccm + ccm_ccgr0) = 0x00c0ffff;
-	*(imxrt_common.ccm + ccm_ccgr1) = 0x300c0000;
-	*(imxrt_common.ccm + ccm_ccgr2) = 0xfffff03f;
-	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c3fcf;
-	*(imxrt_common.ccm + ccm_ccgr4) = 0x0000ff3c;
-	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f333f;
-	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f0f;
+	*(imxrt_common.ccm + ccm_ccgr0) = 0x00c0ffffU;
+	*(imxrt_common.ccm + ccm_ccgr1) = 0x300c0000U;
+	*(imxrt_common.ccm + ccm_ccgr2) = 0xfffff03fU;
+	*(imxrt_common.ccm + ccm_ccgr3) = 0xf00c3fcfU;
+	*(imxrt_common.ccm + ccm_ccgr4) = 0x0000ff3cU;
+	*(imxrt_common.ccm + ccm_ccgr5) = 0xf00f333fU;
+	*(imxrt_common.ccm + ccm_ccgr6) = 0x00fc0f0fU;
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -2007,16 +2179,16 @@ void _imxrt_init(void)
 	_imxrt_ccmDeinitAudioPll();
 
 	/* Wait for any pending CCM div/mux handshake process to complete */
-	while ((*(imxrt_common.ccm + ccm_cdhipr) & 0x1002b) != 0) {
+	while ((*(imxrt_common.ccm + ccm_cdhipr) & 0x1002bU) != 0U) {
 	}
 
 	/* Allow userspace applications to access hardware registers */
-	for (i = 0; i < sizeof(imxrt_common.aips) / sizeof(imxrt_common.aips[0]); ++i) {
-		*(imxrt_common.aips[i] + aipstz_opacr) &= ~0x44444444;
-		*(imxrt_common.aips[i] + aipstz_opacr1) &= ~0x44444444;
-		*(imxrt_common.aips[i] + aipstz_opacr2) &= ~0x44444444;
-		*(imxrt_common.aips[i] + aipstz_opacr3) &= ~0x44444444;
-		*(imxrt_common.aips[i] + aipstz_opacr4) &= ~0x44444444;
+	for (i = 0U; i < sizeof(imxrt_common.aips) / sizeof(imxrt_common.aips[0]); ++i) {
+		*(imxrt_common.aips[i] + aipstz_opacr) &= ~0x44444444U;
+		*(imxrt_common.aips[i] + aipstz_opacr1) &= ~0x44444444U;
+		*(imxrt_common.aips[i] + aipstz_opacr2) &= ~0x44444444U;
+		*(imxrt_common.aips[i] + aipstz_opacr3) &= ~0x44444444U;
+		*(imxrt_common.aips[i] + aipstz_opacr4) &= ~0x44444444U;
 	}
 
 	/* Enable system HP timer clock gate */

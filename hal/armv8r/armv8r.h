@@ -42,6 +42,7 @@ static inline void hal_cpuInstrBarrier(void)
 
 /* Memory Management */
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Each function has definition in assembly code" */
 
 /* Invalidate entire branch predictor array */
 void hal_cpuBranchInval(void);
@@ -72,5 +73,7 @@ u32 hal_cpuGetPFR0(void);
 
 
 u32 hal_cpuGetPFR1(void);
+
+/* parasoft-end-suppress MISRAC2012-RULE_8_6*/
 
 #endif

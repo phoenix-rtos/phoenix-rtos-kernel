@@ -18,13 +18,13 @@
 
 #include <arch/cpu.h>
 
-#define EXC_DEFAULT 128
+#define EXC_DEFAULT 128U
 
 #define EXC_UNDEFINED 2
 
 #ifndef NOMMU
-#define EXC_PAGEFAULT 1
-#define EXC_PAGEFAULT_DATA 9
+#define EXC_PAGEFAULT      1U
+#define EXC_PAGEFAULT_DATA 9U
 #endif
 
 #define SIZE_CTXDUMP 550

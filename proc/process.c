@@ -348,8 +348,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
 	char *snameTab;
-	size_t memsz, filesz;
-	unsigned int i, misalign;
+	size_t memsz, filesz, misalign;
+	unsigned int i;
 	off_t offs;
 
 	if (size < sizeof(*ehdr)) {
@@ -425,8 +425,8 @@ static int process_validateElf64(void *iehdr, size_t size)
 	Elf64_Phdr *phdr;
 	Elf64_Shdr *shdr, *shstrshdr;
 	char *snameTab;
-	size_t memsz, filesz;
-	unsigned int i, misalign;
+	size_t memsz, filesz, misalign;
+	unsigned int i;
 	off_t offs;
 
 	if (size < sizeof(*ehdr)) {
@@ -448,16 +448,16 @@ static int process_validateElf64(void *iehdr, size_t size)
 	}
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if (phdr[i].p_type != PT_LOAD) {
-			if (process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, phdr[i].p_filesz) == 0) {
+			if (process_isPtrValid(iehdr, size, ((char *)ehdr) + phdr[i].p_offset, (size_t)phdr[i].p_filesz) == 0) {
 				return -ENOEXEC;
 			}
 			continue;
 		}
 
 		offs = (off_t)(Elf64_Off)(phdr[i].p_offset & ~(phdr[i].p_align - 1U));
-		misalign = phdr[i].p_offset & (phdr[i].p_align - 1U);
-		filesz = (phdr[i].p_filesz != 0U) ? (phdr[i].p_filesz + misalign) : 0;
-		memsz = phdr[i].p_memsz + misalign;
+		misalign = (size_t)phdr[i].p_offset & (size_t)(phdr[i].p_align - 1U);
+		filesz = (phdr[i].p_filesz != 0U) ? (size_t)(phdr[i].p_filesz + misalign) : 0;
+		memsz = (size_t)phdr[i].p_memsz + misalign;
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
 			return -ENOEXEC;
 		}
@@ -473,7 +473,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 		return -ENOEXEC;
 	}
 	snameTab = (char *)ehdr + shstrshdr->sh_offset;
-	if (process_isPtrValid(iehdr, size, snameTab, shstrshdr->sh_size) == 0) {
+	if (process_isPtrValid(iehdr, size, snameTab, (size_t)shstrshdr->sh_size) == 0) {
 		return -ENOEXEC;
 	}
 	/* Strings must end with NULL character. */
@@ -483,7 +483,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-					(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
+					(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, (size_t)shdr[i].sh_size) == 0)) ||
 				(shdr[i].sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
@@ -494,10 +494,10 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 
 /* TODO - adding error handling and unmapping of already mapped segments */
-int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
 	void *vaddr;
-	size_t memsz, filesz;
+	unsigned int memsz, filesz;
 	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
@@ -515,7 +515,7 @@ int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 	shstrshdr = shdr + ehdr->e_shstrndx;
 	snameTab = (char *)ehdr + shstrshdr->sh_offset;
 	/* Find .tdata and .tbss sections */
-	for (i = 0; i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
 			tls->tls_base = (ptr_t)shdr->sh_addr;
 			tls->tdata_sz += shdr->sh_size;
@@ -527,66 +527,72 @@ int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
 			tls->arm_m_tls = (ptr_t)shdr->sh_addr;
 		}
+		else {
+			/* No actio required */
+		}
+		shdr++;
 	}
 
-	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0)) {
+	phdr = (void *)ehdr + ehdr->e_phoff;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0U)) {
 			*ustacksz = round_page(phdr->p_memsz);
 		}
 
-		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0)) {
+		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
 			continue;
 		}
 
-		vaddr = (void *)((ptr_t)(phdr->p_vaddr & ~(phdr->p_align - 1)));
-		offs = phdr->p_offset & ~(phdr->p_align - 1);
-		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
+		vaddr = (void *)(((ptr_t)phdr->p_vaddr & ~(phdr->p_align - 1U)));
+		offs = (off_t)(unsigned int)(phdr->p_offset & ~(phdr->p_align - 1U));
+		misalign = phdr->p_offset & (phdr->p_align - 1U);
+		filesz = (phdr->p_filesz != 0U) ? (phdr->p_filesz + misalign) : 0U;
 		memsz = phdr->p_memsz + misalign;
 
 		prot = PROT_USER;
 		flags = MAP_NONE;
 
-		if ((phdr->p_flags & PF_R) != 0) {
+		if ((phdr->p_flags & PF_R) != 0U) {
 			prot |= PROT_READ;
 		}
 
-		if ((phdr->p_flags & PF_W) != 0) {
+		if ((phdr->p_flags & PF_W) != 0U) {
 			prot |= PROT_WRITE;
 		}
 
-		if ((phdr->p_flags & PF_X) != 0) {
+		if ((phdr->p_flags & PF_X) != 0U) {
 			prot |= PROT_EXEC;
 		}
 
-		if ((filesz != 0) && ((prot & PROT_WRITE) != 0)) {
+		if ((filesz != 0U) && ((prot & PROT_WRITE) != 0U)) {
 			flags |= MAP_NEEDSCOPY;
 		}
 
-		if ((filesz != 0) && (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
+		if ((filesz != 0U) && (vm_mmap(map, vaddr, NULL, round_page(filesz), (u8)prot, o, base + offs, (u8)flags) == NULL)) {
 			return -ENOMEM;
 		}
 
 		if (filesz != memsz) {
-			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
+			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), (u8)prot, NULL, -1, MAP_NONE) == NULL)) {
 				return -ENOMEM;
 			}
 
 			hal_memset(vaddr + filesz, 0, round_page((ptr_t)vaddr + memsz) - ((ptr_t)vaddr + filesz));
 		}
+		phdr++;
 	}
 	return EOK;
 }
 
 
-int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
 	void *vaddr;
-	size_t memsz, filesz;
+	size_t i, memsz, filesz, misalign;
 	Elf64_Ehdr *ehdr = iehdr;
 	Elf64_Phdr *phdr;
 	Elf64_Shdr *shdr, *shstrshdr;
-	unsigned int i, misalign;
 	vm_prot_t prot;
 	vm_flags_t flags;
 	off_t offs;
@@ -600,65 +606,72 @@ int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 	shstrshdr = shdr + ehdr->e_shstrndx;
 	snameTab = (char *)ehdr + shstrshdr->sh_offset;
 	/* Find .tdata and .tbss sections */
-	for (i = 0; i < ehdr->e_shnum; i++, shdr++) {
+	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
 			tls->tls_base = (ptr_t)shdr->sh_addr;
-			tls->tdata_sz += shdr->sh_size;
+			tls->tdata_sz += (size_t)shdr->sh_size;
 		}
 		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
 			*tbssAddr = (ptr_t)shdr->sh_addr;
-			tls->tbss_sz += shdr->sh_size;
+			tls->tbss_sz += (size_t)shdr->sh_size;
 		}
 		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
 			tls->arm_m_tls = (ptr_t)shdr->sh_addr;
 		}
+		else {
+			/* No action required*/
+		}
+		shdr++;
 	}
 
-	for (i = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
-		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0)) {
-			*ustacksz = round_page(phdr->p_memsz);
+	phdr = (void *)ehdr + ehdr->e_phoff;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0U)) {
+			*ustacksz = (size_t)round_page(phdr->p_memsz);
 		}
 
-		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0)) {
+		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
 			continue;
 		}
 
-		vaddr = (void *)((ptr_t)(phdr->p_vaddr & ~((ptr_t)phdr->p_align - 1)));
-		offs = phdr->p_offset & ~(phdr->p_align - 1);
-		misalign = phdr->p_offset & (phdr->p_align - 1);
-		filesz = phdr->p_filesz ? (phdr->p_filesz + misalign) : 0;
-		memsz = phdr->p_memsz + misalign;
+		vaddr = (void *)((ptr_t)(phdr->p_vaddr & ~((ptr_t)phdr->p_align - 1U)));
+		offs = (off_t)(unsigned int)(phdr->p_offset & ~(phdr->p_align - 1U));
+		misalign = (size_t)phdr->p_offset & (size_t)(phdr->p_align - 1U);
+		filesz = (phdr->p_filesz != 0U) ? (size_t)(phdr->p_filesz + misalign) : 0U;
+		memsz = (size_t)phdr->p_memsz + misalign;
 
 		prot = PROT_USER;
 		flags = MAP_NONE;
 
-		if ((phdr->p_flags & PF_R) != 0) {
+		if ((phdr->p_flags & PF_R) != 0U) {
 			prot |= PROT_READ;
 		}
 
-		if ((phdr->p_flags & PF_W) != 0) {
+		if ((phdr->p_flags & PF_W) != 0U) {
 			prot |= PROT_WRITE;
 		}
 
-		if ((phdr->p_flags & PF_X) != 0) {
+		if ((phdr->p_flags & PF_X) != 0U) {
 			prot |= PROT_EXEC;
 		}
 
-		if ((filesz != 0) && ((prot & PROT_WRITE) != 0)) {
+		if ((filesz != 0U) && ((prot & PROT_WRITE) != 0U)) {
 			flags |= MAP_NEEDSCOPY;
 		}
 
-		if ((filesz != 0) && (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
+		if ((filesz != 0U) && (vm_mmap(map, vaddr, NULL, round_page(filesz), (u8)prot, o, base + offs, (u8)flags) == NULL)) {
 			return -ENOMEM;
 		}
 
 		if (filesz != memsz) {
-			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
+			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), (u8)prot, NULL, -1, MAP_NONE) == NULL)) {
 				return -ENOMEM;
 			}
 
 			hal_memset(vaddr + filesz, 0, round_page((ptr_t)vaddr + memsz) - ((ptr_t)vaddr + filesz));
 		}
+		phdr++;
 	}
 	return EOK;
 }
@@ -702,8 +715,9 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 		default:
 			err = -ENOEXEC;
+			break;
 	}
-	vm_munmap(process_common.kmap, ehdr, size);
+	(void)vm_munmap(process_common.kmap, ehdr, size);
 
 	if (err < 0) {
 		return err;
@@ -1002,7 +1016,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 static void *proc_copyargs(char **args)
 {
-	unsigned int argc, len = 0U;
+	size_t argc, len = 0U;
 	void *storage;
 	char **kargs, *p;
 
@@ -1039,8 +1053,7 @@ static void *proc_copyargs(char **args)
 
 static void *process_putargs(void *stack, char ***argsp, int *count)
 {
-	unsigned int argc;
-	size_t len;
+	size_t argc, len;
 	char **args_stack, **args = *argsp;
 
 	for (argc = 0U; (args != NULL) && (args[argc] != NULL); ++argc) {
@@ -1082,7 +1095,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	current->process->envp = spawn->envp;
 
 #ifndef NOMMU
-	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
+	(void)vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
 	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 	(void)i;
 #else
@@ -1507,7 +1520,7 @@ static int process_copy(void)
 	/* Avoid ustack access while map is invalid */
 	current->ustack = NULL;
 
-	vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
+	(void)vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
 
 	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0) {
 		return -ENOMEM;
@@ -1572,7 +1585,7 @@ int proc_fork(void)
 		/* Mask all signals - during process_copy(), incoming signal might try
 		 * to access our not-yet existent stack */
 		sigmask = current->sigmask;
-		current->sigmask = 0xffffffff;
+		current->sigmask = 0xffffffffU;
 		err = process_copy();
 		current->sigmask = sigmask;
 
@@ -1591,7 +1604,8 @@ int proc_fork(void)
 			args[0] = (arg_t)current;
 			args[1] = (arg_t)current->execdata;
 			args[2] = (arg_t)err;
-			hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 3, args);
+			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
+			hal_jmp(proc_vforkedExit, (unsigned char *)current->kstack + current->kstacksz, NULL, 3, args);
 		}
 		else {
 			hal_cpuEnableInterrupts();

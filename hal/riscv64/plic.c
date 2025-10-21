@@ -23,11 +23,11 @@
 
 
 /* PLIC register offsets */
-#define PLIC_PRIORITY(irqn)            (0x0000 + (irqn) * 4)
-#define PLIC_REG_PENDING(irqn)         (0x1000 + ((irqn) / 32) * 4)
-#define PLIC_REG_ENABLE(context, irqn) (0x2000 + (context) * 0x80 + ((irqn) / 32) * 4)
-#define PLIC_REG_THRESHOLD(context)    (0x200000 + (context) * 0x1000)
-#define PLIC_REG_CLAIM(context)        (0x200004 + (context) * 0x1000)
+#define PLIC_PRIORITY(irqn)            (0x0000U + (irqn) * 4U)
+#define PLIC_REG_PENDING(irqn)         (0x1000U + ((irqn) / 32U) * 4U)
+#define PLIC_REG_ENABLE(context, irqn) (0x2000U + (context) * 0x80U + ((irqn) / 32U) * 4U)
+#define PLIC_REG_THRESHOLD(context)    (0x200000U + (context) * 0x1000U)
+#define PLIC_REG_CLAIM(context)        (0x200004U + (context) * 0x1000U)
 
 /* Value calculated from MAX_CPU_COUNT, TODO(?): get from DTB */
 #define PLIC_SIZE PLIC_REG_THRESHOLD((PLIC_CONTEXTS_PER_HART) * MAX_CPU_COUNT)
@@ -68,9 +68,9 @@ u32 plic_priorityGet(unsigned int n)
 
 int plic_isPending(unsigned int n)
 {
-	u32 bitshift = n % 32;
+	u32 bitshift = n % 32U;
 
-	return ((plic_read(PLIC_REG_PENDING(n)) >> bitshift) & 1);
+	return (int)(unsigned int)(((plic_read(PLIC_REG_PENDING(n)) >> bitshift) & 1U));
 }
 
 
@@ -100,11 +100,11 @@ void plic_complete(unsigned int context, unsigned int n)
 
 static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enable)
 {
-	u32 bitshift = n % 32;
+	u32 bitshift = n % 32U;
 	u32 val;
 	spinlock_ctx_t sc;
 
-	if (n >= PLIC_IRQ_SIZE) {
+	if (n >= (unsigned int)PLIC_IRQ_SIZE) {
 		return -1;
 	}
 
@@ -112,11 +112,11 @@ static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enabl
 
 	val = plic_read(PLIC_REG_ENABLE(context, n));
 
-	if (enable != 0) {
-		val |= (1 << bitshift);
+	if (enable != '\0') {
+		val |= ((u32)1 << bitshift);
 	}
 	else {
-		val &= ~(1 << bitshift);
+		val &= ~(1U << bitshift);
 	}
 
 	plic_write(PLIC_REG_ENABLE(context, n), val);
@@ -129,21 +129,21 @@ static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enabl
 
 int plic_enableInterrupt(unsigned int context, unsigned int n)
 {
-	return plic_modifyInterrupt(context, n, 1);
+	return plic_modifyInterrupt(context, n, (char)1);
 }
 
 
 int plic_disableInterrupt(unsigned int context, unsigned int n)
 {
-	return plic_modifyInterrupt(context, n, 0);
+	return plic_modifyInterrupt(context, n, '\0');
 }
 
 
 void plic_initCore(void)
 {
-	size_t i;
-	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
-		plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), i);
+	unsigned int i;
+	for (i = 1U; i < (unsigned int)PLIC_IRQ_SIZE; i++) {
+		(void)plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), i);
 	}
 	plic_tresholdSet(PLIC_SCONTEXT(hal_cpuGetID()), 1);
 }
@@ -157,7 +157,7 @@ void plic_init(void)
 	hal_spinlockCreate(&plic_common.lock, "plic_common.lock");
 
 	/* Disable and mask external interrupts */
-	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
+	for (i = 1; i < (unsigned int)PLIC_IRQ_SIZE; i++) {
 		plic_priority(i, 0);
 	}
 }

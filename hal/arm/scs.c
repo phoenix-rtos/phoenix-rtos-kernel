@@ -95,50 +95,51 @@ static struct {
 } scs_common;
 
 
-void _hal_scsIRQSet(u32 irqn, u8 state)
+void _hal_scsIRQSet(u8 irqn, u8 state)
 {
-	volatile u32 *ptr = (state != 0) ? scs_common.scs->iser : scs_common.scs->icer;
+	volatile u32 *ptr = (state != 0U) ? scs_common.scs->iser : scs_common.scs->icer;
 
-	*(ptr + (irqn / 32)) = 1U << (irqn % 32);
+	*(ptr + (irqn >> 5)) = 1UL << (irqn & 0x1fU);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 }
 
 
-void _hal_scsIRQPrioritySet(u32 irqn, u32 priority)
+/* MISRA TODO: restrict priority to u8? */
+void _hal_scsIRQPrioritySet(u8 irqn, u32 priority)
 {
 	volatile u8 *ptr = (volatile u8 *)scs_common.scs->ip;
 
-	*(ptr + irqn) = (priority << 4) & 0xff;
+	*(ptr + irqn) = ((u8)priority << 4) & 0xffU;
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 }
 
 
-void _hal_scsIRQPendingSet(u32 irqn)
+void _hal_scsIRQPendingSet(u8 irqn)
 {
 	volatile u32 *ptr = scs_common.scs->ispr;
 
-	*(ptr + (irqn / 32)) = 1U << (irqn % 32);
+	*(ptr + (irqn >> 5)) = 1UL << (irqn & 0x1fU);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 }
 
 
-int _hal_scsIRQPendingGet(u32 irqn)
+int _hal_scsIRQPendingGet(u8 irqn)
 {
-	volatile u32 *ptr = &scs_common.scs->ispr[irqn / 32];
-	return ((*ptr & (1 << (irqn % 32))) != 0) ? 1 : 0;
+	volatile u32 *ptr = &scs_common.scs->ispr[irqn >> 5];
+	return ((*ptr & (1UL << (irqn & 0x1fU))) != 0U) ? 1 : 0;
 }
 
 
-int _hal_scsIRQActiveGet(u32 irqn)
+int _hal_scsIRQActiveGet(u8 irqn)
 {
-	volatile u32 *ptr = &scs_common.scs->iabr[irqn / 32];
-	return ((*ptr & (1 << (irqn % 32))) != 0) ? 1 : 0;
+	volatile u32 *ptr = &scs_common.scs->iabr[irqn >> 5];
+	return ((*ptr & (1UL << (irqn & 0x1fU))) != 0U) ? 1 : 0;
 }
 
 
@@ -147,41 +148,41 @@ void _hal_scsPriorityGroupingSet(u32 group)
 	u32 t;
 
 	/* Get register value and clear bits to set */
-	t = scs_common.scs->aircr & ~0xffff0700;
+	t = scs_common.scs->aircr & ~0xffff0700U;
 
 	/* Set AIRCR.PRIGROUP to 3: 16 priority groups and 16 subgroups
 	   The value is same as for armv7m4-stm32l4x6 target
 	   Setting various priorities is not supported on Phoenix-RTOS, so it's just default value */
-	scs_common.scs->aircr = t | 0x5fa0000 | ((group & 7) << 8);
+	scs_common.scs->aircr = t | 0x5fa0000U | ((group & 7U) << 8);
 }
 
 
 u32 _hal_scsPriorityGroupingGet(void)
 {
-	return (scs_common.scs->aircr & 0x700) >> 8;
+	return (scs_common.scs->aircr & 0x700U) >> 8;
 }
 
 
 void _hal_scsExceptionPrioritySet(u32 excpn, u32 priority)
 {
-	volatile u8 *ptr = (u8 *)&scs_common.scs->shpr1 + excpn - 4;
+	volatile u8 *ptr = (u8 *)&scs_common.scs->shpr1 + excpn - 4U;
 
 	/* We set only group priority field */
-	*ptr = (priority << 4) & 0xff;
+	*ptr = ((u8)priority << 4) & 0xffU;
 }
 
 
 u32 _imxrt_scsExceptionPriorityGet(u32 excpn)
 {
-	volatile u8 *ptr = (u8 *)&scs_common.scs->shpr1 + excpn - 4;
+	volatile u8 *ptr = (u8 *)&scs_common.scs->shpr1 + excpn - 4U;
 
-	return *ptr >> 4;
+	return (u32)*ptr >> 4U;
 }
 
 
 void _hal_scsSystemReset(void)
 {
-	scs_common.scs->aircr = ((0x5faU << 16) | (scs_common.scs->aircr & (0x700U)) | (1U << 2));
+	scs_common.scs->aircr = ((0x5faUL << 16) | (scs_common.scs->aircr & (0x700U)) | (1U << 2));
 
 	hal_cpuDataSyncBarrier();
 
@@ -200,7 +201,7 @@ unsigned int _hal_scsCpuID(void)
 void _hal_scsFPUSet(int state)
 {
 	if (state != 0) {
-		scs_common.scs->cpacr |= 0xf << 20;
+		scs_common.scs->cpacr |= 0xfUL << 20;
 	}
 	else {
 		scs_common.scs->cpacr = 0;
@@ -212,7 +213,7 @@ void _hal_scsFPUSet(int state)
 
 static int _hal_scbCacheIsSupported(void)
 {
-	u32 partno = ((_hal_scsCpuID() >> 4) & 0xfff);
+	u32 partno = ((_hal_scsCpuID() >> 4) & 0xfffU);
 
 	/* Only supported on Cortex-M7 and Cortex-M55 for now */
 	if ((partno == CPUID_PARTNO_M7) || (partno == CPUID_PARTNO_M55)) {
@@ -231,23 +232,23 @@ void _hal_scsDCacheEnable(void)
 		return;
 	}
 
-	if ((scs_common.scs->ccr & (1 << 16)) == 0) {
+	if ((scs_common.scs->ccr & (1UL << 16)) == 0U) {
 		scs_common.scs->csselr = 0;
 		hal_cpuDataSyncBarrier();
 
 		ccsidr = scs_common.scs->ccsidr;
 
 		/* Invalidate D$ */
-		sets = (ccsidr >> 13) & 0x7fff;
+		sets = (ccsidr >> 13) & 0x7fffU;
 		do {
-			ways = (ccsidr >> 3) & 0x3ff;
+			ways = (ccsidr >> 3) & 0x3ffU;
 			do {
-				scs_common.scs->dcisw = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
-			} while (ways-- != 0);
-		} while (sets-- != 0);
+				scs_common.scs->dcisw = ((sets & 0x1ffU) << 5) | ((ways & 0x3U) << 30);
+			} while (ways-- != 0U);
+		} while (sets-- != 0U);
 		hal_cpuDataSyncBarrier();
 
-		scs_common.scs->ccr |= 1 << 16;
+		scs_common.scs->ccr |= 1UL << 16;
 
 		hal_cpuDataSyncBarrier();
 		hal_cpuInstrBarrier();
@@ -266,18 +267,18 @@ void _hal_scsDCacheDisable(void)
 	scs_common.scs->csselr = 0;
 	hal_cpuDataSyncBarrier();
 
-	scs_common.scs->ccr &= ~(1 << 16);
+	scs_common.scs->ccr &= ~(1UL << 16);
 	hal_cpuDataSyncBarrier();
 
 	ccsidr = scs_common.scs->ccsidr;
 
-	sets = (ccsidr >> 13) & 0x7fff;
+	sets = (ccsidr >> 13) & 0x7fffU;
 	do {
-		ways = (ccsidr >> 3) & 0x3ff;
+		ways = (ccsidr >> 3) & 0x3ffU;
 		do {
-			scs_common.scs->dcisw = ((sets & 0x1ff) << 5) | ((ways & 0x3) << 30);
-		} while (ways-- != 0);
-	} while (sets-- != 0);
+			scs_common.scs->dcisw = ((sets & 0x1ffU) << 5) | ((ways & 0x3U) << 30);
+		} while (ways-- != 0U);
+	} while (sets-- != 0U);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -337,13 +338,13 @@ void _hal_scsICacheEnable(void)
 		return;
 	}
 
-	if ((scs_common.scs->ccr & (1 << 17)) == 0) {
+	if ((scs_common.scs->ccr & (1UL << 17)) == 0U) {
 		hal_cpuDataSyncBarrier();
 		hal_cpuInstrBarrier();
 		scs_common.scs->iciallu = 0; /* Invalidate I$ */
 		hal_cpuDataSyncBarrier();
 		hal_cpuInstrBarrier();
-		scs_common.scs->ccr |= 1 << 17;
+		scs_common.scs->ccr |= 1UL << 17;
 		hal_cpuDataSyncBarrier();
 		hal_cpuInstrBarrier();
 	}
@@ -358,7 +359,7 @@ void _hal_scsICacheDisable(void)
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
-	scs_common.scs->ccr &= ~(1 << 17);
+	scs_common.scs->ccr &= ~(1UL << 17);
 	scs_common.scs->iciallu = 0;
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -368,12 +369,12 @@ void _hal_scsICacheDisable(void)
 void _hal_scsDeepSleepSet(int state)
 {
 	if (state != 0) {
-		scs_common.scs->scr |= 1 << 2;
-		scs_common.scs->csr &= ~1;
+		scs_common.scs->scr |= 1U << 2;
+		scs_common.scs->csr &= ~1U;
 	}
 	else {
-		scs_common.scs->scr &= ~(1 << 2);
-		scs_common.scs->csr |= 1;
+		scs_common.scs->scr &= ~(1U << 2);
+		scs_common.scs->csr |= 1U;
 	}
 }
 
@@ -384,7 +385,7 @@ void _hal_scsSystickInit(u32 load)
 	scs_common.scs->cvr = 0;
 
 	/* Enable systick */
-	scs_common.scs->csr |= 0x7;
+	scs_common.scs->csr |= 0x7U;
 }
 
 
@@ -397,8 +398,8 @@ u32 _hal_scsSystickGetCount(u8 *overflow_out)
 		 * if overflow flag is set, read the timer again to ensure we don't return
 		 * a timestamp from the previous epoch.
 		 */
-		overflow = (scs_common.scs->csr >> 16) & 1;
-		if (overflow != 0) {
+		overflow = (u8)(scs_common.scs->csr >> 16) & 1U;
+		if (overflow != 0U) {
 			ret = scs_common.scs->cvr;
 		}
 
@@ -417,8 +418,8 @@ u32 _hal_scsGetDefaultFPSCR(void)
 
 void _hal_scsInit(void)
 {
-	scs_common.scs = (void *)0xe000e000;
+	scs_common.scs = (void *)0xe000e000U;
 
 	/* Enable UsageFault, BusFault and MemManage exceptions */
-	scs_common.scs->shcsr |= (1U << 16) | (1U << 17) | (1U << 18);
+	scs_common.scs->shcsr |= (1UL << 16) | (1UL << 17) | (1UL << 18);
 }

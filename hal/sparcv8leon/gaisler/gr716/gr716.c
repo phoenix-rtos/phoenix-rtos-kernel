@@ -24,12 +24,12 @@
 
 #include "gr716.h"
 
-#define GRGPREG_BASE ((void *)0x8000d000)
-#define CGU_BASE0    ((void *)0x80006000)
-#define CGU_BASE1    ((void *)0x80007000)
+#define GRGPREG_BASE ((void *)0x8000d000U)
+#define CGU_BASE0    ((void *)0x80006000U)
+#define CGU_BASE1    ((void *)0x80007000U)
 
-#define BOOTSTRAP_ADDR 0x80008000
-#define BOOTSTRAP_SPIM 0x400bc003
+#define BOOTSTRAP_ADDR 0x80008000U
+#define BOOTSTRAP_SPIM 0x400bc003U
 
 
 /* System configuration registers */
@@ -64,7 +64,7 @@ enum {
 };
 
 
-struct {
+static struct {
 	spinlock_t pltctlSp;
 
 	volatile u32 *grgpreg_base;
@@ -87,15 +87,15 @@ void _hal_cpuInit(void)
 
 int _gr716_getIomuxCfg(u8 pin, u8 *opt, u8 *pullup, u8 *pulldn)
 {
-	if (pin > 63) {
+	if (pin > 63U) {
 		return -1;
 	}
 
-	*opt = (*(gr716_common.grgpreg_base + cfg_gp0 + (pin / 8)) >> ((pin % 8) << 2)) & 0xf;
+	*opt = (u8)(*(gr716_common.grgpreg_base + cfg_gp0 + (pin / 8U)) >> ((pin % 8U) << 2)) & 0xfU;
 
-	*pullup = (*(gr716_common.grgpreg_base + cfg_pullup0 + (pin / 32)) >> (pin % 32)) & 0x1;
+	*pullup = (u8)(*(gr716_common.grgpreg_base + cfg_pullup0 + (pin / 32U)) >> (pin % 32U)) & 0x1U;
 
-	*pulldn = (*(gr716_common.grgpreg_base + cfg_pulldn0 + (pin / 32)) >> (pin % 32)) & 0x1;
+	*pulldn = (u8)(*(gr716_common.grgpreg_base + cfg_pulldn0 + (pin / 32U)) >> (pin % 32U)) & 0x1U;
 
 	return 0;
 }
@@ -105,24 +105,24 @@ int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn)
 {
 	volatile u32 old_cfg;
 
-	if (pin > 63) {
+	if (pin > 63U) {
 		return -1;
 	}
 
-	old_cfg = *(gr716_common.grgpreg_base + cfg_gp0 + (pin / 8));
+	old_cfg = *(gr716_common.grgpreg_base + cfg_gp0 + (pin / 8U));
 
-	*(gr716_common.grgpreg_base + cfg_gp0 + (pin / 8)) =
-		(old_cfg & ~(0xf << ((pin % 8) << 2))) | (opt << ((pin % 8) << 2));
+	*(gr716_common.grgpreg_base + cfg_gp0 + (pin / 8U)) =
+			(old_cfg & ~(0xfUL << ((pin % 8U) << 2))) | ((u32)opt << ((pin % 8U) << 2));
 
-	old_cfg = *(gr716_common.grgpreg_base + cfg_pullup0 + (pin / 32));
+	old_cfg = *(gr716_common.grgpreg_base + cfg_pullup0 + (pin / 32U));
 
-	*(gr716_common.grgpreg_base + cfg_pullup0 + (pin / 32)) =
-		(old_cfg & ~(1 << (pin % 32))) | (pullup << (pin % 32));
+	*(gr716_common.grgpreg_base + cfg_pullup0 + (pin / 32U)) =
+			(old_cfg & ~(1UL << (pin % 32U))) | ((u32)pullup << (pin % 32U));
 
-	old_cfg = *(gr716_common.grgpreg_base + cfg_pulldn0 + (pin / 32));
+	old_cfg = *(gr716_common.grgpreg_base + cfg_pulldn0 + (pin / 32U));
 
-	*(gr716_common.grgpreg_base + cfg_pulldn0 + (pin / 32)) =
-		(old_cfg & ~(1 << (pin % 32))) | (pulldn << (pin % 32));
+	*(gr716_common.grgpreg_base + cfg_pulldn0 + (pin / 32U)) =
+			(old_cfg & ~(1UL << (pin % 32U))) | ((u32)pulldn << (pin % 32U));
 
 	return 0;
 }
@@ -132,8 +132,8 @@ int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn)
 
 void _gr716_cguClkEnable(u32 cgu, u32 device)
 {
-	volatile u32 *cgu_base = (cgu == cgu_primary) ? gr716_common.cgu_base0 : gr716_common.cgu_base1;
-	u32 msk = 1 << device;
+	volatile u32 *cgu_base = (cgu == (u32)cgu_primary) ? gr716_common.cgu_base0 : gr716_common.cgu_base1;
+	u32 msk = 1UL << device;
 
 	*(cgu_base + cgu_unlock) |= msk;
 	hal_cpuDataStoreBarrier();
@@ -149,8 +149,8 @@ void _gr716_cguClkEnable(u32 cgu, u32 device)
 
 void _gr716_cguClkDisable(u32 cgu, u32 device)
 {
-	volatile u32 *cgu_base = (cgu == cgu_primary) ? gr716_common.cgu_base0 : gr716_common.cgu_base1;
-	u32 msk = 1 << device;
+	volatile u32 *cgu_base = (cgu == (u32)cgu_primary) ? gr716_common.cgu_base0 : gr716_common.cgu_base1;
+	u32 msk = 1UL << device;
 
 	*(cgu_base + cgu_unlock) |= msk;
 	hal_cpuDataStoreBarrier();
@@ -162,10 +162,10 @@ void _gr716_cguClkDisable(u32 cgu, u32 device)
 
 int _gr716_cguClkStatus(u32 cgu, u32 device)
 {
-	volatile u32 *cguBase = (cgu == cgu_primary) ? gr716_common.cgu_base0 : gr716_common.cgu_base1;
-	u32 msk = 1 << device;
+	volatile u32 *cguBase = (cgu == (u32)cgu_primary) ? gr716_common.cgu_base0 : gr716_common.cgu_base1;
+	u32 msk = 1UL << device;
 
-	return (*(cguBase + cgu_clk_en) & msk) ? 1 : 0;
+	return (*(cguBase + cgu_clk_en) & msk) != 0U ? 1 : 0;
 }
 
 
@@ -197,6 +197,9 @@ int hal_platformctl(void *ptr)
 				data->task.cguctrl.v.stateVal = _gr716_cguClkStatus(data->task.cguctrl.cgu, data->task.cguctrl.cgudev);
 				ret = 0;
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_iomux:
@@ -205,6 +208,9 @@ int hal_platformctl(void *ptr)
 			}
 			else if (data->action == pctl_get) {
 				ret = _gr716_getIomuxCfg(data->task.iocfg.pin, &data->task.iocfg.opt, &data->task.iocfg.pullup, &data->task.iocfg.pulldn);
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -221,6 +227,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 	hal_spinlockClear(&gr716_common.pltctlSp, &sc);
@@ -229,6 +236,7 @@ int hal_platformctl(void *ptr)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_cpuReboot(void)
 {
 	/* Reset to the built-in bootloader */

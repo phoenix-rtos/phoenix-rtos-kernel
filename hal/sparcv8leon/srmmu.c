@@ -20,7 +20,7 @@
 
 void hal_srmmuFlushTLB(const void *vaddr, u8 type)
 {
-	addr_t addr = (addr_t)(((u32)vaddr & ~(0xfff)) | ((type & 0xf) << 8));
+	addr_t addr = (addr_t)(((u32)vaddr & ~(0xfffU)) | (((u32)type & 0xfU) << 8));
 	hal_cpuStoreAlternate(addr, ASI_FLUSH_ALL, 0);
 }
 

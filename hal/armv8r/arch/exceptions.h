@@ -18,7 +18,7 @@
 
 #include "cpu.h"
 
-#define EXC_DEFAULT 128
+#define EXC_DEFAULT 128U
 
 #define EXC_UNDEFINED 3
 

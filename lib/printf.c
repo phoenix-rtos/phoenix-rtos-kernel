@@ -24,13 +24,13 @@
 #include "log/log.h"
 
 /* Flags used for printing */
-#define FLAG_SIGNED       0x1U
-#define FLAG_64BIT        0x2U
-#define FLAG_SPACE        0x10U
-#define FLAG_ZERO         0x20U
-#define FLAG_PLUS         0x40U
-#define FLAG_HEX          0x80U
-#define FLAG_LARGE_DIGITS 0x100U
+#define FLAG_SIGNED       0x1UL
+#define FLAG_64BIT        0x2UL
+#define FLAG_SPACE        0x10UL
+#define FLAG_ZERO         0x20UL
+#define FLAG_PLUS         0x40UL
+#define FLAG_HEX          0x80UL
+#define FLAG_LARGE_DIGITS 0x100UL
 
 
 static char *lib_sprintfInt(char *out, u64 num64, u32 flags, int min_number_len)
@@ -119,7 +119,8 @@ static char *lib_sprintfInt(char *out, u64 num64, u32 flags, int min_number_len)
 		}
 	}
 
-	const int digits_cnt = tmp - tmp_buf;
+	/* FIXME: Pointer arithmetic cast into potentially smaller type */
+	const int digits_cnt = (int)(tmp - tmp_buf);
 	int pad_len = min_number_len - digits_cnt - (sign != '\0' ? 1 : 0);
 
 	/* pad, if needed */
@@ -269,7 +270,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 					s = "(null)";
 				}
 
-				const unsigned int s_len = hal_strlen(s);
+				const unsigned int s_len = (unsigned int)hal_strlen(s);
 				hal_memcpy(out, s, s_len);
 				out += s_len;
 				break;
@@ -314,7 +315,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}
-				min_number_len = sizeof(void *) * 2U;
+				min_number_len = (u32)sizeof(void *) * 2U;
 				is_number = 1;
 				is_pointer = 1;
 				break;
@@ -337,7 +338,8 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 	}
 
 	*out = '\0';
-	return out - out_start;
+	/* FIXME: Pointer arithmetic cast into potentially smaller type */
+	return (int)(out - out_start);
 }
 
 
@@ -524,7 +526,7 @@ int lib_vprintf(const char *format, va_list ap)
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}
-				min_number_len = sizeof(void *) * 2U;
+				min_number_len = (u32)sizeof(void *) * 2U;
 				is_number = 1;
 				is_pointer = 1;
 

@@ -32,24 +32,25 @@ static struct {
 } l2c_common;
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void l2c_flushRange(unsigned int mode, ptr_t start, size_t size)
 {
 	u32 val;
 	ptr_t fstart;
 	ptr_t fend;
 	volatile u32 *freg = l2c_common.base + l2c_fma;
-	mode &= 0x7;
+	mode &= 0x7U;
 
 	/* TN-0021: flush register accesses must be done using atomic operations */
 
-	if ((mode >= l2c_inv_all) && (mode <= l2c_flush_inv_all)) {
+	if ((mode >= (unsigned int)l2c_inv_all) && (mode <= (unsigned int)l2c_flush_inv_all)) {
 		/* clang-format off */
 		__asm__ volatile ("swap [%1], %0" : "+r"(mode) : "r"(freg) : "memory");
 		/* clang-format on */
 	}
 	else {
-		fstart = start & ~(l2c_common.lineSz - 1);
-		fend = fstart + ((((start & (l2c_common.lineSz - 1)) + size) + (l2c_common.lineSz - 1)) & ~(l2c_common.lineSz - 1));
+		fstart = start & ~(l2c_common.lineSz - 1U);
+		fend = fstart + ((((start & (l2c_common.lineSz - 1U)) + size) + (l2c_common.lineSz - 1U)) & ~(l2c_common.lineSz - 1U));
 
 		while (fstart < fend) {
 			val = fstart | mode;
@@ -71,6 +72,7 @@ void l2c_flushRange(unsigned int mode, ptr_t start, size_t size)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void l2c_init(addr_t base)
 {
 	u32 reg;
@@ -79,7 +81,7 @@ void l2c_init(addr_t base)
 	l2c_common.base = _pmap_halMapDevice(PAGE_ALIGN(base), PAGE_OFFS(base), SIZE_PAGE);
 
 	reg = *(l2c_common.base + l2c_status);
-	lineSz = ((reg & (1 << 24)) != 0) ? 64 : 32;
+	lineSz = ((reg & (1UL << 24)) != 0UL) ? 64U : 32U;
 
 	l2c_common.lineSz = lineSz;
 
@@ -105,10 +107,10 @@ void l2c_init(addr_t base)
 
 	/* Initialize cache according to GRLIB-TN-0021 errata */
 	*(l2c_common.base + l2c_err) = 0;
-	*(l2c_common.base + l2c_accc) = ((1 << 14) | (1 << 13) | (1 << 10) | (1 << 4) | (1 << 2) | (1 << 1));
+	*(l2c_common.base + l2c_accc) = ((1UL << 14) | (1UL << 13) | (1UL << 10) | (1UL << 4) | (1UL << 2) | (1UL << 1));
 
 	/* Enable cache with default params, EDAC disabled, LRU */
-	*(l2c_common.base + l2c_ctrl) = (1 << 31);
+	*(l2c_common.base + l2c_ctrl) = (1UL << 31);
 
 	hal_cpuDataStoreBarrier();
 

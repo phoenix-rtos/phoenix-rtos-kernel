@@ -18,28 +18,28 @@
 
 #include "hal/types.h"
 
-/* Architecture dependent page attributes - used for mapping */
-#define PGHD_PRESENT    0x01
-#define PGHD_USER       0x04
-#define PGHD_WRITE      0x02
-#define PGHD_EXEC       0x00
-#define PGHD_DEV        0x00
-#define PGHD_NOT_CACHED 0x00
-#define PGHD_READ       0x00
+/* Architecure dependent page attributes - used for mapping */
+#define PGHD_PRESENT    0x01U
+#define PGHD_USER       0x04U
+#define PGHD_WRITE      0x02U
+#define PGHD_EXEC       0x00U
+#define PGHD_DEV        0x00U
+#define PGHD_NOT_CACHED 0x00U
+#define PGHD_READ       0x00U
 
 /* Page flags */
-#define PAGE_FREE 0x00000001
+#define PAGE_FREE 0x00000001U
 
-#define PAGE_OWNER_BOOT   (0 << 1)
-#define PAGE_OWNER_KERNEL (1 << 1)
-#define PAGE_OWNER_APP    (2 << 1)
+#define PAGE_OWNER_BOOT   (0U << 1)
+#define PAGE_OWNER_KERNEL (1U << 1)
+#define PAGE_OWNER_APP    (2U << 1)
 
-#define PAGE_KERNEL_SYSPAGE (1 << 4)
-#define PAGE_KERNEL_CPU     (2 << 4)
-#define PAGE_KERNEL_PTABLE  (3 << 4)
-#define PAGE_KERNEL_PMAP    (4 << 4)
-#define PAGE_KERNEL_STACK   (5 << 4)
-#define PAGE_KERNEL_HEAP    (6 << 4)
+#define PAGE_KERNEL_SYSPAGE (1U << 4)
+#define PAGE_KERNEL_CPU     (2U << 4)
+#define PAGE_KERNEL_PTABLE  (3U << 4)
+#define PAGE_KERNEL_PMAP    (4U << 4)
+#define PAGE_KERNEL_STACK   (5U << 4)
+#define PAGE_KERNEL_HEAP    (6U << 4)
 
 
 #ifndef __ASSEMBLY__

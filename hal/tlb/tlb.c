@@ -24,7 +24,7 @@
 
 
 /* Maximum number of TLB operations */
-#define MAX_CPU_TASK_COUNT 2
+#define MAX_CPU_TASK_COUNT 2U
 
 
 struct task_tlb {
@@ -60,12 +60,14 @@ static void tlb_invalidate(void *arg)
 	size_t i;
 	const void *entry;
 
-	if ((task->entry == NULL) && (task->count == 0)) {
+	if ((task->entry == NULL) && (task->count == 0U)) {
 		hal_tlbFlushLocal(task->pmap);
 	}
 	else {
-		for (i = 0, entry = task->entry; i < task->count; ++i, entry += SIZE_PAGE) {
+		entry = task->entry;
+		for (i = 0; i < task->count; ++i) {
 			hal_tlbInvalidateLocalEntry(task->pmap, entry);
+			entry += SIZE_PAGE;
 		}
 	}
 	hal_spinlockSet(task->spinlock, &sc);
@@ -94,7 +96,7 @@ void hal_tlbInvalidateEntry(const pmap_t *pmap, const void *vaddr, size_t count)
 	tlb_common.tlbs[id].tasks[tasks_size].pmap = pmap;
 	tlb_common.tlbs[id].tasks[tasks_size].entry = vaddr;
 	tlb_common.tlbs[id].tasks[tasks_size].count = count;
-	tlb_common.tlbs[id].tasks[tasks_size].confirmations = n - 1;
+	tlb_common.tlbs[id].tasks[tasks_size].confirmations = n - 1U;
 	tlb_common.tlbs[id].tasks[tasks_size].spinlock = &tlb_common.tlbs[id].task_spinlock;
 
 	++tlb_common.tlbs[id].tasks_size;
@@ -126,13 +128,13 @@ void hal_tlbCommit(spinlock_t *spinlock, spinlock_ctx_t *ctx)
 		for (i = 0; i < tlb_common.tlbs[id].tasks_size; ++i) {
 			confirmations += tlb_common.tlbs[id].tasks[i].confirmations;
 		}
-		if (confirmations == 0) {
+		if (confirmations == 0U) {
 			tlb_common.tlbs[id].tasks_size = 0;
 		}
 		hal_spinlockClear(&tlb_common.tlbs[id].task_spinlock, &sc);
 
 		hal_tlbShootdown();
-	} while (confirmations > 0);
+	} while (confirmations > 0U);
 	hal_spinlockClear(&tlb_common.tlbs[id].core_spinlock, ctx);
 }
 

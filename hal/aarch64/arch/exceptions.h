@@ -18,8 +18,8 @@
 
 #include "cpu.h"
 
-#define EXC_DEFAULT   64
-#define EXC_PAGEFAULT 65
+#define EXC_DEFAULT   64U
+#define EXC_PAGEFAULT 65U
 
 #define EXC_UNDEFINED               0x00
 #define EXC_TRAP_WFI_WFE            0x01

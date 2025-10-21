@@ -18,9 +18,9 @@
 
 #include "hal/types.h"
 
-#define ntoh16(x) (((x << 8) & 0xff00) | ((x >> 8) & 0xff))
-#define ntoh32(x) ((ntoh16(x) << 16) | ntoh16(x >> 16))
-#define ntoh64(x) ((ntoh32(x) << 32) | ntoh32(x >> 32))
+#define ntoh16(x) ((((x) << 8) & 0xff00U) | (((x) >> 8) & 0xffU))
+#define ntoh32(x) ((ntoh16(x) << 16) | (ntoh16((x) >> 16)))
+#define ntoh64(x) ((ntoh32(x) << 32) | (ntoh32((x) >> 32)))
 
 typedef struct {
 	addr_t start;
@@ -32,6 +32,9 @@ typedef struct {
 	addr_t base;
 	int intr;
 } dtb_serial_t;
+
+
+void dtb_parse(void);
 
 
 void dtb_getSystem(char **model, char **compatible);

@@ -18,15 +18,15 @@
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 
-#define PCTL_MIO_DRIVE_2mA     (0x0)
-#define PCTL_MIO_DRIVE_4mA     (0x1)
-#define PCTL_MIO_DRIVE_8mA     (0x2)
-#define PCTL_MIO_DRIVE_12mA    (0x3)
-#define PCTL_MIO_SCHMITT_nCMOS (1 << 3)
-#define PCTL_MIO_PULL_UP_nDOWN (1 << 4)
-#define PCTL_MIO_PULL_ENABLE   (1 << 5)
-#define PCTL_MIO_SLOW_nFAST    (1 << 6)
-#define PCTL_MIO_TRI_ENABLE    (1 << 7)
+#define PCTL_MIO_DRIVE_2mA     (0x0U)
+#define PCTL_MIO_DRIVE_4mA     (0x1U)
+#define PCTL_MIO_DRIVE_8mA     (0x2U)
+#define PCTL_MIO_DRIVE_12mA    (0x3U)
+#define PCTL_MIO_SCHMITT_nCMOS (1U << 3)
+#define PCTL_MIO_PULL_UP_nDOWN (1U << 4)
+#define PCTL_MIO_PULL_ENABLE   (1U << 5)
+#define PCTL_MIO_SLOW_nFAST    (1U << 6)
+#define PCTL_MIO_TRI_ENABLE    (1U << 7)
 
 
 /* clang-format off */
@@ -133,10 +133,10 @@ typedef struct {
 	union {
 		struct {
 			int dev;
-			char src;    /* 0, 2, 3 for most devices, 0, 2, 3, 4 for pctl_devclock_lpd_timestamp */
-			char div0;   /* 0 ~ 63 */
-			char div1;   /* 0 ~ 63 if supported by selected generator, otherwise 0 */
-			char active; /* 0, 1 for most devices, some have additional active bits  */
+			unsigned char src;    /* 0, 2, 3 for most devices, 0, 2, 3, 4 for pctl_devclock_lpd_timestamp */
+			unsigned char div0;   /* 0 ~ 63 */
+			unsigned char div1;   /* 0 ~ 63 if supported by selected generator, otherwise 0 */
+			unsigned char active; /* 0, 1 for most devices, some have additional active bits  */
 		} devclock;
 
 		struct {

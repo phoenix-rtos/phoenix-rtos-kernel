@@ -35,17 +35,17 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 	}
 
 	if (buf->r > buf->w) {
-		hal_memcpy(buf->data + buf->w, data, bytes = min(sz, buf->r - buf->w));
+		hal_memcpy(buf->data + buf->w, data, bytes = (unsigned int)min(sz, buf->r - buf->w));
 	}
 
 	else {
-		hal_memcpy(buf->data + buf->w, data, bytes = min(sz, buf->sz - buf->w));
+		hal_memcpy(buf->data + buf->w, data, bytes = (unsigned int)min(sz, buf->sz - buf->w));
 
 		if ((bytes < sz) && (buf->r != 0U)) {
 			data += bytes;
 			sz -= bytes;
 			hal_memcpy(buf->data, data, min(sz, buf->r));
-			bytes += min(sz, buf->r);
+			bytes += (unsigned int)min(sz, buf->r);
 		}
 	}
 
@@ -77,16 +77,16 @@ unsigned int _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
 		return 0U;
 	}
 	if (buf->w > buf->r) {
-		hal_memcpy(data, buf->data + buf->r, bytes = min(sz, buf->w - buf->r));
+		hal_memcpy(data, buf->data + buf->r, bytes = (unsigned int)min(sz, buf->w - buf->r));
 	}
 	else {
-		hal_memcpy(data, buf->data + buf->r, bytes = min(sz, buf->sz - buf->r));
+		hal_memcpy(data, buf->data + buf->r, bytes = (unsigned int)min(sz, buf->sz - buf->r));
 
 		if (bytes < sz) {
 			data += bytes;
 			sz -= bytes;
 			hal_memcpy(data, buf->data, min(sz, buf->w));
-			bytes += min(sz, buf->w);
+			bytes += (unsigned int)min(sz, buf->w);
 		}
 	}
 

@@ -18,12 +18,13 @@
 #include "hal/cpu.h"
 #include "hal/list.h"
 
-struct {
+static struct {
 	spinlock_t spinlock;
 	spinlock_t *first;
 } spinlock_common;
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	/* clang-format off */
@@ -46,16 +47,19 @@ void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	hal_cpuGetCycles((void *)&spinlock->e);
 
 	/* Calculate maximum and minimum lock time */
-	if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax)
+	if ((cycles_t)(spinlock->e - spinlock->b) > spinlock->dmax) {
 		spinlock->dmax = spinlock->e - spinlock->b;
+	}
 
-	if (spinlock->e - spinlock->b < spinlock->dmin)
+	if (spinlock->e - spinlock->b < spinlock->dmin) {
 		spinlock->dmin = spinlock->e - spinlock->b;
+	}
 
 	/* clang-format off */
 	__asm__ volatile (
@@ -107,7 +111,7 @@ void hal_spinlockDestroy(spinlock_t *spinlock)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_spinlockInit(void)
+__attribute__((section(".init"))) void _hal_spinlockInit(void)
 {
 	spinlock_common.first = NULL;
 	_hal_spinlockCreate(&spinlock_common.spinlock, "spinlock_common.spinlock");
