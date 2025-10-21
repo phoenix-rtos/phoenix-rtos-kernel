@@ -23,7 +23,7 @@ static struct {
 } console_common;
 
 
-void _hal_consolePrint(const char *s)
+static void _hal_consolePrint(const char *s)
 {
 	while (*s != '\0') {
 		hal_consolePutch(*s++);
@@ -39,6 +39,9 @@ void hal_consolePrint(int attr, const char *s)
 	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
 	}
+	else {
+		/* No action required*/
+	}
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
@@ -50,7 +53,7 @@ void hal_consolePutch(char c)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&console_common.spinlock, &sc);
-	hal_sbiPutchar(c);
+	(void)hal_sbiPutchar((int)c);
 	hal_spinlockClear(&console_common.spinlock, &sc);
 }
 

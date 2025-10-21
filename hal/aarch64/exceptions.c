@@ -22,12 +22,12 @@
 
 
 /* Set to 1 to print text descriptions of exceptions for architecture extensions */
-#define EXTENSION_DESCRIPTIONS 0
-#define N_EXCEPTIONS           64
+#define EXTENSION_DESCRIPTIONS 0U
+#define N_EXCEPTIONS           64U
 
-struct {
-	void (*handler[N_EXCEPTIONS])(unsigned int, exc_context_t *);
-	void (*defaultHandler)(unsigned int, exc_context_t *);
+static struct {
+	void (*handler[N_EXCEPTIONS])(unsigned int n, exc_context_t *ctx);
+	void (*defaultHandler)(unsigned int n, exc_context_t *ctx);
 	spinlock_t lock;
 } exceptions;
 
@@ -133,40 +133,40 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	const char *toAdd;
 
 	toAdd = "\nException #";
-	hal_strcpy(&buff[i], toAdd);
+	(void)hal_strcpy(&buff[i], toAdd);
 	i += hal_strlen(toAdd);
-	buff[i++] = '0' + n / 10;
-	buff[i++] = '0' + n % 10;
+	buff[i++] = '0' + n / 10U;
+	buff[i++] = '0' + n % 10U;
 	buff[i++] = ':';
 	buff[i++] = ' ';
 	toAdd = exceptionClassStr(n);
-	hal_strcpy(&buff[i], toAdd);
+	(void)hal_strcpy(&buff[i], toAdd);
 	i += hal_strlen(toAdd);
 
 	char prefix[6] = "    =";
-	for (j = 0; j < 29; j++) {
-		prefix[0] = ((j % 4) == 0) ? '\n' : ' ';
-		if (j < 10) {
+	for (j = 0; j < 29U; j++) {
+		prefix[0] = ((j % 4U) == 0U) ? '\n' : ' ';
+		if (j < 10U) {
 			prefix[1] = ' ';
 			prefix[2] = 'x';
 		}
 		else {
 			prefix[1] = 'x';
-			prefix[2] = '0' + (j / 10);
+			prefix[2] = '0' + ((signed char)j / 10);
 		}
 
-		prefix[3] = '0' + (j % 10);
-		i += hal_i2s(prefix, &buff[i], ctx->cpuCtx.x[j], 16, 1);
+		prefix[3] = '0' + ((signed char)j % 10);
+		i += hal_i2s(prefix, &buff[i], ctx->cpuCtx.x[j], 16U, 1U);
 	}
 
-	i += hal_i2s("  fp=", &buff[i], ctx->cpuCtx.x[29], 16, 1);
-	i += hal_i2s("  lr=", &buff[i], ctx->cpuCtx.x[30], 16, 1);
-	i += hal_i2s("  sp=", &buff[i], ctx->cpuCtx.sp, 16, 1);
+	i += hal_i2s("  fp=", &buff[i], ctx->cpuCtx.x[29], 16U, 1U);
+	i += hal_i2s("  lr=", &buff[i], ctx->cpuCtx.x[30], 16U, 1U);
+	i += hal_i2s("  sp=", &buff[i], ctx->cpuCtx.sp, 16U, 1U);
 
-	i += hal_i2s("\npsr=", &buff[i], ctx->cpuCtx.psr, 16, 1);
-	i += hal_i2s("  pc=", &buff[i], ctx->cpuCtx.pc, 16, 1);
-	i += hal_i2s(" esr=", &buff[i], ctx->esr, 16, 1);
-	i += hal_i2s(" far=", &buff[i], ctx->far, 16, 1);
+	i += hal_i2s("\npsr=", &buff[i], ctx->cpuCtx.psr, 16U, 1U);
+	i += hal_i2s("  pc=", &buff[i], ctx->cpuCtx.pc, 16U, 1U);
+	i += hal_i2s(" esr=", &buff[i], ctx->esr, 16U, 1U);
+	i += hal_i2s(" far=", &buff[i], ctx->far, 16U, 1U);
 
 	buff[i++] = '\n';
 	buff[i] = '\0';
@@ -193,6 +193,7 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	if (n >= N_EXCEPTIONS) {
@@ -209,42 +210,44 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
-	int prot = 0;
-	u32 iss;
+	unsigned int prot = 0;
+	unsigned long iss;
 
 	switch (n) {
 #ifdef __TARGET_AARCH64A53
 		case EXC_SERROR:
 			/* Some SError exceptions can result from writing to an invalid address */
-			iss = ctx->esr & ((1 << 25) - 1);
-			if ((iss & (1 << 24)) == 0) {
-				return PROT_NONE;
+			iss = ctx->esr & ((1UL << 25) - 1U);
+			if ((iss & (1UL << 24)) == 0U) {
+				return (int)PROT_NONE;
 			}
 
-			iss = (iss & 0x3) | ((iss >> 20) & 0xc);
-			prot |= (iss == 0b0010) ? PROT_WRITE : 0; /* SLVERR */
-			prot |= (iss == 0b0000) ? PROT_WRITE : 0; /* DECERR */
-			return prot;
+			iss = (iss & 0x3U) | ((iss >> 20) & 0xcU);
+			prot |= (iss == 0b0010U) ? PROT_WRITE : 0U; /* SLVERR */
+			prot |= (iss == 0b0000U) ? PROT_WRITE : 0U; /* DECERR */
+			return (int)prot;
 #endif
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case EXC_INSTR_ABORT_EL0:
 			prot |= PROT_USER;
 			/* Fall-through */
 
 		case EXC_INSTR_ABORT_EL1:
 			prot |= PROT_EXEC | PROT_READ;
-			return prot;
+			return (int)prot;
 
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case EXC_DATA_ABORT_EL0:
 			prot |= PROT_USER;
 			/* Fall-through */
 
 		case EXC_DATA_ABORT_EL1:
-			iss = ctx->esr & ((1 << 25) - 1);
-			prot |= ((iss & (1 << 6)) == 0) ? PROT_READ : PROT_WRITE;
-			return prot;
+			iss = ctx->esr & ((1UL << 25) - 1U);
+			prot |= ((iss & (1UL << 6)) == 0U) ? PROT_READ : PROT_WRITE;
+			return (int)prot;
 
 		default:
-			return PROT_NONE;
+			return (int)PROT_NONE;
 	}
 }
 
@@ -256,15 +259,18 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 
 void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 {
-	u32 iss;
+	unsigned long iss;
 
 	switch (n) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case EXC_INSTR_ABORT_EL0: /* Fall-through */
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case EXC_INSTR_ABORT_EL1: /* Fall-through */
-		case EXC_DATA_ABORT_EL0:  /* Fall-through */
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
+		case EXC_DATA_ABORT_EL0: /* Fall-through */
 		case EXC_DATA_ABORT_EL1:
-			iss = ctx->esr & ((1 << 25) - 1);
-			return ((iss & (1 << 10)) == 0) ? (void *)ctx->far : NULL;
+			iss = ctx->esr & ((1UL << 25) - 1U);
+			return ((iss & (1UL << 10)) == 0U) ? (void *)ctx->far : NULL;
 
 		default:
 			return NULL;
@@ -272,7 +278,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int n, exc_context_t *ctx))
 {
 	int ret = 0;
 	spinlock_ctx_t sc;
@@ -302,7 +308,7 @@ int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_c
 
 void _hal_exceptionsInit(void)
 {
-	int i;
+	unsigned int i;
 	hal_spinlockCreate(&exceptions.lock, "exceptions.lock");
 
 	exceptions.defaultHandler = exceptions_defaultHandler;

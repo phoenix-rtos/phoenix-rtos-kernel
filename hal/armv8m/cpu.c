@@ -75,7 +75,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *
 
 	(void)tls;
 
-	*nctx = 0;
+	*nctx = NULL;
 	if (kstack == NULL) {
 		return -1;
 	}
@@ -110,6 +110,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *
 	ctx->hwctx.r3 = 0x33333333;
 	ctx->hwctx.r12 = 0xcccccccc;
 	ctx->hwctx.lr = 0xeeeeeeee;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->hwctx.pc = (u32)start;
 	ctx->hwctx.psr = DEFAULT_PSR;
 	if (ustack != NULL) {

@@ -65,12 +65,14 @@
 #define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "t used as type -  wrong interpretation" */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (void *)(((ptr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) = (void *)(((ptr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7*/
 
 
 typedef struct {

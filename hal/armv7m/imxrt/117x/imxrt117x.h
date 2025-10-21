@@ -20,9 +20,6 @@
 #include "hal/types.h"
 
 
-extern int hal_platformctl(void *ptr);
-
-
 extern void _imxrt_wdgReload(void);
 
 

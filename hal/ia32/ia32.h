@@ -21,6 +21,8 @@
 /* io access */
 
 
+/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+
 static inline u8 hal_inb(u16 addr)
 {
 	u8 b;
@@ -43,36 +45,6 @@ static inline void hal_outb(u16 addr, u8 b)
 		"outb %1, %0"
 	:
 	: "d" (addr), "a" (b)
-	: );
-	/* clang-format on */
-
-	return;
-}
-
-
-static inline u16 hal_inw(u16 addr)
-{
-	u16 w;
-
-	/* clang-format off */
-	__asm__ volatile (
-		"inw %1, %0\n\t"
-	: "=a" (w)
-	: "d" (addr)
-	: );
-	/* clang-format on */
-
-	return w;
-}
-
-
-static inline void hal_outw(u16 addr, u16 w)
-{
-	/* clang-format off */
-	__asm__ volatile (
-		"outw %1, %0"
-	:
-	: "d" (addr), "a" (w)
 	: );
 	/* clang-format on */
 
@@ -110,21 +82,6 @@ static inline void hal_outl(u16 addr, u32 l)
 }
 
 
-static inline void hal_wrmsr(u32 id, u64 v)
-{
-	__asm__ volatile ("wrmsr":: "c" (id), "A" (v));
-}
-
-
-static inline u64 hal_rdmsr(u32 id)
-{
-	u64 v;
-
-	__asm__ volatile ("rdmsr" : "=A" (v) : "c" (id));
-	return v;
-}
-
-
 /* memory management */
 
 
@@ -142,3 +99,5 @@ static inline void hal_cpuSwitchSpace(addr_t cr3)
 }
 
 #endif
+
+/* parasoft-end-suppress MISRAC2012-DIR_4_3 */

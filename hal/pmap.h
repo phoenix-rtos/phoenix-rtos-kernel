@@ -33,21 +33,23 @@ extern addr_t pmap_destroy(pmap_t *pmap, int *i);
 
 
 /* Available only on NOMMU */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Used only in targets with NOMMU" */
 extern int pmap_addMap(pmap_t *pmap, unsigned int map);
 
 
 /* Available only on NOMMU */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Used only in targets with NOMMU" */
 extern int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size);
 
 
 extern void pmap_switch(pmap_t *pmap);
 
 
-extern int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, int attrs, page_t *alloc);
+extern int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc);
 
 
 /* Function removes mapping in range [vstart, vend) */
-extern int pmap_remove(pmap_t *pmap, void *vaddr, void *vend);
+extern int pmap_remove(pmap_t *pmap, void *vstart, void *vend);
 
 
 extern addr_t pmap_resolve(pmap_t *pmap, void *vaddr);

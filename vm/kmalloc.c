@@ -121,7 +121,7 @@ static int _kmalloc_addZone(u8 hdridx, u8 idx)
 	}
 
 	/* Add new zone */
-	if (_vm_zoneCreate(nz, 0x1UL << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), SIZE_PAGE / (0x1UL << idx))) < 0) {
+	if (_vm_zoneCreate(nz, 0x1UL << idx, (unsigned int)max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), SIZE_PAGE / (0x1UL << idx))) < 0) {
 		(void)_kmalloc_free(hdridx, nz);
 		return -ENOMEM;
 	}
@@ -148,12 +148,14 @@ void *vm_kmalloc(size_t size)
 	size = size < 16U ? 16U : size;
 
 	idx = (u8)hal_cpuGetLastBit(size);
+	/* parasoft-begin-suppress MISRAC2012-RULE_14_3 "conditional compilation" */
 	if ((u8)hal_cpuGetFirstBit(size) < idx) {
 		idx++;
 	}
 	if (idx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		return NULL;
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_14_3 */
 
 	hdridx = (u8)hal_cpuGetLastBit(sizeof(vm_zone_t));
 	if ((u8)hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
@@ -220,12 +222,14 @@ void vm_kfree(void *p)
 	u8 hdridx;
 
 	hdridx = (u8)hal_cpuGetLastBit(sizeof(vm_zone_t));
+	/* parasoft-begin-suppress MISRAC2012-RULE_14_3 "conditional compilation" */
 	if ((u8)hal_cpuGetFirstBit(sizeof(vm_zone_t)) < hdridx) {
 		hdridx++;
 	}
 	if (hdridx >= sizeof(kmalloc_common.sizes) / sizeof(vm_zone_t *)) {
 		return;
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_14_3 */
 
 	(void)proc_lockSet(&kmalloc_common.lock);
 
@@ -293,7 +297,7 @@ int _kmalloc_init(void)
 	kmalloc_common.zonehdrs = 16;
 
 	/* Add first zone_t zone */
-	(void)_vm_zoneCreate(&kmalloc_common.firstzone, 0x1UL << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1UL << hdridx)));
+	(void)_vm_zoneCreate(&kmalloc_common.firstzone, 0x1UL << hdridx, (unsigned int)max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1UL << hdridx)));
 	LIST_ADD(&kmalloc_common.sizes[hdridx], &kmalloc_common.firstzone);
 	(void)lib_rbInsert(&kmalloc_common.tree, &kmalloc_common.firstzone.linkage);
 

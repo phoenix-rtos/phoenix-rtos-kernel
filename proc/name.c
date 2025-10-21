@@ -44,7 +44,7 @@ static unsigned int dcache_strHash(const char *str)
 	unsigned char c;
 
 	/* MISRA Rule 10.3: TODO: check if some undesired overflow is not introduced with this cast */
-	while ((c = (unsigned char)*str++) != (unsigned char)'\0') {
+	while ((c = (unsigned char)*str++) != 0U) {
 		hash += ((unsigned int)c << 4U) + ((unsigned int)c >> 4U) * 11U;
 	}
 
@@ -259,7 +259,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 			break;
 		}
 
-		i += (unsigned int)err + 1U;
+		i += (size_t)err + 1U;
 		if (i > len) {
 			err = -EINVAL;
 			break;
@@ -514,7 +514,7 @@ off_t proc_size(oid_t oid)
 		err = msg->o.err;
 	}
 	if (err == EOK) {
-		err = msg->o.attr.val;
+		err = (off_t)msg->o.attr.val;
 	}
 
 	vm_kfree(msg);

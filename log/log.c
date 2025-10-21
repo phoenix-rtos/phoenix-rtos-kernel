@@ -137,7 +137,7 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	msg.pid = r->pid;
 	msg.o.data = rmsg->odata;
 	msg.o.size = rmsg->osize;
-	msg.o.err = err;
+	msg.o.err = (int)err;
 
 	(void)proc_respond(rmsg->oid.port, &msg, (msg_rid_t)rmsg->rid);
 
@@ -349,7 +349,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 				msg->o.err = -EINVAL;
 			}
 			else {
-				msg->o.err = log_read(r, msg->o.data, msg->o.size);
+				msg->o.err = (int)log_read(r, msg->o.data, msg->o.size);
 				if ((msg->o.err == 0) && (r->nonblocking == 0U)) {
 					msg->o.err = log_readerBlock(r, msg, oid, rid);
 					if (msg->o.err == EOK) {

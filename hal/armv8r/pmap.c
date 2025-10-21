@@ -18,9 +18,11 @@
 
 #include "hal/pmap.h"
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Provided by toolchain" */
 /* Linker symbols */
 extern unsigned int _end;
 extern unsigned int __bss_start;
+/* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
 u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
 

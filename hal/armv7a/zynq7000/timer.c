@@ -34,12 +34,43 @@ struct {
 
 
 enum {
-	clk_ctrl = 0, clk_ctrl2, clk_ctrl3, cnt_ctrl, cnt_ctrl2, cnt_ctrl3, cnt_value, cnt_value2, cnt_value3, interval_val, interval_cnt2, interval_cnt3,
-	match0, match1_cnt2, match1_cnt3, match1, match2_cnt2, match2_cnt3, match2, match3_cnt2, match3_cnt3, isr, irq_reg2, irq_reg3, ier, irq_en2,
-	irq_en3, ev_ctrl_t1, ev_ctrl_t2, ev_ctrl_t3, ev_reg1, ev_reg2, ev_reg3
+	clk_ctrl = 0,
+	clk_ctrl2,
+	clk_ctrl3,
+	cnt_ctrl,
+	cnt_ctrl2,
+	cnt_ctrl3,
+	cnt_value,
+	cnt_value2,
+	cnt_value3,
+	interval_val,
+	interval_cnt2,
+	interval_cnt3,
+	match0,
+	match1_cnt2,
+	match1_cnt3,
+	match1,
+	match2_cnt2,
+	match2_cnt3,
+	match2,
+	match3_cnt2,
+	match3_cnt3,
+	isr,
+	irq_reg2,
+	irq_reg3,
+	ier,
+	irq_en2,
+	irq_en3,
+	ev_ctrl_t1,
+	ev_ctrl_t2,
+	ev_ctrl_t3,
+	ev_reg1,
+	ev_reg2,
+	ev_reg3
 };
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;
 
 
@@ -111,7 +142,7 @@ time_t hal_timerGetUs(void)
 }
 
 
-int hal_timerRegister(int (*f)(unsigned int, cpu_context_t *, void *), void *data, intr_handler_t *h)
+int hal_timerRegister(int (*f)(unsigned int n, cpu_context_t *ctx, void *arg), void *data, intr_handler_t *h)
 {
 	h->f = f;
 	h->n = TIMER_IRQ_ID;

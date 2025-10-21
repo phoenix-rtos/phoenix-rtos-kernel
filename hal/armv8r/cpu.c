@@ -29,7 +29,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *
 
 	(void)tls;
 
-	*nctx = 0;
+	*nctx = NULL;
 	if (kstack == NULL) {
 		return -1;
 	}
@@ -71,6 +71,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *
 	ctx->ip = 0xcccccccc;
 	ctx->lr = 0xeeeeeeee;
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->pc = (u32)start;
 
 	/* Enable interrupts, set normal execution mode */
@@ -111,6 +112,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
 	signalCtx->pc = (u32)handler & ~1;
 	signalCtx->sp -= sizeof(cpu_context_t);
 

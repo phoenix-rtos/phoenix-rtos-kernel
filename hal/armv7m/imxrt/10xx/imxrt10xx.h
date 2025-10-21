@@ -54,9 +54,6 @@ enum { clk_div_arm = 0, clk_div_periphclk2, clk_div_semc, clk_div_ahb, clk_div_i
 enum { clk_mode_run = 0, clk_mode_wait, clk_mode_stop };
 
 
-extern int hal_platformctl(void *ptr);
-
-
 extern void _imxrt_ccmInitExterlnalClk(void);
 
 

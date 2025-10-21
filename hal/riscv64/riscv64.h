@@ -24,10 +24,10 @@
 	({ \
 		unsigned long __v = (unsigned long)(val); \
 		__asm__ volatile( \
-			"csrs " #csr ", %0" \
-			: \
-			: "rK"(__v) \
-			: "memory"); \
+				"csrs " #csr ", %0" \
+				: \
+				: "rK"(__v) \
+				: "memory"); \
 	})
 
 
@@ -35,10 +35,10 @@
 	({ \
 		unsigned long __v = (unsigned long)(val); \
 		__asm__ volatile( \
-			"csrw " #csr ", %0" \
-			: \
-			: "rK"(__v) \
-			: "memory"); \
+				"csrw " #csr ", %0" \
+				: \
+				: "rK"(__v) \
+				: "memory"); \
 	})
 
 
@@ -46,10 +46,10 @@
 	({ \
 		register unsigned long __v; \
 		__asm__ volatile( \
-			"csrr %0, " #csr \
-			: "=r"(__v) \
-			: \
-			: "memory"); \
+				"csrr %0, " #csr \
+				: "=r"(__v) \
+				: \
+				: "memory"); \
 		__v; \
 	})
 
@@ -58,10 +58,10 @@
 	({ \
 		unsigned long __v = (unsigned long)(val); \
 		__asm__ volatile( \
-			"csrc " #csr ", %0" \
-			: \
-			: "rK"(__v) \
-			: "memory"); \
+				"csrc " #csr ", %0" \
+				: \
+				: "rK"(__v) \
+				: "memory"); \
 	})
 
 
@@ -97,11 +97,12 @@ static inline void hal_cpuInstrBarrier(void)
 	/* clang-format on */
 }
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Definition in assembly" */
 void hal_cpuDCacheInval(void *va, size_t size);
 
 
 void hal_cpuDCacheFlush(void *va, size_t size);
+/* parasoft-end-suppress MISRAC2012-RULE_8_6 "Definition in assembly" */
 
 
 #endif

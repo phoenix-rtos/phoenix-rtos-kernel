@@ -76,6 +76,7 @@ void _hal_interruptsInitPerCPU(void);
 
 extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;
 
 

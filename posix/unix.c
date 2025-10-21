@@ -654,7 +654,7 @@ int unix_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 		}
 
 		/* FIXME: caller may block indefinitely if remote gets closed after successful unixsock_get call */
-		r = unixsock_get(oid.id);
+		r = unixsock_get((unsigned int)oid.id);
 		if (r == NULL) {
 			err = -ECONNREFUSED;
 			break;
@@ -754,7 +754,7 @@ int unix_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 		switch (optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
-					*((unsigned int *)optval) = s->buffsz;
+					*((size_t *)optval) = s->buffsz;
 					*optlen = sizeof(int);
 				}
 				else {
@@ -896,7 +896,7 @@ static ssize_t send(unsigned socket, const void *buf, size_t len, unsigned flags
 					break;
 				}
 
-				r = unixsock_get(oid.id);
+				r = unixsock_get((unsigned int)oid.id);
 				if (r == NULL) {
 					err = -ENOTSOCK;
 					break;

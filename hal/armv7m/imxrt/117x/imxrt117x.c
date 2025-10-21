@@ -15,6 +15,7 @@
 
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "hal/armv7m/imxrt/halsyspage.h"
 
 #include "include/errno.h"
@@ -221,8 +222,8 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 	}
 
 	/* APC field is not documented. Leave it alone for now. */
-	//t &= ~(0xf << 28);
-	//t |= (apc & 0xf) << 28;
+	// t &= ~(0xf << 28);
+	// t |= (apc & 0xf) << 28;
 
 	(*reg) = t;
 	hal_cpuDataMemoryBarrier();
@@ -505,7 +506,7 @@ static int _imxrt_setIOgpr(int which, unsigned int what)
 	*(imxrt_common.gpr + which) = what;
 	hal_cpuDataSyncBarrier();
 
-	return  0;
+	return 0;
 }
 
 
@@ -537,7 +538,7 @@ static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 	*(imxrt_common.lpsrgpr + which) = what;
 	hal_cpuDataSyncBarrier();
 
-	return  0;
+	return 0;
 }
 
 
@@ -595,7 +596,7 @@ int hal_platformctl(void *ptr)
 		case pctl_devclock:
 			if (data->action == pctl_set) {
 				ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.div, data->devclock.mux,
-					data->devclock.mfd, data->devclock.mfn, data->devclock.state);
+						data->devclock.mfd, data->devclock.mfn, data->devclock.state);
 			}
 			else if (data->action == pctl_get) {
 				ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state);
@@ -664,11 +665,11 @@ int hal_platformctl(void *ptr)
 		case pctl_iopad:
 			if (data->action == pctl_set) {
 				ret = _imxrt_setIOpad(data->iopad.pad, data->iopad.sre, data->iopad.dse, data->iopad.pue,
-					data->iopad.pus, data->iopad.ode, data->iopad.apc);
+						data->iopad.pus, data->iopad.ode, data->iopad.apc);
 			}
 			else if (data->action == pctl_get) {
 				ret = _imxrt_getIOpad(data->iopad.pad, &data->iopad.sre, &data->iopad.dse, &data->iopad.pue,
-					&data->iopad.pus, &data->iopad.ode, &data->iopad.apc);
+						&data->iopad.pus, &data->iopad.ode, &data->iopad.apc);
 			}
 			break;
 

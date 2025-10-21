@@ -32,6 +32,7 @@ static inline void hal_cpuDataStoreBarrier(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline u32 hal_cpuLoadAlternate(addr_t addr, const u32 asi)
 {
 	/* clang-format off */

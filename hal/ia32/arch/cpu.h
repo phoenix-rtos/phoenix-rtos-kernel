@@ -33,40 +33,40 @@
 
 
 /* Bitfields used to construct interrupt descriptors */
-#define IGBITS_DPL0   0x00000000
-#define IGBITS_DPL3   0x00006000
-#define IGBITS_PRES   0x00008000
-#define IGBITS_SYSTEM 0x00000000
-#define IGBITS_IRQEXC 0x00000e00
-#define IGBITS_TRAP   0x00000f00
-#define IGBITS_TSS    0x00000500
+#define IGBITS_DPL0   0x00000000U
+#define IGBITS_DPL3   0x00006000U
+#define IGBITS_PRES   0x00008000U
+#define IGBITS_SYSTEM 0x00000000U
+#define IGBITS_IRQEXC 0x00000e00U
+#define IGBITS_TRAP   0x00000f00U
+#define IGBITS_TSS    0x00000500U
 
 
 /* Bitfields used to construct segment descriptors */
-#define DBITS_4KB 0x00800000 /* 4KB segment granularity */
-#define DBITS_1B  0x00000000 /* 1B segment granularity */
+#define DBITS_4KB 0x00800000U /* 4KB segment granularity */
+#define DBITS_1B  0x00000000U /* 1B segment granularity */
 
-#define DBITS_CODE32 0x00400000 /* 32-bit code segment */
-#define DBITS_CODE16 0x00000000 /* 16-bit code segment */
+#define DBITS_CODE32 0x00400000U /* 32-bit code segment */
+#define DBITS_CODE16 0x00000000U /* 16-bit code segment */
 
-#define DBITS_PRESENT    0x00008000 /* present segment */
-#define DBITS_NOTPRESENT 0x00000000 /* segment not present in the physical memory*/
+#define DBITS_PRESENT    0x00008000U /* present segment */
+#define DBITS_NOTPRESENT 0x00000000U /* segment not present in the physical memory*/
 
-#define DBITS_DPL0 0x00000000 /* kernel privilege level segment */
-#define DBITS_DPL3 0x00006000 /* user privilege level segment */
+#define DBITS_DPL0 0x00000000U /* kernel privilege level segment */
+#define DBITS_DPL3 0x00006000U /* user privilege level segment */
 
-#define DBITS_SYSTEM 0x00000000 /* segment used by system */
-#define DBITS_APP    0x00001000 /* segment used by application */
+#define DBITS_SYSTEM 0x00000000U /* segment used by system */
+#define DBITS_APP    0x00001000U /* segment used by application */
 
-#define DBITS_CODE 0x00000800 /* code segment descriptor */
-#define DBITS_DATA 0x00000000 /* data segment descriptor */
+#define DBITS_CODE 0x00000800U /* code segment descriptor */
+#define DBITS_DATA 0x00000000U /* data segment descriptor */
 
-#define DBITS_EXPDOWN   0x00000400 /* data segment is expandable down */
-#define DBITS_WRT       0x00000200 /* writing to data segment is permitted */
-#define DBITS_ACCESIBLE 0x00000100 /* data segment is accessible */
+#define DBITS_EXPDOWN   0x00000400U /* data segment is expandable down */
+#define DBITS_WRT       0x00000200U /* writing to data segment is permitted */
+#define DBITS_ACCESIBLE 0x00000100U /* data segment is accessible */
 
-#define DBITS_CONFORM 0x00000400 /* conforming code segment */
-#define DBITS_READ    0x00000200 /* read from code segment is permitted */
+#define DBITS_CONFORM 0x00000400U /* conforming code segment */
+#define DBITS_READ    0x00000200U /* read from code segment is permitted */
 
 
 /*
@@ -75,7 +75,7 @@
 
 
 /* Descriptor of Task State Segment - used in CPU context switching */
-#define DESCR_TSS (DBITS_1B | DBITS_PRESENT | DBITS_DPL0 | DBITS_SYSTEM | 0x00000900)
+#define DESCR_TSS (DBITS_1B | DBITS_PRESENT | DBITS_DPL0 | DBITS_SYSTEM | 0x00000900U)
 
 /* Descriptor of user task code segment */
 #define DESCR_UCODE (DBITS_4KB | DBITS_CODE32 | DBITS_PRESENT | DBITS_DPL3 | DBITS_APP | DBITS_CODE | DBITS_READ)
@@ -101,10 +101,10 @@
 #define SEL_UDATA 35
 
 /* The first index in GDT that can be used for TSS and TLS entries */
-#define GDT_FREE_SEL_IDX 5
+#define GDT_FREE_SEL_IDX 5U
 
-#define CR0_TS_BIT       8u
-#define FPU_CONTEXT_SIZE 108u /* sizeof(fpu_context_t) */
+#define CR0_TS_BIT       8U
+#define FPU_CONTEXT_SIZE 108U /* sizeof(fpu_context_t) */
 
 /* IO Ports */
 /* Ports of (8259A) PIC (Programmable Interrupt Controller) */
@@ -122,56 +122,56 @@
 /* There are objects in memory that require O(MAX_CPU_COUNT^2) memory. */
 #define MAX_CPU_COUNT 64
 
-#define LAPIC_DEFAULT_ADDRESS 0xfee00000u
+#define LAPIC_DEFAULT_ADDRESS 0xfee00000U
 
 /* Local APIC offsets */
-#define LAPIC_ID_REG          0x20u
-#define LAPIC_VERSION_REG     0x30u
-#define LAPIC_TASK_PRIO_REG   0x80u
-#define LAPIC_ARBI_PRIO_REG   0x90u
-#define LAPIC_PROC_PRIO_REG   0xa0u
-#define LAPIC_EOI_REG         0xb0u
-#define LAPIC_REMO_READ_REG   0xc0u
-#define LAPIC_LOGI_DEST_REG   0xd0u
-#define LAPIC_DEST_FORM_REG   0xe0u
-#define LAPIC_SPUR_IRQ_REG    0xf0u
-#define LAPIC_ISR_REG_0_31    0x100u
-#define LAPIC_ISR_REG_32_63   0x110u
-#define LAPIC_ISR_REG_64_95   0x120u
-#define LAPIC_ISR_REG_96_127  0x130u
-#define LAPIC_ISR_REG_128_159 0x140u
-#define LAPIC_ISR_REG_160_191 0x150u
-#define LAPIC_ISR_REG_192_223 0x160u
-#define LAPIC_ISR_REG_224_255 0x170u
-#define LAPIC_TMR_REG_0_31    0x180u
-#define LAPIC_TMR_REG_32_63   0x190u
-#define LAPIC_TMR_REG_64_95   0x1a0u
-#define LAPIC_TMR_REG_96_127  0x1b0u
-#define LAPIC_TMR_REG_128_159 0x1c0u
-#define LAPIC_TMR_REG_160_191 0x1d0u
-#define LAPIC_TMR_REG_192_223 0x1e0u
-#define LAPIC_TMR_REG_224_255 0x1f0u
-#define LAPIC_IRR_REG_0_31    0x200u
-#define LAPIC_IRR_REG_32_63   0x210u
-#define LAPIC_IRR_REG_64_95   0x220u
-#define LAPIC_IRR_REG_96_127  0x230u
-#define LAPIC_IRR_REG_128_159 0x240u
-#define LAPIC_IRR_REG_160_191 0x250u
-#define LAPIC_IRR_REG_192_223 0x260u
-#define LAPIC_IRR_REG_224_255 0x270u
-#define LAPIC_ERR_STAT_REG    0x280u
-#define LAPIC_LVT_CMCI_REG    0x2f0u
-#define LAPIC_ICR_REG_0_31    0x300u
-#define LAPIC_ICR_REG_32_63   0x310u
-#define LAPIC_LVT_TIMER_REG   0x320u
-#define LAPIC_LVT_THERMO_REG  0x330u
-#define LAPIC_LVT_PMC_REG     0x340u
-#define LAPIC_LVT_LINT0_REG   0x350u
-#define LAPIC_LVT_LINT1_REG   0x360u
-#define LAPIC_LVT_ERR_REG     0x370u
-#define LAPIC_LVT_TMR_IC_REG  0x380u
-#define LAPIC_LVT_TMR_CC_REG  0x390u
-#define LAPIC_LVT_TMR_DC_REG  0x3e0u
+#define LAPIC_ID_REG          0x20U
+#define LAPIC_VERSION_REG     0x30U
+#define LAPIC_TASK_PRIO_REG   0x80U
+#define LAPIC_ARBI_PRIO_REG   0x90U
+#define LAPIC_PROC_PRIO_REG   0xa0U
+#define LAPIC_EOI_REG         0xb0U
+#define LAPIC_REMO_READ_REG   0xc0U
+#define LAPIC_LOGI_DEST_REG   0xd0U
+#define LAPIC_DEST_FORM_REG   0xe0U
+#define LAPIC_SPUR_IRQ_REG    0xf0U
+#define LAPIC_ISR_REG_0_31    0x100U
+#define LAPIC_ISR_REG_32_63   0x110U
+#define LAPIC_ISR_REG_64_95   0x120U
+#define LAPIC_ISR_REG_96_127  0x130U
+#define LAPIC_ISR_REG_128_159 0x140U
+#define LAPIC_ISR_REG_160_191 0x150U
+#define LAPIC_ISR_REG_192_223 0x160U
+#define LAPIC_ISR_REG_224_255 0x170U
+#define LAPIC_TMR_REG_0_31    0x180U
+#define LAPIC_TMR_REG_32_63   0x190U
+#define LAPIC_TMR_REG_64_95   0x1a0U
+#define LAPIC_TMR_REG_96_127  0x1b0U
+#define LAPIC_TMR_REG_128_159 0x1c0U
+#define LAPIC_TMR_REG_160_191 0x1d0U
+#define LAPIC_TMR_REG_192_223 0x1e0U
+#define LAPIC_TMR_REG_224_255 0x1f0U
+#define LAPIC_IRR_REG_0_31    0x200U
+#define LAPIC_IRR_REG_32_63   0x210U
+#define LAPIC_IRR_REG_64_95   0x220U
+#define LAPIC_IRR_REG_96_127  0x230U
+#define LAPIC_IRR_REG_128_159 0x240U
+#define LAPIC_IRR_REG_160_191 0x250U
+#define LAPIC_IRR_REG_192_223 0x260U
+#define LAPIC_IRR_REG_224_255 0x270U
+#define LAPIC_ERR_STAT_REG    0x280U
+#define LAPIC_LVT_CMCI_REG    0x2f0U
+#define LAPIC_ICR_REG_0_31    0x300U
+#define LAPIC_ICR_REG_32_63   0x310U
+#define LAPIC_LVT_TIMER_REG   0x320U
+#define LAPIC_LVT_THERMO_REG  0x330U
+#define LAPIC_LVT_PMC_REG     0x340U
+#define LAPIC_LVT_LINT0_REG   0x350U
+#define LAPIC_LVT_LINT1_REG   0x360U
+#define LAPIC_LVT_ERR_REG     0x370U
+#define LAPIC_LVT_TMR_IC_REG  0x380U
+#define LAPIC_LVT_TMR_CC_REG  0x390U
+#define LAPIC_LVT_TMR_DC_REG  0x3e0U
 
 
 #ifndef __ASSEMBLY__
@@ -180,16 +180,19 @@
 #define SYSTICK_INTERVAL 10000
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
+#define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "t used as type -  wrong interpretation" */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		if (n == 0) \
-			ustack += 4; \
-		v = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		if ((n) == 0U) { \
+			(ustack) += 4; \
+		} \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7*/
 
 
 #pragma pack(push, 1)
@@ -271,7 +274,7 @@ typedef struct {
 	unsigned int cpus[MAX_CPU_COUNT];
 } hal_cpu_t;
 
-extern hal_cpu_t cpu;
+extern hal_cpu_t hal_cpu;
 void hal_cpuSendIPI(unsigned int cpu, unsigned int intrAndFlags);
 
 
@@ -315,9 +318,10 @@ static inline void hal_cpuGetCycles(cycles_t *cb)
 /* bit operations */
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	int lb;
+	unsigned int lb;
 
 	/* clang-format off */
 	__asm__ volatile (
@@ -334,9 +338,10 @@ static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
-	int fb;
+	unsigned int fb;
 
 	/* clang-format off */
 	__asm__ volatile (
@@ -367,12 +372,6 @@ static inline void hal_cpuSetGot(void *got)
 }
 
 
-static inline void *hal_cpuGetGot(void)
-{
-	return NULL;
-}
-
-
 static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 {
 	curr->savesp = (u32)next + sizeof(u32);
@@ -398,6 +397,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 /* Atomic operations */
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline u32 hal_cpuAtomAdd(volatile u32 *dest, u32 val)
 {
 	/* clang-format off */

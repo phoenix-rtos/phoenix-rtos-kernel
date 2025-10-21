@@ -45,7 +45,7 @@
 #define NO_IRQ      0x80              /* mask to disable IRQ             */
 #define NO_FIQ      0x40              /* mask to disable FIQ             */
 #define NO_INT      (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ     */
-#define THUMB_STATE 0x20
+#define THUMB_STATE 0x20U
 
 
 #ifndef __ASSEMBLY__
@@ -59,12 +59,14 @@
 #define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "t used as type -  wrong interpretation" */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (void *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) = (void *)(((addr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7*/
 
 typedef struct _cpu_context_t {
 	u32 savesp;
@@ -272,9 +274,6 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 static inline void hal_cpuSmpSync(void)
 {
 }
-
-
-unsigned int hal_cpuGetCount(void);
 
 
 #endif

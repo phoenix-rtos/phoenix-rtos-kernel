@@ -73,50 +73,50 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	hal_strcpy(&buff[i], mnemonics[n]);
 	i += hal_strlen(mnemonics[n]);
 
-	i += hal_i2s("\n r0=", &buff[i], hwctx->r0, 16, 1);
-	i += hal_i2s("  r1=", &buff[i], hwctx->r1, 16, 1);
-	i += hal_i2s("  r2=", &buff[i], hwctx->r2, 16, 1);
-	i += hal_i2s("  r3=", &buff[i], hwctx->r3, 16, 1);
+	i += hal_i2s("\n r0=", &buff[i], hwctx->r0, 16U, 1U);
+	i += hal_i2s("  r1=", &buff[i], hwctx->r1, 16U, 1U);
+	i += hal_i2s("  r2=", &buff[i], hwctx->r2, 16U, 1U);
+	i += hal_i2s("  r3=", &buff[i], hwctx->r3, 16U, 1U);
 
-	i += hal_i2s("\n r4=", &buff[i], ctx->r4, 16, 1);
-	i += hal_i2s("  r5=", &buff[i], ctx->r5, 16, 1);
-	i += hal_i2s("  r6=", &buff[i], ctx->r6, 16, 1);
-	i += hal_i2s("  r7=", &buff[i], ctx->r7, 16, 1);
+	i += hal_i2s("\n r4=", &buff[i], ctx->r4, 16U, 1U);
+	i += hal_i2s("  r5=", &buff[i], ctx->r5, 16U, 1U);
+	i += hal_i2s("  r6=", &buff[i], ctx->r6, 16U, 1U);
+	i += hal_i2s("  r7=", &buff[i], ctx->r7, 16U, 1U);
 
-	i += hal_i2s("\n r8=", &buff[i], ctx->r8, 16, 1);
-	i += hal_i2s("  r9=", &buff[i], ctx->r9, 16, 1);
-	i += hal_i2s(" r10=", &buff[i], ctx->r10, 16, 1);
-	i += hal_i2s(" r11=", &buff[i], ctx->r11, 16, 1);
+	i += hal_i2s("\n r8=", &buff[i], ctx->r8, 16U, 1U);
+	i += hal_i2s("  r9=", &buff[i], ctx->r9, 16U, 1U);
+	i += hal_i2s(" r10=", &buff[i], ctx->r10, 16U, 1U);
+	i += hal_i2s(" r11=", &buff[i], ctx->r11, 16U, 1U);
 
-	i += hal_i2s("\nr12=", &buff[i], hwctx->r12, 16, 1);
-	i += hal_i2s(" psr=", &buff[i], hwctx->psr, 16, 1);
-	i += hal_i2s("  lr=", &buff[i], hwctx->lr, 16, 1);
-	i += hal_i2s("  pc=", &buff[i], hwctx->pc, 16, 1);
+	i += hal_i2s("\nr12=", &buff[i], hwctx->r12, 16U, 1U);
+	i += hal_i2s(" psr=", &buff[i], hwctx->psr, 16U, 1U);
+	i += hal_i2s("  lr=", &buff[i], hwctx->lr, 16U, 1U);
+	i += hal_i2s("  pc=", &buff[i], hwctx->pc, 16U, 1U);
 
-	i += hal_i2s("\npsp=", &buff[i], psp, 16, 1);
-	i += hal_i2s(" msp=", &buff[i], msp, 16, 1);
-	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
+	i += hal_i2s("\npsp=", &buff[i], psp, 16U, 1U);
+	i += hal_i2s(" msp=", &buff[i], msp, 16U, 1U);
+	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16U, 1U);
 
 	if (n == exc_BusFault) {
 		cfsr = (*CFSR >> 8) & 0xff;
-		i += hal_i2s(" bfs=", &buff[i], cfsr, 16, 1);
+		i += hal_i2s(" bfs=", &buff[i], cfsr, 16U, 1U);
 		/* Check BFARVALID */
 		if ((cfsr & 0x80) != 0) {
 			far = *BFAR;
-			i += hal_i2s("\nbfa=", &buff[i], far, 16, 1);
+			i += hal_i2s("\nbfa=", &buff[i], far, 16U, 1U);
 		}
 	}
 	else if (n == exc_UsageFault) {
 		cfsr = *CFSR >> 16;
-		i += hal_i2s(" ufs=", &buff[i], cfsr, 16, 1);
+		i += hal_i2s(" ufs=", &buff[i], cfsr, 16U, 1U);
 	}
 	else if (n == exc_MemMgtFault) {
 		cfsr = *CFSR & 0xff;
-		i += hal_i2s(" mfs=", &buff[i], cfsr, 16, 1);
+		i += hal_i2s(" mfs=", &buff[i], cfsr, 16U, 1U);
 		/* Check MMFARVALID */
 		if ((cfsr & 0x80) != 0) {
 			far = *MMFAR;
-			i += hal_i2s("\nmfa=", &buff[i], far, 16, 1);
+			i += hal_i2s("\nmfa=", &buff[i], far, 16U, 1U);
 		}
 	}
 

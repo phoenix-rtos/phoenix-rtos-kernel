@@ -44,11 +44,26 @@ struct {
 
 
 enum {
-	cr = 0, mr, ier, idr, imr, isr, baudgen, rxtout, rxwm, modemcr, modemsr, sr, fifo,
-	baud_rate_divider_reg0, flow_delay_reg0, tx_fifo_trigger_level0,
+	cr = 0,
+	mr,
+	ier,
+	idr,
+	imr,
+	isr,
+	baudgen,
+	rxtout,
+	rxwm,
+	modemcr,
+	modemsr,
+	sr,
+	fifo,
+	baud_rate_divider_reg0,
+	flow_delay_reg0,
+	tx_fifo_trigger_level0,
 };
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;
 
 
@@ -85,7 +100,7 @@ void hal_consolePutch(char c)
 }
 
 
-__attribute__ ((section (".init"))) void _hal_consoleInit(void)
+__attribute__((section(".init"))) void _hal_consoleInit(void)
 {
 	console_common.uart0 = (void *)(((u32)&_end + 3 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 	console_common.uart1 = (void *)(((u32)&_end + 4 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
@@ -99,8 +114,8 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	*(console_common.UART + idr) = 0xfff;
 
 	/* Uart Mode Register
-	* normal mode, 1 stop bit, no parity, 8 bits, uart_ref_clk as source clock
-	* PAR = 0x4 */
+	 * normal mode, 1 stop bit, no parity, 8 bits, uart_ref_clk as source clock
+	 * PAR = 0x4 */
 	*(console_common.UART + mr) = (*(console_common.UART + mr) & ~0x000003ff) | 0x00000020;
 
 	/* Disable TX and RX */
@@ -114,6 +129,6 @@ __attribute__ ((section (".init"))) void _hal_consoleInit(void)
 	*(console_common.UART + baud_rate_divider_reg0) = 6;
 
 	/* Uart Control Register
-	* TXEN = 0x1; RXEN = 0x1; TXRES = 0x1; RXRES = 0x1 */
+	 * TXEN = 0x1; RXEN = 0x1; TXRES = 0x1; RXRES = 0x1 */
 	*(console_common.UART + cr) = (*(console_common.UART + cr) & ~0x000001ff) | 0x00000017;
 }

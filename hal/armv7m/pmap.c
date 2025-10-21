@@ -34,9 +34,11 @@ enum {
 	mpu_rasr_a3
 };
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Provided by toolchain" */
 /* Linker symbols */
 extern unsigned int _end;
 extern unsigned int __bss_start;
+/* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
 extern void *_init_vectors;
 

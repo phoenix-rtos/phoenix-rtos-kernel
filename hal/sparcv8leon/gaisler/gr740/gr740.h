@@ -41,9 +41,6 @@ void _gr740_cguClkDisable(u32 device);
 int _gr740_cguClkStatus(u32 device);
 
 
-int hal_platformctl(void *ptr);
-
-
 #endif /* __ASSEMBLY__ */
 
 

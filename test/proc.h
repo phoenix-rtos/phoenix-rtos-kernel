@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */
+
 #ifndef _TEST_PROC_H_
 #define _TEST_PROC_H_
 
@@ -30,3 +32,5 @@ extern void test_proc_exit(void);
 
 
 #endif
+
+/* parasoft-end-suppress ALL */
