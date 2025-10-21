@@ -62,6 +62,17 @@ int _interrupts_gicv2_classify(unsigned int irqn)
 }
 
 
+static int _zynqmp_getActiveBitShift(int dev)
+{
+	if ((dev >= pctl_devclock_lpd_usb3_dual) && (dev <= pctl_devclock_lpd_usb1_bus)) {
+		return 25;
+	}
+	else {
+		return 24;
+	}
+}
+
+
 static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, char src, char div0, char div1, char active)
 {
 	u32 val = src;
@@ -72,7 +83,7 @@ static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, char src, char 
 		val &= 0x3;
 	}
 
-	val |= ((div0 & 0x3f) << 8) | ((div1 & 0x3f) << 16) | (active << 24);
+	val |= ((div0 & 0x3f) << 8) | ((div1 & 0x3f) << 16) | (active << _zynqmp_getActiveBitShift(dev));
 	if (dev == pctl_devclock_lpd_cpu_r5) {
 		/* According to docs turning this bit off could lead to system hang - ensure it is on */
 		val |= (1 << 24);
@@ -99,13 +110,13 @@ int _zynqmp_setDevClock(int dev, char src, char div0, char div1, char active)
 }
 
 
-static int _zynqmp_getBasicGenerator(volatile u32 *reg, char *src, char *div0, char *div1, char *active)
+static int _zynqmp_getBasicGenerator(int dev, volatile u32 *reg, char *src, char *div0, char *div1, char *active)
 {
 	u32 val = *reg;
 	*src = val & 0x7;
 	*div0 = (val >> 8) & 0x3f;
 	*div1 = (val >> 16) & 0x3f;
-	*active = val >> 24;
+	*active = val >> _zynqmp_getActiveBitShift(dev);
 	return 0;
 }
 
@@ -114,11 +125,11 @@ int _zynqmp_getDevClock(int dev, char *src, char *div0, char *div1, char *active
 {
 	if ((dev >= pctl_devclock_lpd_usb3_dual) && (dev <= pctl_devclock_lpd_timestamp)) {
 		unsigned regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
-		return _zynqmp_getBasicGenerator(zynq_common.crl_apb + regOffset, src, div0, div1, active);
+		return _zynqmp_getBasicGenerator(dev, zynq_common.crl_apb + regOffset, src, div0, div1, active);
 	}
 	else if ((dev >= pctl_devclock_fpd_acpu) && (dev <= pctl_devclock_fpd_dbg_tstmp)) {
 		unsigned regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
-		return _zynqmp_getBasicGenerator(zynq_common.crf_apb + regOffset, src, div0, div1, active);
+		return _zynqmp_getBasicGenerator(dev, zynq_common.crf_apb + regOffset, src, div0, div1, active);
 	}
 
 	return -1;
