@@ -112,6 +112,62 @@ exception_popContext:
 	iret
 .size exception_popContext, .-exception_popContext
 
+
+/* int hal_setexcjmp(cpu_context_t *ctx, cpu_context_t **oldctx) */
+.globl hal_setexcjmp
+.type hal_setexcjmp, %function
+hal_setexcjmp:
+	pushfl
+	popl %ecx
+
+	movl 4(%esp), %eax /* eax := ctx */
+
+	movl %ecx, 160(%eax)
+
+	leal 4(%eax), %ecx
+	movl %ecx, (%eax)
+		/* Save calee-saved registers */
+	movl %edi, 4(%eax)
+	movl %esi, 8(%eax)
+	movl %ebp, 12(%eax)
+	movl %ebx, 24(%eax)
+
+	movw %gs, 32(%eax)
+	movw %fs, 34(%eax)
+	movw %es, 36(%eax)
+	movw %ds, 38(%eax)
+	movw %cs, 156(%eax)
+	movw $0, 158(%eax)
+	movw %ss, 168(%eax)
+	movw $0, 170(%eax)
+
+	movl %cr0, %ecx
+	movl %ecx, 148(%eax)
+
+	movl %esp, 16(%eax) /* ctx.edx := esp to revert (popContext to supervisor mode does not change esp) */
+		/* save ctx.PC as label 1: */
+	leal (1f), %ecx
+	movl %ecx, 152(%eax)
+
+	movl (%esp), %ecx /* ecx := return address */
+	movl %ecx, 20(%eax) /* ctx.ecx := return address */
+
+	pushl 8(%esp) /* oldctx */
+	pushl 8(%esp) /* ctx */
+	call threads_setexcjmp
+	popl %eax
+	popl %eax
+
+	movl $0, %eax
+	ret
+1:
+	movl %edx, %esp
+	movl %ecx, (%esp) /* restore return address */
+	movl $1, %eax
+	ret
+.size hal_setexcjmp, .-hal_setexcjmp
+
+
 /* Used for FPU lazy context stacking */
 .globl exceptions_exc7_handler
 .align 4, 0x90
@@ -142,6 +198,13 @@ sym:
 /* Exception handling macro */
 #define EXCSTUB(exc)\
 	call exception_pushContext;\
+	;\
+	call threads_getexcjmp;\
+	testl %eax, %eax;\
+	jz 1f;\
+	leal -28(%eax), %esp;\
+	jmp exception_popContext;\
+1:\
 	movl $SEL_KDATA, %eax;\
 	movw %ax, %ds;\
 	movw %ax, %es;\
