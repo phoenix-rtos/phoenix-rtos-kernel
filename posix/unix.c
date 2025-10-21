@@ -755,7 +755,7 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 		switch ((unsigned int)optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
-					*((unsigned int *)optval) = s->buffsz;
+					*((size_t *)optval) = s->buffsz;
 					*optlen = sizeof(int);
 				}
 				else {

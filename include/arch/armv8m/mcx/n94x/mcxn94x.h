@@ -88,18 +88,18 @@ enum {
 
 
 /* Pin options */
-#define MCX_PIN_INVERT (1 << 13)
-#define MCX_PIN_INPUT_BUFFER_ENABLE (1 << 12)
-#define MCX_PIN_SLOW (1 << 3)
-#define MCX_PIN_FAST 0
-#define MCX_PIN_STRONG (1 << 6)
-#define MCX_PIN_WEAK 0
-#define MCX_PIN_OPEN_DRAIN (1 << 5)
-#define MCX_PIN_FILTER_ENABLE (1 << 4)
-#define MCX_PIN_PULLDOWN_WEAK ((1 << 1) | (1 << 2))
-#define MCX_PIN_PULLDOWN_STRONG (1 << 1)
-#define MCX_PIN_PULLUP_WEAK ((1 << 0) | (1 << 1) | (1 << 2))
-#define MCX_PIN_PULLUP_STRONG ((1 << 0) | (1 << 1))
+#define MCX_PIN_INVERT (1UL << 13)
+#define MCX_PIN_INPUT_BUFFER_ENABLE (1UL << 12)
+#define MCX_PIN_SLOW (1U << 3)
+#define MCX_PIN_FAST 0U
+#define MCX_PIN_STRONG (1U << 6)
+#define MCX_PIN_WEAK 0U
+#define MCX_PIN_OPEN_DRAIN (1U << 5)
+#define MCX_PIN_FILTER_ENABLE (1U << 4)
+#define MCX_PIN_PULLDOWN_WEAK ((1U << 1) | (1U << 2))
+#define MCX_PIN_PULLDOWN_STRONG (1U << 1)
+#define MCX_PIN_PULLUP_WEAK ((1U << 0) | (1U << 1) | (1U << 2))
+#define MCX_PIN_PULLUP_STRONG ((1U << 0) | (1U << 1))
 
 
 /* Peripherals */

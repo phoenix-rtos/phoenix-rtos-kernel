@@ -112,10 +112,10 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "program counter must be set to the address of the function" */
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
 	signalCtx->pc = (u32)handler & ~0x1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "checking in what processor mode code must be executed" */
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Checking in what processor mode code must be executed" */
 	if (((u32)handler & 0x1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}

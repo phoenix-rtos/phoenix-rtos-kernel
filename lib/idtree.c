@@ -82,7 +82,7 @@ idnode_t *lib_idtreeFind(idtree_t *tree, int id)
 {
 	idnode_t n;
 	n.id = id;
-	return lib_treeof(idnode_t, linkage, lib_rbFind(tree, &n.linkage));
+	return lib_treeof(idnode_t, linkage, lib_rbFind(tree, &(n.linkage)));
 }
 
 

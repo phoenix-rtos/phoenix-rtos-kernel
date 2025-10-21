@@ -34,8 +34,8 @@
 #endif /* __ASSEMBLY__ */
 
 
-#define NWINDOWS 8
-#define NUM_CPUS 2
+#define NWINDOWS 8U
+#define NUM_CPUS 2U
 
 
 #endif

@@ -15,6 +15,7 @@
 
 #include "hal/spinlock.h"
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "hal/armv7m/imxrt/halsyspage.h"
 
 #include "include/errno.h"
@@ -66,7 +67,7 @@ enum { rtwdog_cs = 0, rtwdog_cnt, rtwdog_toval, rtwdog_win };
 /* clang-format on */
 
 
-struct {
+static struct {
 	volatile u32 *aips[4];
 	volatile u32 *stk;
 	volatile u32 *src;
@@ -120,7 +121,7 @@ static volatile u32 *_imxrt_IOmuxGetReg(int mux)
 }
 
 
-int _imxrt_setIOmux(int mux, char sion, char mode)
+int _imxrt_setIOmux(int mux, int sion, int mode)
 {
 	volatile u32 *reg;
 
@@ -129,14 +130,14 @@ int _imxrt_setIOmux(int mux, char sion, char mode)
 		return -EINVAL;
 	}
 
-	(*reg) = (!!sion << 4) | (mode & 0xf);
+	(*reg) = ((sion == 0 ? 0UL : 1UL) << 4) | ((u32)mode & 0xfU);
 	hal_cpuDataMemoryBarrier();
 
 	return EOK;
 }
 
 
-static int _imxrt_getIOmux(int mux, char *sion, char *mode)
+static int _imxrt_getIOmux(int mux, int *sion, int *mode)
 {
 	u32 t;
 	volatile u32 *reg;
@@ -147,8 +148,8 @@ static int _imxrt_getIOmux(int mux, char *sion, char *mode)
 	}
 
 	t = (*reg);
-	*sion = !!(t & (1 << 4));
-	*mode = t & 0xf;
+	*sion = ((t & (1U << 4)) == 0UL ? 1 : 0);
+	*mode = (int)(u32)(t & 0xfU);
 
 	return EOK;
 }
@@ -172,11 +173,11 @@ static volatile u32 *_imxrt_IOpadGetReg(int pad)
 }
 
 
-int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, char apc)
+int _imxrt_setIOpad(int pad, u8 sre, u8 dse, u8 pue, u8 pus, u8 ode, u8 apc)
 {
 	u32 t;
 	volatile u32 *reg;
-	char pull;
+	u8 pull;
 
 	reg = _imxrt_IOpadGetReg(pad);
 	if (reg == NULL) {
@@ -185,34 +186,34 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 
 	if ((pad <= pctl_pad_gpio_emc_b2_20) || ((pad >= pctl_pad_gpio_sd_b1_00) && (pad <= pctl_pad_gpio_disp_b1_11))) {
 		/* Fields have slightly different meaning... */
-		if (pue == 0) {
-			pull = 3;
+		if (pue == 0U) {
+			pull = 3U;
 		}
-		else if (pus != 0) {
-			pull = 1;
+		else if (pus != 0U) {
+			pull = 1U;
 		}
 		else {
-			pull = 2;
+			pull = 2U;
 		}
 
-		t = *reg & ~0x1e;
-		t |= (!!dse << 1) | (pull << 2) | (!!ode << 4);
+		t = *reg & ~0x1eU;
+		t |= ((dse == 0U ? 0UL : 1UL) << 1) | ((u32)pull << 2) | ((ode == 0U ? 0UL : 1UL) << 4);
 	}
 	else {
-		t = *reg & ~0x1f;
-		t |= (!!sre) | (!!dse << 1) | (!!pue << 2) | (!!pus << 3);
+		t = *reg & ~0x1fU;
+		t |= ((sre == 0U ? 0UL : 1UL)) | ((dse == 0U ? 0UL : 1UL) << 1) | ((pue == 0U ? 0UL : 1UL) << 2) | ((pus == 0U ? 0UL : 1UL) << 3);
 
 		if (pad <= pctl_pad_gpio_disp_b2_15) {
-			t &= ~(1 << 4);
-			t |= !!ode << 4;
+			t &= ~(1U << 4);
+			t |= (ode == 0U ? 0UL : 1UL) << 4;
 		}
 		else if ((pad >= pctl_pad_wakeup) && (pad <= pctl_pad_gpio_snvs_09)) {
-			t &= ~(1 << 6);
-			t |= !!ode << 6;
+			t &= ~(1U << 6);
+			t |= (ode == 0U ? 0UL : 1UL) << 6;
 		}
 		else if (pad >= pctl_pad_gpio_lpsr_00) {
-			t &= ~(1 << 5);
-			t |= !!ode << 5;
+			t &= ~(1U << 5);
+			t |= (ode == 0U ? 0UL : 1UL) << 5;
 		}
 		else {
 			/* MISRA */
@@ -233,10 +234,10 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 }
 
 
-static int _imxrt_getIOpad(int pad, char *sre, char *dse, char *pue, char *pus, char *ode, char *apc)
+static int _imxrt_getIOpad(int pad, u8 *sre, u8 *dse, u8 *pue, u8 *pus, u8 *ode, u8 *apc)
 {
 	u32 t;
-	char pull;
+	u8 pull;
 	volatile u32 *reg;
 
 	reg = _imxrt_IOpadGetReg(pad);
@@ -247,37 +248,37 @@ static int _imxrt_getIOpad(int pad, char *sre, char *dse, char *pue, char *pus, 
 	t = (*reg);
 
 	if ((pad <= pctl_pad_gpio_emc_b2_20) || ((pad >= pctl_pad_gpio_sd_b1_00) && (pad <= pctl_pad_gpio_disp_b1_11))) {
-		pull = (t >> 2) & 3;
+		pull = (u8)(t >> 2) & 3U;
 
-		if (pull == 3) {
+		if (pull == 3U) {
 			*pue = 0;
 		}
 		else {
 			*pue = 1;
-			if ((pull & 1) != 0) {
-				*pus = 1;
+			if ((pull & 1U) != 0U) {
+				*pus = 1U;
 			}
 			else {
-				*pus = 0;
+				*pus = 0U;
 			}
 		}
 
-		*ode = (t >> 4) & 1;
+		*ode = (u8)(t >> 4) & 1U;
 		/* sre field does not apply, leave it alone */
 	}
 	else {
-		*sre = t & 1;
-		*pue = (t >> 2) & 1;
-		*pus = (t >> 3) & 1;
+		*sre = (u8)(t & 1U);
+		*pue = (u8)(t >> 2) & 1U;
+		*pus = (u8)(t >> 3) & 1U;
 
 		if (pad <= pctl_pad_gpio_disp_b2_15) {
-			*ode = (t >> 4) & 1;
+			*ode = (u8)(t >> 4) & 1U;
 		}
 		else if ((pad >= pctl_pad_wakeup) && (pad <= pctl_pad_gpio_snvs_09)) {
-			*ode = (t >> 6) & 1;
+			*ode = (u8)(t >> 6) & 1U;
 		}
 		else if (pad >= pctl_pad_gpio_lpsr_00) {
-			*ode = (t >> 5) & 1;
+			*ode = (u8)(t >> 5) & 1U;
 		}
 		else {
 			/* MISRA */
@@ -285,8 +286,8 @@ static int _imxrt_getIOpad(int pad, char *sre, char *dse, char *pue, char *pus, 
 		}
 	}
 
-	*dse = (t >> 1) & 1;
-	*apc = (t >> 28) & 0xf;
+	*dse = (u8)(t >> 1) & 1U;
+	*apc = (u8)(t >> 28) & 0xfU;
 
 	return EOK;
 }
@@ -348,7 +349,7 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 }
 
 
-int _imxrt_setIOisel(int isel, char daisy)
+int _imxrt_setIOisel(int isel, int daisy)
 {
 	volatile u32 *reg;
 	u32 mask;
@@ -358,14 +359,14 @@ int _imxrt_setIOisel(int isel, char daisy)
 		return -EINVAL;
 	}
 
-	(*reg) = daisy & mask;
+	(*reg) = (u32)daisy & mask;
 	hal_cpuDataMemoryBarrier();
 
 	return EOK;
 }
 
 
-static int _imxrt_getIOisel(int isel, char *daisy)
+static int _imxrt_getIOisel(int isel, int *daisy)
 {
 	volatile u32 *reg;
 	u32 mask;
@@ -375,7 +376,7 @@ static int _imxrt_getIOisel(int isel, char *daisy)
 		return -EINVAL;
 	}
 
-	*daisy = (*reg) & mask;
+	*daisy = (int)(u32)((*reg) & mask);
 
 	return EOK;
 }
@@ -384,18 +385,19 @@ static int _imxrt_getIOisel(int isel, char *daisy)
 /* SRC */
 
 
-void _imxrt_resetSlice(unsigned int index)
+static void _imxrt_resetSlice(unsigned int index)
 {
-	*(imxrt_common.src + src_ctrl + 8 * index) |= 1U;
+	*(imxrt_common.src + src_ctrl + 8U * index) |= 1U;
 	hal_cpuDataMemoryBarrier();
 
-	while ((*(imxrt_common.src + src_stat + 8 * index) & 1U) != 0) {
+	while ((*(imxrt_common.src + src_stat + 8U * index) & 1U) != 0U) {
 	}
 }
 
 
 /* CCM */
 
+/* MISRA TODO: make args u32? */
 int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state)
 {
 	unsigned int t;
@@ -405,8 +407,8 @@ int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state)
 		return -1;
 	}
 
-	t = *reg & ~0x01ff07ffU;
-	*reg = t | (!state << 24) | ((mfn & 0xf) << 20) | ((mfd & 0xf) << 16) | ((mux & 0x7) << 8) | (div & 0xff);
+	t = *reg & ~0x01ff07ffu;
+	*reg = t | ((state == 0 ? 1UL : 0UL) << 24) | (((u32)mfn & 0xfU) << 20) | (((u32)mfd & 0xfU) << 16) | (((u32)mux & 0x7U) << 8) | ((u32)div & 0xffU);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -415,7 +417,7 @@ int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state)
 }
 
 
-int _imxrt_getDevClock(int clock, int *div, int *mux, int *mfd, int *mfn, int *state)
+static int _imxrt_getDevClock(int clock, int *div, int *mux, int *mfd, int *mfn, int *state)
 {
 	unsigned int t;
 	volatile u32 *reg = imxrt_common.ccm + (clock * 0x20);
@@ -426,16 +428,17 @@ int _imxrt_getDevClock(int clock, int *div, int *mux, int *mfd, int *mfn, int *s
 
 	t = *reg;
 
-	*div = t & 0xff;
-	*mux = (t >> 8) & 0x7;
-	*mfd = (t >> 16) & 0xf;
-	*mfn = (t >> 20) & 0xf;
-	*state = !(t & (1 << 24));
+	*div = (int)(u32)(t & 0xffU);
+	*mux = (int)(u32)((t >> 8) & 0x7U);
+	*mfd = (int)(u32)((t >> 16) & 0xfU);
+	*mfn = (int)(u32)((t >> 20) & 0xfU);
+	*state = (t & (1UL << 24)) == 0U ? 1 : 0;
 
 	return 0;
 }
 
 
+/* MISRA TODO: make args u32? */
 int _imxrt_setDirectLPCG(int clock, int state)
 {
 	u32 t;
@@ -447,8 +450,8 @@ int _imxrt_setDirectLPCG(int clock, int state)
 
 	reg = imxrt_common.ccm + 0x1800 + clock * 0x8;
 
-	t = *reg & ~1U;
-	*reg = t | (state & 1);
+	t = *reg & ~1u;
+	*reg = t | ((u32)state & 1U);
 
 	hal_cpuDataMemoryBarrier();
 	hal_cpuInstrBarrier();
@@ -463,7 +466,7 @@ int _imxrt_getDirectLPCG(int clock, int *state)
 		return -EINVAL;
 	}
 
-	*state = *((volatile u32 *)(imxrt_common.ccm + 0x1800 + clock * 0x8)) & 1U;
+	*state = (int)(u32)(*((volatile u32 *)(imxrt_common.ccm + 0x1800U + (unsigned int)clock * 0x8U)) & 1U);
 
 	return EOK;
 }
@@ -482,7 +485,7 @@ int _imxrt_setLevelLPCG(int clock, int level)
 	}
 
 	reg = imxrt_common.ccm + 0x1801 + clock * 0x8;
-	*reg = (level << 28) | (level << 24) | (level << 20) | (level << 16) | level;
+	*reg = ((u32)level << 28) | ((u32)level << 24) | ((u32)level << 20) | ((u32)level << 16) | (u32)level;
 
 	hal_cpuDataMemoryBarrier();
 	hal_cpuInstrBarrier();
@@ -507,7 +510,7 @@ static int _imxrt_setIOgpr(int which, unsigned int what)
 	*(imxrt_common.gpr + which) = what;
 	hal_cpuDataSyncBarrier();
 
-	return  0;
+	return 0;
 }
 
 
@@ -539,7 +542,7 @@ static int _imxrt_setIOlpsrGpr(int which, unsigned int what)
 	*(imxrt_common.lpsrgpr + which) = what;
 	hal_cpuDataSyncBarrier();
 
-	return  0;
+	return 0;
 }
 
 
@@ -590,6 +593,7 @@ int hal_platformctl(void *ptr)
 	spinlock_ctx_t sc;
 	int div, mux, mfd, mfn, state;
 	unsigned int t = 0;
+	int sion = 0, mode = 0, daisy = 0;
 
 	hal_spinlockSet(&imxrt_common.pltctlSp, &sc);
 
@@ -597,7 +601,7 @@ int hal_platformctl(void *ptr)
 		case pctl_devclock:
 			if (data->action == pctl_set) {
 				ret = _imxrt_setDevClock(data->devclock.dev, data->devclock.div, data->devclock.mux,
-					data->devclock.mfd, data->devclock.mfn, data->devclock.state);
+						data->devclock.mfd, data->devclock.mfn, data->devclock.state);
 			}
 			else if (data->action == pctl_get) {
 				ret = _imxrt_getDevClock(data->devclock.dev, &div, &mux, &mfd, &mfn, &state);
@@ -609,6 +613,9 @@ int hal_platformctl(void *ptr)
 					data->devclock.state = state;
 				}
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_lpcg:
@@ -619,6 +626,9 @@ int hal_platformctl(void *ptr)
 				else if (data->lpcg.op == pctl_lpcg_op_level) {
 					ret = _imxrt_setLevelLPCG(data->lpcg.dev, data->lpcg.state);
 				}
+				else {
+					/* No action required */
+				}
 			}
 			else if (data->action == pctl_get) {
 				if (data->lpcg.op == pctl_lpcg_op_direct) {
@@ -627,6 +637,9 @@ int hal_platformctl(void *ptr)
 						data->lpcg.state = state;
 					}
 				}
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -640,6 +653,9 @@ int hal_platformctl(void *ptr)
 					data->iogpr.val = t;
 				}
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_iolpsrgpr:
@@ -652,6 +668,9 @@ int hal_platformctl(void *ptr)
 					data->iogpr.val = t;
 				}
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_iomux:
@@ -659,18 +678,26 @@ int hal_platformctl(void *ptr)
 				ret = _imxrt_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
 			}
 			else if (data->action == pctl_get) {
-				ret = _imxrt_getIOmux(data->iomux.mux, &data->iomux.sion, &data->iomux.mode);
+				ret = _imxrt_getIOmux(data->iomux.mux, &sion, &mode);
+				data->iomux.sion = sion;
+				data->iomux.mode = mode;
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
 		case pctl_iopad:
 			if (data->action == pctl_set) {
 				ret = _imxrt_setIOpad(data->iopad.pad, data->iopad.sre, data->iopad.dse, data->iopad.pue,
-					data->iopad.pus, data->iopad.ode, data->iopad.apc);
+						data->iopad.pus, data->iopad.ode, data->iopad.apc);
 			}
 			else if (data->action == pctl_get) {
 				ret = _imxrt_getIOpad(data->iopad.pad, &data->iopad.sre, &data->iopad.dse, &data->iopad.pue,
-					&data->iopad.pus, &data->iopad.ode, &data->iopad.apc);
+						&data->iopad.pus, &data->iopad.ode, &data->iopad.apc);
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -679,7 +706,11 @@ int hal_platformctl(void *ptr)
 				ret = _imxrt_setIOisel(data->ioisel.isel, data->ioisel.daisy);
 			}
 			else if (data->action == pctl_get) {
-				ret = _imxrt_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
+				ret = _imxrt_getIOisel(data->ioisel.isel, &daisy);
+				data->ioisel.daisy = daisy;
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -693,11 +724,14 @@ int hal_platformctl(void *ptr)
 				data->reboot.reason = syspage->hs.bootReason;
 				ret = EOK;
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_devcache:
 			if (data->action == pctl_set) {
-				if (data->devcache.state == 0) {
+				if (data->devcache.state == 0U) {
 					_hal_scsDCacheDisable();
 					_hal_scsICacheDisable();
 				}
@@ -719,7 +753,7 @@ int hal_platformctl(void *ptr)
 
 		case pctl_resetSlice:
 			if (data->action == pctl_set) {
-				if ((data->resetSlice.index >= pctl_resetSliceMega) && (data->resetSlice.index <= pctl_resetSliceCM7Mem)) {
+				if ((data->resetSlice.index >= (unsigned int)pctl_resetSliceMega) && (data->resetSlice.index <= (unsigned int)pctl_resetSliceCM7Mem)) {
 					_imxrt_resetSlice(data->resetSlice.index);
 					ret = EOK;
 				}
@@ -736,9 +770,13 @@ int hal_platformctl(void *ptr)
 					data->iogpr.val = t;
 				}
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
@@ -758,24 +796,24 @@ void _imxrt_init(void)
 {
 	u32 tmp;
 
-	imxrt_common.aips[0] = (void *)0x40000000;
-	imxrt_common.aips[1] = (void *)0x40400000;
-	imxrt_common.aips[2] = (void *)0x40800000;
-	imxrt_common.aips[3] = (void *)0x40c00000;
-	imxrt_common.ccm = (void *)0x40cc0000;
-	imxrt_common.stk = (void *)0xe000e010;
-	imxrt_common.wdog1 = (void *)0x40030000;
-	imxrt_common.wdog2 = (void *)0x40034000;
-	imxrt_common.rtwdog3 = (void *)0x40038000;
-	imxrt_common.rtwdog4 = (void *)0x40c10000;
-	imxrt_common.src = (void *)0x40c04000;
-	imxrt_common.iomux_snvs = (void *)0x40c94000;
-	imxrt_common.iomux_lpsr = (void *)0x40c08000;
-	imxrt_common.iomuxc = (void *)0x400e8000;
-	imxrt_common.gpr = (void *)0x400e4000;
-	imxrt_common.lpsrgpr = (void *)0x40c0c000;
+	imxrt_common.aips[0] = (void *)0x40000000U;
+	imxrt_common.aips[1] = (void *)0x40400000U;
+	imxrt_common.aips[2] = (void *)0x40800000U;
+	imxrt_common.aips[3] = (void *)0x40c00000U;
+	imxrt_common.ccm = (void *)0x40cc0000U;
+	imxrt_common.stk = (void *)0xe000e010U;
+	imxrt_common.wdog1 = (void *)0x40030000U;
+	imxrt_common.wdog2 = (void *)0x40034000U;
+	imxrt_common.rtwdog3 = (void *)0x40038000U;
+	imxrt_common.rtwdog4 = (void *)0x40c10000U;
+	imxrt_common.src = (void *)0x40c04000U;
+	imxrt_common.iomux_snvs = (void *)0x40c94000U;
+	imxrt_common.iomux_lpsr = (void *)0x40c08000U;
+	imxrt_common.iomuxc = (void *)0x400e8000U;
+	imxrt_common.gpr = (void *)0x400e4000U;
+	imxrt_common.lpsrgpr = (void *)0x40c0c000U;
 
-	imxrt_common.cpuclk = 696000000;
+	imxrt_common.cpuclk = 696000000U;
 
 	_hal_scsInit();
 
@@ -808,20 +846,20 @@ void _imxrt_init(void)
 		/* WDOG3: Unlock rtwdog update */
 		*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
 		hal_cpuDataMemoryBarrier();
-		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1U << 11U)) == 0U) {
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1UL << 11)) == 0U) {
 		}
 
 		/* WDOG3: Disable rtwdog, but allow later reconfiguration without reset */
 		*(imxrt_common.rtwdog3 + rtwdog_toval) = 0xffffU;
-		tmp = (*(imxrt_common.rtwdog3 + rtwdog_cs) & ~(1U << 7U));
-		*(imxrt_common.rtwdog3 + rtwdog_cs) = tmp | (1U << 5U);
+		tmp = (*(imxrt_common.rtwdog3 + rtwdog_cs) & ~(1U << 7));
+		*(imxrt_common.rtwdog3 + rtwdog_cs) = tmp | (1U << 5);
 
 		/* WDOG3: Wait until new config takes effect */
-		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1U << 10U)) == 0U) {
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1UL << 10)) == 0U) {
 		}
 
 		/* WDOG3: Wait until registers are locked (in case low power mode will be used promptly) */
-		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1U << 11)) != 0U) {
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1UL << 11)) != 0U) {
 		}
 	}
 
@@ -829,25 +867,25 @@ void _imxrt_init(void)
 		/* WDOG4: Unlock rtwdog update */
 		*(imxrt_common.rtwdog4 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
 		hal_cpuDataMemoryBarrier();
-		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1U << 11U)) == 0U) {
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1UL << 11)) == 0U) {
 		}
 
 		/* WDOG4: Disable rtwdog, but allow later reconfiguration without reset */
 		*(imxrt_common.rtwdog4 + rtwdog_toval) = 0xffffU;
-		tmp = (*(imxrt_common.rtwdog4 + rtwdog_cs) & ~(1U << 7U));
-		*(imxrt_common.rtwdog4 + rtwdog_cs) = tmp | (1U << 5U);
+		tmp = (*(imxrt_common.rtwdog4 + rtwdog_cs) & ~(1U << 7));
+		*(imxrt_common.rtwdog4 + rtwdog_cs) = tmp | (1U << 5);
 
 		/* WDOG4: Wait until new config takes effect */
-		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1U << 10U)) == 0U) {
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1UL << 10)) == 0U) {
 		}
 
 		/* WDOG4: Wait until registers are locked (in case low power mode will be used promptly) */
-		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1U << 11)) != 0U) {
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1UL << 11)) != 0U) {
 		}
 	}
 
 	/* Enable system HP timer clock gate, select SYS_PLL3_DIV2 as BUS clk */
-	_imxrt_setDevClock(GPT_BUS_CLK, 0, 4, 0, 0, 1);
+	(void)_imxrt_setDevClock(GPT_BUS_CLK, 0, 4, 0, 0, 1);
 
 	/* Enable FPU */
 	_hal_scsFPUSet(1);

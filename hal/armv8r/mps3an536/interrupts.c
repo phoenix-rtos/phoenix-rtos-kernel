@@ -22,13 +22,13 @@
 #include "include/errno.h"
 
 
-#define SIZE_INTERRUPTS 126
-#define PPI_FIRST_IRQID 16
-#define SPI_FIRST_IRQID 32
+#define SIZE_INTERRUPTS 126U
+#define PPI_FIRST_IRQID 16U
+#define SPI_FIRST_IRQID 32U
 
 
-#define INTCFGR_LEVEL 0
-#define INTCFGR_EDGE  (1 << 1)
+#define INTCFGR_LEVEL 0U
+#define INTCFGR_EDGE  (1U << 1)
 
 
 /* Cortex R52 target ID mapping
@@ -108,6 +108,7 @@ static struct {
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static u32 gic_acknowledge(void)
 {
 	u32 irqn;
@@ -120,7 +121,7 @@ static u32 gic_acknowledge(void)
 	);
 	/* clang-format on */
 
-	return irqn & 0x3ff;
+	return irqn & 0x3ffU;
 }
 
 
@@ -136,9 +137,10 @@ static void gic_EOI(u32 irqn)
 }
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
-	int reschedule = 0;
+	unsigned int reschedule = 0;
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
 
@@ -155,20 +157,20 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (h != NULL) {
 		do {
 			hal_cpuSetGot(h->got);
-			reschedule |= h->f(n, NULL, h->data);
+			reschedule |= (unsigned int)h->f(n, NULL, h->data);
 			h = h->next;
 		} while (h != interrupts_common.handlers[n]);
 	}
 
-	if (reschedule != 0) {
-		threads_schedule(n, ctx, NULL);
+	if (reschedule != 0U) {
+		(void)threads_schedule(n, ctx, NULL);
 	}
 
 	hal_spinlockClear(&interrupts_common.lock, &sc);
 
 	gic_EOI(n);
 
-	return reschedule;
+	return (int)reschedule;
 }
 
 
@@ -176,10 +178,13 @@ static void gic_waitRWP(int reg)
 {
 	/* Wait for register write to complete */
 	if (reg == gicd_ctlr) {
-		while ((*(interrupts_common.gic + reg) & (1 << 31)) != 0) { }
+		while ((*(interrupts_common.gic + reg) & (1UL << 31)) != 0U) { }
 	}
 	else if (reg == gicr_ctlr) {
-		while ((*(interrupts_common.gic + reg) & (1 << 3)) != 0) { }
+		while ((*(interrupts_common.gic + reg) & (1U << 3)) != 0U) { }
+	}
+	else {
+		/* No action required*/
 	}
 }
 
@@ -187,10 +192,10 @@ static void gic_waitRWP(int reg)
 void hal_interruptsEnable(unsigned int irqn)
 {
 	if (irqn < SPI_FIRST_IRQID) {
-		*(interrupts_common.gic + gicr_isenabler0) = 1 << irqn;
+		*(interrupts_common.gic + gicr_isenabler0) = 1UL << irqn;
 	}
 	else {
-		*(interrupts_common.gic + gicd_isenabler1 + ((irqn - SPI_FIRST_IRQID) / 32)) = 1 << (irqn & 0x1f);
+		*(interrupts_common.gic + gicd_isenabler1 + ((irqn - SPI_FIRST_IRQID) / 32U)) = 1UL << (irqn & 0x1fU);
 	}
 }
 
@@ -198,11 +203,11 @@ void hal_interruptsEnable(unsigned int irqn)
 void hal_interruptsDisable(unsigned int irqn)
 {
 	if (irqn < SPI_FIRST_IRQID) {
-		*(interrupts_common.gic + gicr_icenabler0) = 1 << irqn;
+		*(interrupts_common.gic + gicr_icenabler0) = 1UL << irqn;
 		gic_waitRWP(gicr_ctlr);
 	}
 	else {
-		*(interrupts_common.gic + gicd_icenabler1 + ((irqn - SPI_FIRST_IRQID) / 32)) = 1 << (irqn & 0x1f);
+		*(interrupts_common.gic + gicd_icenabler1 + ((irqn - SPI_FIRST_IRQID) / 32U)) = 1UL << (irqn & 0x1fU);
 		gic_waitRWP(gicd_ctlr);
 	}
 }
@@ -213,19 +218,19 @@ static void interrupts_setConfig(unsigned int irqn, u8 conf)
 	u32 mask;
 
 	if (irqn < PPI_FIRST_IRQID) {
-		mask = *(interrupts_common.gic + gicr_icfgr0 + (irqn / 16)) & ~(0x3 << ((irqn & 0xf) * 2));
+		mask = *(interrupts_common.gic + gicr_icfgr0 + (irqn / 16U)) & ~(0x3U << ((irqn & 0xfU) * 2U));
 
-		*(interrupts_common.gic + gicr_icfgr0 + (irqn / 16)) = mask | ((conf & 0x3) << ((irqn & 0xf) * 2));
+		*(interrupts_common.gic + gicr_icfgr0 + (irqn / 16U)) = mask | (((u32)conf & 0x3U) << ((irqn & 0xfU) * 2U));
 	}
 	else if (irqn < SPI_FIRST_IRQID) {
-		mask = *(interrupts_common.gic + gicr_icfgr1 + ((irqn - PPI_FIRST_IRQID) / 16)) & ~(0x3 << ((irqn & 0xf) * 2));
+		mask = *(interrupts_common.gic + gicr_icfgr1 + ((irqn - PPI_FIRST_IRQID) / 16U)) & ~(0x3U << ((irqn & 0xfU) * 2U));
 
-		*(interrupts_common.gic + gicr_icfgr1 + ((irqn - PPI_FIRST_IRQID) / 16)) = mask | ((conf & 0x3) << ((irqn & 0xf) * 2));
+		*(interrupts_common.gic + gicr_icfgr1 + ((irqn - PPI_FIRST_IRQID) / 16U)) = mask | (((u32)conf & 0x3U) << ((irqn & 0xfU) * 2U));
 	}
 	else {
-		mask = *(interrupts_common.gic + gicd_icfgr2 + ((irqn - SPI_FIRST_IRQID) / 16)) & ~(0x3 << ((irqn & 0xf) * 2));
+		mask = *(interrupts_common.gic + gicd_icfgr2 + ((irqn - SPI_FIRST_IRQID) / 16U)) & ~(0x3U << ((irqn & 0xfU) * 2U));
 
-		*(interrupts_common.gic + gicd_icfgr2 + ((irqn - SPI_FIRST_IRQID) >> 4)) = mask | ((conf & 0x3) << ((irqn & 0xf) * 2));
+		*(interrupts_common.gic + gicd_icfgr2 + ((irqn - SPI_FIRST_IRQID) >> 4)) = mask | (((u32)conf & 0x3U) << ((irqn & 0xfU) * 2U));
 	}
 }
 
@@ -235,14 +240,14 @@ static void interrupts_setPriority(unsigned int irqn, u32 priority)
 	u32 mask;
 
 	if (irqn < SPI_FIRST_IRQID) {
-		mask = *(interrupts_common.gic + gicr_ipriorityr0 + (irqn / 4)) & ~(0xff << ((irqn & 0x3) * 8));
+		mask = *(interrupts_common.gic + gicr_ipriorityr0 + (irqn / 4U)) & ~(0xffU << ((irqn & 0x3U) * 8U));
 
-		*(interrupts_common.gic + gicr_ipriorityr0 + (irqn / 4)) = mask | ((priority & 0xff) << ((irqn & 0x3) * 8));
+		*(interrupts_common.gic + gicr_ipriorityr0 + (irqn / 4U)) = mask | ((priority & 0xffU) << ((irqn & 0x3U) * 8U));
 	}
 	else {
-		mask = *(interrupts_common.gic + gicd_ipriorityr8 + ((irqn - SPI_FIRST_IRQID) / 4)) & ~(0xff << ((irqn & 0x3) * 8));
+		mask = *(interrupts_common.gic + gicd_ipriorityr8 + ((irqn - SPI_FIRST_IRQID) / 4U)) & ~(0xffU << ((irqn & 0x3U) * 8U));
 
-		*(interrupts_common.gic + gicd_ipriorityr8 + ((irqn - SPI_FIRST_IRQID) / 4)) = mask | ((priority & 0xff) << ((irqn & 0x3) * 8));
+		*(interrupts_common.gic + gicd_ipriorityr8 + ((irqn - SPI_FIRST_IRQID) / 4U)) = mask | ((priority & 0xffU) << ((irqn & 0x3U) * 8U));
 	}
 }
 
@@ -250,19 +255,19 @@ static void interrupts_setPriority(unsigned int irqn, u32 priority)
 static void interrupts_setGroup(unsigned int irqn, u32 group)
 {
 	if (irqn < SPI_FIRST_IRQID) {
-		if (group == 0) {
-			*(interrupts_common.gic + gicr_igroupr0) &= ~(1 << irqn);
+		if (group == 0U) {
+			*(interrupts_common.gic + gicr_igroupr0) &= ~(1U << irqn);
 		}
 		else {
-			*(interrupts_common.gic + gicr_igroupr0) |= 1 << irqn;
+			*(interrupts_common.gic + gicr_igroupr0) |= 1UL << irqn;
 		}
 	}
 	else {
-		if (group == 0) {
-			*(interrupts_common.gic + gicd_igroupr1 + ((irqn - SPI_FIRST_IRQID) / 32)) &= ~(1 << (irqn & 0x1f));
+		if (group == 0U) {
+			*(interrupts_common.gic + gicd_igroupr1 + ((irqn - SPI_FIRST_IRQID) / 32U)) &= ~(1U << (irqn & 0x1fU));
 		}
 		else {
-			*(interrupts_common.gic + gicd_igroupr1 + ((irqn - SPI_FIRST_IRQID) / 32)) |= 1 << (irqn & 0x1f);
+			*(interrupts_common.gic + gicd_igroupr1 + ((irqn - SPI_FIRST_IRQID) / 32U)) |= 1UL << (irqn & 0x1fU);
 		}
 	}
 }
@@ -314,13 +319,14 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using GICv3 interrupt controller", len);
-	features[len - 1] = 0;
+	(void)hal_strncpy(features, "Using GICv3 interrupt controller", len);
+	features[len - 1U] = '\0';
 
 	return features;
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void _hal_interruptsInit(void)
 {
 	u32 i, val;
@@ -343,14 +349,14 @@ void _hal_interruptsInit(void)
 	/*------------- Configure interrupt controller -------------*/
 
 	/* Enable Group 1 interrupts */
-	*(interrupts_common.gic + gicd_ctlr) = (1 << 1);
+	*(interrupts_common.gic + gicd_ctlr) = (1U << 1);
 	gic_waitRWP(gicd_ctlr);
 
 	/* Clear ProcessorSleep */
-	*(interrupts_common.gic + gicr_waker) &= ~(1 << 1);
+	*(interrupts_common.gic + gicr_waker) &= ~(1U << 1);
 
 	/* Wait for ChildrenAsleep to become 0 */
-	while ((*(interrupts_common.gic + gicr_waker) & (1 << 2)) != 0) { }
+	while ((*(interrupts_common.gic + gicr_waker) & (1UL << 2)) != 0U) { }
 
 	/* ICC_SRE SRE bit fixed 1, no need to write */
 
@@ -368,7 +374,7 @@ void _hal_interruptsInit(void)
 	);
 
 	/* Set EOI mode 0 */
-	val &= ~(1 << 1);
+	val &= ~(1U << 1);
 
 	__asm__ volatile (
 		"mcr p15, 0, %0, c12, c12, 4"
@@ -390,17 +396,17 @@ void _hal_interruptsInit(void)
 
 	gic_waitRWP(gicd_ctlr);
 
-	for (i = SPI_FIRST_IRQID; i < SIZE_INTERRUPTS; i += 4) {
+	for (i = SPI_FIRST_IRQID; i < SIZE_INTERRUPTS; i += 4U) {
 		/* Set default priority (SPIs) */
-		*(interrupts_common.gic + gicd_ipriorityr8 + ((i - SPI_FIRST_IRQID) / 4)) = 0xa0a0a0a0;
+		*(interrupts_common.gic + gicd_ipriorityr8 + ((i - SPI_FIRST_IRQID) / 4U)) = 0xa0a0a0a0U;
 	}
 
-	for (i = 0; i < SPI_FIRST_IRQID; i += 4) {
+	for (i = 0; i < SPI_FIRST_IRQID; i += 4U) {
 		/* Set default priority (SGIs/PPIs) */
-		*(interrupts_common.gic + gicr_ipriorityr0 + (i / 4)) = 0xa0a0a0a0;
+		*(interrupts_common.gic + gicr_ipriorityr0 + (i / 4U)) = 0xa0a0a0a0U;
 	}
 
 	/* Disable PPIs/SGIs */
-	*(interrupts_common.gic + gicr_icenabler0) = 0xffffffff;
+	*(interrupts_common.gic + gicr_icenabler0) = 0xffffffffU;
 	gic_waitRWP(gicr_ctlr);
 }

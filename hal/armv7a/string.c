@@ -16,12 +16,12 @@
 #include "hal/string.h"
 
 
+/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
 	int res = 0;
 
-	__asm__ volatile
-	(" \
+	__asm__ volatile(" \
 	1: \
 		cmp %3, #0; \
 		beq 3f; \
@@ -36,9 +36,9 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 	2: \
 		mov %0, #-1; \
 	3: "
-	: "+r" (res), "+r" (ptr1), "+r" (ptr2), "+r" (num)
-	:
-	: "r3", "r4", "memory", "cc");
+					 : "+r"(res), "+r"(ptr1), "+r"(ptr2), "+r"(num)
+					 :
+					 : "r3", "r4", "memory", "cc");
 
 	return res;
 }
@@ -48,17 +48,16 @@ unsigned int hal_strlen(const char *s)
 {
 	unsigned int k = 0;
 
-	__asm__ volatile
-	(" \
+	__asm__ volatile(" \
 	1: \
 		ldrb r1, [%1, %0]; \
 		cbz r1, 2f; \
 		add %0, #1; \
 		b 1b; \
 	2:"
-	: "+r" (k), "+r" (s)
-	:
-	: "r1", "memory", "cc");
+					 : "+r"(k), "+r"(s)
+					 :
+					 : "r1", "memory", "cc");
 
 	return k;
 }
@@ -68,8 +67,7 @@ int hal_strcmp(const char *s1, const char *s2)
 {
 	int res = 0;
 
-	__asm__ volatile
-	(" \
+	__asm__ volatile(" \
 	1: \
 		ldrb r2, [%1], #1; \
 		ldrb r3, [%2], #1; \
@@ -85,9 +83,9 @@ int hal_strcmp(const char *s1, const char *s2)
 	3: \
 		mov %0, #-1; \
 	4: "
-	: "+r" (res), "+r" (s1), "+r" (s2)
-	:
-	: "r2", "r3", "memory", "cc");
+					 : "+r"(res), "+r"(s1), "+r"(s2)
+					 :
+					 : "r2", "r3", "memory", "cc");
 
 	return res;
 }
@@ -131,16 +129,15 @@ char *hal_strcpy(char *dest, const char *src)
 {
 	char *p = dest;
 
-	__asm__ volatile
-	(" \
+	__asm__ volatile(" \
 	1: \
 		ldrb r3, [%1], #1; \
 		strb r3, [%0], #1; \
 		cmp r3, #0; \
 		bne 1b"
-	: "+r" (p), "+r" (src)
-	:
-	: "r3", "memory", "cc");
+					 : "+r"(p), "+r"(src)
+					 :
+					 : "r3", "memory", "cc");
 
 	return dest;
 }
@@ -150,8 +147,7 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 {
 	char *p = dest;
 
-	__asm__ volatile
-	(" \
+	__asm__ volatile(" \
 		cmp %2, #0; \
 		beq 2f; \
 	1: \
@@ -161,9 +157,9 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 		subs %2, #1; \
 		bne 1b; \
 	2:"
-	: "+r" (p), "+r" (src), "+r" (n)
-	:
-	: "r3", "memory", "cc");
+					 : "+r"(p), "+r"(src), "+r"(n)
+					 :
+					 : "r3", "memory", "cc");
 
 	return dest;
 }
@@ -177,11 +173,14 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zer
 
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
+	k = m;
 
-	for (k = m, l = (unsigned long)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+	for (l = (unsigned long)-1; l != 0U; l /= b) {
+		if ((zero == 0U) && (i == 0U)) {
 			break;
+		}
 		s[k++] = digits[i % b];
+		i /= b;
 	}
 
 	l = k--;
@@ -194,3 +193,5 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zer
 
 	return l;
 }
+
+/* parasoft-end-suppress MISRAC2012-DIR_4_3 */

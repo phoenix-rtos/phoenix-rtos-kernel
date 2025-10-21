@@ -29,10 +29,11 @@
 #include "include/mman.h"
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _etext;
 
 
-struct {
+static struct {
 	spinlock_t lock;
 } __attribute__((aligned(SIZE_PAGE))) pmap_common;
 
@@ -46,11 +47,12 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 
 	/* Copy kernel page tables */
 	hal_memset(pmap->pdir, 0, SIZE_PAGE);
-	vaddr = (void *)((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1));
+	vaddr = (void *)((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1U));
 
-	pages = ((void *)0xffffffffU - vaddr) / (SIZE_PAGE << 10);
-	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 10), ++i) {
+	pages = (u32)((void *)0xffffffffU - vaddr) / (SIZE_PAGE << 10);
+	for (i = 0; i < pages; ++i) {
 		pmap->pdir[(u32)vaddr >> 22] = kpmap->pdir[(u32)vaddr >> 22];
+		vaddr += (SIZE_PAGE << 10);
 	}
 
 	return EOK;
@@ -59,11 +61,11 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 
 addr_t pmap_destroy(pmap_t *pmap, int *i)
 {
-	int kernel = ((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1)) >> 22;
+	unsigned int kernel = ((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1U)) >> 22;
 
-	while (*i < kernel) {
-		if (pmap->pdir[*i] != 0) {
-			return pmap->pdir[(*i)++] & ~(SIZE_PAGE - 1);
+	while (*i < (int)kernel) {
+		if (pmap->pdir[*i] != 0U) {
+			return pmap->pdir[(*i)++] & ~(SIZE_PAGE - 1U);
 		}
 		(*i)++;
 	}
@@ -88,11 +90,11 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page
 	pti = ((u32)va >> 12) & 0x000003ffU;
 
 	/* If no page table is allocated add new one */
-	if (pdir[pdi] == 0) {
+	if (pdir[pdi] == 0U) {
 		if (alloc == NULL) {
 			return -EFAULT;
 		}
-		pdir[pdi] = ((alloc->addr & ~(SIZE_PAGE - 1)) | PTHD_USER | PTHD_WRITE | PTHD_PRESENT);
+		pdir[pdi] = ((alloc->addr & ~(SIZE_PAGE - 1U)) | PTHD_USER | PTHD_WRITE | PTHD_PRESENT);
 	}
 
 	/* Map selected page table to specified virtual address */
@@ -103,12 +105,12 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page
 
 	/* Map selected page table */
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
-	ptable[((u32)pt >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT | PGHD_USER);
+	ptable[((u32)pt >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1U)) | (PGHD_WRITE | PGHD_PRESENT | PGHD_USER);
 
 	hal_tlbInvalidateLocalEntry(NULL, pt);
 
 	/* And at last map page or only changle attributes of map entry */
-	pt[pti] = ((pa & ~(SIZE_PAGE - 1)) | (attr & 0xfffU) | PGHD_PRESENT);
+	pt[pti] = ((pa & ~(SIZE_PAGE - 1U)) | ((addr_t)attr & 0xfffU) | PGHD_PRESENT);
 
 	if (tlbInval != 0) {
 		hal_tlbInvalidateEntry(NULL, va, 1);
@@ -122,13 +124,13 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page
 
 
 /* Functions maps page at specified address */
-int pmap_enter(pmap_t *pmap, addr_t pa, void *va, vm_attr_t attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	spinlock_ctx_t sc;
 	int ret;
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
-	ret = _pmap_enter(pmap->pdir, hal_config.ptable, pa, va, attr, alloc, 1);
+	ret = _pmap_enter(pmap->pdir, hal_config.ptable, pa, vaddr, attr, alloc, 1);
 	if (ret == EOK) {
 		hal_tlbCommit(&pmap_common.lock, &sc);
 	}
@@ -149,12 +151,12 @@ static int _pmap_remove(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tl
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
 	va = vaddr;
 
-	for (i = 0; i < count; ++i, va += SIZE_PAGE) {
+	for (i = 0; i < count; ++i) {
 		pdi = (u32)va >> 22;
 		pti = ((u32)va >> 12) & 0x000003ffU;
 
 		/* no page table is allocated => page is not mapped */
-		if (pdir[pdi] == 0) {
+		if (pdir[pdi] == 0U) {
 			continue;
 		}
 
@@ -165,20 +167,23 @@ static int _pmap_remove(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tl
 		}
 
 		/* Map selected page table */
-		ptable[((u32)pt >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
+		ptable[((u32)pt >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1U)) | (PGHD_WRITE | PGHD_PRESENT);
 
 		hal_tlbInvalidateLocalEntry(NULL, pt);
 
 		/* Unmap page */
 		pt[pti] = 0;
+
+		va += SIZE_PAGE;
 	}
 
 	if (tlbInval != 0) {
 		hal_tlbInvalidateEntry(NULL, vaddr, count);
 	}
 	else {
-		for (i = 0; i < count; ++i, vaddr += SIZE_PAGE) {
+		for (i = 0; i < count; ++i) {
 			hal_tlbInvalidateLocalEntry(NULL, vaddr);
+			vaddr += SIZE_PAGE;
 		}
 	}
 	return EOK;
@@ -212,7 +217,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	pdi = (u32)vaddr >> 22;
 	pti = ((u32)vaddr >> 12) & 0x000003ffU;
 
-	if (pmap->pdir[pdi] == 0) {
+	if (pmap->pdir[pdi] == 0U) {
 		return 0;
 	}
 
@@ -222,7 +227,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	addr = pmap->pdir[pdi];
 
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
-	ptable[((u32)hal_config.ptable >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
+	ptable[((u32)hal_config.ptable >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1U)) | (PGHD_WRITE | PGHD_PRESENT);
 	hal_tlbInvalidateLocalEntry(NULL, hal_config.ptable);
 
 	addr = (addr_t)hal_config.ptable[pti];
@@ -242,7 +247,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	const hal_memEntry_t *memEntry;
 	const syspage_prog_t *prog;
 
-	a = *addr & ~(SIZE_PAGE - 1);
+	a = *addr & ~(SIZE_PAGE - 1U);
 
 	if (a < hal_config.minAddr) {
 		a = hal_config.minAddr;
@@ -264,7 +269,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		memEntry = &hal_config.memMap.entries[i];
 		if ((a >= memEntry->start) && (a - memEntry->start < memEntry->pageCount * SIZE_PAGE)) {
 			*addr = a + SIZE_PAGE;
-			page->flags |= memEntry->flags;
+			page->flags |= (u8)memEntry->flags;
 			return EOK;
 		}
 	}
@@ -284,7 +289,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 
 						/* Skip invalid entries in map */
 						if (sysEntry->type == hal_entryInvalid) {
-							a = (sysEntry->end & ~(SIZE_PAGE - 1)) - SIZE_PAGE;
+							a = (sysEntry->end & ~(SIZE_PAGE - 1U)) - SIZE_PAGE;
 							*addr = a + SIZE_PAGE;
 							return -EINVAL;
 						}
@@ -295,8 +300,8 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		}
 		else {
 			/* Skip empty area between maps */
-			if ((a > (map->end - 1)) && (a < map->next->start)) {
-				a = (map->next->start & ~(SIZE_PAGE - 1)) - SIZE_PAGE;
+			if ((a > (map->end - 1U)) && (a < map->next->start)) {
+				a = (map->next->start & ~(SIZE_PAGE - 1U)) - SIZE_PAGE;
 				*addr = a + SIZE_PAGE;
 				return -EINVAL;
 			}
@@ -328,7 +333,7 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 {
 	void *vaddr;
 
-	vaddr = (void *)((u32)(*start + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	vaddr = (void *)((u32)(*start + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
 	if (vaddr >= end) {
 		return EOK;
 	}
@@ -361,11 +366,11 @@ char pmap_marker(page_t *p)
 {
 	static const char *const marksets[4] = { "BBBBBBBBBBBBBBBB", "KYCPMSHKKKKKKKKK", "AAAAAAAAAAAAAAAA", "UUUUUUUUUUUUUUUU" };
 
-	if ((p->flags & PAGE_FREE) != 0) {
+	if ((p->flags & PAGE_FREE) != 0U) {
 		return '.';
 	}
 
-	return marksets[(p->flags >> 1) & 3][(p->flags >> 4) & 0xf];
+	return marksets[(p->flags >> 1U) & 3U][(p->flags >> 4) & 0xfU];
 }
 
 
@@ -415,11 +420,11 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Map initial heap to the first physical page */
 	(*vend) = (*vstart) + SIZE_PAGE;
-	_pmap_enter(pmap->pdir, hal_config.ptable, 0x00000000U, (*vstart), PGHD_WRITE | PGHD_PRESENT, NULL, 0);
+	(void)_pmap_enter(pmap->pdir, hal_config.ptable, 0x00000000U, (*vstart), PGHD_WRITE | PGHD_PRESENT, NULL, 0);
 
 	/* Move heap start above BIOS Data Area */
 	(*vstart) += 0x500;
 
-	pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (4 << 20)));
+	(void)pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (4UL << 20)));
 	hal_tlbFlushLocal(NULL);
 }

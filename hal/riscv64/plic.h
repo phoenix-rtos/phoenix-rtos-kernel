@@ -21,7 +21,13 @@
 
 
 /* PLIC Supervisor Context number */
-#define PLIC_SCONTEXT(hartId) (PLIC_CONTEXTS_PER_HART * (hartId) + 1)
+#define PLIC_SCONTEXT(hartId) (PLIC_CONTEXTS_PER_HART * (hartId) + 1U)
+
+
+u32 plic_read(unsigned int reg);
+
+
+void plic_write(unsigned int reg, u32 v);
 
 
 void plic_priority(unsigned int n, unsigned int priority);

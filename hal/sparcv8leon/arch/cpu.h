@@ -49,27 +49,27 @@
 #define CPU_EXC_SIZE 0xe0
 
 /* Processor State Register */
-#define PSR_CWP 0x1f        /* Current window pointer */
-#define PSR_ET  (1 << 5)    /* Enable traps */
-#define PSR_PS  (1 << 6)    /* Previous supervisor */
-#define PSR_S   (1 << 7)    /* Supervisor */
-#define PSR_PIL (0xf << 8)  /* Processor interrupt level */
-#define PSR_EF  (1 << 12)   /* Enable floating point */
-#define PSR_EC  (1 << 13)   /* Enable co-processor */
-#define PSR_ICC (0xf << 20) /* Integer condition codes */
+#define PSR_CWP 0x1fU        /* Current window pointer */
+#define PSR_ET  (1U << 5)    /* Enable traps */
+#define PSR_PS  (1U << 6)    /* Previous supervisor */
+#define PSR_S   (1U << 7)    /* Supervisor */
+#define PSR_PIL (0xfU << 8)  /* Processor interrupt level */
+#define PSR_EF  (1U << 12)   /* Enable floating point */
+#define PSR_EC  (1U << 13)   /* Enable co-processor */
+#define PSR_ICC (0xfU << 20) /* Integer condition codes */
 
 
 /* Cache control register */
-#define CCR_ICS (3 << 0)  /* ICache state */
-#define CCR_DCS (3 << 2)  /* DCache state */
-#define CCR_IF  (1 << 4)  /* ICache freeze on interrupt */
-#define CCR_DF  (1 << 5)  /* DCache freeze on interrupt */
-#define CCR_DP  (1 << 14) /* DCache flush pending */
-#define CCR_IP  (1 << 15) /* ICache flush pending */
-#define CCR_IB  (1 << 16) /* ICache burst fetch en */
-#define CCR_FI  (1 << 21) /* Flush ICache */
-#define CCR_FD  (1 << 22) /* Flush DCache */
-#define CCR_DS  (1 << 23) /* DCache snooping */
+#define CCR_ICS (3U << 0)   /* ICache state */
+#define CCR_DCS (3U << 2)   /* DCache state */
+#define CCR_IF  (1U << 4)   /* ICache freeze on interrupt */
+#define CCR_DF  (1U << 5)   /* DCache freeze on interrupt */
+#define CCR_DP  (1UL << 14) /* DCache flush pending */
+#define CCR_IP  (1UL << 15) /* ICache flush pending */
+#define CCR_IB  (1UL << 16) /* ICache burst fetch en */
+#define CCR_FI  (1UL << 21) /* Flush ICache */
+#define CCR_FD  (1UL << 22) /* Flush DCache */
+#define CCR_DS  (1UL << 23) /* DCache snooping */
 
 /* Basic address space identifiers */
 #define ASI_USER_INSTR  0x08
@@ -145,12 +145,12 @@
 
 #define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "t used as type -  wrong interpretation" */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
 		/* 8-byte values might have been put on stack unaligned */ \
 		/* clang-format off */ \
-		if (sizeof(t) == 8 && ((ptr_t)(ustack) & 0x7) != 0) { \
+		if (sizeof(t) == 8U && ((ptr_t)(ustack) & 0x7U) != 0U) { \
 			/* clang-format on */ \
 			union { \
 				t val; \
@@ -159,15 +159,16 @@
 					u32 hi; \
 				}; \
 			} data##n; \
-			data##n.lo = *(u32 *)ustack; \
-			data##n.hi = *(u32 *)(ustack + 4); \
-			v = data##n.val; \
+			data##n.lo = *(u32 *)(ustack); \
+			data##n.hi = *(u32 *)((ustack) + 4); \
+			(v) = data##n.val; \
 		} \
 		else { \
-			(v) = *(t *)ustack; \
+			(v) = *(t *)(ustack); \
 		} \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7*/
 
 
 typedef struct {
@@ -274,6 +275,7 @@ static inline void hal_cpuSetDevBusy(int s)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1 "Used only in targets with NOMMU" */
 static inline void hal_cpuGetCycles(cycles_t *cb)
 {
 	*cb = (cycles_t)hal_timerGetUs();
@@ -299,6 +301,8 @@ static inline void hal_cpuSetGot(void *got)
 }
 
 
+/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+/* parasoft-begin-suppress MISRAC2012-RULE_2_1 "Used only in targets with NOMMU" */
 static inline void *hal_cpuGetGot(void)
 {
 	void *got;
@@ -311,6 +315,7 @@ static inline void *hal_cpuGetGot(void)
 
 	return got;
 }
+/* parasoft-end-suppress MISRAC2012-DIR_4_3 MISRAC2012-RULE_2_1 */
 
 
 static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval)
@@ -352,6 +357,7 @@ static inline unsigned int hal_cpuGetCount(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetID(void)
 {
 	u32 asr17;

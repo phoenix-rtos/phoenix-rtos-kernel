@@ -26,7 +26,7 @@
 #ifdef UART_CONSOLE
 #define UART_CONSOLE_KERNEL UART_CONSOLE
 #else
-#define UART_CONSOLE_KERNEL 11
+#define UART_CONSOLE_KERNEL 11U
 #endif
 #endif
 
@@ -51,29 +51,44 @@
 #define CONSOLE_BAUDRATE 115200
 #endif
 
-struct {
+static struct {
 	volatile u32 *uart;
 } console_common;
 
 
-enum { uart_verid = 0, uart_param, uart_global, uart_pincfg, uart_baud, uart_stat, uart_ctrl,
-	uart_data, uart_match, uart_modir, uart_fifo, uart_water };
+enum { uart_verid = 0,
+	uart_param,
+	uart_global,
+	uart_pincfg,
+	uart_baud,
+	uart_stat,
+	uart_ctrl,
+	uart_data,
+	uart_match,
+	uart_modir,
+	uart_fifo,
+	uart_water };
 
 
 static void _hal_consolePrint(const char *s)
 {
-	while (*s)
+	while (*s != '\0') {
 		hal_consolePutch(*(s++));
+	}
 }
 
 
 void hal_consolePrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD)
+	if (attr == ATTR_BOLD) {
 		_hal_consolePrint(CONSOLE_BOLD);
-	else if (attr != ATTR_USER)
+	}
+	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
-
+	}
+	else {
+		/* No action required */
+	}
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
 }
@@ -86,10 +101,11 @@ void hal_consolePutch(char c)
 #endif
 
 #if !ISEMPTY(UART_CONSOLE_KERNEL)
-	while (!(*(console_common.uart + uart_stat) & (1 << 23)))
+	while (!(*(console_common.uart + uart_stat) & (1UL << 23))) {
 		;
+	}
 
-	*(console_common.uart + uart_data) = c;
+	*(console_common.uart + uart_data) = (u32)c;
 #endif
 }
 
@@ -97,7 +113,7 @@ void hal_consolePutch(char c)
 #if !ISEMPTY(UART_CONSOLE_KERNEL)
 static void _hal_uartInit(void)
 {
-	u32 t, console = UART_CONSOLE_KERNEL - 1;
+	u32 t, console = UART_CONSOLE_KERNEL - 1U;
 
 	static const struct {
 		volatile u32 *base;
@@ -124,62 +140,64 @@ static void _hal_uartInit(void)
 
 	console_common.uart = info[console].base;
 
-	_imxrt_setDevClock(info[console].clk, 0, 0, 0, 0, 1);
+	(void)_imxrt_setDevClock(info[console].clk, 0, 0, 0, 0, 1);
 
 	/* tx */
-	_imxrt_setIOmux(info[console].txmux, 0, info[console].mode);
-	_imxrt_setIOpad(info[console].txpad, 0, 0, 0, 0, 0, 0);
+	(void)_imxrt_setIOmux(info[console].txmux, 0, info[console].mode);
+	(void)_imxrt_setIOpad(info[console].txpad, 0, 0, 0, 0, 0, 0);
 
-	if (info[console].txdaisy >= 0)
-		_imxrt_setIOisel(info[console].txdaisy, info[console].txsel);
+	if (info[console].txdaisy >= 0) {
+		(void)_imxrt_setIOisel(info[console].txdaisy, info[console].txsel);
+	}
 
 	/* rx */
-	_imxrt_setIOmux(info[console].rxmux, 0, info[console].mode);
-	_imxrt_setIOpad(info[console].rxpad, 0, 0, 1, 1, 0, 0);
+	(void)_imxrt_setIOmux(info[console].rxmux, 0, info[console].mode);
+	(void)_imxrt_setIOpad(info[console].rxpad, 0, 0, 1, 1, 0, 0);
 
-	if (info[console].rxdaisy >= 0)
-		_imxrt_setIOisel(info[console].rxdaisy, info[console].rxsel);
+	if (info[console].rxdaisy >= 0) {
+		(void)_imxrt_setIOisel(info[console].rxdaisy, info[console].rxsel);
+	}
 
 	/* Reset all internal logic and registers, except the Global Register */
-	*(console_common.uart + uart_global) |= 1 << 1;
+	*(console_common.uart + uart_global) |= 1U << 1;
 	hal_cpuDataMemoryBarrier();
-	*(console_common.uart + uart_global) &= ~(1 << 1);
+	*(console_common.uart + uart_global) &= ~(1U << 1);
 	hal_cpuDataMemoryBarrier();
 
 	/* Set baud rate */
-	t = *(console_common.uart + uart_baud) & ~((0x1f << 24) | (1 << 17) | 0xfff);
+	t = *(console_common.uart + uart_baud) & ~((0x1fUL << 24) | (1UL << 17) | 0xfffU);
 
 	/* For baud rate calculation, default UART_CLK=24MHz assumed */
 	switch (CONSOLE_BAUDRATE) {
-		case 9600: t |= 0x03020271; break;
-		case 19200: t |= 0x03020138; break;
-		case 38400: t |= 0x0302009c; break;
-		case 57600: t |= 0x03020068; break;
-		case 115200: t |= 0x03020034; break;
-		case 230400: t |= 0x0302001a; break;
-		case 460800: t |= 0x0302000d; break;
+		case 9600: t |= 0x03020271U; break;
+		case 19200: t |= 0x03020138U; break;
+		case 38400: t |= 0x0302009cU; break;
+		case 57600: t |= 0x03020068U; break;
+		case 115200: t |= 0x03020034U; break;
+		case 230400: t |= 0x0302001aU; break;
+		case 460800: t |= 0x0302000dU; break;
 		/* As fallback use default 115200 */
-		default: t |= 0x03020034; break;
+		default: t |= 0x03020034U; break;
 	}
 	*(console_common.uart + uart_baud) = t;
 
 	/* Set 8 bit and no parity mode */
-	*(console_common.uart + uart_ctrl) &= ~0x117;
+	*(console_common.uart + uart_ctrl) &= ~0x117U;
 
 	/* One stop bit */
-	*(console_common.uart + uart_baud) &= ~(1 << 13);
+	*(console_common.uart + uart_baud) &= ~(1UL << 13);
 
 	*(console_common.uart + uart_water) = 0;
 
 	/* Enable FIFO */
-	*(console_common.uart + uart_fifo) |= (1 << 7) | (1 << 3);
-	*(console_common.uart + uart_fifo) |= 0x3 << 14;
+	*(console_common.uart + uart_fifo) |= (1U << 7) | (1U << 3);
+	*(console_common.uart + uart_fifo) |= 0x3UL << 14;
 
 	/* Clear all status flags */
-	*(console_common.uart + uart_stat) |= 0xc01fc000;
+	*(console_common.uart + uart_stat) |= 0xc01fc000U;
 
 	/* Enable TX and RX */
-	*(console_common.uart + uart_ctrl) |= (1 << 19) | (1 << 18);
+	*(console_common.uart + uart_ctrl) |= (1UL << 19) | (1UL << 18);
 }
 #endif
 

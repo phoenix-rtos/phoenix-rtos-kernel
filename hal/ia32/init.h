@@ -20,9 +20,9 @@
 #include "config.h"
 #include "arch/pmap.h"
 
-#define MADT_TYPE_PROCESSOR_LOCAL_APIC             0
-#define MADT_TYPE_IOAPIC                           1
-#define MADT_TYPE_IOAPIC_INTERRUPT_SOURCE_OVERRIDE 2
+#define MADT_TYPE_PROCESSOR_LOCAL_APIC             0U
+#define MADT_TYPE_IOAPIC                           1U
+#define MADT_TYPE_IOAPIC_INTERRUPT_SOURCE_OVERRIDE 2U
 
 #define MADT_8259PIC_INSTALLED (1U << 0)
 
@@ -34,8 +34,8 @@
 #define FADT_PCIe_ASPM_CONTROLS  (1U << 4)
 #define FADT_NO_CMOS_RTC         (1U << 5)
 
-#define HAL_MEM_ENTRIES        64
-#define MMIO_DEVICES_VIRT_ADDR (void *)0xfe000000
+#define HAL_MEM_ENTRIES        64U
+#define MMIO_DEVICES_VIRT_ADDR (void *)0xfe000000U
 
 typedef struct {
 	char magic[4];
@@ -75,7 +75,7 @@ typedef struct {
 	u8 registerOffset;
 	u8 accessSize;
 	u64 address;
-} __attribute__ ((packed)) hal_gas_t;
+} __attribute__((packed)) hal_gas_t;
 
 typedef struct {
 	u8 addressSpaceId;
@@ -108,7 +108,7 @@ typedef struct {
 	u64 xsdtAddr;
 	u8 extChecksum;
 	u8 _reserved[3];
-} __attribute__ ((packed)) xsdp_t;
+} __attribute__((packed)) xsdp_t;
 
 
 typedef struct {
@@ -116,7 +116,7 @@ typedef struct {
 	addr_t localApicAddr;
 	u32 flags;
 	u8 entries[]; /* It is an array of variable length elements */
-} __attribute__ ((packed)) hal_madtHeader_t;
+} __attribute__((packed)) hal_madtHeader_t;
 
 
 typedef struct {
@@ -126,7 +126,7 @@ typedef struct {
 	u8 hpetNumber;
 	u16 minPeriodicClockTick;
 	u8 pageProtection;
-} __attribute__ ((packed)) hal_hpetHeader_t;
+} __attribute__((packed)) hal_hpetHeader_t;
 
 
 typedef struct {
@@ -187,7 +187,7 @@ typedef struct {
 	hal_gas_t sleepStatusReg;  /* SLEEP_STATUS_REG */
 	u64 hypervisorVendorIdentity;
 
-} __attribute__ ((packed)) hal_fadtHeader_t;
+} __attribute__((packed)) hal_fadtHeader_t;
 
 
 typedef struct {

@@ -21,20 +21,20 @@
 
 /* Predefined virtual addresses */
 
-#define VADDR_KERNEL  0xc0000000 /* base virtual address of kernel space */
-#define VADDR_MIN     0x00000000
-#define VADDR_MAX     0xffffffff
-#define VADDR_USR_MAX 0x80000000
+#define VADDR_KERNEL  0xc0000000U /* base virtual address of kernel space */
+#define VADDR_MIN     0x00000000U
+#define VADDR_MAX     0xffffffffU
+#define VADDR_USR_MAX 0x80000000U
 
 /* Architecture dependent page attributes */
 
-#define PGHD_READ       (1 << 0)
-#define PGHD_WRITE      (1 << 1)
-#define PGHD_EXEC       (1 << 2)
-#define PGHD_USER       (1 << 3)
-#define PGHD_PRESENT    (1 << 4)
-#define PGHD_DEV        (1 << 5)
-#define PGHD_NOT_CACHED (1 << 6)
+#define PGHD_READ       (1U << 0)
+#define PGHD_WRITE      (1U << 1)
+#define PGHD_EXEC       (1U << 2)
+#define PGHD_USER       (1U << 3)
+#define PGHD_PRESENT    (1U << 4)
+#define PGHD_DEV        (1U << 5)
+#define PGHD_NOT_CACHED (1U << 6)
 
 /* Page table entry types */
 
@@ -44,18 +44,18 @@
 
 /* Page flags */
 
-#define PAGE_FREE 0x00000001
+#define PAGE_FREE 0x00000001U
 
-#define PAGE_OWNER_BOOT   (0 << 1)
-#define PAGE_OWNER_KERNEL (1 << 1)
-#define PAGE_OWNER_APP    (2 << 1)
+#define PAGE_OWNER_BOOT   (0U << 1)
+#define PAGE_OWNER_KERNEL (1U << 1)
+#define PAGE_OWNER_APP    (2U << 1)
 
-#define PAGE_KERNEL_SYSPAGE (1 << 4)
-#define PAGE_KERNEL_CPU     (2 << 4)
-#define PAGE_KERNEL_PTABLE  (3 << 4)
-#define PAGE_KERNEL_PMAP    (4 << 4)
-#define PAGE_KERNEL_STACK   (5 << 4)
-#define PAGE_KERNEL_HEAP    (6 << 4)
+#define PAGE_KERNEL_SYSPAGE (1U << 4)
+#define PAGE_KERNEL_CPU     (2U << 4)
+#define PAGE_KERNEL_PTABLE  (3U << 4)
+#define PAGE_KERNEL_PMAP    (4U << 4)
+#define PAGE_KERNEL_STACK   (5U << 4)
+#define PAGE_KERNEL_HEAP    (6U << 4)
 
 
 /* Page access permissions */
@@ -76,8 +76,8 @@
 #include "hal/types.h"
 
 
-#define PAGE_ALIGN(addr) (((addr_t)addr) & ~(SIZE_PAGE - 1))
-#define PAGE_OFFS(addr)  (((addr_t)addr) & (SIZE_PAGE - 1))
+#define PAGE_ALIGN(addr) (((addr_t)(addr)) & ~(SIZE_PAGE - 1U))
+#define PAGE_OFFS(addr)  (((addr_t)(addr)) & (SIZE_PAGE - 1U))
 
 
 typedef struct _page_t {

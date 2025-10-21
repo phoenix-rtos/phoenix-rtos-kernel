@@ -22,41 +22,42 @@
 #include "ia32.h"
 #include "hal/string.h"
 
-#define PIT_FREQUENCY 1193 /* kHz */
+#define PIT_FREQUENCY 1193U /* kHz */
 
 #define PIT_BCD                0
-#define PIT_CHANNEL_0          (0 << 6)
-#define PIT_CHANNEL_1          (1 << 6)
-#define PIT_CHANNEL_2          (2 << 6)
-#define PIT_ACCESS_BOTH        (3 << 4)
-#define PIT_OPERATING_ONE_SHOT (0 << 1)
-#define PIT_OPERATING_RATE_GEN (2 << 1)
+#define PIT_CHANNEL_0          (0U << 6)
+#define PIT_CHANNEL_1          (1U << 6)
+#define PIT_CHANNEL_2          (2U << 6)
+#define PIT_ACCESS_BOTH        (3U << 4)
+#define PIT_OPERATING_ONE_SHOT (0U << 1)
+#define PIT_OPERATING_RATE_GEN (2U << 1)
 
-#define LAPIC_TIMER_ONE_SHOT        0
-#define LAPIC_TIMER_DEFAULT_DIVIDER 3 /* 3 means 8 (1 << 3) */
+#define LAPIC_TIMER_ONE_SHOT        0U
+#define LAPIC_TIMER_DEFAULT_DIVIDER 3U /* 3 means 8 (1 << 3) */
 
 /* 64 bit registers, access must be aligned
    Trying to use exclusive-access mechanisms (ex. lock mov, xchg, etc.) is undefined */
-#define HPET_ID         0x00
-#define HPET_CONFIG     0x10
-#define HPET_IRQ_STATUS 0x20
-#define HPET_COUNTER    0xf0
+#define HPET_ID         0x00U
+#define HPET_CONFIG     0x10U
+#define HPET_IRQ_STATUS 0x20U
+#define HPET_COUNTER    0xf0U
 
-#define HPET_ID_LEGACY_CAPABLE           (1U << 15)
-#define HPET_LEGACY_TMR1_IRQ             8
-#define HPET_CONFIG_TMR_IRQ_EN           (1U << 2)
-#define HPET_CONFIG_TMR_PERIODIC         (1U << 3)
-#define HPET_CONFIG_TMR_CAN_BE_PERIODIC  (1U << 4)
-#define HPET_CONFIG_TMR_PERIODIC_CAN_SET (1U << 6)
-#define HPET_CONFIG_TMR_32BIT_MODE       (1U << 8)
+#define HPET_ID_LEGACY_CAPABLE          (1U << 15)
+#define HPET_LEGACY_TMR1_IRQ            8U
+#define HPET_CONFIG_TMR_IRQ_EN          (1U << 2)
+#define HPET_CONFIG_TMR_PERIODIC        (1U << 3)
+#define HPET_CONFIG_TMR_CAN_BE_PERIODIC (1U << 4)
+#define HPET_CONFIG_TMR_32BIT_MODE      (1U << 8)
 
 typedef struct {
+	/* clang-format off */
 	enum { timer_undefined, timer_pit, timer_lapic, timer_hpet } type;
+	/* clang-format on */
 	unsigned int (*name)(char *s, unsigned int *len);
 	int (*init)(u32 intervalUs);
 
 	/* When used as scheduling timer */
-	int (*schedulerIrq)(unsigned int, cpu_context_t *, void *);
+	intrFn_t schedulerIrq;
 	void (*schedulerSetWakeup)(u32 waitUs);
 	void (*schedulerInitCore)(unsigned int id);
 
@@ -66,7 +67,7 @@ typedef struct {
 } hal_timer_t;
 
 
-struct {
+static struct {
 	intr_handler_t handler;
 	spinlock_t sp;
 	u32 intervalUs;
@@ -92,17 +93,20 @@ struct {
 } timer_common;
 
 
+void hal_timerInitCore(unsigned int id);
+
+
 static unsigned int _hal_timersName(char *s, const char *prefix, unsigned long val, const char *suffix, unsigned int *len)
 {
-	unsigned int off = 0, n = hal_strlen(prefix) + sizeof(val) * 10 / 4;
+	unsigned int off = 0, n = hal_strlen(prefix) + sizeof(val) * 10U / 4U;
 	if (*len < n) {
 		return off;
 	}
-	n = hal_i2s(prefix, s + off, val, 10, 0);
+	n = hal_i2s(prefix, s + off, val, 10U, 0U);
 	off += n;
 	*len -= n;
 
-	hal_strncpy(s + off, suffix, *len);
+	(void)hal_strncpy(s + off, suffix, *len);
 	n = hal_strlen(suffix);
 	if (*len < n) {
 		n = *len;
@@ -137,8 +141,8 @@ static inline u16 _hal_pitCalculateDivider(u32 intervalUs)
 	u32 tmp;
 	tmp = intervalUs;
 	tmp *= PIT_FREQUENCY;
-	tmp /= 1000;
-	if (tmp >= 65536) {
+	tmp /= 1000U;
+	if (tmp >= 65536U) {
 		tmp = 0;
 	}
 	return (u16)tmp;
@@ -149,7 +153,7 @@ static inline void _hal_pitSetTimer(u16 reloadValue, u8 opMode)
 {
 	/* First generator, operation - CE write, work mode 2, binary counting */
 	hal_outb(PORT_PIT_COMMAND, PIT_CHANNEL_0 | PIT_ACCESS_BOTH | opMode);
-	hal_outb(PORT_PIT_DATA_CHANNEL0, (u8)(reloadValue & 0xff));
+	hal_outb(PORT_PIT_DATA_CHANNEL0, (u8)(reloadValue & 0xffU));
 	hal_outb(PORT_PIT_DATA_CHANNEL0, (u8)(reloadValue >> 8));
 }
 
@@ -176,22 +180,24 @@ static time_t _hal_pitBusyWaitUs(time_t waitUs)
 	s64 ticks;
 	u16 startPitDelta, pitDelta = 0;
 
-	for (ticks = (((s64)PIT_FREQUENCY) * ((s64)waitUs)) / 1000; ticks > 0; ticks -= pitDelta) {
+	ticks = (((s64)PIT_FREQUENCY) * ((s64)waitUs)) / 1000;
+	while (ticks > 0) {
 		if (ticks <= 0xf000) {
-			startPitDelta = 0xfff + ticks;
+			startPitDelta = 0xfffU + (u16)ticks;
 		}
 		else {
 			startPitDelta = 0xffff;
 		}
 		pitDelta = startPitDelta;
 		_hal_pitSetTimer(startPitDelta, PIT_OPERATING_ONE_SHOT);
-		while (pitDelta > 0x0fff) {
+		while (pitDelta > 0x0fffU) {
 			pitDelta = _hal_pitReadTimer();
 		}
 		pitDelta = startPitDelta - pitDelta;
 		sumTicks += pitDelta;
+		ticks -= (s64)pitDelta;
 	}
-	return (sumTicks * 1000) / PIT_FREQUENCY;
+	return ((time_t)sumTicks * 1000) / (time_t)PIT_FREQUENCY;
 }
 
 
@@ -227,15 +233,15 @@ static unsigned int _hal_lapicTimerName(char *s, unsigned int *len)
 static inline void _hal_lapicTimerSetDivider(u8 divider)
 {
 	/* Divider is a power of 2 */
-	if (divider == 0) {
+	if (divider == 0U) {
 		/* Not recommended. It is claimed that it is bugged on some emulators */
 		divider = 0xb;
 	}
-	else if (divider > 4) {
-		divider += 3;
+	else if (divider > 4U) {
+		divider += 3U;
 	}
 	else {
-		divider -= 1;
+		divider -= 1U;
 	}
 	_hal_lapicWrite(LAPIC_LVT_TMR_DC_REG, divider);
 }
@@ -261,19 +267,19 @@ static inline u32 _hal_lapicTimerGetCounter(void)
 
 static inline void _hal_lapicTimerConfigure(u32 mode, u32 mask, u32 vector)
 {
-	_hal_lapicWrite(LAPIC_LVT_TIMER_REG, (vector & 0xff) | ((mask & 0x1) << 16) | ((mode & 0x3) << 17));
+	_hal_lapicWrite(LAPIC_LVT_TIMER_REG, (vector & 0xffU) | ((mask & 0x1U) << 16) | ((mode & 0x3U) << 17));
 }
 
 
-static inline u32 _hal_lapicTimerCyc2us(u64 cycles)
+static inline u32 _hal_lapicTimerCyc2Us(u64 cycles)
 {
-	return (u32)(((cycles << LAPIC_TIMER_DEFAULT_DIVIDER) * 1000) / (u64)timer_common.lapicData.frequency);
+	return (u32)(((cycles << LAPIC_TIMER_DEFAULT_DIVIDER) * 1000U) / (u64)timer_common.lapicData.frequency);
 }
 
 
 static inline u64 _hal_lapicTimerUs2Cyc(u32 us)
 {
-	return (((u64)us) * (u64)timer_common.lapicData.frequency) / (1000 << LAPIC_TIMER_DEFAULT_DIVIDER);
+	return (((u64)us) * (u64)timer_common.lapicData.frequency) / (1000U << LAPIC_TIMER_DEFAULT_DIVIDER);
 }
 
 
@@ -282,10 +288,10 @@ static int _hal_lapicTimerIrqHandler(unsigned int n, cpu_context_t *ctx, void *a
 	spinlock_ctx_t sc;
 	const unsigned int id = hal_cpuGetID();
 	hal_spinlockSet(&timer_common.sp, &sc);
-	if ((timer_common.timestampTimer->type == timer_lapic) && (id == 0)) {
+	if ((timer_common.timestampTimer->type == timer_lapic) && (id == 0U)) {
 		timer_common.lapicData.cycles += timer_common.lapicData.wait[id];
 	}
-	timer_common.lapicData.wait[id] = _hal_lapicTimerUs2Cyc(timer_common.intervalUs);
+	timer_common.lapicData.wait[id] = (u32)_hal_lapicTimerUs2Cyc(timer_common.intervalUs);
 	_hal_lapicTimerStart(timer_common.lapicData.wait[id]);
 	hal_spinlockClear(&timer_common.sp, &sc);
 	return 0;
@@ -303,7 +309,7 @@ static unsigned int _hal_hpetName(char *s, unsigned int *len)
 
 static inline u32 _hal_hpetRead(u32 offset)
 {
-	u32 ret;
+	u32 ret = 0U;
 	(void)_hal_gasRead32(&timer_common.hpetData.addr, offset, &ret);
 	return ret;
 }
@@ -318,7 +324,7 @@ static inline void _hal_hpetWrite(u32 offset, u32 val)
 /* 0 disables, everything else enables */
 static inline void _hal_hpetEnable(int val)
 {
-	_hal_hpetWrite(HPET_CONFIG, (_hal_hpetRead(HPET_CONFIG) & 0x3) | (val != 0 ? 1 : 0));
+	_hal_hpetWrite(HPET_CONFIG, (_hal_hpetRead(HPET_CONFIG) & 0x3U) | (val != 0 ? 1U : 0U));
 }
 
 
@@ -346,7 +352,7 @@ static inline void _hal_hpetSetCounter(u64 val)
 static time_t _hal_hpetGetUs(void)
 {
 	/* Convert period from femtoseconds to nanoseconds and scale the counter */
-	return (_hal_hpetGetCounter() * (u64)((timer_common.hpetData.period + (500 * 1000)) / (1000 * 1000))) / 1000;
+	return (time_t)(u64)((_hal_hpetGetCounter() * (((u64)timer_common.hpetData.period + (500U * 1000U)) / (1000U * 1000U))) / 1000U);
 }
 
 
@@ -381,17 +387,17 @@ static int _hal_hpetInit(u32 intervalUs)
 static void _hal_lapicSetWakeup(u32 waitUs)
 {
 	const unsigned int id = hal_cpuGetID();
-	if ((timer_common.timestampTimer->type == timer_lapic) && (id == 0)) {
-		timer_common.lapicData.cycles += (timer_common.lapicData.wait[id] - _hal_lapicTimerGetCounter());
+	if ((timer_common.timestampTimer->type == timer_lapic) && (id == 0U)) {
+		timer_common.lapicData.cycles += ((u64)timer_common.lapicData.wait[id] - _hal_lapicTimerGetCounter());
 	}
-	timer_common.lapicData.wait[id] = _hal_lapicTimerUs2Cyc(waitUs);
+	timer_common.lapicData.wait[id] = (u32)_hal_lapicTimerUs2Cyc(waitUs);
 	_hal_lapicTimerStart(timer_common.lapicData.wait[id]);
 }
 
 
 static time_t _hal_lapicGetUs(void)
 {
-	return _hal_lapicTimerCyc2us(timer_common.lapicData.cycles);
+	return (time_t)_hal_lapicTimerCyc2Us(timer_common.lapicData.cycles);
 }
 
 
@@ -416,15 +422,15 @@ static int _hal_lapicTimerInit(u32 intervalUs)
 	lapicDelta = 0xffffffffU;
 
 	_hal_lapicTimerStart(lapicDelta);
-	delta = timer_common.timestampTimer->timestampBusyWaitUs(100000);
+	delta = (u64)timer_common.timestampTimer->timestampBusyWaitUs(100000);
 	lapicDelta -= _hal_lapicTimerGetCounter();
 	_hal_lapicTimerStop();
 
-	freq = ((((u64)lapicDelta) * 1000) << LAPIC_TIMER_DEFAULT_DIVIDER) / delta;
+	freq = ((((u64)lapicDelta) * 1000U) << LAPIC_TIMER_DEFAULT_DIVIDER) / delta;
 
 	timer_common.intervalUs = intervalUs;
 
-	timer_common.lapicData.frequency = freq;
+	timer_common.lapicData.frequency = (u32)freq;
 
 	return 0;
 }
@@ -479,8 +485,8 @@ char *hal_timerFeatures(char *features, unsigned int len)
 {
 	static const char textScheduling[] = "Scheduling timer: ";
 	static const char textTimestamp[] = "\nhal: Timestamp timer: ";
-	const size_t textSchedulingLength = sizeof(textScheduling) - 1;
-	const size_t textTimestampLength = sizeof(textTimestamp) - 1;
+	const size_t textSchedulingLength = sizeof(textScheduling) - 1U;
+	const size_t textTimestampLength = sizeof(textTimestamp) - 1U;
 	unsigned int off = 0, n;
 
 	(void)hal_strncpy(features + off, textScheduling, len);
@@ -496,7 +502,7 @@ char *hal_timerFeatures(char *features, unsigned int len)
 	len -= n;
 
 	off += timer_common.timestampTimer->name(features + off, &len);
-	features[(len == 0) ? off - 1 : off] = '\0';
+	features[(len == 0U) ? off - 1U : off] = '\0';
 	return features;
 }
 
@@ -550,19 +556,19 @@ static const hal_timer_t _hal_hpetTimer = {
 };
 
 
-void _hal_timerInit(u32 intervalUs)
+void _hal_timerInit(u32 interval)
 {
-	_hal_defaultTimer.init(intervalUs);
+	(void)_hal_defaultTimer.init(interval);
 	timer_common.schedulerTimer = &_hal_defaultTimer;
 	timer_common.timestampTimer = &_hal_defaultTimer;
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 
-	if (_hal_hpetTimer.init(intervalUs) == 0) {
+	if (_hal_hpetTimer.init(interval) == 0) {
 		timer_common.timestampTimer = &_hal_hpetTimer;
 	}
 
-	if (_hal_lapicTimer.init(intervalUs) == 0) {
+	if (_hal_lapicTimer.init(interval) == 0) {
 		timer_common.schedulerTimer = &_hal_lapicTimer;
 	}
 
@@ -576,9 +582,10 @@ void _hal_timerInit(u32 intervalUs)
 				break;
 			default:
 				/* Fallback to PIT (it must be used as both types of timers) */
-				(void)_hal_pitInit(intervalUs);
+				(void)_hal_pitInit(interval);
 				timer_common.schedulerTimer = &_hal_pitTimer;
 				timer_common.timestampTimer = &_hal_pitTimer;
+				break;
 		}
 	}
 

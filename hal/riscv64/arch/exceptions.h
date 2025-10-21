@@ -19,9 +19,9 @@
 #include "cpu.h"
 
 
-#define EXC_DEFAULT   128
+#define EXC_DEFAULT   128U
 #define EXC_UNDEFINED 2
-#define EXC_PAGEFAULT 127
+#define EXC_PAGEFAULT 127U
 
 #define SIZE_CTXDUMP 1024 /* Size of dumped context */
 

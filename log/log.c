@@ -349,7 +349,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, msg_rid_t rid)
 				msg->o.err = -EINVAL;
 			}
 			else {
-				msg->o.err = log_read(r, msg->o.data, msg->o.size);
+				msg->o.err = (int)log_read(r, msg->o.data, msg->o.size);
 				if (msg->o.err == 0) {
 					if (r->nonblocking == 0U) {
 						msg->o.err = log_readerBlock(r, msg, oid, rid);

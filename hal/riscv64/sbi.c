@@ -16,7 +16,7 @@
 #include "sbi.h"
 
 /* Base extension */
-#define SBI_EXT_BASE 0x10
+#define SBI_EXT_BASE 0x10U
 
 #define SBI_BASE_SPEC_VER      0x0
 #define SBI_BASE_IMPL_ID       0x1
@@ -35,7 +35,7 @@
 #define SBI_SRST_RESET 0x0
 
 /* IPI extension */
-#define SBI_EXT_IPI  0x735049
+#define SBI_EXT_IPI  0x735049U
 #define SBI_IPI_SEND 0x0
 
 /* HSM extension */
@@ -52,15 +52,9 @@
 #define SBI_RFNC_SFENCE_VMA_ASID 0x2
 
 /* Legacy extensions */
-#define SBI_LEGACY_SETTIMER               0x0
-#define SBI_LEGACY_PUTCHAR                0x1
-#define SBI_LEGACY_GETCHAR                0x2
-#define SBI_LEGACY_CLEARIPI               0x3
-#define SBI_LEGACY_SENDIPI                0x4
-#define SBI_LEGACY_REMOTE_FENCE_I         0x5
-#define SBI_LEGACY_REMOTE_SFENCE_VMA      0x6
-#define SBI_LEGACY_REMOTE_SFENCE_VMA_ASID 0x7
-#define SBI_LEGACY_SHUTDOWN               0x8
+#define SBI_LEGACY_SETTIMER 0x0U
+#define SBI_LEGACY_PUTCHAR  0x1U
+#define SBI_LEGACY_GETCHAR  0x2U
 
 /* clang-format off */
 #define SBI_MINOR(x) ((x) & 0xffffff)
@@ -69,12 +63,13 @@
 
 
 static struct {
-	u32 specVersion;
-	void (*setTimer)(u64);
+	unsigned long specVersion;
+	void (*setTimer)(u64 time);
 } sbi_common;
 
 
-static sbiret_t hal_sbiEcall(int ext, int fid, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+static sbiret_t hal_sbiEcall(unsigned int ext, unsigned int fid, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
 {
 	sbiret_t ret;
 
@@ -95,7 +90,7 @@ static sbiret_t hal_sbiEcall(int ext, int fid, u64 arg0, u64 arg1, u64 arg2, u64
 		: "memory");
 	/* clang-format on */
 
-	ret.error = a0;
+	ret.error = (long)a0;
 	ret.value = a1;
 
 	return ret;
@@ -105,19 +100,19 @@ static sbiret_t hal_sbiEcall(int ext, int fid, u64 arg0, u64 arg1, u64 arg2, u64
 
 static void hal_sbiSetTimerv01(u64 stime)
 {
-	(void)hal_sbiEcall(SBI_LEGACY_SETTIMER, 0, stime, 0, 0, 0, 0, 0);
+	(void)hal_sbiEcall(SBI_LEGACY_SETTIMER, 0U, stime, 0, 0, 0, 0, 0);
 }
 
 
 long hal_sbiPutchar(int ch)
 {
-	return hal_sbiEcall(SBI_LEGACY_PUTCHAR, 0, ch, 0, 0, 0, 0, 0).error;
+	return hal_sbiEcall(SBI_LEGACY_PUTCHAR, 0U, (unsigned int)ch, 0, 0, 0, 0, 0).error;
 }
 
 
 long hal_sbiGetchar(void)
 {
-	return hal_sbiEcall(SBI_LEGACY_GETCHAR, 0, 0, 0, 0, 0, 0, 0).error;
+	return hal_sbiEcall(SBI_LEGACY_GETCHAR, 0U, 0, 0, 0, 0, 0, 0).error;
 }
 
 /* SBI v0.2+ calls */
@@ -130,7 +125,7 @@ sbiret_t hal_sbiGetSpecVersion(void)
 
 sbiret_t hal_sbiProbeExtension(long extid)
 {
-	return hal_sbiEcall(SBI_EXT_BASE, SBI_BASE_PROBE_EXT, extid, 0, 0, 0, 0, 0);
+	return hal_sbiEcall(SBI_EXT_BASE, SBI_BASE_PROBE_EXT, (unsigned long)extid, 0, 0, 0, 0, 0);
 }
 
 
@@ -175,7 +170,7 @@ sbiret_t hal_sbiHartStart(unsigned long hartid, unsigned long start_addr, unsign
 
 void hal_sbiRfenceI(unsigned long hart_mask, unsigned long hart_mask_base)
 {
-	hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_I, hart_mask, hart_mask_base, 0, 0, 0, 0);
+	(void)hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_I, hart_mask, hart_mask_base, 0, 0, 0, 0);
 }
 
 

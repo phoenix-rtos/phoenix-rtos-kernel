@@ -21,37 +21,37 @@
 #include "aarch64.h"
 #include "config.h"
 
-#define CONST_STR_SIZE(x) x, (sizeof(x) - 1)
+#define CONST_STR_SIZE(x) (x), (sizeof(x) - 1U)
 
 /* Function creates new cpu context on top of given thread kernel stack */
 int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
-	int i;
+	size_t i;
 
 	(void)tls;
 
-	*nctx = 0;
+	*nctx = NULL;
 	if (kstack == NULL) {
 		return -1;
 	}
 
-	kstacksz &= ~0xf;
+	kstacksz &= ~0xfU;
 
 	if (kstacksz < sizeof(cpu_context_t)) {
 		return -1;
 	}
 
 	/* Align user stack to 16 bytes */
-	ustack = (void *)((ptr_t)ustack & ~0xf);
+	ustack = (void *)((ptr_t)ustack & ~0xfU);
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
 
 	/* Set all registers to NAN */
 	for (i = 0; i < 64; i += 2) {
-		ctx->freg[i] = ~0uL;
-		ctx->freg[i + 1] = ~0uL;
+		ctx->freg[i] = ~0UL;
+		ctx->freg[i + 1] = ~0UL;
 	}
 
 	ctx->fpsr = 0;
@@ -63,6 +63,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 		ctx->x[i] = 0x0101010101010101UL * i;
 	}
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->pc = (u64)start;
 
 	/* Enable interrupts, set normal execution mode */
@@ -98,6 +99,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
 	signalCtx->pc = (u64)handler;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
@@ -122,7 +124,7 @@ static void appendToString(const char *in, size_t inLen, char *out, size_t *n, s
 		return;
 	}
 
-	hal_strcpy(&out[*n], in);
+	(void)hal_strcpy(&out[*n], in);
 	*n += inLen;
 }
 
@@ -147,26 +149,26 @@ char *hal_cpuInfo(char *info)
 	appendToString(CONST_STR_SIZE(HAL_NAME_PLATFORM), info, &n, 128);
 
 
-	if (((procId.midr >> 16) & 0xf) == 0xf) {
+	if (((procId.midr >> 16) & 0xfU) == 0xfU) {
 		appendToString(CONST_STR_SIZE("ARMv8 "), info, &n, 128);
 	}
 
-	if (((procId.midr >> 4) & 0xfff) == 0xd03) {
+	if (((procId.midr >> 4) & 0xfffU) == 0xd03U) {
 		appendToString(CONST_STR_SIZE("Cortex-A53 "), info, &n, 128);
 	}
 
 	info[n++] = 'r';
-	info[n++] = '0' + ((procId.midr >> 20) & 0xf);
+	info[n++] = '0' + ((procId.midr >> 20) & 0xfU);
 	info[n++] = 'p';
-	info[n++] = '0' + (procId.midr & 0xf);
+	info[n++] = '0' + (procId.midr & 0xfU);
 
 	info[n++] = ' ';
 	info[n++] = 'x';
-	if (cpuCount >= 10) {
-		info[n++] = '0' + (cpuCount / 10);
+	if (cpuCount >= 10U) {
+		info[n++] = '0' + (cpuCount / 10U);
 	}
 
-	info[n++] = '0' + (cpuCount % 10);
+	info[n++] = '0' + (cpuCount % 10U);
 
 	info[n] = '\0';
 
@@ -180,19 +182,19 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 	struct aarch64_proc_id procId;
 
 	hal_cpuGetProcID(&procId);
-	if (len == 0) {
+	if (len == 0U) {
 		return features;
 	}
 
-	if (((procId.pfr0 >> 12) & 0xf) != 0) {
+	if (((procId.pfr0 >> 12) & 0xfU) != 0U) {
 		appendToString(CONST_STR_SIZE("EL3, "), features, &n, len);
 	}
 
-	if (((procId.pfr0 >> 8) & 0xf) != 0) {
+	if (((procId.pfr0 >> 8) & 0xfU) != 0U) {
 		appendToString(CONST_STR_SIZE("EL2, "), features, &n, len);
 	}
 
-	switch ((procId.pfr0 >> 16) & 0xf) {
+	switch ((procId.pfr0 >> 16) & 0xfU) {
 		case 0:
 			appendToString(CONST_STR_SIZE("FP, "), features, &n, len);
 			break;
@@ -202,39 +204,43 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
-	switch ((procId.pfr0 >> 20) & 0xf) {
+	switch ((procId.pfr0 >> 20) & 0xfU) {
 		case 0: /* Fall-through */
 		case 1:
 			appendToString(CONST_STR_SIZE("AdvSIMD, "), features, &n, len);
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
-	switch ((procId.isar0 >> 4) & 0xf) {
+	switch ((procId.isar0 >> 4) & 0xfU) {
 		case 1: /* Fall-through */
 		case 2:
 			appendToString(CONST_STR_SIZE("AES, "), features, &n, len);
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
-	switch ((procId.isar0 >> 8) & 0xf) {
+	switch ((procId.isar0 >> 8) & 0xfU) {
 		case 1:
 			appendToString(CONST_STR_SIZE("SHA1, "), features, &n, len);
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
-	switch ((procId.isar0 >> 12) & 0xf) {
+	switch ((procId.isar0 >> 12) & 0xfU) {
 		case 1:
 			appendToString(CONST_STR_SIZE("SHA256, "), features, &n, len);
 			break;
@@ -244,30 +250,33 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
-	switch ((procId.isar0 >> 16) & 0xf) {
+	switch ((procId.isar0 >> 16) & 0xfU) {
 		case 1:
 			appendToString(CONST_STR_SIZE("CRC32, "), features, &n, len);
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
-	switch ((procId.isar0 >> 20) & 0xf) {
+	switch ((procId.isar0 >> 20) & 0xfU) {
 		case 2: /* Fall-through */
 		case 3:
 			appendToString(CONST_STR_SIZE("LSE, "), features, &n, len);
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
-	if (n > 0) {
-		features[n - 2] = '\0';
+	if (n > 0U) {
+		features[n - 2U] = '\0';
 	}
 	else {
 		features[0] = '\0';
@@ -282,7 +291,7 @@ void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 	/* In theory there should be 16-byte thread control block but
 	 * it's stored elsewhere so we need to subtract 16 from the pointer
 	 */
-	ptr_t ptr = tls->tls_base - 16;
+	ptr_t ptr = tls->tls_base - 16U;
 	sysreg_write(tpidr_el0, ptr);
 	hal_cpuDataSyncBarrier();
 }

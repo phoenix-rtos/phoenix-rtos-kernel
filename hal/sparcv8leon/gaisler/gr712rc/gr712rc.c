@@ -29,7 +29,7 @@
 
 /* Clock gating unit */
 
-#define CGU_BASE ((void *)0x80000d00)
+#define CGU_BASE ((void *)0x80000d00U)
 
 #define CGU_UNLOCK     0 /* Unlock register        : 0x00 */
 #define CGU_CLK_EN     1 /* Clock enable register  : 0x04 */
@@ -46,6 +46,7 @@ static struct {
 volatile u32 hal_cpusStarted;
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_cpuHalt(void)
 {
 	/* GR712RC errata 1.7.8 */
@@ -63,6 +64,7 @@ void hal_cpuHalt(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void hal_cpuInitCore(void)
 {
 	hal_tlbInitCore(hal_cpuGetID());
@@ -95,7 +97,7 @@ int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn)
 
 void _gr712rc_cguClkEnable(u32 device)
 {
-	u32 msk = 1 << device;
+	u32 msk = 1UL << device;
 
 	*(gr712rc_common.cguBase + CGU_UNLOCK) |= msk;
 	hal_cpuDataStoreBarrier();
@@ -109,7 +111,7 @@ void _gr712rc_cguClkEnable(u32 device)
 
 void _gr712rc_cguClkDisable(u32 device)
 {
-	u32 msk = 1 << device;
+	u32 msk = 1UL << device;
 
 	*(gr712rc_common.cguBase + CGU_UNLOCK) |= msk;
 	hal_cpuDataStoreBarrier();
@@ -122,9 +124,9 @@ void _gr712rc_cguClkDisable(u32 device)
 
 int _gr712rc_cguClkStatus(u32 device)
 {
-	u32 msk = 1 << device;
+	u32 msk = 1UL << device;
 
-	return (*(gr712rc_common.cguBase + CGU_CLK_EN) & msk) ? 1 : 0;
+	return (*(gr712rc_common.cguBase + CGU_CLK_EN) & msk) != 0U ? 1 : 0;
 }
 
 
@@ -156,6 +158,9 @@ int hal_platformctl(void *ptr)
 				data->task.cguctrl.v.stateVal = _gr712rc_cguClkStatus(data->task.cguctrl.cgudev);
 				ret = 0;
 			}
+			else {
+				/* No action required */
+			}
 			break;
 
 		case pctl_iomux:
@@ -177,6 +182,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 	hal_spinlockClear(&gr712rc_common.pltctlSp, &sc);
@@ -205,7 +211,7 @@ void _hal_platformInit(void)
 	gr712rc_common.tlbIrqHandler.n = TLB_IRQ;
 	gr712rc_common.tlbIrqHandler.data = NULL;
 
-	hal_interruptsSetHandler(&gr712rc_common.tlbIrqHandler);
+	(void)hal_interruptsSetHandler(&gr712rc_common.tlbIrqHandler);
 
 	ambapp_init();
 }

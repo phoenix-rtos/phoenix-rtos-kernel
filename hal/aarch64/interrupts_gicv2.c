@@ -32,7 +32,7 @@
 #define SGI_FLT_OTHER_CPUS 1 /* Send SGI to all CPUs except the one that called this function */
 #define SGI_FLT_THIS_CPU   2 /* Send SGI to the CPU that called this function */
 
-#define DEFAULT_CPU_MASK ((1 << NUM_CPUS) - 1)
+#define DEFAULT_CPU_MASK ((1U << NUM_CPUS) - 1U)
 #define DEFAULT_PRIORITY 0x80
 
 
@@ -81,7 +81,7 @@ enum {
 };
 
 
-struct {
+static struct {
 	volatile u32 *gicd;
 	volatile u32 *gicc;
 	spinlock_t spinlock[SIZE_INTERRUPTS];
@@ -95,14 +95,15 @@ void _hal_interruptsInitPerCPU(void);
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	int reschedule = 0;
+	unsigned int reschedule = 0;
 	spinlock_ctx_t sc;
 
 	u32 ciarValue = *(interrupts_common.gicc + gicc_iar);
-	n = ciarValue & 0x3ff;
+	n = ciarValue & 0x3ffU;
 
 	if (n >= SIZE_INTERRUPTS) {
 		return 0;
@@ -115,20 +116,20 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	h = interrupts_common.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= h->f(n, ctx, h->data);
+			reschedule |= (unsigned int)h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.handlers[n]);
 	}
 
-	if (reschedule) {
-		threads_schedule(n, ctx, NULL);
+	if (reschedule != 0U) {
+		(void)threads_schedule(n, ctx, NULL);
 	}
 
 	*(interrupts_common.gicc + gicc_eoir) = ciarValue;
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
 
-	return reschedule;
+	return (int)reschedule;
 }
 
 
@@ -136,7 +137,7 @@ static void interrupts_enableIRQ(unsigned int irqn)
 {
 	unsigned int irq_reg = irqn / 32;
 	unsigned int irq_offs = irqn % 32;
-	*(interrupts_common.gicd + gicd_isenabler0 + irq_reg) = 1U << irq_offs;
+	*(interrupts_common.gicd + gicd_isenabler0 + irq_reg) = 1UL << irq_offs;
 }
 
 
@@ -144,48 +145,39 @@ static void interrupts_disableIRQ(unsigned int irqn)
 {
 	unsigned int irq_reg = irqn / 32;
 	unsigned int irq_offs = irqn % 32;
-	*(interrupts_common.gicd + gicd_icenabler0 + irq_reg) = 1U << irq_offs;
+	*(interrupts_common.gicd + gicd_icenabler0 + irq_reg) = 1UL << irq_offs;
 }
 
 
 static void interrupts_setConf(unsigned int irqn, u32 conf)
 {
-	unsigned int irq_reg = irqn / 16;
-	unsigned int irq_offs = (irqn % 16) * 2;
+	unsigned int irq_reg = irqn / 16U;
+	unsigned int irq_offs = (irqn % 16U) * 2U;
 	u32 mask;
 
-	mask = *(interrupts_common.gicd + gicd_icfgr0 + irq_reg) & ~(0x3 << irq_offs);
-	*(interrupts_common.gicd + gicd_icfgr0 + irq_reg) = mask | ((conf & 0x3) << irq_offs);
+	mask = *(interrupts_common.gicd + gicd_icfgr0 + irq_reg) & ~(0x3U << irq_offs);
+	*(interrupts_common.gicd + gicd_icfgr0 + irq_reg) = mask | ((conf & 0x3U) << irq_offs);
 }
 
 
 void interrupts_setCPU(unsigned int irqn, unsigned int cpuMask)
 {
-	unsigned int irq_reg = irqn / 4;
-	unsigned int irq_offs = (irqn % 4) * 8;
+	unsigned int irq_reg = irqn / 4U;
+	unsigned int irq_offs = (irqn % 4U) * 8U;
 	u32 mask;
 
-	mask = *(interrupts_common.gicd + gicd_itargetsr0 + irq_reg) & ~(0xff << irq_offs);
-	*(interrupts_common.gicd + gicd_itargetsr0 + irq_reg) = mask | ((cpuMask & 0xff) << irq_offs);
+	mask = *(interrupts_common.gicd + gicd_itargetsr0 + irq_reg) & ~(0xffU << irq_offs);
+	*(interrupts_common.gicd + gicd_itargetsr0 + irq_reg) = mask | ((cpuMask & 0xffU) << irq_offs);
 }
 
 
 static void interrupts_setPriority(unsigned int irqn, u32 priority)
 {
-	unsigned int irq_reg = irqn / 4;
-	unsigned int irq_offs = (irqn % 4) * 8;
-	u32 mask = *(interrupts_common.gicd + gicd_ipriorityr0 + irq_reg) & ~(0xff << irq_offs);
+	unsigned int irq_reg = irqn / 4U;
+	unsigned int irq_offs = (irqn % 4U) * 8U;
+	u32 mask = *(interrupts_common.gicd + gicd_ipriorityr0 + irq_reg) & ~(0xffU << irq_offs);
 
-	*(interrupts_common.gicd + gicd_ipriorityr0 + irq_reg) = mask | ((priority & 0xff) << irq_offs);
-}
-
-
-static inline u32 interrupts_getPriority(unsigned int irqn)
-{
-	unsigned int irq_reg = irqn / 4;
-	unsigned int irq_offs = (irqn % 4) * 8;
-
-	return (*(interrupts_common.gicd + gicd_ipriorityr0 + irq_reg) >> irq_offs) & 0xff;
+	*(interrupts_common.gicd + gicd_ipriorityr0 + irq_reg) = mask | ((priority & 0xffU) << irq_offs);
 }
 
 
@@ -212,8 +204,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 
 char *hal_interruptsFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using GIC interrupt controller", len);
-	features[len - 1] = 0;
+	(void)hal_strncpy(features, "Using GIC interrupt controller", len);
+	features[len - 1U] = '\0';
 
 	return features;
 }
@@ -257,18 +249,18 @@ void _hal_interruptsInit(void)
 	}
 
 	/* Clear pending and disable interrupts */
-	for (i = 0; i < (SIZE_INTERRUPTS + 31) / 32; i++) {
-		*(interrupts_common.gicd + gicd_icenabler0 + i) = 0xffffffff;
-		*(interrupts_common.gicd + gicd_icpendr0 + i) = 0xffffffff;
-		*(interrupts_common.gicd + gicd_icactiver0 + i) = 0xffffffff;
+	for (i = 0; i < (SIZE_INTERRUPTS + 31U) / 32U; i++) {
+		*(interrupts_common.gicd + gicd_icenabler0 + i) = 0xffffffffU;
+		*(interrupts_common.gicd + gicd_icpendr0 + i) = 0xffffffffU;
+		*(interrupts_common.gicd + gicd_icactiver0 + i) = 0xffffffffU;
 	}
 
-	for (i = 0; i < 4; i++) {
-		*(interrupts_common.gicd + gicd_cpendsgir0 + i) = 0xffffffff;
+	for (i = 0; i < 4U; i++) {
+		*(interrupts_common.gicd + gicd_cpendsgir0 + i) = 0xffffffffU;
 	}
 
 	/* Disable distributor */
-	*(interrupts_common.gicd + gicd_ctlr) &= ~0x3;
+	*(interrupts_common.gicd + gicd_ctlr) &= ~0x3U;
 
 	/* TODO: detect if we are in secure or non-secure mode and if secure, configure interrupt groups */
 
@@ -279,12 +271,12 @@ void _hal_interruptsInit(void)
 
 	/* Set required configuration and CPU mask */
 	for (i = SPI_FIRST_IRQID; i < SIZE_INTERRUPTS; ++i) {
-		interrupts_setConf(i, _interrupts_gicv2_classify(i));
+		interrupts_setConf(i, (u32)_interrupts_gicv2_classify(i));
 		interrupts_setCPU(i, DEFAULT_CPU_MASK);
 	}
 
 	/* enable_secure = 1 */
-	*(interrupts_common.gicd + gicd_ctlr) |= 0x3;
+	*(interrupts_common.gicd + gicd_ctlr) |= 0x3U;
 
 	_hal_interruptsInitPerCPU();
 }
@@ -292,7 +284,7 @@ void _hal_interruptsInit(void)
 
 void _hal_interruptsInitPerCPU(void)
 {
-	*(interrupts_common.gicc + gicc_ctlr) &= ~0x3;
+	*(interrupts_common.gicc + gicc_ctlr) &= ~0x3U;
 
 	/* Initialize CPU Interface of the gic
 	 * Set the maximum priority mask and binary point */
@@ -301,18 +293,18 @@ void _hal_interruptsInitPerCPU(void)
 
 	/* EnableGrp0 = 1; EnableGrp1 = 1; AckCtl = 1; FIQEn = 1 in secure mode
 	 * EnableGrp1 = 1 in non-secure mode, other bits are ignored */
-	*(interrupts_common.gicc + gicc_ctlr) = *(interrupts_common.gicc + gicc_ctlr) | 0xf;
+	*(interrupts_common.gicc + gicc_ctlr) = *(interrupts_common.gicc + gicc_ctlr) | 0xfU;
 }
 
 
 static void hal_cpuSendSGI(u8 targetFilter, u8 targetList, u8 intID)
 {
-	*(interrupts_common.gicd + gicd_sgir) = ((targetFilter & 0x3) << 24) | (targetList << 16) | (intID & 0xf);
+	*(interrupts_common.gicd + gicd_sgir) = ((u32)(targetFilter & 0x3UL) << 24) | ((u32)targetList << 16) | ((u32)intID & 0xfU);
 	hal_cpuDataSyncBarrier();
 }
 
 
 void hal_cpuBroadcastIPI(unsigned int intr)
 {
-	hal_cpuSendSGI(SGI_FLT_OTHER_CPUS, 0, intr);
+	hal_cpuSendSGI(SGI_FLT_OTHER_CPUS, 0, (u8)intr);
 }

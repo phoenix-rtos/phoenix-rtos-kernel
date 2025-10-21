@@ -81,7 +81,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	for (cmsg = CMSG_FIRSTHDR_CONST(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR_CONST(control, controllen, cmsg)) {
 		cmsg_data = CMSG_DATA_CONST(cmsg);
 		cmsg_end = (const unsigned char *)cmsg + cmsg->cmsg_len;
-		cnt = ((addr_t)cmsg_end - (addr_t)cmsg_data) / sizeof(int);
+		cnt = (unsigned int)(((addr_t)cmsg_end - (addr_t)cmsg_data) / sizeof(int));
 
 		if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS) {
 			return -EINVAL;
@@ -109,7 +109,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 	for (cmsg = CMSG_FIRSTHDR_CONST(control, controllen); cmsg != NULL; cmsg = CMSG_NXTHDR_CONST(control, controllen, cmsg)) {
 		cmsg_data = CMSG_DATA_CONST(cmsg);
 		cmsg_end = (const unsigned char *)cmsg + cmsg->cmsg_len;
-		cnt = ((addr_t)cmsg_end - (addr_t)cmsg_data) / sizeof(int);
+		cnt = (unsigned int)(((addr_t)cmsg_end - (addr_t)cmsg_data) / sizeof(int));
 
 		while (cnt != 0U) {
 			hal_memcpy(&fd, cmsg_data, sizeof(int));
@@ -164,7 +164,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	cnt = 0;
 
 	/* unpack and add file descriptors */
-	while (pack != NULL && pack->cnt != 0U && *controllen >= CMSG_LEN(sizeof(int) * (cnt + 1U))) {
+	while (pack != NULL && pack->cnt != 0U && *controllen >= CMSG_LEN(sizeof(int) * ((size_t)cnt + 1U))) {
 		FDPACK_POP_FILE_AND_FLAGS(pack, file, flags);
 
 		fd = _posix_addOpenFile(p, file, flags);

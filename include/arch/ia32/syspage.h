@@ -16,9 +16,9 @@
 #ifndef _PH_SYSPAGE_IA32_H_
 #define _PH_SYSPAGE_IA32_H_
 
-#define ACPI_NONE 0
-#define ACPI_RSDP 1
-#define ACPI_XSDP 2
+#define ACPI_NONE 0U
+#define ACPI_RSDP 1U
+#define ACPI_XSDP 2U
 
 typedef struct {
 	struct {

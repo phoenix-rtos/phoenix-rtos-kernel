@@ -27,16 +27,16 @@
 
 #define HAL_NAME_PLATFORM "SPARCv8 LEON3-GR740"
 
-#define ADDR_RAM 0x00000000
-#define SIZE_RAM (128 * 1024 * 1024) /* 128 MB */
+#define ADDR_RAM 0x00000000U
+#define SIZE_RAM (128U * 1024U * 1024U) /* 128 MB */
 
-#define L2CACHE_CTRL_BASE ((void *)0xf0000000)
+#define L2CACHE_CTRL_BASE ((void *)0xf0000000U)
 
 #endif /* __ASSEMBLY__ */
 
 
-#define NWINDOWS 8
-#define NUM_CPUS 4
+#define NWINDOWS 8U
+#define NUM_CPUS 4U
 
 
 #endif

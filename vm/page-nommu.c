@@ -75,15 +75,15 @@ page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
 }
 
 
-void vm_pageFree(page_t *lh)
+void vm_pageFree(page_t *p)
 {
 	(void)proc_lockSet(&pages.lock);
 
-	lh->next = pages.freeq;
-	pages.freeq = lh;
+	p->next = pages.freeq;
+	pages.freeq = p;
 
-	pages.freesz += (1UL << lh->idx);
-	pages.allocsz -= (1UL << lh->idx);
+	pages.freesz += (1UL << p->idx);
+	pages.allocsz -= (1UL << p->idx);
 
 	(void)proc_lockClear(&pages.lock);
 	return;

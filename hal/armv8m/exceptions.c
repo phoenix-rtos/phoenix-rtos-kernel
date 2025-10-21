@@ -19,11 +19,11 @@
 #include "hal/string.h"
 #include "config.h"
 
-#define SIZE_FPUCTX (18 * sizeof(u32))
+#define SIZE_FPUCTX (18U * sizeof(u32))
 
-#define CFSR  ((volatile u32 *)0xe000ed28)
-#define MMFAR ((volatile u32 *)0xe000ed34)
-#define BFAR  ((volatile u32 *)0xe000ed38)
+#define CFSR  ((volatile u32 *)0xe000ed28U)
+#define MMFAR ((volatile u32 *)0xe000ed34U)
+#define BFAR  ((volatile u32 *)0xe000ed38U)
 
 enum exceptions {
 	exc_Reset = 1,
@@ -50,13 +50,13 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	};
 	size_t i = 0;
 	u32 msp = (u32)ctx + sizeof(*ctx);
-	const u32 fpu_hwctx_size = ((ctx->excret & EXC_RETURN_FTYPE) == 0) ? SIZE_FPUCTX : 0;
+	const u32 fpu_hwctx_size = ((ctx->excret & EXC_RETURN_FTYPE) == 0U) ? SIZE_FPUCTX : 0U;
 	u32 psp = ctx->psp;
 	u32 cfsr, far;
 	cpu_hwContext_t *hwctx;
 
 	/* If we came from userspace HW ctx in on psp stack (according to EXC_RETURN) */
-	if ((ctx->excret & EXC_RETURN_SPSEL) != 0) {
+	if ((ctx->excret & EXC_RETURN_SPSEL) != 0U) {
 		hwctx = (void *)ctx->psp;
 		msp -= sizeof(cpu_hwContext_t);
 		psp += sizeof(cpu_hwContext_t) + fpu_hwctx_size;
@@ -66,66 +66,70 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 		msp += fpu_hwctx_size;
 	}
 
-	n &= 0xf;
+	n &= 0xfU;
 
-	hal_strcpy(buff, "\nException: ");
-	i = sizeof("\nException: ") - 1;
-	hal_strcpy(&buff[i], mnemonics[n]);
+	(void)hal_strcpy(buff, "\nException: ");
+	i = sizeof("\nException: ") - 1U;
+	(void)hal_strcpy(&buff[i], mnemonics[n]);
 	i += hal_strlen(mnemonics[n]);
 
-	i += hal_i2s("\n r0=", &buff[i], hwctx->r0, 16, 1);
-	i += hal_i2s("  r1=", &buff[i], hwctx->r1, 16, 1);
-	i += hal_i2s("  r2=", &buff[i], hwctx->r2, 16, 1);
-	i += hal_i2s("  r3=", &buff[i], hwctx->r3, 16, 1);
+	i += hal_i2s("\n r0=", &buff[i], hwctx->r0, 16U, 1U);
+	i += hal_i2s("  r1=", &buff[i], hwctx->r1, 16U, 1U);
+	i += hal_i2s("  r2=", &buff[i], hwctx->r2, 16U, 1U);
+	i += hal_i2s("  r3=", &buff[i], hwctx->r3, 16U, 1U);
 
-	i += hal_i2s("\n r4=", &buff[i], ctx->r4, 16, 1);
-	i += hal_i2s("  r5=", &buff[i], ctx->r5, 16, 1);
-	i += hal_i2s("  r6=", &buff[i], ctx->r6, 16, 1);
-	i += hal_i2s("  r7=", &buff[i], ctx->r7, 16, 1);
+	i += hal_i2s("\n r4=", &buff[i], ctx->r4, 16U, 1U);
+	i += hal_i2s("  r5=", &buff[i], ctx->r5, 16U, 1U);
+	i += hal_i2s("  r6=", &buff[i], ctx->r6, 16U, 1U);
+	i += hal_i2s("  r7=", &buff[i], ctx->r7, 16U, 1U);
 
-	i += hal_i2s("\n r8=", &buff[i], ctx->r8, 16, 1);
-	i += hal_i2s("  r9=", &buff[i], ctx->r9, 16, 1);
-	i += hal_i2s(" r10=", &buff[i], ctx->r10, 16, 1);
-	i += hal_i2s(" r11=", &buff[i], ctx->r11, 16, 1);
+	i += hal_i2s("\n r8=", &buff[i], ctx->r8, 16U, 1U);
+	i += hal_i2s("  r9=", &buff[i], ctx->r9, 16U, 1U);
+	i += hal_i2s(" r10=", &buff[i], ctx->r10, 16U, 1U);
+	i += hal_i2s(" r11=", &buff[i], ctx->r11, 16U, 1U);
 
-	i += hal_i2s("\nr12=", &buff[i], hwctx->r12, 16, 1);
-	i += hal_i2s(" psr=", &buff[i], hwctx->psr, 16, 1);
-	i += hal_i2s("  lr=", &buff[i], hwctx->lr, 16, 1);
-	i += hal_i2s("  pc=", &buff[i], hwctx->pc, 16, 1);
+	i += hal_i2s("\nr12=", &buff[i], hwctx->r12, 16U, 1U);
+	i += hal_i2s(" psr=", &buff[i], hwctx->psr, 16U, 1U);
+	i += hal_i2s("  lr=", &buff[i], hwctx->lr, 16U, 1U);
+	i += hal_i2s("  pc=", &buff[i], hwctx->pc, 16U, 1U);
 
-	i += hal_i2s("\npsp=", &buff[i], psp, 16, 1);
-	i += hal_i2s(" msp=", &buff[i], msp, 16, 1);
-	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16, 1);
+	i += hal_i2s("\npsp=", &buff[i], psp, 16U, 1U);
+	i += hal_i2s(" msp=", &buff[i], msp, 16U, 1U);
+	i += hal_i2s(" exr=", &buff[i], ctx->excret, 16U, 1U);
 
-	if (n == exc_BusFault) {
-		cfsr = (*CFSR >> 8) & 0xff;
-		i += hal_i2s(" bfs=", &buff[i], cfsr, 16, 1);
+	if (n == (unsigned int)exc_BusFault) {
+		cfsr = (*CFSR >> 8) & 0xffU;
+		i += hal_i2s(" bfs=", &buff[i], cfsr, 16U, 1U);
 		/* Check BFARVALID */
-		if ((cfsr & 0x80) != 0) {
+		if ((cfsr & 0x80U) != 0U) {
 			far = *BFAR;
-			i += hal_i2s("\nbfa=", &buff[i], far, 16, 1);
+			i += hal_i2s("\nbfa=", &buff[i], far, 16U, 1U);
 		}
 	}
-	else if (n == exc_UsageFault) {
+	else if (n == (unsigned int)exc_UsageFault) {
 		cfsr = *CFSR >> 16;
-		i += hal_i2s(" ufs=", &buff[i], cfsr, 16, 1);
+		i += hal_i2s(" ufs=", &buff[i], cfsr, 16U, 1U);
 	}
-	else if (n == exc_MemMgtFault) {
-		cfsr = *CFSR & 0xff;
-		i += hal_i2s(" mfs=", &buff[i], cfsr, 16, 1);
+	else if (n == (unsigned int)exc_MemMgtFault) {
+		cfsr = *CFSR & 0xffU;
+		i += hal_i2s(" mfs=", &buff[i], cfsr, 16U, 1U);
 		/* Check MMFARVALID */
-		if ((cfsr & 0x80) != 0) {
+		if ((cfsr & 0x80U) != 0U) {
 			far = *MMFAR;
-			i += hal_i2s("\nmfa=", &buff[i], far, 16, 1);
+			i += hal_i2s("\nmfa=", &buff[i], far, 16U, 1U);
 		}
+	}
+	else {
+		/* No action required */
 	}
 
 	buff[i++] = '\n';
 
-	buff[i] = 0;
+	buff[i] = '\0';
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	char buff[SIZE_CTXDUMP];
@@ -147,7 +151,7 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
 	cpu_hwContext_t *hwctx;
 
-	if ((ctx->excret & EXC_RETURN_SPSEL) != 0) {
+	if ((ctx->excret & EXC_RETURN_SPSEL) != 0U) {
 		hwctx = (void *)ctx->psp;
 	}
 	else {

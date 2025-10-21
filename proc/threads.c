@@ -278,7 +278,7 @@ void perf_exec(process_t *p, char *path)
 {
 	perf_levent_exec_t ev;
 	time_t now;
-	unsigned int plen;
+	size_t plen;
 	spinlock_ctx_t sc;
 
 	if (threads_common.perfGather == 0) {
@@ -1511,13 +1511,13 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 	switch (sig) {
 		case signal_segv:
-		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional passthrough" */
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case signal_illegal:
 			if (process->sighandler != NULL) {
 				break;
 			}
 
-		/* passthrough */
+		/* Fall-through */
 		case signal_kill:
 			proc_kill(process);
 			return EOK;
@@ -2090,7 +2090,7 @@ void proc_threadsDump(u8 priority)
 int proc_threadsList(int n, threadinfo_t *info)
 {
 	int i = 0, argc;
-	unsigned int len, space;
+	size_t len, space;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;

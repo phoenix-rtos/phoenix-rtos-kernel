@@ -30,11 +30,13 @@
  * 6 - 1/64
  * 7 - 1/128
  */
-#define PRESCALER 3
+#define PRESCALER 3UL
 #define ARR_VAL   0xffffU
 
 
+/* clang-format off */
 enum { lptim_isr = 0, lptim_icr, lptim_ier, lptim_cfgr, lptim_cr, lptim_cmp, lptim_arr, lptim_cnt, lptim_or };
+/* clang-format on */
 
 
 static struct {
@@ -76,20 +78,20 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	u32 isr = *(timer_common.lptim + lptim_isr), clr = 0;
 
 	/* Clear CMPOK. Has to be done before active IRQs (errata) */
-	if ((isr & (1 << 3)) != 0) {
-		*(timer_common.lptim + lptim_icr) = (1 << 3);
+	if ((isr & (1U << 3)) != 0U) {
+		*(timer_common.lptim + lptim_icr) = (1U << 3);
 		hal_cpuDataMemoryBarrier();
 	}
 
 	/* Clear ARRM */
-	if ((isr & (1 << 1)) != 0) {
+	if ((isr & (1U << 1)) != 0U) {
 		++timer_common.upper;
-		clr |= (1 << 1);
+		clr |= (1U << 1);
 	}
 
 	/* Clear CMPM */
-	if ((isr & (1 << 0)) != 0) {
-		clr |= (1 << 0);
+	if ((isr & (1U << 0)) != 0U) {
+		clr |= (1U << 0);
 	}
 
 	*(timer_common.lptim + lptim_icr) = clr;
@@ -102,13 +104,13 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 static time_t hal_timerCyc2us(time_t ticks)
 {
-	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
+	return (ticks * 1000 * 1000) / (32768 / (time_t)(1U << PRESCALER));
 }
 
 
 static time_t hal_timerUs2Cyc(time_t us)
 {
-	return ((32768 / (1 << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
+	return ((32768 / (time_t)(1UL << PRESCALER)) * us + (500 * 1000)) / (1000 * 1000);
 }
 
 
@@ -123,7 +125,7 @@ static time_t hal_timerGetCyc(void)
 	lower = timer_getCnt();
 
 	/* Check if we have unhandled overflow event */
-	if (*(timer_common.lptim + lptim_isr) & (1 << 1)) {
+	if ((*(timer_common.lptim + lptim_isr) & (1U << 1)) != 0U) {
 		lower = timer_getCnt();
 		if (lower != ARR_VAL) {
 			++upper;
@@ -132,7 +134,7 @@ static time_t hal_timerGetCyc(void)
 
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return (upper * (ARR_VAL + 1)) + lower;
+	return (upper * (time_t)(ARR_VAL + 1U)) + (time_t)lower;
 }
 
 /* Additional functions */
@@ -172,13 +174,13 @@ void timer_setAlarm(time_t us)
 
 	/* Can't have cmp == arr, arr will wake us up, no need to set cmp
 	.* if setval >= arr or it's already set as desired */
-	if ((ticks < ARR_VAL) && (setval < ARR_VAL) && (setval != oldval)) {
+	if (((unsigned long long)ticks < ARR_VAL) && (setval < ARR_VAL) && (setval != oldval)) {
 		do {
 			*(timer_common.lptim + lptim_cmp) = setval;
 			hal_cpuDataSyncBarrier();
 
-			for (timeout = 0; timeout < 0x1234; ++timeout) {
-				if ((*(timer_common.lptim + lptim_isr) & (1 << 3)) != 0) {
+			for (timeout = 0; timeout < 0x1234U; ++timeout) {
+				if ((*(timer_common.lptim + lptim_isr) & (1U << 3)) != 0U) {
 					cmpdone = 1;
 					break;
 				}
@@ -230,8 +232,8 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 
 char *hal_timerFeatures(char *features, unsigned int len)
 {
-	hal_strncpy(features, "Using Low-Power Timer", len);
-	features[len - 1] = '\0';
+	(void)hal_strncpy(features, "Using Low-Power Timer", len);
+	features[len - 1U] = '\0';
 	return features;
 }
 
@@ -247,14 +249,14 @@ void _hal_timerInit(u32 interval)
 	hal_cpuDataMemoryBarrier();
 	*(timer_common.lptim + lptim_cfgr) = (PRESCALER << 9);
 	/* Enable CMPM and ARRM IRQs */
-	*(timer_common.lptim + lptim_ier) = (1 << 1) | (1 << 0);
+	*(timer_common.lptim + lptim_ier) = (1U << 1) | (1U << 0);
 	hal_cpuDataMemoryBarrier();
 	/* Timer enable */
 	*(timer_common.lptim + lptim_cr) = 1;
 	hal_cpuDataMemoryBarrier();
 	*(timer_common.lptim + lptim_arr) = ARR_VAL;
 	/* Wait for ARROK. Don't need to clear this ISR, we do it once */
-	while ((*(timer_common.lptim + lptim_isr) & (1 << 4)) == 0) {
+	while ((*(timer_common.lptim + lptim_isr) & (1U << 4)) == 0U) {
 	}
 	hal_cpuDataMemoryBarrier();
 
@@ -262,11 +264,11 @@ void _hal_timerInit(u32 interval)
 	timer_common.overflowh.n = lptim1_irq;
 	timer_common.overflowh.got = NULL;
 	timer_common.overflowh.data = NULL;
-	hal_interruptsSetHandler(&timer_common.overflowh);
+	(void)hal_interruptsSetHandler(&timer_common.overflowh);
 
 	/* Trigger timer start */
-	*(timer_common.lptim + lptim_cr) |= 4;
+	*(timer_common.lptim + lptim_cr) |= 4U;
 	hal_cpuDataMemoryBarrier();
 
-	_stm32_systickInit(interval);
+	(void)_stm32_systickInit(interval);
 }

@@ -22,7 +22,7 @@
 
 #include "config.h"
 
-struct {
+static struct {
 	int busy;
 	spinlock_t busySp;
 } cpu_common;
@@ -76,13 +76,16 @@ void hal_cpuSetDevBusy(int s)
 	spinlock_ctx_t scp;
 
 	hal_spinlockSet(&cpu_common.busySp, &scp);
-	if (s == 1)
+	if (s == 1) {
 		++cpu_common.busy;
-	else
+	}
+	else {
 		--cpu_common.busy;
+	}
 
-	if (cpu_common.busy < 0)
+	if (cpu_common.busy < 0) {
 		cpu_common.busy = 0;
+	}
 	hal_spinlockClear(&cpu_common.busySp, &scp);
 }
 
@@ -93,15 +96,17 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 
 	(void)tls;
 
-	*nctx = 0;
-	if (kstack == NULL)
+	*nctx = NULL;
+	if (kstack == NULL) {
 		return -1;
+	}
 
-	if (kstacksz < sizeof(cpu_context_t))
+	if (kstacksz < sizeof(cpu_context_t)) {
 		return -1;
+	}
 
 	/* Align user stack to 8 bytes */
-	ustack = (void *)((ptr_t)ustack & ~0x7);
+	ustack = (void *)((ptr_t)ustack & ~0x7U);
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
@@ -111,26 +116,27 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->savesp = (u32)ctx;
 	ctx->psp = (ustack != NULL) ? (u32)ustack - (HWCTXSIZE * sizeof(int)) : 0;
 	ctx->msp = (ustack != NULL) ? (u32)kstack + kstacksz : (u32)&ctx->hwctx;
-	ctx->r4 = 0x44444444;
-	ctx->r5 = 0x55555555;
-	ctx->r6 = 0x66666666;
-	ctx->r7 = 0x77777777;
-	ctx->r8 = 0x88888888;
-	ctx->r9 = 0x99999999;
-	ctx->r10 = 0xaaaaaaaa;
-	ctx->r11 = 0xbbbbbbbb;
+	ctx->r4 = 0x44444444U;
+	ctx->r5 = 0x55555555U;
+	ctx->r6 = 0x66666666U;
+	ctx->r7 = 0x77777777U;
+	ctx->r8 = 0x88888888U;
+	ctx->r9 = 0x99999999U;
+	ctx->r10 = 0xaaaaaaaaU;
+	ctx->r11 = 0xbbbbbbbbU;
 
 	ctx->hwctx.r0 = (u32)arg;
-	ctx->hwctx.r1 = 0x11111111;
-	ctx->hwctx.r2 = 0x22222222;
-	ctx->hwctx.r3 = 0x33333333;
-	ctx->hwctx.r12 = 0xcccccccc;
-	ctx->hwctx.lr = 0xeeeeeeee;
+	ctx->hwctx.r1 = 0x11111111U;
+	ctx->hwctx.r2 = 0x22222222U;
+	ctx->hwctx.r3 = 0x33333333U;
+	ctx->hwctx.r12 = 0xccccccccU;
+	ctx->hwctx.lr = 0xeeeeeeeeU;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->hwctx.pc = (u32)start;
-	ctx->hwctx.psr = 0x01000000;
+	ctx->hwctx.psr = 0x01000000U;
 	if (ustack != NULL) {
 #ifdef CPU_IMXRT
-		ctx->fpuctx = ctx->psp + 8 * sizeof(int);
+		ctx->fpuctx = ctx->psp + 8U * sizeof(int);
 		ctx->fpscr = 0;
 #endif
 		ctx->irq_ret = RET_THREAD_PSP;
@@ -160,7 +166,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &n, sizeof(n) },
 		{ 0, 0 } /* Reserve space for optional HWCTX */
 	};
-	size_t argc = (sizeof(args) / sizeof(args[0])) - 1;
+	size_t argc = (sizeof(args) / sizeof(args[0])) - 1U;
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
@@ -208,33 +214,36 @@ char *hal_cpuInfo(char *info)
 	int i;
 	unsigned int cpuinfo = _hal_scsCpuID();
 
-	hal_strcpy(info, HAL_NAME_PLATFORM);
-	i = sizeof(HAL_NAME_PLATFORM) - 1;
+	(void)hal_strcpy(info, HAL_NAME_PLATFORM);
+	i = (int)sizeof(HAL_NAME_PLATFORM) - 1;
 
-	if (((cpuinfo >> 24) & 0xff) == 0x41) {
-		hal_strcpy(info + i, "ARMv7 ");
+	if (((cpuinfo >> 24) & 0xffU) == 0x41U) {
+		(void)hal_strcpy(info + i, "ARMv7 ");
 		i += 6;
 	}
 
-	if (((cpuinfo >> 4) & 0xfff) == 0xc23) {
-		hal_strcpy(info + i, "Cortex-M3 ");
+	if (((cpuinfo >> 4) & 0xfffU) == 0xc23U) {
+		(void)hal_strcpy(info + i, "Cortex-M3 ");
 		i += 10;
 	}
-	else if (((cpuinfo >> 4) & 0xfff) == 0xc24) {
-		hal_strcpy(info + i, "Cortex-M4 ");
+	else if (((cpuinfo >> 4) & 0xfffU) == 0xc24U) {
+		(void)hal_strcpy(info + i, "Cortex-M4 ");
 		i += 10;
 	}
-	else if (((cpuinfo >> 4) & 0xfff) == 0xc27) {
-		hal_strcpy(info + i, "Cortex-M7 ");
+	else if (((cpuinfo >> 4) & 0xfffU) == 0xc27U) {
+		(void)hal_strcpy(info + i, "Cortex-M7 ");
 		i += 10;
+	}
+	else {
+		/* No action required */
 	}
 
 	*(info + i++) = 'r';
-	*(info + i++) = '0' + ((cpuinfo >> 20) & 0xf);
+	*(info + i++) = '0' + ((cpuinfo >> 20) & 0xfU);
 	*(info + i++) = ' ';
 
 	*(info + i++) = 'p';
-	*(info + i++) = '0' + (cpuinfo & 0xf);
+	*(info + i++) = '0' + (cpuinfo & 0xfU);
 	*(info + i++) = '\0';
 
 	return info;
@@ -245,31 +254,33 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 {
 	unsigned int n = 0;
 #ifdef CPU_IMXRT
-	if ((len - n) > 5) {
-		hal_strcpy(features + n, "FPU, ");
-		n += 5;
+	if ((len - n) > 5U) {
+		(void)hal_strcpy(features + n, "FPU, ");
+		n += 5U;
 	}
 #elif defined(CPU_STM32)
-	if ((len - n) > 8) {
-		hal_strcpy(features + n, "softfp, ");
-		n += 8;
+	if ((len - n) > 8U) {
+		(void)hal_strcpy(features + n, "softfp, ");
+		n += 8U;
 	}
 #endif
 	/* TODO: get region numbers from MPU controller */
-	if ((len - n) > 8) {
-		hal_strcpy(features + n, "MPU, ");
-		n += 5;
+	if ((len - n) > 8U) {
+		(void)hal_strcpy(features + n, "MPU, ");
+		n += 5U;
 	}
 
-	if ((len - n) > 7) {
-		hal_strcpy(features + n, "Thumb, ");
-		n += 7;
+	if ((len - n) > 7U) {
+		(void)hal_strcpy(features + n, "Thumb, ");
+		n += 7U;
 	}
 
-	if (n > 0)
-		features[n - 2] = '\0';
-	else
+	if (n > 0U) {
+		features[n - 2U] = '\0';
+	}
+	else {
 		features[0] = '\0';
+	}
 
 	return features;
 }
@@ -327,5 +338,5 @@ void hal_cpuSmpSync(void)
 /* Not safe to call if TLS is not present (tls_base mustn't be NULL) */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	*(ptr_t *)tls->arm_m_tls = tls->tls_base - 8;
+	*(ptr_t *)tls->arm_m_tls = tls->tls_base - 8U;
 }

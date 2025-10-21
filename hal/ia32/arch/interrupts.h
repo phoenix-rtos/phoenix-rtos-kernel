@@ -19,30 +19,30 @@
 
 #include "cpu.h"
 
-#define INTERRUPTS_VECTOR_OFFSET 32
+#define INTERRUPTS_VECTOR_OFFSET 32U
 
-#define SYSTICK_IRQ 0
-#define SYSCALL_IRQ 0x80
-#define TLB_IRQ     0x81
+#define SYSTICK_IRQ 0U
+#define SYSCALL_IRQ 0x80U
+#define TLB_IRQ     0x81U
 
 #define IOAPIC_IDREG  0x0
 #define IOAPIC_VERREG 0x1
 #define IOAPIC_ARBREG 0x2
 
-#define IOAPIC_IRQ_MASK (1U << 16)
-#define IOAPIC_TRIGGER  (1U << 15)
-#define IOAPIC_INTPOL   (1U << 13)
-#define IOAPIC_DESTMOD  (1U << 11)
+#define IOAPIC_IRQ_MASK (1UL << 16)
+#define IOAPIC_TRIGGER  (1UL << 15)
+#define IOAPIC_INTPOL   (1UL << 13)
+#define IOAPIC_DESTMOD  (1UL << 11)
 
 #define LAPIC_EOI 0
 
 /* Interrupt source override polarity flags */
-#define MADT_ISO_POLAR_MASK 0x3
-#define MADT_ISO_POLAR_BUS  0x0
-#define MADT_ISO_POLAR_HIGH 0x1
-#define MADT_ISO_POLAR_LOW  0x3
+#define MADT_ISO_POLAR_MASK 0x3U
+#define MADT_ISO_POLAR_BUS  0x0U
+#define MADT_ISO_POLAR_HIGH 0x1U
+#define MADT_ISO_POLAR_LOW  0x3U
 /* Interrupt source override trigger flags */
-#define MADT_ISO_TRIGGER_MASK  (0x3 << 2)
+#define MADT_ISO_TRIGGER_MASK  (0x3U << 2)
 #define MADT_ISO_TRIGGER_BUS   0x0
 #define MADT_ISO_TRIGGER_EDGE  (0x1U << 2)
 #define MADT_ISO_TRIGGER_LEVEL (0x3U << 2)
