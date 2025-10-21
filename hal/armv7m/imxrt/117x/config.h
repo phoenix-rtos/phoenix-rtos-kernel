@@ -16,7 +16,7 @@
 #ifndef _HAL_CONFIG_H_
 #define _HAL_CONFIG_H_
 
-#define SIZE_INTERRUPTS 217
+#define SIZE_INTERRUPTS 217U
 
 #define TIMER_US2CYC(x) (x)
 #define TIMER_CYC2US(x) (x)

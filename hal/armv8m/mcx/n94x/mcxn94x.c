@@ -159,11 +159,11 @@ int _mcxn94x_portPinConfig(int pin, int mux, int options)
 
 	pin %= 32;
 
-	if (port >= (sizeof(n94x_common.port) / sizeof(*n94x_common.port))) {
+	if ((unsigned int)port >= (sizeof(n94x_common.port) / sizeof(*n94x_common.port))) {
 		return -EINVAL;
 	}
 
-	*(n94x_common.port[port] + port_pcr0 + pin) = (((mux & 0xf) << 8) | (options & 0x307f));
+	*(n94x_common.port[port] + port_pcr0 + pin) = ((((unsigned int)mux & 0xfU) << 8) | ((unsigned int)options & 0x307fU));
 
 	return 0;
 }
@@ -173,8 +173,8 @@ u64 _mcxn94x_sysconGray2Bin(u64 gray)
 {
 	u64 ret;
 
-	*(n94x_common.syscon + syscon_graycodelsb) = gray & 0xffffffff;
-	*(n94x_common.syscon + syscon_graycodemsb) = gray >> 32;
+	*(n94x_common.syscon + syscon_graycodelsb) = (u32)(gray & 0xffffffffU);
+	*(n94x_common.syscon + syscon_graycodemsb) = (u32)(gray >> 32);
 	hal_cpuDataMemoryBarrier();
 
 	ret = *(n94x_common.syscon + syscon_binarycodelsb);
@@ -440,6 +440,7 @@ static int _mcxn94x_sysconGetRegs(int dev, volatile u32 **selr, volatile u32 **d
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
@@ -456,14 +457,14 @@ static int _mcxn94x_sysconGetDevClk(int dev, unsigned int *sel, unsigned int *di
 	}
 
 	if (sel != NULL) {
-		*sel = *selr & 0x7;
+		*sel = *selr & 0x7U;
 	}
 
 	if (div != NULL) {
-		*div = *divr & 0xff;
+		*div = *divr & 0xffU;
 	}
 
-	*enable = (*(n94x_common.syscon + syscon_ahbclkctrlset0 + (dev / 32)) & 1 << (dev & 0x1f)) ? 1 : 0;
+	*enable = (*(n94x_common.syscon + syscon_ahbclkctrlset0 + ((u32)dev / 32U)) & 1UL << ((u32)dev & 0x1fU)) != 0U ? 1 : 0;
 
 	return 0;
 }
@@ -473,10 +474,10 @@ static void _mcxn94x_sysconSetDevClkState(int dev, int enable)
 	hal_cpuDataMemoryBarrier();
 	if (enable != 0) {
 		/* cmp0 and cmp1 fields are "reserved", let's try to control them anyway */
-		*(n94x_common.syscon + syscon_ahbclkctrlset0 + (dev / 32)) = 1 << (dev & 0x1f);
+		*(n94x_common.syscon + syscon_ahbclkctrlset0 + (dev / 32)) = 1UL << ((unsigned int)dev & 0x1fU);
 	}
 	else {
-		*(n94x_common.syscon + syscon_ahbclkctrlclr0 + (dev / 32)) = 1 << (dev & 0x1f);
+		*(n94x_common.syscon + syscon_ahbclkctrlclr0 + (dev / 32)) = 1UL << ((unsigned int)dev & 0x1fU);
 	}
 	hal_cpuDataMemoryBarrier();
 }
@@ -496,14 +497,14 @@ int _mcxn94x_sysconSetDevClk(int dev, unsigned int sel, unsigned int div, int en
 	}
 
 	if (selr != NULL) {
-		*selr = sel & 0x7;
+		*selr = sel & 0x7U;
 	}
 
 	if (divr != NULL) {
-		*divr = div & 0xff;
+		*divr = div & 0xffU;
 
 		/* Unhalt the divider */
-		*divr &= ~(1 << 30);
+		*divr &= ~(1UL << 30);
 	}
 
 	_mcxn94x_sysconSetDevClkState(dev, enable);
@@ -529,10 +530,10 @@ int _mcxn94x_sysconDevReset(int dev, int state)
 	}
 
 	if (state != 0) {
-		*(reg + (syscon_presetctrlset0 - syscon_presetctrl0)) = 1 << (dev & 0x1f);
+		*(reg + (syscon_presetctrlset0 - syscon_presetctrl0)) = 1UL << ((unsigned int)dev & 0x1fU);
 	}
 	else {
-		*(reg + (syscon_presetctrlcrl0 - syscon_presetctrl0)) = 1 << (dev & 0x1f);
+		*(reg + (syscon_presetctrlcrl0 - syscon_presetctrl0)) = 1UL << ((unsigned int)dev & 0x1fU);
 	}
 	hal_cpuDataMemoryBarrier();
 
@@ -631,16 +632,17 @@ void _hal_platformInit(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void _mcxn94x_init(void)
 {
-	n94x_common.syscon = (void *)0x40000000;
-	n94x_common.port[0] = (void *)0x40116000;
-	n94x_common.port[1] = (void *)0x40117000;
-	n94x_common.port[2] = (void *)0x40118000;
-	n94x_common.port[3] = (void *)0x40119000;
-	n94x_common.port[4] = (void *)0x4011a000;
-	n94x_common.port[5] = (void *)0x40042000;
-	n94x_common.inputmux = (void *)0x40006000;
+	n94x_common.syscon = (void *)0x40000000U;
+	n94x_common.port[0] = (void *)0x40116000U;
+	n94x_common.port[1] = (void *)0x40117000U;
+	n94x_common.port[2] = (void *)0x40118000U;
+	n94x_common.port[3] = (void *)0x40119000U;
+	n94x_common.port[4] = (void *)0x4011a000U;
+	n94x_common.port[5] = (void *)0x40042000U;
+	n94x_common.inputmux = (void *)0x40006000U;
 
 	_hal_scsInit();
 

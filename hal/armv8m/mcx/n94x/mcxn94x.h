@@ -34,15 +34,4 @@ extern int _mcxn94x_sysconSetDevClk(int dev, unsigned int sel, unsigned int div,
 extern int _mcxn94x_sysconDevReset(int dev, int state);
 
 
-extern int hal_platformctl(void *ptr);
-
-
-extern void _mcxn94x_scbSetPriorityGrouping(u32 group);
-
-
-extern void _mcxn94x_scbSetPriority(s8 excpn, u32 priority);
-
-
-extern unsigned int _mcxn94x_cpuid(void);
-
 #endif

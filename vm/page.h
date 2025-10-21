@@ -24,7 +24,7 @@
 extern page_t *vm_pageAlloc(size_t size, u8 flags);
 
 
-extern void vm_pageFree(page_t *lh);
+extern void vm_pageFree(page_t *p);
 
 
 extern page_t *_page_get(addr_t addr);

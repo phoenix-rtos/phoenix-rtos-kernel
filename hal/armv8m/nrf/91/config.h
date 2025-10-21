@@ -23,7 +23,7 @@
 #include "nrf91.h"
 
 /* Based on INTLINESNUM value (ICTR cpu register) */
-#define SIZE_INTERRUPTS 256
+#define SIZE_INTERRUPTS 256U
 
 #define HAL_NAME_PLATFORM "NRF91 "
 #endif

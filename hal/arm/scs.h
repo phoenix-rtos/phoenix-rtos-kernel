@@ -21,19 +21,19 @@
 #include "hal/types.h"
 
 
-void _hal_scsIRQSet(s8 irqn, u8 state);
+void _hal_scsIRQSet(u8 irqn, u8 state);
 
 
-void _hal_scsIRQPrioritySet(s8 irqn, u32 priority);
+void _hal_scsIRQPrioritySet(u8 irqn, u32 priority);
 
 
-void _hal_scsIRQPendingSet(s8 irqn);
+void _hal_scsIRQPendingSet(u8 irqn);
 
 
-int _hal_scsIRQPendingGet(s8 irqn);
+int _hal_scsIRQPendingGet(u8 irqn);
 
 
-int _hal_scsIRQActiveGet(s8 irqn);
+int _hal_scsIRQActiveGet(u8 irqn);
 
 
 void _hal_scsPriorityGroupingSet(u32 group);

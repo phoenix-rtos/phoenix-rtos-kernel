@@ -20,15 +20,15 @@
 #include "cpu.h"
 
 
-#define TLB_IRQ     (1u | CLINT_IRQ_FLG)
-#define SYSTICK_IRQ (5u | CLINT_IRQ_FLG)
+#define TLB_IRQ     (1U | CLINT_IRQ_FLG)
+#define SYSTICK_IRQ (5U | CLINT_IRQ_FLG)
 
 
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;
 	struct _intr_handler_t *prev;
 	unsigned int n;
-	int (*f)(unsigned int, cpu_context_t *, void *);
+	int (*f)(unsigned int n, cpu_context_t *ctx, void *arg);
 	void *data;
 } intr_handler_t;
 

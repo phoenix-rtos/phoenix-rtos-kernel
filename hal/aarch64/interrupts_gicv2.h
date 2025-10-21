@@ -29,7 +29,7 @@ enum {
 int _interrupts_gicv2_classify(unsigned int irqn);
 
 
-void interrupts_setCPU(unsigned int irqn, unsigned int cpuID);
+void interrupts_setCPU(unsigned int irqn, unsigned int cpuMask);
 
 
 #endif /* _INTERRUPTS_GICV2_H_ */

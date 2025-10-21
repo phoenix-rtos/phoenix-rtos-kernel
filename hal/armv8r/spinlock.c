@@ -66,7 +66,7 @@ void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
-void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
+static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 {
 	spinlock->lock = 1;
 

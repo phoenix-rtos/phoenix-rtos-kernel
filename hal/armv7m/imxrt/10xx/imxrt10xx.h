@@ -21,40 +21,124 @@
 
 /* iMXRT peripherals */
 
-enum { gpio1 = 0, gpio2, gpio3, gpio4, gpio5 };
+enum { gpio1 = 0,
+	gpio2,
+	gpio3,
+	gpio4,
+	gpio5 };
 
 
 /* Clock and PLL management */
-enum { clk_cpu = 0, clk_ahb, clk_semc, clk_ipg, clk_osc, clk_rtc, clk_armpll, clk_usb1pll, clk_usb1pfd0,
-	clk_usb1pfd1, clk_usb1pfd2, clk_usb1pfd3, clk_usb2pll, clk_syspll, clk_syspdf0, clk_syspdf1, clk_syspdf2,
-	clk_syspdf3, clk_enetpll0, clk_enetpll1, clk_enetpll2, clk_audiopll, clk_videopll };
+enum { clk_cpu = 0,
+	clk_ahb,
+	clk_semc,
+	clk_ipg,
+	clk_osc,
+	clk_rtc,
+	clk_armpll,
+	clk_usb1pll,
+	clk_usb1pfd0,
+	clk_usb1pfd1,
+	clk_usb1pfd2,
+	clk_usb1pfd3,
+	clk_usb2pll,
+	clk_syspll,
+	clk_syspdf0,
+	clk_syspdf1,
+	clk_syspdf2,
+	clk_syspdf3,
+	clk_enetpll0,
+	clk_enetpll1,
+	clk_enetpll2,
+	clk_audiopll,
+	clk_videopll };
 
 
-enum { clk_pll_arm = 0, clk_pll_sys, clk_pll_usb1, clk_pll_audio, clk_pll_video, clk_pll_enet0, clk_pll_enet1,
-	clk_pll_enet2, clk_pll_usb2 };
+enum { clk_pll_arm = 0,
+	clk_pll_sys,
+	clk_pll_usb1,
+	clk_pll_audio,
+	clk_pll_video,
+	clk_pll_enet0,
+	clk_pll_enet1,
+	clk_pll_enet2,
+	clk_pll_usb2 };
 
 
-enum { clk_pfd0 = 0, clk_pfd1, clk_pfd2, clk_pfd3 };
+enum { clk_pfd0 = 0,
+	clk_pfd1,
+	clk_pfd2,
+	clk_pfd3 };
 
 
-enum { clk_mux_pll3 = 0, clk_mux_periph, clk_mux_semcAlt, clk_mux_semc, clk_mux_prePeriph, clk_mux_trace,
-	clk_mux_periphclk2, clk_mux_lpspi, clk_mux_flexspi, clk_mux_usdhc2, clk_mux_usdhc1, clk_mux_sai3, clk_mux_sai2,
-	clk_mux_sai1, clk_mux_perclk, clk_mux_flexio2, clk_mux_can, clk_mux_uart, clk_mux_enc, clk_mux_ldbDi1,
-	clk_mux_ldbDi0, clk_mux_spdif, clk_mux_flexio1, clk_mux_lpi2c, clk_mux_lcdif1pre, clk_mux_lcdif1, clk_mux_csi };
+enum { clk_mux_pll3 = 0,
+	clk_mux_periph,
+	clk_mux_semcAlt,
+	clk_mux_semc,
+	clk_mux_prePeriph,
+	clk_mux_trace,
+	clk_mux_periphclk2,
+	clk_mux_lpspi,
+	clk_mux_flexspi,
+	clk_mux_usdhc2,
+	clk_mux_usdhc1,
+	clk_mux_sai3,
+	clk_mux_sai2,
+	clk_mux_sai1,
+	clk_mux_perclk,
+	clk_mux_flexio2,
+	clk_mux_can,
+	clk_mux_uart,
+	clk_mux_enc,
+	clk_mux_ldbDi1,
+	clk_mux_ldbDi0,
+	clk_mux_spdif,
+	clk_mux_flexio1,
+	clk_mux_lpi2c,
+	clk_mux_lcdif1pre,
+	clk_mux_lcdif1,
+	clk_mux_csi };
 
 
-enum { clk_div_arm = 0, clk_div_periphclk2, clk_div_semc, clk_div_ahb, clk_div_ipg, clk_div_lpspi, clk_div_lcdif1,
-	clk_div_flexspi, clk_div_perclk, clk_div_ldbDi1, clk_div_ldbDi0, clk_div_can, clk_div_trace, clk_div_usdhc2,
-	clk_div_usdhc1, clk_div_uart, clk_div_flexio2, clk_div_sai3pre, clk_div_sai3, clk_div_flexio2pre, clk_div_sai1pre,
-	clk_div_sai1, clk_div_enc, clk_div_encpre, clk_div_sai2pre, clk_div_sai2, clk_div_spdif0pre, clk_div_spdif0,
-	clk_div_flexio1pre, clk_div_flexio1, clk_div_lpi2c, clk_div_lcdif1pre, clk_div_csi };
+enum { clk_div_arm = 0,
+	clk_div_periphclk2,
+	clk_div_semc,
+	clk_div_ahb,
+	clk_div_ipg,
+	clk_div_lpspi,
+	clk_div_lcdif1,
+	clk_div_flexspi,
+	clk_div_perclk,
+	clk_div_ldbDi1,
+	clk_div_ldbDi0,
+	clk_div_can,
+	clk_div_trace,
+	clk_div_usdhc2,
+	clk_div_usdhc1,
+	clk_div_uart,
+	clk_div_flexio2,
+	clk_div_sai3pre,
+	clk_div_sai3,
+	clk_div_flexio2pre,
+	clk_div_sai1pre,
+	clk_div_sai1,
+	clk_div_enc,
+	clk_div_encpre,
+	clk_div_sai2pre,
+	clk_div_sai2,
+	clk_div_spdif0pre,
+	clk_div_spdif0,
+	clk_div_flexio1pre,
+	clk_div_flexio1,
+	clk_div_lpi2c,
+	clk_div_lcdif1pre,
+	clk_div_csi };
 
 
 /* CPU modes */
-enum { clk_mode_run = 0, clk_mode_wait, clk_mode_stop };
-
-
-extern int hal_platformctl(void *ptr);
+enum { clk_mode_run = 0,
+	clk_mode_wait,
+	clk_mode_stop };
 
 
 extern void _imxrt_ccmInitExterlnalClk(void);
@@ -144,12 +228,6 @@ extern u32 _imxrt_ccmGetSysPfdFreq(int pfd);
 extern u32 _imxrt_ccmGetUsb1PfdFreq(int pfd);
 
 
-extern u32 _imxrt_ccmGetSysPfdFreq(int pfd);
-
-
-extern u32 _imxrt_ccmGetUsb1PfdFreq(int pfd);
-
-
 extern void _imxrt_ccmSetMux(int mux, u32 val);
 
 
@@ -183,13 +261,13 @@ extern int _imxrt_gpioGet(unsigned int d, u8 pin, u8 *val);
 extern int _imxrt_gpioGetPort(unsigned int d, u32 *val);
 
 
-extern int _imxrt_setIOmux(int mux, char sion, char mode);
+extern int _imxrt_setIOmux(int mux, int sion, int mode);
 
 
-extern int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre);
+extern int _imxrt_setIOpad(int pad, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8 speed, u8 dse, u8 sre);
 
 
-extern int _imxrt_setIOisel(int isel, char daisy);
+extern int _imxrt_setIOisel(int isel, int daisy);
 
 
 extern void _imxrt_wdgReload(void);

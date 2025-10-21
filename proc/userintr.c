@@ -120,8 +120,8 @@ int userintr_setHandler(unsigned int n, int (*f)(unsigned int n, void *arg), voi
 	 * Assumes that entire interrupt handler code lies within one page and is aligned to page boundary.
 	 * No other user code should be placed in the same page.
 	 */
-	int attr = PGHD_READ | PGHD_EXEC | PGHD_PRESENT;
-	pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1)), attr, NULL);
+	int attr = (int)(PGHD_READ | PGHD_EXEC | PGHD_PRESENT);
+	(void)pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1U)), attr, NULL);
 #endif
 
 	res = hal_interruptsSetHandler(&ui->handler);

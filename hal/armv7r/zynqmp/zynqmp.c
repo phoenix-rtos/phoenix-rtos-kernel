@@ -96,7 +96,7 @@ static int _zynqmp_getDevClock(u32 dev, u8 *src, u8 *div0, u8 *div1, u8 *active)
 		unsigned regOffset = (dev - (unsigned int)pctl_devclock_lpd_usb3_dual) + (unsigned int)crl_apb_usb3_dual_ref_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crl_apb + regOffset, src, div0, div1, active);
 	}
-	else if ((dev >= pctl_devclock_fpd_acpu) && (dev <= pctl_devclock_fpd_dbg_tstmp)) {
+	else if ((dev >= (u8)pctl_devclock_fpd_acpu) && (dev <= (u8)pctl_devclock_fpd_dbg_tstmp)) {
 		unsigned regOffset = (dev - (unsigned int)pctl_devclock_fpd_acpu) + (unsigned int)crf_apb_acpu_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crf_apb + regOffset, src, div0, div1, active);
 	}
@@ -218,7 +218,7 @@ static int _zynqmp_getMIO(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *conf
 }
 
 
-static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
+static int _zynqmp_parseReset(u32 dev, volatile u32 **reg, u32 *bit)
 {
 	static const u32 lookup[76] = {
 		[pctl_devreset_lpd_gem0] = (unsigned int)crl_apb_rst_lpd_iou0 | (0UL << 12),
@@ -299,11 +299,11 @@ static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
 		[pctl_devreset_fpd_ddr_reserved] = (unsigned int)crf_apb_rst_ddr_ss | (3UL << 12),
 	};
 
-	if ((dev < pctl_devreset_lpd_gem0) || (dev > pctl_devreset_fpd_ddr_reserved)) {
+	if ((dev < (u32)pctl_devreset_lpd_gem0) || (dev > (u32)pctl_devreset_fpd_ddr_reserved)) {
 		return -1;
 	}
 
-	if (dev >= pctl_devreset_fpd_sata) {
+	if (dev >= (u32)pctl_devreset_fpd_sata) {
 		*reg = zynq_common.crf_apb + (lookup[dev] & ((0x1UL << 12) - 1U));
 	}
 	else {
@@ -315,7 +315,7 @@ static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
 }
 
 
-int _zynq_setDevRst(int dev, unsigned int state)
+int _zynq_setDevRst(u32 dev, unsigned int state)
 {
 	volatile u32 *reg;
 	u32 bit;
@@ -336,7 +336,7 @@ int _zynq_setDevRst(int dev, unsigned int state)
 }
 
 
-static int _zynq_getDevRst(int dev, unsigned int *state)
+static int _zynq_getDevRst(u32 dev, unsigned int *state)
 {
 	volatile u32 *reg;
 	u32 bit;
@@ -405,10 +405,10 @@ int hal_platformctl(void *ptr)
 
 		case pctl_devreset:
 			if (data->action == pctl_set) {
-				ret = _zynq_setDevRst((int)data->devreset.dev, data->devreset.state);
+				ret = _zynq_setDevRst((u32)data->devreset.dev, data->devreset.state);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getDevRst((int)data->devreset.dev, &t);
+				ret = _zynq_getDevRst((u32)data->devreset.dev, &t);
 				data->devreset.state = t;
 			}
 			else {

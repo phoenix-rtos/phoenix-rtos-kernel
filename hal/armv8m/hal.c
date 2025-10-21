@@ -14,15 +14,12 @@
  */
 
 #include "hal/hal.h"
-struct {
+static struct {
 	int started;
 } hal_common;
 
 
 hal_syspage_t *syspage;
-
-
-extern void _hal_cpuInit(void);
 
 
 void *hal_syspageRelocate(void *data)

@@ -341,24 +341,24 @@ typedef struct {
 
 		struct {
 			int mux;
-			char sion;
-			char mode;
+			int sion;
+			int mode;
 		} iomux;
 
 		struct {
 			int pad;
-			char pus;
-			char pue;
-			char pke;
-			char ode;
-			char dse;
-			char sre;
-			char apc;
+			unsigned char pus;
+			unsigned char pue;
+			unsigned char pke;
+			unsigned char ode;
+			unsigned char dse;
+			unsigned char sre;
+			unsigned char apc;
 		} iopad;
 
 		struct {
 			int isel;
-			char daisy;
+			int daisy;
 		} ioisel;
 
 		struct {

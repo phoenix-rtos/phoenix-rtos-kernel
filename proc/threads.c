@@ -273,7 +273,7 @@ void perf_exec(process_t *p, char *path)
 {
 	perf_levent_exec_t ev;
 	time_t now;
-	unsigned int plen;
+	size_t plen;
 	spinlock_ctx_t sc;
 
 	if (threads_common.perfGather == 0) {
@@ -861,7 +861,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *harg), int *id, un
 
 static unsigned int _proc_lockGetPriority(lock_t *lock)
 {
-	unsigned int priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1U;
+	unsigned int priority = (unsigned int)sizeof(threads_common.ready) / (unsigned int)sizeof(threads_common.ready[0]) - 1U;
 	thread_t *thread = lock->queue;
 
 	if (thread != NULL) {
@@ -879,7 +879,7 @@ static unsigned int _proc_lockGetPriority(lock_t *lock)
 
 static unsigned int _proc_threadGetLockPriority(thread_t *thread)
 {
-	unsigned int ret, priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1U;
+	unsigned int ret, priority = (unsigned int)sizeof(threads_common.ready) / (unsigned int)sizeof(threads_common.ready[0]) - 1U;
 	lock_t *lock = thread->locks;
 
 	if (lock != NULL) {
@@ -1493,19 +1493,19 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	unsigned sigbit = 0x01UL << (unsigned int)sig;
+	unsigned sigbit = (unsigned int)0x01 << (unsigned int)sig;
 
 	spinlock_ctx_t sc;
 
 	switch (sig) {
 		case signal_segv:
-		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional passthrough" */
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case signal_illegal:
 			if (process->sighandler != NULL) {
 				break;
 			}
 
-		/* passthrough */
+		/* Fall-through */
 		case signal_kill:
 			proc_kill(process);
 			return EOK;
@@ -2076,7 +2076,7 @@ void proc_threadsDump(unsigned int priority)
 int proc_threadsList(int n, threadinfo_t *info)
 {
 	int i = 0, argc;
-	unsigned int len, space;
+	size_t len, space;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
@@ -2247,7 +2247,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
-		(void)proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1U, (size_t)SIZE_KSTACK, NULL, 0, NULL);
+		(void)proc_threadCreate(NULL, threads_idlethr, NULL, (unsigned int)sizeof(threads_common.ready) / (unsigned int)sizeof(thread_t *) - 1U, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */

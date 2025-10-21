@@ -20,22 +20,22 @@
 #include "config.h"
 #include "arch/pmap.h"
 
-#define MADT_TYPE_PROCESSOR_LOCAL_APIC             0
-#define MADT_TYPE_IOAPIC                           1
-#define MADT_TYPE_IOAPIC_INTERRUPT_SOURCE_OVERRIDE 2
+#define MADT_TYPE_PROCESSOR_LOCAL_APIC             0U
+#define MADT_TYPE_IOAPIC                           1U
+#define MADT_TYPE_IOAPIC_INTERRUPT_SOURCE_OVERRIDE 2U
 
-#define MADT_8259PIC_INSTALLED (1u << 0)
+#define MADT_8259PIC_INSTALLED (1U << 0)
 
 /* IAPC_BOOT_ARCH flags in FADT: acpi->fadt->iapcBootArch */
-#define FADT_LEGACY_DEVICES      (1u << 0)
-#define FADT_KEYBOARD_CONTROLLER (1u << 1)
-#define FADT_NO_VGA              (1u << 2)
-#define FADT_MSI_NOT_SUPPORTED   (1u << 3)
-#define FADT_PCIe_ASPM_CONTROLS  (1u << 4)
-#define FADT_NO_CMOS_RTC         (1u << 5)
+#define FADT_LEGACY_DEVICES      (1U << 0)
+#define FADT_KEYBOARD_CONTROLLER (1U << 1)
+#define FADT_NO_VGA              (1U << 2)
+#define FADT_MSI_NOT_SUPPORTED   (1U << 3)
+#define FADT_PCIe_ASPM_CONTROLS  (1U << 4)
+#define FADT_NO_CMOS_RTC         (1U << 5)
 
-#define HAL_MEM_ENTRIES        64
-#define MMIO_DEVICES_VIRT_ADDR (void *)0xfe000000
+#define HAL_MEM_ENTRIES        64U
+#define MMIO_DEVICES_VIRT_ADDR (void *)0xfe000000U
 
 typedef struct {
 	char magic[4];
@@ -75,7 +75,7 @@ typedef struct {
 	u8 registerOffset;
 	u8 accessSize;
 	u64 address;
-} __attribute__ ((packed)) hal_gas_t;
+} __attribute__((packed)) hal_gas_t;
 
 typedef struct {
 	u8 addressSpaceId;
@@ -108,7 +108,7 @@ typedef struct {
 	u64 xsdtAddr;
 	u8 extChecksum;
 	u8 _reserved[3];
-} __attribute__ ((packed)) xsdp_t;
+} __attribute__((packed)) xsdp_t;
 
 
 typedef struct {
@@ -116,7 +116,7 @@ typedef struct {
 	addr_t localApicAddr;
 	u32 flags;
 	u8 entries[]; /* It is an array of variable length elements */
-} __attribute__ ((packed)) hal_madtHeader_t;
+} __attribute__((packed)) hal_madtHeader_t;
 
 
 typedef struct {
@@ -126,7 +126,7 @@ typedef struct {
 	u8 hpetNumber;
 	u16 minPeriodicClockTick;
 	u8 pageProtection;
-} __attribute__ ((packed)) hal_hpetHeader_t;
+} __attribute__((packed)) hal_hpetHeader_t;
 
 
 typedef struct {
@@ -187,7 +187,7 @@ typedef struct {
 	hal_gas_t sleepStatusReg;  /* SLEEP_STATUS_REG */
 	u64 hypervisorVendorIdentity;
 
-} __attribute__ ((packed)) hal_fadtHeader_t;
+} __attribute__((packed)) hal_fadtHeader_t;
 
 
 typedef struct {

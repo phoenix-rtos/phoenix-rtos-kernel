@@ -47,7 +47,7 @@ static ssize_t sockcall(unsigned int socket, msg_t *msg)
 		return err;
 	}
 
-	err = smo->ret;
+	err = (int)smo->ret;
 	return err;
 }
 
@@ -102,10 +102,10 @@ int inet_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 	smi->send.flags = flags;
 
 	if ((err = socknamecall(socket, &msg, address, address_len)) < 0) {
-		return err;
+		return (int)err;
 	}
 
-	return err;
+	return (int)err;
 }
 
 
@@ -116,7 +116,7 @@ int inet_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmBind;
 
-	return sockdestcall(socket, &msg, address, address_len);
+	return (int)sockdestcall(socket, &msg, address, address_len);
 }
 
 
@@ -127,7 +127,7 @@ int inet_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmConnect;
 
-	return sockdestcall(socket, &msg, address, address_len);
+	return (int)sockdestcall(socket, &msg, address, address_len);
 }
 
 
@@ -138,7 +138,7 @@ int inet_getpeername(unsigned int socket, struct sockaddr *address, socklen_t *a
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmGetPeerName;
 
-	return socknamecall(socket, &msg, address, address_len);
+	return (int)socknamecall(socket, &msg, address, address_len);
 }
 
 
@@ -149,7 +149,7 @@ int inet_getsockname(unsigned int socket, struct sockaddr *address, socklen_t *a
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmGetSockName;
 
-	return socknamecall(socket, &msg, address, address_len);
+	return (int)socknamecall(socket, &msg, address, address_len);
 }
 
 
@@ -169,7 +169,7 @@ int inet_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 	ret = sockcall(socket, &msg);
 
 	if (ret < 0) {
-		return ret;
+		return (int)ret;
 	}
 
 	*optlen = (socklen_t)ret;
@@ -186,7 +186,7 @@ int inet_listen(unsigned int socket, int backlog)
 	msg.type = sockmListen;
 	smi->listen.backlog = backlog;
 
-	return sockcall(socket, &msg);
+	return (int)sockcall(socket, &msg);
 }
 
 
@@ -298,7 +298,7 @@ int inet_shutdown(unsigned int socket, int how)
 	msg.type = sockmShutdown;
 	smi->send.flags = (unsigned int)how;
 
-	return sockcall(socket, &msg);
+	return (int)sockcall(socket, &msg);
 }
 
 
@@ -314,7 +314,7 @@ int inet_setsockopt(unsigned int socket, int level, int optname, const void *opt
 	msg.i.data = optval;
 	msg.i.size = optlen;
 
-	return sockcall(socket, &msg);
+	return (int)sockcall(socket, &msg);
 }
 
 
@@ -327,7 +327,7 @@ int inet_setfl(unsigned int socket, int flags)
 	msg.type = sockmSetFl;
 	smi->send.flags = (unsigned int)flags;
 
-	return sockcall(socket, &msg);
+	return (int)sockcall(socket, &msg);
 }
 
 
@@ -338,5 +338,5 @@ int inet_getfl(unsigned int socket)
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmGetFl;
 
-	return sockcall(socket, &msg);
+	return (int)sockcall(socket, &msg);
 }

@@ -109,7 +109,7 @@ amap_t *amap_ref(amap_t *amap)
 
 amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 {
-	unsigned int i = size / SIZE_PAGE;
+	size_t i = size / SIZE_PAGE;
 	amap_t *new;
 
 	if (amap != NULL) {
@@ -137,7 +137,7 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 	}
 
 	(void)proc_lockInit(&new->lock, &proc_lockAttrDefault, "amap.map");
-	new->size = i;
+	new->size = (unsigned int)i;
 	new->refs = 1;
 	*offset = *offset / (int)SIZE_PAGE;
 
@@ -179,7 +179,7 @@ void amap_put(amap_t *amap)
 
 void amap_clear(amap_t *amap, size_t offset, size_t size)
 {
-	unsigned int i;
+	size_t i;
 
 	(void)proc_lockSet(&amap->lock);
 	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; i++) {
