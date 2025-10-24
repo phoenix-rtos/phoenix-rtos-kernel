@@ -296,7 +296,9 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 extern time_t hal_timerCyc2Us(time_t ticks);
 extern time_t hal_timerGetCyc(void);
 
-void pmap_switch_bulktest(void)  // #MPUTEST: Bulk test of pmap_switch performance
+// #MPUTEST: Bulk test of pmap_switch performance
+
+void pmap_switch_bulktest(int cacheopt)
 {
 	pmap_t maps[4];
 	int ITER_CNT = 10 * 1000;
@@ -309,6 +311,15 @@ void pmap_switch_bulktest(void)  // #MPUTEST: Bulk test of pmap_switch performan
 	unsigned int orgCnt = syspage->hs.mpu.allocCnt;
 
 	int cpuCycles;
+
+	if (cacheopt == 0) {
+		_hal_scsICacheDisable();
+		_hal_scsDCacheDisable();
+	}
+	else {
+		_hal_scsICacheEnable();
+		_hal_scsDCacheEnable();
+	}
 
 	testGPIOlatencyConfigure();
 
@@ -346,15 +357,25 @@ void pmap_switch_bulktest(void)  // #MPUTEST: Bulk test of pmap_switch performan
 
 		/* TEST MPU SWITCH TIME */
 		cpuCycles = hal_timerGetCyc();
+		for (int iter = 0; iter < ITER_CNT; iter++) {
+			pmap_switch(&maps[iter % 4]);
+		}
+		cpuCycles = hal_timerGetCyc() - cpuCycles;
+
 		MPUTEST_GPIO_SET(MPUTEST_PIN0);
 		for (int iter = 0; iter < ITER_CNT; iter++) {
 			MPUTEST_GPIO_SET(MPUTEST_PIN1);
 			pmap_switch(&maps[iter % 4]);
 			MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+			for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+				__asm__ volatile("nop");
+			}
+			if (cacheopt == 1) {
+				hal_invalDCacheAll();
+				hal_invalICacheAll();
+			}
 		}
 		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
-		cpuCycles = hal_timerGetCyc() - cpuCycles;
-
 
 		hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
 		lib_sprintf(b, "pmap_switch() with %d regions - %d times: %d cycles (%d us)\n",
@@ -362,41 +383,85 @@ void pmap_switch_bulktest(void)  // #MPUTEST: Bulk test of pmap_switch performan
 		hal_consolePrint(ATTR_USER, b);
 
 
-		for (int i = 0; i < ITER_CNT; i++) {
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
 			__asm__ volatile("nop");
 		}
 
+#ifdef MPUTEST_FIXED
 		/* TEST MPU REGION DISABLE TIME */
 		cpuCycles = hal_timerGetCyc();
+		for (int iter = 0; iter < ITER_CNT; iter++) {
+			*(pmap_common.mpu + mpu_rnr) = (iter % allocCnt);
+			*(pmap_common.mpu + mpu_rasr) |= 1;
+		}
+		cpuCycles = hal_timerGetCyc() - cpuCycles;
+
 		MPUTEST_GPIO_SET(MPUTEST_PIN0);
 		for (int iter = 0; iter < ITER_CNT; iter++) {
 			MPUTEST_GPIO_SET(MPUTEST_PIN1);
 			*(pmap_common.mpu + mpu_rnr) = (iter % allocCnt);
-			MPUTEST_GPIO_CLR(MPUTEST_PIN1);
 			*(pmap_common.mpu + mpu_rasr) |= 1;
+			MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+
+			for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+				__asm__ volatile("nop");
+			}
+			if (cacheopt == 1) {
+				hal_invalDCacheAll();
+				hal_invalICacheAll();
+			}
 		}
 		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
-		cpuCycles = hal_timerGetCyc() - cpuCycles;
-
 
 		hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
 		lib_sprintf(b, "region disable/enable with %d regions - %d times: %d cycles (%d us)\n",
 				allocCnt, ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
 		hal_consolePrint(ATTR_USER, b);
 
-
-		for (int i = 0; i < ITER_CNT; i++) {
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
 			__asm__ volatile("nop");
 		}
+#endif
 	}
 
 
-	for (int i = 0; i < ITER_CNT; i++) {
+#ifdef MPUTEST_FIXED
+	/* TEST MPU DISABLE TIME */
+	cpuCycles = hal_timerGetCyc();
+	for (int iter = 0; iter < ITER_CNT; iter++) {
+		*(pmap_common.mpu + mpu_ctrl) &= ~1;
+		*(pmap_common.mpu + mpu_ctrl) |= 1;
+	}
+	cpuCycles = hal_timerGetCyc() - cpuCycles;
+	MPUTEST_GPIO_SET(MPUTEST_PIN0);
+	for (int iter = 0; iter < ITER_CNT; iter++) {
+		MPUTEST_GPIO_SET(MPUTEST_PIN1);
+		*(pmap_common.mpu + mpu_ctrl) &= ~1;
+		*(pmap_common.mpu + mpu_ctrl) |= 1;
+		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+			__asm__ volatile("nop");
+		}
+		if (cacheopt == 1) {
+			hal_invalDCacheAll();
+			hal_invalICacheAll();
+		}
+	}
+	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+
+	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
+	lib_sprintf(b, "MPU on/off - %d times: %d cycles (%d us)\n",
+			ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
+	hal_consolePrint(ATTR_USER, b);
+
+
+	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
 		__asm__ volatile("nop");
 	}
 
-	// /* TESTs for cache maintenance */
+	testGPIOlatency(cacheopt);
 
+	// /* TESTs for cache maintenance */
 	cpuCycles = hal_timerGetCyc();
 	MPUTEST_GPIO_SET(MPUTEST_PIN0);
 	for (int i = 0; i < ITER_CNT; i++) {
@@ -404,6 +469,10 @@ void pmap_switch_bulktest(void)  // #MPUTEST: Bulk test of pmap_switch performan
 		_hal_scsDCacheDisable();
 		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
 		_hal_scsDCacheEnable();
+		if (cacheopt == 1) {
+			hal_invalDCacheAll();
+			hal_invalICacheAll();
+		}
 	}
 	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
 	cpuCycles = hal_timerGetCyc() - cpuCycles;
@@ -411,7 +480,8 @@ void pmap_switch_bulktest(void)  // #MPUTEST: Bulk test of pmap_switch performan
 	lib_sprintf(b, "DCache DISABLE/enable - %d times: %d cycles (%d us)\n",
 			ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
 	hal_consolePrint(ATTR_USER, b);
-	for (int i = 0; i < ITER_CNT; i++) {
+
+	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
 		__asm__ volatile("nop");
 	}
 
@@ -422,6 +492,10 @@ void pmap_switch_bulktest(void)  // #MPUTEST: Bulk test of pmap_switch performan
 		_hal_scsICacheDisable();
 		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
 		_hal_scsICacheEnable();
+		if (cacheopt == 1) {
+			hal_invalDCacheAll();
+			hal_invalICacheAll();
+		}
 	}
 	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
 	cpuCycles = hal_timerGetCyc() - cpuCycles;
@@ -429,35 +503,14 @@ void pmap_switch_bulktest(void)  // #MPUTEST: Bulk test of pmap_switch performan
 	lib_sprintf(b, "ICache DISABLE/enable - %d times: %d cycles (%d us)\n",
 			ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
 	hal_consolePrint(ATTR_USER, b);
-	for (int i = 0; i < ITER_CNT; i++) {
+
+	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
 		__asm__ volatile("nop");
 	}
+#endif
 
-
-	testGPIOlatency();
-
-	/* TEST MPU DISABLE TIME */
-	cpuCycles = hal_timerGetCyc();
-	MPUTEST_GPIO_SET(MPUTEST_PIN0);
-	for (int iter = 0; iter < ITER_CNT; iter++) {
-		MPUTEST_GPIO_SET(MPUTEST_PIN1);
-		*(pmap_common.mpu + mpu_ctrl) &= ~1;
-		*(pmap_common.mpu + mpu_ctrl) |= 1;
-		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
-	}
-	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
-	cpuCycles = hal_timerGetCyc() - cpuCycles;
-
-	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
-	lib_sprintf(b, "MPU on/off - %d times: %d cycles (%d us)\n",
-			ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
-	hal_consolePrint(ATTR_USER, b);
-
-
-	for (int i = 0; i < ITER_CNT; i++) {
-		__asm__ volatile("nop");
-	}
-
+	_hal_scsICacheEnable();
+	_hal_scsDCacheEnable();
 
 	syspage->hs.mpu.allocCnt = orgCnt;
 #ifdef MPUTEST_ORGIMPL

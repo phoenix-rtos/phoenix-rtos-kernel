@@ -31,6 +31,10 @@ ifdef MPUTEST_ORGIMPL_OPT
     CFLAGS += -DMPUTEST_ORGIMPL_OPT
 endif
 
+ifdef MPUTEST_FIXED
+    CFLAGS += -DMPUTEST_FIXED
+endif
+
 
 
 include hal/arm/Makefile

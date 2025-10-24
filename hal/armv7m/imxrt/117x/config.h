@@ -54,10 +54,10 @@
 
 // #MPUTEST: GPIO CONFIG
 #ifndef MPUTEST_PIN0
-#define MPUTEST_PIN0 16  // GPIO_AD_15
+#define MPUTEST_PIN0 0  // GPIO_AD_1
 #endif
 #ifndef MPUTEST_PIN1
-#define MPUTEST_PIN1 17  // GPIO_AD_16
+#define MPUTEST_PIN1 1  // GPIO_AD_2
 #endif
 
 enum { dr = 0,
@@ -75,7 +75,7 @@ enum { gpio_in = 0,
 	gpio_out };
 
 
-#define CM7_GPIO3_BASE ((u32 *)0x4200C000)
+#define CM7_GPIO3_BASE ((volatile u32 *)0x4200C000)
 
 #define MPUTEST_GPIO_SET(pin) *(CM7_GPIO3_BASE + dr_set) = 1u << pin
 #define MPUTEST_GPIO_CLR(pin) *(CM7_GPIO3_BASE + dr_clr) = 1u << pin
