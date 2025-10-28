@@ -90,6 +90,7 @@ _start:
 
 .globl _syscall_dispatch
 .type _syscall_dispatch, %function
+.globl _syscallend
 .type _syscallend, %function
 
 _syscall_dispatch:

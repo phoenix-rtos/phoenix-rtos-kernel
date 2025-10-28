@@ -306,7 +306,7 @@ static inline void trace_eventIPCEnter(void)
 	u64 tsc;
 
 	TRACE_IPC_BODY(TRACE_EVENT_IPC_RTT_ENTER, tsc, NULL, {
-		hal_cpuGetCycles(&tsc);
+		hal_cpuGetCycles((cycles_t *)&tsc);
 	});
 }
 
@@ -316,7 +316,7 @@ static inline void trace_eventIPCExit(void)
 	u64 tsc;
 
 	TRACE_IPC_BODY(TRACE_EVENT_IPC_RTT_EXIT, tsc, NULL, {
-		hal_cpuGetCycles(&tsc);
+		hal_cpuGetCycles((cycles_t *)&tsc);
 	});
 }
 
