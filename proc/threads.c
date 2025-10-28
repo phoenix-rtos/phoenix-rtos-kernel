@@ -508,7 +508,9 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 	LIB_ASSERT_ALWAYS(_proc_current() != NULL, "proc current null");
 
 	ctx = _getUserContext(dest);
+#ifndef NOMMU
 	LIB_ASSERT((ptr_t)hal_cpuGetIP(ctx) < VADDR_KERNEL, "dest ip in kernel - ip: 0x%p tid: %d reply: %d", hal_cpuGetIP(ctx), proc_getTid(dest), reply);
+#endif
 
 	if (dest->tls.tls_base != NULL) {
 		hal_cpuTlsSet(&dest->tls, ctx);
@@ -2129,6 +2131,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.ready[i] = NULL;
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
+	lib_rbInit(&threads_common.passive, threads_sleepcmp, NULL);
 	lib_idtreeInit(&threads_common.id);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
@@ -2161,6 +2164,8 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 }
 
 
+// #define log_debug(fmt, ...) lib_printf(fmt "\n", ##__VA_ARGS__)
+// #define log_err(fmt, ...)   lib_printf(fmt "\n", ##__VA_ARGS__)
 #define log_debug(fmt, ...)
 #define log_err(fmt, ...)
 
@@ -2218,6 +2223,7 @@ static int _proc_callSlow(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 	int err;
 
 	while (_mustSlowCall(p, caller) != 0) {
+		log_err("sleep\n");
 		err = proc_threadWaitInterruptible(&p->queue, &p->spinlock, 0, sc);
 		if (err < 0) {
 			hal_spinlockClear(&p->spinlock, sc);
@@ -2285,36 +2291,20 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		return -EINVAL;
 	}
 
+	recv = proc_current();
+
 	hal_spinlockSet(&p->spinlock, &sc);
 
 	log_debug("utcb buf type %d", proc_current()->utcb.kw->type);
-
-	recv = proc_current();
 
 	/* recv SC is actually caller's SC */
 	/* TODO: this should probably be accounted in better way */
 	if (threads_getHighestPrio(recv->sched->priority) != recv->sched->priority) {
 		/* TODO: dead code? */
 		LIB_ASSERT(0, "dead code not dead");
-
-		/* someone to respond but cannot be scheduled directly */
-		if (p->slot.caller != NULL) {
-			hal_memcpy(&p->slot.caller->utcb.kw->o, &recv->utcb.kw->o, sizeof(p->slot.caller->utcb.kw->o));
-			p->slot.caller->state = READY;
-			p->slot.caller = NULL;
-		}
-
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
-		hal_cpuReschedule(NULL, NULL);
-
-		__builtin_unreachable();
-		/* i think this point actually reachable ... */
 	}
 
-
 	if (p->slot.caller == NULL) {
-		/* slowpath */
 		log_err("passive");
 		LIST_ADD_EX(&p->threads, recv, qnext, qprev);
 

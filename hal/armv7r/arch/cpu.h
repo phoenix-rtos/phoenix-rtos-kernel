@@ -198,6 +198,12 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 }
 
 
+static inline void *hal_cpuGetIP(cpu_context_t *ctx)
+{
+	return (void *)ctx->pc;
+}
+
+
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
 	return ctx->psr & 0xf;

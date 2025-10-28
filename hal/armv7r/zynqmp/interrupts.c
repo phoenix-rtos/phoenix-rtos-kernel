@@ -273,6 +273,19 @@ void _hal_interruptsTrace(int enable)
 }
 
 
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx)
+{
+	asm volatile(
+			"mov sp, %0\n\t"
+			"add sp, sp, #8\n\t"
+			"b _hal_cpuRestoreCtx\n\t"
+			:
+			: "r"(ctx)
+			: "memory");
+	__builtin_unreachable();
+}
+
+
 /* Function initializes interrupt handling */
 void _hal_interruptsInit(void)
 {
