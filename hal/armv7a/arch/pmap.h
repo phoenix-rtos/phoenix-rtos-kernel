@@ -19,10 +19,10 @@
 #include "hal/types.h"
 
 /* Predefined virtual adresses */
-#define VADDR_KERNEL   0xc0000000   /* base virtual address of kernel space */
-#define VADDR_MIN      0x00000000
-#define VADDR_MAX      0xffffffff
-#define VADDR_USR_MAX  0x80000000
+#define VADDR_KERNEL  0xc0000000 /* base virtual address of kernel space */
+#define VADDR_MIN     0x00000000
+#define VADDR_MAX     0xffffffff
+#define VADDR_USR_MAX 0x80000000
 
 /* (MOD) */
 #define VADDR_SCRATCHPAD_TTL 0xfff00000
@@ -40,18 +40,18 @@
 
 
 /* Page flags */
-#define PAGE_FREE            0x00000001
+#define PAGE_FREE 0x00000001
 
-#define PAGE_OWNER_BOOT      (0 << 1)
-#define PAGE_OWNER_KERNEL    (1 << 1)
-#define PAGE_OWNER_APP       (2 << 1)
+#define PAGE_OWNER_BOOT   (0 << 1)
+#define PAGE_OWNER_KERNEL (1 << 1)
+#define PAGE_OWNER_APP    (2 << 1)
 
-#define PAGE_KERNEL_SYSPAGE  (1 << 4)
-#define PAGE_KERNEL_CPU      (2 << 4)
-#define PAGE_KERNEL_PTABLE   (3 << 4)
-#define PAGE_KERNEL_PMAP     (4 << 4)
-#define PAGE_KERNEL_STACK    (5 << 4)
-#define PAGE_KERNEL_HEAP     (6 << 4)
+#define PAGE_KERNEL_SYSPAGE (1 << 4)
+#define PAGE_KERNEL_CPU     (2 << 4)
+#define PAGE_KERNEL_PTABLE  (3 << 4)
+#define PAGE_KERNEL_PMAP    (4 << 4)
+#define PAGE_KERNEL_STACK   (5 << 4)
+#define PAGE_KERNEL_HEAP    (6 << 4)
 
 #ifndef __ASSEMBLY__
 
@@ -68,7 +68,7 @@ typedef struct _page_t {
 typedef struct _pmap_t {
 	u8 asid_ix;
 	u32 *pdir;
-	addr_t addr;   /* physical address of pdir */
+	addr_t addr; /* physical address of pdir */
 	void *start;
 	void *end;
 	void *pmapv;

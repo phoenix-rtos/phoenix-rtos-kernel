@@ -26,40 +26,45 @@ static int socksrvcall(msg_t *msg)
 	oid_t oid;
 	int err;
 
-	if ((err = proc_lookup(PATH_SOCKSRV, NULL, &oid)) < 0)
+	if ((err = proc_lookup(PATH_SOCKSRV, NULL, &oid)) < 0) {
 		return err;
+	}
 
-	if ((err = proc_send(oid.port, msg)) < 0)
+	if ((err = proc_send(oid.port, msg)) < 0) {
 		return err;
+	}
 
 	return 0;
 }
 
 
-static ssize_t sockcall(unsigned socket, msg_t *msg)
+static ssize_t sockcall(unsigned int socket, msg_t *msg)
 {
 	sockport_resp_t *smo = (void *)msg->o.raw;
 	int err;
 
-	if ((err = proc_send(socket, msg)) < 0)
+	if ((err = proc_send((u32)socket, msg)) < 0) {
 		return err;
+	}
 
 	err = smo->ret;
 	return err;
 }
 
 
-static ssize_t socknamecall(unsigned socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
+static ssize_t socknamecall(unsigned int socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
 {
 	sockport_resp_t *smo = (void *)msg->o.raw;
 	ssize_t err;
 
-	if ((err = sockcall(socket, msg)) < 0)
+	if ((err = sockcall(socket, msg)) < 0) {
 		return err;
+	}
 
 	if (address_len != NULL) {
-		if (smo->sockname.addrlen > *address_len)
+		if (smo->sockname.addrlen > *address_len) {
 			smo->sockname.addrlen = *address_len;
+		}
 
 		hal_memcpy(address, smo->sockname.addr, smo->sockname.addrlen);
 		*address_len = smo->sockname.addrlen;
@@ -69,12 +74,13 @@ static ssize_t socknamecall(unsigned socket, msg_t *msg, struct sockaddr *addres
 }
 
 
-static ssize_t sockdestcall(unsigned socket, msg_t *msg, const struct sockaddr *address, socklen_t address_len)
+static ssize_t sockdestcall(unsigned int socket, msg_t *msg, const struct sockaddr *address, socklen_t address_len)
 {
 	sockport_msg_t *smi = (void *)msg->i.raw;
 
-	if (address_len > sizeof(smi->send.addr))
+	if (address_len > sizeof(smi->send.addr)) {
 		return -EINVAL;
+	}
 
 	smi->send.addrlen = address_len;
 	hal_memcpy(smi->send.addr, address, address_len);
@@ -83,7 +89,7 @@ static ssize_t sockdestcall(unsigned socket, msg_t *msg, const struct sockaddr *
 }
 
 
-int inet_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_len, int flags)
+int inet_accept4(unsigned int socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags)
 {
 	ssize_t err;
 	msg_t msg;
@@ -95,14 +101,15 @@ int inet_accept4(unsigned socket, struct sockaddr *address, socklen_t *address_l
 	msg.type = sockmAccept;
 	smi->send.flags = flags;
 
-	if ((err = socknamecall(socket, &msg, address, address_len)) < 0)
+	if ((err = socknamecall(socket, &msg, address, address_len)) < 0) {
 		return err;
+	}
 
 	return err;
 }
 
 
-int inet_bind(unsigned socket, const struct sockaddr *address, socklen_t address_len)
+int inet_bind(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	msg_t msg;
 
@@ -113,7 +120,7 @@ int inet_bind(unsigned socket, const struct sockaddr *address, socklen_t address
 }
 
 
-int inet_connect(unsigned socket, const struct sockaddr *address, socklen_t address_len)
+int inet_connect(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	msg_t msg;
 
@@ -124,7 +131,7 @@ int inet_connect(unsigned socket, const struct sockaddr *address, socklen_t addr
 }
 
 
-int inet_getpeername(unsigned socket, struct sockaddr *address, socklen_t *address_len)
+int inet_getpeername(unsigned int socket, struct sockaddr *address, socklen_t *address_len)
 {
 	msg_t msg;
 
@@ -135,7 +142,7 @@ int inet_getpeername(unsigned socket, struct sockaddr *address, socklen_t *addre
 }
 
 
-int inet_getsockname(unsigned socket, struct sockaddr *address, socklen_t *address_len)
+int inet_getsockname(unsigned int socket, struct sockaddr *address, socklen_t *address_len)
 {
 	msg_t msg;
 
@@ -146,7 +153,7 @@ int inet_getsockname(unsigned socket, struct sockaddr *address, socklen_t *addre
 }
 
 
-int inet_getsockopt(unsigned socket, int level, int optname, void *optval, socklen_t *optlen)
+int inet_getsockopt(unsigned int socket, int level, int optname, void *optval, socklen_t *optlen)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -161,15 +168,16 @@ int inet_getsockopt(unsigned socket, int level, int optname, void *optval, sockl
 
 	ret = sockcall(socket, &msg);
 
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
-	*optlen = ret;
+	*optlen = (socklen_t)ret;
 	return 0;
 }
 
 
-int inet_listen(unsigned socket, int backlog)
+int inet_listen(unsigned int socket, int backlog)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -182,7 +190,7 @@ int inet_listen(unsigned socket, int backlog)
 }
 
 
-ssize_t inet_recvfrom(unsigned socket, void *message, size_t length, int flags, struct sockaddr *src_addr, socklen_t *src_len)
+ssize_t inet_recvfrom(unsigned int socket, void *message, size_t length, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -197,7 +205,7 @@ ssize_t inet_recvfrom(unsigned socket, void *message, size_t length, int flags, 
 }
 
 
-ssize_t inet_sendto(unsigned socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+ssize_t inet_sendto(unsigned int socket, const void *message, size_t length, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -205,28 +213,31 @@ ssize_t inet_sendto(unsigned socket, const void *message, size_t length, int fla
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmSend;
 	smi->send.flags = flags;
-	msg.i.data = (void *)message;
+	msg.i.data = message;
 	msg.i.size = length;
 
 	return sockdestcall(socket, &msg, dest_addr, dest_len);
 }
 
 
-ssize_t inet_recvmsg(unsigned socket, struct msghdr *msg, int flags)
+ssize_t inet_recvmsg(unsigned int socket, struct msghdr *msg, unsigned int flags)
 {
 	ssize_t ret = 0;
 
 	/* multiple buffers are not supported */
-	if (msg->msg_iovlen > 1)
+	if (msg->msg_iovlen > 1) {
 		return -EINVAL;
+	}
 
-	if (msg->msg_iovlen == 1)
+	if (msg->msg_iovlen == 1) {
 		ret = inet_recvfrom(socket, msg->msg_iov->iov_base, msg->msg_iov->iov_len, flags, msg->msg_name, &msg->msg_namelen);
+	}
 
 	if (ret >= 0) {
 		/* control data is not supported */
-		if (msg->msg_controllen > 0)
+		if (msg->msg_controllen > 0U) {
 			msg->msg_controllen = 0;
+		}
 
 		/* output flags are not supported */
 		msg->msg_flags = 0;
@@ -236,20 +247,23 @@ ssize_t inet_recvmsg(unsigned socket, struct msghdr *msg, int flags)
 }
 
 
-ssize_t inet_sendmsg(unsigned socket, const struct msghdr *msg, int flags)
+ssize_t inet_sendmsg(unsigned int socket, const struct msghdr *msg, unsigned int flags)
 {
 	ssize_t ret = 0;
 
 	/* multiple buffers are not supported */
-	if (msg->msg_iovlen > 1)
+	if (msg->msg_iovlen > 1) {
 		return -EINVAL;
+	}
 
 	/* control data is not supported */
-	if (msg->msg_controllen > 0)
+	if (msg->msg_controllen > 0U) {
 		return -EINVAL;
+	}
 
-	if (msg->msg_iovlen == 1)
+	if (msg->msg_iovlen == 1) {
 		ret = inet_sendto(socket, msg->msg_iov->iov_base, msg->msg_iov->iov_len, flags, msg->msg_name, msg->msg_namelen);
+	}
 
 	return ret;
 }
@@ -267,27 +281,28 @@ int inet_socket(int domain, int type, int protocol)
 	smi->socket.type = type;
 	smi->socket.protocol = protocol;
 
-	if ((err = socksrvcall(&msg)) < 0)
+	if ((err = socksrvcall(&msg)) < 0) {
 		return err;
+	}
 
-	return (msg.o.err < 0) ? msg.o.err : msg.o.lookup.dev.port;
+	return (msg.o.err < 0) ? msg.o.err : (int)msg.o.lookup.dev.port;
 }
 
 
-int inet_shutdown(unsigned socket, int how)
+int inet_shutdown(unsigned int socket, int how)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmShutdown;
-	smi->send.flags = how;
+	smi->send.flags = (unsigned int)how;
 
 	return sockcall(socket, &msg);
 }
 
 
-int inet_setsockopt(unsigned socket, int level, int optname, const void *optval, socklen_t optlen)
+int inet_setsockopt(unsigned int socket, int level, int optname, const void *optval, socklen_t optlen)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
@@ -296,27 +311,27 @@ int inet_setsockopt(unsigned socket, int level, int optname, const void *optval,
 	msg.type = sockmSetOpt;
 	smi->opt.level = level;
 	smi->opt.optname = optname;
-	msg.i.data = (void *)optval;
+	msg.i.data = optval;
 	msg.i.size = optlen;
 
 	return sockcall(socket, &msg);
 }
 
 
-int inet_setfl(unsigned socket, int flags)
+int inet_setfl(unsigned int socket, int flags)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;
 
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmSetFl;
-	smi->send.flags = flags;
+	smi->send.flags = (unsigned int)flags;
 
 	return sockcall(socket, &msg);
 }
 
 
-int inet_getfl(unsigned socket)
+int inet_getfl(unsigned int socket)
 {
 	msg_t msg;
 

@@ -21,6 +21,7 @@ static int lib_idtreeCmp(rbnode_t *n1, rbnode_t *n2)
 	idnode_t *i1 = lib_treeof(idnode_t, linkage, n1);
 	idnode_t *i2 = lib_treeof(idnode_t, linkage, n2);
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	return i1->id - i2->id;
 }
 
@@ -39,10 +40,12 @@ static void lib_idtreeAugment(rbnode_t *node)
 			}
 		}
 
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = (n->id <= p->id) ? n->id : (n->id - p->id - 1);
 	}
 	else {
 		l = lib_treeof(idnode_t, linkage, node->left);
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 		n->lmaxgap = max(l->lmaxgap, l->rmaxgap);
 	}
 
@@ -54,7 +57,7 @@ static void lib_idtreeAugment(rbnode_t *node)
 			}
 		}
 
-		n->rmaxgap = (n->id >= p->id) ? (MAX_ID - n->id - 1) : (p->id - n->id - 1);
+		n->rmaxgap = (n->id >= p->id) ? ((int)MAX_ID - n->id - 1) : (p->id - n->id - 1);
 	}
 	else {
 		r = lib_treeof(idnode_t, linkage, node->right);
@@ -131,23 +134,23 @@ int lib_idtreeId(idnode_t *node)
 }
 
 
-int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
+int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int minimum)
 {
 	idnode_t *f;
 
-	if (min > MAX_ID) {
+	if ((minimum > (int)MAX_ID) || (minimum < 0)) {
 		return -1;
 	}
 
-	n->id = min;
+	n->id = minimum;
 
-	f = lib_idtreeFind(tree, min);
+	f = lib_idtreeFind(tree, minimum);
 	if (f != NULL) {
-		/* Go back until some space > min is found */
+		/* Go back until some space > minimum is found */
 		while (f->rmaxgap == 0) {
 			f = lib_treeof(idnode_t, linkage, f->linkage.parent);
 			if (f == NULL) {
-				/* Only id < min are available, fail */
+				/* Only id < minimum are available, fail */
 				return -1;
 			}
 		}
@@ -155,7 +158,7 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 		/* Got rmaxgap now */
 		n->id = f->id + 1;
 
-		/* Go right at least once so id > min */
+		/* Go right at least once so id > minimum */
 		f = lib_treeof(idnode_t, linkage, f->linkage.right);
 
 		/* Find minimal free space */
@@ -173,7 +176,7 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 
 	LIB_ASSERT(lib_idtreeFind(tree, n->id) == NULL, "ID alloc failed - got existing ID %d", n->id);
 
-	lib_rbInsert(tree, &n->linkage);
+	(void)lib_rbInsert(tree, &n->linkage);
 
 	return n->id;
 }
@@ -182,6 +185,7 @@ int lib_idtreeAlloc(idtree_t *tree, idnode_t *n, int min)
 static void _lib_idtreeDump(rbnode_t *node)
 {
 	idnode_t *n = lib_treeof(idnode_t, linkage, node);
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
 	lib_printf("%d <0x%p>]", n->id, n);
 }
 

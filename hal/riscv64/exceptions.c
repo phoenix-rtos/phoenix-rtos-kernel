@@ -31,7 +31,7 @@ static struct {
 } exceptions_common;
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	unsigned int i = 0;
 

@@ -34,125 +34,135 @@ struct stackArg {
 	size_t sz;
 };
 
+/* parasoft-begin-suppress MISRAC2012-RULE_1_5 MISRAC2012-RULE_8_8
+ * "Depending on the architecture it may be beneficial to static inline
+ * implementation of those usually small functions, the extern however
+ * needs to stay in order for the code to be portable between different
+ * approaches to implementation"
+ */
 
 /* interrupts */
 
 
-extern void hal_cpuDisableInterrupts(void);
+void hal_cpuDisableInterrupts(void);
 
 
-extern void hal_cpuEnableInterrupts(void);
+void hal_cpuEnableInterrupts(void);
 
 
 /* performance */
 
 
-extern void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc);
+void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc);
 
 
-extern void hal_cpuSetDevBusy(int s);
+void hal_cpuSetDevBusy(int s);
 
 
-extern void hal_cpuHalt(void);
+void hal_cpuHalt(void);
 
 
-extern void hal_cpuGetCycles(cycles_t *cb);
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
+void hal_cpuGetCycles(cycles_t *cb);
 
 
 /* bit operations */
 
-extern unsigned int hal_cpuGetLastBit(unsigned long v);
+unsigned int hal_cpuGetLastBit(unsigned long v);
 
 
-extern unsigned int hal_cpuGetFirstBit(unsigned long v);
+unsigned int hal_cpuGetFirstBit(unsigned long v);
 
 
 /* context management */
 
 
-extern void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got);
+void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got);
 
 
-extern void hal_cpuSetGot(void *got);
+void hal_cpuSetGot(void *got);
 
 
-extern void *hal_cpuGetGot(void);
+void *hal_cpuGetGot(void);
 
 
-extern int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
+int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
 
 
-extern int hal_cpuReschedule(struct _spinlock_t *spinlock, spinlock_ctx_t *scp);
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
+int hal_cpuReschedule(struct _spinlock_t *spinlock, spinlock_ctx_t *scp);
 
 
-extern void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next);
+void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next);
 
 
-extern void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval);
+void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval);
 
 
-extern void _hal_cpuSetKernelStack(void *kstack);
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
+void _hal_cpuSetKernelStack(void *kstack);
 
 
-extern void *hal_cpuGetSP(cpu_context_t *ctx);
+void *hal_cpuGetSP(cpu_context_t *ctx);
 
 
-extern void *hal_cpuGetUserSP(cpu_context_t *ctx);
+void *hal_cpuGetUserSP(cpu_context_t *ctx);
 
 
-extern int hal_cpuSupervisorMode(cpu_context_t *ctx);
+int hal_cpuSupervisorMode(cpu_context_t *ctx);
 
 
 /* oldmask: mask to be restored in sigreturn after handling the signal */
-extern int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src);
+int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src);
 
 
-extern void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
+void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
 
 
-extern void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargs);
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
+void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargs);
 
 
 /* core management */
 
 
-extern unsigned int hal_cpuGetID(void);
+unsigned int hal_cpuGetID(void);
 
 
-extern unsigned int hal_cpuGetCount(void);
+unsigned int hal_cpuGetCount(void);
 
 
-extern char *hal_cpuInfo(char *info);
+char *hal_cpuInfo(char *info);
 
 
-extern char *hal_cpuFeatures(char *features, unsigned int len);
+char *hal_cpuFeatures(char *features, unsigned int len);
 
 
-extern void hal_cpuBroadcastIPI(unsigned int intr);
+void hal_cpuBroadcastIPI(unsigned int intr);
 
 
-extern void hal_cpuReboot(void);
+void hal_cpuReboot(void);
 
 
-extern void hal_cpuSmpSync(void);
+void hal_cpuSmpSync(void);
 
 
 /* thread local storage */
 
 
-extern void hal_cpuTlsSet(struct _hal_tls_t *tls, cpu_context_t *ctx);
+void hal_cpuTlsSet(struct _hal_tls_t *tls, cpu_context_t *ctx);
 
 
 /* cache management */
 
 
-extern void hal_cleanDCache(ptr_t start, size_t len);
+void hal_cleanDCache(ptr_t start, size_t len);
 
 
 /* stack management */
 
 
-extern void hal_stackPutArgs(void **stack, size_t argc, const struct stackArg *argv);
+void hal_stackPutArgs(void **stackp, size_t argc, const struct stackArg *argv);
 
-
+/* parasoft-end-suppress MISRAC2012-RULE_1_5 MISRAC2012-RULE_8_8 */
 #endif

@@ -51,15 +51,15 @@ enum { exc_reset = 0, exc_undef, exc_svc, exc_prefetch, exc_abort };
 /* clang-format on */
 
 
-void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, int n)
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	static const char *const mnemonics[] = {
 		"0 #Reset", "1 #Undef", "2 #Syscall", "3 #Prefetch",
 		"4 #Abort", "5 #Reserved", "6 #FIRQ", "7 #IRQ"
 	};
-	size_t i = 0;
+	size_t i = 0U;
 
-	n &= 0x7;
+	n &= 0x7U;
 
 	hal_strcpy(buff, "\nException: ");
 	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);

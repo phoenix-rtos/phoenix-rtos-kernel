@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#include "hal/hal.h"
+#include "lib/rand.h"
 
 
 int lib_rand(unsigned int *seedp)
 {
-	*seedp = (*seedp * 1103515245 + 12345);
-	return((unsigned)(*seedp / 2));
+	*seedp = (*seedp * 1103515245U + 12345U);
+	return (int)(unsigned int)(*seedp / 2U);
 }

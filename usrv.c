@@ -47,12 +47,12 @@ static void usrv_msgthr(void *arg)
 
 		switch (oid.id) {
 			case USRV_ID_LOG:
-				log_msgHandler(&msg, oid, rid);
+				log_msgHandler(&msg, oid, (unsigned long)rid);
 				break;
 
 			default:
 				msg.o.err = -ENOSYS;
-				proc_respond(oid.port, &msg, rid);
+				(void)proc_respond(oid.port, &msg, rid);
 				break;
 		}
 	}
@@ -66,7 +66,7 @@ void _usrv_start(void)
 		return;
 	}
 
-	proc_threadCreate(NULL, usrv_msgthr, NULL, 1, SIZE_KSTACK, NULL, 0, NULL);
+	(void)proc_threadCreate(NULL, usrv_msgthr, NULL, 1, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 }
 
 

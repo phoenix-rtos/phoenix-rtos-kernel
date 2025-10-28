@@ -289,8 +289,8 @@ _hal_cpuSetKernelStack:
 .type hal_jmp, %function
 hal_jmp:
 	cpsid if
-	/* ustack != NULL means that the jump is to user */
-	cmp r2, #NULL
+	/* ustack != 0 means that the jump is to user */
+	cmp r2, #0
 	bne 2f
 	/* kargs are passed on the stack */
 	ldr r5, [sp]

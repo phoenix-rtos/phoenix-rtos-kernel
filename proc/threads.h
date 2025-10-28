@@ -24,16 +24,21 @@
 #include "lock.h"
 
 #define MAX_TID        MAX_ID
-#define THREAD_END     1
-#define THREAD_END_NOW 2
+#define THREAD_END     1U
+#define THREAD_END_NOW 2U
 
 /* Parent thread states */
-enum { PREFORK = 0, FORKING = 1, FORKED };
+enum { PREFORK = 0,
+	FORKING = 1,
+	FORKED };
 
 /* Child thread states */
-enum { OWNSTACK = 0, PARENTSTACK };
+enum { OWNSTACK = 0,
+	PARENTSTACK };
 
-enum { READY = 0, SLEEP, GHOST };
+enum { READY = 0,
+	SLEEP,
+	GHOST };
 
 
 typedef struct _thread_t {
@@ -52,7 +57,7 @@ typedef struct _thread_t {
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
-	volatile time_t wakeup;
+	time_t wakeup;
 
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
@@ -118,31 +123,19 @@ extern thread_t *proc_current(void);
 extern void threads_canaryInit(thread_t *t, void *ustack);
 
 
-extern int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
+extern int proc_threadCreate(process_t *process, void (*start)(void *harg), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
 
 
 extern int proc_threadPriority(int priority);
 
 
-extern void proc_threadProtect(void);
-
-
-extern void proc_threadUnprotect(void);
-
-
-extern void proc_threadEnd(void);
-
-
-extern int proc_threadJoin(unsigned int id);
+extern __attribute__((noreturn)) void proc_threadEnd(void);
 
 
 extern void proc_threadDestroy(thread_t *t);
 
 
 extern void proc_threadsDestroy(thread_t **threads, const thread_t *except);
-
-
-extern int proc_waitpid(int pid, int *stat, int options);
 
 
 extern int proc_join(int tid, time_t timeout);
@@ -155,9 +148,6 @@ extern int proc_threadsList(int n, threadinfo_t *info);
 
 
 extern int proc_threadsOther(thread_t *t);
-
-
-extern void proc_zombie(process_t *proc);
 
 
 extern int proc_threadSleep(time_t us);
@@ -184,9 +174,6 @@ extern int proc_threadBroadcast(thread_t **queue);
 extern void proc_threadBroadcastYield(thread_t **queue);
 
 
-extern int threads_getCpuTime(thread_t *t);
-
-
 extern thread_t *threads_findThread(int tid);
 
 
@@ -202,9 +189,6 @@ extern void proc_gettime(time_t *raw, time_t *offs);
 extern int proc_settime(time_t offs);
 
 
-extern time_t proc_nextWakeup(void);
-
-
 extern void proc_longjmp(cpu_context_t *ctx);
 
 
@@ -217,7 +201,7 @@ extern int _threads_init(vm_map_t *kmap, vm_object_t *kernel);
 extern int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 
-extern int threads_sigsuspend(unsigned int mask);
+extern int threads_sigsuspend(unsigned int amask);
 
 
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
