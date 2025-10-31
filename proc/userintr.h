@@ -21,11 +21,13 @@
 #include "resource.h"
 
 
+typedef int (*userintrFn_t)(unsigned int n, void *arg);
+
 typedef struct _userintr_t {
 	resource_t resource;
 	intr_handler_t handler;
 	process_t *process;
-	int (*f)(unsigned int n, void *arg);
+	userintrFn_t f;
 	void *arg;
 	cond_t *cond;
 } userintr_t;
@@ -34,7 +36,7 @@ typedef struct _userintr_t {
 void userintr_put(userintr_t *ui);
 
 
-int userintr_setHandler(unsigned int n, int (*f)(unsigned int n, void *arg), void *arg, handle_t c);
+int userintr_setHandler(unsigned int n, userintrFn_t f, void *arg, handle_t c);
 
 
 userintr_t *userintr_active(void);

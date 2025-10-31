@@ -81,7 +81,7 @@ void hal_cpuSetGot(void *got);
 void *hal_cpuGetGot(void);
 
 
-int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
+int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */

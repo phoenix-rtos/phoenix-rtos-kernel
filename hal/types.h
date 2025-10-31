@@ -36,6 +36,11 @@ typedef __s16 s16;
 typedef __s32 s32;
 typedef __s64 s64;
 
+typedef void (*startFn_t)(void *arg);
+
+struct _cpu_context_t;
+
+typedef int (*intrFn_t)(unsigned int n, struct _cpu_context_t *ctx, void *arg);
 
 #endif
 

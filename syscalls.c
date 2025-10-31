@@ -301,15 +301,14 @@ int syscalls_gettid(u8 *ustack)
 
 int syscalls_beginthreadex(u8 *ustack)
 {
-	typedef void (*start_func)(void *harg);
 	process_t *proc = proc_current()->process;
-	void (*start)(void *harg);
+	startFn_t start;
 	unsigned int priority, stacksz;
 	void *stack, *arg;
 	int *id;
 	int err;
 
-	GETFROMSTACK(ustack, start_func, start, 0);
+	GETFROMSTACK(ustack, startFn_t, start, 0);
 	GETFROMSTACK(ustack, unsigned int, priority, 1);
 	GETFROMSTACK(ustack, void *, stack, 2);
 	GETFROMSTACK(ustack, unsigned int, stacksz, 3);
@@ -653,17 +652,16 @@ int syscalls_resourceDestroy(u8 *ustack)
 
 int syscalls_interrupt(u8 *ustack)
 {
-	typedef int (*handler_function)(unsigned int harg_1, void *harg_2);
 	process_t *proc = proc_current()->process;
 	unsigned int n;
-	handler_function f;
+	userintrFn_t f;
 	void *data;
 	handle_t cond;
 	handle_t *handle;
 	int res;
 
 	GETFROMSTACK(ustack, unsigned int, n, 0);
-	GETFROMSTACK(ustack, handler_function, f, 1);
+	GETFROMSTACK(ustack, userintrFn_t, f, 1);
 	GETFROMSTACK(ustack, void *, data, 2);
 	GETFROMSTACK(ustack, handle_t, cond, 3);
 	GETFROMSTACK(ustack, handle_t *, handle, 4);
@@ -938,12 +936,11 @@ addr_t syscalls_va2pa(u8 *ustack)
 
 int syscalls_signalHandle(u8 *ustack)
 {
-	typedef void (*handler_func)(void);
-	handler_func handler;
+	sighandlerFn_t handler;
 	unsigned int mask, mmask;
 	thread_t *thread;
 
-	GETFROMSTACK(ustack, handler_func, handler, 0);
+	GETFROMSTACK(ustack, sighandlerFn_t, handler, 0);
 	GETFROMSTACK(ustack, unsigned int, mask, 1);
 	GETFROMSTACK(ustack, unsigned int, mmask, 2);
 
@@ -1867,8 +1864,10 @@ int syscalls_notimplemented(void)
 	return -ENOTTY;
 }
 
+
 /* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Syscalls are in different types" */
 const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
+
 
 void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
 {

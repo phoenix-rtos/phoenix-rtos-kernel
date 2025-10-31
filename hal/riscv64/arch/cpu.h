@@ -121,7 +121,7 @@ typedef struct {
 
 
 /* CPU context saved by interrupt handlers on thread kernel stack */
-typedef struct {
+typedef struct _cpu_context_t {
 	u64 ra; /* x1 */
 	u64 gp; /* x3 */
 

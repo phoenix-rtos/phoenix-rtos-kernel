@@ -31,7 +31,7 @@ typedef struct _intr_handler_t {
 	/* irq */
 	unsigned int n;
 	/* handler function */
-	int (*f)(unsigned int, cpu_context_t *, void *);
+	intrFn_t f;
 	void *data;
 	void *got;
 } intr_handler_t;

@@ -109,7 +109,7 @@ time_t hal_timerGetUs(void)
 }
 
 
-int hal_timerRegister(int (*f)(unsigned int harg_1, cpu_context_t *harg_2, void *harg_3), void *data, intr_handler_t *h)
+int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 {
 	h->f = f;
 	h->n = TIMER_IRQ_ID;
