@@ -26,6 +26,10 @@
 
 #define MAX_PID MAX_ID
 
+
+typedef void (*sighandlerFn_t)(void);
+
+
 typedef struct _process_t {
 	lock_t lock;
 
@@ -66,7 +70,7 @@ typedef struct _process_t {
 
 	unsigned int sigpend;
 	unsigned int sigmask;
-	void (*sighandler)(void);
+	sighandlerFn_t sighandler;
 
 	void *got;
 	hal_tls_t tls;
@@ -94,7 +98,7 @@ void proc_kill(process_t *proc);
 void proc_reap(void);
 
 
-int proc_start(void (*initthr)(void *harg), void *arg, const char *path);
+int proc_start(startFn_t start, void *arg, const char *path);
 
 
 int proc_fileSpawn(const char *path, char **argv, char **envp);

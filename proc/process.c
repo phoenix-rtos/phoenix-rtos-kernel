@@ -168,7 +168,7 @@ static int process_alloc(process_t *process)
 }
 
 
-int proc_start(void (*initthr)(void *harg), void *arg, const char *path)
+int proc_start(startFn_t start, void *arg, const char *path)
 {
 	process_t *process;
 	process = vm_kmalloc(sizeof(process_t));
@@ -223,7 +223,7 @@ int proc_start(void (*initthr)(void *harg), void *arg, const char *path)
 	(void)process_alloc(process);
 	perf_fork(process);
 
-	if (proc_threadCreate(process, initthr, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
+	if (proc_threadCreate(process, start, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
 		(void)proc_put(process);
 		return -EINVAL;
 	}
