@@ -132,7 +132,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void *start, void *kstack, size_t
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
+int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void *handler, cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	struct stackArg args[] = {
@@ -141,6 +141,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &ctx->hwctx.pc, sizeof(ctx->hwctx.pc) },
 		{ &signalCtx, sizeof(signalCtx) },
 		{ &oldmask, sizeof(oldmask) },
+		{ &handler, sizeof(handler) },
 		{ &n, sizeof(n) },
 		{ 0, 0 } /* Reserve space for optional HWCTX */
 	};
@@ -149,7 +150,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
 	signalCtx->psp -= sizeof(cpu_context_t);
-	signalCtx->hwctx.pc = (u32)handler;
+	signalCtx->hwctx.pc = (u32)trampoline;
 
 	/* Set default PSR, clear potential ICI/IT flags */
 	signalCtx->hwctx.psr = DEFAULT_PSR;
