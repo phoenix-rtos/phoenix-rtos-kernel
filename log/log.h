@@ -18,7 +18,7 @@
 #include "proc/msg.h"
 
 
-extern int log_write(const char *data, size_t len);
+extern size_t log_write(const char *data, size_t len);
 
 
 /* Has to be called after log_write to wakeup klog readers.
@@ -35,7 +35,7 @@ extern void log_scrubTry(void);
 extern void log_disable(void);
 
 
-extern void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid);
+extern void log_msgHandler(msg_t *msg, oid_t oid, msg_rid_t rid);
 
 
 extern void _log_init(void);

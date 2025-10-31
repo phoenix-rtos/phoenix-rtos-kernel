@@ -47,7 +47,7 @@ static void usrv_msgthr(void *arg)
 
 		switch (oid.id) {
 			case USRV_ID_LOG:
-				log_msgHandler(&msg, oid, (unsigned long)rid);
+				log_msgHandler(&msg, oid, rid);
 				break;
 
 			default:

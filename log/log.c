@@ -36,7 +36,7 @@
 typedef struct _log_rmsg_t {
 	void *odata;
 	oid_t oid;
-	unsigned long rid;
+	msg_rid_t rid;
 	size_t osize;
 	struct _log_rmsg_t *prev, *next;
 } log_rmsg_t;
@@ -137,9 +137,9 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 	msg.pid = r->pid;
 	msg.o.data = rmsg->odata;
 	msg.o.size = rmsg->osize;
-	msg.o.err = err;
+	msg.o.err = (int)err;
 
-	(void)proc_respond(rmsg->oid.port, &msg, (msg_rid_t)rmsg->rid);
+	(void)proc_respond(rmsg->oid.port, &msg, rmsg->rid);
 
 	vm_kfree(rmsg);
 }
@@ -282,7 +282,7 @@ static void _log_readersUpdate(void)
 }
 
 
-static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, unsigned long rid)
+static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, msg_rid_t rid)
 {
 	log_rmsg_t *rmsg;
 
@@ -329,7 +329,7 @@ static int log_devctl(msg_t *msg)
 }
 
 
-void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
+void log_msgHandler(msg_t *msg, oid_t oid, msg_rid_t rid)
 {
 	log_reader_t *r;
 	int respond = 1;
@@ -367,7 +367,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			}
 			break;
 		case mtWrite:
-			msg->o.err = log_write(msg->i.data, msg->i.size);
+			msg->o.err = (int)log_write(msg->i.data, msg->i.size);
 			log_scrub();
 			break;
 		case mtClose:
@@ -383,12 +383,12 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 	}
 
 	if (respond == 1) {
-		(void)proc_respond(oid.port, msg, (int)rid);
+		(void)proc_respond(oid.port, msg, rid);
 	}
 }
 
 
-int log_write(const char *data, size_t len)
+size_t log_write(const char *data, size_t len)
 {
 	size_t i = 0;
 	char c;
@@ -420,7 +420,7 @@ int log_write(const char *data, size_t len)
 		}
 	}
 
-	return (int)len;
+	return len;
 }
 
 
