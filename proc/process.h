@@ -94,7 +94,7 @@ extern void proc_kill(process_t *proc);
 extern void proc_reap(void);
 
 
-extern int proc_start(void (*initthr)(void *harg), void *arg, const char *path);
+extern int proc_start(handler_t initthr, void *arg, const char *path);
 
 
 extern int proc_fileSpawn(const char *path, char **argv, char **envp);

@@ -34,7 +34,10 @@ typedef struct _userintr_t {
 extern void userintr_put(userintr_t *ui);
 
 
-extern int userintr_setHandler(unsigned int n, int (*f)(unsigned int n, void *arg), void *arg, handle_t c);
+typedef int (*userintr_handlerFunc_t)(unsigned int n, void *arg);
+
+
+extern int userintr_setHandler(unsigned int n, userintr_handlerFunc_t f, void *arg, handle_t c);
 
 
 extern userintr_t *userintr_active(void);

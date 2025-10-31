@@ -18,11 +18,15 @@
 
 #include "cpu.h"
 
+
+typedef int (*intr_handlerFunc_t)(unsigned int n, cpu_context_t *ctx, void *arg);
+
+
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;
 	struct _intr_handler_t *prev;
 	unsigned int n;
-	int (*f)(unsigned int n, cpu_context_t *ctx, void *arg);
+	intr_handlerFunc_t f;
 	void *data;
 	void *got;
 } intr_handler_t;

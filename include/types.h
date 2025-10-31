@@ -57,6 +57,7 @@ typedef struct _oid_t {
 	id_t id;
 } oid_t;
 
+typedef void (*handler_t)(void *harg);
 
 typedef int handle_t;
 

@@ -168,7 +168,7 @@ static int process_alloc(process_t *process)
 }
 
 
-int proc_start(void (*initthr)(void *harg), void *arg, const char *path)
+int proc_start(handler_t initthr, void *arg, const char *path)
 {
 	process_t *process;
 	process = vm_kmalloc(sizeof(process_t));
