@@ -32,16 +32,8 @@
 	ID(beginthreadex) \
 	ID(endthread) \
 	ID(nsleep) \
-	ID(phMutexCreate) \
-	ID(phMutexLock) \
-	ID(mutexTry) \
-	ID(mutexUnlock) \
-	ID(phCondCreate) \
-	ID(phCondWait) \
-	ID(condSignal) \
-	ID(condBroadcast) \
-	ID(resourceDestroy) \
-	ID(interrupt) \
+	ID(phResourceDestroy) \
+	ID(phInterrupt) \
 	ID(portCreate) \
 	ID(portDestroy) \
 	ID(portRegister) \
@@ -124,5 +116,8 @@
 	ID(sys_mprotect) \
 	\
 	ID(sys_statvfs) \
-	ID(sys_uname)
+	ID(sys_uname) \
+	\
+	ID(phFutexWait) \
+	ID(phFutexWakeup)
 /* clang-format on */

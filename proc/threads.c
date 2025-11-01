@@ -1258,6 +1258,19 @@ static int _proc_threadWakeup(thread_t **queue)
 }
 
 
+static int _proc_threadWakeupOne(thread_t *thread)
+{
+	int ret = 1;
+	if (thread != NULL && thread != wakeupPending) {
+		_proc_threadDequeue(thread);
+	}
+	else {
+		ret = 0;
+	}
+	return ret;
+}
+
+
 int proc_threadWakeup(thread_t **queue)
 {
 	int ret = 0;
@@ -1265,6 +1278,18 @@ int proc_threadWakeup(thread_t **queue)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ret = _proc_threadWakeup(queue);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	return ret;
+}
+
+
+int proc_threadWakeupOne(thread_t *thread)
+{
+	int ret = 0;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	ret = _proc_threadWakeupOne(thread);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return ret;
 }

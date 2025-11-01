@@ -36,6 +36,46 @@
  */
 
 
+int syscalls_phFutexWait(void *ustack)
+{
+	process_t *process;
+	_Atomic(u32) *addr;
+	u32 value;
+	time_t timeout;
+	int clockType;
+
+	GETFROMSTACK(ustack, _Atomic(u32) *, addr, 0);
+	GETFROMSTACK(ustack, u32, value, 1);
+	GETFROMSTACK(ustack, time_t, timeout, 2);
+	GETFROMSTACK(ustack, int, clockType, 3);
+
+	process = proc_current()->process;
+
+	if (vm_mapBelongs(process, addr, sizeof(*addr)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_futexWait(addr, value, timeout, clockType);
+}
+
+int syscalls_phFutexWakeup(void *ustack)
+{
+	process_t *process;
+	_Atomic(u32) *addr;
+	u32 n_threads;
+
+	GETFROMSTACK(ustack, _Atomic(u32) *, addr, 0);
+	GETFROMSTACK(ustack, u32, n_threads, 1);
+
+	process = proc_current()->process;
+
+	if (vm_mapBelongs(process, addr, sizeof(*addr)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_futexWakeup(process, addr, n_threads);
+}
+
 void syscalls_debug(void *ustack)
 {
 	const char *s;
@@ -626,7 +666,7 @@ int syscalls_condBroadcast(void *ustack)
  */
 
 
-int syscalls_resourceDestroy(void *ustack)
+int syscalls_phResourceDestroy(void *ustack)
 {
 	handle_t h;
 
@@ -640,27 +680,31 @@ int syscalls_resourceDestroy(void *ustack)
  */
 
 
-int syscalls_interrupt(void *ustack)
+int syscalls_phInterrupt(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	unsigned int n;
 	void *f;
 	void *data;
-	handle_t cond;
 	handle_t *handle;
 	int res;
+	_Atomic(u32) *condFutex = NULL;
 
 	GETFROMSTACK(ustack, unsigned int, n, 0);
 	GETFROMSTACK(ustack, void *, f, 1);
 	GETFROMSTACK(ustack, void *, data, 2);
-	GETFROMSTACK(ustack, handle_t, cond, 3);
+	GETFROMSTACK(ustack, _Atomic(u32) *, condFutex, 3);
 	GETFROMSTACK(ustack, handle_t *, handle, 4);
 
 	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
 		return -EFAULT;
 	}
 
-	res = userintr_setHandler(n, f, data, cond);
+	if (condFutex != NULL && vm_mapBelongs(proc, condFutex, sizeof(*condFutex)) < 0) {
+		return -EFAULT;
+	}
+
+	res = userintr_setHandler(n, f, data, condFutex);
 	if (res < 0) {
 		return res;
 	}
