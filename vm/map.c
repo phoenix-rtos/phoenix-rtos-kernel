@@ -289,14 +289,14 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 			/* Can't merge to the left if amap array size is too small */
 			if (lmerge != 0U) {
 				amap = prev->amap;
-				if (amap != NULL && (amap->size * SIZE_PAGE - (size_t)prev->aoffs - prev->size) < size) {
+				if (amap != NULL && (amap->size * SIZE_PAGE - prev->aoffs - prev->size) < size) {
 					lmerge = 0;
 				}
 			}
 			/* Can't merge to the right if amap offset is too small */
 			if (rmerge != 0U) {
 				amap = next->amap;
-				if (amap != NULL && (size_t)next->aoffs < size) {
+				if (amap != NULL && next->aoffs < size) {
 					rmerge = 0;
 				}
 			}
@@ -327,8 +327,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->size += size;
 		e->lmaxgap -= size;
 
-		if (e->aoffs != 0) {
-			e->aoffs -= (int)size;
+		if (e->aoffs != 0U) {
+			e->aoffs -= size;
 		}
 
 		if (prev != NULL) {
@@ -370,11 +370,11 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 			/* Try to use existing amap */
 			if (next != NULL && next->amap != NULL && e->vaddr >= (next->vaddr - next->aoffs)) {
 				e->amap = amap_ref(next->amap);
-				e->aoffs = next->aoffs - (next->vaddr - e->vaddr);
+				e->aoffs = next->aoffs - ((ptr_t)next->vaddr - (ptr_t)e->vaddr);
 			}
-			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - (size_t)prev->aoffs + (size_t)prev->vaddr) >= ((size_t)e->vaddr + size)) {
+			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - prev->aoffs + (size_t)prev->vaddr) >= ((size_t)e->vaddr + size)) {
 				e->amap = amap_ref(prev->amap);
-				e->aoffs = prev->aoffs + (e->vaddr - prev->vaddr);
+				e->aoffs = prev->aoffs + ((ptr_t)e->vaddr - (ptr_t)prev->vaddr);
 			}
 			else {
 				/* No action required */
@@ -386,7 +386,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 	/* Clear anon entries */
 	if (e->amap != NULL) {
-		amap_clear(e->amap, (size_t)e->aoffs + ((size_t)v - (size_t)e->vaddr), size);
+		amap_clear(e->amap, e->aoffs + ((ptr_t)v - (ptr_t)e->vaddr), size);
 	}
 	if (entry != NULL) {
 		*entry = e;
@@ -412,7 +412,7 @@ static void vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src, int refAnons)
 	src->amap = amap_ref(dst->amap);
 	/* In case of splitting the entry the anons shouldn't be reffed as they just change the owner. */
 	if (refAnons != 0) {
-		amap_getanons(dst->amap, dst->aoffs, (int)dst->size);
+		amap_getanons(dst->amap, dst->aoffs, dst->size);
 	}
 	src->object = vm_objectRef(dst->object);
 }
@@ -424,7 +424,7 @@ static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entr
 
 	new->vaddr += len;
 	new->size -= len;
-	new->aoffs += (int)len;
+	new->aoffs += len;
 	new->offs = (new->offs == -1) ? -1 : (new->offs + (s64)len);
 	new->lmaxgap = 0;
 
@@ -470,7 +470,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		overlapEnd = min((ptr_t)e->vaddr + e->size, (ptr_t)vaddr + size);
 		overlapSize = (size_t)(overlapEnd - overlapStart);
 		overlapEOffset = (size_t)(overlapStart - (ptr_t)e->vaddr);
-		eAoffs = (unsigned int)e->aoffs;
+		eAoffs = e->aoffs;
 
 		putEntry = 0;
 
@@ -479,7 +479,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 				putEntry = 1;
 			}
 			else {
-				e->aoffs += (int)overlapSize;
+				e->aoffs += overlapSize;
 				e->offs = (e->offs == -1) ? -1 : (e->offs + (s64)overlapSize);
 				e->vaddr += overlapSize;
 				e->size -= overlapSize;
@@ -521,8 +521,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 		/* Perform amap and pmap changes only when we are sure we have enough space to perform corresponding map changes. */
 
 		/* Note: what if NEEDS_COPY? */
-		/* TODO: Offset s 64 bits in size and we perform cast to int check if we don't lose info */
-		amap_putanons(e->amap, (int)eAoffs + (int)overlapEOffset, (int)overlapSize);
+		amap_putanons(e->amap, eAoffs + overlapEOffset, overlapSize);
 
 		(void)pmap_remove(&map->pmap, (void *)overlapStart, (void *)overlapEnd);
 
@@ -535,9 +534,9 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
-unsigned vm_flagsToAttr(unsigned flags)
+unsigned int vm_flagsToAttr(unsigned int flags)
 {
-	unsigned attr = 0;
+	unsigned int attr = 0;
 	if ((flags & MAP_UNCACHED) != 0U) {
 		attr |= PGHD_NOT_CACHED;
 	}
@@ -549,9 +548,9 @@ unsigned vm_flagsToAttr(unsigned flags)
 }
 
 
-static unsigned vm_protToAttr(unsigned prot)
+static unsigned int vm_protToAttr(unsigned int prot)
 {
-	unsigned attr = 0;
+	unsigned int attr = 0;
 
 	if ((prot & PROT_READ) != 0U) {
 		attr |= (PGHD_READ | PGHD_PRESENT);
@@ -572,7 +571,7 @@ static unsigned vm_protToAttr(unsigned prot)
 
 void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
 {
-	unsigned attr;
+	unsigned int attr;
 	void *w;
 	process_t *process = NULL;
 	thread_t *current;
@@ -623,7 +622,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 
 	for (w = vaddr; w < vaddr + size; w += SIZE_PAGE) {
 		if (_map_force(map, e, w, prot) != 0) {
-			amap_putanons(e->amap, e->aoffs, w - vaddr);
+			amap_putanons(e->amap, e->aoffs, (ptr_t)w - (ptr_t)vaddr);
 
 			(void)pmap_remove(&map->pmap, vaddr, (void *)((ptr_t)w + SIZE_PAGE));
 
@@ -682,7 +681,7 @@ int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off
 
 int vm_mapFlags(vm_map_t *map, void *vaddr)
 {
-	unsigned flags;
+	unsigned int flags;
 	map_entry_t t, *e;
 
 	(void)proc_lockSet(&map->lock);
@@ -704,7 +703,7 @@ int vm_mapFlags(vm_map_t *map, void *vaddr)
 }
 
 
-int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot)
+int vm_mapForce(vm_map_t *map, void *paddr, unsigned int prot)
 {
 	map_entry_t t, *e;
 	int err;
@@ -727,7 +726,7 @@ int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot)
 }
 
 
-static unsigned map_checkProt(unsigned int baseProt, unsigned int newProt)
+static unsigned int map_checkProt(unsigned int baseProt, unsigned int newProt)
 {
 	return (baseProt | newProt) ^ baseProt;
 }
@@ -736,14 +735,14 @@ static unsigned map_checkProt(unsigned int baseProt, unsigned int newProt)
 static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int prot)
 {
 	unsigned int attr;
-	int offs;
+	size_t offs;
 	page_t *p = NULL;
-	int flagsCheck = (int)map_checkProt(e->prot, prot);
+	unsigned int flagsCheck = map_checkProt(e->prot, prot);
 
-	if (flagsCheck != 0) {
-		return flagsCheck;
+	if (flagsCheck != 0U) {
+		return -EINVAL;
 	}
-	if (((((unsigned int)prot & PROT_WRITE) != 0U) && ((e->flags & MAP_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
+	if ((((prot & PROT_WRITE) != 0U) && ((e->flags & MAP_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
 		e->amap = amap_create(e->amap, &e->aoffs, e->size);
 		if (e->amap == NULL) {
 			return -ENOMEM;
@@ -752,7 +751,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 		e->flags &= ~MAP_NEEDSCOPY;
 	}
 
-	offs = (int)(ptr_t)((ptr_t)paddr - (ptr_t)e->vaddr);
+	offs = (ptr_t)paddr - (ptr_t)e->vaddr;
 
 	if (e->amap == NULL) {
 		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs < 0) ? e->offs : (e->offs + offs)));
@@ -765,7 +764,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 
 	if ((p == NULL) && (e->object == VM_OBJ_PHYSMEM)) {
 		/* TODO: Offset s 64 bits in size and we perform cast to int check if we don't lose info */
-		if (page_map(&map->pmap, paddr, (addr_t)e->offs + (addr_t)offs, attr) < 0) {
+		if (page_map(&map->pmap, paddr, (addr_t)(e->offs + offs), attr) < 0) {
 			return -ENOMEM;
 		}
 	}
@@ -773,7 +772,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 		return -ENOMEM;
 	}
 	else if (page_map(&map->pmap, paddr, p->addr, attr) < 0) {
-		amap_putanons(e->amap, e->aoffs + offs, (int)SIZE_PAGE);
+		amap_putanons(e->amap, e->aoffs + offs, SIZE_PAGE);
 		return -ENOMEM;
 	}
 	else {
