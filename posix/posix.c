@@ -2494,11 +2494,9 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	if (err != 0) {
 		return err;
 	}
-	else if (timeout_ms == 0) {
+
+	if (timeout_ms == 0) {
 		return 0;
-	}
-	else {
-		/* MISRA */
 	}
 
 	queue = posix_open("/dev/event/queue", O_RDWR, NULL);
