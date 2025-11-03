@@ -59,7 +59,8 @@ int syscalls_sys_mmap(void *ustack)
 {
 	void **vaddr;
 	size_t size;
-	int prot, fildes, flags;
+	int prot, fildes, sflags;
+	unsigned int flags;
 	off_t offs;
 	vm_object_t *o;
 	oid_t oid;
@@ -69,9 +70,14 @@ int syscalls_sys_mmap(void *ustack)
 	GETFROMSTACK(ustack, void **, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
-	GETFROMSTACK(ustack, int, flags, 3);
+	GETFROMSTACK(ustack, int, sflags, 3);
 	GETFROMSTACK(ustack, int, fildes, 4);
 	GETFROMSTACK(ustack, off_t, offs, 5);
+
+	if (sflags < 0) {
+		return -EINVAL;
+	}
+	flags = (unsigned int)sflags;
 
 	size = round_page(size);
 
