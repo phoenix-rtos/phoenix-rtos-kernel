@@ -19,7 +19,7 @@
 #define SIZE_PAGE 0x1000U
 
 #define SIZE_INITIAL_KSTACK  SIZE_PAGE
-#define INITIAL_KSTACK_SHIFT 12
+#define INITIAL_KSTACK_SHIFT 12U
 
 #ifndef SIZE_KSTACK
 #define SIZE_KSTACK (8U * 1024U)
@@ -30,20 +30,20 @@
 #endif
 
 /* ARMv7 processor modes */
-#define MODE_USR 0x10 /* unprivileged mode in which most applications run                           */
-#define MODE_FIQ 0x11 /* entered on an FIQ interrupt exception                                      */
-#define MODE_IRQ 0x12 /* entered on an IRQ interrupt exception                                      */
-#define MODE_SVC 0x13 /* entered on reset or when a Supervisor Call instruction ( SVC ) is executed */
-#define MODE_MON 0x16 /* security extensions                                                        */
-#define MODE_ABT 0x17 /* entered on a memory access exception                                       */
-#define MODE_HYP 0x1a /* virtualization extensions                                                  */
-#define MODE_UND 0x1b /* entered when an undefined instruction executed                             */
-#define MODE_SYS 0x1f /* privileged mode, sharing the register view with User mode                  */
+#define MODE_USR 0x10U /* unprivileged mode in which most applications run                           */
+#define MODE_FIQ 0x11U /* entered on an FIQ interrupt exception                                      */
+#define MODE_IRQ 0x12U /* entered on an IRQ interrupt exception                                      */
+#define MODE_SVC 0x13U /* entered on reset or when a Supervisor Call instruction ( SVC ) is executed */
+#define MODE_MON 0x16U /* security extensions                                                        */
+#define MODE_ABT 0x17U /* entered on a memory access exception                                       */
+#define MODE_HYP 0x1aU /* virtualization extensions                                                  */
+#define MODE_UND 0x1bU /* entered when an undefined instruction executed                             */
+#define MODE_SYS 0x1fU /* privileged mode, sharing the register view with User mode                  */
 
-#define MODE_MASK   0x1f
-#define NO_ABORT    0x100             /* mask to disable Abort Exception */
-#define NO_IRQ      0x80              /* mask to disable IRQ             */
-#define NO_FIQ      0x40              /* mask to disable FIQ             */
+#define MODE_MASK   0x1fU
+#define NO_ABORT    0x100U            /* mask to disable Abort Exception */
+#define NO_IRQ      0x80U             /* mask to disable IRQ             */
+#define NO_FIQ      0x40U             /* mask to disable FIQ             */
 #define NO_INT      (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ     */
 #define THUMB_STATE 0x20U
 
@@ -53,10 +53,10 @@
 #include "hal/types.h"
 
 
-#define SYSTICK_INTERVAL 1000
+#define SYSTICK_INTERVAL 1000U
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
+#define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
 /* parasoft-begin-suppress MISRAC2012-RULE_20_7-a 't' within *(t *) can not be put in the parentheses due to compilation error */
 #define GETFROMSTACK(ustack, t, v, n) \
