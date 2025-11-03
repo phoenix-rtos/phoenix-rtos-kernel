@@ -19,3 +19,4 @@ jobs:
     secrets: inherit
     with:
       build_params: all tests
+
