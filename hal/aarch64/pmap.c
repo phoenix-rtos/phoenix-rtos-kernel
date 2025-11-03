@@ -114,7 +114,7 @@ struct {
 	} mem;
 
 	u64 asidInUse[N_ASID_MAP];
-	unsigned firstFreeAsid;
+	unsigned int firstFreeAsid;
 
 	addr_t start;
 	addr_t end;
@@ -167,7 +167,7 @@ static void _pmap_mapScratch(void *va, addr_t pa)
 
 static void _pmap_asidAlloc(pmap_t *pmap)
 {
-	unsigned i, assigned;
+	unsigned int i, assigned;
 	u64 free;
 	if (pmap_common.firstFreeAsid == N_ASIDS) {
 		assigned = ASID_SHARED;
@@ -214,7 +214,7 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 }
 
 
-static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, ptr_t vaddr, unsigned lvl)
+static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, ptr_t vaddr, unsigned int lvl)
 {
 	addr_t pa;
 	int oldCachedRW, newNoncached;
@@ -246,7 +246,7 @@ static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, ptr_t 
 }
 
 
-static void _pmap_cacheOpAfterChange(descr_t newEntry, ptr_t vaddr, unsigned lvl)
+static void _pmap_cacheOpAfterChange(descr_t newEntry, ptr_t vaddr, unsigned int lvl)
 {
 	if ((newEntry & DESCR_VALID) == 0) {
 		return;
@@ -278,9 +278,9 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-static addr_t _pmap_mapTtl2AndSearch(addr_t ttl2, unsigned *idx2_ptr)
+static addr_t _pmap_mapTtl2AndSearch(addr_t ttl2, unsigned int *idx2_ptr)
 {
-	unsigned idx2 = *idx2_ptr;
+	unsigned int idx2 = *idx2_ptr;
 	descr_t entry;
 	if (idx2 >= 512) {
 		return 0;
@@ -304,9 +304,9 @@ static addr_t _pmap_mapTtl2AndSearch(addr_t ttl2, unsigned *idx2_ptr)
 static addr_t _pmap_destroy(pmap_t *pmap, int *i)
 {
 	/* idx2 goes from 0 to 512 inclusive - value of 512 signifies that the whole ttl2 is empty now */
-	unsigned idx2 = (unsigned)*i & 0x3ff;
-	unsigned idx1 = (unsigned)*i >> 10;
-	const unsigned idx1Max = TTL_IDX(1, VADDR_USR_MAX - 1);
+	unsigned int idx2 = (unsigned int)*i & 0x3ff;
+	unsigned int idx1 = (unsigned int)*i >> 10;
+	const unsigned int idx1Max = TTL_IDX(1, VADDR_USR_MAX - 1);
 	addr_t ret = 0;
 	descr_t entry;
 	if (pmap->asid != ASID_NONE) {
@@ -393,7 +393,7 @@ void pmap_switch(pmap_t *pmap)
  * Assumes that the table is already mapped mapped into pmap_common.scratch_tt */
 static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 {
-	unsigned idx = TTL_IDX(3, va);
+	unsigned int idx = TTL_IDX(3, va);
 	descr_t descr, oldDescr;
 
 	oldDescr = pmap_common.scratch_tt[idx];
@@ -456,7 +456,7 @@ static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 /* Function maps page at specified address */
 int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 {
-	unsigned lvl;
+	unsigned int lvl;
 	descr_t *tt;
 	descr_t entry;
 	addr_t addr;
@@ -511,7 +511,7 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, int attr, page_t *alloc)
 
 void _pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 {
-	unsigned lvl;
+	unsigned int lvl;
 	volatile descr_t *tt;
 	descr_t entry;
 	addr_t addr;
@@ -574,7 +574,7 @@ int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 /* Functions returns physical address associated with specified virtual address */
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
-	unsigned lvl;
+	unsigned int lvl;
 	volatile descr_t *tt;
 	descr_t entry;
 	addr_t addr;

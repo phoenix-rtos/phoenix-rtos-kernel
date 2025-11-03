@@ -38,7 +38,7 @@
 
 static struct {
 	volatile u32 *base;
-	unsigned refclkfreq;
+	unsigned int refclkfreq;
 } console_common;
 
 

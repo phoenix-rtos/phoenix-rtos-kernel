@@ -45,7 +45,7 @@ typedef struct _log_rmsg_t {
 typedef struct _log_reader_t {
 	off_t ridx;
 	pid_t pid;
-	unsigned nonblocking;
+	unsigned int nonblocking;
 	log_rmsg_t *msgs;
 	struct _log_reader_t *prev, *next;
 	int refs;
@@ -203,7 +203,7 @@ static void log_readerPut(log_reader_t **r)
 }
 
 
-static int log_readerAdd(pid_t pid, unsigned nonblocking)
+static int log_readerAdd(pid_t pid, unsigned int nonblocking)
 {
 	log_reader_t *r;
 

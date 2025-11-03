@@ -217,7 +217,7 @@ static const struct {
 };
 
 
-static volatile u32 *tda4vm_getPLLBase(unsigned pll)
+static volatile u32 *tda4vm_getPLLBase(unsigned int pll)
 {
 	if (pll >= clk_main_pll0) {
 		return MAIN_PLL_BASE_ADDR + ((0x1000 / 4) * (pll - clk_main_pll0));
@@ -227,7 +227,7 @@ static volatile u32 *tda4vm_getPLLBase(unsigned pll)
 }
 
 
-static int tda4vm_isPLLValid(unsigned pll)
+static int tda4vm_isPLLValid(unsigned int pll)
 {
 	/* A few of the PLLs are missing on this platform... */
 	return !((pll > clk_plls_count) || ((pll > clk_main_arm0_pll8) && (pll < clk_main_ddr_pll12)));
@@ -237,7 +237,7 @@ static int tda4vm_isPLLValid(unsigned pll)
 static const unsigned char tda4vm_deskew_pll_val_to_divide[4] = { 4, 2, 1, 1 };
 
 
-int tda4vm_getPLL(unsigned pll, tda4vm_clk_pll_t *config)
+int tda4vm_getPLL(unsigned int pll, tda4vm_clk_pll_t *config)
 {
 	volatile u32 *base;
 	u32 ctrl, div, hw_config;
@@ -281,14 +281,14 @@ int tda4vm_getPLL(unsigned pll, tda4vm_clk_pll_t *config)
 }
 
 
-u64 tda4vm_getFrequency(unsigned pll, unsigned hsdiv)
+u64 tda4vm_getFrequency(unsigned int pll, unsigned int hsdiv)
 {
 	volatile u32 *base;
 	tda4vm_clk_pll_t config;
 	u32 hw_config, hsdiv_ctrl;
 	u64 multiplier_24, final_freq_24; /* 30 bit integer : 24 bit fractional part format */
 	u32 rounding;
-	unsigned total_division, in_frequency;
+	unsigned int total_division, in_frequency;
 	if (hsdiv >= 16) {
 		return 0;
 	}
@@ -332,7 +332,7 @@ u64 tda4vm_getFrequency(unsigned pll, unsigned hsdiv)
 }
 
 
-int tda4vm_setDebounceConfig(unsigned idx, unsigned period)
+int tda4vm_setDebounceConfig(unsigned int idx, unsigned int period)
 {
 	volatile u32 *base = CTRLMMR_WKUP_BASE_ADDR;
 	if ((idx == 0) || (idx > 6)) {
@@ -344,7 +344,7 @@ int tda4vm_setDebounceConfig(unsigned idx, unsigned period)
 }
 
 
-int tda4vm_setPinConfig(unsigned pin, const tda4vm_pinConfig_t *config)
+int tda4vm_setPinConfig(unsigned int pin, const tda4vm_pinConfig_t *config)
 {
 	volatile u32 *reg;
 	if (pin >= pins_main_count) {
@@ -366,7 +366,7 @@ int tda4vm_setPinConfig(unsigned pin, const tda4vm_pinConfig_t *config)
 }
 
 
-int tda4vm_getPinConfig(unsigned pin, tda4vm_pinConfig_t *config)
+int tda4vm_getPinConfig(unsigned int pin, tda4vm_pinConfig_t *config)
 {
 	volatile u32 *reg;
 	u32 val;
@@ -404,7 +404,7 @@ __attribute__((noreturn)) void tda4vm_warmReset(void)
 }
 
 
-int tda4vm_RATMapMemory(unsigned entry, addr_t cpuAddr, u64 physAddr, u32 logSize)
+int tda4vm_RATMapMemory(unsigned int entry, addr_t cpuAddr, u64 physAddr, u32 logSize)
 {
 	volatile u32 *base = MCU_ARMSS_RAT_BASE_ADDR;
 	u32 regions;
@@ -430,7 +430,7 @@ int tda4vm_RATMapMemory(unsigned entry, addr_t cpuAddr, u64 physAddr, u32 logSiz
 }
 
 
-void tda4vm_RATUnmapMemory(unsigned entry)
+void tda4vm_RATUnmapMemory(unsigned int entry)
 {
 	volatile u32 *base = MCU_ARMSS_RAT_BASE_ADDR;
 	u32 regions;
@@ -444,7 +444,7 @@ void tda4vm_RATUnmapMemory(unsigned entry)
 }
 
 
-int tda4vm_setClksel(unsigned sel, unsigned val)
+int tda4vm_setClksel(unsigned int sel, unsigned int val)
 {
 	if (sel >= clksels_count) {
 		return -1;
@@ -462,7 +462,7 @@ int tda4vm_setClksel(unsigned sel, unsigned val)
 }
 
 
-int tda4vm_getClksel(unsigned sel)
+int tda4vm_getClksel(unsigned int sel)
 {
 	if (sel >= clksels_count) {
 		return -1;
@@ -472,7 +472,7 @@ int tda4vm_getClksel(unsigned sel)
 }
 
 
-int tda4vm_setClkdiv(unsigned sel, unsigned val)
+int tda4vm_setClkdiv(unsigned int sel, unsigned int val)
 {
 	if (sel >= clkdivs_count) {
 		return -1;
@@ -491,7 +491,7 @@ int tda4vm_setClkdiv(unsigned sel, unsigned val)
 }
 
 
-int tda4vm_getClkdiv(unsigned sel)
+int tda4vm_getClkdiv(unsigned int sel)
 {
 	u32 val;
 	if (sel >= clkdivs_count) {

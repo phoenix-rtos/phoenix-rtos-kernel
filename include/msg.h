@@ -88,13 +88,13 @@ typedef struct _msg_t {
 			struct {
 				off_t offs;
 				size_t len;
-				unsigned mode;
+				unsigned int mode;
 			} io;
 
 			/* CREATE */
 			struct {
 				int type;
-				unsigned mode;
+				unsigned int mode;
 				oid_t dev;
 			} create;
 

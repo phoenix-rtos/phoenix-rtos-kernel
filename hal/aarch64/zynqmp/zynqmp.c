@@ -99,11 +99,11 @@ static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, char src, char 
 int _zynqmp_setDevClock(int dev, char src, char div0, char div1, char active)
 {
 	if ((dev >= pctl_devclock_lpd_usb3_dual) && (dev <= pctl_devclock_lpd_timestamp)) {
-		unsigned regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
+		unsigned int regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
 		return _zynqmp_setBasicGenerator(zynq_common.crl_apb + regOffset, dev, src, div0, div1, active);
 	}
 	else if ((dev >= pctl_devclock_fpd_acpu) && (dev <= pctl_devclock_fpd_dbg_tstmp)) {
-		unsigned regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
+		unsigned int regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
 		return _zynqmp_setBasicGenerator(zynq_common.crf_apb + regOffset, dev, src, div0, div1, active);
 	}
 
@@ -125,11 +125,11 @@ static int _zynqmp_getBasicGenerator(int dev, volatile u32 *reg, char *src, char
 int _zynqmp_getDevClock(int dev, char *src, char *div0, char *div1, char *active)
 {
 	if ((dev >= pctl_devclock_lpd_usb3_dual) && (dev <= pctl_devclock_lpd_timestamp)) {
-		unsigned regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
+		unsigned int regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
 		return _zynqmp_getBasicGenerator(dev, zynq_common.crl_apb + regOffset, src, div0, div1, active);
 	}
 	else if ((dev >= pctl_devclock_fpd_acpu) && (dev <= pctl_devclock_fpd_dbg_tstmp)) {
-		unsigned regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
+		unsigned int regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
 		return _zynqmp_getBasicGenerator(dev, zynq_common.crf_apb + regOffset, src, div0, div1, active);
 	}
 
@@ -137,14 +137,14 @@ int _zynqmp_getDevClock(int dev, char *src, char *div0, char *div1, char *active
 }
 
 
-static void _zynqmp_setMIOMuxing(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3)
+static void _zynqmp_setMIOMuxing(unsigned int pin, u8 l0, u8 l1, u8 l2, u8 l3)
 {
 	u32 val = ((l0 & 0x1) << 1) | ((l1 & 0x1) << 2) | ((l2 & 0x3) << 3) | ((l3 & 0x7) << 5);
 	*(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) = (*(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & ~0xff) | val;
 }
 
 
-static void _zynqmp_setMIOTristate(unsigned pin, char config)
+static void _zynqmp_setMIOTristate(unsigned int pin, char config)
 {
 	u32 reg = pin / 32 + iou_slcr_mio_mst_tri0;
 	u32 bit = pin % 32;
@@ -158,7 +158,7 @@ static void _zynqmp_setMIOTristate(unsigned pin, char config)
 	}
 }
 
-static void _zynqmp_setMIOControl(unsigned pin, char config)
+static void _zynqmp_setMIOControl(unsigned int pin, char config)
 {
 	u32 reg = (pin / 26) * (iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + iou_slcr_bank0_ctrl0;
 	u32 bit = pin % 26;
@@ -181,7 +181,7 @@ static void _zynqmp_setMIOControl(unsigned pin, char config)
 }
 
 
-int _zynqmp_setMIO(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config)
+int _zynqmp_setMIO(unsigned int pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config)
 {
 	if (pin > 77) {
 		return -1;
@@ -195,7 +195,7 @@ int _zynqmp_setMIO(unsigned pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config)
 }
 
 
-static void _zynqmp_getMIOMuxing(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3)
+static void _zynqmp_getMIOMuxing(unsigned int pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3)
 {
 	u32 val = *(zynq_common.iou_slcr + iou_slcr_mio_pin_0 + pin) & 0xff;
 	*l0 = (val >> 1) & 0x1;
@@ -205,7 +205,7 @@ static void _zynqmp_getMIOMuxing(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3)
 }
 
 
-static void _zynqmp_getMIOTristate(unsigned pin, u8 *config)
+static void _zynqmp_getMIOTristate(unsigned int pin, u8 *config)
 {
 	u32 reg = pin / 32 + iou_slcr_mio_mst_tri0;
 	u32 bit = pin % 32;
@@ -214,7 +214,7 @@ static void _zynqmp_getMIOTristate(unsigned pin, u8 *config)
 	}
 }
 
-static void _zynqmp_getMIOControl(unsigned pin, u8 *config)
+static void _zynqmp_getMIOControl(unsigned int pin, u8 *config)
 {
 	u32 reg = (pin / 26) * (iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + iou_slcr_bank0_ctrl0;
 	u32 bit = pin % 26;
@@ -234,7 +234,7 @@ static void _zynqmp_getMIOControl(unsigned pin, u8 *config)
 }
 
 
-static int _zynqmp_getMIO(unsigned pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *config)
+static int _zynqmp_getMIO(unsigned int pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *config)
 {
 	if (pin > 77) {
 		return -1;

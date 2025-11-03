@@ -126,7 +126,7 @@ static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
-	unsigned pos;
+	unsigned int pos;
 
 	__asm__ volatile("\
 		rbit %0, %1; \
@@ -184,7 +184,7 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 
 static inline unsigned int hal_cpuGetID(void)
 {
-	unsigned mpidr;
+	unsigned int mpidr;
 	/* clang-format off */
 	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
 	/* clang-format on */

@@ -46,9 +46,9 @@ typedef struct _process_t {
 	pmap_t *pmapp;
 	int exit;
 
-	unsigned lazy : 1;
-	unsigned lgap : 1;
-	unsigned rgap : 1;
+	unsigned int lazy : 1;
+	unsigned int lgap : 1;
+	unsigned int rgap : 1;
 
 #if 0 /* TODO: Process shall keep information permissions */
 	u32 uid;
@@ -64,8 +64,8 @@ typedef struct _process_t {
 
 	idtree_t resources;
 
-	unsigned sigpend;
-	unsigned sigmask;
+	unsigned int sigpend;
+	unsigned int sigmask;
 	void (*sighandler)(void);
 
 	void *got;

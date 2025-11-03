@@ -28,7 +28,7 @@ struct _usrintr_t;
 
 typedef struct _resource_t {
 	idnode_t linkage;
-	unsigned refs;
+	unsigned int refs;
 	/* clang-format off */
 	enum { rtLock = 0, rtCond, rtInth } type;
 	/* clang-format on */

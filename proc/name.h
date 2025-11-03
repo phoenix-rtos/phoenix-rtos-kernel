@@ -55,7 +55,7 @@ typedef struct {
 } __attribute__((packed)) fsfcntl_t;
 
 
-extern int proc_portRegister(unsigned port, const char *name, oid_t *oid);
+extern int proc_portRegister(unsigned int port, const char *name, oid_t *oid);
 
 
 extern void proc_portUnregister(const char *name);

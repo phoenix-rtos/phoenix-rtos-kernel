@@ -292,7 +292,7 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 }
 
 
-int proc_open(oid_t oid, unsigned mode)
+int proc_open(oid_t oid, unsigned int mode)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -317,7 +317,7 @@ int proc_open(oid_t oid, unsigned mode)
 }
 
 
-int proc_close(oid_t oid, unsigned mode)
+int proc_close(oid_t oid, unsigned int mode)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -433,7 +433,7 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 }
 
 
-int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
+int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
@@ -464,7 +464,7 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 }
 
 
-int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
+int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));

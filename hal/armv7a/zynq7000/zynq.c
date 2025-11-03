@@ -708,7 +708,7 @@ unsigned int hal_cpuGetCount(void)
 static u32 checkNumCPUs(void)
 {
 	/* First check if MPIDR indicates uniprocessor system or no MP extensions */
-	unsigned mpidr;
+	unsigned int mpidr;
 	/* clang-format off */
 	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
 	/* clang-format on */

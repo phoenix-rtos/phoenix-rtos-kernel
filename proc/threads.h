@@ -59,14 +59,14 @@ typedef struct _thread_t {
 	struct _thread_t **wait;
 	time_t wakeup;
 
-	unsigned priorityBase : 4;
-	unsigned priority : 4;
-	unsigned state : 2;
-	unsigned exit : 2;
+	unsigned int priorityBase : 4;
+	unsigned int priority : 4;
+	unsigned int state : 2;
+	unsigned int exit : 2;
 	unsigned interruptible : 1;
 
-	unsigned sigmask;
-	unsigned sigpend;
+	unsigned int sigmask;
+	unsigned int sigpend;
 
 	time_t stick;
 	time_t utick;
@@ -99,7 +99,7 @@ static inline int proc_getTid(thread_t *t)
 }
 
 
-extern int perf_start(unsigned pid);
+extern int perf_start(unsigned int pid);
 
 
 extern int perf_read(void *buffer, size_t bufsz);

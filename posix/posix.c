@@ -40,7 +40,7 @@
 
 typedef struct {
 	oid_t oid;
-	unsigned flags;
+	unsigned int flags;
 	unsigned short types;
 } evsub_t;
 
@@ -1542,7 +1542,7 @@ static int posix_fcntlSetFl(int fd, int val)
 	open_file_t *f;
 	int err;
 	/* Creation and access mode flags shall be ignored */
-	unsigned ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_RDONLY | O_RDWR | O_WRONLY;
+	unsigned int ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_RDONLY | O_RDWR | O_WRONLY;
 
 	err = posix_getOpenFile(fd, &f);
 	if (err == 0) {
@@ -2530,7 +2530,7 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 			msg.type = mtRead;
 
 			hal_memcpy(&msg.i.io.oid, &q->oid, sizeof(oid_t));
-			msg.i.io.len = (unsigned)timeout_ms;
+			msg.i.io.len = (unsigned int)timeout_ms;
 
 			msg.i.data = subs;
 			msg.i.size = nfds * sizeof(evsub_t);
@@ -2743,7 +2743,7 @@ pid_t posix_setsid(void)
 }
 
 
-int posix_waitpid(pid_t child, int *status, unsigned options)
+int posix_waitpid(pid_t child, int *status, unsigned int options)
 {
 	process_info_t *pinfo, *c;
 	pid_t pid;

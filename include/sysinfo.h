@@ -106,9 +106,9 @@ enum { perf_evScheduling,
 
 
 typedef struct {
-	unsigned deltaTimestamp : 12;
-	unsigned type : 2;
-	unsigned tid : 18;
+	unsigned int deltaTimestamp : 12;
+	unsigned int type : 2;
+	unsigned int tid : 18;
 } __attribute__((packed)) perf_event_t;
 
 
@@ -120,57 +120,57 @@ enum { perf_levBegin,
 
 
 typedef struct {
-	unsigned sbz;
+	unsigned int sbz;
 
-	unsigned deltaTimestamp : 12;
-	unsigned type : 3;
+	unsigned int deltaTimestamp : 12;
+	unsigned int type : 3;
 
-	unsigned prio : 3;
-	unsigned tid : 18;
-	unsigned pid : 18;
+	unsigned int prio : 3;
+	unsigned int tid : 18;
+	unsigned int pid : 18;
 } __attribute__((packed)) perf_levent_begin_t;
 
 
 typedef struct {
-	unsigned sbz;
+	unsigned int sbz;
 
-	unsigned deltaTimestamp : 12;
-	unsigned type : 3;
+	unsigned int deltaTimestamp : 12;
+	unsigned int type : 3;
 
-	unsigned tid : 18;
+	unsigned int tid : 18;
 } __attribute__((packed)) perf_levent_end_t;
 
 
 typedef struct {
-	unsigned sbz;
+	unsigned int sbz;
 
-	unsigned deltaTimestamp : 12;
-	unsigned type : 3;
+	unsigned int deltaTimestamp : 12;
+	unsigned int type : 3;
 
-	unsigned tid : 18;
-	unsigned ppid : 18;
-	unsigned pid : 18;
+	unsigned int tid : 18;
+	unsigned int ppid : 18;
+	unsigned int pid : 18;
 } __attribute__((packed)) perf_levent_fork_t;
 
 
 typedef struct {
-	unsigned sbz;
+	unsigned int sbz;
 
-	unsigned deltaTimestamp : 12;
-	unsigned type : 3;
+	unsigned int deltaTimestamp : 12;
+	unsigned int type : 3;
 
-	unsigned tid : 18;
-	unsigned pid : 18;
+	unsigned int tid : 18;
+	unsigned int pid : 18;
 } __attribute__((packed)) perf_levent_kill_t;
 
 
 typedef struct {
-	unsigned sbz;
+	unsigned int sbz;
 
-	unsigned deltaTimestamp : 12;
-	unsigned type : 3;
+	unsigned int deltaTimestamp : 12;
+	unsigned int type : 3;
 
-	unsigned tid : 18;
+	unsigned int tid : 18;
 	char path[32];
 } __attribute__((packed)) perf_levent_exec_t;
 

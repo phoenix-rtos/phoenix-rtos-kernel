@@ -168,7 +168,7 @@ static u32 console_initClock(const tda4vm_uart_info_t *info)
 }
 
 
-static unsigned console_calcDivisor(u32 baseClock)
+static unsigned int console_calcDivisor(u32 baseClock)
 {
 	/* Assume we are in UART x16 mode */
 	const u32 baud_16 = (16 * UART_BAUDRATE);
@@ -186,7 +186,7 @@ static void console_setPin(const tda4vm_uart_info_t *info, u32 pin)
 {
 	int muxSetting, isTx;
 	tda4vm_pinConfig_t cfg;
-	for (unsigned i = 0; i < MAX_PINS_PER_UART; i++) {
+	for (unsigned int i = 0; i < MAX_PINS_PER_UART; i++) {
 		if (info->pins[i].pin < 0) {
 			return;
 		}

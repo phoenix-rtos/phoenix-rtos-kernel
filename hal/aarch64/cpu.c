@@ -140,7 +140,7 @@ void hal_cpuGetProcID(struct aarch64_proc_id *out)
 char *hal_cpuInfo(char *info)
 {
 	size_t n = 0;
-	unsigned cpuCount = hal_cpuGetCount();
+	unsigned int cpuCount = hal_cpuGetCount();
 	struct aarch64_proc_id procId;
 
 	hal_cpuGetProcID(&procId);

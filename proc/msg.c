@@ -41,7 +41,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	page_t *nep = NULL, *nbp = NULL;
 	vm_map_t *srcmap, *dstmap;
 	struct _kmsg_layout_t *ml = dir ? &kmsg->o : &kmsg->i;
-	unsigned flags;
+	unsigned int flags;
 	addr_t bpa, pa, epa;
 
 	if ((size == 0) || (data == NULL)) {
