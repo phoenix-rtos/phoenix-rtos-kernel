@@ -22,8 +22,8 @@
 #include "proc/proc.h"
 
 
-static struct {
-	vm_zone_t *sizes[17];
+struct {
+	vm_zone_t *sizes[24];
 	vm_zone_t *used;
 	vm_zone_t firstzone;
 

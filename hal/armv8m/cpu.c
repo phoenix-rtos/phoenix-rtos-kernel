@@ -111,11 +111,19 @@ int hal_cpuCreateContext(cpu_context_t **nctx, void (*start)(void *harg), void *
 	ctx->hwctx.r12 = 0xcccccccc;
 	ctx->hwctx.lr = 0xeeeeeeee;
 	ctx->hwctx.pc = (u32)start;
-	ctx->hwctx.psr = 0x01000000;
+	ctx->hwctx.psr = DEFAULT_PSR;
 	if (ustack != NULL) {
+#if KERNEL_FPU_SUPPORT
+		ctx->fpuctx = ctx->psp + (8 * sizeof(u32)); /* Must point to s0 in hw-saved context */
+		ctx->fpscr = _hal_scsGetDefaultFPSCR();
+#endif
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
+#if KERNEL_FPU_SUPPORT
+		ctx->fpuctx = (u32)(&ctx->hwctx) + (8 * sizeof(u32)); /* Must point to s0 in hw-saved context */
+		ctx->fpscr = _hal_scsGetDefaultFPSCR();
+#endif
 		ctx->irq_ret = RET_THREAD_MSP;
 	}
 
@@ -144,7 +152,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	signalCtx->hwctx.pc = (u32)handler;
 
 	/* Set default PSR, clear potential ICI/IT flags */
-	signalCtx->hwctx.psr = 0x01000000;
+	signalCtx->hwctx.psr = DEFAULT_PSR;
 
 	if (src == SIG_SRC_SCHED) {
 		/* We'll be returning through interrupt dispatcher,
@@ -217,7 +225,12 @@ char *hal_cpuInfo(char *info)
 char *hal_cpuFeatures(char *features, unsigned int len)
 {
 	unsigned int n = 0;
-#ifdef CPU_NRF91
+#if KERNEL_FPU_SUPPORT
+	if ((len - n) > 5) {
+		hal_strcpy(features + n, "FPU, ");
+		n += 5;
+	}
+#else
 	if ((len - n) > 8) {
 		hal_strcpy(features + n, "softfp, ");
 		n += 8;
@@ -257,9 +270,9 @@ void hal_cpuReboot(void)
 }
 
 
-/* TODO: add implementation */
 void hal_cleanDCache(ptr_t start, size_t len)
 {
+	_hal_scsDCacheCleanAddr((void *)start, len);
 }
 
 
