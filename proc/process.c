@@ -497,7 +497,9 @@ int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
-	unsigned int i, prot, flags, misalign;
+	unsigned int i, misalign;
+	vm_prot_t prot;
+	vm_flags_t flags;
 	off_t offs;
 	char *snameTab;
 
@@ -580,7 +582,9 @@ int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 	Elf64_Ehdr *ehdr = iehdr;
 	Elf64_Phdr *phdr;
 	Elf64_Shdr *shdr, *shstrshdr;
-	unsigned int i, prot, flags, misalign;
+	unsigned int i, misalign;
+	vm_prot_t prot;
+	vm_flags_t flags;
 	off_t offs;
 	char *snameTab;
 
@@ -752,7 +756,9 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
 	Elf32_Rela rela;
-	unsigned int relocsz = 0, prot, flags, reloffs;
+	unsigned int relocsz = 0, reloffs;
+	vm_prot_t prot;
+	vm_flags_t flags;
 	int badreloc = 0, err;
 	unsigned int i, j;
 	void *relptr;
@@ -803,7 +809,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 			if ((process->imapp != NULL) &&
 					(((ptr_t)base < (ptr_t)process->imapp->start) ||
 							((ptr_t)base > (ptr_t)process->imapp->stop))) {
-				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), (u8)prot, NULL, -1, (u8)flags);
+				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
 				}
@@ -820,7 +826,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 			reloffs = phdr->p_vaddr % SIZE_PAGE;
 
-			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), (u8)prot, NULL, -1, (u8)flags);
+			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdr->p_memsz + reloffs), prot, NULL, -1, flags);
 			if (paddr == NULL) {
 				return -ENOMEM;
 			}

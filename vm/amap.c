@@ -179,7 +179,7 @@ void amap_put(amap_t *amap)
 
 void amap_clear(amap_t *amap, size_t offset, size_t size)
 {
-	unsigned int i;
+	size_t i;
 
 	(void)proc_lockSet(&amap->lock);
 	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; i++) {
@@ -208,7 +208,7 @@ static anon_t *anon_new(page_t *p)
 static void *amap_map(vm_map_t *map, page_t *p)
 {
 	if (map == amap_common.kmap) {
-		return _vm_mmap(amap_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, amap_common.kernel, -1, MAP_NONE);
+		return _vm_mmap(amap_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, amap_common.kernel, VM_OFFS_MAX, MAP_NONE);
 	}
 
 	return vm_mmap(amap_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, amap_common.kernel, -1, MAP_NONE);
@@ -225,7 +225,7 @@ static int amap_unmap(vm_map_t *map, void *v)
 }
 
 
-page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int aoffs, off_t offs, unsigned int prot)
+page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot)
 {
 	page_t *p = NULL;
 	anon_t *a;
@@ -233,7 +233,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 
 	(void)proc_lockSet(&amap->lock);
 
-	if ((a = amap->anons[aoffs / (int)SIZE_PAGE]) != NULL) {
+	if ((a = amap->anons[aoffs / SIZE_PAGE]) != NULL) {
 		(void)proc_lockSet(&a->lock);
 		p = a->page;
 		if (!(a->refs > 1U && (prot & PROT_WRITE) != 0U)) {
@@ -300,7 +300,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int 
 		(void)proc_lockClear(&a->lock);
 	}
 
-	if ((amap->anons[aoffs / (int)SIZE_PAGE] = anon_new(p)) == NULL) {
+	if ((amap->anons[aoffs / SIZE_PAGE] = anon_new(p)) == NULL) {
 		vm_pageFree(p);
 		p = NULL;
 	}

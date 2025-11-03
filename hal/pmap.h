@@ -44,7 +44,7 @@ addr_t pmap_destroy(pmap_t *pmap, int *i);
 void pmap_switch(pmap_t *pmap);
 
 
-int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, int attrs, page_t *alloc);
+int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, unsigned int attrs, page_t *alloc);
 
 
 /* Function removes mapping in range [vstart, vend) */

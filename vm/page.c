@@ -37,7 +37,7 @@ struct {
 } pages;
 
 
-static page_t *_page_alloc(size_t size, u8 flags)
+static page_t *_page_alloc(size_t size, vm_flags_t flags)
 {
 	unsigned int start, stop, i;
 	page_t *lh, *rh;
@@ -89,7 +89,7 @@ static page_t *_page_alloc(size_t size, u8 flags)
 }
 
 
-page_t *vm_pageAlloc(size_t size, u8 flags)
+page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
 {
 	page_t *p;
 
@@ -313,7 +313,7 @@ void _page_showPages(void)
 }
 
 
-static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attrs)
+static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attrs)
 {
 	page_t *ap = NULL;
 
@@ -327,7 +327,7 @@ static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attrs)
 }
 
 
-int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attrs)
+int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attrs)
 {
 	int err;
 
@@ -452,7 +452,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 			else {
 				page->idx = 0;
 				pages.allocsz += SIZE_PAGE;
-				if (((page->flags >> 1) & 7) == PAGE_OWNER_BOOT) {
+				if (((page->flags >> 1) & 7U) == PAGE_OWNER_BOOT) {
 					pages.bootsz += SIZE_PAGE;
 				}
 			}

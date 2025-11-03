@@ -44,7 +44,8 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 		return -ENOMEM;
 	}
 
-	if ((zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, (size_t)0x1U << zone->pages->idx, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE)) == NULL) {
+	zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, (size_t)1U << zone->pages->idx, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE);
+	if (zone->vaddr == NULL) {
 		vm_pageFree(zone->pages);
 		return -ENOMEM;
 	}
@@ -74,7 +75,7 @@ int _vm_zoneDestroy(vm_zone_t *zone)
 		return -EBUSY;
 	}
 
-	(void)vm_munmap(zone_common.kmap, zone->vaddr, 1UL << zone->pages->idx);
+	(void)vm_munmap(zone_common.kmap, zone->vaddr, (size_t)1U << zone->pages->idx);
 	vm_pageFree(zone->pages);
 
 	zone->vaddr = NULL;

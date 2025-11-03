@@ -97,7 +97,8 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 			*o = no;
 			no = NULL;
 			hal_memcpy(&(*o)->oid, &oid, sizeof(oid));
-			/* TODO: 64 bits written into 32 bits */
+
+			/* Safe to cast - sz fits into size_t from above checks */
 			(*o)->size = (size_t)sz;
 			(*o)->refs = 0;
 
@@ -152,7 +153,7 @@ int vm_objectPut(vm_object_t *o)
 	(void)proc_lockClear(&object_common.lock);
 
 	/* Contiguous object 'holds' all pages in pages[0] */
-	if (((int)o->oid.port == -1) && (o->oid.id == (id_t)(-1))) {
+	if ((o->oid.port == (u32)(-1)) && (o->oid.id == (id_t)(-1))) {
 		vm_pageFree(o->pages[0]);
 	}
 	else {
@@ -169,7 +170,7 @@ int vm_objectPut(vm_object_t *o)
 }
 
 
-static page_t *object_fetch(oid_t oid, off_t offs)
+static page_t *object_fetch(oid_t oid, u64 offs)
 {
 	page_t *p;
 	void *v;
@@ -189,7 +190,7 @@ static page_t *object_fetch(oid_t oid, off_t offs)
 		return NULL;
 	}
 
-	if (proc_read(oid, offs, v, SIZE_PAGE, 0) < 0) {
+	if (proc_read(oid, (off_t)offs, v, SIZE_PAGE, 0) < 0) {
 		(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
 		vm_pageFree(p);
 		(void)proc_close(oid, 0);
@@ -203,12 +204,16 @@ static page_t *object_fetch(oid_t oid, off_t offs)
 }
 
 
-page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off_t offs)
+page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs)
 {
 	page_t *p;
 
 	if (o == NULL) {
 		return vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	}
+
+	if (offs > (addr_t)-1) {
+		return NULL;
 	}
 
 	if (o == (void *)-1) {
@@ -217,12 +222,12 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 
 	(void)proc_lockSet(&object_common.lock);
 
-	if ((unsigned long long)offs >= o->size) {
+	if (offs >= o->size) {
 		(void)proc_lockClear(&object_common.lock);
 		return NULL;
 	}
 
-	if ((p = o->pages[(unsigned long long)offs / SIZE_PAGE]) != NULL) {
+	if ((p = o->pages[offs / SIZE_PAGE]) != NULL) {
 		(void)proc_lockClear(&object_common.lock);
 		return p;
 	}
@@ -249,18 +254,18 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 
 	(void)proc_lockSet(&object_common.lock);
 
-	if (o->pages[(unsigned long long)offs / SIZE_PAGE] != NULL) {
+	if (o->pages[offs / SIZE_PAGE] != NULL) {
 		/* Someone loaded a page in the meantime, use it */
 		if (p != NULL) {
 			vm_pageFree(p);
 		}
 
-		p = o->pages[(unsigned long long)offs / SIZE_PAGE];
+		p = o->pages[offs / SIZE_PAGE];
 		(void)proc_lockClear(&object_common.lock);
 		return p;
 	}
 
-	o->pages[(unsigned long long)offs / SIZE_PAGE] = p;
+	o->pages[offs / SIZE_PAGE] = p;
 	(void)proc_lockClear(&object_common.lock);
 	return p;
 }

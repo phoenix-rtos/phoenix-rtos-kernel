@@ -19,9 +19,10 @@
 
 #include "hal/hal.h"
 #include "include/sysinfo.h"
+#include "types.h"
 
 
-page_t *vm_pageAlloc(size_t size, u8 flags);
+page_t *vm_pageAlloc(size_t size, vm_flags_t flags);
 
 
 void vm_pageFree(page_t *lh);
@@ -33,7 +34,7 @@ page_t *_page_get(addr_t addr);
 void _page_showPages(void);
 
 
-int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attr);
+int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr);
 
 
 int _page_sbrk(pmap_t *pmap, void **start, void **end);

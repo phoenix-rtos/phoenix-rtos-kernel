@@ -21,6 +21,7 @@
 #include "syspage.h"
 #include "map.h"
 #include "amap.h"
+#include "vm/types.h"
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
@@ -32,7 +33,7 @@ static struct {
 
 	lock_t lock;
 
-	unsigned int ntotal, nfree;
+	size_t ntotal, nfree;
 	map_entry_t *free;
 	map_entry_t *entries;
 
@@ -44,13 +45,13 @@ static struct {
 static map_entry_t *map_alloc(void);
 
 
-static map_entry_t *map_allocN(int n);
+static map_entry_t *map_allocN(size_t n);
 
 
 void map_free(map_entry_t *entry);
 
 
-static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int prot);
+static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot);
 
 
 static int map_cmp(rbnode_t *n1, rbnode_t *n2)
@@ -241,7 +242,7 @@ static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **pr
 }
 
 
-static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags, map_entry_t **entry)
+static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, vm_prot_t prot, vm_object_t *o, u64 offs, vm_flags_t flags, map_entry_t **entry)
 {
 	void *v;
 	map_entry_t *prev, *next, *e;
@@ -250,7 +251,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 #ifdef NOMMU
 	if (o == VM_OBJ_PHYSMEM) {
-		return (void *)(ptr_t)offs;
+		/* Return requested offset as a physical address only if it fits into ptr_t (otherwise it makes no sense) */
+		return offs <= (ptr_t)-1 ? (void *)(ptr_t)offs : NULL;
 	}
 #endif
 
@@ -261,17 +263,17 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	rmerge = (next != NULL && v + size == next->vaddr && next->object == o && next->flags == flags && next->prot == prot && next->protOrig == prot) ? 1U : 0U;
 	lmerge = (prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot && prev->protOrig == prot) ? 1U : 0U;
 
-	if (offs != -1) {
-		if (((u64)offs & (SIZE_PAGE - 1UL)) != 0UL) {
+	if (offs != VM_OFFS_MAX) {
+		if ((offs & (SIZE_PAGE - 1UL)) != 0UL) {
 			return NULL;
 		}
 
 		if (rmerge != 0U) {
-			rmerge &= (next->offs == offs + (s64)size) ? 1U : 0U;
+			rmerge &= (next->offs == offs + size) ? 1U : 0U;
 		}
 
 		if (lmerge != 0U) {
-			lmerge &= (offs == prev->offs + (s64)prev->size) ? 1U : 0U;
+			lmerge &= (offs == prev->offs + prev->size) ? 1U : 0U;
 		}
 	}
 
@@ -351,7 +353,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		map_augment(&e->linkage);
 	}
 	else {
-		if ((e = map_alloc()) == NULL) {
+		e = map_alloc();
+		if (e == NULL) {
 			return NULL;
 		}
 
@@ -396,10 +399,10 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 }
 
 
-void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
+void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot)
 {
 	(void)proc_lockSet(&map->lock);
-	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, -1, flags, NULL);
+	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, VM_OFFS_MAX, flags, NULL);
 	(void)proc_lockClear(&map->lock);
 
 	return vaddr;
@@ -425,7 +428,7 @@ static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entr
 	new->vaddr += len;
 	new->size -= len;
 	new->aoffs += len;
-	new->offs = (new->offs == -1) ? -1 : (new->offs + (s64)len);
+	new->offs = (new->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (new->offs + len);
 	new->lmaxgap = 0;
 
 	e->size = len;
@@ -480,7 +483,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 			}
 			else {
 				e->aoffs += overlapSize;
-				e->offs = (e->offs == -1) ? -1 : (e->offs + (s64)overlapSize);
+				e->offs = (e->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (e->offs + overlapSize);
 				e->vaddr += overlapSize;
 				e->size -= overlapSize;
 				e->lmaxgap += overlapSize;
@@ -534,9 +537,9 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
-unsigned int vm_flagsToAttr(unsigned int flags)
+vm_attr_t vm_flagsToAttr(vm_flags_t flags)
 {
-	unsigned int attr = 0;
+	vm_attr_t attr = 0;
 	if ((flags & MAP_UNCACHED) != 0U) {
 		attr |= PGHD_NOT_CACHED;
 	}
@@ -548,9 +551,9 @@ unsigned int vm_flagsToAttr(unsigned int flags)
 }
 
 
-static unsigned int vm_protToAttr(unsigned int prot)
+static vm_attr_t vm_protToAttr(vm_prot_t prot)
 {
-	unsigned int attr = 0;
+	vm_attr_t attr = 0;
 
 	if ((prot & PROT_READ) != 0U) {
 		attr |= (PGHD_READ | PGHD_PRESENT);
@@ -569,9 +572,9 @@ static unsigned int vm_protToAttr(unsigned int prot)
 }
 
 
-void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
+void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, vm_object_t *o, u64 offs, vm_flags_t flags)
 {
-	unsigned int attr;
+	vm_attr_t attr;
 	void *w;
 	process_t *process = NULL;
 	thread_t *current;
@@ -635,14 +638,14 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 }
 
 
-void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
+void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, vm_object_t *o, off_t offs, vm_flags_t flags)
 {
 	if (map == NULL) {
 		map = map_common.kmap;
 	}
 
 	(void)proc_lockSet(&map->lock);
-	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, offs, flags);
+	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, (offs < 0) ? VM_OFFS_MAX : (u64)offs, flags);
 	(void)proc_lockClear(&map->lock);
 	return vaddr;
 }
@@ -652,7 +655,7 @@ void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_ob
  * Fault routines
  */
 
-int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off_t offs)
+int vm_lockVerify(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs)
 {
 	map_entry_t t, *e;
 
@@ -703,7 +706,7 @@ int vm_mapFlags(vm_map_t *map, void *vaddr)
 }
 
 
-int vm_mapForce(vm_map_t *map, void *paddr, unsigned int prot)
+int vm_mapForce(vm_map_t *map, void *paddr, vm_prot_t prot)
 {
 	map_entry_t t, *e;
 	int err;
@@ -726,18 +729,18 @@ int vm_mapForce(vm_map_t *map, void *paddr, unsigned int prot)
 }
 
 
-static unsigned int map_checkProt(unsigned int baseProt, unsigned int newProt)
+static vm_prot_t map_checkProt(vm_prot_t baseProt, vm_prot_t newProt)
 {
 	return (baseProt | newProt) ^ baseProt;
 }
 
 
-static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int prot)
+static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot)
 {
-	unsigned int attr;
+	vm_attr_t attr;
 	size_t offs;
 	page_t *p = NULL;
-	unsigned int flagsCheck = map_checkProt(e->prot, prot);
+	vm_prot_t flagsCheck = map_checkProt(e->prot, prot);
 
 	if (flagsCheck != 0U) {
 		return -EINVAL;
@@ -754,10 +757,10 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, unsigned int p
 	offs = (ptr_t)paddr - (ptr_t)e->vaddr;
 
 	if (e->amap == NULL) {
-		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs < 0) ? e->offs : (e->offs + offs)));
+		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (e->offs + offs)));
 	}
 	else { /* if (e->object != VM_OBJ_PHYSMEM) FIXME disabled until memory objects are created for syspage progs */
-		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, ((e->offs < 0) ? e->offs : (e->offs + offs)), prot);
+		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, ((e->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (e->offs + offs)), prot);
 	}
 
 	attr = vm_protToAttr(prot) | vm_flagsToAttr(e->flags);
@@ -790,9 +793,9 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	thread_t *thread;
 	vm_map_t *map;
 	void *vaddr, *paddr;
-	unsigned int prot;
+	vm_prot_t prot;
 
-	prot = hal_exceptionsFaultType(n, ctx);
+	prot = (vm_prot_t)hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
 	paddr = (void *)((unsigned long)vaddr & ~(SIZE_PAGE - 1));
 
@@ -843,14 +846,14 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
-int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
+int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 {
 	int result = EOK;
 	void *currVaddr;
 	size_t lenLeft = len, currSize, needed;
 	process_t *p = proc_current()->process;
 	addr_t pa;
-	unsigned int attr;
+	vm_attr_t attr;
 	int needscopyNonLazy;
 	map_entry_t *e, *buf = NULL, *prev;
 	map_entry_t t;
@@ -873,7 +876,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 			result = -ENOMEM;
 			break;
 		}
-		if (map_checkProt(e->protOrig, (unsigned int)prot) != 0U) {
+		if (map_checkProt(e->protOrig, prot) != 0U) {
 			result = -EACCES;
 			break;
 		}
@@ -893,7 +896,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 	} while (lenLeft != 0U);
 
 	if ((result == EOK) && (needed != 0U)) {
-		buf = map_allocN((int)needed);
+		buf = map_allocN(needed);
 		if (buf == NULL) {
 			result = -ENOMEM;
 		}
@@ -915,7 +918,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 					e = buf;
 					buf = buf->next;
 
-					vm_mapEntrySplit(p, map, prev, e, (size_t)t.vaddr - (size_t)prev->vaddr);
+					vm_mapEntrySplit(p, map, prev, e, (ptr_t)t.vaddr - (ptr_t)prev->vaddr);
 				}
 			}
 			else if ((prev->protOrig == e->protOrig) && (prev->object == e->object) && (prev->flags == e->flags)) {
@@ -937,8 +940,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 				vm_mapEntrySplit(p, map, e, buf, lenLeft);
 			}
 
-			/* TODO: int cast to char - check if we don't lose info*/
-			e->prot = (unsigned char)prot;
+			e->prot = prot;
 
 			attr = (vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags));
 			needscopyNonLazy = 0;
@@ -955,11 +957,11 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot)
 				if (needscopyNonLazy == 0) {
 					pa = pmap_resolve(&map->pmap, currVaddr);
 					if (pa != 0U) {
-						result = pmap_enter(&map->pmap, pa, currVaddr, (int)attr, NULL);
+						result = pmap_enter(&map->pmap, pa, currVaddr, attr, NULL);
 					}
 				}
 				else {
-					result = _map_force(map, e, currVaddr, (unsigned int)prot);
+					result = _map_force(map, e, currVaddr, prot);
 				}
 			}
 
@@ -1087,10 +1089,10 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 }
 
 
-static void remap_readonly(vm_map_t *map, map_entry_t *e, int offs)
+static void remap_readonly(vm_map_t *map, map_entry_t *e, u64 offs)
 {
 	addr_t a;
-	unsigned int attr = PGHD_PRESENT;
+	vm_attr_t attr = PGHD_PRESENT;
 
 	if ((e->prot & PROT_USER) != 0U) {
 		attr |= PGHD_USER;
@@ -1106,7 +1108,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 {
 	rbnode_t *n;
 	map_entry_t *e, *f;
-	int offs;
+	size_t offs;
 
 	(void)proc_lockSet2(&src->lock, &dst->lock);
 
@@ -1132,21 +1134,21 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 
-			for (offs = 0; offs < (int)f->size; offs += (int)SIZE_PAGE) {
+			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
 				remap_readonly(src, e, offs);
 				remap_readonly(dst, f, offs);
 			}
 		}
 
 		if ((proc == NULL) || (proc->lazy == 0U)) {
-			for (offs = 0; offs < (int)f->size; offs += (int)SIZE_PAGE) {
-				if (_map_force(dst, f, f->vaddr + offs, f->prot) != 0) {
+			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
+				if (_map_force(dst, f, (void *)((ptr_t)f->vaddr + offs), f->prot) != 0) {
 					(void)proc_lockClear(&dst->lock);
 					(void)proc_lockClear(&src->lock);
 					return -ENOMEM;
 				}
 
-				if (_map_force(src, e, e->vaddr + offs, e->prot) != 0) {
+				if (_map_force(src, e, (void *)((ptr_t)e->vaddr + offs), e->prot) != 0) {
 					(void)proc_lockClear(&dst->lock);
 					(void)proc_lockClear(&src->lock);
 					return -ENOMEM;
@@ -1219,7 +1221,7 @@ void vm_mapinfo(meminfo_t *info)
 	const syspage_map_t *spMap;
 	int size;
 	process_t *process;
-	int i;
+	size_t i;
 	size_t total, free;
 
 
@@ -1289,7 +1291,7 @@ void vm_mapinfo(meminfo_t *info)
 
 					if (e->amap != NULL) {
 						info->entry.map[size].anonsz = 0;
-						for (i = 0; i < (int)e->amap->size; ++i) {
+						for (i = 0; i < e->amap->size; ++i) {
 							if (e->amap->anons[i] != NULL) {
 								info->entry.map[size].anonsz += SIZE_PAGE;
 							}
@@ -1343,7 +1345,7 @@ void vm_mapinfo(meminfo_t *info)
 
 				if (e->amap != NULL) {
 					info->entry.kmap[size].anonsz = 0x0U;
-					for (i = 0; i < (int)e->amap->size; ++i) {
+					for (i = 0; i < e->amap->size; ++i) {
 						if (e->amap->anons[i] != NULL) {
 							info->entry.kmap[size].anonsz += SIZE_PAGE;
 						}
@@ -1432,14 +1434,14 @@ void vm_mapinfo(meminfo_t *info)
  */
 
 
-static map_entry_t *map_allocN(int n)
+static map_entry_t *map_allocN(size_t n)
 {
 	map_entry_t *e, *tmp;
-	int i;
+	size_t i;
 
 	(void)proc_lockSet(&map_common.lock);
 
-	if (map_common.nfree < (unsigned int)n) {
+	if (map_common.nfree < n) {
 		(void)proc_lockClear(&map_common.lock);
 #ifndef NDEBUG
 		lib_printf("vm: Entry pool exhausted!\n");
@@ -1447,10 +1449,10 @@ static map_entry_t *map_allocN(int n)
 		return NULL;
 	}
 
-	map_common.nfree -= (unsigned int)n;
+	map_common.nfree -= n;
 	e = map_common.free;
 	tmp = e;
-	for (i = 0; i < (n - 1); i++) {
+	for (i = 0; i < (n - 1U); i++) {
 		tmp = tmp->next;
 	}
 	map_common.free = tmp->next;
@@ -1503,7 +1505,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	}
 
 	map_common.maps = (vm_map_t **)(*bss);
-	while (((ptr_t)*top) - ((ptr_t)*bss) < (ptr_t)sizeof(vm_map_t *) * (ptr_t)mapsCnt) {
+	while (((ptr_t)*top) - ((ptr_t)*bss) < (ptr_t)(sizeof(vm_map_t *) * mapsCnt)) {
 		result = _page_sbrk(&map_common.kmap->pmap, bss, top);
 		LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for vm_map_t pool (vaddr=%p)", *bss);
 	}
@@ -1550,7 +1552,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 				entry->vaddr = (void *)round_page(sysEntry->start);
 				entry->size = round_page(sysEntry->end - sysEntry->start);
 				entry->object = kernel;
-				entry->offs = -1;
+				entry->offs = VM_OFFS_MAX;
 				entry->flags = MAP_NONE;
 				/* TODO: initialize map properties based on attributes in syspage */
 				entry->prot = PROT_READ | PROT_EXEC;
@@ -1578,8 +1580,9 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 
 int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
-	int result, i;
-	unsigned int prot;
+	int result;
+	unsigned int i;
+	vm_prot_t prot;
 	void *vaddr;
 	size_t poolsz, freesz, size;
 	map_entry_t *e;
@@ -1611,8 +1614,8 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 
 	map_common.free = map_common.entries;
 
-	for (i = 0; i < (int)map_common.nfree - 1; ++i) {
-		map_common.entries[i].next = map_common.entries + i + 1;
+	for (i = 0; i < map_common.nfree - 1U; ++i) {
+		map_common.entries[i].next = map_common.entries + i + 1U;
 	}
 
 	map_common.entries[i].next = NULL;
@@ -1636,10 +1639,10 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		e->vaddr = (void *)round_page((ptr_t)vaddr);
 		e->size = round_page(size);
 		e->object = kernel;
-		e->offs = -1;
+		e->offs = VM_OFFS_MAX;
 		e->flags = MAP_NONE;
-		e->prot = (unsigned char)prot;
-		e->protOrig = (unsigned char)prot;
+		e->prot = (vm_prot_t)prot;
+		e->protOrig = (vm_prot_t)prot;
 		e->amap = NULL;
 		(void)_map_add(NULL, map_common.kmap, e);
 		prot = PROT_READ | PROT_EXEC;
