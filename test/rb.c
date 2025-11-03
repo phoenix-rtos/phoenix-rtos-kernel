@@ -88,7 +88,7 @@ static int test_compare(rbnode_t *n1, rbnode_t *n2)
 
 
 #define RB_TEST_SIZE 7
-int count;
+static int count;
 
 
 static int rb_processVector(int insert, rbtree_t *tree, int vector[])
