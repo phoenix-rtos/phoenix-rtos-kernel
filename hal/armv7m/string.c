@@ -94,10 +94,11 @@ int hal_strcmp(const char *s1, const char *s2)
 }
 
 
-int hal_strncmp(const char *s1, const char *s2, unsigned int count)
+int hal_strncmp(const char *s1, const char *s2, unsigned int n)
 {
 	int res = 0;
 
+	/* clang-format off */
 	__asm__ volatile
 	(" \
 	1: \
@@ -118,9 +119,10 @@ int hal_strncmp(const char *s1, const char *s2, unsigned int count)
 	3: \
 		mov %0, #-1; \
 	4: "
-	: "+r" (res), "+r" (s1), "+r" (s2), "+r" (count)
+	: "+r" (res), "+r" (s1), "+r" (s2), "+r" (n)
 	:
 	: "r3", "r4", "memory", "cc");
+	/* clang-format on */
 
 	return res;
 }
