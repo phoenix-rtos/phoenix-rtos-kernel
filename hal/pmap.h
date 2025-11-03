@@ -16,6 +16,8 @@
 #ifndef _HAL_PMAP_H_
 #define _HAL_PMAP_H_
 
+#include "vm/types.h"
+
 #include <arch/pmap.h>
 
 
@@ -44,7 +46,7 @@ addr_t pmap_destroy(pmap_t *pmap, int *i);
 void pmap_switch(pmap_t *pmap);
 
 
-int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, unsigned int attrs, page_t *alloc);
+int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, vm_attr_t attrs, page_t *alloc);
 
 
 /* Function removes mapping in range [vstart, vend) */
@@ -65,7 +67,7 @@ char pmap_marker(page_t *p);
 int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp);
 
 
-int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top);
+int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, void **top);
 
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend);

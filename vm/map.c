@@ -1630,7 +1630,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	/* Map kernel segments */
 	prot = PROT_READ | PROT_EXEC;
 	i = 0;
-	while (pmap_segment((unsigned int)i, &vaddr, &size, (int *)&prot, top) >= 0) {
+	while (pmap_segment(i, &vaddr, &size, &prot, top) >= 0) {
 		e = map_alloc();
 		if (e == NULL) {
 			break;

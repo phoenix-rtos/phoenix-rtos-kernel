@@ -78,7 +78,7 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, int attr, page_t *alloc, int tlbInval)
+int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page_t *alloc, int tlbInval)
 {
 	addr_t addr;
 	addr_t *ptable;
@@ -122,7 +122,7 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, int attr, page_t *al
 
 
 /* Functions maps page at specified address */
-int pmap_enter(pmap_t *pmap, addr_t pa, void *va, int attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t pa, void *va, vm_attr_t attr, page_t *alloc)
 {
 	spinlock_ctx_t sc;
 	int ret;
@@ -369,7 +369,7 @@ char pmap_marker(page_t *p)
 }
 
 
-int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
+int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, void **top)
 {
 	switch (i) {
 		case 0:

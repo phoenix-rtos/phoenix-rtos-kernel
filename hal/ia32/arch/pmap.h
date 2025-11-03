@@ -68,6 +68,7 @@
 #ifndef __ASSEMBLY__
 
 #include "cpu.h"
+#include "vm/types.h"
 
 
 #define SIZE_PDIR SIZE_PAGE
@@ -95,7 +96,7 @@ typedef struct _pmap_t {
 int pmap_getPage(page_t *page, addr_t *addr);
 
 
-int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, int attr, page_t *alloc, int tlbInval);
+int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page_t *alloc, int tlbInval);
 
 #endif
 

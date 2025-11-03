@@ -257,7 +257,7 @@ static int _pmap_map(u64 *pdir2, u64 satpVal, addr_t pa, void *vaddr, int attr, 
 }
 
 
-static int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc, int tlbInval)
+static int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc, int tlbInval)
 {
 	u64 satpVal;
 	int ret = _pmap_map(pmap->pdir2, pmap->satp, pa, vaddr, attr, alloc);
@@ -294,7 +294,7 @@ static int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *a
 
 
 /* Functions maps page at specified address (Sv39) */
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	int ret;
 	spinlock_ctx_t sc;
@@ -556,7 +556,7 @@ char pmap_marker(page_t *p)
 }
 
 
-int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
+int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, void **top)
 {
 	switch (i) {
 		case 0:

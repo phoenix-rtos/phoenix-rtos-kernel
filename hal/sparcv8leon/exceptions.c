@@ -172,9 +172,10 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 }
 
 
-unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
+		/* FIXME: return value must be formulated in hw-agnostic way with PROT_* constants */
 		return hal_srmmuGetFaultSts();
 	}
 
