@@ -46,7 +46,7 @@ typedef union sockport_msg_ {
 		int optname;
 	} opt;
 	struct {
-		unsigned flags;
+		unsigned int flags;
 		size_t addrlen;
 		char addr[MAX_SOCKNAME_LEN];
 	} send;

@@ -183,7 +183,7 @@ static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
-	unsigned pos;
+	unsigned int pos;
 
 	__asm__ volatile("\
 		rbit %0, %1; \

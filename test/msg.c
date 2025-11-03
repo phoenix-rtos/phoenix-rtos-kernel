@@ -20,9 +20,9 @@
 #include "proc/proc.h"
 
 
-unsigned test_randsize(unsigned *seed, unsigned bufsz)
+unsigned int test_randsize(unsigned int *seed, unsigned int bufsz)
 {
-	unsigned sz;
+	unsigned int sz;
 
 	if (lib_rand(seed) % 2) {
 		sz = ((unsigned int)lib_rand(seed) % (bufsz / SIZE_PAGE)) * SIZE_PAGE;
@@ -35,9 +35,9 @@ unsigned test_randsize(unsigned *seed, unsigned bufsz)
 }
 
 
-unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
+unsigned int test_offset(unsigned int *seed, unsigned int size, unsigned int bufsz)
 {
-	unsigned offs = (bufsz - size) / SIZE_PAGE;
+	unsigned int offs = (bufsz - size) / SIZE_PAGE;
 
 	if (offs != 0U && lib_rand(seed) % 2 != 0) {
 		offs = ((unsigned int)lib_rand(seed) % offs) * SIZE_PAGE;
@@ -61,7 +61,7 @@ unsigned test_offset(unsigned *seed, unsigned size, unsigned bufsz)
 void test_ping(void *arg)
 {
 	msg_t msg;
-	unsigned bufsz = 4U * SIZE_PAGE, offs[2], i, k;
+	unsigned int bufsz = 4U * SIZE_PAGE, offs[2], i, k;
 	void *buf[2];
 	unsigned int seed = (unsigned long)test_ping;
 	unsigned int count = 0;
@@ -165,7 +165,7 @@ void test_pong(void *arg)
 
 void test_msg(void)
 {
-	unsigned port;
+	unsigned int port;
 
 	if (proc_portCreate(&port) != EOK) {
 		lib_printf("Failed to create port\n");

@@ -178,7 +178,7 @@ extern pid_t posix_setsid(void);
 extern void posix_died(pid_t pid, int exit);
 
 
-extern int posix_waitpid(pid_t child, int *status, unsigned options);
+extern int posix_waitpid(pid_t child, int *status, unsigned int options);
 
 
 extern void posix_init(void);

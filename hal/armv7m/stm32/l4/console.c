@@ -20,7 +20,7 @@
 
 struct {
 	volatile u32 *base;
-	unsigned cpufreq;
+	unsigned int cpufreq;
 } console_common;
 
 

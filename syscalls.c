@@ -471,9 +471,9 @@ int syscalls_syspageprog(void *ustack)
 
 int syscalls_perf_start(void *ustack)
 {
-	unsigned pid;
+	unsigned int pid;
 
-	GETFROMSTACK(ustack, unsigned, pid, 0);
+	GETFROMSTACK(ustack, unsigned int, pid, 0);
 
 	return perf_start(pid);
 }
@@ -936,12 +936,12 @@ int syscalls_signalHandle(void *ustack)
 {
 	typedef void (*handler_func)(void);
 	handler_func handler;
-	unsigned mask, mmask;
+	unsigned int mask, mmask;
 	thread_t *thread;
 
 	GETFROMSTACK(ustack, handler_func, handler, 0);
-	GETFROMSTACK(ustack, unsigned, mask, 1);
-	GETFROMSTACK(ustack, unsigned, mmask, 2);
+	GETFROMSTACK(ustack, unsigned int, mask, 1);
+	GETFROMSTACK(ustack, unsigned int, mmask, 2);
 
 	thread = proc_current();
 	thread->process->sigmask = (mask & mmask) | (thread->process->sigmask & ~mmask);
@@ -993,11 +993,11 @@ int syscalls_signalPost(void *ustack)
 
 unsigned int syscalls_signalMask(void *ustack)
 {
-	unsigned mask, mmask, old;
+	unsigned int mask, mmask, old;
 	thread_t *t;
 
-	GETFROMSTACK(ustack, unsigned, mask, 0);
-	GETFROMSTACK(ustack, unsigned, mmask, 1);
+	GETFROMSTACK(ustack, unsigned int, mask, 0);
+	GETFROMSTACK(ustack, unsigned int, mmask, 1);
 
 	t = proc_current();
 
@@ -1010,9 +1010,8 @@ unsigned int syscalls_signalMask(void *ustack)
 
 int syscalls_signalSuspend(void *ustack)
 {
-
 	unsigned int mask;
-	GETFROMSTACK(ustack, unsigned, mask, 0);
+	GETFROMSTACK(ustack, unsigned int, mask, 0);
 
 	return threads_sigsuspend(mask);
 }

@@ -105,7 +105,7 @@ static int _proc_threadWakeup(thread_t **queue);
 static int _proc_threadBroadcast(thread_t **queue);
 
 
-static unsigned perf_idpack(unsigned id)
+static unsigned int perf_idpack(unsigned int id)
 {
 	return id >> 8;
 }
@@ -343,7 +343,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 }
 
 
-int perf_start(unsigned pid)
+int perf_start(unsigned int pid)
 {
 	void *data;
 	spinlock_ctx_t sc;
@@ -1493,7 +1493,7 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	unsigned sigbit = 0x01UL << (unsigned int)sig;
+	unsigned int sigbit = 0x01UL << (unsigned int)sig;
 
 	spinlock_ctx_t sc;
 

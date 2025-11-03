@@ -345,7 +345,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 	Elf32_Shdr *shdr, *shstrshdr;
 	char *snameTab;
 	size_t memsz, filesz;
-	unsigned i, misalign;
+	unsigned int i, misalign;
 	off_t offs;
 
 	if (size < sizeof(*ehdr)) {
@@ -422,7 +422,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 	Elf64_Shdr *shdr, *shstrshdr;
 	char *snameTab;
 	size_t memsz, filesz;
-	unsigned i, misalign;
+	unsigned int i, misalign;
 	off_t offs;
 
 	if (size < sizeof(*ehdr)) {
@@ -497,7 +497,7 @@ int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
-	unsigned i, prot, flags, misalign;
+	unsigned int i, prot, flags, misalign;
 	off_t offs;
 	char *snameTab;
 
@@ -580,7 +580,7 @@ int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 	Elf64_Ehdr *ehdr = iehdr;
 	Elf64_Phdr *phdr;
 	Elf64_Shdr *shdr, *shstrshdr;
-	unsigned i, prot, flags, misalign;
+	unsigned int i, prot, flags, misalign;
 	off_t offs;
 	char *snameTab;
 
@@ -752,9 +752,9 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
 	Elf32_Rela rela;
-	unsigned relocsz = 0, prot, flags, reloffs;
+	unsigned int relocsz = 0, prot, flags, reloffs;
 	int badreloc = 0, err;
-	unsigned i, j;
+	unsigned int i, j;
 	void *relptr;
 	char *snameTab;
 	ptr_t *got;
@@ -1551,7 +1551,7 @@ int proc_fork(void)
 	int err = -ENOSYS;
 #ifndef NOMMU
 	thread_t *current, *parent;
-	unsigned sigmask;
+	unsigned int sigmask;
 	arg_t args[3];
 
 	err = proc_vfork();

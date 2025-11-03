@@ -82,7 +82,7 @@ extern void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot
 extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
 
 
-extern int vm_mapForce(vm_map_t *map, void *paddr, unsigned prot);
+extern int vm_mapForce(vm_map_t *map, void *paddr, unsigned int prot);
 
 
 extern int vm_mapFlags(vm_map_t *map, void *vaddr);
@@ -103,7 +103,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot);
 extern void vm_mapDump(vm_map_t *map);
 
 
-extern unsigned vm_flagsToAttr(unsigned flags);
+extern unsigned int vm_flagsToAttr(unsigned int flags);
 
 
 extern int vm_mapCreate(vm_map_t *map, void *start, void *stop);

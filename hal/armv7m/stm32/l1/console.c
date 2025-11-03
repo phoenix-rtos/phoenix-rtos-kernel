@@ -22,7 +22,7 @@ struct {
 	volatile u32 *base;
 	u8 txpin;
 	u8 rxpin;
-	unsigned cpufreq;
+	unsigned int cpufreq;
 } console_common;
 
 
@@ -31,7 +31,7 @@ enum { sr = 0, dr, brr, cr1, cr2, cr3, gtpr };
 
 void _hal_consolePrint(const char *s)
 {
-	unsigned cpufreq;
+	unsigned int cpufreq;
 
 	while (*s) {
 		if (~(*(console_common.base + sr)) & 0x80)
