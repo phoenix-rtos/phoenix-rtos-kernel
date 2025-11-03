@@ -332,7 +332,7 @@ int syscalls_beginthreadex(u8 *ustack)
 }
 
 
-void syscalls_endthread(u8 *ustack)
+__attribute__((noreturn)) void syscalls_endthread(u8 *ustack)
 {
 	proc_threadEnd();
 }

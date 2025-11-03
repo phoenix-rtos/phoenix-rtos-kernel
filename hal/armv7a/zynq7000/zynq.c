@@ -534,7 +534,7 @@ static int _zynq_getDevRst(int dev, unsigned int *state)
 }
 
 
-static void zynq_softRst(void)
+__attribute__((noreturn)) static void zynq_softRst(void)
 {
 	_zynq_slcrUnlock();
 	*(zynq_common.slcr + slcr_pss_rst_ctrl) |= 0x1;
@@ -575,7 +575,7 @@ static int _zynq_getSDWpCd(char dev, unsigned char *wpPin, unsigned char *cdPin)
 }
 
 
-void hal_cpuReboot(void)
+__attribute__((noreturn)) void hal_cpuReboot(void)
 {
 	zynq_softRst();
 }
