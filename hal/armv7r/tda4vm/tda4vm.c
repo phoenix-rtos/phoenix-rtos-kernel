@@ -659,7 +659,7 @@ int hal_platformctl(void *ptr)
 }
 
 
-void hal_cpuReboot(void)
+__attribute__((noreturn)) void hal_cpuReboot(void)
 {
 	tda4vm_warmReset();
 }

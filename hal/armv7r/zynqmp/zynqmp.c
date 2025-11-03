@@ -349,15 +349,17 @@ static int _zynq_getDevRst(int dev, unsigned int *state)
 	return 0;
 }
 
-
-static void zynqmp_softRst(void)
+__attribute__((noreturn)) static void zynqmp_softRst(void)
 {
 	/* Equivalent to PS_SRST_B signal */
 	*(zynq_common.crl_apb + crl_apb_reset_ctrl) |= (1UL << 4);
+	for (;;) {
+	}
+	__builtin_unreachable();
 }
 
 
-void hal_cpuReboot(void)
+__attribute__((noreturn)) void hal_cpuReboot(void)
 {
 	zynqmp_softRst();
 }

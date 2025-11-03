@@ -141,7 +141,7 @@ char *hal_cpuFeatures(char *features, unsigned int len);
 void hal_cpuBroadcastIPI(unsigned int intr);
 
 
-void hal_cpuReboot(void);
+__attribute__((noreturn)) void hal_cpuReboot(void);
 
 
 void hal_cpuSmpSync(void);
