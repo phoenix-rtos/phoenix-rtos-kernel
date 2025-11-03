@@ -53,7 +53,7 @@
 #include "hal/types.h"
 
 
-#define SYSTICK_INTERVAL 1000U
+#define SYSTICK_INTERVAL 1000
 
 
 #define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
