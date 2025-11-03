@@ -791,7 +791,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	thread_t *thread;
 	vm_map_t *map;
 	void *vaddr, *paddr;
-	int prot;
+	unsigned int prot;
 
 	prot = hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
@@ -804,8 +804,10 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	/* clang-format on */
 #endif
 
-	if (hal_exceptionsPC(ctx) >= VADDR_KERNEL) /* output exception ASAP to avoid being deadlocked on spinlock */
+	if (hal_exceptionsPC(ctx) >= VADDR_KERNEL) {
+		/* output exception ASAP to avoid being deadlocked on spinlock */
 		process_dumpException(n, ctx);
+	}
 
 	hal_cpuEnableInterrupts();
 
