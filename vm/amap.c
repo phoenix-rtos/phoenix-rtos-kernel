@@ -47,16 +47,16 @@ static anon_t *amap_putanon(anon_t *a)
 }
 
 
-void amap_putanons(amap_t *amap, int offset, int size)
+void amap_putanons(amap_t *amap, size_t offset, size_t size)
 {
-	int i;
+	size_t i;
 
 	if (amap == NULL) {
 		return;
 	}
 
 	(void)proc_lockSet(&amap->lock);
-	for (i = offset / (int)SIZE_PAGE; i < (offset + size) / (int)SIZE_PAGE; ++i) {
+	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i) {
 		(void)amap_putanon(amap->anons[i]);
 	}
 	(void)proc_lockClear(&amap->lock);
@@ -77,16 +77,16 @@ static anon_t *amap_getanon(anon_t *a)
 }
 
 
-void amap_getanons(amap_t *amap, int offset, int size)
+void amap_getanons(amap_t *amap, size_t offset, size_t size)
 {
-	int i;
+	size_t i;
 
 	if (amap == NULL) {
 		return;
 	}
 
 	(void)proc_lockSet(&amap->lock);
-	for (i = offset / (int)SIZE_PAGE; i < (offset + size) / (int)SIZE_PAGE; ++i) {
+	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i) {
 		(void)amap_getanon(amap->anons[i]);
 	}
 	(void)proc_lockClear(&amap->lock);
@@ -107,9 +107,9 @@ amap_t *amap_ref(amap_t *amap)
 }
 
 
-amap_t *amap_create(amap_t *amap, int *offset, size_t size)
+amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 {
-	unsigned int i = size / SIZE_PAGE;
+	size_t i = size / SIZE_PAGE;
 	amap_t *new;
 
 	if (amap != NULL) {
@@ -139,11 +139,11 @@ amap_t *amap_create(amap_t *amap, int *offset, size_t size)
 	(void)proc_lockInit(&new->lock, &proc_lockAttrDefault, "amap.map");
 	new->size = i;
 	new->refs = 1;
-	*offset = *offset / (int)SIZE_PAGE;
+	*offset = *offset / SIZE_PAGE;
 
 
 	for (i = 0; i < size / SIZE_PAGE; ++i) {
-		new->anons[i] = (amap == NULL) ? NULL : amap->anons[*offset + (int)i];
+		new->anons[i] = (amap == NULL) ? NULL : amap->anons[*offset + i];
 	}
 
 	while (i < new->size) {
@@ -225,7 +225,7 @@ static int amap_unmap(vm_map_t *map, void *v)
 }
 
 
-page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int aoffs, off_t offs, unsigned prot)
+page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, int aoffs, off_t offs, unsigned int prot)
 {
 	page_t *p = NULL;
 	anon_t *a;

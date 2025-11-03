@@ -57,7 +57,7 @@ typedef struct _map_entry_t {
 
 	vm_map_t *map;
 
-	int aoffs;
+	size_t aoffs;
 	struct _amap_t *amap;
 
 	void *vaddr;
