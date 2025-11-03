@@ -104,7 +104,7 @@ void hal_consolePutch(char c)
 __attribute__((section(".init"))) void _hal_consoleInit(void)
 {
 	console_common.uart = (void *)UART_BASE;
-	console_common.speed = 115200;
+	console_common.speed = 115200U;
 
 	(void)_zynqmp_setMIO(UART_TX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE);
 	(void)_zynqmp_setMIO(UART_RX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE | PCTL_MIO_TRI_ENABLE);
@@ -125,8 +125,8 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 	 * - baudrate : 115200
 	 * - ref_clk   : 50 MHz
 	 * - baud_rate = ref_clk / (bgen * (bdiv + 1)) */
-	*(console_common.uart + baudgen) = 62;
-	*(console_common.uart + baud_rate_divider_reg0) = 6;
+	*(console_common.uart + baudgen) = 62U;
+	*(console_common.uart + baud_rate_divider_reg0) = 6U;
 
 	/* Uart Control Register
 	 * TXEN = 0x1; RXEN = 0x1; TXRES = 0x1; RXRES = 0x1 */

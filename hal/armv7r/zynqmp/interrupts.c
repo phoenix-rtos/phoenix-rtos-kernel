@@ -23,13 +23,13 @@
 #include "proc/userintr.h"
 
 
-#define SPI_FIRST_IRQID 32
+#define SPI_FIRST_IRQID 32U
 
-#define SGI_FLT_USE_LIST   0 /* Send SGI to CPUs according to targetList */
-#define SGI_FLT_OTHER_CPUS 1 /* Send SGI to all CPUs except the one that called this function */
-#define SGI_FLT_THIS_CPU   2 /* Send SGI to the CPU that called this function */
+#define SGI_FLT_USE_LIST   0U /* Send SGI to CPUs according to targetList */
+#define SGI_FLT_OTHER_CPUS 1U /* Send SGI to all CPUs except the one that called this function */
+#define SGI_FLT_THIS_CPU   2U /* Send SGI to the CPU that called this function */
 
-#define DEFAULT_PRIORITY 0x80
+#define DEFAULT_PRIORITY 0x80U
 
 
 enum {

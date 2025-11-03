@@ -62,8 +62,10 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	n &= 0x7U;
 
 	(void)hal_strcpy(buff, "\nException: ");
-	(void)hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
-	(void)hal_strcpy(buff += hal_strlen(buff), "\n");
+	buff += hal_strlen(buff);
+	(void)hal_strcpy(buff, mnemonics[n]);
+	buff += hal_strlen(buff);
+	(void)hal_strcpy(buff, "\n");
 	buff += hal_strlen(buff);
 
 	i += hal_i2s(" r0=", &buff[i], ctx->cpuCtx.r0, 16U, 1U);
@@ -153,12 +155,12 @@ unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot = PROT_READ;
 		status = ctx->dfsr & 0x1fU;
 
-		if ((ctx->dfsr & ((unsigned int)0x1 << 11)) != 0U) {
+		if ((ctx->dfsr & (0x1UL << 11)) != 0U) {
 			prot |= PROT_WRITE;
 		}
 	}
 	else {
-		return (int)PROT_NONE;
+		return PROT_NONE;
 	}
 
 	if (status == EXC_PERM_SECTION || status == EXC_PERM_PAGE) {

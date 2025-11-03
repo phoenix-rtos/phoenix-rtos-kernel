@@ -249,10 +249,11 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	const syspage_map_t *ikmap;
 	unsigned int ikregion;
 	u32 t;
-	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
+	unsigned int i;
+	unsigned int cnt = syspage->hs.mpu.allocCnt;
 
-	(*vstart) = (void *)(((ptr_t)&_end + 7U) & ~7U);
-	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
+	*vstart = (void *)(((ptr_t)&_end + 7U) & ~7U);
+	*vend = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)&__bss_start;
 
