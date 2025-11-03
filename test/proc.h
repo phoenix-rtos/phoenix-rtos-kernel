@@ -23,9 +23,6 @@ extern void test_proc_threads1(void);
 extern void test_proc_threads2(void);
 
 
-extern void test_proc_conditional(void);
-
-
 extern void test_proc_exit(void);
 
 

@@ -26,9 +26,6 @@ struct _vm_object_t;
 extern void test_vm_alloc(void);
 
 
-extern void test_vm_anons(struct _vm_map_t *kmap, struct _vm_object_t *kernel);
-
-
 extern void test_vm_mmap(void);
 
 

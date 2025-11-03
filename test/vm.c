@@ -22,7 +22,7 @@
 #include "vm.h"
 
 
-lock_t lock;
+static lock_t lock;
 
 
 void test_vm_alloc(void)
