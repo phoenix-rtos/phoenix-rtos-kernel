@@ -19,25 +19,26 @@
 #include <arch/pmap.h>
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_2_1 "Used only in targets with MMU" */
+#ifndef NOMMU
+
 static inline int pmap_belongs(pmap_t *pmap, void *addr)
 {
 	return ((ptr_t)addr >= (ptr_t)pmap->start && (ptr_t)addr < (ptr_t)pmap->end) ? 1 : 0;
 }
+
+#else
+
+extern int pmap_addMap(pmap_t *pmap, unsigned int map);
+
+extern int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size);
+
+#endif
 
 
 extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
 
 
 extern addr_t pmap_destroy(pmap_t *pmap, int *i);
-
-
-/* Available only on NOMMU */
-extern int pmap_addMap(pmap_t *pmap, unsigned int map);
-
-
-/* Available only on NOMMU */
-extern int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size);
 
 
 extern void pmap_switch(pmap_t *pmap);
