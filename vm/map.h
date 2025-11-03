@@ -23,7 +23,8 @@
 #include "syspage.h"
 #include "object.h"
 #include "proc/lock.h"
-#include "vm/amap.h"
+#include "amap.h"
+#include "types.h"
 
 
 struct _amap_t;
@@ -41,7 +42,6 @@ typedef struct _vm_map_t {
 
 struct _process_t;
 
-/* TODO: Unify implementation of prot type to be consistent between this map and functions */
 typedef struct _map_entry_t {
 #ifndef NOMMU
 	union {
@@ -65,30 +65,33 @@ typedef struct _map_entry_t {
 	size_t lmaxgap;
 	size_t rmaxgap;
 
-	unsigned char flags;
-	unsigned char prot;
-	unsigned char protOrig;
+	vm_flags_t flags;
+	vm_prot_t prot;
+	vm_prot_t protOrig;
 	struct _vm_object_t *object;
-	off_t offs;
+	u64 offs;
 } map_entry_t;
 
 
-void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot);
+#define VM_OFFS_MAX ((u64)-1)
 
 
-void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
+void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot);
 
 
-void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
+void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, off_t offs, vm_flags_t flags);
 
 
-int vm_mapForce(vm_map_t *map, void *paddr, unsigned int prot);
+void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, u64 offs, vm_flags_t flags);
+
+
+int vm_mapForce(vm_map_t *map, void *paddr, vm_prot_t prot);
 
 
 int vm_mapFlags(vm_map_t *map, void *vaddr);
 
 
-int vm_lockVerify(vm_map_t *map, struct _amap_t **amap, struct _vm_object_t *o, void *vaddr, off_t offs);
+int vm_lockVerify(vm_map_t *map, struct _amap_t **amap, struct _vm_object_t *o, void *vaddr, u64 offs);
 
 
 int vm_munmap(vm_map_t *map, void *vaddr, size_t size);
@@ -97,13 +100,13 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 int _vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 
 
-int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot);
+int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot);
 
 
 void vm_mapDump(vm_map_t *map);
 
 
-unsigned int vm_flagsToAttr(unsigned int flags);
+vm_attr_t vm_flagsToAttr(vm_flags_t flags);
 
 
 int vm_mapCreate(vm_map_t *map, void *start, void *stop);

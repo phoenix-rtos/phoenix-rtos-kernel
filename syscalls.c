@@ -156,7 +156,7 @@ int syscalls_sys_mprotect(u8 *ustack)
 	GETFROMSTACK(ustack, int, prot, 2);
 
 	/* parasoft-suppress-next-line MISRAC2012_RULE_10_3 "prot is popped from stack -> size of int stays" */
-	err = (int)vm_mprotect(proc->mapp, vaddr, len, PROT_USER | (unsigned int)prot);
+	err = vm_mprotect(proc->mapp, vaddr, len, PROT_USER | (unsigned int)prot);
 	if (err < 0) {
 		return err;
 	}

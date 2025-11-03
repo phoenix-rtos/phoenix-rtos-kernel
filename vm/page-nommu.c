@@ -39,7 +39,7 @@ static struct {
 } pages;
 
 
-static page_t *_page_alloc(size_t size, u8 flags)
+static page_t *_page_alloc(size_t size, vm_flags_t flags)
 {
 	page_t *lh = pages.freeq;
 
@@ -63,7 +63,7 @@ static page_t *_page_alloc(size_t size, u8 flags)
 }
 
 
-page_t *vm_pageAlloc(size_t size, u8 flags)
+page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
 {
 	page_t *p;
 
@@ -96,17 +96,17 @@ void _page_showPages(void)
 }
 
 
-int page_map(pmap_t *pmap, void *vaddr, addr_t pa, unsigned int attr)
+int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 {
 	page_t *ap;
 
 	(void)proc_lockSet(&pages.lock);
-	if (pmap_enter(pmap, pa, vaddr, (int)attr, NULL) < 0) {
+	if (pmap_enter(pmap, pa, vaddr, attr, NULL) < 0) {
 		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL) {
 			(void)proc_lockClear(&pages.lock);
 			return -ENOMEM;
 		}
-		(void)pmap_enter(pmap, pa, vaddr, (int)attr, ap);
+		(void)pmap_enter(pmap, pa, vaddr, attr, ap);
 	}
 	(void)proc_lockClear(&pages.lock);
 
@@ -162,7 +162,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 {
 	page_t *p;
 	const syspage_map_t *map;
-	unsigned int i;
+	size_t i;
 
 	(void)proc_lockInit(&pages.lock, &proc_lockAttrDefault, "page.nommu");
 
@@ -190,6 +190,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 
 	p = pages.freeq;
 	/* Prepare allocation queue */
+	/* TODO: i not needed here, iterate over pages.freeq once MISRA is done */
 	for (i = 0; i < pages.freeqsz; i++) {
 		p->next = p + 1;
 		p = p->next;

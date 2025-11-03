@@ -45,7 +45,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid);
 int vm_objectPut(vm_object_t *o);
 
 
-page_t *vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off_t offs);
+page_t *vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs);
 
 
 vm_object_t *vm_objectContiguous(size_t size);
