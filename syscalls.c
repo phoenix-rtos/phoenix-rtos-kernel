@@ -59,8 +59,7 @@ int syscalls_sys_mmap(void *ustack)
 {
 	void **vaddr;
 	size_t size;
-	int prot, fildes;
-	unsigned int flags;
+	int prot, fildes, flags;
 	off_t offs;
 	vm_object_t *o;
 	oid_t oid;
@@ -70,7 +69,7 @@ int syscalls_sys_mmap(void *ustack)
 	GETFROMSTACK(ustack, void **, vaddr, 0);
 	GETFROMSTACK(ustack, size_t, size, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
-	GETFROMSTACK(ustack, unsigned int, flags, 3);
+	GETFROMSTACK(ustack, int, flags, 3);
 	GETFROMSTACK(ustack, int, fildes, 4);
 	GETFROMSTACK(ustack, off_t, offs, 5);
 
@@ -462,7 +461,7 @@ int syscalls_syspageprog(void *ustack)
 		sz--;
 	}
 
-	hal_memcpy(prog->name, name, (size_t)sz);
+	hal_memcpy(prog->name, name, sz);
 	prog->name[sz] = '\0';
 
 	return EOK;
@@ -666,7 +665,6 @@ int syscalls_interrupt(void *ustack)
 	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
 		return -EFAULT;
 	}
-
 
 	res = userintr_setHandler(n, f, data, cond);
 	if (res < 0) {
@@ -1038,7 +1036,7 @@ void syscalls_sigreturn(void *ustack)
 
 	proc_longjmp(ctx);
 
-	/* Not reached */
+	__builtin_unreachable();
 }
 
 /* POSIX compatibility syscalls */
