@@ -153,7 +153,7 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 }
 
 
-int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	return 0;
 }

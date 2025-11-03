@@ -140,9 +140,9 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
-	int prot;
+	unsigned int prot;
 	u32 status;
 
 	if (n == exc_prefetch) {

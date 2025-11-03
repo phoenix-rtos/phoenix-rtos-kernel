@@ -172,7 +172,7 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
 		return hal_srmmuGetFaultSts();

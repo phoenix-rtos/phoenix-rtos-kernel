@@ -140,7 +140,7 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	unsigned int prot;
 	u32 status;
@@ -165,7 +165,7 @@ int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot |= PROT_USER;
 	}
 
-	return (int)prot;
+	return prot;
 }
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)

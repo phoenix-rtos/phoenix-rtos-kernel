@@ -19,7 +19,7 @@
 #include <arch/exceptions.h>
 
 
-extern int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
+extern unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
 
 
 extern void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx);
