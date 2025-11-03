@@ -454,7 +454,7 @@ static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 
 
 /* Function maps page at specified address */
-int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
+int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	unsigned int lvl;
 	descr_t *tt;
@@ -497,7 +497,7 @@ int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, int attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	int ret;
 	spinlock_ctx_t sc;
@@ -745,7 +745,7 @@ char pmap_marker(page_t *p)
 }
 
 
-int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
+int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, void **top)
 {
 	switch (i) {
 		case 0:

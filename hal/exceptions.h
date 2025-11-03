@@ -16,10 +16,12 @@
 #ifndef _HAL_EXCEPTIONS_H_
 #define _HAL_EXCEPTIONS_H_
 
+#include "vm/types.h"
+
 #include <arch/exceptions.h>
 
 
-unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
+vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
 
 
 void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx);

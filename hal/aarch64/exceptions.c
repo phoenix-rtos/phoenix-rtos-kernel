@@ -207,9 +207,9 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 }
 
 
-unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
-	unsigned int prot = 0;
+	vm_prot_t prot = 0;
 	u32 iss;
 
 	switch (n) {

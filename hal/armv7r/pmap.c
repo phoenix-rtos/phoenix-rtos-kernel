@@ -230,7 +230,7 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 }
 
 
-int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
+int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, void **top)
 {
 	if (i != 0U) {
 		return -1;

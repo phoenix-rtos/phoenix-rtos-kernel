@@ -49,7 +49,7 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	return 0;
 }
@@ -92,7 +92,7 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 }
 
 
-int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **top)
+int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, void **top)
 {
 	if (i != 0) {
 		return -1;

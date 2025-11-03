@@ -136,9 +136,9 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 }
 
 
-unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
+vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
-	unsigned int prot = PROT_NONE;
+	vm_prot_t prot = PROT_NONE;
 	u64 cause = ctx->scause;
 
 	(void)n;
