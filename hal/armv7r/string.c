@@ -100,7 +100,7 @@ int hal_strcmp(const char *s1, const char *s2)
 
 
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
-int hal_strncmp(const char *s1, const char *s2, unsigned int count)
+int hal_strncmp(const char *s1, const char *s2, unsigned int n)
 {
 	int res = 0;
 
@@ -124,7 +124,7 @@ int hal_strncmp(const char *s1, const char *s2, unsigned int count)
 	"3:\n\t"
 		"mov %0, #-1\n\t"
 	"4: "
-	: "+r" (res), "+r" (s1), "+r" (s2), "+r" (count)
+	: "+r" (res), "+r" (s1), "+r" (s2), "+r" (n)
 	:
 	: "r3", "r4", "memory", "cc");
 	/* clang-format on */

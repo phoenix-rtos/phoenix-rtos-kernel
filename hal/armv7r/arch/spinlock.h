@@ -22,9 +22,7 @@ typedef struct _spinlock_t {
 	const char *name;
 	struct _spinlock_t *next;
 	struct _spinlock_t *prev;
-
 	u8 lock;
-
 } __attribute__((packed)) spinlock_t;
 
 

@@ -66,16 +66,16 @@ int hal_strcmp(const char *s1, const char *s2)
 }
 
 
-int hal_strncmp(const char *s1, const char *s2, size_t count)
+int hal_strncmp(const char *s1, const char *s2, size_t n)
 {
 	const unsigned char *us1 = (const unsigned char *)s1;
 	const unsigned char *us2 = (const unsigned char *)s2;
 	size_t k;
 
-	for (k = 0; k < count && *us1 && *us2 && (*us1 == *us2); ++k, ++us1, ++us2)
+	for (k = 0; k < n && *us1 && *us2 && (*us1 == *us2); ++k, ++us1, ++us2)
 		;
 
-	if (k == count || (!*us1 && !*us2))
+	if (k == n || (!*us1 && !*us2))
 		return 0;
 
 	return (*us1 < *us2) ? -k - 1 : k + 1;

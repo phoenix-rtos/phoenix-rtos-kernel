@@ -178,7 +178,7 @@ int hal_strcmp(const char *s1, const char *s2)
 }
 
 
-int hal_strncmp(const char *s1, const char *s2, size_t count)
+int hal_strncmp(const char *s1, const char *s2, size_t n)
 {
 	int res = 0;
 
@@ -207,7 +207,7 @@ int hal_strncmp(const char *s1, const char *s2, size_t count)
 	3: \
 		mov -1, %0; \
 	4: "
-	 : "+r"(res), "+r"(s1), "+r"(s2), "+r"(count)
+	 : "+r"(res), "+r"(s1), "+r"(s2), "+r"(n)
 	 :
 	 : "g1", "g2", "memory", "cc");
 

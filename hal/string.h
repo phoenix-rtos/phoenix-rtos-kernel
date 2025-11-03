@@ -37,7 +37,7 @@ extern size_t hal_strlen(const char *s);
 extern int hal_strcmp(const char *s1, const char *s2);
 
 
-extern int hal_strncmp(const char *s1, const char *s2, size_t count);
+extern int hal_strncmp(const char *s1, const char *s2, size_t n);
 
 
 extern char *hal_strcpy(char *dest, const char *src);
