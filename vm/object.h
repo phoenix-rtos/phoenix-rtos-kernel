@@ -36,22 +36,22 @@ typedef struct _vm_object_t {
 #define VM_OBJ_PHYSMEM ((vm_object_t *)-1)
 
 
-extern vm_object_t *vm_objectRef(vm_object_t *o);
+vm_object_t *vm_objectRef(vm_object_t *o);
 
 
-extern int vm_objectGet(vm_object_t **o, oid_t oid);
+int vm_objectGet(vm_object_t **o, oid_t oid);
 
 
-extern int vm_objectPut(vm_object_t *o);
+int vm_objectPut(vm_object_t *o);
 
 
-extern page_t *vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off_t offs);
+page_t *vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, off_t offs);
 
 
-extern vm_object_t *vm_objectContiguous(size_t size);
+vm_object_t *vm_objectContiguous(size_t size);
 
 
-extern int _object_init(struct _vm_map_t *kmap, vm_object_t *kernel);
+int _object_init(struct _vm_map_t *kmap, vm_object_t *kernel);
 
 
 #endif

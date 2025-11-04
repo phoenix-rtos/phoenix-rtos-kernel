@@ -21,7 +21,7 @@
 #include "include/arch/armv8m/mcx/n94x/mcxn94x.h"
 
 
-extern void _interrupts_nvicSetPending(s8 irqn);
+void _interrupts_nvicSetPending(s8 irqn);
 
 
 /* clang-format off */

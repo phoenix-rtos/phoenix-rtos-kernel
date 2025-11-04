@@ -17,7 +17,7 @@
 #define _TEST_RB_H_
 
 
-extern void test_rb(void);
+void test_rb(void);
 
 
 #endif

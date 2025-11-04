@@ -20,7 +20,7 @@
 
 #include "include/errno.h"
 
-extern void _end(void);
+void _end(void);
 
 
 struct _fdt_header_t {

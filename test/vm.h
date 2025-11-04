@@ -23,19 +23,19 @@ struct _vm_map_t;
 struct _vm_object_t;
 
 
-extern void test_vm_alloc(void);
+void test_vm_alloc(void);
 
 
-extern void test_vm_mmap(void);
+void test_vm_mmap(void);
 
 
-extern void test_vm_zalloc(void);
+void test_vm_zalloc(void);
 
 
-extern void test_vm_kmalloc(void);
+void test_vm_kmalloc(void);
 
 
-extern void test_vm_kmallocsim(void);
+void test_vm_kmallocsim(void);
 
 
 #endif

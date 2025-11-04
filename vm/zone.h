@@ -36,19 +36,19 @@ typedef struct _vm_zone_t {
 } vm_zone_t;
 
 
-extern int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks);
+int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks);
 
 
-extern int _vm_zoneDestroy(vm_zone_t *zone);
+int _vm_zoneDestroy(vm_zone_t *zone);
 
 
-extern void *_vm_zalloc(vm_zone_t *zone, addr_t *addr);
+void *_vm_zalloc(vm_zone_t *zone, addr_t *addr);
 
 
-extern void _vm_zfree(vm_zone_t *zone, void *block);
+void _vm_zfree(vm_zone_t *zone, void *block);
 
 
-extern void _zone_init(vm_map_t *map, vm_object_t *kernel, void **bss, void **top);
+void _zone_init(vm_map_t *map, vm_object_t *kernel, void **bss, void **top);
 
 
 #endif

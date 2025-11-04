@@ -89,7 +89,7 @@ static struct {
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 void _hal_interruptsInitPerCPU(void);
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 /* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */

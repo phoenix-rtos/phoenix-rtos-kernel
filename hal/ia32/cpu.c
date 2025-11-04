@@ -30,7 +30,7 @@
 #include <arch/tlb.h>
 
 
-extern void hal_timerInitCore(const unsigned int id);
+void hal_timerInitCore(const unsigned int id);
 
 
 struct cpu_feature_t {
@@ -70,7 +70,7 @@ static const struct cpu_feature_t cpufeatures[] = {
 };
 
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 hal_cpu_t cpu;

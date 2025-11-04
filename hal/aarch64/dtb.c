@@ -21,7 +21,7 @@
 
 #include "include/errno.h"
 
-extern void _end(void);
+void _end(void);
 
 
 #define STR_AND_LEN(x) x, (sizeof(x) - 1)

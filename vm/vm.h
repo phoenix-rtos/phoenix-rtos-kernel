@@ -26,11 +26,11 @@
 #include "amap.h"
 
 
-extern void vm_meminfo(meminfo_t *info);
+void vm_meminfo(meminfo_t *info);
 
 
 /* Function initializes virtual memory manager */
-extern void _vm_init(vm_map_t *kmap, vm_object_t *kernel);
+void _vm_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
 #endif

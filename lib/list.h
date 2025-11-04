@@ -19,13 +19,13 @@
 #include "lib/lib.h"
 
 
-extern void lib_listAdd(void **list, void *t, size_t noff, size_t poff);
+void lib_listAdd(void **list, void *t, size_t noff, size_t poff);
 
 
-extern void lib_listRemove(void **list, void *t, size_t noff, size_t poff);
+void lib_listRemove(void **list, void *t, size_t noff, size_t poff);
 
 
-extern int lib_listBelongs(void **list, void *t, size_t noff, size_t poff);
+int lib_listBelongs(void **list, void *t, size_t noff, size_t poff);
 
 /* parasoft-begin-suppress MISRAC2012-RULE_20_7-a "typeof is built-in function and handles it arguments safely" */
 #define LIST_ADD_EX(list, t, next, prev) \

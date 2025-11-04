@@ -23,7 +23,7 @@
 #include "include/errno.h"
 
 
-extern void _interrupts_nvicSystemReset(void);
+void _interrupts_nvicSystemReset(void);
 
 
 /* clang-format off */

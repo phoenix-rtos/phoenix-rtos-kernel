@@ -21,19 +21,19 @@
 
 #include <stdarg.h>
 
-extern int lib_sprintf(char *out, const char *format, ...);
+int lib_sprintf(char *out, const char *format, ...);
 
 
-extern int lib_vsprintf(char *out, const char *format, va_list args);
+int lib_vsprintf(char *out, const char *format, va_list args);
 
 
-extern void lib_printf(const char *format, ...);
+void lib_printf(const char *format, ...);
 
 
-extern int lib_vprintf(const char *format, va_list ap);
+int lib_vprintf(const char *format, va_list ap);
 
 
-extern void lib_putch(char s);
+void lib_putch(char s);
 
 
 #endif

@@ -28,7 +28,7 @@ static struct {
 } hal_exception_common;
 
 
-extern void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *));
+void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *));
 
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)

@@ -34,12 +34,7 @@ struct stackArg {
 	size_t sz;
 };
 
-/* parasoft-begin-suppress MISRAC2012-RULE_1_5 MISRAC2012-RULE_8_8
- * "Depending on the architecture it may be beneficial to static inline
- * implementation of those usually small functions, the extern however
- * needs to stay in order for the code to be portable between different
- * approaches to implementation"
- */
+/* parasoft-begin-suppress MISRAC2012-RULE_1_5 MISRAC2012-RULE_8_8 "Implementations are arch-specific and often static-inlined in headers for performance reasons" */
 
 /* interrupts */
 

@@ -20,13 +20,13 @@
 #ifdef HAL_CONSOLE_VGA
 
 
-extern void hal_consoleVGAPrint(int, const char *);
+void hal_consoleVGAPrint(int, const char *);
 
 
-extern void hal_consoleVGAPutch(char);
+void hal_consoleVGAPutch(char);
 
 
-extern void _hal_consoleVGAInit(void);
+void _hal_consoleVGAInit(void);
 
 
 #endif
@@ -35,13 +35,13 @@ extern void _hal_consoleVGAInit(void);
 #ifdef HAL_CONSOLE_SERIAL
 
 
-extern void hal_consoleSerialPrint(int, const char *);
+void hal_consoleSerialPrint(int, const char *);
 
 
-extern void hal_consoleSerialPutch(char);
+void hal_consoleSerialPutch(char);
 
 
-extern void _hal_consoleSerialInit(void);
+void _hal_consoleSerialInit(void);
 
 
 #endif

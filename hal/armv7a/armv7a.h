@@ -43,73 +43,73 @@ static inline void hal_cpuInstrBarrier(void)
 
 
 /* Invalidate entire branch predictor array */
-extern void hal_cpuBranchInval(void);
+void hal_cpuBranchInval(void);
 
 
 /* Invalidate all instruction caches to PoU. Also flushes branch target cache */
-extern void hal_cpuICacheInval(void);
+void hal_cpuICacheInval(void);
 
 
 /* Clean Data or Unified cache line by MVA to PoC */
-extern void hal_cpuCleanDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuCleanDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Invalidate Data or Unified cache line by MVA to PoC */
-extern void hal_cpuInvalDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuInvalDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Clean and Invalidate Data or Unified cache line by MVA to PoC */
-extern void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Invalidate TLB entries by ASID Match */
-extern void hal_cpuInvalASID(u8 asid);
+void hal_cpuInvalASID(u8 asid);
 
 
 /* Invalidate Unified TLB by MVA */
-extern void hal_cpuInvalVA(ptr_t vaddr);
+void hal_cpuInvalVA(ptr_t vaddr);
 
 
 /* Invalidate entire Unified TLB*/
-extern void hal_cpuInvalTLB(void);
+void hal_cpuInvalTLB(void);
 
 
 /* Invalidate TLB entries by ASID Match on all cores in Inner Shareable domain */
-extern void hal_cpuInvalASID_IS(u8 asid);
+void hal_cpuInvalASID_IS(u8 asid);
 
 
 /* Invalidate Unified TLB by MVA on all cores in Inner Shareable domain */
-extern void hal_cpuInvalVA_IS(ptr_t vaddr);
+void hal_cpuInvalVA_IS(ptr_t vaddr);
 
 
 /* Invalidate entire Unified TLB on all cores in Inner Shareable domain */
-extern void hal_cpuInvalTLB_IS(void);
+void hal_cpuInvalTLB_IS(void);
 
 
 /* Read Translation Table Base Register 0 with properties */
-extern addr_t hal_cpuGetTTBR0(void);
+addr_t hal_cpuGetTTBR0(void);
 
 
 /* Set Translation Table Base Register 0 with properties */
-extern void hal_cpuSetTTBR0(addr_t ttbr0);
+void hal_cpuSetTTBR0(addr_t ttbr0);
 
 
 /* Set ContextID = Process ID (pmap->pdir) and ASID */
-extern void hal_cpuSetContextId(u32 id);
+void hal_cpuSetContextId(u32 id);
 
 
 /* Get ContextID = Process ID (pmap->pdir) and ASID */
-extern u32 hal_cpuGetContextId(void);
+u32 hal_cpuGetContextId(void);
 
 
 /* Core Management */
 
-extern u32 hal_cpuGetMIDR(void);
+u32 hal_cpuGetMIDR(void);
 
 
-extern u32 hal_cpuGetPFR0(void);
+u32 hal_cpuGetPFR0(void);
 
 
-extern u32 hal_cpuGetPFR1(void);
+u32 hal_cpuGetPFR1(void);
 
 #endif

@@ -16,12 +16,12 @@
 #ifndef _TEST_DDR_H_
 #define _TEST_DDR_H_
 
-extern int test_ddrAccessibility(uint32_t address, int size);
+int test_ddrAccessibility(uint32_t address, int size);
 
-extern int test_ddrBitCrossTalk(uint32_t address, int size);
+int test_ddrBitCrossTalk(uint32_t address, int size);
 
-extern int test_ddrBitChargeLeakage(uint32_t address, int size);
+int test_ddrBitChargeLeakage(uint32_t address, int size);
 
-extern int test_ddrFullMemtest(uint32_t address, int size, int iterations);
+int test_ddrFullMemtest(uint32_t address, int size, int iterations);
 
 #endif

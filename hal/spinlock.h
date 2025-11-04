@@ -19,19 +19,19 @@
 #include <arch/spinlock.h>
 
 
-extern void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc);
+void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc);
 
 
-extern void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc);
+void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc);
 
 
-extern void hal_spinlockCreate(spinlock_t *spinlock, const char *name);
+void hal_spinlockCreate(spinlock_t *spinlock, const char *name);
 
 
-extern void hal_spinlockDestroy(spinlock_t *spinlock);
+void hal_spinlockDestroy(spinlock_t *spinlock);
 
 
-extern void _hal_spinlockInit(void);
+void _hal_spinlockInit(void);
 
 
 #endif

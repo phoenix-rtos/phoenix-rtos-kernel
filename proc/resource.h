@@ -41,24 +41,24 @@ typedef struct _resource_t {
 } resource_t;
 
 
-extern int resource_alloc(process_t *process, resource_t *r);
+int resource_alloc(process_t *process, resource_t *r);
 
 
-extern resource_t *resource_get(process_t *process, int id);
+resource_t *resource_get(process_t *process, int id);
 
 
-extern unsigned int resource_put(process_t *process, resource_t *r);
+unsigned int resource_put(process_t *process, resource_t *r);
 
 
-extern int proc_resourceDestroy(process_t *process, int id);
+int proc_resourceDestroy(process_t *process, int id);
 
 
-extern void proc_resourcesDestroy(process_t *process);
+void proc_resourcesDestroy(process_t *process);
 
 
-extern int proc_resourcesCopy(process_t *source);
+int proc_resourcesCopy(process_t *source);
 
 
-extern void _resource_init(process_t *process);
+void _resource_init(process_t *process);
 
 #endif

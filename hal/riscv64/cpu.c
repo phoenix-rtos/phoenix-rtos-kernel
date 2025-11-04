@@ -35,7 +35,7 @@ static struct {
 } cpu_common;
 
 
-extern void hal_timerInitCore(void);
+void hal_timerInitCore(void);
 
 
 /* bit operations */

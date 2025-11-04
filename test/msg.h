@@ -17,7 +17,7 @@
 #define _TEST_MSG_H_
 
 
-extern void test_msg(void);
+void test_msg(void);
 
 
 #endif

@@ -3,6 +3,6 @@
 
 
 /* Function testing fpu context switching */
-extern void test_fpuContextSwitching(void);
+void test_fpuContextSwitching(void);
 
 #endif

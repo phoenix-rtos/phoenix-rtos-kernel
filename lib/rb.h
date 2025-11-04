@@ -53,34 +53,34 @@ typedef struct _rbtree_t {
 } rbtree_t;
 
 
-extern void lib_rbInit(rbtree_t *tree, rbcomp_t compare, rbaugment_t augment);
+void lib_rbInit(rbtree_t *tree, rbcomp_t compare, rbaugment_t augment);
 
 
-extern int lib_rbInsert(rbtree_t *tree, rbnode_t *node);
+int lib_rbInsert(rbtree_t *tree, rbnode_t *node);
 
 
-extern void lib_rbRemove(rbtree_t *tree, rbnode_t *node);
+void lib_rbRemove(rbtree_t *tree, rbnode_t *node);
 
 
-extern rbnode_t *lib_rbMinimum(rbnode_t *node);
+rbnode_t *lib_rbMinimum(rbnode_t *node);
 
 
-extern rbnode_t *lib_rbMaximum(rbnode_t *node);
+rbnode_t *lib_rbMaximum(rbnode_t *node);
 
 
-extern rbnode_t *lib_rbPrev(rbnode_t *node);
+rbnode_t *lib_rbPrev(rbnode_t *node);
 
 
-extern rbnode_t *lib_rbNext(rbnode_t *node);
+rbnode_t *lib_rbNext(rbnode_t *node);
 
 
-extern rbnode_t *lib_rbFind(rbtree_t *tree, rbnode_t *node);
+rbnode_t *lib_rbFind(rbtree_t *tree, rbnode_t *node);
 
 
-extern rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare);
+rbnode_t *lib_rbFindEx(rbnode_t *root, rbnode_t *node, rbcomp_t compare);
 
 
-extern void lib_rbDump(rbnode_t *node, rbdump_t dump);
+void lib_rbDump(rbnode_t *node, rbdump_t dump);
 
 
 #endif

@@ -19,16 +19,16 @@
 #include "include/arch/ia32/ia32.h"
 
 
-extern int hal_pciSetUsbOwnership(pci_usbownership_t *usbownership);
+int hal_pciSetUsbOwnership(pci_usbownership_t *usbownership);
 
 
-extern int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps);
+int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps);
 
 
-extern int hal_pciSetConfigOption(pci_pcicfg_t *pcicfg);
+int hal_pciSetConfigOption(pci_pcicfg_t *pcicfg);
 
 
-extern void _hal_pciInit(void);
+void _hal_pciInit(void);
 
 
 #endif

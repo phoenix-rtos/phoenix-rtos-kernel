@@ -51,7 +51,7 @@ static struct {
 } interrupts_common;
 
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 static int interrupts_dispatchPlic(cpu_context_t *ctx)
@@ -235,7 +235,7 @@ char *hal_interruptsFeatures(char *features, unsigned int len)
 }
 
 
-extern void _interrupts_dispatch(void *);
+void _interrupts_dispatch(void *);
 
 
 void hal_interruptsInitCore(void)

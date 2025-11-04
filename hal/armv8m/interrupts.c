@@ -29,7 +29,7 @@ static struct {
 } interrupts;
 
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)

@@ -26,22 +26,22 @@ typedef struct _mutex_t {
 } mutex_t;
 
 
-extern mutex_t *mutex_get(int h);
+mutex_t *mutex_get(int h);
 
 
-extern void mutex_put(mutex_t *mutex);
+void mutex_put(mutex_t *mutex);
 
 
-extern int proc_mutexLock(int h);
+int proc_mutexLock(int h);
 
 
-extern int proc_mutexTry(int h);
+int proc_mutexTry(int h);
 
 
-extern int proc_mutexUnlock(int h);
+int proc_mutexUnlock(int h);
 
 
-extern int proc_mutexCreate(const struct lockAttr *attr);
+int proc_mutexCreate(const struct lockAttr *attr);
 
 
 #endif

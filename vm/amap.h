@@ -37,28 +37,28 @@ typedef struct _amap_t {
 } amap_t;
 
 
-extern page_t *amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, int aoffs, off_t offs, unsigned int prot);
+page_t *amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, int aoffs, off_t offs, unsigned int prot);
 
 
-extern void amap_clear(amap_t *amap, size_t offset, size_t size);
+void amap_clear(amap_t *amap, size_t offset, size_t size);
 
 
-extern void amap_putanons(amap_t *amap, int offset, int size);
+void amap_putanons(amap_t *amap, int offset, int size);
 
 
-extern void amap_getanons(amap_t *amap, int offset, int size);
+void amap_getanons(amap_t *amap, int offset, int size);
 
 
-extern amap_t *amap_create(amap_t *amap, int *offset, size_t size);
+amap_t *amap_create(amap_t *amap, int *offset, size_t size);
 
 
-extern void amap_put(amap_t *amap);
+void amap_put(amap_t *amap);
 
 
-extern amap_t *amap_ref(amap_t *amap);
+amap_t *amap_ref(amap_t *amap);
 
 
-extern void _amap_init(struct _vm_map_t *kmap, struct _vm_object_t *kernel);
+void _amap_init(struct _vm_map_t *kmap, struct _vm_object_t *kernel);
 
 
 #endif
