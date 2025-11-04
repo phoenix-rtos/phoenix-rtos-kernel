@@ -18,11 +18,9 @@
 #include "proc.h"
 #include "vm/vm.h"
 
-
-enum { msg_rejected = -1,
-	msg_waiting = 0,
-	msg_received,
-	msg_responded };
+/* clang-format off */
+enum { msg_rejected = -1, msg_waiting = 0, msg_received, msg_responded };
+/* clang-format on */
 
 
 static struct {
@@ -38,7 +36,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg_t kmsg;
 	thread_t *sender;
 	spinlock_ctx_t sc;
-	int state_tmp;
+	int state;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -64,19 +62,18 @@ int proc_send(u32 port, msg_t *msg)
 		LIST_ADD(&p->kmessages, &kmsg);
 		(void)proc_threadWakeup(&p->threads);
 
-		/* TODO: If any test fails, revert this change and suppress MISRA Rule 13.5 */
-		state_tmp = kmsg.state;
-		while ((state_tmp != msg_responded) && (state_tmp != msg_rejected)) {
+		state = kmsg.state;
+		while ((state != msg_responded) && (state != msg_rejected)) {
 			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
 
-			state_tmp = kmsg.state;
-			if ((err != EOK) && (state_tmp == msg_waiting)) {
+			state = kmsg.state;
+			if ((err != EOK) && (state == msg_waiting)) {
 				LIST_REMOVE(&p->kmessages, &kmsg);
 				break;
 			}
 		}
 
-		switch (kmsg.state) {
+		switch (state) {
 			case msg_responded:
 				err = EOK; /* Don't report EINTR if we got the response already */
 				break;
@@ -207,7 +204,6 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 {
 	port_t *p;
-	int s = 0;
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
 	thread_t *current = proc_current();
@@ -241,7 +237,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
 
-	return s;
+	return EOK;
 }
 
 

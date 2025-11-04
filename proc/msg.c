@@ -37,14 +37,15 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 {
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
+	u64 bone, eone;
 	unsigned int n = 0, i, attr, prot;
 	page_t *nep = NULL, *nbp = NULL;
 	vm_map_t *srcmap, *dstmap;
 	struct _kmsg_layout_t *ml = dir ? &kmsg->o : &kmsg->i;
-	unsigned int flags;
+	int flags;
 	addr_t bpa, pa, epa;
 
-	if ((size == 0) || (data == NULL)) {
+	if ((size == 0U) || (data == NULL)) {
 		return NULL;
 	}
 
@@ -61,28 +62,31 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		prot |= PROT_USER;
 	}
 
-	boffs = (ptr_t)data & (SIZE_PAGE - 1);
+	boffs = (ptr_t)data & (SIZE_PAGE - 1U);
 
 	if (FLOOR((ptr_t)data + size) > CEIL((ptr_t)data)) {
 		n = (FLOOR((ptr_t)data + size) - CEIL((ptr_t)data)) / SIZE_PAGE;
 	}
 
-	if ((boffs != 0) && (FLOOR((ptr_t)data) == FLOOR((ptr_t)data + size))) {
+	if ((boffs != 0U) && (FLOOR((ptr_t)data) == FLOOR((ptr_t)data + size))) {
 		/* Data is on one page only and will be copied by boffs handler */
-		eoffs = 0;
+		eoffs = 0U;
 	}
 	else {
-		eoffs = ((ptr_t)data + size) & (SIZE_PAGE - 1);
+		eoffs = ((ptr_t)data + size) & (SIZE_PAGE - 1U);
 	}
+
+	bone = (boffs != 0U) ? 1U : 0U;
+	eone = (eoffs != 0U) ? 1U : 0U;
 
 	srcmap = (from == NULL) ? msg_common.kmap : from->mapp;
 	dstmap = (to == NULL) ? msg_common.kmap : to->mapp;
 
-	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0)) {
+	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0U)) {
 		return data;
 	}
 
-	w = vm_mapFind(dstmap, NULL, (((boffs != 0) ? 1 : 0) + ((eoffs != 0) ? 1 : 0) + n) * SIZE_PAGE, MAP_NOINHERIT, prot);
+	w = vm_mapFind(dstmap, NULL, (bone + eone + n) * SIZE_PAGE, MAP_NOINHERIT, prot);
 	ml->w = w;
 	if (w == NULL) {
 		return NULL;
@@ -101,9 +105,9 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 	attr |= vm_flagsToAttr(flags);
 
-	if (boffs > 0) {
+	if (boffs > 0U) {
 		ml->boffs = boffs;
-		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1);
+		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
 
 		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 		ml->bp = nbp;
@@ -133,8 +137,8 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	vaddr = (void *)CEIL((ptr_t)data);
 
 	for (i = 0; i < n; i++, vaddr += SIZE_PAGE) {
-		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1);
-		if (page_map(&dstmap->pmap, w + (i + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, pa, attr) < 0) {
+		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
+		if (page_map(&dstmap->pmap, w + (i + bone) * SIZE_PAGE, pa, attr) < 0) {
 			return NULL;
 		}
 	}
@@ -142,9 +146,9 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	if (eoffs) {
 		ml->eoffs = eoffs;
 		vaddr = (void *)FLOOR((ptr_t)data + size);
-		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1);
+		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
 
-		if ((boffs == 0) || (eoffs >= boffs)) {
+		if ((boffs == 0U) || (eoffs >= boffs)) {
 			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 			ml->ep = nep;
 			if (nep == NULL) {
@@ -162,13 +166,13 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		}
 
 		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, nep->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
+		if (page_map(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
 			return NULL;
 		}
 
-		hal_memcpy(w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, vaddr, eoffs);
+		hal_memcpy(w + (n + bone) * SIZE_PAGE, vaddr, eoffs);
 
-		if (page_map(&dstmap->pmap, w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, nep->addr, attr) < 0) {
+		if (page_map(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep->addr, attr) < 0) {
 			return NULL;
 		}
 	}
@@ -188,7 +192,7 @@ static void msg_release(kmsg_t *kmsg)
 		kmsg->i.bp = NULL;
 	}
 
-	if (kmsg->i.eoffs != 0) {
+	if (kmsg->i.eoffs != 0U) {
 		if (kmsg->i.ep != NULL) {
 			vm_pageFree(kmsg->i.ep);
 		}
@@ -345,6 +349,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg_t kmsg;
 	thread_t *sender;
 	spinlock_ctx_t sc;
+	int state;
 
 	/* TODO - check if msg pointer belongs to user vm_map */
 	if (msg == NULL) {
@@ -377,17 +382,18 @@ int proc_send(u32 port, msg_t *msg)
 		LIST_ADD(&p->kmessages, &kmsg);
 		proc_threadWakeup(&p->threads);
 
-		while ((kmsg.state != msg_responded) && (kmsg.state != msg_rejected)) {
-
+		state = kmsg.state;
+		while ((state != msg_responded) && (state != msg_rejected)) {
 			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
 
-			if ((err != EOK) && (kmsg.state == msg_waiting)) {
+			state = kmsg.state;
+			if ((err != EOK) && (state == msg_waiting)) {
 				LIST_REMOVE(&p->kmessages, &kmsg);
 				break;
 			}
 		}
 
-		switch (kmsg.state) {
+		switch (state) {
 			case msg_responded:
 				err = EOK; /* Don't report EINTR if we got the response already */
 				break;

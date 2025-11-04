@@ -57,7 +57,7 @@ port_t *proc_portGet(u32 id)
 	port_t *port;
 	spinlock_ctx_t sc;
 
-	if (id > (u32)MAX_ID) {
+	if (id > MAX_ID) {
 		return NULL;
 	}
 
