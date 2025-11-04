@@ -33,31 +33,31 @@ enum { scb_actlr = 2, scb_cpuid = 832, scb_icsr, scb_vtor, scb_aircr, scb_scr, s
 /* clang-format on */
 
 
-extern int hal_platformctl(void *);
+int hal_platformctl(void *);
 
 
-extern int _nrf91_systickInit(u32 interval);
+int _nrf91_systickInit(u32 interval);
 
 
-extern int _nrf91_gpioConfig(u8 pin, u8 dir, u8 pull);
+int _nrf91_gpioConfig(u8 pin, u8 dir, u8 pull);
 
 
-extern int _nrf91_gpioSet(u8 pin, u8 val);
+int _nrf91_gpioSet(u8 pin, u8 val);
 
 
-extern void _nrf91_scbSetPriorityGrouping(u32 group);
+void _nrf91_scbSetPriorityGrouping(u32 group);
 
 
-extern u32 _nrf91_scbGetPriorityGrouping(void);
+u32 _nrf91_scbGetPriorityGrouping(void);
 
 
-extern void _nrf91_scbSetPriority(s8 excpn, u32 priority);
+void _nrf91_scbSetPriority(s8 excpn, u32 priority);
 
 
-extern u32 _nrf91_scbGetPriority(s8 excpn);
+u32 _nrf91_scbGetPriority(s8 excpn);
 
 
-extern unsigned int _nrf91_cpuid(void);
+unsigned int _nrf91_cpuid(void);
 
 
 #endif

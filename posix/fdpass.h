@@ -30,12 +30,12 @@ typedef struct fdpack_s {
 } fdpack_t;
 
 
-extern int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen);
+int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen);
 
 
-extern int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen);
+int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen);
 
 
-extern int fdpass_discard(fdpack_t **packs);
+int fdpass_discard(fdpack_t **packs);
 
 #endif

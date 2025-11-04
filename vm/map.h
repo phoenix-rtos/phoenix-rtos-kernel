@@ -73,61 +73,61 @@ typedef struct _map_entry_t {
 } map_entry_t;
 
 
-extern void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot);
+void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot);
 
 
-extern void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
+void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
 
 
-extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
+void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
 
 
-extern int vm_mapForce(vm_map_t *map, void *paddr, unsigned int prot);
+int vm_mapForce(vm_map_t *map, void *paddr, unsigned int prot);
 
 
-extern int vm_mapFlags(vm_map_t *map, void *vaddr);
+int vm_mapFlags(vm_map_t *map, void *vaddr);
 
 
-extern int vm_lockVerify(vm_map_t *map, struct _amap_t **amap, struct _vm_object_t *o, void *vaddr, off_t offs);
+int vm_lockVerify(vm_map_t *map, struct _amap_t **amap, struct _vm_object_t *o, void *vaddr, off_t offs);
 
 
-extern int vm_munmap(vm_map_t *map, void *vaddr, size_t size);
+int vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 
 
-extern int _vm_munmap(vm_map_t *map, void *vaddr, size_t size);
+int _vm_munmap(vm_map_t *map, void *vaddr, size_t size);
 
 
 int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot);
 
 
-extern void vm_mapDump(vm_map_t *map);
+void vm_mapDump(vm_map_t *map);
 
 
-extern unsigned int vm_flagsToAttr(unsigned int flags);
+unsigned int vm_flagsToAttr(unsigned int flags);
 
 
-extern int vm_mapCreate(vm_map_t *map, void *start, void *stop);
+int vm_mapCreate(vm_map_t *map, void *start, void *stop);
 
 
-extern int vm_mapCopy(struct _process_t *proc, vm_map_t *dst, vm_map_t *src);
+int vm_mapCopy(struct _process_t *proc, vm_map_t *dst, vm_map_t *src);
 
 
-extern void vm_mapDestroy(struct _process_t *p, vm_map_t *map);
+void vm_mapDestroy(struct _process_t *p, vm_map_t *map);
 
 
-extern void vm_mapGetStats(size_t *allocsz);
+void vm_mapGetStats(size_t *allocsz);
 
 
-extern void vm_mapinfo(meminfo_t *info);
+void vm_mapinfo(meminfo_t *info);
 
 
-extern vm_map_t *vm_getSharedMap(int map);
+vm_map_t *vm_getSharedMap(int map);
 
 
-extern int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);
+int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);
 
 
-extern int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **bss, void **top);
+int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **bss, void **top);
 
 
 #endif

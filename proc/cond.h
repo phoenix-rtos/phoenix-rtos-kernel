@@ -27,22 +27,22 @@ typedef struct _cond_t {
 } cond_t;
 
 
-extern void cond_put(cond_t *cond);
+void cond_put(cond_t *cond);
 
 
-extern cond_t *cond_get(int c);
+cond_t *cond_get(int c);
 
 
-extern int proc_condCreate(const struct condAttr *attr);
+int proc_condCreate(const struct condAttr *attr);
 
 
-extern int proc_condWait(int c, int m, time_t timeout);
+int proc_condWait(int c, int m, time_t timeout);
 
 
-extern int proc_condSignal(int c);
+int proc_condSignal(int c);
 
 
-extern int proc_condBroadcast(int c);
+int proc_condBroadcast(int c);
 
 
 #endif

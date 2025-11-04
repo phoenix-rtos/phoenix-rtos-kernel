@@ -74,7 +74,7 @@ static const u8 spiConf[] = {
 
 void _hal_interruptsInitPerCPU(void);
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 extern unsigned int _end;
 

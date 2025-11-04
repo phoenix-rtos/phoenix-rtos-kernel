@@ -29,12 +29,12 @@
 /* clang-format on */
 
 
-extern void hal_consolePrint(int attr, const char *s);
+void hal_consolePrint(int attr, const char *s);
 
 
-extern void hal_consolePutch(char c);
+void hal_consolePutch(char c);
 
 
-extern void _hal_consoleInit(void);
+void _hal_consoleInit(void);
 
 #endif

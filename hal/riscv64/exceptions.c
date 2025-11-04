@@ -174,7 +174,7 @@ inline ptr_t hal_exceptionsPC(exc_context_t *ctx)
 }
 
 
-extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
+void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)

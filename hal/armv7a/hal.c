@@ -26,7 +26,7 @@ unsigned int relOffs;
 u32 schedulerLocked = 0;
 
 
-extern void _hal_cpuInit(void);
+void _hal_cpuInit(void);
 
 
 void *hal_syspageRelocate(void *data)

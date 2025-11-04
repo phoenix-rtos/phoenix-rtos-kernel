@@ -52,7 +52,7 @@ enum { fpu_cpacr = 34, fpu_fpccr = 141, fpu_fpcar, fpu_fpdscr };
 /* clang-format on */
 
 
-extern void _interrupts_nvicSystemReset(void);
+void _interrupts_nvicSystemReset(void);
 
 
 /* platformctl syscall */

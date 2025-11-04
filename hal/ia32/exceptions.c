@@ -26,39 +26,39 @@
 
 
 /* Exception stubs */
-extern void _exceptions_exc0(void);
-extern void _exceptions_exc1(void);
-extern void _exceptions_exc2(void);
-extern void _exceptions_exc3(void);
-extern void _exceptions_exc4(void);
-extern void _exceptions_exc5(void);
-extern void _exceptions_exc6(void);
-extern void _exceptions_exc7(void);
-extern void _exceptions_exc8(void);
-extern void _exceptions_exc9(void);
-extern void _exceptions_exc10(void);
-extern void _exceptions_exc11(void);
-extern void _exceptions_exc12(void);
-extern void _exceptions_exc13(void);
-extern void _exceptions_exc14(void);
-extern void _exceptions_exc15(void);
-extern void _exceptions_exc16(void);
-extern void _exceptions_exc17(void);
-extern void _exceptions_exc18(void);
-extern void _exceptions_exc19(void);
-extern void _exceptions_exc20(void);
-extern void _exceptions_exc21(void);
-extern void _exceptions_exc22(void);
-extern void _exceptions_exc23(void);
-extern void _exceptions_exc24(void);
-extern void _exceptions_exc25(void);
-extern void _exceptions_exc26(void);
-extern void _exceptions_exc27(void);
-extern void _exceptions_exc28(void);
-extern void _exceptions_exc29(void);
-extern void _exceptions_exc30(void);
-extern void _exceptions_exc31(void);
-extern void exceptions_exc7_handler(unsigned int n, exc_context_t *ctx);
+void _exceptions_exc0(void);
+void _exceptions_exc1(void);
+void _exceptions_exc2(void);
+void _exceptions_exc3(void);
+void _exceptions_exc4(void);
+void _exceptions_exc5(void);
+void _exceptions_exc6(void);
+void _exceptions_exc7(void);
+void _exceptions_exc8(void);
+void _exceptions_exc9(void);
+void _exceptions_exc10(void);
+void _exceptions_exc11(void);
+void _exceptions_exc12(void);
+void _exceptions_exc13(void);
+void _exceptions_exc14(void);
+void _exceptions_exc15(void);
+void _exceptions_exc16(void);
+void _exceptions_exc17(void);
+void _exceptions_exc18(void);
+void _exceptions_exc19(void);
+void _exceptions_exc20(void);
+void _exceptions_exc21(void);
+void _exceptions_exc22(void);
+void _exceptions_exc23(void);
+void _exceptions_exc24(void);
+void _exceptions_exc25(void);
+void _exceptions_exc26(void);
+void _exceptions_exc27(void);
+void _exceptions_exc28(void);
+void _exceptions_exc29(void);
+void _exceptions_exc30(void);
+void _exceptions_exc31(void);
+void exceptions_exc7_handler(unsigned int n, exc_context_t *ctx);
 
 #define SIZE_EXCHANDLERS   32
 

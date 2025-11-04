@@ -44,33 +44,33 @@ static inline void hal_cpuInstrBarrier(void)
 
 
 /* Invalidate entire branch predictor array */
-extern void hal_cpuBranchInval(void);
+void hal_cpuBranchInval(void);
 
 
 /* Invalidate all instruction caches to PoU. Also flushes branch target cache */
-extern void hal_cpuICacheInval(void);
+void hal_cpuICacheInval(void);
 
 
 /* Clean Data or Unified cache line by MVA to PoC */
-extern void hal_cpuCleanDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuCleanDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Invalidate Data or Unified cache line by MVA to PoC */
-extern void hal_cpuInvalDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuInvalDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Clean and Invalidate Data or Unified cache line by MVA to PoC */
-extern void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Core Management */
 
-extern u32 hal_cpuGetMIDR(void);
+u32 hal_cpuGetMIDR(void);
 
 
-extern u32 hal_cpuGetPFR0(void);
+u32 hal_cpuGetPFR0(void);
 
 
-extern u32 hal_cpuGetPFR1(void);
+u32 hal_cpuGetPFR1(void);
 
 #endif

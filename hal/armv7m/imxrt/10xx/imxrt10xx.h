@@ -54,151 +54,151 @@ enum { clk_div_arm = 0, clk_div_periphclk2, clk_div_semc, clk_div_ahb, clk_div_i
 enum { clk_mode_run = 0, clk_mode_wait, clk_mode_stop };
 
 
-extern int hal_platformctl(void *ptr);
+int hal_platformctl(void *ptr);
 
 
-extern void _imxrt_ccmInitExterlnalClk(void);
+void _imxrt_ccmInitExterlnalClk(void);
 
 
-extern void _imxrt_ccmDeinitExternalClk(void);
+void _imxrt_ccmDeinitExternalClk(void);
 
 
-extern void _imxrt_ccmSwitchOsc(int osc);
+void _imxrt_ccmSwitchOsc(int osc);
 
 
-extern void _imxrt_ccmInitRcOsc24M(void);
+void _imxrt_ccmInitRcOsc24M(void);
 
 
-extern void _imxrt_ccmDeinitRcOsc24M(void);
+void _imxrt_ccmDeinitRcOsc24M(void);
 
 
-extern u32 _imxrt_ccmGetFreq(int name);
+u32 _imxrt_ccmGetFreq(int name);
 
 
-extern u32 _imxrt_ccmGetOscFreq(void);
+u32 _imxrt_ccmGetOscFreq(void);
 
 
-extern void _imxrt_ccmSetOscFreq(u32 freq);
+void _imxrt_ccmSetOscFreq(u32 freq);
 
 
-extern void _imxrt_ccmInitArmPll(u32 div);
+void _imxrt_ccmInitArmPll(u32 div);
 
 
-extern void _imxrt_ccmDeinitArmPll(void);
+void _imxrt_ccmDeinitArmPll(void);
 
 
-extern void _imxrt_ccmInitSysPll(u8 div);
+void _imxrt_ccmInitSysPll(u8 div);
 
 
-extern void _imxrt_ccmDeinitSysPll(void);
+void _imxrt_ccmDeinitSysPll(void);
 
 
-extern void _imxrt_ccmInitUsb1Pll(u8 div);
+void _imxrt_ccmInitUsb1Pll(u8 div);
 
 
-extern void _imxrt_ccmDeinitUsb1Pll(void);
+void _imxrt_ccmDeinitUsb1Pll(void);
 
 
-extern void _imxrt_ccmInitUsb2Pll(u8 div);
+void _imxrt_ccmInitUsb2Pll(u8 div);
 
 
-extern void _imxrt_ccmDeinitUsb2Pll(void);
+void _imxrt_ccmDeinitUsb2Pll(void);
 
 
-extern void _imxrt_ccmInitAudioPll(u8 loopdiv, u8 postdiv, u32 num, u32 denom);
+void _imxrt_ccmInitAudioPll(u8 loopdiv, u8 postdiv, u32 num, u32 denom);
 
 
-extern void _imxrt_ccmDeinitAudioPll(void);
+void _imxrt_ccmDeinitAudioPll(void);
 
 
-extern void _imxrt_ccmInitVideoPll(u8 loopdiv, u8 postdiv, u32 num, u32 denom);
+void _imxrt_ccmInitVideoPll(u8 loopdiv, u8 postdiv, u32 num, u32 denom);
 
 
-extern void _imxrt_ccmDeinitVideoPll(void);
+void _imxrt_ccmDeinitVideoPll(void);
 
 
-extern void _imxrt_ccmInitEnetPll(u8 enclk0, u8 enclk1, u8 enclk2, u8 div0, u8 div1);
+void _imxrt_ccmInitEnetPll(u8 enclk0, u8 enclk1, u8 enclk2, u8 div0, u8 div1);
 
 
-extern void _imxrt_ccmDeinitEnetPll(void);
+void _imxrt_ccmDeinitEnetPll(void);
 
 
-extern u32 _imxrt_ccmGetPllFreq(int pll);
+u32 _imxrt_ccmGetPllFreq(int pll);
 
 
-extern void _imxrt_ccmInitSysPfd(int pfd, u8 pfdFrac);
+void _imxrt_ccmInitSysPfd(int pfd, u8 pfdFrac);
 
 
-extern void _imxrt_ccmDeinitSysPfd(int pfd);
+void _imxrt_ccmDeinitSysPfd(int pfd);
 
 
-extern void _imxrt_ccmInitUsb1Pfd(int pfd, u8 pfdFrac);
+void _imxrt_ccmInitUsb1Pfd(int pfd, u8 pfdFrac);
 
 
-extern void _imxrt_ccmDeinitUsb1Pfd(int pfd);
+void _imxrt_ccmDeinitUsb1Pfd(int pfd);
 
 
-extern u32 _imxrt_ccmGetSysPfdFreq(int pfd);
+u32 _imxrt_ccmGetSysPfdFreq(int pfd);
 
 
-extern u32 _imxrt_ccmGetUsb1PfdFreq(int pfd);
+u32 _imxrt_ccmGetUsb1PfdFreq(int pfd);
 
 
-extern u32 _imxrt_ccmGetSysPfdFreq(int pfd);
+u32 _imxrt_ccmGetSysPfdFreq(int pfd);
 
 
-extern u32 _imxrt_ccmGetUsb1PfdFreq(int pfd);
+u32 _imxrt_ccmGetUsb1PfdFreq(int pfd);
 
 
-extern void _imxrt_ccmSetMux(int mux, u32 val);
+void _imxrt_ccmSetMux(int mux, u32 val);
 
 
-extern u32 _imxrt_ccmGetMux(int mux);
+u32 _imxrt_ccmGetMux(int mux);
 
 
-extern void _imxrt_ccmSetDiv(int div, u32 val);
+void _imxrt_ccmSetDiv(int div, u32 val);
 
 
-extern u32 _imxrt_ccmGetDiv(int div);
+u32 _imxrt_ccmGetDiv(int div);
 
 
-extern void _imxrt_ccmControlGate(int dev, int state);
+void _imxrt_ccmControlGate(int dev, int state);
 
 
-extern void _imxrt_ccmSetMode(int mode);
+void _imxrt_ccmSetMode(int mode);
 
 
-extern int _imxrt_gpioConfig(unsigned int d, u8 pin, u8 dir);
+int _imxrt_gpioConfig(unsigned int d, u8 pin, u8 dir);
 
 
-extern int _imxrt_gpioSet(unsigned int d, u8 pin, u8 val);
+int _imxrt_gpioSet(unsigned int d, u8 pin, u8 val);
 
 
-extern int _imxrt_gpioSetPort(unsigned int d, u32 val);
+int _imxrt_gpioSetPort(unsigned int d, u32 val);
 
 
-extern int _imxrt_gpioGet(unsigned int d, u8 pin, u8 *val);
+int _imxrt_gpioGet(unsigned int d, u8 pin, u8 *val);
 
 
-extern int _imxrt_gpioGetPort(unsigned int d, u32 *val);
+int _imxrt_gpioGetPort(unsigned int d, u32 *val);
 
 
-extern int _imxrt_setIOmux(int mux, char sion, char mode);
+int _imxrt_setIOmux(int mux, char sion, char mode);
 
 
-extern int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre);
+int _imxrt_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre);
 
 
-extern int _imxrt_setIOisel(int isel, char daisy);
+int _imxrt_setIOisel(int isel, char daisy);
 
 
-extern void _imxrt_wdgReload(void);
+void _imxrt_wdgReload(void);
 
 
-extern void _imxrt_platformInit(void);
+void _imxrt_platformInit(void);
 
 
-extern void _imxrt_init(void);
+void _imxrt_init(void);
 
 
 #endif

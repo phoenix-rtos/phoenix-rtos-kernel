@@ -18,10 +18,10 @@
 
 #include "hal/types.h"
 
-extern void timer_jiffiesAdd(time_t t);
+void timer_jiffiesAdd(time_t t);
 
 
-extern void timer_setAlarm(time_t us);
+void timer_setAlarm(time_t us);
 
 
 #endif

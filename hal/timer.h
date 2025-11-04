@@ -20,18 +20,18 @@
 #include "cpu.h"
 #include "interrupts.h"
 
-extern time_t hal_timerGetUs(void);
+time_t hal_timerGetUs(void);
 
 
-extern void hal_timerSetWakeup(u32 waitUs);
+void hal_timerSetWakeup(u32 waitUs);
 
 
-extern int hal_timerRegister(int (*f)(unsigned int n, cpu_context_t *ctx, void *arg), void *data, intr_handler_t *h);
+int hal_timerRegister(int (*f)(unsigned int n, cpu_context_t *ctx, void *arg), void *data, intr_handler_t *h);
 
 
-extern void _hal_timerInit(u32 interval);
+void _hal_timerInit(u32 interval);
 
 
-extern char *hal_timerFeatures(char *features, unsigned int len);
+char *hal_timerFeatures(char *features, unsigned int len);
 
 #endif

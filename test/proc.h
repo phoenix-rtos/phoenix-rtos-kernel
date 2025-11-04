@@ -17,13 +17,13 @@
 #define _TEST_PROC_H_
 
 
-extern void test_proc_threads1(void);
+void test_proc_threads1(void);
 
 
-extern void test_proc_threads2(void);
+void test_proc_threads2(void);
 
 
-extern void test_proc_exit(void);
+void test_proc_exit(void);
 
 
 #endif

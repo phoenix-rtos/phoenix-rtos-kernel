@@ -21,32 +21,32 @@
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
-extern void hal_memcpy(void *dst, const void *src, size_t l);
+void hal_memcpy(void *dst, const void *src, size_t l);
 
 
-extern int hal_memcmp(const void *ptr1, const void *ptr2, size_t num);
+int hal_memcmp(const void *ptr1, const void *ptr2, size_t num);
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
-extern void hal_memset(void *dst, int v, size_t l);
+void hal_memset(void *dst, int v, size_t l);
 
 
-extern size_t hal_strlen(const char *s);
+size_t hal_strlen(const char *s);
 
 
-extern int hal_strcmp(const char *s1, const char *s2);
+int hal_strcmp(const char *s1, const char *s2);
 
 
-extern int hal_strncmp(const char *s1, const char *s2, size_t n);
+int hal_strncmp(const char *s1, const char *s2, size_t n);
 
 
-extern char *hal_strcpy(char *dest, const char *src);
+char *hal_strcpy(char *dest, const char *src);
 
 
-extern char *hal_strncpy(char *dest, const char *src, size_t n);
+char *hal_strncpy(char *dest, const char *src, size_t n);
 
 
-extern unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zero);
+unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zero);
 
 
 #endif

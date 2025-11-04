@@ -21,7 +21,7 @@
 extern const void *const syscalls[];
 
 
-extern void _syscalls_init(void);
+void _syscalls_init(void);
 
 
 #endif

@@ -99,112 +99,112 @@ static inline int proc_getTid(thread_t *t)
 }
 
 
-extern int perf_start(unsigned int pid);
+int perf_start(unsigned int pid);
 
 
-extern int perf_read(void *buffer, size_t bufsz);
+int perf_read(void *buffer, size_t bufsz);
 
 
-extern int perf_finish(void);
+int perf_finish(void);
 
 
-extern void perf_fork(process_t *p);
+void perf_fork(process_t *p);
 
 
-extern void perf_kill(process_t *p);
+void perf_kill(process_t *p);
 
 
-extern void perf_exec(process_t *p, char *path);
+void perf_exec(process_t *p, char *path);
 
 
-extern thread_t *proc_current(void);
+thread_t *proc_current(void);
 
 
-extern void threads_canaryInit(thread_t *t, void *ustack);
+void threads_canaryInit(thread_t *t, void *ustack);
 
 
-extern int proc_threadCreate(process_t *process, void (*start)(void *harg), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
+int proc_threadCreate(process_t *process, void (*start)(void *harg), int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
 
 
-extern int proc_threadPriority(int priority);
+int proc_threadPriority(int priority);
 
 
-extern __attribute__((noreturn)) void proc_threadEnd(void);
+__attribute__((noreturn)) void proc_threadEnd(void);
 
 
-extern void proc_threadDestroy(thread_t *t);
+void proc_threadDestroy(thread_t *t);
 
 
-extern void proc_threadsDestroy(thread_t **threads, const thread_t *except);
+void proc_threadsDestroy(thread_t **threads, const thread_t *except);
 
 
-extern int proc_join(int tid, time_t timeout);
+int proc_join(int tid, time_t timeout);
 
 
-extern void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_t *pmap);
+void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_t *pmap);
 
 
-extern int proc_threadsList(int n, threadinfo_t *info);
+int proc_threadsList(int n, threadinfo_t *info);
 
 
-extern int proc_threadsOther(thread_t *t);
+int proc_threadsOther(thread_t *t);
 
 
-extern int proc_threadSleep(time_t us);
+int proc_threadSleep(time_t us);
 
 
-extern int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute);
+int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute);
 
 
-extern int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);
+int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);
 
 
-extern int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);
+int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);
 
 
-extern int proc_threadWakeup(thread_t **queue);
+int proc_threadWakeup(thread_t **queue);
 
 
-extern void proc_threadWakeupYield(thread_t **queue);
+void proc_threadWakeupYield(thread_t **queue);
 
 
-extern int proc_threadBroadcast(thread_t **queue);
+int proc_threadBroadcast(thread_t **queue);
 
 
-extern void proc_threadBroadcastYield(thread_t **queue);
+void proc_threadBroadcastYield(thread_t **queue);
 
 
-extern thread_t *threads_findThread(int tid);
+thread_t *threads_findThread(int tid);
 
 
-extern void threads_put(thread_t *thread);
+void threads_put(thread_t *thread);
 
 
-extern time_t proc_uptime(void);
+time_t proc_uptime(void);
 
 
-extern void proc_gettime(time_t *raw, time_t *offs);
+void proc_gettime(time_t *raw, time_t *offs);
 
 
-extern int proc_settime(time_t offs);
+int proc_settime(time_t offs);
 
 
-extern void proc_longjmp(cpu_context_t *ctx);
+void proc_longjmp(cpu_context_t *ctx);
 
 
-extern void proc_threadsDump(unsigned int priority);
+void proc_threadsDump(unsigned int priority);
 
 
-extern int _threads_init(vm_map_t *kmap, vm_object_t *kernel);
+int _threads_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
-extern int threads_sigpost(process_t *process, thread_t *thread, int sig);
+int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 
-extern int threads_sigsuspend(unsigned int amask);
+int threads_sigsuspend(unsigned int amask);
 
 
-extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
+void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 #endif

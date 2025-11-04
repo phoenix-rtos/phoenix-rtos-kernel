@@ -85,7 +85,7 @@ static struct {
 } interrupts_common;
 
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 void hal_cpuBroadcastIPI(unsigned int intr)

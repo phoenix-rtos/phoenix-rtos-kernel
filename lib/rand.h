@@ -17,7 +17,7 @@
 #define _LIB_RAND_H_
 
 
-extern int lib_rand(unsigned int *seedp);
+int lib_rand(unsigned int *seedp);
 
 
 #endif

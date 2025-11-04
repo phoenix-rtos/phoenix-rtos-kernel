@@ -38,25 +38,25 @@ typedef struct {
 
 
 /* Get configuration of selected PLL. Returns 0 on success, < 0 on failure. */
-extern int tda4vm_getPLL(unsigned int pll, tda4vm_clk_pll_t *config);
+int tda4vm_getPLL(unsigned int pll, tda4vm_clk_pll_t *config);
 
 
 /* Get frequency in Hz of selected PLL after being divided by the selected HSDIV.
  * Returns 0 if selected PLL and HSDIV combination doesn't exist or value cannot be computed.
  * Depends on `WKUP_HFOSC0_HZ` and `HFOSC1_HZ` to be set correctly. */
-extern u64 tda4vm_getFrequency(unsigned int pll, unsigned int hsdiv);
+u64 tda4vm_getFrequency(unsigned int pll, unsigned int hsdiv);
 
 /* Do warm reset. Software POR is not possible on this platform. */
-extern void tda4vm_warmReset(void);
+void tda4vm_warmReset(void);
 
 
-extern int tda4vm_setPinConfig(unsigned int pin, const tda4vm_pinConfig_t *config);
+int tda4vm_setPinConfig(unsigned int pin, const tda4vm_pinConfig_t *config);
 
 
-extern int tda4vm_getPinConfig(unsigned int pin, tda4vm_pinConfig_t *config);
+int tda4vm_getPinConfig(unsigned int pin, tda4vm_pinConfig_t *config);
 
 
-extern int tda4vm_setDebounceConfig(unsigned int idx, unsigned int period);
+int tda4vm_setDebounceConfig(unsigned int idx, unsigned int period);
 
 
 /* Use Region-based Address Translation (RAT) to map system memory.
@@ -65,24 +65,24 @@ extern int tda4vm_setDebounceConfig(unsigned int idx, unsigned int period);
  * `physAddr` is address range within system memory's address range.
  * `logSize` is log2 of region size such that region size == 1 << `logSize`.
  * Note: some memory (such as ATCM/BTCM) cannot be mapped in this manner. */
-extern int tda4vm_RATMapMemory(unsigned int entry, addr_t cpuAddr, u64 physAddr, u32 logSize);
+int tda4vm_RATMapMemory(unsigned int entry, addr_t cpuAddr, u64 physAddr, u32 logSize);
 
 
-extern void tda4vm_RATUnmapMemory(unsigned int entry);
+void tda4vm_RATUnmapMemory(unsigned int entry);
 
 
-extern int tda4vm_setClksel(unsigned int sel, unsigned int val);
-
-
-/* Returns < 0 on error, otherwise the clksel setting */
-extern int tda4vm_getClksel(unsigned int sel);
-
-
-extern int tda4vm_setClkdiv(unsigned int sel, unsigned int val);
+int tda4vm_setClksel(unsigned int sel, unsigned int val);
 
 
 /* Returns < 0 on error, otherwise the clksel setting */
-extern int tda4vm_getClkdiv(unsigned int sel);
+int tda4vm_getClksel(unsigned int sel);
+
+
+int tda4vm_setClkdiv(unsigned int sel, unsigned int val);
+
+
+/* Returns < 0 on error, otherwise the clksel setting */
+int tda4vm_getClkdiv(unsigned int sel);
 
 
 #endif

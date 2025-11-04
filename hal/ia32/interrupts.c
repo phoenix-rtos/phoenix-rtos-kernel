@@ -30,29 +30,29 @@
 
 
 /* Hardware interrupt stubs */
-extern void _interrupts_irq0(void);
-extern void _interrupts_irq1(void);
-extern void _interrupts_irq2(void);
-extern void _interrupts_irq3(void);
-extern void _interrupts_irq4(void);
-extern void _interrupts_irq5(void);
-extern void _interrupts_irq6(void);
-extern void _interrupts_irq7(void);
-extern void _interrupts_irq8(void);
-extern void _interrupts_irq9(void);
-extern void _interrupts_irq10(void);
-extern void _interrupts_irq11(void);
-extern void _interrupts_irq12(void);
-extern void _interrupts_irq13(void);
-extern void _interrupts_irq14(void);
-extern void _interrupts_irq15(void);
+void _interrupts_irq0(void);
+void _interrupts_irq1(void);
+void _interrupts_irq2(void);
+void _interrupts_irq3(void);
+void _interrupts_irq4(void);
+void _interrupts_irq5(void);
+void _interrupts_irq6(void);
+void _interrupts_irq7(void);
+void _interrupts_irq8(void);
+void _interrupts_irq9(void);
+void _interrupts_irq10(void);
+void _interrupts_irq11(void);
+void _interrupts_irq12(void);
+void _interrupts_irq13(void);
+void _interrupts_irq14(void);
+void _interrupts_irq15(void);
 
-extern void _interrupts_unexpected(void);
+void _interrupts_unexpected(void);
 
-extern void _interrupts_syscall(void);
+void _interrupts_syscall(void);
 
 
-extern void _interrupts_TLBShootdown(void);
+void _interrupts_TLBShootdown(void);
 
 
 #define SIZE_INTERRUPTS 16

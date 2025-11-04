@@ -22,41 +22,41 @@
 
 /* Map's functions */
 
-extern size_t syspage_mapSize(void);
+size_t syspage_mapSize(void);
 
 
-extern const syspage_map_t *syspage_mapList(void);
+const syspage_map_t *syspage_mapList(void);
 
 
-extern const syspage_map_t *syspage_mapIdResolve(unsigned int id);
+const syspage_map_t *syspage_mapIdResolve(unsigned int id);
 
 
-extern const syspage_map_t *syspage_mapAddrResolve(addr_t addr);
+const syspage_map_t *syspage_mapAddrResolve(addr_t addr);
 
 
-extern const syspage_map_t *syspage_mapNameResolve(const char *name);
+const syspage_map_t *syspage_mapNameResolve(const char *name);
 
 
 /* Prog's functions */
 
-extern size_t syspage_progSize(void);
+size_t syspage_progSize(void);
 
 
-extern syspage_prog_t *syspage_progList(void);
+syspage_prog_t *syspage_progList(void);
 
 
-extern const syspage_prog_t *syspage_progIdResolve(unsigned int id);
+const syspage_prog_t *syspage_progIdResolve(unsigned int id);
 
 
-extern const syspage_prog_t *syspage_progNameResolve(const char *name);
+const syspage_prog_t *syspage_progNameResolve(const char *name);
 
 
 /* General functions */
 
-extern void syspage_progShow(void);
+void syspage_progShow(void);
 
 
-extern void syspage_init(void);
+void syspage_init(void);
 
 
 #endif

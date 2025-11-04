@@ -34,29 +34,29 @@ typedef struct _lock_t {
 extern const struct lockAttr proc_lockAttrDefault;
 
 
-extern int proc_lockSet(lock_t *lock);
+int proc_lockSet(lock_t *lock);
 
 
-extern int proc_lockSet2(lock_t *l1, lock_t *l2);
+int proc_lockSet2(lock_t *l1, lock_t *l2);
 
 
-extern int proc_lockTry(lock_t *lock);
+int proc_lockTry(lock_t *lock);
 
 
 /* `timeout` - in microseconds, absolute time relative to monotonic clock */
-extern int proc_lockWait(struct _thread_t **queue, lock_t *lock, time_t timeout);
+int proc_lockWait(struct _thread_t **queue, lock_t *lock, time_t timeout);
 
 
-extern int proc_lockClear(lock_t *lock);
+int proc_lockClear(lock_t *lock);
 
 
-extern int proc_lockSetInterruptible(lock_t *lock);
+int proc_lockSetInterruptible(lock_t *lock);
 
 
-extern int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name);
+int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name);
 
 
-extern int proc_lockDone(lock_t *lock);
+int proc_lockDone(lock_t *lock);
 
 
 #endif

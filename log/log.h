@@ -18,27 +18,27 @@
 #include "proc/msg.h"
 
 
-extern size_t log_write(const char *data, size_t len);
+size_t log_write(const char *data, size_t len);
 
 
 /* Has to be called after log_write to wakeup klog readers.
  * Not safe - performs i.a. proc_respond! */
-extern void log_scrub(void);
+void log_scrub(void);
 
 
 /* Same as log_scrub, but give up if lock is taken */
-extern void log_scrubTry(void);
+void log_scrubTry(void);
 
 
 /* Bypass log, change log_write mode to writing directly to the console
  * Debug feature, allows direct and instant message printing */
-extern void log_disable(void);
+void log_disable(void);
 
 
-extern void log_msgHandler(msg_t *msg, oid_t oid, msg_rid_t rid);
+void log_msgHandler(msg_t *msg, oid_t oid, msg_rid_t rid);
 
 
-extern void _log_init(void);
+void _log_init(void);
 
 
 #endif /* _LOG_H_ */

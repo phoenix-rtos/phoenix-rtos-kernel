@@ -19,21 +19,21 @@
 #include <arch/exceptions.h>
 
 
-extern unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
+unsigned int hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
 
 
-extern void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx);
+void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx);
 
 
-extern ptr_t hal_exceptionsPC(exc_context_t *ctx);
+ptr_t hal_exceptionsPC(exc_context_t *ctx);
 
 
-extern void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n);
+void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n);
 
 
-extern int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int n, exc_context_t *ctx));
+int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int n, exc_context_t *ctx));
 
 
-extern void _hal_exceptionsInit(void);
+void _hal_exceptionsInit(void);
 
 #endif

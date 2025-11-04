@@ -123,7 +123,7 @@ syspage_prog_t *syspage_progList(void)
 }
 
 
-extern const syspage_prog_t *syspage_progIdResolve(unsigned int id)
+const syspage_prog_t *syspage_progIdResolve(unsigned int id)
 {
 	unsigned int i = 0;
 	const syspage_prog_t *prog = syspage_common.syspage->progs;
@@ -142,7 +142,7 @@ extern const syspage_prog_t *syspage_progIdResolve(unsigned int id)
 }
 
 
-extern const syspage_prog_t *syspage_progNameResolve(const char *name)
+const syspage_prog_t *syspage_progNameResolve(const char *name)
 {
 	const syspage_prog_t *prog = syspage_common.syspage->progs;
 

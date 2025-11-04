@@ -28,7 +28,7 @@ struct {
 } cpu_common;
 
 
-extern void _interrupts_nvicSystemReset(void);
+void _interrupts_nvicSystemReset(void);
 
 
 /* performance */

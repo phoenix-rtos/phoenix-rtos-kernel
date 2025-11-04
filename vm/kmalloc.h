@@ -19,19 +19,19 @@
 #include "hal/hal.h"
 
 
-extern void *vm_kmalloc(size_t size);
+void *vm_kmalloc(size_t size);
 
 
-extern void vm_kfree(void *p);
+void vm_kfree(void *p);
 
 
-extern void vm_kmallocGetStats(size_t *allocsz);
+void vm_kmallocGetStats(size_t *allocsz);
 
 
-extern void vm_kmallocDump(void);
+void vm_kmallocDump(void);
 
 
-extern int _kmalloc_init(void);
+int _kmalloc_init(void);
 
 
 #endif

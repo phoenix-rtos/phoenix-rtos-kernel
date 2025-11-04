@@ -92,7 +92,7 @@ struct {
 
 void _hal_interruptsInitPerCPU(void);
 
-extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)

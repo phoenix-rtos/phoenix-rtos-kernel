@@ -31,7 +31,7 @@
 
 
 /* PLO entrypoint */
-extern void _start(void);
+void _start(void);
 
 struct {
 	volatile u32 *iou_slcr;

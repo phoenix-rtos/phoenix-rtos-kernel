@@ -38,34 +38,34 @@ typedef struct _hal_tls_t {
 } hal_tls_t;
 
 
-extern void *hal_syspageRelocate(void *data);
+void *hal_syspageRelocate(void *data);
 
 
-extern ptr_t hal_syspageAddr(void);
+ptr_t hal_syspageAddr(void);
 
 
-extern void hal_wdgReload(void);
+void hal_wdgReload(void);
 
 
-extern int hal_platformctl(void *ptr);
+int hal_platformctl(void *ptr);
 
 
-extern int hal_started(void);
+int hal_started(void);
 
 
-extern void _hal_start(void);
+void _hal_start(void);
 
 
-extern void _hal_init(void);
+void _hal_init(void);
 
 
-extern void hal_lockScheduler(void);
+void hal_lockScheduler(void);
 
 
-extern void _hal_cpuInit(void);
+void _hal_cpuInit(void);
 
 
-extern void _hal_platformInit(void);
+void _hal_platformInit(void);
 
 
 #endif

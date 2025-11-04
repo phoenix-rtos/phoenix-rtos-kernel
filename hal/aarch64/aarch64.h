@@ -79,23 +79,23 @@ static inline void hal_cpuInvalInstrCacheAll(void)
 
 
 /* Invalidate instruction cache by VA to PoU */
-extern void hal_cpuInvalInstrCache(ptr_t vstart, ptr_t vend);
+void hal_cpuInvalInstrCache(ptr_t vstart, ptr_t vend);
 
 
 /* Clean data cache line by VA to PoC */
-extern void hal_cpuCleanDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuCleanDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Invalidate data cache line by VA to PoC */
-extern void hal_cpuInvalDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuInvalDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Clean and Invalidate data cache line by VA to PoC */
-extern void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
+void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
 
 
 /* Invalidate all data cache to PoC */
-extern void hal_cpuInvalDataCacheAll(void);
+void hal_cpuInvalDataCacheAll(void);
 
 
 /* Invalidate TLB entries by ASID Match */
@@ -197,6 +197,6 @@ struct aarch64_proc_id {
 	u32 midr;  /* MIDR_EL1 */
 };
 
-extern void hal_cpuGetProcID(struct aarch64_proc_id *out);
+void hal_cpuGetProcID(struct aarch64_proc_id *out);
 
 #endif

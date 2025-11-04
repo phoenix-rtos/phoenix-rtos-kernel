@@ -263,7 +263,7 @@ typedef struct _cpu_context_t {
 } cpu_context_t;
 
 
-extern time_t hal_timerGetUs(void);
+time_t hal_timerGetUs(void);
 
 
 /* performance */

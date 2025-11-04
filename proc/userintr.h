@@ -31,15 +31,15 @@ typedef struct _userintr_t {
 } userintr_t;
 
 
-extern void userintr_put(userintr_t *ui);
+void userintr_put(userintr_t *ui);
 
 
-extern int userintr_setHandler(unsigned int n, int (*f)(unsigned int n, void *arg), void *arg, handle_t c);
+int userintr_setHandler(unsigned int n, int (*f)(unsigned int n, void *arg), void *arg, handle_t c);
 
 
-extern userintr_t *userintr_active(void);
+userintr_t *userintr_active(void);
 
 
-extern void _userintr_init(void);
+void _userintr_init(void);
 
 #endif

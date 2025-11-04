@@ -17,10 +17,10 @@
 #define _USRV_H_
 
 
-extern void _usrv_init(void);
+void _usrv_init(void);
 
 
-extern void _usrv_start(void);
+void _usrv_start(void);
 
 
 #endif
