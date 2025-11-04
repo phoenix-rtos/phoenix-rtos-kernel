@@ -33,27 +33,27 @@ typedef s64 Elf64_Sword;
 typedef u64 Elf64_Xword;
 
 
-#define EI_NIDENT     16
+#define EI_NIDENT 16U
 
-#define SHT_SYMTAB    2
-#define SHT_STRTAB    3
+#define SHT_SYMTAB    2U
+#define SHT_STRTAB    3U
 #define SHT_NOBITS    8U
-#define SHT_REL       9
-#define SHT_DYNSYM    11
-#define SHT_LOPROC    0x70000000
-#define SHT_HIPROC    0x7fffffff
-#define SHT_LOUSER    0x80000000
-#define SHT_HIUSER    0xffffffff
+#define SHT_REL       9U
+#define SHT_DYNSYM    11U
+#define SHT_LOPROC    0x70000000U
+#define SHT_HIPROC    0x7fffffffU
+#define SHT_LOUSER    0x80000000U
+#define SHT_HIUSER    0xffffffffU
 
-#define STT_LOPROC    13
-#define STT_HIPROC    15
+#define STT_LOPROC 13U
+#define STT_HIPROC 15U
 
 #define PT_LOAD       1U
-#define PT_DYNAMIC    2
-#define PT_INTERP     3
-#define PT_GNU_STACK  0x6474e551UL
-#define PT_LOPROC     0x70000000UL
-#define PT_HIPROC     0x7fffffffUL
+#define PT_DYNAMIC    2U
+#define PT_INTERP     3U
+#define PT_GNU_STACK  0x6474e551U
+#define PT_LOPROC     0x70000000U
+#define PT_HIPROC     0x7fffffffU
 
 #define PF_X 0x1U
 #define PF_W 0x2U
@@ -175,9 +175,9 @@ typedef struct {
 #pragma pack(pop)
 
 
-#define ELF32_R_SYM(info)             ((info)>>8)
-#define ELF32_R_TYPE(info)            ((int)(info))
-#define ELF32_R_INFO(sym, type)       (((sym)<<8)+(unsigned char)(type))
+#define ELF32_R_SYM(info)       ((info) >> 8)
+#define ELF32_R_TYPE(info)      ((unsigned char)(info))
+#define ELF32_R_INFO(sym, type) (((sym) << 8) + (unsigned char)(type))
 
 
 #endif

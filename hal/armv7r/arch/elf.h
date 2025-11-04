@@ -17,11 +17,11 @@
 #define _HAL_ARMV7R_ELF_H_
 
 
-#define R_ARM_ABS32   2
-#define R_ARM_TARGET1 38
+#define R_ARM_ABS32   2U
+#define R_ARM_TARGET1 38U
 
 
-static inline int hal_isRelReloc(int relType)
+static inline int hal_isRelReloc(unsigned char relType)
 {
 	return ((relType == R_ARM_ABS32) || (relType == R_ARM_TARGET1)) ? 1 : 0;
 }

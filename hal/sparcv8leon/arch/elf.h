@@ -13,10 +13,10 @@
  * %LICENSE%
  */
 
-#define R_SPARC_32 3
+#define R_SPARC_32 3U
 
 
-static inline int hal_isRelReloc(int relType)
+static inline int hal_isRelReloc(unsigned char relType)
 {
 	return (relType == R_SPARC_32) ? 1 : 0;
 }
