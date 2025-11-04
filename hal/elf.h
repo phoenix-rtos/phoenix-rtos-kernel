@@ -23,7 +23,7 @@
 #include <arch/elf.h>
 
 
-static int hal_isRelReloc(int relType);
+static int hal_isRelReloc(unsigned char relType);
 
 
 #endif
