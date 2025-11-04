@@ -20,19 +20,10 @@
 #include <arch/cpu.h>
 #include <arch/spinlock.h>
 
-enum {
-	mpu_type,
-	mpu_ctrl,
-	mpu_rnr,
-	mpu_rbar,
-	mpu_rasr,
-	mpu_rbar_a1,
-	mpu_rasr_a1,
-	mpu_rbar_a2,
-	mpu_rasr_a2,
-	mpu_rbar_a3,
-	mpu_rasr_a3
-};
+/* clang-format off */
+enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rasr, mpu_rbar_a1, mpu_rasr_a1, mpu_rbar_a2, mpu_rasr_a2,
+	mpu_rbar_a3, mpu_rasr_a3 };
+/* clang-format on */
 
 /* Linker symbols */
 extern unsigned int _end;
