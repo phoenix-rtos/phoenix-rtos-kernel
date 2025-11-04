@@ -739,6 +739,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 {
 	vm_attr_t attr;
 	size_t offs;
+	u64 eoffs;
 	page_t *p = NULL;
 	vm_prot_t flagsCheck = map_checkProt(e->prot, prot);
 
@@ -755,19 +756,19 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 	}
 
 	offs = (ptr_t)paddr - (ptr_t)e->vaddr;
+	eoffs = ((e->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (e->offs + offs));
 
 	if (e->amap == NULL) {
-		p = vm_objectPage(map, NULL, e->object, paddr, ((e->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (e->offs + offs)));
+		p = vm_objectPage(map, NULL, e->object, paddr, eoffs);
 	}
 	else { /* if (e->object != VM_OBJ_PHYSMEM) FIXME disabled until memory objects are created for syspage progs */
-		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, ((e->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (e->offs + offs)), prot);
+		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, eoffs, prot);
 	}
 
 	attr = vm_protToAttr(prot) | vm_flagsToAttr(e->flags);
 
 	if ((p == NULL) && (e->object == VM_OBJ_PHYSMEM)) {
-		/* TODO: Offset s 64 bits in size and we perform cast to int check if we don't lose info */
-		if (page_map(&map->pmap, paddr, (addr_t)(e->offs + offs), attr) < 0) {
+		if (page_map(&map->pmap, paddr, (addr_t)eoffs, attr) < 0) {
 			return -ENOMEM;
 		}
 	}
