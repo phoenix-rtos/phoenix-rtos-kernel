@@ -352,7 +352,7 @@ int proc_close(oid_t oid, unsigned int mode)
 }
 
 
-int proc_create(unsigned int port, int type, unsigned int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
+int proc_create(u32 port, int type, unsigned int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));

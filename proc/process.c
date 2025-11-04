@@ -1473,7 +1473,6 @@ int proc_vfork(void)
 		 */
 		(void)proc_threadWait(&spawn->wq, &spawn->sl, 0, &sc);
 		isparent = (proc_current() == current) ? 1 : 0;
-		/* TODO: If any test fails, revert this change and suppress MISRA Rule 13.5 */
 		state_tmp = spawn->state;
 	} while ((state_tmp < FORKED) && (state_tmp > 0) && (isparent != 0));
 
