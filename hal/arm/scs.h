@@ -48,7 +48,7 @@ void _hal_scsExceptionPrioritySet(u32 excpn, u32 priority);
 u32 _imxrt_scsExceptionPriorityGet(u32 excpn);
 
 
-void _hal_scsSystemReset(void);
+__attribute__((noreturn)) void _hal_scsSystemReset(void);
 
 
 unsigned int _hal_scsCpuID(void);

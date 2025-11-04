@@ -353,9 +353,7 @@ __attribute__((noreturn)) static void zynqmp_softRst(void)
 {
 	/* Equivalent to PS_SRST_B signal */
 	*(zynq_common.crl_apb + crl_apb_reset_ctrl) |= (1U << 4);
-	for (;;) {
-	}
-	__builtin_unreachable();
+	for (;;) { }
 }
 
 

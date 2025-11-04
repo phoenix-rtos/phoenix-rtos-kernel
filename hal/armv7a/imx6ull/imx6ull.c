@@ -304,7 +304,7 @@ static int _imx6ull_getIOisel(int isel, char *daisy)
 }
 
 
-static void _imx6ull_reboot(void)
+__attribute__((noreturn)) static void _imx6ull_reboot(void)
 {
 	/* assert SRS signal by writing 0 to bit 4 and 1 to bit 2 (WDOG enable) */
 	*(imx6ull_common.wdog + wdog_wcr) = (1 << 2);

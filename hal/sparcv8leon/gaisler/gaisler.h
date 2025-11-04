@@ -29,7 +29,7 @@ void gaisler_cpuHalt(void);
 void hal_cpuStartCores(void);
 
 
-void hal_timerWdogReboot(void);
+__attribute__((noreturn)) void hal_timerWdogReboot(void);
 
 
 #endif
