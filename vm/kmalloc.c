@@ -114,6 +114,7 @@ static vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 static int _kmalloc_addZone(u8 hdridx, u8 idx)
 {
 	vm_zone_t *nz;
+	size_t blocksz;
 
 	nz = _kmalloc_alloc(hdridx, hdridx);
 	if (nz == NULL) {
@@ -121,7 +122,8 @@ static int _kmalloc_addZone(u8 hdridx, u8 idx)
 	}
 
 	/* Add new zone */
-	if (_vm_zoneCreate(nz, 0x1UL << idx, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), SIZE_PAGE / (0x1UL << idx))) < 0) {
+	blocksz = 0x1UL << idx;
+	if (_vm_zoneCreate(nz, blocksz, max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1U), SIZE_PAGE / blocksz)) < 0) {
 		(void)_kmalloc_free(hdridx, nz);
 		return -ENOMEM;
 	}
@@ -267,6 +269,7 @@ void vm_kmallocDump(void)
 int _kmalloc_init(void)
 {
 	unsigned int hdridx, i;
+	size_t blocksz;
 
 	lib_printf("vm: Initializing kernel memory allocator: ");
 
@@ -293,7 +296,8 @@ int _kmalloc_init(void)
 	kmalloc_common.zonehdrs = 16;
 
 	/* Add first zone_t zone */
-	(void)_vm_zoneCreate(&kmalloc_common.firstzone, (size_t)1U << hdridx, max(kmalloc_common.zonehdrs, SIZE_PAGE / (0x1UL << hdridx)));
+	blocksz = 0x1UL << hdridx;
+	(void)_vm_zoneCreate(&kmalloc_common.firstzone, blocksz, max(kmalloc_common.zonehdrs, SIZE_PAGE / blocksz));
 	LIST_ADD(&kmalloc_common.sizes[hdridx], &kmalloc_common.firstzone);
 	(void)lib_rbInsert(&kmalloc_common.tree, &kmalloc_common.firstzone.linkage);
 
