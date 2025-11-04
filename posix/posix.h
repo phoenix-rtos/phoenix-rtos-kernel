@@ -31,7 +31,7 @@
 #include "sockport.h"
 
 
-extern int posix_open(const char *filename, int oflag, char *ustack);
+extern int posix_open(const char *filename, int oflag, u8 *ustack);
 
 
 extern int posix_close(int fildes);
@@ -64,7 +64,7 @@ extern int posix_lseek(int fildes, off_t *offset, int whence);
 extern int posix_ftruncate(int fildes, off_t length);
 
 
-extern int posix_fcntl(int fd, unsigned int cmd, char *ustack);
+extern int posix_fcntl(int fd, unsigned int cmd, u8 *ustack);
 
 
 extern int posix_pipe(int fildes[2]);
@@ -148,7 +148,7 @@ extern int posix_sethostname(const char *name, size_t namelen);
 extern int posix_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
-extern int posix_ioctl(int fildes, unsigned long request, char *ustack);
+extern int posix_ioctl(int fildes, unsigned long request, u8 *ustack);
 
 
 extern int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms);

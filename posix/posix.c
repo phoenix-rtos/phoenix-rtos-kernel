@@ -553,7 +553,7 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 
 
 /* TODO: handle O_CREAT and O_EXCL */
-int posix_open(const char *filename, int oflag, char *ustack)
+int posix_open(const char *filename, int oflag, u8 *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
 	oid_t ln, oid, dev, pipesrv;
@@ -1591,7 +1591,7 @@ static int posix_fcntlGetFl(int fd)
 }
 
 
-int posix_fcntl(int fd, unsigned int cmd, char *ustack)
+int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 {
 	TRACE("fcntl(%d, %u)", fd, cmd);
 
@@ -1736,7 +1736,7 @@ static int ioctl_processResponse(const msg_t *msg, unsigned long request, void *
 }
 
 
-int posix_ioctl(int fildes, unsigned long request, char *ustack)
+int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 {
 	TRACE("ioctl(%d, %d)", fildes, request);
 

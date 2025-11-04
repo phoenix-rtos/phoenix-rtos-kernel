@@ -61,7 +61,7 @@
 /* parasoft-begin-suppress MISRAC2012-RULE_20_7-a 't' within *(t *) can not be put in the parentheses due to compilation error */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		(ustack) = (void *)(((addr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(ustack) = (u8 *)(((ptr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
 		(v) = *(t *)(ustack); \
 		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
