@@ -39,7 +39,7 @@
  */
 
 
-void syscalls_debug(void *ustack)
+void syscalls_debug(u8 *ustack)
 {
 	const char *s;
 
@@ -55,7 +55,7 @@ void syscalls_debug(void *ustack)
  */
 
 
-int syscalls_sys_mmap(void *ustack)
+int syscalls_sys_mmap(u8 *ustack)
 {
 	void **vaddr;
 	size_t size;
@@ -125,7 +125,7 @@ int syscalls_sys_mmap(void *ustack)
 }
 
 
-int syscalls_sys_munmap(void *ustack)
+int syscalls_sys_munmap(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	void *vaddr;
@@ -144,7 +144,7 @@ int syscalls_sys_munmap(void *ustack)
 }
 
 
-int syscalls_sys_mprotect(void *ustack)
+int syscalls_sys_mprotect(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	void *vaddr;
@@ -169,25 +169,25 @@ int syscalls_sys_mprotect(void *ustack)
  */
 
 
-int syscalls_vforksvc(void *ustack)
+int syscalls_vforksvc(u8 *ustack)
 {
 	return proc_vfork();
 }
 
 
-int syscalls_sys_fork(void *ustack)
+int syscalls_sys_fork(u8 *ustack)
 {
 	return proc_fork();
 }
 
 
-int syscalls_release(void *ustack)
+int syscalls_release(u8 *ustack)
 {
 	return proc_release();
 }
 
 
-int syscalls_sys_spawn(void *ustack)
+int syscalls_sys_spawn(u8 *ustack)
 {
 	char *path;
 	char **argv;
@@ -203,7 +203,7 @@ int syscalls_sys_spawn(void *ustack)
 }
 
 
-int syscalls_exec(void *ustack)
+int syscalls_exec(u8 *ustack)
 {
 	char *path;
 	char **argv;
@@ -219,7 +219,7 @@ int syscalls_exec(void *ustack)
 }
 
 
-int syscalls_spawnSyspage(void *ustack)
+int syscalls_spawnSyspage(u8 *ustack)
 {
 	char *imap;
 	char *dmap;
@@ -237,7 +237,7 @@ int syscalls_spawnSyspage(void *ustack)
 }
 
 
-int syscalls_sys_exit(void *ustack)
+int syscalls_sys_exit(u8 *ustack)
 {
 	int code;
 
@@ -247,7 +247,7 @@ int syscalls_sys_exit(void *ustack)
 }
 
 
-int syscalls_sys_waitpid(void *ustack)
+int syscalls_sys_waitpid(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int pid, *status, options;
@@ -264,7 +264,7 @@ int syscalls_sys_waitpid(void *ustack)
 }
 
 
-int syscalls_threadJoin(void *ustack)
+int syscalls_threadJoin(u8 *ustack)
 {
 	int tid;
 	time_t timeout;
@@ -276,13 +276,13 @@ int syscalls_threadJoin(void *ustack)
 }
 
 
-int syscalls_getpid(void *ustack)
+int syscalls_getpid(u8 *ustack)
 {
 	return process_getPid(proc_current()->process);
 }
 
 
-int syscalls_getppid(void *ustack)
+int syscalls_getppid(u8 *ustack)
 {
 	return posix_getppid(process_getPid(proc_current()->process));
 }
@@ -293,13 +293,13 @@ int syscalls_getppid(void *ustack)
  */
 
 
-int syscalls_gettid(void *ustack)
+int syscalls_gettid(u8 *ustack)
 {
 	return proc_getTid(proc_current());
 }
 
 
-int syscalls_beginthreadex(void *ustack)
+int syscalls_beginthreadex(u8 *ustack)
 {
 	typedef void (*start_func)(void *harg);
 	process_t *proc = proc_current()->process;
@@ -332,13 +332,13 @@ int syscalls_beginthreadex(void *ustack)
 }
 
 
-void syscalls_endthread(void *ustack)
+void syscalls_endthread(u8 *ustack)
 {
 	proc_threadEnd();
 }
 
 
-int syscalls_nsleep(void *ustack)
+int syscalls_nsleep(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	time_t *sec;
@@ -366,7 +366,7 @@ int syscalls_nsleep(void *ustack)
 }
 
 
-int syscalls_priority(void *ustack)
+int syscalls_priority(u8 *ustack)
 {
 	int priority;
 
@@ -381,7 +381,7 @@ int syscalls_priority(void *ustack)
  */
 
 
-int syscalls_threadsinfo(void *ustack)
+int syscalls_threadsinfo(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int n, i;
@@ -408,7 +408,7 @@ int syscalls_threadsinfo(void *ustack)
 }
 
 
-void syscalls_meminfo(void *ustack)
+void syscalls_meminfo(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	meminfo_t *info;
@@ -422,7 +422,7 @@ void syscalls_meminfo(void *ustack)
 }
 
 
-int syscalls_syspageprog(void *ustack)
+int syscalls_syspageprog(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int i;
@@ -474,7 +474,7 @@ int syscalls_syspageprog(void *ustack)
 }
 
 
-int syscalls_perf_start(void *ustack)
+int syscalls_perf_start(u8 *ustack)
 {
 	unsigned int pid;
 
@@ -484,7 +484,7 @@ int syscalls_perf_start(void *ustack)
 }
 
 
-int syscalls_perf_read(void *ustack)
+int syscalls_perf_read(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	void *buffer;
@@ -501,7 +501,7 @@ int syscalls_perf_read(void *ustack)
 }
 
 
-int syscalls_perf_finish(void *ustack)
+int syscalls_perf_finish(u8 *ustack)
 {
 	return perf_finish();
 }
@@ -511,7 +511,7 @@ int syscalls_perf_finish(void *ustack)
  */
 
 
-int syscalls_phMutexCreate(void *ustack)
+int syscalls_phMutexCreate(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	handle_t *h;
@@ -540,7 +540,7 @@ int syscalls_phMutexCreate(void *ustack)
 }
 
 
-int syscalls_phMutexLock(void *ustack)
+int syscalls_phMutexLock(u8 *ustack)
 {
 	handle_t h;
 
@@ -549,7 +549,7 @@ int syscalls_phMutexLock(void *ustack)
 }
 
 
-int syscalls_mutexTry(void *ustack)
+int syscalls_mutexTry(u8 *ustack)
 {
 	handle_t h;
 
@@ -558,7 +558,7 @@ int syscalls_mutexTry(void *ustack)
 }
 
 
-int syscalls_mutexUnlock(void *ustack)
+int syscalls_mutexUnlock(u8 *ustack)
 {
 	handle_t h;
 
@@ -572,7 +572,7 @@ int syscalls_mutexUnlock(void *ustack)
  */
 
 
-int syscalls_phCondCreate(void *ustack)
+int syscalls_phCondCreate(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	const struct condAttr *attr;
@@ -600,7 +600,7 @@ int syscalls_phCondCreate(void *ustack)
 }
 
 
-int syscalls_phCondWait(void *ustack)
+int syscalls_phCondWait(u8 *ustack)
 {
 	handle_t h;
 	handle_t m;
@@ -614,7 +614,7 @@ int syscalls_phCondWait(void *ustack)
 }
 
 
-int syscalls_condSignal(void *ustack)
+int syscalls_condSignal(u8 *ustack)
 {
 	handle_t h;
 
@@ -623,7 +623,7 @@ int syscalls_condSignal(void *ustack)
 }
 
 
-int syscalls_condBroadcast(void *ustack)
+int syscalls_condBroadcast(u8 *ustack)
 {
 	handle_t h;
 
@@ -637,7 +637,7 @@ int syscalls_condBroadcast(void *ustack)
  */
 
 
-int syscalls_resourceDestroy(void *ustack)
+int syscalls_resourceDestroy(u8 *ustack)
 {
 	handle_t h;
 
@@ -651,7 +651,7 @@ int syscalls_resourceDestroy(void *ustack)
  */
 
 
-int syscalls_interrupt(void *ustack)
+int syscalls_interrupt(u8 *ustack)
 {
 	typedef int (*handler_function)(unsigned int harg_1, void *harg_2);
 	process_t *proc = proc_current()->process;
@@ -690,7 +690,7 @@ int syscalls_interrupt(void *ustack)
  */
 
 
-int syscalls_portCreate(void *ustack)
+int syscalls_portCreate(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	u32 *port;
@@ -705,7 +705,7 @@ int syscalls_portCreate(void *ustack)
 }
 
 
-void syscalls_portDestroy(void *ustack)
+void syscalls_portDestroy(u8 *ustack)
 {
 	u32 port;
 
@@ -715,7 +715,7 @@ void syscalls_portDestroy(void *ustack)
 }
 
 
-int syscalls_portRegister(void *ustack)
+int syscalls_portRegister(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	unsigned int port;
@@ -736,7 +736,7 @@ int syscalls_portRegister(void *ustack)
 }
 
 
-int syscalls_msgSend(void *ustack)
+int syscalls_msgSend(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	u32 port;
@@ -765,7 +765,7 @@ int syscalls_msgSend(void *ustack)
 }
 
 
-int syscalls_msgRecv(void *ustack)
+int syscalls_msgRecv(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	u32 port;
@@ -788,7 +788,7 @@ int syscalls_msgRecv(void *ustack)
 }
 
 
-int syscalls_msgRespond(void *ustack)
+int syscalls_msgRespond(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	u32 port;
@@ -815,7 +815,7 @@ int syscalls_msgRespond(void *ustack)
 }
 
 
-int syscalls_lookup(void *ustack)
+int syscalls_lookup(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	char *name;
@@ -844,7 +844,7 @@ int syscalls_lookup(void *ustack)
  */
 
 
-int syscalls_gettime(void *ustack)
+int syscalls_gettime(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	time_t *praw, *poffs;
@@ -866,7 +866,7 @@ int syscalls_gettime(void *ustack)
 }
 
 
-int syscalls_settime(void *ustack)
+int syscalls_settime(u8 *ustack)
 {
 	time_t offs;
 
@@ -881,7 +881,7 @@ int syscalls_settime(void *ustack)
  */
 
 
-void syscalls_keepidle(void *ustack)
+void syscalls_keepidle(u8 *ustack)
 {
 	int t;
 
@@ -895,7 +895,7 @@ void syscalls_keepidle(void *ustack)
  */
 
 
-void syscalls_mmdump(void *ustack)
+void syscalls_mmdump(char *ustack)
 {
 	vm_mapDump(NULL);
 }
@@ -906,7 +906,7 @@ void syscalls_mmdump(void *ustack)
  */
 
 
-int syscalls_platformctl(void *ustack)
+int syscalls_platformctl(u8 *ustack)
 {
 	/* FIXME: Allow access to sizeof(platformctl_t) to allow checks */
 	void *ptr;
@@ -920,13 +920,13 @@ int syscalls_platformctl(void *ustack)
  */
 
 
-void syscalls_wdgreload(void *ustack)
+void syscalls_wdgreload(u8 *ustack)
 {
 	hal_wdgReload();
 }
 
 
-addr_t syscalls_va2pa(void *ustack)
+addr_t syscalls_va2pa(u8 *ustack)
 {
 	void *va;
 
@@ -936,7 +936,7 @@ addr_t syscalls_va2pa(void *ustack)
 }
 
 
-int syscalls_signalHandle(void *ustack)
+int syscalls_signalHandle(u8 *ustack)
 {
 	typedef void (*handler_func)(void);
 	handler_func handler;
@@ -955,7 +955,7 @@ int syscalls_signalHandle(void *ustack)
 }
 
 
-int syscalls_signalPost(void *ustack)
+int syscalls_signalPost(u8 *ustack)
 {
 	int pid, tid, signal, err;
 	process_t *proc;
@@ -995,7 +995,7 @@ int syscalls_signalPost(void *ustack)
 }
 
 
-unsigned int syscalls_signalMask(void *ustack)
+unsigned int syscalls_signalMask(u8 *ustack)
 {
 	unsigned int mask, mmask, old;
 	thread_t *t;
@@ -1012,7 +1012,7 @@ unsigned int syscalls_signalMask(void *ustack)
 }
 
 
-int syscalls_signalSuspend(void *ustack)
+int syscalls_signalSuspend(u8 *ustack)
 {
 	unsigned int mask;
 	GETFROMSTACK(ustack, unsigned int, mask, 0);
@@ -1021,7 +1021,7 @@ int syscalls_signalSuspend(void *ustack)
 }
 
 
-void syscalls_sigreturn(void *ustack)
+void syscalls_sigreturn(u8 *ustack)
 {
 	thread_t *t = proc_current();
 	cpu_context_t *ctx;
@@ -1048,7 +1048,7 @@ void syscalls_sigreturn(void *ustack)
 /* POSIX compatibility syscalls */
 
 
-int syscalls_sys_open(char *ustack)
+int syscalls_sys_open(u8 *ustack)
 {
 	const char *filename;
 	int oflag;
@@ -1062,7 +1062,7 @@ int syscalls_sys_open(char *ustack)
 }
 
 
-int syscalls_sys_close(char *ustack)
+int syscalls_sys_close(u8 *ustack)
 {
 	int fildes;
 
@@ -1072,7 +1072,7 @@ int syscalls_sys_close(char *ustack)
 }
 
 
-ssize_t syscalls_sys_read(char *ustack)
+ssize_t syscalls_sys_read(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int fildes;
@@ -1097,7 +1097,7 @@ ssize_t syscalls_sys_read(char *ustack)
 }
 
 
-ssize_t syscalls_sys_write(char *ustack)
+ssize_t syscalls_sys_write(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int fildes;
@@ -1122,7 +1122,7 @@ ssize_t syscalls_sys_write(char *ustack)
 }
 
 
-int syscalls_sys_dup(char *ustack)
+int syscalls_sys_dup(u8 *ustack)
 {
 	int fildes;
 
@@ -1132,7 +1132,7 @@ int syscalls_sys_dup(char *ustack)
 }
 
 
-int syscalls_sys_dup2(char *ustack)
+int syscalls_sys_dup2(u8 *ustack)
 {
 	int fildes;
 	int fildes2;
@@ -1144,7 +1144,7 @@ int syscalls_sys_dup2(char *ustack)
 }
 
 
-int syscalls_sys_link(char *ustack)
+int syscalls_sys_link(u8 *ustack)
 {
 	const char *path1;
 	const char *path2;
@@ -1158,7 +1158,7 @@ int syscalls_sys_link(char *ustack)
 }
 
 
-int syscalls_sys_unlink(char *ustack)
+int syscalls_sys_unlink(u8 *ustack)
 {
 	const char *pathname;
 
@@ -1170,7 +1170,7 @@ int syscalls_sys_unlink(char *ustack)
 }
 
 
-int syscalls_sys_lseek(char *ustack)
+int syscalls_sys_lseek(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int fildes;
@@ -1189,7 +1189,7 @@ int syscalls_sys_lseek(char *ustack)
 }
 
 
-int syscalls_sys_ftruncate(char *ustack)
+int syscalls_sys_ftruncate(u8 *ustack)
 {
 	int fildes;
 	off_t length;
@@ -1201,7 +1201,7 @@ int syscalls_sys_ftruncate(char *ustack)
 }
 
 
-int syscalls_sys_fcntl(char *ustack)
+int syscalls_sys_fcntl(u8 *ustack)
 {
 	int fd;
 	unsigned int cmd;
@@ -1213,7 +1213,7 @@ int syscalls_sys_fcntl(char *ustack)
 }
 
 
-int syscalls_sys_pipe(char *ustack)
+int syscalls_sys_pipe(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int *fildes;
@@ -1228,7 +1228,7 @@ int syscalls_sys_pipe(char *ustack)
 }
 
 
-int syscalls_sys_mkfifo(char *ustack)
+int syscalls_sys_mkfifo(u8 *ustack)
 {
 	const char *path;
 	mode_t mode;
@@ -1242,7 +1242,7 @@ int syscalls_sys_mkfifo(char *ustack)
 }
 
 
-int syscalls_sys_fstat(char *ustack)
+int syscalls_sys_fstat(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int fd;
@@ -1259,7 +1259,7 @@ int syscalls_sys_fstat(char *ustack)
 }
 
 
-int syscalls_sys_statvfs(char *ustack)
+int syscalls_sys_statvfs(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int fd;
@@ -1278,7 +1278,7 @@ int syscalls_sys_statvfs(char *ustack)
 }
 
 
-int syscalls_sys_fsync(char *ustack)
+int syscalls_sys_fsync(u8 *ustack)
 {
 	int fd;
 
@@ -1288,7 +1288,7 @@ int syscalls_sys_fsync(char *ustack)
 }
 
 
-int syscalls_sys_chmod(char *ustack)
+int syscalls_sys_chmod(u8 *ustack)
 {
 	const char *path;
 	mode_t mode;
@@ -1302,7 +1302,7 @@ int syscalls_sys_chmod(char *ustack)
 }
 
 
-int syscalls_sys_accept(char *ustack)
+int syscalls_sys_accept(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1327,7 +1327,7 @@ int syscalls_sys_accept(char *ustack)
 }
 
 
-int syscalls_sys_accept4(char *ustack)
+int syscalls_sys_accept4(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1354,7 +1354,7 @@ int syscalls_sys_accept4(char *ustack)
 }
 
 
-int syscalls_sys_bind(char *ustack)
+int syscalls_sys_bind(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1373,7 +1373,7 @@ int syscalls_sys_bind(char *ustack)
 }
 
 
-int syscalls_sys_connect(char *ustack)
+int syscalls_sys_connect(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1392,7 +1392,7 @@ int syscalls_sys_connect(char *ustack)
 }
 
 
-int syscalls_sys_gethostname(char *ustack)
+int syscalls_sys_gethostname(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	char *name;
@@ -1409,7 +1409,7 @@ int syscalls_sys_gethostname(char *ustack)
 }
 
 
-int syscalls_sys_getpeername(char *ustack)
+int syscalls_sys_getpeername(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1432,7 +1432,7 @@ int syscalls_sys_getpeername(char *ustack)
 }
 
 
-int syscalls_sys_getsockname(char *ustack)
+int syscalls_sys_getsockname(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1455,7 +1455,7 @@ int syscalls_sys_getsockname(char *ustack)
 }
 
 
-int syscalls_sys_getsockopt(char *ustack)
+int syscalls_sys_getsockopt(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1484,7 +1484,7 @@ int syscalls_sys_getsockopt(char *ustack)
 }
 
 
-int syscalls_sys_listen(char *ustack)
+int syscalls_sys_listen(u8 *ustack)
 {
 	int socket;
 	int backlog;
@@ -1496,7 +1496,7 @@ int syscalls_sys_listen(char *ustack)
 }
 
 
-ssize_t syscalls_sys_recvfrom(char *ustack)
+ssize_t syscalls_sys_recvfrom(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1531,7 +1531,7 @@ ssize_t syscalls_sys_recvfrom(char *ustack)
 }
 
 
-ssize_t syscalls_sys_sendto(char *ustack)
+ssize_t syscalls_sys_sendto(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1560,7 +1560,7 @@ ssize_t syscalls_sys_sendto(char *ustack)
 }
 
 
-ssize_t syscalls_sys_recvmsg(char *ustack)
+ssize_t syscalls_sys_recvmsg(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1598,7 +1598,7 @@ ssize_t syscalls_sys_recvmsg(char *ustack)
 }
 
 
-ssize_t syscalls_sys_sendmsg(char *ustack)
+ssize_t syscalls_sys_sendmsg(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1636,7 +1636,7 @@ ssize_t syscalls_sys_sendmsg(char *ustack)
 }
 
 
-int syscalls_sys_socket(char *ustack)
+int syscalls_sys_socket(u8 *ustack)
 {
 	int domain;
 	int type;
@@ -1650,7 +1650,7 @@ int syscalls_sys_socket(char *ustack)
 }
 
 
-int syscalls_sys_socketpair(char *ustack)
+int syscalls_sys_socketpair(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int domain;
@@ -1671,7 +1671,7 @@ int syscalls_sys_socketpair(char *ustack)
 }
 
 
-int syscalls_sys_shutdown(char *ustack)
+int syscalls_sys_shutdown(u8 *ustack)
 {
 	int socket;
 	int how;
@@ -1683,7 +1683,7 @@ int syscalls_sys_shutdown(char *ustack)
 }
 
 
-int syscalls_sys_sethostname(char *ustack)
+int syscalls_sys_sethostname(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	const char *name;
@@ -1700,7 +1700,7 @@ int syscalls_sys_sethostname(char *ustack)
 }
 
 
-int syscalls_sys_setsockopt(char *ustack)
+int syscalls_sys_setsockopt(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int socket;
@@ -1723,7 +1723,7 @@ int syscalls_sys_setsockopt(char *ustack)
 }
 
 
-int syscalls_sys_ioctl(char *ustack)
+int syscalls_sys_ioctl(u8 *ustack)
 {
 	int fildes;
 	unsigned long request;
@@ -1735,7 +1735,7 @@ int syscalls_sys_ioctl(char *ustack)
 }
 
 
-int syscalls_sys_poll(char *ustack)
+int syscalls_sys_poll(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	struct pollfd *fds;
@@ -1754,7 +1754,7 @@ int syscalls_sys_poll(char *ustack)
 }
 
 
-int syscalls_sys_futimens(char *ustack)
+int syscalls_sys_futimens(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	int fildes;
@@ -1771,7 +1771,7 @@ int syscalls_sys_futimens(char *ustack)
 }
 
 
-int syscalls_sys_tkill(char *ustack)
+int syscalls_sys_tkill(u8 *ustack)
 {
 	pid_t pid;
 	int tid;
@@ -1785,7 +1785,7 @@ int syscalls_sys_tkill(char *ustack)
 }
 
 
-int syscalls_sys_setpgid(char *ustack)
+int syscalls_sys_setpgid(u8 *ustack)
 {
 	pid_t pid, pgid;
 
@@ -1796,7 +1796,7 @@ int syscalls_sys_setpgid(char *ustack)
 }
 
 
-pid_t syscalls_sys_getpgid(char *ustack)
+pid_t syscalls_sys_getpgid(u8 *ustack)
 {
 	pid_t pid;
 
@@ -1806,25 +1806,25 @@ pid_t syscalls_sys_getpgid(char *ustack)
 }
 
 
-int syscalls_sys_setpgrp(char *ustack)
+int syscalls_sys_setpgrp(u8 *ustack)
 {
 	return posix_setpgid(0, 0);
 }
 
 
-pid_t syscalls_sys_getpgrp(char *ustack)
+pid_t syscalls_sys_getpgrp(u8 *ustack)
 {
 	return posix_getpgid(0);
 }
 
 
-pid_t syscalls_sys_setsid(char *ustack)
+pid_t syscalls_sys_setsid(u8 *ustack)
 {
 	return posix_setsid();
 }
 
 
-void syscalls_sbi_putchar(char *ustack)
+void syscalls_sbi_putchar(u8 *ustack)
 {
 #ifdef __TARGET_RISCV64
 	char c;
@@ -1834,7 +1834,7 @@ void syscalls_sbi_putchar(char *ustack)
 }
 
 
-int syscalls_sbi_getchar(char *ustack)
+int syscalls_sbi_getchar(u8 *ustack)
 {
 #ifdef __TARGET_RISCV64
 	return (int)hal_sbiGetchar();
@@ -1844,7 +1844,7 @@ int syscalls_sbi_getchar(char *ustack)
 }
 
 
-int syscalls_sys_uname(char *ustack)
+int syscalls_sys_uname(u8 *ustack)
 {
 	struct utsname *name;
 	GETFROMSTACK(ustack, struct utsname *, name, 0);
@@ -1870,7 +1870,7 @@ int syscalls_notimplemented(void)
 /* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Syscalls are in different types" */
 const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
 
-void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
+void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
 {
 	void *retval;
 
@@ -1879,7 +1879,7 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 	}
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
-	retval = ((void *(*)(char *harg))syscalls[n])(ustack);
+	retval = ((void *(*)(u8 *arg))syscalls[n])(ustack);
 
 	if (proc_current()->exit != 0U) {
 		proc_threadEnd();

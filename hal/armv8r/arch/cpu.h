@@ -61,7 +61,7 @@
 
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (void *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
+		ustack = (u8 *)(((ptr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
 		(v) = *(t *)ustack; \
 		ustack += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
