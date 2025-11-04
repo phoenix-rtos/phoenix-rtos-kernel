@@ -16,7 +16,7 @@ on:
 
 jobs:
   call-ci:
-    uses: bartekpaczek/phoenix-rtos-project-fork/.github/workflows/ci-submodule.yml@bpaczek/misra-ci
+    uses: bartekpaczek/phoenix-rtos-project-fork/.github/workflows/ci-submodule.yml@master
     secrets: inherit
     with:
       build_params: all tests
