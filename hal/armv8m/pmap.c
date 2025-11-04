@@ -24,21 +24,10 @@
 #define MPU_BASE ((void *)0xe000ed90)
 
 
-enum {
-	mpu_type,
-	mpu_ctrl,
-	mpu_rnr,
-	mpu_rbar,
-	mpu_rlar,
-	mpu_rbar_a1,
-	mpu_rlar_a1,
-	mpu_rbar_a2,
-	mpu_rlar_a2,
-	mpu_rbar_a3,
-	mpu_rlar_a3,
-	mpu_mair0 = 0xC,
-	mpu_mair1
-};
+/* clang-format off */
+enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rlar, mpu_rbar_a1, mpu_rlar_a1, mpu_rbar_a2, mpu_rlar_a2,
+	mpu_rbar_a3, mpu_rlar_a3, mpu_mair0 = 0xC, mpu_mair1 };
+/* clang-format on */
 
 
 /* Linker symbols */
