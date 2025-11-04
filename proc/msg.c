@@ -33,13 +33,13 @@ struct {
 } msg_common;
 
 
-static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
+static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, vm_map_t *srcmap, process_t *to)
 {
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
 	unsigned int n = 0, i, attr, prot;
 	page_t *nep = NULL, *nbp = NULL;
-	vm_map_t *srcmap, *dstmap;
+	vm_map_t *dstmap;
 	struct _kmsg_layout_t *ml = dir ? &kmsg->o : &kmsg->i;
 	int flags;
 	addr_t bpa, pa, epa;
@@ -75,7 +75,6 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		eoffs = ((ptr_t)data + size) & (SIZE_PAGE - 1);
 	}
 
-	srcmap = (from == NULL) ? msg_common.kmap : from->mapp;
 	dstmap = (to == NULL) ? msg_common.kmap : to->mapp;
 
 	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0)) {
@@ -338,7 +337,7 @@ static int msg_opack(kmsg_t *kmsg)
 }
 
 
-int proc_send(u32 port, msg_t *msg)
+int proc_sendFromMap(u32 port, msg_t *msg, vm_map_t *sourceMap)
 {
 	port_t *p;
 	int err = EOK;
@@ -359,7 +358,7 @@ int proc_send(u32 port, msg_t *msg)
 	sender = proc_current();
 
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
-	kmsg.src = sender->process;
+	kmsg.src = sourceMap;
 	kmsg.threads = NULL;
 	kmsg.state = msg_waiting;
 
@@ -413,6 +412,14 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	return err;
+}
+
+
+int proc_send(u32 port, msg_t *msg)
+{
+	process_t *currentProc = proc_current()->process;
+	vm_map_t *sourceMap = (currentProc == NULL) ? msg_common.kmap : currentProc->mapp;
+	return proc_sendFromMap(port, msg, sourceMap);
 }
 
 
@@ -529,6 +536,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	size_t s = 0;
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
+	process_t *currentProc = proc_current()->process;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -564,7 +572,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
-	kmsg->src = proc_current()->process;
+	kmsg->src = (currentProc == NULL) ? msg_common.kmap : currentProc->mapp;
 	proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
 	hal_cpuReschedule(NULL, NULL);
