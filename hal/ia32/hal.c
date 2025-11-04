@@ -33,9 +33,6 @@ struct {
 syspage_t *syspage;
 
 
-void _hal_cpuInit(void);
-
-
 void *hal_syspageRelocate(void *data)
 {
 	return ((u8 *)data + VADDR_KERNEL);

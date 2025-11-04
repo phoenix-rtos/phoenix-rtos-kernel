@@ -28,9 +28,6 @@ u64 relOffs;
 u32 schedulerLocked = 0;
 
 
-void _hal_cpuInit(void);
-
-
 void *hal_syspageRelocate(void *data)
 {
 	return ((u8 *)data + relOffs);

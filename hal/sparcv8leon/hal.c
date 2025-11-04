@@ -26,9 +26,6 @@ unsigned int relOffs;
 u32 hal_multilock;
 
 
-void _hal_cpuInit(void);
-
-
 void *hal_syspageRelocate(void *data)
 {
 	return ((u8 *)data + relOffs);
