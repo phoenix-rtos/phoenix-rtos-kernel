@@ -22,9 +22,6 @@ struct {
 hal_syspage_t *syspage;
 
 
-void _hal_cpuInit(void);
-
-
 void *hal_syspageRelocate(void *data)
 {
 	return data;
