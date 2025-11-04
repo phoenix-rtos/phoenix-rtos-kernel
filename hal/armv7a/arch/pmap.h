@@ -18,7 +18,7 @@
 
 #include "hal/types.h"
 
-/* Predefined virtual adresses */
+/* Predefined virtual addresses */
 #define VADDR_KERNEL  0xc0000000 /* base virtual address of kernel space */
 #define VADDR_MIN     0x00000000
 #define VADDR_MAX     0xffffffff
@@ -28,7 +28,7 @@
 #define VADDR_SCRATCHPAD_TTL 0xfff00000
 
 
-/* Architecure dependent page attributes */
+/* Architecture dependent page attributes */
 #define PGHD_PRESENT    0x20
 #define PGHD_NOT_CACHED 0x10
 #define PGHD_USER       0x08

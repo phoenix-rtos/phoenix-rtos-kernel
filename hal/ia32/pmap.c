@@ -202,7 +202,7 @@ int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 }
 
 
-/* Functions returs physical address associated with specified virtual address */
+/* Functions returns physical address associated with specified virtual address */
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
 	u32 pdi, pti;

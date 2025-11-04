@@ -30,7 +30,7 @@
 #define PGHD_CACHE_WT  PGHD_PWT
 #define PGHD_CACHE_UCM PGHD_PCD
 #define PGHD_CACHE_UC  (PGHD_PCD | PGHD_PWT)
-/* Architecure dependent page attributes */
+/* Architecture dependent page attributes */
 #define PGHD_PRESENT    0x01
 #define PGHD_USER       0x04
 #define PGHD_WRITE      0x02
@@ -44,7 +44,7 @@
 #define PGHD_4MB_PAT    0x1000
 
 
-/* Architecure dependent page table attributes */
+/* Architecture dependent page table attributes */
 #define PTHD_PRESENT  0x01
 #define PTHD_USER     0x04
 #define PTHD_WRITE    0x02

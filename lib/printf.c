@@ -272,12 +272,14 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				const unsigned int s_len = hal_strlen(s);
 				hal_memcpy(out, s, s_len);
 				out += s_len;
-			} break;
+				break;
+			}
 
 			case 'c': {
 				const char c = (char)va_arg(args, int);
 				*out++ = c;
-			} break;
+				break;
+			}
 
 			case 'X':
 				flags |= FLAG_LARGE_DIGITS;
@@ -315,7 +317,8 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 				min_number_len = sizeof(void *) * 2U;
 				is_number = 1;
 				is_pointer = 1;
-			} break;
+				break;
+			}
 
 			case '%':
 				*out++ = '%';
@@ -374,7 +377,7 @@ int lib_vprintf(const char *format, va_list ap)
 			break;
 		}
 
-		/* precission, padding (set default to 6 digits) */
+		/* precision, padding (set default to 6 digits) */
 		flags = 0;
 		min_number_len = 0;
 

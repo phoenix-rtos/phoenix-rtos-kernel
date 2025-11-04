@@ -3,7 +3,7 @@
  *
  * Operating system kernel
  *
- * RISCV64 PLIC interrupt controler driver
+ * RISCV64 PLIC interrupt controller driver
  *
  * Copyright 2020 Phoenix Systems
  * Author: Pawel Pisarczyk

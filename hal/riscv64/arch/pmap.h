@@ -24,7 +24,7 @@
 
 #define VADDR_DTB 0xffffffffc0000000UL
 
-/* Architecure dependent page attributes */
+/* Architecture dependent page attributes */
 #define PGHD_PRESENT    0x01
 #define PGHD_READ       0x02
 #define PGHD_WRITE      0x04

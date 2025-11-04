@@ -588,7 +588,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 		}
 	}
 
-	/* NULL page indicates that proc sybsystem is ready */
+	/* NULL page indicates that proc subsystem is ready */
 	if (p == NULL) {
 		current = proc_current();
 		if (current != NULL) {

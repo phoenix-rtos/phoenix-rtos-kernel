@@ -58,7 +58,7 @@ typedef struct {
 
 
 struct {
-	/* The order of below fields should be stricly preserved */
+	/* The order of below fields should be strictly preserved */
 	u64 pdir2[512];
 	u64 pdir1[512];
 	u64 pdir0[512];
@@ -397,7 +397,7 @@ int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 }
 
 
-/* Functions returs physical address associated with specified virtual address */
+/* Functions returns physical address associated with specified virtual address */
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 {
 	addr_t addr;
