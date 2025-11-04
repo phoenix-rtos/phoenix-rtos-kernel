@@ -11,6 +11,7 @@ on:
     branches:
       - master
       - 'feature/*'
+      - 'bpaczek/*'
 
 
 jobs:
