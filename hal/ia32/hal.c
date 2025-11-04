@@ -14,6 +14,7 @@
  * %LICENSE%
  */
 
+#include "hal/hal.h"
 #include "hal/spinlock.h"
 #include "hal/console.h"
 #include "hal/exceptions.h"
