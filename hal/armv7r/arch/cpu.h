@@ -203,7 +203,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return (int)(unsigned int)(ctx->psr & 0xfU);
+	return ((ctx->psr & 0xfU) != 0U) ? 1 : 0;
 }
 
 
