@@ -69,7 +69,7 @@ sbiret_t hal_sbiProbeExtension(long extid);
 void hal_sbiSetTimer(u64 stime);
 
 
-void hal_sbiReset(u32 type, u32 reason);
+__attribute__((noreturn)) void hal_sbiReset(u32 type, u32 reason);
 
 
 sbiret_t hal_sbiSendIPI(unsigned long hart_mask, unsigned long hart_mask_base);

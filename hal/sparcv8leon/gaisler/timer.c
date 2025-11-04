@@ -159,6 +159,8 @@ void hal_timerWdogReboot(void)
 
 	/* Interrupt must be enabled for the watchdog to work */
 	*(timer_common.timer0_base + GPT_TCTRL(timer_common.wdog)) = TIMER_LOAD | TIMER_INT_ENABLE | TIMER_ENABLE;
+
+	__builtin_unreachable();
 }
 
 

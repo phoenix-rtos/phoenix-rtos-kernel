@@ -151,6 +151,7 @@ void hal_sbiReset(u32 type, u32 reason)
 	if (hal_sbiProbeExtension(SBI_EXT_SRST).error == SBI_SUCCESS) {
 		(void)hal_sbiEcall(SBI_EXT_SRST, SBI_SRST_RESET, type, reason, 0, 0, 0, 0);
 	}
+	__builtin_unreachable();
 }
 
 

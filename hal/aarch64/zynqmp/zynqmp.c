@@ -381,10 +381,11 @@ static int _zynq_getDevRst(int dev, unsigned int *state)
 }
 
 
-static void zynqmp_softRst(void)
+__attribute__((noreturn)) static void zynqmp_softRst(void)
 {
 	/* Equivalent to PS_SRST_B signal */
 	*(zynq_common.crl_apb + crl_apb_reset_ctrl) |= (1 << 4);
+	__builtin_unreachable();
 }
 
 
