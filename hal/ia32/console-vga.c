@@ -53,7 +53,7 @@ static struct {
 	unsigned char attr;      /* Character attribute */
 	unsigned char esc;       /* Escape sequence state */
 	unsigned char parmi;     /* Escape sequence parameter index */
-	unsigned char parms[10]; /* Escape sequence parameters buffer */
+	unsigned char params[10]; /* Escape sequence parameters buffer */
 	spinlock_t spinlock;
 } halconsole_common;
 
@@ -123,7 +123,7 @@ static void _hal_consolePrint(const char *s)
 					break;
 
 				case '\e':
-					hal_memset(halconsole_common.parms, 0, sizeof(halconsole_common.parms));
+					hal_memset(halconsole_common.params, 0, sizeof(halconsole_common.params));
 					halconsole_common.parmi = 0;
 					halconsole_common.esc = esc_esc;
 					break;
@@ -140,7 +140,7 @@ static void _hal_consolePrint(const char *s)
 				case esc_esc:
 					switch (c) {
 						case '[':
-							hal_memset(halconsole_common.parms, 0, sizeof(halconsole_common.parms));
+							hal_memset(halconsole_common.params, 0, sizeof(halconsole_common.params));
 							halconsole_common.parmi = 0;
 							halconsole_common.esc = esc_csi;
 							break;
@@ -163,12 +163,12 @@ static void _hal_consolePrint(const char *s)
 						case '7':
 						case '8':
 						case '9':
-							halconsole_common.parms[halconsole_common.parmi] *= 10;
-							halconsole_common.parms[halconsole_common.parmi] += c - '0';
+							halconsole_common.params[halconsole_common.parmi] *= 10;
+							halconsole_common.params[halconsole_common.parmi] += c - '0';
 							break;
 
 						case ';':
-							if (halconsole_common.parmi + 1 < sizeof(halconsole_common.parms))
+							if (halconsole_common.parmi + 1 < sizeof(halconsole_common.params))
 								halconsole_common.parmi++;
 							break;
 
@@ -177,23 +177,23 @@ static void _hal_consolePrint(const char *s)
 							break;
 
 						case 'H':
-							if (halconsole_common.parms[0] < 1)
-								halconsole_common.parms[0] = 1;
-							else if (halconsole_common.parms[0] > halconsole_common.rows)
-								halconsole_common.parms[0] = halconsole_common.rows;
+							if (halconsole_common.params[0] < 1)
+								halconsole_common.params[0] = 1;
+							else if (halconsole_common.params[0] > halconsole_common.rows)
+								halconsole_common.params[0] = halconsole_common.rows;
 
-							if (halconsole_common.parms[1] < 1)
-								halconsole_common.parms[1] = 1;
-							else if (halconsole_common.parms[1] > halconsole_common.cols)
-								halconsole_common.parms[1] = halconsole_common.cols;
+							if (halconsole_common.params[1] < 1)
+								halconsole_common.params[1] = 1;
+							else if (halconsole_common.params[1] > halconsole_common.cols)
+								halconsole_common.params[1] = halconsole_common.cols;
 
-							row = halconsole_common.parms[0] - 1;
-							col = halconsole_common.parms[1] - 1;
+							row = halconsole_common.params[0] - 1;
+							col = halconsole_common.params[1] - 1;
 							halconsole_common.esc = esc_init;
 							break;
 
 						case 'J':
-							switch (halconsole_common.parms[0]) {
+							switch (halconsole_common.params[0]) {
 								case 0:
 									console_memset(halconsole_common.vram + row * halconsole_common.cols + col, (u16)halconsole_common.attr << 8 | ' ', halconsole_common.cols * (halconsole_common.rows - row) - col);
 									break;
@@ -212,7 +212,7 @@ static void _hal_consolePrint(const char *s)
 						case 'm':
 							i = 0;
 							do {
-								switch (halconsole_common.parms[i]) {
+								switch (halconsole_common.params[i]) {
 									case 0:
 										halconsole_common.attr = 0x07;
 										break;
@@ -229,7 +229,7 @@ static void _hal_consolePrint(const char *s)
 									case 35:
 									case 36:
 									case 37:
-										halconsole_common.attr = (halconsole_common.attr & 0xf0) | ansi2fg[(halconsole_common.parms[i] - 30) & 0x7];
+										halconsole_common.attr = (halconsole_common.attr & 0xf0) | ansi2fg[(halconsole_common.params[i] - 30) & 0x7];
 										break;
 
 									case 40:
@@ -240,7 +240,7 @@ static void _hal_consolePrint(const char *s)
 									case 45:
 									case 46:
 									case 47:
-										halconsole_common.attr = ansi2bg[(halconsole_common.parms[i] - 40) & 0x7] | (halconsole_common.attr & 0x0f);
+										halconsole_common.attr = ansi2bg[(halconsole_common.params[i] - 40) & 0x7] | (halconsole_common.attr & 0x0f);
 										break;
 								}
 							} while (i++ < halconsole_common.parmi);
@@ -263,17 +263,17 @@ static void _hal_consolePrint(const char *s)
 						case '7':
 						case '8':
 						case '9':
-							halconsole_common.parms[halconsole_common.parmi] *= 10;
-							halconsole_common.parms[halconsole_common.parmi] += c - '0';
+							halconsole_common.params[halconsole_common.parmi] *= 10;
+							halconsole_common.params[halconsole_common.parmi] += c - '0';
 							break;
 
 						case ';':
-							if (halconsole_common.parmi + 1 < sizeof(halconsole_common.parms))
+							if (halconsole_common.parmi + 1 < sizeof(halconsole_common.params))
 								halconsole_common.parmi++;
 							break;
 
 						case 'h':
-							switch (halconsole_common.parms[0]) {
+							switch (halconsole_common.params[0]) {
 								case 25:
 									hal_outb(halconsole_common.crtc, 0x0a);
 									hal_outb(halconsole_common.crtc + 1, hal_inb(halconsole_common.crtc + 1) & ~0x20);
@@ -283,7 +283,7 @@ static void _hal_consolePrint(const char *s)
 							break;
 
 						case 'l':
-							switch (halconsole_common.parms[0]) {
+							switch (halconsole_common.params[0]) {
 								case 25:
 									hal_outb(halconsole_common.crtc, 0x0a);
 									hal_outb(halconsole_common.crtc + 1, hal_inb(halconsole_common.crtc + 1) | 0x20);

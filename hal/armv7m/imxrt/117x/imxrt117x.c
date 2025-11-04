@@ -184,7 +184,7 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 	}
 
 	if ((pad <= pctl_pad_gpio_emc_b2_20) || ((pad >= pctl_pad_gpio_sd_b1_00) && (pad <= pctl_pad_gpio_disp_b1_11))) {
-		/* Fields have slightly diffrent meaning... */
+		/* Fields have slightly different meaning... */
 		if (pue == 0) {
 			pull = 3;
 		}

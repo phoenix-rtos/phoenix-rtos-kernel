@@ -106,10 +106,10 @@ void _hal_consoleInit(void)
 	console_common.cpufreq = _stm32_rccGetCPUClock();
 
 	/* Set up UART to 9600,8,n,1 16-bit oversampling */
-	*(console_common.base + cr1) &= ~0x2000;   /* disable USART */
-	*(console_common.base + cr2) = 0;          /* 1 start, 1 stop bit */
-	*(console_common.base + cr1) = 0x8 | 0x4;  /* enable receiver, enable transmitter */
-	*(console_common.base + cr3) = 0;          /* no aditional settings */
+	*(console_common.base + cr1) &= ~0x2000;                      /* disable USART */
+	*(console_common.base + cr2) = 0;                             /* 1 start, 1 stop bit */
+	*(console_common.base + cr1) = 0x8 | 0x4;                     /* enable receiver, enable transmitter */
+	*(console_common.base + cr3) = 0;                             /* no additional settings */
 	*(console_common.base + brr) = console_common.cpufreq / 9600; /* 9600 baud rate */
 	*(console_common.base + cr1) |= 0x2000;
 

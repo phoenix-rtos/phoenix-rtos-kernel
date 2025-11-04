@@ -213,8 +213,8 @@ _interrupts_dispatch:
 	/* return to SYS mode with no interrupts */
 	cpsie af, #SYS_MODE
 
-	/* If exception was not taken in user mode, use curren stack
-	 * to store context. Otherwise use preffered one from r3 */
+	/* If exception was not taken in user mode, use current stack
+	 * to store context. Otherwise use preferred one from r3 */
 	tst r2, #0x0f
 	movne r3, sp
 
