@@ -53,12 +53,15 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	interrupts.counters[n]++;
 
-	if ((h = interrupts.handlers[n]) != NULL) {
+	h = interrupts.handlers[n];
+	if (h != NULL) {
 		do {
 			hal_cpuSetGot(h->got);
-			if (h->f(n, ctx, h->data))
+			if (h->f(n, ctx, h->data)) {
 				reschedule = 1;
-		} while ((h = h->next) != interrupts.handlers[n]);
+			}
+			h = h->next;
+		} while (h != interrupts.handlers[n]);
 	}
 
 	hal_spinlockClear(&interrupts.spinlock, &sc);

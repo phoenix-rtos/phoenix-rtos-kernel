@@ -26,11 +26,13 @@ static int socksrvcall(msg_t *msg)
 	oid_t oid;
 	int err;
 
-	if ((err = proc_lookup(PATH_SOCKSRV, NULL, &oid)) < 0) {
+	err = proc_lookup(PATH_SOCKSRV, NULL, &oid);
+	if (err < 0) {
 		return err;
 	}
 
-	if ((err = proc_send(oid.port, msg)) < 0) {
+	err = proc_send(oid.port, msg);
+	if (err < 0) {
 		return err;
 	}
 
@@ -43,7 +45,8 @@ static ssize_t sockcall(unsigned int socket, msg_t *msg)
 	sockport_resp_t *smo = (void *)msg->o.raw;
 	int err;
 
-	if ((err = proc_send((u32)socket, msg)) < 0) {
+	err = proc_send((u32)socket, msg);
+	if (err < 0) {
 		return err;
 	}
 
@@ -57,7 +60,8 @@ static ssize_t socknamecall(unsigned int socket, msg_t *msg, struct sockaddr *ad
 	sockport_resp_t *smo = (void *)msg->o.raw;
 	ssize_t err;
 
-	if ((err = sockcall(socket, msg)) < 0) {
+	err = sockcall(socket, msg);
+	if (err < 0) {
 		return err;
 	}
 
@@ -101,7 +105,8 @@ int inet_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 	msg.type = sockmAccept;
 	smi->send.flags = flags;
 
-	if ((err = socknamecall(socket, &msg, address, address_len)) < 0) {
+	err = socknamecall(socket, &msg, address, address_len);
+	if (err < 0) {
 		return err;
 	}
 
@@ -281,7 +286,8 @@ int inet_socket(int domain, int type, int protocol)
 	smi->socket.type = type;
 	smi->socket.protocol = protocol;
 
-	if ((err = socksrvcall(&msg)) < 0) {
+	err = socksrvcall(&msg);
+	if (err < 0) {
 		return err;
 	}
 

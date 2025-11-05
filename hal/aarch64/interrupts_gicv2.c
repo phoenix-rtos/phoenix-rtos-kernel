@@ -112,10 +112,12 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	interrupts_common.counters[n]++;
 
-	if ((h = interrupts_common.handlers[n]) != NULL) {
+	h = interrupts_common.handlers[n];
+	if (h != NULL) {
 		do {
 			reschedule |= h->f(n, ctx, h->data);
-		} while ((h = h->next) != interrupts_common.handlers[n]);
+			h = h->next;
+		} while (h != interrupts_common.handlers[n]);
 	}
 
 	if (reschedule) {

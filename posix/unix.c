@@ -210,7 +210,8 @@ static unixsock_t *unixsock_alloc(unsigned int *id, int type, int nonblock)
 		}
 	}
 
-	if ((r = vm_kmalloc(sizeof(unixsock_t))) == NULL) {
+	r = vm_kmalloc(sizeof(unixsock_t));
+	if (r == NULL) {
 		(void)proc_lockClear(&unix_common.lock);
 		return NULL;
 	}
@@ -251,7 +252,8 @@ static unixsock_t *unixsock_get(unsigned int id)
 	t.id = id;
 
 	(void)proc_lockSet(&unix_common.lock);
-	if ((r = lib_treeof(unixsock_t, linkage, lib_rbFind(&unix_common.tree, &t.linkage))) != NULL) {
+	r = lib_treeof(unixsock_t, linkage, lib_rbFind(&unix_common.tree, &t.linkage));
+	if (r != NULL) {
 		r->refs++;
 	}
 	(void)proc_lockClear(&unix_common.lock);
@@ -385,7 +387,8 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 		return -ENOMEM;
 	}
 
-	if ((v[0] = vm_kmalloc(s[0]->buffsz)) == NULL) {
+	v[0] = vm_kmalloc(s[0]->buffsz);
+	if (v[0] == NULL) {
 		unixsock_put(s[1]);
 		unixsock_put(s[1]);
 		unixsock_put(s[0]);
@@ -393,7 +396,8 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 		return -ENOMEM;
 	}
 
-	if ((v[1] = vm_kmalloc(s[1]->buffsz)) == NULL) {
+	v[1] = vm_kmalloc(s[1]->buffsz);
+	if (v[1] == NULL) {
 		vm_kfree(v[0]);
 		unixsock_put(s[1]);
 		unixsock_put(s[1]);
@@ -433,7 +437,8 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 	spinlock_ctx_t sc;
 	int nonblock;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -461,7 +466,8 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 			break;
 		}
 
-		if ((v = vm_kmalloc(new->buffsz)) == NULL) {
+		v = vm_kmalloc(new->buffsz);
+		if (v == NULL) {
 			unixsock_put(new);
 			unixsock_put(new);
 			err = -ENOMEM;
@@ -512,7 +518,8 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 	unixsock_t *s;
 	void *v = NULL;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -542,7 +549,8 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			}
 
 			if (s->type == SOCK_DGRAM) {
-				if ((v = vm_kmalloc(s->buffsz)) == NULL) {
+				v = vm_kmalloc(s->buffsz);
+				if (v == NULL) {
 					err = -ENOMEM;
 					break;
 				}
@@ -579,7 +587,8 @@ int unix_listen(unsigned int socket, int backlog)
 	unixsock_t *s;
 	int err;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -612,7 +621,8 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 	void *v;
 	spinlock_ctx_t sc;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -685,7 +695,8 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 				break;
 			}
 
-			if ((v = vm_kmalloc(s->buffsz)) == NULL) {
+			v = vm_kmalloc(s->buffsz);
+			if (v == NULL) {
 				err = -ENOMEM;
 				break;
 			}
@@ -742,7 +753,8 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 	unixsock_t *s;
 	int err = EOK;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 	do {
@@ -790,7 +802,8 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 
 	peek = ((flags & MSG_PEEK) != 0U) ? 1U : 0U;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -1055,7 +1068,8 @@ ssize_t unix_sendmsg(unsigned int socket, const struct msghdr *msg, unsigned int
 	}
 
 	if (msg->msg_controllen > 0U) {
-		if ((err = fdpass_pack(&fdpack, msg->msg_control, msg->msg_controllen)) < 0) {
+		err = fdpass_pack(&fdpack, msg->msg_control, msg->msg_controllen);
+		if (err < 0) {
 			return err;
 		}
 	}
@@ -1080,7 +1094,8 @@ int unix_shutdown(unsigned int socket, int how)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -1128,7 +1143,8 @@ int unix_setsockopt(unsigned int socket, int level, int optname, const void *opt
 	unixsock_t *s;
 	int err;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -1163,7 +1179,8 @@ int unix_setfl(unsigned int socket, unsigned int flags)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -1179,7 +1196,8 @@ int unix_getfl(unsigned int socket)
 	unixsock_t *s;
 	unsigned int flags;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -1204,7 +1222,8 @@ int unix_close(unsigned int socket)
 {
 	unixsock_t *s;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		return -ENOTSOCK;
 	}
 
@@ -1219,7 +1238,8 @@ int unix_poll(unsigned int socket, unsigned short events)
 	unixsock_t *s, *r;
 	unsigned int err = 0;
 
-	if ((s = unixsock_get(socket)) == NULL) {
+	s = unixsock_get(socket);
+	if (s == NULL) {
 		err = POLLNVAL;
 	}
 	else {

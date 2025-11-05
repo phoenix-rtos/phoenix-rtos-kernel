@@ -128,11 +128,11 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 		i = (512U - sizeof(amap_t)) / sizeof(anon_t *);
 	}
 
-	if ((new = vm_kmalloc(sizeof(amap_t) + i * sizeof(anon_t *))) == NULL) {
+	new = vm_kmalloc(sizeof(amap_t) + i * sizeof(anon_t *));
+	if (new == NULL) {
 		if (amap != NULL) {
 			(void)proc_lockClear(&amap->lock);
 		}
-
 		return NULL;
 	}
 
@@ -193,7 +193,8 @@ static anon_t *anon_new(page_t *p)
 {
 	anon_t *a;
 
-	if ((a = vm_kmalloc(sizeof(anon_t))) == NULL) {
+	a = vm_kmalloc(sizeof(anon_t));
+	if (a == NULL) {
 		return NULL;
 	}
 
@@ -233,7 +234,8 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 
 	(void)proc_lockSet(&amap->lock);
 
-	if ((a = amap->anons[aoffs / SIZE_PAGE]) != NULL) {
+	a = amap->anons[aoffs / SIZE_PAGE];
+	if (a != NULL) {
 		(void)proc_lockSet(&a->lock);
 		p = a->page;
 		if (!(a->refs > 1U && (prot & PROT_WRITE) != 0U)) {
@@ -243,24 +245,26 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 		}
 		a->refs--;
 	}
-	else if ((p = vm_objectPage(map, &amap, o, vaddr, offs)) == NULL) {
-		/* amap could be invalidated while fetching from the object's store */
-		if (amap != NULL) {
-			(void)proc_lockClear(&amap->lock);
-		}
-
-		return NULL;
-	}
-	else if (o != NULL && (prot & PROT_WRITE) == 0U) {
-		(void)proc_lockClear(&amap->lock);
-		return p;
-	}
 	else {
-		/* No action required */
+		p = vm_objectPage(map, &amap, o, vaddr, offs);
+		if (p == NULL) {
+			/* amap could be invalidated while fetching from the object's store */
+			if (amap != NULL) {
+				(void)proc_lockClear(&amap->lock);
+			}
+			return NULL;
+		}
+		else if (o != NULL && (prot & PROT_WRITE) == 0U) {
+			(void)proc_lockClear(&amap->lock);
+			return p;
+		}
+		else {
+			/* No action required */
+		}
 	}
 
-
-	if ((v = amap_map(map, p)) == NULL) {
+	v = amap_map(map, p);
+	if (v == NULL) {
 		if (a != NULL) {
 			(void)proc_lockClear(&a->lock);
 		}
@@ -270,7 +274,8 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 
 	if (a != NULL || o != NULL) {
 		/* Copy from object or shared anon */
-		if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL) {
+		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		if (p == NULL) {
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
 				(void)proc_lockClear(&a->lock);
@@ -278,7 +283,8 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 			(void)proc_lockClear(&amap->lock);
 			return NULL;
 		}
-		if ((w = amap_map(map, p)) == NULL) {
+		w = amap_map(map, p);
+		if (w == NULL) {
 			vm_pageFree(p);
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
@@ -300,7 +306,8 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 		(void)proc_lockClear(&a->lock);
 	}
 
-	if ((amap->anons[aoffs / SIZE_PAGE] = anon_new(p)) == NULL) {
+	amap->anons[aoffs / SIZE_PAGE] = anon_new(p);
+	if (amap->anons[aoffs / SIZE_PAGE] == NULL) {
 		vm_pageFree(p);
 		p = NULL;
 	}

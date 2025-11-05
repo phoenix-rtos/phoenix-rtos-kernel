@@ -110,13 +110,15 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	interrupts_common.counters[n]++;
 
-	if ((h = interrupts_common.handlers[n]) != NULL) {
+	h = interrupts_common.handlers[n];
+	if (h != NULL) {
 		do {
 			hal_cpuSetGot(h->got);
 			if (h->f(n, ctx, h->data) != 0) {
 				reschedule = 1;
 			}
-		} while ((h = h->next) != interrupts_common.handlers[n]);
+			h = h->next;
+		} while (h != interrupts_common.handlers[n]);
 	}
 
 	if (reschedule != 0) {

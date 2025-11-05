@@ -163,8 +163,10 @@ static int _imx6ull_setIOgpr(int field, unsigned int val)
 	unsigned int mask, t;
 	int err;
 
-	if ((err = _imx6ull_checkIOgprArg(field, &mask)) != 0)
+	err = _imx6ull_checkIOgprArg(field, &mask);
+	if (err != 0) {
 		return err;
+	}
 
 	t = *(imx6ull_common.iomux_gpr+ (field >> 5)) & ~(mask << (field & 0x1f));
 	*(imx6ull_common.iomux_gpr + (field >> 5)) = t | (val & mask) << (field & 0x1f);
@@ -226,8 +228,10 @@ static int _imx6ull_getIOgpr(int field, unsigned int *val)
 	unsigned int mask;
 	int err;
 
-	if ((err = _imx6ull_checkIOgprArg(field, &mask)) != 0)
+	err = _imx6ull_checkIOgprArg(field, &mask);
+	if (err != 0) {
 		return err;
+	}
 
 	*val = (*(imx6ull_common.iomux_gpr + (field >> 5)) >> (field & 0x1f)) & mask;
 

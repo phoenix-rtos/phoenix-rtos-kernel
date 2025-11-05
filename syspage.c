@@ -34,7 +34,8 @@ size_t syspage_mapSize(void)
 
 	do {
 		++nb;
-	} while ((map = map->next) != syspage_common.syspage->maps);
+		map = map->next;
+	} while (map != syspage_common.syspage->maps);
 
 	return nb;
 }
@@ -58,7 +59,8 @@ const syspage_map_t *syspage_mapIdResolve(unsigned int id)
 		if (id == map->id) {
 			return map;
 		}
-	} while ((map = map->next) != syspage_common.syspage->maps);
+		map = map->next;
+	} while (map != syspage_common.syspage->maps);
 
 	return NULL;
 }
@@ -76,7 +78,8 @@ const syspage_map_t *syspage_mapAddrResolve(addr_t addr)
 		if (addr < map->end && addr >= map->start) {
 			return map;
 		}
-	} while ((map = map->next) != syspage_common.syspage->maps);
+		map = map->next;
+	} while (map != syspage_common.syspage->maps);
 
 	return NULL;
 }
@@ -94,7 +97,8 @@ const syspage_map_t *syspage_mapNameResolve(const char *name)
 		if (hal_strcmp(name, map->name) == 0) {
 			return map;
 		}
-	} while ((map = map->next) != syspage_common.syspage->maps);
+		map = map->next;
+	} while (map != syspage_common.syspage->maps);
 
 	return NULL;
 }
@@ -111,7 +115,8 @@ size_t syspage_progSize(void)
 
 	do {
 		++nb;
-	} while ((prog = prog->next) != syspage_common.syspage->progs);
+		prog = prog->next;
+	} while (prog != syspage_common.syspage->progs);
 
 	return nb;
 }
@@ -136,7 +141,8 @@ const syspage_prog_t *syspage_progIdResolve(unsigned int id)
 		if (id == i++) {
 			return prog;
 		}
-	} while ((prog = prog->next) != syspage_common.syspage->progs);
+		prog = prog->next;
+	} while (prog != syspage_common.syspage->progs);
 
 	return NULL;
 }
@@ -154,7 +160,8 @@ const syspage_prog_t *syspage_progNameResolve(const char *name)
 		if (hal_strcmp(name, prog->argv) == 0) {
 			return prog;
 		}
-	} while ((prog = prog->next) != syspage_common.syspage->progs);
+		prog = prog->next;
+	} while (prog != syspage_common.syspage->progs);
 
 	return NULL;
 }
@@ -199,9 +206,11 @@ void syspage_init(void)
 				do {
 					entry->next = hal_syspageRelocate(entry->next);
 					entry->prev = hal_syspageRelocate(entry->prev);
-				} while ((entry = entry->next) != map->entries);
+					entry = entry->next;
+				} while (entry != map->entries);
 			}
-		} while ((map = map->next) != syspage_common.syspage->maps);
+			map = map->next;
+		} while (map != syspage_common.syspage->maps);
 	}
 
 	/* Program's relocation */
@@ -216,6 +225,7 @@ void syspage_init(void)
 			prog->dmaps = hal_syspageRelocate(prog->dmaps);
 			prog->imaps = hal_syspageRelocate(prog->imaps);
 			prog->argv = hal_syspageRelocate(prog->argv);
-		} while ((prog = prog->next) != syspage_common.syspage->progs);
+			prog = prog->next;
+		} while (prog != syspage_common.syspage->progs);
 	}
 }

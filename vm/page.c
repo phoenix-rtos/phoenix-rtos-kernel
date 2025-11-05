@@ -232,11 +232,12 @@ static void _page_initSizes(void)
 
 static unsigned int page_digits(unsigned int n, unsigned int base)
 {
-	unsigned int d = 1;
+	unsigned int d = 0;
 
-	while ((n /= base) != 0) {
+	do {
+		n /= base;
 		d++;
-	}
+	} while (n != 0);
 
 	return d;
 }

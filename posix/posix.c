@@ -2490,20 +2490,34 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	event_t events[8];
 
 	/* fast path */
-	if ((err = do_poll_iteration(fds, nfds)))
+	err = do_poll_iteration(fds, nfds);
+	if (err != 0) {
 		return err;
-	else if (!timeout_ms)
+	}
+	else if (timeout_ms == 0) {
 		return 0;
+	}
+	else {
+		/* MISRA */
+	}
 
-	if ((queue = posix_open("/dev/event/queue", O_RDWR, NULL)) < 0)
+	queue = posix_open("/dev/event/queue", O_RDWR, NULL);
+	if (queue < 0) {
 		return queue;
+	}
 
 	do {
 		if (posix_getOpenFile(queue, &q) < 0)
 			return -EAGAIN; /* should not happen? */
 
-		if ((nfds > sizeof(subs_stack) / sizeof(evsub_t)) && (subs = vm_kmalloc(nfds * sizeof(evsub_t))) == NULL)
+		if (nfds > sizeof(subs_stack) / sizeof(evsub_t)) {
 			return -ENOMEM;
+		}
+
+		subs = vm_kmalloc(nfds * sizeof(evsub_t));
+		if (subs == NULL) {
+			return -ENOMEM;
+		}
 
 		hal_memset(subs, 0, nfds * sizeof(evsub_t));
 
@@ -2514,7 +2528,8 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 				if (fds[i].fd < 0)
 					continue;
 
-				if ((err = posix_getOpenFile(fds[i].fd, &f))) {
+				err = posix_getOpenFile(fds[i].fd, &f);
+				if (err != 0) {
 					fds[i].revents = POLLNVAL;
 					continue;
 				}
@@ -2524,8 +2539,9 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 				subs[i].types = fds[i].events;
 			}
 
-			if (err)
+			if (err != 0) {
 				break;
+			}
 
 			msg.type = mtRead;
 
@@ -2538,14 +2554,19 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 			msg.o.data = events;
 			msg.o.size = sizeof(events);
 
-			if ((err = proc_send(q->oid.port, &msg)))
+			err = proc_send(q->oid.port, &msg);
+			if (err != 0) {
 				break;
+			}
 
-			if ((err = msg.o.io.err) < 0)
+			err = msg.o.io.err;
+			if (err < 0) {
 				break;
+			}
 
-			if (!err)
+			if (err == 0) {
 				break;
+			}
 
 			for (i = 0; i < msg.o.io.err; ++i) {
 				for (j = 0; j < nfds; ++j) {

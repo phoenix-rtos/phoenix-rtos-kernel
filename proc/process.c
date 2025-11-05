@@ -1015,9 +1015,11 @@ static void *proc_copyargs(char **args)
 
 	len += (argc + 1U) * sizeof(char *);
 
-	if ((kargs = storage = vm_kmalloc(len)) == NULL) {
+	storage = vm_kmalloc(len);
+	if (storage == NULL) {
 		return NULL;
 	}
+	kargs = storage;
 
 	kargs[argc] = NULL;
 
@@ -1201,7 +1203,8 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 
 	hal_spinlockCreate(&spawn.sl, "spawnsl");
 
-	if ((pid = proc_start(proc_spawnThread, &spawn, path)) > 0) {
+	pid = proc_start(proc_spawnThread, &spawn, path);
+	if (pid > 0) {
 		hal_spinlockSet(&spawn.sl, &sc);
 		while (spawn.state == FORKING) {
 			(void)proc_threadWait(&spawn.wq, &spawn.sl, 0, &sc);
@@ -1225,11 +1228,13 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	oid_t oid;
 	vm_object_t *object;
 
-	if ((err = proc_lookup(path, NULL, &oid)) < 0) {
+	err = proc_lookup(path, NULL, &oid);
+	if (err < 0) {
 		return err;
 	}
 
-	if ((err = vm_objectGet(&object, oid)) < 0) {
+	err = vm_objectGet(&object, oid);
+	if (err < 0) {
 		return err;
 	}
 
@@ -1686,21 +1691,24 @@ int proc_execve(const char *path, char **argv, char **envp)
 		}
 	}
 
-	if ((err = proc_lookup(path, NULL, &oid)) < 0) {
+	err = proc_lookup(path, NULL, &oid);
+	if (err < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);
 		vm_kfree(envp);
 		return err;
 	}
 
-	if ((err = vm_objectGet(&object, oid)) < 0) {
+	err = vm_objectGet(&object, oid);
+	if (err < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);
 		vm_kfree(envp);
 		return err;
 	}
 
-	if ((spawn = current->execdata) == NULL) {
+	spawn = current->execdata;
+	if (spawn == NULL) {
 		spawn = current->execdata = &sspawn;
 		hal_spinlockCreate(&spawn->sl, "spawn");
 		spawn->wq = NULL;

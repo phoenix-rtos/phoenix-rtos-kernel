@@ -304,10 +304,12 @@ static void perf_bufferFree(void *data, page_t **pages)
 	size_t sz = 0;
 	page_t *p;
 
-	while ((p = *pages) != NULL) {
+	p = *pages;
+	while (p != NULL) {
 		*pages = p->next;
 		vm_pageFree(p);
 		sz += SIZE_PAGE;
+		p = *pages;
 	}
 
 	(void)vm_munmap(threads_common.kmap, data, sz);
@@ -609,7 +611,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Get next thread */
 	i = 0;
 	while (i < sizeof(threads_common.ready) / sizeof(thread_t *)) {
-		if ((selected = threads_common.ready[i]) == NULL) {
+		selected = threads_common.ready[i];
+		if (selected == NULL) {
 			i++;
 			continue;
 		}
@@ -755,7 +758,8 @@ void threads_canaryInit(thread_t *t, void *ustack)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	if ((t->ustack = ustack) != NULL) {
+	t->ustack = ustack;
+	if (t->ustack != NULL) {
 		hal_memcpy(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
 	}
 
@@ -1040,12 +1044,14 @@ void proc_threadsDestroy(thread_t **threads, const thread_t *except)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if ((t = *threads) != NULL) {
+	t = *threads;
+	if (t != NULL) {
 		do {
 			if (t != except) {
 				_proc_threadExit(t);
 			}
-		} while ((t = t->procnext) != *threads);
+			t = t->procnext;
+		} while (t != *threads);
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
@@ -1405,12 +1411,13 @@ int proc_join(int tid, time_t timeout)
 	}
 	else {
 		/* compatibility with existing code */
-		while ((ghost = process->ghosts) == NULL) {
+		while (process->ghosts == NULL) {
 			err = _proc_threadWait(&process->reaper, abstimeout, &sc);
 			if (err == -EINTR || err == -ETIME) {
 				break;
 			}
 		}
+		ghost = process->ghosts;
 	}
 
 	if (ghost != NULL) {
@@ -2240,7 +2247,8 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 
 	/* Allocate and initialize current threads array */
-	if ((threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount())) == NULL) {
+	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount());
+	if (threads_common.current == NULL) {
 		return -ENOMEM;
 	}
 

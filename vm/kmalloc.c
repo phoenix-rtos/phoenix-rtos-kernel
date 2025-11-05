@@ -92,14 +92,16 @@ static vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 	t.blocks = 1;
 	t.blocksz = 16;
 
-	if ((z = lib_treeof(vm_zone_t, linkage, lib_rbFind(&kmalloc_common.tree, &t.linkage))) == NULL) {
+	z = lib_treeof(vm_zone_t, linkage, lib_rbFind(&kmalloc_common.tree, &t.linkage));
+	if (z == NULL) {
 		return NULL;
 	}
 
 	_vm_zfree(z, p);
 	kmalloc_common.allocsz -= z->blocksz;
 
-	if ((idx = (u8)hal_cpuGetLastBit(z->blocksz)) == hdridx) {
+	idx = (u8)hal_cpuGetLastBit(z->blocksz);
+	if (idx == hdridx) {
 		kmalloc_common.hdrblocks++;
 	}
 
