@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _VM_OBJECT_H_
-#define _VM_OBJECT_H_
+#ifndef _PH_VM_OBJECT_H_
+#define _PH_VM_OBJECT_H_
 
 #include "hal/hal.h"
 #include "lib/lib.h"

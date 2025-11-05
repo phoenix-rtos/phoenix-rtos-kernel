@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_SYSPAGE_H_
-#define _HAL_SYSPAGE_H_
+#ifndef _PH_HAL_SYSPAGE_H_
+#define _PH_HAL_SYSPAGE_H_
 
 #include "hal/types.h"
 #include "config.h"

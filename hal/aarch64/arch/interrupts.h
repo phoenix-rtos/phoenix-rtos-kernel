@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_AARCH64_INTERRUPTS_H_
-#define _HAL_AARCH64_INTERRUPTS_H_
+#ifndef _PH_HAL_AARCH64_INTERRUPTS_H_
+#define _PH_HAL_AARCH64_INTERRUPTS_H_
 
 #include "cpu.h"
 

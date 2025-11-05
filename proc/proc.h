@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _PROC_PROC_H_
-#define _PROC_PROC_H_
+#ifndef _PH_PROC_PROC_H_
+#define _PH_PROC_PROC_H_
 
 #include "hal/hal.h"
 #include "threads.h"

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef LIB_ASSERT_H_
-#define LIB_ASSERT_H_
+#ifndef _PH_LIB_ASSERT_H_
+#define _PH_LIB_ASSERT_H_
 
 
 void lib_assertPanic(const char *func, int line, const char *fmt, ...);

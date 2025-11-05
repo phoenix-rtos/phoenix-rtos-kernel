@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_SYSCALLS_H_
-#define _PHOENIX_SYSCALLS_H_
+#ifndef _PH_SYSCALLS_H_
+#define _PH_SYSCALLS_H_
 
 /* clang-format off */
 /* parasoft-begin-suppress MISRAC2012-RULE_20_7-a "ID can not be put in parentheses as it is a macro" */
@@ -131,4 +131,4 @@
 /* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 /* clang-format on */
 
-#endif /* _PHOENIX_SYSCALLS_H_ */
+#endif /* _PH_SYSCALLS_H_ */

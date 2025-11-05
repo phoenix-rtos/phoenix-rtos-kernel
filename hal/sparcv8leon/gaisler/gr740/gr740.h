@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_GR740_H_
-#define _HAL_GR740_H_
+#ifndef _PH_HAL_GR740_H_
+#define _PH_HAL_GR740_H_
 
 
 #ifndef __ASSEMBLY__

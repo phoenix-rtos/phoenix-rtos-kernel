@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _ARCH_ARMV7R_STDTYPES_H_
-#define _ARCH_ARMV7R_STDTYPES_H_
+#ifndef _PH_ARCH_ARMV7R_STDTYPES_H_
+#define _PH_ARCH_ARMV7R_STDTYPES_H_
 
 
 #ifndef __ASSEMBLY__

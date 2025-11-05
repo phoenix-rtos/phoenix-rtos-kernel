@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_IA32_PMAP_H_
-#define _HAL_IA32_PMAP_H_
+#ifndef _PH_HAL_IA32_PMAP_H_
+#define _PH_HAL_IA32_PMAP_H_
 
 /* Predefined virtual addresses */
 #define VADDR_KERNEL   0xc0000000   /* base virtual address of kernel space */

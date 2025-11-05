@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_PMAP_H_
-#define _HAL_PMAP_H_
+#ifndef _PH_HAL_PMAP_H_
+#define _PH_HAL_PMAP_H_
 
 #include "vm/types.h"
 

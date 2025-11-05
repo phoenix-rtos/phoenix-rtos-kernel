@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_IA32_TYPES_H_
-#define _HAL_IA32_TYPES_H_
+#ifndef _PH_HAL_IA32_TYPES_H_
+#define _PH_HAL_IA32_TYPES_H_
 
 
 #include "include/types.h"

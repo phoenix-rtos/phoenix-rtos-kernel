@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _VM_PAGE_H_
-#define _VM_PAGE_H_
+#ifndef _PH_VM_PAGE_H_
+#define _PH_VM_PAGE_H_
 
 #include "hal/hal.h"
 #include "include/sysinfo.h"

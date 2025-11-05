@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_RISCV64_PMAP_H_
-#define _HAL_RISCV64_PMAP_H_
+#ifndef _PH_HAL_RISCV64_PMAP_H_
+#define _PH_HAL_RISCV64_PMAP_H_
 
 /* Predefined virtual addresses */
 #define VADDR_KERNEL  0x0000003fc0000000L /* base virtual address of kernel space */

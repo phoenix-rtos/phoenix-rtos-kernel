@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PROC_MUTEX_H_
-#define _PROC_MUTEX_H_
+#ifndef _PH_PROC_MUTEX_H_
+#define _PH_PROC_MUTEX_H_
 
 #include "include/threads.h"
 #include "resource.h"

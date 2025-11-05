@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _INTERRUPTS_GICV2_H_
-#define _INTERRUPTS_GICV2_H_
+#ifndef _PH_INTERRUPTS_GICV2_H_
+#define _PH_INTERRUPTS_GICV2_H_
 
 
 /* Type of interrupt's configuration */

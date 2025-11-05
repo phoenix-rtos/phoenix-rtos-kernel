@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PROC_RESOURCE_H_
-#define _PROC_RESOURCE_H_
+#ifndef _PH_PROC_RESOURCE_H_
+#define _PH_PROC_RESOURCE_H_
 
 #include "hal/hal.h"
 #include "threads.h"

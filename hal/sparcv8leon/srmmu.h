@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _HAL_SRMMU_H_
-#define _HAL_SRMMU_H_
+#ifndef _PH_HAL_SRMMU_H_
+#define _PH_HAL_SRMMU_H_
 
 
 /* TLB flush types

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_CPU_H_
-#define _HAL_CPU_H_
+#ifndef _PH_HAL_CPU_H_
+#define _PH_HAL_CPU_H_
 
 #define SIG_SRC_SCHED 0
 #define SIG_SRC_SCALL 1

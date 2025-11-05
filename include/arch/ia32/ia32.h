@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_ARCH_IA32_H_
-#define _PHOENIX_ARCH_IA32_H_
+#ifndef _PH_ARCH_IA32_H_
+#define _PH_ARCH_IA32_H_
 
 #define PCI_ANY            0
 #define PCI_VENDOR_INTEL   0x8086

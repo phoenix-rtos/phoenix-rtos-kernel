@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _HAL_LEON3_TLB_H_
-#define _HAL_LEON3_TLB_H_
+#ifndef _PH_HAL_LEON3_TLB_H_
+#define _PH_HAL_LEON3_TLB_H_
 
 #include "cpu.h"
 #include "pmap.h"

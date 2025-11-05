@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_MMAN_H_
-#define _PHOENIX_MMAN_H_
+#ifndef _PH_MMAN_H_
+#define _PH_MMAN_H_
 
 
 #define MAP_NONE       0x0U

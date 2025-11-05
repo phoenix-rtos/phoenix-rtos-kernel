@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _SYSCALLS_H_
-#define _SYSCALLS_H_
+#ifndef _PH_SYSCALLS_H_
+#define _PH_SYSCALLS_H_
 
 
 extern const void *const syscalls[];

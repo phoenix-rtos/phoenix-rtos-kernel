@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_HAL_H_
-#define _HAL_HAL_H_
+#ifndef _PH_HAL_HAL_H_
+#define _PH_HAL_HAL_H_
 
 #include "cpu.h"
 /* TODO: remove config file after cleaning up 'includes' directory */

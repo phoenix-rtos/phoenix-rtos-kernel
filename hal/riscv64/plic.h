@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_PLIC_H_
-#define _HAL_PLIC_H_
+#ifndef _PH_HAL_PLIC_H_
+#define _PH_HAL_PLIC_H_
 
 #include "hal/types.h"
 

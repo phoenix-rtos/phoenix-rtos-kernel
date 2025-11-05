@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_AMBAPP_H_
-#define _HAL_AMBAPP_H_
+#ifndef _PH_HAL_AMBAPP_H_
+#define _PH_HAL_AMBAPP_H_
 
 
 #include "include/gaisler/ambapp.h"

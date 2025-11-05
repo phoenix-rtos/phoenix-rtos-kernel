@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_ARMV7A_H_
-#define _HAL_ARMV7A_H_
+#ifndef _PH_HAL_ARMV7A_H_
+#define _PH_HAL_ARMV7A_H_
 
 #include "hal/types.h"
 

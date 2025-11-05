@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _USRV_H_
-#define _USRV_H_
+#ifndef _PH_USRV_H_
+#define _PH_USRV_H_
 
 
 void _usrv_init(void);

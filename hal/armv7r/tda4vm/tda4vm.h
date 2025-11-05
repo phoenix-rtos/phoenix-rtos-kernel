@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_TDA4VM_H_
-#define _HAL_TDA4VM_H_
+#ifndef _PH_HAL_TDA4VM_H_
+#define _PH_HAL_TDA4VM_H_
 
 #include "hal/cpu.h"
 #include "include/arch/armv7r/tda4vm/tda4vm.h"

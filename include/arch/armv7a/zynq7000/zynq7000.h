@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_ARCH_ZYNQ7000_H_
-#define _PHOENIX_ARCH_ZYNQ7000_H_
+#ifndef _PH_ARCH_ZYNQ7000_H_
+#define _PH_ARCH_ZYNQ7000_H_
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 

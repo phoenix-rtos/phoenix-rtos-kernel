@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _GAISLER_H_
-#define _GAISLER_H_
+#ifndef _PH_GAISLER_H_
+#define _PH_GAISLER_H_
 
 #include <config.h>
 #include "hal/types.h"

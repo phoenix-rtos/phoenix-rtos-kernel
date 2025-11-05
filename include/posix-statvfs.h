@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _PHOENIX_POSIX_STATVFS_H_
-#define _PHOENIX_POSIX_STATVFS_H_
+#ifndef _PH_POSIX_STATVFS_H_
+#define _PH_POSIX_STATVFS_H_
 
 #include "posix-types.h"
 

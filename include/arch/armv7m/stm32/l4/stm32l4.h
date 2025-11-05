@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_ARCH_STM32L4_H_
-#define _PHOENIX_ARCH_STM32L4_H_
+#ifndef _PH_ARCH_STM32L4_H_
+#define _PH_ARCH_STM32L4_H_
 
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_STM32_H_
-#define _HAL_STM32_H_
+#ifndef _PH_HAL_STM32_H_
+#define _PH_HAL_STM32_H_
 
 #include "hal/types.h"
 #include "hal/pmap.h"

@@ -12,8 +12,8 @@
  *
  * %LICENSE%
  */
-#ifndef _LOG_H_
-#define _LOG_H_
+#ifndef _PH_LOG_H_
+#define _PH_LOG_H_
 
 #include "proc/msg.h"
 

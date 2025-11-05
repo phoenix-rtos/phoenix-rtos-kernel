@@ -15,8 +15,8 @@
  */
 
 
-#ifndef _TDA4VM_PINS_H_
-#define _TDA4VM_PINS_H_
+#ifndef _PH_TDA4VM_PINS_H_
+#define _PH_TDA4VM_PINS_H_
 
 #define PIN_MAIN_OFFS 128
 
@@ -297,4 +297,4 @@ enum pins_main {
 	pins_main_count,
 };
 
-#endif /* _TDA4VM_PINS_H_ */
+#endif /* _PH_TDA4VM_PINS_H_ */

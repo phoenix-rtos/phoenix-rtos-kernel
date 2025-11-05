@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_EVENTS_H_
-#define _PHOENIX_EVENTS_H_
+#ifndef _PH_EVENTS_H_
+#define _PH_EVENTS_H_
 
 /* clang-format off */
 

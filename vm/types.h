@@ -11,8 +11,8 @@
  * %LICENSE%
  */
 
-#ifndef _VM_TYPES_H_
-#define _VM_TYPES_H_
+#ifndef _PH_VM_TYPES_H_
+#define _PH_VM_TYPES_H_
 
 #include "hal/types.h"
 

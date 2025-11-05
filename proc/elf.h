@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _ELF_H_
-#define _ELF_H_
+#ifndef _PH_ELF_H_
+#define _PH_ELF_H_
 
 
 typedef unsigned short Elf32_Half;

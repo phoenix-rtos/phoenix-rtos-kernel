@@ -13,7 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_DTB_H_
+#ifndef _PH_HAL_DTB_H_
+#define _PH_HAL_DTB_H_
 
 #include "hal/types.h"
 

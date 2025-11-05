@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_ACPI_H
-#define _HAL_ACPI_H
+#ifndef _PH_HAL_INIT_H_
+#define _PH_HAL_INIT_H_
 
 #include "hal/types.h"
 #include "config.h"

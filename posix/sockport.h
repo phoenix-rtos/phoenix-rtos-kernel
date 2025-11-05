@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _SYS_SOCKPORT_H_
-#define _SYS_SOCKPORT_H_
+#ifndef _PH_SYS_SOCKPORT_H_
+#define _PH_SYS_SOCKPORT_H_
 
 #include "proc/msg.h"
 #include "sockdefs.h"

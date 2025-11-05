@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _STM32N6_REGS_H_
-#define _STM32N6_REGS_H_
+#ifndef _PH_STM32N6_REGS_H_
+#define _PH_STM32N6_REGS_H_
 
 enum rcc_regs {
 	rcc_cr = 0x0,
@@ -505,4 +505,4 @@ enum dbgmcu_regs {
 	dbgmcu_dbg_auth_ack,
 };
 
-#endif /* _STM32N6_REGS_H_ */
+#endif /* _PH_STM32N6_REGS_H_ */

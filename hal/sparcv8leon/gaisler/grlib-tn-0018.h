@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _GRLIB_TN_0018_H_
-#define _GRLIB_TN_0018_H_
+#ifndef _PH_GRLIB_TN_0018_H_
+#define _PH_GRLIB_TN_0018_H_
 
 
 #include "hal/sparcv8leon/srmmu.h"
@@ -61,4 +61,4 @@
 #endif /* LEON3_TN_0018_FIX */
 
 
-#endif /* _GRLIB_TN_0018_H_ */
+#endif /* _PH_GRLIB_TN_0018_H_ */

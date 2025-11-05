@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_LIMITS_H_
-#define _PHOENIX_LIMITS_H_
+#ifndef _PH_LIMITS_H_
+#define _PH_LIMITS_H_
 
 
 #define HOST_NAME_MAX 255U

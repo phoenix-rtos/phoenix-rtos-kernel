@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_POSIX_POLL_H_
-#define _PHOENIX_POSIX_POLL_H_
+#ifndef _PH_POSIX_POLL_H_
+#define _PH_POSIX_POLL_H_
 
 
 #define POLLIN     0x1U

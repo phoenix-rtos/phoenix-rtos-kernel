@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_POSIX_UIO_H_
-#define _PHOENIX_POSIX_UIO_H_
+#ifndef _PH_POSIX_UIO_H_
+#define _PH_POSIX_UIO_H_
 
 
 #include "types.h"

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_SPARCV8LEON_H_
-#define _HAL_SPARCV8LEON_H_
+#ifndef _PH_HAL_SPARCV8LEON_H_
+#define _PH_HAL_SPARCV8LEON_H_
 
 
 #include <arch/cpu.h>

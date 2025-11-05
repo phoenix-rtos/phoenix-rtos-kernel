@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _LIB_RAND_H_
-#define _LIB_RAND_H_
+#ifndef _PH_LIB_RAND_H_
+#define _PH_LIB_RAND_H_
 
 
 int lib_rand(unsigned int *seedp);

@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _TDA4VM_REG_DEFS_H_
-#define _TDA4VM_REG_DEFS_H_
+#ifndef _PH_TDA4VM_REG_DEFS_H_
+#define _PH_TDA4VM_REG_DEFS_H_
 
 #include "hal/types.h"
 
@@ -660,4 +660,4 @@ enum ctrlmmr_regs {
 	ctrlmmr_reg_mpu0_lbist_sig = (0xc2a0 / 4),        /* ARM Cluster0 Logic BIST MISR Signature Register */
 };
 
-#endif /* _TDA4VM_REG_DEFS_H_ */
+#endif /* _PH_TDA4VM_REG_DEFS_H_ */

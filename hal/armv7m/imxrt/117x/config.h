@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_CONFIG_H_
-#define _HAL_CONFIG_H_
+#ifndef _PH_HAL_CONFIG_H_
+#define _PH_HAL_CONFIG_H_
 
 #define SIZE_INTERRUPTS 217
 

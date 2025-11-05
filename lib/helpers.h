@@ -9,8 +9,8 @@
  * %LICENSE%
  */
 
-#ifndef _LIB_HELPERS_H_
-#define _LIB_HELPERS_H_
+#ifndef _PH_LIB_HELPERS_H_
+#define _PH_LIB_HELPERS_H_
 
 /*
 These macros should only be used in `#if` and `#elif` directives, because undefined identifiers expand to 0 there.
