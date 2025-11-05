@@ -60,7 +60,7 @@ int syscalls_sys_mmap(u8 *ustack)
 	void **vaddr;
 	size_t size;
 	int prot, fildes, sflags;
-	unsigned int flags;
+	vm_flags_t flags;
 	off_t offs;
 	vm_object_t *o;
 	oid_t oid;
@@ -74,11 +74,7 @@ int syscalls_sys_mmap(u8 *ustack)
 	GETFROMSTACK(ustack, int, fildes, 4);
 	GETFROMSTACK(ustack, off_t, offs, 5);
 
-	if (sflags < 0) {
-		return -EINVAL;
-	}
-	flags = (unsigned int)sflags;
-
+	flags = (vm_flags_t)sflags;
 	size = round_page(size);
 
 	if (vm_mapBelongs(proc, vaddr, sizeof(*vaddr)) < 0) {
@@ -112,8 +108,7 @@ int syscalls_sys_mmap(u8 *ustack)
 
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3 "prot is popped from stack -> size of int stays" */
-	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (unsigned int)prot, o, (o == NULL) ? -1 : offs, flags);
+	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
 	(void)vm_objectPut(o);
 
 	if ((*vaddr) == NULL) {
@@ -155,8 +150,7 @@ int syscalls_sys_mprotect(u8 *ustack)
 	GETFROMSTACK(ustack, size_t, len, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
 
-	/* parasoft-suppress-next-line MISRAC2012_RULE_10_3 "prot is popped from stack -> size of int stays" */
-	err = vm_mprotect(proc->mapp, vaddr, len, PROT_USER | (unsigned int)prot);
+	err = vm_mprotect(proc->mapp, vaddr, len, PROT_USER | (vm_prot_t)prot);
 	if (err < 0) {
 		return err;
 	}
@@ -394,7 +388,7 @@ int syscalls_threadsinfo(u8 *ustack)
 	GETFROMSTACK(ustack, int, n, 0);
 	GETFROMSTACK(ustack, threadinfo_t *, info, 1);
 
-	if (vm_mapBelongs(proc, info, sizeof(*info) * (unsigned int)n) < 0) {
+	if (vm_mapBelongs(proc, info, sizeof(*info) * (size_t)n) < 0) {
 		return -EFAULT;
 	}
 
