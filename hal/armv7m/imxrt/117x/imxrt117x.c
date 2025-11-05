@@ -220,9 +220,11 @@ int _imxrt_setIOpad(int pad, char sre, char dse, char pue, char pus, char ode, c
 		}
 	}
 
-	/* APC field is not documented. Leave it alone for now. */
-	//t &= ~(0xf << 28);
-	//t |= (apc & 0xf) << 28;
+	/*
+	 * APC field is not documented. Leave it alone for now.
+	 * t &= ~(0xf << 28);
+	 * t |= (apc & 0xf) << 28;
+	 */
 
 	(*reg) = t;
 	hal_cpuDataMemoryBarrier();

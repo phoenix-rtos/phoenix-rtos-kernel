@@ -105,7 +105,7 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 		}
 	}
 	else {
-		if ((flags & FLAG_64BIT) != 0U) {  // TODO: optimize
+		if ((flags & FLAG_64BIT) != 0U) { /* TODO: optimize */
 			while (num64 != 0U) {
 				*tmp++ = digits[num64 % 10U];
 				num64 /= 10U;
