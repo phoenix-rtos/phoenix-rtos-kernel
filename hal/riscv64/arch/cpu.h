@@ -291,17 +291,6 @@ void hal_cpuLocalFlushTLB(u32 asid, const void *vaddr);
 void hal_cpuRemoteFlushTLB(u32 asid, const void *vaddr, size_t size);
 
 
-/* Code used in disabled code vm/object.c - map_pageFault */
-#if 0 /* Disabled until lazy mapping is enabled */
-static inline void *hal_cpuGetFaultAddr(void)
-{
-	u64 badaddress;
-	badaddress = csr_read(stval);
-	return (void *)badaddress;
-}
-#endif
-
-
 #endif
 
 #endif
