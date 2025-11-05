@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_IA32_CONSOLE_H_
-#define _HAL_IA32_CONSOLE_H_
+#ifndef _PH_HAL_IA32_CONSOLE_H_
+#define _PH_HAL_IA32_CONSOLE_H_
 
 
 #ifdef HAL_CONSOLE_VGA

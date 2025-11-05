@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _ZYNQMP_REGS_H_
-#define _ZYNQMP_REGS_H_
+#ifndef _PH_ZYNQMP_REGS_H_
+#define _PH_ZYNQMP_REGS_H_
 
 enum {
 	iou_slcr_mio_pin_0 = 0x0,    /* 78 registers */

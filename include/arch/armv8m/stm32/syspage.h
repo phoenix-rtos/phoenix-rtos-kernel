@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_SYSPAGE_STM32_H_
-#define _PHOENIX_SYSPAGE_STM32_H_
+#ifndef _PH_SYSPAGE_STM32_H_
+#define _PH_SYSPAGE_STM32_H_
 
 
 typedef struct {

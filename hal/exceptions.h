@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_EXCEPTIONS_H_
-#define _HAL_EXCEPTIONS_H_
+#ifndef _PH_HAL_EXCEPTIONS_H_
+#define _PH_HAL_EXCEPTIONS_H_
 
 #include "vm/types.h"
 

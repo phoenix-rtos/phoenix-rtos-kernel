@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef HAL_ARM_BARRIERS_H_
-#define HAL_ARM_BARRIERS_H_
+#ifndef _PH_HAL_ARM_BARRIERS_H_
+#define _PH_HAL_ARM_BARRIERS_H_
 
 
 static inline void hal_cpuDataMemoryBarrier(void)

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_ARMV8M_CPU_H_
-#define _HAL_ARMV8M_CPU_H_
+#ifndef _PH_HAL_ARMV8M_CPU_H_
+#define _PH_HAL_ARMV8M_CPU_H_
 
 #include "hal/types.h"
 

@@ -14,8 +14,8 @@
  *
  */
 
-#ifndef LIB_BSEARCH_H_
-#define LIB_BSEARCH_H_
+#ifndef _PH_LIB_BSEARCH_H_
+#define _PH_LIB_BSEARCH_H_
 
 
 void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *n1, void *n2));

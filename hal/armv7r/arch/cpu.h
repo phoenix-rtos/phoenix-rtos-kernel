@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_ARMV7R_CPU_H_
-#define _HAL_ARMV7R_CPU_H_
+#ifndef _PH_HAL_ARMV7R_CPU_H_
+#define _PH_HAL_ARMV7R_CPU_H_
 
 #define SIZE_PAGE 0x1000U
 

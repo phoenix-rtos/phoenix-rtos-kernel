@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _HAL_ARMV7M_INTERRUPTS_H_
-#define _HAL_ARMV7M_INTERRUPTS_H_
+#ifndef _PH_HAL_ARMV7M_INTERRUPTS_H_
+#define _PH_HAL_ARMV7M_INTERRUPTS_H_
 
 #include "cpu.h"
 #include "hal/arm/scs.h"

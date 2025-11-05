@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_ARCH_ARMV7R_TYPES_H_
-#define _PHOENIX_ARCH_ARMV7R_TYPES_H_
+#ifndef _PH_ARCH_ARMV7R_TYPES_H_
+#define _PH_ARCH_ARMV7R_TYPES_H_
 
 
 #ifndef __ASSEMBLY__

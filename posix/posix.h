@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _PROC_POSIX_H_
-#define _PROC_POSIX_H_
+#ifndef _PH_PROC_POSIX_H_
+#define _PH_PROC_POSIX_H_
 
 
 #include "include/types.h"

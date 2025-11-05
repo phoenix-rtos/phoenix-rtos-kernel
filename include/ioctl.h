@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_IOCTL_H_
-#define _PHOENIX_IOCTL_H_
+#ifndef _PH_IOCTL_H_
+#define _PH_IOCTL_H_
 
 
 typedef struct {

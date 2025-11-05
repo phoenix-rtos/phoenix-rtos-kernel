@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_LEON3_CPU_H_
-#define _HAL_LEON3_CPU_H_
+#ifndef _PH_HAL_LEON3_CPU_H_
+#define _PH_HAL_LEON3_CPU_H_
 
 
 #ifdef NOMMU
@@ -412,4 +412,4 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 #endif /* __ASSEMBLY__ */
 
 
-#endif /* _HAL_LEON3_CPU_H_ */
+#endif /*_PH_HAL_LEON3_CPU_H_ */

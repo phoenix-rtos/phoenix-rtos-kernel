@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _HAL_ARMV8M_ELF_H_
-#define _HAL_ARMV8M_ELF_H_
+#ifndef _PH_HAL_ARMV8M_ELF_H_
+#define _PH_HAL_ARMV8M_ELF_H_
 
 
 #define R_ARM_ABS32   2U

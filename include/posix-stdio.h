@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_POSIX_STDIO_H_
-#define _PHOENIX_POSIX_STDIO_H_
+#ifndef _PH_POSIX_STDIO_H_
+#define _PH_POSIX_STDIO_H_
 
 
 #ifndef SEEK_SET

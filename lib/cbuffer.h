@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _LIB_CBUFFER_H_
-#define _LIB_CBUFFER_H_
+#ifndef _PH_LIB_CBUFFER_H_
+#define _PH_LIB_CBUFFER_H_
 
 typedef struct {
 	size_t sz, r, w;

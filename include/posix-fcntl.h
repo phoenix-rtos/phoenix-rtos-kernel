@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_POSIX_FCNTL_H_
-#define _PHOENIX_POSIX_FCNTL_H_
+#ifndef _PH_POSIX_FCNTL_H_
+#define _PH_POSIX_FCNTL_H_
 
 
 #define FD_CLOEXEC 0x1U

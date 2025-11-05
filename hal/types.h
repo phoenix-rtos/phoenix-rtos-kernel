@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_TYPES_H_
-#define _HAL_TYPES_H_
+#ifndef _PH_HAL_TYPES_H_
+#define _PH_HAL_TYPES_H_
 
 
 #define NULL ((void *)0)

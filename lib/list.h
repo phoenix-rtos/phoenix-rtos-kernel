@@ -12,8 +12,8 @@
  *
  * %LICENSE%
  */
-#ifndef _LIB_LIST_H_
-#define _LIB_LIST_H_
+#ifndef _PH_LIB_LIST_H_
+#define _PH_LIB_LIST_H_
 
 #include "hal/hal.h"
 #include "lib/lib.h"

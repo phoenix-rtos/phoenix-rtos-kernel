@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _SYSPAGE_H_
-#define _SYSPAGE_H_
+#ifndef _PH_SYSPAGE_INTERNAL_H_
+#define _PH_SYSPAGE_INTERNAL_H_
 
 #include "hal/hal.h"
 #include "include/syspage.h"

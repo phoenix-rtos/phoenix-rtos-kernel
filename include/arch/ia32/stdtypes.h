@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_ARCH_IA32_STDTYPES_H_
-#define _PHOENIX_ARCH_IA32_STDTYPES_H_
+#ifndef _PH_ARCH_IA32_STDTYPES_H_
+#define _PH_ARCH_IA32_STDTYPES_H_
 
 
 #ifndef __ASSEMBLY__

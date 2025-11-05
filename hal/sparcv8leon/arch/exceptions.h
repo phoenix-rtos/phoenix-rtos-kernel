@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_LEON3_EXCEPTIONS_H_
-#define _HAL_LEON3_EXCEPTIONS_H_
+#ifndef _PH_HAL_LEON3_EXCEPTIONS_H_
+#define _PH_HAL_LEON3_EXCEPTIONS_H_
 
 #include <arch/cpu.h>
 

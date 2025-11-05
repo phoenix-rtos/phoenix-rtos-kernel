@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _HAL_LIST_H_
-#define _HAL_LIST_H_
+#ifndef _PH_HAL_LIST_H_
+#define _PH_HAL_LIST_H_
 
 
 /* list has to be a struct with pointer fields prev and next to another list */

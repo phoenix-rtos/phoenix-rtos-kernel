@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_ELF_H_
-#define _HAL_ELF_H_
+#ifndef _PH_HAL_ELF_H_
+#define _PH_HAL_ELF_H_
 
 
 #ifdef NOMMU

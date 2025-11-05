@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_SYSPAGE_IA32_H_
-#define _PHOENIX_SYSPAGE_IA32_H_
+#ifndef _PH_SYSPAGE_IA32_H_
+#define _PH_SYSPAGE_IA32_H_
 
 #define ACPI_NONE 0
 #define ACPI_RSDP 1

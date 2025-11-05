@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _L2CACHE_H_
-#define _L2CACHE_H_
+#ifndef _PH_L2CACHE_H_
+#define _PH_L2CACHE_H_
 
 
 #include <arch/types.h>

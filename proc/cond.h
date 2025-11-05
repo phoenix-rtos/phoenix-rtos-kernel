@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PROC_COND_H_
-#define _PROC_COND_H_
+#ifndef _PH_PROC_COND_H_
+#define _PH_PROC_COND_H_
 
 #include "threads.h"
 #include "resource.h"

@@ -11,8 +11,8 @@
  * %LICENSE%
  */
 
-#ifndef HAL_ARM_RTT_H_
-#define HAL_ARM_RTT_H_
+#ifndef _PH_HAL_ARM_RTT_H_
+#define _PH_HAL_ARM_RTT_H_
 
 
 typedef enum {

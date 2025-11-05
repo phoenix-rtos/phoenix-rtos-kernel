@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _LIB_STRUTIL_H_
-#define _LIB_STRUTIL_H_
+#ifndef _PH_LIB_STRUTIL_H_
+#define _PH_LIB_STRUTIL_H_
 
 
 char *lib_strdup(const char *str);

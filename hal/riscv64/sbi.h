@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_SBI_H_
-#define _HAL_SBI_H_
+#ifndef _PH_HAL_SBI_H_
+#define _PH_HAL_SBI_H_
 
 #include "hal/types.h"
 

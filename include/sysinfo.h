@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_SYSINFO_H_
-#define _PHOENIX_SYSINFO_H_
+#ifndef _PH_SYSINFO_H_
+#define _PH_SYSINFO_H_
 
 
 typedef struct _syspageprog_t {

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_LEON3_PMAP_H_
-#define _HAL_LEON3_PMAP_H_
+#ifndef _PH_HAL_LEON3_PMAP_H_
+#define _PH_HAL_LEON3_PMAP_H_
 
 
 #define SIZE_PDIR 0x1000

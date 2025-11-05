@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_SYSPAGE_NRF91_H_
-#define _PHOENIX_SYSPAGE_NRF91_H_
+#ifndef _PH_SYSPAGE_NRF91_H_
+#define _PH_SYSPAGE_NRF91_H_
 
 
 typedef struct {

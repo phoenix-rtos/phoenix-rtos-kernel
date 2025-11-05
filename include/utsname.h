@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_UTSNAME_H_
-#define _PHOENIX_UTSNAME_H_
+#ifndef _PH_UTSNAME_H_
+#define _PH_UTSNAME_H_
 
 
 #include "limits.h"

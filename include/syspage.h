@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_SYSPAGE_H_
-#define _PHOENIX_SYSPAGE_H_
+#ifndef _PH_SYSPAGE_H_
+#define _PH_SYSPAGE_H_
 
 
 enum { mAttrRead = 0x01, mAttrWrite = 0x02, mAttrExec = 0x04, mAttrShareable = 0x08,

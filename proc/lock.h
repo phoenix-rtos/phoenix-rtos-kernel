@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PROC_LOCK_H_
-#define _PROC_LOCK_H_
+#ifndef _PH_PROC_LOCK_H_
+#define _PH_PROC_LOCK_H_
 
 #include "hal/hal.h"
 #include "include/threads.h"

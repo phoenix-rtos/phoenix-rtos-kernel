@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _HAL_IA32_TLB_H_
-#define _HAL_IA32_TLB_H_
+#ifndef _PH_HAL_IA32_TLB_H_
+#define _PH_HAL_IA32_TLB_H_
 
 
 #include "pmap.h"

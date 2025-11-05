@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_LEON3_INTERRUPTS_H_
-#define _HAL_LEON3_INTERRUPTS_H_
+#ifndef _PH_HAL_LEON3_INTERRUPTS_H_
+#define _PH_HAL_LEON3_INTERRUPTS_H_
 
 #include "cpu.h"
 

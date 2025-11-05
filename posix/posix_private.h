@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _POSIX_POSIX_PRIVATE_H_
-#define _POSIX_POSIX_PRIVATE_H_
+#ifndef _PH_POSIX_POSIX_PRIVATE_H_
+#define _PH_POSIX_POSIX_PRIVATE_H_
 
 #include "hal/hal.h"
 #include "proc/proc.h"

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _VM_ZALLOC_H_
-#define _VM_ZALLOC_H_
+#ifndef _PH_VM_ZALLOC_H_
+#define _PH_VM_ZALLOC_H_
 
 #include "lib/lib.h"
 

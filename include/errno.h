@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_ERRNO_H_
-#define _PHOENIX_ERRNO_H_
+#ifndef _PH_ERRNO_H_
+#define _PH_ERRNO_H_
 
 #define EOK     0  /* No error */
 #define EPERM   1  /* Operation not permitted */

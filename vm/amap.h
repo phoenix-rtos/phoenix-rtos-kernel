@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _VM_AMAP_H_
-#define _VM_AMAP_H_
+#ifndef _PH_VM_AMAP_H_
+#define _PH_VM_AMAP_H_
 
 #include "hal/hal.h"
 #include "map.h"

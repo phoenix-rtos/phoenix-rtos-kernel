@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_FILE_H_
-#define _PHOENIX_FILE_H_
+#ifndef _PH_FILE_H_
+#define _PH_FILE_H_
 
 /* clang-format off */
 

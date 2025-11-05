@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _VM_KMALLOC_H_
-#define _VM_KMALLOC_H_
+#ifndef _PH_VM_KMALLOC_H_
+#define _PH_VM_KMALLOC_H_
 
 #include "hal/hal.h"
 

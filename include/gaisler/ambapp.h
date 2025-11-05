@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _PHOENIX_GAISLER_AMBAPP_H_
-#define _PHOENIX_GAISLER_AMBAPP_H_
+#ifndef _PH_GAISLER_AMBAPP_H_
+#define _PH_GAISLER_AMBAPP_H_
 
 /* GRLIB Cores' IDs - pages 10-18 GRLIB IP CORE Manual
  * https://www.gaisler.com/products/grlib/grip.pdf#page=10

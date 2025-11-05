@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_CONSOLE_H_
-#define _HAL_CONSOLE_H_
+#ifndef _PH_HAL_CONSOLE_H_
+#define _PH_HAL_CONSOLE_H_
 
 /* Console attributes */
 #define ATTR_NORMAL 0x03

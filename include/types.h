@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_TYPES_H_
-#define _PHOENIX_TYPES_H_
+#ifndef _PH_TYPES_H_
+#define _PH_TYPES_H_
 
 
 #if defined(__i386__) || defined(__x86_64__)

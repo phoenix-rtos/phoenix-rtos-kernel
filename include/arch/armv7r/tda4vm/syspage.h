@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_SYSPAGE_ARMV7R_TDA4VM_H_
-#define _PHOENIX_SYSPAGE_ARMV7R_TDA4VM_H_
+#ifndef _PH_SYSPAGE_ARMV7R_TDA4VM_H_
+#define _PH_SYSPAGE_ARMV7R_TDA4VM_H_
 
 
 typedef struct {

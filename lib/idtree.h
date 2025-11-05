@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_IDTREE_H_
-#define _PHOENIX_IDTREE_H_
+#ifndef _PH_IDTREE_H_
+#define _PH_IDTREE_H_
 
 #include "rb.h"
 

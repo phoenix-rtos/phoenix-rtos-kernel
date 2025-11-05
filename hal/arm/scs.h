@@ -14,8 +14,8 @@
  */
 
 
-#ifndef HAL_ARMV_SCB_H_
-#define HAL_ARMV_SCB_H_
+#ifndef _PH_HAL_ARMV_SCB_H_
+#define _PH_HAL_ARMV_SCB_H_
 
 
 #include "hal/types.h"

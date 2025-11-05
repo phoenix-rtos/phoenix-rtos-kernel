@@ -14,8 +14,8 @@
  * %LICENSE%
  */
 
-#ifndef _PROC_PROCESS_H_
-#define _PROC_PROCESS_H_
+#ifndef _PH_PROC_PROCESS_H_
+#define _PH_PROC_PROCESS_H_
 
 #include "hal/hal.h"
 #include "vm/vm.h"

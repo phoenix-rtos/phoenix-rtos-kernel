@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_PCI_H_
-#define _HAL_PCI_H_
+#ifndef _PH_HAL_PCI_H_
+#define _PH_HAL_PCI_H_
 
 #include "include/arch/ia32/ia32.h"
 

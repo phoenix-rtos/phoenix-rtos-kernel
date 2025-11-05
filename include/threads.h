@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_THREADS_H_
-#define _PHOENIX_THREADS_H_
+#ifndef _PH_THREADS_H_
+#define _PH_THREADS_H_
 
 
 /* Mutex attributes */

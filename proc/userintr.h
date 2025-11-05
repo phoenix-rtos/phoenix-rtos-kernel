@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PROC_USERINTR_H_
-#define _PROC_USERINTR_H_
+#ifndef _PH_PROC_USERINTR_H_
+#define _PH_PROC_USERINTR_H_
 
 #include "hal/hal.h"
 #include "cond.h"

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_ARCH_SPARCV8LEON_H_
-#define _PHOENIX_ARCH_SPARCV8LEON_H_
+#ifndef _PH_ARCH_SPARCV8LEON_H_
+#define _PH_ARCH_SPARCV8LEON_H_
 
 
 #if defined(__CPU_GR716)

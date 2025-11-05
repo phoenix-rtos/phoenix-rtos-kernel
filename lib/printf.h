@@ -16,8 +16,8 @@
 
 /* parasoft-begin-suppress MISRAC2012-RULE_17_1 "stdarg.h required for custom functions that are like printf" */
 
-#ifndef _LIB_PRINTF_H_
-#define _LIB_PRINTF_H_
+#ifndef _PH_LIB_PRINTF_H_
+#define _PH_LIB_PRINTF_H_
 
 #include <stdarg.h>
 

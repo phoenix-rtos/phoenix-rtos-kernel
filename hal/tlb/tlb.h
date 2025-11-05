@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _HAL_TLB_H_
-#define _HAL_TLB_H_
+#ifndef _PH_HAL_TLB_H_
+#define _PH_HAL_TLB_H_
 
 
 #include <arch/spinlock.h>

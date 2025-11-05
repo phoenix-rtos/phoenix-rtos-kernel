@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _POSIX_FDPASS_H_
-#define _POSIX_FDPASS_H_
+#ifndef _PH_POSIX_FDPASS_H_
+#define _PH_POSIX_FDPASS_H_
 
 #include "posix_private.h"
 

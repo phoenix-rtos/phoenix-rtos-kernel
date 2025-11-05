@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _SYS_SOCKDEFS_H_
-#define _SYS_SOCKDEFS_H_
+#ifndef _PH_SYS_SOCKDEFS_H_
+#define _PH_SYS_SOCKDEFS_H_
 
 #define SOCK_NONBLOCK 0x8000U
 #define SOCK_CLOEXEC  0x4000U

@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_POSIX_STAT_H_
-#define _PHOENIX_POSIX_STAT_H_
+#ifndef _PH_POSIX_STAT_H_
+#define _PH_POSIX_STAT_H_
 
 
 #include "types.h"

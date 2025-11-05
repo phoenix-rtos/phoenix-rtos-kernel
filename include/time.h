@@ -13,8 +13,8 @@
  * %LICENSE%
  */
 
-#ifndef _PHOENIX_TIME_H_
-#define _PHOENIX_TIME_H_
+#ifndef _PH_TIME_H_
+#define _PH_TIME_H_
 
 
 #define PH_CLOCK_RELATIVE  0
