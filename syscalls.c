@@ -319,9 +319,13 @@ int syscalls_beginthreadex(u8 *ustack)
 		return -EFAULT;
 	}
 
+	if (priority > (u8)-1) {
+		return -EINVAL;
+	}
+
 	proc_get(proc);
 
-	err = proc_threadCreate(proc, start, id, priority, (size_t)SIZE_KSTACK, stack, stacksz, arg);
+	err = proc_threadCreate(proc, start, id, (u8)priority, (size_t)SIZE_KSTACK, stack, stacksz, arg);
 
 	if (err < 0) {
 		(void)proc_put(proc);

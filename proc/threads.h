@@ -27,18 +27,15 @@
 #define THREAD_END     1U
 #define THREAD_END_NOW 2U
 
+/* clang-format off */
 /* Parent thread states */
-enum { PREFORK = 0,
-	FORKING = 1,
-	FORKED };
+enum { PREFORK = 0, FORKING, FORKED };
 
 /* Child thread states */
-enum { OWNSTACK = 0,
-	PARENTSTACK };
+enum { OWNSTACK = 0, PARENTSTACK };
 
-enum { READY = 0,
-	SLEEP,
-	GHOST };
+enum { READY = 0, SLEEP, GHOST };
+/* clang-format on */
 
 
 typedef struct _thread_t {
@@ -123,10 +120,10 @@ thread_t *proc_current(void);
 void threads_canaryInit(thread_t *t, void *ustack);
 
 
-int proc_threadCreate(process_t *process, startFn_t start, int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
+int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
 
 
-int proc_threadPriority(int priority);
+int proc_threadPriority(int signedPriority);
 
 
 __attribute__((noreturn)) void proc_threadEnd(void);
@@ -192,7 +189,7 @@ int proc_settime(time_t offs);
 void proc_longjmp(cpu_context_t *ctx);
 
 
-void proc_threadsDump(unsigned int priority);
+void proc_threadsDump(u8 priority);
 
 
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel);

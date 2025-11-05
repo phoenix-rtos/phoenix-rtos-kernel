@@ -66,6 +66,11 @@ static struct {
 } threads_common;
 
 
+_Static_assert(sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) <= (u8)-1, "queue size must fit into priority type");
+
+#define MAX_PRIO ((u8)(sizeof(threads_common.ready) / sizeof(threads_common.ready[0])) - 1U)
+
+
 static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
 static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp);
@@ -105,9 +110,9 @@ static int _proc_threadWakeup(thread_t **queue);
 static int _proc_threadBroadcast(thread_t **queue);
 
 
-static unsigned int perf_idpack(unsigned int id)
+static unsigned int perf_idpack(int id)
 {
-	return id >> 8;
+	return ((unsigned int)id) >> 8;
 }
 
 
@@ -141,7 +146,7 @@ static void _perf_event(thread_t *t, int type)
 
 	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
 	threads_common.perfLastTimestamp = now;
-	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
+	ev.tid = perf_idpack(proc_getTid(t));
 
 	(void)_cbuffer_write(&threads_common.perfBuffer, &ev, sizeof(ev));
 }
@@ -183,8 +188,8 @@ static void _perf_begin(thread_t *t)
 	ev.sbz = 0;
 	ev.type = perf_levBegin;
 	ev.prio = t->priority;
-	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
-	ev.pid = t->process != NULL ? perf_idpack((unsigned int)process_getPid(t->process)) : (unsigned int)-1;
+	ev.tid = perf_idpack(proc_getTid(t));
+	ev.pid = t->process != NULL ? perf_idpack(process_getPid(t->process)) : (unsigned int)-1;
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
@@ -207,7 +212,7 @@ static void perf_end(thread_t *t)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levEnd;
-	ev.tid = perf_idpack((unsigned int)proc_getTid(t));
+	ev.tid = perf_idpack(proc_getTid(t));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
@@ -231,9 +236,9 @@ void perf_fork(process_t *p)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levFork;
-	ev.pid = perf_idpack((unsigned int)process_getPid(p));
+	ev.pid = perf_idpack(process_getPid(p));
 	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
-	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
+	ev.tid = perf_idpack(proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
@@ -257,8 +262,8 @@ void perf_kill(process_t *p)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levKill;
-	ev.pid = perf_idpack((unsigned int)process_getPid(p));
-	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
+	ev.pid = perf_idpack(process_getPid(p));
+	ev.tid = perf_idpack(proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
 	ev.deltaTimestamp = (u16)(time_t)(now - threads_common.perfLastTimestamp) & 0x0fffU;
@@ -283,7 +288,7 @@ void perf_exec(process_t *p, char *path)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	ev.sbz = 0;
 	ev.type = perf_levExec;
-	ev.tid = perf_idpack((unsigned int)proc_getTid(_proc_current()));
+	ev.tid = perf_idpack(proc_getTid(_proc_current()));
 
 	plen = hal_strlen(path);
 	plen = min(plen, sizeof(ev.path) - 1U);
@@ -328,7 +333,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 		return NULL;
 	}
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1-k "data will never be -1" */
-	for (v = data; (size_t)v < (size_t)data + sz; v += SIZE_PAGE) {
+	for (v = data; (ptr_t)v < (ptr_t)data + sz; v += SIZE_PAGE) {
 		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 
 		if (p == NULL) {
@@ -767,7 +772,7 @@ void threads_canaryInit(thread_t *t, void *ustack)
 }
 
 
-int proc_threadCreate(process_t *process, startFn_t start, int *id, unsigned int priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
+int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
@@ -803,8 +808,8 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, unsigned int
 	t->locks = NULL;
 	t->stick = 0;
 	t->utick = 0;
-	t->priorityBase = (u8)priority & 0xffU;
-	t->priority = (u8)priority & 0xffU;
+	t->priorityBase = priority;
+	t->priority = priority;
 	t->cpuTime = 0;
 	t->maxWait = 0;
 	proc_gettime(&t->startTime, NULL);
@@ -863,9 +868,9 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, unsigned int
 }
 
 
-static unsigned int _proc_lockGetPriority(lock_t *lock)
+static u8 _proc_lockGetPriority(lock_t *lock)
 {
-	unsigned int priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1U;
+	u8 priority = MAX_PRIO;
 	thread_t *thread = lock->queue;
 
 	if (thread != NULL) {
@@ -881,9 +886,9 @@ static unsigned int _proc_lockGetPriority(lock_t *lock)
 }
 
 
-static unsigned int _proc_threadGetLockPriority(thread_t *thread)
+static u8 _proc_threadGetLockPriority(thread_t *thread)
 {
-	unsigned int ret, priority = sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) - 1U;
+	u8 ret, priority = MAX_PRIO;
 	lock_t *lock = thread->locks;
 
 	if (lock != NULL) {
@@ -900,17 +905,14 @@ static unsigned int _proc_threadGetLockPriority(thread_t *thread)
 }
 
 
-static unsigned int _proc_threadGetPriority(thread_t *thread)
+static u8 _proc_threadGetPriority(thread_t *thread)
 {
-	unsigned int ret;
-
-	ret = _proc_threadGetLockPriority(thread);
-
+	u8 ret = _proc_threadGetLockPriority(thread);
 	return (ret < thread->priorityBase) ? ret : thread->priorityBase;
 }
 
 
-static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
+static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 {
 	unsigned int i;
 
@@ -935,37 +937,40 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 		}
 	}
 
-	thread->priority = (u8)priority & 0xffU;
+	thread->priority = priority;
 }
 
 
-int proc_threadPriority(int priority)
+int proc_threadPriority(int signedPriority)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
 	int ret, reschedule = 0;
+	u8 priority;
 
-	if (priority < -1) {
+	if (signedPriority < -1) {
 		return -EINVAL;
 	}
 
-	if ((priority >= 0) && ((unsigned int)priority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
+	if ((signedPriority >= 0) && ((size_t)signedPriority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
 		return -EINVAL;
 	}
+
+	priority = (u8)signedPriority;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	current = _proc_current();
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
-	if (priority >= 0) {
-		if ((unsigned int)priority < current->priority) {
-			current->priority = (u8)priority & 0xffU;
+	if (signedPriority >= 0) {
+		if (priority < current->priority) {
+			current->priority = priority;
 		}
-		else if ((unsigned int)priority > current->priority) {
+		else if (priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
-			if ((current->locks == NULL) || ((unsigned int)priority <= _proc_threadGetLockPriority(current))) {
-				current->priority = (u8)priority & 0xffU;
+			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
+				current->priority = priority;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
 			}
@@ -974,7 +979,7 @@ int proc_threadPriority(int priority)
 			/* No action required */
 		}
 
-		current->priorityBase = (u8)priority & 0xffU;
+		current->priorityBase = priority;
 	}
 
 	ret = (int)current->priorityBase;
@@ -1126,7 +1131,7 @@ static void _proc_threadDequeue(thread_t *t)
 }
 
 
-static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interruptible)
+static void _proc_threadEnqueue(thread_t **queue, time_t timeout, u8 interruptible)
 {
 	thread_t *current;
 
@@ -1142,7 +1147,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 	current->state = SLEEP;
 	current->wakeup = 0;
 	current->wait = queue;
-	current->interruptible = (u8)interruptible & 0x01U;
+	current->interruptible = interruptible & 0x1U;
 
 	if (timeout != 0) {
 		current->wakeup = timeout;
@@ -1247,7 +1252,7 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
 }
 
 
-static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, int interruptible, spinlock_ctx_t *scp)
+static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, u8 interruptible, spinlock_ctx_t *scp)
 {
 	int err;
 	spinlock_ctx_t tsc;
@@ -1271,13 +1276,13 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 
 int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp)
 {
-	return proc_threadWaitEx(queue, spinlock, timeout, 0, scp);
+	return proc_threadWaitEx(queue, spinlock, timeout, 0U, scp);
 }
 
 
 int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp)
 {
-	return proc_threadWaitEx(queue, spinlock, timeout, 1, scp);
+	return proc_threadWaitEx(queue, spinlock, timeout, 1U, scp);
 }
 
 
@@ -1716,7 +1721,7 @@ int proc_lockTry(lock_t *lock)
 }
 
 
-static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
+static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
@@ -1798,7 +1803,7 @@ int proc_lockSet(lock_t *lock)
 
 	hal_spinlockSet(&lock->spinlock, &sc);
 
-	err = _proc_lockSet(lock, 0, &sc);
+	err = _proc_lockSet(lock, 0U, &sc);
 
 	hal_spinlockClear(&lock->spinlock, &sc);
 
@@ -1817,7 +1822,7 @@ int proc_lockSetInterruptible(lock_t *lock)
 
 	hal_spinlockSet(&lock->spinlock, &sc);
 
-	err = _proc_lockSet(lock, 1, &sc);
+	err = _proc_lockSet(lock, 1U, &sc);
 
 	hal_spinlockClear(&lock->spinlock, &sc);
 
@@ -1829,7 +1834,8 @@ static int _proc_lockUnlock(lock_t *lock)
 {
 	thread_t *owner = lock->owner, *current;
 	spinlock_ctx_t sc;
-	int ret = 0, lockPriority;
+	int ret = 0;
+	u8 lockPriority;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -1857,9 +1863,9 @@ static int _proc_lockUnlock(lock_t *lock)
 	if (lock->queue != NULL) {
 		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
 		lock->owner = lock->queue;
-		lockPriority = (int)_proc_lockGetPriority(lock);
-		if ((unsigned int)lockPriority < lock->owner->priority) {
-			_proc_threadSetPriority(lock->queue, (unsigned int)lockPriority);
+		lockPriority = _proc_lockGetPriority(lock);
+		if (lockPriority < lock->owner->priority) {
+			_proc_threadSetPriority(lock->queue, lockPriority);
 		}
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
@@ -1978,9 +1984,9 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 
 	err = _proc_lockClear(lock);
 	if (err >= 0) {
-		err = proc_threadWaitEx(queue, &lock->spinlock, timeout, 1, &sc);
+		err = proc_threadWaitEx(queue, &lock->spinlock, timeout, 1U, &sc);
 		if (err != -EINTR) {
-			(void)_proc_lockSet(lock, 0, &sc);
+			(void)_proc_lockSet(lock, 0U, &sc);
 		}
 	}
 
@@ -2048,7 +2054,7 @@ static void threads_idlethr(void *arg)
 }
 
 
-void proc_threadsDump(unsigned int priority)
+void proc_threadsDump(u8 priority)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
@@ -2255,7 +2261,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
-		(void)proc_threadCreate(NULL, threads_idlethr, NULL, sizeof(threads_common.ready) / sizeof(thread_t *) - 1U, (size_t)SIZE_KSTACK, NULL, 0, NULL);
+		(void)proc_threadCreate(NULL, threads_idlethr, NULL, MAX_PRIO, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */
