@@ -41,11 +41,13 @@ static struct {
 static unsigned int dcache_strHash(const char *str)
 {
 	unsigned int hash = 0;
-	unsigned char c;
+	char c;
 
-	/* MISRA Rule 10.3: TODO: check if some undesired overflow is not introduced with this cast */
-	while ((c = (unsigned char)*str++) != (unsigned char)'\0') {
+	c = *str;
+	while (c != '\0') {
 		hash += ((unsigned int)c << 4U) + ((unsigned int)c >> 4U) * 11U;
+		str++;
+		c = *str;
 	}
 
 	return hash & ((0x1U << HASH_LEN) - 1U);
@@ -90,7 +92,8 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 		return EOK;
 	}
 
-	if ((entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U)) == NULL) {
+	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
+	if (entry == NULL) {
 		return -ENOMEM;
 	}
 
@@ -172,7 +175,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 	/* Search cache for full path */
 	(void)proc_lockSet(&name_common.dcache_lock);
-	if ((entry = _dcache_entryLookup(dcache_strHash(name), name)) != NULL) {
+	entry = _dcache_entryLookup(dcache_strHash(name), name);
+	if (entry != NULL) {
 		if (file != NULL) {
 			*file = entry->oid;
 		}
@@ -195,7 +199,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		pptr = pstack;
 	}
 	else {
-		if ((pheap = vm_kmalloc(len + 1U)) == NULL) {
+		pheap = vm_kmalloc(len + 1U);
+		if (pheap == NULL) {
 			return -ENOMEM;
 		}
 
@@ -217,7 +222,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		pptr[i] = '\0';
 
 		(void)proc_lockSet(&name_common.dcache_lock);
-		if ((entry = _dcache_entryLookup(dcache_strHash(pptr), pptr)) != NULL) {
+		entry = _dcache_entryLookup(dcache_strHash(pptr), pptr);
+		if (entry != NULL) {
 			srv = entry->oid;
 			(void)proc_lockClear(&name_common.dcache_lock);
 			break;
@@ -232,7 +238,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return -EINVAL;
 	}
 
-	if ((msg = vm_kmalloc(sizeof(msg_t))) == NULL) {
+	msg = vm_kmalloc(sizeof(msg_t));
+	if (msg == NULL) {
 		if (pheap != NULL) {
 			vm_kfree(pheap);
 		}
@@ -249,7 +256,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		hal_memcpy(pptr, name + i + 1, len - i);
 		msg->i.data = pptr;
 
-		if ((err = proc_send(srv.port, msg)) < 0) {
+		err = proc_send(srv.port, msg);
+		if (err < 0) {
 			break;
 		}
 

@@ -96,7 +96,8 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		return 0;
 	}
 
-	if ((pack = vm_kmalloc(sizeof(fdpack_t) + sizeof(fildes_t) * tot_cnt)) == NULL) {
+	pack = vm_kmalloc(sizeof(fdpack_t) + sizeof(fildes_t) * tot_cnt);
+	if (pack == NULL) {
 		return -ENOMEM;
 	}
 
@@ -113,7 +114,8 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		while (cnt != 0U) {
 			hal_memcpy(&fd, cmsg_data, sizeof(int));
 
-			if ((err = posix_getOpenFile(fd, &file)) < 0) {
+			err = posix_getOpenFile(fd, &file);
+			if (err < 0) {
 				/* revert everything we have done so far */
 				(void)fdpass_discard(packs);
 				return err;
@@ -203,7 +205,8 @@ int fdpass_discard(fdpack_t **packs)
 
 	(void)proc_lockSet(&p->lock);
 
-	while ((pack = *packs) != NULL) {
+	while (*packs != NULL) {
+		pack = *packs;
 		while (pack->cnt != 0U) {
 			FDPACK_POP_FILE(pack, file);
 			(void)posix_fileDeref(file);

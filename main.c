@@ -54,7 +54,8 @@ static void main_initthr(void *unused)
 	(void)posix_clone(-1);
 
 	/* Start programs from syspage */
-	if ((prog = syspage_progList()) != NULL) {
+	prog = syspage_progList();
+	if (prog != NULL) {
 		do {
 			cmdline = prog->argv;
 			/* If app shouldn't be executed then args should be discarded */
@@ -86,7 +87,8 @@ static void main_initthr(void *unused)
 			}
 			argv[argc] = NULL;
 
-			if ((res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), vm_getSharedMap((int)prog->dmaps[0]), argv[0], argv)) < 0) {
+			res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), vm_getSharedMap((int)prog->dmaps[0]), argv[0], argv);
+			if (res < 0) {
 				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 			}
 		} while ((prog = prog->next) != syspage_progList());

@@ -102,7 +102,8 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 
 	(void)proc_lockSet(&pages.lock);
 	if (pmap_enter(pmap, pa, vaddr, attr, NULL) < 0) {
-		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL) {
+		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+		if (ap == NULL) {
 			(void)proc_lockClear(&pages.lock);
 			return -ENOMEM;
 		}
@@ -124,7 +125,8 @@ int _page_sbrk(pmap_t *pmap, void **start, void **end)
 {
 	page_t *np;
 
-	if ((np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP)) == NULL) {
+	np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP);
+	if (np == NULL) {
 		return -ENOMEM;
 	}
 
@@ -166,7 +168,8 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	(void)proc_lockInit(&pages.lock, &proc_lockAttrDefault, "page.nommu");
 
 	/* TODO: handle error */
-	if ((map = syspage_mapAddrResolve((addr_t)&__bss_start)) == NULL) {
+	map = syspage_mapAddrResolve((addr_t)&__bss_start);
+	if (map == NULL) {
 		return;
 	}
 

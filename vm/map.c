@@ -259,7 +259,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	}
 #endif
 
-	if ((v = _map_find(map, vaddr, size, &prev, &next)) == NULL) {
+	v = _map_find(map, vaddr, size, &prev, &next);
+	if (v == NULL) {
 		return NULL;
 	}
 
@@ -602,7 +603,8 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 	}
 
 
-	if ((vaddr = _map_map(map, vaddr, process, size, prot, o, offs, flags, &e)) == NULL) {
+	vaddr = _map_map(map, vaddr, process, size, prot, o, offs, flags, &e);
+	if (vaddr == NULL) {
 		return NULL;
 	}
 
@@ -994,10 +996,12 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 	map->pmap.end = stop;
 
 #ifndef NOMMU
-	if ((map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
+	map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+	if (map->pmap.pmapp == NULL)
 		return -ENOMEM;
 
-	if ((map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1 << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE)) == NULL) {
+	map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1 << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE);
+	if (map->pmap.pmapv == NULL) {
 		vm_pageFree(map->pmap.pmapp);
 		return -ENOMEM;
 	}
@@ -1038,8 +1042,13 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 	rbnode_t *n;
 	int i = 0;
 
-	while ((a = pmap_destroy(&map->pmap, &i)))
+	for (;;) {
+		a = pmap_destroy(&map->pmap, &i);
+		if (a == 0x0) {
+			break;
+		}
 		vm_pageFree(_page_get(a));
+	}
 
 	vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
 	vm_pageFree(map->pmap.pmapp);
@@ -1096,7 +1105,8 @@ static void remap_readonly(vm_map_t *map, map_entry_t *e, u64 offs)
 		attr |= PGHD_USER;
 	}
 
-	if ((a = pmap_resolve(&map->pmap, e->vaddr + offs)) != 0U) {
+	a = pmap_resolve(&map->pmap, e->vaddr + offs);
+	if (a != 0U) {
 		(void)page_map(&map->pmap, e->vaddr + offs, a, attr);
 	}
 }
@@ -1237,7 +1247,8 @@ void vm_mapinfo(meminfo_t *info)
 			return;
 		}
 
-		if ((map = process->mapp) != NULL) {
+		map = process->mapp;
+		if (map != NULL) {
 			(void)proc_lockSet(&map->lock);
 
 #ifndef NOMMU
@@ -1498,7 +1509,8 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 	const mapent_t *sysEntry;
 	const syspage_map_t *map;
 
-	if ((mapsCnt = syspage_mapSize()) == 0U) {
+	mapsCnt = syspage_mapSize();
+	if (mapsCnt == 0U) {
 		return -EINVAL;
 	}
 
@@ -1536,14 +1548,16 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 			(*bss) += sizeof(vm_map_t);
 		}
 
-		if ((sysEntry = map->entries) != NULL) {
+		sysEntry = map->entries;
+		if (sysEntry != NULL) {
 			do {
 				/* Skip temporary entries which are used only in phoenix-rtos-loader */
 				if (sysEntry->type == hal_entryTemp) {
 					continue;
 				}
 
-				if ((entry = map_alloc()) == NULL) {
+				entry = map_alloc();
+				if (entry == NULL) {
 					return -ENOMEM;
 				}
 
@@ -1560,6 +1574,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 				if (_map_add(NULL, map_common.maps[id], entry) < 0) {
 					return -ENOMEM;
 				}
+
 			} while ((sysEntry = sysEntry->next) != map->entries);
 		}
 

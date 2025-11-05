@@ -449,13 +449,15 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	(*addr) = a + SIZE_PAGE;
 
 	/* TODO: Checking programs should be placed in a common part */
-	if ((prog = syspage->progs) != NULL) {
+	prog = syspage->progs;
+	if (prog != NULL) {
 		do {
 			if (page->addr >= prog->start && page->addr < prog->end) {
 				page->flags = PAGE_OWNER_APP;
 				return EOK;
 			}
-		} while ((prog = prog->next) != syspage->progs);
+			prog = prog->next;
+		} while (prog != syspage->progs);
 	}
 
 	if (page->addr >= min + (4 * 1024 * 1024)) {

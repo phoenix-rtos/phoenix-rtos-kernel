@@ -179,12 +179,14 @@ static page_t *object_fetch(oid_t oid, u64 offs)
 		return NULL;
 	}
 
-	if ((p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP)) == NULL) {
+	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	if (p == NULL) {
 		(void)proc_close(oid, 0);
 		return NULL;
 	}
 
-	if ((v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE)) == NULL) {
+	v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE);
+	if (v == NULL) {
 		vm_pageFree(p);
 		(void)proc_close(oid, 0);
 		return NULL;
@@ -227,7 +229,8 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		return NULL;
 	}
 
-	if ((p = o->pages[offs / SIZE_PAGE]) != NULL) {
+	p = o->pages[offs / SIZE_PAGE];
+	if (p != NULL) {
 		(void)proc_lockClear(&object_common.lock);
 		return p;
 	}
@@ -277,14 +280,16 @@ vm_object_t *vm_objectContiguous(size_t size)
 	page_t *p;
 	unsigned int i, n;
 
-	if ((p = vm_pageAlloc(size, PAGE_OWNER_APP)) == NULL) {
+	p = vm_pageAlloc(size, PAGE_OWNER_APP);
+	if (p == NULL) {
 		return NULL;
 	}
 
 	size = 1UL << p->idx;
 	n = size / SIZE_PAGE;
 
-	if ((o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *))) == NULL) {
+	o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
+	if (o == NULL) {
 		vm_pageFree(p);
 		return NULL;
 	}
@@ -380,7 +385,8 @@ void map_pageFault(unsigned int n, exc_context_t *ctx)
 	}
 
 	/* Allocate and map new page into virtual address space */
-	if ((p = vm_pageAlloc(1, vm_pageAlloc)) == NULL) {
+	p = vm_pageAlloc(1, vm_pageAlloc);
+	if (p == NULL) {
 		main_printf(ATTR_ERROR, "map_pageFault: Out of memory!\n");
 #ifdef CONFIG_PROC
 		if (!inKernel)
@@ -429,8 +435,8 @@ void map_pageFault(unsigned int n, exc_context_t *ctx)
 				fault_log("    read file : file_off=%x, vaddr=%p, size=%x", entry->foffs + entry_off, paddr + page_off, copy_len);
 				for (l = 0; l < copy_len;) {
 
-					if ((err = fs_pread(entry->file, (char *)kaddr + page_off + l, copy_len - l, entry->foffs + entry_off + l)) < 0) {
-
+					err = fs_pread(entry->file, (char *)kaddr + page_off + l, copy_len - l, entry->foffs + entry_off + l);
+					if (err < 0) {
 						main_printf(ATTR_ERROR, "map_pageFault: Can't read data from file (off=%x, len=%x)\n",
 									entry->foffs + entry_off + l, copy_len - l);
 						proc_mutexUnlock(&map->mutex);

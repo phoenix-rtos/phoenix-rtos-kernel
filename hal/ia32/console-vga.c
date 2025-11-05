@@ -99,7 +99,9 @@ static void _hal_consolePrint(const char *s)
 	row = pos / halconsole_common.cols;
 	col = pos % halconsole_common.cols;
 
-	while ((c = *s++)) {
+	while (*s != '\0') {
+		c = *s;
+		s++;
 		/* Control character */
 		if ((c < ' ') || (c == '\177')) {
 			switch (c) {
