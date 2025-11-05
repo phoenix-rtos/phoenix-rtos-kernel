@@ -131,7 +131,9 @@ void vm_pageFree(page_t *p)
 		rh = p + (1 << idx) / SIZE_PAGE;
 	}
 
-	while ((lh >= pages.pages) && (rh < (pages.pages + (pages.allocsz + pages.freesz) / SIZE_PAGE)) && ((lh->flags & PAGE_FREE) != 0) && ((rh->flags & PAGE_FREE) != 0) && (lh->idx == rh->idx) && ((lh->addr + (1 << lh->idx)) == rh->addr) && (idx < SIZE_VM_SIZES)) {
+	while ((lh >= pages.pages) && (rh < (pages.pages + (pages.allocsz + pages.freesz) / SIZE_PAGE)) &&
+			((lh->flags & PAGE_FREE) != 0) && ((rh->flags & PAGE_FREE) != 0) && (lh->idx == rh->idx) &&
+			((lh->addr + (1 << lh->idx)) == rh->addr) && (idx < SIZE_VM_SIZES)) {
 
 		if (p == lh) {
 			LIST_REMOVE(&pages.sizes[idx], rh);
