@@ -162,7 +162,6 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 {
 	page_t *p;
 	const syspage_map_t *map;
-	size_t i;
 
 	(void)proc_lockInit(&pages.lock, &proc_lockAttrDefault, "page.nommu");
 
@@ -188,12 +187,9 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	lib_printf("vm: Initializing page allocator %d/%d KB, page_t=%d\n", (pages.allocsz - pages.bootsz) / 1024U,
 			(pages.freesz + pages.allocsz) / 1024U, sizeof(page_t));
 
-	p = pages.freeq;
 	/* Prepare allocation queue */
-	/* TODO: i not needed here, iterate over pages.freeq once MISRA is done */
-	for (i = 0; i < pages.freeqsz; i++) {
+	for (p = pages.freeq; p < pages.freeq + pages.freeqsz; p++) {
 		p->next = p + 1;
-		p = p->next;
 	}
 	(pages.freeq + pages.freeqsz - 1)->next = NULL;
 
