@@ -237,7 +237,7 @@ void perf_fork(process_t *p)
 	ev.sbz = 0;
 	ev.type = perf_levFork;
 	ev.pid = perf_idpack(process_getPid(p));
-	// ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1;
+	/* TODO: ev.ppid = p->parent != NULL ? perf_idpack(p->parent->id) : -1; */
 	ev.tid = perf_idpack(proc_getTid(_proc_current()));
 
 	now = _proc_gettimeRaw();
@@ -2104,7 +2104,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 	while (i < n && t != NULL) {
 		if (t->process != NULL) {
 			info[i].pid = process_getPid(t->process);
-			// info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0;
+			/* TODO: info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0; */
 			info[i].ppid = 0;
 		}
 		else {
