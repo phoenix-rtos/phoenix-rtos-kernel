@@ -631,9 +631,6 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 				/* multiplexer, e.g. /dev/ptmx */
 				f->oid.port = oid.port;
 				f->oid.id = (unsigned int)err;
-				/* FIXME Error can also be assign to -EINVAL
-				 * which is -22. How to handle that?
-				 */
 			}
 
 			hal_memcpy(&f->ln, &ln, sizeof(ln));
