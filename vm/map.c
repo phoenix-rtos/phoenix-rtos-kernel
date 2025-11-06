@@ -600,7 +600,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 			process = current->process;
 		}
 	}
-	else if (p != NULL && p->idx != 0U) {
+	else if (p->idx != 0U) {
 		size = 1UL << p->idx;
 	}
 	else {
