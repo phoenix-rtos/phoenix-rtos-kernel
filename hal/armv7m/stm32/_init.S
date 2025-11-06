@@ -339,7 +339,7 @@ hal_jmp_user:
 .ltorg
 
 
-.globl hal_exceptionJump /* void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *)) */
+.globl hal_exceptionJump /* void hal_exceptionJump(unsigned int n, exc_context_t *ctx, excHandlerFn_t handler) */
 .type hal_exceptionJump, %function
 hal_exceptionJump:
 	push {r4-r11, lr}

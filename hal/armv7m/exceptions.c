@@ -24,11 +24,12 @@
 #define SIZE_FPUCTX (16 * sizeof(u32))
 
 static struct {
-	void (*handler)(unsigned int, exc_context_t *);
+	excHandlerFn_t handler;
 } hal_exception_common;
 
 
-void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *));
+void hal_exceptionJump(unsigned int n, exc_context_t *ctx,
+		excHandlerFn_t handler);
 
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
@@ -165,7 +166,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
 #ifndef KERNEL_REBOOT_ON_EXCEPTION
 	/* Instruction trapping TODO, handle general fault for now */

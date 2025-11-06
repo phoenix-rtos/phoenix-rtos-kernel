@@ -23,8 +23,8 @@
 
 
 static struct {
-	void (*defaultHandler)(unsigned int, exc_context_t *);
-	void (*mmuFaultHandler)(unsigned int, exc_context_t *);
+	excHandlerFn_t defaultHandler;
+	excHandlerFn_t mmuFaultHandler;
 	spinlock_t lock;
 } exceptions_common;
 
@@ -195,7 +195,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
 	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
 		exceptions_common.mmuFaultHandler = handler;
