@@ -70,6 +70,7 @@ typedef struct _process_t {
 
 	void *got;
 	hal_tls_t tls;
+	int hasInterpreter;
 } process_t;
 
 
@@ -130,7 +131,7 @@ extern int _process_init(vm_map_t *kmap, vm_object_t *kernel);
 extern void process_dumpException(unsigned int n, exc_context_t *exc);
 
 
-extern int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map);
+extern int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map, int hasInterpreter);
 
 
 extern int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map);
