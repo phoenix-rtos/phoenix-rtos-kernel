@@ -47,7 +47,7 @@ resource_t *resource_get(process_t *process, int id)
 	(void)proc_lockSet(&process->lock);
 	r = lib_idtreeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
 	if (r != NULL) {
-		++r->refs;
+		(void)lib_atomicIncrement(&r->refs);
 	}
 	(void)proc_lockClear(&process->lock);
 
@@ -57,8 +57,7 @@ resource_t *resource_get(process_t *process, int id)
 
 unsigned int resource_put(process_t *process, resource_t *r)
 {
-	/* parasoft-suppress-next-line MISRAC2012-RULE_10_3 "We need atomic operations that are provided by the compiler" */
-	return lib_atomicDecrement((int *)&r->refs);
+	return lib_atomicDecrement(&r->refs);
 }
 
 
