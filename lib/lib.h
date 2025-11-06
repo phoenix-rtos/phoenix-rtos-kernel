@@ -61,7 +61,4 @@
 #define round_page(x) (((x) + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U))
 
 
-#define offsetof(st, m) __builtin_offsetof(st, m)
-
-
 #endif

@@ -19,8 +19,6 @@
 #include "hal/string.h"
 #include "config.h"
 
-#define SIZE_FPUCTX (18 * sizeof(u32))
-
 #define CFSR  ((volatile u32 *)0xe000ed28)
 #define MMFAR ((volatile u32 *)0xe000ed34)
 #define BFAR  ((volatile u32 *)0xe000ed38)
@@ -50,20 +48,18 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	};
 	size_t i = 0;
 	u32 msp = (u32)ctx + sizeof(*ctx);
-	const u32 fpu_hwctx_size = ((ctx->excret & EXC_RETURN_FTYPE) == 0) ? SIZE_FPUCTX : 0;
 	u32 psp = ctx->psp;
 	u32 cfsr, far;
 	cpu_hwContext_t *hwctx;
 
 	/* If we came from userspace HW ctx in on psp stack (according to EXC_RETURN) */
-	if ((ctx->excret & EXC_RETURN_SPSEL) != 0) {
+	if ((ctx->excret & (1u << 2)) != 0) {
 		hwctx = (void *)ctx->psp;
 		msp -= sizeof(cpu_hwContext_t);
-		psp += sizeof(cpu_hwContext_t) + fpu_hwctx_size;
+		psp += sizeof(cpu_hwContext_t);
 	}
 	else {
 		hwctx = &ctx->mspctx;
-		msp += fpu_hwctx_size;
 	}
 
 	n &= 0xf;
@@ -147,7 +143,7 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 {
 	cpu_hwContext_t *hwctx;
 
-	if ((ctx->excret & EXC_RETURN_SPSEL) != 0) {
+	if ((ctx->excret & (1u << 2)) != 0) {
 		hwctx = (void *)ctx->psp;
 	}
 	else {

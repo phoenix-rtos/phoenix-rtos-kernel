@@ -53,7 +53,6 @@ static struct {
 	volatile u32 *mpu;
 	unsigned int kernelCodeRegion;
 	spinlock_t lock;
-	int mpu_enabled;
 } pmap_common;
 
 
@@ -76,10 +75,6 @@ static unsigned int pmap_map2region(unsigned int map)
 	int i;
 	unsigned int mask = 0;
 
-	if (pmap_common.mpu_enabled == 0) {
-		return 1;
-	}
-
 	for (i = 0; i < sizeof(syspage->hs.mpu.map) / sizeof(*syspage->hs.mpu.map); ++i) {
 		if (map == syspage->hs.mpu.map[i]) {
 			mask |= (1 << i);
@@ -92,12 +87,7 @@ static unsigned int pmap_map2region(unsigned int map)
 
 int pmap_addMap(pmap_t *pmap, unsigned int map)
 {
-	unsigned int rmask;
-	if (pmap_common.mpu_enabled == 0) {
-		return 0;
-	}
-
-	rmask = pmap_map2region(map);
+	unsigned int rmask = pmap_map2region(map);
 	if (rmask == 0) {
 		return -1;
 	}
@@ -112,9 +102,6 @@ void pmap_switch(pmap_t *pmap)
 {
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 	spinlock_ctx_t sc;
-	if (pmap_common.mpu_enabled == 0) {
-		return;
-	}
 
 	if (pmap != NULL) {
 		hal_spinlockSet(&pmap_common.lock, &sc);
@@ -166,11 +153,6 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	if ((map == NULL) || (addr_end > map->end) || addr_overflowed) {
 		return 0;
 	}
-
-	if (pmap_common.mpu_enabled == 0) {
-		return 1;
-	}
-
 	rmask = pmap_map2region(map->id);
 
 	return ((pmap->regions & rmask) != 0) ? 1 : 0;
@@ -223,20 +205,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Initial size of kernel map */
 	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
 
-	/* Enable all regions for kernel */
-	pmap->regions = (1 << cnt) - 1;
-
 	/* Configure MPU */
 	pmap_common.mpu = MPU_BASE;
-
-	hal_spinlockCreate(&pmap_common.lock, "pmap");
-	if (cnt == 0) {
-		pmap_common.mpu_enabled = 0;
-		pmap_common.kernelCodeRegion = 0;
-		return;
-	}
-
-	pmap_common.mpu_enabled = 1;
 
 	/* Disable MPU just in case */
 	*(pmap_common.mpu + mpu_ctrl) &= ~1;
@@ -288,4 +258,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	}
 
 	pmap_common.kernelCodeRegion = ikregion;
+
+	hal_spinlockCreate(&pmap_common.lock, "pmap");
 }

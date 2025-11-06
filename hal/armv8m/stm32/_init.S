@@ -17,24 +17,7 @@
 
 #include <arch/cpu.h>
 
-#define SCS_BASE  0xe000e000u
-#define SCS_CPACR 0xd88u
-#define SCS_ICSR  0xd04u
-#define SCS_VTOR  0xd08u
-#define SCS_FPCCR 0xf34u
-#define SCS_FPCAR 0xf38u
-
-
-#if KERNEL_FPU_SUPPORT
-#define HWCTX_SIZE (((8 + 18) * 4))
-#define ISRCTX_SIZE ((14 + 16) * 4)
-/* If CPU is running in secure mode and using FPU we need to set SFPA bit in CONTROL */
-#define CONTROL_SFPA (1 << 3)
-#else
-#define HWCTX_SIZE (8 * 4)
-#define ISRCTX_SIZE (14 * 4)
-#define CONTROL_SFPA 0
-#endif
+#define SCS_BASE 0xe000e000u
 
 .syntax unified
 
@@ -86,51 +69,27 @@ _start:
 	str r9, [r8]
 
 	/* Init vector table pointer */
-	ldr r7, =SCS_BASE
-	adr r1, _init_vectors
-	str r1, [r7, #SCS_VTOR]
+	ldr r0, =SCS_BASE
+	ldr r1, =_init_vectors
+	str r1, [r0, #0xd08] /* VTOR */
 	isb
 	dmb
 
 	/* Init MSP to a first value in _init_vectors (.bss end + 1024 + 256) */
 	ldr r0, [r1]
-	bic r0, #7
+	bic r0, 7
 	msr msp, r0
 	/* These registers are used for hardware checking of stack limits.
 	 * This feature is currently not implemented in our kernel for ARMv8-M,
 	 * setting them to 0 essentially disables this feature. */
-	movs r0, #0
+	mov r0, #0
 	msr msplim, r0
 	msr psplim, r0
 	isb
 
-#if KERNEL_FPU_SUPPORT
-	/* Enable FPU and MVE. We have a function _hal_scsFPUSet, but we can't use it yet
-	 * and we have to untrap FPU early - _stm32_init may get compiled to code with MVE. */
-	mov r0, #(0x3 << 20)
-	str r0, [r7, #SCS_CPACR]
-	isb
-
-	/* Enable lazy floating-point state preservation */
-	ldr r0, [r7, #SCS_FPCCR]
-	orr r0, #(1 << 30)
-	str r0, [r7, #SCS_FPCCR]
-	isb
-#else
-	/* Trap FPU and MVE, in the chosen setup kernel doesn't support them. */
-	movs r0, #0
-	str r0, [r7, #SCS_CPACR]
-	isb
-#endif
-
-	movs r0, #0 /* Switch to main stack, privileged mode */
-	msr control, r0
-
 	bl _stm32_init
 
-	bl main
-	/* If main() returns, wait here infinitely for thread to be rescheduled */
-	b .
+	b main
 .size _start, .-_start
 .ltorg
 
@@ -139,109 +98,73 @@ _start:
 .type _syscallend, %function
 
 _syscall_dispatch:
-	mov r3, sp              /* Store MSP for later */
-	sub sp, sp, #HWCTX_SIZE /* Reserve space for copying hardware-stacked context */
-	mov r1, sp              /* Address to copy hardware-stacked context */
-	mrs r0, psp
-
-#if KERNEL_FPU_SUPPORT
-	vpush {s16-s31}
-#endif
-	str r3, [sp, #-8]! /* store msp, skip pad0 */
-	mov r12, #0
-	push {r0, r4-r12} /* store psp, r4~r11, irq_ret */
-
-	mov r10, r1
-	/* Registers:
-	 * r0    - hw-stacked context on process stack
-	 * r1~r8 - userspace r0~r3, r12, lr, pc, psr
-	 * r10   - hw-stacked context on kernel stack
-	 */
-
-	ldmia r0!, {r1-r8}
-	orr r7, r7, #1 /* fix PC LSB not being set */
-	stmia r10!, {r1-r8}
-	/* r5~r8 free for use */
-
-#if KERNEL_FPU_SUPPORT
-	/* copy s0-s15, fpscr, vpr */
-	vldmia r0!, {s0-s17}
-	vstmia r10!, {s0-s17}
-#endif
-	/* r10 free for use */
-
-	sub sp, sp, #8
-	str sp, [sp] /* savesp */
-
-#if KERNEL_FPU_SUPPORT
-	ldr r6, =SCS_BASE
-	ldr r5, [r6, #SCS_FPCAR]
-	str r5, [sp, #4] /* fpuctx */
-
-	/* At this point full context is saved on kernel stack.
-	 * Point FPCAR to the s0 register in saved context. */
-	add r5, sp, #(ISRCTX_SIZE + (8 * 4))
-	str r5, [r6, #SCS_FPCAR]
-	dmb
-	isb
-#endif
-
-	/* syscalls_dispatch expects arguments to be on the user stack.
-	 * Push userspace r0~r3 onto ustack. */
-	stmdb r0!, {r1-r4}
-
-	/* Prepare arguments for function call:
-	 * void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx) */
-	mov r1, r0
-	mov r2, sp
-	ldrb r0, [r7, #-3] /* get syscall number by examining SVC instruction */
-
-	/* Prepare pseudo context that will call syscalls_dispatch */
-	adr r5, _syscallend
-	ldr r6, =syscalls_dispatch
-	ldr r7, =DEFAULT_PSR
-	push {r0-r7} /* r0~r3, r12, lr, pc, psr */
-
-	/* Set Thread mode to privileged execution */
-	mrs r0, control
-	bic r0, r0, #0x3 /* Switch to main stack, privileged mode */
+	mov r0, #0
 	msr control, r0
 	isb
 
-	/* Exit Handler mode to kernel Thread mode, set FType because our pseudo-context doesn't have FPU */
-	ldr r0, =(RET_THREAD_MSP | EXC_RETURN_FTYPE)
-	bx r0
+	mov r0, sp
+
+	/* Prepare context on kernel stack */
+	sub sp, sp, #((14 * 4) + (8 * 4))
+	str sp, [sp]
+
+	add r1, sp, #12
+	mov r12, #0
+	stmia r1!, {r4-r12}
+	str r0, [r1], #8 /* msp */
+	mov r10, r1 /* addr to store hw-saved ctx */
+
+	mrs r0, psp
+	str r0, [sp, #8]
+
+	/* Load hardware saved registers from user stack */
+	ldmia r0!, {r1-r8}
+
+	/* Fix PC LSB not being set */
+	orr r7, r7, #1
+
+	/* Store hardware saved registers on kernel stack */
+	add r10, r10, #(5 * 4)
+	stm r10, {r6-r8} /* lr, pc, psr */
+
+	/* Copy arguments back to the user stack */
+	stmdb r0!, {r1-r4}
+	mov r1, r0
+	mov r2, sp
+	ldrb r0, [r7, #-3]
+
+	/* Prepare pseudo context */
+	mov r7, #0x01000000
+	ldr r6, =syscalls_dispatch
+	ldr r5, =_syscallend
+	stmdb sp!, {r0-r7} /* PSR, PC, LR, R12, R3, R2, R1, R0 */
+
+	/* Exit handler mode to kernel thread mode */
+	ldr lr,=RET_THREAD_MSP
+	bx lr
 
 _syscallend:
 	/* return value in r0 */
-	add sp, sp, #(2 * 4)  /* Skip over savesp, fpuctx */
-	pop {r1, r4-r11, lr}  /* load psp, restore r4~r11, lr (ignored) */
-	adds r1, r1, #HWCTX_SIZE
-	msr psp, r1
+	ldr lr, [sp, #8] /* psp */
+	add lr, lr, #(8 * 4)
+	msr psp, lr
 	isb
 
-	/* Get lr, pc from the context on stack */
-	ldrd lr, r3, [sp, #(ISRCTX_SIZE - (12 * 4) + (5 * 4))]
+	add r10, sp, #((14 * 4) + (5 * 4))
+	ldm r10, {r2,r3} /* lr, pc */
 
-#if KERNEL_FPU_SUPPORT
-	add sp, sp, #(2 * 4) /* Skip over irq_ret, msp, pad0 */
-	vpop {s16-s31}
-	add sp, sp, #(8 * 4) /* Skip over hwctx (only the integer part) */
-	vpop {s0-s15}
-	pop {r1-r2}
-	vmsr fpscr, r1
-	vmsr vpr, r2
-#else
-	add sp, sp, #((2 * 4) + HWCTX_SIZE) /* Skip over irq_ret, msp, pad0 and hwctx */
-#endif
+	add lr, sp, #12
+	ldmia lr!, {r4-r11}
+	add lr, lr, #(11 * 4)
+	mov sp, lr
 
 	/* Switch stacks */
-	mrs r1, control
-	orr r1, r1, #0x3 /* Switch to process stack, unprivileged mode */
+	mov r1, #3
 	msr control, r1
 	isb
 
-	bx r3
+	mov lr, r2
+	mov pc, r3
 .size _syscall_dispatch, .-_syscall_dispatch
 .ltorg
 
@@ -253,13 +176,11 @@ _exceptions_dispatch:
 	isb
 
 	mrs r0, psp
-	/* push psp, r4~r11, excret */
 	stmdb sp!, {r0, r4-r11, lr}
 
 	mrs r0, ipsr
 	mov r1, sp
 
-	/* void exceptions_dispatch(unsigned int n, exc_context_t *ctx) */
 	b exceptions_dispatch
 .size _exceptions_dispatch, .-_exceptions_dispatch
 .ltorg
@@ -267,94 +188,63 @@ _exceptions_dispatch:
 .globl _interrupts_dispatch
 .type _interrupts_dispatch, %function
 _interrupts_dispatch:
-	mov r0, sp /* save MSP */
-	tst lr, #EXC_RETURN_SPSEL
-	it ne
-	subne sp, sp, #HWCTX_SIZE /* space corresponding to hw-saved ctx */
+	mov r0, #0
+	msr control, r0
+	isb
 
-#if KERNEL_FPU_SUPPORT
-	vpush {s16-s31}
-#endif
-	str r0, [sp, #-8]! /* store msp, skip pad0 */
+	mov r0, sp
+	tst  lr, #(1 << 2)
+	it ne
+	subne sp, sp, #(8 * 4) /* space for hw-saved ctx */
+	str r0, [sp, #-8]!
 
 	mrs r0, ipsr
-	sub r1, sp, #(12 * 4) /* pointer to cpu_context_t on stack */
-#if KERNEL_FPU_SUPPORT
-	ldr r2, =SCS_BASE
-	ldr r2, [r2, #SCS_FPCAR]
-#endif
 	mrs r3, psp
-	push {r1-r11, lr} /* store savesp, fpuctx, psp, r4~r11, irq_ret */
+	sub r1, sp, #48
+	stmdb sp!, {r1-r11, lr}
 
-	/* if we came from userspace, copy hw-saved ctx to kstack in case of signal handling */
-	beq .Lskip_hwctx_copy /* tst lr, #EXC_RETURN_SPSEL */
+	/* if we came from userspace, copy hw-saved regs to kstack
+	 * in case of signal handling
+	 */
 
-	/* psp in r3 - load hw-saved ctx */
-	add r12, sp, #ISRCTX_SIZE
-#if KERNEL_FPU_SUPPORT
-	vldm r3, {s0-s25}
-	vstm r12, {s0-s25}
-#else
+	beq _intd0 /* tst  lr, #(1 << 2) */
+
+	/* psp in r3 - load hw-saved regs */
 	ldm r3, {r4-r11}
+	add r12, sp, #(14 * 4)
 	stm r12, {r4-r11}
-#endif
 
-.Lskip_hwctx_copy:
-	/* void interrupts_dispatch(unsigned int n, cpu_context_t *ctx) */
+_intd0:
 	bl interrupts_dispatch
-
-	/* Switch stack to savesp to restore context from there */
-	ldr sp, [sp]
+	ldr r1, [sp]
+	mov sp, r1
 	isb
-#if KERNEL_FPU_SUPPORT
-	/* If we have FPU, we can load r4~r11 right away, because we will use FPU registers to copy over hw-saved ctx */
-	pop {r1-r11, lr}          /* load savesp (unused), fpuctx, psp, r4~r11, lr */
-	ldr r0, [sp], #8          /* load msp, skip pad0 */
-	tst lr, #EXC_RETURN_SPSEL /* check if we are returning to userspace */
-	beq .Lskip_hwctx_restore
+_intd1:
+	ldr lr, [sp, #(11 * 4)]
 
-	add r12, sp, #(16 * 4) /* skip s16~s31 */
-	vldm r12, {s0-s25}     /* load hwcontext, s0~s15, fpscr and vpr */
-	vstm r3, {s0-s25}      /* store them at psp */
-
-.Lskip_hwctx_restore:
-	vpop {s16-s31}
-	isb
-
-	mov sp, r0 /* restore msp */
-
-	ldr r1, =SCS_BASE
-	str r2, [r1, #SCS_FPCAR]
-	dsb
-	isb
-#else
-	/* If we don't have FPU, we need 8 registers to copy over hw-saved ctx, so load r4~r11 later */
-	ldr lr, [sp, #(11 * 4)]   /* load lr */
-	tst lr, #EXC_RETURN_SPSEL /* check if we are returning to userspace */
-	beq .Lskip_hwctx_restore
+	tst  lr, #(1 << 2)
+	beq _intd2
 
 	/* userspace return - restore registers in case of signal handling */
-	ldr r3, [sp, #(2 * 4)] /* load psp */
-	add r12, sp, #ISRCTX_SIZE
-	ldm r12, {r4-r11}
+	ldr r3, [sp, #(2 * 4)] /* psp */
+	add r1, sp, #(14 * 4)
+	ldm r1, {r4-r11}
 	stm r3, {r4-r11}
 
-.Lskip_hwctx_restore:
-	add sp, sp, #(2 * 4) /* skip over savesp, fpuctx - both unused  */
-	pop {r3-r11}         /* load psp, r4~r11 */
-	ldr sp, [sp, #4]     /* restore msp */
-#endif
+_intd2:
+	ldmia sp!, {r1-r11}
+	ldr r0, [sp, #4]
+	mov sp, r0
+
 	msr psp, r3
 	isb
 
-	/* Check if we're returning to userspace and pick the right CONTROL value */
-	mrs r1, control
-	ite ne /* tst lr, #EXC_RETURN_SPSEL */
-	orrne r1, r1, #0x3 /* Switch to process stack, unprivileged mode */
-	biceq r1, r1, #0x3 /* Switch to main stack, privileged mode */
+	/* Check if we're returning to userspace */
+	and r1, lr, #4
+	ror r1, r1, #2
 	msr control, r1
-	dsb
 	isb
+	dsb
 
 	bx lr
 .size _interrupts_dispatch, .-_interrupts_dispatch
@@ -369,9 +259,9 @@ hal_cpuReschedule:
 
 	/* Invoke PendSV to perform a reschedule */
 	ldr r2, =SCS_BASE
-	ldr r1, [r2, #SCS_ICSR]
+	ldr r1, [r2, 0xd04] /* ICSR */
 	orr r1, #(1 << 28)  /* ICSR.PENDSVSET */
-	str r1, [r2, #SCS_ICSR]
+	str r1, [r2, 0xd04] /* ICSR */
 
 	/* If spinlock not NULL, clear it */
 	cbz r0, .Lhal_cpuReschedule0
@@ -400,7 +290,8 @@ hal_jmp:
 	cpsid if
 	isb
 
-	cbnz r2, hal_jmp_user
+	cmp r2, #0
+	bne hal_jmp_user
 
 	/* kargs has been passed on the stack */
 	ldr r5, [sp]
@@ -433,7 +324,7 @@ hal_jmp_user:
 	msr psp, r2
 	cpsie if
 	isb
-	movs r1, #(USERCONTROL | CONTROL_SFPA)
+	mov r1, USERCONTROL
 	msr control, r1
 	isb
 	dmb
@@ -444,27 +335,24 @@ hal_jmp_user:
 
 .globl hal_exceptionJump /* void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *)) */
 .type hal_exceptionJump, %function
-.type .L_hal_exceptionJump_end, %function
 hal_exceptionJump:
 	push {r4-r11, lr}
-	/* Prepare pseudo context that will call handler */
-	ldr r7, =DEFAULT_PSR
+	ldr r7, =0x01000000
 	mov r6, r2
-	adr r5, .L_hal_exceptionJump_end
-	push {r0-r7} /* r0~r3, r12, lr, pc, psr */
+	ldr r5, =1f
+	orr r5, #1
+	push {r0-r7}
 
-	mrs r0, control
-	bic r0, r0, #0x3 /* Switch to main stack, privileged mode */
-	msr control, r0
+	mov lr, #0
+	msr control, lr
 	isb
-	/* Exit Handler mode to kernel Thread mode, set FType because our pseudo-context doesn't have FPU */
-	ldr r0, =(RET_THREAD_MSP | EXC_RETURN_FTYPE)
+	mov lr, 0xfffffff9
 	cpsie if
 	dsb
-	bx r0
+	bx lr
 
-.L_hal_exceptionJump_end:
-	pop {r4-r11, pc}
+1:	pop {r4-r11, lr}
+	bx lr
 
 .size hal_exceptionJump, .-hal_exceptionJump
 .ltorg

@@ -489,20 +489,4 @@ enum risaf_regs {
 	risaf_reg1_bnestr,
 };
 
-enum dbgmcu_regs {
-	dbgmcu_idcode = 0x0u,
-	dbgmcu_cr,
-	dbgmcu_apb1lfz1 = 0x4u,
-	dbgmcu_apb1hfz1,
-	dbgmcu_apb2fz1,
-	dbgmcu_apb4fz1,
-	dbgmcu_apb5fz1,
-	dbgmcu_ahb1fz1,
-	dbgmcu_ahb5fz1,
-	dbgmcu_sr = 0x3fu,
-	dbgmcu_dbg_auth_host,
-	dbgmcu_dbg_auth_dev,
-	dbgmcu_dbg_auth_ack,
-};
-
 #endif /* _STM32N6_REGS_H_ */
