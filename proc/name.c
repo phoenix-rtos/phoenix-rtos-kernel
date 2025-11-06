@@ -191,7 +191,6 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 	srv = name_common.root_oid;
 
-#if 1 /* (MOD) */
 	/* Search cache for starting point */
 	len = hal_strlen(name);
 
@@ -286,7 +285,6 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		vm_kfree(pheap);
 	}
 	return err < 0 ? err : EOK;
-#endif
 }
 
 
