@@ -170,7 +170,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
 	return 0;
 }

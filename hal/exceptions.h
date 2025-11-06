@@ -21,6 +21,9 @@
 #include <arch/exceptions.h>
 
 
+typedef void (*excHandlerFn_t)(unsigned int n, exc_context_t *ctx);
+
+
 vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx);
 
 
@@ -33,7 +36,7 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx);
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n);
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int n, exc_context_t *ctx));
+int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler);
 
 
 void _hal_exceptionsInit(void);

@@ -25,8 +25,8 @@
 
 
 static struct {
-	void (*handlers[SIZE_EXCEPTIONS])(unsigned int, exc_context_t *);
-	void (*defaultHandler)(unsigned int, exc_context_t *);
+	excHandlerFn_t handlers[SIZE_EXCEPTIONS];
+	excHandlerFn_t defaultHandler;
 	spinlock_t spinlock;
 } exceptions_common;
 
@@ -180,8 +180,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	spinlock_ctx_t sc;
-
-	void (*h)(unsigned int, exc_context_t *);
+	excHandlerFn_t h;
 
 	if (n >= SIZE_EXCEPTIONS) {
 		return;
@@ -200,7 +199,7 @@ void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
 	spinlock_ctx_t sc;
 

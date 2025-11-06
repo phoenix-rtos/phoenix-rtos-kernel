@@ -64,8 +64,8 @@ void exceptions_exc7_handler(unsigned int n, exc_context_t *ctx);
 
 
 struct {
-	void *handlers[SIZE_EXCHANDLERS];  /* this field should be always first because of assembly stub */
-	void (*defaultHandler)(unsigned int, exc_context_t *);
+	excHandlerFn_t handlers[SIZE_EXCHANDLERS]; /* this field should be always first because of assembly stub */
+	excHandlerFn_t defaultHandler;
 	spinlock_t lock;
 } exceptions;
 
@@ -210,7 +210,7 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
 	spinlock_ctx_t sc;
 

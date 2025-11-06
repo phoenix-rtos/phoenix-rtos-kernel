@@ -442,7 +442,7 @@ hal_jmp_user:
 .size hal_jmp, .-hal_jmp
 .ltorg
 
-.globl hal_exceptionJump /* void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *)) */
+.globl hal_exceptionJump /* void hal_exceptionJump(unsigned int n, exc_context_t *ctx, excHandlerFn_t handler) */
 .type hal_exceptionJump, %function
 .type .L_hal_exceptionJump_end, %function
 hal_exceptionJump:

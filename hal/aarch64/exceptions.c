@@ -26,8 +26,8 @@
 #define N_EXCEPTIONS           64
 
 struct {
-	void (*handler[N_EXCEPTIONS])(unsigned int, exc_context_t *);
-	void (*defaultHandler)(unsigned int, exc_context_t *);
+	excHandlerFn_t handler[N_EXCEPTIONS];
+	excHandlerFn_t defaultHandler;
 	spinlock_t lock;
 } exceptions;
 
@@ -272,7 +272,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int, exc_context_t *))
+int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
 	int ret = 0;
 	spinlock_ctx_t sc;

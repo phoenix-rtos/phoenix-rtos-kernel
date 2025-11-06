@@ -39,9 +39,9 @@
 
 
 static struct {
-	void (*undefHandler)(unsigned int n, exc_context_t *ctx);
-	void (*abortHandler)(unsigned int n, exc_context_t *ctx);
-	void (*defaultHandler)(unsigned int n, exc_context_t *ctx);
+	excHandlerFn_t undefHandler;
+	excHandlerFn_t abortHandler;
+	excHandlerFn_t defaultHandler;
 	spinlock_t lock;
 } exceptions;
 
@@ -203,7 +203,7 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 }
 
 
-int hal_exceptionsSetHandler(unsigned int n, void (*handler)(unsigned int n, exc_context_t *ctx))
+int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
 	int ret = 0;
 	spinlock_ctx_t sc;
