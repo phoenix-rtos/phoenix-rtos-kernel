@@ -285,7 +285,6 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 	lmerge = (lmerge != 0U && (proc == prev->process)) ? 1U : 0U;
 #endif
 
-#if 1
 	if (o == NULL) {
 		if (lmerge != 0U && rmerge != 0U && (next->amap == prev->amap)) {
 			/* Both use the same amap, can merge */
@@ -311,11 +310,6 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 			}
 		}
 	}
-#else
-	/* Disable merging of anonymous entries */
-	if (o == NULL)
-		rmerge = lmerge = 0;
-#endif
 
 	if (rmerge != 0U && lmerge != 0U) {
 		e = prev;
