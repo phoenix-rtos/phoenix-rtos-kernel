@@ -19,6 +19,7 @@
 #include "proc/msg.h"
 #include "sockdefs.h"
 
+/* clang-format off */
 enum {
 	sockmSocket = 0x50c30000, sockmShutdown,
 	sockmConnect, sockmBind, sockmListen, sockmAccept,
@@ -26,8 +27,9 @@ enum {
 	sockmGetFl, sockmSetFl, sockmGetOpt, sockmSetOpt,
 	sockmGetNameInfo, sockmGetAddrInfo,
 };
+/* clang-format on */
 
-enum { MAX_SOCKNAME_LEN = sizeof(((msg_t *)0)->o.raw) - 2U * sizeof(size_t) };
+enum { MAX_SOCKNAME_LEN = sizeof(((msg_t *)NULL)->o.raw) - 2U * sizeof(size_t) };
 
 
 #define PATH_SOCKSRV "/dev/netsocket"

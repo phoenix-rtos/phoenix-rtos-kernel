@@ -332,7 +332,7 @@ int posix_clone(int ppid)
 
 	p->process = process_getPid(proc);
 
-	p->fds = vm_kmalloc((unsigned int)p->fdsz * sizeof(fildes_t));
+	p->fds = vm_kmalloc((size_t)p->fdsz * sizeof(fildes_t));
 	if (p->fds == NULL) {
 		(void)proc_lockDone(&p->lock);
 		vm_kfree(p);
@@ -344,7 +344,7 @@ int posix_clone(int ppid)
 	}
 
 	if (pp != NULL) {
-		hal_memcpy(p->fds, pp->fds, (unsigned int)pp->fdsz * sizeof(fildes_t));
+		hal_memcpy(p->fds, pp->fds, (size_t)pp->fdsz * sizeof(fildes_t));
 
 		for (i = 0; i < p->fdsz; ++i) {
 			f = p->fds[i].file;
@@ -358,7 +358,7 @@ int posix_clone(int ppid)
 		(void)proc_lockClear(&pp->lock);
 	}
 	else {
-		hal_memset(p->fds, 0, (unsigned int)p->fdsz * sizeof(fildes_t));
+		hal_memset(p->fds, 0, (size_t)p->fdsz * sizeof(fildes_t));
 
 		for (i = 0; i < 3; ++i) {
 			f = vm_kmalloc(sizeof(open_file_t));
@@ -597,7 +597,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			if ((err == -ENOENT) && (((unsigned int)oflag & O_CREAT) != 0U)) {
 				GETFROMSTACK(ustack, mode_t, mode, 2);
 
-				if (posix_create(filename, 1 /* otFile */, mode | (unsigned int)S_IFREG, dev, &oid) < 0) {
+				if (posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid) < 0) {
 					err = -EIO;
 					break;
 				}
@@ -1479,7 +1479,7 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 }
 
 
-static int posix_fcntlSetFd(int fd, int flags)
+static int posix_fcntlSetFd(int fd, unsigned int flags)
 {
 	process_info_t *p;
 	int err = EOK;
@@ -1497,7 +1497,7 @@ static int posix_fcntlSetFd(int fd, int flags)
 	}
 
 	if (p->fds[fd].file != NULL) {
-		p->fds[fd].flags = (unsigned int)flags;
+		p->fds[fd].flags = flags;
 	}
 	else {
 		err = -EBADF;
@@ -1537,7 +1537,7 @@ static int posix_fcntlGetFd(int fd)
 }
 
 
-static int posix_fcntlSetFl(int fd, int val)
+static int posix_fcntlSetFl(int fd, unsigned int val)
 {
 	open_file_t *f;
 	int err;
@@ -1551,10 +1551,10 @@ static int posix_fcntlSetFl(int fd, int val)
 				err = inet_setfl(f->oid.port, val);
 				break;
 			case ftUnixSocket:
-				err = unix_setfl(f->oid.id, (unsigned int)val);
+				err = unix_setfl(f->oid.id, val);
 				break;
 			default:
-				f->status = ((unsigned int)val & ~ignorefl) | (f->status & ignorefl);
+				f->status = (val & ~ignorefl) | (f->status & ignorefl);
 				break;
 		}
 
@@ -1612,7 +1612,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 
 		case F_SETFD:
 			GETFROMSTACK(ustack, unsigned long, arg, 2);
-			err = posix_fcntlSetFd(fd, (int)arg);
+			err = posix_fcntlSetFd(fd, arg);
 			break;
 
 		case F_GETFL:
@@ -1621,7 +1621,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 
 		case F_SETFL:
 			GETFROMSTACK(ustack, unsigned int, arg, 2);
-			err = posix_fcntlSetFl(fd, (int)arg);
+			err = posix_fcntlSetFl(fd, arg);
 			break;
 
 		case F_GETLK:
@@ -1786,7 +1786,7 @@ int posix_socket(int domain, int type, int protocol)
 
 	switch (domain) {
 		case AF_UNIX:
-			err = unix_socket(domain, type, protocol);
+			err = unix_socket(domain, (unsigned int)type, protocol);
 			if (err >= 0) {
 				p->fds[fd].file->type = ftUnixSocket;
 				p->fds[fd].file->oid.port = US_PORT;
@@ -1853,7 +1853,7 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 		return -EMFILE;
 	}
 
-	err = unix_socketpair(domain, type, protocol, id);
+	err = unix_socketpair(domain, (unsigned int)type, protocol, id);
 	if (err == 0) {
 		p->fds[sv[0]].file->type = ftUnixSocket;
 		p->fds[sv[1]].file->type = ftUnixSocket;
@@ -2361,21 +2361,25 @@ int posix_futimens(int fildes, const struct timespec *times)
 static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 {
 	msg_t msg;
-	int ready = 0, i;
+	int ready = 0;
+	unsigned int i;
 	int err;
 	open_file_t *f;
+	unsigned short events, revents;
 
 	hal_memset(&msg, 0, sizeof(msg));
 
 	msg.type = mtGetAttr;
 	msg.i.attr.type = atPollStatus;
 
-	for (i = 0; i < (int)nfds; ++i) {
+	for (i = 0; i < nfds; ++i) {
 		if (fds[i].fd < 0) {
 			continue;
 		}
+		events = (unsigned short)fds[i].events;
+		revents = (unsigned short)fds[i].revents;
 
-		msg.i.attr.val = (long long)fds[i].events;
+		msg.i.attr.val = (long long)events;
 
 		if (posix_getOpenFile(fds[i].fd, &f) < 0) {
 			err = (int)POLLNVAL;
@@ -2385,7 +2389,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			(void)posix_fileDeref(f);
 
 			if (f->type == ftUnixSocket) {
-				err = unix_poll((unsigned int)msg.oid.id, (unsigned short)fds[i].events);
+				err = unix_poll((unsigned int)msg.oid.id, events);
 			}
 			else {
 				err = proc_send(msg.oid.port, &msg);
@@ -2401,20 +2405,22 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 		}
 
 		if (err < 0) {
-			fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents | POLLHUP);
+			revents |= POLLHUP;
 		}
 		else if (err > 0) {
-			fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents | (unsigned short)err);
+			revents |= (unsigned short)err;
 		}
 		else {
 			/* No action required */
 		}
 
-		fds[i].revents = (short)(unsigned short)((unsigned short)fds[i].revents & ~(~(unsigned short)fds[i].events & (POLLIN | POLLOUT | POLLPRI | POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND)));
+		revents &= ~(~events & (POLLIN | POLLOUT | POLLPRI | POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND));
 
-		if (fds[i].revents != 0) {
+		if (revents != 0U) {
 			++ready;
 		}
+
+		fds[i].revents = (short)revents;
 	}
 
 	return ready;
