@@ -887,17 +887,6 @@ void syscalls_keepidle(u8 *ustack)
 
 
 /*
- * Memory map dump
- */
-
-
-void syscalls_mmdump(char *ustack)
-{
-	vm_mapDump(NULL);
-}
-
-
-/*
  * Platform specific call
  */
 

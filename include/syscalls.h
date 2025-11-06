@@ -55,7 +55,6 @@
 	ID(gettime) \
 	ID(settime) \
 	ID(keepidle) \
-	ID(mmdump) \
 	ID(platformctl) \
 	ID(wdgreload) \
 	ID(threadsinfo) \
