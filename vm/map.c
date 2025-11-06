@@ -271,12 +271,12 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 			return NULL;
 		}
 
-		if (rmerge != 0U) {
-			rmerge &= (next->offs == offs + size) ? 1U : 0U;
+		if ((rmerge != 0U) && (next->offs != offs + size)) {
+			rmerge = 0U;
 		}
 
-		if (lmerge != 0U) {
-			lmerge &= (offs == prev->offs + prev->size) ? 1U : 0U;
+		if ((lmerge != 0U) && (offs != prev->offs + prev->size)) {
+			lmerge = 0U;
 		}
 	}
 
