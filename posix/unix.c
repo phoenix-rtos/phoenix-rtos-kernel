@@ -52,9 +52,9 @@ typedef struct _unixsock_t {
 	size_t buffsz;
 	fdpack_t *fdpacks;
 
-	__u8 type;
-	__u8 state;
-	__u8 nonblock;
+	u8 type;
+	u8 state;
+	u8 nonblock;
 
 	spinlock_t spinlock;
 
@@ -187,7 +187,7 @@ static void unixsock_augment(rbnode_t *node)
 }
 
 
-static unixsock_t *unixsock_alloc(unsigned int *id, int type, int nonblock)
+static unixsock_t *unixsock_alloc(unsigned int *id, unsigned int type, int nonblock)
 {
 	unixsock_t *r, t;
 
@@ -327,18 +327,16 @@ static void unixsock_put(unixsock_t *s)
 }
 
 
-int unix_socket(int domain, int type, int protocol)
+int unix_socket(int domain, unsigned int type, int protocol)
 {
 	unixsock_t *s;
 	unsigned int id;
 	int nonblock;
 
-	nonblock = (((unsigned int)type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
+	nonblock = ((type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
+	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_10_1 "Result type must be int" */
-	type &= (int)(unsigned int)(~(SOCK_NONBLOCK | SOCK_CLOEXEC));
-
-	if ((unsigned int)type != SOCK_STREAM && (unsigned int)type != SOCK_DGRAM && (unsigned int)type != SOCK_SEQPACKET) {
+	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET) {
 		return -EPROTOTYPE;
 	}
 
@@ -356,18 +354,17 @@ int unix_socket(int domain, int type, int protocol)
 }
 
 
-int unix_socketpair(int domain, int type, int protocol, int sv[2])
+int unix_socketpair(int domain, unsigned int type, int protocol, int sv[2])
 {
 	unixsock_t *s[2];
 	unsigned int id[2];
 	void *v[2];
 	int nonblock;
 
-	nonblock = (((unsigned int)type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
-	/* parasoft-suppress-next-line MISRAC2012-RULE_10_1 "Result type must be int" */
-	type &= (int)(unsigned int)(~(SOCK_NONBLOCK | SOCK_CLOEXEC));
+	nonblock = ((type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
+	type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
-	if ((unsigned int)type != SOCK_STREAM && (unsigned int)type != SOCK_DGRAM && (unsigned int)type != SOCK_SEQPACKET) {
+	if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_SEQPACKET) {
 		return -EPROTOTYPE;
 	}
 
@@ -412,7 +409,7 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 	s[0]->remote = s[1];
 	s[1]->remote = s[0];
 
-	if (type == (int)SOCK_DGRAM) {
+	if (type == SOCK_DGRAM) {
 		LIST_ADD(&s[0]->connected, s[1]);
 		LIST_ADD(&s[1]->connected, s[0]);
 	}
@@ -460,7 +457,7 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 			break;
 		}
 
-		new = unixsock_alloc(&newid, (int)s->type, nonblock);
+		new = unixsock_alloc(&newid, s->type, nonblock);
 		if (new == NULL) {
 			err = -ENOMEM;
 			break;
@@ -763,7 +760,7 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 			break;
 		}
 
-		switch (optname) {
+		switch ((unsigned int)optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
 					*((unsigned int *)optval) = s->buffsz;
@@ -1154,7 +1151,7 @@ int unix_setsockopt(unsigned int socket, int level, int optname, const void *opt
 			break;
 		}
 
-		switch (optname) {
+		switch ((unsigned int)optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && optlen == sizeof(int)) {
 					err = unix_bufferSetSize(s, *((const size_t *)optval));

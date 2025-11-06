@@ -324,7 +324,7 @@ int inet_setsockopt(unsigned int socket, int level, int optname, const void *opt
 }
 
 
-int inet_setfl(unsigned int socket, int flags)
+int inet_setfl(unsigned int socket, unsigned int flags)
 {
 	msg_t msg;
 	sockport_msg_t *smi = (void *)msg.i.raw;

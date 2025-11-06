@@ -46,11 +46,11 @@
 #define SO_BROADCAST    0x0020U
 #define SO_DEBUG        0x0001U
 #define SO_DONTROUTE    0x0010U
-#define SO_ERROR        0x1007
+#define SO_ERROR        0x1007U
 #define SO_KEEPALIVE    0x0008U
 #define SO_LINGER       0x0080U
 #define SO_OOBINLINE    0x0100U
-#define SO_RCVBUF       0x1002
+#define SO_RCVBUF       0x1002U
 #define SO_RCVLOWAT     0x1004U
 #define SO_RCVTIMEO     0x1006U
 #define SO_REUSEADDR    0x0004U

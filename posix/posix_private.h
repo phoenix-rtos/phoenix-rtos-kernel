@@ -203,7 +203,7 @@ int inet_shutdown(unsigned int socket, int how);
 int inet_setsockopt(unsigned int socket, int level, int optname, const void *optval, socklen_t optlen);
 
 
-int inet_setfl(unsigned int socket, int flags);
+int inet_setfl(unsigned int socket, unsigned int flags);
 
 
 int inet_getfl(unsigned int socket);
@@ -242,10 +242,10 @@ ssize_t unix_recvmsg(unsigned int socket, struct msghdr *msg, unsigned int flags
 ssize_t unix_sendmsg(unsigned int socket, const struct msghdr *msg, unsigned int flags);
 
 
-int unix_socket(int domain, int type, int protocol);
+int unix_socket(int domain, unsigned int type, int protocol);
 
 
-int unix_socketpair(int domain, int type, int protocol, int sv[2]);
+int unix_socketpair(int domain, unsigned int type, int protocol, int sv[2]);
 
 
 int unix_shutdown(unsigned int socket, int how);
