@@ -350,17 +350,16 @@ void log_msgHandler(msg_t *msg, oid_t oid, msg_rid_t rid)
 			}
 			else {
 				msg->o.err = log_read(r, msg->o.data, msg->o.size);
-				if ((msg->o.err == 0) && (r->nonblocking == 0U)) {
-					msg->o.err = log_readerBlock(r, msg, oid, rid);
-					if (msg->o.err == EOK) {
-						respond = 0;
+				if (msg->o.err == 0) {
+					if (r->nonblocking == 0U) {
+						msg->o.err = log_readerBlock(r, msg, oid, rid);
+						if (msg->o.err == EOK) {
+							respond = 0;
+						}
 					}
-				}
-				else if ((msg->o.err == 0) && (r->nonblocking != 0U)) {
-					msg->o.err = -EAGAIN;
-				}
-				else {
-					/* No action required */
+					else {
+						msg->o.err = -EAGAIN;
+					}
 				}
 
 				log_readerPut(&r);
