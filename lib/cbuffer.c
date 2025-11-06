@@ -18,12 +18,11 @@
 #include "vm/vm.h"
 
 
-unsigned int _cbuffer_init(cbuffer_t *buf, void *data, size_t sz)
+void _cbuffer_init(cbuffer_t *buf, void *data, size_t sz)
 {
 	hal_memset(buf, 0, sizeof(cbuffer_t));
 	buf->sz = sz;
 	buf->data = data;
-	return 0U;
 }
 
 
