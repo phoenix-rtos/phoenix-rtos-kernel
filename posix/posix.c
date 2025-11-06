@@ -2426,7 +2426,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 	return ready;
 }
 
-#if 1
+
 int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 {
 	unsigned int i, n;
@@ -2481,116 +2481,6 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 
 	return ready;
 }
-
-#else
-
-int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
-{
-	int err, i, j;
-	int queue;
-	msg_t msg;
-	open_file_t *f, *q;
-
-	evsub_t subs_stack[4];
-	evsub_t *subs = subs_stack;
-	event_t events[8];
-
-	/* fast path */
-	err = do_poll_iteration(fds, nfds);
-	if (err != 0) {
-		return err;
-	}
-
-	if (timeout_ms == 0) {
-		return 0;
-	}
-
-	queue = posix_open("/dev/event/queue", O_RDWR, NULL);
-	if (queue < 0) {
-		return queue;
-	}
-
-	do {
-		if (posix_getOpenFile(queue, &q) < 0)
-			return -EAGAIN; /* should not happen? */
-
-		if (nfds > sizeof(subs_stack) / sizeof(evsub_t)) {
-			return -ENOMEM;
-		}
-
-		subs = vm_kmalloc(nfds * sizeof(evsub_t));
-		if (subs == NULL) {
-			return -ENOMEM;
-		}
-
-		hal_memset(subs, 0, nfds * sizeof(evsub_t));
-
-		do {
-			err = EOK;
-
-			for (i = 0; i < nfds; ++i) {
-				if (fds[i].fd < 0)
-					continue;
-
-				err = posix_getOpenFile(fds[i].fd, &f);
-				if (err != 0) {
-					fds[i].revents = POLLNVAL;
-					continue;
-				}
-
-				hal_memcpy(&subs[i].oid, &f->oid, sizeof(oid_t));
-				subs[i].flags = evAdd;
-				subs[i].types = fds[i].events;
-			}
-
-			if (err != 0) {
-				break;
-			}
-
-			msg.type = mtRead;
-
-			hal_memcpy(&msg.i.io.oid, &q->oid, sizeof(oid_t));
-			msg.i.io.len = (unsigned int)timeout_ms;
-
-			msg.i.data = subs;
-			msg.i.size = nfds * sizeof(evsub_t);
-
-			msg.o.data = events;
-			msg.o.size = sizeof(events);
-
-			err = proc_send(q->oid.port, &msg);
-			if (err != 0) {
-				break;
-			}
-
-			err = msg.o.io.err;
-			if (err < 0) {
-				break;
-			}
-
-			if (err == 0) {
-				break;
-			}
-
-			for (i = 0; i < msg.o.io.err; ++i) {
-				for (j = 0; j < nfds; ++j) {
-					if (hal_memcmp(&events[i].oid, &subs[j].oid, sizeof(oid_t)))
-						continue;
-
-					fds[j].revents |= 1 << events[i].type;
-				}
-			}
-
-		} while (0);
-
-		if (subs != subs_stack)
-			vm_kfree(subs);
-	} while (0);
-
-	posix_close(queue);
-	return err;
-}
-#endif
 
 
 static int posix_killOne(pid_t pid, int tid, int sig)
