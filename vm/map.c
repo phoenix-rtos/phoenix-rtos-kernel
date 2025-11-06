@@ -124,7 +124,7 @@ static void map_augment(rbnode_t *node)
 }
 
 
-static void map_dump(rbnode_t *node)
+static void _map_dump(rbnode_t *node)
 {
 	map_entry_t *e = lib_treeof(map_entry_t, linkage, node);
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
@@ -983,7 +983,7 @@ void vm_mapDump(vm_map_t *map)
 	}
 
 	(void)proc_lockSet(&map->lock);
-	lib_rbDump(map->tree.root, map_dump);
+	lib_rbDump(map->tree.root, _map_dump);
 	(void)proc_lockClear(&map->lock);
 }
 
