@@ -370,7 +370,7 @@ int perf_start(unsigned int pid)
 		return -ENOMEM;
 	}
 
-	(void)_cbuffer_init(&threads_common.perfBuffer, data, 0x4UL << 20);
+	_cbuffer_init(&threads_common.perfBuffer, data, 0x4UL << 20);
 
 	/* Start gathering events */
 	hal_spinlockSet(&threads_common.spinlock, &sc);

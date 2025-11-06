@@ -49,7 +49,7 @@ static inline size_t _cbuffer_discard(cbuffer_t *buf, size_t sz)
 }
 
 
-unsigned int _cbuffer_init(cbuffer_t *buf, void *data, size_t sz);
+void _cbuffer_init(cbuffer_t *buf, void *data, size_t sz);
 
 
 unsigned int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz);
@@ -59,5 +59,6 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz);
 
 
 unsigned int _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz);
+
 
 #endif

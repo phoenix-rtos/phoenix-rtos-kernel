@@ -235,7 +235,7 @@ static unixsock_t *unixsock_alloc(unsigned int *id, int type, int nonblock)
 	r->state = 0;
 	r->next = NULL;
 	r->prev = NULL;
-	(void)_cbuffer_init(&r->buffer, NULL, 0);
+	_cbuffer_init(&r->buffer, NULL, 0);
 	hal_spinlockCreate(&r->spinlock, "unix socket");
 
 	(void)lib_rbInsert(&unix_common.tree, &r->linkage);
@@ -406,8 +406,8 @@ int unix_socketpair(int domain, int type, int protocol, int sv[2])
 		return -ENOMEM;
 	}
 
-	(void)_cbuffer_init(&s[0]->buffer, v[0], s[0]->buffsz);
-	(void)_cbuffer_init(&s[1]->buffer, v[1], s[1]->buffsz);
+	_cbuffer_init(&s[0]->buffer, v[0], s[0]->buffsz);
+	_cbuffer_init(&s[1]->buffer, v[1], s[1]->buffsz);
 
 	s[0]->remote = s[1];
 	s[1]->remote = s[0];
@@ -474,7 +474,7 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 			break;
 		}
 
-		(void)_cbuffer_init(&new->buffer, v, new->buffsz);
+		_cbuffer_init(&new->buffer, v, new->buffsz);
 
 		hal_spinlockSet(&s->spinlock, &sc);
 		s->state |= US_ACCEPTING;
@@ -555,7 +555,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 					break;
 				}
 
-				(void)_cbuffer_init(&s->buffer, v, s->buffsz);
+				_cbuffer_init(&s->buffer, v, s->buffsz);
 			}
 
 			dev.port = US_PORT;
@@ -564,7 +564,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 
 			if (err != 0) {
 				if (s->type == SOCK_DGRAM) {
-					(void)_cbuffer_init(&s->buffer, NULL, 0);
+					_cbuffer_init(&s->buffer, NULL, 0);
 					vm_kfree(v);
 				}
 				break;
@@ -701,7 +701,7 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 				break;
 			}
 
-			(void)_cbuffer_init(&s->buffer, v, s->buffsz);
+			_cbuffer_init(&s->buffer, v, s->buffsz);
 
 			/* FIXME: handle remote socket removal */
 
@@ -1124,7 +1124,7 @@ static int unix_bufferSetSize(unixsock_t *s, const size_t sz)
 		}
 
 		v[1] = s->buffer.data;
-		(void)_cbuffer_init(&s->buffer, v[0], sz);
+		_cbuffer_init(&s->buffer, v[0], sz);
 	}
 
 	s->buffsz = sz;
