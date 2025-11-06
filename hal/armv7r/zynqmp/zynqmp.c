@@ -21,7 +21,7 @@
 #include "zynqmp.h"
 
 #include "hal/armv7r/halsyspage.h"
-#include "zynqmp_regs.h" /*TBC - hal/armv7r/zynqmp_regs.h*/
+#include "zynqmp_regs.h"
 
 #define IOU_SLCR_BASE_ADDRESS 0xff180000U
 #define APU_BASE_ADDRESS      0xfd5c0000U
@@ -383,7 +383,7 @@ int hal_platformctl(void *ptr)
 			if (data->action == pctl_set) {
 				ret = _zynqmp_setDevClock((int)data->devclock.dev, data->devclock.src, data->devclock.div0, data->devclock.div1, data->devclock.active);
 			}
-			else if (data->action == pctl_set) {
+			else if (data->action == pctl_get) {
 				ret = _zynqmp_getDevClock((int)data->devclock.dev, &data->devclock.src, &data->devclock.div0, &data->devclock.div1, &data->devclock.active);
 			}
 			else {
