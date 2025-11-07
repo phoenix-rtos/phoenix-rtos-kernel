@@ -24,16 +24,16 @@
 #include "log/log.h"
 
 /* Flags used for printing */
-#define FLAG_SIGNED       0x1UL
-#define FLAG_64BIT        0x2UL
-#define FLAG_SPACE        0x10UL
-#define FLAG_ZERO         0x20UL
-#define FLAG_PLUS         0x40UL
-#define FLAG_HEX          0x80UL
-#define FLAG_LARGE_DIGITS 0x100UL
+#define FLAG_SIGNED       0x1U
+#define FLAG_64BIT        0x2U
+#define FLAG_SPACE        0x10U
+#define FLAG_ZERO         0x20U
+#define FLAG_PLUS         0x40U
+#define FLAG_HEX          0x80U
+#define FLAG_LARGE_DIGITS 0x100U
 
 
-static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_len)
+static char *lib_sprintfInt(char *out, u64 num64, u32 flags, int min_number_len)
 {
 	const char *digits = (flags & FLAG_LARGE_DIGITS) != 0U ? "0123456789ABCDEF" : "0123456789abcdef";
 	char tmp_buf[32];
@@ -80,7 +80,7 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 		flags &= ~FLAG_64BIT;
 	}
 
-	if (num64 == 0U) {
+	if (num64 == 0ULL) {
 		*tmp++ = '0';
 	}
 	else if ((flags & FLAG_HEX) != 0U) {
@@ -106,9 +106,9 @@ static char *printf_sprintf_int(char *out, u64 num64, u32 flags, int min_number_
 	}
 	else {
 		if ((flags & FLAG_64BIT) != 0U) { /* TODO: optimize */
-			while (num64 != 0U) {
-				*tmp++ = digits[num64 % 10U];
-				num64 /= 10U;
+			while (num64 != 0ULL) {
+				*tmp++ = digits[num64 % 10ULL];
+				num64 /= 10ULL;
 			}
 		}
 		else {
@@ -329,7 +329,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			if (is_pointer == 0) {
 				number = (flags & FLAG_64BIT) ? va_arg(args, u64) : va_arg(args, u32);
 			}
-			out = printf_sprintf_int(out, number, flags, (int)min_number_len);
+			out = lib_sprintfInt(out, number, flags, (int)min_number_len);
 		}
 	}
 
@@ -543,7 +543,7 @@ int lib_vprintf(const char *format, va_list ap)
 			if (is_pointer == 0) {
 				number = (flags & FLAG_64BIT) ? va_arg(ap, u64) : va_arg(ap, u32);
 			}
-			eptr = printf_sprintf_int(buff, number, flags, (int)min_number_len);
+			eptr = lib_sprintfInt(buff, number, flags, (int)min_number_len);
 			sptr = buff;
 
 			while (sptr != eptr) {
