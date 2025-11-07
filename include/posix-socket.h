@@ -40,7 +40,7 @@
 #define SOCK_SEQPACKET 4U
 #define SOCK_RDM       5U
 
-#define SOL_SOCKET 0xFFF
+#define SOL_SOCKET 0xfff
 
 #define SO_ACCEPTCONN   0x0002U
 #define SO_BROADCAST    0x0020U

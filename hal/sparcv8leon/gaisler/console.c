@@ -44,7 +44,7 @@ enum {
 	uart_data = 0, /* Data register           : 0x00 */
 	uart_status,   /* Status register         : 0x04 */
 	uart_ctrl,     /* Control register        : 0x08 */
-	uart_scaler,   /* Scaler reload register  : 0x0C */
+	uart_scaler,   /* Scaler reload register  : 0x0c */
 	uart_dbg       /* FIFO debug register     : 0x10 */
 };
 

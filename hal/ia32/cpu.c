@@ -358,7 +358,7 @@ void *_cpu_initCore(void)
 	hal_cpuAtomAdd(&cpu.readyCount, 1);
 
 	if (hal_isLapicPresent() == 1) {
-		_hal_lapicWrite(LAPIC_SPUR_IRQ_REG, _hal_lapicRead(LAPIC_SPUR_IRQ_REG) | 0x11ffu);
+		_hal_lapicWrite(LAPIC_SPUR_IRQ_REG, _hal_lapicRead(LAPIC_SPUR_IRQ_REG) | 0x11ffU);
 	}
 
 	hal_memset(&cpu.tss[id], 0, sizeof(tss_t));

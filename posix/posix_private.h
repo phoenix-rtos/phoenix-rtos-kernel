@@ -23,7 +23,7 @@
 /* This define is used against oid_t.id which is __u32
  * hence the implicit bit value instead of -1
  */
-#define US_PORT 0xFFFFFFFFU /* FIXME */
+#define US_PORT 0xffffffffU /* FIXME */
 
 
 #define SIGHUP    1

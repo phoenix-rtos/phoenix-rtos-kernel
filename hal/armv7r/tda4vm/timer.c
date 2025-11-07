@@ -36,7 +36,7 @@
 #define TIMER_TICK_HZ     1000
 
 #define TIMER_INTR_OVERFLOW (1 << 1)
-#define TIMER_MAX_COUNT     0xffffffffu
+#define TIMER_MAX_COUNT     0xffffffffU
 
 enum timer_regs {
 	timer_tidr = (0x0 / 4),           /* Revision register */
@@ -103,7 +103,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-static time_t hal_timerCyc2Us(u64 cyc)
+static time_t hal_timerCyc2us(u64 cyc)
 {
 	return cyc / ((u64)TIMER_SRC_FREQ_HZ / 1000000);
 }
@@ -174,7 +174,7 @@ time_t hal_timerGetUs(void)
 {
 	u64 ret = hal_timerGetCyc();
 
-	return hal_timerCyc2Us(ret);
+	return hal_timerCyc2us(ret);
 }
 
 

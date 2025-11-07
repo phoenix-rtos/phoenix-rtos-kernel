@@ -85,7 +85,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	}
 
 	/* Align user stack to 8 bytes */
-	ustack = (void *)((ptr_t)ustack & ~0x7u);
+	ustack = (void *)((ptr_t)ustack & ~0x7U);
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
@@ -95,14 +95,14 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->savesp_s = (u32)ctx;
 	ctx->psp = (ustack != NULL) ? (u32)ustack - (HWCTXSIZE * sizeof(int)) : 0;
 	ctx->msp = (ustack != NULL) ? (u32)kstack + kstacksz : (u32)&ctx->hwctx;
-	ctx->r4 = 0x44444444u;
-	ctx->r5 = 0x55555555u;
-	ctx->r6 = 0x66666666u;
-	ctx->r7 = 0x77777777u;
-	ctx->r8 = 0x88888888u;
-	ctx->r9 = 0x99999999u;
-	ctx->r10 = 0xaaaaaaaau;
-	ctx->r11 = 0xbbbbbbbbu;
+	ctx->r4 = 0x44444444U;
+	ctx->r5 = 0x55555555U;
+	ctx->r6 = 0x66666666U;
+	ctx->r7 = 0x77777777U;
+	ctx->r8 = 0x88888888U;
+	ctx->r9 = 0x99999999U;
+	ctx->r10 = 0xaaaaaaaaU;
+	ctx->r11 = 0xbbbbbbbbU;
 
 	ctx->hwctx.r0 = (u32)arg;
 	ctx->hwctx.r1 = 0x11111111;
@@ -195,12 +195,12 @@ char *hal_cpuInfo(char *info)
 	hal_strcpy(info, HAL_NAME_PLATFORM);
 	i = sizeof(HAL_NAME_PLATFORM) - 1;
 
-	if (((cpuinfo >> 24) & 0xffu) == 0x41u) {
+	if (((cpuinfo >> 24) & 0xffU) == 0x41U) {
 		hal_strcpy(info + i, "ARM ");
 		i += 4;
 	}
 
-	if (((cpuinfo >> 4) & 0xfffu) == 0xd21u) {
+	if (((cpuinfo >> 4) & 0xfffU) == 0xd21U) {
 #ifdef MCX_USE_CPU1
 		hal_strcpy(info + i, "Micro Cortex-M33 ");
 		i += 17;
@@ -211,11 +211,11 @@ char *hal_cpuInfo(char *info)
 	}
 
 	*(info + i++) = 'r';
-	*(info + i++) = '0' + ((cpuinfo >> 20) & 0xfu);
+	*(info + i++) = '0' + ((cpuinfo >> 20) & 0xfU);
 	*(info + i++) = ' ';
 
 	*(info + i++) = 'p';
-	*(info + i++) = '0' + (cpuinfo & 0xfu);
+	*(info + i++) = '0' + (cpuinfo & 0xfU);
 	*(info + i) = '\0';
 
 	return info;

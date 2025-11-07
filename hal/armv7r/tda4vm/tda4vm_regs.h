@@ -20,8 +20,8 @@
 #include "hal/types.h"
 
 /* Magic values to unlock writing PLL configuration */
-#define PLL_LOCKKEY_0 0x68EF3490
-#define PLL_LOCKKEY_1 0xD172BC5A
+#define PLL_LOCKKEY_0 0x68ef3490
+#define PLL_LOCKKEY_1 0xd172bc5a
 
 #define CTRL_MMR0_BASE_ADDR                ((volatile u32 *)0x00100000)
 #define PLLCTRL0_BASE_ADDR                 ((volatile u32 *)0x00410000)

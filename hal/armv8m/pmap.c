@@ -26,7 +26,7 @@
 
 /* clang-format off */
 enum { mpu_type, mpu_ctrl, mpu_rnr, mpu_rbar, mpu_rlar, mpu_rbar_a1, mpu_rlar_a1, mpu_rbar_a2, mpu_rlar_a2,
-	mpu_rbar_a3, mpu_rlar_a3, mpu_mair0 = 0xC, mpu_mair1 };
+	mpu_rbar_a3, mpu_rlar_a3, mpu_mair0 = 0xc, mpu_mair1 };
 /* clang-format on */
 
 
@@ -114,10 +114,10 @@ void pmap_switch(pmap_t *pmap)
 
 			/* Enable/disable region according to the mask */
 			if ((pmap->regions & (1 << i)) != 0) {
-				*(pmap_common.mpu + mpu_rlar) |= 1u;
+				*(pmap_common.mpu + mpu_rlar) |= 1U;
 			}
 			else {
-				*(pmap_common.mpu + mpu_rlar) &= ~1u;
+				*(pmap_common.mpu + mpu_rlar) &= ~1U;
 			}
 			hal_cpuDataMemoryBarrier();
 		}
@@ -204,7 +204,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	unsigned int ikregion;
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 
-	(*vstart) = (void *)(((ptr_t)_init_vectors + 7) & ~7u);
+	(*vstart) = (void *)(((ptr_t)_init_vectors + 7) & ~7U);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)&__bss_start;
@@ -245,7 +245,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 		hal_cpuDataMemoryBarrier();
 
 		/* Disable regions for now */
-		*(pmap_common.mpu + mpu_rlar) = syspage->hs.mpu.table[i].rlar & ~1u;
+		*(pmap_common.mpu + mpu_rlar) = syspage->hs.mpu.table[i].rlar & ~1U;
 		hal_cpuDataMemoryBarrier();
 	}
 

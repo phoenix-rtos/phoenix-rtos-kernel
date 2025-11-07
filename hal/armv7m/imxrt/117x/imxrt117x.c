@@ -27,8 +27,8 @@
 
 #include <board_config.h>
 
-#define RTWDOG_UNLOCK_KEY  0xd928c520u
-#define RTWDOG_REFRESH_KEY 0xb480a602u
+#define RTWDOG_UNLOCK_KEY  0xd928c520U
+#define RTWDOG_REFRESH_KEY 0xb480a602U
 
 #if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
 #define WATCHDOG_TIMEOUT_MS (30000)
@@ -91,7 +91,7 @@ void _imxrt_wdgReload(void)
 {
 	/* If the watchdog was enabled (e.g. by bootrom), then it has to be serviced
 	and WATCHDOG flag doesn't matter */
-	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1u << 2)) != 0u) {
+	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1U << 2)) != 0U) {
 		*(imxrt_common.wdog1 + wdog_wsr) = 0x5555;
 		hal_cpuDataMemoryBarrier();
 		*(imxrt_common.wdog1 + wdog_wsr) = 0xaaaa;
@@ -386,10 +386,10 @@ static int _imxrt_getIOisel(int isel, char *daisy)
 
 void _imxrt_resetSlice(unsigned int index)
 {
-	*(imxrt_common.src + src_ctrl + 8 * index) |= 1u;
+	*(imxrt_common.src + src_ctrl + 8 * index) |= 1U;
 	hal_cpuDataMemoryBarrier();
 
-	while ((*(imxrt_common.src + src_stat + 8 * index) & 1u) != 0) {
+	while ((*(imxrt_common.src + src_stat + 8 * index) & 1U) != 0) {
 	}
 }
 
@@ -405,7 +405,7 @@ int _imxrt_setDevClock(int clock, int div, int mux, int mfd, int mfn, int state)
 		return -1;
 	}
 
-	t = *reg & ~0x01ff07ffu;
+	t = *reg & ~0x01ff07ffU;
 	*reg = t | (!state << 24) | ((mfn & 0xf) << 20) | ((mfd & 0xf) << 16) | ((mux & 0x7) << 8) | (div & 0xff);
 
 	hal_cpuDataSyncBarrier();
@@ -447,7 +447,7 @@ int _imxrt_setDirectLPCG(int clock, int state)
 
 	reg = imxrt_common.ccm + 0x1800 + clock * 0x8;
 
-	t = *reg & ~1u;
+	t = *reg & ~1U;
 	*reg = t | (state & 1);
 
 	hal_cpuDataMemoryBarrier();
@@ -463,7 +463,7 @@ int _imxrt_getDirectLPCG(int clock, int *state)
 		return -EINVAL;
 	}
 
-	*state = *((volatile u32 *)(imxrt_common.ccm + 0x1800 + clock * 0x8)) & 1u;
+	*state = *((volatile u32 *)(imxrt_common.ccm + 0x1800 + clock * 0x8)) & 1U;
 
 	return EOK;
 }
@@ -787,13 +787,13 @@ void _imxrt_init(void)
 
 #if defined(WATCHDOG_TIMEOUT_MS)
 	/* Set the timeout (always possible) */
-	tmp = (*(imxrt_common.wdog1 + wdog_wcr) & ~(0xffu << 8));
-	*(imxrt_common.wdog1 + wdog_wcr) = tmp | (((WATCHDOG_TIMEOUT_MS - 500u) / 500u) << 8);
+	tmp = (*(imxrt_common.wdog1 + wdog_wcr) & ~(0xffU << 8));
+	*(imxrt_common.wdog1 + wdog_wcr) = tmp | (((WATCHDOG_TIMEOUT_MS - 500U) / 500U) << 8);
 	hal_cpuDataMemoryBarrier();
 #endif
 #if defined(WATCHDOG)
 	/* Enable the watchdog */
-	*(imxrt_common.wdog1 + wdog_wcr) |= (1u << 2);
+	*(imxrt_common.wdog1 + wdog_wcr) |= (1U << 2);
 	hal_cpuDataMemoryBarrier();
 #endif
 #if defined(WATCHDOG_TIMEOUT_MS)
@@ -804,45 +804,45 @@ void _imxrt_init(void)
 
 	/* Disable WDOG3 and WDOG4 in case plo didn't do this */
 
-	if ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 7)) != 0u) {
+	if ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1U << 7)) != 0U) {
 		/* WDOG3: Unlock rtwdog update */
 		*(imxrt_common.rtwdog3 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
 		hal_cpuDataMemoryBarrier();
-		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 11u)) == 0u) {
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1U << 11U)) == 0U) {
 		}
 
 		/* WDOG3: Disable rtwdog, but allow later reconfiguration without reset */
-		*(imxrt_common.rtwdog3 + rtwdog_toval) = 0xffffu;
-		tmp = (*(imxrt_common.rtwdog3 + rtwdog_cs) & ~(1u << 7u));
-		*(imxrt_common.rtwdog3 + rtwdog_cs) = tmp | (1u << 5u);
+		*(imxrt_common.rtwdog3 + rtwdog_toval) = 0xffffU;
+		tmp = (*(imxrt_common.rtwdog3 + rtwdog_cs) & ~(1U << 7U));
+		*(imxrt_common.rtwdog3 + rtwdog_cs) = tmp | (1U << 5U);
 
 		/* WDOG3: Wait until new config takes effect */
-		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 10u)) == 0u) {
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1U << 10U)) == 0U) {
 		}
 
 		/* WDOG3: Wait until registers are locked (in case low power mode will be used promptly) */
-		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1u << 11)) != 0u) {
+		while ((*(imxrt_common.rtwdog3 + rtwdog_cs) & (1U << 11)) != 0U) {
 		}
 	}
 
-	if ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 7)) != 0u) {
+	if ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1U << 7)) != 0U) {
 		/* WDOG4: Unlock rtwdog update */
 		*(imxrt_common.rtwdog4 + rtwdog_cnt) = RTWDOG_UNLOCK_KEY;
 		hal_cpuDataMemoryBarrier();
-		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 11u)) == 0u) {
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1U << 11U)) == 0U) {
 		}
 
 		/* WDOG4: Disable rtwdog, but allow later reconfiguration without reset */
-		*(imxrt_common.rtwdog4 + rtwdog_toval) = 0xffffu;
-		tmp = (*(imxrt_common.rtwdog4 + rtwdog_cs) & ~(1u << 7u));
-		*(imxrt_common.rtwdog4 + rtwdog_cs) = tmp | (1u << 5u);
+		*(imxrt_common.rtwdog4 + rtwdog_toval) = 0xffffU;
+		tmp = (*(imxrt_common.rtwdog4 + rtwdog_cs) & ~(1U << 7U));
+		*(imxrt_common.rtwdog4 + rtwdog_cs) = tmp | (1U << 5U);
 
 		/* WDOG4: Wait until new config takes effect */
-		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 10u)) == 0u) {
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1U << 10U)) == 0U) {
 		}
 
 		/* WDOG4: Wait until registers are locked (in case low power mode will be used promptly) */
-		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1u << 11)) != 0u) {
+		while ((*(imxrt_common.rtwdog4 + rtwdog_cs) & (1U << 11)) != 0U) {
 		}
 	}
 

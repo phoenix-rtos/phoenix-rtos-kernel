@@ -23,7 +23,7 @@
 #include "hal/sparcv8leon/srmmu.h"
 
 
-#define LEON3_IOAREA 0xfff00000u
+#define LEON3_IOAREA 0xfff00000U
 
 
 static inline void hal_cpuDataStoreBarrier(void)

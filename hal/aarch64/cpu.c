@@ -60,7 +60,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 
 	ctx->x[0] = (u64)arg;
 	for (i = 1; i < 31; i++) {
-		ctx->x[i] = 0x0101010101010101uL * i;
+		ctx->x[i] = 0x0101010101010101UL * i;
 	}
 
 	ctx->pc = (u64)start;

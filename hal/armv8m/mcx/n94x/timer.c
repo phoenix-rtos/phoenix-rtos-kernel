@@ -51,7 +51,7 @@ static u64 timer_bin2gray(u64 bin)
 }
 
 
-static time_t hal_timerCyc2Us(time_t ticks)
+static time_t hal_timerCyc2us(time_t ticks)
 {
 	return (ticks * 1000 * 1000) / 32768;
 }
@@ -107,7 +107,7 @@ void hal_timerSetWakeup(u32 waitUs)
 	valgray = timer_bin2gray(val);
 
 	/* Write new MATCH value */
-	*(timer_common.base + ostimer_matchl) = valgray & 0xffffffffuL;
+	*(timer_common.base + ostimer_matchl) = valgray & 0xffffffffUL;
 	*(timer_common.base + ostimer_matchh) = (valgray >> 32) & 0x3ff;
 	hal_cpuDataMemoryBarrier();
 
@@ -132,7 +132,7 @@ time_t hal_timerGetUs(void)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&timer_common.lock, &sc);
-	ret = hal_timerCyc2Us(hal_timerGetCyc());
+	ret = hal_timerCyc2us(hal_timerGetCyc());
 	hal_spinlockClear(&timer_common.lock, &sc);
 
 	return ret;

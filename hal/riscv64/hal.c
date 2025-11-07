@@ -76,7 +76,7 @@ void hal_lockScheduler(void)
 __attribute__((section(".init"))) void _hal_init(void)
 {
 	hal_common.started = 0;
-	hal_multilock = 0u;
+	hal_multilock = 0U;
 
 	_hal_spinlockInit();
 	_dtb_init();

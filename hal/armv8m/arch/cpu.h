@@ -35,23 +35,23 @@
 #endif
 
 /* values based on EXC_RETURN requirements */
-#define EXC_RETURN_SPSEL (1u << 2) /* 1 - was using process SP, 0 - was using main SP */
-#define EXC_RETURN_FTYPE (1u << 4) /* 1 - standard frame, 0 - frame with FPU state */
+#define EXC_RETURN_SPSEL (1U << 2) /* 1 - was using process SP, 0 - was using main SP */
+#define EXC_RETURN_FTYPE (1U << 4) /* 1 - standard frame, 0 - frame with FPU state */
 
 #define DEFAULT_PSR 0x01000000
 
 #if KERNEL_FPU_SUPPORT
-#define RET_HANDLER_MSP 0xffffffe1u
-#define RET_THREAD_MSP  0xffffffe9u
-#define RET_THREAD_PSP  0xffffffedu
+#define RET_HANDLER_MSP 0xffffffe1U
+#define RET_THREAD_MSP  0xffffffe9U
+#define RET_THREAD_PSP  0xffffffedU
 #define HWCTXSIZE       (8 + 18)
-#define USERCONTROL     0x7u
+#define USERCONTROL     0x7U
 #else
-#define RET_HANDLER_MSP 0xfffffff1u
-#define RET_THREAD_MSP  0xfffffff9u
-#define RET_THREAD_PSP  0xfffffffdu
+#define RET_HANDLER_MSP 0xfffffff1U
+#define RET_THREAD_MSP  0xfffffff9U
+#define RET_THREAD_PSP  0xfffffffdU
 #define HWCTXSIZE       8
-#define USERCONTROL     0x3u
+#define USERCONTROL     0x3U
 #endif
 
 #ifndef __ASSEMBLY__
@@ -62,7 +62,7 @@
 #define SYSTICK_INTERVAL 1000
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
+#define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \

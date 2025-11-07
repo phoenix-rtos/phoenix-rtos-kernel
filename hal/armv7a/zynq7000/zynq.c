@@ -676,7 +676,7 @@ static void _zynq_activateL2Cache(void)
 	*(zynq_common.l2cc + l2cc_aux_ctrl) |= 0x72360000; /* Enable all prefetching, Way Size (16 KB) and High Priority for SO and Dev Reads Enable */
 	*(zynq_common.l2cc + l2cc_tag_ram_ctrl) = 0x0111;  /* 7 Cycles of latency for TAG RAM */
 	*(zynq_common.l2cc + l2cc_data_ram_ctrl) = 0x0121; /* 7 Cycles of latency for DATA RAM */
-	*(zynq_common.l2cc + l2cc_inval_way) = 0xFFFF;     /* Invalidate everything */
+	*(zynq_common.l2cc + l2cc_inval_way) = 0xffff;     /* Invalidate everything */
 	hal_cpuDataMemoryBarrier();
 	while (*(zynq_common.l2cc + l2cc_sync) != 0) {
 		/* wait for completion */

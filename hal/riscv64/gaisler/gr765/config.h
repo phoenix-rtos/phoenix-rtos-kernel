@@ -22,7 +22,7 @@
 #include "include/syspage.h"
 
 
-#define AHB_IOAREA 0xfff00000u
+#define AHB_IOAREA 0xfff00000U
 
 #endif
 

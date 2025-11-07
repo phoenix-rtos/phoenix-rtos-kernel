@@ -108,7 +108,7 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, vo
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	(*vstart) = (void *)(((ptr_t)&_end + 7) & ~7u);
+	(*vstart) = (void *)(((ptr_t)&_end + 7) & ~7U);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)&__bss_start;

@@ -32,19 +32,19 @@ extern unsigned int _etext;
 typedef u64 descr_t;
 
 /* Descriptor bitfields */
-#define DESCR_VALID     (1uL << 0)         /* Descriptor is valid */
-#define DESCR_TABLE     (1uL << 1)         /* Page or table descriptor */
+#define DESCR_VALID     (1UL << 0)         /* Descriptor is valid */
+#define DESCR_TABLE     (1UL << 1)         /* Page or table descriptor */
 #define DESCR_ATTR(x)   (((x) & 0x7) << 2) /* Memory attribute from MAIR_EL1 */
-#define DESCR_AP1       (1uL << 6)         /* Unprivileged access */
-#define DESCR_AP2       (1uL << 7)         /* Read only */
-#define DESCR_NSH       (0uL << 8)         /* Non-shareable */
-#define DESCR_OSH       (2uL << 8)         /* Outer shareable */
-#define DESCR_ISH       (3uL << 8)         /* Inner shareable */
-#define DESCR_AF        (1uL << 10)        /* Access flag */
-#define DESCR_nG        (1uL << 11)        /* Not global */
-#define DESCR_UXN       (1uL << 54)        /* Unprivileged execute-never */
-#define DESCR_PXN       (1uL << 53)        /* Privileged execute-never */
-#define DESCR_PA(entry) ((entry) & ((1uL << 48) - (1uL << 12)))
+#define DESCR_AP1       (1UL << 6)         /* Unprivileged access */
+#define DESCR_AP2       (1UL << 7)         /* Read only */
+#define DESCR_NSH       (0UL << 8)         /* Non-shareable */
+#define DESCR_OSH       (2UL << 8)         /* Outer shareable */
+#define DESCR_ISH       (3UL << 8)         /* Inner shareable */
+#define DESCR_AF        (1UL << 10)        /* Access flag */
+#define DESCR_nG        (1UL << 11)        /* Not global */
+#define DESCR_UXN       (1UL << 54)        /* Unprivileged execute-never */
+#define DESCR_PXN       (1UL << 53)        /* Privileged execute-never */
+#define DESCR_PA(entry) ((entry) & ((1UL << 48) - (1UL << 12)))
 
 #define ATTR_FROM_DESCR(entry) (((entry) >> 2) & 0x7)
 
@@ -155,7 +155,7 @@ static addr_t _pmap_hwTranslate(ptr_t va)
 /* Function maps `va` to `pa` as normal memory for temporary use. `va` is intended to be one of pmap_common.scratch* */
 static void _pmap_mapScratch(void *va, addr_t pa)
 {
-	u64 tlbiArg = ((ptr_t)va >> 12) & ((1uL << 44) - 1);
+	u64 tlbiArg = ((ptr_t)va >> 12) & ((1UL << 44) - 1);
 	pmap_common.kernel_ttl3[TTL_IDX(3, va)] =
 			DESCR_PA(pa) | DESCR_VALID | DESCR_TABLE | DESCR_AF | DESCR_ATTR(MAIR_IDX_CACHED) | DESCR_PXN | DESCR_UXN | DESCR_ISH;
 	/* Invalidate last level only for a bit more performance */
@@ -174,7 +174,7 @@ static void _pmap_asidAlloc(pmap_t *pmap)
 	}
 	else {
 		assigned = pmap_common.firstFreeAsid;
-		pmap_common.asidInUse[assigned / 64] |= 1uL << (assigned % 64);
+		pmap_common.asidInUse[assigned / 64] |= 1UL << (assigned % 64);
 		for (i = assigned / 64; i < N_ASID_MAP; i++) {
 			free = ~pmap_common.asidInUse[i];
 			if (free != 0) {
@@ -209,7 +209,7 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 		pmap_common.firstFreeAsid = pmap->asid;
 	}
 
-	pmap_common.asidInUse[pmap->asid / 64] &= ~(1uL << (pmap->asid % 64));
+	pmap_common.asidInUse[pmap->asid / 64] &= ~(1UL << (pmap->asid % 64));
 	pmap->asid = ASID_NONE;
 }
 
@@ -232,7 +232,7 @@ static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, ptr_t 
 	newNoncached = ((newEntry & DESCR_VALID) == 0) || (ATTR_FROM_DESCR(newEntry) != MAIR_IDX_CACHED);
 	if (oldCachedRW && newNoncached) {
 		pa = _pmap_hwTranslate(vaddr);
-		if (((pa & 1) == 0) && (DESCR_PA(oldEntry) == (pa & ((1uL << 48) - (1uL << 12))))) {
+		if (((pa & 1) == 0) && (DESCR_PA(oldEntry) == (pa & ((1UL << 48) - (1UL << 12))))) {
 			/* VA is currently mapped - simply flush cache by virtual address */
 			hal_cpuFlushDataCache(vaddr, vaddr + SIZE_PAGE);
 		}
@@ -355,7 +355,7 @@ void _pmap_switch(pmap_t *pmap)
 	else if (pmap->asid == ASID_NONE) {
 		_pmap_asidAlloc(pmap);
 	}
-	else if ((sysreg_read(ttbr0_el1) & ~1uL) == expectedTTBR0) {
+	else if ((sysreg_read(ttbr0_el1) & ~1UL) == expectedTTBR0) {
 		/* Address space switch not necessary */
 		return;
 	}
@@ -607,7 +607,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 
 	hal_spinlockClear(&pmap_common.lock, &sc);
 	if ((addr & 1) == 0) {
-		return addr & ((1uL << 48) - (1uL << 12));
+		return addr & ((1UL << 48) - (1UL << 12));
 	}
 	else {
 		return 0;
@@ -778,8 +778,8 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
 	pmap_common.firstFreeAsid = ASID_SHARED + 1;
 	hal_memset(pmap_common.asidInUse, 0, sizeof(pmap_common.asidInUse));
-	pmap_common.asidInUse[(ASID_SHARED / 64)] |= 1uL << (ASID_SHARED % 64);
-	pmap_common.asidInUse[(ASID_NONE / 64)] |= 1uL << (ASID_NONE % 64);
+	pmap_common.asidInUse[(ASID_SHARED / 64)] |= 1UL << (ASID_SHARED % 64);
+	pmap_common.asidInUse[(ASID_NONE / 64)] |= 1UL << (ASID_NONE % 64);
 
 	pmap->asid = ASID_NONE;
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");

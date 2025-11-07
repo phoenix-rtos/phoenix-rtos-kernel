@@ -31,7 +31,7 @@
  * 7 - 1/128
  */
 #define PRESCALER 3
-#define ARR_VAL   0xffffu
+#define ARR_VAL   0xffffU
 
 
 enum { lptim_isr = 0, lptim_icr, lptim_ier, lptim_cfgr, lptim_cr, lptim_cmp, lptim_arr, lptim_cnt, lptim_or };
@@ -64,7 +64,7 @@ static u32 timer_getCnt(void)
 		cnt[0] = *(timer_common.lptim + lptim_cnt);
 	} while (cnt[0] != cnt[1]);
 
-	return cnt[0] & 0xffffu;
+	return cnt[0] & 0xffffU;
 }
 
 
@@ -100,7 +100,7 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-static time_t hal_timerCyc2Us(time_t ticks)
+static time_t hal_timerCyc2us(time_t ticks)
 {
 	return (ticks * 1000 * 1000) / (32768 / (1 << PRESCALER));
 }
@@ -200,7 +200,7 @@ void hal_timerSetWakeup(u32 waitUs)
 
 time_t hal_timerGetUs(void)
 {
-	return hal_timerCyc2Us(hal_timerGetCyc());
+	return hal_timerCyc2us(hal_timerGetCyc());
 }
 
 

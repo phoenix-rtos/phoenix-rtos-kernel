@@ -42,17 +42,17 @@
 
 /* GIC memory map */
 enum {
-	gicd_base         = 0,      /* Distributor registers                              : 0x000000-0x00FFFF */
-	gicr_ctlr_tgt0    = 262144, /* Redistributor registers for Control target 0       : 0x100000-0x10FFFF */
-	gicr_sgi_ppi_tgt0 = 278528, /* Redistributor registers for SGIs and PPIs target 0 : 0x110000-0x11FFFF */
-	gicr_ctlr_tgt1    = 294912, /* Redistributor registers for Control target 1       : 0x120000-0x12FFFF */
-	gicr_sgi_ppi_tgt1 = 311296, /* Redistributor registers for SGIs and PPIs target 1 : 0x130000-0x13FFFF */
-	gicr_ctlr_tgt2    = 327680, /* Redistributor registers for Control target 2       : 0x140000-0x14FFFF */
-	gicr_sgi_ppi_tgt2 = 344064, /* Redistributor registers for SGIs and PPIs target 2 : 0x150000-0x15FFFF */
-	gicr_ctlr_tgt3    = 360448, /* Redistributor registers for Control target 3       : 0x160000-0x16FFFF */
-	gicr_sgi_ppi_tgt3 = 376832, /* Redistributor registers for SGIs and PPIs target 3 : 0x170000-0x17FFFF */
-	gicr_ctlr_tgt4    = 393216, /* Redistributor registers for Control target 4       : 0x180000-0x18FFFF */
-	gicr_sgi_ppi_tgt4 = 409600, /* Redistributor registers for SGIs and PPIs target 4 : 0x190000-0x19FFFF */
+	gicd_base         = 0,      /* Distributor registers                              : 0x000000-0x00ffff */
+	gicr_ctlr_tgt0    = 262144, /* Redistributor registers for Control target 0       : 0x100000-0x10ffff */
+	gicr_sgi_ppi_tgt0 = 278528, /* Redistributor registers for SGIs and PPIs target 0 : 0x110000-0x11ffff */
+	gicr_ctlr_tgt1    = 294912, /* Redistributor registers for Control target 1       : 0x120000-0x12ffff */
+	gicr_sgi_ppi_tgt1 = 311296, /* Redistributor registers for SGIs and PPIs target 1 : 0x130000-0x13ffff */
+	gicr_ctlr_tgt2    = 327680, /* Redistributor registers for Control target 2       : 0x140000-0x14ffff */
+	gicr_sgi_ppi_tgt2 = 344064, /* Redistributor registers for SGIs and PPIs target 2 : 0x150000-0x15ffff */
+	gicr_ctlr_tgt3    = 360448, /* Redistributor registers for Control target 3       : 0x160000-0x16ffff */
+	gicr_sgi_ppi_tgt3 = 376832, /* Redistributor registers for SGIs and PPIs target 3 : 0x170000-0x17ffff */
+	gicr_ctlr_tgt4    = 393216, /* Redistributor registers for Control target 4       : 0x180000-0x18ffff */
+	gicr_sgi_ppi_tgt4 = 409600, /* Redistributor registers for SGIs and PPIs target 4 : 0x190000-0x19ffff */
 };
 
 /* Distributor register map */

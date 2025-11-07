@@ -341,7 +341,7 @@ static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
 		*reg = zynq_common.crl_apb + (lookup[dev] & ((1 << 12) - 1));
 	}
 
-	*bit = (1u << (lookup[dev] >> 12));
+	*bit = (1U << (lookup[dev] >> 12));
 	return 0;
 }
 

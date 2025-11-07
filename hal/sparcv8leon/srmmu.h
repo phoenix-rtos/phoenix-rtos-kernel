@@ -44,11 +44,11 @@
 
 /* MMU register addresses */
 
-#define MMU_CTRL       0x0u
-#define MMU_CTX_PTR    0x100u
-#define MMU_CTX        0x200u
-#define MMU_FAULT_STS  0x300u
-#define MMU_FAULT_ADDR 0x400u
+#define MMU_CTRL       0x0U
+#define MMU_CTX_PTR    0x100U
+#define MMU_CTX        0x200U
+#define MMU_FAULT_STS  0x300U
+#define MMU_FAULT_ADDR 0x400U
 
 
 #ifndef __ASSEMBLY__

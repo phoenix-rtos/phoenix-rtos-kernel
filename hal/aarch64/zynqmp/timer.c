@@ -70,7 +70,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-static time_t hal_timerCyc2Us(time_t cyc)
+static time_t hal_timerCyc2us(time_t cyc)
 {
 	return (cyc * 1000LL) / (time_t)(timer_common.ticksPerFreq * hal_cpuGetCount());
 }
@@ -110,7 +110,7 @@ time_t hal_timerGetUs(void)
 {
 	time_t ret = hal_timerGetCyc();
 
-	return hal_timerCyc2Us(ret);
+	return hal_timerCyc2us(ret);
 }
 
 

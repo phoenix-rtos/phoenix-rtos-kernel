@@ -35,9 +35,9 @@
 #define IRQ_MODE    0x12
 #define SVC_MODE    0x13 /* reset mode */
 #define ABT_MODE    0x17
-#define UND_MODE    0x1B
-#define SYS_MODE    0x1F
-#define MODE_MASK   0x1F
+#define UND_MODE    0x1b
+#define SYS_MODE    0x1f
+#define MODE_MASK   0x1f
 #define NO_ABORT    0x100             /* mask to disable Abort Exception */
 #define NO_IRQ      0x80              /* mask to disable IRQ */
 #define NO_FIQ      0x40              /* mask to disable FIQ */
@@ -50,7 +50,7 @@
 #define SYSTICK_INTERVAL 1000
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
+#define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \

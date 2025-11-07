@@ -70,14 +70,14 @@ static void console_dmaSend(void *ptr, size_t cnt)
 {
 	*(console_common.base + uarte_txd_ptr) = (u32)ptr;
 	*(console_common.base + uarte_txd_maxcnt) = cnt;
-	*(console_common.base + uarte_starttx) = 1u;
-	while (*(console_common.base + uarte_events_txstarted) != 1u) {
+	*(console_common.base + uarte_starttx) = 1U;
+	while (*(console_common.base + uarte_events_txstarted) != 1U) {
 	}
-	*(console_common.base + uarte_events_txstarted) = 0u;
+	*(console_common.base + uarte_events_txstarted) = 0U;
 
-	while (*(console_common.base + uarte_events_endtx) != 1u) {
+	while (*(console_common.base + uarte_events_endtx) != 1U) {
 	}
-	*(console_common.base + uarte_events_endtx) = 0u;
+	*(console_common.base + uarte_events_endtx) = 0U;
 }
 
 
@@ -92,7 +92,7 @@ void _hal_consolePrint(const char *s)
 	}
 
 	/* copy to RAM only if it's not there. (6.7.7. EasyDMA chapter in NRF9160 PS) */
-	if (((u32)s & 0xE0000000u) == 0x20000000u) {
+	if (((u32)s & 0xe0000000U) == 0x20000000U) {
 		/* avoid discarding const */
 		u.str = s;
 		console_dmaSend(u.ptr, len);
@@ -153,10 +153,10 @@ void _hal_consoleInit(void)
 		u8 rtsPin;
 		u8 ctsPin;
 	} uarts[] = {
-		{ 0, (u32 *)0x50008000u, UART0_TX, UART0_RX, UART0_RTS, UART0_CTS },
-		{ 1, (u32 *)0x50009000u, UART1_TX, UART1_RX, UART1_RTS, UART1_CTS },
-		{ 2, (u32 *)0x5000a000u, UART2_TX, UART2_RX, UART2_RTS, UART2_CTS },
-		{ 3, (u32 *)0x5000b000u, UART3_TX, UART3_RX, UART3_RTS, UART3_CTS }
+		{ 0, (u32 *)0x50008000U, UART0_TX, UART0_RX, UART0_RTS, UART0_CTS },
+		{ 1, (u32 *)0x50009000U, UART1_TX, UART1_RX, UART1_RTS, UART1_CTS },
+		{ 2, (u32 *)0x5000a000U, UART2_TX, UART2_RX, UART2_RTS, UART2_CTS },
+		{ 3, (u32 *)0x5000b000U, UART3_TX, UART3_RX, UART3_RTS, UART3_CTS }
 	};
 
 	const int uart = UART_CONSOLE;
@@ -172,7 +172,7 @@ void _hal_consoleInit(void)
 	console_configPins();
 
 	/* disable uarte instance */
-	*(console_common.base + uarte_enable) = 0u;
+	*(console_common.base + uarte_enable) = 0U;
 	hal_cpuDataMemoryBarrier();
 
 	/* Select pins */
@@ -182,10 +182,10 @@ void _hal_consoleInit(void)
 	*(console_common.base + uarte_psel_cts) = console_common.ctsPin;
 
 	/* set baud rate to 115200 */
-	*(console_common.base + uarte_baudrate) = 0x01d60000u;
+	*(console_common.base + uarte_baudrate) = 0x01d60000U;
 
 	/* Default settings - hardware flow control disabled, exclude parity bit, one stop bit */
-	*(console_common.base + uarte_config) = 0u;
+	*(console_common.base + uarte_config) = 0U;
 
 	/* Set default max number of bytes in specific buffers */
 	*(console_common.base + uarte_txd_maxcnt) = TX_DMA_SIZE;
@@ -195,10 +195,10 @@ void _hal_consoleInit(void)
 	*(console_common.base + uarte_txd_ptr) = (volatile u32)console_common.txDma;
 
 	/* disable all uart interrupts */
-	*(console_common.base + uarte_intenclr) = 0xffffffffu;
+	*(console_common.base + uarte_intenclr) = 0xffffffffU;
 	hal_cpuDataMemoryBarrier();
 
 	/* enable uarte instance */
-	*(console_common.base + uarte_enable) = 0x8u;
+	*(console_common.base + uarte_enable) = 0x8U;
 	hal_cpuDataMemoryBarrier();
 }

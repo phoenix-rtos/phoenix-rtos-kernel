@@ -22,29 +22,29 @@
 #include "hal/cpu.h"
 
 
-#define BSEC_BASE      ((void *)0x56009000u)
-#define FUSE_MIN       0u
-#define FUSE_MID_MIN   128u
-#define FUSE_UPPER_MIN 256u
-#define FUSE_MAX       375u
+#define BSEC_BASE      ((void *)0x56009000U)
+#define FUSE_MIN       0U
+#define FUSE_MID_MIN   128U
+#define FUSE_UPPER_MIN 256U
+#define FUSE_MAX       375U
 
-#define OTPSR_BUSY      (1u)
-#define OTPSR_INIT_DONE (1u << 1)
-#define OTPSR_HIDEUP    (1u << 2)
-#define OTPSR_OTPNVIR   (1u << 4)
-#define OTPSR_OTPERR    (1u << 5)
-#define OTPSR_OTPSEC    (1u << 6)
-#define OTPSR_PROGFAIL  (1u << 16)
-#define OTPSR_DISTURB   (1u << 17)
-#define OTPSR_DEDF      (1u << 18)
-#define OTPSR_SECF      (1u << 19)
-#define OTPSR_PPLF      (1u << 20)
-#define OTPSR_PPLMF     (1u << 21)
-#define OTPSR_AMEF      (1u << 22)
+#define OTPSR_BUSY      (1U)
+#define OTPSR_INIT_DONE (1U << 1)
+#define OTPSR_HIDEUP    (1U << 2)
+#define OTPSR_OTPNVIR   (1U << 4)
+#define OTPSR_OTPERR    (1U << 5)
+#define OTPSR_OTPSEC    (1U << 6)
+#define OTPSR_PROGFAIL  (1U << 16)
+#define OTPSR_DISTURB   (1U << 17)
+#define OTPSR_DEDF      (1U << 18)
+#define OTPSR_SECF      (1U << 19)
+#define OTPSR_PPLF      (1U << 20)
+#define OTPSR_PPLMF     (1U << 21)
+#define OTPSR_AMEF      (1U << 22)
 
-#define OTPCR_ADDR   (0x1FF)
-#define OTPCR_PROG   (1u << 13)
-#define OTPCR_PPLOCK (1u << 14)
+#define OTPCR_ADDR   (0x1ff)
+#define OTPCR_PROG   (1U << 13)
+#define OTPCR_PPLOCK (1U << 14)
 
 
 static struct {
@@ -132,7 +132,7 @@ int _stm32_bsec_otp_write(unsigned int fuse, u32 val)
 
 	hal_cpuDataMemoryBarrier();
 	if (fuse >= FUSE_MID_MIN) {
-		lockFuse = ~0u;
+		lockFuse = ~0U;
 	}
 
 	/* Program the word using cr register. Fuse word is locked if it's mid or upper */

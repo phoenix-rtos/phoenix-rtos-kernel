@@ -29,7 +29,7 @@
 
 /* Clock gating unit */
 
-#define CGU_BASE ((void *)0x80000D00)
+#define CGU_BASE ((void *)0x80000d00)
 
 #define CGU_UNLOCK     0 /* Unlock register        : 0x00 */
 #define CGU_CLK_EN     1 /* Clock enable register  : 0x04 */
@@ -49,7 +49,7 @@ volatile u32 hal_cpusStarted;
 void hal_cpuHalt(void)
 {
 	/* GR712RC errata 1.7.8 */
-	u32 addr = 0xfffffff0u;
+	u32 addr = 0xfffffff0U;
 
 	/* clang-format off */
 

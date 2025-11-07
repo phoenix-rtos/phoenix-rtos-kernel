@@ -42,13 +42,13 @@
 #define HPET_IRQ_STATUS 0x20
 #define HPET_COUNTER    0xf0
 
-#define HPET_ID_LEGACY_CAPABLE           (1u << 15)
+#define HPET_ID_LEGACY_CAPABLE           (1U << 15)
 #define HPET_LEGACY_TMR1_IRQ             8
-#define HPET_CONFIG_TMR_IRQ_EN           (1u << 2)
-#define HPET_CONFIG_TMR_PERIODIC         (1u << 3)
-#define HPET_CONFIG_TMR_CAN_BE_PERIODIC  (1u << 4)
-#define HPET_CONFIG_TMR_PERIODIC_CAN_SET (1u << 6)
-#define HPET_CONFIG_TMR_32BIT_MODE       (1u << 8)
+#define HPET_CONFIG_TMR_IRQ_EN           (1U << 2)
+#define HPET_CONFIG_TMR_PERIODIC         (1U << 3)
+#define HPET_CONFIG_TMR_CAN_BE_PERIODIC  (1U << 4)
+#define HPET_CONFIG_TMR_PERIODIC_CAN_SET (1U << 6)
+#define HPET_CONFIG_TMR_32BIT_MODE       (1U << 8)
 
 typedef struct {
 	enum { timer_undefined, timer_pit, timer_lapic, timer_hpet } type;
@@ -265,7 +265,7 @@ static inline void _hal_lapicTimerConfigure(u32 mode, u32 mask, u32 vector)
 }
 
 
-static inline u32 _hal_lapicTimerCyc2Us(u64 cycles)
+static inline u32 _hal_lapicTimerCyc2us(u64 cycles)
 {
 	return (u32)(((cycles << LAPIC_TIMER_DEFAULT_DIVIDER) * 1000) / (u64)timer_common.lapicData.frequency);
 }
@@ -391,7 +391,7 @@ static void _hal_lapicSetWakeup(u32 waitUs)
 
 static time_t _hal_lapicGetUs(void)
 {
-	return _hal_lapicTimerCyc2Us(timer_common.lapicData.cycles);
+	return _hal_lapicTimerCyc2us(timer_common.lapicData.cycles);
 }
 
 
@@ -413,7 +413,7 @@ static int _hal_lapicTimerInit(u32 intervalUs)
 	}
 	_hal_lapicTimerConfigure(LAPIC_TIMER_ONE_SHOT, 0, SYSTICK_IRQ + INTERRUPTS_VECTOR_OFFSET);
 	_hal_lapicTimerSetDivider(LAPIC_TIMER_DEFAULT_DIVIDER);
-	lapicDelta = 0xffffffffu;
+	lapicDelta = 0xffffffffU;
 
 	_hal_lapicTimerStart(lapicDelta);
 	delta = timer_common.timestampTimer->timestampBusyWaitUs(100000);

@@ -22,7 +22,7 @@
 
 #include "proc/userintr.h"
 
-#define VIM_BASE_ADDRESS 0x40F80000
+#define VIM_BASE_ADDRESS 0x40f80000
 #define SIZE_INTERRUPTS  384
 
 #define DEFAULT_PRIORITY 7
@@ -73,7 +73,7 @@ static void interrupts_clearStatus(unsigned int irqn)
 		return;
 	}
 
-	*(interrupts_common.vim + vim_irqsts_m + irq_reg) = 1u << irq_offs;
+	*(interrupts_common.vim + vim_irqsts_m + irq_reg) = 1U << irq_offs;
 }
 
 
@@ -158,7 +158,7 @@ static void interrupts_enableIRQ(unsigned int irqn)
 		return;
 	}
 
-	*(interrupts_common.vim + vim_intr_en_set_m + irq_reg) = 1u << irq_offs;
+	*(interrupts_common.vim + vim_intr_en_set_m + irq_reg) = 1U << irq_offs;
 	hal_cpuDataMemoryBarrier();
 }
 
@@ -172,7 +172,7 @@ static void interrupts_disableIRQ(unsigned int irqn)
 		return;
 	}
 
-	*(interrupts_common.vim + vim_intr_en_clr_m + irq_reg) = 1u << irq_offs;
+	*(interrupts_common.vim + vim_intr_en_clr_m + irq_reg) = 1U << irq_offs;
 	hal_cpuDataMemoryBarrier();
 }
 
@@ -237,7 +237,7 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 		return;
 	}
 
-	*(interrupts_common.vim + vim_raw_m + irq_reg) = 1u << irq_offs;
+	*(interrupts_common.vim + vim_raw_m + irq_reg) = 1U << irq_offs;
 	hal_cpuDataMemoryBarrier();
 }
 

@@ -322,7 +322,7 @@ void hal_cpuReboot(void)
 void hal_wdgReload(void)
 {
 	*(imx6ull_common.wdog + wdog_wsr) = 0x5555;
-	*(imx6ull_common.wdog + wdog_wsr) = 0xAAAA;
+	*(imx6ull_common.wdog + wdog_wsr) = 0xaaaa;
 }
 
 
@@ -427,7 +427,7 @@ void _hal_platformInit(void)
 	*(imx6ull_common.wdog + wdog_wmcr) = 0;
 
 	/* copy watchdog Reset Status Register to bootreason[23:16] */
-	imx6ull_bootReason &= 0xff00ffffu;
+	imx6ull_bootReason &= 0xff00ffffU;
 	imx6ull_bootReason |= *(imx6ull_common.wdog + wdog_wrsr) << 16;
 
 	/* Set ENFC clock to 198 MHz */
