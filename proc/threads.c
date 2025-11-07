@@ -1620,7 +1620,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 }
 
 
-int threads_sigsuspend(unsigned int amask)
+int threads_sigsuspend(unsigned int mask)
 {
 	thread_t *thread;
 	spinlock_ctx_t sc;
@@ -1640,7 +1640,7 @@ int threads_sigsuspend(unsigned int amask)
 	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
 
 	oldmask = thread->sigmask;
-	thread->sigmask = amask;
+	thread->sigmask = mask;
 
 	/* check for pending signals before sleep - with the new mask */
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
