@@ -23,7 +23,7 @@ typedef int gid_t;
 typedef int uid_t;
 
 typedef int dev_t;
-typedef unsigned int ino_t; /* FIXME: should be unsigned long long to encode id_t? */
+typedef unsigned long long ino_t;
 typedef int nlink_t;
 typedef int blksize_t;
 typedef long long blkcnt_t;
