@@ -1597,13 +1597,12 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 
 	int err = -EINVAL, fd2;
 	unsigned long arg;
-	int cloexec = 0;
 
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
 		case F_DUPFD:
 			GETFROMSTACK(ustack, int, fd2, 2);
-			err = posix_fcntlDup(fd, fd2, cloexec);
+			err = posix_fcntlDup(fd, fd2, (cmd == (unsigned int)F_DUPFD_CLOEXEC) ? 1 : 0);
 			break;
 
 		case F_GETFD:
