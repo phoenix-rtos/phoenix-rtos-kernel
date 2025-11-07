@@ -571,6 +571,7 @@ typedef struct {
 		pctl_cleanInvalDCache,
 		pctl_cleanDCache,
 		pctl_invalDCache,
+		pctl_dmaLinkBaseAddr,
 	} type;
 
 	union {
@@ -608,6 +609,11 @@ typedef struct {
 			int secure;     /* 1 - set to secure, 0 - no change, -1 - set to non-secure */
 			int lock;       /* 1 - lock from changes until reset, 0 - no change */
 		} dmaPermissions;
+		struct {
+			int dev; /* one of pctl_gpdma* or pctl_hpdma* enum values */
+			unsigned int channel;
+			unsigned int addr;
+		} dmaLinkBaseAddr;
 		struct {
 			unsigned int ipclk;
 			unsigned int setting;

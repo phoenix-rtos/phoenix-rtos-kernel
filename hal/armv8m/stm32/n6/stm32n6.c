@@ -180,6 +180,14 @@ int hal_platformctl(void *ptr)
 						data->dmaPermissions.lock);
 			}
 			break;
+		case pctl_dmaLinkBaseAddr:
+			if (data->action == pctl_set) {
+				ret = _stm32_dmaSetLinkBaseAddr(
+						data->dmaLinkBaseAddr.dev,
+						data->dmaLinkBaseAddr.channel,
+						data->dmaLinkBaseAddr.addr);
+			}
+			break;
 		case pctl_cleanInvalDCache:
 			if (data->action == pctl_set) {
 				_hal_scsDCacheCleanInvalAddr(data->opDCache.addr, data->opDCache.sz);
@@ -316,6 +324,28 @@ int _stm32_dmaSetPermissions(int dev, unsigned int channel, int secure, int priv
 		*(base + gpdma_rcfglockr) |= (1 << channel);
 	}
 
+	return EOK;
+}
+
+
+int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr)
+{
+	volatile u32 *base;
+	if (dev == pctl_gpdma1) {
+		base = GPDMA1_BASE;
+	}
+	else if (dev == pctl_hpdma1) {
+		base = HPDMA1_BASE;
+	}
+	else {
+		return -EINVAL;
+	}
+
+	if (channel >= DMA_CHANNELS) {
+		return -EINVAL;
+	}
+
+	*(base + gpdma_cxlbar + (0x20 * channel)) = addr & 0xffff0000;
 	return EOK;
 }
 

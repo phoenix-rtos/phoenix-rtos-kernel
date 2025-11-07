@@ -467,6 +467,7 @@ enum gpdma_regs {
 	gpdma_rcfglockr,
 	gpdma_misr,
 	gpdma_smisr,
+	gpdma_cxlbar = 0x14,
 };
 
 enum risaf_regs {
