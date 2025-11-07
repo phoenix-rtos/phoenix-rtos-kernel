@@ -1305,7 +1305,7 @@ int posix_fstat(int fd, struct stat *buf)
 	hal_memset(&msg, 0, sizeof(msg_t));
 
 	buf->st_dev = (int)f->ln.port;
-	buf->st_ino = f->ln.id; /* FIXME */
+	buf->st_ino = (ino_t)f->ln.id;
 	buf->st_rdev = (int)f->oid.port;
 
 	if (f->type == ftRegular) {
