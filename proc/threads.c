@@ -607,7 +607,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		current->context = context;
 
 		/* Move thread to the end of queue */
-		if (current->state == (unsigned int)READY) {
+		if (current->state == READY) {
 			LIST_ADD(&threads_common.ready[current->priority], current);
 			_perf_preempted(current);
 		}
@@ -921,7 +921,7 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 		priority = thread->priorityBase;
 	}
 
-	if (thread->state == (unsigned char)READY) {
+	if (thread->state == READY) {
 		for (i = 0; i < hal_cpuGetCount(); i++) {
 			if (thread == threads_common.current[i]) {
 				break;
@@ -1099,7 +1099,7 @@ static void _proc_threadDequeue(thread_t *t)
 {
 	unsigned int i;
 
-	if (t->state == (unsigned char)GHOST) {
+	if (t->state == GHOST) {
 		return;
 	}
 
@@ -2126,7 +2126,7 @@ int proc_threadsList(int n, threadinfo_t *info)
 		}
 		info[i].cpuTime = t->cpuTime;
 
-		if (t->state == (unsigned int)READY && t->maxWait < now - t->readyTime) {
+		if (t->state == READY && t->maxWait < now - t->readyTime) {
 			info[i].wait = now - t->readyTime;
 		}
 		else {
