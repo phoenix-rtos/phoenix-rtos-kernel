@@ -27,16 +27,10 @@
 #define THREAD_END     1U
 #define THREAD_END_NOW 2U
 
-/* clang-format off */
-/* Parent thread states */
-enum { PREFORK = 0, FORKING, FORKED };
-
-/* Child thread states */
-enum { OWNSTACK = 0, PARENTSTACK };
-
-enum { READY = 0, SLEEP, GHOST };
-/* clang-format on */
-
+/* Thread states */
+#define READY 0U
+#define SLEEP 1U
+#define GHOST 2U
 
 typedef struct _thread_t {
 	struct _thread_t *next;

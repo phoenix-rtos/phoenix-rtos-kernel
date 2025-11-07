@@ -30,6 +30,10 @@
 #include "ports.h"
 #include "userintr.h"
 
+/* Process states */
+#define PREFORK 0
+#define FORKING 1
+#define FORKED  2
 
 typedef struct _process_spawn_t {
 	spinlock_t sl;
