@@ -1095,28 +1095,29 @@ int unix_shutdown(unsigned int socket, int how)
 
 
 /* TODO: copy data from old buffer */
-static int unix_bufferSetSize(unixsock_t *s, const size_t sz)
+static int unix_bufferSetSize(unixsock_t *s, int sz)
 {
 	void *v[2] = { NULL, NULL };
+	size_t size = (size_t)sz;
 
-	if (sz < US_MIN_BUFFER_SIZE || sz > US_MAX_BUFFER_SIZE) {
+	if (size < US_MIN_BUFFER_SIZE || size > US_MAX_BUFFER_SIZE) {
 		return -EINVAL;
 	}
 
 	(void)proc_lockSet(&s->lock);
 
 	if (s->buffer.data != NULL) {
-		v[0] = vm_kmalloc(sz);
+		v[0] = vm_kmalloc(size);
 		if (v[0] == NULL) {
 			(void)proc_lockClear(&s->lock);
 			return -ENOMEM;
 		}
 
 		v[1] = s->buffer.data;
-		_cbuffer_init(&s->buffer, v[0], sz);
+		_cbuffer_init(&s->buffer, v[0], size);
 	}
 
-	s->buffsz = sz;
+	s->buffsz = size;
 
 	(void)proc_lockClear(&s->lock);
 
@@ -1146,7 +1147,7 @@ int unix_setsockopt(unsigned int socket, int level, int optname, const void *opt
 		switch ((unsigned int)optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && optlen == sizeof(int)) {
-					err = unix_bufferSetSize(s, *((const size_t *)optval));
+					err = unix_bufferSetSize(s, *((const int *)optval));
 				}
 				else {
 					err = -EINVAL;
