@@ -80,19 +80,11 @@ static struct {
 
 static int unixsock_cmp(rbnode_t *n1, rbnode_t *n2)
 {
-	unsigned int id_diff;
 	unixsock_t *r1 = lib_treeof(unixsock_t, linkage, n1);
 	unixsock_t *r2 = lib_treeof(unixsock_t, linkage, n2);
 
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
-	if (r1->id < r2->id) {
-		id_diff = r2->id - r1->id;
-		return -1 * (int)(id_diff);
-	}
-	else {
-		id_diff = r1->id - r2->id;
-		return (int)(id_diff);
-	}
+	return (int)((long long)r1->id - (long long)r2->id);
 }
 
 
