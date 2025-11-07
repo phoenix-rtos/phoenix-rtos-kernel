@@ -1304,9 +1304,9 @@ int posix_fstat(int fd, struct stat *buf)
 	hal_memset(buf, 0, sizeof(struct stat));
 	hal_memset(&msg, 0, sizeof(msg_t));
 
-	buf->st_dev = (int)f->ln.port;
+	buf->st_dev = (dev_t)f->ln.port;
 	buf->st_ino = (ino_t)f->ln.id;
-	buf->st_rdev = (int)f->oid.port;
+	buf->st_rdev = (dev_t)f->oid.port;
 
 	if (f->type == ftRegular) {
 		msg.type = mtGetAttrAll;
@@ -1329,7 +1329,7 @@ int posix_fstat(int fd, struct stat *buf)
 			if (err < 0) {
 				break;
 			}
-			buf->st_mtim.tv_sec = attrs.mTime.val;
+			buf->st_mtim.tv_sec = (time_t)attrs.mTime.val;
 			buf->st_mtim.tv_nsec = 0;
 
 			err = attrs.aTime.err;
@@ -1337,57 +1337,57 @@ int posix_fstat(int fd, struct stat *buf)
 				break;
 			}
 
-			buf->st_atim.tv_sec = attrs.aTime.val;
+			buf->st_atim.tv_sec = (time_t)attrs.aTime.val;
 			buf->st_atim.tv_nsec = 0;
 
 			err = attrs.cTime.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_ctim.tv_sec = attrs.cTime.val;
+			buf->st_ctim.tv_sec = (time_t)attrs.cTime.val;
 			buf->st_ctim.tv_nsec = 0;
 
 			err = attrs.links.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_nlink = (int)attrs.links.val;
+			buf->st_nlink = (nlink_t)attrs.links.val;
 
 			err = attrs.mode.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_mode = (unsigned int)attrs.mode.val;
+			buf->st_mode = (mode_t)attrs.mode.val;
 
 			err = attrs.uid.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_uid = (int)attrs.uid.val;
+			buf->st_uid = (uid_t)attrs.uid.val;
 
 			err = attrs.gid.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_gid = (int)attrs.gid.val;
+			buf->st_gid = (gid_t)attrs.gid.val;
 
 			err = attrs.size.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_size = attrs.size.val;
+			buf->st_size = (off_t)attrs.size.val;
 
 			err = attrs.blocks.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_blocks = attrs.blocks.val;
+			buf->st_blocks = (blkcnt_t)attrs.blocks.val;
 
 			err = attrs.ioblock.err;
 			if (err < 0) {
 				break;
 			}
-			buf->st_blksize = (int)attrs.ioblock.val;
+			buf->st_blksize = (blksize_t)attrs.ioblock.val;
 		} while (0);
 	}
 	else {
