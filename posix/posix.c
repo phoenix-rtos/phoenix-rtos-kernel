@@ -2450,8 +2450,7 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 
 	if (timeout_ms >= 0) {
 		proc_gettime(&timeout, NULL);
-		timeout += timeout_ms * 1000LL;
-		timeout += (timeout_ms == 0L) ? 1LL : 0LL;
+		timeout += (timeout_ms == 0) ? 1 : timeout_ms * 1000LL;
 	}
 	else {
 		timeout = 0;
