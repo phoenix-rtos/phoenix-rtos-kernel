@@ -33,7 +33,7 @@ static struct {
 } timer_common;
 
 
-static time_t hal_timerCyc2Us(time_t ticks)
+static time_t hal_timerCyc2us(time_t ticks)
 {
 	return (ticks * 1024) / ((GPT_FREQ_MHZ * 1024) / (GPT_PRESCALER * GPT_OSC_PRESCALER));
 }
@@ -104,7 +104,7 @@ void hal_timerSetWakeup(u32 waitUs)
 
 time_t hal_timerGetUs(void)
 {
-	return hal_timerCyc2Us(hal_timerGetCyc());
+	return hal_timerCyc2us(hal_timerGetCyc());
 }
 
 
@@ -131,7 +131,7 @@ void _hal_timerInit(u32 interval)
 	timer_common.base = (void *)GPT_BASE;
 
 	/* Disable timer */
-	*(timer_common.base + gpt_cr) &= ~1u;
+	*(timer_common.base + gpt_cr) &= ~1U;
 	hal_cpuDataMemoryBarrier();
 
 	timer_common.interval = interval;

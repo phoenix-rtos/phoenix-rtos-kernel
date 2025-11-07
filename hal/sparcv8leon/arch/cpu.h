@@ -78,7 +78,7 @@
 #define ASI_SUPER_DATA  0x0b
 
 /* AMBA PnP */
-#define AHB_IOAREA 0xfff00000u
+#define AHB_IOAREA 0xfff00000U
 
 /* Interrupts multilock */
 
@@ -143,7 +143,7 @@
 #define SYSTICK_INTERVAL 1000
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
+#define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \

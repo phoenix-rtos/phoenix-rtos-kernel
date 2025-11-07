@@ -48,7 +48,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 	hal_memset(pmap->pdir, 0, SIZE_PAGE);
 	vaddr = (void *)((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1));
 
-	pages = ((void *)0xffffffffu - vaddr) / (SIZE_PAGE << 10);
+	pages = ((void *)0xffffffffU - vaddr) / (SIZE_PAGE << 10);
 	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 10), ++i) {
 		pmap->pdir[(u32) vaddr >> 22] = kpmap->pdir[(u32) vaddr >> 22];
 	}
@@ -85,7 +85,7 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page
 	u32 pdi, pti;
 
 	pdi = (u32)va >> 22;
-	pti = ((u32)va >> 12) & 0x000003ffu;
+	pti = ((u32)va >> 12) & 0x000003ffU;
 
 	/* If no page table is allocated add new one */
 	if (pdir[pdi] == 0) {
@@ -103,12 +103,12 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page
 
 	/* Map selected page table */
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
-	ptable[((u32)pt >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT | PGHD_USER);
+	ptable[((u32)pt >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT | PGHD_USER);
 
 	hal_tlbInvalidateLocalEntry(NULL, pt);
 
 	/* And at last map page or only changle attributes of map entry */
-	pt[pti] = ((pa & ~(SIZE_PAGE - 1)) | (attr & 0xfffu) | PGHD_PRESENT);
+	pt[pti] = ((pa & ~(SIZE_PAGE - 1)) | (attr & 0xfffU) | PGHD_PRESENT);
 
 	if (tlbInval != 0) {
 		hal_tlbInvalidateEntry(NULL, va, 1);
@@ -151,7 +151,7 @@ static int _pmap_remove(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tl
 
 	for (i = 0; i < count; ++i, va += SIZE_PAGE) {
 		pdi = (u32)va >> 22;
-		pti = ((u32)va >> 12) & 0x000003ffu;
+		pti = ((u32)va >> 12) & 0x000003ffU;
 
 		/* no page table is allocated => page is not mapped */
 		if (pdir[pdi] == 0) {
@@ -165,7 +165,7 @@ static int _pmap_remove(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tl
 		}
 
 		/* Map selected page table */
-		ptable[((u32)pt >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
+		ptable[((u32)pt >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
 
 		hal_tlbInvalidateLocalEntry(NULL, pt);
 
@@ -210,7 +210,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	spinlock_ctx_t sc;
 
 	pdi = (u32)vaddr >> 22;
-	pti = ((u32)vaddr >> 12) & 0x000003ffu;
+	pti = ((u32)vaddr >> 12) & 0x000003ffU;
 
 	if (pmap->pdir[pdi] == 0) {
 		return 0;
@@ -222,7 +222,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	addr = pmap->pdir[pdi];
 
 	ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
-	ptable[((u32)hal_config.ptable >> 12) & 0x000003ffu] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
+	ptable[((u32)hal_config.ptable >> 12) & 0x000003ffU] = (addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
 	hal_tlbInvalidateLocalEntry(NULL, hal_config.ptable);
 
 	addr = (addr_t)hal_config.ptable[pti];
@@ -415,7 +415,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Map initial heap to the first physical page */
 	(*vend) = (*vstart) + SIZE_PAGE;
-	_pmap_enter(pmap->pdir, hal_config.ptable, 0x00000000u, (*vstart), PGHD_WRITE | PGHD_PRESENT, NULL, 0);
+	_pmap_enter(pmap->pdir, hal_config.ptable, 0x00000000U, (*vstart), PGHD_WRITE | PGHD_PRESENT, NULL, 0);
 
 	/* Move heap start above BIOS Data Area */
 	(*vstart) += 0x500;

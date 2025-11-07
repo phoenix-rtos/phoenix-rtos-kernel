@@ -110,7 +110,7 @@ static inline void hal_tlbInvalASID(asid_t asid)
 /* Invalidate Unified TLB by VA (all ASIDs) */
 static inline void hal_tlbInvalVA(ptr_t vaddr)
 {
-	u64 arg = (vaddr >> 12) & ((1uL << 44) - 1);
+	u64 arg = (vaddr >> 12) & ((1UL << 44) - 1);
 	__asm__ volatile("tlbi vaae1, %0" : : "r"(arg));
 	hal_cpuDataSyncBarrier();
 }
@@ -119,7 +119,7 @@ static inline void hal_tlbInvalVA(ptr_t vaddr)
 /* Invalidate Unified TLB by VA (selected ASID) */
 static inline void hal_tlbInvalVAASID(ptr_t vaddr, asid_t asid)
 {
-	u64 arg = ((vaddr >> 12) & ((1uL << 44) - 1)) | ((u64)asid << 48);
+	u64 arg = ((vaddr >> 12) & ((1UL << 44) - 1)) | ((u64)asid << 48);
 	__asm__ volatile("tlbi vae1, %0" : : "r"(arg));
 	hal_cpuDataSyncBarrier();
 }
@@ -145,7 +145,7 @@ static inline void hal_tlbInvalASID_IS(asid_t asid)
 /* Invalidate Unified TLB by VA (all ASIDs) (broadcast to Inner Shareable domain) */
 static inline void hal_tlbInvalVA_IS(ptr_t vaddr)
 {
-	u64 arg = (vaddr >> 12) & ((1uL << 44) - 1);
+	u64 arg = (vaddr >> 12) & ((1UL << 44) - 1);
 	__asm__ volatile("tlbi vaae1is, %0" : : "r"(arg));
 	hal_cpuDataSyncBarrier();
 }
@@ -154,7 +154,7 @@ static inline void hal_tlbInvalVA_IS(ptr_t vaddr)
 /* Invalidate Unified TLB by VA (selected ASID) (broadcast to Inner Shareable domain) */
 static inline void hal_tlbInvalVAASID_IS(ptr_t vaddr, asid_t asid)
 {
-	u64 arg = ((vaddr >> 12) & ((1uL << 44) - 1)) | ((u64)asid << 48);
+	u64 arg = ((vaddr >> 12) & ((1UL << 44) - 1)) | ((u64)asid << 48);
 	__asm__ volatile("tlbi vae1is, %0" : : "r"(arg));
 	hal_cpuDataSyncBarrier();
 }
@@ -171,7 +171,7 @@ static inline void hal_tlbInvalAll_IS(void)
 /* Read Translation Table Base Register 0 and get only translation table physical address */
 static inline addr_t hal_cpuGetTranslationBase(void)
 {
-	return sysreg_read(ttbr0_el1) & ((1uL << 48) - (1uL << 1));
+	return sysreg_read(ttbr0_el1) & ((1UL << 48) - (1UL << 1));
 }
 
 

@@ -96,8 +96,8 @@ static inline void _hal_ioapicWrite(void *ioapic, u8 reg, u32 val)
 
 static void _hal_ioapicWriteIRQ(void *ioapic, unsigned int n, u32 high, u32 low)
 {
-	low &= 0x0000ffffu;
-	high &= 0xff000000u;
+	low &= 0x0000ffffU;
+	high &= 0xff000000U;
 	_hal_ioapicWrite(ioapic, 0x10 + 2 * n, IOAPIC_IRQ_MASK);
 	_hal_ioapicWrite(ioapic, 0x11 + 2 * n, high);
 	_hal_ioapicWrite(ioapic, 0x10 + 2 * n, low);
@@ -251,9 +251,9 @@ static int _interrupts_setIDTEntry(unsigned int n, void *addr, u32 type)
 		return -EINVAL;
 	}
 
-	w0 = ((u32)addr & 0xffff0000u);
-	w1 = ((u32)addr & 0x0000ffffu);
-	type &= 0xef00u;
+	w0 = ((u32)addr & 0xffff0000U);
+	w1 = ((u32)addr & 0x0000ffffU);
+	type &= 0xef00U;
 
 	w0 |= type;
 	w1 |= (SEL_KCODE << 16);

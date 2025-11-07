@@ -20,8 +20,8 @@
 #include "cpu.h"
 
 
-#define TLB_IRQ     (1u | CLINT_IRQ_FLG)
-#define SYSTICK_IRQ (5u | CLINT_IRQ_FLG)
+#define TLB_IRQ     (1U | CLINT_IRQ_FLG)
+#define SYSTICK_IRQ (5U | CLINT_IRQ_FLG)
 
 
 typedef struct _intr_handler_t {

@@ -54,9 +54,9 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	int ret = 0;
 
 	/* Clear compare event */
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_events_compare0) = 0u;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_events_compare0) = 0U;
 	/* Clear counter */
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_tasks_clear) = 1u;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_tasks_clear) = 1U;
 
 	timer_common.timeUs += timer_common.interval;
 	hal_cpuDataSyncBarrier();
@@ -100,9 +100,9 @@ char *hal_timerFeatures(char *features, unsigned int len)
 void _hal_timerInit(u32 interval)
 {
 	/* using nrf9160 timer module */
-	timer_common.timer[0] = (void *)0x5000f000u;
-	timer_common.timer[1] = (void *)0x50010000u;
-	timer_common.timer[2] = (void *)0x50011000u;
+	timer_common.timer[0] = (void *)0x5000f000U;
+	timer_common.timer[1] = (void *)0x50010000U;
+	timer_common.timer[2] = (void *)0x50011000U;
 	timer_common.upper = 0;
 	timer_common.wakeup = 0;
 	timer_common.timeUs = 0;
@@ -111,19 +111,19 @@ void _hal_timerInit(u32 interval)
 	hal_spinlockCreate(&timer_common.sp, "timer");
 
 	/* Set timer mode */
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_mode) = 0u;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_mode) = 0U;
 	/* Set 16-bit mode */
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_bitmode) = 0u;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_bitmode) = 0U;
 	/* 1 tick per 1 us */
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_prescaler) = 4u;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_prescaler) = 4U;
 	/* 1 compare event per interval * 1us */
 	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_cc0) = interval;
 	/* Enable interrupts from compare0 events */
 	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_intenset) = 0x10000;
 
 	/* Clear and start timer0 */
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_tasks_clear) = 1u;
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_tasks_start) = 1u;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_tasks_clear) = 1U;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_tasks_start) = 1U;
 
 	timer_common.overflowh.f = timer_irqHandler;
 	/* irq number always equals nrf peripheral id + 16 */

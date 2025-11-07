@@ -415,7 +415,7 @@ int tda4vm_RATMapMemory(unsigned int entry, addr_t cpuAddr, u64 physAddr, u32 lo
 	}
 
 	/* Regions must be aligned to size on both sides */
-	if (((cpuAddr & ((1u << logSize) - 1)) != 0) || ((physAddr & ((1uLL << logSize) - 1)) != 0)) {
+	if (((cpuAddr & ((1U << logSize) - 1)) != 0) || ((physAddr & ((1ULL << logSize) - 1)) != 0)) {
 		return -1;
 	}
 

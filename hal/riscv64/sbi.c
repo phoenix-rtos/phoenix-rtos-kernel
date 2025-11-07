@@ -27,7 +27,7 @@
 #define SBI_BASE_GET_MIMPLID   0x6
 
 /* Timer extension */
-#define SBI_EXT_TIME      0x54494D45
+#define SBI_EXT_TIME      0x54494d45
 #define SBI_TIME_SETTIMER 0x0
 
 /* System reset extension */
@@ -39,14 +39,14 @@
 #define SBI_IPI_SEND 0x0
 
 /* HSM extension */
-#define SBI_EXT_HSM     0x48534D
+#define SBI_EXT_HSM     0x48534d
 #define SBI_HSM_START   0x0
 #define SBI_HSM_STOP    0x1
 #define SBI_HSM_STATUS  0x2
 #define SBI_HSM_SUSPEND 0x3
 
 /* RFENCE extension */
-#define SBI_EXT_RFENCE           0x52464E43
+#define SBI_EXT_RFENCE           0x52464e43
 #define SBI_RFNC_I               0x0
 #define SBI_RFNC_SFENCE_VMA      0x1
 #define SBI_RFNC_SFENCE_VMA_ASID 0x2

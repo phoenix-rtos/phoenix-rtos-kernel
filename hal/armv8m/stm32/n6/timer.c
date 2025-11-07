@@ -27,12 +27,12 @@
 
 /* List of registers cut down to only those available on basic timers */
 enum tim_regs {
-	tim_cr1 = 0u,
+	tim_cr1 = 0U,
 	tim_cr2,
-	tim_dier = 3u,
+	tim_dier = 3U,
 	tim_sr,
 	tim_egr,
-	tim_cnt = 9u,
+	tim_cnt = 9U,
 	tim_psc,
 	tim_arr,
 };
@@ -57,8 +57,8 @@ int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	/* Note: hal_getTicks() may have cleared the interrupt flag and added to the tick count,
 	 * but after clearing the flag the interrupt remains pending. That's why we need to check
 	 * SR to make sure we don't add twice for the same update event. */
-	if ((*(timer_common.base + tim_sr) & 1u) != 0) {
-		*(timer_common.base + tim_sr) = ~1u; /* Flags are write 0 to clear */
+	if ((*(timer_common.base + tim_sr) & 1U) != 0) {
+		*(timer_common.base + tim_sr) = ~1U; /* Flags are write 0 to clear */
 		timer_common.ticks += timer_common.ticksPerInterval;
 	}
 
@@ -99,12 +99,12 @@ static u64 hal_getTicks(void)
 	ret = timer_common.ticks;
 	cntval = *(timer_common.base + tim_cnt);
 	if ((cntval >> 31) != 0) {
-		*(timer_common.base + tim_sr) = ~1u;
+		*(timer_common.base + tim_sr) = ~1U;
 		ret += timer_common.ticksPerInterval;
 		timer_common.ticks = ret;
 	}
 
-	ret += cntval & 0xffffu;
+	ret += cntval & 0xffffU;
 	hal_spinlockClear(&timer_common.sp, &sc);
 
 	return ret;

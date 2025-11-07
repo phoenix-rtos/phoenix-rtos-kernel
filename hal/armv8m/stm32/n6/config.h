@@ -27,7 +27,7 @@
 #define SIZE_INTERRUPTS 211
 
 /* Constants for configuring which TIM peripheral is used as system timer */
-#define TIM_SYSTEM_BASE ((void *)0x52003C00) /* TIM18 base address */
+#define TIM_SYSTEM_BASE ((void *)0x52003c00) /* TIM18 base address */
 #define TIM_SYSTEM_PCTL pctl_tim18
 #define TIM_SYSTEM_IRQ  tim18_irq
 #define TIM_SYSTEM_FREQ (400UL * 1000000UL) /* Frequency in Hz */

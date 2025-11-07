@@ -24,15 +24,15 @@
 #define MADT_TYPE_IOAPIC                           1
 #define MADT_TYPE_IOAPIC_INTERRUPT_SOURCE_OVERRIDE 2
 
-#define MADT_8259PIC_INSTALLED (1u << 0)
+#define MADT_8259PIC_INSTALLED (1U << 0)
 
 /* IAPC_BOOT_ARCH flags in FADT: acpi->fadt->iapcBootArch */
-#define FADT_LEGACY_DEVICES      (1u << 0)
-#define FADT_KEYBOARD_CONTROLLER (1u << 1)
-#define FADT_NO_VGA              (1u << 2)
-#define FADT_MSI_NOT_SUPPORTED   (1u << 3)
-#define FADT_PCIe_ASPM_CONTROLS  (1u << 4)
-#define FADT_NO_CMOS_RTC         (1u << 5)
+#define FADT_LEGACY_DEVICES      (1U << 0)
+#define FADT_KEYBOARD_CONTROLLER (1U << 1)
+#define FADT_NO_VGA              (1U << 2)
+#define FADT_MSI_NOT_SUPPORTED   (1U << 3)
+#define FADT_PCIe_ASPM_CONTROLS  (1U << 4)
+#define FADT_NO_CMOS_RTC         (1U << 5)
 
 #define HAL_MEM_ENTRIES        64
 #define MMIO_DEVICES_VIRT_ADDR (void *)0xfe000000
@@ -60,8 +60,8 @@ typedef struct {
 #define GAS_ADDRESS_SPACE_ID_IPMI   0x07
 #define GAS_ADDRESS_SPACE_ID_GPIO   0x08
 #define GAS_ADDRESS_SPACE_ID_GSB    0x09 /* Generic Serial Bus*/
-#define GAS_ADDRESS_SPACE_ID_PCC    0x0A /* Platform Communications Channel */
-#define GAS_ADDRESS_SPACE_ID_PRM    0x0B /* Platform Runtime Mechanism */
+#define GAS_ADDRESS_SPACE_ID_PCC    0x0a /* Platform Communications Channel */
+#define GAS_ADDRESS_SPACE_ID_PRM    0x0b /* Platform Runtime Mechanism */
 
 #define GAS_ACCESS_SIZE_UNDEFINED 0
 #define GAS_ACCESS_SIZE_BYTE      1

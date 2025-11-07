@@ -167,10 +167,10 @@ static int interrupts_setClint(intr_handler_t *h, enum irq_state enable)
 
 	if (enable == irq_enable) {
 		HAL_LIST_ADD(&interrupts_common.clint.handlers[h->n], h);
-		csr_set(sie, 1u << h->n);
+		csr_set(sie, 1U << h->n);
 	}
 	else {
-		csr_clear(sie, 1u << h->n);
+		csr_clear(sie, 1U << h->n);
 		HAL_LIST_REMOVE(&interrupts_common.clint.handlers[h->n], h);
 	}
 

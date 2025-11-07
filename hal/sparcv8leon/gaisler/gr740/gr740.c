@@ -35,7 +35,7 @@ enum {
 	cgu_unlock = 0, /* Unlock register        : 0x00 */
 	cgu_clk_en,     /* Clock enable register  : 0x04 */
 	cgu_core_reset, /* Core reset register    : 0x08 */
-	cgu_override,   /* Override register      : 0x0C */
+	cgu_override,   /* Override register      : 0x0c */
 };
 
 /* I/O & PLL configuration registers */
@@ -46,11 +46,11 @@ enum {
 	ftmfunc = 0, /* FTMCTRL function enable register       : 0x00 */
 	altfunc,     /* Alternate function enable register     : 0x04 */
 	lvdsmclk,    /* LVDS and mem CLK pad enable register   : 0x08 */
-	pllnewcfg,   /* PLL new configuration register         : 0x0C */
+	pllnewcfg,   /* PLL new configuration register         : 0x0c */
 	pllrecfg,    /* PLL reconfigure command register       : 0x10 */
 	pllcurcfg,   /* PLL current configuration register     : 0x14 */
 	drvstr1,     /* Drive strength register 1              : 0x18 */
-	drvstr2,     /* Drive strength register 2              : 0x1C */
+	drvstr2,     /* Drive strength register 2              : 0x1c */
 	lockdown,    /* Configuration lockdown register        : 0x20 */
 };
 

@@ -38,15 +38,15 @@ enum {
 	cfg_gp0 = 0,   /* Sys IO config GPIO 0-7      : 0x00 */
 	cfg_gp1,       /* Sys IO config GPIO 8-15     : 0x04 */
 	cfg_gp2,       /* Sys IO config GPIO 16-23    : 0x08 */
-	cfg_gp3,       /* Sys IO config GPIO 24-31    : 0x0C */
+	cfg_gp3,       /* Sys IO config GPIO 24-31    : 0x0c */
 	cfg_gp4,       /* Sys IO config GPIO 32-39    : 0x10 */
 	cfg_gp5,       /* Sys IO config GPIO 40-47    : 0x14 */
 	cfg_gp6,       /* Sys IO config GPIO 48-55    : 0x18 */
-	cfg_gp7,       /* Sys IO config GPIO 56-63    : 0x1C */
+	cfg_gp7,       /* Sys IO config GPIO 56-63    : 0x1c */
 	cfg_pullup0,   /* Pull-up config GPIO 0-31    : 0x20 */
 	cfg_pullup1,   /* Pull-up config GPIO 32-63   : 0x24 */
 	cfg_pulldn0,   /* Pull-down config GPIO 0-31  : 0x28 */
-	cfg_pulldn1,   /* Pull-down config GPIO 32-63 : 0x2C */
+	cfg_pulldn1,   /* Pull-down config GPIO 32-63 : 0x2c */
 	cfg_lvds,      /* LVDS config                 : 0x30 */
 	cfg_prot = 16, /* Sys IO config protection    : 0x40 */
 	cfg_eirq,      /* Sys IO config err interrupt : 0x44 */
@@ -60,7 +60,7 @@ enum {
 	cgu_unlock = 0, /* Unlock register        : 0x00 */
 	cgu_clk_en,     /* Clock enable register  : 0x04 */
 	cgu_core_reset, /* Core reset register    : 0x08 */
-	cgu_override,   /* Override register - only primary CGU : 0x0C */
+	cgu_override,   /* Override register - only primary CGU : 0x0c */
 };
 
 

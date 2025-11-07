@@ -55,7 +55,7 @@ static int hal_timerIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-static time_t hal_timerCyc2Us(u32 cyc)
+static time_t hal_timerCyc2us(u32 cyc)
 {
 	return cyc / (SYSCLK_FREQ / 1000 * 1000);
 }
@@ -81,7 +81,7 @@ time_t hal_timerGetUs(void)
 
 	cnt = *(timer_common.base + timer1_load) - cnt;
 
-	return jiffies * 1000 + hal_timerCyc2Us(cnt);
+	return jiffies * 1000 + hal_timerCyc2us(cnt);
 }
 
 

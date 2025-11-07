@@ -38,9 +38,9 @@
 
 /* Page table entry types */
 
-#define PAGE_INVALID 0x0u
-#define PAGE_DESCR   0x1u
-#define PAGE_ENTRY   0x2u
+#define PAGE_INVALID 0x0U
+#define PAGE_DESCR   0x1U
+#define PAGE_ENTRY   0x2U
 
 /* Page flags */
 

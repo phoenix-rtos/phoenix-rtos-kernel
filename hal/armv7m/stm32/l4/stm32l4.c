@@ -192,7 +192,7 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 		*(stm32_common.rcc + rcc_crrcr) |= 1;
 		hal_cpuDataMemoryBarrier();
 		/* And wait for it to turn on */
-		while ((*(stm32_common.rcc + rcc_crrcr) & (1u << 1)) == 0) {
+		while ((*(stm32_common.rcc + rcc_crrcr) & (1U << 1)) == 0) {
 		}
 	}
 	else {
@@ -230,7 +230,7 @@ int _stm32_rccGetDevClock(unsigned int d, u32 *state)
 		*state = !!(*(stm32_common.rcc + rcc_bdcr) & (1 << 15));
 	}
 	else if (d == pctl_hsi48) {
-		*state = ((*(stm32_common.rcc + rcc_crrcr) & (1u << 1)) == 0) ? 0 : 1;
+		*state = ((*(stm32_common.rcc + rcc_crrcr) & (1U << 1)) == 0) ? 0 : 1;
 	}
 	else {
 		return -EINVAL;
@@ -813,7 +813,7 @@ void _stm32_init(void)
 #endif
 
 #ifdef NDEBUG
-	*(u32 *)0xE0042004 = 0;
+	*(u32 *)0xe0042004 = 0;
 #endif
 
 	/* Disable FPU */

@@ -136,7 +136,7 @@ static void interrupts_enableIRQ(unsigned int irqn)
 {
 	unsigned int irq_reg = irqn / 32;
 	unsigned int irq_offs = irqn % 32;
-	*(interrupts_common.gicd + gicd_isenabler0 + irq_reg) = 1u << irq_offs;
+	*(interrupts_common.gicd + gicd_isenabler0 + irq_reg) = 1U << irq_offs;
 }
 
 
@@ -144,7 +144,7 @@ static void interrupts_disableIRQ(unsigned int irqn)
 {
 	unsigned int irq_reg = irqn / 32;
 	unsigned int irq_offs = irqn % 32;
-	*(interrupts_common.gicd + gicd_icenabler0 + irq_reg) = 1u << irq_offs;
+	*(interrupts_common.gicd + gicd_icenabler0 + irq_reg) = 1U << irq_offs;
 }
 
 

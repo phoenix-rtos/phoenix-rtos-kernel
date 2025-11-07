@@ -35,39 +35,39 @@ enum {
 	int_level = 0,     /* Interrupt level register                   : 0x000 */
 	int_pend,          /* Interrupt pending register                 : 0x004 */
 	int_force,         /* Interrupt force register (CPU 0)           : 0x008 */
-	int_clear,         /* Interrupt clear register                   : 0x00C */
+	int_clear,         /* Interrupt clear register                   : 0x00c */
 	int_mpstat,        /* Status register                            : 0x010 */
 	broadcast,         /* Broadcast register                         : 0x014 */
 	errstat,           /* Error mode status register                 : 0x018 */
-	wdogctrl,          /* Watchdog control register                  : 0x01C */
+	wdogctrl,          /* Watchdog control register                  : 0x01c */
 	asmpctrl,          /* Asymmetric MP control register             : 0x020 */
 	icselr,            /* Interrupt controller select register       : 0x024 */
 	                   /* Reserved                                   : 0x028 - 0x030 */
 	eint_clear = 13,   /* Extended interrupt clear register          : 0x034 */
-	                   /* Reserved                                   : 0x038 - 0x03C */
+	                   /* Reserved                                   : 0x038 - 0x03c */
 	pi_mask = 16,      /* Processor interrupt mask register (CPU 0)  : 0x040 */
 	                   /* NUM_CPUS pi_mask registers                         */
 	pc_force = 32,     /* Processor interrupt force register (CPU 0) : 0x080 */
 	                   /* NUM_CPUS pc_force registers                        */
-	pextack = 48,      /* Extended int acknowledge register (CPU 0)  : 0x0C0 */
+	pextack = 48,      /* Extended int acknowledge register (CPU 0)  : 0x0c0 */
 	                   /* NUM_CPUS pextack registers                         */
 	tcnt0 = 64,        /* Interrupt timestamp 0 counter register     : 0x100 */
 	istmpc0,           /* Timestamp 0 control register               : 0x104 */
 	itstmpas0,         /* Interrupt assertion timestamp 0 register   : 0x108 */
-	itstmpack0,        /* Interrupt acknowledge timestamp 0 register : 0x10C */
+	itstmpack0,        /* Interrupt acknowledge timestamp 0 register : 0x10c */
 	tcnt1,             /* Interrupt timestamp 1 counter register     : 0x110 */
 	istmpc1,           /* Timestamp 1 control register               : 0x114 */
 	itstmpas1,         /* Interrupt assertion timestamp 1 register   : 0x118 */
-	itstmpack1,        /* Interrupt acknowledge timestamp 1 register : 0x11C */
+	itstmpack1,        /* Interrupt acknowledge timestamp 1 register : 0x11c */
 	tcnt2,             /* Interrupt timestamp 2 counter register     : 0x120 */
 	istmpc2,           /* Timestamp 2 control register               : 0x124 */
 	itstmpas2,         /* Interrupt assertion timestamp 2 register   : 0x128 */
-	itstmpack2,        /* Interrupt acknowledge timestamp 2 register : 0x12C */
+	itstmpack2,        /* Interrupt acknowledge timestamp 2 register : 0x12c */
 	tcnt3,             /* Interrupt timestamp 3 counter register     : 0x130 */
 	istmpc3,           /* Timestamp 3 control register               : 0x134 */
 	itstmpas3,         /* Interrupt assertion timestamp 3 register   : 0x138 */
-	itstmpack3,        /* Interrupt acknowledge timestamp 3 register : 0x13C */
-	                   /* Reserved                                   : 0x140 - 0x1FC */
+	itstmpack3,        /* Interrupt acknowledge timestamp 3 register : 0x13c */
+	                   /* Reserved                                   : 0x140 - 0x1fc */
 	procbootadr = 128, /* Processor boot address register (CPU 0)    : 0x200 */
 	                   /* NUM_CPUS procbootadr registers                     */
 	irqmap = 192,      /* Interrupt map register                     : 0x300 - impl dependent no. entries */
@@ -120,7 +120,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if (n == interrupts_common.extendedIrqn) {
 		/* Extended interrupt (16 - 31) */
-		n = *(interrupts_common.int_ctrl + pextack + cpuid) & 0x3F;
+		n = *(interrupts_common.int_ctrl + pextack + cpuid) & 0x3f;
 	}
 
 	if (n >= SIZE_INTERRUPTS) {

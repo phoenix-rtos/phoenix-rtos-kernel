@@ -1059,7 +1059,7 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 		case clk_pll_video:
 			freq = _imxrt_ccmGetOscFreq();
 
-			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_video) & 0x7F;
+			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_video) & 0x7f;
 
 			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_video_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_video_denom);
 

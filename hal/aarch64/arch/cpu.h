@@ -49,7 +49,7 @@
 #define SYSTICK_INTERVAL 1000
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 7u) & ~0x7u)
+#define SIZE_STACK_ARG(sz) (((sz) + 7U) & ~0x7U)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \

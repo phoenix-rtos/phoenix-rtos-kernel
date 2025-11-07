@@ -99,7 +99,7 @@ void _hal_scsIRQSet(u32 irqn, u8 state)
 {
 	volatile u32 *ptr = (state != 0) ? scs_common.scs->iser : scs_common.scs->icer;
 
-	*(ptr + (irqn / 32)) = 1u << (irqn % 32);
+	*(ptr + (irqn / 32)) = 1U << (irqn % 32);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -121,7 +121,7 @@ void _hal_scsIRQPendingSet(u32 irqn)
 {
 	volatile u32 *ptr = scs_common.scs->ispr;
 
-	*(ptr + (irqn / 32)) = 1u << (irqn % 32);
+	*(ptr + (irqn / 32)) = 1U << (irqn % 32);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -181,7 +181,7 @@ u32 _imxrt_scsExceptionPriorityGet(u32 excpn)
 
 void _hal_scsSystemReset(void)
 {
-	scs_common.scs->aircr = ((0x5fau << 16) | (scs_common.scs->aircr & (0x700u)) | (1u << 2));
+	scs_common.scs->aircr = ((0x5faU << 16) | (scs_common.scs->aircr & (0x700U)) | (1U << 2));
 
 	hal_cpuDataSyncBarrier();
 
@@ -293,18 +293,18 @@ static void _hal_scsDCacheOpAddr(void *addr, u32 sz, volatile u32 *reg)
 		return;
 	}
 
-	if (sz == 0u) {
+	if (sz == 0U) {
 		return;
 	}
 
-	daddr = (((u32)addr) & ~0x1fu);
-	dsize = sz + ((u32)addr & 0x1fu);
+	daddr = (((u32)addr) & ~0x1fU);
+	dsize = sz + ((u32)addr & 0x1fU);
 
 	hal_cpuDataSyncBarrier();
 
 	do {
 		*reg = daddr;
-		daddr += 0x20u;
+		daddr += 0x20U;
 		dsize -= 0x20;
 	} while (dsize > 0);
 
@@ -420,5 +420,5 @@ void _hal_scsInit(void)
 	scs_common.scs = (void *)0xe000e000;
 
 	/* Enable UsageFault, BusFault and MemManage exceptions */
-	scs_common.scs->shcsr |= (1u << 16) | (1u << 17) | (1u << 18);
+	scs_common.scs->shcsr |= (1U << 16) | (1U << 17) | (1U << 18);
 }

@@ -40,10 +40,10 @@
 #define AMBAPP_VER(id)  (((id) >> 5) & 0x1f)
 #define AMBAPP_IRQN(id) ((id) & 0x1f)
 
-#define AMBAPP_AHB_ADDR(bar)           (ptr_t)(((bar) & 0xfff00000u) & (((bar) & 0xfff0u) << 16))
+#define AMBAPP_AHB_ADDR(bar)           (ptr_t)(((bar) & 0xfff00000U) & (((bar) & 0xfff0U) << 16))
 #define AMBAPP_AHBIO_ADDR(ioarea, bar) (ptr_t)((ioarea) | ((bar) >> 12))
-#define AMBAPP_APB_ADDR(base, bar)     (ptr_t)((base) | ((((bar) & 0xfff00000u) >> 12) & (((bar) & 0xfff0u) << 4)))
-#define AMBAPP_TYPE(bar)               ((bar) & 0xfu)
+#define AMBAPP_APB_ADDR(base, bar)     (ptr_t)((base) | ((((bar) & 0xfff00000U) >> 12) & (((bar) & 0xfff0U) << 4)))
+#define AMBAPP_TYPE(bar)               ((bar) & 0xfU)
 
 
 typedef struct {
@@ -146,7 +146,7 @@ static void ambapp_addBridge(addr_t *bridges, size_t len, addr_t addr)
 	addr_t curr;
 	for (i = 0; i < len; i++) {
 		curr = bridges[i];
-		if (curr == 0xffffffffu) {
+		if (curr == 0xffffffffU) {
 			bridges[i] = addr;
 			return;
 		}
@@ -196,7 +196,7 @@ static int ambapp_ahbFind(ptr_t pnpOff, u32 ndevs, ambapp_dev_t *dev, unsigned i
 
 	for (i = 0; i < AMBAPP_AHB_NSLAVES; i++) {
 		/* Scan APB PnP */
-		if (apbBridges[i] == 0xffffffffu) {
+		if (apbBridges[i] == 0xffffffffU) {
 			break;
 		}
 		if (ambapp_apbFind(apbBridges[i], dev, instance) == 0) {

@@ -606,7 +606,7 @@ u32 _stm32_scbGetPriority(s8 excpn)
 void _stm32_nvicSetIRQ(s8 irqn, u8 state)
 {
 	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + (state ? nvic_iser: nvic_icer);
-	*ptr = 1 << (irqn & 0x1F);
+	*ptr = 1 << (irqn & 0x1f);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -616,21 +616,21 @@ void _stm32_nvicSetIRQ(s8 irqn, u8 state)
 u32 _stm32_nvicGetPendingIRQ(s8 irqn)
 {
 	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + nvic_ispr;
-	return !!(*ptr & (1 << (irqn & 0x1F)));
+	return !!(*ptr & (1 << (irqn & 0x1f)));
 }
 
 
 void _stm32_nvicSetPendingIRQ(s8 irqn, u8 state)
 {
 	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + (state ? nvic_ispr: nvic_icpr);
-	*ptr = 1 << (irqn & 0x1F);
+	*ptr = 1 << (irqn & 0x1f);
 }
 
 
 u32 _stm32_nvicGetActive(s8 irqn)
 {
 	volatile u32 *ptr = stm32_common.nvic + ((u8)irqn >> 5) + nvic_iabr;
-	return !!(*ptr & (1 << (irqn & 0x1F)));
+	return !!(*ptr & (1 << (irqn & 0x1f)));
 }
 
 
@@ -1055,7 +1055,7 @@ void _stm32_init(void)
 	_stm32_rccSetDevClock(pctl_gpiob, 0);
 
 	/* Enable debug in stop mode */
-	*((u32*)0xE0042004) |= 3;
+	*((u32 *)0xe0042004) |= 3;
 
 	i = 2;
 #endif

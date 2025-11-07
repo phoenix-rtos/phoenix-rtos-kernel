@@ -34,7 +34,7 @@
 #define GPT_SCALER     0             /* Scaler value register                 : 0x00 */
 #define GPT_SRELOAD    1             /* Scaler reload value register          : 0x04 */
 #define GPT_CONFIG     2             /* Configuration register                : 0x08 */
-#define GPT_LATCHCFG   3             /* Latch configuration register          : 0x0C */
+#define GPT_LATCHCFG   3             /* Latch configuration register          : 0x0c */
 #define GPT_TCNTVAL(n) (n * 4)       /* Timer n counter value reg (n=1,2,...) : 0xn0 */
 #define GPT_TRLDVAL(n) ((n * 4) + 1) /* Timer n reload value register         : 0xn4 */
 #define GPT_TCTRL(n)   ((n * 4) + 2) /* Timer n control register              : 0xn8 */
@@ -43,7 +43,7 @@
 #define TIMER_TIMEBASE 1
 #define TIMER_WAKEUP   2
 
-#define TIMEBASE_INTERVAL 0xffffffffu
+#define TIMEBASE_INTERVAL 0xffffffffU
 
 
 static struct {

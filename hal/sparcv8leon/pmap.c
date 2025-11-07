@@ -31,7 +31,7 @@
 
 
 #define MAX_CONTEXTS    256
-#define CONTEXT_INVALID 0xffffffffu
+#define CONTEXT_INVALID 0xffffffffU
 #define CONTEXT_SHARED  255
 
 #define PDIR1_IDX(vaddr) ((ptr_t)(vaddr) >> 24)

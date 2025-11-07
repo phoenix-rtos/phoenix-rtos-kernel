@@ -103,8 +103,8 @@
 /* The first index in GDT that can be used for TSS and TLS entries */
 #define GDT_FREE_SEL_IDX 5
 
-#define CR0_TS_BIT       8u
-#define FPU_CONTEXT_SIZE 108u /* sizeof(fpu_context_t) */
+#define CR0_TS_BIT       8U
+#define FPU_CONTEXT_SIZE 108U /* sizeof(fpu_context_t) */
 
 /* IO Ports */
 /* Ports of (8259A) PIC (Programmable Interrupt Controller) */
@@ -122,56 +122,56 @@
 /* There are objects in memory that require O(MAX_CPU_COUNT^2) memory. */
 #define MAX_CPU_COUNT 64
 
-#define LAPIC_DEFAULT_ADDRESS 0xfee00000u
+#define LAPIC_DEFAULT_ADDRESS 0xfee00000U
 
 /* Local APIC offsets */
-#define LAPIC_ID_REG          0x20u
-#define LAPIC_VERSION_REG     0x30u
-#define LAPIC_TASK_PRIO_REG   0x80u
-#define LAPIC_ARBI_PRIO_REG   0x90u
-#define LAPIC_PROC_PRIO_REG   0xa0u
-#define LAPIC_EOI_REG         0xb0u
-#define LAPIC_REMO_READ_REG   0xc0u
-#define LAPIC_LOGI_DEST_REG   0xd0u
-#define LAPIC_DEST_FORM_REG   0xe0u
-#define LAPIC_SPUR_IRQ_REG    0xf0u
-#define LAPIC_ISR_REG_0_31    0x100u
-#define LAPIC_ISR_REG_32_63   0x110u
-#define LAPIC_ISR_REG_64_95   0x120u
-#define LAPIC_ISR_REG_96_127  0x130u
-#define LAPIC_ISR_REG_128_159 0x140u
-#define LAPIC_ISR_REG_160_191 0x150u
-#define LAPIC_ISR_REG_192_223 0x160u
-#define LAPIC_ISR_REG_224_255 0x170u
-#define LAPIC_TMR_REG_0_31    0x180u
-#define LAPIC_TMR_REG_32_63   0x190u
-#define LAPIC_TMR_REG_64_95   0x1a0u
-#define LAPIC_TMR_REG_96_127  0x1b0u
-#define LAPIC_TMR_REG_128_159 0x1c0u
-#define LAPIC_TMR_REG_160_191 0x1d0u
-#define LAPIC_TMR_REG_192_223 0x1e0u
-#define LAPIC_TMR_REG_224_255 0x1f0u
-#define LAPIC_IRR_REG_0_31    0x200u
-#define LAPIC_IRR_REG_32_63   0x210u
-#define LAPIC_IRR_REG_64_95   0x220u
-#define LAPIC_IRR_REG_96_127  0x230u
-#define LAPIC_IRR_REG_128_159 0x240u
-#define LAPIC_IRR_REG_160_191 0x250u
-#define LAPIC_IRR_REG_192_223 0x260u
-#define LAPIC_IRR_REG_224_255 0x270u
-#define LAPIC_ERR_STAT_REG    0x280u
-#define LAPIC_LVT_CMCI_REG    0x2f0u
-#define LAPIC_ICR_REG_0_31    0x300u
-#define LAPIC_ICR_REG_32_63   0x310u
-#define LAPIC_LVT_TIMER_REG   0x320u
-#define LAPIC_LVT_THERMO_REG  0x330u
-#define LAPIC_LVT_PMC_REG     0x340u
-#define LAPIC_LVT_LINT0_REG   0x350u
-#define LAPIC_LVT_LINT1_REG   0x360u
-#define LAPIC_LVT_ERR_REG     0x370u
-#define LAPIC_LVT_TMR_IC_REG  0x380u
-#define LAPIC_LVT_TMR_CC_REG  0x390u
-#define LAPIC_LVT_TMR_DC_REG  0x3e0u
+#define LAPIC_ID_REG          0x20U
+#define LAPIC_VERSION_REG     0x30U
+#define LAPIC_TASK_PRIO_REG   0x80U
+#define LAPIC_ARBI_PRIO_REG   0x90U
+#define LAPIC_PROC_PRIO_REG   0xa0U
+#define LAPIC_EOI_REG         0xb0U
+#define LAPIC_REMO_READ_REG   0xc0U
+#define LAPIC_LOGI_DEST_REG   0xd0U
+#define LAPIC_DEST_FORM_REG   0xe0U
+#define LAPIC_SPUR_IRQ_REG    0xf0U
+#define LAPIC_ISR_REG_0_31    0x100U
+#define LAPIC_ISR_REG_32_63   0x110U
+#define LAPIC_ISR_REG_64_95   0x120U
+#define LAPIC_ISR_REG_96_127  0x130U
+#define LAPIC_ISR_REG_128_159 0x140U
+#define LAPIC_ISR_REG_160_191 0x150U
+#define LAPIC_ISR_REG_192_223 0x160U
+#define LAPIC_ISR_REG_224_255 0x170U
+#define LAPIC_TMR_REG_0_31    0x180U
+#define LAPIC_TMR_REG_32_63   0x190U
+#define LAPIC_TMR_REG_64_95   0x1a0U
+#define LAPIC_TMR_REG_96_127  0x1b0U
+#define LAPIC_TMR_REG_128_159 0x1c0U
+#define LAPIC_TMR_REG_160_191 0x1d0U
+#define LAPIC_TMR_REG_192_223 0x1e0U
+#define LAPIC_TMR_REG_224_255 0x1f0U
+#define LAPIC_IRR_REG_0_31    0x200U
+#define LAPIC_IRR_REG_32_63   0x210U
+#define LAPIC_IRR_REG_64_95   0x220U
+#define LAPIC_IRR_REG_96_127  0x230U
+#define LAPIC_IRR_REG_128_159 0x240U
+#define LAPIC_IRR_REG_160_191 0x250U
+#define LAPIC_IRR_REG_192_223 0x260U
+#define LAPIC_IRR_REG_224_255 0x270U
+#define LAPIC_ERR_STAT_REG    0x280U
+#define LAPIC_LVT_CMCI_REG    0x2f0U
+#define LAPIC_ICR_REG_0_31    0x300U
+#define LAPIC_ICR_REG_32_63   0x310U
+#define LAPIC_LVT_TIMER_REG   0x320U
+#define LAPIC_LVT_THERMO_REG  0x330U
+#define LAPIC_LVT_PMC_REG     0x340U
+#define LAPIC_LVT_LINT0_REG   0x350U
+#define LAPIC_LVT_LINT1_REG   0x360U
+#define LAPIC_LVT_ERR_REG     0x370U
+#define LAPIC_LVT_TMR_IC_REG  0x380U
+#define LAPIC_LVT_TMR_CC_REG  0x390U
+#define LAPIC_LVT_TMR_DC_REG  0x3e0U
 
 
 #ifndef __ASSEMBLY__
@@ -180,7 +180,7 @@
 #define SYSTICK_INTERVAL 10000
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 3u) & ~0x3u)
+#define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \

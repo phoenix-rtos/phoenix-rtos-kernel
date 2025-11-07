@@ -88,7 +88,7 @@ __attribute__((section(".init"))) void _hal_consoleSerialInit(void)
 {
 	void *bases[] = {
 		(void *)0x3f8, (void *)0x2f8, (void *)0x3e8, (void *)0x2e8, /* regular PC COMs */
-		(void *)0x9000f000u, (void *)0x9000b000u                    /* Galileo UARTs */
+		(void *)0x9000f000U, (void *)0x9000b000U                    /* Galileo UARTs */
 	};
 
 

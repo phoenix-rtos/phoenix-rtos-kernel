@@ -79,7 +79,7 @@ static inline int _hal_configMapPage(u32 *pdir, addr_t pa, void *va, int attr)
 			ret = _hal_addMemEntry(page.addr, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
 			if (ret == 0) {
 				ptable = (addr_t *)(syspage->hs.ptable + VADDR_KERNEL);
-				ptable[((u32)hal_config.ptable >> 12) & 0x000003ffu] = (page.addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
+				ptable[((u32)hal_config.ptable >> 12) & 0x000003ffU] = (page.addr & ~(SIZE_PAGE - 1)) | (PGHD_WRITE | PGHD_PRESENT);
 				hal_tlbInvalidateLocalEntry(NULL, hal_config.ptable);
 				hal_memset(hal_config.ptable, 0, SIZE_PAGE);
 				ret = _pmap_enter(pdir, hal_config.ptable, pa, va, attr, &page, 0);
@@ -175,8 +175,8 @@ static inline void _hal_configMemoryInit(void)
 	_hal_addMemEntry(syspage->pkernel, (ptr_t)&_end - (ptr_t)(VADDR_KERNEL + syspage->pkernel), PAGE_OWNER_KERNEL);
 
 	/* Calculate physical address space range */
-	hal_config.minAddr = 0xffffffffu;
-	hal_config.maxAddr = 0x00000000u;
+	hal_config.minAddr = 0xffffffffU;
+	hal_config.maxAddr = 0x00000000U;
 
 	map = syspage->maps;
 	if (map == NULL) {
@@ -195,8 +195,8 @@ static inline void _hal_configMemoryInit(void)
 	} while (map != syspage->maps);
 
 	hal_config.heapStart = (void *)(((ptr_t)&_end + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
-	if (hal_config.heapStart < (void *)(VADDR_KERNEL + 0xa0000u)) {
-		hal_config.heapStart = (void *)(VADDR_KERNEL + 0x00100000u);
+	if (hal_config.heapStart < (void *)(VADDR_KERNEL + 0xa0000U)) {
+		hal_config.heapStart = (void *)(VADDR_KERNEL + 0x00100000U);
 	}
 	/* Initialize temporary page table (used for page table mapping) */
 	hal_config.ptable = hal_config.heapStart;

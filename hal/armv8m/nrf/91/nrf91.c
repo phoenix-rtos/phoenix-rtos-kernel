@@ -103,10 +103,10 @@ int _nrf91_systickInit(u32 interval)
 	}
 
 	*(nrf91_common.scb + syst_rvr) = (u32)load;
-	*(nrf91_common.scb + syst_cvr) = 0u;
+	*(nrf91_common.scb + syst_cvr) = 0U;
 
 	/* Enable systick */
-	*(nrf91_common.scb + syst_csr) |= 0x7u;
+	*(nrf91_common.scb + syst_csr) |= 0x7U;
 
 	return EOK;
 }
@@ -122,11 +122,11 @@ int _nrf91_gpioConfig(u8 pin, u8 dir, u8 pull)
 	}
 
 	if (dir == gpio_output) {
-		*(nrf91_common.gpio + gpio_dirsetout) = (1u << pin);
+		*(nrf91_common.gpio + gpio_dirsetout) = (1U << pin);
 		hal_cpuDataMemoryBarrier();
 	}
 	else if (dir == gpio_input) {
-		*(nrf91_common.gpio + gpio_dirsetin) = (1u << pin);
+		*(nrf91_common.gpio + gpio_dirsetin) = (1U << pin);
 		hal_cpuDataMemoryBarrier();
 		/* connect input buffer */
 		*(nrf91_common.gpio + gpio_cnf + pin) &= ~0x2;
@@ -147,11 +147,11 @@ int _nrf91_gpioSet(u8 pin, u8 val)
 	}
 
 	if (val == gpio_high) {
-		*(nrf91_common.gpio + gpio_outset) = (1u << pin);
+		*(nrf91_common.gpio + gpio_outset) = (1U << pin);
 		hal_cpuDataMemoryBarrier();
 	}
 	else if (val == gpio_low) {
-		*(nrf91_common.gpio + gpio_outclr) = (1u << pin);
+		*(nrf91_common.gpio + gpio_outclr) = (1U << pin);
 		hal_cpuDataMemoryBarrier();
 	}
 
@@ -174,22 +174,22 @@ void _nrf91_init(void)
 	nrf91_common.cpuclk = 64 * 1000 * 1000;
 
 	/* Enable low power mode */
-	*(nrf91_common.power + power_tasks_lowpwr) = 1u;
+	*(nrf91_common.power + power_tasks_lowpwr) = 1U;
 	hal_cpuDataMemoryBarrier();
 
 	/* Disable all power interrupts */
-	*(nrf91_common.power + power_intenclr) = 0x64u;
+	*(nrf91_common.power + power_intenclr) = 0x64U;
 
 	/* Disable all clock interrupts */
-	*(nrf91_common.power + clock_intenclr) = 0x3u;
+	*(nrf91_common.power + clock_intenclr) = 0x3U;
 
 	hal_cpuDataMemoryBarrier();
 
-	*(nrf91_common.clock + clock_tasks_hfclkstart) = 1u;
+	*(nrf91_common.clock + clock_tasks_hfclkstart) = 1U;
 	/* Wait until HXFO start and clear event flag */
-	while (*(nrf91_common.clock + clock_hfclkrun) != 1u) {
+	while (*(nrf91_common.clock + clock_hfclkrun) != 1U) {
 	}
-	*(nrf91_common.clock + clock_hfclkrun) = 0u;
+	*(nrf91_common.clock + clock_hfclkrun) = 0U;
 	hal_cpuDataMemoryBarrier();
 
 	/* Disable FPU */

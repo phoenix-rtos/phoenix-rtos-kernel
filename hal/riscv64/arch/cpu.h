@@ -35,11 +35,11 @@
 #endif
 
 /* Supervisor Cause Register */
-#define SCAUSE_INTR (1u << 63)
+#define SCAUSE_INTR (1U << 63)
 
 /* Exception codes */
-#define SCAUSE_ILLEGAL 2u /* Illegal instruction */
-#define SCAUSE_ECALL   8u /* Environment call from S-mode */
+#define SCAUSE_ILLEGAL 2U /* Illegal instruction */
+#define SCAUSE_ECALL   8U /* Environment call from S-mode */
 
 /* Supervisor Status Register */
 #define SSTATUS_SIE  (1U << 1)  /* Supervisor Interrupt Enable */
@@ -50,7 +50,7 @@
 #define SSTATUS_MXR  (1U << 19) /* Make eXecutable Readable */
 
 /* Interrupts */
-#define CLINT_IRQ_FLG (1u << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
+#define CLINT_IRQ_FLG (1U << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
 
 /* Supervisor Interrupt Pending Register */
 #define SIP_SSIP (1U << 1)
@@ -67,7 +67,7 @@
 #define SYSTICK_INTERVAL 1000
 
 
-#define SIZE_STACK_ARG(sz) (((sz) + 7u) & ~0x7U)
+#define SIZE_STACK_ARG(sz) (((sz) + 7U) & ~0x7U)
 
 
 #define GETFROMSTACK(ustack, t, v, n) \

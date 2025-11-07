@@ -29,10 +29,10 @@
 #define IOAPIC_VERREG 0x1
 #define IOAPIC_ARBREG 0x2
 
-#define IOAPIC_IRQ_MASK (1u << 16)
-#define IOAPIC_TRIGGER  (1u << 15)
-#define IOAPIC_INTPOL   (1u << 13)
-#define IOAPIC_DESTMOD  (1u << 11)
+#define IOAPIC_IRQ_MASK (1U << 16)
+#define IOAPIC_TRIGGER  (1U << 15)
+#define IOAPIC_INTPOL   (1U << 13)
+#define IOAPIC_DESTMOD  (1U << 11)
 
 #define LAPIC_EOI 0
 
@@ -44,8 +44,8 @@
 /* Interrupt source override trigger flags */
 #define MADT_ISO_TRIGGER_MASK  (0x3 << 2)
 #define MADT_ISO_TRIGGER_BUS   0x0
-#define MADT_ISO_TRIGGER_EDGE  (0x1u << 2)
-#define MADT_ISO_TRIGGER_LEVEL (0x3u << 2)
+#define MADT_ISO_TRIGGER_EDGE  (0x1U << 2)
+#define MADT_ISO_TRIGGER_LEVEL (0x3U << 2)
 
 #ifndef __ASSEMBLY__
 
