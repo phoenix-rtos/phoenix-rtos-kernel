@@ -31,8 +31,7 @@
 #include "posix/posix.h"
 #include "syspage.h"
 
-#define SYSCALLS_NAME(name)   syscalls_##name,
-#define SYSCALLS_STRING(name) #name,
+#define SYSCALLS_NAME(name) syscalls_##name,
 
 /*
  * Kernel
@@ -1865,7 +1864,7 @@ void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
 	}
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
-	retval = ((void *(*)(u8 *arg))syscalls[n])(ustack);
+	retval = ((void *(*)(u8 * arg)) syscalls[n])(ustack);
 
 	if (proc_current()->exit != 0U) {
 		proc_threadEnd();
