@@ -29,7 +29,8 @@ enum {
 };
 /* clang-format on */
 
-enum { MAX_SOCKNAME_LEN = sizeof(((msg_t *)NULL)->o.raw) - 2U * sizeof(size_t) };
+/* FIXME: min(sizeof(msg.i.raw), sizeof(msg.o.raw)) + ... */
+enum { MAX_SOCKNAME_LEN = sizeof(((msg_t *)NULL)->i.raw) - sizeof(unsigned int) /* flags */ + sizeof(size_t) /* addrlen */ };
 
 
 #define PATH_SOCKSRV "/dev/netsocket"
