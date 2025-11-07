@@ -47,8 +47,10 @@ static int kmalloc_zone_cmp(rbnode_t *n1, rbnode_t *n2)
 		return 1;
 	}
 
-	if ((((ptr_t)z2->vaddr >= (ptr_t)z1->vaddr) && ((ptr_t)z2->vaddr < (ptr_t)z1->vaddr + z1->blocks * z1->blocksz)) ||
-			(((ptr_t)z1->vaddr >= (ptr_t)z2->vaddr) && ((ptr_t)z1->vaddr < (ptr_t)z2->vaddr + z2->blocks * z2->blocksz))) {
+	if (((ptr_t)z2->vaddr >= (ptr_t)z1->vaddr) && ((ptr_t)z2->vaddr < (ptr_t)z1->vaddr + z1->blocks * z1->blocksz)) {
+		return 0;
+	}
+	if (((ptr_t)z1->vaddr >= (ptr_t)z2->vaddr) && ((ptr_t)z1->vaddr < (ptr_t)z2->vaddr + z2->blocks * z2->blocksz)) {
 		return 0;
 	}
 
