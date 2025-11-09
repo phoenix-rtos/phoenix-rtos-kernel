@@ -477,7 +477,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 		return -ENOEXEC;
 	}
 	/* Strings must end with NULL character. */
-	if (snameTab[shstrshdr->sh_size - 1] != '\0') {
+	if ((shstrshdr->sh_size != 0U) && (snameTab[shstrshdr->sh_size - 1U] != '\0')) {
 		return -ENOEXEC;
 	}
 
