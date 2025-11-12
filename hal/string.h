@@ -46,6 +46,7 @@ char *hal_strcpy(char *dest, const char *src);
 char *hal_strncpy(char *dest, const char *src, size_t n);
 
 
+/* TODO: meaningful naming of signature and implementation (hal_i2s -> hal_ul2str(?), i -> val, b -> base, l -> length, etc.) */
 unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zero);
 
 
