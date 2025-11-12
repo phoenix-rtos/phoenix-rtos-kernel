@@ -38,6 +38,9 @@
 #define POLL_INTERVAL 100000
 
 
+/* NOTE: socket/port ids are limited to 32-bits, hence possible downcast of oid.id from id_t to unsigned int */
+
+
 typedef struct {
 	oid_t oid;
 	unsigned int flags;
@@ -114,7 +117,7 @@ int posix_fileDeref(open_file_t *f)
 	--f->refs;
 	if (f->refs == 0U) {
 		if (f->type == ftUnixSocket) {
-			err = unix_close(f->oid.id);
+			err = unix_close((unsigned int)f->oid.id);
 		}
 		else {
 			do {
@@ -749,7 +752,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == ftUnixSocket) {
-		rcnt = unix_recvfrom(f->oid.id, buf, nbyte, 0, NULL, NULL);
+		rcnt = unix_recvfrom((unsigned int)f->oid.id, buf, nbyte, 0, NULL, NULL);
 	}
 	else {
 		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
@@ -801,7 +804,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == ftUnixSocket) {
-		rcnt = unix_sendto(f->oid.id, buf, nbyte, 0, NULL, 0);
+		rcnt = unix_sendto((unsigned int)f->oid.id, buf, nbyte, 0, NULL, 0);
 	}
 	else {
 		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
@@ -1189,7 +1192,7 @@ int posix_unlink(const char *pathname)
 
 		if (dir.port != oid.port) {
 			if (oid.port == US_PORT) {
-				(void)unix_unlink(oid.id);
+				(void)unix_unlink((unsigned int)oid.id);
 			}
 			else {
 				/* Signal unlink to device */
@@ -1551,7 +1554,7 @@ static int posix_fcntlSetFl(int fd, unsigned int val)
 				err = inet_setfl(f->oid.port, val);
 				break;
 			case ftUnixSocket:
-				err = unix_setfl(f->oid.id, val);
+				err = unix_setfl((unsigned int)f->oid.id, val);
 				break;
 			default:
 				f->status = (val & ~ignorefl) | (f->status & ignorefl);
@@ -1577,7 +1580,7 @@ static int posix_fcntlGetFl(int fd)
 				err = inet_getfl(f->oid.port);
 				break;
 			case ftUnixSocket:
-				err = unix_getfl(f->oid.id);
+				err = unix_getfl((unsigned int)f->oid.id);
 				break;
 			default:
 				err = (int)f->status;
@@ -1908,7 +1911,7 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 				}
 				break;
 			case ftUnixSocket:
-				err = unix_accept4(f->oid.id, address, address_len, (unsigned int)flags);
+				err = unix_accept4((unsigned int)f->oid.id, address, address_len, (unsigned int)flags);
 				if (err >= 0) {
 					p->fds[fd].file->type = ftUnixSocket;
 					p->fds[fd].file->oid.port = US_PORT;
@@ -1958,7 +1961,7 @@ int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len
 				err = inet_bind(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_bind(f->oid.id, address, address_len);
+				err = unix_bind((unsigned int)f->oid.id, address, address_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -1986,7 +1989,7 @@ int posix_connect(int socket, const struct sockaddr *address, socklen_t address_
 				err = inet_connect(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_connect(f->oid.id, address, address_len);
+				err = unix_connect((unsigned int)f->oid.id, address, address_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2043,7 +2046,7 @@ int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_l
 				err = inet_getpeername(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_getpeername(f->oid.id, address, address_len);
+				err = unix_getpeername((unsigned int)f->oid.id, address, address_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2071,7 +2074,7 @@ int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_l
 				err = inet_getsockname(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_getsockname(f->oid.id, address, address_len);
+				err = unix_getsockname((unsigned int)f->oid.id, address, address_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2099,7 +2102,7 @@ int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t
 				err = inet_getsockopt(f->oid.port, level, optname, optval, optlen);
 				break;
 			case ftUnixSocket:
-				err = unix_getsockopt(f->oid.id, level, optname, optval, optlen);
+				err = unix_getsockopt((unsigned int)f->oid.id, level, optname, optval, optlen);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2127,7 +2130,7 @@ int posix_listen(int socket, int backlog)
 				err = inet_listen(f->oid.port, backlog);
 				break;
 			case ftUnixSocket:
-				err = unix_listen(f->oid.id, backlog);
+				err = unix_listen((unsigned int)f->oid.id, backlog);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2155,7 +2158,7 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 				err = inet_recvfrom(f->oid.port, message, length, (unsigned int)flags, src_addr, src_len);
 				break;
 			case ftUnixSocket:
-				err = unix_recvfrom(f->oid.id, message, length, (unsigned int)flags, src_addr, src_len);
+				err = unix_recvfrom((unsigned int)f->oid.id, message, length, (unsigned int)flags, src_addr, src_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2183,7 +2186,7 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 				err = inet_sendto(f->oid.port, message, length, (unsigned int)flags, dest_addr, dest_len);
 				break;
 			case ftUnixSocket:
-				err = unix_sendto(f->oid.id, message, length, (unsigned int)flags, dest_addr, dest_len);
+				err = unix_sendto((unsigned int)f->oid.id, message, length, (unsigned int)flags, dest_addr, dest_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2211,7 +2214,7 @@ ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
 				err = inet_recvmsg(f->oid.port, msg, (unsigned int)flags);
 				break;
 			case ftUnixSocket:
-				err = unix_recvmsg(f->oid.id, msg, (unsigned int)flags);
+				err = unix_recvmsg((unsigned int)f->oid.id, msg, (unsigned int)flags);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2239,7 +2242,7 @@ ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
 				err = inet_sendmsg(f->oid.port, msg, (unsigned int)flags);
 				break;
 			case ftUnixSocket:
-				err = unix_sendmsg(f->oid.id, msg, (unsigned int)flags);
+				err = unix_sendmsg((unsigned int)f->oid.id, msg, (unsigned int)flags);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2267,7 +2270,7 @@ int posix_shutdown(int socket, int how)
 				err = inet_shutdown(f->oid.port, how);
 				break;
 			case ftUnixSocket:
-				err = unix_shutdown(f->oid.id, how);
+				err = unix_shutdown((unsigned int)f->oid.id, how);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2308,7 +2311,7 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 				err = inet_setsockopt(f->oid.port, level, optname, optval, optlen);
 				break;
 			case ftUnixSocket:
-				err = unix_setsockopt(f->oid.id, level, optname, optval, optlen);
+				err = unix_setsockopt((unsigned int)f->oid.id, level, optname, optval, optlen);
 				break;
 			default:
 				err = -ENOTSOCK;
