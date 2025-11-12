@@ -1,0 +1,59 @@
+# This file lists revisions that should be ignored by 'git blame'.
+# Each line is a commit hash. Comments are allowed after a '#'.
+# We suggest to put the commit title next to the hash for easier navigation.
+
+f1417cccfa87bd4a6f2e01dc1996a61c966fb6ca # hal/string: add refactoring TODO for hal_i2s
+94bdbfc42df7fe027be041db8abb5bc9b8023495 # proc/threads: revert sigsuspend argument name amask to mask
+daee07481581d3fc54a88760885ecb4a08aaa0a3 # make numeric literals conformant to code style
+18d1add32b15dcbb934e069f54332305c2d1c532 # syscalls: remove unused SYSCALLS_STRING macro
+0c8fa2c086ba5486e71542167f0856c4ae43924e # fix format and codespell
+adea1ebd84f69d17708e8dce0affa19798e9cd62 # proc/name: remove redundant `if 1`
+53fde67ee195f1f88c1c7ec1f7cffdc8b8f5e61b # posix/unix: revert unix_bufferSetSize sz to int
+5e3c88d6f527c00cde09a8c217b227a6375c35b0 # posix: simplify poll timeout calculation
+65511f6cf5a24c4cab892fee64553d9827682c2b # posix: fix posix_fcntl case fallthrough
+be7d81f018319ef5931a3586544e50b19c8df52a # posix/unix.c: revert unixsock_cmp to branchless code
+ba29a4fb0a95fc8da32e5d0ab6966d7c26d79e4f # posix: explicitly cast to proper file-related types
+644d55effedd3c8563e6adedc79c90b163a7ae3a # posix/posix: remove dead alternative poll implementation
+22405f49832681fbb119c773cc1f14d1897b8bbd # posix: remove unnecessary FIXME
+9abb3c375abba395a4b550f7cd05673ae5fd942a # posix: cast oid.id to unsigned int
+3a8414f26fdc0cabd9ce9772829622382b88509c # posix: fix types
+c4cc517944ba059135c54377e817b8e5544e1ecd # lib/printf: fix constant suffixes
+ad790f5e750ab160d206443f194fe5f1df1cb65c # lib: make _cbuffer_init return void
+5f17f8a040a6314599b3365fd6c9d42037ada83f # header guard unification
+a14254a4eff87694d09b62780f3ed205f486c38f # proc/userintr: remove dead assert
+2bb79528791a3d7a01b0f093d62494df78de727e # syscalls: cast to proper type instead of turning rule off
+9b3188fa4a955001897e80451b008f020b10fe1d # remove not-C-style comments
+fd44d087a330d9f54ec4fa00741f88ee61a73fbf # proc: define process/thread states as constants to reduce casts
+efc5151f53f2ac459ef1bccbbcc437618f4c97fd # proc/process: remove dead code
+f4b9040f160063e9a95b1a27b9ef818bc951c238 # proc: misrify msg, name, ports
+2ebae3cd0d3bd86eba005adf87f706bd2272a000 # hal/riscv64: remove lazy mapping dead code
+dc42d75fa603e02118737513447a3cb474796376 # vm: remove dead map_pageFault implementation
+2fa946dd1eb9436bd4e297aa3c4944ff11c0d51b # elf: make constants unsigned, make relType `unsigned char`
+98651ac04dc3ccae6c61d85fc39ecd773b75706f # hal/armv7r/cpu.h: remove unnecessary cast
+42af889365e0c17fb5370d6d29769d84af5286b9 # hal: add clang-format off for long enums
+951f31522fa4939c3e2d325fdcc2d0f92c0a199c # hal/ia32: import hal/hal.h
+7bcbd9924cea632999c6bf325a223a846032653c # hal: remove redundant declarations of _hal_cpuInit
+180bb099773ba2d6b26b7f074d2fc2b5218d422c # hal: make SYSTICK_INTERVAL signed (revert)
+c3f102f0c34ccf0fdd9a95eefe5d26526f264da5 # posix: remove empty else branch
+e724f2b4d0cd095ff07aae1cd1efbcf6febde231 # remove assign+check and implicit checks in conditionals
+dfbd4447ca5c9f62651b985ba8ffaf5077d56c4c # vm/map: disable dead code for not merging anon entries
+f445b8b0588c3dfe736307b3688dfe448a20a748 # vm/map: remove redundant nullcheck
+2df9365cc18fbfdec3fcdbcf937fcdfbe9d7ba37 # vm/map: simplify rmerge/lmerge conditionals
+3ddbda43c40e4a9a5116a3605d85d96cbf4b3697 # vm/kmalloc: split large if conditional
+4d08c358561f3800c95460c7caf845de377ad95f # vm/page-nommu: remove unnecessary variable
+532137f4f9b9e632cfd40265406b94f18b98f652 # vm/page.c: break up lengthy line
+269564ddfaf3e35aedc13fc744e724a34e161418 # vm/map: extract common offset expression in _map_force
+dea1aebfbfc97304e4fdeba6777c874b26b3231a # vm/kmalloc: extract blocksz to variable
+6ab700876ff003749db4c135a04943dc72c7cf05 # remove `extern` from function declarations
+e0113c044484de97f779c4b2b29718c2daf7bb51 # hal: U suffix and type unification
+2a4398c56bfd5d71d2477abebf08afb2db8fe354 # hal: change prot type to unsigned int
+d82ce946b14aa28513306624e9d9a57a9a52e488 # hal: change 'count' to 'n' in hal_strncmp for consistency
+6b6939038ab00f0d0db023830d35b788cd4f4bd4 # hal/pmap: only compile code when needed
+2bd151923ab98e143a927daf5a6bc1ef93cb6579 # syscalls: make ustack arg type u8*
+4bae6b00fe6488bc342db9435e9700abfd2a38b2 # syscalls/mmap: cast flags to unsigned in impl
+8185605b8dd0221a9ad1a10653a4ad8deca45559 # syscalls: revert mmap flags to int, drop redundant size_t cast, add unreachable builtin
+737a8be2d35e247addacfe01054a2463d10c44d9 # syspage: remove unnecessary suppresion
+3824177dfa58454c3510c459f49619178f6a52d0 # replace all `unsigned` occurences to `unsigned int`
+e9e0fea9c4ccb78b169084ac66aedced673356ad # log: simplify if-else
+c218d575c49a3543d4e80be29b78e2bb256fc8f9 # test: remove dead code, make count and lock global variables static
+20db9ea4be01b2afa7724003796ed94cc49e7e1a # misra: adapt kernel to MISRA C standard
