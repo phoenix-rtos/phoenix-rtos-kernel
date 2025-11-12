@@ -35,15 +35,15 @@ cond_t *cond_get(int c)
 void cond_put(cond_t *cond)
 {
 	thread_t *t = proc_current();
-	unsigned int rem;
+	int rem;
 
 	LIB_ASSERT(cond != NULL, "process: %s, pid: %d, tid: %d, cond == NULL",
 			t->process->path, process_getPid(t->process), proc_getTid(t));
 
 	rem = resource_put(t->process, &cond->resource);
-	LIB_ASSERT(rem >= 0U, "process: %s, pid: %d, tid: %d, refcnt below zero",
+	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
 			t->process->path, process_getPid(t->process), proc_getTid(t));
-	if (rem == 0U) {
+	if (rem == 0) {
 		proc_threadBroadcastYield(&cond->queue);
 		vm_kfree(cond);
 	}

@@ -28,7 +28,7 @@ struct _usrintr_t;
 
 typedef struct _resource_t {
 	idnode_t linkage;
-	unsigned int refs;
+	int refs;
 	/* clang-format off */
 	enum { rtLock = 0, rtCond, rtInth } type;
 	/* clang-format on */
@@ -47,7 +47,7 @@ int resource_alloc(process_t *process, resource_t *r);
 resource_t *resource_get(process_t *process, int id);
 
 
-unsigned int resource_put(process_t *process, resource_t *r);
+int resource_put(process_t *process, resource_t *r);
 
 
 int proc_resourceDestroy(process_t *process, int id);

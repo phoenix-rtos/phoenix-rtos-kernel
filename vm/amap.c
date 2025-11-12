@@ -34,7 +34,7 @@ static anon_t *amap_putanon(anon_t *a)
 		return NULL;
 	}
 	(void)proc_lockSet(&a->lock);
-	if (--a->refs != 0U) {
+	if (--a->refs != 0) {
 		(void)proc_lockClear(&a->lock);
 		return a;
 	}
@@ -114,7 +114,7 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 
 	if (amap != NULL) {
 		(void)proc_lockSet(&amap->lock);
-		if (amap->refs == 1U) {
+		if (amap->refs == 1) {
 			(void)proc_lockClear(&amap->lock);
 			return amap;
 		}
@@ -167,7 +167,7 @@ void amap_put(amap_t *amap)
 
 	(void)proc_lockSet(&amap->lock);
 
-	if (--amap->refs != 0U) {
+	if (--amap->refs != 0) {
 		(void)proc_lockClear(&amap->lock);
 		return;
 	}
@@ -238,7 +238,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 	if (a != NULL) {
 		(void)proc_lockSet(&a->lock);
 		p = a->page;
-		if (!(a->refs > 1U && (prot & PROT_WRITE) != 0U)) {
+		if (!(a->refs > 1 && (prot & PROT_WRITE) != 0U)) {
 			(void)proc_lockClear(&a->lock);
 			(void)proc_lockClear(&amap->lock);
 			return p;

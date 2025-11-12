@@ -144,7 +144,7 @@ int vm_objectPut(vm_object_t *o)
 
 	(void)proc_lockSet(&object_common.lock);
 
-	if (--o->refs != 0U) {
+	if (--o->refs != 0) {
 		(void)proc_lockClear(&object_common.lock);
 		return EOK;
 	}
