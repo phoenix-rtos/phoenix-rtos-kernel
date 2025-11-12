@@ -25,7 +25,7 @@ struct _vm_object_t;
 
 typedef struct _anon_t {
 	lock_t lock;
-	unsigned int refs;
+	int refs;
 	page_t *page;
 } anon_t;
 
@@ -33,7 +33,7 @@ typedef struct _anon_t {
 typedef struct _amap_t {
 	lock_t lock;
 	size_t size;
-	unsigned int refs;
+	int refs;
 	anon_t *anons[];
 } amap_t;
 

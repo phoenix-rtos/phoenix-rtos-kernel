@@ -27,7 +27,7 @@ struct _vm_map_t;
 typedef struct _vm_object_t {
 	rbnode_t linkage;
 	oid_t oid;
-	unsigned int refs;
+	int refs;
 	size_t size;
 	page_t *pages[];
 } vm_object_t;

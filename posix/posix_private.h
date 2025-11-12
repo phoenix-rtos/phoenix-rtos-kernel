@@ -88,7 +88,7 @@ enum { pxBufferedPipe,
 typedef struct {
 	oid_t ln;
 	oid_t oid;
-	unsigned int refs;
+	int refs;
 	off_t offset;
 	unsigned int status;
 	lock_t lock;

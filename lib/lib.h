@@ -28,10 +28,12 @@
 #include "idtree.h"
 
 
-#define lib_atomicIncrement(ptr) __atomic_add_fetch((ptr), 1, __ATOMIC_RELAXED)
+/* TODO: migrate to C11 stdatomic - check the performance impact of seq_cnt (mandatory by MISRA) */
+/* casts needed as return type is not always the same as *ptr (why? GCC bug?) */
+#define lib_atomicIncrement(ptr) ((typeof(*(ptr)))__atomic_add_fetch((ptr), 1, __ATOMIC_RELAXED))
 
 
-#define lib_atomicDecrement(ptr) __atomic_sub_fetch((ptr), 1, __ATOMIC_ACQ_REL)
+#define lib_atomicDecrement(ptr) ((typeof(*(ptr)))__atomic_sub_fetch((ptr), 1, __ATOMIC_ACQ_REL))
 
 
 #define max(a, b) ({ \

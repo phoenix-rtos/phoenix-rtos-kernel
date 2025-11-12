@@ -55,7 +55,7 @@ resource_t *resource_get(process_t *process, int id)
 }
 
 
-unsigned int resource_put(process_t *process, resource_t *r)
+int resource_put(process_t *process, resource_t *r)
 {
 	return lib_atomicDecrement(&r->refs);
 }

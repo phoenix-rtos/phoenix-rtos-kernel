@@ -33,15 +33,15 @@ mutex_t *mutex_get(int h)
 void mutex_put(mutex_t *mutex)
 {
 	thread_t *t = proc_current();
-	unsigned int rem;
+	int rem;
 
 	LIB_ASSERT(mutex != NULL, "process: %s, pid: %d, tid: %d, mutex == NULL",
 			t->process->path, process_getPid(t->process), proc_getTid(t));
 
 	rem = resource_put(t->process, &mutex->resource);
-	LIB_ASSERT(rem >= 0U, "process: %s, pid: %d, tid: %d, refcnt below zero",
+	LIB_ASSERT(rem >= 0, "process: %s, pid: %d, tid: %d, refcnt below zero",
 			t->process->path, process_getPid(t->process), proc_getTid(t));
-	if (rem == 0U) {
+	if (rem == 0) {
 		(void)proc_lockDone(&mutex->lock);
 		vm_kfree(mutex);
 	}
