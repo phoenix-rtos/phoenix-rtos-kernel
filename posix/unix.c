@@ -661,7 +661,7 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 		}
 
 		/* FIXME: caller may block indefinitely if remote gets closed after successful unixsock_get call */
-		r = unixsock_get(oid.id);
+		r = unixsock_get((unsigned int)oid.id);
 		if (r == NULL) {
 			err = -ECONNREFUSED;
 			break;
@@ -906,7 +906,7 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 					break;
 				}
 
-				r = unixsock_get(oid.id);
+				r = unixsock_get((unsigned int)oid.id);
 				if (r == NULL) {
 					err = -ENOTSOCK;
 					break;
