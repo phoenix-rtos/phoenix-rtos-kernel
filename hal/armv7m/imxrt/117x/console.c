@@ -124,18 +124,18 @@ static void _hal_uartInit(void)
 		int txdaisy, txsel;
 		int rxdaisy, rxsel;
 	} info[] = {
-		{ (void *)0x4007c000, 0, pctl_clk_lpuart1, pctl_mux_gpio_ad_24, pctl_pad_gpio_ad_24, pctl_mux_gpio_ad_25, pctl_pad_gpio_ad_25, pctl_isel_lpuart1_txd, 0, pctl_isel_lpuart1_rxd, 0 },
-		{ (void *)0x40080000, 2, pctl_clk_lpuart2, pctl_mux_gpio_disp_b2_10, pctl_pad_gpio_disp_b2_10, pctl_mux_gpio_disp_b2_11, pctl_pad_gpio_disp_b2_11, -1, -1, -1, -1 },
-		{ (void *)0x40084000, 4, pctl_clk_lpuart3, pctl_mux_gpio_ad_30, pctl_pad_gpio_ad_30, pctl_mux_gpio_ad_31, pctl_pad_gpio_ad_31, -1, -1, -1, -1 },
-		{ (void *)0x40088000, 2, pctl_clk_lpuart4, pctl_mux_gpio_disp_b1_06, pctl_pad_gpio_disp_b1_06, pctl_mux_gpio_disp_b1_04, pctl_pad_gpio_disp_b1_04, -1, -1, -1, -1 },
-		{ (void *)0x4008c000, 1, pctl_clk_lpuart5, pctl_mux_gpio_ad_28, pctl_pad_gpio_ad_28, pctl_mux_gpio_ad_29, pctl_pad_gpio_ad_29, -1, -1, -1, -1 },
-		{ (void *)0x40090000, 3, pctl_clk_lpuart6, pctl_mux_gpio_emc_b1_40, pctl_pad_gpio_emc_b1_40, pctl_mux_gpio_emc_b1_41, pctl_pad_gpio_emc_b1_41, -1, -1, -1, -1 },
-		{ (void *)0x40094000, 2, pctl_clk_lpuart7, pctl_mux_gpio_disp_b2_06, pctl_pad_gpio_disp_b2_06, pctl_mux_gpio_disp_b2_07, pctl_pad_gpio_disp_b2_07, pctl_isel_lpuart7_txd, 1, pctl_isel_lpuart7_rxd, 1 },
-		{ (void *)0x40098000, 2, pctl_clk_lpuart8, pctl_mux_gpio_disp_b2_08, pctl_pad_gpio_disp_b2_08, pctl_mux_gpio_disp_b2_09, pctl_pad_gpio_disp_b2_09, pctl_isel_lpuart8_txd, 1, pctl_isel_lpuart8_rxd, 1 },
-		{ (void *)0x4009c000, 3, pctl_clk_lpuart9, pctl_mux_gpio_sd_b2_00, pctl_pad_gpio_sd_b2_00, pctl_mux_gpio_sd_b2_01, pctl_pad_gpio_sd_b2_01, -1, -1, -1, -1 },
-		{ (void *)0x400a0000, 1, pctl_clk_lpuart10, pctl_mux_gpio_ad_15, pctl_pad_gpio_ad_15, pctl_mux_gpio_ad_16, pctl_pad_gpio_ad_16, pctl_isel_lpuart10_txd, 0, pctl_isel_lpuart10_rxd, 0 },
-		{ (void *)0x40c24000, 0, pctl_clk_lpuart11, pctl_mux_gpio_lpsr_08, pctl_pad_gpio_lpsr_08, pctl_mux_gpio_lpsr_09, pctl_pad_gpio_lpsr_09, pctl_isel_lpuart11_txd, 1, pctl_isel_lpuart11_rxd, 1 },
-		{ (void *)0x40c28000, 6, pctl_clk_lpuart12, pctl_mux_gpio_lpsr_00, pctl_pad_gpio_lpsr_00, pctl_mux_gpio_lpsr_01, pctl_pad_gpio_lpsr_01, pctl_isel_lpuart12_txd, 0, pctl_isel_lpuart12_rxd, 0 }
+		{ (void *)0x4007c000U, 0, pctl_clk_lpuart1, pctl_mux_gpio_ad_24, pctl_pad_gpio_ad_24, pctl_mux_gpio_ad_25, pctl_pad_gpio_ad_25, pctl_isel_lpuart1_txd, 0, pctl_isel_lpuart1_rxd, 0 },
+		{ (void *)0x40080000U, 2, pctl_clk_lpuart2, pctl_mux_gpio_disp_b2_10, pctl_pad_gpio_disp_b2_10, pctl_mux_gpio_disp_b2_11, pctl_pad_gpio_disp_b2_11, -1, -1, -1, -1 },
+		{ (void *)0x40084000U, 4, pctl_clk_lpuart3, pctl_mux_gpio_ad_30, pctl_pad_gpio_ad_30, pctl_mux_gpio_ad_31, pctl_pad_gpio_ad_31, -1, -1, -1, -1 },
+		{ (void *)0x40088000U, 2, pctl_clk_lpuart4, pctl_mux_gpio_disp_b1_06, pctl_pad_gpio_disp_b1_06, pctl_mux_gpio_disp_b1_04, pctl_pad_gpio_disp_b1_04, -1, -1, -1, -1 },
+		{ (void *)0x4008c000U, 1, pctl_clk_lpuart5, pctl_mux_gpio_ad_28, pctl_pad_gpio_ad_28, pctl_mux_gpio_ad_29, pctl_pad_gpio_ad_29, -1, -1, -1, -1 },
+		{ (void *)0x40090000U, 3, pctl_clk_lpuart6, pctl_mux_gpio_emc_b1_40, pctl_pad_gpio_emc_b1_40, pctl_mux_gpio_emc_b1_41, pctl_pad_gpio_emc_b1_41, -1, -1, -1, -1 },
+		{ (void *)0x40094000U, 2, pctl_clk_lpuart7, pctl_mux_gpio_disp_b2_06, pctl_pad_gpio_disp_b2_06, pctl_mux_gpio_disp_b2_07, pctl_pad_gpio_disp_b2_07, pctl_isel_lpuart7_txd, 1, pctl_isel_lpuart7_rxd, 1 },
+		{ (void *)0x40098000U, 2, pctl_clk_lpuart8, pctl_mux_gpio_disp_b2_08, pctl_pad_gpio_disp_b2_08, pctl_mux_gpio_disp_b2_09, pctl_pad_gpio_disp_b2_09, pctl_isel_lpuart8_txd, 1, pctl_isel_lpuart8_rxd, 1 },
+		{ (void *)0x4009c000U, 3, pctl_clk_lpuart9, pctl_mux_gpio_sd_b2_00, pctl_pad_gpio_sd_b2_00, pctl_mux_gpio_sd_b2_01, pctl_pad_gpio_sd_b2_01, -1, -1, -1, -1 },
+		{ (void *)0x400a0000U, 1, pctl_clk_lpuart10, pctl_mux_gpio_ad_15, pctl_pad_gpio_ad_15, pctl_mux_gpio_ad_16, pctl_pad_gpio_ad_16, pctl_isel_lpuart10_txd, 0, pctl_isel_lpuart10_rxd, 0 },
+		{ (void *)0x40c24000U, 0, pctl_clk_lpuart11, pctl_mux_gpio_lpsr_08, pctl_pad_gpio_lpsr_08, pctl_mux_gpio_lpsr_09, pctl_pad_gpio_lpsr_09, pctl_isel_lpuart11_txd, 1, pctl_isel_lpuart11_rxd, 1 },
+		{ (void *)0x40c28000U, 6, pctl_clk_lpuart12, pctl_mux_gpio_lpsr_00, pctl_pad_gpio_lpsr_00, pctl_mux_gpio_lpsr_01, pctl_pad_gpio_lpsr_01, pctl_isel_lpuart12_txd, 0, pctl_isel_lpuart12_rxd, 0 }
 	};
 
 	console_common.uart = info[console].base;
@@ -144,7 +144,7 @@ static void _hal_uartInit(void)
 
 	/* tx */
 	(void)_imxrt_setIOmux(info[console].txmux, 0, info[console].mode);
-	(void)_imxrt_setIOpad(info[console].txpad, 0, 0, 0, 0, 0, 0);
+	(void)_imxrt_setIOpad(info[console].txpad, 0U, 0U, 0U, 0U, 0U, 0U);
 
 	if (info[console].txdaisy >= 0) {
 		(void)_imxrt_setIOisel(info[console].txdaisy, info[console].txsel);
@@ -152,7 +152,7 @@ static void _hal_uartInit(void)
 
 	/* rx */
 	(void)_imxrt_setIOmux(info[console].rxmux, 0, info[console].mode);
-	(void)_imxrt_setIOpad(info[console].rxpad, 0, 0, 1, 1, 0, 0);
+	(void)_imxrt_setIOpad(info[console].rxpad, 0U, 0U, 1U, 1U, 0U, 0U);
 
 	if (info[console].rxdaisy >= 0) {
 		(void)_imxrt_setIOisel(info[console].rxdaisy, info[console].rxsel);

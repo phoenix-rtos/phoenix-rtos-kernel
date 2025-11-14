@@ -1402,16 +1402,16 @@ void _imxrt_ccmSetMux(int mux, u32 val)
 
 		case clk_mux_periph:
 			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 25)) | ((val & 1U) << 25);
-			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1UL << 5)) != 0U) {
+			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1U << 5)) != 0U) {
 			}
 			break;
 
 		case clk_mux_semcAlt:
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 7)) | ((val & 1U) << 7);
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1U << 7)) | ((val & 1U) << 7);
 			break;
 
 		case clk_mux_semc:
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 6)) | ((val & 1U) << 6);
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1U << 6)) | ((val & 1U) << 6);
 			break;
 
 		case clk_mux_prePeriph:
@@ -1427,7 +1427,7 @@ void _imxrt_ccmSetMux(int mux, u32 val)
 			break;
 
 		case clk_mux_lpspi:
-			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3UL << 4)) | ((val & 0x3U) << 4);
+			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3U << 4)) | ((val & 0x3U) << 4);
 			break;
 
 		case clk_mux_flexspi:
@@ -1467,7 +1467,7 @@ void _imxrt_ccmSetMux(int mux, u32 val)
 			break;
 
 		case clk_mux_uart:
-			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(1UL << 6)) | ((val & 1U) << 6);
+			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(1U << 6)) | ((val & 1U) << 6);
 			break;
 
 		case clk_mux_enc:
@@ -1656,7 +1656,7 @@ void _imxrt_ccmSetDiv(int div, u32 val)
 
 		case clk_div_ahb: /* CBCDR */
 			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x7UL << 10)) | ((val & 0x7U) << 10);
-			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1UL << 1)) != 0U) {
+			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1U << 1)) != 0U) {
 			}
 			break;
 
@@ -1689,7 +1689,7 @@ void _imxrt_ccmSetDiv(int div, u32 val)
 			break;
 
 		case clk_div_can: /* CSCMR2 */
-			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3fUL << 2)) | ((val & 0x3fU) << 2);
+			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3fU << 2)) | ((val & 0x3fU) << 2);
 			break;
 
 		case clk_div_trace: /* CSCDR1 */

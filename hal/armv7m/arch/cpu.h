@@ -176,11 +176,11 @@ static inline void hal_cpuHalt(void)
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	int pos;
+	unsigned int pos;
 
 	__asm__ volatile("clz %0, %1" : "=r"(pos) : "r"(v));
 
-	return (unsigned int)(int)(31 - pos);
+	return 31 - pos;
 }
 
 

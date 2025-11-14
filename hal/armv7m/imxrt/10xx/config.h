@@ -30,8 +30,8 @@
 
 #define HAL_NAME_PLATFORM "NXP i.MX RT10xx "
 
-#define GPT1_BASE 0x401ec000
-#define GPT2_BASE 0x401f0000
+#define GPT1_BASE 0x401ec000U
+#define GPT2_BASE 0x401f0000U
 #define GPT_BASE  GPT2_BASE
 
 #define GPT1_IRQ gpt1_irq

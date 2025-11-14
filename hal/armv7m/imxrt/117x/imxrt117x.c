@@ -93,9 +93,9 @@ void _imxrt_wdgReload(void)
 	/* If the watchdog was enabled (e.g. by bootrom), then it has to be serviced
 	and WATCHDOG flag doesn't matter */
 	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1U << 2)) != 0U) {
-		*(imxrt_common.wdog1 + wdog_wsr) = 0x5555;
+		*(imxrt_common.wdog1 + wdog_wsr) = 0x5555U;
 		hal_cpuDataMemoryBarrier();
-		*(imxrt_common.wdog1 + wdog_wsr) = 0xaaaa;
+		*(imxrt_common.wdog1 + wdog_wsr) = 0xaaaaU;
 	}
 }
 
@@ -130,7 +130,7 @@ int _imxrt_setIOmux(int mux, int sion, int mode)
 		return -EINVAL;
 	}
 
-	(*reg) = ((sion == 0 ? 0UL : 1UL) << 4) | ((u32)mode & 0xfU);
+	(*reg) = ((sion == 0 ? 0U : 1U) << 4) | ((u32)mode & 0xfU);
 	hal_cpuDataMemoryBarrier();
 
 	return EOK;
@@ -148,7 +148,7 @@ static int _imxrt_getIOmux(int mux, int *sion, int *mode)
 	}
 
 	t = (*reg);
-	*sion = ((t & (1U << 4)) == 0UL ? 1 : 0);
+	*sion = ((t & (1U << 4)) == 0U ? 1 : 0);
 	*mode = (int)(u32)(t & 0xfU);
 
 	return EOK;
@@ -197,23 +197,23 @@ int _imxrt_setIOpad(int pad, u8 sre, u8 dse, u8 pue, u8 pus, u8 ode, u8 apc)
 		}
 
 		t = *reg & ~0x1eU;
-		t |= ((dse == 0U ? 0UL : 1UL) << 1) | ((u32)pull << 2) | ((ode == 0U ? 0UL : 1UL) << 4);
+		t |= ((dse == 0U ? 0U : 1U) << 1) | ((u32)pull << 2) | ((ode == 0U ? 0U : 1U) << 4);
 	}
 	else {
 		t = *reg & ~0x1fU;
-		t |= ((sre == 0U ? 0UL : 1UL)) | ((dse == 0U ? 0UL : 1UL) << 1) | ((pue == 0U ? 0UL : 1UL) << 2) | ((pus == 0U ? 0UL : 1UL) << 3);
+		t |= ((sre == 0U ? 0U : 1U)) | ((dse == 0U ? 0U : 1U) << 1) | ((pue == 0U ? 0U : 1U) << 2) | ((pus == 0U ? 0U : 1U) << 3);
 
 		if (pad <= pctl_pad_gpio_disp_b2_15) {
 			t &= ~(1U << 4);
-			t |= (ode == 0U ? 0UL : 1UL) << 4;
+			t |= (ode == 0U ? 0U : 1U) << 4;
 		}
 		else if ((pad >= pctl_pad_wakeup) && (pad <= pctl_pad_gpio_snvs_09)) {
 			t &= ~(1U << 6);
-			t |= (ode == 0U ? 0UL : 1UL) << 6;
+			t |= (ode == 0U ? 0U : 1U) << 6;
 		}
 		else if (pad >= pctl_pad_gpio_lpsr_00) {
 			t &= ~(1U << 5);
-			t |= (ode == 0U ? 0UL : 1UL) << 5;
+			t |= (ode == 0U ? 0U : 1U) << 5;
 		}
 		else {
 			/* MISRA */
@@ -223,8 +223,8 @@ int _imxrt_setIOpad(int pad, u8 sre, u8 dse, u8 pue, u8 pus, u8 ode, u8 apc)
 
 	/*
 	 * APC field is not documented. Leave it alone for now.
-	 * t &= ~(0xf << 28);
-	 * t |= (apc & 0xf) << 28;
+	 * t &= ~(0xfU << 28);
+	 * t |= (apc & 0xfU) << 28;
 	 */
 
 	(*reg) = t;
@@ -333,11 +333,11 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 		case pctl_isel_can3_canrx:
 		case pctl_isel_lpuart12_rxd:
 		case pctl_isel_lpuart12_txd:
-			(*mask) = 0x3;
+			(*mask) = 0x3U;
 			break;
 
 		default:
-			(*mask) = 0x1;
+			(*mask) = 0x1U;
 			break;
 	}
 

@@ -125,14 +125,14 @@ static void _hal_uartInit(void)
 		int txdaisy, txsel;
 		int rxdaisy, rxsel;
 	} info[] = {
-		{ (void *)0x40184000, 2, pctl_clk_lpuart1, pctl_mux_gpio_ad_b0_12, pctl_mux_gpio_ad_b0_12, pctl_mux_gpio_ad_b0_13, pctl_mux_gpio_ad_b0_13, -1, -1, -1, -1 },
-		{ (void *)0x40188000, 2, pctl_clk_lpuart2, pctl_mux_gpio_ad_b1_02, pctl_mux_gpio_ad_b1_02, pctl_mux_gpio_ad_b1_03, pctl_mux_gpio_ad_b1_03, pctl_isel_lpuart2_tx, 1, pctl_isel_lpuart2_rx, 1 },
-		{ (void *)0x4018c000, 2, pctl_clk_lpuart3, pctl_mux_gpio_emc_13, pctl_mux_gpio_emc_13, pctl_mux_gpio_emc_14, pctl_mux_gpio_emc_14, pctl_isel_lpuart3_tx, 1, pctl_isel_lpuart3_rx, 1 },
-		{ (void *)0x40190000, 2, pctl_clk_lpuart4, pctl_mux_gpio_emc_19, pctl_mux_gpio_emc_19, pctl_mux_gpio_emc_20, pctl_mux_gpio_emc_20, pctl_isel_lpuart4_tx, 1, pctl_isel_lpuart4_rx, 1 },
-		{ (void *)0x40194000, 2, pctl_clk_lpuart5, pctl_mux_gpio_emc_23, pctl_mux_gpio_emc_23, pctl_mux_gpio_emc_24, pctl_mux_gpio_emc_24, pctl_isel_lpuart5_tx, 0, pctl_isel_lpuart5_rx, 0 },
-		{ (void *)0x40198000, 2, pctl_clk_lpuart6, pctl_mux_gpio_emc_25, pctl_mux_gpio_emc_25, pctl_mux_gpio_emc_26, pctl_mux_gpio_emc_26, pctl_isel_lpuart6_tx, 0, pctl_isel_lpuart6_rx, 0 },
-		{ (void *)0x4019c000, 2, pctl_clk_lpuart7, pctl_mux_gpio_emc_31, pctl_mux_gpio_emc_31, pctl_mux_gpio_emc_32, pctl_mux_gpio_emc_32, pctl_isel_lpuart7_tx, 1, pctl_isel_lpuart7_rx, 1 },
-		{ (void *)0x401a0000, 2, pctl_clk_lpuart8, pctl_mux_gpio_emc_28, pctl_mux_gpio_emc_38, pctl_mux_gpio_emc_39, pctl_mux_gpio_emc_39, pctl_isel_lpuart8_tx, 2, pctl_isel_lpuart8_rx, 2 },
+		{ (void *)0x40184000U, 2, pctl_clk_lpuart1, pctl_mux_gpio_ad_b0_12, pctl_mux_gpio_ad_b0_12, pctl_mux_gpio_ad_b0_13, pctl_mux_gpio_ad_b0_13, -1, -1, -1, -1 },
+		{ (void *)0x40188000U, 2, pctl_clk_lpuart2, pctl_mux_gpio_ad_b1_02, pctl_mux_gpio_ad_b1_02, pctl_mux_gpio_ad_b1_03, pctl_mux_gpio_ad_b1_03, pctl_isel_lpuart2_tx, 1, pctl_isel_lpuart2_rx, 1 },
+		{ (void *)0x4018c000U, 2, pctl_clk_lpuart3, pctl_mux_gpio_emc_13, pctl_mux_gpio_emc_13, pctl_mux_gpio_emc_14, pctl_mux_gpio_emc_14, pctl_isel_lpuart3_tx, 1, pctl_isel_lpuart3_rx, 1 },
+		{ (void *)0x40190000U, 2, pctl_clk_lpuart4, pctl_mux_gpio_emc_19, pctl_mux_gpio_emc_19, pctl_mux_gpio_emc_20, pctl_mux_gpio_emc_20, pctl_isel_lpuart4_tx, 1, pctl_isel_lpuart4_rx, 1 },
+		{ (void *)0x40194000U, 2, pctl_clk_lpuart5, pctl_mux_gpio_emc_23, pctl_mux_gpio_emc_23, pctl_mux_gpio_emc_24, pctl_mux_gpio_emc_24, pctl_isel_lpuart5_tx, 0, pctl_isel_lpuart5_rx, 0 },
+		{ (void *)0x40198000U, 2, pctl_clk_lpuart6, pctl_mux_gpio_emc_25, pctl_mux_gpio_emc_25, pctl_mux_gpio_emc_26, pctl_mux_gpio_emc_26, pctl_isel_lpuart6_tx, 0, pctl_isel_lpuart6_rx, 0 },
+		{ (void *)0x4019c000U, 2, pctl_clk_lpuart7, pctl_mux_gpio_emc_31, pctl_mux_gpio_emc_31, pctl_mux_gpio_emc_32, pctl_mux_gpio_emc_32, pctl_isel_lpuart7_tx, 1, pctl_isel_lpuart7_rx, 1 },
+		{ (void *)0x401a0000U, 2, pctl_clk_lpuart8, pctl_mux_gpio_emc_28, pctl_mux_gpio_emc_38, pctl_mux_gpio_emc_39, pctl_mux_gpio_emc_39, pctl_isel_lpuart8_tx, 2, pctl_isel_lpuart8_rx, 2 },
 	};
 
 	console_common.uart = info[console].base;
@@ -141,7 +141,7 @@ static void _hal_uartInit(void)
 
 	/* tx */
 	(void)_imxrt_setIOmux(info[console].txmux, 0, info[console].mode);
-	(void)_imxrt_setIOpad(info[console].txpad, 0, 0, 0, 1, 0, 2, 6, 0);
+	(void)_imxrt_setIOpad(info[console].txpad, 0U, 0U, 0U, 1U, 0U, 2U, 6U, 0U);
 
 	if (info[console].txdaisy >= 0) {
 		(void)_imxrt_setIOisel(info[console].txdaisy, info[console].txsel);
@@ -149,14 +149,14 @@ static void _hal_uartInit(void)
 
 	/* rx */
 	(void)_imxrt_setIOmux(info[console].rxmux, 0, info[console].mode);
-	(void)_imxrt_setIOpad(info[console].rxpad, 0, 0, 0, 1, 0, 2, 6, 0);
+	(void)_imxrt_setIOpad(info[console].rxpad, 0U, 0U, 0U, 1U, 0U, 2U, 6U, 0U);
 
 	if (info[console].rxdaisy >= 0) {
 		(void)_imxrt_setIOisel(info[console].rxdaisy, info[console].rxsel);
 	}
 
-	_imxrt_ccmSetMux(clk_mux_uart, 0);
-	_imxrt_ccmSetDiv(clk_div_uart, 0);
+	_imxrt_ccmSetMux(clk_mux_uart, 0U);
+	_imxrt_ccmSetDiv(clk_div_uart, 0U);
 
 	/* Reset all internal logic and registers, except the Global Register */
 	*(console_common.uart + uart_global) |= 1U << 1;
