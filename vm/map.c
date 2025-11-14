@@ -1043,7 +1043,7 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 #ifndef NOMMU
 	addr_t a;
 	rbnode_t *n;
-	int i = 0;
+	unsigned int i = 0;
 
 	for (;;) {
 		a = pmap_destroy(&map->pmap, &i);

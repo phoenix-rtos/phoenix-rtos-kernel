@@ -32,15 +32,15 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
-#define MODE_nAARCH64 0x10
-#define MODE_EL0      0x0
-#define MODE_EL1_SP0  0x4
-#define MODE_EL1_SP1  0x5
+#define MODE_nAARCH64 0x10U
+#define MODE_EL0      0x0U
+#define MODE_EL1_SP0  0x4U
+#define MODE_EL1_SP1  0x5U
 #define MODE_MASK     0xfU
-#define NO_DBGE       0x200             /* mask to disable debug exception */
-#define NO_SERR       0x100             /* mask to disable SError exception */
-#define NO_IRQ        0x80              /* mask to disable IRQ */
-#define NO_FIQ        0x40              /* mask to disable FIQ */
+#define NO_DBGE       0x200U            /* mask to disable debug exception */
+#define NO_SERR       0x100U            /* mask to disable SError exception */
+#define NO_IRQ        0x80U             /* mask to disable IRQ */
+#define NO_FIQ        0x40U             /* mask to disable FIQ */
 #define NO_INT        (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ */
 
 

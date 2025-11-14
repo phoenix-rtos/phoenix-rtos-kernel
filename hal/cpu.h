@@ -130,7 +130,7 @@ unsigned int hal_cpuGetCount(void);
 char *hal_cpuInfo(char *info);
 
 
-char *hal_cpuFeatures(char *features, unsigned int len);
+char *hal_cpuFeatures(char *features, size_t len);
 
 
 void hal_cpuBroadcastIPI(unsigned int intr);

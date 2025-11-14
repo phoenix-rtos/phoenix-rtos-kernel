@@ -270,7 +270,7 @@ static int _interrupts_setIDTEntry(unsigned int n, void *addr, u32 type)
 }
 
 
-char *hal_interruptsFeatures(char *features, unsigned int len)
+char *hal_interruptsFeatures(char *features, size_t len)
 {
 	switch (interrupts_common.pic) {
 		case pic_8259:

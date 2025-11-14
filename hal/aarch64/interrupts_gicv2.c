@@ -135,17 +135,17 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 static void interrupts_enableIRQ(unsigned int irqn)
 {
-	unsigned int irq_reg = irqn / 32;
-	unsigned int irq_offs = irqn % 32;
-	*(interrupts_common.gicd + gicd_isenabler0 + irq_reg) = 1UL << irq_offs;
+	unsigned int irq_reg = irqn / 32U;
+	unsigned int irq_offs = irqn % 32U;
+	*(interrupts_common.gicd + (u32)gicd_isenabler0 + irq_reg) = (u32)1U << irq_offs;
 }
 
 
 static void interrupts_disableIRQ(unsigned int irqn)
 {
-	unsigned int irq_reg = irqn / 32;
-	unsigned int irq_offs = irqn % 32;
-	*(interrupts_common.gicd + gicd_icenabler0 + irq_reg) = 1UL << irq_offs;
+	unsigned int irq_reg = irqn / 32U;
+	unsigned int irq_offs = irqn % 32U;
+	*(interrupts_common.gicd + (u32)gicd_icenabler0 + irq_reg) = (u32)1U << irq_offs;
 }
 
 
@@ -160,14 +160,14 @@ static void interrupts_setConf(unsigned int irqn, u32 conf)
 }
 
 
-void interrupts_setCPU(unsigned int irqn, unsigned int cpuMask)
+void interrupts_setCPU(unsigned int irqn, unsigned int cpuID)
 {
 	unsigned int irq_reg = irqn / 4U;
 	unsigned int irq_offs = (irqn % 4U) * 8U;
 	u32 mask;
 
 	mask = *(interrupts_common.gicd + gicd_itargetsr0 + irq_reg) & ~(0xffU << irq_offs);
-	*(interrupts_common.gicd + gicd_itargetsr0 + irq_reg) = mask | ((cpuMask & 0xffU) << irq_offs);
+	*(interrupts_common.gicd + gicd_itargetsr0 + irq_reg) = mask | ((cpuID & 0xffU) << irq_offs);
 }
 
 
@@ -202,9 +202,10 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 }
 
 
-char *hal_interruptsFeatures(char *features, unsigned int len)
+char *hal_interruptsFeatures(char *features, size_t len)
 {
 	(void)hal_strncpy(features, "Using GIC interrupt controller", len);
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "`len` is always non-zero." */
 	features[len - 1U] = '\0';
 
 	return features;

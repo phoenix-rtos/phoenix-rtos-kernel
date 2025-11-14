@@ -19,20 +19,16 @@
 #include "syspage.h"
 #include "halsyspage.h"
 
-static struct
-{
+#include "lib/assert.h"
+
+static struct {
 	int started;
 } hal_common;
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Definition in assembly" */
-/* parasoft-begin-suppress MISRAC2012-RULE_5_8 "Another variable with this name used
- * inside the structure so it shouldn't cause this violation"
- */
-syspage_t *syspage;
-/* parasoft-end-suppress MISRAC2012-RULE_5_8 */
-
+syspage_t *hal_syspage;
 u64 relOffs;
-u32 schedulerLocked = 0;
+u32 schedulerLocked;
 /* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 
@@ -44,7 +40,7 @@ void *hal_syspageRelocate(void *data)
 
 ptr_t hal_syspageAddr(void)
 {
-	return (ptr_t)syspage;
+	return (ptr_t)hal_syspage;
 }
 
 
@@ -92,8 +88,20 @@ __attribute__((section(".init"))) void _hal_init(void)
 	hal_common.started = 0;
 	schedulerLocked = 0;
 	_hal_spinlockInit();
+
 	dtb = syspage_progNameResolve("system.dtb");
+	if (dtb == NULL) {
+#ifdef NDEBUG
+		hal_cpuReboot();
+#else
+		for (;;) {
+			hal_cpuHalt();
+		}
+#endif
+	}
+
 	_pmap_preinit(dtb->start, dtb->end);
+
 	_hal_platformInit();
 	_hal_consoleInit();
 

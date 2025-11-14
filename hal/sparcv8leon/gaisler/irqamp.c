@@ -219,7 +219,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
-char *hal_interruptsFeatures(char *features, unsigned int len)
+char *hal_interruptsFeatures(char *features, size_t len)
 {
 	(void)hal_strncpy(features, "Using IRQAMP interrupt controller", len);
 	features[len - 1U] = '\0';

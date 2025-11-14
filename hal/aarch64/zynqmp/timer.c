@@ -62,7 +62,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	hal_spinlockClear(&timer_common.sp, &sc);
 
 	u32 nextID = hal_cpuGetID() + 1U;
-	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? (u32)1 : ((u32)1 << nextID);
+	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? (u32)1U : ((u32)1U << nextID);
 	interrupts_setCPU(n, nextTargetCPU);
 	hal_cpuDataSyncBarrier();
 
@@ -145,9 +145,10 @@ static void hal_timerSetPrescaler(u32 freq)
 }
 
 
-char *hal_timerFeatures(char *features, unsigned int len)
+char *hal_timerFeatures(char *features, size_t len)
 {
 	(void)hal_strncpy(features, "Using Triple Timer Counter", len);
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "`len` is always non-zero." */
 	features[len - 1U] = '\0';
 	return features;
 }

@@ -131,7 +131,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-addr_t pmap_destroy(pmap_t *pmap, int *i)
+addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	const int idx2 = (int)PDIR2_IDX(VADDR_KERNEL);
 	addr_t pdir1, entry;

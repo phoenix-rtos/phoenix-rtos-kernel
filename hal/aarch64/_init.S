@@ -21,7 +21,7 @@
 
 .extern pmap_common
 .extern stacks_el1
-.extern syspage
+.extern hal_syspage
 .extern relOffs
 .extern nCpusStarted
 .extern _end
@@ -261,8 +261,8 @@ _core_0_virtual:
 	sub x2, x1, x9
 	adrp x0, relOffs
 	str x2, [x0, #:lo12:relOffs]
-	adrp x0, syspage
-	str x1, [x0, #:lo12:syspage]
+	adrp x0, hal_syspage
+	str x1, [x0, #:lo12:hal_syspage]
 	ldr x0, [x9, #(SYSPAGE_SIZE_OFFSET)]
 	add x0, x0, x9
 1:
