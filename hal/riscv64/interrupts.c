@@ -228,7 +228,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
-char *hal_interruptsFeatures(char *features, unsigned int len)
+char *hal_interruptsFeatures(char *features, size_t len)
 {
 	if (dtb_getPLIC() != 0) {
 		(void)hal_strncpy(features, "Using PLIC interrupt controller", len);

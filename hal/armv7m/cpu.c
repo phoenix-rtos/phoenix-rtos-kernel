@@ -250,7 +250,7 @@ char *hal_cpuInfo(char *info)
 }
 
 
-char *hal_cpuFeatures(char *features, unsigned int len)
+char *hal_cpuFeatures(char *features, size_t len)
 {
 	unsigned int n = 0;
 #ifdef CPU_IMXRT

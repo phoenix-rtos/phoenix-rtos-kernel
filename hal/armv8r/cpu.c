@@ -173,7 +173,7 @@ char *hal_cpuInfo(char *info)
 }
 
 
-char *hal_cpuFeatures(char *features, unsigned int len)
+char *hal_cpuFeatures(char *features, size_t len)
 {
 	unsigned int n = 0;
 	u32 pfr0 = hal_cpuGetPFR0(), pfr1 = hal_cpuGetPFR1();

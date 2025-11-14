@@ -22,6 +22,8 @@
 #include "include/errno.h"
 #include "include/mman.h"
 
+#include "lib/assert.h"
+
 #include "halsyspage.h"
 #include "dtb.h"
 
@@ -34,18 +36,18 @@ extern unsigned int _etext;
 typedef u64 descr_t;
 
 /* Descriptor bitfields */
-#define DESCR_VALID     (1UL << 0)         /* Descriptor is valid */
-#define DESCR_TABLE     (1UL << 1)         /* Page or table descriptor */
-#define DESCR_ATTR(x)   (((x) & 0x7) << 2) /* Memory attribute from MAIR_EL1 */
-#define DESCR_AP1       (1UL << 6)         /* Unprivileged access */
-#define DESCR_AP2       (1UL << 7)         /* Read only */
-#define DESCR_NSH       (0UL << 8)         /* Non-shareable */
-#define DESCR_OSH       (2UL << 8)         /* Outer shareable */
-#define DESCR_ISH       (3UL << 8)         /* Inner shareable */
-#define DESCR_AF        (1UL << 10)        /* Access flag */
-#define DESCR_nG        (1UL << 11)        /* Not global */
-#define DESCR_UXN       (1UL << 54)        /* Unprivileged execute-never */
-#define DESCR_PXN       (1UL << 53)        /* Privileged execute-never */
+#define DESCR_VALID     (1UL << 0)          /* Descriptor is valid */
+#define DESCR_TABLE     (1UL << 1)          /* Page or table descriptor */
+#define DESCR_ATTR(x)   (((x) & 0x7U) << 2) /* Memory attribute from MAIR_EL1 */
+#define DESCR_AP1       (1UL << 6)          /* Unprivileged access */
+#define DESCR_AP2       (1UL << 7)          /* Read only */
+#define DESCR_NSH       (0UL << 8)          /* Non-shareable */
+#define DESCR_OSH       (2UL << 8)          /* Outer shareable */
+#define DESCR_ISH       (3UL << 8)          /* Inner shareable */
+#define DESCR_AF        (1UL << 10)         /* Access flag */
+#define DESCR_nG        (1UL << 11)         /* Not global */
+#define DESCR_UXN       (1UL << 54)         /* Unprivileged execute-never */
+#define DESCR_PXN       (1UL << 53)         /* Privileged execute-never */
 #define DESCR_PA(entry) ((entry) & ((1UL << 48) - (1UL << 12)))
 
 #define ATTR_FROM_DESCR(entry) (((entry) >> 2) & 0x7U)
@@ -71,7 +73,7 @@ typedef u64 descr_t;
 
 #define ASID_NONE   0U
 #define ASID_SHARED 1U
-#define N_ASIDS     (1UL << ASID_BITS)
+#define N_ASIDS     ((u32)1U << ASID_BITS)
 #define N_ASID_MAP  ((N_ASIDS + 63U) / 64U)
 
 #define PMAP_MEM_ENTRIES 64U
@@ -82,7 +84,7 @@ typedef u64 descr_t;
 typedef struct {
 	addr_t start;
 	addr_t end;
-	int flags;
+	u8 flags;
 } pmap_memEntry_t;
 
 
@@ -123,7 +125,6 @@ struct {
 	spinlock_t lock;
 
 	size_t dev_i;
-	/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 MISRAC2012-RULE_1_1 "Symbol used in assembly, theres no limits" */
 } __attribute__((aligned(SIZE_PAGE))) pmap_common;
 
 
@@ -172,7 +173,8 @@ static void _pmap_mapScratch(void *va, addr_t pa)
 
 static void _pmap_asidAlloc(pmap_t *pmap)
 {
-	asid_t i, assigned;
+	asid_t assigned;
+	unsigned int i;
 	u64 free;
 	if (pmap_common.firstFreeAsid == N_ASIDS) {
 		assigned = ASID_SHARED;
@@ -180,7 +182,7 @@ static void _pmap_asidAlloc(pmap_t *pmap)
 	else {
 		assigned = (asid_t)pmap_common.firstFreeAsid;
 		pmap_common.asidInUse[assigned / 64U] |= 1UL << (assigned % 64U);
-		for (i = assigned / 64U; i < N_ASID_MAP; i++) {
+		for (i = (unsigned int)assigned / 64U; i < N_ASID_MAP; i++) {
 			free = ~pmap_common.asidInUse[i];
 			if (free != 0U) {
 				pmap_common.firstFreeAsid = i * 64U + hal_cpuGetFirstBit(free);
@@ -233,8 +235,8 @@ static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, ptr_t 
 	}
 
 	/* If change cacheability or unmap, flush cache to avoid possible data corruption */
-	oldCachedRW = (int)((((oldEntry & DESCR_AP2) == 0U) ? 1 : 0) && ((ATTR_FROM_DESCR(oldEntry) == MAIR_IDX_CACHED) ? 1 : 0));
-	newNoncached = (int)(((newEntry & DESCR_VALID) == 0U) || (ATTR_FROM_DESCR(newEntry) != MAIR_IDX_CACHED));
+	oldCachedRW = ((oldEntry & DESCR_AP2) == 0U && ATTR_FROM_DESCR(oldEntry) == MAIR_IDX_CACHED) ? 1 : 0;
+	newNoncached = ((newEntry & DESCR_VALID) == 0U) || (ATTR_FROM_DESCR(newEntry) != MAIR_IDX_CACHED) ? 1 : 0;
 	if ((oldCachedRW != 0) && (newNoncached != 0)) {
 		pa = _pmap_hwTranslate(vaddr);
 		if (((pa & 1U) == 0U) && (DESCR_PA(oldEntry) == (pa & ((1UL << 48) - (1UL << 12))))) {
@@ -305,12 +307,11 @@ static addr_t _pmap_mapTtl2AndSearch(addr_t ttl2, unsigned int *idx2_ptr)
 	return 0;
 }
 
-/* MISRA TODO: make i unsigned int? */
-static addr_t _pmap_destroy(pmap_t *pmap, int *i)
+static addr_t _pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	/* idx2 goes from 0 to 512 inclusive - value of 512 signifies that the whole ttl2 is empty now */
-	unsigned int idx2 = (unsigned int)*i & 0x3ffU;
-	unsigned int idx1 = (unsigned int)*i >> 10U;
+	unsigned int idx2 = *i & 0x3ffU;
+	unsigned int idx1 = *i >> 10U;
 	const unsigned int idx1Max = (unsigned int)TTL_IDX(1U, VADDR_USR_MAX - 1U);
 	addr_t ret = 0;
 	descr_t entry;
@@ -334,12 +335,12 @@ static addr_t _pmap_destroy(pmap_t *pmap, int *i)
 		}
 	}
 
-	*i = (int)(unsigned int)((idx2 & 0x3ffU) | (idx1 << 10));
+	*i = (idx2 & 0x3ffU) | (idx1 << 10U);
 	return ret;
 }
 
 
-addr_t pmap_destroy(pmap_t *pmap, int *i)
+addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	spinlock_ctx_t sc;
 	addr_t ret;
@@ -399,15 +400,14 @@ void pmap_switch(pmap_t *pmap)
 
 /* Writes the translation descriptor into the level 3 translation table.
  * Assumes that the table is already mapped mapped into pmap_common.scratch_tt */
-/* MISRA TODO: make attributes unsigned int? */
-static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
+static void _pmap_writeTtl3(void *va, addr_t pa, vm_attr_t attr, asid_t asid)
 {
 	unsigned int idx = (unsigned int)TTL_IDX(3U, va);
 	descr_t descr, oldDescr;
 
 	oldDescr = pmap_common.scratch_tt[idx];
 
-	if (((unsigned int)attributes & PGHD_PRESENT) == 0U) {
+	if ((attr & PGHD_PRESENT) == 0U) {
 		descr = 0;
 	}
 	else {
@@ -416,19 +416,19 @@ static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 			descr |= DESCR_nG;
 		}
 
-		if (((unsigned int)attributes & PGHD_EXEC) == 0U) {
+		if ((attr & PGHD_EXEC) == 0U) {
 			descr |= DESCR_PXN | DESCR_UXN;
 		}
 
-		if (((unsigned int)attributes & PGHD_WRITE) == 0U) {
+		if ((attr & PGHD_WRITE) == 0U) {
 			descr |= DESCR_AP2;
 		}
 
-		if (((unsigned int)attributes & PGHD_USER) != 0U) {
+		if ((attr & PGHD_USER) != 0U) {
 			descr |= DESCR_AP1;
 		}
 
-		switch ((unsigned int)attributes & (PGHD_NOT_CACHED | PGHD_DEV)) {
+		switch (attr & (PGHD_NOT_CACHED | PGHD_DEV)) {
 			/* TODO: does this make sense - NOT_CACHED and DEV flags will result in strongly-ordered memory */
 			case PGHD_NOT_CACHED | PGHD_DEV:
 				descr |= DESCR_ATTR(MAIR_IDX_S_ORDERED);
@@ -651,7 +651,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		entry = &pmap_common.mem.entries[i];
 		if (found == 0) {
 			if ((a >= entry->start) && (a <= entry->end)) {
-				page->flags = (u16)(entry->flags);
+				page->flags = entry->flags;
 				found = 1;
 			}
 		}
@@ -680,8 +680,8 @@ int pmap_getPage(page_t *page, addr_t *addr)
 		/* No action required */
 	}
 
-	if (syspage->progs != NULL) {
-		prog = syspage->progs;
+	if (hal_syspage->progs != NULL) {
+		prog = hal_syspage->progs;
 		do {
 			if (page->addr >= prog->start && page->addr < prog->end) {
 				page->flags |= PAGE_OWNER_APP;
@@ -689,7 +689,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 			}
 
 			prog = prog->next;
-		} while (prog != syspage->progs);
+		} while (prog != hal_syspage->progs);
 	}
 
 	if ((page->addr >= pmap_common.mem.pkernel) && (page->addr < (pmap_common.mem.pkernel + pmap_common.mem.kernelsz))) {
@@ -729,8 +729,8 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 	}
 
 	for (; vaddr < (ptr_t)end; vaddr += (SIZE_PAGE << 9)) {
-		if (pmap_enter(pmap, 0, (void *)vaddr, (int)~PGHD_PRESENT, NULL) < 0) {
-			if (pmap_enter(pmap, 0, (void *)vaddr, (int)~PGHD_PRESENT, dp) < 0) {
+		if (pmap_enter(pmap, 0, (void *)vaddr, ~PGHD_PRESENT, NULL) < 0) {
+			if (pmap_enter(pmap, 0, (void *)vaddr, ~PGHD_PRESENT, dp) < 0) {
 				return -ENOMEM;
 			}
 			dp = NULL;
@@ -763,12 +763,12 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, vo
 		case 0:
 			*vaddr = (void *)VADDR_KERNEL;
 			*size = (size_t)&_etext - VADDR_KERNEL;
-			*prot = (int)(PROT_EXEC | PROT_READ);
+			*prot = PROT_EXEC | PROT_READ;
 			break;
 		case 1:
 			*vaddr = &_etext;
 			*size = (size_t)(*top) - (size_t)&_etext;
-			*prot = (int)(PROT_WRITE | PROT_READ);
+			*prot = PROT_WRITE | PROT_READ;
 			break;
 		default:
 			return -EINVAL;
@@ -815,7 +815,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.end = pmap_common.start + SIZE_PAGE;
 
 	/* Create initial heap */
-	(void)pmap_enter(pmap, pmap_common.start, (*vstart), (int)(PGHD_WRITE | PGHD_READ | PGHD_PRESENT), NULL);
+	LIB_ASSERT_ALWAYS(pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL) == EOK, "failed to create initial heap");
 }
 
 
@@ -837,7 +837,7 @@ void _pmap_preinit(addr_t dtbStart, addr_t dtbEnd)
 
 	hal_cpuDataSyncBarrier();
 
-	pmap_common.mem.pkernel = syspage->pkernel;
+	pmap_common.mem.pkernel = hal_syspage->pkernel;
 	pmap_common.mem.kernelsz = CEIL_PAGE(&_end) - (addr_t)VADDR_KERNEL;
 	pmap_common.mem.vkernelEnd = CEIL_PAGE(&_end);
 
@@ -891,19 +891,15 @@ void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size)
 {
 	descr_t attrs = DESCR_VALID | DESCR_TABLE | DESCR_AF | DESCR_ISH | DESCR_PXN | DESCR_UXN | DESCR_ATTR(MAIR_IDX_DEVICE);
 	ptr_t va_start = ((VADDR_MAX - (SIZE_PAGE << 9)) + 1U) + (pmap_common.dev_i * SIZE_PAGE);
-	ptr_t va = va_start;
-	addr_t end;
+	size_t offs;
+
 	if ((pmap_common.dev_i + (size / SIZE_PAGE)) > TTL_IDX(3U, VADDR_DTB)) {
 		return NULL;
 	}
 
-	end = paddr + size;
-
-	while (paddr < end) {
-		pmap_common.devices_ttl3[TTL_IDX(3U, va)] = DESCR_PA(paddr) | attrs;
+	for (offs = 0; offs < size; offs += SIZE_PAGE) {
+		pmap_common.devices_ttl3[TTL_IDX(3U, va_start + offs)] = DESCR_PA(paddr + offs) | attrs;
 		pmap_common.dev_i++;
-		va += SIZE_PAGE;
-		paddr += SIZE_PAGE;
 	}
 
 	hal_cpuDataSyncBarrier();

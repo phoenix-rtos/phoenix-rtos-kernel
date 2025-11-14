@@ -59,7 +59,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-addr_t pmap_destroy(pmap_t *pmap, int *i)
+addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	unsigned int kernel = ((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1U)) >> 22;
 

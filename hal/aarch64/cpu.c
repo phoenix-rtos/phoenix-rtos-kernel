@@ -36,22 +36,22 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 		return -1;
 	}
 
-	kstacksz &= ~0xfU;
+	kstacksz &= ~0xfUL;
 
 	if (kstacksz < sizeof(cpu_context_t)) {
 		return -1;
 	}
 
 	/* Align user stack to 16 bytes */
-	ustack = (void *)((ptr_t)ustack & ~0xfU);
+	ustack = (void *)((ptr_t)ustack & ~0xfUL);
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));
 
 	/* Set all registers to NAN */
-	for (i = 0; i < 64; i += 2) {
+	for (i = 0; i < 64U; i += 2U) {
 		ctx->freg[i] = ~0UL;
-		ctx->freg[i + 1] = ~0UL;
+		ctx->freg[i + 1U] = ~0UL;
 	}
 
 	ctx->fpsr = 0;
@@ -59,7 +59,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->cpacr = 0;
 
 	ctx->x[0] = (u64)arg;
-	for (i = 1; i < 31; i++) {
+	for (i = 1; i < 31U; i++) {
 		ctx->x[i] = 0x0101010101010101UL * i;
 	}
 
@@ -176,7 +176,7 @@ char *hal_cpuInfo(char *info)
 }
 
 
-char *hal_cpuFeatures(char *features, unsigned int len)
+char *hal_cpuFeatures(char *features, size_t len)
 {
 	size_t n = 0;
 	struct aarch64_proc_id procId;

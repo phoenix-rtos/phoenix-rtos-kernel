@@ -42,7 +42,6 @@
 	})
 
 
-/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 
 /* Barriers */
 
@@ -81,6 +80,8 @@ void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly" */
 void hal_cpuInvalDataCacheAll(void);
 
+
+/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 
 /* Invalidate TLB entries by ASID Match */
 static inline void hal_tlbInvalASID(asid_t asid)
@@ -125,6 +126,8 @@ static inline void hal_tlbInvalAll_IS(void)
 	hal_cpuDataSyncBarrier();
 }
 
+/* parasoft-end-suppress MISRAC2012-DIR_4_3 */
+
 
 /* Read Translation Table Base Register 0 and get only translation table physical address */
 static inline addr_t hal_cpuGetTranslationBase(void)
@@ -152,5 +155,3 @@ struct aarch64_proc_id {
 void hal_cpuGetProcID(struct aarch64_proc_id *out);
 
 #endif
-
-/* parasoft-end-suppress MISRAC2012-DIR_4_3 */

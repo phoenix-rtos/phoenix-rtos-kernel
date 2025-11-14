@@ -466,7 +466,7 @@ char *hal_cpuInfo(char *info)
 }
 
 
-char *hal_cpuFeatures(char *features, unsigned int len)
+char *hal_cpuFeatures(char *features, size_t len)
 {
 	u32 nb, nx, v[4], a;
 	unsigned int i = 0;

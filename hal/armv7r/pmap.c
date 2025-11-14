@@ -111,7 +111,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-addr_t pmap_destroy(pmap_t *pmap, int *i)
+addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	return 0;
 }

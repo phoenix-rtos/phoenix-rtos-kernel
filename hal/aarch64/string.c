@@ -51,13 +51,12 @@ size_t hal_strlen(const char *s)
 
 int hal_strcmp(const char *s1, const char *s2)
 {
-	const unsigned char *us1 = (const unsigned char *)s1;
-	const unsigned char *us2 = (const unsigned char *)s2;
-	const unsigned char *p;
+	const u8 *us1 = (const u8 *)s1;
+	const u8 *us2 = (const u8 *)s2;
+	const u8 *p;
 	size_t k = 0U;
 
 	for (p = us1; *p != 0U; p++) {
-
 		if (*p < *(us2 + k)) {
 			return -1;
 		}
@@ -80,8 +79,8 @@ int hal_strcmp(const char *s1, const char *s2)
 
 int hal_strncmp(const char *s1, const char *s2, size_t n)
 {
-	const unsigned char *us1 = (const unsigned char *)s1;
-	const unsigned char *us2 = (const unsigned char *)s2;
+	const u8 *us1 = (const u8 *)s1;
+	const u8 *us2 = (const u8 *)s2;
 	size_t k = 0;
 
 	while (k < n && (*us1 != 0U) && (*us2 != 0U) && (*us1 == *us2)) {
@@ -102,9 +101,11 @@ char *hal_strcpy(char *dest, const char *src)
 {
 	size_t i = 0;
 
-	do {
+	/* parasoft-begin-suppress MISRAC2012-RULE_18_1 "src is assumed to end with a null-byte" */
+	for (i = 0; src[i] != '\0'; i++) {
 		dest[i] = src[i];
-	} while (src[i++] != '\0');
+	}
+	/* parasoft-end-suppress MISRAC2012-RULE_18_1 */
 
 	return dest;
 }
@@ -112,16 +113,17 @@ char *hal_strcpy(char *dest, const char *src)
 
 char *hal_strncpy(char *dest, const char *src, size_t n)
 {
-	size_t i = 0;
+	size_t i;
 
 	if (n == 0U) {
 		return dest;
 	}
 
-	do {
+	/* parasoft-begin-suppress MISRAC2012-RULE_18_1 "src is assumed to end with a null-byte" */
+	for (i = 0; i < n && src[i] != '\0'; i++) {
 		dest[i] = src[i];
-		i++;
-	} while (i < n && src[i - 1U] != '\0');
+	}
+	/* parasoft-end-suppress MISRAC2012-RULE_18_1 */
 
 	return dest;
 }
