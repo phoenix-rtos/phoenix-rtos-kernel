@@ -20,16 +20,9 @@
 #include "hal/string.h"
 
 
-enum { gpt_cr = 0,
-	gpt_pr,
-	gpt_sr,
-	gpt_ir,
-	gpt_ocr1,
-	gpt_ocr2,
-	gpt_ocr3,
-	gpt_icr1,
-	gpt_icr2,
-	gpt_cnt };
+/* clang-format off */
+enum { gpt_cr = 0, gpt_pr, gpt_sr, gpt_ir, gpt_ocr1, gpt_ocr2, gpt_ocr3, gpt_icr1, gpt_icr2, gpt_cnt };
+/* clang-format on */
 
 
 static struct {

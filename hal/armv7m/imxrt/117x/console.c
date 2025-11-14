@@ -56,18 +56,10 @@ static struct {
 } console_common;
 
 
-enum { uart_verid = 0,
-	uart_param,
-	uart_global,
-	uart_pincfg,
-	uart_baud,
-	uart_stat,
-	uart_ctrl,
-	uart_data,
-	uart_match,
-	uart_modir,
-	uart_fifo,
-	uart_water };
+/* clang-format off */
+enum { uart_verid = 0, uart_param, uart_global, uart_pincfg, uart_baud, uart_stat, uart_ctrl,
+	uart_data, uart_match, uart_modir, uart_fifo, uart_water };
+/* clang-format on */
 
 
 static void _hal_consolePrint(const char *s)
