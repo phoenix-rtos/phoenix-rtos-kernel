@@ -65,7 +65,7 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 }
 
 
-char *hal_timerFeatures(char *features, unsigned int len)
+char *hal_timerFeatures(char *features, size_t len)
 {
 	if (len != 0U) {
 		(void)hal_strncpy(features, "Using hypervisor timer", len);

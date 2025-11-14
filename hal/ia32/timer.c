@@ -481,7 +481,7 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 }
 
 
-char *hal_timerFeatures(char *features, unsigned int len)
+char *hal_timerFeatures(char *features, size_t len)
 {
 	static const char textScheduling[] = "Scheduling timer: ";
 	static const char textTimestamp[] = "\nhal: Timestamp timer: ";
@@ -494,14 +494,14 @@ char *hal_timerFeatures(char *features, unsigned int len)
 	off += n;
 	len -= n;
 
-	off += timer_common.schedulerTimer->name(features + off, &len);
+	off += timer_common.schedulerTimer->name(features + off, (unsigned int *)&len);
 
 	(void)hal_strncpy(features + off, textTimestamp, len);
 	n = (textTimestampLength < len) ? textTimestampLength : len;
 	off += n;
 	len -= n;
 
-	off += timer_common.timestampTimer->name(features + off, &len);
+	off += timer_common.timestampTimer->name(features + off, (unsigned int *)&len);
 	features[(len == 0U) ? off - 1U : off] = '\0';
 	return features;
 }

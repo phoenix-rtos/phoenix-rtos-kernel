@@ -25,7 +25,7 @@
 #define EXTENSION_DESCRIPTIONS 0U
 #define N_EXCEPTIONS           64U
 
-struct {
+static struct {
 	excHandlerFn_t handler[N_EXCEPTIONS];
 	excHandlerFn_t defaultHandler;
 	spinlock_t lock;
@@ -41,84 +41,84 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 static const char *exceptionClassStr(unsigned int excClass)
 {
 	switch (excClass) {
-		case 0b000000:
+		case 0:
 			return "Unknown reason";
-		case 0b000001:
+		case 1:
 			return "Trapped WFI/WFE";
-		case 0b000011:
+		case 3:
 			return "Trapped MCR/MRC access (cp15)";
-		case 0b000100:
+		case 4:
 			return "Trapped MCRR/MRRC access (cp15)";
-		case 0b000101:
+		case 5:
 			return "Trapped MCR/MRC access (cp14)";
-		case 0b000110:
+		case 6:
 			return "Trapped LDC/STC access";
-		case 0b000111:
+		case 7:
 			return "Trapped SME, SVE, Advanced SIMD or floating-point functionality due to CPACR_ELx.FPEN";
-		case 0b001100:
+		case 12:
 			return "Trapped MRRC access (cp14)";
-		case 0b001110:
+		case 14:
 			return "Illegal Execution state";
-		case 0b010001:
+		case 17:
 			return "SVC (AA32)";
-		case 0b010100:
+		case 20:
 			return "Trapped MSRR/MRRS/SYS (AA64)";
-		case 0b010101:
+		case 21:
 			return "SVC (AA64)";
-		case 0b011000:
+		case 24:
 			return "Trapped MSR/MRS/SYS (AA64)";
-		case 0b100000:
+		case 32:
 			return "Instruction Abort (EL0)";
-		case 0b100001:
+		case 33:
 			return "Instruction Abort (EL1)";
-		case 0b100010:
+		case 34:
 			return "PC alignment fault";
-		case 0b100100:
+		case 36:
 			return "Data Abort (EL0)";
-		case 0b100101:
+		case 37:
 			return "Data Abort (EL1)";
-		case 0b100110:
+		case 38:
 			return "SP alignment fault";
-		case 0b101000:
+		case 40:
 			return "Trapped floating-point exception (AA32)";
-		case 0b101100:
+		case 44:
 			return "Trapped floating-point exception (AA64)";
-		case 0b101111:
+		case 47:
 			return "SError exception";
-		case 0b110000:
+		case 48:
 			return "Breakpoint (EL0)";
-		case 0b110001:
+		case 49:
 			return "Breakpoint (EL1)";
-		case 0b110010:
+		case 50:
 			return "Software Step (EL0)";
-		case 0b110011:
+		case 51:
 			return "Software Step (EL1)";
-		case 0b110100:
+		case 52:
 			return "Watchpoint (EL0)";
-		case 0b110101:
+		case 53:
 			return "Watchpoint (EL1)";
-		case 0b111000:
+		case 56:
 			return "BKPT (AA32)";
-		case 0b111100:
+		case 60:
 			return "BRK (AA64)";
 #if EXTENSION_DESCRIPTIONS
-		case 0b001010:
+		case 10:
 			return "(FEAT_LS64) Trapped execution of an LD64B or ST64B* instruction";
-		case 0b001101:
+		case 13:
 			return "(FEAT_BTI) Branch Target Exception";
-		case 0b011001:
+		case 25:
 			return "(FEAT_SVE) Access to SVE functionality trapped";
-		case 0b011011:
+		case 27:
 			return "(FEAT_TME) Exception from an access to a TSTART instruction...";
-		case 0b011100:
+		case 28:
 			return "(FEAT_FPAC) Exception from a PAC Fail";
-		case 0b011101:
+		case 29:
 			return "(FEAT_SME) Access to SME functionality trapped";
-		case 0b100111:
+		case 39:
 			return "(FEAT_MOPS) Memory Operation Exception";
-		case 0b101101:
+		case 45:
 			return "(FEAT_GCS) GCS exception";
-		case 0b111101:
+		case 61:
 			return "(FEAT_EBEP) PMU exception";
 #endif
 		default:
@@ -129,7 +129,8 @@ static const char *exceptionClassStr(unsigned int excClass)
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
-	size_t i = 0, j;
+	size_t i = 0;
+	u8 j;
 	const char *toAdd;
 
 	toAdd = "\nException #";
@@ -152,10 +153,10 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 		}
 		else {
 			prefix[1] = 'x';
-			prefix[2] = '0' + ((signed char)j / 10);
+			prefix[2] = (char)('0' + (j / 10U));
 		}
 
-		prefix[3] = '0' + ((signed char)j % 10);
+		prefix[3] = (char)('0' + (j % 10U));
 		i += hal_i2s(prefix, &buff[i], ctx->cpuCtx.x[j], 16U, 1U);
 	}
 
@@ -182,11 +183,11 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
+#endif
 }
 
 
@@ -217,15 +218,15 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 #ifdef __TARGET_AARCH64A53
 		case EXC_SERROR:
 			/* Some SError exceptions can result from writing to an invalid address */
-			iss = ctx->esr & ((1UL << 25) - 1U);
+			iss = (u32)(ctx->esr & ((1UL << 25) - 1U));
 			if ((iss & (1UL << 24)) == 0U) {
-				return (int)PROT_NONE;
+				return PROT_NONE;
 			}
 
 			iss = (iss & 0x3U) | ((iss >> 20) & 0xcU);
-			prot |= (iss == 0b0010U) ? PROT_WRITE : 0U; /* SLVERR */
-			prot |= (iss == 0b0000U) ? PROT_WRITE : 0U; /* DECERR */
-			return (int)prot;
+			prot |= (iss == 2U) ? PROT_WRITE : 0U; /* SLVERR */
+			prot |= (iss == 0U) ? PROT_WRITE : 0U; /* DECERR */
+			return prot;
 #endif
 		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case EXC_INSTR_ABORT_EL0:
@@ -234,7 +235,7 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 
 		case EXC_INSTR_ABORT_EL1:
 			prot |= PROT_EXEC | PROT_READ;
-			return (int)prot;
+			return prot;
 
 		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case EXC_DATA_ABORT_EL0:
@@ -242,12 +243,12 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 			/* Fall-through */
 
 		case EXC_DATA_ABORT_EL1:
-			iss = ctx->esr & ((1UL << 25) - 1U);
+			iss = (u32)(ctx->esr & ((1UL << 25) - 1U));
 			prot |= ((iss & (1UL << 6)) == 0U) ? PROT_READ : PROT_WRITE;
-			return (int)prot;
+			return prot;
 
 		default:
-			return (int)PROT_NONE;
+			return PROT_NONE;
 	}
 }
 

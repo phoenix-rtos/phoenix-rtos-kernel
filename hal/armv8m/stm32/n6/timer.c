@@ -81,7 +81,7 @@ void timer_jiffiesAdd(time_t t)
 }
 
 
-char *hal_timerFeatures(char *features, unsigned int len)
+char *hal_timerFeatures(char *features, size_t len)
 {
 	hal_strncpy(features, "Using STM32 TIM timer", len);
 	features[len - 1] = '\0';

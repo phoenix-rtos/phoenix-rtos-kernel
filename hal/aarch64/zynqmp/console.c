@@ -24,7 +24,7 @@
 #include <board_config.h>
 
 
-#if UART_CONSOLE_KERNEL == 0U
+#if UART_CONSOLE_KERNEL == 0
 #define UART_RX    UART0_RX
 #define UART_TX    UART0_TX
 #define UART_RESET pctl_devreset_lpd_uart0
@@ -105,17 +105,17 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 	dtb_serial_t *serials;
 	size_t nSerials;
 	dtb_getSerials(&serials, &nSerials);
-	if (UART_CONSOLE_KERNEL >= (int)nSerials) {
+	if ((size_t)UART_CONSOLE_KERNEL >= nSerials) {
 		return;
 	}
 
 	console_common.uart = _pmap_halMapDevice(serials[UART_CONSOLE_KERNEL].base, 0, SIZE_PAGE);
 	console_common.speed = 115200;
 #if (UART_CONSOLE_ROUTED_VIA_PL != 1)
-	(void)_zynqmp_setMIO(UART_TX, 0, 0, 0, 6, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE);
-	(void)_zynqmp_setMIO(UART_RX, 0, 0, 0, 6, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE | PCTL_MIO_TRI_ENABLE);
+	(void)_zynqmp_setMIO(UART_TX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE);
+	(void)_zynqmp_setMIO(UART_RX, 0U, 0U, 0U, 6U, PCTL_MIO_SLOW_nFAST | PCTL_MIO_PULL_UP_nDOWN | PCTL_MIO_PULL_ENABLE | PCTL_MIO_TRI_ENABLE);
 #endif
-	(void)_zynq_setDevRst(UART_RESET, 0);
+	(void)_zynq_setDevRst(UART_RESET, 0U);
 
 	*(console_common.uart + idr) = 0xfff;
 

@@ -32,6 +32,6 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h);
 void _hal_timerInit(u32 interval);
 
 
-char *hal_timerFeatures(char *features, unsigned int len);
+char *hal_timerFeatures(char *features, size_t len);
 
 #endif

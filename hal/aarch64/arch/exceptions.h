@@ -21,36 +21,36 @@
 #define EXC_DEFAULT   64U
 #define EXC_PAGEFAULT 65U
 
-#define EXC_UNDEFINED               0x00
-#define EXC_TRAP_WFI_WFE            0x01
-#define EXC_TRAP_MCR_MRC_CP15       0x03
-#define EXC_TRAP_MCRR_MRRC_CP15     0x04
-#define EXC_TRAP_MCR_MRC_CP14       0x05
-#define EXC_TRAP_LDC_STC            0x06
-#define EXC_TRAP_MRRC_CP14          0x0c
-#define EXC_ILLEGAL_EXEC_STATE      0x0e
-#define EXC_SVC_AA32                0x11
-#define EXC_TRAP_MSRR_MRRS_SYS_AA64 0x14
-#define EXC_TRAP_MSR_MRS_SYS_AA64   0x18
-#define EXC_INSTR_ABORT_EL0         0x20
-#define EXC_INSTR_ABORT_EL1         0x21
-#define EXC_PC_ALIGN                0x22
-#define EXC_DATA_ABORT_EL0          0x24
-#define EXC_DATA_ABORT_EL1          0x25
-#define EXC_SP_ALIGN                0x26
-#define EXC_TRAP_FPU_AA32           0x28
-#define EXC_TRAP_FPU_AA64           0x2c
-#define EXC_SERROR                  0x2f
-#define EXC_BREAKPOINT_EL0          0x30
-#define EXC_BREAKPOINT_EL1          0x31
-#define EXC_STEP_EL0                0x32
-#define EXC_STEP_EL1                0x33
-#define EXC_WATCHPOINT_EL0          0x34
-#define EXC_WATCHPOINT_EL1          0x35
-#define EXC_BKPT_AA32               0x38
-#define EXC_BRK_AA64                0x3c
+#define EXC_UNDEFINED               0x00U
+#define EXC_TRAP_WFI_WFE            0x01U
+#define EXC_TRAP_MCR_MRC_CP15       0x03U
+#define EXC_TRAP_MCRR_MRRC_CP15     0x04U
+#define EXC_TRAP_MCR_MRC_CP14       0x05U
+#define EXC_TRAP_LDC_STC            0x06U
+#define EXC_TRAP_MRRC_CP14          0x0cU
+#define EXC_ILLEGAL_EXEC_STATE      0x0eU
+#define EXC_SVC_AA32                0x11U
+#define EXC_TRAP_MSRR_MRRS_SYS_AA64 0x14U
+#define EXC_TRAP_MSR_MRS_SYS_AA64   0x18U
+#define EXC_INSTR_ABORT_EL0         0x20U
+#define EXC_INSTR_ABORT_EL1         0x21U
+#define EXC_PC_ALIGN                0x22U
+#define EXC_DATA_ABORT_EL0          0x24U
+#define EXC_DATA_ABORT_EL1          0x25U
+#define EXC_SP_ALIGN                0x26U
+#define EXC_TRAP_FPU_AA32           0x28U
+#define EXC_TRAP_FPU_AA64           0x2cU
+#define EXC_SERROR                  0x2fU
+#define EXC_BREAKPOINT_EL0          0x30U
+#define EXC_BREAKPOINT_EL1          0x31U
+#define EXC_STEP_EL0                0x32U
+#define EXC_STEP_EL1                0x33U
+#define EXC_WATCHPOINT_EL0          0x34U
+#define EXC_WATCHPOINT_EL1          0x35U
+#define EXC_BKPT_AA32               0x38U
+#define EXC_BRK_AA64                0x3cU
 
-#define SIZE_CTXDUMP 1024 /* Size of dumped context string */
+#define SIZE_CTXDUMP 1024U /* Size of dumped context string */
 
 
 typedef struct _exc_context_t {

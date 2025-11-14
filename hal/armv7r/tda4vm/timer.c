@@ -188,7 +188,7 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 }
 
 
-char *hal_timerFeatures(char *features, unsigned int len)
+char *hal_timerFeatures(char *features, size_t len)
 {
 	hal_strncpy(features, "Using TI OMAP5430 Timer", len);
 	features[len - 1] = '\0';

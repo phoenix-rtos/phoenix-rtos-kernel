@@ -174,7 +174,7 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 }
 
 
-char *hal_timerFeatures(char *features, unsigned int len)
+char *hal_timerFeatures(char *features, size_t len)
 {
 	(void)hal_strncpy(features, "Using General Purpose Timer", len);
 	features[len - 1U] = '\0';

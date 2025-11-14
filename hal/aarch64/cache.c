@@ -19,7 +19,7 @@
 static u64 hal_getICacheLineSize(void)
 {
 	u64 ctr = sysreg_read(ctr_el0);
-	ctr = ctr & 0xfU;
+	ctr = ctr & 0xfUL;
 	return (u64)4 << ctr;
 }
 
@@ -42,7 +42,7 @@ void hal_cpuInvalInstrCache(ptr_t vstart, ptr_t vend)
 static u64 hal_getDCacheLineSize(void)
 {
 	u64 ctr = sysreg_read(ctr_el0);
-	ctr = (ctr >> 16) & 0xfu;
+	ctr = (ctr >> 16) & 0xfUL;
 	return (u64)4 << ctr;
 }
 
