@@ -77,8 +77,6 @@ extern unsigned int _end;
 
 static int _imx6ull_isValidDev(int dev)
 {
-	unsigned int i;
-
 	if (dev < pctl_clk_aips_tz1 || dev > pctl_clk_pwm7) {
 		return 0;
 	}
