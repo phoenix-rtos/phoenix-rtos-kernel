@@ -89,13 +89,13 @@ static int ambapp_apbFind(addr_t apb, ambapp_dev_t *dev, unsigned int *instance)
 	hal_spinlockSet(&ambapp_common.lock, &sc);
 
 	/* Map bridge PnP */
-	apbdev = pmap_halMap((addr_t)apbdev, (void *)ambapp_common.apbpnp, SIZE_PAGE, (int)(PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT));
+	apbdev = pmap_halMap((addr_t)apbdev, (void *)ambapp_common.apbpnp, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
 
 	for (i = 0; i < AMBAPP_APB_NSLAVES; i++) {
 		id = apbdev[i].id;
 		if (AMBAPP_DEV(id) == dev->devId) {
 			(*instance)--;
-			if (*instance == -1) {
+			if (*instance == (unsigned int)-1) {
 				/* Found desired device, fill struct and return */
 				ambapp_fillApbDev(apb, dev, &apbdev[i]);
 				hal_spinlockClear(&ambapp_common.lock, &sc);
@@ -176,7 +176,7 @@ static int ambapp_ahbFind(ptr_t pnpOff, u32 ndevs, ambapp_dev_t *dev, unsigned i
 		if (AMBAPP_DEV(id) == dev->devId) {
 			/* Found desired device in AHB */
 			(*instance)--;
-			if (*instance == -1) {
+			if (*instance == (unsigned int)-1) {
 				ambapp_fillAhbDev(dev, &ahbdev[i]);
 				return 0;
 			}
@@ -234,6 +234,6 @@ void ambapp_init(void)
 	hal_spinlockCreate(&ambapp_common.lock, "ambapp_common.lock");
 
 	/* NOTE: on GR740 uncacheable areas (AMBA PnP) must be mapped as such */
-	ambapp_common.ahbpnp = (ptr_t)_pmap_halMap(AMBAPP_AHB_MSTR, NULL, SIZE_PAGE, (int)(PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT));
-	ambapp_common.apbpnp = (ptr_t)_pmap_halMap(0, NULL, SIZE_PAGE, (int)(PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT));
+	ambapp_common.ahbpnp = (ptr_t)_pmap_halMap(AMBAPP_AHB_MSTR, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
+	ambapp_common.apbpnp = (ptr_t)_pmap_halMap(0, NULL, SIZE_PAGE, PGHD_READ | PGHD_NOT_CACHED | PGHD_PRESENT);
 }

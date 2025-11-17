@@ -28,7 +28,7 @@
 
 
 struct task_tlb {
-	void (*func)(void *);
+	void (*func)(void *arg);
 	const void *entry;
 	const pmap_t *pmap;
 	size_t count;

@@ -71,6 +71,7 @@ void hal_cpuStartCores(void)
 	u32 msk = 0;
 
 	if (id == 0U) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_2_1 "Loop should be executed only if NUM_CPUS > 1" */
 		for (i = 1; i < NUM_CPUS; ++i) {
 			msk |= (1UL << i);
 		}
@@ -206,5 +207,5 @@ void _hal_interruptsInit(void)
 	}
 	interrupts_common.int_ctrl = _pmap_halMapDevice(PAGE_ALIGN(INT_CTRL_BASE), PAGE_OFFS(INT_CTRL_BASE), SIZE_PAGE);
 
-	*(interrupts_common.int_ctrl + INT_CLEAR) = 0xffffffff;
+	*(interrupts_common.int_ctrl + INT_CLEAR) = 0xffffffffU;
 }

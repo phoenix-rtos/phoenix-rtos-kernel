@@ -17,6 +17,7 @@
 #define _PH_HAL_LEON3_PMAP_H_
 
 
+#include "vm/types.h"
 #define SIZE_PDIR 0x1000
 
 /* Predefined virtual addresses */
@@ -116,10 +117,10 @@ typedef struct _pmap_t {
 #endif /* NOMMU */
 
 
-void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+void *_pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr);
 
 
-void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+void *pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr);
 
 
 void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size);
