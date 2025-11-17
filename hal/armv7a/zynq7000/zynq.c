@@ -737,7 +737,7 @@ unsigned int hal_cpuGetCount(void)
 
 
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
-static u32 checkNumCPUs(void)
+static u32 hal_checkNumCPUs(void)
 {
 	/* First check if MPIDR indicates uniprocessor system or no MP extensions */
 	unsigned int mpidr;
@@ -766,7 +766,7 @@ static u32 checkNumCPUs(void)
 
 void _hal_cpuInit(void)
 {
-	zynq_common.nCpus = checkNumCPUs();
+	zynq_common.nCpus = hal_checkNumCPUs();
 	hal_cpuAtomicInc(&nCpusStarted);
 	if (hal_cpuAtomicGet(&nCpusStarted) == 1U) {
 		/* This is necessary because other CPU is still in physical memory

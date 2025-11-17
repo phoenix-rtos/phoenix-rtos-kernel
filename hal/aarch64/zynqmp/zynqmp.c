@@ -474,7 +474,7 @@ int hal_platformctl(void *ptr)
 }
 
 
-static u32 checkNumCPUs(void)
+static u32 hal_checkNumCPUs(void)
 {
 	int i;
 	u32 powerStatus, cpusAvailable;
@@ -504,7 +504,7 @@ void _hal_platformInit(void)
 	zynq_common.crf_apb = _pmap_halMapDevice(CRF_APB_BASE_ADDRESS, 0, SIZE_PAGE);
 	zynq_common.crl_apb = _pmap_halMapDevice(CRL_APB_BASE_ADDRESS, 0, SIZE_PAGE);
 	zynq_common.apu = _pmap_halMapDevice(APU_BASE_ADDRESS, 0, SIZE_PAGE);
-	zynq_common.nCpus = checkNumCPUs();
+	zynq_common.nCpus = hal_checkNumCPUs();
 }
 
 
