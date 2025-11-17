@@ -22,7 +22,10 @@
 #include "hal/spinlock.h"
 #include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/tlb/tlb.h"
+
+#ifdef LEON_HAS_L2CACHE
 #include "gaisler/l2cache.h"
+#endif
 
 #include "include/errno.h"
 #include "include/mman.h"
