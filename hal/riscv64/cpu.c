@@ -18,6 +18,8 @@
 #include "riscv64.h"
 #include "dtb.h"
 
+#include <arch/timer.h>
+
 
 extern addr_t hal_relOffs;
 
@@ -34,9 +36,6 @@ static struct {
 	volatile u32 cpuCnt;
 	u32 cpusStarted;
 } cpu_common;
-
-
-void hal_timerInitCore(void);
 
 
 /* bit operations */
@@ -119,6 +118,7 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 /* context management */
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
@@ -213,6 +213,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	signalCtx->sepc = (u64)handler;
 	signalCtx->sp -= sizeof(cpu_context_t);
 

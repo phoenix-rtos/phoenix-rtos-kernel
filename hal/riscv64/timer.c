@@ -20,6 +20,8 @@
 #include "sbi.h"
 #include "hal/string.h"
 
+#include <arch/timer.h>
+
 #include <board_config.h>
 
 

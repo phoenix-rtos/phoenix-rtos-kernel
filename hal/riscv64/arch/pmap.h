@@ -53,6 +53,7 @@
 
 #ifndef __ASSEMBLY__
 
+#include "vm/types.h"
 #include "hal/types.h"
 
 
@@ -86,10 +87,10 @@ typedef struct _pmap_t {
 addr_t pmap_getKernelStart(void);
 
 
-void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+void *_pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr);
 
 
-void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+void *pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr);
 
 
 void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size);

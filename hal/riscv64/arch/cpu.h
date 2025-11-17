@@ -150,6 +150,7 @@ typedef struct _cpu_context_t {
 	u64 s6; /* x22 */
 	u64 s7; /* x23 */
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and also a RISCV64 register field identifier" */
 	u64 s8;  /* x24 */
 	u64 s9;  /* x25 */
 	u64 s10; /* x26 */
