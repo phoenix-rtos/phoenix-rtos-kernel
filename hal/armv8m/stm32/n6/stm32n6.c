@@ -456,19 +456,19 @@ int _stm32_rccGetIPClk(unsigned int ipclk, unsigned int *setting_out)
 }
 
 
-static int _stm32_getDevClockRegShift(unsigned int dev, unsigned int *shift_out)
+static int _stm32_getDevClockRegShift(int dev, unsigned int *shift_out)
 {
-	unsigned int reg = dev / 32;
+	unsigned int reg = (unsigned int)dev / 32;
 	if (reg > (rcc_apb5enr - rcc_busenr)) {
 		return -EINVAL;
 	}
 
-	*shift_out = dev % 32;
+	*shift_out = (unsigned int)dev % 32;
 	return reg;
 }
 
 
-int _stm32_rccSetDevClock(unsigned int dev, u32 status, u32 lpStatus)
+int _stm32_rccSetDevClock(int dev, u32 status, u32 lpStatus)
 {
 	u32 shift;
 	int reg, statusSC, lpStatusSC;
@@ -491,7 +491,7 @@ int _stm32_rccSetDevClock(unsigned int dev, u32 status, u32 lpStatus)
 }
 
 
-int _stm32_rccGetDevClock(unsigned int dev, u32 *status, u32 *lpStatus)
+int _stm32_rccGetDevClock(int dev, u32 *status, u32 *lpStatus)
 {
 	u32 shift;
 	int reg;
@@ -507,9 +507,9 @@ int _stm32_rccGetDevClock(unsigned int dev, u32 *status, u32 *lpStatus)
 }
 
 
-int _stm32_rccDevReset(unsigned int dev, u32 status)
+int _stm32_rccDevReset(int dev, u32 status)
 {
-	u32 reg = dev / 32, shift = dev % 32;
+	u32 reg = (u32)dev / 32, shift = (u32)dev % 32;
 	int set_clear;
 
 	if (reg > (rcc_apb5rstr - rcc_busrstr)) {
@@ -546,7 +546,7 @@ void _stm32_rccClearResetFlags(void)
 /* DBGMCU */
 
 
-int _stm32_dbgmcuStopTimerInDebug(unsigned int dev, u32 stop)
+int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 {
 	u32 reg;
 	volatile u32 *base = DBGMCU_BASE;

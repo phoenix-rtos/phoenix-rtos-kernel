@@ -54,10 +54,10 @@ enum gpio_pupds {
 
 
 /* Sets peripheral's bus clock */
-int _stm32_rccSetDevClock(unsigned int dev, u32 status, u32 lpStatus);
+int _stm32_rccSetDevClock(int dev, u32 status, u32 lpStatus);
 
 
-int _stm32_rccGetDevClock(unsigned int dev, u32 *status, u32 *lpStatus);
+int _stm32_rccGetDevClock(int dev, u32 *status, u32 *lpStatus);
 
 
 /* Sets independent peripheral clock configuration */
@@ -79,7 +79,7 @@ void _stm32_rccClearResetFlags(void);
 
 
 /* If `stop` != 0, selected timer will be stopped when CPU is halted in debug. */
-int _stm32_dbgmcuStopTimerInDebug(unsigned int dev, u32 stop);
+int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop);
 
 
 int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);

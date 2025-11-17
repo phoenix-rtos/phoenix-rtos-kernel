@@ -576,7 +576,7 @@ typedef struct {
 
 	union {
 		struct {
-			unsigned int dev;     /* one of pctl_* enum values */
+			int dev;              /* one of pctl_* enum values */
 			unsigned int state;   /* State in Run and Sleep modes: 1 - clock enabled, 0 - clock disabled */
 			unsigned int lpState; /* State in Sleep mode: 1 - enabled, 0 - disabled */
 		} devclk;
@@ -584,23 +584,23 @@ typedef struct {
 			unsigned int hz;
 		} cpuclk;
 		struct {
-			unsigned int port; /* one of pctl_gpio* enum values */
+			int port; /* one of pctl_gpio* enum values */
 			/* Bitmask of pins
 			 * 1 - Pin can be changed by only privileged code,
 			 * 0 - Pin can be changed by userspace code or privileged code */
 			unsigned int mask;
 		} gpioPrivilege;
 		struct {
-			unsigned int index; /* one of pctl_risup_* enum values */
-			int privileged;     /* 1 - set to privileged only, 0 - no change, -1 - set to unprivileged or privileged */
-			int secure;         /* 1 - set to secure only, 0 - no change, -1 - set to non-secure or secure */
-			int lock;           /* 1 - lock from changes until reset, 0 - no change */
+			int index;      /* one of pctl_risup_* enum values */
+			int privileged; /* 1 - set to privileged only, 0 - no change, -1 - set to unprivileged or privileged */
+			int secure;     /* 1 - set to secure only, 0 - no change, -1 - set to non-secure or secure */
+			int lock;       /* 1 - lock from changes until reset, 0 - no change */
 		} risup;
 		struct {
-			unsigned int index; /* one of pctl_rimc_* enum values */
-			int privileged;     /* 1 - set to privileged, 0 - no change, -1 - set to unprivileged */
-			int secure;         /* 1 - set to secure 0 - no change, -1 - set to non-secure */
-			int cid;            /* value of CID flag for this master on the interconnect. -1 for no change. */
+			int index;      /* one of pctl_rimc_* enum values */
+			int privileged; /* 1 - set to privileged, 0 - no change, -1 - set to unprivileged */
+			int secure;     /* 1 - set to secure 0 - no change, -1 - set to non-secure */
+			int cid;        /* value of CID flag for this master on the interconnect. -1 for no change. */
 		} rimc;
 		struct {
 			int dev; /* one of pctl_gpdma* or pctl_hpdma* enum values */
