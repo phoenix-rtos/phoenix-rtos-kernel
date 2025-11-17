@@ -22,8 +22,10 @@
 #include <board_config.h>
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "CONCAT{,_} is used for creation of preprocessor identifiers" */
 #define CONCAT_(a, b) a##b
 #define CONCAT(a, b)  CONCAT_(a, b)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7 */
 
 
 /* UART control bits */

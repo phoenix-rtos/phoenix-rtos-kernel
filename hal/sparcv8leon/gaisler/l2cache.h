@@ -25,10 +25,4 @@ enum { l2c_inv_line = 1, l2c_flush_line, l2c_flush_inv_line, l2c_inv_all = 5, l2
 /* clang-format on */
 
 
-void l2c_flushRange(unsigned int mode, addr_t start, size_t size);
-
-
-void l2c_init(addr_t base);
-
-
 #endif

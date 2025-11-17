@@ -360,8 +360,6 @@ static int _pmap_map(u32 *pdir1, addr_t pa, void *vaddr, vm_attr_t attr, page_t 
 		hal_cpuflushDCacheL1();
 
 		addr = PTD_TO_ADDR(hal_cpuLoadPaddr(&((u32 *)pdir2)[idx2]));
-
-		alloc = NULL;
 	}
 
 #ifdef LEON_HAS_L2CACHE
@@ -555,17 +553,17 @@ char pmap_marker(page_t *p)
 
 int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 {
-	void *vaddr = (void *)((u32)(*start + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1U));
+	void *vaddr = (void *)CEIL_PAGE(*start);
 
-	if (vaddr >= end) {
+	if ((ptr_t)vaddr >= (ptr_t)end) {
 		return EOK;
 	}
 
-	if (vaddr < (void *)VADDR_KERNEL) {
+	if ((ptr_t)vaddr < VADDR_KERNEL) {
 		vaddr = (void *)VADDR_KERNEL;
 	}
 
-	for (; vaddr < end; vaddr += (SIZE_PAGE << 10)) {
+	for (; (ptr_t)vaddr < (ptr_t)end; vaddr += (SIZE_PAGE << 10)) {
 		if (_pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, NULL, 0) < 0) {
 			if (_pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, dp, 0) < 0) {
 				return -ENOMEM;
@@ -653,6 +651,8 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, vm_attr_t
 	}
 
 	paddr &= ~(SIZE_PAGE - 1U);
+
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Possible overflow is checked next" */
 	end = CEIL_PAGE(paddr + size);
 
 	/* Handle overflow, but allow mapping to the end of the physical address space (end = 0) */
