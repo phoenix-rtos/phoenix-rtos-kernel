@@ -22,6 +22,9 @@
 void hal_cpuStartCores(void);
 
 
+int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn);
+
+
 __attribute__((noreturn)) void hal_timerWdogReboot(void);
 
 

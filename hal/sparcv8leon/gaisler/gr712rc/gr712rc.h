@@ -29,9 +29,6 @@
 #include "include/arch/sparcv8leon/gr712rc/gr712rc.h"
 
 
-int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn);
-
-
 void _gr712rc_cguClkEnable(u32 device);
 
 

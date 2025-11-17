@@ -273,6 +273,9 @@ static inline void hal_cpuSetDevBusy(int s)
 
 
 #ifdef NOMMU
+time_t hal_timerGetUs(void);
+
+
 static inline void hal_cpuGetCycles(cycles_t *cb)
 {
 	*cb = (cycles_t)hal_timerGetUs();
