@@ -133,9 +133,10 @@ void vm_pageFree(page_t *p)
 		rh = p + ((u64)1 << idx) / SIZE_PAGE;
 	}
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 MISRAC2012-RULE_18_3 "lh, rh, pages_info.pages are related" */
 	while ((lh >= pages_info.pages) && (rh < (pages_info.pages + (pages_info.allocsz + pages_info.freesz) / SIZE_PAGE)) &&
-			((lh->flags & PAGE_FREE) != 0) && ((rh->flags & PAGE_FREE) != 0) && (lh->idx == rh->idx) &&
-			((lh->addr + (1 << lh->idx)) == rh->addr) && (idx < SIZE_VM_SIZES)) {
+			((lh->flags & PAGE_FREE) != 0U) && ((rh->flags & PAGE_FREE) != 0U) && (lh->idx == rh->idx) &&
+			((lh->addr + (1UL << lh->idx)) == rh->addr) && (idx < SIZE_VM_SIZES)) {
 
 		if (p == lh) {
 			LIST_REMOVE(&pages_info.sizes[idx], rh);
@@ -196,7 +197,8 @@ page_t *_page_get(addr_t addr)
 
 static void _page_initSizes(void)
 {
-	unsigned int i = 0, k, idx;
+	unsigned int idx;
+	size_t k, i = 0;
 	page_t *p;
 
 	/* Remove already discovered pages */
@@ -216,18 +218,18 @@ static void _page_initSizes(void)
 		}
 
 		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "idx is limited to min(SIZE_VM_SIZES - 1U, bits in p-> addr")*/
-		for (k = 0U; (k < (((u64)1 << idx) / SIZE_PAGE) - 1U) && (((size_t)i + (size_t)k) < (((pages_info.allocsz + pages_info.freesz) / SIZE_PAGE) - 1U)); k++) {
-			if ((pages_info.pages[i + 1U + k].flags & PAGE_FREE) == 0U) {
+		for (k = 0U; (k < (((u64)1 << idx) / SIZE_PAGE) - 1U) && (i + k < (((pages_info.allocsz + pages_info.freesz) / SIZE_PAGE) - 1U)); k++) {
+			if ((pages_info.pages[i + k + 1U].flags & PAGE_FREE) == 0U) {
 				break;
 			}
 		}
 
-		idx = hal_cpuGetLastBit((1U + (size_t)k) * SIZE_PAGE);
+		idx = hal_cpuGetLastBit((k + 1U) * SIZE_PAGE);
 		p->idx = (u8)idx;
 
 		LIST_ADD(&pages_info.sizes[idx], p);
 
-		i += (unsigned int)(((u64)1 << idx) / SIZE_PAGE);
+		i += (size_t)(((u64)1 << idx) / SIZE_PAGE);
 	}
 	return;
 }
@@ -240,7 +242,7 @@ static unsigned int page_digits(unsigned int n, unsigned int base)
 	do {
 		n /= base;
 		d++;
-	} while (n != 0);
+	} while (n != 0U);
 
 	return d;
 }
@@ -320,11 +322,11 @@ void _page_showPages(void)
 }
 
 
-static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attrs)
+static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 {
 	page_t *ap = NULL;
 
-	while (pmap_enter(pmap, pa, vaddr, attrs, ap) < 0) {
+	while (pmap_enter(pmap, pa, vaddr, attr, ap) < 0) {
 		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
 		if (/*vaddr > (void *)VADDR_KERNEL ||*/ ap == NULL) {
 			return -ENOMEM;
@@ -334,12 +336,12 @@ static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attrs)
 }
 
 
-int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attrs)
+int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 {
 	int err;
 
 	(void)proc_lockSet(&pages_info.lock);
-	err = _page_map(pmap, vaddr, pa, attrs);
+	err = _page_map(pmap, vaddr, pa, attr);
 	(void)proc_lockClear(&pages_info.lock);
 
 	return err;
@@ -354,7 +356,7 @@ int _page_sbrk(pmap_t *pmap, void **start, void **end)
 		return -ENOMEM;
 	}
 
-	while (pmap_enter(pmap, np->addr, (*end), (int)(PGHD_READ | PGHD_WRITE | PGHD_PRESENT), ap) < 0) {
+	while (pmap_enter(pmap, np->addr, (*end), PGHD_READ | PGHD_WRITE | PGHD_PRESENT, ap) < 0) {
 		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
 		if (ap == NULL) {
 			return -ENOMEM;
