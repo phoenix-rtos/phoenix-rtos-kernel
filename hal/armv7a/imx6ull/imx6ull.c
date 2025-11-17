@@ -52,11 +52,6 @@ enum { ccm_ccr = 0,
 	ccm_cmeor = ccm_ccgr6 + 2 };
 
 
-/* Reserved slots */
-const char ccm_reserved[] = { pctl_clk_asrc + 1, pctl_clk_ipsync_ip2apb_tzasc1_ipg + 1, pctl_clk_pxp + 1,
-	pctl_clk_mmdc_core_aclk_fast_core_p0 + 1, pctl_clk_iomux_snvs_gpr + 1, pctl_clk_usdhc2 + 1 };
-
-
 enum { ccm_analog_pll_arm = 0,
 	ccm_analog_pll_arm_set,
 	ccm_analog_pll_arm_clr,
@@ -166,13 +161,19 @@ static int _imx6ull_isValidDev(int dev)
 		return 0;
 	}
 
-	for (i = 0; i < sizeof(ccm_reserved) / sizeof(ccm_reserved[0]); ++i) {
-		if (dev == (int)ccm_reserved[i]) {
+	switch (dev) {
+		/* the next dev after these is reserved */
+		case pctl_clk_asrc + 1:
+		case pctl_clk_ipsync_ip2apb_tzasc1_ipg + 1:
+		case pctl_clk_pxp + 1:
+		case pctl_clk_mmdc_core_aclk_fast_core_p0 + 1:
+		case pctl_clk_iomux_snvs_gpr + 1:
+		case pctl_clk_usdhc2 + 1:
 			return 0;
-		}
-	}
 
-	return 1;
+		default:
+			return 1;
+	}
 }
 
 
