@@ -754,10 +754,9 @@ static u32 hal_checkNumCPUs(void)
 	u32 powerStatus = (*(scu + 1U)) >> 4; /* SCU_CONFIGURATION_REGISTER */
 	u32 cpusAvailable = 0;
 	for (int i = 0; i < 4; i++) {
-		if ((powerStatus & 0x1U) == 1U) {
+		if (((powerStatus >> i) & 0x1U) == 1U) {
 			cpusAvailable++;
 		}
-		powerStatus >>= 1;
 	}
 
 	return cpusAvailable;
