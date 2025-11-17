@@ -541,6 +541,7 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 		}
 
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
+			phdr++;
 			continue;
 		}
 
@@ -632,6 +633,7 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 		}
 
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
+			phdr++;
 			continue;
 		}
 
