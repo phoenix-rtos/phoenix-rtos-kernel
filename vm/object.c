@@ -216,6 +216,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 	}
 
 	if (o == VM_OBJ_PHYSMEM) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "Check is needed on targets where sizeof(offs) != sizeof(addr_t)" */
 		if (offs > (addr_t)-1) {
 			return NULL;
 		}
@@ -243,7 +244,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		(void)proc_lockClear(&(*amap)->lock);
 	}
 
-	(void)proc_lockClear(&(map->lock));
+	(void)proc_lockClear(&map->lock);
 
 	p = object_fetch(o->oid, offs);
 

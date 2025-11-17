@@ -14,6 +14,8 @@
 #ifndef _PH_VM_TYPES_H_
 #define _PH_VM_TYPES_H_
 
+#ifndef __ASSEMBLY__
+
 #include "hal/types.h"
 
 typedef u8 vm_flags_t;
@@ -21,5 +23,7 @@ typedef u8 vm_flags_t;
 typedef u32 vm_attr_t;
 
 typedef u8 vm_prot_t;
+
+#endif
 
 #endif
