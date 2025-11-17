@@ -141,7 +141,7 @@ static struct {
 	volatile u32 *iomux;
 	volatile u32 *iomux_gpr;
 	volatile u32 *iomux_snvs;
-	volatile u32 *wdog;
+	volatile u16 *wdog;
 	volatile u32 *src;
 } imx6ull_common;
 
