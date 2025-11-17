@@ -22,7 +22,7 @@
 #include <board_config.h>
 
 
-#if UART_CONSOLE_KERNEL == 0U
+#if UART_CONSOLE_KERNEL == 0
 #define UART     uart0
 #define UART_RX  UART0_RX
 #define UART_TX  UART0_TX
@@ -43,24 +43,12 @@ static struct {
 } console_common;
 
 
+/* clang-format off */
 enum {
-	cr = 0,
-	mr,
-	ier,
-	idr,
-	imr,
-	isr,
-	baudgen,
-	rxtout,
-	rxwm,
-	modemcr,
-	modemsr,
-	sr,
-	fifo,
-	baud_rate_divider_reg0,
-	flow_delay_reg0,
-	tx_fifo_trigger_level0,
+	cr = 0, mr, ier, idr, imr, isr, baudgen, rxtout, rxwm, modemcr, modemsr, sr, fifo,
+	baud_rate_divider_reg0, flow_delay_reg0, tx_fifo_trigger_level0,
 };
+/* clang-format on */
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
@@ -114,12 +102,12 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 	console_common.uart1 = (void *)(((u32)&_end + 4U * SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
 	console_common.speed = 115200;
 
-	_zynq_setMIO(UART_RX, 1, 1, 1, 0, 0, 0, 0, 0x7, 1);
-	_zynq_setMIO(UART_TX, 1, 1, 1, 0, 0, 0, 0, 0x7, 0);
+	(void)_zynq_setMIO(UART_RX, 1U, 1U, 1U, 0U, 0U, 0U, 0U, 0x7U, 1U);
+	(void)_zynq_setMIO(UART_TX, 1U, 1U, 1U, 0U, 0U, 0U, 0U, 0x7U, 0U);
 
-	(void)_zynq_setAmbaClk(UART_CLK, 1);
+	(void)_zynq_setAmbaClk((u32)UART_CLK, 1U);
 
-	*(console_common.UART + idr) = 0xfff;
+	*(console_common.UART + idr) = 0xfffU;
 
 	/* Uart Mode Register
 	 * normal mode, 1 stop bit, no parity, 8 bits, uart_ref_clk as source clock

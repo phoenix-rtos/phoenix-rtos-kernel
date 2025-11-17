@@ -85,7 +85,7 @@ extern unsigned int _end;
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	unsigned int reschedule = 0;
+	unsigned int reschedule = 0U;
 	spinlock_ctx_t sc;
 
 	u32 ciarValue = *(interrupts_common.gic + ciar);
@@ -154,12 +154,6 @@ static void interrupts_setPriority(unsigned int irqn, u32 priority)
 	u32 mask = *(interrupts_common.gic + dipr0 + (irqn >> 2)) & ~(0xffU << ((irqn & 0x3U) << 3));
 
 	*(interrupts_common.gic + dipr0 + (irqn >> 2)) = mask | ((priority & 0xffU) << ((irqn & 0x3U) << 3));
-}
-
-
-static inline u32 interrupts_getPriority(unsigned int irqn)
-{
-	return (*(interrupts_common.gic + dipr0 + (irqn >> 2)) >> ((irqn & 0x3U) << 3)) & 0xffU;
 }
 
 
@@ -233,7 +227,7 @@ void _hal_interruptsInit(void)
 
 	/* Set default priorities - 10 for the SGI (IRQID: 0 - 15), PPI (IRQID: 16 - 31), SPI (IRQID: 32 - 95) */
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
-		interrupts_setPriority(i, 0xa);
+		interrupts_setPriority(i, 0xaU);
 	}
 
 	/* Set required configuration and CPU_0 as a default processor */

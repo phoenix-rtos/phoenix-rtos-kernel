@@ -33,41 +33,13 @@ static struct {
 } timer_common;
 
 
+/* clang-format off */
 enum {
-	clk_ctrl = 0,
-	clk_ctrl2,
-	clk_ctrl3,
-	cnt_ctrl,
-	cnt_ctrl2,
-	cnt_ctrl3,
-	cnt_value,
-	cnt_value2,
-	cnt_value3,
-	interval_val,
-	interval_cnt2,
-	interval_cnt3,
-	match0,
-	match1_cnt2,
-	match1_cnt3,
-	match1,
-	match2_cnt2,
-	match2_cnt3,
-	match2,
-	match3_cnt2,
-	match3_cnt3,
-	isr,
-	irq_reg2,
-	irq_reg3,
-	ier,
-	irq_en2,
-	irq_en3,
-	ev_ctrl_t1,
-	ev_ctrl_t2,
-	ev_ctrl_t3,
-	ev_reg1,
-	ev_reg2,
-	ev_reg3
+	clk_ctrl = 0, clk_ctrl2, clk_ctrl3, cnt_ctrl, cnt_ctrl2, cnt_ctrl3, cnt_value, cnt_value2, cnt_value3, interval_val, interval_cnt2, interval_cnt3,
+	match0, match1_cnt2, match1_cnt3, match1, match2_cnt2, match2_cnt3, match2, match3_cnt2, match3_cnt3, isr, irq_reg2, irq_reg3, ier, irq_en2,
+	irq_en3, ev_ctrl_t1, ev_ctrl_t2, ev_ctrl_t3, ev_reg1, ev_reg2, ev_reg3
 };
+/* clang-format on */
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
@@ -90,7 +62,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	hal_spinlockClear(&timer_common.sp, &sc);
 
 	u32 nextID = hal_cpuGetID() + 1U;
-	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? 1UL : (1UL << nextID);
+	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? 1U : (1UL << nextID);
 	_zynq_interrupts_setCPU(n, nextTargetCPU);
 	hal_cpuDataSyncBarrier();
 

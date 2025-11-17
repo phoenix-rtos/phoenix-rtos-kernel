@@ -18,10 +18,10 @@
 
 
 /* On-Chip memory */
-#define ADDR_OCRAM_LOW  0x00000000
-#define SIZE_OCRAM_LOW  192 * 1024
-#define ADDR_OCRAM_HIGH 0xffff0000
-#define SIZE_OCRAM_HIGH 64 * 1024
+#define ADDR_OCRAM_LOW  0x00000000U
+#define SIZE_OCRAM_LOW  192U * 1024U
+#define ADDR_OCRAM_HIGH 0xffff0000U
+#define SIZE_OCRAM_HIGH 64U * 1024U
 
 /* TODO: temp solution, defines describe specific platform */
 #define ADDR_DDR 0x00100000U

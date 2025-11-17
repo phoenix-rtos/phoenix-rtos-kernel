@@ -21,51 +21,18 @@
 
 #define SIZE_INTERRUPTS 159U
 
-enum { /* 1024 reserved */ ctlr = 0x400,
-	typer,
-	iidr,
-	/* 29 reserved */ igroupr0 = 0x420, /* 16 registers */
-	/* 16 reserved */ isenabler0 = 0x440,
-	/* 16 registers */ /* 16 reserved */ icenabler0 = 0x460, /* 16 registers */
-	/* 16 reserved */ ispendr0 = 0x480,
-	/* 16 registers */ /* 16 reserved */ icpendr0 = 0x4a0, /* 16 registers */
-	/* 16 reserved */ isactiver0 = 0x4c0,
-	/* 16 registers */ /* 16 reserved */ icactiver0 = 0x4e0, /* 16 registers */
-	/* 16 reserved */ ipriorityr0 = 0x500,
-	/* 64 registers */ /* 128 reserved */ itargetsr0 = 0x600, /* 64 registers */
-	/* 128 reserved */ icfgr0 = 0x700,
-	/* 32 registers */ /* 32 reserved */ ppisr = 0x740,
-	spisr0, /* 15 registers */
-	/* 112 reserved */ sgir = 0x7c0,
-	/* 3 reserved */ cpendsgir = 0x7c4,
-	/* 4 registers */ spendsgir = 0x7c8, /* 4 registers */
-	/* 40 reserved */ pidr4 = 0x7f4,
-	pidr5,
-	pidr6,
-	pidr7,
-	pidr0,
-	pidr1,
-	pidr2,
-	pidr3,
-	cidr0,
-	cidr1,
-	cidr2,
-	cidr3,
-	cctlr = 0x800,
-	pmr,
-	bpr,
-	iar,
-	eoir,
-	rpr,
-	hppir,
-	abpr,
-	aiar,
-	aeoir,
-	ahppir /* 41 reserved */,
-	apr0 = 0x834, /* 3 reserved */
-	nsapr0 = 0x838,
-	/* 6 reserved */ ciidr = 0x83f,
-	/* 960 reserved */ dir = 0xc00 };
+/* clang-format off */
+enum { /* 1024 reserved */ ctlr = 0x400, typer, iidr, /* 29 reserved */ igroupr0 = 0x420, /* 16 registers */
+	/* 16 reserved */ isenabler0 = 0x440, /* 16 registers */ /* 16 reserved */ icenabler0 = 0x460, /* 16 registers */
+	/* 16 reserved */ ispendr0 = 0x480, /* 16 registers */ /* 16 reserved */ icpendr0 = 0x4a0, /* 16 registers */
+	/* 16 reserved */ isactiver0 = 0x4c0, /* 16 registers */ /* 16 reserved */ icactiver0 = 0x4e0, /* 16 registers */
+	/* 16 reserved */ ipriorityr0 = 0x500, /* 64 registers */ /* 128 reserved */ itargetsr0 = 0x600, /* 64 registers */
+	/* 128 reserved */ icfgr0 = 0x700, /* 32 registers */ /* 32 reserved */ ppisr = 0x740, spisr0, /* 15 registers */
+	/* 112 reserved */ sgir = 0x7c0, /* 3 reserved */ cpendsgir = 0x7c4, /* 4 registers */ spendsgir = 0x7c8, /* 4 registers */
+	/* 40 reserved */ pidr4 = 0x7f4, pidr5, pidr6, pidr7, pidr0, pidr1, pidr2, pidr3, cidr0, cidr1, cidr2, cidr3,
+	cctlr = 0x800, pmr, bpr, iar, eoir, rpr, hppir, abpr, aiar, aeoir, ahppir /* 41 reserved */, apr0 = 0x834, /* 3 reserved */
+	nsapr0 = 0x838, /* 6 reserved */ ciidr = 0x83f, /* 960 reserved */ dir = 0xc00 };
+/* clang-format on */
 
 
 static struct {
@@ -86,7 +53,7 @@ extern unsigned int _end;
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	unsigned int reschedule = 0;
+	int reschedule = 0;
 	spinlock_ctx_t sc;
 
 	u32 iarValue = *(interrupts.gic + iar);
@@ -103,12 +70,14 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	h = interrupts.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= (unsigned int)h->f(n, ctx, h->data);
+			if (h->f(n, ctx, h->data) != 0) {
+				reschedule = 1;
+			}
 			h = h->next;
 		} while (h != interrupts.handlers[n]);
 	}
 
-	if (reschedule != 0U) {
+	if (reschedule != 0) {
 		(void)threads_schedule(n, ctx, NULL);
 	}
 
@@ -116,19 +85,19 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts.spinlock[n], &sc);
 
-	return (int)reschedule;
+	return reschedule;
 }
 
 
 static void interrupts_enableIRQ(unsigned int irqn)
 {
-	*(interrupts.gic + isenabler0 + (irqn >> 5)) = (u32)1 << (irqn & 0x1fU);
+	*(interrupts.gic + isenabler0 + (irqn >> 5)) = 1UL << (irqn & 0x1fU);
 }
 
 
 static void interrupts_disableIRQ(unsigned int irqn)
 {
-	*(interrupts.gic + icenabler0 + (irqn >> 5)) = (u32)1 << (irqn & 0x1fU);
+	*(interrupts.gic + icenabler0 + (irqn >> 5)) = 1UL << (irqn & 0x1fU);
 }
 
 
@@ -218,7 +187,7 @@ void _hal_interruptsInit(void)
 
 	interrupts.gic = (void *)(((u32)&_end + (5U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
 
-	*(interrupts.gic + ctlr) &= ~1UL;
+	*(interrupts.gic + ctlr) &= ~1U;
 
 	interrupts_setPriority(0, 0xff);
 	priority = interrupts_getPriority(0);

@@ -26,23 +26,10 @@ static struct {
 } console_common;
 
 
-enum { urxd = 0,
-	utxd = 16,
-	ucr1 = 32,
-	ucr2,
-	ucr3,
-	ucr4,
-	ufcr,
-	usr1,
-	usr2,
-	uesc,
-	utim,
-	ubir,
-	ubmr,
-	ubrc,
-	onems,
-	uts,
-	umcr };
+/* clang-format off */
+enum { urxd = 0, utxd = 16, ucr1 = 32, ucr2, ucr3, ucr4, ufcr, usr1, usr2,
+	uesc, utim, ubir, ubmr, ubrc, onems, uts, umcr };
+/* clang-format on */
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
@@ -100,13 +87,13 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 		;
 	}
 
-	*(console_common.UART + ucr1) = 0x1;
-	*(console_common.UART + ucr2) = 0x4026;
-	*(console_common.UART + ucr3) = 0x704;
-	*(console_common.UART + ucr4) = 0x8000;
-	*(console_common.UART + ufcr) = 0x901;
-	*(console_common.UART + uesc) = 0x2b;
-	*(console_common.UART + utim) = 0x0;
-	*(console_common.UART + ubir) = 0x11ff;
-	*(console_common.UART + ubmr) = 0xc34f;
+	*(console_common.UART + ucr1) = 0x1U;
+	*(console_common.UART + ucr2) = 0x4026U;
+	*(console_common.UART + ucr3) = 0x704U;
+	*(console_common.UART + ucr4) = 0x8000U;
+	*(console_common.UART + ufcr) = 0x901U;
+	*(console_common.UART + uesc) = 0x2bU;
+	*(console_common.UART + utim) = 0x0U;
+	*(console_common.UART + ubir) = 0x11ffU;
+	*(console_common.UART + ubmr) = 0xc34fU;
 }

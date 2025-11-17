@@ -24,7 +24,7 @@
 #define UART_CONSOLE_KERNEL UART_CONSOLE
 #endif
 
-#if (UART_CONSOLE_KERNEL <= 0U)
+#if (UART_CONSOLE_KERNEL <= 0)
 #error "UART_CONSOLE_KERNEL set incorrectly"
 #endif
 
@@ -116,7 +116,7 @@ void _hal_consoleInit(void)
 		{ ((void *)0x52001c00), pctl_usart10, pctl_ipclk_usart10sel },
 	};
 
-	const int uart = UART_CONSOLE_KERNEL - 1U, port = UART_IO_PORT_DEV, txpin = UART_PIN_TX, rxpin = UART_PIN_RX, af = UART_IO_AF;
+	const int uart = UART_CONSOLE_KERNEL - 1, port = UART_IO_PORT_DEV, txpin = UART_PIN_TX, rxpin = UART_PIN_RX, af = UART_IO_AF;
 
 	_stm32_rccSetDevClock(port, 1, 1);
 

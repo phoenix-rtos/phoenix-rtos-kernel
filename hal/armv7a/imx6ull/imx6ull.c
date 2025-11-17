@@ -19,123 +19,39 @@
 #include "hal/spinlock.h"
 #include "include/arch/armv7a/imx6ull/imx6ull.h"
 
+/* clang-format off */
 /* CCM registers */
-enum { ccm_ccr = 0,
-	ccm_ccdr,
-	ccm_csr,
-	ccm_ccsr,
-	ccm_cacrr,
-	ccm_cbcdr,
-	ccm_cbcmr,
-	ccm_cscmr1,
-	ccm_cscmr2,
-	ccm_cscdr1,
-	ccm_cs1cdr,
-	ccm_cs2cdr,
-	ccm_cdcdr,
-	ccm_chsccdr,
-	ccm_cscdr2,
-	ccm_cscdr3,
-	ccm_cdhipr = ccm_cscdr3 + 3,
-	ccm_clpcr = ccm_cdhipr + 3,
-	ccm_cisr,
-	ccm_cimr,
-	ccm_ccosr,
-	ccm_cgpr,
-	ccm_ccgr0,
-	ccm_ccgr1,
-	ccm_ccgr2,
-	ccm_ccgr3,
-	ccm_ccgr4,
-	ccm_ccgr5,
-	ccm_ccgr6,
-	ccm_cmeor = ccm_ccgr6 + 2 };
+enum { ccm_ccr = 0, ccm_ccdr, ccm_csr, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr,
+	ccm_cscmr1, ccm_cscmr2, ccm_cscdr1, ccm_cs1cdr, ccm_cs2cdr, ccm_cdcdr, ccm_chsccdr,
+	ccm_cscdr2, ccm_cscdr3, ccm_cdhipr = ccm_cscdr3 + 3, ccm_clpcr = ccm_cdhipr + 3,
+	ccm_cisr, ccm_cimr, ccm_ccosr, ccm_cgpr, ccm_ccgr0, ccm_ccgr1, ccm_ccgr2, ccm_ccgr3,
+	ccm_ccgr4, ccm_ccgr5, ccm_ccgr6, ccm_cmeor = ccm_ccgr6 + 2 };
 
 
-/* Reserved slots */
-const char ccm_reserved[] = { pctl_clk_asrc + 1, pctl_clk_ipsync_ip2apb_tzasc1_ipg + 1, pctl_clk_pxp + 1,
-	pctl_clk_mmdc_core_aclk_fast_core_p0 + 1, pctl_clk_iomux_snvs_gpr + 1, pctl_clk_usdhc2 + 1 };
 
-
-enum { ccm_analog_pll_arm = 0,
-	ccm_analog_pll_arm_set,
-	ccm_analog_pll_arm_clr,
-	ccm_analog_pll_arm_tog,
-	ccm_analog_pll_usb1,
-	ccm_analog_pll_usb1_set,
-	ccm_analog_pll_usb1_clr,
-	ccm_analog_pll_usb1_tog,
-	ccm_analog_pll_usb2,
-	ccm_analog_pll_usb2_set,
-	ccm_analog_pll_usb2_clr,
-	ccm_analog_pll_usb2_tog,
-	ccm_analog_pll_sys,
-	ccm_analog_pll_sys_set,
-	ccm_analog_pll_sys_clr,
-	ccm_analog_pll_sys_tog,
-	ccm_analog_pll_sys_ss,
-	ccm_analog_pll_sys_num = ccm_analog_pll_sys_ss + 4,
-	ccm_analog_pll_sys_denom = ccm_analog_pll_sys_num + 4,
-	ccm_analog_pll_audio = ccm_analog_pll_sys_denom + 4,
-	ccm_analog_pll_audio_set,
-	ccm_analog_pll_audio_clr,
-	ccm_analog_pll_audio_tog,
-	ccm_analog_pll_audio_num,
-	ccm_analog_pll_audio_denom = ccm_analog_pll_audio_num + 4,
-	ccm_analog_pll_video = ccm_analog_pll_audio_denom + 4,
-	ccm_analog_pll_video_set,
-	ccm_analog_pll_video_clr,
-	ccm_analog_pll_video_tog,
-	ccm_analog_pll_video_num,
-	ccm_analog_pll_video_denom = ccm_analog_pll_video_num + 4,
-	ccm_analog_pll_enet = ccm_analog_pll_video_denom + 4,
-	ccm_analog_pll_enet_set,
-	ccm_analog_pll_enet_clr,
-	ccm_analog_pll_enet_tog,
-	ccm_analog_pfd_480,
-	ccm_analog_pfd_480_set,
-	ccm_analog_pfd_480_clr,
-	ccm_analog_pfd_480_tog,
-	ccm_analog_pfd_528,
-	ccm_analog_pfd_528_set,
-	ccm_analog_pfd_528_clr,
+enum { ccm_analog_pll_arm = 0, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, ccm_analog_pll_arm_tog, ccm_analog_pll_usb1,
+	ccm_analog_pll_usb1_set, ccm_analog_pll_usb1_clr, ccm_analog_pll_usb1_tog, ccm_analog_pll_usb2, ccm_analog_pll_usb2_set,
+	ccm_analog_pll_usb2_clr, ccm_analog_pll_usb2_tog, ccm_analog_pll_sys, ccm_analog_pll_sys_set, ccm_analog_pll_sys_clr,
+	ccm_analog_pll_sys_tog, ccm_analog_pll_sys_ss, ccm_analog_pll_sys_num = ccm_analog_pll_sys_ss + 4,
+	ccm_analog_pll_sys_denom = ccm_analog_pll_sys_num + 4, ccm_analog_pll_audio = ccm_analog_pll_sys_denom + 4,
+	ccm_analog_pll_audio_set, ccm_analog_pll_audio_clr, ccm_analog_pll_audio_tog, ccm_analog_pll_audio_num,
+	ccm_analog_pll_audio_denom = ccm_analog_pll_audio_num + 4, ccm_analog_pll_video = ccm_analog_pll_audio_denom + 4,
+	ccm_analog_pll_video_set, ccm_analog_pll_video_clr, ccm_analog_pll_video_tog, ccm_analog_pll_video_num,
+	ccm_analog_pll_video_denom = ccm_analog_pll_video_num + 4, ccm_analog_pll_enet = ccm_analog_pll_video_denom + 4,
+	ccm_analog_pll_enet_set, ccm_analog_pll_enet_clr, ccm_analog_pll_enet_tog, ccm_analog_pfd_480, ccm_analog_pfd_480_set,
+	ccm_analog_pfd_480_clr, ccm_analog_pfd_480_tog, ccm_analog_pfd_528, ccm_analog_pfd_528_set, ccm_analog_pfd_528_clr,
 	ccm_analog_pfd_528_tog,
-	ccm_analog_misc0 = 84,
-	ccm_analog_misc0_set,
-	ccm_analog_misc0_clr,
-	ccm_analog_misc0_tog,
-	ccm_analog_misc1,
-	ccm_analog_misc1_set,
-	ccm_analog_misc1_clr,
-	ccm_analog_misc1_tog,
-	ccm_analog_misc2,
-	ccm_analog_misc2_set,
-	ccm_analog_misc2_clr,
-	ccm_analog_misc2_tog };
+	ccm_analog_misc0 = 84, ccm_analog_misc0_set, ccm_analog_misc0_clr, ccm_analog_misc0_tog, ccm_analog_misc1,
+	ccm_analog_misc1_set, ccm_analog_misc1_clr, ccm_analog_misc1_tog, ccm_analog_misc2, ccm_analog_misc2_set,
+	ccm_analog_misc2_clr, ccm_analog_misc2_tog };
 
 /* WDOG registers */
-enum { wdog_wcr = 0,
-	wdog_wsr,
-	wdog_wrsr,
-	wdog_wicr,
-	wdog_wmcr };
+enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 
-enum { src_scr = 0,
-	src_sbmr1,
-	src_srsr,
-	src_sisr = src_srsr + 3,
-	src_sbmr2 = src_sisr + 2,
-	src_gpr1,
-	src_gpr2,
-	src_gpr3,
-	src_gpr4,
-	src_gpr5,
-	src_gpr6,
-	src_gpr7,
-	src_gpr8,
-	src_gpr9,
-	src_gpr10 };
+enum { src_scr = 0, src_sbmr1, src_srsr, src_sisr = src_srsr + 3, src_sbmr2 = src_sisr + 2, src_gpr1, src_gpr2,
+	src_gpr3, src_gpr4, src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
+/* clang-format on */
 
 
 static struct {
@@ -146,13 +62,15 @@ static struct {
 	volatile u32 *iomux;
 	volatile u32 *iomux_gpr;
 	volatile u32 *iomux_snvs;
-	volatile u32 *wdog;
+	volatile u16 *wdog;
 	volatile u32 *src;
 } imx6ull_common;
+
 
 /* saved in _init_imx6ull.S */
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 u32 imx6ull_bootReason;
+
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;
@@ -160,19 +78,23 @@ extern unsigned int _end;
 
 static int _imx6ull_isValidDev(int dev)
 {
-	unsigned int i;
-
 	if (dev < pctl_clk_aips_tz1 || dev > pctl_clk_pwm7) {
 		return 0;
 	}
 
-	for (i = 0; i < sizeof(ccm_reserved) / sizeof(ccm_reserved[0]); ++i) {
-		if (dev == (int)ccm_reserved[i]) {
+	switch (dev) {
+		/* the next dev after these is reserved */
+		case pctl_clk_asrc + 1:
+		case pctl_clk_ipsync_ip2apb_tzasc1_ipg + 1:
+		case pctl_clk_pxp + 1:
+		case pctl_clk_mmdc_core_aclk_fast_core_p0 + 1:
+		case pctl_clk_iomux_snvs_gpr + 1:
+		case pctl_clk_usdhc2 + 1:
 			return 0;
-		}
-	}
 
-	return 1;
+		default:
+			return 1;
+	}
 }
 
 
@@ -228,21 +150,21 @@ static int _imx6ull_checkIOgprArg(int field, unsigned int *mask)
 		case pctl_gpr_addrs1:
 		case pctl_gpr_addrs2:
 		case pctl_gpr_addrs3:
-			*mask = 0x3;
+			*mask = 0x3U;
 			break;
 
 		case pctl_gpr_mqs_clk_div:
-			*mask = 0xff;
+			*mask = 0xffU;
 			break;
 
 		case pctl_gpr_ocram_ctl:
 		case pctl_gpr_ocram_status:
 		case pctl_gpr_ocram_tz_addr:
-			*mask = 0xf;
+			*mask = 0xfU;
 			break;
 
 		default:
-			*mask = 0x1;
+			*mask = 0x1U;
 			break;
 	}
 
@@ -267,7 +189,7 @@ static int _imx6ull_setIOgpr(int field, unsigned int val)
 }
 
 
-static int _imx6ull_setIOmux(int mux, int sion, int mode)
+static int _imx6ull_setIOmux(int mux, u32 sion, u32 mode)
 {
 	volatile u32 *base = imx6ull_common.iomux;
 
@@ -282,7 +204,7 @@ static int _imx6ull_setIOmux(int mux, int sion, int mode)
 		/* No action required*/
 	}
 
-	*(base + mux) = ((sion == 0 ? 0UL : 1UL) << 4) | ((unsigned int)mode & 0xfU);
+	*(base + mux) = (mode & 0xfU) | ((sion & 0x1U) << 4);
 
 	return 0;
 }
@@ -304,15 +226,15 @@ static int _imx6ull_setIOpad(int pad, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8
 		/* No action required*/
 	}
 
-	t = ((hys == 0U ? 0UL : 1UL) << 16) | (((u32)pus & 0x3U) << 14) | ((pue == 0U ? 0UL : 1UL) << 13) | ((u32)!pke << 12);
-	t |= ((ode == 0U ? 0UL : 1UL) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | (sre == 0U ? 0UL : 1UL);
+	t = (((u32)hys & 0x1U) << 16) | (((u32)pus & 0x3U) << 14) | (((u32)pue & 0x1U) << 13) | ((u32)pke << 12);
+	t |= (((u32)ode & 0x1U) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | ((u32)sre & 0x1U);
 	*(base + pad) = t;
 
 	return 0;
 }
 
 
-static int _imx6ull_setIOisel(int isel, int daisy)
+static int _imx6ull_setIOisel(int isel, unsigned char daisy)
 {
 	if (isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp) {
 		return -1;
@@ -340,7 +262,7 @@ static int _imx6ull_getIOgpr(int field, unsigned int *val)
 }
 
 
-static int _imx6ull_getIOmux(int mux, int *sion, int *mode)
+static int _imx6ull_getIOmux(int mux, unsigned char *sion, unsigned char *mode)
 {
 	u32 t;
 	volatile u32 *base = imx6ull_common.iomux;
@@ -363,7 +285,7 @@ static int _imx6ull_getIOmux(int mux, int *sion, int *mode)
 	t = *(base + mux);
 
 	*sion = (t & (1U << 4)) == 0U ? 0 : 1;
-	*mode = (int)(u32)(t & 0xfU);
+	*mode = (unsigned char)(t & 0xfU);
 
 	return 0;
 }
@@ -373,10 +295,6 @@ static int _imx6ull_getIOpad(int pad, u8 *hys, u8 *pus, u8 *pue, u8 *pke, u8 *od
 {
 	u32 t;
 	volatile u32 *base = imx6ull_common.iomux;
-
-	if (hys == NULL || pus == NULL || pue == NULL || pke == NULL || ode == NULL || speed == NULL || dse == NULL || sre == NULL) {
-		return -1;
-	}
 
 	if (pad >= pctl_pad_test_mode && pad <= pctl_pad_tamper9) {
 		pad = pad - pctl_pad_test_mode + 12;
@@ -404,13 +322,13 @@ static int _imx6ull_getIOpad(int pad, u8 *hys, u8 *pus, u8 *pue, u8 *pke, u8 *od
 }
 
 
-static int _imx6ull_getIOisel(int isel, int *daisy)
+static int _imx6ull_getIOisel(int isel, unsigned char *daisy)
 {
 	if (daisy == NULL || isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp) {
 		return -1;
 	}
 
-	*daisy = (int)(u32)(*(imx6ull_common.iomux + isel) & 0x7U);
+	*daisy = (unsigned char)(*(imx6ull_common.iomux + isel) & 0x7U);
 
 	return 0;
 }
@@ -446,7 +364,7 @@ int hal_platformctl(void *ptr)
 	int ret = -1;
 	unsigned int t = 0;
 	spinlock_ctx_t sc;
-	int sion = 0, mode = 0, daisy = 0;
+	unsigned char sion = 0, mode = 0, daisy = 0;
 
 	hal_spinlockSet(&imx6ull_common.pltctlSp, &sc);
 
@@ -572,7 +490,7 @@ void _hal_platformInit(void)
 
 	/* copy watchdog Reset Status Register to bootreason[23:16] */
 	imx6ull_bootReason &= 0xff00ffffU;
-	imx6ull_bootReason |= *(imx6ull_common.wdog + wdog_wrsr) << 16;
+	imx6ull_bootReason |= (u32)*(imx6ull_common.wdog + wdog_wrsr) << 16U;
 
 	/* Set ENFC clock to 198 MHz */
 	/* First disable all output clocks */

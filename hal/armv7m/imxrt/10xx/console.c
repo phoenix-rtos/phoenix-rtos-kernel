@@ -26,7 +26,7 @@
 #ifdef UART_CONSOLE
 #define UART_CONSOLE_KERNEL UART_CONSOLE
 #else
-#define UART_CONSOLE_KERNEL 1U
+#define UART_CONSOLE_KERNEL 1
 #endif
 #endif
 
@@ -114,7 +114,7 @@ void hal_consolePutch(char c)
 #if !ISEMPTY(UART_CONSOLE_KERNEL)
 static void _hal_uartInit(void)
 {
-	u32 t, console = UART_CONSOLE_KERNEL - 1U;
+	u32 t, console = (u32)UART_CONSOLE_KERNEL - 1U;
 
 	static const struct {
 		volatile u32 *base;
