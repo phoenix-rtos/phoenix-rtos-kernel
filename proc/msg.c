@@ -36,8 +36,8 @@ static struct {
 static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
 {
 	void *w = NULL, *vaddr;
-	u64 boffs, eoffs;
-	u64 bone, eone;
+	size_t boffs, eoffs;
+	u8 bone, eone;
 	size_t n = 0, i;
 	vm_attr_t attr;
 	vm_prot_t prot;
@@ -64,7 +64,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		prot |= PROT_USER;
 	}
 
-	boffs = (ptr_t)data & (u64)(SIZE_PAGE - 1U);
+	boffs = (ptr_t)data & (size_t)(SIZE_PAGE - 1U);
 
 	if (FLOOR((ptr_t)data + size) > CEIL((ptr_t)data)) {
 		n = (FLOOR((ptr_t)data + size) - CEIL((ptr_t)data)) / SIZE_PAGE;
@@ -75,7 +75,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		eoffs = 0U;
 	}
 	else {
-		eoffs = ((u64)(ptr_t)data + size) & (u64)(SIZE_PAGE - 1U);
+		eoffs = ((size_t)(ptr_t)data + size) & (size_t)(SIZE_PAGE - 1U);
 	}
 
 	bone = (boffs != 0U) ? 1U : 0U;
@@ -84,11 +84,11 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	srcmap = (from == NULL) ? msg_common.kmap : from->mapp;
 	dstmap = (to == NULL) ? msg_common.kmap : to->mapp;
 
-	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0U)) {
+	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0)) {
 		return data;
 	}
 
-	w = vm_mapFind(dstmap, NULL, (bone + eone + n) * SIZE_PAGE, MAP_NOINHERIT, prot);
+	w = vm_mapFind(dstmap, NULL, (n + bone + eone) * SIZE_PAGE, MAP_NOINHERIT, prot);
 	ml->w = w;
 	if (w == NULL) {
 		return NULL;
@@ -105,7 +105,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		return NULL;
 	}
 
-	attr |= vm_flagsToAttr((unsigned int)flags);
+	attr |= vm_flagsToAttr((vm_flags_t)flags);
 
 	if (boffs > 0U) {
 		ml->boffs = boffs;
@@ -138,7 +138,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	/* Map pages */
 	vaddr = (void *)CEIL((ptr_t)data);
 
-	for (i = 0; i < n; i++, vaddr += SIZE_PAGE) {
+	for (i = 0; i < n; i++) {
 		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
 		if (page_map(&dstmap->pmap, w + (i + bone) * SIZE_PAGE, pa, attr) < 0) {
 			return NULL;
@@ -162,7 +162,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			nep = nbp;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, (u8)flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, (vm_flags_t)flags);
 		ml->evaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
@@ -492,7 +492,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
 	if (ipacked == 0) {
-		kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
+		kmsg->msg.i.data = msg_map(0, kmsg, (void *)(ptr_t)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 	}
 
 	opacked = msg_opack(kmsg);
