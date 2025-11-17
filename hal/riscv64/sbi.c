@@ -63,7 +63,7 @@
 
 
 static struct {
-	unsigned long specVersion;
+	u32 specVersion;
 	void (*setTimer)(u64 time);
 } sbi_common;
 
@@ -100,38 +100,38 @@ static sbiret_t hal_sbiEcall(unsigned int ext, unsigned int fid, u64 arg0, u64 a
 
 static void hal_sbiSetTimerv01(u64 stime)
 {
-	(void)hal_sbiEcall(SBI_LEGACY_SETTIMER, 0U, stime, 0, 0, 0, 0, 0);
+	(void)hal_sbiEcall(SBI_LEGACY_SETTIMER, 0U, stime, 0UL, 0UL, 0UL, 0UL, 0UL);
 }
 
 
 long hal_sbiPutchar(int ch)
 {
-	return hal_sbiEcall(SBI_LEGACY_PUTCHAR, 0U, (unsigned int)ch, 0, 0, 0, 0, 0).error;
+	return hal_sbiEcall(SBI_LEGACY_PUTCHAR, 0U, (unsigned int)ch, 0UL, 0UL, 0UL, 0UL, 0UL).error;
 }
 
 
 long hal_sbiGetchar(void)
 {
-	return hal_sbiEcall(SBI_LEGACY_GETCHAR, 0U, 0, 0, 0, 0, 0, 0).error;
+	return hal_sbiEcall(SBI_LEGACY_GETCHAR, 0U, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL).error;
 }
 
 /* SBI v0.2+ calls */
 
 sbiret_t hal_sbiGetSpecVersion(void)
 {
-	return hal_sbiEcall(SBI_EXT_BASE, SBI_BASE_SPEC_VER, 0, 0, 0, 0, 0, 0);
+	return hal_sbiEcall(SBI_EXT_BASE, SBI_BASE_SPEC_VER, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL);
 }
 
 
 sbiret_t hal_sbiProbeExtension(long extid)
 {
-	return hal_sbiEcall(SBI_EXT_BASE, SBI_BASE_PROBE_EXT, (unsigned long)extid, 0, 0, 0, 0, 0);
+	return hal_sbiEcall(SBI_EXT_BASE, SBI_BASE_PROBE_EXT, (unsigned long)extid, 0UL, 0UL, 0UL, 0UL, 0UL);
 }
 
 
 static void hal_sbiSetTimerv02(u64 stime)
 {
-	(void)hal_sbiEcall(SBI_EXT_TIME, SBI_TIME_SETTIMER, stime, 0, 0, 0, 0, 0);
+	(void)hal_sbiEcall(SBI_EXT_TIME, SBI_TIME_SETTIMER, stime, 0UL, 0UL, 0UL, 0UL, 0UL);
 }
 
 
@@ -144,7 +144,7 @@ void hal_sbiSetTimer(u64 stime)
 void hal_sbiReset(u32 type, u32 reason)
 {
 	if (hal_sbiProbeExtension(SBI_EXT_SRST).error == SBI_SUCCESS) {
-		(void)hal_sbiEcall(SBI_EXT_SRST, SBI_SRST_RESET, type, reason, 0, 0, 0, 0);
+		(void)hal_sbiEcall(SBI_EXT_SRST, SBI_SRST_RESET, type, reason, 0UL, 0UL, 0UL, 0UL);
 	}
 	__builtin_unreachable();
 }
@@ -152,44 +152,44 @@ void hal_sbiReset(u32 type, u32 reason)
 
 sbiret_t hal_sbiSendIPI(unsigned long hart_mask, unsigned long hart_mask_base)
 {
-	return hal_sbiEcall(SBI_EXT_IPI, SBI_IPI_SEND, hart_mask, hart_mask_base, 0, 0, 0, 0);
+	return hal_sbiEcall(SBI_EXT_IPI, SBI_IPI_SEND, hart_mask, hart_mask_base, 0UL, 0UL, 0UL, 0UL);
 }
 
 
 sbiret_t hal_sbiHartGetStatus(unsigned long hartid)
 {
-	return hal_sbiEcall(SBI_EXT_HSM, SBI_HSM_STATUS, hartid, 0, 0, 0, 0, 0);
+	return hal_sbiEcall(SBI_EXT_HSM, SBI_HSM_STATUS, hartid, 0UL, 0UL, 0UL, 0UL, 0UL);
 }
 
 
 sbiret_t hal_sbiHartStart(unsigned long hartid, unsigned long start_addr, unsigned long opaque)
 {
-	return hal_sbiEcall(SBI_EXT_HSM, SBI_HSM_START, hartid, start_addr, opaque, 0, 0, 0);
+	return hal_sbiEcall(SBI_EXT_HSM, SBI_HSM_START, hartid, start_addr, opaque, 0UL, 0UL, 0UL);
 }
 
 
 void hal_sbiRfenceI(unsigned long hart_mask, unsigned long hart_mask_base)
 {
-	(void)hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_I, hart_mask, hart_mask_base, 0, 0, 0, 0);
+	(void)hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_I, hart_mask, hart_mask_base, 0UL, 0UL, 0UL, 0UL);
 }
 
 
 sbiret_t hal_sbiSfenceVma(unsigned long hart_mask, unsigned long hart_mask_base, unsigned long vaddr, unsigned long size)
 {
-	return hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_SFENCE_VMA, hart_mask, hart_mask_base, vaddr, size, 0, 0);
+	return hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_SFENCE_VMA, hart_mask, hart_mask_base, vaddr, size, 0UL, 0UL);
 }
 
 
 sbiret_t hal_sbiSfenceVmaAsid(unsigned long hart_mask, unsigned long hart_mask_base, unsigned long vaddr, unsigned long size, unsigned long asid)
 {
-	return hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_SFENCE_VMA_ASID, hart_mask, hart_mask_base, vaddr, size, asid, 0);
+	return hal_sbiEcall(SBI_EXT_RFENCE, SBI_RFNC_SFENCE_VMA_ASID, hart_mask, hart_mask_base, vaddr, size, asid, 0UL);
 }
 
 
 void _hal_sbiInit(void)
 {
 	sbiret_t ret = hal_sbiGetSpecVersion();
-	sbi_common.specVersion = ret.value;
+	sbi_common.specVersion = (u32)ret.value;
 
 	ret = hal_sbiProbeExtension(SBI_EXT_TIME);
 	if (ret.error == SBI_SUCCESS) {

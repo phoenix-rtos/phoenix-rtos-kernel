@@ -98,7 +98,7 @@ void plic_complete(unsigned int context, unsigned int n)
 }
 
 
-static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enable)
+static int plic_modifyInterrupt(unsigned int context, unsigned int n, int enable)
 {
 	u32 bitshift = n % 32U;
 	u32 val;
@@ -112,11 +112,11 @@ static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enabl
 
 	val = plic_read(PLIC_REG_ENABLE(context, n));
 
-	if (enable != '\0') {
-		val |= ((u32)1 << bitshift);
+	if (enable != 0) {
+		val |= (u32)(1UL << bitshift);
 	}
 	else {
-		val &= ~(1U << bitshift);
+		val &= ~(u32)(1UL << bitshift);
 	}
 
 	plic_write(PLIC_REG_ENABLE(context, n), val);
@@ -129,13 +129,13 @@ static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enabl
 
 int plic_enableInterrupt(unsigned int context, unsigned int n)
 {
-	return plic_modifyInterrupt(context, n, (char)1);
+	return plic_modifyInterrupt(context, n, 1);
 }
 
 
 int plic_disableInterrupt(unsigned int context, unsigned int n)
 {
-	return plic_modifyInterrupt(context, n, '\0');
+	return plic_modifyInterrupt(context, n, 0);
 }
 
 
@@ -145,7 +145,7 @@ void plic_initCore(void)
 	for (i = 1U; i < (unsigned int)PLIC_IRQ_SIZE; i++) {
 		(void)plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), i);
 	}
-	plic_tresholdSet(PLIC_SCONTEXT(hal_cpuGetID()), 1);
+	plic_tresholdSet(PLIC_SCONTEXT(hal_cpuGetID()), 1U);
 }
 
 
@@ -158,6 +158,6 @@ void plic_init(void)
 
 	/* Disable and mask external interrupts */
 	for (i = 1; i < (unsigned int)PLIC_IRQ_SIZE; i++) {
-		plic_priority(i, 0);
+		plic_priority(i, 0U);
 	}
 }

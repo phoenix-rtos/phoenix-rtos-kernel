@@ -24,7 +24,7 @@
 
 #define AHB_IOAREA 0xfff00000U
 
-#define PLIC_CONTEXTS_PER_HART 4
+#define PLIC_CONTEXTS_PER_HART 4U
 
 #endif
 

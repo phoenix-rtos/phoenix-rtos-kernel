@@ -196,8 +196,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 		return -EINVAL;
 	}
 
-	if ((h->n & CLINT_IRQ_FLG) != 0U) {
-		h->n = h->n & (unsigned int)~CLINT_IRQ_FLG;
+	if ((h->n & (unsigned int)CLINT_IRQ_FLG) != 0U) {
+		h->n = h->n & ~((unsigned int)CLINT_IRQ_FLG);
 		ret = interrupts_setClint(h, irq_enable);
 	}
 	else {
@@ -216,8 +216,8 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 		return -EINVAL;
 	}
 
-	if ((h->n & CLINT_IRQ_FLG) != 0U) {
-		h->n = h->n & (unsigned int)~CLINT_IRQ_FLG;
+	if ((h->n & (unsigned int)CLINT_IRQ_FLG) != 0U) {
+		h->n = h->n & ~((unsigned int)CLINT_IRQ_FLG);
 		ret = interrupts_setClint(h, irq_disable);
 	}
 	else {

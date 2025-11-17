@@ -39,13 +39,13 @@ typedef struct {
 
 
 /* Reset types */
-#define SBI_RESET_TYPE_SHUTDOWN 0x0
-#define SBI_RESET_TYPE_COLD     0x1
-#define SBI_RESET_TYPE_WARM     0x2
+#define SBI_RESET_TYPE_SHUTDOWN 0x0U
+#define SBI_RESET_TYPE_COLD     0x1U
+#define SBI_RESET_TYPE_WARM     0x2U
 
 /* Reset reason */
-#define SBI_RESET_REASON_NONE    0x0
-#define SBI_RESET_REASON_SYSFAIL 0x1
+#define SBI_RESET_REASON_NONE    0x0U
+#define SBI_RESET_REASON_SYSFAIL 0x1U
 
 
 /* Legacy SBI v0.1 calls */

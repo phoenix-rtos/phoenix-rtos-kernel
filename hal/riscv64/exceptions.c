@@ -122,11 +122,11 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
+#endif
 }
 
 
@@ -158,7 +158,7 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot |= PROT_USER;
 	}
 
-	return (int)prot;
+	return prot;
 }
 
 
