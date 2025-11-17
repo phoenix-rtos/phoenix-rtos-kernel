@@ -1,5 +1,6 @@
 ---
 BasedOnStyle: WebKit
+TypeNames: [u8, u16, u32, u64]
 
 ColumnLimit: 0
 AlignAfterOpenBracket: DontAlign

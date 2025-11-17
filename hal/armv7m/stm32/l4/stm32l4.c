@@ -576,7 +576,7 @@ int _stm32_extiSoftInterrupt(u32 line)
 
 int _stm32_systickInit(u32 interval)
 {
-	u64 load = ((u64) interval * stm32_common.cpuclk) / 1000000;
+	u64 load = ((u64)interval * stm32_common.cpuclk) / 1000000;
 	if (load > 0x00ffffff) {
 		return -EINVAL;
 	}
