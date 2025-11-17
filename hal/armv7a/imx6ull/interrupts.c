@@ -86,7 +86,7 @@ extern unsigned int _end;
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	unsigned int reschedule = 0;
+	int reschedule = 0;
 	spinlock_ctx_t sc;
 
 	u32 iarValue = *(interrupts.gic + iar);
@@ -103,12 +103,12 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	h = interrupts.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= (unsigned int)h->f(n, ctx, h->data);
+			reschedule |= h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts.handlers[n]);
 	}
 
-	if (reschedule != 0U) {
+	if (reschedule != 0) {
 		(void)threads_schedule(n, ctx, NULL);
 	}
 
@@ -116,19 +116,19 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts.spinlock[n], &sc);
 
-	return (int)reschedule;
+	return reschedule;
 }
 
 
 static void interrupts_enableIRQ(unsigned int irqn)
 {
-	*(interrupts.gic + isenabler0 + (irqn >> 5)) = (u32)1 << (irqn & 0x1fU);
+	*(interrupts.gic + isenabler0 + (irqn >> 5)) = 1UL << (irqn & 0x1fU);
 }
 
 
 static void interrupts_disableIRQ(unsigned int irqn)
 {
-	*(interrupts.gic + icenabler0 + (irqn >> 5)) = (u32)1 << (irqn & 0x1fU);
+	*(interrupts.gic + icenabler0 + (irqn >> 5)) = 1UL << (irqn & 0x1fU);
 }
 
 
@@ -218,7 +218,7 @@ void _hal_interruptsInit(void)
 
 	interrupts.gic = (void *)(((u32)&_end + (5U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
 
-	*(interrupts.gic + ctlr) &= ~1UL;
+	*(interrupts.gic + ctlr) &= ~1U;
 
 	interrupts_setPriority(0, 0xff);
 	priority = interrupts_getPriority(0);

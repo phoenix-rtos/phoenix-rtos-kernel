@@ -159,14 +159,14 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		}
 	}
 	else {
-		return (int)PROT_NONE;
+		return PROT_NONE;
 	}
 
 	if (status == EXC_PERM_SECTION || status == EXC_PERM_PAGE) {
 		prot |= PROT_USER;
 	}
 
-	return (int)prot;
+	return prot;
 }
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)

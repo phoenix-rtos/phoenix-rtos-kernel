@@ -229,21 +229,21 @@ static int _imx6ull_checkIOgprArg(int field, unsigned int *mask)
 		case pctl_gpr_addrs1:
 		case pctl_gpr_addrs2:
 		case pctl_gpr_addrs3:
-			*mask = 0x3;
+			*mask = 0x3U;
 			break;
 
 		case pctl_gpr_mqs_clk_div:
-			*mask = 0xff;
+			*mask = 0xffU;
 			break;
 
 		case pctl_gpr_ocram_ctl:
 		case pctl_gpr_ocram_status:
 		case pctl_gpr_ocram_tz_addr:
-			*mask = 0xf;
+			*mask = 0xfU;
 			break;
 
 		default:
-			*mask = 0x1;
+			*mask = 0x1U;
 			break;
 	}
 
@@ -283,7 +283,7 @@ static int _imx6ull_setIOmux(int mux, int sion, int mode)
 		/* No action required*/
 	}
 
-	*(base + mux) = ((sion == 0 ? 0UL : 1UL) << 4) | ((unsigned int)mode & 0xfU);
+	*(base + mux) = ((sion == 0 ? 0U : 1U) << 4) | ((unsigned int)mode & 0xfU);
 
 	return 0;
 }
@@ -305,8 +305,8 @@ static int _imx6ull_setIOpad(int pad, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8
 		/* No action required*/
 	}
 
-	t = ((hys == 0U ? 0UL : 1UL) << 16) | (((u32)pus & 0x3U) << 14) | ((pue == 0U ? 0UL : 1UL) << 13) | ((u32)!pke << 12);
-	t |= ((ode == 0U ? 0UL : 1UL) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | (sre == 0U ? 0UL : 1UL);
+	t = ((hys == 0U ? 0UL : 1UL) << 16) | (((u32)pus & 0x3U) << 14) | ((pue == 0U ? 0UL : 1UL) << 13) | ((u32)pke << 12);
+	t |= ((ode == 0U ? 0UL : 1UL) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | (sre == 0U ? 0U : 1U);
 	*(base + pad) = t;
 
 	return 0;

@@ -30,17 +30,17 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
-#define USR_MODE    0x10
-#define FIQ_MODE    0x11
-#define IRQ_MODE    0x12
-#define SVC_MODE    0x13 /* reset mode */
-#define ABT_MODE    0x17
-#define UND_MODE    0x1b
-#define SYS_MODE    0x1f
-#define MODE_MASK   0x1f
-#define NO_ABORT    0x100             /* mask to disable Abort Exception */
-#define NO_IRQ      0x80              /* mask to disable IRQ */
-#define NO_FIQ      0x40              /* mask to disable FIQ */
+#define USR_MODE    0x10U
+#define FIQ_MODE    0x11U
+#define IRQ_MODE    0x12U
+#define SVC_MODE    0x13U /* reset mode */
+#define ABT_MODE    0x17U
+#define UND_MODE    0x1bU
+#define SYS_MODE    0x1fU
+#define MODE_MASK   0x1fU
+#define NO_ABORT    0x100U            /* mask to disable Abort Exception */
+#define NO_IRQ      0x80U             /* mask to disable IRQ */
+#define NO_FIQ      0x40U             /* mask to disable FIQ */
 #define NO_INT      (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ */
 #define THUMB_STATE 0x20U
 

@@ -25,7 +25,7 @@
 #define VADDR_USR_MAX 0x80000000U
 
 /* (MOD) */
-#define VADDR_SCRATCHPAD_TTL 0xfff00000
+#define VADDR_SCRATCHPAD_TTL 0xfff00000U
 
 
 /* Architecure dependent page attributes */

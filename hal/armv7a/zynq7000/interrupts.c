@@ -85,7 +85,7 @@ extern unsigned int _end;
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	unsigned int reschedule = 0;
+	int reschedule = 0;
 	spinlock_ctx_t sc;
 
 	u32 ciarValue = *(interrupts_common.gic + ciar);
@@ -102,12 +102,12 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	h = interrupts_common.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= (unsigned int)h->f(n, ctx, h->data);
+			reschedule |= h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.handlers[n]);
 	}
 
-	if (reschedule != 0U) {
+	if (reschedule != 0) {
 		(void)threads_schedule(n, ctx, NULL);
 	}
 
@@ -115,7 +115,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
 
-	return (int)reschedule;
+	return reschedule;
 }
 
 
@@ -233,7 +233,7 @@ void _hal_interruptsInit(void)
 
 	/* Set default priorities - 10 for the SGI (IRQID: 0 - 15), PPI (IRQID: 16 - 31), SPI (IRQID: 32 - 95) */
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
-		interrupts_setPriority(i, 0xa);
+		interrupts_setPriority(i, 0xaU);
 	}
 
 	/* Set required configuration and CPU_0 as a default processor */

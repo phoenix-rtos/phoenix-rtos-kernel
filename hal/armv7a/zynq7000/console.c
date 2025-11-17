@@ -22,7 +22,7 @@
 #include <board_config.h>
 
 
-#if UART_CONSOLE_KERNEL == 0U
+#if UART_CONSOLE_KERNEL == 0
 #define UART     uart0
 #define UART_RX  UART0_RX
 #define UART_TX  UART0_TX
@@ -114,12 +114,12 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 	console_common.uart1 = (void *)(((u32)&_end + 4U * SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
 	console_common.speed = 115200;
 
-	_zynq_setMIO(UART_RX, 1, 1, 1, 0, 0, 0, 0, 0x7, 1);
-	_zynq_setMIO(UART_TX, 1, 1, 1, 0, 0, 0, 0, 0x7, 0);
+	_zynq_setMIO(UART_RX, 1U, 1U, 1U, 0U, 0U, 0U, 0U, 0x7U, 1U);
+	_zynq_setMIO(UART_TX, 1U, 1U, 1U, 0U, 0U, 0U, 0U, 0x7U, 0U);
 
-	(void)_zynq_setAmbaClk(UART_CLK, 1);
+	(void)_zynq_setAmbaClk(UART_CLK, 1U);
 
-	*(console_common.UART + idr) = 0xfff;
+	*(console_common.UART + idr) = 0xfffU;
 
 	/* Uart Mode Register
 	 * normal mode, 1 stop bit, no parity, 8 bits, uart_ref_clk as source clock
