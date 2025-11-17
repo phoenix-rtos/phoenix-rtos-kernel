@@ -35,14 +35,14 @@
 #endif
 
 /* Supervisor Cause Register */
-#define SCAUSE_INTR (1U << 63)
+#define SCAUSE_INTR (1ULL << 63)
 
 /* Exception codes */
 #define SCAUSE_ILLEGAL 2U /* Illegal instruction */
 #define SCAUSE_ECALL   8U /* Environment call from S-mode */
 
 /* Supervisor Status Register */
-#define SSTATUS_SIE  (1UL << 1)  /* Supervisor Interrupt Enable */
+#define SSTATUS_SIE  (1U << 1)   /* Supervisor Interrupt Enable */
 #define SSTATUS_SPP  (1UL << 8)  /* Previous Supervisor */
 #define SSTATUS_SPIE (1UL << 5)  /* Previous Supervisor IE */
 #define SSTATUS_FS   (3UL << 13) /* FPU status */
@@ -150,6 +150,7 @@ typedef struct _cpu_context_t {
 	u64 s6; /* x22 */
 	u64 s7; /* x23 */
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and also a RISCV64 register field identifier" */
 	u64 s8;  /* x24 */
 	u64 s9;  /* x25 */
 	u64 s10; /* x26 */
@@ -209,6 +210,7 @@ static inline void hal_cpuSetDevBusy(int s)
 /* Atomic operations */
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline u32 hal_cpuAtomicAdd(volatile u32 *dst, u32 v)
 {
 	u32 old;
@@ -227,6 +229,7 @@ static inline u32 hal_cpuAtomicAdd(volatile u32 *dst, u32 v)
 /* context management */
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline u64 hal_cpuGetGP(void)
 {
 	u64 gp;

@@ -53,13 +53,14 @@
 
 #ifndef __ASSEMBLY__
 
+#include "vm/types.h"
 #include "hal/types.h"
 
 
 #define SIZE_PDIR SIZE_PAGE
 
-#define PAGE_ALIGN(addr) (((addr_t)(addr)) & ~(SIZE_PAGE - 1U))
-#define PAGE_OFFS(addr)  (((addr_t)(addr)) & (SIZE_PAGE - 1U))
+#define PAGE_ALIGN(addr) (((addr_t)(addr)) & ~(SIZE_PAGE - 1UL))
+#define PAGE_OFFS(addr)  (((addr_t)(addr)) & (SIZE_PAGE - 1UL))
 
 
 /* Structure describing page - its should be aligned to 2^N boundary */
@@ -86,10 +87,10 @@ typedef struct _pmap_t {
 addr_t pmap_getKernelStart(void);
 
 
-void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+void *_pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr);
 
 
-void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr);
+void *pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr);
 
 
 void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size);

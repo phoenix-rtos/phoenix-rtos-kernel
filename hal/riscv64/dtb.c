@@ -169,19 +169,19 @@ void dtb_parse(void)
 			if ((d == 0U) && (*(char *)dtb == '\0')) {
 				state = stateSystem;
 			}
-			else if ((d == 1U) && (hal_strncmp(dtb, "memory@", 7) == 0)) {
+			else if ((d == 1U) && (hal_strncmp(dtb, "memory@", 7U) == 0)) {
 				state = stateMemory;
 			}
-			else if ((d == 2U) && (hal_strncmp(dtb, "cpu@", 4) == 0)) {
+			else if ((d == 2U) && (hal_strncmp(dtb, "cpu@", 4U) == 0)) {
 				state = stateCPU;
 			}
-			else if ((state == stateCPU) && (hal_strncmp(dtb, "interrupt-controller", 20) == 0)) {
+			else if ((state == stateCPU) && (hal_strncmp(dtb, "interrupt-controller", 20U) == 0)) {
 				state = stateCPUInterruptController;
 			}
-			else if ((d == 1U) && (hal_strncmp(dtb, "soc", 3) == 0)) {
+			else if ((d == 1U) && (hal_strncmp(dtb, "soc", 3U) == 0)) {
 				state = stateSOC;
 			}
-			else if ((state == stateSOC) && ((hal_strncmp(dtb, "interrupt-controller@", 21) == 0) || (hal_strncmp(dtb, "plic@", 5) == 0))) {
+			else if ((state == stateSOC) && ((hal_strncmp(dtb, "interrupt-controller@", 21U) == 0) || (hal_strncmp(dtb, "plic@", 5) == 0))) {
 				state = stateSOCInterruptController;
 			}
 			else {

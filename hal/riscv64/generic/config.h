@@ -21,7 +21,7 @@
 #include "include/arch/riscv64/syspage.h"
 #include "include/syspage.h"
 
-#define PLIC_CONTEXTS_PER_HART 2
+#define PLIC_CONTEXTS_PER_HART 2U
 
 #endif
 
