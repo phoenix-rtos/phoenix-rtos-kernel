@@ -135,7 +135,7 @@ int _hal_scsIRQPendingGet(u32 irqn)
 }
 
 
-int _hal_scsIRQActiveGet(u8 irqn)
+int _hal_scsIRQActiveGet(u32 irqn)
 {
 	volatile u32 *ptr = &scs_common.scs->iabr[irqn / 32];
 	return ((*ptr & (1UL << (irqn % 32))) != 0U) ? 1 : 0;
