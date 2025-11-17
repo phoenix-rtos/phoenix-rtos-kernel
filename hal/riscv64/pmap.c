@@ -33,7 +33,7 @@
 #define PDIR1_IDX(va) (((ptr_t)(va) >> 21) & 0x1ffU)
 #define PDIR0_IDX(va) (((ptr_t)(va) >> 12) & 0x1ffU)
 
-#define PTE(paddr, flags) (((addr_t)(paddr) >> 12) << 10 | (unsigned int)(flags))
+#define PTE(paddr, flags) (((addr_t)(paddr) >> 12) << 10 | (vm_flags_t)(flags))
 #define PTE_TO_ADDR(pte)  ((((u64)(pte) >> 10) << 12) & 0xfffffffffff000UL)
 
 /* PTE attributes */
@@ -531,8 +531,8 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 
 
 	for (; (ptr_t)vaddr < (ptr_t)end; vaddr += (1ULL << 30)) {
-		if (_pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, NULL, 0) < 0) {
-			if (_pmap_enter(pmap, 0, vaddr, ~PGHD_PRESENT, dp, 0) < 0) {
+		if (_pmap_enter(pmap, 0, vaddr, ~(vm_attr_t)PGHD_PRESENT, NULL, 0) < 0) {
+			if (_pmap_enter(pmap, 0, vaddr, ~(vm_attr_t)PGHD_PRESENT, dp, 0) < 0) {
 				return -ENOMEM;
 			}
 			dp = NULL;
@@ -587,7 +587,7 @@ static int _pmap_addMemEntry(addr_t start, size_t length, unsigned int flags)
 	addr_t end;
 	size_t pageCount;
 
-	if (pmap_common.memMap.count >= (unsigned long)PMAP_MEM_ENTRIES) {
+	if (pmap_common.memMap.count >= (size_t)PMAP_MEM_ENTRIES) {
 		return -ENOMEM;
 	}
 

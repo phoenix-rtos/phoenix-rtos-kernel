@@ -63,7 +63,7 @@
 
 
 static struct {
-	unsigned long specVersion;
+	u32 specVersion;
 	void (*setTimer)(u64 time);
 } sbi_common;
 
@@ -189,7 +189,7 @@ sbiret_t hal_sbiSfenceVmaAsid(unsigned long hart_mask, unsigned long hart_mask_b
 void _hal_sbiInit(void)
 {
 	sbiret_t ret = hal_sbiGetSpecVersion();
-	sbi_common.specVersion = ret.value;
+	sbi_common.specVersion = (u32)ret.value;
 
 	ret = hal_sbiProbeExtension(SBI_EXT_TIME);
 	if (ret.error == SBI_SUCCESS) {
