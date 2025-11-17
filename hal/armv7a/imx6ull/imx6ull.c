@@ -297,10 +297,6 @@ static int _imx6ull_getIOpad(int pad, u8 *hys, u8 *pus, u8 *pue, u8 *pke, u8 *od
 	u32 t;
 	volatile u32 *base = imx6ull_common.iomux;
 
-	if (hys == NULL || pus == NULL || pue == NULL || pke == NULL || ode == NULL || speed == NULL || dse == NULL || sre == NULL) {
-		return -1;
-	}
-
 	if (pad >= pctl_pad_test_mode && pad <= pctl_pad_tamper9) {
 		pad = pad - pctl_pad_test_mode + 12;
 		base = imx6ull_common.iomux_gpr;
