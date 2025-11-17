@@ -73,7 +73,7 @@ typedef struct _map_entry_t {
 } map_entry_t;
 
 
-#define VM_OFFS_MAX ((u64) - 1)
+#define VM_OFFS_MAX ((u64)-1)
 
 
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot);

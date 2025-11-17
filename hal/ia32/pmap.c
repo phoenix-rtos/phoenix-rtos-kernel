@@ -50,7 +50,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 
 	pages = ((void *)0xffffffffU - vaddr) / (SIZE_PAGE << 10);
 	for (i = 0; i < pages; vaddr += (SIZE_PAGE << 10), ++i) {
-		pmap->pdir[(u32) vaddr >> 22] = kpmap->pdir[(u32) vaddr >> 22];
+		pmap->pdir[(u32)vaddr >> 22] = kpmap->pdir[(u32)vaddr >> 22];
 	}
 
 	return EOK;
