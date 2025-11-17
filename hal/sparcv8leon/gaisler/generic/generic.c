@@ -31,10 +31,8 @@
 static struct {
 	spinlock_t pltctlSp;
 	intr_handler_t tlbIrqHandler;
+	volatile u32 hal_cpusStarted;
 } generic_common;
-
-
-volatile u32 hal_cpusStarted;
 
 
 void hal_cpuHalt(void)
@@ -45,21 +43,21 @@ void hal_cpuHalt(void)
 }
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is called from assembly" */
 void hal_cpuInitCore(void)
 {
 	hal_tlbInitCore(hal_cpuGetID());
-	hal_cpuAtomicInc(&hal_cpusStarted);
+	hal_cpuAtomicInc(&generic_common.hal_cpusStarted);
 }
 
 
 void _hal_cpuInit(void)
 {
-	hal_cpusStarted = 0;
+	generic_common.hal_cpusStarted = 0;
 	hal_cpuInitCore();
 	hal_cpuStartCores();
 
-	while (hal_cpusStarted != NUM_CPUS) {
+	while (generic_common.hal_cpusStarted != NUM_CPUS) {
 	}
 }
 
