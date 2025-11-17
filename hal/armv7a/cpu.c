@@ -58,13 +58,13 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->padding = 0;
 
 	ctx->r0 = (u32)arg;
-	ctx->r1 = 0x11111111;
-	ctx->r2 = 0x22222222;
-	ctx->r3 = 0x33333333;
-	ctx->r4 = 0x44444444;
-	ctx->r5 = 0x55555555;
-	ctx->r6 = 0x66666666;
-	ctx->r7 = 0x77777777;
+	ctx->r1 = 0x11111111U;
+	ctx->r2 = 0x22222222U;
+	ctx->r3 = 0x33333333U;
+	ctx->r4 = 0x44444444U;
+	ctx->r5 = 0x55555555U;
+	ctx->r6 = 0x66666666U;
+	ctx->r7 = 0x77777777U;
 	ctx->r8 = 0x88888888U;
 	ctx->r9 = 0x99999999U;
 	ctx->r10 = 0xaaaaaaaaU;
@@ -108,17 +108,17 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &oldmask, sizeof(oldmask) },
 		{ &n, sizeof(n) },
 	};
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Get address of function pointer as 32-bit number." */
+	const u32 handler_addr = (u32)handler;
 
 	(void)src;
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
-	signalCtx->pc = (u32)handler & ~1U;
+	signalCtx->pc = handler_addr & ~1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Checking in what processor mode code must be executed" */
-	if (((u32)handler & 1U) != 0U) {
+	if ((handler_addr & 1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}
 	else {

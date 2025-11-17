@@ -21,6 +21,7 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
 	int res = 0;
 
+	/* clang-format off */
 	__asm__ volatile(" \
 	1: \
 		cmp %3, #0; \
@@ -36,9 +37,10 @@ int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 	2: \
 		mov %0, #-1; \
 	3: "
-					 : "+r"(res), "+r"(ptr1), "+r"(ptr2), "+r"(num)
-					 :
-					 : "r3", "r4", "memory", "cc");
+	: "+r"(res), "+r"(ptr1), "+r"(ptr2), "+r"(num)
+	:
+	: "r3", "r4", "memory", "cc");
+	/* clang-format on */
 
 	return res;
 }
@@ -48,6 +50,7 @@ unsigned int hal_strlen(const char *s)
 {
 	unsigned int k = 0;
 
+	/* clang-format off */
 	__asm__ volatile(" \
 	1: \
 		ldrb r1, [%1, %0]; \
@@ -55,9 +58,10 @@ unsigned int hal_strlen(const char *s)
 		add %0, #1; \
 		b 1b; \
 	2:"
-					 : "+r"(k), "+r"(s)
-					 :
-					 : "r1", "memory", "cc");
+	: "+r"(k), "+r"(s)
+	:
+	: "r1", "memory", "cc");
+	/* clang-format on */
 
 	return k;
 }
@@ -67,6 +71,7 @@ int hal_strcmp(const char *s1, const char *s2)
 {
 	int res = 0;
 
+	/* clang-format off */
 	__asm__ volatile(" \
 	1: \
 		ldrb r2, [%1], #1; \
@@ -83,9 +88,10 @@ int hal_strcmp(const char *s1, const char *s2)
 	3: \
 		mov %0, #-1; \
 	4: "
-					 : "+r"(res), "+r"(s1), "+r"(s2)
-					 :
-					 : "r2", "r3", "memory", "cc");
+	: "+r"(res), "+r"(s1), "+r"(s2)
+	:
+	: "r2", "r3", "memory", "cc");
+	/* clang-format on */
 
 	return res;
 }
@@ -96,8 +102,7 @@ int hal_strncmp(const char *s1, const char *s2, unsigned int n)
 	int res = 0;
 
 	/* clang-format off */
-	__asm__ volatile
-	(" \
+	__asm__ volatile(" \
 	1: \
 		cmp %3, #0; \
 		beq 4f; \
@@ -129,15 +134,17 @@ char *hal_strcpy(char *dest, const char *src)
 {
 	char *p = dest;
 
+	/* clang-format off */
 	__asm__ volatile(" \
 	1: \
 		ldrb r3, [%1], #1; \
 		strb r3, [%0], #1; \
 		cmp r3, #0; \
 		bne 1b"
-					 : "+r"(p), "+r"(src)
-					 :
-					 : "r3", "memory", "cc");
+	: "+r"(p), "+r"(src)
+	:
+	: "r3", "memory", "cc");
+	/* clang-format on */
 
 	return dest;
 }
@@ -147,6 +154,7 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 {
 	char *p = dest;
 
+	/* clang-format off */
 	__asm__ volatile(" \
 		cmp %2, #0; \
 		beq 2f; \
@@ -157,9 +165,10 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 		subs %2, #1; \
 		bne 1b; \
 	2:"
-					 : "+r"(p), "+r"(src), "+r"(n)
-					 :
-					 : "r3", "memory", "cc");
+	: "+r"(p), "+r"(src), "+r"(n)
+	:
+	: "r3", "memory", "cc");
+	/* clang-format on */
 
 	return dest;
 }

@@ -18,17 +18,17 @@
 
 #include "hal/types.h"
 
-/* Predefined virtual adresses */
+/* Predefined virtual addresses */
 #define VADDR_KERNEL  0xc0000000U /* base virtual address of kernel space */
 #define VADDR_MIN     0x00000000U
 #define VADDR_MAX     0xffffffffU
 #define VADDR_USR_MAX 0x80000000U
 
 /* (MOD) */
-#define VADDR_SCRATCHPAD_TTL 0xfff00000
+#define VADDR_SCRATCHPAD_TTL 0xfff00000U
 
 
-/* Architecure dependent page attributes */
+/* Architecture dependent page attributes */
 #define PGHD_PRESENT    0x20U
 #define PGHD_NOT_CACHED 0x10U
 #define PGHD_USER       0x08U

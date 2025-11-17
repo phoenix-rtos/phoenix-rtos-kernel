@@ -22,6 +22,8 @@
 #include "include/errno.h"
 #include "include/mman.h"
 
+#include "lib/assert.h"
+
 #include "halsyspage.h"
 
 #if NUM_CPUS != 1
@@ -131,17 +133,21 @@ static const u16 attrMap[] = {
 
 static void _pmap_asidAlloc(pmap_t *pmap)
 {
-	pmap_t *evicted = NULL;
+	pmap_t *evicted;
+	++pmap_common.asidptr;
 
-	while ((++pmap_common.asidptr == 0U) || (evicted = pmap_common.asid_map[pmap_common.asidptr]) != NULL) {
+	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "asidptr may be 0 if overflow occurs" */
+	while (pmap_common.asidptr == 0U || pmap_common.asid_map[pmap_common.asidptr] != NULL) {
+		evicted = pmap_common.asid_map[pmap_common.asidptr];
 		if (evicted != NULL) {
 			if ((hal_cpuGetContextId() & 0xffU) == pmap_common.asids[evicted->asid_ix]) {
 				continue;
 			}
-
 			evicted->asid_ix = 0;
 			break;
 		}
+
+		++pmap_common.asidptr;
 	}
 
 	pmap_common.asid_map[pmap_common.asidptr] = pmap;
@@ -171,6 +177,7 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 		pmap_common.asid_map[pmap_common.asidptr] = NULL;
 
 		if (--pmap_common.asidptr == 0U) {
+			/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "underflow is expected" */
 			pmap_common.asidptr--;
 		}
 
@@ -206,12 +213,12 @@ addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 	}
 	hal_spinlockClear(&pmap_common.lock, &sc);
 
-	while (*i < (int)max) {
+	while (*i < max) {
 		if (pmap->pdir[*i] != 0U) {
-			*i += 4;
-			return pmap->pdir[*i - 4] & ~0xfffU;
+			*i += 4U;
+			return pmap->pdir[*i - 4U] & ~0xfffU;
 		}
-		(*i) += 4;
+		(*i) += 4U;
 	}
 
 	return 0;
@@ -256,14 +263,14 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, int attributes, unsigned char asid)
+static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, vm_attr_t attr, unsigned char asid)
 {
 	unsigned int pti = ID_PTABLE((ptr_t)va);
 
 	hal_cpuCleanDataCache((ptr_t)&ptable[pti], (ptr_t)&ptable[pti] + sizeof(ptr_t));
 	ptr_t oldEntry = ptable[pti];
-	if (((unsigned int)attributes & PGHD_PRESENT) != 0U) {
-		ptable[pti] = (pa & ~0xfffU) | attrMap[(unsigned int)attributes & 0x1fU];
+	if ((attr & PGHD_PRESENT) != 0U) {
+		ptable[pti] = (pa & ~0xfffU) | attrMap[attr & 0x1fU];
 	}
 	else {
 		ptable[pti] = 0;
@@ -279,18 +286,18 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, int attributes,
 }
 
 
-static void _pmap_addTable(pmap_t *pmap, int pdi, addr_t pa)
+static void _pmap_addTable(pmap_t *pmap, unsigned int pdi, addr_t pa)
 {
 	pa = (pa & ~0xfffU) | PDIR_TYPE_L2TABLE;
 
-	pdi = (int)(unsigned int)((unsigned int)pdi & ~3U);
+	pdi = pdi & ~3U;
 	hal_cpuFlushDataCache((ptr_t)&pmap->pdir[pdi], (ptr_t)&pmap->pdir[pdi] + 4U * sizeof(ptr_t));
 
 	/* L2 table contains 256 entries (0x400). PAGE_SIZE is equal 0x1000 so that four L2 tables are added. */
 	pmap->pdir[pdi] = pa;
-	pmap->pdir[pdi + 1] = pa + 0x400U;
-	pmap->pdir[pdi + 2] = pa + 0x800U;
-	pmap->pdir[pdi + 3] = pa + 0xc00U;
+	pmap->pdir[pdi + 1U] = pa + 0x400U;
+	pmap->pdir[pdi + 2U] = pa + 0x800U;
+	pmap->pdir[pdi + 3U] = pa + 0xc00U;
 
 	hal_cpuInvalASIDAll(pmap_common.asids[pmap->asid_ix]);
 }
@@ -298,7 +305,7 @@ static void _pmap_addTable(pmap_t *pmap, int pdi, addr_t pa)
 
 static void _pmap_mapScratch(addr_t pa, unsigned char asid)
 {
-	_pmap_writeEntry(pmap_common.kptab, pmap_common.sptab, pa, (int)SCRATCH_ATTRS, asid);
+	_pmap_writeEntry(pmap_common.kptab, pmap_common.sptab, pa, SCRATCH_ATTRS, asid);
 }
 
 
@@ -326,7 +333,7 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *
 		hal_cpuFlushDataCache((ptr_t)pmap_common.sptab, (ptr_t)pmap_common.sptab + SIZE_PAGE);
 		hal_memset(pmap_common.sptab, 0, SIZE_PAGE);
 
-		_pmap_addTable(pmap, (int)pdi, alloc->addr);
+		_pmap_addTable(pmap, pdi, alloc->addr);
 	}
 	else {
 		_pmap_mapScratch(pmap->pdir[pdi], asid);
@@ -336,12 +343,12 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *
 	/* Write entry into page table */
 	_pmap_writeEntry(pmap_common.sptab, vaddr, paddr, attr, asid);
 
-	if (((unsigned int)attr & PGHD_PRESENT) == 0U) {
+	if ((attr & PGHD_PRESENT) == 0U) {
 		hal_spinlockClear(&pmap_common.lock, &sc);
 		return EOK;
 	}
 
-	if ((unsigned int)attr & PGHD_EXEC || (unsigned int)attr & PGHD_NOT_CACHED || (unsigned int)attr & PGHD_DEV) {
+	if ((attr & PGHD_EXEC) != 0U || (attr & PGHD_NOT_CACHED) != 0U || (attr & PGHD_DEV) != 0U) {
 		/* Invalidate cache for this pa to prevent corrupting it later when cache lines get evicted.
 		 * First map it into our address space if necessary. */
 		if (hal_cpuGetTTBR0() != (pmap->addr | TTBR_CACHE_CONF)) {
@@ -351,7 +358,7 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *
 
 		hal_cpuFlushDataCache((ptr_t)vaddr, (ptr_t)vaddr + SIZE_PAGE);
 
-		if (((unsigned int)attr & PGHD_EXEC) != 0U) {
+		if ((attr & PGHD_EXEC) != 0U) {
 			hal_cpuBranchInval();
 			hal_cpuICacheInval();
 		}
@@ -395,7 +402,7 @@ int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 			continue;
 		}
 
-		_pmap_writeEntry(pmap_common.sptab, (void *)vaddr, 0, 0, asid);
+		_pmap_writeEntry(pmap_common.sptab, (void *)vaddr, 0x0U, 0U, asid);
 	}
 
 	hal_spinlockClear(&pmap_common.lock, &sc);
@@ -515,18 +522,18 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 {
 	void *vaddr;
 
-	vaddr = (void *)((u32)(*start + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
+	vaddr = (void *)(((ptr_t)*start + SIZE_PAGE - 1U) & ~((ptr_t)SIZE_PAGE - 1U));
 	if ((ptr_t)vaddr >= (ptr_t)end) {
 		return EOK;
 	}
 
-	if (vaddr < (void *)VADDR_KERNEL) {
+	if ((ptr_t)vaddr < VADDR_KERNEL) {
 		vaddr = (void *)VADDR_KERNEL;
 	}
 
 	for (; (ptr_t)vaddr < (ptr_t)end; vaddr += (SIZE_PAGE << 10)) {
-		if (pmap_enter(pmap, 0, vaddr, (int)~PGHD_PRESENT, NULL) < 0) {
-			if (pmap_enter(pmap, 0, vaddr, (int)~PGHD_PRESENT, dp) < 0) {
+		if (pmap_enter(pmap, 0x0U, vaddr, ~PGHD_PRESENT, NULL) < 0) {
+			if (pmap_enter(pmap, 0x0U, vaddr, ~PGHD_PRESENT, dp) < 0) {
 				return -ENOMEM;
 			}
 			dp = NULL;
@@ -558,12 +565,12 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, vo
 		case 0:
 			*vaddr = (void *)VADDR_KERNEL;
 			*size = (size_t)&_etext - VADDR_KERNEL;
-			*prot = (int)(PROT_EXEC | PROT_READ);
+			*prot = (PROT_EXEC | PROT_READ);
 			break;
 		case 1:
 			*vaddr = &_etext;
 			*size = (size_t)(*top) - (size_t)&_etext;
-			*prot = (int)(PROT_WRITE | PROT_READ);
+			*prot = (PROT_WRITE | PROT_READ);
 			break;
 		default:
 			return -EINVAL;
@@ -616,7 +623,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.end = pmap_common.start + SIZE_PAGE;
 
 	/* Create initial heap */
-	(void)pmap_enter(pmap, pmap_common.start, (*vstart), (int)(PGHD_WRITE | PGHD_READ | PGHD_PRESENT), NULL);
+	LIB_ASSERT_ALWAYS(pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL) == EOK, "failed to create initial heap");
 
 	(void)pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (4U * 1024U * 1024U)));
 }

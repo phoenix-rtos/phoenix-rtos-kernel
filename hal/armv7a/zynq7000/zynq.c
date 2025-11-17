@@ -47,10 +47,17 @@ enum {
 	slcr_reboot_status = 0x96, slcr_boot_mode,
 	slcr_apu_control = 0xc0, slcr_wdt_clk_sel,
 	slcr_tz_dma_ns = 0x110, slcr_tz_dma_irq_ns, slcr_tz_dma_periph_ns,
-	slcr_pss_idcode = 0x14c,
+	slcr_pss_idcode = 0x14c
+};
+
+enum {
 	slcr_ddr_urgent = 0x180,
 	slcr_ddr_cal_start = 0x183,
 	slcr_ddr_ref_start = 0x185, slcr_ddr_cmd_sta, slcr_ddr_urgent_sel, slcr_ddr_dfi_status,
+};
+
+
+enum {
 	/* MIO pins config registers */
 	slcr_mio_pin_00 = 0x1c0, slcr_mio_pin_01, slcr_mio_pin_02, slcr_mio_pin_03, slcr_mio_pin_04, slcr_mio_pin_05, slcr_mio_pin_06, slcr_mio_pin_07, slcr_mio_pin_08,
 	slcr_mio_pin_09, slcr_mio_pin_10, slcr_mio_pin_11, slcr_mio_pin_12, slcr_mio_pin_13, slcr_mio_pin_14, slcr_mio_pin_15, slcr_mio_pin_16, slcr_mio_pin_17,
@@ -71,7 +78,6 @@ enum {
 	slcr_ddriob_addr0 = 0x2d0, slcr_ddriob_addr1, slcr_ddriob_data0, slcr_ddriob_data1, slcr_ddriob_diff0, slcr_ddriob_diff1, slcr_ddriob_clock, slcr_ddriob_drive_slew_addr,
 	slcr_ddriob_drive_slew_data, slcr_ddriob_drive_slew_diff, slcr_ddriob_drive_slew_clock, slcr_ddriob_ddr_ctrl, slcr_ddriob_dci_ctrl, slcr_ddriob_dci_status,
 };
-
 
 enum {
 	l2cc_ctrl = 0x40, l2cc_aux_ctrl, l2cc_tag_ram_ctrl, l2cc_data_ram_ctrl,
@@ -101,18 +107,18 @@ volatile unsigned int nCpusStarted = 0;
 static void _zynq_slcrLock(void)
 {
 	hal_cpuDataMemoryBarrier(); /* Ensure previous writes are committed before locking */
-	*(zynq_common.slcr + slcr_lock) = 0x0000767b;
+	*(zynq_common.slcr + slcr_lock) = 0x0000767bU;
 }
 
 
 static void _zynq_slcrUnlock(void)
 {
-	*(zynq_common.slcr + slcr_unlock) = 0x0000df0d;
+	*(zynq_common.slcr + slcr_unlock) = 0x0000df0dU;
 	hal_cpuDataMemoryBarrier(); /* Ensure subsequent writes are committed after unlocking */
 }
 
 
-int _zynq_setAmbaClk(u32 dev, u32 state)
+int _zynq_setAmbaClk(u32 dev, u8 state)
 {
 	/* Check max dev position in amba register */
 	if (dev > 24U) {
@@ -120,14 +126,14 @@ int _zynq_setAmbaClk(u32 dev, u32 state)
 	}
 
 	_zynq_slcrUnlock();
-	*(zynq_common.slcr + slcr_aper_clk_ctrl) = (*(zynq_common.slcr + slcr_aper_clk_ctrl) & ~(1U << dev)) | ((state == 0U ? 0UL : 1UL) << dev);
+	*(zynq_common.slcr + slcr_aper_clk_ctrl) = (*(zynq_common.slcr + slcr_aper_clk_ctrl) & ~(1UL << dev)) | (((u32)state & 0x1U) << dev);
 	_zynq_slcrLock();
 
 	return 0;
 }
 
 
-static int _zynq_getAmbaClk(u32 dev, u32 *state)
+static int _zynq_getAmbaClk(u32 dev, u8 *state)
 {
 	/* Check max dev position in amba register */
 	if (dev > 24U) {
@@ -135,68 +141,68 @@ static int _zynq_getAmbaClk(u32 dev, u32 *state)
 	}
 
 	_zynq_slcrUnlock();
-	*state = (*(zynq_common.slcr + slcr_aper_clk_ctrl) >> dev) & 0x1U;
+	*state = (u8)((*(zynq_common.slcr + slcr_aper_clk_ctrl) >> dev) & 0x1U);
 	_zynq_slcrLock();
 
 	return 0;
 }
 
 
-static int _zynq_setDevClk(u32 dev, u8 divisor0, u8 divisor1, u8 srcsel, u8 clkact0, u8 clkact1)
+static int _zynq_setDevClk(int dev, u8 divisor0, u8 divisor1, u8 srcsel, u8 clkact0, u8 clkact1)
 {
-	u32 id = 0;
+	int id = 0;
 	int err = 0;
 
 	_zynq_slcrUnlock();
 	switch (dev) {
 		case pctl_ctrl_usb0_clk:
 		case pctl_ctrl_usb1_clk:
-			id = dev - (u32)pctl_ctrl_usb0_clk;
+			id = dev - pctl_ctrl_usb0_clk;
 			*(zynq_common.slcr + slcr_usb0_clk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_usb0_clk + id) & ~0x00000070U) | ((u32)srcsel & 0x7U) << 4;
 			break;
 
 		case pctl_ctrl_gem0_rclk:
 		case pctl_ctrl_gem1_rclk:
-			id = dev - (u32)pctl_ctrl_gem0_rclk;
-			*(zynq_common.slcr + slcr_gem0_rclk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_gem0_rclk + id) & ~0x00000011U) | (clkact0 == 0U ? 0UL : 1UL) |
+			id = dev - pctl_ctrl_gem0_rclk;
+			*(zynq_common.slcr + slcr_gem0_rclk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_gem0_rclk + id) & ~0x00000011U) | ((u32)clkact0 & 0x1UL) |
 					((srcsel == 0U ? 0UL : 1UL) << 4);
 			break;
 
 		case pctl_ctrl_gem0_clk:
 		case pctl_ctrl_gem1_clk:
-			id = dev - (u32)pctl_ctrl_gem0_clk;
-			*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) = (*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) & ~0x03f03f71U) | (clkact0 == 0U ? 0UL : 1UL) |
+			id = dev - pctl_ctrl_gem0_clk;
+			*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) = (*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) & ~0x03f03f71U) | ((u32)clkact0 & 0x1U) |
 					(((u32)srcsel & 0x7U) << 4) | (((u32)divisor0 & 0x3fU) << 8) | (((u32)divisor1 & 0x3fU) << 20);
 			break;
 
 		case pctl_ctrl_smc_clk:
-			*(zynq_common.slcr + slcr_smc_clk_ctrl) = (*(zynq_common.slcr + slcr_smc_clk_ctrl) & ~0x00003f31U) | (clkact0 == 0U ? 0UL : 1UL) |
+			*(zynq_common.slcr + slcr_smc_clk_ctrl) = (*(zynq_common.slcr + slcr_smc_clk_ctrl) & ~0x00003f31U) | ((u32)clkact0 & 0x1U) |
 					(((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_lqspi_clk:
-			*(zynq_common.slcr + slcr_lqspi_clk_ctrl) = (*(zynq_common.slcr + slcr_lqspi_clk_ctrl) & ~0x00003f31U) | (clkact0 == 0U ? 0UL : 1UL) |
+			*(zynq_common.slcr + slcr_lqspi_clk_ctrl) = (*(zynq_common.slcr + slcr_lqspi_clk_ctrl) & ~0x00003f31U) | ((u32)clkact0 & 0x1U) |
 					(((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_sdio_clk:
-			*(zynq_common.slcr + slcr_sdio_clk_ctrl) = (*(zynq_common.slcr + slcr_sdio_clk_ctrl) & ~0x00003f33U) | (clkact0 == 0U ? 0UL : 1UL) | ((clkact1 == 0U ? 0UL : 1UL) << 1) |
+			*(zynq_common.slcr + slcr_sdio_clk_ctrl) = (*(zynq_common.slcr + slcr_sdio_clk_ctrl) & ~0x00003f33U) | ((u32)clkact0 & 0x1UL) | (((u32)clkact1 & 0x1UL) << 1) |
 					(((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_uart_clk:
-			*(zynq_common.slcr + slcr_uart_clk_ctrl) = (*(zynq_common.slcr + slcr_uart_clk_ctrl) & ~0x00003f33U) | (clkact0 == 0U ? 0UL : 1UL) |
-					((clkact1 == 0U ? 0UL : 1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
+			*(zynq_common.slcr + slcr_uart_clk_ctrl) = (*(zynq_common.slcr + slcr_uart_clk_ctrl) & ~0x00003f33U) | ((u32)clkact0 & 0x1U) |
+					(((u32)clkact1 & 0x1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_spi_clk:
-			*(zynq_common.slcr + slcr_spi_clk_ctrl) = (*(zynq_common.slcr + slcr_spi_clk_ctrl) & ~0x00003f33U) | (clkact0 == 0U ? 0UL : 1UL) |
-					((clkact1 == 0U ? 0UL : 1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
+			*(zynq_common.slcr + slcr_spi_clk_ctrl) = (*(zynq_common.slcr + slcr_spi_clk_ctrl) & ~0x00003f33U) | ((u32)clkact0 & 0x1U) |
+					(((u32)clkact1 & 0x1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_can_clk:
-			*(zynq_common.slcr + slcr_can_clk_ctrl) = (*(zynq_common.slcr + slcr_can_clk_ctrl) & ~0x03f03f33U) | (clkact0 == 0U ? 0UL : 1UL) |
-					((clkact1 == 0U ? 0UL : 1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8) | (((u32)divisor1 & 0x3fU) << 20);
+			*(zynq_common.slcr + slcr_can_clk_ctrl) = (*(zynq_common.slcr + slcr_can_clk_ctrl) & ~0x03f03f33U) | ((u32)clkact0 & 0x1UL) |
+					(((u32)clkact1 & 0x1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8) | (((u32)divisor1 & 0x3fU) << 20);
 			break;
 
 		default:
@@ -210,16 +216,16 @@ static int _zynq_setDevClk(u32 dev, u8 divisor0, u8 divisor1, u8 srcsel, u8 clka
 }
 
 
-static int _zynq_getDevClk(u32 dev, u8 *divisor0, u8 *divisor1, u8 *srcsel, u8 *clkact0, u8 *clkact1)
+static int _zynq_getDevClk(int dev, u8 *divisor0, u8 *divisor1, u8 *srcsel, u8 *clkact0, u8 *clkact1)
 {
-	u32 id;
 	u32 val = 0;
 	int err = 0;
+	int id;
 
 	switch (dev) {
 		case pctl_ctrl_usb0_clk:
 		case pctl_ctrl_usb1_clk:
-			id = dev - (u32)pctl_ctrl_usb0_clk;
+			id = dev - pctl_ctrl_usb0_clk;
 			val = *(zynq_common.slcr + slcr_usb0_clk_ctrl + id);
 			*srcsel = (u8)((val >> 4) & 0x7U);
 			*clkact0 = *clkact1 = *divisor0 = *divisor1 = 0;
@@ -227,7 +233,7 @@ static int _zynq_getDevClk(u32 dev, u8 *divisor0, u8 *divisor1, u8 *srcsel, u8 *
 
 		case pctl_ctrl_gem0_rclk:
 		case pctl_ctrl_gem1_rclk:
-			id = dev - (u32)pctl_ctrl_gem0_rclk;
+			id = dev - pctl_ctrl_gem0_rclk;
 			val = *(zynq_common.slcr + slcr_gem0_rclk_ctrl + id);
 			*clkact0 = (u8)(val & 0x1U);
 			*srcsel = (u8)((val >> 4) & 0x1U);
@@ -236,7 +242,7 @@ static int _zynq_getDevClk(u32 dev, u8 *divisor0, u8 *divisor1, u8 *srcsel, u8 *
 
 		case pctl_ctrl_gem0_clk:
 		case pctl_ctrl_gem1_clk:
-			id = dev - (u32)pctl_ctrl_gem0_clk;
+			id = dev - pctl_ctrl_gem0_clk;
 			val = *(zynq_common.slcr + slcr_gem0_clk_ctrl + id);
 			*clkact0 = (u8)(val & 0x1U);
 			*srcsel = (u8)((val >> 4) & 0x7U);
@@ -331,17 +337,17 @@ static int _zynq_getMioClk(u8 *ref0, u8 *mux0, u8 *ref1, u8 *mux1)
 }
 
 
-int _zynq_setMIO(unsigned int pin, u8 disableRcvr, u8 pullup, u8 ioType, u8 speed, u8 l0, u8 l1, u8 l2, u8 l3, u8 triEnable)
+int _zynq_setMIO(int pin, u8 disableRcvr, u8 pullup, u8 ioType, u8 speed, u8 l0, u8 l1, u8 l2, u8 l3, u8 triEnable)
 {
 	u32 val = 0;
 
-	if (pin > 53U) {
+	if (pin < 0 || pin > 53) {
 		return -1;
 	}
 
-	val = ((triEnable == 0U ? 0UL : 1UL)) | ((l0 == 0U ? 0UL : 1UL) << 1) | ((l1 == 0U ? 0UL : 1UL) << 2) | ((l2 & 0x3UL) << 3) |
-			((l3 & 0x7UL) << 5) | ((speed == 0U ? 0UL : 1UL) << 8) | ((ioType & 0x7UL) << 9) | ((pullup == 0U ? 0UL : 1UL) << 12) |
-			((disableRcvr == 0U ? 0UL : 1UL) << 13);
+	val = (((u32)triEnable & 0x1U)) | (((u32)l0 & 0x1U) << 1) | (((u32)l1 & 0x1U) << 2) | (((u32)l2 & 0x3U) << 3) |
+			(((u32)l3 & 0x7U) << 5) | (((u32)speed & 0x1U) << 8) | (((u32)ioType & 0x7U) << 9) | (((u32)pullup & 0x1U) << 12) |
+			(((u32)disableRcvr & 0x1U) << 13);
 
 	_zynq_slcrUnlock();
 	*(zynq_common.slcr + slcr_mio_pin_00 + pin) = (*(zynq_common.slcr + slcr_mio_pin_00 + pin) & ~0x00003fffU) | val;
@@ -351,11 +357,11 @@ int _zynq_setMIO(unsigned int pin, u8 disableRcvr, u8 pullup, u8 ioType, u8 spee
 }
 
 
-static int _zynq_getMIO(unsigned int pin, u8 *disableRcvr, u8 *pullup, u8 *ioType, u8 *speed, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *triEnable)
+static int _zynq_getMIO(int pin, u8 *disableRcvr, u8 *pullup, u8 *ioType, u8 *speed, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *triEnable)
 {
 	u32 val;
 
-	if (pin > 53U) {
+	if (pin < 0 || pin > 53) {
 		return -1;
 	}
 
@@ -375,7 +381,7 @@ static int _zynq_getMIO(unsigned int pin, u8 *disableRcvr, u8 *pullup, u8 *ioTyp
 }
 
 
-static int _zynq_setDevRst(u32 dev, unsigned int state)
+static int _zynq_setDevRst(int dev, unsigned int state)
 {
 	int err = 0;
 
@@ -459,7 +465,8 @@ static int _zynq_setDevRst(u32 dev, unsigned int state)
 }
 
 
-static int _zynq_getDevRst(u32 dev, unsigned int *state)
+/* TODO: consult RM if state could be u8* */
+static int _zynq_getDevRst(int dev, unsigned int *state)
 {
 	int err = 0;
 
@@ -551,9 +558,9 @@ __attribute__((noreturn)) static void zynq_softRst(void)
 }
 
 
-static int _zynq_setSDWpCd(u32 dev, u8 wpPin, u8 cdPin)
+static int _zynq_setSDWpCd(int dev, u8 wpPin, u8 cdPin)
 {
-	if ((dev != 0U) && (dev != 1U)) {
+	if ((dev != 0) && (dev != 1)) {
 		return -1;
 	}
 
@@ -568,10 +575,10 @@ static int _zynq_setSDWpCd(u32 dev, u8 wpPin, u8 cdPin)
 }
 
 
-static int _zynq_getSDWpCd(u32 dev, u8 *wpPin, u8 *cdPin)
+static int _zynq_getSDWpCd(int dev, u8 *wpPin, u8 *cdPin)
 {
 	u32 val = 0;
-	if ((dev != 0U) && (dev != 1U)) {
+	if ((dev != 0) && (dev != 1)) {
 		return -1;
 	}
 
@@ -606,10 +613,11 @@ int hal_platformctl(void *ptr)
 	switch (data->type) {
 		case pctl_ambaclock:
 			if (data->action == pctl_set) {
-				ret = _zynq_setAmbaClk((u32)data->ambaclock.dev, data->ambaclock.state);
+				/* TODO: optimize platformctl types, e.g. ambaclock.state is used as a binary state */
+				ret = _zynq_setAmbaClk((u32)data->ambaclock.dev, (u8)data->ambaclock.state);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getAmbaClk((u32)data->ambaclock.dev, &t);
+				ret = _zynq_getAmbaClk((u32)data->ambaclock.dev, (u8 *)&t);
 				data->ambaclock.state = t;
 			}
 			else {
@@ -633,25 +641,25 @@ int hal_platformctl(void *ptr)
 
 		case pctl_devclock:
 			if (data->action == pctl_set) {
-				ret = _zynq_setDevClk((u32)data->devclock.dev, data->devclock.divisor0, data->devclock.divisor1,
+				ret = _zynq_setDevClk(data->devclock.dev, data->devclock.divisor0, data->devclock.divisor1,
 						data->devclock.srcsel, data->devclock.clkact0, data->devclock.clkact1);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getDevClk((u32)data->devclock.dev, &data->devclock.divisor0, &data->devclock.divisor1,
+				ret = _zynq_getDevClk(data->devclock.dev, &data->devclock.divisor0, &data->devclock.divisor1,
 						&data->devclock.srcsel, &data->devclock.clkact0, &data->devclock.clkact1);
 			}
 			else {
-				/* No actionrequired */
+				/* No action required */
 			}
 			break;
 
 		case pctl_mio:
 			if (data->action == pctl_set) {
-				ret = _zynq_setMIO((unsigned int)data->mio.pin, data->mio.disableRcvr, data->mio.pullup, data->mio.ioType, data->mio.speed, data->mio.l0,
+				ret = _zynq_setMIO(data->mio.pin, data->mio.disableRcvr, data->mio.pullup, data->mio.ioType, data->mio.speed, data->mio.l0,
 						data->mio.l1, data->mio.l2, data->mio.l3, data->mio.triEnable);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getMIO((unsigned int)data->mio.pin, &data->mio.disableRcvr, &data->mio.pullup, &data->mio.ioType, &data->mio.speed, &data->mio.l0,
+				ret = _zynq_getMIO(data->mio.pin, &data->mio.disableRcvr, &data->mio.pullup, &data->mio.ioType, &data->mio.speed, &data->mio.l0,
 						&data->mio.l1, &data->mio.l2, &data->mio.l3, &data->mio.triEnable);
 			}
 			else {
@@ -661,10 +669,10 @@ int hal_platformctl(void *ptr)
 
 		case pctl_devreset:
 			if (data->action == pctl_set) {
-				ret = _zynq_setDevRst((u32)data->devreset.dev, data->devreset.state);
+				ret = _zynq_setDevRst(data->devreset.dev, data->devreset.state);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getDevRst((u32)data->devreset.dev, &t);
+				ret = _zynq_getDevRst(data->devreset.dev, &t);
 				data->devreset.state = t;
 			}
 			else {
@@ -682,12 +690,12 @@ int hal_platformctl(void *ptr)
 		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case pctl_sdwpcd:
 			if (data->action == pctl_set) {
-				ret = _zynq_setSDWpCd((u32)data->SDWpCd.dev, data->SDWpCd.wpPin, data->SDWpCd.cdPin);
+				ret = _zynq_setSDWpCd((int)data->SDWpCd.dev, data->SDWpCd.wpPin, data->SDWpCd.cdPin);
 			}
 			else { /* data->action == pctl_get */
-				ret = _zynq_getSDWpCd((u32)data->SDWpCd.dev, &data->SDWpCd.wpPin, &data->SDWpCd.cdPin);
+				ret = _zynq_getSDWpCd((int)data->SDWpCd.dev, &data->SDWpCd.wpPin, &data->SDWpCd.cdPin);
 			}
-			/* Fall-through*/
+			/* Fall-through */
 
 		default:
 			/* No action required */
@@ -705,9 +713,9 @@ static void _zynq_activateL2Cache(void)
 	*(zynq_common.l2cc + l2cc_ctrl) = 0; /* Disable L2 cache */
 	hal_cpuDataMemoryBarrier();
 	*(zynq_common.l2cc + l2cc_aux_ctrl) |= 0x72360000U; /* Enable all prefetching, Way Size (16 KB) and High Priority for SO and Dev Reads Enable */
-	*(zynq_common.l2cc + l2cc_tag_ram_ctrl) = 0x0111;   /* 7 Cycles of latency for TAG RAM */
-	*(zynq_common.l2cc + l2cc_data_ram_ctrl) = 0x0121;  /* 7 Cycles of latency for DATA RAM */
-	*(zynq_common.l2cc + l2cc_inval_way) = 0xFFFF;      /* Invalidate everything */
+	*(zynq_common.l2cc + l2cc_tag_ram_ctrl) = 0x0111U;  /* 7 Cycles of latency for TAG RAM */
+	*(zynq_common.l2cc + l2cc_data_ram_ctrl) = 0x0121U; /* 7 Cycles of latency for DATA RAM */
+	*(zynq_common.l2cc + l2cc_inval_way) = 0xFFFFU;     /* Invalidate everything */
 	hal_cpuDataMemoryBarrier();
 	while (*(zynq_common.l2cc + l2cc_sync) != 0U) {
 		/* wait for completion */
@@ -715,7 +723,7 @@ static void _zynq_activateL2Cache(void)
 
 	*(zynq_common.l2cc + l2cc_int_clear) = *(zynq_common.l2cc + l2cc_int_raw); /* Clear pending interrupts */
 	_zynq_slcrUnlock();
-	*(zynq_common.slcr + slcr_l2c_ram_reg) = 0x00020202; /* Magic value, not described in detail */
+	*(zynq_common.slcr + slcr_l2c_ram_reg) = 0x00020202U; /* Magic value, not described in detail */
 	_zynq_slcrLock();
 	hal_cpuDataMemoryBarrier();
 	*(zynq_common.l2cc + l2cc_ctrl) |= 1U; /* Enable L2 cache */
@@ -737,7 +745,7 @@ unsigned int hal_cpuGetCount(void)
 
 
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
-static u32 checkNumCPUs(void)
+static u32 hal_checkNumCPUs(void)
 {
 	/* First check if MPIDR indicates uniprocessor system or no MP extensions */
 	unsigned int mpidr;
@@ -751,13 +759,12 @@ static u32 checkNumCPUs(void)
 	/* Otherwise we are in a multiprocessor system and we can check SCU for number of cores in SMP */
 	volatile u32 *scu = (void *)(((u32)&_end + 5U * SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
 	/* We cannot use SCU_CPU_Power_Status_Register because it's not implemented correctly on QEMU */
-	u32 powerStatus = (*(scu + 1)) >> 4; /* SCU_CONFIGURATION_REGISTER */
+	u32 powerStatus = (*(scu + 1U)) >> 4; /* SCU_CONFIGURATION_REGISTER */
 	u32 cpusAvailable = 0;
-	for (int i = 0; i < 4; i++) {
-		if ((powerStatus & 0x1U) == 1U) {
+	for (unsigned int i = 0U; i < 4U; i++) {
+		if (((powerStatus >> i) & 0x1U) == 1U) {
 			cpusAvailable++;
 		}
-		powerStatus >>= 1;
 	}
 
 	return cpusAvailable;
@@ -766,7 +773,7 @@ static u32 checkNumCPUs(void)
 
 void _hal_cpuInit(void)
 {
-	zynq_common.nCpus = checkNumCPUs();
+	zynq_common.nCpus = hal_checkNumCPUs();
 	hal_cpuAtomicInc(&nCpusStarted);
 	if (hal_cpuAtomicGet(&nCpusStarted) == 1U) {
 		/* This is necessary because other CPU is still in physical memory
