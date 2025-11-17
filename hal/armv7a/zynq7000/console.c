@@ -43,24 +43,12 @@ static struct {
 } console_common;
 
 
+/* clang-format off */
 enum {
-	cr = 0,
-	mr,
-	ier,
-	idr,
-	imr,
-	isr,
-	baudgen,
-	rxtout,
-	rxwm,
-	modemcr,
-	modemsr,
-	sr,
-	fifo,
-	baud_rate_divider_reg0,
-	flow_delay_reg0,
-	tx_fifo_trigger_level0,
+	cr = 0, mr, ier, idr, imr, isr, baudgen, rxtout, rxwm, modemcr, modemsr, sr, fifo,
+	baud_rate_divider_reg0, flow_delay_reg0, tx_fifo_trigger_level0,
 };
+/* clang-format on */
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */

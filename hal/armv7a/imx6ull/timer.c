@@ -32,23 +32,12 @@ static struct {
 } timer_common;
 
 
-enum { epit_cr = 0,
-	epit_sr,
-	epit_lr,
-	epit_cmpr,
-	epit_cnr };
+/* clang-format off */
+enum { epit_cr = 0, epit_sr, epit_lr, epit_cmpr, epit_cnr };
 
 
-enum { gpt_cr = 0,
-	gpt_pr,
-	gpt_sr,
-	gpt_ir,
-	gpt_ocr1,
-	gpt_ocr2,
-	gpt_ocr3,
-	gpt_icr1,
-	gpt_icr2,
-	gpt_cnt };
+enum { gpt_cr = 0, gpt_pr, gpt_sr, gpt_ir, gpt_ocr1, gpt_ocr2, gpt_ocr3, gpt_icr1, gpt_icr2, gpt_cnt };
+/* clang-format on */
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */

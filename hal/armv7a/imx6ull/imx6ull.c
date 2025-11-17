@@ -19,118 +19,38 @@
 #include "hal/spinlock.h"
 #include "include/arch/armv7a/imx6ull/imx6ull.h"
 
+/* clang-format off */
 /* CCM registers */
-enum { ccm_ccr = 0,
-	ccm_ccdr,
-	ccm_csr,
-	ccm_ccsr,
-	ccm_cacrr,
-	ccm_cbcdr,
-	ccm_cbcmr,
-	ccm_cscmr1,
-	ccm_cscmr2,
-	ccm_cscdr1,
-	ccm_cs1cdr,
-	ccm_cs2cdr,
-	ccm_cdcdr,
-	ccm_chsccdr,
-	ccm_cscdr2,
-	ccm_cscdr3,
-	ccm_cdhipr = ccm_cscdr3 + 3,
-	ccm_clpcr = ccm_cdhipr + 3,
-	ccm_cisr,
-	ccm_cimr,
-	ccm_ccosr,
-	ccm_cgpr,
-	ccm_ccgr0,
-	ccm_ccgr1,
-	ccm_ccgr2,
-	ccm_ccgr3,
-	ccm_ccgr4,
-	ccm_ccgr5,
-	ccm_ccgr6,
-	ccm_cmeor = ccm_ccgr6 + 2 };
+enum { ccm_ccr = 0, ccm_ccdr, ccm_csr, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr,
+	ccm_cscmr1, ccm_cscmr2, ccm_cscdr1, ccm_cs1cdr, ccm_cs2cdr, ccm_cdcdr, ccm_chsccdr,
+	ccm_cscdr2, ccm_cscdr3, ccm_cdhipr = ccm_cscdr3 + 3, ccm_clpcr = ccm_cdhipr + 3,
+	ccm_cisr, ccm_cimr, ccm_ccosr, ccm_cgpr, ccm_ccgr0, ccm_ccgr1, ccm_ccgr2, ccm_ccgr3,
+	ccm_ccgr4, ccm_ccgr5, ccm_ccgr6, ccm_cmeor = ccm_ccgr6 + 2 };
 
 
-enum { ccm_analog_pll_arm = 0,
-	ccm_analog_pll_arm_set,
-	ccm_analog_pll_arm_clr,
-	ccm_analog_pll_arm_tog,
-	ccm_analog_pll_usb1,
-	ccm_analog_pll_usb1_set,
-	ccm_analog_pll_usb1_clr,
-	ccm_analog_pll_usb1_tog,
-	ccm_analog_pll_usb2,
-	ccm_analog_pll_usb2_set,
-	ccm_analog_pll_usb2_clr,
-	ccm_analog_pll_usb2_tog,
-	ccm_analog_pll_sys,
-	ccm_analog_pll_sys_set,
-	ccm_analog_pll_sys_clr,
-	ccm_analog_pll_sys_tog,
-	ccm_analog_pll_sys_ss,
-	ccm_analog_pll_sys_num = ccm_analog_pll_sys_ss + 4,
-	ccm_analog_pll_sys_denom = ccm_analog_pll_sys_num + 4,
-	ccm_analog_pll_audio = ccm_analog_pll_sys_denom + 4,
-	ccm_analog_pll_audio_set,
-	ccm_analog_pll_audio_clr,
-	ccm_analog_pll_audio_tog,
-	ccm_analog_pll_audio_num,
-	ccm_analog_pll_audio_denom = ccm_analog_pll_audio_num + 4,
-	ccm_analog_pll_video = ccm_analog_pll_audio_denom + 4,
-	ccm_analog_pll_video_set,
-	ccm_analog_pll_video_clr,
-	ccm_analog_pll_video_tog,
-	ccm_analog_pll_video_num,
-	ccm_analog_pll_video_denom = ccm_analog_pll_video_num + 4,
-	ccm_analog_pll_enet = ccm_analog_pll_video_denom + 4,
-	ccm_analog_pll_enet_set,
-	ccm_analog_pll_enet_clr,
-	ccm_analog_pll_enet_tog,
-	ccm_analog_pfd_480,
-	ccm_analog_pfd_480_set,
-	ccm_analog_pfd_480_clr,
-	ccm_analog_pfd_480_tog,
-	ccm_analog_pfd_528,
-	ccm_analog_pfd_528_set,
-	ccm_analog_pfd_528_clr,
-	ccm_analog_pfd_528_tog,
-	ccm_analog_misc0 = 84,
-	ccm_analog_misc0_set,
-	ccm_analog_misc0_clr,
-	ccm_analog_misc0_tog,
-	ccm_analog_misc1,
-	ccm_analog_misc1_set,
-	ccm_analog_misc1_clr,
-	ccm_analog_misc1_tog,
-	ccm_analog_misc2,
-	ccm_analog_misc2_set,
-	ccm_analog_misc2_clr,
-	ccm_analog_misc2_tog };
+
+enum { ccm_analog_pll_arm = 0, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, ccm_analog_pll_arm_tog, ccm_analog_pll_usb1,
+	ccm_analog_pll_usb1_set, ccm_analog_pll_usb1_clr, ccm_analog_pll_usb1_tog, ccm_analog_pll_usb2, ccm_analog_pll_usb2_set,
+	ccm_analog_pll_usb2_clr, ccm_analog_pll_usb2_tog, ccm_analog_pll_sys, ccm_analog_pll_sys_set, ccm_analog_pll_sys_clr,
+	ccm_analog_pll_sys_tog, ccm_analog_pll_sys_ss, ccm_analog_pll_sys_num = ccm_analog_pll_sys_ss + 4,
+	ccm_analog_pll_sys_denom = ccm_analog_pll_sys_num + 4, ccm_analog_pll_audio = ccm_analog_pll_sys_denom + 4,
+	ccm_analog_pll_audio_set, ccm_analog_pll_audio_clr, ccm_analog_pll_audio_tog, ccm_analog_pll_audio_num,
+	ccm_analog_pll_audio_denom = ccm_analog_pll_audio_num + 4, ccm_analog_pll_video = ccm_analog_pll_audio_denom + 4,
+	ccm_analog_pll_video_set, ccm_analog_pll_video_clr, ccm_analog_pll_video_tog, ccm_analog_pll_video_num,
+	ccm_analog_pll_video_denom = ccm_analog_pll_video_num + 4, ccm_analog_pll_enet = ccm_analog_pll_video_denom + 4,
+	ccm_analog_pll_enet_set, ccm_analog_pll_enet_clr, ccm_analog_pll_enet_tog, ccm_analog_pfd_480, ccm_analog_pfd_480_set,
+	ccm_analog_pfd_480_clr, ccm_analog_pfd_480_tog, ccm_analog_pfd_528, ccm_analog_pfd_528_set, ccm_analog_pfd_528_clr,
+	ccm_analog_misc0 = 84, ccm_analog_misc0_set, ccm_analog_misc0_clr, ccm_analog_misc0_tog, ccm_analog_misc1,
+	ccm_analog_misc1_set, ccm_analog_misc1_clr, ccm_analog_misc1_tog, ccm_analog_misc2, ccm_analog_misc2_set,
+	ccm_analog_misc2_clr, ccm_analog_misc2_tog };
 
 /* WDOG registers */
-enum { wdog_wcr = 0,
-	wdog_wsr,
-	wdog_wrsr,
-	wdog_wicr,
-	wdog_wmcr };
+enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 
-enum { src_scr = 0,
-	src_sbmr1,
-	src_srsr,
-	src_sisr = src_srsr + 3,
-	src_sbmr2 = src_sisr + 2,
-	src_gpr1,
-	src_gpr2,
-	src_gpr3,
-	src_gpr4,
-	src_gpr5,
-	src_gpr6,
-	src_gpr7,
-	src_gpr8,
-	src_gpr9,
-	src_gpr10 };
+enum { src_scr = 0, src_sbmr1, src_srsr, src_sisr = src_srsr + 3, src_sbmr2 = src_sisr + 2, src_gpr1, src_gpr2,
+	src_gpr3, src_gpr4, src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
+/* clang-format on */
 
 
 static struct {
@@ -145,9 +65,11 @@ static struct {
 	volatile u32 *src;
 } imx6ull_common;
 
+
 /* saved in _init_imx6ull.S */
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 u32 imx6ull_bootReason;
+
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;

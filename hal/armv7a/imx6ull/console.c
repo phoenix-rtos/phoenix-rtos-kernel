@@ -26,23 +26,10 @@ static struct {
 } console_common;
 
 
-enum { urxd = 0,
-	utxd = 16,
-	ucr1 = 32,
-	ucr2,
-	ucr3,
-	ucr4,
-	ufcr,
-	usr1,
-	usr2,
-	uesc,
-	utim,
-	ubir,
-	ubmr,
-	ubrc,
-	onems,
-	uts,
-	umcr };
+/* clang-format off */
+enum { urxd = 0, utxd = 16, ucr1 = 32, ucr2, ucr3, ucr4, ufcr, usr1, usr2,
+	uesc, utim, ubir, ubmr, ubrc, onems, uts, umcr };
+/* clang-format on */
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
