@@ -464,7 +464,7 @@ static int _mcxn94x_sysconGetDevClk(int dev, unsigned int *sel, unsigned int *di
 		*div = *divr & 0xffU;
 	}
 
-	*enable = (*(n94x_common.syscon + syscon_ahbclkctrlset0 + ((u32)dev / 32U)) & 1UL << ((u32)dev & 0x1fU)) != 0U ? 1 : 0;
+	*enable = (*(n94x_common.syscon + syscon_ahbclkctrlset0 + ((u32)dev / 32U)) & (1UL << ((u32)dev & 0x1fU))) != 0U ? 1 : 0;
 
 	return 0;
 }

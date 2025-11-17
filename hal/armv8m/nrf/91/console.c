@@ -21,7 +21,7 @@
 #include "hal/spinlock.h"
 #include <board_config.h>
 
-#define TX_DMA_SIZE 64
+#define TX_DMA_SIZE 64U
 
 
 union {

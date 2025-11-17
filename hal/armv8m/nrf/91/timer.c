@@ -119,7 +119,7 @@ void _hal_timerInit(u32 interval)
 	/* 1 compare event per interval * 1us */
 	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_cc0) = interval;
 	/* Enable interrupts from compare0 events */
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_intenset) = 0x10000;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_intenset) = 0x10000U;
 
 	/* Clear and start timer0 */
 	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_tasks_clear) = 1U;

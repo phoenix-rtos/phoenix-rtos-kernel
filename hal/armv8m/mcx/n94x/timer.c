@@ -156,7 +156,7 @@ char *hal_timerFeatures(char *features, size_t len)
 
 void _hal_timerInit(u32 interval)
 {
-	timer_common.base = (void *)0x40049000;
+	timer_common.base = (void *)0x40049000U;
 	timer_common.timerLast = 0;
 	timer_common.high = 0;
 	timer_common.interval = interval;

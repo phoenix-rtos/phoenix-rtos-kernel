@@ -71,11 +71,11 @@ void timer_jiffiesAdd(time_t t)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	if (timer_common.frequency == 1000000UL) {
+	if (timer_common.frequency == (1000U * 1000U)) {
 		timer_common.ticks += t;
 	}
 	else {
-		timer_common.ticks += (t * timer_common.frequency) / 1000000UL;
+		timer_common.ticks += (t * timer_common.frequency) / (1000U * 1000U);
 	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 }
@@ -98,7 +98,7 @@ static u64 hal_getTicks(void)
 	hal_spinlockSet(&timer_common.sp, &sc);
 	ret = timer_common.ticks;
 	cntval = *(timer_common.base + tim_cnt);
-	if ((cntval >> 31) != 0) {
+	if ((cntval >> 31) != 0U) {
 		*(timer_common.base + tim_sr) = ~1U;
 		ret += timer_common.ticksPerInterval;
 		timer_common.ticks = ret;
@@ -114,11 +114,11 @@ static u64 hal_getTicks(void)
 time_t hal_timerGetUs(void)
 {
 	u64 ticks = hal_getTicks();
-	if (timer_common.frequency == 1000000UL) {
+	if (timer_common.frequency == (1000U * 1000U)) {
 		return (time_t)ticks;
 	}
 	else {
-		return ((time_t)ticks * 1000000) / timer_common.frequency;
+		return ((time_t)ticks * (1000U * 1000U)) / timer_common.frequency;
 	}
 }
 
@@ -126,7 +126,7 @@ time_t hal_timerGetUs(void)
 int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 {
 	h->f = f;
-	h->n = TIM_SYSTEM_IRQ;
+	h->n = (unsigned int)TIM_SYSTEM_IRQ;
 	h->data = data;
 
 	return hal_interruptsSetHandler(h);
@@ -145,37 +145,37 @@ void _hal_timerInit(u32 interval)
 	u32 prescaler;
 	timer_common.ticks = 0;
 	timer_common.frequency = TIM_SYSTEM_FREQ;
-	if ((timer_common.frequency % 1000000UL) == 0) {
+	if ((timer_common.frequency % (1000U * 1000U)) == 0U) {
 		/* If frequency divisible by 1 MHz, set the prescaler to tick once per microsecond.
 		 * Timer APIs work on microseconds, so in this mode we avoid having to do 64-bit division
 		 * in hal_timerGetUs (a very frequently called function). */
-		prescaler = timer_common.frequency / 1000000UL;
-		timer_common.frequency = 1000000UL;
+		prescaler = timer_common.frequency / (1000U * 1000U);
+		timer_common.frequency = 1000U * 1000U;
 		timer_common.ticksPerInterval = interval;
-		LIB_ASSERT((prescaler >= 1) && (prescaler <= 65535), "Selected timer interval is not achievable");
+		LIB_ASSERT((prescaler >= 1U) && (prescaler <= 65535U), "Selected timer interval is not achievable");
 	}
 	else {
-		timer_common.ticksPerInterval = ((u64)timer_common.frequency * interval) / 1000000UL;
+		timer_common.ticksPerInterval = ((u64)timer_common.frequency * interval) / (1000U * 1000U);
 		/* TODO: For optimal precision prescaler should be a factor of timer_common.ticksPerInterval,
 		 * but the difference in precision isn't big enough to matter, so I don't want to add a whole lot
 		 * of extra code to handle this. */
-		prescaler = (timer_common.ticksPerInterval + 65535) / 65536;
-		LIB_ASSERT((prescaler >= 1) && (prescaler <= 65535), "Selected timer interval is not achievable");
+		prescaler = (timer_common.ticksPerInterval + 65535U) / 65536U;
+		LIB_ASSERT((prescaler >= 1) && (prescaler <= 65535U), "Selected timer interval is not achievable");
 		timer_common.frequency /= prescaler;
-		timer_common.ticksPerInterval = ((u64)timer_common.frequency * interval) / 1000000UL;
+		timer_common.ticksPerInterval = ((u64)timer_common.frequency * interval) / (1000U * 1000U);
 	}
 
-	LIB_ASSERT((timer_common.ticksPerInterval >= 1) && (timer_common.ticksPerInterval <= 65535),
+	LIB_ASSERT((timer_common.ticksPerInterval >= 1U) && (timer_common.ticksPerInterval <= 65535U),
 			"Selected timer interval is not achievable");
-	_stm32_rccSetDevClock(TIM_SYSTEM_PCTL, 1, 1);
-	_stm32_dbgmcuStopTimerInDebug(TIM_SYSTEM_PCTL, 1);
+	_stm32_rccSetDevClock(TIM_SYSTEM_PCTL, 1U, 1U);
+	_stm32_dbgmcuStopTimerInDebug(TIM_SYSTEM_PCTL, 1U);
 	timer_common.base = TIM_SYSTEM_BASE;
 	/* set UIF status bit remapping, so we can get UIF by just reading the counter */
-	*(timer_common.base + tim_cr1) = (1 << 11);
+	*(timer_common.base + tim_cr1) = (1UL << 11);
 	*(timer_common.base + tim_cr2) = 0;
 	*(timer_common.base + tim_cnt) = 0;
-	*(timer_common.base + tim_psc) = prescaler - 1;
-	*(timer_common.base + tim_arr) = timer_common.ticksPerInterval - 1;
+	*(timer_common.base + tim_psc) = prescaler - 1U;
+	*(timer_common.base + tim_arr) = timer_common.ticksPerInterval - 1U;
 	*(timer_common.base + tim_dier) = 1; /* Activate interrupt */
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
@@ -185,5 +185,5 @@ void _hal_timerInit(u32 interval)
 	hal_interruptsSetHandler(&timer_common.handler);
 
 	hal_cpuDataMemoryBarrier();
-	*(timer_common.base + tim_cr1) |= 1; /* Start counting */
+	*(timer_common.base + tim_cr1) |= 1U; /* Start counting */
 }

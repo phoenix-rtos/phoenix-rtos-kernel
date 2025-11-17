@@ -36,32 +36,32 @@
 #endif
 
 
-#define GPIOA_BASE ((void *)0x56020000)
-#define GPIOB_BASE ((void *)0x56020400)
-#define GPIOC_BASE ((void *)0x56020800)
-#define GPIOD_BASE ((void *)0x56020c00)
-#define GPIOE_BASE ((void *)0x56021000)
-#define GPIOF_BASE ((void *)0x56021400)
-#define GPIOG_BASE ((void *)0x56021800)
-#define GPIOH_BASE ((void *)0x56021c00)
-#define GPION_BASE ((void *)0x56023400)
-#define GPIOO_BASE ((void *)0x56023800)
-#define GPIOP_BASE ((void *)0x56023c00)
-#define GPIOQ_BASE ((void *)0x56024000)
+#define GPIOA_BASE ((void *)0x56020000U)
+#define GPIOB_BASE ((void *)0x56020400U)
+#define GPIOC_BASE ((void *)0x56020800U)
+#define GPIOD_BASE ((void *)0x56020c00U)
+#define GPIOE_BASE ((void *)0x56021000U)
+#define GPIOF_BASE ((void *)0x56021400U)
+#define GPIOG_BASE ((void *)0x56021800U)
+#define GPIOH_BASE ((void *)0x56021c00U)
+#define GPION_BASE ((void *)0x56023400U)
+#define GPIOO_BASE ((void *)0x56023800U)
+#define GPIOP_BASE ((void *)0x56023c00U)
+#define GPIOQ_BASE ((void *)0x56024000U)
 
-#define IWDG_BASE   ((void *)0x56004800)
-#define PWR_BASE    ((void *)0x56024800)
-#define RCC_BASE    ((void *)0x56028000)
-#define RTC_BASE    ((void *)0x56004000)
-#define SYSCFG_BASE ((void *)0x56008000)
-#define EXTI_BASE   ((void *)0x56025000)
-#define RIFSC_BASE  ((void *)0x54024000)
-#define GPDMA1_BASE ((void *)0x50021000)
-#define HPDMA1_BASE ((void *)0x58020000)
-#define DBGMCU_BASE ((void *)0x54001000)
+#define IWDG_BASE   ((void *)0x56004800U)
+#define PWR_BASE    ((void *)0x56024800U)
+#define RCC_BASE    ((void *)0x56028000U)
+#define RTC_BASE    ((void *)0x56004000U)
+#define SYSCFG_BASE ((void *)0x56008000U)
+#define EXTI_BASE   ((void *)0x56025000U)
+#define RIFSC_BASE  ((void *)0x54024000U)
+#define GPDMA1_BASE ((void *)0x50021000U)
+#define HPDMA1_BASE ((void *)0x58020000U)
+#define DBGMCU_BASE ((void *)0x54001000U)
 
-#define EXTI_LINES   78
-#define DMA_CHANNELS 16
+#define EXTI_LINES   78U
+#define DMA_CHANNELS 16U
 
 
 static struct {
@@ -105,6 +105,9 @@ int hal_platformctl(void *ptr)
 					data->devclk.lpState = lpState;
 				}
 			}
+			else {
+				/* No action required */
+			}
 
 			break;
 		case pctl_cpuclk:
@@ -124,6 +127,9 @@ int hal_platformctl(void *ptr)
 					data->ipclk.setting = state;
 				}
 			}
+			else {
+				/* No action required */
+			}
 
 			break;
 		case pctl_gpioPrivilege:
@@ -135,6 +141,9 @@ int hal_platformctl(void *ptr)
 				if (ret == EOK) {
 					data->gpioPrivilege.mask = state;
 				}
+			}
+			else {
+				/* No action required */
 			}
 			break;
 		case pctl_risup:
@@ -157,6 +166,9 @@ int hal_platformctl(void *ptr)
 					data->otp.val = state;
 				}
 			}
+			else {
+				/* No action required */
+			}
 			break;
 		case pctl_reboot:
 			if (data->action == pctl_set) {
@@ -167,6 +179,9 @@ int hal_platformctl(void *ptr)
 			else if (data->action == pctl_get) {
 				data->reboot.reason = syspage->hs.bootReason;
 				ret = EOK;
+			}
+			else {
+				/* No action required */
 			}
 
 			break;
@@ -230,24 +245,30 @@ int _stm32_rifsc_risup_change(unsigned int index, int secure, int privileged, in
 		return -EINVAL;
 	}
 
-	reg = index / 32;
-	shift = index % 32;
+	reg = index / 32U;
+	shift = index % 32U;
 	if (secure > 0) {
-		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + reg) |= (1 << shift);
+		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + reg) |= (1UL << shift);
 	}
 	else if (secure < 0) {
-		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + reg) &= ~(1 << shift);
+		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + reg) &= ~(1UL << shift);
+	}
+	else {
+		/* No action required */
 	}
 
 	if (privileged > 0) {
-		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + reg) |= (1 << shift);
+		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + reg) |= (1UL << shift);
 	}
 	else if (privileged < 0) {
-		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + reg) &= ~(1 << shift);
+		*(stm32_common.rifsc + rifsc_risc_privcfgr0 + reg) &= ~(1UL << shift);
+	}
+	else {
+		/* No action required */
 	}
 
 	if (lock != 0) {
-		*(stm32_common.rifsc + rifsc_risc_rcfglockr0 + reg) = (1 << shift);
+		*(stm32_common.rifsc + rifsc_risc_rcfglockr0 + reg) = (1UL << shift);
 	}
 
 	return EOK;
@@ -262,23 +283,29 @@ int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged, int
 	}
 
 	if (secure > 0) {
-		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) |= (1 << 8);
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) |= (1UL << 8);
 	}
 	else if (secure < 0) {
-		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) &= ~(1 << 8);
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) &= ~(1UL << 8);
+	}
+	else {
+		/* No action required */
 	}
 
 	if (privileged > 0) {
-		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) |= (1 << 9);
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) |= (1UL << 9);
 	}
 	else if (privileged < 0) {
-		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) &= ~(1 << 9);
+		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) &= ~(1UL << 9);
+	}
+	else {
+		/* No action required */
 	}
 
 	if ((cid >= 0) && (cid < 0x7)) {
 		tmp = *(stm32_common.rifsc + rifsc_rimc_attr0 + index);
-		tmp &= ~(0x7 << 4);
-		tmp |= (cid & 0x7) << 4;
+		tmp &= ~(0x7U << 4);
+		tmp |= (u32)(cid & 0x7) << 4;
 		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) = tmp;
 	}
 
@@ -307,21 +334,27 @@ int _stm32_dmaSetPermissions(int dev, unsigned int channel, int secure, int priv
 	}
 
 	if (secure > 0) {
-		*(base + gpdma_seccfgr) |= (1 << channel);
+		*(base + gpdma_seccfgr) |= (1UL << channel);
 	}
 	else if (secure < 0) {
-		*(base + gpdma_seccfgr) &= ~(1 << channel);
+		*(base + gpdma_seccfgr) &= ~(1UL << channel);
+	}
+	else {
+		/* No action required */
 	}
 
 	if (privileged > 0) {
-		*(base + gpdma_privcfgr) |= (1 << channel);
+		*(base + gpdma_privcfgr) |= (1UL << channel);
 	}
 	else if (privileged < 0) {
-		*(base + gpdma_privcfgr) &= ~(1 << channel);
+		*(base + gpdma_privcfgr) &= ~(1UL << channel);
+	}
+	else {
+		/* No action required */
 	}
 
 	if (lock != 0) {
-		*(base + gpdma_rcfglockr) |= (1 << channel);
+		*(base + gpdma_rcfglockr) |= (1UL << channel);
 	}
 
 	return EOK;
@@ -357,77 +390,77 @@ static const struct {
 	u8 mask;
 	u8 shift;
 } ipclk_lookup[] = {
-	[pctl_ipclk_adf1sel] = { rcc_ccipr1, 0x7, 0 },
-	[pctl_ipclk_adc12sel] = { rcc_ccipr1, 0x7, 4 },
-	[pctl_ipclk_adcpre] = { rcc_ccipr1, 0xff, 8 },
-	[pctl_ipclk_dcmippsel] = { rcc_ccipr1, 0x3, 20 },
-	[pctl_ipclk_eth1ptpsel] = { rcc_ccipr2, 0x3, 0 },
-	[pctl_ipclk_eth1ptpdiv] = { rcc_ccipr2, 0xf, 4 },
-	[pctl_ipclk_eth1pwrdownack] = { rcc_ccipr2, 0x1, 8 },
-	[pctl_ipclk_eth1clksel] = { rcc_ccipr2, 0x3, 12 },
-	[pctl_ipclk_eth1sel] = { rcc_ccipr2, 0x7, 16 },
-	[pctl_ipclk_eth1refclksel] = { rcc_ccipr2, 0x1, 20 },
-	[pctl_ipclk_eth1gtxclksel] = { rcc_ccipr2, 0x1, 24 },
-	[pctl_ipclk_fdcansel] = { rcc_ccipr3, 0x3, 0 },
-	[pctl_ipclk_fmcsel] = { rcc_ccipr3, 0x3, 4 },
-	[pctl_ipclk_dftsel] = { rcc_ccipr3, 0x1, 8 },
-	[pctl_ipclk_i2c1sel] = { rcc_ccipr4, 0x7, 0 },
-	[pctl_ipclk_i2c2sel] = { rcc_ccipr4, 0x7, 4 },
-	[pctl_ipclk_i2c3sel] = { rcc_ccipr4, 0x7, 8 },
-	[pctl_ipclk_i2c4sel] = { rcc_ccipr4, 0x7, 12 },
-	[pctl_ipclk_i3c1sel] = { rcc_ccipr4, 0x7, 16 },
-	[pctl_ipclk_i3c2sel] = { rcc_ccipr4, 0x7, 20 },
-	[pctl_ipclk_ltdcsel] = { rcc_ccipr4, 0x3, 24 },
-	[pctl_ipclk_mco1sel] = { rcc_ccipr5, 0x7, 0 },
-	[pctl_ipclk_mco1pre] = { rcc_ccipr5, 0xf, 4 },
-	[pctl_ipclk_mco2sel] = { rcc_ccipr5, 0x7, 8 },
-	[pctl_ipclk_mco2pre] = { rcc_ccipr5, 0xf, 12 },
-	[pctl_ipclk_mdf1sel] = { rcc_ccipr5, 0x7, 16 },
-	[pctl_ipclk_xspi1sel] = { rcc_ccipr6, 0x3, 0 },
-	[pctl_ipclk_xspi2sel] = { rcc_ccipr6, 0x3, 4 },
-	[pctl_ipclk_xspi3sel] = { rcc_ccipr6, 0x3, 8 },
-	[pctl_ipclk_otgphy1sel] = { rcc_ccipr6, 0x3, 12 },
-	[pctl_ipclk_otgphy1ckrefsel] = { rcc_ccipr6, 0x1, 16 },
-	[pctl_ipclk_otgphy2sel] = { rcc_ccipr6, 0x3, 20 },
-	[pctl_ipclk_otgphy2ckrefsel] = { rcc_ccipr6, 0x1, 24 },
-	[pctl_ipclk_persel] = { rcc_ccipr7, 0x7, 0 },
-	[pctl_ipclk_pssisel] = { rcc_ccipr7, 0x3, 4 },
-	[pctl_ipclk_rtcsel] = { rcc_ccipr7, 0x3, 8 },
-	[pctl_ipclk_rtcpre] = { rcc_ccipr7, 0x3f, 12 },
-	[pctl_ipclk_sai1sel] = { rcc_ccipr7, 0x7, 20 },
-	[pctl_ipclk_sai2sel] = { rcc_ccipr7, 0x7, 24 },
-	[pctl_ipclk_sdmmc1sel] = { rcc_ccipr8, 0x3, 0 },
-	[pctl_ipclk_sdmmc2sel] = { rcc_ccipr8, 0x3, 4 },
-	[pctl_ipclk_spdifrx1sel] = { rcc_ccipr9, 0x7, 0 },
-	[pctl_ipclk_spi1sel] = { rcc_ccipr9, 0x7, 4 },
-	[pctl_ipclk_spi2sel] = { rcc_ccipr9, 0x7, 8 },
-	[pctl_ipclk_spi3sel] = { rcc_ccipr9, 0x7, 12 },
-	[pctl_ipclk_spi4sel] = { rcc_ccipr9, 0x7, 16 },
-	[pctl_ipclk_spi5sel] = { rcc_ccipr9, 0x7, 20 },
-	[pctl_ipclk_spi6sel] = { rcc_ccipr9, 0x7, 24 },
-	[pctl_ipclk_lptim1sel] = { rcc_ccipr12, 0x7, 8 },
-	[pctl_ipclk_lptim2sel] = { rcc_ccipr12, 0x7, 12 },
-	[pctl_ipclk_lptim3sel] = { rcc_ccipr12, 0x7, 16 },
-	[pctl_ipclk_lptim4sel] = { rcc_ccipr12, 0x7, 20 },
-	[pctl_ipclk_lptim5sel] = { rcc_ccipr12, 0x7, 24 },
-	[pctl_ipclk_usart1sel] = { rcc_ccipr13, 0x7, 0 },
-	[pctl_ipclk_usart2sel] = { rcc_ccipr13, 0x7, 4 },
-	[pctl_ipclk_usart3sel] = { rcc_ccipr13, 0x7, 8 },
-	[pctl_ipclk_uart4sel] = { rcc_ccipr13, 0x7, 12 },
-	[pctl_ipclk_uart5sel] = { rcc_ccipr13, 0x7, 16 },
-	[pctl_ipclk_usart6sel] = { rcc_ccipr13, 0x7, 20 },
-	[pctl_ipclk_uart7sel] = { rcc_ccipr13, 0x7, 24 },
-	[pctl_ipclk_uart8sel] = { rcc_ccipr13, 0x7, 28 },
-	[pctl_ipclk_uart9sel] = { rcc_ccipr14, 0x7, 0 },
-	[pctl_ipclk_usart10sel] = { rcc_ccipr14, 0x7, 4 },
-	[pctl_ipclk_lpuart1sel] = { rcc_ccipr14, 0x7, 8 },
+	[pctl_ipclk_adf1sel] = { (u16)rcc_ccipr1, 0x7U, 0U },
+	[pctl_ipclk_adc12sel] = { (u16)rcc_ccipr1, 0x7U, 4U },
+	[pctl_ipclk_adcpre] = { (u16)rcc_ccipr1, 0xffU, 8U },
+	[pctl_ipclk_dcmippsel] = { (u16)rcc_ccipr1, 0x3U, 20U },
+	[pctl_ipclk_eth1ptpsel] = { (u16)rcc_ccipr2, 0x3U, 0U },
+	[pctl_ipclk_eth1ptpdiv] = { (u16)rcc_ccipr2, 0xfU, 4U },
+	[pctl_ipclk_eth1pwrdownack] = { (u16)rcc_ccipr2, 0x1U, 8U },
+	[pctl_ipclk_eth1clksel] = { (u16)rcc_ccipr2, 0x3U, 12U },
+	[pctl_ipclk_eth1sel] = { (u16)rcc_ccipr2, 0x7U, 16U },
+	[pctl_ipclk_eth1refclksel] = { (u16)rcc_ccipr2, 0x1U, 20U },
+	[pctl_ipclk_eth1gtxclksel] = { (u16)rcc_ccipr2, 0x1U, 24U },
+	[pctl_ipclk_fdcansel] = { (u16)rcc_ccipr3, 0x3U, 0U },
+	[pctl_ipclk_fmcsel] = { (u16)rcc_ccipr3, 0x3U, 4U },
+	[pctl_ipclk_dftsel] = { (u16)rcc_ccipr3, 0x1U, 8U },
+	[pctl_ipclk_i2c1sel] = { (u16)rcc_ccipr4, 0x7U, 0U },
+	[pctl_ipclk_i2c2sel] = { (u16)rcc_ccipr4, 0x7U, 4U },
+	[pctl_ipclk_i2c3sel] = { (u16)rcc_ccipr4, 0x7U, 8U },
+	[pctl_ipclk_i2c4sel] = { (u16)rcc_ccipr4, 0x7U, 12U },
+	[pctl_ipclk_i3c1sel] = { (u16)rcc_ccipr4, 0x7U, 16U },
+	[pctl_ipclk_i3c2sel] = { (u16)rcc_ccipr4, 0x7U, 20U },
+	[pctl_ipclk_ltdcsel] = { (u16)rcc_ccipr4, 0x3U, 24U },
+	[pctl_ipclk_mco1sel] = { (u16)rcc_ccipr5, 0x7U, 0U },
+	[pctl_ipclk_mco1pre] = { (u16)rcc_ccipr5, 0xfU, 4U },
+	[pctl_ipclk_mco2sel] = { (u16)rcc_ccipr5, 0x7U, 8U },
+	[pctl_ipclk_mco2pre] = { (u16)rcc_ccipr5, 0xfU, 12U },
+	[pctl_ipclk_mdf1sel] = { (u16)rcc_ccipr5, 0x7U, 16U },
+	[pctl_ipclk_xspi1sel] = { (u16)rcc_ccipr6, 0x3U, 0U },
+	[pctl_ipclk_xspi2sel] = { (u16)rcc_ccipr6, 0x3U, 4U },
+	[pctl_ipclk_xspi3sel] = { (u16)rcc_ccipr6, 0x3U, 8U },
+	[pctl_ipclk_otgphy1sel] = { (u16)rcc_ccipr6, 0x3U, 12U },
+	[pctl_ipclk_otgphy1ckrefsel] = { (u16)rcc_ccipr6, 0x1U, 16U },
+	[pctl_ipclk_otgphy2sel] = { (u16)rcc_ccipr6, 0x3U, 20U },
+	[pctl_ipclk_otgphy2ckrefsel] = { (u16)rcc_ccipr6, 0x1U, 24U },
+	[pctl_ipclk_persel] = { (u16)rcc_ccipr7, 0x7U, 0U },
+	[pctl_ipclk_pssisel] = { (u16)rcc_ccipr7, 0x3U, 4U },
+	[pctl_ipclk_rtcsel] = { (u16)rcc_ccipr7, 0x3U, 8U },
+	[pctl_ipclk_rtcpre] = { (u16)rcc_ccipr7, 0x3fU, 12U },
+	[pctl_ipclk_sai1sel] = { (u16)rcc_ccipr7, 0x7U, 20U },
+	[pctl_ipclk_sai2sel] = { (u16)rcc_ccipr7, 0x7U, 24U },
+	[pctl_ipclk_sdmmc1sel] = { (u16)rcc_ccipr8, 0x3U, 0U },
+	[pctl_ipclk_sdmmc2sel] = { (u16)rcc_ccipr8, 0x3U, 4U },
+	[pctl_ipclk_spdifrx1sel] = { (u16)rcc_ccipr9, 0x7U, 0U },
+	[pctl_ipclk_spi1sel] = { (u16)rcc_ccipr9, 0x7U, 4U },
+	[pctl_ipclk_spi2sel] = { (u16)rcc_ccipr9, 0x7U, 8U },
+	[pctl_ipclk_spi3sel] = { (u16)rcc_ccipr9, 0x7U, 12U },
+	[pctl_ipclk_spi4sel] = { (u16)rcc_ccipr9, 0x7U, 16U },
+	[pctl_ipclk_spi5sel] = { (u16)rcc_ccipr9, 0x7U, 20U },
+	[pctl_ipclk_spi6sel] = { (u16)rcc_ccipr9, 0x7U, 24U },
+	[pctl_ipclk_lptim1sel] = { (u16)rcc_ccipr12, 0x7U, 8U },
+	[pctl_ipclk_lptim2sel] = { (u16)rcc_ccipr12, 0x7U, 12U },
+	[pctl_ipclk_lptim3sel] = { (u16)rcc_ccipr12, 0x7U, 16U },
+	[pctl_ipclk_lptim4sel] = { (u16)rcc_ccipr12, 0x7U, 20U },
+	[pctl_ipclk_lptim5sel] = { (u16)rcc_ccipr12, 0x7U, 24U },
+	[pctl_ipclk_usart1sel] = { (u16)rcc_ccipr13, 0x7U, 0U },
+	[pctl_ipclk_usart2sel] = { (u16)rcc_ccipr13, 0x7U, 4U },
+	[pctl_ipclk_usart3sel] = { (u16)rcc_ccipr13, 0x7U, 8U },
+	[pctl_ipclk_uart4sel] = { (u16)rcc_ccipr13, 0x7U, 12U },
+	[pctl_ipclk_uart5sel] = { (u16)rcc_ccipr13, 0x7U, 16U },
+	[pctl_ipclk_usart6sel] = { (u16)rcc_ccipr13, 0x7U, 20U },
+	[pctl_ipclk_uart7sel] = { (u16)rcc_ccipr13, 0x7U, 24U },
+	[pctl_ipclk_uart8sel] = { (u16)rcc_ccipr13, 0x7U, 28U },
+	[pctl_ipclk_uart9sel] = { (u16)rcc_ccipr14, 0x7U, 0U },
+	[pctl_ipclk_usart10sel] = { (u16)rcc_ccipr14, 0x7U, 4U },
+	[pctl_ipclk_lpuart1sel] = { (u16)rcc_ccipr14, 0x7U, 8U },
 };
 
 
 int _stm32_rccSetIPClk(unsigned int ipclk, unsigned int setting)
 {
 	u32 v;
-	if (ipclk >= pctl_ipclks_count) {
+	if (ipclk >= (unsigned int)pctl_ipclks_count) {
 		return -EINVAL;
 	}
 
@@ -446,7 +479,7 @@ int _stm32_rccSetIPClk(unsigned int ipclk, unsigned int setting)
 int _stm32_rccGetIPClk(unsigned int ipclk, unsigned int *setting_out)
 {
 	u32 v;
-	if (ipclk >= pctl_ipclks_count) {
+	if (ipclk >= (unsigned int)pctl_ipclks_count) {
 		return -EINVAL;
 	}
 
@@ -458,12 +491,12 @@ int _stm32_rccGetIPClk(unsigned int ipclk, unsigned int *setting_out)
 
 static int _stm32_getDevClockRegShift(int dev, unsigned int *shift_out)
 {
-	unsigned int reg = (unsigned int)dev / 32;
+	int reg = dev / 32;
 	if (reg > (rcc_apb5enr - rcc_busenr)) {
 		return -EINVAL;
 	}
 
-	*shift_out = (unsigned int)dev % 32;
+	*shift_out = (unsigned int)dev % 32U;
 	return reg;
 }
 
@@ -478,11 +511,11 @@ int _stm32_rccSetDevClock(int dev, u32 status, u32 lpStatus)
 		return -EINVAL;
 	}
 
-	statusSC = (status == 0) ? rcc_busencr : rcc_busensr;
-	*(stm32_common.rcc + reg + statusSC) = 1 << shift;
+	statusSC = (status == 0U) ? rcc_busencr : rcc_busensr;
+	*(stm32_common.rcc + reg + statusSC) = 1UL << shift;
 
-	lpStatusSC = (lpStatus == 0) ? rcc_buslpencr : rcc_buslpensr;
-	*(stm32_common.rcc + reg + lpStatusSC) = 1 << shift;
+	lpStatusSC = (lpStatus == 0U) ? rcc_buslpencr : rcc_buslpensr;
+	*(stm32_common.rcc + reg + lpStatusSC) = 1UL << shift;
 
 	hal_cpuDataSyncBarrier();
 	(void)*(stm32_common.rcc + reg + rcc_busenr);
@@ -501,8 +534,8 @@ int _stm32_rccGetDevClock(int dev, u32 *status, u32 *lpStatus)
 		return -EINVAL;
 	}
 
-	*status = (*(stm32_common.rcc + rcc_busenr + reg) >> shift) & 1;
-	*lpStatus = (*(stm32_common.rcc + rcc_buslpencr + reg) >> shift) & 1;
+	*status = (*(stm32_common.rcc + rcc_busenr + reg) >> shift) & 1U;
+	*lpStatus = (*(stm32_common.rcc + rcc_buslpencr + reg) >> shift) & 1U;
 	return EOK;
 }
 
@@ -516,8 +549,8 @@ int _stm32_rccDevReset(int dev, u32 status)
 		return -EINVAL;
 	}
 
-	set_clear = (status == 0) ? rcc_busrstcr : rcc_busrstsr;
-	*(stm32_common.rcc + reg + set_clear) = 1 << shift;
+	set_clear = (status == 0U) ? rcc_busrstcr : rcc_busrstsr;
+	*(stm32_common.rcc + reg + set_clear) = 1UL << shift;
 	hal_cpuDataSyncBarrier();
 	(void)*(stm32_common.rcc + reg + rcc_busrstr);
 
@@ -539,7 +572,7 @@ u32 _stm32_rccGetPerClock(void)
 
 void _stm32_rccClearResetFlags(void)
 {
-	*(stm32_common.rcc + rcc_csr) |= 1 << 23;
+	*(stm32_common.rcc + rcc_csr) |= 1UL << 23;
 }
 
 
@@ -567,10 +600,10 @@ int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 	}
 
 	if (stop) {
-		*(base + reg) |= 1 << (dev % 32);
+		*(base + reg) |= 1UL << (dev % 32);
 	}
 	else {
-		*(base + reg) &= ~(1 << (dev % 32));
+		*(base + reg) &= ~(1UL << (dev % 32));
 	}
 
 	hal_cpuDataSyncBarrier();
@@ -584,11 +617,11 @@ int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 void _stm32_rtcUnlockRegs(void)
 {
 	/* Set DBP bit */
-	*(stm32_common.pwr + pwr_dbpcr) |= 1;
+	*(stm32_common.pwr + pwr_dbpcr) |= 1U;
 
 	/* Unlock RTC */
-	*(stm32_common.rtc + rtc_wpr) = 0x000000ca;
-	*(stm32_common.rtc + rtc_wpr) = 0x00000053;
+	*(stm32_common.rtc + rtc_wpr) = 0x000000caU;
+	*(stm32_common.rtc + rtc_wpr) = 0x00000053U;
 	hal_cpuDataMemoryBarrier();
 }
 
@@ -597,10 +630,10 @@ void _stm32_rtcLockRegs(void)
 {
 	hal_cpuDataMemoryBarrier();
 	/* Lock RTC */
-	*(stm32_common.rtc + rtc_wpr) = 0x000000ff;
+	*(stm32_common.rtc + rtc_wpr) = 0x000000ffU;
 
 	/* Reset DBP bit */
-	*(stm32_common.pwr + pwr_dbpcr) &= ~1;
+	*(stm32_common.pwr + pwr_dbpcr) &= ~1U;
 }
 
 
@@ -613,8 +646,8 @@ static int _stm32_extiLineToRegBit(u32 line, u32 *reg_offs, u32 *bit)
 		return -1;
 	}
 
-	*reg_offs = (line / 32) * 8;
-	*bit = (1 << line % 32);
+	*reg_offs = (line / 32U) * 8U;
+	*bit = (1UL << (line % 32U));
 	return 0;
 }
 
@@ -627,7 +660,7 @@ int _stm32_extiMaskInterrupt(u32 line, u8 state)
 	}
 
 	offs += exti_imr1;
-	if (state != 0) {
+	if (state != 0U) {
 		*(stm32_common.exti + offs) |= bit;
 	}
 	else {
@@ -693,11 +726,11 @@ int _stm32_extiSoftInterrupt(u32 line)
 
 static volatile u32 *_stm32_gpioGetBase(unsigned int d)
 {
-	if ((d < pctl_gpioa) || (d > pctl_gpioq)) {
+	if ((d < (unsigned int)pctl_gpioa) || (d > (unsigned int)pctl_gpioq)) {
 		return NULL;
 	}
 
-	return stm32_common.gpio[d - pctl_gpioa];
+	return stm32_common.gpio[d - (unsigned int)pctl_gpioa];
 }
 
 
@@ -707,29 +740,29 @@ int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospee
 	u32 t;
 
 	base = _stm32_gpioGetBase(d);
-	if ((base == NULL) || (pin > 15)) {
+	if ((base == NULL) || (pin > 15U)) {
 		return -EINVAL;
 	}
 
-	t = *(base + gpio_moder) & ~(0x3 << (pin << 1));
-	*(base + gpio_moder) = t | (mode & 0x3) << (pin << 1);
+	t = *(base + gpio_moder) & ~(0x3UL << (pin << 1));
+	*(base + gpio_moder) = t | ((u32)mode & 0x3U) << (pin << 1);
 
-	t = *(base + gpio_otyper) & ~(1 << pin);
-	*(base + gpio_otyper) = t | (otype & 1) << pin;
+	t = *(base + gpio_otyper) & ~(1UL << pin);
+	*(base + gpio_otyper) = t | ((u32)otype & 1U) << pin;
 
 	t = *(base + gpio_ospeedr) & ~(0x3 << (pin << 1));
-	*(base + gpio_ospeedr) = t | (ospeed & 0x3) << (pin << 1);
+	*(base + gpio_ospeedr) = t | ((u32)ospeed & 0x3U) << (pin << 1);
 
-	t = *(base + gpio_pupdr) & ~(0x03 << (pin << 1));
-	*(base + gpio_pupdr) = t | (pupd & 0x3) << (pin << 1);
+	t = *(base + gpio_pupdr) & ~(0x03U << (pin << 1));
+	*(base + gpio_pupdr) = t | ((u32)pupd & 0x3U) << (pin << 1);
 
-	if (pin < 8) {
-		t = *(base + gpio_afrl) & ~(0xf << (pin << 2));
-		*(base + gpio_afrl) = t | (af & 0xf) << (pin << 2);
+	if (pin < 8U) {
+		t = *(base + gpio_afrl) & ~(0xfU << (pin << 2));
+		*(base + gpio_afrl) = t | ((u32)af & 0xfU) << (pin << 2);
 	}
 	else {
-		t = *(base + gpio_afrh) & ~(0xf << ((pin - 8) << 2));
-		*(base + gpio_afrh) = t | (af & 0xf) << ((pin - 8) << 2);
+		t = *(base + gpio_afrh) & ~(0xfU << ((pin - 8U) << 2));
+		*(base + gpio_afrh) = t | ((u32)af & 0xfU) << ((pin - 8U) << 2);
 	}
 
 	return EOK;
@@ -741,11 +774,11 @@ int _stm32_gpioSet(unsigned int d, u8 pin, u8 val)
 	volatile u32 *base;
 
 	base = _stm32_gpioGetBase(d);
-	if ((base == NULL) || (pin > 15)) {
+	if ((base == NULL) || (pin > 15U)) {
 		return -EINVAL;
 	}
 
-	*(base + gpio_bsrr) = 1 << ((val == 0) ? (pin + 16) : pin);
+	*(base + gpio_bsrr) = 1 << ((val == 0U) ? ((u32)pin + 16U) : (u32)pin);
 	return EOK;
 }
 
@@ -759,7 +792,7 @@ int _stm32_gpioSetPort(unsigned int d, u16 val)
 		return -EINVAL;
 	}
 
-	*(base + gpio_odr) = val;
+	*(base + gpio_odr) = (u32)val;
 
 	return EOK;
 }
@@ -770,11 +803,11 @@ int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val)
 	volatile u32 *base;
 
 	base = _stm32_gpioGetBase(d);
-	if ((base == NULL) || (pin > 15)) {
+	if ((base == NULL) || (pin > 15U)) {
 		return -EINVAL;
 	}
 
-	*val = (*(base + gpio_idr) >> pin) & 1;
+	*val = (*(base + gpio_idr) >> pin) & 1U;
 
 	return EOK;
 }
@@ -831,7 +864,7 @@ int _stm32_gpioGetPrivilege(unsigned int d, u32 *val)
 void _stm32_wdgReload(void)
 {
 #if defined(WATCHDOG)
-	*(stm32_common.iwdg + iwdg_kr) = 0xaaaa;
+	*(stm32_common.iwdg + iwdg_kr) = 0xaaaaU;
 #endif
 }
 
@@ -874,20 +907,20 @@ void _stm32_init(void)
 	_hal_scsInit();
 
 	/* Enable System configuration controller */
-	_stm32_rccSetDevClock(pctl_syscfg, 1, 1);
+	_stm32_rccSetDevClock(pctl_syscfg, 1U, 1U);
 
 	/* Enable power module */
-	_stm32_rccSetDevClock(pctl_pwr, 1, 1);
+	_stm32_rccSetDevClock(pctl_pwr, 1U, 1U);
 
-	_stm32_rccSetDevClock(pctl_rifsc, 1, 1);
+	_stm32_rccSetDevClock(pctl_rifsc, 1U, 1U);
 	_stm32_bsec_init();
 
 	/* TODO: would be nice to have clock configuration options or the frequency passed from PLO */
-	stm32_common.cpuclk = 600 * 1000 * 1000;
+	stm32_common.cpuclk = 600U * 1000U * 1000U;
 #if USE_HSE_CLOCK_SOURCE
-	stm32_common.perclk = 48 * 1000 * 1000;
+	stm32_common.perclk = 48U * 1000U * 1000U;
 #else
-	stm32_common.perclk = 64 * 1000 * 1000;
+	stm32_common.perclk = 64U * 1000U * 1000U;
 #endif
 
 	/* Disable all interrupts */
@@ -897,26 +930,26 @@ void _stm32_init(void)
 
 	/* GPIO init */
 	for (i = 0; i < sizeof(gpioDevs) / sizeof(gpioDevs[0]); ++i) {
-		_stm32_rccSetDevClock(gpioDevs[i], 1, 1);
+		_stm32_rccSetDevClock(gpioDevs[i], 1U, 1U);
 	}
 
-	_stm32_rccSetDevClock(pctl_risaf, 1, 1);
+	_stm32_rccSetDevClock(pctl_risaf, 1U, 1U);
 	_stm32_risaf_init();
 
-	_stm32_rccSetDevClock(pctl_dbg, 1, 1);
+	_stm32_rccSetDevClock(pctl_dbg, 1U, 1U);
 
 #if defined(WATCHDOG)
 	/* Init watchdog */
 	/* Enable write access to IWDG */
-	*(stm32_common.iwdg + iwdg_kr) = 0x5555;
+	*(stm32_common.iwdg + iwdg_kr) = 0x5555U;
 
 	/* Set prescaler to 256, ~30s interval */
-	*(stm32_common.iwdg + iwdg_pr) = 0x06;
-	*(stm32_common.iwdg + iwdg_rlr) = 0xfff;
+	*(stm32_common.iwdg + iwdg_pr) = 0x06U;
+	*(stm32_common.iwdg + iwdg_rlr) = 0xfffU;
 
 	_stm32_wdgReload();
 
 	/* Enable watchdog */
-	*(stm32_common.iwdg + iwdg_kr) = 0xcccc;
+	*(stm32_common.iwdg + iwdg_kr) = 0xccccU;
 #endif
 }
