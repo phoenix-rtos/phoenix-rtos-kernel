@@ -737,7 +737,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	(void)_pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_READ | PGHD_WRITE | PGHD_PRESENT, NULL, 0);
 
 	/* Remove initial mapping */
-	(void)pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (2UL << 20)));
+	(void)_pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (2UL << 20)));
 
 	/* Map kernel text as RX */
 	for (v = (void *)VADDR_KERNEL; v < (void *)CEIL_PAGE((ptr_t)(&_etext)); v = (char *)v + SIZE_PAGE) {
