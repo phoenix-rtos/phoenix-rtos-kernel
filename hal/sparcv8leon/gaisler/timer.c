@@ -126,7 +126,7 @@ time_t hal_timerGetUs(void)
 
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return val * (time_t)(u64)(timer_common.ticksPerFreq + timer_common.ticksPerFreq - regVal);
+	return val * timer_common.ticksPerFreq + timer_common.ticksPerFreq - regVal;
 }
 
 
