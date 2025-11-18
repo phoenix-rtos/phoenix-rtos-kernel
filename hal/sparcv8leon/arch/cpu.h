@@ -135,6 +135,7 @@
 
 
 #include "hal/types.h"
+#include "hal/timer.h"
 #include "gaisler/gaisler.h"
 
 
@@ -149,9 +150,7 @@
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
 		/* 8-byte values might have been put on stack unaligned */ \
-		/* clang-format off */ \
 		if (sizeof(t) == 8U && ((ptr_t)(ustack) & 0x7U) != 0U) { \
-			/* clang-format on */ \
 			union { \
 				t val; \
 				struct { \
@@ -264,9 +263,6 @@ typedef struct _cpu_context_t {
 } cpu_context_t;
 
 
-time_t hal_timerGetUs(void);
-
-
 /* performance */
 
 
@@ -275,11 +271,26 @@ static inline void hal_cpuSetDevBusy(int s)
 }
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_2_1 "Used only in targets with NOMMU" */
+#ifdef NOMMU
 static inline void hal_cpuGetCycles(cycles_t *cb)
 {
 	*cb = (cycles_t)hal_timerGetUs();
 }
+
+
+/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+static inline void *hal_cpuGetGot(void)
+{
+	void *got;
+
+	/* clang-format off */
+	__asm__ volatile ("mov %%g6, %0" : "=r" (got));
+	/* clang-format on */
+
+	return got;
+}
+/* parasoft-end-suppress MISRAC2012-DIR_4_3 MISRAC2012-RULE_2_1 */
+#endif
 
 
 /* context management */
@@ -294,28 +305,9 @@ static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 static inline void hal_cpuSetGot(void *got)
 {
 	/* clang-format off */
-
 	__asm__ volatile ("mov %0, %%g6" ::"r" (got));
-
 	/* clang-format on */
 }
-
-
-/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
-/* parasoft-begin-suppress MISRAC2012-RULE_2_1 "Used only in targets with NOMMU" */
-static inline void *hal_cpuGetGot(void)
-{
-	void *got;
-
-	/* clang-format off */
-
-	__asm__ volatile ("mov %%g6, %0" : "=r" (got));
-
-	/* clang-format on */
-
-	return got;
-}
-/* parasoft-end-suppress MISRAC2012-DIR_4_3 MISRAC2012-RULE_2_1 */
 
 
 static inline void hal_cpuSetReturnValue(cpu_context_t *ctx, void *retval)
@@ -338,7 +330,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return (ctx->psr & PSR_PS) >> 6;
+	return ((ctx->psr & PSR_PS) >> 6 != 0U) ? 1 : 0;
 }
 
 
@@ -363,9 +355,7 @@ static inline unsigned int hal_cpuGetID(void)
 	u32 asr17;
 
 	/* clang-format off */
-
 	__asm__ volatile ("rd %%asr17, %0" : "=r" (asr17));
-
 	/* clang-format on */
 
 	return asr17 >> 28;
@@ -375,9 +365,7 @@ static inline unsigned int hal_cpuGetID(void)
 static inline void hal_cpuDisableInterrupts(void)
 {
 	/* clang-format off */
-
 	__asm__ volatile ("ta 0x09;" ::: "memory");
-
 	/* clang-format on */
 }
 
@@ -385,17 +373,15 @@ static inline void hal_cpuDisableInterrupts(void)
 static inline void hal_cpuEnableInterrupts(void)
 {
 	/* clang-format off */
-
 	__asm__ volatile ("ta 0x0a;" ::: "memory");
-
 	/* clang-format on */
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1-h "function used in target-specific cpuInitCore()" */
 static inline void hal_cpuAtomicInc(volatile u32 *dst)
 {
 	/* clang-format off */
-
 	__asm__ volatile (
 		"ld [%0], %%g1\n\t"
 	"1: \n\t"
@@ -410,7 +396,6 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 		: "r"(dst), "i"(ASI_SUPER_DATA)
 		: "g1", "g2", "memory"
 	);
-
 	/* clang-format on */
 }
 

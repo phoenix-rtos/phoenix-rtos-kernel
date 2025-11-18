@@ -22,25 +22,25 @@
  * More info about flushing behaviour: SPARC Architecture Manual V8, pages 245-246
  */
 
-#define TLB_FLUSH_L3  0 /* Level 3 PTE */
-#define TLB_FLUSH_L2  1 /* Level 2 & 3 PTE/PTDs */
-#define TLB_FLUSH_L1  2 /* Level 1, 2 & 3 PTE/PTDs */
-#define TLB_FLUSH_CTX 3 /* Level 0, 1, 2 & 3 PTE/PTDs */
-#define TLB_FLUSH_ALL 4 /* All PTEs/PTDs */
+#define TLB_FLUSH_L3  0U /* Level 3 PTE */
+#define TLB_FLUSH_L2  1U /* Level 2 & 3 PTE/PTDs */
+#define TLB_FLUSH_L1  2U /* Level 1, 2 & 3 PTE/PTDs */
+#define TLB_FLUSH_CTX 3U /* Level 0, 1, 2 & 3 PTE/PTDs */
+#define TLB_FLUSH_ALL 4U /* All PTEs/PTDs */
 
 /* Address Space Identifiers */
 
-#define ASI_FORCE_CACHE_MISS 0x01
-#define ASI_CACHE_CTRL       0x02
-#define ASI_ICACHE_TAGS      0x0c
-#define ASI_ICACHE_DATA      0x0d
-#define ASI_DCACHE_TAGS      0x0e
-#define ASI_DCACHE_DATA      0x0f
-#define ASI_FLUSH_IDCACHE    0x10 /* Writing will flush I and D cache */
-#define ASI_FLUSH_DCACHE     0x11 /* Writing will flush D cache */
-#define ASI_FLUSH_ALL        0x18 /* Writing will flush TLB, I and D cache */
-#define ASI_MMU_REGS         0x19
-#define ASI_MMU_BYPASS       0x1c
+#define ASI_FORCE_CACHE_MISS 0x01U
+#define ASI_CACHE_CTRL       0x02U
+#define ASI_ICACHE_TAGS      0x0cU
+#define ASI_ICACHE_DATA      0x0dU
+#define ASI_DCACHE_TAGS      0x0eU
+#define ASI_DCACHE_DATA      0x0fU
+#define ASI_FLUSH_IDCACHE    0x10U /* Writing will flush I and D cache */
+#define ASI_FLUSH_DCACHE     0x11U /* Writing will flush D cache */
+#define ASI_FLUSH_ALL        0x18U /* Writing will flush TLB, I and D cache */
+#define ASI_MMU_REGS         0x19U
+#define ASI_MMU_BYPASS       0x1cU
 
 /* MMU register addresses */
 
@@ -57,6 +57,9 @@
 #include "hal/types.h"
 
 
+#ifndef NOMMU
+
+
 void hal_srmmuFlushTLB(const void *vaddr, u8 type);
 
 
@@ -70,6 +73,9 @@ void hal_srmmuSetContext(u32 ctx);
 
 
 u32 hal_srmmuGetContext(void);
+
+
+#endif
 
 
 #endif

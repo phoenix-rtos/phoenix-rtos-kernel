@@ -121,6 +121,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	wctx->i3 = 0x10000003U;
 	wctx->i4 = 0x10000004U;
 	wctx->i5 = 0x10000005U;
+	/* parasoft-begin-suppress MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	wctx->i7 = (u32)start - 8U;
 
 	ctx->g1 = 0x11111111U;
@@ -133,9 +134,9 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->sp = (u32)wctx;
 	ctx->savesp = (u32)ctx;
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->pc = (u32)start;
 	ctx->npc = (u32)start + 4U;
+	/* parasoft-end-suppress MISRAC2012-RULE_11_1 */
 	ctx->y = 0;
 
 	*nctx = ctx;
@@ -164,9 +165,10 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	};
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
+	/* parasoft-begin-suppress MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	signalCtx->pc = (u32)handler;
 	signalCtx->npc = (u32)handler + 4U;
+	/* parasoft-end-suppress MISRAC2012-RULE_11_1 */
 	signalCtx->sp -= sizeof(cpu_context_t);
 
 	hal_stackPutArgs((void **)&signalCtx->sp, sizeof(args) / sizeof(args[0]), args);

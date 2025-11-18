@@ -20,45 +20,49 @@
 #include "hal/string.h"
 #include "include/mman.h"
 
+/* clang-format off */
+#define EXCEPTION_PREFIX "\033" "[0m" "\nException: 0x"
+/* clang-format on */
 
-static const char *const hal_exceptionsType(int n)
+
+static const char *const hal_exceptionsType(unsigned int n)
 {
 	switch (n) {
-		case 0x0:
+		case 0x0U:
 			return " #Reset";
-		case 0x1:
+		case 0x1U:
 			return " #Page fault - instruction fetch";
-		case 0x2:
+		case 0x2U:
 			return " #Illegal instruction";
-		case 0x3:
+		case 0x3U:
 			return " #Privileged instruction";
-		case 0x4:
+		case 0x4U:
 			return " #FP disabled";
-		case 0x7:
+		case 0x7U:
 			return " #Address not aligned";
-		case 0x8:
+		case 0x8U:
 			return " #FP exception";
-		case 0x9:
+		case 0x9U:
 			return " #Page fault - data load";
-		case 0xa:
+		case 0xaU:
 			return " #Tag overflow";
-		case 0xb:
+		case 0xbU:
 			return " #Watchpoint";
-		case 0x2b:
+		case 0x2bU:
 			return " #Data store error";
-		case 0x81:
+		case 0x81U:
 			return " #Breakpoint";
-		case 0x82:
+		case 0x82U:
 			return " #Division by zero";
-		case 0x84:
+		case 0x84U:
 			return " #Clean windows";
-		case 0x85:
+		case 0x85U:
 			return " #Range check";
-		case 0x86:
+		case 0x86U:
 			return " #Fix alignment";
-		case 0x87:
+		case 0x87U:
 			return " #Integer overflow";
-		case 0x88:
+		case 0x88U:
 			return " #Syscall (unimplemented)";
 		default:
 			return " #Reserved/Unknown";
@@ -69,7 +73,7 @@ static const char *const hal_exceptionsType(int n)
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	cpu_winContext_t *win = (cpu_winContext_t *)ctx->cpuCtx.sp;
-	size_t i = hal_i2s("\033[0m\nException: 0x", buff, n, 16U, 0U);
+	size_t i = hal_i2s(EXCEPTION_PREFIX, buff, n, 16U, 0U);
 	buff[i] = '\0';
 
 	(void)hal_strcpy(buff += hal_strlen(buff), hal_exceptionsType(n));
@@ -135,11 +139,11 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
+#endif
 }
 
 

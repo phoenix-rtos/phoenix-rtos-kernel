@@ -17,13 +17,12 @@
 #define _PH_GAISLER_H_
 
 #include <config.h>
-#include "hal/types.h"
-
-
-int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn);
 
 
 void hal_cpuStartCores(void);
+
+
+int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn);
 
 
 __attribute__((noreturn)) void hal_timerWdogReboot(void);

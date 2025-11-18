@@ -32,9 +32,6 @@
 #define TIMER_IRQ 9
 
 
-int _gr716_getIomuxCfg(u8 pin, u8 *opt, u8 *pullup, u8 *pulldn);
-
-
 void _gr716_cguClkEnable(u32 cgu, u32 device);
 
 

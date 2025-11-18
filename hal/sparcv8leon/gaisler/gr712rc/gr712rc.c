@@ -40,10 +40,8 @@ static struct {
 	spinlock_t pltctlSp;
 	volatile u32 *cguBase;
 	intr_handler_t tlbIrqHandler;
+	volatile u32 hal_cpusStarted;
 } gr712rc_common;
-
-
-volatile u32 hal_cpusStarted;
 
 
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
@@ -53,7 +51,6 @@ void hal_cpuHalt(void)
 	u32 addr = 0xfffffff0U;
 
 	/* clang-format off */
-
 	__asm__ volatile(
 		"wr %%g0, %%asr19\n\t"
 		"lda [%0] %c1, %%g0\n\t"
@@ -64,21 +61,21 @@ void hal_cpuHalt(void)
 }
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is called from assembly" */
 void hal_cpuInitCore(void)
 {
 	hal_tlbInitCore(hal_cpuGetID());
-	hal_cpuAtomicInc(&hal_cpusStarted);
+	hal_cpuAtomicInc(&gr712rc_common.hal_cpusStarted);
 }
 
 
 void _hal_cpuInit(void)
 {
-	hal_cpusStarted = 0;
+	gr712rc_common.hal_cpusStarted = 0;
 	hal_cpuInitCore();
 	hal_cpuStartCores();
 
-	while (hal_cpusStarted != NUM_CPUS) {
+	while (gr712rc_common.hal_cpusStarted != NUM_CPUS) {
 	}
 }
 

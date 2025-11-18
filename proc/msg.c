@@ -117,7 +117,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			return NULL;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, (u8)flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, (vm_flags_t)flags);
 		ml->bvaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;

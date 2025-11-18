@@ -19,6 +19,8 @@
 #include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/string.h"
 
+#include "lib/assert.h"
+
 
 /* Timer control bitfields */
 
@@ -89,7 +91,7 @@ static int _timer_irqHandler(unsigned int irq, cpu_context_t *ctx, void *data)
 
 #ifdef __CPU_GR740
 		/* Reload watchdog (on GR740 there's a fixed PLL watchdog, restarted on watchdog timer tctrl write) */
-		*(timer_common.timer0_base + GPT_TCTRL(timer_common.wdog)) |= TIMER_LOAD;
+		*(timer_common.timer0_base + GPT_TCTRL((long)timer_common.wdog)) |= TIMER_LOAD;
 #endif
 	}
 
@@ -126,7 +128,7 @@ time_t hal_timerGetUs(void)
 
 	hal_spinlockClear(&timer_common.sp, &sc);
 
-	return val * (time_t)(u64)(timer_common.ticksPerFreq + timer_common.ticksPerFreq - regVal);
+	return val * (time_t)timer_common.ticksPerFreq + (time_t)(u64)(timer_common.ticksPerFreq - regVal);
 }
 
 
@@ -189,6 +191,8 @@ void _hal_timerInit(u32 interval)
 	timer_common.jiffies = 0;
 
 	timer_common.timer0_base = _pmap_halMapDevice(PAGE_ALIGN(GPTIMER0_BASE), PAGE_OFFS(GPTIMER0_BASE), SIZE_PAGE);
+	LIB_ASSERT_ALWAYS(timer_common.timer0_base != NULL, "failed to map timer device");
+
 	timer_common.wdog = *(timer_common.timer0_base + GPT_CONFIG) & 0x7U;
 
 	/* Disable timer interrupts - bits cleared when written 1 */

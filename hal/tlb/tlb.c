@@ -28,7 +28,7 @@
 
 
 struct task_tlb {
-	void (*func)(void *);
+	void (*func)(void *arg);
 	const void *entry;
 	const pmap_t *pmap;
 	size_t count;
@@ -117,7 +117,7 @@ void hal_tlbCommit(spinlock_t *spinlock, spinlock_ctx_t *ctx)
 {
 	spinlock_ctx_t sc;
 	const unsigned int id = hal_cpuGetID();
-	size_t i, confirmations;
+	size_t i, confirmations, tasks_size;
 	hal_cpuBroadcastIPI(TLB_IRQ);
 	hal_spinlockSet(&tlb_common.tlbs[id].core_spinlock, &sc);
 	hal_spinlockClear(spinlock, &sc);
@@ -125,7 +125,8 @@ void hal_tlbCommit(spinlock_t *spinlock, spinlock_ctx_t *ctx)
 	do {
 		hal_spinlockSet(&tlb_common.tlbs[id].task_spinlock, &sc);
 		confirmations = 0;
-		for (i = 0; i < tlb_common.tlbs[id].tasks_size; ++i) {
+		tasks_size = tlb_common.tlbs[id].tasks_size;
+		for (i = 0; i < tasks_size; ++i) {
 			confirmations += tlb_common.tlbs[id].tasks[i].confirmations;
 		}
 		if (confirmations == 0U) {
@@ -142,10 +143,11 @@ void hal_tlbCommit(spinlock_t *spinlock, spinlock_ctx_t *ctx)
 void hal_tlbShootdown(void)
 {
 	spinlock_ctx_t sc;
-	size_t i;
+	size_t i, todo_size;
 	const unsigned int id = hal_cpuGetID();
 	hal_spinlockSet(&tlb_common.tlbs[id].todo_spinlock, &sc);
-	for (i = 0; i < tlb_common.tlbs[id].todo_size; ++i) {
+	todo_size = tlb_common.tlbs[id].todo_size;
+	for (i = 0; i < todo_size; ++i) {
 		tlb_common.tlbs[id].todo[i]->func(tlb_common.tlbs[id].todo[i]);
 	}
 	tlb_common.tlbs[id].todo_size = 0;
