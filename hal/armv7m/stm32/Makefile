@@ -5,9 +5,7 @@
 #
 
 
-ifneq (, $(findstring l1, $(TARGET_SUBFAMILY)))
-    include hal/armv7m/stm32/l1/Makefile
-else ifneq (, $(findstring l4, $(TARGET_SUBFAMILY)))
+ifneq (, $(findstring l4, $(TARGET_SUBFAMILY)))
     include hal/armv7m/stm32/l4/Makefile
 endif
 

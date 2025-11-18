@@ -17,7 +17,7 @@
 #define _PH_HAL_ARMV7M_CPU_H_
 
 
-#if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE) || defined(__CPU_STM32L4X6)
+#if defined(__CPU_STM32L4X6)
 #define CPU_STM32
 #endif
 
