@@ -606,7 +606,7 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, vo
 }
 
 
-static int _pmap_addMemEntry(addr_t start, size_t length, unsigned int flags)
+static int _pmap_addMemEntry(addr_t start, size_t length, u16 flags)
 {
 	addr_t end;
 	size_t pageCount;
@@ -620,7 +620,7 @@ static int _pmap_addMemEntry(addr_t start, size_t length, unsigned int flags)
 
 	pmap_common.memMap.entries[pmap_common.memMap.count].start = start;
 	pmap_common.memMap.entries[pmap_common.memMap.count].pageCount = pageCount;
-	pmap_common.memMap.entries[pmap_common.memMap.count].flags = (int)flags;
+	pmap_common.memMap.entries[pmap_common.memMap.count].flags = flags;
 
 	pmap_common.memMap.count++;
 	return EOK;
