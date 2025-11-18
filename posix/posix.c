@@ -1611,7 +1611,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 
 		case F_SETFD:
 			GETFROMSTACK(ustack, unsigned long, arg, 2);
-			err = posix_fcntlSetFd(fd, arg);
+			err = posix_fcntlSetFd(fd, (unsigned int)arg);
 			break;
 
 		case F_GETFL:
@@ -1620,7 +1620,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 
 		case F_SETFL:
 			GETFROMSTACK(ustack, unsigned int, arg, 2);
-			err = posix_fcntlSetFl(fd, arg);
+			err = posix_fcntlSetFl(fd, (unsigned int)arg);
 			break;
 
 		case F_GETLK:
@@ -2145,7 +2145,7 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 	TRACE("recvfrom(%d, %d, %s)", socket, length, src_addr == NULL ? NULL : src_addr->sa_data);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2173,7 +2173,7 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 	TRACE("sendto(%d, %s, %d, %s)", socket, message, length, dest_addr == NULL ? NULL : dest_addr->sa_data);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2201,7 +2201,7 @@ ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
 	TRACE("recvmsg(%d, %p, %d)", socket, msg, flags);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2229,7 +2229,7 @@ ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
 	TRACE("sendmsg(%d, %p, %d)", socket, msg, flags);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
