@@ -69,7 +69,7 @@ extern unsigned int __bss_start;
 typedef struct {
 	addr_t start;
 	size_t pageCount;
-	int flags;
+	u16 flags;
 } pmap_memEntry_t;
 
 
@@ -503,6 +503,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	for (i = 0; i < pmap_common.memMap.count; i++) {
 		entry = &pmap_common.memMap.entries[i];
 		if ((a >= entry->start) && (a < entry->start + entry->pageCount * SIZE_PAGE)) {
+			_Static_assert(sizeof(u16) >= sizeof(entry->flags), "potentially lossy downcast, ensure correctness");
 			page->flags = (u16)entry->flags;
 			return EOK;
 		}

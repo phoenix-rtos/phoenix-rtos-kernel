@@ -570,12 +570,12 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 			flags |= MAP_NEEDSCOPY;
 		}
 
-		if ((filesz != 0U) && (vm_mmap(map, vaddr, NULL, round_page(filesz), (u8)prot, o, base + offs, (u8)flags) == NULL)) {
+		if ((filesz != 0U) && (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
 			return -ENOMEM;
 		}
 
 		if (filesz != memsz) {
-			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), (u8)prot, NULL, -1, MAP_NONE) == NULL)) {
+			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
 				return -ENOMEM;
 			}
 
@@ -662,12 +662,12 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 			flags |= MAP_NEEDSCOPY;
 		}
 
-		if ((filesz != 0U) && (vm_mmap(map, vaddr, NULL, round_page(filesz), (u8)prot, o, base + offs, (u8)flags) == NULL)) {
+		if ((filesz != 0U) && (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
 			return -ENOMEM;
 		}
 
 		if (filesz != memsz) {
-			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), (u8)prot, NULL, -1, MAP_NONE) == NULL)) {
+			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
 				return -ENOMEM;
 			}
 
