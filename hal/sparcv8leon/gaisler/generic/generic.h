@@ -28,9 +28,6 @@
 #include "include/arch/sparcv8leon/generic/generic.h"
 
 
-int gaisler_setIomuxCfg(u8 pin, u8 opt, u8 pullup, u8 pulldn);
-
-
 #endif /* __ASSEMBLY__ */
 
 

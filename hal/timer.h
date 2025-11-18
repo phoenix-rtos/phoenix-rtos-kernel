@@ -17,7 +17,6 @@
 #define _PH_HAL_TIMER_H_
 
 
-#include "cpu.h"
 #include "interrupts.h"
 
 time_t hal_timerGetUs(void);

@@ -92,6 +92,7 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 {
 	unsigned int id = hal_cpuGetID(), i;
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR _4_7"hal_cpuGetCount()'s return type does not need checking on this architecture" */
 	for (i = 0; i < hal_cpuGetCount(); ++i) {
 		if (i != id) {
 			*(interrupts_common.int_ctrl + pc_force + i) |= (1UL << intr);
@@ -106,6 +107,7 @@ void hal_cpuStartCores(void)
 	u32 msk = 0;
 
 	if (id == 0U) {
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "hal_cpuGetCount()'s return type does not need checking on this architecture" */
 		msk = ((1UL << hal_cpuGetCount()) - 1U) & ~(1U << id);
 		*(interrupts_common.int_ctrl + int_mpstat) = msk;
 	}
@@ -156,6 +158,7 @@ static void interrupts_enableIRQ(unsigned int irqn)
 
 	/* TLB and Wakeup Timer IRQ should fire on all cores */
 	if ((irqn == (unsigned int)TLB_IRQ) || (irqn == (unsigned int)TIMER0_2_IRQ)) {
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "hal_cpuGetCount()'s return type does not need checking on this architecture" */
 		for (i = 0; i < hal_cpuGetCount(); ++i) {
 			*(interrupts_common.int_ctrl + pi_mask + i) |= (1UL << irqn);
 		}
@@ -172,6 +175,7 @@ static void interrupts_disableIRQ(unsigned int irqn)
 {
 	unsigned int i;
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "hal_cpuGetCount()'s return type does not need checking on this architecture" */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		*(interrupts_common.int_ctrl + pi_mask + i) &= ~(1UL << irqn);
 	}

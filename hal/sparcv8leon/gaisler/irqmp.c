@@ -31,15 +31,15 @@
 #define INT_LEVEL   0U  /* Interrupt level register : 0x00 */
 #define INT_PEND    1U  /* Interrupt pending register : 0x04 */
 #define INT_FORCE   2U  /* Interrupt force register (CPU 0) : 0x08 */
-#define INT_CLEAR   3U  /* Interrupt clear register : 0x0C */
+#define INT_CLEAR   3U  /* Interrupt clear register : 0x0c */
 #define INT_MPSTAT  4U  /* Multiprocessor status register : 0x10 */
 #define INT_BRDCAST 5U  /* Broadcast register : 0x14 */
 #define INT_MASK_0  16U /* Interrupt mask register (CPU 0) : 0x40 */
 #define INT_MASK_1  17U /* Interrupt mask register (CPU 1) : 0x44 */
 #define INT_FORCE_0 32U /* Interrupt force register (CPU 0) : 0x80 */
 #define INT_FORCE_1 33U /* Interrupt force register (CPU 1) : 0x84 */
-#define INT_EXTID_0 48U /* Extended interrupt ID register (CPU 0) : 0xC0 */
-#define INT_EXTID_1 49U /* Extended interrupt ID register (CPU 1) : 0xC4 */
+#define INT_EXTID_0 48U /* Extended interrupt ID register (CPU 0) : 0xc0 */
+#define INT_EXTID_1 49U /* Extended interrupt ID register (CPU 1) : 0xc4 */
 
 
 static struct {
@@ -71,6 +71,7 @@ void hal_cpuStartCores(void)
 	u32 msk = 0;
 
 	if (id == 0U) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_2_1 "Loop should be executed only if NUM_CPUS > 1" */
 		for (i = 1; i < NUM_CPUS; ++i) {
 			msk |= (1UL << i);
 		}
@@ -206,5 +207,5 @@ void _hal_interruptsInit(void)
 	}
 	interrupts_common.int_ctrl = _pmap_halMapDevice(PAGE_ALIGN(INT_CTRL_BASE), PAGE_OFFS(INT_CTRL_BASE), SIZE_PAGE);
 
-	*(interrupts_common.int_ctrl + INT_CLEAR) = 0xffffffff;
+	*(interrupts_common.int_ctrl + INT_CLEAR) = 0xffffffffU;
 }

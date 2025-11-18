@@ -2254,6 +2254,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 
 	/* Allocate and initialize current threads array */
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is used, false positive" */
 	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount());
 	if (threads_common.current == NULL) {
 		return -ENOMEM;

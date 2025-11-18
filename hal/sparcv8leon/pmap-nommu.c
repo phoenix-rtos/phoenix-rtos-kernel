@@ -52,7 +52,7 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	return 0;
 }
@@ -109,7 +109,7 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, vo
 }
 
 
-void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
+void *_pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr)
 {
 	(void)va;
 	(void)size;
@@ -119,7 +119,7 @@ void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
 }
 
 
-void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
+void *pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr)
 {
 	return _pmap_halMap(paddr, va, size, attr);
 }

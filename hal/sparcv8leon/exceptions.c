@@ -77,6 +77,7 @@ static const char *const hal_exceptionsType(int n)
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	cpu_winContext_t *win = (cpu_winContext_t *)ctx->cpuCtx.sp;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_4_1 "Escape sequence clearly terminates at '['" */
 	size_t i = hal_i2s("\033[0m\nException: 0x", buff, n, 16U, 0U);
 	buff[i] = '\0';
 
@@ -143,13 +144,13 @@ __attribute__((noreturn)) static void exceptions_defaultHandler(unsigned int n, 
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
 
 	__builtin_unreachable();
+#endif
 }
 
 
@@ -177,7 +178,7 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
 		/* FIXME: return value must be formulated in hw-agnostic way with PROT_* constants */
-		return hal_srmmuGetFaultSts();
+		return (vm_prot_t)hal_srmmuGetFaultSts();
 	}
 
 	return 0;
