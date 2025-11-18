@@ -339,6 +339,12 @@ int _zynq_setMIO(int pin, u8 disableRcvr, u8 pullup, u8 ioType, u8 speed, u8 l0,
 		return -1;
 	}
 
+
+	/*
+	 * MISRA TODO: improve `!!x ~~> (x == 0 ? 0 : 1)` transformations
+	 * here, & 0x1 is enough, while in many other places it vastly degrades readability or even potentially
+	 * introduces bugs (x == 0 ? 1 : 0)
+	 */
 	val = ((triEnable == 0U ? 0U : 1U)) | ((l0 == 0U ? 0U : 1U) << 1) | ((l1 == 0U ? 0U : 1U) << 2) | ((l2 & 0x3U) << 3) |
 			((l3 & 0x7U) << 5) | ((speed == 0U ? 0UL : 1UL) << 8) | ((ioType & 0x7U) << 9) | ((pullup == 0U ? 0UL : 1UL) << 12) |
 			((disableRcvr == 0U ? 0UL : 1UL) << 13);
