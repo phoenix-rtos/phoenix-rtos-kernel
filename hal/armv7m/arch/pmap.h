@@ -17,6 +17,7 @@
 #define _PH_HAL_PMAP_ARMV7M_H_
 
 #include "hal/types.h"
+#include "hal/page.h"
 
 /* Architecture dependent page attributes - used for mapping */
 #define PGHD_PRESENT    0x01
@@ -27,30 +28,7 @@
 #define PGHD_NOT_CACHED 0x00
 #define PGHD_READ       0x00
 
-/* Page flags */
-#define PAGE_FREE 0x00000001
-
-#define PAGE_OWNER_BOOT   (0 << 1)
-#define PAGE_OWNER_KERNEL (1 << 1)
-#define PAGE_OWNER_APP    (2 << 1)
-
-#define PAGE_KERNEL_SYSPAGE (1 << 4)
-#define PAGE_KERNEL_CPU     (2 << 4)
-#define PAGE_KERNEL_PTABLE  (3 << 4)
-#define PAGE_KERNEL_PMAP    (4 << 4)
-#define PAGE_KERNEL_STACK   (5 << 4)
-#define PAGE_KERNEL_HEAP    (6 << 4)
-
-
 #ifndef __ASSEMBLY__
-
-typedef struct _page_t {
-	addr_t addr;
-	u8 idx;
-	u16 flags;
-	struct _page_t *next;
-} page_t;
-
 
 typedef struct _pmap_t {
 	void *start;

@@ -16,6 +16,8 @@
 #ifndef _PH_HAL_LEON3_PMAP_H_
 #define _PH_HAL_LEON3_PMAP_H_
 
+#include "hal/types.h"
+#include "hal/page.h"
 
 #define SIZE_PDIR 0x1000
 
@@ -42,21 +44,6 @@
 #define PAGE_DESCR   0x1U
 #define PAGE_ENTRY   0x2U
 
-/* Page flags */
-
-#define PAGE_FREE 0x00000001
-
-#define PAGE_OWNER_BOOT   (0 << 1)
-#define PAGE_OWNER_KERNEL (1 << 1)
-#define PAGE_OWNER_APP    (2 << 1)
-
-#define PAGE_KERNEL_SYSPAGE (1 << 4)
-#define PAGE_KERNEL_CPU     (2 << 4)
-#define PAGE_KERNEL_PTABLE  (3 << 4)
-#define PAGE_KERNEL_PMAP    (4 << 4)
-#define PAGE_KERNEL_STACK   (5 << 4)
-#define PAGE_KERNEL_HEAP    (6 << 4)
-
 
 /* Page access permissions */
 
@@ -71,23 +58,6 @@
 
 
 #ifndef __ASSEMBLY__
-
-
-#include "hal/types.h"
-
-
-#define PAGE_ALIGN(addr) (((addr_t)addr) & ~(SIZE_PAGE - 1))
-#define PAGE_OFFS(addr)  (((addr_t)addr) & (SIZE_PAGE - 1))
-
-
-typedef struct _page_t {
-	addr_t addr;
-	u8 idx;
-	u16 flags;
-	struct _page_t *next;
-	struct _page_t *prev;
-} page_t;
-
 
 #ifndef NOMMU
 

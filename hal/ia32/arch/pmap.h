@@ -17,6 +17,8 @@
 #ifndef _PH_HAL_IA32_PMAP_H_
 #define _PH_HAL_IA32_PMAP_H_
 
+#include "hal/page.h"
+
 /* Predefined virtual addresses */
 #define VADDR_KERNEL   0xc0000000   /* base virtual address of kernel space */
 #define VADDR_MIN      0x00000000
@@ -49,40 +51,12 @@
 #define PTHD_USER     0x04
 #define PTHD_WRITE    0x02
 
-
-/* Page flags */
-#define PAGE_FREE            0x00000001
-
-#define PAGE_OWNER_BOOT      (0 << 1)
-#define PAGE_OWNER_KERNEL    (1 << 1)
-#define PAGE_OWNER_APP       (2 << 1)
-
-#define PAGE_KERNEL_SYSPAGE  (1 << 4)
-#define PAGE_KERNEL_CPU      (2 << 4)
-#define PAGE_KERNEL_PTABLE   (3 << 4)
-#define PAGE_KERNEL_PMAP     (4 << 4)
-#define PAGE_KERNEL_STACK    (5 << 4)
-#define PAGE_KERNEL_HEAP     (6 << 4)
-
-
 #ifndef __ASSEMBLY__
 
 #include "cpu.h"
 #include "vm/types.h"
 
-
 #define SIZE_PDIR SIZE_PAGE
-
-
-/* Structure describing page - its should be aligned to 2^N boundary */
-typedef struct _page_t {
-	addr_t addr;
-	struct _page_t *next;
-	struct _page_t *prev;
-	u8 idx;
-	u8 flags;
-} page_t;
-
 
 typedef struct _pmap_t {
 	u32 *pdir;
