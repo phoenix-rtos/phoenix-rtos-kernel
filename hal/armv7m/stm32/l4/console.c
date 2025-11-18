@@ -24,17 +24,9 @@ static struct {
 } console_common;
 
 
-enum { cr1 = 0,
-	cr2,
-	cr3,
-	brr,
-	gtpr,
-	rtor,
-	rqr,
-	isr,
-	icr,
-	rdr,
-	tdr };
+/* clang-format off */
+enum { cr1 = 0, cr2, cr3, brr, gtpr, rtor, rqr, isr, icr, rdr, tdr };
+/* clang-format on */
 
 
 static void _hal_consolePrint(const char *s)
@@ -43,9 +35,7 @@ static void _hal_consolePrint(const char *s)
 		hal_consolePutch(*(s++));
 	}
 
-	while ((~(*(console_common.base + isr)) & 0x80U) != 0U) {
-		;
-	}
+	while ((~(*(console_common.base + isr)) & 0x80U) != 0U) { }
 
 	return;
 }
@@ -70,9 +60,7 @@ void hal_consolePrint(int attr, const char *s)
 
 void hal_consolePutch(char c)
 {
-	while ((~(*(console_common.base + isr)) & 0x80U) != 0U) {
-		;
-	}
+	while ((~(*(console_common.base + isr)) & 0x80U) != 0U) { }
 
 	*(console_common.base + tdr) = (u32)c;
 }
