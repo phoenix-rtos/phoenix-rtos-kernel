@@ -19,14 +19,9 @@
 #include "hal/types.h"
 #include "hal/pmap.h"
 
-#if defined(__CPU_STM32L152XD) || defined(__CPU_STM32L152XE)
-#include "include/arch/armv7m/stm32/l1/stm32l1.h"
-#endif
-
 #ifdef __CPU_STM32L4X6
 #include "include/arch/armv7m/stm32/l4/stm32l4.h"
 #endif
-
 
 
 /* platformctl syscall */
