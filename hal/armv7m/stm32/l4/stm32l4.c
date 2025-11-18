@@ -169,7 +169,7 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 {
 	u32 t;
 
-	state = (state == 0UL ? 1UL : 0UL);
+	state = (state == 0U ? 0U : 1U);
 
 	/* there are gaps in numeration so values need to compared with both begin and end */
 
