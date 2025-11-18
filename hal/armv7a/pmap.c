@@ -207,7 +207,7 @@ addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 	}
 	hal_spinlockClear(&pmap_common.lock, &sc);
 
-	while (*i < (int)max) {
+	while (*i < max) {
 		if (pmap->pdir[*i] != 0U) {
 			*i += 4;
 			return pmap->pdir[*i - 4] & ~0xfffU;
@@ -337,12 +337,12 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *
 	/* Write entry into page table */
 	_pmap_writeEntry(pmap_common.sptab, vaddr, paddr, attr, asid);
 
-	if (((unsigned int)attr & PGHD_PRESENT) == 0U) {
+	if ((attr & PGHD_PRESENT) == 0U) {
 		hal_spinlockClear(&pmap_common.lock, &sc);
 		return EOK;
 	}
 
-	if ((unsigned int)attr & PGHD_EXEC || (unsigned int)attr & PGHD_NOT_CACHED || (unsigned int)attr & PGHD_DEV) {
+	if ((attr & PGHD_EXEC) != 0U || (attr & PGHD_NOT_CACHED) != 0U || (attr & PGHD_DEV) != 0U) {
 		/* Invalidate cache for this pa to prevent corrupting it later when cache lines get evicted.
 		 * First map it into our address space if necessary. */
 		if (hal_cpuGetTTBR0() != (pmap->addr | TTBR_CACHE_CONF)) {
@@ -352,7 +352,7 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *
 
 		hal_cpuFlushDataCache((ptr_t)vaddr, (ptr_t)vaddr + SIZE_PAGE);
 
-		if (((unsigned int)attr & PGHD_EXEC) != 0U) {
+		if ((attr & PGHD_EXEC) != 0U) {
 			hal_cpuBranchInval();
 			hal_cpuICacheInval();
 		}

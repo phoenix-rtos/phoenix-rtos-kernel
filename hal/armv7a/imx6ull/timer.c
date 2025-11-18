@@ -171,8 +171,8 @@ void _hal_timerInit(u32 interval)
 
 	*(timer_common.gpt1 + gpt_cr) &= ~1U;
 	*(timer_common.gpt1 + gpt_ir) &= ~0x3fU;
-	*(timer_common.gpt1 + gpt_pr) = 0x00;
-	*(timer_common.gpt1 + gpt_sr) = 0x1f;
+	*(timer_common.gpt1 + gpt_pr) = 0x00U;
+	*(timer_common.gpt1 + gpt_sr) = 0x1fU;
 	*(timer_common.gpt1 + gpt_ir) |= 1U << 5;
 	*(timer_common.gpt1 + gpt_cr) = (1UL << 9) | (1U << 6) | (0x7U << 3);
 	*(timer_common.gpt1 + gpt_cr) |= 1U;
