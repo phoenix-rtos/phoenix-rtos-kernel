@@ -131,10 +131,18 @@ static const u16 attrMap[] = {
 
 static void _pmap_asidAlloc(pmap_t *pmap)
 {
-	pmap_t *evicted = pmap_common.asid_map[pmap_common.asidptr];
+	pmap_t *evicted;
 
-	while ((pmap_common.asidptr == 0U) || evicted != NULL) {
-		if (evicted != NULL) {
+	for (;;) {
+		++pmap_common.asidptr;
+		evicted = pmap_common.asid_map[pmap_common.asidptr];
+
+		if (evicted == NULL) {
+			if (pmap_common.asidptr != 0U) {
+				break;
+			}
+		}
+		else {
 			if ((hal_cpuGetContextId() & 0xffU) == pmap_common.asids[evicted->asid_ix]) {
 				continue;
 			}
@@ -142,7 +150,6 @@ static void _pmap_asidAlloc(pmap_t *pmap)
 			evicted->asid_ix = 0;
 			break;
 		}
-		evicted = pmap_common.asid_map[pmap_common.asidptr];
 	}
 
 	pmap_common.asid_map[pmap_common.asidptr] = pmap;
