@@ -164,7 +164,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	signalCtx->hwctx.pc = (u32)handler;
 
 	/* Set default PSR, clear potential ICI/IT flags */
-	signalCtx->hwctx.psr = 0x01000000;
+	signalCtx->hwctx.psr = 0x01000000U;
 
 	if (src == SIG_SRC_SCHED) {
 		/* We'll be returning through interrupt dispatcher,
@@ -201,28 +201,28 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 
 char *hal_cpuInfo(char *info)
 {
-	int i;
+	unsigned int i;
 	unsigned int cpuinfo = _hal_scsCpuID();
 
 	(void)hal_strcpy(info, HAL_NAME_PLATFORM);
-	i = (int)sizeof(HAL_NAME_PLATFORM) - 1;
+	i = sizeof(HAL_NAME_PLATFORM) - 1U;
 
 	if (((cpuinfo >> 24) & 0xffU) == 0x41U) {
 		(void)hal_strcpy(info + i, "ARMv7 ");
-		i += 6;
+		i += 6U;
 	}
 
 	if (((cpuinfo >> 4) & 0xfffU) == 0xc23U) {
 		(void)hal_strcpy(info + i, "Cortex-M3 ");
-		i += 10;
+		i += 10U;
 	}
 	else if (((cpuinfo >> 4) & 0xfffU) == 0xc24U) {
 		(void)hal_strcpy(info + i, "Cortex-M4 ");
-		i += 10;
+		i += 10U;
 	}
 	else if (((cpuinfo >> 4) & 0xfffU) == 0xc27U) {
 		(void)hal_strcpy(info + i, "Cortex-M7 ");
-		i += 10;
+		i += 10U;
 	}
 	else {
 		/* No action required */

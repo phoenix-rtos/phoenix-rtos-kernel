@@ -28,14 +28,14 @@ void _stm32_platformInit(void);
 
 
 /* Sets peripheral clock */
-int _stm32_rccSetDevClock(unsigned int d, u32 state);
+int _stm32_rccSetDevClock(int d, u32 state);
 
 
 /* Sets CPU clock to the closest smaller MSI frequency */
 int _stm32_rccSetCPUClock(u32 hz);
 
 
-int _stm32_rccGetDevClock(unsigned int d, u32 *state);
+int _stm32_rccGetDevClock(int d, u32 *state);
 
 
 u32 _stm32_rccGetCPUClock(void);
@@ -44,19 +44,19 @@ u32 _stm32_rccGetCPUClock(void);
 void _stm32_rccClearResetFlags(void);
 
 
-int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);
+int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);
 
 
-int _stm32_gpioSet(unsigned int d, u8 pin, u8 val);
+int _stm32_gpioSet(int d, u8 pin, u8 val);
 
 
-int _stm32_gpioSetPort(unsigned int d, u16 val);
+int _stm32_gpioSetPort(int d, u16 val);
 
 
-int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val);
+int _stm32_gpioGet(int d, u8 pin, u8 *val);
 
 
-int _stm32_gpioGetPort(unsigned int d, u16 *val);
+int _stm32_gpioGetPort(int d, u16 *val);
 
 
 /* Range = 0 - forbidden, 1 - 1.8V, 2 - 1.5V, 3 - 1.2V */
