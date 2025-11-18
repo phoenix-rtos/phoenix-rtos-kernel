@@ -121,6 +121,7 @@ int userintr_setHandler(unsigned int n, userintrFn_t f, void *arg, handle_t c)
 	 * No other user code should be placed in the same page.
 	 */
 	vm_attr_t attr = PGHD_READ | PGHD_EXEC | PGHD_PRESENT;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function type must be casted to obtain userspace start address" */
 	(void)pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1U)), attr, NULL);
 #endif
 

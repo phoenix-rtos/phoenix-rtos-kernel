@@ -24,13 +24,13 @@
 #include "log/log.h"
 
 /* Flags used for printing */
-#define FLAG_SIGNED       0x1UL
-#define FLAG_64BIT        0x2UL
-#define FLAG_SPACE        0x10UL
-#define FLAG_ZERO         0x20UL
-#define FLAG_PLUS         0x40UL
-#define FLAG_HEX          0x80UL
-#define FLAG_LARGE_DIGITS 0x100UL
+#define FLAG_SIGNED       0x1U
+#define FLAG_64BIT        0x2U
+#define FLAG_SPACE        0x10U
+#define FLAG_ZERO         0x20U
+#define FLAG_PLUS         0x40U
+#define FLAG_HEX          0x80U
+#define FLAG_LARGE_DIGITS 0x100U
 
 
 static char *lib_sprintfInt(char *out, u64 num64, u32 flags, int min_number_len)

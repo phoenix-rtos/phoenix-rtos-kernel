@@ -378,7 +378,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 		}
 
 		offs = (off_t)(Elf32_Off)(phdr[i].p_offset & ~(phdr[i].p_align - 1U));
-		misalign = phdr[i].p_offset & (phdr[i].p_align - 1U);
+		misalign = (size_t)(Elf32_Off)(phdr[i].p_offset & (phdr[i].p_align - 1U));
 		filesz = (phdr[i].p_filesz != 0U) ? (phdr[i].p_filesz + misalign) : 0;
 		memsz = phdr[i].p_memsz + misalign;
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
