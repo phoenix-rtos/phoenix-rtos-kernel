@@ -21,22 +21,9 @@
 
 /* Barriers */
 
-
-static inline void hal_cpuDataMemoryBarrier(void)
-{
-	__asm__ volatile("dmb");
-}
-
-
 static inline void hal_cpuDataSyncBarrier(void)
 {
 	__asm__ volatile("dsb");
-}
-
-
-static inline void hal_cpuInstrBarrier(void)
-{
-	__asm__ volatile("isb");
 }
 
 

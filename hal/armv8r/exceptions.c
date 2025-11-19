@@ -38,7 +38,7 @@
 #define EXC_ALIGMENT            0x01U
 
 
-struct {
+static struct {
 	excHandlerFn_t undefHandler;
 	excHandlerFn_t abortHandler;
 	excHandlerFn_t defaultHandler;
@@ -110,11 +110,11 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
+#endif
 }
 
 
@@ -159,14 +159,14 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		}
 	}
 	else {
-		return (int)PROT_NONE;
+		return PROT_NONE;
 	}
 
 	if (status == EXC_PERM_SECTION || status == EXC_PERM_PAGE) {
 		prot |= PROT_USER;
 	}
 
-	return (int)prot;
+	return prot;
 }
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)

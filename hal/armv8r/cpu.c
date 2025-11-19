@@ -107,16 +107,17 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &oldmask, sizeof(oldmask) },
 		{ &n, sizeof(n) },
 	};
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
+	u32 handler_addr = (u32)handler;
 
 	(void)src;
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
-	signalCtx->pc = (u32)handler & ~1U;
+	signalCtx->pc = handler_addr & ~1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
-	if (((u32)handler & 1U) != 0U) {
+	if ((handler_addr & 1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}
 	else {
@@ -182,42 +183,42 @@ char *hal_cpuFeatures(char *features, size_t len)
 		return features;
 	}
 
-	if ((pfr0 >> 12) & 0xfU && len - n > 9U) {
+	if (((pfr0 >> 12) & 0xfU) != 0U && (len - n) > 9U) {
 		(void)hal_strcpy(&features[n], "ThumbEE, ");
 		n += 9U;
 	}
 
-	if ((pfr0 >> 8) & 0xfU && len - n > 9U) {
+	if (((pfr0 >> 8) & 0xfU) != 0U && (len - n) > 9U) {
 		(void)hal_strcpy(&features[n], "Jazelle, ");
 		n += 9U;
 	}
 
-	if ((pfr0 >> 4) & 0xfU && len - n > 7U) {
+	if (((pfr0 >> 4) & 0xfU) != 0U && (len - n) > 7U) {
 		(void)hal_strcpy(&features[n], "Thumb, ");
 		n += 7U;
 	}
 
-	if (pfr0 & 0xfU && len - n > 5U) {
+	if ((pfr0 & 0xfU) != 0U && (len - n) > 5U) {
 		(void)hal_strcpy(&features[n], "ARM, ");
 		n += 5U;
 	}
 
-	if ((pfr1 >> 16) & 0xfU && len - n > 15U) {
+	if (((pfr1 >> 16) & 0xfU) != 0U && (len - n) > 15U) {
 		(void)hal_strcpy(&features[n], "Generic Timer, ");
 		n += 15U;
 	}
 
-	if ((pfr1 >> 12) & 0xfU && len - n > 16U) {
+	if (((pfr1 >> 12) & 0xfU) != 0U && (len - n) > 16U) {
 		(void)hal_strcpy(&features[n], "Virtualization, ");
 		n += 16U;
 	}
 
-	if ((pfr1 >> 8) & 0xfU && len - n > 5U) {
+	if (((pfr1 >> 8) & 0xfU) != 0U && (len - n) > 5U) {
 		(void)hal_strcpy(&features[n], "MCU, ");
 		n += 5U;
 	}
 
-	if ((pfr1 >> 4) & 0xfU && len - n > 10U) {
+	if (((pfr1 >> 4) & 0xfU) != 0U && (len - n) > 10U) {
 		(void)hal_strcpy(&features[n], "Security, ");
 		n += 10U;
 	}
@@ -254,6 +255,11 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 int hal_cpuLowPowerAvail(void)
 {
 	return 0;
+}
+
+
+void hal_cpuBroadcastIPI(unsigned int intr)
+{
 }
 
 
