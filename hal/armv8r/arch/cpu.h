@@ -19,7 +19,7 @@
 #define SIZE_PAGE 0x1000U
 
 #define SIZE_INITIAL_KSTACK  SIZE_PAGE
-#define INITIAL_KSTACK_SHIFT 12
+#define INITIAL_KSTACK_SHIFT 12U
 
 #ifndef SIZE_KSTACK
 #define SIZE_KSTACK (8U * 1024U)
@@ -30,20 +30,20 @@
 #endif
 
 /* ARMv8 processor modes */
-#define MODE_USR 0x10 /* unprivileged mode in which most applications run                           */
-#define MODE_FIQ 0x11 /* entered on an FIQ interrupt exception                                      */
-#define MODE_IRQ 0x12 /* entered on an IRQ interrupt exception                                      */
-#define MODE_SVC 0x13 /* entered on reset or when a Supervisor Call instruction ( SVC ) is executed */
-#define MODE_MON 0x16 /* security extensions                                                        */
-#define MODE_ABT 0x17 /* entered on a memory access exception                                       */
-#define MODE_HYP 0x1a /* virtualization extensions                                                  */
-#define MODE_UND 0x1b /* entered when an undefined instruction executed                             */
-#define MODE_SYS 0x1f /* privileged mode, sharing the register view with User mode                  */
+#define MODE_USR 0x10U /* unprivileged mode in which most applications run                           */
+#define MODE_FIQ 0x11U /* entered on an FIQ interrupt exception                                      */
+#define MODE_IRQ 0x12U /* entered on an IRQ interrupt exception                                      */
+#define MODE_SVC 0x13U /* entered on reset or when a Supervisor Call instruction ( SVC ) is executed */
+#define MODE_MON 0x16U /* security extensions                                                        */
+#define MODE_ABT 0x17U /* entered on a memory access exception                                       */
+#define MODE_HYP 0x1aU /* virtualization extensions                                                  */
+#define MODE_UND 0x1bU /* entered when an undefined instruction executed                             */
+#define MODE_SYS 0x1fU /* privileged mode, sharing the register view with User mode                  */
 
-#define MODE_MASK   0x1f
-#define NO_ABORT    0x100             /* mask to disable Abort Exception */
-#define NO_IRQ      0x80              /* mask to disable IRQ             */
-#define NO_FIQ      0x40              /* mask to disable FIQ             */
+#define MODE_MASK   0x1fU
+#define NO_ABORT    0x100U            /* mask to disable Abort Exception */
+#define NO_IRQ      0x80U             /* mask to disable IRQ             */
+#define NO_FIQ      0x40U             /* mask to disable FIQ             */
 #define NO_INT      (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ     */
 #define THUMB_STATE 0x20U
 
@@ -125,7 +125,7 @@ static inline void hal_cpuSetDevBusy(int s)
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	unsigned int pos;
+	unsigned int pos = 0;
 
 	/* clang-format off */
 	__asm__ volatile ("clz %0, %1" : "=r" (pos) : "r" (v));
@@ -138,7 +138,7 @@ static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
-	unsigned int pos;
+	unsigned int pos = 0;
 
 	/* clang-format off */
 	__asm__ volatile (
@@ -212,7 +212,7 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetID(void)
 {
-	unsigned int mpidr;
+	unsigned int mpidr = 0;
 	/* clang-format off */
 	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
 	/* clang-format on */

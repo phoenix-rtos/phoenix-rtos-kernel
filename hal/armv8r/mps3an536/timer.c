@@ -47,7 +47,7 @@ static int hal_timerIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	(void)ctx;
 
 	if ((*(timer_common.base + timer1_mis) & 0x1U) != 0U) {
-		*(timer_common.base + timer1_intclr) = 0;
+		*(timer_common.base + timer1_intclr) = 0U;
 		timer_common.time++;
 		hal_cpuDataSyncBarrier();
 	}
@@ -122,7 +122,7 @@ void _hal_timerInit(u32 interval)
 
 	/* Disable timer */
 	*(timer_common.base + timer1_ctrl) &= ~(1U << 7);
-	*(timer_common.base + timer1_value) = 0;
+	*(timer_common.base + timer1_value) = 0U;
 
 	/* Periodic mode, 32-bit, enable interrupt */
 	*(timer_common.base + timer1_ctrl) = (1U << 6) | (1U << 5) | (1U << 1);
