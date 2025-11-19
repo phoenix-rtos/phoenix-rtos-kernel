@@ -18,13 +18,13 @@
 
 /* Predefined virtual addresses */
 #define VADDR_KERNEL  0x0000003fc0000000UL /* base virtual address of kernel space */
-#define VADDR_MIN     0x00000000U
+#define VADDR_MIN     0x0000000000000000UL
 #define VADDR_MAX     0xffffffffffffffffUL
 #define VADDR_USR_MAX VADDR_KERNEL
 
 #define VADDR_DTB 0xffffffffc0000000UL
 
-/* Architecure dependent page attributes */
+/* Architecture dependent page attributes */
 #define PGHD_PRESENT    0x01U
 #define PGHD_READ       0x02U
 #define PGHD_WRITE      0x04U

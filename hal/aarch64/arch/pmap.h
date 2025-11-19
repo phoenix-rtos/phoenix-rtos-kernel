@@ -19,11 +19,11 @@
 #include "hal/types.h"
 
 /* Predefined virtual addresses */
-#define VADDR_KERNEL  0xffffffffc0000000U /* base virtual address of kernel space */
-#define VADDR_MIN     0x0000000000000000U
-#define VADDR_MAX     0xffffffffffffffffU
-#define VADDR_USR_MAX 0x0000008000000000U /* 2^39 bytes - maximum reachable with 3 translation levels at 4K granule */
-#define VADDR_DTB     0xfffffffffff00000U /* Last 1 MB of virtual space */
+#define VADDR_KERNEL  0xffffffffc0000000UL /* base virtual address of kernel space */
+#define VADDR_MIN     0x0000000000000000UL
+#define VADDR_MAX     0xffffffffffffffffUL
+#define VADDR_USR_MAX 0x0000008000000000UL /* 2^39 bytes - maximum reachable with 3 translation levels at 4K granule */
+#define VADDR_DTB     0xfffffffffff00000UL /* Last 1 MB of virtual space */
 
 
 /* Architecture dependent page attributes */
