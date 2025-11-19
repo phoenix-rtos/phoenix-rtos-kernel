@@ -214,11 +214,10 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		return vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 	}
 
-	if (offs > (addr_t)-1) {
-		return NULL;
-	}
-
-	if (o == (void *)-1) {
+	if (o == VM_OBJ_PHYSMEM) {
+		if (offs > (addr_t)-1) {
+			return NULL;
+		}
 		return _page_get((addr_t)offs);
 	}
 
@@ -330,4 +329,3 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	return EOK;
 }
-
