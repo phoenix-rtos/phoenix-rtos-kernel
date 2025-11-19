@@ -45,32 +45,32 @@ unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	unsigned int lb = 63;
 
-	if ((v & 0xffffffff00000000UL) == 0U) {
+	if ((v & 0xffffffff00000000UL) == 0UL) {
 		lb -= 32U;
 		v = (((u64)v) << 32);
 	}
 
-	if ((v & 0xffff000000000000U) == 0U) {
+	if ((v & 0xffff000000000000UL) == 0UL) {
 		lb -= 16U;
 		v = (v << 16);
 	}
 
-	if ((v & 0xff00000000000000U) == 0U) {
+	if ((v & 0xff00000000000000UL) == 0UL) {
 		lb -= 8U;
 		v = (v << 8);
 	}
 
-	if ((v & 0xf000000000000000U) == 0U) {
+	if ((v & 0xf000000000000000UL) == 0UL) {
 		lb -= 4U;
 		v = (v << 4);
 	}
 
-	if ((v & 0xc000000000000000U) == 0U) {
+	if ((v & 0xc000000000000000UL) == 0UL) {
 		lb -= 2U;
 		v = (v << 2);
 	}
 
-	if ((v & 0x8000000000000000U) == 0U) {
+	if ((v & 0x8000000000000000UL) == 0UL) {
 		lb -= 1U;
 	}
 
@@ -82,32 +82,32 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned int fb = 0;
 
-	if ((v & 0xffffffffUL) == 0U) {
+	if ((v & 0xffffffffUL) == 0UL) {
 		fb += 32U;
 		v = (v >> 32);
 	}
 
-	if ((v & 0xffffU) == 0U) {
+	if ((v & 0xffffUL) == 0UL) {
 		fb += 16U;
 		v = (v >> 16);
 	}
 
-	if ((v & 0xffU) == 0U) {
+	if ((v & 0xffUL) == 0UL) {
 		fb += 8U;
 		v = (v >> 8);
 	}
 
-	if ((v & 0xfU) == 0U) {
+	if ((v & 0xfUL) == 0UL) {
 		fb += 4U;
 		v = (v >> 4);
 	}
 
-	if ((v & 0x3U) == 0U) {
+	if ((v & 0x3UL) == 0UL) {
 		fb += 2U;
 		v = (v >> 2);
 	}
 
-	if ((v & 0x01U) == 0U) {
+	if ((v & 0x1UL) == 0UL) {
 		fb += 1U;
 	}
 
@@ -226,7 +226,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 {
 	(void)kstack;
-	GETFROMSTACK(ustack, u64, (*ctx)->sepc, 2U);
+	GETFROMSTACK(ustack, u64, (*ctx)->sepc, 2);
 	GETFROMSTACK(ustack, u64, (*ctx)->sp, 3);
 }
 
@@ -356,7 +356,7 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 	unsigned long hart_mask = (1UL << cpu_common.cpuCnt) - 1U;
 	hart_mask &= ~(1UL << hal_cpuGetID());
 
-	(void)hal_sbiSendIPI(hart_mask, 0);
+	(void)hal_sbiSendIPI(hart_mask, 0UL);
 }
 
 
@@ -368,7 +368,7 @@ void hal_cpuSmpSync(void)
 		hart_mask = (1UL << hal_cpuGetCount()) - 1U;
 		RISCV_FENCE(rw, rw);
 		hal_cpuInstrBarrier();
-		hal_sbiRfenceI(hart_mask, 0);
+		hal_sbiRfenceI(hart_mask, 0UL);
 	}
 }
 
@@ -378,7 +378,7 @@ void hal_cpuRfenceI(void)
 	unsigned long hart_mask;
 	if (hal_cpuGetCount() > 1U) {
 		hart_mask = (1UL << hal_cpuGetCount()) - 1U;
-		hal_sbiRfenceI(hart_mask, 0);
+		hal_sbiRfenceI(hart_mask, 0UL);
 	}
 }
 
@@ -406,7 +406,7 @@ void hal_cpuRemoteFlushTLB(u32 asid, const void *vaddr, size_t size)
 
 	if (hal_cpuGetCount() > 1U) {
 		hart_mask = (1UL << hal_cpuGetCount()) - 1UL;
-		(void)hal_sbiSfenceVma(hart_mask, 0, (unsigned long)vaddr, size);
+		(void)hal_sbiSfenceVma(hart_mask, 0UL, (unsigned long)vaddr, size);
 	}
 	else {
 		for (i = 0; i < size; i += SIZE_PAGE) {

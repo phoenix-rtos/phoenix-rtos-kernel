@@ -142,7 +142,7 @@ static int interrupts_setPlic(intr_handler_t *h, enum irq_state enable)
 
 	if (enable == irq_enable) {
 		HAL_LIST_ADD(&interrupts_common.plic.handlers[h->n], h);
-		plic_priority(h->n, 2);
+		plic_priority(h->n, 2U);
 		(void)plic_enableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
 	}
 	else {
@@ -189,8 +189,8 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 		return -EINVAL;
 	}
 
-	if ((h->n & CLINT_IRQ_FLG) != 0U) {
-		h->n = h->n & (unsigned int)~CLINT_IRQ_FLG;
+	if ((h->n & (unsigned int)CLINT_IRQ_FLG) != 0U) {
+		h->n = h->n & ~((unsigned int)CLINT_IRQ_FLG);
 		ret = interrupts_setClint(h, irq_enable);
 	}
 	else {
@@ -209,8 +209,8 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 		return -EINVAL;
 	}
 
-	if ((h->n & CLINT_IRQ_FLG) != 0U) {
-		h->n = h->n & (unsigned int)~CLINT_IRQ_FLG;
+	if ((h->n & (unsigned int)CLINT_IRQ_FLG) != 0U) {
+		h->n = h->n & ~((unsigned int)CLINT_IRQ_FLG);
 		ret = interrupts_setClint(h, irq_disable);
 	}
 	else {
