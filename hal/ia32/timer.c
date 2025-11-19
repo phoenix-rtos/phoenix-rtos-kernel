@@ -24,7 +24,7 @@
 
 #define PIT_FREQUENCY 1193U /* kHz */
 
-#define PIT_BCD                0
+#define PIT_BCD                0U
 #define PIT_CHANNEL_0          (0U << 6)
 #define PIT_CHANNEL_1          (1U << 6)
 #define PIT_CHANNEL_2          (2U << 6)
@@ -186,7 +186,7 @@ static time_t _hal_pitBusyWaitUs(time_t waitUs)
 			startPitDelta = 0xfffU + (u16)ticks;
 		}
 		else {
-			startPitDelta = 0xffff;
+			startPitDelta = 0xffffU;
 		}
 		pitDelta = startPitDelta;
 		_hal_pitSetTimer(startPitDelta, PIT_OPERATING_ONE_SHOT);
@@ -235,7 +235,7 @@ static inline void _hal_lapicTimerSetDivider(u8 divider)
 	/* Divider is a power of 2 */
 	if (divider == 0U) {
 		/* Not recommended. It is claimed that it is bugged on some emulators */
-		divider = 0xb;
+		divider = 0xbU;
 	}
 	else if (divider > 4U) {
 		divider += 3U;
@@ -374,7 +374,7 @@ static int _hal_hpetInit(u32 intervalUs)
 	if (hal_config.hpet == NULL) {
 		return -1;
 	}
-	_hal_gasAllocDevice(&hal_config.hpet->baseAddress, &timer_common.hpetData.addr, 0x400);
+	_hal_gasAllocDevice(&hal_config.hpet->baseAddress, &timer_common.hpetData.addr, 0x400U);
 	if (_hal_gasRead32(&timer_common.hpetData.addr, HPET_ID + sizeof(u32), &timer_common.hpetData.period) != 0) {
 		return -1;
 	}
@@ -403,7 +403,7 @@ static time_t _hal_lapicGetUs(void)
 
 static void _hal_lapicInitCore(unsigned int id)
 {
-	_hal_lapicTimerConfigure(LAPIC_TIMER_ONE_SHOT, 0, SYSTICK_IRQ + INTERRUPTS_VECTOR_OFFSET);
+	_hal_lapicTimerConfigure(LAPIC_TIMER_ONE_SHOT, 0U, SYSTICK_IRQ + INTERRUPTS_VECTOR_OFFSET);
 	_hal_lapicTimerSetDivider(LAPIC_TIMER_DEFAULT_DIVIDER);
 	timer_common.lapicData.wait[id] = 1;
 	_hal_lapicTimerStart(1);
@@ -578,7 +578,7 @@ void _hal_timerInit(u32 interval)
 			case timer_lapic:
 				/* LAPIC Timer can be used as a not very good timestamp (but better then PIT) */
 				timer_common.timestampTimer = &_hal_lapicTimer;
-				timer_common.lapicData.cycles = 0;
+				timer_common.lapicData.cycles = 0ULL;
 				break;
 			default:
 				/* Fallback to PIT (it must be used as both types of timers) */

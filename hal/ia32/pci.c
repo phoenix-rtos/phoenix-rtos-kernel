@@ -28,16 +28,16 @@ static struct {
 /* Reads word from PCI configuration space */
 static u32 _hal_pciGet(u8 bus, u8 dev, u8 func, u8 reg)
 {
-	hal_outl((u16)0xcf8, 0x80000000UL | ((u32)bus << 16) | ((u32)dev << 11) | ((u32)func << 8) | ((u32)reg << 2));
-	return hal_inl((u16)0xcfc);
+	hal_outl(0xcf8U, 0x80000000U | ((u32)bus << 16) | ((u32)dev << 11) | ((u32)func << 8) | ((u32)reg << 2));
+	return hal_inl(0xcfcU);
 }
 
 
 /* Writes word to PCI configuration space */
 static void _hal_pciSet(u8 bus, u8 dev, u8 func, u8 reg, u32 val)
 {
-	hal_outl((u16)0xcf8, 0x80000000UL | ((u32)bus << 16) | ((u32)dev << 11) | ((u32)func << 8) | ((u32)reg << 2));
-	hal_outl((u16)0xcfc, val);
+	hal_outl(0xcf8U, 0x80000000U | ((u32)bus << 16) | ((u32)dev << 11) | ((u32)func << 8) | ((u32)reg << 2));
+	hal_outl(0xcfcU, val);
 }
 
 
@@ -54,7 +54,7 @@ static int _hal_pciGetCaps(pci_dev_t *dev, void *caps)
 	}
 
 	/* Get capability list head offset */
-	offs = (u8)_hal_pciGet(dev->bus, dev->dev, dev->func, 0xd) & 0xffU;
+	offs = (u8)_hal_pciGet(dev->bus, dev->dev, dev->func, 0xdU) & 0xffU;
 
 	/* Read capability list */
 	do {
@@ -69,7 +69,7 @@ static int _hal_pciGetCaps(pci_dev_t *dev, void *caps)
 		/* Get capability length */
 		len = (cap->len >= 4U) ? cap->len - 4U : 0U;
 		if ((len % 4U) != 0) {
-			len = (len + 3U) & (u8)~3U;
+			len = (len + 3U) & ~3U;
 		}
 
 		/* Get capability data */
@@ -99,14 +99,14 @@ int _hal_pciSetCmdRegBit(pci_dev_t *dev, u8 bit, u8 enable)
 	}
 
 	hal_spinlockSet(&pci_common.spinlock, &sc);
-	dv = _hal_pciGet(dev->bus, dev->dev, dev->func, 1);
+	dv = _hal_pciGet(dev->bus, dev->dev, dev->func, 1U);
 	if (enable != 0U) {
 		dv |= (1UL << bit);
 	}
 	else {
-		dv &= ~(1U << bit);
+		dv &= ~(1UL << bit);
 	}
-	_hal_pciSet(dev->bus, dev->dev, dev->func, 1, dv);
+	_hal_pciSet(dev->bus, dev->dev, dev->func, 1U, dv);
 	hal_spinlockClear(&pci_common.spinlock, &sc);
 
 	dev->command = (unsigned short)dv & 0xffffU;
@@ -172,11 +172,11 @@ int hal_pciSetConfigOption(pci_pcicfg_t *pcicfg)
 
 	switch (pcicfg->cfg) {
 		case pci_cfg_interruptdisable:
-			return _hal_pciSetCmdRegBit(dev, 10, enable);
+			return _hal_pciSetCmdRegBit(dev, 10U, enable);
 		case pci_cfg_memoryspace:
-			return _hal_pciSetCmdRegBit(dev, 1, enable);
+			return _hal_pciSetCmdRegBit(dev, 1U, enable);
 		case pci_cfg_busmaster:
-			return _hal_pciSetCmdRegBit(dev, 2, enable);
+			return _hal_pciSetCmdRegBit(dev, 2U, enable);
 		default:
 			return -EINVAL;
 	}
@@ -215,7 +215,7 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 						break;
 					}
 
-					val2 = _hal_pciGet(b, d, f, 0x2);
+					val2 = _hal_pciGet(b, d, f, 0x2U);
 
 					cl = val2 >> 16;
 					progif = (val2 >> 8) & 0xffU;
@@ -228,7 +228,7 @@ int hal_pciGetDevice(pci_id_t *id, pci_dev_t *dev, void *caps)
 						break;
 					}
 
-					valB = _hal_pciGet(b, d, f, 0xb);
+					valB = _hal_pciGet(b, d, f, 0xbU);
 
 					if ((id->subdevice != PCI_ANY) && (id->subdevice != (valB >> 16))) {
 						break;

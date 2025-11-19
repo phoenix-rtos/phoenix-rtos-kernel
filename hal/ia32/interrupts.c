@@ -98,8 +98,8 @@ static inline void _hal_ioapicWrite(void *ioapic, u8 reg, u32 val)
 
 static void _hal_ioapicWriteIRQ(void *ioapic, unsigned int n, u32 high, u32 low)
 {
-	low &= 0x0000ffffu;
-	high &= 0xff000000u;
+	low &= 0x0000ffffU;
+	high &= 0xff000000U;
 	_hal_ioapicWrite(ioapic, (u8)(0x10U + 2U * n), IOAPIC_IRQ_MASK);
 	_hal_ioapicWrite(ioapic, (u8)(0x11U + 2U * n), high);
 	_hal_ioapicWrite(ioapic, (u8)(0x10U + 2U * n), low);
@@ -247,7 +247,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 
 /* Function setups interrupt stub in IDT */
-static int _interrupts_setIDTEntry(unsigned int n, void *addr, u32 type)
+static int _interrupts_setIDTEntry(unsigned int n, void (*addr)(void), u32 type)
 {
 	u32 w0, w1;
 	volatile u32 *idtr = (volatile u32 *)syspage->hs.idtr.addr;
@@ -292,15 +292,15 @@ char *hal_interruptsFeatures(char *features, size_t len)
 static void _hal_interrupts8259PICRemap(void)
 {
 	/* Initialize interrupt controllers (8259A) */
-	hal_outb(PORT_PIC_MASTER_COMMAND, 0x11); /* ICW1 */
-	hal_outb(PORT_PIC_MASTER_DATA, 0x20);    /* ICW2 (Master) */
-	hal_outb(PORT_PIC_MASTER_DATA, 0x04);    /* ICW3 (Master) */
-	hal_outb(PORT_PIC_MASTER_DATA, 0x01);    /* ICW4 */
+	hal_outb(PORT_PIC_MASTER_COMMAND, 0x11U); /* ICW1 */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x20U);    /* ICW2 (Master) */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x04U);    /* ICW3 (Master) */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x01U);    /* ICW4 */
 
-	hal_outb(PORT_PIC_SLAVE_COMMAND, 0x11); /* ICW1 (Slave) */
-	hal_outb(PORT_PIC_SLAVE_DATA, 0x28);    /* ICW2 (Slave) */
-	hal_outb(PORT_PIC_SLAVE_DATA, 0x02);    /* ICW3 (Slave) */
-	hal_outb(PORT_PIC_SLAVE_DATA, 0x01);    /* ICW4 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_COMMAND, 0x11U); /* ICW1 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x28U);    /* ICW2 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x02U);    /* ICW3 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x01U);    /* ICW4 (Slave) */
 }
 
 
@@ -308,8 +308,8 @@ static void _hal_interrupts8259PICInit(void)
 {
 	interrupts_common.pic = pic_8259;
 	interrupts_common.systickIRQ = SYSTICK_IRQ;
-	hal_cpu.ncpus = 1;
-	hal_cpu.cpus[0] = 0;
+	hal_cpu.ncpus = 1U;
+	hal_cpu.cpus[0] = 0U;
 	_hal_interrupts8259PICRemap();
 }
 
@@ -399,8 +399,8 @@ static int _hal_ioapicInit(void)
 		/* Remap 8259 PIC's interrupts, before disabling it */
 		_hal_interrupts8259PICRemap();
 		/* Disable 8259 PIC (by masking all interrupts) */
-		hal_outb(PORT_PIC_MASTER_DATA, 0xff);
-		hal_outb(PORT_PIC_SLAVE_DATA, 0xff);
+		hal_outb(PORT_PIC_MASTER_DATA, 0xffU);
+		hal_outb(PORT_PIC_SLAVE_DATA, 0xffU);
 	}
 
 	/* Parse ACPI MADT table: find all interrupt source overrides */
@@ -449,7 +449,7 @@ void _hal_interruptsInit(void)
 	static const u32 flags = IGBITS_PRES | IGBITS_SYSTEM | IGBITS_IRQEXC;
 	unsigned int k;
 
-	_interrupts_multilock = 1;
+	_interrupts_multilock = 1U;
 	interrupts_common.pic = pic_undefined;
 
 	for (k = 0; k < SIZE_INTERRUPTS; ++k) {
@@ -489,7 +489,7 @@ void _hal_interruptsInit(void)
 	for (k = 0; k < SIZE_INTERRUPTS; k++) {
 		hal_spinlockCreate(&interrupts_common.interrupts[k].spinlock, "interrupts_common.interrupts[].spinlock");
 		interrupts_common.interrupts[k].handler = NULL;
-		interrupts_common.interrupts[k].counter = 0;
+		interrupts_common.interrupts[k].counter = 0U;
 	}
 
 	/* Set stubs for unhandled interrupts */

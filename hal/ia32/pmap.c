@@ -63,7 +63,7 @@ addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	unsigned int kernel = ((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1U)) >> 22;
 
-	while (*i < (int)kernel) {
+	while (*i < kernel) {
 		if (pmap->pdir[*i] != 0U) {
 			return pmap->pdir[(*i)++] & ~(SIZE_PAGE - 1U);
 		}
@@ -113,7 +113,7 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page
 	pt[pti] = ((pa & ~(SIZE_PAGE - 1U)) | ((addr_t)attr & 0xfffU) | PGHD_PRESENT);
 
 	if (tlbInval != 0) {
-		hal_tlbInvalidateEntry(NULL, va, 1);
+		hal_tlbInvalidateEntry(NULL, va, 1U);
 	}
 	else {
 		hal_tlbInvalidateLocalEntry(NULL, va);
@@ -181,7 +181,7 @@ static int _pmap_remove(u32 *pdir, addr_t *pt, void *vaddr, size_t count, int tl
 		hal_tlbInvalidateEntry(NULL, vaddr, count);
 	}
 	else {
-		for (i = 0; i < count; ++i) {
+		for (i = 0U; i < count; ++i) {
 			hal_tlbInvalidateLocalEntry(NULL, vaddr);
 			vaddr += SIZE_PAGE;
 		}
@@ -258,14 +258,14 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	}
 
 	page->addr = a;
-	page->flags = 0;
+	page->flags = 0U;
 
 	map = syspage->maps;
 	if (map == NULL) {
 		return -EINVAL;
 	}
 
-	for (i = 0; i < hal_config.memMap.count; ++i) {
+	for (i = 0U; i < hal_config.memMap.count; ++i) {
 		memEntry = &hal_config.memMap.entries[i];
 		if ((a >= memEntry->start) && (a - memEntry->start < memEntry->pageCount * SIZE_PAGE)) {
 			*addr = a + SIZE_PAGE;
@@ -344,8 +344,8 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 
 	/* It is called only from _page_init, so there is no need for spinlocks and TLB shootdowns */
 	for (; vaddr < end; vaddr += (SIZE_PAGE << 10)) {
-		if (_pmap_enter(pmap->pdir, hal_config.ptable, 0, vaddr, 0, NULL, 0) < 0) {
-			if (_pmap_enter(pmap->pdir, hal_config.ptable, 0, vaddr, 0, dp, 0) < 0) {
+		if (_pmap_enter(pmap->pdir, hal_config.ptable, 0U, vaddr, 0U, NULL, 0) < 0) {
+			if (_pmap_enter(pmap->pdir, hal_config.ptable, 0U, vaddr, 0U, dp, 0) < 0) {
 				return -ENOMEM;
 			}
 			dp = NULL;
@@ -370,7 +370,7 @@ char pmap_marker(page_t *p)
 		return '.';
 	}
 
-	return marksets[(p->flags >> 1U) & 3U][(p->flags >> 4) & 0xfU];
+	return marksets[(p->flags >> 1) & 3U][(p->flags >> 4) & 0xfU];
 }
 
 
@@ -407,7 +407,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Initialize kernel page table - remove first 4 MB mapping */
 	pmap->pdir = (u32 *)(VADDR_KERNEL + syspage->hs.pdir);
-	pmap->pdir[0] = 0;
+	pmap->pdir[0] = 0U;
 	pmap->cr3 = syspage->hs.pdir;
 
 	pmap->start = (void *)VADDR_KERNEL;

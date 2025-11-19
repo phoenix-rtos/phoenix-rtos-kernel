@@ -241,7 +241,7 @@ int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 
 
 /* Function setups interrupt stub in IDT */
-__attribute__((section(".init"))) void _exceptions_setIDTStub(unsigned int n, void *addr)
+__attribute__((section(".init"))) void _exceptions_setIDTStub(unsigned int n, void (*addr)(void))
 {
 	u32 w0, w1;
 	u32 *idtr;
@@ -267,38 +267,38 @@ __attribute__((section(".init"))) void _hal_exceptionsInit(void)
 	hal_spinlockCreate(&exceptions.lock, "exceptions.lock");
 	exceptions.defaultHandler = (void *)exceptions_defaultHandler;
 
-	_exceptions_setIDTStub(0, _exceptions_exc0);
-	_exceptions_setIDTStub(1, _exceptions_exc1);
-	_exceptions_setIDTStub(2, _exceptions_exc2);
-	_exceptions_setIDTStub(3, _exceptions_exc3);
-	_exceptions_setIDTStub(4, _exceptions_exc4);
-	_exceptions_setIDTStub(5, _exceptions_exc5);
-	_exceptions_setIDTStub(6, _exceptions_exc6);
-	_exceptions_setIDTStub(7, _exceptions_exc7);
-	_exceptions_setIDTStub(8, _exceptions_exc8);
-	_exceptions_setIDTStub(9, _exceptions_exc9);
-	_exceptions_setIDTStub(10, _exceptions_exc10);
-	_exceptions_setIDTStub(11, _exceptions_exc11);
-	_exceptions_setIDTStub(12, _exceptions_exc12);
-	_exceptions_setIDTStub(13, _exceptions_exc13);
-	_exceptions_setIDTStub(14, _exceptions_exc14);
-	_exceptions_setIDTStub(15, _exceptions_exc15);
-	_exceptions_setIDTStub(16, _exceptions_exc16);
-	_exceptions_setIDTStub(17, _exceptions_exc17);
-	_exceptions_setIDTStub(18, _exceptions_exc18);
-	_exceptions_setIDTStub(19, _exceptions_exc19);
-	_exceptions_setIDTStub(20, _exceptions_exc20);
-	_exceptions_setIDTStub(21, _exceptions_exc21);
-	_exceptions_setIDTStub(22, _exceptions_exc22);
-	_exceptions_setIDTStub(23, _exceptions_exc23);
-	_exceptions_setIDTStub(24, _exceptions_exc24);
-	_exceptions_setIDTStub(25, _exceptions_exc25);
-	_exceptions_setIDTStub(26, _exceptions_exc26);
-	_exceptions_setIDTStub(27, _exceptions_exc27);
-	_exceptions_setIDTStub(28, _exceptions_exc28);
-	_exceptions_setIDTStub(29, _exceptions_exc29);
-	_exceptions_setIDTStub(30, _exceptions_exc30);
-	_exceptions_setIDTStub(31, _exceptions_exc31);
+	_exceptions_setIDTStub(0U, _exceptions_exc0);
+	_exceptions_setIDTStub(1U, _exceptions_exc1);
+	_exceptions_setIDTStub(2U, _exceptions_exc2);
+	_exceptions_setIDTStub(3U, _exceptions_exc3);
+	_exceptions_setIDTStub(4U, _exceptions_exc4);
+	_exceptions_setIDTStub(5U, _exceptions_exc5);
+	_exceptions_setIDTStub(6U, _exceptions_exc6);
+	_exceptions_setIDTStub(7U, _exceptions_exc7);
+	_exceptions_setIDTStub(8U, _exceptions_exc8);
+	_exceptions_setIDTStub(9U, _exceptions_exc9);
+	_exceptions_setIDTStub(10U, _exceptions_exc10);
+	_exceptions_setIDTStub(11U, _exceptions_exc11);
+	_exceptions_setIDTStub(12U, _exceptions_exc12);
+	_exceptions_setIDTStub(13U, _exceptions_exc13);
+	_exceptions_setIDTStub(14U, _exceptions_exc14);
+	_exceptions_setIDTStub(15U, _exceptions_exc15);
+	_exceptions_setIDTStub(16U, _exceptions_exc16);
+	_exceptions_setIDTStub(17U, _exceptions_exc17);
+	_exceptions_setIDTStub(18U, _exceptions_exc18);
+	_exceptions_setIDTStub(19U, _exceptions_exc19);
+	_exceptions_setIDTStub(20U, _exceptions_exc20);
+	_exceptions_setIDTStub(21U, _exceptions_exc21);
+	_exceptions_setIDTStub(22U, _exceptions_exc22);
+	_exceptions_setIDTStub(23U, _exceptions_exc23);
+	_exceptions_setIDTStub(24U, _exceptions_exc24);
+	_exceptions_setIDTStub(25U, _exceptions_exc25);
+	_exceptions_setIDTStub(26U, _exceptions_exc26);
+	_exceptions_setIDTStub(27U, _exceptions_exc27);
+	_exceptions_setIDTStub(28U, _exceptions_exc28);
+	_exceptions_setIDTStub(29U, _exceptions_exc29);
+	_exceptions_setIDTStub(30U, _exceptions_exc30);
+	_exceptions_setIDTStub(31U, _exceptions_exc31);
 
 	for (k = 0; k < SIZE_EXCHANDLERS; k++) {
 		exceptions.handlers[k] = exceptions_trampoline;
