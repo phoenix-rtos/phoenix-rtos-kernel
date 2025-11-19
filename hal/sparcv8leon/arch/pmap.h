@@ -18,7 +18,7 @@
 
 
 #include "vm/types.h"
-#define SIZE_PDIR 0x1000
+#define SIZE_PDIR 0x1000U
 
 /* Predefined virtual addresses */
 
@@ -61,14 +61,14 @@
 
 /* Page access permissions */
 
-#define PERM_USER_RO   0x0 /* User read-only */
-#define PERM_USER_RW   0x1 /* User read-write */
-#define PERM_USER_RX   0x2 /* User read-exec */
-#define PERM_USER_RWX  0x3 /* User read-write-exec */
-#define PERM_USER_XO   0x4 /* User exec-only */
-#define PERM_SUPER_RW  0x5 /* Supervisor read-write */
-#define PERM_SUPER_RX  0x6 /* Supervisor read-exec */
-#define PERM_SUPER_RWX 0x7 /* Supervisor read-write-exec */
+#define PERM_USER_RO   0x0U /* User read-only */
+#define PERM_USER_RW   0x1U /* User read-write */
+#define PERM_USER_RX   0x2U /* User read-exec */
+#define PERM_USER_RWX  0x3U /* User read-write-exec */
+#define PERM_USER_XO   0x4U /* User exec-only */
+#define PERM_SUPER_RW  0x5U /* Supervisor read-write */
+#define PERM_SUPER_RX  0x6U /* Supervisor read-exec */
+#define PERM_SUPER_RWX 0x7U /* Supervisor read-write-exec */
 
 
 #ifndef __ASSEMBLY__
