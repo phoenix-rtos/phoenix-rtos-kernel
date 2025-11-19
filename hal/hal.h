@@ -59,6 +59,7 @@ void _hal_start(void);
 void _hal_init(void);
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "May be implemented in assembly" */
 void hal_lockScheduler(void);
 
 

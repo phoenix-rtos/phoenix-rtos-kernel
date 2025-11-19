@@ -24,7 +24,7 @@
 
 #define PIT_FREQUENCY 1193U /* kHz */
 
-#define PIT_BCD                0
+#define PIT_BCD                0U
 #define PIT_CHANNEL_0          (0U << 6)
 #define PIT_CHANNEL_1          (1U << 6)
 #define PIT_CHANNEL_2          (2U << 6)
@@ -53,7 +53,7 @@ typedef struct {
 	/* clang-format off */
 	enum { timer_undefined, timer_pit, timer_lapic, timer_hpet } type;
 	/* clang-format on */
-	unsigned int (*name)(char *s, unsigned int *len);
+	size_t (*name)(char *s, size_t *len);
 	int (*init)(u32 intervalUs);
 
 	/* When used as scheduling timer */
@@ -96,9 +96,9 @@ static struct {
 void hal_timerInitCore(unsigned int id);
 
 
-static unsigned int _hal_timersName(char *s, const char *prefix, unsigned long val, const char *suffix, unsigned int *len)
+static size_t _hal_timersName(char *s, const char *prefix, unsigned long val, const char *suffix, size_t *len)
 {
-	unsigned int off = 0, n = hal_strlen(prefix) + sizeof(val) * 10U / 4U;
+	size_t off = 0, n = hal_strlen(prefix) + sizeof(val) * 10U / 4U;
 	if (*len < n) {
 		return off;
 	}
@@ -119,7 +119,7 @@ static unsigned int _hal_timersName(char *s, const char *prefix, unsigned long v
 
 /* Programmable Interval Timer (Intel 8253/8254) */
 
-static unsigned int _hal_pitName(char *s, unsigned int *len)
+static size_t _hal_pitName(char *s, size_t *len)
 {
 	return _hal_timersName(s, "Programmable Interval Timer (", PIT_FREQUENCY, "kHz)", len);
 }
@@ -186,7 +186,7 @@ static time_t _hal_pitBusyWaitUs(time_t waitUs)
 			startPitDelta = 0xfffU + (u16)ticks;
 		}
 		else {
-			startPitDelta = 0xffff;
+			startPitDelta = 0xffffU;
 		}
 		pitDelta = startPitDelta;
 		_hal_pitSetTimer(startPitDelta, PIT_OPERATING_ONE_SHOT);
@@ -224,7 +224,7 @@ static int _hal_pitInit(u32 intervalUs)
 /* Local APIC Timer */
 
 
-static unsigned int _hal_lapicTimerName(char *s, unsigned int *len)
+static size_t _hal_lapicTimerName(char *s, size_t *len)
 {
 	return _hal_timersName(s, "Local APIC Timer (", timer_common.lapicData.frequency, "kHz)", len);
 }
@@ -235,7 +235,7 @@ static inline void _hal_lapicTimerSetDivider(u8 divider)
 	/* Divider is a power of 2 */
 	if (divider == 0U) {
 		/* Not recommended. It is claimed that it is bugged on some emulators */
-		divider = 0xb;
+		divider = 0xbU;
 	}
 	else if (divider > 4U) {
 		divider += 3U;
@@ -301,7 +301,7 @@ static int _hal_lapicTimerIrqHandler(unsigned int n, cpu_context_t *ctx, void *a
 /* High Precision Event Timers */
 
 
-static unsigned int _hal_hpetName(char *s, unsigned int *len)
+static size_t _hal_hpetName(char *s, size_t *len)
 {
 	return _hal_timersName(s, "High Precision Timer (", (u32)(1000000000000ULL / ((u64)timer_common.hpetData.period)), "kHz)", len);
 }
@@ -374,7 +374,7 @@ static int _hal_hpetInit(u32 intervalUs)
 	if (hal_config.hpet == NULL) {
 		return -1;
 	}
-	_hal_gasAllocDevice(&hal_config.hpet->baseAddress, &timer_common.hpetData.addr, 0x400);
+	_hal_gasAllocDevice(&hal_config.hpet->baseAddress, &timer_common.hpetData.addr, 0x400U);
 	if (_hal_gasRead32(&timer_common.hpetData.addr, HPET_ID + sizeof(u32), &timer_common.hpetData.period) != 0) {
 		return -1;
 	}
@@ -403,7 +403,7 @@ static time_t _hal_lapicGetUs(void)
 
 static void _hal_lapicInitCore(unsigned int id)
 {
-	_hal_lapicTimerConfigure(LAPIC_TIMER_ONE_SHOT, 0, SYSTICK_IRQ + INTERRUPTS_VECTOR_OFFSET);
+	_hal_lapicTimerConfigure(LAPIC_TIMER_ONE_SHOT, 0U, SYSTICK_IRQ + INTERRUPTS_VECTOR_OFFSET);
 	_hal_lapicTimerSetDivider(LAPIC_TIMER_DEFAULT_DIVIDER);
 	timer_common.lapicData.wait[id] = 1;
 	_hal_lapicTimerStart(1);
@@ -494,14 +494,14 @@ char *hal_timerFeatures(char *features, size_t len)
 	off += n;
 	len -= n;
 
-	off += timer_common.schedulerTimer->name(features + off, (unsigned int *)&len);
+	off += timer_common.schedulerTimer->name(features + off, &len);
 
 	(void)hal_strncpy(features + off, textTimestamp, len);
 	n = (textTimestampLength < len) ? textTimestampLength : len;
 	off += n;
 	len -= n;
 
-	off += timer_common.timestampTimer->name(features + off, (unsigned int *)&len);
+	off += timer_common.timestampTimer->name(features + off, &len);
 	features[(len == 0U) ? off - 1U : off] = '\0';
 	return features;
 }
@@ -578,7 +578,7 @@ void _hal_timerInit(u32 interval)
 			case timer_lapic:
 				/* LAPIC Timer can be used as a not very good timestamp (but better then PIT) */
 				timer_common.timestampTimer = &_hal_lapicTimer;
-				timer_common.lapicData.cycles = 0;
+				timer_common.lapicData.cycles = 0ULL;
 				break;
 			default:
 				/* Fallback to PIT (it must be used as both types of timers) */

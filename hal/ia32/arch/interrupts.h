@@ -25,16 +25,16 @@
 #define SYSCALL_IRQ 0x80U
 #define TLB_IRQ     0x81U
 
-#define IOAPIC_IDREG  0x0
-#define IOAPIC_VERREG 0x1
-#define IOAPIC_ARBREG 0x2
+#define IOAPIC_IDREG  0x0U
+#define IOAPIC_VERREG 0x1U
+#define IOAPIC_ARBREG 0x2U
 
 #define IOAPIC_IRQ_MASK (1UL << 16)
 #define IOAPIC_TRIGGER  (1UL << 15)
 #define IOAPIC_INTPOL   (1UL << 13)
 #define IOAPIC_DESTMOD  (1UL << 11)
 
-#define LAPIC_EOI 0
+#define LAPIC_EOI 0U
 
 /* Interrupt source override polarity flags */
 #define MADT_ISO_POLAR_MASK 0x3U
@@ -43,7 +43,7 @@
 #define MADT_ISO_POLAR_LOW  0x3U
 /* Interrupt source override trigger flags */
 #define MADT_ISO_TRIGGER_MASK  (0x3U << 2)
-#define MADT_ISO_TRIGGER_BUS   0x0
+#define MADT_ISO_TRIGGER_BUS   0x0U
 #define MADT_ISO_TRIGGER_EDGE  (0x1U << 2)
 #define MADT_ISO_TRIGGER_LEVEL (0x3U << 2)
 
