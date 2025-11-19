@@ -99,7 +99,7 @@ __attribute__((section(".init"))) void _hal_init(void)
 
 	_hal_cpuInit();
 
-	_hal_timerInit(SYSTICK_INTERVAL);
+	_hal_timerInit((u32)SYSTICK_INTERVAL);
 
 	hal_common.started = 0;
 }

@@ -55,7 +55,7 @@ int hal_platformctl(void *ptr)
 
 unsigned int hal_cpuGetCount(void)
 {
-	return 1;
+	return 1U;
 }
 
 

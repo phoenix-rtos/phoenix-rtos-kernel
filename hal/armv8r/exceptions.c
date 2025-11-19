@@ -166,7 +166,7 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot |= PROT_USER;
 	}
 
-	return (int)prot;
+	return prot;
 }
 
 ptr_t hal_exceptionsPC(exc_context_t *ctx)
