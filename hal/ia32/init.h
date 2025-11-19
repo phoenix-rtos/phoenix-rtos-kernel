@@ -50,24 +50,24 @@ typedef struct {
 } __attribute__((packed)) sdt_header_t;
 
 
-#define GAS_ADDRESS_SPACE_ID_MEMORY 0x0
-#define GAS_ADDRESS_SPACE_ID_IOPORT 0x1
-#define GAS_ADDRESS_SPACE_ID_PCI    0x2
-#define GAS_ADDRESS_SPACE_ID_EMBEDD 0x03 /* EMBEDDED_CONTROLLER */
-#define GAS_ADDRESS_SPACE_ID_SMBUS  0x04
-#define GAS_ADDRESS_SPACE_ID_CMOS   0x05
-#define GAS_ADDRESS_SPACE_ID_PCIBAR 0x06 /* PCI_BAR_TARGET */
-#define GAS_ADDRESS_SPACE_ID_IPMI   0x07
-#define GAS_ADDRESS_SPACE_ID_GPIO   0x08
-#define GAS_ADDRESS_SPACE_ID_GSB    0x09 /* Generic Serial Bus*/
-#define GAS_ADDRESS_SPACE_ID_PCC    0x0a /* Platform Communications Channel */
-#define GAS_ADDRESS_SPACE_ID_PRM    0x0b /* Platform Runtime Mechanism */
+#define GAS_ADDRESS_SPACE_ID_MEMORY 0x0U
+#define GAS_ADDRESS_SPACE_ID_IOPORT 0x1U
+#define GAS_ADDRESS_SPACE_ID_PCI    0x2U
+#define GAS_ADDRESS_SPACE_ID_EMBEDD 0x03U /* EMBEDDED_CONTROLLER */
+#define GAS_ADDRESS_SPACE_ID_SMBUS  0x04U
+#define GAS_ADDRESS_SPACE_ID_CMOS   0x05U
+#define GAS_ADDRESS_SPACE_ID_PCIBAR 0x06U /* PCI_BAR_TARGET */
+#define GAS_ADDRESS_SPACE_ID_IPMI   0x07U
+#define GAS_ADDRESS_SPACE_ID_GPIO   0x08U
+#define GAS_ADDRESS_SPACE_ID_GSB    0x09U /* Generic Serial Bus*/
+#define GAS_ADDRESS_SPACE_ID_PCC    0x0aU /* Platform Communications Channel */
+#define GAS_ADDRESS_SPACE_ID_PRM    0x0bU /* Platform Runtime Mechanism */
 
-#define GAS_ACCESS_SIZE_UNDEFINED 0
-#define GAS_ACCESS_SIZE_BYTE      1
-#define GAS_ACCESS_SIZE_WORD      2
-#define GAS_ACCESS_SIZE_DWORD     3
-#define GAS_ACCESS_SIZE_QWORD     4
+#define GAS_ACCESS_SIZE_UNDEFINED 0U
+#define GAS_ACCESS_SIZE_BYTE      1U
+#define GAS_ACCESS_SIZE_WORD      2U
+#define GAS_ACCESS_SIZE_DWORD     3U
+#define GAS_ACCESS_SIZE_QWORD     4U
 
 typedef struct {
 	u8 addressSpaceId;
@@ -222,7 +222,7 @@ extern hal_config_t hal_config;
 
 static inline int hal_isLapicPresent(void)
 {
-	return hal_config.localApicAddr != NULL;
+	return (int)(hal_config.localApicAddr != NULL);
 }
 
 
@@ -241,7 +241,7 @@ static inline u32 _hal_lapicRead(u32 reg)
 void _hal_configInit(syspage_t *s);
 
 
-void *_hal_configMapDevice(u32 *pdir, addr_t start, size_t size, int attr);
+void *_hal_configMapDevice(u32 *pdir, addr_t start, size_t size, vm_attr_t attr);
 
 
 void _hal_gasAllocDevice(const hal_gas_t *gas, hal_gasMapped_t *mgas, size_t size);

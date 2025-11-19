@@ -94,7 +94,7 @@ typedef struct _pmap_t {
 } pmap_t;
 
 
-int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc, int tlbInval);
+int _pmap_enter(u32 *pdir, addr_t *pt, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc, int tlbInval);
 
 #endif
 

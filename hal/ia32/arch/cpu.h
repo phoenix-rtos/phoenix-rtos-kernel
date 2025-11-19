@@ -95,10 +95,10 @@
 
 
 /* Segment selectors */
-#define SEL_KCODE 8
-#define SEL_KDATA 16
-#define SEL_UCODE 27
-#define SEL_UDATA 35
+#define SEL_KCODE 8U
+#define SEL_KDATA 16U
+#define SEL_UCODE 27U
+#define SEL_UDATA 35U
 
 /* The first index in GDT that can be used for TSS and TLS entries */
 #define GDT_FREE_SEL_IDX 5U
@@ -108,19 +108,19 @@
 
 /* IO Ports */
 /* Ports of (8259A) PIC (Programmable Interrupt Controller) */
-#define PORT_PIC_MASTER_COMMAND ((u16)0x20)
-#define PORT_PIC_MASTER_DATA    ((u16)0x21)
-#define PORT_PIC_SLAVE_COMMAND  ((u16)0xa0)
-#define PORT_PIC_SLAVE_DATA     ((u16)0xa1)
+#define PORT_PIC_MASTER_COMMAND ((u16)0x20U)
+#define PORT_PIC_MASTER_DATA    ((u16)0x21U)
+#define PORT_PIC_SLAVE_COMMAND  ((u16)0xa0U)
+#define PORT_PIC_SLAVE_DATA     ((u16)0xa1U)
 /* Ports of PIT (Programmable Interval Timer) */
-#define PORT_PIT_DATA_CHANNEL0 ((u16)0x40)
-#define PORT_PIT_COMMAND       ((u16)0x43)
+#define PORT_PIT_DATA_CHANNEL0 ((u16)0x40U)
+#define PORT_PIT_COMMAND       ((u16)0x43U)
 /* Ports of 8042 PS/2 Controller */
-#define PORT_PS2_DATA    ((u16)0x60)
-#define PORT_PS2_COMMAND ((u16)0x64)
+#define PORT_PS2_DATA    ((u16)0x60U)
+#define PORT_PS2_COMMAND ((u16)0x64U)
 
 /* There are objects in memory that require O(MAX_CPU_COUNT^2) memory. */
-#define MAX_CPU_COUNT 64
+#define MAX_CPU_COUNT 64U
 
 #define LAPIC_DEFAULT_ADDRESS 0xfee00000U
 
@@ -274,6 +274,8 @@ typedef struct {
 	unsigned int cpus[MAX_CPU_COUNT];
 } hal_cpu_t;
 
+
+/* parasoft-suppress-next-line MISRAC2012-RULE_1_1 "hal_cpu_t holds kernel stacks for all cores" */
 extern hal_cpu_t hal_cpu;
 void hal_cpuSendIPI(unsigned int cpu, unsigned int intrAndFlags);
 

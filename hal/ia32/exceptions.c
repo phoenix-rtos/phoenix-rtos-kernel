@@ -66,11 +66,13 @@ void exceptions_exc7_handler(unsigned int n, exc_context_t *ctx);
 #define SIZE_EXCHANDLERS 32U
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Struct accessed from assembly" */
 struct {
 	excHandlerFn_t handlers[SIZE_EXCHANDLERS]; /* this field should be always first because of assembly stub */
 	excHandlerFn_t defaultHandler;
 	spinlock_t lock;
 } exceptions;
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 
 vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
@@ -89,7 +91,7 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot |= PROT_USER;
 	}
 
-	return (int)prot;
+	return prot;
 }
 
 
@@ -200,13 +202,11 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
-
-	return;
+#endif
 }
 
 
@@ -241,13 +241,15 @@ int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 
 
 /* Function setups interrupt stub in IDT */
-__attribute__((section(".init"))) void _exceptions_setIDTStub(unsigned int n, void *addr)
+static __attribute__((section(".init"))) void _exceptions_setIDTStub(unsigned int n, void (*addr)(void))
 {
 	u32 w0, w1;
 	u32 *idtr;
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_11_1 "Must pass the address of exception handler to hw reg" */
 	w0 = ((u32)addr & 0xffff0000U);
 	w1 = ((u32)addr & 0x0000ffffU);
+	/* parasoft-end-suppress MISRAC2012-RULE_11_1 */
 	w0 |= IGBITS_DPL3 | IGBITS_PRES | IGBITS_SYSTEM | IGBITS_IRQEXC;
 	w1 |= ((u32)SEL_KCODE << 16);
 
@@ -265,40 +267,40 @@ __attribute__((section(".init"))) void _hal_exceptionsInit(void)
 	unsigned int k;
 
 	hal_spinlockCreate(&exceptions.lock, "exceptions.lock");
-	exceptions.defaultHandler = (void *)exceptions_defaultHandler;
+	exceptions.defaultHandler = exceptions_defaultHandler;
 
-	_exceptions_setIDTStub(0, _exceptions_exc0);
-	_exceptions_setIDTStub(1, _exceptions_exc1);
-	_exceptions_setIDTStub(2, _exceptions_exc2);
-	_exceptions_setIDTStub(3, _exceptions_exc3);
-	_exceptions_setIDTStub(4, _exceptions_exc4);
-	_exceptions_setIDTStub(5, _exceptions_exc5);
-	_exceptions_setIDTStub(6, _exceptions_exc6);
-	_exceptions_setIDTStub(7, _exceptions_exc7);
-	_exceptions_setIDTStub(8, _exceptions_exc8);
-	_exceptions_setIDTStub(9, _exceptions_exc9);
-	_exceptions_setIDTStub(10, _exceptions_exc10);
-	_exceptions_setIDTStub(11, _exceptions_exc11);
-	_exceptions_setIDTStub(12, _exceptions_exc12);
-	_exceptions_setIDTStub(13, _exceptions_exc13);
-	_exceptions_setIDTStub(14, _exceptions_exc14);
-	_exceptions_setIDTStub(15, _exceptions_exc15);
-	_exceptions_setIDTStub(16, _exceptions_exc16);
-	_exceptions_setIDTStub(17, _exceptions_exc17);
-	_exceptions_setIDTStub(18, _exceptions_exc18);
-	_exceptions_setIDTStub(19, _exceptions_exc19);
-	_exceptions_setIDTStub(20, _exceptions_exc20);
-	_exceptions_setIDTStub(21, _exceptions_exc21);
-	_exceptions_setIDTStub(22, _exceptions_exc22);
-	_exceptions_setIDTStub(23, _exceptions_exc23);
-	_exceptions_setIDTStub(24, _exceptions_exc24);
-	_exceptions_setIDTStub(25, _exceptions_exc25);
-	_exceptions_setIDTStub(26, _exceptions_exc26);
-	_exceptions_setIDTStub(27, _exceptions_exc27);
-	_exceptions_setIDTStub(28, _exceptions_exc28);
-	_exceptions_setIDTStub(29, _exceptions_exc29);
-	_exceptions_setIDTStub(30, _exceptions_exc30);
-	_exceptions_setIDTStub(31, _exceptions_exc31);
+	_exceptions_setIDTStub(0U, _exceptions_exc0);
+	_exceptions_setIDTStub(1U, _exceptions_exc1);
+	_exceptions_setIDTStub(2U, _exceptions_exc2);
+	_exceptions_setIDTStub(3U, _exceptions_exc3);
+	_exceptions_setIDTStub(4U, _exceptions_exc4);
+	_exceptions_setIDTStub(5U, _exceptions_exc5);
+	_exceptions_setIDTStub(6U, _exceptions_exc6);
+	_exceptions_setIDTStub(7U, _exceptions_exc7);
+	_exceptions_setIDTStub(8U, _exceptions_exc8);
+	_exceptions_setIDTStub(9U, _exceptions_exc9);
+	_exceptions_setIDTStub(10U, _exceptions_exc10);
+	_exceptions_setIDTStub(11U, _exceptions_exc11);
+	_exceptions_setIDTStub(12U, _exceptions_exc12);
+	_exceptions_setIDTStub(13U, _exceptions_exc13);
+	_exceptions_setIDTStub(14U, _exceptions_exc14);
+	_exceptions_setIDTStub(15U, _exceptions_exc15);
+	_exceptions_setIDTStub(16U, _exceptions_exc16);
+	_exceptions_setIDTStub(17U, _exceptions_exc17);
+	_exceptions_setIDTStub(18U, _exceptions_exc18);
+	_exceptions_setIDTStub(19U, _exceptions_exc19);
+	_exceptions_setIDTStub(20U, _exceptions_exc20);
+	_exceptions_setIDTStub(21U, _exceptions_exc21);
+	_exceptions_setIDTStub(22U, _exceptions_exc22);
+	_exceptions_setIDTStub(23U, _exceptions_exc23);
+	_exceptions_setIDTStub(24U, _exceptions_exc24);
+	_exceptions_setIDTStub(25U, _exceptions_exc25);
+	_exceptions_setIDTStub(26U, _exceptions_exc26);
+	_exceptions_setIDTStub(27U, _exceptions_exc27);
+	_exceptions_setIDTStub(28U, _exceptions_exc28);
+	_exceptions_setIDTStub(29U, _exceptions_exc29);
+	_exceptions_setIDTStub(30U, _exceptions_exc30);
+	_exceptions_setIDTStub(31U, _exceptions_exc31);
 
 	for (k = 0; k < SIZE_EXCHANDLERS; k++) {
 		exceptions.handlers[k] = exceptions_trampoline;

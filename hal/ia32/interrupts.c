@@ -98,8 +98,8 @@ static inline void _hal_ioapicWrite(void *ioapic, u8 reg, u32 val)
 
 static void _hal_ioapicWriteIRQ(void *ioapic, unsigned int n, u32 high, u32 low)
 {
-	low &= 0x0000ffffu;
-	high &= 0xff000000u;
+	low &= 0x0000ffffU;
+	high &= 0xff000000U;
 	_hal_ioapicWrite(ioapic, (u8)(0x10U + 2U * n), IOAPIC_IRQ_MASK);
 	_hal_ioapicWrite(ioapic, (u8)(0x11U + 2U * n), high);
 	_hal_ioapicWrite(ioapic, (u8)(0x10U + 2U * n), low);
@@ -124,6 +124,7 @@ static inline void _hal_ioapicRoundRobin(unsigned int n)
 			}
 			hal_spinlockSet(&interrupts_common.sp_ioapic, &ctx);
 			_hal_ioapicReadIRQ(interrupts_common.irqs[n].ioapic, n, &high, &low);
+			/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 MISRAC2012-RULE_1_3 "CPU count is non-zero" */
 			high = hal_cpu.cpus[(hal_cpuGetID() + 1U) % hal_cpuGetCount()];
 			_hal_ioapicWriteIRQ(interrupts_common.irqs[n].ioapic, n, high << 24, low);
 			hal_spinlockClear(&interrupts_common.sp_ioapic, &ctx);
@@ -247,7 +248,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 
 /* Function setups interrupt stub in IDT */
-static int _interrupts_setIDTEntry(unsigned int n, void *addr, u32 type)
+static int _interrupts_setIDTEntry(unsigned int n, void (*addr)(void), u32 type)
 {
 	u32 w0, w1;
 	volatile u32 *idtr = (volatile u32 *)syspage->hs.idtr.addr;
@@ -256,8 +257,10 @@ static int _interrupts_setIDTEntry(unsigned int n, void *addr, u32 type)
 		return -EINVAL;
 	}
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_11_1 "Must pass the address of interrupt handler to hw reg" */
 	w0 = ((u32)addr & 0xffff0000U);
 	w1 = ((u32)addr & 0x0000ffffU);
+	/* parasoft-end-suppress MISRAC2012-RULE_11_1 */
 	type &= 0xef00U;
 
 	w0 |= type;
@@ -283,6 +286,8 @@ char *hal_interruptsFeatures(char *features, size_t len)
 			(void)hal_strncpy(features, "Using unknown interrupt controller", len);
 			break;
 	}
+
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "len is always non-zero" */
 	features[len - 1U] = '\0';
 
 	return features;
@@ -292,15 +297,15 @@ char *hal_interruptsFeatures(char *features, size_t len)
 static void _hal_interrupts8259PICRemap(void)
 {
 	/* Initialize interrupt controllers (8259A) */
-	hal_outb(PORT_PIC_MASTER_COMMAND, 0x11); /* ICW1 */
-	hal_outb(PORT_PIC_MASTER_DATA, 0x20);    /* ICW2 (Master) */
-	hal_outb(PORT_PIC_MASTER_DATA, 0x04);    /* ICW3 (Master) */
-	hal_outb(PORT_PIC_MASTER_DATA, 0x01);    /* ICW4 */
+	hal_outb(PORT_PIC_MASTER_COMMAND, 0x11U); /* ICW1 */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x20U);    /* ICW2 (Master) */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x04U);    /* ICW3 (Master) */
+	hal_outb(PORT_PIC_MASTER_DATA, 0x01U);    /* ICW4 */
 
-	hal_outb(PORT_PIC_SLAVE_COMMAND, 0x11); /* ICW1 (Slave) */
-	hal_outb(PORT_PIC_SLAVE_DATA, 0x28);    /* ICW2 (Slave) */
-	hal_outb(PORT_PIC_SLAVE_DATA, 0x02);    /* ICW3 (Slave) */
-	hal_outb(PORT_PIC_SLAVE_DATA, 0x01);    /* ICW4 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_COMMAND, 0x11U); /* ICW1 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x28U);    /* ICW2 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x02U);    /* ICW3 (Slave) */
+	hal_outb(PORT_PIC_SLAVE_DATA, 0x01U);    /* ICW4 (Slave) */
 }
 
 
@@ -308,8 +313,8 @@ static void _hal_interrupts8259PICInit(void)
 {
 	interrupts_common.pic = pic_8259;
 	interrupts_common.systickIRQ = SYSTICK_IRQ;
-	hal_cpu.ncpus = 1;
-	hal_cpu.cpus[0] = 0;
+	hal_cpu.ncpus = 1U;
+	hal_cpu.cpus[0] = 0U;
 	_hal_interrupts8259PICRemap();
 }
 
@@ -328,7 +333,7 @@ static int _hal_ioapicInit(void)
 		u8 reserved;
 		addr_t ioApicAddress;
 		u32 globalSystemInterruptBase;
-	} __attribute__((packed)) * ioapic;
+	} __attribute__((packed)) *ioapic;
 
 	struct {
 		madt_entry_header_t h;
@@ -336,14 +341,14 @@ static int _hal_ioapicInit(void)
 		u8 source;
 		u32 globalSystemInterrupt;
 		u16 flags;
-	} __attribute__((packed)) * sourceOverride;
+	} __attribute__((packed)) *sourceOverride;
 
 	struct {
 		madt_entry_header_t h;
 		u8 acpiProcessorUID;
 		u8 apicID;
 		u32 flags;
-	} __attribute__((packed)) * localApic;
+	} __attribute__((packed)) *localApic;
 
 	hal_madtHeader_t *madt = hal_config.madt;
 	size_t i;
@@ -352,6 +357,7 @@ static int _hal_ioapicInit(void)
 
 	interrupts_common.systickIRQ = SYSTICK_IRQ;
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_11_2 "&madt->entries is hardware provided and points to the first MADT element" */
 	/* Parse ACPI MADT table: find all LAPICs */
 	for (e = (void *)&madt->entries; (u32)e < (u32)madt + madt->header.length; e = (void *)e + e->length) {
 		if (e->type == MADT_TYPE_PROCESSOR_LOCAL_APIC) {
@@ -367,7 +373,7 @@ static int _hal_ioapicInit(void)
 		if (e->type == MADT_TYPE_IOAPIC) {
 			ioapic = (void *)e;
 			if (ioapic->globalSystemInterruptBase == 0U) { /* We ignore every IOAPIC except the first one */
-				ptr = _hal_configMapDevice((u32 *)(syspage->hs.pdir + VADDR_KERNEL), ioapic->ioApicAddress, SIZE_PAGE, (int)PGHD_WRITE);
+				ptr = _hal_configMapDevice((u32 *)(syspage->hs.pdir + VADDR_KERNEL), ioapic->ioApicAddress, SIZE_PAGE, PGHD_WRITE);
 				/* Read how many entries does this IOAPIC handle */
 				n = ((_hal_ioapicRead(ptr, IOAPIC_VERREG) >> 16) & 0xffU) + 1U;
 				if (n > SIZE_INTERRUPTS) {
@@ -399,8 +405,8 @@ static int _hal_ioapicInit(void)
 		/* Remap 8259 PIC's interrupts, before disabling it */
 		_hal_interrupts8259PICRemap();
 		/* Disable 8259 PIC (by masking all interrupts) */
-		hal_outb(PORT_PIC_MASTER_DATA, 0xff);
-		hal_outb(PORT_PIC_SLAVE_DATA, 0xff);
+		hal_outb(PORT_PIC_MASTER_DATA, 0xffU);
+		hal_outb(PORT_PIC_SLAVE_DATA, 0xffU);
 	}
 
 	/* Parse ACPI MADT table: find all interrupt source overrides */
@@ -433,6 +439,7 @@ static int _hal_ioapicInit(void)
 			}
 		}
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_11_1 */
 
 	/* Enable all IRQS */
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
@@ -449,7 +456,7 @@ void _hal_interruptsInit(void)
 	static const u32 flags = IGBITS_PRES | IGBITS_SYSTEM | IGBITS_IRQEXC;
 	unsigned int k;
 
-	_interrupts_multilock = 1;
+	_interrupts_multilock = 1U;
 	interrupts_common.pic = pic_undefined;
 
 	for (k = 0; k < SIZE_INTERRUPTS; ++k) {
@@ -489,7 +496,7 @@ void _hal_interruptsInit(void)
 	for (k = 0; k < SIZE_INTERRUPTS; k++) {
 		hal_spinlockCreate(&interrupts_common.interrupts[k].spinlock, "interrupts_common.interrupts[].spinlock");
 		interrupts_common.interrupts[k].handler = NULL;
-		interrupts_common.interrupts[k].counter = 0;
+		interrupts_common.interrupts[k].counter = 0U;
 	}
 
 	/* Set stubs for unhandled interrupts */

@@ -96,6 +96,7 @@ void hal_tlbInvalidateEntry(const pmap_t *pmap, const void *vaddr, size_t count)
 	tlb_common.tlbs[id].tasks[tasks_size].pmap = pmap;
 	tlb_common.tlbs[id].tasks[tasks_size].entry = vaddr;
 	tlb_common.tlbs[id].tasks[tasks_size].count = count;
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "CPU count is non-zero" */
 	tlb_common.tlbs[id].tasks[tasks_size].confirmations = n - 1U;
 	tlb_common.tlbs[id].tasks[tasks_size].spinlock = &tlb_common.tlbs[id].task_spinlock;
 

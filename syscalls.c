@@ -66,12 +66,12 @@ int syscalls_sys_mmap(u8 *ustack)
 	process_t *proc = proc_current()->process;
 	int err;
 
-	GETFROMSTACK(ustack, void **, vaddr, 0);
-	GETFROMSTACK(ustack, size_t, size, 1);
-	GETFROMSTACK(ustack, int, prot, 2);
-	GETFROMSTACK(ustack, int, sflags, 3);
-	GETFROMSTACK(ustack, int, fildes, 4);
-	GETFROMSTACK(ustack, off_t, offs, 5);
+	GETFROMSTACK(ustack, void **, vaddr, 0U);
+	GETFROMSTACK(ustack, size_t, size, 1U);
+	GETFROMSTACK(ustack, int, prot, 2U);
+	GETFROMSTACK(ustack, int, sflags, 3U);
+	GETFROMSTACK(ustack, int, fildes, 4U);
+	GETFROMSTACK(ustack, off_t, offs, 5U);
 
 	flags = (vm_flags_t)sflags;
 	size = round_page(size);
@@ -301,12 +301,12 @@ int syscalls_beginthreadex(u8 *ustack)
 	int *id;
 	int err;
 
-	GETFROMSTACK(ustack, startFn_t, start, 0);
-	GETFROMSTACK(ustack, unsigned int, priority, 1);
-	GETFROMSTACK(ustack, void *, stack, 2);
-	GETFROMSTACK(ustack, unsigned int, stacksz, 3);
-	GETFROMSTACK(ustack, void *, arg, 4);
-	GETFROMSTACK(ustack, int *, id, 5);
+	GETFROMSTACK(ustack, startFn_t, start, 0U);
+	GETFROMSTACK(ustack, unsigned int, priority, 1U);
+	GETFROMSTACK(ustack, void *, stack, 2U);
+	GETFROMSTACK(ustack, unsigned int, stacksz, 3U);
+	GETFROMSTACK(ustack, void *, arg, 4U);
+	GETFROMSTACK(ustack, int *, id, 5U);
 
 	if ((id != NULL) && (vm_mapBelongs(proc, id, sizeof(*id)) < 0)) {
 		return -EFAULT;
@@ -342,10 +342,10 @@ int syscalls_nsleep(u8 *ustack)
 	int clockid;
 	int flags;
 
-	GETFROMSTACK(ustack, time_t *, sec, 0);
-	GETFROMSTACK(ustack, long int *, nsec, 1);
-	GETFROMSTACK(ustack, int, clockid, 2);
-	GETFROMSTACK(ustack, int, flags, 3);
+	GETFROMSTACK(ustack, time_t *, sec, 0U);
+	GETFROMSTACK(ustack, long int *, nsec, 1U);
+	GETFROMSTACK(ustack, int, clockid, 2U);
+	GETFROMSTACK(ustack, int, flags, 3U);
 
 	/* Not used right now, future-proofing */
 	(void)clockid;
@@ -474,7 +474,7 @@ int syscalls_perf_start(u8 *ustack)
 {
 	unsigned int pid;
 
-	GETFROMSTACK(ustack, unsigned int, pid, 0);
+	GETFROMSTACK(ustack, unsigned int, pid, 0U);
 
 	return perf_start(pid);
 }
@@ -657,11 +657,11 @@ int syscalls_interrupt(u8 *ustack)
 	handle_t *handle;
 	int res;
 
-	GETFROMSTACK(ustack, unsigned int, n, 0);
-	GETFROMSTACK(ustack, userintrFn_t, f, 1);
-	GETFROMSTACK(ustack, void *, data, 2);
-	GETFROMSTACK(ustack, handle_t, cond, 3);
-	GETFROMSTACK(ustack, handle_t *, handle, 4);
+	GETFROMSTACK(ustack, unsigned int, n, 0U);
+	GETFROMSTACK(ustack, userintrFn_t, f, 1U);
+	GETFROMSTACK(ustack, void *, data, 2U);
+	GETFROMSTACK(ustack, handle_t, cond, 3U);
+	GETFROMSTACK(ustack, handle_t *, handle, 4U);
 
 	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
 		return -EFAULT;
@@ -926,9 +926,9 @@ int syscalls_signalHandle(u8 *ustack)
 	unsigned int mask, mmask;
 	thread_t *thread;
 
-	GETFROMSTACK(ustack, sighandlerFn_t, handler, 0);
-	GETFROMSTACK(ustack, unsigned int, mask, 1);
-	GETFROMSTACK(ustack, unsigned int, mmask, 2);
+	GETFROMSTACK(ustack, sighandlerFn_t, handler, 0U);
+	GETFROMSTACK(ustack, unsigned int, mask, 1U);
+	GETFROMSTACK(ustack, unsigned int, mmask, 2U);
 
 	thread = proc_current();
 	thread->process->sigmask = (mask & mmask) | (thread->process->sigmask & ~mmask);
@@ -983,8 +983,8 @@ unsigned int syscalls_signalMask(u8 *ustack)
 	unsigned int mask, mmask, old;
 	thread_t *t;
 
-	GETFROMSTACK(ustack, unsigned int, mask, 0);
-	GETFROMSTACK(ustack, unsigned int, mmask, 1);
+	GETFROMSTACK(ustack, unsigned int, mask, 0U);
+	GETFROMSTACK(ustack, unsigned int, mmask, 1U);
 
 	t = proc_current();
 
@@ -998,7 +998,7 @@ unsigned int syscalls_signalMask(u8 *ustack)
 int syscalls_signalSuspend(u8 *ustack)
 {
 	unsigned int mask;
-	GETFROMSTACK(ustack, unsigned int, mask, 0);
+	GETFROMSTACK(ustack, unsigned int, mask, 0U);
 
 	return threads_sigsuspend(mask);
 }
