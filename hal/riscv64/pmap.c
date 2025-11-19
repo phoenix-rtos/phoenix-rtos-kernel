@@ -33,7 +33,7 @@
 #define PDIR1_IDX(va) (((ptr_t)(va) >> 21) & 0x1ffU)
 #define PDIR0_IDX(va) (((ptr_t)(va) >> 12) & 0x1ffU)
 
-#define PTE(paddr, flags) (((addr_t)(paddr) >> 12) << 10 | (vm_flags_t)(flags))
+#define PTE(paddr, flags) ((addr_t)((paddr) >> 12) << 10 | (vm_flags_t)(flags))
 #define PTE_TO_ADDR(pte)  ((((u64)(pte) >> 10) << 12) & 0xfffffffffff000UL)
 
 /* PTE attributes */
@@ -112,14 +112,14 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 	/* Copy kernel page tables */
 	hal_memset(pmap->pdir2, 0, 4096UL);
 
-	kpmap->end = (void *)(((ptr_t)kpmap->end + (ptr_t)(SIZE_PAGE << 18) - 1U) & ~(((ptr_t)SIZE_PAGE << 18) - 1U));
+	kpmap->end = (void *)(((ptr_t)kpmap->end + ((ptr_t)SIZE_PAGE << 18) - 1U) & ~(((ptr_t)SIZE_PAGE << 18) - 1U));
 
 	va = ((ptr_t)kpmap->start & ~(((ptr_t)SIZE_PAGE << 18) - 1U));
 	pages = (unsigned int)(((ptr_t)kpmap->end - va) / ((ptr_t)SIZE_PAGE << 18));
 
 	for (i = 0; i < pages; ++i) {
 		pmap->pdir2[PDIR2_IDX(va)] = kpmap->pdir2[PDIR2_IDX(va)];
-		va += (ptr_t)(SIZE_PAGE << 18);
+		va += ((ptr_t)SIZE_PAGE << 18);
 	}
 
 	pmap->pdir2[511] = kpmap->pdir2[511];
@@ -797,7 +797,7 @@ void _pmap_halInit(void)
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void _pmap_preinit(addr_t dtb)
 {
-	unsigned int i;
+	size_t i;
 
 	/* Get physical kernel address */
 	pmap_common.kernel = (addr_t)&_start;

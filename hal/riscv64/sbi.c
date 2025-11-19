@@ -100,19 +100,19 @@ static sbiret_t hal_sbiEcall(unsigned int ext, unsigned int fid, u64 arg0, u64 a
 
 static void hal_sbiSetTimerv01(u64 stime)
 {
-	(void)hal_sbiEcall(SBI_LEGACY_SETTIMER, 0UL, stime, 0UL, 0UL, 0UL, 0UL, 0UL);
+	(void)hal_sbiEcall(SBI_LEGACY_SETTIMER, 0U, stime, 0UL, 0UL, 0UL, 0UL, 0UL);
 }
 
 
 long hal_sbiPutchar(int ch)
 {
-	return hal_sbiEcall(SBI_LEGACY_PUTCHAR, 0UL, (unsigned int)ch, 0UL, 0UL, 0UL, 0UL, 0UL).error;
+	return hal_sbiEcall(SBI_LEGACY_PUTCHAR, 0U, (unsigned int)ch, 0UL, 0UL, 0UL, 0UL, 0UL).error;
 }
 
 
 long hal_sbiGetchar(void)
 {
-	return hal_sbiEcall(SBI_LEGACY_GETCHAR, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL).error;
+	return hal_sbiEcall(SBI_LEGACY_GETCHAR, 0U, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL).error;
 }
 
 /* SBI v0.2+ calls */

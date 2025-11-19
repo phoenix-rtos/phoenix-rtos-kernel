@@ -456,7 +456,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 		offs = (off_t)(Elf64_Off)(phdr[i].p_offset & ~(phdr[i].p_align - 1U));
 		misalign = (size_t)phdr[i].p_offset & (size_t)(phdr[i].p_align - 1U);
-		filesz = (phdr[i].p_filesz != 0U) ? (size_t)(phdr[i].p_filesz + misalign) : 0;
+		filesz = (phdr[i].p_filesz != 0U) ? (size_t)(phdr[i].p_filesz + misalign) : 0UL;
 		memsz = (size_t)phdr[i].p_memsz + misalign;
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
 			return -ENOEXEC;
@@ -497,7 +497,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
 	void *vaddr;
-	unsigned int memsz, filesz;
+	size_t memsz, filesz;
 	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
@@ -537,7 +537,7 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0U)) {
-			*ustacksz = round_page(phdr->p_memsz);
+			*ustacksz = round_page((size_t)phdr->p_memsz);
 		}
 
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
@@ -548,8 +548,8 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 		vaddr = (void *)(((ptr_t)phdr->p_vaddr & ~(phdr->p_align - 1U)));
 		offs = (off_t)(unsigned int)(phdr->p_offset & ~(phdr->p_align - 1U));
 		misalign = phdr->p_offset & (phdr->p_align - 1U);
-		filesz = (phdr->p_filesz != 0U) ? (phdr->p_filesz + misalign) : 0U;
-		memsz = phdr->p_memsz + misalign;
+		filesz = (phdr->p_filesz != 0U) ? (size_t)(u32)(phdr->p_filesz + misalign) : 0UL;
+		memsz = (size_t)(u32)(phdr->p_memsz + misalign);
 
 		prot = PROT_USER;
 		flags = MAP_NONE;

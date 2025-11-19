@@ -47,13 +47,13 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 void hal_timerSetWakeup(u32 waitUs)
 {
-	hal_sbiSetTimer(csr_read(time) + waitUs * ((time_t)TIMER_FREQ / 1000000UL));
+	hal_sbiSetTimer(csr_read(time) + waitUs * ((u64)TIMER_FREQ / (1000UL * 1000UL)));
 }
 
 
 time_t hal_timerGetUs(void)
 {
-	return (time_t)csr_read(time) / ((time_t)TIMER_FREQ / 1000000UL);
+	return (time_t)csr_read(time) / ((time_t)TIMER_FREQ / (1000 * 1000));
 }
 
 
