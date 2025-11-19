@@ -378,7 +378,7 @@ int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr)
 		return -EINVAL;
 	}
 
-	*(base + gpdma_cxlbar + (0x20 * channel)) = addr & 0xffff0000;
+	*(base + (unsigned int)gpdma_cxlbar + (0x20U * channel)) = addr & 0xffff0000U;
 	return EOK;
 }
 
@@ -584,16 +584,16 @@ int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 	u32 reg;
 	volatile u32 *base = DBGMCU_BASE;
 	if ((pctl_tim2 <= dev) && (dev <= pctl_tim11)) {
-		reg = dbgmcu_apb1lfz1;
+		reg = (u32)dbgmcu_apb1lfz1;
 	}
 	else if (((pctl_tim1 <= dev) && (dev <= pctl_tim8)) || ((pctl_tim18 <= dev) && (dev <= pctl_tim9))) {
-		reg = dbgmcu_apb2fz1;
+		reg = (u32)dbgmcu_apb2fz1;
 	}
 	else if (((pctl_lptim2 <= dev) && (dev <= pctl_lptim5)) || (dev == pctl_rtc) || (dev == pctl_iwdg)) {
-		reg = dbgmcu_apb4fz1;
+		reg = (u32)dbgmcu_apb4fz1;
 	}
 	else if (dev == pctl_gfxtim) {
-		reg = dbgmcu_apb5fz1;
+		reg = (u32)dbgmcu_apb5fz1;
 	}
 	else {
 		return -EINVAL;
@@ -724,17 +724,17 @@ int _stm32_extiSoftInterrupt(u32 line)
 /* GPIO */
 
 
-static volatile u32 *_stm32_gpioGetBase(unsigned int d)
+static volatile u32 *_stm32_gpioGetBase(int d)
 {
-	if ((d < (unsigned int)pctl_gpioa) || (d > (unsigned int)pctl_gpioq)) {
+	if ((d < pctl_gpioa) || (d > pctl_gpioq)) {
 		return NULL;
 	}
 
-	return stm32_common.gpio[d - (unsigned int)pctl_gpioa];
+	return stm32_common.gpio[d - pctl_gpioa];
 }
 
 
-int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd)
+int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd)
 {
 	volatile u32 *base;
 	u32 t;
@@ -769,7 +769,7 @@ int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospee
 }
 
 
-int _stm32_gpioSet(unsigned int d, u8 pin, u8 val)
+int _stm32_gpioSet(int d, u8 pin, u8 val)
 {
 	volatile u32 *base;
 
@@ -783,7 +783,7 @@ int _stm32_gpioSet(unsigned int d, u8 pin, u8 val)
 }
 
 
-int _stm32_gpioSetPort(unsigned int d, u16 val)
+int _stm32_gpioSetPort(int d, u16 val)
 {
 	volatile u32 *base;
 
@@ -798,7 +798,7 @@ int _stm32_gpioSetPort(unsigned int d, u16 val)
 }
 
 
-int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val)
+int _stm32_gpioGet(int d, u8 pin, u8 *val)
 {
 	volatile u32 *base;
 
@@ -813,7 +813,7 @@ int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val)
 }
 
 
-int _stm32_gpioGetPort(unsigned int d, u16 *val)
+int _stm32_gpioGetPort(int d, u16 *val)
 {
 	volatile u32 *base;
 
@@ -828,7 +828,7 @@ int _stm32_gpioGetPort(unsigned int d, u16 *val)
 }
 
 
-int _stm32_gpioSetPrivilege(unsigned int d, u32 val)
+int _stm32_gpioSetPrivilege(int d, u32 val)
 {
 	volatile u32 *base;
 
@@ -843,7 +843,7 @@ int _stm32_gpioSetPrivilege(unsigned int d, u32 val)
 }
 
 
-int _stm32_gpioGetPrivilege(unsigned int d, u32 *val)
+int _stm32_gpioGetPrivilege(int d, u32 *val)
 {
 	volatile u32 *base;
 

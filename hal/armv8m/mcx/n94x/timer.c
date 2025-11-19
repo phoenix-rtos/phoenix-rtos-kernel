@@ -104,7 +104,7 @@ void hal_timerSetWakeup(u32 waitUs)
 	valgray = timer_bin2gray(val);
 
 	/* Write new MATCH value */
-	*(timer_common.base + ostimer_matchl) = (u32)(valgray & 0xffffffffUL);
+	*(timer_common.base + ostimer_matchl) = (u32)(valgray & 0xffffffffU);
 	*(timer_common.base + ostimer_matchh) = (u32)((valgray >> 32) & 0x3ffU);
 	hal_cpuDataMemoryBarrier();
 

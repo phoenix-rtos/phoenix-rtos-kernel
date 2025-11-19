@@ -97,8 +97,8 @@ void _hal_platformInit(void)
 
 int _nrf91_systickInit(u32 interval)
 {
-	u64 load = ((u64)interval * nrf91_common.cpuclk) / 1000000U;
-	if (load > 0x00ffffffU) {
+	u64 load = ((u64)interval * nrf91_common.cpuclk) / 1000000UL;
+	if (load > 0x00ffffffUL) {
 		return -EINVAL;
 	}
 

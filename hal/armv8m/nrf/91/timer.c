@@ -127,7 +127,7 @@ void _hal_timerInit(u32 interval)
 
 	timer_common.overflowh.f = timer_irqHandler;
 	/* irq number always equals nrf peripheral id + 16 */
-	timer_common.overflowh.n = timer0_irq + 16;
+	timer_common.overflowh.n = (unsigned int)timer0_irq + 16U;
 	timer_common.overflowh.got = NULL;
 	timer_common.overflowh.data = NULL;
 	hal_interruptsSetHandler(&timer_common.overflowh);

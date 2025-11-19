@@ -560,7 +560,7 @@ int hal_platformctl(void *ptr)
 			else {
 				if (data->action == pctl_get) {
 					data->reboot.reason = n94x_common.resetFlags;
-					ret = 0;
+					ret = EOK;
 				}
 			}
 			break;
@@ -612,7 +612,7 @@ int hal_platformctl(void *ptr)
 #else
 				data->cpuid = 0;
 #endif
-				ret = 0;
+				ret = EOK;
 			}
 			break;
 

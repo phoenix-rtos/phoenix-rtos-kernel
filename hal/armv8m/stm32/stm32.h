@@ -82,25 +82,25 @@ void _stm32_rccClearResetFlags(void);
 int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop);
 
 
-int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);
+int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);
 
 
-int _stm32_gpioSet(unsigned int d, u8 pin, u8 val);
+int _stm32_gpioSet(int d, u8 pin, u8 val);
 
 
-int _stm32_gpioSetPort(unsigned int d, u16 val);
+int _stm32_gpioSetPort(int d, u16 val);
 
 
-int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val);
+int _stm32_gpioGet(int d, u8 pin, u8 *val);
 
 
-int _stm32_gpioGetPort(unsigned int d, u16 *val);
+int _stm32_gpioGetPort(int d, u16 *val);
 
 
-int _stm32_gpioSetPrivilege(unsigned int d, u32 val);
+int _stm32_gpioSetPrivilege(int d, u32 val);
 
 
-int _stm32_gpioGetPrivilege(unsigned int d, u32 *val);
+int _stm32_gpioGetPrivilege(int d, u32 *val);
 
 
 void _stm32_rtcUnlockRegs(void);

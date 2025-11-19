@@ -38,7 +38,7 @@
 #define EXC_RETURN_SPSEL (1U << 2) /* 1 - was using process SP, 0 - was using main SP */
 #define EXC_RETURN_FTYPE (1U << 4) /* 1 - standard frame, 0 - frame with FPU state */
 
-#define DEFAULT_PSR 0x01000000
+#define DEFAULT_PSR 0x01000000U
 
 #if KERNEL_FPU_SUPPORT
 #define RET_HANDLER_MSP 0xffffffe1U

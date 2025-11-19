@@ -101,32 +101,33 @@ void _hal_consoleInit(void)
 {
 	static const struct {
 		void *base;
-		u16 dev_clk;
+		int dev_clk;
 		u8 ipclk_sel;
 	} uarts[] = {
-		{ ((void *)0x52001000U), pctl_usart1, pctl_ipclk_usart1sel },
-		{ ((void *)0x50004400U), pctl_usart2, pctl_ipclk_usart2sel },
-		{ ((void *)0x50004800U), pctl_usart3, pctl_ipclk_usart3sel },
-		{ ((void *)0x50004c00U), pctl_uart4, pctl_ipclk_uart4sel },
-		{ ((void *)0x50005000U), pctl_uart5, pctl_ipclk_uart5sel },
-		{ ((void *)0x52001400U), pctl_usart6, pctl_ipclk_usart6sel },
-		{ ((void *)0x50007800U), pctl_uart7, pctl_ipclk_uart7sel },
-		{ ((void *)0x50007c00U), pctl_uart8, pctl_ipclk_uart8sel },
-		{ ((void *)0x52001800U), pctl_uart9, pctl_ipclk_uart9sel },
-		{ ((void *)0x52001c00U), pctl_usart10, pctl_ipclk_usart10sel },
+		{ ((void *)0x52001000U), pctl_usart1, (u8)pctl_ipclk_usart1sel },
+		{ ((void *)0x50004400U), pctl_usart2, (u8)pctl_ipclk_usart2sel },
+		{ ((void *)0x50004800U), pctl_usart3, (u8)pctl_ipclk_usart3sel },
+		{ ((void *)0x50004c00U), pctl_uart4, (u8)pctl_ipclk_uart4sel },
+		{ ((void *)0x50005000U), pctl_uart5, (u8)pctl_ipclk_uart5sel },
+		{ ((void *)0x52001400U), pctl_usart6, (u8)pctl_ipclk_usart6sel },
+		{ ((void *)0x50007800U), pctl_uart7, (u8)pctl_ipclk_uart7sel },
+		{ ((void *)0x50007c00U), pctl_uart8, (u8)pctl_ipclk_uart8sel },
+		{ ((void *)0x52001800U), pctl_uart9, (u8)pctl_ipclk_uart9sel },
+		{ ((void *)0x52001c00U), pctl_usart10, (u8)pctl_ipclk_usart10sel },
 	};
 
-	const int uart = UART_CONSOLE_KERNEL - 1, port = UART_IO_PORT_DEV, txpin = UART_PIN_TX, rxpin = UART_PIN_RX, af = UART_IO_AF;
+	const int uart = UART_CONSOLE_KERNEL - 1, port = UART_IO_PORT_DEV;
+	const u8 txpin = (u8)UART_PIN_TX, rxpin = (u8)UART_PIN_RX, af = (u8)UART_IO_AF;
 
 	_stm32_rccSetDevClock(port, 1U, 1U);
 
 	console_common.base = uarts[uart].base;
 
 	/* Init tx pin - output, push-pull, low speed, no pull-up */
-	_stm32_gpioConfig(port, txpin, gpio_mode_af, af, gpio_otype_pp, gpio_ospeed_low, gpio_pupd_nopull);
+	_stm32_gpioConfig(port, txpin, (u8)gpio_mode_af, af, (u8)gpio_otype_pp, (u8)gpio_ospeed_low, (u8)gpio_pupd_nopull);
 
 	/* Init rxd pin - input, push-pull, low speed, no pull-up */
-	_stm32_gpioConfig(port, rxpin, gpio_mode_af, af, gpio_otype_pp, gpio_ospeed_low, gpio_pupd_nopull);
+	_stm32_gpioConfig(port, rxpin, (u8)gpio_mode_af, af, (u8)gpio_otype_pp, (u8)gpio_ospeed_low, (u8)gpio_pupd_nopull);
 
 	_stm32_rccSetDevClock(pctl_per, 1, 1);
 	_stm32_rccSetIPClk(uarts[uart].ipclk_sel, uart_clk_sel_per_ck);
@@ -136,11 +137,11 @@ void _hal_consoleInit(void)
 	_stm32_rccSetDevClock(uarts[uart].dev_clk, 1U, 1U);
 
 	/* Set up UART to 115200,8,n,1 16-bit oversampling */
-	*(console_common.base + cr1) &= ~1; /* disable USART */
+	*(console_common.base + cr1) &= ~1U; /* disable USART */
 	hal_cpuDataMemoryBarrier();
-	*(console_common.base + cr1) = 0xe; /* Enable TX and RX, UART enabled in low-power mode */
-	*(console_common.base + cr2) = 0;
-	*(console_common.base + cr3) = 0;
+	*(console_common.base + cr1) = 0xeU; /* Enable TX and RX, UART enabled in low-power mode */
+	*(console_common.base + cr2) = 0U;
+	*(console_common.base + cr3) = 0U;
 	*(console_common.base + brr) = console_common.refclkfreq / 115200U; /* 115200 baud rate */
 	hal_cpuDataMemoryBarrier();
 	*(console_common.base + cr1) |= 1U;
