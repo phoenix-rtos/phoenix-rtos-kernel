@@ -18,7 +18,7 @@
 
 #include "hal/types.h"
 
-#define SIZE_PAGE 0x1000U
+#define SIZE_PAGE 0x1000UL
 
 #define MAX_CPU_COUNT 8U
 

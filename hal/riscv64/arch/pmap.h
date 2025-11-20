@@ -59,8 +59,8 @@
 
 #define SIZE_PDIR SIZE_PAGE
 
-#define PAGE_ALIGN(addr) (((addr_t)(addr)) & ~(SIZE_PAGE - 1U))
-#define PAGE_OFFS(addr)  (((addr_t)(addr)) & (SIZE_PAGE - 1U))
+#define PAGE_ALIGN(addr) (((addr_t)(addr)) & ~(SIZE_PAGE - 1UL))
+#define PAGE_OFFS(addr)  (((addr_t)(addr)) & (SIZE_PAGE - 1UL))
 
 
 /* Structure describing page - its should be aligned to 2^N boundary */

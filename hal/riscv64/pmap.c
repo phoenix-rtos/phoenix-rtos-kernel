@@ -39,7 +39,7 @@
 /* PTE attributes */
 #define PTE_V (1UL << 0)
 
-#define CEIL_PAGE(x) ((((addr_t)(x)) + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U))
+#define CEIL_PAGE(x) ((((addr_t)(x)) + SIZE_PAGE - 1UL) & ~(SIZE_PAGE - 1UL))
 
 /* Linker symbols */
 /* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Provided by toolchain" */
@@ -447,7 +447,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	const syspage_prog_t *prog;
 	const pmap_memEntry_t *entry;
 
-	a = *addr & ~(SIZE_PAGE - 1U);
+	a = *addr & ~(SIZE_PAGE - 1UL);
 	page->flags = 0;
 
 	/* Test address ranges */
@@ -631,7 +631,7 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, vm_attr_t
 		return NULL;
 	}
 
-	paddr &= ~(SIZE_PAGE - 1U);
+	paddr &= ~(SIZE_PAGE - 1UL);
 	end = CEIL_PAGE(paddr + size);
 
 	/* Handle overflow, but allow mapping to the end of the physical address space (end = 0) */
@@ -644,7 +644,7 @@ static void *_pmap_halMapInternal(addr_t paddr, void *va, size_t size, vm_attr_t
 		va = *pva;
 	}
 	else {
-		va = (void *)((ptr_t)va & ~(SIZE_PAGE - 1U));
+		va = (void *)((ptr_t)va & ~(SIZE_PAGE - 1UL));
 		pva = &va;
 	}
 
