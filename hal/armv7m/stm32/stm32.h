@@ -63,9 +63,6 @@ int _stm32_gpioGetPort(int d, u16 *val);
 void _stm32_pwrSetCPUVolt(u8 range);
 
 
-void _stm32_pwrEnterLPRun(u32 state);
-
-
 time_t _stm32_pwrEnterLPStop(time_t us);
 
 
@@ -73,42 +70,6 @@ void _stm32_rtcUnlockRegs(void);
 
 
 void _stm32_rtcLockRegs(void);
-
-
-u32 _stm32_rtcGetms(void);
-
-
-void _stm32_scbSetPriorityGrouping(u32 group);
-
-
-u32 _stm32_scbGetPriorityGrouping(void);
-
-
-void _stm32_scbSetPriority(s8 excpn, u32 priority);
-
-
-u32 _stm32_scbGetPriority(s8 excpn);
-
-
-void _stm32_nvicSetIRQ(s8 irqn, u8 state);
-
-
-u32 _stm32_nvicGetPendingIRQ(s8 irqn);
-
-
-void _stm32_nvicSetPendingIRQ(s8 irqn, u8 state);
-
-
-u32 _stm32_nvicGetActive(s8 irqn);
-
-
-void _stm32_nvicSetPriority(s8 irqn, u32 priority);
-
-
-u8 _stm32_nvicGetPriority(s8 irqn);
-
-
-void _stm32_nvicSystemReset(void);
 
 
 int _stm32_extiMaskInterrupt(u32 line, u8 state);
@@ -120,28 +81,10 @@ int _stm32_extiMaskEvent(u32 line, u8 state);
 int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge);
 
 
-int _stm32_syscfgExtiLineConfig(u8 port, u8 pin);
-
-
 int _stm32_extiSoftInterrupt(u32 line);
 
 
-u32 _stm32_extiGetPending(void);
-
-
-int _stm32_extiClearPending(u32 line);
-
-
 int _stm32_systickInit(u32 interval);
-
-
-void _stm32_systickSet(u8 state);
-
-
-u32 _stm32_systickGet(void);
-
-
-unsigned int _stm32_cpuid(void);
 
 
 void _stm32_wdgReload(void);
