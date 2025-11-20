@@ -22,6 +22,8 @@
 #include "include/errno.h"
 #include "include/mman.h"
 
+#include "lib/assert.h"
+
 #include "halsyspage.h"
 
 #if NUM_CPUS != 1
@@ -621,7 +623,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.end = pmap_common.start + SIZE_PAGE;
 
 	/* Create initial heap */
-	(void)pmap_enter(pmap, pmap_common.start, (*vstart), (PGHD_WRITE | PGHD_READ | PGHD_PRESENT), NULL);
+	LIB_ASSERT_ALWAYS(pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL) == EOK, "failed to create initial heap");
 
 	(void)pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (4U * 1024U * 1024U)));
 }
