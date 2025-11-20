@@ -51,6 +51,10 @@ enum {
 	slcr_ddr_urgent = 0x180,
 	slcr_ddr_cal_start = 0x183,
 	slcr_ddr_ref_start = 0x185, slcr_ddr_cmd_sta, slcr_ddr_urgent_sel, slcr_ddr_dfi_status,
+};
+
+
+enum {
 	/* MIO pins config registers */
 	slcr_mio_pin_00 = 0x1c0, slcr_mio_pin_01, slcr_mio_pin_02, slcr_mio_pin_03, slcr_mio_pin_04, slcr_mio_pin_05, slcr_mio_pin_06, slcr_mio_pin_07, slcr_mio_pin_08,
 	slcr_mio_pin_09, slcr_mio_pin_10, slcr_mio_pin_11, slcr_mio_pin_12, slcr_mio_pin_13, slcr_mio_pin_14, slcr_mio_pin_15, slcr_mio_pin_16, slcr_mio_pin_17,
@@ -170,10 +174,10 @@ static void _zynq_slcrUnlock(void)
 }
 
 
-int _zynq_setAmbaClk(int dev, u32 state)
+int _zynq_setAmbaClk(u32 dev, u32 state)
 {
 	/* Check max dev position in amba register */
-	if (dev < 0 || dev > 24) {
+	if (dev > 24U) {
 		return -1;
 	}
 
@@ -185,10 +189,10 @@ int _zynq_setAmbaClk(int dev, u32 state)
 }
 
 
-static int _zynq_getAmbaClk(int dev, u32 *state)
+static int _zynq_getAmbaClk(u32 dev, u32 *state)
 {
 	/* Check max dev position in amba register */
-	if (dev < 0 || dev > 24) {
+	if (dev > 24U) {
 		return -1;
 	}
 
@@ -216,8 +220,8 @@ static int _zynq_setDevClk(int dev, u8 divisor0, u8 divisor1, u8 srcsel, u8 clka
 		case pctl_ctrl_gem0_rclk:
 		case pctl_ctrl_gem1_rclk:
 			id = dev - pctl_ctrl_gem0_rclk;
-			*(zynq_common.slcr + slcr_gem0_rclk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_gem0_rclk + id) & ~0x00000011U) | (clkact0 == 0U ? 0U : 1U) |
-					((srcsel == 0U ? 0U : 1U) << 4);
+			*(zynq_common.slcr + slcr_gem0_rclk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_gem0_rclk + id) & ~0x00000011U) | (clkact0 == 0U ? 0UL : 1UL) |
+					((srcsel == 0U ? 0UL : 1UL) << 4);
 			break;
 
 		case pctl_ctrl_gem0_clk:
@@ -238,7 +242,7 @@ static int _zynq_setDevClk(int dev, u8 divisor0, u8 divisor1, u8 srcsel, u8 clka
 			break;
 
 		case pctl_ctrl_sdio_clk:
-			*(zynq_common.slcr + slcr_sdio_clk_ctrl) = (*(zynq_common.slcr + slcr_sdio_clk_ctrl) & ~0x00003f33U) | (clkact0 == 0U ? 0U : 1U) | ((clkact1 == 0U ? 0U : 1U) << 1) |
+			*(zynq_common.slcr + slcr_sdio_clk_ctrl) = (*(zynq_common.slcr + slcr_sdio_clk_ctrl) & ~0x00003f33U) | (clkact0 == 0U ? 0UL : 1UL) | ((clkact1 == 0U ? 0UL : 1UL) << 1) |
 					(((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
@@ -253,8 +257,8 @@ static int _zynq_setDevClk(int dev, u8 divisor0, u8 divisor1, u8 srcsel, u8 clka
 			break;
 
 		case pctl_ctrl_can_clk:
-			*(zynq_common.slcr + slcr_can_clk_ctrl) = (*(zynq_common.slcr + slcr_can_clk_ctrl) & ~0x03f03f33U) | (clkact0 == 0U ? 0U : 1U) |
-					((clkact1 == 0U ? 0U : 1U) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8) | (((u32)divisor1 & 0x3fU) << 20);
+			*(zynq_common.slcr + slcr_can_clk_ctrl) = (*(zynq_common.slcr + slcr_can_clk_ctrl) & ~0x03f03f33U) | (clkact0 == 0U ? 0UL : 1UL) |
+					((clkact1 == 0U ? 0UL : 1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8) | (((u32)divisor1 & 0x3fU) << 20);
 			break;
 
 		default:
@@ -367,7 +371,7 @@ static int _zynq_getDevClk(int dev, u8 *divisor0, u8 *divisor1, u8 *srcsel, u8 *
 static int _zynq_setMioClk(u8 ref0, u8 mux0, u8 ref1, u8 mux1)
 {
 	_zynq_slcrUnlock();
-	*(zynq_common.slcr + slcr_can_mioclk_ctrl) = (*(zynq_common.slcr + slcr_can_mioclk_ctrl) & ~0x007f007fU) | ((u32)mux0 & 0x3fU) | ((ref0 == 0U ? 0U : 1U) << 6) |
+	*(zynq_common.slcr + slcr_can_mioclk_ctrl) = (*(zynq_common.slcr + slcr_can_mioclk_ctrl) & ~0x007f007fU) | ((u32)mux0 & 0x3fU) | ((ref0 == 0U ? 0UL : 1UL) << 6) |
 			(((u32)mux1 & 0x3fU) << 16) | ((ref1 == 0U ? 0UL : 1UL) << 22);
 	_zynq_slcrLock();
 
@@ -397,14 +401,13 @@ int _zynq_setMIO(int pin, u8 disableRcvr, u8 pullup, u8 ioType, u8 speed, u8 l0,
 		return -1;
 	}
 
-
 	/*
 	 * MISRA TODO: improve `!!x ~~> (x == 0 ? 0 : 1)` transformations
 	 * here, & 0x1 is enough, while in many other places it vastly degrades readability or even potentially
 	 * introduces bugs (x == 0 ? 1 : 0)
 	 */
-	val = ((triEnable == 0U ? 0U : 1U)) | ((l0 == 0U ? 0U : 1U) << 1) | ((l1 == 0U ? 0U : 1U) << 2) | ((l2 & 0x3U) << 3) |
-			((l3 & 0x7U) << 5) | ((speed == 0U ? 0UL : 1UL) << 8) | ((ioType & 0x7U) << 9) | ((pullup == 0U ? 0UL : 1UL) << 12) |
+	val = ((triEnable == 0U ? 0UL : 1UL)) | ((l0 == 0U ? 0UL : 1UL) << 1) | ((l1 == 0U ? 0UL : 1UL) << 2) | (((u32)l2 & 0x3U) << 3) |
+			(((u32)l3 & 0x7U) << 5) | ((speed == 0U ? 0UL : 1UL) << 8) | (((u32)ioType & 0x7U) << 9) | ((pullup == 0U ? 0UL : 1UL) << 12) |
 			((disableRcvr == 0U ? 0UL : 1UL) << 13);
 
 	_zynq_slcrUnlock();
@@ -670,10 +673,10 @@ int hal_platformctl(void *ptr)
 	switch (data->type) {
 		case pctl_ambaclock:
 			if (data->action == pctl_set) {
-				ret = _zynq_setAmbaClk(data->ambaclock.dev, data->ambaclock.state);
+				ret = _zynq_setAmbaClk((u32)data->ambaclock.dev, data->ambaclock.state);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getAmbaClk(data->ambaclock.dev, &t);
+				ret = _zynq_getAmbaClk((u32)data->ambaclock.dev, &t);
 				data->ambaclock.state = t;
 			}
 			else {
@@ -817,7 +820,7 @@ static u32 hal_checkNumCPUs(void)
 	/* We cannot use SCU_CPU_Power_Status_Register because it's not implemented correctly on QEMU */
 	u32 powerStatus = (*(scu + 1U)) >> 4; /* SCU_CONFIGURATION_REGISTER */
 	u32 cpusAvailable = 0;
-	for (int i = 0; i < 4; i++) {
+	for (unsigned int i = 0U; i < 4U; i++) {
 		if (((powerStatus >> i) & 0x1U) == 1U) {
 			cpusAvailable++;
 		}

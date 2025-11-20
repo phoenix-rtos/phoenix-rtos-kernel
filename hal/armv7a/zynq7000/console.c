@@ -102,10 +102,10 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 	console_common.uart1 = (void *)(((u32)&_end + 4U * SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
 	console_common.speed = 115200;
 
-	_zynq_setMIO(UART_RX, 1U, 1U, 1U, 0U, 0U, 0U, 0U, 0x7U, 1U);
-	_zynq_setMIO(UART_TX, 1U, 1U, 1U, 0U, 0U, 0U, 0U, 0x7U, 0U);
+	(void)_zynq_setMIO(UART_RX, 1U, 1U, 1U, 0U, 0U, 0U, 0U, 0x7U, 1U);
+	(void)_zynq_setMIO(UART_TX, 1U, 1U, 1U, 0U, 0U, 0U, 0U, 0x7U, 0U);
 
-	(void)_zynq_setAmbaClk(UART_CLK, 1U);
+	(void)_zynq_setAmbaClk((u32)UART_CLK, 1U);
 
 	*(console_common.UART + idr) = 0xfffU;
 

@@ -85,7 +85,7 @@ extern unsigned int _end;
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
-	int reschedule = 0;
+	unsigned int reschedule = 0U;
 	spinlock_ctx_t sc;
 
 	u32 ciarValue = *(interrupts_common.gic + ciar);
@@ -102,12 +102,12 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	h = interrupts_common.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= h->f(n, ctx, h->data);
+			reschedule |= (unsigned int)h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.handlers[n]);
 	}
 
-	if (reschedule != 0) {
+	if (reschedule != 0U) {
 		(void)threads_schedule(n, ctx, NULL);
 	}
 
@@ -115,7 +115,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
 
-	return reschedule;
+	return (int)reschedule;
 }
 
 
