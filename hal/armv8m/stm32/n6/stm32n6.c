@@ -238,15 +238,15 @@ void _hal_platformInit(void)
 /* RIFSC (resource isolation framework security controller) */
 
 
-int _stm32_rifsc_risup_change(unsigned int index, int secure, int privileged, int lock)
+int _stm32_rifsc_risup_change(int index, int secure, int privileged, int lock)
 {
 	u32 reg, shift;
 	if (index >= pctl_risups_count) {
 		return -EINVAL;
 	}
 
-	reg = index / 32U;
-	shift = index % 32U;
+	reg = (u32)index / 32U;
+	shift = (u32)index % 32U;
 	if (secure > 0) {
 		*(stm32_common.rifsc + rifsc_risc_seccfgr0 + reg) |= (1UL << shift);
 	}
@@ -275,7 +275,7 @@ int _stm32_rifsc_risup_change(unsigned int index, int secure, int privileged, in
 }
 
 
-int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged, int cid)
+int _stm32_rifsc_rimc_change(int index, int secure, int privileged, int cid)
 {
 	u32 tmp;
 	if (index >= pctl_rimcs_count) {
