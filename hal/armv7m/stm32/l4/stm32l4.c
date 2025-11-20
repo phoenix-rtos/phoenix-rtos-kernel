@@ -18,6 +18,7 @@
 #include "hal/armv7m/stm32/halsyspage.h"
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "include/errno.h"
 
 #include "hal/arm/scs.h"
@@ -25,7 +26,7 @@
 #include <board_config.h>
 
 #if defined(WATCHDOG) && defined(WATCHDOG_TIMEOUT_MS)
-#warning "This target doesn't support WATCHDOG_TIMEOUT_MS. Watchdog timeout is 31992 ms."
+#error "This target doesn't support WATCHDOG_TIMEOUT_MS. Watchdog timeout is 31992 ms."
 #endif
 
 
@@ -165,6 +166,12 @@ void _stm32_platformInit(void)
 /* RCC (Reset and Clock Controller) */
 
 
+static inline unsigned int stm32_rccDevClkShift(int d, int begin)
+{
+	return (unsigned int)d - (unsigned int)begin;
+}
+
+
 int _stm32_rccSetDevClock(int d, u32 state)
 {
 	u32 t;
@@ -174,28 +181,28 @@ int _stm32_rccSetDevClock(int d, u32 state)
 	/* there are gaps in numeration so values need to compared with both begin and end */
 
 	if (d >= ahb1_begin && d <= ahb1_end) {
-		t = *(stm32_common.rcc + rcc_ahb1enr) & ~(1UL << (d - ahb1_begin));
-		*(stm32_common.rcc + rcc_ahb1enr) = t | (state << (d - ahb1_begin));
+		t = *(stm32_common.rcc + rcc_ahb1enr) & ~(1UL << stm32_rccDevClkShift(d, ahb1_begin));
+		*(stm32_common.rcc + rcc_ahb1enr) = t | (state << stm32_rccDevClkShift(d, ahb1_begin));
 	}
 	else if (d >= ahb2_begin && d <= ahb2_end) {
-		t = *(stm32_common.rcc + rcc_ahb2enr) & ~(1UL << (d - ahb2_begin));
-		*(stm32_common.rcc + rcc_ahb2enr) = t | (state << (d - ahb2_begin));
+		t = *(stm32_common.rcc + rcc_ahb2enr) & ~(1UL << stm32_rccDevClkShift(d, ahb2_begin));
+		*(stm32_common.rcc + rcc_ahb2enr) = t | (state << stm32_rccDevClkShift(d, ahb2_begin));
 	}
 	else if (d >= ahb3_begin && d <= ahb3_end) {
-		t = *(stm32_common.rcc + rcc_ahb3enr) & ~(1UL << (d - ahb3_begin));
-		*(stm32_common.rcc + rcc_ahb3enr) = t | (state << (d - ahb3_begin));
+		t = *(stm32_common.rcc + rcc_ahb3enr) & ~(1UL << stm32_rccDevClkShift(d, ahb3_begin));
+		*(stm32_common.rcc + rcc_ahb3enr) = t | (state << stm32_rccDevClkShift(d, ahb3_begin));
 	}
 	else if (d >= apb1_1_begin && d <= apb1_1_end) {
-		t = *(stm32_common.rcc + rcc_apb1enr1) & ~(1UL << (d - apb1_1_begin));
-		*(stm32_common.rcc + rcc_apb1enr1) = t | (state << (d - apb1_1_begin));
+		t = *(stm32_common.rcc + rcc_apb1enr1) & ~(1UL << stm32_rccDevClkShift(d, apb1_1_begin));
+		*(stm32_common.rcc + rcc_apb1enr1) = t | (state << stm32_rccDevClkShift(d, apb1_1_begin));
 	}
 	else if (d >= apb1_2_begin && d <= apb1_2_end) {
-		t = *(stm32_common.rcc + rcc_apb1enr2) & ~(1UL << (d - apb1_2_begin));
-		*(stm32_common.rcc + rcc_apb1enr2) = t | (state << (d - apb1_2_begin));
+		t = *(stm32_common.rcc + rcc_apb1enr2) & ~(1UL << stm32_rccDevClkShift(d, apb1_2_begin));
+		*(stm32_common.rcc + rcc_apb1enr2) = t | (state << stm32_rccDevClkShift(d, apb1_2_begin));
 	}
 	else if (d >= apb2_begin && d <= apb2_end) {
-		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1UL << (d - apb2_begin));
-		*(stm32_common.rcc + rcc_apb2enr) = t | (state << (d - apb2_begin));
+		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1UL << stm32_rccDevClkShift(d, apb2_begin));
+		*(stm32_common.rcc + rcc_apb2enr) = t | (state << stm32_rccDevClkShift(d, apb2_begin));
 	}
 	else if (d == pctl_rtc) {
 		t = *(stm32_common.rcc + rcc_bdcr) & ~(1UL << 15);
@@ -223,22 +230,22 @@ int _stm32_rccGetDevClock(int d, u32 *state)
 {
 	/* there are gaps in numeration so values need to compared with both begin and end */
 	if ((d >= ahb1_begin) && (d <= ahb1_end)) {
-		*state = (*(stm32_common.rcc + rcc_ahb1enr) & (1UL << (d - ahb1_begin))) == 0U ? 0U : 1U;
+		*state = (*(stm32_common.rcc + rcc_ahb1enr) & (1UL << stm32_rccDevClkShift(d, ahb1_begin))) == 0U ? 0U : 1U;
 	}
 	else if ((d >= ahb2_begin) && (d <= ahb2_end)) {
-		*state = (*(stm32_common.rcc + rcc_ahb2enr) & (1UL << (d - ahb2_begin))) == 0U ? 0U : 1U;
+		*state = (*(stm32_common.rcc + rcc_ahb2enr) & (1UL << stm32_rccDevClkShift(d, ahb2_begin))) == 0U ? 0U : 1U;
 	}
 	else if ((d >= ahb3_begin) && (d <= ahb3_end)) {
-		*state = (*(stm32_common.rcc + rcc_ahb3enr) & (1UL << (d - ahb3_begin))) == 0U ? 0U : 1U;
+		*state = (*(stm32_common.rcc + rcc_ahb3enr) & (1UL << stm32_rccDevClkShift(d, ahb3_begin))) == 0U ? 0U : 1U;
 	}
 	else if ((d >= apb1_1_begin) && (d <= apb1_1_end)) {
-		*state = (*(stm32_common.rcc + rcc_apb1enr1) & (1UL << (d - apb1_1_begin))) == 0U ? 0U : 1U;
+		*state = (*(stm32_common.rcc + rcc_apb1enr1) & (1UL << stm32_rccDevClkShift(d, apb1_1_begin))) == 0U ? 0U : 1U;
 	}
 	else if ((d >= apb1_2_begin) && (d <= apb1_2_end)) {
-		*state = (*(stm32_common.rcc + rcc_apb1enr2) & (1UL << (d - apb1_2_begin))) == 0U ? 0U : 1U;
+		*state = (*(stm32_common.rcc + rcc_apb1enr2) & (1UL << stm32_rccDevClkShift(d, apb1_2_begin))) == 0U ? 0U : 1U;
 	}
 	else if ((d >= apb2_begin) && (d <= apb2_end)) {
-		*state = (*(stm32_common.rcc + rcc_apb2enr) & (1UL << (d - apb2_begin))) == 0U ? 0U : 1U;
+		*state = (*(stm32_common.rcc + rcc_apb2enr) & (1UL << stm32_rccDevClkShift(d, apb2_begin))) == 0U ? 0U : 1U;
 	}
 	else if (d == pctl_rtc) {
 		*state = (*(stm32_common.rcc + rcc_bdcr) & (1UL << 15)) == 0U ? 0U : 1U;
@@ -575,7 +582,7 @@ int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge)
 		return -EINVAL;
 	}
 
-	p = stm32_common.exti + reglut[line >= 32U][edge == 0U ? 0U : 1U];
+	p = stm32_common.exti + reglut[line >= 32U ? 1U : 0U][edge == 0U ? 0U : 1U];
 
 	if (line >= 32U) {
 		line -= 32U;
@@ -724,7 +731,7 @@ int _stm32_gpioGetPort(int d, u16 *val)
 	}
 
 	base = stm32_common.gpio[d - pctl_gpioa];
-	*val = *(base + gpio_idr);
+	*val = (u16)*(base + gpio_idr);
 
 	return EOK;
 }
@@ -846,20 +853,20 @@ void _stm32_init(void)
 #if defined(WATCHDOG)
 	/* Init watchdog */
 	/* Enable write access to IWDG */
-	*(stm32_common.iwdg + iwdg_kr) = 0x5555;
+	*(stm32_common.iwdg + iwdg_kr) = 0x5555U;
 
 	/* Set prescaler to 256, ~30s interval */
-	*(stm32_common.iwdg + iwdg_pr) = 0x06;
-	*(stm32_common.iwdg + iwdg_rlr) = 0xfff;
+	*(stm32_common.iwdg + iwdg_pr) = 0x06U;
+	*(stm32_common.iwdg + iwdg_rlr) = 0xfffU;
 
 	_stm32_wdgReload();
 
 	/* Enable watchdog */
-	*(stm32_common.iwdg + iwdg_kr) = 0xcccc;
+	*(stm32_common.iwdg + iwdg_kr) = 0xccccU;
 #endif
 
 #ifdef NDEBUG
-	*(u32 *)0xe0042004 = 0U;
+	*(u32 *)0xe0042004U = 0U;
 #endif
 
 	/* Disable FPU */

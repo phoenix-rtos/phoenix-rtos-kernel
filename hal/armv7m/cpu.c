@@ -132,6 +132,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_18_1 "We have to store fpuctx next to psr register." */
 		ctx->fpuctx = (u32)(&ctx->hwctx.psr + 1);
 #ifdef CPU_IMXRT
 		ctx->fpscr = 0;
