@@ -203,7 +203,7 @@ static int _imx6ull_setIOmux(int mux, int sion, int mode)
 		/* No action required*/
 	}
 
-	*(base + mux) = ((sion == 0 ? 0U : 1U) << 4) | ((unsigned int)mode & 0xfU);
+	*(base + mux) = ((u32)mode & 0xfU) | ((sion == 0 ? 0UL : 1UL) << 4);
 
 	return 0;
 }
@@ -489,7 +489,7 @@ void _hal_platformInit(void)
 
 	/* copy watchdog Reset Status Register to bootreason[23:16] */
 	imx6ull_bootReason &= 0xff00ffffU;
-	imx6ull_bootReason |= *(imx6ull_common.wdog + wdog_wrsr) << 16;
+	imx6ull_bootReason |= (u32)*(imx6ull_common.wdog + wdog_wrsr) << 16U;
 
 	/* Set ENFC clock to 198 MHz */
 	/* First disable all output clocks */

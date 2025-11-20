@@ -70,7 +70,9 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	h = interrupts.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= h->f(n, ctx, h->data);
+			if (h->f(n, ctx, h->data) != 0) {
+				reschedule = 1;
+			}
 			h = h->next;
 		} while (h != interrupts.handlers[n]);
 	}

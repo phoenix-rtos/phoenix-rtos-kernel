@@ -132,24 +132,20 @@ static const u16 attrMap[] = {
 static void _pmap_asidAlloc(pmap_t *pmap)
 {
 	pmap_t *evicted;
+	++pmap_common.asidptr;
 
-	for (;;) {
-		++pmap_common.asidptr;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "asidptr may be 0 if overflow occurs" */
+	while (pmap_common.asidptr == 0U || pmap_common.asid_map[pmap_common.asidptr] != NULL) {
 		evicted = pmap_common.asid_map[pmap_common.asidptr];
-
-		if (evicted == NULL) {
-			if (pmap_common.asidptr != 0U) {
-				break;
-			}
-		}
-		else {
+		if (evicted != NULL) {
 			if ((hal_cpuGetContextId() & 0xffU) == pmap_common.asids[evicted->asid_ix]) {
 				continue;
 			}
-
 			evicted->asid_ix = 0;
 			break;
 		}
+
+		++pmap_common.asidptr;
 	}
 
 	pmap_common.asid_map[pmap_common.asidptr] = pmap;
@@ -179,6 +175,7 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 		pmap_common.asid_map[pmap_common.asidptr] = NULL;
 
 		if (--pmap_common.asidptr == 0U) {
+			/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "underflow is expected" */
 			pmap_common.asidptr--;
 		}
 
@@ -216,10 +213,10 @@ addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 
 	while (*i < max) {
 		if (pmap->pdir[*i] != 0U) {
-			*i += 4;
-			return pmap->pdir[*i - 4] & ~0xfffU;
+			*i += 4U;
+			return pmap->pdir[*i - 4U] & ~0xfffU;
 		}
-		(*i) += 4;
+		(*i) += 4U;
 	}
 
 	return 0;
@@ -523,12 +520,12 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 {
 	void *vaddr;
 
-	vaddr = (void *)((u32)(*start + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
+	vaddr = (void *)(((ptr_t)*start + SIZE_PAGE - 1U) & ~((ptr_t)SIZE_PAGE - 1U));
 	if ((ptr_t)vaddr >= (ptr_t)end) {
 		return EOK;
 	}
 
-	if (vaddr < (void *)VADDR_KERNEL) {
+	if ((ptr_t)vaddr < VADDR_KERNEL) {
 		vaddr = (void *)VADDR_KERNEL;
 	}
 

@@ -153,8 +153,11 @@ enum {
 	pctl_pad_gpio1_09, pctl_pad_uart1_tx, pctl_pad_uart1_rx, pctl_pad_uart1_cts, pctl_pad_uart1_rts,
 	pctl_pad_uart2_tx, pctl_pad_uart2_rx, pctl_pad_uart2_cts, pctl_pad_uart2_rts, pctl_pad_uart3_tx,
 	pctl_pad_uart3_rx, pctl_pad_uart3_cts, pctl_pad_uart3_rts, pctl_pad_uart4_tx, pctl_pad_uart4_rx,
-	pctl_pad_uart5_tx, pctl_pad_uart5_rx, pctl_pad_enet1_rx0, pctl_pad_enet1_rx1, pctl_pad_enet1_rxen,
-	pctl_pad_enet1_tx0, pctl_pad_enet1_tx1, pctl_pad_enet1_txen, pctl_pad_enet1_txclk, pctl_pad_enet1_rxer,
+	pctl_pad_uart5_tx, pctl_pad_uart5_rx, pctl_pad_enet1_rx0, pctl_pad_enet1_rx1, pctl_pad_enet1_rxen
+};
+
+enum {
+	pctl_pad_enet1_tx0 = 215, pctl_pad_enet1_tx1, pctl_pad_enet1_txen, pctl_pad_enet1_txclk, pctl_pad_enet1_rxer,
 	pctl_pad_enet2_rx0, pctl_pad_enet2_rx1, pctl_pad_enet2_rxen, pctl_pad_enet2_tx0, pctl_pad_enet2_tx1,
 	pctl_pad_enet2_txen, pctl_pad_enet2_txclk, pctl_pad_enet2_rxer, pctl_pad_lcd_clk, pctl_pad_lcd_en,
 	pctl_pad_lcd_hsync, pctl_pad_lcd_vsync, pctl_pad_lcd_rst, pctl_pad_lcd_d0, pctl_pad_lcd_d1, pctl_pad_lcd_d2,
