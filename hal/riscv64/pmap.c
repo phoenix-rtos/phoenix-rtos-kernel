@@ -519,7 +519,7 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 {
 	void *vaddr;
 
-	vaddr = (void *)((ptr_t)(*start + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
+	vaddr = (void *)(((ptr_t)*start + SIZE_PAGE - 1U) & ~((ptr_t)SIZE_PAGE - 1U));
 
 	if ((ptr_t)vaddr >= (ptr_t)end) {
 		return EOK;
