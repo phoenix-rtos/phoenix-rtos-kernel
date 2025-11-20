@@ -19,7 +19,6 @@
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 
 /* clang-format off */
-/* parasoft-begin-suppress MISRAC2012-RULE_5_2 "Names of identifiers taken from RM" */
 
 /* Devices clocks */
 enum {
@@ -393,8 +392,6 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 	pwm2_fault_irq, pwm3_0_irq, pwm3_1_irq, pwm3_2_irq, pwm3_3_irq, pwm3_fault_irq, pwm4_0_irq, pwm4_1_irq, pwm4_2_irq,
 	pwm4_3_irq, pwm4_fault_irq 
 };
-
-/* parasoft-end-suppress MISRAC2012-RULE_5_2 */
 
 
 typedef struct {
