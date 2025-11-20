@@ -58,7 +58,7 @@ static int _hal_pciGetCaps(pci_dev_t *dev, void *caps)
 
 	/* Read capability list */
 	do {
-		if ((offs < 64U) != 0 || (offs % 4U) != 0) {
+		if (offs < 64U || (offs % 4U) != 0U) {
 			return -EFAULT;
 		}
 
@@ -68,8 +68,8 @@ static int _hal_pciGetCaps(pci_dev_t *dev, void *caps)
 
 		/* Get capability length */
 		len = (cap->len >= 4U) ? cap->len - 4U : 0U;
-		if ((len % 4U) != 0) {
-			len = (len + 3U) & ~3U;
+		if ((len % 4U) != 0U) {
+			len = (len + 3U) & (u8)~3U;
 		}
 
 		/* Get capability data */
@@ -79,7 +79,7 @@ static int _hal_pciGetCaps(pci_dev_t *dev, void *caps)
 		}
 
 		offs = cap->next;
-		cap->next = (unsigned char)((u8 *)data - (u8 *)caps) + cap->len;
+		cap->next = (unsigned char)((ptr_t)data - (ptr_t)caps) + cap->len;
 		cap = (pci_cap_t *)((u8 *)data + cap->len);
 		data = (u32 *)cap;
 	} while (offs != 0U);
@@ -122,10 +122,6 @@ int hal_pciSetUsbOwnership(pci_usbownership_t *usbownership)
 	pci_dev_t *dev = &usbownership->dev;
 	u8 osOwned = (u8)usbownership->osOwned;
 	u8 reg = (u8)(usbownership->eecp) >> 2U; /* eecp is a pci config offset */
-
-	if (dev == NULL) {
-		return -EINVAL;
-	}
 
 	hal_spinlockSet(&pci_common.spinlock, &sc);
 	dv = _hal_pciGet(dev->bus, dev->dev, dev->func, reg);

@@ -120,7 +120,7 @@
 #define PORT_PS2_COMMAND ((u16)0x64U)
 
 /* There are objects in memory that require O(MAX_CPU_COUNT^2) memory. */
-#define MAX_CPU_COUNT 64
+#define MAX_CPU_COUNT 64U
 
 #define LAPIC_DEFAULT_ADDRESS 0xfee00000U
 

@@ -124,6 +124,7 @@ static inline void _hal_ioapicRoundRobin(unsigned int n)
 			}
 			hal_spinlockSet(&interrupts_common.sp_ioapic, &ctx);
 			_hal_ioapicReadIRQ(interrupts_common.irqs[n].ioapic, n, &high, &low);
+			/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 MISRAC2012-RULE_1_3 "CPU count is non-zero" */
 			high = hal_cpu.cpus[(hal_cpuGetID() + 1U) % hal_cpuGetCount()];
 			_hal_ioapicWriteIRQ(interrupts_common.irqs[n].ioapic, n, high << 24, low);
 			hal_spinlockClear(&interrupts_common.sp_ioapic, &ctx);
@@ -256,8 +257,10 @@ static int _interrupts_setIDTEntry(unsigned int n, void (*addr)(void), u32 type)
 		return -EINVAL;
 	}
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_11_1 "Must pass the address of interrupt handler to hw reg" */
 	w0 = ((u32)addr & 0xffff0000U);
 	w1 = ((u32)addr & 0x0000ffffU);
+	/* parasoft-end-suppress MISRAC2012-RULE_11_1 */
 	type &= 0xef00U;
 
 	w0 |= type;
@@ -283,6 +286,8 @@ char *hal_interruptsFeatures(char *features, size_t len)
 			(void)hal_strncpy(features, "Using unknown interrupt controller", len);
 			break;
 	}
+
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "len is always non-zero" */
 	features[len - 1U] = '\0';
 
 	return features;
@@ -352,6 +357,7 @@ static int _hal_ioapicInit(void)
 
 	interrupts_common.systickIRQ = SYSTICK_IRQ;
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_11_2 "&madt->entries is hardware provided and points to the first MADT element" */
 	/* Parse ACPI MADT table: find all LAPICs */
 	for (e = (void *)&madt->entries; (u32)e < (u32)madt + madt->header.length; e = (void *)e + e->length) {
 		if (e->type == MADT_TYPE_PROCESSOR_LOCAL_APIC) {
@@ -367,7 +373,7 @@ static int _hal_ioapicInit(void)
 		if (e->type == MADT_TYPE_IOAPIC) {
 			ioapic = (void *)e;
 			if (ioapic->globalSystemInterruptBase == 0U) { /* We ignore every IOAPIC except the first one */
-				ptr = _hal_configMapDevice((u32 *)(syspage->hs.pdir + VADDR_KERNEL), ioapic->ioApicAddress, SIZE_PAGE, (int)PGHD_WRITE);
+				ptr = _hal_configMapDevice((u32 *)(syspage->hs.pdir + VADDR_KERNEL), ioapic->ioApicAddress, SIZE_PAGE, PGHD_WRITE);
 				/* Read how many entries does this IOAPIC handle */
 				n = ((_hal_ioapicRead(ptr, IOAPIC_VERREG) >> 16) & 0xffU) + 1U;
 				if (n > SIZE_INTERRUPTS) {
@@ -433,6 +439,7 @@ static int _hal_ioapicInit(void)
 			}
 		}
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_11_1 */
 
 	/* Enable all IRQS */
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {

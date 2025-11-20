@@ -1601,7 +1601,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
 		case F_DUPFD:
-			GETFROMSTACK(ustack, int, fd2, 2);
+			GETFROMSTACK(ustack, int, fd2, 2U);
 			err = posix_fcntlDup(fd, fd2, (cmd == (unsigned int)F_DUPFD_CLOEXEC) ? 1 : 0);
 			break;
 
@@ -1610,7 +1610,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFD:
-			GETFROMSTACK(ustack, unsigned long, arg, 2);
+			GETFROMSTACK(ustack, unsigned long, arg, 2U);
 			err = posix_fcntlSetFd(fd, (unsigned int)arg);
 			break;
 
@@ -1619,7 +1619,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFL:
-			GETFROMSTACK(ustack, unsigned int, arg, 2);
+			GETFROMSTACK(ustack, unsigned int, arg, 2U);
 			err = posix_fcntlSetFl(fd, (unsigned int)arg);
 			break;
 

@@ -222,7 +222,7 @@ extern hal_config_t hal_config;
 
 static inline int hal_isLapicPresent(void)
 {
-	return hal_config.localApicAddr != NULL;
+	return (int)(hal_config.localApicAddr != NULL);
 }
 
 

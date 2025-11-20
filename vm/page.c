@@ -107,6 +107,10 @@ void vm_pageFree(page_t *p)
 	unsigned int idx, i;
 	page_t *lh = p, *rh = p;
 
+	if (p == NULL) {
+		return;
+	}
+
 	(void)proc_lockSet(&pages_info.lock);
 
 	if ((lh->flags & PAGE_FREE) != 0U) {

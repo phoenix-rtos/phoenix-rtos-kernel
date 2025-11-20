@@ -90,9 +90,9 @@ void hal_memset(void *dst, int v, size_t l)
 
 size_t hal_strlen(const char *s)
 {
-	unsigned int k;
+	unsigned int k = 0;
 
-	for (k = 0; *s != '\0'; s++) {
+	for (; *s != '\0'; s++) {
 		k++;
 	}
 
@@ -170,10 +170,12 @@ char *hal_strncpy(char *dest, const char *src, size_t n)
 		return dest;
 	}
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_18_1 "src is assumed to end with a null-byte" */
 	do {
 		dest[i] = src[i];
 		i++;
 	} while (i < n && src[i - 1U] != '\0');
+	/* parasoft-end-suppress MISRAC2012-RULE_18_1 */
 
 	return dest;
 }

@@ -21,6 +21,8 @@
 #include "hal/ia32/console.h"
 #include "ia32.h"
 
+#include "lib/assert.h"
+
 
 /* ANSI escape sequence states */
 enum {
@@ -32,28 +34,28 @@ enum {
 
 
 /* ANSI code to VGA foreground character attribute conversion table */
-static const unsigned char ansi2fg[] = {
+static const u8 ansi2fg[] = {
 	0x00, 0x04, 0x02, 0x06,
 	0x01, 0x05, 0x03, 0x07
 };
 
 
 /* ANSI code to VGA background character attribute conversion table */
-static const unsigned char ansi2bg[] = {
+static const u8 ansi2bg[] = {
 	0x00, 0x40, 0x20, 0x60,
 	0x10, 0x50, 0x30, 0x70
 };
 
 
 static struct {
-	volatile u16 *vram;      /* Video memory */
-	u16 crtc;                /* CRT controller register */
-	unsigned int rows;       /* Console height */
-	unsigned int cols;       /* Console width */
-	unsigned char attr;      /* Character attribute */
-	unsigned char esc;       /* Escape sequence state */
-	unsigned char parmi;     /* Escape sequence parameter index */
-	unsigned char params[10]; /* Escape sequence parameters buffer */
+	volatile u16 *vram; /* Video memory */
+	u16 crtc;           /* CRT controller register */
+	unsigned int rows;  /* Console height */
+	unsigned int cols;  /* Console width */
+	u8 attr;            /* Character attribute */
+	u8 esc;             /* Escape sequence state */
+	u8 parmi;           /* Escape sequence parameter index */
+	u8 params[10];      /* Escape sequence parameters buffer */
 	spinlock_t spinlock;
 } halconsole_common;
 
@@ -78,8 +80,8 @@ static void console_memmove(volatile u16 *dst, volatile u16 *src, unsigned int n
 		}
 	}
 	else {
-		for (i = n; i--;) {
-			dst[i] = src[i];
+		for (i = n; i > 0U; i++) {
+			dst[i - 1U] = src[i - 1U];
 		}
 	}
 }
@@ -175,11 +177,11 @@ static void _hal_consolePrint(const char *s)
 						case '8':
 						case '9':
 							halconsole_common.params[halconsole_common.parmi] *= 10U;
-							halconsole_common.params[halconsole_common.parmi] += (unsigned char)(c - '0');
+							halconsole_common.params[halconsole_common.parmi] += (u8)c - (u8)'0';
 							break;
 
 						case ';':
-							if (halconsole_common.parmi + 1U < (unsigned char)sizeof(halconsole_common.params)) {
+							if (halconsole_common.parmi + 1U < (u8)sizeof(halconsole_common.params)) {
 								halconsole_common.parmi++;
 							}
 							break;
@@ -193,7 +195,7 @@ static void _hal_consolePrint(const char *s)
 								halconsole_common.params[0] = 1;
 							}
 							else if (halconsole_common.params[0] > halconsole_common.rows) {
-								halconsole_common.params[0] = (unsigned char)halconsole_common.rows;
+								halconsole_common.params[0] = (u8)halconsole_common.rows;
 							}
 							else {
 								/* No action required */
@@ -203,7 +205,7 @@ static void _hal_consolePrint(const char *s)
 								halconsole_common.params[1] = 1;
 							}
 							else if (halconsole_common.params[1] > halconsole_common.cols) {
-								halconsole_common.params[1] = (unsigned char)halconsole_common.cols;
+								halconsole_common.params[1] = (u8)halconsole_common.cols;
 							}
 							else {
 								/* No action required */
@@ -294,37 +296,27 @@ static void _hal_consolePrint(const char *s)
 						case '8':
 						case '9':
 							halconsole_common.params[halconsole_common.parmi] *= 10U;
-							halconsole_common.params[halconsole_common.parmi] += (unsigned char)(c - '0');
+							halconsole_common.params[halconsole_common.parmi] += (u8)c - (u8)'0';
 							break;
 
 						case ';':
-							if (halconsole_common.parmi + 1U < (unsigned char)sizeof(halconsole_common.params)) {
+							if (halconsole_common.parmi + 1U < (u8)sizeof(halconsole_common.params)) {
 								halconsole_common.parmi++;
 							}
 							break;
 
 						case 'h':
-							switch (halconsole_common.params[0]) {
-								case 25:
-									hal_outb(halconsole_common.crtc, 0x0a);
-									hal_outb(halconsole_common.crtc + 1U, hal_inb(halconsole_common.crtc + 1U) & (u8)~0x20U);
-									break;
-
-								default:
-									/* No action required */
+							if (halconsole_common.params[0] == 25U) {
+								hal_outb(halconsole_common.crtc, 0x0a);
+								hal_outb(halconsole_common.crtc + 1U, hal_inb(halconsole_common.crtc + 1U) & (u8)~0x20U);
 							}
 							halconsole_common.esc = esc_init;
 							break;
 
 						case 'l':
-							switch (halconsole_common.params[0]) {
-								case 25:
-									hal_outb(halconsole_common.crtc, 0x0a);
-									hal_outb(halconsole_common.crtc + 1U, hal_inb(halconsole_common.crtc + 1U) | 0x20U);
-									break;
-
-								default:
-									/* No action required */
+							if (halconsole_common.params[0] == 25U) {
+								hal_outb(halconsole_common.crtc, 0x0a);
+								hal_outb(halconsole_common.crtc + 1U, hal_inb(halconsole_common.crtc + 1U) | 0x20U);
 							}
 							halconsole_common.esc = esc_init;
 							break;
@@ -348,6 +340,7 @@ static void _hal_consolePrint(const char *s)
 
 		/* Scroll down */
 		if (row == halconsole_common.rows) {
+			LIB_ASSERT_ALWAYS(halconsole_common.rows != 0U, "console height is zero");
 			i = halconsole_common.cols * (halconsole_common.rows - 1U);
 			console_memmove(halconsole_common.vram, halconsole_common.vram + halconsole_common.cols, i);
 			console_memset(halconsole_common.vram + i, (u16)halconsole_common.attr << 8 | (u16)' ', halconsole_common.cols);
@@ -361,7 +354,7 @@ static void _hal_consolePrint(const char *s)
 		hal_outb(halconsole_common.crtc + 1U, (u8)(i >> 8));
 		hal_outb(halconsole_common.crtc, 0x0f);
 		hal_outb(halconsole_common.crtc + 1U, (u8)i);
-		*((u8 *)(halconsole_common.vram + i) + 1U) = halconsole_common.attr;
+		*((volatile u8 *)(halconsole_common.vram + i) + 1U) = halconsole_common.attr;
 	}
 
 	hal_spinlockClear(&halconsole_common.spinlock, &sc);
@@ -393,7 +386,7 @@ void hal_consoleVGAPutch(char c)
 
 __attribute__((section(".init"))) void _hal_consoleVGAInit(void)
 {
-	unsigned char color;
+	u8 color;
 
 	/* Check color support */
 	color = hal_inb((u16)0x3cc) & 0x01U;
@@ -409,5 +402,6 @@ __attribute__((section(".init"))) void _hal_consoleVGAInit(void)
 	hal_spinlockCreate(&halconsole_common.spinlock, "console.spinlock");
 
 	/* Clear console */
+	/* parasoft-suppress-next-line MISRAC2012-RULE_4_1 "Escape sequence clearly terminates at '['" */
 	_hal_consolePrint("\033[2J\033[H");
 }

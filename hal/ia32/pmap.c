@@ -49,7 +49,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 	hal_memset(pmap->pdir, 0, SIZE_PAGE);
 	vaddr = (void *)((VADDR_KERNEL + SIZE_PAGE) & ~(SIZE_PAGE - 1U));
 
-	pages = (u32)((void *)0xffffffffU - vaddr) / (SIZE_PAGE << 10);
+	pages = (u32)(0xffffffffU - (u32)vaddr) / (SIZE_PAGE << 10U);
 	for (i = 0; i < pages; ++i) {
 		pmap->pdir[(u32)vaddr >> 22] = kpmap->pdir[(u32)vaddr >> 22];
 		vaddr += (SIZE_PAGE << 10);
@@ -80,14 +80,14 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page_t *alloc, int tlbInval)
+int _pmap_enter(u32 *pdir, addr_t *pt, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc, int tlbInval)
 {
 	addr_t addr;
 	addr_t *ptable;
 	u32 pdi, pti;
 
-	pdi = (u32)va >> 22;
-	pti = ((u32)va >> 12) & 0x000003ffU;
+	pdi = (u32)vaddr >> 22;
+	pti = ((u32)vaddr >> 12) & 0x000003ffU;
 
 	/* If no page table is allocated add new one */
 	if (pdir[pdi] == 0U) {
@@ -110,13 +110,13 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page
 	hal_tlbInvalidateLocalEntry(NULL, pt);
 
 	/* And at last map page or only changle attributes of map entry */
-	pt[pti] = ((pa & ~(SIZE_PAGE - 1U)) | ((addr_t)attr & 0xfffU) | PGHD_PRESENT);
+	pt[pti] = ((paddr & ~(SIZE_PAGE - 1U)) | ((addr_t)attr & 0xfffU) | PGHD_PRESENT);
 
 	if (tlbInval != 0) {
-		hal_tlbInvalidateEntry(NULL, va, 1U);
+		hal_tlbInvalidateEntry(NULL, vaddr, 1U);
 	}
 	else {
-		hal_tlbInvalidateLocalEntry(NULL, va);
+		hal_tlbInvalidateLocalEntry(NULL, vaddr);
 	}
 
 	return EOK;
@@ -124,13 +124,13 @@ int _pmap_enter(u32 *pdir, addr_t *pt, addr_t pa, void *va, vm_attr_t attr, page
 
 
 /* Functions maps page at specified address */
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	spinlock_ctx_t sc;
 	int ret;
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
-	ret = _pmap_enter(pmap->pdir, hal_config.ptable, pa, vaddr, attr, alloc, 1);
+	ret = _pmap_enter(pmap->pdir, hal_config.ptable, paddr, vaddr, attr, alloc, 1);
 	if (ret == EOK) {
 		hal_tlbCommit(&pmap_common.lock, &sc);
 	}
@@ -331,26 +331,26 @@ int pmap_getPage(page_t *page, addr_t *addr)
 /* Function allocates page tables for kernel space */
 int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 {
-	void *vaddr;
+	ptr_t vaddr;
 
-	vaddr = (void *)((u32)(*start + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
-	if (vaddr >= end) {
+	vaddr = ((ptr_t)*start + SIZE_PAGE - 1U) & ~((ptr_t)SIZE_PAGE - 1U);
+	if (vaddr >= (ptr_t)end) {
 		return EOK;
 	}
 
-	if (vaddr < (void *)VADDR_KERNEL) {
-		vaddr = (void *)VADDR_KERNEL;
+	if (vaddr < VADDR_KERNEL) {
+		vaddr = VADDR_KERNEL;
 	}
 
 	/* It is called only from _page_init, so there is no need for spinlocks and TLB shootdowns */
-	for (; vaddr < end; vaddr += (SIZE_PAGE << 10)) {
-		if (_pmap_enter(pmap->pdir, hal_config.ptable, 0U, vaddr, 0U, NULL, 0) < 0) {
-			if (_pmap_enter(pmap->pdir, hal_config.ptable, 0U, vaddr, 0U, dp, 0) < 0) {
+	for (; vaddr < (ptr_t)end; vaddr += (SIZE_PAGE << 10)) {
+		if (_pmap_enter(pmap->pdir, hal_config.ptable, 0U, (void *)vaddr, 0U, NULL, 0) < 0) {
+			if (_pmap_enter(pmap->pdir, hal_config.ptable, 0U, (void *)vaddr, 0U, dp, 0) < 0) {
 				return -ENOMEM;
 			}
 			dp = NULL;
 		}
-		*start = vaddr;
+		*start = (void *)vaddr;
 	}
 	hal_tlbFlushLocal(NULL);
 

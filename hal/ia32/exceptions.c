@@ -66,11 +66,13 @@ void exceptions_exc7_handler(unsigned int n, exc_context_t *ctx);
 #define SIZE_EXCHANDLERS 32U
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Struct accessed from assembly" */
 struct {
 	excHandlerFn_t handlers[SIZE_EXCHANDLERS]; /* this field should be always first because of assembly stub */
 	excHandlerFn_t defaultHandler;
 	spinlock_t lock;
 } exceptions;
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 
 vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
@@ -89,7 +91,7 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 		prot |= PROT_USER;
 	}
 
-	return (int)prot;
+	return prot;
 }
 
 
@@ -200,13 +202,11 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
-
-	return;
+#endif
 }
 
 
@@ -241,13 +241,15 @@ int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 
 
 /* Function setups interrupt stub in IDT */
-__attribute__((section(".init"))) void _exceptions_setIDTStub(unsigned int n, void (*addr)(void))
+static __attribute__((section(".init"))) void _exceptions_setIDTStub(unsigned int n, void (*addr)(void))
 {
 	u32 w0, w1;
 	u32 *idtr;
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_11_1 "Must pass the address of exception handler to hw reg" */
 	w0 = ((u32)addr & 0xffff0000U);
 	w1 = ((u32)addr & 0x0000ffffU);
+	/* parasoft-end-suppress MISRAC2012-RULE_11_1 */
 	w0 |= IGBITS_DPL3 | IGBITS_PRES | IGBITS_SYSTEM | IGBITS_IRQEXC;
 	w1 |= ((u32)SEL_KCODE << 16);
 
@@ -265,7 +267,7 @@ __attribute__((section(".init"))) void _hal_exceptionsInit(void)
 	unsigned int k;
 
 	hal_spinlockCreate(&exceptions.lock, "exceptions.lock");
-	exceptions.defaultHandler = (void *)exceptions_defaultHandler;
+	exceptions.defaultHandler = exceptions_defaultHandler;
 
 	_exceptions_setIDTStub(0U, _exceptions_exc0);
 	_exceptions_setIDTStub(1U, _exceptions_exc1);

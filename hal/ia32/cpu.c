@@ -91,8 +91,7 @@ unsigned int hal_cpuGetTlsIndex(void)
 
 
 /* hal_cpuSupervisorMode is called in asm code, so it must reside in .c file */
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_10 "Function called in assembly" */
-inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
+int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
 	return (int)((ctx->cs & 3U) == 0U);
 }
@@ -144,7 +143,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->ecx = 0U;
 	ctx->ebx = 0U;
 	ctx->eax = 0U;
-	ctx->gs = (ustack != NULL) ? (8U * hal_cpuGetTlsIndex() | 3U) : SEL_KDATA;
+	ctx->gs = (ustack != NULL) ? (u16)(8U * hal_cpuGetTlsIndex() | 3U) : SEL_KDATA;
 	ctx->fs = (ustack != NULL) ? SEL_UDATA : SEL_KDATA;
 	ctx->es = (ustack != NULL) ? SEL_UDATA : SEL_KDATA;
 	ctx->ds = (ustack != NULL) ? SEL_UDATA : SEL_KDATA;
@@ -172,14 +171,6 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 }
 
 
-void _hal_cpuSetKernelStack(void *kstack)
-{
-	const unsigned int id = hal_cpuGetID();
-	hal_cpu.tss[id].ss0 = SEL_KDATA;
-	hal_cpu.tss[id].esp0 = (u32)kstack;
-}
-
-
 int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
@@ -195,6 +186,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	signalCtx->eip = (u32)handler;
 	signalCtx->esp -= sizeof(cpu_context_t);
 
@@ -356,8 +348,17 @@ static void _cpu_gdtInsert(unsigned int idx, u32 base, u32 limit, u32 type)
 }
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_22_12 "CPU-related HAL code is responsible for TSS management" */
+void _hal_cpuSetKernelStack(void *kstack)
+{
+	const unsigned int id = hal_cpuGetID();
+	hal_cpu.tss[id].ss0 = SEL_KDATA;
+	hal_cpu.tss[id].esp0 = (u32)kstack;
+}
+
+
 /* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Called from assembly" */
 void *_cpu_initCore(void)
 {
 	const unsigned int id = hal_cpuGetID();
@@ -406,6 +407,7 @@ void *_cpu_initCore(void)
 	return (void *)hal_cpu.tss[id].esp0;
 }
 /* parasoft-end-suppress MISRAC2012-DIR_4_3 */
+/* parasoft-end-suppress MISRAC2012-RULE_22_12 */
 
 
 static void _hal_cpuInitCores(void)

@@ -59,7 +59,7 @@ static int _hal_addMemEntry(addr_t start, u32 length, u32 flags)
 
 static inline int _hal_findFreePage(page_t *page)
 {
-	int ret;
+	int ret = -ENOMEM;
 	while (init_common.pageIterator < 0xffff0000U) {
 		ret = pmap_getPage(page, &init_common.pageIterator);
 		if ((ret != EOK) || ((page->flags & PAGE_FREE) != 0U)) {
@@ -70,11 +70,11 @@ static inline int _hal_findFreePage(page_t *page)
 }
 
 
-static inline int _hal_configMapPage(u32 *pdir, addr_t pa, void *va, int attr)
+static inline int _hal_configMapPage(u32 *pdir, addr_t paddr, void *vaddr, vm_attr_t attr)
 {
-	page_t page;
+	page_t page = { 0 };
 	addr_t *ptable;
-	int ret = _pmap_enter(pdir, hal_config.ptable, pa, va, attr, NULL, 0);
+	int ret = _pmap_enter(pdir, hal_config.ptable, paddr, vaddr, attr, NULL, 0);
 	if (ret < 0) {
 		ret = _hal_findFreePage(&page);
 		if (ret == EOK) {
@@ -84,7 +84,7 @@ static inline int _hal_configMapPage(u32 *pdir, addr_t pa, void *va, int attr)
 				ptable[((u32)hal_config.ptable >> 12) & 0x000003ffU] = (page.addr & ~(SIZE_PAGE - 1U)) | (PGHD_WRITE | PGHD_PRESENT);
 				hal_tlbInvalidateLocalEntry(NULL, hal_config.ptable);
 				hal_memset(hal_config.ptable, 0, SIZE_PAGE);
-				ret = _pmap_enter(pdir, hal_config.ptable, pa, va, attr, &page, 0);
+				ret = _pmap_enter(pdir, hal_config.ptable, paddr, vaddr, attr, &page, 0);
 			}
 		}
 	}
@@ -92,10 +92,10 @@ static inline int _hal_configMapPage(u32 *pdir, addr_t pa, void *va, int attr)
 }
 
 
-static void *_hal_configMapObject(u32 *pdir, addr_t start, void **va, size_t size, vm_attr_t attr)
+static void *_hal_configMapObject(u32 *pdir, addr_t start, void **vaddr, size_t size, vm_attr_t attr)
 {
 	void *result;
-	addr_t end = start + size, pa;
+	addr_t end = start + size, paddr;
 	u32 offset;
 	int ret;
 
@@ -106,14 +106,14 @@ static void *_hal_configMapObject(u32 *pdir, addr_t start, void **va, size_t siz
 	offset = start;
 	start &= ~(SIZE_PAGE - 1U);
 	offset -= start;
-	result = *va;
-	for (pa = start; pa < end; pa += SIZE_PAGE) {
-		ret = _hal_configMapPage(pdir, pa, *va, attr);
+	result = *vaddr;
+	for (paddr = start; paddr < end; paddr += SIZE_PAGE) {
+		ret = _hal_configMapPage(pdir, paddr, *vaddr, attr);
 		if (ret != EOK) {
-			*va = result;
+			*vaddr = result;
 			return NULL;
 		}
-		*va += SIZE_PAGE;
+		*vaddr += SIZE_PAGE;
 	}
 	return result + offset;
 }
@@ -166,8 +166,8 @@ static inline void _hal_configMemoryInit(void)
 	(void)_hal_addMemEntry(0U, SIZE_PAGE, PAGE_OWNER_KERNEL);
 	/* Add GDT and IDT to memory map. Note: according to IA32 specification, size of gdtr and idtr is 1 more
 	   than the value we extract from syspage. */
-	(void)_hal_addMemEntry(syspage->hs.gdtr.addr - VADDR_KERNEL, syspage->hs.gdtr.size + 1U, PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
-	(void)_hal_addMemEntry(syspage->hs.idtr.addr - VADDR_KERNEL, syspage->hs.idtr.size + 1U, PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
+	(void)_hal_addMemEntry(syspage->hs.gdtr.addr - VADDR_KERNEL, (u32)syspage->hs.gdtr.size + 1U, PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
+	(void)_hal_addMemEntry(syspage->hs.idtr.addr - VADDR_KERNEL, (u32)syspage->hs.idtr.size + 1U, PAGE_OWNER_KERNEL | PAGE_KERNEL_CPU);
 	/* Add stack, page directory, page table, ebda and kernel to memory map */
 	(void)_hal_addMemEntry(syspage->hs.pdir, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
 	(void)_hal_addMemEntry(syspage->hs.ptable, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);

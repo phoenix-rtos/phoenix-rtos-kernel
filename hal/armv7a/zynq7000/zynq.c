@@ -47,7 +47,10 @@ enum {
 	slcr_reboot_status = 0x96, slcr_boot_mode,
 	slcr_apu_control = 0xc0, slcr_wdt_clk_sel,
 	slcr_tz_dma_ns = 0x110, slcr_tz_dma_irq_ns, slcr_tz_dma_periph_ns,
-	slcr_pss_idcode = 0x14c,
+	slcr_pss_idcode = 0x14c
+};
+
+enum {
 	slcr_ddr_urgent = 0x180,
 	slcr_ddr_cal_start = 0x183,
 	slcr_ddr_ref_start = 0x185, slcr_ddr_cmd_sta, slcr_ddr_urgent_sel, slcr_ddr_dfi_status,
@@ -75,7 +78,6 @@ enum {
 	slcr_ddriob_addr0 = 0x2d0, slcr_ddriob_addr1, slcr_ddriob_data0, slcr_ddriob_data1, slcr_ddriob_diff0, slcr_ddriob_diff1, slcr_ddriob_clock, slcr_ddriob_drive_slew_addr,
 	slcr_ddriob_drive_slew_data, slcr_ddriob_drive_slew_diff, slcr_ddriob_drive_slew_clock, slcr_ddriob_ddr_ctrl, slcr_ddriob_dci_ctrl, slcr_ddriob_dci_status,
 };
-
 
 enum {
 	l2cc_ctrl = 0x40, l2cc_aux_ctrl, l2cc_tag_ram_ctrl, l2cc_data_ram_ctrl,

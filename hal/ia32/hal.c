@@ -69,6 +69,11 @@ void hal_wdgReload(void)
 }
 
 
+void _hal_platformInit(void)
+{
+}
+
+
 void _hal_init(void)
 {
 
