@@ -25,6 +25,11 @@
 #include "include/arch/armv8r/mps3an536/syspage.h"
 #include "include/syspage.h"
 
+
+#define MPUTEST_GPIO_CLR(pin) ;
+#define MPUTEST_GPIO_SET(pin) ;
+
+
 #endif
 
 

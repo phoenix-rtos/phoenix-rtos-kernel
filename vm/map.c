@@ -939,9 +939,9 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 		return -ENOMEM;
 	}
 
-	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmap.pmapp, map->pmap.pmapv);
+	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmap.pmapp, NULL, map->pmap.pmapv);
 #else
-	pmap_create(&map->pmap, &map_common.kmap->pmap, NULL, NULL);
+	pmap_create(&map->pmap, &map_common.kmap->pmap, NULL, NULL, NULL);
 #endif
 
 	proc_lockInit(&map->lock, &proc_lockAttrDefault, "map.map");

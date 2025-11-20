@@ -34,6 +34,10 @@
 
 #define HAL_NAME_PLATFORM "STM32N6 "
 
+
+#define MPUTEST_GPIO_CLR(pin) ;
+#define MPUTEST_GPIO_SET(pin) ;
+
 #endif
 
 #endif

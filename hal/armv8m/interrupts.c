@@ -60,7 +60,10 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	hal_spinlockClear(&interrupts.spinlock, &sc);
 
 	if (reschedule != 0) {
+		// #MPUTEST: TEST SCHEDULE TIME
+		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 		threads_schedule(n, ctx, NULL);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 	}
 }
 

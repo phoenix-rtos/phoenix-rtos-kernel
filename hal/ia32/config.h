@@ -21,6 +21,9 @@
 #include "include/arch/ia32/syspage.h"
 #include "include/syspage.h"
 
+#define MPUTEST_GPIO_SET(x) ;
+#define MPUTEST_GPIO_CLR(x) ;
+
 #endif
 
 

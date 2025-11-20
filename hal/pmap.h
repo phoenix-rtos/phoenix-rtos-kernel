@@ -17,6 +17,7 @@
 #define _HAL_PMAP_H_
 
 #include <arch/pmap.h>
+#include "hal/hal.h"
 
 
 static inline int pmap_belongs(pmap_t *pmap, void *addr)
@@ -25,7 +26,7 @@ static inline int pmap_belongs(pmap_t *pmap, void *addr)
 }
 
 
-extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
+extern int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, syspage_prog_t *prog, void *vaddr);
 
 
 extern addr_t pmap_destroy(pmap_t *pmap, int *i);

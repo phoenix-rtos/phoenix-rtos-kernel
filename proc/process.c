@@ -14,6 +14,7 @@
  * %LICENSE%
  */
 
+#include "hal/console.h"
 #include "hal/hal.h"
 #include "hal/elf.h"
 #include "include/errno.h"
@@ -769,6 +770,9 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 	hal_memset(reloc, 0, sizeof(reloc));
 
+	// hal_consolePrint(ATTR_NORMAL, "Process loading...\n");
+	// hal_consolePrint(ATTR_NORMAL, process->path);
+
 	for (i = 0, j = 0, phdr = (void *)ehdr + ehdr->e_phoff; i < ehdr->e_phnum; i++, phdr++) {
 		if (phdr->p_type == PT_GNU_STACK && phdr->p_memsz != 0) {
 			stacksz = round_page(phdr->p_memsz);
@@ -837,6 +841,9 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 		reloc[j].misalign = phdr->p_offset & (phdr->p_align - 1);
 		++relocsz;
 		++j;
+		// char b[64];
+		// lib_sprintf(b, "Mapped segment: vbase=%p pbase=%p size=%zu\n", reloc[j-1].vbase, reloc[j-1].pbase, reloc[j-1].size);
+		// hal_consolePrint(ATTR_NORMAL, b);
 	}
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
@@ -1053,7 +1060,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 	(void)i;
 #else
-	pmap_create(&current->process->map.pmap, NULL, NULL, &spawn->prog->hal);
+	pmap_create(&current->process->map.pmap, NULL, NULL, spawn->prog, NULL);
 	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
 	current->process->entries = NULL;
 

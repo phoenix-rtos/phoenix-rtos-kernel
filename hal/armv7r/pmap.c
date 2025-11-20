@@ -16,10 +16,15 @@
 #include "hal/pmap.h"
 
 #include "config.h"
+#include "hal/arm/scs.h"
+#include "hal/console.h"
+#include "hal/spinlock.h"
+#include "include/syspage.h"
 #include "syspage.h"
 #include "halsyspage.h"
 #include <arch/cpu.h>
 #include <arch/spinlock.h>
+#include "lib/lib.h"
 
 
 /* Linker symbols */
@@ -30,10 +35,15 @@ u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
 
 
 static struct {
+	volatile u32 *mpu;
 	unsigned int kernelCodeRegion;
 	spinlock_t lock;
-	int mpu_enabled;
+	int last_mpu_count;
 } pmap_common;
+// static char b[200];
+
+
+#define MPU_LOC ((u32 *)0xe000ed90)
 
 
 static void pmap_mpu_setMemRegionNumber(u32 num)
@@ -98,9 +108,9 @@ static void pmap_mpu_disable(void)
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, syspage_prog_t *prog, void *vaddr)
 {
-	pmap->regions = pmap_common.kernelCodeRegion;
+	pmap->prog = prog;
 	return 0;
 }
 
@@ -113,10 +123,9 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 
 static unsigned int pmap_map2region(unsigned int map)
 {
-	if (pmap_common.mpu_enabled == 0) {
-		return 1;
-	}
-
+#ifndef MPUTEST_ORGIMPL
+	return 0xffff;
+#else
 	int i;
 	unsigned int mask = 0;
 
@@ -127,15 +136,12 @@ static unsigned int pmap_map2region(unsigned int map)
 	}
 
 	return mask;
+#endif
 }
 
 
 int pmap_addMap(pmap_t *pmap, unsigned int map)
 {
-	if (pmap_common.mpu_enabled == 0) {
-		return 0;
-	}
-
 	unsigned int rmask = pmap_map2region(map);
 	if (rmask == 0) {
 		return -1;
@@ -147,13 +153,12 @@ int pmap_addMap(pmap_t *pmap, unsigned int map)
 }
 
 
+#ifdef MPUTEST_ORGIMPL
+
 void pmap_switch(pmap_t *pmap)
 {
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 	spinlock_ctx_t sc;
-	if (pmap_common.mpu_enabled == 0) {
-		return;
-	}
 
 	if (pmap != NULL) {
 		hal_spinlockSet(&pmap_common.lock, &sc);
@@ -164,11 +169,61 @@ void pmap_switch(pmap_t *pmap)
 			/* Enable/disable region according to the mask */
 			pmap_mpu_setMemRegionStatus((pmap->regions & (1 << i)) != 0);
 		}
+		hal_spinlockClear(&pmap_common.lock, &sc);
+	}
+}
+
+#else /* MPUTEST_ORGIMPL */
+
+void pmap_switch(pmap_t *pmap)
+{
+	unsigned int i;
+	spinlock_ctx_t sc;
+
+	if (pmap != NULL) {
+		hal_spinlockSet(&pmap_common.lock, &sc);
+
+		/* Disable MPU */
+		pmap_mpu_disable();
+
+
+#ifdef MPUTEST_ASMOPT
+#error "ASMOPT not yet supported by v7r: could use precomputations and single store for triplet of registers"
+#else /* MPUTEST_ASMOPT */
+
+#ifdef MPUTEST_FORCEALL
+		for (i = 0; i < (u8)(syspage->hs.mpu.type >> 8); ++i) {
+#else
+		for (i = 0; i < pmap->prog->hal.allocCnt; ++i) {
+#endif
+			pmap_mpu_setMemRegionNumber(i);
+			pmap_mpu_setMemRegionRbar(pmap->prog->hal.table[i].rbar);
+			pmap_mpu_setMemRegionRasr(pmap->prog->hal.table[i].rasr);
+		}
+
+#if !defined(MPUTEST_FORCEALL)
+
+		// #MPUTEST: with MPUTEST_ASMOPT opt here is omitted because most pmap will have similar allocCnt,
+		// and i is incremented by 4 in asm loop so this shouldn't have large impact
+
+		/* Disable all remaining regions */
+		for (; i < pmap_common.last_mpu_count; i++) {
+			pmap_mpu_setMemRegionNumber(i);
+			pmap_mpu_setMemRegionStatus(0);
+		}
+		pmap_common.last_mpu_count = pmap->prog->hal.allocCnt;
+#endif
+
+#endif /* MPUTEST_ASMOPT */
+
+		/* Enable MPU */
+		pmap_mpu_enable();
 
 		hal_spinlockClear(&pmap_common.lock, &sc);
 	}
 }
 
+#endif /* MPUTEST_ORGIMPL */
 
 int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, int attr, page_t *alloc)
 {
@@ -190,19 +245,21 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 
 int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 {
-	const syspage_map_t *map;
-	unsigned int rmask;
-	if (pmap_common.mpu_enabled == 0) {
-		return 1;
-	}
-
-	map = syspage_mapAddrResolve((addr_t)vaddr);
+	const syspage_map_t *map = syspage_mapAddrResolve((addr_t)vaddr);
 	if (map == NULL) {
 		return 0;
 	}
-	rmask = pmap_map2region(map->id);
-
+#ifdef MPUTEST_ORGIMPL
+	unsigned int rmask = pmap_map2region(map->id);
 	return ((pmap->regions & rmask) == 0) ? 0 : 1;
+#else
+	for (int i = 0; i < sizeof(pmap->prog->hal.map) / sizeof(pmap->prog->hal.map[0]); ++i) {
+		if (pmap->prog->hal.map[i] == map->id) {
+			return 1;
+		}
+	}
+	return 0;
+#endif
 }
 
 
@@ -237,13 +294,254 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, int *prot, void **t
 	return 0;
 }
 
+extern time_t hal_timerCyc2Us(time_t ticks);
+extern time_t hal_timerGetCyc(void);
+
+// #MPUTEST: Bulk test of pmap_switch performance
+
+void pmap_switch_bulktest(int cacheopt)
+{
+	// 	pmap_t maps[4];
+	// 	int ITER_CNT = 10 * 1000;
+
+	// 	spinlock_t tmpLock;
+	// 	spinlock_ctx_t sc;
+	// 	hal_spinlockCreate(&tmpLock, "pmap_bulk_test");
+	// 	hal_spinlockSet(&tmpLock, &sc);  // prevent context switch during test
+
+	// 	unsigned int orgCnt = syspage->hs.mpu.allocCnt;
+
+	// 	int cpuCycles;
+
+	// 	if (cacheopt == 0) {
+	// 		_hal_scsICacheDisable();
+	// 		_hal_scsDCacheDisable();
+	// 	}
+	// 	else {
+	// 		_hal_scsICacheEnable();
+	// 		_hal_scsDCacheEnable();
+	// 	}
+
+	// 	testGPIOlatencyConfigure();
+
+	// 	for (int allocCnt = 4; allocCnt <= (u8)(syspage->hs.mpu.type >> 8); allocCnt += 4) {
+	// 		/* Prepare test pmaps */
+	// 		for (int i = 0; i < 4; i++) {
+	// 			maps[i].mpu.allocCnt = allocCnt;
+	// 			for (int r = 0; r < allocCnt; r++) {
+	// 				maps[i].mpu.table[r].rbar =
+	// 						(r * 0x1000 + 0x40000) | /* base address, outside of itcm */
+	// 						(1u << 4) |
+	// 						(r & 0xfu);
+	// 				u32 attr = (((0) << 28) |          /* execute never */
+	// 						(((r % 4) & 0x7u) << 24) | /* access permissions */
+	// 						((0 & 0x7u) << 19) |       /* tex */
+	// 						(((1) & 1u) << 18) |       /* s */
+	// 						(((1) & 1u) << 17) |       /* c */
+	// 						(((1) & 1u) << 16) |       /* b */
+	// 						(1));                      /* enable */
+	// 				maps[i].mpu.table[r].rasr =
+	// 						attr |
+	// 						(((u32)r) << 8) |            /* subregions */
+	// 						((((u32)0xb) & 0x1fu) << 1); /* region size = 4KB */
+	// 			}
+	// 			for (int r = allocCnt; r < (u8)(syspage->hs.mpu.type >> 8); r++) {
+	// 				maps[i].mpu.table[r].rbar = 0;  // disabled
+	// 				maps[i].mpu.table[r].rasr = 0;
+	// 			}
+	// 			for (int j = 0; j < allocCnt; j += 4) {
+	// 				// just to differentiate
+	// 				maps[i].regions = 1 << (i + j);
+	// 			}
+	// 		}
+	// 		syspage->hs.mpu.allocCnt = allocCnt;
+
+	// 		/* TEST MPU SWITCH TIME */
+	// 		cpuCycles = hal_timerGetCyc();
+	// 		for (int iter = 0; iter < ITER_CNT; iter++) {
+	// 			pmap_switch(&maps[iter % 4]);
+	// 		}
+	// 		cpuCycles = hal_timerGetCyc() - cpuCycles;
+
+	// 		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
+	// 		for (int iter = 0; iter < ITER_CNT; iter++) {
+	// 			MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 			pmap_switch(&maps[iter % 4]);
+	// 			MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 			for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+	// 				__asm__ volatile("nop");
+	// 			}
+	// 			if (cacheopt == 1) {
+	// 				hal_invalDCacheAll();
+	// 				hal_invalICacheAll();
+	// 			}
+	// 		}
+	// 		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
+
+	// 		hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
+	// 		lib_sprintf(b, "pmap_switch() with %d regions - %d times: %d cycles (%d us)\n",
+	// 				allocCnt, ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
+	// 		hal_consolePrint(ATTR_USER, b);
+
+
+	// 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
+	// 			__asm__ volatile("nop");
+	// 		}
+
+	// #ifdef MPUTEST_FIXED
+	// 		/* TEST MPU REGION DISABLE TIME */
+	// 		cpuCycles = hal_timerGetCyc();
+	// 		for (int iter = 0; iter < ITER_CNT; iter++) {
+	// 			*(pmap_common.mpu + mpu_rnr) = (iter % allocCnt);
+	// 			*(pmap_common.mpu + mpu_rasr) |= 1;
+	// 		}
+	// 		cpuCycles = hal_timerGetCyc() - cpuCycles;
+
+	// 		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
+	// 		for (int iter = 0; iter < ITER_CNT; iter++) {
+	// 			MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 			*(pmap_common.mpu + mpu_rnr) = (iter % allocCnt);
+	// 			*(pmap_common.mpu + mpu_rasr) |= 1;
+	// 			MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
+
+	// 			for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+	// 				__asm__ volatile("nop");
+	// 			}
+	// 			if (cacheopt == 1) {
+	// 				hal_invalDCacheAll();
+	// 				hal_invalICacheAll();
+	// 			}
+	// 		}
+	// 		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
+
+	// 		hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
+	// 		lib_sprintf(b, "region disable/enable with %d regions - %d times: %d cycles (%d us)\n",
+	// 				allocCnt, ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
+	// 		hal_consolePrint(ATTR_USER, b);
+
+	// 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
+	// 			__asm__ volatile("nop");
+	// 		}
+	// #endif
+	// 	}
+
+
+	// #ifdef MPUTEST_FIXED
+	// 	/* TEST MPU DISABLE TIME */
+	// 	cpuCycles = hal_timerGetCyc();
+	// 	for (int iter = 0; iter < ITER_CNT; iter++) {
+	// 		*(pmap_common.mpu + mpu_ctrl) &= ~1;
+	// 		*(pmap_common.mpu + mpu_ctrl) |= 1;
+	// 	}
+	// 	cpuCycles = hal_timerGetCyc() - cpuCycles;
+	// 	MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
+	// 	for (int iter = 0; iter < ITER_CNT; iter++) {
+	// 		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 		*(pmap_common.mpu + mpu_ctrl) &= ~1;
+	// 		*(pmap_common.mpu + mpu_ctrl) |= 1;
+	// 		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
+	// 			__asm__ volatile("nop");
+	// 		}
+	// 		if (cacheopt == 1) {
+	// 			hal_invalDCacheAll();
+	// 			hal_invalICacheAll();
+	// 		}
+	// 	}
+	// 	MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
+
+	// 	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
+	// 	lib_sprintf(b, "MPU on/off - %d times: %d cycles (%d us)\n",
+	// 			ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
+	// 	hal_consolePrint(ATTR_USER, b);
+
+
+	// 	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
+	// 		__asm__ volatile("nop");
+	// 	}
+
+	// 	testGPIOlatency(cacheopt);
+
+	// 	// /* TESTs for cache maintenance */
+	// 	cpuCycles = hal_timerGetCyc();
+	// 	MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
+	// 	for (int i = 0; i < ITER_CNT; i++) {
+	// 		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 		_hal_scsDCacheDisable();
+	// 		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 		_hal_scsDCacheEnable();
+	// 		if (cacheopt == 1) {
+	// 			hal_invalDCacheAll();
+	// 			hal_invalICacheAll();
+	// 		}
+	// 	}
+	// 	MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
+	// 	cpuCycles = hal_timerGetCyc() - cpuCycles;
+	// 	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
+	// 	lib_sprintf(b, "DCache DISABLE/enable - %d times: %d cycles (%d us)\n",
+	// 			ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
+	// 	hal_consolePrint(ATTR_USER, b);
+
+	// 	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
+	// 		__asm__ volatile("nop");
+	// 	}
+
+	// 	cpuCycles = hal_timerGetCyc();
+	// 	MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
+	// 	for (int i = 0; i < ITER_CNT; i++) {
+	// 		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 		_hal_scsICacheDisable();
+	// 		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
+	// 		_hal_scsICacheEnable();
+	// 		if (cacheopt == 1) {
+	// 			hal_invalDCacheAll();
+	// 			hal_invalICacheAll();
+	// 		}
+	// 	}
+	// 	MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
+	// 	cpuCycles = hal_timerGetCyc() - cpuCycles;
+	// 	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
+	// 	lib_sprintf(b, "ICache DISABLE/enable - %d times: %d cycles (%d us)\n",
+	// 			ITER_CNT, cpuCycles, (int)hal_timerCyc2Us(cpuCycles));
+	// 	hal_consolePrint(ATTR_USER, b);
+
+	// 	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100000;) {
+	// 		__asm__ volatile("nop");
+	// 	}
+	// #endif
+
+	// 	_hal_scsICacheEnable();
+	// 	_hal_scsDCacheEnable();
+
+	// 	syspage->hs.mpu.allocCnt = orgCnt;
+	// #ifdef MPUTEST_ORGIMPL
+	// 	u32 t;
+	// 	for (int i = 0; i < syspage->hs.mpu.allocCnt; ++i) {
+	// 		t = syspage->hs.mpu.table[i].rbar;
+	// 		if ((t & (1 << 4)) == 0) {
+	// 			continue;
+	// 		}
+
+	// 		*(pmap_common.mpu + mpu_rbar) = t;
+	// 		hal_cpuDataMemoryBarrier();
+
+	// 		/* Disable regions for now */
+	// 		t = syspage->hs.mpu.table[i].rasr & ~1;
+	// 		*(pmap_common.mpu + mpu_rasr) = t;
+	// 		hal_cpuDataMemoryBarrier();
+	// 	}
+	// #endif
+
+	// 	hal_spinlockClear(&tmpLock, &sc);
+	// 	hal_spinlockDestroy(&tmpLock);
+}
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
 	const syspage_map_t *ikmap;
 	unsigned int ikregion;
-	u32 t;
-	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
+	// u32 t;
+	unsigned int cnt = syspage->hs.mpu.allocCnt;
 
 	(*vstart) = (void *)(((ptr_t)&_end + 7) & ~7u);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
@@ -254,32 +552,26 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
 
 	pmap->regions = (1 << cnt) - 1;
+	pmap->prog->hal.allocCnt = 0; /* TODO: temporary to skip kernel mpu reconfiguration */
 
-	if (cnt == 0) {
-		hal_spinlockCreate(&pmap_common.lock, "pmap");
-		pmap_common.mpu_enabled = 0;
-		pmap_common.kernelCodeRegion = 0;
-		return;
-	}
-
-	pmap_common.mpu_enabled = 1;
 
 	/* Disable MPU that may have been enabled before */
-	pmap_mpu_disable();
+	// pmap_mpu_disable();
 
-	for (i = 0; i < cnt; ++i) {
-		pmap_mpu_setMemRegionNumber(i);
-		t = syspage->hs.mpu.table[i].rbar;
-		if ((t & (1 << 4)) == 0) {
-			continue;
-		}
+	// for (i = 0; i < cnt; ++i) {
+	// 	pmap_mpu_setMemRegionNumber(i);
+	// 	t = syspage->hs.mpu.table[i].rbar;
+	// 	if ((t & (1 << 4)) == 0) {
+	// 		continue;
+	// 	}
 
-		pmap_mpu_setMemRegionRbar(t);
-		pmap_mpu_setMemRegionRasr(syspage->hs.mpu.table[i].rasr); /* Enable all regions */
-	}
+	// 	pmap_mpu_setMemRegionRbar(t);
+	// 	pmap_mpu_setMemRegionRasr(syspage->hs.mpu.table[i].rasr);
+	// 	pmap_mpu_setMemRegionStatus(0);
+	// }
 
-	/* Enable MPU */
-	pmap_mpu_enable();
+	// /* Enable MPU */
+	// pmap_mpu_enable();
 
 	/* FIXME HACK
 	 * allow all programs to execute (and read) kernel code map.
@@ -310,4 +602,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.kernelCodeRegion = ikregion;
 
 	hal_spinlockCreate(&pmap_common.lock, "pmap");
+
+	pmap_common.last_mpu_count = syspage->hs.mpu.type >> 8;
 }

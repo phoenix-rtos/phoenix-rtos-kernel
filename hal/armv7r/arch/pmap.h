@@ -52,11 +52,14 @@ typedef struct _page_t {
 } page_t;
 
 
+struct _syspage_prog_t;
+
+
 typedef struct _pmap_t {
 	void *start;
 	void *end;
 	u32 regions;
-	hal_syspage_prog_t mpu;
+	struct _syspage_prog_t *prog;
 } pmap_t;
 
 #endif

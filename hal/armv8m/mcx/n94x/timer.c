@@ -51,7 +51,7 @@ static u64 timer_bin2gray(u64 bin)
 }
 
 
-static time_t hal_timerCyc2Us(time_t ticks)
+time_t hal_timerCyc2Us(time_t ticks)
 {
 	return (ticks * 1000 * 1000) / 32768;
 }
@@ -63,7 +63,7 @@ static time_t hal_timerUs2Cyc(time_t us)
 }
 
 
-static u64 hal_timerGetCyc(void)
+u64 hal_timerGetCyc(void)
 {
 	u32 low = *(timer_common.base + ostimer_evtimerl);
 	u32 high = *(timer_common.base + ostimer_evtimerh) & 0x3ff;

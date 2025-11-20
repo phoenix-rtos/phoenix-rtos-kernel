@@ -48,4 +48,7 @@ extern void _mcxn94x_scbSetPriority(s8 excpn, u32 priority);
 
 extern unsigned int _mcxn94x_cpuid(void);
 
+extern void testGPIOlatencyConfigure(void);
+void testGPIOlatency(int cacheopt);
+
 #endif

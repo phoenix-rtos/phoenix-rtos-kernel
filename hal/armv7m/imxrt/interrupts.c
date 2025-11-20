@@ -56,9 +56,9 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if (reschedule) {
 		// #MPUTEST: TEST SCHEDULE TIME
-		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 		threads_schedule(n, ctx, NULL);
-		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 	}
 }
 

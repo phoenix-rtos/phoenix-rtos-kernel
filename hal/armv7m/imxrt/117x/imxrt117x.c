@@ -793,8 +793,8 @@ void testGPIOlatencyConfigure(void)  // #MPUTEST: configure GPIOs
 	*(CM7_GPIO3_BASE + gdir) = t | ((!!gpio_out) << MPUTEST_PIN1);
 
 
-	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
-	MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+	MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
+	MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 
 	hal_consolePrint(ATTR_BOLD, "Delay here should take about 1s\n");
 	for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000000;) {
@@ -953,16 +953,16 @@ void testGPIOlatency(int cacheopt)  // #MPUTEST: TEST GPIO LATENCY
 	const int ITER_CNT = 10 * 1000;
 
 	for (int i = 0; i < ITER_CNT; i++) {
-		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
 			__asm__ volatile("nop");
 		}
-		MPUTEST_GPIO_SET(MPUTEST_PIN1);
-		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
 			__asm__ volatile("nop");
 		}
-		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 
 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
 			__asm__ volatile("nop");
@@ -978,16 +978,16 @@ void testGPIOlatency(int cacheopt)  // #MPUTEST: TEST GPIO LATENCY
 	}
 
 	for (int i = 0; i < ITER_CNT; i++) {
-		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
 			__asm__ volatile("nop");
 		}
-		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
-		MPUTEST_GPIO_SET(MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 100;) {
 			__asm__ volatile("nop");
 		}
-		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 
 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
 			__asm__ volatile("nop");
@@ -1009,10 +1009,10 @@ void testGPIOlatency(int cacheopt)  // #MPUTEST: TEST GPIO LATENCY
 	for (int i = 0; i < ITER_CNT; i++) {
 		curTwoCycles = hal_timerGetCyc();
 		/* measure single GPIO toggle with second GPIO */
-		MPUTEST_GPIO_SET(MPUTEST_PIN0);
-		MPUTEST_GPIO_SET(MPUTEST_PIN1);
-		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
-		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 		curTwoCycles = hal_timerGetCyc() - curTwoCycles;
 		avgTwoCycles = (avgTwoCycles * i + curTwoCycles) / (i + 1);
 
@@ -1038,12 +1038,12 @@ void testGPIOlatency(int cacheopt)  // #MPUTEST: TEST GPIO LATENCY
 	for (int i = 0; i < 100; i++) {
 		/* Measure time of 1000 ON/OFF switches */
 		curOnCycles = hal_timerGetCyc();
-		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 		for (int i = 0; i < ITER_CNT; i++) {
-			MPUTEST_GPIO_SET(MPUTEST_PIN1);
-			MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+			MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
+			MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 		}
-		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 
 		curOnCycles = hal_timerGetCyc() - curOnCycles;
 		avgOnCycles = (avgOnCycles * i + curOnCycles) / (i + 1);

@@ -50,7 +50,7 @@ void main_initthr(void *unused)
 
 	pmap_switch_bulktest(0);
 	pmap_switch_bulktest(1);
-	pmap_switch_bulktest(2);
+	// pmap_switch_bulktest(2);
 
 
 	lib_printf("main: Starting syspage programs:");

@@ -54,16 +54,9 @@ static char b[200];
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, syspage_prog_t *prog, void *vaddr)
 {
-	pmap->regions = pmap_common.kernelCodeRegion;
-
-	// TODO: temporary hack!
-	if (vaddr != NULL) {
-		hal_memcpy(&pmap->mpu, vaddr, sizeof(pmap->mpu));
-	}
-
-
+	pmap->prog = prog;
 	return 0;
 }
 
@@ -113,7 +106,7 @@ void pmap_switch(pmap_t *pmap)
 	unsigned int i, cnt = syspage->hs.mpu.allocCnt;
 	spinlock_ctx_t sc;
 
-	if (pmap != NULL) {
+	if (pmap != NULL && pmap->prog != NULL) {
 		hal_spinlockSet(&pmap_common.lock, &sc);
 		for (i = 0; i < cnt; ++i) {
 			/* Select region */
@@ -147,7 +140,7 @@ void pmap_switch(pmap_t *pmap)
 	unsigned int i;
 	spinlock_ctx_t sc;
 
-	if (pmap != NULL) {
+	if (pmap != NULL && pmap->prog != NULL) {
 		hal_spinlockSet(&pmap_common.lock, &sc);
 
 		/* Disable MPU */
@@ -168,7 +161,7 @@ void pmap_switch(pmap_t *pmap)
 		 *
 		 * Clobbered registers are declared to inform the compiler about their usage.
 		 */
-		void *tmp_table = pmap->mpu.table;
+		void *tmp_table = pmap->prog->hal.table;
 		i = 0;
 		__asm__ volatile(
 				"cmp %[i], %[cnt]                      \n\t" /* Check if there's anything to do */
@@ -183,7 +176,7 @@ void pmap_switch(pmap_t *pmap)
 				"2:                                    \n\t"
 				: [tmp_table] "+r"(tmp_table),
 				[i] "+r"(i)
-				: [cnt] "r"(pmap->mpu.allocCnt),
+				: [cnt] "r"(pmap->prog->hal.allocCnt),
 				[mpu_rbar] "r"(MPU_LOC + mpu_rbar),
 				[mpu_rnr] "r"(MPU_LOC + mpu_rnr)
 				: "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "cc", "memory");
@@ -192,11 +185,11 @@ void pmap_switch(pmap_t *pmap)
 #ifdef MPUTEST_FORCEALL
 		for (i = 0; i < (u8)(syspage->hs.mpu.type >> 8); ++i) {
 #else
-		for (i = 0; i < pmap->mpu.allocCnt; ++i) {
+		for (i = 0; i < pmap->prog->hal.allocCnt; ++i) {
 #endif
 			/* rbar sets up region number */
-			*(pmap_common.mpu + mpu_rbar) = pmap->mpu.table[i].rbar;
-			*(pmap_common.mpu + mpu_rasr) = pmap->mpu.table[i].rasr;
+			*(pmap_common.mpu + mpu_rbar) = pmap->prog->hal.table[i].rbar;
+			*(pmap_common.mpu + mpu_rasr) = pmap->prog->hal.table[i].rasr;
 		}
 
 #if !defined(MPUTEST_FORCEALL)
@@ -210,7 +203,7 @@ void pmap_switch(pmap_t *pmap)
 			*(pmap_common.mpu + mpu_rnr) = i;
 			*(pmap_common.mpu + mpu_rasr) = 0;
 		}
-		pmap_common.last_mpu_count = pmap->mpu.allocCnt;
+		pmap_common.last_mpu_count = pmap->prog->hal.allocCnt;
 #endif
 
 #endif /* MPUTEST_ASMOPT */
@@ -253,8 +246,8 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	unsigned int rmask = pmap_map2region(map->id);
 	return ((pmap->regions & rmask) == 0) ? 0 : 1;
 #else
-	for (int i = 0; i < sizeof(pmap->mpu.map) / sizeof(pmap->mpu.map[0]); ++i) {
-		if (pmap->mpu.map[i] == map->id) {
+	for (int i = 0; i < sizeof(pmap->prog->hal.map) / sizeof(pmap->prog->hal.map[0]); ++i) {
+		if (pmap->prog->hal.map[i] == map->id) {
 			return 1;
 		}
 	}
@@ -326,9 +319,9 @@ void pmap_switch_bulktest(int cacheopt)
 	for (int allocCnt = 4; allocCnt <= (u8)(syspage->hs.mpu.type >> 8); allocCnt += 4) {
 		/* Prepare test pmaps */
 		for (int i = 0; i < 4; i++) {
-			maps[i].mpu.allocCnt = allocCnt;
+			maps[i].prog->hal.allocCnt = allocCnt;  // TODO: alloc prog and hal
 			for (int r = 0; r < allocCnt; r++) {
-				maps[i].mpu.table[r].rbar =
+				maps[i].prog->hal.table[r].rbar =
 						(r * 0x1000 + 0x40000) | /* base address, outside of itcm */
 						(1u << 4) |
 						(r & 0xfu);
@@ -339,14 +332,14 @@ void pmap_switch_bulktest(int cacheopt)
 						(((1) & 1u) << 17) |       /* c */
 						(((1) & 1u) << 16) |       /* b */
 						(1));                      /* enable */
-				maps[i].mpu.table[r].rasr =
+				maps[i].prog->hal.table[r].rasr =
 						attr |
 						(((u32)r) << 8) |            /* subregions */
 						((((u32)0xb) & 0x1fu) << 1); /* region size = 4KB */
 			}
 			for (int r = allocCnt; r < (u8)(syspage->hs.mpu.type >> 8); r++) {
-				maps[i].mpu.table[r].rbar = 0;  // disabled
-				maps[i].mpu.table[r].rasr = 0;
+				maps[i].prog->hal.table[r].rbar = 0;  // disabled
+				maps[i].prog->hal.table[r].rasr = 0;
 			}
 			for (int j = 0; j < allocCnt; j += 4) {
 				// just to differentiate
@@ -362,11 +355,11 @@ void pmap_switch_bulktest(int cacheopt)
 		}
 		cpuCycles = hal_timerGetCyc() - cpuCycles;
 
-		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 		for (int iter = 0; iter < ITER_CNT; iter++) {
-			MPUTEST_GPIO_SET(MPUTEST_PIN1);
+			MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
 			pmap_switch(&maps[iter % 4]);
-			MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+			MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 			for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
 				__asm__ volatile("nop");
 			}
@@ -375,7 +368,7 @@ void pmap_switch_bulktest(int cacheopt)
 				hal_invalICacheAll();
 			}
 		}
-		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 
 		hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
 		lib_sprintf(b, "pmap_switch() with %d regions - %d times: %d cycles (%d us)\n",
@@ -396,12 +389,12 @@ void pmap_switch_bulktest(int cacheopt)
 		}
 		cpuCycles = hal_timerGetCyc() - cpuCycles;
 
-		MPUTEST_GPIO_SET(MPUTEST_PIN0);
+		MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 		for (int iter = 0; iter < ITER_CNT; iter++) {
-			MPUTEST_GPIO_SET(MPUTEST_PIN1);
+			MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
 			*(pmap_common.mpu + mpu_rnr) = (iter % allocCnt);
 			*(pmap_common.mpu + mpu_rasr) |= 1;
-			MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+			MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 
 			for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
 				__asm__ volatile("nop");
@@ -411,7 +404,7 @@ void pmap_switch_bulktest(int cacheopt)
 				hal_invalICacheAll();
 			}
 		}
-		MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 
 		hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
 		lib_sprintf(b, "region disable/enable with %d regions - %d times: %d cycles (%d us)\n",
@@ -433,12 +426,12 @@ void pmap_switch_bulktest(int cacheopt)
 		*(pmap_common.mpu + mpu_ctrl) |= 1;
 	}
 	cpuCycles = hal_timerGetCyc() - cpuCycles;
-	MPUTEST_GPIO_SET(MPUTEST_PIN0);
+	MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 	for (int iter = 0; iter < ITER_CNT; iter++) {
-		MPUTEST_GPIO_SET(MPUTEST_PIN1);
+		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
 		*(pmap_common.mpu + mpu_ctrl) &= ~1;
 		*(pmap_common.mpu + mpu_ctrl) |= 1;
-		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 		for (int i = hal_timerGetCyc(); hal_timerGetCyc() - i < 1000;) {
 			__asm__ volatile("nop");
 		}
@@ -447,7 +440,7 @@ void pmap_switch_bulktest(int cacheopt)
 			hal_invalICacheAll();
 		}
 	}
-	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+	MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 
 	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
 	lib_sprintf(b, "MPU on/off - %d times: %d cycles (%d us)\n",
@@ -463,18 +456,18 @@ void pmap_switch_bulktest(int cacheopt)
 
 	// /* TESTs for cache maintenance */
 	cpuCycles = hal_timerGetCyc();
-	MPUTEST_GPIO_SET(MPUTEST_PIN0);
+	MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 	for (int i = 0; i < ITER_CNT; i++) {
-		MPUTEST_GPIO_SET(MPUTEST_PIN1);
+		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
 		_hal_scsDCacheDisable();
-		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 		_hal_scsDCacheEnable();
 		if (cacheopt == 1) {
 			hal_invalDCacheAll();
 			hal_invalICacheAll();
 		}
 	}
-	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+	MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 	cpuCycles = hal_timerGetCyc() - cpuCycles;
 	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
 	lib_sprintf(b, "DCache DISABLE/enable - %d times: %d cycles (%d us)\n",
@@ -486,18 +479,18 @@ void pmap_switch_bulktest(int cacheopt)
 	}
 
 	cpuCycles = hal_timerGetCyc();
-	MPUTEST_GPIO_SET(MPUTEST_PIN0);
+	MPUTEST_GPIO_SET(MPUTEST_PORT0, MPUTEST_PIN0);
 	for (int i = 0; i < ITER_CNT; i++) {
-		MPUTEST_GPIO_SET(MPUTEST_PIN1);
+		MPUTEST_GPIO_SET(MPUTEST_PORT1, MPUTEST_PIN1);
 		_hal_scsICacheDisable();
-		MPUTEST_GPIO_CLR(MPUTEST_PIN1);
+		MPUTEST_GPIO_CLR(MPUTEST_PORT1, MPUTEST_PIN1);
 		_hal_scsICacheEnable();
 		if (cacheopt == 1) {
 			hal_invalDCacheAll();
 			hal_invalICacheAll();
 		}
 	}
-	MPUTEST_GPIO_CLR(MPUTEST_PIN0);
+	MPUTEST_GPIO_CLR(MPUTEST_PORT0, MPUTEST_PIN0);
 	cpuCycles = hal_timerGetCyc() - cpuCycles;
 	hal_consolePrint(ATTR_BOLD, "--------------------------------------------------\n");
 	lib_sprintf(b, "ICache DISABLE/enable - %d times: %d cycles (%d us)\n",
@@ -629,7 +622,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	/* Initial size of kernel map */
 	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
 
-	pmap->mpu.allocCnt = 0; /* TODO: temporary to skip kernel mpu reconfiguration */
+	pmap->prog = NULL;
 
 	/* Configure MPU */
 	pmap_common.mpu = (void *)MPU_LOC;

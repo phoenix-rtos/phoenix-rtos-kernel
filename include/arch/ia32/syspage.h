@@ -57,5 +57,8 @@ typedef struct {
 	} __attribute__((packed)) graphmode; /* Graphics mode info */
 } __attribute__((packed)) hal_syspage_t;
 
+typedef struct {
+	void *x;
+} hal_syspage_prog_t;
 
 #endif

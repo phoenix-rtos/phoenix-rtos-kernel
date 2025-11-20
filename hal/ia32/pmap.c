@@ -38,7 +38,7 @@ struct {
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, syspage_prog_t *prog, void *vaddr)
 {
 	u32 i, pages;
 	pmap->pdir = vaddr;

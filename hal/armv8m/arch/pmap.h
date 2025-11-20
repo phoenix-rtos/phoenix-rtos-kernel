@@ -17,6 +17,7 @@
 #define _HAL_PMAP_ARMV8M_H_
 
 #include "hal/types.h"
+#include "syspage.h"
 
 #define PGHD_PRESENT    0x01u
 #define PGHD_USER       0x04u
@@ -55,6 +56,7 @@ typedef struct _pmap_t {
 	void *start;
 	void *end;
 	u32 regions;
+	hal_syspage_prog_t hal;
 } pmap_t;
 
 #endif
