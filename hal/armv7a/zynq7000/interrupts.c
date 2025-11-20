@@ -157,12 +157,6 @@ static void interrupts_setPriority(unsigned int irqn, u32 priority)
 }
 
 
-static inline u32 interrupts_getPriority(unsigned int irqn)
-{
-	return (*(interrupts_common.gic + dipr0 + (irqn >> 2)) >> ((irqn & 0x3U) << 3)) & 0xffU;
-}
-
-
 int hal_interruptsSetHandler(intr_handler_t *h)
 {
 	spinlock_ctx_t sc;
