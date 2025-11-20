@@ -113,11 +113,11 @@ __attribute__((noreturn)) static void exceptions_fatal(unsigned int n, exc_conte
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
+#endif
 }
 
 

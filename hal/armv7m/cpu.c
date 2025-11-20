@@ -161,6 +161,8 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
 	signalCtx->psp -= sizeof(cpu_context_t);
+
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	signalCtx->hwctx.pc = (u32)handler;
 
 	/* Set default PSR, clear potential ICI/IT flags */
@@ -234,7 +236,7 @@ char *hal_cpuInfo(char *info)
 
 	*(info + i++) = 'p';
 	*(info + i++) = '0' + (cpuinfo & 0xfU);
-	*(info + i++) = '\0';
+	*(info + i) = '\0';
 
 	return info;
 }

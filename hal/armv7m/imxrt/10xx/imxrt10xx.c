@@ -33,14 +33,12 @@
 #define RTWDOG_REFRESH_KEY 0xb480a602U
 #define LPO_CLK_FREQ_HZ    32000U
 
-#if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
-#define WATCHDOG_TIMEOUT_MS (30000)
-#warning "WATCHDOG_TIMEOUT_MS not defined, defaulting to 30000 ms"
-#endif
-
-#if defined(WATCHDOG) && \
-		(WATCHDOG_TIMEOUT_MS <= 0x0 || WATCHDOG_TIMEOUT_MS > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
+#if defined(WATCHDOG)
+#if !defined(WATCHDOG_TIMEOUT_MS)
+#error "WATCHDOG_TIMEOUT_MS not defined"
+#elif (WATCHDOG_TIMEOUT_MS <= 0x0 || WATCHDOG_TIMEOUT_MS > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
 #error "Watchdog timeout out of bounds!"
+#endif
 #endif
 
 static struct {
@@ -729,7 +727,7 @@ u32 _imxrt_ccmGetFreq(int name)
 		/* Periph_clk ---> AHB Clock */
 		case clk_cpu:
 		case clk_ahb:
-			freq = _imxrt_ccmGetPeriphClkFreq() / (((*(imxrt_common.ccm + ccm_cbcdr) > 10U) & 0x7U) + 1U);
+			freq = _imxrt_ccmGetPeriphClkFreq() / (((u32)((*(imxrt_common.ccm + ccm_cbcdr) > 10U) ? 1U : 0U) & 0x7U) + 1U);
 			break;
 
 		case clk_semc:
@@ -1028,7 +1026,7 @@ void _imxrt_ccmDeinitEnetPll(void)
 
 u32 _imxrt_ccmGetPllFreq(int pll)
 {
-	u32 freq, divSel;
+	u32 freq, divSel, num, denom;
 	u64 tmp;
 
 	switch (pll) {
@@ -1040,7 +1038,9 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			freq = _imxrt_ccmGetOscFreq();
 
 			/* PLL output frequency = Fref * (DIV_SELECT + NUM/DENOM). */
-			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_sys_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_sys_denom);
+			num = *(imxrt_common.ccm_analog + ccm_analog_pll_sys_num);
+			denom = *(imxrt_common.ccm_analog + ccm_analog_pll_sys_denom);
+			tmp = ((u64)freq * (u64)num) / (u64)denom;
 
 			if ((*(imxrt_common.ccm_analog + ccm_analog_pll_sys) & 1U) != 0U) {
 				freq *= 22U;
@@ -1060,7 +1060,9 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			freq = _imxrt_ccmGetOscFreq();
 
 			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_audio) & 0x7fU;
-			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_audio_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_audio_denom);
+			num = *(imxrt_common.ccm_analog + ccm_analog_pll_audio_num);
+			denom = *(imxrt_common.ccm_analog + ccm_analog_pll_audio_denom);
+			tmp = ((u64)freq * (u64)num) / (u64)denom;
 			freq = freq * divSel + (u32)tmp;
 
 			switch ((*(imxrt_common.ccm_analog + ccm_analog_pll_audio) >> 19) & 0x3U) {
@@ -1091,8 +1093,9 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			freq = _imxrt_ccmGetOscFreq();
 
 			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_video) & 0x7fU;
-
-			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_video_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_video_denom);
+			num = *(imxrt_common.ccm_analog + ccm_analog_pll_video_num);
+			denom = *(imxrt_common.ccm_analog + ccm_analog_pll_video_denom);
+			tmp = ((u64)freq * (u64)num) / (u64)denom;
 
 			freq = freq * divSel + (u32)tmp;
 

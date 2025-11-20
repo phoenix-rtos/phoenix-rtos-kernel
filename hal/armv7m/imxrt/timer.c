@@ -151,7 +151,7 @@ void _hal_timerInit(u32 interval)
 	}
 
 	/* Set prescaler, prescale OSC by GPT_OSC_PRESCALER to get less than 1/4 bus clk */
-	*(timer_common.base + gpt_pr) = (((u32)GPT_OSC_PRESCALER - 1U) << 12) | ((u32)GPT_PRESCALER - 1U);
+	*(timer_common.base + gpt_pr) = ((u32)((u32)GPT_OSC_PRESCALER - 1U) << 12) | (u32)((u32)GPT_PRESCALER - 1U);
 
 	/* Enable oscillator input and select it as clock source, freerun mode */
 	/* Leave timer running in lp modes, reset counter on enable */

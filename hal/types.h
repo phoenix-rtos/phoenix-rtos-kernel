@@ -31,8 +31,9 @@ typedef __u16 u16;
 typedef __u32 u32;
 typedef __u64 u64;
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and also a RISCV64 register field identifier" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and could also be a register field identifier" */
 typedef __s8 s8;
+/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and could also be a register field identifier" */
 typedef __s16 s16;
 typedef __s32 s32;
 typedef __s64 s64;

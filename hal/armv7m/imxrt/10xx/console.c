@@ -43,7 +43,8 @@
 #endif
 
 #define CONCAT3(a, b, c) a##b##c
-#define CONSOLE_BAUD(n)  (CONCAT3(UART, n, _BAUDRATE))
+/* parasoft-suppress-next-line MISRAC2012-RULE_20_7 "Cannot enclose macro parameters in parentheses as CONCAT3 concatenates literal tokens." */
+#define CONSOLE_BAUD(n) (CONCAT3(UART, n, _BAUDRATE))
 
 #if !ISEMPTY(UART_CONSOLE_KERNEL) && CONSOLE_BAUD(UART_CONSOLE_KERNEL)
 #define CONSOLE_BAUDRATE CONSOLE_BAUD(UART_CONSOLE_KERNEL)
@@ -160,17 +161,25 @@ static void _hal_uartInit(void)
 	t = *(console_common.uart + uart_baud) & ~((0x1fUL << 24) | (1UL << 17) | 0xfffU);
 
 	/* For baud rate calculation, default UART_CLK=80MHz assumed */
-	switch (CONSOLE_BAUDRATE) {
-		case 9600: t |= 0x0c000281U; break;
-		case 19200: t |= 0x080001cfU; break;
-		case 38400: t |= 0x03020209U; break;
-		case 57600: t |= 0x0302015bU; break;
-		case 115200: t |= 0x0402008bU; break;
-		case 230400: t |= 0x1c00000cU; break;
-		case 460800: t |= 0x1c000006U; break;
-		/* As fallback use default 115200 */
-		default: t |= 0x0402008bU; break;
-	}
+#if CONSOLE_BAUDRATE == 9600
+	t |= 0x0c000281U;
+#elif CONSOLE_BAUDRATE == 19200
+	t |= 0x080001cfU;
+#elif CONSOLE_BAUDRATE == 38400
+	t |= 0x03020209U;
+#elif CONSOLE_BAUDRATE == 57600
+	t |= 0x0302015bU;
+#elif CONSOLE_BAUDRATE == 115200
+	t |= 0x0402008bU;
+#elif CONSOLE_BAUDRATE == 230400
+	t |= 0x1c00000cU;
+#elif CONSOLE_BAUDRATE == 460800
+	t |= 0x1c000006U;
+#else
+	/* As fallback use default 115200 */
+	t |= 0x0402008bU;
+#endif
+
 	*(console_common.uart + uart_baud) = t;
 
 	/* Set 8 bit and no parity mode */
