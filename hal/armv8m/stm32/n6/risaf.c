@@ -42,7 +42,7 @@
 #define IAC_BASE ((void *)0x54025000U)
 
 
-enum risafs {
+enum {
 	risaf_tcm = 0,
 	risaf_axisram0,
 	risaf_axisram1,
@@ -71,7 +71,7 @@ static const struct {
 	int pctl;        /* -1 - RISAF is always on, otherwise - check the given peripheral before trying to configure */
 	u8 n_regions;    /* Number of regions supported */
 	u8 isCIDAware;   /* 1 for firewalls that can do CID-based filtering */
-} risafs[] = {
+} risafs[17] = {
 	[risaf_tcm] = {
 		.base = RISAF1_BASE,
 		.start = 0x00000000U,
@@ -249,7 +249,7 @@ static const struct {
  */
 int _stm32_risaf_configRegion(int risaf, u8 region, u32 start, u32 end, u8 privCIDMask, u8 readCIDMask, u8 writeCIDMask, int secure, int enable)
 {
-	const u32 region_offs = (region - 1) * 0x10;
+	const u32 region_offs = ((u32)region - 1U) * 0x10U;
 	u32 tmp, status, lpStatus;
 	if ((unsigned int)risaf >= (sizeof(risafs) / sizeof(risafs[0]))) {
 		return -EINVAL;
@@ -275,7 +275,7 @@ int _stm32_risaf_configRegion(int risaf, u8 region, u32 start, u32 end, u8 privC
 		return -EINVAL;
 	}
 
-	if (((start & risafs[risaf].granularity) != 0) || ((end & risafs[risaf].granularity) != risafs[risaf].granularity)) {
+	if (((start & risafs[risaf].granularity) != 0U) || ((end & risafs[risaf].granularity) != risafs[risaf].granularity)) {
 		return -EINVAL;
 	}
 
@@ -322,7 +322,7 @@ int _stm32_risaf_configRegion(int risaf, u8 region, u32 start, u32 end, u8 privC
 	return EOK;
 }
 
-int _stm32_risaf_getFirstDisabledRegion(int risaf)
+static int _stm32_risaf_getFirstFreeRegion(unsigned int risaf)
 {
 	u32 region, region_offs;
 	if (risaf >= (sizeof(risafs) / sizeof(risafs[0]))) {
@@ -331,8 +331,8 @@ int _stm32_risaf_getFirstDisabledRegion(int risaf)
 
 	for (region = 1U; region <= risafs[risaf].n_regions; region++) {
 		region_offs = (region - 1U) * 0x10U;
-		if ((*(risafs[risaf].base + risaf_reg1_cfgr + region_offs) & 1U) == 0) {
-			return region;
+		if ((*(risafs[risaf].base + risaf_reg1_cfgr + region_offs) & 1U) == 0U) {
+			return (int)region;
 		}
 	}
 
@@ -347,9 +347,9 @@ int _stm32_risaf_getFirstDisabledRegion(int risaf)
  * protection zones should be configurable in a similar manner to MPU regions.
  */
 static const struct {
-	u32 start;         /* First address of the protection zone */
-	u32 end;           /* Last address of the protection zone */
-	enum risafs risaf; /* ID of the firewall that needs to be set up */
+	u32 start; /* First address of the protection zone */
+	u32 end;   /* Last address of the protection zone */
+	int risaf; /* ID of the firewall that needs to be set up */
 	u8 privCIDMask;
 	u8 readCIDMask;
 	u8 writeCIDMask;
@@ -381,12 +381,12 @@ int _stm32_risaf_init(void)
 	unsigned int i;
 	int region;
 	for (i = 0U; i < sizeof(risaf_defConfig) / sizeof(risaf_defConfig[0]); i++) {
-		region = _stm32_risaf_getFirstDisabledRegion(risaf_defConfig[i].risaf);
+		region = _stm32_risaf_getFirstFreeRegion((unsigned int)risaf_defConfig[i].risaf);
 		if (region < 0) {
 			return -ENOMEM;
 		}
 
-		_stm32_risaf_configRegion(
+		(void)_stm32_risaf_configRegion(
 				risaf_defConfig[i].risaf,
 				(u8)region,
 				risaf_defConfig[i].start,

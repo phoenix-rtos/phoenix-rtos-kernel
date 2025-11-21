@@ -29,6 +29,7 @@
 #endif
 
 #define CONCAT_(a, b) a##b
+/* parasoft-suppress-next-line MISRAC2012-RULE_20_7 "Cannot enclose parameters in parentheses as CONCAT_ macro concatenates literal tokens." */
 #define CONCAT(a, b)  CONCAT_(a, b)
 
 #define UART_IO_PORT_DEV CONCAT(pctl_, UART_IO_PORT)
@@ -59,13 +60,13 @@ enum { cr1 = 0, cr2, cr3, brr, gtpr, rtor, rqr, isr, icr, rdr, tdr, presc };
 /* clang-format on */
 
 
-void _hal_consolePrint(const char *s)
+static void _hal_consolePrint(const char *s)
 {
-	while (*s) {
+	while (*s != '\0') {
 		hal_consolePutch(*(s++));
 	}
 
-	while (((*(console_common.base + isr)) & UART_ISR_TXE) == 0) {
+	while (((*(console_common.base + isr)) & UART_ISR_TXE) == 0U) {
 		/* Wait for transmit register empty */
 	}
 
@@ -81,6 +82,9 @@ void hal_consolePrint(int attr, const char *s)
 	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
 	}
+	else {
+		/* No action required */
+	}
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
@@ -89,11 +93,11 @@ void hal_consolePrint(int attr, const char *s)
 
 void hal_consolePutch(char c)
 {
-	while (((*(console_common.base + isr)) & UART_ISR_TXE) == 0) {
+	while (((*(console_common.base + isr)) & UART_ISR_TXE) == 0U) {
 		/* Wait for transmit register empty */
 	}
 
-	*(console_common.base + tdr) = c;
+	*(console_common.base + tdr) = (u32)c;
 }
 
 
@@ -119,22 +123,22 @@ void _hal_consoleInit(void)
 	const int uart = UART_CONSOLE_KERNEL - 1, port = UART_IO_PORT_DEV;
 	const u8 txpin = (u8)UART_PIN_TX, rxpin = (u8)UART_PIN_RX, af = (u8)UART_IO_AF;
 
-	_stm32_rccSetDevClock(port, 1U, 1U);
+	(void)_stm32_rccSetDevClock(port, 1U, 1U);
 
 	console_common.base = uarts[uart].base;
 
 	/* Init tx pin - output, push-pull, low speed, no pull-up */
-	_stm32_gpioConfig(port, txpin, (u8)gpio_mode_af, af, (u8)gpio_otype_pp, (u8)gpio_ospeed_low, (u8)gpio_pupd_nopull);
+	(void)_stm32_gpioConfig(port, txpin, (u8)gpio_mode_af, af, (u8)gpio_otype_pp, (u8)gpio_ospeed_low, (u8)gpio_pupd_nopull);
 
 	/* Init rxd pin - input, push-pull, low speed, no pull-up */
-	_stm32_gpioConfig(port, rxpin, (u8)gpio_mode_af, af, (u8)gpio_otype_pp, (u8)gpio_ospeed_low, (u8)gpio_pupd_nopull);
+	(void)_stm32_gpioConfig(port, rxpin, (u8)gpio_mode_af, af, (u8)gpio_otype_pp, (u8)gpio_ospeed_low, (u8)gpio_pupd_nopull);
 
-	_stm32_rccSetDevClock(pctl_per, 1, 1);
-	_stm32_rccSetIPClk(uarts[uart].ipclk_sel, uart_clk_sel_per_ck);
+	(void)_stm32_rccSetDevClock(pctl_per, 1, 1);
+	(void)_stm32_rccSetIPClk(uarts[uart].ipclk_sel, uart_clk_sel_per_ck);
 	console_common.refclkfreq = _stm32_rccGetPerClock();
 
 	/* Enable uart clock */
-	_stm32_rccSetDevClock(uarts[uart].dev_clk, 1U, 1U);
+	(void)_stm32_rccSetDevClock(uarts[uart].dev_clk, 1U, 1U);
 
 	/* Set up UART to 115200,8,n,1 16-bit oversampling */
 	*(console_common.base + cr1) &= ~1U; /* disable USART */

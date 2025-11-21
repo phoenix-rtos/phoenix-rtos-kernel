@@ -55,9 +55,7 @@ static struct {
 static void _stm32_bsec_otp_waitBusy(void)
 {
 	/* Wait until not busy */
-	while ((*(bsec_common.base + bsec_otpsr) & OTPSR_BUSY) != 0) {
-		;
-	}
+	while ((*(bsec_common.base + bsec_otpsr) & OTPSR_BUSY) != 0U) { }
 }
 
 
@@ -76,7 +74,7 @@ int _stm32_bsec_otp_checkFuseValid(unsigned int fuse)
 {
 	u32 fuseMax = FUSE_MAX;
 	if ((*(bsec_common.base + bsec_otpsr) & OTPSR_HIDEUP) != 0U) {
-		fuseMax = FUSE_UPPER_MIN - 1;
+		fuseMax = FUSE_UPPER_MIN - 1U;
 	}
 
 	if ((fuse >= FUSE_MIN) && (fuse <= fuseMax)) {
@@ -178,7 +176,7 @@ void _stm32_bsec_init(void)
 	u32 t;
 	bsec_common.base = BSEC_BASE;
 
-	_stm32_rccSetDevClock(pctl_bsec, 1U, 1U);
+	(void)_stm32_rccSetDevClock(pctl_bsec, 1U, 1U);
 
 	/* Wait until not busy and BSEC initialized */
 	do {

@@ -143,7 +143,11 @@ enum {
 	pctl_uart9,
 	pctl_usart10,
 	pctl_spi1 = 0x14c,
-	pctl_spi4,
+	pctl_spi4
+};
+
+
+enum {
 	pctl_tim18 = 0x14f,
 	pctl_tim15,
 	pctl_tim16,
@@ -176,7 +180,7 @@ enum {
 	pctl_dcmipp,
 	pctl_gfxtim = 0x1c4,
 	pctl_venc,
-	pctl_csi,
+	pctl_csi
 };
 
 
@@ -246,7 +250,7 @@ enum ipclks {
 	pctl_ipclk_uart9sel,
 	pctl_ipclk_usart10sel,
 	pctl_ipclk_lpuart1sel,
-	pctl_ipclks_count,
+	pctl_ipclks_count
 };
 
 
@@ -377,8 +381,12 @@ enum {
 	lptim2_irq,
 	lptim3_irq,
 	lptim4_irq,
-	lptim5_irq,
-	adf1_flt0_irq,
+	lptim5_irq
+};
+
+
+enum {
+	adf1_flt0_irq = lptim5_irq + 1,
 	mdf1_flt0_irq,
 	mdf1_flt1_irq,
 	mdf1_flt2_irq,
@@ -430,12 +438,12 @@ enum {
 	cti0_irq,
 	cti1_irq,
 	ltdc_up_irq = 209,
-	ltdc_up_err_irq,
+	ltdc_up_err_irq
 };
 
 
 /* STM32N6 resource identifiers for non-RIF-aware slave peripherals */
-enum pctl_risups {
+enum {
 	pctl_risup_spi1 = 0,
 	pctl_risup_spi2,
 	pctl_risup_spi3,
@@ -529,12 +537,12 @@ enum pctl_risups {
 	pctl_risup_ltdc_l1,
 	pctl_risup_ltdc_l2,
 	pctl_risup_npu = 106,
-	pctl_risups_count,
+	pctl_risups_count
 };
 
 
 /* STM32N6 resource identifiers for bus mastering peripherals */
-enum pctl_rimcs {
+enum {
 	pctl_rimc_trace = 0,
 	pctl_rimc_npu,
 	pctl_rimc_sdmmc1,
@@ -548,7 +556,7 @@ enum pctl_rimcs {
 	pctl_rimc_ltdc_l1,
 	pctl_rimc_ltdc_l2,
 	pctl_rimc_venc,
-	pctl_rimcs_count,
+	pctl_rimcs_count
 };
 
 
@@ -571,7 +579,7 @@ typedef struct {
 		pctl_cleanInvalDCache,
 		pctl_cleanDCache,
 		pctl_invalDCache,
-		pctl_dmaLinkBaseAddr,
+		pctl_dmaLinkBaseAddr
 	} type;
 
 	union {

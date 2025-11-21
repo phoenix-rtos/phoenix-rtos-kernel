@@ -226,7 +226,7 @@ char *hal_cpuFeatures(char *features, size_t len)
 	unsigned int n = 0;
 #if KERNEL_FPU_SUPPORT
 	if ((len - n) > 5U) {
-		hal_strcpy(features + n, "FPU, ");
+		(void)hal_strcpy(features + n, "FPU, ");
 		n += 5U;
 	}
 #else

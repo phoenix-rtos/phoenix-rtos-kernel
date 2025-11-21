@@ -27,7 +27,7 @@
 #include <board_config.h>
 
 #if defined(WATCHDOG) && defined(WATCHDOG_TIMEOUT_MS)
-#warning "This target doesn't support WATCHDOG_TIMEOUT_MS. Watchdog timeout is 31992 ms."
+#error "This target doesn't support WATCHDOG_TIMEOUT_MS. Watchdog timeout is 31992 ms."
 #endif
 
 
@@ -221,6 +221,10 @@ int hal_platformctl(void *ptr)
 				ret = EOK;
 			}
 			break;
+
+		default:
+			ret = -EINVAL;
+			break;
 	}
 
 	hal_spinlockClear(&stm32_common.pltctlSp, &sc);
@@ -305,7 +309,7 @@ int _stm32_rifsc_rimc_change(int index, int secure, int privileged, int cid)
 	if ((cid >= 0) && (cid < 0x7)) {
 		tmp = *(stm32_common.rifsc + rifsc_rimc_attr0 + index);
 		tmp &= ~(0x7U << 4);
-		tmp |= (u32)(cid & 0x7) << 4;
+		tmp |= ((u32)cid & 0x7U) << 4;
 		*(stm32_common.rifsc + rifsc_rimc_attr0 + index) = tmp;
 	}
 
@@ -389,7 +393,7 @@ static const struct {
 	u16 reg_offs;
 	u8 mask;
 	u8 shift;
-} ipclk_lookup[] = {
+} ipclk_lookup[64] = {
 	[pctl_ipclk_adf1sel] = { (u16)rcc_ccipr1, 0x7U, 0U },
 	[pctl_ipclk_adc12sel] = { (u16)rcc_ccipr1, 0x7U, 4U },
 	[pctl_ipclk_adcpre] = { (u16)rcc_ccipr1, 0xffU, 8U },
@@ -464,7 +468,7 @@ int _stm32_rccSetIPClk(unsigned int ipclk, unsigned int setting)
 		return -EINVAL;
 	}
 
-	if ((setting & (~((u32)ipclk_lookup[ipclk].mask))) != 0) {
+	if ((setting & (~((u32)ipclk_lookup[ipclk].mask))) != 0U) {
 		return -EINVAL;
 	}
 
@@ -540,24 +544,6 @@ int _stm32_rccGetDevClock(int dev, u32 *status, u32 *lpStatus)
 }
 
 
-int _stm32_rccDevReset(int dev, u32 status)
-{
-	u32 reg = (u32)dev / 32, shift = (u32)dev % 32;
-	int set_clear;
-
-	if (reg > (rcc_apb5rstr - rcc_busrstr)) {
-		return -EINVAL;
-	}
-
-	set_clear = (status == 0U) ? rcc_busrstcr : rcc_busrstsr;
-	*(stm32_common.rcc + reg + set_clear) = 1UL << shift;
-	hal_cpuDataSyncBarrier();
-	(void)*(stm32_common.rcc + reg + rcc_busrstr);
-
-	return EOK;
-}
-
-
 u32 _stm32_rccGetCPUClock(void)
 {
 	return stm32_common.cpuclk;
@@ -599,11 +585,11 @@ int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 		return -EINVAL;
 	}
 
-	if (stop) {
-		*(base + reg) |= 1UL << (dev % 32);
+	if (stop != 0U) {
+		*(base + reg) |= 1UL << ((u32)dev % 32U);
 	}
 	else {
-		*(base + reg) &= ~(1UL << (dev % 32));
+		*(base + reg) &= ~(1UL << ((u32)dev % 32U));
 	}
 
 	hal_cpuDataSyncBarrier();
@@ -659,7 +645,7 @@ int _stm32_extiMaskInterrupt(u32 line, u8 state)
 		return -EINVAL;
 	}
 
-	offs += exti_imr1;
+	offs += (u32)exti_imr1;
 	if (state != 0U) {
 		*(stm32_common.exti + offs) |= bit;
 	}
@@ -678,8 +664,8 @@ int _stm32_extiMaskEvent(u32 line, u8 state)
 		return -EINVAL;
 	}
 
-	offs += exti_emr1;
-	if (state != 0) {
+	offs += (u32)exti_emr1;
+	if (state != 0U) {
 		*(stm32_common.exti + offs) |= bit;
 	}
 	else {
@@ -697,8 +683,8 @@ int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge)
 		return -EINVAL;
 	}
 
-	offs += (edge != 0) ? exti_rtsr1 : exti_ftsr1;
-	if (state != 0) {
+	offs += (u32)((edge != 0U) ? exti_rtsr1 : exti_ftsr1);
+	if (state != 0U) {
 		*(stm32_common.exti + offs) |= bit;
 	}
 	else {
@@ -750,18 +736,18 @@ int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pup
 	t = *(base + gpio_otyper) & ~(1UL << pin);
 	*(base + gpio_otyper) = t | ((u32)otype & 1U) << pin;
 
-	t = *(base + gpio_ospeedr) & ~(0x3 << (pin << 1));
+	t = *(base + gpio_ospeedr) & ~(0x3UL << (pin << 1));
 	*(base + gpio_ospeedr) = t | ((u32)ospeed & 0x3U) << (pin << 1);
 
-	t = *(base + gpio_pupdr) & ~(0x03U << (pin << 1));
+	t = *(base + gpio_pupdr) & ~(0x03UL << (pin << 1));
 	*(base + gpio_pupdr) = t | ((u32)pupd & 0x3U) << (pin << 1);
 
 	if (pin < 8U) {
-		t = *(base + gpio_afrl) & ~(0xfU << (pin << 2));
+		t = *(base + gpio_afrl) & ~(0xfUL << (pin << 2));
 		*(base + gpio_afrl) = t | ((u32)af & 0xfU) << (pin << 2);
 	}
 	else {
-		t = *(base + gpio_afrh) & ~(0xfU << ((pin - 8U) << 2));
+		t = *(base + gpio_afrh) & ~(0xfUL << ((pin - 8U) << 2));
 		*(base + gpio_afrh) = t | ((u32)af & 0xfU) << ((pin - 8U) << 2);
 	}
 
@@ -778,7 +764,7 @@ int _stm32_gpioSet(int d, u8 pin, u8 val)
 		return -EINVAL;
 	}
 
-	*(base + gpio_bsrr) = 1 << ((val == 0U) ? ((u32)pin + 16U) : (u32)pin);
+	*(base + gpio_bsrr) = 1UL << ((val == 0U) ? ((u32)pin + 16U) : (u32)pin);
 	return EOK;
 }
 
@@ -807,13 +793,13 @@ int _stm32_gpioGet(int d, u8 pin, u8 *val)
 		return -EINVAL;
 	}
 
-	*val = (*(base + gpio_idr) >> pin) & 1U;
+	*val = (u8)(*(base + gpio_idr) >> pin) & 1U;
 
 	return EOK;
 }
 
 
-int _stm32_gpioGetPort(int d, u16 *val)
+int _stm32_gpioGetPort(int d, u32 *val)
 {
 	volatile u32 *base;
 
@@ -907,12 +893,12 @@ void _stm32_init(void)
 	_hal_scsInit();
 
 	/* Enable System configuration controller */
-	_stm32_rccSetDevClock(pctl_syscfg, 1U, 1U);
+	(void)_stm32_rccSetDevClock(pctl_syscfg, 1U, 1U);
 
 	/* Enable power module */
-	_stm32_rccSetDevClock(pctl_pwr, 1U, 1U);
+	(void)_stm32_rccSetDevClock(pctl_pwr, 1U, 1U);
 
-	_stm32_rccSetDevClock(pctl_rifsc, 1U, 1U);
+	(void)_stm32_rccSetDevClock(pctl_rifsc, 1U, 1U);
 	_stm32_bsec_init();
 
 	/* TODO: would be nice to have clock configuration options or the frequency passed from PLO */
@@ -930,13 +916,13 @@ void _stm32_init(void)
 
 	/* GPIO init */
 	for (i = 0; i < sizeof(gpioDevs) / sizeof(gpioDevs[0]); ++i) {
-		_stm32_rccSetDevClock(gpioDevs[i], 1U, 1U);
+		(void)_stm32_rccSetDevClock(gpioDevs[i], 1U, 1U);
 	}
 
-	_stm32_rccSetDevClock(pctl_risaf, 1U, 1U);
-	_stm32_risaf_init();
+	(void)_stm32_rccSetDevClock(pctl_risaf, 1U, 1U);
+	(void)_stm32_risaf_init();
 
-	_stm32_rccSetDevClock(pctl_dbg, 1U, 1U);
+	(void)_stm32_rccSetDevClock(pctl_dbg, 1U, 1U);
 
 #if defined(WATCHDOG)
 	/* Init watchdog */
