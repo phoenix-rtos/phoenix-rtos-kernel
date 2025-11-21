@@ -120,14 +120,14 @@ enum {
 
 enum {
 	/* IOMUXC_GPR_GPR7 */
-	pctl_gpr_lpi2c1_stop_req = pctl_gpr_iomuxc_xbar_dir_sel_19 + 1, pctl_gpr_lpi2c2_stop_req, pctl_gpr_lpi2c3_stop_req, 
-	pctl_gpr_lpi2c4_stop_req, pctl_gpr_lpspi1_stop_req, pctl_gpr_lpspi2_stop_req, pctl_gpr_lpspi3_stop_req, 
-	pctl_gpr_lpspi4_stop_req, pctl_gpr_lpuart1_stop_req, pctl_gpr_lpuart2_stop_req, pctl_gpr_lpuart3_stop_req, 
-	pctl_gpr_lpuart4_stop_req, pctl_gpr_lpuart5_stop_req, pctl_gpr_lpuart6_stop_req, pctl_gpr_lpuart7_stop_req, 
-	pctl_gpr_lpuart8_stop_req, pctl_gpr_lpi2c1_stop_ack, pctl_gpr_lpi2c2_stop_ack, pctl_gpr_lpi2c3_stop_ack, 
-	pctl_gpr_lpi2c4_stop_ack, pctl_gpr_lpspi1_stop_ack, pctl_gpr_lpspi2_stop_ack, pctl_gpr_lpspi3_stop_ack, 
-	pctl_gpr_lpspi4_stop_ack, pctl_gpr_lpuart1_stop_ack, pctl_gpr_lpuart2_stop_ack, pctl_gpr_lpuart3_stop_ack, 
-	pctl_gpr_lpuart4_stop_ack, pctl_gpr_lpuart5_stop_ack, pctl_gpr_lpuart6_stop_ack, pctl_gpr_lpuart7_stop_ack, 
+	pctl_gpr_lpi2c1_stop_req = pctl_gpr_iomuxc_xbar_dir_sel_19 + 1, pctl_gpr_lpi2c2_stop_req, pctl_gpr_lpi2c3_stop_req,
+	pctl_gpr_lpi2c4_stop_req, pctl_gpr_lpspi1_stop_req, pctl_gpr_lpspi2_stop_req, pctl_gpr_lpspi3_stop_req,
+	pctl_gpr_lpspi4_stop_req, pctl_gpr_lpuart1_stop_req, pctl_gpr_lpuart2_stop_req, pctl_gpr_lpuart3_stop_req,
+	pctl_gpr_lpuart4_stop_req, pctl_gpr_lpuart5_stop_req, pctl_gpr_lpuart6_stop_req, pctl_gpr_lpuart7_stop_req,
+	pctl_gpr_lpuart8_stop_req, pctl_gpr_lpi2c1_stop_ack, pctl_gpr_lpi2c2_stop_ack, pctl_gpr_lpi2c3_stop_ack,
+	pctl_gpr_lpi2c4_stop_ack, pctl_gpr_lpspi1_stop_ack, pctl_gpr_lpspi2_stop_ack, pctl_gpr_lpspi3_stop_ack,
+	pctl_gpr_lpspi4_stop_ack, pctl_gpr_lpuart1_stop_ack, pctl_gpr_lpuart2_stop_ack, pctl_gpr_lpuart3_stop_ack,
+	pctl_gpr_lpuart4_stop_ack, pctl_gpr_lpuart5_stop_ack, pctl_gpr_lpuart6_stop_ack, pctl_gpr_lpuart7_stop_ack,
 	pctl_gpr_lpuart8_stop_ack,
 
 	/* IOMUXC_GPR_GPR8 */
@@ -304,11 +304,11 @@ enum {
 
 
 enum {
-	pctl_pad_gpio_spi_b0_00 = pctl_pad_gpio_sd_b1_11 + 1, pctl_pad_gpio_spi_b0_01, pctl_pad_gpio_spi_b0_02, 
-	pctl_pad_gpio_spi_b0_03, pctl_pad_gpio_spi_b0_04, pctl_pad_gpio_spi_b0_05, pctl_pad_gpio_spi_b0_06, 
-	pctl_pad_gpio_spi_b0_07, pctl_pad_gpio_spi_b0_08, pctl_pad_gpio_spi_b0_09, pctl_pad_gpio_spi_b0_10, 
-	pctl_pad_gpio_spi_b0_11, pctl_pad_gpio_spi_b0_12, pctl_pad_gpio_spi_b0_13, pctl_pad_gpio_spi_b1_00, 
-	pctl_pad_gpio_spi_b1_01, pctl_pad_gpio_spi_b1_02, pctl_pad_gpio_spi_b1_03, pctl_pad_gpio_spi_b1_04, 
+	pctl_pad_gpio_spi_b0_00 = pctl_pad_gpio_sd_b1_11 + 1, pctl_pad_gpio_spi_b0_01, pctl_pad_gpio_spi_b0_02,
+	pctl_pad_gpio_spi_b0_03, pctl_pad_gpio_spi_b0_04, pctl_pad_gpio_spi_b0_05, pctl_pad_gpio_spi_b0_06,
+	pctl_pad_gpio_spi_b0_07, pctl_pad_gpio_spi_b0_08, pctl_pad_gpio_spi_b0_09, pctl_pad_gpio_spi_b0_10,
+	pctl_pad_gpio_spi_b0_11, pctl_pad_gpio_spi_b0_12, pctl_pad_gpio_spi_b0_13, pctl_pad_gpio_spi_b1_00,
+	pctl_pad_gpio_spi_b1_01, pctl_pad_gpio_spi_b1_02, pctl_pad_gpio_spi_b1_03, pctl_pad_gpio_spi_b1_04,
 	pctl_pad_gpio_spi_b1_05, pctl_pad_gpio_spi_b1_06, pctl_pad_gpio_spi_b1_07,
 
 	pctl_pad_snvs_test_mode, pctl_pad_snvs_por_b, pctl_pad_snvs_onoff, pctl_pad_snvs_wakeup,
@@ -390,7 +390,7 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 	acmp0_irq, acmp1_irq, acmp2_irq, acmp3_irq, acmp4_irq, /* Reserved #127..128 */ enc1_irq = 129 + 16, enc2_irq,
 	enc3_irq, enc4_irq, tmr1_irq, tmr2_irq, tmr3_irq, tmr4_irq, pwm2_0_irq, pwm2_1_irq, pwm2_2_irq, pwm2_3_irq,
 	pwm2_fault_irq, pwm3_0_irq, pwm3_1_irq, pwm3_2_irq, pwm3_3_irq, pwm3_fault_irq, pwm4_0_irq, pwm4_1_irq, pwm4_2_irq,
-	pwm4_3_irq, pwm4_fault_irq 
+	pwm4_3_irq, pwm4_fault_irq
 };
 
 

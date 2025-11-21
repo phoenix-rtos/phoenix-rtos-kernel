@@ -80,11 +80,10 @@ enum { wwdq_irq = 16, pvd_pvm_irq, rtc_tamper_stamp_irq, rtc_wkup_irq, flash_irq
 
 
 typedef struct {
-	enum { pctl_set = 0,
-		pctl_get } action;
-	enum { pctl_devclk = 0,
-		pctl_cpuclk,
-		pctl_reboot } type;
+	/* clang-format off */
+	enum { pctl_set = 0, pctl_get } action;
+	enum { pctl_devclk = 0, pctl_cpuclk, pctl_reboot } type;
+	/* clang-format on */
 
 	union {
 		struct {

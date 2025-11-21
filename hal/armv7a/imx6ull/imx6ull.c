@@ -40,6 +40,7 @@ enum { ccm_analog_pll_arm = 0, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, c
 	ccm_analog_pll_video_denom = ccm_analog_pll_video_num + 4, ccm_analog_pll_enet = ccm_analog_pll_video_denom + 4,
 	ccm_analog_pll_enet_set, ccm_analog_pll_enet_clr, ccm_analog_pll_enet_tog, ccm_analog_pfd_480, ccm_analog_pfd_480_set,
 	ccm_analog_pfd_480_clr, ccm_analog_pfd_480_tog, ccm_analog_pfd_528, ccm_analog_pfd_528_set, ccm_analog_pfd_528_clr,
+	ccm_analog_pfd_528_tog,
 	ccm_analog_misc0 = 84, ccm_analog_misc0_set, ccm_analog_misc0_clr, ccm_analog_misc0_tog, ccm_analog_misc1,
 	ccm_analog_misc1_set, ccm_analog_misc1_clr, ccm_analog_misc1_tog, ccm_analog_misc2, ccm_analog_misc2_set,
 	ccm_analog_misc2_clr, ccm_analog_misc2_tog };
