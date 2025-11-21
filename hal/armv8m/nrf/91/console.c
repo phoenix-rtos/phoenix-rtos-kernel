@@ -21,7 +21,7 @@
 #include "hal/spinlock.h"
 #include <board_config.h>
 
-#define TX_DMA_SIZE 64
+#define TX_DMA_SIZE 64U
 
 
 union {
@@ -55,13 +55,13 @@ enum { uarte_startrx = 0, uarte_stoprx, uarte_starttx, uarte_stoptx,
 /* Init pins according to nrf9160 product specification */
 static void console_configPins(void)
 {
-	_nrf91_gpioConfig(console_common.txPin, gpio_output, gpio_nopull);
-	_nrf91_gpioConfig(console_common.rxPin, gpio_input, gpio_nopull);
-	_nrf91_gpioConfig(console_common.rtsPin, gpio_output, gpio_nopull);
-	_nrf91_gpioConfig(console_common.ctsPin, gpio_input, gpio_pulldown);
+	_nrf91_gpioConfig(console_common.txPin, (u8)gpio_output, (u8)gpio_nopull);
+	_nrf91_gpioConfig(console_common.rxPin, (u8)gpio_input, (u8)gpio_nopull);
+	_nrf91_gpioConfig(console_common.rtsPin, (u8)gpio_output, (u8)gpio_nopull);
+	_nrf91_gpioConfig(console_common.ctsPin, (u8)gpio_input, (u8)gpio_pulldown);
 
-	_nrf91_gpioSet(console_common.txPin, gpio_high);
-	_nrf91_gpioSet(console_common.rtsPin, gpio_high);
+	_nrf91_gpioSet(console_common.txPin, (u8)gpio_high);
+	_nrf91_gpioSet(console_common.rtsPin, (u8)gpio_high);
 }
 
 
@@ -137,7 +137,7 @@ void hal_consolePutch(const char c)
 
 	hal_spinlockSet(&console_common.busySp, &sc);
 	tx_dma_buff[0] = c;
-	console_dmaSend(console_common.txDma, 1);
+	console_dmaSend(console_common.txDma, 1U);
 	hal_spinlockClear(&console_common.busySp, &sc);
 }
 
@@ -153,10 +153,10 @@ void _hal_consoleInit(void)
 		u8 rtsPin;
 		u8 ctsPin;
 	} uarts[] = {
-		{ 0, (u32 *)0x50008000U, UART0_TX, UART0_RX, UART0_RTS, UART0_CTS },
-		{ 1, (u32 *)0x50009000U, UART1_TX, UART1_RX, UART1_RTS, UART1_CTS },
-		{ 2, (u32 *)0x5000a000U, UART2_TX, UART2_RX, UART2_RTS, UART2_CTS },
-		{ 3, (u32 *)0x5000b000U, UART3_TX, UART3_RX, UART3_RTS, UART3_CTS }
+		{ 0U, (u32 *)0x50008000U, UART0_TX, UART0_RX, UART0_RTS, UART0_CTS },
+		{ 1U, (u32 *)0x50009000U, UART1_TX, UART1_RX, UART1_RTS, UART1_CTS },
+		{ 2U, (u32 *)0x5000a000U, UART2_TX, UART2_RX, UART2_RTS, UART2_CTS },
+		{ 3U, (u32 *)0x5000b000U, UART3_TX, UART3_RX, UART3_RTS, UART3_CTS }
 	};
 
 	const int uart = UART_CONSOLE;

@@ -149,7 +149,7 @@ typedef struct {
 		} mio;
 
 		struct {
-			__u32 dev;
+			int dev;
 			__u32 state;
 		} devreset;
 

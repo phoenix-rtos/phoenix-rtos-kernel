@@ -194,7 +194,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	HAL_LIST_ADD(&interrupts_common.handlers[h->n], h);
 
 	interrupts_setPriority(h->n, DEFAULT_PRIORITY);
-	interrupts_setCPU(h->n, 0x1);
+	interrupts_setCPU(h->n, 0x1U);
 	interrupts_enableIRQ(h->n);
 
 	hal_spinlockClear(&interrupts_common.spinlock[h->n], &sc);
@@ -203,7 +203,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 }
 
 
-char *hal_interruptsFeatures(char *features, unsigned int len)
+char *hal_interruptsFeatures(char *features, size_t len)
 {
 	(void)hal_strncpy(features, "Using GIC interrupt controller", len);
 	features[len - 1U] = '\0';
@@ -259,7 +259,7 @@ void _hal_interruptsInit(void)
 
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
 		interrupts_common.handlers[i] = NULL;
-		interrupts_common.counters[i] = 0;
+		interrupts_common.counters[i] = 0U;
 		hal_spinlockCreate(&interrupts_common.spinlock[i], "interrupts");
 	}
 

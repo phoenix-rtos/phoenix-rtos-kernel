@@ -22,6 +22,7 @@
 #include "hal/tlb/tlb.h"
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline void hal_tlbFlushLocal(const pmap_t *pmap)
 {
 	u32 tmpreg;
@@ -40,6 +41,7 @@ static inline void hal_tlbFlushLocal(const pmap_t *pmap)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline void hal_tlbInvalidateLocalEntry(const pmap_t *pmap, const void *vaddr)
 {
 	(void)pmap;

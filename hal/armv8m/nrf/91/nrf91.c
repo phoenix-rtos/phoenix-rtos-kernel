@@ -36,7 +36,7 @@ static struct {
 
 /* clang-format off */
 enum { power_tasks_constlat = 30, power_tasks_lowpwr, power_inten = 192, power_intenset,
-	power_intenclr, power_resetreas = 256, power_status = 272};
+	power_intenclr, power_resetreas = 256, power_status = 272 };
 
 
 enum { clock_tasks_hfclkstart = 0, clock_inten = 192, clock_intenset, clock_intenclr, clock_hfclkrun = 258, clock_hfclkstat };
@@ -97,8 +97,8 @@ void _hal_platformInit(void)
 
 int _nrf91_systickInit(u32 interval)
 {
-	u64 load = ((u64)interval * nrf91_common.cpuclk) / 1000000;
-	if (load > 0x00ffffff) {
+	u64 load = ((u64)interval * nrf91_common.cpuclk) / 1000000UL;
+	if (load > 0x00ffffffUL) {
 		return -EINVAL;
 	}
 
@@ -161,17 +161,17 @@ int _nrf91_gpioSet(u8 pin, u8 val)
 
 void _nrf91_init(void)
 {
-	nrf91_common.power = (void *)0x50005000;
-	nrf91_common.clock = (void *)0x50005000;
-	nrf91_common.gpio = (void *)0x50842500;
+	nrf91_common.power = (void *)0x50005000U;
+	nrf91_common.clock = (void *)0x50005000U;
+	nrf91_common.gpio = (void *)0x50842500U;
 	/* Store reset reason and then clean it */
 	nrf91_common.resetFlags = *(nrf91_common.power + power_resetreas);
-	*(nrf91_common.power + power_resetreas) = 0x70017;
+	*(nrf91_common.power + power_resetreas) = 0x70017U;
 
 	_hal_scsInit();
 
 	/* Based on nRF9160 product specification there is fixed cpu frequency */
-	nrf91_common.cpuclk = 64 * 1000 * 1000;
+	nrf91_common.cpuclk = 64U * 1000U * 1000U;
 
 	/* Enable low power mode */
 	*(nrf91_common.power + power_tasks_lowpwr) = 1U;

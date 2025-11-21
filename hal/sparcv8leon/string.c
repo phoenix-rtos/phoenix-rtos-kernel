@@ -13,9 +13,12 @@
  * %LICENSE%
  */
 
+/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+
 #include "hal/string.h"
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void *memcpy(void *dst, const void *src, unsigned int l)
 {
 	hal_memcpy(dst, src, l);
@@ -286,11 +289,15 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zer
 
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
+	k = m;
 
-	for (k = m, l = (unsigned int)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+	for (l = (unsigned int)-1; l != 0U; l /= b) {
+		if ((zero == 0U) && (i == 0U)) {
 			break;
+		}
+
 		s[k++] = digits[i % b];
+		i /= b;
 	}
 
 	l = k--;
@@ -303,3 +310,5 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zer
 
 	return l;
 }
+
+/* parasoft-end-suppress MISRAC2012-DIR_4_3 */

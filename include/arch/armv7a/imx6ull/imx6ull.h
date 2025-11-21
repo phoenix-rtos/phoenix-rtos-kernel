@@ -16,8 +16,11 @@
 #ifndef _PH_ARCH_IMX6ULL_H_
 #define _PH_ARCH_IMX6ULL_H_
 
-#define PCTL_REBOOT_MAGIC 0xaa55aa55UL
+#define PCTL_REBOOT_MAGIC           0xaa55aa55UL
 #define PCTL_REBOOT_MAGIC_SECONDARY 0x55aa55aaUL
+
+
+/* clang-format off */
 
 /* Devices clocks */
 enum {
@@ -138,7 +141,6 @@ enum {
 	pctl_mux_csi_d2, pctl_mux_csi_d3, pctl_mux_csi_d4, pctl_mux_csi_d5, pctl_mux_csi_d6, pctl_mux_csi_d7
 };
 
-
 /* IOMUX - PAD */
 enum {
 	pctl_pad_test_mode = 0, pctl_pad_por, pctl_pad_onoff, pctl_pad_pmic_on, pctl_pad_pmic_stby, pctl_pad_boot0,
@@ -150,8 +152,11 @@ enum {
 	pctl_pad_gpio1_09, pctl_pad_uart1_tx, pctl_pad_uart1_rx, pctl_pad_uart1_cts, pctl_pad_uart1_rts,
 	pctl_pad_uart2_tx, pctl_pad_uart2_rx, pctl_pad_uart2_cts, pctl_pad_uart2_rts, pctl_pad_uart3_tx,
 	pctl_pad_uart3_rx, pctl_pad_uart3_cts, pctl_pad_uart3_rts, pctl_pad_uart4_tx, pctl_pad_uart4_rx,
-	pctl_pad_uart5_tx, pctl_pad_uart5_rx, pctl_pad_enet1_rx0, pctl_pad_enet1_rx1, pctl_pad_enet1_rxen,
-	pctl_pad_enet1_tx0, pctl_pad_enet1_tx1, pctl_pad_enet1_txen, pctl_pad_enet1_txclk, pctl_pad_enet1_rxer,
+	pctl_pad_uart5_tx, pctl_pad_uart5_rx, pctl_pad_enet1_rx0, pctl_pad_enet1_rx1, pctl_pad_enet1_rxen
+};
+
+enum {
+	pctl_pad_enet1_tx0 = 215, pctl_pad_enet1_tx1, pctl_pad_enet1_txen, pctl_pad_enet1_txclk, pctl_pad_enet1_rxer,
 	pctl_pad_enet2_rx0, pctl_pad_enet2_rx1, pctl_pad_enet2_rxen, pctl_pad_enet2_tx0, pctl_pad_enet2_tx1,
 	pctl_pad_enet2_txen, pctl_pad_enet2_txclk, pctl_pad_enet2_rxer, pctl_pad_lcd_clk, pctl_pad_lcd_en,
 	pctl_pad_lcd_hsync, pctl_pad_lcd_vsync, pctl_pad_lcd_rst, pctl_pad_lcd_d0, pctl_pad_lcd_d1, pctl_pad_lcd_d2,
@@ -198,10 +203,14 @@ enum {
 	pctl_isel_usdhc2_wp
 };
 
+/* clang-format on */
+
 
 typedef struct {
+	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
 	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot } type;
+	/* clang-format on */
 
 	union {
 		struct {
@@ -216,25 +225,25 @@ typedef struct {
 
 		struct {
 			int mux;
-			char sion;
-			char mode;
+			unsigned char sion;
+			unsigned char mode;
 		} iomux;
 
 		struct {
 			int pad;
-			char hys;
-			char pus;
-			char pue;
-			char pke;
-			char ode;
-			char speed;
-			char dse;
-			char sre;
+			unsigned char hys;
+			unsigned char pus;
+			unsigned char pue;
+			unsigned char pke;
+			unsigned char ode;
+			unsigned char speed;
+			unsigned char dse;
+			unsigned char sre;
 		} iopad;
 
 		struct {
 			int isel;
-			char daisy;
+			unsigned char daisy;
 		} ioisel;
 
 		struct {

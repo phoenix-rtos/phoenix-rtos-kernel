@@ -28,6 +28,7 @@
 #define WWDGRSTF (1 << 6)
 #define LPWRRSTF (1 << 7)
 
+/* clang-format off */
 /* STM32L4 peripherals */
 enum {
 	/* AHB1 */
@@ -75,15 +76,18 @@ enum { wwdq_irq = 16, pvd_pvm_irq, rtc_tamper_stamp_irq, rtc_wkup_irq, flash_irq
 	quadspi_irq, i2c3_ev_irq, i2c3_er_irq, sai1_irq, sai2_irq, swpmi1_irq, tsc_irq, lcd_irq,
 	aes_irq, rng_irq, fpu_irq, hash_irq, i2c4_ev_irq, i2c4_er_irq, dcmi_irq, can2_tx_irq,
 	can2_rx0_irq, can2_rx1_irq, can2_sce_irq, dma2d_irq };
+/* clang-format on */
 
 
 typedef struct {
+	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
 	enum { pctl_devclk = 0, pctl_cpuclk, pctl_reboot } type;
+	/* clang-format on */
 
 	union {
 		struct {
-			unsigned int dev;   /* one of pctl_* enum values */
+			int dev;            /* one of pctl_* enum values */
 			unsigned int state; /* 1 - clock enabled; 0 - clock disabled */
 		} devclk;
 

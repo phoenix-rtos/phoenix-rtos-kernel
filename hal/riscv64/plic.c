@@ -24,16 +24,16 @@
 /* clang-format off */
 
 /* PLIC register offsets */
-#define PLIC_PRIORITY(irqn)            (0x0000 + (irqn) * 4)
-#define PLIC_REG_PENDING(irqn)         (0x1000 + ((irqn) / 32) * 4)
-#define PLIC_REG_ENABLE(context, irqn) (0x2000 + (context) * 0x80 + ((irqn) / 32) * 4)
-#define PLIC_REG_THRESHOLD(context)    (0x200000 + (context) * 0x1000)
-#define PLIC_REG_CLAIM(context)        (0x200004 + (context) * 0x1000)
+#define PLIC_PRIORITY(irqn)            (0x0000U + (irqn) * 4U)
+#define PLIC_REG_PENDING(irqn)         (0x1000U + ((irqn) / 32U) * 4U)
+#define PLIC_REG_ENABLE(context, irqn) (0x2000U + (context) * 0x80U + ((irqn) / 32U) * 4U)
+#define PLIC_REG_THRESHOLD(context)    (0x200000U + (context) * 0x1000U)
+#define PLIC_REG_CLAIM(context)        (0x200004U + (context) * 0x1000U)
 
 /* clang-format on */
 
 /* Value calculated from MAX_CPU_COUNT (2 contexts/cpu), TODO(?): get from DTB */
-#define PLIC_SIZE PLIC_REG_THRESHOLD(2 * MAX_CPU_COUNT)
+#define PLIC_SIZE PLIC_REG_THRESHOLD(2U * MAX_CPU_COUNT)
 
 
 static struct {
@@ -70,9 +70,9 @@ u32 plic_priorityGet(unsigned int n)
 
 int plic_isPending(unsigned int n)
 {
-	u32 bitshift = n % 32;
+	u32 bitshift = n % 32U;
 
-	return ((plic_read(PLIC_REG_PENDING(n)) >> bitshift) & 1);
+	return (int)(unsigned int)(((plic_read(PLIC_REG_PENDING(n)) >> bitshift) & 1U));
 }
 
 
@@ -100,22 +100,22 @@ void plic_complete(unsigned int context, unsigned int n)
 }
 
 
-static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enable)
+static int plic_modifyInterrupt(unsigned int context, unsigned int n, int enable)
 {
-	u32 bitshift = n % 32;
+	u32 bitshift = n % 32U;
 	u32 val;
 
-	if (n >= PLIC_IRQ_SIZE) {
+	if (n >= (unsigned int)PLIC_IRQ_SIZE) {
 		return -1;
 	}
 
 	val = plic_read(PLIC_REG_ENABLE(context, n));
 
 	if (enable != 0) {
-		val |= (1 << bitshift);
+		val |= (u32)(1UL << bitshift);
 	}
 	else {
-		val &= ~(1 << bitshift);
+		val &= ~(u32)(1UL << bitshift);
 	}
 
 	plic_write(PLIC_REG_ENABLE(context, n), val);
@@ -138,11 +138,11 @@ int plic_disableInterrupt(unsigned int context, unsigned int n)
 
 void plic_initCore(void)
 {
-	size_t i;
-	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
-		plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), i);
+	unsigned int i;
+	for (i = 1U; i < (unsigned int)PLIC_IRQ_SIZE; i++) {
+		(void)plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), i);
 	}
-	plic_tresholdSet(PLIC_SCONTEXT(hal_cpuGetID()), 1);
+	plic_tresholdSet(PLIC_SCONTEXT(hal_cpuGetID()), 1U);
 }
 
 
@@ -153,7 +153,7 @@ void plic_init(void)
 	plic_common.regw = _pmap_halMapDevice(PAGE_ALIGN(PLIC_BASE), PAGE_OFFS(PLIC_BASE), PLIC_SIZE);
 
 	/* Disable and mask external interrupts */
-	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
-		plic_priority(i, 0);
+	for (i = 1; i < (unsigned int)PLIC_IRQ_SIZE; i++) {
+		plic_priority(i, 0U);
 	}
 }

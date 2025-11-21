@@ -19,13 +19,17 @@
 #include "syspage.h"
 #include "halsyspage.h"
 
-struct {
+#include "lib/assert.h"
+
+static struct {
 	int started;
 } hal_common;
 
-syspage_t *syspage;
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Definition in assembly" */
+syspage_t *hal_syspage;
 u64 relOffs;
-u32 schedulerLocked = 0;
+u32 schedulerLocked;
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 
 void *hal_syspageRelocate(void *data)
@@ -36,7 +40,7 @@ void *hal_syspageRelocate(void *data)
 
 ptr_t hal_syspageAddr(void)
 {
-	return (ptr_t)syspage;
+	return (ptr_t)hal_syspage;
 }
 
 
@@ -84,8 +88,11 @@ __attribute__((section(".init"))) void _hal_init(void)
 	hal_common.started = 0;
 	schedulerLocked = 0;
 	_hal_spinlockInit();
+
+	/* parasoft-begin-suppress-next-line MISRAC2012-RULE_4_1 "dtb cannot be null" */
 	dtb = syspage_progNameResolve("system.dtb");
 	_pmap_preinit(dtb->start, dtb->end);
+
 	_hal_platformInit();
 	_hal_consoleInit();
 

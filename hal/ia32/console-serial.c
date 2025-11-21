@@ -58,7 +58,7 @@ static inline u8 _console_uartRead(unsigned int reg)
 void hal_consoleSerialPutch(char c)
 {
 	/* Wait for transmitter readiness */
-	while (!(_console_uartRead(lsr) & 0x20))
+	while ((_console_uartRead(lsr) & 0x20U) == 0U)
 		;
 
 	_console_uartWrite(thr, c);

@@ -16,6 +16,8 @@
 #include "hal/string.h"
 
 
+/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+
 int hal_memcmp(const void *ptr1, const void *ptr2, size_t num)
 {
 	int res = 0;
@@ -181,13 +183,14 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zer
 
 	m = hal_strlen(prefix);
 	hal_memcpy(s, prefix, m);
-
-	for (k = m, l = (unsigned long)-1; l; i /= b, l /= b) {
-		if (!zero && !i)
+	k = m;
+	for (l = (unsigned long)-1; l != 0U; l /= b) {
+		if ((zero == 0U) && (i == 0U)) {
 			break;
+		}
 		s[k++] = digits[i % b];
+		i /= b;
 	}
-
 	l = k--;
 
 	while (k > m) {
@@ -198,3 +201,5 @@ unsigned long hal_i2s(const char *prefix, char *s, unsigned long i, u8 b, u8 zer
 
 	return l;
 }
+
+/* parasoft-end-suppress MISRAC2012-DIR_4_3 */

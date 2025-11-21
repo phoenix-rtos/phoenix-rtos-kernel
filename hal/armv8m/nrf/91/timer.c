@@ -89,7 +89,7 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 }
 
 
-char *hal_timerFeatures(char *features, unsigned int len)
+char *hal_timerFeatures(char *features, size_t len)
 {
 	hal_strncpy(features, "Using SysTick timer", len);
 	features[len - 1] = '\0';
@@ -119,7 +119,7 @@ void _hal_timerInit(u32 interval)
 	/* 1 compare event per interval * 1us */
 	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_cc0) = interval;
 	/* Enable interrupts from compare0 events */
-	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_intenset) = 0x10000;
+	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_intenset) = 0x10000U;
 
 	/* Clear and start timer0 */
 	*(timer_common.timer[KERNEL_TIMER_INSTANCE] + timer_tasks_clear) = 1U;
@@ -127,7 +127,7 @@ void _hal_timerInit(u32 interval)
 
 	timer_common.overflowh.f = timer_irqHandler;
 	/* irq number always equals nrf peripheral id + 16 */
-	timer_common.overflowh.n = timer0_irq + 16;
+	timer_common.overflowh.n = (unsigned int)timer0_irq + 16U;
 	timer_common.overflowh.got = NULL;
 	timer_common.overflowh.data = NULL;
 	hal_interruptsSetHandler(&timer_common.overflowh);

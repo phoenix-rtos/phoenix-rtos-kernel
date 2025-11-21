@@ -14,10 +14,12 @@
  */
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "hal/armv7a/armv7a.h"
 #include "hal/spinlock.h"
 #include "include/arch/armv7a/imx6ull/imx6ull.h"
 
+/* clang-format off */
 /* CCM registers */
 enum { ccm_ccr = 0, ccm_ccdr, ccm_csr, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr,
 	ccm_cscmr1, ccm_cscmr2, ccm_cscdr1, ccm_cs1cdr, ccm_cs2cdr, ccm_cdcdr, ccm_chsccdr,
@@ -25,10 +27,6 @@ enum { ccm_ccr = 0, ccm_ccdr, ccm_csr, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr
 	ccm_cisr, ccm_cimr, ccm_ccosr, ccm_cgpr, ccm_ccgr0, ccm_ccgr1, ccm_ccgr2, ccm_ccgr3,
 	ccm_ccgr4, ccm_ccgr5, ccm_ccgr6, ccm_cmeor = ccm_ccgr6 + 2 };
 
-
-/* Reserved slots */
-const char ccm_reserved[] = { pctl_clk_asrc + 1, pctl_clk_ipsync_ip2apb_tzasc1_ipg + 1, pctl_clk_pxp + 1,
-	pctl_clk_mmdc_core_aclk_fast_core_p0 + 1, pctl_clk_iomux_snvs_gpr + 1, pctl_clk_usdhc2 + 1 };
 
 
 enum { ccm_analog_pll_arm = 0, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, ccm_analog_pll_arm_tog, ccm_analog_pll_usb1,
@@ -53,9 +51,10 @@ enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 enum { src_scr = 0, src_sbmr1, src_srsr, src_sisr = src_srsr + 3, src_sbmr2 = src_sisr + 2, src_gpr1, src_gpr2,
 	src_gpr3, src_gpr4, src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
+/* clang-format on */
 
 
-struct {
+static struct {
 	spinlock_t pltctlSp;
 
 	volatile u32 *ccm;
@@ -67,39 +66,51 @@ struct {
 	volatile u32 *src;
 } imx6ull_common;
 
+
 /* saved in _init_imx6ull.S */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 u32 imx6ull_bootReason;
 
+
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;
 
 
 static int _imx6ull_isValidDev(int dev)
 {
-	int i;
-
-	if (dev < pctl_clk_aips_tz1 || dev > pctl_clk_pwm7)
+	if (dev < pctl_clk_aips_tz1 || dev > pctl_clk_pwm7) {
 		return 0;
-
-	for (i = 0; i < sizeof(ccm_reserved) / sizeof(ccm_reserved[0]); ++i) {
-		if (dev == ccm_reserved[i])
-			return 0;
 	}
 
-	return 1;
+	switch (dev) {
+		/* the next dev after these is reserved */
+		case pctl_clk_asrc + 1:
+		case pctl_clk_ipsync_ip2apb_tzasc1_ipg + 1:
+		case pctl_clk_pxp + 1:
+		case pctl_clk_mmdc_core_aclk_fast_core_p0 + 1:
+		case pctl_clk_iomux_snvs_gpr + 1:
+		case pctl_clk_usdhc2 + 1:
+			return 0;
+
+		default:
+			return 1;
+	}
 }
 
 
 static int _imx6ull_getDevClock(int dev, unsigned int *state)
 {
-	int ccgr, flag;
+	int ccgr;
+	unsigned int flag;
 
-	if (!_imx6ull_isValidDev(dev))
+	if (_imx6ull_isValidDev(dev) == 0) {
 		return -1;
+	}
 
 	ccgr = dev / 16;
-	flag = 3 << (2 * (dev % 16));
+	flag = (3UL << (2U * ((unsigned int)dev % 16U)));
 
-	*state = (*(imx6ull_common.ccm + ccm_ccgr0 + ccgr) & flag) >> (2 * (dev % 16));
+	*state = (*(imx6ull_common.ccm + ccm_ccgr0 + ccgr) & flag) >> (2U * ((unsigned int)dev % 16U));
 
 	return 0;
 }
@@ -107,15 +118,17 @@ static int _imx6ull_getDevClock(int dev, unsigned int *state)
 
 static int _imx6ull_setDevClock(int dev, unsigned int state)
 {
-	int ccgr, flag, mask;
+	int ccgr;
+	unsigned int flag, mask;
 	u32 r;
 
-	if (!_imx6ull_isValidDev(dev))
+	if (_imx6ull_isValidDev(dev) == 0) {
 		return -1;
+	}
 
 	ccgr = dev / 16;
-	flag = (state & 3) << (2 * (dev % 16));
-	mask = 3 << (2 * (dev % 16));
+	flag = (state & 3U) << (2U * ((unsigned int)dev % 16U));
+	mask = 3UL << (2U * ((unsigned int)dev % 16U));
 
 	r = *(imx6ull_common.ccm + ccm_ccgr0 + ccgr);
 	*(imx6ull_common.ccm + ccm_ccgr0 + ccgr) = (r & ~mask) | flag;
@@ -127,30 +140,31 @@ static int _imx6ull_setDevClock(int dev, unsigned int state)
 static int _imx6ull_checkIOgprArg(int field, unsigned int *mask)
 {
 	if (field < pctl_gpr_dmareq0 || field > pctl_gpr_sm2 ||
-		(field > pctl_gpr_ref_epit2 && field < pctl_gpr_tzasc1_byp) ||
-		(field > pctl_gpr_ocram_tz_addr && field < pctl_gpr_sm1))
+			(field > pctl_gpr_ref_epit2 && field < pctl_gpr_tzasc1_byp) ||
+			(field > pctl_gpr_ocram_tz_addr && field < pctl_gpr_sm1)) {
 		return -1;
+	}
 
 	switch (field) {
 		case pctl_gpr_addrs0:
 		case pctl_gpr_addrs1:
 		case pctl_gpr_addrs2:
 		case pctl_gpr_addrs3:
-			*mask = 0x3;
+			*mask = 0x3U;
 			break;
 
 		case pctl_gpr_mqs_clk_div:
-			*mask = 0xff;
+			*mask = 0xffU;
 			break;
 
 		case pctl_gpr_ocram_ctl:
 		case pctl_gpr_ocram_status:
 		case pctl_gpr_ocram_tz_addr:
-			*mask = 0xf;
+			*mask = 0xfU;
 			break;
 
 		default:
-			*mask = 0x1;
+			*mask = 0x1U;
 			break;
 	}
 
@@ -168,14 +182,14 @@ static int _imx6ull_setIOgpr(int field, unsigned int val)
 		return err;
 	}
 
-	t = *(imx6ull_common.iomux_gpr+ (field >> 5)) & ~(mask << (field & 0x1f));
-	*(imx6ull_common.iomux_gpr + (field >> 5)) = t | (val & mask) << (field & 0x1f);
+	t = *(imx6ull_common.iomux_gpr + ((unsigned int)field >> 5)) & ~(mask << ((unsigned int)field & 0x1fU));
+	*(imx6ull_common.iomux_gpr + ((unsigned int)field >> 5)) = t | (val & mask) << ((unsigned int)field & 0x1fU);
 
 	return 0;
 }
 
 
-static int _imx6ull_setIOmux(int mux, char sion, char mode)
+static int _imx6ull_setIOmux(int mux, u32 sion, u32 mode)
 {
 	volatile u32 *base = imx6ull_common.iomux;
 
@@ -183,16 +197,20 @@ static int _imx6ull_setIOmux(int mux, char sion, char mode)
 		mux = (mux - pctl_mux_boot_mode0);
 		base = imx6ull_common.iomux_snvs;
 	}
-	else if (mux < pctl_mux_jtag_mod || mux > pctl_mux_csi_d7)
+	else if (mux < pctl_mux_jtag_mod || mux > pctl_mux_csi_d7) {
 		return -1;
+	}
+	else {
+		/* No action required*/
+	}
 
-	*(base + mux) = (!!sion << 4) | (mode & 0xf);
+	*(base + mux) = (mode & 0xfU) | ((sion & 0x1U) << 4);
 
 	return 0;
 }
 
 
-static int _imx6ull_setIOpad(int pad, char hys, char pus, char pue, char pke, char ode, char speed, char dse, char sre)
+static int _imx6ull_setIOpad(int pad, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8 speed, u8 dse, u8 sre)
 {
 	u32 t;
 	volatile u32 *base = imx6ull_common.iomux;
@@ -201,23 +219,28 @@ static int _imx6ull_setIOpad(int pad, char hys, char pus, char pue, char pke, ch
 		pad = pad - pctl_pad_test_mode + 12;
 		base = imx6ull_common.iomux_gpr;
 	}
-	else if (pad < pctl_pad_jtag_mod || pad > pctl_pad_csi_d7)
+	else if (pad < pctl_pad_jtag_mod || pad > pctl_pad_csi_d7) {
 		return -1;
+	}
+	else {
+		/* No action required*/
+	}
 
-	t = (!!hys << 16) | ((pus & 0x3) << 14) | (!!pue << 13) | (!!pke << 12);
-	t |= (!!ode << 11) | ((speed & 0x3) << 6) | ((dse & 0x7) << 3) | !!sre;
+	t = (((u32)hys & 0x1U) << 16) | (((u32)pus & 0x3U) << 14) | (((u32)pue & 0x1U) << 13) | ((u32)pke << 12);
+	t |= (((u32)ode & 0x1U) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | ((u32)sre & 0x1U);
 	*(base + pad) = t;
 
 	return 0;
 }
 
 
-static int _imx6ull_setIOisel(int isel, char daisy)
+static int _imx6ull_setIOisel(int isel, unsigned char daisy)
 {
-	if (isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp)
+	if (isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp) {
 		return -1;
+	}
 
-	*(imx6ull_common.iomux + isel) = daisy & 0x7;
+	*(imx6ull_common.iomux + isel) = (u32)daisy & 0x7U;
 
 	return 0;
 }
@@ -233,72 +256,79 @@ static int _imx6ull_getIOgpr(int field, unsigned int *val)
 		return err;
 	}
 
-	*val = (*(imx6ull_common.iomux_gpr + (field >> 5)) >> (field & 0x1f)) & mask;
+	*val = (*(imx6ull_common.iomux_gpr + ((unsigned int)field >> 5)) >> ((unsigned int)field & 0x1fU)) & mask;
 
 	return 0;
 }
 
 
-static int _imx6ull_getIOmux(int mux, char *sion, char *mode)
+static int _imx6ull_getIOmux(int mux, unsigned char *sion, unsigned char *mode)
 {
 	u32 t;
 	volatile u32 *base = imx6ull_common.iomux;
 
-	if (sion == NULL || mode == NULL)
+	if (sion == NULL || mode == NULL) {
 		return -1;
+	}
 
 	if (mux >= pctl_mux_boot_mode0 && mux <= pctl_mux_tamper9) {
 		mux = (mux - pctl_mux_boot_mode0);
 		base = imx6ull_common.iomux_snvs;
 	}
-	else if (mux < pctl_mux_jtag_mod || mux > pctl_mux_csi_d7)
+	else if (mux < pctl_mux_jtag_mod || mux > pctl_mux_csi_d7) {
 		return -1;
+	}
+	else {
+		/* No action required */
+	}
 
 	t = *(base + mux);
 
-	*sion = !!(t & (1 << 4));
-	*mode = t & 0xf;
+	*sion = (t & (1U << 4)) == 0U ? 0 : 1;
+	*mode = (unsigned char)(t & 0xfU);
 
 	return 0;
 }
 
 
-static int _imx6ull_getIOpad(int pad, char *hys, char *pus, char *pue, char *pke, char *ode, char *speed, char *dse, char *sre)
+static int _imx6ull_getIOpad(int pad, u8 *hys, u8 *pus, u8 *pue, u8 *pke, u8 *ode, u8 *speed, u8 *dse, u8 *sre)
 {
 	u32 t;
 	volatile u32 *base = imx6ull_common.iomux;
-
-	if (hys == NULL || pus == NULL || pue == NULL || pke == NULL || ode == NULL || speed == NULL || dse == NULL || sre == NULL)
-		return -1;
 
 	if (pad >= pctl_pad_test_mode && pad <= pctl_pad_tamper9) {
 		pad = pad - pctl_pad_test_mode + 12;
 		base = imx6ull_common.iomux_gpr;
 	}
-	else if (pad < pctl_pad_jtag_mod || pad > pctl_pad_csi_d7)
+	else if (pad < pctl_pad_jtag_mod || pad > pctl_pad_csi_d7) {
 		return -1;
+	}
+	else {
+		/* No action required */
+	}
 
 	t = *(base + pad);
 
-	*hys = (t >> 16) & 0x1;
-	*pus = (t >> 14) & 0x3;
-	*pue = (t >> 13) & 0x1;
-	*pke = (t >> 12) & 0x1;
-	*ode = (t >> 11) & 0x1;
-	*speed = (t >> 6) & 0x3;
-	*dse = (t >> 3) & 0x7;
-	*sre = t & 0x1;
+	*hys = (u8)((t >> 16) & 0x1U);
+	*pus = (u8)((t >> 14) & 0x3U);
+	*pue = (u8)((t >> 13) & 0x1U);
+	*pke = (u8)((t >> 12) & 0x1U);
+	*ode = (u8)((t >> 11) & 0x1U);
+	*speed = (u8)((t >> 6) & 0x3U);
+	*dse = (u8)((t >> 3) & 0x7U);
+	*sre = (u8)(t & 0x1U);
 
 	return 0;
 }
 
 
-static int _imx6ull_getIOisel(int isel, char *daisy)
+static int _imx6ull_getIOisel(int isel, unsigned char *daisy)
 {
-	if (daisy == NULL || isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp)
+	if (daisy == NULL || isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp) {
 		return -1;
+	}
 
-	*daisy = *(imx6ull_common.iomux + isel) & 0x7;
+	*daisy = (unsigned char)(*(imx6ull_common.iomux + isel) & 0x7U);
 
 	return 0;
 }
@@ -307,7 +337,7 @@ static int _imx6ull_getIOisel(int isel, char *daisy)
 __attribute__((noreturn)) static void _imx6ull_reboot(void)
 {
 	/* assert SRS signal by writing 0 to bit 4 and 1 to bit 2 (WDOG enable) */
-	*(imx6ull_common.wdog + wdog_wcr) = (1 << 2);
+	*(imx6ull_common.wdog + wdog_wcr) = (1U << 2);
 	for (;;) {
 	}
 }
@@ -334,71 +364,103 @@ int hal_platformctl(void *ptr)
 	int ret = -1;
 	unsigned int t = 0;
 	spinlock_ctx_t sc;
+	unsigned char sion = 0, mode = 0, daisy = 0;
 
 	hal_spinlockSet(&imx6ull_common.pltctlSp, &sc);
 
 	switch (data->type) {
-	case pctl_devclock:
-		if (data->action == pctl_set) {
-			ret = _imx6ull_setDevClock(data->devclock.dev, data->devclock.state);
-		}
-		else if (data->action == pctl_get) {
-			ret = _imx6ull_getDevClock(data->devclock.dev, &t);
-			data->devclock.state = t;
-		}
-		break;
-	case pctl_iogpr:
-		if (data->action == pctl_set) {
-			ret = _imx6ull_setIOgpr(data->iogpr.field, data->iogpr.val);
-		}
-		else if (data->action == pctl_get) {
-			ret = _imx6ull_getIOgpr(data->iogpr.field, &t);
-			data->iogpr.val = t;
-		}
-		break;
-	case pctl_iomux:
-		if (data->action == pctl_set)
-			ret = _imx6ull_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
-		else if (data->action == pctl_get)
-			ret = _imx6ull_getIOmux(data->iomux.mux, &data->iomux.sion, &data->iomux.mode);
-		break;
-	case pctl_iopad:
-		if (data->action == pctl_set)
-			ret = _imx6ull_setIOpad(data->iopad.pad, data->iopad.hys, data->iopad.pus, data->iopad.pue,
-				data->iopad.pke, data->iopad.ode, data->iopad.speed, data->iopad.dse, data->iopad.sre);
-		else if (data->action == pctl_get)
-			ret = _imx6ull_getIOpad(data->iopad.pad, &data->iopad.hys, &data->iopad.pus, &data->iopad.pue,
-				&data->iopad.pke, &data->iopad.ode, &data->iopad.speed, &data->iopad.dse, &data->iopad.sre);
-		break;
-	case pctl_ioisel:
-		if (data->action == pctl_set)
-			ret = _imx6ull_setIOisel(data->ioisel.isel, data->ioisel.daisy);
-		else if (data->action == pctl_get)
-			ret = _imx6ull_getIOisel(data->ioisel.isel, &data->ioisel.daisy);
-		break;
-	case pctl_reboot:
-		if (data->action == pctl_set) {
-			if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
-				*(imx6ull_common.src + src_gpr10) &= ~(1 << 30);
-				hal_cpuInstrBarrier();
-				hal_cpuDataMemoryBarrier();
-				_imx6ull_reboot();
+		case pctl_devclock:
+			if (data->action == pctl_set) {
+				ret = _imx6ull_setDevClock(data->devclock.dev, data->devclock.state);
 			}
-			else if (data->reboot.magic == PCTL_REBOOT_MAGIC_SECONDARY) {
-				*(imx6ull_common.src + src_gpr10) |= 1 << 30;
-				hal_cpuInstrBarrier();
-				hal_cpuDataMemoryBarrier();
-				_imx6ull_reboot();
+			else if (data->action == pctl_get) {
+				ret = _imx6ull_getDevClock(data->devclock.dev, &t);
+				data->devclock.state = t;
 			}
-		}
-		else if (data->action == pctl_get) {
-			/* [src_gpt10[31:24]] [wdog_wrsr[7:0]] [src_srsr[15:8]] [src_srsr[7:0]] */
-			data->reboot.reason = imx6ull_bootReason;
-			ret = 0;
-		}
-		break;
-	default:
-		break;
+			else {
+				/* No action required */
+			}
+			break;
+		case pctl_iogpr:
+			if (data->action == pctl_set) {
+				ret = _imx6ull_setIOgpr(data->iogpr.field, data->iogpr.val);
+			}
+			else if (data->action == pctl_get) {
+				ret = _imx6ull_getIOgpr(data->iogpr.field, &t);
+				data->iogpr.val = t;
+			}
+			else {
+				/* No action required */
+			}
+			break;
+		case pctl_iomux:
+			if (data->action == pctl_set) {
+				ret = _imx6ull_setIOmux(data->iomux.mux, data->iomux.sion, data->iomux.mode);
+			}
+			else if (data->action == pctl_get) {
+				ret = _imx6ull_getIOmux(data->iomux.mux, &sion, &mode);
+				data->iomux.sion = sion;
+				data->iomux.mode = mode;
+			}
+			else {
+				/* No action required */
+			}
+			break;
+		case pctl_iopad:
+			if (data->action == pctl_set) {
+				ret = _imx6ull_setIOpad(data->iopad.pad, data->iopad.hys, data->iopad.pus, data->iopad.pue,
+						data->iopad.pke, data->iopad.ode, data->iopad.speed, data->iopad.dse, data->iopad.sre);
+			}
+			else if (data->action == pctl_get) {
+				ret = _imx6ull_getIOpad(data->iopad.pad, &data->iopad.hys, &data->iopad.pus, &data->iopad.pue,
+						&data->iopad.pke, &data->iopad.ode, &data->iopad.speed, &data->iopad.dse, &data->iopad.sre);
+			}
+			else {
+				/* No action required */
+			}
+			break;
+		case pctl_ioisel:
+			if (data->action == pctl_set) {
+				ret = _imx6ull_setIOisel(data->ioisel.isel, data->ioisel.daisy);
+			}
+			else if (data->action == pctl_get) {
+				ret = _imx6ull_getIOisel(data->ioisel.isel, &daisy);
+				data->ioisel.daisy = daisy;
+			}
+			else {
+				/* No action required */
+			}
+			break;
+		case pctl_reboot:
+			if (data->action == pctl_set) {
+				if (data->reboot.magic == PCTL_REBOOT_MAGIC) {
+					*(imx6ull_common.src + src_gpr10) &= ~(1UL << 30);
+					hal_cpuInstrBarrier();
+					hal_cpuDataMemoryBarrier();
+					_imx6ull_reboot();
+				}
+				else if (data->reboot.magic == PCTL_REBOOT_MAGIC_SECONDARY) {
+					*(imx6ull_common.src + src_gpr10) |= 1UL << 30;
+					hal_cpuInstrBarrier();
+					hal_cpuDataMemoryBarrier();
+					_imx6ull_reboot();
+				}
+				else {
+					/* No action required */
+				}
+			}
+			else if (data->action == pctl_get) {
+				/* [src_gpt10[31:24]] [wdog_wrsr[7:0]] [src_srsr[15:8]] [src_srsr[7:0]] */
+				data->reboot.reason = imx6ull_bootReason;
+				ret = 0;
+			}
+			else {
+				/* No action required */
+			}
+			break;
+		default:
+			/* No action required*/
+			break;
 	}
 
 	hal_spinlockClear(&imx6ull_common.pltctlSp, &sc);
@@ -412,36 +474,36 @@ void _hal_platformInit(void)
 	unsigned int reg, tmp;
 
 	hal_spinlockCreate(&imx6ull_common.pltctlSp, "pltctl");
-	imx6ull_common.ccm = (void *)(((u32)&_end + (11 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	imx6ull_common.ccm_analog = (void *)(((u32)&_end + (12 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	imx6ull_common.iomux_snvs = (void *)(((u32)&_end + (13 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	imx6ull_common.iomux = (void *)(((u32)&_end + (14 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	imx6ull_common.iomux_gpr = (void *)(((u32)&_end + (15 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	imx6ull_common.wdog = (void *)(((u32)&_end + (16 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
-	imx6ull_common.src = (void *)(((u32)&_end + (17 * SIZE_PAGE) - 1) & ~(SIZE_PAGE - 1));
+	imx6ull_common.ccm = (void *)(((u32)&_end + (11U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	imx6ull_common.ccm_analog = (void *)(((u32)&_end + (12U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	imx6ull_common.iomux_snvs = (void *)(((u32)&_end + (13U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	imx6ull_common.iomux = (void *)(((u32)&_end + (14U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	imx6ull_common.iomux_gpr = (void *)(((u32)&_end + (15U * SIZE_PAGE) - 1u) & ~(SIZE_PAGE - 1U));
+	imx6ull_common.wdog = (void *)(((u32)&_end + (16U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	imx6ull_common.src = (void *)(((u32)&_end + (17U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
 
 	/* remain in run mode in low power */
-	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3;
+	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3U;
 
 	/* kick watchdog power down counter */
 	*(imx6ull_common.wdog + wdog_wmcr) = 0;
 
 	/* copy watchdog Reset Status Register to bootreason[23:16] */
 	imx6ull_bootReason &= 0xff00ffffU;
-	imx6ull_bootReason |= *(imx6ull_common.wdog + wdog_wrsr) << 16;
+	imx6ull_bootReason |= (u32)*(imx6ull_common.wdog + wdog_wrsr) << 16U;
 
 	/* Set ENFC clock to 198 MHz */
 	/* First disable all output clocks */
 	reg = *(imx6ull_common.ccm + ccm_ccgr4);
 	tmp = reg;
-	reg &= ~((3 << 30) | (3 << 28) | (3 << 26) | (3 << 24) | (3 << 12));
+	reg &= ~((3UL << 30) | (3UL << 28) | (3UL << 26) | (3UL << 24) | (3UL << 12));
 	*(imx6ull_common.ccm + ccm_ccgr4) = reg;
 
 	/* Configure ENFC clock */
 	reg = *(imx6ull_common.ccm + ccm_cs2cdr);
-	reg &= ~((63 << 21) | (7 << 18) | (7 << 15)); /* Clear ENFC clock selector and dividers */
-	reg |= (3 << 15);                             /* Set ENFC_CLK_SEL to PLL2 PFD2 (396 MHz) */
-	reg |= (1 << 18);                             /* Set ENFC_PRED divider to 2 */
+	reg &= ~((63UL << 21) | (7UL << 18) | (7UL << 15)); /* Clear ENFC clock selector and dividers */
+	reg |= (3UL << 15);                                 /* Set ENFC_CLK_SEL to PLL2 PFD2 (396 MHz) */
+	reg |= (1UL << 18);                                 /* Set ENFC_PRED divider to 2 */
 	*(imx6ull_common.ccm + ccm_cs2cdr) = reg;
 
 	/* Restore output clocks state */

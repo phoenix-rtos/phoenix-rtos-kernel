@@ -24,7 +24,7 @@
 void _hal_scsIRQSet(u32 irqn, u8 state);
 
 
-void _hal_scsIRQPrioritySet(u32 irqn, u32 priority);
+void _hal_scsIRQPrioritySet(u32 irqn, u8 priority);
 
 
 void _hal_scsIRQPendingSet(u32 irqn);

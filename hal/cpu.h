@@ -78,9 +78,6 @@ void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got);
 void hal_cpuSetGot(void *got);
 
 
-void *hal_cpuGetGot(void);
-
-
 int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, size_t kstacksz, void *ustack, void *arg, struct _hal_tls_t *tls);
 
 
@@ -130,7 +127,7 @@ unsigned int hal_cpuGetCount(void);
 char *hal_cpuInfo(char *info);
 
 
-char *hal_cpuFeatures(char *features, unsigned int len);
+char *hal_cpuFeatures(char *features, size_t len);
 
 
 void hal_cpuBroadcastIPI(unsigned int intr);

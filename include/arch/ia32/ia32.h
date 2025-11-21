@@ -16,8 +16,8 @@
 #ifndef _PH_ARCH_IA32_H_
 #define _PH_ARCH_IA32_H_
 
-#define PCI_ANY            0
-#define PCI_VENDOR_INTEL   0x8086
+#define PCI_ANY          0U
+#define PCI_VENDOR_INTEL 0x8086U
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 

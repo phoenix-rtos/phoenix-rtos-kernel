@@ -49,6 +49,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 	hal_spinlockClear(&grfpga_common.lock, &sc);

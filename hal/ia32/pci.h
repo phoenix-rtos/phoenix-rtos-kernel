@@ -31,4 +31,7 @@ int hal_pciSetConfigOption(pci_pcicfg_t *pcicfg);
 void _hal_pciInit(void);
 
 
+int _hal_pciSetCmdRegBit(pci_dev_t *dev, u8 bit, u8 enable);
+
+
 #endif
