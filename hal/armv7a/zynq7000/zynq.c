@@ -528,6 +528,7 @@ static int _zynq_setDevRst(int dev, unsigned int state)
 }
 
 
+/* TODO: consult RM if state could be u8* */
 static int _zynq_getDevRst(int dev, unsigned int *state)
 {
 	int err = 0;
@@ -679,7 +680,7 @@ int hal_platformctl(void *ptr)
 				ret = _zynq_setAmbaClk((u32)data->ambaclock.dev, (u8)data->ambaclock.state);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getAmbaClk((u32)data->ambaclock.dev, &t);
+				ret = _zynq_getAmbaClk((u32)data->ambaclock.dev, (u8 *)&t);
 				data->ambaclock.state = t;
 			}
 			else {
