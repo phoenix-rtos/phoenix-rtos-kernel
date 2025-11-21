@@ -137,7 +137,7 @@ int _stm32_bsec_otp_write(unsigned int fuse, u32 val)
 
 	/* Program the word using cr register. Fuse word is locked if it's mid or upper */
 	t = *(bsec_common.base + bsec_otpcr) & ~(OTPCR_ADDR | OTPCR_PROG | OTPCR_PPLOCK);
-	*(bsec_common.base + bsec_otpcr) |= fuse | OTPCR_PROG | (lockFuse & OTPCR_PPLOCK);
+	*(bsec_common.base + bsec_otpcr) = t | fuse | OTPCR_PROG | (lockFuse & OTPCR_PPLOCK);
 
 	_stm32_bsec_otp_waitBusy();
 
