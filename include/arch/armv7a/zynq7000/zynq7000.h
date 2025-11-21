@@ -106,9 +106,9 @@ typedef struct {
 		} reboot;
 
 		struct {
-			int dev;
-			__u8 wpPin;
-			__u8 cdPin;
+			char dev;
+			unsigned char wpPin;
+			unsigned char cdPin;
 		} SDWpCd;
 	};
 } __attribute__((packed)) platformctl_t;

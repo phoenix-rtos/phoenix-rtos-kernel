@@ -226,8 +226,8 @@ typedef struct {
 
 		struct {
 			int mux;
-			int sion;
-			int mode;
+			unsigned char sion;
+			unsigned char mode;
 		} iomux;
 
 		struct {
@@ -244,7 +244,7 @@ typedef struct {
 
 		struct {
 			int isel;
-			int daisy;
+			unsigned char daisy;
 		} ioisel;
 
 		struct {

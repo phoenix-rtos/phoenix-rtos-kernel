@@ -176,7 +176,7 @@ static void _zynq_slcrUnlock(void)
 }
 
 
-int _zynq_setAmbaClk(u32 dev, u32 state)
+int _zynq_setAmbaClk(u32 dev, u8 state)
 {
 	/* Check max dev position in amba register */
 	if (dev > 24U) {
@@ -184,14 +184,14 @@ int _zynq_setAmbaClk(u32 dev, u32 state)
 	}
 
 	_zynq_slcrUnlock();
-	*(zynq_common.slcr + slcr_aper_clk_ctrl) = (*(zynq_common.slcr + slcr_aper_clk_ctrl) & ~(1UL << dev)) | ((state == 0U ? 0UL : 1UL) << dev);
+	*(zynq_common.slcr + slcr_aper_clk_ctrl) = (*(zynq_common.slcr + slcr_aper_clk_ctrl) & ~(1UL << dev)) | (((u32)state & 0x1U) << dev);
 	_zynq_slcrLock();
 
 	return 0;
 }
 
 
-static int _zynq_getAmbaClk(u32 dev, u32 *state)
+static int _zynq_getAmbaClk(u32 dev, u8 *state)
 {
 	/* Check max dev position in amba register */
 	if (dev > 24U) {
@@ -199,7 +199,7 @@ static int _zynq_getAmbaClk(u32 dev, u32 *state)
 	}
 
 	_zynq_slcrUnlock();
-	*state = (*(zynq_common.slcr + slcr_aper_clk_ctrl) >> dev) & 0x1U;
+	*state = (u8)((*(zynq_common.slcr + slcr_aper_clk_ctrl) >> dev) & 0x1U);
 	_zynq_slcrLock();
 
 	return 0;
@@ -222,45 +222,45 @@ static int _zynq_setDevClk(int dev, u8 divisor0, u8 divisor1, u8 srcsel, u8 clka
 		case pctl_ctrl_gem0_rclk:
 		case pctl_ctrl_gem1_rclk:
 			id = dev - pctl_ctrl_gem0_rclk;
-			*(zynq_common.slcr + slcr_gem0_rclk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_gem0_rclk + id) & ~0x00000011U) | (clkact0 == 0U ? 0UL : 1UL) |
+			*(zynq_common.slcr + slcr_gem0_rclk_ctrl + id) = (*(zynq_common.slcr + pctl_ctrl_gem0_rclk + id) & ~0x00000011U) | ((u32)clkact0 & 0x1UL) |
 					((srcsel == 0U ? 0UL : 1UL) << 4);
 			break;
 
 		case pctl_ctrl_gem0_clk:
 		case pctl_ctrl_gem1_clk:
 			id = dev - pctl_ctrl_gem0_clk;
-			*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) = (*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) & ~0x03f03f71U) | (clkact0 == 0U ? 0U : 1U) |
+			*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) = (*(zynq_common.slcr + slcr_gem0_clk_ctrl + id) & ~0x03f03f71U) | ((u32)clkact0 & 0x1U) |
 					(((u32)srcsel & 0x7U) << 4) | (((u32)divisor0 & 0x3fU) << 8) | (((u32)divisor1 & 0x3fU) << 20);
 			break;
 
 		case pctl_ctrl_smc_clk:
-			*(zynq_common.slcr + slcr_smc_clk_ctrl) = (*(zynq_common.slcr + slcr_smc_clk_ctrl) & ~0x00003f31U) | (clkact0 == 0U ? 0U : 1U) |
+			*(zynq_common.slcr + slcr_smc_clk_ctrl) = (*(zynq_common.slcr + slcr_smc_clk_ctrl) & ~0x00003f31U) | ((u32)clkact0 & 0x1U) |
 					(((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_lqspi_clk:
-			*(zynq_common.slcr + slcr_lqspi_clk_ctrl) = (*(zynq_common.slcr + slcr_lqspi_clk_ctrl) & ~0x00003f31U) | (clkact0 == 0U ? 0UL : 1U) |
+			*(zynq_common.slcr + slcr_lqspi_clk_ctrl) = (*(zynq_common.slcr + slcr_lqspi_clk_ctrl) & ~0x00003f31U) | ((u32)clkact0 & 0x1U) |
 					(((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_sdio_clk:
-			*(zynq_common.slcr + slcr_sdio_clk_ctrl) = (*(zynq_common.slcr + slcr_sdio_clk_ctrl) & ~0x00003f33U) | (clkact0 == 0U ? 0UL : 1UL) | ((clkact1 == 0U ? 0UL : 1UL) << 1) |
+			*(zynq_common.slcr + slcr_sdio_clk_ctrl) = (*(zynq_common.slcr + slcr_sdio_clk_ctrl) & ~0x00003f33U) | ((u32)clkact0 & 0x1UL) | (((u32)clkact1 & 0x1UL) << 1) |
 					(((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_uart_clk:
-			*(zynq_common.slcr + slcr_uart_clk_ctrl) = (*(zynq_common.slcr + slcr_uart_clk_ctrl) & ~0x00003f33U) | (clkact0 == 0U ? 0U : 1U) |
-					((clkact1 == 0U ? 0UL : 1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
+			*(zynq_common.slcr + slcr_uart_clk_ctrl) = (*(zynq_common.slcr + slcr_uart_clk_ctrl) & ~0x00003f33U) | ((u32)clkact0 & 0x1U) |
+					(((u32)clkact1 & 0x1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_spi_clk:
-			*(zynq_common.slcr + slcr_spi_clk_ctrl) = (*(zynq_common.slcr + slcr_spi_clk_ctrl) & ~0x00003f33U) | (clkact0 == 0U ? 0U : 1U) |
-					((clkact1 == 0U ? 0UL : 1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
+			*(zynq_common.slcr + slcr_spi_clk_ctrl) = (*(zynq_common.slcr + slcr_spi_clk_ctrl) & ~0x00003f33U) | ((u32)clkact0 & 0x1U) |
+					(((u32)clkact1 & 0x1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8);
 			break;
 
 		case pctl_ctrl_can_clk:
-			*(zynq_common.slcr + slcr_can_clk_ctrl) = (*(zynq_common.slcr + slcr_can_clk_ctrl) & ~0x03f03f33U) | (clkact0 == 0U ? 0UL : 1UL) |
-					((clkact1 == 0U ? 0UL : 1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8) | (((u32)divisor1 & 0x3fU) << 20);
+			*(zynq_common.slcr + slcr_can_clk_ctrl) = (*(zynq_common.slcr + slcr_can_clk_ctrl) & ~0x03f03f33U) | ((u32)clkact0 & 0x1UL) |
+					(((u32)clkact1 & 0x1UL) << 1) | (((u32)srcsel & 0x3U) << 4) | (((u32)divisor0 & 0x3fU) << 8) | (((u32)divisor1 & 0x3fU) << 20);
 			break;
 
 		default:
@@ -675,7 +675,8 @@ int hal_platformctl(void *ptr)
 	switch (data->type) {
 		case pctl_ambaclock:
 			if (data->action == pctl_set) {
-				ret = _zynq_setAmbaClk((u32)data->ambaclock.dev, data->ambaclock.state);
+				/* TODO: optimize platformctl types, e.g. ambaclock.state is used as a binary state */
+				ret = _zynq_setAmbaClk((u32)data->ambaclock.dev, (u8)data->ambaclock.state);
 			}
 			else if (data->action == pctl_get) {
 				ret = _zynq_getAmbaClk((u32)data->ambaclock.dev, &t);

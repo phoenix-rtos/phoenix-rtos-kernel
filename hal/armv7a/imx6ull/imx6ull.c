@@ -188,7 +188,7 @@ static int _imx6ull_setIOgpr(int field, unsigned int val)
 }
 
 
-static int _imx6ull_setIOmux(int mux, int sion, int mode)
+static int _imx6ull_setIOmux(int mux, u32 sion, u32 mode)
 {
 	volatile u32 *base = imx6ull_common.iomux;
 
@@ -203,7 +203,7 @@ static int _imx6ull_setIOmux(int mux, int sion, int mode)
 		/* No action required*/
 	}
 
-	*(base + mux) = ((u32)mode & 0xfU) | ((sion == 0 ? 0UL : 1UL) << 4);
+	*(base + mux) = (mode & 0xfU) | ((sion & 0x1U) << 4);
 
 	return 0;
 }
@@ -225,15 +225,15 @@ static int _imx6ull_setIOpad(int pad, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8
 		/* No action required*/
 	}
 
-	t = ((hys == 0U ? 0UL : 1UL) << 16) | (((u32)pus & 0x3U) << 14) | ((pue == 0U ? 0UL : 1UL) << 13) | ((u32)pke << 12);
-	t |= ((ode == 0U ? 0UL : 1UL) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | (sre == 0U ? 0U : 1U);
+	t = (((u32)hys & 0x1U) << 16) | (((u32)pus & 0x3U) << 14) | (((u32)pue & 0x1U) << 13) | ((u32)pke << 12);
+	t |= (((u32)ode & 0x1U) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | ((u32)sre & 0x1U);
 	*(base + pad) = t;
 
 	return 0;
 }
 
 
-static int _imx6ull_setIOisel(int isel, int daisy)
+static int _imx6ull_setIOisel(int isel, unsigned char daisy)
 {
 	if (isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp) {
 		return -1;
@@ -261,7 +261,7 @@ static int _imx6ull_getIOgpr(int field, unsigned int *val)
 }
 
 
-static int _imx6ull_getIOmux(int mux, int *sion, int *mode)
+static int _imx6ull_getIOmux(int mux, unsigned char *sion, unsigned char *mode)
 {
 	u32 t;
 	volatile u32 *base = imx6ull_common.iomux;
@@ -284,7 +284,7 @@ static int _imx6ull_getIOmux(int mux, int *sion, int *mode)
 	t = *(base + mux);
 
 	*sion = (t & (1U << 4)) == 0U ? 0 : 1;
-	*mode = (int)(u32)(t & 0xfU);
+	*mode = (unsigned char)(t & 0xfU);
 
 	return 0;
 }
@@ -321,13 +321,13 @@ static int _imx6ull_getIOpad(int pad, u8 *hys, u8 *pus, u8 *pue, u8 *pke, u8 *od
 }
 
 
-static int _imx6ull_getIOisel(int isel, int *daisy)
+static int _imx6ull_getIOisel(int isel, unsigned char *daisy)
 {
 	if (daisy == NULL || isel < pctl_isel_anatop || isel > pctl_isel_usdhc2_wp) {
 		return -1;
 	}
 
-	*daisy = (int)(u32)(*(imx6ull_common.iomux + isel) & 0x7U);
+	*daisy = (unsigned char)(*(imx6ull_common.iomux + isel) & 0x7U);
 
 	return 0;
 }
@@ -363,7 +363,7 @@ int hal_platformctl(void *ptr)
 	int ret = -1;
 	unsigned int t = 0;
 	spinlock_ctx_t sc;
-	int sion = 0, mode = 0, daisy = 0;
+	unsigned char sion = 0, mode = 0, daisy = 0;
 
 	hal_spinlockSet(&imx6ull_common.pltctlSp, &sc);
 
