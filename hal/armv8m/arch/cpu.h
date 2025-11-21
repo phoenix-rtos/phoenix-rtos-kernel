@@ -107,6 +107,7 @@ typedef struct _cpu_context_t {
 	u32 pad0;
 
 #if KERNEL_FPU_SUPPORT
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s16 is a signed 16-bit typedef and also a register field identifier" */
 	u32 s16;
 	u32 s17;
 	u32 s18;
@@ -137,6 +138,7 @@ typedef struct _cpu_context_t {
 	u32 s5;
 	u32 s6;
 	u32 s7;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s16 is a signed 16-bit typedef and also a register field identifier" */
 	u32 s8;
 	u32 s9;
 	u32 s10;
