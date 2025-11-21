@@ -303,14 +303,17 @@ static int _mcxn94x_sysconGetRegs(int dev, volatile u32 **selr, volatile u32 **d
 
 		case pctl_cmp0rr:
 			*selr = n94x_common.syscon + syscon_cmp0rrclksel;
+			*divr = n94x_common.syscon + syscon_cmp0rrclkdiv;
 			break;
 
 		case pctl_cmp1rr:
 			*selr = n94x_common.syscon + syscon_cmp1rrclksel;
+			*divr = n94x_common.syscon + syscon_cmp1rrclkdiv;
 			break;
 
 		case pctl_cmp2rr:
 			*selr = n94x_common.syscon + syscon_cmp2rrclksel;
+			*divr = n94x_common.syscon + syscon_cmp2rrclkdiv;
 			break;
 
 		case pctl_fc0:
