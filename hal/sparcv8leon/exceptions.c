@@ -157,7 +157,7 @@ __attribute__((noreturn)) static void exceptions_defaultHandler(unsigned int n, 
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Usage in assembly" */
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {

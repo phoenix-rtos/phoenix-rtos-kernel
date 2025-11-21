@@ -121,7 +121,7 @@ __attribute__((noreturn)) static void exceptions_fatal(unsigned int n, exc_conte
 }
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Usage in assembly" */
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	if ((hal_exception_common.handler != NULL) &&
