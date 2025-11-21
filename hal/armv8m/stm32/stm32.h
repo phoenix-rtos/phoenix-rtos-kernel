@@ -94,7 +94,7 @@ int _stm32_gpioSetPort(int d, u16 val);
 int _stm32_gpioGet(int d, u8 pin, u8 *val);
 
 
-int _stm32_gpioGetPort(int d, u16 *val);
+int _stm32_gpioGetPort(int d, u32 *val);
 
 
 int _stm32_gpioSetPrivilege(int d, u32 val);
@@ -133,13 +133,13 @@ int _stm32_rifsc_risup_change(int index, int secure, int privileged, int lock);
 int _stm32_rifsc_rimc_change(int index, int secure, int privileged, int cid);
 
 
-int _stm32_bsec_otp_checkFuseValid(unsigned int addr);
+int _stm32_bsec_otp_checkFuseValid(unsigned int fuse);
 
 
-int _stm32_bsec_otp_read(unsigned int addr, u32 *val);
+int _stm32_bsec_otp_read(unsigned int fuse, u32 *val);
 
 
-int _stm32_bsec_otp_write(unsigned int addr, u32 val);
+int _stm32_bsec_otp_write(unsigned int fuse, u32 val);
 
 
 void _stm32_bsec_init(void);
