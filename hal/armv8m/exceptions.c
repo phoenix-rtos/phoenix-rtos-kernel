@@ -139,11 +139,11 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 #ifdef NDEBUG
 	hal_cpuReboot();
-#endif
-
+#else
 	for (;;) {
 		hal_cpuHalt();
 	}
+#endif
 }
 
 

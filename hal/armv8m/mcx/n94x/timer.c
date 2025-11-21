@@ -82,6 +82,7 @@ static u64 hal_timerGetCyc(void)
 
 void hal_timerSetWakeup(u32 waitUs)
 {
+	u32 tmp;
 	u64 val, valgray, inc;
 	spinlock_ctx_t sc;
 
@@ -112,11 +113,11 @@ void hal_timerSetWakeup(u32 waitUs)
 	while ((*(timer_common.base + ostimer_oseventctrl) & (1U << 2)) != 0U) {
 	}
 
-	if ((hal_timerGetCyc() >= val) && (((val >> 32) & 0x400U) == 0U) &&
-			((*(timer_common.base + ostimer_oseventctrl) & 1U) == 0U)) {
+	tmp = *(timer_common.base + ostimer_oseventctrl);
+	if ((hal_timerGetCyc() >= val) && (((val >> 32) & 0x400U) == 0U) && ((tmp & 1U) == 0U)) {
 		/* We just missed the timer value and be the interrupt won't
 		 * be generated. Trigger the interrupt manually instead. */
-		_hal_scsIRQPendingSet(ostimer0_irq - 0x10U);
+		_hal_scsIRQPendingSet((u32)ostimer0_irq - 0x10U);
 	}
 
 	hal_spinlockClear(&timer_common.lock, &sc);
