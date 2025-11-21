@@ -23,6 +23,7 @@
 #define TX_BUF_FULL (1U << 0)
 
 #define CONCAT_(a, b) a##b
+/* parasoft-suppress-next-line MISRAC2012-RULE_20_7 "Cannot enclose parameters in parentheses as CONCAT_ macro concatenates literal tokens." */
 #define CONCAT(a, b)  CONCAT_(a, b)
 
 #define UART_CONSOLE_BASE CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _BASE))
@@ -79,7 +80,7 @@ void _hal_consoleInit(void)
 {
 	/* Set scaler */
 	u32 scaler = (u32)SYSCLK_FREQ / (u32)UART_BAUDRATE;
-	halconsole_common.uart = (void *)UART_CONSOLE_BASE;
+	halconsole_common.uart = (void *)(u32)UART_CONSOLE_BASE;
 	*(halconsole_common.uart + bauddiv) = scaler;
 	hal_cpuDataSyncBarrier();
 
