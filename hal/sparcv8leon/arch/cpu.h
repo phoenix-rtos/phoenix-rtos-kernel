@@ -149,9 +149,7 @@
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
 		/* 8-byte values might have been put on stack unaligned */ \
-		/* clang-format off */ \
 		if (sizeof(t) == 8U && ((ptr_t)(ustack) & 0x7U) != 0U) { \
-			/* clang-format on */ \
 			union { \
 				t val; \
 				struct { \
@@ -273,6 +271,7 @@ static inline void hal_cpuSetDevBusy(int s)
 
 
 #ifdef NOMMU
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_5 "There is no other definition of this function in this file" */
 time_t hal_timerGetUs(void);
 
 

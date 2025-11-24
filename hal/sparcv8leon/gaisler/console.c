@@ -15,6 +15,7 @@
 
 #include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/console.h"
+#include "lib/assert.h"
 #include "gaisler.h"
 
 #include <arch/pmap.h>
@@ -74,8 +75,8 @@ static int console_cguClkStatus(void)
 
 static void console_iomuxCfg(void)
 {
-	gaisler_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
-	gaisler_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
+	(void)gaisler_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
+	(void)gaisler_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
 }
 
 #elif defined(__CPU_GR740)
@@ -94,8 +95,8 @@ static int console_cguClkStatus(void)
 
 static void console_iomuxCfg(void)
 {
-	gaisler_setIomuxCfg(CONSOLE_TX, iomux_alternateio, 0, 0);
-	gaisler_setIomuxCfg(CONSOLE_RX, iomux_alternateio, 0, 0);
+	(void)gaisler_setIomuxCfg(CONSOLE_TX, iomux_alternateio, 0, 0);
+	(void)gaisler_setIomuxCfg(CONSOLE_RX, iomux_alternateio, 0, 0);
 }
 
 #else
@@ -169,6 +170,7 @@ void hal_consolePrint(int attr, const char *s)
 void _hal_consoleInit(void)
 {
 	halconsole_common.uart = _pmap_halMapDevice(PAGE_ALIGN(UART_CONSOLE_BASE), PAGE_OFFS(UART_CONSOLE_BASE), SIZE_PAGE);
+	LIB_ASSERT_ALWAYS(halconsole_common.uart != NULL, "failed to map UART device");
 
 	*(halconsole_common.uart + uart_ctrl) = 0;
 	hal_cpuDataStoreBarrier();

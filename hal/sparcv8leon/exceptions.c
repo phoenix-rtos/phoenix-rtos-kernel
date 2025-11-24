@@ -178,7 +178,7 @@ vm_prot_t hal_exceptionsFaultType(unsigned int n, exc_context_t *ctx)
 {
 	if ((n == EXC_PAGEFAULT) || (n == EXC_PAGEFAULT_DATA)) {
 		/* FIXME: return value must be formulated in hw-agnostic way with PROT_* constants */
-		return hal_srmmuGetFaultSts();
+		return (vm_prot_t)hal_srmmuGetFaultSts();
 	}
 
 	return 0;

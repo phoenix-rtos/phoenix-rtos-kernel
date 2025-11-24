@@ -366,7 +366,7 @@ static int _pmap_map(u32 *pdir1, addr_t pa, void *vaddr, vm_attr_t attr, page_t 
 	}
 
 #ifdef LEON_HAS_L2CACHE
-	if ((attr & (PGHD_NOT_CACHED | PGHD_DEV)) == 0) {
+	if ((attr & (PGHD_NOT_CACHED | PGHD_DEV)) == 0U) {
 		l2c_flushRange(l2c_flush_inv_line, (ptr_t)vaddr, SIZE_PAGE);
 	}
 #endif
