@@ -205,6 +205,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 char *hal_interruptsFeatures(char *features, size_t len)
 {
 	(void)hal_strncpy(features, "Using GIC interrupt controller", len);
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "`len` is always non-zero." */
 	features[len - 1U] = '\0';
 
 	return features;

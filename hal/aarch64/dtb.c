@@ -307,6 +307,7 @@ void dtb_parse(void)
 					state = stateIdle;
 					break;
 			}
+			/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "The algorithm is designed not to underflow" */
 			depth--;
 		}
 		else if (token == 9U) {

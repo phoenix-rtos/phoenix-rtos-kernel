@@ -148,6 +148,7 @@ static void hal_timerSetPrescaler(u32 freq)
 char *hal_timerFeatures(char *features, size_t len)
 {
 	(void)hal_strncpy(features, "Using Triple Timer Counter", len);
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "`len` is always non-zero." */
 	features[len - 1U] = '\0';
 	return features;
 }
