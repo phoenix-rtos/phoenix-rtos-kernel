@@ -129,7 +129,7 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 }
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Usage in assembly" */
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	char buff[SIZE_CTXDUMP];
