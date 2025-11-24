@@ -23,7 +23,7 @@
 #include "hal/types.h"
 
 
-#define SIZE_VM_SIZES 32U
+#define SIZE_VM_SIZES ((unsigned int)(sizeof(void *) * (size_t)__CHAR_BIT__))
 
 
 static struct {
