@@ -73,7 +73,7 @@ static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, u8 src, u8 div0
 	val |= (((u32)div0 & 0x3fU) << 8) | (((u32)div1 & 0x3fU) << 16) | ((u32)active << 24);
 	if (dev == pctl_devclock_lpd_cpu_r5) {
 		/* According to docs turning this bit off could lead to system hang - ensure it is on */
-		val |= ((u32)1 << 24);
+		val |= ((u32)1U << 24);
 	}
 
 	*reg = val;
@@ -144,7 +144,7 @@ static void _zynqmp_setMIOTristate(unsigned int pin, char config)
 {
 	u32 reg = pin / 32U + (u32)iou_slcr_mio_mst_tri0;
 	u32 bit = pin % 32U;
-	u32 mask = (u32)1 << bit;
+	u32 mask = (u32)1U << bit;
 
 	if (((unsigned int)config & PCTL_MIO_TRI_ENABLE) != 0U) {
 		*(zynq_common.iou_slcr + reg) |= mask;
@@ -158,7 +158,7 @@ static void _zynqmp_setMIOControl(unsigned int pin, char config)
 {
 	u32 reg = (pin / 26U) * (unsigned int)(iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + (unsigned int)iou_slcr_bank0_ctrl0;
 	u32 bit = pin % 26U;
-	u32 mask = (u32)1 << bit;
+	u32 mask = (u32)1U << bit;
 	unsigned int i;
 
 	for (i = 0U; i <= 6U; i++) {
@@ -167,7 +167,7 @@ static void _zynqmp_setMIOControl(unsigned int pin, char config)
 			continue;
 		}
 
-		if (((u32)config & ((u32)1 << i)) != 0U) {
+		if (((u32)config & ((u32)1U << i)) != 0U) {
 			*(zynq_common.iou_slcr + reg + i) |= mask;
 		}
 		else {
@@ -214,7 +214,7 @@ static void _zynqmp_getMIOControl(unsigned int pin, u8 *config)
 {
 	u32 reg = (pin / 26U) * (u32)(iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + (u32)iou_slcr_bank0_ctrl0;
 	u32 bit = pin % 26U;
-	u32 mask = (u32)1 << bit;
+	u32 mask = (u32)1U << bit;
 	unsigned int i;
 
 	for (i = 0U; i <= 6U; i++) {
@@ -248,82 +248,82 @@ static int _zynqmp_getMIO(unsigned int pin, u8 *l0, u8 *l1, u8 *l2, u8 *l3, u8 *
 static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
 {
 	static const u32 lookup[76] = {
-		[pctl_devreset_lpd_gem0] = (u32)crl_apb_rst_lpd_iou0 | ((u32)0 << 12),
-		[pctl_devreset_lpd_gem1] = (u32)crl_apb_rst_lpd_iou0 | ((u32)1 << 12),
-		[pctl_devreset_lpd_gem2] = (u32)crl_apb_rst_lpd_iou0 | ((u32)2 << 12),
-		[pctl_devreset_lpd_gem3] = (u32)crl_apb_rst_lpd_iou0 | ((u32)3 << 12),
-		[pctl_devreset_lpd_qspi] = (u32)crl_apb_rst_lpd_iou2 | ((u32)0 << 12),
-		[pctl_devreset_lpd_uart0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)1 << 12),
-		[pctl_devreset_lpd_uart1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)2 << 12),
-		[pctl_devreset_lpd_spi0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)3 << 12),
-		[pctl_devreset_lpd_spi1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)4 << 12),
-		[pctl_devreset_lpd_sdio0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)5 << 12),
-		[pctl_devreset_lpd_sdio1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)6 << 12),
-		[pctl_devreset_lpd_can0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)7 << 12),
-		[pctl_devreset_lpd_can1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)8 << 12),
-		[pctl_devreset_lpd_i2c0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)9 << 12),
-		[pctl_devreset_lpd_i2c1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)10 << 12),
-		[pctl_devreset_lpd_ttc0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)11 << 12),
-		[pctl_devreset_lpd_ttc1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)12 << 12),
-		[pctl_devreset_lpd_ttc2] = (u32)crl_apb_rst_lpd_iou2 | ((u32)13 << 12),
-		[pctl_devreset_lpd_ttc3] = (u32)crl_apb_rst_lpd_iou2 | ((u32)14 << 12),
-		[pctl_devreset_lpd_swdt] = (u32)crl_apb_rst_lpd_iou2 | ((u32)15 << 12),
-		[pctl_devreset_lpd_nand] = (u32)crl_apb_rst_lpd_iou2 | ((u32)16 << 12),
-		[pctl_devreset_lpd_lpd_dma] = (u32)crl_apb_rst_lpd_iou2 | ((u32)17 << 12),
-		[pctl_devreset_lpd_gpio] = (u32)crl_apb_rst_lpd_iou2 | ((u32)18 << 12),
-		[pctl_devreset_lpd_iou_cc] = (u32)crl_apb_rst_lpd_iou2 | ((u32)19 << 12),
-		[pctl_devreset_lpd_timestamp] = (u32)crl_apb_rst_lpd_iou2 | ((u32)20 << 12),
-		[pctl_devreset_lpd_rpu_r50] = (u32)crl_apb_rst_lpd_top | ((u32)0 << 12),
-		[pctl_devreset_lpd_rpu_r51] = (u32)crl_apb_rst_lpd_top | ((u32)1 << 12),
-		[pctl_devreset_lpd_rpu_amba] = (u32)crl_apb_rst_lpd_top | ((u32)2 << 12),
-		[pctl_devreset_lpd_ocm] = (u32)crl_apb_rst_lpd_top | ((u32)3 << 12),
-		[pctl_devreset_lpd_rpu_pge] = (u32)crl_apb_rst_lpd_top | ((u32)4 << 12),
-		[pctl_devreset_lpd_usb0_corereset] = (u32)crl_apb_rst_lpd_top | ((u32)6 << 12),
-		[pctl_devreset_lpd_usb1_corereset] = (u32)crl_apb_rst_lpd_top | ((u32)7 << 12),
-		[pctl_devreset_lpd_usb0_hiberreset] = (u32)crl_apb_rst_lpd_top | ((u32)8 << 12),
-		[pctl_devreset_lpd_usb1_hiberreset] = (u32)crl_apb_rst_lpd_top | ((u32)9 << 12),
-		[pctl_devreset_lpd_usb0_apb] = (u32)crl_apb_rst_lpd_top | ((u32)10 << 12),
-		[pctl_devreset_lpd_usb1_apb] = (u32)crl_apb_rst_lpd_top | ((u32)11 << 12),
-		[pctl_devreset_lpd_ipi] = (u32)crl_apb_rst_lpd_top | ((u32)14 << 12),
-		[pctl_devreset_lpd_apm] = (u32)crl_apb_rst_lpd_top | ((u32)15 << 12),
-		[pctl_devreset_lpd_rtc] = (u32)crl_apb_rst_lpd_top | ((u32)16 << 12),
-		[pctl_devreset_lpd_sysmon] = (u32)crl_apb_rst_lpd_top | ((u32)17 << 12),
-		[pctl_devreset_lpd_s_axi_lpd] = (u32)crl_apb_rst_lpd_top | ((u32)19 << 12),
-		[pctl_devreset_lpd_lpd_swdt] = (u32)crl_apb_rst_lpd_top | ((u32)20 << 12),
-		[pctl_devreset_lpd_fpd] = (u32)crl_apb_rst_lpd_top | ((u32)23 << 12),
-		[pctl_devreset_lpd_dbg_fpd] = (u32)crl_apb_rst_lpd_dbg | ((u32)0 << 12),
-		[pctl_devreset_lpd_dbg_lpd] = (u32)crl_apb_rst_lpd_dbg | ((u32)1 << 12),
-		[pctl_devreset_lpd_rpu_dbg0] = (u32)crl_apb_rst_lpd_dbg | ((u32)4 << 12),
-		[pctl_devreset_lpd_rpu_dbg1] = (u32)crl_apb_rst_lpd_dbg | ((u32)5 << 12),
-		[pctl_devreset_lpd_dbg_ack] = (u32)crl_apb_rst_lpd_dbg | ((u32)15 << 12),
-		[pctl_devreset_fpd_sata] = (u32)crf_apb_rst_fpd_top | ((u32)1 << 12),
-		[pctl_devreset_fpd_gt] = (u32)crf_apb_rst_fpd_top | ((u32)2 << 12),
-		[pctl_devreset_fpd_gpu] = (u32)crf_apb_rst_fpd_top | ((u32)3 << 12),
-		[pctl_devreset_fpd_gpu_pp0] = (u32)crf_apb_rst_fpd_top | ((u32)4 << 12),
-		[pctl_devreset_fpd_gpu_pp1] = (u32)crf_apb_rst_fpd_top | ((u32)5 << 12),
-		[pctl_devreset_fpd_fpd_dma] = (u32)crf_apb_rst_fpd_top | ((u32)6 << 12),
-		[pctl_devreset_fpd_s_axi_hpc_0_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)7 << 12),
-		[pctl_devreset_fpd_s_axi_hpc_1_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)8 << 12),
-		[pctl_devreset_fpd_s_axi_hp_0_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)9 << 12),
-		[pctl_devreset_fpd_s_axi_hp_1_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)10 << 12),
-		[pctl_devreset_fpd_s_axi_hpc_2_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)11 << 12),
-		[pctl_devreset_fpd_s_axi_hpc_3_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)12 << 12),
-		[pctl_devreset_fpd_swdt] = (u32)crf_apb_rst_fpd_top | ((u32)15 << 12),
-		[pctl_devreset_fpd_dp] = (u32)crf_apb_rst_fpd_top | ((u32)16 << 12),
-		[pctl_devreset_fpd_pcie_ctrl] = (u32)crf_apb_rst_fpd_top | ((u32)17 << 12),
-		[pctl_devreset_fpd_pcie_bridge] = (u32)crf_apb_rst_fpd_top | ((u32)18 << 12),
-		[pctl_devreset_fpd_pcie_cfg] = (u32)crf_apb_rst_fpd_top | ((u32)19 << 12),
-		[pctl_devreset_fpd_acpu0] = (u32)crf_apb_rst_fpd_apu | ((u32)0 << 12),
-		[pctl_devreset_fpd_acpu1] = (u32)crf_apb_rst_fpd_apu | ((u32)1 << 12),
-		[pctl_devreset_fpd_acpu2] = (u32)crf_apb_rst_fpd_apu | ((u32)2 << 12),
-		[pctl_devreset_fpd_acpu3] = (u32)crf_apb_rst_fpd_apu | ((u32)3 << 12),
-		[pctl_devreset_fpd_apu_l2] = (u32)crf_apb_rst_fpd_apu | ((u32)8 << 12),
-		[pctl_devreset_fpd_acpu0_pwron] = (u32)crf_apb_rst_fpd_apu | ((u32)10 << 12),
-		[pctl_devreset_fpd_acpu1_pwron] = (u32)crf_apb_rst_fpd_apu | ((u32)11 << 12),
-		[pctl_devreset_fpd_acpu2_pwron] = (u32)crf_apb_rst_fpd_apu | ((u32)12 << 12),
-		[pctl_devreset_fpd_acpu3_pwron] = (u32)crf_apb_rst_fpd_apu | ((u32)13 << 12),
-		[pctl_devreset_fpd_ddr_apm] = (u32)crf_apb_rst_ddr_ss | ((u32)2 << 12),
-		[pctl_devreset_fpd_ddr_reserved] = (u32)crf_apb_rst_ddr_ss | ((u32)3 << 12),
+		[pctl_devreset_lpd_gem0] = (u32)crl_apb_rst_lpd_iou0 | ((u32)0U << 12),
+		[pctl_devreset_lpd_gem1] = (u32)crl_apb_rst_lpd_iou0 | ((u32)1U << 12),
+		[pctl_devreset_lpd_gem2] = (u32)crl_apb_rst_lpd_iou0 | ((u32)2U << 12),
+		[pctl_devreset_lpd_gem3] = (u32)crl_apb_rst_lpd_iou0 | ((u32)3U << 12),
+		[pctl_devreset_lpd_qspi] = (u32)crl_apb_rst_lpd_iou2 | ((u32)0U << 12),
+		[pctl_devreset_lpd_uart0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)1U << 12),
+		[pctl_devreset_lpd_uart1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)2U << 12),
+		[pctl_devreset_lpd_spi0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)3U << 12),
+		[pctl_devreset_lpd_spi1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)4U << 12),
+		[pctl_devreset_lpd_sdio0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)5U << 12),
+		[pctl_devreset_lpd_sdio1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)6U << 12),
+		[pctl_devreset_lpd_can0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)7U << 12),
+		[pctl_devreset_lpd_can1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)8U << 12),
+		[pctl_devreset_lpd_i2c0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)9U << 12),
+		[pctl_devreset_lpd_i2c1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)10U << 12),
+		[pctl_devreset_lpd_ttc0] = (u32)crl_apb_rst_lpd_iou2 | ((u32)11U << 12),
+		[pctl_devreset_lpd_ttc1] = (u32)crl_apb_rst_lpd_iou2 | ((u32)12U << 12),
+		[pctl_devreset_lpd_ttc2] = (u32)crl_apb_rst_lpd_iou2 | ((u32)13U << 12),
+		[pctl_devreset_lpd_ttc3] = (u32)crl_apb_rst_lpd_iou2 | ((u32)14U << 12),
+		[pctl_devreset_lpd_swdt] = (u32)crl_apb_rst_lpd_iou2 | ((u32)15U << 12),
+		[pctl_devreset_lpd_nand] = (u32)crl_apb_rst_lpd_iou2 | ((u32)16U << 12),
+		[pctl_devreset_lpd_lpd_dma] = (u32)crl_apb_rst_lpd_iou2 | ((u32)17U << 12),
+		[pctl_devreset_lpd_gpio] = (u32)crl_apb_rst_lpd_iou2 | ((u32)18U << 12),
+		[pctl_devreset_lpd_iou_cc] = (u32)crl_apb_rst_lpd_iou2 | ((u32)19U << 12),
+		[pctl_devreset_lpd_timestamp] = (u32)crl_apb_rst_lpd_iou2 | ((u32)20U << 12),
+		[pctl_devreset_lpd_rpu_r50] = (u32)crl_apb_rst_lpd_top | ((u32)0U << 12),
+		[pctl_devreset_lpd_rpu_r51] = (u32)crl_apb_rst_lpd_top | ((u32)1U << 12),
+		[pctl_devreset_lpd_rpu_amba] = (u32)crl_apb_rst_lpd_top | ((u32)2U << 12),
+		[pctl_devreset_lpd_ocm] = (u32)crl_apb_rst_lpd_top | ((u32)3U << 12),
+		[pctl_devreset_lpd_rpu_pge] = (u32)crl_apb_rst_lpd_top | ((u32)4U << 12),
+		[pctl_devreset_lpd_usb0_corereset] = (u32)crl_apb_rst_lpd_top | ((u32)6U << 12),
+		[pctl_devreset_lpd_usb1_corereset] = (u32)crl_apb_rst_lpd_top | ((u32)7U << 12),
+		[pctl_devreset_lpd_usb0_hiberreset] = (u32)crl_apb_rst_lpd_top | ((u32)8U << 12),
+		[pctl_devreset_lpd_usb1_hiberreset] = (u32)crl_apb_rst_lpd_top | ((u32)9U << 12),
+		[pctl_devreset_lpd_usb0_apb] = (u32)crl_apb_rst_lpd_top | ((u32)10U << 12),
+		[pctl_devreset_lpd_usb1_apb] = (u32)crl_apb_rst_lpd_top | ((u32)11U << 12),
+		[pctl_devreset_lpd_ipi] = (u32)crl_apb_rst_lpd_top | ((u32)14U << 12),
+		[pctl_devreset_lpd_apm] = (u32)crl_apb_rst_lpd_top | ((u32)15U << 12),
+		[pctl_devreset_lpd_rtc] = (u32)crl_apb_rst_lpd_top | ((u32)16U << 12),
+		[pctl_devreset_lpd_sysmon] = (u32)crl_apb_rst_lpd_top | ((u32)17U << 12),
+		[pctl_devreset_lpd_s_axi_lpd] = (u32)crl_apb_rst_lpd_top | ((u32)19U << 12),
+		[pctl_devreset_lpd_lpd_swdt] = (u32)crl_apb_rst_lpd_top | ((u32)20U << 12),
+		[pctl_devreset_lpd_fpd] = (u32)crl_apb_rst_lpd_top | ((u32)23U << 12),
+		[pctl_devreset_lpd_dbg_fpd] = (u32)crl_apb_rst_lpd_dbg | ((u32)0U << 12),
+		[pctl_devreset_lpd_dbg_lpd] = (u32)crl_apb_rst_lpd_dbg | ((u32)1U << 12),
+		[pctl_devreset_lpd_rpu_dbg0] = (u32)crl_apb_rst_lpd_dbg | ((u32)4U << 12),
+		[pctl_devreset_lpd_rpu_dbg1] = (u32)crl_apb_rst_lpd_dbg | ((u32)5U << 12),
+		[pctl_devreset_lpd_dbg_ack] = (u32)crl_apb_rst_lpd_dbg | ((u32)15U << 12),
+		[pctl_devreset_fpd_sata] = (u32)crf_apb_rst_fpd_top | ((u32)1U << 12),
+		[pctl_devreset_fpd_gt] = (u32)crf_apb_rst_fpd_top | ((u32)2U << 12),
+		[pctl_devreset_fpd_gpu] = (u32)crf_apb_rst_fpd_top | ((u32)3U << 12),
+		[pctl_devreset_fpd_gpu_pp0] = (u32)crf_apb_rst_fpd_top | ((u32)4U << 12),
+		[pctl_devreset_fpd_gpu_pp1] = (u32)crf_apb_rst_fpd_top | ((u32)5U << 12),
+		[pctl_devreset_fpd_fpd_dma] = (u32)crf_apb_rst_fpd_top | ((u32)6U << 12),
+		[pctl_devreset_fpd_s_axi_hpc_0_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)7U << 12),
+		[pctl_devreset_fpd_s_axi_hpc_1_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)8U << 12),
+		[pctl_devreset_fpd_s_axi_hp_0_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)9U << 12),
+		[pctl_devreset_fpd_s_axi_hp_1_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)10U << 12),
+		[pctl_devreset_fpd_s_axi_hpc_2_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)11U << 12),
+		[pctl_devreset_fpd_s_axi_hpc_3_fpd] = (u32)crf_apb_rst_fpd_top | ((u32)12U << 12),
+		[pctl_devreset_fpd_swdt] = (u32)crf_apb_rst_fpd_top | ((u32)15U << 12),
+		[pctl_devreset_fpd_dp] = (u32)crf_apb_rst_fpd_top | ((u32)16U << 12),
+		[pctl_devreset_fpd_pcie_ctrl] = (u32)crf_apb_rst_fpd_top | ((u32)17U << 12),
+		[pctl_devreset_fpd_pcie_bridge] = (u32)crf_apb_rst_fpd_top | ((u32)18U << 12),
+		[pctl_devreset_fpd_pcie_cfg] = (u32)crf_apb_rst_fpd_top | ((u32)19U << 12),
+		[pctl_devreset_fpd_acpu0] = (u32)crf_apb_rst_fpd_apu | ((u32)0U << 12),
+		[pctl_devreset_fpd_acpu1] = (u32)crf_apb_rst_fpd_apu | ((u32)1U << 12),
+		[pctl_devreset_fpd_acpu2] = (u32)crf_apb_rst_fpd_apu | ((u32)2U << 12),
+		[pctl_devreset_fpd_acpu3] = (u32)crf_apb_rst_fpd_apu | ((u32)3U << 12),
+		[pctl_devreset_fpd_apu_l2] = (u32)crf_apb_rst_fpd_apu | ((u32)8U << 12),
+		[pctl_devreset_fpd_acpu0_pwron] = (u32)crf_apb_rst_fpd_apu | ((u32)10U << 12),
+		[pctl_devreset_fpd_acpu1_pwron] = (u32)crf_apb_rst_fpd_apu | ((u32)11U << 12),
+		[pctl_devreset_fpd_acpu2_pwron] = (u32)crf_apb_rst_fpd_apu | ((u32)12U << 12),
+		[pctl_devreset_fpd_acpu3_pwron] = (u32)crf_apb_rst_fpd_apu | ((u32)13U << 12),
+		[pctl_devreset_fpd_ddr_apm] = (u32)crf_apb_rst_ddr_ss | ((u32)2U << 12),
+		[pctl_devreset_fpd_ddr_reserved] = (u32)crf_apb_rst_ddr_ss | ((u32)3U << 12),
 	};
 
 	if ((dev < pctl_devreset_lpd_gem0) || (dev > pctl_devreset_fpd_ddr_reserved)) {
@@ -337,7 +337,7 @@ static int _zynqmp_parseReset(int dev, volatile u32 **reg, u32 *bit)
 		*reg = zynq_common.crl_apb + (lookup[dev] & ((1UL << 12) - 1U));
 	}
 
-	*bit = ((u32)1 << (lookup[dev] >> 12));
+	*bit = ((u32)1U << (lookup[dev] >> 12));
 	return 0;
 }
 

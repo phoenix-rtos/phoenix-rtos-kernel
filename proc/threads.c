@@ -1508,7 +1508,7 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	u32 sigbit = (u32)1 << (unsigned int)sig;
+	u32 sigbit = (u32)1U << (unsigned int)sig;
 
 	spinlock_ctx_t sc;
 
