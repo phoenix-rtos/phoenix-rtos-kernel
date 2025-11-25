@@ -104,64 +104,6 @@ extern unsigned int _end;
 volatile unsigned int nCpusStarted = 0;
 
 
-/*
- * Arch cpu helpers moved here, as they are currently not used in other targets.
- * Once that changes, move them back to arch/cpu.h
- */
-
-static inline void hal_cpuSignalEvent(void)
-{
-	/* clang-format off */
-	__asm__ volatile ("sev");
-	/* clang-format on */
-}
-
-
-static inline void hal_cpuWaitForEvent(void)
-{
-	/* clang-format off */
-	__asm__ volatile ("dsb\n wfe");
-	/* clang-format on */
-}
-
-
-/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
-static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
-{
-	u32 result;
-	/* clang-format off */
-	__asm__ volatile (
-		"dmb\n"
-		"ldr %0, [%1]\n"
-		"dmb\n"
-		: "=r"(result)
-		: "r"(dst)
-	);
-	/* clang-format on */
-	return result;
-}
-
-
-static inline void hal_cpuAtomicInc(volatile u32 *dst)
-{
-	/* clang-format off */
-	__asm__ volatile (
-		"dmb\n"
-	"1:\n"
-		"ldrex r2, [%0]\n"
-		"add r2, r2, #1\n"
-		"strex r1, r2, [%0]\n"
-		"cmp r1, #0\n"
-		"bne 1b\n"
-		"dmb\n"
-		:
-		: "r"(dst)
-		: "r1", "r2", "memory"
-	);
-	/* clang-format on */
-}
-
-
 static void _zynq_slcrLock(void)
 {
 	hal_cpuDataMemoryBarrier(); /* Ensure previous writes are committed before locking */
