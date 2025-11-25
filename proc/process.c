@@ -351,16 +351,16 @@ static int process_validateElf32(void *iehdr, size_t size)
 	size_t memsz, filesz, misalign;
 	unsigned int i;
 	off_t offs;
+	int ptrIsValid;
 
 	if (size < sizeof(*ehdr)) {
 		return -ENOEXEC;
 	}
 
 	/* Validate header. */
+	ptrIsValid = process_isPtrValid(iehdr, size, ehdr->e_ident, 4);
 	/* clang-format off */
-	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-				(hal_strncmp((char *)ehdr->e_ident, "\177" "ELF", 4) != 0)) ||
-			(ehdr->e_shnum == 0U)) {
+	if (((ptrIsValid == 0) || (hal_strncmp((char *)ehdr->e_ident, "\177" "ELF", 4) != 0)) || (ehdr->e_shnum == 0U)) {
 		return -ENOEXEC;
 	}
 	/* clang-format on */
@@ -378,7 +378,7 @@ static int process_validateElf32(void *iehdr, size_t size)
 		}
 
 		offs = (off_t)(Elf32_Off)(phdr[i].p_offset & ~(phdr[i].p_align - 1U));
-		misalign = (size_t)(Elf32_Off)(phdr[i].p_offset & (phdr[i].p_align - 1U));
+		misalign = ((size_t)phdr[i].p_offset & ((size_t)phdr[i].p_align - 1U));
 		filesz = (phdr[i].p_filesz != 0U) ? (phdr[i].p_filesz + misalign) : 0;
 		memsz = phdr[i].p_memsz + misalign;
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
@@ -405,9 +405,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 	}
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
-		if (((shdr[i].sh_type != SHT_NOBITS) &&
-					(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
-				(shdr[i].sh_name >= shstrshdr->sh_size)) {
+		ptrIsValid = process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size);
+		if (((shdr[i].sh_type != SHT_NOBITS) && (ptrIsValid == 0)) || (shdr[i].sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
 	}
@@ -428,6 +427,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 	size_t memsz, filesz, misalign;
 	unsigned int i;
 	off_t offs;
+	int ptrIsValid;
 
 	if (size < sizeof(*ehdr)) {
 		return -ENOEXEC;
@@ -435,9 +435,8 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	/* Validate header. */
 	/* clang-format off */
-	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-				(hal_strncmp((char *)ehdr->e_ident, "\177" "ELF", 4) != 0)) ||
-			(ehdr->e_shnum == 0U)) {
+	ptrIsValid = process_isPtrValid(iehdr, size, ehdr->e_ident, 4);
+	if (((ptrIsValid == 0) || (hal_strncmp((char *)ehdr->e_ident, "\177" "ELF", 4) != 0)) || (ehdr->e_shnum == 0U)) {
 		return -ENOEXEC;
 	}
 	/* clang-format on */
@@ -455,7 +454,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 		}
 
 		offs = (off_t)(Elf64_Off)(phdr[i].p_offset & ~(phdr[i].p_align - 1U));
-		misalign = (size_t)phdr[i].p_offset & (size_t)(phdr[i].p_align - 1U);
+		misalign = (size_t)phdr[i].p_offset & (phdr[i].p_align - 1U);
 		filesz = (phdr[i].p_filesz != 0U) ? (size_t)(phdr[i].p_filesz + misalign) : 0UL;
 		memsz = (size_t)phdr[i].p_memsz + misalign;
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
@@ -482,9 +481,8 @@ static int process_validateElf64(void *iehdr, size_t size)
 	}
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
-		if (((shdr[i].sh_type != SHT_NOBITS) &&
-					(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, (size_t)shdr[i].sh_size) == 0)) ||
-				(shdr[i].sh_name >= shstrshdr->sh_size)) {
+		ptrIsValid = process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, (size_t)shdr[i].sh_size);
+		if (((shdr[i].sh_type != SHT_NOBITS) && (ptrIsValid == 0)) || (shdr[i].sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
 	}
@@ -497,11 +495,11 @@ static int process_validateElf64(void *iehdr, size_t size)
 static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
 {
 	void *vaddr;
-	size_t memsz, filesz;
 	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
-	unsigned int i, misalign;
+	size_t memsz, filesz, misalign;
+	unsigned int i;
 	vm_prot_t prot;
 	vm_flags_t flags;
 	off_t offs;
@@ -547,7 +545,7 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 
 		vaddr = (void *)(((ptr_t)phdr->p_vaddr & ~(phdr->p_align - 1U)));
 		offs = (off_t)(unsigned int)(phdr->p_offset & ~(phdr->p_align - 1U));
-		misalign = phdr->p_offset & (phdr->p_align - 1U);
+		misalign = (size_t)phdr->p_offset & ((size_t)phdr->p_align - 1U);
 		filesz = (phdr->p_filesz != 0U) ? (size_t)(u32)(phdr->p_filesz + misalign) : 0UL;
 		memsz = (size_t)(u32)(phdr->p_memsz + misalign);
 
