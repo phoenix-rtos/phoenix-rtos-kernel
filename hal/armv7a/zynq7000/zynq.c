@@ -695,10 +695,10 @@ int hal_platformctl(void *ptr)
 		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case pctl_sdwpcd:
 			if (data->action == pctl_set) {
-				ret = _zynq_setSDWpCd(data->SDWpCd.dev, data->SDWpCd.wpPin, data->SDWpCd.cdPin);
+				ret = _zynq_setSDWpCd((int)data->SDWpCd.dev, data->SDWpCd.wpPin, data->SDWpCd.cdPin);
 			}
 			else { /* data->action == pctl_get */
-				ret = _zynq_getSDWpCd(data->SDWpCd.dev, &data->SDWpCd.wpPin, &data->SDWpCd.cdPin);
+				ret = _zynq_getSDWpCd((int)data->SDWpCd.dev, &data->SDWpCd.wpPin, &data->SDWpCd.cdPin);
 			}
 			/* Fall-through*/
 
