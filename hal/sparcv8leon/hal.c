@@ -14,7 +14,10 @@
  */
 
 #include "hal/hal.h"
+
+#ifndef NOMMU
 #include <arch/tlb.h>
+#endif
 
 
 static struct {

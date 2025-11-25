@@ -20,7 +20,9 @@
 #include <arch/cpu.h>
 #include "hal/types.h"
 
+#ifndef NOMMU
 #include "hal/sparcv8leon/srmmu.h"
+#endif
 
 
 #define LEON3_IOAREA 0xfff00000U
@@ -32,17 +34,16 @@ static inline void hal_cpuDataStoreBarrier(void)
 }
 
 
+#ifndef NOMMU
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline u32 hal_cpuLoadAlternate(addr_t addr, const u32 asi)
 {
 	/* clang-format off */
-
 	__asm__ volatile(
 		"lda [%0] %c1, %0"
 		: "+r"(addr)
 		: "i"(asi)
 	);
-
 	/* clang-format on */
 
 	return addr;
@@ -63,12 +64,14 @@ static inline void hal_cpuStoreAlternate(addr_t addr, const u32 asi, u32 val)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1-h "function used in pmap.c" */
 static inline void hal_cpuflushDCacheL1(void)
 {
 	hal_cpuStoreAlternate(0, ASI_FLUSH_DCACHE, 0);
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1-h "function used in pmap.c" */
 static inline void hal_cpuflushICacheL1(void)
 {
 	u32 ccr = hal_cpuLoadAlternate(0, ASI_CACHE_CTRL);
@@ -76,28 +79,23 @@ static inline void hal_cpuflushICacheL1(void)
 	hal_cpuStoreAlternate(0, ASI_CACHE_CTRL, ccr);
 }
 
+
 /* Bypass MMU - store to physical address.
  * Use with care on GR712RC - errata 1.7.19.
  * Store may update data cache - flush it after use.
  */
 static inline void hal_cpuStorePaddr(u32 *paddr, u32 val)
 {
-#ifndef NOMMU
 	hal_cpuStoreAlternate((addr_t)paddr, ASI_MMU_BYPASS, val);
-#else
-	*paddr = val;
-#endif
 }
+
 
 /* Bypass MMU - load from physical address */
 static inline u32 hal_cpuLoadPaddr(u32 *paddr)
 {
-#ifndef NOMMU
 	return hal_cpuLoadAlternate((addr_t)paddr, ASI_MMU_BYPASS);
-#else
-	return *paddr;
-#endif
 }
+#endif
 
 
 #endif

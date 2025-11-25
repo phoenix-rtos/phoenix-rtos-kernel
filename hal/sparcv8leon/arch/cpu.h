@@ -378,6 +378,7 @@ static inline void hal_cpuEnableInterrupts(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1-h "function used in target-specific cpuInitCore()" */
 static inline void hal_cpuAtomicInc(volatile u32 *dst)
 {
 	/* clang-format off */
