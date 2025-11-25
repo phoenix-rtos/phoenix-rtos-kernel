@@ -21,10 +21,10 @@
 #include "posix_private.h"
 
 
-static int socksrvcall(msg_t *msg)
+static ssize_t socksrvcall(msg_t *msg)
 {
 	oid_t oid;
-	int err;
+	ssize_t err;
 
 	err = proc_lookup(PATH_SOCKSRV, NULL, &oid);
 	if (err < 0) {
@@ -40,25 +40,25 @@ static int socksrvcall(msg_t *msg)
 }
 
 
-static int sockcall(unsigned int socket, msg_t *msg)
+static ssize_t sockcall(unsigned int socket, msg_t *msg)
 {
 	sockport_resp_t *smo = (void *)msg->o.raw;
-	int err;
+	ssize_t err;
 
-	err = proc_send((u32)socket, msg);
+	err = proc_send(socket, msg);
 	if (err < 0) {
 		return err;
 	}
 
-	err = (int)smo->ret;
+	err = smo->ret;
 	return err;
 }
 
 
-static int socknamecall(unsigned int socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
+static ssize_t socknamecall(unsigned int socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
 {
 	sockport_resp_t *smo = (void *)msg->o.raw;
-	int err;
+	ssize_t err;
 
 	err = sockcall(socket, msg);
 	if (err < 0) {
@@ -104,7 +104,7 @@ int inet_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 	msg.type = sockmAccept;
 	smi->send.flags = flags;
 
-	return socknamecall(socket, &msg, address, address_len);
+	return (int)socknamecall(socket, &msg, address, address_len);
 }
 
 
@@ -137,7 +137,7 @@ int inet_getpeername(unsigned int socket, struct sockaddr *address, socklen_t *a
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmGetPeerName;
 
-	return socknamecall(socket, &msg, address, address_len);
+	return (int)socknamecall(socket, &msg, address, address_len);
 }
 
 
@@ -148,7 +148,7 @@ int inet_getsockname(unsigned int socket, struct sockaddr *address, socklen_t *a
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmGetSockName;
 
-	return socknamecall(socket, &msg, address, address_len);
+	return (int)socknamecall(socket, &msg, address, address_len);
 }
 
 
@@ -280,7 +280,7 @@ int inet_socket(int domain, int type, int protocol)
 	smi->socket.type = type;
 	smi->socket.protocol = protocol;
 
-	err = socksrvcall(&msg);
+	err = (int)socksrvcall(&msg);
 	if (err < 0) {
 		return err;
 	}
