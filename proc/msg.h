@@ -42,12 +42,12 @@ typedef struct _kmsg_t {
 #ifndef NOMMU
 	struct _kmsg_layout_t {
 		void *bvaddr;
-		u64 boffs;
+		size_t boffs;
 		void *w;
 		page_t *bp;
 
 		void *evaddr;
-		u64 eoffs;
+		size_t eoffs;
 		page_t *ep;
 	} i, o;
 #else
