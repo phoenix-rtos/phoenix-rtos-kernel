@@ -244,7 +244,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		(void)proc_lockClear(&(*amap)->lock);
 	}
 
-	(void)proc_lockClear(&(map->lock));
+	(void)proc_lockClear(&map->lock);
 
 	p = object_fetch(o->oid, offs);
 

@@ -64,7 +64,7 @@ static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 {
 	spinlock->lock = 1;
 	spinlock->name = name;
-	HAL_LIST_ADD(&(spinlock_common.first), spinlock);
+	HAL_LIST_ADD(&spinlock_common.first, spinlock);
 }
 
 

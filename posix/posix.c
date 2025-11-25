@@ -437,13 +437,13 @@ static int posix_exit(process_info_t *p, int code)
 
 	p->exitcode = code;
 
-	(void)proc_lockSet(&(p->lock));
+	(void)proc_lockSet(&p->lock);
 	for (fd = 0; fd < p->fdsz; ++fd) {
 		if (p->fds[fd].file != NULL) {
 			(void)posix_fileDeref(p->fds[fd].file);
 		}
 	}
-	(void)proc_lockClear(&(p->lock));
+	(void)proc_lockClear(&p->lock);
 
 	return 0;
 }

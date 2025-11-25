@@ -43,7 +43,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	vm_prot_t prot;
 	page_t *nep = NULL, *nbp = NULL;
 	vm_map_t *srcmap, *dstmap;
-	struct _kmsg_layout_t *ml = (dir != 0) ? &(kmsg->o) : &(kmsg->i);
+	struct _kmsg_layout_t *ml = (dir != 0) ? &kmsg->o : &kmsg->i;
 	int err;
 	vm_flags_t flags;
 	addr_t bpa, pa, epa;
