@@ -43,8 +43,9 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	vm_prot_t prot;
 	page_t *nep = NULL, *nbp = NULL;
 	vm_map_t *srcmap, *dstmap;
-	struct _kmsg_layout_t *ml = (dir != 0) ? &(kmsg->o) : &(kmsg->i);
-	int flags;
+	struct _kmsg_layout_t *ml = (dir != 0) ? &kmsg->o : &kmsg->i;
+	int err;
+	vm_flags_t flags;
 	addr_t bpa, pa, epa;
 
 	if ((size == 0U) || (data == NULL)) {
@@ -95,17 +96,18 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	}
 
 	if (pmap_belongs(&srcmap->pmap, data) != 0) {
-		flags = vm_mapFlags(srcmap, data);
+		err = vm_mapFlags(srcmap, data);
 	}
 	else {
-		flags = vm_mapFlags(msg_common.kmap, data);
+		err = vm_mapFlags(msg_common.kmap, data);
 	}
 
-	if (flags < 0) {
+	if (err < 0) {
 		return NULL;
 	}
+	flags = (vm_flags_t)err;
 
-	attr |= vm_flagsToAttr((vm_flags_t)flags);
+	attr |= vm_flagsToAttr(flags);
 
 	if (boffs > 0U) {
 		ml->boffs = boffs;
@@ -117,7 +119,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			return NULL;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, (vm_flags_t)flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, flags);
 		ml->bvaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
@@ -162,7 +164,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			nep = nbp;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, (vm_flags_t)flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, flags);
 		ml->evaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
