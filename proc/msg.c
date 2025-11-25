@@ -65,7 +65,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		prot |= PROT_USER;
 	}
 
-	boffs = (ptr_t)data & (size_t)(SIZE_PAGE - 1U);
+	boffs = (size_t)(ptr_t)data & (size_t)(SIZE_PAGE - 1U);
 
 	if (FLOOR((ptr_t)data + size) > CEIL((ptr_t)data)) {
 		n = (FLOOR((ptr_t)data + size) - CEIL((ptr_t)data)) / SIZE_PAGE;
@@ -109,7 +109,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 	attr |= vm_flagsToAttr(flags);
 
-	if (boffs > 0U) {
+	if (boffs != 0U) {
 		ml->boffs = boffs;
 		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
 
