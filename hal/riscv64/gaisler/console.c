@@ -19,6 +19,7 @@
 #include "hal/console.h"
 #include "hal/types.h"
 #include "hal/riscv64/riscv64.h"
+#include "lib/assert.h"
 
 #include <board_config.h>
 
@@ -29,6 +30,7 @@
 #define TX_FIFO_FULL (1UL << 9)
 
 #define HAL_CONCAT_(a, b) a##b
+/* parasoft-suppress-next-line MISRAC2012-RULE_20_7 "Cannot enclose parameters in parentheses as HAL_CONCAT_ macro concatenates literal tokens." */
 #define HAL_CONCAT(a, b)  HAL_CONCAT_(a, b)
 
 /* Console config */
@@ -96,6 +98,8 @@ void hal_consolePrint(int attr, const char *s)
 void _hal_consoleInit(void)
 {
 	halconsole_common.uart = _pmap_halMapDevice(PAGE_ALIGN(UART_CONSOLE_BASE), PAGE_OFFS(UART_CONSOLE_BASE), SIZE_PAGE);
+	LIB_ASSERT_ALWAYS(halconsole_common.uart != NULL, "failed to map UART device");
+
 	*(halconsole_common.uart + uart_ctrl) = 0;
 
 	/* Clear UART FIFO */

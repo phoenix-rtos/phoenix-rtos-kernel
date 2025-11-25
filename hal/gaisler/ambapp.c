@@ -40,9 +40,9 @@
 #define AMBAPP_VER(id)  (((id) >> 5) & 0x1fU)
 #define AMBAPP_IRQN(id) ((id) & 0x1fU)
 
-#define AMBAPP_AHB_ADDR(bar)           (ptr_t)(((bar) & 0xfff00000U) & (((bar) & 0xfff0U) << 16))
-#define AMBAPP_AHBIO_ADDR(ioarea, bar) (ptr_t)((ioarea) | ((bar) >> 12))
-#define AMBAPP_APB_ADDR(base, bar)     (ptr_t)((base) | ((((bar) & 0xfff00000U) >> 12) & (((bar) & 0xfff0U) << 4)))
+#define AMBAPP_AHB_ADDR(bar)           (ptr_t)(((ptr_t)(bar) & 0xfff00000U) & (((ptr_t)(bar) & 0xfff0U) << 16))
+#define AMBAPP_AHBIO_ADDR(ioarea, bar) (ptr_t)((ptr_t)(ioarea) | ((ptr_t)(bar) >> 12))
+#define AMBAPP_APB_ADDR(base, bar)     (ptr_t)((ptr_t)(base) | ((((ptr_t)(bar) & 0xfff00000U) >> 12) & (((ptr_t)(bar) & 0xfff0U) << 4)))
 #define AMBAPP_TYPE(bar)               ((bar) & 0xfU)
 
 
