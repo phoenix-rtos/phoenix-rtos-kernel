@@ -135,6 +135,7 @@
 
 
 #include "hal/types.h"
+#include "hal/timer.h"
 #include "gaisler/gaisler.h"
 
 
@@ -271,10 +272,6 @@ static inline void hal_cpuSetDevBusy(int s)
 
 
 #ifdef NOMMU
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_5 "There is no other definition of this function in this file" */
-time_t hal_timerGetUs(void);
-
-
 static inline void hal_cpuGetCycles(cycles_t *cb)
 {
 	*cb = (cycles_t)hal_timerGetUs();

@@ -17,6 +17,7 @@
 #include "config.h"
 #include <arch/cpu.h>
 #include <arch/interrupts.h>
+#include "hal/cpu.h"
 #include "hal/string.h"
 
 
