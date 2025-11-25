@@ -62,7 +62,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	hal_spinlockClear(&timer_common.sp, &sc);
 
 	u32 nextID = hal_cpuGetID() + 1U;
-	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? (u32)1 : ((u32)1 << nextID);
+	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? (u32)1U : ((u32)1U << nextID);
 	interrupts_setCPU(n, nextTargetCPU);
 	hal_cpuDataSyncBarrier();
 
