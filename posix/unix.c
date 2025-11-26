@@ -808,17 +808,17 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 			(void)proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
 				if (peek != 0U) {
-					err = (int)_cbuffer_peek(&s->buffer, buf, len);
+					err = (ssize_t)_cbuffer_peek(&s->buffer, buf, len);
 				}
 				else {
-					err = (int)_cbuffer_read(&s->buffer, buf, len);
+					err = (ssize_t)_cbuffer_read(&s->buffer, buf, len);
 				}
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0U) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 				/* TODO: handle MSG_PEEK */
 				(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
 				(void)_cbuffer_read(&s->buffer, buf, min(len, rlen));
-				err = (int)min(len, rlen);
+				err = (ssize_t)min(len, rlen);
 
 				if (len < rlen) {
 					(void)_cbuffer_discard(&s->buffer, rlen - len);
