@@ -195,7 +195,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 				return -1;
 			}
 
-			hal_memcpy(nfds, p->fds, (unsigned int)p->fdsz * sizeof(*nfds));
+			hal_memcpy(nfds, p->fds, (size_t)p->fdsz * sizeof(*nfds));
 			hal_memset(nfds + p->fdsz, 0, ((size_t)nfdsz - (size_t)p->fdsz) * sizeof(*nfds));
 
 			vm_kfree(p->fds);
