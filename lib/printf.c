@@ -270,7 +270,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 					s = "(null)";
 				}
 
-				const unsigned int s_len = (unsigned int)hal_strlen(s);
+				const size_t s_len = hal_strlen(s);
 				hal_memcpy(out, s, s_len);
 				out += s_len;
 				break;
