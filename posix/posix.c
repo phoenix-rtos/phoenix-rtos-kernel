@@ -1596,7 +1596,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 	TRACE("fcntl(%d, %u)", fd, cmd);
 
 	int err = -EINVAL, fd2;
-	unsigned long arg;
+	unsigned int arg;
 
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
@@ -1610,8 +1610,8 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFD:
-			GETFROMSTACK(ustack, unsigned long, arg, 2U);
-			err = posix_fcntlSetFd(fd, (unsigned int)arg);
+			GETFROMSTACK(ustack, unsigned int, arg, 2U);
+			err = posix_fcntlSetFd(fd, arg);
 			break;
 
 		case F_GETFL:
@@ -1620,7 +1620,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 
 		case F_SETFL:
 			GETFROMSTACK(ustack, unsigned int, arg, 2U);
-			err = posix_fcntlSetFl(fd, (unsigned int)arg);
+			err = posix_fcntlSetFl(fd, arg);
 			break;
 
 		case F_GETLK:
