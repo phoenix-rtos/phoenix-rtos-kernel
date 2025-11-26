@@ -378,8 +378,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 		}
 
 		offs = (off_t)(Elf32_Off)(phdr[i].p_offset & ~(phdr[i].p_align - 1U));
-		misalign = ((size_t)phdr[i].p_offset & (size_t)(phdr[i].p_align - 1U));
-		filesz = (phdr[i].p_filesz != 0U) ? (phdr[i].p_filesz + misalign) : 0;
+		misalign = ((size_t)phdr[i].p_offset & ((size_t)phdr[i].p_align - 1U));
+		filesz = (phdr[i].p_filesz != 0U) ? ((size_t)phdr[i].p_filesz + misalign) : 0;
 		memsz = phdr[i].p_memsz + misalign;
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
 			return -ENOEXEC;
@@ -454,8 +454,8 @@ static int process_validateElf64(void *iehdr, size_t size)
 		}
 
 		offs = (off_t)(Elf64_Off)(phdr[i].p_offset & ~(phdr[i].p_align - 1U));
-		misalign = (size_t)phdr[i].p_offset & (size_t)(phdr[i].p_align - 1U);
-		filesz = (phdr[i].p_filesz != 0U) ? (size_t)(phdr[i].p_filesz + misalign) : 0UL;
+		misalign = (size_t)phdr[i].p_offset & ((size_t)phdr[i].p_align - 1U);
+		filesz = (phdr[i].p_filesz != 0U) ? ((size_t)phdr[i].p_filesz + misalign) : 0UL;
 		memsz = (size_t)phdr[i].p_memsz + misalign;
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
 			return -ENOEXEC;
@@ -545,8 +545,8 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 
 		vaddr = (void *)(((ptr_t)phdr->p_vaddr & ~(phdr->p_align - 1U)));
 		offs = (off_t)(unsigned int)(phdr->p_offset & ~(phdr->p_align - 1U));
-		misalign = (size_t)phdr->p_offset & (size_t)(phdr->p_align - 1U);
-		filesz = (phdr->p_filesz != 0U) ? (size_t)(u32)(phdr->p_filesz + misalign) : 0UL;
+		misalign = (size_t)phdr->p_offset & ((size_t)phdr->p_align - 1U);
+		filesz = (phdr->p_filesz != 0U) ? ((size_t)phdr->p_filesz + misalign) : 0UL;
 		memsz = (size_t)(u32)(phdr->p_memsz + misalign);
 
 		prot = PROT_USER;
@@ -637,8 +637,8 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 
 		vaddr = (void *)((ptr_t)(phdr->p_vaddr & ~((ptr_t)phdr->p_align - 1U)));
 		offs = (off_t)(unsigned int)(phdr->p_offset & ~(phdr->p_align - 1U));
-		misalign = (size_t)phdr->p_offset & (size_t)(phdr->p_align - 1U);
-		filesz = (phdr->p_filesz != 0U) ? (size_t)(phdr->p_filesz + misalign) : 0U;
+		misalign = (size_t)phdr->p_offset & ((size_t)phdr->p_align - 1U);
+		filesz = (phdr->p_filesz != 0U) ? ((size_t)phdr->p_filesz + misalign) : 0U;
 		memsz = (size_t)phdr->p_memsz + misalign;
 
 		prot = PROT_USER;
