@@ -90,7 +90,16 @@ __attribute__((section(".init"))) void _hal_init(void)
 	_hal_spinlockInit();
 
 	dtb = syspage_progNameResolve("system.dtb");
-	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "dtb cannot be null" */
+	if (dtb == NULL) {
+#ifdef NDEBUG
+		hal_cpuReboot();
+#else
+		for (;;) {
+			hal_cpuHalt();
+		}
+#endif
+	}
+
 	_pmap_preinit(dtb->start, dtb->end);
 
 	_hal_platformInit();

@@ -34,9 +34,6 @@ typedef struct {
 } dtb_serial_t;
 
 
-void dtb_parse(void);
-
-
 void dtb_getSystem(char **model, char **compatible);
 
 

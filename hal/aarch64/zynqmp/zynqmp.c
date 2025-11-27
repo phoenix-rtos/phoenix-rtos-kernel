@@ -60,6 +60,17 @@ int _interrupts_gicv2_classify(unsigned int irqn)
 }
 
 
+static unsigned int _zynqmp_getActiveBitShift(int dev)
+{
+	if ((dev >= pctl_devclock_lpd_usb3_dual) && (dev <= pctl_devclock_lpd_usb1_bus)) {
+		return 25U;
+	}
+	else {
+		return 24U;
+	}
+}
+
+
 static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, u8 src, u8 div0, u8 div1, u8 active)
 {
 	u32 val = (u32)src;
@@ -70,7 +81,7 @@ static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, u8 src, u8 div0
 		val &= 0x3U;
 	}
 
-	val |= (((u32)div0 & 0x3fU) << 8) | (((u32)div1 & 0x3fU) << 16) | ((u32)active << 24);
+	val |= (((u32)div0 & 0x3fU) << 8) | (((u32)div1 & 0x3fU) << 16) | ((u32)active << _zynqmp_getActiveBitShift(dev));
 	if (dev == pctl_devclock_lpd_cpu_r5) {
 		/* According to docs turning this bit off could lead to system hang - ensure it is on */
 		val |= ((u32)1U << 24);
@@ -108,7 +119,7 @@ static int _zynqmp_getBasicGenerator(int dev, volatile u32 *reg, u8 *src, u8 *di
 	*src = (u8)(val & 0x7U);
 	*div0 = (u8)((val >> 8) & 0x3fU);
 	*div1 = (u8)((val >> 16) & 0x3fU);
-	*active = (u8)(val >> 24);
+	*active = (u8)(val >> _zynqmp_getActiveBitShift(dev));
 	return 0;
 }
 
@@ -140,13 +151,13 @@ static void _zynqmp_setMIOMuxing(unsigned int pin, u8 l0, u8 l1, u8 l2, u8 l3)
 }
 
 
-static void _zynqmp_setMIOTristate(unsigned int pin, char config)
+static void _zynqmp_setMIOTristate(unsigned int pin, u8 config)
 {
 	u32 reg = pin / 32U + (u32)iou_slcr_mio_mst_tri0;
 	u32 bit = pin % 32U;
 	u32 mask = (u32)1U << bit;
 
-	if (((unsigned int)config & PCTL_MIO_TRI_ENABLE) != 0U) {
+	if ((config & PCTL_MIO_TRI_ENABLE) != 0U) {
 		*(zynq_common.iou_slcr + reg) |= mask;
 	}
 	else {
@@ -154,7 +165,7 @@ static void _zynqmp_setMIOTristate(unsigned int pin, char config)
 	}
 }
 
-static void _zynqmp_setMIOControl(unsigned int pin, char config)
+static void _zynqmp_setMIOControl(unsigned int pin, u8 config)
 {
 	u32 reg = (pin / 26U) * (unsigned int)(iou_slcr_bank1_ctrl0 - iou_slcr_bank0_ctrl0) + (unsigned int)iou_slcr_bank0_ctrl0;
 	u32 bit = pin % 26U;
@@ -167,7 +178,7 @@ static void _zynqmp_setMIOControl(unsigned int pin, char config)
 			continue;
 		}
 
-		if (((u32)config & ((u32)1U << i)) != 0U) {
+		if ((config & (1U << i)) != 0U) {
 			*(zynq_common.iou_slcr + reg + i) |= mask;
 		}
 		else {
@@ -184,8 +195,8 @@ int _zynqmp_setMIO(unsigned int pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config)
 	}
 
 	_zynqmp_setMIOMuxing(pin, l0, l1, l2, l3);
-	_zynqmp_setMIOTristate(pin, (char)config);
-	_zynqmp_setMIOControl(pin, (char)config);
+	_zynqmp_setMIOTristate(pin, config);
+	_zynqmp_setMIOControl(pin, config);
 
 	return 0;
 }

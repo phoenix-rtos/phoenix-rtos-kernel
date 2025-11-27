@@ -41,84 +41,84 @@ static void exceptions_trampoline(unsigned int n, exc_context_t *ctx)
 static const char *exceptionClassStr(unsigned int excClass)
 {
 	switch (excClass) {
-		case 0:
+		case EXC_UNDEFINED:
 			return "Unknown reason";
-		case 1:
+		case EXC_TRAP_WFI_WFE:
 			return "Trapped WFI/WFE";
-		case 3:
+		case EXC_TRAP_MCR_MRC_CP15:
 			return "Trapped MCR/MRC access (cp15)";
-		case 4:
+		case EXC_TRAP_MCRR_MRRC_CP15:
 			return "Trapped MCRR/MRRC access (cp15)";
-		case 5:
+		case EXC_TRAP_MCR_MRC_CP14:
 			return "Trapped MCR/MRC access (cp14)";
-		case 6:
+		case EXC_TRAP_LDC_STC:
 			return "Trapped LDC/STC access";
-		case 7:
+		case 7U:
 			return "Trapped SME, SVE, Advanced SIMD or floating-point functionality due to CPACR_ELx.FPEN";
-		case 12:
+		case EXC_TRAP_MRRC_CP14:
 			return "Trapped MRRC access (cp14)";
-		case 14:
+		case EXC_ILLEGAL_EXEC_STATE:
 			return "Illegal Execution state";
-		case 17:
+		case EXC_SVC_AA32:
 			return "SVC (AA32)";
-		case 20:
+		case EXC_TRAP_MSRR_MRRS_SYS_AA64:
 			return "Trapped MSRR/MRRS/SYS (AA64)";
-		case 21:
+		case 21U:
 			return "SVC (AA64)";
-		case 24:
+		case EXC_TRAP_MSR_MRS_SYS_AA64:
 			return "Trapped MSR/MRS/SYS (AA64)";
-		case 32:
+		case EXC_INSTR_ABORT_EL0:
 			return "Instruction Abort (EL0)";
-		case 33:
+		case EXC_INSTR_ABORT_EL1:
 			return "Instruction Abort (EL1)";
-		case 34:
+		case EXC_PC_ALIGN:
 			return "PC alignment fault";
-		case 36:
+		case EXC_DATA_ABORT_EL0:
 			return "Data Abort (EL0)";
-		case 37:
+		case EXC_DATA_ABORT_EL1:
 			return "Data Abort (EL1)";
-		case 38:
+		case EXC_SP_ALIGN:
 			return "SP alignment fault";
-		case 40:
+		case EXC_TRAP_FPU_AA32:
 			return "Trapped floating-point exception (AA32)";
-		case 44:
+		case EXC_TRAP_FPU_AA64:
 			return "Trapped floating-point exception (AA64)";
-		case 47:
+		case EXC_SERROR:
 			return "SError exception";
-		case 48:
+		case EXC_BREAKPOINT_EL0:
 			return "Breakpoint (EL0)";
-		case 49:
+		case EXC_BREAKPOINT_EL1:
 			return "Breakpoint (EL1)";
-		case 50:
+		case EXC_STEP_EL0:
 			return "Software Step (EL0)";
-		case 51:
+		case EXC_STEP_EL1:
 			return "Software Step (EL1)";
-		case 52:
+		case EXC_WATCHPOINT_EL0:
 			return "Watchpoint (EL0)";
-		case 53:
+		case EXC_WATCHPOINT_EL1:
 			return "Watchpoint (EL1)";
-		case 56:
+		case EXC_BKPT_AA32:
 			return "BKPT (AA32)";
-		case 60:
+		case EXC_BRK_AA64:
 			return "BRK (AA64)";
 #if EXTENSION_DESCRIPTIONS
-		case 10:
+		case 10U:
 			return "(FEAT_LS64) Trapped execution of an LD64B or ST64B* instruction";
-		case 13:
+		case 13U:
 			return "(FEAT_BTI) Branch Target Exception";
-		case 25:
+		case 25U:
 			return "(FEAT_SVE) Access to SVE functionality trapped";
-		case 27:
+		case 27U:
 			return "(FEAT_TME) Exception from an access to a TSTART instruction...";
-		case 28:
+		case 28U:
 			return "(FEAT_FPAC) Exception from a PAC Fail";
-		case 29:
+		case 29U:
 			return "(FEAT_SME) Access to SME functionality trapped";
-		case 39:
+		case 39U:
 			return "(FEAT_MOPS) Memory Operation Exception";
-		case 45:
+		case 45U:
 			return "(FEAT_GCS) GCS exception";
-		case 61:
+		case 61U:
 			return "(FEAT_EBEP) PMU exception";
 #endif
 		default:

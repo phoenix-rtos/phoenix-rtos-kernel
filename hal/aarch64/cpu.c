@@ -43,7 +43,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	}
 
 	/* Align user stack to 16 bytes */
-	ustack = (void *)((ptr_t)ustack & ~0xfU);
+	ustack = (void *)((ptr_t)ustack & ~0xfUL);
 
 	/* Prepare initial kernel stack */
 	ctx = (cpu_context_t *)(kstack + kstacksz - sizeof(cpu_context_t));

@@ -189,7 +189,7 @@ static int dtb_parseMemory(void *dtb, u32 si, u32 l)
 }
 
 
-void dtb_parse(void)
+static void dtb_parse(void)
 {
 	void *dtb;
 	unsigned int depth = 0;
