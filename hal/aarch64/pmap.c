@@ -22,65 +22,69 @@
 #include "include/errno.h"
 #include "include/mman.h"
 
+#include "lib/assert.h"
+
 #include "halsyspage.h"
 #include "dtb.h"
 
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _start;
 extern unsigned int _end;
 extern unsigned int _etext;
+/* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
 typedef u64 descr_t;
 
 /* Descriptor bitfields */
-#define DESCR_VALID     (1UL << 0)         /* Descriptor is valid */
-#define DESCR_TABLE     (1UL << 1)         /* Page or table descriptor */
-#define DESCR_ATTR(x)   (((x) & 0x7) << 2) /* Memory attribute from MAIR_EL1 */
-#define DESCR_AP1       (1UL << 6)         /* Unprivileged access */
-#define DESCR_AP2       (1UL << 7)         /* Read only */
-#define DESCR_NSH       (0UL << 8)         /* Non-shareable */
-#define DESCR_OSH       (2UL << 8)         /* Outer shareable */
-#define DESCR_ISH       (3UL << 8)         /* Inner shareable */
-#define DESCR_AF        (1UL << 10)        /* Access flag */
-#define DESCR_nG        (1UL << 11)        /* Not global */
-#define DESCR_UXN       (1UL << 54)        /* Unprivileged execute-never */
-#define DESCR_PXN       (1UL << 53)        /* Privileged execute-never */
+#define DESCR_VALID     (1UL << 0)          /* Descriptor is valid */
+#define DESCR_TABLE     (1UL << 1)          /* Page or table descriptor */
+#define DESCR_ATTR(x)   (((x) & 0x7U) << 2) /* Memory attribute from MAIR_EL1 */
+#define DESCR_AP1       (1UL << 6)          /* Unprivileged access */
+#define DESCR_AP2       (1UL << 7)          /* Read only */
+#define DESCR_NSH       (0UL << 8)          /* Non-shareable */
+#define DESCR_OSH       (2UL << 8)          /* Outer shareable */
+#define DESCR_ISH       (3UL << 8)          /* Inner shareable */
+#define DESCR_AF        (1UL << 10)         /* Access flag */
+#define DESCR_nG        (1UL << 11)         /* Not global */
+#define DESCR_UXN       (1UL << 54)         /* Unprivileged execute-never */
+#define DESCR_PXN       (1UL << 53)         /* Privileged execute-never */
 #define DESCR_PA(entry) ((entry) & ((1UL << 48) - (1UL << 12)))
 
-#define ATTR_FROM_DESCR(entry) (((entry) >> 2) & 0x7)
+#define ATTR_FROM_DESCR(entry) (((entry) >> 2) & 0x7U)
 
 /* MAIR register bitfields */
-#define MAIR_ATTR(idx, val)       (((u64)val) << (idx * 8))
-#define MAIR_DEVICE(type)         (((type) & 0x3) << 2)
-#define MAIR_NORMAL(inner, outer) (((inner) & 0xf) | (((outer) & 0xf) << 4))
-#define MAIR_DEV_nGnRnE           0x0 /* Gathering, re-ordering, early write acknowledge all disabled */
-#define MAIR_DEV_nGnRE            0x1 /* Gathering, re-ordering disabled, early write acknowledge enabled */
-#define MAIR_NOR_NC               0x4 /* Non-cacheable */
-#define MAIR_NOR_C_WB_NT_RA_WA    0xf /* Cacheable, write-back, non-transient, read-allocate, write-allocate */
+#define MAIR_ATTR(idx, val)       (((u64)(val)) << ((idx) * 8U))
+#define MAIR_DEVICE(type)         (((type) & 0x3U) << 2)
+#define MAIR_NORMAL(inner, outer) (((inner) & 0xfU) | (((outer) & 0xfU) << 4))
+#define MAIR_DEV_nGnRnE           0x0U /* Gathering, re-ordering, early write acknowledge all disabled */
+#define MAIR_DEV_nGnRE            0x1U /* Gathering, re-ordering disabled, early write acknowledge enabled */
+#define MAIR_NOR_NC               0x4U /* Non-cacheable */
+#define MAIR_NOR_C_WB_NT_RA_WA    0xfU /* Cacheable, write-back, non-transient, read-allocate, write-allocate */
 
-#define MAIR_IDX_CACHED    0
-#define MAIR_IDX_NONCACHED 1
-#define MAIR_IDX_DEVICE    2
-#define MAIR_IDX_S_ORDERED 3
+#define MAIR_IDX_CACHED    0U
+#define MAIR_IDX_NONCACHED 1U
+#define MAIR_IDX_DEVICE    2U
+#define MAIR_IDX_S_ORDERED 3U
 
-#define TTL_IDX(lvl, addr) (((addr_t)(addr) >> (39 - (9 * lvl))) & (0x1ff))
+#define TTL_IDX(lvl, addr) (((addr_t)(addr) >> (39U - (9U * (lvl)))) & (0x1ffU))
 
-#define IN_PAGE_MASK (SIZE_PAGE - 1)
+#define IN_PAGE_MASK (SIZE_PAGE - 1U)
 #define PAGE_MASK    (~IN_PAGE_MASK)
 
-#define ASID_NONE   0
-#define ASID_SHARED 1
-#define N_ASIDS     (1 << ASID_BITS)
-#define N_ASID_MAP  ((N_ASIDS + 63) / 64)
+#define ASID_NONE   0U
+#define ASID_SHARED 1U
+#define N_ASIDS     ((u32)1U << ASID_BITS)
+#define N_ASID_MAP  ((N_ASIDS + 63U) / 64U)
 
-#define PMAP_MEM_ENTRIES 64
+#define PMAP_MEM_ENTRIES 64U
 
-#define CEIL_PAGE(x) ((((ptr_t)x) + SIZE_PAGE - 1) & (~(SIZE_PAGE - 1)))
+#define CEIL_PAGE(x) ((((ptr_t)(x)) + SIZE_PAGE - 1U) & (~(SIZE_PAGE - 1U)))
 
 
 typedef struct {
 	addr_t start;
 	addr_t end;
-	int flags;
+	u8 flags;
 } pmap_memEntry_t;
 
 
@@ -121,6 +125,7 @@ struct {
 	spinlock_t lock;
 
 	size_t dev_i;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 MISRAC2012-RULE_1_1 "Symbol used in assembly, theres no limits" */
 } __attribute__((aligned(SIZE_PAGE))) pmap_common;
 
 
@@ -140,6 +145,7 @@ static void pmap_tlbInval(ptr_t vaddr, asid_t asid)
 
 
 /* Function translates `va` based on current translation regime. Bit 0 set to 1 indicates translation is not possible. */
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static addr_t _pmap_hwTranslate(ptr_t va)
 {
 	u64 reg = va;
@@ -153,10 +159,11 @@ static addr_t _pmap_hwTranslate(ptr_t va)
 
 
 /* Function maps `va` to `pa` as normal memory for temporary use. `va` is intended to be one of pmap_common.scratch* */
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static void _pmap_mapScratch(void *va, addr_t pa)
 {
-	u64 tlbiArg = ((ptr_t)va >> 12) & ((1UL << 44) - 1);
-	pmap_common.kernel_ttl3[TTL_IDX(3, va)] =
+	u64 tlbiArg = ((ptr_t)va >> 12) & ((1UL << 44) - 1U);
+	pmap_common.kernel_ttl3[TTL_IDX(3U, va)] =
 			DESCR_PA(pa) | DESCR_VALID | DESCR_TABLE | DESCR_AF | DESCR_ATTR(MAIR_IDX_CACHED) | DESCR_PXN | DESCR_UXN | DESCR_ISH;
 	/* Invalidate last level only for a bit more performance */
 	hal_cpuDataSyncBarrier();
@@ -167,18 +174,19 @@ static void _pmap_mapScratch(void *va, addr_t pa)
 
 static void _pmap_asidAlloc(pmap_t *pmap)
 {
-	unsigned int i, assigned;
+	asid_t assigned;
+	unsigned int i;
 	u64 free;
 	if (pmap_common.firstFreeAsid == N_ASIDS) {
 		assigned = ASID_SHARED;
 	}
 	else {
-		assigned = pmap_common.firstFreeAsid;
-		pmap_common.asidInUse[assigned / 64] |= 1UL << (assigned % 64);
-		for (i = assigned / 64; i < N_ASID_MAP; i++) {
+		assigned = (asid_t)pmap_common.firstFreeAsid;
+		pmap_common.asidInUse[assigned / 64U] |= 1UL << (assigned % 64U);
+		for (i = (unsigned int)assigned / 64U; i < N_ASID_MAP; i++) {
 			free = ~pmap_common.asidInUse[i];
-			if (free != 0) {
-				pmap_common.firstFreeAsid = i * 64 + hal_cpuGetFirstBit(free);
+			if (free != 0U) {
+				pmap_common.firstFreeAsid = i * 64U + hal_cpuGetFirstBit(free);
 				break;
 			}
 		}
@@ -209,7 +217,7 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 		pmap_common.firstFreeAsid = pmap->asid;
 	}
 
-	pmap_common.asidInUse[pmap->asid / 64] &= ~(1UL << (pmap->asid % 64));
+	pmap_common.asidInUse[pmap->asid / 64U] &= ~(1UL << (pmap->asid % 64U));
 	pmap->asid = ASID_NONE;
 }
 
@@ -218,21 +226,21 @@ static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, ptr_t 
 {
 	addr_t pa;
 	int oldCachedRW, newNoncached;
-	if ((oldEntry & DESCR_VALID) == 0) {
+	if ((oldEntry & DESCR_VALID) == 0U) {
 		return;
 	}
 
-	if (lvl != 3) {
+	if (lvl != 3U) {
 		/* Large mappings currently not supported */
 		return;
 	}
 
 	/* If change cacheability or unmap, flush cache to avoid possible data corruption */
-	oldCachedRW = ((oldEntry & DESCR_AP2) == 0) && (ATTR_FROM_DESCR(oldEntry) == MAIR_IDX_CACHED);
-	newNoncached = ((newEntry & DESCR_VALID) == 0) || (ATTR_FROM_DESCR(newEntry) != MAIR_IDX_CACHED);
-	if (oldCachedRW && newNoncached) {
+	oldCachedRW = ((oldEntry & DESCR_AP2) == 0U && ATTR_FROM_DESCR(oldEntry) == MAIR_IDX_CACHED) ? 1 : 0;
+	newNoncached = ((newEntry & DESCR_VALID) == 0U) || (ATTR_FROM_DESCR(newEntry) != MAIR_IDX_CACHED) ? 1 : 0;
+	if ((oldCachedRW != 0) && (newNoncached != 0)) {
 		pa = _pmap_hwTranslate(vaddr);
-		if (((pa & 1) == 0) && (DESCR_PA(oldEntry) == (pa & ((1UL << 48) - (1UL << 12))))) {
+		if (((pa & 1U) == 0U) && (DESCR_PA(oldEntry) == (pa & ((1UL << 48) - (1UL << 12))))) {
 			/* VA is currently mapped - simply flush cache by virtual address */
 			hal_cpuFlushDataCache(vaddr, vaddr + SIZE_PAGE);
 		}
@@ -248,17 +256,17 @@ static void _pmap_cacheOpBeforeChange(descr_t oldEntry, descr_t newEntry, ptr_t 
 
 static void _pmap_cacheOpAfterChange(descr_t newEntry, ptr_t vaddr, unsigned int lvl)
 {
-	if ((newEntry & DESCR_VALID) == 0) {
+	if ((newEntry & DESCR_VALID) == 0U) {
 		return;
 	}
 
-	if (lvl != 3) {
+	if (lvl != 3U) {
 		/* Large mappings currently not supported */
 		return;
 	}
 
 	/* Instruction cache may contain old data */
-	if ((newEntry & (DESCR_PXN | DESCR_UXN)) == 0) {
+	if ((newEntry & (DESCR_PXN | DESCR_UXN)) == 0U) {
 		hal_cpuInvalInstrCache(vaddr, vaddr + SIZE_PAGE);
 	}
 }
@@ -282,12 +290,12 @@ static addr_t _pmap_mapTtl2AndSearch(addr_t ttl2, unsigned int *idx2_ptr)
 {
 	unsigned int idx2 = *idx2_ptr;
 	descr_t entry;
-	if (idx2 >= 512) {
+	if (idx2 >= 512U) {
 		return 0;
 	}
 
 	_pmap_mapScratch(pmap_common.scratch_tt, ttl2);
-	while (idx2 < 512) {
+	while (idx2 < 512U) {
 		entry = pmap_common.scratch_tt[idx2];
 		idx2++;
 		if ((entry & (DESCR_TABLE | DESCR_VALID)) == (DESCR_TABLE | DESCR_VALID)) {
@@ -300,24 +308,23 @@ static addr_t _pmap_mapTtl2AndSearch(addr_t ttl2, unsigned int *idx2_ptr)
 	return 0;
 }
 
-
-static addr_t _pmap_destroy(pmap_t *pmap, int *i)
+static addr_t _pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	/* idx2 goes from 0 to 512 inclusive - value of 512 signifies that the whole ttl2 is empty now */
-	unsigned int idx2 = (unsigned int)*i & 0x3ff;
-	unsigned int idx1 = (unsigned int)*i >> 10;
-	const unsigned int idx1Max = TTL_IDX(1, VADDR_USR_MAX - 1);
+	unsigned int idx2 = *i & 0x3ffU;
+	unsigned int idx1 = *i >> 10U;
+	const unsigned int idx1Max = (unsigned int)TTL_IDX(1U, VADDR_USR_MAX - 1U);
 	addr_t ret = 0;
 	descr_t entry;
 	if (pmap->asid != ASID_NONE) {
 		_pmap_asidDealloc(pmap);
 	}
 
-	while ((idx1 <= idx1Max) && (ret == 0)) {
+	while ((idx1 <= idx1Max) && (ret == 0U)) {
 		entry = pmap->ttl1[idx1];
 		if ((entry & (DESCR_TABLE | DESCR_VALID)) == (DESCR_TABLE | DESCR_VALID)) {
 			ret = _pmap_mapTtl2AndSearch(DESCR_PA(entry), &idx2);
-			if (ret == 0) {
+			if (ret == 0U) {
 				ret = DESCR_PA(entry);
 				idx2 = 0;
 				idx1++;
@@ -329,12 +336,12 @@ static addr_t _pmap_destroy(pmap_t *pmap, int *i)
 		}
 	}
 
-	*i = (idx2 & 0x3ff) | (idx1 << 10);
+	*i = (idx2 & 0x3ffU) | (idx1 << 10U);
 	return ret;
 }
 
 
-addr_t pmap_destroy(pmap_t *pmap, int *i)
+addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	spinlock_ctx_t sc;
 	addr_t ret;
@@ -345,7 +352,7 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 }
 
 
-void _pmap_switch(pmap_t *pmap)
+static void _pmap_switch(pmap_t *pmap)
 {
 	const u64 expectedTTBR0 = pmap->addr | ((u64)pmap->asid << 48);
 	if ((ptr_t)pmap->start >= VADDR_KERNEL) {
@@ -362,6 +369,9 @@ void _pmap_switch(pmap_t *pmap)
 	else if (pmap->asid == ASID_SHARED) {
 		/* Try to allocate a non-shared ASID if possible. Only perform this if address space switch is necessary. */
 		_pmap_asidAlloc(pmap);
+	}
+	else {
+		/* No action required*/
 	}
 
 	hal_cpuDataSyncBarrier();
@@ -391,14 +401,14 @@ void pmap_switch(pmap_t *pmap)
 
 /* Writes the translation descriptor into the level 3 translation table.
  * Assumes that the table is already mapped mapped into pmap_common.scratch_tt */
-static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
+static void _pmap_writeTtl3(void *va, addr_t pa, vm_attr_t attr, asid_t asid)
 {
-	unsigned int idx = TTL_IDX(3, va);
+	unsigned int idx = (unsigned int)TTL_IDX(3U, va);
 	descr_t descr, oldDescr;
 
 	oldDescr = pmap_common.scratch_tt[idx];
 
-	if ((attributes & PGHD_PRESENT) == 0) {
+	if ((attr & PGHD_PRESENT) == 0U) {
 		descr = 0;
 	}
 	else {
@@ -407,19 +417,19 @@ static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 			descr |= DESCR_nG;
 		}
 
-		if ((attributes & PGHD_EXEC) == 0) {
+		if ((attr & PGHD_EXEC) == 0U) {
 			descr |= DESCR_PXN | DESCR_UXN;
 		}
 
-		if ((attributes & PGHD_WRITE) == 0) {
+		if ((attr & PGHD_WRITE) == 0U) {
 			descr |= DESCR_AP2;
 		}
 
-		if ((attributes & PGHD_USER) != 0) {
+		if ((attr & PGHD_USER) != 0U) {
 			descr |= DESCR_AP1;
 		}
 
-		switch (attributes & (PGHD_NOT_CACHED | PGHD_DEV)) {
+		switch (attr & (PGHD_NOT_CACHED | PGHD_DEV)) {
 			/* TODO: does this make sense - NOT_CACHED and DEV flags will result in strongly-ordered memory */
 			case PGHD_NOT_CACHED | PGHD_DEV:
 				descr |= DESCR_ATTR(MAIR_IDX_S_ORDERED);
@@ -441,7 +451,7 @@ static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 
 	_pmap_cacheOpBeforeChange(oldDescr, descr, (ptr_t)va, 3);
 	hal_cpuDataSyncBarrier();
-	if ((oldDescr & DESCR_VALID) != 0) {
+	if ((oldDescr & DESCR_VALID) != 0U) {
 		/* D8.16.1 Using break-before-make when updating translation table entries */
 		pmap_common.scratch_tt[idx] = 0;
 		pmap_tlbInval((ptr_t)va, asid);
@@ -454,7 +464,7 @@ static void _pmap_writeTtl3(void *va, addr_t pa, int attributes, asid_t asid)
 
 
 /* Function maps page at specified address */
-int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
+static int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	unsigned int lvl;
 	descr_t *tt;
@@ -464,9 +474,9 @@ int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *al
 
 	/* If no page table is allocated add new one */
 	tt = pmap->ttl1;
-	for (lvl = 1; lvl <= 2; lvl++) {
+	for (lvl = 1; lvl <= 2U; lvl++) {
 		entry = tt[TTL_IDX(lvl, vaddr)];
-		if ((entry & DESCR_VALID) == 0) {
+		if ((entry & DESCR_VALID) == 0U) {
 			if (alloc == NULL) {
 				return -EFAULT;
 			}
@@ -479,7 +489,7 @@ int _pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *al
 			hal_cpuDataSyncBarrier();
 			alloc = NULL;
 		}
-		else if ((entry & DESCR_TABLE) == 0) {
+		else if ((entry & DESCR_TABLE) == 0U) {
 			/* Already mapped as a block - not supported right now */
 			return -EINVAL;
 		}
@@ -509,7 +519,7 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *
 }
 
 
-void _pmap_remove(pmap_t *pmap, void *vstart, void *vend)
+static void _pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 {
 	unsigned int lvl;
 	volatile descr_t *tt;
@@ -519,22 +529,22 @@ void _pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 	int foundttl3 = 0, descrValid = 1;
 
 	for (vaddr = (ptr_t)vstart; vaddr < (ptr_t)vend; vaddr += SIZE_PAGE) {
-		if ((foundttl3 == 0) || (TTL_IDX(3, vaddr) == 0)) {
+		if ((foundttl3 == 0) || (TTL_IDX(3U, vaddr) == 0U)) {
 			foundttl3 = 0; /* Set when IDX = 0 */
 
 			tt = pmap->ttl1;
 
-			for (lvl = 1; (lvl <= 3); lvl++) {
+			for (lvl = 1; (lvl <= 3U); lvl++) {
 				entry = tt[TTL_IDX(lvl, vaddr)];
-				if ((entry & DESCR_VALID) == 0) {
+				if ((entry & DESCR_VALID) == 0U) {
 					descrValid = 0;
 					break;
 				}
-				else if (lvl == 3) {
+				else if (lvl == 3U) {
 					foundttl3 = 1;
 					break;
 				}
-				else if ((entry & DESCR_TABLE) == 0) {
+				else if ((entry & DESCR_TABLE) == 0U) {
 					break;
 				}
 				else {
@@ -583,13 +593,13 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	hal_spinlockSet(&pmap_common.lock, &sc);
 	if (((ptr_t)vaddr < VADDR_USR_MAX) && (hal_cpuGetTranslationBase() != pmap->addr)) {
 		tt = pmap->ttl1;
-		for (lvl = 1; lvl <= 3; lvl++) {
+		for (lvl = 1; lvl <= 3U; lvl++) {
 			entry = tt[TTL_IDX(lvl, vaddr)];
-			if ((entry & DESCR_VALID) == 0) {
+			if ((entry & DESCR_VALID) == 0U) {
 				addr = 1;
 				break;
 			}
-			else if ((lvl == 3) || ((entry & DESCR_TABLE) == 0)) {
+			else if ((lvl == 3U) || ((entry & DESCR_TABLE) == 0U)) {
 				addr = DESCR_PA(entry);
 				break;
 			}
@@ -606,7 +616,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 	}
 
 	hal_spinlockClear(&pmap_common.lock, &sc);
-	if ((addr & 1) == 0) {
+	if ((addr & 1U) == 0U) {
 		return addr & ((1UL << 48) - (1UL << 12));
 	}
 	else {
@@ -624,7 +634,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	const syspage_prog_t *prog;
 	const pmap_memEntry_t *entry;
 
-	a = *addr & ~(SIZE_PAGE - 1);
+	a = *addr & ~(SIZE_PAGE - 1U);
 	page->flags = 0;
 
 	/* Test address ranges */
@@ -667,9 +677,12 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	else if (found == 1) {
 		*addr = 0;
 	}
+	else {
+		/* No action required */
+	}
 
-	if (syspage->progs != NULL) {
-		prog = syspage->progs;
+	if (hal_syspage->progs != NULL) {
+		prog = hal_syspage->progs;
 		do {
 			if (page->addr >= prog->start && page->addr < prog->end) {
 				page->flags |= PAGE_OWNER_APP;
@@ -677,7 +690,7 @@ int pmap_getPage(page_t *page, addr_t *addr)
 			}
 
 			prog = prog->next;
-		} while (prog != syspage->progs);
+		} while (prog != hal_syspage->progs);
 	}
 
 	if ((page->addr >= pmap_common.mem.pkernel) && (page->addr < (pmap_common.mem.pkernel + pmap_common.mem.kernelsz))) {
@@ -737,11 +750,11 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 /* Function return character marker for page flags */
 char pmap_marker(page_t *p)
 {
-	if (p->flags & PAGE_FREE) {
+	if ((p->flags & PAGE_FREE) != 0U) {
 		return '.';
 	}
 
-	return marksets[(p->flags >> 1) & 3][(p->flags >> 4) & 0xf];
+	return marksets[(p->flags >> 1) & 3U][(p->flags >> 4) & 0xfU];
 }
 
 
@@ -751,12 +764,12 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, vo
 		case 0:
 			*vaddr = (void *)VADDR_KERNEL;
 			*size = (size_t)&_etext - VADDR_KERNEL;
-			*prot = (PROT_EXEC | PROT_READ);
+			*prot = PROT_EXEC | PROT_READ;
 			break;
 		case 1:
 			*vaddr = &_etext;
 			*size = (size_t)(*top) - (size_t)&_etext;
-			*prot = (PROT_WRITE | PROT_READ);
+			*prot = PROT_WRITE | PROT_READ;
 			break;
 		default:
 			return -EINVAL;
@@ -776,10 +789,10 @@ static addr_t _pmap_kernelVAtoPA(void *va)
 /* Function initializes low-level page mapping interface */
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	pmap_common.firstFreeAsid = ASID_SHARED + 1;
+	pmap_common.firstFreeAsid = ASID_SHARED + 1U;
 	hal_memset(pmap_common.asidInUse, 0, sizeof(pmap_common.asidInUse));
-	pmap_common.asidInUse[(ASID_SHARED / 64)] |= 1UL << (ASID_SHARED % 64);
-	pmap_common.asidInUse[(ASID_NONE / 64)] |= 1UL << (ASID_NONE % 64);
+	pmap_common.asidInUse[(ASID_SHARED / 64U)] |= 1UL << (ASID_SHARED % 64U);
+	pmap_common.asidInUse[(ASID_NONE / 64U)] |= 1UL << (ASID_NONE % 64U);
 
 	pmap->asid = ASID_NONE;
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");
@@ -790,7 +803,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Create kernel TTL1 - it is only used by software, but still needs to be initialized */
 	hal_memset(pmap_common.kernel_ttl1, 0, sizeof(pmap_common.kernel_ttl1));
-	pmap_common.kernel_ttl1[TTL_IDX(1, VADDR_KERNEL)] = DESCR_PA(_pmap_kernelVAtoPA(pmap_common.kernel_ttl2)) | DESCR_TABLE | DESCR_VALID;
+	pmap_common.kernel_ttl1[TTL_IDX(1U, VADDR_KERNEL)] = DESCR_PA(_pmap_kernelVAtoPA(pmap_common.kernel_ttl2)) | DESCR_TABLE | DESCR_VALID;
 
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)VADDR_MAX;
@@ -803,7 +816,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap_common.end = pmap_common.start + SIZE_PAGE;
 
 	/* Create initial heap */
-	pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL);
+	LIB_ASSERT_ALWAYS(pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL) == EOK, "failed to create initial heap");
 }
 
 
@@ -817,15 +830,15 @@ void _pmap_preinit(addr_t dtbStart, addr_t dtbEnd)
 
 	pmap_common.dev_i = 0;
 
-	pmap_common.mem.dtb = dtbStart & ~(SIZE_PAGE - 1);
+	pmap_common.mem.dtb = dtbStart & ~(SIZE_PAGE - 1U);
 	pmap_common.mem.dtbsz = CEIL_PAGE(dtbEnd) - pmap_common.mem.dtb;
 	for (i = 0; i < pmap_common.mem.dtbsz; i += SIZE_PAGE) {
-		pmap_common.devices_ttl3[TTL_IDX(3, VADDR_DTB + i)] = DESCR_PA(dtbStart + i) | attrs;
+		pmap_common.devices_ttl3[TTL_IDX(3U, VADDR_DTB + i)] = DESCR_PA(dtbStart + i) | attrs;
 	}
 
 	hal_cpuDataSyncBarrier();
 
-	pmap_common.mem.pkernel = syspage->pkernel;
+	pmap_common.mem.pkernel = hal_syspage->pkernel;
 	pmap_common.mem.kernelsz = CEIL_PAGE(&_end) - (addr_t)VADDR_KERNEL;
 	pmap_common.mem.vkernelEnd = CEIL_PAGE(&_end);
 
@@ -845,8 +858,8 @@ void _pmap_preinit(addr_t dtbStart, addr_t dtbEnd)
 			pmap_common.mem.max = end;
 		}
 
-		if ((i > 0) && (banks[i].start == (pmap_common.mem.entries[pmap_common.mem.count - 1].end + 1))) {
-			pmap_common.mem.entries[pmap_common.mem.count - 1].end = end;
+		if ((i > 0U) && (banks[i].start == (pmap_common.mem.entries[pmap_common.mem.count - 1U].end + 1U))) {
+			pmap_common.mem.entries[pmap_common.mem.count - 1U].end = end;
 		}
 		else {
 			pmap_common.mem.entries[pmap_common.mem.count].start = banks[i].start;
@@ -857,11 +870,11 @@ void _pmap_preinit(addr_t dtbStart, addr_t dtbEnd)
 	}
 
 	/* Set code to read-only, everything else XN and remove mappings past the end */
-	for (i = 0; i < TTL_IDX(3, CEIL_PAGE(&_etext)); i++) {
+	for (i = 0; i < TTL_IDX(3U, CEIL_PAGE(&_etext)); i++) {
 		pmap_common.kernel_ttl3[i] |= DESCR_AP2;
 	}
 
-	for (; i < TTL_IDX(3, pmap_common.mem.vkernelEnd); i++) {
+	for (; i < TTL_IDX(3U, pmap_common.mem.vkernelEnd); i++) {
 		pmap_common.kernel_ttl3[i] |= DESCR_PXN | DESCR_UXN;
 	}
 
@@ -874,21 +887,24 @@ void _pmap_preinit(addr_t dtbStart, addr_t dtbEnd)
 }
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_17_1 "stdarg.h required for custom functions that are like printf" */
 void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size)
 {
 	descr_t attrs = DESCR_VALID | DESCR_TABLE | DESCR_AF | DESCR_ISH | DESCR_PXN | DESCR_UXN | DESCR_ATTR(MAIR_IDX_DEVICE);
-	ptr_t va_start = ((VADDR_MAX - (SIZE_PAGE << 9)) + 1) + (pmap_common.dev_i * SIZE_PAGE);
-	ptr_t va = va_start;
-	addr_t end;
-	if ((pmap_common.dev_i + (size / SIZE_PAGE)) > TTL_IDX(3, VADDR_DTB)) {
-		return 0;
+	ptr_t va_start = ((VADDR_MAX - (SIZE_PAGE << 9)) + 1U) + (pmap_common.dev_i * SIZE_PAGE);
+	size_t offs;
+
+	if ((pmap_common.dev_i + (size / SIZE_PAGE)) > TTL_IDX(3U, VADDR_DTB)) {
+		return NULL;
 	}
 
-	for (end = paddr + size; paddr < end; paddr += SIZE_PAGE, va += SIZE_PAGE) {
-		pmap_common.devices_ttl3[TTL_IDX(3, va)] = DESCR_PA(paddr) | attrs;
+	for (offs = 0; offs < size; offs += SIZE_PAGE) {
+		pmap_common.devices_ttl3[TTL_IDX(3U, va_start + offs)] = DESCR_PA(paddr + offs) | attrs;
 		pmap_common.dev_i++;
 	}
 
 	hal_cpuDataSyncBarrier();
 	return (void *)va_start + pageOffs;
 }
+
+/* parasoft-end-suppress MISRAC2012-RULE_17_1 */

@@ -18,9 +18,12 @@
 
 
 /* Linker symbols */
+/* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Provided by toolchain" */
 extern unsigned int _end;
 extern unsigned int __bss_start;
+/* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
 extern void *_init_stack;
 
 
@@ -31,7 +34,7 @@ int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 }
 
 
-addr_t pmap_destroy(pmap_t *pmap, int *i)
+addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 {
 	return 0;
 }
@@ -49,7 +52,7 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	return 0;
 }
@@ -94,29 +97,29 @@ int _pmap_kernelSpaceExpand(pmap_t *pmap, void **start, void *end, page_t *dp)
 
 int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, void **top)
 {
-	if (i != 0) {
+	if (i != 0U) {
 		return -1;
 	}
 
 	/* Returns region above basic kernel's .bss section */
 	*vaddr = (void *)&_end;
-	*size = (((size_t)(*top) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1)) - (size_t)&_end;
+	*size = (((size_t)(*top) + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U)) - (size_t)&_end;
 
 	return 0;
 }
 
 
-void *_pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
+void *_pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr)
 {
 	(void)va;
 	(void)size;
 	(void)attr;
 
-	return (void *)(paddr & ~(SIZE_PAGE - 1));
+	return (void *)(paddr & ~(SIZE_PAGE - 1U));
 }
 
 
-void *pmap_halMap(addr_t paddr, void *va, size_t size, int attr)
+void *pmap_halMap(addr_t paddr, void *va, size_t size, vm_attr_t attr)
 {
 	return _pmap_halMap(paddr, va, size, attr);
 }
@@ -132,13 +135,13 @@ void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size)
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	(*vstart) = (void *)(((ptr_t)_init_stack + 7) & ~7);
+	(*vstart) = (void *)(((ptr_t)_init_stack + 7U) & ~7U);
 	(*vend) = (*((char **)vstart)) + SIZE_PAGE;
 
 	pmap->start = (void *)&__bss_start;
 
 	/* Initial size of kernel map */
-	pmap->end = (void *)((addr_t)&__bss_start + 32 * 1024);
+	pmap->end = (void *)((addr_t)&__bss_start + 32U * 1024U);
 }
 
 

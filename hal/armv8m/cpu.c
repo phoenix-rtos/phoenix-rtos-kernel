@@ -22,13 +22,10 @@
 
 #include "config.h"
 
-struct {
+static struct {
 	int busy;
 	spinlock_t busySp;
 } cpu_common;
-
-
-void _interrupts_nvicSystemReset(void);
 
 
 /* performance */
@@ -46,7 +43,7 @@ void hal_cpuGetCycles(cycles_t *cb)
 	/* Cycle counter is not available on armv8m
 	assumption that 1 cycle is 1us, so we use hal_timerGetUs() with 1ms resolution
 	both cycles_t and time_t have the same size on armv8m */
-	*cb = hal_timerGetUs();
+	*cb = (cycles_t)hal_timerGetUs();
 }
 
 
@@ -75,7 +72,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 
 	(void)tls;
 
-	*nctx = 0;
+	*nctx = NULL;
 	if (kstack == NULL) {
 		return -1;
 	}
@@ -105,23 +102,24 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->r11 = 0xbbbbbbbbU;
 
 	ctx->hwctx.r0 = (u32)arg;
-	ctx->hwctx.r1 = 0x11111111;
-	ctx->hwctx.r2 = 0x22222222;
-	ctx->hwctx.r3 = 0x33333333;
-	ctx->hwctx.r12 = 0xcccccccc;
-	ctx->hwctx.lr = 0xeeeeeeee;
+	ctx->hwctx.r1 = 0x11111111U;
+	ctx->hwctx.r2 = 0x22222222U;
+	ctx->hwctx.r3 = 0x33333333U;
+	ctx->hwctx.r12 = 0xccccccccU;
+	ctx->hwctx.lr = 0xeeeeeeeeU;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->hwctx.pc = (u32)start;
 	ctx->hwctx.psr = DEFAULT_PSR;
 	if (ustack != NULL) {
 #if KERNEL_FPU_SUPPORT
-		ctx->fpuctx = ctx->psp + (8 * sizeof(u32)); /* Must point to s0 in hw-saved context */
+		ctx->fpuctx = ctx->psp + (8U * sizeof(u32)); /* Must point to s0 in hw-saved context */
 		ctx->fpscr = _hal_scsGetDefaultFPSCR();
 #endif
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
 #if KERNEL_FPU_SUPPORT
-		ctx->fpuctx = (u32)(&ctx->hwctx) + (8 * sizeof(u32)); /* Must point to s0 in hw-saved context */
+		ctx->fpuctx = (u32)(&ctx->hwctx) + (8U * sizeof(u32)); /* Must point to s0 in hw-saved context */
 		ctx->fpscr = _hal_scsGetDefaultFPSCR();
 #endif
 		ctx->irq_ret = RET_THREAD_MSP;
@@ -142,13 +140,14 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &signalCtx, sizeof(signalCtx) },
 		{ &oldmask, sizeof(oldmask) },
 		{ &n, sizeof(n) },
-		{ 0, 0 } /* Reserve space for optional HWCTX */
+		{ 0U, 0U } /* Reserve space for optional HWCTX */
 	};
-	size_t argc = (sizeof(args) / sizeof(args[0])) - 1;
+	size_t argc = (sizeof(args) / sizeof(args[0])) - 1U;
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
 	signalCtx->psp -= sizeof(cpu_context_t);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	signalCtx->hwctx.pc = (u32)handler;
 
 	/* Set default PSR, clear potential ICI/IT flags */
@@ -189,24 +188,24 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx)
 
 char *hal_cpuInfo(char *info)
 {
-	int i;
+	unsigned int i;
 	unsigned int cpuinfo = _hal_scsCpuID();
 
-	hal_strcpy(info, HAL_NAME_PLATFORM);
-	i = sizeof(HAL_NAME_PLATFORM) - 1;
+	(void)hal_strcpy(info, HAL_NAME_PLATFORM);
+	i = sizeof(HAL_NAME_PLATFORM) - 1U;
 
 	if (((cpuinfo >> 24) & 0xffU) == 0x41U) {
-		hal_strcpy(info + i, "ARM ");
-		i += 4;
+		(void)hal_strcpy(info + i, "ARM ");
+		i += 4U;
 	}
 
 	if (((cpuinfo >> 4) & 0xfffU) == 0xd21U) {
 #ifdef MCX_USE_CPU1
-		hal_strcpy(info + i, "Micro Cortex-M33 ");
-		i += 17;
+		(void)hal_strcpy(info + i, "Micro Cortex-M33 ");
+		i += 17U;
 #else
-		hal_strcpy(info + i, "Cortex-M33 ");
-		i += 11;
+		(void)hal_strcpy(info + i, "Cortex-M33 ");
+		i += 11U;
 #endif
 	}
 
@@ -222,33 +221,33 @@ char *hal_cpuInfo(char *info)
 }
 
 
-char *hal_cpuFeatures(char *features, unsigned int len)
+char *hal_cpuFeatures(char *features, size_t len)
 {
 	unsigned int n = 0;
 #if KERNEL_FPU_SUPPORT
-	if ((len - n) > 5) {
-		hal_strcpy(features + n, "FPU, ");
-		n += 5;
+	if ((len - n) > 5U) {
+		(void)hal_strcpy(features + n, "FPU, ");
+		n += 5U;
 	}
 #else
-	if ((len - n) > 8) {
-		hal_strcpy(features + n, "softfp, ");
-		n += 8;
+	if ((len - n) > 8U) {
+		(void)hal_strcpy(features + n, "softfp, ");
+		n += 8U;
 	}
 #endif
 	/* TODO: get regions count from MPU controller */
-	if ((len - n) > 8) {
-		hal_strcpy(features + n, "MPU, ");
-		n += 5;
+	if ((len - n) > 8U) {
+		(void)hal_strcpy(features + n, "MPU, ");
+		n += 5U;
 	}
 
-	if ((len - n) > 7) {
-		hal_strcpy(features + n, "Thumb, ");
-		n += 7;
+	if ((len - n) > 7U) {
+		(void)hal_strcpy(features + n, "Thumb, ");
+		n += 7U;
 	}
 
-	if (n > 0) {
-		features[n - 2] = '\0';
+	if (n > 0U) {
+		features[n - 2U] = '\0';
 	}
 	else {
 		features[0] = '\0';
@@ -299,5 +298,5 @@ void hal_cpuSmpSync(void)
 /* Not safe to call if TLS is not present (tls_base mustn't be NULL) */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
-	*(ptr_t *)tls->arm_m_tls = tls->tls_base - 8;
+	*(ptr_t *)tls->arm_m_tls = tls->tls_base - 8U;
 }

@@ -26,20 +26,22 @@ void _cbuffer_init(cbuffer_t *buf, void *data, size_t sz)
 }
 
 
-unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
+size_t _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 {
-	unsigned int bytes = 0;
+	size_t bytes = 0;
 
 	if (sz == 0U || buf->full != 0U) {
 		return 0U;
 	}
 
 	if (buf->r > buf->w) {
-		hal_memcpy(buf->data + buf->w, data, bytes = min(sz, buf->r - buf->w));
+		bytes = min(sz, buf->r - buf->w);
+		hal_memcpy(buf->data + buf->w, data, bytes);
 	}
 
 	else {
-		hal_memcpy(buf->data + buf->w, data, bytes = min(sz, buf->sz - buf->w));
+		bytes = min(sz, buf->sz - buf->w);
+		hal_memcpy(buf->data + buf->w, data, bytes);
 
 		if ((bytes < sz) && (buf->r != 0U)) {
 			data += bytes;
@@ -56,9 +58,9 @@ unsigned int _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 }
 
 
-unsigned int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
+size_t _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 {
-	unsigned int bytes = _cbuffer_peek(buf, data, sz);
+	size_t bytes = _cbuffer_peek(buf, data, sz);
 
 	if (bytes > 0U) {
 		buf->r = (buf->r + bytes) & (buf->sz - 1U);
@@ -69,18 +71,20 @@ unsigned int _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 }
 
 
-unsigned int _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
+size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
 {
-	unsigned int bytes = 0;
+	size_t bytes = 0;
 
 	if (sz == 0U || (buf->r == buf->w && buf->full == 0U)) {
 		return 0U;
 	}
 	if (buf->w > buf->r) {
-		hal_memcpy(data, buf->data + buf->r, bytes = min(sz, buf->w - buf->r));
+		bytes = min(sz, buf->w - buf->r);
+		hal_memcpy(data, buf->data + buf->r, bytes);
 	}
 	else {
-		hal_memcpy(data, buf->data + buf->r, bytes = min(sz, buf->sz - buf->r));
+		bytes = min(sz, buf->sz - buf->r);
+		hal_memcpy(data, buf->data + buf->r, bytes);
 
 		if (bytes < sz) {
 			data += bytes;

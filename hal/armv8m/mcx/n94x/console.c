@@ -19,7 +19,22 @@
 #include "hal/cpu.h"
 #include "hal/string.h"
 #include "hal/spinlock.h"
+#include "lib/helpers.h"
 #include <board_config.h>
+
+#ifndef UART_CONSOLE_KERNEL
+#define UART_CONSOLE_KERNEL UART_CONSOLE
+#endif
+
+#define CONCAT3(a, b, c) a##b##c
+/* parasoft-suppress-next-line MISRAC2012-RULE_20_7 "Cannot enclose macro parameters in parentheses as CONCAT3 concatenates literal tokens." */
+#define CONSOLE_BAUD(n) (CONCAT3(UART, n, _BAUDRATE))
+
+#if !ISEMPTY(UART_CONSOLE_KERNEL) && CONSOLE_BAUD(UART_CONSOLE_KERNEL)
+#define CONSOLE_BAUDRATE CONSOLE_BAUD(UART_CONSOLE_KERNEL)
+#else
+#define CONSOLE_BAUDRATE 115200
+#endif
 
 
 /* clang-format off */
@@ -38,7 +53,7 @@ static struct {
 
 static void _hal_consolePrint(const char *s)
 {
-	while (*s) {
+	while (*s != '\0') {
 		hal_consolePutch(*(s++));
 	}
 }
@@ -52,6 +67,9 @@ void hal_consolePrint(int attr, const char *s)
 	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
 	}
+	else {
+		/* No action required */
+	}
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
@@ -60,10 +78,10 @@ void hal_consolePrint(int attr, const char *s)
 
 void hal_consolePutch(char c)
 {
-	while ((*(console_common.uart + uart_stat) & (1 << 23)) == 0) {
+	while ((*(console_common.uart + uart_stat) & (1UL << 23)) == 0U) {
 	}
 
-	*(console_common.uart + uart_data) = c;
+	*(console_common.uart + uart_data) = (u32)c;
 }
 
 
@@ -88,50 +106,54 @@ void _hal_consoleInit(void)
 		{ .base = FLEXCOMM8_BASE, .tx = UART8_TX_PIN, .rx = UART8_RX_PIN, .txalt = UART8_TX_ALT, .rxalt = UART8_RX_ALT },
 		{ .base = FLEXCOMM9_BASE, .tx = UART9_TX_PIN, .rx = UART9_RX_PIN, .txalt = UART9_TX_ALT, .rxalt = UART9_RX_ALT },
 	};
-	static const int baud[10] = { UART0_BAUDRATE, UART1_BAUDRATE, UART2_BAUDRATE, UART3_BAUDRATE, UART4_BAUDRATE,
-		UART5_BAUDRATE, UART6_BAUDRATE, UART7_BAUDRATE, UART8_BAUDRATE, UART9_BAUDRATE };
 
 	console_common.uart = info[UART_CONSOLE].base;
 
 	/* Configure RX and TX pins */
-	_mcxn94x_portPinConfig(info[UART_CONSOLE].rx, info[UART_CONSOLE].rxalt, MCX_PIN_SLOW | MCX_PIN_WEAK | MCX_PIN_PULLUP_WEAK | MCX_PIN_INPUT_BUFFER_ENABLE);
-	_mcxn94x_portPinConfig(info[UART_CONSOLE].tx, info[UART_CONSOLE].txalt, MCX_PIN_SLOW | MCX_PIN_WEAK);
+	(void)_mcxn94x_portPinConfig(info[UART_CONSOLE].rx, info[UART_CONSOLE].rxalt, (int)(MCX_PIN_SLOW | MCX_PIN_WEAK | MCX_PIN_PULLUP_WEAK | MCX_PIN_INPUT_BUFFER_ENABLE));
+	(void)_mcxn94x_portPinConfig(info[UART_CONSOLE].tx, info[UART_CONSOLE].txalt, (int)(MCX_PIN_SLOW | MCX_PIN_WEAK));
 
 	/* Reset all internal logic and registers, except the Global Register */
-	*(console_common.uart + uart_global) |= 1 << 1;
+	*(console_common.uart + uart_global) |= 1U << 1;
 	hal_cpuDataMemoryBarrier();
-	*(console_common.uart + uart_global) &= ~(1 << 1);
+	*(console_common.uart + uart_global) &= ~(1U << 1);
 	hal_cpuDataMemoryBarrier();
 
 	/* Set baud rate */
-	t = *(console_common.uart + uart_baud) & ~((0xf << 24) | (1 << 17) | 0x1fff);
+	t = *(console_common.uart + uart_baud) & ~((0xfUL << 24) | (1UL << 17) | 0x1fffU);
 
 	/* For baud rate calculation, default UART_CLK=12MHz assumed */
-	switch (baud[UART_CONSOLE]) {
-		case 9600: t |= 0x03020138; break;
-		case 19200: t |= 0x0302009c; break;
-		case 38400: t |= 0x0302004e; break;
-		case 57600: t |= 0x03020034; break;
-		case 230400: t |= 0x0302000d; break;
-		default: t |= 0x0302001a; break; /* 115200 */
-	}
+#if CONSOLE_BAUDRATE == 9600
+	t |= 0x03020138U;
+#elif CONSOLE_BAUDRATE == 19200
+	t |= 0x0302009cU;
+#elif CONSOLE_BAUDRATE == 38400
+	t |= 0x0302004eU;
+#elif CONSOLE_BAUDRATE == 57600
+	t |= 0x03020034U;
+#elif CONSOLE_BAUDRATE == 230400
+	t |= 0x0302000dU;
+#else
+	t |= 0x0302001aU; /* 115200 */
+#endif
+
 	*(console_common.uart + uart_baud) = t;
 
 	/* Set 8 bit and no parity mode */
-	*(console_common.uart + uart_ctrl) &= ~0x117;
+	*(console_common.uart + uart_ctrl) &= ~0x117U;
 
 	/* One stop bit */
-	*(console_common.uart + uart_baud) &= ~(1 << 13);
+	*(console_common.uart + uart_baud) &= ~(1UL << 13);
 
 	*(console_common.uart + uart_water) = 0;
 
 	/* Enable FIFO */
-	*(console_common.uart + uart_fifo) |= (1 << 7) | (1 << 3);
-	*(console_common.uart + uart_fifo) |= 0x3 << 14;
+	*(console_common.uart + uart_fifo) |= (1U << 7) | (1U << 3);
+	*(console_common.uart + uart_fifo) |= 0x3UL << 14;
 
 	/* Clear all status flags */
-	*(console_common.uart + uart_stat) |= 0xc01fc000;
+	*(console_common.uart + uart_stat) |= 0xc01fc000U;
 
 	/* Enable TX and RX */
-	*(console_common.uart + uart_ctrl) |= (1 << 19) | (1 << 18);
+	*(console_common.uart + uart_ctrl) |= (1UL << 19) | (1UL << 18);
 }

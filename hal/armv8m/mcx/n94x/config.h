@@ -16,7 +16,7 @@
 #ifndef _PH_HAL_CONFIG_H_
 #define _PH_HAL_CONFIG_H_
 
-#define SIZE_INTERRUPTS (171 + 16)
+#define SIZE_INTERRUPTS (171U + 16U)
 
 #ifndef __ASSEMBLY__
 

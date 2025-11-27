@@ -30,22 +30,24 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
-#define USR_MODE    0x10
-#define FIQ_MODE    0x11
-#define IRQ_MODE    0x12
-#define SVC_MODE    0x13 /* reset mode */
-#define ABT_MODE    0x17
-#define UND_MODE    0x1b
-#define SYS_MODE    0x1f
-#define MODE_MASK   0x1f
-#define NO_ABORT    0x100             /* mask to disable Abort Exception */
-#define NO_IRQ      0x80              /* mask to disable IRQ */
-#define NO_FIQ      0x40              /* mask to disable FIQ */
+#define USR_MODE    0x10U
+#define FIQ_MODE    0x11U
+#define IRQ_MODE    0x12U
+#define SVC_MODE    0x13U /* reset mode */
+#define ABT_MODE    0x17U
+#define UND_MODE    0x1bU
+#define SYS_MODE    0x1fU
+#define MODE_MASK   0x1fU
+#define NO_ABORT    0x100U            /* mask to disable Abort Exception */
+#define NO_IRQ      0x80U             /* mask to disable IRQ */
+#define NO_FIQ      0x40U             /* mask to disable FIQ */
 #define NO_INT      (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ */
-#define THUMB_STATE 0x20
+#define THUMB_STATE 0x20U
 
 
 #ifndef __ASSEMBLY__
+
+#include "lib/attrs.h"
 
 #define SYSTICK_INTERVAL 1000
 
@@ -53,12 +55,14 @@
 #define SIZE_STACK_ARG(sz) (((sz) + 3U) & ~0x3U)
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "t used as type -  wrong interpretation" */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (u8 *)(((ptr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) = (u8 *)(((addr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7*/
 
 typedef struct _cpu_context_t {
 	u32 savesp;
@@ -114,16 +118,18 @@ static inline void hal_cpuSetDevBusy(int s)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	int pos;
+	unsigned int pos;
 
 	__asm__ volatile("clz %0, %1" : "=r"(pos) : "r"(v));
 
-	return 31 - pos;
+	return 31U - pos;
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned int pos;
@@ -143,12 +149,6 @@ static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 
 static inline void hal_cpuSetGot(void *got)
 {
-}
-
-
-static inline void *hal_cpuGetGot(void)
-{
-	return NULL;
 }
 
 
@@ -178,21 +178,22 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return ctx->psr & 0xf;
+	return (int)(unsigned int)(ctx->psr & 0xfU);
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetID(void)
 {
 	unsigned int mpidr;
 	/* clang-format off */
 	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
 	/* clang-format on */
-	return mpidr & 0xf;
+	return mpidr & 0xfU;
 }
 
 
-static inline void hal_cpuSignalEvent(void)
+MAYBE_UNUSED static inline void hal_cpuSignalEvent(void)
 {
 	/* clang-format off */
 	__asm__ volatile ("sev");
@@ -200,7 +201,7 @@ static inline void hal_cpuSignalEvent(void)
 }
 
 
-static inline void hal_cpuWaitForEvent(void)
+MAYBE_UNUSED static inline void hal_cpuWaitForEvent(void)
 {
 	/* clang-format off */
 	__asm__ volatile ("dsb\n wfe");
@@ -208,7 +209,9 @@ static inline void hal_cpuWaitForEvent(void)
 }
 
 
-static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1-h "False positive, function already marked as unused" */
+MAYBE_UNUSED static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
 {
 	u32 result;
 	/* clang-format off */
@@ -224,7 +227,7 @@ static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
 }
 
 
-static inline void hal_cpuAtomicInc(volatile u32 *dst)
+MAYBE_UNUSED static inline void hal_cpuAtomicInc(volatile u32 *dst)
 {
 	/* clang-format off */
 	__asm__ volatile (
@@ -242,9 +245,6 @@ static inline void hal_cpuAtomicInc(volatile u32 *dst)
 	);
 	/* clang-format on */
 }
-
-
-unsigned int hal_cpuGetCount(void);
 
 
 #endif

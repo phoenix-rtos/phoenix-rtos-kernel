@@ -77,6 +77,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 		if (sz < 0) {
 			err = (int)sz;
 		}
+		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "size_t depends on architecture" */
 		else if ((sizeof(off_t) <= sizeof(size_t)) || (sz <= (off_t)((size_t)-1))) {
 			n = round_page((size_t)sz) / SIZE_PAGE;
 			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
@@ -215,6 +216,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 	}
 
 	if (o == VM_OBJ_PHYSMEM) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "Check is needed on targets where sizeof(offs) != sizeof(addr_t)" */
 		if (offs > (addr_t)-1) {
 			return NULL;
 		}
@@ -277,7 +279,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 {
 	vm_object_t *o;
 	page_t *p;
-	unsigned int i, n;
+	size_t i, n;
 
 	p = vm_pageAlloc(size, PAGE_OWNER_APP);
 	if (p == NULL) {

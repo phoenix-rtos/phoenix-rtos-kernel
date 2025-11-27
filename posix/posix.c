@@ -598,7 +598,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 		do {
 			err = proc_lookup(filename, &ln, &oid);
 			if ((err == -ENOENT) && (((unsigned int)oflag & O_CREAT) != 0U)) {
-				GETFROMSTACK(ustack, mode_t, mode, 2);
+				GETFROMSTACK(ustack, mode_t, mode, 2U);
 
 				if (posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid) < 0) {
 					err = -EIO;
@@ -1467,7 +1467,7 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	}
 
 	fd2 = _posix_allocfd(p, fd2);
-	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7-a "fd2 value is checked within posix_dup2" */
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "Returned value checked in function (_posix_dup2) */
 	err = _posix_dup2(p, fd, fd2);
 	if ((err == fd2) && (cloexec != 0)) {
 		p->fds[fd2].flags = FD_CLOEXEC;
@@ -1596,12 +1596,12 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 	TRACE("fcntl(%d, %u)", fd, cmd);
 
 	int err = -EINVAL, fd2;
-	unsigned long arg;
+	unsigned int arg;
 
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
 		case F_DUPFD:
-			GETFROMSTACK(ustack, int, fd2, 2);
+			GETFROMSTACK(ustack, int, fd2, 2U);
 			err = posix_fcntlDup(fd, fd2, (cmd == (unsigned int)F_DUPFD_CLOEXEC) ? 1 : 0);
 			break;
 
@@ -1610,7 +1610,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFD:
-			GETFROMSTACK(ustack, unsigned long, arg, 2);
+			GETFROMSTACK(ustack, unsigned int, arg, 2U);
 			err = posix_fcntlSetFd(fd, arg);
 			break;
 
@@ -1619,7 +1619,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFL:
-			GETFROMSTACK(ustack, unsigned int, arg, 2);
+			GETFROMSTACK(ustack, unsigned int, arg, 2U);
 			err = posix_fcntlSetFl(fd, arg);
 			break;
 
@@ -1748,7 +1748,7 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 	if (err == 0) {
 		/* TODO: handle POSIX defined requests with `switch (request)` */
 		if (((request & IOC_INOUT) != 0U) || (IOCPARM_LEN(request) > 0U)) {
-			GETFROMSTACK(ustack, void *, data, 2);
+			GETFROMSTACK(ustack, void *, data, 2U);
 		}
 
 		ioctl_pack(&msg, request, data, &f->oid);
@@ -2145,7 +2145,7 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 	TRACE("recvfrom(%d, %d, %s)", socket, length, src_addr == NULL ? NULL : src_addr->sa_data);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2173,7 +2173,7 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 	TRACE("sendto(%d, %s, %d, %s)", socket, message, length, dest_addr == NULL ? NULL : dest_addr->sa_data);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2201,7 +2201,7 @@ ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
 	TRACE("recvmsg(%d, %p, %d)", socket, msg, flags);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2229,7 +2229,7 @@ ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
 	TRACE("sendmsg(%d, %p, %d)", socket, msg, flags);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {

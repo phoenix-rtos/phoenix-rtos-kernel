@@ -18,6 +18,8 @@
 #include "riscv64.h"
 #include "dtb.h"
 
+#include <arch/timer.h>
+
 
 extern addr_t hal_relOffs;
 
@@ -26,16 +28,14 @@ struct hal_perHartData {
 	unsigned long hartId;
 	ptr_t kstack;
 	ptr_t scratch;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 } __attribute__((packed, aligned(8))) hal_riscvHartData[MAX_CPU_COUNT];
 
 
 static struct {
 	volatile u32 cpuCnt;
-	volatile u32 cpusStarted;
+	u32 cpusStarted;
 } cpu_common;
-
-
-void hal_timerInitCore(void);
 
 
 /* bit operations */
@@ -45,33 +45,34 @@ unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	unsigned int lb = 63;
 
-	if (!(v & 0xffffffff00000000L)) {
-		lb -= 32;
-		v = (v << 32);
+	if ((v & 0xffffffff00000000UL) == 0UL) {
+		lb -= 32U;
+		v = (((u64)v) << 32);
 	}
 
-	if (!(v & 0xffff000000000000)) {
-		lb -= 16;
+	if ((v & 0xffff000000000000UL) == 0UL) {
+		lb -= 16U;
 		v = (v << 16);
 	}
 
-	if (!(v & 0xff00000000000000)) {
-		lb -= 8;
+	if ((v & 0xff00000000000000UL) == 0UL) {
+		lb -= 8U;
 		v = (v << 8);
 	}
 
-	if (!(v & 0xf000000000000000)) {
-		lb -= 4;
+	if ((v & 0xf000000000000000UL) == 0UL) {
+		lb -= 4U;
 		v = (v << 4);
 	}
 
-	if (!(v & 0xc000000000000000)) {
-		lb -= 2;
+	if ((v & 0xc000000000000000UL) == 0UL) {
+		lb -= 2U;
 		v = (v << 2);
 	}
 
-	if (!(v & 0x8000000000000000))
-		lb -= 1;
+	if ((v & 0x8000000000000000UL) == 0UL) {
+		lb -= 1U;
+	}
 
 	return lb;
 }
@@ -81,33 +82,34 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 {
 	unsigned int fb = 0;
 
-	if (!(v & 0xffffffffL)) {
-		fb += 32;
+	if ((v & 0xffffffffUL) == 0UL) {
+		fb += 32U;
 		v = (v >> 32);
 	}
 
-	if (!(v & 0xffff)) {
-		fb += 16;
+	if ((v & 0xffffUL) == 0UL) {
+		fb += 16U;
 		v = (v >> 16);
 	}
 
-	if (!(v & 0xff)) {
-		fb += 8;
+	if ((v & 0xffUL) == 0UL) {
+		fb += 8U;
 		v = (v >> 8);
 	}
 
-	if (!(v & 0xf)) {
-		fb += 4;
+	if ((v & 0xfUL) == 0UL) {
+		fb += 4U;
 		v = (v >> 4);
 	}
 
-	if (!(v & 0x3)) {
-		fb += 2;
+	if ((v & 0x3UL) == 0UL) {
+		fb += 2U;
 		v = (v >> 2);
 	}
 
-	if (!(v & 0x01))
-		fb += 1;
+	if ((v & 0x1UL) == 0UL) {
+		fb += 1U;
+	}
 
 	return fb;
 }
@@ -116,6 +118,7 @@ unsigned int hal_cpuGetFirstBit(unsigned long v)
 /* context management */
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, size_t kstacksz, void *ustack, void *arg, hal_tls_t *tls)
 {
 	cpu_context_t *ctx;
@@ -130,7 +133,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	}
 
 	/* Align user stack to 16 bytes */
-	ustack = (void *)((ptr_t)ustack & ~0xf);
+	ustack = (void *)((ptr_t)ustack & ~0xfU);
 
 	ctx = (cpu_context_t *)((char *)kstack + kstacksz - sizeof(cpu_context_t));
 
@@ -142,39 +145,40 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->sp = (u64)kstack + kstacksz;
 
 	ctx->t0 = 0;
-	ctx->t1 = 0x0101010101010101;
-	ctx->t2 = 0x0202020202020202;
+	ctx->t1 = 0x0101010101010101U;
+	ctx->t2 = 0x0202020202020202U;
 
 	ctx->s0 = (u64)ctx;
-	ctx->s1 = 0x0404040404040404;
+	ctx->s1 = 0x0404040404040404U;
 	ctx->a0 = (u64)arg;
-	ctx->a1 = 0x0606060606060606;
+	ctx->a1 = 0x0606060606060606U;
 
-	ctx->a2 = 0x0707070707070707;
-	ctx->a3 = 0x0808080808080808;
-	ctx->a4 = 0x0909090909090909;
-	ctx->a5 = 0x0a0a0a0a0a0a0a0a;
+	ctx->a2 = 0x0707070707070707U;
+	ctx->a3 = 0x0808080808080808U;
+	ctx->a4 = 0x0909090909090909U;
+	ctx->a5 = 0x0a0a0a0a0a0a0a0aU;
 
-	ctx->a6 = 0x0b0b0b0b0b0b0b0b;
-	ctx->a7 = 0x0c0c0c0c0c0c0c0c;
-	ctx->s2 = 0x0d0d0d0d0d0d0d0d;
-	ctx->s3 = 0x0e0e0e0e0e0e0e0e;
+	ctx->a6 = 0x0b0b0b0b0b0b0b0bU;
+	ctx->a7 = 0x0c0c0c0c0c0c0c0cU;
+	ctx->s2 = 0x0d0d0d0d0d0d0d0dU;
+	ctx->s3 = 0x0e0e0e0e0e0e0e0eU;
 
-	ctx->s4 = 0x0f0f0f0f0f0f0f0f;
-	ctx->s5 = 0x1010101010101010;
-	ctx->s6 = 0x1111111111111111;
-	ctx->s7 = 0x1212121212121212;
+	ctx->s4 = 0x0f0f0f0f0f0f0f0fU;
+	ctx->s5 = 0x1010101010101010U;
+	ctx->s6 = 0x1111111111111111U;
+	ctx->s7 = 0x1212121212121212U;
 
-	ctx->s8 = 0x1313131313131313;
-	ctx->s9 = 0x1414141414141414;
-	ctx->s10 = 0x1515151515151515;
-	ctx->s11 = 0x1616161616161616;
+	ctx->s8 = 0x1313131313131313U;
+	ctx->s9 = 0x1414141414141414U;
+	ctx->s10 = 0x1515151515151515U;
+	ctx->s11 = 0x1616161616161616U;
 
-	ctx->t3 = 0x1717171717171717;
-	ctx->t4 = 0x1818181818181818;
-	ctx->t5 = 0x1919191919191919;
-	ctx->t6 = 0x1a1a1a1a1a1a1a1a;
+	ctx->t3 = 0x1717171717171717U;
+	ctx->t4 = 0x1818181818181818U;
+	ctx->t5 = 0x1919191919191919U;
+	ctx->t6 = 0x1a1a1a1a1a1a1a1aU;
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	ctx->sepc = (u64)start;
 	ctx->ksp = (u64)ctx;
 
@@ -209,6 +213,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	signalCtx->sepc = (u64)handler;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
@@ -235,7 +240,7 @@ void _hal_cpuSetKernelStack(void *kstack)
 
 char *hal_cpuInfo(char *info)
 {
-	unsigned int i = 0, l;
+	size_t i = 0, l;
 	char *model, *compatible;
 
 	dtb_getSystem(&model, &compatible);
@@ -244,43 +249,44 @@ char *hal_cpuInfo(char *info)
 	hal_memcpy(info, model, l);
 	i += l;
 
-	hal_strcpy(&info[i], " (");
-	i += 2;
+	(void)hal_strcpy(&info[i], " (");
+	i += 2U;
 
 	l = hal_strlen(compatible);
 	hal_memcpy(&info[i], compatible, l);
 	i += l;
 
 	info[i++] = ')';
-	i += hal_i2s(" - ", &info[i], hal_cpuGetCount(), 10, 0);
-	hal_strcpy(&info[i], " core");
-	i += 5;
-	if (hal_cpuGetCount() > 1) {
-		hal_strcpy(&info[i], "s");
-		i += 1;
+	i += hal_i2s(" - ", &info[i], hal_cpuGetCount(), 10U, 0U);
+	(void)hal_strcpy(&info[i], " core");
+	i += 5U;
+	if (hal_cpuGetCount() > 1U) {
+		(void)hal_strcpy(&info[i], "s");
+		i += 1U;
 	}
-	info[i] = 0;
+	info[i] = '\0';
 
 	return info;
 }
 
 
-char *hal_cpuFeatures(char *features, unsigned int len)
+char *hal_cpuFeatures(char *features, size_t len)
 {
-	unsigned int i = 0, l, n = 0;
+	unsigned int n = 0;
+	size_t i = 0, l;
 	char *compatible, *isa, *mmu;
 	u32 clock;
 
-	while (!dtb_getCPU(n++, &compatible, &clock, &isa, &mmu)) {
+	while (dtb_getCPU(n++, &compatible, &clock, &isa, &mmu) == 0) {
 
 		l = hal_strlen(compatible);
 		hal_memcpy(features, compatible, l);
 		i += l;
 
-		i += hal_i2s("@", &features[i], clock / 1000000, 10, 0);
+		i += hal_i2s("@", &features[i], (unsigned long)clock / 1000000UL, 10U, 0U);
 
 		hal_memcpy(&features[i], "MHz", 3);
-		i += 3;
+		i += 3U;
 
 		features[i++] = '(';
 
@@ -298,7 +304,7 @@ char *hal_cpuFeatures(char *features, unsigned int len)
 		features[i++] = ' ';
 	}
 
-	features[i] = 0;
+	features[i] = '\0';
 
 	return features;
 }
@@ -339,7 +345,7 @@ unsigned int hal_cpuGetCount(void)
 
 unsigned int hal_cpuGetID(void)
 {
-	return ((struct hal_perHartData *)csr_read(sscratch))->hartId;
+	return (unsigned int)(((struct hal_perHartData *)csr_read(sscratch))->hartId);
 }
 
 
@@ -347,10 +353,10 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 {
 	(void)intr;
 
-	unsigned long hart_mask = (1UL << cpu_common.cpuCnt) - 1;
+	unsigned long hart_mask = (1UL << cpu_common.cpuCnt) - 1U;
 	hart_mask &= ~(1UL << hal_cpuGetID());
 
-	(void)hal_sbiSendIPI(hart_mask, 0);
+	(void)hal_sbiSendIPI(hart_mask, 0UL);
 }
 
 
@@ -358,11 +364,11 @@ void hal_cpuBroadcastIPI(unsigned int intr)
 void hal_cpuSmpSync(void)
 {
 	unsigned long hart_mask;
-	if (hal_cpuGetCount() > 1) {
-		hart_mask = (1 << hal_cpuGetCount()) - 1;
+	if (hal_cpuGetCount() > 1U) {
+		hart_mask = (1UL << hal_cpuGetCount()) - 1U;
 		RISCV_FENCE(rw, rw);
 		hal_cpuInstrBarrier();
-		hal_sbiRfenceI(hart_mask, 0);
+		hal_sbiRfenceI(hart_mask, 0UL);
 	}
 }
 
@@ -370,13 +376,14 @@ void hal_cpuSmpSync(void)
 void hal_cpuRfenceI(void)
 {
 	unsigned long hart_mask;
-	if (hal_cpuGetCount() > 1) {
-		hart_mask = (1 << hal_cpuGetCount()) - 1;
-		hal_sbiRfenceI(hart_mask, 0);
+	if (hal_cpuGetCount() > 1U) {
+		hart_mask = (1UL << hal_cpuGetCount()) - 1U;
+		hal_sbiRfenceI(hart_mask, 0UL);
 	}
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_cpuLocalFlushTLB(u32 asid, const void *vaddr)
 {
 	(void)asid; /* TODO: ASID support */
@@ -397,9 +404,9 @@ void hal_cpuRemoteFlushTLB(u32 asid, const void *vaddr, size_t size)
 	size_t i;
 	unsigned long hart_mask;
 
-	if (hal_cpuGetCount() > 1) {
-		hart_mask = (1 << hal_cpuGetCount()) - 1;
-		hal_sbiSfenceVma(hart_mask, 0, (unsigned long)vaddr, size);
+	if (hal_cpuGetCount() > 1U) {
+		hart_mask = (1UL << hal_cpuGetCount()) - 1UL;
+		(void)hal_sbiSfenceVma(hart_mask, 0UL, (unsigned long)vaddr, size);
 	}
 	else {
 		for (i = 0; i < size; i += SIZE_PAGE) {
@@ -408,7 +415,7 @@ void hal_cpuRemoteFlushTLB(u32 asid, const void *vaddr, size_t size)
 	}
 }
 
-
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 __attribute__((section(".init"))) void hal_cpuInitCore(void)
 {
 	hal_interruptsInitCore();
@@ -439,6 +446,7 @@ __attribute__((section(".init"))) void _hal_cpuInit(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
 	(void)ctx;

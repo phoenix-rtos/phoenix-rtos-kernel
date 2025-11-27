@@ -15,6 +15,7 @@
 
 #include "hal/sparcv8leon/sparcv8leon.h"
 #include "hal/console.h"
+#include "lib/assert.h"
 #include "gaisler.h"
 
 #include <arch/pmap.h>
@@ -22,15 +23,17 @@
 #include <board_config.h>
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "CONCAT{,_} is used for creation of preprocessor identifiers" */
 #define CONCAT_(a, b) a##b
 #define CONCAT(a, b)  CONCAT_(a, b)
+/* parasoft-end-suppress MISRAC2012-RULE_20_7 */
 
 
 /* UART control bits */
-#define TX_EN (1 << 1)
+#define TX_EN (1U << 1)
 
 /* UART status bits */
-#define TX_FIFO_FULL (1 << 9)
+#define TX_FIFO_FULL (1UL << 9)
 
 /* Console config */
 #define CONSOLE_RX        CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _RX))
@@ -72,8 +75,8 @@ static int console_cguClkStatus(void)
 
 static void console_iomuxCfg(void)
 {
-	gaisler_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
-	gaisler_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
+	(void)gaisler_setIomuxCfg(CONSOLE_TX, 0x1, 0, 0);
+	(void)gaisler_setIomuxCfg(CONSOLE_RX, 0x1, 0, 0);
 }
 
 #elif defined(__CPU_GR740)
@@ -92,8 +95,8 @@ static int console_cguClkStatus(void)
 
 static void console_iomuxCfg(void)
 {
-	gaisler_setIomuxCfg(CONSOLE_TX, iomux_alternateio, 0, 0);
-	gaisler_setIomuxCfg(CONSOLE_RX, iomux_alternateio, 0, 0);
+	(void)gaisler_setIomuxCfg(CONSOLE_TX, iomux_alternateio, 0, 0);
+	(void)gaisler_setIomuxCfg(CONSOLE_RX, iomux_alternateio, 0, 0);
 }
 
 #else
@@ -118,12 +121,12 @@ static void console_iomuxCfg(void)
 
 static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++) {
+	for (; *s == '\0'; s++) {
 		hal_consolePutch(*s);
 	}
 
 	/* Wait until TX fifo is empty */
-	while ((*(halconsole_common.uart + uart_status) & TX_FIFO_FULL) != 0) {
+	while ((*(halconsole_common.uart + uart_status) & TX_FIFO_FULL) != 0U) {
 	}
 }
 
@@ -132,7 +135,7 @@ static u32 _hal_consoleCalcScaler(u32 baud)
 {
 	u32 scaler = 0;
 
-	scaler = (SYSCLK_FREQ / (baud * 8 + 7));
+	scaler = ((u32)SYSCLK_FREQ / (baud * 8U + 7U));
 
 	return scaler;
 }
@@ -141,9 +144,9 @@ static u32 _hal_consoleCalcScaler(u32 baud)
 void hal_consolePutch(char c)
 {
 	/* Wait until TX fifo is empty */
-	while ((*(halconsole_common.uart + uart_status) & TX_FIFO_FULL) != 0) {
+	while ((*(halconsole_common.uart + uart_status) & TX_FIFO_FULL) != 0U) {
 	}
-	*(halconsole_common.uart + uart_data) = c;
+	*(halconsole_common.uart + uart_data) = (unsigned char)c;
 }
 
 
@@ -155,6 +158,9 @@ void hal_consolePrint(int attr, const char *s)
 	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
 	}
+	else {
+		/* No action required*/
+	}
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
@@ -164,6 +170,7 @@ void hal_consolePrint(int attr, const char *s)
 void _hal_consoleInit(void)
 {
 	halconsole_common.uart = _pmap_halMapDevice(PAGE_ALIGN(UART_CONSOLE_BASE), PAGE_OFFS(UART_CONSOLE_BASE), SIZE_PAGE);
+	LIB_ASSERT_ALWAYS(halconsole_common.uart != NULL, "failed to map UART device");
 
 	*(halconsole_common.uart + uart_ctrl) = 0;
 	hal_cpuDataStoreBarrier();
@@ -175,7 +182,7 @@ void _hal_consoleInit(void)
 	}
 
 	/* Clear UART FIFO */
-	while ((*(halconsole_common.uart + uart_status) & (1 << 0)) != 0) {
+	while ((*(halconsole_common.uart + uart_status) & (1U << 0)) != 0U) {
 		(void)*(halconsole_common.uart + uart_data);
 	}
 	*(halconsole_common.uart + uart_scaler) = _hal_consoleCalcScaler(CONSOLE_BAUDRATE);

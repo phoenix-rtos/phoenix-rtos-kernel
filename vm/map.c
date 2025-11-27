@@ -797,7 +797,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 
 	prot = (vm_prot_t)hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
-	paddr = (void *)((unsigned long)vaddr & ~(SIZE_PAGE - 1));
+	paddr = (void *)((ptr_t)vaddr & ~(SIZE_PAGE - 1U));
 
 #ifdef PAGEFAULTSTOP
 	process_dumpException(n, ctx);
@@ -815,12 +815,14 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 
 	thread = proc_current();
 
-	if (thread->process != NULL && !pmap_belongs(&map_common.kmap->pmap, vaddr))
+	if (thread->process != NULL && (pmap_belongs(&map_common.kmap->pmap, vaddr) == 0)) {
 		map = thread->process->mapp;
-	else
+	}
+	else {
 		map = map_common.kmap;
+	}
 
-	if (vm_mapForce(map, paddr, prot)) {
+	if (vm_mapForce(map, paddr, prot) != 0) {
 		process_dumpException(n, ctx);
 
 		if (thread->process == NULL) {
@@ -828,7 +830,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 			hal_cpuHalt();
 		}
 
-		threads_sigpost(thread->process, thread, signal_segv);
+		(void)threads_sigpost(thread->process, thread, signal_segv);
 	}
 }
 #endif
@@ -997,16 +999,17 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 
 #ifndef NOMMU
 	map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
-	if (map->pmap.pmapp == NULL)
+	if (map->pmap.pmapp == NULL) {
 		return -ENOMEM;
+	}
 
-	map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1 << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE);
+	map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1UL << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE);
 	if (map->pmap.pmapv == NULL) {
 		vm_pageFree(map->pmap.pmapp);
 		return -ENOMEM;
 	}
 
-	pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmap.pmapp, map->pmap.pmapv);
+	(void)pmap_create(&map->pmap, &map_common.kmap->pmap, map->pmap.pmapp, map->pmap.pmapv);
 #else
 	(void)pmap_create(&map->pmap, &map_common.kmap->pmap, NULL, NULL);
 #endif
@@ -1040,17 +1043,17 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 #ifndef NOMMU
 	addr_t a;
 	rbnode_t *n;
-	int i = 0;
+	unsigned int i = 0;
 
 	for (;;) {
 		a = pmap_destroy(&map->pmap, &i);
-		if (a == 0x0) {
+		if (a == 0U) {
 			break;
 		}
 		vm_pageFree(_page_get(a));
 	}
 
-	vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
+	(void)vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
 	vm_pageFree(map->pmap.pmapp);
 
 	for (n = map->tree.root; n != NULL; n = map->tree.root) {
@@ -1059,7 +1062,7 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 		_entry_put(map, e);
 	}
 
-	proc_lockDone(&map->lock);
+	(void)proc_lockDone(&map->lock);
 #else
 	map_entry_t *temp = NULL;
 
@@ -1179,10 +1182,10 @@ static int _vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t
 #ifndef NOMMU
 	map_entry_t e, *f;
 
-	if (size == 0) {
+	if (size == 0U) {
 		return 0;
 	}
-
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
 	e.vaddr = (void *)ptr;
 	e.size = size;
 
@@ -1234,9 +1237,10 @@ void vm_mapinfo(meminfo_t *info)
 
 
 	(void)proc_lockSet(&map_common.lock);
-	info->entry.total = map_common.ntotal;
-	info->entry.free = map_common.nfree;
-	info->entry.sz = sizeof(map_entry_t);
+	/* FIXME: potentially lossy downcasts on 64-bit targets - make total, free, sz size_t */
+	info->entry.total = (unsigned int)map_common.ntotal;
+	info->entry.free = (unsigned int)map_common.nfree;
+	info->entry.sz = (unsigned int)sizeof(map_entry_t);
 	(void)proc_lockClear(&map_common.lock);
 
 	if (info->entry.mapsz != -1) {
@@ -1252,7 +1256,8 @@ void vm_mapinfo(meminfo_t *info)
 			(void)proc_lockSet(&map->lock);
 
 #ifndef NOMMU
-			for (size = 0, n = lib_rbMinimum(map->tree.root); n != NULL; n = lib_rbNext(n), ++size) {
+			size = 0;
+			for (n = lib_rbMinimum(map->tree.root); n != NULL; n = lib_rbNext(n)) {
 				if (info->entry.map != NULL && info->entry.mapsz > size) {
 					e = lib_treeof(map_entry_t, linkage, n);
 
@@ -1261,13 +1266,14 @@ void vm_mapinfo(meminfo_t *info)
 					info->entry.map[size].flags = e->flags;
 					info->entry.map[size].prot = e->prot;
 					info->entry.map[size].protOrig = e->protOrig;
-					info->entry.map[size].anonsz = ~0;
+					info->entry.map[size].anonsz = ~0U;
 
 					if (e->amap != NULL) {
 						info->entry.map[size].anonsz = 0;
-						for (i = 0; i < e->amap->size; ++i) {
-							if (e->amap->anons[i] != NULL)
+						for (i = 0; (unsigned int)i < e->amap->size; ++i) {
+							if (e->amap->anons[i] != NULL) {
 								info->entry.map[size].anonsz += SIZE_PAGE;
+							}
 						}
 					}
 
@@ -1284,6 +1290,7 @@ void vm_mapinfo(meminfo_t *info)
 						info->entry.map[size].oid = e->object->oid;
 					}
 				}
+				++size;
 			}
 #else
 			size = 0;
@@ -1664,7 +1671,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 
 
 #ifdef EXC_PAGEFAULT
-	hal_exceptionsSetHandler(EXC_PAGEFAULT, map_pageFault);
+	(void)hal_exceptionsSetHandler(EXC_PAGEFAULT, map_pageFault);
 #endif
 
 	return EOK;

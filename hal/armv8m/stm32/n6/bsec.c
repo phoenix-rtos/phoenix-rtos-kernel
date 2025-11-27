@@ -34,17 +34,17 @@
 #define OTPSR_OTPNVIR   (1U << 4)
 #define OTPSR_OTPERR    (1U << 5)
 #define OTPSR_OTPSEC    (1U << 6)
-#define OTPSR_PROGFAIL  (1U << 16)
-#define OTPSR_DISTURB   (1U << 17)
-#define OTPSR_DEDF      (1U << 18)
-#define OTPSR_SECF      (1U << 19)
-#define OTPSR_PPLF      (1U << 20)
-#define OTPSR_PPLMF     (1U << 21)
-#define OTPSR_AMEF      (1U << 22)
+#define OTPSR_PROGFAIL  (1UL << 16)
+#define OTPSR_DISTURB   (1UL << 17)
+#define OTPSR_DEDF      (1UL << 18)
+#define OTPSR_SECF      (1UL << 19)
+#define OTPSR_PPLF      (1UL << 20)
+#define OTPSR_PPLMF     (1UL << 21)
+#define OTPSR_AMEF      (1UL << 22)
 
-#define OTPCR_ADDR   (0x1ff)
-#define OTPCR_PROG   (1U << 13)
-#define OTPCR_PPLOCK (1U << 14)
+#define OTPCR_ADDR   (0x1ffU)
+#define OTPCR_PROG   (1UL << 13)
+#define OTPCR_PPLOCK (1UL << 14)
 
 
 static struct {
@@ -55,16 +55,14 @@ static struct {
 static void _stm32_bsec_otp_waitBusy(void)
 {
 	/* Wait until not busy */
-	while ((*(bsec_common.base + bsec_otpsr) & OTPSR_BUSY) != 0) {
-		;
-	}
+	while ((*(bsec_common.base + bsec_otpsr) & OTPSR_BUSY) != 0U) { }
 }
 
 
 static int _stm32_bsec_otp_checkError(void)
 {
 	u32 t = *(bsec_common.base + bsec_otpsr);
-	if ((t & OTPSR_OTPERR) == 0) {
+	if ((t & OTPSR_OTPERR) == 0U) {
 		return EOK;
 	}
 
@@ -75,8 +73,8 @@ static int _stm32_bsec_otp_checkError(void)
 int _stm32_bsec_otp_checkFuseValid(unsigned int fuse)
 {
 	u32 fuseMax = FUSE_MAX;
-	if ((*(bsec_common.base + bsec_otpsr) & OTPSR_HIDEUP) != 0) {
-		fuseMax = FUSE_UPPER_MIN - 1;
+	if ((*(bsec_common.base + bsec_otpsr) & OTPSR_HIDEUP) != 0U) {
+		fuseMax = FUSE_UPPER_MIN - 1U;
 	}
 
 	if ((fuse >= FUSE_MIN) && (fuse <= fuseMax)) {
@@ -137,20 +135,20 @@ int _stm32_bsec_otp_write(unsigned int fuse, u32 val)
 
 	/* Program the word using cr register. Fuse word is locked if it's mid or upper */
 	t = *(bsec_common.base + bsec_otpcr) & ~(OTPCR_ADDR | OTPCR_PROG | OTPCR_PPLOCK);
-	*(bsec_common.base + bsec_otpcr) |= fuse | OTPCR_PROG | (lockFuse & OTPCR_PPLOCK);
+	*(bsec_common.base + bsec_otpcr) = t | fuse | OTPCR_PROG | (lockFuse & OTPCR_PPLOCK);
 
 	_stm32_bsec_otp_waitBusy();
 
 	t = *(bsec_common.base + bsec_otpsr);
-	if ((t & OTPSR_PROGFAIL) != 0) {
+	if ((t & OTPSR_PROGFAIL) != 0U) {
 		return -EAGAIN;
 	}
 
-	if ((t & OTPSR_PPLF) != 0) {
+	if ((t & OTPSR_PPLF) != 0U) {
 		return -EPERM;
 	}
 
-	if ((t & OTPSR_PPLMF) != 0) {
+	if ((t & OTPSR_PPLMF) != 0U) {
 		return -EINVAL;
 	}
 
@@ -160,7 +158,7 @@ int _stm32_bsec_otp_write(unsigned int fuse, u32 val)
 
 	_stm32_bsec_otp_waitBusy();
 
-	if ((*(bsec_common.base + bsec_otpsr) & OTPSR_OTPERR) != 0) {
+	if ((*(bsec_common.base + bsec_otpsr) & OTPSR_OTPERR) != 0U) {
 		return -EAGAIN;
 	}
 
@@ -178,10 +176,10 @@ void _stm32_bsec_init(void)
 	u32 t;
 	bsec_common.base = BSEC_BASE;
 
-	_stm32_rccSetDevClock(pctl_bsec, 1, 1);
+	(void)_stm32_rccSetDevClock(pctl_bsec, 1U, 1U);
 
 	/* Wait until not busy and BSEC initialized */
 	do {
 		t = *(bsec_common.base + bsec_otpsr);
-	} while (((t & OTPSR_BUSY) != 0) || ((t & OTPSR_INIT_DONE) == 0));
+	} while (((t & OTPSR_BUSY) != 0U) || ((t & OTPSR_INIT_DONE) == 0U));
 }

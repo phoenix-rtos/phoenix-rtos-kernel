@@ -755,7 +755,7 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 		switch ((unsigned int)optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
-					*((unsigned int *)optval) = s->buffsz;
+					*((int *)optval) = (int)s->buffsz;
 					*optlen = sizeof(int);
 				}
 				else {
@@ -808,17 +808,17 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 			(void)proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
 				if (peek != 0U) {
-					err = (int)_cbuffer_peek(&s->buffer, buf, len);
+					err = (ssize_t)_cbuffer_peek(&s->buffer, buf, len);
 				}
 				else {
-					err = (int)_cbuffer_read(&s->buffer, buf, len);
+					err = (ssize_t)_cbuffer_read(&s->buffer, buf, len);
 				}
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0U) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 				/* TODO: handle MSG_PEEK */
 				(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
 				(void)_cbuffer_read(&s->buffer, buf, min(len, rlen));
-				err = (int)min(len, rlen);
+				err = (ssize_t)min(len, rlen);
 
 				if (len < rlen) {
 					(void)_cbuffer_discard(&s->buffer, rlen - len);
@@ -954,12 +954,12 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 			for (;;) {
 				(void)proc_lockSet(&r->lock);
 				if (s->type == SOCK_STREAM) {
-					err = (int)_cbuffer_write(&r->buffer, buf, len);
+					err = (ssize_t)_cbuffer_write(&r->buffer, buf, len);
 				}
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
 					(void)_cbuffer_write(&r->buffer, buf, len);
-					err = (int)len;
+					err = (ssize_t)len;
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;

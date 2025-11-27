@@ -278,7 +278,7 @@ void perf_exec(process_t *p, char *path)
 {
 	perf_levent_exec_t ev;
 	time_t now;
-	unsigned int plen;
+	size_t plen;
 	spinlock_ctx_t sc;
 
 	if (threads_common.perfGather == 0) {
@@ -456,10 +456,13 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	time_t now;
 	spinlock_ctx_t sc;
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_14_3 "hal_cpuGetID()'s return value might
+	 * not be known at compile time for different architectures" */
 	if (hal_cpuGetID() != 0U) {
 		/* Invoke scheduler */
 		return 1;
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_14_3 */
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	now = _proc_gettimeRaw();
@@ -1505,19 +1508,19 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	unsigned int sigbit = 0x01UL << (unsigned int)sig;
+	u32 sigbit = (u32)1U << (unsigned int)sig;
 
 	spinlock_ctx_t sc;
 
 	switch (sig) {
 		case signal_segv:
-		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional passthrough" */
+		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
 		case signal_illegal:
 			if (process->sighandler != NULL) {
 				break;
 			}
 
-		/* passthrough */
+		/* Fall-through */
 		case signal_kill:
 			proc_kill(process);
 			return EOK;
@@ -2089,7 +2092,7 @@ void proc_threadsDump(u8 priority)
 int proc_threadsList(int n, threadinfo_t *info)
 {
 	int i = 0, argc;
-	unsigned int len, space;
+	size_t len, space;
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
@@ -2253,6 +2256,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 
 	/* Allocate and initialize current threads array */
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is used, false positive" */
 	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount());
 	if (threads_common.current == NULL) {
 		return -ENOMEM;
@@ -2269,7 +2273,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_memset(&threads_common.pendsvHandler, 0, sizeof(threads_common.pendsvHandler));
 	threads_common.pendsvHandler.f = threads_schedule;
 	threads_common.pendsvHandler.n = PENDSV_IRQ;
-	hal_interruptsSetHandler(&threads_common.pendsvHandler);
+	(void)hal_interruptsSetHandler(&threads_common.pendsvHandler);
 #endif
 
 	hal_memset(&threads_common.timeintrHandler, 0, sizeof(threads_common.timeintrHandler));

@@ -14,6 +14,7 @@
  */
 
 
+#include "hal/hal.h"
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
 #include "include/arch/armv8r/mps3an536/mps3an536.h"
@@ -42,6 +43,7 @@ int hal_platformctl(void *ptr)
 			break;
 
 		default:
+			/* No action required */
 			break;
 	}
 
@@ -53,7 +55,7 @@ int hal_platformctl(void *ptr)
 
 unsigned int hal_cpuGetCount(void)
 {
-	return 1;
+	return 1U;
 }
 
 

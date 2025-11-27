@@ -143,7 +143,11 @@ enum {
 	pctl_uart9,
 	pctl_usart10,
 	pctl_spi1 = 0x14c,
-	pctl_spi4,
+	pctl_spi4
+};
+
+
+enum {
 	pctl_tim18 = 0x14f,
 	pctl_tim15,
 	pctl_tim16,
@@ -176,7 +180,7 @@ enum {
 	pctl_dcmipp,
 	pctl_gfxtim = 0x1c4,
 	pctl_venc,
-	pctl_csi,
+	pctl_csi
 };
 
 
@@ -246,7 +250,7 @@ enum ipclks {
 	pctl_ipclk_uart9sel,
 	pctl_ipclk_usart10sel,
 	pctl_ipclk_lpuart1sel,
-	pctl_ipclks_count,
+	pctl_ipclks_count
 };
 
 
@@ -377,8 +381,12 @@ enum {
 	lptim2_irq,
 	lptim3_irq,
 	lptim4_irq,
-	lptim5_irq,
-	adf1_flt0_irq,
+	lptim5_irq
+};
+
+
+enum {
+	adf1_flt0_irq = lptim5_irq + 1,
 	mdf1_flt0_irq,
 	mdf1_flt1_irq,
 	mdf1_flt2_irq,
@@ -430,12 +438,12 @@ enum {
 	cti0_irq,
 	cti1_irq,
 	ltdc_up_irq = 209,
-	ltdc_up_err_irq,
+	ltdc_up_err_irq
 };
 
 
 /* STM32N6 resource identifiers for non-RIF-aware slave peripherals */
-enum pctl_risups {
+enum {
 	pctl_risup_spi1 = 0,
 	pctl_risup_spi2,
 	pctl_risup_spi3,
@@ -529,12 +537,12 @@ enum pctl_risups {
 	pctl_risup_ltdc_l1,
 	pctl_risup_ltdc_l2,
 	pctl_risup_npu = 106,
-	pctl_risups_count,
+	pctl_risups_count
 };
 
 
 /* STM32N6 resource identifiers for bus mastering peripherals */
-enum pctl_rimcs {
+enum {
 	pctl_rimc_trace = 0,
 	pctl_rimc_npu,
 	pctl_rimc_sdmmc1,
@@ -548,7 +556,7 @@ enum pctl_rimcs {
 	pctl_rimc_ltdc_l1,
 	pctl_rimc_ltdc_l2,
 	pctl_rimc_venc,
-	pctl_rimcs_count,
+	pctl_rimcs_count
 };
 
 
@@ -571,12 +579,12 @@ typedef struct {
 		pctl_cleanInvalDCache,
 		pctl_cleanDCache,
 		pctl_invalDCache,
-		pctl_dmaLinkBaseAddr,
+		pctl_dmaLinkBaseAddr
 	} type;
 
 	union {
 		struct {
-			unsigned int dev;     /* one of pctl_* enum values */
+			int dev;              /* one of pctl_* enum values */
 			unsigned int state;   /* State in Run and Sleep modes: 1 - clock enabled, 0 - clock disabled */
 			unsigned int lpState; /* State in Sleep mode: 1 - enabled, 0 - disabled */
 		} devclk;
@@ -584,23 +592,23 @@ typedef struct {
 			unsigned int hz;
 		} cpuclk;
 		struct {
-			unsigned int port; /* one of pctl_gpio* enum values */
+			int port; /* one of pctl_gpio* enum values */
 			/* Bitmask of pins
 			 * 1 - Pin can be changed by only privileged code,
 			 * 0 - Pin can be changed by userspace code or privileged code */
 			unsigned int mask;
 		} gpioPrivilege;
 		struct {
-			unsigned int index; /* one of pctl_risup_* enum values */
-			int privileged;     /* 1 - set to privileged only, 0 - no change, -1 - set to unprivileged or privileged */
-			int secure;         /* 1 - set to secure only, 0 - no change, -1 - set to non-secure or secure */
-			int lock;           /* 1 - lock from changes until reset, 0 - no change */
+			int index;      /* one of pctl_risup_* enum values */
+			int privileged; /* 1 - set to privileged only, 0 - no change, -1 - set to unprivileged or privileged */
+			int secure;     /* 1 - set to secure only, 0 - no change, -1 - set to non-secure or secure */
+			int lock;       /* 1 - lock from changes until reset, 0 - no change */
 		} risup;
 		struct {
-			unsigned int index; /* one of pctl_rimc_* enum values */
-			int privileged;     /* 1 - set to privileged, 0 - no change, -1 - set to unprivileged */
-			int secure;         /* 1 - set to secure 0 - no change, -1 - set to non-secure */
-			int cid;            /* value of CID flag for this master on the interconnect. -1 for no change. */
+			int index;      /* one of pctl_rimc_* enum values */
+			int privileged; /* 1 - set to privileged, 0 - no change, -1 - set to unprivileged */
+			int secure;     /* 1 - set to secure 0 - no change, -1 - set to non-secure */
+			int cid;        /* value of CID flag for this master on the interconnect. -1 for no change. */
 		} rimc;
 		struct {
 			int dev; /* one of pctl_gpdma* or pctl_hpdma* enum values */

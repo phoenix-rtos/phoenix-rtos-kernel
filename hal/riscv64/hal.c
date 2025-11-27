@@ -21,10 +21,11 @@ static struct {
 	volatile u32 started;
 } hal_common;
 
-
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Definition in assembly" */
 syspage_t *hal_syspage;
 addr_t hal_relOffs;
 volatile u32 hal_multilock;
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 
 void *hal_syspageRelocate(void *data)
@@ -46,7 +47,7 @@ void hal_wdgReload(void)
 
 int hal_started(void)
 {
-	return hal_common.started;
+	return (int)hal_common.started;
 }
 
 

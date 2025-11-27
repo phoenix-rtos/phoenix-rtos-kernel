@@ -23,9 +23,6 @@
 #include "include/errno.h"
 
 
-void _interrupts_nvicSystemReset(void);
-
-
 /* clang-format off */
 enum {
 	syscon_ahbmatprio = 4, syscon_cpu0stckcal = 14, syscon_cpu0nstckcal, syscon_cpu1stckcal,
@@ -49,14 +46,19 @@ enum {
 	syscon_pll1clk0div, syscon_pll1clk1div, syscon_clkunlock, syscon_nvmctrl, syscon_romcr,
 	syscon_smartdmaint = 261, syscon_adc1clksel = 281, syscon_adc1clkdiv, syscon_dac0clksel = 292,
 	syscon_dac0clkdiv, syscon_dac1clksel, syscon_dac1clkdiv, syscon_dac2clksel, syscon_dac2clkdiv,
-	syscon_flexspiclksel, syscon_flexspiclkdiv, syscon_pllclkdivsel = 331, syscon_i3c0fclksel,
-	syscon_i3c0fclkstcsel, syscon_i3c0fclkstcdiv, syscon_i3c0fclksdiv, syscon_i3c0fclkdiv, syscon_i3c0fclkssel,
-	syscon_micfilfclksel, syscon_micfilfclkdiv, syscon_usdhcclksel = 342, syscon_usdhcclkdiv,
-	syscon_flexioclksel, syscon_flexioclkdiv, syscon_flexcan0clksel = 360, syscon_flexcan0clkdiv,
-	syscon_flexcan1clksel, syscon_flexcan1clkdiv, syscon_enetrmiiclksel, syscon_enetrmiiclkdiv,
-	syscon_enetptprefclksel, syscon_enetptprefclkdiv, syscon_enetphyintfsel, syscon_enetsbdflowctrl,
-	syscon_ewm0clksel = 373, syscon_wdt1clksel, syscon_wdt1clkdiv, syscon_ostimerclksel,
-	syscon_cmp0fclksel = 380, syscon_cmp0fclkdiv, syscon_cmp0rrclksel, syscon_rrclkdiv,
+	syscon_flexspiclksel, syscon_flexspiclkdiv, syscon_pllclkdivsel = 331, syscon_i3c0fclksel
+};
+
+
+enum {
+	syscon_i3c0fclkstcsel = syscon_i3c0fclksel + 1, syscon_i3c0fclkstcdiv, syscon_i3c0fclksdiv,
+	syscon_i3c0fclkdiv, syscon_i3c0fclkssel, syscon_micfilfclksel, syscon_micfilfclkdiv,
+	syscon_usdhcclksel = 342, syscon_usdhcclkdiv, syscon_flexioclksel, syscon_flexioclkdiv,
+	syscon_flexcan0clksel = 360, syscon_flexcan0clkdiv, syscon_flexcan1clksel, syscon_flexcan1clkdiv,
+	syscon_enetrmiiclksel, syscon_enetrmiiclkdiv, syscon_enetptprefclksel, syscon_enetptprefclkdiv,
+	syscon_enetphyintfsel, syscon_enetsbdflowctrl, syscon_ewm0clksel = 373,
+	syscon_wdt1clksel, syscon_wdt1clkdiv, syscon_ostimerclksel,
+	syscon_cmp0fclksel = 380, syscon_cmp0fclkdiv, syscon_cmp0rrclksel, syscon_cmp0rrclkdiv,
 	syscon_cmp1fclksel, syscon_cmp1fclkdiv, syscon_cmp1rrclksel, syscon_cmp1rrclkdiv,
 	syscon_cmp2fclksel, syscon_cmp2fclkdiv, syscon_cmp2rrclksel, syscon_cmp2rrclkdiv,
 	syscon_cpuctrl = 512, syscon_cpboot, syscon_cpustat = 514, syscon_pcacctrl = 521,
@@ -110,16 +112,19 @@ enum {
 	inputmux_flexpwm0sm3exta, inputmux_flexpwm0extforce, inputmux_flexpwm0fault0,
 	inputmux_flexpwm0fault1, inputmux_flexpwm0fault2, inputmux_flexpwm0fault3,
 	inputmux_flexpwm1sm0extsync = 248, inputmux_flexpwm1sm1extsync, inputmux_flexpwm1sm2extsync,
-	inputmux_flexpwm1sm3extsync, inputmux_flexpwm1sm0exta, inputmux_flexpwm1sm1exta,
-	inputmux_flexpwm1sm2exta, inputmux_flexpwm1sm3exta, inputmux_flexpwm1extforce,
-	inputmux_flexpwm1fault0, inputmux_flexpwm1fault1, inputmux_flexpwm1fault2,
-	inputmux_flexpwm1fault3, inputmux_pwm0extclk = 264, inputmux_pwm1extclk,
-	inputmux_evtgtrig0 = 272, inputmux_evtgtrig1, inputmux_evtgtrig2, inputmux_evtgtrig3,
-	inputmux_evtgtrig4, inputmux_evtgtrig5, inputmux_evtgtrig6, inputmux_evtgtrig7,
-	inputmux_evtgtrig8, inputmux_evtgtrig9, inputmux_evtgtrig10, inputmux_evtgtrig11,
-	inputmux_evtgtrig12, inputmux_evtgtrig13, inputmux_evtgtrig14, inputmux_evtgtrig15,
-	inputmux_usbfstrig, inputmux_tsitrig = 296, inputmux_exttrig0 = 304, inputmux_exttrig1,
-	inputmux_exttrig2, inputmux_exttrig3, inputmux_exttrig4, inputmux_exttrig5, inputmux_exttrig6,
+	inputmux_flexpwm1sm3extsync, inputmux_flexpwm1sm0exta, inputmux_flexpwm1sm1exta
+};
+
+
+enum {
+	inputmux_flexpwm1sm2exta = inputmux_flexpwm1sm1exta + 1, inputmux_flexpwm1sm3exta,
+	inputmux_flexpwm1extforce, inputmux_flexpwm1fault0, inputmux_flexpwm1fault1, inputmux_flexpwm1fault2,
+	inputmux_flexpwm1fault3, inputmux_pwm0extclk = 264, inputmux_pwm1extclk, inputmux_evtgtrig0 = 272,
+	inputmux_evtgtrig1, inputmux_evtgtrig2, inputmux_evtgtrig3, inputmux_evtgtrig4, inputmux_evtgtrig5,
+	inputmux_evtgtrig6, inputmux_evtgtrig7, inputmux_evtgtrig8, inputmux_evtgtrig9, inputmux_evtgtrig10,
+	inputmux_evtgtrig11, inputmux_evtgtrig12, inputmux_evtgtrig13, inputmux_evtgtrig14, inputmux_evtgtrig15,
+	inputmux_usbfstrig, inputmux_tsitrig = 296, inputmux_exttrig0 = 304, inputmux_exttrig1, inputmux_exttrig2,
+	inputmux_exttrig3, inputmux_exttrig4, inputmux_exttrig5,inputmux_exttrig6,
 	inputmux_exttrig7, inputmux_cmp1trig = 312, inputmux_cmp2trig = 320,
 	inputmux_sincfilterch0 = 328, inputmux_sincfilterch1, inputmux_sincfilterch2,
 	inputmux_sincfilterch3, inputmux_sincfilterch4, inputmux_opamp0trig = 352,
@@ -159,11 +164,11 @@ int _mcxn94x_portPinConfig(int pin, int mux, int options)
 
 	pin %= 32;
 
-	if (port >= (sizeof(n94x_common.port) / sizeof(*n94x_common.port))) {
+	if ((unsigned int)port >= (sizeof(n94x_common.port) / sizeof(*n94x_common.port))) {
 		return -EINVAL;
 	}
 
-	*(n94x_common.port[port] + port_pcr0 + pin) = (((mux & 0xf) << 8) | (options & 0x307f));
+	*(n94x_common.port[port] + port_pcr0 + pin) = ((((unsigned int)mux & 0xfU) << 8) | ((unsigned int)options & 0x307fU));
 
 	return 0;
 }
@@ -173,8 +178,8 @@ u64 _mcxn94x_sysconGray2Bin(u64 gray)
 {
 	u64 ret;
 
-	*(n94x_common.syscon + syscon_graycodelsb) = gray & 0xffffffff;
-	*(n94x_common.syscon + syscon_graycodemsb) = gray >> 32;
+	*(n94x_common.syscon + syscon_graycodelsb) = (u32)(gray & 0xffffffffU);
+	*(n94x_common.syscon + syscon_graycodemsb) = (u32)(gray >> 32);
 	hal_cpuDataMemoryBarrier();
 
 	ret = *(n94x_common.syscon + syscon_binarycodelsb);
@@ -303,14 +308,17 @@ static int _mcxn94x_sysconGetRegs(int dev, volatile u32 **selr, volatile u32 **d
 
 		case pctl_cmp0rr:
 			*selr = n94x_common.syscon + syscon_cmp0rrclksel;
+			*divr = n94x_common.syscon + syscon_cmp0rrclkdiv;
 			break;
 
 		case pctl_cmp1rr:
 			*selr = n94x_common.syscon + syscon_cmp1rrclksel;
+			*divr = n94x_common.syscon + syscon_cmp1rrclkdiv;
 			break;
 
 		case pctl_cmp2rr:
 			*selr = n94x_common.syscon + syscon_cmp2rrclksel;
+			*divr = n94x_common.syscon + syscon_cmp2rrclkdiv;
 			break;
 
 		case pctl_fc0:
@@ -440,7 +448,7 @@ static int _mcxn94x_sysconGetRegs(int dev, volatile u32 **selr, volatile u32 **d
 			break;
 
 		default:
-			break;
+			return -1;
 	}
 
 	return 0;
@@ -455,15 +463,15 @@ static int _mcxn94x_sysconGetDevClk(int dev, unsigned int *sel, unsigned int *di
 		return -1;
 	}
 
-	if (sel != NULL) {
-		*sel = *selr & 0x7;
+	if (selr != NULL) {
+		*sel = *selr & 0x7U;
 	}
 
-	if (div != NULL) {
-		*div = *divr & 0xff;
+	if (divr != NULL) {
+		*div = *divr & 0xffU;
 	}
 
-	*enable = (*(n94x_common.syscon + syscon_ahbclkctrlset0 + (dev / 32)) & 1 << (dev & 0x1f)) ? 1 : 0;
+	*enable = (*(n94x_common.syscon + syscon_ahbclkctrlset0 + ((u32)dev / 32U)) & (1UL << ((u32)dev & 0x1fU))) != 0U ? 1 : 0;
 
 	return 0;
 }
@@ -473,10 +481,10 @@ static void _mcxn94x_sysconSetDevClkState(int dev, int enable)
 	hal_cpuDataMemoryBarrier();
 	if (enable != 0) {
 		/* cmp0 and cmp1 fields are "reserved", let's try to control them anyway */
-		*(n94x_common.syscon + syscon_ahbclkctrlset0 + (dev / 32)) = 1 << (dev & 0x1f);
+		*(n94x_common.syscon + syscon_ahbclkctrlset0 + (dev / 32)) = 1UL << ((unsigned int)dev & 0x1fU);
 	}
 	else {
-		*(n94x_common.syscon + syscon_ahbclkctrlclr0 + (dev / 32)) = 1 << (dev & 0x1f);
+		*(n94x_common.syscon + syscon_ahbclkctrlclr0 + (dev / 32)) = 1UL << ((unsigned int)dev & 0x1fU);
 	}
 	hal_cpuDataMemoryBarrier();
 }
@@ -496,14 +504,14 @@ int _mcxn94x_sysconSetDevClk(int dev, unsigned int sel, unsigned int div, int en
 	}
 
 	if (selr != NULL) {
-		*selr = sel & 0x7;
+		*selr = sel & 0x7U;
 	}
 
 	if (divr != NULL) {
-		*divr = div & 0xff;
+		*divr = div & 0xffU;
 
 		/* Unhalt the divider */
-		*divr &= ~(1 << 30);
+		*divr &= ~(1UL << 30);
 	}
 
 	_mcxn94x_sysconSetDevClkState(dev, enable);
@@ -529,10 +537,10 @@ int _mcxn94x_sysconDevReset(int dev, int state)
 	}
 
 	if (state != 0) {
-		*(reg + (syscon_presetctrlset0 - syscon_presetctrl0)) = 1 << (dev & 0x1f);
+		*(reg + (syscon_presetctrlset0 - syscon_presetctrl0)) = 1UL << ((unsigned int)dev & 0x1fU);
 	}
 	else {
-		*(reg + (syscon_presetctrlcrl0 - syscon_presetctrl0)) = 1 << (dev & 0x1f);
+		*(reg + (syscon_presetctrlcrl0 - syscon_presetctrl0)) = 1UL << ((unsigned int)dev & 0x1fU);
 	}
 	hal_cpuDataMemoryBarrier();
 
@@ -544,7 +552,7 @@ int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	int ret = -EINVAL;
-	unsigned int sel, div;
+	unsigned int sel = 0, div = 0;
 	int enable;
 	spinlock_ctx_t sp;
 
@@ -559,7 +567,7 @@ int hal_platformctl(void *ptr)
 			else {
 				if (data->action == pctl_get) {
 					data->reboot.reason = n94x_common.resetFlags;
-					ret = 0;
+					ret = EOK;
 				}
 			}
 			break;
@@ -611,7 +619,7 @@ int hal_platformctl(void *ptr)
 #else
 				data->cpuid = 0;
 #endif
-				ret = 0;
+				ret = EOK;
 			}
 			break;
 
@@ -631,16 +639,17 @@ void _hal_platformInit(void)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 void _mcxn94x_init(void)
 {
-	n94x_common.syscon = (void *)0x40000000;
-	n94x_common.port[0] = (void *)0x40116000;
-	n94x_common.port[1] = (void *)0x40117000;
-	n94x_common.port[2] = (void *)0x40118000;
-	n94x_common.port[3] = (void *)0x40119000;
-	n94x_common.port[4] = (void *)0x4011a000;
-	n94x_common.port[5] = (void *)0x40042000;
-	n94x_common.inputmux = (void *)0x40006000;
+	n94x_common.syscon = (void *)0x40000000U;
+	n94x_common.port[0] = (void *)0x40116000U;
+	n94x_common.port[1] = (void *)0x40117000U;
+	n94x_common.port[2] = (void *)0x40118000U;
+	n94x_common.port[3] = (void *)0x40119000U;
+	n94x_common.port[4] = (void *)0x4011a000U;
+	n94x_common.port[5] = (void *)0x40042000U;
+	n94x_common.inputmux = (void *)0x40006000U;
 
 	_hal_scsInit();
 

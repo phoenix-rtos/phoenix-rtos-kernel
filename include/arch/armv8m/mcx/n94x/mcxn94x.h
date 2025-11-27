@@ -40,10 +40,14 @@ enum {
 	vbat0_irq = 16 + 99, ewm0_irq, tsi0_irq, tsi1_irq, emvsim0_irq, emvsim1_irq, flexio0_irq, dac0_irq, dac1_irq,
 	dac2_irq, cmp0_irq, cmp1_irq, cmp2_irq, pwm0re_irq, pwm0f_irq, pwm0ccr0_irq, pwm0ccr1_irq, pwm0ccr2_irq,
 	pwm0ccr3_irq, pwm1re_irq, pwm1f_irq, pwm1ccr0_irq, pwm1ccr1_irq, pwm1ccr2_irq, pwm1ccr3_irq, enc0c_irq,
-	enc0h_irq, enc0wdg_irq, enc0idx_irq, enc1c_irq, enc1h_irq, enc1wdg_irq, enc1idx_irq, /* secure irq */
-	bsp32_irq = 16 + 133, /* 2 secure irq */ erm0s_irq = 16 + 136, erm0m_irq, fmu0_irq, enet0_irq, enet0pm_irq,
-	enet0lp1_irq, sinc0_irq, lpmtr0_irq, lptmr1_irq, scg0_irq, spc0_irq, wuu0_irq, port_irq, etb0_irq,
-	/* 2 reserved */ wwdt0_irq = 16 + 152, wwdt1_irq, cmc0_irq, ct_irq
+	enc0h_irq, enc0wdg_irq, enc0idx_irq, enc1c_irq, enc1h_irq, enc1wdg_irq, enc1idx_irq
+};
+
+
+enum {
+	/* secure irq */ bsp32_irq = 16 + 133, /* 2 secure irq */ erm0s_irq = 16 + 136, erm0m_irq, fmu0_irq,
+	enet0_irq, enet0pm_irq, enet0lp1_irq, sinc0_irq, lpmtr0_irq, lptmr1_irq, scg0_irq, spc0_irq, wuu0_irq, 
+	port_irq, etb0_irq, /* 2 reserved */ wwdt0_irq = 16 + 152, wwdt1_irq, cmc0_irq, ct_irq
 };
 
 /* Pinout */
@@ -88,18 +92,18 @@ enum {
 
 
 /* Pin options */
-#define MCX_PIN_INVERT (1 << 13)
-#define MCX_PIN_INPUT_BUFFER_ENABLE (1 << 12)
-#define MCX_PIN_SLOW (1 << 3)
-#define MCX_PIN_FAST 0
-#define MCX_PIN_STRONG (1 << 6)
-#define MCX_PIN_WEAK 0
-#define MCX_PIN_OPEN_DRAIN (1 << 5)
-#define MCX_PIN_FILTER_ENABLE (1 << 4)
-#define MCX_PIN_PULLDOWN_WEAK ((1 << 1) | (1 << 2))
-#define MCX_PIN_PULLDOWN_STRONG (1 << 1)
-#define MCX_PIN_PULLUP_WEAK ((1 << 0) | (1 << 1) | (1 << 2))
-#define MCX_PIN_PULLUP_STRONG ((1 << 0) | (1 << 1))
+#define MCX_PIN_INVERT (1UL << 13)
+#define MCX_PIN_INPUT_BUFFER_ENABLE (1UL << 12)
+#define MCX_PIN_SLOW (1U << 3)
+#define MCX_PIN_FAST 0U
+#define MCX_PIN_STRONG (1U << 6)
+#define MCX_PIN_WEAK 0U
+#define MCX_PIN_OPEN_DRAIN (1U << 5)
+#define MCX_PIN_FILTER_ENABLE (1U << 4)
+#define MCX_PIN_PULLDOWN_WEAK ((1U << 1) | (1U << 2))
+#define MCX_PIN_PULLDOWN_STRONG (1U << 1)
+#define MCX_PIN_PULLUP_WEAK ((1U << 0) | (1U << 1) | (1U << 2))
+#define MCX_PIN_PULLUP_STRONG ((1U << 0) | (1U << 1))
 
 
 /* Peripherals */

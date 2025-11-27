@@ -30,7 +30,7 @@ static struct {
 
 int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 {
-	unsigned int i;
+	size_t i;
 
 	if ((blocksz == 0U) || (blocks == 0U)) {
 		return -EINVAL;
@@ -55,7 +55,7 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 	for (i = 0; i < blocks; i++) {
 		*((void **)(zone->vaddr + i * blocksz)) = zone->vaddr + (i + 1U) * blocksz;
 	}
-	*((void **)(zone->vaddr + (blocks - 1U) * blocksz)) = NULL;
+	*((void **)(zone->vaddr + ((size_t)blocks - 1U) * blocksz)) = NULL;
 
 	zone->first = zone->vaddr;
 	zone->blocks = blocks;

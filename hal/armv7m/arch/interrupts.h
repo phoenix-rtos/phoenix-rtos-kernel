@@ -20,9 +20,9 @@
 #include "cpu.h"
 #include "hal/arm/scs.h"
 
-#define SVC_IRQ     11
-#define PENDSV_IRQ  14
-#define SYSTICK_IRQ 15
+#define SVC_IRQ     11U
+#define PENDSV_IRQ  14U
+#define SYSTICK_IRQ 15U
 
 typedef struct _intr_handler_t {
 	struct _intr_handler_t *next;

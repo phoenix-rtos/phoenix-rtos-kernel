@@ -20,7 +20,7 @@
 
 #define SIZE_PAGE 0x1000UL
 
-#define MAX_CPU_COUNT 8
+#define MAX_CPU_COUNT 8U
 
 #define SIZE_INITIAL_KSTACK (4U * SIZE_PAGE)
 #define INITIAL_KSTACK_BIT  (14)
@@ -35,22 +35,22 @@
 #endif
 
 /* Supervisor Cause Register */
-#define SCAUSE_INTR (1U << 63)
+#define SCAUSE_INTR (1ULL << 63)
 
 /* Exception codes */
 #define SCAUSE_ILLEGAL 2U /* Illegal instruction */
 #define SCAUSE_ECALL   8U /* Environment call from S-mode */
 
 /* Supervisor Status Register */
-#define SSTATUS_SIE  (1U << 1)  /* Supervisor Interrupt Enable */
-#define SSTATUS_SPP  (1U << 8)  /* Previous Supervisor */
-#define SSTATUS_SPIE (1U << 5)  /* Previous Supervisor IE */
-#define SSTATUS_FS   (3U << 13) /* FPU status */
-#define SSTATUS_SUM  (1U << 18) /* Supervisor may access User Memory */
-#define SSTATUS_MXR  (1U << 19) /* Make eXecutable Readable */
+#define SSTATUS_SIE  (1U << 1)   /* Supervisor Interrupt Enable */
+#define SSTATUS_SPP  (1UL << 8)  /* Previous Supervisor */
+#define SSTATUS_SPIE (1UL << 5)  /* Previous Supervisor IE */
+#define SSTATUS_FS   (3UL << 13) /* FPU status */
+#define SSTATUS_SUM  (1UL << 18) /* Supervisor may access User Memory */
+#define SSTATUS_MXR  (1UL << 19) /* Make eXecutable Readable */
 
 /* Interrupts */
-#define CLINT_IRQ_FLG (1U << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
+#define CLINT_IRQ_FLG (1UL << 31) /* Marks that interrupt handler is installed for CLINT, not PLIC */
 
 /* Supervisor Interrupt Pending Register */
 #define SIP_SSIP (1U << 1)
@@ -70,13 +70,14 @@
 #define SIZE_STACK_ARG(sz) (((sz) + 7U) & ~0x7U)
 
 
+/* parasoft-begin-suppress MISRAC2012-RULE_20_7 "t used as type -  wrong interpretation" */
 #define GETFROMSTACK(ustack, t, v, n) \
 	do { \
-		ustack = (u8 *)(((addr_t)ustack + sizeof(t) - 1) & ~(sizeof(t) - 1)); \
-		(v) = *(t *)ustack; \
-		ustack += SIZE_STACK_ARG(sizeof(t)); \
+		(ustack) = (u8 *)(((addr_t)(ustack) + sizeof(t) - 1U) & ~(sizeof(t) - 1U)); \
+		(v) = *(t *)(ustack); \
+		(ustack) += SIZE_STACK_ARG(sizeof(t)); \
 	} while (0)
-
+/* parasoft-end-suppress MISRAC2012-RULE_20_7*/
 
 typedef struct {
 	u64 ft0;
@@ -149,6 +150,7 @@ typedef struct _cpu_context_t {
 	u64 s6; /* x22 */
 	u64 s7; /* x23 */
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and also a RISCV64 register field identifier" */
 	u64 s8;  /* x24 */
 	u64 s9;  /* x25 */
 	u64 s10; /* x26 */
@@ -205,15 +207,6 @@ static inline void hal_cpuSetDevBusy(int s)
 	(void)s;
 }
 
-
-static inline void hal_cpuGetCycles(cycles_t *cb)
-{
-	/* clang-format off */
-	__asm__ volatile("rdcycle %0" : "=r"(*(cycles_t *)cb));
-	/* clang-format on */
-}
-
-
 /* Atomic operations */
 
 
@@ -246,12 +239,6 @@ static inline void hal_cpuSetGot(void *got)
 }
 
 
-static inline void *hal_cpuGetGot(void)
-{
-	return NULL;
-}
-
-
 static inline void hal_cpuRestore(cpu_context_t *curr, cpu_context_t *next)
 {
 	curr->ksp = (u64)next;
@@ -278,7 +265,7 @@ static inline void *hal_cpuGetUserSP(cpu_context_t *ctx)
 
 static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 {
-	return ((ctx->sstatus & SSTATUS_SPP) != 0) ? 1 : 0;
+	return ((ctx->sstatus & SSTATUS_SPP) != 0U) ? 1 : 0;
 }
 
 

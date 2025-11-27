@@ -23,9 +23,9 @@
 #include "proc/userintr.h"
 
 #define VIM_BASE_ADDRESS 0x40f80000
-#define SIZE_INTERRUPTS  384
+#define SIZE_INTERRUPTS  384U
 
-#define DEFAULT_PRIORITY 7
+#define DEFAULT_PRIORITY 7U
 
 
 enum {
@@ -198,7 +198,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 }
 
 
-char *hal_interruptsFeatures(char *features, unsigned int len)
+char *hal_interruptsFeatures(char *features, size_t len)
 {
 	hal_strncpy(features, "Using VIM interrupt controller", len);
 	features[len - 1] = 0;

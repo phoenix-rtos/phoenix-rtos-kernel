@@ -20,9 +20,10 @@
 #include "hal/armv8r/armv8r.h"
 
 
-#define TX_BUF_FULL (1 << 0)
+#define TX_BUF_FULL (1U << 0)
 
 #define CONCAT_(a, b) a##b
+/* parasoft-suppress-next-line MISRAC2012-RULE_20_7 "Cannot enclose parameters in parentheses as CONCAT_ macro concatenates literal tokens." */
 #define CONCAT(a, b)  CONCAT_(a, b)
 
 #define UART_CONSOLE_BASE CONCAT(UART, CONCAT(UART_CONSOLE_KERNEL, _BASE))
@@ -42,9 +43,9 @@ enum { data = 0, state, ctrl, intstatus, bauddiv };
 void hal_consolePutch(char c)
 {
 	/* No hardware FIFO, wait until TX buffer is empty */
-	while ((*(halconsole_common.uart + state) & TX_BUF_FULL) != 0) {
+	while ((*(halconsole_common.uart + state) & TX_BUF_FULL) != 0U) {
 	}
-	*(halconsole_common.uart + data) = c;
+	*(halconsole_common.uart + data) = (u32)c;
 }
 
 
@@ -66,6 +67,9 @@ void hal_consolePrint(int attr, const char *s)
 	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
 	}
+	else {
+		/* No action required */
+	}
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
@@ -75,11 +79,11 @@ void hal_consolePrint(int attr, const char *s)
 void _hal_consoleInit(void)
 {
 	/* Set scaler */
-	u32 scaler = SYSCLK_FREQ / UART_BAUDRATE;
-	halconsole_common.uart = (void *)UART_CONSOLE_BASE;
+	u32 scaler = (u32)SYSCLK_FREQ / (u32)UART_BAUDRATE;
+	halconsole_common.uart = (void *)(u32)UART_CONSOLE_BASE;
 	*(halconsole_common.uart + bauddiv) = scaler;
 	hal_cpuDataSyncBarrier();
 
 	/* Enable TX */
-	*(halconsole_common.uart + ctrl) = 0x1;
+	*(halconsole_common.uart + ctrl) = 0x1U;
 }

@@ -16,8 +16,8 @@
 #ifndef _PH_HAL_CONFIG_H_
 #define _PH_HAL_CONFIG_H_
 
-#define ADDR_DDR 0x80000000
-#define SIZE_DDR 0x7ffffff
+#define ADDR_DDR 0x80000000U
+#define SIZE_DDR 0x7ffffffU
 
 #define NUM_CPUS 1
 

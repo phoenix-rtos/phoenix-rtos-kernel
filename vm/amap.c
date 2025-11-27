@@ -137,7 +137,7 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 	}
 
 	(void)proc_lockInit(&new->lock, &proc_lockAttrDefault, "amap.map");
-	new->size = i;
+	new->size = (unsigned int)i;
 	new->refs = 1;
 	*offset = *offset / SIZE_PAGE;
 

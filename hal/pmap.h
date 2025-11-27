@@ -40,17 +40,17 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size);
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
 
 
-addr_t pmap_destroy(pmap_t *pmap, int *i);
+addr_t pmap_destroy(pmap_t *pmap, unsigned int *i);
 
 
 void pmap_switch(pmap_t *pmap);
 
 
-int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, vm_attr_t attrs, page_t *alloc);
+int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc);
 
 
 /* Function removes mapping in range [vstart, vend) */
-int pmap_remove(pmap_t *pmap, void *vaddr, void *vend);
+int pmap_remove(pmap_t *pmap, void *vstart, void *vend);
 
 
 addr_t pmap_resolve(pmap_t *pmap, void *vaddr);

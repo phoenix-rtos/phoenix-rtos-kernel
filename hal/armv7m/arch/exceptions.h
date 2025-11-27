@@ -4,11 +4,11 @@
 
 #include "cpu.h"
 
-#define EXC_DEFAULT 128
+#define EXC_DEFAULT 128U
 
-#define EXC_UNDEFINED 3
+#define EXC_UNDEFINED 3U
 
-#define SIZE_CTXDUMP 320 /* Size of dumped context */
+#define SIZE_CTXDUMP 320U /* Size of dumped context */
 
 
 typedef struct _exc_context_t {

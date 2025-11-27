@@ -92,12 +92,14 @@ static int _zynqmp_getBasicGenerator(volatile u32 *reg, u8 *src, u8 *div0, u8 *d
 
 static int _zynqmp_getDevClock(int dev, u8 *src, u8 *div0, u8 *div1, u8 *active)
 {
+	int regOffset;
+
 	if ((dev >= pctl_devclock_lpd_usb3_dual) && (dev <= pctl_devclock_lpd_timestamp)) {
-		int regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
+		regOffset = (dev - pctl_devclock_lpd_usb3_dual) + crl_apb_usb3_dual_ref_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crl_apb + regOffset, src, div0, div1, active);
 	}
 	else if ((dev >= pctl_devclock_fpd_acpu) && (dev <= pctl_devclock_fpd_dbg_tstmp)) {
-		int regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
+		regOffset = (dev - pctl_devclock_fpd_acpu) + crf_apb_acpu_ctrl;
 		return _zynqmp_getBasicGenerator(zynq_common.crf_apb + regOffset, src, div0, div1, active);
 	}
 	else {
@@ -405,10 +407,10 @@ int hal_platformctl(void *ptr)
 
 		case pctl_devreset:
 			if (data->action == pctl_set) {
-				ret = _zynq_setDevRst((int)data->devreset.dev, data->devreset.state);
+				ret = _zynq_setDevRst(data->devreset.dev, data->devreset.state);
 			}
 			else if (data->action == pctl_get) {
-				ret = _zynq_getDevRst((int)data->devreset.dev, &t);
+				ret = _zynq_getDevRst(data->devreset.dev, &t);
 				data->devreset.state = t;
 			}
 			else {

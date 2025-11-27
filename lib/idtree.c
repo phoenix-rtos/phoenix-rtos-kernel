@@ -82,6 +82,7 @@ idnode_t *lib_idtreeFind(idtree_t *tree, int id)
 {
 	idnode_t n;
 	n.id = id;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_18_1 "&n.linkage is a mutable reference to idnode_t" */
 	return lib_treeof(idnode_t, linkage, lib_rbFind(tree, &n.linkage));
 }
 
