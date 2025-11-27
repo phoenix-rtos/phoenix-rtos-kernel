@@ -150,6 +150,12 @@ typedef struct _msg_t {
 } msg_t;
 
 
+typedef struct {
+	size_t size;
+	unsigned char raw[64];
+} ipc_buf_t;
+
+
 #pragma pack(pop)
 
 
