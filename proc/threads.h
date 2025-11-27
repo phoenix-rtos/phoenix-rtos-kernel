@@ -112,8 +112,8 @@ typedef struct _thread_t {
 
 	struct {
 		page_t *p;
-		msg_t *w;
-		msg_t *kw;
+		ipc_buf_t *w;
+		ipc_buf_t *kw;
 	} utcb;
 } thread_t;
 
@@ -245,9 +245,6 @@ extern int threads_getHighestPrio(int maxPrio);
 
 
 extern void _threads_removeFromQueue(thread_t *t);
-
-
-extern void threads_becomePassive(void);
 
 
 extern void threads_setState(u8 state);
