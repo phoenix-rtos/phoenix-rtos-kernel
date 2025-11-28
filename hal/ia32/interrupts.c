@@ -324,7 +324,7 @@ static void _hal_interrupts8259PICInit(void)
 typedef struct {
 	u8 type;
 	u8 length;
-} __attribute__ ((packed)) madt_entry_header_t;
+} __attribute__((packed)) madt_entry_header_t;
 
 
 static int _hal_ioapicInit(void)
@@ -336,7 +336,7 @@ static int _hal_ioapicInit(void)
 		u8 reserved;
 		addr_t ioApicAddress;
 		u32 globalSystemInterruptBase;
-	} __attribute__((packed)) *ioapic;
+	} __attribute__((packed)) * ioapic;
 
 	struct {
 		madt_entry_header_t h;
@@ -344,14 +344,14 @@ static int _hal_ioapicInit(void)
 		u8 source;
 		u32 globalSystemInterrupt;
 		u16 flags;
-	} __attribute__((packed)) *sourceOverride;
+	} __attribute__((packed)) * sourceOverride;
 
 	struct {
 		madt_entry_header_t h;
 		u8 acpiProcessorUID;
 		u8 apicID;
 		u32 flags;
-	} __attribute__((packed)) *localApic;
+	} __attribute__((packed)) * localApic;
 
 	hal_madtHeader_t *madt = hal_config.madt;
 	size_t i;
@@ -458,8 +458,10 @@ void _hal_interruptsTrace(int enable)
 }
 
 
-__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx)
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
 {
+	(void)sc; /* interrupts_popContextUnlocked does `sti` already */
+
 	asm volatile(
 			"movl %0, %%esp\n\t"
 			"jmp interrupts_popContextUnlocked\n\t"
