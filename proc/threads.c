@@ -504,6 +504,8 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 
 	LIB_ASSERT_ALWAYS(dest->sched != NULL, "dest shed is null");
 
+	hal_cpuSetReturnValue(ctx, 0);
+
 	return ctx;
 }
 
@@ -2152,7 +2154,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 #define log_err(fmt, ...)
 
 
-__attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller)
+__attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 {
 	cpu_context_t *ctx;
 	spinlock_ctx_t tsc;
@@ -2185,7 +2187,7 @@ __attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller
 
 	port_put(p, 0);
 
-	hal_endSyscall(ctx);
+	hal_endSyscall(ctx, sc);
 
 	/* unreachable */
 }
@@ -2240,7 +2242,7 @@ static int _proc_callSlow(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 	}
 
 	log_err("fast (prio=%d, tid=%d)", caller->sched->priority, proc_getTid(caller));
-	_proc_callFast(p, caller);
+	_proc_callFast(p, caller, sc);
 }
 
 
@@ -2277,7 +2279,7 @@ int proc_call(u32 port, msg_t *msg)
 	/* commit to fastpath - point of no return */
 
 	log_err("fast (prio=%d, hprio=%d)", caller->sched->priority, threads_getHighestPrio(caller->sched->priority));
-	_proc_callFast(p, caller);
+	_proc_callFast(p, caller, &sc);
 }
 
 
@@ -2374,13 +2376,15 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	/* intentionally restore tsc again to keep interrupts disabled - see note in
 	 * _proc_call */
+	/* TODO: restore tsc here, but restore sc in endSyscall just before return to
+	 * userspace */
 	hal_spinlockClear(&p->spinlock, &tsc);
 
 	port_put(p, 0);
 
 	trace_eventIPCExit();
 
-	hal_endSyscall(ctx);
+	hal_endSyscall(ctx, &sc);
 
 	/* unreachable */
 }
