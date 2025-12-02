@@ -19,6 +19,7 @@
 #include "vm/types.h"
 
 #include <arch/pmap.h>
+#include "syspage.h"
 
 
 #ifndef NOMMU
@@ -30,14 +31,12 @@ static inline int pmap_belongs(pmap_t *pmap, void *addr)
 
 #else
 
-int pmap_addMap(pmap_t *pmap, unsigned int map);
-
 int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size);
 
 #endif
 
 
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr);
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr);
 
 
 addr_t pmap_destroy(pmap_t *pmap, int *i);
