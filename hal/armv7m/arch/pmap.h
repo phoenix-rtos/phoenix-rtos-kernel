@@ -15,6 +15,7 @@
 #define _PH_HAL_PMAP_ARMV7M_H_
 
 #include "hal/types.h"
+#include "syspage.h"
 
 /* Architecture dependent page attributes - used for mapping */
 #define PGHD_PRESENT    0x01U
@@ -53,7 +54,7 @@ typedef struct _page_t {
 typedef struct _pmap_t {
 	void *start;
 	void *end;
-	u32 regions;
+	const hal_syspage_prog_t *hal;
 } pmap_t;
 
 #endif

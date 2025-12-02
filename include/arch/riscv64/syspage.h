@@ -19,4 +19,8 @@ typedef struct {
 	unsigned int boothartId;
 } __attribute__((packed)) hal_syspage_t;
 
+
+typedef struct {
+} hal_syspage_prog_t;
+
 #endif
