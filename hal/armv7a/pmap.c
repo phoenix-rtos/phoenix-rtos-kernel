@@ -187,7 +187,7 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
 {
 	pmap->pdir = vaddr;
 	pmap->addr = p->addr;
