@@ -20,7 +20,9 @@
 
 #ifndef __ASSEMBLY__
 
+#include "hal/types.h"
 #include "include/arch/armv8m/mcx/syspage.h"
+#include "include/syspage.h"
 #include "mcxn94x.h"
 
 #define HAL_NAME_PLATFORM "MCX N94x "
