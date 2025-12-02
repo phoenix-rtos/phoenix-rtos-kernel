@@ -1085,7 +1085,6 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	void *stack, *entry = NULL;
 	int err = EOK, count;
 	void *cleanupFn = NULL;
-	unsigned int i = 0;
 	spinlock_ctx_t sc;
 	const struct stackArg args[] = {
 		{ &spawn->envp, sizeof(spawn->envp) },
@@ -1102,29 +1101,10 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	if (err == EOK) {
 		proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 	}
-	(void)i;
 #else
-	(void)pmap_create(&current->process->map.pmap, NULL, NULL, NULL);
+	(void)pmap_create(&current->process->map.pmap, NULL, NULL, spawn->prog, NULL);
 	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
 	current->process->entries = NULL;
-
-	if (spawn->prog != NULL) {
-		/* Add instruction maps */
-		for (i = 0; i < spawn->prog->imapSz; ++i) {
-			if (err != EOK) {
-				break;
-			}
-			err = pmap_addMap(current->process->pmapp, spawn->prog->imaps[i]);
-		}
-
-		/* Add data/io maps */
-		for (i = 0; i < spawn->prog->dmapSz; ++i) {
-			if (err != EOK) {
-				break;
-			}
-			err = pmap_addMap(current->process->pmapp, spawn->prog->dmaps[i]);
-		}
-	}
 #endif
 
 	if (err == EOK) {
