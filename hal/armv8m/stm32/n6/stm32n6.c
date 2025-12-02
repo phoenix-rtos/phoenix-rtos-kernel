@@ -39,6 +39,10 @@
 #define NPU 0
 #endif
 
+#ifndef NPU_CACHEAXI
+#define NPU_CACHEAXI 0
+#endif
+
 
 #define GPIOA_BASE ((void *)0x56020000U)
 #define GPIOB_BASE ((void *)0x56020400U)
@@ -926,6 +930,15 @@ void _stm32_init(void)
 #if NPU
 	/* Enable NPU clock */
 	(void)_stm32_rccSetDevClock(pctl_npu, 1U, 1U);
+#endif
+
+#if NPU_CACHEAXI
+#error "CACHE AXI not yet supported"
+	(void)_stm32_rccSetDevClock(pctl_npucacheram, 1U, 1U);
+	(void)_stm32_rccSetDevClock(pctl_npucache, 1U, 1U);
+	*(stm32_common.rcc + rcc_ahb5rstsr) |= (1U << 30);
+	*(stm32_common.rcc + rcc_ahb5rstcr) |= (1U << 30);
+	*(stm32_common.rcc + 0x82df00) |= 1U;
 #endif
 
 	(void)_stm32_rccSetDevClock(pctl_risaf, 1U, 1U);
