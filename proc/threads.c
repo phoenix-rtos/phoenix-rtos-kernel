@@ -228,6 +228,12 @@ int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 static void proc_lockUnlock(lock_t *lock);
 
 
+static cpu_context_t *_getUserContext(thread_t *thread)
+{
+	return (cpu_context_t *)((char *)thread->kstack + thread->kstacksz - sizeof(cpu_context_t));
+}
+
+
 static void thread_destroy(thread_t *thread)
 {
 	process_t *process;
@@ -240,8 +246,30 @@ static void thread_destroy(thread_t *thread)
 	while (thread->locks != NULL) {
 		proc_lockUnlock(thread->locks);
 	}
+
+	// TODO: kernel resources (devices, ports) created from userspace code are
+	// not cleaned after threads
+	// this is problematic for passive threads, as they won't clean after
+	// themselves, unless a client does it for them
+
+	if (thread->sched != NULL) {
+		if (thread->reply != NULL) {
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+			LIB_ASSERT(thread->reply != thread, "thread replies to itself????");
+			thread->sched->t = thread->reply;
+			thread->reply->sched = thread->sched;
+			thread->reply->utcb.kw->err = -EINTR; /* TODO: custom errno? */
+
+			thread->reply->state = READY;
+			thread->reply->context = _getUserContext(thread->reply);
+			_proc_threadDequeue(thread->reply);
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+		}
+		else {
+			vm_kfree(thread->sched);
+		}
+	}
 	vm_kfree(thread->kstack);
-	vm_kfree(thread->sched);
 
 	process = thread->process;
 	if (process != NULL) {
@@ -353,12 +381,6 @@ int threads_getHighestPrio(int maxPrio)
 }
 
 
-static cpu_context_t *_getUserContext(thread_t *thread)
-{
-	return (cpu_context_t *)((char *)thread->kstack + thread->kstacksz - sizeof(cpu_context_t));
-}
-
-
 void _threads_removeFromQueue(thread_t *t)
 {
 	lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
@@ -457,6 +479,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 
 	from->sched = NULL;
 	if (reply != 0) {
+		/* replying - going back in SC chain */
 		from->state = BLOCKED_ON_RECV;
 
 		LIB_ASSERT_ALWAYS(from->reply != NULL, "reply null");
@@ -464,6 +487,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 		from->reply = NULL;
 	}
 	else {
+		/* calling - going deeper in SC chain */
 		from->state = BLOCKED_ON_REPLY;
 
 		dest->reply = from;

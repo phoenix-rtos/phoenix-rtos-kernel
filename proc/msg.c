@@ -639,6 +639,8 @@ void *proc_configure(void)
 		return NULL;
 	}
 
+	t->utcb.kw->err = 0;
+
 	return vaddr;
 }
 
