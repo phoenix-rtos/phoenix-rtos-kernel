@@ -460,7 +460,7 @@ void _hal_interruptsTrace(int enable)
 
 __attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
 {
-	(void)sc; /* interrupts_popContextUnlocked does `sti` already */
+	(void)sc; /* TODO */
 
 	asm volatile(
 			"movl %0, %%esp\n\t"

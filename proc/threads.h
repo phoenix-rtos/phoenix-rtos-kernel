@@ -61,7 +61,7 @@ typedef struct _sched_context_t {
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
 
-	/* debug */
+	/* TODO: mostly for debug, but may be useful for accounting in the future */
 	struct _thread_t *owner;
 } sched_context_t;
 
