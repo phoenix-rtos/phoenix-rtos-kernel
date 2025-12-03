@@ -732,6 +732,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->reply = NULL;
 
 	if (thread_alloc(t) < 0) {
+		vm_kfree(t->sched);
 		vm_kfree(t->kstack);
 		vm_kfree(t);
 		return -ENOMEM;
@@ -741,6 +742,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
 			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
+			vm_kfree(t->sched);
 			vm_kfree(t->kstack);
 			vm_kfree(t);
 			return err;
@@ -2302,8 +2304,6 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	recv = proc_current();
 
-	hal_spinlockSet(&p->spinlock, &sc);
-
 	log_debug("utcb buf type %d", proc_current()->utcb.kw[0]);
 
 	/* recv SC is actually caller's SC */
@@ -2313,6 +2313,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		LIB_ASSERT(0, "dead code not dead");
 	}
 
+	hal_spinlockSet(&p->spinlock, &sc);
 	responding = p->slot.caller != NULL ? 1 : 0;
 
 	if (responding == 0) {
@@ -2323,6 +2324,16 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		log_err("passive %d", proc_getTid(recv));
 		LIST_ADD_EX(&p->threads, recv, qnext, qprev);
 
+		/*
+		 * REVISIT: kfree done under port spinlock/interrupts disabled to guarantee
+		 * the recv gets inserted into p->threads once it becomes
+		 * passive
+		 * had kfree be done outside, the recv could get preempted and never come
+		 * back as it would be unschedulable
+		 */
+		vm_kfree(recv->sched);
+		recv->sched = NULL;
+
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 		if (p->queue != NULL) {
 			(void)_proc_threadWakeup(&p->queue);
@@ -2330,14 +2341,10 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
 
-		thread_t *t = _proc_current();
-
 		threads_common.current[hal_cpuGetID()] = NULL;
-		t->sched->t = NULL;
 
-		t->sched = NULL;
-		t->state = BLOCKED_ON_RECV;
-		lib_rbInsert(&threads_common.passive, &t->sleeplinkage);
+		recv->state = BLOCKED_ON_RECV;
+		lib_rbInsert(&threads_common.passive, &recv->sleeplinkage);
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 
 		LIB_ASSERT_ALWAYS(0, "unreachable is reachable");
@@ -2358,6 +2365,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	LIB_ASSERT(p->slot.caller->state != GHOST, "huh");
 
 	/* noone to reply, doing a fastpath and switching to caller thread */
+
 	/* commit to fastpath - point of no return */
 
 	log_err("fast (%d, %d)", proc_getTid(recv), recv->sched->priority);
@@ -2367,17 +2375,17 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	hal_memcpy(caller->utcb.kw->raw, recv->utcb.kw->raw, caller->utcb.kw->size);
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
+
 	LIST_ADD_EX(&p->threads, recv, qnext, qprev);
 	p->slot.caller = NULL;
-
 	ctx = _threads_switchTo(caller, 1);
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
-	/* intentionally restore tsc again to keep interrupts disabled - see note in
-	 * _proc_call */
-	/* TODO: restore tsc here, but restore sc in endSyscall just before return to
-	 * userspace */
+	/*
+	 * intentionally restore tsc again to keep interrupts disabled (see note in _proc_call)
+	 * the actual sc is restored in endSyscall
+	 */
 	hal_spinlockClear(&p->spinlock, &tsc);
 
 	port_put(p, 0);
