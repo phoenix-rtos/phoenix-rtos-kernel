@@ -17,10 +17,11 @@
 #define _PH_HAL_PLIC_H_
 
 #include "hal/types.h"
+#include <config.h>
 
 
 /* PLIC Supervisor Context number */
-#define PLIC_SCONTEXT(hartId) (2 * (hartId) + 1)
+#define PLIC_SCONTEXT(hartId) (PLIC_CONTEXTS_PER_HART * (hartId) + 1)
 
 
 void plic_priority(unsigned int n, unsigned int priority);

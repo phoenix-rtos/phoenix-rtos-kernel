@@ -21,7 +21,6 @@
 
 #include <board_config.h>
 
-/* clang-format off */
 
 /* PLIC register offsets */
 #define PLIC_PRIORITY(irqn)            (0x0000 + (irqn) * 4)
@@ -30,10 +29,8 @@
 #define PLIC_REG_THRESHOLD(context)    (0x200000 + (context) * 0x1000)
 #define PLIC_REG_CLAIM(context)        (0x200004 + (context) * 0x1000)
 
-/* clang-format on */
-
-/* Value calculated from MAX_CPU_COUNT (2 contexts/cpu), TODO(?): get from DTB */
-#define PLIC_SIZE PLIC_REG_THRESHOLD(2 * MAX_CPU_COUNT)
+/* Value calculated from MAX_CPU_COUNT, TODO(?): get from DTB */
+#define PLIC_SIZE PLIC_REG_THRESHOLD((PLIC_CONTEXTS_PER_HART) * MAX_CPU_COUNT)
 
 
 static struct {
