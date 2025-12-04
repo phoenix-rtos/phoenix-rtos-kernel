@@ -131,6 +131,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 static int interrupts_setPlic(intr_handler_t *h, enum irq_state enable)
 {
+	unsigned int i;
 	spinlock_ctx_t sc;
 
 	if (h->n >= PLIC_IRQ_SIZE) {
@@ -145,7 +146,9 @@ static int interrupts_setPlic(intr_handler_t *h, enum irq_state enable)
 		plic_enableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
 	}
 	else {
-		plic_disableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
+		for (i = 0; i < hal_cpuGetCount(); i++) {
+			plic_disableInterrupt(PLIC_SCONTEXT(i), h->n);
+		}
 		HAL_LIST_REMOVE(&interrupts_common.plic.handlers[h->n], h);
 	}
 
