@@ -52,15 +52,17 @@ static struct {
 	intr_handler_t pendsvHandler;
 #endif
 
+	/* Synchronized by spinlock */
 	thread_t *ghosts;
 	thread_t *reaper;
 
+	/* Synchronized by spinlock */
 	int perfGather;
 	time_t perfLastTimestamp;
 	cbuffer_t perfBuffer;
 	page_t *perfPages;
 
-	/* Debug */
+	/* Debug, synchronized by spinlock */
 	unsigned char stackCanary[16];
 	time_t prev;
 } threads_common;
@@ -2086,120 +2088,189 @@ void proc_threadsDump(u8 priority)
 }
 
 
-int proc_threadsList(int n, threadinfo_t *info)
+static inline void _proc_makeProcessName(thread_t *thread, char *name, int sz)
 {
-	int i = 0, argc;
-	unsigned int len, space;
-	thread_t *t;
+	int i, len, left = sz;
+
+	if (thread == NULL || name == NULL || sz == 0) {
+		return;
+	}
+
+	hal_memset(name, 0, sz);
+	if (thread->process != NULL && thread->process->argv != NULL) {
+		for (i = 0; thread->process->argv[i] != NULL; i++) {
+			if (left <= 0) {
+				break;
+			}
+			len = min(hal_strlen(thread->process->argv[i]) + 1U, left);
+			hal_memcpy(name, thread->process->argv[i], len);
+			name[len - 1U] = ' ';
+			name += len;
+			left -= len;
+		}
+		*(name - 1) = '\0';
+	}
+	else if (thread->process != NULL && thread->process->path != NULL) {
+		len = min(sz, hal_strlen(thread->process->path) + 1U);
+		hal_memcpy(name, thread->process->path, len);
+		name[len - 1] = '\0';
+	}
+	else if (thread->process == NULL) {
+		hal_memcpy(name, "[idle]", sizeof("[idle]"));
+	}
+}
+
+
+static inline int _proc_calculateVmem(thread_t *thread)
+{
+	int vmem = 0;
 	map_entry_t *entry;
+
+#ifdef NOMMU
+	if (thread->process != NULL) {
+		entry = thread->process->entries;
+		if (entry != NULL) {
+			do {
+				vmem += (int)entry->size;
+				entry = entry->next;
+			} while (entry != thread->process->entries);
+		}
+	}
+#else /* !NOMMU */
 	vm_map_t *map;
-	time_t now;
-	char *name;
 	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (thread->process != NULL) {
+		map = thread->process->mapp;
+	}
+	else {
+		map = threads_common.kmap;
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (map != NULL) {
+		(void)proc_lockSet(&map->lock);
+
+		entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
+		while (entry != NULL) {
+			vmem += (int)entry->size;
+			entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
+		}
+
+		(void)proc_lockClear(&map->lock);
+	}
+#endif
+
+	return vmem;
+}
+
+
+/* call with threads_common.lock set */
+void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
+{
+	time_t now;
+	pid_t ppid;
+
+	if (thread == NULL || info == NULL) {
+		return;
+	}
+
+	now = _proc_gettimeRaw();
+	if (thread->process != NULL) {
+		info->pid = process_getPid(thread->process);
+		info->ppid = 0;
+	}
+	else {
+		info->pid = 0;
+		info->ppid = 0;
+	}
+
+	if ((flags & PH_THREADINFO_TID) != 0) {
+		info->tid = (unsigned int)proc_getTid(thread);
+	}
+
+	if ((flags & PH_THREADINFO_PRIO) != 0) {
+		info->priority = (int)thread->priorityBase;
+	}
+
+	if ((flags & PH_THREADINFO_STATE) != 0) {
+		info->state = (int)thread->state;
+	}
+
+	if ((flags & PH_THREADINFO_LOAD) != 0) {
+		if (now != thread->startTime) {
+			info->load = (int)((thread->cpuTime * 1000) / (now - thread->startTime));
+		}
+		else {
+			info->load = 0;
+		}
+	}
+
+	if ((flags & PH_THREADINFO_WAITING) != 0) {
+		if (thread->state == READY && thread->maxWait < now - thread->readyTime) {
+			info->wait = now - thread->readyTime;
+		}
+		else {
+			info->wait = thread->maxWait;
+		}
+	}
+
+	if ((flags & PH_THREADINFO_CPUTIME) != 0) {
+		info->cpuTime = thread->cpuTime;
+	}
+
+	if ((flags & PH_THREADINFO_NAME) != 0) {
+		_proc_makeProcessName(thread, info->name, sizeof(info->name));
+	}
+
+	if ((flags & PH_THREADINFO_VMEM) != 0) {
+		info->vmem = _proc_calculateVmem(thread);
+	}
+
+	if ((flags & PH_THREADINFO_PPID) != 0) {
+		ppid = posix_getppid(info->pid);
+		if (ppid > 0) {
+			info->ppid = ppid;
+		}
+	}
+}
+
+
+int proc_threadsList(int tid, unsigned int flags, int n, threadinfo_t *info)
+{
+	int i = 0;
+	thread_t *t;
 
 	(void)proc_lockSet(&threads_common.lock);
 
-	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
+	if (tid == PH_THREADINFO_THREADS_ALL) {
+		t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
 
-	while (i < n && t != NULL) {
-		if (t->process != NULL) {
-			info[i].pid = process_getPid(t->process);
-			/* TODO: info[i].ppid = t->process->parent != NULL ? t->process->parent->id : 0; */
-			info[i].ppid = 0;
-		}
-		else {
-			info[i].pid = 0;
-			info[i].ppid = 0;
-		}
-
-		hal_spinlockSet(&threads_common.spinlock, &sc);
-		info[i].tid = (unsigned int)proc_getTid(t);
-		info[i].priority = (int)t->priorityBase;
-		info[i].state = (int)t->state;
-
-		now = _proc_gettimeRaw();
-		if (now != t->startTime) {
-			info[i].load = (int)((t->cpuTime * 1000) / (now - t->startTime));
-		}
-		else {
-			info[i].load = 0;
-		}
-		info[i].cpuTime = t->cpuTime;
-
-		if (t->state == READY && t->maxWait < now - t->readyTime) {
-			info[i].wait = now - t->readyTime;
-		}
-		else {
-			info[i].wait = t->maxWait;
-		}
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-
-		if (t->process != NULL) {
-			map = t->process->mapp;
-
-			if (t->process->path != NULL) {
-				space = sizeof(info[i].name);
-				name = info[i].name;
-
-				if (t->process->argv != NULL) {
-					for (argc = 0; t->process->argv[argc] != NULL; ++argc) {
-						if ((int)space <= 0) {
-							break;
-						}
-						len = min(hal_strlen(t->process->argv[argc]) + 1U, space);
-						hal_memcpy(name, t->process->argv[argc], len);
-						name[len - 1U] = ' ';
-						name += len;
-						space -= len;
-					}
-					*(name - 1) = '\0';
-				}
-				else {
-					len = hal_strlen(t->process->path) + 1U;
-					hal_memcpy(info[i].name, t->process->path, min(space, len));
+		do {
+			if ((flags & PH_THREADINFO_OPT_THREADCOUNT) == 0) {
+				if (i >= n) {
+					break;
 				}
 
-				info[i].name[sizeof(info[i].name) - 1U] = '\0';
+				_proc_threadInfo(t, flags, &info[i]);
 			}
-			else {
-				info[i].name[0] = '\0';
-			}
-		}
-		else {
-			map = threads_common.kmap;
-			hal_memcpy(info[i].name, "[idle]", sizeof("[idle]"));
+
+			t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
+			i++;
+		} while (t != NULL);
+	}
+	else {
+		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.id, tid));
+		if (t == NULL) {
+			(void)proc_lockClear(&threads_common.lock);
+			return -ENOENT;
 		}
 
-		info[i].vmem = 0;
-
-#ifdef NOMMU
-		if (t->process != NULL) {
-			entry = t->process->entries;
-			if (entry != NULL) {
-				do {
-					info[i].vmem += (int)entry->size;
-					entry = entry->next;
-				} while (entry != t->process->entries);
-			}
-		}
-		else
-#endif
-				if (map != NULL) {
-			(void)proc_lockSet(&map->lock);
-			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
-
-			while (entry != NULL) {
-				info[i].vmem += (int)entry->size;
-				entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
-			}
-			(void)proc_lockClear(&map->lock);
-		}
-		else {
-			/* No action required */
-		}
-
-		++i;
-		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
+		_proc_threadInfo(t, flags, info);
+		i++;
 	}
 
 	(void)proc_lockClear(&threads_common.lock);
