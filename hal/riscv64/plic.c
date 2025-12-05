@@ -35,6 +35,7 @@
 
 static struct {
 	volatile u8 *regw;
+	spinlock_t lock;
 } plic_common;
 
 
@@ -101,10 +102,13 @@ static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enabl
 {
 	u32 bitshift = n % 32;
 	u32 val;
+	spinlock_ctx_t sc;
 
 	if (n >= PLIC_IRQ_SIZE) {
 		return -1;
 	}
+
+	hal_spinlockSet(&plic_common.lock, &sc);
 
 	val = plic_read(PLIC_REG_ENABLE(context, n));
 
@@ -116,6 +120,8 @@ static int plic_modifyInterrupt(unsigned int context, unsigned int n, char enabl
 	}
 
 	plic_write(PLIC_REG_ENABLE(context, n), val);
+
+	hal_spinlockClear(&plic_common.lock, &sc);
 
 	return 0;
 }
@@ -148,6 +154,7 @@ void plic_init(void)
 	unsigned int i;
 
 	plic_common.regw = _pmap_halMapDevice(PAGE_ALIGN(PLIC_BASE), PAGE_OFFS(PLIC_BASE), PLIC_SIZE);
+	hal_spinlockCreate(&plic_common.lock, "plic_common.lock");
 
 	/* Disable and mask external interrupts */
 	for (i = 1; i < PLIC_IRQ_SIZE; i++) {
