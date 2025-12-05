@@ -48,6 +48,8 @@ static struct {
 		unsigned int counters[PLIC_IRQ_SIZE];
 		intr_handler_t *handlers[PLIC_IRQ_SIZE];
 	} plic;
+
+	u32 irqTargetCpu;
 } interrupts_common;
 
 
@@ -133,6 +135,7 @@ static int interrupts_setPlic(intr_handler_t *h, enum irq_state enable)
 {
 	unsigned int i;
 	spinlock_ctx_t sc;
+	u32 targetCpu;
 
 	if (h->n >= PLIC_IRQ_SIZE) {
 		return -EINVAL;
@@ -143,7 +146,8 @@ static int interrupts_setPlic(intr_handler_t *h, enum irq_state enable)
 	if (enable == irq_enable) {
 		HAL_LIST_ADD(&interrupts_common.plic.handlers[h->n], h);
 		plic_priority(h->n, 2);
-		plic_enableInterrupt(PLIC_SCONTEXT(hal_cpuGetID()), h->n);
+		targetCpu = hal_cpuAtomicAdd(&interrupts_common.irqTargetCpu, 1) % hal_cpuGetCount();
+		plic_enableInterrupt(PLIC_SCONTEXT(targetCpu), h->n);
 	}
 	else {
 		for (i = 0; i < hal_cpuGetCount(); i++) {
@@ -267,6 +271,8 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 		interrupts_common.plic.counters[i] = 0;
 		hal_spinlockCreate(&interrupts_common.plic.spinlocks[i], "interrupts_common.plic");
 	}
+
+	interrupts_common.irqTargetCpu = 0;
 
 	/* Initialize PLIC if present */
 	if (dtb_getPLIC()) {
