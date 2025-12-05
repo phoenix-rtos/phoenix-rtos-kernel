@@ -52,7 +52,7 @@ int hal_started(void)
 
 void _hal_start(void)
 {
-	hal_cpuAtomicAdd(&hal_common.started, 1);
+	(void)hal_cpuAtomicAdd(&hal_common.started, 1);
 }
 
 

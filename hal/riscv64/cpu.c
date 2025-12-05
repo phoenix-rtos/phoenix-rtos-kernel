@@ -413,7 +413,7 @@ __attribute__((section(".init"))) void hal_cpuInitCore(void)
 {
 	hal_interruptsInitCore();
 	hal_timerInitCore();
-	hal_cpuAtomicAdd(&cpu_common.cpusStarted, 1);
+	(void)hal_cpuAtomicAdd(&cpu_common.cpusStarted, 1);
 }
 
 

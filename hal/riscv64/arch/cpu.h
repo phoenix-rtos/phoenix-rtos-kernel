@@ -217,16 +217,18 @@ static inline void hal_cpuGetCycles(cycles_t *cb)
 /* Atomic operations */
 
 
-static inline void hal_cpuAtomicAdd(volatile u32 *dst, u32 v)
+static inline u32 hal_cpuAtomicAdd(volatile u32 *dst, u32 v)
 {
+	u32 old;
 	/* clang-format off */
 	__asm__ volatile (
 		"fence iorw, ow\n\t"
-		"amoadd.w.aq zero, %1, (%0)"
-		: "+r"(dst)
+		"amoadd.w.aq %0, %2, (%1)"
+		: "=r"(old), "+r"(dst)
 		: "r"(v)
 	);
 	/* clang-format on */
+	return old;
 }
 
 
