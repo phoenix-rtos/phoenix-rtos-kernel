@@ -78,8 +78,12 @@ typedef struct _thread_t {
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
+	/* TODO lots of pointers... maybe it'd possible to optimize this? */
 	struct _thread_t *qnext;
 	struct _thread_t *qprev;
+
+	struct _thread_t *tnext;
+	struct _thread_t *tprev;
 
 	int refs;
 	struct _thread_t *blocking;
@@ -91,8 +95,18 @@ typedef struct _thread_t {
 	unsigned state : 4;
 	unsigned interruptible : 1;
 	unsigned exit : 2;
+	unsigned passive : 1;
 
+	/* fastpath related */
 	struct _thread_t *reply;
+	struct _thread_t *called;
+
+	/*
+	 * REVISIT: during threads_destroy of a fastpath receiver we should remove
+	 * ourselves out of addedTo's port queue so that it doesn't contain garbage
+	 * but it's sad we need port-thread bound. Maybe there is a better way?
+	 */
+	struct _port_t *addedTo;
 
 	unsigned sigmask;
 	unsigned sigpend;

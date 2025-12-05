@@ -442,8 +442,6 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
-	p->slot.recvMsg = msg;
-
 	while ((p->kmessages == NULL) && (p->closed == 0) && (err != -EINTR)) {
 		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0, &sc);
 	}
@@ -589,6 +587,15 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	return s;
 }
 
+/* TODO: move utcb init/deinit to threads */
+
+void proc_freeUtcb(thread_t *t)
+{
+	vm_pageFree(t->utcb.p);
+	vm_munmap(&t->process->map, t->utcb.w, SIZE_PAGE);
+	vm_munmap(msg_common.kmap, t->utcb.kw, SIZE_PAGE);
+}
+
 
 void *proc_configure(void)
 {
@@ -609,8 +616,6 @@ void *proc_configure(void)
 	flags = MAP_NOINHERIT;
 	attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | PGHD_USER | vm_flagsToAttr(flags);
 
-	/* TODO: cleanups on exit */
-
 	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 	if (p == NULL) {
 		return NULL;
@@ -620,22 +625,29 @@ void *proc_configure(void)
 	/* map to current thread space */
 	vaddr = vm_mapFind(map, NULL, SIZE_PAGE, flags, prot);
 	if (vaddr == NULL) {
+		vm_pageFree(p);
 		return NULL;
 	}
 	t->utcb.w = vaddr;
 
 	if (page_map(&map->pmap, vaddr, p->addr, attr) < 0) {
+		vm_pageFree(p);
 		return NULL;
 	}
 
 	/* map to kernel space */
 	kvaddr = vm_mapFind(msg_common.kmap, NULL, SIZE_PAGE, flags, prot);
 	if (vaddr == NULL) {
+		vm_pageFree(p);
+		vm_munmap(map, vaddr, SIZE_PAGE);
 		return NULL;
 	}
 	t->utcb.kw = kvaddr;
 
 	if (page_map(&msg_common.kmap->pmap, kvaddr, p->addr, attr) < 0) {
+		vm_pageFree(p);
+		vm_munmap(map, vaddr, SIZE_PAGE);
+		vm_munmap(msg_common.kmap, kvaddr, SIZE_PAGE);
 		return NULL;
 	}
 

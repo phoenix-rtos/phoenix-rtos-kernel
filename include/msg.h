@@ -151,6 +151,7 @@ typedef struct _msg_t {
 
 
 typedef struct {
+	int err;
 	size_t size;
 	unsigned char raw[64];
 } ipc_buf_t;

@@ -238,6 +238,7 @@ static void thread_destroy(thread_t *thread)
 {
 	process_t *process;
 	spinlock_ctx_t sc;
+	thread_t *reply;
 
 	trace_eventThreadEnd(thread);
 
@@ -247,29 +248,54 @@ static void thread_destroy(thread_t *thread)
 		proc_lockUnlock(thread->locks);
 	}
 
-	// TODO: kernel resources (devices, ports) created from userspace code are
-	// not cleaned after threads
-	// this is problematic for passive threads, as they won't clean after
-	// themselves, unless a client does it for them
+	if (thread->addedTo != NULL) {
+		hal_spinlockSet(&thread->addedTo->spinlock, &sc);
+		LIST_REMOVE_EX(&thread->addedTo->threads, thread, tnext, tprev);
+		hal_spinlockClear(&thread->addedTo->spinlock, &sc);
+	}
+
+	/* REVISIT: guard with threads spinlock needed? called may hold a reference to us */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	if (thread->called != NULL) {
+		thread->called->reply = NULL;
+	}
+
+	if (thread->passive) {
+		lib_rbRemove(&threads_common.passive, &thread->sleeplinkage);
+	}
 
 	if (thread->sched != NULL) {
 		if (thread->reply != NULL) {
-			hal_spinlockSet(&threads_common.spinlock, &sc);
 			LIB_ASSERT(thread->reply != thread, "thread replies to itself????");
-			thread->sched->t = thread->reply;
-			thread->reply->sched = thread->sched;
-			thread->reply->utcb.kw->err = -EINTR; /* TODO: custom errno? */
+			reply = thread->reply;
+			reply->sched = thread->sched;
+			reply->sched->t = reply;
+			reply->called = NULL;
 
-			thread->reply->state = READY;
-			thread->reply->context = _getUserContext(thread->reply);
-			_proc_threadDequeue(thread->reply);
+			reply->utcb.kw->err = -EINTR; /* TODO: custom errno? */
+
+			LIB_ASSERT(reply->exit == 0, "reply thread exiting?");
+
+			reply->context = _getUserContext(reply);
+#ifndef NOMMU
+			LIB_ASSERT((ptr_t)hal_cpuGetIP(reply->context) < VADDR_KERNEL, "dest ip in kernel - ip: 0x%p tid: %d", hal_cpuGetIP(reply->context), proc_getTid(reply));
+#endif
+			_proc_threadDequeue(reply);
 			hal_spinlockClear(&threads_common.spinlock, &sc);
 		}
 		else {
+			hal_spinlockClear(&threads_common.spinlock, &sc);
 			vm_kfree(thread->sched);
 		}
 	}
+	else {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
 	vm_kfree(thread->kstack);
+
+	if (thread->utcb.w != NULL) {
+		proc_freeUtcb(thread);
+	}
 
 	process = thread->process;
 	if (process != NULL) {
@@ -470,6 +496,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 
 	sched = _sched_current();
 	LIB_ASSERT_ALWAYS(sched != NULL, "sched null");
+	LIB_ASSERT_ALWAYS(dest != NULL, "dest null");
 
 	from = sched->t;
 
@@ -484,15 +511,18 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 
 		LIB_ASSERT_ALWAYS(from->reply != NULL, "reply null");
 		sched->t = from->reply;
+
 		from->reply = NULL;
+		dest->called = NULL;
 	}
 	else {
 		/* calling - going deeper in SC chain */
 		from->state = BLOCKED_ON_REPLY;
 
-		dest->reply = from;
 		sched->t = dest;
-		LIB_ASSERT_ALWAYS(dest != NULL, "from null");
+
+		dest->reply = from;
+		from->called = dest;
 	}
 	dest->sched = sched;
 
@@ -727,6 +757,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->sigmask = t->sigpend = 0;
 	t->refs = 1;
 	t->interruptible = 0;
+	t->passive = 0;
 	t->exit = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
@@ -754,6 +785,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->sched->owner = t;
 
 	t->reply = NULL;
+	t->called = NULL;
+	t->addedTo = NULL;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->sched);
@@ -957,6 +990,7 @@ void proc_threadEnd(void)
 	t = threads_common.current[cpu]->t;
 	threads_common.current[cpu] = NULL;
 	t->state = GHOST;
+	LIB_ASSERT(t->sched != NULL, "null sched? maybe ok but must be handled");
 	LIST_ADD(&threads_common.ghosts, t->sched);
 	_proc_threadWakeup(&threads_common.reaper);
 
@@ -2190,17 +2224,18 @@ __attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller
 	hal_memcpy(recv->utcb.kw->raw, caller->utcb.kw->raw, recv->utcb.kw->size);
 
 	LIB_ASSERT(recv != NULL, "recv is null");
-	LIB_ASSERT(p->slot.caller == NULL, "there is already a caller?");
+	LIB_ASSERT(p->caller == NULL, "there is already a caller?");
 
-	p->slot.caller = caller;
+	p->caller = caller;
 
 	/*
 	 * NOTE: assumes port spinlock is set so that this spinlockSet is nested and tsc
 	 * context has interrupts disabled
 	 */
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
-	LIST_REMOVE_EX(&p->threads, recv, qnext, qprev);
 
+	LIST_REMOVE_EX(&p->threads, recv, tnext, tprev);
+	recv->addedTo = NULL;
 	ctx = _threads_switchTo(recv, 0);
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
@@ -2226,7 +2261,7 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 	if (p->threads == NULL) {
 		return 1;
 	}
-	if (p->slot.caller != NULL) {
+	if (p->caller != NULL) {
 		return 2;
 	}
 	if (p->threads->sched != NULL) {
@@ -2242,7 +2277,7 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 static inline int _mustSlowCall(port_t *p, thread_t *caller)
 {
 	return p->threads == NULL ||
-			p->slot.caller != NULL ||
+			p->caller != NULL ||
 			/* if recv is an active server, check priority */
 			(p->threads->sched != NULL) ||
 			// (p->threads->sched != NULL && caller->sched->priority < p->threads->sched->priority) ||
@@ -2267,7 +2302,7 @@ static int _proc_callSlow(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 		/* TODO: abort on server fault/port closure */
 	}
 
-	log_err("fast (prio=%d, tid=%d)", caller->sched->priority, proc_getTid(caller));
+	// log_err("fast (prio=%d, tid=%d)", caller->sched->priority, proc_getTid(caller));
 	_proc_callFast(p, caller, sc);
 }
 
@@ -2298,13 +2333,13 @@ int proc_call(u32 port, msg_t *msg)
 	hal_spinlockSet(&p->spinlock, &sc);
 
 	while (_mustSlowCall(p, caller) != 0) {
-		log_err("slow (prio=%d, tid=%d) %d", caller->sched->priority, proc_getTid(caller), reason(p, caller));
+		log_err("slow (prio=%d, tid=%d) %d", caller->sched->priority, proc_getTid(caller), _mustSlowCall(p, caller));
 		return _proc_callSlow(p, caller, &sc);
 	}
 
 	/* commit to fastpath - point of no return */
 
-	log_err("fast (prio=%d, hprio=%d)", caller->sched->priority, threads_getHighestPrio(caller->sched->priority));
+	// log_err("fast (prio=%d, hprio=%d)", caller->sched->priority, threads_getHighestPrio(caller->sched->priority));
 	_proc_callFast(p, caller, &sc);
 }
 
@@ -2338,7 +2373,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
-	responding = p->slot.caller != NULL ? 1 : 0;
+	responding = p->caller != NULL ? 1 : 0;
 
 	if (responding == 0) {
 		/* TODO: handle case of multiple passive servers on the same port. Currently
@@ -2346,7 +2381,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		 * kernel (_threads_switchTo:462): reply null
 		 */
 		log_err("passive %d", proc_getTid(recv));
-		LIST_ADD_EX(&p->threads, recv, qnext, qprev);
+		LIST_ADD_EX(&p->threads, recv, tnext, tprev);
+		recv->addedTo = p;
 
 		/*
 		 * REVISIT: kfree done under port spinlock/interrupts disabled to guarantee
@@ -2368,6 +2404,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		threads_common.current[hal_cpuGetID()] = NULL;
 
 		recv->state = BLOCKED_ON_RECV;
+		recv->passive = 1;
 		lib_rbInsert(&threads_common.passive, &recv->sleeplinkage);
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 
@@ -2385,8 +2422,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	/* TODO should exit != 0 be treated in any special way? if we return back to
 	 * the exiting client, it will get reaped anyway  */
-	// LIB_ASSERT(p->slot.caller->exit == 0, "exit=%d", p->slot.caller->exit);
-	LIB_ASSERT(p->slot.caller->state != GHOST, "huh");
+	LIB_ASSERT(p->caller->exit == 0, "exit=%d", p->caller->exit);
+	LIB_ASSERT(p->caller->state != GHOST, "huh");
 
 	/* noone to reply, doing a fastpath and switching to caller thread */
 
@@ -2394,14 +2431,15 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	log_err("fast (%d, %d)", proc_getTid(recv), recv->sched->priority);
 
-	caller = p->slot.caller;
+	caller = p->caller;
 	caller->utcb.kw->size = min(recv->utcb.kw->size, sizeof(caller->utcb.kw->raw));
 	hal_memcpy(caller->utcb.kw->raw, recv->utcb.kw->raw, caller->utcb.kw->size);
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
-	LIST_ADD_EX(&p->threads, recv, qnext, qprev);
-	p->slot.caller = NULL;
+	LIST_ADD_EX(&p->threads, recv, tnext, tprev);
+	recv->addedTo = p;
+	p->caller = NULL;
 	ctx = _threads_switchTo(caller, 1);
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);

@@ -71,6 +71,9 @@ typedef struct _fmsg_t {
  */
 
 
+extern void proc_freeUtcb(thread_t *t);
+
+
 extern void *proc_configure(void);
 
 
