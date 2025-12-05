@@ -39,22 +39,8 @@ typedef struct _port_t {
 	thread_t *threads;
 	msg_t *current;
 
-	struct {
-		msg_t *callerMsg;
-		msg_t *recvMsg;
-		msg_t buf;
-		thread_t *caller;
-	} slot;
-
-	enum { portState_idle,
-		portState_send,
-		portState_recv } portState;
+	thread_t *caller;
 	thread_t *queue;
-
-	/* perf */
-
-	int start;
-	int end;
 } port_t;
 
 /* FIXME - use int for port handle.
