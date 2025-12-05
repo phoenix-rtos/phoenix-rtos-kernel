@@ -591,11 +591,19 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 void proc_freeUtcb(thread_t *t)
 {
-	vm_pageFree(t->utcb.p);
-	vm_munmap(&t->process->map, t->utcb.w, SIZE_PAGE);
-	vm_munmap(msg_common.kmap, t->utcb.kw, SIZE_PAGE);
+	if (t->utcb.kw != NULL) {
+		vm_munmap(msg_common.kmap, t->utcb.kw, SIZE_PAGE);
+		t->utcb.kw = NULL;
+	}
+	if (t->utcb.w != NULL) {
+		vm_munmap(&t->process->map, t->utcb.w, SIZE_PAGE);
+		t->utcb.w = NULL;
+	}
+	if (t->utcb.p != NULL) {
+		vm_pageFree(t->utcb.p);
+		t->utcb.p = NULL;
+	}
 }
-
 
 void *proc_configure(void)
 {
@@ -608,7 +616,10 @@ void *proc_configure(void)
 	t = proc_current();
 	map = &t->process->map;
 
-	if (t->utcb.w != NULL) {
+	if (t->utcb.kw != NULL) {
+		LIB_ASSERT(t->utcb.w != NULL, "");
+		LIB_ASSERT(t->utcb.p != NULL, "");
+		t->utcb.kw->err = 0;
 		return t->utcb.w;
 	}
 
@@ -625,29 +636,26 @@ void *proc_configure(void)
 	/* map to current thread space */
 	vaddr = vm_mapFind(map, NULL, SIZE_PAGE, flags, prot);
 	if (vaddr == NULL) {
-		vm_pageFree(p);
+		proc_freeUtcb(t);
 		return NULL;
 	}
 	t->utcb.w = vaddr;
 
 	if (page_map(&map->pmap, vaddr, p->addr, attr) < 0) {
-		vm_pageFree(p);
+		proc_freeUtcb(t);
 		return NULL;
 	}
 
 	/* map to kernel space */
 	kvaddr = vm_mapFind(msg_common.kmap, NULL, SIZE_PAGE, flags, prot);
-	if (vaddr == NULL) {
-		vm_pageFree(p);
-		vm_munmap(map, vaddr, SIZE_PAGE);
+	if (kvaddr == NULL) {
+		proc_freeUtcb(t);
 		return NULL;
 	}
 	t->utcb.kw = kvaddr;
 
 	if (page_map(&msg_common.kmap->pmap, kvaddr, p->addr, attr) < 0) {
-		vm_pageFree(p);
-		vm_munmap(map, vaddr, SIZE_PAGE);
-		vm_munmap(msg_common.kmap, kvaddr, SIZE_PAGE);
+		proc_freeUtcb(t);
 		return NULL;
 	}
 
