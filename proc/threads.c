@@ -265,8 +265,6 @@ static void thread_destroy(thread_t *thread)
 	if (thread->called != NULL) {
 		LIB_ASSERT(thread->called->reply == thread, "thread->called->reply != thread");
 		thread->called->reply = NULL;
-		// ref = --thread->refs;
-		// LIB_ASSERT(ref >= 0, "negative refcount");
 	}
 
 	if (thread->passive) {
@@ -505,23 +503,23 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 	cpu_context_t *ctx;
 
 	sched = _sched_current();
-	LIB_ASSERT_ALWAYS(sched != NULL, "sched null");
-	LIB_ASSERT_ALWAYS(dest != NULL, "dest null");
+	LIB_ASSERT(sched != NULL, "sched null");
+	LIB_ASSERT(dest != NULL, "dest null");
 
-	LIB_ASSERT_ALWAYS(dest->exit == 0, "exit=%d", dest->exit);
-	LIB_ASSERT_ALWAYS(dest->state != GHOST, "dest is a ghost");
+	LIB_ASSERT(dest->exit == 0, "exit=%d", dest->exit);
+	LIB_ASSERT(dest->state != GHOST, "dest is a ghost");
 
 	from = sched->t;
 
-	LIB_ASSERT_ALWAYS(dest->sched == NULL,
+	LIB_ASSERT(dest->sched == NULL,
 			"dest sched not null (prio=%d, from=%d, dest=%d, reply=%d, sched owner tid=%d)",
 			sched->priority, proc_getTid(from), proc_getTid(dest), reply, proc_getTid(dest->sched->owner));
 
 	from->sched = NULL;
 	if (reply != 0) {
 		/* replying - going back in SC chain */
-		LIB_ASSERT_ALWAYS(from->reply != NULL, "reply null (initial from->state=%d)", from->state);
-		LIB_ASSERT_ALWAYS(from->reply == dest, "WHAT");
+		LIB_ASSERT(from->reply != NULL, "reply null (initial from->state=%d)", from->state);
+		LIB_ASSERT(from->reply == dest, "WHAT");
 
 		from->state = BLOCKED_ON_RECV;
 
@@ -553,7 +551,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 		pmap_switch(&threads_common.kmap->pmap);
 	}
 
-	LIB_ASSERT_ALWAYS(_proc_current() != NULL, "proc current null");
+	LIB_ASSERT(_proc_current() != NULL, "proc current null");
 
 	ctx = _getUserContext(dest);
 #ifndef NOMMU
@@ -568,7 +566,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 
 	_threads_scheduling(dest);
 
-	LIB_ASSERT_ALWAYS(dest->sched != NULL, "dest shed is null");
+	LIB_ASSERT(dest->sched != NULL, "dest shed is null");
 
 	hal_cpuSetReturnValue(ctx, 0);
 
@@ -1087,12 +1085,7 @@ static void _proc_threadDequeue(thread_t *t)
 		return;
 	}
 
-	// if (t->sched == NULL) {
-	// 	/* hmmmmmmmmmmmmmmmm */
-	// 	return;
-	// }
-
-	LIB_ASSERT_ALWAYS(t->sched != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
+	LIB_ASSERT(t->sched != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
 
 	_threads_waking(t);
 
@@ -2245,21 +2238,18 @@ __attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	thread_t *recv = p->fpThreads;
 
-	LIB_ASSERT_ALWAYS(recv != NULL, "recv is null");
-	LIB_ASSERT_ALWAYS(caller != NULL, "null caller");
-	// LIB_ASSERT_ALWAYS(p->caller == NULL, "there is already a caller?");
+	LIB_ASSERT(recv != NULL, "recv is null");
+	LIB_ASSERT(caller != NULL, "null caller");
 	LIB_ASSERT(recv->exit == 0, "recv exit=%d", recv->exit);
-	LIB_ASSERT_ALWAYS(recv->refs > 0, "attempting to return to refs=0 rcv? port=%d caller tid=%d recv tid=%d refs: %d",
+	LIB_ASSERT(recv->refs > 0, "attempting to return to refs=0 rcv? port=%d caller tid=%d recv tid=%d refs: %d",
 			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
-	LIB_ASSERT_ALWAYS(recv->utcb.kw != NULL, "what?? port=%d caller tid=%d recv tid=%d refs: %d",
+	LIB_ASSERT(recv->utcb.kw != NULL, "what?? port=%d caller tid=%d recv tid=%d refs: %d",
 			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
 
 	recv->utcb.kw->size = min(caller->utcb.kw->size, sizeof(recv->utcb.kw->raw));
 	hal_memcpy(recv->utcb.kw->raw, caller->utcb.kw->raw, recv->utcb.kw->size);
 
 	LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
-	int rfcnt = --recv->refs;
-	LIB_ASSERT_ALWAYS(rfcnt > 0, "recv is dead");
 
 	recv->addedTo = NULL;
 	ctx = _threads_switchTo(recv, 0);
@@ -2424,21 +2414,11 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		return -EINVAL;
 	}
 
-	/* FIXME!!!!!!!!: the p->caller can point to thread with null reply
-		can be reproduced by never dropping the threads and running msgcor 0-1-2 twice
-		(first time will succeed, second will fail)
-	*/
 	responding = recv->reply != NULL ? 1 : 0;
 
 	if (responding == 0) {
-		/* TODO: handle case of multiple passive servers on the same port. Currently
-		 * it panics with:
-		 * kernel (_threads_switchTo:462): reply null
-		 * related to above
-		 */
 		log_err("passive %d", proc_getTid(recv));
 		LIST_ADD_EX(&p->fpThreads, recv, tnext, tprev);
-		recv->refs++;
 		recv->addedTo = p;
 
 		/*
@@ -2479,22 +2459,27 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		proc_threadWakeup(&p->queue);
 	}
 
+	/* TODO: handle caller faults */
 
-	/* noone to reply, doing a fastpath and switching to caller thread */
-
-	/* commit to fastpath - point of no return */
+	/*
+	 * noone to reply, doing a fastpath and switching to caller thread
+	 * point of no return
+	 */
 
 	log_err("fast (%d, %d)", proc_getTid(recv), recv->sched->priority);
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
-	caller = recv->reply;
+	/* TODO: not everything must be done under threads spinlock
+	 * this was done only to catch trivial races, now we can try doing this in a
+	 * smarter way
+	 */
 
-	/* TODO: handle caller faults */
+	caller = recv->reply;
 
 	/* TODO should exit != 0 be treated in any special way? if we return back to
 	 * the exiting client, it will get reaped anyway  */
-	LIB_ASSERT_ALWAYS(caller != NULL, "caller null!");
+	LIB_ASSERT(caller != NULL, "caller null!");
 	LIB_ASSERT(caller->exit == 0, "exit=%d", caller->exit);
 	LIB_ASSERT(caller->state != GHOST, "huh");
 
@@ -2504,9 +2489,6 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	hal_memcpy(caller->utcb.kw->raw, recv->utcb.kw->raw, caller->utcb.kw->size);
 
 	LIST_ADD_EX(&p->fpThreads, recv, tnext, tprev);
-	/* REVISIT: do we need these refs? */
-	/* FIXME: somehow recv can still end up being ref=0 */
-	recv->refs++;
 	recv->addedTo = p;
 
 	ctx = _threads_switchTo(caller, 1);
