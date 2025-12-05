@@ -56,10 +56,11 @@ static struct {
 	intr_handler_t pendsvHandler;
 #endif
 
+	/* Synchronized by spinlock */
 	thread_t *ghosts;
 	thread_t *reaper;
 
-	/* Debug */
+	/* Debug, synchronized by spinlock */
 	unsigned char stackCanary[16];
 	time_t prev;
 } threads_common;
@@ -1881,100 +1882,194 @@ void proc_threadsDump(u8 priority)
 }
 
 
-int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
+static inline int _proc_calculateVmem(thread_t *thread)
+{
+	int vmem = 0;
+	map_entry_t *entry;
+
+#ifdef NOMMU
+	if (thread->process != NULL) {
+		entry = thread->process->entries;
+		if (entry != NULL) {
+			do {
+				vmem += (int)entry->size;
+				entry = entry->next;
+			} while (entry != thread->process->entries);
+		}
+	}
+	else {
+	}
+#else /* !NOMMU */
+	vm_map_t *map;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (thread->process != NULL) {
+		map = thread->process->mapp;
+	}
+	else {
+		map = threads_common.kmap;
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (map != NULL) {
+		(void)proc_lockSet(&map->lock);
+
+		entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
+		while (entry != NULL) {
+			vmem += (int)entry->size;
+			entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
+		}
+
+		(void)proc_lockClear(&map->lock);
+	}
+	else {
+	}
+#endif
+
+	return vmem;
+}
+
+
+/* call with threads_common.lock set */
+void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
+{
+	time_t now;
+	pid_t ppid;
+
+	if (thread == NULL || info == NULL) {
+		return;
+	}
+
+	now = _proc_gettimeRaw();
+	if (thread->process != NULL) {
+		info->pid = process_getPid(thread->process);
+		info->ppid = 0;
+	}
+	else {
+		info->pid = 0;
+		info->ppid = 0;
+	}
+
+	if ((flags & PH_THREADINFO_TID) != 0) {
+		info->tid = (unsigned int)proc_getTid(thread);
+	}
+
+	if ((flags & PH_THREADINFO_PRIO) != 0) {
+		info->priority = (int)thread->priorityBase;
+	}
+
+	if ((flags & PH_THREADINFO_STATE) != 0) {
+		info->state = (int)thread->state;
+	}
+
+	if ((flags & PH_THREADINFO_LOAD) != 0) {
+		if (now != thread->startTime) {
+			info->load = (int)((thread->cpuTime * 1000) / (now - thread->startTime));
+		}
+		else {
+			info->load = 0;
+		}
+	}
+
+	if ((flags & PH_THREADINFO_WAITING) != 0) {
+		if (thread->state == READY && thread->maxWait < now - thread->readyTime) {
+			info->wait = now - thread->readyTime;
+		}
+		else {
+			info->wait = thread->maxWait;
+		}
+	}
+
+	if ((flags & PH_THREADINFO_CPUTIME) != 0) {
+		info->cpuTime = thread->cpuTime;
+	}
+
+	if ((flags & PH_THREADINFO_NAME) != 0) {
+		if (thread->process != NULL) {
+			process_getName(thread->process, info->name, sizeof(info->name));
+		}
+		else {
+			hal_memcpy(info->name, "[idle]", sizeof("[idle]"));
+		}
+	}
+
+	if ((flags & PH_THREADINFO_VMEM) != 0) {
+		info->vmem = _proc_calculateVmem(thread);
+	}
+
+	if ((flags & PH_THREADINFO_PPID) != 0) {
+		ppid = posix_getppid(info->pid);
+		if (ppid > 0) {
+			info->ppid = ppid;
+		}
+	}
+}
+
+
+int proc_threadsInfo(int tid, unsigned int flags, int n, threadinfo_t *info)
 {
 	int i = 0;
 	thread_t *t;
-	map_entry_t *entry;
-	vm_map_t *map;
-	time_t now;
-	spinlock_ctx_t sc;
-	threadinfo_t tinfo;
 
 	(void)proc_lockSet(&threads_common.lock);
 
-	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
+	if (tid == PH_THREADINFO_THREADS_ALL) {
+		t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
 
-	while (i < n && t != NULL) {
-		if (t->process != NULL) {
-			tinfo.pid = process_getPid(t->process);
-			// tinfo.ppid = t->process->parent != NULL ? t->process->parent->id : 0;
-			/* TODO: tinfo.ppid = t->process->parent != NULL ? t->process->parent->id : 0; */
-			tinfo.ppid = 0;
-		}
-		else {
-			tinfo.pid = 0;
-			tinfo.ppid = 0;
-		}
+		do {
+			if ((flags & PH_THREADINFO_OPT_THREADCOUNT) == 0) {
+				if (i >= n) {
+					break;
+				}
 
-		hal_spinlockSet(&threads_common.spinlock, &sc);
-		tinfo.tid = (unsigned int)proc_getTid(t);
-		tinfo.priority = (int)t->priorityBase;
-		tinfo.state = (int)t->state;
-
-		now = _proc_gettimeRaw();
-		if (now != t->startTime) {
-			tinfo.load = (int)((t->cpuTime * 1000) / (now - t->startTime));
-		}
-		else {
-			tinfo.load = 0;
-		}
-		tinfo.cpuTime = t->cpuTime;
-
-		if (t->state == READY && t->maxWait < now - t->readyTime) {
-			tinfo.wait = now - t->readyTime;
-		}
-		else {
-			tinfo.wait = t->maxWait;
-		}
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-
-		if (t->process != NULL) {
-			map = t->process->mapp;
-			process_getName(t->process, tinfo.name, sizeof(tinfo.name));
-		}
-		else {
-			map = threads_common.kmap;
-			hal_memcpy(tinfo.name, "[idle]", sizeof("[idle]"));
-		}
-
-		tinfo.vmem = 0;
-
-#ifdef NOMMU
-		if (t->process != NULL) {
-			entry = t->process->entries;
-			if (entry != NULL) {
-				do {
-					tinfo.vmem += (int)entry->size;
-					entry = entry->next;
-				} while (entry != t->process->entries);
+				_proc_threadInfo(t, flags, &info[i]);
 			}
-		}
-		else
-#endif
-				if (map != NULL) {
-			(void)proc_lockSet(&map->lock);
-			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
 
-			while (entry != NULL) {
-				tinfo.vmem += (int)entry->size;
-				entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
-			}
-			(void)proc_lockClear(&map->lock);
-		}
-		else {
-			/* No action required */
+			t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
+			i++;
+		} while (t != NULL);
+	}
+	else {
+		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.id, tid));
+		if (t == NULL) {
+			(void)proc_lockClear(&threads_common.lock);
+			return -ENOENT;
 		}
 
-		cb(arg, i, &tinfo);
-
-		++i;
-		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
+		_proc_threadInfo(t, flags, info);
+		i++;
 	}
 
 	(void)proc_lockClear(&threads_common.lock);
 
 	return i;
+}
+
+
+void proc_threadsIter(unsigned int flags, proc_threadsListCb_t cb, void *arg)
+{
+	thread_t *t;
+	threadinfo_t info;
+
+	(void)proc_lockSet(&threads_common.lock);
+
+	flags |= PH_THREADINFO_TID;
+
+	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
+	do {
+		_proc_threadInfo(t, flags, &info);
+
+		if (cb != NULL) {
+			cb(arg, &info);
+		}
+
+		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
+	} while (t != NULL);
+
+	(void)proc_lockClear(&threads_common.lock);
 }
 
 
@@ -1989,19 +2084,6 @@ int proc_threadsOther(thread_t *t)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return ret;
-}
-
-
-static void proc_threadsListCb(void *arg, int i, threadinfo_t *tinfo)
-{
-	threadinfo_t *tinfos = (threadinfo_t *)arg;
-	hal_memcpy(tinfos + i, tinfo, sizeof(threadinfo_t));
-}
-
-
-int proc_threadsList(int n, threadinfo_t *info)
-{
-	return proc_threadsIter(n, proc_threadsListCb, info);
 }
 
 
