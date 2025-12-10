@@ -14,7 +14,6 @@
  */
 
 #include "hal/spinlock.h"
-#include "hal/console.h"
 #include "hal/list.h"
 
 
@@ -41,12 +40,13 @@ void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 		"sd t0, (%0)\n\t"
 		"li t0, 1\n\t"
 	"1:\n\t"
-		"amoswap.w.aq t0, t0, %1\n\t"
-		"bnez t0, 1b\n\t"
-		"fence r, rw"
+		"lw t1, %1\n\t"
+        "bnez t1, 1b\n\t"
+		"amoswap.w.aq t1, t0, %1\n\t"
+		"bnez t1, 1b\n\t"
 	:
 	: "r" (sc), "A" (spinlock->lock)
-	: "t0", "memory");
+	: "t0", "t1", "memory");
 	/* clang-format on */
 }
 
@@ -55,7 +55,6 @@ void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	/* clang-format off */
 	__asm__ volatile (
-		"fence rw, w\n\t"
 		"amoswap.w.rl zero, zero, %0\n\t"
 		"ld t0, (%1)\n\t"
 		"csrw sstatus, t0"
