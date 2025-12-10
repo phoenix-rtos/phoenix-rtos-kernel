@@ -55,6 +55,16 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
+int hal_cpuLowPowerAvail(void)
+{
+#ifdef CPU_STM32
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+
 void hal_cpuGetCycles(cycles_t *cb)
 {
 	*cb = (cycles_t)hal_timerGetUs();

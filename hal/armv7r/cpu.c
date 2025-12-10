@@ -254,6 +254,12 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
+int hal_cpuLowPowerAvail(void)
+{
+	return 0;
+}
+
+
 void hal_cleanDCache(ptr_t start, size_t len)
 {
 	hal_cpuCleanDataCache(start, start + len);

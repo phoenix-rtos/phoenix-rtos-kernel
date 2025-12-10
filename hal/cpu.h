@@ -51,6 +51,9 @@ void hal_cpuEnableInterrupts(void);
 void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc);
 
 
+int hal_cpuLowPowerAvail(void);
+
+
 void hal_cpuSetDevBusy(int s);
 
 
