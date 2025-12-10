@@ -2040,16 +2040,17 @@ static void threads_idlethr(void *arg)
 		/* Scrub any potential kernel logs (wake up readers) */
 		log_scrubTry();
 
-		hal_spinlockSet(&threads_common.spinlock, &sc);
-		wakeup = _proc_nextWakeup();
+		if (hal_cpuLowPowerAvail() != 0) {
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+			wakeup = _proc_nextWakeup();
 
-		if (wakeup > (2 * SYSTICK_INTERVAL)) {
-			hal_cpuLowPower(wakeup, &threads_common.spinlock, &sc);
-		}
-		else {
+			if (wakeup > (2 * SYSTICK_INTERVAL)) {
+				hal_cpuLowPower(wakeup, &threads_common.spinlock, &sc);
+				continue;
+			}
 			hal_spinlockClear(&threads_common.spinlock, &sc);
-			hal_cpuHalt();
 		}
+		hal_cpuHalt();
 	}
 }
 
