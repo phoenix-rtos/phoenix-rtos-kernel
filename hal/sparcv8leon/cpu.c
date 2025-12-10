@@ -237,6 +237,12 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
+int hal_cpuLowPowerAvail(void)
+{
+	return 0;
+}
+
+
 unsigned int hal_cpuGetLastBit(unsigned long v)
 {
 	int lb = 31;

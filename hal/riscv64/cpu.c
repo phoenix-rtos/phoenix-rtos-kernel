@@ -311,6 +311,12 @@ void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 }
 
 
+int hal_cpuLowPowerAvail(void)
+{
+	return 0;
+}
+
+
 void hal_cpuReboot(void)
 {
 	hal_sbiReset(SBI_RESET_TYPE_COLD, SBI_RESET_REASON_NONE);
