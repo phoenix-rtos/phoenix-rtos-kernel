@@ -41,7 +41,7 @@ typedef struct _port_t {
 	msg_t *current;
 
 	/* to be merged with threads once old impl is ditched */
-	thread_t *queue;
+	prio_queue_t queue;
 } port_t;
 
 /* FIXME - use int for port handle.

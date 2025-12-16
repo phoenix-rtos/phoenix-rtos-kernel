@@ -66,6 +66,16 @@ typedef struct _sched_context_t {
 } sched_context_t;
 
 
+#define MAX_PRIO 8
+
+
+/* TODO: if not sufficient, implement some crazy heap */
+typedef struct {
+	struct _thread_t *pq[MAX_PRIO];
+	int wakeupPending;
+} prio_queue_t;
+
+
 typedef struct _thread_t {
 	struct _thread_t *msgnext;
 	struct _thread_t *msgprev;
@@ -89,6 +99,7 @@ typedef struct _thread_t {
 	struct _thread_t *blocking;
 
 	struct _thread_t **wait;
+
 	volatile time_t wakeup;
 
 	sched_context_t *sched;
@@ -208,6 +219,12 @@ extern void proc_threadWakeupYield(thread_t **queue);
 
 
 extern int proc_threadBroadcast(thread_t **queue);
+
+
+extern int proc_threadBroadcastPrio(prio_queue_t *queue);
+
+
+extern void proc_threadPrioQueueInit(prio_queue_t *queue);
 
 
 extern void proc_threadBroadcastYield(thread_t **queue);
