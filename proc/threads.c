@@ -42,7 +42,7 @@ struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	sched_context_t *ready[8];
+	sched_context_t *ready[MAX_PRIO];
 	sched_context_t **current;
 	time_t utcoffs;
 
@@ -2252,7 +2252,11 @@ __attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller
 	LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
 
 	recv->addedTo = NULL;
+
+	/* FIXME: very fragile to refer to syscalls as hardcoded IDs */
 	ctx = _threads_switchTo(recv, 0);
+
+	trace_eventSyscallExit(104, proc_getTid(recv)); /* msgRespondAndRecv */
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
@@ -2294,12 +2298,15 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 {
 	LIB_ASSERT(p != NULL, "p null??");
 
+
+	/* TODO: purely for investigation purposes, if will never happen, remove this
+	 * */
 	thread_t *thread = p->fpThreads;
 
 	if (thread != NULL) {
 		do {
 			if (thread->exit != 0) {
-				LIB_ASSERT(0, "happeeeeeeens");
+				LIB_ASSERT_ALWAYS(0, "happeeeeeeens");
 			}
 			thread = thread->tnext;
 		} while (thread != p->fpThreads);
@@ -2321,7 +2328,7 @@ static int _proc_callSlow(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 
 	while ((err = _mustSlowCall(p, caller)) != 0) {
 		log_err("sleep (%d)\n", err);
-		err = proc_threadWaitInterruptible(&p->queue, &p->spinlock, 0, sc);
+		err = proc_threadWaitInterruptible(&p->queue.pq[caller->sched->priority], &p->spinlock, 0, sc);
 		if (err < 0) {
 			hal_spinlockClear(&p->spinlock, sc);
 			port_put(p, 0);
@@ -2379,6 +2386,48 @@ int proc_call(u32 port, msg_t *msg)
 	_proc_callFast(p, caller, &sc);
 }
 
+static int _proc_threadWakeupPrio(prio_queue_t *queue)
+{
+	size_t prio;
+	for (prio = 0; prio < MAX_PRIO; prio++) {
+		if (_proc_threadWakeup(&queue->pq[prio]) != 0) {
+			return 1;
+		}
+	}
+
+	/* noone to wakeup (TODO: use this value? is it needed in prio queues?) */
+	queue->wakeupPending = 1;
+	return 0;
+}
+
+
+int proc_threadBroadcastPrio(prio_queue_t *queue)
+{
+	int ret = 0;
+	spinlock_ctx_t sc;
+	size_t prio;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	for (prio = 0; prio < MAX_PRIO; prio++) {
+		ret += _proc_threadBroadcast(&queue->pq[prio]);
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return ret;
+}
+
+
+/* TODO: move this queue to lib */
+void proc_threadPrioQueueInit(prio_queue_t *queue)
+{
+	size_t prio;
+	for (prio = 0; prio < MAX_PRIO; prio++) {
+		queue->pq[prio] = NULL;
+	}
+}
+
 
 int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
@@ -2432,9 +2481,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		recv->sched = NULL;
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		if (p->queue != NULL) {
-			(void)_proc_threadWakeup(&p->queue);
-		}
+		(void)_proc_threadWakeupPrio(&p->queue);
 		hal_spinlockClear(&p->spinlock, &sc);
 
 		/*
@@ -2454,10 +2501,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	/* wake next caller if exists */
-	if (p->queue != NULL) {
-		log_err("wake next (prio=%d)", p->queue->sched->priority);
-		proc_threadWakeup(&p->queue);
-	}
+	log_err("wake next (prio=%d)", p->queue->sched->priority);
+	(void)_proc_threadWakeupPrio(&p->queue);
 
 	/* TODO: handle caller faults */
 
@@ -2492,6 +2537,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	recv->addedTo = p;
 
 	ctx = _threads_switchTo(caller, 1);
+
+	trace_eventSyscallExit(103, proc_getTid(caller)); /* msgCall */
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
