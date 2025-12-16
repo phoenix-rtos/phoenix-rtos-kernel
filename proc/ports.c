@@ -120,7 +120,7 @@ void port_put(port_t *p, int destroy)
 			/* Wake receivers up */
 			proc_threadBroadcast(&p->threads);
 			// LIB_ASSERT(p->queue == NULL, "hm: port=%d tid=%d queue=0x%x\n", p->linkage.id, proc_getTid(p->queue), p->queue);
-			proc_threadBroadcast(&p->queue);
+			proc_threadBroadcastPrio(&p->queue);
 		}
 
 		hal_spinlockClear(&p->spinlock, &sc);
@@ -175,7 +175,8 @@ int proc_portCreate(u32 *id)
 	port->closed = 0;
 
 	port->fpThreads = NULL;
-	port->queue = NULL;
+	// port->queue = NULL;
+	proc_threadPrioQueueInit(&port->queue);
 
 	*id = (u32)port->linkage.id;
 	port->owner = proc;
