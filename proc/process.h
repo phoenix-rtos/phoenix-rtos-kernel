@@ -48,6 +48,7 @@ typedef struct _process_t {
 	vm_map_t *mapp;
 	vm_map_t *imapp;
 	pmap_t *pmapp;
+	const syspage_part_t *partition;
 	int exit;
 
 	unsigned int lazy : 1;

@@ -58,6 +58,6 @@ typedef struct {
 } __attribute__((packed)) hal_syspage_t;
 
 typedef struct {
-} hal_syspage_prog_t;
+} hal_syspage_part_t;
 
 #endif
