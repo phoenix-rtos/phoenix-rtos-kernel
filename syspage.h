@@ -51,6 +51,11 @@ const syspage_prog_t *syspage_progIdResolve(unsigned int id);
 const syspage_prog_t *syspage_progNameResolve(const char *name);
 
 
+/* Partition configuration */
+
+syspage_part_t *syspage_partitionList(void);
+
+
 /* General functions */
 
 void syspage_progShow(void);
