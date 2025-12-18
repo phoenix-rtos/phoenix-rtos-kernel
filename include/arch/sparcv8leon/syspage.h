@@ -23,6 +23,7 @@ typedef struct {
 
 
 typedef struct {
-} hal_syspage_prog_t;
+	int dummy;
+} hal_syspage_part_t;
 
 #endif

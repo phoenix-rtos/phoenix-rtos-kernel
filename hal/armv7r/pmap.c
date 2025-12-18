@@ -37,6 +37,7 @@ static struct {
 	spinlock_t lock;
 	int mpuEnabled;
 	unsigned int lastMPUCount[NUM_CPUS];
+	const hal_syspage_part_t *lastMPUConf[NUM_CPUS];
 } pmap_common;
 
 
@@ -108,7 +109,7 @@ static void pmap_mpu_disable(void)
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
 {
 	if (prog != NULL) {
-		pmap->hal = &prog->hal;
+		pmap->hal = prog->hal;
 	}
 	else {
 		pmap->hal = NULL;
@@ -125,7 +126,7 @@ addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
 
 void pmap_switch(pmap_t *pmap)
 {
-	const hal_syspage_prog_t *hal;
+	const hal_syspage_part_t *hal;
 	unsigned int allocCnt;
 	spinlock_ctx_t sc;
 	unsigned int i;
@@ -135,6 +136,9 @@ void pmap_switch(pmap_t *pmap)
 	}
 
 	if (pmap != NULL && pmap->hal != NULL) {
+		if (pmap->hal == pmap_common.lastMPUConf[hal_cpuGetID()]) {
+			return;
+		}
 		hal_spinlockSet(&pmap_common.lock, &sc);
 
 		hal = pmap->hal;
@@ -159,6 +163,7 @@ void pmap_switch(pmap_t *pmap)
 		pmap_mpu_enable();
 
 		pmap_common.lastMPUCount[hal_cpuGetID()] = allocCnt;
+		pmap_common.lastMPUConf[hal_cpuGetID()] = hal;
 
 		hal_spinlockClear(&pmap_common.lock, &sc);
 	}
@@ -259,6 +264,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap->hal = NULL;
 	for (i = 0; i < (unsigned int)NUM_CPUS; i++) {
 		pmap_common.lastMPUCount[i] = min(cnt, MPU_MAX_REGIONS);
+		pmap_common.lastMPUConf[i] = NULL;
 	}
 
 	if (cnt == 0U) {
