@@ -33,10 +33,10 @@ u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
 
 
 static struct {
-	unsigned int kernelCodeRegion;
 	spinlock_t lock;
 	int mpu_enabled;
 	int last_mpu_count[NUM_CPUS];
+	const hal_syspage_part_t *last_mpu_conf[NUM_CPUS];
 } pmap_common;
 
 
@@ -108,7 +108,7 @@ static void pmap_mpu_disable(void)
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
 {
 	if (prog != NULL) {
-		pmap->hal = &prog->hal;
+		pmap->hal = &prog->partition->hal;
 	}
 	else {
 		pmap->hal = NULL;
@@ -125,7 +125,7 @@ addr_t pmap_destroy(pmap_t *pmap, int *i)
 
 void pmap_switch(pmap_t *pmap)
 {
-	const hal_syspage_prog_t *hal;
+	const hal_syspage_part_t *hal;
 	unsigned int allocCnt;
 	spinlock_ctx_t sc;
 	unsigned int i;
@@ -135,6 +135,9 @@ void pmap_switch(pmap_t *pmap)
 	}
 
 	if (pmap != NULL && pmap->hal != NULL) {
+		if (pmap->hal == pmap_common.last_mpu_conf[hal_cpuGetID()]) {
+			return;
+		}
 		hal_spinlockSet(&pmap_common.lock, &sc);
 
 		hal = pmap->hal;
@@ -159,6 +162,7 @@ void pmap_switch(pmap_t *pmap)
 		pmap_mpu_enable();
 
 		pmap_common.last_mpu_count[hal_cpuGetID()] = allocCnt;
+		pmap_common.last_mpu_conf[hal_cpuGetID()] = hal;
 
 		hal_spinlockClear(&pmap_common.lock, &sc);
 	}
@@ -258,12 +262,12 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	pmap->hal = NULL;
 	for (i = 0; i < NUM_CPUS; i++) {
 		pmap_common.last_mpu_count[i] = cnt;
+		pmap_common.last_mpu_conf[i] = NULL;
 	}
 
 	if (cnt == 0U) {
 		hal_spinlockCreate(&pmap_common.lock, "pmap");
 		pmap_common.mpu_enabled = 0;
-		pmap_common.kernelCodeRegion = 0;
 		return;
 	}
 
