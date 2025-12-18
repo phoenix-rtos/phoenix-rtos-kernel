@@ -200,6 +200,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ghosts = NULL;
 	process->reaper = NULL;
 	process->refs = 1;
+	process->partition = NULL;
 
 	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
@@ -1079,6 +1080,10 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 
 	current->process->argv = spawn->argv;
 	current->process->envp = spawn->envp;
+
+	if (spawn->prog != NULL) {
+		current->process->partition = spawn->prog->partition;
+	}
 
 #ifndef NOMMU
 	vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
