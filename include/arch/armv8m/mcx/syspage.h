@@ -32,7 +32,7 @@ typedef struct {
 		unsigned int map[MPU_MAX_REGIONS]; /* ((unsigned int)-1) = map is not assigned */
 		unsigned int allocCnt;
 	} mpu;
-} hal_syspage_prog_t;
+} hal_syspage_part_t;
 
 
 typedef struct {
