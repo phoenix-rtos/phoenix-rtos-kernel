@@ -174,7 +174,7 @@ static int process_alloc(process_t *process)
 }
 
 
-int proc_start(startFn_t start, void *arg, const char *path)
+int proc_start(startFn_t start, void *arg, const char *path, syspage_part_t *partition)
 {
 	int err = EOK;
 	process_t *process;
@@ -203,6 +203,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ghosts = NULL;
 	process->reaper = NULL;
 	process->refs = 1;
+	process->partition = partition;
 
 	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
@@ -1173,6 +1174,23 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 	int pid;
 	process_spawn_t spawn;
 	spinlock_ctx_t sc;
+	syspage_part_t *part;
+	process_t *proc = proc_current()->process;
+
+	if (prog != NULL) {
+		part = prog->partition;
+	}
+	else if ((proc != NULL) && (proc->partition != NULL)) {
+		part = proc->partition;
+	}
+	else {
+		part = NULL;
+	}
+	if ((proc != NULL) &&
+			(proc->partition != NULL) &&
+			(proc->partition != part)) {
+		return -EACCES;
+	}
 
 	if (argv != NULL) {
 		argv = proc_copyargs(argv);
@@ -1203,7 +1221,7 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 
 	hal_spinlockCreate(&spawn.sl, "spawnsl");
 
-	pid = proc_start(proc_spawnThread, &spawn, path);
+	pid = proc_start(proc_spawnThread, &spawn, path, part);
 	if (pid > 0) {
 		hal_spinlockSet(&spawn.sl, &sc);
 		while (spawn.state == FORKING) {
@@ -1454,7 +1472,7 @@ int proc_vfork(void)
 	spawn->parent = current;
 	spawn->prog = NULL;
 
-	pid = proc_start(process_vforkThread, spawn, NULL);
+	pid = proc_start(process_vforkThread, spawn, NULL, (current->process != NULL) ? current->process->partition : NULL);
 	if (pid < 0) {
 		hal_spinlockDestroy(&spawn->sl);
 		vm_kfree(spawn);
