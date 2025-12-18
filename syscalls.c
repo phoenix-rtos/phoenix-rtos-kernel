@@ -27,6 +27,7 @@
 #include "include/time.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
+#include "vm/map.h"
 #include "vm/object.h"
 #include "posix/posix.h"
 #include "syspage.h"
@@ -106,8 +107,32 @@ int syscalls_sys_mmap(u8 *ustack)
 	}
 
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
-
+#ifndef NOMMU
 	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
+
+#else
+	int i;
+	if (proc->partition == NULL) {
+		(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
+	}
+	else {
+		err = 1;
+		/* TODO: option for manual map selection */
+		for (i = 0; i < proc->partition->allocMapSz; i++) {
+			if ((flags & MAP_UNCACHED) && (syspage_mapIdResolve(proc->partition->allocMaps[i])->attr & mAttrCacheable)) {
+				continue;
+			}
+			err = 0;
+			(*vaddr) = vm_mmap(vm_getSharedMap(proc->partition->allocMaps[i]), *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
+			if (*vaddr != NULL) {
+				break;
+			}
+		}
+		if (err == 1) {
+			(*vaddr) = NULL;
+		}
+	}
+#endif
 	(void)vm_objectPut(o);
 
 	if ((*vaddr) == NULL) {
@@ -121,7 +146,6 @@ int syscalls_sys_mmap(u8 *ustack)
 
 int syscalls_sys_munmap(u8 *ustack)
 {
-	process_t *proc = proc_current()->process;
 	void *vaddr;
 	size_t size;
 	int err;
@@ -130,7 +154,15 @@ int syscalls_sys_munmap(u8 *ustack)
 	GETFROMSTACK(ustack, size_t, size, 1);
 
 	size = round_page(size);
-	err = vm_munmap(proc->mapp, vaddr, size);
+#ifndef NOMMU
+	err = vm_munmap(proc_current()->process->mapp, vaddr, size);
+#else
+	const syspage_map_t *smap = syspage_mapAddrResolve((addr_t)vaddr);
+	if (smap == NULL) {
+		return -EINVAL;
+	}
+	err = vm_munmap(vm_getSharedMap(smap->id), vaddr, size);
+#endif
 	if (err < 0) {
 		return err;
 	}
@@ -140,7 +172,6 @@ int syscalls_sys_munmap(u8 *ustack)
 
 int syscalls_sys_mprotect(u8 *ustack)
 {
-	process_t *proc = proc_current()->process;
 	void *vaddr;
 	size_t len;
 	int prot, err;
@@ -149,7 +180,15 @@ int syscalls_sys_mprotect(u8 *ustack)
 	GETFROMSTACK(ustack, size_t, len, 1);
 	GETFROMSTACK(ustack, int, prot, 2);
 
-	err = vm_mprotect(proc->mapp, vaddr, len, PROT_USER | (vm_prot_t)prot);
+#ifndef NOMMU
+	err = vm_mprotect(proc_current()->process->mapp, vaddr, len, PROT_USER | (vm_prot_t)prot);
+#else
+	const syspage_map_t *smap = syspage_mapAddrResolve((addr_t)vaddr);
+	if (smap == NULL) {
+		return -EINVAL;
+	}
+	err = vm_mprotect(vm_getSharedMap(smap->id), vaddr, len, PROT_USER | (vm_prot_t)prot);
+#endif
 	if (err < 0) {
 		return err;
 	}
