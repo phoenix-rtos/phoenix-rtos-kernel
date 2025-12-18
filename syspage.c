@@ -186,6 +186,7 @@ void syspage_progShow(void)
 void syspage_init(void)
 {
 	syspage_prog_t *prog;
+	syspage_part_t *part;
 	syspage_map_t *map;
 	mapent_t *entry;
 
@@ -225,7 +226,24 @@ void syspage_init(void)
 			prog->dmaps = hal_syspageRelocate(prog->dmaps);
 			prog->imaps = hal_syspageRelocate(prog->imaps);
 			prog->argv = hal_syspageRelocate(prog->argv);
+			prog->partition = hal_syspageRelocate(prog->partition);
 			prog = prog->next;
 		} while (prog != syspage_common.syspage->progs);
+	}
+
+	/* Partition's relocation */
+	if (syspage_common.syspage->partitions != NULL) {
+		syspage_common.syspage->partitions = hal_syspageRelocate(syspage_common.syspage->partitions);
+		part = syspage_common.syspage->partitions;
+
+		do {
+			part->next = hal_syspageRelocate(part->next);
+			part->prev = hal_syspageRelocate(part->prev);
+
+			part->allocMaps = hal_syspageRelocate(part->allocMaps);
+			part->accessMaps = hal_syspageRelocate(part->accessMaps);
+			part->name = hal_syspageRelocate(part->name);
+			part = part->next;
+		} while (part != syspage_common.syspage->partitions);
 	}
 }

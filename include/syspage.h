@@ -35,11 +35,28 @@ typedef struct _mapent_t {
 } __attribute__((packed)) mapent_t;
 
 
+typedef struct _syspage_part_t {
+	struct _syspage_part_t *next, *prev;
+
+	char *name;
+
+	size_t allocMapSz;
+	unsigned char *allocMaps;
+
+	size_t accessMapSz;
+	unsigned char *accessMaps;
+
+	hal_syspage_part_t hal;
+} syspage_part_t;
+
+
 typedef struct _syspage_prog_t {
 	struct _syspage_prog_t *next, *prev;
 
 	addr_t start;
 	addr_t end;
+
+	syspage_part_t *partition;
 
 	char *argv;
 
@@ -48,9 +65,7 @@ typedef struct _syspage_prog_t {
 
 	size_t dmapSz;
 	unsigned char *dmaps;
-
-	hal_syspage_prog_t hal;
-} syspage_prog_t;
+} __attribute__((packed)) syspage_prog_t;
 
 
 typedef struct _syspage_map_t {
@@ -75,6 +90,7 @@ typedef struct {
 	addr_t pkernel; /* Physical address of kernel's beginning */
 
 	syspage_map_t *maps;   /* Maps list    */
+	syspage_part_t *partitions; /* Partitions list*/
 	syspage_prog_t *progs; /* Programs list*/
 
 	unsigned int console; /* Console ID defines in hal */
