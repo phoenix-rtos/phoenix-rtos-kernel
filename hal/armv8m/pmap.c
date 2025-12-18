@@ -54,7 +54,7 @@ static struct {
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
 {
 	if (prog != NULL) {
-		pmap->hal = &prog->hal;
+		pmap->hal = &prog->partition->hal;
 	}
 	else {
 		pmap->hal = NULL;
