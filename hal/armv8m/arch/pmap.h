@@ -55,7 +55,7 @@ typedef struct _page_t {
 typedef struct _pmap_t {
 	void *start;
 	void *end;
-	const hal_syspage_prog_t *hal;
+	const hal_syspage_part_t *hal;
 } pmap_t;
 
 #endif
