@@ -99,7 +99,7 @@ typedef struct {
 
 	syspage_map_t *maps;        /* Maps list */
 	syspage_part_t *partitions; /* Partitions list */
-	syspage_prog_t *progs; 		/* Programs list */
+	syspage_prog_t *progs; /* Programs list */
 
 	unsigned int console; /* Console ID defines in hal */
 } __attribute__((packed)) syspage_t;
