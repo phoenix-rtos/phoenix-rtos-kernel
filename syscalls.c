@@ -1833,6 +1833,23 @@ int syscalls_sys_uname(u8 *ustack)
 }
 
 
+int syscalls_setthreadname(u8 *ustack)
+{
+	char *name;
+	int tid;
+	thread_t *current = proc_current();
+
+	GETFROMSTACK(ustack, int, tid, 0);
+	GETFROMSTACK(ustack, char *, name, 1);
+
+	if (vm_mapBelongs(current->process, name, sizeof(current->name)) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_setThreadName(current, tid, name);
+}
+
+
 /*
  * Empty syscall
  */

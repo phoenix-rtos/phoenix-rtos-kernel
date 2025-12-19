@@ -817,6 +817,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
 	t->longjmpctx = NULL;
+	hal_memset(t->name, 0, sizeof(t->name));
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->kstack);
@@ -2098,7 +2099,12 @@ static inline void _proc_makeProcessName(thread_t *thread, char *name, size_t sz
 	}
 
 	hal_memset(name, 0, sz);
-	if (thread->process != NULL && thread->process->argv != NULL) {
+	if (thread->name[0] != '\0') {
+		len = min(sz, hal_strlen(thread->name) + 1);
+		hal_memcpy(name, thread->process->path, len);
+		name[len - 1] = '\0';
+	}
+	else if (thread->process != NULL && thread->process->argv != NULL) {
 		for (i = 0; thread->process->argv[i] != NULL; i++) {
 			if (left <= 0) {
 				break;
@@ -2301,6 +2307,46 @@ int proc_threadsInfo(int tid, unsigned int flags, int n, threadinfo_t *info)
 	(void)proc_lockClear(&threads_common.lock);
 
 	return i;
+}
+
+
+int proc_setThreadName(thread_t *thread, int tid, char *name)
+{
+	size_t namesz;
+	int sz = 0;
+	thread_t *desired;
+
+	(void)proc_lockSet(&threads_common.lock);
+
+	desired = lib_idtreeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.id, tid));
+	if (desired == NULL) {
+		return -ENOENT;
+	}
+
+	if (desired->process == NULL || thread->process == NULL) {
+		return -EINVAL;
+	};
+
+	if (process_getPid(desired->process) != process_getPid(thread->process)) {
+		return -EACCES;
+	}
+
+	if (name == NULL) {
+		hal_memset(thread->name, 0, sizeof(thread->name));
+	}
+	else {
+		namesz = hal_strlen(name);
+		sz = min(namesz, sizeof(thread->name));
+		hal_memcpy(thread->name, name, sz);
+		if (sz == sizeof(thread->name)) {
+			sz--;
+		}
+		thread->name[sz] = '\0';
+	}
+
+	(void)proc_lockClear(&threads_common.lock);
+
+	return EOK;
 }
 
 

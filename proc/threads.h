@@ -32,6 +32,8 @@
 #define SLEEP 1U
 #define GHOST 2U
 
+#define THREAD_NAME_LEN (16U)
+
 typedef struct _thread_t {
 	struct _thread_t *next;
 	struct _thread_t *prev;
@@ -81,6 +83,8 @@ typedef struct _thread_t {
 
 	cpu_context_t *context;
 	cpu_context_t *longjmpctx;
+
+	char name[THREAD_NAME_LEN];
 } thread_t;
 
 
@@ -163,6 +167,9 @@ int proc_threadBroadcast(thread_t **queue);
 
 
 void proc_threadBroadcastYield(thread_t **queue);
+
+
+int proc_setThreadName(thread_t *thread, int tid, char *name);
 
 
 thread_t *threads_findThread(int tid);
