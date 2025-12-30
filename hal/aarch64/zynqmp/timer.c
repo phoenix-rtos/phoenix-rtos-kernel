@@ -30,7 +30,7 @@
 struct {
 	volatile u32 *ttc;
 	intr_handler_t handler;
-	volatile time_t jiffies;
+	volatile u64 jiffies;
 
 	u32 ticksPerFreq;
 	spinlock_t sp;
@@ -70,19 +70,19 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-static time_t hal_timerCyc2us(time_t cyc)
+static time_t hal_timerCyc2us(u64 cyc)
 {
-	return (cyc * 1000LL) / (time_t)(timer_common.ticksPerFreq * hal_cpuGetCount());
+	return (cyc * 1000ULL) / (time_t)(timer_common.ticksPerFreq * hal_cpuGetCount());
 }
 
 
-static time_t hal_timerGetCyc(void)
+static u64 hal_timerGetCyc(void)
 {
 	spinlock_ctx_t sc;
-	time_t jiffies, cnt;
+	u64 jiffies, cnt;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	cnt = (time_t)(*(timer_common.ttc + cnt_value));
+	cnt = *(timer_common.ttc + cnt_value);
 	jiffies = timer_common.jiffies;
 
 	/* Check if there's pending jiffies increment */
@@ -93,7 +93,7 @@ static time_t hal_timerGetCyc(void)
 		/* Timer might've just wrapped-around,
 		 * take counter value again */
 		jiffies = timer_common.jiffies;
-		cnt = (time_t)(*(timer_common.ttc + cnt_value));
+		cnt = *(timer_common.ttc + cnt_value);
 	}
 	hal_spinlockClear(&timer_common.sp, &sc);
 
@@ -103,14 +103,13 @@ static time_t hal_timerGetCyc(void)
 
 void hal_timerSetWakeup(u32 waitUs)
 {
+	/* Not implemented on this platform */
 }
 
 
 time_t hal_timerGetUs(void)
 {
-	time_t ret = hal_timerGetCyc();
-
-	return hal_timerCyc2us(ret);
+	return hal_timerCyc2us(hal_timerGetCyc());
 }
 
 
