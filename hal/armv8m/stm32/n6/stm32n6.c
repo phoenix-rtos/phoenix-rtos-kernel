@@ -35,6 +35,10 @@
 #define USE_HSE_CLOCK_SOURCE 1
 #endif
 
+#ifndef NPU
+#define NPU 0
+#endif
+
 
 #define GPIOA_BASE ((void *)0x56020000)
 #define GPIOB_BASE ((void *)0x56020400)
@@ -899,6 +903,11 @@ void _stm32_init(void)
 	for (i = 0; i < sizeof(gpioDevs) / sizeof(gpioDevs[0]); ++i) {
 		_stm32_rccSetDevClock(gpioDevs[i], 1, 1);
 	}
+
+#if NPU
+	/* Enable NPU clock */
+	_stm32_rccSetDevClock(pctl_npu, 1, 1);
+#endif
 
 	_stm32_rccSetDevClock(pctl_risaf, 1, 1);
 	_stm32_risaf_init();
