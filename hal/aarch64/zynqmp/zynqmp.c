@@ -16,18 +16,19 @@
 #include "hal/cpu.h"
 #include "hal/hal.h"
 #include "hal/aarch64/aarch64.h"
-#include "hal/aarch64/interrupts_gicv2.h"
 #include "hal/spinlock.h"
-#include "include/arch/aarch64/zynqmp/zynqmp.h"
+#include "zynqmp.h"
 
+#include "hal/platform/zynq/timer_ttc_impl.h"
 #include "hal/aarch64/halsyspage.h"
 #include "hal/aarch64/arch/pmap.h"
 #include "zynqmp_regs.h"
 
-#define IOU_SLCR_BASE_ADDRESS 0xff180000
-#define APU_BASE_ADDRESS      0xfd5c0000
-#define CRF_APB_BASE_ADDRESS  0xfd1a0000
-#define CRL_APB_BASE_ADDRESS  0xff5e0000
+#define TTC0_BASE_ADDR        0xff110000UL
+#define IOU_SLCR_BASE_ADDRESS 0xff180000UL
+#define APU_BASE_ADDRESS      0xfd5c0000UL
+#define CRF_APB_BASE_ADDRESS  0xfd1a0000UL
+#define CRL_APB_BASE_ADDRESS  0xff5e0000UL
 
 
 /* PLO entrypoint */
@@ -386,6 +387,18 @@ __attribute__((noreturn)) static void zynqmp_softRst(void)
 	/* Equivalent to PS_SRST_B signal */
 	*(zynq_common.crl_apb + crl_apb_reset_ctrl) |= (1 << 4);
 	__builtin_unreachable();
+}
+
+
+volatile u32 *_zynq_ttc_getAddress(void)
+{
+	return _pmap_halMapDevice(TTC0_BASE_ADDR, 0, SIZE_PAGE);
+}
+
+
+void _zynq_ttc_performReset(void)
+{
+	(void)_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
 }
 
 

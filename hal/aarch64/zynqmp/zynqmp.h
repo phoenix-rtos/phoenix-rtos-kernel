@@ -17,7 +17,9 @@
 #define _PH_HAL_ZYNQ_H_
 
 #include "hal/cpu.h"
+#include "hal/aarch64/aarch64.h"
 #include "include/arch/aarch64/zynqmp/zynqmp.h"
+#include "hal/aarch64/interrupts_gicv2.h"
 
 
 int _zynqmp_setMIO(unsigned int pin, u8 l0, u8 l1, u8 l2, u8 l3, u8 config);

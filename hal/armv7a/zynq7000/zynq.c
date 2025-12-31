@@ -18,6 +18,7 @@
 #include "hal/armv7a/armv7a.h"
 #include "hal/spinlock.h"
 #include "include/arch/armv7a/zynq7000/zynq7000.h"
+#include "hal/platform/zynq/timer_ttc_impl.h"
 
 
 /* clang-format off */
@@ -688,6 +689,18 @@ static void _zynq_activateL2Cache(void)
 	_zynq_slcrLock();
 	hal_cpuDataMemoryBarrier();
 	*(zynq_common.l2cc + l2cc_ctrl) |= 1; /* Enable L2 cache */
+}
+
+
+volatile u32 *_zynq_ttc_getAddress(void)
+{
+	return (void *)(((u32)&_end + 10 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+}
+
+
+void _zynq_ttc_performReset(void)
+{
+	/* On this platform no reset is necessary */
 }
 
 

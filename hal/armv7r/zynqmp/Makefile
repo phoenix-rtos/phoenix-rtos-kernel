@@ -4,4 +4,5 @@
 # Copyright 2025 Phoenix Systems
 #
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv7r/zynqmp/, _init.o console.o interrupts.o zynqmp.o timer.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv7r/zynqmp/, _init.o console.o interrupts.o zynqmp.o)
+OBJS += $(addprefix $(PREFIX_O)hal/platform/zynq/, timer_ttc.o)

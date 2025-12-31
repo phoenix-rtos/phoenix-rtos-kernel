@@ -20,9 +20,11 @@
 #include "include/arch/armv7r/zynqmp/zynqmp.h"
 #include "zynqmp.h"
 
+#include "hal/platform/zynq/timer_ttc_impl.h"
 #include "hal/armv7r/halsyspage.h"
 #include "zynqmp_regs.h"
 
+#define TTC0_BASE_ADDR        0xff110000U
 #define IOU_SLCR_BASE_ADDRESS 0xff180000U
 #define APU_BASE_ADDRESS      0xfd5c0000U
 #define CRF_APB_BASE_ADDRESS  0xfd1a0000U
@@ -360,6 +362,18 @@ __attribute__((noreturn)) static void zynqmp_softRst(void)
 __attribute__((noreturn)) void hal_cpuReboot(void)
 {
 	zynqmp_softRst();
+}
+
+
+volatile u32 *_zynq_ttc_getAddress(void)
+{
+	return (void *)TTC0_BASE_ADDR;
+}
+
+
+void _zynq_ttc_performReset(void)
+{
+	(void)_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
 }
 
 

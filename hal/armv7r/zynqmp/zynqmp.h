@@ -17,6 +17,7 @@
 #define _PH_HAL_ZYNQ_H_
 
 #include "hal/cpu.h"
+#include "hal/armv7r/armv7r.h"
 #include "include/arch/armv7r/zynqmp/zynqmp.h"
 
 

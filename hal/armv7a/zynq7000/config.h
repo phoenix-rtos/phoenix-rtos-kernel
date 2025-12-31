@@ -23,6 +23,9 @@
 #define ADDR_OCRAM_HIGH 0xffff0000
 #define SIZE_OCRAM_HIGH 64 * 1024
 
+#define TIMER_SRC_CLK_CPU_1x 111111115 /* Hz */
+#define TIMER_IRQ_ID         42U
+
 /* TODO: temp solution, defines describe specific platform */
 #define ADDR_DDR 0x00100000
 #define SIZE_DDR 0x7ffffff

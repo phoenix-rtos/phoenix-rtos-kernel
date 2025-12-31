@@ -20,6 +20,9 @@
 #define NUM_CPUS        1
 #define SIZE_INTERRUPTS 188U
 
+#define TIMER_SRC_CLK_CPU_1x 99990000U /* Hz */
+#define TIMER_IRQ_ID         68U
+
 #ifndef __ASSEMBLY__
 
 #define HAL_NAME_PLATFORM "Xilinx Zynq Ultrascale+ "
