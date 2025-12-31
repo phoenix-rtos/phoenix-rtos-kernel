@@ -25,7 +25,9 @@ MAKEFLAGS += --no-print-directory
 
 include ../phoenix-rtos-build/Makefile.common
 
-CFLAGS += -I. -ffreestanding
+LDGEN ?= $(CC)
+
+CFLAGS += -I. -ffreestanding -DVADDR_KERNEL_INIT=$(VADDR_KERNEL_INIT)
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DRELEASE=\"$(RELEASE)\" -DTARGET_FAMILY=\"$(TARGET_FAMILY)\"
 
 # uncomment to enable stack canary checking
@@ -64,21 +66,31 @@ DEPS := $(patsubst %.o, %.c.d, $(OBJS))
 -include $(DEPS)
 
 
-# By default ld adds program headers to first LOAD segment.
-# However, in kernel headers are not used and it is expected that kernel address space starts at _start.
-# This target creates linker script that do not add program headers into the first loadable segment.
+# By default, program headers are included by the linker in the first PT_LOAD segment of the program.
+# However, in the kernel, headers are not used, and it is expected that the kernel address space starts at _start.
+# This target creates a linker script that prevents program headers from being loaded into RAM.
 # 1) Get internal linker script with prefix and suffix containing noise.
 # 2) Match only internal linker script which is between two lines of =
 # 3) Remove those lines
-# 4) Remove "+ SIZEOF_HEADERS", which causes inclusion of program headers.
-$(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt:
-	$(SIL)$(LD) $(LDFLAGS_PREFIX)--verbose 2>/dev/null | sed -n '/^==*$$/,/^==*$$/p' | sed '1,1d; $$d' | sed s/"\s*+\s*SIZEOF_HEADERS"// > "$@"
+# 4) Allow .init section to overwrite program headers
 
 
 $(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS) $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt
 	@mkdir -p $(@D)
 	@(printf "LD  %-24s\n" "$(@F)");
-	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -T $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt
+	$(SIL)$(LD) $(CFLAGS) $(LDFLAGS) -nostdlib -e _start -Wl,--section-start,.init=$(VADDR_KERNEL_INIT) -o $@ $(OBJS) -lgcc -Wl,--defsym=VADDR_KERNEL_INIT=$(VADDR_KERNEL_INIT) -T $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt
+	$(info CFLAGS at linking := $(CFLAGS))
+	$(info LDFLAGS at linking := $(LDFLAGS))
+	$(info VADDR_KERNEL = $(VADDR_KERNEL_INIT))
+
+$(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt:
+ifeq ($(findstring arm,$(TARGET_FAMILY)),arm)
+	@echo "GEN $(@F)"
+	$(SIL)$(LDGEN) $(LDSFLAGS) -MF $@.d -MMD -D__LINKER__ -undef -xc -E -P ld/$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt > $@
+	$(SIL)$(SED) -i.tmp -e 's`.*\.o[ \t]*:`$@:`' $@.d && rm $@.d.tmp
+else
+	$(SIL)$(LD) $(LDFLAGS_PREFIX)--verbose 2>/dev/null | sed -n '/^==*$$/,/^==*$$/p' | sed '1,1d; $$d' | sed s/"\s*+\s*SIZEOF_HEADERS"// > "$@"
+endif
 
 install-headers: $(EXTERNAL_HEADERS)
 	@printf "Installing kernel headers\n"
