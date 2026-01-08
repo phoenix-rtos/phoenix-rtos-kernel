@@ -510,4 +510,22 @@ enum {
 	dbgmcu_dbg_auth_ack,
 };
 
+enum cacheaxi_regs {
+	cacheaxi_cr1 = 0x0U,
+	cacheaxi_sr,
+	cacheaxi_ier,
+	cacheaxi_fcr,
+	cacheaxi_rhmonr,
+	cacheaxi_rmmonr,
+	cacheaxi_rammonr,
+	cacheaxi_evimonr,
+	cacheaxi_whmonr,
+	cacheaxi_wmmonr,
+	cacheaxi_wammonr,
+	cacheaxi_wtmonr,
+	cacheaxi_cr2 = 0x40U,
+	cacheaxi_cmdrsaddrr,
+	cacheaxi_cmdreaddrr,
+};
+
 #endif /* _PH_STM32N6_REGS_H_ */
