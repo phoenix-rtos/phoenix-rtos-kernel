@@ -57,16 +57,17 @@
 #define GPIOP_BASE ((void *)0x56023c00)
 #define GPIOQ_BASE ((void *)0x56024000)
 
-#define IWDG_BASE   ((void *)0x56004800)
-#define PWR_BASE    ((void *)0x56024800)
-#define RCC_BASE    ((void *)0x56028000)
-#define RTC_BASE    ((void *)0x56004000)
-#define SYSCFG_BASE ((void *)0x56008000)
-#define EXTI_BASE   ((void *)0x56025000)
-#define RIFSC_BASE  ((void *)0x54024000)
-#define GPDMA1_BASE ((void *)0x50021000)
-#define HPDMA1_BASE ((void *)0x58020000)
-#define DBGMCU_BASE ((void *)0x54001000)
+#define IWDG_BASE     ((void *)0x56004800)
+#define PWR_BASE      ((void *)0x56024800)
+#define RCC_BASE      ((void *)0x56028000)
+#define RTC_BASE      ((void *)0x56004000)
+#define SYSCFG_BASE   ((void *)0x56008000)
+#define EXTI_BASE     ((void *)0x56025000)
+#define RIFSC_BASE    ((void *)0x54024000)
+#define GPDMA1_BASE   ((void *)0x50021000)
+#define HPDMA1_BASE   ((void *)0x58020000)
+#define DBGMCU_BASE   ((void *)0x54001000)
+#define CACHEAXI_BASE ((void *)0x580dfc00)
 
 #define EXTI_LINES   78
 #define DMA_CHANNELS 16
@@ -81,6 +82,7 @@ static struct {
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
 	volatile u32 *rifsc;
+	volatile u32 *cacheaxiconf;
 
 	u32 cpuclk;
 	u32 perclk;
@@ -212,6 +214,26 @@ int hal_platformctl(void *ptr)
 			if (data->action == pctl_set) {
 				_hal_scsDCacheInvalAddr(data->opDCache.addr, data->opDCache.sz);
 				ret = EOK;
+			}
+			break;
+		case pctl_cleanInvalAXICache:
+		case pctl_cleanAXICache:
+		case pctl_invalAXICache:
+			if (data->action == pctl_set) {
+				ret = _stm32_AXICacheCmd(data->opAXICache.addr, data->opAXICache.sz, data->type);
+			}
+			break;
+		case pctl_enableAXICache:
+			if (data->action == pctl_set) {
+				ret = _stm32_setAXICacheEnable(data->opEnable.enable);
+			}
+			else if (data->action == pctl_get) {
+				data->opEnable.enable = 0;
+				ret = _stm32_getAXICacheEnable();
+				if (ret >= 0) {
+					data->opEnable.enable = ret;
+					ret = EOK;
+				}
 			}
 			break;
 	}
@@ -355,6 +377,126 @@ int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr)
 
 	*(base + gpdma_cxlbar + (0x20 * channel)) = addr & 0xffff0000;
 	return EOK;
+}
+
+/* AXI Cache clean, invalidate and enable */
+int _stm32_AXICacheCmd(void *addr, unsigned int sz, __typeof__(((platformctl_t *)0)->type) cmdtype)
+{
+	int ret;
+	u32 cmdreg = 0;
+	u32 addrVal = ((u32)addr) & 0xffffffc0;
+
+	ret = _stm32_getAXICacheEnable();
+	if (ret == 0) {
+		return -ENODEV;
+	}
+	else if (ret < 0) {
+		return ret;
+	}
+
+	if ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1) == 1) {
+		return -EBUSY;
+	}
+
+	*(stm32_common.cacheaxiconf + cacheaxi_fcr) |= 0x12;
+	*(stm32_common.cacheaxiconf + cacheaxi_cr2) &= ~6;
+
+	switch (cmdtype) {
+		case pctl_invalAXICache:
+			*(stm32_common.cacheaxiconf + cacheaxi_cr1) |= 2;
+			break;
+		case pctl_cleanInvalAXICache:
+			cmdreg = 4;
+			/* passthrough */
+		case pctl_cleanAXICache:
+			cmdreg |= 2;
+
+			*(stm32_common.cacheaxiconf + cacheaxi_cmdrsaddrr) |= addrVal;
+			*(stm32_common.cacheaxiconf + cacheaxi_cmdreaddrr) |= (addrVal + sz - 1) & 0xffffffc0;
+			*(stm32_common.cacheaxiconf + cacheaxi_cr2) |= (cmdreg & 6);
+
+			*(stm32_common.cacheaxiconf + cacheaxi_ier) &= ~5;
+
+			*(stm32_common.cacheaxiconf + cacheaxi_cr2) |= 1;
+			break;
+
+		default:
+			return -EINVAL;
+			break;
+	}
+
+	time_t timeStart = hal_timerGetUs();
+	time_t timeNow = timeStart;
+	while ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1) == 1) {
+		timeNow = hal_timerGetUs();
+		if ((timeNow - timeStart) > 400) {
+			return -EBUSY;
+		}
+	}
+
+	return EOK;
+}
+
+int _stm32_setAXICacheEnable(unsigned int enable)
+{
+	int ret;
+
+	ret = _stm32_getAXICacheEnable();
+	if (ret < 0) {
+		return ret;
+	}
+
+	*(stm32_common.rcc + rcc_ahb5rstsr) |= (1 << 30);
+	*(stm32_common.rcc + rcc_ahb5rstcr) |= (1 << 30);
+
+	time_t timeStart = hal_timerGetUs();
+	time_t timeNow = timeStart;
+	while ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1) == 1) {
+		timeNow = hal_timerGetUs();
+		if ((timeNow - timeStart) > 100) {
+			return -EBUSY;
+		}
+	}
+
+	if (enable) {
+		*(stm32_common.cacheaxiconf + cacheaxi_cr1) |= 1;
+	}
+	else {
+		*(stm32_common.cacheaxiconf + cacheaxi_cr1) &= ~1;
+	}
+
+	if ((*(stm32_common.cacheaxiconf + cacheaxi_cr1) & 1) == (!enable)) {
+		return -EPERM;
+	}
+
+	return EOK;
+}
+
+int _stm32_getAXICacheEnable(void)
+{
+	// Check that clocks are enables and cacheaxi_cr & 1 = 1 pctl_npucache
+	u32 status, lpStatus;
+	int ret;
+
+	ret = _stm32_rccGetDevClock(pctl_npucache, &status, &lpStatus);
+	if (ret < 0) {
+		return -EINVAL;
+	}
+	else if (status == 0) {
+		return -ENODEV;
+	}
+
+	ret = _stm32_rccGetDevClock(pctl_npucacheram, &status, &lpStatus);
+	if (ret < 0) {
+		return -EINVAL;
+	}
+	else if (status == 0) {
+		return -ENODEV;
+	}
+
+	ret = *(stm32_common.cacheaxiconf + cacheaxi_cr1) & 1;
+
+	return ret;
 }
 
 
@@ -861,6 +1003,7 @@ void _stm32_init(void)
 	stm32_common.exti = EXTI_BASE;
 	stm32_common.syscfg = SYSCFG_BASE;
 	stm32_common.rifsc = RIFSC_BASE;
+	stm32_common.cacheaxiconf = CACHEAXI_BASE;
 	stm32_common.gpio[0] = GPIOA_BASE;
 	stm32_common.gpio[1] = GPIOB_BASE;
 	stm32_common.gpio[2] = GPIOC_BASE;
@@ -914,12 +1057,8 @@ void _stm32_init(void)
 #endif
 
 #if NPU_CACHEAXI
-#error "CACHE AXI not yet supported"
 	_stm32_rccSetDevClock(pctl_npucacheram, 1, 1);
 	_stm32_rccSetDevClock(pctl_npucache, 1, 1);
-	*(stm32_common.rcc + rcc_ahb5rstsr) |= (1 << 30);
-	*(stm32_common.rcc + rcc_ahb5rstcr) |= (1 << 30);
-	*(stm32_common.rcc + 0x82DF00) |= 1;
 #endif
 
 	_stm32_rccSetDevClock(pctl_risaf, 1, 1);

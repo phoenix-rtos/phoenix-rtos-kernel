@@ -163,6 +163,11 @@ int _stm32_dmaSetPermissions(int dev, unsigned int channel, int secure, int priv
 
 int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr);
 
+int _stm32_AXICacheCmd(void *addr, unsigned int sz, __typeof__(((platformctl_t *)0)->type) cmdtype);
+
+int _stm32_setAXICacheEnable(unsigned int enable);
+
+int _stm32_getAXICacheEnable(void);
 
 int _stm32_risaf_configRegion(unsigned int risaf, u8 region, u32 start, u32 end, u8 privCIDMask, u8 readCIDMask, u8 writeCIDMask, int secure, int enable);
 
