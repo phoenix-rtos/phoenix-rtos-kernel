@@ -571,6 +571,10 @@ typedef struct {
 		pctl_cleanInvalDCache,
 		pctl_cleanDCache,
 		pctl_invalDCache,
+		pctl_cleanInvalAXICache,
+		pctl_cleanAXICache,
+		pctl_invalAXICache,
+		pctl_enableAXICache,
 		pctl_dmaLinkBaseAddr,
 	} type;
 
@@ -630,6 +634,13 @@ typedef struct {
 			void *addr;
 			unsigned int sz;
 		} opDCache;
+		struct {
+			void *addr;
+			unsigned int sz;
+		} opAXICache;
+		struct {
+			unsigned int enable;
+		} opEnable;
 	};
 } __attribute__((packed)) platformctl_t;
 
