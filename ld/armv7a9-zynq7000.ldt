@@ -1,0 +1,45 @@
+#ifndef ARMV7A9_ZYNQ7000_LDT
+#define ARMV7A9_ZYNQ7000_LDT
+
+
+/* Platform specific definitions */
+
+
+#define SIZE_PAGE  0x1000
+#define SIZE_STACK (4 * SIZE_PAGE)
+#define SIZE_HEAP  (5 * SIZE_PAGE)
+
+#define ADDR_OCRAM_LOW  0x00000000
+#define SIZE_OCRAM_LOW  (192 * 1024)
+
+#define ADDR_OCRAM_HIGH 0xffff0000
+#define SIZE_OCRAM_HIGH (64 * 1024)
+
+#define ADDR_DDR 0x00100000
+#define SIZE_DDR (512 * 1024 * 1024)
+
+#if defined(__LINKER__)
+
+/* Memory map setup 
+
+   Kernel address space is moved by the offset VADDR_KERNEL_INIT, so we must
+   adjust memory regions accordingly, since output sections are mapped to virtual addresses.
+*/
+MEMORY
+{
+	m_ocram_low    (rwx) : ORIGIN = ADDR_OCRAM_LOW + VADDR_KERNEL_INIT, LENGTH = SIZE_OCRAM_LOW 
+	m_ocram_high   (rwx) : ORIGIN = ADDR_OCRAM_HIGH + VADDR_KERNEL_INIT, LENGTH = SIZE_OCRAM_HIGH
+	m_ddr          (rw)  : ORIGIN = ADDR_DDR + VADDR_KERNEL_INIT, LENGTH = SIZE_DDR
+}
+
+REGION_ALIAS("KERNEL_IMAGE", m_ocram_low)
+REGION_ALIAS("DATA", m_ocram_low)
+REGION_ALIAS("BSS", m_ocram_low);
+REGION_ALIAS("SYSPAGE", m_ocram_low);
+
+#include "common/kernel-arm.lds"
+
+#endif /* end of __LINKER__ */
+
+
+#endif /* end of ARMV7A9_ZYNQ7000_LDT */
