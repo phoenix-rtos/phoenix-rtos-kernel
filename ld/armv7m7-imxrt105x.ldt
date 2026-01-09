@@ -1,0 +1,53 @@
+#ifndef ARMV7M7_IMXRT105X_LDT
+#define ARMV7M7_IMXRT105X_LDT
+
+
+/* Platform specific definitions */
+#define SIZE_PAGE  0x200
+#define SIZE_STACK (4 * SIZE_PAGE)
+#define SIZE_HEAP  (8 * SIZE_PAGE)
+
+#define AREA_KERNEL 0x2000
+
+
+#if defined(__LINKER__)
+
+/* FlexRAM configuration */
+#if defined(CUSTOM_FLEXRAM_CONFIG)
+FLEXRAM_CONFIG = CUSTOM_FLEXRAM_CONFIG;
+FLEXRAM_ITCM_BANKS = CUSTOM_FLEXRAM_ITCM_BANKS;
+FLEXRAM_DTCM_BANKS = CUSTOM_FLEXRAM_DTCM_BANKS;
+#else
+FLEXRAM_CONFIG = 0xaaaabff5;
+FLEXRAM_ITCM_BANKS = 5;
+FLEXRAM_DTCM_BANKS = 9;
+FLEXRAM_OCRAM_BANKS = 2;
+#endif
+
+FLEXRAM_ITCM_AREA = FLEXRAM_ITCM_BANKS * 32k;
+FLEXRAM_ITEXT_AREA = 14 * SIZE_PAGE;
+FLEXRAM_ITEXT_ADDR = FLEXRAM_ITCM_AREA - FLEXRAM_ITEXT_AREA;
+FLEXRAM_DTCM_AREA = FLEXRAM_DTCM_BANKS * 32k;
+FLEXRAM_OCRAM_AREA = FLEXRAM_OCRAM_BANKS * 32k;
+
+/* Memory map setup */
+MEMORY
+{
+	m_itcm    (rwx) : ORIGIN = 0x00000000, LENGTH = FLEXRAM_ITCM_AREA
+	m_dtcm    (rw)  : ORIGIN = 0x20000000, LENGTH = AREA_KERNEL
+	m_ocram   (rwx) : ORIGIN = 0x20200000, LENGTH = FLEXRAM_OCRAM_AREA
+	m_flash   (rx)  : ORIGIN = 0x60000000, LENGTH = 128k /* Not actual flash size. Initial flash size to be put into FCB block for imxrt BootROM init procedure only */
+}
+
+REGION_ALIAS("KERNEL_IMAGE", m_itcm)
+REGION_ALIAS("DATA", m_dtcm)
+REGION_ALIAS("BSS", m_dtcm);
+REGION_ALIAS("SYSPAGE", m_dtcm);
+
+
+#include "common/kernel-arm.lds"
+
+#endif /* end of __LINKER__ */
+
+
+#endif /* end of ARMV7M7_IMXRT105X_LDT */
