@@ -58,9 +58,6 @@ typedef struct _sched_context_t {
 	time_t cpuTime;
 	time_t lastTime;
 
-	unsigned priorityBase : 4;
-	unsigned priority : 4;
-
 	/* TODO: mostly for debug, but may be useful for accounting in the future */
 	struct _thread_t *owner;
 } sched_context_t;
@@ -103,6 +100,8 @@ typedef struct _thread_t {
 	volatile time_t wakeup;
 
 	sched_context_t *sched;
+	unsigned priorityBase : 4;
+	unsigned priority : 4;
 	unsigned state : 4;
 	unsigned interruptible : 1;
 	unsigned exit : 2;
