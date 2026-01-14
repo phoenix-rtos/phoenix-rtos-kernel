@@ -25,6 +25,7 @@
 #include "msg.h"
 #include "ports.h"
 #include "perf/trace-events.h"
+#include "perf/trace-ipc.h"
 
 #include "syscalls.h"
 
@@ -593,12 +594,13 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	sched_context_t *sched;
 	unsigned int i;
 	int cpuId = hal_cpuGetID();
+	u32 tsc;
 
 	(void)arg;
 	(void)n;
 	hal_lockScheduler();
 
-	trace_eventSchedEnter(cpuId);
+	tsc = trace_eventSchedEnter(cpuId);
 
 	current = _proc_current();
 	threads_common.current[cpuId] = NULL;
@@ -658,7 +660,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	/* Update CPU usage */
 	_threads_cpuTimeCalc(current, selected);
 
-	trace_eventSchedExit(cpuId);
+	trace_eventSchedExit(cpuId, tsc);
 
 	return EOK;
 }
@@ -2281,22 +2283,33 @@ int proc_call(u32 port, msg_t *msg)
 	spinlock_ctx_t sc;
 	int err;
 
-	trace_eventIPCEnter();
+#if PERF_IPC
+	u64 tscs[TSCS_SIZE] = { 0 };
+	u64 currTsc;
+	u16 tid = proc_getTid(proc_current());
+	size_t step = 0;
+#endif
 
 	if (msg == NULL) {
 		return -EINVAL;
 	}
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	caller = proc_current();
 
 	if (caller->utcb.kw == NULL) {
 		return -EINVAL;
 	}
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
@@ -2306,6 +2319,8 @@ int proc_call(u32 port, msg_t *msg)
 		LIB_ASSERT(0, "happens here");
 		return -EINVAL;
 	}
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	while ((err = _mustSlowCall(p, caller)) != 0) {
 		log_err("sleep (%d)\n", err);
@@ -2325,11 +2340,15 @@ int proc_call(u32 port, msg_t *msg)
 	cpu_context_t *ctx;
 	spinlock_ctx_t tsc;
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	/*
 	 * NOTE: assumes port spinlock is set so that this spinlockSet is nested and tsc
 	 * context has interrupts disabled
 	 */
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	thread_t *recv = p->fpThreads;
 
@@ -2341,17 +2360,27 @@ int proc_call(u32 port, msg_t *msg)
 	LIB_ASSERT(recv->utcb.kw != NULL, "what?? port=%d caller tid=%d recv tid=%d refs: %d",
 			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	recv->utcb.kw->size = min(caller->utcb.kw->size, sizeof(recv->utcb.kw->raw));
 	hal_memcpy(recv->utcb.kw->raw, caller->utcb.kw->raw, recv->utcb.kw->size);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
 
 	recv->addedTo = NULL;
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	/* FIXME: very fragile to refer to syscalls as hardcoded IDs */
 	ctx = _threads_switchTo(recv, 0);
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	trace_eventSyscallExit(104, proc_getTid(recv)); /* msgRespondAndRecv */
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
@@ -2361,7 +2390,11 @@ int proc_call(u32 port, msg_t *msg)
 	 */
 	hal_spinlockClear(&p->spinlock, &tsc);
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	port_put(p, 0);
+
+	TRACE_IPC_PROFILE_EXIT_FUNC(tid, trace_ipc_profile_call, &step, &currTsc, tscs);
 
 	hal_endSyscall(ctx, &sc);
 
@@ -2531,8 +2564,6 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	hal_spinlockClear(&p->spinlock, &tsc);
 
 	port_put(p, 0);
-
-	trace_eventIPCExit();
 
 	hal_endSyscall(ctx, &sc);
 

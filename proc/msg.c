@@ -17,7 +17,7 @@
 #include "lib/lib.h"
 #include "proc.h"
 
-#include "perf/trace-events.h"
+#include "perf/trace-ipc.h"
 #include "syscalls.h"
 
 
@@ -349,17 +349,30 @@ int proc_send(u32 port, msg_t *msg)
 	thread_t *sender;
 	spinlock_ctx_t sc;
 
+#if PERF_IPC
+	u64 tscs[TSCS_SIZE] = { 0 };
+	u64 currTsc;
+	u16 tid = proc_getTid(proc_current());
+	size_t step = 0;
+#endif
+
 	/* TODO - check if msg pointer belongs to user vm_map */
 	if (msg == NULL) {
 		return -EINVAL;
 	}
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	sender = proc_current();
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
 	kmsg.src = sender->process;
@@ -369,9 +382,15 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.msg.pid = (sender->process != NULL) ? process_getPid(sender->process) : 0;
 	kmsg.msg.priority = sender->priority;
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	msg_ipack(&kmsg);
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	hal_spinlockSet(&p->spinlock, &sc);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	if (p->closed != 0) {
 		err = -EINVAL;
@@ -379,6 +398,8 @@ int proc_send(u32 port, msg_t *msg)
 	else {
 		LIST_ADD(&p->kmessages, &kmsg);
 		proc_threadWakeup(&p->threads);
+
+		TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 		while ((kmsg.state != msg_responded) && (kmsg.state != msg_rejected)) {
 
@@ -389,6 +410,8 @@ int proc_send(u32 port, msg_t *msg)
 				break;
 			}
 		}
+
+		TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 		switch (kmsg.state) {
 			case msg_responded:
@@ -405,15 +428,21 @@ int proc_send(u32 port, msg_t *msg)
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	if (err == EOK) {
 		hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
 		msg->o.err = kmsg.msg.o.err;
+
+		TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 		/* If msg.o.data has been packed to msg.o.raw */
 		if ((kmsg.msg.o.data >= (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw))) {
 			hal_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
 		}
 	}
+
+	TRACE_IPC_PROFILE_EXIT_FUNC(tid, trace_ipc_profile_send, &step, &currTsc, tscs);
 
 	return err;
 }
@@ -435,6 +464,13 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	int ipacked = 0, opacked = 0, err = EOK;
 	spinlock_ctx_t sc;
 
+#if PERF_IPC
+	u64 tscs[TSCS_SIZE] = { 0 };
+	u64 currTsc;
+	u16 tid = proc_getTid(proc_current());
+	size_t step = 0;
+#endif
+
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
@@ -447,6 +483,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	kmsg = p->kmessages;
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	if (p->closed) {
 		/* Port is being removed */
@@ -465,6 +503,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		}
 	}
 	hal_spinlockClear(&p->spinlock, &sc);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	if (err != EOK) {
 		port_put(p, 0);
@@ -491,16 +531,22 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		ipacked = 1;
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
 	if (ipacked == 0) {
 		kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	opacked = msg_opack(kmsg);
 	if (opacked == 0) {
 		kmsg->msg.o.data = msg_map(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);
 	}
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	if (((kmsg->msg.i.size != 0) && (kmsg->msg.i.data == NULL)) ||
 			((kmsg->msg.o.size != 0) && (kmsg->msg.o.data == NULL)) ||
@@ -517,7 +563,11 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		return -ENOMEM;
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	*rid = lib_idtreeId(&kmsg->idlinkage);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	hal_memcpy(msg, &kmsg->msg, sizeof(*msg));
 
@@ -529,7 +579,11 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	port_put(p, 0);
+
+	TRACE_IPC_PROFILE_EXIT_FUNC(tid, trace_ipc_profile_recv, &step, &currTsc, tscs);
 
 	return EOK;
 }
@@ -542,16 +596,29 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
 
+#if PERF_IPC
+	u64 tscs[TSCS_SIZE] = { 0 };
+	u64 currTsc;
+	u16 tid = proc_getTid(proc_current());
+	size_t step = 0;
+#endif
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
 	}
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	kmsg = proc_portRidGet(p, rid);
 	if (kmsg == NULL) {
 		port_put(p, 0);
 		return -ENOENT;
 	}
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	/* Copy shadow pages */
 	if (kmsg->i.bp != NULL) {
@@ -570,19 +637,32 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, kmsg->o.eoffs);
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	msg_release(kmsg);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
 	kmsg->msg.o.err = msg->o.err;
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
 	kmsg->src = proc_current()->process;
 	proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	hal_cpuReschedule(NULL, NULL);
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	port_put(p, 0);
+
+	TRACE_IPC_PROFILE_EXIT_FUNC(tid, trace_ipc_profile_respond, &step, &currTsc, tscs);
 
 	return s;
 }
