@@ -367,7 +367,7 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.state = msg_waiting;
 
 	kmsg.msg.pid = (sender->process != NULL) ? process_getPid(sender->process) : 0;
-	kmsg.msg.priority = sender->sched->priority;
+	kmsg.msg.priority = sender->priority;
 
 	msg_ipack(&kmsg);
 

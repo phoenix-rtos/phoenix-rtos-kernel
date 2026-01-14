@@ -513,7 +513,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 
 	LIB_ASSERT(dest->sched == NULL,
 			"dest sched not null (prio=%d, from=%d, dest=%d, reply=%d, sched owner tid=%d)",
-			sched->priority, proc_getTid(from), proc_getTid(dest), reply, proc_getTid(dest->sched->owner));
+			dest->priority, proc_getTid(from), proc_getTid(dest), reply, proc_getTid(dest->sched->owner));
 
 	from->sched = NULL;
 	if (reply != 0) {
@@ -609,7 +609,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		/* Move thread to the end of queue */
 		if (current->state == READY) {
-			LIST_ADD(&threads_common.ready[current->sched->priority], current->sched);
+			LIST_ADD(&threads_common.ready[current->priority], current->sched);
 			_threads_preempted(current);
 		}
 	}
@@ -777,6 +777,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->utcb.w = NULL;
 	t->utcb.p = NULL;
 
+	t->priorityBase = priority;
+	t->priority = priority;
 	t->sched = vm_kmalloc(sizeof(sched_context_t));
 	if (t->sched == NULL) {
 		vm_kfree(t->kstack);
@@ -785,8 +787,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	}
 	t->sched->cpuTime = 0;
 	t->sched->maxWait = 0;
-	t->sched->priorityBase = priority;
-	t->sched->priority = priority;
 	t->sched->t = t;
 	t->sched->next = NULL;
 	t->sched->prev = NULL;
@@ -861,8 +861,8 @@ static unsigned int _proc_lockGetPriority(lock_t *lock)
 
 	if (thread != NULL) {
 		do {
-			if (thread->sched->priority < priority) {
-				priority = thread->sched->priority;
+			if (thread->priority < priority) {
+				priority = thread->priority;
 			}
 			thread = thread->qnext;
 		} while (thread != lock->queue);
@@ -897,7 +897,7 @@ static unsigned int _proc_threadGetPriority(thread_t *thread)
 
 	ret = _proc_threadGetLockPriority(thread);
 
-	return (ret < thread->sched->priorityBase) ? ret : thread->sched->priorityBase;
+	return (ret < thread->priorityBase) ? ret : thread->priorityBase;
 }
 
 
@@ -906,8 +906,8 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 	unsigned int i;
 
 	/* Don't allow decreasing the priority below base level */
-	if (priority > thread->sched->priorityBase) {
-		priority = thread->sched->priorityBase;
+	if (priority > thread->priorityBase) {
+		priority = thread->priorityBase;
 	}
 
 	if (thread->state == READY) {
@@ -918,16 +918,16 @@ static void _proc_threadSetPriority(thread_t *thread, unsigned int priority)
 		}
 
 		if (i == hal_cpuGetCount()) {
-			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->sched->priority], thread->sched) != 0,
+			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread->sched) != 0,
 					"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
-					thread, proc_getTid(thread), thread->sched->priority);
-			LIST_REMOVE(&threads_common.ready[thread->sched->priority], thread->sched);
+					thread, proc_getTid(thread), thread->priority);
+			LIST_REMOVE(&threads_common.ready[thread->priority], thread->sched);
 			LIST_ADD(&threads_common.ready[priority], thread->sched);
 		}
 	}
 
-	thread->sched->priority = priority;
-	trace_eventThreadPriority(proc_getTid(thread), thread->sched->priority);
+	thread->priority = priority;
+	trace_eventThreadPriority(proc_getTid(thread), thread->priority);
 }
 
 
@@ -951,22 +951,22 @@ int proc_threadPriority(int priority)
 
 	/* NOTE: -1 is used to retrieve the current thread priority only */
 	if (priority >= 0) {
-		if (priority < current->sched->priority) {
-			current->sched->priority = priority;
+		if (priority < current->priority) {
+			current->priority = priority;
 		}
-		else if (priority > current->sched->priority) {
+		else if (priority > current->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
 			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
-				current->sched->priority = priority;
+				current->priority = priority;
 				/* Trigger immediate rescheduling if the task has lowered its priority */
 				reschedule = 1;
 			}
 		}
 
-		current->sched->priorityBase = priority;
+		current->priorityBase = priority;
 	}
 
-	ret = current->sched->priorityBase;
+	ret = current->priorityBase;
 
 	if (reschedule != 0) {
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
@@ -975,7 +975,7 @@ int proc_threadPriority(int priority)
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 
-	trace_eventThreadPriority(proc_getTid(current), current->sched->priority);
+	trace_eventThreadPriority(proc_getTid(current), current->priority);
 
 	return ret;
 }
@@ -1110,7 +1110,7 @@ static void _proc_threadDequeue(thread_t *t)
 	}
 
 	if (i == hal_cpuGetCount()) {
-		LIST_ADD(&threads_common.ready[t->sched->priority], t->sched);
+		LIST_ADD(&threads_common.ready[t->priority], t->sched);
 	}
 }
 
@@ -1692,8 +1692,8 @@ static int _proc_lockSet(lock_t *lock, int interruptible, spinlock_ctx_t *scp)
 		if (_proc_lockTry(current, lock) < 0) {
 			/* Lock owner might inherit our priority */
 
-			if (current->sched->priority < lock->owner->sched->priority) {
-				_proc_threadSetPriority(lock->owner, current->sched->priority);
+			if (current->priority < lock->owner->priority) {
+				_proc_threadSetPriority(lock->owner, current->priority);
 			}
 
 			hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1809,7 +1809,7 @@ static int _proc_lockUnlock(lock_t *lock)
 		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
 		lock->owner = lock->queue;
 		lockPriority = _proc_lockGetPriority(lock);
-		if (lockPriority < lock->owner->sched->priority) {
+		if (lockPriority < lock->owner->priority) {
 			_proc_threadSetPriority(lock->queue, lockPriority);
 		}
 		_proc_threadDequeue(lock->owner);
@@ -1823,9 +1823,9 @@ static int _proc_lockUnlock(lock_t *lock)
 	/* Restore previous owner priority */
 	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
 
-	LIB_ASSERT(current->sched->priority <= current->sched->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
-			(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->sched->priorityBase,
-			current->sched->priority);
+	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
+			(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->priorityBase,
+			current->priority);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -2071,7 +2071,7 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 		tinfo.tid = proc_getTid(t);
 		tinfo.state = t->state;
 		if (t->sched != NULL) {
-			tinfo.priority = t->sched->priorityBase;
+			tinfo.priority = t->priorityBase;
 			now = _proc_gettimeRaw();
 			if (now != t->sched->startTime) {
 				tinfo.load = (t->sched->cpuTime * 1000) / (now - t->sched->startTime);
@@ -2226,8 +2226,102 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 #define log_err(fmt, ...)
 
 
-__attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
+#if 0
+/* verbose reason */
+static inline int _mustSlowCall(port_t *p, thread_t *caller)
 {
+	if (p->threads == NULL) {
+		return 1;
+	}
+	if (p->caller != NULL) {
+		return 2;
+	}
+	if (p->threads->sched != NULL) {
+		return 3;
+	}
+	if (threads_getHighestPrio(caller->priority) != caller->priority) {
+		return 4;
+	}
+
+	return 0;
+}
+#else
+static inline int _mustSlowCall(port_t *p, thread_t *caller)
+{
+	LIB_ASSERT(p != NULL, "p null??");
+
+
+	/* TODO: purely for investigation purposes, if will never happen, remove this
+	 * */
+	thread_t *thread = p->fpThreads;
+
+	if (thread != NULL) {
+		do {
+			if (thread->exit != 0) {
+				LIB_ASSERT_ALWAYS(0, "happeeeeeeens");
+			}
+			thread = thread->tnext;
+		} while (thread != p->fpThreads);
+	}
+
+	return p->fpThreads == NULL ||
+			// p->caller != NULL ||
+			/* if recv is an active server, check priority */
+			(p->fpThreads->sched != NULL) ||
+			// (p->threads->sched != NULL && caller->priority < p->threads->priority) ||
+			threads_getHighestPrio(caller->priority) != caller->priority;
+}
+#endif
+
+
+int proc_call(u32 port, msg_t *msg)
+{
+	port_t *p;
+	thread_t *caller;
+	spinlock_ctx_t sc;
+	int err;
+
+	trace_eventIPCEnter();
+
+	if (msg == NULL) {
+		return -EINVAL;
+	}
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	caller = proc_current();
+
+	if (caller->utcb.kw == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&p->spinlock, &sc);
+
+	if (p->closed != 0) {
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		LIB_ASSERT(0, "happens here");
+		return -EINVAL;
+	}
+
+	while ((err = _mustSlowCall(p, caller)) != 0) {
+		log_err("sleep (%d)\n", err);
+		err = proc_threadWaitInterruptible(&p->queue.pq[caller->priority], &p->spinlock, 0, &sc);
+		if (err < 0) {
+			hal_spinlockClear(&p->spinlock, &sc);
+			port_put(p, 0);
+			LIB_ASSERT_ALWAYS(0, "FAIL");
+			return err;
+		}
+		/* TODO: abort on server fault/port closure */
+	}
+
+	/* commit to fastpath - point of no return */
+
+	// log_err("fast (prio=%d, hprio=%d)", caller->priority, threads_getHighestPrio(caller->priority));
 	cpu_context_t *ctx;
 	spinlock_ctx_t tsc;
 
@@ -2236,6 +2330,7 @@ __attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller
 	 * context has interrupts disabled
 	 */
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
+
 	thread_t *recv = p->fpThreads;
 
 	LIB_ASSERT(recv != NULL, "recv is null");
@@ -2268,122 +2363,9 @@ __attribute__((noreturn)) static void _proc_callFast(port_t *p, thread_t *caller
 
 	port_put(p, 0);
 
-	hal_endSyscall(ctx, sc);
+	hal_endSyscall(ctx, &sc);
 
 	/* unreachable */
-}
-
-
-#if 0
-/* verbose reason */
-static inline int _mustSlowCall(port_t *p, thread_t *caller)
-{
-	if (p->threads == NULL) {
-		return 1;
-	}
-	if (p->caller != NULL) {
-		return 2;
-	}
-	if (p->threads->sched != NULL) {
-		return 3;
-	}
-	if (threads_getHighestPrio(caller->sched->priority) != caller->sched->priority) {
-		return 4;
-	}
-
-	return 0;
-}
-#else
-static inline int _mustSlowCall(port_t *p, thread_t *caller)
-{
-	LIB_ASSERT(p != NULL, "p null??");
-
-
-	/* TODO: purely for investigation purposes, if will never happen, remove this
-	 * */
-	thread_t *thread = p->fpThreads;
-
-	if (thread != NULL) {
-		do {
-			if (thread->exit != 0) {
-				LIB_ASSERT_ALWAYS(0, "happeeeeeeens");
-			}
-			thread = thread->tnext;
-		} while (thread != p->fpThreads);
-	}
-
-	return p->fpThreads == NULL ||
-			// p->caller != NULL ||
-			/* if recv is an active server, check priority */
-			(p->fpThreads->sched != NULL) ||
-			// (p->threads->sched != NULL && caller->sched->priority < p->threads->sched->priority) ||
-			threads_getHighestPrio(caller->sched->priority) != caller->sched->priority;
-}
-#endif
-
-
-static int _proc_callSlow(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
-{
-	int err;
-
-	while ((err = _mustSlowCall(p, caller)) != 0) {
-		log_err("sleep (%d)\n", err);
-		err = proc_threadWaitInterruptible(&p->queue.pq[caller->sched->priority], &p->spinlock, 0, sc);
-		if (err < 0) {
-			hal_spinlockClear(&p->spinlock, sc);
-			port_put(p, 0);
-			LIB_ASSERT_ALWAYS(0, "FAIL");
-			return err;
-		}
-		/* TODO: abort on server fault/port closure */
-	}
-
-	// log_err("fast (prio=%d, tid=%d)", caller->sched->priority, proc_getTid(caller));
-	_proc_callFast(p, caller, sc);
-}
-
-
-int proc_call(u32 port, msg_t *msg)
-{
-	port_t *p;
-	thread_t *caller;
-	spinlock_ctx_t sc;
-
-	trace_eventIPCEnter();
-
-	if (msg == NULL) {
-		return -EINVAL;
-	}
-
-	p = proc_portGet(port);
-	if (p == NULL) {
-		return -EINVAL;
-	}
-
-	caller = proc_current();
-
-	if (caller->utcb.kw == NULL) {
-		return -EINVAL;
-	}
-
-	hal_spinlockSet(&p->spinlock, &sc);
-
-	if (p->closed != 0) {
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
-		LIB_ASSERT(0, "happens here");
-		return -EINVAL;
-	}
-
-	while (_mustSlowCall(p, caller) != 0) {
-		log_err("slow (prio=%d, tid=%d) %d", caller->sched->priority, proc_getTid(caller), _mustSlowCall(p, caller));
-		return _proc_callSlow(p, caller, &sc);
-	}
-
-	/* commit to fastpath - point of no return */
-
-	// log_err("fast (prio=%d, hprio=%d)", caller->sched->priority, threads_getHighestPrio(caller->sched->priority));
-	_proc_callFast(p, caller, &sc);
 }
 
 static int _proc_threadWakeupPrio(prio_queue_t *queue)
@@ -2451,7 +2433,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	/* recv SC is actually caller's SC */
 	/* TODO: this should probably be accounted in better way */
-	if (threads_getHighestPrio(recv->sched->priority) != recv->sched->priority) {
+	if (threads_getHighestPrio(recv->priority) != recv->priority) {
 		/* TODO: dead code? */
 		LIB_ASSERT(0, "dead code not dead");
 	}
@@ -2501,7 +2483,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	/* wake next caller if exists */
-	log_err("wake next (prio=%d)", p->queue->sched->priority);
+	log_err("wake next (prio=%d)", p->queue->priority);
 	(void)_proc_threadWakeupPrio(&p->queue);
 
 	/* TODO: handle caller faults */
@@ -2511,7 +2493,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	 * point of no return
 	 */
 
-	log_err("fast (%d, %d)", proc_getTid(recv), recv->sched->priority);
+	log_err("fast (%d, %d)", proc_getTid(recv), recv->priority);
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
