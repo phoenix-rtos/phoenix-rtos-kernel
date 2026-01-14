@@ -129,6 +129,7 @@ event {
 	id = 0x2B;
 	fields := struct {
 		u8 cpu;
+    u32 dtsc;
 	};
 };
 
@@ -197,17 +198,11 @@ event {
 };
 
 event {
-	name = ipc_rtt_enter;
+	name = msg_profile;
 	id = 0x40;
 	fields := struct {
-		u64 tsc;
-	};
-};
-
-event {
-	name = ipc_rtt_exit;
-	id = 0x41;
-	fields := struct {
-		u64 tsc;
+		u32 tid;
+		u32 syscall;
+		u64 tscs[15];
 	};
 };

@@ -44,8 +44,7 @@ enum {
 	TRACE_EVENT_LOCK_CLEAR = 0x30,
 	TRACE_EVENT_THREAD_PRIORITY = 0x31,
 	TRACE_EVENT_PROCESS_KLL = 0x32,
-	TRACE_EVENT_IPC_RTT_ENTER = 0x40,
-	TRACE_EVENT_IPC_RTT_EXIT = 0x41,
+	TRACE_EVENT_MSG_PROFILE = 0x40,
 };
 
 
@@ -64,7 +63,7 @@ extern void _trace_updateLockEpoch(lock_t *lock);
 		if (trace_isRunning() == 0) { \
 			return; \
 		} \
-		__VA_ARGS__ trace_writeEvent(chan, event_id, &ev, sizeof(ev), ts); \
+		__VA_ARGS__ trace_writeEvent((chan), (event_id), &(ev), sizeof(ev), ts); \
 	} while (0)
 
 
@@ -81,7 +80,7 @@ extern void _trace_updateLockEpoch(lock_t *lock);
 #if !PERF_IPC
 #define TRACE_META_BODY(event_id, ev, ts, ...)  TRACE_EVENT_BODY_CHAN(trace_channel_meta, event_id, ev, ts, __VA_ARGS__)
 #define TRACE_EVENT_BODY(event_id, ev, ts, ...) TRACE_EVENT_BODY_CHAN(trace_channel_event, event_id, ev, ts, __VA_ARGS__)
-#define TRACE_IPC_BODY(event_id, ev, ts, ...)   NO_EVENT(ev, ts)
+#define TRACE_IPC_BODY(event_id, ev, ts, ...)   TRACE_EVENT_BODY_CHAN(trace_channel_event, event_id, ev, ts, __VA_ARGS__)
 #else
 #define TRACE_META_BODY(event_id, ev, ts, ...)  NO_EVENT(ev, ts)
 #define TRACE_EVENT_BODY(event_id, ev, ts, ...) NO_EVENT(ev, ts)
@@ -164,37 +163,37 @@ static inline void _trace_eventLockClear(lock_t *lock, u16 tid)
 
 static inline void trace_eventInterruptEnter(u8 n)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_INTERRUPT_ENTER, n, NULL);
+	TRACE_IPC_BODY(TRACE_EVENT_INTERRUPT_ENTER, n, NULL);
 }
 
 
 static inline void trace_eventInterruptExit(u8 n)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_INTERRUPT_EXIT, n, NULL);
+	TRACE_IPC_BODY(TRACE_EVENT_INTERRUPT_EXIT, n, NULL);
 }
 
 
 static inline void trace_eventThreadScheduling(u16 tid)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_SCHEDULING, tid, NULL);
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_SCHEDULING, tid, NULL);
 }
 
 
 static inline void trace_eventThreadPreempted(u16 tid)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_PREEMPTED, tid, NULL);
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_PREEMPTED, tid, NULL);
 }
 
 
 static inline void trace_eventThreadEnqueued(u16 tid)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_ENQUEUED, tid, NULL);
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_ENQUEUED, tid, NULL);
 }
 
 
 static inline void trace_eventThreadWaking(u16 tid)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_WAKING, tid, NULL);
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_WAKING, tid, NULL);
 }
 
 
@@ -209,7 +208,7 @@ static inline void trace_eventThreadCreate(const thread_t *t)
 
 	TRACE_META_BODY(TRACE_EVENT_THREAD_CREATE, ev, NULL, {
 		ev.tid = proc_getTid(t);
-		ev.priority = t->sched->priority;
+		ev.priority = t->priority;
 
 		if (t->process != NULL) {
 			ev.pid = process_getPid(t->process);
@@ -244,7 +243,7 @@ static inline void trace_eventSyscallEnter(u8 n, u16 tid)
 		u16 tid;
 	} __attribute__((packed)) ev;
 
-	TRACE_EVENT_BODY(TRACE_EVENT_SYSCALL_ENTER, ev, NULL, {
+	TRACE_IPC_BODY(TRACE_EVENT_SYSCALL_ENTER, ev, NULL, {
 		ev.n = n;
 		ev.tid = tid;
 	});
@@ -258,22 +257,38 @@ static inline void trace_eventSyscallExit(u8 n, u16 tid)
 		u16 tid;
 	} __attribute__((packed)) ev;
 
-	TRACE_EVENT_BODY(TRACE_EVENT_SYSCALL_EXIT, ev, NULL, {
+	TRACE_IPC_BODY(TRACE_EVENT_SYSCALL_EXIT, ev, NULL, {
 		ev.n = n;
 		ev.tid = tid;
 	});
 }
 
 
-static inline void trace_eventSchedEnter(u8 cpuId)
+static inline u32 trace_eventSchedEnter(u8 cpuId)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_SCHED_ENTER, cpuId, NULL);
+	cycles_t tsc = 0;
+	if (trace_isRunning() == 0) {
+		return 0;
+	}
+	hal_cpuGetCycles(&tsc);
+	trace_writeEvent(trace_channel_event, TRACE_EVENT_SCHED_ENTER, &cpuId, sizeof(cpuId), NULL);
+	return tsc;
 }
 
 
-static inline void trace_eventSchedExit(u8 cpuId)
+static inline void trace_eventSchedExit(u8 cpuId, u32 enterTsc)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_SCHED_EXIT, cpuId, NULL);
+	struct {
+		u8 cpuId;
+		u32 dtsc;
+	} __attribute__((packed)) ev;
+	cycles_t tsc;
+
+	TRACE_IPC_BODY(TRACE_EVENT_SCHED_EXIT, ev, NULL, {
+		hal_cpuGetCycles(&tsc);
+		ev.cpuId = cpuId;
+		ev.dtsc = tsc - enterTsc;
+	});
 }
 
 
@@ -284,7 +299,7 @@ static inline void trace_eventThreadPriority(u16 tid, u8 priority)
 		u8 priority;
 	} __attribute__((packed)) ev;
 
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_PRIORITY, ev, NULL, {
+	TRACE_IPC_BODY(TRACE_EVENT_THREAD_PRIORITY, ev, NULL, {
 		ev.tid = tid;
 		ev.priority = priority;
 	});
@@ -297,26 +312,6 @@ static inline void trace_eventProcessKill(const process_t *p)
 
 	TRACE_EVENT_BODY(TRACE_EVENT_PROCESS_KLL, pid, NULL, {
 		pid = process_getPid(p);
-	});
-}
-
-
-static inline void trace_eventIPCEnter(void)
-{
-	u64 tsc;
-
-	TRACE_IPC_BODY(TRACE_EVENT_IPC_RTT_ENTER, tsc, NULL, {
-		hal_cpuGetCycles((cycles_t *)&tsc);
-	});
-}
-
-
-static inline void trace_eventIPCExit(void)
-{
-	u64 tsc;
-
-	TRACE_IPC_BODY(TRACE_EVENT_IPC_RTT_EXIT, tsc, NULL, {
-		hal_cpuGetCycles((cycles_t *)&tsc);
 	});
 }
 
