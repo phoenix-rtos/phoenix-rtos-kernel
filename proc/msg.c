@@ -36,7 +36,8 @@ struct {
 } msg_common;
 
 
-static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
+static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to,
+		u16 tid, size_t *step, u64 *currTsc, u64 *tscs)
 {
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
@@ -104,6 +105,8 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 	attr |= vm_flagsToAttr(flags);
 
+	TRACE_IPC_PROFILE_POINT(tid, step, currTsc, tscs);
+
 	if (boffs > 0) {
 		ml->boffs = boffs;
 		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1);
@@ -132,6 +135,8 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		}
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, step, currTsc, tscs);
+
 	/* Map pages */
 	vaddr = (void *)CEIL((ptr_t)data);
 
@@ -141,6 +146,8 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			return NULL;
 		}
 	}
+
+	TRACE_IPC_PROFILE_POINT(tid, step, currTsc, tscs);
 
 	if (eoffs) {
 		ml->eoffs = eoffs;
@@ -536,14 +543,19 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
 	if (ipacked == 0) {
-		kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
+		kmsg->msg.i.data = msg_map(0, kmsg, (void *)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process,
+				tid, &step, &currTsc, tscs);
 	}
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	opacked = msg_opack(kmsg);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
 	if (opacked == 0) {
-		kmsg->msg.o.data = msg_map(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);
+		kmsg->msg.o.data = msg_map(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process,
+				tid, &step, &currTsc, tscs);
 	}
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
