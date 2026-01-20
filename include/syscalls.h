@@ -130,5 +130,8 @@
 	\
 	ID(msgCall) \
 	ID(msgRespondAndRecv) \
-	ID(msgConfigure)
+	ID(msgInitBuf) \
+	ID(sys_entrytime) \
+	ID(msgRecv2) \
+	ID(msgRespond2)
 /* clang-format on */

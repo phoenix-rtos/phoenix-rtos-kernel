@@ -175,7 +175,6 @@ int proc_portCreate(u32 *id)
 	port->closed = 0;
 
 	port->fpThreads = NULL;
-	// port->queue = NULL;
 	proc_threadPrioQueueInit(&port->queue);
 
 	*id = (u32)port->linkage.id;

@@ -697,7 +697,7 @@ void proc_freeUtcb(thread_t *t)
 	}
 }
 
-void *proc_configure(void)
+msgBuf_t *proc_initMsgBuf(void)
 {
 	void *vaddr, *kvaddr;
 	thread_t *t;

@@ -69,7 +69,7 @@ typedef struct _sched_context_t {
 /* TODO: if not sufficient, implement some crazy heap */
 typedef struct {
 	struct _thread_t *pq[MAX_PRIO];
-	int wakeupPending;
+	int nonempty;
 } prio_queue_t;
 
 
@@ -100,6 +100,7 @@ typedef struct _thread_t {
 	volatile time_t wakeup;
 
 	sched_context_t *sched;
+	sched_context_t *schedAside;
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
 	unsigned state : 4;
@@ -136,9 +137,15 @@ typedef struct _thread_t {
 
 	struct {
 		page_t *p;
-		ipc_buf_t *w;
-		ipc_buf_t *kw;
+		msgBuf_t *w;
+		msgBuf_t *kw;
 	} utcb;
+
+	/* Message buffer */
+	void *bufferStart;
+	void *bufferEnd;
+	process_t *mappedTo; /* TODO: bidirectional pointer in process for cleanup */
+	void *mappedBase;
 } thread_t;
 
 
