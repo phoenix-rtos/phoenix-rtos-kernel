@@ -807,18 +807,9 @@ int syscalls_msgSend(void *ustack)
 
 int syscalls_msgCall(void *ustack)
 {
-	process_t *proc = proc_current()->process;
 	u32 port;
-	msg_t *msg;
-
 	GETFROMSTACK(ustack, u32, port, 0);
-	GETFROMSTACK(ustack, msg_t *, msg, 1);
-
-	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
-		return -EFAULT;
-	}
-
-	return proc_call(port, msg);
+	return proc_call(port);
 }
 
 
@@ -872,40 +863,33 @@ int syscalls_msgRespond(void *ustack)
 }
 
 
-int syscalls_msgRespondAndRecv(void *ustack)
+int syscalls_msgRecv2(void *ustack)
 {
-	process_t *proc = proc_current()->process;
 	u32 port;
-	msg_t *msg;
-	msg_rid_t *rid;
-
 	GETFROMSTACK(ustack, u32, port, 0);
-	GETFROMSTACK(ustack, msg_t *, msg, 1);
-	GETFROMSTACK(ustack, msg_rid_t *, rid, 2);
-
-	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
-		return -EFAULT;
-	}
-
-	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
-		return -EFAULT;
-	}
-
-#ifndef NOMMU /* o.data has client memory pointer on NOMMU */
-	if (msg->o.data != NULL) {
-		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
-			return -EFAULT;
-		}
-	}
-#endif
-
-	return proc_respondAndRecv(port, msg, rid);
+	return proc_recv2(port);
 }
 
 
-void *syscalls_msgConfigure(void *ustack)
+int syscalls_msgRespond2(void *ustack)
 {
-	return proc_configure();
+	u32 port;
+	GETFROMSTACK(ustack, u32, port, 0);
+	return proc_respond2(port);
+}
+
+
+int syscalls_msgRespondAndRecv(void *ustack)
+{
+	u32 port;
+	GETFROMSTACK(ustack, u32, port, 0);
+	return proc_respondAndRecv(port);
+}
+
+
+msgBuf_t *syscalls_msgInitBuf(void *ustack)
+{
+	return proc_initMsgBuf();
 }
 
 
@@ -1954,6 +1938,14 @@ int syscalls_sys_uname(char *ustack)
 /*
  * Empty syscall
  */
+
+
+u64 syscalls_sys_entrytime(char *ustack)
+{
+	cycles_t cb;
+	hal_cpuGetCycles(&cb);
+	return cb;
+}
 
 
 int syscalls_notimplemented(void)

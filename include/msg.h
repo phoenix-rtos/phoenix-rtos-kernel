@@ -153,8 +153,8 @@ typedef struct _msg_t {
 typedef struct {
 	int err;
 	size_t size;
-	unsigned char raw[64];
-} ipc_buf_t;
+	__u32 raw[16];
+} msgBuf_t;
 
 
 #pragma pack(pop)
