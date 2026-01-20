@@ -110,7 +110,7 @@ int syscalls_sys_mmap(u8 *ustack)
 
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
 
-	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
+	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, PHADDR_INVALID, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
 	(void)vm_objectPut(o);
 
 	if ((*vaddr) == NULL) {

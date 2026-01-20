@@ -16,7 +16,7 @@
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "lib/lib.h"
-#include "page.h"
+#include "phmap.h"
 #include "kmalloc.h"
 #include "object.h"
 #include "map.h"
@@ -105,7 +105,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid, syspage_part_t *part)
 			(*o)->part = part;
 
 			for (i = 0; i < n; ++i) {
-				(*o)->pages[i] = NULL;
+				(*o)->pages[i] = PHADDR_INVALID;
 			}
 
 			(void)lib_rbInsert(&object_common.tree, &(*o)->linkage);
@@ -156,12 +156,12 @@ int vm_objectPut(vm_object_t *o)
 
 	/* Contiguous object 'holds' all pages in pages[0] */
 	if ((o->oid.port == (u32)(-1)) && (o->oid.id == (id_t)(-1))) {
-		vm_pageFree(o->pages[0], o->part);
+		(void)vm_phFree(o->pages[0], o->size, o->part);
 	}
 	else {
 		for (i = 0; i < round_page(o->size) / SIZE_PAGE; ++i) {
-			if (o->pages[i] != NULL) {
-				vm_pageFree(o->pages[i], o->part);
+			if (o->pages[i] != PHADDR_INVALID) {
+				(void)vm_phFree(o->pages[i], SIZE_PAGE, o->part);
 			}
 		}
 	}
@@ -172,33 +172,34 @@ int vm_objectPut(vm_object_t *o)
 }
 
 
-static page_t *object_fetch(vm_object_t *o, u64 offs)
+static addr_t object_fetch(vm_object_t *o, u64 offs)
 {
-	page_t *p;
+	addr_t p;
 	void *v;
+	size_t s = SIZE_PAGE;
 
 	if (proc_open(o->oid, 0) < 0) {
-		return NULL;
+		return PHADDR_INVALID;
 	}
 
-	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, o->part);
-	if (p == NULL) {
+	p = vm_phAlloc(&s, PAGE_OWNER_APP, MAP_CONTIGUOUS, o->part);
+	if (p == PHADDR_INVALID) {
 		(void)proc_close(o->oid, 0);
-		return NULL;
+		return PHADDR_INVALID;
 	}
 
 	v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE);
 	if (v == NULL) {
-		vm_pageFree(p, o->part);
+		(void)vm_phFree(p, SIZE_PAGE, o->part);
 		(void)proc_close(o->oid, 0);
-		return NULL;
+		return PHADDR_INVALID;
 	}
 
 	if (proc_read(o->oid, (off_t)offs, v, SIZE_PAGE, 0) < 0) {
 		(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
-		vm_pageFree(p, o->part);
+		(void)vm_phFree(p, SIZE_PAGE, o->part);
 		(void)proc_close(o->oid, 0);
-		return NULL;
+		return PHADDR_INVALID;
 	}
 
 	(void)vm_munmap(object_common.kmap, v, SIZE_PAGE);
@@ -208,34 +209,35 @@ static page_t *object_fetch(vm_object_t *o, u64 offs)
 }
 
 
-page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs)
+addr_t vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs)
 {
-	page_t *p;
+	addr_t p;
+	size_t s = SIZE_PAGE;
 
 	if (o == NULL) {
 		if (amap != NULL && *amap != NULL) {
-			return vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, (*amap)->partition);
+			return vm_phAlloc(&s, PAGE_OWNER_APP, MAP_CONTIGUOUS, (*amap)->partition);
 		}
-		return NULL;
+		return PHADDR_INVALID;
 	}
 
 	if (o == VM_OBJ_PHYSMEM) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "Check is needed on targets where sizeof(offs) != sizeof(addr_t)" */
 		if (offs > (addr_t)-1) {
-			return NULL;
+			return PHADDR_INVALID;
 		}
-		return page_get((addr_t)offs);
+		return (addr_t)offs;
 	}
 
 	(void)proc_lockSet(&object_common.lock);
 
 	if (offs >= o->size) {
 		(void)proc_lockClear(&object_common.lock);
-		return NULL;
+		return PHADDR_INVALID;
 	}
 
 	p = o->pages[offs / SIZE_PAGE];
-	if (p != NULL) {
+	if (p != PHADDR_INVALID) {
 		(void)proc_lockClear(&object_common.lock);
 		return p;
 	}
@@ -253,19 +255,19 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 	p = object_fetch(o, offs);
 
 	if (vm_lockVerify(map, amap, o, vaddr, offs) != 0) {
-		if (p != NULL) {
-			vm_pageFree(p, o->part);
+		if (p != PHADDR_INVALID) {
+			(void)vm_phFree(p, SIZE_PAGE, o->part);
 		}
 
-		return NULL;
+		return PHADDR_INVALID;
 	}
 
 	(void)proc_lockSet(&object_common.lock);
 
-	if (o->pages[offs / SIZE_PAGE] != NULL) {
+	if (o->pages[offs / SIZE_PAGE] != PHADDR_INVALID) {
 		/* Someone loaded a page in the meantime, use it */
-		if (p != NULL) {
-			vm_pageFree(p, o->part);
+		if (p != PHADDR_INVALID) {
+			(void)vm_phFree(p, SIZE_PAGE, o->part);
 		}
 
 		p = o->pages[offs / SIZE_PAGE];
@@ -282,21 +284,20 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 vm_object_t *vm_objectContiguous(size_t size)
 {
 	vm_object_t *o;
-	page_t *p;
+	addr_t p;
 	size_t i, n;
 	syspage_part_t *part = (proc_current()->process != NULL) ? proc_current()->process->partition : NULL;
 
-	p = vm_pageAlloc(size, PAGE_OWNER_APP, part);
-	if (p == NULL) {
+	p = vm_phAlloc(&size, PAGE_OWNER_APP, MAP_CONTIGUOUS, part);
+	if (p == PHADDR_INVALID) {
 		return NULL;
 	}
 
-	size = 1UL << p->idx;
 	n = size / SIZE_PAGE;
 
-	o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
+	o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(addr_t));
 	if (o == NULL) {
-		vm_pageFree(p, part);
+		(void)vm_phFree(p, size, part);
 		return NULL;
 	}
 
@@ -309,7 +310,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 	o->part = part;
 
 	for (i = 0; i < n; ++i) {
-		o->pages[i] = p + i;
+		o->pages[i] = p + (i * SIZE_PAGE);
 	}
 
 	return o;

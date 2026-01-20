@@ -76,7 +76,7 @@ static time_t hal_timerCyc2us(time_t cyc)
 }
 
 
-static time_t hal_timerGetCyc(void)
+time_t hal_timerGetCyc(void)
 {
 	spinlock_ctx_t sc;
 	time_t jiffies, cnt;

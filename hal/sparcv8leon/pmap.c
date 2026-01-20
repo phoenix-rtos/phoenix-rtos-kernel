@@ -198,7 +198,7 @@ static void _pmap_contextDealloc(pmap_t *pmap)
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, addr_t p, const syspage_prog_t *prog, void *vaddr)
 {
 	pmap->pdir1 = vaddr;
 	pmap->context = CONTEXT_INVALID;
