@@ -28,7 +28,7 @@ static lock_t lock;
 void test_vm_alloc(void)
 {
 	cycles_t b = 0, e, dmax = 0, dmin = (cycles_t)-1;
-	page_t *p;
+	addr_t p;
 	unsigned int n, seed = 1234456, minsize = (unsigned int)-1, maxsize = 0;
 	size_t size;
 
@@ -44,15 +44,15 @@ void test_vm_alloc(void)
 		maxsize = max(maxsize, size);
 
 		hal_cpuGetCycles(&b);
-		p = vm_pageAlloc(size, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP);
+		p = vm_phAlloc(&size, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, MAP_CONTIGUOUS);
 		hal_cpuGetCycles(&e);
 
-		if (p == NULL) {
+		if (p == PHADDR_INVALID) {
 			lib_printf("test: Out of memory!");
 			break;
 		}
 
-		vm_pageFree(p);
+		(void)vm_phFree(p, size);
 
 		lib_printf("\rtest: size=%d, n=%d", size, n);
 
@@ -66,7 +66,7 @@ void test_vm_alloc(void)
 
 	lib_printf("\n");
 	lib_printf("test: n=%d, dmax=%u, dmin=%u, size=%d:%d\n", n, (u32)dmax, (u32)dmin, minsize, maxsize);
-	_page_showPages();
+	// _page_showPages();
 	return;
 }
 
@@ -76,7 +76,7 @@ void test_vm_mmap(void)
 	vm_map_t map;
 
 	lib_printf("test: Virtual memory map test\n");
-	vm_mmap(&map, (void *)0x123, NULL, SIZE_PAGE, 0, NULL, 0, 0);
+	vm_mmap(&map, (void *)0x123, 0U, SIZE_PAGE, 0, NULL, 0, 0);
 
 	vm_mapDump(&map);
 	return;
@@ -115,7 +115,7 @@ void test_vm_kmalloc(void)
 
 	vm_kmallocGetStats(&kmallocsz);
 	vm_mapGetStats(&mapallocsz);
-	vm_pageGetStats(&freesz);
+	vm_phGetStats(&freesz);
 
 	lib_printf("test: Testing kmalloc,   kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
 
@@ -150,7 +150,7 @@ void test_vm_kmalloc(void)
 
 	vm_kmallocGetStats(&kmallocsz);
 	vm_mapGetStats(&mapallocsz);
-	vm_pageGetStats(&freesz);
+	vm_phGetStats(&freesz);
 	lib_printf("test: Memory after test, kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
 
 	// vm_mapDumpArenas();

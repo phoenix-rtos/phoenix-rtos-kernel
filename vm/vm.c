@@ -17,7 +17,7 @@
 #include "hal/hal.h"
 #include "lib/lib.h"
 #include "include/sysinfo.h"
-#include "page.h"
+#include "phmap.h"
 #include "map.h"
 #include "amap.h"
 #include "zone.h"
@@ -33,7 +33,7 @@ static struct {
 
 void vm_meminfo(meminfo_t *info)
 {
-	vm_pageinfo(info);
+	vm_phinfo(info);
 	vm_mapinfo(info);
 }
 
@@ -42,7 +42,7 @@ void _vm_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	/* parasoft-suppress-next-line MISRAC2012-RULE_18_1 "&vm.top is passed as a reference to vm.top not as an array object" */
 	_pmap_init(&kmap->pmap, &vm.bss, &vm.top);
-	_page_init(&kmap->pmap, &vm.bss, &vm.top);
+	_vm_phmap_init(&kmap->pmap, &vm.bss, &vm.top);
 
 	(void)_map_init(kmap, kernel, &vm.bss, &vm.top);
 

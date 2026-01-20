@@ -57,8 +57,9 @@ static void _bufferFree(void *data, page_t **pages)
 
 	while (p != NULL) {
 		*pages = p->next;
-		vm_pageFree(p);
+		(void)vm_phFree(p->addr, SIZE_PAGE);
 		sz += SIZE_PAGE;
+		vm_kfree(p);
 		p = *pages;
 	}
 
@@ -71,6 +72,7 @@ static void *_bufferAlloc(page_t **pages, size_t sz)
 	page_t *p;
 	void *v, *data;
 	int err = EOK;
+	size_t s = SIZE_PAGE;
 
 	*pages = NULL;
 	data = vm_mapFind(buffer_common.kmap, NULL, sz, MAP_NONE, PROT_READ | PROT_WRITE);
@@ -80,9 +82,15 @@ static void *_bufferAlloc(page_t **pages, size_t sz)
 	}
 
 	for (v = data; v < data + sz; v += SIZE_PAGE) {
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		p = vm_kmalloc(sizeof(page_t));
 
 		if (p == NULL) {
+			err = -ENOMEM;
+			break;
+		}
+		p->addr = vm_phAlloc(&s, PAGE_OWNER_APP, MAP_CONTIGUOUS);
+		if (p->addr == PHADDR_INVALID) {
+			vm_kfree(p);
 			err = -ENOMEM;
 			break;
 		}
@@ -90,7 +98,7 @@ static void *_bufferAlloc(page_t **pages, size_t sz)
 		p->next = *pages;
 		*pages = p;
 
-		err = page_map(&buffer_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
+		err = vm_mappages(&buffer_common.kmap->pmap, v, p->addr, SIZE_PAGE, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
 		if (err < 0) {
 			break;
 		}

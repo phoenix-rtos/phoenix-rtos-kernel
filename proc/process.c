@@ -570,12 +570,12 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 			flags |= MAP_NEEDSCOPY;
 		}
 
-		if ((filesz != 0U) && (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
-			return -ENOMEM;
+		if ((filesz != 0U) && (vm_mmap(map, vaddr, PHADDR_INVALID, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
+			return -ENOMEM;  // TODO: arent we here mapping last bytes of last page (.bss)? check if we are sharing anything??? what happens with these objects?
 		}
 
 		if (filesz != memsz) {
-			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
+			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, PHADDR_INVALID, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
 				return -ENOMEM;
 			}
 
@@ -662,12 +662,12 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 			flags |= MAP_NEEDSCOPY;
 		}
 
-		if ((filesz != 0U) && (vm_mmap(map, vaddr, NULL, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
+		if ((filesz != 0U) && (vm_mmap(map, vaddr, PHADDR_INVALID, round_page(filesz), prot, o, base + offs, flags) == NULL)) {
 			return -ENOMEM;
 		}
 
 		if (filesz != memsz) {
-			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, NULL, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
+			if ((round_page(memsz) != round_page(filesz)) && (vm_mmap(map, vaddr, PHADDR_INVALID, round_page(memsz) - round_page(filesz), prot, NULL, -1, MAP_NONE) == NULL)) {
 				return -ENOMEM;
 			}
 
@@ -697,7 +697,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 	size = round_page(size);
 
-	ehdr = vm_mmap(process_common.kmap, NULL, NULL, size, PROT_READ, o, base, MAP_NONE);
+	ehdr = vm_mmap(process_common.kmap, NULL, PHADDR_INVALID, size, PROT_READ, o, base, MAP_NONE);
 	if (ehdr == NULL) {
 		return -ENOMEM;
 	}
@@ -728,7 +728,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
 	/* Allocate and map user stack */
-	stack = vm_mmap(map, map->pmap.end - ustacksz, NULL, ustacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
+	stack = vm_mmap(map, map->pmap.end - ustacksz, PHADDR_INVALID, ustacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
 	if (stack == NULL) {
 		return -ENOMEM;
 	}
@@ -829,7 +829,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 			if ((process->imapp != NULL) &&
 					(((ptr_t)base < (ptr_t)process->imapp->start) ||
 							((ptr_t)base > (ptr_t)process->imapp->stop))) {
-				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdrCurr->p_memsz), prot, NULL, -1, flags);
+				paddr = vm_mmap(process->imapp, NULL, PHADDR_INVALID, round_page(phdrCurr->p_memsz), prot, NULL, -1, flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
 				}
@@ -846,7 +846,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 			reloffs = phdrCurr->p_vaddr % SIZE_PAGE;
 
-			paddr = vm_mmap(process->mapp, NULL, NULL, round_page(phdrCurr->p_memsz + reloffs), prot, NULL, -1, flags);
+			paddr = vm_mmap(process->mapp, NULL, PHADDR_INVALID, round_page(phdrCurr->p_memsz + reloffs), prot, NULL, -1, flags);
 			if (paddr == NULL) {
 				return -ENOMEM;
 			}
@@ -990,7 +990,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
 	/* Allocate and map user stack */
-	stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
+	stack = vm_mmap(process->mapp, NULL, PHADDR_INVALID, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
 	if (stack == NULL) {
 		return -ENOMEM;
 	}
@@ -1103,7 +1103,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	(void)vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
 	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 #else
-	(void)pmap_create(&current->process->map.pmap, NULL, NULL, spawn->prog, NULL);
+	(void)pmap_create(&current->process->map.pmap, NULL, PHADDR_INVALID, spawn->prog, NULL);
 	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
 	current->process->entries = NULL;
 #endif
@@ -1789,7 +1789,7 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 	dest->tls_sz = round_page(source->tls_sz);
 	dest->arm_m_tls = source->arm_m_tls;
 
-	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
+	dest->tls_base = (ptr_t)vm_mmap(map, NULL, PHADDR_INVALID, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
 
 	if (dest->tls_base != 0U) {
 		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);

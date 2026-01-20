@@ -73,7 +73,7 @@ static time_t hal_timerCyc2us(time_t cyc)
 }
 
 
-static time_t hal_timerGetCyc(void)
+time_t hal_timerGetCyc(void)
 {
 	u32 reg;
 	unsigned long long ret;

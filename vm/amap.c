@@ -16,7 +16,7 @@
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "lib/lib.h"
-#include "page.h"
+#include "phmap.h"
 #include "proc/proc.h"
 #include "amap.h"
 #include "map.h"
@@ -39,7 +39,7 @@ static anon_t *amap_putanon(anon_t *a)
 		return a;
 	}
 
-	vm_pageFree(a->page);
+	(void)vm_phFree(a->page, SIZE_PAGE);
 	(void)proc_lockClear(&a->lock);
 	(void)proc_lockDone(&a->lock);
 	vm_kfree(a);
@@ -189,7 +189,7 @@ void amap_clear(amap_t *amap, size_t offset, size_t size)
 }
 
 
-static anon_t *anon_new(page_t *p)
+static anon_t *anon_new(addr_t p)
 {
 	anon_t *a;
 
@@ -206,7 +206,7 @@ static anon_t *anon_new(page_t *p)
 }
 
 
-static void *amap_map(vm_map_t *map, page_t *p)
+static void *amap_map(vm_map_t *map, addr_t p)
 {
 	if (map == amap_common.kmap) {
 		return _vm_mmap(amap_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, amap_common.kernel, VM_OFFS_MAX, MAP_NONE);
@@ -226,11 +226,12 @@ static int amap_unmap(vm_map_t *map, void *v)
 }
 
 
-page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot)
+addr_t amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot)
 {
-	page_t *p = NULL;
+	addr_t p = PHADDR_INVALID;
 	anon_t *a;
 	void *v, *w;
+	size_t size = SIZE_PAGE;
 
 	(void)proc_lockSet(&amap->lock);
 
@@ -247,12 +248,12 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 	}
 	else {
 		p = vm_objectPage(map, &amap, o, vaddr, offs);
-		if (p == NULL) {
+		if (p == PHADDR_INVALID) {
 			/* amap could be invalidated while fetching from the object's store */
 			if (amap != NULL) {
 				(void)proc_lockClear(&amap->lock);
 			}
-			return NULL;
+			return PHADDR_INVALID;
 		}
 		else if (o != NULL && (prot & PROT_WRITE) == 0U) {
 			(void)proc_lockClear(&amap->lock);
@@ -269,29 +270,29 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 			(void)proc_lockClear(&a->lock);
 		}
 		(void)proc_lockClear(&amap->lock);
-		return NULL;
+		return PHADDR_INVALID;
 	}
 
 	if (a != NULL || o != NULL) {
 		/* Copy from object or shared anon */
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-		if (p == NULL) {
+		p = vm_phAlloc(&size, PAGE_OWNER_APP, MAP_CONTIGUOUS);
+		if (p == PHADDR_INVALID) {
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
 				(void)proc_lockClear(&a->lock);
 			}
 			(void)proc_lockClear(&amap->lock);
-			return NULL;
+			return PHADDR_INVALID;
 		}
 		w = amap_map(map, p);
 		if (w == NULL) {
-			vm_pageFree(p);
+			(void)vm_phFree(p, size);
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
 				(void)proc_lockClear(&a->lock);
 			}
 			(void)proc_lockClear(&amap->lock);
-			return NULL;
+			return PHADDR_INVALID;
 		}
 		hal_memcpy(w, v, SIZE_PAGE);
 		(void)amap_unmap(map, w);
@@ -308,8 +309,8 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 
 	amap->anons[aoffs / SIZE_PAGE] = anon_new(p);
 	if (amap->anons[aoffs / SIZE_PAGE] == NULL) {
-		vm_pageFree(p);
-		p = NULL;
+		(void)vm_phFree(p, size);
+		p = PHADDR_INVALID;
 	}
 	(void)proc_lockClear(&amap->lock);
 

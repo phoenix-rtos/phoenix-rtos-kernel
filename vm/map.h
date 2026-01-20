@@ -43,21 +43,14 @@ typedef struct _vm_map_t {
 struct _process_t;
 
 typedef struct _map_entry_t {
-#ifndef NOMMU
-	union {
-		rbnode_t linkage;
-		struct _map_entry_t *next;
-	};
-#else
 	rbnode_t linkage;
 	struct _map_entry_t *next;
 	struct _map_entry_t *prev;
 	struct _process_t *process;
-#endif
 
 	vm_map_t *map;
 
-	size_t aoffs;
+	size_t aoffs; /* Keeps offset of entry in amap (eg. for splitting entries without amap changes)*/
 	struct _amap_t *amap;
 
 	void *vaddr;
@@ -79,10 +72,10 @@ typedef struct _map_entry_t {
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot);
 
 
-void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, off_t offs, vm_flags_t flags);
+void *vm_mmap(vm_map_t *map, void *vaddr, addr_t pa, size_t size, vm_prot_t prot, struct _vm_object_t *o, off_t offs, vm_flags_t flags);
 
 
-void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, u64 offs, vm_flags_t flags);
+void *_vm_mmap(vm_map_t *map, void *vaddr, addr_t pa, size_t size, vm_prot_t prot, struct _vm_object_t *o, u64 offs, vm_flags_t flags);
 
 
 int vm_mapForce(vm_map_t *map, void *paddr, vm_prot_t prot);

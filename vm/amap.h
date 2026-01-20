@@ -26,7 +26,7 @@ struct _vm_object_t;
 typedef struct _anon_t {
 	lock_t lock;
 	int refs;
-	page_t *page;
+	addr_t page;
 } anon_t;
 
 
@@ -38,7 +38,7 @@ typedef struct _amap_t {
 } amap_t;
 
 
-page_t *amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot);
+addr_t amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot);
 
 
 void amap_clear(amap_t *amap, size_t offset, size_t size);

@@ -187,10 +187,10 @@ static void _pmap_asidDealloc(pmap_t *pmap)
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, addr_t p, const syspage_prog_t *prog, void *vaddr)
 {
 	pmap->pdir = vaddr;
-	pmap->addr = p->addr;
+	pmap->addr = p;
 	pmap->asid_ix = 0;
 
 	hal_memset(pmap->pdir, 0, SIZE_PDIR);
@@ -309,6 +309,9 @@ static void _pmap_mapScratch(addr_t pa, unsigned char asid)
 }
 
 
+extern time_t hal_timerGetCyc(void);
+
+// void* last=0;
 /* Functions maps page at specified address */
 int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
@@ -320,6 +323,7 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *
 
 	hal_spinlockSet(&pmap_common.lock, &sc);
 	asid = pmap_common.asids[pmap->asid_ix];
+
 
 	/* If no page table is allocated add new one */
 	if (pmap->pdir[pdi] == PDIR_TYPE_INVALID) {

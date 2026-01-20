@@ -37,7 +37,7 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size);
 #endif
 
 
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr);
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, addr_t p, const syspage_prog_t *prog, void *vaddr);
 
 
 addr_t pmap_destroy(pmap_t *pmap, unsigned int *i);

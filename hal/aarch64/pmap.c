@@ -273,10 +273,10 @@ static void _pmap_cacheOpAfterChange(descr_t newEntry, ptr_t vaddr, unsigned int
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, addr_t p, const syspage_prog_t *prog, void *vaddr)
 {
 	pmap->ttl1 = vaddr;
-	pmap->addr = p->addr;
+	pmap->addr = p;
 	pmap->asid = ASID_NONE;
 
 	hal_memset(pmap->ttl1, 0, SIZE_PDIR);

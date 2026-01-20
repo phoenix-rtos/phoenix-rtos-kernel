@@ -100,7 +100,7 @@ typedef struct _pmap_t {
 	void *start;
 	void *end;
 	void *pmapv;
-	page_t *pmapp;
+	addr_t pmapp;
 } pmap_t;
 
 

@@ -41,12 +41,13 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	size_t n = 0, i;
 	vm_attr_t attr;
 	vm_prot_t prot;
-	page_t *nep = NULL, *nbp = NULL;
+	addr_t nep = PHADDR_INVALID, nbp = PHADDR_INVALID;
 	vm_map_t *srcmap, *dstmap;
 	struct _kmsg_layout_t *ml = (dir != 0) ? &kmsg->o : &kmsg->i;
 	int err;
 	vm_flags_t flags;
 	addr_t bpa, pa, epa;
+	size_t s = SIZE_PAGE;
 
 	if ((size == 0U) || (data == NULL)) {
 		return NULL;
@@ -113,26 +114,26 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		ml->boffs = boffs;
 		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
 
-		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		nbp = vm_phAlloc(&s, PAGE_OWNER_APP, MAP_CONTIGUOUS);
 		ml->bp = nbp;
-		if (nbp == NULL) {
+		if (nbp == PHADDR_INVALID) {
 			return NULL;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, PHADDR_INVALID, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, flags);
 		ml->bvaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
 		}
 
 		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w, nbp->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
+		if (vm_mappages(&dstmap->pmap, w, nbp, SIZE_PAGE, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
 			return NULL;
 		}
 
 		hal_memcpy(w + boffs, vaddr + boffs, (size_t)min(size, SIZE_PAGE - boffs));
 
-		if (page_map(&dstmap->pmap, w, nbp->addr, attr) < 0) {
+		if (vm_mappages(&dstmap->pmap, w, nbp, SIZE_PAGE, attr) < 0) {
 			return NULL;
 		}
 	}
@@ -142,7 +143,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 	for (i = 0; i < n; i++) {
 		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
-		if (page_map(&dstmap->pmap, w + (i + bone) * SIZE_PAGE, pa, attr) < 0) {
+		if (vm_mappages(&dstmap->pmap, w + (i + bone) * SIZE_PAGE, pa, SIZE_PAGE, attr) < 0) {
 			return NULL;
 		}
 		vaddr += SIZE_PAGE;
@@ -154,9 +155,9 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
 
 		if ((boffs == 0U) || (eoffs >= boffs)) {
-			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+			nep = vm_phAlloc(&s, PAGE_OWNER_APP, MAP_CONTIGUOUS);
 			ml->ep = nep;
-			if (nep == NULL) {
+			if (nep == PHADDR_INVALID) {
 				return NULL;
 			}
 		}
@@ -164,20 +165,20 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			nep = nbp;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, PHADDR_INVALID, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, flags);
 		ml->evaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
 		}
 
 		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
+		if (vm_mappages(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep, SIZE_PAGE, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
 			return NULL;
 		}
 
 		hal_memcpy(w + (n + bone) * SIZE_PAGE, vaddr, eoffs);
 
-		if (page_map(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep->addr, attr) < 0) {
+		if (vm_mappages(&dstmap->pmap, w + (n + bone) * SIZE_PAGE, nep, SIZE_PAGE, attr) < 0) {
 			return NULL;
 		}
 	}
@@ -191,19 +192,19 @@ static void msg_release(kmsg_t *kmsg)
 	process_t *process;
 	vm_map_t *map;
 
-	if (kmsg->i.bp != NULL) {
-		vm_pageFree(kmsg->i.bp);
+	if (kmsg->i.bp != PHADDR_INVALID) {
+		(void)vm_phFree(kmsg->i.bp, SIZE_PAGE);
 		(void)vm_munmap(msg_common.kmap, kmsg->i.bvaddr, SIZE_PAGE);
-		kmsg->i.bp = NULL;
+		kmsg->i.bp = PHADDR_INVALID;
 	}
 
 	if (kmsg->i.eoffs != 0U) {
-		if (kmsg->i.ep != NULL) {
-			vm_pageFree(kmsg->i.ep);
+		if (kmsg->i.ep != PHADDR_INVALID) {
+			(void)vm_phFree(kmsg->i.ep, SIZE_PAGE);
 		}
 		(void)vm_munmap(msg_common.kmap, kmsg->i.evaddr, SIZE_PAGE);
 		kmsg->i.eoffs = 0;
-		kmsg->i.ep = NULL;
+		kmsg->i.ep = PHADDR_INVALID;
 	}
 
 	process = proc_current()->process;
@@ -219,19 +220,19 @@ static void msg_release(kmsg_t *kmsg)
 		kmsg->i.w = NULL;
 	}
 
-	if (kmsg->o.bp != NULL) {
-		vm_pageFree(kmsg->o.bp);
+	if (kmsg->o.bp != PHADDR_INVALID) {
+		(void)vm_phFree(kmsg->o.bp, SIZE_PAGE);
 		(void)vm_munmap(msg_common.kmap, kmsg->o.bvaddr, SIZE_PAGE);
-		kmsg->o.bp = NULL;
+		kmsg->o.bp = PHADDR_INVALID;
 	}
 
 	if (kmsg->o.eoffs != 0U) {
-		if (kmsg->o.ep != NULL) {
-			vm_pageFree(kmsg->o.ep);
+		if (kmsg->o.ep != PHADDR_INVALID) {
+			(void)vm_phFree(kmsg->o.ep, SIZE_PAGE);
 		}
 		(void)vm_munmap(msg_common.kmap, kmsg->o.evaddr, SIZE_PAGE);
 		kmsg->o.eoffs = 0;
-		kmsg->o.ep = NULL;
+		kmsg->o.ep = PHADDR_INVALID;
 	}
 
 	if (kmsg->o.w != NULL) {
@@ -474,18 +475,18 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	kmsg->i.bvaddr = NULL;
 	kmsg->i.boffs = 0;
 	kmsg->i.w = NULL;
-	kmsg->i.bp = NULL;
+	kmsg->i.bp = PHADDR_INVALID;
 	kmsg->i.evaddr = NULL;
 	kmsg->i.eoffs = 0;
-	kmsg->i.ep = NULL;
+	kmsg->i.ep = PHADDR_INVALID;
 
 	kmsg->o.bvaddr = NULL;
 	kmsg->o.boffs = 0;
 	kmsg->o.w = NULL;
-	kmsg->o.bp = NULL;
+	kmsg->o.bp = PHADDR_INVALID;
 	kmsg->o.evaddr = NULL;
 	kmsg->o.eoffs = 0;
-	kmsg->o.ep = NULL;
+	kmsg->o.ep = PHADDR_INVALID;
 
 	if ((kmsg->msg.i.data >= (void *)kmsg->msg.i.raw) && (kmsg->msg.i.data < (void *)kmsg->msg.i.raw + sizeof(kmsg->msg.i.raw))) {
 		ipacked = 1;
@@ -552,7 +553,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	}
 
 	/* Copy shadow pages */
-	if (kmsg->i.bp != NULL) {
+	if (kmsg->i.bp != PHADDR_INVALID) {
 		hal_memcpy(kmsg->i.bvaddr + kmsg->i.boffs, kmsg->i.w + kmsg->i.boffs, (size_t)min(SIZE_PAGE - kmsg->i.boffs, kmsg->msg.i.size));
 	}
 
@@ -560,7 +561,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		hal_memcpy(kmsg->i.evaddr, kmsg->i.w + kmsg->i.boffs + kmsg->msg.i.size - kmsg->i.eoffs, (size_t)kmsg->i.eoffs);
 	}
 
-	if (kmsg->o.bp != NULL) {
+	if (kmsg->o.bp != PHADDR_INVALID) {
 		hal_memcpy(kmsg->o.bvaddr + kmsg->o.boffs, kmsg->o.w + kmsg->o.boffs, (size_t)min(SIZE_PAGE - kmsg->o.boffs, kmsg->msg.o.size));
 	}
 

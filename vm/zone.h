@@ -30,7 +30,7 @@ typedef struct _vm_zone_t {
 	unsigned int used;
 	void *vaddr;
 	void *first;
-	page_t *pages;
+	addr_t pages;
 
 	/*	u8 padd[1024]; */
 } vm_zone_t;

@@ -17,7 +17,7 @@
 #include "hal/hal.h"
 #include "lib/lib.h"
 #include "include/errno.h"
-#include "page.h"
+#include "phmap.h"
 #include "map.h"
 #include "zone.h"
 
@@ -31,6 +31,7 @@ static struct {
 int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 {
 	size_t i;
+	size_t s = blocks * blocksz;
 
 	if ((blocksz == 0U) || (blocks == 0U)) {
 		return -EINVAL;
@@ -40,14 +41,14 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 		return -EINVAL;
 	}
 
-	zone->pages = vm_pageAlloc(blocks * blocksz, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP);
-	if (zone->pages == NULL) {
+	zone->pages = vm_phAlloc(&s, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, MAP_CONTIGUOUS);
+	if (zone->pages == PHADDR_INVALID) {
 		return -ENOMEM;
 	}
 
-	zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, (size_t)1U << zone->pages->idx, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE);
+	zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, s, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE);
 	if (zone->vaddr == NULL) {
-		vm_pageFree(zone->pages);
+		(void)vm_phFree(zone->pages, s);
 		return -ENOMEM;
 	}
 
@@ -68,6 +69,8 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 
 int _vm_zoneDestroy(vm_zone_t *zone)
 {
+	size_t s;
+
 	if (zone == NULL) {
 		return -EINVAL;
 	}
@@ -76,12 +79,14 @@ int _vm_zoneDestroy(vm_zone_t *zone)
 		return -EBUSY;
 	}
 
-	(void)vm_munmap(zone_common.kmap, zone->vaddr, (size_t)1U << zone->pages->idx);
-	vm_pageFree(zone->pages);
+	s = zone->blocks * zone->blocksz;
+
+	(void)vm_munmap(zone_common.kmap, zone->vaddr, s);
+	(void)vm_phFree(zone->pages, s);
 
 	zone->vaddr = NULL;
 	zone->first = NULL;
-	zone->pages = NULL;
+	zone->pages = PHADDR_INVALID;
 
 	return EOK;
 }
@@ -104,7 +109,7 @@ void *_vm_zalloc(vm_zone_t *zone, addr_t *addr)
 	zone->used++;
 
 	if (addr != NULL) {
-		*addr = zone->pages->addr + ((addr_t)block - (addr_t)zone->vaddr);
+		*addr = zone->pages + ((addr_t)block - (addr_t)zone->vaddr);
 	}
 
 	return block;

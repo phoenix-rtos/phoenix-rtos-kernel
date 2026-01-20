@@ -111,12 +111,12 @@ int syscalls_sys_mmap(u8 *ustack)
 
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM);
 #ifndef NOMMU
-	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
+	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, PHADDR_INVALID, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
 
 #else
 	unsigned int i;
 	if (proc->partition == NULL) {
-		(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
+		(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, PHADDR_INVALID, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
 	}
 	else {
 		err = 1;
@@ -126,7 +126,7 @@ int syscalls_sys_mmap(u8 *ustack)
 				continue;
 			}
 			err = 0;
-			(*vaddr) = vm_mmap(vm_getSharedMap((int)proc->partition->allocMaps[i]), *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
+			(*vaddr) = vm_mmap(vm_getSharedMap((int)proc->partition->allocMaps[i]), *vaddr, PHADDR_INVALID, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
 			if (*vaddr != NULL) {
 				break;
 			}

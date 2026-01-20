@@ -18,7 +18,7 @@
 
 #include "hal/hal.h"
 #include "include/sysinfo.h"
-#include "page.h"
+#include "phmap.h"
 #include "map.h"
 #include "zone.h"
 #include "kmalloc.h"

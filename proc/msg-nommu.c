@@ -164,7 +164,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	if ((kmsg->msg->i.data != NULL) && (kmsg->msg->i.size != 0U) && (current->process != NULL) &&
 			(pmap_isAllowed(current->process->pmapp, kmsg->msg->i.data, kmsg->msg->i.size) == 0)) {
 
-		idata = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->i.size),
+		idata = vm_mmap(current->process->mapp, NULL, PHADDR_INVALID, round_page(kmsg->msg->i.size),
 				PROT_READ | PROT_USER, NULL, -1, MAP_ANONYMOUS);
 		if (idata == NULL) {
 			/* Free RID */
@@ -180,7 +180,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	if ((kmsg->msg->o.data != NULL) && (kmsg->msg->o.size != 0U) && (current->process != NULL) &&
 			(pmap_isAllowed(current->process->pmapp, kmsg->msg->o.data, kmsg->msg->o.size) == 0)) {
 
-		msg->o.data = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->o.size),
+		msg->o.data = vm_mmap(current->process->mapp, NULL, PHADDR_INVALID, round_page(kmsg->msg->o.size),
 				PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_ANONYMOUS);
 		if (msg->o.data == NULL) {
 			if (idata != NULL) {
