@@ -44,11 +44,11 @@ typedef struct _kmsg_t {
 		void *bvaddr;
 		u64 boffs;
 		void *w;
-		page_t *bp;
+		addr_t bp;
 
 		void *evaddr;
 		u64 eoffs;
-		page_t *ep;
+		addr_t ep;
 	} i, o;
 #else
 	void *imapped;

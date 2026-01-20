@@ -312,8 +312,9 @@ static void perf_bufferFree(void *data, page_t **pages)
 	p = *pages;
 	while (p != NULL) {
 		*pages = p->next;
-		vm_pageFree(p);
+		vm_phFree(p->addr, SIZE_PAGE);
 		sz += SIZE_PAGE;
+		vm_kfree(p);
 		p = *pages;
 	}
 
@@ -325,6 +326,7 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 {
 	page_t *p;
 	void *v, *data;
+	size_t s = SIZE_PAGE;
 
 	*pages = NULL;
 	data = vm_mapFind(threads_common.kmap, NULL, sz, MAP_NONE, PROT_READ | PROT_WRITE);
@@ -334,16 +336,22 @@ static void *perf_bufferAlloc(page_t **pages, size_t sz)
 	}
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1-k "data will never be -1" */
 	for (v = data; (ptr_t)v < (ptr_t)data + sz; v += SIZE_PAGE) {
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-
+		p = vm_kmalloc(sizeof(page_t));
 		if (p == NULL) {
+			perf_bufferFree(data, pages);
+			return NULL;
+		}
+
+		p->addr = vm_phAlloc(&s, PAGE_OWNER_APP, MAP_CONTIGUOUS);
+		if (p->addr == PHADDR_INVALID) {
+			vm_kfree(p);
 			perf_bufferFree(data, pages);
 			return NULL;
 		}
 
 		p->next = *pages;
 		*pages = p;
-		(void)page_map(&threads_common.kmap->pmap, v, p->addr, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
+		(void)vm_mappages(&threads_common.kmap->pmap, v, p->addr, SIZE_PAGE, PGHD_PRESENT | PGHD_WRITE | PGHD_READ);
 	}
 
 	return data;

@@ -105,7 +105,7 @@ static void pmap_mpu_disable(void)
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, addr_t p, const syspage_prog_t *prog, void *vaddr)
 {
 	if (prog != NULL) {
 		pmap->hal = &prog->partition->hal;
