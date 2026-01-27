@@ -681,22 +681,6 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 /* TODO: move utcb init/deinit to threads */
 
-void proc_freeUtcb(thread_t *t)
-{
-	if (t->utcb.kw != NULL) {
-		vm_munmap(msg_common.kmap, t->utcb.kw, SIZE_PAGE);
-		t->utcb.kw = NULL;
-	}
-	if (t->utcb.w != NULL) {
-		vm_munmap(&t->process->map, t->utcb.w, SIZE_PAGE);
-		t->utcb.w = NULL;
-	}
-	if (t->utcb.p != NULL) {
-		vm_pageFree(t->utcb.p);
-		t->utcb.p = NULL;
-	}
-}
-
 msgBuf_t *proc_initMsgBuf(void)
 {
 	void *vaddr, *kvaddr;
@@ -706,7 +690,6 @@ msgBuf_t *proc_initMsgBuf(void)
 	u8 prot, flags, attr;
 
 	t = proc_current();
-	map = &t->process->map;
 
 	if (t->utcb.kw != NULL) {
 		LIB_ASSERT(t->utcb.w != NULL, "");
@@ -714,6 +697,8 @@ msgBuf_t *proc_initMsgBuf(void)
 		t->utcb.kw->err = 0;
 		return t->utcb.w;
 	}
+
+	map = &t->process->map;
 
 	prot = PROT_WRITE | PROT_READ | PROT_USER;
 	flags = MAP_NOINHERIT;

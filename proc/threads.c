@@ -534,6 +534,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 	sched_context_t *sched;
 	process_t *proc;
 	cpu_context_t *ctx;
+	thread_t *from;
 
 	sched = _sched_current();
 	LIB_ASSERT(sched != NULL, "sched null");
@@ -542,7 +543,8 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 	LIB_ASSERT(dest->exit == 0, "exit=%d", dest->exit);
 	LIB_ASSERT(dest->state != GHOST, "dest is a ghost");
 
-	_threads_switchSchedContexts(sched, sched->t, dest, reply);
+	from = sched->t;
+	_threads_switchSchedContexts(sched, from, dest, reply);
 
 	_hal_cpuSetKernelStack(dest->kstack + dest->kstacksz);
 
@@ -572,8 +574,6 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 	_threads_scheduling(dest);
 
 	LIB_ASSERT(dest->sched != NULL, "dest shed is null");
-
-	hal_cpuSetReturnValue(ctx, 0);
 
 	return ctx;
 }
@@ -2295,10 +2295,11 @@ int proc_call(u32 port)
 	int err;
 
 #if PERF_IPC
-	u64 tscs[TSCS_SIZE] = { 0 };
+	u64 tscs[TSCS_SIZE];
 	u64 currTsc;
 	u16 tid = proc_getTid(proc_current());
 	size_t step = 0;
+	hal_memset(tscs, 0, sizeof(tscs));
 #endif
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
@@ -2383,6 +2384,7 @@ int proc_call(u32 port)
 
 	/* FIXME: very fragile to refer to syscalls as hardcoded IDs */
 	ctx = _threads_switchTo(recv, 0);
+	hal_cpuSetReturnValue(ctx, caller);
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
@@ -2506,7 +2508,8 @@ static __attribute__((noreturn)) void _becomePassive(port_t *p, thread_t *recv, 
 }
 
 
-int proc_recv2(u32 port)
+/* TODO: error passing */
+void *proc_recv2(u32 port)
 {
 	port_t *p;
 	spinlock_ctx_t sc;
@@ -2514,19 +2517,19 @@ int proc_recv2(u32 port)
 
 	recv = proc_current();
 	if (recv->utcb.kw == NULL) {
-		return -EINVAL;
+		return NULL;
 	}
 
 	p = proc_portGet(port);
 	if (p == NULL) {
-		return -EINVAL;
+		return NULL;
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	if (p->closed != 0) {
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
-		return -EINVAL;
+		return NULL;
 	}
 
 	recv->schedAside = recv->sched;
@@ -2541,7 +2544,7 @@ int proc_recv2(u32 port)
  * done?
  * respond would need to verify that the passed pointer actually points to
  * kernel mem and that it contains a thread waiting for our reply */
-int proc_respond2(u32 port)
+int proc_respond2(u32 port, void *reply)
 {
 	port_t *p;
 	spinlock_ctx_t sc;
@@ -2549,6 +2552,11 @@ int proc_respond2(u32 port)
 
 	recv = proc_current();
 	if (recv->utcb.kw == NULL) {
+		return -EINVAL;
+	}
+
+	/* TODO: ensure reply->called reference is not user-exploitable */
+	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0 || ((thread_t *)reply)->called != recv) {
 		return -EINVAL;
 	}
 
@@ -2568,8 +2576,10 @@ int proc_respond2(u32 port)
 	port_put(p, 0);
 	port_put(p, 0);  // drop passive ref
 
+	/* TODO: move this spinlock lower, same for the rest of IPC, caller is
+	 * unschedulable until switch sched */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	caller = recv->reply;
+	caller = reply;
 	LIB_ASSERT(caller != NULL, "caller null!");
 
 	/* TODO: pass small data via registers */
@@ -2605,7 +2615,7 @@ int proc_respond2(u32 port)
 }
 
 
-int proc_respondAndRecv(u32 port)
+void *proc_respondAndRecv(u32 port)
 {
 	port_t *p;
 	spinlock_ctx_t sc, tsc;
@@ -2615,12 +2625,12 @@ int proc_respondAndRecv(u32 port)
 
 	recv = proc_current();
 	if (recv->utcb.kw == NULL) {
-		return -EINVAL;
+		return NULL;
 	}
 
 	p = proc_portGet(port);
 	if (p == NULL) {
-		return -EINVAL;
+		return NULL;
 	}
 
 	log_debug("utcb buf type %d", proc_current()->utcb.kw[0]);
@@ -2636,7 +2646,7 @@ int proc_respondAndRecv(u32 port)
 	if (p->closed != 0) {
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
-		return -EINVAL;
+		return NULL;
 	}
 
 	responding = recv->reply != NULL ? 1 : 0;
@@ -2681,6 +2691,7 @@ int proc_respondAndRecv(u32 port)
 	recv->addedTo = p;
 
 	ctx = _threads_switchTo(caller, 1);
+	hal_cpuSetReturnValue(ctx, 0);
 
 	trace_eventSyscallExit(103, proc_getTid(caller)); /* msgCall */
 
@@ -2720,13 +2731,15 @@ int proc_registerMsgBuffer(void *buf, size_t bufsz)
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
 
 
-/* TODO: support mapping as a kernel - obviously e.g. multiple POSIX lookups originate in the kernel */
-
 static void *_mapBuffer(void *buf, size_t bufsz, process_t *from, process_t *to)
 {
 	/* TODO: use vm_protToAttr */
 	unsigned int attr = PGHD_WRITE | PGHD_READ | PGHD_PRESENT | PGHD_USER;
 	unsigned int prot = PROT_READ | PROT_WRITE | PROT_USER;
+
+	vm_map_t *srcmap = (from == NULL) ? threads_common.kmap : from->mapp;
+	vm_map_t *dstmap = (to == NULL) ? threads_common.kmap : to->mapp;
+
 	int flags = vm_mapFlags(from->mapp, buf);
 	void *w, *vaddr;
 	unsigned int i, n = 0;
@@ -2744,10 +2757,10 @@ static void *_mapBuffer(void *buf, size_t bufsz, process_t *from, process_t *to)
 
 	vaddr = (void *)CEIL((ptr_t)buf);
 
-	w = vm_mapFind(to->mapp, NULL, n * SIZE_PAGE, MAP_NOINHERIT, prot);
+	w = vm_mapFind(dstmap, NULL, n * SIZE_PAGE, MAP_NOINHERIT, prot);
 	for (i = 0; i < n; i++, vaddr += SIZE_PAGE) {
-		pa = pmap_resolve(&from->mapp->pmap, vaddr) & ~(SIZE_PAGE - 1);
-		if (page_map(&to->mapp->pmap, w + i * SIZE_PAGE, pa, attr) < 0) {
+		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1);
+		if (page_map(&dstmap->pmap, w + i * SIZE_PAGE, pa, attr) < 0) {
 			return NULL;
 		}
 	}
@@ -2758,7 +2771,8 @@ static void *_mapBuffer(void *buf, size_t bufsz, process_t *from, process_t *to)
 
 static void _unmapBuffer(void *w, size_t bufsz, process_t *from)
 {
-	vm_munmap(from->mapp, w, bufsz);
+	vm_map_t *srcmap = (from == NULL) ? threads_common.kmap : from->mapp;
+	vm_munmap(srcmap, w, bufsz);
 }
 
 
@@ -2803,7 +2817,7 @@ int proc_callWithBuffer(u32 port, void *buf, size_t bufsz)
 			break;
 		}
 
-		size_t ofs, regBufsz;
+		size_t regBufsz;
 		void *w;
 
 		if (t->bufferStart <= buf && (void *)((ptr_t)buf + bufsz) <= t->bufferEnd) {
@@ -2825,11 +2839,12 @@ int proc_callWithBuffer(u32 port, void *buf, size_t bufsz)
 				t->mappedTo = recv->process;
 			}
 
-			ofs = buf - t->bufferStart;
-			t->utcb.kw->size = 1;
+			// ofs = buf - t->bufferStart;
+			t->utcb.kw->buf = buf;
+			t->utcb.kw->bufsize = bufsz;
 
-			/* TODO: handle in case of 64-bit */
-			t->utcb.kw->raw[0] = ofs;
+			// *(size_t *)t->utcb.kw->raw = ofs;
+			// t->utcb.kw->size = sizeof(size_t);
 
 			err = proc_call(port);
 		}
@@ -2842,4 +2857,21 @@ int proc_callWithBuffer(u32 port, void *buf, size_t bufsz)
 	}
 
 	return 0;
+}
+
+
+void proc_freeUtcb(thread_t *t)
+{
+	if (t->utcb.kw != NULL) {
+		vm_munmap(threads_common.kmap, t->utcb.kw, SIZE_PAGE);
+		t->utcb.kw = NULL;
+	}
+	if (t->utcb.w != NULL) {
+		vm_munmap(&t->process->map, t->utcb.w, SIZE_PAGE);
+		t->utcb.w = NULL;
+	}
+	if (t->utcb.p != NULL) {
+		vm_pageFree(t->utcb.p);
+		t->utcb.p = NULL;
+	}
 }

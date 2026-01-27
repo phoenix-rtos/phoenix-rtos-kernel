@@ -398,32 +398,56 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 }
 
 
+// int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
+// {
+// 	int err;
+// 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+//
+// 	if (msg == NULL)
+// 		return -ENOMEM;
+//
+// 	hal_memset(msg, 0, sizeof(msg_t));
+//
+// 	msg->type = mtRead;
+// 	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+// 	msg->i.io.offs = offs;
+// 	msg->i.io.len = 0;
+// 	msg->i.io.mode = mode;
+//
+// 	msg->o.size = sz;
+// 	msg->o.data = buf;
+//
+// 	err = proc_send(oid.port, msg);
+//
+// 	if (err >= 0) {
+// 		err = msg->o.err;
+// 	}
+//
+// 	vm_kfree(msg);
+// 	return err;
+// }
+
+
 int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	thread_t *t = proc_current();
 
-	if (msg == NULL)
-		return -ENOMEM;
+	(void)proc_initMsgBuf();
 
-	hal_memset(msg, 0, sizeof(msg_t));
+	t->utcb.kw->label = mtRead;
+	hal_memcpy(&t->utcb.kw->io.oid, &oid, sizeof(oid_t));
 
-	msg->type = mtRead;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-	msg->i.io.offs = offs;
-	msg->i.io.len = 0;
-	msg->i.io.mode = mode;
+	t->utcb.kw->io.offs = offs;
+	t->utcb.kw->io.len = 0;
+	t->utcb.kw->io.mode = mode;
 
-	msg->o.size = sz;
-	msg->o.data = buf;
-
-	err = proc_send(oid.port, msg);
+	err = proc_callWithBuffer(oid.port, buf, sz);
 
 	if (err >= 0) {
-		err = msg->o.err;
+		err = t->utcb.kw->err;
 	}
 
-	vm_kfree(msg);
 	return err;
 }
 

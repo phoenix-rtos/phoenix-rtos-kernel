@@ -237,7 +237,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 }
 
 
-void *proc_configure(void)
+msgBuf_t *proc_initMsgBuf(void)
 {
 	void *vaddr;
 	thread_t *t;

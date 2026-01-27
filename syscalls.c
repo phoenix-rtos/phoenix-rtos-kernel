@@ -863,7 +863,7 @@ int syscalls_msgRespond(void *ustack)
 }
 
 
-int syscalls_msgRecv2(void *ustack)
+void *syscalls_msgRecv2(void *ustack)
 {
 	u32 port;
 	GETFROMSTACK(ustack, u32, port, 0);
@@ -874,12 +874,16 @@ int syscalls_msgRecv2(void *ustack)
 int syscalls_msgRespond2(void *ustack)
 {
 	u32 port;
+	void *reply;
+
 	GETFROMSTACK(ustack, u32, port, 0);
-	return proc_respond2(port);
+	GETFROMSTACK(ustack, void *, reply, 1);
+
+	return proc_respond2(port, reply);
 }
 
 
-int syscalls_msgRespondAndRecv(void *ustack)
+void *syscalls_msgRespondAndRecv(void *ustack)
 {
 	u32 port;
 	GETFROMSTACK(ustack, u32, port, 0);

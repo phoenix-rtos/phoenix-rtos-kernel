@@ -89,13 +89,16 @@ extern int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
 extern int proc_call(u32 port);
 
 
-extern int proc_respond2(u32 port);
+extern int proc_respond2(u32 port, void *reply);
 
 
-extern int proc_recv2(u32 port);
+extern void *proc_recv2(u32 port);
 
 
-extern int proc_respondAndRecv(u32 port);
+extern void *proc_respondAndRecv(u32 port);
+
+
+extern int proc_callWithBuffer(u32 port, void *buf, size_t bufsz);
 
 
 extern void _msg_init(vm_map_t *kmap, vm_object_t *kernel);

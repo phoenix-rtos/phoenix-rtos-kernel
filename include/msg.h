@@ -151,9 +151,55 @@ typedef struct _msg_t {
 
 
 typedef struct {
+	/* could be a POSIX-y message type or custom */
+	int label;
+
 	int err;
 	size_t size;
-	__u32 raw[16];
+
+	union {
+		/* OPEN/CLOSE */
+		struct {
+			int flags;
+		} openclose;
+
+		/* READ/WRITE/TRUNCATE */
+		struct {
+			off_t offs;
+			size_t len;
+			unsigned mode;
+			oid_t oid;
+		} io;
+
+		/* CREATE */
+		struct {
+			int type;
+			unsigned mode;
+			oid_t dev;
+		} create;
+
+		/* SETATTR/GETATTR */
+		struct {
+			long long val;
+			int type;
+		} attr;
+
+		/* LINK/UNLINK */
+		struct {
+			oid_t oid;
+		} ln;
+
+		/* READDIR */
+		struct {
+			off_t offs;
+		} readdir;
+
+		unsigned char raw[64];
+	};
+
+	/* shared buffer, bufsize == 0 denotes no buffer */
+	void *buf;
+	size_t bufsize;
 } msgBuf_t;
 
 
