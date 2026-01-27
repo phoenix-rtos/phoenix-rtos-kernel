@@ -235,6 +235,34 @@ static inline u32 hal_cpuAtomicAdd(volatile u32 *dst, u32 v)
 /* context management */
 
 
+static inline u64 hal_cpuGetGP(void)
+{
+	u64 gp;
+	/* clang-format off */
+	__asm__ volatile(
+		"mv %0, gp"
+		: "=r"(gp)
+		:
+		:
+	);
+	/* clang-format on */
+	return gp;
+}
+
+
+static inline void hal_cpuSetGP(u64 gp)
+{
+	/* clang-format off */
+	__asm__ volatile(
+		"mv gp, %0"
+		:
+		: "r"(gp)
+		:
+	);
+	/* clang-format on */
+}
+
+
 static inline void hal_cpuSetCtxGot(cpu_context_t *ctx, void *got)
 {
 	(void)ctx;

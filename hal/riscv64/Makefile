@@ -19,6 +19,7 @@ endif
 
 # binutils 2.41 silently introduced gp relaxations which for some reason make kernel impossible to build
 # TODO: investigate further
+# If relaxations are enabled, add trampoline in userintr.c (see comment there)
 ifeq ($(shell expr $(LD_VERSION_MINOR) ">=" 41), 1)
 LDFLAGS += $(LDFLAGS_PREFIX)--no-relax-gp
 endif
