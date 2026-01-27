@@ -30,6 +30,7 @@ typedef struct _intr_handler_t {
 	unsigned int n;
 	intrFn_t f;
 	void *data;
+	u64 gp;
 } intr_handler_t;
 
 

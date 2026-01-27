@@ -62,7 +62,28 @@ static int userintr_dispatch(unsigned int n, cpu_context_t *ctx, void *arg)
 	pmap_switch(ui->process->pmapp);
 
 	userintr_common.active = ui;
+
+#ifdef __TARGET_RISCV64
+	u64 gpKernel;
+	/* Set GP register to the one saved when setting up the handler */
+	gpKernel = hal_cpuGetGP();
+	hal_cpuSetGP(ui->handler.gp);
+
+	/* WARN: at this point, if GP relaxations are ever enabled for kernel,
+	 * no global data accesses may be done until GP is restored.
+	 *
+	 * If GP relaxations are enabled, the GP register modifications and the handler call
+	 * must be done in an assembly trampoline, and wrapped with `.option norelax` directive.
+	 */
+#endif
+
 	ret = ui->f(ui->handler.n, ui->arg);
+
+#ifdef __TARGET_RISCV64
+	/* Restore previous GP register */
+	hal_cpuSetGP(gpKernel);
+#endif
+
 	userintr_common.active = NULL;
 
 	if (ret >= 0 && ui->cond != NULL) {
@@ -122,6 +143,9 @@ int userintr_setHandler(unsigned int n, userintrFn_t f, void *arg, handle_t c)
 	 */
 	int attr = PGHD_READ | PGHD_EXEC | PGHD_PRESENT;
 	pmap_enter(ui->process->pmapp, pmap_resolve(ui->process->pmapp, ui->f), (void *)((u64)ui->f & ~(SIZE_PAGE - 1)), attr, NULL);
+
+	/* Save GP register for the interrupt handler */
+	ui->handler.gp = hal_cpuGetGP();
 #endif
 
 	res = hal_interruptsSetHandler(&ui->handler);
