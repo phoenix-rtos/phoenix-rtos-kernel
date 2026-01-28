@@ -46,18 +46,19 @@ static struct {
 } trace_common;
 
 
-#define TRACE_NON_MONOTONICITY (1 << 1)
-#define TRACE_EVENT_DELAYED    (1 << 2)
-#define TRACE_BUFFER_WRITE_ERR (1 << 3)
+#define TRACE_NON_MONOTONICITY (1U << 1)
+#define TRACE_EVENT_DELAYED    (1U << 2)
+#define TRACE_BUFFER_WRITE_ERR (1U << 3)
 
 
 static u32 _gettimeRaw(void)
 {
-	u32 now = hal_timerGetUs();
+	/* Intentional downcast to u32 - traces >1h are not supported */
+	u32 now = (u32)hal_timerGetUs();
 
 	while (now < trace_common.prev) {
 		trace_common.errorFlags |= TRACE_NON_MONOTONICITY;
-		now = hal_timerGetUs();
+		now = (u32)hal_timerGetUs();
 	}
 
 	trace_common.prev = now;
@@ -69,17 +70,17 @@ static u32 _gettimeRaw(void)
 static void _writeEvent(u8 cpuChan, u8 event, const void *data, size_t sz, u32 *ts)
 {
 	u32 eventTs;
-	int ret, try = 0;
-	int eventSz = sizeof(eventTs) + sizeof(event) + sz;
-	int avail;
-	u8 chan = cpuChan + hal_cpuGetID() * trace_channel_count;
+	ssize_t ret, try = 0;
+	size_t eventSz = sizeof(eventTs) + sizeof(event) + sz;
+	size_t avail;
+	u8 chan = cpuChan + (u8)hal_cpuGetID() * (u8)trace_channel_count;
 
 	struct {
 		u32 ts;
 		u8 eventId;
 	} __attribute__((packed)) ev;
 
-	if (ts == NULL || *ts == 0) {
+	if (ts == NULL || *ts == 0U) {
 		eventTs = _gettimeRaw();
 		if (ts != NULL) {
 			*ts = eventTs;
@@ -90,34 +91,33 @@ static void _writeEvent(u8 cpuChan, u8 event, const void *data, size_t sz, u32 *
 		eventTs = *ts;
 	}
 
-	do {
-		avail = _trace_bufferAvail(chan);
-		if (avail < eventSz) {
-			if ((trace_common.flags & PERF_TRACE_FLAG_ROLLING) != 0) {
-				_trace_bufferDiscard(chan, eventSz - avail);
-			}
-			else {
-				try = _trace_bufferWaitUntilAvail(chan, eventSz);
-			}
-		}
+	ret = _trace_bufferAvail(chan);
+	if (ret < 0) {
+		trace_common.errorFlags |= TRACE_BUFFER_WRITE_ERR;
+		return;
+	}
 
-		ev.ts = eventTs;
-		ev.eventId = event;
-		ret = _trace_bufferWrite(chan, &ev, sizeof(ev));
-		if (ret != sizeof(ev)) {
-			break;
+	avail = (size_t)ret;
+	if (avail < eventSz) {
+		if ((trace_common.flags & PERF_TRACE_FLAG_ROLLING) != 0U) {
+			(void)_trace_bufferDiscard(chan, eventSz - avail);
 		}
+		else {
+			try = _trace_bufferWaitUntilAvail(chan, eventSz);
+		}
+	}
 
+	ev.ts = eventTs;
+	ev.eventId = event;
+	ret = _trace_bufferWrite(chan, &ev, sizeof(ev));
+	if (ret == (ssize_t)sizeof(ev)) {
 		ret = _trace_bufferWrite(chan, data, sz);
-		if (ret != sz) {
-			break;
-		}
-	} while (0);
+	}
 
 	if (ret < 0) {
 		trace_common.errorFlags |= TRACE_BUFFER_WRITE_ERR;
 	}
-	else if (try > 0) {
+	if (try > 0) {
 		/*
 		 * Record first occurrence of event delay to caution the user about possible
 		 * loss of timestamp precision. This may happen if e.g. the buffer is implemented as RTT
@@ -169,13 +169,13 @@ static void _emitThreadsCb(threadinfo_t *tinfo, void *private)
 		char name[128];
 	} __attribute__((packed)) ev;
 
-	ev.tid = tinfo->tid;
-	ev.priority = tinfo->priority;
-	ev.pid = tinfo->pid;
+	ev.tid = (u16)tinfo->tid;
+	ev.priority = (u8)tinfo->priority;
+	ev.pid = (u16)tinfo->pid;
 
 	hal_memcpy(ev.name, tinfo->name, sizeof(tinfo->name));
 
-	_writeEvent(trace_channel_meta, TRACE_EVENT_THREAD_CREATE, &ev, sizeof(ev), NULL);
+	_writeEvent((u8)trace_channel_meta, TRACE_EVENT_THREAD_CREATE, &ev, sizeof(ev), NULL);
 }
 
 
@@ -187,15 +187,14 @@ static void _emitThreadinfo(void)
 
 static void _enableTracing(int enable)
 {
-	int val = !!enable;
-	trace_common.running = val;
-	_hal_interruptsTrace(val);
+	trace_common.running = enable;
+	_hal_interruptsTrace(enable);
 }
 
 
 static int getChannelCount(void)
 {
-	return hal_cpuGetCount() * trace_channel_count;
+	return (int)hal_cpuGetCount() * (int)trace_channel_count;
 }
 
 
@@ -242,17 +241,18 @@ int trace_start(unsigned int flags)
 	trace_common.startTimestamp = _gettimeRaw();
 	hal_spinlockClear(&trace_common.spinlock, &sc);
 
-	return getChannelCount();
+	return (int)getChannelCount();
 }
 
 
 int trace_read(u8 chan, void *buf, size_t bufsz)
 {
 	spinlock_ctx_t sc;
-	int ret;
+	int ret, running;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
-	if (trace_common.running != 0 || trace_common.stopped != 0) {
+	running = trace_common.running;
+	if (chan < (u8)getChannelCount() && (running != 0 || trace_common.stopped != 0)) {
 		ret = _trace_bufferRead(chan, buf, bufsz);
 	}
 	else {
@@ -266,11 +266,12 @@ int trace_read(u8 chan, void *buf, size_t bufsz)
 
 int trace_stop(void)
 {
-	int ret = EOK;
+	int ret = EOK, running;
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
-	if (trace_common.stopped == 0 && trace_common.running != 0) {
+	running = trace_common.running;
+	if (trace_common.stopped == 0 && running != 0) {
 		_enableTracing(0);
 		trace_common.stopped = 1;
 		ret = getChannelCount();
@@ -311,21 +312,21 @@ int trace_finish(void)
 	}
 	hal_spinlockClear(&trace_common.spinlock, &sc);
 
-	if ((errorFlags & TRACE_NON_MONOTONICITY) != 0) {
-		lib_printf("kernel (%s:%d): timer non-monotonicity detected during event gathering\n", __func__, __LINE__);
-	}
-
-	if ((errorFlags & TRACE_EVENT_DELAYED) != 0) {
-		lib_printf("kernel (%s:%d): event delay detected %llu times - event receiver couldn't keep up\n", __func__, __LINE__, eventDelayCount);
-		lib_printf("kernel (%s:%d): start ts=%lld delay ts=%lld stop ts=%lld\n", __func__, __LINE__, startTimestamp, eventDelayTimestamp, stopTimestamp);
-	}
-
-	if ((errorFlags & TRACE_BUFFER_WRITE_ERR) != 0) {
-		lib_printf("kernel (%s:%d): buffer write error detected\n", __func__, __LINE__);
-	}
-
 	if (ret == EOK) {
-		_trace_bufferFinish();
+		if ((errorFlags & TRACE_NON_MONOTONICITY) != 0U) {
+			lib_printf("kernel (%s:%d): timer non-monotonicity detected during event gathering\n", __func__, __LINE__);
+		}
+
+		if ((errorFlags & TRACE_EVENT_DELAYED) != 0U) {
+			lib_printf("kernel (%s:%d): event delay detected %llu times - event receiver couldn't keep up\n", __func__, __LINE__, eventDelayCount);
+			lib_printf("kernel (%s:%d): start ts=%lld delay ts=%lld stop ts=%lld\n", __func__, __LINE__, startTimestamp, eventDelayTimestamp, stopTimestamp);
+		}
+
+		if ((errorFlags & TRACE_BUFFER_WRITE_ERR) != 0U) {
+			lib_printf("kernel (%s:%d): buffer write error detected\n", __func__, __LINE__);
+		}
+
+		ret = _trace_bufferFinish();
 	}
 
 	return ret;

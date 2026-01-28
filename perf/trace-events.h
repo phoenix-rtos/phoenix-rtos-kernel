@@ -62,7 +62,7 @@ extern void _trace_updateLockEpoch(lock_t *lock);
 		if (trace_isRunning() == 0) { \
 			return; \
 		} \
-		__VA_ARGS__ trace_writeEvent(chan, event_id, &ev, sizeof(ev), ts); \
+		__VA_ARGS__ trace_writeEvent((chan), (event_id), &(ev), sizeof(ev), (ts)); \
 	} while (0)
 
 
@@ -70,8 +70,8 @@ extern void _trace_updateLockEpoch(lock_t *lock);
  * NOTE: The ev structure passed to PERF_{META,EVENT}_BODY must match the
  * field struct declared in the tsdl/metadata for a given event_id.
  */
-#define TRACE_META_BODY(event_id, ev, ts, ...)  TRACE_EVENT_BODY_CHAN(trace_channel_meta, event_id, ev, ts, __VA_ARGS__)
-#define TRACE_EVENT_BODY(event_id, ev, ts, ...) TRACE_EVENT_BODY_CHAN(trace_channel_event, event_id, ev, ts, __VA_ARGS__)
+#define TRACE_META_BODY(event_id, ev, ts, ...)  TRACE_EVENT_BODY_CHAN((u8)(trace_channel_meta), (event_id), (ev), (ts), __VA_ARGS__)
+#define TRACE_EVENT_BODY(event_id, ev, ts, ...) TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
 
 
 /* assumes lock->spinlock is set */
@@ -84,7 +84,7 @@ static inline void _trace_eventLockName(const lock_t *lock)
 
 	TRACE_META_BODY(TRACE_EVENT_LOCK_NAME, ev, NULL, {
 		ev.lid = (ptr_t)lock;
-		hal_strcpy(ev.name, lock->name);
+		(void)hal_strcpy(ev.name, lock->name);
 	});
 }
 
@@ -193,12 +193,12 @@ static inline void trace_eventThreadCreate(const thread_t *t)
 	} __attribute__((packed)) ev;
 
 	TRACE_META_BODY(TRACE_EVENT_THREAD_CREATE, ev, NULL, {
-		ev.tid = proc_getTid(t);
-		ev.priority = t->priority;
+		ev.tid = (u16)proc_getTid(t);
+		ev.priority = (u8)t->priority;
 
 		proc_getProcessName((thread_t *)t, ev.name, sizeof(ev.name));
 		if (t->process != NULL) {
-			ev.pid = process_getPid(t->process);
+			ev.pid = (u16)process_getPid(t->process);
 		}
 		else {
 			ev.pid = 0;
@@ -215,8 +215,8 @@ static inline void trace_eventThreadEnd(const thread_t *t)
 	} __attribute__((packed)) ev;
 
 	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_END, ev, NULL, {
-		ev.pid = process_getPid(t->process);
-		ev.tid = proc_getTid(t);
+		ev.pid = (u16)process_getPid(t->process);
+		ev.tid = (u16)proc_getTid(t);
 	});
 }
 
@@ -280,7 +280,7 @@ static inline void trace_eventProcessKill(const process_t *p)
 	u16 pid;
 
 	TRACE_EVENT_BODY(TRACE_EVENT_PROCESS_KILL, pid, NULL, {
-		pid = process_getPid(p);
+		pid = (u16)process_getPid(p);
 	});
 }
 

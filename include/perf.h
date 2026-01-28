@@ -22,7 +22,7 @@ typedef enum { trace_channel_meta, trace_channel_event, trace_channel_count } tr
 /* clang-format on */
 
 
-#define PERF_TRACE_FLAG_ROLLING (1 << 0) /* treat event channel as rolling window */
+#define PERF_TRACE_FLAG_ROLLING (1U << 0) /* treat event channel as rolling window */
 
 
 #endif

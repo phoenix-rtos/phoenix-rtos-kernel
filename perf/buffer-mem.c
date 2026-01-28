@@ -22,11 +22,11 @@
 
 
 #ifndef TRACE_EVENT_CHANNEL_BUFSIZE
-#define TRACE_EVENT_CHANNEL_BUFSIZE (4 << 20) /* 4 MB */
+#define TRACE_EVENT_CHANNEL_BUFSIZE (4UL << 20) /* 4 MB */
 #endif
 
 #ifndef TRACE_META_CHANNEL_BUFSIZE
-#define TRACE_META_CHANNEL_BUFSIZE (1 << 20) /* 1 MB */
+#define TRACE_META_CHANNEL_BUFSIZE (1UL << 20) /* 1 MB */
 #endif
 
 
@@ -62,7 +62,7 @@ static void _bufferFree(void *data, page_t **pages)
 		p = *pages;
 	}
 
-	vm_munmap(buffer_common.kmap, data, sz);
+	(void)vm_munmap(buffer_common.kmap, data, sz);
 }
 
 
@@ -126,17 +126,17 @@ int _trace_bufferStart(void)
 }
 
 
-int _trace_bufferRead(u8 chan, void *buf, size_t bufsz)
+ssize_t _trace_bufferRead(u8 chan, void *buf, size_t bufsz)
 {
 	cbuffer_t *cbuf = getBuffer(chan);
-	return _cbuffer_read(cbuf, buf, bufsz);
+	return (ssize_t)_cbuffer_read(cbuf, buf, bufsz);
 }
 
 
-int _trace_bufferWrite(u8 chan, const void *data, size_t sz)
+ssize_t _trace_bufferWrite(u8 chan, const void *data, size_t sz)
 {
 	cbuffer_t *cbuf = getBuffer(chan);
-	return _cbuffer_write(cbuf, data, sz);
+	return (ssize_t)_cbuffer_write(cbuf, data, sz);
 }
 
 
@@ -147,17 +147,17 @@ int _trace_bufferWaitUntilAvail(u8 chan, size_t sz)
 }
 
 
-int _trace_bufferAvail(u8 chan)
+ssize_t _trace_bufferAvail(u8 chan)
 {
 	cbuffer_t *cbuf = getBuffer(chan);
-	return _cbuffer_free(cbuf);
+	return (ssize_t)_cbuffer_free(cbuf);
 }
 
 
-int _trace_bufferDiscard(u8 chan, size_t sz)
+ssize_t _trace_bufferDiscard(u8 chan, size_t sz)
 {
 	cbuffer_t *cbuf = getBuffer(chan);
-	return _cbuffer_discard(cbuf, sz);
+	return (ssize_t)_cbuffer_discard(cbuf, sz);
 }
 
 
@@ -173,8 +173,9 @@ int _trace_bufferFinish(void)
 
 int trace_bufferInit(vm_map_t *kmap)
 {
+	const size_t nchansPerCpu = (size_t)trace_channel_count;
 	unsigned int ncpus = hal_cpuGetCount();
-	size_t nchans = trace_channel_count * ncpus;
+	size_t nchans = nchansPerCpu * ncpus;
 	size_t i;
 
 	buffer_common.kmap = kmap;
@@ -186,8 +187,8 @@ int trace_bufferInit(vm_map_t *kmap)
 	buffer_common.nchans = nchans;
 
 	for (i = 0; i < ncpus; i++) {
-		buffer_common.chans[trace_channel_meta + i * trace_channel_count].bufsize = TRACE_META_CHANNEL_BUFSIZE;
-		buffer_common.chans[trace_channel_event + i * trace_channel_count].bufsize = TRACE_EVENT_CHANNEL_BUFSIZE;
+		buffer_common.chans[(size_t)trace_channel_meta + i * nchansPerCpu].bufsize = TRACE_META_CHANNEL_BUFSIZE;
+		buffer_common.chans[(size_t)trace_channel_event + i * nchansPerCpu].bufsize = TRACE_EVENT_CHANNEL_BUFSIZE;
 	}
 
 	return EOK;

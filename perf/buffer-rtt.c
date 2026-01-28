@@ -63,13 +63,13 @@ int _trace_bufferStart(void)
 }
 
 
-int _trace_bufferRead(u8 chan, void *buf, size_t bufsz)
+ssize_t _trace_bufferRead(u8 chan, void *buf, size_t bufsz)
 {
 	return 0;
 }
 
 
-int _trace_bufferWrite(u8 chan, const void *data, size_t sz)
+ssize_t _trace_bufferWrite(u8 chan, const void *data, size_t sz)
 {
 	if (buffer_common.initialized == 0) {
 		return -EINVAL;
@@ -91,13 +91,13 @@ int _trace_bufferWaitUntilAvail(u8 chan, size_t sz)
 }
 
 
-int _trace_bufferAvail(u8 chan)
+ssize_t _trace_bufferAvail(u8 chan)
 {
 	return _hal_rttTxAvail(buffer_common.chans[chan].rtt);
 }
 
 
-int _trace_bufferDiscard(u8 chan, size_t sz)
+ssize_t _trace_bufferDiscard(u8 chan, size_t sz)
 {
 	return -ENOSYS;
 }
