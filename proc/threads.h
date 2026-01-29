@@ -89,6 +89,8 @@ static inline int proc_getTid(thread_t *t)
 	return t->idlinkage.id;
 }
 
+typedef void (*threadInfoCb_t)(threadinfo_t *info, void *private);
+
 
 int perf_start(unsigned int pid);
 
@@ -139,6 +141,9 @@ void proc_getProcessName(thread_t *thread, char *name, size_t sz);
 
 
 int proc_calculateVmem(thread_t *thread);
+
+
+void proc_threadsIter(unsigned int flags, threadInfoCb_t cb, void *private);
 
 
 int proc_threadsInfo(int tid, unsigned int flags, int n, threadinfo_t *info);

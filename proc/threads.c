@@ -2265,6 +2265,30 @@ void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
 }
 
 
+void proc_threadsIter(unsigned int flags, threadInfoCb_t cb, void *private)
+{
+	thread_t *t;
+	threadinfo_t info;
+
+	(void)proc_lockSet(&threads_common.lock);
+
+	flags |= PH_THREADINFO_TID;
+
+	t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
+	do {
+		_proc_threadInfo(t, flags, &info);
+
+		if (cb != NULL) {
+			cb(&info, private);
+		}
+
+		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
+	} while (t != NULL);
+
+	(void)proc_lockClear(&threads_common.lock);
+}
+
+
 int proc_threadsInfo(int tid, unsigned int flags, int n, threadinfo_t *info)
 {
 	int i = 0;
