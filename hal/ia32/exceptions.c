@@ -111,16 +111,37 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 	return ctx->cpuCtx.eip;
 }
 
+#ifndef NDEBUG
+static unsigned long hal_ld80ToHexString(char *buffer, const u8 *value)
+{
+	static const char digits[] = "0123456789abcdef";
+	size_t i;
+	u8 val;
+	for (i = 10; i > 0; --i) {
+		val = value[i - 1];
+		*buffer = digits[val / 16];
+		buffer++;
+		*buffer = digits[val % 16];
+		buffer++;
+	}
+	return 20;
+}
+#endif
+
 
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	static const char *const mnemonics[] = {
 		"0 #DE",  "1 #DB",  "2 #NMI", "3 #BP",      "4 #OF",  "5 #BR",  "6 #UD",  "7 #NM",
-		"8 #BF",  "9 #",    "10 #TS", "11 #NP",     "12 #SS", "13 #GP", "14 #PF", "15 #",
+		"8 #DF",  "9 #",    "10 #TS", "11 #NP",     "12 #SS", "13 #GP", "14 #PF", "15 #",
 		"16 #MF", "17 #AC", "18 #MC", "19 #XM/#XF", "20 #VE", "21 #",   "22 #",   "23 #",
 		"24 #",   "25 #",   "26 #",   "27 #",       "28 #",   "29 #",   "30 #SE", "31 #" };
 
 	size_t i = 0;
+#ifndef NDEBUG
+	size_t j;
+	u32 cr0, cr3, cr4;
+#endif
 	u32 ss;
 
 	n &= 0x1f;
@@ -138,6 +159,23 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	hal_strcpy(buff += hal_strlen(buff), mnemonics[n]);
 	hal_strcpy(buff += hal_strlen(buff), "\n");
 	buff += hal_strlen(buff);
+
+#ifndef NDEBUG
+	switch (n) {
+		case 10: /* #TS */
+		case 11: /* #NP */
+		case 12: /* #SS */
+		case 13: /* #GP */
+		case 14: /* #PF */
+		case 17: /* #AC */
+		case 21: /* #CP */
+			i += hal_i2s("err=", &buff[i], ctx->err, 16, 1);
+			buff[i++] = '\n';
+			break;
+		default:
+			break;
+	}
+#endif
 
 	i += hal_i2s("eax=", &buff[i], ctx->cpuCtx.eax, 16, 1);
 	i += hal_i2s("  cs=", &buff[i], (u32)ctx->cpuCtx.cs, 16, 1);
@@ -166,16 +204,46 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 	i += hal_i2s("\ndr6=", &buff[i], ctx->dr6, 16, 1);
 	i += hal_i2s(" dr7=", &buff[i], ctx->dr7, 16, 1);
 
+	ss = (u32)hal_exceptionsFaultAddr(n, ctx);
+
+	/* i += hal_i2s(" thr=", &buff[i], _proc_current(), 16, 1); */
+
+#ifndef NDEBUG
 	/* clang-format off */
 	__asm__ volatile (
-		"movl %%cr2, %0"
-	: "=r" (ss)
+		"movl %%cr0, %0\n\r"
+		"movl %%cr3, %1\n\r"
+		"movl %%cr4, %2"
+	: "=r" (cr0), "=r" (cr3), "=r" (cr4)
 	:
 	: );
 	/* clang-format on */
-
+	i += hal_i2s("\ncr0=", &buff[i], cr0, 16, 1);
 	i += hal_i2s(" cr2=", &buff[i], ss, 16, 1);
-	/* i += hal_i2s(" thr=", &buff[i], _proc_current(), 16, 1); */
+	i += hal_i2s(" cr3=", &buff[i], cr3, 16, 1);
+	i += hal_i2s(" cr4=", &buff[i], cr4, 16, 1);
+
+	/* Dump FPU context, if it exists */
+	if ((ctx->cpuCtx.cr0Bits & CR0_TS_BIT) == 0) {
+		i += hal_i2s("\nfcw=", &buff[i], ctx->cpuCtx.fpuContext.controlWord, 16, 1);
+		i += hal_i2s(" fsw=", &buff[i], ctx->cpuCtx.fpuContext.statusWord, 16, 1);
+		i += hal_i2s(" ftw=", &buff[i], ctx->cpuCtx.fpuContext.tagWord, 16, 1);
+		i += hal_i2s(" fip=", &buff[i], ctx->cpuCtx.fpuContext.fip, 16, 1);
+		i += hal_i2s("\nfdp=", &buff[i], ctx->cpuCtx.fpuContext.fdp, 16, 1);
+		i += hal_i2s(" fds=", &buff[i], ctx->cpuCtx.fpuContext.fds, 16, 1);
+		i += hal_i2s(" fips=", &buff[i], ctx->cpuCtx.fpuContext.fips, 16, 1);
+
+		buff[i++] = '\n';
+		for (j = 0; j < 8; ++j) {
+			i += hal_i2s("fpr", &buff[i], j, 10, 0);
+			buff[i++] = '=';
+			i += hal_ld80ToHexString(&buff[i], ctx->cpuCtx.fpuContext.fpuContext[j]);
+			buff[i++] = ((j & 1) != 0) ? '\n' : ' ';
+		}
+	}
+#else
+	i += hal_i2s(" cr2=", &buff[i], ss, 16, 1);
+#endif
 
 	buff[i++] = '\n';
 
@@ -235,7 +303,7 @@ int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 
 
 /* Function setups interrupt stub in IDT */
-__attribute__ ((section (".init"))) void _exceptions_setIDTStub(unsigned int n, void *addr)
+__attribute__ ((section (".init"))) static void _exceptions_setIDTStub(unsigned int n, void *addr)
 {
 	u32 w0, w1;
 	u32 *idtr;
