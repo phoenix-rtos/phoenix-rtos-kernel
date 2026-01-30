@@ -171,12 +171,20 @@ _syscallend:
 
 _exceptions_dispatch:
 	cpsid if
+	isb
 
-	mrs r0, psp
-	stmdb sp!, {r0, r4-r11, lr}
+	mov r0, sp /* save MSP to be stored in cpu_context_t */
+	tst lr, #(1 << 2)
+	ite ne
+	subne sp, sp, #(8 * 4) /* If coming from userspace, make room on the stack for hardware-stored context */
+	addeq r0, r0, #(8 * 4) /* If coming from kernel, calculate msp as it was before the exception  */
+
+	str r0, [sp, #-8]! /* Store msp, skip over pad0 */
 
 	mrs r0, ipsr
-	mov r1, sp
+	mrs r3, psp
+	sub r1, sp, #48
+	stmdb sp!, {r1-r11, lr}
 
 	b exceptions_dispatch
 .size _exceptions_dispatch, .-_exceptions_dispatch

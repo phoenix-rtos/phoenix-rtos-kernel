@@ -252,12 +252,31 @@ _exceptions_dispatch:
 	cpsid if
 	isb
 
-	mrs r0, psp
-	/* push psp, r4~r11, excret */
-	stmdb sp!, {r0, r4-r11, lr}
+	mov r0, sp /* save MSP to be stored in cpu_context_t */
+	tst lr, #EXC_RETURN_SPSEL
+	itt ne
+	subne sp, sp, #(8 * 4) /* If coming from userspace, make room on the stack for hardware-stored context */
+	bne 1f
+
+	tst lr, #EXC_RETURN_FTYPE /* If coming from kernel, calculate msp as it was before the exception  */
+	ite ne
+	addne r0, r0, #(8 * 4)
+	addeq r0, r0, #((8 + 18) * 4)
+
+1:
+#if KERNEL_FPU_SUPPORT
+	vpush {s16-s31}
+#endif
+	str r0, [sp, #-8]! /* Store msp, skip over pad0 */
 
 	mrs r0, ipsr
-	mov r1, sp
+	sub r1, sp, #(12 * 4) /* pointer to cpu_context_t on stack */
+#if KERNEL_FPU_SUPPORT
+	ldr r2, =SCS_BASE
+	ldr r2, [r2, #SCS_FPCAR]
+#endif
+	mrs r3, psp
+	push {r1-r11, lr} /* store savesp, fpuctx, psp, r4~r11, irq_ret */
 
 	/* void exceptions_dispatch(unsigned int n, exc_context_t *ctx) */
 	b exceptions_dispatch
