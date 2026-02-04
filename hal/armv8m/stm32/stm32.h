@@ -54,10 +54,10 @@ enum gpio_pupds {
 
 
 /* Sets peripheral's bus clock */
-int _stm32_rccSetDevClock(unsigned int dev, u32 status, u32 lpStatus);
+int _stm32_rccSetDevClock(int dev, u32 status, u32 lpStatus);
 
 
-int _stm32_rccGetDevClock(unsigned int dev, u32 *status, u32 *lpStatus);
+int _stm32_rccGetDevClock(int dev, u32 *status, u32 *lpStatus);
 
 
 /* Sets independent peripheral clock configuration */
@@ -79,28 +79,28 @@ void _stm32_rccClearResetFlags(void);
 
 
 /* If `stop` != 0, selected timer will be stopped when CPU is halted in debug. */
-int _stm32_dbgmcuStopTimerInDebug(unsigned int dev, u32 stop);
+int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop);
 
 
-int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);
+int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);
 
 
-int _stm32_gpioSet(unsigned int d, u8 pin, u8 val);
+int _stm32_gpioSet(int d, u8 pin, u8 val);
 
 
-int _stm32_gpioSetPort(unsigned int d, u16 val);
+int _stm32_gpioSetPort(int d, u16 val);
 
 
-int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val);
+int _stm32_gpioGet(int d, u8 pin, u8 *val);
 
 
-int _stm32_gpioGetPort(unsigned int d, u16 *val);
+int _stm32_gpioGetPort(int d, u32 *val);
 
 
-int _stm32_gpioSetPrivilege(unsigned int d, u32 val);
+int _stm32_gpioSetPrivilege(int d, u32 val);
 
 
-int _stm32_gpioGetPrivilege(unsigned int d, u32 *val);
+int _stm32_gpioGetPrivilege(int d, u32 *val);
 
 
 void _stm32_rtcUnlockRegs(void);
@@ -127,19 +127,19 @@ int _stm32_extiSoftInterrupt(u32 line);
 void _stm32_wdgReload(void);
 
 
-int _stm32_rifsc_risup_change(unsigned int index, int secure, int privileged, int lock);
+int _stm32_rifsc_risup_change(int index, int secure, int privileged, int lock);
 
 
-int _stm32_rifsc_rimc_change(unsigned int index, int secure, int privileged, int cid);
+int _stm32_rifsc_rimc_change(int index, int secure, int privileged, int cid);
 
 
-int _stm32_bsec_otp_checkFuseValid(unsigned int addr);
+int _stm32_bsec_otp_checkFuseValid(unsigned int fuse);
 
 
-int _stm32_bsec_otp_read(unsigned int addr, u32 *val);
+int _stm32_bsec_otp_read(unsigned int fuse, u32 *val);
 
 
-int _stm32_bsec_otp_write(unsigned int addr, u32 val);
+int _stm32_bsec_otp_write(unsigned int fuse, u32 val);
 
 
 void _stm32_bsec_init(void);
@@ -151,7 +151,7 @@ int _stm32_dmaSetPermissions(int dev, unsigned int channel, int secure, int priv
 int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr);
 
 
-int _stm32_risaf_configRegion(unsigned int risaf, u8 region, u32 start, u32 end, u8 privCIDMask, u8 readCIDMask, u8 writeCIDMask, int secure, int enable);
+int _stm32_risaf_configRegion(int risaf, u8 region, u32 start, u32 end, u8 privCIDMask, u8 readCIDMask, u8 writeCIDMask, int secure, int enable);
 
 
 int _stm32_risaf_init(void);

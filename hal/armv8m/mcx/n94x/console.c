@@ -19,7 +19,22 @@
 #include "hal/cpu.h"
 #include "hal/string.h"
 #include "hal/spinlock.h"
+#include "lib/helpers.h"
 #include <board_config.h>
+
+#ifndef UART_CONSOLE_KERNEL
+#define UART_CONSOLE_KERNEL UART_CONSOLE
+#endif
+
+#define CONCAT3(a, b, c) a##b##c
+/* parasoft-suppress-next-line MISRAC2012-RULE_20_7 "Cannot enclose macro parameters in parentheses as CONCAT3 concatenates literal tokens." */
+#define CONSOLE_BAUD(n) (CONCAT3(UART, n, _BAUDRATE))
+
+#if !ISEMPTY(UART_CONSOLE_KERNEL) && CONSOLE_BAUD(UART_CONSOLE_KERNEL)
+#define CONSOLE_BAUDRATE CONSOLE_BAUD(UART_CONSOLE_KERNEL)
+#else
+#define CONSOLE_BAUDRATE 115200
+#endif
 
 
 /* clang-format off */
@@ -91,8 +106,6 @@ void _hal_consoleInit(void)
 		{ .base = FLEXCOMM8_BASE, .tx = UART8_TX_PIN, .rx = UART8_RX_PIN, .txalt = UART8_TX_ALT, .rxalt = UART8_RX_ALT },
 		{ .base = FLEXCOMM9_BASE, .tx = UART9_TX_PIN, .rx = UART9_RX_PIN, .txalt = UART9_TX_ALT, .rxalt = UART9_RX_ALT },
 	};
-	static const int baud[10] = { UART0_BAUDRATE, UART1_BAUDRATE, UART2_BAUDRATE, UART3_BAUDRATE, UART4_BAUDRATE,
-		UART5_BAUDRATE, UART6_BAUDRATE, UART7_BAUDRATE, UART8_BAUDRATE, UART9_BAUDRATE };
 
 	console_common.uart = info[UART_CONSOLE].base;
 
@@ -110,14 +123,20 @@ void _hal_consoleInit(void)
 	t = *(console_common.uart + uart_baud) & ~((0xfUL << 24) | (1UL << 17) | 0x1fffU);
 
 	/* For baud rate calculation, default UART_CLK=12MHz assumed */
-	switch (baud[UART_CONSOLE]) {
-		case 9600: t |= 0x03020138U; break;
-		case 19200: t |= 0x0302009cU; break;
-		case 38400: t |= 0x0302004eU; break;
-		case 57600: t |= 0x03020034U; break;
-		case 230400: t |= 0x0302000dU; break;
-		default: t |= 0x0302001aU; break; /* 115200 */
-	}
+#if CONSOLE_BAUDRATE == 9600
+	t |= 0x03020138U;
+#elif CONSOLE_BAUDRATE == 19200
+	t |= 0x0302009cU;
+#elif CONSOLE_BAUDRATE == 38400
+	t |= 0x0302004eU;
+#elif CONSOLE_BAUDRATE == 57600
+	t |= 0x03020034U;
+#elif CONSOLE_BAUDRATE == 230400
+	t |= 0x0302000dU;
+#else
+	t |= 0x0302001aU; /* 115200 */
+#endif
+
 	*(console_common.uart + uart_baud) = t;
 
 	/* Set 8 bit and no parity mode */

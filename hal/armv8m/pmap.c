@@ -37,6 +37,7 @@ extern unsigned int __bss_start;
 /* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly" */
 extern void *_init_vectors;
 
 
@@ -128,7 +129,7 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	return 0;
 }
@@ -153,8 +154,7 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	addr_t addr_end = (addr_t)vaddr + size;
 	/* Check for potential arithmetic overflow. `addr_end` is allowed to be 0,
 	 * as it represents the top of memory. */
-	int addr_overflowed = (addr_end != 0U) && (addr_end < (addr_t)vaddr);
-	if ((map == NULL) || (addr_end > map->end) || addr_overflowed) {
+	if ((map == NULL) || (addr_end > map->end) || ((addr_end != 0U) && (addr_end < (addr_t)vaddr))) {
 		return 0;
 	}
 

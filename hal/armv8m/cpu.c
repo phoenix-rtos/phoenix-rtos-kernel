@@ -118,14 +118,14 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	ctx->hwctx.psr = DEFAULT_PSR;
 	if (ustack != NULL) {
 #if KERNEL_FPU_SUPPORT
-		ctx->fpuctx = ctx->psp + (8 * sizeof(u32)); /* Must point to s0 in hw-saved context */
+		ctx->fpuctx = ctx->psp + (8U * sizeof(u32)); /* Must point to s0 in hw-saved context */
 		ctx->fpscr = _hal_scsGetDefaultFPSCR();
 #endif
 		ctx->irq_ret = RET_THREAD_PSP;
 	}
 	else {
 #if KERNEL_FPU_SUPPORT
-		ctx->fpuctx = (u32)(&ctx->hwctx) + (8 * sizeof(u32)); /* Must point to s0 in hw-saved context */
+		ctx->fpuctx = (u32)(&ctx->hwctx) + (8U * sizeof(u32)); /* Must point to s0 in hw-saved context */
 		ctx->fpscr = _hal_scsGetDefaultFPSCR();
 #endif
 		ctx->irq_ret = RET_THREAD_MSP;
@@ -146,13 +146,14 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &signalCtx, sizeof(signalCtx) },
 		{ &oldmask, sizeof(oldmask) },
 		{ &n, sizeof(n) },
-		{ 0, 0 } /* Reserve space for optional HWCTX */
+		{ 0U, 0U } /* Reserve space for optional HWCTX */
 	};
 	size_t argc = (sizeof(args) / sizeof(args[0])) - 1U;
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
 	signalCtx->psp -= sizeof(cpu_context_t);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 	signalCtx->hwctx.pc = (u32)handler;
 
 	/* Set default PSR, clear potential ICI/IT flags */
@@ -230,9 +231,9 @@ char *hal_cpuFeatures(char *features, size_t len)
 {
 	unsigned int n = 0;
 #if KERNEL_FPU_SUPPORT
-	if ((len - n) > 5) {
-		hal_strcpy(features + n, "FPU, ");
-		n += 5;
+	if ((len - n) > 5U) {
+		(void)hal_strcpy(features + n, "FPU, ");
+		n += 5U;
 	}
 #else
 	if ((len - n) > 8U) {
