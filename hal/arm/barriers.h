@@ -17,19 +17,22 @@
 #define _PH_HAL_ARM_BARRIERS_H_
 
 
-__attribute__((unused)) static inline void hal_cpuDataMemoryBarrier(void)
+#include "lib/attrs.h"
+
+
+MAYBE_UNUSED static inline void hal_cpuDataMemoryBarrier(void)
 {
 	__asm__ volatile("dmb");
 }
 
 
-__attribute__((unused)) static inline void hal_cpuDataSyncBarrier(void)
+MAYBE_UNUSED static inline void hal_cpuDataSyncBarrier(void)
 {
 	__asm__ volatile("dsb");
 }
 
 
-__attribute__((unused)) static inline void hal_cpuInstrBarrier(void)
+MAYBE_UNUSED static inline void hal_cpuInstrBarrier(void)
 {
 	__asm__ volatile("isb");
 }
