@@ -24,16 +24,16 @@
 #include "log/log.h"
 
 /* Flags used for printing */
-#define FLAG_SIGNED       0x1UL
-#define FLAG_64BIT        0x2UL
-#define FLAG_SPACE        0x10UL
-#define FLAG_ZERO         0x20UL
-#define FLAG_PLUS         0x40UL
-#define FLAG_HEX          0x80UL
-#define FLAG_LARGE_DIGITS 0x100UL
+#define FLAG_SIGNED       0x1U
+#define FLAG_64BIT        0x2U
+#define FLAG_SPACE        0x10U
+#define FLAG_ZERO         0x20U
+#define FLAG_PLUS         0x40U
+#define FLAG_HEX          0x80U
+#define FLAG_LARGE_DIGITS 0x100U
 
 
-static char *lib_sprintfInt(char *out, u64 num64, u32 flags, int min_number_len)
+static char *lib_sprintfInt(char *out, u64 num64, u32 flags, u32 min_number_len)
 {
 	const char *digits = (flags & FLAG_LARGE_DIGITS) != 0U ? "0123456789ABCDEF" : "0123456789abcdef";
 	char tmp_buf[32];
@@ -121,7 +121,8 @@ static char *lib_sprintfInt(char *out, u64 num64, u32 flags, int min_number_len)
 
 	/* FIXME: Pointer arithmetic cast into potentially smaller type */
 	const int digits_cnt = (int)(tmp - tmp_buf);
-	int pad_len = min_number_len - digits_cnt - (sign != '\0' ? 1 : 0);
+	/* FIXME: min_number_len potentially truncated */
+	int pad_len = (int)min_number_len - digits_cnt - (sign != '\0' ? 1 : 0);
 
 	/* pad, if needed */
 	if (pad_len > 0 && (flags & FLAG_ZERO) == 0U) {
@@ -270,7 +271,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 					s = "(null)";
 				}
 
-				const unsigned int s_len = (unsigned int)hal_strlen(s);
+				const size_t s_len = hal_strlen(s);
 				hal_memcpy(out, s, s_len);
 				out += s_len;
 				break;
@@ -333,7 +334,7 @@ int lib_vsprintf(char *out, const char *format, va_list args)
 			if (is_pointer == 0) {
 				number = (flags & FLAG_64BIT) ? va_arg(args, u64) : va_arg(args, u32);
 			}
-			out = lib_sprintfInt(out, number, flags, (int)min_number_len);
+			out = lib_sprintfInt(out, number, flags, min_number_len);
 		}
 	}
 
@@ -522,7 +523,7 @@ int lib_vprintf(const char *format, va_list ap)
 
 				number = (u64)(size_t)s;
 				flags |= (FLAG_ZERO | FLAG_HEX);
-				/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof depends on the architecture" */
+				/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "sizeof(void *) depends on the architecture" */
 				if (sizeof(void *) == sizeof(u64)) {
 					flags |= FLAG_64BIT;
 				}
@@ -548,7 +549,7 @@ int lib_vprintf(const char *format, va_list ap)
 			if (is_pointer == 0) {
 				number = (flags & FLAG_64BIT) ? va_arg(ap, u64) : va_arg(ap, u32);
 			}
-			eptr = lib_sprintfInt(buff, number, flags, (int)min_number_len);
+			eptr = lib_sprintfInt(buff, number, flags, min_number_len);
 			sptr = buff;
 
 			while (sptr != eptr) {
