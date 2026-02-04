@@ -456,10 +456,13 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	time_t now;
 	spinlock_ctx_t sc;
 
+	/* parasoft-begin-suppress MISRAC2012-RULE_14_3 "hal_cpuGetID()'s return value might
+	 * not be known at compile time for different architectures" */
 	if (hal_cpuGetID() != 0U) {
 		/* Invoke scheduler */
 		return 1;
 	}
+	/* parasoft-end-suppress MISRAC2012-RULE_14_3 */
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	now = _proc_gettimeRaw();
@@ -2271,7 +2274,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_memset(&threads_common.pendsvHandler, 0, sizeof(threads_common.pendsvHandler));
 	threads_common.pendsvHandler.f = threads_schedule;
 	threads_common.pendsvHandler.n = PENDSV_IRQ;
-	hal_interruptsSetHandler(&threads_common.pendsvHandler);
+	(void)hal_interruptsSetHandler(&threads_common.pendsvHandler);
 #endif
 
 	hal_memset(&threads_common.timeintrHandler, 0, sizeof(threads_common.timeintrHandler));

@@ -21,16 +21,9 @@
 #include "hal/string.h"
 
 
-enum { gpt_cr = 0,
-	gpt_pr,
-	gpt_sr,
-	gpt_ir,
-	gpt_ocr1,
-	gpt_ocr2,
-	gpt_ocr3,
-	gpt_icr1,
-	gpt_icr2,
-	gpt_cnt };
+/* clang-format off */
+enum { gpt_cr = 0, gpt_pr, gpt_sr, gpt_ir, gpt_ocr1, gpt_ocr2, gpt_ocr3, gpt_icr1, gpt_icr2, gpt_cnt };
+/* clang-format on */
 
 
 static struct {
@@ -159,17 +152,17 @@ void _hal_timerInit(u32 interval)
 	}
 
 	/* Set prescaler, prescale OSC by GPT_OSC_PRESCALER to get less than 1/4 bus clk */
-	*(timer_common.base + gpt_pr) = (((u32)GPT_OSC_PRESCALER - 1UL) << 12) | ((u32)GPT_PRESCALER - 1U);
+	*(timer_common.base + gpt_pr) = ((u32)((u32)GPT_OSC_PRESCALER - 1U) << 12) | (u32)((u32)GPT_PRESCALER - 1U);
 
 	/* Enable oscillator input and select it as clock source, freerun mode */
 	/* Leave timer running in lp modes, reset counter on enable */
-	*(timer_common.base + gpt_cr) = (1UL << 10) | (1UL << 9) | (5UL << 6) | (1UL << 5) | (1UL << 4) | (1UL << 3) | (1UL << 1);
+	*(timer_common.base + gpt_cr) = (1UL << 10) | (1UL << 9) | (5UL << 6) | (1U << 5) | (1U << 4) | (1U << 3) | (1U << 1);
 	hal_cpuDataMemoryBarrier();
 
 	/* Enable */
-	*(timer_common.base + gpt_cr) |= 1UL;
+	*(timer_common.base + gpt_cr) |= 1U;
 	hal_cpuDataMemoryBarrier();
 
 	/* Enable roll-over and ocr2 interrupts */
-	*(timer_common.base + gpt_ir) = (1UL << 5) | (1UL << 1);
+	*(timer_common.base + gpt_ir) = (1U << 5) | (1U << 1);
 }

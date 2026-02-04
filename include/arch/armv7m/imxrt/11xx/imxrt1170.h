@@ -33,7 +33,8 @@ enum { pctl_clk_cm7 = 0, pctl_clk_cm4, pctl_clk_bus, pctl_clk_bus_lpsr, pctl_clk
 	pctl_clk_usdhc1, pctl_clk_usdhc2, pctl_clk_asrc, pctl_clk_mqs, pctl_clk_pdm, pctl_clk_spdif, pctl_clk_sai1,
 	pctl_clk_sai2, pctl_clk_sai3, pctl_clk_sai4, pctl_clk_gpu2d, pctl_clk_elcdif, pctl_clk_lcdifv2, pctl_clk_mipi_ref,
 	pctl_clk_mipi_esc, pctl_clk_csi2, pctl_clk_csi2_esc, pctl_clk_csi2_ui, pctl_clk_csi, pctl_clk_ccm_clko1,
-	pctl_clk_ccm_clko2 };
+	pctl_clk_ccm_clko2
+};
 
 
 /* CCM - Low Power Clock Gates */
@@ -52,13 +53,18 @@ enum { pctl_lpcg_m7 = 0, pctl_lpcg_m4, pctl_lpcg_sim_m7, pctl_lpcg_sim_m, pctl_l
 	pctl_lpcg_enc4, pctl_lpcg_hrtimer, pctl_lpcg_pwm1, pctl_lpcg_pwm2, pctl_lpcg_pwm3, pctl_lpcg_pwm4, pctl_lpcg_can1,
 	pctl_lpcg_can2, pctl_lpcg_can3, pctl_lpcg_lpuart1, pctl_lpcg_lpuart2, pctl_lpcg_lpuart3, pctl_lpcg_lpuart4,
 	pctl_lpcg_lpuart5, pctl_lpcg_lpuart6, pctl_lpcg_lpuart7, pctl_lpcg_lpuart8, pctl_lpcg_lpuart9, pctl_lpcg_lpuart10,
-	pctl_lpcg_lpuart11, pctl_lpcg_lpuart12, pctl_lpcg_lpi2c1, pctl_lpcg_lpi2c2, pctl_lpcg_lpi2c3, pctl_lpcg_lpi2c4,
-	pctl_lpcg_lpi2c5, pctl_lpcg_lpi2c6, pctl_lpcg_lpspi1, pctl_lpcg_lpspi2, pctl_lpcg_lpspi3, pctl_lpcg_lpspi4,
+	pctl_lpcg_lpuart11, pctl_lpcg_lpuart12, pctl_lpcg_lpi2c1, pctl_lpcg_lpi2c2, pctl_lpcg_lpi2c3, pctl_lpcg_lpi2c4
+};
+
+
+enum {
+	pctl_lpcg_lpi2c5 = pctl_lpcg_lpi2c4 + 1, pctl_lpcg_lpi2c6, pctl_lpcg_lpspi1, pctl_lpcg_lpspi2, pctl_lpcg_lpspi3, pctl_lpcg_lpspi4,
 	pctl_lpcg_lpspi5, pctl_lpcg_lpspi6, pctl_lpcg_sim1, pctl_lpcg_sim2, pctl_lpcg_enet, pctl_lpcg_enet_1g,
 	pctl_lpcg_enet_qos, pctl_lpcg_usb, pctl_lpcg_cdog, pctl_lpcg_usdhc1, pctl_lpcg_usdhc2, pctl_lpcg_asrc,
 	pctl_lpcg_mqs, pctl_lpcg_pdm, pctl_lpcg_spdif, pctl_lpcg_sai1, pctl_lpcg_sai2, pctl_lpcg_sai3, pctl_lpcg_sai4,
 	pctl_lpcg_pxp, pctl_lpcg_gpu2d, pctl_lpcg_lcdif, pctl_lpcg_lcdifv2, pctl_lpcg_mipi_dsi, pctl_lpcg_mipi_csi,
-	pctl_lpcg_csi, pctl_lpcg_dcic_mipi, pctl_lpcg_dcic_lcd, pctl_lpcg_video_mux, pctl_lpcg_uniq_edt_i };
+	pctl_lpcg_csi, pctl_lpcg_dcic_mipi, pctl_lpcg_dcic_lcd, pctl_lpcg_video_mux, pctl_lpcg_uniq_edt_i
+};
 
 
 /* IOMUX - MUX */
@@ -86,7 +92,11 @@ enum {
 	pctl_mux_gpio_ad_21, pctl_mux_gpio_ad_22, pctl_mux_gpio_ad_23, pctl_mux_gpio_ad_24, pctl_mux_gpio_ad_25,
 	pctl_mux_gpio_ad_26, pctl_mux_gpio_ad_27, pctl_mux_gpio_ad_28, pctl_mux_gpio_ad_29, pctl_mux_gpio_ad_30,
 	pctl_mux_gpio_ad_31, pctl_mux_gpio_ad_32, pctl_mux_gpio_ad_33, pctl_mux_gpio_ad_34, pctl_mux_gpio_ad_35,
-	pctl_mux_gpio_sd_b1_00, pctl_mux_gpio_sd_b1_01, pctl_mux_gpio_sd_b1_02, pctl_mux_gpio_sd_b1_03,
+};
+
+
+enum {
+	pctl_mux_gpio_sd_b1_00 = pctl_mux_gpio_ad_35 + 1, pctl_mux_gpio_sd_b1_01, pctl_mux_gpio_sd_b1_02, pctl_mux_gpio_sd_b1_03,
 	pctl_mux_gpio_sd_b1_04, pctl_mux_gpio_sd_b1_05, pctl_mux_gpio_sd_b2_00, pctl_mux_gpio_sd_b2_01,
 	pctl_mux_gpio_sd_b2_02, pctl_mux_gpio_sd_b2_03, pctl_mux_gpio_sd_b2_04, pctl_mux_gpio_sd_b2_05,
 	pctl_mux_gpio_sd_b2_06, pctl_mux_gpio_sd_b2_07, pctl_mux_gpio_sd_b2_08, pctl_mux_gpio_sd_b2_09,
@@ -136,8 +146,12 @@ enum {
 	pctl_pad_gpio_ad_16, pctl_pad_gpio_ad_17, pctl_pad_gpio_ad_18, pctl_pad_gpio_ad_19, pctl_pad_gpio_ad_20,
 	pctl_pad_gpio_ad_21, pctl_pad_gpio_ad_22, pctl_pad_gpio_ad_23, pctl_pad_gpio_ad_24, pctl_pad_gpio_ad_25,
 	pctl_pad_gpio_ad_26, pctl_pad_gpio_ad_27, pctl_pad_gpio_ad_28, pctl_pad_gpio_ad_29, pctl_pad_gpio_ad_30,
-	pctl_pad_gpio_ad_31, pctl_pad_gpio_ad_32, pctl_pad_gpio_ad_33, pctl_pad_gpio_ad_34, pctl_pad_gpio_ad_35,
-	pctl_pad_gpio_sd_b1_00, pctl_pad_gpio_sd_b1_01, pctl_pad_gpio_sd_b1_02, pctl_pad_gpio_sd_b1_03,
+	pctl_pad_gpio_ad_31, pctl_pad_gpio_ad_32, pctl_pad_gpio_ad_33, pctl_pad_gpio_ad_34, pctl_pad_gpio_ad_35
+};
+
+
+enum {
+	pctl_pad_gpio_sd_b1_00 = pctl_pad_gpio_ad_35 + 1, pctl_pad_gpio_sd_b1_01, pctl_pad_gpio_sd_b1_02, pctl_pad_gpio_sd_b1_03,
 	pctl_pad_gpio_sd_b1_04, pctl_pad_gpio_sd_b1_05, pctl_pad_gpio_sd_b2_00, pctl_pad_gpio_sd_b2_01,
 	pctl_pad_gpio_sd_b2_02, pctl_pad_gpio_sd_b2_03, pctl_pad_gpio_sd_b2_04, pctl_pad_gpio_sd_b2_05,
 	pctl_pad_gpio_sd_b2_06, pctl_pad_gpio_sd_b2_07, pctl_pad_gpio_sd_b2_08, pctl_pad_gpio_sd_b2_09,
@@ -197,9 +211,12 @@ enum {
 
 	pctl_isel_gpt3_capin1, pctl_isel_gpt3_capin2, pctl_isel_gpt3_clkin,
 
-	pctl_isel_kpp_col_6, pctl_isel_kpp_col_7, pctl_isel_kpp_row_6, pctl_isel_kpp_row_7,
+	pctl_isel_kpp_col_6, pctl_isel_kpp_col_7, pctl_isel_kpp_row_6, pctl_isel_kpp_row_7
+};
 
-	pctl_isel_lpi2c1_scl, pctl_isel_lpi2c1_sda,
+
+enum {
+	pctl_isel_lpi2c1_scl = pctl_isel_kpp_row_7 + 1, pctl_isel_lpi2c1_sda,
 
 	pctl_isel_lpi2c2_scl, pctl_isel_lpi2c2_sda,
 
@@ -297,9 +314,12 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 	/* Reserved #75 */ sai1_irq = 76 + 16, sai2_irq, sai3_0_irq, sai3_1_irq, sai4_0_irq, sai4_1_irq, spdif_irq,
 	/* Reserved #83..87 */ adc1_irq = 88 + 16, adc2_irq, adc3_irq, dcdc_irq, /* Reserved #92..98 */ cm7_irq = 99 + 16,
 	gpio1_int0_irq, gpio1_int1_irq, gpio2_int0_irq, gpio2_int1_irq, gpio3_int0_irq, gpio3_int1_irq, gpio4_int0_irq,
-	gpio4_int1_irq, gpio5_int0_irq, gpio5_int1_irq, flexio1_irq, flexio2_irq, wdog1_irq, rtwdog_irq, ewm_irq, ccm_1_irq,
-	ccm2_irq, gpc_irq, mu_irq, gpt1_irq, gpt2_irq, gpt3_irq, gpt4_irq, gpt5_irq, gpt6_irq, flexpwm1_0_irq, flexpwm1_1_irq,
-	flexpwm1_2_irq, flexpwm1_3_irq, flexpwm1_err_irq, flexspi1_irq, flexspi2_irq, semc_irq, usdhc1_irq, usdhc2_irq,
+	gpio4_int1_irq, gpio5_int0_irq, gpio5_int1_irq, flexio1_irq, flexio2_irq, wdog1_irq, rtwdog_irq, ewm_irq, ccm_1_irq
+};
+
+
+enum { ccm2_irq = ccm_1_irq + 1, gpc_irq, mu_irq, gpt1_irq, gpt2_irq, gpt3_irq, gpt4_irq, gpt5_irq, gpt6_irq, flexpwm1_0_irq,
+	flexpwm1_1_irq, flexpwm1_2_irq, flexpwm1_3_irq, flexpwm1_err_irq, flexspi1_irq, flexspi2_irq, semc_irq, usdhc1_irq, usdhc2_irq,
 	usb_otg2_irq, usb_otg1_irq, enet_irq, enet_1588_timer_irq, enet_1g_rxtx_irq, enet_1g_rxtxdone_irq, enet_1g_irq,
 	enet_1g_1588_timer_irq, xbar1_0_irq, xbar1_1_irq, adc_etc1_0_irq, adc_etc1_1_irq, adc_etc1_2_irq, adc_etc1_3_irq,
 	adc_etc1_err_irq, adc_etc2_0_irq, adc_etc2_1_irq, adc_etc2_2_irq, adc_etc2_3_irq, adc_etc2_err_irq, pit1_irq, pit2_irq,
@@ -310,7 +330,8 @@ enum { cti0_err_irq = 17 + 16, cti1_err_irq, core_irq, lpuart1_irq, lpuart2_irq,
 	flexpwm4_err_irq, flexpwm5_0_irq, flexpwm5_1_irq, flexpwm5_2_irq, flexpwm5_3_irq, flexpwm5_err_irq, flexpwm6_0_irq,
 	flexpwm6_1_irq, flexpwm6_2_irq, flexpwm6_3_irq, flexpwm6_err_irq, mic_irq, mic_err_irq, sim1_irq, sim2_irq, mecc1_irq,
 	mecc1_fatal_irq, mecc2_irq, mecc2_fatal_irq, xecc_flexspi1_irq, xecc_flexspi1_fatal_irq, xecc_flexspi2_irq,
-	xecc_flexspi2_fatal_irq, xecc_semc_irq, xecc_semc_fatal_irq, enet_qos_irq, enet_pmt_irq };
+	xecc_flexspi2_fatal_irq, xecc_semc_irq, xecc_semc_fatal_irq, enet_qos_irq, enet_pmt_irq
+};
 
 
 typedef struct {

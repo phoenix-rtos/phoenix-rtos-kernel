@@ -33,14 +33,12 @@
 #define RTWDOG_REFRESH_KEY 0xb480a602U
 #define LPO_CLK_FREQ_HZ    32000U
 
-#if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
-#define WATCHDOG_TIMEOUT_MS (30000)
-#warning "WATCHDOG_TIMEOUT_MS not defined, defaulting to 30000 ms"
-#endif
-
-#if defined(WATCHDOG) && \
-		(WATCHDOG_TIMEOUT_MS <= 0x0 || WATCHDOG_TIMEOUT_MS > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
+#if defined(WATCHDOG)
+#if !defined(WATCHDOG_TIMEOUT_MS)
+#error "WATCHDOG_TIMEOUT_MS not defined"
+#elif (WATCHDOG_TIMEOUT_MS <= 0x0 || WATCHDOG_TIMEOUT_MS > (0xffffU * 256 / (LPO_CLK_FREQ_HZ / 1000)))
 #error "Watchdog timeout out of bounds!"
+#endif
 #endif
 
 static struct {
@@ -66,183 +64,62 @@ static struct {
 } imxrt_common;
 
 
-enum { gpio_dr = 0,
-	gpio_gdir,
-	gpio_psr,
-	gpio_icr1,
-	gpio_icr2,
-	gpio_imr,
-	gpio_isr,
-	gpio_edge_sel };
+/* clang-format off */
+enum { gpio_dr = 0, gpio_gdir, gpio_psr, gpio_icr1, gpio_icr2, gpio_imr, gpio_isr, gpio_edge_sel };
 
 
-enum { aipstz_mpr = 0,
-	aipstz_opacr = 16,
-	aipstz_opacr1,
-	aipstz_opacr2,
-	aipstz_opacr3,
-	aipstz_opacr4 };
+enum { aipstz_mpr = 0, aipstz_opacr = 16, aipstz_opacr1, aipstz_opacr2, aipstz_opacr3, aipstz_opacr4 };
 
 
-enum { ccm_ccr = 0,
-	/* reserved */ ccm_csr = 2,
-	ccm_ccsr,
-	ccm_cacrr,
-	ccm_cbcdr,
-	ccm_cbcmr,
-	ccm_cscmr1,
-	ccm_cscmr2,
-	ccm_cscdr1,
-	ccm_cs1cdr,
-	ccm_cs2cdr,
-	ccm_cdcdr,
-	/* reserved */ ccm_cscdr2 = 14,
-	ccm_cscdr3, /* 2 reserved */
-	ccm_cdhipr = 18,
-	/* 2 reserved */ ccm_clpcr = 21,
-	ccm_cisr,
-	ccm_cimr,
-	ccm_ccosr,
-	ccm_cgpr,
-	ccm_ccgr0,
-	ccm_ccgr1,
-	ccm_ccgr2,
-	ccm_ccgr3,
-	ccm_ccgr4,
-	ccm_ccgr5,
-	ccm_ccgr6,
-	ccm_ccgr7,
-	ccm_cmeor };
+enum { ccm_ccr = 0, /* reserved */ ccm_csr = 2, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr, ccm_cscmr1, ccm_cscmr2,
+	ccm_cscdr1, ccm_cs1cdr, ccm_cs2cdr, ccm_cdcdr, /* reserved */ ccm_cscdr2 = 14, ccm_cscdr3, /* 2 reserved */
+	ccm_cdhipr = 18, /* 2 reserved */ ccm_clpcr = 21, ccm_cisr, ccm_cimr, ccm_ccosr, ccm_cgpr, ccm_ccgr0, ccm_ccgr1,
+	ccm_ccgr2, ccm_ccgr3, ccm_ccgr4, ccm_ccgr5, ccm_ccgr6, ccm_ccgr7, ccm_cmeor };
 
 
-enum { ccm_analog_pll_arm,
-	ccm_analog_pll_arm_set,
-	ccm_analog_pll_arm_clr,
-	ccm_analog_pll_arm_tog,
-	ccm_analog_pll_usb1,
-	ccm_analog_pll_usb1_set,
-	ccm_analog_pll_usb1_clr,
-	ccm_analog_pll_usb1_tog,
-	ccm_analog_pll_usb2,
-	ccm_analog_pll_usb2_set,
-	ccm_analog_pll_usb2_clr,
-	ccm_analog_pll_usb2_tog,
-	ccm_analog_pll_sys,
-	ccm_analog_pll_sys_set,
-	ccm_analog_pll_sys_clr,
-	ccm_analog_pll_sys_tog,
-	ccm_analog_pll_sys_ss,
-	/* 3 reserved */ ccm_analog_pll_sys_num = 20, /* 3 reserved */
-	ccm_analog_pll_sys_denom = 24,
-	/* 3 reserved */ ccm_analog_pll_audio = 28,
-	ccm_analog_pll_audio_set,
-	ccm_analog_pll_audio_clr,
-	ccm_analog_pll_audio_tog,
-	ccm_analog_pll_audio_num, /* 3 reserved */
-	ccm_analog_pll_audio_denom = 36,
-	/* 3 reserved */ ccm_analog_pll_video = 40,
-	ccm_analog_pll_video_set,
-	ccm_analog_pll_video_clr,
-	ccm_analog_pll_video_tog,
-	ccm_analog_pll_video_num, /* 3 reserved */
-	ccm_analog_pll_video_denom = 48,
-	/* 3 reserved */ ccm_analog_pll_enet = 56,
-	ccm_analog_pll_enet_set,
-	ccm_analog_pll_enet_clr,
-	ccm_analog_pll_enet_tog,
-	ccm_analog_pfd_480,
-	ccm_analog_pfd_480_set,
-	ccm_analog_pfd_480_clr,
-	ccm_analog_pfd_480_tog,
-	ccm_analog_pfd_528,
-	ccm_analog_pfd_528_set,
-	ccm_analog_pfd_528_clr,
-	ccm_analog_pfd_528_tog,
-	ccm_analog_misc0 = 84,
-	ccm_analog_misc0_set,
-	ccm_analog_misc0_clr,
-	ccm_analog_misc0_tog,
-	ccm_analog_misc1,
-	ccm_analog_misc1_set,
-	ccm_analog_misc1_clr,
-	ccm_analog_misc1_tog,
-	ccm_analog_misc2,
-	ccm_analog_misc2_set,
-	ccm_analog_misc2_clr,
-	ccm_analog_misc2_tog };
+enum { ccm_analog_pll_arm, ccm_analog_pll_arm_set, ccm_analog_pll_arm_clr, ccm_analog_pll_arm_tog,
+	ccm_analog_pll_usb1, ccm_analog_pll_usb1_set, ccm_analog_pll_usb1_clr, ccm_analog_pll_usb1_tog,
+	ccm_analog_pll_usb2, ccm_analog_pll_usb2_set, ccm_analog_pll_usb2_clr, ccm_analog_pll_usb2_tog,
+	ccm_analog_pll_sys, ccm_analog_pll_sys_set, ccm_analog_pll_sys_clr, ccm_analog_pll_sys_tog,
+	ccm_analog_pll_sys_ss, /* 3 reserved */ ccm_analog_pll_sys_num = 20, /* 3 reserved */
+	ccm_analog_pll_sys_denom = 24, /* 3 reserved */ ccm_analog_pll_audio = 28, ccm_analog_pll_audio_set,
+	ccm_analog_pll_audio_clr, ccm_analog_pll_audio_tog, ccm_analog_pll_audio_num, /* 3 reserved */
+	ccm_analog_pll_audio_denom = 36, /* 3 reserved */ ccm_analog_pll_video = 40, ccm_analog_pll_video_set,
+	ccm_analog_pll_video_clr, ccm_analog_pll_video_tog, ccm_analog_pll_video_num, /* 3 reserved */
+	ccm_analog_pll_video_denom = 48, /* 3 reserved */ ccm_analog_pll_enet = 56, ccm_analog_pll_enet_set,
+	ccm_analog_pll_enet_clr, ccm_analog_pll_enet_tog, ccm_analog_pfd_480, ccm_analog_pfd_480_set,
+	ccm_analog_pfd_480_clr, ccm_analog_pfd_480_tog, ccm_analog_pfd_528, ccm_analog_pfd_528_set,
+	ccm_analog_pfd_528_clr, ccm_analog_pfd_528_tog, ccm_analog_misc0 = 84, ccm_analog_misc0_set,
+	ccm_analog_misc0_clr, ccm_analog_misc0_tog, ccm_analog_misc1, ccm_analog_misc1_set, ccm_analog_misc1_clr,
+	ccm_analog_misc1_tog, ccm_analog_misc2, ccm_analog_misc2_set, ccm_analog_misc2_clr, ccm_analog_misc2_tog };
 
 
-enum { pmu_reg_1p1 = 0,
-	/* 3 reserved */ pmu_reg_3p0 = 4,
-	/* 3 reserved */ pmu_reg_2p5 = 8, /* 3 reserved */
-	pmu_reg_core = 12,
-	/* 3 reserved */ pmu_misc0 = 16,
-	/* 3 reserved */ pmu_misc1 = 20,
-	pmu_misc1_set,
-	pmu_misc1_clr,
-	pmu_misc1_tog,
-	pmu_misc2,
-	pmu_misc2_set,
-	pmu_misc2_clr,
-	pmu_misc2_tog };
+enum { pmu_reg_1p1 = 0, /* 3 reserved */ pmu_reg_3p0 = 4, /* 3 reserved */ pmu_reg_2p5 = 8, /* 3 reserved */
+	pmu_reg_core = 12, /* 3 reserved */ pmu_misc0 = 16, /* 3 reserved */ pmu_misc1 = 20, pmu_misc1_set,
+	pmu_misc1_clr, pmu_misc1_tog, pmu_misc2, pmu_misc2_set, pmu_misc2_clr, pmu_misc2_tog };
 
 
-enum { xtalosc_misc0 = 84,
-	xtalosc_lowpwr_ctrl = 156,
-	xtalosc_lowpwr_ctrl_set,
-	xtalosc_lowpwr_ctrl_clr,
-	xtalosc_lowpwr_ctrl_tog,
-	xtalosc_osc_config0 = 168,
-	xtalosc_osc_config0_set,
-	xtalosc_osc_config0_clr,
-	xtalosc_osc_config0_tog,
-	xtalosc_osc_config1,
-	xtalosc_osc_config1_set,
-	xtalosc_osc_config1_clr,
-	xtalosc_osc_config1_tog,
-	xtalosc_osc_config2,
-	xtalosc_osc_config2_set,
-	xtalosc_osc_config2_clr,
-	xtalosc_osc_config2_tog };
+enum { xtalosc_misc0 = 84, xtalosc_lowpwr_ctrl = 156, xtalosc_lowpwr_ctrl_set, xtalosc_lowpwr_ctrl_clr,
+	xtalosc_lowpwr_ctrl_tog, xtalosc_osc_config0 = 168, xtalosc_osc_config0_set, xtalosc_osc_config0_clr,
+	xtalosc_osc_config0_tog, xtalosc_osc_config1, xtalosc_osc_config1_set, xtalosc_osc_config1_clr,
+	xtalosc_osc_config1_tog, xtalosc_osc_config2, xtalosc_osc_config2_set, xtalosc_osc_config2_clr, xtalosc_osc_config2_tog };
 
 
-enum { osc_rc = 0,
-	osc_xtal };
+enum { osc_rc = 0, osc_xtal };
 
 
-enum { stk_ctrl = 0,
-	stk_load,
-	stk_val,
-	stk_calib };
+enum { stk_ctrl = 0, stk_load, stk_val, stk_calib };
 
 
-enum { src_scr = 0,
-	src_sbmr1,
-	src_srsr,
-	src_sbmr2 = 7,
-	src_gpr1,
-	src_gpr2,
-	src_gpr3,
-	src_gpr4,
-	src_gpr5,
-	src_gpr6,
-	src_gpr7,
-	src_gpr8,
-	src_gpr9,
-	src_gpr10 };
+enum { src_scr = 0, src_sbmr1, src_srsr, src_sbmr2 = 7, src_gpr1, src_gpr2, src_gpr3, src_gpr4,
+	src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
 
 
-enum { wdog_wcr = 0,
-	wdog_wsr,
-	wdog_wrsr,
-	wdog_wicr,
-	wdog_wmcr };
+enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 
-enum { rtwdog_cs = 0,
-	rtwdog_cnt,
-	rtwdog_toval,
-	rtwdog_win };
+enum { rtwdog_cs = 0, rtwdog_cnt, rtwdog_toval, rtwdog_win };
+/* clang-format on */
 
 
 /* platformctl syscall */
@@ -850,7 +727,7 @@ u32 _imxrt_ccmGetFreq(int name)
 		/* Periph_clk ---> AHB Clock */
 		case clk_cpu:
 		case clk_ahb:
-			freq = _imxrt_ccmGetPeriphClkFreq() / (((*(imxrt_common.ccm + ccm_cbcdr) > 10U) & 0x7U) + 1U);
+			freq = _imxrt_ccmGetPeriphClkFreq() / (((u32)((*(imxrt_common.ccm + ccm_cbcdr) > 10U) ? 1U : 0U) & 0x7U) + 1U);
 			break;
 
 		case clk_semc:
@@ -1149,7 +1026,7 @@ void _imxrt_ccmDeinitEnetPll(void)
 
 u32 _imxrt_ccmGetPllFreq(int pll)
 {
-	u32 freq, divSel;
+	u32 freq, divSel, num, denom;
 	u64 tmp;
 
 	switch (pll) {
@@ -1161,7 +1038,9 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			freq = _imxrt_ccmGetOscFreq();
 
 			/* PLL output frequency = Fref * (DIV_SELECT + NUM/DENOM). */
-			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_sys_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_sys_denom);
+			num = *(imxrt_common.ccm_analog + ccm_analog_pll_sys_num);
+			denom = *(imxrt_common.ccm_analog + ccm_analog_pll_sys_denom);
+			tmp = ((u64)freq * (u64)num) / (u64)denom;
 
 			if ((*(imxrt_common.ccm_analog + ccm_analog_pll_sys) & 1U) != 0U) {
 				freq *= 22U;
@@ -1181,7 +1060,9 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			freq = _imxrt_ccmGetOscFreq();
 
 			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_audio) & 0x7fU;
-			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_audio_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_audio_denom);
+			num = *(imxrt_common.ccm_analog + ccm_analog_pll_audio_num);
+			denom = *(imxrt_common.ccm_analog + ccm_analog_pll_audio_denom);
+			tmp = ((u64)freq * (u64)num) / (u64)denom;
 			freq = freq * divSel + (u32)tmp;
 
 			switch ((*(imxrt_common.ccm_analog + ccm_analog_pll_audio) >> 19) & 0x3U) {
@@ -1212,8 +1093,9 @@ u32 _imxrt_ccmGetPllFreq(int pll)
 			freq = _imxrt_ccmGetOscFreq();
 
 			divSel = *(imxrt_common.ccm_analog + ccm_analog_pll_video) & 0x7fU;
-
-			tmp = ((u64)freq * (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_video_num)) / (u64)*(imxrt_common.ccm_analog + ccm_analog_pll_video_denom);
+			num = *(imxrt_common.ccm_analog + ccm_analog_pll_video_num);
+			denom = *(imxrt_common.ccm_analog + ccm_analog_pll_video_denom);
+			tmp = ((u64)freq * (u64)num) / (u64)denom;
 
 			freq = freq * divSel + (u32)tmp;
 
@@ -1402,16 +1284,16 @@ void _imxrt_ccmSetMux(int mux, u32 val)
 
 		case clk_mux_periph:
 			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 25)) | ((val & 1U) << 25);
-			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1UL << 5)) != 0U) {
+			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1U << 5)) != 0U) {
 			}
 			break;
 
 		case clk_mux_semcAlt:
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 7)) | ((val & 1U) << 7);
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1U << 7)) | ((val & 1U) << 7);
 			break;
 
 		case clk_mux_semc:
-			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1UL << 6)) | ((val & 1U) << 6);
+			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(1U << 6)) | ((val & 1U) << 6);
 			break;
 
 		case clk_mux_prePeriph:
@@ -1427,7 +1309,7 @@ void _imxrt_ccmSetMux(int mux, u32 val)
 			break;
 
 		case clk_mux_lpspi:
-			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3UL << 4)) | ((val & 0x3U) << 4);
+			*(imxrt_common.ccm + ccm_cbcmr) = (*(imxrt_common.ccm + ccm_cbcmr) & ~(0x3U << 4)) | ((val & 0x3U) << 4);
 			break;
 
 		case clk_mux_flexspi:
@@ -1467,7 +1349,7 @@ void _imxrt_ccmSetMux(int mux, u32 val)
 			break;
 
 		case clk_mux_uart:
-			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(1UL << 6)) | ((val & 1U) << 6);
+			*(imxrt_common.ccm + ccm_cscdr1) = (*(imxrt_common.ccm + ccm_cscdr1) & ~(1U << 6)) | ((val & 1U) << 6);
 			break;
 
 		case clk_mux_enc:
@@ -1656,7 +1538,7 @@ void _imxrt_ccmSetDiv(int div, u32 val)
 
 		case clk_div_ahb: /* CBCDR */
 			*(imxrt_common.ccm + ccm_cbcdr) = (*(imxrt_common.ccm + ccm_cbcdr) & ~(0x7UL << 10)) | ((val & 0x7U) << 10);
-			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1UL << 1)) != 0U) {
+			while ((*(imxrt_common.ccm + ccm_cdhipr) & (1U << 1)) != 0U) {
 			}
 			break;
 
@@ -1689,7 +1571,7 @@ void _imxrt_ccmSetDiv(int div, u32 val)
 			break;
 
 		case clk_div_can: /* CSCMR2 */
-			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3fUL << 2)) | ((val & 0x3fU) << 2);
+			*(imxrt_common.ccm + ccm_cscmr2) = (*(imxrt_common.ccm + ccm_cscmr2) & ~(0x3fU << 2)) | ((val & 0x3fU) << 2);
 			break;
 
 		case clk_div_trace: /* CSCDR1 */
