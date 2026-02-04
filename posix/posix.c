@@ -195,7 +195,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 				return -1;
 			}
 
-			hal_memcpy(nfds, p->fds, (unsigned int)p->fdsz * sizeof(*nfds));
+			hal_memcpy(nfds, p->fds, (size_t)p->fdsz * sizeof(*nfds));
 			hal_memset(nfds + p->fdsz, 0, ((size_t)nfdsz - (size_t)p->fdsz) * sizeof(*nfds));
 
 			vm_kfree(p->fds);
@@ -437,13 +437,13 @@ static int posix_exit(process_info_t *p, int code)
 
 	p->exitcode = code;
 
-	(void)proc_lockSet(&(p->lock));
+	(void)proc_lockSet(&p->lock);
 	for (fd = 0; fd < p->fdsz; ++fd) {
 		if (p->fds[fd].file != NULL) {
 			(void)posix_fileDeref(p->fds[fd].file);
 		}
 	}
-	(void)proc_lockClear(&(p->lock));
+	(void)proc_lockClear(&p->lock);
 
 	return 0;
 }
@@ -1596,12 +1596,12 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 	TRACE("fcntl(%d, %u)", fd, cmd);
 
 	int err = -EINVAL, fd2;
-	unsigned long arg;
+	unsigned int arg;
 
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
 		case F_DUPFD:
-			GETFROMSTACK(ustack, int, fd2, 2);
+			GETFROMSTACK(ustack, int, fd2, 2U);
 			err = posix_fcntlDup(fd, fd2, (cmd == (unsigned int)F_DUPFD_CLOEXEC) ? 1 : 0);
 			break;
 
@@ -1610,7 +1610,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFD:
-			GETFROMSTACK(ustack, unsigned long, arg, 2);
+			GETFROMSTACK(ustack, unsigned int, arg, 2U);
 			err = posix_fcntlSetFd(fd, arg);
 			break;
 
@@ -1619,7 +1619,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFL:
-			GETFROMSTACK(ustack, unsigned int, arg, 2);
+			GETFROMSTACK(ustack, unsigned int, arg, 2U);
 			err = posix_fcntlSetFl(fd, arg);
 			break;
 
@@ -2145,7 +2145,7 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 	TRACE("recvfrom(%d, %d, %s)", socket, length, src_addr == NULL ? NULL : src_addr->sa_data);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2173,7 +2173,7 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 	TRACE("sendto(%d, %s, %d, %s)", socket, message, length, dest_addr == NULL ? NULL : dest_addr->sa_data);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2201,7 +2201,7 @@ ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
 	TRACE("recvmsg(%d, %p, %d)", socket, msg, flags);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {
@@ -2229,7 +2229,7 @@ ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
 	TRACE("sendmsg(%d, %p, %d)", socket, msg, flags);
 
 	open_file_t *f;
-	int err;
+	ssize_t err;
 
 	err = posix_getOpenFile(socket, &f);
 	if (err == 0) {

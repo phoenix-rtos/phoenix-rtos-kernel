@@ -755,7 +755,7 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 		switch ((unsigned int)optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
-					*((size_t *)optval) = s->buffsz;
+					*((int *)optval) = (int)s->buffsz;
 					*optlen = sizeof(int);
 				}
 				else {
@@ -954,12 +954,12 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 			for (;;) {
 				(void)proc_lockSet(&r->lock);
 				if (s->type == SOCK_STREAM) {
-					err = (int)_cbuffer_write(&r->buffer, buf, len);
+					err = (ssize_t)_cbuffer_write(&r->buffer, buf, len);
 				}
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
 					(void)_cbuffer_write(&r->buffer, buf, len);
-					err = (int)len;
+					err = (ssize_t)len;
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
