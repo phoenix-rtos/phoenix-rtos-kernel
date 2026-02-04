@@ -132,7 +132,7 @@ typedef struct {
 	/* clang-format on */
 	union {
 		struct {
-			__u32 dev;
+			int dev;
 			__u8 src;    /* 0, 2, 3 for most devices, 0, 2, 3, 4 for pctl_devclock_lpd_timestamp */
 			__u8 div0;   /* 0 ~ 63 */
 			__u8 div1;   /* 0 ~ 63 if supported by selected generator, otherwise 0 */
@@ -149,7 +149,7 @@ typedef struct {
 		} mio;
 
 		struct {
-			__u32 dev;
+			int dev;
 			__u32 state;
 		} devreset;
 

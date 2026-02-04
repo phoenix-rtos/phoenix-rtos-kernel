@@ -20,17 +20,17 @@
 
 #include "tda4vm.h"
 
-#define MCU_TIMER_BASE_ADDR(x) ((void *)(0x40400000 + ((x) * 0x10000)))
-#define MCU_TIMER0_INTR        38
-#define MCU_TIMER1_INTR        39
-#define MCU_TIMER2_INTR        40
-#define MCU_TIMER3_INTR        41
-#define MCU_TIMER4_INTR        108
-#define MCU_TIMER5_INTR        109
-#define MCU_TIMER6_INTR        110
-#define MCU_TIMER7_INTR        111
-#define MCU_TIMER8_INTR        112
-#define MCU_TIMER9_INTR        113
+#define MCU_TIMER_BASE_ADDR(x) ((void *)(0x40400000U + ((x) * 0x10000U)))
+#define MCU_TIMER0_INTR        38U
+#define MCU_TIMER1_INTR        39U
+#define MCU_TIMER2_INTR        40U
+#define MCU_TIMER3_INTR        41U
+#define MCU_TIMER4_INTR        108U
+#define MCU_TIMER5_INTR        109U
+#define MCU_TIMER6_INTR        110U
+#define MCU_TIMER7_INTR        111U
+#define MCU_TIMER8_INTR        112U
+#define MCU_TIMER9_INTR        113U
 
 #define TIMER_SRC_FREQ_HZ 250000000
 #define TIMER_TICK_HZ     1000
@@ -205,7 +205,7 @@ static void timer_reset(void)
 
 void _hal_timerInit(u32 interval)
 {
-	timer_common.base = MCU_TIMER_BASE_ADDR(0);
+	timer_common.base = MCU_TIMER_BASE_ADDR(0U);
 	timer_common.jiffies = 0;
 
 	timer_reset();

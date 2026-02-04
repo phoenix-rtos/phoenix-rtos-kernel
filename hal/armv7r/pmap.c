@@ -176,7 +176,7 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t addr, void *vaddr, vm_attr_t attrs, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	return 0;
 }
