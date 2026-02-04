@@ -163,7 +163,9 @@ static inline void hal_cpuEnableInterrupts(void)
 
 static inline void hal_cpuHalt(void)
 {
+#ifndef __CPU_STM32N6
 	__asm__ volatile("dsb \n wfi");
+#endif
 }
 
 
