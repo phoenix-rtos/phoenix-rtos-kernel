@@ -17,13 +17,14 @@
 #define _PH_HAL_PMAP_H_
 
 #include "vm/types.h"
+#include "lib/attrs.h"
 
 #include <arch/pmap.h>
 
 
 #ifndef NOMMU
 
-static inline int pmap_belongs(pmap_t *pmap, void *addr)
+MAYBE_UNUSED static inline int pmap_belongs(pmap_t *pmap, void *addr)
 {
 	return ((ptr_t)addr >= (ptr_t)pmap->start && (ptr_t)addr < (ptr_t)pmap->end) ? 1 : 0;
 }
