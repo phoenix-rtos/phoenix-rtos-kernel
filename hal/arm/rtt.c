@@ -52,11 +52,15 @@ static struct {
 
 static int rtt_check(unsigned int chan, rtt_dir_t dir)
 {
-	if ((dir == rtt_dir_up) && (chan >= common.rtt->txChannels)) {
+	unsigned int txChannels, rxChannels;
+
+	txChannels = common.rtt->txChannels;
+	if ((dir == rtt_dir_up) && (chan >= txChannels)) {
 		return -ENODEV;
 	}
 
-	if ((dir == rtt_dir_down) && (chan >= common.rtt->rxChannels)) {
+	rxChannels = common.rtt->rxChannels;
+	if ((dir == rtt_dir_down) && (chan >= rxChannels)) {
 		return -ENODEV;
 	}
 

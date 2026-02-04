@@ -18,7 +18,7 @@
 
 #include "hal/types.h"
 
-/* Architecure dependent page attributes - used for mapping */
+/* Architecture dependent page attributes - used for mapping */
 #define PGHD_PRESENT    0x01U
 #define PGHD_USER       0x04U
 #define PGHD_WRITE      0x02U

@@ -104,6 +104,7 @@ typedef struct _cpu_context_t {
 	u32 pad0;
 
 #ifdef CPU_IMXRT
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s16 is a signed 16-bit typedef and also a RISCV64 register field identifier" */
 	u32 s16;
 	u32 s17;
 	u32 s18;
@@ -134,6 +135,7 @@ typedef struct _cpu_context_t {
 	u32 s5;
 	u32 s6;
 	u32 s7;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_5_6 "s8 is a signed 8-bit typedef and also a RISCV64 register field identifier" */
 	u32 s8;
 	u32 s9;
 	u32 s10;
@@ -176,11 +178,11 @@ static inline void hal_cpuHalt(void)
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetLastBit(unsigned long v)
 {
-	int pos;
+	unsigned int pos;
 
 	__asm__ volatile("clz %0, %1" : "=r"(pos) : "r"(v));
 
-	return (unsigned int)(int)(31 - pos);
+	return 31U - pos;
 }
 
 

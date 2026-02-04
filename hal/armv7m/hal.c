@@ -19,7 +19,13 @@ static struct {
 } hal_common;
 
 
-hal_syspage_t *syspage;
+/* parasoft-begin-suppress MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-begin-suppress MISRAC2012-RULE_5_8 "Another variable with this name used
+ * inside the structure so it shouldn't cause this violation"
+ */
+syspage_t *syspage;
+/* parasoft-end-suppress MISRAC2012-RULE_5_8 */
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
 
 
 void *hal_syspageRelocate(void *data)
@@ -47,6 +53,10 @@ void _hal_start(void)
 
 
 void hal_lockScheduler(void)
+{
+}
+
+void _hal_platformInit(void)
 {
 }
 

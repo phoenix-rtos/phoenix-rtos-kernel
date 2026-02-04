@@ -99,7 +99,7 @@ void _hal_scsIRQSet(u32 irqn, u8 state)
 {
 	volatile u32 *ptr = (state != 0U) ? scs_common.scs->iser : scs_common.scs->icer;
 
-	*(ptr + (irqn / 32)) = 1UL << (irqn % 32);
+	*(ptr + (irqn / 32U)) = 1UL << (irqn % 32U);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -121,7 +121,7 @@ void _hal_scsIRQPendingSet(u32 irqn)
 {
 	volatile u32 *ptr = scs_common.scs->ispr;
 
-	*(ptr + (irqn / 32)) = 1UL << (irqn % 32);
+	*(ptr + (irqn / 32U)) = 1UL << (irqn % 32U);
 
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
@@ -130,15 +130,15 @@ void _hal_scsIRQPendingSet(u32 irqn)
 
 int _hal_scsIRQPendingGet(u32 irqn)
 {
-	volatile u32 *ptr = &scs_common.scs->ispr[irqn / 32];
-	return ((*ptr & (1UL << (irqn % 32))) != 0U) ? 1 : 0;
+	volatile u32 *ptr = &scs_common.scs->ispr[irqn / 32U];
+	return ((*ptr & (1UL << (irqn % 32U))) != 0U) ? 1 : 0;
 }
 
 
 int _hal_scsIRQActiveGet(u32 irqn)
 {
-	volatile u32 *ptr = &scs_common.scs->iabr[irqn / 32];
-	return ((*ptr & (1UL << (irqn % 32))) != 0U) ? 1 : 0;
+	volatile u32 *ptr = &scs_common.scs->iabr[irqn / 32U];
+	return ((*ptr & (1UL << (irqn % 32U))) != 0U) ? 1 : 0;
 }
 
 
@@ -164,7 +164,7 @@ u32 _hal_scsPriorityGroupingGet(void)
 
 void _hal_scsExceptionPrioritySet(u32 excpn, u8 priority)
 {
-	volatile u8 *ptr = (u8 *)&scs_common.scs->shpr1 + excpn - 4U;
+	volatile u8 *ptr = (volatile u8 *)&scs_common.scs->shpr1 + excpn - 4U;
 
 	/* We set only group priority field */
 	*ptr = (priority << 4) & 0xffU;
@@ -173,7 +173,7 @@ void _hal_scsExceptionPrioritySet(u32 excpn, u8 priority)
 
 u8 _imxrt_scsExceptionPriorityGet(u32 excpn)
 {
-	volatile u8 *ptr = (u8 *)&scs_common.scs->shpr1 + excpn - 4U;
+	volatile u8 *ptr = (volatile u8 *)&scs_common.scs->shpr1 + excpn - 4U;
 
 	return (u8)(*ptr >> 4);
 }
@@ -200,7 +200,7 @@ unsigned int _hal_scsCpuID(void)
 void _hal_scsFPUSet(int state)
 {
 	if (state != 0) {
-		scs_common.scs->cpacr |= 0xfU << 20;
+		scs_common.scs->cpacr |= 0xfUL << 20;
 	}
 	else {
 		scs_common.scs->cpacr = 0U;

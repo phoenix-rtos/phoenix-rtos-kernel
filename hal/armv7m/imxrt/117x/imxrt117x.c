@@ -31,15 +31,14 @@
 #define RTWDOG_UNLOCK_KEY  0xd928c520U
 #define RTWDOG_REFRESH_KEY 0xb480a602U
 
-#if defined(WATCHDOG) && !defined(WATCHDOG_TIMEOUT_MS)
-#define WATCHDOG_TIMEOUT_MS (30000)
-#warning "WATCHDOG_TIMEOUT_MS not defined, defaulting to 30000 ms"
-#endif
-
+#if defined(WATCHDOG)
+#if !defined(WATCHDOG_TIMEOUT_MS)
+#error "WATCHDOG_TIMEOUT_MS not defined, defaulting to 30000 ms"
 /* 1500 ms is the sum of the minimum sensible watchdog timeout (500 ms) and time for WICT interrupt
 to fire before watchdog times out (1000 ms) */
-#if defined(WATCHDOG) && (WATCHDOG_TIMEOUT_MS < 1500 || WATCHDOG_TIMEOUT_MS > 128000)
+#elif (WATCHDOG_TIMEOUT_MS < 1500 || WATCHDOG_TIMEOUT_MS > 128000)
 #error "Watchdog timeout out of bounds!"
+#endif
 #endif
 
 
@@ -93,9 +92,9 @@ void _imxrt_wdgReload(void)
 	/* If the watchdog was enabled (e.g. by bootrom), then it has to be serviced
 	and WATCHDOG flag doesn't matter */
 	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1U << 2)) != 0U) {
-		*(imxrt_common.wdog1 + wdog_wsr) = 0x5555;
+		*(imxrt_common.wdog1 + wdog_wsr) = 0x5555U;
 		hal_cpuDataMemoryBarrier();
-		*(imxrt_common.wdog1 + wdog_wsr) = 0xaaaa;
+		*(imxrt_common.wdog1 + wdog_wsr) = 0xaaaaU;
 	}
 }
 
@@ -148,7 +147,7 @@ static int _imxrt_getIOmux(int mux, int *sion, int *mode)
 	}
 
 	t = (*reg);
-	*sion = ((t & (1U << 4)) == 0UL ? 1 : 0);
+	*sion = ((t & (1U << 4)) == 0U ? 1 : 0);
 	*mode = (int)(u32)(t & 0xfU);
 
 	return EOK;
@@ -223,8 +222,8 @@ int _imxrt_setIOpad(int pad, u8 sre, u8 dse, u8 pue, u8 pus, u8 ode, u8 apc)
 
 	/*
 	 * APC field is not documented. Leave it alone for now.
-	 * t &= ~(0xf << 28);
-	 * t |= (apc & 0xf) << 28;
+	 * t &= ~(0xfU << 28);
+	 * t |= (apc & 0xfU) << 28;
 	 */
 
 	(*reg) = t;
@@ -333,11 +332,11 @@ static volatile u32 *_imxrt_IOiselGetReg(int isel, u32 *mask)
 		case pctl_isel_can3_canrx:
 		case pctl_isel_lpuart12_rxd:
 		case pctl_isel_lpuart12_txd:
-			(*mask) = 0x3;
+			(*mask) = 0x3U;
 			break;
 
 		default:
-			(*mask) = 0x1;
+			(*mask) = 0x1U;
 			break;
 	}
 

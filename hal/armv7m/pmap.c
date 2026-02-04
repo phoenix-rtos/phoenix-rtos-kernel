@@ -31,6 +31,7 @@ extern unsigned int _end;
 extern unsigned int __bss_start;
 /* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly" */
 extern void *_init_vectors;
 
 static struct {
@@ -108,7 +109,7 @@ void pmap_switch(pmap_t *pmap)
 }
 
 
-int pmap_enter(pmap_t *pmap, addr_t pa, void *vaddr, vm_attr_t attr, page_t *alloc)
+int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *alloc)
 {
 	return 0;
 }

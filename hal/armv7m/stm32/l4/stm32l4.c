@@ -18,6 +18,7 @@
 #include "hal/armv7m/stm32/halsyspage.h"
 
 #include "hal/cpu.h"
+#include "hal/hal.h"
 #include "include/errno.h"
 
 #include "hal/arm/scs.h"
@@ -25,7 +26,7 @@
 #include <board_config.h>
 
 #if defined(WATCHDOG) && defined(WATCHDOG_TIMEOUT_MS)
-#warning "This target doesn't support WATCHDOG_TIMEOUT_MS. Watchdog timeout is 31992 ms."
+#error "This target doesn't support WATCHDOG_TIMEOUT_MS. Watchdog timeout is 31992 ms."
 #endif
 
 
@@ -165,43 +166,49 @@ void _stm32_platformInit(void)
 /* RCC (Reset and Clock Controller) */
 
 
-int _stm32_rccSetDevClock(unsigned int d, u32 state)
+static inline unsigned int stm32_rccDevClkShift(u32 bit, int d, int begin)
+{
+	return bit << ((unsigned int)d - (unsigned int)begin);
+}
+
+
+int _stm32_rccSetDevClock(int d, u32 state)
 {
 	u32 t;
 
-	state = (state == 0UL ? 1UL : 0UL);
+	state = (state == 0U ? 0U : 1U);
 
 	/* there are gaps in numeration so values need to compared with both begin and end */
 
-	if (d >= (unsigned int)ahb1_begin && d <= (unsigned int)ahb1_end) {
-		t = *(stm32_common.rcc + rcc_ahb1enr) & ~(1UL << (d - (unsigned int)ahb1_begin));
-		*(stm32_common.rcc + rcc_ahb1enr) = t | (state << (d - (unsigned int)ahb1_begin));
+	if (d >= ahb1_begin && d <= ahb1_end) {
+		t = *(stm32_common.rcc + rcc_ahb1enr) & ~stm32_rccDevClkShift(1UL, d, ahb1_begin);
+		*(stm32_common.rcc + rcc_ahb1enr) = t | stm32_rccDevClkShift(state, d, ahb1_begin);
 	}
-	else if (d >= (unsigned int)ahb2_begin && d <= (unsigned int)ahb2_end) {
-		t = *(stm32_common.rcc + rcc_ahb2enr) & ~(1UL << (d - (unsigned int)ahb2_begin));
-		*(stm32_common.rcc + rcc_ahb2enr) = t | (state << (d - (unsigned int)ahb2_begin));
+	else if (d >= ahb2_begin && d <= ahb2_end) {
+		t = *(stm32_common.rcc + rcc_ahb2enr) & ~stm32_rccDevClkShift(1UL, d, ahb2_begin);
+		*(stm32_common.rcc + rcc_ahb2enr) = t | stm32_rccDevClkShift(state, d, ahb2_begin);
 	}
-	else if (d >= (unsigned int)ahb3_begin && d <= (unsigned int)ahb3_end) {
-		t = *(stm32_common.rcc + rcc_ahb3enr) & ~(1UL << (d - (unsigned int)ahb3_begin));
-		*(stm32_common.rcc + rcc_ahb3enr) = t | (state << (d - (unsigned int)ahb3_begin));
+	else if (d >= ahb3_begin && d <= ahb3_end) {
+		t = *(stm32_common.rcc + rcc_ahb3enr) & ~stm32_rccDevClkShift(1UL, d, ahb3_begin);
+		*(stm32_common.rcc + rcc_ahb3enr) = t | stm32_rccDevClkShift(state, d, ahb3_begin);
 	}
-	else if (d >= (unsigned int)apb1_1_begin && d <= (unsigned int)apb1_1_end) {
-		t = *(stm32_common.rcc + rcc_apb1enr1) & ~(1UL << (d - (unsigned int)apb1_1_begin));
-		*(stm32_common.rcc + rcc_apb1enr1) = t | (state << (d - (unsigned int)apb1_1_begin));
+	else if (d >= apb1_1_begin && d <= apb1_1_end) {
+		t = *(stm32_common.rcc + rcc_apb1enr1) & ~stm32_rccDevClkShift(1UL, d, apb1_1_begin);
+		*(stm32_common.rcc + rcc_apb1enr1) = t | stm32_rccDevClkShift(state, d, apb1_1_begin);
 	}
-	else if (d >= (unsigned int)apb1_2_begin && d <= (unsigned int)apb1_2_end) {
-		t = *(stm32_common.rcc + rcc_apb1enr2) & ~(1UL << (d - (unsigned int)apb1_2_begin));
-		*(stm32_common.rcc + rcc_apb1enr2) = t | (state << (d - (unsigned int)apb1_2_begin));
+	else if (d >= apb1_2_begin && d <= apb1_2_end) {
+		t = *(stm32_common.rcc + rcc_apb1enr2) & ~stm32_rccDevClkShift(1UL, d, apb1_2_begin);
+		*(stm32_common.rcc + rcc_apb1enr2) = t | stm32_rccDevClkShift(state, d, apb1_2_begin);
 	}
-	else if (d >= (unsigned int)apb2_begin && d <= (unsigned int)apb2_end) {
-		t = *(stm32_common.rcc + rcc_apb2enr) & ~(1UL << (d - (unsigned int)apb2_begin));
-		*(stm32_common.rcc + rcc_apb2enr) = t | (state << (d - (unsigned int)apb2_begin));
+	else if (d >= apb2_begin && d <= apb2_end) {
+		t = *(stm32_common.rcc + rcc_apb2enr) & ~stm32_rccDevClkShift(1UL, d, apb2_begin);
+		*(stm32_common.rcc + rcc_apb2enr) = t | stm32_rccDevClkShift(state, d, apb2_begin);
 	}
-	else if (d == (unsigned int)pctl_rtc) {
+	else if (d == pctl_rtc) {
 		t = *(stm32_common.rcc + rcc_bdcr) & ~(1UL << 15);
 		*(stm32_common.rcc + rcc_bdcr) = t | (state << 15);
 	}
-	else if (d == (unsigned int)pctl_hsi48) {
+	else if (d == pctl_hsi48) {
 		/* Enable HSI48 */
 		*(stm32_common.rcc + rcc_crrcr) |= 1UL;
 		hal_cpuDataMemoryBarrier();
@@ -219,32 +226,32 @@ int _stm32_rccSetDevClock(unsigned int d, u32 state)
 }
 
 
-int _stm32_rccGetDevClock(unsigned int d, u32 *state)
+int _stm32_rccGetDevClock(int d, u32 *state)
 {
 	/* there are gaps in numeration so values need to compared with both begin and end */
-	if ((d >= (unsigned int)ahb1_begin) && (d <= (unsigned int)ahb1_end)) {
-		*state = (*(stm32_common.rcc + rcc_ahb1enr) & (1UL << (d - (unsigned int)ahb1_begin))) == 0UL ? 0UL : 1LU;
+	if ((d >= ahb1_begin) && (d <= ahb1_end)) {
+		*state = (*(stm32_common.rcc + rcc_ahb1enr) & stm32_rccDevClkShift(1UL, d, ahb1_begin)) == 0U ? 0U : 1U;
 	}
-	else if ((d >= (unsigned int)ahb2_begin) && (d <= (unsigned int)ahb2_end)) {
-		*state = (*(stm32_common.rcc + rcc_ahb2enr) & (1UL << (d - (unsigned int)ahb2_begin))) == 0UL ? 0UL : 1LU;
+	else if ((d >= ahb2_begin) && (d <= ahb2_end)) {
+		*state = (*(stm32_common.rcc + rcc_ahb2enr) & stm32_rccDevClkShift(1UL, d, ahb2_begin)) == 0U ? 0U : 1U;
 	}
-	else if ((d >= (unsigned int)ahb3_begin) && (d <= (unsigned int)ahb3_end)) {
-		*state = (*(stm32_common.rcc + rcc_ahb3enr) & (1UL << (d - (unsigned int)ahb3_begin))) == 0UL ? 0UL : 1LU;
+	else if ((d >= ahb3_begin) && (d <= ahb3_end)) {
+		*state = (*(stm32_common.rcc + rcc_ahb3enr) & stm32_rccDevClkShift(1UL, d, ahb3_begin)) == 0U ? 0U : 1U;
 	}
-	else if ((d >= (unsigned int)apb1_1_begin) && (d <= (unsigned int)apb1_1_end)) {
-		*state = (*(stm32_common.rcc + rcc_apb1enr1) & (1UL << (d - (unsigned int)apb1_1_begin))) == 0UL ? 0UL : 1LU;
+	else if ((d >= apb1_1_begin) && (d <= apb1_1_end)) {
+		*state = (*(stm32_common.rcc + rcc_apb1enr1) & stm32_rccDevClkShift(1UL, d, apb1_1_begin)) == 0U ? 0U : 1U;
 	}
-	else if ((d >= (unsigned int)apb1_2_begin) && (d <= (unsigned int)apb1_2_end)) {
-		*state = (*(stm32_common.rcc + rcc_apb1enr2) & (1UL << (d - (unsigned int)apb1_2_begin))) == 0UL ? 0UL : 1LU;
+	else if ((d >= apb1_2_begin) && (d <= apb1_2_end)) {
+		*state = (*(stm32_common.rcc + rcc_apb1enr2) & stm32_rccDevClkShift(1UL, d, apb1_2_begin)) == 0U ? 0U : 1U;
 	}
-	else if ((d >= (unsigned int)apb2_begin) && (d <= (unsigned int)apb2_end)) {
-		*state = (*(stm32_common.rcc + rcc_apb2enr) & (1UL << (d - (unsigned int)apb2_begin))) == 0UL ? 0UL : 1LU;
+	else if ((d >= apb2_begin) && (d <= apb2_end)) {
+		*state = (*(stm32_common.rcc + rcc_apb2enr) & stm32_rccDevClkShift(1UL, d, apb2_begin)) == 0U ? 0U : 1U;
 	}
-	else if (d == (unsigned int)pctl_rtc) {
-		*state = (*(stm32_common.rcc + rcc_bdcr) & (1UL << 15)) == 0UL ? 0UL : 1LU;
+	else if (d == pctl_rtc) {
+		*state = (*(stm32_common.rcc + rcc_bdcr) & (1UL << 15)) == 0U ? 0U : 1U;
 	}
-	else if (d == (unsigned int)pctl_hsi48) {
-		*state = ((*(stm32_common.rcc + rcc_crrcr) & (1UL << 1)) == 0UL) ? 0UL : 1UL;
+	else if (d == pctl_hsi48) {
+		*state = ((*(stm32_common.rcc + rcc_crrcr) & (1U << 1)) == 0U) ? 0U : 1U;
 	}
 	else {
 		return -EINVAL;
@@ -347,7 +354,8 @@ int _stm32_rccSetCPUClock(u32 hz)
 		range = 8;
 		hz = 16000U * 1000U;
 	}
-	/* TODO - we need to change flash wait states to handle below frequencies
+#if 0
+	/* TODO: we need to change flash wait states to handle below frequencies */
 		else if (hz <= 24000 * 1000) {
 			range = 9;
 			hz = 24000 * 1000;
@@ -360,7 +368,7 @@ int _stm32_rccSetCPUClock(u32 hz)
 			range = 11;
 			hz = 48000 * 1000;
 		}
-	*/
+#endif
 	else {
 		/* Not supported */
 		return -EINVAL;
@@ -512,7 +520,7 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 
 	/* Can use Vcore range 2 only below 6 MHz */
 	if (stm32_common.cpuclk <= 6U * 1000U * 1000U) {
-		_stm32_pwrSetCPUVolt(2);
+		_stm32_pwrSetCPUVolt(2U);
 	}
 
 	return 0;
@@ -575,7 +583,7 @@ int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge)
 		return -EINVAL;
 	}
 
-	p = stm32_common.exti + reglut[line >= 32U][edge == 0U ? 0U : 1U];
+	p = stm32_common.exti + reglut[line >= 32U ? 1U : 0U][edge == 0U ? 0U : 1U];
 
 	if (line >= 32U) {
 		line -= 32U;
@@ -624,16 +632,16 @@ int _stm32_systickInit(u32 interval)
 /* GPIO */
 
 
-int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd)
+int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd)
 {
 	volatile u32 *base;
 	u32 t;
 
-	if (d > (unsigned int)pctl_gpioi || pin > 15U) {
+	if (d > pctl_gpioi || pin > 15U) {
 		return -EINVAL;
 	}
 
-	base = stm32_common.gpio[d - (unsigned int)pctl_gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 
 	t = *(base + gpio_moder) & ~(0x3U << (pin << 1));
 	*(base + gpio_moder) = t | ((u32)mode & 0x3U) << (pin << 1);
@@ -667,16 +675,16 @@ int _stm32_gpioConfig(unsigned int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospee
 }
 
 
-int _stm32_gpioSet(unsigned int d, u8 pin, u8 val)
+int _stm32_gpioSet(int d, u8 pin, u8 val)
 {
 	volatile u32 *base;
 	u32 t;
 
-	if (d > (unsigned int)pctl_gpioi || pin > 15U) {
+	if (d > pctl_gpioi || pin > 15U) {
 		return -EINVAL;
 	}
 
-	base = stm32_common.gpio[d - (unsigned int)pctl_gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 
 	t = *(base + gpio_odr) & ~((val == 0U ? 1UL : 0UL) << pin);
 	*(base + gpio_odr) = t | (val == 0U ? 0UL : 1UL) << pin;
@@ -685,46 +693,46 @@ int _stm32_gpioSet(unsigned int d, u8 pin, u8 val)
 }
 
 
-int _stm32_gpioSetPort(unsigned int d, u16 val)
+int _stm32_gpioSetPort(int d, u16 val)
 {
 	volatile u32 *base;
 
-	if (d > (unsigned int)pctl_gpioi) {
+	if (d > pctl_gpioi) {
 		return -EINVAL;
 	}
 
-	base = stm32_common.gpio[d - (unsigned int)pctl_gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 	*(base + gpio_odr) = val;
 
 	return EOK;
 }
 
 
-int _stm32_gpioGet(unsigned int d, u8 pin, u8 *val)
+int _stm32_gpioGet(int d, u8 pin, u8 *val)
 {
 	volatile u32 *base;
 
-	if (d > (unsigned int)pctl_gpioi || pin > 15U) {
+	if (d > pctl_gpioi || pin > 15U) {
 		return -EINVAL;
 	}
 
-	base = stm32_common.gpio[d - (unsigned int)pctl_gpioa];
+	base = stm32_common.gpio[d - pctl_gpioa];
 	*val = (*(base + gpio_idr) & (1UL << pin)) == 0U ? 0U : 1U;
 
 	return EOK;
 }
 
 
-int _stm32_gpioGetPort(unsigned int d, u16 *val)
+int _stm32_gpioGetPort(int d, u16 *val)
 {
 	volatile u32 *base;
 
-	if (d > (unsigned int)pctl_gpioi) {
+	if (d > pctl_gpioi) {
 		return -EINVAL;
 	}
 
-	base = stm32_common.gpio[d - (unsigned int)pctl_gpioa];
-	*val = *(base + gpio_idr);
+	base = stm32_common.gpio[d - pctl_gpioa];
+	*val = (u16)*(base + gpio_idr);
 
 	return EOK;
 }
@@ -748,30 +756,30 @@ void _stm32_init(void)
 		pctl_gpiod, pctl_gpioe, pctl_gpiof, pctl_gpiog, pctl_gpioh, pctl_gpioi };
 
 	/* Base addresses init */
-	stm32_common.rcc = (void *)0x40021000;
-	stm32_common.pwr = (void *)0x40007000;
-	stm32_common.rtc = (void *)0x40002800;
-	stm32_common.exti = (void *)0x40010400;
-	stm32_common.syscfg = (void *)0x40010000;
-	stm32_common.iwdg = (void *)0x40003000;
-	stm32_common.gpio[0] = (void *)0x48000000; /* GPIOA */
-	stm32_common.gpio[1] = (void *)0x48000400; /* GPIOB */
-	stm32_common.gpio[2] = (void *)0x48000800; /* GPIOC */
-	stm32_common.gpio[3] = (void *)0x48000c00; /* GPIOD */
-	stm32_common.gpio[4] = (void *)0x48001000; /* GPIOE */
-	stm32_common.gpio[5] = (void *)0x48001400; /* GPIOF */
-	stm32_common.gpio[6] = (void *)0x48001800; /* GPIOG */
-	stm32_common.gpio[7] = (void *)0x48001c00; /* GPIOH */
-	stm32_common.gpio[8] = (void *)0x48002000; /* GPIOI */
-	stm32_common.flash = (void *)0x40022000;
+	stm32_common.rcc = (void *)0x40021000U;
+	stm32_common.pwr = (void *)0x40007000U;
+	stm32_common.rtc = (void *)0x40002800U;
+	stm32_common.exti = (void *)0x40010400U;
+	stm32_common.syscfg = (void *)0x40010000U;
+	stm32_common.iwdg = (void *)0x40003000U;
+	stm32_common.gpio[0] = (void *)0x48000000U; /* GPIOA */
+	stm32_common.gpio[1] = (void *)0x48000400U; /* GPIOB */
+	stm32_common.gpio[2] = (void *)0x48000800U; /* GPIOC */
+	stm32_common.gpio[3] = (void *)0x48000c00U; /* GPIOD */
+	stm32_common.gpio[4] = (void *)0x48001000U; /* GPIOE */
+	stm32_common.gpio[5] = (void *)0x48001400U; /* GPIOF */
+	stm32_common.gpio[6] = (void *)0x48001800U; /* GPIOG */
+	stm32_common.gpio[7] = (void *)0x48001c00U; /* GPIOH */
+	stm32_common.gpio[8] = (void *)0x48002000U; /* GPIOI */
+	stm32_common.flash = (void *)0x40022000U;
 
 	_hal_scsInit();
 
 	/* Enable System configuration controller */
-	(void)_stm32_rccSetDevClock(pctl_syscfg, 1);
+	(void)_stm32_rccSetDevClock(pctl_syscfg, 1U);
 
 	/* Enable power module */
-	(void)_stm32_rccSetDevClock(pctl_pwr, 1);
+	(void)_stm32_rccSetDevClock(pctl_pwr, 1U);
 
 	(void)_stm32_rccSetCPUClock(16U * 1000U * 1000U);
 
@@ -782,7 +790,7 @@ void _stm32_init(void)
 
 	/* GPIO init */
 	for (i = 0; i < sizeof(stm32_common.gpio) / sizeof(stm32_common.gpio[0]); ++i) {
-		(void)_stm32_rccSetDevClock((unsigned int)gpio2pctl[i], 1);
+		(void)_stm32_rccSetDevClock(gpio2pctl[i], 1);
 	}
 
 	/* Set DBP bit */
@@ -791,7 +799,7 @@ void _stm32_init(void)
 
 	/* Enable LSE clock source, set it as RTC source and set medium xtal drive strength */
 	t = *(stm32_common.rcc + rcc_bdcr) & ~((3UL << 24) | (3UL << 15) | (3UL << 8) | 0x7fU);
-	*(stm32_common.rcc + rcc_bdcr) = t | (1UL << 25) | (1UL << 15) | (1UL << 8) | (1UL << 3) | 1U;
+	*(stm32_common.rcc + rcc_bdcr) = t | (1UL << 25) | (1UL << 15) | (1UL << 8) | (1U << 3) | 1U;
 	hal_cpuDataMemoryBarrier();
 
 	/* And wait for it to turn on */
@@ -846,20 +854,20 @@ void _stm32_init(void)
 #if defined(WATCHDOG)
 	/* Init watchdog */
 	/* Enable write access to IWDG */
-	*(stm32_common.iwdg + iwdg_kr) = 0x5555;
+	*(stm32_common.iwdg + iwdg_kr) = 0x5555U;
 
 	/* Set prescaler to 256, ~30s interval */
-	*(stm32_common.iwdg + iwdg_pr) = 0x06;
-	*(stm32_common.iwdg + iwdg_rlr) = 0xfff;
+	*(stm32_common.iwdg + iwdg_pr) = 0x06U;
+	*(stm32_common.iwdg + iwdg_rlr) = 0xfffU;
 
 	_stm32_wdgReload();
 
 	/* Enable watchdog */
-	*(stm32_common.iwdg + iwdg_kr) = 0xcccc;
+	*(stm32_common.iwdg + iwdg_kr) = 0xccccU;
 #endif
 
 #ifdef NDEBUG
-	*(u32 *)0xe0042004 = 0U;
+	*(u32 *)0xe0042004U = 0U;
 #endif
 
 	/* Disable FPU */
