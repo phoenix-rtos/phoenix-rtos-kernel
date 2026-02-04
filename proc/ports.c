@@ -27,9 +27,9 @@ msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg)
 {
 	msg_rid_t ret;
 
-	(void)proc_lockSet(&(p->lock));
+	(void)proc_lockSet(&p->lock);
 	ret = lib_idtreeAlloc(&p->rid, &kmsg->idlinkage, 0);
-	(void)proc_lockClear(&(p->lock));
+	(void)proc_lockClear(&p->lock);
 
 	return ret;
 }
@@ -39,14 +39,14 @@ kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
 {
 	kmsg_t *kmsg;
 
-	(void)proc_lockSet(&(p->lock));
+	(void)proc_lockSet(&p->lock);
 
 	kmsg = lib_idtreeof(kmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
 	if (kmsg != NULL) {
 		lib_idtreeRemove(&p->rid, &kmsg->idlinkage);
 	}
 
-	(void)proc_lockClear(&(p->lock));
+	(void)proc_lockClear(&p->lock);
 
 	return kmsg;
 }
