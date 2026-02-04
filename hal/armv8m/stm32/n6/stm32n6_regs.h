@@ -17,7 +17,7 @@
 #ifndef _PH_STM32N6_REGS_H_
 #define _PH_STM32N6_REGS_H_
 
-enum rcc_regs {
+enum {
 	rcc_cr = 0x0,
 	rcc_sr,
 	rcc_stopcr,
@@ -143,8 +143,12 @@ enum rcc_regs {
 	rcc_privcfgr3,
 	rcc_lockcfgr3,
 	rcc_pubcfgr3,
-	rcc_seccfgr4,
-	rcc_privcfgr4,
+	rcc_seccfgr4
+};
+
+
+enum {
+	rcc_privcfgr4 = rcc_seccfgr4 + 1,
 	rcc_lockcfgr4,
 	rcc_pubcfgr4,
 	rcc_pubcfgr5,
@@ -270,7 +274,7 @@ enum rcc_regs {
 	rcc_pubcfgcr5,
 };
 
-enum gpio_regs {
+enum {
 	gpio_moder = 0x0,
 	gpio_otyper,
 	gpio_ospeedr,
@@ -291,7 +295,7 @@ enum gpio_regs {
 	gpio_advcfgrh,
 };
 
-enum pwr_regs {
+enum {
 	pwr_cr1 = 0x0,
 	pwr_cr2,
 	pwr_cr3,
@@ -311,7 +315,7 @@ enum pwr_regs {
 	pwr_privcfgr,
 };
 
-enum rtc_regs {
+enum {
 	rtc_tr = 0x0,
 	rtc_dr,
 	rtc_ssr,
@@ -339,7 +343,7 @@ enum rtc_regs {
 	rtc_alrbbinr,
 };
 
-enum iwdg_regs {
+enum {
 	iwdg_kr = 0x0,
 	iwdg_pr,
 	iwdg_rlr,
@@ -349,7 +353,7 @@ enum iwdg_regs {
 	iwdg_icr,
 };
 
-enum syscfg_regs {
+enum {
 	syscfg_bootcr = 0x0,
 	syscfg_cm55cr,
 	syscfg_cm55tcmcr,
@@ -384,7 +388,7 @@ enum syscfg_regs {
 	syscfg_nonsec_aidcr = 0x200,
 };
 
-enum exti_regs {
+enum {
 	exti_rtsr1 = 0x0,
 	exti_ftsr1,
 	exti_swier1,
@@ -419,7 +423,7 @@ enum exti_regs {
 	exti_emr3,
 };
 
-enum bsec_regs {
+enum {
 	bsec_fvr0 = 0x0,
 	bsec_splock0 = 0x200,
 	bsec_swlock0 = 0x210,
@@ -451,7 +455,7 @@ enum bsec_regs {
 	bsec_wrcr,
 };
 
-enum rifsc_regs {
+enum {
 	rifsc_risc_cr = 0x0,
 	rifsc_risc_seccfgr0 = 0x4,
 	rifsc_risc_privcfgr0 = 0xc,
@@ -461,7 +465,7 @@ enum rifsc_regs {
 	rifsc_ppsr0 = 0x3ec,
 };
 
-enum gpdma_regs {
+enum {
 	gpdma_seccfgr = 0x0,
 	gpdma_privcfgr,
 	gpdma_rcfglockr,
@@ -470,7 +474,7 @@ enum gpdma_regs {
 	gpdma_cxlbar = 0x14,
 };
 
-enum risaf_regs {
+enum {
 	risaf_cr = 0x0,
 	risaf_iasr = 0x2,
 	risaf_iacr,
@@ -490,7 +494,7 @@ enum risaf_regs {
 	risaf_reg1_bnestr,
 };
 
-enum dbgmcu_regs {
+enum {
 	dbgmcu_idcode = 0x0U,
 	dbgmcu_cr,
 	dbgmcu_apb1lfz1 = 0x4U,

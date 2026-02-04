@@ -82,6 +82,7 @@ static u64 hal_timerGetCyc(void)
 
 void hal_timerSetWakeup(u32 waitUs)
 {
+	u32 tmp;
 	u64 val, valgray, inc;
 	spinlock_ctx_t sc;
 
@@ -104,7 +105,7 @@ void hal_timerSetWakeup(u32 waitUs)
 	valgray = timer_bin2gray(val);
 
 	/* Write new MATCH value */
-	*(timer_common.base + ostimer_matchl) = (u32)(valgray & 0xffffffffUL);
+	*(timer_common.base + ostimer_matchl) = (u32)(valgray & 0xffffffffU);
 	*(timer_common.base + ostimer_matchh) = (u32)((valgray >> 32) & 0x3ffU);
 	hal_cpuDataMemoryBarrier();
 
@@ -112,11 +113,11 @@ void hal_timerSetWakeup(u32 waitUs)
 	while ((*(timer_common.base + ostimer_oseventctrl) & (1U << 2)) != 0U) {
 	}
 
-	if ((hal_timerGetCyc() >= val) && (((val >> 32) & 0x400U) == 0U) &&
-			((*(timer_common.base + ostimer_oseventctrl) & 1U) == 0U)) {
+	tmp = *(timer_common.base + ostimer_oseventctrl);
+	if ((hal_timerGetCyc() >= val) && (((val >> 32) & 0x400U) == 0U) && ((tmp & 1U) == 0U)) {
 		/* We just missed the timer value and be the interrupt won't
 		 * be generated. Trigger the interrupt manually instead. */
-		_hal_scsIRQPendingSet(ostimer0_irq - 0x10U);
+		_hal_scsIRQPendingSet((u32)ostimer0_irq - 0x10U);
 	}
 
 	hal_spinlockClear(&timer_common.lock, &sc);
@@ -156,7 +157,7 @@ char *hal_timerFeatures(char *features, size_t len)
 
 void _hal_timerInit(u32 interval)
 {
-	timer_common.base = (void *)0x40049000;
+	timer_common.base = (void *)0x40049000U;
 	timer_common.timerLast = 0;
 	timer_common.high = 0;
 	timer_common.interval = interval;

@@ -19,30 +19,30 @@
 #include "hal/cpu.h"
 
 
-#define RISAF1_BASE  ((void *)0x54026000)
-#define RISAF2_BASE  ((void *)0x54027000)
-#define RISAF3_BASE  ((void *)0x54028000)
-#define RISAF4_BASE  ((void *)0x54029000)
-#define RISAF5_BASE  ((void *)0x5402a000)
-#define RISAF6_BASE  ((void *)0x5402b000)
-#define RISAF7_BASE  ((void *)0x5402c000)
-#define RISAF8_BASE  ((void *)0x5402d000)
-#define RISAF9_BASE  ((void *)0x5402e000)
-#define RISAF11_BASE ((void *)0x54030000)
-#define RISAF12_BASE ((void *)0x54031000)
-#define RISAF13_BASE ((void *)0x54032000)
-#define RISAF14_BASE ((void *)0x54033000)
-#define RISAF15_BASE ((void *)0x54034000)
-#define RISAF21_BASE ((void *)0x54035000)
-#define RISAF22_BASE ((void *)0x54036000)
-#define RISAF23_BASE ((void *)0x54037000)
+#define RISAF1_BASE  ((void *)0x54026000U)
+#define RISAF2_BASE  ((void *)0x54027000U)
+#define RISAF3_BASE  ((void *)0x54028000U)
+#define RISAF4_BASE  ((void *)0x54029000U)
+#define RISAF5_BASE  ((void *)0x5402a000U)
+#define RISAF6_BASE  ((void *)0x5402b000U)
+#define RISAF7_BASE  ((void *)0x5402c000U)
+#define RISAF8_BASE  ((void *)0x5402d000U)
+#define RISAF9_BASE  ((void *)0x5402e000U)
+#define RISAF11_BASE ((void *)0x54030000U)
+#define RISAF12_BASE ((void *)0x54031000U)
+#define RISAF13_BASE ((void *)0x54032000U)
+#define RISAF14_BASE ((void *)0x54033000U)
+#define RISAF15_BASE ((void *)0x54034000U)
+#define RISAF21_BASE ((void *)0x54035000U)
+#define RISAF22_BASE ((void *)0x54036000U)
+#define RISAF23_BASE ((void *)0x54037000U)
 
 /* TODO: support for IAC (illegal access controller) would be nice to have for debugging,
  * but it is not vital. */
-#define IAC_BASE ((void *)0x54025000)
+#define IAC_BASE ((void *)0x54025000U)
 
 
-enum risafs {
+enum {
 	risaf_tcm = 0,
 	risaf_axisram0,
 	risaf_axisram1,
@@ -71,162 +71,162 @@ static const struct {
 	int pctl;        /* -1 - RISAF is always on, otherwise - check the given peripheral before trying to configure */
 	u8 n_regions;    /* Number of regions supported */
 	u8 isCIDAware;   /* 1 for firewalls that can do CID-based filtering */
-} risafs[] = {
+} risafs[17] = {
 	[risaf_tcm] = {
 		.base = RISAF1_BASE,
-		.start = 0x00000000,
-		.end = 0x3fffffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x00000000U,
+		.end = 0x3fffffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = -1,
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_axisram0] = {
 		.base = RISAF2_BASE,
-		.start = 0x34000000,
-		.end = 0x341fffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x34000000U,
+		.end = 0x341fffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_axisram1, /* Difference in name is intentional; RISAF2 (AXISRAM0) protects AXISRAM1 */
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_axisram1] = {
 		.base = RISAF3_BASE,
-		.start = 0x34100000,
-		.end = 0x341fffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x34100000U,
+		.end = 0x341fffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_axisram2, /* Difference in name is intentional; RISAF3 (AXISRAM1) protects AXISRAM2 */
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_npu_mst0] = {
 		/* TODO: needs verification - NPU has to be turned on */
 		.base = RISAF4_BASE,
-		.start = 0x0,
-		.end = 0xffffffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x0U,
+		.end = 0xffffffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_npu,
-		.n_regions = 11,
-		.isCIDAware = 1,
+		.n_regions = 11U,
+		.isCIDAware = 1U,
 	},
 	[risaf_npu_mst1] = {
 		/* TODO: needs verification - NPU has to be turned on */
 		.base = RISAF5_BASE,
 		.start = 0x0,
-		.end = 0xffffffff,
-		.granularity = (1 << 12) - 1,
+		.end = 0xffffffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_npu,
-		.n_regions = 11,
-		.isCIDAware = 1,
+		.n_regions = 11U,
+		.isCIDAware = 1U,
 	},
 	[risaf_cpu_mst] = {
 		.base = RISAF6_BASE,
-		.start = 0x0,
-		.end = 0xffffffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x0U,
+		.end = 0xffffffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = -1,
 		.n_regions = 11,
 		.isCIDAware = 1,
 	},
 	[risaf_flexram] = {
 		.base = RISAF7_BASE,
-		.start = 0x34000000,
-		.end = 0x3407ffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x34000000U,
+		.end = 0x3407ffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_flexram,
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_cacheaxi] = {
 		/* NOTE: on illegal accesses, the address returned starts from 0x353c0000 instead of 0x343c0000 */
 		.base = RISAF8_BASE,
-		.start = 0x343c0000,
-		.end = 0x343fffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x343c0000U,
+		.end = 0x343fffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_npucacheram,
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_vencram] = {
 		.base = RISAF9_BASE,
-		.start = 0x34400000,
-		.end = 0x3441ffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x34400000U,
+		.end = 0x3441ffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_vencram,
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_xspi1] = {
 		.base = RISAF11_BASE,
-		.start = 0x90000000,
-		.end = 0x9fffffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x90000000U,
+		.end = 0x9fffffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_xspi1,
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_xspi2] = {
 		.base = RISAF12_BASE,
-		.start = 0x70000000,
-		.end = 0x7fffffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x70000000U,
+		.end = 0x7fffffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_xspi2,
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_xspi3] = {
 		.base = RISAF13_BASE,
-		.start = 0x80000000,
-		.end = 0x8fffffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x80000000U,
+		.end = 0x8fffffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_xspi3,
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_fmc] = {
 		.base = RISAF14_BASE,
-		.start = 0x60000000,
-		.end = 0x6fffffff,
-		.granularity = (1 << 12) - 1,
+		.start = 0x60000000U,
+		.end = 0x6fffffffU,
+		.granularity = (1UL << 12) - 1U,
 		.pctl = pctl_fmc,
-		.n_regions = 7,
-		.isCIDAware = 1,
+		.n_regions = 7U,
+		.isCIDAware = 1U,
 	},
 	[risaf_cache_config] = {
 		.base = RISAF15_BASE,
-		.start = 0x580df000,
-		.end = 0x580dffff,
-		.granularity = (1 << 2) - 1,
+		.start = 0x580df000U,
+		.end = 0x580dffffU,
+		.granularity = (1UL << 2) - 1U,
 		.pctl = pctl_npucache,
-		.n_regions = 2,
-		.isCIDAware = 0,
+		.n_regions = 2U,
+		.isCIDAware = 0U,
 	},
 	[risaf_ahbram1] = {
 		.base = RISAF21_BASE,
-		.start = 0x38000000,
-		.end = 0x38003fff,
-		.granularity = (1 << 9) - 1,
+		.start = 0x38000000U,
+		.end = 0x38003fffU,
+		.granularity = (1UL << 9) - 1U,
 		.pctl = pctl_ahbsram1,
-		.n_regions = 7,
-		.isCIDAware = 0,
+		.n_regions = 7U,
+		.isCIDAware = 0U,
 	},
 	[risaf_ahbram2] = {
 		.base = RISAF22_BASE,
-		.start = 0x38004000,
-		.end = 0x38007fff,
-		.granularity = (1 << 9) - 1,
+		.start = 0x38004000U,
+		.end = 0x38007fffU,
+		.granularity = (1UL << 9) - 1U,
 		.pctl = pctl_ahbsram2,
-		.n_regions = 7,
-		.isCIDAware = 0,
+		.n_regions = 7U,
+		.isCIDAware = 0U,
 	},
 	[risaf_bkpsram] = {
 		.base = RISAF23_BASE,
-		.start = 0x3c000000,
-		.end = 0x3c001fff,
-		.granularity = (1 << 9) - 1,
+		.start = 0x3c000000U,
+		.end = 0x3c001fffU,
+		.granularity = (1UL << 9) - 1U,
 		.pctl = pctl_bkpsram,
-		.n_regions = 3,
-		.isCIDAware = 0,
+		.n_regions = 3U,
+		.isCIDAware = 0U,
 	},
 };
 
@@ -247,11 +247,11 @@ static const struct {
  * 	 NOTE: secure == 0 forces all sub-regions to also be non-secure.
  * `enable` - 0 - Region disabled (default permissions apply instead), 1 - Region enabled
  */
-int _stm32_risaf_configRegion(unsigned int risaf, u8 region, u32 start, u32 end, u8 privCIDMask, u8 readCIDMask, u8 writeCIDMask, int secure, int enable)
+int _stm32_risaf_configRegion(int risaf, u8 region, u32 start, u32 end, u8 privCIDMask, u8 readCIDMask, u8 writeCIDMask, int secure, int enable)
 {
-	const u32 region_offs = (region - 1) * 0x10;
+	const u32 region_offs = ((u32)region - 1U) * 0x10U;
 	u32 tmp, status, lpStatus;
-	if (risaf >= (sizeof(risafs) / sizeof(risafs[0]))) {
+	if ((unsigned int)risaf >= (sizeof(risafs) / sizeof(risafs[0]))) {
 		return -EINVAL;
 	}
 
@@ -262,12 +262,12 @@ int _stm32_risaf_configRegion(unsigned int risaf, u8 region, u32 start, u32 end,
 			return -EINVAL;
 		}
 
-		if (status == 0) {
+		if (status == 0U) {
 			return -ENODEV;
 		}
 	}
 
-	if ((region == 0) || (region > risafs[risaf].n_regions)) {
+	if ((region == 0U) || (region > risafs[risaf].n_regions)) {
 		return -EINVAL;
 	}
 
@@ -275,21 +275,21 @@ int _stm32_risaf_configRegion(unsigned int risaf, u8 region, u32 start, u32 end,
 		return -EINVAL;
 	}
 
-	if (((start & risafs[risaf].granularity) != 0) || ((end & risafs[risaf].granularity) != risafs[risaf].granularity)) {
+	if (((start & risafs[risaf].granularity) != 0U) || ((end & risafs[risaf].granularity) != risafs[risaf].granularity)) {
 		return -EINVAL;
 	}
 
-	if (risafs[risaf].isCIDAware == 0) {
-		privCIDMask = (privCIDMask != 0) ? 0xff : 0;
-		readCIDMask = (readCIDMask != 0) ? 0xff : 0;
-		writeCIDMask = (writeCIDMask != 0) ? 0xff : 0;
+	if (risafs[risaf].isCIDAware == 0U) {
+		privCIDMask = (privCIDMask != 0U) ? 0xffU : 0U;
+		readCIDMask = (readCIDMask != 0U) ? 0xffU : 0U;
+		writeCIDMask = (writeCIDMask != 0U) ? 0xffU : 0U;
 	}
 
 	hal_cpuDataMemoryBarrier();
 	tmp = *(risafs[risaf].base + risaf_reg1_cidcfgr + region_offs);
-	tmp &= ~(0xff << 16);
+	tmp &= ~(0xffUL << 16);
 	tmp |= ((u32)writeCIDMask) << 16;
-	tmp &= ~0xff;
+	tmp &= ~0xffUL;
 	tmp |= readCIDMask;
 	*(risafs[risaf].base + risaf_reg1_cidcfgr + region_offs) = tmp;
 	/* Values in registers are not CPU addresses, but offsets within the module's own address space. */
@@ -301,20 +301,20 @@ int _stm32_risaf_configRegion(unsigned int risaf, u8 region, u32 start, u32 end,
 
 	tmp = *(risafs[risaf].base + risaf_reg1_cfgr + region_offs);
 	if (secure != 0) {
-		tmp |= 1 << 8;
+		tmp |= 1UL << 8;
 	}
 	else {
-		tmp &= ~(1 << 8);
+		tmp &= ~(1UL << 8);
 	}
 
-	if (enable) {
-		tmp |= 1;
+	if (enable != 0) {
+		tmp |= 1U;
 	}
 	else {
-		tmp &= ~1;
+		tmp &= ~1U;
 	}
 
-	tmp &= ~(0xff << 16);
+	tmp &= ~(0xffUL << 16);
 	tmp |= ((u32)privCIDMask) << 16;
 	*(risafs[risaf].base + risaf_reg1_cfgr + region_offs) = tmp;
 	hal_cpuDataMemoryBarrier();
@@ -322,17 +322,17 @@ int _stm32_risaf_configRegion(unsigned int risaf, u8 region, u32 start, u32 end,
 	return EOK;
 }
 
-int _stm32_risaf_getFirstDisabledRegion(int risaf)
+static int _stm32_risaf_getFirstFreeRegion(unsigned int risaf)
 {
 	u32 region, region_offs;
 	if (risaf >= (sizeof(risafs) / sizeof(risafs[0]))) {
 		return -EINVAL;
 	}
 
-	for (region = 1; region <= risafs[risaf].n_regions; region++) {
-		region_offs = (region - 1) * 0x10;
-		if ((*(risafs[risaf].base + risaf_reg1_cfgr + region_offs) & 1) == 0) {
-			return region;
+	for (region = 1U; region <= risafs[risaf].n_regions; region++) {
+		region_offs = (region - 1U) * 0x10U;
+		if ((*(risafs[risaf].base + risaf_reg1_cfgr + region_offs) & 1U) == 0U) {
+			return (int)region;
 		}
 	}
 
@@ -347,30 +347,30 @@ int _stm32_risaf_getFirstDisabledRegion(int risaf)
  * protection zones should be configurable in a similar manner to MPU regions.
  */
 static const struct {
-	u32 start;         /* First address of the protection zone */
-	u32 end;           /* Last address of the protection zone */
-	enum risafs risaf; /* ID of the firewall that needs to be set up */
+	u32 start; /* First address of the protection zone */
+	u32 end;   /* Last address of the protection zone */
+	int risaf; /* ID of the firewall that needs to be set up */
 	u8 privCIDMask;
 	u8 readCIDMask;
 	u8 writeCIDMask;
-	u8 secure;
+	int secure;
 } risaf_defConfig[] = {
 	/* TCMs are accessed through the CPU - to configure protection, both CPU and TCM firewalls need to be configured */
-	{ 0x10000000, 0x1003ffff, risaf_tcm, 0x0, 0xff, 0xff, 1 },
-	{ 0x10000000, 0x1003ffff, risaf_cpu_mst, 0x0, 0xff, 0xff, 1 },
-	{ 0x30000000, 0x3003ffff, risaf_tcm, 0x0, 0xff, 0xff, 1 },
-	{ 0x30000000, 0x3003ffff, risaf_cpu_mst, 0x0, 0xff, 0xff, 1 },
-	{ 0x34000000, 0x34063fff, risaf_flexram, 0x0, 0xff, 0xff, 1 },
-	{ 0x34064000, 0x340fffff, risaf_axisram0, 0x0, 0xff, 0xff, 1 },
-	{ 0x34100000, 0x341fffff, risaf_axisram1, 0x0, 0xff, 0xff, 1 },
-	{ 0x34200000, 0x343bffff, risaf_cpu_mst, 0x0, 0xff, 0xff, 1 }, /* AXISRAM3~6 are accessed through the CPU */
-	{ 0x343c0000, 0x343fffff, risaf_cacheaxi, 0x0, 0xff, 0xff, 1 },
-	{ 0x34400000, 0x3441ffff, risaf_vencram, 0x0, 0xff, 0xff, 1 },
-	{ 0x38000000, 0x38003fff, risaf_ahbram1, 0x0, 0xff, 0xff, 1 },
-	{ 0x38004000, 0x38007fff, risaf_ahbram2, 0x0, 0xff, 0xff, 1 },
-	{ 0x70000000, 0x7fffffff, risaf_xspi2, 0x0, 0xff, 0xff, 1 },
-	{ 0x80000000, 0x8fffffff, risaf_xspi3, 0x0, 0xff, 0xff, 1 },
-	{ 0x90000000, 0x9fffffff, risaf_xspi1, 0x0, 0xff, 0xff, 1 },
+	{ 0x10000000U, 0x1003ffffU, risaf_tcm, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x10000000U, 0x1003ffffU, risaf_cpu_mst, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x30000000U, 0x3003ffffU, risaf_tcm, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x30000000U, 0x3003ffffU, risaf_cpu_mst, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x34000000U, 0x34063fffU, risaf_flexram, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x34064000U, 0x340fffffU, risaf_axisram0, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x34100000U, 0x341fffffU, risaf_axisram1, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x34200000U, 0x343bffffU, risaf_cpu_mst, 0x0U, 0xffU, 0xffU, 1 }, /* AXISRAM3~6 are accessed through the CPU */
+	{ 0x343c0000U, 0x343fffffU, risaf_cacheaxi, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x34400000U, 0x3441ffffU, risaf_vencram, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x38000000U, 0x38003fffU, risaf_ahbram1, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x38004000U, 0x38007fffU, risaf_ahbram2, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x70000000U, 0x7fffffffU, risaf_xspi2, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x80000000U, 0x8fffffffU, risaf_xspi3, 0x0U, 0xffU, 0xffU, 1 },
+	{ 0x90000000U, 0x9fffffffU, risaf_xspi1, 0x0U, 0xffU, 0xffU, 1 },
 };
 
 
@@ -380,15 +380,15 @@ int _stm32_risaf_init(void)
 {
 	unsigned int i;
 	int region;
-	for (i = 0; i < sizeof(risaf_defConfig) / sizeof(risaf_defConfig[0]); i++) {
-		region = _stm32_risaf_getFirstDisabledRegion(risaf_defConfig[i].risaf);
+	for (i = 0U; i < sizeof(risaf_defConfig) / sizeof(risaf_defConfig[0]); i++) {
+		region = _stm32_risaf_getFirstFreeRegion((unsigned int)risaf_defConfig[i].risaf);
 		if (region < 0) {
 			return -ENOMEM;
 		}
 
-		_stm32_risaf_configRegion(
+		(void)_stm32_risaf_configRegion(
 				risaf_defConfig[i].risaf,
-				region,
+				(u8)region,
 				risaf_defConfig[i].start,
 				risaf_defConfig[i].end,
 				risaf_defConfig[i].privCIDMask,

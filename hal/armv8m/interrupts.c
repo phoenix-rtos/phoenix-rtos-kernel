@@ -102,7 +102,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 	HAL_LIST_REMOVE(&interrupts.handlers[h->n], h);
 
 	if (h->n >= 0x10U && interrupts.handlers[h->n] == NULL) {
-		_hal_scsIRQSet(h->n - 0x10U, 0);
+		_hal_scsIRQSet(h->n - 0x10U, 0U);
 	}
 
 	hal_spinlockClear(&interrupts.spinlock, &sc);
@@ -131,12 +131,12 @@ __attribute__((section(".init"))) void _hal_interruptsInit(void)
 
 	hal_spinlockCreate(&interrupts.spinlock, "interrupts.spinlock");
 
-	_hal_scsExceptionPrioritySet(SYSTICK_IRQ, 1);
-	_hal_scsExceptionPrioritySet(PENDSV_IRQ, 0);
-	_hal_scsExceptionPrioritySet(SVC_IRQ, 0);
+	_hal_scsExceptionPrioritySet(SYSTICK_IRQ, 1U);
+	_hal_scsExceptionPrioritySet(PENDSV_IRQ, 0U);
+	_hal_scsExceptionPrioritySet(SVC_IRQ, 0U);
 
 	/* Set no subprorities in Interrupt Group Priority */
-	_hal_scsPriorityGroupingSet(3);
+	_hal_scsPriorityGroupingSet(3U);
 
 	return;
 }
