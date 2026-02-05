@@ -125,6 +125,7 @@ struct {
 	spinlock_t lock;
 
 	size_t dev_i;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 MISRAC2012-RULE_1_1 "Used by _init assembly, holds necessary pmap structs" */
 } __attribute__((aligned(SIZE_PAGE))) pmap_common;
 
 
