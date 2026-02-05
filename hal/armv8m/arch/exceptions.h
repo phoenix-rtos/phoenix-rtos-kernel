@@ -22,7 +22,7 @@
 
 #define EXC_UNDEFINED 3U
 
-#define SIZE_CTXDUMP 512U /* Size of dumped context */
+#define SIZE_CTXDUMP 524U /* Size of dumped context */
 
 
 typedef struct _exc_context_t {
