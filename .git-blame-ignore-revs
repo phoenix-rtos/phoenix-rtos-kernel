@@ -1,7 +1,32 @@
 # This file lists revisions that should be ignored by 'git blame'.
 # Each line is a commit hash. Comments are allowed after a '#'.
 # We suggest to put the commit title next to the hash for easier navigation.
+# Hint: use `git log --pretty=format:"%H # %s"`
 
+fef6784a88cc64087627c9fcb2b9bc2e34bfa295 # hal/aarch64: suppress pmap_common MISRA violations
+84e3fdb364c73218ce356fc6edac1ace9a7046e5 # lib: misrify
+17db356fe6794b8979c041e7fe35b2d83e963b73 # posix: misrify
+05a608c0c5e824a1f73c3f87d8636fb3de08b3ea # proc/msg: change boffs/eoffs type from u64 to size_t
+2d85f3b7a9bb5fb5ba014f15319bf8bb0bb91b4a # proc/msg: remove unnecessary variable
+2c7edcbe0b38ca98144c6b76e819cf05f3d53d5e # proc: misrify
+18dd941b952378cf4cc193054f7b73c3482c6aad # hal: reword parasoft suppress comments
+28bab62567e99fe3c93ef3ab60b63f2c41de3d21 # hal/armv7r: misrify
+698bb5b3f831a43765cb0ae7c1ce9182b80b6845 # hal/ia32: misrify
+13e6cb1a50527476996b097de86bce2bbfb13e71 # hal/armv8r: misrify
+2c05f41ba4cda12ffcbf4e1a50ed454abb6aa2f5 # hal/armv8m: misrify
+e3f5473a74037fa5b96fc7e8f708b7be1023ff9d # hal/arm: mark barriers as MAYBE_UNUSED
+63bb011299720195ca710a2e7fab76cd532d598d # hal/pmap: mark pmap_belongs as MAYBE_UNUSED
+e9fde726451355354aa1e1f52c83feb6afed879c # hal: unify types in **/arch/pmap.h
+9192562550bf58fce40719aefb60edb79dbeed74 # hal/armv7m: misrify
+c203496fb548578fcce904da1e236111a3568b3a # hal/arm: misrify
+1d2b5492f37c08dedfa49592a71db931f26b3f2a # vm: misrify MMU and 64-bit targets
+549d1573144ea1ef5f782df0d3315ceabc68da93 # hal/armv7a: misrify
+76dd638fa4111362b4de5cb2418204b9c73fce80 # hal/riscv64: misrify
+37cb152e20ff16d5e7413e252b503671b3ab847c # hal/sparcv8leon: misrify
+c6170c8092133c3d98a7b380a387164c77361414 # hal/aarch64: misrify
+4267352f780cc3a299c6e6405a14db83edec491d # proc: fix process_load{32,64} loops
+f7e747dce32ac616901c2d711232ad4895ca712f # misra: make hal MISRA-compliant for all architectures
+e89dfbf72fa3b6313c551ddaf0ee19e34d9675f3 # fix u8/16/32/64 formatting
 f1417cccfa87bd4a6f2e01dc1996a61c966fb6ca # hal/string: add refactoring TODO for hal_i2s
 94bdbfc42df7fe027be041db8abb5bc9b8023495 # proc/threads: revert sigsuspend argument name amask to mask
 daee07481581d3fc54a88760885ecb4a08aaa0a3 # make numeric literals conformant to code style
