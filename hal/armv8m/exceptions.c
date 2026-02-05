@@ -17,6 +17,7 @@
 #include "hal/cpu.h"
 #include "hal/console.h"
 #include "hal/string.h"
+#include "hal/timer.h"
 #include "config.h"
 
 #define SIZE_FPUCTX (18U * sizeof(u32))
@@ -136,6 +137,10 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
+
+	/* FIXME: Workaround for console dying before printing whole buffer. Wait 10ms before rebooting. Delete after adding flush to kernel UART driver */
+	time_t t = hal_timerGetUs();
+	while ((hal_timerGetUs() - t) < 10000) { }
 
 #ifdef NDEBUG
 	hal_cpuReboot();
