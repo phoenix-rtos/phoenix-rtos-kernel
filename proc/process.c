@@ -29,6 +29,7 @@
 #include "msg.h"
 #include "ports.h"
 #include "userintr.h"
+#include "perf/trace-events.h"
 
 /* Process states */
 #define PREFORK 0
@@ -84,7 +85,7 @@ static void process_destroy(process_t *p)
 	thread_t *ghost;
 	vm_map_t *mapp = p->mapp, *imapp = p->imapp;
 
-	perf_kill(p);
+	trace_eventProcessKill(p);
 
 	posix_died(process_getPid(p), p->exit);
 
@@ -225,7 +226,6 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
 	(void)process_alloc(process);
-	perf_fork(process);
 
 	if (proc_threadCreate(process, start, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
 		(void)proc_put(process);
@@ -1820,4 +1820,37 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map)
 {
 	return vm_munmap(map, (void *)tls->tls_base, tls->tls_sz);
+}
+
+
+void process_getName(const process_t *process, char *buf, size_t sz)
+{
+	int argc;
+	size_t len = 0, space;
+	char *sbuf;
+
+	if (process->path != NULL) {
+		space = sz;
+		sbuf = buf;
+
+		if (process->argv != NULL) {
+			for (argc = 0; process->argv[argc] != NULL && space > 0U; ++argc) {
+				len = min(hal_strlen(process->argv[argc]) + 1, space);
+				hal_memcpy(sbuf, process->argv[argc], len);
+				sbuf[len - 1U] = ' ';
+				sbuf += len;
+				space -= len;
+			}
+			*(sbuf - 1) = '\0';
+		}
+		else {
+			len = hal_strlen(process->path) + 1U;
+			hal_memcpy(buf, process->path, min(space, len));
+		}
+
+		buf[sz - 1U] = '\0';
+	}
+	else {
+		buf[0] = '\0';
+	}
 }

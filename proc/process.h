@@ -75,6 +75,9 @@ static inline int process_getPid(const process_t *process)
 }
 
 
+void process_getName(const process_t *process, char *buf, size_t sz);
+
+
 process_t *proc_find(int pid);
 
 

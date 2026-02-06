@@ -59,9 +59,10 @@
 	ID(wdgreload) \
 	ID(threadsinfo) \
 	ID(meminfo) \
-	ID(perf_start) \
-	ID(perf_read) \
-	ID(perf_finish) \
+	ID(sys_perf_start) \
+	ID(sys_perf_read) \
+	ID(sys_perf_finish) \
+	ID(sys_perf_stop) \
 	ID(syspageprog) \
 	ID(va2pa) \
 	ID(signalHandle) \

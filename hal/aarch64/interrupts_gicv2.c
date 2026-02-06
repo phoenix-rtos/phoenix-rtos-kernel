@@ -25,6 +25,9 @@
 #include "dtb.h"
 #include "interrupts_gicv2.h"
 #include "arch/pmap.h"
+#include "config.h"
+
+#include "perf/trace-events.h"
 
 #define SPI_FIRST_IRQID 32
 
@@ -87,6 +90,7 @@ static struct {
 	spinlock_t spinlock[SIZE_INTERRUPTS];
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
+	int trace_irqs;
 } interrupts_common;
 
 
@@ -101,12 +105,18 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	intr_handler_t *h;
 	unsigned int reschedule = 0;
 	spinlock_ctx_t sc;
+	int trace;
 
 	u32 ciarValue = *(interrupts_common.gicc + gicc_iar);
 	n = ciarValue & 0x3ffU;
 
 	if (n >= SIZE_INTERRUPTS) {
 		return 0;
+	}
+
+	trace = interrupts_common.trace_irqs != 0 && n != TIMER_IRQ_ID;
+	if (trace != 0) {
+		trace_eventInterruptEnter(n);
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[n], &sc);
@@ -128,6 +138,10 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	*(interrupts_common.gicc + gicc_eoir) = ciarValue;
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
+
+	if (trace != 0) {
+		trace_eventInterruptExit(n);
+	}
 
 	return (int)reschedule;
 }
@@ -233,11 +247,19 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
+void _hal_interruptsTrace(int enable)
+{
+	interrupts_common.trace_irqs = !!enable;
+}
+
+
 /* Function initializes interrupt handling */
 void _hal_interruptsInit(void)
 {
 	u32 i;
 	addr_t gicc, gicd;
+
+	interrupts_common.trace_irqs = 0;
 
 	dtb_getGIC(&gicc, &gicd);
 	interrupts_common.gicd = _pmap_halMapDevice(gicd, 0, SIZE_PAGE);

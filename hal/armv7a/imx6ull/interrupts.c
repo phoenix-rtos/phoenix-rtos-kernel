@@ -16,8 +16,10 @@
 #include "hal/cpu.h"
 #include "hal/interrupts.h"
 #include "hal/list.h"
+#include "config.h"
 
 #include "proc/userintr.h"
+#include "perf/trace-events.h"
 
 #define SIZE_INTERRUPTS 159U
 
@@ -40,6 +42,7 @@ static struct {
 	spinlock_t spinlock[SIZE_INTERRUPTS];
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
+	int trace_irqs;
 } interrupts;
 
 
@@ -55,12 +58,18 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
+	int trace;
 
 	u32 iarValue = *(interrupts.gic + iar);
 	n = iarValue & 0x3ffU;
 
 	if (n >= SIZE_INTERRUPTS) {
 		return 0;
+	}
+
+	trace = interrupts.trace_irqs != 0 && n != TIMER_IRQ_ID;
+	if (trace != 0) {
+		trace_eventInterruptEnter(n);
 	}
 
 	hal_spinlockSet(&interrupts.spinlock[n], &sc);
@@ -84,6 +93,10 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	*(interrupts.gic + eoir) = iarValue;
 
 	hal_spinlockClear(&interrupts.spinlock[n], &sc);
+
+	if (trace != 0) {
+		trace_eventInterruptExit(n);
+	}
 
 	return reschedule;
 }
@@ -175,9 +188,17 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 }
 
 
+void _hal_interruptsTrace(int enable)
+{
+	interrupts.trace_irqs = !!enable;
+}
+
+
 void _hal_interruptsInit(void)
 {
 	u32 i, t, priority;
+
+	interrupts.trace_irqs = 0;
 
 	for (i = 0; i < SIZE_INTERRUPTS; ++i) {
 		interrupts.handlers[i] = NULL;

@@ -22,12 +22,16 @@
 
 typedef struct _lock_t {
 	spinlock_t spinlock;         /* Spinlock */
+
 	struct _thread_t *owner;     /* Owner thread */
 	struct _thread_t *queue;     /* Waiting threads */
 	struct _lock_t *prev, *next; /* Doubly linked list */
+
 	const char *name;
 	struct lockAttr attr;
 	unsigned int depth; /* Used with recursive locks */
+
+	int epoch; /* Current trace epoch - used for tracking lock name emission */
 } lock_t;
 
 
@@ -57,6 +61,10 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name);
 
 
 int proc_lockDone(lock_t *lock);
+
+
+/* returns previous epoch */
+int _proc_lockSetTraceEpoch(lock_t *lock, int epoch);
 
 
 #endif
