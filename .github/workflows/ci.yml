@@ -16,3 +16,5 @@ jobs:
   call-ci:
     uses: phoenix-rtos/phoenix-rtos-project/.github/workflows/ci-submodule.yml@master
     secrets: inherit
+    with:
+      cpptest_enabled: true
