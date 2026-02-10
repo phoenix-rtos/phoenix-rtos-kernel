@@ -18,6 +18,7 @@
 #include "hal/elf.h"
 #include "include/errno.h"
 #include "include/signal.h"
+#include "include/syscalls.h"
 #include "vm/vm.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
@@ -1663,6 +1664,8 @@ static int process_execve(thread_t *current)
 
 	/* Close cloexec file descriptors */
 	(void)posix_exec();
+
+	trace_eventSyscallExit(syscall_exec, proc_getTid(current));
 	process_exec(current, spawn);
 
 	/* Not reached */
