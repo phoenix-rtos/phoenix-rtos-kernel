@@ -63,6 +63,7 @@ size_t _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 	size_t bytes = _cbuffer_peek(buf, data, sz);
 
 	if (bytes > 0U) {
+		LIB_ASSERT(buf->sz > 0, "cbuffer: buf->sz=0");
 		buf->r = (buf->r + bytes) & (buf->sz - 1U);
 		buf->full = 0U;
 	}

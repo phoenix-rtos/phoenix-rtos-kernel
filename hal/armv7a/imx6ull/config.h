@@ -21,7 +21,7 @@
 
 #define NUM_CPUS 1
 
-#define TIMER_IRQ_ID 88
+#define TIMER_IRQ_ID 88U
 
 #ifndef __ASSEMBLY__
 

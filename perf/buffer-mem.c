@@ -171,6 +171,7 @@ int _trace_bufferFinish(void)
 }
 
 
+/* parasoft-begin-suppress MISRAC2012-DIR_4_7-a "False positive, hal_cpuGetCount() rv is checked" */
 int trace_bufferInit(vm_map_t *kmap)
 {
 	const size_t nchansPerCpu = (size_t)trace_channel_count;
@@ -193,3 +194,4 @@ int trace_bufferInit(vm_map_t *kmap)
 
 	return EOK;
 }
+/* parasoft-end-suppress MISRAC2012-DIR_4_7-a */

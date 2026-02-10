@@ -49,7 +49,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		return;
 	}
 
-	trace = interrupts.trace_irqs != 0 && n != SYSTICK_IRQ;
+	trace = (interrupts.trace_irqs != 0 && n != SYSTICK_IRQ) ? 1 : 0;
 	if (trace != 0) {
 		trace_eventInterruptEnter(n);
 	}
@@ -136,7 +136,7 @@ char *hal_interruptsFeatures(char *features, size_t len)
 
 void _hal_interruptsTrace(int enable)
 {
-	interrupts.trace_irqs = !!enable;
+	interrupts.trace_irqs = enable;
 }
 
 

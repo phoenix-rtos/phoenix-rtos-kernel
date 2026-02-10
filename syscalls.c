@@ -476,21 +476,25 @@ int syscalls_syspageprog(u8 *ustack)
 int syscalls_sys_perf_start(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
-	perf_mode_t mode;
-	unsigned flags;
+	int mode;
+	unsigned int flags;
 	void *arg;
 	size_t sz;
 
 	GETFROMSTACK(ustack, int, mode, 0U);
-	GETFROMSTACK(ustack, unsigned, flags, 1U);
+	GETFROMSTACK(ustack, unsigned int, flags, 1U);
 	GETFROMSTACK(ustack, void *, arg, 2U);
 	GETFROMSTACK(ustack, size_t, sz, 3U);
+
+	if (mode < 0 || mode >= (int)perf_mode_count) {
+		return -ENOSYS;
+	}
 
 	if (arg != NULL && vm_mapBelongs(proc, arg, sz) < 0) {
 		return -EFAULT;
 	}
 
-	return perf_start(mode, flags, arg, sz);
+	return perf_start((perf_mode_t)mode, flags, arg, sz);
 }
 
 
@@ -499,39 +503,50 @@ int syscalls_sys_perf_read(u8 *ustack)
 	process_t *proc = proc_current()->process;
 	void *buffer;
 	size_t sz;
-	perf_mode_t mode;
-	int chan;
+	int mode, chan;
 
-	GETFROMSTACK(ustack, perf_mode_t, mode, 0U);
+	GETFROMSTACK(ustack, int, mode, 0U);
 	GETFROMSTACK(ustack, void *, buffer, 1U);
 	GETFROMSTACK(ustack, size_t, sz, 2U);
 	GETFROMSTACK(ustack, int, chan, 3U);
+
+	if (mode < 0 || mode >= (int)perf_mode_count) {
+		return -ENOSYS;
+	}
 
 	if (vm_mapBelongs(proc, buffer, sz) < 0) {
 		return -EFAULT;
 	}
 
-	return perf_read(mode, buffer, sz, chan);
+	return perf_read((perf_mode_t)mode, buffer, sz, chan);
 }
 
 
 int syscalls_sys_perf_stop(u8 *ustack)
 {
-	perf_mode_t mode;
+	int mode;
 
-	GETFROMSTACK(ustack, perf_mode_t, mode, 0U);
+	GETFROMSTACK(ustack, int, mode, 0U);
 
-	return perf_stop(mode);
+	if (mode < 0 || mode >= (int)perf_mode_count) {
+		return -ENOSYS;
+	}
+
+	return perf_stop((perf_mode_t)mode);
 }
 
 
 int syscalls_sys_perf_finish(u8 *ustack)
 {
-	perf_mode_t mode;
+	int mode;
 
-	GETFROMSTACK(ustack, perf_mode_t, mode, 0U);
+	GETFROMSTACK(ustack, int, mode, 0U);
 
-	return perf_finish(mode);
+	if (mode < 0 || mode >= (int)perf_mode_count) {
+		return -ENOSYS;
+	}
+
+	return perf_finish((perf_mode_t)mode);
 }
 
 
