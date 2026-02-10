@@ -131,4 +131,15 @@
 /* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 /* clang-format on */
 
+#ifndef __ASSEMBLY__
+
+typedef enum {
+#define GEN_ENUM(name) syscall_##name,
+	SYSCALLS(GEN_ENUM)
+#undef GEN_ENUM
+			syscall_count
+} syscall_t;
+
+#endif
+
 #endif /* _PH_SYSCALLS_H_ */
