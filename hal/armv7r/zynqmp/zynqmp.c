@@ -27,6 +27,7 @@
 #define APU_BASE_ADDRESS      0xfd5c0000U
 #define CRF_APB_BASE_ADDRESS  0xfd1a0000U
 #define CRL_APB_BASE_ADDRESS  0xff5e0000U
+#define PMU_GLOBAL_MODULE     0xffd80000U
 
 
 /* PLO entrypoint */
@@ -37,8 +38,65 @@ static struct {
 	volatile u32 *iou_slcr;
 	volatile u32 *crf_apb;
 	volatile u32 *crl_apb;
+	volatile u32 *pmu_glb;
 	spinlock_t pltctlSp;
 } zynq_common;
+
+enum {
+	pmu_interrupt = 0x1,
+	power_on_reset,
+	system_reset,
+	error_pin_set, /* set PS_ERROR_OUT */
+};
+
+static void _zynqmp_setSysErrHandler(u32 error, u8 resetAction, u8 enable)
+{
+	u32 reg;
+	u8 errorSet; /* 0 - ERROR_STATUS_1, 1 - ERROR_STATUS_2 */
+
+	if ((error & PMU_ERR_SECOND_SET) != 0U) {
+		errorSet = 1U;
+		error &= ~PMU_ERR_SECOND_SET;
+	}
+	else {
+		errorSet = 0U;
+	}
+
+	switch (resetAction) {
+		case pmu_interrupt:
+			reg = (errorSet == 0U) ? (unsigned int)pmu_glb_error_int_en_1 : (unsigned int)pmu_glb_error_int_en_2;
+			break;
+
+		case power_on_reset:
+			reg = (errorSet == 0U) ? (unsigned int)pmu_glb_error_por_en_1 : (unsigned int)pmu_glb_error_por_en_2;
+			break;
+
+		case system_reset:
+			reg = (errorSet == 0U) ? (unsigned int)pmu_glb_error_srst_en_1 : (unsigned int)pmu_glb_error_srst_en_2;
+			break;
+
+		case error_pin_set:
+			reg = (errorSet == 0U) ? (unsigned int)pmu_glb_error_sig_en_1 : (unsigned int)pmu_glb_error_sig_en_2;
+			break;
+
+		default:
+			reg = 0U;
+			break;
+	}
+
+	if (reg == 0U) {
+		return;
+	}
+
+	if (enable != 0U) {
+		*(zynq_common.pmu_glb + reg) |= error;
+		*(zynq_common.pmu_glb + pmu_glb_error_en_1 + errorSet) |= error;
+	}
+	else {
+		*(zynq_common.pmu_glb + reg + 1) |= error;
+		*(zynq_common.pmu_glb + pmu_glb_error_en_1 + errorSet) &= ~error;
+	}
+}
 
 
 static int _zynqmp_setBasicGenerator(volatile u32 *reg, int dev, u8 src, u8 div0, u8 div1, u8 active)
@@ -448,6 +506,8 @@ void _hal_platformInit(void)
 	zynq_common.iou_slcr = (void *)IOU_SLCR_BASE_ADDRESS;
 	zynq_common.crf_apb = (void *)CRF_APB_BASE_ADDRESS;
 	zynq_common.crl_apb = (void *)CRL_APB_BASE_ADDRESS;
+	zynq_common.pmu_glb = (void *)PMU_GLOBAL_MODULE;
+	_zynqmp_setSysErrHandler(PMU_ERR_RPU_LS, system_reset, 1);
 }
 
 
