@@ -28,6 +28,23 @@
 #define PCTL_MIO_SLOW_nFAST    (0x1U << 6)
 #define PCTL_MIO_TRI_ENABLE    (0x1U << 7)
 
+#define PMU_ERR_SECOND_SET (0x1UL << 31)
+
+#define PMU_ERR_DDR_ECC  (0x1U)
+#define PMU_ERR_OCM_ECC  (0x1U << 1)
+#define PMU_ERR_RPU0_RAM (0x1U << 2)
+#define PMU_ERR_RPU1_RAM (0x1U << 3)
+#define PMU_ERR_LPD_TMP  (0x1U << 4)
+#define PMU_ERR_FPD_TMP  (0x1U << 5)
+#define PMU_ERR_RPU_LS   (0x3U << 6)
+#define PMU_ERR_RPU_CCF  (0x1UL << 9)
+#define PMU_ERR_LPD_SWDT (0x1UL << 12)
+#define PMU_ERR_FPD_SWDT (0x1UL << 13)
+#define PMU_ERR_TO       ((0x3U) + PMU_ERR_SECOND_SET)
+#define PMU_ERR_PL       ((0xFUL << 2) + PMU_ERR_SECOND_SET)
+#define PMU_ERR_PLL_LOCK ((0x1FUL << 8) + PMU_ERR_SECOND_SET)
+#define PMU_ERR_CSU      ((0x1UL << 16) + PMU_ERR_SECOND_SET)
+
 
 /* clang-format off */
 /* Devices' clocks controllers */

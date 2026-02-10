@@ -209,4 +209,41 @@ enum {
 	crl_apb_bank3_status = 0xa2,
 };
 
+enum {
+	pmu_glb_error_status_1 = 0x14C,
+	pmu_glb_error_int_mask_1,
+	pmu_glb_error_int_en_1,
+	pmu_glb_error_int_dis_1,
+
+	pmu_glb_error_status_2,
+	pmu_glb_error_int_mask_2,
+	pmu_glb_error_int_en_2,
+	pmu_glb_error_int_dis_2,
+
+	pmu_glb_error_por_mask_1,
+	pmu_glb_error_por_en_1,
+	pmu_glb_error_por_dis_1,
+	pmu_glb_error_por_mask_2,
+	pmu_glb_error_por_en_2,
+	pmu_glb_error_por_dis_2,
+
+	pmu_glb_error_srst_mask_1,
+	pmu_glb_error_srst_en_1,
+	pmu_glb_error_srst_dis_1,
+	pmu_glb_error_srst_mask_2,
+	pmu_glb_error_srst_en_2,
+	pmu_glb_error_srst_dis_2,
+
+	pmu_glb_error_sig_mask_1,
+	pmu_glb_error_sig_en_1,
+	pmu_glb_error_sig_dis_1,
+	pmu_glb_error_sig_mask_2,
+	pmu_glb_error_sig_en_2,
+	pmu_glb_error_sig_dis_2,
+
+	pmu_glb_error_en_1 = 0x168,
+	pmu_glb_error_en_2
+};
+
+
 #endif /* _PH_ZYNQMP_REGS_H_ */
