@@ -344,7 +344,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	unsigned int i;
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx;
-	int cpuId = hal_cpuGetID();
+	unsigned int cpuId = hal_cpuGetID();
 
 	(void)arg;
 	(void)n;
@@ -1999,9 +1999,9 @@ static void proc_threadsListCb(void *arg, int i, threadinfo_t *tinfo)
 }
 
 
-int proc_threadsList(int n, threadinfo_t *tinfos)
+int proc_threadsList(int n, threadinfo_t *info)
 {
-	return proc_threadsIter(n, proc_threadsListCb, tinfos);
+	return proc_threadsIter(n, proc_threadsListCb, info);
 }
 
 

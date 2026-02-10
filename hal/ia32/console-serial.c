@@ -36,7 +36,7 @@ enum {
 
 static inline void _console_uartWrite(unsigned int reg, u8 val)
 {
-	if (console_common.type == 0) {
+	if (console_common.type == 0U) {
 		hal_outb((u16)((addr_t)console_common.base + reg), val);
 	}
 	else {
@@ -48,7 +48,7 @@ static inline void _console_uartWrite(unsigned int reg, u8 val)
 
 static inline u8 _console_uartRead(unsigned int reg)
 {
-	if (console_common.type == 0) {
+	if (console_common.type == 0U) {
 		return hal_inb((u16)((addr_t)console_common.base + reg));
 	}
 	return *(u8 *)(console_common.base + reg);
@@ -58,26 +58,31 @@ static inline u8 _console_uartRead(unsigned int reg)
 void hal_consoleSerialPutch(char c)
 {
 	/* Wait for transmitter readiness */
-	while ((_console_uartRead(lsr) & 0x20U) == 0U)
-		;
+	while ((_console_uartRead(lsr) & 0x20U) == 0U) { };
 
-	_console_uartWrite(thr, c);
+	_console_uartWrite((unsigned int)thr, (u8)c);
 }
 
 
 static void _hal_consolePrint(const char *s)
 {
-	for (; *s; s++)
+	for (; *s != '\0'; s++) {
 		hal_consoleSerialPutch(*s);
+	}
 }
 
 
 void hal_consoleSerialPrint(int attr, const char *s)
 {
-	if (attr == ATTR_BOLD)
+	if (attr == ATTR_BOLD) {
 		_hal_consolePrint(CONSOLE_BOLD);
-	else if (attr != ATTR_USER)
+	}
+	else if (attr != ATTR_USER) {
 		_hal_consolePrint(CONSOLE_CYAN);
+	}
+	else {
+		/* fall-through */
+	}
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
@@ -91,16 +96,17 @@ __attribute__((section(".init"))) void _hal_consoleSerialInit(void)
 		(void *)0x9000f000U, (void *)0x9000b000U                    /* Galileo UARTs */
 	};
 
-
-	if (syspage->console > 5)
+	if (syspage->console > 5U) {
 		return;
+	}
 
 	console_common.base = bases[syspage->console];
 	console_common.speed = 0;
 
 	/* Mam physical memory when Galilo device is used */
-	if (syspage->console < 4)
+	if (syspage->console < 4U) {
 		console_common.type = 0;
+	}
 	else {
 		console_common.type = 1;
 		/*

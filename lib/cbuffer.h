@@ -41,6 +41,7 @@ static inline size_t _cbuffer_avail(cbuffer_t *buf)
 static inline size_t _cbuffer_discard(cbuffer_t *buf, size_t sz)
 {
 	size_t cnt = min(_cbuffer_avail(buf), sz);
+	LIB_ASSERT(buf->sz > 0, "cbuffer: buf->sz=0");
 	buf->r = (buf->r + cnt) & (buf->sz - 1U);
 	if (cnt > 0U) {
 		buf->full = 0;

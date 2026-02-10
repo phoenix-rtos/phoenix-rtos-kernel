@@ -32,7 +32,15 @@
 #define PERF_RTT_ENABLED 0
 #endif
 
-#if PERF_RTT_ENABLED && (!defined(RTT_ENABLED_PLO) || !RTT_ENABLED_PLO || !defined(RTT_ENABLED) || !RTT_ENABLED)
+#ifndef RTT_ENABLED_PLO
+#define RTT_ENABLED_PLO 0
+#endif
+
+#ifndef RTT_ENABLED
+#define RTT_ENABLED 0
+#endif
+
+#if PERF_RTT_ENABLED && (!RTT_ENABLED_PLO || !RTT_ENABLED)
 #error "RTT_ENABLED requires RTT_ENABLED_PLO"
 #endif
 
@@ -81,11 +89,15 @@ ssize_t _trace_bufferWrite(u8 chan, const void *data, size_t sz)
 
 int _trace_bufferWaitUntilAvail(u8 chan, size_t sz)
 {
-	int try = 0;
+	int try = 0, ret;
 
-	while (_hal_rttTxAvail(buffer_common.chans[chan].rtt) < sz) {
+	do {
+		ret = _hal_rttTxAvail(buffer_common.chans[chan].rtt);
+		if (ret < 0) {
+			return ret;
+		}
 		try++;
-	};
+	} while ((size_t)ret < sz);
 
 	return try;
 }
@@ -126,9 +138,9 @@ int trace_bufferInit(vm_map_t *kmap)
 
 	buffer_common.chans[trace_channel_event].rtt = RTT_TRACE_EVENT_CHANNEL;
 	buffer_common.chans[trace_channel_meta].rtt = RTT_TRACE_META_CHANNEL;
+
+	return EOK;
 #else
 	return -ENOSYS;
 #endif
-
-	return EOK;
 }

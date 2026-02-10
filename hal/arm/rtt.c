@@ -152,12 +152,6 @@ int _hal_rttReset(unsigned int chan, rtt_dir_t dir)
 }
 
 
-int _hal_rttIsReady(void)
-{
-	return common.rtt != NULL;
-}
-
-
 int _hal_rttInit(void)
 {
 	common.rtt = NULL;
@@ -167,15 +161,14 @@ int _hal_rttInit(void)
 
 int _hal_rttSetup(void)
 {
+#if !RTT_ENABLED || !RTT_ENABLED_PLO
+	return -ENOSYS;
+#else
 	const syspage_map_t *map;
 
-	if (_hal_rttIsReady() != 0) {
+	if (common.rtt != NULL) {
 		/* RTT already set up */
 		return 0;
-	}
-
-	if (RTT_ENABLED == 0 || RTT_ENABLED_PLO == 0) {
-		return -ENOSYS;
 	}
 
 	map = syspage_mapNameResolve(RTT_SYSPAGE_MAP_NAME);
@@ -191,4 +184,5 @@ int _hal_rttSetup(void)
 	common.rtt = (void *)(map->end - RTT_CB_SIZE);
 
 	return 0;
+#endif
 }

@@ -816,7 +816,7 @@ void _imxrt_init(void)
 	imxrt_common.cpuclk = 696000000U;
 
 	_hal_scsInit();
-	_hal_rttInit();
+	(void)_hal_rttInit();
 
 	/* WDOG1 and WDOG2 can't be disabled once enabled */
 

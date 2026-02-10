@@ -1665,7 +1665,7 @@ static int process_execve(thread_t *current)
 	/* Close cloexec file descriptors */
 	(void)posix_exec();
 
-	trace_eventSyscallExit(syscall_exec, proc_getTid(current));
+	trace_eventSyscallExit((int)syscall_exec, proc_getTid(current));
 	process_exec(current, spawn);
 
 	/* Not reached */
@@ -1832,13 +1832,20 @@ void process_getName(const process_t *process, char *buf, size_t sz)
 	size_t len = 0, space;
 	char *sbuf;
 
+	if (buf == NULL || sz == 0U) {
+		return;
+	}
+
 	if (process->path != NULL) {
 		space = sz;
 		sbuf = buf;
 
 		if (process->argv != NULL) {
-			for (argc = 0; process->argv[argc] != NULL && space > 0U; ++argc) {
-				len = min(hal_strlen(process->argv[argc]) + 1, space);
+			for (argc = 0; process->argv[argc] != NULL; ++argc) {
+				if (space == 0U) {
+					break;
+				}
+				len = min(hal_strlen(process->argv[argc]) + 1U, space);
 				hal_memcpy(sbuf, process->argv[argc], len);
 				sbuf[len - 1U] = ' ';
 				sbuf += len;

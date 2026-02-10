@@ -1981,7 +1981,7 @@ void _imxrt_init(void)
 	imxrt_common.cpuclk = 528000000U; /* Default system clock */
 
 	_hal_scsInit();
-	_hal_rttInit();
+	(void)_hal_rttInit();
 
 	/* Disable watchdogs */
 	if ((*(imxrt_common.wdog1 + wdog_wcr) & (1U << 2)) != 0U) {

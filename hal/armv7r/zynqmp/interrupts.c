@@ -111,7 +111,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		return 0;
 	}
 
-	trace = interrupts_common.trace_irqs != 0 && n != TIMER_IRQ_ID;
+	trace = (interrupts_common.trace_irqs != 0 && n != TIMER_IRQ_ID) ? 1 : 0;
 	if (trace != 0) {
 		trace_eventInterruptEnter(n);
 	}
@@ -266,7 +266,7 @@ static unsigned int _interrupts_gicv2_classify(unsigned int irqn)
 
 void _hal_interruptsTrace(int enable)
 {
-	interrupts_common.trace_irqs = !!enable;
+	interrupts_common.trace_irqs = enable;
 }
 
 

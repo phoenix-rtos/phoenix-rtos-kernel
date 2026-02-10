@@ -18,6 +18,7 @@
 #define _TRACE_EVENTS_H_
 
 #include "include/perf.h"
+#include "include/syscalls.h"
 #include "hal/types.h"
 #include "proc/proc.h"
 #include "trace.h"
@@ -90,7 +91,7 @@ static inline void _trace_eventLockName(const lock_t *lock)
 
 
 /* assumes lock->spinlock is set */
-static inline void _trace_eventLockSetEnter(lock_t *lock, u16 tid)
+static inline void _trace_eventLockSetEnter(lock_t *lock, int tid)
 {
 	struct {
 		u16 tid;
@@ -99,14 +100,14 @@ static inline void _trace_eventLockSetEnter(lock_t *lock, u16 tid)
 
 	TRACE_EVENT_BODY(TRACE_EVENT_LOCK_SET_ENTER, ev, NULL, {
 		_trace_updateLockEpoch(lock);
-		ev.tid = tid;
+		ev.tid = (u16)tid;
 		ev.lid = (ptr_t)lock;
 	});
 }
 
 
 /* assumes lock->spinlock is set */
-static inline void _trace_eventLockSetExit(lock_t *lock, u16 tid, int ret)
+static inline void _trace_eventLockSetExit(lock_t *lock, int tid, int ret)
 {
 	struct {
 		u16 tid;
@@ -116,7 +117,7 @@ static inline void _trace_eventLockSetExit(lock_t *lock, u16 tid, int ret)
 
 	TRACE_EVENT_BODY(TRACE_EVENT_LOCK_SET_EXIT, ev, &ts, {
 		_trace_updateLockEpoch(lock);
-		ev.tid = tid;
+		ev.tid = (u16)tid;
 		ev.lid = (ptr_t)lock;
 	});
 
@@ -124,7 +125,7 @@ static inline void _trace_eventLockSetExit(lock_t *lock, u16 tid, int ret)
 		/* reuse lock_set_exit timestamp so that there is no gap between events */
 		TRACE_EVENT_BODY(TRACE_EVENT_LOCK_SET_ACQUIRED, ev, &ts, {
 			/* epoch already updated */
-			ev.tid = tid;
+			ev.tid = (u16)tid;
 			ev.lid = (ptr_t)lock;
 		});
 	}
@@ -132,7 +133,7 @@ static inline void _trace_eventLockSetExit(lock_t *lock, u16 tid, int ret)
 
 
 /* assumes lock->spinlock is set */
-static inline void _trace_eventLockClear(lock_t *lock, u16 tid)
+static inline void _trace_eventLockClear(lock_t *lock, int tid)
 {
 	struct {
 		u16 tid;
@@ -141,45 +142,53 @@ static inline void _trace_eventLockClear(lock_t *lock, u16 tid)
 
 	TRACE_EVENT_BODY(TRACE_EVENT_LOCK_CLEAR, ev, NULL, {
 		_trace_updateLockEpoch(lock);
-		ev.tid = tid;
+		ev.tid = (u16)tid;
 		ev.lid = (ptr_t)lock;
 	});
 }
 
 
-static inline void trace_eventInterruptEnter(u8 n)
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1-h "False positive, function already marked as unused" */
+MAYBE_UNUSED static inline void trace_eventInterruptEnter(unsigned int n)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_INTERRUPT_ENTER, n, NULL);
+	u8 ev = 0;
+	TRACE_EVENT_BODY(TRACE_EVENT_INTERRUPT_ENTER, ev, NULL, { ev = (u8)n; });
 }
 
 
-static inline void trace_eventInterruptExit(u8 n)
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1-h "False positive, function already marked as unused" */
+MAYBE_UNUSED static inline void trace_eventInterruptExit(unsigned int n)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_INTERRUPT_EXIT, n, NULL);
+	u8 ev = 0;
+	TRACE_EVENT_BODY(TRACE_EVENT_INTERRUPT_EXIT, ev, NULL, { ev = (u8)n; });
 }
 
 
-static inline void trace_eventThreadScheduling(u16 tid)
+static inline void trace_eventThreadScheduling(int tid)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_SCHEDULING, tid, NULL);
+	u16 ev = 0;
+	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_SCHEDULING, ev, NULL, { ev = (u16)tid; });
 }
 
 
-static inline void trace_eventThreadPreempted(u16 tid)
+static inline void trace_eventThreadPreempted(int tid)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_PREEMPTED, tid, NULL);
+	u16 ev = 0;
+	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_PREEMPTED, ev, NULL, { ev = (u16)tid; });
 }
 
 
-static inline void trace_eventThreadEnqueued(u16 tid)
+static inline void trace_eventThreadEnqueued(int tid)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_ENQUEUED, tid, NULL);
+	u16 ev = 0;
+	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_ENQUEUED, ev, NULL, { ev = (u16)tid; });
 }
 
 
-static inline void trace_eventThreadWaking(u16 tid)
+static inline void trace_eventThreadWaking(int tid)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_WAKING, tid, NULL);
+	u16 ev = 0;
+	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_WAKING, ev, NULL, { ev = (u16)tid; });
 }
 
 
@@ -222,21 +231,22 @@ static inline void trace_eventThreadEnd(const thread_t *t)
 }
 
 
-static inline void trace_eventSyscallEnter(u8 n, u16 tid)
+static inline void trace_eventSyscallEnter(int n, int tid)
 {
 	struct {
 		u8 n;
 		u16 tid;
 	} __attribute__((packed)) ev;
 
+	_Static_assert((u64)syscall_count <= (1UL << 8U * sizeof(u8)) - 1UL, "u8 is too small for syscall ID");
 	TRACE_EVENT_BODY(TRACE_EVENT_SYSCALL_ENTER, ev, NULL, {
-		ev.n = n;
-		ev.tid = tid;
+		ev.n = (u8)n;
+		ev.tid = (u16)tid;
 	});
 }
 
 
-static inline void trace_eventSyscallExit(u8 n, u16 tid)
+static inline void trace_eventSyscallExit(int n, int tid)
 {
 	struct {
 		u8 n;
@@ -244,25 +254,27 @@ static inline void trace_eventSyscallExit(u8 n, u16 tid)
 	} __attribute__((packed)) ev;
 
 	TRACE_EVENT_BODY(TRACE_EVENT_SYSCALL_EXIT, ev, NULL, {
-		ev.n = n;
-		ev.tid = tid;
+		ev.n = (u8)n;
+		ev.tid = (u16)tid;
 	});
 }
 
 
-static inline void trace_eventSchedEnter(u8 cpuId)
+static inline void trace_eventSchedEnter(unsigned int cpuId)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_SCHED_ENTER, cpuId, NULL);
+	u8 ev = 0;
+	TRACE_EVENT_BODY(TRACE_EVENT_SCHED_ENTER, ev, NULL, { ev = (u8)cpuId; });
 }
 
 
-static inline void trace_eventSchedExit(u8 cpuId)
+static inline void trace_eventSchedExit(unsigned int cpuId)
 {
-	TRACE_EVENT_BODY(TRACE_EVENT_SCHED_EXIT, cpuId, NULL);
+	u8 ev = 0;
+	TRACE_EVENT_BODY(TRACE_EVENT_SCHED_EXIT, ev, NULL, { ev = (u8)cpuId; });
 }
 
 
-static inline void trace_eventThreadPriority(u16 tid, u8 priority)
+static inline void trace_eventThreadPriority(int tid, u8 priority)
 {
 	struct {
 		u16 tid;
@@ -270,7 +282,7 @@ static inline void trace_eventThreadPriority(u16 tid, u8 priority)
 	} __attribute__((packed)) ev;
 
 	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_PRIORITY, ev, NULL, {
-		ev.tid = tid;
+		ev.tid = (u16)tid;
 		ev.priority = priority;
 	});
 }
