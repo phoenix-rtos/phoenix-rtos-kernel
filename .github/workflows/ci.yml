@@ -7,14 +7,16 @@ on:
     branches:
       - master
       - 'feature/*'
+      - 'nalajcie/*'
   pull_request:
     branches:
       - master
       - 'feature/*'
+      - 'nalajcie/*'
 
 jobs:
   call-ci:
-    uses: phoenix-rtos/phoenix-rtos-project/.github/workflows/ci-submodule.yml@master
+    uses: phoenix-rtos/phoenix-rtos-project/.github/workflows/ci-submodule.yml@nalajcie/ci
     secrets: inherit
     with:
       cpptest_enabled: true
