@@ -16,8 +16,6 @@
 #ifndef _PH_HAL_CONFIG_H_
 #define _PH_HAL_CONFIG_H_
 
-#define TIMER_IRQ_ID SYSTICK_IRQ
-
 #ifndef __ASSEMBLY__
 
 #include "include/arch/armv8m/nrf/syspage.h"

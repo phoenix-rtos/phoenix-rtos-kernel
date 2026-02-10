@@ -47,7 +47,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		return;
 	}
 
-	trace = interrupts.trace_irqs != 0 && n != TIMER_IRQ_ID;
+	trace = interrupts.trace_irqs != 0 && n != SYSTICK_IRQ;
 	if (trace != 0) {
 		trace_eventInterruptEnter(n);
 	}
