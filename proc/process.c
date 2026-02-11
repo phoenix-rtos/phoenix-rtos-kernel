@@ -1083,7 +1083,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	void *stack, *entry = NULL;
 	int err = 0, count;
 	void *cleanupFn = NULL;
-	unsigned int i;
+	unsigned int i = 0;
 	spinlock_ctx_t sc;
 	const struct stackArg args[] = {
 		{ &spawn->envp, sizeof(spawn->envp) },
@@ -1125,6 +1125,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 
 	pmap_switch(current->process->pmapp);
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "err may be != 0 on NOMMU" */
 	if (err == 0) {
 		err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
 	}

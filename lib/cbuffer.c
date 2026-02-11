@@ -30,7 +30,10 @@ size_t _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz)
 {
 	size_t bytes = 0;
 
-	if (sz == 0U || buf->full != 0U) {
+	/* FIXME: see note in _cbuffer_discard */
+	LIB_ASSERT(buf->sz > 0U, "attempted to write to zero-sized buffer");
+
+	if (sz == 0U || buf->sz == 0U || buf->full != 0U) {
 		return 0U;
 	}
 
@@ -63,7 +66,7 @@ size_t _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 	size_t bytes = _cbuffer_peek(buf, data, sz);
 
 	if (bytes > 0U) {
-		LIB_ASSERT(buf->sz > 0, "cbuffer: buf->sz=0");
+		/* parasoft-suppress-next-line MISRAC2012-RULE_4_1-k "buf->sz ensured > 0 if _cbuffer_peek() > 0" */
 		buf->r = (buf->r + bytes) & (buf->sz - 1U);
 		buf->full = 0U;
 	}
@@ -76,9 +79,13 @@ size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
 {
 	size_t bytes = 0;
 
-	if (sz == 0U || (buf->r == buf->w && buf->full == 0U)) {
+	/* FIXME: see note in _cbuffer_discard */
+	LIB_ASSERT(buf->sz > 0U, "attempted to peek at zero-sized buffer");
+
+	if (sz == 0U || buf->sz == 0U || (buf->r == buf->w && buf->full == 0U)) {
 		return 0U;
 	}
+
 	if (buf->w > buf->r) {
 		bytes = min(sz, buf->w - buf->r);
 		hal_memcpy(data, buf->data + buf->r, bytes);

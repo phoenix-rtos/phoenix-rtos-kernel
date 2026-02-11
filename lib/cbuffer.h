@@ -16,6 +16,8 @@
 #ifndef _PH_LIB_CBUFFER_H_
 #define _PH_LIB_CBUFFER_H_
 
+#include "attrs.h"
+
 typedef struct {
 	size_t sz, r, w;
 	unsigned char full, mark;
@@ -38,10 +40,18 @@ static inline size_t _cbuffer_avail(cbuffer_t *buf)
 }
 
 
-static inline size_t _cbuffer_discard(cbuffer_t *buf, size_t sz)
+/* parasoft-suppress-next-line MISRAC2012-RULE_2_1-h "False positive, function already marked as unused" */
+MAYBE_UNUSED static inline size_t _cbuffer_discard(cbuffer_t *buf, size_t sz)
 {
 	size_t cnt = min(_cbuffer_avail(buf), sz);
-	LIB_ASSERT(buf->sz > 0, "cbuffer: buf->sz=0");
+
+	/* FIXME: disallow zero-sized buffers. posix/unix.c uses these but it's a slippery slope */
+	LIB_ASSERT(buf->sz > 0U, "attempted to write to zero-sized buffer");
+
+	if (sz == 0U || buf->sz == 0U) {
+		return 0U;
+	}
+
 	buf->r = (buf->r + cnt) & (buf->sz - 1U);
 	if (cnt > 0U) {
 		buf->full = 0;
