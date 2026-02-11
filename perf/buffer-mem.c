@@ -79,7 +79,7 @@ static void *_bufferAlloc(page_t **pages, size_t sz)
 		return NULL;
 	}
 
-	for (v = data; v < data + sz; v += SIZE_PAGE) {
+	for (v = data; (ptr_t)v < (ptr_t)data + sz; v += SIZE_PAGE) {
 		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 
 		if (p == NULL) {

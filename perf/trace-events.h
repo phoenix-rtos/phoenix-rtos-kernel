@@ -84,7 +84,14 @@ static inline void _trace_eventLockName(const lock_t *lock)
 	} __attribute__((packed)) ev;
 
 	TRACE_META_BODY(TRACE_EVENT_LOCK_NAME, ev, NULL, {
-		ev.lid = (ptr_t)lock;
+		/*
+		 * It's safe to downcast kernel space lock address on 64-bit MMU targets to 32-bit.
+		 * Kernel space is contiguous on MMU and its address range doesn't exceed 32-bits,
+		 * so if we crop 64-bit lock_t address to 32-bit it will stay unique.
+		 * On NOMMU it isn't necessarily contiguous, but sane NOMMU targets are 32-bit,
+		 * so there's no downcast.
+		 */
+		ev.lid = (u32)(ptr_t)lock;
 		(void)hal_strcpy(ev.name, lock->name);
 	});
 }
@@ -101,7 +108,7 @@ static inline void _trace_eventLockSetEnter(lock_t *lock, int tid)
 	TRACE_EVENT_BODY(TRACE_EVENT_LOCK_SET_ENTER, ev, NULL, {
 		_trace_updateLockEpoch(lock);
 		ev.tid = (u16)tid;
-		ev.lid = (ptr_t)lock;
+		ev.lid = (u32)(ptr_t)lock;
 	});
 }
 
@@ -118,7 +125,7 @@ static inline void _trace_eventLockSetExit(lock_t *lock, int tid, int ret)
 	TRACE_EVENT_BODY(TRACE_EVENT_LOCK_SET_EXIT, ev, &ts, {
 		_trace_updateLockEpoch(lock);
 		ev.tid = (u16)tid;
-		ev.lid = (ptr_t)lock;
+		ev.lid = (u32)(ptr_t)lock;
 	});
 
 	if (ret == EOK) {
@@ -126,7 +133,7 @@ static inline void _trace_eventLockSetExit(lock_t *lock, int tid, int ret)
 		TRACE_EVENT_BODY(TRACE_EVENT_LOCK_SET_ACQUIRED, ev, &ts, {
 			/* epoch already updated */
 			ev.tid = (u16)tid;
-			ev.lid = (ptr_t)lock;
+			ev.lid = (u32)(ptr_t)lock;
 		});
 	}
 }
@@ -143,7 +150,7 @@ static inline void _trace_eventLockClear(lock_t *lock, int tid)
 	TRACE_EVENT_BODY(TRACE_EVENT_LOCK_CLEAR, ev, NULL, {
 		_trace_updateLockEpoch(lock);
 		ev.tid = (u16)tid;
-		ev.lid = (ptr_t)lock;
+		ev.lid = (u32)(ptr_t)lock;
 	});
 }
 
