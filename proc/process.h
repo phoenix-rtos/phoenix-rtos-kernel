@@ -94,7 +94,7 @@ void proc_kill(process_t *proc);
 void proc_reap(void);
 
 
-int proc_start(startFn_t start, void *arg, const char *path);
+int proc_start(startFn_t start, void *arg, const char *path, const syspage_part_t *partition);
 
 
 int proc_fileSpawn(const char *path, char **argv, char **envp);

@@ -35,16 +35,23 @@ const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
 static thread_t *const wakeupPending = (void *)-1;
 
+#define NUM_PRIO 8U
+
+
 static struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	thread_t *ready[8];
+
+	thread_t ***ready; /* [schedwindow][priority], schedwindow 0 is always scheduled */
+	thread_t **actReady;
+	syspage_sched_window_t *actWindow;
 	thread_t **current;
 	time_t utcoffs;
 
 	/* Synchronized by spinlock */
 	rbtree_t sleeping;
+	time_t windowStart;
 
 	/* Synchronized by mutex */
 	unsigned int idcounter;
@@ -65,9 +72,7 @@ static struct {
 } threads_common;
 
 
-_Static_assert(sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) <= (u8)-1, "queue size must fit into priority type");
-
-#define MAX_PRIO ((u8)(sizeof(threads_common.ready) / sizeof(threads_common.ready[0])) - 1U)
+_Static_assert(NUM_PRIO <= (u8)-1, "queue size must fit into priority type");
 
 
 static thread_t *_proc_current(void);
@@ -193,6 +198,10 @@ static void _threads_updateWakeup(time_t now, thread_t *minimum)
 		wakeup = SYSTICK_INTERVAL;
 	}
 
+	if ((threads_common.actWindow->id != 0U) && (wakeup > threads_common.actWindow->stop - (now - threads_common.windowStart))) {
+		wakeup = threads_common.actWindow->stop - (now - threads_common.windowStart);
+	}
+
 	hal_timerSetWakeup((unsigned int)wakeup);
 }
 
@@ -224,6 +233,16 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		_proc_threadDequeue(t);
 		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
+
+	while (now - threads_common.windowStart >= threads_common.actWindow->stop) {
+		threads_common.actWindow = threads_common.actWindow->next;
+		if (threads_common.actWindow == syspage_schedulerWindowList()) {
+			threads_common.windowStart = now;
+			threads_common.actWindow = threads_common.actWindow->next; /* Skip window 0 */
+			break;
+		}
+	}
+	threads_common.actReady = threads_common.ready[threads_common.actWindow->id];
 
 	_threads_updateWakeup(now, t);
 
@@ -337,6 +356,17 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
+static thread_t **proc_getReadyQueues(process_t *process)
+{
+	if ((process != NULL) && (process->partition != NULL)) {
+		return threads_common.ready[hal_cpuGetFirstBit(process->partition->schedWindowsMask)];
+	}
+	else {
+		return threads_common.ready[0];
+	}
+}
+
+
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
@@ -361,21 +391,28 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		/* Move thread to the end of queue */
 		if (current->state == READY) {
-			LIST_ADD(&threads_common.ready[current->priority], current);
+			LIST_ADD(&proc_getReadyQueues(current->process)[current->priority], current);
 			_threads_preempted(current);
 		}
 	}
 
 	/* Get next thread */
 	i = 0;
-	while (i < sizeof(threads_common.ready) / sizeof(thread_t *)) {
-		selected = threads_common.ready[i];
-		if (selected == NULL) {
-			i++;
-			continue;
+	while (i < NUM_PRIO) {
+		selected = threads_common.ready[0][i];
+		if (selected != NULL) {
+			LIST_REMOVE(&threads_common.ready[0][i], selected);
 		}
+		else {
+			selected = threads_common.actReady[i];
 
-		LIST_REMOVE(&threads_common.ready[i], selected);
+			if (selected == NULL) {
+				i++;
+				continue;
+			}
+
+			LIST_REMOVE(&threads_common.actReady[i], selected);
+		}
 
 		if (selected->exit == 0U) {
 			break;
@@ -535,7 +572,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	spinlock_ctx_t sc;
 	int err;
 
-	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *)) {
+	if (priority >= NUM_PRIO) {
 		return -EINVAL;
 	}
 
@@ -619,7 +656,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	/* Insert thread to scheduler queue */
 
 	_threads_waking(t);
-	LIST_ADD(&threads_common.ready[priority], t);
+	LIST_ADD(&proc_getReadyQueues(process)[priority], t);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -629,7 +666,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 
 static u8 _proc_lockGetPriority(lock_t *lock)
 {
-	u8 priority = MAX_PRIO;
+	u8 priority = NUM_PRIO - 1U;
 	thread_t *thread = lock->queue;
 
 	if (thread != NULL) {
@@ -647,7 +684,7 @@ static u8 _proc_lockGetPriority(lock_t *lock)
 
 static u8 _proc_threadGetLockPriority(thread_t *thread)
 {
-	u8 ret, priority = MAX_PRIO;
+	u8 ret, priority = NUM_PRIO - 1U;
 	lock_t *lock = thread->locks;
 
 	if (lock != NULL) {
@@ -688,11 +725,11 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 		}
 
 		if (i == hal_cpuGetCount()) {
-			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread) != 0,
+			LIB_ASSERT(LIST_BELONGS(&proc_getReadyQueues(thread->process)[thread->priority], thread) != 0,
 					"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
 					thread, proc_getTid(thread), thread->priority);
-			LIST_REMOVE(&threads_common.ready[thread->priority], thread);
-			LIST_ADD(&threads_common.ready[priority], thread);
+			LIST_REMOVE(&proc_getReadyQueues(thread->process)[thread->priority], thread);
+			LIST_ADD(&proc_getReadyQueues(thread->process)[priority], thread);
 		}
 	}
 
@@ -712,7 +749,7 @@ int proc_threadPriority(int signedPriority)
 		return -EINVAL;
 	}
 
-	if ((signedPriority >= 0) && ((size_t)signedPriority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
+	if ((signedPriority >= 0) && ((size_t)signedPriority >= NUM_PRIO)) {
 		return -EINVAL;
 	}
 
@@ -888,7 +925,7 @@ static void _proc_threadDequeue(thread_t *t)
 	}
 
 	if (i == hal_cpuGetCount()) {
-		LIST_ADD(&threads_common.ready[t->priority], t);
+		LIST_ADD(&proc_getReadyQueues(t->process)[t->priority], t);
 	}
 }
 
@@ -1862,7 +1899,8 @@ void proc_threadsDump(u8 priority)
 	lib_printf("threads: ");
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	t = threads_common.ready[priority];
+	/* TODO: all scheduler windows */
+	t = threads_common.ready[0][priority];
 	do {
 		lib_printf("[%p] ", t);
 
@@ -1871,7 +1909,7 @@ void proc_threadsDump(u8 priority)
 		}
 
 		t = t->next;
-	} while (t != threads_common.ready[priority]);
+	} while (t != threads_common.ready[0][priority]);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	lib_printf("\n");
@@ -2007,7 +2045,10 @@ int proc_threadsList(int n, threadinfo_t *info)
 
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 {
-	unsigned int i;
+	syspage_sched_window_t *schedWindow;
+	syspage_part_t *part;
+	unsigned int i, j, cnt;
+	u32 mask;
 	threads_common.kmap = kmap;
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
@@ -2021,15 +2062,45 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.stackCanary[i] = ((i & 1U) != 0U) ? 0xaaU : 0x55U;
 	}
 
-	/* Initiaizlie scheduler queue */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
-		threads_common.ready[i] = NULL;
+	/* Initialize scheduler queue */
+	schedWindow = syspage_schedulerWindowList()->next;
+	cnt = 1;
+	while (schedWindow != syspage_schedulerWindowList()) {
+		schedWindow = schedWindow->next;
+		cnt++;
+	}
+	threads_common.ready = vm_kmalloc(sizeof(thread_t **) * cnt);
+	if (threads_common.ready == NULL) {
+		return -ENOMEM;
+	}
+	for (i = 0; i < cnt; i++) {
+		mask = 1UL << i;
+		part = syspage_partitionList();
+		do {
+			if ((part->schedWindowsMask & mask) != 0U) {
+				mask = part->schedWindowsMask;
+				break;
+			}
+			part = part->next;
+		} while (part != syspage_partitionList());
+		if (hal_cpuGetFirstBit(mask) != i) {
+			threads_common.ready[i] = threads_common.ready[hal_cpuGetFirstBit(mask)];
+			continue;
+		}
+
+		threads_common.ready[i] = vm_kmalloc(sizeof(thread_t *) * NUM_PRIO);
+		if (threads_common.ready[i] == NULL) {
+			return -ENOMEM;
+		}
+		for (j = 0; j < NUM_PRIO; j++) {
+			threads_common.ready[i][j] = NULL;
+		}
 	}
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
 	lib_idtreeInit(&threads_common.id);
 
-	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
+	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", NUM_PRIO);
 
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 
@@ -2043,8 +2114,12 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
-		(void)proc_threadCreate(NULL, threads_idlethr, NULL, MAX_PRIO, (size_t)SIZE_KSTACK, NULL, 0, NULL);
+		(void)proc_threadCreate(NULL, threads_idlethr, NULL, NUM_PRIO - 1U, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 	}
+
+	threads_common.windowStart = 0;
+	threads_common.actWindow = syspage_schedulerWindowList();
+	threads_common.actReady = threads_common.ready[0];
 
 	/* Install scheduler on clock interrupt */
 #ifdef PENDSV_IRQ
@@ -2057,5 +2132,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_memset(&threads_common.timeintrHandler, 0, sizeof(threads_common.timeintrHandler));
 	(void)hal_timerRegister(threads_timeintr, NULL, &threads_common.timeintrHandler);
 
+	/* workaround for sparcv8leon which does not set up SYSTICK timer */
+	hal_timerSetWakeup((unsigned int)SYSTICK_INTERVAL);
 	return EOK;
 }
