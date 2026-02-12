@@ -137,7 +137,7 @@ int main(void)
 	test_proc_threads1();
 	(void)main_initthr;
 #else
-	(void)proc_start(main_initthr, NULL, (const char *)"init");
+	(void)proc_start(main_initthr, NULL, (const char *)"init", NULL);
 #endif
 
 	/* Start scheduling, leave current stack */
