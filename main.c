@@ -131,7 +131,7 @@ int main(void)
 	test_proc_exit();
 #endif
 
-	(void)proc_start(main_initthr, NULL, (const char *)"init");
+	(void)proc_start(main_initthr, NULL, (const char *)"init", NULL);
 
 	/* Start scheduling, leave current stack */
 	hal_cpuEnableInterrupts();
