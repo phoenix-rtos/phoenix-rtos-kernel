@@ -176,5 +176,5 @@ _init_core:
 .section ".bss"
 .align 3
 _hal_syspageCopied:
-	.zero 0x600
+	.zero 0x700
 .size _hal_syspageCopied, .-_hal_syspageCopied
