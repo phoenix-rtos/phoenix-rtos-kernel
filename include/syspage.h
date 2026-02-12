@@ -35,6 +35,15 @@ typedef struct _mapent_t {
 } __attribute__((packed)) mapent_t;
 
 
+typedef struct _syspage_sched_window_t {
+	struct _syspage_sched_window_t *next, *prev;
+
+	time_t start;
+	time_t stop;
+	unsigned char idx;
+} syspage_sched_window_t;
+
+
 typedef struct _syspage_part_t {
 	struct _syspage_part_t *next, *prev;
 
@@ -45,6 +54,8 @@ typedef struct _syspage_part_t {
 
 	size_t accessMapSz;
 	unsigned char *accessMaps;
+
+	u32 schedWindowsMask;
 
 	hal_syspage_part_t hal;
 } syspage_part_t;
@@ -91,6 +102,7 @@ typedef struct {
 
 	syspage_map_t *maps;   /* Maps list    */
 	syspage_part_t *partitions; /* Partitions list*/
+	syspage_sched_window_t *schedWindows;
 	syspage_prog_t *progs; /* Programs list*/
 
 	unsigned int console; /* Console ID defines in hal */
