@@ -263,8 +263,8 @@ static int _imxrt_setIOgpr(int field, unsigned int val)
 		return err;
 	}
 
-	t = *(imxrt_common.iomuxgpr + ((unsigned int)field >> 5)) & ~(mask << ((unsigned int)field >> 0x1fU));
-	*(imxrt_common.iomuxgpr + ((unsigned int)field >> 5)) = t | (val & mask) << ((unsigned int)field >> 0x1fU);
+	t = *(imxrt_common.iomuxgpr + ((unsigned int)field >> 5)) & ~(mask << ((unsigned int)field & 0x1fU));
+	*(imxrt_common.iomuxgpr + ((unsigned int)field >> 5)) = t | (val & mask) << ((unsigned int)field & 0x1fU);
 
 	return EOK;
 }
