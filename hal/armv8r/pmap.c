@@ -29,7 +29,7 @@ u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
 {
 	return 0;
 }

@@ -28,19 +28,13 @@ extern void *_init_stack;
 
 
 /* Function creates empty page table */
-int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
+int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, const syspage_prog_t *prog, void *vaddr)
 {
 	return 0;
 }
 
 
 addr_t pmap_destroy(pmap_t *pmap, unsigned int *i)
-{
-	return 0;
-}
-
-
-int pmap_addMap(pmap_t *pmap, unsigned int map)
 {
 	return 0;
 }
