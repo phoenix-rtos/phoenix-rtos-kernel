@@ -1934,7 +1934,7 @@ static inline int _proc_calculateVmem(thread_t *thread)
 
 
 /* call with threads_common.lock set */
-void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
+static void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
 {
 	time_t now;
 	pid_t ppid;
@@ -1953,19 +1953,19 @@ void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
 		info->ppid = 0;
 	}
 
-	if ((flags & PH_THREADINFO_TID) != 0) {
+	if ((flags & PH_THREADINFO_TID) != 0U) {
 		info->tid = (unsigned int)proc_getTid(thread);
 	}
 
-	if ((flags & PH_THREADINFO_PRIO) != 0) {
+	if ((flags & PH_THREADINFO_PRIO) != 0U) {
 		info->priority = (int)thread->priorityBase;
 	}
 
-	if ((flags & PH_THREADINFO_STATE) != 0) {
+	if ((flags & PH_THREADINFO_STATE) != 0U) {
 		info->state = (int)thread->state;
 	}
 
-	if ((flags & PH_THREADINFO_LOAD) != 0) {
+	if ((flags & PH_THREADINFO_LOAD) != 0U) {
 		if (now != thread->startTime) {
 			info->load = (int)((thread->cpuTime * 1000) / (now - thread->startTime));
 		}
@@ -1974,7 +1974,7 @@ void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
 		}
 	}
 
-	if ((flags & PH_THREADINFO_WAITING) != 0) {
+	if ((flags & PH_THREADINFO_WAITING) != 0U) {
 		if (thread->state == READY && thread->maxWait < now - thread->readyTime) {
 			info->wait = now - thread->readyTime;
 		}
@@ -1983,11 +1983,11 @@ void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
 		}
 	}
 
-	if ((flags & PH_THREADINFO_CPUTIME) != 0) {
+	if ((flags & PH_THREADINFO_CPUTIME) != 0U) {
 		info->cpuTime = thread->cpuTime;
 	}
 
-	if ((flags & PH_THREADINFO_NAME) != 0) {
+	if ((flags & PH_THREADINFO_NAME) != 0U) {
 		if (thread->process != NULL) {
 			process_getName(thread->process, info->name, sizeof(info->name));
 		}
@@ -1996,11 +1996,11 @@ void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
 		}
 	}
 
-	if ((flags & PH_THREADINFO_VMEM) != 0) {
+	if ((flags & PH_THREADINFO_VMEM) != 0U) {
 		info->vmem = _proc_calculateVmem(thread);
 	}
 
-	if ((flags & PH_THREADINFO_PPID) != 0) {
+	if ((flags & PH_THREADINFO_PPID) != 0U) {
 		ppid = posix_getppid(info->pid);
 		if (ppid > 0) {
 			info->ppid = ppid;
@@ -2020,7 +2020,7 @@ int proc_threadsInfo(int tid, unsigned int flags, int n, threadinfo_t *info)
 		t = lib_treeof(thread_t, idlinkage, lib_rbMinimum(threads_common.id.root));
 
 		do {
-			if ((flags & PH_THREADINFO_OPT_THREADCOUNT) == 0) {
+			if ((flags & PH_THREADINFO_OPT_THREADCOUNT) == 0U) {
 				if (i >= n) {
 					break;
 				}

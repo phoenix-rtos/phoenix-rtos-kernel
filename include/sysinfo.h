@@ -20,15 +20,15 @@
 /* threadsinfo attributes */
 #define PH_THREADINFO_THREADS_ALL (-1)
 
-#define PH_THREADINFO_TID     (1UL << 1)
-#define PH_THREADINFO_PRIO    (1UL << 2)
-#define PH_THREADINFO_STATE   (1UL << 3)
-#define PH_THREADINFO_LOAD    (1UL << 4)
-#define PH_THREADINFO_CPUTIME (1UL << 5)
-#define PH_THREADINFO_WAITING (1UL << 6)
-#define PH_THREADINFO_NAME    (1UL << 7)
-#define PH_THREADINFO_VMEM    (1UL << 8)
-#define PH_THREADINFO_PPID    (1UL << 9)
+#define PH_THREADINFO_TID     ((unsigned int)1UL << 1)
+#define PH_THREADINFO_PRIO    ((unsigned int)1UL << 2)
+#define PH_THREADINFO_STATE   ((unsigned int)1UL << 3)
+#define PH_THREADINFO_LOAD    ((unsigned int)1UL << 4)
+#define PH_THREADINFO_CPUTIME ((unsigned int)1UL << 5)
+#define PH_THREADINFO_WAITING ((unsigned int)1UL << 6)
+#define PH_THREADINFO_NAME    ((unsigned int)1UL << 7)
+#define PH_THREADINFO_VMEM    ((unsigned int)1UL << 8)
+#define PH_THREADINFO_PPID    ((unsigned int)1UL << 9)
 
 #define PH_THREADINFO_ALL ( \
 		PH_THREADINFO_TID | \
@@ -41,7 +41,7 @@
 		PH_THREADINFO_VMEM | \
 		PH_THREADINFO_PPID)
 
-#define PH_THREADINFO_OPT_THREADCOUNT (1UL << 10)
+#define PH_THREADINFO_OPT_THREADCOUNT ((unsigned int)1UL << 10)
 
 
 typedef struct _syspageprog_t {
