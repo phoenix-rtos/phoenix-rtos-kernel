@@ -1640,16 +1640,6 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 }
 
 
-#define IOCPARM_MASK   0x1fffUL
-#define IOCPARM_LEN(x) (((x) >> 16) & IOCPARM_MASK)
-
-#define IOC_VOID   0x00000000UL
-#define IOC_NESTED 0x20000000UL
-#define IOC_OUT    0x40000000UL
-#define IOC_IN     0x80000000UL
-#define IOC_INOUT  (IOC_IN | IOC_OUT)
-
-
 static void ioctl_pack(msg_t *msg, unsigned long request, void *data, size_t size, oid_t *oid)
 {
 	ioctl_in_t *ioctl = (ioctl_in_t *)msg->i.raw;
