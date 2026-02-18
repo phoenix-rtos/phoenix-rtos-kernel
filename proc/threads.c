@@ -429,7 +429,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 #if defined(STACK_CANARY) || !defined(NDEBUG)
 		if ((selected->execkstack == NULL) && (selected->context == selCtx)) {
-			LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9 * selected->kstacksz / 10),
+			LIB_ASSERT_ALWAYS((char *)selCtx > ((char *)selected->kstack + selected->kstacksz - 9U * selected->kstacksz / 10U),
 					"pid: %d, tid: %d, kstack: 0x%p, context: 0x%p, kernel stack limit exceeded",
 					(selected->process != NULL) ? process_getPid(selected->process) : 0, proc_getTid(selected),
 					selected->kstack, selCtx);
