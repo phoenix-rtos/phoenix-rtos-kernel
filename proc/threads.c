@@ -37,6 +37,8 @@ static thread_t *const wakeupPending = (void *)-1;
 
 #define NUM_PRIO 8U
 
+#define NO_WAKEUP ((time_t) - 1)
+
 
 static struct {
 	vm_map_t *kmap;
@@ -49,8 +51,8 @@ static struct {
 	time_t utcoffs;
 
 	/* Synchronized by spinlock */
-	rbtree_t sleeping;
-	time_t sleepMin;
+	rbtree_t **sleeping;
+	time_t **sleepMin;
 	time_t *windowStart;
 
 	/* Synchronized by mutex */
@@ -170,7 +172,7 @@ static void _threads_waking(thread_t *t)
  */
 
 
-static void _threads_updateWakeup(time_t now, thread_t *minimum)
+static void _threads_updateWakeup(time_t now, thread_t *minimum, size_t windowId)
 {
 	thread_t *t;
 
@@ -178,19 +180,19 @@ static void _threads_updateWakeup(time_t now, thread_t *minimum)
 		t = minimum;
 	}
 	else {
-		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
+		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping[windowId]->root));
 	}
 
 	if (t != NULL) {
 		if (now >= t->wakeup) {
-			threads_common.sleepMin = now;
+			*(threads_common.sleepMin[windowId]) = now;
 		}
 		else {
-			threads_common.sleepMin = t->wakeup;
+			*(threads_common.sleepMin[windowId]) = t->wakeup;
 		}
 	}
 	else {
-		threads_common.sleepMin = -1;
+		*(threads_common.sleepMin[windowId]) = NO_WAKEUP;
 	}
 }
 
@@ -213,7 +215,7 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	now = _proc_gettimeRaw();
 
 	for (;;) {
-		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
+		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping[threads_common.actWindow[hal_cpuGetID()]->id]->root));
 
 		if (t == NULL || t->wakeup > now) {
 			break;
@@ -223,7 +225,21 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
 
-	_threads_updateWakeup(now, t);
+	_threads_updateWakeup(now, t, threads_common.actWindow[hal_cpuGetID()]->id);
+
+	/* Update wakeup time for the background window */
+	for (;;) {
+		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping[0]->root));
+
+		if (t == NULL || t->wakeup > now) {
+			break;
+		}
+
+		_proc_threadDequeue(t);
+		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
+	}
+
+	_threads_updateWakeup(now, t, 0);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -335,14 +351,20 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
-static thread_t **proc_getReadyQueues(const process_t *process)
+static size_t proc_getSchedWindowId(const process_t *process)
 {
 	if ((process != NULL) && (process->partition != NULL)) {
-		return threads_common.ready[hal_cpuGetFirstBit(process->partition->schedWindowsMask)];
+		return hal_cpuGetFirstBit(process->partition->schedWindowsMask);
 	}
 	else {
-		return threads_common.ready[0];
+		return 0;
 	}
+}
+
+
+static thread_t **proc_getReadyQueues(const process_t *process)
+{
+	return threads_common.ready[proc_getSchedWindowId(process)];
 }
 
 
@@ -480,8 +502,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	if (((*window)->id == 0U) || (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8)) {
 		wakeup = SYSTICK_INTERVAL;
 	}
-	if ((cpuId == 0U) && (threads_common.sleepMin != -1) && (threads_common.sleepMin < now + wakeup)) {
-		wakeup = threads_common.sleepMin - now;
+	if ((cpuId == 0U) && (*(threads_common.sleepMin[(*window)->id]) != NO_WAKEUP) && (*(threads_common.sleepMin[(*window)->id]) < now + wakeup)) {
+		wakeup = *(threads_common.sleepMin[(*window)->id]) - now;
 	}
 	if (wakeup <= 0) {
 		wakeup = 1;
@@ -919,7 +941,7 @@ static void _proc_threadDequeue(thread_t *t)
 	}
 
 	if (t->wakeup != 0) {
-		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
+		lib_rbRemove(threads_common.sleeping[proc_getSchedWindowId(t->process)], &t->sleeplinkage);
 	}
 
 	t->wakeup = 0;
@@ -960,8 +982,8 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, u8 interruptib
 
 	if (timeout != 0) {
 		current->wakeup = timeout;
-		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
-		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
+		(void)lib_rbInsert(threads_common.sleeping[proc_getSchedWindowId(current->process)], &current->sleeplinkage);
+		_threads_updateWakeup(_proc_gettimeRaw(), NULL, proc_getSchedWindowId(current->process));
 	}
 
 	_threads_enqueued(current);
@@ -987,19 +1009,23 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *sc
 
 static int _proc_threadSleepAbs(time_t abs, time_t now, spinlock_ctx_t *sc)
 {
+	size_t schedWindowId;
+	thread_t *current;
+
 	/* Handle usleep(0) (yield) */
 	if (abs > now) {
-		thread_t *current = _proc_current();
+		current = _proc_current();
+		schedWindowId = proc_getSchedWindowId(current->process);
 
 		current->state = SLEEP;
 		current->wait = NULL;
 		current->wakeup = abs;
 		current->interruptible = 1;
 
-		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
+		(void)lib_rbInsert(threads_common.sleeping[schedWindowId], &current->sleeplinkage);
 
 		_threads_enqueued(current);
-		_threads_updateWakeup(now, NULL);
+		_threads_updateWakeup(now, NULL, schedWindowId);
 	}
 
 	return hal_cpuReschedule(&threads_common.spinlock, sc);
@@ -1295,20 +1321,58 @@ int proc_settime(time_t offs)
 
 static time_t _proc_nextWakeup(void)
 {
-	thread_t *thread;
-	time_t wakeup = 0;
-	time_t now;
+	/* Idle means currently nothing to schedule, start from next */
+	syspage_sched_window_t *window;
+	thread_t **windowReady;
+	unsigned int i;
+	time_t now, windowDelay, wakeup = NO_WAKEUP;
 
-	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
-	if (thread != NULL) {
-		now = _proc_gettimeRaw();
-		if (now >= thread->wakeup) {
-			wakeup = 0;
-		}
-		else {
-			wakeup = thread->wakeup - now;
+	now = _proc_gettimeRaw();
+	window = threads_common.actWindow[hal_cpuGetID()]->next;
+	windowDelay = threads_common.windowStart[hal_cpuGetID()] + window->prev->stop - now;
+
+	if (*(threads_common.sleepMin[0]) != NO_WAKEUP) {
+		wakeup = *(threads_common.sleepMin[0]) - now;
+		if (wakeup <= 0) {
+			wakeup = 1;
 		}
 	}
+
+	if (window->next == window) {
+		return wakeup;
+	}
+
+	do {
+		if (window == syspage_schedulerWindowList()) {
+			/* Already checked */
+			window = window->next;
+		}
+		if ((wakeup != NO_WAKEUP) && (windowDelay > wakeup)) {
+			break;
+		}
+
+		windowReady = threads_common.ready[window->id];
+		for (i = 0; i < NUM_PRIO; ++i) {
+			if (windowReady[i] != NULL) {
+				wakeup = windowDelay;
+				break;
+			}
+		}
+		if (i < NUM_PRIO) {
+			break;
+		}
+
+		if (*(threads_common.sleepMin[window->id]) != NO_WAKEUP) {
+			wakeup = *(threads_common.sleepMin[window->id]) - now;
+			if (wakeup <= windowDelay) {
+				wakeup = windowDelay;
+			}
+			break;
+		}
+
+		windowDelay += window->stop - window->prev->stop;
+		window = window->next;
+	} while (window != threads_common.actWindow[hal_cpuGetID()]);
 
 	return wakeup;
 }
@@ -2088,6 +2152,14 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	if (threads_common.ready == NULL) {
 		return -ENOMEM;
 	}
+	threads_common.sleeping = vm_kmalloc(sizeof(rbtree_t *) * cnt);
+	if (threads_common.sleeping == NULL) {
+		return -ENOMEM;
+	}
+	threads_common.sleepMin = vm_kmalloc(sizeof(time_t *) * cnt);
+	if (threads_common.sleepMin == NULL) {
+		return -ENOMEM;
+	}
 	for (i = 0; i < cnt; i++) {
 		mask = (u32)(1UL << i);
 		part = syspage_partitionList();
@@ -2100,6 +2172,8 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		} while (part != syspage_partitionList());
 		if (hal_cpuGetFirstBit(mask) != i) {
 			threads_common.ready[i] = threads_common.ready[hal_cpuGetFirstBit(mask)];
+			threads_common.sleeping[i] = threads_common.sleeping[hal_cpuGetFirstBit(mask)];
+			threads_common.sleepMin[i] = threads_common.sleepMin[hal_cpuGetFirstBit(mask)];
 			continue;
 		}
 
@@ -2110,9 +2184,18 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		for (j = 0; j < NUM_PRIO; j++) {
 			threads_common.ready[i][j] = NULL;
 		}
+		threads_common.sleeping[i] = vm_kmalloc(sizeof(rbtree_t));
+		if (threads_common.sleeping[i] == NULL) {
+			return -ENOMEM;
+		}
+		lib_rbInit(threads_common.sleeping[i], threads_sleepcmp, NULL);
+		threads_common.sleepMin[i] = vm_kmalloc(sizeof(time_t));
+		if (threads_common.sleepMin[i] == NULL) {
+			return -ENOMEM;
+		}
+		*(threads_common.sleepMin[i]) = NO_WAKEUP;
 	}
 
-	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
 	lib_idtreeInit(&threads_common.id);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", NUM_PRIO);
@@ -2144,8 +2227,6 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.actWindow[i] = syspage_schedulerWindowList();
 		threads_common.windowStart[i] = 0;
 	}
-
-	threads_common.sleepMin = -1;
 
 	/* Install scheduler on clock interrupt */
 #ifdef PENDSV_IRQ
