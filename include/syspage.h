@@ -25,6 +25,8 @@ enum { console_default = 0, console_com0, console_com1, console_com2, console_co
 	   console_com7, console_com8, console_com9, console_com10, console_com11, console_com12, console_com13, console_com14,
 	   console_com15, console_vga0 };
 
+enum { pFlagIPCAll = 0x01 };
+
 
 typedef struct _mapent_t {
 	struct _mapent_t *next, *prev;
@@ -47,6 +49,7 @@ typedef struct _syspage_part_t {
 	struct _syspage_part_t *next, *prev;
 
 	char *name;
+	unsigned int flags;
 
 	size_t allocMapSz;
 	unsigned char *allocMaps;
