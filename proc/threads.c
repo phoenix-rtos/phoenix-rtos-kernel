@@ -369,8 +369,10 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		if ((*window) == syspage_schedulerWindowList()) {
 			threads_common.windowStart[cpuId] = now;
 			(*window) = (*window)->next; /* Skip window 0 */
+			trace_eventSchedWindow_switch((*window)->idx);
 			break;
 		}
+		trace_eventSchedWindow_switch((*window)->idx);
 	}
 
 	actReady = threads_common.ready[(*window)->idx];
@@ -487,6 +489,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	if (wakeup <= 0) {
 		wakeup = 1;
 	}
+	trace_eventUpdatewakeup(cpuId, wakeup);
 
 	hal_timerSetWakeup((unsigned int)wakeup);
 

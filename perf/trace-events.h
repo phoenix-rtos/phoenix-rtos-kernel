@@ -45,6 +45,8 @@ enum {
 	TRACE_EVENT_LOCK_CLEAR = 0x30,
 	TRACE_EVENT_THREAD_PRIORITY = 0x31,
 	TRACE_EVENT_PROCESS_KILL = 0x32,
+	TRACE_EVENT_SCHEDWINDOW_SWITCH = 0x33,
+	TRACE_EVENT_UPDATEWAKEUP = 0x34,
 };
 
 
@@ -294,6 +296,26 @@ static inline void trace_eventProcessKill(const process_t *p)
 
 	TRACE_EVENT_BODY(TRACE_EVENT_PROCESS_KILL, pid, NULL, {
 		pid = (u16)process_getPid(p);
+	});
+}
+
+
+static inline void trace_eventSchedWindow_switch(u8 window)
+{
+	u8 ev;
+	TRACE_EVENT_BODY(TRACE_EVENT_SCHEDWINDOW_SWITCH, ev, NULL, { ev = window; });
+}
+
+
+static inline void trace_eventUpdatewakeup(u8 cpuId, time_t wakeup)
+{
+	struct {
+		u8 cpuId;
+		u32 wakeup;
+	} __attribute__((packed)) ev;
+	TRACE_EVENT_BODY(TRACE_EVENT_UPDATEWAKEUP, ev, NULL, {
+		ev.cpuId = cpuId;
+		ev.wakeup = wakeup;
 	});
 }
 

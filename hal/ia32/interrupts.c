@@ -199,7 +199,7 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 		return 0;
 	}
 
-	trace = (interrupts_common.trace_irqs != 0 && n != SYSTICK_IRQ) ? 1 : 0;
+	trace = (interrupts_common.trace_irqs != 0) ? 1 : 0;
 	if (trace != 0) {
 		trace_eventInterruptEnter(n);
 	}
