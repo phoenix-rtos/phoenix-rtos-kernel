@@ -389,7 +389,18 @@ int proc_send(u32 port, msg_t *msg)
 
 		state = kmsg.state;
 		while ((state != msg_responded) && (state != msg_rejected)) {
-			err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
+			if (state == msg_received) {
+				/* FIXME: due to allocation of kmsg on sender's kstack, this thread cannot be properly killed (or, more precisely,
+				 * can't leave this while loop) when message is in msg_received state (between calls to proc_recv and proc_respond).
+				 * This uninterruptible wait is a workaround to prevent spinning on proc_threadWaitInterruptible when thread->exit != 0
+				 * and blocking a whole system (p->spinlock is held). When thread is running normally, the code behaves just like with
+				 * interruptible wait, without spinning on while loop on each interrupt in msg_received state.
+				 */
+				err = proc_threadWait(&kmsg.threads, &p->spinlock, 0, &sc);
+			}
+			else {
+				err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
+			}
 
 			state = kmsg.state;
 			if ((err != EOK) && (state == msg_waiting)) {
