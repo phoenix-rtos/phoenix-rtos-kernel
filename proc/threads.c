@@ -1297,18 +1297,50 @@ static time_t _proc_nextWakeup(void)
 {
 	thread_t *thread;
 	time_t wakeup = 0;
-	time_t now;
+	time_t now = _proc_gettimeRaw();
+	/* Idle means currently nothing to schedule, start from next */
+	syspage_sched_window_t *window = threads_common.actWindow[hal_cpuGetID()]->next;
+	time_t windowDelay = threads_common.windowStart[hal_cpuGetID()] + window->prev->stop - now;
+	thread_t **windowReady;
+	unsigned int i;
 
 	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 	if (thread != NULL) {
-		now = _proc_gettimeRaw();
 		if (now >= thread->wakeup) {
-			wakeup = 0;
+			wakeup = 1;
 		}
 		else {
 			wakeup = thread->wakeup - now;
 		}
 	}
+
+	/* TODO: ON SMP THIS IS A BLUFF: partitions are not synchronized, something to schedule can return to queue when this core is processing different partition */
+	do {
+		if (window == syspage_schedulerWindowList()) {
+			/* Idle means background window has nothing to schedule apart from idle */
+			window = window->next;
+			if (window->id == 0) {
+				break;
+			}
+		}
+		if ((wakeup != 0) && (windowDelay > wakeup)) {
+			break;
+		}
+
+		windowReady = threads_common.ready[window->id];
+		for (i = 0; i < NUM_PRIO; ++i) {
+			if (windowReady[i] != NULL) {
+				wakeup = windowDelay;
+				break;
+			}
+		}
+		if (i < NUM_PRIO) {
+			break;
+		}
+
+		windowDelay += window->stop - window->prev->stop;
+		window = window->next;
+	} while (window != threads_common.actWindow[hal_cpuGetID()]);
 
 	return wakeup;
 }
