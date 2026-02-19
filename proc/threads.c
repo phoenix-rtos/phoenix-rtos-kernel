@@ -14,10 +14,12 @@
  * %LICENSE%
  */
 
+#include "hal/cpu.h"
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "include/signal.h"
 #include "threads.h"
+#include "include/syspage.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
 #include "log/log.h"
@@ -476,8 +478,6 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	/* Update CPU usage */
 	_threads_cpuTimeCalc(current, selected);
-
-
 
 	time_t wakeup = threads_common.actWindow[cpuId]->stop - (now - threads_common.windowStart[cpuId]);
 	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8) {
@@ -1298,18 +1298,50 @@ static time_t _proc_nextWakeup(void)
 {
 	thread_t *thread;
 	time_t wakeup = 0;
-	time_t now;
+	time_t now = _proc_gettimeRaw();
+	/* Idle means currently nothing to schedule, start from next */
+	syspage_sched_window_t *window = threads_common.actWindow[hal_cpuGetID()]->next;
+	time_t windowDelay = threads_common.windowStart[hal_cpuGetID()] + window->start - now;
+	thread_t **windowReady;
+	unsigned int i;
 
 	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
 	if (thread != NULL) {
-		now = _proc_gettimeRaw();
 		if (now >= thread->wakeup) {
-			wakeup = 0;
+			wakeup = 1;
 		}
 		else {
 			wakeup = thread->wakeup - now;
 		}
 	}
+
+	/* TODO: ON SMP THIS IS A BLUFF: partitions are not synchronized, something to schedule can return to queue when this core is processing different partition */
+	do {
+		if (window == syspage_schedulerWindowList()) {
+			/* Idle means background window has nothing to schedule apart from idle */
+			window = window->next;
+			if (window->idx == 0) {
+				break;
+			}
+		}
+		if ((wakeup != 0) && (windowDelay > wakeup)) {
+			break;
+		}
+
+		windowReady = threads_common.ready[window->idx];
+		for (i = 0; i < NUM_PRIO; ++i) {
+			if (windowReady[i] != NULL) {
+				wakeup = windowDelay;
+				break;
+			}
+		}
+		if (i < NUM_PRIO) {
+			break;
+		}
+
+		windowDelay += window->stop - window->start;
+		window = window->next;
+	} while (window != threads_common.actWindow[hal_cpuGetID()]);
 
 	return wakeup;
 }
