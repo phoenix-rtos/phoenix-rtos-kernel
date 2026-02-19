@@ -44,14 +44,14 @@ static struct {
 	lock_t lock;
 
 	thread_t ***ready; /* [schedwindow][priority], schedwindow 0 is always scheduled */
-	thread_t **actReady;
-	syspage_sched_window_t *actWindow;
+	syspage_sched_window_t **actWindow;
 	thread_t **current;
 	time_t utcoffs;
 
 	/* Synchronized by spinlock */
 	rbtree_t sleeping;
-	time_t windowStart;
+	time_t sleepMin;
+	time_t *windowStart;
 
 	/* Synchronized by mutex */
 	unsigned int idcounter;
@@ -173,7 +173,6 @@ static void _threads_waking(thread_t *t)
 static void _threads_updateWakeup(time_t now, thread_t *minimum)
 {
 	thread_t *t;
-	time_t wakeup;
 
 	if (minimum != NULL) {
 		t = minimum;
@@ -184,25 +183,15 @@ static void _threads_updateWakeup(time_t now, thread_t *minimum)
 
 	if (t != NULL) {
 		if (now >= t->wakeup) {
-			wakeup = 1;
+			threads_common.sleepMin = now;
 		}
 		else {
-			wakeup = t->wakeup - now;
+			threads_common.sleepMin = t->wakeup;
 		}
 	}
 	else {
-		wakeup = SYSTICK_INTERVAL;
+		threads_common.sleepMin = -1;
 	}
-
-	if (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8) {
-		wakeup = SYSTICK_INTERVAL;
-	}
-
-	if ((threads_common.actWindow->id != 0U) && (wakeup > threads_common.actWindow->stop - (now - threads_common.windowStart))) {
-		wakeup = threads_common.actWindow->stop - (now - threads_common.windowStart);
-	}
-
-	hal_timerSetWakeup((unsigned int)wakeup);
 }
 
 
@@ -233,16 +222,6 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 		_proc_threadDequeue(t);
 		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 	}
-
-	while (now - threads_common.windowStart >= threads_common.actWindow->stop) {
-		threads_common.actWindow = threads_common.actWindow->next;
-		if (threads_common.actWindow == syspage_schedulerWindowList()) {
-			threads_common.windowStart = now;
-			threads_common.actWindow = threads_common.actWindow->next; /* Skip window 0 */
-			break;
-		}
-	}
-	threads_common.actReady = threads_common.ready[threads_common.actWindow->id];
 
 	_threads_updateWakeup(now, t);
 
@@ -375,12 +354,27 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx;
 	unsigned int cpuId = hal_cpuGetID();
+	syspage_sched_window_t **window = &threads_common.actWindow[cpuId];
+	thread_t **actReady;
+	time_t wakeup;
+	time_t now = _proc_gettimeRaw();
 
 	(void)arg;
 	(void)n;
 	hal_lockScheduler();
 
 	trace_eventSchedEnter(cpuId);
+
+	while (now - threads_common.windowStart[cpuId] >= (*window)->stop) {
+		(*window) = (*window)->next;
+		if ((*window) == syspage_schedulerWindowList()) {
+			threads_common.windowStart[cpuId] = now;
+			(*window) = (*window)->next; /* Skip window 0 */
+			break;
+		}
+	}
+
+	actReady = threads_common.ready[(*window)->id];
 
 	current = _proc_current();
 	threads_common.current[cpuId] = NULL;
@@ -404,14 +398,14 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			LIST_REMOVE(&threads_common.ready[0][i], selected);
 		}
 		else {
-			selected = threads_common.actReady[i];
+			selected = actReady[i];
 
 			if (selected == NULL) {
 				i++;
 				continue;
 			}
 
-			LIST_REMOVE(&threads_common.actReady[i], selected);
+			LIST_REMOVE(&actReady[i], selected);
 		}
 
 		if (selected->exit == 0U) {
@@ -481,6 +475,19 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	/* Update CPU usage */
 	_threads_cpuTimeCalc(current, selected);
+
+	wakeup = threads_common.actWindow[cpuId]->stop - (now - threads_common.windowStart[cpuId]);
+	if (((*window)->id == 0) || (wakeup > SYSTICK_INTERVAL + SYSTICK_INTERVAL / 8)) {
+		wakeup = SYSTICK_INTERVAL;
+	}
+	if ((cpuId == 0U) && (threads_common.sleepMin != -1) && (threads_common.sleepMin < now + wakeup)) {
+		wakeup = threads_common.sleepMin - now;
+	}
+	if (wakeup <= 0) {
+		wakeup = 1;
+	}
+
+	hal_timerSetWakeup((unsigned int)wakeup);
 
 	trace_eventSchedExit(cpuId);
 
@@ -2117,9 +2124,20 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		(void)proc_threadCreate(NULL, threads_idlethr, NULL, NUM_PRIO - 1U, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 	}
 
-	threads_common.windowStart = 0;
-	threads_common.actWindow = syspage_schedulerWindowList();
-	threads_common.actReady = threads_common.ready[0];
+	threads_common.windowStart = vm_kmalloc(sizeof(*threads_common.windowStart) * hal_cpuGetCount());
+	if (threads_common.windowStart == NULL) {
+		return -ENOMEM;
+	}
+	threads_common.actWindow = vm_kmalloc(sizeof(*threads_common.actWindow) * hal_cpuGetCount());
+	if (threads_common.actWindow == NULL) {
+		return -ENOMEM;
+	}
+	for (i = 0; i < hal_cpuGetCount(); i++) {
+		threads_common.actWindow[i] = syspage_schedulerWindowList();
+		threads_common.windowStart[i] = 0;
+	}
+
+	threads_common.sleepMin = -1;
 
 	/* Install scheduler on clock interrupt */
 #ifdef PENDSV_IRQ
