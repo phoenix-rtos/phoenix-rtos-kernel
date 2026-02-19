@@ -22,10 +22,13 @@
 #include "types.h"
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags);
+struct _partition_t;
 
 
-void vm_pageFree(page_t *p);
+page_t *vm_pageAlloc(size_t size, vm_flags_t flags, struct _partition_t *part);
+
+
+void vm_pageFree(page_t *p, struct _partition_t *part);
 
 
 /* returns NULL when addr is outside of defined physical maps (MMU) */

@@ -19,6 +19,8 @@
 #include "include/errno.h"
 #include "include/signal.h"
 #include "include/syscalls.h"
+#include "include/syspage.h"
+#include "syspage.h"
 #include "vm/vm.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
@@ -1267,13 +1269,14 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	int err;
 	oid_t oid;
 	vm_object_t *object;
+	process_t *process = proc_current()->process;
 
 	err = proc_lookup(path, NULL, &oid);
 	if (err < 0) {
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, (process == NULL) ? NULL : process->partition);
 	if (err < 0) {
 		return err;
 	}
@@ -1761,7 +1764,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, (current->process == NULL) ? NULL : current->process->partition);
 	if (err < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);
@@ -1848,6 +1851,7 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	do {
 		LIB_ASSERT_ALWAYS(sysPart->id < cnt, "Invalid partition ids in syspage", sysPart->id);
 		process_common.partitions[sysPart->id].config = sysPart;
+		process_common.partitions[sysPart->id].usedMem = 0U;
 		sysPart = sysPart->next;
 	} while (sysPart != syspage_partitionList());
 
