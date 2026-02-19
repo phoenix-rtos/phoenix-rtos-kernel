@@ -63,7 +63,7 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags)
 }
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
+page_t *vm_pageAlloc(size_t size, vm_flags_t flags, partition_t *partition)
 {
 	page_t *p;
 
@@ -75,7 +75,7 @@ page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
 }
 
 
-void vm_pageFree(page_t *p)
+void vm_pageFree(page_t *p, partition_t *partition)
 {
 	(void)proc_lockSet(&pages.lock);
 

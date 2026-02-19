@@ -51,7 +51,7 @@ static map_entry_t *map_allocN(size_t n);
 void map_free(map_entry_t *entry);
 
 
-static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot);
+static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot, partition_t *part);
 
 
 static int map_cmp(rbnode_t *n1, rbnode_t *n2)
@@ -623,7 +623,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 	}
 
 	for (w = vaddr; w < vaddr + size; w += SIZE_PAGE) {
-		if (_map_force(map, e, w, prot) != 0) {
+		if (_map_force(map, e, w, prot, process != NULL ? process->partition : NULL) != 0) {
 			amap_putanons(e->amap, e->aoffs, (ptr_t)w - (ptr_t)vaddr);
 
 			(void)pmap_remove(&map->pmap, vaddr, (void *)((ptr_t)w + SIZE_PAGE));
@@ -709,6 +709,10 @@ int vm_mapForce(vm_map_t *map, void *paddr, vm_prot_t prot)
 {
 	map_entry_t t, *e;
 	int err;
+	partition_t *part = NULL;
+	if (proc_current()->process != NULL) {
+		part = proc_current()->process->partition;
+	}
 
 	(void)proc_lockSet(&map->lock);
 
@@ -722,7 +726,7 @@ int vm_mapForce(vm_map_t *map, void *paddr, vm_prot_t prot)
 		return -EFAULT;
 	}
 
-	err = _map_force(map, e, paddr, prot);
+	err = _map_force(map, e, paddr, prot, part);
 	(void)proc_lockClear(&map->lock);
 	return err;
 }
@@ -734,7 +738,7 @@ static vm_prot_t map_checkProt(vm_prot_t baseProt, vm_prot_t newProt)
 }
 
 
-static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot)
+static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot, partition_t *part)
 {
 	vm_attr_t attr;
 	size_t offs;
@@ -746,7 +750,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 		return -EINVAL;
 	}
 	if ((((prot & PROT_WRITE) != 0U) && ((e->flags & MAP_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
-		e->amap = amap_create(e->amap, &e->aoffs, e->size);
+		e->amap = amap_create(e->amap, &e->aoffs, e->size, part);
 		if (e->amap == NULL) {
 			return -ENOMEM;
 		}
@@ -963,7 +967,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 					}
 				}
 				else {
-					result = _map_force(map, e, currVaddr, prot);
+					result = _map_force(map, e, currVaddr, prot, p != NULL ? p->partition : NULL);
 				}
 			}
 
@@ -998,14 +1002,14 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 	map->pmap.end = stop;
 
 #ifndef NOMMU
-	map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+	map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
 	if (map->pmap.pmapp == NULL) {
 		return -ENOMEM;
 	}
 
 	map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1UL << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE);
 	if (map->pmap.pmapv == NULL) {
-		vm_pageFree(map->pmap.pmapp);
+		vm_pageFree(map->pmap.pmapp, NULL);
 		return -ENOMEM;
 	}
 
@@ -1050,11 +1054,11 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 		if (a == 0U) {
 			break;
 		}
-		vm_pageFree(_page_get(a));
+		vm_pageFree(_page_get(a), NULL);
 	}
 
 	(void)vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
-	vm_pageFree(map->pmap.pmapp);
+	vm_pageFree(map->pmap.pmapp, NULL);
 
 	for (n = map->tree.root; n != NULL; n = map->tree.root) {
 		e = lib_treeof(map_entry_t, linkage, n);
@@ -1153,13 +1157,13 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 
 		if ((proc == NULL) || (proc->lazy == 0U)) {
 			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
-				if (_map_force(dst, f, (void *)((ptr_t)f->vaddr + offs), f->prot) != 0) {
+				if (_map_force(dst, f, (void *)((ptr_t)f->vaddr + offs), f->prot, proc != NULL ? proc->partition : NULL) != 0) {
 					(void)proc_lockClear(&dst->lock);
 					(void)proc_lockClear(&src->lock);
 					return -ENOMEM;
 				}
 
-				if (_map_force(src, e, (void *)((ptr_t)e->vaddr + offs), e->prot) != 0) {
+				if (_map_force(src, e, (void *)((ptr_t)e->vaddr + offs), e->prot, proc != NULL ? proc->partition : NULL) != 0) {  // TODO: e->partition or e->process like NOMMU??? other places of map_force too...
 					(void)proc_lockClear(&dst->lock);
 					(void)proc_lockClear(&src->lock);
 					return -ENOMEM;

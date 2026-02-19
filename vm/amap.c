@@ -28,7 +28,7 @@ static struct {
 } amap_common;
 
 
-static anon_t *amap_putanon(anon_t *a)
+static anon_t *amap_putanon(anon_t *a, partition_t *part)
 {
 	if (a == NULL) {
 		return NULL;
@@ -39,7 +39,7 @@ static anon_t *amap_putanon(anon_t *a)
 		return a;
 	}
 
-	vm_pageFree(a->page);
+	vm_pageFree(a->page, part);
 	(void)proc_lockClear(&a->lock);
 	(void)proc_lockDone(&a->lock);
 	vm_kfree(a);
@@ -57,7 +57,7 @@ void amap_putanons(amap_t *amap, size_t offset, size_t size)
 
 	(void)proc_lockSet(&amap->lock);
 	for (i = offset / SIZE_PAGE; i < (offset + size) / SIZE_PAGE; ++i) {
-		(void)amap_putanon(amap->anons[i]);
+		(void)amap_putanon(amap->anons[i], amap->partition);
 	}
 	(void)proc_lockClear(&amap->lock);
 }
@@ -107,7 +107,7 @@ amap_t *amap_ref(amap_t *amap)
 }
 
 
-amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
+amap_t *amap_create(amap_t *amap, size_t *offset, size_t size, partition_t *part)
 {
 	size_t i = size / SIZE_PAGE;
 	amap_t *new;
@@ -139,6 +139,7 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 	(void)proc_lockInit(&new->lock, &proc_lockAttrDefault, "amap.map");
 	new->size = (unsigned int)i;
 	new->refs = 1;
+	new->partition = part;
 	*offset = *offset / SIZE_PAGE;
 
 
@@ -274,7 +275,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 
 	if (a != NULL || o != NULL) {
 		/* Copy from object or shared anon */
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, amap->partition);
 		if (p == NULL) {
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
@@ -285,7 +286,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 		}
 		w = amap_map(map, p);
 		if (w == NULL) {
-			vm_pageFree(p);
+			vm_pageFree(p, amap->partition);
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
 				(void)proc_lockClear(&a->lock);
@@ -308,7 +309,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 
 	amap->anons[aoffs / SIZE_PAGE] = anon_new(p);
 	if (amap->anons[aoffs / SIZE_PAGE] == NULL) {
-		vm_pageFree(p);
+		vm_pageFree(p, amap->partition);
 		p = NULL;
 	}
 	(void)proc_lockClear(&amap->lock);

@@ -57,7 +57,7 @@ static void _bufferFree(void *data, page_t **pages)
 
 	while (p != NULL) {
 		*pages = p->next;
-		vm_pageFree(p);
+		vm_pageFree(p, NULL);
 		sz += SIZE_PAGE;
 		p = *pages;
 	}
@@ -80,7 +80,7 @@ static void *_bufferAlloc(page_t **pages, size_t sz)
 	}
 
 	for (v = data; v < data + sz; v += SIZE_PAGE) {
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, NULL);
 
 		if (p == NULL) {
 			err = -ENOMEM;

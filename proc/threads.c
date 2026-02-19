@@ -338,7 +338,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 static thread_t **proc_getReadyQueues(process_t *process)
 {
 	if ((process != NULL) && (process->partition != NULL)) {
-		return threads_common.ready[hal_cpuGetFirstBit(process->partition->schedWindowsMask)];
+		return threads_common.ready[hal_cpuGetFirstBit(process->partition->config->schedWindowsMask)];
 	}
 	else {
 		return threads_common.ready[0];

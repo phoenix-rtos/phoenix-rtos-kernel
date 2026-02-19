@@ -103,7 +103,7 @@ int syscalls_sys_mmap(u8 *ustack)
 		if (err < 0) {
 			return err;
 		}
-		err = vm_objectGet(&o, oid);
+		err = vm_objectGet(&o, oid, proc->partition);
 		if (err < 0) {
 			return err;
 		}
@@ -121,12 +121,12 @@ int syscalls_sys_mmap(u8 *ustack)
 	else {
 		err = 1;
 		/* TODO: option for manual map selection */
-		for (i = 0; i < proc->partition->allocMapSz; i++) {
-			if (((flags & MAP_UNCACHED) != 0U) && ((syspage_mapIdResolve(proc->partition->allocMaps[i])->attr & (unsigned int)mAttrCacheable) != 0U)) {
+		for (i = 0; i < proc->partition->config->allocMapSz; i++) {
+			if (((flags & MAP_UNCACHED) != 0U) && ((syspage_mapIdResolve(proc->partition->config->allocMaps[i])->attr & (unsigned int)mAttrCacheable) != 0U)) {
 				continue;
 			}
 			err = 0;
-			(*vaddr) = vm_mmap(vm_getSharedMap((int)proc->partition->allocMaps[i]), *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
+			(*vaddr) = vm_mmap(vm_getSharedMap((int)proc->partition->config->allocMaps[i]), *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
 			if (*vaddr != NULL) {
 				break;
 			}
