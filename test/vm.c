@@ -44,7 +44,7 @@ void test_vm_alloc(void)
 		maxsize = max(maxsize, size);
 
 		hal_cpuGetCycles(&b);
-		p = vm_pageAlloc(size, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP);
+		p = vm_pageAlloc(size, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, NULL);
 		hal_cpuGetCycles(&e);
 
 		if (p == NULL) {
@@ -52,7 +52,7 @@ void test_vm_alloc(void)
 			break;
 		}
 
-		vm_pageFree(p);
+		vm_pageFree(p, NULL);
 
 		lib_printf("\rtest: size=%d, n=%d", size, n);
 
