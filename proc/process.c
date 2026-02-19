@@ -1245,13 +1245,14 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	int err;
 	oid_t oid;
 	vm_object_t *object;
+	process_t *process = proc_current()->process;
 
 	err = proc_lookup(path, NULL, &oid);
 	if (err < 0) {
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, (process == NULL) ? NULL : process->partition);
 	if (err < 0) {
 		return err;
 	}
@@ -1723,7 +1724,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, (current->process == NULL) ? NULL : current->process->partition);
 	if (err < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);
