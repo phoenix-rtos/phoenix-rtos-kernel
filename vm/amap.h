@@ -32,6 +32,7 @@ typedef struct _anon_t {
 
 typedef struct _amap_t {
 	lock_t lock;
+	syspage_part_t *partition;
 	size_t size;
 	int refs;
 	anon_t *anons[];
@@ -50,7 +51,7 @@ void amap_putanons(amap_t *amap, size_t offset, size_t size);
 void amap_getanons(amap_t *amap, size_t offset, size_t size);
 
 
-amap_t *amap_create(amap_t *amap, size_t *offset, size_t size);
+amap_t *amap_create(amap_t *amap, size_t *offset, size_t size, syspage_part_t *part);
 
 
 void amap_put(amap_t *amap);
