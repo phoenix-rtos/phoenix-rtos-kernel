@@ -52,6 +52,7 @@ typedef struct _syspage_part_t {
 	char *name;
 	unsigned char maps[16];
 
+	size_t availableMem;
 	unsigned int schedWindowsMask;
 
 	hal_syspage_part_t *hal;

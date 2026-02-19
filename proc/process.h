@@ -29,6 +29,7 @@ typedef void (*sighandlerFn_t)(void);
 
 
 typedef struct _partition_t {
+	size_t usedMem;
 	const syspage_part_t *config;
 } partition_t;
 
