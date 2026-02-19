@@ -368,6 +368,11 @@ int proc_send(u32 port, msg_t *msg)
 
 	sender = proc_current();
 
+	if ((p->owner->partition != sender->process->partition) && (p->owner->partition != NULL)) {
+		port_put(p, 0);
+		return -EACCES;  // TODO: howto backwards compatibility??? (partition flag?/IPC domain?)
+	}
+
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
 	kmsg.src = sender->process;
 	kmsg.threads = NULL;
