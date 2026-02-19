@@ -38,7 +38,7 @@ static struct {
 } pages_info;
 
 
-static page_t *_page_alloc(size_t size, vm_flags_t flags)
+static page_t *_page_alloc(size_t size, vm_flags_t flags, partition_t *part)
 {
 	unsigned int start, stop, i;
 	page_t *lh, *rh;
@@ -50,6 +50,10 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags)
 	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "conditional compilation" */
 	if (hal_cpuGetFirstBit(size) < start) {
 		start++;
+	}
+
+	if ((part != NULL) && ((part->usedMem + (1U << start)) > part->config->availableMem)) {
+		return NULL;
 	}
 
 	/* Find segment */
@@ -87,22 +91,26 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags)
 		pages_info.allocsz += SIZE_PAGE;
 	}
 
+	if (part != NULL) {
+		part->usedMem += (1U << lh->idx);
+	}
+
 	return lh;
 }
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
+page_t *vm_pageAlloc(size_t size, vm_flags_t flags, partition_t *part)
 {
 	page_t *p;
 
 	(void)proc_lockSet(&pages_info.lock);
-	p = _page_alloc(size, flags);
+	p = _page_alloc(size, flags, part);
 	(void)proc_lockClear(&pages_info.lock);
 	return p;
 }
 
 
-void vm_pageFree(page_t *p)
+void vm_pageFree(page_t *p, partition_t *part)
 {
 	unsigned int idx, i;
 	page_t *lh = p, *rh = p;
@@ -122,6 +130,11 @@ void vm_pageFree(page_t *p)
 	}
 
 	idx = p->idx;
+
+	if (part != NULL) {
+		LIB_ASSERT_ALWAYS(part->usedMem >= (1U << idx), "partition invalid free page.c");
+		part->usedMem -= (1U << idx);
+	}
 
 	/* Mark free pages */
 	for (i = 0; i < ((u64)1 << idx) / SIZE_PAGE; i++) {
@@ -331,7 +344,7 @@ static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 	page_t *ap = NULL;
 
 	while (pmap_enter(pmap, pa, vaddr, attr, ap) < 0) {
-		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
 		if (/*vaddr > (void *)VADDR_KERNEL ||*/ ap == NULL) {
 			return -ENOMEM;
 		}
@@ -355,13 +368,13 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 int _page_sbrk(pmap_t *pmap, void **start, void **end)
 {
 	page_t *np, *ap = NULL;
-	np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP);
+	np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, NULL);
 	if (np == NULL) {
 		return -ENOMEM;
 	}
 
 	while (pmap_enter(pmap, np->addr, (*end), PGHD_READ | PGHD_WRITE | PGHD_PRESENT, ap) < 0) {
-		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
 		if (ap == NULL) {
 			return -ENOMEM;
 		}
@@ -493,7 +506,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 		if (_pmap_kernelSpaceExpand(pmap, &vaddr, (*top) + max((pages_info.freesz + pages_info.allocsz) / 4U, (1UL << 23)), p) == 0) {
 			break;
 		}
-		p = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
+		p = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
 		if (p == NULL) {
 			return;
 		}

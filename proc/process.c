@@ -63,6 +63,8 @@ static struct {
 	lock_t lock;
 	idtree_t id;
 	int idcounter;
+	partition_t *partitions;
+	size_t partCnt;
 } process_common;
 
 
@@ -176,6 +178,7 @@ static int process_alloc(process_t *process)
 
 int proc_start(startFn_t start, void *arg, const char *path, const syspage_part_t *partition)
 {
+	size_t i;
 	process_t *process;
 	process = vm_kmalloc(sizeof(process_t));
 	if (process == NULL) {
@@ -202,7 +205,12 @@ int proc_start(startFn_t start, void *arg, const char *path, const syspage_part_
 	process->ghosts = NULL;
 	process->reaper = NULL;
 	process->refs = 1;
-	process->partition = partition;
+	process->partition = NULL;
+	for (i = 0; i < process_common.partCnt; i++) {
+		if (process_common.partitions[i].config == partition) {
+			process->partition = &process_common.partitions[i];
+		}
+	}
 
 	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
@@ -1229,7 +1237,7 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, proc_current()->process->partition);
 	if (err < 0) {
 		return err;
 	}
@@ -1450,7 +1458,7 @@ int proc_vfork(void)
 	spawn->parent = current;
 	spawn->prog = NULL;
 
-	pid = proc_start(process_vforkThread, spawn, NULL, (current->process != NULL) ? current->process->partition : NULL);
+	pid = proc_start(process_vforkThread, spawn, NULL, (current->process != NULL) ? current->process->partition->config : NULL);
 	if (pid < 0) {
 		hal_spinlockDestroy(&spawn->sl);
 		vm_kfree(spawn);
@@ -1697,7 +1705,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, current->process->partition);
 	if (err < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);
@@ -1762,6 +1770,30 @@ int proc_sigpost(int pid, int sig)
 }
 
 
+void _partitionsInit(void)
+{
+	size_t i;
+	syspage_part_t *partConfig = syspage_partitionList();
+
+	if (partConfig == NULL) {
+		process_common.partitions = NULL;
+		return;
+	}
+	do {
+		process_common.partCnt++;
+		partConfig = partConfig->next;
+	} while (partConfig != syspage_partitionList());
+
+	process_common.partitions = vm_kmalloc(process_common.partCnt * sizeof(partition_t));
+	for (i = 0; i < process_common.partCnt; i++) {
+		process_common.partitions[i].config = partConfig;
+		process_common.partitions[i].usedMem = 0;
+		proc_lockInit(&process_common.partitions[i].lock, &proc_lockAttrDefault, "partition");
+		partConfig = partConfig->next;
+	}
+}
+
+
 int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	process_common.kmap = kmap;
@@ -1773,6 +1805,9 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	(void)hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	(void)hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
+
+	_partitionsInit();
+
 	return EOK;
 }
 
