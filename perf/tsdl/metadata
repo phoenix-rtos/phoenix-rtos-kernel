@@ -194,3 +194,20 @@ event {
 		u16 pid;
 	};
 };
+
+event {
+	name = schedwindow_switch;
+	id = 0x33;
+	fields := struct {
+		u8 window;
+	};
+};
+
+event {
+	name = updatewakeup;
+	id = 0x34;
+	fields := struct {
+		u8 cpu;
+		u32 wakeup;
+	};
+};
