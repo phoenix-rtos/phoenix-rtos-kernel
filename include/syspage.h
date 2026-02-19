@@ -27,7 +27,7 @@ enum { console_default = 0, console_com0, console_com1, console_com2, console_co
 	   console_com15, console_vga0 };
 
 
-enum { pFlagSpawnAll = 0x01 };
+enum { pFlagSpawnAll = 0x01, pFlagIPCAll = 0x02 };
 /* clang-format on */
 
 
