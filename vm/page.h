@@ -22,10 +22,10 @@
 #include "types.h"
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags);
+page_t *vm_pageAlloc(size_t size, vm_flags_t flags, syspage_part_t *part);
 
 
-void vm_pageFree(page_t *p);
+void vm_pageFree(page_t *p, syspage_part_t *part);
 
 
 page_t *_page_get(addr_t addr);

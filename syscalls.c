@@ -102,7 +102,7 @@ int syscalls_sys_mmap(u8 *ustack)
 		if (err < 0) {
 			return err;
 		}
-		err = vm_objectGet(&o, oid);
+		err = vm_objectGet(&o, oid, proc->partition);
 		if (err < 0) {
 			return err;
 		}
