@@ -383,27 +383,20 @@ int syscalls_priority(u8 *ustack)
 int syscalls_threadsinfo(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
-	int n, i;
-	pid_t ppid;
+	int n, tid;
+	unsigned int flags;
 	threadinfo_t *info;
 
-	GETFROMSTACK(ustack, int, n, 0U);
-	GETFROMSTACK(ustack, threadinfo_t *, info, 1U);
+	GETFROMSTACK(ustack, int, tid, 0U);
+	GETFROMSTACK(ustack, unsigned int, flags, 1U);
+	GETFROMSTACK(ustack, int, n, 2U);
+	GETFROMSTACK(ustack, threadinfo_t *, info, 3U);
 
 	if (vm_mapBelongs(proc, info, sizeof(*info) * (size_t)n) < 0) {
 		return -EFAULT;
 	}
 
-	n = proc_threadsList(n, info);
-
-	for (i = 0; i < n; ++i) {
-		ppid = posix_getppid(info[i].pid);
-		if (ppid > 0) {
-			info[i].ppid = ppid;
-		}
-	}
-
-	return n;
+	return proc_threadsInfo(tid, flags, n, info);
 }
 
 
