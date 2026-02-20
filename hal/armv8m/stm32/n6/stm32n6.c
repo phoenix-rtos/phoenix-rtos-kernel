@@ -235,7 +235,7 @@ int hal_platformctl(void *ptr)
 		case pctl_cleanAXICache:
 		case pctl_invalAXICache:
 			if (data->action == pctl_set) {
-				ret = _stm32_AXICacheCmd(data->opAXICache.addr, data->opAXICache.sz, data->type);
+				ret = _stm32_AXICacheCmd(data->opAXICache.addr, data->opAXICache.sz, (unsigned int)data->type);
 			}
 			break;
 		case pctl_enableAXICache:
@@ -246,9 +246,12 @@ int hal_platformctl(void *ptr)
 				data->opEnable.enable = 0;
 				ret = _stm32_getAXICacheEnable();
 				if (ret >= 0) {
-					data->opEnable.enable = ret;
+					data->opEnable.enable = (unsigned int)ret;
 					ret = EOK;
 				}
+			}
+			else {
+				/* No action required */
 			}
 			break;
 
@@ -417,11 +420,11 @@ int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr)
 }
 
 /* AXI Cache clean, invalidate and enable */
-int _stm32_AXICacheCmd(void *addr, unsigned int sz, int cmdtype)
+int _stm32_AXICacheCmd(void *addr, unsigned int sz, unsigned int cmdtype)
 {
 	int ret;
 	u32 cmdreg = 0;
-	u32 addrVal = ((u32)addr) & 0xffffffc0;
+	u32 addrVal = ((u32)addr) & 0xffffffc0U;
 
 	ret = _stm32_getAXICacheEnable();
 	if (ret == 0) {
@@ -430,40 +433,45 @@ int _stm32_AXICacheCmd(void *addr, unsigned int sz, int cmdtype)
 	else if (ret < 0) {
 		return ret;
 	}
+	else {
+		/* No action required */
+	}
 
-	if ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1) == 1) {
+	if ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1U) == 1U) {
 		return -EBUSY;
 	}
 
-	*(stm32_common.cacheaxiconf + cacheaxi_fcr) |= 0x12;
-	*(stm32_common.cacheaxiconf + cacheaxi_cr2) &= ~6;
+	*(stm32_common.cacheaxiconf + cacheaxi_fcr) |= 0x12U;
+	*(stm32_common.cacheaxiconf + cacheaxi_cr2) &= ~6U;
 
 	switch (cmdtype) {
-		case pctl_invalAXICache:
-			*(stm32_common.cacheaxiconf + cacheaxi_cr1) |= 2;
+		case (unsigned int)pctl_invalAXICache:
+			*(stm32_common.cacheaxiconf + cacheaxi_cr1) |= 2U;
 			break;
-		case pctl_cleanInvalAXICache:
-			cmdreg = 4;
-			/* passthrough */
-		case pctl_cleanAXICache:
-			cmdreg |= 2;
-
-			*(stm32_common.cacheaxiconf + cacheaxi_cmdrsaddrr) |= addrVal;
-			*(stm32_common.cacheaxiconf + cacheaxi_cmdreaddrr) |= (addrVal + sz - 1) & 0xffffffc0;
-			*(stm32_common.cacheaxiconf + cacheaxi_cr2) |= (cmdreg & 6);
-
-			*(stm32_common.cacheaxiconf + cacheaxi_ier) &= ~5;
-
-			*(stm32_common.cacheaxiconf + cacheaxi_cr2) |= 1;
+		case (unsigned int)pctl_cleanInvalAXICache:
+			cmdreg = 4U;
+			break;
+		case (unsigned int)pctl_cleanAXICache:
+			cmdreg = 6U;
 			break;
 
 		default:
 			return -EINVAL;
 	}
 
+	if ((cmdtype == (unsigned int)pctl_cleanInvalAXICache) || (cmdtype == (unsigned int)pctl_cleanAXICache)) {
+		*(stm32_common.cacheaxiconf + cacheaxi_cmdrsaddrr) |= addrVal;
+		*(stm32_common.cacheaxiconf + cacheaxi_cmdreaddrr) |= (addrVal + sz - 1U) & 0xffffffc0U;
+		*(stm32_common.cacheaxiconf + cacheaxi_cr2) |= (cmdreg & 6U);
+
+		*(stm32_common.cacheaxiconf + cacheaxi_ier) &= ~5U;
+
+		*(stm32_common.cacheaxiconf + cacheaxi_cr2) |= 1U;
+	}
+
 	time_t timeStart = hal_timerGetUs();
 	time_t timeNow = timeStart;
-	while ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1) == 1) {
+	while ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1U) == 1U) {
 		timeNow = hal_timerGetUs();
 		if ((timeNow - timeStart) > 400) {
 			return -EBUSY;
@@ -482,32 +490,33 @@ int _stm32_setAXICacheEnable(unsigned int enable)
 		return ret;
 	}
 
-	*(stm32_common.rcc + rcc_ahb5rstsr) |= (1 << 30);
-	*(stm32_common.rcc + rcc_ahb5rstcr) |= (1 << 30);
+	*(stm32_common.rcc + rcc_ahb5rstsr) |= 0x40000000U; /* bit 30 */
+	*(stm32_common.rcc + rcc_ahb5rstcr) |= 0x40000000U; /* bit 30 */
 
 	time_t timeStart = hal_timerGetUs();
 	time_t timeNow = timeStart;
-	while ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1) == 1) {
+	while ((*(stm32_common.cacheaxiconf + cacheaxi_sr) & 1U) == 1U) {
 		timeNow = hal_timerGetUs();
 		if ((timeNow - timeStart) > 100) {
 			return -EBUSY;
 		}
 	}
 
-	if (enable) {
-		*(stm32_common.cacheaxiconf + cacheaxi_cr1) |= 1;
+	if (enable != 0U) {
+		*(stm32_common.cacheaxiconf + cacheaxi_cr1) |= 1U;
 	}
 	else {
-		*(stm32_common.cacheaxiconf + cacheaxi_cr1) &= ~1;
+		*(stm32_common.cacheaxiconf + cacheaxi_cr1) &= ~1U;
 	}
 
-	if ((*(stm32_common.cacheaxiconf + cacheaxi_cr1) & 1) == (!enable)) {
+	if ((*(stm32_common.cacheaxiconf + cacheaxi_cr1) & 1U) != ((enable & 1U))) {
 		return -EPERM;
 	}
 
 	return EOK;
 }
 
+/* parasoft-begin-suppress MISRAC2012-RULE_14_3-ac "Check seemingly always evaluating to false left for safety and future-proofing" */
 int _stm32_getAXICacheEnable(void)
 {
 	/* Check that clocks are enables and cacheaxi_cr & 1 = 1 pctl_npucache */
@@ -518,22 +527,29 @@ int _stm32_getAXICacheEnable(void)
 	if (ret < 0) {
 		return -EINVAL;
 	}
-	else if (status == 0) {
+	else if (status == 0U) {
 		return -ENODEV;
+	}
+	else {
+		/* No action required */
 	}
 
 	ret = _stm32_rccGetDevClock(pctl_npucacheram, &status, &lpStatus);
 	if (ret < 0) {
 		return -EINVAL;
 	}
-	else if (status == 0) {
+	else if (status == 0U) {
 		return -ENODEV;
 	}
+	else {
+		/* No action required */
+	}
 
-	ret = *(stm32_common.cacheaxiconf + cacheaxi_cr1) & 1;
+	ret = (int)(unsigned int)(*(stm32_common.cacheaxiconf + cacheaxi_cr1) & 1U);
 
 	return ret;
 }
+/* parasoft-end-suppress MISRAC2012-RULE_14_3-ac */
 
 
 /* RCC (Reset and Clock Controller) */
