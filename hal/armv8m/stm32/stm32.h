@@ -150,7 +150,7 @@ int _stm32_dmaSetPermissions(int dev, unsigned int channel, int secure, int priv
 
 int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr);
 
-int _stm32_AXICacheCmd(void *addr, unsigned int sz, int cmdtype);
+int _stm32_AXICacheCmd(void *addr, unsigned int sz, unsigned int cmdtype);
 
 int _stm32_setAXICacheEnable(unsigned int enable);
 
