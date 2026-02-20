@@ -49,6 +49,7 @@ void hal_cpuGetCycles(cycles_t *cb)
 	/* Cycle counter is not available on armv8m
 	assumption that 1 cycle is 1us, so we use hal_timerGetUs() with 1ms resolution
 	both cycles_t and time_t have the same size on armv8m */
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7-a "Value is a timer output" */
 	*cb = (cycles_t)hal_timerGetUs();
 }
 

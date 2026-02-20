@@ -510,7 +510,7 @@ enum {
 	dbgmcu_dbg_auth_ack,
 };
 
-enum cacheaxi_regs {
+enum {
 	cacheaxi_cr1 = 0x0U,
 	cacheaxi_sr,
 	cacheaxi_ier,
