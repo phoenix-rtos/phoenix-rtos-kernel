@@ -160,7 +160,7 @@ int trace_isRunning(void)
 }
 
 
-static void _emitThreadsCb(void *arg, int i, threadinfo_t *tinfo)
+static void _emitThreadsCb(void *arg, threadinfo_t *tinfo)
 {
 	struct {
 		u16 pid;
@@ -181,7 +181,7 @@ static void _emitThreadsCb(void *arg, int i, threadinfo_t *tinfo)
 
 static void _emitThreadinfo(void)
 {
-	(void)proc_threadsIter(0xffff, _emitThreadsCb, NULL);
+	proc_threadsIter(PH_THREADINFO_TID | PH_THREADINFO_PRIO | PH_THREADINFO_NAME, _emitThreadsCb, NULL);
 }
 
 
