@@ -1,0 +1,37 @@
+#ifndef ARMV7A7_IMX6ULL_LDT
+#define ARMV7A7_IMX6ULL_LDT
+
+
+/* Platform specific definitions */
+#define SIZE_PAGE  0x1000
+#define SIZE_STACK (2 * SIZE_PAGE)
+#define SIZE_HEAP  (2 * SIZE_PAGE)
+
+#define ADDR_DDR 0x80000000
+#define SIZE_DDR (2048 * 1024 * 1024)
+
+#define ADDR_OCRAM 0x900000
+#define SIZE_OCRAM (128 * 1024)
+
+
+#if defined(__LINKER__)
+
+/* Memory map setup */
+MEMORY
+{
+	m_ocram   (rwx) : ORIGIN = ADDR_OCRAM, LENGTH = SIZE_OCRAM
+	m_ddr   (rwx)  : ORIGIN = ADDR_DDR, LENGTH = SIZE_DDR
+}
+
+REGION_ALIAS("KERNEL_IMAGE", m_ddr)
+REGION_ALIAS("DATA", m_ddr)
+REGION_ALIAS("BSS", m_ddr);
+REGION_ALIAS("SYSPAGE", m_ddr);
+
+#include "common/kernel-arm.lds"
+
+
+#endif /* end of __LINKER__ */
+
+
+#endif /* end of ARMV7A7_IMX6ULL_LDT */
