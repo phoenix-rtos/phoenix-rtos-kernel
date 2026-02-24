@@ -18,3 +18,5 @@ jobs:
     secrets: inherit
     with:
       cpptest_enabled: true
+      build_params: all tests
+      nightly: true
