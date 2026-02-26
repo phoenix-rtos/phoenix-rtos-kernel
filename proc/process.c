@@ -32,11 +32,6 @@
 #include "userintr.h"
 #include "perf/trace-events.h"
 
-/* Process states */
-#define PREFORK 0
-#define FORKING 1
-#define FORKED  2
-
 typedef struct _process_spawn_t {
 	spinlock_t sl;
 	thread_t *wq;
@@ -111,6 +106,7 @@ static void process_destroy(process_t *p)
 		vm_kfree(ghost);
 	}
 
+	vm_kfree(p->sigactions);
 	vm_kfree(p->path);
 	vm_kfree(p->argv);
 	vm_kfree(p->envp);
@@ -208,8 +204,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ports = NULL;
 
 	process->sigpend = 0;
-	process->sigmask = 0;
-	process->sighandler = NULL;
+	process->sigactions = NULL;
 	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
@@ -234,12 +229,6 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	}
 
 	return process_getPid(process);
-}
-
-
-void proc_kill(process_t *proc)
-{
-	proc_threadsDestroy(&proc->threads, NULL);
 }
 
 
@@ -287,7 +276,7 @@ static void process_exception(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 	}
 
-	(void)threads_sigpost(thread->process, thread, signal_kill);
+	(void)threads_sigpost(thread->process, thread, SIGKILL);
 
 	/* Don't allow current thread to return to the userspace,
 	 * it will crash anyway. */
@@ -306,7 +295,11 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 		hal_cpuHalt();
 	}
 
-	(void)threads_sigpost(process, thread, signal_illegal);
+	(void)threads_sigpost(process, thread, SIGILL);
+
+	if (thread->exit != 0U) {
+		proc_threadEnd();
+	}
 }
 
 
@@ -1318,12 +1311,14 @@ static void process_restoreParentKstack(thread_t *current, thread_t *parent)
 }
 
 
-static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
+void proc_vforkedDied(thread_t *thread, int state)
 {
 	spinlock_ctx_t sc;
+	process_spawn_t *spawn = thread->execdata;
+	thread->execdata = NULL;
 
-	current->ustack = NULL;
-	proc_changeMap(current->process, NULL, NULL, NULL);
+	thread->ustack = NULL;
+	proc_changeMap(thread->process, NULL, NULL, NULL);
 
 	/* Only possible in the case of `initthread` exit or failure to fork. */
 	if (spawn->parent == NULL) {
@@ -1331,15 +1326,20 @@ static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int stat
 		(void)vm_objectPut(spawn->object);
 	}
 	else {
-		process_restoreParentKstack(current, spawn->parent);
+		process_restoreParentKstack(thread, spawn->parent);
 
 		hal_spinlockSet(&spawn->sl, &sc);
 		spawn->state = state;
 		(void)proc_threadWakeup(&spawn->wq);
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
+	proc_kill(thread->process);
+}
 
-	proc_kill(current->process);
+
+static void proc_vforkedExit(thread_t *current, int state)
+{
+	proc_vforkedDied(current, state);
 	proc_threadEnd();
 }
 
@@ -1348,7 +1348,7 @@ void proc_exit(int code)
 {
 	thread_t *current = proc_current();
 	process_spawn_t *spawn = current->execdata;
-	arg_t args[3];
+	arg_t args[2];
 
 	current->process->exit = code;
 
@@ -1360,10 +1360,9 @@ void proc_exit(int code)
 		}
 
 		args[0] = (arg_t)current;
-		args[1] = (arg_t)spawn;
-		args[2] = (arg_t)FORKED;
+		args[1] = (arg_t)FORKED;
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
-		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 3, args);
+		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 2, args);
 	}
 
 	proc_kill(current->process);
@@ -1375,7 +1374,7 @@ static void process_vforkThread(void *arg)
 	process_spawn_t *spawn = arg;
 	thread_t *current, *parent;
 	spinlock_ctx_t sc;
-	int ret;
+	int ret, i;
 
 	current = proc_current();
 	parent = spawn->parent;
@@ -1383,8 +1382,28 @@ static void process_vforkThread(void *arg)
 
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
-	current->process->sigmask = parent->process->sigmask;
-	current->process->sighandler = parent->process->sighandler;
+	current->process->sigtrampoline = parent->process->sigtrampoline;
+
+	if (parent->process->sigactions != NULL) {
+		for (i = 1; i < NSIG; ++i) {
+			if (parent->process->sigactions[i - 1].sa_handler == SIG_DFL) {
+				continue;
+			}
+
+			current->process->sigactions = vm_kmalloc(sizeof(struct sigaction) * (u8)(NSIG - 1));
+			if (current->process->sigactions == NULL) {
+				hal_spinlockSet(&spawn->sl, &sc);
+				spawn->state = -ENOMEM;
+				(void)proc_threadWakeup(&spawn->wq);
+				hal_spinlockClear(&spawn->sl, &sc);
+
+				proc_threadEnd();
+			}
+			hal_memcpy(current->process->sigactions, parent->process->sigactions, sizeof(struct sigaction) * (u8)(NSIG - 1));
+			break;
+		}
+	}
+
 	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl, &sc);
@@ -1433,6 +1452,9 @@ static void process_vforkThread(void *arg)
 	if (current->tls.tls_base != 0U) {
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
+
+	/* POSIX: A child created via fork inherits a copy of its parent's signal mask */
+	current->sigmask = parent->sigmask;
 
 	/* Start execution from parent suspend point */
 	proc_longjmp(parent->context);
@@ -1578,7 +1600,7 @@ int proc_fork(void)
 #ifndef NOMMU
 	thread_t *current, *parent;
 	unsigned int sigmask;
-	arg_t args[3];
+	arg_t args[2];
 
 	err = proc_vfork();
 	if (err == 0) {
@@ -1604,10 +1626,9 @@ int proc_fork(void)
 
 		if (err < 0) {
 			args[0] = (arg_t)current;
-			args[1] = (arg_t)current->execdata;
-			args[2] = (arg_t)err;
+			args[1] = (arg_t)err;
 			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
-			hal_jmp(proc_vforkedExit, (unsigned char *)current->kstack + current->kstacksz, NULL, 3, args);
+			hal_jmp(proc_vforkedExit, (unsigned char *)current->kstack + current->kstacksz, NULL, 2, args);
 		}
 		else {
 			hal_cpuEnableInterrupts();
@@ -1623,6 +1644,7 @@ static int process_execve(thread_t *current)
 	process_spawn_t *spawn = current->execdata;
 	thread_t *parent = spawn->parent;
 	vm_map_t *map, *imap;
+	int i;
 
 	/* The old user stack is no longer valid */
 	current->ustack = NULL;
@@ -1660,8 +1682,29 @@ static int process_execve(thread_t *current)
 	current->parentkstack = NULL;
 	current->execdata = NULL;
 
-	current->process->sighandler = NULL;
 	current->process->sigpend = 0;
+
+	/* POSIX: signals ignored by the calling process should remain ignored */
+	if (current->process->sigactions != NULL) {
+		for (i = 1; i < NSIG; ++i) {
+			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+			if (current->process->sigactions[i - 1].sa_handler == SIG_IGN) {
+				break;
+			}
+		}
+		if (i == NSIG) {
+			vm_kfree(current->process->sigactions);
+			current->process->sigactions = NULL;
+		}
+		else {
+			for (i = 1; i < NSIG; ++i) {
+				/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+				if (current->process->sigactions[i - 1].sa_handler != SIG_IGN) {
+					current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+				}
+			}
+		}
+	}
 
 	/* Close cloexec file descriptors */
 	(void)posix_exec();

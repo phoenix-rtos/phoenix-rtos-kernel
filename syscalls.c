@@ -968,67 +968,29 @@ addr_t syscalls_va2pa(u8 *ustack)
 }
 
 
-int syscalls_signalHandle(u8 *ustack)
+int syscalls_signalAction(u8 *ustack)
 {
-	sighandlerFn_t handler;
-	unsigned int mask, mmask;
-	thread_t *thread;
+	int sig;
+	struct sigaction *act;
+	struct sigaction *old;
+	sigtrampolineFn_t trampoline;
 
-	GETFROMSTACK(ustack, sighandlerFn_t, handler, 0U);
-	GETFROMSTACK(ustack, unsigned int, mask, 1U);
-	GETFROMSTACK(ustack, unsigned int, mmask, 2U);
+	GETFROMSTACK(ustack, int, sig, 0U);
+	GETFROMSTACK(ustack, struct sigaction *, act, 1U);
+	GETFROMSTACK(ustack, struct sigaction *, old, 2U);
+	GETFROMSTACK(ustack, sigtrampolineFn_t, trampoline, 3U);
 
-	thread = proc_current();
-	thread->process->sigmask = (mask & mmask) | (thread->process->sigmask & ~mmask);
-	thread->process->sighandler = handler;
+	if (threads_setSigaction(sig, trampoline, act, old) != 0) {
+		return -EINVAL;
+	}
 
 	return EOK;
 }
 
 
-int syscalls_signalPost(u8 *ustack)
-{
-	int pid, tid, signal, err;
-	process_t *proc;
-	thread_t *t = NULL;
-
-	GETFROMSTACK(ustack, int, pid, 0U);
-	GETFROMSTACK(ustack, int, tid, 1U);
-	GETFROMSTACK(ustack, int, signal, 2U);
-
-	proc = proc_find(pid);
-	if (proc == NULL) {
-		return -EINVAL;
-	}
-
-	if (tid >= 0) {
-		t = threads_findThread(tid);
-		if (t == NULL) {
-			(void)proc_put(proc);
-			return -EINVAL;
-		}
-	}
-
-	if ((t != NULL) && (t->process != proc)) {
-		(void)proc_put(proc);
-		threads_put(t);
-		return -EINVAL;
-	}
-
-	err = threads_sigpost(proc, t, signal);
-
-	(void)proc_put(proc);
-	if (t != NULL) {
-		threads_put(t);
-	}
-
-	return err;
-}
-
-
 unsigned int syscalls_signalMask(u8 *ustack)
 {
-	unsigned int mask, mmask, old;
+	unsigned int mask, mmask, old, new;
 	thread_t *t;
 
 	GETFROMSTACK(ustack, unsigned int, mask, 0U);
@@ -1037,7 +999,14 @@ unsigned int syscalls_signalMask(u8 *ustack)
 	t = proc_current();
 
 	old = t->sigmask;
-	t->sigmask = (mask & mmask) | (t->sigmask & ~mmask);
+	new = (mask & mmask) | (old & ~mmask);
+
+	/* POSIX: It is not possible to block those signals which cannot be ignored.
+	 * This shall be enforced by the system without causing an error to be indicated.
+	 */
+	new &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
+
+	t->sigmask = new;
 
 	return old;
 }
@@ -1921,11 +1890,11 @@ void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
 
 	trace_eventSyscallExit(n, tid);
 
+	threads_setupUserReturn(retval, ctx);
+
 	if (proc_current()->exit != 0U) {
 		proc_threadEnd();
 	}
-
-	threads_setupUserReturn(retval, ctx);
 
 	return retval;
 }

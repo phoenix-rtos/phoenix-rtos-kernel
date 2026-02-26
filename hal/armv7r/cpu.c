@@ -96,7 +96,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
+int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(int signo), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	const struct stackArg args[] = {
@@ -105,6 +105,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &ctx->pc, sizeof(ctx->pc) },
 		{ &signalCtx, sizeof(signalCtx) },
 		{ &oldmask, sizeof(oldmask) },
+		{ &handler, sizeof(handler) },
 		{ &n, sizeof(n) },
 	};
 
@@ -113,10 +114,10 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Program counter must be set to the address of the function" */
-	signalCtx->pc = (u32)handler & ~0x1U;
+	signalCtx->pc = (u32)trampoline & ~0x1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Checking in what processor mode code must be executed" */
-	if (((u32)handler & 0x1U) != 0U) {
+	if (((u32)trampoline & 0x1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}
 	else {
