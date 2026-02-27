@@ -1231,13 +1231,14 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	int err;
 	oid_t oid;
 	vm_object_t *object;
+	process_t *process = proc_current()->process;
 
 	err = proc_lookup(path, NULL, &oid);
 	if (err < 0) {
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid, proc_current()->process->partition);
+	err = vm_objectGet(&object, oid, (process == NULL) ? NULL : process->partition);
 	if (err < 0) {
 		return err;
 	}
@@ -1705,7 +1706,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid, current->process->partition);
+	err = vm_objectGet(&object, oid, (current->process == NULL) ? NULL : current->process->partition);
 	if (err < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);
@@ -1775,6 +1776,8 @@ void _partitionsInit(void)
 	size_t i;
 	syspage_part_t *partConfig = syspage_partitionList();
 
+	process_common.partCnt = 0;
+
 	if (partConfig == NULL) {
 		process_common.partitions = NULL;
 		return;
@@ -1785,6 +1788,7 @@ void _partitionsInit(void)
 	} while (partConfig != syspage_partitionList());
 
 	process_common.partitions = vm_kmalloc(process_common.partCnt * sizeof(partition_t));
+	LIB_ASSERT_ALWAYS(process_common.partitions != NULL, "FAILED TO kmalloc %d partitions of size %d", process_common.partCnt, sizeof(partition_t));
 	for (i = 0; i < process_common.partCnt; i++) {
 		process_common.partitions[i].config = partConfig;
 		process_common.partitions[i].usedMem = 0;

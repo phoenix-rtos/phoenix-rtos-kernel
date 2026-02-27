@@ -216,6 +216,8 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		if (amap != NULL && *amap != NULL) {
 			return vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, (*amap)->partition);
 		}
+		LIB_ASSERT_ALWAYS(0, "why does this happen?");
+		return vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, NULL);
 		return NULL;  // TODO: is it reachable?
 	}
 

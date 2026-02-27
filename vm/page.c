@@ -15,6 +15,7 @@
  */
 
 #include "hal/hal.h"
+#include "lib/assert.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "include/errno.h"
@@ -53,6 +54,7 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags, partition_t *part)
 	}
 
 	if ((part != NULL) && ((part->usedMem + (1U << start)) > part->config->availableMem)) {
+		LIB_ASSERT_ALWAYS(0, "OOM partition %x %x %x", part->usedMem, (1U << start), part->config->availableMem);
 		return NULL;
 	}
 
