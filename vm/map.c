@@ -407,7 +407,7 @@ void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_p
 }
 
 
-static void vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src, int refAnons)
+static void _vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src, int refAnons)
 {
 	hal_memcpy(dst, src, sizeof(map_entry_t));
 	src->amap = amap_ref(dst->amap);
@@ -419,9 +419,9 @@ static void vm_mapEntryCopy(map_entry_t *dst, map_entry_t *src, int refAnons)
 }
 
 
-static void vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entry_t *new, size_t len)
+static void _vm_mapEntrySplit(process_t *p, vm_map_t *m, map_entry_t *e, map_entry_t *new, size_t len)
 {
-	vm_mapEntryCopy(new, e, 0);
+	_vm_mapEntryCopy(new, e, 0);
 
 	new->vaddr += len;
 	new->size -= len;
@@ -514,7 +514,7 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 			if (s == NULL) {
 				return -ENOMEM;
 			}
-			vm_mapEntrySplit(proc, map, e, s, overlapEOffset);
+			_vm_mapEntrySplit(proc, map, e, s, overlapEOffset);
 
 			continue; /* Process in next iteration. */
 		}
@@ -920,7 +920,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 					e = buf;
 					buf = buf->next;
 
-					vm_mapEntrySplit(p, map, prev, e, (ptr_t)t.vaddr - (ptr_t)prev->vaddr);
+					_vm_mapEntrySplit(p, map, prev, e, (ptr_t)t.vaddr - (ptr_t)prev->vaddr);
 				}
 			}
 			else if ((prev->protOrig == e->protOrig) && (prev->object == e->object) && (prev->flags == e->flags)) {
@@ -939,7 +939,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 
 
 			if (lenLeft < e->size) {
-				vm_mapEntrySplit(p, map, e, buf, lenLeft);
+				_vm_mapEntrySplit(p, map, e, buf, lenLeft);
 			}
 
 			e->prot = prot;
@@ -1138,7 +1138,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			return -ENOMEM;
 		}
 
-		vm_mapEntryCopy(f, e, 1);
+		_vm_mapEntryCopy(f, e, 1);
 		(void)_map_add(proc, dst, f);
 
 		if (((e->protOrig & PROT_WRITE) != 0U) && ((e->flags & MAP_DEVICE) == 0U)) {
