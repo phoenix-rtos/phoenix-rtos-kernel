@@ -28,7 +28,7 @@
 #include "include/posix-stdio.h"
 #include "include/posix-timespec.h"
 #include "include/posix-uio.h"
-#include "sockport.h"
+#include "include/sockport.h"
 
 
 int posix_open(const char *filename, int oflag, u8 *ustack);

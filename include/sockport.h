@@ -1,9 +1,9 @@
 /*
  * Phoenix-RTOS
  *
- * libphoenix
+ * Operating system kernel
  *
- * sys/sockport.h
+ * Socket port definitions
  *
  * Copyright 2018 Phoenix Systems
  * Author: Michał Mirosław
@@ -13,11 +13,11 @@
  * %LICENSE%
  */
 
-#ifndef _PH_SYS_SOCKPORT_H_
-#define _PH_SYS_SOCKPORT_H_
+#ifndef _PH_SOCKPORT_H_
+#define _PH_SOCKPORT_H_
 
-#include "proc/msg.h"
-#include "sockdefs.h"
+#include "msg.h"
+
 
 /* clang-format off */
 enum {
@@ -25,13 +25,12 @@ enum {
 	sockmConnect, sockmBind, sockmListen, sockmAccept,
 	sockmSend, sockmRecv, sockmGetSockName, sockmGetPeerName,
 	sockmGetFl, sockmSetFl, sockmGetOpt, sockmSetOpt,
-	sockmGetNameInfo, sockmGetAddrInfo,
+	sockmGetNameInfo, sockmGetAddrInfo, sockmGetIfAddrs,
 };
 /* clang-format on */
 
-/* FIXME: min(sizeof(msg.i.raw), sizeof(msg.o.raw)) + ... */
-enum { MAX_SOCKNAME_LEN = sizeof(((msg_t *)NULL)->i.raw) - sizeof(unsigned int) /* flags */ + sizeof(size_t) /* addrlen */ };
-
+#define SOCKPORT_MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX_SOCKNAME_LEN   (SOCKPORT_MIN(sizeof(((msg_t *)NULL)->i.raw), sizeof(((msg_t *)NULL)->o.raw)) - (sizeof(unsigned int) /* flags */ + sizeof(size_t) /* addrlen */))
 
 #define PATH_SOCKSRV "/dev/netsocket"
 
@@ -68,11 +67,13 @@ typedef struct sockport_resp_ {
 			size_t servlen;
 		} nameinfo;
 		struct {
-			int errno;
+			int err;
 			size_t buflen;
 		} sys;
 	};
 } sockport_resp_t;
 
+
+#undef SOCKPORT_MIN
 
 #endif

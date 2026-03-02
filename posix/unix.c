@@ -14,6 +14,7 @@
  */
 
 #include "include/errno.h"
+#include "include/sockdefs.h"
 #include "proc/proc.h"
 #include "lib/lib.h"
 

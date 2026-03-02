@@ -20,6 +20,7 @@
 #include "include/ioctl.h"
 #include "include/limits.h"
 #include "include/posix-fcntl.h"
+#include "include/sockdefs.h"
 
 #include "proc/proc.h"
 
