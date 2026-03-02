@@ -52,9 +52,12 @@
 #define CONSOLE_BAUDRATE 115200
 #endif
 
+
+#if !ISEMPTY(UART_CONSOLE_KERNEL)
 static struct {
 	volatile u32 *uart;
 } console_common;
+#endif
 
 
 /* clang-format off */
