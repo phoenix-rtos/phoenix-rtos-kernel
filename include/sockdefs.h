@@ -1,9 +1,9 @@
 /*
  * Phoenix-RTOS
  *
- * libphoenix
+ * Operating system kernel
  *
- * sys/socket.h
+ * Socket defines
  *
  * Copyright 2018 Phoenix Systems
  * Author: Michał Mirosław
@@ -13,11 +13,14 @@
  * %LICENSE%
  */
 
-#ifndef _PH_SYS_SOCKDEFS_H_
-#define _PH_SYS_SOCKDEFS_H_
+#ifndef _PH_SOCKDEFS_H_
+#define _PH_SOCKDEFS_H_
 
 #define SOCK_NONBLOCK 0x8000U
 #define SOCK_CLOEXEC  0x4000U
 #define SOCK_LARGEBUF 0x2000U
+
+#define SOL_IPV6 41  /* IPPROTO_IPV6 */
+#define SOL_RAW  255 /* IPPROTO_RAW */
 
 #endif
