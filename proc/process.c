@@ -1157,6 +1157,8 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		proc_threadEnd();
 	}
 
+	trace_eventProcessExec(current);
+
 	hal_cpuDisableInterrupts();
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
 	hal_cpuSetGot(current->process->got);

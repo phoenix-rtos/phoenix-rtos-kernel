@@ -194,3 +194,14 @@ event {
 		u16 pid;
 	};
 };
+
+event {
+	name = process_exec;
+	id = 0x33;
+	fields := struct {
+		u16 pid;
+		u16 tid;
+		u8 prio;
+		str name[128];
+	};
+};
