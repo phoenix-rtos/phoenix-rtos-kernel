@@ -153,13 +153,15 @@ typedef struct _msg_t {
 typedef struct {
 	/* could be a POSIX-y message type or custom */
 	int label;
+	unsigned int pid;
 
 	int err;
 	size_t size;
 
 	union {
-		/* OPEN/CLOSE */
+		/* OPEN/CLOSE/DESTROY */
 		struct {
+			oid_t oid;
 			int flags;
 		} openclose;
 
@@ -173,6 +175,7 @@ typedef struct {
 
 		/* CREATE */
 		struct {
+			oid_t oid;
 			int type;
 			unsigned mode;
 			oid_t dev;
@@ -180,19 +183,36 @@ typedef struct {
 
 		/* SETATTR/GETATTR */
 		struct {
+			oid_t oid;
 			long long val;
 			int type;
+			size_t size;
+			unsigned char data[];
 		} attr;
 
 		/* LINK/UNLINK */
 		struct {
 			oid_t oid;
+			oid_t toid;
 		} ln;
 
 		/* READDIR */
 		struct {
+			oid_t oid;
 			off_t offs;
 		} readdir;
+
+		struct {
+			oid_t oid;
+			unsigned char raw[64 - sizeof(oid_t)];
+		} devctl;
+
+		/* LOOKUP */
+		struct {
+			oid_t oid;
+			oid_t fil;
+			oid_t dev;
+		} lookup;
 
 		unsigned char raw[64];
 	};

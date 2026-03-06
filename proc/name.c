@@ -18,8 +18,13 @@
 #include "lib/lib.h"
 #include "proc.h"
 
+/* TODO: TEMPORARY */
+#include "log/log.h"
+
 #define HASH_LEN 5 /* Number of entries in dcache = 2 ^ HASH_LEN */
 
+
+#define WARN_ON_OLD_API LIB_ASSERT(0, "!!!!! %s", __FUNCTION__)
 
 typedef struct _dcache_entry_t {
 	struct _dcache_entry_t *next;
@@ -224,6 +229,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		hal_memcpy(pptr, name + i + 1, len - i);
 		msg->i.data = pptr;
 
+		WARN_ON_OLD_API;
 		if ((err = proc_send(srv.port, msg)) < 0)
 			break;
 
@@ -259,6 +265,158 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 		file->id = 0;
 
 	return proc_portLookup((char *)name, file, dev);
+}
+
+
+int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
+{
+	WARN_ON_OLD_API;
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL)
+		return -ENOMEM;
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtCreate;
+	msg->i.create.type = type;
+	msg->i.create.mode = mode;
+	hal_memcpy(&msg->i.create.dev, &dev, sizeof(dev));
+	hal_memcpy(&msg->oid, &dir, sizeof(dir));
+	msg->i.data = name;
+	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
+
+	err = proc_send(port, msg);
+
+	if (err == 0) {
+		err = msg->o.err;
+	}
+
+	hal_memcpy(oid, &msg->o.create.oid, sizeof(oid_t));
+	vm_kfree(msg);
+	return err;
+}
+
+
+int proc_link(oid_t dir, oid_t oid, const char *name)
+{
+	WARN_ON_OLD_API;
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL)
+		return -ENOMEM;
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtLink;
+	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
+	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
+
+	msg->i.size = hal_strlen(name) + 1;
+	msg->i.data = (char *)name;
+
+	err = proc_send(dir.port, msg);
+
+	if (err == 0) {
+		err = msg->o.err;
+	}
+
+	vm_kfree(msg);
+	return err;
+}
+
+
+int proc_unlink(oid_t dir, oid_t oid, const char *name)
+{
+	WARN_ON_OLD_API;
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL)
+		return -ENOMEM;
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtUnlink;
+	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
+	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
+
+	msg->i.size = hal_strlen(name) + 1;
+	msg->i.data = (char *)name;
+
+	err = proc_send(dir.port, msg);
+
+	if (err == 0) {
+		err = msg->o.err;
+	}
+
+	vm_kfree(msg);
+	return err;
+}
+
+#define NEW_API 1
+
+
+#if !NEW_API
+int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL)
+		return -ENOMEM;
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtRead;
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+	msg->i.io.offs = offs;
+	msg->i.io.len = 0;
+	msg->i.io.mode = mode;
+
+	msg->o.size = sz;
+	msg->o.data = buf;
+
+	err = proc_send(oid.port, msg);
+
+	if (err >= 0) {
+		err = msg->o.err;
+	}
+
+	vm_kfree(msg);
+	return err;
+}
+
+
+int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL)
+		return -ENOMEM;
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtWrite;
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+	msg->i.io.offs = offs;
+	msg->i.io.len = 0;
+	msg->i.io.mode = mode;
+
+	msg->i.size = sz;
+	msg->i.data = buf;
+
+	err = proc_send(oid.port, msg);
+
+	if (err >= 0) {
+		err = msg->o.err;
+	}
+
+	vm_kfree(msg);
+	return err;
 }
 
 
@@ -312,125 +470,12 @@ int proc_close(oid_t oid, unsigned mode)
 }
 
 
-int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
-{
-	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
-
-	if (msg == NULL)
-		return -ENOMEM;
-
-	hal_memset(msg, 0, sizeof(msg_t));
-
-	msg->type = mtCreate;
-	msg->i.create.type = type;
-	msg->i.create.mode = mode;
-	hal_memcpy(&msg->i.create.dev, &dev, sizeof(dev));
-	hal_memcpy(&msg->oid, &dir, sizeof(dir));
-	msg->i.data = name;
-	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
-
-	err = proc_send(port, msg);
-
-	if (err == 0) {
-		err = msg->o.err;
-	}
-
-	hal_memcpy(oid, &msg->o.create.oid, sizeof(oid_t));
-	vm_kfree(msg);
-	return err;
-}
-
-
-int proc_link(oid_t dir, oid_t oid, const char *name)
-{
-	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
-
-	if (msg == NULL)
-		return -ENOMEM;
-
-	hal_memset(msg, 0, sizeof(msg_t));
-
-	msg->type = mtLink;
-	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
-	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
-
-	msg->i.size = hal_strlen(name) + 1;
-	msg->i.data = (char *)name;
-
-	err = proc_send(dir.port, msg);
-
-	if (err == 0) {
-		err = msg->o.err;
-	}
-
-	vm_kfree(msg);
-	return err;
-}
-
-
-int proc_unlink(oid_t dir, oid_t oid, const char *name)
-{
-	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
-
-	if (msg == NULL)
-		return -ENOMEM;
-
-	hal_memset(msg, 0, sizeof(msg_t));
-
-	msg->type = mtUnlink;
-	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
-	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
-
-	msg->i.size = hal_strlen(name) + 1;
-	msg->i.data = (char *)name;
-
-	err = proc_send(dir.port, msg);
-
-	if (err == 0) {
-		err = msg->o.err;
-	}
-
-	vm_kfree(msg);
-	return err;
-}
-
-
-// int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
-// {
-// 	int err;
-// 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
-//
-// 	if (msg == NULL)
-// 		return -ENOMEM;
-//
-// 	hal_memset(msg, 0, sizeof(msg_t));
-//
-// 	msg->type = mtRead;
-// 	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-// 	msg->i.io.offs = offs;
-// 	msg->i.io.len = 0;
-// 	msg->i.io.mode = mode;
-//
-// 	msg->o.size = sz;
-// 	msg->o.data = buf;
-//
-// 	err = proc_send(oid.port, msg);
-//
-// 	if (err >= 0) {
-// 		err = msg->o.err;
-// 	}
-//
-// 	vm_kfree(msg);
-// 	return err;
-// }
-
+#else
 
 int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 {
-	int err;
+	lib_debug_printf("%s (%zu, %p, %zu, %d)\n", __FUNCTION__, offs, buf, sz, mode);
+
 	thread_t *t = proc_current();
 
 	(void)proc_initMsgBuf();
@@ -442,48 +487,70 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	t->utcb.kw->io.len = 0;
 	t->utcb.kw->io.mode = mode;
 
-	err = proc_callWithBuffer(oid.port, buf, sz);
-
-	if (err >= 0) {
-		err = t->utcb.kw->err;
-	}
-
-	return err;
+	return proc_callWithBuffer(oid.port, buf, sz);
 }
 
 
 int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 {
-	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	lib_debug_printf("%s (buf=%p)\n", __FUNCTION__, buf);
 
-	if (msg == NULL)
-		return -ENOMEM;
+	// for (int i = 0; i < sz; i++) {
+	// 	lib_debug_printf("%c", *((char *)buf + i));
+	// }
 
-	hal_memset(msg, 0, sizeof(msg_t));
+	thread_t *t = proc_current();
 
-	msg->type = mtWrite;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-	msg->i.io.offs = offs;
-	msg->i.io.len = 0;
-	msg->i.io.mode = mode;
+	(void)proc_initMsgBuf();
 
-	msg->i.size = sz;
-	msg->i.data = buf;
+	t->utcb.kw->label = mtWrite;
+	hal_memcpy(&t->utcb.kw->io.oid, &oid, sizeof(oid_t));
 
-	err = proc_send(oid.port, msg);
+	t->utcb.kw->io.offs = offs;
+	t->utcb.kw->io.len = 0;
+	t->utcb.kw->io.mode = mode;
 
-	if (err >= 0) {
-		err = msg->o.err;
-	}
-
-	vm_kfree(msg);
-	return err;
+	return proc_callWithBuffer(oid.port, buf, sz);
 }
+
+int proc_open(oid_t oid, unsigned mode)
+{
+	lib_debug_printf("%s\n", __FUNCTION__);
+
+	thread_t *t = proc_current();
+
+	(void)proc_initMsgBuf();
+
+	t->utcb.kw->label = mtOpen;
+	hal_memcpy(&t->utcb.kw->openclose.oid, &oid, sizeof(oid_t));
+	t->utcb.kw->openclose.flags = mode;
+
+	return proc_call(oid.port);
+}
+
+
+int proc_close(oid_t oid, unsigned mode)
+{
+	lib_debug_printf("%s\n", __FUNCTION__);
+
+	thread_t *t = proc_current();
+
+	(void)proc_initMsgBuf();
+
+	t->utcb.kw->label = mtClose;
+	hal_memcpy(&t->utcb.kw->openclose.oid, &oid, sizeof(oid_t));
+	t->utcb.kw->openclose.flags = mode;
+
+	return proc_call(oid.port);
+}
+
+#endif
 
 
 off_t proc_size(oid_t oid)
 {
+	WARN_ON_OLD_API;
+
 	off_t err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 

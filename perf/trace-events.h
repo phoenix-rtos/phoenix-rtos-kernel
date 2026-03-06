@@ -216,7 +216,7 @@ static inline void trace_eventThreadCreate(const thread_t *t)
 		}
 		else {
 			ev.pid = 0;
-			hal_memcpy(ev.name, "[kthr]", sizeof("[kthr]"));
+			hal_memcpy(ev.name, "[kernel]", sizeof("[kernel]"));
 		}
 	});
 }

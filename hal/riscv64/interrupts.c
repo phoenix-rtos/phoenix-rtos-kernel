@@ -278,7 +278,7 @@ void _hal_interruptsTrace(int enable)
 }
 
 
-__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx)
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
 {
 	asm volatile(
 			"mv sp, %0\n\t"

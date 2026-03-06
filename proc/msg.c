@@ -348,6 +348,29 @@ static int msg_opack(kmsg_t *kmsg)
 }
 
 
+static cpu_context_t *_getUserContext(thread_t *thread)
+{
+	if (thread->process != NULL) {
+		// if (hal_cpuSupervisorMode(thread->context) == 0) {
+		return (cpu_context_t *)((char *)thread->kstack + thread->kstacksz - sizeof(cpu_context_t));
+	}
+	else {
+		return thread->context;
+	}
+}
+
+static void track_deprecated_msg(const char *func)
+{
+	thread_t *sender = proc_current();
+	char name[26];
+	if (sender->process != NULL) {
+		process_getName(sender->process, name, sizeof(name));
+	}
+
+	LIB_ASSERT(0, "%s called %s %p %p", func, name, _getUserContext(sender)->sepc, _getUserContext(sender)->ra);
+}
+
+
 int proc_send(u32 port, msg_t *msg)
 {
 	port_t *p;
@@ -356,11 +379,14 @@ int proc_send(u32 port, msg_t *msg)
 	thread_t *sender;
 	spinlock_ctx_t sc;
 
+	track_deprecated_msg(__FUNCTION__);
+
 #if PERF_IPC
-	u64 tscs[TSCS_SIZE] = { 0 };
+	u64 tscs[TSCS_SIZE];
 	u64 currTsc;
 	u16 tid = proc_getTid(proc_current());
 	size_t step = 0;
+	hal_memset(tscs, 0, TSCS_SIZE);
 #endif
 
 	/* TODO - check if msg pointer belongs to user vm_map */
@@ -398,6 +424,13 @@ int proc_send(u32 port, msg_t *msg)
 	hal_spinlockSet(&p->spinlock, &sc);
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+
+	if (p->fpThreads != NULL) {
+		char buf[128];
+		process_getName(sender->process, buf, 128);
+		/* TODO: return err instead to provoke userspace errors */
+		LIB_ASSERT(0, "attempted to proc_send to new API thread, tid=%d (%s)", proc_getTid(sender), buf);
+	}
 
 	if (p->closed != 0) {
 		err = -EINVAL;
@@ -471,11 +504,14 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	int ipacked = 0, opacked = 0, err = EOK;
 	spinlock_ctx_t sc;
 
+	track_deprecated_msg(__FUNCTION__);
+
 #if PERF_IPC
-	u64 tscs[TSCS_SIZE] = { 0 };
+	u64 tscs[TSCS_SIZE];
 	u64 currTsc;
 	u16 tid = proc_getTid(proc_current());
 	size_t step = 0;
+	hal_memset(tscs, 0, TSCS_SIZE);
 #endif
 
 	p = proc_portGet(port);
@@ -484,6 +520,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
+
+	LIB_ASSERT(p->queue.nonempty == 0, "old recv new send");
 
 	while ((p->kmessages == NULL) && (p->closed == 0) && (err != -EINTR)) {
 		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0, &sc);
@@ -608,11 +646,14 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
 
+	track_deprecated_msg(__FUNCTION__);
+
 #if PERF_IPC
-	u64 tscs[TSCS_SIZE] = { 0 };
+	u64 tscs[TSCS_SIZE];
 	u64 currTsc;
 	u16 tid = proc_getTid(proc_current());
 	size_t step = 0;
+	hal_memset(tscs, 0, TSCS_SIZE);
 #endif
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
@@ -698,7 +739,7 @@ msgBuf_t *proc_initMsgBuf(void)
 		return t->utcb.w;
 	}
 
-	map = &t->process->map;
+	map = (t->process == NULL) ? msg_common.kmap : t->process->mapp;
 
 	prot = PROT_WRITE | PROT_READ | PROT_USER;
 	flags = MAP_NOINHERIT;

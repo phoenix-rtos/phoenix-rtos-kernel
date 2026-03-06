@@ -36,7 +36,7 @@
 typedef struct _log_rmsg_t {
 	void *odata;
 	oid_t oid;
-	unsigned long rid;
+	void *reply;
 	size_t osize;
 	struct _log_rmsg_t *prev, *next;
 } log_rmsg_t;
@@ -125,21 +125,20 @@ static ssize_t _log_readln(log_reader_t *r, char *buf, size_t sz)
 static void _log_msgRespond(log_reader_t *r, ssize_t err)
 {
 	log_rmsg_t *rmsg;
-	msg_t msg;
+	msgBuf_t *msg = proc_initMsgBuf();
 
 	rmsg = r->msgs;
 	LIST_REMOVE(&r->msgs, rmsg);
 
-	msg.i.data = NULL;
-	msg.i.size = 0;
+	msg->label = mtRead;
+	msg->pid = r->pid;
 
-	msg.type = mtRead;
-	msg.pid = r->pid;
-	msg.o.data = rmsg->odata;
-	msg.o.size = rmsg->osize;
-	msg.o.err = err;
+	// Not needed?
+	// msg->buf = rmsg->odata;
+	// msg->bufsize = rmsg->osize;
+	msg->err = err;
 
-	proc_respond(rmsg->oid.port, &msg, rmsg->rid);
+	proc_respond2(rmsg->oid.port, rmsg->reply);
 
 	vm_kfree(rmsg);
 }
@@ -282,7 +281,7 @@ static void _log_readersUpdate(void)
 }
 
 
-static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, unsigned long rid)
+static int log_readerBlock(log_reader_t *r, void *odata, size_t osize, oid_t oid, void *reply)
 {
 	log_rmsg_t *rmsg;
 
@@ -291,9 +290,9 @@ static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, unsigned long
 		return -ENOMEM;
 	}
 
-	rmsg->odata = msg->o.data;
-	rmsg->osize = msg->o.size;
-	rmsg->rid = rid;
+	rmsg->odata = odata;
+	rmsg->osize = osize;
+	rmsg->reply = reply;
 	rmsg->oid = oid;
 
 	proc_lockSet(&log_common.lock);
@@ -329,6 +328,16 @@ static int log_devctl(msg_t *msg)
 }
 
 
+static int log_devctl2(msgBuf_t *msg)
+{
+	/*
+	 * We need to handle isatty(), which
+	 * only checks if a device responds to TCGETS
+	 */
+	return (((ioctl_in_t *)msg->raw)->request == TCGETS) ? EOK : -EINVAL;
+}
+
+
 void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 {
 	log_reader_t *r;
@@ -351,7 +360,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			else {
 				msg->o.err = log_read(r, msg->o.data, msg->o.size);
 				if ((msg->o.err == 0) && (r->nonblocking == 0)) {
-					msg->o.err = log_readerBlock(r, msg, oid, rid);
+					msg->o.err = log_readerBlock(r, msg->o.data, msg->o.size, oid, (void *)rid);
 					if (msg->o.err == EOK) {
 						respond = 0;
 					}
@@ -380,6 +389,68 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 
 	if (respond == 1) {
 		proc_respond(oid.port, msg, rid);
+	}
+}
+
+
+void log_msgHandler2(msgBuf_t *msg, oid_t oid, void *reply)
+{
+	log_reader_t *r;
+	int respond = 1;
+
+	lib_debug_printf("log_msgHandler2 label=%d buf=%p bufsize=%zu\n", msg->label, msg->buf, msg->bufsize);
+	lib_debug_printf("[");
+	for (int i = 0; i < msg->bufsize; i++) {
+		lib_debug_printf("%c", *((char *)msg->buf + i));
+	}
+	lib_debug_printf("]\n");
+
+	switch (msg->label) {
+		case mtOpen:
+			if (msg->openclose.flags & O_WRONLY) {
+				msg->err = EOK;
+			}
+			else {
+				msg->err = log_readerAdd(msg->pid, msg->openclose.flags & O_NONBLOCK);
+			}
+			break;
+		case mtRead:
+			r = log_readerFind(msg->pid);
+			if (r == NULL) {
+				msg->err = -EINVAL;
+			}
+			else {
+				msg->err = log_read(r, msg->buf, msg->bufsize);
+				if ((msg->err == 0) && (r->nonblocking == 0)) {
+					msg->err = log_readerBlock(r, msg->buf, msg->bufsize, msg->io.oid, reply);
+					if (msg->err == EOK) {
+						respond = 0;
+					}
+				}
+				else if ((msg->err == 0) && (r->nonblocking != 0)) {
+					msg->err = -EAGAIN;
+				}
+				log_readerPut(&r);
+			}
+			break;
+		case mtWrite:
+			msg->err = log_write(msg->buf, msg->bufsize);
+			log_scrub();
+			break;
+		case mtClose:
+			log_close(msg->pid);
+			msg->err = 0;
+			break;
+		case mtDevCtl:
+			msg->err = log_devctl2(msg);
+			break;
+		default:
+			msg->err = -EINVAL;
+			break;
+	}
+
+	if (respond == 1) {
+		proc_respond2(oid.port, reply);
 	}
 }
 
@@ -457,6 +528,12 @@ void log_scrubTry(void)
 void log_disable(void)
 {
 	log_common.enabled = 0;
+}
+
+
+void log_enable(void)
+{
+	// log_common.enabled = 1;
 }
 
 

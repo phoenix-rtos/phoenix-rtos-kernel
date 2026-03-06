@@ -1694,6 +1694,61 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 }
 
 
+static void *ioctl_pack2(msgBuf_t *msg, unsigned long request, void *data, oid_t *oid, size_t *rsize)
+{
+	size_t size = IOCPARM_LEN(request);
+	ioctl_in_t *ioctl = (ioctl_in_t *)msg->raw;
+	struct ifconf *ifc;
+	struct rtentry *rt;
+	void *rdata = NULL;
+
+	hal_memcpy(&msg->devctl.oid, oid, sizeof(*oid));
+	msg->label = mtDevCtl;
+
+	*rsize = 0;
+
+	ioctl->request = request;
+
+	if ((request & IOC_INOUT) != 0) {
+		if ((request & IOC_IN) != 0) {
+			if (size <= (sizeof(msg->devctl.raw) - sizeof(ioctl_in_t))) {
+				hal_memcpy(ioctl->data, data, size);
+			}
+			else {
+				rdata = data;
+				*rsize = size;
+			}
+		}
+
+		if (((request & IOC_OUT) != 0) && (size > sizeof(msg->devctl.raw))) {
+			rdata = data;
+			*rsize = size;
+		}
+	}
+	else if (size > 0) {
+		/* the data is passed by value instead of pointer */
+		size = min(size, sizeof(void *));
+		hal_memcpy(ioctl->data, &data, size);
+	}
+
+	/* ioctl special case: arg is structure with pointer - has to be custom-packed into message */
+	if (request == SIOCGIFCONF) {
+		ifc = (struct ifconf *)data;
+		rdata = ifc->ifc_buf;
+		*rsize = ifc->ifc_len;
+	}
+	else if ((request == SIOCADDRT) || (request == SIOCDELRT)) {
+		rt = (struct rtentry *)data;
+		if (rt->rt_dev != NULL) {
+			rdata = rt->rt_dev;
+			*rsize = hal_strlen(rt->rt_dev) + 1;
+		}
+	}
+
+	return rdata;
+}
+
+
 int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 {
 	size_t size = IOCPARM_LEN(request);
@@ -1715,14 +1770,40 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 }
 
 
+int ioctl_processResponse2(const msgBuf_t *msg, unsigned long request, void *data)
+{
+	size_t size = IOCPARM_LEN(request);
+	int err;
+	struct ifconf *ifc;
+
+	err = msg->err;
+
+	if (((request & IOC_OUT) != 0) && (size <= sizeof(msg->devctl.raw))) {
+		hal_memcpy(data, msg->devctl.raw, size);
+	}
+
+	if (request == SIOCGIFCONF) { /* restore overridden userspace pointer */
+		ifc = (struct ifconf *)data;
+		ifc->ifc_buf = msg->buf;
+	}
+
+	return err;
+}
+
+
 int posix_ioctl(int fildes, unsigned long request, char *ustack)
 {
 	TRACE("ioctl(%d, %d)", fildes, request);
 
 	open_file_t *f;
 	int err;
-	msg_t msg;
 	void *data = NULL;
+	void *rdata = NULL;
+	size_t rlen = 0;
+
+	thread_t *t = proc_current();
+
+	(void)proc_initMsgBuf();
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err == 0) {
@@ -1733,11 +1814,12 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 					GETFROMSTACK(ustack, void *, data, 2);
 				}
 
-				ioctl_pack(&msg, request, data, &f->oid);
+				(void)ioctl_pack;
+				rdata = ioctl_pack2(t->utcb.kw, request, data, &f->oid, &rlen);
 
-				err = proc_send(f->oid.port, &msg);
+				err = proc_callWithBuffer(f->oid.port, rdata, rlen);
 				if (err == EOK) {
-					err = ioctl_processResponse(&msg, request, data);
+					err = ioctl_processResponse2(t->utcb.kw, request, data);
 				}
 		}
 
@@ -2830,7 +2912,7 @@ void posix_died(pid_t pid, int exit)
 
 	if (adopted != 0) {
 		LIB_ASSERT(LIST_BELONGS(&init->children, pinfo) != 0,
-			"zombie's neither parent nor init child, pid: %d, ppid: %d", pid, pinfo->parent);
+				"zombie's neither parent nor init child, pid: %d, ppid: %d", pid, pinfo->parent);
 		/* We were adopted by the init at some point */
 		LIST_REMOVE(&init->children, pinfo);
 		LIST_ADD(&zombies, pinfo);

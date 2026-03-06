@@ -19,6 +19,8 @@
 #include "log/log.h"
 #include "include/ioctl.h"
 
+#include "lib/lib.h"
+
 #include "proc/threads.h"
 #include "proc/msg.h"
 #include "proc/ports.h"
@@ -34,27 +36,27 @@ static struct {
 
 static void usrv_msgthr(void *arg)
 {
-	msg_t msg;
-	msg_rid_t rid;
 	oid_t oid = usrv_common.oid;
 
+	msgBuf_t *msg = proc_initMsgBuf();
+	LIB_ASSERT(msg != NULL, "heh");
+
+	void *reply;
+
 	for (;;) {
-		if (proc_recv(oid.port, &msg, &rid) != 0) {
+		// lib_debug_printf("waiting for msg, oid.port=%d\n", oid.port);
+
+		reply = proc_recv2(oid.port);
+
+		// lib_debug_printf("got msg!\n");
+
+		if (reply == NULL) {
+			lib_debug_printf("null?\n");
 			continue;
 		}
 
-		oid.id = msg.oid.id;
-
-		switch (oid.id) {
-			case USRV_ID_LOG:
-				log_msgHandler(&msg, oid, rid);
-				break;
-
-			default:
-				msg.o.err = -ENOSYS;
-				proc_respond(oid.port, &msg, rid);
-				break;
-		}
+		/* TODO: handle bad oids? */
+		log_msgHandler2(msg, oid, reply);
 	}
 }
 

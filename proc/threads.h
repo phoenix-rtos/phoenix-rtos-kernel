@@ -73,6 +73,20 @@ typedef struct {
 } prio_queue_t;
 
 
+typedef struct {
+	void *bvaddr;
+	u64 boffs;
+	void *w;
+	page_t *bp;
+
+	void *evaddr;
+	u64 eoffs;
+	page_t *ep;
+
+	size_t sz;
+} ipc_buf_layout_t;
+
+
 typedef struct _thread_t {
 	struct _thread_t *msgnext;
 	struct _thread_t *msgprev;
@@ -139,6 +153,7 @@ typedef struct _thread_t {
 		page_t *p;
 		msgBuf_t *w;
 		msgBuf_t *kw;
+		ipc_buf_layout_t il;
 	} utcb;
 
 	/* Message buffer */
