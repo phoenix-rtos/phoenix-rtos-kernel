@@ -174,8 +174,9 @@ static int process_alloc(process_t *process)
 }
 
 
-int proc_start(startFn_t start, void *arg, const char *path)
+int proc_start(startFn_t start, void *arg, const char *path, syspage_part_t *partition)
 {
+	int err = EOK;
 	process_t *process;
 	process = vm_kmalloc(sizeof(process_t));
 	if (process == NULL) {
@@ -202,6 +203,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ghosts = NULL;
 	process->reaper = NULL;
 	process->refs = 1;
+	process->partition = partition;
 
 	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
@@ -228,9 +230,10 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	_resource_init(process);
 	(void)process_alloc(process);
 
-	if (proc_threadCreate(process, start, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg) < 0) {
+	err = proc_threadCreate(process, start, NULL, 4, SIZE_KSTACK, NULL, 0, (void *)arg);
+	if (err < 0) {
 		(void)proc_put(process);
-		return -EINVAL;
+		return err;
 	}
 
 	return process_getPid(process);
@@ -1081,9 +1084,8 @@ static void *process_putargs(void *stack, char ***argsp, int *count)
 static void process_exec(thread_t *current, process_spawn_t *spawn)
 {
 	void *stack, *entry = NULL;
-	int err = 0, count;
+	int err = EOK, count;
 	void *cleanupFn = NULL;
-	unsigned int i = 0;
 	spinlock_ctx_t sc;
 	const struct stackArg args[] = {
 		{ &spawn->envp, sizeof(spawn->envp) },
@@ -1096,41 +1098,22 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	current->process->envp = spawn->envp;
 
 #ifndef NOMMU
-	(void)vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
-	proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
-	(void)i;
+	err = vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
+	if (err == EOK) {
+		proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
+	}
 #else
-	(void)pmap_create(&current->process->map.pmap, NULL, NULL, NULL);
+	(void)pmap_create(&current->process->map.pmap, NULL, NULL, spawn->prog, NULL);
 	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
 	current->process->entries = NULL;
-
-	if (spawn->prog != NULL) {
-		/* Add instruction maps */
-		for (i = 0; i < spawn->prog->imapSz; ++i) {
-			if (err != 0) {
-				break;
-			}
-			err = pmap_addMap(current->process->pmapp, spawn->prog->imaps[i]);
-		}
-
-		/* Add data/io maps */
-		for (i = 0; i < spawn->prog->dmapSz; ++i) {
-			if (err != 0) {
-				break;
-			}
-			err = pmap_addMap(current->process->pmapp, spawn->prog->dmaps[i]);
-		}
-	}
 #endif
 
-	pmap_switch(current->process->pmapp);
-
-	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "err may be != 0 on NOMMU" */
-	if (err == 0) {
+	if (err == EOK) {
+		pmap_switch(current->process->pmapp);
 		err = process_load(current->process, spawn->object, spawn->offset, spawn->size, &stack, &entry);
 	}
 
-	if (err == 0) {
+	if (err == EOK) {
 		stack = process_putargs(stack, &spawn->envp, &count);
 		stack = process_putargs(stack, &spawn->argv, &count);
 		hal_stackPutArgs(&stack, sizeof(args) / sizeof(args[0]), args);
@@ -1152,10 +1135,12 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
 	}
 
-	if (err != 0) {
+	if (err != EOK) {
 		current->process->exit = err;
 		proc_threadEnd();
 	}
+
+	trace_eventProcessExec(current);
 
 	hal_cpuDisableInterrupts();
 	_hal_cpuSetKernelStack(current->kstack + current->kstacksz);
@@ -1189,6 +1174,23 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 	int pid;
 	process_spawn_t spawn;
 	spinlock_ctx_t sc;
+	syspage_part_t *part;
+
+	if (prog != NULL) {
+		part = prog->partition;
+	}
+	else if ((proc_current()->process != NULL) && (proc_current()->process->partition != NULL)) {
+		part = proc_current()->process->partition;
+	}
+	else {
+		part = NULL;
+	}
+	if ((proc_current()->process != NULL) &&
+			(proc_current()->process->partition != NULL) &&
+			((proc_current()->process->partition->flags & (unsigned int)pFlagSpawnAll) == 0U) &&
+			(proc_current()->process->partition != part)) {
+		return -EACCES;
+	}
 
 	if (argv != NULL) {
 		argv = proc_copyargs(argv);
@@ -1219,7 +1221,7 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 
 	hal_spinlockCreate(&spawn.sl, "spawnsl");
 
-	pid = proc_start(proc_spawnThread, &spawn, path);
+	pid = proc_start(proc_spawnThread, &spawn, path, part);
 	if (pid > 0) {
 		hal_spinlockSet(&spawn.sl, &sc);
 		while (spawn.state == FORKING) {
@@ -1243,13 +1245,14 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 	int err;
 	oid_t oid;
 	vm_object_t *object;
+	process_t *process = proc_current()->process;
 
 	err = proc_lookup(path, NULL, &oid);
 	if (err < 0) {
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, (process == NULL) ? NULL : process->partition);
 	if (err < 0) {
 		return err;
 	}
@@ -1470,7 +1473,7 @@ int proc_vfork(void)
 	spawn->parent = current;
 	spawn->prog = NULL;
 
-	pid = proc_start(process_vforkThread, spawn, NULL);
+	pid = proc_start(process_vforkThread, spawn, NULL, (current->process != NULL) ? current->process->partition : NULL);
 	if (pid < 0) {
 		hal_spinlockDestroy(&spawn->sl);
 		vm_kfree(spawn);
@@ -1522,7 +1525,9 @@ static int process_copy(void)
 	/* Avoid ustack access while map is invalid */
 	current->ustack = NULL;
 
-	(void)vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop);
+	if (vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop) < 0) {
+		return -ENOMEM;
+	}
 
 	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0) {
 		return -ENOMEM;
@@ -1717,7 +1722,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, (current->process == NULL) ? NULL : current->process->partition);
 	if (err < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);

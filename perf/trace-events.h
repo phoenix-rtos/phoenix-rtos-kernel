@@ -45,6 +45,7 @@ enum {
 	TRACE_EVENT_LOCK_CLEAR = 0x30,
 	TRACE_EVENT_THREAD_PRIORITY = 0x31,
 	TRACE_EVENT_PROCESS_KILL = 0x32,
+	TRACE_EVENT_PROCESS_EXEC = 0x33,
 };
 
 
@@ -199,7 +200,7 @@ static inline void trace_eventThreadWaking(int tid)
 }
 
 
-static inline void trace_eventThreadCreate(const thread_t *t)
+static inline void trace_eventThreadMeta(u8 id, const thread_t *t)
 {
 	struct {
 		u16 pid;
@@ -208,7 +209,7 @@ static inline void trace_eventThreadCreate(const thread_t *t)
 		char name[128];
 	} __attribute__((packed)) ev;
 
-	TRACE_META_BODY(TRACE_EVENT_THREAD_CREATE, ev, NULL, {
+	TRACE_META_BODY(id, ev, NULL, {
 		ev.tid = (u16)proc_getTid(t);
 		ev.priority = (u8)t->priority;
 
@@ -221,6 +222,12 @@ static inline void trace_eventThreadCreate(const thread_t *t)
 			hal_memcpy(ev.name, "[kernel]", sizeof("[kernel]"));
 		}
 	});
+}
+
+
+static inline void trace_eventThreadCreate(const thread_t *t)
+{
+	trace_eventThreadMeta(TRACE_EVENT_THREAD_CREATE, t);
 }
 
 
@@ -302,6 +309,12 @@ static inline void trace_eventProcessKill(const process_t *p)
 	TRACE_EVENT_BODY(TRACE_EVENT_PROCESS_KILL, pid, NULL, {
 		pid = (u16)process_getPid(p);
 	});
+}
+
+
+static inline void trace_eventProcessExec(const thread_t *t)
+{
+	trace_eventThreadMeta(TRACE_EVENT_PROCESS_EXEC, t);
 }
 
 
