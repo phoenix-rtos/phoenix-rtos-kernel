@@ -624,11 +624,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 
 	for (w = vaddr; w < vaddr + size; w += SIZE_PAGE) {
 		if (_map_force(map, e, w, prot) != 0) {
-			amap_putanons(e->amap, e->aoffs, (ptr_t)w - (ptr_t)vaddr);
-
-			(void)pmap_remove(&map->pmap, vaddr, (void *)((ptr_t)w + SIZE_PAGE));
-
-			_entry_put(map, e);
+			(void)_vm_munmap(map, vaddr, size);
 			return NULL;
 		}
 	}
