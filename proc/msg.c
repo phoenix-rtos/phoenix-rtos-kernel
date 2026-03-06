@@ -779,6 +779,9 @@ msgBuf_t *proc_initMsgBuf(void)
 
 	t->utcb.kw->err = 0;
 
+	t->utcb.kw->buf = NULL;
+	t->utcb.kw->bufsize = 0;
+
 	return vaddr;
 }
 

@@ -815,25 +815,6 @@ int syscalls_msgCall(void *ustack)
 }
 
 
-int syscalls_msgCallWithBuffer(void *ustack)
-{
-	process_t *proc = proc_current()->process;
-	u32 port;
-	void *buf;
-	size_t bufsz;
-
-	GETFROMSTACK(ustack, u32, port, 0);
-	GETFROMSTACK(ustack, void *, buf, 1);
-	GETFROMSTACK(ustack, size_t, bufsz, 2);
-
-	if (vm_mapBelongs(proc, buf, bufsz) < 0) {
-		return -EFAULT;
-	}
-
-	return proc_callWithBuffer(port, buf, bufsz);
-}
-
-
 int syscalls_msgRecv(void *ustack)
 {
 	process_t *proc = proc_current()->process;
@@ -2003,7 +1984,7 @@ void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx)
 
 	trace_eventSyscallEnter(n, tid);
 
-	if ((n >= syscall_sys_read && n <= syscall_sys_close) || (n >= syscall_msgCall && n <= syscall_msgCallWithBuffer)) {
+	if ((n >= syscall_sys_read && n <= syscall_sys_close) || (n >= syscall_msgCall && n <= syscall_msgRespond2)) {
 		lib_debug_printf("DISPATCH: %s (tid=%d, context addr=%p, user sp=%p, sepc=%p)\n", syscall_strings[n], tid, ctx, ctx->sp, ctx->sepc);
 		// LIB_ASSERT(0, "e");
 	}

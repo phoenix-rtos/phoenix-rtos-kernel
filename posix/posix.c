@@ -1817,7 +1817,10 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 				(void)ioctl_pack;
 				rdata = ioctl_pack2(t->utcb.kw, request, data, &f->oid, &rlen);
 
-				err = proc_callWithBuffer(f->oid.port, rdata, rlen);
+				t->utcb.kw->buf = rdata;
+				t->utcb.kw->bufsize = rlen;
+
+				err = proc_call(f->oid.port);
 				if (err == EOK) {
 					err = ioctl_processResponse2(t->utcb.kw, request, data);
 				}

@@ -486,8 +486,10 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	t->utcb.kw->io.offs = offs;
 	t->utcb.kw->io.len = 0;
 	t->utcb.kw->io.mode = mode;
+	t->utcb.kw->buf = buf;
+	t->utcb.kw->bufsize = sz;
 
-	return proc_callWithBuffer(oid.port, buf, sz);
+	return proc_call(oid.port);
 }
 
 
@@ -509,8 +511,10 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	t->utcb.kw->io.offs = offs;
 	t->utcb.kw->io.len = 0;
 	t->utcb.kw->io.mode = mode;
+	t->utcb.kw->buf = buf;
+	t->utcb.kw->bufsize = sz;
 
-	return proc_callWithBuffer(oid.port, buf, sz);
+	return proc_call(oid.port);
 }
 
 int proc_open(oid_t oid, unsigned mode)
