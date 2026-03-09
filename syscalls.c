@@ -238,7 +238,7 @@ int syscalls_sys_exit(u8 *ustack)
 	int code;
 
 	GETFROMSTACK(ustack, int, code, 0U);
-	proc_exit(code);
+	proc_exit(code & 0xffU);
 	return EOK;
 }
 
