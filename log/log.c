@@ -132,10 +132,6 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 
 	msg->label = mtRead;
 	msg->pid = r->pid;
-
-	// Not needed?
-	// msg->buf = rmsg->odata;
-	// msg->bufsize = rmsg->osize;
 	msg->err = err;
 
 	proc_respond2(rmsg->oid.port, rmsg->reply);
@@ -398,12 +394,12 @@ void log_msgHandler2(msgBuf_t *msg, oid_t oid, void *reply)
 	log_reader_t *r;
 	int respond = 1;
 
-	lib_debug_printf("log_msgHandler2 label=%d buf=%p bufsize=%zu\n", msg->label, msg->buf, msg->bufsize);
-	lib_debug_printf("[");
+	lib_debug1_printf("log_msgHandler2 label=%d buf=%p bufsize=%zu\n", msg->label, msg->buf, msg->bufsize);
+	lib_debug1_printf("[");
 	for (int i = 0; i < msg->bufsize; i++) {
-		lib_debug_printf("%c", *((char *)msg->buf + i));
+		lib_debug1_printf("%c", *((char *)msg->buf + i));
 	}
-	lib_debug_printf("]\n");
+	lib_debug1_printf("]\n");
 
 	switch (msg->label) {
 		case mtOpen:
@@ -533,7 +529,7 @@ void log_disable(void)
 
 void log_enable(void)
 {
-	// log_common.enabled = 1;
+	log_common.enabled = 1;
 }
 
 

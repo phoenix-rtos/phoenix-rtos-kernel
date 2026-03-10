@@ -811,6 +811,16 @@ int syscalls_msgCall(void *ustack)
 {
 	u32 port;
 	GETFROMSTACK(ustack, u32, port, 0);
+
+	thread_t *t = proc_current();
+	if (port >= 123) {
+		char name[26];
+		if (t->process != NULL) {
+			process_getName(t->process, name, sizeof(name));
+		}
+
+		LIB_ASSERT(0, "WHAT? tid: %d port: %d name: %s", proc_getTid(proc_current()), port, t->process != NULL ? name : "?");
+	}
 	return proc_call(port);
 }
 

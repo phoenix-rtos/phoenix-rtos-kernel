@@ -89,6 +89,9 @@ extern int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
 extern int proc_call(u32 port);
 
 
+extern int proc_call_returnable(u32 port);
+
+
 extern int proc_respond2(u32 port, void *reply);
 
 

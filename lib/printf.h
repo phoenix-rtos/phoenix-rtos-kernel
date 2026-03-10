@@ -46,4 +46,16 @@ extern void lib_putch(char c);
 #endif
 
 
+#if 1
+#define lib_debug1_printf(fmt, ...)
+#else
+#define lib_debug1_printf(fmt, ...) \
+	do { \
+		log_disable(); \
+		lib_printf(fmt, ##__VA_ARGS__); \
+		log_enable(); \
+	} while (0)
+#endif
+
+
 #endif

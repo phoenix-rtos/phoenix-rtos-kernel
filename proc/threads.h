@@ -115,6 +115,7 @@ typedef struct _thread_t {
 
 	sched_context_t *sched;
 	sched_context_t *schedAside;
+	sched_context_t *inherited;
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
 	unsigned state : 4;
@@ -125,6 +126,9 @@ typedef struct _thread_t {
 	/* fastpath related */
 	struct _thread_t *reply;
 	struct _thread_t *called;
+	int fpCtxSet;
+	int callReturnable;
+	int saveCtxInReply;
 
 	/*
 	 * REVISIT: during threads_destroy of a fastpath receiver we should remove
@@ -147,6 +151,7 @@ typedef struct _thread_t {
 	void *execdata;
 
 	cpu_context_t *context;
+	cpu_context_t *fastpathExitCtx;
 	cpu_context_t *longjmpctx;
 
 	struct {

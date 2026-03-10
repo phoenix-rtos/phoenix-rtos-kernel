@@ -138,10 +138,12 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 {
 	int err;
 	dcache_entry_t *entry;
-	msg_t *msg;
 	size_t len, i;
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
+
+	(void)proc_initMsgBuf();
+	msgBuf_t *msg = proc_current()->utcb.kw;
 
 	if (name == NULL || (file == NULL && dev == NULL))
 		return -EINVAL;
@@ -213,28 +215,21 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return -EINVAL;
 	}
 
-	if ((msg = vm_kmalloc(sizeof(msg_t))) == NULL) {
-		if (pheap != NULL)
-			vm_kfree(pheap);
-		return -ENOMEM;
-	}
-
-	hal_memset(msg, 0, sizeof(msg_t));
-	msg->type = mtLookup;
+	hal_memset(msg, 0, sizeof(msgBuf_t));
+	msg->label = mtLookup;
 
 	/* Query servers */
 	do {
-		hal_memcpy(&msg->oid, &srv, sizeof(srv));
-		msg->i.size = len - i;
+		hal_memcpy(&msg->lookup.oid, &srv, sizeof(srv));
+		msg->bufsize = len - i;
 		hal_memcpy(pptr, name + i + 1, len - i);
-		msg->i.data = pptr;
+		msg->buf = pptr;
 
-		WARN_ON_OLD_API;
-		if ((err = proc_send(srv.port, msg)) < 0)
+		if ((err = proc_call_returnable(srv.port)) < 0)
 			break;
 
-		srv = msg->o.lookup.dev;
-		err = msg->o.err;
+		srv = msg->lookup.dev;
+		err = msg->err;
 		if (err < 0) {
 			break;
 		}
@@ -247,11 +242,10 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	} while (i != len);
 
 	if (file != NULL)
-		*file = msg->o.lookup.fil;
+		*file = msg->lookup.fil;
 	if (dev != NULL)
-		*dev = msg->o.lookup.dev;
+		*dev = msg->lookup.dev;
 
-	vm_kfree(msg);
 	if (pheap != NULL)
 		vm_kfree(pheap);
 	return err < 0 ? err : EOK;
@@ -476,20 +470,28 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 {
 	lib_debug_printf("%s (%zu, %p, %zu, %d)\n", __FUNCTION__, offs, buf, sz, mode);
 
+	int err;
 	thread_t *t = proc_current();
+	msgBuf_t *msg;
 
 	(void)proc_initMsgBuf();
+	msg = t->utcb.kw;
 
-	t->utcb.kw->label = mtRead;
-	hal_memcpy(&t->utcb.kw->io.oid, &oid, sizeof(oid_t));
+	msg->label = mtRead;
+	hal_memcpy(&msg->io.oid, &oid, sizeof(oid_t));
 
-	t->utcb.kw->io.offs = offs;
-	t->utcb.kw->io.len = 0;
-	t->utcb.kw->io.mode = mode;
-	t->utcb.kw->buf = buf;
-	t->utcb.kw->bufsize = sz;
+	msg->io.offs = offs;
+	msg->io.len = 0;
+	msg->io.mode = mode;
+	msg->buf = buf;
+	msg->bufsize = sz;
 
-	return proc_call(oid.port);
+	/*
+	 * TODO: add some proc_call variant that automatically sets rv to msg->err on msgRespond/msgRespondAndRecv side
+	 * the proc_call_returnable is a slower variant and should be avoided
+	 */
+	err = proc_call_returnable(oid.port);
+	return err == EOK ? msg->err : err;
 }
 
 
@@ -501,35 +503,45 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	// 	lib_debug_printf("%c", *((char *)buf + i));
 	// }
 
+	int err;
 	thread_t *t = proc_current();
+	msgBuf_t *msg;
 
 	(void)proc_initMsgBuf();
+	msg = t->utcb.kw;
 
-	t->utcb.kw->label = mtWrite;
-	hal_memcpy(&t->utcb.kw->io.oid, &oid, sizeof(oid_t));
+	msg->label = mtWrite;
+	hal_memcpy(&msg->io.oid, &oid, sizeof(oid_t));
 
-	t->utcb.kw->io.offs = offs;
-	t->utcb.kw->io.len = 0;
-	t->utcb.kw->io.mode = mode;
-	t->utcb.kw->buf = buf;
-	t->utcb.kw->bufsize = sz;
+	msg->io.offs = offs;
+	msg->io.len = 0;
+	msg->io.mode = mode;
+	msg->buf = buf;
+	msg->bufsize = sz;
 
-	return proc_call(oid.port);
+	err = proc_call_returnable(oid.port);
+	return err == EOK ? msg->err : err;
 }
 
 int proc_open(oid_t oid, unsigned mode)
 {
 	lib_debug_printf("%s\n", __FUNCTION__);
 
+	int err;
 	thread_t *t = proc_current();
+	msgBuf_t *msg;
 
 	(void)proc_initMsgBuf();
+	msg = t->utcb.kw;
 
-	t->utcb.kw->label = mtOpen;
-	hal_memcpy(&t->utcb.kw->openclose.oid, &oid, sizeof(oid_t));
-	t->utcb.kw->openclose.flags = mode;
+	msg->label = mtOpen;
+	hal_memcpy(&msg->openclose.oid, &oid, sizeof(oid_t));
+	msg->openclose.flags = mode;
+	msg->buf = NULL;
+	msg->bufsize = 0;
 
-	return proc_call(oid.port);
+	err = proc_call_returnable(oid.port);
+	return err == EOK ? msg->err : err;
 }
 
 
@@ -537,15 +549,21 @@ int proc_close(oid_t oid, unsigned mode)
 {
 	lib_debug_printf("%s\n", __FUNCTION__);
 
+	int err;
 	thread_t *t = proc_current();
+	msgBuf_t *msg;
 
 	(void)proc_initMsgBuf();
+	msg = t->utcb.kw;
 
-	t->utcb.kw->label = mtClose;
-	hal_memcpy(&t->utcb.kw->openclose.oid, &oid, sizeof(oid_t));
-	t->utcb.kw->openclose.flags = mode;
+	msg->label = mtClose;
+	hal_memcpy(&msg->openclose.oid, &oid, sizeof(oid_t));
+	msg->openclose.flags = mode;
+	msg->buf = NULL;
+	msg->bufsize = 0;
 
-	return proc_call(oid.port);
+	err = proc_call_returnable(oid.port);
+	return err == EOK ? msg->err : err;
 }
 
 #endif

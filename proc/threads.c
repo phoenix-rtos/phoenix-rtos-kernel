@@ -391,6 +391,7 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
+/* TODO: this is slow, make this O(1) */
 int threads_getHighestPrio(int maxPrio)
 {
 	int i, ret = maxPrio;
@@ -504,6 +505,7 @@ void threads_setState(u8 state)
 
 static void _threads_switchSchedContexts(sched_context_t *sched, thread_t *from, thread_t *to, int reply)
 {
+	LIB_ASSERT(sched != NULL, "sched null");
 	LIB_ASSERT(to->sched == NULL,
 			"dest sched not null (prio=%d, from=%d, dest=%d, reply=%d, sched owner tid=%d)",
 			to->priority, proc_getTid(from), proc_getTid(to), reply, proc_getTid(to->sched->owner));
@@ -513,7 +515,10 @@ static void _threads_switchSchedContexts(sched_context_t *sched, thread_t *from,
 	if (reply != 0) {
 		/* replying - going back in SC chain */
 		LIB_ASSERT(from->reply != NULL, "reply null (initial from->state=%d)", from->state);
-		LIB_ASSERT(from->reply == to, "WHAT");
+
+		/* TODO: this is tricky to track in case of msgRecv - the server could have
+		 * several replies pending, so to doesnt necesarily need to be from->reply */
+		LIB_ASSERT(from->reply == to, "replying to bad thread: from: %d from->reply: %d to: %d", proc_getTid(from), proc_getTid(from->reply), proc_getTid(to));
 
 		from->state = BLOCKED_ON_RECV;
 
@@ -566,11 +571,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 
 	LIB_ASSERT(_proc_current() != NULL, "proc current null");
 
-
 	ctx = _getUserContext(dest);
-	// #ifndef NOMMU
-	// 	LIB_ASSERT((ptr_t)hal_cpuGetIP(ctx) < VADDR_KERNEL, "dest ip in kernel - ip: 0x%p tid: %d reply: %d", hal_cpuGetIP(ctx), proc_getTid(dest), reply);
-	// #endif
 
 	if ((proc != NULL) && (proc->pmapp != NULL)) {
 		if ((hal_cpuSupervisorMode(ctx) == 0) && (dest->longjmpctx == NULL)) {
@@ -582,11 +583,6 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 	if (dest->tls.tls_base != NULL) {
 		hal_cpuTlsSet(&dest->tls, ctx);
 	}
-
-	dest->context = ctx;
-
-	// REVISIT: use cpuRestore instead?
-	// hal_cpuRestore(dest->context, ctx);
 
 	_threads_scheduling(dest);
 
@@ -628,10 +624,30 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	/* Save current thread context */
 	if (current != NULL) {
-		current->context = context;
+		if (current->fastpathExitCtx == NULL) {
+			current->context = context;
+		}
+		else {
+			/*
+			 * current would exit the kernel with fastpathed ctx, so use it instead
+			 * this is an optimization - we could save the kernel context as
+			 * current->context, but we know it is on the exiting path to switch to
+			 * fastpathExitCtx
+			 */
+			current->context = current->fastpathExitCtx;
+			current->fastpathExitCtx = NULL;
+
+			/* see note in proc_call */
+			if (current->saveCtxInReply != 0) {
+				current->reply->context = context;
+				current->saveCtxInReply = 0;
+			}
+		}
 
 		/* Move thread to the end of queue */
 		if (current->state == READY) {
+			LIB_ASSERT(current->sched != NULL, "READY but unschedulable? tid: %d, pc=%p, ra=%p", proc_getTid(current), current->context->sepc, current->context->ra);
+
 			LIST_ADD(&threads_common.ready[current->priority], current->sched);
 			_threads_preempted(current);
 		}
@@ -711,11 +727,11 @@ static thread_t *_proc_current(void)
 thread_t *proc_current(void)
 {
 	thread_t *current;
-	spinlock_ctx_t sc;
+	// spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	// hal_spinlockSet(&threads_common.spinlock, &sc);
 	current = _proc_current();
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	// hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return current;
 }
@@ -801,9 +817,14 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->utcb.p = NULL;
 	hal_memset(&t->utcb.il, 0, sizeof(t->utcb.il));
 
+	t->fastpathExitCtx = NULL;
+	t->callReturnable = 0;
+	t->saveCtxInReply = 0;
+
 	t->priorityBase = priority;
 	t->priority = priority;
 	t->schedAside = NULL;
+	t->inherited = NULL;
 	t->sched = vm_kmalloc(sizeof(sched_context_t));
 	if (t->sched == NULL) {
 		vm_kfree(t->kstack);
@@ -1013,7 +1034,24 @@ int proc_threadPriority(int priority)
 
 static void _thread_interrupt(thread_t *t)
 {
-	/* TODO: handle passive threads? */
+	port_t *p;
+	spinlock_ctx_t sc;
+
+	if (t->passive == 1) {
+		/* TODO move this to some generic passive reversing function */
+		t->sched = t->schedAside;
+		t->schedAside = NULL;
+		t->passive = 0;
+		t->utcb.kw->err = -EINTR;
+
+		if (t->addedTo != NULL) {
+			p = t->addedTo;
+			hal_spinlockSet(&p->spinlock, &sc);
+			LIST_REMOVE_EX(&p->fpThreads, t, tnext, tprev);
+			hal_spinlockClear(&p->spinlock, &sc);
+			t->addedTo = NULL;
+		}
+	}
 	_proc_threadDequeue(t);
 	hal_cpuSetReturnValue(t->context, (void *)-EINTR);
 }
@@ -1146,6 +1184,23 @@ static void _proc_threadDequeue(thread_t *t)
 }
 
 
+static void _proc_threadEnqueueThread(thread_t *t, thread_t **queue, time_t timeout, int interruptible)
+{
+	LIST_ADD_EX(queue, t, qnext, qprev);
+
+	t->state = SLEEP;
+	t->wakeup = 0;
+	t->wait = queue;
+	t->interruptible = interruptible;
+
+	if (timeout) {
+		t->wakeup = timeout;
+		lib_rbInsert(&threads_common.sleeping, &t->sleeplinkage);
+		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
+	}
+}
+
+
 static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interruptible)
 {
 	thread_t *current;
@@ -1157,18 +1212,7 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, int interrupti
 
 	current = _proc_current();
 
-	LIST_ADD_EX(queue, current, qnext, qprev);
-
-	current->state = SLEEP;
-	current->wakeup = 0;
-	current->wait = queue;
-	current->interruptible = interruptible;
-
-	if (timeout) {
-		current->wakeup = timeout;
-		lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
-		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
-	}
+	_proc_threadEnqueueThread(current, queue, timeout, interruptible);
 
 	_threads_enqueued(current);
 }
@@ -1539,6 +1583,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src)
 {
 #ifndef KERNEL_SIGNALS_DISABLE
+	LIB_ASSERT(proc != NULL, "proc is null");
 
 	unsigned int sig;
 
@@ -1562,23 +1607,30 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 {
 	spinlock_ctx_t sc;
-	cpu_context_t *signalCtx;
+	cpu_context_t *signalCtx, *fpCtx;
 	void *f;
 	void *kstackTop;
 	thread_t *thread;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	thread = _proc_current();
+	if (thread->fastpathExitCtx == NULL) {
+		kstackTop = thread->kstack + thread->kstacksz;
+		signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
+		hal_cpuSetReturnValue(ctx, retval);
 
-	kstackTop = thread->kstack + thread->kstacksz;
-	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
-	hal_cpuSetReturnValue(ctx, retval);
-
-	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
-		f = thread->process->sighandler;
+		if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+			f = thread->process->sighandler;
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
+			/* no return */
+		}
+	}
+	else {
+		fpCtx = thread->fastpathExitCtx;
+		thread->fastpathExitCtx = NULL;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
-		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
-		/* no return */
+		hal_endSyscall(fpCtx, &sc);
 	}
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -2261,17 +2313,14 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 /* verbose reason */
 static inline int _mustSlowCall(port_t *p, thread_t *caller)
 {
-	if (p->threads == NULL) {
+	if (p->fpThreads == NULL) {
 		return 1;
 	}
-	if (p->caller != NULL) {
+	if (p->fpThreads->sched != NULL) {
 		return 2;
 	}
-	if (p->threads->sched != NULL) {
-		return 3;
-	}
 	if (threads_getHighestPrio(caller->priority) != caller->priority) {
-		return 4;
+		return 3;
 	}
 
 	return 0;
@@ -2281,7 +2330,7 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 {
 	LIB_ASSERT(p != NULL, "p null??");
 
-
+#if 0
 	/* TODO: purely for investigation purposes, if will never happen, remove this
 	 * */
 	thread_t *thread = p->fpThreads;
@@ -2294,6 +2343,7 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 			thread = thread->tnext;
 		} while (thread != p->fpThreads);
 	}
+#endif
 
 	return p->fpThreads == NULL ||
 			// p->caller != NULL ||
@@ -2304,14 +2354,27 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 }
 #endif
 
+#define VERBOSE 0
+
 static int proc_setupSharedBuffer(thread_t *t, thread_t *recv);
 
-int proc_call(u32 port)
+
+static void _threads_copyMsgBufResponse(thread_t *caller, thread_t *recv)
+{
+	/* TODO: pass small data via registers */
+	caller->utcb.kw->size = min(recv->utcb.kw->size, sizeof(caller->utcb.kw->raw));
+	hal_memcpy(caller->utcb.kw->raw, recv->utcb.kw->raw, caller->utcb.kw->size);
+	caller->utcb.kw->err = recv->utcb.kw->err;
+}
+
+
+int proc_call_ex(u32 port, int returnable)
 {
 	port_t *p;
-	thread_t *caller;
+	thread_t *caller, *recv;
 	spinlock_ctx_t sc;
 	int err;
+	cpu_context_t *ctx;
 
 #if PERF_IPC
 	u64 tscs[TSCS_SIZE];
@@ -2336,12 +2399,14 @@ int proc_call(u32 port)
 		return -EINVAL;
 	}
 
+#if VERBOSE
 	char name[26];
 	if (caller->process != NULL) {
 		process_getName(caller->process, name, sizeof(name));
 	}
 
 	lib_debug_printf("proc_call port=%d (%d, %s)\n", port, proc_getTid(caller), caller->process != NULL ? name : "?");
+#endif
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
@@ -2359,7 +2424,7 @@ int proc_call(u32 port)
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	while ((err = _mustSlowCall(p, caller)) != 0) {
-		log_err("sleep (%d)\n", err);
+		// lib_debug1_printf("sleep (%d)\n", err);
 
 		// lib_debug_printf("proc_call sleep (%d)\n", proc_getTid(caller));
 
@@ -2376,28 +2441,22 @@ int proc_call(u32 port)
 
 	/* commit to fastpath - point of no return */
 
-	thread_t *recv = p->fpThreads;
+	recv = p->fpThreads;
 	LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
 
 	/* TODO: bump refcnt on recv? */
 	hal_spinlockClear(&p->spinlock, &sc);
 
-	cpu_context_t *ctx;
-	spinlock_ctx_t tsc;
+	/* FIXME: recv could get a sigint here */
 
-	hal_spinlockSet(&threads_common.spinlock, &tsc);
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	if (returnable != 0) {
+		caller->callReturnable = 1;
+	}
 	ctx = _threads_switchTo(recv, 0);
-	hal_spinlockClear(&threads_common.spinlock, &tsc);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	if (caller->utcb.kw->buf != NULL && caller->utcb.kw->bufsize > 0) {
-		if (caller->process != 0) {
-			LIB_ASSERT(vm_mapBelongs(caller->process, caller->utcb.kw->buf, caller->utcb.kw->bufsize) == 0,
-					"huh: %s sepc=%p", name, _getUserContext(caller)->sepc);
-		}
-		else {
-			LIB_ASSERT(pmap_belongs(&threads_common.kmap->pmap, caller->utcb.kw->buf) != 0, "huh");
-		}
-
 		if (proc_setupSharedBuffer(caller, recv) < 0) {
 			port_put(p, 0);
 			LIB_ASSERT(0, "enomem");
@@ -2405,20 +2464,12 @@ int proc_call(u32 port)
 		}
 	}
 
-	hal_spinlockSet(&p->spinlock, &sc);
-
-	// log_err("fast (prio=%d, hprio=%d)", caller->priority, threads_getHighestPrio(caller->priority));
-	// cpu_context_t *ctx;
-	// spinlock_ctx_t tsc;
-
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	/*
 	 * NOTE: assumes port spinlock is set so that this spinlockSet is nested and tsc
 	 * context has interrupts disabled
 	 */
-	hal_spinlockSet(&threads_common.spinlock, &tsc);
-
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	LIB_ASSERT(recv != NULL, "recv is null");
@@ -2433,9 +2484,7 @@ int proc_call(u32 port)
 
 	recv->utcb.kw->size = min(caller->utcb.kw->size, sizeof(recv->utcb.kw->raw));
 	hal_memcpy(recv->utcb.kw->raw, caller->utcb.kw->raw, recv->utcb.kw->size);
-
 	recv->utcb.kw->label = caller->utcb.kw->label;
-
 	recv->utcb.kw->pid = (caller->process != NULL) ? process_getPid(caller->process) : 0;
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
@@ -2444,8 +2493,6 @@ int proc_call(u32 port)
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
-	/* FIXME: very fragile to refer to syscalls as hardcoded IDs */
-	// ctx = _threads_switchTo(recv, 0);
 	hal_cpuSetReturnValue(ctx, caller);
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
@@ -2454,37 +2501,57 @@ int proc_call(u32 port)
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
-	hal_spinlockClear(&threads_common.spinlock, &tsc);
+	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	/*
-	 * intentionally restore tsc again to keep interrupts disabled to the end of
-	 * the syscall - necessary to guarantee the atomicity of control switch
-	 */
-	hal_spinlockClear(&p->spinlock, &tsc);
+	recv->fastpathExitCtx = ctx;
+
+	LIB_ASSERT(_proc_current() == recv, "we should be recv here");
+
+	if (recv->process == NULL || returnable != 0) {
+		/*
+		 * tricky part: reschedule will cause the scheduler to save recv->fastpath as recv context,
+		 * while the kernel context *at this moment* will be saved to the caller
+		 * via current->reply->context = context (see _threads_schedule)
+		 */
+		recv->saveCtxInReply = 1;
+		hal_cpuReschedule(&threads_common.spinlock, &sc);
+		LIB_ASSERT(recv->saveCtxInReply == 0, "not saved?");
+		LIB_ASSERT(recv->fastpathExitCtx == NULL, "not cleared?");
+		LIB_ASSERT(caller->callReturnable == 0, "callReturnable not cleared?");
+		LIB_ASSERT(_proc_current() != recv, "we should NOT be a receiver here");
+		LIB_ASSERT(_proc_current() == caller, "we should be a caller here");
+	}
+	else {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	lib_debug_printf("proc_call fastpath exit (%d->%d) (context addr=%p, caller sp=%p, user sp=%p, sepc=%p)\n",
 			proc_getTid(caller), proc_getTid(recv), caller->context, caller->context->sp, _getUserContext(caller)->sp, _getUserContext(caller)->sepc);
-	// lib_debug_printf("proc_call recv sepc=%p\n", ctx->sepc);
 
 	port_put(p, 0);
 
 	TRACE_IPC_PROFILE_EXIT_FUNC(tid, trace_ipc_profile_call, &step, &currTsc, tscs);
 
-	if (recv->process != NULL) {
-		// if (hal_cpuSupervisorMode(recv->context) == 0) {
-		hal_endSyscall(ctx, &sc);
-	}
-	else {
-		proc_longjmp(ctx);
-		LIB_ASSERT_ALWAYS(0, "unreachable is reachable");
-		for (;;) {
-		}
-	}
-
-	/* unreachable */
+	return EOK;
 }
+
+
+int proc_call(u32 port)
+{
+	return proc_call_ex(port, 0);
+}
+
+
+int proc_call_returnable(u32 port)
+{
+	int err = proc_call_ex(port, 1);
+	LIB_ASSERT(err >= 0, "err=%d", err);
+
+	return err;
+}
+
 
 #if 0
 static thread_t *_proc_getMinPrioQueue(prio_queue_t *queue)
@@ -2550,43 +2617,33 @@ static void *_becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 	LIST_ADD_EX(&p->fpThreads, recv, tnext, tprev);
 	recv->addedTo = p;
 
-	/*
-	 * REVISIT: kfree done under port spinlock/interrupts disabled to guarantee
-	 * the recv gets inserted into p->threads once it becomes
-	 * passive
-	 * had kfree be done outside, the recv could get preempted and never come
-	 * back as it would be unschedulable
-	 */
 	if (recv->sched != NULL) {
-		vm_kfree(recv->sched);
+		recv->schedAside = recv->sched;
 		recv->sched = NULL;
 	}
 
-	hal_spinlockSet(&threads_common.spinlock, sc);
 	(void)_proc_threadWakeupPrio(&p->queue);
-	hal_spinlockClear(&p->spinlock, sc);
+
+	recv->state = BLOCKED_ON_RECV;
+	recv->passive = 1;
+
+	/* FIXME: allow the receiver to be interruptible */
+	// recv->interruptible = 1;
 
 	/*
 	 * the port is not put, because the passive thread still uses the port
 	 * the port will get destroyed on proc_destroy
 	 */
 
-	/*
-	 * TODO: DEFER THIS somehow to _threads_schedule
-	 * needed for kernel threads....
-	 */
-	// threads_common.current[hal_cpuGetID()] = NULL;
+	hal_cpuReschedule(&p->spinlock, sc);
 
-	recv->state = BLOCKED_ON_RECV;
-	recv->passive = 1;
-	lib_rbInsert(&threads_common.passive, &recv->sleeplinkage);
-	hal_cpuReschedule(&threads_common.spinlock, sc);
-
-	// LIB_ASSERT_ALWAYS(0, "unreachable is reachable");
-	// __builtin_unreachable();
-	//
-	LIB_ASSERT_ALWAYS(recv->reply != NULL, "recv->reply is NULL");
-	return (void *)recv->reply;
+	if (recv->utcb.kw->err == -EINTR) {
+		return NULL;
+	}
+	else {
+		LIB_ASSERT(recv->reply != NULL, "recv->reply is NULL");
+		return (void *)recv->reply;
+	}
 }
 
 
@@ -2625,18 +2682,30 @@ void *proc_recv2(u32 port)
 
 	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
 
-	recv->schedAside = recv->sched;
-	recv->sched = NULL;
+	/* put original recv sched aside */
 
+	if (recv->passive == 1) {
+		LIB_ASSERT(recv->sched->owner != recv, "passive but own sched??");
+		LIST_ADD(&recv->inherited, recv->sched);
+		recv->sched = NULL;
+	}
+	else {
+		LIB_ASSERT(recv->sched->owner == recv, "putting aside client's thread");
+		/* else: sched is put aside by _becomePassive */
+	}
+
+#if VERBOSE
 	char name[26];
 	if (recv->process != NULL) {
 		process_getName(recv->process, name, sizeof(name));
 	}
 
 	lib_debug_printf("proc_recv2 port=%d (%d, %s)\n", port, proc_getTid(recv), recv->process != NULL ? name : "?");
+#endif
 
 	if (recv->process != NULL) {
 		_becomePassiveNoReturn(p, recv, &sc);
+		LIB_ASSERT_ALWAYS(0, "what?");
 	}
 	else {
 		ret = _becomePassive(p, recv, &sc);
@@ -2648,11 +2717,6 @@ void *proc_recv2(u32 port)
 }
 
 
-/* TODO: we need some smart "reply cap" analogue here that is not as heavy as
- * current rid, maybe just recv should pass a pointer to recv->reply and we are
- * done?
- * respond would need to verify that the passed pointer actually points to
- * kernel mem and that it contains a thread waiting for our reply */
 int proc_respond2(u32 port, void *reply)
 {
 	port_t *p;
@@ -2687,40 +2751,70 @@ int proc_respond2(u32 port, void *reply)
 	port_put(p, 0);
 	port_put(p, 0);  // drop passive ref
 
-	/* TODO: move this spinlock lower, same for the rest of IPC, caller is
-	 * unschedulable until switch sched */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
 	caller = reply;
 	LIB_ASSERT(caller != NULL, "caller null!");
 
-	/* TODO: pass small data via registers */
-	caller->utcb.kw->size = min(recv->utcb.kw->size, sizeof(caller->utcb.kw->raw));
-	hal_memcpy(caller->utcb.kw->raw, recv->utcb.kw->raw, caller->utcb.kw->size);
-	caller->utcb.kw->err = recv->utcb.kw->err;
+	_threads_copyMsgBufResponse(caller, recv);
 
+	/*
+	 * FIXME: workaround for assertion in _threads_switchSchedContexts
+	 * reply == 1 branch. The _threads_switchSchedContexts currently assumes
+	 * that IPC threads are only in a path-like dependency chains, while it's
+	 * possible that a single (active) server receives multiple messages and
+	 * responds to them in arbitrary order.
+	 *
+	 * This is probably where the proper BWI is needed, as the active server
+	 * will process the messages on client's SC, but currently it's unclear which
+	 * and not tracked as it should be.
+	 */
+	int multiple_callers = 0;
+	thread_t *og_reply = recv->reply;
+	if (caller != og_reply) {
+		multiple_callers = 1;
+		recv->reply = caller;
+	}
+
+	/*
+	 * FIXME: currently nothing stops SCs from different
+	 * clients to end up swapped (i.e. client A gets SC of client B after IPC
+	 */
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
 	_threads_switchSchedContexts(recv->sched, recv, caller, 1);
-	lib_debug_printf("proc_respond2 context addr (pre): %p sp=%p\n", caller->context, caller->context->sp);
-	caller->context = _getUserContext(caller);
-	lib_debug_printf("proc_respond2 context addr (post): %p sp=%p\n", caller->context, caller->context->sp);
-	hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)caller->utcb.kw->err);
+	LIST_ADD(&threads_common.ready[caller->priority], caller->sched);
 
-	LIB_ASSERT(caller->process == NULL || pmap_belongs(caller->process->pmapp, (void *)caller->context->sp + 8) != 0, "bad sp?");
+	if (multiple_callers != 0) {
+		recv->reply = og_reply;
+	}
+
+	lib_debug_printf("proc_respond2 context addr (pre): %p sp=%p\n", caller->context, caller->context->sp);
+	if (caller->callReturnable == 0) {
+		caller->context = _getUserContext(caller);
+		hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)EOK);
+	}
+	else {
+		caller->callReturnable = 0;
+	}
+
+	lib_debug_printf("proc_respond2 context addr (post): %p sp=%p\n", caller->context, caller->context->sp);
 
 	LIB_ASSERT(recv->passive == 1, "recv not passive?");
 	recv->state = READY; /* FIXME: above sets to BLOCKED_ON_RECV, but we have our own SC */
-	recv->sched = recv->schedAside;
-	recv->schedAside = NULL;
-	recv->passive = 0;
-	lib_rbRemove(&threads_common.passive, &recv->sleeplinkage);
 
-	LIST_ADD(&threads_common.ready[caller->priority], caller->sched);
+	if (multiple_callers != 0) {
+		recv->sched = recv->inherited;
+		LIST_REMOVE(&recv->inherited, recv->sched);
+	}
+	else {
+		recv->sched = recv->schedAside;
+		recv->schedAside = NULL;
+		recv->passive = 0;
+	}
+	LIB_ASSERT(recv->sched != NULL, "recv sched null?");
+
 	threads_common.current[hal_cpuGetID()] = recv->sched;
 
 	LIB_ASSERT(recv->sched->t == recv, "badly linked sched context");
-
-	recv->context = _getUserContext(recv);
-
-	lib_debug_printf("proc_respond2 context: sp=%p (%d->%d)\n", caller->context->sp, proc_getTid(recv), proc_getTid(caller));
 
 	if (caller->priority < recv->priority) {
 		/* client is ignorant of IPCP and more critical than server for strange reason, reschedule */
@@ -2731,14 +2825,14 @@ int proc_respond2(u32 port, void *reply)
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 
-	return 0;
+	return EOK;
 }
 
 
 void *proc_respondAndRecv(u32 port)
 {
 	port_t *p;
-	spinlock_ctx_t sc, tsc;
+	spinlock_ctx_t sc;
 	cpu_context_t *ctx;
 	thread_t *caller, *recv;
 	int responding;
@@ -2774,12 +2868,16 @@ void *proc_respondAndRecv(u32 port)
 	responding = recv->reply != NULL ? 1 : 0;
 
 	if (responding == 0) {
-		_becomePassive(p, recv, &sc);
+		return _becomePassive(p, recv, &sc);
 	}
 
 	/* wake next caller if exists */
 	log_err("wake next (prio=%d)", p->queue->priority);
 	(void)_proc_threadWakeupPrio(&p->queue);
+
+	hal_spinlockClear(&p->spinlock, &sc);
+
+	port_put(p, 0);
 
 	/* TODO: handle caller faults */
 
@@ -2790,13 +2888,7 @@ void *proc_respondAndRecv(u32 port)
 
 	log_err("fast (%d, %d)", proc_getTid(recv), recv->priority);
 
-	hal_spinlockSet(&threads_common.spinlock, &tsc);
-
-	/* TODO: not everything must be done under threads spinlock
-	 * this was done only to catch trivial races, now we can try doing this in a
-	 * smarter way
-	 */
-
+	hal_spinlockSet(&threads_common.spinlock, &sc);
 	caller = recv->reply;
 
 	/* TODO should exit != 0 be treated in any special way? if we return back to
@@ -2805,32 +2897,21 @@ void *proc_respondAndRecv(u32 port)
 	LIB_ASSERT(caller->exit == 0, "exit=%d", caller->exit);
 	LIB_ASSERT(caller->state != GHOST, "huh");
 
-	/* TODO: pass small data via registers */
-	caller->utcb.kw->size = min(recv->utcb.kw->size, sizeof(caller->utcb.kw->raw));
-	hal_memcpy(caller->utcb.kw->raw, recv->utcb.kw->raw, caller->utcb.kw->size);
-	caller->utcb.kw->err = recv->utcb.kw->err;
+	_threads_copyMsgBufResponse(caller, recv);
 
 	LIST_ADD_EX(&p->fpThreads, recv, tnext, tprev);
 	recv->addedTo = p;
 
 	ctx = _threads_switchTo(caller, 1);
-	hal_cpuSetReturnValue(ctx, (void *)(ptr_t)caller->utcb.kw->err);
+	hal_cpuSetReturnValue(ctx, EOK);
+
+	caller->fastpathExitCtx = ctx;
 
 	trace_eventSyscallExit(103, proc_getTid(caller)); /* msgCall */
 
-	hal_spinlockClear(&threads_common.spinlock, &tsc);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	/*
-	 * intentionally restore tsc again to keep interrupts disabled (see note in _proc_call)
-	 * the actual sc is restored in endSyscall
-	 */
-	hal_spinlockClear(&p->spinlock, &tsc);
-
-	port_put(p, 0);
-
-	hal_endSyscall(ctx, &sc);
-
-	/* unreachable */
+	return EOK;
 }
 
 

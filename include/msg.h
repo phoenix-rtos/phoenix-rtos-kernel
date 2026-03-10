@@ -100,6 +100,7 @@ typedef struct _msg_t {
 
 			/* SETATTR/GETATTR */
 			struct {
+				oid_t oid;
 				long long val;
 				int type;
 			} attr;

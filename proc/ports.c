@@ -132,11 +132,11 @@ void port_put(port_t *p, int destroy)
 	lib_idtreeRemove(&port_common.tree, &p->linkage);
 	hal_spinlockClear(&port_common.spinlock, &psc);
 
-	proc_lockSet(&p->owner->lock);
 	if (p->next != NULL) {
+		proc_lockSet(&p->owner->lock);
 		LIST_REMOVE(&p->owner->ports, p);
+		proc_lockClear(&p->owner->lock);
 	}
-	proc_lockClear(&p->owner->lock);
 
 	proc_lockDone(&p->lock);
 	hal_spinlockDestroy(&p->spinlock);
