@@ -33,8 +33,8 @@ struct hal_perHartData {
 
 
 static struct {
-	volatile u32 cpuCnt;
-	u32 cpusStarted;
+	u32 cpuCnt;
+	volatile u32 cpusStarted;
 } cpu_common;
 
 
