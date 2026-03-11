@@ -16,7 +16,7 @@
 #include "sbi.h"
 
 /* Base extension */
-#define SBI_EXT_BASE 0x10U
+#define SBI_EXT_BASE 0x10
 
 #define SBI_BASE_SPEC_VER      0x0
 #define SBI_BASE_IMPL_ID       0x1
@@ -35,7 +35,7 @@
 #define SBI_SRST_RESET 0x0
 
 /* IPI extension */
-#define SBI_EXT_IPI  0x735049U
+#define SBI_EXT_IPI  0x735049
 #define SBI_IPI_SEND 0x0
 
 /* HSM extension */
@@ -52,9 +52,9 @@
 #define SBI_RFNC_SFENCE_VMA_ASID 0x2
 
 /* Legacy extensions */
-#define SBI_LEGACY_SETTIMER 0x0U
-#define SBI_LEGACY_PUTCHAR  0x1U
-#define SBI_LEGACY_GETCHAR  0x2U
+#define SBI_LEGACY_SETTIMER 0x0
+#define SBI_LEGACY_PUTCHAR  0x1
+#define SBI_LEGACY_GETCHAR  0x2
 
 /* clang-format off */
 #define SBI_MINOR(x) ((x) & 0xffffff)
@@ -69,7 +69,7 @@ static struct {
 
 
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
-static sbiret_t hal_sbiEcall(unsigned int ext, unsigned int fid, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
+static sbiret_t hal_sbiEcall(int ext, int fid, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
 {
 	sbiret_t ret;
 
@@ -79,8 +79,8 @@ static sbiret_t hal_sbiEcall(unsigned int ext, unsigned int fid, u64 arg0, u64 a
 	register u64 a3 asm("a3") = arg3;
 	register u64 a4 asm("a4") = arg4;
 	register u64 a5 asm("a5") = arg5;
-	register u64 a6 asm("a6") = fid;
-	register u64 a7 asm("a7") = ext;
+	register u64 a6 asm("a6") = (u64)fid;
+	register u64 a7 asm("a7") = (u64)ext;
 
 	/* clang-format off */
 	__asm__ volatile (
@@ -91,7 +91,7 @@ static sbiret_t hal_sbiEcall(unsigned int ext, unsigned int fid, u64 arg0, u64 a
 	/* clang-format on */
 
 	ret.error = (long)a0;
-	ret.value = a1;
+	ret.uvalue = a1;
 
 	return ret;
 }
@@ -100,19 +100,19 @@ static sbiret_t hal_sbiEcall(unsigned int ext, unsigned int fid, u64 arg0, u64 a
 
 static void hal_sbiSetTimerv01(u64 stime)
 {
-	(void)hal_sbiEcall(SBI_LEGACY_SETTIMER, 0U, stime, 0UL, 0UL, 0UL, 0UL, 0UL);
+	(void)hal_sbiEcall(SBI_LEGACY_SETTIMER, 0, stime, 0UL, 0UL, 0UL, 0UL, 0UL);
 }
 
 
 long hal_sbiPutchar(int ch)
 {
-	return hal_sbiEcall(SBI_LEGACY_PUTCHAR, 0U, (unsigned int)ch, 0UL, 0UL, 0UL, 0UL, 0UL).error;
+	return hal_sbiEcall(SBI_LEGACY_PUTCHAR, 0, (unsigned int)ch, 0UL, 0UL, 0UL, 0UL, 0UL).error;
 }
 
 
 long hal_sbiGetchar(void)
 {
-	return hal_sbiEcall(SBI_LEGACY_GETCHAR, 0U, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL).error;
+	return hal_sbiEcall(SBI_LEGACY_GETCHAR, 0, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL).error;
 }
 
 /* SBI v0.2+ calls */
@@ -189,7 +189,7 @@ sbiret_t hal_sbiSfenceVmaAsid(unsigned long hart_mask, unsigned long hart_mask_b
 void _hal_sbiInit(void)
 {
 	sbiret_t ret = hal_sbiGetSpecVersion();
-	sbi_common.specVersion = (u32)ret.value;
+	sbi_common.specVersion = (u32)ret.uvalue;
 
 	ret = hal_sbiProbeExtension(SBI_EXT_TIME);
 	if (ret.error == SBI_SUCCESS) {
