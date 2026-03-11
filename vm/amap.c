@@ -118,8 +118,6 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 			(void)proc_lockClear(&amap->lock);
 			return amap;
 		}
-
-		amap->refs--;
 	}
 
 	/* Allocate anon pointer arrays in chunks
@@ -151,6 +149,7 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 	}
 
 	if (amap != NULL) {
+		amap->refs--;
 		(void)proc_lockClear(&amap->lock);
 	}
 
@@ -243,7 +242,6 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 			(void)proc_lockClear(&amap->lock);
 			return EOK;
 		}
-		a->refs--;
 	}
 	else {
 		err = vm_objectPage(map, &amap, o, vaddr, offs, page);
@@ -304,6 +302,7 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 	(void)amap_unmap(map, v);
 
 	if (a != NULL) {
+		a->refs--;
 		(void)proc_lockClear(&a->lock);
 	}
 
