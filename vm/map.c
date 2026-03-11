@@ -737,16 +737,18 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 	u64 eoffs;
 	page_t *p = NULL;
 	vm_prot_t flagsCheck = map_checkProt(e->prot, prot);
+	amap_t *amapNew;
 	int err;
 
 	if (flagsCheck != 0U) {
 		return -EINVAL;
 	}
 	if ((((prot & PROT_WRITE) != 0U) && ((e->flags & MAP_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
-		e->amap = amap_create(e->amap, &e->aoffs, e->size);
-		if (e->amap == NULL) {
+		amapNew = amap_create(e->amap, &e->aoffs, e->size);
+		if (amapNew == NULL) {
 			return -ENOMEM;
 		}
+		e->amap = amapNew;
 
 		e->flags &= ~MAP_NEEDSCOPY;
 	}
