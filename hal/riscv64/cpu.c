@@ -270,38 +270,51 @@ char *hal_cpuInfo(char *info)
 }
 
 
+static int hal_cpuFeatAppend(char *buf, size_t *pos, size_t len, const char *src, size_t srcLen)
+{
+	if ((*pos + srcLen) > (len - 1U)) {
+		return -1;
+	}
+	hal_memcpy(&buf[*pos], src, srcLen);
+	*pos += srcLen;
+	return 0;
+}
+
+
 char *hal_cpuFeatures(char *features, size_t len)
 {
 	unsigned int n = 0;
-	size_t i = 0, l;
+	size_t i = 0;
 	char *compatible, *isa, *mmu;
+	char tmp[22];
 	u32 clock;
+	int err = 0;
 
-	while (dtb_getCPU(n++, &compatible, &clock, &isa, &mmu) == 0) {
+	if (len == 0U) {
+		return features;
+	}
 
-		l = hal_strlen(compatible);
-		hal_memcpy(features, compatible, l);
-		i += l;
+	while ((dtb_getCPU(n++, &compatible, &clock, &isa, &mmu) == 0) && (err == 0)) {
+		err = hal_cpuFeatAppend(features, &i, len, compatible, hal_strlen(compatible));
 
-		i += hal_i2s("@", &features[i], (unsigned long)clock / 1000000UL, 10U, 0U);
-
-		hal_memcpy(&features[i], "MHz", 3);
-		i += 3U;
-
-		features[i++] = '(';
-
-		l = hal_strlen(isa);
-		hal_memcpy(&features[i], isa, l);
-		i += l;
-
-		features[i++] = '+';
-
-		l = hal_strlen(mmu);
-		hal_memcpy(&features[i], mmu, l);
-		i += l;
-
-		features[i++] = ')';
-		features[i++] = ' ';
+		if (err == 0) {
+			err = hal_cpuFeatAppend(features, &i, len, tmp, hal_i2s("@", tmp, (unsigned long)clock / 1000000UL, 10U, 0U));
+		}
+		if (err == 0) {
+			err = hal_cpuFeatAppend(features, &i, len, "MHz(", 4U);
+		}
+		if (err == 0) {
+			err = hal_cpuFeatAppend(features, &i, len, isa, hal_strlen(isa));
+		}
+		if (err == 0) {
+			err = hal_cpuFeatAppend(features, &i, len, "+", 1U);
+		}
+		if (err == 0) {
+			err = hal_cpuFeatAppend(features, &i, len, mmu, hal_strlen(mmu));
+		}
+		if (err == 0) {
+			err = hal_cpuFeatAppend(features, &i, len, ") ", 2U);
+		}
 	}
 
 	features[i] = '\0';
