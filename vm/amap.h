@@ -38,7 +38,7 @@ typedef struct _amap_t {
 } amap_t;
 
 
-page_t *amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot);
+int amap_page(struct _vm_map_t *map, amap_t *amap, struct _vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot, page_t **page);
 
 
 void amap_clear(amap_t *amap, size_t offset, size_t size);

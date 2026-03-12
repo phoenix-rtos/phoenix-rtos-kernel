@@ -207,33 +207,36 @@ static page_t *object_fetch(oid_t oid, u64 offs)
 }
 
 
-page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs)
+int vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs, page_t **page)
 {
-	page_t *p;
+	int err;
 
 	if (o == NULL) {
-		return vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		*page = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		return (*page != NULL) ? EOK : -ENOMEM;
 	}
 
 	if (o == VM_OBJ_PHYSMEM) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "Check is needed on targets where sizeof(offs) != sizeof(addr_t)" */
 		if (offs > (addr_t)-1) {
-			return NULL;
+			return -ERANGE;
 		}
-		return page_get((addr_t)offs);
+		*page = page_get((addr_t)offs);
+		/* page can be NULL, when address outside of defined physical maps is used */
+		return EOK;
 	}
 
 	(void)proc_lockSet(&object_common.lock);
 
 	if (offs >= o->size) {
 		(void)proc_lockClear(&object_common.lock);
-		return NULL;
+		return -EINVAL;
 	}
 
-	p = o->pages[offs / SIZE_PAGE];
-	if (p != NULL) {
+	*page = o->pages[offs / SIZE_PAGE];
+	if (*page != NULL) {
 		(void)proc_lockClear(&object_common.lock);
-		return p;
+		return EOK;
 	}
 
 	/* Fetch page from backing store */
@@ -246,32 +249,33 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 
 	(void)proc_lockClear(&map->lock);
 
-	p = object_fetch(o->oid, offs);
+	*page = object_fetch(o->oid, offs);
 
-	if (vm_lockVerify(map, amap, o, vaddr, offs) != 0) {
-		if (p != NULL) {
-			vm_pageFree(p);
+	err = vm_lockVerify(map, amap, o, vaddr, offs);
+	if (err != 0) {
+		if (*page != NULL) {
+			vm_pageFree(*page);
 		}
 
-		return NULL;
+		return err;
 	}
 
 	(void)proc_lockSet(&object_common.lock);
 
 	if (o->pages[offs / SIZE_PAGE] != NULL) {
 		/* Someone loaded a page in the meantime, use it */
-		if (p != NULL) {
-			vm_pageFree(p);
+		if (*page != NULL) {
+			vm_pageFree(*page);
 		}
 
-		p = o->pages[offs / SIZE_PAGE];
+		*page = o->pages[offs / SIZE_PAGE];
 		(void)proc_lockClear(&object_common.lock);
-		return p;
+		return EOK;
 	}
 
-	o->pages[offs / SIZE_PAGE] = p;
+	o->pages[offs / SIZE_PAGE] = *page;
 	(void)proc_lockClear(&object_common.lock);
-	return p;
+	return EOK;
 }
 
 
