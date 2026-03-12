@@ -737,6 +737,7 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 	u64 eoffs;
 	page_t *p = NULL;
 	vm_prot_t flagsCheck = map_checkProt(e->prot, prot);
+	int err;
 
 	if (flagsCheck != 0U) {
 		return -EINVAL;
@@ -754,10 +755,14 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 	eoffs = ((e->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (e->offs + offs));
 
 	if (e->amap == NULL) {
-		p = vm_objectPage(map, NULL, e->object, paddr, eoffs);
+		err = vm_objectPage(map, NULL, e->object, paddr, eoffs, &p);
 	}
 	else { /* if (e->object != VM_OBJ_PHYSMEM) FIXME disabled until memory objects are created for syspage progs */
-		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, eoffs, prot);
+		err = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, eoffs, prot, &p);
+	}
+
+	if (err != EOK) {
+		return err;
 	}
 
 	attr = vm_protToAttr(prot) | vm_flagsToAttr(e->flags);
