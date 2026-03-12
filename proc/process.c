@@ -1503,6 +1503,12 @@ int proc_vfork(void)
 		(void)vm_objectPut(spawn->object);
 		ret = spawn->state;
 		vm_kfree(spawn);
+		if ((ret < 0) && (posix_getppid(pid) >= 0)) {
+			/* if child managed to register itself within posix subsystem before failure,
+			 * wait for its complete death and cleanup its posix metadata.
+			 */
+			(void)posix_waitpid(pid, NULL, 0);
+		}
 		return (ret < 0) ? ret : pid;
 	}
 
