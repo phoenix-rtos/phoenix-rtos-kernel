@@ -45,7 +45,12 @@ int vm_objectGet(vm_object_t **o, oid_t oid);
 int vm_objectPut(vm_object_t *o);
 
 
-page_t *vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs);
+/*
+ * Fills appropriate page_t struct into *res, allocates new page when o == NULL.
+ * Note that when o == VM_OBJ_PHYSMEM and offs is outside of defined physical maps,
+ * then *res will be NULL even though mapping can still be made.
+ */
+int vm_objectPage(struct _vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64 offs, page_t **page);
 
 
 vm_object_t *vm_objectContiguous(size_t size);
