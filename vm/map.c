@@ -1116,6 +1116,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 	rbnode_t *n;
 	map_entry_t *e, *f;
 	size_t offs;
+	int err = EOK;
 
 	(void)proc_lockSet2(&src->lock, &dst->lock);
 
@@ -1141,24 +1142,22 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 
-			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
-				remap_readonly(src, e, offs);
-				remap_readonly(dst, f, offs);
+			if ((proc != NULL) && (proc->lazy != 0U)) {
+				for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
+					remap_readonly(src, e, offs);
+					remap_readonly(dst, f, offs);
+				}
 			}
 		}
 
 		if ((proc == NULL) || (proc->lazy == 0U)) {
 			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
-				if (_map_force(dst, f, (void *)((ptr_t)f->vaddr + offs), f->prot) != 0) {
+				err = _map_force(dst, f, (void *)((ptr_t)f->vaddr + offs), f->prot);
+				if (err != EOK) {
 					(void)proc_lockClear(&dst->lock);
 					(void)proc_lockClear(&src->lock);
-					return -ENOMEM;
-				}
-
-				if (_map_force(src, e, (void *)((ptr_t)e->vaddr + offs), e->prot) != 0) {
-					(void)proc_lockClear(&dst->lock);
-					(void)proc_lockClear(&src->lock);
-					return -ENOMEM;
+					vm_mapDestroy(proc, dst);
+					return err;
 				}
 			}
 		}
