@@ -624,11 +624,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 
 	for (w = vaddr; w < vaddr + size; w += SIZE_PAGE) {
 		if (_map_force(map, e, w, prot) != 0) {
-			amap_putanons(e->amap, e->aoffs, (ptr_t)w - (ptr_t)vaddr);
-
-			(void)pmap_remove(&map->pmap, vaddr, (void *)((ptr_t)w + SIZE_PAGE));
-
-			_entry_put(map, e);
+			(void)_vm_munmap(map, vaddr, size);
 			return NULL;
 		}
 	}
@@ -741,15 +737,18 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 	u64 eoffs;
 	page_t *p = NULL;
 	vm_prot_t flagsCheck = map_checkProt(e->prot, prot);
+	amap_t *amapNew;
+	int err;
 
 	if (flagsCheck != 0U) {
 		return -EINVAL;
 	}
 	if ((((prot & PROT_WRITE) != 0U) && ((e->flags & MAP_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
-		e->amap = amap_create(e->amap, &e->aoffs, e->size);
-		if (e->amap == NULL) {
+		amapNew = amap_create(e->amap, &e->aoffs, e->size);
+		if (amapNew == NULL) {
 			return -ENOMEM;
 		}
+		e->amap = amapNew;
 
 		e->flags &= ~MAP_NEEDSCOPY;
 	}
@@ -758,10 +757,14 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 	eoffs = ((e->offs == VM_OFFS_MAX) ? VM_OFFS_MAX : (e->offs + offs));
 
 	if (e->amap == NULL) {
-		p = vm_objectPage(map, NULL, e->object, paddr, eoffs);
+		err = vm_objectPage(map, NULL, e->object, paddr, eoffs, &p);
 	}
 	else { /* if (e->object != VM_OBJ_PHYSMEM) FIXME disabled until memory objects are created for syspage progs */
-		p = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, eoffs, prot);
+		err = amap_page(map, e->amap, e->object, paddr, e->aoffs + offs, eoffs, prot, &p);
+	}
+
+	if (err != EOK) {
+		return err;
 	}
 
 	attr = vm_protToAttr(prot) | vm_flagsToAttr(e->flags);
@@ -1120,6 +1123,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 	rbnode_t *n;
 	map_entry_t *e, *f;
 	size_t offs;
+	int err = EOK;
 
 	(void)proc_lockSet2(&src->lock, &dst->lock);
 
@@ -1153,17 +1157,21 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 
 		if ((proc == NULL) || (proc->lazy == 0U)) {
 			for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
-				if (_map_force(dst, f, (void *)((ptr_t)f->vaddr + offs), f->prot) != 0) {
-					(void)proc_lockClear(&dst->lock);
-					(void)proc_lockClear(&src->lock);
-					return -ENOMEM;
+				err = _map_force(dst, f, (void *)((ptr_t)f->vaddr + offs), f->prot);
+				if (err != EOK) {
+					break;
 				}
-
-				if (_map_force(src, e, (void *)((ptr_t)e->vaddr + offs), e->prot) != 0) {
-					(void)proc_lockClear(&dst->lock);
-					(void)proc_lockClear(&src->lock);
-					return -ENOMEM;
-				}
+			}
+			if (err != EOK) {
+				/* Destroy map before _map_force on source map to ensure refcounts are cleared and avoid unnecessary copies in amap_page */
+				vm_mapDestroy(proc, dst);
+			}
+			for (offs = 0; offs < e->size; offs += SIZE_PAGE) {
+				LIB_ASSERT_ALWAYS(_map_force(src, e, (void *)((ptr_t)e->vaddr + offs), e->prot) == EOK, "Broken src map during mapCopy");
+			}
+			if (err != EOK) {
+				(void)proc_lockClear(&src->lock);
+				return err;
 			}
 		}
 	}
