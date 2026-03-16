@@ -9,4 +9,4 @@ ifneq (, $(findstring n6, $(TARGET_SUBFAMILY)))
     include hal/armv8m/stm32/n6/Makefile
 endif
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv8m/stm32/, _init.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv8m/stm32/, _init.o console.o timer.o)
