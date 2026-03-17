@@ -758,20 +758,24 @@ void syscalls_portDestroy(u8 *ustack)
 }
 
 
-int syscalls_portRegister(u8 *ustack)
+int syscalls_sys_portRegister(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
-	unsigned int port;
-	char *name;
+	u32 port;
+	const char *name;
+	size_t len;
 	oid_t *oid;
 
-	GETFROMSTACK(ustack, unsigned int, port, 0U);
-	GETFROMSTACK(ustack, char *, name, 1U);
-	GETFROMSTACK(ustack, oid_t *, oid, 2U);
-
-	/* FIXME: Pass strlen(name) from userspace */
+	GETFROMSTACK(ustack, u32, port, 0U);
+	GETFROMSTACK(ustack, const char *, name, 1U);
+	GETFROMSTACK(ustack, size_t, len, 2U);
+	GETFROMSTACK(ustack, oid_t *, oid, 3U);
 
 	if (vm_mapBelongs(proc, oid, sizeof(*oid)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, name, len) < 0) {
 		return -EFAULT;
 	}
 
