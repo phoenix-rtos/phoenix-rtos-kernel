@@ -70,7 +70,7 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 }
 
 
-int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
+int proc_portRegister(u32 port, const char *name, oid_t *oid)
 {
 	dcache_entry_t *entry;
 	unsigned int hash = dcache_strHash(name);
