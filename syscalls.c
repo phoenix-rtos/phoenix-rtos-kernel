@@ -779,6 +779,23 @@ int syscalls_portRegister(u8 *ustack)
 }
 
 
+int syscalls_sys_portUnregister(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	const char *name;
+	size_t len;
+
+	GETFROMSTACK(ustack, const char *, name, 0U);
+	GETFROMSTACK(ustack, size_t, len, 1U);
+
+	if (vm_mapBelongs(proc, name, len) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_portUnregister(name);
+}
+
+
 int syscalls_msgSend(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
