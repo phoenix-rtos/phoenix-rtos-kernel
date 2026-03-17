@@ -48,6 +48,7 @@
 	ID(portCreate) \
 	ID(portDestroy) \
 	ID(portRegister) \
+	ID(sys_portUnregister) \
 	ID(msgSend) \
 	ID(msgRecv) \
 	ID(msgRespond) \
