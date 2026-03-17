@@ -6,7 +6,8 @@
  * Configuration file for MCXN94x
  *
  * Copyright 2021, 2022, 2024 Phoenix Systems
- * Author: Hubert Buczynski, Damian Loewnau, Aleksander Kaminski
+ * Copyright 2026 Apator Metrix
+ * Author: Hubert Buczynski, Damian Loewnau, Aleksander Kaminski, Mateusz Karcz
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -14,11 +15,15 @@
 #ifndef _PH_HAL_CONFIG_H_
 #define _PH_HAL_CONFIG_H_
 
-#define SIZE_INTERRUPTS (171U + 16U)
+#define SIZE_INTERRUPTS 172U
 
 #define NUM_CPUS 1
 
-#ifndef __ASSEMBLY__
+#ifdef __ASSEMBLY__
+
+#define CORTEXM33_PLATFORM_INIT _mcxn94x_init
+
+#else
 
 #include "include/arch/armv8m/mcx/syspage.h"
 #include "mcxn94x.h"

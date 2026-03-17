@@ -6,14 +6,20 @@
  * Low-level initialization for Cortex-M33 (ARMv8) architecture
  *
  * Copyright 2012, 2016-2017, 2022, 2024 Phoenix Systems
- * Author: Jacek Popko, Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski, Damian Loewnau
+ * Copyright 2026 Apator Metrix
+ * Author: Jacek Popko, Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski, Damian Loewnau, Mateusz Karcz
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #define __ASSEMBLY__
 
+#include <config.h>
 #include <arch/cpu.h>
+
+#ifndef CORTEXM33_PLATFORM_INIT
+#error "Platform init routine not provided!"
+#endif
 
 #define ADDR_SCB 0xe000ed00u
 
@@ -47,7 +53,7 @@ _init_vectors:
 .word _interrupts_dispatch /* PendSV */
 .word _interrupts_dispatch /* Systick */
 
-.rept 156                  /* Max number of ext interrupts - last peripheral id + 1 */
+.rept (SIZE_INTERRUPTS - 16)
 .word _interrupts_dispatch
 .endr
 .size _init_vectors, .-_init_vectors
@@ -80,7 +86,7 @@ _start:
 	msr msp, r0
 	isb
 
-	bl _mcxn94x_init
+	bl CORTEXM33_PLATFORM_INIT
 
 	b main
 .size _start, .-_start
