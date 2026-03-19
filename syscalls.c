@@ -819,7 +819,7 @@ int syscalls_msgCall(void *ustack)
 			process_getName(t->process, name, sizeof(name));
 		}
 
-		LIB_ASSERT(0, "WHAT? tid: %d port: %d name: %s", proc_getTid(proc_current()), port, t->process != NULL ? name : "?");
+		// LIB_ASSERT(0, "WHAT? tid: %d port: %d name: %s", proc_getTid(proc_current()), port, t->process != NULL ? name : "?");
 	}
 	return proc_call(port);
 }

@@ -1702,7 +1702,7 @@ static void *ioctl_pack2(msgBuf_t *msg, unsigned long request, void *data, oid_t
 	struct rtentry *rt;
 	void *rdata = NULL;
 
-	hal_memcpy(&msg->devctl.oid, oid, sizeof(*oid));
+	hal_memcpy(&msg->oid, oid, sizeof(*oid));
 	msg->label = mtDevCtl;
 
 	*rsize = 0;

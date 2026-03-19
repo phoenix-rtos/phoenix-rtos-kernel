@@ -159,10 +159,11 @@ typedef struct {
 	int err;
 	size_t size;
 
+	oid_t oid;
+
 	union {
 		/* OPEN/CLOSE/DESTROY */
 		struct {
-			oid_t oid;
 			int flags;
 		} openclose;
 
@@ -171,20 +172,18 @@ typedef struct {
 			off_t offs;
 			size_t len;
 			unsigned mode;
-			oid_t oid;
 		} io;
 
 		/* CREATE */
 		struct {
-			oid_t oid;
 			int type;
 			unsigned mode;
 			oid_t dev;
+			oid_t oid;
 		} create;
 
 		/* SETATTR/GETATTR */
 		struct {
-			oid_t oid;
 			long long val;
 			int type;
 			size_t size;
@@ -193,24 +192,20 @@ typedef struct {
 
 		/* LINK/UNLINK */
 		struct {
-			oid_t oid;
 			oid_t toid;
 		} ln;
 
 		/* READDIR */
 		struct {
-			oid_t oid;
 			off_t offs;
 		} readdir;
 
 		struct {
-			oid_t oid;
 			unsigned char raw[64 - sizeof(oid_t)];
 		} devctl;
 
 		/* LOOKUP */
 		struct {
-			oid_t oid;
 			oid_t fil;
 			oid_t dev;
 		} lookup;

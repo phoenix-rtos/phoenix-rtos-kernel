@@ -142,7 +142,9 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
 
-	(void)proc_initMsgBuf();
+	if (proc_initMsgBuf() == NULL) {
+		return -ENOMEM;
+	}
 	msgBuf_t *msg = proc_current()->utcb.kw;
 
 	if (name == NULL || (file == NULL && dev == NULL))
@@ -220,13 +222,15 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 	/* Query servers */
 	do {
-		hal_memcpy(&msg->lookup.oid, &srv, sizeof(srv));
+		msg->oid = srv;
 		msg->bufsize = len - i;
 		hal_memcpy(pptr, name + i + 1, len - i);
 		msg->buf = pptr;
 
-		if ((err = proc_call_returnable(srv.port)) < 0)
+		err = proc_call_returnable(srv.port);
+		if (err < 0) {
 			break;
+		}
 
 		srv = msg->lookup.dev;
 		err = msg->err;
@@ -241,13 +245,17 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		}
 	} while (i != len);
 
-	if (file != NULL)
+	if (file != NULL) {
 		*file = msg->lookup.fil;
-	if (dev != NULL)
+	}
+	if (dev != NULL) {
 		*dev = msg->lookup.dev;
+	}
 
-	if (pheap != NULL)
+	if (pheap != NULL) {
 		vm_kfree(pheap);
+	}
+
 	return err < 0 ? err : EOK;
 #endif
 }
@@ -264,31 +272,31 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 
 int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
-	WARN_ON_OLD_API;
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msgBuf_t *msg;
 
-	if (msg == NULL)
+	if (proc_initMsgBuf() == NULL) {
 		return -ENOMEM;
+	}
+	msg = proc_current()->utcb.kw;
 
-	hal_memset(msg, 0, sizeof(msg_t));
+	hal_memset(msg, 0, sizeof(msgBuf_t));
 
-	msg->type = mtCreate;
-	msg->i.create.type = type;
-	msg->i.create.mode = mode;
-	hal_memcpy(&msg->i.create.dev, &dev, sizeof(dev));
+	msg->label = mtCreate;
+	msg->create.type = type;
+	msg->create.mode = mode;
 	hal_memcpy(&msg->oid, &dir, sizeof(dir));
-	msg->i.data = name;
-	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
+	hal_memcpy(&msg->create.dev, &dev, sizeof(dev));
+	msg->buf = name;
+	msg->bufsize = name == NULL ? 0 : hal_strlen(name) + 1;
 
-	err = proc_send(port, msg);
+	err = proc_call_returnable(port);
 
 	if (err == 0) {
-		err = msg->o.err;
+		err = msg->err;
 	}
 
-	hal_memcpy(oid, &msg->o.create.oid, sizeof(oid_t));
-	vm_kfree(msg);
+	hal_memcpy(oid, &msg->create.oid, sizeof(oid_t));
 	return err;
 }
 
@@ -474,11 +482,13 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	thread_t *t = proc_current();
 	msgBuf_t *msg;
 
-	(void)proc_initMsgBuf();
+	if (proc_initMsgBuf() == NULL) {
+		return -ENOMEM;
+	}
 	msg = t->utcb.kw;
 
 	msg->label = mtRead;
-	hal_memcpy(&msg->io.oid, &oid, sizeof(oid_t));
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
 
 	msg->io.offs = offs;
 	msg->io.len = 0;
@@ -507,11 +517,13 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	thread_t *t = proc_current();
 	msgBuf_t *msg;
 
-	(void)proc_initMsgBuf();
+	if (proc_initMsgBuf() == NULL) {
+		return -ENOMEM;
+	}
 	msg = t->utcb.kw;
 
 	msg->label = mtWrite;
-	hal_memcpy(&msg->io.oid, &oid, sizeof(oid_t));
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
 
 	msg->io.offs = offs;
 	msg->io.len = 0;
@@ -531,11 +543,13 @@ int proc_open(oid_t oid, unsigned mode)
 	thread_t *t = proc_current();
 	msgBuf_t *msg;
 
-	(void)proc_initMsgBuf();
+	if (proc_initMsgBuf() == NULL) {
+		return -ENOMEM;
+	}
 	msg = t->utcb.kw;
 
 	msg->label = mtOpen;
-	hal_memcpy(&msg->openclose.oid, &oid, sizeof(oid_t));
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
 	msg->openclose.flags = mode;
 	msg->buf = NULL;
 	msg->bufsize = 0;
@@ -553,11 +567,13 @@ int proc_close(oid_t oid, unsigned mode)
 	thread_t *t = proc_current();
 	msgBuf_t *msg;
 
-	(void)proc_initMsgBuf();
+	if (proc_initMsgBuf() == NULL) {
+		return -ENOMEM;
+	}
 	msg = t->utcb.kw;
 
 	msg->label = mtClose;
-	hal_memcpy(&msg->openclose.oid, &oid, sizeof(oid_t));
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
 	msg->openclose.flags = mode;
 	msg->buf = NULL;
 	msg->bufsize = 0;

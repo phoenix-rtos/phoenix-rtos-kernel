@@ -418,7 +418,7 @@ void log_msgHandler2(msgBuf_t *msg, oid_t oid, void *reply)
 			else {
 				msg->err = log_read(r, msg->buf, msg->bufsize);
 				if ((msg->err == 0) && (r->nonblocking == 0)) {
-					msg->err = log_readerBlock(r, msg->buf, msg->bufsize, msg->io.oid, reply);
+					msg->err = log_readerBlock(r, msg->buf, msg->bufsize, oid, reply);
 					if (msg->err == EOK) {
 						respond = 0;
 					}
@@ -538,5 +538,5 @@ void _log_init(void)
 	hal_memset(&log_common, 0, sizeof(log_common));
 	proc_lockInit(&log_common.lock, &proc_lockAttrDefault, "log.common");
 
-	log_common.enabled = 1;
+	log_common.enabled = 0;
 }

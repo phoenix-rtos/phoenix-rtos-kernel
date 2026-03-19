@@ -367,7 +367,7 @@ static void track_deprecated_msg(const char *func)
 		process_getName(sender->process, name, sizeof(name));
 	}
 
-	LIB_ASSERT(0, "%s called %s %p %p", func, name, _getUserContext(sender)->sepc, _getUserContext(sender)->ra);
+	LIB_ASSERT_ALWAYS(0, "%s called %s %p %p", func, name, _getUserContext(sender)->sepc, _getUserContext(sender)->ra);
 }
 
 

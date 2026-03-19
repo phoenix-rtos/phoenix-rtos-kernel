@@ -44,19 +44,24 @@ static void usrv_msgthr(void *arg)
 	void *reply;
 
 	for (;;) {
-		// lib_debug_printf("waiting for msg, oid.port=%d\n", oid.port);
-
 		reply = proc_recv2(oid.port);
-
-		// lib_debug_printf("got msg!\n");
-
 		if (reply == NULL) {
 			lib_debug_printf("null?\n");
 			continue;
 		}
 
-		/* TODO: handle bad oids? */
-		log_msgHandler2(msg, oid, reply);
+		oid.id = msg->oid.id;
+
+		switch (oid.id) {
+			case USRV_ID_LOG:
+				log_msgHandler2(msg, oid, reply);
+				break;
+
+			default:
+				msg->err = -ENOSYS;
+				proc_respond2(oid.port, reply);
+				break;
+		}
 	}
 }
 
