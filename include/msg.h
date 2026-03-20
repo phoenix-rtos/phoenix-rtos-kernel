@@ -161,6 +161,8 @@ typedef struct {
 
 	oid_t oid;
 
+	__u8 pulse;
+
 	union {
 		/* OPEN/CLOSE/DESTROY */
 		struct {
@@ -189,6 +191,8 @@ typedef struct {
 			size_t size;
 			unsigned char data[];
 		} attr;
+
+		struct _attrAll attrAll;
 
 		/* LINK/UNLINK */
 		struct {

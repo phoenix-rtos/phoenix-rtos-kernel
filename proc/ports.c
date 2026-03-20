@@ -174,6 +174,8 @@ int proc_portCreate(u32 *id)
 	port->refs = 1;
 	port->closed = 0;
 
+	port->pulse = 0;
+
 	port->fpThreads = NULL;
 	proc_threadPrioQueueInit(&port->queue);
 

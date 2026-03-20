@@ -42,6 +42,8 @@ typedef struct _port_t {
 
 	/* to be merged with threads once old impl is ditched */
 	prio_queue_t queue;
+
+	__u8 pulse;
 } port_t;
 
 /* FIXME - use int for port handle.

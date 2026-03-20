@@ -587,28 +587,27 @@ int proc_close(oid_t oid, unsigned mode)
 
 off_t proc_size(oid_t oid)
 {
-	WARN_ON_OLD_API;
+	int err;
+	thread_t *t = proc_current();
+	msgBuf_t *msg;
 
-	off_t err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
-
-	if (msg == NULL)
+	if (proc_initMsgBuf() == NULL) {
 		return -ENOMEM;
+	}
+	msg = t->utcb.kw;
 
-	hal_memset(msg, 0, sizeof(msg_t));
-
-	msg->type = mtGetAttr;
+	msg->label = mtGetAttr;
 	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-	msg->i.attr.type = 3; /* atSize */
-	err = proc_send(oid.port, msg);
+	msg->attr.type = 3; /* atSize */
+
+	err = proc_call_returnable(oid.port);
 	if (err == EOK) {
-		err = msg->o.err;
+		err = msg->err;
 	}
 	if (err == EOK) {
-		err = msg->o.attr.val;
+		err = msg->attr.val;
 	}
 
-	vm_kfree(msg);
 	return err;
 }
 

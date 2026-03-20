@@ -161,6 +161,8 @@ typedef struct _thread_t {
 		ipc_buf_layout_t il;
 	} utcb;
 
+	int flags;
+
 	/* Message buffer */
 	void *bufferStart;
 	void *bufferEnd;

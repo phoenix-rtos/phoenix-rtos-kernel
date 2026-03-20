@@ -30,6 +30,9 @@
 #include "syscalls.h"
 
 
+#define THREAD_PULSED 1
+
+
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
@@ -49,7 +52,6 @@ struct {
 
 	/* Synchronized by spinlock */
 	rbtree_t sleeping;
-	rbtree_t passive;
 
 	/* Synchronized by mutex */
 	unsigned int idcounter;
@@ -243,13 +245,30 @@ static cpu_context_t *_getUserContext(thread_t *thread)
 }
 
 
+static void unbindFromAddedTo(thread_t *t)
+{
+	port_t *p;
+	spinlock_ctx_t sc;
+
+	if (t->addedTo != NULL) {
+		p = t->addedTo;
+		hal_spinlockSet(&p->spinlock, &sc);
+		LIST_REMOVE_EX(&p->fpThreads, t, tnext, tprev);
+		/*
+		 * TODO: clear refcount, but cant use port_put here as it potentially
+		 * sets threads_common.spinlock...
+		 */
+		hal_spinlockClear(&p->spinlock, &sc);
+		t->addedTo = NULL;
+	}
+}
+
+
 static void thread_destroy(thread_t *thread)
 {
 	process_t *process;
 	spinlock_ctx_t sc;
 	thread_t *reply;
-	port_t *p;
-	// int ref;
 
 	trace_eventThreadEnd(thread);
 
@@ -259,23 +278,13 @@ static void thread_destroy(thread_t *thread)
 		proc_lockUnlock(thread->locks);
 	}
 
-	if (thread->addedTo != NULL) {
-		p = thread->addedTo;
-		hal_spinlockSet(&p->spinlock, &sc);
-		LIST_REMOVE_EX(&p->fpThreads, thread, tnext, tprev);
-		LIB_ASSERT(0, "happens");
-		hal_spinlockClear(&p->spinlock, &sc);
-	}
+	unbindFromAddedTo(thread);
 
 	/* REVISIT: guard with threads spinlock needed? called may hold a reference to us */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if (thread->called != NULL) {
 		LIB_ASSERT(thread->called->reply == thread, "thread->called->reply != thread");
 		thread->called->reply = NULL;
-	}
-
-	if (thread->passive) {
-		lib_rbRemove(&threads_common.passive, &thread->sleeplinkage);
 	}
 
 	if (thread->sched != NULL) {
@@ -841,6 +850,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->reply = NULL;
 	t->called = NULL;
 	t->addedTo = NULL;
+	t->flags = 0;
 
 	t->bufferStart = NULL;
 	t->bufferEnd = NULL;
@@ -1030,28 +1040,44 @@ int proc_threadPriority(int priority)
 }
 
 
-static void _thread_interrupt(thread_t *t)
+static void _wakePassive(thread_t *t)
 {
-	port_t *p;
-	spinlock_ctx_t sc;
+	LIB_ASSERT(t->passive == 1, "t is not passive!");
+	LIB_ASSERT(t->state == BLOCKED_ON_RECV, "t is passive and interruptible but not BLOCKED_ON_RECV? state=%d", t->state);
+	/* TODO: move this to some generic passive reversing function? */
 
-	if (t->passive == 1) {
-		/* TODO move this to some generic passive reversing function */
+	/* TODO: we could also interrupt the server while its handling the message
+	 * it would require to clean up the server as well as the client */
+
+	/* TODO: i guess we could merge t->schedAside with t->inherited?
+	 so that the first element of t->inherited is always the server's SC */
+	if (t->inherited != NULL) {
+		t->sched = t->inherited;
+		LIST_REMOVE(&t->inherited, t->sched);
+	}
+	else {
+		LIB_ASSERT(t->schedAside != NULL, "schedAside is NULL??");
 		t->sched = t->schedAside;
 		t->schedAside = NULL;
 		t->passive = 0;
-		t->utcb.kw->err = -EINTR;
-
-		if (t->addedTo != NULL) {
-			p = t->addedTo;
-			hal_spinlockSet(&p->spinlock, &sc);
-			LIST_REMOVE_EX(&p->fpThreads, t, tnext, tprev);
-			hal_spinlockClear(&p->spinlock, &sc);
-			t->addedTo = NULL;
-		}
 	}
+
 	_proc_threadDequeue(t);
-	hal_cpuSetReturnValue(t->context, (void *)-EINTR);
+}
+
+
+static void _thread_interrupt(thread_t *t)
+{
+	if (t->passive == 1) {
+		_wakePassive(t);
+		unbindFromAddedTo(t);
+		t->utcb.kw->err = -EINTR;
+		hal_cpuSetReturnValue(t->context, NULL);
+	}
+	else {
+		_proc_threadDequeue(t);
+		hal_cpuSetReturnValue(t->context, (void *)-EINTR);
+	}
 }
 
 
@@ -2268,7 +2294,6 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.ready[i] = NULL;
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
-	lib_rbInit(&threads_common.passive, threads_sleepcmp, NULL);
 	lib_idtreeInit(&threads_common.id);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
@@ -2414,7 +2439,7 @@ int proc_call_ex(u32 port, int returnable)
 	if (p->closed != 0) {
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
-		LIB_ASSERT(0, "happens here");
+		// LIB_ASSERT(0, "happens here");
 		return -EINVAL;
 	}
 
@@ -2442,18 +2467,19 @@ int proc_call_ex(u32 port, int returnable)
 
 	recv = p->fpThreads;
 	LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
+	recv->addedTo = NULL;
 
-	/* TODO: bump refcnt on recv? */
-	hal_spinlockClear(&p->spinlock, &sc);
+	spinlock_ctx_t tsc;
 
-	/* FIXME: recv could get a sigint here */
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	if (returnable != 0) {
 		caller->callReturnable = 1;
 	}
 	ctx = _threads_switchTo(recv, 0);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
+
+	/* TODO: bump refcnt on recv? */
+	hal_spinlockClear(&p->spinlock, &sc);
 
 	if (caller->utcb.kw->buf != NULL && caller->utcb.kw->bufsize > 0) {
 		if (proc_setupSharedBuffer(caller, recv) < 0) {
@@ -2491,7 +2517,7 @@ int proc_call_ex(u32 port, int returnable)
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
-	recv->addedTo = NULL;
+	recv->interruptible = 0;
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
@@ -2549,7 +2575,7 @@ int proc_call(u32 port)
 int proc_call_returnable(u32 port)
 {
 	int err = proc_call_ex(port, 1);
-	LIB_ASSERT(err >= 0, "err=%d", err);
+	// LIB_ASSERT(err >= 0, "err=%d", err);
 
 	return err;
 }
@@ -2615,9 +2641,14 @@ void proc_threadPrioQueueInit(prio_queue_t *queue)
 
 static void *_becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 {
+	spinlock_ctx_t tsc;
+
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
+
 	log_err("passive %d", proc_getTid(recv));
 	LIST_ADD_EX(&p->fpThreads, recv, tnext, tprev);
 	recv->addedTo = p;
+
 
 	if (recv->sched != NULL) {
 		recv->schedAside = recv->sched;
@@ -2626,20 +2657,21 @@ static void *_becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 
 	(void)_proc_threadWakeupPrio(&p->queue);
 
+	hal_spinlockClear(&p->spinlock, &tsc);
+
 	recv->state = BLOCKED_ON_RECV;
 	recv->passive = 1;
-
-	/* FIXME: allow the receiver to be interruptible */
-	// recv->interruptible = 1;
+	recv->interruptible = 1;
+	recv->flags &= (~(int)THREAD_PULSED);
 
 	/*
 	 * the port is not put, because the passive thread still uses the port
 	 * the port will get destroyed on proc_destroy
 	 */
 
-	hal_cpuReschedule(&p->spinlock, sc);
+	hal_cpuReschedule(&threads_common.spinlock, sc);
 
-	if (recv->utcb.kw->err == -EINTR) {
+	if (recv->utcb.kw->err != EOK || (recv->flags & THREAD_PULSED) != 0) {
 		return NULL;
 	}
 	else {
@@ -2649,21 +2681,12 @@ static void *_becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 }
 
 
-static __attribute__((noreturn)) void _becomePassiveNoReturn(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
-{
-	(void)_becomePassive(p, recv, sc);
-	LIB_ASSERT_ALWAYS(0, "unreachable is reachable");
-	__builtin_unreachable();
-}
-
-
 /* TODO: error passing */
 void *proc_recv2(u32 port)
 {
 	port_t *p;
-	spinlock_ctx_t sc;
+	spinlock_ctx_t sc, tsc;
 	thread_t *recv;
-	void *ret;
 
 	recv = proc_current();
 	if (recv->utcb.kw == NULL) {
@@ -2682,10 +2705,21 @@ void *proc_recv2(u32 port)
 		return NULL;
 	}
 
+	if (p->pulse != 0) {
+		recv->utcb.kw->pulse = p->pulse;
+		recv->utcb.kw->err = EOK;
+		p->pulse = 0;
+		hal_spinlockClear(&p->spinlock, &sc);
+		return NULL;
+	}
+
 	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
 
 	/* put original recv sched aside */
 
+	/* REVISIT: do we really need threads spinlock if we are already under
+	 * p->spinlock? */
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	if (recv->passive == 1) {
 		/*
 		 * server thread is doing multiple recvs without returning SCs
@@ -2699,6 +2733,7 @@ void *proc_recv2(u32 port)
 		LIB_ASSERT(recv->sched->owner == recv, "putting aside client's thread");
 		/* else: sched is put aside by _becomePassive */
 	}
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
 #if VERBOSE
 	char name[26];
@@ -2709,17 +2744,51 @@ void *proc_recv2(u32 port)
 	lib_debug_printf("proc_recv2 port=%d (%d, %s)\n", port, proc_getTid(recv), recv->process != NULL ? name : "?");
 #endif
 
-	if (recv->process != NULL) {
-		_becomePassiveNoReturn(p, recv, &sc);
-		LIB_ASSERT_ALWAYS(0, "what?");
+	return _becomePassive(p, recv, &sc);
+}
+
+
+int proc_pulse(u32 port, u8 pulse)
+{
+	port_t *p;
+	spinlock_ctx_t sc;
+	thread_t *recv;
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&p->spinlock, &sc);
+	recv = p->fpThreads;
+
+	if (recv != NULL) {
+		LIB_ASSERT(recv->state != READY, "how is recv ready while on port queue?");
+		_wakePassive(recv);
+
+		LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
+		recv->addedTo = NULL;
+
+		recv->utcb.kw->err = EOK;
+		recv->flags |= THREAD_PULSED;
+		recv->utcb.kw->pulse = pulse;
+
+		hal_cpuSetReturnValue(recv->context, NULL);
+
+		if (recv->priority < proc_current()->priority) {
+			hal_cpuReschedule(&p->spinlock, &sc);
+		}
+		else {
+			hal_spinlockClear(&p->spinlock, &sc);
+		}
 	}
 	else {
-		ret = _becomePassive(p, recv, &sc);
-
-		lib_debug_printf("proc_recv2 EXITING\n");
-
-		return ret;
+		/* stick the pulse to port for late receivers */
+		p->pulse = pulse;
+		hal_spinlockClear(&p->spinlock, &sc);
 	}
+
+	return EOK;
 }
 
 
@@ -2738,75 +2807,22 @@ int proc_respond2(u32 port, void *reply)
 
 	/* TODO: ensure reply->called reference is not user-exploitable */
 	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0) {
-		lib_printf("bad reply = %p\n", reply);
 		return -EINVAL;
 	}
 
 	/* Here's the funny part:
-	 * the receiving thread doesn't need to be the same as the responding thread (see: p-r-corelibs/libstorage)
+	 * the receiving thread doesn't need to be the same as the
+	 * responding thread (see: p-r-corelibs/libstorage)
+	 * we will need to deeply rewrite some servers like this
 	 */
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	caller = reply;
 	if (caller->called != recv) {
-		if (caller->called->process != recv->process) {
-			lib_printf("unmatched reply = %p (expected: %p)\n", reply, caller->called);
-			return -EINVAL;
-		}
-
-		/* The receiver is some other thread of our process. Let's clean it up and
-		 * pretend it was ours */
-		thread_t *og_recv = caller->called;
-
-		/*
-		 * The recv must be passive, otherwise all the receiving msgs would be
-		 * paired with responds and we wouldnt be here
-		 */
-		LIB_ASSERT(og_recv->passive == 1, "how og_recv is not passive?");
-
-		if (og_recv->sched == NULL) {
-			/* if og_recv is passive and has sched and we somehow ended up here (responding to some
-			 * message that og_recv received), it means that og_recv hasnt done a
-			 * respond to that message prior to subsequent og_recv
-			 */
-			LIB_ASSERT(og_recv->inherited != NULL, "there should be an inherited SC");
-			og_recv->sched = og_recv->inherited;
-			LIST_REMOVE(&og_recv->inherited, og_recv->sched);
-		}
-		else {
-			LIB_ASSERT(og_recv->schedAside != NULL, "HUH 2");
-			/* the og_recv is in the _becomePassive, dont mess with it */
-		}
-
-		LIB_ASSERT(og_recv->sched->owner == caller, "not good");
-		_threads_switchSchedContexts(og_recv, caller, 1);
-		LIST_ADD(&threads_common.ready[caller->priority], caller->sched);
-
-		/* TODO: duplicate of below, extract to function */
-		// if (og_recv->schedAside != NULL) {
-		// 	og_recv->sched = og_recv->schedAside;
-		// 	og_recv->schedAside = NULL;
-		// 	og_recv->passive = 0;
-		// }
-
-		/* TODO: verify port refcount on og_recv but IMO shouldnt be touched here
-		 - our goal is to restore the og_recv state to one from _becomePassive */
-
-		_threads_copyMsgBufResponse(recv, caller);
-
-		/* TODO: duplicate of below, extract to function */
-		if (caller->callReturnable == 0) {
-			caller->context = _getUserContext(caller);
-			hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)EOK);
-		}
-		else {
-			caller->callReturnable = 0;
-		}
+		LIB_ASSERT(0, "unmatched reply = %p (expected: %p)\n", reply, caller->called);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
-
-		return EOK;
+		return -EINVAL;
 	}
-
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	p = proc_portGet(port);
@@ -2907,7 +2923,7 @@ int proc_respond2(u32 port, void *reply)
 void *proc_respondAndRecv(u32 port)
 {
 	port_t *p;
-	spinlock_ctx_t sc;
+	spinlock_ctx_t sc, tsc;
 	cpu_context_t *ctx;
 	thread_t *caller, *recv;
 	int responding;
@@ -2943,12 +2959,23 @@ void *proc_respondAndRecv(u32 port)
 	responding = recv->reply != NULL ? 1 : 0;
 
 	if (responding == 0) {
+		if (p->pulse != 0) {
+			recv->utcb.kw->pulse = p->pulse;
+			recv->utcb.kw->err = EOK;
+			p->pulse = 0;
+			hal_spinlockClear(&p->spinlock, &sc);
+			return NULL;
+		}
+
 		return _becomePassive(p, recv, &sc);
 	}
 
 	/* wake next caller if exists */
 	log_err("wake next (prio=%d)", p->queue->priority);
+
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	(void)_proc_threadWakeupPrio(&p->queue);
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
 	hal_spinlockClear(&p->spinlock, &sc);
 

@@ -132,5 +132,6 @@
 	ID(msgInitBuf) \
 	ID(sys_entrytime) \
 	ID(msgRecv2) \
-	ID(msgRespond2)
+	ID(msgRespond2) \
+	ID(msgPulse)
 /* clang-format on */
