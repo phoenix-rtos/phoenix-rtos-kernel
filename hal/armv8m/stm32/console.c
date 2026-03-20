@@ -3,10 +3,11 @@
  *
  * Operating system kernel
  *
- * HAL console (STM32N6 USART)
+ * HAL console (STM32N6/U3 USART)
  *
  * Copyright 2016-2017, 2019-2020, 2025 Phoenix Systems
- * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski, Jacek Maksymowicz
+ * Copyright 2026 Apator Metrix
+ * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski, Jacek Maksymowicz, Mateusz Karcz
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -51,6 +52,8 @@ enum {
 	uart_clk_sel_lse_ck,
 	uart_clk_sel_msi_ck,
 	uart_clk_sel_hsi_div_ck,
+#elif defined(__CPU_STM32U3)
+	uart_clk_sel_hsi_ck,
 #endif
 };
 
@@ -119,6 +122,12 @@ void _hal_consoleInit(void)
 		{ ((void *)0x50007c00U), pctl_uart8, (u8)pctl_ipclk_uart8sel },
 		{ ((void *)0x52001800U), pctl_uart9, (u8)pctl_ipclk_uart9sel },
 		{ ((void *)0x52001c00U), pctl_usart10, (u8)pctl_ipclk_usart10sel },
+#elif defined(__CPU_STM32U3)
+		{ ((void *)0x50013800U), pctl_usart1, (u8)pctl_ipclk_usart1sel },
+		{ ((void *)0x50004400U), pctl_usart2, (u8)pctl_ipclk_usart2sel },
+		{ ((void *)0x50004800U), pctl_usart3, (u8)pctl_ipclk_usart3sel },
+		{ ((void *)0x50004c00U), pctl_uart4, (u8)pctl_ipclk_uart4sel },
+		{ ((void *)0x50005000U), pctl_uart5, (u8)pctl_ipclk_uart5sel },
 #endif
 	};
 
@@ -138,8 +147,10 @@ void _hal_consoleInit(void)
 #if defined(__CPU_STM32N6)
 	(void)_stm32_rccSetDevClock(pctl_per, 1, 1);
 	(void)_stm32_rccSetIPClk(uarts[uart].ipclk_sel, uart_clk_sel_per_ck);
-	console_common.refclkfreq = _stm32_rccGetPerClock();
+#elif defined(__CPU_STM32U3)
+	(void)_stm32_rccSetIPClk(uarts[uart].ipclk_sel, uart_clk_sel_pclk);
 #endif
+	console_common.refclkfreq = _stm32_rccGetPerClock();
 
 	/* Enable uart clock */
 	(void)_stm32_rccSetDevClock(uarts[uart].dev_clk, 1U, 1U);
