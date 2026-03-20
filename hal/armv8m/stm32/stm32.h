@@ -17,8 +17,10 @@
 #include "hal/types.h"
 #include "hal/pmap.h"
 
-#ifdef __CPU_STM32N6
+#if defined(__CPU_STM32N6)
 #include "include/arch/armv8m/stm32/n6/stm32n6.h"
+#elif defined(__CPU_STM32U3)
+#include "include/arch/armv8m/stm32/u3/stm32u3.h"
 #endif
 
 
@@ -69,7 +71,9 @@ int _stm32_rccGetIPClk(unsigned int ipclk, unsigned int *setting_out);
 u32 _stm32_rccGetCPUClock(void);
 
 
-/* Get frequency of PER (common peripheral) clock in Hz */
+/* Get frequency of PER (common peripheral) clock in Hz.
+ * On STM32U3, returns the PCLKx frequency.
+ */
 u32 _stm32_rccGetPerClock(void);
 
 
@@ -83,6 +87,7 @@ int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop);
 int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);
 
 
+#if defined(__CPU_STM32N6)
 int _stm32_gpioSet(int d, u8 pin, u8 val);
 
 
@@ -120,11 +125,13 @@ int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge);
 
 
 int _stm32_extiSoftInterrupt(u32 line);
+#endif
 
 
 void _stm32_wdgReload(void);
 
 
+#if defined(__CPU_STM32N6)
 int _stm32_rifsc_risup_change(int index, int secure, int privileged, int lock);
 
 
@@ -141,6 +148,7 @@ int _stm32_bsec_otp_write(unsigned int fuse, u32 val);
 
 
 void _stm32_bsec_init(void);
+#endif
 
 
 int _stm32_dmaSetPermissions(int dev, unsigned int channel, int secure, int privileged, int lock);
@@ -148,6 +156,7 @@ int _stm32_dmaSetPermissions(int dev, unsigned int channel, int secure, int priv
 
 int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr);
 
+#if defined(__CPU_STM32N6)
 int _stm32_AXICacheCmd(void *addr, unsigned int sz, int cmdtype);
 
 int _stm32_setAXICacheEnable(unsigned int enable);
@@ -158,6 +167,7 @@ int _stm32_risaf_configRegion(int risaf, u8 region, u32 start, u32 end, u8 privC
 
 
 int _stm32_risaf_init(void);
+#endif
 
 
 void _stm32_init(void);
