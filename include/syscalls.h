@@ -135,8 +135,12 @@
 	ID(schedInfo) \
 	ID(schedGet) \
 	ID(schedSet) \
-	ID(sys_cpuTime)
-
+	ID(sys_cpuTime) \
+	\
+	ID(phFutexCreate) \
+	ID(phFutexWake) \
+	ID(phFutexWait) \
+	ID(phFutexRequeue)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 /* clang-format on */
 

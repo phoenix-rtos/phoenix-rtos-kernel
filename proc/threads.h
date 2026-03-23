@@ -187,6 +187,9 @@ int proc_threadBroadcast(thread_t **queue);
 void proc_threadBroadcastYield(thread_t **queue);
 
 
+int proc_threadRequeue(thread_t **src, thread_t **dst, int n);
+
+
 int proc_schedInfo(int policy, sched_info_t *info);
 
 

@@ -5,7 +5,7 @@
 # Author: Pawel Pisarczyk
 #
 
-OBJS += $(addprefix $(PREFIX_O)proc/, proc.o threads.o process.o name.o resource.o mutex.o cond.o userintr.o ports.o)
+OBJS += $(addprefix $(PREFIX_O)proc/, proc.o threads.o process.o name.o resource.o mutex.o cond.o userintr.o ports.o futex.o)
 
 ifneq (, $(findstring NOMMU, $(CPPFLAGS)))
         OBJS += $(PREFIX_O)proc/msg-nommu.o
