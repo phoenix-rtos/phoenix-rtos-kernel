@@ -28,6 +28,7 @@
 #include "include/perf.h"
 #include "lib/lib.h"
 #include "proc/proc.h"
+#include "proc/futex.h"
 #include "vm/object.h"
 #include "posix/posix.h"
 #include "syspage.h"
@@ -1886,6 +1887,64 @@ int syscalls_sys_uname(u8 *ustack)
 	}
 
 	return posix_uname(name);
+}
+
+
+/*
+ * Futexes
+ */
+
+
+int syscalls_phFutexCreate(u8 *ustack)
+{
+	u32 *uaddr;
+	handle_t *h;
+
+	GETFROMSTACK(ustack, handle_t *, h, 0U);
+	GETFROMSTACK(ustack, u32 *, uaddr, 1U);
+
+	return proc_futexCreate(h, uaddr);
+}
+
+
+int syscalls_phFutexWake(u8 *ustack)
+{
+	handle_t h;
+	int n;
+
+	GETFROMSTACK(ustack, handle_t, h, 0U);
+	GETFROMSTACK(ustack, int, n, 1U);
+
+	return proc_futexWake(h, n);
+}
+
+
+int syscalls_phFutexWait(u8 *ustack)
+{
+	handle_t h;
+	u32 val;
+	time_t timeout;
+
+	GETFROMSTACK(ustack, handle_t, h, 0U);
+	GETFROMSTACK(ustack, u32, val, 1U);
+	GETFROMSTACK(ustack, time_t, timeout, 2U);
+
+	return proc_futexWait(h, val, timeout);
+}
+
+
+int syscalls_phFutexRequeue(u8 *ustack)
+{
+	handle_t h1, h2;
+	u32 val;
+	int n;
+
+	GETFROMSTACK(ustack, handle_t, h1, 0U);
+	GETFROMSTACK(ustack, handle_t, h2, 1U);
+	GETFROMSTACK(ustack, u32, val, 2U);
+	GETFROMSTACK(ustack, int, n, 3U);
+
+	return proc_futexRequeue(h1, h2, val, n);
 }
 
 

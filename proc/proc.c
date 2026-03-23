@@ -27,6 +27,7 @@ int _proc_init(vm_map_t *kmap, vm_object_t *kernel)
 	_msg_init(kmap, kernel);
 	_name_init();
 	_userintr_init();
+	_futex_init();
 
 	return EOK;
 }

@@ -1136,6 +1136,53 @@ void proc_threadBroadcastYield(thread_t **queue)
 }
 
 
+static int _proc_threadWakeupMany(thread_t **queue, int n)
+{
+	int ret = 0;
+
+	if (n <= 0) {
+		return 0;
+	}
+
+	do {
+		ret += _proc_threadWakeup(queue);
+	} while ((*queue != NULL) && (*queue != wakeupPending) && ret < n);
+
+	return ret;
+}
+
+
+/*
+ * Wakeup n threads in src queue and move remaining threads to dst queue
+ * This operation is fairly futex specific but it needs to be here to have access to threads_common.spinlock
+ */
+int proc_threadRequeueYield(thread_t **src, thread_t **dst, int n)
+{
+	spinlock_ctx_t sc;
+	thread_t *t;
+	int ret;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	ret = _proc_threadWakeupMany(src, n);
+	if (dst != NULL && src != dst) {
+		while (*src != NULL) {
+			t = *src;
+			t->wait = dst;
+			LIST_REMOVE(src, t);
+			LIST_ADD(dst, t);
+		}
+	}
+	if (ret != 0) {
+		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+	}
+	else {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
+
+	return ret;
+}
+
+
 int proc_join(int tid, time_t timeout)
 {
 	int err = EOK, found = 0, id = 0;

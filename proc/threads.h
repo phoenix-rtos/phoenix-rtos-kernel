@@ -153,6 +153,9 @@ int proc_threadBroadcast(thread_t **queue);
 void proc_threadBroadcastYield(thread_t **queue);
 
 
+int proc_threadRequeueYield(thread_t **src, thread_t **dst, int n);
+
+
 thread_t *threads_findThread(int tid);
 
 
