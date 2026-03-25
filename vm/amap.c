@@ -118,8 +118,6 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 			(void)proc_lockClear(&amap->lock);
 			return amap;
 		}
-
-		amap->refs--;
 	}
 
 	/* Allocate anon pointer arrays in chunks
@@ -151,6 +149,7 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 	}
 
 	if (amap != NULL) {
+		amap->refs--;
 		(void)proc_lockClear(&amap->lock);
 	}
 
@@ -226,9 +225,9 @@ static int amap_unmap(vm_map_t *map, void *v)
 }
 
 
-page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot)
+int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t aoffs, u64 offs, vm_prot_t prot, page_t **res)
 {
-	page_t *p = NULL;
+	int err = EOK;
 	anon_t *a;
 	void *v, *w;
 
@@ -237,61 +236,60 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 	a = amap->anons[aoffs / SIZE_PAGE];
 	if (a != NULL) {
 		(void)proc_lockSet(&a->lock);
-		p = a->page;
+		*res = a->page;
 		if (!(a->refs > 1 && (prot & PROT_WRITE) != 0U)) {
 			(void)proc_lockClear(&a->lock);
 			(void)proc_lockClear(&amap->lock);
-			return p;
+			return EOK;
 		}
-		a->refs--;
 	}
 	else {
-		p = vm_objectPage(map, &amap, o, vaddr, offs);
-		if (p == NULL) {
+		err = vm_objectPage(map, &amap, o, vaddr, offs, res);
+		if ((err != EOK) || (*res == NULL)) {
 			/* amap could be invalidated while fetching from the object's store */
 			if (amap != NULL) {
 				(void)proc_lockClear(&amap->lock);
 			}
-			return NULL;
+			return err;
 		}
 		else if (o != NULL && (prot & PROT_WRITE) == 0U) {
 			(void)proc_lockClear(&amap->lock);
-			return p;
+			return EOK;
 		}
 		else {
 			/* No action required */
 		}
 	}
 
-	v = amap_map(map, p);
+	v = amap_map(map, *res);
 	if (v == NULL) {
 		if (a != NULL) {
 			(void)proc_lockClear(&a->lock);
 		}
 		(void)proc_lockClear(&amap->lock);
-		return NULL;
+		return -ENOMEM;
 	}
 
 	if (a != NULL || o != NULL) {
 		/* Copy from object or shared anon */
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-		if (p == NULL) {
+		*res = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		if (*res == NULL) {
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
 				(void)proc_lockClear(&a->lock);
 			}
 			(void)proc_lockClear(&amap->lock);
-			return NULL;
+			return -ENOMEM;
 		}
-		w = amap_map(map, p);
+		w = amap_map(map, *res);
 		if (w == NULL) {
-			vm_pageFree(p);
+			vm_pageFree(*res);
 			(void)amap_unmap(map, v);
 			if (a != NULL) {
 				(void)proc_lockClear(&a->lock);
 			}
 			(void)proc_lockClear(&amap->lock);
-			return NULL;
+			return -ENOMEM;
 		}
 		hal_memcpy(w, v, SIZE_PAGE);
 		(void)amap_unmap(map, w);
@@ -303,17 +301,19 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 	(void)amap_unmap(map, v);
 
 	if (a != NULL) {
+		a->refs--;
 		(void)proc_lockClear(&a->lock);
 	}
 
-	amap->anons[aoffs / SIZE_PAGE] = anon_new(p);
+	amap->anons[aoffs / SIZE_PAGE] = anon_new(*res);
 	if (amap->anons[aoffs / SIZE_PAGE] == NULL) {
-		vm_pageFree(p);
-		p = NULL;
+		vm_pageFree(*res);
+		*res = NULL;
+		err = -ENOMEM;
 	}
 	(void)proc_lockClear(&amap->lock);
 
-	return p;
+	return err;
 }
 
 
