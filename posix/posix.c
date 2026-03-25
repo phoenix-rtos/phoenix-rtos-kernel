@@ -601,8 +601,8 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			if ((err == -ENOENT) && (((unsigned int)oflag & O_CREAT) != 0U)) {
 				GETFROMSTACK(ustack, mode_t, mode, 2U);
 
-				if (posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid) < 0) {
-					err = -EIO;
+				err = posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid);
+				if (err < 0) {
 					break;
 				}
 				hal_memcpy(&ln, &oid, sizeof(oid_t));
