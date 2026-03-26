@@ -31,10 +31,34 @@ static struct {
 } vm;
 
 
+void vm_partmeminfo(meminfo_t *info)
+{
+	size_t i = 0;
+	syspage_part_t *part = syspage_partitionList();
+
+	if (info->parts.partsz == -1) {
+		return;
+	}
+
+	do {
+		if (i < info->parts.partsz) {
+			info->parts.part[i].userLimit = part->availableMem;
+			info->parts.part[i].userUsed = part->usedMem;
+			(void)hal_strncpy(info->parts.part[i].name, part->name, sizeof(info->parts.part[i].name));
+		}
+		i++;
+		part = part->next;
+	} while (part != syspage_partitionList());
+
+	info->parts.partsz = i;
+}
+
+
 void vm_meminfo(meminfo_t *info)
 {
 	vm_pageinfo(info);
 	vm_mapinfo(info);
+	vm_partmeminfo(info);
 }
 
 

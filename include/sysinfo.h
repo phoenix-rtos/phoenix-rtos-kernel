@@ -76,6 +76,13 @@ typedef struct {
 } mapinfo_t;
 
 
+typedef struct {
+	size_t userLimit;
+	size_t userUsed;
+	char name[16];
+} partinfo_t;
+
+
 /* TODO: Consider changing type of kmaps mapsz from int to unsigned int */
 typedef struct _meminfo_t {
 	struct {
@@ -96,6 +103,11 @@ typedef struct _meminfo_t {
 		int mapsz;
 		mapinfo_t *map;
 	} maps;
+
+	struct {
+		int partsz;
+		partinfo_t *part;
+	} parts;
 } meminfo_t;
 
 
