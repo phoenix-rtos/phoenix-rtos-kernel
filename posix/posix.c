@@ -731,7 +731,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 		return err;
 	}
 
-	if ((f->status & O_WRONLY) != 0U) {
+	if ((f->status & O_ACCMODE) == O_WRONLY) {
 		(void)posix_fileDeref(f);
 		return -EBADF;
 	}
@@ -783,7 +783,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 		return err;
 	}
 
-	if ((f->status & O_RDONLY) != 0U) {
+	if ((f->status & O_ACCMODE) == O_RDONLY) {
 		(void)posix_fileDeref(f);
 		return -EBADF;
 	}
@@ -978,7 +978,7 @@ int posix_pipe(int fildes[2])
 		return (res == -EINTR) ? res : -ENOSYS;
 	}
 
-	res = proc_create(pipesrv.port, pxBufferedPipe, O_RDONLY | O_WRONLY, oid, pipesrv, NULL, &oid);
+	res = proc_create(pipesrv.port, pxBufferedPipe, O_RDWR, oid, pipesrv, NULL, &oid);
 	if (res < 0) {
 		pinfo_put(p);
 		return res;
@@ -1275,11 +1275,11 @@ int posix_ftruncate(int fildes, off_t length)
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err >= 0) {
-		if ((f->status & O_RDONLY) == 0U) {
-			err = posix_truncate(&f->oid, length);
+		if ((f->status & O_ACCMODE) == O_RDONLY) {
+			err = -EBADF;
 		}
 		else {
-			err = -EBADF;
+			err = posix_truncate(&f->oid, length);
 		}
 		(void)posix_fileDeref(f);
 	}
@@ -1543,7 +1543,7 @@ static int posix_fcntlSetFl(int fd, unsigned int val)
 	open_file_t *f;
 	int err;
 	/* Creation and access mode flags shall be ignored */
-	unsigned int ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_RDONLY | O_RDWR | O_WRONLY;
+	unsigned int ignorefl = O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_ACCMODE;
 
 	err = posix_getOpenFile(fd, &f);
 	if (err == 0) {
