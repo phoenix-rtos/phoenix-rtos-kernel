@@ -736,17 +736,25 @@ msgBuf_t *proc_initMsgBuf(void)
 		LIB_ASSERT(t->utcb.w != NULL, "");
 		LIB_ASSERT(t->utcb.p != NULL, "");
 		t->utcb.kw->err = 0;
+		t->utcb.kw->buf = NULL;
+		t->utcb.kw->bufsize = 0;
 		return t->utcb.w;
 	}
 
-	map = (t->process == NULL) ? msg_common.kmap : t->process->mapp;
+	map = (t->process == NULL || t->process->mapp == NULL) ? msg_common.kmap : t->process->mapp;
 
-	prot = PROT_WRITE | PROT_READ | PROT_USER;
+	prot = PROT_WRITE | PROT_READ;
 	flags = MAP_NOINHERIT;
-	attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | PGHD_USER | vm_flagsToAttr(flags);
+	attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | vm_flagsToAttr(flags);
+
+	if (t->process != NULL) {
+		prot |= PROT_USER;
+		attr |= PGHD_USER;
+	}
 
 	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 	if (p == NULL) {
+		LIB_ASSERT(0, "page alloc failed");
 		return NULL;
 	}
 	t->utcb.p = p;
@@ -764,21 +772,29 @@ msgBuf_t *proc_initMsgBuf(void)
 		return NULL;
 	}
 
-	/* map to kernel space */
-	kvaddr = vm_mapFind(msg_common.kmap, NULL, SIZE_PAGE, flags, prot);
-	if (kvaddr == NULL) {
-		proc_freeUtcb(t);
-		return NULL;
-	}
-	t->utcb.kw = kvaddr;
+	if (t->process != NULL) {
+		/* map to kernel space */
+		kvaddr = vm_mapFind(msg_common.kmap, NULL, SIZE_PAGE, flags, prot);
+		if (kvaddr == NULL) {
+			proc_freeUtcb(t);
+			return NULL;
+		}
+		t->utcb.kw = kvaddr;
 
-	if (page_map(&msg_common.kmap->pmap, kvaddr, p->addr, attr) < 0) {
-		proc_freeUtcb(t);
-		return NULL;
+		if (page_map(&msg_common.kmap->pmap, kvaddr, p->addr, attr) < 0) {
+			proc_freeUtcb(t);
+			return NULL;
+		}
+	}
+	else {
+		/*
+		 * else: this is a kernel thread, so t->utcb.w is already mapped to kernel
+		 * space
+		 */
+		t->utcb.kw = t->utcb.w;
 	}
 
 	t->utcb.kw->err = 0;
-
 	t->utcb.kw->buf = NULL;
 	t->utcb.kw->bufsize = 0;
 

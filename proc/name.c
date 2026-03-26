@@ -332,29 +332,27 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 
 int proc_unlink(oid_t dir, oid_t oid, const char *name)
 {
-	WARN_ON_OLD_API;
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msgBuf_t *msg;
 
-	if (msg == NULL)
+	if (proc_initMsgBuf() == NULL) {
 		return -ENOMEM;
+	}
+	msg = proc_current()->utcb.kw;
 
-	hal_memset(msg, 0, sizeof(msg_t));
-
-	msg->type = mtUnlink;
+	msg->label = mtUnlink;
 	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
-	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
+	hal_memcpy(&msg->ln.toid, &oid, sizeof(oid_t));
 
-	msg->i.size = hal_strlen(name) + 1;
-	msg->i.data = (char *)name;
+	msg->buf = (char *)name;
+	msg->bufsize = hal_strlen(name) + 1;
 
-	err = proc_send(dir.port, msg);
+	err = proc_call_returnable(dir.port);
 
 	if (err == 0) {
-		err = msg->o.err;
+		err = msg->err;
 	}
 
-	vm_kfree(msg);
 	return err;
 }
 

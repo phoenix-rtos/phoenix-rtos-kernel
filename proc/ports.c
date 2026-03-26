@@ -109,6 +109,7 @@ void port_put(port_t *p, int destroy)
 
 	hal_spinlockSet(&port_common.spinlock, &psc);
 	hal_spinlockSet(&p->spinlock, &sc);
+	LIB_ASSERT(p->refs > 0, "port_put on refs=0");
 	p->refs--;
 
 	if (destroy != 0) {
@@ -127,6 +128,8 @@ void port_put(port_t *p, int destroy)
 		hal_spinlockClear(&port_common.spinlock, &psc);
 		return;
 	}
+
+	LIB_ASSERT(p->fpThreads == NULL, "heh");
 
 	hal_spinlockClear(&p->spinlock, &sc);
 	lib_idtreeRemove(&port_common.tree, &p->linkage);

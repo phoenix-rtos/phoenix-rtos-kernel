@@ -25,6 +25,7 @@
 #include "syspage.h"
 #include "test/test.h"
 #include "perf/perf.h"
+#include "proc/msg.h"
 
 
 struct {
@@ -53,6 +54,8 @@ void main_initthr(void *unused)
 
 	posix_init();
 	posix_clone(-1);
+
+	proc_initMsgBuf();
 
 	/* Start programs from syspage */
 	if ((prog = syspage_progList()) != NULL) {

@@ -279,6 +279,8 @@ static void thread_destroy(thread_t *thread)
 	}
 
 	unbindFromAddedTo(thread);
+	proc_freeUtcb(thread);
+	threads_releaseIpcBuffers(thread);
 
 	/* REVISIT: guard with threads spinlock needed? called may hold a reference to us */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -287,10 +289,14 @@ static void thread_destroy(thread_t *thread)
 		thread->called->reply = NULL;
 	}
 
+	LIB_ASSERT(thread->inherited == NULL, "heh, inherited");
+
 	if (thread->sched != NULL) {
 		if (thread->reply != NULL) {
 			LIB_ASSERT(thread->reply != thread, "thread replies to itself????");
 			reply = thread->reply;
+
+			LIB_ASSERT(reply->sched == NULL, "reply has... sched?");
 			reply->sched = thread->sched;
 			reply->sched->t = reply;
 			reply->called = NULL;
@@ -299,7 +305,13 @@ static void thread_destroy(thread_t *thread)
 
 			LIB_ASSERT(reply->exit == 0, "reply thread exiting?");
 
-			reply->context = _getUserContext(reply);
+			if (reply->callReturnable == 0) {
+				reply->context = _getUserContext(reply);
+				hal_cpuSetReturnValue(reply->context, (void *)(ptr_t)-EINTR);
+			}
+			else {
+				reply->callReturnable = 0;
+			}
 			// #ifndef NOMMU
 			// 			LIB_ASSERT((ptr_t)hal_cpuGetIP(reply->context) < VADDR_KERNEL, "dest ip in kernel - ip: 0x%p tid: %d", hal_cpuGetIP(reply->context), proc_getTid(reply));
 			// #endif
@@ -315,8 +327,6 @@ static void thread_destroy(thread_t *thread)
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 	vm_kfree(thread->kstack);
-
-	proc_freeUtcb(thread);
 
 	process = thread->process;
 	if (process != NULL) {
@@ -582,8 +592,10 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 
 	if ((proc != NULL) && (proc->pmapp != NULL)) {
 		if ((hal_cpuSupervisorMode(ctx) == 0) && (dest->longjmpctx == NULL)) {
+#ifndef NDEBUG
 			cpu_context_t *signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(cpu_context_t));
 			LIB_ASSERT(_threads_checkSignal(dest, proc, signalCtx, dest->sigmask, SIG_SRC_SCHED) != 0, "oho");
+#endif
 		}
 	}
 
@@ -646,6 +658,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 			/* see note in proc_call */
 			if (current->saveCtxInReply != 0) {
+				LIB_ASSERT(current->reply != NULL, "reply null?");
 				current->reply->context = context;
 				current->saveCtxInReply = 0;
 			}
@@ -830,7 +843,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 
 	t->priorityBase = priority;
 	t->priority = priority;
-	t->schedAside = NULL;
 	t->inherited = NULL;
 	t->sched = vm_kmalloc(sizeof(sched_context_t));
 	if (t->sched == NULL) {
@@ -855,6 +867,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->bufferStart = NULL;
 	t->bufferEnd = NULL;
 	t->mappedTo = NULL;
+	t->mappedFrom = NULL;
 	t->mappedBase = NULL;
 
 	if (thread_alloc(t) < 0) {
@@ -1049,18 +1062,14 @@ static void _wakePassive(thread_t *t)
 	/* TODO: we could also interrupt the server while its handling the message
 	 * it would require to clean up the server as well as the client */
 
-	/* TODO: i guess we could merge t->schedAside with t->inherited?
-	 so that the first element of t->inherited is always the server's SC */
-	if (t->inherited != NULL) {
-		t->sched = t->inherited;
-		LIST_REMOVE(&t->inherited, t->sched);
-	}
-	else {
-		LIB_ASSERT(t->schedAside != NULL, "schedAside is NULL??");
-		t->sched = t->schedAside;
-		t->schedAside = NULL;
+	LIB_ASSERT(t->inherited != NULL, "no inherited SC??");
+	if (t->inherited->next == t->inherited) {
+		/* this is ours SC */
 		t->passive = 0;
 	}
+
+	t->sched = t->inherited;
+	LIST_REMOVE(&t->inherited, t->sched);
 
 	_proc_threadDequeue(t);
 }
@@ -2047,7 +2056,6 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 	return err;
 }
 
-
 int proc_lockDone(lock_t *lock)
 {
 	spinlock_ctx_t sc;
@@ -2382,6 +2390,21 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 static int proc_setupSharedBuffer(thread_t *t, thread_t *recv);
 
 
+static void _portEnqueue(port_t *p, thread_t *t)
+{
+	LIST_ADD_EX(&p->fpThreads, t, tnext, tprev);
+	t->addedTo = p;
+}
+
+
+static void _portDequeue(port_t *p, thread_t *t)
+{
+	LIB_ASSERT(t->addedTo == p, "thread not added to this port");
+	LIST_REMOVE_EX(&p->fpThreads, t, tnext, tprev);
+	t->addedTo = NULL;
+}
+
+
 static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to)
 {
 	/* TODO: pass small data via registers */
@@ -2389,6 +2412,19 @@ static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to)
 	/* TODO: pass only up to raw size */
 	hal_memcpy(to->utcb.kw->raw, from->utcb.kw->raw, sizeof(to->utcb.kw->raw));
 	to->utcb.kw->err = from->utcb.kw->err;
+
+	ipc_buf_layout_t *il = &to->utcb.il;
+
+	if (to->mappedTo == from) {
+		/* Copy shadow pages */
+		if (il->bp != NULL) {
+			hal_memcpy(il->bvaddr + il->boffs, il->w + il->boffs, min(SIZE_PAGE - il->boffs, to->utcb.kw->bufsize));
+		}
+
+		if (il->eoffs) {
+			hal_memcpy(il->evaddr, il->w + il->boffs + to->utcb.kw->bufsize - il->eoffs, il->eoffs);
+		}
+	}
 }
 
 
@@ -2400,58 +2436,29 @@ int proc_call_ex(u32 port, int returnable)
 	int err;
 	cpu_context_t *ctx;
 
-#if PERF_IPC
-	u64 tscs[TSCS_SIZE];
-	u64 currTsc;
-	u16 tid = proc_getTid(proc_current());
-	size_t step = 0;
-	hal_memset(tscs, 0, sizeof(tscs));
-#endif
-
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
-
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
 	}
 
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
-
 	caller = proc_current();
 
 	if (caller->utcb.kw == NULL) {
+		port_put(p, 0);
 		return -EINVAL;
 	}
-
-#if VERBOSE
-	char name[26];
-	if (caller->process != NULL) {
-		process_getName(caller->process, name, sizeof(name));
-	}
-
-	lib_debug_printf("proc_call port=%d (%d, %s)\n", port, proc_getTid(caller), caller->process != NULL ? name : "?");
-#endif
-
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
 	if (p->closed != 0) {
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
-		// LIB_ASSERT(0, "happens here");
 		return -EINVAL;
 	}
 
 	LIB_ASSERT(p->threads == NULL, "call but pending old recv! tid=%d", proc_getTid(p->threads));
 
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
-
 	while ((err = _mustSlowCall(p, caller)) != 0) {
-		// lib_debug1_printf("sleep (%d)\n", err);
-
-		// lib_debug_printf("proc_call sleep (%d)\n", proc_getTid(caller));
-
 		p->queue.nonempty |= 1;
 		err = proc_threadWaitInterruptible(&p->queue.pq[caller->priority], &p->spinlock, 0, &sc);
 		if (err < 0) {
@@ -2481,6 +2488,8 @@ int proc_call_ex(u32 port, int returnable)
 	/* TODO: bump refcnt on recv? */
 	hal_spinlockClear(&p->spinlock, &sc);
 
+	/* FIXME: safety: recv could get interrupted */
+
 	if (caller->utcb.kw->buf != NULL && caller->utcb.kw->bufsize > 0) {
 		if (proc_setupSharedBuffer(caller, recv) < 0) {
 			port_put(p, 0);
@@ -2489,13 +2498,10 @@ int proc_call_ex(u32 port, int returnable)
 		}
 	}
 
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
-
 	/*
 	 * NOTE: assumes port spinlock is set so that this spinlockSet is nested and tsc
 	 * context has interrupts disabled
 	 */
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	LIB_ASSERT(recv != NULL, "recv is null");
 	LIB_ASSERT(caller != NULL, "null caller");
@@ -2505,8 +2511,6 @@ int proc_call_ex(u32 port, int returnable)
 	LIB_ASSERT(recv->utcb.kw != NULL, "what?? port=%d caller tid=%d recv tid=%d refs: %d",
 			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
 
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
-
 	recv->utcb.kw->size = min(caller->utcb.kw->size, sizeof(recv->utcb.kw->raw));
 	/* TODO: pass only up to raw size */
 	hal_memcpy(recv->utcb.kw->raw, caller->utcb.kw->raw, sizeof(recv->utcb.kw->raw));
@@ -2515,19 +2519,11 @@ int proc_call_ex(u32 port, int returnable)
 	recv->utcb.kw->oid = caller->utcb.kw->oid;
 	recv->utcb.kw->err = 0;
 
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
-
 	recv->interruptible = 0;
-
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
 
 	hal_cpuSetReturnValue(ctx, caller);
 
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
-
-	trace_eventSyscallExit(104, proc_getTid(recv)); /* msgRespondAndRecv */
-
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
+	trace_eventSyscallExit(104, proc_getTid(recv)); /* msgRespond{,AndRecv} */
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -2553,14 +2549,7 @@ int proc_call_ex(u32 port, int returnable)
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 
-	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);
-
-	lib_debug_printf("proc_call fastpath exit (%d->%d) (context addr=%p, caller sp=%p, user sp=%p, sepc=%p)\n",
-			proc_getTid(caller), proc_getTid(recv), caller->context, caller->context->sp, _getUserContext(caller)->sp, _getUserContext(caller)->sepc);
-
 	port_put(p, 0);
-
-	TRACE_IPC_PROFILE_EXIT_FUNC(tid, trace_ipc_profile_call, &step, &currTsc, tscs);
 
 	return EOK;
 }
@@ -2575,7 +2564,7 @@ int proc_call(u32 port)
 int proc_call_returnable(u32 port)
 {
 	int err = proc_call_ex(port, 1);
-	// LIB_ASSERT(err >= 0, "err=%d", err);
+	LIB_ASSERT(err >= 0, "err=%d", err);
 
 	return err;
 }
@@ -2646,12 +2635,11 @@ static void *_becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
 	log_err("passive %d", proc_getTid(recv));
-	LIST_ADD_EX(&p->fpThreads, recv, tnext, tprev);
-	recv->addedTo = p;
-
+	_portEnqueue(p, recv);
 
 	if (recv->sched != NULL) {
-		recv->schedAside = recv->sched;
+		/* invariant: first element of the list is the receiver's original SC */
+		LIST_ADD(&recv->inherited, recv->sched);
 		recv->sched = NULL;
 	}
 
@@ -2680,12 +2668,21 @@ static void *_becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 	}
 }
 
+void *_handlePulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
+{
+	recv->utcb.kw->pulse = p->pulse;
+	recv->utcb.kw->err = EOK;
+	p->pulse = 0;
+	hal_spinlockClear(&p->spinlock, sc);
+	return NULL;
+}
+
 
 /* TODO: error passing */
 void *proc_recv2(u32 port)
 {
 	port_t *p;
-	spinlock_ctx_t sc, tsc;
+	spinlock_ctx_t sc;
 	thread_t *recv;
 
 	recv = proc_current();
@@ -2706,43 +2703,10 @@ void *proc_recv2(u32 port)
 	}
 
 	if (p->pulse != 0) {
-		recv->utcb.kw->pulse = p->pulse;
-		recv->utcb.kw->err = EOK;
-		p->pulse = 0;
-		hal_spinlockClear(&p->spinlock, &sc);
-		return NULL;
+		return _handlePulse(recv, p, &sc);
 	}
 
 	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
-
-	/* put original recv sched aside */
-
-	/* REVISIT: do we really need threads spinlock if we are already under
-	 * p->spinlock? */
-	hal_spinlockSet(&threads_common.spinlock, &tsc);
-	if (recv->passive == 1) {
-		/*
-		 * server thread is doing multiple recvs without returning SCs
-		 * back to the clients. Put the inherited sched aside.
-		 */
-		LIB_ASSERT(recv->sched->owner != recv, "passive but own sched??");
-		LIST_ADD(&recv->inherited, recv->sched);
-		recv->sched = NULL;
-	}
-	else {
-		LIB_ASSERT(recv->sched->owner == recv, "putting aside client's thread");
-		/* else: sched is put aside by _becomePassive */
-	}
-	hal_spinlockClear(&threads_common.spinlock, &tsc);
-
-#if VERBOSE
-	char name[26];
-	if (recv->process != NULL) {
-		process_getName(recv->process, name, sizeof(name));
-	}
-
-	lib_debug_printf("proc_recv2 port=%d (%d, %s)\n", port, proc_getTid(recv), recv->process != NULL ? name : "?");
-#endif
 
 	return _becomePassive(p, recv, &sc);
 }
@@ -2763,11 +2727,12 @@ int proc_pulse(u32 port, u8 pulse)
 	recv = p->fpThreads;
 
 	if (recv != NULL) {
+		LIB_ASSERT(recv->utcb.kw != NULL, "recv has null utcb.kw?");
+
 		LIB_ASSERT(recv->state != READY, "how is recv ready while on port queue?");
 		_wakePassive(recv);
 
-		LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
-		recv->addedTo = NULL;
+		_portDequeue(p, recv);
 
 		recv->utcb.kw->err = EOK;
 		recv->flags |= THREAD_PULSED;
@@ -2787,6 +2752,8 @@ int proc_pulse(u32 port, u8 pulse)
 		p->pulse = pulse;
 		hal_spinlockClear(&p->spinlock, &sc);
 	}
+
+	port_put(p, 0);
 
 	return EOK;
 }
@@ -2843,9 +2810,9 @@ int proc_respond2(u32 port, void *reply)
 
 	LIB_ASSERT(caller != NULL, "caller null!");
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
 	_threads_copyMsgBufResponse(recv, caller);
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	/*
 	 * FIXME: workaround for assertion in _threads_switchSchedContexts
@@ -2891,14 +2858,11 @@ int proc_respond2(u32 port, void *reply)
 	LIB_ASSERT(recv->passive == 1, "recv not passive?");
 	recv->state = READY; /* FIXME: above sets to BLOCKED_ON_RECV, but we have our own SC */
 
-	if (multiple_callers != 0) {
-		LIB_ASSERT(recv->inherited != NULL, "there should be an inherited SC");
-		recv->sched = recv->inherited;
-		LIST_REMOVE(&recv->inherited, recv->sched);
-	}
-	else {
-		recv->sched = recv->schedAside;
-		recv->schedAside = NULL;
+	LIB_ASSERT(recv->inherited != NULL, "there should be an inherited SC");
+	recv->sched = recv->inherited;
+	LIST_REMOVE(&recv->inherited, recv->sched);
+
+	if (multiple_callers == 0) {
 		recv->passive = 0;
 	}
 	LIB_ASSERT(recv->sched != NULL, "recv sched null?");
@@ -2960,19 +2924,13 @@ void *proc_respondAndRecv(u32 port)
 
 	if (responding == 0) {
 		if (p->pulse != 0) {
-			recv->utcb.kw->pulse = p->pulse;
-			recv->utcb.kw->err = EOK;
-			p->pulse = 0;
-			hal_spinlockClear(&p->spinlock, &sc);
-			return NULL;
+			return _handlePulse(recv, p, &sc);
 		}
 
 		return _becomePassive(p, recv, &sc);
 	}
 
 	/* wake next caller if exists */
-	log_err("wake next (prio=%d)", p->queue->priority);
-
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	(void)_proc_threadWakeupPrio(&p->queue);
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
@@ -3001,8 +2959,7 @@ void *proc_respondAndRecv(u32 port)
 
 	_threads_copyMsgBufResponse(recv, caller);
 
-	LIST_ADD_EX(&p->fpThreads, recv, tnext, tprev);
-	recv->addedTo = p;
+	_portEnqueue(p, recv);
 
 	ctx = _threads_switchTo(caller, 1);
 
@@ -3073,8 +3030,8 @@ static void *_mapBufferUnaligned(
 		eoffs = ((ptr_t)data + size) & (SIZE_PAGE - 1);
 	}
 
-	srcmap = (from == NULL) ? threads_common.kmap : from->mapp;
-	dstmap = (to == NULL) ? threads_common.kmap : to->mapp;
+	srcmap = (from == NULL || from->mapp == NULL) ? threads_common.kmap : from->mapp;
+	dstmap = (to == NULL || to->mapp == NULL) ? threads_common.kmap : to->mapp;
 
 	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0)) {
 		return data;
@@ -3087,6 +3044,7 @@ static void *_mapBufferUnaligned(
 		return NULL;
 	}
 	il->sz = sz;
+	il->map = dstmap;
 
 	if (pmap_belongs(&srcmap->pmap, data) != 0) {
 		flags = vm_mapFlags(srcmap, data);
@@ -3183,11 +3141,9 @@ static void *_mapBufferUnaligned(
 }
 
 
-static void _bufferRelease(ipc_buf_layout_t *il)
+/* TODO: crude API, fix */
+void threads_ipcBufferRelease(ipc_buf_layout_t *il)
 {
-	process_t *process;
-	vm_map_t *map;
-
 	if (il->bp != NULL) {
 		vm_pageFree(il->bp);
 		vm_munmap(threads_common.kmap, il->bvaddr, SIZE_PAGE);
@@ -3203,18 +3159,40 @@ static void _bufferRelease(ipc_buf_layout_t *il)
 		il->ep = NULL;
 	}
 
-	process = proc_current()->process;
-	if (process != NULL) {
-		map = process->mapp;
-	}
-	else {
-		map = threads_common.kmap;
-	}
-
 	if (il->w != NULL) {
-		vm_munmap(map, il->w, il->sz);
+		vm_munmap(il->map, il->w, il->sz);
 		il->w = NULL;
 		il->sz = 0;
+		il->map = NULL;
+	}
+}
+
+
+void threads_releaseIpcBuffers(thread_t *thread)
+{
+	thread_t *mappedFrom, *mappedTo;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	mappedTo = thread->mappedTo;
+	if (thread->mappedTo != NULL) {
+		thread->mappedTo->mappedFrom = NULL;
+		thread->mappedTo = NULL;
+	}
+
+	mappedFrom = thread->mappedFrom;
+	if (thread->mappedFrom != NULL) {
+		thread->mappedFrom->mappedTo = NULL;
+		thread->mappedFrom = NULL;
+	}
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (mappedFrom != NULL) {
+		threads_ipcBufferRelease(&mappedFrom->utcb.il);
+	}
+
+	if (mappedTo != NULL) {
+		threads_ipcBufferRelease(&thread->utcb.il);
 	}
 }
 
@@ -3229,6 +3207,7 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv)
 	size_t bufsz = t->utcb.kw->bufsize;
 
 	LIB_ASSERT(buf != NULL && bufsz > 0, "bad args");
+	LIB_ASSERT((ptr_t)t->utcb.w + sizeof(msgBuf_t) <= (ptr_t)buf || (ptr_t)buf + bufsz <= (ptr_t)t->utcb.w, "attempted to pass msgbuf as shm buf");
 
 #if REUSE_BUFFER
 	if (t->bufferStart <= buf && (void *)((ptr_t)buf + bufsz) <= t->bufferEnd) {
@@ -3257,7 +3236,7 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv)
 #endif
 		ipc_buf_layout_t *il = &t->utcb.il;
 
-		_bufferRelease(il);
+		threads_ipcBufferRelease(il);
 
 		w = _mapBufferUnaligned(buf, bufsz, t->process, recv->process, il);
 		if (w == NULL) {
@@ -3266,7 +3245,9 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv)
 		}
 
 		t->mappedBase = w;
-		t->mappedTo = recv->process;
+
+		t->mappedTo = recv;
+		recv->mappedFrom = t;
 
 		t->bufferStart = buf;
 		t->bufferEnd = buf + bufsz;
@@ -3283,16 +3264,17 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv)
 
 void proc_freeUtcb(thread_t *t)
 {
+	/* FIXME: this hangs stuff? */
 	if (t->utcb.kw != NULL) {
-		vm_munmap(threads_common.kmap, t->utcb.kw, SIZE_PAGE);
+		// vm_munmap(threads_common.kmap, t->utcb.kw, SIZE_PAGE);
 		t->utcb.kw = NULL;
 	}
-	if (t->utcb.w != NULL) {
-		vm_munmap(&t->process->map, t->utcb.w, SIZE_PAGE);
+	if (t->process != NULL && t->utcb.w != NULL) {
+		// vm_munmap(&t->process->map, t->utcb.w, SIZE_PAGE);
 		t->utcb.w = NULL;
 	}
 	if (t->utcb.p != NULL) {
-		vm_pageFree(t->utcb.p);
+		// vm_pageFree(t->utcb.p);
 		t->utcb.p = NULL;
 	}
 }

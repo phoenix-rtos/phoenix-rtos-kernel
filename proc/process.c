@@ -129,6 +129,7 @@ int proc_put(process_t *p)
 	proc_lockClear(&process_common.lock);
 
 	if (remaining <= 0) {
+		/* FIXME: p is fishy here sometimes? */
 		process_destroy(p);
 	}
 
@@ -140,7 +141,7 @@ void proc_get(process_t *p)
 {
 	proc_lockSet(&process_common.lock);
 	LIB_ASSERT(p->refs > 0, "pid: %d, got reference on process with zero references",
-		process_getPid(p));
+			process_getPid(p));
 	++p->refs;
 	proc_lockClear(&process_common.lock);
 }
@@ -253,8 +254,8 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
-	// posix_write(2, buff, hal_strlen(buff), -1);
-	// posix_write(2, "\n", 1, -1);
+	posix_write(2, buff, hal_strlen(buff), -1);
+	posix_write(2, "\n", 1, -1);
 
 	/* use proc_current() as late as possible - to be able to print exceptions in scheduler */
 	thread = proc_current();
@@ -272,7 +273,7 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 		len = lib_sprintf(buff, "in thread %lu, process \"%s\" (PID: %u)\n", proc_getTid(thread), process->path, process_getPid(process));
 	}
 
-	lib_debug_printf(buff, len, -1);
+	posix_write(2, buff, len, -1);
 }
 
 
@@ -356,8 +357,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 
 	/* Validate header. */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
-		(ehdr->e_shnum == 0)) {
+				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
 
@@ -402,8 +403,8 @@ static int process_validateElf32(void *iehdr, size_t size)
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-				(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
-			(shdr->sh_name >= shstrshdr->sh_size)) {
+					(process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0)) ||
+				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
 	}
@@ -431,7 +432,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	/* Validate header. */
 	if (((process_isPtrValid(iehdr, size, ehdr->e_ident, 4) == 0) ||
-			(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
+				(hal_strncmp((char *)ehdr->e_ident, "\177ELF", 4) != 0)) ||
 			(ehdr->e_shnum == 0)) {
 		return -ENOEXEC;
 	}
@@ -477,7 +478,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (((shdr[i].sh_type != SHT_NOBITS) &&
-				process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
+					process_isPtrValid(iehdr, size, ((char *)ehdr) + shdr[i].sh_offset, shdr[i].sh_size) == 0) ||
 				(shdr->sh_name >= shstrshdr->sh_size)) {
 			return -ENOEXEC;
 		}
@@ -796,7 +797,7 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 
 			if ((process->imapp != NULL) &&
 					(((ptr_t)base < (ptr_t)process->imapp->start) ||
-					((ptr_t)base > (ptr_t)process->imapp->stop))) {
+							((ptr_t)base > (ptr_t)process->imapp->stop))) {
 				paddr = vm_mmap(process->imapp, NULL, NULL, round_page(phdr->p_memsz), prot, NULL, -1, flags);
 				if (paddr == NULL) {
 					return -ENOMEM;
@@ -1317,6 +1318,8 @@ static void process_vforkThread(void *arg)
 	parent = spawn->parent;
 	posix_clone(process_getPid(parent->process));
 
+	LIB_ASSERT(current->utcb.kw == NULL, "oh well");
+
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
 	current->process->sigmask = parent->process->sigmask;
@@ -1532,7 +1535,7 @@ int proc_fork(void)
 		/* Copy parent context to child kstack in case of signal handling on fork return */
 		parent = ((process_spawn_t *)current->execdata)->parent;
 		hal_memcpy(current->kstack + current->kstacksz - sizeof(cpu_context_t),
-			parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
+				parent->kstack + parent->kstacksz - sizeof(cpu_context_t), sizeof(cpu_context_t));
 
 		hal_cpuSmpSync();
 
@@ -1567,6 +1570,17 @@ static int process_execve(thread_t *current)
 	while (proc_threadsOther(current) != 0) {
 		proc_join(-1, 0);
 	}
+
+	LIB_ASSERT(current->addedTo == NULL, "HAA");
+	LIB_ASSERT(current->reply == NULL, "heh, reply");
+	LIB_ASSERT(current->called == NULL, "heh, called");
+	LIB_ASSERT(current->passive == 0, "heh, passive?");
+	LIB_ASSERT(current->inherited == NULL, "heh, inherited?");
+	proc_freeUtcb(current);
+
+	// LIB_ASSERT(current->mappedTo == NULL, "ok 1");
+	LIB_ASSERT(current->mappedFrom == NULL, "ok 2");
+	threads_releaseIpcBuffers(current);
 
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
@@ -1681,6 +1695,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	else {
 		process_execve(current);
 	}
+	LIB_ASSERT(0, "NOT REACHED");
 	/* Not reached */
 
 	return 0;

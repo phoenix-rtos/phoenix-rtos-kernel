@@ -76,14 +76,15 @@ typedef struct {
 typedef struct {
 	void *bvaddr;
 	u64 boffs;
-	void *w;
 	page_t *bp;
 
 	void *evaddr;
 	u64 eoffs;
 	page_t *ep;
 
+	void *w;
 	size_t sz;
+	vm_map_t *map;
 } ipc_buf_layout_t;
 
 
@@ -114,7 +115,6 @@ typedef struct _thread_t {
 	volatile time_t wakeup;
 
 	sched_context_t *sched;
-	sched_context_t *schedAside;
 	sched_context_t *inherited;
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
@@ -166,7 +166,8 @@ typedef struct _thread_t {
 	/* Message buffer */
 	void *bufferStart;
 	void *bufferEnd;
-	process_t *mappedTo; /* TODO: bidirectional pointer in process for cleanup */
+	struct _thread_t *mappedTo;
+	struct _thread_t *mappedFrom;
 	void *mappedBase;
 } thread_t;
 
@@ -307,6 +308,9 @@ extern void _threads_removeFromQueue(thread_t *t);
 
 
 extern void threads_setState(u8 state);
+
+
+extern void threads_releaseIpcBuffers(thread_t *thread);
 
 
 #endif

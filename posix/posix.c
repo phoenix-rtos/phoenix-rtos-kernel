@@ -37,6 +37,7 @@
 
 #define POLL_INTERVAL 100000
 
+#define WARN_ON_OLD_API LIB_ASSERT(0, "!!!!! %s", __FUNCTION__)
 
 typedef struct {
 	oid_t oid;
@@ -273,15 +274,18 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 
 int posix_truncate(oid_t *oid, off_t length)
 {
-	msg_t msg;
+	msgBuf_t *msg;
 	int err = -EINVAL;
 
 	if ((oid->port != US_PORT) && (length >= 0)) {
-		hal_memset(&msg, 0, sizeof(msg));
-		msg.type = mtTruncate;
-		hal_memcpy(&msg.oid, oid, sizeof(oid_t));
-		msg.i.io.len = length;
-		err = proc_send(oid->port, &msg);
+		if (proc_initMsgBuf() == NULL) {
+			return -ENOMEM;
+		}
+		msg = proc_current()->utcb.kw;
+		msg->label = mtTruncate;
+		hal_memcpy(&msg->oid, oid, sizeof(oid_t));
+		msg->io.len = length;
+		err = proc_call_returnable(oid->port);
 	}
 
 	return err;
@@ -513,6 +517,7 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 		hal_memcpy(&msg.oid, oidp, sizeof(*oidp));
 		msg.i.attr.type = atMode;
 
+		WARN_ON_OLD_API;
 		if ((proc_send(oidp->port, &msg) < 0) || (msg.o.err < 0)) {
 			return -EIO;
 		}
@@ -529,6 +534,7 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 	msg.o.data = buf;
 	msg.o.size = sizeof(*buf);
 
+	WARN_ON_OLD_API;
 	if (proc_send(oidp->port, &msg) < 0) {
 		err = -EIO;
 	}
@@ -1083,6 +1089,7 @@ int posix_chmod(const char *pathname, mode_t mode)
 	msg.i.attr.type = atMode;
 	msg.i.attr.val = mode & ALLPERMS;
 
+	WARN_ON_OLD_API;
 	err = proc_send(oid.port, &msg);
 	if (err >= 0) {
 		err = msg.o.err;
@@ -1303,6 +1310,7 @@ int posix_fstat(int fd, struct stat *buf)
 		msg.o.size = sizeof(attrs);
 
 		do {
+			WARN_ON_OLD_API;
 			err = proc_send(f->oid.port, &msg);
 			if (err < 0) {
 				break;
@@ -1429,6 +1437,7 @@ int posix_fsync(int fd)
 
 	hal_memcpy(msg.i.raw, &f->oid, sizeof(f->oid));
 
+	WARN_ON_OLD_API;
 	err = proc_send(f->oid.port, &msg);
 
 	posix_fileDeref(f);
@@ -1803,7 +1812,9 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 
 	thread_t *t = proc_current();
 
-	(void)proc_initMsgBuf();
+	if (proc_initMsgBuf() == NULL) {
+		return -ENOMEM;
+	}
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err == 0) {
@@ -2409,10 +2420,12 @@ int posix_futimens(int fildes, const struct timespec *times)
 
 	msg.i.attr.type = atMTime;
 	msg.i.attr.val = times[1].tv_sec;
+	WARN_ON_OLD_API;
 	err = proc_send(f->oid.port, &msg);
 	if ((err >= 0) && (msg.o.err >= 0)) {
 		msg.i.attr.type = atATime;
 		msg.i.attr.val = times[0].tv_sec;
+		WARN_ON_OLD_API;
 		err = proc_send(f->oid.port, &msg);
 	}
 	if (err >= 0) {
@@ -2455,6 +2468,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 				err = unix_poll(msg.oid.id, fds[i].events);
 			}
 			else {
+				WARN_ON_OLD_API;
 				err = proc_send(msg.oid.port, &msg);
 				if (err >= 0) {
 					err = (msg.o.err >= 0) ? msg.o.attr.val : msg.o.err;
@@ -2597,6 +2611,7 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 			msg.o.data = events;
 			msg.o.size = sizeof(events);
 
+			WARN_ON_OLD_API;
 			if ((err = proc_send(q->oid.port, &msg)))
 				break;
 

@@ -362,6 +362,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
 {
+	LIB_ASSERT(map != NULL, "map is null");
+
 	proc_lockSet(&map->lock);
 	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, -1, flags, NULL);
 	proc_lockClear(&map->lock);
