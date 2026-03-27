@@ -22,7 +22,7 @@
 int proc_portRegister(u32 port, const char *name, oid_t *oid);
 
 
-void proc_portUnregister(const char *name);
+int proc_portUnregister(const char *name);
 
 
 int proc_portLookup(const char *name, oid_t *file, oid_t *dev);

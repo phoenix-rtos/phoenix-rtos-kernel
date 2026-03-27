@@ -113,7 +113,7 @@ int proc_portRegister(unsigned int port, const char *name, oid_t *oid)
 }
 
 
-void proc_portUnregister(const char *name)
+int proc_portUnregister(const char *name)
 {
 	dcache_entry_t *entry, *prev = NULL;
 	unsigned int hash = dcache_strHash(name);
@@ -130,18 +130,20 @@ void proc_portUnregister(const char *name)
 	if (entry == NULL) {
 		/* There is no such entry, nothing to do */
 		(void)proc_lockClear(&name_common.dcache_lock);
-		return;
+		return -ENOENT;
 	}
 
 	if (prev != NULL) {
 		prev->next = entry->next;
 	}
 	else {
-		name_common.dcache[hash] = NULL;
+		name_common.dcache[hash] = entry->next;
 	}
 	(void)proc_lockClear(&name_common.dcache_lock);
 
 	vm_kfree(entry);
+
+	return EOK;
 }
 
 
