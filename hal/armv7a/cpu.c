@@ -97,7 +97,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 }
 
 
-int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
+int hal_cpuPushSignal(void *kstack, void (*trampoline)(void), void (*handler)(int signo), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	const struct stackArg args[] = {
@@ -106,19 +106,20 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 		{ &ctx->pc, sizeof(ctx->pc) },
 		{ &signalCtx, sizeof(signalCtx) },
 		{ &oldmask, sizeof(oldmask) },
+		{ &handler, sizeof(handler) },
 		{ &n, sizeof(n) },
 	};
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Get address of function pointer as 32-bit number." */
-	const u32 handler_addr = (u32)handler;
+	const u32 trampoline_addr = (u32)trampoline;
 
 	(void)src;
 
 	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	signalCtx->pc = handler_addr & ~1U;
+	signalCtx->pc = trampoline_addr & ~1U;
 	signalCtx->sp -= sizeof(cpu_context_t);
 
-	if ((handler_addr & 1U) != 0U) {
+	if ((trampoline_addr & 1U) != 0U) {
 		signalCtx->psr |= THUMB_STATE;
 	}
 	else {
