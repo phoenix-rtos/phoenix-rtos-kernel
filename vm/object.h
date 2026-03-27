@@ -28,6 +28,7 @@ typedef struct _vm_object_t {
 	rbnode_t linkage;
 	oid_t oid;
 	int refs;
+	syspage_part_t *part;
 	size_t size;
 	page_t *pages[];
 } vm_object_t;
@@ -39,7 +40,7 @@ typedef struct _vm_object_t {
 vm_object_t *vm_objectRef(vm_object_t *o);
 
 
-int vm_objectGet(vm_object_t **o, oid_t oid);
+int vm_objectGet(vm_object_t **o, oid_t oid, syspage_part_t *part);
 
 
 int vm_objectPut(vm_object_t *o);
