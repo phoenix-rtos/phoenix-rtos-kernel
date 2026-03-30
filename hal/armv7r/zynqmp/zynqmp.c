@@ -29,6 +29,9 @@
 #define CRL_APB_BASE_ADDRESS  0xff5e0000U
 #define PMU_GLOBAL_MODULE     0xffd80000U
 
+#define PMCR_DIVIDER64     (1 << 3)
+#define PMCR_COUNTER_RESET (1 << 2)
+
 
 /* PLO entrypoint */
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
@@ -428,12 +431,39 @@ void hal_wdgReload(void)
 {
 }
 
+static inline u32 getPMCR(void)
+{
+	u32 val;
+	asm volatile("mrc p15, 0, %0, c9, c12, 0" : "=r"(val));
+	return val;
+}
+
+
+static inline void setPMCR(u32 val)
+{
+	asm volatile("mcr p15, 0, %0, c9, c12, 0" ::"r"(val));
+}
+
+
+static inline u32 getPMUSERENR(void)
+{
+	u32 val;
+	asm volatile("mrc p15, 0, %0, c9, c14, 0" : "=r"(val));
+	return val;
+}
+
+
+static inline void setPMUSERENR(u32 val)
+{
+	asm volatile("mcr p15, 0, %0, c9, c14, 0" ::"r"(val));
+}
 
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	unsigned int t = 0;
 	spinlock_ctx_t sc;
+	u32 pmcr;
 	int ret = -1;
 
 	hal_spinlockSet(&zynq_common.pltctlSp, &sc);
@@ -488,7 +518,29 @@ int hal_platformctl(void *ptr)
 				/* No action required */
 			}
 			break;
+		case pctl_cpuperfmon:
+			if (data->action == pctl_set) {
+				pmcr = getPMCR();
+				if (data->cpuperfmon.div64 != 0) {
+					pmcr |= PMCR_DIVIDER64;
+				}
+				else {
+					pmcr &= ~PMCR_DIVIDER64;
+				}
 
+				pmcr |= (data->cpuperfmon.reset_counter != 0) ? PMCR_COUNTER_RESET : 0;
+				setPMCR(pmcr);
+				setPMUSERENR((data->cpuperfmon.user_access != 0) ? 1 : 0);
+				ret = 0;
+			}
+			else if (data->action == pctl_get) {
+				pmcr = getPMCR();
+				data->cpuperfmon.div64 = ((pmcr & PMCR_COUNTER_RESET) != 0) ? 1 : 0;
+				data->cpuperfmon.reset_counter = 0;
+				data->cpuperfmon.user_access = getPMUSERENR() & 1;
+				ret = 0;
+			}
+			break;
 		default:
 			/* Error by default */
 			break;
