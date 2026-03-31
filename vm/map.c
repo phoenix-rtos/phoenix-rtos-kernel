@@ -1177,8 +1177,6 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 
 static int _vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
-/* Disabled for now on NOMMU, as we can now receive memory
- * from different maps and processes via msg */
 #ifndef NOMMU
 	map_entry_t e, *f;
 
@@ -1197,8 +1195,13 @@ static int _vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t
 	if (f == NULL) {
 		return -1;
 	}
+#endif
 
 #ifdef NOMMU
+
+	/* Disabled for now on NOMMU, as we can now receive memory
+	 * from different maps and processes via msg */
+#if 0
 	if (f->process != proc) {
 		return -1;
 	}
