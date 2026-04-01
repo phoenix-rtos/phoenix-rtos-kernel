@@ -121,6 +121,37 @@ enum pwr_regs {
 };
 
 
+enum rtc_regs {
+	rtc_tr = 0,
+	rtc_dr,
+	rtc_ssr,
+	rtc_icsr,
+	rtc_prer,
+	rtc_wutr,
+	rtc_cr,
+	rtc_privcfgr,
+	rtc_seccfgr,
+	rtc_wpr,
+	rtc_calr,
+	rtc_shiftr,
+	rtc_tstr,
+	rtc_tsdr,
+	rtc_tsssr,
+	rtc_alrmar = 0x10,
+	rtc_alrmassr,
+	rtc_alrmbr,
+	rtc_alrmbssr,
+	rtc_sr,
+	rtc_misr,
+	rtc_smisr,
+	rtc_scr,
+	rtc_tamptscr = 0x19,
+	rtc_tsidr,
+	rtc_alrabinr = 0x1c,
+	rtc_alrbbinr,
+};
+
+
 enum iwdg_regs {
 	iwdg_kr = 0x0U,
 	iwdg_pr,

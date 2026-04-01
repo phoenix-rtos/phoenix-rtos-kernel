@@ -74,7 +74,7 @@ enum {
 	pctl_crs = PCTL_DEVID(0x09cU, 24U),
 	pctl_opamp = PCTL_DEVID(0x09cU, 28U),
 	pctl_vref = PCTL_DEVID(0x09cU, 29U),
-	pctl_rtc = PCTL_DEVID(0x09cU, 30U), /* RCC_APB1ENR1_RTCAPBEN */
+	pctl_rtcapb = PCTL_DEVID(0x09cU, 30U),
 	pctl_i2c4 = PCTL_DEVID(0x0a0U, 1U),
 	pctl_lptim2 = PCTL_DEVID(0x0a0U, 5U),
 	pctl_fdcan = PCTL_DEVID(0x0a0U, 9U),
@@ -96,6 +96,7 @@ enum {
 	pctl_lptim3 = PCTL_DEVID(0x0a8U, 12U),
 	pctl_lptim4 = PCTL_DEVID(0x0a8U, 13U),
 	pctl_comp = PCTL_DEVID(0x0a8U, 15U),
+	pctl_rtc = PCTL_DEVID(0x110U, 15U),
 };
 
 
