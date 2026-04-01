@@ -18,16 +18,25 @@
 #define _PH_SYSPAGE_NRF91_H_
 
 
+#ifndef MPU_MAX_REGIONS
+#define MPU_MAX_REGIONS 16
+#endif
+
+
 typedef struct {
 	struct {
-		unsigned int type;
-		unsigned int allocCnt;
 		struct {
 			unsigned int rbar;
 			unsigned int rlar;
-		} table[16] __attribute__((aligned(8)));
-		unsigned int map[16]; /* ((unsigned int)-1) = map is not assigned */
-	} __attribute__((packed)) mpu;
+		} table[MPU_MAX_REGIONS] __attribute__((aligned(8)));
+		unsigned int map[MPU_MAX_REGIONS]; /* ((unsigned int)-1) = map is not assigned */
+		unsigned int allocCnt;
+	} mpu;
+} hal_syspage_part_t;
+
+
+typedef struct {
+	unsigned int mpuType;
 } __attribute__((packed)) hal_syspage_t;
 
 #endif
