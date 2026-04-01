@@ -155,8 +155,9 @@ enum {
 typedef struct {
 	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclock = 0, pctl_mioclock, pctl_mio, pctl_devreset, pctl_reboot, pctl_wdg_config, pctl_wdg_enable } type;
+	enum { pctl_devclock = 0, pctl_mioclock, pctl_mio, pctl_devreset, pctl_reboot, pctl_wdg_config, pctl_wdg_enable, pctl_cpuperfmon } type;
 	/* clang-format on */
+
 	union {
 		struct {
 			int dev;
@@ -192,6 +193,12 @@ typedef struct {
 		struct {
 			__u8 enable;
 		} wdg_enable;
+
+		struct {
+			char user_access;
+			char div64;
+			char reset_counter;
+		} cpuperfmon;
 	};
 } __attribute__((packed)) platformctl_t;
 
