@@ -1518,9 +1518,11 @@ static int process_copy(void)
 	process_t *process = current->process;
 	parent = spawn->parent;
 
-	process->path = lib_strdup(parent->process->path);
-	if (process->path == NULL) {
-		return -ENOMEM;
+	if (parent->process->path != NULL) {
+		process->path = lib_strdup(parent->process->path);
+		if (process->path == NULL) {
+			return -ENOMEM;
+		}
 	}
 
 	/* Avoid ustack access while map is invalid */
@@ -1530,7 +1532,7 @@ static int process_copy(void)
 		return -ENOMEM;
 	}
 
-	if (vm_mapCopy(process, &process->map, &parent->process->map) < 0) {
+	if (vm_mapCopy(process, &process->map, parent->process->mapp) < 0) {
 		return -ENOMEM;
 	}
 
