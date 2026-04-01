@@ -209,7 +209,14 @@ enum {
 typedef struct {
 	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot } type;
+	enum {
+		pctl_devclock = 0,
+		pctl_iogpr, pctl_iomux,
+		pctl_iopad,
+		pctl_ioisel,
+		pctl_reboot,
+		pctl_cpuperfmon,
+	} type;
 	/* clang-format on */
 
 	union {
@@ -250,6 +257,12 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+
+		struct {
+			char user_access;
+			char div64;
+			char reset_counter;
+		} cpuperfmon;
 	};
 } __attribute__((packed)) platformctl_t;
 
