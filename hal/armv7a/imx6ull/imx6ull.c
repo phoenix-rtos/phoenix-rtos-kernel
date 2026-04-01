@@ -19,6 +19,11 @@
 #include "hal/spinlock.h"
 #include "include/arch/armv7a/imx6ull/imx6ull.h"
 
+
+#define PMCR_DIVIDER64     (1 << 3)
+#define PMCR_COUNTER_RESET (1 << 2)
+
+
 /* clang-format off */
 /* CCM registers */
 enum { ccm_ccr = 0, ccm_ccdr, ccm_csr, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr,
@@ -356,12 +361,41 @@ void hal_wdgReload(void)
 }
 
 
+static inline u32 getPMCR(void)
+{
+	u32 val;
+	asm volatile("mrc p15, 0, %0, c9, c12, 0" : "=r"(val));
+	return val;
+}
+
+
+static inline void setPMCR(u32 val)
+{
+	asm volatile("mcr p15, 0, %0, c9, c12, 0" ::"r"(val));
+}
+
+
+static inline u32 getPMUSERENR(void)
+{
+	u32 val;
+	asm volatile("mrc p15, 0, %0, c9, c14, 0" : "=r"(val));
+	return val;
+}
+
+
+static inline void setPMUSERENR(u32 val)
+{
+	asm volatile("mcr p15, 0, %0, c9, c14, 0" ::"r"(val));
+}
+
+
 /* platformctl syscall */
 
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
 	int ret = -1;
+	u32 pmcr;
 	unsigned int t = 0;
 	spinlock_ctx_t sc;
 	unsigned char sion = 0, mode = 0, daisy = 0;
@@ -456,6 +490,29 @@ int hal_platformctl(void *ptr)
 			}
 			else {
 				/* No action required */
+			}
+			break;
+		case pctl_cpuperfmon:
+			if (data->action == pctl_set) {
+				pmcr = getPMCR();
+				if (data->cpuperfmon.div64 != 0) {
+					pmcr |= PMCR_DIVIDER64;
+				}
+				else {
+					pmcr &= ~PMCR_DIVIDER64;
+				}
+
+				pmcr |= (data->cpuperfmon.reset_counter != 0) ? PMCR_COUNTER_RESET : 0;
+				setPMCR(pmcr);
+				setPMUSERENR((data->cpuperfmon.user_access != 0) ? 1 : 0);
+				ret = 0;
+			}
+			else if (data->action == pctl_get) {
+				pmcr = getPMCR();
+				data->cpuperfmon.div64 = ((pmcr & PMCR_COUNTER_RESET) != 0) ? 1 : 0;
+				data->cpuperfmon.reset_counter = 0;
+				data->cpuperfmon.user_access = getPMUSERENR() & 1;
+				ret = 0;
 			}
 			break;
 		default:
