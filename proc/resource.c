@@ -76,15 +76,15 @@ static resource_t *resource_remove(process_t *process, int id)
 }
 
 
-static void proc_resourcePut(resource_t *r)
+static void proc_resourcePut(resource_t *r, process_t *process)
 {
 	switch (r->type) {
 		case rtLock:
-			mutex_put(r->payload.mutex);
+			mutex_put(r->payload.mutex, process->partition);
 			break;
 
 		case rtCond:
-			cond_put(r->payload.cond);
+			cond_put(r->payload.cond, process->partition);
 			break;
 
 		case rtInth:
@@ -107,7 +107,7 @@ int proc_resourceDestroy(process_t *process, int id)
 		return -EINVAL;
 	}
 
-	proc_resourcePut(r);
+	proc_resourcePut(r, process);
 
 	return EOK;
 }
@@ -128,7 +128,7 @@ void proc_resourcesDestroy(process_t *process)
 		lib_idtreeRemove(&process->resources, &r->linkage);
 		(void)proc_lockClear(&process->lock);
 
-		proc_resourcePut(r);
+		proc_resourcePut(r, process);
 	}
 }
 

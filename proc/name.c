@@ -92,7 +92,7 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 		return EOK;
 	}
 
-	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
+	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U, proc_currentPart());
 	if (entry == NULL) {
 		return -ENOMEM;
 	}
@@ -141,7 +141,7 @@ int proc_portUnregister(const char *name)
 	}
 	(void)proc_lockClear(&name_common.dcache_lock);
 
-	vm_kfree(entry);
+	vm_kfree(entry, proc_currentPart());
 
 	return EOK;
 }
@@ -200,7 +200,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		pptr = pstack;
 	}
 	else {
-		pheap = vm_kmalloc(len + 1U);
+		pheap = vm_kmalloc(len + 1U, proc_currentPart());
 		if (pheap == NULL) {
 			return -ENOMEM;
 		}
@@ -234,15 +234,15 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 	if (name_common.root_registered == 0 && i == 0U) {
 		if (pheap != NULL) {
-			vm_kfree(pheap);
+			vm_kfree(pheap, proc_currentPart());
 		}
 		return -EINVAL;
 	}
 
-	msg = vm_kmalloc(sizeof(msg_t));
+	msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 	if (msg == NULL) {
 		if (pheap != NULL) {
-			vm_kfree(pheap);
+			vm_kfree(pheap, proc_currentPart());
 		}
 		return -ENOMEM;
 	}
@@ -282,9 +282,9 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		*dev = msg->o.lookup.dev;
 	}
 
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 	if (pheap != NULL) {
-		vm_kfree(pheap);
+		vm_kfree(pheap, proc_currentPart());
 	}
 	return err < 0 ? err : EOK;
 }
@@ -303,7 +303,7 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 int proc_open(oid_t oid, unsigned int mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -320,7 +320,7 @@ int proc_open(oid_t oid, unsigned int mode)
 		err = msg->o.err;
 	}
 
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 	return err;
 }
 
@@ -328,7 +328,7 @@ int proc_open(oid_t oid, unsigned int mode)
 int proc_close(oid_t oid, unsigned int mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -346,7 +346,7 @@ int proc_close(oid_t oid, unsigned int mode)
 		err = msg->o.err;
 	}
 
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 
 	return err;
 }
@@ -355,7 +355,7 @@ int proc_close(oid_t oid, unsigned int mode)
 int proc_create(u32 port, int type, unsigned int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -378,7 +378,7 @@ int proc_create(u32 port, int type, unsigned int mode, oid_t dev, oid_t dir, cha
 	}
 
 	hal_memcpy(oid, &msg->o.create.oid, sizeof(oid_t));
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 	return err;
 }
 
@@ -386,7 +386,7 @@ int proc_create(u32 port, int type, unsigned int mode, oid_t dev, oid_t dir, cha
 int proc_link(oid_t dir, oid_t oid, const char *name)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -407,7 +407,7 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 		err = msg->o.err;
 	}
 
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 	return err;
 }
 
@@ -415,7 +415,7 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 int proc_unlink(oid_t dir, oid_t oid, const char *name)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -436,7 +436,7 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 		err = msg->o.err;
 	}
 
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 	return err;
 }
 
@@ -444,7 +444,7 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -467,7 +467,7 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 		err = msg->o.err;
 	}
 
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 	return err;
 }
 
@@ -475,7 +475,7 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -498,7 +498,7 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 		err = msg->o.err;
 	}
 
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 	return err;
 }
 
@@ -506,7 +506,7 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 off_t proc_size(oid_t oid)
 {
 	off_t err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -525,7 +525,7 @@ off_t proc_size(oid_t oid)
 		err = (off_t)msg->o.attr.val;
 	}
 
-	vm_kfree(msg);
+	vm_kfree(msg, proc_currentPart());
 	return err;
 }
 

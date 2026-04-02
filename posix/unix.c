@@ -203,7 +203,7 @@ static unixsock_t *unixsock_alloc(unsigned int *id, unsigned int type, int nonbl
 		}
 	}
 
-	r = vm_kmalloc(sizeof(unixsock_t));
+	r = vm_kmalloc(sizeof(unixsock_t), proc_currentPart());
 	if (r == NULL) {
 		(void)proc_lockClear(&unix_common.lock);
 		return NULL;
@@ -308,12 +308,12 @@ static void unixsock_put(unixsock_t *s)
 		(void)proc_lockDone(&s->lock);
 		hal_spinlockDestroy(&s->spinlock);
 		if (s->buffer.data != NULL) {
-			vm_kfree(s->buffer.data);
+			vm_kfree(s->buffer.data, proc_currentPart());
 		}
 		if (s->fdpacks != NULL) {
 			(void)fdpass_discard(&s->fdpacks);
 		}
-		vm_kfree(s);
+		vm_kfree(s, proc_currentPart());
 		return;
 	}
 	(void)proc_lockClear(&unix_common.lock);
@@ -377,7 +377,7 @@ int unix_socketpair(int domain, unsigned int type, int protocol, int sv[2])
 		return -ENOMEM;
 	}
 
-	v[0] = vm_kmalloc(s[0]->buffsz);
+	v[0] = vm_kmalloc(s[0]->buffsz, proc_currentPart());
 	if (v[0] == NULL) {
 		unixsock_put(s[1]);
 		unixsock_put(s[1]);
@@ -386,9 +386,9 @@ int unix_socketpair(int domain, unsigned int type, int protocol, int sv[2])
 		return -ENOMEM;
 	}
 
-	v[1] = vm_kmalloc(s[1]->buffsz);
+	v[1] = vm_kmalloc(s[1]->buffsz, proc_currentPart());
 	if (v[1] == NULL) {
-		vm_kfree(v[0]);
+		vm_kfree(v[0], proc_currentPart());
 		unixsock_put(s[1]);
 		unixsock_put(s[1]);
 		unixsock_put(s[0]);
@@ -456,7 +456,7 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 			break;
 		}
 
-		v = vm_kmalloc(new->buffsz);
+		v = vm_kmalloc(new->buffsz, proc_currentPart());
 		if (v == NULL) {
 			unixsock_put(new);
 			unixsock_put(new);
@@ -524,7 +524,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			break;
 		}
 
-		path = lib_strdup(address->sa_data);
+		path = lib_strdup(address->sa_data, proc_currentPart());
 		if (path == NULL) {
 			err = -ENOMEM;
 			break;
@@ -539,7 +539,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			}
 
 			if (s->type == SOCK_DGRAM) {
-				v = vm_kmalloc(s->buffsz);
+				v = vm_kmalloc(s->buffsz, proc_currentPart());
 				if (v == NULL) {
 					err = -ENOMEM;
 					break;
@@ -555,7 +555,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			if (err != 0) {
 				if (s->type == SOCK_DGRAM) {
 					_cbuffer_init(&s->buffer, NULL, 0);
-					vm_kfree(v);
+					vm_kfree(v, proc_currentPart());
 				}
 				break;
 			}
@@ -563,7 +563,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			s->state |= US_BOUND;
 		} while (0);
 
-		vm_kfree(path);
+		vm_kfree(path, proc_currentPart());
 	} while (0);
 
 	unixsock_put(s);
@@ -685,7 +685,7 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 				break;
 			}
 
-			v = vm_kmalloc(s->buffsz);
+			v = vm_kmalloc(s->buffsz, proc_currentPart());
 			if (v == NULL) {
 				err = -ENOMEM;
 				break;
@@ -1107,7 +1107,7 @@ static int unix_bufferSetSize(unixsock_t *s, int sz)
 	(void)proc_lockSet(&s->lock);
 
 	if (s->buffer.data != NULL) {
-		v[0] = vm_kmalloc(size);
+		v[0] = vm_kmalloc(size, proc_currentPart());
 		if (v[0] == NULL) {
 			(void)proc_lockClear(&s->lock);
 			return -ENOMEM;
@@ -1122,7 +1122,7 @@ static int unix_bufferSetSize(unixsock_t *s, int sz)
 	(void)proc_lockClear(&s->lock);
 
 	if (v[1] != NULL) {
-		vm_kfree(v[1]);
+		vm_kfree(v[1], proc_currentPart());
 	}
 
 	return 0;

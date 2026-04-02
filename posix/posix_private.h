@@ -109,6 +109,8 @@ typedef struct _process_info_t {
 	int refs;
 	int exitcode;
 
+	syspage_part_t *part;
+
 	thread_t *wait;
 
 	struct _process_info_t *children;

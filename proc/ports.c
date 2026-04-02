@@ -109,7 +109,7 @@ void port_put(port_t *p, int destroy)
 
 	(void)proc_lockDone(&p->lock);
 	hal_spinlockDestroy(&p->spinlock);
-	vm_kfree(p);
+	vm_kfree(p, (p->owner != NULL) ? p->owner->partition : NULL);
 }
 
 
@@ -119,7 +119,7 @@ int proc_portCreate(u32 *id)
 	thread_t *curr = proc_current();
 	process_t *proc = (curr == NULL) ? NULL : curr->process;
 
-	port = vm_kmalloc(sizeof(port_t));
+	port = vm_kmalloc(sizeof(port_t), (proc != NULL) ? proc->partition : NULL);
 	if (port == NULL) {
 		return -ENOMEM;
 	}
@@ -127,7 +127,7 @@ int proc_portCreate(u32 *id)
 	(void)proc_lockSet(&port_common.port_lock);
 	if (lib_idtreeAlloc(&port_common.tree, &port->linkage, 0) < 0) {
 		(void)proc_lockClear(&port_common.port_lock);
-		vm_kfree(port);
+		vm_kfree(port, (proc != NULL) ? proc->partition : NULL);
 		return -ENOMEM;
 	}
 

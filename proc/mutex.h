@@ -29,7 +29,7 @@ typedef struct _mutex_t {
 mutex_t *mutex_get(int h);
 
 
-void mutex_put(mutex_t *mutex);
+void mutex_put(mutex_t *mutex, syspage_part_t *part);
 
 
 int proc_mutexLock(int h);

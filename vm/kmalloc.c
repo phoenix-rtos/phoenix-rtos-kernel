@@ -81,7 +81,7 @@ static void *_kmalloc_alloc(u8 hdridx, u8 idx)
 }
 
 
-static vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
+static vm_zone_t *_kmalloc_free(u8 hdridx, void *p, syspage_part_t *part)
 {
 	vm_zone_t t;
 	vm_zone_t *z;
@@ -111,6 +111,10 @@ static vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 		LIST_ADD(&kmalloc_common.sizes[idx], z);
 	}
 
+	if (part != NULL) {
+		part->usedKMem -= z->blocksz;
+	}
+
 	return z;
 }
 
@@ -130,7 +134,7 @@ static int _kmalloc_addZone(u8 hdridx, u8 idx)
 	blocksz = 0x1UL << idx;
 	blocks = (unsigned int)max(((idx == hdridx) ? kmalloc_common.zonehdrs : 1UL), SIZE_PAGE / blocksz);
 	if (_vm_zoneCreate(nz, blocksz, blocks) < 0) {
-		(void)_kmalloc_free(hdridx, nz);
+		(void)_kmalloc_free(hdridx, nz, NULL);
 		return -ENOMEM;
 	}
 
@@ -145,7 +149,7 @@ static int _kmalloc_addZone(u8 hdridx, u8 idx)
 }
 
 
-void *vm_kmalloc(size_t size)
+void *vm_kmalloc(size_t size, syspage_part_t *part)
 {
 	u8 idx, hdridx;
 	void *b = NULL;
@@ -175,6 +179,11 @@ void *vm_kmalloc(size_t size)
 
 	(void)proc_lockSet(&kmalloc_common.lock);
 
+	if ((part != NULL) && (part->availableKMem < (part->usedKMem + (1UL << idx)))) {
+		(void)proc_lockClear(&kmalloc_common.lock);
+		return NULL;
+	}
+
 	if (kmalloc_common.hdrblocks == 1U) {
 		err = _kmalloc_addZone(hdridx, hdridx);
 	}
@@ -191,18 +200,22 @@ void *vm_kmalloc(size_t size)
 		b = _kmalloc_alloc(hdridx, idx);
 	}
 
+	if ((part != NULL) && (b != NULL)) {
+		part->usedKMem += (1UL << idx);
+	}
+
 	(void)proc_lockClear(&kmalloc_common.lock);
 
 	return b;
 }
 
 
-static void *_kmalloc_freeAtom(u8 hdridx, void *p)
+static void *_kmalloc_freeAtom(u8 hdridx, void *p, syspage_part_t *part)
 {
 	vm_zone_t *z;
 	u8 idx;
 
-	z = _kmalloc_free(hdridx, p);
+	z = _kmalloc_free(hdridx, p, part);
 	if (z == NULL) {
 		return NULL;
 	}
@@ -225,7 +238,7 @@ static void *_kmalloc_freeAtom(u8 hdridx, void *p)
 }
 
 
-void vm_kfree(void *p)
+void vm_kfree(void *p, syspage_part_t *part)
 {
 	u8 hdridx;
 
@@ -242,7 +255,8 @@ void vm_kfree(void *p)
 	(void)proc_lockSet(&kmalloc_common.lock);
 
 	while (p != NULL) {
-		p = _kmalloc_freeAtom(hdridx, p);
+		p = _kmalloc_freeAtom(hdridx, p, part);
+		part = NULL;
 	}
 
 	(void)proc_lockClear(&kmalloc_common.lock);

@@ -80,7 +80,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid, syspage_part_t *part)
 		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "size_t depends on architecture" */
 		else if ((sizeof(off_t) <= sizeof(size_t)) || (sz <= (off_t)((size_t)-1))) {
 			n = round_page((size_t)sz) / SIZE_PAGE;
-			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
+			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *), part);
 		}
 		else {
 			/* No action required */
@@ -117,7 +117,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid, syspage_part_t *part)
 
 	/* Did we allocate an object we didn't need in the end? */
 	if (no != NULL) {
-		vm_kfree(no);
+		vm_kfree(no, part);
 	}
 
 	return EOK;
@@ -166,7 +166,7 @@ int vm_objectPut(vm_object_t *o)
 		}
 	}
 
-	vm_kfree(o);
+	vm_kfree(o, o->part);
 
 	return EOK;
 }
@@ -294,7 +294,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 	size = 1UL << p->idx;
 	n = size / SIZE_PAGE;
 
-	o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
+	o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *), part);
 	if (o == NULL) {
 		vm_pageFree(p, part);
 		return NULL;

@@ -93,6 +93,9 @@ static inline int proc_getTid(const thread_t *t)
 thread_t *proc_current(void);
 
 
+syspage_part_t *proc_currentPart(void);
+
+
 void threads_canaryInit(thread_t *t, void *ustack);
 
 

@@ -181,7 +181,7 @@ int trace_bufferInit(vm_map_t *kmap)
 
 	buffer_common.kmap = kmap;
 
-	buffer_common.chans = vm_kmalloc(sizeof(chan_t) * nchans);
+	buffer_common.chans = vm_kmalloc(sizeof(chan_t) * nchans, NULL);
 	if (buffer_common.chans == NULL) {
 		return -ENOMEM;
 	}
