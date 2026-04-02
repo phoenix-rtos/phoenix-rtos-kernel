@@ -133,18 +133,18 @@ void test_vm_kmalloc(void)
 		i = lib_rand(&s2) % (sizeof(buff) / sizeof(buff[0]));
 
 		if (buff[i] != NULL) {
-			vm_kfree(buff[i]);
+			vm_kfree(buff[i], NULL);
 			buff[i] = NULL;
 		}
 
 		lib_printf("\rtest: [%4d] allocating %5d", k, size);
-		buff[i] = vm_kmalloc(size);
+		buff[i] = vm_kmalloc(size, NULL);
 	}
 	lib_printf("\n");
 
 	for (i = 0; (unsigned int)i < sizeof(buff) / sizeof(buff[0]); i++) {
 		if (buff[i] != NULL) {
-			vm_kfree(buff[i]);
+			vm_kfree(buff[i], NULL);
 		}
 	}
 
@@ -165,11 +165,11 @@ static void _test_vm_msgsimthr(void *arg)
 	char *buff;
 
 	for (;;) {
-		if ((buff = vm_kmalloc(44)) == NULL) {
+		if ((buff = vm_kmalloc(44, NULL)) == NULL) {
 			break;
 		}
 		hal_memset(buff, 2, 44);
-		vm_kfree(buff);
+		vm_kfree(buff, NULL);
 		proc_threadSleep(10000);
 	}
 
@@ -197,7 +197,7 @@ static void _test_vm_upgrsimthr(void *arg)
 	// vm_mapDump(NULL);
 
 	for (;;) {
-		if ((first = vm_kmalloc(3000)) == NULL) {
+		if ((first = vm_kmalloc(3000, NULL)) == NULL) {
 			break;
 		}
 
@@ -209,14 +209,14 @@ static void _test_vm_upgrsimthr(void *arg)
 			lib_printf("\rtest: U, [%4d] kmalloc.allocsz=%d", i, allocsz);
 			proc_lockClear(&lock);
 
-			if ((buff = vm_kmalloc(3000)) == NULL) {
+			if ((buff = vm_kmalloc(3000, NULL)) == NULL) {
 				break;
 			}
 			hal_memset(buff, 0, 133);
-			vm_kfree(buff);
+			vm_kfree(buff, NULL);
 			proc_threadSleep(1000);
 		}
-		vm_kfree(first);
+		vm_kfree(first, NULL);
 
 		break;
 	}

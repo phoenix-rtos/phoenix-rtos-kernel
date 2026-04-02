@@ -69,6 +69,7 @@ typedef struct _syspage_part_t {
 	char *name;
 
 	size_t availableMem;
+	size_t availableKMem;
 	unsigned char schedWindow;
 
 	hal_syspage_part_t *hal;

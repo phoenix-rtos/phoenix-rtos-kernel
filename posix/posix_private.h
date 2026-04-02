@@ -91,6 +91,7 @@ typedef struct {
 	unsigned int status;
 	lock_t lock;
 	int type;
+	partition_t *partition;
 } open_file_t;
 
 
@@ -106,6 +107,8 @@ typedef struct _process_info_t {
 	int parent;
 	int refs;
 	int exitcode;
+
+	partition_t *part;
 
 	thread_t *wait;
 

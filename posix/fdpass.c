@@ -96,12 +96,13 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		return 0;
 	}
 
-	pack = vm_kmalloc(sizeof(fdpack_t) + sizeof(fildes_t) * tot_cnt);
+	pack = vm_kmalloc(sizeof(fdpack_t) + sizeof(fildes_t) * tot_cnt, proc_currentPart());
 	if (pack == NULL) {
 		return -ENOMEM;
 	}
 
 	hal_memset(pack, 0, sizeof(fdpack_t));
+	pack->partition = proc_currentPart();
 
 	LIST_ADD(packs, pack);
 
@@ -180,7 +181,7 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 
 		if (pack->cnt == 0U) {
 			LIST_REMOVE(packs, pack);
-			vm_kfree(pack);
+			vm_kfree(pack, pack->partition);
 			pack = *packs;
 		}
 	}
@@ -213,7 +214,7 @@ int fdpass_discard(fdpack_t **packs)
 			(void)posix_fileDeref(file);
 		}
 		LIST_REMOVE(packs, pack);
-		vm_kfree(pack);
+		vm_kfree(pack, pack->partition);
 	}
 
 	(void)proc_lockClear(&p->lock);

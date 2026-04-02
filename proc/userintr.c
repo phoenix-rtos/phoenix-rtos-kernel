@@ -40,10 +40,10 @@ void userintr_put(userintr_t *ui)
 		(void)hal_interruptsDeleteHandler(&ui->handler);
 
 		if (ui->cond != NULL) {
-			cond_put(ui->cond);
+			cond_put(ui->cond, (ui->process != NULL) ? ui->process->partition : NULL);
 		}
 
-		vm_kfree(ui);
+		vm_kfree(ui, (ui->process != NULL) ? ui->process->partition : NULL);
 	}
 }
 
@@ -114,10 +114,10 @@ int userintr_setHandler(unsigned int n, userintrFn_t f, void *arg, handle_t c)
 		}
 	}
 
-	ui = vm_kmalloc(sizeof(*ui));
+	ui = vm_kmalloc(sizeof(*ui), (process != NULL) ? process->partition : NULL);
 	if (ui == NULL) {
 		if (cond != NULL) {
-			cond_put(cond);
+			cond_put(cond, (ui->process != NULL) ? ui->process->partition : NULL);
 		}
 		return -ENOMEM;
 	}
@@ -152,9 +152,9 @@ int userintr_setHandler(unsigned int n, userintrFn_t f, void *arg, handle_t c)
 	res = hal_interruptsSetHandler(&ui->handler);
 	if (res != EOK) {
 		if (cond != NULL) {
-			cond_put(cond);
+			cond_put(cond, (ui->process != NULL) ? ui->process->partition : NULL);
 		}
-		vm_kfree(ui);
+		vm_kfree(ui, (process != NULL) ? process->partition : NULL);
 		return res;
 	}
 
@@ -162,9 +162,9 @@ int userintr_setHandler(unsigned int n, userintrFn_t f, void *arg, handle_t c)
 	if (id < 0) {
 		(void)hal_interruptsDeleteHandler(&ui->handler);
 		if (cond != NULL) {
-			cond_put(cond);
+			cond_put(cond, (ui->process != NULL) ? ui->process->partition : NULL);
 		}
-		vm_kfree(ui);
+		vm_kfree(ui, (process != NULL) ? process->partition : NULL);
 		return -ENOMEM;
 	}
 

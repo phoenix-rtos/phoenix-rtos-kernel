@@ -113,13 +113,13 @@ static void process_destroy(process_t *p)
 
 	while ((ghost = p->ghosts) != NULL) {
 		LIST_REMOVE_EX(&p->ghosts, ghost, procnext, procprev);
-		vm_kfree(ghost);
+		vm_kfree(ghost, p->partition);
 	}
 
-	vm_kfree(p->path);
-	vm_kfree(p->argv);
-	vm_kfree(p->envp);
-	vm_kfree(p);
+	vm_kfree(p->path, p->partition);
+	vm_kfree(p->argv, p->partition);
+	vm_kfree(p->envp, p->partition);
+	vm_kfree(p, p->partition);
 }
 
 
@@ -183,7 +183,7 @@ int proc_start(startFn_t start, void *arg, const char *path, partition_t *partit
 {
 	int err = EOK;
 	process_t *process;
-	process = vm_kmalloc(sizeof(process_t));
+	process = vm_kmalloc(sizeof(process_t), partition);
 	if (process == NULL) {
 		return -ENOMEM;
 	}
@@ -195,9 +195,9 @@ int proc_start(startFn_t start, void *arg, const char *path, partition_t *partit
 	process->path = NULL;
 
 	if (path != NULL) {
-		process->path = lib_strdup(path);
+		process->path = lib_strdup(path, partition);
 		if (process->path == NULL) {
-			vm_kfree(process);
+			vm_kfree(process, partition);
 			return -ENOMEM;
 		}
 	}
@@ -1024,7 +1024,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 #endif
 
-static void *proc_copyargs(char **args)
+static void *proc_copyargs(char **args, partition_t *part)
 {
 	size_t argc, len = 0U;
 	void *storage;
@@ -1040,7 +1040,7 @@ static void *proc_copyargs(char **args)
 
 	len += (argc + 1U) * sizeof(char *);
 
-	storage = vm_kmalloc(len);
+	storage = vm_kmalloc(len, part);
 	if (storage == NULL) {
 		return NULL;
 	}
@@ -1217,16 +1217,16 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 	}
 
 	if (argv != NULL) {
-		argv = proc_copyargs(argv);
+		argv = proc_copyargs(argv, part);
 		if (argv == NULL) {
 			return -ENOMEM;
 		}
 	}
 
 	if (envp != NULL) {
-		envp = proc_copyargs(envp);
+		envp = proc_copyargs(envp, part);
 		if (envp == NULL) {
-			vm_kfree(argv);
+			vm_kfree(argv, part);
 			return -ENOMEM;
 		}
 	}
@@ -1254,8 +1254,8 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 		hal_spinlockClear(&spawn.sl, &sc);
 	}
 	else {
-		vm_kfree(argv);
-		vm_kfree(envp);
+		vm_kfree(argv, part);
+		vm_kfree(envp, part);
 	}
 
 	hal_spinlockDestroy(&spawn.sl);
@@ -1344,7 +1344,7 @@ static size_t process_parentKstacksz(thread_t *parent)
 static void process_restoreParentKstack(thread_t *current, thread_t *parent)
 {
 	hal_memcpy(hal_cpuGetSP(parent->context), current->parentkstack, process_parentKstacksz(parent));
-	vm_kfree(current->parentkstack);
+	vm_kfree(current->parentkstack, (current->process != NULL) ? current->process->partition : NULL);
 }
 
 
@@ -1400,11 +1400,13 @@ static void process_vforkThread(void *arg)
 {
 	process_spawn_t *spawn = arg;
 	thread_t *current, *parent;
+	partition_t *part;
 	spinlock_ctx_t sc;
 	int ret;
 
 	current = proc_current();
 	parent = spawn->parent;
+	part = (parent->process != NULL) ? parent->process->partition : NULL;
 	ret = posix_clone(process_getPid(spawn->parent->process));
 	if (ret < 0) {
 		proc_spawnThreadEnd(spawn, ret);
@@ -1422,7 +1424,7 @@ static void process_vforkThread(void *arg)
 	hal_spinlockClear(&spawn->sl, &sc);
 
 	/* Copy parent kernel stack */
-	current->parentkstack = vm_kmalloc(process_parentKstacksz(parent));
+	current->parentkstack = vm_kmalloc(process_parentKstacksz(parent), part);
 	if (current->parentkstack == NULL) {
 		proc_spawnThreadEnd(spawn, -ENOMEM);
 	}
@@ -1437,7 +1439,7 @@ static void process_vforkThread(void *arg)
 
 	ret = proc_resourcesCopy(parent->process);
 	if (ret < 0) {
-		vm_kfree(current->parentkstack);
+		vm_kfree(current->parentkstack, part);
 
 		proc_spawnThreadEnd(spawn, ret);
 	}
@@ -1468,6 +1470,7 @@ int proc_vfork(void)
 	thread_t *current;
 	int pid, isparent = 1, ret;
 	process_spawn_t *spawn;
+	partition_t *part;
 	spinlock_ctx_t sc;
 	int state_tmp;
 
@@ -1475,8 +1478,9 @@ int proc_vfork(void)
 	if (current == NULL) {
 		return -EINVAL;
 	}
+	part = (current->process != NULL) ? current->process->partition : NULL;
 
-	spawn = vm_kmalloc(sizeof(*spawn));
+	spawn = vm_kmalloc(sizeof(*spawn), part);
 	if (spawn == NULL) {
 		return -ENOMEM;
 	}
@@ -1491,10 +1495,10 @@ int proc_vfork(void)
 	spawn->parent = current;
 	spawn->prog = NULL;
 
-	pid = proc_start(process_vforkThread, spawn, NULL, (current->process != NULL) ? current->process->partition : NULL);
+	pid = proc_start(process_vforkThread, spawn, NULL, part);
 	if (pid < 0) {
 		hal_spinlockDestroy(&spawn->sl);
-		vm_kfree(spawn);
+		vm_kfree(spawn, part);
 		return pid;
 	}
 
@@ -1519,7 +1523,7 @@ int proc_vfork(void)
 		hal_spinlockDestroy(&spawn->sl);
 		(void)vm_objectPut(spawn->object);
 		ret = spawn->state;
-		vm_kfree(spawn);
+		vm_kfree(spawn, part);
 		if ((ret < 0) && (posix_getppid(pid) == process_getPid(current->process))) {
 			/*
 			 * if the child managed to register itself within posix subsystem before
@@ -1544,21 +1548,21 @@ static int process_copy(void)
 
 	/* these resources should get cleaned up by process_destroy */
 	if (parent->process->path != NULL) {
-		process->path = lib_strdup(parent->process->path);
+		process->path = lib_strdup(parent->process->path, parent->process->partition);
 		if (process->path == NULL) {
 			return -ENOMEM;
 		}
 	}
 
 	if (parent->process->argv != NULL) {
-		process->argv = proc_copyargs(parent->process->argv);
+		process->argv = proc_copyargs(parent->process->argv, parent->process->partition);
 		if (process->argv == NULL) {
 			return -ENOMEM;
 		}
 	}
 
 	if (parent->process->envp != NULL) {
-		process->envp = proc_copyargs(parent->process->envp);
+		process->envp = proc_copyargs(parent->process->envp, parent->process->partition);
 		if (process->envp == NULL) {
 			return -ENOMEM;
 		}
@@ -1726,6 +1730,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 	thread_t *current;
 	char *kpath;
 	process_spawn_t sspawn, *spawn;
+	partition_t *part;
 	arg_t args[1];
 
 	oid_t oid;
@@ -1733,42 +1738,43 @@ int proc_execve(const char *path, char **argv, char **envp)
 	int err;
 
 	current = proc_current();
+	part = (current->process != NULL) ? current->process->partition : NULL;
 
-	kpath = lib_strdup(path);
+	kpath = lib_strdup(path, part);
 	if (kpath == NULL) {
 		return -ENOMEM;
 	}
 
 	if (argv != NULL) {
-		argv = proc_copyargs(argv);
+		argv = proc_copyargs(argv, part);
 		if (argv == NULL) {
-			vm_kfree(kpath);
+			vm_kfree(kpath, part);
 			return -ENOMEM;
 		}
 	}
 
 	if (envp != NULL) {
-		envp = proc_copyargs(envp);
+		envp = proc_copyargs(envp, part);
 		if (envp == NULL) {
-			vm_kfree(kpath);
-			vm_kfree(argv);
+			vm_kfree(kpath, part);
+			vm_kfree(argv, part);
 			return -ENOMEM;
 		}
 	}
 
 	err = proc_lookup(path, NULL, &oid);
 	if (err < 0) {
-		vm_kfree(kpath);
-		vm_kfree(argv);
-		vm_kfree(envp);
+		vm_kfree(kpath, part);
+		vm_kfree(argv, part);
+		vm_kfree(envp, part);
 		return err;
 	}
 
 	err = vm_objectGet(&object, oid, (current->process == NULL) ? NULL : current->process->partition);
 	if (err < 0) {
-		vm_kfree(kpath);
-		vm_kfree(argv);
-		vm_kfree(envp);
+		vm_kfree(kpath, part);
+		vm_kfree(argv, part);
+		vm_kfree(envp, part);
 		return err;
 	}
 
@@ -1789,9 +1795,9 @@ int proc_execve(const char *path, char **argv, char **envp)
 	spawn->size = object->size;
 	spawn->prog = NULL;
 
-	vm_kfree(current->process->path);
-	vm_kfree(current->process->envp);
-	vm_kfree(current->process->argv);
+	vm_kfree(current->process->path, part);
+	vm_kfree(current->process->envp, part);
+	vm_kfree(current->process->argv, part);
 
 	current->process->path = kpath;
 
@@ -1843,7 +1849,7 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	sysPart = syspage_partitionList();
 	cnt = sysPart->prev->id + 1U;
-	process_common.partitions = vm_kmalloc(sizeof(partition_t) * cnt);
+	process_common.partitions = vm_kmalloc(sizeof(partition_t) * cnt, NULL);
 	if (process_common.partitions == NULL) {
 		return -ENOMEM;
 	}
@@ -1852,6 +1858,7 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 		LIB_ASSERT_ALWAYS(sysPart->id < cnt, "Invalid partition ids in syspage", sysPart->id);
 		process_common.partitions[sysPart->id].config = sysPart;
 		process_common.partitions[sysPart->id].usedMem = 0U;
+		process_common.partitions[sysPart->id].usedKMem = 0U;
 		sysPart = sysPart->next;
 	} while (sysPart != syspage_partitionList());
 
