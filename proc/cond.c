@@ -32,7 +32,7 @@ cond_t *cond_get(int c)
 }
 
 
-void cond_put(cond_t *cond)
+void cond_put(cond_t *cond, syspage_part_t *part)
 {
 	thread_t *t = proc_current();
 	int rem;
@@ -45,7 +45,7 @@ void cond_put(cond_t *cond)
 			t->process->path, process_getPid(t->process), proc_getTid(t));
 	if (rem == 0) {
 		proc_threadBroadcastYield(&cond->queue);
-		vm_kfree(cond);
+		vm_kfree(cond, part);
 	}
 }
 
@@ -60,7 +60,7 @@ int proc_condCreate(const struct condAttr *attr)
 		return -EINVAL;
 	}
 
-	cond = vm_kmalloc(sizeof(*cond));
+	cond = vm_kmalloc(sizeof(*cond), (p != NULL) ? p->partition : NULL);
 	if (cond == NULL) {
 		return -ENOMEM;
 	}
@@ -70,7 +70,7 @@ int proc_condCreate(const struct condAttr *attr)
 
 	id = resource_alloc(p, &cond->resource);
 	if (id < 0) {
-		vm_kfree(cond);
+		vm_kfree(cond, (p != NULL) ? p->partition : NULL);
 		return -ENOMEM;
 	}
 
@@ -98,7 +98,7 @@ int proc_condWait(int c, int m, time_t timeout)
 
 	mutex = mutex_get(m);
 	if (mutex == NULL) {
-		cond_put(cond);
+		cond_put(cond, proc_currentPart());
 		return -EINVAL;
 	}
 
@@ -140,8 +140,8 @@ int proc_condWait(int c, int m, time_t timeout)
 		err = proc_lockWait(&cond->queue, &mutex->lock, abstime);
 	}
 
-	mutex_put(mutex);
-	cond_put(cond);
+	mutex_put(mutex, proc_currentPart());
+	cond_put(cond, proc_currentPart());
 
 	return err;
 }
@@ -158,7 +158,7 @@ int proc_condSignal(int c)
 
 	proc_threadWakeupYield(&cond->queue);
 
-	cond_put(cond);
+	cond_put(cond, proc_currentPart());
 
 	return EOK;
 }
@@ -175,7 +175,7 @@ int proc_condBroadcast(int c)
 
 	proc_threadBroadcastYield(&cond->queue);
 
-	cond_put(cond);
+	cond_put(cond, proc_currentPart());
 
 	return EOK;
 }

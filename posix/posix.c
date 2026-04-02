@@ -14,6 +14,7 @@
  */
 
 #include "hal/hal.h"
+#include "hal/types.h"
 #include "include/errno.h"
 #include "include/events.h"
 #include "include/file.h"
@@ -22,6 +23,7 @@
 #include "include/posix-fcntl.h"
 #include "include/sockdefs.h"
 
+#include "include/syspage.h"
 #include "proc/proc.h"
 
 #include "posix_private.h"
@@ -67,6 +69,19 @@ static struct {
 } posix_common;
 
 
+static syspage_part_t *posix_partByPid(int pid)
+{
+	process_t *p = proc_find(pid);
+	syspage_part_t *part = (p != NULL) ? p->partition : NULL;
+
+	if (p != NULL) {
+		(void)proc_put(p);
+	}
+
+	return part;
+}
+
+
 static process_info_t *_pinfo_find(int pid)
 {
 	process_info_t pi, *r;
@@ -104,9 +119,9 @@ void pinfo_put(process_info_t *p)
 	lib_rbRemove(&posix_common.pid, &p->linkage);
 	(void)proc_lockClear(&posix_common.lock);
 
-	vm_kfree(p->fds);
+	vm_kfree(p->fds, p->part);
 	(void)proc_lockDone(&p->lock);
-	vm_kfree(p);
+	vm_kfree(p, p->part);
 }
 
 
@@ -127,7 +142,7 @@ int posix_fileDeref(open_file_t *f)
 		}
 
 		(void)proc_lockDone(&f->lock);
-		vm_kfree(f);
+		vm_kfree(f, NULL /*TODO*/);
 	}
 	else {
 		(void)proc_lockClear(&f->lock);
@@ -142,7 +157,7 @@ static void posix_putUnusedFile(process_info_t *p, int fd)
 
 	f = p->fds[fd].file;
 	(void)proc_lockDone(&f->lock);
-	vm_kfree(f);
+	vm_kfree(f, NULL /*TODO*/);
 	p->fds[fd].file = NULL;
 }
 
@@ -179,6 +194,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 {
 	fildes_t *nfds;
 	int nfdsz = p->fdsz;
+	syspage_part_t *part = posix_partByPid(p->process);
 
 	for (; fd < p->maxfd; ++fd) {
 		if (fd >= p->fdsz) {
@@ -191,7 +207,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 				nfdsz = p->maxfd;
 			}
 
-			nfds = vm_kmalloc((size_t)nfdsz * sizeof(*nfds));
+			nfds = vm_kmalloc((size_t)nfdsz * sizeof(*nfds), part);
 			if (nfds == NULL) {
 				return -1;
 			}
@@ -199,7 +215,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 			hal_memcpy(nfds, p->fds, (size_t)p->fdsz * sizeof(*nfds));
 			hal_memset(nfds + p->fdsz, 0, ((size_t)nfdsz - (size_t)p->fdsz) * sizeof(*nfds));
 
-			vm_kfree(p->fds);
+			vm_kfree(p->fds, part);
 
 			p->fds = nfds;
 			p->fdsz = nfdsz;
@@ -218,7 +234,7 @@ int posix_newFile(process_info_t *p, int fd)
 {
 	open_file_t *f;
 
-	f = vm_kmalloc(sizeof(open_file_t));
+	f = vm_kmalloc(sizeof(open_file_t), NULL /*TODO*/);
 	if (f == NULL) {
 		return -ENOMEM;
 	}
@@ -228,7 +244,7 @@ int posix_newFile(process_info_t *p, int fd)
 	fd = _posix_allocfd(p, fd);
 	if (fd < 0) {
 		(void)proc_lockClear(&p->lock);
-		vm_kfree(f);
+		vm_kfree(f, NULL /*TODO*/);
 		return -ENFILE;
 	}
 
@@ -306,7 +322,7 @@ int posix_clone(int ppid)
 
 	proc = proc_current()->process;
 
-	p = vm_kmalloc(sizeof(process_info_t));
+	p = vm_kmalloc(sizeof(process_info_t), proc->partition);
 	if (p == NULL) {
 		return -ENOMEM;
 	}
@@ -335,11 +351,12 @@ int posix_clone(int ppid)
 	}
 
 	p->process = process_getPid(proc);
+	p->part = proc->partition;
 
-	p->fds = vm_kmalloc((size_t)p->fdsz * sizeof(fildes_t));
+	p->fds = vm_kmalloc((size_t)p->fdsz * sizeof(fildes_t), proc->partition);
 	if (p->fds == NULL) {
 		(void)proc_lockDone(&p->lock);
-		vm_kfree(p);
+		vm_kfree(p, proc->partition);
 		if (pp != NULL) {
 			(void)proc_lockClear(&pp->lock);
 			pinfo_put(pp);
@@ -365,15 +382,15 @@ int posix_clone(int ppid)
 		hal_memset(p->fds, 0, (size_t)p->fdsz * sizeof(fildes_t));
 
 		for (i = 0; i < 3; ++i) {
-			f = vm_kmalloc(sizeof(open_file_t));
+			f = vm_kmalloc(sizeof(open_file_t), NULL /*TODO*/);
 			p->fds[i].file = f;
 			if (f == NULL) {
 				for (j = 0; j < i; j++) {
 					posix_putUnusedFile(p, j);
 				}
 				(void)proc_lockDone(&p->lock);
-				vm_kfree(p->fds);
-				vm_kfree(p);
+				vm_kfree(p->fds, proc->partition);
+				vm_kfree(p, proc->partition);
 				return -ENOMEM;
 			}
 
@@ -459,7 +476,7 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(filename);
+	name = lib_strdup(filename, proc_currentPart());
 	if (name == NULL) {
 		return -ENOMEM;
 	}
@@ -480,7 +497,7 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 		err = EOK;
 	} while (0);
 
-	vm_kfree(name);
+	vm_kfree(name, proc_currentPart());
 	return err;
 }
 
@@ -586,7 +603,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			break;
 		}
 
-		f = vm_kmalloc(sizeof(open_file_t));
+		f = vm_kmalloc(sizeof(open_file_t), NULL /*TODO*/);
 		if (f == NULL) {
 			err = -ENOMEM;
 			break;
@@ -669,7 +686,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 		(void)proc_lockSet(&p->lock);
 		p->fds[fd].file = NULL;
 		(void)proc_lockDone(&f->lock);
-		vm_kfree(f);
+		vm_kfree(f, NULL /*TODO*/);
 
 	} while (0);
 
@@ -984,16 +1001,16 @@ int posix_pipe(int fildes[2])
 		return res;
 	}
 
-	fo = vm_kmalloc(sizeof(open_file_t));
+	fo = vm_kmalloc(sizeof(open_file_t), NULL /*TODO*/);
 	if (fo == NULL) {
 		pinfo_put(p);
 		/* FIXME: destroy pipe */
 		return -ENOMEM;
 	}
 
-	fi = vm_kmalloc(sizeof(open_file_t));
+	fi = vm_kmalloc(sizeof(open_file_t), NULL /*TODO*/);
 	if (fi == NULL) {
-		vm_kfree(fo);
+		vm_kfree(fo, NULL /*TODO*/);
 		pinfo_put(p);
 		/* FIXME: destroy pipe */
 		return -ENOMEM;
@@ -1008,8 +1025,8 @@ int posix_pipe(int fildes[2])
 	if ((fildes[0] < 0) || (fildes[1] < 0)) {
 		(void)proc_lockClear(&p->lock);
 
-		vm_kfree(fo);
-		vm_kfree(fi);
+		vm_kfree(fo, NULL /*TODO*/);
+		vm_kfree(fi, NULL /*TODO*/);
 
 		pinfo_put(p);
 		return -EMFILE;
@@ -1112,7 +1129,7 @@ int posix_link(const char *path1, const char *path2)
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(path2);
+	name = lib_strdup(path2, proc_currentPart());
 	if (name == NULL) {
 		return -ENOMEM;
 	}
@@ -1151,7 +1168,7 @@ int posix_link(const char *path1, const char *path2)
 		err = EOK;
 	} while (0);
 
-	vm_kfree(name);
+	vm_kfree(name, proc_currentPart());
 	return err;
 }
 
@@ -1165,7 +1182,7 @@ int posix_unlink(const char *pathname)
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(pathname);
+	name = lib_strdup(pathname, proc_currentPart());
 	if (name == NULL) {
 		return -ENOMEM;
 	}
@@ -1205,7 +1222,7 @@ int posix_unlink(const char *pathname)
 		err = EOK;
 	} while (0);
 
-	vm_kfree(name);
+	vm_kfree(name, proc_currentPart());
 	return err;
 }
 

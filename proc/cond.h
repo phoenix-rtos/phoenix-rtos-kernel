@@ -27,7 +27,7 @@ typedef struct _cond_t {
 } cond_t;
 
 
-void cond_put(cond_t *cond);
+void cond_put(cond_t *cond, syspage_part_t *part);
 
 
 cond_t *cond_get(int c);

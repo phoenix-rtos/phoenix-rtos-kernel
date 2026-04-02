@@ -19,10 +19,10 @@
 #include "hal/hal.h"
 
 
-void *vm_kmalloc(size_t size);
+void *vm_kmalloc(size_t size, syspage_part_t *part);
 
 
-void vm_kfree(void *p);
+void vm_kfree(void *p, syspage_part_t *part);
 
 
 void vm_kmallocGetStats(size_t *allocsz);

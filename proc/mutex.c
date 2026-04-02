@@ -30,7 +30,7 @@ mutex_t *mutex_get(int h)
 }
 
 
-void mutex_put(mutex_t *mutex)
+void mutex_put(mutex_t *mutex, syspage_part_t *part)
 {
 	thread_t *t = proc_current();
 	int rem;
@@ -43,7 +43,7 @@ void mutex_put(mutex_t *mutex)
 			t->process->path, process_getPid(t->process), proc_getTid(t));
 	if (rem == 0) {
 		(void)proc_lockDone(&mutex->lock);
-		vm_kfree(mutex);
+		vm_kfree(mutex, part);
 	}
 }
 
@@ -58,7 +58,7 @@ int proc_mutexCreate(const struct lockAttr *attr)
 		return -EINVAL;
 	}
 
-	mutex = vm_kmalloc(sizeof(*mutex));
+	mutex = vm_kmalloc(sizeof(*mutex), (p != NULL) ? p->partition : NULL);
 	if (mutex == NULL) {
 		return -ENOMEM;
 	}
@@ -68,7 +68,7 @@ int proc_mutexCreate(const struct lockAttr *attr)
 
 	id = resource_alloc(p, &mutex->resource);
 	if (id < 0) {
-		vm_kfree(mutex);
+		vm_kfree(mutex, (p != NULL) ? p->partition : NULL);
 		return -ENOMEM;
 	}
 
@@ -92,7 +92,7 @@ int proc_mutexLock(int h)
 
 	err = proc_lockSetInterruptible(&mutex->lock);
 
-	mutex_put(mutex);
+	mutex_put(mutex, proc_currentPart());
 
 	return err;
 }
@@ -110,7 +110,7 @@ int proc_mutexTry(int h)
 
 	err = proc_lockTry(&mutex->lock);
 
-	mutex_put(mutex);
+	mutex_put(mutex, proc_currentPart());
 
 	return err;
 }
@@ -128,7 +128,7 @@ int proc_mutexUnlock(int h)
 
 	err = proc_lockClear(&mutex->lock);
 
-	mutex_put(mutex);
+	mutex_put(mutex, proc_currentPart());
 
 	return err;
 }

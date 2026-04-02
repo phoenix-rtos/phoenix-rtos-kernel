@@ -267,7 +267,7 @@ static void thread_destroy(thread_t *thread)
 	while (thread->locks != NULL) {
 		proc_lockUnlock(thread->locks);
 	}
-	vm_kfree(thread->kstack);
+	vm_kfree(thread->kstack, (thread->process != NULL) ? thread->process->partition : NULL);
 
 	process = thread->process;
 	if (process != NULL) {
@@ -281,7 +281,7 @@ static void thread_destroy(thread_t *thread)
 		(void)proc_put(process);
 	}
 	else {
-		vm_kfree(thread);
+		vm_kfree(thread, NULL);
 	}
 }
 
@@ -573,6 +573,14 @@ thread_t *proc_current(void)
 }
 
 
+syspage_part_t *proc_currentPart(void)
+{
+	thread_t *current = proc_current();
+
+	return ((current != NULL) && (current->process != NULL)) ? current->process->partition : NULL;
+}
+
+
 static int thread_alloc(thread_t *thread)
 {
 	int id;
@@ -624,15 +632,15 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 		return -EINVAL;
 	}
 
-	t = vm_kmalloc(sizeof(thread_t));
+	t = vm_kmalloc(sizeof(thread_t), (process != NULL) ? process->partition : NULL);
 	if (t == NULL) {
 		return -ENOMEM;
 	}
 
 	t->kstacksz = kstacksz;
-	t->kstack = vm_kmalloc(t->kstacksz);
+	t->kstack = vm_kmalloc(t->kstacksz, (process != NULL) ? process->partition : NULL);
 	if (t->kstack == NULL) {
-		vm_kfree(t);
+		vm_kfree(t, (process != NULL) ? process->partition : NULL);
 		return -ENOMEM;
 	}
 	hal_memset(t->kstack, 0xba, t->kstacksz);
@@ -659,8 +667,8 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->longjmpctx = NULL;
 
 	if (thread_alloc(t) < 0) {
-		vm_kfree(t->kstack);
-		vm_kfree(t);
+		vm_kfree(t->kstack, (process != NULL) ? process->partition : NULL);
+		vm_kfree(t, (process != NULL) ? process->partition : NULL);
 		return -ENOMEM;
 	}
 
@@ -668,8 +676,8 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
 			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
-			vm_kfree(t->kstack);
-			vm_kfree(t);
+			vm_kfree(t->kstack, (process != NULL) ? process->partition : NULL);
+			vm_kfree(t, (process != NULL) ? process->partition : NULL);
 			return err;
 		}
 	}
@@ -1296,7 +1304,7 @@ int proc_join(int tid, time_t timeout)
 		(void)process_tlsDestroy(&ghost->tls, process->mapp);
 	}
 
-	vm_kfree(ghost);
+	vm_kfree(ghost, process->partition);
 	return err < 0 ? err : id;
 }
 
@@ -2176,7 +2184,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		schedWindow = schedWindow->next;
 	} while (schedWindow != syspage_schedulerWindowList());
 
-	threads_common.windows = vm_kmalloc(sizeof(syspage_sched_window_t *) * cnt);
+	threads_common.windows = vm_kmalloc(sizeof(syspage_sched_window_t *) * cnt, NULL);
 	if (threads_common.windows == NULL) {
 		return -ENOMEM;
 	}
@@ -2199,7 +2207,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 			continue;
 		}
 
-		threads_common.windows[i] = vm_kmalloc(sizeof(sched_window_t));
+		threads_common.windows[i] = vm_kmalloc(sizeof(sched_window_t), NULL);
 		if (threads_common.windows[i] == NULL) {
 			return -ENOMEM;
 		}
@@ -2218,7 +2226,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	/* Allocate and initialize current threads array */
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is used, false positive" */
-	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount());
+	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount(), NULL);
 	if (threads_common.current == NULL) {
 		return -ENOMEM;
 	}
@@ -2230,11 +2238,11 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	}
 
 	/* Initialize structures for scheduler windows switching */
-	threads_common.windowStart = vm_kmalloc(sizeof(*threads_common.windowStart) * hal_cpuGetCount());
+	threads_common.windowStart = vm_kmalloc(sizeof(*threads_common.windowStart) * hal_cpuGetCount(), NULL);
 	if (threads_common.windowStart == NULL) {
 		return -ENOMEM;
 	}
-	threads_common.actWindow = vm_kmalloc(sizeof(*threads_common.actWindow) * hal_cpuGetCount());
+	threads_common.actWindow = vm_kmalloc(sizeof(*threads_common.actWindow) * hal_cpuGetCount(), NULL);
 	if (threads_common.actWindow == NULL) {
 		return -ENOMEM;
 	}

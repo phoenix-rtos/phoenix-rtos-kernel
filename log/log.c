@@ -141,7 +141,7 @@ static void _log_msgRespond(log_reader_t *r, ssize_t err)
 
 	(void)proc_respond(rmsg->oid.port, &msg, rmsg->rid);
 
-	vm_kfree(rmsg);
+	vm_kfree(rmsg, NULL);
 }
 
 
@@ -189,7 +189,7 @@ static void _log_readerPut(log_reader_t **r)
 				_log_msgRespond((*r), -EIO);
 			}
 			LIST_REMOVE(&log_common.readers, (*r));
-			vm_kfree((*r));
+			vm_kfree((*r), NULL);
 			(*r) = NULL;
 		}
 	}
@@ -213,7 +213,7 @@ static int log_readerAdd(pid_t pid, unsigned int nonblocking)
 		return -EINVAL;
 	}
 
-	r = vm_kmalloc(sizeof(log_reader_t));
+	r = vm_kmalloc(sizeof(log_reader_t), NULL);
 	if (r == NULL) {
 		return -ENOMEM;
 	}
@@ -286,7 +286,7 @@ static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, msg_rid_t rid
 {
 	log_rmsg_t *rmsg;
 
-	rmsg = vm_kmalloc(sizeof(*rmsg));
+	rmsg = vm_kmalloc(sizeof(*rmsg), NULL);  // TODO: in whole file get reader partition by PID?
 	if (rmsg == NULL) {
 		return -ENOMEM;
 	}

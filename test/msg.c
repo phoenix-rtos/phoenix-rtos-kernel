@@ -70,8 +70,8 @@ void test_ping(void *arg)
 
 	lib_printf("test: msg/ping: starting\n");
 
-	buf[0] = vm_kmalloc(bufsz);
-	buf[1] = vm_kmalloc(bufsz);
+	buf[0] = vm_kmalloc(bufsz, NULL);
+	buf[1] = vm_kmalloc(bufsz, NULL);
 
 	if (buf[0] == NULL || buf[1] == NULL) {
 		lib_printf("test_msg/ping: could not allocate buffers\n");

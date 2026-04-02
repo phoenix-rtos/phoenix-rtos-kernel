@@ -32,10 +32,10 @@ static char *lib_strrchr(char *s, char c)
 }
 
 
-char *lib_strdup(const char *str)
+char *lib_strdup(const char *str, syspage_part_t *part)
 {
 	size_t len = hal_strlen(str) + 1U;
-	char *ptr = vm_kmalloc(len);
+	char *ptr = vm_kmalloc(len, part);
 
 	if (ptr != NULL) {
 		hal_memcpy(ptr, str, len);
