@@ -203,13 +203,19 @@ enum {
 	pctl_isel_usdhc2_wp
 };
 
+
+/* SNVS domain */
+enum {
+    pctl_rtc_set_state
+};
+
 /* clang-format on */
 
 
 typedef struct {
 	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot } type;
+	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot, pctl_snvs } type;
 	/* clang-format on */
 
 	union {
@@ -250,6 +256,10 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+
+		struct {
+			unsigned char val;
+		} snvs;
 	};
 } __attribute__((packed)) platformctl_t;
 
