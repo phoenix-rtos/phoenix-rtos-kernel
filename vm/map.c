@@ -778,7 +778,6 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 		return -ENOMEM;
 	}
 	else if (page_map(&map->pmap, paddr, p->addr, attr) < 0) {
-		amap_putanons(e->amap, e->aoffs + offs, SIZE_PAGE);
 		return -ENOMEM;
 	}
 	else {
