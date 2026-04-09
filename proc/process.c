@@ -1385,11 +1385,8 @@ static void process_vforkThread(void *arg)
 	parent = spawn->parent;
 	(void)posix_clone(process_getPid(parent->process));
 
-	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
-
 	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
-	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	while (spawn->state < FORKING) {
@@ -1427,6 +1424,9 @@ static void process_vforkThread(void *arg)
 
 		proc_threadEnd();
 	}
+
+	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
+	pmap_switch(current->process->pmapp);
 
 	current->ustack = parent->ustack;
 
