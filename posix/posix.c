@@ -2709,10 +2709,7 @@ void posix_died(pid_t pid, int exit)
 	int waited, adopted = 1;
 
 	pinfo = pinfo_find(pid);
-	if (pinfo == NULL) {
-		lib_printf("kernel (%s:%d): pinfo not found, pid: %d\n", __func__, __LINE__, pid);
-		return;
-	}
+	LIB_ASSERT_ALWAYS(pinfo != NULL, "pinfo not found, pid: %d", pid);
 
 	init = pinfo_find(1);
 	LIB_ASSERT_ALWAYS(init != NULL, "init not found");
