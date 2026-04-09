@@ -1160,3 +1160,27 @@ hal_jmp:
 	/* safely jump to userspace through trap */
 	ta 0xc
 .size hal_jmp, . - hal_jmp
+
+
+/* void hal_excjmp(excjmp_context_t *ctx) */
+.global hal_excjmp
+.type hal_excjmp, #function
+hal_excjmp:
+	//TODO
+
+	mov 1, %o0
+	retl
+	nop
+.size hal_excjmp, . - hal_excjmp
+
+
+/* int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx) */
+.global hal_setexcjmp
+.type hal_setexcjmp, #function
+hal_setexcjmp:
+	//TODO
+
+	clr %o0
+	retl
+	nop
+.size hal_setexcjmp, . - hal_setexcjmp

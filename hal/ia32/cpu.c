@@ -192,7 +192,7 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 	if (!hal_setexcjmp(&excctx, &oldctx)) {
 		hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Need to assign function address to processor register" */
 		signalCtx->eip = (u32)handler;
 		signalCtx->esp -= sizeof(cpu_context_t);
 

@@ -119,7 +119,7 @@ void hal_cpuSigreturn(void *kstack, void *ustack, cpu_context_t **ctx);
 void hal_jmp(void *f, void *kstack, void *ustack, size_t kargc, const arg_t *kargs);
 
 
-extern int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx);
+__attribute((returns_twice)) int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx);
 
 
 /* core management */
