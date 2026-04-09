@@ -1178,10 +1178,20 @@ static void proc_spawnThread(void *arg)
 {
 	thread_t *current = proc_current();
 	process_spawn_t *spawn = arg;
+	spinlock_ctx_t sc;
+	int ret;
 
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL) {
-		(void)posix_clone(process_getPid(spawn->parent->process));
+		ret = posix_clone(process_getPid(spawn->parent->process));
+		if (ret < 0) {
+			hal_spinlockSet(&spawn->sl, &sc);
+			spawn->state = ret;
+			(void)proc_threadWakeup(&spawn->wq);
+			hal_spinlockClear(&spawn->sl, &sc);
+
+			proc_threadEnd();
+		}
 	}
 
 	process_exec(current, spawn);
@@ -1383,7 +1393,15 @@ static void process_vforkThread(void *arg)
 
 	current = proc_current();
 	parent = spawn->parent;
-	(void)posix_clone(process_getPid(parent->process));
+	ret = posix_clone(process_getPid(spawn->parent->process));
+	if (ret < 0) {
+		hal_spinlockSet(&spawn->sl, &sc);
+		spawn->state = ret;
+		(void)proc_threadWakeup(&spawn->wq);
+		hal_spinlockClear(&spawn->sl, &sc);
+
+		proc_threadEnd();
+	}
 
 	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
