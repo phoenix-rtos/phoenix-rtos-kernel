@@ -205,7 +205,7 @@ typedef struct {
 		} readdir;
 
 		struct {
-			unsigned char raw[64 - sizeof(oid_t)];
+			unsigned char raw[256 - sizeof(oid_t)];
 		} devctl;
 
 		/* LOOKUP */
@@ -214,13 +214,59 @@ typedef struct {
 			oid_t dev;
 		} lookup;
 
-		unsigned char raw[64];
+		unsigned char raw[256];
 	};
+
+	/* part of msg info? */
+	size_t rawlen;
 
 	/* shared buffer, bufsize == 0 denotes no buffer */
 	void *buf;
 	size_t bufsize;
+
+	void *sbuf;
+	size_t slen;
+
+	void *rbuf;
+	size_t rlen;
 } msgBuf_t;
+
+
+typedef struct {
+	unsigned int pid;
+	size_t len;
+
+	void *sbuf;
+	size_t slen;
+
+	void *rbuf;
+	size_t rlen;
+} msgInfo_t;
+
+
+/* TODO: rename to info */
+typedef struct {
+	int type;
+	unsigned int pid;
+	unsigned int priority;
+	oid_t oid;
+
+	/* poor-man's IOV but should suffice */
+	void *iextra;
+	size_t iesize;
+
+	/*
+	 * isize,osize < 256 gets copied, anything more does a shared mapping
+	 * and idata,odata is set to non-NULL address, respectively
+	 */
+	size_t isize;
+	void *idata;
+
+	size_t osize;
+	void *odata;
+
+	int err;
+} msgHeader_t;
 
 
 #pragma pack(pop)

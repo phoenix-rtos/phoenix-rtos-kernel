@@ -835,7 +835,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->utcb.kw = NULL;
 	t->utcb.w = NULL;
 	t->utcb.p = NULL;
-	hal_memset(&t->utcb.il, 0, sizeof(t->utcb.il));
+	hal_memset(&t->utcb.sil, 0, sizeof(t->utcb.sil));
+	hal_memset(&t->utcb.ril, 0, sizeof(t->utcb.ril));
 
 	t->fastpathExitCtx = NULL;
 	t->callReturnable = 0;
@@ -864,11 +865,11 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->addedTo = NULL;
 	t->flags = 0;
 
-	t->bufferStart = NULL;
-	t->bufferEnd = NULL;
+	// t->bufferStart = NULL;
+	// t->bufferEnd = NULL;
 	t->mappedTo = NULL;
 	t->mappedFrom = NULL;
-	t->mappedBase = NULL;
+	// t->mappedBase = NULL;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->sched);
@@ -2387,7 +2388,7 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 
 #define VERBOSE 0
 
-static int proc_setupSharedBuffer(thread_t *t, thread_t *recv);
+static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t bufsz, ipc_buf_layout_t *il, void **rbuf);
 
 
 static void _portEnqueue(port_t *p, thread_t *t)
@@ -2405,30 +2406,34 @@ static void _portDequeue(port_t *p, thread_t *t)
 }
 
 
-static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to)
+/* assuming aspace of `to` */
+static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msgHeader_t *hdr, void *data, size_t size)
 {
-	/* TODO: pass small data via registers */
-	to->utcb.kw->size = min(from->utcb.kw->size, sizeof(to->utcb.kw->raw));
-	/* TODO: pass only up to raw size */
-	hal_memcpy(to->utcb.kw->raw, from->utcb.kw->raw, sizeof(to->utcb.kw->raw));
-	to->utcb.kw->err = from->utcb.kw->err;
+	const size_t smallBufSize = min(sizeof(from->utcb.msgbuf), to->utcb.osize);
+	const size_t odataSmall = min(size, smallBufSize);
 
-	ipc_buf_layout_t *il = &to->utcb.il;
+	hal_memcpy(to->utcb.odataPtr, from->utcb.msgbuf, odataSmall);
 
-	if (to->mappedTo == from) {
-		/* Copy shadow pages */
-		if (il->bp != NULL) {
-			hal_memcpy(il->bvaddr + il->boffs, il->w + il->boffs, min(SIZE_PAGE - il->boffs, to->utcb.kw->bufsize));
-		}
+	if (size > smallBufSize) {
+		ipc_buf_layout_t *il = &to->utcb.ril;
 
-		if (il->eoffs) {
-			hal_memcpy(il->evaddr, il->w + il->boffs + to->utcb.kw->bufsize - il->eoffs, il->eoffs);
+		if (to->mappedTo == from) {
+			/* Copy shadow pages */
+			if (il->bp != NULL) {
+				hal_memcpy(il->bvaddr + il->boffs, il->w + il->boffs, min(SIZE_PAGE - il->boffs, (size - smallBufSize)));
+			}
+
+			if (il->eoffs) {
+				hal_memcpy(il->evaddr, il->w + il->boffs + (size - smallBufSize) - il->eoffs, il->eoffs);
+			}
 		}
 	}
+
+	hal_memcpy(to->utcb.hdr, hdr, sizeof(msgHeader_t));
 }
 
 
-int proc_call_ex(u32 port, int returnable)
+int proc_call_ex(u32 port, msgHeader_t *hdr, void *idata, size_t isize, void *odata, size_t osize, int returnable)
 {
 	port_t *p;
 	thread_t *caller, *recv;
@@ -2482,21 +2487,36 @@ int proc_call_ex(u32 port, int returnable)
 	if (returnable != 0) {
 		caller->callReturnable = 1;
 	}
+
+	caller->utcb.hdr = hdr;
+
+	const size_t smallBufSize = min(sizeof(caller->utcb.msgbuf), recv->utcb.recvSize);
+	const size_t idataSmall = min(isize, smallBufSize);
+
+	hal_memcpy(caller->utcb.msgbuf, idata, idataSmall);
+	caller->utcb.msglen = idataSmall;
+
+	if (isize <= smallBufSize) {
+		/* small message */
+		idata = NULL;
+	}
+
+	caller->utcb.odataPtr = odata;
+	caller->utcb.osize = osize;
+
+	if (osize <= smallBufSize) {
+		/* small reply */
+		odata = NULL;
+	}
+
 	ctx = _threads_switchTo(recv, 0);
+
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
 	/* TODO: bump refcnt on recv? */
 	hal_spinlockClear(&p->spinlock, &sc);
 
 	/* FIXME: safety: recv could get interrupted */
-
-	if (caller->utcb.kw->buf != NULL && caller->utcb.kw->bufsize > 0) {
-		if (proc_setupSharedBuffer(caller, recv) < 0) {
-			port_put(p, 0);
-			LIB_ASSERT(0, "enomem");
-			return -ENOMEM;
-		}
-	}
 
 	/*
 	 * NOTE: assumes port spinlock is set so that this spinlockSet is nested and tsc
@@ -2511,13 +2531,31 @@ int proc_call_ex(u32 port, int returnable)
 	LIB_ASSERT(recv->utcb.kw != NULL, "what?? port=%d caller tid=%d recv tid=%d refs: %d",
 			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
 
-	recv->utcb.kw->size = min(caller->utcb.kw->size, sizeof(recv->utcb.kw->raw));
-	/* TODO: pass only up to raw size */
-	hal_memcpy(recv->utcb.kw->raw, caller->utcb.kw->raw, sizeof(recv->utcb.kw->raw));
-	recv->utcb.kw->label = caller->utcb.kw->label;
-	recv->utcb.kw->pid = (caller->process != NULL) ? process_getPid(caller->process) : 0;
-	recv->utcb.kw->oid = caller->utcb.kw->oid;
-	recv->utcb.kw->err = 0;
+	/* message transfer */
+
+	hal_memcpy(recv->utcb.recvData, caller->utcb.msgbuf, idataSmall);
+
+	if (idata != NULL) {
+		/* TODO: permissions, incoming data doesnt need to be writable */
+		if (proc_setupSharedBuffer(caller, recv, idata + smallBufSize, isize - smallBufSize, &caller->utcb.sil, &recv->utcb.hdr->idata) < 0) {
+			port_put(p, 0);
+			LIB_ASSERT(0, "enomem");
+			return -ENOMEM;
+		}
+	}
+	recv->utcb.hdr->isize = isize;
+
+	if (odata != NULL) {
+		if (proc_setupSharedBuffer(caller, recv, odata + smallBufSize, osize - smallBufSize, &caller->utcb.ril, &recv->utcb.hdr->odata) < 0) {
+			port_put(p, 0);
+			LIB_ASSERT(0, "enomem");
+			return -ENOMEM;
+		}
+	}
+	recv->utcb.hdr->osize = osize;
+	recv->utcb.hdr->pid = (caller->process != NULL) ? process_getPid(caller->process) : 0;
+
+	/* msg transfer should be done by now */
 
 	recv->interruptible = 0;
 
@@ -2555,15 +2593,15 @@ int proc_call_ex(u32 port, int returnable)
 }
 
 
-int proc_call(u32 port)
+int proc_call(u32 port, msgHeader_t *hdr, void *idata, size_t isize, void *odata, size_t osize)
 {
-	return proc_call_ex(port, 0);
+	return proc_call_ex(port, hdr, idata, isize, odata, osize, 0);
 }
 
 
-int proc_call_returnable(u32 port)
+int proc_call_returnable(u32 port, msgHeader_t *hdr, void *idata, size_t isize, void *odata, size_t osize)
 {
-	int err = proc_call_ex(port, 1);
+	int err = proc_call_ex(port, hdr, idata, isize, odata, osize, 1);
 	LIB_ASSERT(err >= 0, "err=%d", err);
 
 	return err;
@@ -2628,9 +2666,13 @@ void proc_threadPrioQueueInit(prio_queue_t *queue)
 	queue->nonempty = 0;
 }
 
-static void *_becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
+static void *_becomePassive(port_t *p, thread_t *recv, msgHeader_t *hdr, void *data, size_t size, spinlock_ctx_t *sc)
 {
 	spinlock_ctx_t tsc;
+
+	recv->utcb.hdr = hdr;
+	recv->utcb.recvData = data;
+	recv->utcb.recvSize = size;
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
@@ -2677,9 +2719,15 @@ void *_handlePulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 	return NULL;
 }
 
+/* I actually like this data-size + hdr->odata approach.
+A server is then in control of the performance of the transfer. If it wants to
+support fast transfers and knows the payload size beforehand, then it will allocate a large `data`.
+Otherwise, it can simply put data=NULL and just depend on kernel-allocated payloads
+BTW: large `data` is simply a way of expressing proc_registerMsgBuffer ! :)
+*/
 
 /* TODO: error passing */
-void *proc_recv2(u32 port)
+void *proc_recv2(u32 port, msgHeader_t *hdr, void *data, size_t size)
 {
 	port_t *p;
 	spinlock_ctx_t sc;
@@ -2708,7 +2756,7 @@ void *proc_recv2(u32 port)
 
 	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
 
-	return _becomePassive(p, recv, &sc);
+	return _becomePassive(p, recv, hdr, data, size, &sc);
 }
 
 
@@ -2759,7 +2807,7 @@ int proc_pulse(u32 port, u8 pulse)
 }
 
 
-int proc_respond2(u32 port, void *reply)
+int proc_respond2(u32 port, void *reply, msgHeader_t *hdr, void *data, size_t size)
 {
 	port_t *p;
 	spinlock_ctx_t sc;
@@ -2810,7 +2858,7 @@ int proc_respond2(u32 port, void *reply)
 
 	LIB_ASSERT(caller != NULL, "caller null!");
 
-	_threads_copyMsgBufResponse(recv, caller);
+	_threads_copyMsgBufResponse(recv, caller, hdr, data, size);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -2884,7 +2932,7 @@ int proc_respond2(u32 port, void *reply)
 }
 
 
-void *proc_respondAndRecv(u32 port)
+void *proc_respondAndRecv(u32 port, msgHeader_t *hdr, void *data, size_t size)
 {
 	port_t *p;
 	spinlock_ctx_t sc, tsc;
@@ -2927,7 +2975,7 @@ void *proc_respondAndRecv(u32 port)
 			return _handlePulse(recv, p, &sc);
 		}
 
-		return _becomePassive(p, recv, &sc);
+		return _becomePassive(p, recv, hdr, data, size, &sc);
 	}
 
 	/* wake next caller if exists */
@@ -2957,11 +3005,13 @@ void *proc_respondAndRecv(u32 port)
 	LIB_ASSERT(caller->exit == 0, "exit=%d", caller->exit);
 	LIB_ASSERT(caller->state != GHOST, "huh");
 
-	_threads_copyMsgBufResponse(recv, caller);
-
 	_portEnqueue(p, recv);
 
+	msgHeader_t hdrCopy = *hdr;
+
 	ctx = _threads_switchTo(caller, 1);
+
+	_threads_copyMsgBufResponse(recv, caller, &hdrCopy, data, size);
 
 	if (caller->callReturnable == 0) {
 		hal_cpuSetReturnValue(ctx, EOK);
@@ -2980,14 +3030,16 @@ void *proc_respondAndRecv(u32 port)
 
 int proc_registerMsgBuffer(void *buf, size_t bufsz)
 {
-	thread_t *t = proc_current();
+	// thread_t *t = proc_current();
+	//
+	// if (((ptr_t)buf & (SIZE_PAGE - 1)) != 0 || (bufsz & (SIZE_PAGE - 1)) != 0) {
+	// 	return -EINVAL;
+	// }
 
-	if (((ptr_t)buf & (SIZE_PAGE - 1)) != 0 || (bufsz & (SIZE_PAGE - 1)) != 0) {
-		return -EINVAL;
-	}
+	LIB_ASSERT(0, "todo");
 
-	t->bufferStart = buf;
-	t->bufferEnd = (void *)((ptr_t)buf + bufsz);
+	// t->bufferStart = buf;
+	// t->bufferEnd = (void *)((ptr_t)buf + bufsz);
 
 	return 0;
 }
@@ -3188,23 +3240,32 @@ void threads_releaseIpcBuffers(thread_t *thread)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	if (mappedFrom != NULL) {
-		threads_ipcBufferRelease(&mappedFrom->utcb.il);
+		threads_ipcBufferRelease(&mappedFrom->utcb.sil);
+		threads_ipcBufferRelease(&mappedFrom->utcb.ril);
 	}
 
 	if (mappedTo != NULL) {
-		threads_ipcBufferRelease(&thread->utcb.il);
+		threads_ipcBufferRelease(&thread->utcb.sil);
+		threads_ipcBufferRelease(&thread->utcb.ril);
 	}
 }
 
 
 #define REUSE_BUFFER 0
 
-static int proc_setupSharedBuffer(thread_t *t, thread_t *recv)
+/*
+ * TODO: Regarding msgBuf_t I wonder if it's not better pass buffers in syscall
+ * signature (like QNX) and make the kernel copy the contents to msgBuf_t if
+ * it fits.
+ * If it doesn't, it maps shm
+ *
+ * This must be done anyways (now it's done by the userspace), but in current state it
+ * heavily clutters the user API.
+ */
+
+static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t bufsz, ipc_buf_layout_t *il, void **rbuf)
 {
 	void *w;
-
-	void *buf = t->utcb.kw->buf;
-	size_t bufsz = t->utcb.kw->bufsize;
 
 	LIB_ASSERT(buf != NULL && bufsz > 0, "bad args");
 	LIB_ASSERT((ptr_t)t->utcb.w + sizeof(msgBuf_t) <= (ptr_t)buf || (ptr_t)buf + bufsz <= (ptr_t)t->utcb.w, "attempted to pass msgbuf as shm buf");
@@ -3234,8 +3295,6 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv)
 	}
 	else {
 #endif
-		ipc_buf_layout_t *il = &t->utcb.il;
-
 		threads_ipcBufferRelease(il);
 
 		w = _mapBufferUnaligned(buf, bufsz, t->process, recv->process, il);
@@ -3244,19 +3303,17 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv)
 			return -ENOMEM;
 		}
 
-		t->mappedBase = w;
-
 		t->mappedTo = recv;
 		recv->mappedFrom = t;
 
-		t->bufferStart = buf;
-		t->bufferEnd = buf + bufsz;
+		il->mappedBase = w;
+		il->bufferStart = buf;
+		il->bufferEnd = buf + bufsz;
 #if REUSE_BUFFER
 	}
 #endif
 
-	recv->utcb.kw->buf = t->mappedBase + (buf - t->bufferStart);
-	recv->utcb.kw->bufsize = bufsz;
+	*rbuf = il->mappedBase + (buf - il->bufferStart);
 
 	return EOK;
 }

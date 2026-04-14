@@ -1703,33 +1703,22 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 }
 
 
-static void *ioctl_pack2(msgBuf_t *msg, unsigned long request, void *data, oid_t *oid, size_t *rsize)
+static void *ioctl_pack2(msgHeader_t *hdr, ioctl_in_t *ioctl, unsigned long request, void *data, oid_t *oid, size_t *rsize)
 {
 	size_t size = IOCPARM_LEN(request);
-	ioctl_in_t *ioctl = (ioctl_in_t *)msg->raw;
 	struct ifconf *ifc;
 	struct rtentry *rt;
 	void *rdata = NULL;
 
-	hal_memcpy(&msg->oid, oid, sizeof(*oid));
-	msg->label = mtDevCtl;
+	hal_memcpy(&hdr->oid, oid, sizeof(*oid));
+	hdr->type = mtDevCtl;
 
 	*rsize = 0;
 
 	ioctl->request = request;
 
 	if ((request & IOC_INOUT) != 0) {
-		if ((request & IOC_IN) != 0) {
-			if (size <= (sizeof(msg->devctl.raw) - sizeof(ioctl_in_t))) {
-				hal_memcpy(ioctl->data, data, size);
-			}
-			else {
-				rdata = data;
-				*rsize = size;
-			}
-		}
-
-		if (((request & IOC_OUT) != 0) && (size > sizeof(msg->devctl.raw))) {
+		if ((request & IOC_IN) != 0 || ((request & IOC_OUT) != 0)) {
 			rdata = data;
 			*rsize = size;
 		}
@@ -1779,21 +1768,21 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 }
 
 
-int ioctl_processResponse2(const msgBuf_t *msg, unsigned long request, void *data)
+int ioctl_processResponse2(msgHeader_t *hdr, void *odata, size_t osize, unsigned long request, void *data)
 {
 	size_t size = IOCPARM_LEN(request);
 	int err;
 	struct ifconf *ifc;
 
-	err = msg->err;
+	err = hdr->err;
 
-	if (((request & IOC_OUT) != 0) && (size <= sizeof(msg->devctl.raw))) {
-		hal_memcpy(data, msg->devctl.raw, size);
+	if (((request & IOC_OUT) != 0) && (size <= osize)) {
+		hal_memcpy(data, odata, size);
 	}
 
 	if (request == SIOCGIFCONF) { /* restore overridden userspace pointer */
 		ifc = (struct ifconf *)data;
-		ifc->ifc_buf = msg->buf;
+		ifc->ifc_buf = hdr->odata;
 	}
 
 	return err;
@@ -1826,14 +1815,20 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 				}
 
 				(void)ioctl_pack;
-				rdata = ioctl_pack2(t->utcb.kw, request, data, &f->oid, &rlen);
 
-				t->utcb.kw->buf = rdata;
-				t->utcb.kw->bufsize = rlen;
+				char idata[64], odata[64];
+				ioctl_in_t *ioctl = (ioctl_in_t *)idata;
 
-				err = proc_call_returnable(f->oid.port);
+				msgHeader_t hdr;
+				rdata = ioctl_pack2(&hdr, ioctl, request, data, &f->oid, &rlen);
+
+				hdr.iextra = &ioctl;
+				hdr.iesize = sizeof(ioctl_in_t);
+
+
+				err = proc_call_returnable(f->oid.port, &hdr, rdata, rlen, odata, sizeof(odata));
 				if (err == EOK) {
-					err = ioctl_processResponse2(t->utcb.kw, request, data);
+					err = ioctl_processResponse2(&hdr, odata, sizeof(odata), request, data);
 				}
 		}
 

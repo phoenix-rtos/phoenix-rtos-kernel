@@ -85,6 +85,11 @@ typedef struct {
 	void *w;
 	size_t sz;
 	vm_map_t *map;
+
+	/* Message buffer */
+	void *bufferStart;
+	void *bufferEnd;
+	void *mappedBase;
 } ipc_buf_layout_t;
 
 
@@ -158,17 +163,28 @@ typedef struct _thread_t {
 		page_t *p;
 		msgBuf_t *w;
 		msgBuf_t *kw;
-		ipc_buf_layout_t il;
+
+		ipc_buf_layout_t sil;
+		ipc_buf_layout_t ril;
+
+		char msgbuf[256];
+		size_t msglen;
+
+		void *odataPtr;
+		size_t osize;
+
+		void *recvData;
+		size_t recvSize;
+
+		/* pointer to in process space */
+		msgHeader_t *hdr;
 	} utcb;
 
 	int flags;
 
 	/* Message buffer */
-	void *bufferStart;
-	void *bufferEnd;
 	struct _thread_t *mappedTo;
 	struct _thread_t *mappedFrom;
-	void *mappedBase;
 } thread_t;
 
 

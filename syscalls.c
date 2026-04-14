@@ -809,9 +809,33 @@ int syscalls_msgSend(void *ustack)
 
 int syscalls_msgCall(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	u32 port;
+	msgHeader_t *hdr;
+	void *idata, *odata;
+	size_t isize, osize;
+
+
 	GETFROMSTACK(ustack, u32, port, 0);
-	return proc_call(port);
+	GETFROMSTACK(ustack, msgHeader_t *, hdr, 1);
+	GETFROMSTACK(ustack, void *, idata, 2);
+	GETFROMSTACK(ustack, size_t, isize, 3);
+	GETFROMSTACK(ustack, void *, odata, 4);
+	GETFROMSTACK(ustack, size_t, osize, 5);
+
+	if (vm_mapBelongs(proc, hdr, sizeof(*hdr)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, idata, isize) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, odata, osize) < 0) {
+		return -EFAULT;
+	}
+
+	return proc_call(port, hdr, idata, isize, odata, osize);
 }
 
 
@@ -879,29 +903,81 @@ int syscalls_msgRespond(void *ustack)
 
 void *syscalls_msgRecv2(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	u32 port;
+	msgHeader_t *hdr;
+	void *data;
+	size_t size;
+
 	GETFROMSTACK(ustack, u32, port, 0);
-	return proc_recv2(port);
+	GETFROMSTACK(ustack, msgHeader_t *, hdr, 1);
+	GETFROMSTACK(ustack, void *, data, 2);
+	GETFROMSTACK(ustack, size_t, size, 3);
+
+	if (vm_mapBelongs(proc, hdr, sizeof(*hdr)) < 0) {
+		return NULL;
+	}
+
+	if (vm_mapBelongs(proc, data, size) < 0) {
+		return NULL;
+	}
+
+	return proc_recv2(port, hdr, data, size);
 }
 
 
 int syscalls_msgRespond2(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	u32 port;
 	void *reply;
+	msgHeader_t *hdr;
+	void *data;
+	size_t size;
 
 	GETFROMSTACK(ustack, u32, port, 0);
 	GETFROMSTACK(ustack, void *, reply, 1);
+	GETFROMSTACK(ustack, msgHeader_t *, hdr, 2);
+	GETFROMSTACK(ustack, void *, data, 3);
+	GETFROMSTACK(ustack, size_t, size, 4);
 
-	return proc_respond2(port, reply);
+	if (vm_mapBelongs(proc, hdr, sizeof(*hdr)) < 0) {
+		return -EFAULT;
+	}
+
+	if (vm_mapBelongs(proc, data, size) < 0) {
+		return NULL;
+	}
+
+	/* TODO: drop port, derive from reply */
+
+	return proc_respond2(port, reply, hdr, data, size);
 }
 
 
 void *syscalls_msgRespondAndRecv(void *ustack)
 {
+	process_t *proc = proc_current()->process;
 	u32 port;
+	msgHeader_t *hdr;
+	void *data;
+	size_t size;
+
 	GETFROMSTACK(ustack, u32, port, 0);
-	return proc_respondAndRecv(port);
+	GETFROMSTACK(ustack, msgHeader_t *, hdr, 1);
+	GETFROMSTACK(ustack, void *, data, 2);
+	GETFROMSTACK(ustack, size_t, size, 3);
+
+	if (vm_mapBelongs(proc, hdr, sizeof(*hdr)) < 0) {
+		/* TODO: return actual ernos, void is bad */
+		return NULL;
+	}
+
+	if (vm_mapBelongs(proc, data, size) < 0) {
+		return NULL;
+	}
+
+	return proc_respondAndRecv(port, hdr, data, size);
 }
 
 

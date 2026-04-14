@@ -43,6 +43,8 @@ static void usrv_msgthr(void *arg)
 
 	void *reply;
 
+	msgHeader_t hdr;
+
 	for (;;) {
 		reply = proc_recv2(oid.port);
 		if (reply == NULL) {
