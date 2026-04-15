@@ -32,11 +32,8 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 {
 	size_t i;
 
-	if ((blocksz == 0U) || (blocks == 0U)) {
-		return -EINVAL;
-	}
-
-	if ((blocksz & ~(blocksz - 1U)) == 0U) {
+	/* blocksz has to be a power of 2 */
+	if ((blocksz == 0UL) || (blocks == 0U) || ((blocksz & (blocksz - 1UL)) != 0UL)) {
 		return -EINVAL;
 	}
 
