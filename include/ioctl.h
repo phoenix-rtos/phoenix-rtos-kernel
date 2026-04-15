@@ -30,6 +30,10 @@
 
 #define _IOC(inout, group, num, len) ((unsigned long)((inout) | (((len) & IOCPARM_MASK) << 16) | ((group) << 8) | (num)))
 
+#define TTY_IOC_TYPE  't'
+#define SOCK_IOC_TYPE 'S'
+
+
 typedef struct {
 	unsigned long request;
 	unsigned long size;
