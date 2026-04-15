@@ -232,43 +232,6 @@ typedef struct {
 } msgBuf_t;
 
 
-typedef struct {
-	unsigned int pid;
-	size_t len;
-
-	void *sbuf;
-	size_t slen;
-
-	void *rbuf;
-	size_t rlen;
-} msgInfo_t;
-
-
-/* TODO: rename to info */
-typedef struct {
-	int type;
-	unsigned int pid;
-	unsigned int priority;
-	oid_t oid;
-
-	/* poor-man's IOV but should suffice */
-	void *iextra;
-	size_t iesize;
-
-	/*
-	 * isize,osize < 256 gets copied, anything more does a shared mapping
-	 * and idata,odata is set to non-NULL address, respectively
-	 */
-	size_t isize;
-	void *idata;
-
-	size_t osize;
-	void *odata;
-
-	int err;
-} msgHeader_t;
-
-
 #pragma pack(pop)
 
 

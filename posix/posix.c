@@ -274,18 +274,27 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 
 int posix_truncate(oid_t *oid, off_t length)
 {
-	msgBuf_t *msg;
 	int err = -EINVAL;
 
 	if ((oid->port != US_PORT) && (length >= 0)) {
-		if (proc_initMsgBuf() == NULL) {
-			return -ENOMEM;
+		msgHeader_t hdr;
+		msg_io_t ioIn;
+		char odata[64];
+
+		ioIn.offs = 0;
+		ioIn.len = length;
+		ioIn.mode = 0;
+
+		hal_memset(&hdr, 0, sizeof(hdr));
+		hdr.type = mtTruncate;
+		hal_memcpy(&hdr.oid, oid, sizeof(oid_t));
+		hdr.iextra = &ioIn;
+		hdr.iesize = sizeof(ioIn);
+
+		err = proc_call_returnable(oid->port, &hdr, NULL, 0, odata, sizeof(odata));
+		if (err == EOK) {
+			err = hdr.err;
 		}
-		msg = proc_current()->utcb.kw;
-		msg->label = mtTruncate;
-		hal_memcpy(&msg->oid, oid, sizeof(oid_t));
-		msg->io.len = length;
-		err = proc_call_returnable(oid->port);
 	}
 
 	return err;
@@ -1798,8 +1807,6 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 	void *data = NULL;
 	void *rdata = NULL;
 	size_t rlen = 0;
-
-	thread_t *t = proc_current();
 
 	if (proc_initMsgBuf() == NULL) {
 		return -ENOMEM;

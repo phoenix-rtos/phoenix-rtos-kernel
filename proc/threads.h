@@ -170,14 +170,10 @@ typedef struct _thread_t {
 		char msgbuf[256];
 		size_t msglen;
 
-		void *odataPtr;
-		size_t osize;
-
-		void *recvData;
-		size_t recvSize;
-
 		/* pointer to in process space */
-		msgHeader_t *hdr;
+		msg_t *msg;
+
+		msg_rid_t *ridPtr;
 	} utcb;
 
 	int flags;

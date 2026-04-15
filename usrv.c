@@ -38,30 +38,29 @@ static void usrv_msgthr(void *arg)
 {
 	oid_t oid = usrv_common.oid;
 
-	msgBuf_t *msg = proc_initMsgBuf();
-	LIB_ASSERT(msg != NULL, "heh");
+	(void)proc_initMsgBuf();
 
 	void *reply;
-
 	msgHeader_t hdr;
+	char idata[256], odata[256];
 
 	for (;;) {
-		reply = proc_recv2(oid.port);
+		reply = proc_recv2(oid.port, &hdr, idata, sizeof(idata));
 		if (reply == NULL) {
 			lib_debug_printf("null?\n");
 			continue;
 		}
 
-		oid.id = msg->oid.id;
+		oid.id = hdr.oid.id;
 
 		switch (oid.id) {
 			case USRV_ID_LOG:
-				log_msgHandler2(msg, oid, reply);
+				log_msgHandler2(&hdr, idata, sizeof(idata), odata, sizeof(odata), oid, reply);
 				break;
 
 			default:
-				msg->err = -ENOSYS;
-				proc_respond2(oid.port, reply);
+				hdr.err = -ENOSYS;
+				proc_respond2(oid.port, reply, &hdr, odata, 0);
 				break;
 		}
 	}

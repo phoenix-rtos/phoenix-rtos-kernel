@@ -39,7 +39,7 @@ extern void log_enable(void);
 extern void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid);
 
 
-extern void log_msgHandler2(msgBuf_t *msg, oid_t oid, void *reply);
+extern void log_msgHandler2(msgHeader_t *hdr, void *idata, size_t idataSize, void *odata, size_t odataSize, oid_t oid, void *reply);
 
 
 extern void _log_init(void);

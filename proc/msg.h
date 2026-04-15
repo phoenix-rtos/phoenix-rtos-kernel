@@ -80,28 +80,19 @@ extern msgBuf_t *proc_initMsgBuf(void);
 extern int proc_send(u32 port, msg_t *msg);
 
 
+extern int proc_send_returnable(u32 port, msg_t *msg);
+
+
 extern int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 
 extern int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
 
 
-extern int proc_call(u32 port, msgHeader_t *hdr, void *idata, size_t isize, void *odata, size_t osize);
-
-
 extern int proc_pulse(u32 port, u8 pulse);
 
 
-extern int proc_call_returnable(u32 port, msgHeader_t *hdr, void *idata, size_t isize, void *odata, size_t osize);
-
-
-extern int proc_respond2(u32 port, void *reply, msgHeader_t *hdr, void *data, size_t size);
-
-
-extern void *proc_recv2(u32 port, msgHeader_t *hdr, void *data, size_t size);
-
-
-extern void *proc_respondAndRecv(u32 port, msgHeader_t *hdr, void *data, size_t size);
+extern void *proc_respondAndRecv(u32 port, msg_t *msg);
 
 
 extern void _msg_init(vm_map_t *kmap, vm_object_t *kernel);

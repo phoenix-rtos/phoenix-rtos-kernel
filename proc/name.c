@@ -141,11 +141,10 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	size_t len, i;
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
+	msgHeader_t hdr;
+	char odata[64];
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
-	msgBuf_t *msg = proc_current()->utcb.kw;
+	msg_lookup_rsp_t *lookupOut = (msg_lookup_rsp_t *)odata;
 
 	if (name == NULL || (file == NULL && dev == NULL))
 		return -EINVAL;
@@ -217,23 +216,21 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return -EINVAL;
 	}
 
-	hal_memset(msg, 0, sizeof(msgBuf_t));
-	msg->label = mtLookup;
-
 	/* Query servers */
 	do {
-		msg->oid = srv;
-		msg->bufsize = len - i;
-		hal_memcpy(pptr, name + i + 1, len - i);
-		msg->buf = pptr;
+		hal_memset(&hdr, 0, sizeof(hdr));
+		hdr.type = mtLookup;
+		hdr.oid = srv;
 
-		err = proc_call_returnable(srv.port);
+		hal_memcpy(pptr, name + i + 1, len - i);
+
+		err = proc_call_returnable(srv.port, &hdr, pptr, len - i, odata, sizeof(odata));
 		if (err < 0) {
 			break;
 		}
 
-		srv = msg->lookup.dev;
-		err = msg->err;
+		srv = lookupOut->dev;
+		err = hdr.err;
 		if (err < 0) {
 			break;
 		}
@@ -246,10 +243,10 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	} while (i != len);
 
 	if (file != NULL) {
-		*file = msg->lookup.fil;
+		*file = lookupOut->fil;
 	}
 	if (dev != NULL) {
-		*dev = msg->lookup.dev;
+		*dev = lookupOut->dev;
 	}
 
 	if (pheap != NULL) {
@@ -273,30 +270,29 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
 	int err;
-	msgBuf_t *msg;
+	msgHeader_t hdr;
+	char odata[64];
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
-	msg = proc_current()->utcb.kw;
+	msg_create_t createIn;
+	msg_create_rsp_t *createOut = (msg_create_rsp_t *)odata;
 
-	hal_memset(msg, 0, sizeof(msgBuf_t));
+	createIn.type = type;
+	createIn.mode = mode;
+	hal_memcpy(&createIn.dev, &dev, sizeof(dev));
 
-	msg->label = mtCreate;
-	msg->create.type = type;
-	msg->create.mode = mode;
-	hal_memcpy(&msg->oid, &dir, sizeof(dir));
-	hal_memcpy(&msg->create.dev, &dev, sizeof(dev));
-	msg->buf = name;
-	msg->bufsize = name == NULL ? 0 : hal_strlen(name) + 1;
+	hal_memset(&hdr, 0, sizeof(hdr));
+	hdr.type = mtCreate;
+	hal_memcpy(&hdr.oid, &dir, sizeof(dir));
+	hdr.iextra = &createIn;
+	hdr.iesize = sizeof(createIn);
 
-	err = proc_call_returnable(port);
+	err = proc_call_returnable(port, &hdr, name, name == NULL ? 0 : hal_strlen(name) + 1, odata, sizeof(odata));
 
 	if (err == 0) {
-		err = msg->err;
+		err = hdr.err;
 	}
 
-	hal_memcpy(oid, &msg->create.oid, sizeof(oid_t));
+	hal_memcpy(oid, &createOut->oid, sizeof(oid_t));
 	return err;
 }
 
@@ -333,24 +329,23 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 int proc_unlink(oid_t dir, oid_t oid, const char *name)
 {
 	int err;
-	msgBuf_t *msg;
+	msgHeader_t hdr;
+	char odata[64];
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
-	msg = proc_current()->utcb.kw;
+	msg_link_t unlinkIn;
 
-	msg->label = mtUnlink;
-	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
-	hal_memcpy(&msg->ln.toid, &oid, sizeof(oid_t));
+	hal_memcpy(&unlinkIn.oid, &oid, sizeof(oid_t));
 
-	msg->buf = (char *)name;
-	msg->bufsize = hal_strlen(name) + 1;
+	hal_memset(&hdr, 0, sizeof(hdr));
+	hdr.type = mtUnlink;
+	hal_memcpy(&hdr.oid, &dir, sizeof(oid_t));
+	hdr.iextra = &unlinkIn;
+	hdr.iesize = sizeof(unlinkIn);
 
-	err = proc_call_returnable(dir.port);
+	err = proc_call_returnable(dir.port, &hdr, (void *)name, hal_strlen(name) + 1, odata, sizeof(odata));
 
 	if (err == 0) {
-		err = msg->err;
+		err = hdr.err;
 	}
 
 	return err;
@@ -477,29 +472,25 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	lib_debug_printf("%s (%zu, %p, %zu, %d)\n", __FUNCTION__, offs, buf, sz, mode);
 
 	int err;
-	thread_t *t = proc_current();
-	msgBuf_t *msg;
+	msgHeader_t hdr;
+	msg_io_t ioIn;
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
-	msg = t->utcb.kw;
+	ioIn.offs = offs;
+	ioIn.len = 0;
+	ioIn.mode = mode;
 
-	msg->label = mtRead;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-
-	msg->io.offs = offs;
-	msg->io.len = 0;
-	msg->io.mode = mode;
-	msg->buf = buf;
-	msg->bufsize = sz;
+	hal_memset(&hdr, 0, sizeof(hdr));
+	hdr.type = mtRead;
+	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
+	hdr.iextra = &ioIn;
+	hdr.iesize = sizeof(ioIn);
 
 	/*
-	 * TODO: add some proc_call variant that automatically sets rv to msg->err on msgRespond/msgRespondAndRecv side
+	 * TODO: add some proc_call variant that automatically sets rv to hdr.err on msgRespond/msgRespondAndRecv side
 	 * the proc_call_returnable is a slower variant and should be avoided
 	 */
-	err = proc_call_returnable(oid.port);
-	return err == EOK ? msg->err : err;
+	err = proc_call_returnable(oid.port, &hdr, NULL, 0, buf, sz);
+	return err == EOK ? hdr.err : err;
 }
 
 
@@ -507,30 +498,23 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 {
 	lib_debug_printf("%s (buf=%p)\n", __FUNCTION__, buf);
 
-	// for (int i = 0; i < sz; i++) {
-	// 	lib_debug_printf("%c", *((char *)buf + i));
-	// }
-
 	int err;
-	thread_t *t = proc_current();
-	msgBuf_t *msg;
+	msgHeader_t hdr;
+	char odata[64];
+	msg_io_t ioIn;
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
-	msg = t->utcb.kw;
+	ioIn.offs = offs;
+	ioIn.len = 0;
+	ioIn.mode = mode;
 
-	msg->label = mtWrite;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+	hal_memset(&hdr, 0, sizeof(hdr));
+	hdr.type = mtWrite;
+	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
+	hdr.iextra = &ioIn;
+	hdr.iesize = sizeof(ioIn);
 
-	msg->io.offs = offs;
-	msg->io.len = 0;
-	msg->io.mode = mode;
-	msg->buf = buf;
-	msg->bufsize = sz;
-
-	err = proc_call_returnable(oid.port);
-	return err == EOK ? msg->err : err;
+	err = proc_call_returnable(oid.port, &hdr, buf, sz, odata, sizeof(odata));
+	return err == EOK ? hdr.err : err;
 }
 
 int proc_open(oid_t oid, unsigned mode)
@@ -538,22 +522,20 @@ int proc_open(oid_t oid, unsigned mode)
 	lib_debug_printf("%s\n", __FUNCTION__);
 
 	int err;
-	thread_t *t = proc_current();
-	msgBuf_t *msg;
+	msgHeader_t hdr;
+	char odata[64];
+	msg_open_t openIn;
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
-	msg = t->utcb.kw;
+	openIn.flags = mode;
 
-	msg->label = mtOpen;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-	msg->openclose.flags = mode;
-	msg->buf = NULL;
-	msg->bufsize = 0;
+	hal_memset(&hdr, 0, sizeof(hdr));
+	hdr.type = mtOpen;
+	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
+	hdr.iextra = &openIn;
+	hdr.iesize = sizeof(openIn);
 
-	err = proc_call_returnable(oid.port);
-	return err == EOK ? msg->err : err;
+	err = proc_call_returnable(oid.port, &hdr, NULL, 0, odata, sizeof(odata));
+	return err == EOK ? hdr.err : err;
 }
 
 
@@ -562,22 +544,20 @@ int proc_close(oid_t oid, unsigned mode)
 	lib_debug_printf("%s\n", __FUNCTION__);
 
 	int err;
-	thread_t *t = proc_current();
-	msgBuf_t *msg;
+	msgHeader_t hdr;
+	char odata[64];
+	msg_open_t closeIn;
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
-	msg = t->utcb.kw;
+	closeIn.flags = mode;
 
-	msg->label = mtClose;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-	msg->openclose.flags = mode;
-	msg->buf = NULL;
-	msg->bufsize = 0;
+	hal_memset(&hdr, 0, sizeof(hdr));
+	hdr.type = mtClose;
+	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
+	hdr.iextra = &closeIn;
+	hdr.iesize = sizeof(closeIn);
 
-	err = proc_call_returnable(oid.port);
-	return err == EOK ? msg->err : err;
+	err = proc_call_returnable(oid.port, &hdr, NULL, 0, odata, sizeof(odata));
+	return err == EOK ? hdr.err : err;
 }
 
 #endif
@@ -586,24 +566,26 @@ int proc_close(oid_t oid, unsigned mode)
 off_t proc_size(oid_t oid)
 {
 	int err;
-	thread_t *t = proc_current();
-	msgBuf_t *msg;
+	msgHeader_t hdr;
+	char odata[64];
+	msg_attr_t attrIn;
+	msg_attr_rsp_t *attrOut = (msg_attr_rsp_t *)odata;
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
-	msg = t->utcb.kw;
+	attrIn.type = 3; /* atSize */
+	attrIn.val = 0;
 
-	msg->label = mtGetAttr;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-	msg->attr.type = 3; /* atSize */
+	hal_memset(&hdr, 0, sizeof(hdr));
+	hdr.type = mtGetAttr;
+	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
+	hdr.iextra = &attrIn;
+	hdr.iesize = sizeof(attrIn);
 
-	err = proc_call_returnable(oid.port);
+	err = proc_call_returnable(oid.port, &hdr, NULL, 0, odata, sizeof(odata));
 	if (err == EOK) {
-		err = msg->err;
+		err = hdr.err;
 	}
 	if (err == EOK) {
-		err = msg->attr.val;
+		err = attrOut->val;
 	}
 
 	return err;

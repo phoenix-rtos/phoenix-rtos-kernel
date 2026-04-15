@@ -127,11 +127,8 @@
 	ID(sys_statvfs) \
 	ID(sys_uname) \
 	\
-	ID(msgCall) \
 	ID(msgRespondAndRecv) \
 	ID(msgInitBuf) \
 	ID(sys_entrytime) \
-	ID(msgRecv2) \
-	ID(msgRespond2) \
 	ID(msgPulse)
 /* clang-format on */
