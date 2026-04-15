@@ -1754,6 +1754,24 @@ static int ioctl_processResponse(const msg_t *msg, unsigned long request, void *
 }
 
 
+static int ioctl_checkPosixDefinedRequests(open_file_t *f, unsigned long request)
+{
+	unsigned long group = IOCGROUP(request);
+
+	switch (group) {
+		case (unsigned long)TTY_IOC_TYPE:
+			return (f->type == ftTty) ? EOK : -ENOTTY;
+
+		/* not required by POSIX, but nice to have */
+		case (unsigned long)SOCK_IOC_TYPE:
+			return ((f->type == ftUnixSocket) || (f->type == ftInetSocket)) ? EOK : -ENOTSOCK;
+
+		default:
+			return EOK;
+	}
+}
+
+
 int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 {
 	TRACE("ioctl(%d, %d)", fildes, request);
@@ -1766,21 +1784,16 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err == EOK) {
-		/* TODO: handle POSIX defined requests */
-		if (size > 0U) {
-			GETFROMSTACK(ustack, void *, data, 2);
+		err = ioctl_checkPosixDefinedRequests(f, request);
+
+		if (err == EOK && size > 0U) {
+			GETFROMSTACK(ustack, void *, data, 2U);
 			/* the actual size of the pointed-to structure: >= IOCPARM_LEN(request) */
-			GETFROMSTACK(ustack, size_t, size, 3);
+			GETFROMSTACK(ustack, size_t, size, 3U);
 
 			if ((request & IOC_INOUT) != 0U) {
-				if (data == NULL) {
+				if (data == NULL || vm_mapBelongs(proc_current()->process, data, size) < 0) {
 					err = -EFAULT;
-				}
-				else if (vm_mapBelongs(proc_current()->process, data, size) < 0) {
-					err = -EFAULT;
-				}
-				else {
-					/* Nothing to do */
 				}
 			}
 		}
