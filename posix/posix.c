@@ -556,19 +556,48 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 }
 
 
+static int posix_getAttr(oid_t oid, int type, long long *attr)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(*msg));
+	if (msg == NULL) {
+		return -ENOMEM;
+	}
+
+	do {
+		hal_memset(msg, 0, sizeof(*msg));
+		msg->type = mtGetAttr;
+		msg->oid = oid;
+		msg->i.attr.type = type;
+
+		err = proc_send(oid.port, msg);
+		if (err < 0) {
+			break;
+		}
+
+		err = msg->o.err;
+		if (err < 0) {
+			break;
+		}
+
+		*attr = msg->o.attr.val;
+	} while (0);
+
+	vm_kfree(msg);
+	return err;
+}
+
+
 /* TODO: handle O_CREAT and O_EXCL */
 int posix_open(const char *filename, int oflag, u8 *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
-	oid_t ln, oid, dev, pipesrv;
+	oid_t ln, oid, dev, srv;
 	int fd = 0, err = 0;
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
-
-	if (proc_lookup("/dev/posix/pipes", NULL, &pipesrv) < 0) {
-		hal_memset(&pipesrv, 0xff, sizeof(oid_t));
-	}
+	long long attr;
 
 	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
@@ -638,16 +667,45 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 
 			f->refs = 1;
 
-			/* TODO: check for other types */
-			if (oid.port == US_PORT) {
-				f->type = ftUnixSocket;
-			}
-			else if (oid.port == pipesrv.port) {
-				f->type = ftPipe;
-			}
-			else {
-				f->type = ftRegular;
-			}
+			do {
+				if (oid.port == US_PORT) {
+					f->type = ftUnixSocket;
+					break;
+				}
+
+				if (proc_lookup(PATH_SOCKSRV, NULL, &srv) >= 0) {
+					if (oid.port == srv.port) {
+						f->type = ftInetSocket;
+						break;
+					}
+				}
+
+				if (proc_lookup("/dev/posix/pipes", NULL, &srv) >= 0) {
+					if (oid.port == srv.port) {
+						f->type = ftPipe;
+						break;
+					}
+				}
+
+				if (posix_getAttr(f->ln, atMode, &attr) < 0) {
+					/* report files that don't report attr as regular files */
+					f->type = ftRegular;
+					break;
+				}
+				else {
+					mode = (unsigned int)attr;
+					if (S_ISCHR(mode)) {
+						f->type = ftTty;
+					}
+					else if (S_ISFIFO(mode)) {
+						f->type = ftFifo;
+					}
+					else {
+						f->type = ftRegular;
+					}
+					break;
+				}
+			} while (0);
 
 			if (((unsigned int)oflag & O_APPEND) != 0U) {
 				f->offset = proc_size(f->oid);
