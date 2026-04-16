@@ -41,6 +41,14 @@ enum exceptions {
 };
 
 
+static struct {
+	excHandlerFn_t defaultHandler;
+} hal_exceptions_common;
+
+
+extern void hal_exceptionJump(unsigned int n, exc_context_t *ctx, void (*handler)(unsigned int, exc_context_t *));
+
+
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
 	static const char *mnemonics[] = {
@@ -135,6 +143,12 @@ void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
 	char buff[SIZE_CTXDUMP];
 
+	/* Don't call the handler on kernel exceptions */
+	if ((ctx->excret == RET_THREAD_PSP) && hal_exceptions_common.defaultHandler != NULL) {
+		hal_exceptionJump(n, ctx, hal_exceptions_common.defaultHandler);
+		return;
+	}
+
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
@@ -181,10 +195,17 @@ void *hal_exceptionsFaultAddr(unsigned int n, exc_context_t *ctx)
 
 int hal_exceptionsSetHandler(unsigned int n, excHandlerFn_t handler)
 {
+#ifndef KERNEL_REBOOT_ON_EXCEPTION
+	if (n == EXC_DEFAULT) {
+		hal_exceptions_common.defaultHandler = handler;
+	}
+#endif
+
 	return 0;
 }
 
 
 void _hal_exceptionsInit(void)
 {
+	hal_exceptions_common.defaultHandler = NULL;
 }
