@@ -253,7 +253,7 @@ int trace_read(u8 chan, void *buf, size_t bufsz)
 	hal_spinlockSet(&trace_common.spinlock, &sc);
 	running = trace_common.running;
 	if (chan < (u8)getChannelCount() && (running != 0 || trace_common.stopped != 0)) {
-		ret = _trace_bufferRead(chan, buf, bufsz);
+		ret = (int)(size_t)_trace_bufferRead(chan, buf, bufsz);
 	}
 	else {
 		ret = -EINVAL;
