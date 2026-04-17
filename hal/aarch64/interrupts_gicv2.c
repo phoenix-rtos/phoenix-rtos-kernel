@@ -114,7 +114,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		return 0;
 	}
 
-	trace = interrupts_common.trace_irqs != 0 && n != TIMER_IRQ_ID;
+	trace = (interrupts_common.trace_irqs != 0 && n != TIMER_IRQ_ID) ? 1 : 0;
 	if (trace != 0) {
 		trace_eventInterruptEnter(n);
 	}
@@ -249,7 +249,7 @@ int hal_interruptsDeleteHandler(intr_handler_t *h)
 
 void _hal_interruptsTrace(int enable)
 {
-	interrupts_common.trace_irqs = !!enable;
+	interrupts_common.trace_irqs = (enable != 0) ? 1 : 0;
 }
 
 
