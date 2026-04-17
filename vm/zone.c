@@ -32,11 +32,8 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 {
 	size_t i;
 
-	if ((blocksz == 0U) || (blocks == 0U)) {
-		return -EINVAL;
-	}
-
-	if ((blocksz & ~(blocksz - 1U)) == 0U) {
+	/* blocksz has to be a power of 2 */
+	if ((blocksz == 0UL) || (blocks == 0U) || ((blocksz & (blocksz - 1UL)) != 0UL)) {
 		return -EINVAL;
 	}
 
@@ -114,10 +111,6 @@ void *_vm_zalloc(vm_zone_t *zone, addr_t *addr)
 void _vm_zfree(vm_zone_t *zone, void *block)
 {
 	if (((ptr_t)block < (ptr_t)zone->vaddr) || ((ptr_t)block >= (ptr_t)zone->vaddr + zone->blocksz * zone->blocks)) {
-		return;
-	}
-
-	if (((unsigned long)block & ~(zone->blocksz - 1U)) == 0U) {
 		return;
 	}
 
