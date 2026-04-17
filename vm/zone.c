@@ -114,10 +114,6 @@ void _vm_zfree(vm_zone_t *zone, void *block)
 		return;
 	}
 
-	if (((unsigned long)block & ~(zone->blocksz - 1U)) == 0U) {
-		return;
-	}
-
 	*((void **)block) = zone->first;
 	zone->first = block;
 	zone->used--;
