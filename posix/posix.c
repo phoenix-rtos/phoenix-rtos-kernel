@@ -1058,12 +1058,6 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 		return ret;
 	}
 
-	/* link pipe in posix server */
-	ret = proc_link(oid, oid, pathname);
-	if (ret < 0) {
-		return ret;
-	}
-
 	/* create pipe in filesystem */
 	ret = posix_create(pathname, 2 /* otDev */, mode | S_IFIFO, oid, &file);
 	if (ret < 0) {
