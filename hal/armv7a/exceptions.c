@@ -121,9 +121,20 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
+excjmp_context_t *threads_getexcjmp(void);
+
+
+void hal_excjmp(excjmp_context_t *ctx);
+
+
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Usage in assembly" */
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
+	excjmp_context_t *excctx = threads_getexcjmp();
+	if (excctx != NULL) {
+		hal_excjmp(excctx);
+	}
+
 	if (n == (unsigned int)exc_prefetch || n == (unsigned int)exc_abort) {
 		exceptions.abortHandler(n, ctx);
 	}
