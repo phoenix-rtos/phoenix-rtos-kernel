@@ -24,14 +24,12 @@
 typedef struct _dcache_entry_t {
 	struct _dcache_entry_t *next;
 	oid_t oid;
+	partition_t *part;
 	char name[];
 } dcache_entry_t;
 
 
 static struct {
-	int rootRegistered;
-	oid_t rootOid;
-
 	dcache_entry_t *dcache[0x1U << HASH_LEN];
 
 	lock_t lock;
@@ -58,9 +56,11 @@ static unsigned int dcache_strHash(const char *str)
 static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 {
 	dcache_entry_t *entry = name_common.dcache[hash];
+	partition_t *part = proc_current()->process->partition;
 
 	while (entry != NULL) {
-		if (hal_strcmp(entry->name, name) == 0) {
+		if ((entry->part == part) &&
+				(hal_strcmp(entry->name, name) == 0)) {
 			break;
 		}
 
@@ -74,26 +74,7 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 int proc_portRegister(u32 port, const char *name, oid_t *oid)
 {
 	dcache_entry_t *entry;
-	unsigned int hash;
-
-	if (name[0] == '/' && name[1] == '\0') {
-		(void)proc_lockSet(&name_common.lock);
-
-		if (name_common.rootRegistered != 0) {
-			(void)proc_lockClear(&name_common.lock);
-			return -EEXIST;
-		}
-
-		name_common.rootOid.port = port;
-		name_common.rootOid.id = (oid != NULL) ? oid->id : 0U;
-		name_common.rootRegistered = 1;
-
-		(void)proc_lockClear(&name_common.lock);
-
-		return EOK;
-	}
-
-	hash = dcache_strHash(name);
+	unsigned int hash = dcache_strHash(name);
 
 	/* Pre-allocate entry to avoid holding the lock during allocation */
 	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
@@ -114,6 +95,7 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 		return -ENOMEM;
 	}
 
+	entry->part = proc_current()->process->partition;
 	entry->oid.port = port;
 	entry->oid.id = (oid != NULL) ? oid->id : 0U;
 
@@ -134,12 +116,6 @@ int proc_portUnregister(const char *name)
 	unsigned int hash;
 
 	(void)proc_lockSet(&name_common.lock);
-
-	if (name[0] == '/' && name[1] == '\0') {
-		name_common.rootRegistered = 0;
-		(void)proc_lockClear(&name_common.lock);
-		return EOK;
-	}
 
 	hash = dcache_strHash(name);
 	entry = name_common.dcache[hash];
@@ -185,25 +161,6 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return -EINVAL;
 	}
 
-	if (name[0] == '/' && name[1] == '\0') {
-		(void)proc_lockSet(&name_common.lock);
-
-		if (name_common.rootRegistered != 0) {
-			if (file != NULL) {
-				*file = name_common.rootOid;
-			}
-
-			if (dev != NULL) {
-				*dev = name_common.rootOid;
-			}
-			(void)proc_lockClear(&name_common.lock);
-			return EOK;
-		}
-
-		(void)proc_lockClear(&name_common.lock);
-		return -ENOENT;
-	}
-
 	hash = dcache_strHash(name);
 
 	(void)proc_lockSet(&name_common.lock);
@@ -242,56 +199,40 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 	(void)proc_lockSet(&name_common.lock);
 
-	/* Search cache again for full path (in case it was added before the lock was reacquired) */
-	entry = _dcache_entryLookup(hash, name);
-	if (entry != NULL) {
-		if (file != NULL) {
-			*file = entry->oid;
-		}
-
-		if (dev != NULL) {
-			*dev = entry->oid;
-		}
-
-		(void)proc_lockClear(&name_common.lock);
-		if (pheap != NULL) {
-			vm_kfree(pheap);
-		}
-		return EOK;
-	}
-
-	srv = name_common.rootOid;
-
 	i = len;
+	pptr[i] = '/';
 	(void)hal_strcpy(pptr, name);
 
-	while (i > 1U) {
+	do {
 		while (i > 0U && pptr[i] != '/') {
 			--i;
 		}
 
-		if (i == 0U) {
+		if (i != 0U) {
+			pptr[i] = '\0';
+		}
+		else if (pptr[0] == '/') {
+			pptr[1] = '\0';
+		}
+		else {
 			break;
 		}
-
-		pptr[i] = '\0';
 
 		entry = _dcache_entryLookup(dcache_strHash(pptr), pptr);
 		if (entry != NULL) {
 			srv = entry->oid;
 			break;
 		}
-	}
+	} while (i > 0U);
 
-	if (name_common.rootRegistered == 0 && i == 0U) {
-		(void)proc_lockClear(&name_common.lock);
+	(void)proc_lockClear(&name_common.lock);
+
+	if (entry == NULL) {
 		if (pheap != NULL) {
 			vm_kfree(pheap);
 		}
 		return -ENOENT;
 	}
-
-	(void)proc_lockClear(&name_common.lock);
 
 	msg = vm_kmalloc(sizeof(msg_t));
 	if (msg == NULL) {
@@ -614,5 +555,4 @@ void _name_init(void)
 	(void)proc_lockInit(&name_common.lock, &proc_lockAttrDefault, "name.common");
 
 	hal_memset(name_common.dcache, 0, sizeof(name_common.dcache));
-	name_common.rootRegistered = 0;
 }
