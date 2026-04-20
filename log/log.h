@@ -33,13 +33,9 @@ extern void log_scrubTry(void);
 /* Bypass log, change log_write mode to writing directly to the console
  * Debug feature, allows direct and instant message printing */
 extern void log_disable(void);
-extern void log_enable(void);
 
 
 extern void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid);
-
-
-extern void log_msgHandler2(msgHeader_t *hdr, void *idata, size_t idataSize, void *odata, size_t odataSize, oid_t oid, void *reply);
 
 
 extern void _log_init(void);

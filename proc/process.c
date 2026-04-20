@@ -1318,8 +1318,6 @@ static void process_vforkThread(void *arg)
 	parent = spawn->parent;
 	posix_clone(process_getPid(parent->process));
 
-	LIB_ASSERT(current->utcb.kw == NULL, "oh well");
-
 	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
 
 	current->process->sigmask = parent->process->sigmask;

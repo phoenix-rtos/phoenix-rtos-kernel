@@ -18,13 +18,8 @@
 #include "lib/lib.h"
 #include "proc.h"
 
-/* TODO: TEMPORARY */
-#include "log/log.h"
-
 #define HASH_LEN 5 /* Number of entries in dcache = 2 ^ HASH_LEN */
 
-
-#define WARN_ON_OLD_API LIB_ASSERT(0, "!!!!! %s", __FUNCTION__)
 
 typedef struct _dcache_entry_t {
 	struct _dcache_entry_t *next;
@@ -138,13 +133,10 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 {
 	int err;
 	dcache_entry_t *entry;
+	msg_t *msg;
 	size_t len, i;
 	oid_t srv;
 	char pstack[16], *pheap = NULL, *pptr;
-	msgHeader_t hdr;
-	char odata[64];
-
-	msg_lookup_rsp_t *lookupOut = (msg_lookup_rsp_t *)odata;
 
 	if (name == NULL || (file == NULL && dev == NULL))
 		return -EINVAL;
@@ -216,21 +208,27 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return -EINVAL;
 	}
 
+	if ((msg = vm_kmalloc(sizeof(msg_t))) == NULL) {
+		if (pheap != NULL)
+			vm_kfree(pheap);
+		return -ENOMEM;
+	}
+
+	hal_memset(msg, 0, sizeof(msg_t));
+	msg->type = mtLookup;
+
 	/* Query servers */
 	do {
-		hal_memset(&hdr, 0, sizeof(hdr));
-		hdr.type = mtLookup;
-		hdr.oid = srv;
-
+		hal_memcpy(&msg->oid, &srv, sizeof(srv));
+		msg->i.size = len - i;
 		hal_memcpy(pptr, name + i + 1, len - i);
+		msg->i.data = pptr;
 
-		err = proc_call_returnable(srv.port, &hdr, pptr, len - i, odata, sizeof(odata));
-		if (err < 0) {
+		if ((err = proc_send(srv.port, msg)) < 0)
 			break;
-		}
 
-		srv = lookupOut->dev;
-		err = hdr.err;
+		srv = msg->o.lookup.dev;
+		err = msg->o.err;
 		if (err < 0) {
 			break;
 		}
@@ -242,17 +240,14 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		}
 	} while (i != len);
 
-	if (file != NULL) {
-		*file = lookupOut->fil;
-	}
-	if (dev != NULL) {
-		*dev = lookupOut->dev;
-	}
+	if (file != NULL)
+		*file = msg->o.lookup.fil;
+	if (dev != NULL)
+		*dev = msg->o.lookup.dev;
 
-	if (pheap != NULL) {
+	vm_kfree(msg);
+	if (pheap != NULL)
 		vm_kfree(pheap);
-	}
-
 	return err < 0 ? err : EOK;
 #endif
 }
@@ -267,39 +262,88 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 }
 
 
+int proc_open(oid_t oid, unsigned mode)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL)
+		return -ENOMEM;
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtOpen;
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+	msg->i.openclose.flags = mode;
+
+	err = proc_send(oid.port, msg);
+	if (err == 0) {
+		err = msg->o.err;
+	}
+
+	vm_kfree(msg);
+	return err;
+}
+
+
+int proc_close(oid_t oid, unsigned mode)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL)
+		return -ENOMEM;
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtClose;
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+	msg->i.openclose.flags = mode;
+
+	err = proc_send(oid.port, msg);
+
+	if (err == EOK) {
+		err = msg->o.err;
+	}
+
+	vm_kfree(msg);
+
+	return err;
+}
+
+
 int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
 	int err;
-	msgHeader_t hdr;
-	char odata[64];
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	msg_create_t createIn;
-	msg_create_rsp_t *createOut = (msg_create_rsp_t *)odata;
+	if (msg == NULL)
+		return -ENOMEM;
 
-	createIn.type = type;
-	createIn.mode = mode;
-	hal_memcpy(&createIn.dev, &dev, sizeof(dev));
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	hal_memset(&hdr, 0, sizeof(hdr));
-	hdr.type = mtCreate;
-	hal_memcpy(&hdr.oid, &dir, sizeof(dir));
-	hdr.iextra = &createIn;
-	hdr.iesize = sizeof(createIn);
+	msg->type = mtCreate;
+	msg->i.create.type = type;
+	msg->i.create.mode = mode;
+	hal_memcpy(&msg->i.create.dev, &dev, sizeof(dev));
+	hal_memcpy(&msg->oid, &dir, sizeof(dir));
+	msg->i.data = name;
+	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
 
-	err = proc_call_returnable(port, &hdr, name, name == NULL ? 0 : hal_strlen(name) + 1, odata, sizeof(odata));
+	err = proc_send(port, msg);
 
 	if (err == 0) {
-		err = hdr.err;
+		err = msg->o.err;
 	}
 
-	hal_memcpy(oid, &createOut->oid, sizeof(oid_t));
+	hal_memcpy(oid, &msg->o.create.oid, sizeof(oid_t));
+	vm_kfree(msg);
 	return err;
 }
 
 
 int proc_link(oid_t dir, oid_t oid, const char *name)
 {
-	WARN_ON_OLD_API;
 	int err;
 	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
@@ -329,32 +373,31 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 int proc_unlink(oid_t dir, oid_t oid, const char *name)
 {
 	int err;
-	msgHeader_t hdr;
-	char odata[64];
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	msg_link_t unlinkIn;
+	if (msg == NULL)
+		return -ENOMEM;
 
-	hal_memcpy(&unlinkIn.oid, &oid, sizeof(oid_t));
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	hal_memset(&hdr, 0, sizeof(hdr));
-	hdr.type = mtUnlink;
-	hal_memcpy(&hdr.oid, &dir, sizeof(oid_t));
-	hdr.iextra = &unlinkIn;
-	hdr.iesize = sizeof(unlinkIn);
+	msg->type = mtUnlink;
+	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
+	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
-	err = proc_call_returnable(dir.port, &hdr, (void *)name, hal_strlen(name) + 1, odata, sizeof(odata));
+	msg->i.size = hal_strlen(name) + 1;
+	msg->i.data = (char *)name;
+
+	err = proc_send(dir.port, msg);
 
 	if (err == 0) {
-		err = hdr.err;
+		err = msg->o.err;
 	}
 
+	vm_kfree(msg);
 	return err;
 }
 
-#define NEW_API 1
 
-
-#if !NEW_API
 int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 {
 	int err;
@@ -415,179 +458,28 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 }
 
 
-int proc_open(oid_t oid, unsigned mode)
-{
-	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
-
-	if (msg == NULL)
-		return -ENOMEM;
-
-	hal_memset(msg, 0, sizeof(msg_t));
-
-	msg->type = mtOpen;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-	msg->i.openclose.flags = mode;
-
-	err = proc_send(oid.port, msg);
-	if (err == 0) {
-		err = msg->o.err;
-	}
-
-	vm_kfree(msg);
-	return err;
-}
-
-
-int proc_close(oid_t oid, unsigned mode)
-{
-	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
-
-	if (msg == NULL)
-		return -ENOMEM;
-
-	hal_memset(msg, 0, sizeof(msg_t));
-
-	msg->type = mtClose;
-	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
-	msg->i.openclose.flags = mode;
-
-	err = proc_send(oid.port, msg);
-
-	if (err == EOK) {
-		err = msg->o.err;
-	}
-
-	vm_kfree(msg);
-
-	return err;
-}
-
-
-#else
-
-int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
-{
-	lib_debug_printf("%s (%zu, %p, %zu, %d)\n", __FUNCTION__, offs, buf, sz, mode);
-
-	int err;
-	msgHeader_t hdr;
-	msg_io_t ioIn;
-
-	ioIn.offs = offs;
-	ioIn.len = 0;
-	ioIn.mode = mode;
-
-	hal_memset(&hdr, 0, sizeof(hdr));
-	hdr.type = mtRead;
-	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
-	hdr.iextra = &ioIn;
-	hdr.iesize = sizeof(ioIn);
-
-	/*
-	 * TODO: add some proc_call variant that automatically sets rv to hdr.err on msgRespond/msgRespondAndRecv side
-	 * the proc_call_returnable is a slower variant and should be avoided
-	 */
-	err = proc_call_returnable(oid.port, &hdr, NULL, 0, buf, sz);
-	return err == EOK ? hdr.err : err;
-}
-
-
-int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
-{
-	lib_debug_printf("%s (buf=%p)\n", __FUNCTION__, buf);
-
-	int err;
-	msgHeader_t hdr;
-	char odata[64];
-	msg_io_t ioIn;
-
-	ioIn.offs = offs;
-	ioIn.len = 0;
-	ioIn.mode = mode;
-
-	hal_memset(&hdr, 0, sizeof(hdr));
-	hdr.type = mtWrite;
-	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
-	hdr.iextra = &ioIn;
-	hdr.iesize = sizeof(ioIn);
-
-	err = proc_call_returnable(oid.port, &hdr, buf, sz, odata, sizeof(odata));
-	return err == EOK ? hdr.err : err;
-}
-
-int proc_open(oid_t oid, unsigned mode)
-{
-	lib_debug_printf("%s\n", __FUNCTION__);
-
-	int err;
-	msgHeader_t hdr;
-	char odata[64];
-	msg_open_t openIn;
-
-	openIn.flags = mode;
-
-	hal_memset(&hdr, 0, sizeof(hdr));
-	hdr.type = mtOpen;
-	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
-	hdr.iextra = &openIn;
-	hdr.iesize = sizeof(openIn);
-
-	err = proc_call_returnable(oid.port, &hdr, NULL, 0, odata, sizeof(odata));
-	return err == EOK ? hdr.err : err;
-}
-
-
-int proc_close(oid_t oid, unsigned mode)
-{
-	lib_debug_printf("%s\n", __FUNCTION__);
-
-	int err;
-	msgHeader_t hdr;
-	char odata[64];
-	msg_open_t closeIn;
-
-	closeIn.flags = mode;
-
-	hal_memset(&hdr, 0, sizeof(hdr));
-	hdr.type = mtClose;
-	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
-	hdr.iextra = &closeIn;
-	hdr.iesize = sizeof(closeIn);
-
-	err = proc_call_returnable(oid.port, &hdr, NULL, 0, odata, sizeof(odata));
-	return err == EOK ? hdr.err : err;
-}
-
-#endif
-
-
 off_t proc_size(oid_t oid)
 {
-	int err;
-	msgHeader_t hdr;
-	char odata[64];
-	msg_attr_t attrIn;
-	msg_attr_rsp_t *attrOut = (msg_attr_rsp_t *)odata;
+	off_t err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
 
-	attrIn.type = 3; /* atSize */
-	attrIn.val = 0;
+	if (msg == NULL)
+		return -ENOMEM;
 
-	hal_memset(&hdr, 0, sizeof(hdr));
-	hdr.type = mtGetAttr;
-	hal_memcpy(&hdr.oid, &oid, sizeof(oid_t));
-	hdr.iextra = &attrIn;
-	hdr.iesize = sizeof(attrIn);
+	hal_memset(msg, 0, sizeof(msg_t));
 
-	err = proc_call_returnable(oid.port, &hdr, NULL, 0, odata, sizeof(odata));
+	msg->type = mtGetAttr;
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+	msg->i.attr.type = 3; /* atSize */
+	err = proc_send(oid.port, msg);
 	if (err == EOK) {
-		err = hdr.err;
+		err = msg->o.err;
 	}
 	if (err == EOK) {
-		err = attrOut->val;
+		err = msg->o.attr.val;
 	}
 
+	vm_kfree(msg);
 	return err;
 }
 

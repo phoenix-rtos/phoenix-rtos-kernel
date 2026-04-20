@@ -35,8 +35,8 @@
 
 typedef struct _log_rmsg_t {
 	void *odata;
-	msgHeader_t hdr;
-	void *reply;
+	oid_t oid;
+	unsigned long rid;
 	size_t osize;
 	struct _log_rmsg_t *prev, *next;
 } log_rmsg_t;
@@ -125,14 +125,23 @@ static ssize_t _log_readln(log_reader_t *r, char *buf, size_t sz)
 static void _log_msgRespond(log_reader_t *r, ssize_t err)
 {
 	log_rmsg_t *rmsg;
+	msg_t msg;
+
+	hal_memset(&msg, 0, sizeof(msg));
 
 	rmsg = r->msgs;
 	LIST_REMOVE(&r->msgs, rmsg);
 
-	rmsg->hdr.type = mtRead;
-	rmsg->hdr.err = err;
+	msg.i.data = NULL;
+	msg.i.size = 0;
 
-	proc_respond2(rmsg->hdr.oid.port, rmsg->reply, &rmsg->hdr, rmsg->odata, rmsg->osize);
+	msg.type = mtRead;
+	msg.pid = r->pid;
+	msg.o.data = rmsg->odata;
+	msg.o.size = rmsg->osize;
+	msg.o.err = err;
+
+	proc_respond(rmsg->oid.port, &msg, rmsg->rid);
 
 	vm_kfree(rmsg);
 }
@@ -275,7 +284,7 @@ static void _log_readersUpdate(void)
 }
 
 
-static int log_readerBlock(log_reader_t *r, void *odata, size_t osize, msgHeader_t *hdr, void *reply)
+static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, unsigned long rid)
 {
 	log_rmsg_t *rmsg;
 
@@ -284,10 +293,10 @@ static int log_readerBlock(log_reader_t *r, void *odata, size_t osize, msgHeader
 		return -ENOMEM;
 	}
 
-	rmsg->odata = odata;
-	rmsg->osize = osize;
-	rmsg->reply = reply;
-	hal_memcpy(&rmsg->hdr, hdr, sizeof(*hdr));
+	rmsg->odata = msg->o.data;
+	rmsg->osize = msg->o.size;
+	rmsg->rid = rid;
+	rmsg->oid = oid;
 
 	proc_lockSet(&log_common.lock);
 	LIST_ADD(&r->msgs, rmsg);
@@ -322,27 +331,10 @@ static int log_devctl(msg_t *msg)
 }
 
 
-static int log_devctl2(ioctl_in_t *ioctl)
-{
-	/*
-	 * We need to handle isatty(), which
-	 * only checks if a device responds to TCGETS
-	 */
-	return (ioctl->request == TCGETS) ? EOK : -EINVAL;
-}
-
-
 void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 {
 	log_reader_t *r;
 	int respond = 1;
-	msgHeader_t hdr;
-
-	/* Convert old msg_t to msgHeader_t for blocking support */
-	hal_memset(&hdr, 0, sizeof(hdr));
-	hdr.type = msg->type;
-	hdr.pid = msg->pid;
-	hdr.oid = oid;
 
 	switch (msg->type) {
 		case mtOpen:
@@ -361,7 +353,7 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 			else {
 				msg->o.err = log_read(r, msg->o.data, msg->o.size);
 				if ((msg->o.err == 0) && (r->nonblocking == 0)) {
-					msg->o.err = log_readerBlock(r, msg->o.data, msg->o.size, &hdr, (void *)rid);
+					msg->o.err = log_readerBlock(r, msg, oid, rid);
 					if (msg->o.err == EOK) {
 						respond = 0;
 					}
@@ -390,75 +382,6 @@ void log_msgHandler(msg_t *msg, oid_t oid, unsigned long int rid)
 
 	if (respond == 1) {
 		proc_respond(oid.port, msg, rid);
-	}
-}
-
-
-void log_msgHandler2(msgHeader_t *hdr, void *idata, size_t idataSize, void *odata, size_t odataSize, oid_t oid, void *reply)
-{
-	log_reader_t *r;
-	int respond = 1;
-	void *buf;
-	size_t bufsize;
-
-	/* Use mapped buffer if provided, otherwise use local buffer */
-	buf = (hdr->idata != NULL) ? hdr->idata : idata;
-	bufsize = hdr->isize;
-
-	lib_debug1_printf("log_msgHandler2 type=%d buf=%p bufsize=%zu\\n", hdr->type, buf, bufsize);
-
-	/* Structured data from iextra */
-	msg_open_t *openIn = (msg_open_t *)hdr->iextra;
-
-	switch (hdr->type) {
-		case mtOpen:
-			if (openIn->flags & O_WRONLY) {
-				hdr->err = EOK;
-			}
-			else {
-				hdr->err = log_readerAdd(hdr->pid, openIn->flags & O_NONBLOCK);
-			}
-			break;
-		case mtRead: {
-			void *rbuf = (hdr->odata != NULL) ? hdr->odata : odata;
-			size_t rbufsize = hdr->osize;
-			r = log_readerFind(hdr->pid);
-			if (r == NULL) {
-				hdr->err = -EINVAL;
-			}
-			else {
-				hdr->err = log_read(r, rbuf, rbufsize);
-				if ((hdr->err == 0) && (r->nonblocking == 0)) {
-					hdr->err = log_readerBlock(r, rbuf, rbufsize, hdr, reply);
-					if (hdr->err == EOK) {
-						respond = 0;
-					}
-				}
-				else if ((hdr->err == 0) && (r->nonblocking != 0)) {
-					hdr->err = -EAGAIN;
-				}
-				log_readerPut(&r);
-			}
-			break;
-		}
-		case mtWrite:
-			hdr->err = log_write(buf, bufsize);
-			log_scrub();
-			break;
-		case mtClose:
-			log_close(hdr->pid);
-			hdr->err = 0;
-			break;
-		case mtDevCtl:
-			hdr->err = log_devctl2((ioctl_in_t *)buf);
-			break;
-		default:
-			hdr->err = -EINVAL;
-			break;
-	}
-
-	if (respond == 1) {
-		proc_respond2(oid.port, reply, hdr, odata, 0);
 	}
 }
 
@@ -539,16 +462,10 @@ void log_disable(void)
 }
 
 
-void log_enable(void)
-{
-	log_common.enabled = 1;
-}
-
-
 void _log_init(void)
 {
 	hal_memset(&log_common, 0, sizeof(log_common));
 	proc_lockInit(&log_common.lock, &proc_lockAttrDefault, "log.common");
 
-	log_common.enabled = 0;
+	log_common.enabled = 1;
 }

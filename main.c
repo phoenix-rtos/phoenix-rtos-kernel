@@ -55,8 +55,6 @@ void main_initthr(void *unused)
 	posix_init();
 	posix_clone(-1);
 
-	proc_initMsgBuf();
-
 	/* Start programs from syspage */
 	if ((prog = syspage_progList()) != NULL) {
 		do {

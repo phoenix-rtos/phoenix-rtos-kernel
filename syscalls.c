@@ -869,27 +869,26 @@ int syscalls_msgRespond(void *ustack)
 }
 
 
-void *syscalls_msgRespondAndRecv(void *ustack)
+int syscalls_msgRespondAndRecv(void *ustack)
 {
 	process_t *proc = proc_current()->process;
 	u32 port;
 	msg_t *msg;
+	msg_rid_t *rid;
 
 	GETFROMSTACK(ustack, u32, port, 0);
 	GETFROMSTACK(ustack, msg_t *, msg, 1);
+	GETFROMSTACK(ustack, msg_rid_t *, rid, 2);
 
 	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
-		/* TODO: return actual ernos, void is bad */
-		return NULL;
+		return -EFAULT;
 	}
 
-	return proc_respondAndRecv(port, msg);
-}
+	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
+		return -EFAULT;
+	}
 
-
-msgBuf_t *syscalls_msgInitBuf(void *ustack)
-{
-	return proc_initMsgBuf();
+	return proc_respondAndRecv(port, msg, rid);
 }
 
 

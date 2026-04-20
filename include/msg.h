@@ -17,7 +17,7 @@
 #define _PHOENIX_MSG_H_
 
 /* Return id, allocated in msgReceive, used in msgRespond */
-typedef int msg_rid_t;
+typedef addr_t msg_rid_t;
 
 /*
  * Message types
@@ -123,6 +123,8 @@ typedef struct _msg_t {
 	} i;
 
 	struct {
+		__u8 pulse;
+
 		union {
 			/* ATTR */
 			struct {
@@ -148,6 +150,8 @@ typedef struct _msg_t {
 		void *data;
 	} o;
 
+	size_t esize;
+	const void *edata;
 } msg_t;
 
 

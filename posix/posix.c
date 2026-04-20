@@ -37,7 +37,6 @@
 
 #define POLL_INTERVAL 100000
 
-#define WARN_ON_OLD_API LIB_ASSERT(0, "!!!!! %s", __FUNCTION__)
 
 typedef struct {
 	oid_t oid;
@@ -274,27 +273,15 @@ static int pinfo_cmp(rbnode_t *n1, rbnode_t *n2)
 
 int posix_truncate(oid_t *oid, off_t length)
 {
+	msg_t msg;
 	int err = -EINVAL;
 
 	if ((oid->port != US_PORT) && (length >= 0)) {
-		msgHeader_t hdr;
-		msg_io_t ioIn;
-		char odata[64];
-
-		ioIn.offs = 0;
-		ioIn.len = length;
-		ioIn.mode = 0;
-
-		hal_memset(&hdr, 0, sizeof(hdr));
-		hdr.type = mtTruncate;
-		hal_memcpy(&hdr.oid, oid, sizeof(oid_t));
-		hdr.iextra = &ioIn;
-		hdr.iesize = sizeof(ioIn);
-
-		err = proc_call_returnable(oid->port, &hdr, NULL, 0, odata, sizeof(odata));
-		if (err == EOK) {
-			err = hdr.err;
-		}
+		hal_memset(&msg, 0, sizeof(msg));
+		msg.type = mtTruncate;
+		hal_memcpy(&msg.oid, oid, sizeof(oid_t));
+		msg.i.io.len = length;
+		err = proc_send(oid->port, &msg);
 	}
 
 	return err;
@@ -526,7 +513,6 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 		hal_memcpy(&msg.oid, oidp, sizeof(*oidp));
 		msg.i.attr.type = atMode;
 
-		WARN_ON_OLD_API;
 		if ((proc_send(oidp->port, &msg) < 0) || (msg.o.err < 0)) {
 			return -EIO;
 		}
@@ -543,7 +529,6 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 	msg.o.data = buf;
 	msg.o.size = sizeof(*buf);
 
-	WARN_ON_OLD_API;
 	if (proc_send(oidp->port, &msg) < 0) {
 		err = -EIO;
 	}
@@ -1098,7 +1083,6 @@ int posix_chmod(const char *pathname, mode_t mode)
 	msg.i.attr.type = atMode;
 	msg.i.attr.val = mode & ALLPERMS;
 
-	WARN_ON_OLD_API;
 	err = proc_send(oid.port, &msg);
 	if (err >= 0) {
 		err = msg.o.err;
@@ -1319,7 +1303,6 @@ int posix_fstat(int fd, struct stat *buf)
 		msg.o.size = sizeof(attrs);
 
 		do {
-			WARN_ON_OLD_API;
 			err = proc_send(f->oid.port, &msg);
 			if (err < 0) {
 				break;
@@ -1446,7 +1429,6 @@ int posix_fsync(int fd)
 
 	hal_memcpy(msg.i.raw, &f->oid, sizeof(f->oid));
 
-	WARN_ON_OLD_API;
 	err = proc_send(f->oid.port, &msg);
 
 	posix_fileDeref(f);
@@ -1712,50 +1694,6 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, oid_t *oid
 }
 
 
-static void *ioctl_pack2(msgHeader_t *hdr, ioctl_in_t *ioctl, unsigned long request, void *data, oid_t *oid, size_t *rsize)
-{
-	size_t size = IOCPARM_LEN(request);
-	struct ifconf *ifc;
-	struct rtentry *rt;
-	void *rdata = NULL;
-
-	hal_memcpy(&hdr->oid, oid, sizeof(*oid));
-	hdr->type = mtDevCtl;
-
-	*rsize = 0;
-
-	ioctl->request = request;
-
-	if ((request & IOC_INOUT) != 0) {
-		if ((request & IOC_IN) != 0 || ((request & IOC_OUT) != 0)) {
-			rdata = data;
-			*rsize = size;
-		}
-	}
-	else if (size > 0) {
-		/* the data is passed by value instead of pointer */
-		size = min(size, sizeof(void *));
-		hal_memcpy(ioctl->data, &data, size);
-	}
-
-	/* ioctl special case: arg is structure with pointer - has to be custom-packed into message */
-	if (request == SIOCGIFCONF) {
-		ifc = (struct ifconf *)data;
-		rdata = ifc->ifc_buf;
-		*rsize = ifc->ifc_len;
-	}
-	else if ((request == SIOCADDRT) || (request == SIOCDELRT)) {
-		rt = (struct rtentry *)data;
-		if (rt->rt_dev != NULL) {
-			rdata = rt->rt_dev;
-			*rsize = hal_strlen(rt->rt_dev) + 1;
-		}
-	}
-
-	return rdata;
-}
-
-
 int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 {
 	size_t size = IOCPARM_LEN(request);
@@ -1777,40 +1715,16 @@ int ioctl_processResponse(const msg_t *msg, unsigned long request, void *data)
 }
 
 
-int ioctl_processResponse2(msgHeader_t *hdr, void *odata, size_t osize, unsigned long request, void *data)
-{
-	size_t size = IOCPARM_LEN(request);
-	int err;
-	struct ifconf *ifc;
-
-	err = hdr->err;
-
-	if (((request & IOC_OUT) != 0) && (size <= osize)) {
-		hal_memcpy(data, odata, size);
-	}
-
-	if (request == SIOCGIFCONF) { /* restore overridden userspace pointer */
-		ifc = (struct ifconf *)data;
-		ifc->ifc_buf = hdr->odata;
-	}
-
-	return err;
-}
-
-
 int posix_ioctl(int fildes, unsigned long request, char *ustack)
 {
 	TRACE("ioctl(%d, %d)", fildes, request);
 
 	open_file_t *f;
 	int err;
+	msg_t msg;
 	void *data = NULL;
-	void *rdata = NULL;
-	size_t rlen = 0;
 
-	if (proc_initMsgBuf() == NULL) {
-		return -ENOMEM;
-	}
+	hal_memset(&msg, 0, sizeof(msg));
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err == 0) {
@@ -1821,21 +1735,11 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 					GETFROMSTACK(ustack, void *, data, 2);
 				}
 
-				(void)ioctl_pack;
+				ioctl_pack(&msg, request, data, &f->oid);
 
-				char idata[64], odata[64];
-				ioctl_in_t *ioctl = (ioctl_in_t *)idata;
-
-				msgHeader_t hdr;
-				rdata = ioctl_pack2(&hdr, ioctl, request, data, &f->oid, &rlen);
-
-				hdr.iextra = &ioctl;
-				hdr.iesize = sizeof(ioctl_in_t);
-
-
-				err = proc_call_returnable(f->oid.port, &hdr, rdata, rlen, odata, sizeof(odata));
+				err = proc_send(f->oid.port, &msg);
 				if (err == EOK) {
-					err = ioctl_processResponse2(&hdr, odata, sizeof(odata), request, data);
+					err = ioctl_processResponse(&msg, request, data);
 				}
 		}
 
@@ -2422,12 +2326,10 @@ int posix_futimens(int fildes, const struct timespec *times)
 
 	msg.i.attr.type = atMTime;
 	msg.i.attr.val = times[1].tv_sec;
-	WARN_ON_OLD_API;
 	err = proc_send(f->oid.port, &msg);
 	if ((err >= 0) && (msg.o.err >= 0)) {
 		msg.i.attr.type = atATime;
 		msg.i.attr.val = times[0].tv_sec;
-		WARN_ON_OLD_API;
 		err = proc_send(f->oid.port, &msg);
 	}
 	if (err >= 0) {
@@ -2470,7 +2372,6 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 				err = unix_poll(msg.oid.id, fds[i].events);
 			}
 			else {
-				WARN_ON_OLD_API;
 				err = proc_send(msg.oid.port, &msg);
 				if (err >= 0) {
 					err = (msg.o.err >= 0) ? msg.o.attr.val : msg.o.err;
@@ -2613,7 +2514,6 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 			msg.o.data = events;
 			msg.o.size = sizeof(events);
 
-			WARN_ON_OLD_API;
 			if ((err = proc_send(q->oid.port, &msg)))
 				break;
 

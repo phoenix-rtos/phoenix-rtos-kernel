@@ -160,12 +160,8 @@ typedef struct _thread_t {
 	cpu_context_t *longjmpctx;
 
 	struct {
-		page_t *p;
-		msgBuf_t *w;
-		msgBuf_t *kw;
-
-		ipc_buf_layout_t sil;
-		ipc_buf_layout_t ril;
+		ipc_buf_layout_t iil;
+		ipc_buf_layout_t oil;
 
 		char msgbuf[256];
 		size_t msglen;
@@ -174,6 +170,8 @@ typedef struct _thread_t {
 		msg_t *msg;
 
 		msg_rid_t *ridPtr;
+		int ishmapped;
+		int oshmapped;
 	} utcb;
 
 	int flags;
