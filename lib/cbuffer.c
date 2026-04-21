@@ -20,6 +20,8 @@
 
 void _cbuffer_init(cbuffer_t *buf, void *data, size_t sz)
 {
+	LIB_ASSERT_ALWAYS(((sz == 0U) || ((sz & (sz - 1U)) == 0U)), "cbuffer's size has to be either 0 or a power of 2");
+
 	hal_memset(buf, 0, sizeof(cbuffer_t));
 	buf->sz = sz;
 	buf->data = data;
