@@ -28,11 +28,11 @@
 
 static struct {
 	page_t *sizes[SIZE_VM_SIZES];
-	page_t *pages;
+	page_t *pages; /* pages ordering and their addresses (page_t::addr) stay invariant after _page_init() */
 
+	size_t totalsz; /* stays invariant after _page_init() */
 	size_t allocsz;
 	size_t bootsz;
-	size_t freesz;
 
 	lock_t lock;
 } pages_info;
@@ -83,7 +83,6 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags)
 	for (i = 0; i < (1UL << lh->idx) / SIZE_PAGE; i++) {
 		(lh + i)->flags &= ~PAGE_FREE;
 		(lh + i)->flags |= flags;
-		pages_info.freesz -= SIZE_PAGE;
 		pages_info.allocsz += SIZE_PAGE;
 	}
 
@@ -126,7 +125,6 @@ void vm_pageFree(page_t *p)
 	/* Mark free pages */
 	for (i = 0; i < ((u64)1 << idx) / SIZE_PAGE; i++) {
 		(p + i)->flags |= PAGE_FREE;
-		pages_info.freesz += SIZE_PAGE;
 		pages_info.allocsz -= SIZE_PAGE;
 	}
 
@@ -138,7 +136,7 @@ void vm_pageFree(page_t *p)
 	}
 
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 MISRAC2012-RULE_18_3 "lh, rh, pages_info.pages are related" */
-	while ((lh >= pages_info.pages) && (rh < (pages_info.pages + (pages_info.allocsz + pages_info.freesz) / SIZE_PAGE)) &&
+	while ((lh >= pages_info.pages) && (rh < (pages_info.pages + pages_info.totalsz / SIZE_PAGE)) &&
 			((lh->flags & PAGE_FREE) != 0U) && ((rh->flags & PAGE_FREE) != 0U) && (lh->idx == rh->idx) &&
 			((lh->addr + (1UL << lh->idx)) == rh->addr) && (idx < SIZE_VM_SIZES)) {
 
@@ -190,7 +188,7 @@ static int _page_get_cmp(void *key, void *item)
 page_t *_page_get(addr_t addr)
 {
 	page_t *p;
-	size_t np = (pages_info.freesz + pages_info.allocsz) / SIZE_PAGE;
+	size_t np = pages_info.totalsz / SIZE_PAGE;
 
 	addr = addr & ~(SIZE_PAGE - 1U);
 	p = lib_bsearch((void *)addr, pages_info.pages, np, sizeof(page_t), _page_get_cmp);
@@ -208,7 +206,7 @@ static void _page_initSizes(void)
 	/* Remove already discovered pages */
 	pages_info.sizes[hal_cpuGetFirstBit(SIZE_PAGE)] = NULL;
 
-	while (i < (pages_info.allocsz + pages_info.freesz) / SIZE_PAGE) {
+	while (i < pages_info.totalsz / SIZE_PAGE) {
 		p = &pages_info.pages[i];
 		if ((p->flags & PAGE_FREE) == 0U) {
 			i++;
@@ -222,7 +220,7 @@ static void _page_initSizes(void)
 		}
 
 		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "idx is limited to min(SIZE_VM_SIZES - 1U, bits in p-> addr")*/
-		for (k = 0U; (k < (((u64)1 << idx) / SIZE_PAGE) - 1U) && (i + k < (((pages_info.allocsz + pages_info.freesz) / SIZE_PAGE) - 1U)); k++) {
+		for (k = 0U; (k < (((u64)1 << idx) / SIZE_PAGE) - 1U) && (i + k < ((pages_info.totalsz / SIZE_PAGE) - 1U)); k++) {
 			if ((pages_info.pages[i + k + 1U].flags & PAGE_FREE) == 0U) {
 				break;
 			}
@@ -263,7 +261,7 @@ void _page_showPages(void)
 	char buf[TTY_COLS + 1U];
 
 	w = lib_sprintf(buf, "vm: ");
-	while (i < (pages_info.freesz + pages_info.allocsz) / SIZE_PAGE) {
+	while (i < pages_info.totalsz / SIZE_PAGE) {
 		p = &pages_info.pages[i];
 
 		/* Print markers in case of memory gap */
@@ -290,7 +288,7 @@ void _page_showPages(void)
 
 		/* Print markers with repetitions */
 		c = pmap_marker(p);
-		for (rep = 0; ((size_t)i + rep + 1U) < (pages_info.freesz + pages_info.allocsz) / SIZE_PAGE; rep++) {
+		for (rep = 0; ((size_t)i + rep + 1U) < pages_info.totalsz / SIZE_PAGE; rep++) {
 			if ((c != pmap_marker(&pages_info.pages[i + rep + 1U])) || (pages_info.pages[i + rep + 1U].addr - pages_info.pages[i + rep].addr > SIZE_PAGE)) {
 				break;
 			}
@@ -375,7 +373,7 @@ int _page_sbrk(pmap_t *pmap, void **start, void **end)
 
 void vm_pageGetStats(size_t *freesz)
 {
-	*freesz = pages_info.freesz;
+	*freesz = pages_info.totalsz - pages_info.allocsz;
 }
 
 
@@ -389,16 +387,16 @@ void vm_pageinfo(meminfo_t *info)
 	(void)proc_lockSet(&pages_info.lock);
 
 	info->page.alloc = (unsigned int)pages_info.allocsz;
-	info->page.free = (unsigned int)pages_info.freesz;
+	info->page.free = (unsigned int)(pages_info.totalsz - pages_info.allocsz);
 	info->page.boot = (unsigned int)pages_info.bootsz;
 	info->page.sz = (unsigned int)sizeof(page_t);
 
 	if (info->page.mapsz != -1) {
-		while (i < (pages_info.freesz + pages_info.allocsz) / SIZE_PAGE) {
+		while (i < pages_info.totalsz / SIZE_PAGE) {
 			p = pages_info.pages + i;
 
 			c = pmap_marker(p);
-			for (rep = 0; ((size_t)i + rep + 1U) < (pages_info.freesz + pages_info.allocsz) / SIZE_PAGE; rep++) {
+			for (rep = 0; ((size_t)i + rep + 1U) < pages_info.totalsz / SIZE_PAGE; rep++) {
 				if ((c != pmap_marker(pages_info.pages + i + rep + 1U)) || ((pages_info.pages[i + rep + 1U].addr - pages_info.pages[i + rep].addr) > SIZE_PAGE)) {
 					break;
 				}
@@ -432,7 +430,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	(void)proc_lockInit(&pages_info.lock, &proc_lockAttrDefault, "page");
 
 	/* Prepare memory hash */
-	pages_info.freesz = 0;
+	pages_info.totalsz = 0;
 	pages_info.allocsz = 0;
 	pages_info.bootsz = 0;
 
@@ -458,11 +456,10 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 		}
 
 		if (err == EOK) {
-
+			pages_info.totalsz += SIZE_PAGE;
 			if ((page->flags & PAGE_FREE) != 0U) {
 				page->idx = (u8)hal_cpuGetFirstBit(SIZE_PAGE);
 				LIST_ADD(&pages_info.sizes[hal_cpuGetFirstBit(SIZE_PAGE)], page);
-				pages_info.freesz += SIZE_PAGE;
 			}
 			else {
 				page->idx = 0;
@@ -490,7 +487,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	vaddr = (*top);
 
 	for (;;) {
-		if (_pmap_kernelSpaceExpand(pmap, &vaddr, (*top) + max((pages_info.freesz + pages_info.allocsz) / 4U, (1UL << 23)), p) == 0) {
+		if (_pmap_kernelSpaceExpand(pmap, &vaddr, (*top) + max(pages_info.totalsz / 4U, (1UL << 23)), p) == 0) {
 			break;
 		}
 		p = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE);
@@ -501,7 +498,7 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 
 	/* Show statistics on the console */
 	lib_printf("vm: Initializing page allocator (%d+%d)/%dKB, page_t=%d\n", (pages_info.allocsz - pages_info.bootsz) / 1024U,
-			pages_info.bootsz / 1024U, (pages_info.freesz + pages_info.allocsz) / 1024U, sizeof(page_t));
+			pages_info.bootsz / 1024U, pages_info.totalsz / 1024U, sizeof(page_t));
 
 	_page_showPages();
 
