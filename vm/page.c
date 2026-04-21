@@ -168,7 +168,7 @@ void vm_pageFree(page_t *p)
 }
 
 
-static int _page_get_cmp(void *key, void *item)
+static int page_get_cmp(void *key, void *item)
 {
 	addr_t a = (addr_t)key;
 	page_t *p = (page_t *)item;
@@ -185,13 +185,13 @@ static int _page_get_cmp(void *key, void *item)
 }
 
 
-page_t *_page_get(addr_t addr)
+page_t *page_get(addr_t addr)
 {
 	page_t *p;
 	size_t np = pages_info.totalsz / SIZE_PAGE;
 
 	addr = addr & ~(SIZE_PAGE - 1U);
-	p = lib_bsearch((void *)addr, pages_info.pages, np, sizeof(page_t), _page_get_cmp);
+	p = lib_bsearch((void *)addr, pages_info.pages, np, sizeof(page_t), page_get_cmp);
 
 	return p;
 }

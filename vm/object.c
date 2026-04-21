@@ -220,7 +220,7 @@ page_t *vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr,
 		if (offs > (addr_t)-1) {
 			return NULL;
 		}
-		return _page_get((addr_t)offs);
+		return page_get((addr_t)offs);
 	}
 
 	(void)proc_lockSet(&object_common.lock);
