@@ -1050,7 +1050,7 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 		if (a == 0U) {
 			break;
 		}
-		vm_pageFree(_page_get(a));
+		vm_pageFree(page_get(a));
 	}
 
 	(void)vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
