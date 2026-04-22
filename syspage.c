@@ -183,9 +183,9 @@ void syspage_progShow(void)
 }
 
 
-syspage_sched_window_t *syspage_schedulerWindowList(void)
+syspage_sched_t *syspage_schedulerConfig(void)
 {
-	return syspage_common.syspage->schedWindows;
+	return syspage_common.syspage->sched;
 }
 
 
@@ -200,8 +200,8 @@ void syspage_init(void)
 	syspage_prog_t *prog;
 	syspage_part_t *part;
 	syspage_map_t *map;
-	syspage_sched_window_t *schedWindow;
 	mapent_t *entry;
+	unsigned int i;
 
 	syspage_common.syspage = (syspage_t *)hal_syspageAddr();
 
@@ -261,15 +261,11 @@ void syspage_init(void)
 		} while (part != syspage_common.syspage->partitions);
 	}
 
-	/* SchedWindow's relocation */
-	if (syspage_common.syspage->schedWindows != NULL) {
-		syspage_common.syspage->schedWindows = hal_syspageRelocate(syspage_common.syspage->schedWindows);
-		schedWindow = syspage_common.syspage->schedWindows;
-
-		do {
-			schedWindow->next = hal_syspageRelocate(schedWindow->next);
-			schedWindow->prev = hal_syspageRelocate(schedWindow->prev);
-			schedWindow = schedWindow->next;
-		} while (schedWindow != syspage_common.syspage->schedWindows);
+	/* Scheduler configuration relocation */
+	if (syspage_common.syspage->sched != NULL) {
+		syspage_common.syspage->sched = hal_syspageRelocate(syspage_common.syspage->sched);
+		for (i = 0; i < syspage_common.syspage->sched->cycleCnt; ++i) {
+			syspage_common.syspage->sched->cycles[i] = hal_syspageRelocate(syspage_common.syspage->sched->cycles[i]);
+		}
 	}
 }
