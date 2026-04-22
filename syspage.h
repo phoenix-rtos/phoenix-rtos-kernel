@@ -53,7 +53,7 @@ const syspage_prog_t *syspage_progNameResolve(const char *name);
 
 /* Scheduler configuration */
 
-syspage_sched_window_t *syspage_schedulerWindowList(void);
+syspage_sched_t *syspage_schedulerConfig(void);
 
 
 /* Partition configuration */
