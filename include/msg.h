@@ -100,7 +100,6 @@ typedef struct _msg_t {
 
 			/* SETATTR/GETATTR */
 			struct {
-				oid_t oid;
 				long long val;
 				int type;
 			} attr;
@@ -153,87 +152,6 @@ typedef struct _msg_t {
 	size_t esize;
 	const void *edata;
 } msg_t;
-
-
-typedef struct {
-	/* could be a POSIX-y message type or custom */
-	int label;
-	unsigned int pid;
-
-	int err;
-	size_t size;
-
-	oid_t oid;
-
-	__u8 pulse;
-
-	union {
-		/* OPEN/CLOSE/DESTROY */
-		struct {
-			int flags;
-		} openclose;
-
-		/* READ/WRITE/TRUNCATE */
-		struct {
-			off_t offs;
-			size_t len;
-			unsigned mode;
-		} io;
-
-		/* CREATE */
-		struct {
-			int type;
-			unsigned mode;
-			oid_t dev;
-			oid_t oid;
-		} create;
-
-		/* SETATTR/GETATTR */
-		struct {
-			long long val;
-			int type;
-			size_t size;
-			unsigned char data[];
-		} attr;
-
-		struct _attrAll attrAll;
-
-		/* LINK/UNLINK */
-		struct {
-			oid_t toid;
-		} ln;
-
-		/* READDIR */
-		struct {
-			off_t offs;
-		} readdir;
-
-		struct {
-			unsigned char raw[256 - sizeof(oid_t)];
-		} devctl;
-
-		/* LOOKUP */
-		struct {
-			oid_t fil;
-			oid_t dev;
-		} lookup;
-
-		unsigned char raw[256];
-	};
-
-	/* part of msg info? */
-	size_t rawlen;
-
-	/* shared buffer, bufsize == 0 denotes no buffer */
-	void *buf;
-	size_t bufsize;
-
-	void *sbuf;
-	size_t slen;
-
-	void *rbuf;
-	size_t rlen;
-} msgBuf_t;
 
 
 #pragma pack(pop)

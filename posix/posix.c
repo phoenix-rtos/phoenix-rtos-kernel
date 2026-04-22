@@ -281,7 +281,7 @@ int posix_truncate(oid_t *oid, off_t length)
 		msg.type = mtTruncate;
 		hal_memcpy(&msg.oid, oid, sizeof(oid_t));
 		msg.i.io.len = length;
-		err = proc_send(oid->port, &msg);
+		err = proc_send_returnable(oid->port, &msg);
 	}
 
 	return err;
@@ -513,7 +513,7 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 		hal_memcpy(&msg.oid, oidp, sizeof(*oidp));
 		msg.i.attr.type = atMode;
 
-		if ((proc_send(oidp->port, &msg) < 0) || (msg.o.err < 0)) {
+		if ((proc_send_returnable(oidp->port, &msg) < 0) || (msg.o.err < 0)) {
 			return -EIO;
 		}
 
@@ -529,7 +529,7 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 	msg.o.data = buf;
 	msg.o.size = sizeof(*buf);
 
-	if (proc_send(oidp->port, &msg) < 0) {
+	if (proc_send_returnable(oidp->port, &msg) < 0) {
 		err = -EIO;
 	}
 	else {
@@ -1083,7 +1083,7 @@ int posix_chmod(const char *pathname, mode_t mode)
 	msg.i.attr.type = atMode;
 	msg.i.attr.val = mode & ALLPERMS;
 
-	err = proc_send(oid.port, &msg);
+	err = proc_send_returnable(oid.port, &msg);
 	if (err >= 0) {
 		err = msg.o.err;
 	}
@@ -1303,7 +1303,7 @@ int posix_fstat(int fd, struct stat *buf)
 		msg.o.size = sizeof(attrs);
 
 		do {
-			err = proc_send(f->oid.port, &msg);
+			err = proc_send_returnable(f->oid.port, &msg);
 			if (err < 0) {
 				break;
 			}
@@ -1429,7 +1429,7 @@ int posix_fsync(int fd)
 
 	hal_memcpy(msg.i.raw, &f->oid, sizeof(f->oid));
 
-	err = proc_send(f->oid.port, &msg);
+	err = proc_send_returnable(f->oid.port, &msg);
 
 	posix_fileDeref(f);
 
@@ -1737,7 +1737,7 @@ int posix_ioctl(int fildes, unsigned long request, char *ustack)
 
 				ioctl_pack(&msg, request, data, &f->oid);
 
-				err = proc_send(f->oid.port, &msg);
+				err = proc_send_returnable(f->oid.port, &msg);
 				if (err == EOK) {
 					err = ioctl_processResponse(&msg, request, data);
 				}
@@ -2326,11 +2326,11 @@ int posix_futimens(int fildes, const struct timespec *times)
 
 	msg.i.attr.type = atMTime;
 	msg.i.attr.val = times[1].tv_sec;
-	err = proc_send(f->oid.port, &msg);
+	err = proc_send_returnable(f->oid.port, &msg);
 	if ((err >= 0) && (msg.o.err >= 0)) {
 		msg.i.attr.type = atATime;
 		msg.i.attr.val = times[0].tv_sec;
-		err = proc_send(f->oid.port, &msg);
+		err = proc_send_returnable(f->oid.port, &msg);
 	}
 	if (err >= 0) {
 		err = msg.o.err;
@@ -2372,7 +2372,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 				err = unix_poll(msg.oid.id, fds[i].events);
 			}
 			else {
-				err = proc_send(msg.oid.port, &msg);
+				err = proc_send_returnable(msg.oid.port, &msg);
 				if (err >= 0) {
 					err = (msg.o.err >= 0) ? msg.o.attr.val : msg.o.err;
 				}
@@ -2514,7 +2514,7 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 			msg.o.data = events;
 			msg.o.size = sizeof(events);
 
-			if ((err = proc_send(q->oid.port, &msg)))
+			if ((err = proc_send_returnable(q->oid.port, &msg)))
 				break;
 
 			if ((err = msg.o.io.err) < 0)

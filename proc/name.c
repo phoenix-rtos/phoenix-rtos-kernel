@@ -224,7 +224,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		hal_memcpy(pptr, name + i + 1, len - i);
 		msg->i.data = pptr;
 
-		if ((err = proc_send(srv.port, msg)) < 0)
+		if ((err = proc_send_returnable(srv.port, msg)) < 0)
 			break;
 
 		srv = msg->o.lookup.dev;
@@ -276,7 +276,7 @@ int proc_open(oid_t oid, unsigned mode)
 	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
 	msg->i.openclose.flags = mode;
 
-	err = proc_send(oid.port, msg);
+	err = proc_send_returnable(oid.port, msg);
 	if (err == 0) {
 		err = msg->o.err;
 	}
@@ -300,7 +300,7 @@ int proc_close(oid_t oid, unsigned mode)
 	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
 	msg->i.openclose.flags = mode;
 
-	err = proc_send(oid.port, msg);
+	err = proc_send_returnable(oid.port, msg);
 
 	if (err == EOK) {
 		err = msg->o.err;
@@ -330,7 +330,7 @@ int proc_create(int port, int type, int mode, oid_t dev, oid_t dir, char *name, 
 	msg->i.data = name;
 	msg->i.size = name == NULL ? 0 : hal_strlen(name) + 1;
 
-	err = proc_send(port, msg);
+	err = proc_send_returnable(port, msg);
 
 	if (err == 0) {
 		err = msg->o.err;
@@ -359,7 +359,7 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 	msg->i.size = hal_strlen(name) + 1;
 	msg->i.data = (char *)name;
 
-	err = proc_send(dir.port, msg);
+	err = proc_send_returnable(dir.port, msg);
 
 	if (err == 0) {
 		err = msg->o.err;
@@ -387,7 +387,7 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	msg->i.size = hal_strlen(name) + 1;
 	msg->i.data = (char *)name;
 
-	err = proc_send(dir.port, msg);
+	err = proc_send_returnable(dir.port, msg);
 
 	if (err == 0) {
 		err = msg->o.err;
@@ -417,7 +417,7 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	msg->o.size = sz;
 	msg->o.data = buf;
 
-	err = proc_send(oid.port, msg);
+	err = proc_send_returnable(oid.port, msg);
 
 	if (err >= 0) {
 		err = msg->o.err;
@@ -447,7 +447,7 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned mode)
 	msg->i.size = sz;
 	msg->i.data = buf;
 
-	err = proc_send(oid.port, msg);
+	err = proc_send_returnable(oid.port, msg);
 
 	if (err >= 0) {
 		err = msg->o.err;
@@ -471,7 +471,7 @@ off_t proc_size(oid_t oid)
 	msg->type = mtGetAttr;
 	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
 	msg->i.attr.type = 3; /* atSize */
-	err = proc_send(oid.port, msg);
+	err = proc_send_returnable(oid.port, msg);
 	if (err == EOK) {
 		err = msg->o.err;
 	}

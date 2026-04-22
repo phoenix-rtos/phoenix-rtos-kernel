@@ -289,7 +289,7 @@ static void thread_destroy(thread_t *thread)
 		thread->called->reply = NULL;
 	}
 
-	LIB_ASSERT(thread->inherited == NULL, "heh, inherited");
+	LIB_ASSERT(thread->inherited == NULL || thread->inherited == thread->inherited->next, "heh, inherited");
 
 	if (thread->sched != NULL) {
 		if (thread->reply != NULL) {
@@ -301,13 +301,11 @@ static void thread_destroy(thread_t *thread)
 			reply->sched->t = reply;
 			reply->called = NULL;
 
-			reply->utcb.msg->o.err = -EINTR; /* TODO: custom errno? */
-
 			LIB_ASSERT(reply->exit == 0, "reply thread exiting?");
 
 			if (reply->callReturnable == 0) {
 				reply->context = _getUserContext(reply);
-				hal_cpuSetReturnValue(reply->context, (void *)(ptr_t)-EINTR);
+				hal_cpuSetReturnValue(reply->context, (void *)(ptr_t)-EINVAL);
 			}
 			else {
 				reply->callReturnable = 0;
@@ -566,7 +564,6 @@ static cpu_context_t *_threads_switchTo(thread_t *dest, int reply)
 	process_t *proc;
 	cpu_context_t *ctx;
 	thread_t *from = _proc_current();
-	;
 
 	LIB_ASSERT(dest != NULL, "dest null");
 	LIB_ASSERT(dest->exit == 0, "exit=%d", dest->exit);
@@ -2439,7 +2436,6 @@ static void _threads_copyShadowPages(ipc_buf_layout_t *il, size_t size)
 	if (il->eoffs != 0) {
 		hal_memcpy(il->evaddr, il->w + il->boffs + size - il->eoffs, il->eoffs);
 	}
-	threads_ipcBufferRelease(il);
 }
 
 
@@ -2447,11 +2443,9 @@ static void _threads_copyShmBuffers(thread_t *from, thread_t *to, msg_t *msg)
 {
 	if (to->mappedTo == from) {
 		/* TODO copying i may be unnecessary */
-		// _threads_copyShadowPages(&to->utcb.iil, msg->i.size);
-
+		_threads_copyShadowPages(&to->utcb.iil, msg->i.size);
 		_threads_copyShadowPages(&to->utcb.oil, msg->o.size);
 	}
-	(void)_threads_copyShadowPages;
 }
 
 /* assuming aspace of `to` */
@@ -2461,6 +2455,8 @@ static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg
 
 	hal_memcpy(to->utcb.msg->o.raw, msg->o.raw, sizeof(msg->o.raw));
 	to->utcb.msg->o.err = msg->o.err;
+
+	/* TODO: handle pulse as well */
 }
 
 
@@ -2495,7 +2491,7 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		if (err < 0) {
 			hal_spinlockClear(&p->spinlock, &sc);
 			port_put(p, 0);
-			// LIB_ASSERT_ALWAYS(0, "FAIL");
+			LIB_ASSERT_ALWAYS(0, "FAIL");
 			return err;
 		}
 		/* TODO: abort on server fault/port closure */
@@ -2534,14 +2530,18 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	hal_memcpy(caller->utcb.msgbuf, msg->i.raw, rawSz);
 	caller->utcb.msglen = rawSz;
 
-	if (rawSz + msg->i.size <= smallBufSize) {
-		/* small message: fits the kernel buf and the predefined recv buffer */
-		hal_memcpy(caller->utcb.msgbuf + rawSz, msg->i.data, msg->i.size);
-		caller->utcb.msglen += msg->i.size;
-	}
-	else if (msg->i.size > 0) {
-		imap = (void *)msg->i.data;
-		isize = msg->i.size;
+	if (msg->i.size > 0) {
+		if (rawSz + msg->i.size <= smallBufSize) {
+			/* small message: fits the kernel buf and the predefined recv buffer */
+			hal_memcpy(caller->utcb.msgbuf + rawSz, msg->i.data, msg->i.size);
+			caller->utcb.msglen += msg->i.size;
+
+			LIB_ASSERT(0, "happens");
+		}
+		else {
+			imap = (void *)msg->i.data;
+			isize = msg->i.size;
+		}
 	}
 
 	// if (msg->o.size <= smallBufSize) {
@@ -2596,7 +2596,7 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		recv->utcb.msg->i.size = isize;
 	}
 	else {
-		threads_ipcBufferRelease(&caller->utcb.iil);
+		// threads_ipcBufferRelease(&caller->utcb.iil);
 
 		if (caller->utcb.msglen > rawSz) {
 			hal_memcpy((void *)recv->utcb.msg->i.data, caller->utcb.msgbuf + rawSz, caller->utcb.msglen - rawSz);
@@ -2615,7 +2615,7 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		}
 	}
 	else {
-		threads_ipcBufferRelease(&caller->utcb.oil);
+		// threads_ipcBufferRelease(&caller->utcb.oil);
 	}
 
 	recv->utcb.msg->o.size = osize;
@@ -2630,8 +2630,6 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 
 	*recv->utcb.ridPtr = (msg_rid_t)caller;
 	hal_cpuSetReturnValue(ctx, EOK);
-
-	trace_eventSyscallExit(104, proc_getTid(recv)); /* msgRespond{,AndRecv} */
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -2672,7 +2670,7 @@ int proc_send(u32 port, msg_t *msg)
 int proc_send_returnable(u32 port, msg_t *msg)
 {
 	int err = proc_call_ex(port, msg, 1);
-	LIB_ASSERT(err >= 0, "err=%d", err);
+	// LIB_ASSERT(err >= 0, "port=%d err=%d", port, err);
 
 	return err;
 }
@@ -2770,24 +2768,33 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 
 	hal_cpuReschedule(&threads_common.spinlock, sc);
 
-	if (recv->utcb.msg->o.err != EOK || (recv->flags & THREAD_PULSED) != 0) {
-		return EOK;
+	if ((recv->flags & THREAD_PULSED) != 0) {
+		// LIB_ASSERT(0, "pulse happens");
+		recv->flags &= (~(int)THREAD_PULSED);
+
+		msg->o.pulse = recv->utcb.pulse;
+		msg->o.err = EOK;
+		return -EPULSE;
+	}
+
+	if (recv->reply == NULL) {
+		return -EINTR;
 	}
 	else {
-		LIB_ASSERT(recv->reply != NULL, "recv->reply is NULL");
-
 		*recv->utcb.ridPtr = (msg_rid_t)recv->reply;
 		return EOK;
 	}
 }
 
-int _handlePulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
+/* assumes aspace of recv */
+int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 {
+	LIB_ASSERT(0, "return happens");
 	recv->utcb.msg->o.pulse = p->pulse;
 	recv->utcb.msg->o.err = EOK;
 	p->pulse = 0;
 	hal_spinlockClear(&p->spinlock, sc);
-	return EOK;
+	return -EPULSE;
 }
 
 /* I actually like this data-size + hdr->odata approach.
@@ -2819,7 +2826,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	if (p->pulse != 0) {
-		return _handlePulse(recv, p, &sc);
+		LIB_ASSERT(0, "return happens");
+		return _returnWithPulse(recv, p, &sc);
 	}
 
 	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
@@ -2844,15 +2852,12 @@ int proc_pulse(u32 port, u8 pulse)
 
 	if (recv != NULL) {
 		LIB_ASSERT(recv->state != READY, "how is recv ready while on port queue?");
-		_wakePassive(recv);
 
+		_wakePassive(recv);
 		_portDequeue(p, recv);
 
-		recv->utcb.msg->o.pulse = pulse;
-		recv->utcb.msg->o.err = EOK;
+		recv->utcb.pulse = pulse;
 		recv->flags |= THREAD_PULSED;
-
-		hal_cpuSetReturnValue(recv->context, NULL);
 
 		if (recv->priority < proc_current()->priority) {
 			hal_cpuReschedule(&p->spinlock, &sc);
@@ -2941,8 +2946,8 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		pmap_switch(&threads_common.kmap->pmap);
 	}
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
 
+	hal_spinlockSet(&threads_common.spinlock, &sc);
 	/*
 	 * FIXME: workaround for assertion in _threads_switchSchedContexts
 	 * reply == 1 branch. The _threads_switchSchedContexts currently assumes
@@ -3048,7 +3053,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	if (responding == 0) {
 		if (p->pulse != 0) {
-			return _handlePulse(recv, p, &sc);
+			return _returnWithPulse(recv, p, &sc);
 		}
 
 		return _becomePassive(p, recv, msg, rid, &sc);
@@ -3344,7 +3349,7 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t
 	}
 	else {
 #endif
-		// threads_ipcBufferRelease(il);
+		threads_ipcBufferRelease(il);
 
 		w = _mapBufferUnaligned(buf, bufsz, t->process, recv->process, il);
 		if (w == NULL) {

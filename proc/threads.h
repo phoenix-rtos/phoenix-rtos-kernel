@@ -163,6 +163,9 @@ typedef struct _thread_t {
 		ipc_buf_layout_t iil;
 		ipc_buf_layout_t oil;
 
+		u8 pulse;
+		int err;
+
 		char msgbuf[256];
 		size_t msglen;
 
