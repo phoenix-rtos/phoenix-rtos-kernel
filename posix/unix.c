@@ -1099,11 +1099,10 @@ int unix_shutdown(unsigned int socket, int how)
 static int unix_bufferSetSize(unixsock_t *s, int sz)
 {
 	void *v[2] = { NULL, NULL };
-	size_t size = (size_t)sz;
-
-	if (size < US_MIN_BUFFER_SIZE || size > US_MAX_BUFFER_SIZE) {
-		return -EINVAL;
-	}
+	/* cut requested buffer size to [US_MIN_BUFFER_SIZE, US_MAX_BUFFER_SIZE] range */
+	size_t size = min(max((size_t)sz, US_MIN_BUFFER_SIZE), US_MAX_BUFFER_SIZE);
+	/* round size to the next power of 2 */
+	size = (size_t)1U << (hal_cpuGetLastBit(size - 1U) + 1U);
 
 	(void)proc_lockSet(&s->lock);
 
