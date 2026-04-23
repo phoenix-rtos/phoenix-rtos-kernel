@@ -113,7 +113,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		ml->boffs = boffs;
 		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
 
-		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
 		ml->bp = nbp;
 		if (nbp == NULL) {
 			return NULL;
@@ -154,7 +154,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
 
 		if ((boffs == 0U) || (eoffs >= boffs)) {
-			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
 			ml->ep = nep;
 			if (nep == NULL) {
 				return NULL;
@@ -192,14 +192,14 @@ static void msg_release(kmsg_t *kmsg)
 	vm_map_t *map;
 
 	if (kmsg->i.bp != NULL) {
-		vm_pageFree(kmsg->i.bp);
+		vm_pageFree(kmsg->i.bp, (kmsg->src == NULL) ? NULL : kmsg->src->partition);
 		(void)vm_munmap(msg_common.kmap, kmsg->i.bvaddr, SIZE_PAGE);
 		kmsg->i.bp = NULL;
 	}
 
 	if (kmsg->i.eoffs != 0U) {
 		if (kmsg->i.ep != NULL) {
-			vm_pageFree(kmsg->i.ep);
+			vm_pageFree(kmsg->i.ep, (kmsg->src == NULL) ? NULL : kmsg->src->partition);
 		}
 		(void)vm_munmap(msg_common.kmap, kmsg->i.evaddr, SIZE_PAGE);
 		kmsg->i.eoffs = 0;
@@ -220,14 +220,14 @@ static void msg_release(kmsg_t *kmsg)
 	}
 
 	if (kmsg->o.bp != NULL) {
-		vm_pageFree(kmsg->o.bp);
+		vm_pageFree(kmsg->o.bp, (kmsg->src == NULL) ? NULL : kmsg->src->partition);
 		(void)vm_munmap(msg_common.kmap, kmsg->o.bvaddr, SIZE_PAGE);
 		kmsg->o.bp = NULL;
 	}
 
 	if (kmsg->o.eoffs != 0U) {
 		if (kmsg->o.ep != NULL) {
-			vm_pageFree(kmsg->o.ep);
+			vm_pageFree(kmsg->o.ep, (kmsg->src == NULL) ? NULL : kmsg->src->partition);
 		}
 		(void)vm_munmap(msg_common.kmap, kmsg->o.evaddr, SIZE_PAGE);
 		kmsg->o.eoffs = 0;
@@ -347,6 +347,21 @@ static int msg_opack(kmsg_t *kmsg)
 }
 
 
+static int msg_isAllowed(process_t *proc, port_t *p)
+{
+	if ((proc == NULL) || (p->owner == NULL) ||
+			(proc->partition == NULL) || (p->owner->partition == NULL) ||
+			((proc->partition->flags & (unsigned int)pFlagIPCAll) != 0U) ||
+			((p->owner->partition->flags & (unsigned int)pFlagIPCAll) != 0U)) {
+		return EOK;
+	}
+	if (p->owner->partition != proc->partition) {
+		return -EACCES;
+	}
+	return EOK;
+}
+
+
 int proc_send(u32 port, msg_t *msg)
 {
 	port_t *p;
@@ -367,6 +382,11 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	sender = proc_current();
+	err = msg_isAllowed(sender->process, p);
+	if (err != EOK) {
+		port_put(p, 0);
+		return err;
+	}
 
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
 	kmsg.src = sender->process;
@@ -449,6 +469,12 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
+	}
+
+	err = msg_isAllowed(proc_current()->process, p);
+	if (err != EOK) {
+		port_put(p, 0);
+		return err;
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
