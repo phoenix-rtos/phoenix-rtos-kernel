@@ -1178,10 +1178,20 @@ static void proc_spawnThread(void *arg)
 {
 	thread_t *current = proc_current();
 	process_spawn_t *spawn = arg;
+	spinlock_ctx_t sc;
+	int ret;
 
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL) {
-		(void)posix_clone(process_getPid(spawn->parent->process));
+		ret = posix_clone(process_getPid(spawn->parent->process));
+		if (ret < 0) {
+			hal_spinlockSet(&spawn->sl, &sc);
+			spawn->state = ret;
+			(void)proc_threadWakeup(&spawn->wq);
+			hal_spinlockClear(&spawn->sl, &sc);
+
+			proc_threadEnd();
+		}
 	}
 
 	process_exec(current, spawn);
@@ -1383,13 +1393,18 @@ static void process_vforkThread(void *arg)
 
 	current = proc_current();
 	parent = spawn->parent;
-	(void)posix_clone(process_getPid(parent->process));
+	ret = posix_clone(process_getPid(parent->process));
+	if (ret < 0) {
+		hal_spinlockSet(&spawn->sl, &sc);
+		spawn->state = ret;
+		(void)proc_threadWakeup(&spawn->wq);
+		hal_spinlockClear(&spawn->sl, &sc);
 
-	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
+		proc_threadEnd();
+	}
 
 	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
-	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	while (spawn->state < FORKING) {
@@ -1427,6 +1442,9 @@ static void process_vforkThread(void *arg)
 
 		proc_threadEnd();
 	}
+
+	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
+	pmap_switch(current->process->pmapp);
 
 	current->ustack = parent->ustack;
 
@@ -1503,6 +1521,13 @@ int proc_vfork(void)
 		(void)vm_objectPut(spawn->object);
 		ret = spawn->state;
 		vm_kfree(spawn);
+		if ((ret < 0) && (posix_getppid(pid) >= 0)) {
+			/*
+			 * if the child managed to register itself within posix subsystem before
+			 * failure, wait for its complete death and cleanup its posix metadata.
+			 */
+			(void)posix_waitpid(pid, NULL, 0);
+		}
 		return (ret < 0) ? ret : pid;
 	}
 
