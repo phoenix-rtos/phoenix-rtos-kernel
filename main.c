@@ -48,6 +48,9 @@ static void main_initthr(void *unused)
 	_hal_start();
 	_usrv_start();
 
+	/* Disable "killing" init thread */
+	proc_current()->sigmask = ~0U;
+
 	lib_printf("main: Starting syspage programs:");
 	syspage_progShow();
 
