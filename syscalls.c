@@ -236,9 +236,13 @@ int syscalls_spawnSyspage(u8 *ustack)
 int syscalls_sys_exit(u8 *ustack)
 {
 	int code;
+	unsigned int maskedCode;
 
 	GETFROMSTACK(ustack, int, code, 0U);
-	proc_exit(code);
+
+	maskedCode = (unsigned int)code & 0xffU;
+	proc_exit((int)maskedCode);
+
 	return EOK;
 }
 
