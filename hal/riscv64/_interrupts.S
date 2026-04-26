@@ -501,6 +501,63 @@ _interrupts_returnUnlocked:
 .size _interrupts_return, .-_interrupts_return
 
 
+.global hal_excjmp
+.type hal_excjmp, @function
+hal_excjmp:
+	ld ra, 0(a0)
+	ld sp, 8(a0)
+	ld s0, 16(a0)
+	ld s1, 24(a0)
+	ld s2, 32(a0)
+	ld s3, 40(a0)
+	ld s4, 48(a0)
+	ld s5, 56(a0)
+	ld s6, 64(a0)
+	ld s7, 72(a0)
+	ld s8, 80(a0)
+	ld s9, 88(a0)
+	ld s10, 96(a0)
+	ld s11, 104(a0)
+	ld a2, 112(a0)
+	csrw sstatus, a2
+
+	li a0, 1
+	ret
+.size hal_excjmp, .-hal_excjmp
+
+
+/* int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx) */
+.global hal_setexcjmp
+.type hal_setexcjmp, @function
+hal_setexcjmp:
+	sd ra, 0(a0)
+	sd sp, 8(a0)
+	sd s0, 16(a0)
+	sd s1, 24(a0)
+	sd s2, 32(a0)
+	sd s3, 40(a0)
+	sd s4, 48(a0)
+	sd s5, 56(a0)
+	sd s6, 64(a0)
+	sd s7, 72(a0)
+	sd s8, 80(a0)
+	sd s9, 88(a0)
+	sd s10, 96(a0)
+	sd s11, 104(a0)
+	csrr a2, sstatus
+	sd a2, 112(a0)
+
+	addi sp, sp, -16
+	sd ra, 8(sp)
+	call threads_setexcjmp
+	ld ra, 8(sp)
+	addi sp, sp, 16
+
+	li a0, 0
+	ret
+.size hal_setexcjmp, .-hal_setexcjmp
+
+
 .global hal_jmp  /* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
 .type hal_jmp, @function
 hal_jmp:
