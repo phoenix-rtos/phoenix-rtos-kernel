@@ -1026,7 +1026,7 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
-	if ((interruptible != 0U) && (_proc_current()->exit != 0U)) {
+	if ((interruptible != 0U) && (proc_current()->exit != 0U)) {
 		/* Waiting in this state can lead to becoming a hanging zombie */
 		hal_spinlockClear(&threads_common.spinlock, &tsc);
 		return -EINTR;
