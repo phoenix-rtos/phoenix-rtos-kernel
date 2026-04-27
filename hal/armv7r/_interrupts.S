@@ -289,3 +289,14 @@ _syscalls_dispatch:
 	add sp, sp, #8
 	b _hal_cpuRestoreCtx
 .size _syscalls_dispatch, .-_syscalls_dispatch
+
+
+.globl hal_setexcjmp /* int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx) */
+.type hal_setexcjmp, %function
+hal_setexcjmp:
+	/* FIXME: implement exception handling for armv7r */
+	mov r0, #0
+	bx lr
+
+.size hal_setexcjmp, .-hal_setexcjmp
+
