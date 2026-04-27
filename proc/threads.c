@@ -341,6 +341,9 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 void threads_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx)
 {
 	thread_t *current = proc_current();
+	if (current == NULL) {
+		return;
+	}
 
 	if (oldctx != NULL) {
 		*oldctx = current->excjmpctx;
@@ -351,7 +354,11 @@ void threads_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx)
 
 excjmp_context_t *threads_getexcjmp(void)
 {
-	return proc_current()->excjmpctx;
+	thread_t *current = proc_current();
+	if (current == NULL) {
+		return NULL;
+	}
+	return current->excjmpctx;
 }
 
 

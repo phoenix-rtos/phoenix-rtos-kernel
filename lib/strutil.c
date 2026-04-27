@@ -16,6 +16,7 @@
 #include "hal/hal.h"
 #include "vm/kmalloc.h"
 #include "lib/strutil.h"
+#include "proc/threads.h"
 
 static char *lib_strrchr(char *s, char c)
 {
@@ -32,13 +33,39 @@ static char *lib_strrchr(char *s, char c)
 }
 
 
+#define K_TRY(excctx, oldctx) if (!hal_setexcjmp(&excctx, &oldctx))
+
+#define K_CATCH(excctx, oldctx, op) \
+	else \
+	{ \
+		threads_setexcjmp(oldctx, NULL); \
+		op; \
+	} \
+	threads_setexcjmp(oldctx, NULL);
+
+
 char *lib_strdup(const char *str)
 {
-	size_t len = hal_strlen(str) + 1U;
-	char *ptr = vm_kmalloc(len);
+	volatile size_t len;
+	char *ptr = NULL;
+	excjmp_context_t excctx, *oldctx;
+
+	K_TRY(excctx, oldctx)
+	{
+		len = hal_strlen(str) + 1U;
+	}
+	K_CATCH(excctx, oldctx, return NULL);
+
+	ptr = vm_kmalloc(len);
 
 	if (ptr != NULL) {
-		hal_memcpy(ptr, str, len);
+		K_TRY(excctx, oldctx)
+		{
+			hal_memcpy(ptr, str, len);
+		}
+		K_CATCH(excctx, oldctx,
+				vm_kfree(ptr);
+				return NULL;);
 	}
 
 	return ptr;
