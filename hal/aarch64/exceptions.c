@@ -172,12 +172,56 @@ void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 }
 
 
+#define MAX_TRACE_DEPTH 100
+// static volatile u32 _trace_lock = 0;
+
+
+void exceptions_dumpTraceOnBrk(char *buff, exc_context_t *ctx)
+{
+	int i;
+	u64 fp, lr, prev_fp;
+	unsigned long ret;
+
+	fp = ctx->cpuCtx.x[29];
+
+	hal_consolePrint(ATTR_BOLD, "Stack trace\n\0");
+
+	for (i = 0; i < MAX_TRACE_DEPTH; i++) {
+		prev_fp = *(u64 *)(fp);
+		lr = *(u64 *)(fp + 8);
+
+		ret = hal_i2s("lr=", buff, lr, 16U, 1U);
+		ret += hal_i2s(" fp=", &buff[ret], fp, 16u, 1u);
+		buff[ret++] = '\n';
+		buff[ret] = '\0';
+
+		hal_consolePrint(ATTR_BOLD, buff);
+
+		if (lr == 0 || prev_fp == 0)
+			break;
+
+		fp = prev_fp;
+	}
+
+	ret = hal_i2s("Stack trace done at level ", buff, i, 16U, 1U);
+	buff[ret++] = '\n';
+	buff[ret] = '\0';
+	hal_consolePrint(ATTR_BOLD, buff);
+}
+
+
 static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 {
 	char buff[SIZE_CTXDUMP];
 
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
+
+	if (EXC_BRK_AA64 == n) {
+		/* On BRK exception perform simple backtrace */
+		hal_consolePrint(ATTR_BOLD, "Stack trace\n\0");
+		exceptions_dumpTraceOnBrk(buff, ctx);
+	}
 
 #ifdef NDEBUG
 	hal_cpuReboot();

@@ -57,4 +57,6 @@ typedef struct _exc_context_t {
 	cpu_context_t cpuCtx;
 } exc_context_t;
 
+void exceptions_dumpTraceOnBrk(char *, exc_context_t *);
+
 #endif

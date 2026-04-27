@@ -405,6 +405,27 @@ void hal_wdgReload(void)
 {
 }
 
+static void zynqmp_allowCacheManagement(void)
+{
+	volatile u64 sctlr_el1;
+
+	__asm__ volatile(
+			"mrs %0, sctlr_el1"
+			: "=r"(sctlr_el1)
+			:
+			: "memory");
+	/* Todo: Check if implemented, and if so enable cache management from EL0 */
+}
+
+static void zynqmp_forbidCacheManagement(void)
+{
+	/* Todo: Check if implemented, and if so disable cache management from EL0 */
+}
+
+static int zynqmp_getCacheManagement(void)
+{
+	return 0;
+}
 
 int hal_platformctl(void *ptr)
 {
@@ -470,6 +491,32 @@ int hal_platformctl(void *ptr)
 			else {
 				/* No action required */
 			}
+			break;
+		case pctl_cache:
+			if ((data->action == pctl_set)) {
+				if (data->cache.priv == el0_management_forbid) {
+					zynqmp_forbidCacheManagement();
+				}
+				else if (data->cache.priv == el0_management_allow) {
+					zynqmp_allowCacheManagement();
+				}
+				else if (data->cache.priv == cache_flush) {
+					hal_cpuFlushDataCache((ptr_t)data->cache.start, (ptr_t)data->cache.end);
+				}
+				else if (data->cache.priv == cache_invalidate) {
+					hal_cpuInvalDataCache((ptr_t)data->cache.start, (ptr_t)data->cache.end);
+				}
+			}
+			else if (data->action == pctl_get) {
+				if (zynqmp_getCacheManagement() == 0) {
+					data->cache.priv = el0_management_forbid;
+				}
+				else {
+					data->cache.priv = el0_management_allow;
+				}
+			}
+			ret = 0;
+
 			break;
 
 		default:

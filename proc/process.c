@@ -257,6 +257,9 @@ void process_dumpException(unsigned int n, exc_context_t *ctx)
 	hal_exceptionsDumpContext(buff, ctx, n);
 	hal_consolePrint(ATTR_BOLD, buff);
 
+	// /* Drop stack trace on exception */
+	exceptions_dumpTraceOnBrk(buff, ctx);
+
 	(void)posix_write(2, buff, hal_strlen(buff), -1);
 	(void)posix_write(2, "\n", 1, -1);
 

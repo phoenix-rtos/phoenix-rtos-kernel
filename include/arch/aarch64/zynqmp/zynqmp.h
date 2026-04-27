@@ -126,7 +126,7 @@ enum {
 typedef struct {
 	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclock = 0, pctl_mioclock, pctl_mio, pctl_devreset, pctl_reboot } type;
+	enum { pctl_devclock = 0, pctl_mioclock, pctl_mio, pctl_devreset, pctl_reboot, pctl_cache } type;
 	/* clang-format on */
 	union {
 		struct {
@@ -155,6 +155,12 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+
+		struct {
+			enum { el0_management_forbid = 0, el0_management_allow, cache_flush, cache_invalidate } priv;
+			void *start;
+			void *end;
+		} cache;
 	};
 } __attribute__((packed)) platformctl_t;
 
