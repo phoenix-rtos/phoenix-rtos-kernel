@@ -358,3 +358,14 @@ hal_exceptionJump:
 
 .size hal_exceptionJump, .-hal_exceptionJump
 .ltorg
+
+
+.globl hal_setexcjmp /* int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx) */
+.type hal_setexcjmp, %function
+hal_setexcjmp:
+	/* FIXME: implement exception handling for armv8m */
+	mov r0, #0
+	bx lr
+
+.size hal_setexcjmp, .-hal_setexcjmp
+

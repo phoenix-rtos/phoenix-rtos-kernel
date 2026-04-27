@@ -1160,3 +1160,14 @@ hal_jmp:
 	/* safely jump to userspace through trap */
 	ta 0xc
 .size hal_jmp, . - hal_jmp
+
+
+/* int hal_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx) */
+.global hal_setexcjmp
+.type hal_setexcjmp, #function
+hal_setexcjmp:
+	/* FIXME: implement exception handling for sparcv8leon */
+	clr %i0
+	retl
+	nop
+.size hal_setexcjmp, . - hal_setexcjmp
