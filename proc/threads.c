@@ -863,7 +863,6 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	// t->bufferStart = NULL;
 	// t->bufferEnd = NULL;
 	t->mappedTo = NULL;
-	t->mappedFrom = NULL;
 	// t->mappedBase = NULL;
 
 	if (thread_alloc(t) < 0) {
@@ -3277,27 +3276,12 @@ static void *_mapBufferUnaligned(
 
 void threads_releaseIpcBuffers(thread_t *thread)
 {
-	thread_t *mappedFrom, *mappedTo;
+	thread_t *mappedTo;
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	mappedTo = thread->mappedTo;
-	if (thread->mappedTo != NULL) {
-		thread->mappedTo->mappedFrom = NULL;
-		thread->mappedTo = NULL;
-	}
-
-	mappedFrom = thread->mappedFrom;
-	if (thread->mappedFrom != NULL) {
-		thread->mappedFrom->mappedTo = NULL;
-		thread->mappedFrom = NULL;
-	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
-
-	if (mappedFrom != NULL) {
-		threads_ipcBufferRelease(&mappedFrom->utcb.iil);
-		threads_ipcBufferRelease(&mappedFrom->utcb.oil);
-	}
 
 	if (mappedTo != NULL) {
 		threads_ipcBufferRelease(&thread->utcb.iil);
@@ -3358,7 +3342,6 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t
 		}
 
 		t->mappedTo = recv;
-		recv->mappedFrom = t;
 
 		il->mappedBase = w;
 		il->bufferStart = buf;

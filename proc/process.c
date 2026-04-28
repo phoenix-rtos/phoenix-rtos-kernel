@@ -1574,10 +1574,7 @@ static int process_execve(thread_t *current)
 	LIB_ASSERT(current->called == NULL, "heh, called");
 	LIB_ASSERT(current->passive == 0, "heh, passive?");
 	LIB_ASSERT(current->inherited == NULL, "heh, inherited?");
-	proc_freeUtcb(current);
 
-	// LIB_ASSERT(current->mappedTo == NULL, "ok 1");
-	LIB_ASSERT(current->mappedFrom == NULL, "ok 2");
 	threads_releaseIpcBuffers(current);
 
 	/* Restore kernel stack of parent thread */

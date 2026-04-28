@@ -181,7 +181,6 @@ typedef struct _thread_t {
 
 	/* Message buffer */
 	struct _thread_t *mappedTo;
-	struct _thread_t *mappedFrom;
 } thread_t;
 
 
