@@ -2595,7 +2595,8 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		recv->utcb.msg->i.size = isize;
 	}
 	else {
-		// threads_ipcBufferRelease(&caller->utcb.iil);
+		threads_ipcBufferRelease(&caller->utcb.iil);
+		caller->mappedTo = NULL;
 
 		if (caller->utcb.msglen > rawSz) {
 			hal_memcpy((void *)recv->utcb.msg->i.data, caller->utcb.msgbuf + rawSz, caller->utcb.msglen - rawSz);
@@ -2614,7 +2615,8 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		}
 	}
 	else {
-		// threads_ipcBufferRelease(&caller->utcb.oil);
+		threads_ipcBufferRelease(&caller->utcb.oil);
+		caller->mappedTo = NULL;
 	}
 
 	recv->utcb.msg->o.size = osize;
