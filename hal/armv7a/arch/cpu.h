@@ -44,6 +44,7 @@
 #define NO_INT      (NO_IRQ | NO_FIQ) /* mask to disable IRQ and FIQ */
 #define THUMB_STATE 0x20U
 
+#define KERNEL_SPINLOCK_ARM_M 0
 
 #ifndef __ASSEMBLY__
 

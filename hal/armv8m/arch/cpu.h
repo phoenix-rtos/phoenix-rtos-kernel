@@ -54,6 +54,8 @@
 #define USERCONTROL     0x3U
 #endif
 
+#define KERNEL_SPINLOCK_ARM_M 1
+
 #ifndef __ASSEMBLY__
 
 #include "hal/arm/scs.h"

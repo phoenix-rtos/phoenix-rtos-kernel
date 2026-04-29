@@ -18,6 +18,8 @@
 
 #define SIZE_INTERRUPTS (171U + 16U)
 
+#define NUM_CPUS 1
+
 #ifndef __ASSEMBLY__
 
 #include "include/arch/armv8m/mcx/syspage.h"

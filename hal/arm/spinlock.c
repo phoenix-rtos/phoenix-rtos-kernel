@@ -3,19 +3,27 @@
  *
  * Operating system kernel
  *
- * Spinlock
+ * Spinlock implementation for ARM CPUs
  *
- * Copyright 2017, 2023, 2024 Phoenix Systems
- * Author: Pawel Pisarczyk, Hubert Badocha
+ * Copyright 2017, 2023, 2024, 2026 Phoenix Systems
+ * Author: Pawel Pisarczyk, Damian Loewnau, Hubert Badocha, Jacek Maksymowicz
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
-#include "hal/spinlock.h"
+#include "hal/cpu.h"
 #include "hal/list.h"
+#include "lib/lib.h"
+#include "config.h"
 
+#ifndef KERNEL_SPINLOCK_ARM_M
+#error "KERNEL_SPINLOCK_ARM_M must be defined (1 for Cortex-M CPU, 0 for other ARM CPU)"
+#endif
+
+
+_Static_assert(offsetof(spinlock_t, lock) == 0U, "lock field must be first in the structure");
 
 static struct {
 	spinlock_t spinlock;
@@ -25,23 +33,31 @@ static struct {
 
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
+	u32 tmp;
 	/* clang-format off */
 	__asm__ volatile (
-		"mrs r2, cpsr\n\t"
-		"cpsid if\n\t"
-		"strb r2, [%0]\n\t"
-		"mov r3, #0\n"
-	"1:\n\t"
-		"ldrexb r2, [%1]\n\t"
-		"cmp r2, #0\n\t"
-		"beq 1b\n\t"
-		"strexb r2, r3, [%1]\n\t"
-		"cmp r2, #0\n\t"
-		"bne 1b\n\t"
-		"dmb"
-	:
-	: "r" (sc), "r" (&spinlock->lock)
-	: "r2", "r3", "memory", "cc");
+#if KERNEL_SPINLOCK_ARM_M
+		"mrs %[tmp], primask\n"
+		"cpsid i\n"
+#else
+		"mrs %[tmp], cpsr\n"
+		"cpsid if\n"
+#endif
+	: [tmp] "=r" (tmp));
+	*sc = tmp;
+
+	__asm__ volatile (
+	"1:\n"
+		"ldrexb %[tmp], [%[lock]]\n"
+		"cmp %[tmp], #0\n"
+		"beq 1b\n"
+		"strexb %[tmp], %[zero], [%[lock]]\n"
+		"cmp %[tmp], #0\n"
+		"bne 1b\n"
+		"dmb\n"
+	: [tmp] "=&r" (tmp) /* `tmp` cannot share register with `zero` or `lock` */
+	: [lock] "r" (&spinlock->lock), [zero] "r" (0)
+	: "memory", "cc");
 	/* clang-format on */
 }
 
@@ -51,24 +67,26 @@ void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 	/* clang-format off */
 	__asm__ volatile (
 		"dmb\n"
-	"1:\n\t"
-		"ldrexb r2, [%0]\n\t"
-		"add r2, r2, #1\n\t"
-		"strexb r3, r2, [%0]\n\t"
-		"cmp r3, #0\n\t"
-		"bne 1b\n\t"
-		"ldrb r2, [%1]\n\t"
-		"msr cpsr_c, r2"
+		"strb %[one], [%[lock]]\n"
 	:
-	: "r" (&spinlock->lock), "r" (sc)
-	: "r2", "r3", "memory");
+	: [one] "r" (1), [lock] "r" (&spinlock->lock)
+	: "memory");
+
+	__asm__ volatile (
+#if KERNEL_SPINLOCK_ARM_M
+		"msr primask, %[tmp]\n"
+#else
+		"msr cpsr_c, %[tmp]\n"
+#endif
+	:
+	: [tmp] "r" (*sc));
 	/* clang-format on */
 }
 
 
 static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 {
-	spinlock->lock = 1;
+	spinlock->lock = 1U;
 
 	spinlock->name = name;
 

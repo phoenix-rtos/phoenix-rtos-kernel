@@ -21,6 +21,8 @@
 #define TIMER_US2CYC(x) (x)
 #define TIMER_CYC2US(x) (x)
 
+#define NUM_CPUS 1
+
 #ifndef __ASSEMBLY__
 #include "hal/types.h"
 #include "include/arch/armv7m/imxrt/syspage.h"
