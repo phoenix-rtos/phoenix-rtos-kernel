@@ -28,6 +28,7 @@ page_t *vm_pageAlloc(size_t size, vm_flags_t flags);
 void vm_pageFree(page_t *p);
 
 
+/* returns NULL when addr is outside of defined physical maps (MMU) */
 page_t *page_get(addr_t addr);
 
 

@@ -1174,14 +1174,31 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 }
 
 
+__attribute__((noreturn)) static void proc_spawnThreadEnd(process_spawn_t *spawn, int state)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&spawn->sl, &sc);
+	spawn->state = state;
+	(void)proc_threadWakeup(&spawn->wq);
+	hal_spinlockClear(&spawn->sl, &sc);
+
+	proc_threadEnd();
+}
+
+
 static void proc_spawnThread(void *arg)
 {
 	thread_t *current = proc_current();
 	process_spawn_t *spawn = arg;
+	int ret;
 
 	/* temporary: create new posix process */
 	if (spawn->parent != NULL) {
-		(void)posix_clone(process_getPid(spawn->parent->process));
+		ret = posix_clone(process_getPid(spawn->parent->process));
+		if (ret < 0) {
+			proc_spawnThreadEnd(spawn, ret);
+		}
 	}
 
 	process_exec(current, spawn);
@@ -1324,27 +1341,23 @@ static void process_restoreParentKstack(thread_t *current, thread_t *parent)
 
 static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
 {
-	spinlock_ctx_t sc;
-
 	current->ustack = NULL;
 	proc_changeMap(current->process, NULL, NULL, NULL);
+
+	proc_kill(current->process);
 
 	/* Only possible in the case of `initthread` exit or failure to fork. */
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
 		(void)vm_objectPut(spawn->object);
+
+		proc_threadEnd();
 	}
 	else {
 		process_restoreParentKstack(current, spawn->parent);
 
-		hal_spinlockSet(&spawn->sl, &sc);
-		spawn->state = state;
-		(void)proc_threadWakeup(&spawn->wq);
-		hal_spinlockClear(&spawn->sl, &sc);
+		proc_spawnThreadEnd(spawn, state);
 	}
-
-	proc_kill(current->process);
-	proc_threadEnd();
 }
 
 
@@ -1383,13 +1396,13 @@ static void process_vforkThread(void *arg)
 
 	current = proc_current();
 	parent = spawn->parent;
-	(void)posix_clone(process_getPid(parent->process));
-
-	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
+	ret = posix_clone(process_getPid(spawn->parent->process));
+	if (ret < 0) {
+		proc_spawnThreadEnd(spawn, ret);
+	}
 
 	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
-	pmap_switch(current->process->pmapp);
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	while (spawn->state < FORKING) {
@@ -1400,12 +1413,7 @@ static void process_vforkThread(void *arg)
 	/* Copy parent kernel stack */
 	current->parentkstack = vm_kmalloc(process_parentKstacksz(parent));
 	if (current->parentkstack == NULL) {
-		hal_spinlockSet(&spawn->sl, &sc);
-		spawn->state = -ENOMEM;
-		(void)proc_threadWakeup(&spawn->wq);
-		hal_spinlockClear(&spawn->sl, &sc);
-
-		proc_threadEnd();
+		proc_spawnThreadEnd(spawn, -ENOMEM);
 	}
 
 	hal_memcpy(current->parentkstack, hal_cpuGetSP(parent->context), process_parentKstacksz(parent));
@@ -1420,13 +1428,11 @@ static void process_vforkThread(void *arg)
 	if (ret < 0) {
 		vm_kfree(current->parentkstack);
 
-		hal_spinlockSet(&spawn->sl, &sc);
-		spawn->state = ret;
-		(void)proc_threadWakeup(&spawn->wq);
-		hal_spinlockClear(&spawn->sl, &sc);
-
-		proc_threadEnd();
+		proc_spawnThreadEnd(spawn, ret);
 	}
+
+	proc_changeMap(current->process, parent->process->mapp, parent->process->imapp, parent->process->pmapp);
+	pmap_switch(current->process->pmapp);
 
 	current->ustack = parent->ustack;
 
@@ -1503,6 +1509,13 @@ int proc_vfork(void)
 		(void)vm_objectPut(spawn->object);
 		ret = spawn->state;
 		vm_kfree(spawn);
+		if ((ret < 0) && (posix_getppid(pid) >= 0)) {
+			/*
+			 * if the child managed to register itself within posix subsystem before
+			 * failure, wait for its complete death and cleanup its posix metadata.
+			 */
+			(void)posix_waitpid(pid, NULL, 0);
+		}
 		return (ret < 0) ? ret : pid;
 	}
 
