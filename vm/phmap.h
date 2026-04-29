@@ -22,7 +22,7 @@
 
 #define PHADDR_INVALID ((addr_t) - 1)
 
-typedef u8 page_flags_t;  // TODO: should it exist? separate commit?
+typedef u8 page_flags_t;
 
 
 /* allocates continous fragment of size *size or less if unavailable, updates *size accordingly*/

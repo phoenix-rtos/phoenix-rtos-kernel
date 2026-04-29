@@ -15,8 +15,10 @@
 
 #include "hal/hal.h"
 #include "include/syspage.h"
+#include "lib/assert.h"
 #include "lib/lib.h"
 #include "lib/rb.h"
+#include "log/log.h"
 #include "proc/lock.h"
 #include "proc/proc.h"
 #include "include/errno.h"
@@ -385,10 +387,20 @@ static ph_map_t *phmap_mapOfAddr(addr_t addr)
 	return NULL;
 }
 
-
+#ifdef NOMMU
+addr_t vm_phAlloc(size_t *size, page_flags_t page_flags, vm_flags_t vm_flags, syspage_part_t *partition)
+{
+	void *ret_addr = __builtin_return_address(0);
+	char c[128];
+	lib_sprintf(c, "vm_phAlloc called with size %x, pf %x, vf %x, called from %p\n", *size, page_flags, vm_flags, ret_addr);
+	hal_consolePrint(ATTR_NORMAL, c);
+	// LIB_ASSERT_ALWAYS(0, "phAlloc");
+	return 0U;
+}
+#else
 // TODO: should specify "whose" maps are allowed. At least kernel/proc_curent. could use page_flags & PAGE_OWNER_
 // TODO: should allow to choose a particular map (could be other function, could export _phmap_alloc)
-addr_t vm_phAlloc(size_t *size, page_flags_t page_flags, vm_flags_t vm_flags, syspage_part_t* partition)
+addr_t vm_phAlloc(size_t *size, page_flags_t page_flags, vm_flags_t vm_flags, syspage_part_t *partition)
 {
 	ph_map_t *map;
 	ph_entry_t *e;
@@ -460,6 +472,7 @@ addr_t vm_phAlloc(size_t *size, page_flags_t page_flags, vm_flags_t vm_flags, sy
 	}
 	return PHADDR_INVALID;
 }
+#endif
 
 
 static void _vm_phmapEntrySplit(ph_map_t *m, ph_entry_t *e, ph_entry_t *new, size_t len)
@@ -479,7 +492,7 @@ static void _vm_phmapEntrySplit(ph_map_t *m, ph_entry_t *e, ph_entry_t *new, siz
 }
 
 
-int vm_phFree(addr_t addr, size_t size, syspage_part_t* partition)
+int vm_phFree(addr_t addr, size_t size, syspage_part_t *partition)
 {
 	ph_entry_t *e, *s;
 	ph_entry_t t;
@@ -605,7 +618,10 @@ int vm_mappages(pmap_t *pmap, void *vaddr, addr_t pa, size_t size, vm_attr_t att
 	page_t *ap;
 	size_t s = SIZE_PAGE;
 
-	LIB_ASSERT_ALWAYS(vaddr == NULL || (pa != PHADDR_INVALID && pa != 0U), "LOL %p %x", vaddr, pa);
+	void *ret_addr = __builtin_return_address(0);
+	char c[128];
+	lib_sprintf(c, "mappages %p, %p, %x, called from %p\n", vaddr, (void *)pa, attr, ret_addr);
+	hal_consolePrint(ATTR_NORMAL, c);
 
 	for (; i < size; i += SIZE_PAGE) {
 		ap = NULL;
@@ -785,6 +801,7 @@ static int _phmap_mapsInit(pmap_t *kpmap, void **bss, void **top, ph_entry_t *in
 
 				size = sysEntry->end - sysEntry->start;
 				size = (size + PH_ALIGN - 1U) & ~(PH_ALIGN - 1U);
+				addr = sysEntry->start;
 				err = _phmap_alloc(phmap, &addr, size, PAGE_OWNER_BOOT, MAP_FIXED, NULL);
 				if (err != EOK) {
 					return -ENOMEM;
@@ -867,14 +884,14 @@ void _vm_phmap_init(pmap_t *kpmap, void **bss, void **top)
 	do {
 		ent = map->entries;
 		freesz += (map->end - map->start);
-		while (ent != NULL) {
+		do {
 			if (ent->type == hal_entryTemp) {
 				continue;
 			}
 			freesz -= (ent->end - ent->start);
 			allocsz += (ent->end - ent->start);
 			ent = ent->next;
-		}
+		} while (ent != map->entries);
 		map = map->next;
 	} while (map != syspage_mapList());
 #else
