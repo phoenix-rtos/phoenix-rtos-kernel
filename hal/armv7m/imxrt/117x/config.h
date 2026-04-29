@@ -21,6 +21,8 @@
 #define TIMER_US2CYC(x) (x)
 #define TIMER_CYC2US(x) (x)
 
+#define CPU_SUPPORTS_TIMER_WAKEUP 1 /* if the function hal_timerSetWakeup is supported on this architecture */
+
 #ifndef __ASSEMBLY__
 #include "hal/types.h"
 #include "include/arch/armv7m/imxrt/syspage.h"

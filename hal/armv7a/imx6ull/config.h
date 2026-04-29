@@ -23,6 +23,8 @@
 
 #define TIMER_IRQ_ID 88U
 
+#define CPU_SUPPORTS_TIMER_WAKEUP 1 /* if the function hal_timerSetWakeup is supported on this architecture */
+
 #ifndef __ASSEMBLY__
 
 #define HAL_NAME_PLATFORM "NXP i.MX 6ULL "

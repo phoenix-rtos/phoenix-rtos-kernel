@@ -21,6 +21,8 @@
 #define SIZE_INTERRUPTS 188U
 #define TIMER_IRQ_ID    68U
 
+#define CPU_SUPPORTS_TIMER_WAKEUP 0 /* if the function hal_timerSetWakeup is supported on this architecture */
+
 #ifndef __ASSEMBLY__
 
 #define HAL_NAME_PLATFORM "Xilinx Zynq Ultrascale+ "

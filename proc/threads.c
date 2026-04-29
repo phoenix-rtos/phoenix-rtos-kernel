@@ -165,6 +165,7 @@ static void _threads_waking(thread_t *t)
  */
 
 
+#if CPU_SUPPORTS_TIMER_WAKEUP
 static void _threads_updateWakeup(time_t now, thread_t *minimum)
 {
 	thread_t *t;
@@ -195,6 +196,11 @@ static void _threads_updateWakeup(time_t now, thread_t *minimum)
 
 	hal_timerSetWakeup((unsigned int)wakeup);
 }
+#else
+static void _threads_updateWakeup(time_t now, thread_t *minimum)
+{
+}
+#endif
 
 
 static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
