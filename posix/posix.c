@@ -667,40 +667,46 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 					break;
 				}
 
-				if (proc_lookup("/dev/posix/pipes", NULL, &srv) >= 0) {
-					if (oid.port == srv.port) {
-						f->type = ftPipe;
+				/*
+				 * first, check if the device reports its mode
+				 * if not: check the filesystem node
+				 * finally: report files that don't report attr at all as regular files
+				 */
+				if (posix_getAttr(f->oid, atMode, &attr) < 0) {
+					if (posix_getAttr(f->ln, atMode, &attr) < 0) {
+						f->type = ftRegular;
 						break;
 					}
 				}
 
-				if (posix_getAttr(f->ln, atMode, &attr) < 0) {
-					/* report files that don't report attr as regular files */
-					f->type = ftRegular;
-					break;
+				mode = (mode_t)attr;
+				if (S_ISCHR(mode)) {
+					/*
+					 * FIXME: for now, we treat every character device as
+					 * a TTY. This behavior should be fixed as it changes
+					 * the behavior of e.g. posix_fstat() and ioctl().
+					 */
+					f->type = ftTty;
 				}
-				else {
-					mode = (mode_t)attr;
-					if (S_ISCHR(mode)) {
-						/*
-						 * FIXME: for now, we treat every character device as
-						 * a TTY. This behavior should be fixed as it changes
-						 * the behavior of e.g. posix_fstat() and ioctl().
-						 */
-						f->type = ftTty;
-					}
-					else if (S_ISFIFO(mode)) {
-						f->type = ftFifo;
+				else if (S_ISFIFO(mode)) {
+					/*
+					 * FIXME: after fixing the file type to be properly
+					 * handled, get rid of this lookup
+					 */
+					if (proc_lookup("/dev/posix/pipes", NULL, &srv) >= 0 && oid.port == srv.port) {
+						f->type = ftPipe;
 					}
 					else {
-						/*
-						 * FIXME: add new types to ft* enum as for now we treat
-						 * all other entities, e.g. links, block devices,
-						 * directories as regular files.
-						 */
-						f->type = ftRegular;
+						f->type = ftFifo;
 					}
-					break;
+				}
+				else {
+					/*
+					 * FIXME: add new types to ft* enum as for now we treat
+					 * all other entities, e.g. links, block devices,
+					 * directories as regular files.
+					 */
+					f->type = ftRegular;
 				}
 			} while (0);
 
