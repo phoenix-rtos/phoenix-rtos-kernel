@@ -194,10 +194,6 @@ void timer_setAlarm(time_t us)
 }
 
 
-void hal_timerSetWakeup(u32 waitUs)
-{
-}
-
 /* Interface functions */
 
 time_t hal_timerGetUs(void)

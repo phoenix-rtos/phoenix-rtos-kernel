@@ -96,11 +96,6 @@ static time_t hal_timerGetCyc(void)
 }
 
 
-void hal_timerSetWakeup(u32 waitUs)
-{
-}
-
-
 time_t hal_timerGetUs(void)
 {
 	time_t ret = hal_timerGetCyc();

@@ -86,11 +86,6 @@ time_t hal_timerGetUs(void)
 }
 
 
-void hal_timerSetWakeup(u32 waitUs)
-{
-}
-
-
 int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 {
 	h->f = f;

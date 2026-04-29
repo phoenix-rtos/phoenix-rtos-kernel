@@ -137,12 +137,6 @@ static u64 hal_timerGetCyc(void)
 }
 
 
-void hal_timerSetWakeup(u32 waitUs)
-{
-	/* Sleep mode not implemented on this platform */
-}
-
-
 static void timer_setPrescaler(u32 freq)
 {
 	u64 ticks;

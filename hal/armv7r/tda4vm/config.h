@@ -19,6 +19,8 @@
 
 #define NUM_CPUS 1
 
+#define CPU_SUPPORTS_TIMER_WAKEUP 0 /* if the function hal_timerSetWakeup is supported on this architecture */
+
 #ifndef __ASSEMBLY__
 
 #define HAL_NAME_PLATFORM "TI K3 J721e SoC "
