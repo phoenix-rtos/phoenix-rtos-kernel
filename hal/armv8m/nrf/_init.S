@@ -265,19 +265,14 @@ hal_cpuReschedule:
 	eor r0, r0, r0 /* default return value */
 	bl _hal_invokePendSV
 	pop {r1-r3, lr}
+	/* If spinlock not NULL, clear it */
 	cmp r1, #0
 	beq hal_cpuReschedule0
-	push {r3-r4}
-	add r1, r1, #12
-
-spinlock:
-	ldrexb r3, [r1]
-	add r3, r3, #1
+	push {r3}
+	mov r3, #1
 	dmb
-	strexb r4, r3, [r1]
-	cmp r4, #0
-	bne spinlock
-	pop {r3-r4}
+	strb r3, [r1]
+	pop {r3}
 hal_cpuReschedule0:
 	cpsie if
 	isb

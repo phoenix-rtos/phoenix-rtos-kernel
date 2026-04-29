@@ -263,15 +263,11 @@ hal_cpuReschedule:
 	push {r4, lr}
 	movs r4, r0
 	bl _hal_invokePendSV
+	/* If spinlock not NULL, clear it */
 	cbz r4, .Lhal_cpuReschedule0
-	adds r4, r4, #12
-.Lspinlock:
-	ldrexb r2, [r4]
-	adds r2, r2, #1
+	mov r2, #1
 	dmb
-	strexb r3, r2, [r4]
-	cmp r3, #0
-	bne .Lspinlock
+	strb r2, [r4]
 .Lhal_cpuReschedule0:
 	pop {r4, lr}
 	movs r0, #0 /* default return value */

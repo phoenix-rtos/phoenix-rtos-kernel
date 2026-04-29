@@ -16,6 +16,8 @@
 #ifndef _PH_HAL_CONFIG_H_
 #define _PH_HAL_CONFIG_H_
 
+#define NUM_CPUS 1
+
 #ifndef __ASSEMBLY__
 
 #include "include/arch/armv8m/nrf/syspage.h"

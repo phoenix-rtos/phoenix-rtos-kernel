@@ -14,7 +14,8 @@ else
   $(error Unsupported TARGET)
 endif
 
-CFLAGS += -Ihal/armv7r
+CFLAGS += -Ihal/armv7r -Ihal/arm
 
+OBJS += $(addprefix $(PREFIX_O)hal/arm/, spinlock.o)
 OBJS += $(addprefix $(PREFIX_O)hal/armv7r/, _armv7r.o _interrupts.o _memcpy.o _memset.o \
-  cpu.o exceptions.o hal.o pmap.o spinlock.o string.o)
+cpu.o exceptions.o hal.o pmap.o string.o)
