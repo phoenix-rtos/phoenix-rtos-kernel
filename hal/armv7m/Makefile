@@ -7,13 +7,14 @@
 
 ifneq (, $(findstring stm32, $(TARGET_SUBFAMILY)))
     include hal/armv7m/stm32/Makefile
-    CFLAGS += -Ihal/armv7m/stm32 -Ihal/armv7m
+    CFLAGS += -Ihal/armv7m/stm32
 else ifneq (, $(findstring imxrt, $(TARGET_SUBFAMILY)))
     include hal/armv7m/imxrt/Makefile
-    CFLAGS += -Ihal/armv7m/imxrt -Ihal/armv7m
+    CFLAGS += -Ihal/armv7m/imxrt
 endif
 
 include hal/arm/Makefile
-CFLAGS += -Ihal/arm
+CFLAGS += -Ihal/armv7m -Ihal/arm -DKERNEL_SPINLOCK_ARM_M=1
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv7m/, string.o spinlock.o cpu.o hal.o pmap.o exceptions.o _memcpy.o _memset.o)
+OBJS += $(addprefix $(PREFIX_O)hal/arm/, spinlock.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv7m/, string.o cpu.o hal.o pmap.o exceptions.o _memcpy.o _memset.o)
