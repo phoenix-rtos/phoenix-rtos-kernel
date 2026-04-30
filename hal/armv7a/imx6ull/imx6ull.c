@@ -226,7 +226,7 @@ static int _imx6ull_setIOpad(int pad, u8 hys, u8 pus, u8 pue, u8 pke, u8 ode, u8
 		/* No action required*/
 	}
 
-	t = (((u32)hys & 0x1U) << 16) | (((u32)pus & 0x3U) << 14) | (((u32)pue & 0x1U) << 13) | ((u32)pke << 12);
+	t = (((u32)hys & 0x1U) << 16) | (((u32)pus & 0x3U) << 14) | (((u32)pue & 0x1U) << 13) | (((u32)pke & 0x1U) << 12);
 	t |= (((u32)ode & 0x1U) << 11) | (((u32)speed & 0x3U) << 6) | (((u32)dse & 0x7U) << 3) | ((u32)sre & 0x1U);
 	*(base + pad) = t;
 
