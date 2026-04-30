@@ -183,11 +183,25 @@ void syspage_progShow(void)
 }
 
 
+syspage_sched_t *syspage_schedulerConfig(void)
+{
+	return syspage_common.syspage->sched;
+}
+
+
+syspage_part_t *syspage_partitionList(void)
+{
+	return syspage_common.syspage->partitions;
+}
+
+
 void syspage_init(void)
 {
 	syspage_prog_t *prog;
+	syspage_part_t *part;
 	syspage_map_t *map;
 	mapent_t *entry;
+	unsigned int i;
 
 	syspage_common.syspage = (syspage_t *)hal_syspageAddr();
 
@@ -225,7 +239,33 @@ void syspage_init(void)
 			prog->dmaps = hal_syspageRelocate(prog->dmaps);
 			prog->imaps = hal_syspageRelocate(prog->imaps);
 			prog->argv = hal_syspageRelocate(prog->argv);
+			prog->partition = hal_syspageRelocate(prog->partition);
+			prog->hal = hal_syspageRelocate(prog->hal);
 			prog = prog->next;
 		} while (prog != syspage_common.syspage->progs);
+	}
+
+	/* Partition's relocation */
+	if (syspage_common.syspage->partitions != NULL) {
+		syspage_common.syspage->partitions = hal_syspageRelocate(syspage_common.syspage->partitions);
+		part = syspage_common.syspage->partitions;
+
+		do {
+			part->next = hal_syspageRelocate(part->next);
+			part->prev = hal_syspageRelocate(part->prev);
+
+			part->name = hal_syspageRelocate(part->name);
+			part->hal = hal_syspageRelocate(part->hal);
+
+			part = part->next;
+		} while (part != syspage_common.syspage->partitions);
+	}
+
+	/* Scheduler configuration relocation */
+	if (syspage_common.syspage->sched != NULL) {
+		syspage_common.syspage->sched = hal_syspageRelocate(syspage_common.syspage->sched);
+		for (i = 0; i < syspage_common.syspage->sched->cycleCnt; ++i) {
+			syspage_common.syspage->sched->cycles[i] = hal_syspageRelocate(syspage_common.syspage->sched->cycles[i]);
+		}
 	}
 }

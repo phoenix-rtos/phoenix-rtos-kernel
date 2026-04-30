@@ -17,22 +17,62 @@
 #define _PH_SYSPAGE_H_
 
 
+/* clang-format off */
 enum { mAttrRead = 0x01, mAttrWrite = 0x02, mAttrExec = 0x04, mAttrShareable = 0x08,
 	   mAttrCacheable = 0x10, mAttrBufferable = 0x20 };
+
+
+enum { sFlagCommonCycle = 0x01 };
 
 
 enum { console_default = 0, console_com0, console_com1, console_com2, console_com3, console_com4, console_com5, console_com6,
 	   console_com7, console_com8, console_com9, console_com10, console_com11, console_com12, console_com13, console_com14,
 	   console_com15, console_vga0 };
+/* clang-format on */
 
 
 typedef struct _mapent_t {
 	struct _mapent_t *next, *prev;
+	/* clang-format off */
 	enum { hal_entryReserved = 0, hal_entryTemp, hal_entryAllocated, hal_entryInvalid } type;
+	/* clang-format on */
 
 	addr_t start;
 	addr_t end;
 } __attribute__((packed)) mapent_t;
+
+
+typedef struct _syspage_sched_cycle_t {
+	unsigned char bgId;
+	size_t len;
+
+	struct {
+		time_t stop;
+		unsigned char id;
+	} windows[];
+} __attribute__((packed)) syspage_sched_cycle_t;
+
+
+typedef struct _syspage_sched_t {
+	size_t windowCnt;
+	size_t cycleCnt;
+	unsigned int flags;
+
+	syspage_sched_cycle_t *cycles[];
+} __attribute__((packed)) syspage_sched_t;
+
+
+typedef struct _syspage_part_t {
+	struct _syspage_part_t *next, *prev;
+
+	char *name;
+
+	size_t availableMem;
+	size_t usedMem;
+	unsigned char schedWindow;
+
+	hal_syspage_part_t *hal;
+} __attribute__((packed)) syspage_part_t;
 
 
 typedef struct _syspage_prog_t {
@@ -41,6 +81,8 @@ typedef struct _syspage_prog_t {
 	addr_t start;
 	addr_t end;
 
+	syspage_part_t *partition;
+
 	char *argv;
 
 	size_t imapSz;
@@ -48,6 +90,8 @@ typedef struct _syspage_prog_t {
 
 	size_t dmapSz;
 	unsigned char *dmaps;
+
+	hal_syspage_part_t *hal;
 } __attribute__((packed)) syspage_prog_t;
 
 
@@ -72,8 +116,10 @@ typedef struct {
 
 	addr_t pkernel; /* Physical address of kernel's beginning */
 
-	syspage_map_t *maps;   /* Maps list    */
-	syspage_prog_t *progs; /* Programs list*/
+	syspage_map_t *maps;        /* Maps list */
+	syspage_sched_t *sched;     /* Scheduler configuration */
+	syspage_part_t *partitions; /* Partitions list */
+	syspage_prog_t *progs;      /* Programs list */
 
 	unsigned int console; /* Console ID defines in hal */
 } __attribute__((packed)) syspage_t;
