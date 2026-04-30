@@ -1967,6 +1967,9 @@ void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
 	retval = ((void *(*)(u8 *arg))syscalls[n])(ustack);
 
+	/* after forking child returns with same stack but in different thread */
+	tid = proc_getTid(proc_current());
+
 	trace_eventSyscallExit(n, tid);
 
 	if (proc_current()->exit != 0U) {
