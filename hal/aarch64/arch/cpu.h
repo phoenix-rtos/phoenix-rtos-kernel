@@ -187,9 +187,10 @@ static inline u32 hal_cpuAtomicGet(volatile u32 *dst)
 	u32 result;
 	/* clang-format off */
 	__asm__ volatile (
-		"ldar %0, [%1]\n"
+		"ldar %w0, [%1]\n"
 		: "=r"(result)
 		: "r"(dst)
+		: "memory"
 	);
 	/* clang-format on */
 	return result;
