@@ -3,10 +3,10 @@
  *
  * Operating system kernel
  *
- * Spinlock
+ * Spinlock implementation for ARM CPUs
  *
- * Copyright 2017, 2023 Phoenix Systems
- * Author: Pawel Pisarczyk, Hubert Badocha
+ * Copyright 2017, 2023, 2024, 2026 Phoenix Systems
+ * Author: Pawel Pisarczyk, Damian Loewnau, Hubert Badocha, Jacek Maksymowicz
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -14,7 +14,13 @@
  */
 
 #include "hal/spinlock.h"
+#include "hal/cpu.h"
 #include "hal/list.h"
+
+#ifndef KERNEL_SPINLOCK_ARM_M
+#error "KERNEL_SPINLOCK_ARM_M must be defined (1 for Cortex-M CPU, 0 for other ARM CPU)"
+#endif
+
 
 static struct {
 	spinlock_t spinlock;
@@ -24,40 +30,49 @@ static struct {
 
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
-	__asm__ volatile(" \
-		mrs r1, primask; \
-		cpsid i; \
-		str r1, [%0]; \
-		mov r2, #0; \
-	1: \
-		ldrexb r1, [%1]; \
-		cmp r1, #0; \
-		beq 1b; \
-		strexb r1, r2, [%1]; \
-		cmp r1, #0; \
-		bne 1b; \
-		dmb"
-					 :
-					 : "r"(sc), "r"(&spinlock->lock)
-					 : "r1", "r2", "memory", "cc");
+	/* clang-format off */
+	__asm__ volatile(
+#if KERNEL_SPINLOCK_ARM_M
+		"mrs r2, primask\n"
+		"cpsid i\n"
+#else
+		"mrs r2, cpsr\n"
+		"cpsid if\n"
+#endif
+		"str r2, [%0]\n"
+		"mov %0, #0\n"
+	"1:\n"
+		"ldrexb r2, [%1]\n"
+		"cmp r2, #0\n"
+		"beq 1b\n"
+		"strexb r2, %0, [%1]\n"
+		"cmp r2, #0\n"
+		"bne 1b\n"
+		"dmb\n"
+	: "+r" (sc)
+	: "r" (&spinlock->lock)
+	: "r2", "memory", "cc");
+	/* clang-format on */
 }
 
 
 void hal_spinlockClear(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
-	__asm__ volatile(" \
-	1 : \
-		ldrexb r1, [%0]; \
-		add r1, r1, #1; \
-		dmb; \
-		strexb r2, r1, [%0]; \
-		cmp r2, #0; \
-		bne 1b; \
-		ldr r1, [%1]; \
-		msr primask, r1;"
-					 :
-					 : "r"(&spinlock->lock), "r"(sc)
-					 : "r1", "r2", "memory");
+	/* clang-format off */
+	__asm__ volatile (
+		"mov r2, #1\n"
+		"dmb\n"
+		"strb r2, [%0]\n"
+		"ldr r2, [%1]\n"
+#if KERNEL_SPINLOCK_ARM_M
+		"msr primask, r2\n"
+#else
+		"msr cpsr_c, r2\n"
+#endif
+	:
+	: "r" (&spinlock->lock), "r" (sc)
+	: "r2", "memory");
+	/* clang-format on */
 }
 
 
@@ -66,8 +81,6 @@ static void _hal_spinlockCreate(spinlock_t *spinlock, const char *name)
 	spinlock->lock = 1;
 
 	spinlock->name = name;
-	/*	spinlock->dmin = (cycles_t)-1;
-		spinlock->dmax = (cycles_t)0; */
 
 	HAL_LIST_ADD(&spinlock_common.first, spinlock);
 }

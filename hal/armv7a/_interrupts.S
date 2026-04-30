@@ -159,20 +159,13 @@ hal_cpuReschedule:
 
 	mrs r4, cpsr
 
+	/* If spinlock not NULL, clear it */
 	cmp r0, #0
 	beq 1f
-
-	add r0, #12
-
-/* Spinlock clear */
+	mov r3, #1
 	dmb
-spinlock:
-	ldrexb r3, [r0]
-	add r3, r3, #1
-	strexb r2, r3, [r0]
-	cmp r2, #0
-	bne spinlock
-	ldrb r1, [r1]
+	strb r3, [r0]
+	ldr r1, [r1]
 
 	bic r4, #0xff
 	and r1, #0xff

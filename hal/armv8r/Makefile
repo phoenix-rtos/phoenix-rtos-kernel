@@ -11,7 +11,8 @@ else
   $(error Unsupported TARGET)
 endif
 
-CFLAGS += -Ihal/armv8r
+CFLAGS += -Ihal/armv8r -Ihal/arm -DKERNEL_SPINLOCK_ARM_M=0
 
+OBJS += $(addprefix $(PREFIX_O)hal/arm/, spinlock.o)
 OBJS += $(addprefix $(PREFIX_O)hal/armv8r/, _armv8r.o _interrupts.o _memcpy.o _memset.o \
-  cpu.o exceptions.o hal.o pmap.o spinlock.o string.o)
+  cpu.o exceptions.o hal.o pmap.o string.o)

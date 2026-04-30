@@ -375,15 +375,9 @@ hal_cpuReschedule:
 
 	/* If spinlock not NULL, clear it */
 	cbz r0, .Lhal_cpuReschedule0
-	adds r0, r0, #12
-.Lspinlock:
-	/* TODO: this can be done better using acquire/release instructions */
-	ldrexb r2, [r0]
-	adds r2, r2, #1
+	mov r2, #1
 	dmb
-	strexb r1, r2, [r0]
-	cmp r1, #0
-	bne .Lspinlock
+	strb r2, [r0]
 .Lhal_cpuReschedule0:
 	movs r0, #0 /* default return value */
 	cpsie if
