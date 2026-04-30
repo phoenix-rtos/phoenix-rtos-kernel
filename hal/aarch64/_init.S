@@ -278,8 +278,8 @@ _core_0_virtual:
 _other_core_trap:
 	dsb ish
 	wfe
-	ldr x0, [x1, #:lo12:nCpusStarted]
-	cbz x0, _other_core_trap
+	ldr w0, [x1, #:lo12:nCpusStarted]
+	cbz w0, _other_core_trap
 
 	/* Ensure changes to translation tables are visible */
 	dsb ish
