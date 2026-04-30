@@ -1954,22 +1954,25 @@ const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
 void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
 {
 	void *retval;
-	int tid;
+	thread_t *thread;
 
 	if (n >= (int)(sizeof(syscalls) / sizeof(syscalls[0]))) {
 		return (void *)-EINVAL;
 	}
 
-	tid = proc_getTid(proc_current());
+	thread = proc_current();
 
-	trace_eventSyscallEnter(n, tid);
+	trace_eventSyscallEnter(n, proc_getTid(thread));
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
 	retval = ((void *(*)(u8 *arg))syscalls[n])(ustack);
 
-	trace_eventSyscallExit(n, tid);
+	/* after forking child returns with same stack but in different thread */
+	thread = proc_current();
 
-	if (proc_current()->exit != 0U) {
+	trace_eventSyscallExit(n, proc_getTid(thread));
+
+	if (thread->exit != 0U) {
 		proc_threadEnd();
 	}
 
