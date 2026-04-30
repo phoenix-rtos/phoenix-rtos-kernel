@@ -2933,6 +2933,14 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	/* UGLY: but for now lets make the msg_t working */
 	msg_t msgCopy = *msg;
 	_threads_copyShmBuffers(recv, caller, &msgCopy);
+
+	/*
+	 * Must hold the spinlock across pmap_switch + copy to prevent preemption.
+	 * If recv is preempted after pmap_switch(caller) and resumed later, the
+	 * scheduler restores recv's address space, causing the response copy to
+	 * write through the wrong page tables (recv's instead of caller's).
+	 */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
 	if ((caller->process != NULL) && (caller->process->pmapp != NULL)) {
 		pmap_switch(caller->process->pmapp);
 	}
@@ -2946,9 +2954,6 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	else {
 		pmap_switch(&threads_common.kmap->pmap);
 	}
-
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
 	/*
 	 * FIXME: workaround for assertion in _threads_switchSchedContexts
 	 * reply == 1 branch. The _threads_switchSchedContexts currently assumes
