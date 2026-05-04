@@ -76,6 +76,8 @@ static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
 static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp);
 
+static sched_context_t __attribute__((unused)) * _sc_findDonor(thread_t *holder, thread_t *donor);
+
 
 static time_t _proc_gettimeRaw(void)
 {
@@ -289,7 +291,31 @@ static void thread_destroy(thread_t *thread)
 		thread->called->reply = NULL;
 	}
 
-	LIB_ASSERT(thread->inherited == NULL || thread->inherited == thread->inherited->next, "heh, inherited");
+	/* Return all donated SCs to their donors */
+	while (thread->sc_donated != NULL) {
+		sched_context_t *donated = thread->sc_donated;
+		thread_t *donor = donated->donor;
+		LIST_REMOVE(&thread->sc_donated, donated);
+		donated->donor = NULL;
+
+		if (donor != NULL && donor != thread) {
+			donated->t = donor;
+			donor->sched = donated;
+			donor->called = NULL;
+			donor->state = READY;
+
+			if (donor->callReturnable == 0) {
+				donor->context = _getUserContext(donor);
+				hal_cpuSetReturnValue(donor->context, (void *)(ptr_t)-EINVAL);
+			}
+			else {
+				donor->callReturnable = 0;
+			}
+			LIST_ADD(&threads_common.ready[donor->priority], donor->sched);
+		}
+	}
+
+	/* sc_own is always freed here; it should not be in use by anyone else */
 
 	if (thread->sched != NULL) {
 		if (thread->reply != NULL) {
@@ -310,19 +336,26 @@ static void thread_destroy(thread_t *thread)
 			else {
 				reply->callReturnable = 0;
 			}
-			// #ifndef NOMMU
-			// 			LIB_ASSERT((ptr_t)hal_cpuGetIP(reply->context) < VADDR_KERNEL, "dest ip in kernel - ip: 0x%p tid: %d", hal_cpuGetIP(reply->context), proc_getTid(reply));
-			// #endif
 			_proc_threadDequeue(reply);
 			hal_spinlockClear(&threads_common.spinlock, &sc);
+
+			/* The sc we gave to reply was a donated SC, not sc_own.  Free our own. */
+			if (thread->sc_own != thread->sched) {
+				vm_kfree(thread->sc_own);
+			}
 		}
 		else {
 			hal_spinlockClear(&threads_common.spinlock, &sc);
+			/* sched == sc_own in the normal case */
 			vm_kfree(thread->sched);
 		}
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+		/* Passive server: sched is NULL, sc_own still needs freeing */
+		if (thread->sc_own != NULL) {
+			vm_kfree(thread->sc_own);
+		}
 	}
 	vm_kfree(thread->kstack);
 
@@ -544,6 +577,7 @@ static void _threads_switchSchedContexts(thread_t *from, thread_t *to, int reply
 		LIB_ASSERT(to->state == BLOCKED_ON_REPLY, "dest thread not blocked on reply? state=%d", to->state);
 		from->reply = NULL;
 		to->called = NULL;
+		sched->donor = NULL;
 	}
 	else {
 		/* calling - going deeper in SC chain */
@@ -552,10 +586,30 @@ static void _threads_switchSchedContexts(thread_t *from, thread_t *to, int reply
 		LIB_ASSERT(to->state == BLOCKED_ON_RECV, "dest thread not blocked on recv? state=%d", to->state);
 		to->reply = from;
 		from->called = to;
+		sched->donor = from;
 	}
 	sched->t = to;
 	to->sched = sched;
 	to->state = READY;
+}
+
+
+static sched_context_t __attribute__((unused)) * _sc_findDonor(thread_t *holder, thread_t *donor)
+{
+	sched_context_t *sc = holder->sc_donated;
+
+	if (sc == NULL) {
+		return NULL;
+	}
+
+	do {
+		if (sc->donor == donor) {
+			return sc;
+		}
+		sc = sc->next;
+	} while (sc != holder->sc_donated);
+
+	return NULL;
 }
 
 
@@ -839,7 +893,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 
 	t->priorityBase = priority;
 	t->priority = priority;
-	t->inherited = NULL;
+	t->sc_own = NULL;
+	t->sc_donated = NULL;
 	t->sched = vm_kmalloc(sizeof(sched_context_t));
 	if (t->sched == NULL) {
 		vm_kfree(t->kstack);
@@ -849,11 +904,13 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->sched->cpuTime = 0;
 	t->sched->maxWait = 0;
 	t->sched->t = t;
+	t->sched->donor = NULL;
 	t->sched->next = NULL;
 	t->sched->prev = NULL;
 	proc_gettime(&t->sched->startTime, NULL);
 	t->sched->lastTime = t->sched->startTime;
 	t->sched->owner = t;
+	t->sc_own = t->sched;
 
 	t->reply = NULL;
 	t->called = NULL;
@@ -1052,19 +1109,22 @@ static void _wakePassive(thread_t *t)
 {
 	LIB_ASSERT(t->passive == 1, "t is not passive!");
 	LIB_ASSERT(t->state == BLOCKED_ON_RECV, "t is passive and interruptible but not BLOCKED_ON_RECV? state=%d", t->state);
-	/* TODO: move this to some generic passive reversing function? */
 
-	/* TODO: we could also interrupt the server while its handling the message
-	 * it would require to clean up the server as well as the client */
+	LIB_ASSERT(t->sc_own != NULL, "no sc_own??");
+	LIB_ASSERT(t->sched == NULL, "sched not NULL but passive??");
 
-	LIB_ASSERT(t->inherited != NULL, "no inherited SC??");
-	if (t->inherited->next == t->inherited) {
-		/* this is ours SC */
+	/* Only fully leave passive state if no donated SCs remain */
+	if (t->sc_donated == NULL) {
 		t->passive = 0;
-	}
 
-	t->sched = t->inherited;
-	LIST_REMOVE(&t->inherited, t->sched);
+		/* Restore the server's own SC */
+		t->sched = t->sc_own;
+		t->sched->t = t;
+	}
+	else {
+		t->sched = t->sc_donated;
+		LIST_REMOVE(&t->sc_donated, t->sched);
+	}
 
 	_proc_threadDequeue(t);
 }
@@ -2372,11 +2432,8 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 #endif
 
 	return p->fpThreads == NULL ||
-			// p->caller != NULL ||
-			/* if recv is an active server, check priority */
-			(p->fpThreads->sched != NULL) ||
-			// (p->threads->sched != NULL && caller->priority < p->threads->priority) ||
-			threads_getHighestPrio(caller->priority) != caller->priority;
+			/* if recv is an active server (has an SC), must wait */
+			(p->fpThreads->sched != NULL);
 }
 #endif
 
@@ -2483,6 +2540,13 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	}
 
 	LIB_ASSERT(p->threads == NULL, "call but pending old recv! tid=%d", proc_getTid(p->threads));
+
+	if (_mustSlowCall(p, caller) != 0) {
+		lib_printf("SLOW port=%d caller=%d fp=%p fpSched=%p\n",
+				port, proc_getTid(caller),
+				(void *)p->fpThreads,
+				p->fpThreads != NULL ? (void *)p->fpThreads->sched : NULL);
+	}
 
 	while ((err = _mustSlowCall(p, caller)) != 0) {
 		p->queue.nonempty |= 1;
@@ -2748,8 +2812,10 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 	_portEnqueue(p, recv);
 
 	if (recv->sched != NULL) {
-		/* invariant: first element of the list is the receiver's original SC */
-		LIST_ADD(&recv->inherited, recv->sched);
+		if (recv->sched != recv->sc_own) {
+			/* donated SC — stash it so proc_respond can return it later */
+			LIST_ADD(&recv->sc_donated, recv->sched);
+		}
 		recv->sched = NULL;
 	}
 
@@ -2955,15 +3021,9 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		pmap_switch(&threads_common.kmap->pmap);
 	}
 	/*
-	 * FIXME: workaround for assertion in _threads_switchSchedContexts
-	 * reply == 1 branch. The _threads_switchSchedContexts currently assumes
-	 * that IPC threads are only in a path-like dependency chains, while it's
-	 * possible that a single (active) server receives multiple messages and
-	 * responds to them in arbitrary order.
-	 *
-	 * This is probably where the proper BWI is needed, as the active server
-	 * will process the messages on client's SC, but currently it's unclear which
-	 * and not tracked as it should be.
+	 * Use _threads_switchSchedContexts to return the SC to the caller.
+	 * For out-of-order replies (caller != recv->reply), we temporarily
+	 * set recv->reply = caller so the assertion in switchSchedContexts passes.
 	 */
 	int multiple_callers = 0;
 	thread_t *og_reply = recv->reply;
@@ -2971,11 +3031,6 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		multiple_callers = 1;
 		recv->reply = caller;
 	}
-
-	/*
-	 * FIXME: currently nothing stops SCs from different
-	 * clients to end up swapped (i.e. client A gets SC of client B after IPC)
-	 */
 
 	_threads_switchSchedContexts(recv, caller, 1);
 	LIST_ADD(&threads_common.ready[caller->priority], caller->sched);
@@ -2995,15 +3050,27 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	lib_debug_printf("proc_respond2 context addr (post): %p sp=%p\n", caller->context, caller->context->sp);
 
+	/* recv must be passive when responding */
 	LIB_ASSERT(recv->passive == 1, "recv not passive?");
-	recv->state = READY; /* FIXME: above sets to BLOCKED_ON_RECV, but we have our own SC */
 
-	LIB_ASSERT(recv->inherited != NULL, "there should be an inherited SC");
-	recv->sched = recv->inherited;
-	LIST_REMOVE(&recv->inherited, recv->sched);
+	recv->state = READY;
+
+	/* Restore server's SC: take from sc_donated if available, else sc_own.
+	 * If _threads_switchSchedContexts gave sc_own to the caller, update sc_own. */
+	if (recv->sc_donated != NULL) {
+		recv->sched = recv->sc_donated;
+		LIST_REMOVE(&recv->sc_donated, recv->sched);
+		recv->sched->t = recv;
+	}
+	else {
+		LIB_ASSERT(recv->sc_own != NULL, "no sc_own in respond");
+		recv->sched = recv->sc_own;
+		recv->sched->t = recv;
+	}
 
 	if (multiple_callers == 0) {
 		recv->passive = 0;
+		LIB_ASSERT(recv->sc_donated == NULL, "would be active but still have donated SCs");
 	}
 	LIB_ASSERT(recv->sched != NULL, "recv sched null?");
 

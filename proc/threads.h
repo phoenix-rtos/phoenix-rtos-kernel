@@ -50,6 +50,7 @@ typedef struct _sched_context_t {
 	struct _sched_context_t *prev;
 
 	struct _thread_t *t;
+	struct _thread_t *donor; /* thread that donated this SC (NULL if own) */
 
 	time_t readyTime;
 	time_t maxWait;
@@ -120,7 +121,8 @@ typedef struct _thread_t {
 	volatile time_t wakeup;
 
 	sched_context_t *sched;
-	sched_context_t *inherited;
+	sched_context_t *sc_own;     /* thread's birth SC — never donated away */
+	sched_context_t *sc_donated; /* list of SCs donated by blocked callers */
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
 	unsigned state : 4;
