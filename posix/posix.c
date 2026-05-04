@@ -556,42 +556,19 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 }
 
 
-static int posix_getAttr(oid_t oid, int type, long long *attr)
-{
-	int err;
-	msg_t msg;
-
-	hal_memset(&msg, 0, sizeof(msg));
-	msg.type = mtGetAttr;
-	msg.oid = oid;
-	msg.i.attr.type = type;
-
-	err = proc_send(oid.port, &msg);
-	if (err < 0) {
-		return err;
-	}
-
-	err = msg.o.err;
-	if (err < 0) {
-		return err;
-	}
-
-	*attr = msg.o.attr.val;
-
-	return EOK;
-}
-
-
 /* TODO: handle O_CREAT and O_EXCL */
 int posix_open(const char *filename, int oflag, u8 *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
-	oid_t ln, oid, dev, srv;
+	oid_t ln, oid, dev, pipesrv;
 	int fd = 0, err = 0;
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
-	long long attr;
+
+	if (proc_lookup("/dev/posix/pipes", NULL, &pipesrv) < 0) {
+		hal_memset(&pipesrv, 0xff, sizeof(oid_t));
+	}
 
 	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
@@ -661,48 +638,16 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 
 			f->refs = 1;
 
-			do {
-				if (oid.port == US_PORT) {
-					f->type = ftUnixSocket;
-					break;
-				}
-
-				if (proc_lookup("/dev/posix/pipes", NULL, &srv) >= 0) {
-					if (oid.port == srv.port) {
-						f->type = ftPipe;
-						break;
-					}
-				}
-
-				if (posix_getAttr(f->ln, atMode, &attr) < 0) {
-					/* report files that don't report attr as regular files */
-					f->type = ftRegular;
-					break;
-				}
-				else {
-					mode = (mode_t)attr;
-					if (S_ISCHR(mode)) {
-						/*
-						 * FIXME: for now, we treat every character device as
-						 * a TTY. This behavior should be fixed as it changes
-						 * the behavior of e.g. posix_fstat() and ioctl().
-						 */
-						f->type = ftTty;
-					}
-					else if (S_ISFIFO(mode)) {
-						f->type = ftFifo;
-					}
-					else {
-						/*
-						 * FIXME: add new types to ft* enum as for now we treat
-						 * all other entities, e.g. links, block devices,
-						 * directories as regular files.
-						 */
-						f->type = ftRegular;
-					}
-					break;
-				}
-			} while (0);
+			/* TODO: check for other types */
+			if (oid.port == US_PORT) {
+				f->type = ftUnixSocket;
+			}
+			else if (oid.port == pipesrv.port) {
+				f->type = ftPipe;
+			}
+			else {
+				f->type = ftRegular;
+			}
 
 			if (((unsigned int)oflag & O_APPEND) != 0U) {
 				f->offset = proc_size(f->oid);
@@ -1459,10 +1404,6 @@ int posix_fstat(int fd, struct stat *buf)
 				buf->st_mode = S_IFSOCK;
 				break;
 			case ftTty:
-				/*
-				 * FIXME: for now, every character device is treated as a TTY.
-				 * Find a way to change this behavior.
-				 */
 				buf->st_mode = S_IFCHR;
 				break;
 			default:
@@ -1755,28 +1696,6 @@ static int ioctl_processResponse(const msg_t *msg, unsigned long request, void *
 }
 
 
-static int ioctl_checkPosixDefinedRequests(open_file_t *f, unsigned long request)
-{
-	unsigned long group = IOCGROUP(request);
-
-	switch (group) {
-		case (unsigned long)TTY_IOC_TYPE:
-			/*
-			 * FIXME: for now, every character device is treated as a TTY.
-			 * Find a way to change this behavior.
-			 */
-			return (f->type == ftTty) ? EOK : -ENOTTY;
-
-		/* not required by POSIX, but nice to have */
-		case (unsigned long)SOCK_IOC_TYPE:
-			return ((f->type == ftUnixSocket) || (f->type == ftInetSocket)) ? EOK : -ENOTSOCK;
-
-		default:
-			return EOK;
-	}
-}
-
-
 int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 {
 	TRACE("ioctl(%d, %d)", fildes, request);
@@ -1789,16 +1708,21 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err == EOK) {
-		err = ioctl_checkPosixDefinedRequests(f, request);
-
-		if (err == EOK && size > 0U) {
+		/* TODO: handle POSIX defined requests */
+		if (size > 0U) {
 			GETFROMSTACK(ustack, void *, data, 2);
 			/* the actual size of the pointed-to structure: >= IOCPARM_LEN(request) */
 			GETFROMSTACK(ustack, size_t, size, 3);
 
 			if ((request & IOC_INOUT) != 0U) {
-				if (data == NULL || vm_mapBelongs(proc_current()->process, data, size) < 0) {
+				if (data == NULL) {
 					err = -EFAULT;
+				}
+				else if (vm_mapBelongs(proc_current()->process, data, size) < 0) {
+					err = -EFAULT;
+				}
+				else {
+					/* Nothing to do */
 				}
 			}
 		}
