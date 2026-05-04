@@ -68,7 +68,7 @@
 #define HOST_NAME_MAX 255U
 
 
-enum { ftRegular, /* FIXME: currently encompasses block devices, links and directories */
+enum { ftRegular,
 	ftPipe,
 	ftFifo,
 	ftInetSocket,
