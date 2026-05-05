@@ -19,8 +19,20 @@
 
 void lib_listAdd(void **list, void *t, size_t noff, size_t poff)
 {
-	if (t == NULL)
+	if (t == NULL) {
 		return;
+	}
+
+#if 0
+	if (*list != NULL) {
+		void *cur = *list;
+		do {
+			LIB_ASSERT(cur != t, "elem already on the list");
+			cur = (void *)(*((addr_t *)(cur + noff)));
+		} while (cur != *list);
+	}
+#endif
+
 	if (*list == NULL) {
 		*((addr_t *)(t + noff)) = (addr_t)t;
 		*((addr_t *)(t + poff)) = (addr_t)t;

@@ -625,6 +625,23 @@ static sched_context_t *_sc_best(thread_t *t)
 }
 
 
+static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor)
+{
+	sched_context_t *sc = t->sc_donated;
+
+	if (sc != NULL) {
+		do {
+			if (sc->donor == donor) {
+				return sc;
+			}
+			sc = sc->dnext;
+		} while (sc != t->sc_donated);
+	}
+
+	return NULL;
+}
+
+
 static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 {
 	/* Remove SC from `from` */
@@ -658,9 +675,8 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 
 static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 {
-	LIB_ASSERT(sc->donor == caller, "something very weird is happening.....");
-
-	LIB_ASSERT(server->sc_donated->dnext != NULL, "what the hell");
+	LIB_ASSERT(sc->donor == caller, "returning SC donated by someone else");
+	LIB_ASSERT(server->sc_donated != NULL || server->sc_donated->dnext != NULL, "empty/corrupted donation queue?");
 
 	/* Remove donated SC from server */
 	LIST_REMOVE_EX(&server->sc_donated, sc, dnext, dprev);
@@ -1132,8 +1148,9 @@ static void _wakePassive(thread_t *t)
 		t->sc_active = t->sc_own;
 	}
 	else {
-		t->sc_active = t->sc_donated;
-		LIST_REMOVE_EX(&t->sc_donated, t->sc_active, dnext, dprev);
+		t->sc_active = _sc_best(t);
+		//   t->sc_donated;
+		// LIST_REMOVE_EX(&t->sc_donated, t->sc_active, dnext, dprev);
 	}
 
 	_proc_threadDequeue(t);
@@ -1149,6 +1166,7 @@ static void _thread_interrupt(thread_t *t)
 		hal_cpuSetReturnValue(t->context, NULL);
 	}
 	else {
+		LIB_ASSERT(t->sc_donated == NULL, "hmmmmmmmmmm");
 		_proc_threadDequeue(t);
 		hal_cpuSetReturnValue(t->context, (void *)-EINTR);
 	}
@@ -2793,10 +2811,12 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 		// /* invariant: first element of the list is the receiver's original SC */
 		// LIST_ADD(&recv->inherited, recv->sc_active);
 
-		if (recv->sc_active != recv->sc_own) {
-			// LIB_ASSERT(0, "happens (check if path ok)");
-			LIST_ADD_EX(&recv->sc_donated, recv->sc_active, dnext, dprev);
-		}
+		// if (recv->sc_active != recv->sc_own) {
+		// 	// LIB_ASSERT(0, "happens (check if path ok)");
+		// 	LIST_ADD_EX(&recv->sc_donated, recv->sc_active, dnext, dprev);
+		// }
+		/* if sc_active == sc_own, we its safe to drop
+		else,  sc_active is from sc_donated, also safe to drop */
 		recv->sc_active = NULL;
 	}
 
@@ -3022,32 +3042,27 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	else {
 		pmap_switch(&threads_common.kmap->pmap);
 	}
-	/*
-	 * FIXME: workaround for assertion in _threads_switchSchedContexts
-	 * reply == 1 branch. The _threads_switchSchedContexts currently assumes
-	 * that IPC threads are only in a path-like dependency chains, while it's
-	 * possible that a single (active) server receives multiple messages and
-	 * responds to them in arbitrary order.
-	 *
-	 * This is probably where the proper BWI is needed, as the active server
-	 * will process the messages on client's SC, but currently it's unclear which
-	 * and not tracked as it should be.
-	 */
+
+	/* FIXME: remove workaround, handle multi-client out-of-order case nicely */
 	int multiple_callers = 0;
 	thread_t *og_reply = recv->reply;
 	if (caller != og_reply) {
 		multiple_callers = 1;
-		// recv->reply = caller;
+		recv->reply = caller;
 	}
 
-	sched_context_t *donated_sc = recv->sc_active;
-	_sc_return(recv, caller, recv->sc_active);
+	// sched_context_t *donated_sc = recv->sc_active;
+
+	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
+
+
+	_sc_return(recv, caller, donated_sc);
 	// _threads_switchSchedContexts(recv, caller, 1);
 	LIST_ADD(&threads_common.ready[caller->priority], caller->sc_active);
 
-	// if (multiple_callers != 0) {
-	// 	recv->reply = og_reply;
-	// }
+	if (multiple_callers != 0) {
+		recv->reply = og_reply;
+	}
 
 	lib_debug_printf("proc_respond2 context addr (pre): %p sp=%p\n", caller->context, caller->context->sp);
 	if (caller->callReturnable == 0) {
@@ -3093,8 +3108,6 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
-
-	LIB_ASSERT(0, "AAAAAAAAAAAAAAAAA");
 	port_t *p;
 	spinlock_ctx_t sc, tsc;
 	cpu_context_t *ctx;
