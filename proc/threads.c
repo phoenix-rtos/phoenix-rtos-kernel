@@ -2738,6 +2738,7 @@ void proc_threadPrioQueueInit(prio_queue_t *queue)
 static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid, spinlock_ctx_t *sc)
 {
 	spinlock_ctx_t tsc;
+	int err;
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
@@ -2775,16 +2776,18 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 
 		msg->o.pulse = recv->utcb.pulse;
 		msg->o.err = EOK;
-		return -EPULSE;
+		err = -EPULSE;
 	}
-
-	if (recv->reply == NULL) {
-		return -EINTR;
+	else if (recv->reply == NULL) {
+		err = -EINTR;
 	}
 	else {
 		*recv->utcb.ridPtr = (msg_rid_t)recv->reply;
-		return EOK;
+		err = EOK;
 	}
+
+	port_put(p, 0);
+	return err;
 }
 
 /* assumes aspace of recv */
@@ -2897,21 +2900,6 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		return -EINVAL;
 	}
 
-	/* Here's the funny part:
-	 * the receiving thread doesn't need to be the same as the
-	 * responding thread (see: p-r-corelibs/libstorage)
-	 * we will need to deeply rewrite some servers like this
-	 */
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	caller = reply;
-	if (caller->called != recv) {
-		LIB_ASSERT(0, "unmatched reply = %p (expected: %p)\n", reply, caller->called);
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-		return -EINVAL;
-	}
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
@@ -2924,15 +2912,48 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		return -EINVAL;
 	}
 
+	caller = reply;
+	if (caller->called != recv) {
+		LIB_ASSERT(0, "unmatched reply = %p (expected: %p)\n", reply, caller->called);
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		return -EINVAL;
+	}
+
+	if (caller->exit != 0) {
+		/* caller is dying, don't respond */
+
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+
+		LIB_ASSERT(recv->passive == 1, "recv not passive?");
+		recv->state = READY;
+
+		LIB_ASSERT(recv->inherited != NULL, "there should be an inherited SC");
+		recv->sched = recv->inherited;
+		LIST_REMOVE(&recv->inherited, recv->sched);
+
+		if (caller != recv->reply) {
+			recv->passive = 0;
+		}
+		LIB_ASSERT(recv->sched != NULL, "recv sched null?");
+
+		threads_common.current[hal_cpuGetID()] = recv->sched;
+
+		LIB_ASSERT(recv->sched->t == recv, "badly linked sched context");
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+
+		return -EINVAL;
+	}
+
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
-	port_put(p, 0);  // drop passive ref
 
 	LIB_ASSERT(caller != NULL, "caller null!");
 
 	/* UGLY: but for now lets make the msg_t working */
 	msg_t msgCopy = *msg;
-	_threads_copyShmBuffers(recv, caller, &msgCopy);
 
 	/*
 	 * Must hold the spinlock across pmap_switch + copy to prevent preemption.
@@ -2941,6 +2962,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	 * write through the wrong page tables (recv's instead of caller's).
 	 */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_threads_copyShmBuffers(recv, caller, &msgCopy);
 	if ((caller->process != NULL) && (caller->process->pmapp != NULL)) {
 		pmap_switch(caller->process->pmapp);
 	}
