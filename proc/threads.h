@@ -49,7 +49,13 @@ typedef struct _sched_context_t {
 	struct _sched_context_t *next;
 	struct _sched_context_t *prev;
 
+	struct _sched_context_t *dnext;
+	struct _sched_context_t *dprev;
+
 	struct _thread_t *t;
+	struct _thread_t *owner;
+	struct _thread_t *donor;
+	unsigned int priority; /* effective priority for scheduling */
 
 	time_t readyTime;
 	time_t maxWait;
@@ -57,9 +63,6 @@ typedef struct _sched_context_t {
 	time_t startTime;
 	time_t cpuTime;
 	time_t lastTime;
-
-	/* TODO: mostly for debug, but may be useful for accounting in the future */
-	struct _thread_t *owner;
 } sched_context_t;
 
 
@@ -119,8 +122,10 @@ typedef struct _thread_t {
 
 	volatile time_t wakeup;
 
-	sched_context_t *sched;
-	sched_context_t *inherited;
+	sched_context_t *sc_own;     /* thread's base SC - never donated away */
+	sched_context_t *sc_active;  /* SC currently being consumed (used by scheduler) */
+	sched_context_t *sc_donated; /* SCs donated to the thread */
+
 	unsigned priorityBase : 4;
 	unsigned priority : 4;
 	unsigned state : 4;
@@ -308,9 +313,6 @@ extern int threads_sigsuspend(unsigned int mask);
 
 
 extern void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
-
-
-extern cpu_context_t *threads_switchTo(thread_t *to, int reply);
 
 
 extern int threads_getHighestPrio(int maxPrio);

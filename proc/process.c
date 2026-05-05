@@ -1573,7 +1573,7 @@ static int process_execve(thread_t *current)
 	LIB_ASSERT(current->reply == NULL, "heh, reply");
 	LIB_ASSERT(current->called == NULL, "heh, called");
 	LIB_ASSERT(current->passive == 0, "heh, passive?");
-	LIB_ASSERT(current->inherited == NULL, "heh, inherited?");
+	// LIB_ASSERT(current->inherited == NULL, "heh, inherited?");
 
 	threads_releaseIpcBuffers(current);
 
