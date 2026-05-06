@@ -86,7 +86,7 @@ typedef struct {
 	page_t *ep;
 
 	void *w;
-	size_t sz;
+	size_t size;
 	vm_map_t *map;
 
 	/* Message buffer */

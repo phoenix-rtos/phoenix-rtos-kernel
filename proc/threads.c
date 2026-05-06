@@ -944,10 +944,7 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->addedTo = NULL;
 	t->flags = 0;
 
-	// t->bufferStart = NULL;
-	// t->bufferEnd = NULL;
 	t->mappedTo = NULL;
-	// t->mappedBase = NULL;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->sc_active);
@@ -2459,7 +2456,7 @@ static void _portDequeue(port_t *p, thread_t *t)
 
 
 /* TODO: crude API, fix */
-void threads_ipcBufferRelease(ipc_buf_layout_t *il)
+void _threads_ipcBufferRelease(ipc_buf_layout_t *il)
 {
 	if (il->bp != NULL) {
 		vm_pageFree(il->bp);
@@ -2477,9 +2474,9 @@ void threads_ipcBufferRelease(ipc_buf_layout_t *il)
 	}
 
 	if (il->w != NULL) {
-		vm_munmap(il->map, il->w, il->sz);
+		vm_munmap(il->map, il->w, il->size);
 		il->w = NULL;
-		il->sz = 0;
+		il->size = 0;
 		il->map = NULL;
 	}
 }
@@ -2488,9 +2485,11 @@ void threads_ipcBufferRelease(ipc_buf_layout_t *il)
 static void _threads_copyShadowPages(ipc_buf_layout_t *il, size_t size)
 {
 	if (il->bp != NULL) {
+		// LIB_ASSERT(size == il->size, "?");
 		hal_memcpy(il->bvaddr + il->boffs, il->w + il->boffs, min(SIZE_PAGE - il->boffs, size));
 	}
 	if (il->eoffs != 0) {
+		// LIB_ASSERT(size == il->size, "?");
 		hal_memcpy(il->evaddr, il->w + il->boffs + size - il->eoffs, il->eoffs);
 	}
 }
@@ -2623,15 +2622,14 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
+	/*
+	 * FIXME: make recv interruptible in some checkpoints (e.g. between i.data and
+	 * o.data setup, add rollbacks)
+	 */
+	recv->interruptible = 0;
+
 	/* TODO: bump refcnt on recv? */
 	hal_spinlockClear(&p->spinlock, &sc);
-
-	/* FIXME: safety: recv could get interrupted */
-
-	/*
-	 * NOTE: assumes port spinlock is set so that this spinlockSet is nested and tsc
-	 * context has interrupts disabled
-	 */
 
 	LIB_ASSERT(recv != NULL, "recv is null");
 	LIB_ASSERT(caller != NULL, "null caller");
@@ -2644,6 +2642,15 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_memcpy(recv->utcb.msg->i.raw, caller->utcb.msgbuf, rawSz);
 
+	threads_releaseIpcBuffers(caller);
+
+	if (imap != NULL || omap != NULL) {
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		LIB_ASSERT(caller->mappedTo == NULL, "caller already mapped to?");
+		caller->mappedTo = recv;
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
+
 	if (imap != NULL) {
 		/* TODO: permissions, incoming data doesnt need to be writable */
 		if (proc_setupSharedBuffer(caller, recv, imap, isize, &caller->utcb.iil, (void *)&recv->utcb.msg->i.data) < 0) {
@@ -2654,8 +2661,8 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		recv->utcb.msg->i.size = isize;
 	}
 	else {
-		threads_ipcBufferRelease(&caller->utcb.iil);
-		caller->mappedTo = NULL;
+		// threads_ipcBufferRelease(&caller->utcb.iil);
+		// caller->mappedTo = NULL;
 
 		if (caller->utcb.msglen > rawSz) {
 			hal_memcpy((void *)recv->utcb.msg->i.data, caller->utcb.msgbuf + rawSz, caller->utcb.msglen - rawSz);
@@ -2674,8 +2681,8 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		}
 	}
 	else {
-		threads_ipcBufferRelease(&caller->utcb.oil);
-		caller->mappedTo = NULL;
+		// threads_ipcBufferRelease(&caller->utcb.oil);
+		// caller->mappedTo = NULL;
 	}
 
 	recv->utcb.msg->o.size = osize;
@@ -2980,7 +2987,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	caller = reply;
 	if (caller->called != recv) {
-		LIB_ASSERT(0, "unmatched reply = %p (expected: %p)\n", reply, caller->called);
+		LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
 		return -EINVAL;
@@ -3032,16 +3039,16 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	if ((caller->process != NULL) && (caller->process->pmapp != NULL)) {
 		pmap_switch(caller->process->pmapp);
 	}
-	else {
-		pmap_switch(&threads_common.kmap->pmap);
-	}
+	// else {
+	// 	pmap_switch(&threads_common.kmap->pmap);
+	// }
 	_threads_copyMsgBufResponse(recv, caller, &msgCopy);
 	if ((recv->process != NULL) && (recv->process->pmapp != NULL)) {
 		pmap_switch(recv->process->pmapp);
 	}
-	else {
-		pmap_switch(&threads_common.kmap->pmap);
-	}
+	// else {
+	// 	pmap_switch(&threads_common.kmap->pmap);
+	// }
 
 	/* FIXME: remove workaround, handle multi-client out-of-order case nicely */
 	int multiple_callers = 0;
@@ -3276,7 +3283,7 @@ static void *_mapBufferUnaligned(
 	if (w == NULL) {
 		return NULL;
 	}
-	il->sz = sz;
+	il->size = CEIL((ptr_t)data + size) - FLOOR((ptr_t)data);
 	il->map = dstmap;
 
 	if (pmap_belongs(&srcmap->pmap, data) != 0) {
@@ -3381,11 +3388,12 @@ void threads_releaseIpcBuffers(thread_t *thread)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	mappedTo = thread->mappedTo;
+	thread->mappedTo = NULL;
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	if (mappedTo != NULL) {
-		threads_ipcBufferRelease(&thread->utcb.iil);
-		threads_ipcBufferRelease(&thread->utcb.oil);
+		_threads_ipcBufferRelease(&thread->utcb.iil);
+		_threads_ipcBufferRelease(&thread->utcb.oil);
 	}
 }
 
@@ -3433,15 +3441,13 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t
 	}
 	else {
 #endif
-		threads_ipcBufferRelease(il);
+		// threads_ipcBufferRelease(il);
 
 		w = _mapBufferUnaligned(buf, bufsz, t->process, recv->process, il);
 		if (w == NULL) {
 			LIB_ASSERT(0, "ENOMEM!");
 			return -ENOMEM;
 		}
-
-		t->mappedTo = recv;
 
 		il->mappedBase = w;
 		il->bufferStart = buf;
