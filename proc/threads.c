@@ -2874,7 +2874,6 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 /* assumes aspace of recv */
 int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 {
-	LIB_ASSERT(0, "return happens");
 	recv->utcb.msg->o.pulse = p->pulse;
 	recv->utcb.msg->o.err = EOK;
 	p->pulse = 0;
@@ -2911,7 +2910,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	if (p->pulse != 0) {
-		LIB_ASSERT(0, "return happens");
+		// LIB_ASSERT(0, "return happens");
 		return _returnWithPulse(recv, p, &sc);
 	}
 
@@ -2994,6 +2993,8 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	}
 
 	caller = reply;
+
+	/* REVISIT: is it safe to keep this under p->spinlock only? what about SMP? */
 	if (caller->called != recv) {
 		LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
 		hal_spinlockClear(&p->spinlock, &sc);
@@ -3137,6 +3138,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	int responding;
 
 	recv = proc_current();
+	void *reply = (void *)*rid;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -3169,6 +3171,16 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		return _becomePassive(p, recv, msg, rid, &sc);
 	}
 
+	LIB_ASSERT(reply == recv->reply, "eh, todo");
+
+	caller = reply;
+	if (caller->called != recv) {
+		LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		return -EINVAL;
+	}
+
 	/* wake next caller if exists */
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	(void)_proc_threadWakeupPrio(&p->queue);
@@ -3188,7 +3200,6 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	log_err("fast (%d, %d)", proc_getTid(recv), recv->priority);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	caller = recv->reply;
 
 	/* TODO should exit != 0 be treated in any special way? if we return back to
 	 * the exiting client, it will get reaped anyway  */
@@ -3198,18 +3209,21 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	_portEnqueue(p, recv);
 
-	msg_t msgCopy = *msg;
-
 	_sc_return(recv, caller, recv->sc_active);
 
 	if (recv->sc_active == recv->sc_own) {
 		/* noone else to respond, go passive as recv */
 		recv->sc_active = NULL;
+		/* TODO: duplicated with _becomePassive */
 		recv->state = BLOCKED_ON_RECV;
+		recv->passive = 1;
+		recv->interruptible = 1;
 	}
 	else {
 		LIST_ADD(&threads_common.ready[recv->priority], recv->sc_active);
 	}
+
+	msg_t msgCopy = *msg;
 
 	ctx = _threads_switchTo(caller);
 
@@ -3226,6 +3240,9 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		caller->callReturnable = 0;
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
+
+	/* TODO: lazy remapping */
+	threads_releaseIpcBuffers(caller);
 
 	return EOK;
 }
