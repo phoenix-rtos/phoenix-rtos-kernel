@@ -287,6 +287,7 @@ static void thread_destroy(thread_t *thread)
 	if (thread->called != NULL) {
 		LIB_ASSERT(thread->called->reply == thread, "thread->called->reply != thread");
 		thread->called->reply = NULL;
+		LIB_ASSERT(0, "happens c");
 	}
 
 	if (thread->sc_active != NULL) {
@@ -311,6 +312,13 @@ static void thread_destroy(thread_t *thread)
 			// #ifndef NOMMU
 			// 			LIB_ASSERT((ptr_t)hal_cpuGetIP(reply->context) < VADDR_KERNEL, "dest ip in kernel - ip: 0x%p tid: %d", hal_cpuGetIP(reply->context), proc_getTid(reply));
 			// #endif
+
+			// TEST:
+			LIB_ASSERT(0, "happens");
+			// reply->mappedTo = NULL;
+			// hal_memset(&reply->utcb.iil, 0, sizeof(reply->utcb.iil));
+			// hal_memset(&reply->utcb.oil, 0, sizeof(reply->utcb.oil));
+
 			_proc_threadDequeue(reply);
 			hal_spinlockClear(&threads_common.spinlock, &sc);
 		}
@@ -2642,7 +2650,7 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_memcpy(recv->utcb.msg->i.raw, caller->utcb.msgbuf, rawSz);
 
-	threads_releaseIpcBuffers(caller);
+	// threads_releaseIpcBuffers(caller);
 
 	if (imap != NULL || omap != NULL) {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -3050,6 +3058,13 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	// 	pmap_switch(&threads_common.kmap->pmap);
 	// }
 
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	/* TODO: lazy remapping */
+	threads_releaseIpcBuffers(caller);
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
 	/* FIXME: remove workaround, handle multi-client out-of-order case nicely */
 	int multiple_callers = 0;
 	thread_t *og_reply = recv->reply;
@@ -3283,7 +3298,7 @@ static void *_mapBufferUnaligned(
 	if (w == NULL) {
 		return NULL;
 	}
-	il->size = CEIL((ptr_t)data + size) - FLOOR((ptr_t)data);
+	il->size = sz;
 	il->map = dstmap;
 
 	if (pmap_belongs(&srcmap->pmap, data) != 0) {
@@ -3387,6 +3402,11 @@ void threads_releaseIpcBuffers(thread_t *thread)
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
+	/*
+	 * THOUGHT:
+	 * mappedTo != NULL => thread is mapped to some external dstmap
+	 * what if dstmap owner dies?
+	 */
 	mappedTo = thread->mappedTo;
 	thread->mappedTo = NULL;
 	hal_spinlockClear(&threads_common.spinlock, &sc);
