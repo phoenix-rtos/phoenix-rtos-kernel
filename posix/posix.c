@@ -2635,6 +2635,21 @@ pid_t posix_setsid(void)
 }
 
 
+static int waitpid_isWaitValid(pid_t pid, process_info_t *parent, process_info_t *child)
+{
+	if (pid == -1) {
+		return 1;
+	}
+	if ((pid == 0) && (child->pgid == parent->pgid)) {
+		return 1;
+	}
+	if ((pid < 0) && (child->pgid == -pid)) {
+		return 1;
+	}
+	return (pid == child->process) ? 1 : 0;
+}
+
+
 int posix_waitpid(pid_t child, int *status, unsigned int options)
 {
 	process_info_t *pinfo, *c;
@@ -2662,16 +2677,12 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 	(void)proc_lockSet(&pinfo->lock);
 	for (;;) {
 		/* Do this in the loop in case someone has a bad idea of doing multithreaded waitpid */
-		if ((pinfo->children == NULL) && (pinfo->zombies == NULL)) {
-			err = -ECHILD;
-			break;
-		}
+		err = -ECHILD;
 
 		if (pinfo->zombies != NULL) {
 			c = pinfo->zombies;
 			do {
-				if ((child == -1) || ((child == 0) && (c->pgid == pinfo->pgid)) ||
-						((child < 0) && (c->pgid == -child)) || (child == c->process)) {
+				if (waitpid_isWaitValid(child, pinfo, c) != 0) {
 					LIST_REMOVE(&pinfo->zombies, c);
 					err = c->process;
 					if (status != NULL) {
@@ -2688,7 +2699,18 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 			} while (c != pinfo->zombies);
 		}
 
-		if (wnohang != 0) {
+		if (pinfo->children != NULL) {
+			c = pinfo->children;
+			do {
+				if (waitpid_isWaitValid(child, pinfo, c) != 0) {
+					err = EOK;
+					break;
+				}
+				c = c->next;
+			} while (c != pinfo->children);
+		}
+
+		if ((err < 0) || (wnohang != 0)) {
 			break;
 		}
 
