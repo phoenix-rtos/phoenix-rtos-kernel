@@ -383,6 +383,31 @@ int proc_create(u32 port, int type, unsigned int mode, oid_t dev, oid_t dir, cha
 }
 
 
+int proc_destroy(u32 port, oid_t dev)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL) {
+		return -ENOMEM;
+	}
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtDestroy;
+	hal_memcpy(&msg->oid, &dev, sizeof(dev));
+
+	err = proc_send(port, msg);
+
+	if (err == 0) {
+		err = msg->o.err;
+	}
+
+	vm_kfree(msg);
+	return err;
+}
+
+
 int proc_link(oid_t dir, oid_t oid, const char *name)
 {
 	int err;
