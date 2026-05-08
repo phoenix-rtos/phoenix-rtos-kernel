@@ -96,10 +96,8 @@ static ssize_t sockdestcall(unsigned int socket, msg_t *msg, const struct sockad
 int inet_accept4(unsigned int socket, struct sockaddr *address, socklen_t *address_len, unsigned int flags)
 {
 	msg_t msg;
-	oid_t oid;
 	sockport_msg_t *smi = (void *)msg.i.raw;
 
-	hal_memset(&oid, 0, sizeof(oid));
 	hal_memset(&msg, 0, sizeof(msg));
 	msg.type = sockmAccept;
 	smi->send.flags = flags;
