@@ -20,6 +20,7 @@
 #include "include/ioctl.h"
 #include "include/limits.h"
 #include "include/posix-fcntl.h"
+#include "include/posix-wait.h"
 #include "include/sockdefs.h"
 
 #include "proc/proc.h"
@@ -2674,7 +2675,7 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 			} while (c != pinfo->zombies);
 		}
 
-		if ((options & 1U) != 0U) { /* WNOHANG */
+		if ((options & WNOHANG) != 0U) {
 			err = EOK;
 			break;
 		}
