@@ -211,7 +211,6 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ports = NULL;
 
 	process->sigpend = 0;
-	process->sigmask = 0;
 	process->sighandler = NULL;
 	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
@@ -1410,7 +1409,6 @@ static void process_vforkThread(void *arg)
 	}
 	current->process->posix = 1U;
 
-	current->process->sigmask = parent->process->sigmask;
 	current->process->sighandler = parent->process->sighandler;
 
 	hal_spinlockSet(&spawn->sl, &sc);
