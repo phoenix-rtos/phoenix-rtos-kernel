@@ -984,16 +984,16 @@ int posix_pipe(int fildes[2])
 
 	fo = vm_kmalloc(sizeof(open_file_t));
 	if (fo == NULL) {
+		(void)proc_destroy(oid.port, oid);
 		pinfo_put(p);
-		/* FIXME: destroy pipe */
 		return -ENOMEM;
 	}
 
 	fi = vm_kmalloc(sizeof(open_file_t));
 	if (fi == NULL) {
 		vm_kfree(fo);
+		(void)proc_destroy(oid.port, oid);
 		pinfo_put(p);
-		/* FIXME: destroy pipe */
 		return -ENOMEM;
 	}
 
@@ -1008,6 +1008,8 @@ int posix_pipe(int fildes[2])
 
 		vm_kfree(fo);
 		vm_kfree(fi);
+
+		(void)proc_destroy(oid.port, oid);
 
 		pinfo_put(p);
 		return -EMFILE;
@@ -1059,12 +1061,15 @@ int posix_mkfifo(const char *pathname, mode_t mode)
 	/* link pipe in posix server */
 	ret = proc_link(oid, oid, pathname);
 	if (ret < 0) {
+		(void)proc_destroy(oid.port, oid);
 		return ret;
 	}
 
 	/* create pipe in filesystem */
 	ret = posix_create(pathname, 2 /* otDev */, mode | S_IFIFO, oid, &file);
 	if (ret < 0) {
+		(void)proc_unlink(oid, oid, pathname);
+		(void)proc_destroy(oid.port, oid);
 		return ret;
 	}
 
