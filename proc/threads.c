@@ -1281,9 +1281,8 @@ static time_t _proc_nextWakeup(void)
 
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
-	u32 sigbit = (u32)1U << (unsigned int)sig;
-
 	spinlock_ctx_t sc;
+	u32 sigbit;
 
 	switch (sig) {
 		case signal_segv:
@@ -1309,6 +1308,12 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 			/* Handles any value of 'sig' not covered by the case labels. */
 			break;
 	}
+
+	if ((sig < 0) || (sig >= NSIG)) {
+		return -EINVAL;
+	}
+	sigbit = (u32)1U << (unsigned int)sig;
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	if (thread != NULL) {

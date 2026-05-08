@@ -59,8 +59,6 @@
 #define SIGUSR1   30
 #define SIGUSR2   31
 
-#define NSIG 32
-
 #define SIG_ERR (-1)
 #define SIG_DFL (-2)
 #define SIG_IGN (-3)
