@@ -321,7 +321,7 @@ int syscalls_beginthreadex(u8 *ustack)
 
 	proc_get(proc);
 
-	err = proc_threadCreate(proc, start, id, (u8)priority, (size_t)SIZE_KSTACK, stack, (size_t)stacksz, arg);
+	err = proc_threadCreate(proc, start, id, (u8)priority, (size_t)SIZE_KSTACK, stack, (size_t)stacksz, proc_current()->sigmask, arg);
 
 	if (err < 0) {
 		(void)proc_put(proc);

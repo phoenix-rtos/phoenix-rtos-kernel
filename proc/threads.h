@@ -96,7 +96,7 @@ thread_t *proc_current(void);
 void threads_canaryInit(thread_t *t, void *ustack);
 
 
-int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority, size_t kstacksz, void *stack, size_t stacksz, void *arg);
+int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority, size_t kstacksz, void *stack, size_t stacksz, unsigned int sigmask, void *arg);
 
 
 int proc_threadPriority(int signedPriority);

@@ -116,16 +116,16 @@ void test_proc_threads1(void)
 		test_proc_common.rotations[i] = 0;
 	}
 
-	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, stacksz, NULL, 0, NULL);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, stacksz, NULL, 0, (void *)(int *)1);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, stacksz, NULL, 0, (void *)(int *)2);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, stacksz, NULL, 0, (void *)(int *)3);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, stacksz, NULL, 0, (void *)(int *)4);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, stacksz, NULL, 0, (void *)(int *)5);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, stacksz, NULL, 0, (void *)(int *)6);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, stacksz, NULL, 0, (void *)(int *)7);
+	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, stacksz, NULL, 0, 0, NULL);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, stacksz, NULL, 0, 0, (void *)(int *)1);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, stacksz, NULL, 0, 0, (void *)(int *)2);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, stacksz, NULL, 0, 0, (void *)(int *)3);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, stacksz, NULL, 0, 0, (void *)(int *)4);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, stacksz, NULL, 0, 0, (void *)(int *)5);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, stacksz, NULL, 0, 0, (void *)(int *)6);
+	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, stacksz, NULL, 0, 0, (void *)(int *)7);
 
-	proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 1024, NULL, 0, NULL);
+	proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 1024, NULL, 0, 0, NULL);
 }
 
 
@@ -168,13 +168,13 @@ void test_proc_threads2(void)
 	test_proc_common.queue = NULL;
 	hal_spinlockCreate(&test_proc_common.spinlock, "test_proc_common.spinlock");
 
-	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 1024, NULL, 0, NULL);
-	proc_threadCreate(NULL, test_proc_timethr, NULL, 0, 1024, NULL, 0, NULL);
+	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 1024, NULL, 0, 0, NULL);
+	proc_threadCreate(NULL, test_proc_timethr, NULL, 0, 1024, NULL, 0, 0, NULL);
 
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 1, 1024, NULL, 0, (void *)(int *)1);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 2, 1024, NULL, 0, (void *)(int *)2);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 3, 1024, NULL, 0, (void *)(int *)3);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 4, 1024, NULL, 0, (void *)(int *)4);
+	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 1, 1024, NULL, 0, 0, (void *)(int *)1);
+	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 2, 1024, NULL, 0, 0, (void *)(int *)2);
+	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 3, 1024, NULL, 0, 0, (void *)(int *)3);
+	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 4, 1024, NULL, 0, 0, (void *)(int *)4);
 }
 
 

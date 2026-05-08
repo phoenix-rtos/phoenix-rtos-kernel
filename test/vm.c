@@ -240,10 +240,10 @@ void test_vm_kmallocsim(void)
 	unsigned int i;
 	proc_lockInit(&lock, &proc_lockAttrDefault, "kmalloc.sim");
 
-	proc_threadCreate(0, _test_vm_upgrsimthr, NULL, 0, 512, 0, 0, 0);
+	proc_threadCreate(0, _test_vm_upgrsimthr, NULL, 0, 512, 0, 0, 0, 0);
 
 	for (i = 0; i < 16U; i++) {
-		proc_threadCreate(0, _test_vm_msgsimthr, NULL, 0, 512, 0, 0, 0);
+		proc_threadCreate(0, _test_vm_msgsimthr, NULL, 0, 512, 0, 0, 0, 0);
 	}
 }
 

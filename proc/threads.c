@@ -529,7 +529,7 @@ void threads_canaryInit(thread_t *t, void *ustack)
 }
 
 
-int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority, size_t kstacksz, void *stack, size_t stacksz, void *arg)
+int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority, size_t kstacksz, void *stack, size_t stacksz, unsigned int sigmask, void *arg)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
@@ -556,7 +556,8 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->wakeup = 0;
 	t->process = process;
 	t->parentkstack = NULL;
-	t->sigmask = t->sigpend = 0;
+	t->sigmask = sigmask;
+	t->sigpend = 0;
 	t->refs = 1;
 	t->interruptible = 0;
 	t->exit = 0;
@@ -2043,7 +2044,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
-		(void)proc_threadCreate(NULL, threads_idlethr, NULL, MAX_PRIO, (size_t)SIZE_KSTACK, NULL, 0, NULL);
+		(void)proc_threadCreate(NULL, threads_idlethr, NULL, MAX_PRIO, (size_t)SIZE_KSTACK, NULL, 0, 0, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */
