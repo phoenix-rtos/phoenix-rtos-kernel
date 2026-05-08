@@ -326,7 +326,6 @@ int posix_clone(int ppid)
 		(void)proc_lockSet(&pp->lock);
 		p->maxfd = pp->maxfd;
 		p->fdsz = pp->fdsz;
-		LIST_ADD(&pp->children, p);
 		p->parent = ppid;
 	}
 	else {
@@ -360,7 +359,11 @@ int posix_clone(int ppid)
 			}
 		}
 
+		p->pgid = pp->pgid;
+		LIST_ADD(&pp->children, p);
 		(void)proc_lockClear(&pp->lock);
+
+		pinfo_put(pp);
 	}
 	else {
 		hal_memset(p->fds, 0, (size_t)p->fdsz * sizeof(fildes_t));
@@ -389,13 +392,7 @@ int posix_clone(int ppid)
 		p->fds[0].file->status = O_RDONLY;
 		p->fds[1].file->status = O_WRONLY;
 		p->fds[2].file->status = O_WRONLY;
-	}
 
-	if (pp != NULL) {
-		p->pgid = pp->pgid;
-		pinfo_put(pp);
-	}
-	else {
 		p->pgid = p->process;
 	}
 
