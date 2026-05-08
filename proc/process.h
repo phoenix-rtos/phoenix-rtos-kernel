@@ -62,7 +62,6 @@ typedef struct _process_t {
 	idtree_t resources;
 
 	unsigned int sigpend;
-	unsigned int sigmask;
 	sighandlerFn_t sighandler;
 
 	void *got;

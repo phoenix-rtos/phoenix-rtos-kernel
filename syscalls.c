@@ -1018,15 +1018,11 @@ addr_t syscalls_va2pa(u8 *ustack)
 int syscalls_signalHandle(u8 *ustack)
 {
 	sighandlerFn_t handler;
-	unsigned int mask, mmask;
 	thread_t *thread;
 
 	GETFROMSTACK(ustack, sighandlerFn_t, handler, 0U);
-	GETFROMSTACK(ustack, unsigned int, mask, 1U);
-	GETFROMSTACK(ustack, unsigned int, mmask, 2U);
 
 	thread = proc_current();
-	thread->process->sigmask = (mask & mmask) | (thread->process->sigmask & ~mmask);
 	thread->process->sighandler = handler;
 
 	return EOK;
