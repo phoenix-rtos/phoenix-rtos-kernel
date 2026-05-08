@@ -172,8 +172,8 @@ void test_msg(void)
 		hal_cpuHalt();
 	}
 
-	proc_threadCreate(NULL, test_pong, NULL, 4, 1024, NULL, 0, (void *)(long)port);
-	proc_threadCreate(NULL, test_ping, NULL, 4, 1024, NULL, 0, (void *)(long)port);
+	proc_threadCreate(NULL, test_pong, NULL, 4, 1024, NULL, 0, 0, (void *)(long)port);
+	proc_threadCreate(NULL, test_ping, NULL, 4, 1024, NULL, 0, 0, (void *)(long)port);
 }
 
 

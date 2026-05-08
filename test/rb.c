@@ -197,7 +197,7 @@ static void test_rb_autothr(void *arg)
 
 void test_rb(void)
 {
-	proc_threadCreate(NULL, test_rb_autothr, NULL, 1, 512, NULL, 0, NULL);
+	proc_threadCreate(NULL, test_rb_autothr, NULL, 1, 512, NULL, 0, 0, NULL);
 }
 
 /* parasoft-end-suppress ALL "tests don't need to comply with MISRA" */
