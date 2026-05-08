@@ -21,6 +21,7 @@
 #include "include/limits.h"
 #include "include/posix-fcntl.h"
 #include "include/posix-wait.h"
+#include "include/signal.h"
 #include "include/sockdefs.h"
 
 #include "proc/proc.h"

@@ -19,4 +19,6 @@
 
 enum { signal_kill = 1, signal_segv, signal_illegal, signal_cancel = 32 };
 
+#define NSIG 32
+
 #endif
