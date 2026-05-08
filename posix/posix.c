@@ -2639,7 +2639,20 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 {
 	process_info_t *pinfo, *c;
 	pid_t pid;
-	int err = EOK;
+	int err = EOK, wnohang = 0;
+
+	if (options != 0U) {
+		if ((options & ~((unsigned int)(WNOHANG | WUNTRACED | WCONTINUED))) != 0U) {
+			return -EINVAL;
+		}
+
+		if ((options & (WUNTRACED | WCONTINUED)) != 0U) {
+			/* TODO: handle */
+			return -ENOSYS;
+		}
+
+		wnohang = (options & WNOHANG) != 0U ? 1 : 0;
+	}
 
 	pid = process_getPid(proc_current()->process);
 
@@ -2675,8 +2688,7 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 			} while (c != pinfo->zombies);
 		}
 
-		if ((options & WNOHANG) != 0U) {
-			err = EOK;
+		if (wnohang != 0) {
 			break;
 		}
 
