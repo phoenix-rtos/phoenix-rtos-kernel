@@ -74,7 +74,10 @@ DEPS := $(patsubst %.o, %.c.d, $(OBJS))
 # 4) Remove "+ SIZEOF_HEADERS", which causes inclusion of program headers.
 $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt:
 	$(SIL)$(LD) $(LDFLAGS_PREFIX)--verbose 2>/dev/null | sed -n '/^==*$$/,/^==*$$/p' | sed '1,1d; $$d' | sed s/"\s*+\s*SIZEOF_HEADERS"// > "$@"
-
+	@printf '%s\n' "$$SYSPAGE_SECTION" > temp_file.txt
+	@sed -i "/^[[:space:]]*$$SYSPAGE_STARTING_POINT*/r temp_file.txt" "$@" && rm temp_file.txt
+	@sed -i "/^[[:space:]]*$$DEFAULT_BSS_START*/i\\  $$CUSTOM_BSS_START" "$@"
+	@sed -i "/^[[:space:]]*$$DEFAULT_BSS_END*/i\\  $$CUSTOM_BSS_END" "$@"
 
 $(PREFIX_PROG)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf: $(OBJS) $(PREFIX_O)$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).ldt
 	@mkdir -p $(@D)
