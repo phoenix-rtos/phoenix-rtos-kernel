@@ -54,8 +54,8 @@ static struct {
 	spinlock_t spinlock;
 	lock_t lock;
 
-	sched_window_t **windows; /* window 0 is for kernel threads and default partition */
-	size_t *actWindow;        /* Currently scheduled window for each CPU */
+	sched_window_t **windows;       /* window 0 is for kernel threads and default partition */
+	size_t *actWindow;              /* Currently scheduled window for each CPU */
 	syspage_sched_cycle_t **cycles; /* Scheduler cycle configuration for each CPU */
 	thread_t **current;
 	time_t utcoffs;

@@ -16,6 +16,7 @@
 #include "include/errno.h"
 #include "lib/lib.h"
 #include "proc.h"
+#include "vm/page.h"
 
 
 #define FLOOR(x) ((x) & ~(SIZE_PAGE - 1U))
@@ -47,6 +48,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	int err;
 	vm_flags_t flags;
 	addr_t bpa, pa, epa;
+	ph_map_t **phMaps = (from != NULL) ? from->mapp->phMaps : msg_common.kmap->phMaps;
 
 	if ((size == 0U) || (data == NULL)) {
 		return NULL;
@@ -113,7 +115,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		ml->boffs = boffs;
 		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
 
-		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
+		nbp = vm_pageAlloc(phMaps, SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
 		ml->bp = nbp;
 		if (nbp == NULL) {
 			return NULL;
@@ -154,7 +156,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
 
 		if ((boffs == 0U) || (eoffs >= boffs)) {
-			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
+			nep = vm_pageAlloc(phMaps, SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
 			ml->ep = nep;
 			if (nep == NULL) {
 				return NULL;

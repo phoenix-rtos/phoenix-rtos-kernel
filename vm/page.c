@@ -15,18 +15,21 @@
  */
 
 #include "hal/hal.h"
+#include "include/syspage.h"
 #include "lib/lib.h"
+#include "proc/lock.h"
 #include "proc/proc.h"
 #include "include/errno.h"
 #include "include/mman.h"
 #include "page.h"
 #include "hal/types.h"
+#include "syspage.h"
 
 
 #define SIZE_VM_SIZES ((unsigned int)(sizeof(void *) * (size_t)__CHAR_BIT__))
 
 
-static struct {
+struct _ph_map_t {
 	page_t *sizes[SIZE_VM_SIZES];
 	page_t *pages; /* pages ordering and their addresses (page_t::addr) stay invariant after _page_init() */
 
@@ -35,10 +38,19 @@ static struct {
 	size_t bootsz;
 
 	lock_t lock;
-} pages_info;
+
+	addr_t start;
+	addr_t stop;
+};
+
+struct {
+	ph_map_t **maps;
+	size_t mapssz;
+	ph_map_t kphmap;
+} page_common;
 
 
-static page_t *_page_alloc(size_t size, vm_flags_t flags, syspage_part_t *part)
+static page_t *_page_alloc(ph_map_t *map, size_t size, vm_flags_t flags, syspage_part_t *part)
 {
 	unsigned int start, stop, i;
 	page_t *lh, *rh;
@@ -59,35 +71,35 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags, syspage_part_t *part)
 	/* Find segment */
 	stop = start;
 
-	while ((stop < SIZE_VM_SIZES) && (pages_info.sizes[stop] == NULL)) {
+	while ((stop < SIZE_VM_SIZES) && (map->sizes[stop] == NULL)) {
 		stop++;
 	}
 	if (stop == SIZE_VM_SIZES) {
 		return NULL;
 	}
 
-	lh = pages_info.sizes[stop];
+	lh = map->sizes[stop];
 
 	/* Split segment */
 	while (stop > start) {
-		LIST_REMOVE(&pages_info.sizes[stop], lh);
+		LIST_REMOVE(&map->sizes[stop], lh);
 
 		stop--;
 
 		lh->idx--;
 		rh = lh + (1UL << lh->idx) / SIZE_PAGE;
 		rh->idx = lh->idx;
-		LIST_ADD(&pages_info.sizes[stop], lh);
-		LIST_ADD(&pages_info.sizes[stop], rh);
+		LIST_ADD(&map->sizes[stop], lh);
+		LIST_ADD(&map->sizes[stop], rh);
 	}
 
-	LIST_REMOVE(&pages_info.sizes[stop], lh);
+	LIST_REMOVE(&map->sizes[stop], lh);
 
 	/* Mark allocated pages */
 	for (i = 0; i < (1UL << lh->idx) / SIZE_PAGE; i++) {
 		(lh + i)->flags &= ~PAGE_FREE;
 		(lh + i)->flags |= flags;
-		pages_info.allocsz += SIZE_PAGE;
+		map->allocsz += SIZE_PAGE;
 	}
 
 	if (part != NULL) {
@@ -98,14 +110,32 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags, syspage_part_t *part)
 }
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags, syspage_part_t *part)
+page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_flags_t flags, syspage_part_t *part)
 {
 	page_t *p;
 
-	(void)proc_lockSet(&pages_info.lock);
-	p = _page_alloc(size, flags, part);
-	(void)proc_lockClear(&pages_info.lock);
+	while (*maps != NULL) {
+		(void)proc_lockSet(&(*maps)->lock);
+		p = _page_alloc(*maps, size, flags, part);
+		(void)proc_lockClear(&(*maps)->lock);
+		if (p != NULL) {
+			return p;
+		}
+		maps++;
+	}
 	return p;
+}
+
+
+static ph_map_t *page_mapByAddr(addr_t addr)
+{
+	unsigned int i;
+	for (i = 0; i < page_common.mapssz; i++) {
+		if ((page_common.maps[i]->start <= addr) && (page_common.maps[i]->stop > addr)) {
+			return page_common.maps[i];
+		}
+	}
+	return NULL;
 }
 
 
@@ -113,12 +143,18 @@ void vm_pageFree(page_t *p, syspage_part_t *part)
 {
 	unsigned int idx, i;
 	page_t *lh = p, *rh = p;
+	ph_map_t *map;
 
 	if (p == NULL) {
 		return;
 	}
 
-	(void)proc_lockSet(&pages_info.lock);
+	map = page_mapByAddr(p->addr);
+	if (map == NULL) {
+		return;
+	}
+
+	(void)proc_lockSet(&map->lock);
 
 	if ((lh->flags & PAGE_FREE) != 0U) {
 		hal_cpuDisableInterrupts();
@@ -138,7 +174,7 @@ void vm_pageFree(page_t *p, syspage_part_t *part)
 	/* Mark free pages */
 	for (i = 0; i < ((u64)1 << idx) / SIZE_PAGE; i++) {
 		(p + i)->flags |= PAGE_FREE;
-		pages_info.allocsz -= SIZE_PAGE;
+		map->allocsz -= SIZE_PAGE;
 	}
 
 	if ((p->addr & (((u64)1 << (idx + 1U)) - 1U)) != 0U) {
@@ -149,15 +185,15 @@ void vm_pageFree(page_t *p, syspage_part_t *part)
 	}
 
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 MISRAC2012-RULE_18_3 "lh, rh, pages_info.pages are related" */
-	while ((lh >= pages_info.pages) && (rh < (pages_info.pages + pages_info.totalsz / SIZE_PAGE)) &&
+	while ((lh >= map->pages) && (rh < (map->pages + map->totalsz / SIZE_PAGE)) &&
 			((lh->flags & PAGE_FREE) != 0U) && ((rh->flags & PAGE_FREE) != 0U) && (lh->idx == rh->idx) &&
 			((lh->addr + (1UL << lh->idx)) == rh->addr) && (idx < SIZE_VM_SIZES)) {
 
 		if (p == lh) {
-			LIST_REMOVE(&pages_info.sizes[idx], rh);
+			LIST_REMOVE(&map->sizes[idx], rh);
 		}
 		else {
-			LIST_REMOVE(&pages_info.sizes[idx], lh);
+			LIST_REMOVE(&map->sizes[idx], lh);
 		}
 
 		rh->idx = (u8)hal_cpuGetFirstBit(SIZE_PAGE);
@@ -174,9 +210,9 @@ void vm_pageFree(page_t *p, syspage_part_t *part)
 		}
 	}
 
-	LIST_ADD(&pages_info.sizes[idx], p);
+	LIST_ADD(&map->sizes[idx], p);
 
-	(void)proc_lockClear(&pages_info.lock);
+	(void)proc_lockClear(&map->lock);
 	return;
 }
 
@@ -201,26 +237,30 @@ static int page_get_cmp(void *key, void *item)
 page_t *page_get(addr_t addr)
 {
 	page_t *p;
-	size_t np = pages_info.totalsz / SIZE_PAGE;
+	ph_map_t *map = page_mapByAddr(addr);
+	if (map == NULL) {
+		return NULL;
+	}
+	size_t np = map->totalsz / SIZE_PAGE;
 
 	addr = addr & ~(SIZE_PAGE - 1U);
-	p = lib_bsearch((void *)addr, pages_info.pages, np, sizeof(page_t), page_get_cmp);
+	p = lib_bsearch((void *)addr, map->pages, np, sizeof(page_t), page_get_cmp);
 
 	return p;
 }
 
 
-static void _page_initSizes(void)
+static void _page_initSizes(ph_map_t *map)
 {
 	unsigned int idx;
 	size_t k, i = 0;
 	page_t *p;
 
 	/* Remove already discovered pages */
-	pages_info.sizes[hal_cpuGetFirstBit(SIZE_PAGE)] = NULL;
+	map->sizes[hal_cpuGetFirstBit(SIZE_PAGE)] = NULL;
 
-	while (i < pages_info.totalsz / SIZE_PAGE) {
-		p = &pages_info.pages[i];
+	while (i < map->totalsz / SIZE_PAGE) {
+		p = &map->pages[i];
 		if ((p->flags & PAGE_FREE) == 0U) {
 			i++;
 			continue;
@@ -233,8 +273,8 @@ static void _page_initSizes(void)
 		}
 
 		/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "idx is limited to min(SIZE_VM_SIZES - 1U, bits in p-> addr")*/
-		for (k = 0U; (k < (((u64)1 << idx) / SIZE_PAGE) - 1U) && (i + k < ((pages_info.totalsz / SIZE_PAGE) - 1U)); k++) {
-			if ((pages_info.pages[i + k + 1U].flags & PAGE_FREE) == 0U) {
+		for (k = 0U; (k < (((u64)1 << idx) / SIZE_PAGE) - 1U) && (i + k < ((map->totalsz / SIZE_PAGE) - 1U)); k++) {
+			if ((map->pages[i + k + 1U].flags & PAGE_FREE) == 0U) {
 				break;
 			}
 		}
@@ -242,7 +282,7 @@ static void _page_initSizes(void)
 		idx = hal_cpuGetLastBit((k + 1U) * SIZE_PAGE);
 		p->idx = (u8)idx;
 
-		LIST_ADD(&pages_info.sizes[idx], p);
+		LIST_ADD(&map->sizes[idx], p);
 
 		i += (size_t)(((u64)1 << idx) / SIZE_PAGE);
 	}
@@ -264,7 +304,7 @@ static unsigned int page_digits(unsigned int n, unsigned int base)
 
 
 #define TTY_COLS 80U
-void _page_showPages(void)
+void _page_showMapPages(ph_map_t *map)
 {
 	addr_t a = 0;
 	page_t *p;
@@ -274,8 +314,8 @@ void _page_showPages(void)
 	char buf[TTY_COLS + 1U];
 
 	w = lib_sprintf(buf, "vm: ");
-	while (i < pages_info.totalsz / SIZE_PAGE) {
-		p = &pages_info.pages[i];
+	while (i < map->totalsz / SIZE_PAGE) {
+		p = &map->pages[i];
 
 		/* Print markers in case of memory gap */
 		if (p->addr > a) {
@@ -301,8 +341,8 @@ void _page_showPages(void)
 
 		/* Print markers with repetitions */
 		c = pmap_marker(p);
-		for (rep = 0; ((size_t)i + rep + 1U) < pages_info.totalsz / SIZE_PAGE; rep++) {
-			if ((c != pmap_marker(&pages_info.pages[i + rep + 1U])) || (pages_info.pages[i + rep + 1U].addr - pages_info.pages[i + rep].addr > SIZE_PAGE)) {
+		for (rep = 0; ((size_t)i + rep + 1U) < map->totalsz / SIZE_PAGE; rep++) {
+			if ((c != pmap_marker(&map->pages[i + rep + 1U])) || (map->pages[i + rep + 1U].addr - map->pages[i + rep].addr > SIZE_PAGE)) {
 				break;
 			}
 		}
@@ -325,7 +365,7 @@ void _page_showPages(void)
 			}
 		}
 
-		a = pages_info.pages[i + rep].addr + SIZE_PAGE;
+		a = map->pages[i + rep].addr + SIZE_PAGE;
 		i += rep + 1U;
 	}
 
@@ -337,12 +377,25 @@ void _page_showPages(void)
 }
 
 
+void _page_showPages(void)
+{
+	unsigned int map;
+
+	for (map = 0; map < page_common.mapssz; map++) {
+		lib_printf("vm: Map %p-%p:\n", (void *)page_common.maps[map]->start, (void *)page_common.maps[map]->stop);
+		_page_showMapPages(page_common.maps[map]);
+	}
+}
+
+
 static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 {
 	page_t *ap = NULL;
 
 	while (pmap_enter(pmap, pa, vaddr, attr, ap) < 0) {
-		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
+		(void)proc_lockSet(&page_common.kphmap.lock);
+		ap = _page_alloc(&page_common.kphmap, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
+		(void)proc_lockClear(&page_common.kphmap.lock);
 		if (/*vaddr > (void *)VADDR_KERNEL ||*/ ap == NULL) {
 			return -ENOMEM;
 		}
@@ -353,26 +406,21 @@ static int _page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 
 int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr)
 {
-	int err;
-
-	(void)proc_lockSet(&pages_info.lock);
-	err = _page_map(pmap, vaddr, pa, attr);
-	(void)proc_lockClear(&pages_info.lock);
-
-	return err;
+	// TODO: why was lock here?
+	return _page_map(pmap, vaddr, pa, attr);
 }
 
 
 int _page_sbrk(pmap_t *pmap, void **start, void **end)
 {
 	page_t *np, *ap = NULL;
-	np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, NULL);
+	np = _page_alloc(&page_common.kphmap, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, NULL);
 	if (np == NULL) {
 		return -ENOMEM;
 	}
 
 	while (pmap_enter(pmap, np->addr, (*end), PGHD_READ | PGHD_WRITE | PGHD_PRESENT, ap) < 0) {
-		ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
+		ap = _page_alloc(&page_common.kphmap, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
 		if (ap == NULL) {
 			return -ENOMEM;
 		}
@@ -386,80 +434,86 @@ int _page_sbrk(pmap_t *pmap, void **start, void **end)
 
 void vm_pageGetStats(size_t *freesz)
 {
-	*freesz = pages_info.totalsz - pages_info.allocsz;
+	// TODO: only per map? iterate over all maps? some global values?
+	//  *freesz = pages_info.totalsz - pages_info.allocsz;
 }
 
 
 void vm_pageinfo(meminfo_t *info)
 {
-	char c;
-	page_t *p;
-	unsigned int rep, i = 0;
-	int size = 0;
+	// TODO: only per map? iterate over all maps? some global values?
+	//  char c;
+	//  page_t *p;
+	//  unsigned int rep, i = 0;
+	//  int size = 0;
 
-	(void)proc_lockSet(&pages_info.lock);
 
-	info->page.alloc = (unsigned int)pages_info.allocsz;
-	info->page.free = (unsigned int)(pages_info.totalsz - pages_info.allocsz);
-	info->page.boot = (unsigned int)pages_info.bootsz;
-	info->page.sz = (unsigned int)sizeof(page_t);
+	// (void)proc_lockSet(&pages_info.lock);
 
-	if (info->page.mapsz != -1) {
-		while (i < pages_info.totalsz / SIZE_PAGE) {
-			p = pages_info.pages + i;
+	// info->page.alloc = (unsigned int)pages_info.allocsz;
+	// info->page.free = (unsigned int)(pages_info.totalsz - pages_info.allocsz);
+	// info->page.boot = (unsigned int)pages_info.bootsz;
+	// info->page.sz = (unsigned int)sizeof(page_t);
 
-			c = pmap_marker(p);
-			for (rep = 0; ((size_t)i + rep + 1U) < pages_info.totalsz / SIZE_PAGE; rep++) {
-				if ((c != pmap_marker(pages_info.pages + i + rep + 1U)) || ((pages_info.pages[i + rep + 1U].addr - pages_info.pages[i + rep].addr) > SIZE_PAGE)) {
-					break;
-				}
-			}
+	// if (info->page.mapsz != -1) {
+	// 	while (i < pages_info.totalsz / SIZE_PAGE) {
+	// 		p = pages_info.pages + i;
 
-			if (info->page.mapsz > size && info->page.map != NULL) {
-				info->page.map[size].count = rep + 1U;
-				info->page.map[size].marker = c;
-				info->page.map[size].addr = p->addr;
-			}
+	// 		c = pmap_marker(p);
+	// 		for (rep = 0; ((size_t)i + rep + 1U) < pages_info.totalsz / SIZE_PAGE; rep++) {
+	// 			if ((c != pmap_marker(pages_info.pages + i + rep + 1U)) || ((pages_info.pages[i + rep + 1U].addr - pages_info.pages[i + rep].addr) > SIZE_PAGE)) {
+	// 				break;
+	// 			}
+	// 		}
 
-			i += rep + 1U;
-			++size;
-		}
+	// 		if (info->page.mapsz > size && info->page.map != NULL) {
+	// 			info->page.map[size].count = rep + 1U;
+	// 			info->page.map[size].marker = c;
+	// 			info->page.map[size].addr = p->addr;
+	// 		}
 
-		info->page.mapsz = size;
-	}
+	// 		i += rep + 1U;
+	// 		++size;
+	// 	}
 
-	(void)proc_lockClear(&pages_info.lock);
+	// 	info->page.mapsz = size;
+	// }
+
+	// (void)proc_lockClear(&pages_info.lock);
 }
 
 
-void _page_init(pmap_t *pmap, void **bss, void **top)
+static size_t _page_initMap(ph_map_t *map, const syspage_map_t *sysMap, pmap_t *pmap, void **bss, void **top)
 {
+	// TODO: pages could be mapped in provided map instead of kphmap
 	addr_t addr;
 	unsigned int k;
-	page_t *page, *p;
+	page_t *page;
 	int err;
-	void *vaddr;
 
-	(void)proc_lockInit(&pages_info.lock, &proc_lockAttrDefault, "page");
+	map->start = sysMap->start;
+	map->stop = sysMap->end;
+
+	(void)proc_lockInit(&map->lock, &proc_lockAttrDefault, "page");
 
 	/* Prepare memory hash */
-	pages_info.totalsz = 0;
-	pages_info.allocsz = 0;
-	pages_info.bootsz = 0;
+	map->totalsz = 0;
+	map->allocsz = 0;
+	map->bootsz = 0;
 
 	for (k = 0; k < SIZE_VM_SIZES; k++) {
-		pages_info.sizes[k] = NULL;
+		map->sizes[k] = NULL;
 	}
 
-	addr = 0;
-	pages_info.pages = (page_t *)*bss;
+	addr = sysMap->start;
+	map->pages = (page_t *)*bss;
 	page = (page_t *)*bss;
 
 	for (;;) {
 		if ((void *)page + sizeof(page_t) >= (*top)) {
 			if (_page_sbrk(pmap, bss, top) < 0) {
 				lib_printf("vm: Kernel heap extension error %p %p!\n", page, *top);
-				return;
+				return 0;
 			}
 		}
 
@@ -469,23 +523,23 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 		}
 
 		if (err == EOK) {
-			pages_info.totalsz += SIZE_PAGE;
+			map->totalsz += SIZE_PAGE;
 			if ((page->flags & PAGE_FREE) != 0U) {
 				page->idx = (u8)hal_cpuGetFirstBit(SIZE_PAGE);
-				LIST_ADD(&pages_info.sizes[hal_cpuGetFirstBit(SIZE_PAGE)], page);
+				LIST_ADD(&map->sizes[hal_cpuGetFirstBit(SIZE_PAGE)], page);
 			}
 			else {
 				page->idx = 0;
-				pages_info.allocsz += SIZE_PAGE;
+				map->allocsz += SIZE_PAGE;
 				if (((page->flags >> 1U) & 7U) == PAGE_OWNER_BOOT) {
-					pages_info.bootsz += SIZE_PAGE;
+					map->bootsz += SIZE_PAGE;
 				}
 			}
 			page = page + 1;
 		}
 
-		/* Wrap over 0 */
-		if (addr < SIZE_PAGE) {
+		/* Skip other masp and don't wrap over 0 */
+		if ((addr > sysMap->end) || (addr < SIZE_PAGE)) {
 			break;
 		}
 	}
@@ -493,30 +547,122 @@ void _page_init(pmap_t *pmap, void **bss, void **top)
 	(*bss) = page;
 
 	/* Prepare allocation hash */
-	_page_initSizes();
+	_page_initSizes(map);
+
+	return map->totalsz;
+}
+
+
+ph_map_t *vm_getSharedMap(int map)
+{
+	if ((unsigned int)map >= page_common.mapssz) {
+		return NULL;
+	}
+	return page_common.maps[map];
+}
+
+
+void _page_init(vm_map_t *kmap, void **bss, void **top)
+{
+	page_t *p;
+	void *vaddr;
+	const syspage_map_t *sysMap = syspage_mapList();
+	size_t totalsz = 0;
+	size_t res;
+	addr_t addr = pmap_resolve(&kmap->pmap, *bss);
+	unsigned int i = 0;
+
+	page_common.kphmap.totalsz = 0;
+	/* Initialize kernel map */
+	do {
+		if ((ptr_t)addr >= (ptr_t)sysMap->start && (ptr_t)addr < (ptr_t)sysMap->end) {
+			res = _page_initMap(&page_common.kphmap, sysMap, &kmap->pmap, bss, top);
+			if (res == 0) {
+				lib_printf("vm: Error during kernel page map initialization!\n");
+				return;
+			}
+			totalsz += res;
+			break;
+		}
+		sysMap = sysMap->next;
+	} while (sysMap != syspage_mapList());
+
+	if (page_common.kphmap.totalsz == 0) {
+		lib_printf("vm: kernel page map not found in syspage!\n");
+		return;
+	}
+
+	kmap->phMaps = (ph_map_t **)(*bss);
+	res = sizeof(ph_map_t *) * 2;
+	if ((void *)kmap->phMaps + res >= (*top)) {
+		if (_page_sbrk(&kmap->pmap, bss, top) < 0) {
+			lib_printf("vm: Kernel heap extension error %p %p!\n", kmap->phMaps, *top);
+			return;
+		}
+	}
+	*bss += res;
+	kmap->phMaps[0] = &page_common.kphmap;
+	kmap->phMaps[1] = NULL;
+
+	page_common.maps = (ph_map_t **)(*bss);
+	res = sizeof(ph_map_t *) * syspage_mapSize();
+	if ((void *)page_common.maps + res >= (*top)) {
+		if (_page_sbrk(&kmap->pmap, bss, top) < 0) {
+			lib_printf("vm: Kernel heap extension error %p %p!\n", page_common.maps, *top);
+			return;
+		}
+	}
+	*bss += res;
+
+	do {
+		if (sysMap->start == page_common.kphmap.start) {
+			page_common.maps[i] = &page_common.kphmap;
+			i++;
+			sysMap = sysMap->next;
+			continue;
+		}
+		page_common.maps[i] = (ph_map_t *)(*bss);
+
+		if ((void *)page_common.maps[i] + sizeof(ph_map_t) >= (*top)) {
+			if (_page_sbrk(&kmap->pmap, bss, top) < 0) {
+				lib_printf("vm: Kernel heap extension error %p %p!\n", page_common.maps[i], *top);
+				return;
+			}
+		}
+		*bss += sizeof(ph_map_t);
+		res = _page_initMap(page_common.maps[i], sysMap, &kmap->pmap, bss, top);
+		if (res == 0) {
+			lib_printf("vm: Error during page map initialization!\n");
+			return;
+		}
+		totalsz += res;
+
+		i++;
+		sysMap = sysMap->next;
+	} while (sysMap != syspage_mapList());
+
+	page_common.mapssz = i;
 
 	/* Initialize kernel space for user processes */
 	p = NULL;
 	vaddr = (*top);
 
 	for (;;) {
-		if (_pmap_kernelSpaceExpand(pmap, &vaddr, (*top) + max(pages_info.totalsz / 4U, (1UL << 23)), p) == 0) {
+		if (_pmap_kernelSpaceExpand(&kmap->pmap, &vaddr, (*top) + max(totalsz / 4U, (1UL << 23)), p) == 0) {
 			break;
 		}
-		p = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
+		p = _page_alloc(&page_common.kphmap, SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
 		if (p == NULL) {
 			return;
 		}
 	}
 
 	/* Show statistics on the console */
-	lib_printf("vm: Initializing page allocator (%d+%d)/%dKB, page_t=%d\n", (pages_info.allocsz - pages_info.bootsz) / 1024U,
-			pages_info.bootsz / 1024U, pages_info.totalsz / 1024U, sizeof(page_t));
+	// lib_printf("vm: Initializing page allocator (%d+%d)/%dKB, page_t=%d\n", (pages_info.allocsz - pages_info.bootsz) / 1024U,
+	// 		pages_info.bootsz / 1024U, pages_info.totalsz / 1024U, sizeof(page_t));
 
 	_page_showPages();
 
 	/* Create NULL pointer entry */
-	(void)_page_map(pmap, NULL, 0, PGHD_USER | ~PGHD_PRESENT);
-
-	return;
+	(void)_page_map(&kmap->pmap, NULL, 0, PGHD_USER | ~PGHD_PRESENT);
 }

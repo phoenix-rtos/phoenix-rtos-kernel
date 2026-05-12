@@ -275,7 +275,7 @@ page_t *amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size
 
 	if (a != NULL || o != NULL) {
 		/* Copy from object or shared anon */
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, amap->partition);
+		p = vm_pageAlloc(map->phMaps, SIZE_PAGE, PAGE_OWNER_APP, amap->partition);
 		if (p == NULL) {
 			(void)amap_unmap(map, v);
 			if (a != NULL) {

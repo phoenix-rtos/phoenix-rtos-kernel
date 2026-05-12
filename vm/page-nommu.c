@@ -63,7 +63,7 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags)
 }
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags, syspage_part_t *part)
+page_t *vm_pageAlloc(ph_map_t **phMaps, size_t size, vm_flags_t flags, syspage_part_t *part)
 {
 	page_t *p;
 
@@ -160,7 +160,7 @@ void vm_pageinfo(meminfo_t *info)
 }
 
 
-void _page_init(pmap_t *pmap, void **bss, void **top)
+void _page_init(vm_map_t *kmap, void **bss, void **top)
 {
 	page_t *p;
 	const syspage_map_t *map;

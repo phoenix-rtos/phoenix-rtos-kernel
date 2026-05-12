@@ -103,7 +103,7 @@ int proc_fileSpawn(const char *path, char **argv, char **envp);
 int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, char **argv);
 
 
-int proc_syspageSpawn(const syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv);
+int proc_syspageSpawn(const syspage_prog_t *program, ph_map_t *imap, const u8 *dmaps, size_t dmapSz, const char *path, char **argv);
 
 
 int proc_execve(const char *path, char **argv, char **envp);

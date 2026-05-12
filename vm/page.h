@@ -22,7 +22,18 @@
 #include "types.h"
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags, syspage_part_t *part);
+struct _vm_map_t;
+#ifndef NOMMU
+struct _ph_map_t;
+typedef struct _ph_map_t ph_map_t;
+#else
+typedef struct _vm_map_t ph_map_t;
+#endif
+
+ph_map_t *vm_phMapGet(u8 dmap);
+
+
+page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_flags_t flags, syspage_part_t *part);
 
 
 void vm_pageFree(page_t *p, syspage_part_t *part);
@@ -46,7 +57,7 @@ void vm_pageGetStats(size_t *freesz);
 void vm_pageinfo(meminfo_t *info);
 
 
-void _page_init(pmap_t *pmap, void **bss, void **top);
+void _page_init(struct _vm_map_t *kmap, void **bss, void **top);
 
 
 #endif

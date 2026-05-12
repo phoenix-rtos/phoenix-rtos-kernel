@@ -21,6 +21,7 @@
 #include "syspage.h"
 #include "map.h"
 #include "amap.h"
+#include "vm/page.h"
 #include "vm/types.h"
 
 
@@ -176,6 +177,23 @@ static void _entry_put(vm_map_t *map, map_entry_t *e)
 
 static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map_entry_t **next)
 {
+#ifdef NOMMU
+	unsigned int i = 0;
+	void *res;
+	if (map->phMaps != NULL) {
+		while ((map->phMaps[i] != NULL)) {
+			if ((map->phMaps[i]->start < vaddr + size) && (map->phMaps[i]->stop >= vaddr)) {
+				res = _map_find(map->phMaps[i], vaddr, size, prev, next);
+				if (res != NULL) {
+					return NULL;
+				}
+			}
+			i++;
+		}
+		return NULL;
+	}
+#endif
+
 	map_entry_t *e = lib_treeof(map_entry_t, linkage, map->tree.root);
 
 	*prev = NULL;
@@ -451,6 +469,23 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	if (((size & (SIZE_PAGE - 1U)) != 0U) || (((ptr_t)vaddr & (SIZE_PAGE - 1U)) != 0U)) {
 		return -EINVAL;
 	}
+
+#ifdef NOMMU
+	unsigned int i = 0;
+	int err;
+	if (map->phMaps != NULL) {
+		while ((map->phMaps[i] != NULL)) {
+			if ((map->phMaps[i]->start < vaddr + size) && (map->phMaps[i]->stop >= vaddr)) {
+				err = _vm_munmap(map->phMaps[i], vaddr, size);
+				if (err != EOK) {
+					return err;
+				}
+			}
+			i++;
+		}
+		return EOK;
+	}
+#endif
 
 	t.vaddr = vaddr;
 	t.size = size;
@@ -994,15 +1029,17 @@ void vm_mapDump(vm_map_t *map)
 }
 
 
-int vm_mapCreate(vm_map_t *map, void *start, void *stop)
+int vm_mapCreate(vm_map_t *map, void *start, void *stop, ph_map_t **phMaps)
 {
 	map->start = start;
 	map->stop = stop;
 	map->pmap.start = start;
 	map->pmap.end = stop;
 
+	map->phMaps = phMaps;
+
 #ifndef NOMMU
-	map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
+	map->pmap.pmapp = vm_pageAlloc(map_common.kmap->phMaps, SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
 	if (map->pmap.pmapp == NULL) {
 		return -ENOMEM;
 	}
@@ -1233,11 +1270,11 @@ void vm_mapinfo(meminfo_t *info)
 	rbnode_t *n;
 	map_entry_t *e;
 	vm_map_t *map;
-	const syspage_map_t *spMap;
+	// const syspage_map_t *spMap;
 	int size;
 	process_t *process;
 	size_t i;
-	size_t total, free;
+	// size_t total, free;
 
 
 	(void)proc_lockSet(&map_common.lock);
@@ -1396,55 +1433,56 @@ void vm_mapinfo(meminfo_t *info)
 		info->maps.total = 0;
 		info->maps.free = 0;
 
-		for (size = 0; (unsigned int)size < map_common.mapssz; ++size) {
-			map = vm_getSharedMap(size);
-			if (map == NULL) {
-				if (size < info->maps.mapsz) {
-					/* Store info that the map doesn't exist */
-					info->maps.map[size].id = size;
-					info->maps.map[size].free = 0;
-					info->maps.map[size].alloc = 0;
-					info->maps.map[size].pstart = 0;
-					info->maps.map[size].pend = 0;
-					info->maps.map[size].vstart = 0;
-					info->maps.map[size].vend = 0;
-				}
-				continue;
-			}
+		// TODO!
+		//  for (size = 0; (unsigned int)size < map_common.mapssz; ++size) {
+		//  	map = vm_getSharedMap(size);
+		//  	if (map == NULL) {
+		//  		if (size < info->maps.mapsz) {
+		//  			/* Store info that the map doesn't exist */
+		//  			info->maps.map[size].id = size;
+		//  			info->maps.map[size].free = 0;
+		//  			info->maps.map[size].alloc = 0;
+		//  			info->maps.map[size].pstart = 0;
+		//  			info->maps.map[size].pend = 0;
+		//  			info->maps.map[size].vstart = 0;
+		//  			info->maps.map[size].vend = 0;
+		//  		}
+		//  		continue;
+		//  	}
 
-			total = (ptr_t)map->stop - (ptr_t)map->start;
-			if (map->tree.root == NULL) {
-				free = total; /* Map is empty */
-			}
-			else {
-				e = lib_treeof(map_entry_t, linkage, map->tree.root);
-				free = e->lmaxgap + e->rmaxgap;
-			}
+		// 	total = (ptr_t)map->stop - (ptr_t)map->start;
+		// 	if (map->tree.root == NULL) {
+		// 		free = total; /* Map is empty */
+		// 	}
+		// 	else {
+		// 		e = lib_treeof(map_entry_t, linkage, map->tree.root);
+		// 		free = e->lmaxgap + e->rmaxgap;
+		// 	}
 
-			/* All maps together */
-			info->maps.total += total;
-			info->maps.free += free;
+		// 	/* All maps together */
+		// 	info->maps.total += total;
+		// 	info->maps.free += free;
 
-			if (size < info->maps.mapsz) {
-				info->maps.map[size].id = size;
-				info->maps.map[size].free = free;
-				info->maps.map[size].alloc = total - free;
-				info->maps.map[size].pstart = (addr_t)map->pmap.start;
-				info->maps.map[size].pend = (addr_t)map->pmap.end;
-				info->maps.map[size].vstart = (ptr_t)map->start;
-				info->maps.map[size].vend = (ptr_t)map->stop;
-				spMap = syspage_mapIdResolve((unsigned int)size);
-				if ((spMap != NULL) && (spMap->name != NULL)) {
-					(void)hal_strncpy(info->maps.map[size].name, spMap->name, sizeof(info->maps.map[size].name));
-					info->maps.map[size].name[sizeof(info->maps.map[size].name) - 1U] = '\0';
-				}
-				else {
-					info->maps.map[size].name[0] = '\0';
-				}
-			}
-		}
+		// 	if (size < info->maps.mapsz) {
+		// 		info->maps.map[size].id = size;
+		// 		info->maps.map[size].free = free;
+		// 		info->maps.map[size].alloc = total - free;
+		// 		info->maps.map[size].pstart = (addr_t)map->pmap.start;
+		// 		info->maps.map[size].pend = (addr_t)map->pmap.end;
+		// 		info->maps.map[size].vstart = (ptr_t)map->start;
+		// 		info->maps.map[size].vend = (ptr_t)map->stop;
+		// 		spMap = syspage_mapIdResolve((unsigned int)size);
+		// 		if ((spMap != NULL) && (spMap->name != NULL)) {
+		// 			(void)hal_strncpy(info->maps.map[size].name, spMap->name, sizeof(info->maps.map[size].name));
+		// 			info->maps.map[size].name[sizeof(info->maps.map[size].name) - 1U] = '\0';
+		// 		}
+		// 		else {
+		// 			info->maps.map[size].name[0] = '\0';
+		// 		}
+		// 	}
+		// }
 
-		info->maps.mapsz = size;
+		// info->maps.mapsz = size;
 	}
 }
 
@@ -1498,9 +1536,10 @@ void vm_mapGetStats(size_t *allocsz)
 }
 
 
-vm_map_t *vm_getSharedMap(int map)
+#ifdef NOMMU
+ph_map_t *vm_getSharedMap(int map)
 {
-	vm_map_t *ret = NULL;
+	ph_map_t *ret = NULL;
 
 	if (map >= 0 && (size_t)map < map_common.mapssz) {
 		ret = map_common.maps[map];
@@ -1508,6 +1547,7 @@ vm_map_t *vm_getSharedMap(int map)
 
 	return ret;
 }
+#endif
 
 
 static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
@@ -1552,7 +1592,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 			}
 
 			map_common.maps[id] = (*bss);
-			if (vm_mapCreate(map_common.maps[id], (void *)map->start, (void *)map->end) < 0) {
+			if (vm_mapCreate(map_common.maps[id], (void *)map->start, (void *)map->end, NULL) < 0) {
 				return -ENOMEM;
 			}
 

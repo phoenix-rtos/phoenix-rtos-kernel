@@ -88,7 +88,7 @@ static void main_initthr(void *unused)
 			}
 			argv[argc] = NULL;
 
-			res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), vm_getSharedMap((int)prog->dmaps[0]), argv[0], argv);
+			res = proc_syspageSpawn(prog, vm_getSharedMap((int)prog->imaps[0]), prog->dmaps, prog->dmapSz, argv[0], argv);
 			if (res < 0) {
 				lib_printf("main: failed to spawn %s (%d)\n", argv[0], res);
 			}
