@@ -1518,9 +1518,24 @@ static int process_copy(void)
 	process_t *process = current->process;
 	parent = spawn->parent;
 
+	/* these resources should get cleaned up by process_destroy */
 	if (parent->process->path != NULL) {
 		process->path = lib_strdup(parent->process->path);
 		if (process->path == NULL) {
+			return -ENOMEM;
+		}
+	}
+
+	if (parent->process->argv != NULL) {
+		process->argv = proc_copyargs(parent->process->argv);
+		if (process->argv == NULL) {
+			return -ENOMEM;
+		}
+	}
+
+	if (parent->process->envp != NULL) {
+		process->envp = proc_copyargs(parent->process->envp);
+		if (process->envp == NULL) {
 			return -ENOMEM;
 		}
 	}
