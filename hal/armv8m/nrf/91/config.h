@@ -16,6 +16,8 @@
 #ifndef _PH_HAL_CONFIG_H_
 #define _PH_HAL_CONFIG_H_
 
+#define CPU_SUPPORTS_TIMER_WAKEUP 0 /* if the function hal_timerSetWakeup is supported on this architecture */
+
 #ifndef __ASSEMBLY__
 
 #include "include/arch/armv8m/nrf/syspage.h"

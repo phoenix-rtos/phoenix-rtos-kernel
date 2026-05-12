@@ -18,11 +18,14 @@
 
 
 #include "interrupts.h"
+#include "config.h"
 
 time_t hal_timerGetUs(void);
 
 
+#if CPU_SUPPORTS_TIMER_WAKEUP
 void hal_timerSetWakeup(u32 waitUs);
+#endif
 
 
 int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h);

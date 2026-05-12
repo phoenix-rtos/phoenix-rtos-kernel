@@ -133,12 +133,6 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 }
 
 
-void hal_timerSetWakeup(u32 waitUs)
-{
-	/* Not implemented yet */
-}
-
-
 /* interval: microseconds between timer interrupts */
 void _hal_timerInit(u32 interval)
 {
