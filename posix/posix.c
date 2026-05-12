@@ -2658,10 +2658,7 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 			return -EINVAL;
 		}
 
-		if ((options & (WUNTRACED | WCONTINUED)) != 0U) {
-			/* TODO: handle */
-			return -ENOSYS;
-		}
+		/* TODO: handle WUNTRACED and WCONTINUED once SIGCONT/SIGSTOP gets implemented */
 
 		wnohang = (options & WNOHANG) != 0U ? 1 : 0;
 	}
