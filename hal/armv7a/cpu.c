@@ -17,6 +17,8 @@
 #include "hal/string.h"
 #include "hal/spinlock.h"
 #include "hal/hal.h"
+#include "arch/exceptions.h"
+#include "include/errno.h"
 
 #include "armv7a.h"
 #include "config.h"
@@ -97,8 +99,12 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 }
 
 
+extern void threads_setexcjmp(excjmp_context_t *ctx, excjmp_context_t **oldctx);
+
+
 int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signalCtx, int n, unsigned int oldmask, const int src)
 {
+	excjmp_context_t excctx, *oldctx;
 	cpu_context_t *ctx = (void *)((char *)kstack - sizeof(cpu_context_t));
 	const struct stackArg args[] = {
 		{ &ctx->psr, sizeof(ctx->psr) },
@@ -113,19 +119,26 @@ int hal_cpuPushSignal(void *kstack, void (*handler)(void), cpu_context_t *signal
 
 	(void)src;
 
-	hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
+	if (!hal_setexcjmp(&excctx, &oldctx)) {
+		hal_memcpy(signalCtx, ctx, sizeof(cpu_context_t));
 
-	signalCtx->pc = handler_addr & ~1U;
-	signalCtx->sp -= sizeof(cpu_context_t);
+		signalCtx->pc = handler_addr & ~1U;
+		signalCtx->sp -= sizeof(cpu_context_t);
 
-	if ((handler_addr & 1U) != 0U) {
-		signalCtx->psr |= THUMB_STATE;
+		if ((handler_addr & 1U) != 0U) {
+			signalCtx->psr |= THUMB_STATE;
+		}
+		else {
+			signalCtx->psr &= ~THUMB_STATE;
+		}
+
+		hal_stackPutArgs((void **)&signalCtx->sp, sizeof(args) / sizeof(args[0]), args);
 	}
 	else {
-		signalCtx->psr &= ~THUMB_STATE;
+		threads_setexcjmp(oldctx, NULL);
+		return -EFAULT;
 	}
-
-	hal_stackPutArgs((void **)&signalCtx->sp, sizeof(args) / sizeof(args[0]), args);
+	threads_setexcjmp(oldctx, NULL);
 
 	return 0;
 }

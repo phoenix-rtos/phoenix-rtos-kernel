@@ -42,4 +42,8 @@ typedef struct _exc_context_t {
 	cpu_hwContext_t mspctx;
 } exc_context_t;
 
+
+typedef struct _excjmp_context_t {
+} excjmp_context_t;
+
 #endif
