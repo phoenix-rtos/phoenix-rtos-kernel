@@ -29,11 +29,11 @@ typedef struct _dcache_entry_t {
 
 
 static struct {
-	int root_registered;
-	oid_t root_oid;
+	int rootRegistered;
+	oid_t rootOid;
 
 	dcache_entry_t *dcache[0x1U << HASH_LEN];
-	lock_t dcache_lock;
+	lock_t lock;
 } name_common;
 
 
@@ -76,19 +76,19 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 	unsigned int hash = dcache_strHash(name);
 
 	/* Check if entry already exists */
-	(void)proc_lockSet(&name_common.dcache_lock);
+	(void)proc_lockSet(&name_common.lock);
 	if (_dcache_entryLookup(hash, name) != NULL) {
-		(void)proc_lockClear(&name_common.dcache_lock);
+		(void)proc_lockClear(&name_common.lock);
 		return -EEXIST;
 	}
-	(void)proc_lockClear(&name_common.dcache_lock);
+	(void)proc_lockClear(&name_common.lock);
 
 	if (name[0] == '/' && name[1] == '\0') {
-		name_common.root_oid.port = port;
+		name_common.rootOid.port = port;
 		if (oid != NULL) {
-			name_common.root_oid.id = oid->id;
+			name_common.rootOid.id = oid->id;
 		}
-		name_common.root_registered = 1;
+		name_common.rootRegistered = 1;
 		return EOK;
 	}
 
@@ -104,10 +104,10 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 
 	(void)hal_strcpy(entry->name, name);
 
-	(void)proc_lockSet(&name_common.dcache_lock);
+	(void)proc_lockSet(&name_common.lock);
 	entry->next = name_common.dcache[hash];
 	name_common.dcache[hash] = entry;
-	(void)proc_lockClear(&name_common.dcache_lock);
+	(void)proc_lockClear(&name_common.lock);
 
 	return EOK;
 }
@@ -118,7 +118,7 @@ int proc_portUnregister(const char *name)
 	dcache_entry_t *entry, *prev = NULL;
 	unsigned int hash = dcache_strHash(name);
 
-	(void)proc_lockSet(&name_common.dcache_lock);
+	(void)proc_lockSet(&name_common.lock);
 	entry = name_common.dcache[hash];
 
 	while (entry != NULL && hal_strcmp(entry->name, name) != 0) {
@@ -129,7 +129,7 @@ int proc_portUnregister(const char *name)
 
 	if (entry == NULL) {
 		/* There is no such entry, nothing to do */
-		(void)proc_lockClear(&name_common.dcache_lock);
+		(void)proc_lockClear(&name_common.lock);
 		return -ENOENT;
 	}
 
@@ -139,7 +139,7 @@ int proc_portUnregister(const char *name)
 	else {
 		name_common.dcache[hash] = entry->next;
 	}
-	(void)proc_lockClear(&name_common.dcache_lock);
+	(void)proc_lockClear(&name_common.lock);
 
 	vm_kfree(entry);
 
@@ -161,13 +161,13 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	if (name[0] == '/' && name[1] == '\0') {
-		if (name_common.root_registered != 0) {
+		if (name_common.rootRegistered != 0) {
 			if (file != NULL) {
-				*file = name_common.root_oid;
+				*file = name_common.rootOid;
 			}
 
 			if (dev != NULL) {
-				*dev = name_common.root_oid;
+				*dev = name_common.rootOid;
 			}
 			return EOK;
 		}
@@ -176,7 +176,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	/* Search cache for full path */
-	(void)proc_lockSet(&name_common.dcache_lock);
+	(void)proc_lockSet(&name_common.lock);
 	entry = _dcache_entryLookup(dcache_strHash(name), name);
 	if (entry != NULL) {
 		if (file != NULL) {
@@ -186,12 +186,12 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		if (dev != NULL) {
 			*dev = entry->oid;
 		}
-		(void)proc_lockClear(&name_common.dcache_lock);
+		(void)proc_lockClear(&name_common.lock);
 		return EOK;
 	}
-	(void)proc_lockClear(&name_common.dcache_lock);
+	(void)proc_lockClear(&name_common.lock);
 
-	srv = name_common.root_oid;
+	srv = name_common.rootOid;
 
 	/* Search cache for starting point */
 	len = hal_strlen(name);
@@ -222,17 +222,17 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 		pptr[i] = '\0';
 
-		(void)proc_lockSet(&name_common.dcache_lock);
+		(void)proc_lockSet(&name_common.lock);
 		entry = _dcache_entryLookup(dcache_strHash(pptr), pptr);
 		if (entry != NULL) {
 			srv = entry->oid;
-			(void)proc_lockClear(&name_common.dcache_lock);
+			(void)proc_lockClear(&name_common.lock);
 			break;
 		}
-		(void)proc_lockClear(&name_common.dcache_lock);
+		(void)proc_lockClear(&name_common.lock);
 	}
 
-	if (name_common.root_registered == 0 && i == 0U) {
+	if (name_common.rootRegistered == 0 && i == 0U) {
 		if (pheap != NULL) {
 			vm_kfree(pheap);
 		}
@@ -557,8 +557,8 @@ off_t proc_size(oid_t oid)
 
 void _name_init(void)
 {
-	(void)proc_lockInit(&name_common.dcache_lock, &proc_lockAttrDefault, "name.common");
+	(void)proc_lockInit(&name_common.lock, &proc_lockAttrDefault, "name.common");
 
 	hal_memset(name_common.dcache, 0, sizeof(name_common.dcache));
-	name_common.root_registered = 0;
+	name_common.rootRegistered = 0;
 }
