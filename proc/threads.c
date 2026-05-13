@@ -2505,10 +2505,13 @@ static void _threads_copyShadowPages(ipc_buf_layout_t *il, size_t size)
 
 static void _threads_copyShmBuffers(thread_t *from, thread_t *to, msg_t *msg)
 {
-	if (to->mappedTo == from) {
-		/* TODO copying i may be unnecessary */
-		_threads_copyShadowPages(&to->utcb.iil, msg->i.size);
-		_threads_copyShadowPages(&to->utcb.oil, msg->o.size);
+	if (msg->i.size > 0 || msg->o.size > 0) {
+		LIB_ASSERT(to->mappedTo == from, "hm");
+		if (to->mappedTo == from) {
+			/* TODO copying i may be unnecessary */
+			_threads_copyShadowPages(&to->utcb.iil, msg->i.size);
+			_threads_copyShadowPages(&to->utcb.oil, msg->o.size);
+		}
 	}
 }
 
@@ -2653,10 +2656,18 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	// threads_releaseIpcBuffers(caller);
 
 	if (imap != NULL || omap != NULL) {
+		thread_t *prevMappedTo;
+
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		LIB_ASSERT(caller->mappedTo == NULL, "caller already mapped to?");
+		prevMappedTo = caller->mappedTo;
+		// LIB_ASSERT(caller->mappedTo == NULL, "caller already mapped to?");
 		caller->mappedTo = recv;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+
+		if (prevMappedTo != NULL) {
+			_threads_ipcBufferRelease(&caller->utcb.iil);
+			_threads_ipcBufferRelease(&caller->utcb.oil);
+		}
 	}
 
 	if (imap != NULL) {
@@ -3186,9 +3197,9 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	(void)_proc_threadWakeupPrio(&p->queue);
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
-	hal_spinlockClear(&p->spinlock, &sc);
+	_portEnqueue(p, recv);
 
-	port_put(p, 0);
+	hal_spinlockClear(&p->spinlock, &sc);
 
 	/* TODO: handle caller faults */
 
@@ -3199,7 +3210,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	log_err("fast (%d, %d)", proc_getTid(recv), recv->priority);
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
+	// hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	/* TODO should exit != 0 be treated in any special way? if we return back to
 	 * the exiting client, it will get reaped anyway  */
@@ -3207,9 +3218,11 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	LIB_ASSERT(caller->exit == 0, "exit=%d", caller->exit);
 	LIB_ASSERT(caller->state != GHOST, "huh");
 
-	_portEnqueue(p, recv);
 
-	_sc_return(recv, caller, recv->sc_active);
+	// threads_common.current[hal_cpuGetID()] = NULL;
+
+	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
+	_sc_return(recv, caller, donated_sc);
 
 	if (recv->sc_active == recv->sc_own) {
 		/* noone else to respond, go passive as recv */
@@ -3218,16 +3231,22 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		recv->state = BLOCKED_ON_RECV;
 		recv->passive = 1;
 		recv->interruptible = 1;
+		recv->flags &= (~(int)THREAD_PULSED);
 	}
 	else {
+		LIB_ASSERT(0, "inh happens");
 		LIST_ADD(&threads_common.ready[recv->priority], recv->sc_active);
 	}
 
-	msg_t msgCopy = *msg;
+	_threads_copyShmBuffers(recv, caller, msg);
+
+	msg_t msgCopy;
+	hal_memcpy(&msgCopy, msg, sizeof(msg_t));
 
 	ctx = _threads_switchTo(caller);
 
-	_threads_copyShmBuffers(recv, caller, &msgCopy);
+	threads_common.current[hal_cpuGetID()] = caller->sc_active;
+
 	_threads_copyMsgBufResponse(recv, caller, &msgCopy);
 
 	if (caller->callReturnable == 0) {
@@ -3241,8 +3260,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
 	}
 
-	/* TODO: lazy remapping */
 	threads_releaseIpcBuffers(caller);
+	port_put(p, 0);
 
 	return EOK;
 }
