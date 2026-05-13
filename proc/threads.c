@@ -30,6 +30,12 @@
 enum { event_scheduling, event_enqueued, event_waking, event_preempted };
 /* clang-format on */
 
+#define UNLOCK_DONT_YIELD 0
+#define UNLOCK_DO_YIELD   1
+#define UNLOCK_TRY        0
+#define UNLOCK_FORCE      1
+
+
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
@@ -239,7 +245,7 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
  */
 
 
-static void proc_lockUnlock(lock_t *lock);
+static void proc_lockForceUnlock(lock_t *lock, int doYield);
 
 
 static void thread_destroy(thread_t *thread)
@@ -252,7 +258,7 @@ static void thread_destroy(thread_t *thread)
 	/* No need to protect thread->locks access with threads_common.spinlock */
 	/* The destroyed thread is a ghost and no thread (except for the current one) can access it */
 	while (thread->locks != NULL) {
-		proc_lockUnlock(thread->locks);
+		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
 	vm_kfree(thread->kstack);
 
@@ -1610,7 +1616,7 @@ int proc_lockSetInterruptible(lock_t *lock)
 }
 
 
-static int _proc_lockUnlock(lock_t *lock)
+static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 {
 	thread_t *owner = lock->owner, *current;
 	spinlock_ctx_t sc;
@@ -1626,18 +1632,25 @@ static int _proc_lockUnlock(lock_t *lock)
 	LIB_ASSERT(LIST_BELONGS(&owner->locks, lock) != 0, "lock: %s, owner pid: %d, owner tid: %d, lock is not on the list",
 			lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
 
-	if ((lock->attr.type == PH_LOCK_ERRORCHECK) || (lock->attr.type == PH_LOCK_RECURSIVE)) {
-		if (lock->owner != current) {
-			hal_spinlockClear(&threads_common.spinlock, &sc);
-			return -EPERM;
+	if (doForceUnlock == UNLOCK_TRY) {
+		if ((lock->attr.type == PH_LOCK_ERRORCHECK) || (lock->attr.type == PH_LOCK_RECURSIVE)) {
+			if (lock->owner != current) {
+				hal_spinlockClear(&threads_common.spinlock, &sc);
+				return -EPERM;
+			}
 		}
 	}
 
 	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->depth > 0U)) {
-		lock->depth--;
-		if (lock->depth != 0U) {
-			hal_spinlockClear(&threads_common.spinlock, &sc);
-			return 0;
+		if (doForceUnlock == UNLOCK_TRY) {
+			lock->depth--;
+			if (lock->depth != 0U) {
+				hal_spinlockClear(&threads_common.spinlock, &sc);
+				return 0;
+			}
+		}
+		else {
+			lock->depth = 0U;
 		}
 	}
 
@@ -1670,19 +1683,22 @@ static int _proc_lockUnlock(lock_t *lock)
 }
 
 
-static void proc_lockUnlock(lock_t *lock)
+static void proc_lockForceUnlock(lock_t *lock, int doYield)
 {
 	spinlock_ctx_t sc;
+	int ret = 0;
 
 	hal_spinlockSet(&lock->spinlock, &sc);
+	if (lock->owner != NULL) {
+		ret = _proc_lockUnlock(lock, UNLOCK_FORCE);
+	}
 
-	if (_proc_lockUnlock(lock) > 0) {
-		hal_spinlockClear(&lock->spinlock, &sc);
+	hal_spinlockClear(&lock->spinlock, &sc);
+	if ((ret > 0) && (doYield != UNLOCK_DONT_YIELD)) {
 		(void)hal_cpuReschedule(NULL, NULL);
 	}
-	else {
-		hal_spinlockClear(&lock->spinlock, &sc);
-	}
+
+	LIB_ASSERT(ret >= 0, "lock: %s, force unlocking failed (%d)", lock->name, ret);
 }
 
 
@@ -1703,7 +1719,7 @@ static int _proc_lockClear(lock_t *lock)
 		return -EPERM;
 	}
 
-	return _proc_lockUnlock(lock);
+	return _proc_lockUnlock(lock, UNLOCK_TRY);
 }
 
 
@@ -1780,17 +1796,8 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 
 int proc_lockDone(lock_t *lock)
 {
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&lock->spinlock, &sc);
-
-	if (lock->owner != NULL) {
-		(void)_proc_lockUnlock(lock);
-	}
-
-	hal_spinlockClear(&lock->spinlock, &sc);
+	proc_lockForceUnlock(lock, UNLOCK_DONT_YIELD);
 	hal_spinlockDestroy(&lock->spinlock);
-
 	return EOK;
 }
 
