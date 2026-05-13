@@ -1168,13 +1168,13 @@ static void _thread_interrupt(thread_t *t)
 		_wakePassive(t);
 		unbindFromAddedTo(t);
 		t->utcb.msg->o.err = -EINTR;
-		hal_cpuSetReturnValue(t->context, NULL);
 	}
 	else {
 		LIB_ASSERT(t->sc_donated == NULL, "hmmmmmmmmmm");
 		_proc_threadDequeue(t);
-		hal_cpuSetReturnValue(t->context, (void *)-EINTR);
 	}
+
+	hal_cpuSetReturnValue(t->context, (void *)-EINTR);
 }
 
 
@@ -2557,13 +2557,11 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	while ((err = _mustSlowCall(p, caller)) != 0) {
 		p->queue.nonempty |= 1;
 		err = proc_threadWaitInterruptible(&p->queue.pq[caller->priority], &p->spinlock, 0, &sc);
-		if (err < 0) {
+		if (p->closed != 0 || err < 0) {
 			hal_spinlockClear(&p->spinlock, &sc);
 			port_put(p, 0);
-			LIB_ASSERT_ALWAYS(0, "FAIL");
-			return err;
+			return p->closed != 0 ? -EINVAL : err;
 		}
-		/* TODO: abort on server fault/port closure */
 	}
 
 	/* commit to fastpath - point of no return */
@@ -2644,11 +2642,14 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	/* TODO: bump refcnt on recv? */
 	hal_spinlockClear(&p->spinlock, &sc);
 
+	LIB_ASSERT(recv->refs > 0, "attempting to return to refs=0 rcv? port=%d caller tid=%d recv tid=%d refs: %d",
+			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
+
+	port_put(p, 0);
+
 	LIB_ASSERT(recv != NULL, "recv is null");
 	LIB_ASSERT(caller != NULL, "null caller");
 	LIB_ASSERT(recv->exit == 0, "recv exit=%d", recv->exit);
-	LIB_ASSERT(recv->refs > 0, "attempting to return to refs=0 rcv? port=%d caller tid=%d recv tid=%d refs: %d",
-			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
 	LIB_ASSERT(recv->utcb.msg != NULL, "recv msg is null");
 
 	/* message transfer */
@@ -2675,7 +2676,6 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	if (imap != NULL) {
 		/* TODO: permissions, incoming data doesnt need to be writable */
 		if (proc_setupSharedBuffer(caller, recv, imap, isize, &caller->utcb.iil, (void *)&recv->utcb.msg->i.data) < 0) {
-			port_put(p, 0);
 			LIB_ASSERT(0, "enomem");
 			return -ENOMEM;
 		}
@@ -2696,7 +2696,6 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 
 	if (omap != NULL) {
 		if (proc_setupSharedBuffer(caller, recv, omap, osize, &caller->utcb.oil, &recv->utcb.msg->o.data) < 0) {
-			port_put(p, 0);
 			LIB_ASSERT(0, "enomem");
 			return -ENOMEM;
 		}
@@ -2742,8 +2741,6 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
-
-	port_put(p, 0);
 
 	return EOK;
 }
@@ -2829,9 +2826,6 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
-	recv->utcb.ridPtr = rid;
-	recv->utcb.msg = msg;
-
 	log_err("passive %d", proc_getTid(recv));
 	_portEnqueue(p, recv);
 
@@ -2909,6 +2903,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	thread_t *recv;
 
 	recv = proc_current();
+	recv->utcb.ridPtr = rid;
+	recv->utcb.msg = msg;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -3017,24 +3013,32 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	if (caller->exit != 0) {
 		/* caller is dying, don't respond */
-
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
 		LIB_ASSERT(recv->passive == 1, "recv not passive?");
-		recv->state = READY;
 
-		// LIB_ASSERT(recv->inherited != NULL, "there should be an inherited SC");
-		recv->sc_active = recv->sc_own;
-		// LIST_REMOVE(&recv->inherited, recv->sc_active);
-
-		if (caller != recv->reply) {
-			recv->passive = 0;
+		if (caller->exit < THREAD_END_NOW) {
+			sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
+			_sc_return(recv, caller, donated_sc);
+			LIST_ADD(&threads_common.ready[caller->priority], caller->sc_active);
 		}
-		LIB_ASSERT(recv->sc_active != NULL, "recv sched null?");
+
+		/* TODO: duplicated with _wakePassive */
+		if (recv->sc_donated == NULL) {
+			/* this is ours SC */
+			recv->passive = 0;
+			recv->sc_active = recv->sc_own;
+			recv->reply = NULL;
+		}
+		else {
+			recv->sc_active = _sc_best(recv);
+		}
 
 		threads_common.current[hal_cpuGetID()] = recv->sc_active;
 
+		LIB_ASSERT(recv->state == READY, "recv not ready?");
 		LIB_ASSERT(recv->sc_active->t == recv, "badly linked sched context");
+
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
