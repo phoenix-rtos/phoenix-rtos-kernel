@@ -1733,6 +1733,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	void *kstackTop;
 	thread_t *thread;
 
+	// hal_cpuDisableInterrupts();
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	thread = _proc_current();
 	if (thread->fastpathExitCtx == NULL) {
@@ -1751,6 +1752,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 		fpCtx = thread->fastpathExitCtx;
 		thread->fastpathExitCtx = NULL;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+		/* FIXME: race with sched is possible here */
 		hal_endSyscall(fpCtx, &sc);
 	}
 
@@ -2506,7 +2508,7 @@ static void _threads_copyShadowPages(ipc_buf_layout_t *il, size_t size)
 static void _threads_copyShmBuffers(thread_t *from, thread_t *to, msg_t *msg)
 {
 	if (msg->i.size > 0 || msg->o.size > 0) {
-		LIB_ASSERT(to->mappedTo == from, "hm");
+		LIB_ASSERT(to->mappedTo == from, "hm, %p != %p", to->mappedTo, from);
 		if (to->mappedTo == from) {
 			/* TODO copying i may be unnecessary */
 			_threads_copyShadowPages(&to->utcb.iil, msg->i.size);
@@ -3140,6 +3142,25 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 }
 
 
+#if 1
+/*
+ * TODO: optimized respond&recv. Couldn't manage to get it working and there are
+ * more important matters for now
+ */
+int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
+{
+	int err;
+
+	if (proc_current()->reply != NULL) {
+		err = proc_respond(port, msg, *rid);
+		if (err < 0) {
+			return err;
+		}
+	}
+
+	return proc_recv(port, msg, rid);
+}
+#else
 int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p;
@@ -3153,6 +3174,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	p = proc_portGet(port);
 	if (p == NULL) {
+		LIB_ASSERT(0, "ret!");
 		return -EINVAL;
 	}
 
@@ -3163,10 +3185,12 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		LIB_ASSERT(0, "dead code not dead");
 	}
 
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	hal_spinlockSet(&p->spinlock, &sc);
 	if (p->closed != 0) {
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
+		LIB_ASSERT(0, "ret!")
 		return -EINVAL;
 	}
 
@@ -3176,10 +3200,13 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	if (responding == 0) {
 		if (p->pulse != 0) {
-			return _returnWithPulse(recv, p, &sc);
+			LIB_ASSERT(0, "pulse!")
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			return _returnWithPulse(recv, p, &tsc);
 		}
 
-		return _becomePassive(p, recv, msg, rid, &sc);
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return _becomePassive(p, recv, msg, rid, &tsc);
 	}
 
 	LIB_ASSERT(reply == recv->reply, "eh, todo");
@@ -3189,37 +3216,50 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
+		LIB_ASSERT(0, "ret!");
 		return -EINVAL;
 	}
 
-	/* wake next caller if exists */
-	hal_spinlockSet(&threads_common.spinlock, &tsc);
-	(void)_proc_threadWakeupPrio(&p->queue);
-	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
-	_portEnqueue(p, recv);
+	LIB_ASSERT(caller->mappedTo == NULL, "mapped in this test??");
+
+	/* wake next caller if exists */
+	(void)_proc_threadWakeupPrio(&p->queue);
 
 	hal_spinlockClear(&p->spinlock, &sc);
 
-	/* TODO: handle caller faults */
+	/* possible preemption point */
 
 	/*
 	 * noone to reply, doing a fastpath and switching to caller thread
 	 * point of no return
 	 */
 
-	log_err("fast (%d, %d)", proc_getTid(recv), recv->priority);
+	msg_t msgCopy;
+	hal_memcpy(&msgCopy, msg, sizeof(msg_t));
+
+	// TODO: _threads_copyShmBuffers(recv, caller, &msgCopy);
+
+	/* FIXME: not great in general, but we shouldnt do this prior to preemption
+	 * point */
+	hal_spinlockSet(&p->spinlock, &sc);
+	_portEnqueue(p, recv);
+	hal_spinlockClear(&p->spinlock, &sc);
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	port_put(p, 0);
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+#if 0
+	threads_releaseIpcBuffers(caller);
+#endif
 
 	// hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	/* TODO should exit != 0 be treated in any special way? if we return back to
-	 * the exiting client, it will get reaped anyway  */
-	LIB_ASSERT(caller != NULL, "caller null!");
+	/* TODO handle exit != 0 */
 	LIB_ASSERT(caller->exit == 0, "exit=%d", caller->exit);
-	LIB_ASSERT(caller->state != GHOST, "huh");
-
-
-	// threads_common.current[hal_cpuGetID()] = NULL;
+	LIB_ASSERT(caller != NULL, "caller null!");
+	LIB_ASSERT(caller->state == BLOCKED_ON_REPLY, "bad caller state");
 
 	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
 	_sc_return(recv, caller, donated_sc);
@@ -3238,33 +3278,28 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		LIST_ADD(&threads_common.ready[recv->priority], recv->sc_active);
 	}
 
-	_threads_copyShmBuffers(recv, caller, msg);
-
-	msg_t msgCopy;
-	hal_memcpy(&msgCopy, msg, sizeof(msg_t));
-
 	ctx = _threads_switchTo(caller);
 
-	threads_common.current[hal_cpuGetID()] = caller->sc_active;
+	LIB_ASSERT(threads_common.current[hal_cpuGetID()] == caller->sc_active, "eee??");
+	LIB_ASSERT(caller->sc_active->t == caller, "aaaaaaa!!!!!");
 
 	_threads_copyMsgBufResponse(recv, caller, &msgCopy);
 
 	if (caller->callReturnable == 0) {
 		hal_cpuSetReturnValue(ctx, EOK);
 		caller->fastpathExitCtx = ctx;
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_common.spinlock, &tsc);
 	}
 	else {
+		LIB_ASSERT(0, "shouldnt happen in the test?");
 		caller->fastpathExitCtx = caller->context;
 		caller->callReturnable = 0;
-		hal_cpuReschedule(&threads_common.spinlock, &sc);
+		hal_cpuReschedule(&threads_common.spinlock, &tsc);
 	}
-
-	threads_releaseIpcBuffers(caller);
-	port_put(p, 0);
 
 	return EOK;
 }
+#endif
 
 
 int proc_registerMsgBuffer(void *buf, size_t bufsz)
