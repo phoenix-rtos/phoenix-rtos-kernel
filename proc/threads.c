@@ -633,9 +633,17 @@ static sched_context_t *_sc_best(thread_t *t)
 }
 
 
+static void _sc_updateEffPriority(thread_t *t)
+{
+	t->priority = t->sc_active->priority;
+	t->priorityBase = t->sc_active->priorityBase;
+}
+
+
 static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor)
 {
 	sched_context_t *sc = t->sc_donated;
+	LIB_ASSERT(t->sc_donated != NULL, "sc_donated NULL?");
 
 	if (sc != NULL) {
 		do {
@@ -646,12 +654,16 @@ static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor)
 		} while (sc != t->sc_donated);
 	}
 
+	LIB_ASSERT(0, "would return null SC");
+
 	return NULL;
 }
 
 
 static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 {
+	LIB_ASSERT(sc != NULL, "what?");
+
 	/* Remove SC from `from` */
 	if (sc == from->sc_own) {
 		/* own SC: mark as donated but keep sc_own pointer */
@@ -670,8 +682,10 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 	LIST_ADD_EX(&to->sc_donated, sc, dnext, dprev);
 
 	/* Recalculate to's active SC */
-	// TODO: to->sc_active = _sc_best(to);
-	to->sc_active = sc;
+	to->sc_active = _sc_best(to);
+	_sc_updateEffPriority(to);
+
+	LIB_ASSERT(to->sc_active->donor != NULL || to->sc_active->owner == to, "mismanaged SC");
 
 	to->state = READY;
 
@@ -698,7 +712,11 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 	/* Recalculate server's active SC */
 	server->sc_active = _sc_best(server);
 	server->sc_active->t = server;
+	_sc_updateEffPriority(server);
+
 	/* If server has no more SCs (all clients responded), it goes passive */
+
+	LIB_ASSERT(server->sc_active->donor != NULL || server->sc_active->owner == server, "mismanaged SC");
 
 	/* TODO: remove passive for the sake of sc_active == NULL? */
 
@@ -944,6 +962,8 @@ int proc_threadCreate(process_t *process, void (*start)(void *), int *id, unsign
 	t->sc_own->lastTime = t->sc_own->startTime;
 	t->sc_own->owner = t;
 	t->sc_own->donor = NULL;
+	t->sc_own->priority = priority;
+	t->sc_own->priorityBase = priority;
 	t->sc_active = t->sc_own;
 	t->sc_donated = NULL;
 
@@ -1049,11 +1069,13 @@ static unsigned int _proc_threadGetLockPriority(thread_t *thread)
 
 static unsigned int _proc_threadGetPriority(thread_t *thread)
 {
-	unsigned int ret;
+	return thread->priority;
 
-	ret = _proc_threadGetLockPriority(thread);
-
-	return (ret < thread->priorityBase) ? ret : thread->priorityBase;
+	// unsigned int ret;
+	//
+	// ret = _proc_threadGetLockPriority(thread);
+	//
+	// return (ret < thread->priorityBase) ? ret : thread->priorityBase;
 }
 
 
@@ -1123,6 +1145,11 @@ int proc_threadPriority(int priority)
 	}
 
 	ret = current->priorityBase;
+
+	if (current->sc_active == current->sc_own) {
+		current->sc_active->priority = priority;
+		current->sc_active->priorityBase = current->priorityBase;
+	}
 
 	if (reschedule != 0) {
 		hal_cpuReschedule(&threads_common.spinlock, &sc);
@@ -2974,7 +3001,7 @@ int proc_pulse(u32 port, u8 pulse)
 int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 {
 	port_t *p;
-	spinlock_ctx_t sc;
+	spinlock_ctx_t sc, tsc;
 	thread_t *caller, *recv;
 
 	/* TODO: make nicer */
@@ -3012,15 +3039,25 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	if (caller->exit != 0) {
 		/* caller is dying, don't respond */
-		hal_spinlockSet(&threads_common.spinlock, &sc);
+
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+
+		/*
+		 * OBSERVE: maybe threads_releaseIpcBuffers(caller) not needed?
+		 * Reaper should clean up caller's buffers
+		 */
+
+		hal_spinlockSet(&threads_common.spinlock, &tsc);
 
 		LIB_ASSERT(recv->passive == 1, "recv not passive?");
 
-		if (caller->exit < THREAD_END_NOW) {
-			sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
-			_sc_return(recv, caller, donated_sc);
-			LIST_ADD(&threads_common.ready[caller->priority], caller->sc_active);
-		}
+		sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
+		_sc_return(recv, caller, donated_sc);
+
+		caller->state = GHOST;
+		LIST_ADD(&threads_common.ghosts, caller->sc_active);
+		_proc_threadWakeup(&threads_common.reaper);
 
 		/* TODO: duplicated with _wakePassive */
 		if (recv->sc_donated == NULL) {
@@ -3031,6 +3068,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		}
 		else {
 			recv->sc_active = _sc_best(recv);
+			_sc_updateEffPriority(recv);
 		}
 
 		threads_common.current[hal_cpuGetID()] = recv->sc_active;
@@ -3038,9 +3076,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		LIB_ASSERT(recv->state == READY, "recv not ready?");
 		LIB_ASSERT(recv->sc_active->t == recv, "badly linked sched context");
 
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
+		hal_spinlockClear(&threads_common.spinlock, &tsc);
 
 		return -EINVAL;
 	}
@@ -3062,17 +3098,10 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	if ((caller->process != NULL) && (caller->process->pmapp != NULL)) {
 		pmap_switch(caller->process->pmapp);
 	}
-	// else {
-	// 	pmap_switch(&threads_common.kmap->pmap);
-	// }
 	_threads_copyMsgBufResponse(recv, caller, &msgCopy);
 	if ((recv->process != NULL) && (recv->process->pmapp != NULL)) {
 		pmap_switch(recv->process->pmapp);
 	}
-	// else {
-	// 	pmap_switch(&threads_common.kmap->pmap);
-	// }
-
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	/* TODO: lazy remapping */

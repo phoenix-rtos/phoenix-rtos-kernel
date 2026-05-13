@@ -55,7 +55,8 @@ typedef struct _sched_context_t {
 	struct _thread_t *t;
 	struct _thread_t *owner;
 	struct _thread_t *donor;
-	unsigned int priority; /* effective priority for scheduling */
+	unsigned int priorityBase : 4;
+	unsigned int priority : 4;
 
 	time_t readyTime;
 	time_t maxWait;
