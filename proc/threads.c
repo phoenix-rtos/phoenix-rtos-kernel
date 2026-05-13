@@ -2982,8 +2982,6 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	recv = proc_current();
 
-	lib_debug_printf("proc_respond2 port=%d (%d)\n", port, proc_getTid(recv));
-
 	/* TODO: ensure reply->called reference is not user-exploitable */
 	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0) {
 		return -EINVAL;
@@ -3002,6 +3000,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	}
 
 	caller = reply;
+	LIB_ASSERT(caller != NULL, "caller null!");
 
 	/* REVISIT: is it safe to keep this under p->spinlock only? what about SMP? */
 	if (caller->called != recv) {
@@ -3049,8 +3048,6 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
 
-	LIB_ASSERT(caller != NULL, "caller null!");
-
 	/* UGLY: but for now lets make the msg_t working */
 	msg_t msgCopy = *msg;
 
@@ -3083,28 +3080,10 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	/* FIXME: remove workaround, handle multi-client out-of-order case nicely */
-	int multiple_callers = 0;
-	thread_t *og_reply = recv->reply;
-	if (caller != og_reply) {
-		multiple_callers = 1;
-		recv->reply = caller;
-	}
-
-	// sched_context_t *donated_sc = recv->sc_active;
-
 	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
-
-
 	_sc_return(recv, caller, donated_sc);
-	// _threads_switchSchedContexts(recv, caller, 1);
 	LIST_ADD(&threads_common.ready[caller->priority], caller->sc_active);
 
-	if (multiple_callers != 0) {
-		recv->reply = og_reply;
-	}
-
-	lib_debug_printf("proc_respond2 context addr (pre): %p sp=%p\n", caller->context, caller->context->sp);
 	if (caller->callReturnable == 0) {
 		caller->context = _getUserContext(caller);
 		hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)EOK);
@@ -3113,22 +3092,12 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		caller->callReturnable = 0;
 	}
 
-	lib_debug_printf("proc_respond2 context addr (post): %p sp=%p\n", caller->context, caller->context->sp);
-
 	LIB_ASSERT(recv->passive == 1, "recv not passive?");
-
-	// LIB_ASSERT(recv->inherited != NULL, "there should be an inherited SC");
-	// recv->sc_active = recv->inherited;
-	// LIST_REMOVE(&recv->inherited, recv->sc_active);
-
-	if (multiple_callers == 0) {
-		recv->passive = 0;
-	}
-	LIB_ASSERT(recv->sc_active != NULL, "recv sched null?");
-	LIB_ASSERT(recv->sc_active != donated_sc, "returning with donated SC that was already returned??");
 
 	threads_common.current[hal_cpuGetID()] = recv->sc_active;
 
+	LIB_ASSERT(recv->sc_active != NULL, "recv sched null?");
+	LIB_ASSERT(recv->sc_active != donated_sc, "returning with donated SC that was already returned??");
 	LIB_ASSERT(caller->state == READY, "caller should be ready!");
 	LIB_ASSERT(recv->state == READY, "recv should be ready!");
 	LIB_ASSERT(recv->sc_active->t == recv, "badly linked sched context");
