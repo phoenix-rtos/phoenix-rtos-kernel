@@ -2654,8 +2654,8 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 			LIB_ASSERT(0, "happens");
 		}
 		else {
-			imap = (void *)msg->i.data;
 			isize = msg->i.size;
+			imap = isize > 0 ? (void *)msg->i.data : NULL;
 		}
 	}
 
@@ -2665,8 +2665,8 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	// 	recv->utcb.msg->o.size = 0;
 	// }
 	// else if (msg->o.size > 0) {
-	omap = msg->o.data;
 	osize = msg->o.size;
+	omap = osize > 0 ? msg->o.data : NULL;
 	// }
 
 
