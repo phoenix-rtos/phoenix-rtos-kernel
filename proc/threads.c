@@ -617,6 +617,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest)
 
 static sched_context_t *_sc_best(thread_t *t)
 {
+	/* TODO: optimize */
 	sched_context_t *best = t->sc_own;
 	sched_context_t *sc = t->sc_donated;
 
@@ -698,6 +699,7 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 {
 	LIB_ASSERT(sc->donor == caller, "returning SC donated by someone else");
+	LIB_ASSERT(server->reply != NULL || caller->called != NULL, "_sc_return but no reply/call?");
 	LIB_ASSERT(server->sc_donated != NULL || server->sc_donated->dnext != NULL, "empty/corrupted donation queue?");
 
 	/* Remove donated SC from server */
@@ -705,7 +707,18 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 
 	/* Return to caller */
 	sc->t = caller;
-	sc->donor = NULL;
+
+	if (caller->sc_own != sc) {
+		/* caller is in a reply chain */
+		LIST_ADD_EX(&caller->sc_donated, sc, dnext, dprev);
+
+		LIB_ASSERT(caller->reply != NULL, "caller has a donated SC but is not replying to anyone?");
+		sc->donor = caller->reply;
+	}
+	else {
+		sc->donor = NULL;
+	}
+
 	caller->sc_active = sc; /* or re-evaluate _sc_best (TODO?) */
 	caller->state = READY;
 
