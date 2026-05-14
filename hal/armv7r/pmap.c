@@ -33,7 +33,6 @@ u8 _init_stack[NUM_CPUS][SIZE_INITIAL_KSTACK] __attribute__((aligned(8)));
 
 
 static struct {
-	unsigned int kernelCodeRegion;
 	spinlock_t lock;
 	int mpu_enabled;
 } pmap_common;
@@ -106,7 +105,7 @@ static void pmap_mpu_disable(void)
 /* Function creates empty page table */
 int pmap_create(pmap_t *pmap, pmap_t *kpmap, page_t *p, void *vaddr)
 {
-	pmap->regions = pmap_common.kernelCodeRegion;
+	pmap->regions = 0U;
 	return 0;
 }
 
@@ -246,8 +245,6 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, vo
 
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
-	const syspage_map_t *ikmap;
-	unsigned int ikregion;
 	u32 t;
 	unsigned int i;
 	unsigned int cnt = syspage->hs.mpu.allocCnt;
@@ -266,7 +263,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	if (cnt == 0U) {
 		hal_spinlockCreate(&pmap_common.lock, "pmap");
 		pmap_common.mpu_enabled = 0;
-		pmap_common.kernelCodeRegion = 0;
 		return;
 	}
 
@@ -288,35 +284,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Enable MPU */
 	pmap_mpu_enable();
-
-	/* FIXME HACK
-	 * allow all programs to execute (and read) kernel code map.
-	 * Needed because of hal_jmp, syscalls handler and signals handler.
-	 * In these functions we need to switch to the user mode when still
-	 * executing kernel code. This will cause memory management fault
-	 * if the application does not have access to the kernel instruction
-	 * map. Possible fix - place return to the user code in the separate
-	 * region and allow this region instead. */
-
-	/* Find kernel code region */
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "We need address of this function in numeric type" */
-	ikmap = syspage_mapAddrResolve((addr_t)_pmap_init);
-	if (ikmap == NULL) {
-		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map not found. Bad system config\n");
-		for (;;) {
-			hal_cpuHalt();
-		}
-	}
-
-	ikregion = pmap_map2region(ikmap->id);
-	if (ikregion == 0U) {
-		hal_consolePrint(ATTR_BOLD, "pmap: Kernel code map has no assigned region. Bad system config\n");
-		for (;;) {
-			hal_cpuHalt();
-		}
-	}
-
-	pmap_common.kernelCodeRegion = ikregion;
 
 	hal_spinlockCreate(&pmap_common.lock, "pmap");
 }
