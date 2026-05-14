@@ -26,9 +26,8 @@
 #define MAP_CONTIGUOUS (0x1U << 5)
 #define MAP_ANONYMOUS  (0x1U << 6)
 #define MAP_FIXED      (0x1U << 7)
-/* NOTE: vm uses u8 to store flags, if more flags are needed this type needs to be changed. */
-#define MAP_SHARED  0x0U
-#define MAP_PRIVATE 0x0U
+#define MAP_SHARED     (0x1U << 8)
+#define MAP_PRIVATE    0x0U
 
 
 #define PROT_NONE  0x0U
