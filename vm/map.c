@@ -223,7 +223,7 @@ void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **prev, map
 }
 
 
-static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags, map_entry_t **entry)
+static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, u8 prot, vm_object_t *o, off_t offs, u16 flags, map_entry_t **entry)
 {
 	void *v;
 	map_entry_t *prev, *next, *e;
@@ -360,7 +360,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 }
 
 
-void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot)
+void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u16 flags, u8 prot)
 {
 	LIB_ASSERT(map != NULL, "map is null");
 
@@ -535,7 +535,7 @@ static int vm_protToAttr(int prot)
 }
 
 
-void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
+void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u16 flags)
 {
 	int attr;
 	void *w;
@@ -590,7 +590,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_o
 }
 
 
-void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u8 flags)
+void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, vm_object_t *o, off_t offs, u16 flags)
 {
 	if (map == NULL) {
 		map = map_common.kmap;
@@ -1065,7 +1065,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 		vm_mapEntryCopy(f, e, 1);
 		_map_add(proc, dst, f);
 
-		if (((e->protOrig & PROT_WRITE) != 0) && ((e->flags & MAP_DEVICE) == 0)) {
+		if (((e->protOrig & PROT_WRITE) != 0) && ((e->flags & MAP_DEVICE) == 0) && ((e->flags & MAP_SHARED) == 0)) {
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 

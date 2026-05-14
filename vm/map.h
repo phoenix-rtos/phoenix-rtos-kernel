@@ -73,13 +73,13 @@ typedef struct _map_entry_t {
 } map_entry_t;
 
 
-extern void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot);
+extern void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u16 flags, u8 prot);
 
 
-extern void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
+extern void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u16 flags);
 
 
-extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
+extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u16 flags);
 
 
 extern int vm_mapForce(vm_map_t *map, void *vaddr, int prot);
