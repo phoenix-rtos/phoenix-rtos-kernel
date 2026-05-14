@@ -559,7 +559,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
 	oid_t ln, oid, dev, pipesrv;
-	int fd = 0, err = 0;
+	int fd = 0, err = 0, created = 0;
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
@@ -603,6 +603,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 				if (err < 0) {
 					break;
 				}
+				created = 1;
 				hal_memcpy(&ln, &oid, sizeof(oid_t));
 			}
 			else if (err < 0) {
@@ -663,6 +664,12 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			pinfo_put(p);
 			return fd;
 		} while (0);
+
+		if (created != 0) {
+			/* file was created in the filesystem - we should unlink it now */
+			(void)posix_unlink(filename);
+			(void)proc_destroy(oid.port, oid);
+		}
 
 		(void)proc_lockSet(&p->lock);
 		p->fds[fd].file = NULL;
