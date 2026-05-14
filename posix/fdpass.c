@@ -121,7 +121,8 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 				return err;
 			}
 
-			FDPACK_PUSH(pack, file, 0); /* FIXME: copy flags? */
+			/* file descriptor flags are not shared with the receiver */
+			FDPACK_PUSH(pack, file, 0);
 
 			cmsg_data += sizeof(int);
 			--cnt;
