@@ -607,9 +607,11 @@ static cpu_context_t *_threads_switchTo(thread_t *dest)
 		hal_cpuTlsSet(&dest->tls, ctx);
 	}
 
-	_threads_scheduling(dest);
-
 	LIB_ASSERT(dest->sc_active != NULL, "dest shed is null");
+
+	threads_common.current[hal_cpuGetID()] = dest->sc_active;
+
+	_threads_scheduling(dest);
 
 	return ctx;
 }
@@ -686,7 +688,7 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 	to->sc_active = _sc_best(to);
 	_sc_updateEffPriority(to);
 
-	LIB_ASSERT(to->sc_active->donor != NULL || to->sc_active->owner == to, "mismanaged SC");
+	LIB_ASSERT(to->sc_active->t == to && (to->sc_active->donor != NULL || to->sc_active->owner == to), "mismanaged SC");
 
 	to->state = READY;
 
@@ -713,6 +715,13 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 		LIST_ADD_EX(&caller->sc_donated, sc, dnext, dprev);
 
 		LIB_ASSERT(caller->reply != NULL, "caller has a donated SC but is not replying to anyone?");
+
+		/*
+		 * FIXME: doesnt fix it. caller can have multiple clients and caller->reply will be
+		 * overwritten by last one while the SC can come from any
+		 * so for now the SCs can still end up mixed (sc->donor can point to a
+		 * caller's client that wasn't the actual donor)
+		 */
 		sc->donor = caller->reply;
 	}
 	else {
@@ -857,7 +866,6 @@ int threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 static thread_t *_proc_current(void)
 {
 	sched_context_t *sched = _sched_current();
-	LIB_ASSERT(sched == NULL || sched->t != NULL, "sched with no thread?");
 	return sched == NULL ? NULL : sched->t;
 }
 
@@ -2671,13 +2679,15 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	_sc_donate(caller, recv, caller->sc_active);
 	ctx = _threads_switchTo(recv);
 
-	hal_spinlockClear(&threads_common.spinlock, &tsc);
-
 	/*
 	 * FIXME: make recv interruptible in some checkpoints (e.g. between i.data and
 	 * o.data setup, add rollbacks)
 	 */
 	recv->interruptible = 0;
+
+	LIB_ASSERT(_proc_current() == recv, "we are not recv?");
+	LIB_ASSERT(_proc_current()->sc_active != NULL, "proc current unschedulable?");
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
 	/* TODO: bump refcnt on recv? */
 	hal_spinlockClear(&p->spinlock, &sc);
