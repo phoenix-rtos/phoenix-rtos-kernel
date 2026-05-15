@@ -1288,37 +1288,40 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 {
 	const syspage_map_t *sysMap, *codeMap;
 	const syspage_prog_t *prog = syspage_progNameResolve(name);
-	vm_map_t *imapp = NULL;
+	const unsigned int readExecAttr = (unsigned int)mAttrRead | (unsigned int)mAttrExec;
+	const unsigned int readWriteAttr = (unsigned int)mAttrRead | (unsigned int)mAttrWrite;
+	vm_map_t *imapp = NULL, *dmapp;
 
 	if (prog == NULL) {
 		return -ENOENT;
 	}
 
-	sysMap = (dmap == NULL) ? syspage_mapIdResolve(prog->dmaps[0]) : syspage_mapNameResolve(dmap);
-
-	if (imap != NULL) {
+	if (imap == NULL) {
+		codeMap = syspage_mapIdResolve(prog->imaps[0]);
+	}
+	else {
 		codeMap = syspage_mapNameResolve(imap);
 		if (codeMap == NULL) {
 			return -EINVAL;
 		}
 	}
-	else {
-		codeMap = syspage_mapIdResolve(prog->imaps[0]);
-	}
 
 	if (codeMap != NULL) {
-		if ((codeMap->attr & ((unsigned int)mAttrRead | (unsigned int)mAttrExec)) != ((unsigned int)mAttrRead | (unsigned int)mAttrExec)) {
+		if ((codeMap->attr & readExecAttr) != readExecAttr) {
 			return -EINVAL;
 		}
 
+		/* NOTE: imapp can be NULL */
 		imapp = vm_getSharedMap((int)codeMap->id);
 	}
 
-	if (sysMap != NULL && (sysMap->attr & ((unsigned int)mAttrRead | (unsigned int)mAttrWrite)) == ((unsigned int)mAttrRead | (unsigned int)mAttrWrite)) {
-		return proc_syspageSpawn((const syspage_prog_t *)prog, imapp, vm_getSharedMap((int)sysMap->id), name, argv);
+	sysMap = (dmap == NULL) ? syspage_mapIdResolve(prog->dmaps[0]) : syspage_mapNameResolve(dmap);
+	if (sysMap == NULL || (sysMap->attr & readWriteAttr) != readWriteAttr) {
+		return -EINVAL;
 	}
+	dmapp = vm_getSharedMap((int)sysMap->id);
 
-	return -EINVAL;
+	return proc_syspageSpawn(prog, imapp, dmapp, name, argv);
 }
 
 
