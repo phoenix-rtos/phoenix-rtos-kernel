@@ -72,28 +72,38 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 
 int proc_portRegister(u32 port, const char *name, oid_t *oid)
 {
-	dcache_entry_t *entry;
+	dcache_entry_t *entry = NULL;
+	const int root = (name[0] == '/' && name[1] == '\0') ? 1 : 0;
 	unsigned int hash = dcache_strHash(name);
 
-	/* Check if entry already exists */
+	/* Pre-allocate entry to avoid holding the lock during allocation */
+	if (root == 0) {
+		entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
+	}
+
 	(void)proc_lockSet(&name_common.dcache_lock);
+
+	/* Check if entry already exists */
 	if (_dcache_entryLookup(hash, name) != NULL) {
 		(void)proc_lockClear(&name_common.dcache_lock);
+		if (entry != NULL) {
+			vm_kfree(entry);
+		}
 		return -EEXIST;
 	}
-	(void)proc_lockClear(&name_common.dcache_lock);
 
-	if (name[0] == '/' && name[1] == '\0') {
+	if (root != 0) {
 		name_common.root_oid.port = port;
 		if (oid != NULL) {
 			name_common.root_oid.id = oid->id;
 		}
 		name_common.root_registered = 1;
+		(void)proc_lockClear(&name_common.dcache_lock);
 		return EOK;
 	}
 
-	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
 	if (entry == NULL) {
+		(void)proc_lockClear(&name_common.dcache_lock);
 		return -ENOMEM;
 	}
 
@@ -104,9 +114,9 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 
 	(void)hal_strcpy(entry->name, name);
 
-	(void)proc_lockSet(&name_common.dcache_lock);
 	entry->next = name_common.dcache[hash];
 	name_common.dcache[hash] = entry;
+
 	(void)proc_lockClear(&name_common.dcache_lock);
 
 	return EOK;
