@@ -118,9 +118,7 @@ void port_put(port_t *p, int destroy)
 
 	if (p->refs != 0) {
 		if (destroy != 0) {
-			/* Wake receivers up */
-			proc_threadBroadcast(&p->threads);
-			// LIB_ASSERT(p->queue == NULL, "hm: port=%d tid=%d queue=0x%x\n", p->linkage.id, proc_getTid(p->queue), p->queue);
+			/* Wake callers up */
 			proc_threadBroadcastPrio(&p->queue);
 		}
 
@@ -129,7 +127,7 @@ void port_put(port_t *p, int destroy)
 		return;
 	}
 
-	LIB_ASSERT(p->fpThreads == NULL, "heh");
+	LIB_ASSERT(p->threads == NULL, "receivers should already be popped from the port");
 
 	hal_spinlockClear(&p->spinlock, &sc);
 	lib_idtreeRemove(&port_common.tree, &p->linkage);
@@ -179,7 +177,6 @@ int proc_portCreate(u32 *id)
 
 	port->pulse = 0;
 
-	port->fpThreads = NULL;
 	proc_threadPrioQueueInit(&port->queue);
 
 	*id = (u32)port->linkage.id;

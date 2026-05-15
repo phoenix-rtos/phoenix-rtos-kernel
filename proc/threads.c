@@ -253,7 +253,7 @@ static void _unbindFromAddedTo(thread_t *t)
 	if (t->addedTo != NULL) {
 		p = t->addedTo;
 		hal_spinlockSet(&p->spinlock, &sc);
-		LIST_REMOVE_EX(&p->fpThreads, t, tnext, tprev);
+		LIST_REMOVE_EX(&p->threads, t, tnext, tprev);
 		/*
 		 * TODO: clear refcount, but cant use port_put here as it potentially
 		 * sets threads_common.spinlock...
@@ -278,7 +278,6 @@ static void thread_destroy(thread_t *thread)
 		proc_lockUnlock(thread->locks);
 	}
 
-	proc_freeUtcb(thread);
 	threads_releaseIpcBuffers(thread);
 
 	/* REVISIT: guard with threads spinlock needed? called may hold a reference to us */
@@ -525,60 +524,10 @@ void threads_setState(u8 state)
 }
 
 
-/* TODO: replace manual refcnt decremenatations with appropriate calls to destroys */
-
-
-#if 0
-static void _threads_switchSchedContexts(thread_t *from, thread_t *to, int reply)
-{
-	sched_context_t *sched = from->sc_active;
-
-	LIB_ASSERT(sched != NULL, "sched null");
-	LIB_ASSERT(to->sc_active == NULL,
-			"dest sched not null (prio=%d, from=%d, dest=%d, reply=%d, sched owner tid=%d)",
-			to->priority, proc_getTid(from), proc_getTid(to), reply, proc_getTid(to->sc_active->owner));
-
-	/* TODO: if sched is always donated from `from`, just use it instead of explicit passing*/
-	from->sc_active = NULL;
-	if (reply != 0) {
-		/* replying - going back in SC chain */
-		LIB_ASSERT(from->reply != NULL, "reply null (initial from->state=%d)", from->state);
-
-		/* TODO: this is tricky to track in case of msgRecv - the server could have
-		 * several replies pending, so to doesnt neces.oily need to be from->reply */
-		LIB_ASSERT(from->reply == to, "replying to bad thread: from: %d from->reply: %d to: %d", proc_getTid(from), proc_getTid(from->reply), proc_getTid(to));
-
-		from->state = BLOCKED_ON_RECV;
-
-		LIB_ASSERT(to->state == BLOCKED_ON_REPLY, "dest thread not blocked on reply? state=%d", to->state);
-		from->reply = NULL;
-		to->called = NULL;
-	}
-	else {
-		/* calling - going deeper in SC chain */
-		from->state = BLOCKED_ON_REPLY;
-
-		LIB_ASSERT(to->state == BLOCKED_ON_RECV, "dest thread not blocked on recv? state=%d", to->state);
-		to->reply = from;
-		from->called = to;
-	}
-	sched->t = to;
-	to->sc_active = sched;
-	to->state = READY;
-}
-#endif
-
-
 static cpu_context_t *_threads_switchTo(thread_t *dest)
 {
 	process_t *proc;
 	cpu_context_t *ctx;
-
-	// LIB_ASSERT(dest != NULL, "dest null");
-	// LIB_ASSERT(dest->exit == 0, "exit=%d", dest->exit);
-	// LIB_ASSERT(dest->state != GHOST, "dest is a ghost");
-	//
-	// _threads_switchSchedContexts(from, dest, reply);
 
 	_hal_cpuSetKernelStack(dest->kstack + dest->kstacksz);
 
@@ -2499,12 +2448,12 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 	 */
 
 	/* No passive receiver available */
-	if (p->fpThreads == NULL) {
+	if (p->threads == NULL) {
 		return 1;
 	}
 
 	/* Receiver currently has its own SC (active server, not passive) */
-	if (p->fpThreads->sc_active != NULL) {
+	if (p->threads->sc_active != NULL) {
 		return 1;
 	}
 
@@ -2518,7 +2467,7 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t
 
 static void _portEnqueue(port_t *p, thread_t *t)
 {
-	LIST_ADD_EX(&p->fpThreads, t, tnext, tprev);
+	LIST_ADD_EX(&p->threads, t, tnext, tprev);
 	t->addedTo = p;
 }
 
@@ -2526,7 +2475,7 @@ static void _portEnqueue(port_t *p, thread_t *t)
 static void _portDequeue(port_t *p, thread_t *t)
 {
 	LIB_ASSERT(t->addedTo == p, "thread not added to this port");
-	LIST_REMOVE_EX(&p->fpThreads, t, tnext, tprev);
+	LIST_REMOVE_EX(&p->threads, t, tnext, tprev);
 	t->addedTo = NULL;
 }
 
@@ -2561,11 +2510,9 @@ void _threads_ipcBufferRelease(ipc_buf_layout_t *il)
 static void _threads_copyShadowPages(ipc_buf_layout_t *il, size_t size)
 {
 	if (il->bp != NULL) {
-		// LIB_ASSERT(size == il->size, "?");
 		hal_memcpy(il->bvaddr + il->boffs, il->w + il->boffs, min(SIZE_PAGE - il->boffs, size));
 	}
 	if (il->eoffs != 0) {
-		// LIB_ASSERT(size == il->size, "?");
 		hal_memcpy(il->evaddr, il->w + il->boffs + size - il->eoffs, il->eoffs);
 	}
 }
@@ -2576,7 +2523,7 @@ static void _threads_copyShmBuffers(thread_t *from, thread_t *to, msg_t *msg)
 	if (msg->i.size > 0 || msg->o.size > 0) {
 		LIB_ASSERT(to->mappedTo == from, "hm, %p != %p", to->mappedTo, from);
 		if (to->mappedTo == from) {
-			/* TODO copying i may be unnecessary */
+			/* TODO: copying i may be unnecessary */
 			_threads_copyShadowPages(&to->utcb.iil, msg->i.size);
 			_threads_copyShadowPages(&to->utcb.oil, msg->o.size);
 		}
@@ -2595,7 +2542,7 @@ static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg
 }
 
 
-static int proc_call_ex(u32 port, msg_t *msg, int returnable)
+static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 {
 	port_t *p;
 	thread_t *caller, *recv;
@@ -2618,8 +2565,6 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		return -EINVAL;
 	}
 
-	LIB_ASSERT(p->threads == NULL, "call but pending old recv! tid=%d", proc_getTid(p->threads));
-
 	while ((err = _mustSlowCall(p, caller)) != 0) {
 		p->queue.nonempty |= 1;
 		err = proc_threadWaitInterruptible(&p->queue.pq[caller->priority], &p->spinlock, 0, &sc);
@@ -2632,8 +2577,8 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 
 	/* commit to IPC */
 
-	recv = p->fpThreads;
-	LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
+	recv = p->threads;
+	LIST_REMOVE_EX(&p->threads, recv, tnext, tprev);
 	recv->addedTo = NULL;
 
 	spinlock_ctx_t tsc;
@@ -2819,34 +2764,14 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 
 int proc_send(u32 port, msg_t *msg)
 {
-	return proc_call_ex(port, msg, 0);
+	return proc_send_ex(port, msg, 0);
 }
 
 
 int proc_send_returnable(u32 port, msg_t *msg)
 {
-	int err = proc_call_ex(port, msg, 1);
-	// LIB_ASSERT(err >= 0, "port=%d err=%d", port, err);
-
-	return err;
+	return proc_send_ex(port, msg, 1);
 }
-
-
-#if 0
-static thread_t *_proc_getMinPrioQueue(prio_queue_t *queue)
-{
-	size_t prio;
-	thread_t *q;
-	for (prio = 0; prio < MAX_PRIO; prio++) {
-		q = queue->pq[prio];
-		if (q != NULL && q != wakeupPending) {
-			return q;
-		}
-	}
-	queue->nonempty = 0;
-	return NULL;
-}
-#endif
 
 
 static int _proc_threadWakeupPrio(prio_queue_t *queue)
@@ -2950,6 +2875,7 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 	return err;
 }
 
+
 /* assumes aspace of recv */
 int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 {
@@ -2960,14 +2886,7 @@ int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 	return -EPULSE;
 }
 
-/* I actually like this data-size + hdr->odata approach.
-A server is then in control of the performance of the transfer. If it wants to
-support fast transfers and knows the payload size beforehand, then it will allocate a large `data`.
-Otherwise, it can simply put data=NULL and just depend on kernel-allocated payloads
-BTW: large `data` is simply a way of expressing proc_registerMsgBuffer ! :)
-*/
 
-/* TODO: error passing */
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p;
@@ -3013,7 +2932,7 @@ int proc_pulse(u32 port, u8 pulse)
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
-	recv = p->fpThreads;
+	recv = p->threads;
 
 	if (recv != NULL) {
 		LIB_ASSERT(recv->state != READY, "how is recv ready while on port queue?");
@@ -3354,23 +3273,6 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 #endif
 
 
-int proc_registerMsgBuffer(void *buf, size_t bufsz)
-{
-	// thread_t *t = proc_current();
-	//
-	// if (((ptr_t)buf & (SIZE_PAGE - 1)) != 0 || (bufsz & (SIZE_PAGE - 1)) != 0) {
-	// 	return -EINVAL;
-	// }
-
-	LIB_ASSERT(0, "todo");
-
-	// t->bufferStart = buf;
-	// t->bufferEnd = (void *)((ptr_t)buf + bufsz);
-
-	return 0;
-}
-
-
 /* make these as lib macros please... */
 #define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
@@ -3602,9 +3504,4 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t
 	*rbuf = il->mappedBase + (buf - il->bufferStart);
 
 	return EOK;
-}
-
-
-void proc_freeUtcb(thread_t *t)
-{
 }

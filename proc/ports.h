@@ -37,7 +37,6 @@ typedef struct _port_t {
 	spinlock_t spinlock;
 	lock_t lock;
 	thread_t *threads;
-	thread_t *fpThreads;
 	msg_t *current;
 
 	/* to be merged with threads once old impl is ditched */

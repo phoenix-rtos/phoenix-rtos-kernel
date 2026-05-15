@@ -71,9 +71,6 @@ typedef struct _fmsg_t {
  */
 
 
-extern void proc_freeUtcb(thread_t *t);
-
-
 extern int proc_send(u32 port, msg_t *msg);
 
 
