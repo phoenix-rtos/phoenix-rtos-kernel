@@ -245,7 +245,7 @@ static cpu_context_t *_getUserContext(thread_t *thread)
 }
 
 
-static void unbindFromAddedTo(thread_t *t)
+static void _unbindFromAddedTo(thread_t *t)
 {
 	port_t *p;
 	spinlock_ctx_t sc;
@@ -278,12 +278,13 @@ static void thread_destroy(thread_t *thread)
 		proc_lockUnlock(thread->locks);
 	}
 
-	unbindFromAddedTo(thread);
 	proc_freeUtcb(thread);
 	threads_releaseIpcBuffers(thread);
 
 	/* REVISIT: guard with threads spinlock needed? called may hold a reference to us */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_unbindFromAddedTo(thread);
+
 	if (thread->called != NULL) {
 		LIB_ASSERT(thread->called->reply == thread, "thread->called->reply != thread");
 		thread->called->reply = NULL;
@@ -305,6 +306,7 @@ static void thread_destroy(thread_t *thread)
 			if (reply->callReturnable == 0) {
 				reply->context = _getUserContext(reply);
 				hal_cpuSetReturnValue(reply->context, (void *)(ptr_t)-EINVAL);
+				LIB_ASSERT(reply->exit == 0, "HAPPENS reply wants to exit");
 			}
 			else {
 				reply->callReturnable = 0;
@@ -607,6 +609,7 @@ static cpu_context_t *_threads_switchTo(thread_t *dest)
 		hal_cpuTlsSet(&dest->tls, ctx);
 	}
 
+	LIB_ASSERT(dest->exit == 0, "switching to exiting thread");
 	LIB_ASSERT(dest->sc_active != NULL, "dest shed is null");
 
 	threads_common.current[hal_cpuGetID()] = dest->sc_active;
@@ -665,6 +668,8 @@ static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor)
 
 static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 {
+	LIB_ASSERT(from->exit == 0, "got it...");
+
 	LIB_ASSERT(sc != NULL, "what?");
 
 	/* Remove SC from `from` */
@@ -676,6 +681,9 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 	}
 	from->sc_active = NULL;
 	from->state = BLOCKED_ON_REPLY;
+
+	/* see FIXME from _proc_threadExit */
+	// from->interruptible = 1;
 
 	/* Add SC to `to` */
 	sc->donor = from;
@@ -730,6 +738,9 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 
 	caller->sc_active = sc; /* or re-evaluate _sc_best (TODO?) */
 	caller->state = READY;
+
+	/* once locks get unified with BWI, this assertion should work */
+	// LIB_ASSERT(caller->priority == sc->priority, "TODO lock bwi")
 
 	/* Recalculate server's active SC */
 	server->sc_active = _sc_best(server);
@@ -791,6 +802,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			}
 		}
 
+		LIB_ASSERT(current->exit == 0 || current->state == READY, "exiting thread will get lost!");
+
 		/* Move thread to the end of queue */
 		if (current->state == READY) {
 			LIB_ASSERT(current->sc_active != NULL, "READY but unschedulable? tid: %d, pc=%p, ra=%p", proc_getTid(current), current->context->sepc, current->context->ra);
@@ -814,6 +827,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		LIST_REMOVE(&threads_common.ready[i], sched);
 
 		if (sched->t->state != READY) {
+			LIB_ASSERT(sched->t->exit == 0, "what about this guy!");
 			/* lazy update */
 			continue;
 		}
@@ -1188,23 +1202,14 @@ int proc_threadPriority(int priority)
 static void _wakePassive(thread_t *t)
 {
 	LIB_ASSERT(t->passive == 1, "t is not passive!");
-	LIB_ASSERT(t->state == BLOCKED_ON_RECV, "t is passive and interruptible but not BLOCKED_ON_RECV? state=%d", t->state);
-	/* TODO: move this to some generic passive reversing function? */
+	LIB_ASSERT(t->state == BLOCKED_ON_RECV, "t is passive to be woken but not BLOCKED_ON_RECV? state=%d", t->state);
 
-	/* TODO: we could also interrupt the server while its handling the message
-	 * it would require to clean up the server as well as the client */
-
-	// LIB_ASSERT(t->inherited != NULL, "no inherited SC??");
 	if (t->sc_donated == NULL) {
 		/* this is ours SC */
 		t->passive = 0;
-		t->sc_active = t->sc_own;
 	}
-	else {
-		t->sc_active = _sc_best(t);
-		//   t->sc_donated;
-		// LIST_REMOVE_EX(&t->sc_donated, t->sc_active, dnext, dprev);
-	}
+
+	t->sc_active = _sc_best(t);
 
 	_proc_threadDequeue(t);
 }
@@ -1214,11 +1219,11 @@ static void _thread_interrupt(thread_t *t)
 {
 	if (t->passive == 1) {
 		_wakePassive(t);
-		unbindFromAddedTo(t);
+		_unbindFromAddedTo(t);
 		t->utcb.msg->o.err = -EINTR;
 	}
 	else {
-		LIB_ASSERT(t->sc_donated == NULL, "hmmmmmmmmmm");
+		LIB_ASSERT(t->sc_donated == NULL, "SC donated but we are not passive?");
 		_proc_threadDequeue(t);
 	}
 
@@ -1249,8 +1254,16 @@ void proc_threadEnd(void)
 static void _proc_threadExit(thread_t *t)
 {
 	t->exit = THREAD_END;
-	if (t->interruptible)
+
+	if (t->interruptible) {
 		_thread_interrupt(t);
+	}
+
+	/*
+	 * FIXME: ok, so here it may happen that t->sc_active == NULL
+	 * for a thread that has donated its SC via _sc_donate()
+	 * but there is no easy fix for this
+	 */
 }
 
 
@@ -2480,6 +2493,11 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 static inline int _mustSlowCall(port_t *p, thread_t *caller)
 {
+	/*
+	 * TODO: can there be several receivers? (e.g., first bad, second ready)
+	 * is the second branch even possible?
+	 */
+
 	/* No passive receiver available */
 	if (p->fpThreads == NULL) {
 		return 1;
@@ -2612,7 +2630,7 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 		}
 	}
 
-	/* commit to fastpath - point of no return */
+	/* commit to IPC */
 
 	recv = p->fpThreads;
 	LIST_REMOVE_EX(&p->fpThreads, recv, tnext, tprev);
@@ -2675,6 +2693,8 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_memcpy(&oid, &msg->oid, sizeof(oid_t));
 	type = msg->type;
+
+	LIB_ASSERT(_proc_current()->exit == 0, "got it...");
 
 	_sc_donate(caller, recv, caller->sc_active);
 	ctx = _threads_switchTo(recv);
@@ -2773,6 +2793,7 @@ static int proc_call_ex(u32 port, msg_t *msg, int returnable)
 	recv->fastpathExitCtx = ctx;
 
 	LIB_ASSERT(_proc_current() == recv, "we should be recv here");
+	LIB_ASSERT(recv->exit == 0, "recv wants to exit! TODO");
 
 	if (recv->process == NULL || returnable != 0) {
 		/*
@@ -2869,28 +2890,27 @@ void proc_threadPrioQueueInit(prio_queue_t *queue)
 	queue->nonempty = 0;
 }
 
+
 static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid, spinlock_ctx_t *sc)
 {
 	spinlock_ctx_t tsc;
 	int err;
 
+	/*
+	 * Handle recv exit - normally this is done at the end of syscall dispatch,
+	 * but recv is potentially not returning there. If we don't handle it here,
+	 * the thread may get lost - it's unschedulable and not on a rqeueue so it
+	 * won't be marked as ghost by the scheduler.
+	 */
+	if (recv->exit != 0) {
+		hal_spinlockClear(&p->spinlock, sc);
+		proc_threadEnd();
+	}
+
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
-	log_err("passive %d", proc_getTid(recv));
 	_portEnqueue(p, recv);
-
-	if (recv->sc_active != NULL) {
-		// /* invariant: first element of the list is the receiver's original SC */
-		// LIST_ADD(&recv->inherited, recv->sc_active);
-
-		// if (recv->sc_active != recv->sc_own) {
-		// 	// LIB_ASSERT(0, "happens (check if path ok)");
-		// 	LIST_ADD_EX(&recv->sc_donated, recv->sc_active, dnext, dprev);
-		// }
-		/* if sc_active == sc_own, we its safe to drop
-		else,  sc_active is from sc_donated, also safe to drop */
-		recv->sc_active = NULL;
-	}
+	recv->sc_active = NULL;
 
 	(void)_proc_threadWakeupPrio(&p->queue);
 
@@ -2908,10 +2928,10 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 
 	hal_cpuReschedule(&threads_common.spinlock, sc);
 
-	if ((recv->flags & THREAD_PULSED) != 0) {
-		// LIB_ASSERT(0, "pulse happens");
-		recv->flags &= (~(int)THREAD_PULSED);
+	/* WARN: this is not always reachable (e.g. in fastpath call switch) */
 
+	if ((recv->flags & THREAD_PULSED) != 0) {
+		recv->flags &= (~(int)THREAD_PULSED);
 		msg->o.pulse = recv->utcb.pulse;
 		msg->o.err = EOK;
 		err = -EPULSE;
@@ -2924,7 +2944,9 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 		err = EOK;
 	}
 
+	/* TODO: move this above reschedule - can it happen that we are here when p->refs == 1?*/
 	port_put(p, 0);
+
 	return err;
 }
 
@@ -3082,17 +3104,13 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		LIST_ADD(&threads_common.ghosts, caller->sc_active);
 		_proc_threadWakeup(&threads_common.reaper);
 
-		/* TODO: duplicated with _wakePassive */
+		recv->reply = NULL;
 		if (recv->sc_donated == NULL) {
 			/* this is ours SC */
 			recv->passive = 0;
-			recv->sc_active = recv->sc_own;
-			recv->reply = NULL;
 		}
-		else {
-			recv->sc_active = _sc_best(recv);
-			_sc_updateEffPriority(recv);
-		}
+		recv->sc_active = _sc_best(recv);
+		_sc_updateEffPriority(recv);
 
 		threads_common.current[hal_cpuGetID()] = recv->sc_active;
 
@@ -3139,6 +3157,9 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	if (caller->callReturnable == 0) {
 		caller->context = _getUserContext(caller);
 		hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)EOK);
+
+		/* REVISIT: is possible that caller will want to exit here? */
+		LIB_ASSERT(caller->exit == 0, "HAPPENS caller wants to exit");
 	}
 	else {
 		caller->callReturnable = 0;
@@ -3154,14 +3175,10 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	LIB_ASSERT(recv->state == READY, "recv should be ready!");
 	LIB_ASSERT(recv->sc_active->t == recv, "badly linked sched context");
 
-	if (caller->priority < recv->priority) {
-		/* client is ignorant of IPCP and more critical than server for strange reason, reschedule */
-		/* TODO: enforce priority ceiling on msgCall attempts? */
-		hal_cpuReschedule(&threads_common.spinlock, &sc);
-	}
-	else {
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-	}
+	LIB_ASSERT(recv->exit == 0, "test 1 (may not be a valid assert)");
+
+	/* REVISIT: should we reschedule if client has higher prio than the server? */
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return EOK;
 }
@@ -3176,7 +3193,17 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	int err;
 
-	if (proc_current()->reply != NULL) {
+	spinlock_ctx_t sc;
+	int respond = 1;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread_t *reply = (thread_t *)*rid;
+	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0 || reply->called != _proc_current()) {
+		respond = 0;
+	}
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (respond != 0) {
 		err = proc_respond(port, msg, *rid);
 		if (err < 0) {
 			return err;

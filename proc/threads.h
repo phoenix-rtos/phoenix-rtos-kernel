@@ -98,8 +98,6 @@ typedef struct {
 
 
 typedef struct _thread_t {
-	struct _thread_t *msgnext;
-	struct _thread_t *msgprev;
 	struct _lock_t *locks;
 
 	rbnode_t sleeplinkage;
