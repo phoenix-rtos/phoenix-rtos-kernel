@@ -6,16 +6,10 @@
 # %LICENSE%
 #
 
-# GIT_DESC will be in format v<VERSION>-<#COMMITS SINCE TAG>-g<CURRENT COMMIT HASH>[ dirty]
-DUMMY_VERSION := v3.3.1-0-g\#\#\#\#\#\#\#\#
-GIT_DESC := $(shell git describe --dirty --abbrev=8 --tags --long --match "v[[:digit:]].[[:digit:]]*.[[:digit:]]*" 2> /dev/null || echo "$(DUMMY_VERSION)")
-DESC := $(subst -, ,$(GIT_DESC))
-
-VERSION := $(subst g,,$(word 3,$(DESC)))\ +$(word 2,$(DESC))
-ifneq ($(word 4,$(DESC)),)
-  VERSION := $(VERSION)\ $(word 4,$(DESC))
-endif
-RELEASE := $(subst v,,$(word 1,$(DESC)))
+DUMMY_REVISION := \"(unknown)\"
+RELEASE := $(shell cat ../VERSION)
+GIT_REVISION := $(shell git rev-parse --short HEAD || echo "$(DUMMY_REVISION)")
+VERSION := $(GIT_REVISION)
 
 CONSOLE?=vga
 KERNEL=1
