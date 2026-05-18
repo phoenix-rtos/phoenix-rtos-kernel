@@ -775,7 +775,7 @@ int syscalls_sys_portRegister(u8 *ustack)
 		return -EINVAL;
 	}
 
-	if (vm_mapBelongs(proc, oid, sizeof(*oid)) < 0) {
+	if ((oid != NULL) && (vm_mapBelongs(proc, oid, sizeof(*oid)) < 0)) {
 		return -EFAULT;
 	}
 
