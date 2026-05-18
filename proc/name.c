@@ -33,6 +33,7 @@ static struct {
 	oid_t rootOid;
 
 	dcache_entry_t *dcache[0x1U << HASH_LEN];
+
 	lock_t lock;
 } name_common;
 
@@ -73,40 +74,54 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 int proc_portRegister(u32 port, const char *name, oid_t *oid)
 {
 	dcache_entry_t *entry;
-	unsigned int hash = dcache_strHash(name);
-
-	/* Check if entry already exists */
-	(void)proc_lockSet(&name_common.lock);
-	if (_dcache_entryLookup(hash, name) != NULL) {
-		(void)proc_lockClear(&name_common.lock);
-		return -EEXIST;
-	}
-	(void)proc_lockClear(&name_common.lock);
+	unsigned int hash;
 
 	if (name[0] == '/' && name[1] == '\0') {
-		name_common.rootOid.port = port;
-		if (oid != NULL) {
-			name_common.rootOid.id = oid->id;
+		(void)proc_lockSet(&name_common.lock);
+
+		if (name_common.rootRegistered != 0) {
+			(void)proc_lockClear(&name_common.lock);
+			return -EEXIST;
 		}
+
+		name_common.rootOid.port = port;
+		name_common.rootOid.id = (oid != NULL) ? oid->id : 0U;
 		name_common.rootRegistered = 1;
+
+		(void)proc_lockClear(&name_common.lock);
+
 		return EOK;
 	}
 
+	hash = dcache_strHash(name);
+
+	/* Pre-allocate entry to avoid holding the lock during allocation */
 	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
+
+	(void)proc_lockSet(&name_common.lock);
+
+	/* Check if entry already exists */
+	if (_dcache_entryLookup(hash, name) != NULL) {
+		(void)proc_lockClear(&name_common.lock);
+		if (entry != NULL) {
+			vm_kfree(entry);
+		}
+		return -EEXIST;
+	}
+
 	if (entry == NULL) {
+		(void)proc_lockClear(&name_common.lock);
 		return -ENOMEM;
 	}
 
 	entry->oid.port = port;
-	if (oid != NULL) {
-		entry->oid.id = oid->id;
-	}
+	entry->oid.id = (oid != NULL) ? oid->id : 0U;
 
 	(void)hal_strcpy(entry->name, name);
 
-	(void)proc_lockSet(&name_common.lock);
 	entry->next = name_common.dcache[hash];
 	name_common.dcache[hash] = entry;
+
 	(void)proc_lockClear(&name_common.lock);
 
 	return EOK;
@@ -116,9 +131,17 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 int proc_portUnregister(const char *name)
 {
 	dcache_entry_t *entry, *prev = NULL;
-	unsigned int hash = dcache_strHash(name);
+	unsigned int hash;
 
 	(void)proc_lockSet(&name_common.lock);
+
+	if (name[0] == '/' && name[1] == '\0') {
+		name_common.rootRegistered = 0;
+		(void)proc_lockClear(&name_common.lock);
+		return EOK;
+	}
+
+	hash = dcache_strHash(name);
 	entry = name_common.dcache[hash];
 
 	while (entry != NULL && hal_strcmp(entry->name, name) != 0) {
@@ -139,6 +162,7 @@ int proc_portUnregister(const char *name)
 	else {
 		name_common.dcache[hash] = entry->next;
 	}
+
 	(void)proc_lockClear(&name_common.lock);
 
 	vm_kfree(entry);
@@ -151,6 +175,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 {
 	int err;
 	dcache_entry_t *entry;
+	unsigned int hash;
 	msg_t *msg;
 	size_t len, i;
 	oid_t srv;
@@ -161,6 +186,8 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	}
 
 	if (name[0] == '/' && name[1] == '\0') {
+		(void)proc_lockSet(&name_common.lock);
+
 		if (name_common.rootRegistered != 0) {
 			if (file != NULL) {
 				*file = name_common.rootOid;
@@ -169,15 +196,20 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 			if (dev != NULL) {
 				*dev = name_common.rootOid;
 			}
+			(void)proc_lockClear(&name_common.lock);
 			return EOK;
 		}
 
-		return -EINVAL;
+		(void)proc_lockClear(&name_common.lock);
+		return -ENOENT;
 	}
 
-	/* Search cache for full path */
+	hash = dcache_strHash(name);
+
 	(void)proc_lockSet(&name_common.lock);
-	entry = _dcache_entryLookup(dcache_strHash(name), name);
+
+	/* Search cache for full path (fast path) */
+	entry = _dcache_entryLookup(hash, name);
 	if (entry != NULL) {
 		if (file != NULL) {
 			*file = entry->oid;
@@ -186,14 +218,14 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		if (dev != NULL) {
 			*dev = entry->oid;
 		}
+
 		(void)proc_lockClear(&name_common.lock);
 		return EOK;
 	}
+
+	/* Avoid holding the lock during allocation */
 	(void)proc_lockClear(&name_common.lock);
 
-	srv = name_common.rootOid;
-
-	/* Search cache for starting point */
 	len = hal_strlen(name);
 
 	if (len < sizeof(pstack)) {
@@ -207,6 +239,28 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 		pptr = pheap;
 	}
+
+	(void)proc_lockSet(&name_common.lock);
+
+	/* Search cache again for full path (in case it was added before the lock was reacquired) */
+	entry = _dcache_entryLookup(hash, name);
+	if (entry != NULL) {
+		if (file != NULL) {
+			*file = entry->oid;
+		}
+
+		if (dev != NULL) {
+			*dev = entry->oid;
+		}
+
+		(void)proc_lockClear(&name_common.lock);
+		if (pheap != NULL) {
+			vm_kfree(pheap);
+		}
+		return EOK;
+	}
+
+	srv = name_common.rootOid;
 
 	i = len;
 	(void)hal_strcpy(pptr, name);
@@ -222,22 +276,22 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 		pptr[i] = '\0';
 
-		(void)proc_lockSet(&name_common.lock);
 		entry = _dcache_entryLookup(dcache_strHash(pptr), pptr);
 		if (entry != NULL) {
 			srv = entry->oid;
-			(void)proc_lockClear(&name_common.lock);
 			break;
 		}
-		(void)proc_lockClear(&name_common.lock);
 	}
 
 	if (name_common.rootRegistered == 0 && i == 0U) {
+		(void)proc_lockClear(&name_common.lock);
 		if (pheap != NULL) {
 			vm_kfree(pheap);
 		}
-		return -EINVAL;
+		return -ENOENT;
 	}
+
+	(void)proc_lockClear(&name_common.lock);
 
 	msg = vm_kmalloc(sizeof(msg_t));
 	if (msg == NULL) {
