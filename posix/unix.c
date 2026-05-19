@@ -1233,9 +1233,15 @@ int unix_poll(unsigned int socket, unsigned short events)
 		err = POLLNVAL;
 	}
 	else {
+		if (s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED) != 0U) {
+			err |= POLLHUP; /* connection-wise socket - peer closed: report POLLHUP always */
+		}
+
 		if ((events & (POLLIN | POLLRDNORM | POLLRDBAND)) != 0U) {
 			(void)proc_lockSet(&s->lock);
-			if (_cbuffer_avail(&s->buffer) > 0U || (s->connecting != NULL && (s->state & US_LISTENING) != 0U)) {
+			if (_cbuffer_avail(&s->buffer) > 0U ||
+					(s->connecting != NULL && (s->state & US_LISTENING) != 0U) ||   /* listening socket with pending connection */
+					(s->type != SOCK_DGRAM && (s->state & US_PEER_CLOSED) != 0U)) { /* connection-wise socket disconnected (EOF readable) */
 				err |= (unsigned int)events & (POLLIN | POLLRDNORM | POLLRDBAND);
 			}
 			(void)proc_lockClear(&s->lock);
