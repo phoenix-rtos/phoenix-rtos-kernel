@@ -163,12 +163,16 @@ typedef struct _thread_t {
 		char msgbuf[256];
 		size_t msglen;
 
-		/* pointer to in process space */
-		msg_t *msg;
+		size_t ofs; /* buf ofs in kil */
+
+		size_t esize;
 
 		msg_rid_t *ridPtr;
 		int ishmapped;
 		int oshmapped;
+
+		/* pointer to in process space */
+		msg_t *msg;
 	} utcb;
 
 	int flags;

@@ -854,6 +854,17 @@ int syscalls_msgSend(u8 *ustack)
 		}
 	}
 
+	/* initialize edata for backwards compatibility */
+	if ((msg->edata == NULL) != (msg->esize == 0)) {
+		msg->edata = NULL;
+		msg->esize = 0;
+	}
+
+	if ((msg->edata != NULL) && (vm_mapBelongs(proc, msg->edata, msg->esize) < 0)) {
+		msg->edata = NULL;
+		msg->esize = 0;
+	}
+
 	return proc_send(port, msg);
 }
 
@@ -887,6 +898,17 @@ int syscalls_msgRecv(u8 *ustack)
 
 	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
 		return -EFAULT;
+	}
+
+	/* initialize edata for backwards compatibility */
+	if ((msg->edata == NULL) != (msg->esize == 0)) {
+		msg->edata = NULL;
+		msg->esize = 0;
+	}
+
+	if ((msg->edata != NULL) && (vm_mapBelongs(proc, msg->edata, msg->esize) < 0)) {
+		msg->edata = NULL;
+		msg->esize = 0;
 	}
 
 	return proc_recv(port, msg, rid);

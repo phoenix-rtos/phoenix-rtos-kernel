@@ -23,7 +23,7 @@ void lib_listAdd(void **list, void *t, size_t noff, size_t poff)
 		return;
 	}
 
-#if 1
+#if 0
 	if (*list != NULL) {
 		void *cur = *list;
 		do {

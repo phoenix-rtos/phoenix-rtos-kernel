@@ -71,6 +71,9 @@ struct _attrAll {
 };
 
 
+#define MSG_RAW_SIZE 64
+
+
 typedef struct _msg_t {
 	int type;
 	int pid;
@@ -114,7 +117,7 @@ typedef struct _msg_t {
 				off_t offs;
 			} readdir;
 
-			unsigned char raw[64];
+			unsigned char raw[MSG_RAW_SIZE];
 		};
 
 		size_t size;
@@ -141,7 +144,7 @@ typedef struct _msg_t {
 				oid_t dev;
 			} lookup;
 
-			unsigned char raw[64];
+			unsigned char raw[MSG_RAW_SIZE];
 		};
 
 		int err;

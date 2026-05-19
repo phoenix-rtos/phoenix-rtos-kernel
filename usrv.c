@@ -39,6 +39,8 @@ static void usrv_msgthr(void *arg)
 	oid_t oid = usrv_common.oid;
 
 	for (;;) {
+		msg.edata = NULL;
+		msg.esize = 0;
 		if (proc_recv(oid.port, &msg, &rid) != 0) {
 			continue;
 		}

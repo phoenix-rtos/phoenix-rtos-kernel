@@ -471,6 +471,33 @@ void _threads_removeFromQueue(thread_t *t)
 }
 
 
+/* TODO: crude API, fix */
+void _threads_ipcBufferRelease(ipc_buf_layout_t *il)
+{
+	if (il->bp != NULL) {
+		vm_pageFree(il->bp);
+		vm_munmap(threads_common.kmap, il->bvaddr, SIZE_PAGE);
+		il->bp = NULL;
+	}
+
+	if (il->eoffs != 0) {
+		if (il->ep != NULL) {
+			vm_pageFree(il->ep);
+		}
+		vm_munmap(threads_common.kmap, il->evaddr, SIZE_PAGE);
+		il->eoffs = 0;
+		il->ep = NULL;
+	}
+
+	if (il->w != NULL) {
+		vm_munmap(il->map, il->w, il->size);
+		il->w = NULL;
+		il->size = 0;
+		il->map = NULL;
+	}
+}
+
+
 static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 {
 	process_t *proc;
@@ -765,7 +792,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			current->context = current->fastpathExitCtx;
 			current->fastpathExitCtx = NULL;
 
-			/* see note in proc_call */
+			/* see note in proc_send_ex */
 			if (current->saveCtxInReply != 0) {
 				LIB_ASSERT(current->reply != NULL, "reply null?");
 				current->reply->context = context;
@@ -946,9 +973,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->wait = NULL;
 	t->locks = NULL;
 	t->longjmpctx = NULL;
-	hal_memset(&t->utcb.iil, 0, sizeof(t->utcb.iil));
-	hal_memset(&t->utcb.oil, 0, sizeof(t->utcb.oil));
-	t->utcb.msg = NULL;
+	hal_memset(&t->utcb, 0, sizeof(t->utcb));
 
 	t->fastpathExitCtx = NULL;
 	t->callReturnable = 0;
@@ -2528,12 +2553,6 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 }
 
 
-// #define log_debug(fmt, ...) lib_printf(fmt "\n", ##__VA_ARGS__)
-// #define log_err(fmt, ...)   lib_printf(fmt "\n", ##__VA_ARGS__)
-#define log_debug(fmt, ...)
-#define log_err(fmt, ...)
-
-
 static inline int _mustSlowCall(port_t *p, thread_t *caller)
 {
 	/*
@@ -2574,33 +2593,6 @@ static void _portDequeue(port_t *p, thread_t *t)
 }
 
 
-/* TODO: crude API, fix */
-void _threads_ipcBufferRelease(ipc_buf_layout_t *il)
-{
-	if (il->bp != NULL) {
-		vm_pageFree(il->bp);
-		vm_munmap(threads_common.kmap, il->bvaddr, SIZE_PAGE);
-		il->bp = NULL;
-	}
-
-	if (il->eoffs != 0) {
-		if (il->ep != NULL) {
-			vm_pageFree(il->ep);
-		}
-		vm_munmap(threads_common.kmap, il->evaddr, SIZE_PAGE);
-		il->eoffs = 0;
-		il->ep = NULL;
-	}
-
-	if (il->w != NULL) {
-		vm_munmap(il->map, il->w, il->size);
-		il->w = NULL;
-		il->size = 0;
-		il->map = NULL;
-	}
-}
-
-
 static void _threads_copyShadowPages(ipc_buf_layout_t *il, size_t size)
 {
 	if (il->bp != NULL) {
@@ -2614,22 +2606,28 @@ static void _threads_copyShadowPages(ipc_buf_layout_t *il, size_t size)
 
 static void _threads_copyShmBuffers(thread_t *from, thread_t *to, msg_t *msg)
 {
-	if (msg->i.size > 0 || msg->o.size > 0) {
-		LIB_ASSERT(to->mappedTo == from, "hm, %p != %p", to->mappedTo, from);
-		if (to->mappedTo == from) {
-			/* TODO: copying i may be unnecessary */
-			_threads_copyShadowPages(&to->utcb.iil, msg->i.size);
-			_threads_copyShadowPages(&to->utcb.oil, msg->o.size);
+	if (!(msg->o.size <= min(sizeof(from->utcb.msgbuf) - MSG_RAW_SIZE, to->utcb.esize))) {
+		if (msg->i.size > 0 || msg->o.size > 0) {
+			LIB_ASSERT(to->mappedTo == from, "hm, %p != %p", to->mappedTo, from);
+			if (to->mappedTo == from) {
+				_threads_copyShadowPages(&to->utcb.oil, msg->o.size);
+			}
 		}
 	}
 }
 
+
 /* assuming aspace of `to` */
 static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg)
 {
+	if (msg->o.size <= min(sizeof(from->utcb.msgbuf) - MSG_RAW_SIZE, to->utcb.esize)) {
+		to->utcb.msg->o.data = (void *)to->utcb.msg->edata;
+		hal_memcpy((void *)to->utcb.msg->o.data, from->utcb.msgbuf + MSG_RAW_SIZE, msg->o.size);
+	}
+
 	to->utcb.msg->o.size = msg->o.size;
 
-	hal_memcpy(to->utcb.msg->o.raw, msg->o.raw, sizeof(msg->o.raw));
+	hal_memcpy(to->utcb.msg->o.raw, msg->o.raw, MSG_RAW_SIZE);
 	to->utcb.msg->o.err = msg->o.err;
 
 	/* TODO: handle pulse as well */
@@ -2683,49 +2681,37 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	}
 
 	caller->utcb.msg = msg;
-
-	size_t smallBufSize;
-	// if (recv->utcb.msg->edata != NULL) {
-	// 	LIB_ASSERT(0, "edata %d", port);
-	// 	/* recv has supplied a buffer to which to copy the message to */
-	// 	smallBufSize = min(sizeof(caller->utcb.msgbuf), recv->utcb.msg->esize);
-	// }
-	// else {
-	smallBufSize = sizeof(msg->i.raw);
-	// }
+	caller->utcb.esize = msg->esize;
 
 	void *imap = NULL, *omap = NULL;
 	size_t isize = 0, osize = 0;
 
 	/* TODO: add rawsz to msg_t */
-	size_t rawSz = sizeof(msg->i.raw);
-	hal_memcpy(caller->utcb.msgbuf, msg->i.raw, rawSz);
-	caller->utcb.msglen = rawSz;
+	hal_memcpy(caller->utcb.msgbuf, msg->i.raw, MSG_RAW_SIZE);
 
 	if (msg->i.size > 0) {
-		if (rawSz + msg->i.size <= smallBufSize) {
+		if (msg->i.size <= min(sizeof(caller->utcb.msgbuf) - MSG_RAW_SIZE, recv->utcb.esize)) {
 			/* small message: fits the kernel buf and the predefined recv buffer */
-			hal_memcpy(caller->utcb.msgbuf + rawSz, msg->i.data, msg->i.size);
-			caller->utcb.msglen += msg->i.size;
-
-			LIB_ASSERT(0, "happens");
+			hal_memcpy(caller->utcb.msgbuf + MSG_RAW_SIZE, msg->i.data, msg->i.size);
+			caller->utcb.msglen = msg->i.size;
 		}
 		else {
 			isize = msg->i.size;
 			imap = isize > 0 ? (void *)msg->i.data : NULL;
+			caller->utcb.msglen = 0; /* 0 means just the raw in the msgbuf */
 		}
 	}
 
-	// if (msg->o.size <= smallBufSize) {
-	// 	/* small reply */
-	// 	recv->utcb.msg->o.data = NULL;
-	// 	recv->utcb.msg->o.size = 0;
-	// }
-	// else if (msg->o.size > 0) {
-	osize = msg->o.size;
-	omap = osize > 0 ? msg->o.data : NULL;
-	// }
-
+	if (msg->o.size > 0) {
+		if (msg->o.size <= min(sizeof(recv->utcb.msgbuf) - MSG_RAW_SIZE, msg->esize)) {
+			/* FIXME: wont do it, same reason why ->reply doesnt work as intended */
+		}
+		else {
+			osize = msg->o.size;
+			omap = osize > 0 ? msg->o.data : NULL;
+			recv->utcb.msglen = 0; /* 0 means just the raw in the msgbuf */
+		}
+	}
 
 	oid_t oid;
 	int type;
@@ -2763,16 +2749,13 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	/* message transfer */
 
-	hal_memcpy(recv->utcb.msg->i.raw, caller->utcb.msgbuf, rawSz);
-
-	// threads_releaseIpcBuffers(caller);
+	hal_memcpy(recv->utcb.msg->i.raw, caller->utcb.msgbuf, MSG_RAW_SIZE);
 
 	if (imap != NULL || omap != NULL) {
 		thread_t *prevMappedTo;
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 		prevMappedTo = caller->mappedTo;
-		// LIB_ASSERT(caller->mappedTo == NULL, "caller already mapped to?");
 		caller->mappedTo = recv;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -2791,16 +2774,11 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		recv->utcb.msg->i.size = isize;
 	}
 	else {
-		// threads_ipcBufferRelease(&caller->utcb.iil);
-		// caller->mappedTo = NULL;
-
-		if (caller->utcb.msglen > rawSz) {
-			hal_memcpy((void *)recv->utcb.msg->i.data, caller->utcb.msgbuf + rawSz, caller->utcb.msglen - rawSz);
+		if (caller->utcb.msglen > 0) {
+			recv->utcb.msg->i.data = recv->utcb.msg->edata;
+			hal_memcpy((void *)recv->utcb.msg->i.data, caller->utcb.msgbuf + MSG_RAW_SIZE, caller->utcb.msglen);
 		}
-
-		/* Update the recv i.size to reflect the msg size. Not sure how clean that is.
-		 * May need to rework this. */
-		recv->utcb.msg->i.size = caller->utcb.msglen - rawSz;
+		recv->utcb.msg->i.size = caller->utcb.msglen;
 	}
 
 	if (omap != NULL) {
@@ -2808,10 +2786,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 			LIB_ASSERT(0, "enomem");
 			return -ENOMEM;
 		}
-	}
-	else {
-		// threads_ipcBufferRelease(&caller->utcb.oil);
-		// caller->mappedTo = NULL;
 	}
 
 	recv->utcb.msg->o.size = osize;
@@ -2981,6 +2955,28 @@ int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 }
 
 
+static vm_map_t *_getMap(process_t *process)
+{
+	return (process == NULL || process->mapp == NULL) ? threads_common.kmap : process->mapp;
+}
+
+
+static vm_flags_t _getMapFlags(vm_map_t *map, void *data)
+{
+	if (pmap_belongs(&map->pmap, data) != 0) {
+		return vm_mapFlags(map, data);
+	}
+	else {
+		return vm_mapFlags(threads_common.kmap, data);
+	}
+}
+
+
+/* make these as lib macros please... */
+#define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
+#define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
+
+
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	port_t *p;
@@ -2990,6 +2986,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	recv = proc_current();
 	recv->utcb.ridPtr = rid;
 	recv->utcb.msg = msg;
+	recv->utcb.esize = msg->esize;
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -3004,7 +3001,6 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	if (p->pulse != 0) {
-		// LIB_ASSERT(0, "return happens");
 		return _returnWithPulse(recv, p, &sc);
 	}
 
@@ -3197,7 +3193,6 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 }
 
 
-#if 1
 /*
  * TODO: optimized respond&recv. Couldn't manage to get it working and there are
  * more important matters for now
@@ -3225,151 +3220,6 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	return proc_recv(port, msg, rid);
 }
-#else
-int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
-{
-	port_t *p;
-	spinlock_ctx_t sc, tsc;
-	cpu_context_t *ctx;
-	thread_t *caller, *recv;
-	int responding;
-
-	recv = proc_current();
-	void *reply = (void *)*rid;
-
-	p = proc_portGet(port);
-	if (p == NULL) {
-		LIB_ASSERT(0, "ret!");
-		return -EINVAL;
-	}
-
-	/* recv SC is actually caller's SC */
-	/* TODO: this should probably be accounted in better way */
-	if (threads_getHighestPrio(recv->priority) != recv->priority) {
-		/* TODO: dead code? */
-		LIB_ASSERT(0, "dead code not dead");
-	}
-
-	hal_spinlockSet(&threads_common.spinlock, &tsc);
-	hal_spinlockSet(&p->spinlock, &sc);
-	if (p->closed != 0) {
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
-		LIB_ASSERT(0, "ret!")
-		return -EINVAL;
-	}
-
-	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
-
-	responding = recv->reply != NULL ? 1 : 0;
-
-	if (responding == 0) {
-		if (p->pulse != 0) {
-			LIB_ASSERT(0, "pulse!")
-			hal_spinlockClear(&threads_common.spinlock, &sc);
-			return _returnWithPulse(recv, p, &tsc);
-		}
-
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-		return _becomePassive(p, recv, msg, rid, &tsc);
-	}
-
-	LIB_ASSERT(reply == recv->reply, "eh, todo");
-
-	caller = reply;
-	if (caller->called != recv) {
-		LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
-		LIB_ASSERT(0, "ret!");
-		return -EINVAL;
-	}
-
-
-	LIB_ASSERT(caller->mappedTo == NULL, "mapped in this test??");
-
-	/* wake next caller if exists */
-	(void)_proc_threadWakeupPrio(&p->queue);
-
-	hal_spinlockClear(&p->spinlock, &sc);
-
-	/* possible preemption point */
-
-	/*
-	 * noone to reply, doing a fastpath and switching to caller thread
-	 * point of no return
-	 */
-
-	msg_t msgCopy;
-	hal_memcpy(&msgCopy, msg, sizeof(msg_t));
-
-	// TODO: _threads_copyShmBuffers(recv, caller, &msgCopy);
-
-	/* FIXME: not great in general, but we shouldnt do this prior to preemption
-	 * point */
-	hal_spinlockSet(&p->spinlock, &sc);
-	_portEnqueue(p, recv);
-	hal_spinlockClear(&p->spinlock, &sc);
-
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-	port_put(p, 0);
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
-#if 0
-	threads_releaseIpcBuffers(caller);
-#endif
-
-	// hal_spinlockSet(&threads_common.spinlock, &sc);
-
-	/* TODO handle exit != 0 */
-	LIB_ASSERT(caller->exit == 0, "exit=%d", caller->exit);
-	LIB_ASSERT(caller != NULL, "caller null!");
-	LIB_ASSERT(caller->state == BLOCKED_ON_REPLY, "bad caller state");
-
-	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
-	_sc_return(recv, caller, donated_sc);
-
-	if (recv->sc_active == recv->sc_own) {
-		/* noone else to respond, go passive as recv */
-		recv->sc_active = NULL;
-		/* TODO: duplicated with _becomePassive */
-		recv->state = BLOCKED_ON_RECV;
-		recv->passive = 1;
-		recv->interruptible = 1;
-		recv->flags &= (~(int)THREAD_PULSED);
-	}
-	else {
-		LIB_ASSERT(0, "inh happens");
-		LIST_ADD(&threads_common.ready[recv->priority], recv->sc_active);
-	}
-
-	ctx = _threads_switchTo(caller);
-
-	LIB_ASSERT(threads_common.current[hal_cpuGetID()] == caller->sc_active, "eee??");
-	LIB_ASSERT(caller->sc_active->t == caller, "aaaaaaa!!!!!");
-
-	_threads_copyMsgBufResponse(recv, caller, &msgCopy);
-
-	if (caller->callReturnable == 0) {
-		hal_cpuSetReturnValue(ctx, EOK);
-		caller->fastpathExitCtx = ctx;
-		hal_spinlockClear(&threads_common.spinlock, &tsc);
-	}
-	else {
-		LIB_ASSERT(0, "shouldnt happen in the test?");
-		caller->fastpathExitCtx = caller->context;
-		caller->callReturnable = 0;
-		hal_cpuReschedule(&threads_common.spinlock, &tsc);
-	}
-
-	return EOK;
-}
-#endif
-
-
-/* make these as lib macros please... */
-#define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
-#define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
 
 
 static void *_mapBufferUnaligned(
@@ -3404,8 +3254,8 @@ static void *_mapBufferUnaligned(
 		eoffs = ((ptr_t)data + size) & (SIZE_PAGE - 1);
 	}
 
-	srcmap = (from == NULL || from->mapp == NULL) ? threads_common.kmap : from->mapp;
-	dstmap = (to == NULL || to->mapp == NULL) ? threads_common.kmap : to->mapp;
+	srcmap = _getMap(from);
+	dstmap = _getMap(to);
 
 	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0)) {
 		return data;
@@ -3420,13 +3270,7 @@ static void *_mapBufferUnaligned(
 	il->size = sz;
 	il->map = dstmap;
 
-	if (pmap_belongs(&srcmap->pmap, data) != 0) {
-		flags = vm_mapFlags(srcmap, data);
-	}
-	else {
-		flags = vm_mapFlags(threads_common.kmap, data);
-	}
-
+	flags = _getMapFlags(srcmap, data);
 	if (flags < 0) {
 		return NULL;
 	}
