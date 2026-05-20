@@ -42,6 +42,9 @@ enum { event_scheduling, event_enqueued, event_waking, event_preempted };
 #define UNLOCK_FORCE      1
 
 
+/* Maximum depth for transitive lock PI chain walking (scheduler-side) */
+#define BWI_MAX_CHAIN_DEPTH 8
+
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
@@ -252,6 +255,7 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 
 
 static void proc_lockForceUnlock(lock_t *lock, int doYield);
+static void _proc_threadSetPriority(thread_t *thread, u8 priority);
 
 
 static cpu_context_t *_getUserContext(thread_t *thread)
@@ -676,6 +680,15 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 	else {
 		LIST_REMOVE_EX(&from->sc_donated, sc, dnext, dprev);
 	}
+
+	/* BWI: stamp the caller's effective priority onto the SC before donation.
+	 * If the caller was mutex-PI-boosted, sc->priority still has the stale
+	 * base value.  Propagate the boost so the receiver runs at the correct
+	 * effective priority. */
+	if (from->priority < sc->priority) {
+		sc->priority = from->priority;
+	}
+
 	from->sc_active = NULL;
 	from->state = BLOCKED_ON_REPLY;
 
@@ -714,6 +727,9 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 
 	/* Return to caller */
 	sc->t = caller;
+
+	/* BWI: restore SC priority to its base (the mutex PI boost was temporary) */
+	sc->priority = sc->priorityBase;
 
 	if (caller->sc_own != sc) {
 		/* caller is in a reply chain */
@@ -825,6 +841,35 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		LIST_REMOVE(&threads_common.ready[i], sched);
 
 		if (sched->t->state != READY) {
+			/* BWI: Follow lock dependency chain to boost the ultimate lock holder.
+			 * This offloads transitive PI cost to the scheduler (NOVA-style):
+			 * lock contention is O(1), the scheduler walks the chain. */
+			if (sched->t->waitingOn != NULL) {
+				thread_t *target = sched->t;
+				unsigned int depth = 0;
+
+				while (target->waitingOn != NULL && depth < BWI_MAX_CHAIN_DEPTH) {
+					lock_t *lk = target->waitingOn;
+
+					if (lk->owner == NULL) {
+						break; /* lock was destroyed */
+					}
+
+					target = lk->owner;
+
+					if (target == sched->t) {
+						break; /* cycle (deadlock) */
+					}
+
+					depth++;
+				}
+
+				if (target != NULL && target != sched->t &&
+						target->state == READY && i < target->priority) {
+					_proc_threadSetPriority(target, i);
+				}
+			}
+
 			LIB_ASSERT(sched->t->exit == 0, "what about this guy!");
 			/* lazy update */
 			continue;
@@ -972,6 +1017,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->execdata = NULL;
 	t->wait = NULL;
 	t->locks = NULL;
+	t->waitingOn = NULL;
 	t->longjmpctx = NULL;
 	hal_memset(&t->utcb, 0, sizeof(t->utcb));
 
@@ -1103,13 +1149,12 @@ static u8 _proc_threadGetLockPriority(thread_t *thread)
 
 static u8 _proc_threadGetPriority(thread_t *thread)
 {
-	return thread->priority;
+	unsigned int lockPrio, scPrio;
 
-	// unsigned int ret;
-	//
-	// ret = _proc_threadGetLockPriority(thread);
-	//
-	// return (ret < thread->priorityBase) ? ret : thread->priorityBase;
+	lockPrio = _proc_threadGetLockPriority(thread);
+	scPrio = (thread->sc_active != NULL) ? thread->sc_active->priority : thread->priorityBase;
+
+	return (lockPrio < scPrio) ? lockPrio : scPrio;
 }
 
 
@@ -1182,13 +1227,17 @@ int proc_threadPriority(int signedPriority)
 		}
 
 		current->priorityBase = priority;
+
+		ret = (int)current->priorityBase;
+
+		if (current->sc_active == current->sc_own) {
+			current->sc_active->priority = priority;
+			current->sc_active->priorityBase = current->priorityBase;
+		}
 	}
-
-	ret = (int)current->priorityBase;
-
-	if (current->sc_active == current->sc_own) {
-		current->sc_active->priority = priority;
-		current->sc_active->priorityBase = current->priorityBase;
+	else {
+		/* Query mode: return effective priority (reflects PI boost + SC donation) */
+		ret = current->priority;
 	}
 
 	if (reschedule != 0) {
@@ -2025,10 +2074,35 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 	if (_proc_lockTry(current, lock) < 0) {
-		/* Lock owner might inherit our priority */
+		/* Track lock dependency for transitive PI (scheduler follows this chain) */
+		current->waitingOn = lock;
 
-		if (current->priority < lock->owner->priority) {
-			_proc_threadSetPriority(lock->owner, current->priority);
+		/* Eagerly propagate priority through the lock dependency chain.
+		 * Walks: current -> lock->owner -> owner->waitingOn->owner -> ...
+		 * Each owner in the chain is boosted to current's effective priority.
+		 * Bounded by BWI_MAX_CHAIN_DEPTH to prevent unbounded work under spinlock. */
+		{
+			thread_t *target = lock->owner;
+			unsigned int prio = current->priority;
+			unsigned int depth = 0;
+
+			while (target != NULL && depth < BWI_MAX_CHAIN_DEPTH) {
+				if (prio < target->priority) {
+					_proc_threadSetPriority(target, prio);
+				}
+
+				if (target->waitingOn == NULL) {
+					break;
+				}
+
+				if (target->waitingOn->owner == NULL ||
+						target->waitingOn->owner == current) {
+					break; /* broken chain or cycle */
+				}
+
+				target = target->waitingOn->owner;
+				depth++;
+			}
 		}
 
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -2038,6 +2112,9 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
 				/* Can happen when thread_destroy is called on lock owner and current */
 				if (lock->owner == NULL) {
+					hal_spinlockSet(&threads_common.spinlock, &sc);
+					current->waitingOn = NULL;
+					hal_spinlockClear(&threads_common.spinlock, &sc);
 					ret = -EINTR;
 					_trace_eventLockSetExit(lock, tid, ret);
 					return ret;
@@ -2045,6 +2122,8 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 				/* Don't return EINTR if we got lock anyway */
 				if (lock->owner != current) {
 					hal_spinlockSet(&threads_common.spinlock, &sc);
+
+					current->waitingOn = NULL;
 
 					/* Recalculate lock owner priority (it might have been inherited from the current thread) */
 					_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
@@ -2147,21 +2226,29 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 
 	LIST_REMOVE(&owner->locks, lock);
 	if (lock->queue != NULL) {
-		/* Calculate appropriate priority, wakeup waiting thread and give it a lock */
+		/* Transfer lock to the first waiter */
 		lock->owner = lock->queue;
-		lockPriority = _proc_lockGetPriority(lock);
-		if (lockPriority < lock->owner->priority) {
-			_proc_threadSetPriority(lock->queue, lockPriority);
-		}
+		lock->owner->waitingOn = NULL;
+
+		/* Wake the new owner and add lock to its held-locks list */
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
+
+		/* Recalculate new owner's effective priority from ALL held locks + SC.
+		 * This handles transitive PI: if the new owner holds another lock with
+		 * a high-priority waiter, it will be boosted accordingly. */
+		lockPriority = _proc_threadGetPriority(lock->owner);
+		if ((unsigned int)lockPriority < lock->owner->priority) {
+			_proc_threadSetPriority(lock->owner, lockPriority);
+		}
+
 		ret = 1;
 	}
 	else {
 		lock->owner = NULL;
 	}
 
-	/* Restore previous owner priority */
+	/* Restore previous owner's priority from its remaining held locks + SC */
 	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
 
 	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",

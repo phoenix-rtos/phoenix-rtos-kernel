@@ -29,11 +29,11 @@
 #define THREAD_END_NOW 2U
 
 /* Thread states */
-#define READY 0U
-#define SLEEP 1U
-#define GHOST 2U
-#define BLOCKED_ON_RECV 3U
-#define BLOCKED_ON_SEND 4U
+#define READY            0U
+#define SLEEP            1U
+#define GHOST            2U
+#define BLOCKED_ON_RECV  3U
+#define BLOCKED_ON_SEND  4U
 #define BLOCKED_ON_REPLY 5U
 
 
@@ -107,6 +107,7 @@ typedef struct _thread_t {
 
 	int refs;
 	struct _thread_t *blocking;
+	struct _lock_t *waitingOn; /* lock this thread is blocked on (PI chain) */
 
 	struct _thread_t **wait;
 	time_t wakeup;
