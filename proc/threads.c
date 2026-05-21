@@ -1466,12 +1466,26 @@ int threads_sigsuspend(unsigned int mask)
 static int _proc_lockTry(thread_t *current, lock_t *lock)
 {
 	if (lock->owner != NULL) {
-		return -EBUSY;
+		if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->owner == current)) {
+			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "False-positive - checking for overflow this way is defined in the standard" */
+			if (lock->depth + 1U == 0U) {
+				/* recursive lock locked too many times */
+				return -EAGAIN;
+			}
+			else {
+				lock->depth++;
+				return EOK;
+			}
+		}
+		else {
+			return -EBUSY;
+		}
 	}
 
 	LIST_ADD(&current->locks, lock);
 
 	lock->owner = current;
+	lock->depth = 1;
 
 	return EOK;
 }
@@ -1522,26 +1536,13 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 		return ret;
 	}
 
-	if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->owner == current)) {
-		if (((int)lock->depth + 1) == 0) {
-			ret = -EAGAIN;
-		}
-		else {
-			lock->depth++;
-			ret = EOK;
-		}
+	ret = _proc_lockTry(current, lock);
 
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-		_trace_eventLockSetExit(lock, tid, ret);
-		return ret;
-	}
+	if (ret == -EBUSY) {
+		LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
+				lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
-	LIB_ASSERT(lock->owner != current, "lock: %s, pid: %d, tid: %d, deadlock on itself",
-			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
-
-	if (_proc_lockTry(current, lock) < 0) {
 		/* Lock owner might inherit our priority */
-
 		if (current->priority < lock->owner->priority) {
 			_proc_threadSetPriority(lock->owner, current->priority);
 		}
@@ -1572,12 +1573,14 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 				}
 			}
 		} while (lock->owner != current);
+
+		/* we acquired the lock */
+		lock->depth = 1;
+		ret = EOK;
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
-
-	lock->depth = 1;
 
 	_trace_eventLockSetExit(lock, tid, ret);
 	return ret;
