@@ -27,19 +27,6 @@ static struct {
 } msg_common;
 
 
-static int msg_isAllowed(process_t *proc, port_t *p)
-{
-	if ((proc == NULL) || (p->owner == NULL) ||
-			(proc->partition == NULL) || (p->owner->partition == NULL)) {
-		return EOK;
-	}
-	if (p->owner->partition != proc->partition) {
-		return -EACCES;
-	}
-	return EOK;
-}
-
-
 static int proc_sendEx(u32 port, msg_t *msg, int interruptible)
 {
 	port_t *p;
@@ -55,10 +42,9 @@ static int proc_sendEx(u32 port, msg_t *msg, int interruptible)
 	}
 
 	sender = proc_current();
-	err = msg_isAllowed(sender->process, p);
-	if (err != EOK) {
+	if (proc_isPortAllowed(p, sender->process, 0) == 0) {
 		port_put(p, 0);
-		return err;
+		return -EACCES;
 	}
 
 	kmsg.msg = msg;
@@ -162,10 +148,10 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	if (p == NULL) {
 		return -EINVAL;
 	}
-	err = msg_isAllowed(proc_current()->process, p);
-	if (err != EOK) {
+
+	if (proc_isPortAllowed(p, current->process, 1) == 0) {
 		port_put(p, 0);
-		return err;
+		return -EACCES;
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
