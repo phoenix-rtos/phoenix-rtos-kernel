@@ -22,6 +22,7 @@
 #include "include/sysinfo.h"
 #include "include/mman.h"
 #include "include/syscalls.h"
+#include "include/syspage.h"
 #include "include/threads.h"
 #include "include/utsname.h"
 #include "include/time.h"
@@ -1929,6 +1930,38 @@ int syscalls_sys_uname(u8 *ustack)
 	}
 
 	return posix_uname(name);
+}
+
+
+int syscalls_sys_namedResource(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	char *name;
+	size_t len;
+	u32 *portId;
+	syspage_named_port_t *port;
+	unsigned int partMask = (1U << proc->partition->config->id);
+
+	GETFROMSTACK(ustack, char *, name, 0U);
+	GETFROMSTACK(ustack, size_t, len, 1U);
+	GETFROMSTACK(ustack, u32 *, portId, 2U);
+
+	if (vm_mapBelongs(proc, name, len) < 0) {
+		return -EFAULT;
+	}
+
+	port = syspage_namedPortResolve(name);
+	if (port == NULL) {
+		return -EINVAL;
+	}
+
+	if ((port->recvMask & partMask) == 0U && (port->sendMask & partMask) == 0U) {
+		return -EACCES;
+	}
+
+	*portId = port->portId;
+
+	return EOK;
 }
 
 

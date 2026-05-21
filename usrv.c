@@ -16,12 +16,14 @@
 #include "hal/hal.h"
 
 #include "usrv.h"
+#include "include/syspage.h"
 #include "log/log.h"
 #include "include/ioctl.h"
 
 #include "proc/threads.h"
 #include "proc/msg.h"
 #include "proc/ports.h"
+#include "syspage.h"
 
 
 #define USRV_ID_LOG 0
@@ -61,10 +63,11 @@ static void usrv_msgthr(void *arg)
 
 void _usrv_start(void)
 {
-	/* Create port 0 for /dev/kmsg */
-	if (proc_portCreate(&usrv_common.oid.port) != 0) {
+	syspage_named_port_t *port = syspage_namedPortResolve(USRV_PORT_NAME);
+	if (port == NULL) {
 		return;
 	}
+	usrv_common.oid.port = port->portId;
 
 	(void)proc_threadCreate(NULL, usrv_msgthr, NULL, 1, (size_t)SIZE_KSTACK, NULL, 0, 0, NULL);
 }

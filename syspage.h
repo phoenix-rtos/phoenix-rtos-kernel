@@ -61,6 +61,14 @@ syspage_sched_t *syspage_schedulerConfig(void);
 syspage_part_t *syspage_partitionList(void);
 
 
+/* Named ports configuration */
+
+syspage_named_port_t *syspage_namedPortsList(void);
+
+
+syspage_named_port_t *syspage_namedPortResolve(const char *name);
+
+
 /* General functions */
 
 void syspage_progShow(void);

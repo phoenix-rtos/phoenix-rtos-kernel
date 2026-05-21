@@ -15,6 +15,7 @@
 
 #include "ports.h"
 #include "lib/lib.h"
+#include "syspage.h"
 
 
 static struct {
@@ -113,11 +114,9 @@ void port_put(port_t *p, int destroy)
 }
 
 
-int proc_portCreate(u32 *id)
+static int port_create(process_t *proc, syspage_named_port_t *namedPort, u32 *id)
 {
 	port_t *port;
-	thread_t *curr = proc_current();
-	process_t *proc = (curr == NULL) ? NULL : curr->process;
 
 	port = vm_kmalloc(sizeof(port_t));
 	if (port == NULL) {
@@ -144,6 +143,7 @@ int proc_portCreate(u32 *id)
 
 	*id = (u32)port->linkage.id;
 	port->owner = proc;
+	port->namedPort = namedPort;
 	(void)proc_lockClear(&port_common.port_lock);
 
 	if (proc != NULL) {
@@ -153,6 +153,15 @@ int proc_portCreate(u32 *id)
 	}
 
 	return EOK;
+}
+
+
+int proc_portCreate(u32 *id)
+{
+	thread_t *curr = proc_current();
+	process_t *proc = (curr == NULL) ? NULL : curr->process;
+	*id = 0;
+	return port_create(proc, NULL, id);
 }
 
 
@@ -196,6 +205,19 @@ void proc_portsDestroy(process_t *proc)
 
 void _port_init(void)
 {
+	syspage_named_port_t *port;
+	u32 id;
+
 	lib_idtreeInit(&port_common.tree);
 	(void)proc_lockInit(&port_common.port_lock, &proc_lockAttrDefault, "port.common");
+
+	port = syspage_namedPortsList();
+	if (port != NULL) {
+		do {
+			port_create(NULL, port, &id);
+			port->portId = id;
+
+			port = port->next;
+		} while (port != syspage_namedPortsList());
+	}
 }

@@ -29,16 +29,24 @@ static struct {
 } msg_common;
 
 
-static int msg_isAllowed(process_t *proc, port_t *p)
+static int msg_isNamedPortAllowed(unsigned int allowMask, process_t *process)
 {
-	if ((proc == NULL) || (p->owner == NULL) ||
-			(proc->partition == NULL) || (p->owner->partition == NULL)) {
-		return EOK;
+	if ((process == NULL) || (process->partition == NULL) ||
+			((allowMask & (1U << process->partition->config->id)) != 0)) {
+		return 1;
 	}
-	if (p->owner->partition != proc->partition) {
-		return -EACCES;
+	return 0;
+}
+
+
+static int msg_isOwnerAllowed(process_t *owner, process_t *current)
+{
+	if ((owner == NULL) || (current == NULL) ||
+			(current->partition == NULL) || (owner->partition == NULL) ||
+			((owner->partition == current->partition))) {
+		return 1;
 	}
-	return EOK;
+	return 0;
 }
 
 
@@ -57,10 +65,10 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	sender = proc_current();
-	err = msg_isAllowed(sender->process, p);
-	if (err != EOK) {
+	if (((p->namedPort != NULL) && (msg_isNamedPortAllowed(p->namedPort->sendMask, sender->process) == 0)) ||
+			(msg_isOwnerAllowed(p->owner, sender->process) == 0)) {
 		port_put(p, 0);
-		return err;
+		return -EACCES;
 	}
 
 	kmsg.msg = msg;
@@ -149,10 +157,11 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	if (p == NULL) {
 		return -EINVAL;
 	}
-	err = msg_isAllowed(proc_current()->process, p);
-	if (err != EOK) {
+
+	if (((p->namedPort != NULL) && (msg_isNamedPortAllowed(p->namedPort->recvMask, current->process) == 0)) ||
+			(msg_isOwnerAllowed(p->owner, current->process) == 0)) {
 		port_put(p, 0);
-		return err;
+		return -EACCES;
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
