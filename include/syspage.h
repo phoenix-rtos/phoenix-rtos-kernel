@@ -15,6 +15,9 @@
 #define _PH_SYSPAGE_H_
 
 
+#define USRV_PORT_NAME "usrv"
+
+
 /* clang-format off */
 enum { mAttrRead = 0x01, mAttrWrite = 0x02, mAttrExec = 0x04, mAttrShareable = 0x08,
 	   mAttrCacheable = 0x10, mAttrBufferable = 0x20 };
@@ -74,6 +77,18 @@ typedef struct _syspage_part_t {
 } __attribute__((packed)) syspage_part_t;
 
 
+typedef struct _syspage_named_port_t {
+	struct _syspage_named_port_t *next, *prev;
+
+	unsigned int portId;
+	char *name;
+
+	unsigned int recvMask;
+	unsigned int sendMask;
+
+} __attribute__((packed)) syspage_named_port_t;
+
+
 typedef struct _syspage_prog_t {
 	struct _syspage_prog_t *next, *prev;
 
@@ -119,6 +134,7 @@ typedef struct {
 	syspage_sched_t *sched;     /* Scheduler configuration */
 	syspage_part_t *partitions; /* Partitions list */
 	syspage_prog_t *progs;      /* Programs list */
+	syspage_named_port_t *namedPorts;
 
 	unsigned int console; /* Console ID defines in hal */
 } __attribute__((packed)) syspage_t;
