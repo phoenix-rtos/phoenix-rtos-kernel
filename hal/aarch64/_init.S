@@ -115,6 +115,12 @@ _start:
 	msr cpacr_el1, x0
 	isb
 
+	mrs x0, cntkctl_el1
+	orr x0, x0, #(0x1 << 1)
+	msr cntkctl_el1, x0
+	isb
+
+
 	/* Invalidate caches and TLB */
 	ic iallu
 	bl hal_cpuInvalDataCacheAll
@@ -122,14 +128,38 @@ _start:
 	dsb ish
 	isb
 
-	/* Enable performance monitors */
-	mrs x0, pmcr_el0
-	orr x0, x0, #0x7 /* reset cycle counter, reset event counter, enable */
-	orr x0, x0, #0x40 /* activate 64-bit counting mode */
-	msr pmcr_el0, x0
-	mrs x0, pmcntenset_el0
-	orr x0, x0, #(1 << 31)
-	msr pmcntenset_el0, x0
+	// =========================================================================
+    // 1. GRANT USERSPACE (EL0) ACCESS
+    // Register: PMUSERENR_EL0
+    // Bit 0 (EN) = 1: Allow EL0 to read the performance monitors
+    // =========================================================================
+    MOV     X0, #1
+    MSR     PMUSERENR_EL0, X0
+
+    // =========================================================================
+    // 2. CONFIGURE AND START THE PMU
+    // Register: PMCR_EL0
+    // Value: 0x4F
+    // Bit 6 (LC) = 1 (Enable 64-bit cycle counting)
+    // Bit 3 (D)  = 1 (Divide by 64 - counts every 64th cycle)
+    // Bit 2 (C)  = 1 (Reset cycle counter)
+    // Bit 1 (P)  = 1 (Reset event counters)
+    // Bit 0 (E)  = 1 (Enable PMU)
+    // =========================================================================
+    MOV     X0, #0x47
+    MSR     PMCR_EL0, X0
+
+    // =========================================================================
+    // 3. ENABLE THE CYCLE COUNTER
+    // Register: PMCNTENSET_EL0
+    // Bit 31 (C) = 1: Enable the specific PMCCNTR_EL0 register
+    // =========================================================================
+    MOV     X0, #(1 << 31)
+    MSR     PMCNTENSET_EL0, X0
+
+    // Instruction Synchronization Barrier to ensure the configuration
+    // is fully applied before any subsequent code executes.
+    ISB
 
 #ifdef __TARGET_AARCH64A53
 	/* Enable SMP */
@@ -270,6 +300,8 @@ _core_0_virtual:
 	str x3, [x1], #8
 	cmp x9, x0
 	b.lo 1b
+
+
 
 	bl _set_up_vbar_and_stacks
 	b main

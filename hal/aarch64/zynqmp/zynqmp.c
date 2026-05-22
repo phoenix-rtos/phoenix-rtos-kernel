@@ -467,7 +467,7 @@ static u32 checkNumCPUs(void)
 
 	powerStatus = (~*(zynq_common.crf_apb + crf_apb_rst_fpd_apu)) & 0xf;
 	cpusAvailable = 0;
-	for (i = 0; i < 4; i++, powerStatus >>= 1) {
+	for (i = 0; i < 1; i++, powerStatus >>= 1) {
 		if ((powerStatus & 0x1) == 1) {
 			cpusAvailable++;
 		}
