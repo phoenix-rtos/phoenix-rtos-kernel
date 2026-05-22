@@ -115,6 +115,12 @@ _start:
 	msr cpacr_el1, x0
 	isb
 
+	mrs x0, cntkctl_el1
+	orr x0, x0, #(0x1 << 1)
+	msr cntkctl_el1, x0
+	isb
+
+
 	/* Invalidate caches and TLB */
 	ic iallu
 	bl hal_cpuInvalDataCacheAll
@@ -122,25 +128,25 @@ _start:
 	dsb ish
 	isb
 
-	/* Enable performance monitors */
-	mrs x0, pmcr_el0
-	orr x0, x0, #0x7 /* reset cycle counter, reset event counter, enable */
-	orr x0, x0, #0x40 /* activate 64-bit counting mode */
-	msr pmcr_el0, x0
-	mrs x0, pmcntenset_el0
-	orr x0, x0, #(1 << 31)
-	msr pmcntenset_el0, x0
+//	/* Enable performance monitors */
+//	mrs x0, pmcr_el0
+//	orr x0, x0, #0x7 /* reset cycle counter, reset event counter, enable */
+//	orr x0, x0, #0x40 /* activate 64-bit counting mode */
+//	msr pmcr_el0, x0
+//	mrs x0, pmcntenset_el0
+//	orr x0, x0, #(1 << 31)
+//	msr pmcntenset_el0, x0
 
 #ifdef __TARGET_AARCH64A53
 	/* Enable SMP */
-	mrs x0, s3_1_c15_c2_1 /* CPUECTLR_EL1 */
-	orr x0, x0, #(0x1 << 6)
-	msr s3_1_c15_c2_1, x0
+//	mrs x0, s3_1_c15_c2_1 /* CPUECTLR_EL1 */
+//	orr x0, x0, #(0x1 << 6)
+//	msr s3_1_c15_c2_1, x0
 
 	/* L1 Data prefetch control - 5, Enable device split throttle, 2 independent data prefetch streams */
 	/* Set ENDCCASCI bit in CPUACTLR_EL1 register - needed due to Cortex-A53 erratum #855873 */
-	ldr	x0, =0x1000080ca000
-	msr	s3_1_c15_c2_0, x0 /* CPUACTLR_EL1 */
+//	ldr	x0, =0x1000080ca000
+//	msr	s3_1_c15_c2_0, x0 /* CPUACTLR_EL1 */
 #endif
 
 	/* Set up MMU */
