@@ -19,6 +19,15 @@
 #include "hal/spinlock.h"
 #include "include/arch/armv7a/imx6ull/imx6ull.h"
 
+#define CCM_BASE        0x020c4000U
+#define CCM_ANALOG_BASE 0x020c8000U
+#define IOMUX_SNVS_BASE 0x02290000U
+#define IOMUX_BASE      0x020e0000U
+#define IOMUX_GPR_BASE  0x020e4000U
+#define WDOG_BASE       0x020bc000U
+#define SRC_BASE        0x020d8000U
+
+
 /* clang-format off */
 /* CCM registers */
 enum { ccm_ccr = 0, ccm_ccdr, ccm_csr, ccm_ccsr, ccm_cacrr, ccm_cbcdr, ccm_cbcmr,
@@ -70,10 +79,6 @@ static struct {
 /* saved in _init_imx6ull.S */
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 u32 imx6ull_bootReason;
-
-
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
-extern unsigned int _end;
 
 
 static int _imx6ull_isValidDev(int dev)
@@ -474,13 +479,13 @@ void _hal_platformInit(void)
 	unsigned int reg, tmp;
 
 	hal_spinlockCreate(&imx6ull_common.pltctlSp, "pltctl");
-	imx6ull_common.ccm = (void *)(((u32)&_end + (11U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
-	imx6ull_common.ccm_analog = (void *)(((u32)&_end + (12U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
-	imx6ull_common.iomux_snvs = (void *)(((u32)&_end + (13U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
-	imx6ull_common.iomux = (void *)(((u32)&_end + (14U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
-	imx6ull_common.iomux_gpr = (void *)(((u32)&_end + (15U * SIZE_PAGE) - 1u) & ~(SIZE_PAGE - 1U));
-	imx6ull_common.wdog = (void *)(((u32)&_end + (16U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
-	imx6ull_common.src = (void *)(((u32)&_end + (17U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	imx6ull_common.ccm = _pmap_halMapDevice(CCM_BASE, 0, SIZE_PAGE);
+	imx6ull_common.ccm_analog = _pmap_halMapDevice(CCM_ANALOG_BASE, 0, SIZE_PAGE);
+	imx6ull_common.iomux_snvs = _pmap_halMapDevice(IOMUX_SNVS_BASE, 0, SIZE_PAGE);
+	imx6ull_common.iomux = _pmap_halMapDevice(IOMUX_BASE, 0, SIZE_PAGE);
+	imx6ull_common.iomux_gpr = _pmap_halMapDevice(IOMUX_GPR_BASE, 0, SIZE_PAGE);
+	imx6ull_common.wdog = _pmap_halMapDevice(WDOG_BASE, 0, SIZE_PAGE);
+	imx6ull_common.src = _pmap_halMapDevice(SRC_BASE, 0, SIZE_PAGE);
 
 	/* remain in run mode in low power */
 	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3U;
@@ -490,7 +495,7 @@ void _hal_platformInit(void)
 
 	/* copy watchdog Reset Status Register to bootreason[23:16] */
 	imx6ull_bootReason &= 0xff00ffffU;
-	imx6ull_bootReason |= (u32)*(imx6ull_common.wdog + wdog_wrsr) << 16U;
+	imx6ull_bootReason |= (u32) * (imx6ull_common.wdog + wdog_wrsr) << 16U;
 
 	/* Set ENFC clock to 198 MHz */
 	/* First disable all output clocks */

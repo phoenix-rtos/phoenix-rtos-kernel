@@ -48,10 +48,6 @@ static struct {
 
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
-extern unsigned int _end;
-
-
 /* parasoft-suppress-next-line MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
@@ -194,6 +190,15 @@ void _hal_interruptsTrace(int enable)
 }
 
 
+/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+static inline u32 interrupts_getGICAddr(void)
+{
+	u32 ret;
+	asm volatile("mrc p15, 4, %0, c15, c0, 0" : "=r"(ret));
+	return ret;
+}
+
+
 void _hal_interruptsInit(void)
 {
 	u32 i, t, priority;
@@ -206,7 +211,7 @@ void _hal_interruptsInit(void)
 		hal_spinlockCreate(&interrupts.spinlock[i], "interrupts");
 	}
 
-	interrupts.gic = (void *)(((u32)&_end + (5U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	interrupts.gic = _pmap_halMapDevice(interrupts_getGICAddr(), 0, 4 * SIZE_PAGE);
 
 	*(interrupts.gic + ctlr) &= ~1U;
 

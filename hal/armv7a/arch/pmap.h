@@ -75,6 +75,13 @@ typedef struct _pmap_t {
 	page_t *pmapp;
 } pmap_t;
 
+
+void _pmap_preinit(void);
+
+
+void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size);
+
+
 #endif
 
 #endif
