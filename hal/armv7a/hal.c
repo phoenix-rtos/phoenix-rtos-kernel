@@ -86,6 +86,7 @@ void hal_lockScheduler(void)
 __attribute__((section(".init"))) void _hal_init(void)
 {
 	schedulerLocked = 0;
+	_pmap_preinit();
 	_hal_spinlockInit();
 	_hal_platformInit();
 	_hal_consoleInit();

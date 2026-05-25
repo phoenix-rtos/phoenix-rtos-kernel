@@ -29,9 +29,11 @@
 #if NUM_CPUS != 1
 #define hal_cpuInvalVAAll   hal_cpuInvalVA_IS
 #define hal_cpuInvalASIDAll hal_cpuInvalASID_IS
+#define hal_cpuInvalTLBAll  hal_cpuInvalTLB_IS
 #else
 #define hal_cpuInvalVAAll   hal_cpuInvalVA
 #define hal_cpuInvalASIDAll hal_cpuInvalASID
+#define hal_cpuInvalTLBAll  hal_cpuInvalTLB
 #endif
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Provided by toolchain" */
@@ -39,6 +41,7 @@ extern unsigned int _end;
 extern unsigned int _etext;
 /* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
+/* TODO: this should be removed once we are sure that no target maps data past .bss anymore */
 #define SIZE_EXTEND_BSS 18U * SIZE_PAGE
 
 #define TT2S_ATTR_MASK 0xfffU
@@ -72,11 +75,14 @@ extern unsigned int _etext;
 
 #define SCRATCH_ATTRS (PGHD_PRESENT | PGHD_READ | PGHD_WRITE)
 
+/* Reserve the last 64KB for vector table for targets that don't implement VBAR */
+#define VADDR_VECTOR_TABLE 0xffff0000UL
+
 struct {
-	u32 kpdir[0x1000]; /* Has to be first in the structure */
-	u32 kptab[0x400];
-	u32 excptab[0x400];
-	u32 sptab[0x400];
+	u32 kpdir[0x1000];  /* Kernel's page directory, has to be first in the structure */
+	u32 kptab[0x400];   /* Page table containing kernel code and initial data */
+	u32 excptab[0x400]; /* Page table containing exception vectors, initial stacks and devices */
+	u32 sptab[0x400];   /* Scratch page table for temporary use */
 	u8 heap[SIZE_PAGE];
 	pmap_t *asid_map[256];
 	u8 asids[256];
@@ -86,6 +92,7 @@ struct {
 	u32 end;
 	spinlock_t lock;
 	u8 asidptr;
+	u32 dev_i;
 	/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 MISRAC2012-RULE_1_1 "Symbol used in assembly, theres no limits" */
 } __attribute__((aligned(0x4000))) pmap_common;
 
@@ -584,19 +591,8 @@ int pmap_segment(unsigned int i, void **vaddr, size_t *size, vm_prot_t *prot, vo
 void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 {
 	unsigned int i;
-
-	pmap_common.asidptr = 0;
 	pmap->asid_ix = 0;
-
-	for (i = 0; i < sizeof(pmap_common.asid_map) / sizeof(pmap_common.asid_map[0]); ++i) {
-		pmap_common.asid_map[i] = NULL;
-		pmap_common.asids[i] = (u8)i;
-	}
-
 	hal_spinlockCreate(&pmap_common.lock, "pmap_common.lock");
-
-	pmap_common.minAddr = ADDR_DDR;
-	pmap_common.maxAddr = ADDR_DDR + SIZE_DDR;
 
 	/* Initialize kernel page table */
 	pmap->pdir = pmap_common.kpdir;
@@ -604,9 +600,10 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Remove initial kernel mapping */
 	for (i = 0; i < 4U; ++i) {
-		pmap->pdir[ID_PDIR(pmap_common.minAddr) + i] = 0;
-		hal_cpuInvalVAAll(pmap_common.minAddr + i * (1U << 2));
+		pmap_common.kpdir[ID_PDIR(pmap_common.minAddr) + i] = 0;
 	}
+
+	hal_cpuInvalTLBAll();
 
 	pmap->start = (void *)VADDR_KERNEL;
 	pmap->end = (void *)VADDR_MAX;
@@ -619,11 +616,56 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	(*vstart) += SIZE_EXTEND_BSS;
 	(*vend) = (*vstart) + SIZE_PAGE;
 
-	pmap_common.start = (u32)pmap_common.heap - VADDR_KERNEL + pmap_common.minAddr;
-	pmap_common.end = pmap_common.start + SIZE_PAGE;
-
 	/* Create initial heap */
 	LIB_ASSERT_ALWAYS(pmap_enter(pmap, pmap_common.start, (*vstart), PGHD_WRITE | PGHD_READ | PGHD_PRESENT, NULL) == EOK, "failed to create initial heap");
 
 	(void)pmap_remove(pmap, *vend, (void *)(VADDR_KERNEL + (4U * 1024U * 1024U)));
+}
+
+
+void _pmap_preinit(void)
+{
+	size_t maxIdx = ID_PTABLE(VADDR_VECTOR_TABLE);
+	unsigned int i;
+
+	pmap_common.dev_i = 0;
+	pmap_common.asidptr = 0;
+
+	for (i = 0; i < sizeof(pmap_common.asid_map) / sizeof(pmap_common.asid_map[0]); ++i) {
+		pmap_common.asid_map[i] = NULL;
+		pmap_common.asids[i] = (u8)i;
+	}
+
+	for (i = pmap_common.dev_i; i < maxIdx; ++i) {
+		pmap_common.excptab[i] = 0;
+	}
+
+	pmap_common.minAddr = ADDR_DDR;
+	pmap_common.maxAddr = ADDR_DDR + SIZE_DDR;
+
+	pmap_common.start = (u32)pmap_common.heap - VADDR_KERNEL + pmap_common.minAddr;
+	pmap_common.end = pmap_common.start + SIZE_PAGE;
+
+	hal_cpuInvalTLBAll();
+}
+
+
+void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size)
+{
+	size_t maxIdx = ID_PTABLE(VADDR_VECTOR_TABLE);
+	u32 attrs = attrMap[PGHD_WRITE | PGHD_DEV];
+	ptr_t vaStart = ((VADDR_MAX - (1024U * SIZE_PAGE)) + 1U) + (pmap_common.dev_i * SIZE_PAGE);
+	size_t span = pageOffs + size;
+	size_t offs;
+
+	LIB_ASSERT(size > 0U, "Attempted to map device of size 0");
+	LIB_ASSERT_ALWAYS((pmap_common.dev_i + ((span + SIZE_PAGE - 1U) / SIZE_PAGE)) < maxIdx, "Out of device address space");
+
+	for (offs = 0U; offs < span; offs += SIZE_PAGE) {
+		pmap_common.excptab[pmap_common.dev_i] = ((paddr + offs) & ~(SIZE_PAGE - 1U)) | attrs;
+		pmap_common.dev_i++;
+	}
+
+	hal_cpuDataSyncBarrier();
+	return (void *)(vaStart + pageOffs);
 }
