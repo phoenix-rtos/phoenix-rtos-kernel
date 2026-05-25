@@ -20,6 +20,10 @@
 #include "include/arch/armv7a/zynq7000/zynq7000.h"
 #include "hal/armv7a/zynq7000/zynq.h"
 
+#define SLCR_BASE 0xf8000000U
+#define SCU_BASE  0xf8f00000U
+#define L2CC_BASE 0xf8f02000U
+
 
 /* clang-format off */
 /* SLCR (System Level Control Registers) */
@@ -93,13 +97,12 @@ enum {
 static struct {
 	spinlock_t pltctlSp;
 	volatile u32 *slcr;
+	volatile u32 *scu;
 	volatile u32 *l2cc;
 	unsigned int nCpus;
 } zynq_common;
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
-extern unsigned int _end;
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
 volatile unsigned int nCpusStarted = 0;
 
@@ -733,8 +736,9 @@ static void _zynq_activateL2Cache(void)
 void _hal_platformInit(void)
 {
 	hal_spinlockCreate(&zynq_common.pltctlSp, "pltctl");
-	zynq_common.slcr = (void *)(((u32)&_end + 9U * SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
-	zynq_common.l2cc = (void *)(((u32)&_end + 7U * SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
+	zynq_common.slcr = _pmap_halMapDevice(SLCR_BASE, 0, SIZE_PAGE);
+	zynq_common.scu = _pmap_halMapDevice(SCU_BASE, 0, SIZE_PAGE);
+	zynq_common.l2cc = _pmap_halMapDevice(L2CC_BASE, 0, SIZE_PAGE);
 }
 
 
@@ -756,10 +760,11 @@ static u32 hal_checkNumCPUs(void)
 		return 1;
 	}
 
-	/* Otherwise we are in a multiprocessor system and we can check SCU for number of cores in SMP */
-	volatile u32 *scu = (void *)(((u32)&_end + 5U * SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
-	/* We cannot use SCU_CPU_Power_Status_Register because it's not implemented correctly on QEMU */
-	u32 powerStatus = (*(scu + 1U)) >> 4; /* SCU_CONFIGURATION_REGISTER */
+	/*
+	 * Otherwise we are in a multiprocessor system and we can check SCU for number of cores in SMP.
+	 * We cannot use SCU_CPU_Power_Status_Register because it's not implemented correctly on QEMU.
+	 */
+	u32 powerStatus = (*(zynq_common.scu + 1U)) >> 4; /* SCU_CONFIGURATION_REGISTER */
 	u32 cpusAvailable = 0;
 	for (unsigned int i = 0U; i < 4U; i++) {
 		if (((powerStatus >> i) & 0x1U) == 1U) {

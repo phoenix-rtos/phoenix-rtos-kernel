@@ -14,6 +14,7 @@
  */
 
 #include "hal/armv7a/armv7a.h"
+#include "hal/pmap.h"
 #include "hal/timer.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"
@@ -21,6 +22,7 @@
 
 #include "zynq.h"
 
+#define TTC_BASE             0xf8001000U
 #define TIMER_SRC_CLK_CPU_1x 111111115U /* Hz */
 
 static struct {
@@ -40,10 +42,6 @@ enum {
 	irq_en3, ev_ctrl_t1, ev_ctrl_t2, ev_ctrl_t3, ev_reg1, ev_reg2, ev_reg3
 };
 /* clang-format on */
-
-
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
-extern unsigned int _end;
 
 
 static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -155,7 +153,7 @@ char *hal_timerFeatures(char *features, size_t len)
 
 void _hal_timerInit(u32 interval)
 {
-	timer_common.ttc = (void *)(((u32)&_end + 10U * SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
+	timer_common.ttc = _pmap_halMapDevice(TTC_BASE, 0, SIZE_PAGE);
 	timer_common.jiffies = 0;
 
 	/* Disable timer */
