@@ -21,7 +21,18 @@
 
 #define NUM_CPUS 1
 
-#define TIMER_IRQ_ID 88U
+#define EPIT1_BASE 0x020d0000U
+#define EPIT1_IRQ  88U
+#define EPIT2_BASE 0x020d4000U
+#define EPIT2_IRQ  89U
+
+#define GPT1_BASE 0x02098000U
+#define GPT1_IRQ  87U
+
+#define GPT_BASE     GPT1_BASE
+#define GPT_IRQ      GPT1_IRQ
+#define EPIT_BASE    EPIT1_BASE
+#define TIMER_IRQ_ID EPIT1_IRQ
 
 #ifndef __ASSEMBLY__
 

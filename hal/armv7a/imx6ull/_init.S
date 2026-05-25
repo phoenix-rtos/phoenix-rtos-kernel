@@ -35,11 +35,6 @@
 #define ADDR_PROGS_BEGIN (_end + 4 * 1024 * 1024 - VADDR_KERNEL + ADDR_DDR)
 
 #define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
-#define VADDR_UART1   (VADDR_SYSPAGE + 2 * SIZE_PAGE)
-#define VADDR_UART2   (VADDR_UART1 + SIZE_PAGE)
-#define VADDR_GIC     (VADDR_UART2 + SIZE_PAGE)
-#define VADDR_GPT     (VADDR_GIC + 4 * SIZE_PAGE)
-#define VADDR_CCM     (VADDR_GPT + SIZE_PAGE)
 #define SWAP(x)       (((x >> 24) & 0xff) | ((x << 8) & (0xff << 16)) | ((x >> 8) & (0xff << 8)) | ((x << 24) & (0xff << 24)))
 
 
@@ -626,64 +621,6 @@ kernel_ttl2:
 
 	/* Kernel page tables */
 	bl _cpy4
-
-	/* Map UART1 4 KB P 0x02020000 -> V CEIL(_end + 3 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r0, =(VADDR_UART1 - VADDR_KERNEL)
-	lsr r0, #12
-	lsl r0, #2
-	ldr r1, =ADDR_TTL2_K
-	add r0, r0, r1
-	ldr r1, =0x02020012
-	str r1, [r0], #4
-
-	/* Map UART2 4KB P 0x021e8000 -> V CEIL(_end + 4 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =0x021e8012
-	str r1, [r0], #4
-
-	/* Map GIC 16 KB after UARTs */
-	mrc p15, 4, r1, c15, c0, 0 /* Get GIC paddr */
-	lsr r1, #16
-	lsl r1, #16
-	orr r1, r1, #0x12
-	mov r2, #(1 << 12)
-	bl _cpy4
-
-	/* Map EPIT1 after GIC */
-	ldr r1, =0x020d0012
-	str r1, [r0], #4
-
-	/* Map GPT1 after EPIT1 */
-	ldr r1, =0x02098012
-	str r1, [r0], #4
-
-	/* Map CCM registers 4KB P 0x020c4000 -> V CEIL(_end + 11 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =0x020c4012
-	str r1, [r0], #4
-
-	/* Map CCM_ANALOG registers 4KB P 0x020c8000 -> V CEIL(_end + 12 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =0x020c8012
-	str r1, [r0], #4
-
-	/* Map IOMUX_SNVS registers 4KB P 0x02290000 -> V CEIL(_end + 13 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =0x02290012
-	str r1, [r0], #4
-
-	/* Map IOMUX registers 4KB P 0x020e0000 -> V CEIL(_end + 14 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =0x020e0012
-	str r1, [r0], #4
-
-	/* Map IOMUXC_GPR registers 4KB P 0x020e4000 -> V CEIL(_end + 15 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =0x020e4012
-	str r1, [r0], #4
-
-	/* Map WDOG1 registers 4KB P 0x020bc000 -> V CEIL(_end + 16 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =0x020bc012
-	str r1, [r0], #4
-
-	/* Map SRC registers 4KB P 0x020d8000 -> V CEIL(_end + 17 * SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =0x020d8012
-	str r1, [r0]
-
 
 	/* IOMUX for UART1*/
 	ldr r0, =0x20e0084

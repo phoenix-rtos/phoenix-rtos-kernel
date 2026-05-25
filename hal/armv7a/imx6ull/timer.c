@@ -17,6 +17,7 @@
 #include "hal/timer.h"
 #include "hal/spinlock.h"
 #include "hal/string.h"
+#include "hal/pmap.h"
 #include "config.h"
 
 static struct {
@@ -37,10 +38,6 @@ enum { epit_cr = 0, epit_sr, epit_lr, epit_cmpr, epit_cnr };
 
 enum { gpt_cr = 0, gpt_pr, gpt_sr, gpt_ir, gpt_ocr1, gpt_ocr2, gpt_ocr3, gpt_icr1, gpt_icr2, gpt_cnt };
 /* clang-format on */
-
-
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
-extern unsigned int _end;
 
 
 static int timer_wakeupIrqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -137,8 +134,8 @@ char *hal_timerFeatures(char *features, size_t len)
 
 void _hal_timerInit(u32 interval)
 {
-	timer_common.epit1 = (void *)(((u32)&_end + (9U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
-	timer_common.gpt1 = (void *)(((u32)&_end + (10U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	timer_common.epit1 = _pmap_halMapDevice(EPIT_BASE, 0, SIZE_PAGE);
+	timer_common.gpt1 = _pmap_halMapDevice(GPT_BASE, 0, SIZE_PAGE);
 	timer_common.timerhi = 0;
 
 	hal_spinlockCreate(&timer_common.lock, "timer");
@@ -150,7 +147,7 @@ void _hal_timerInit(u32 interval)
 	(void)hal_interruptsSetHandler(&timer_common.wakeuph);
 
 	timer_common.timerh.data = NULL;
-	timer_common.timerh.n = 87;
+	timer_common.timerh.n = GPT_IRQ;
 	timer_common.timerh.f = timer_overflowIrqHandler;
 
 	(void)hal_interruptsSetHandler(&timer_common.timerh);
