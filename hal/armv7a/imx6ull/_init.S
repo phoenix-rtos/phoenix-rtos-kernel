@@ -42,6 +42,10 @@
 #define VADDR_CCM     (VADDR_GPT + SIZE_PAGE)
 #define SWAP(x)       (((x >> 24) & 0xff) | ((x << 8) & (0xff << 16)) | ((x >> 8) & (0xff << 8)) | ((x << 24) & (0xff << 24)))
 
+.macro dcd_addr_val, addr, val
+	.word SWAP(\addr)
+	.word SWAP(\val)
+.endm
 
 /* API vectors */
 #define HAB_API_VEC   0x100
@@ -66,283 +70,126 @@ init_vectors:
 
 
 #ifndef KERNEL_PLO_BOOT
+/* Reserve 8 words in case we need a relocatable vector table in the future */
+.org 0x40
 syspage_data:
+	.zero 0x3c0
+syspage_end:
 
-.org 0x400, 0x0
-
-plugin_ivt:
+/* For NAND boot ROM will look for the IVT at offset 0x400 */
+.org 0x400
+ivt:
 	.word 0x402000d1                                    /* hdr */
-	.word plugin - VADDR_KERNEL + ADDR_OCRAM            /* entry */
+	.word _start - VADDR_KERNEL + ADDR_DDR              /* entry */
 	.word 0                                             /* reserved 1 */
-	.word dcd - VADDR_KERNEL + ADDR_OCRAM               /* dcd */
-	.word plugin_boot_data - VADDR_KERNEL + ADDR_OCRAM  /* boot_data */
-	.word plugin_ivt - VADDR_KERNEL + ADDR_OCRAM        /* self */
-	.word 0                                             /* csf */
+	.word dcd - VADDR_KERNEL + ADDR_DDR                 /* dcd */
+	.word boot_data - VADDR_KERNEL + ADDR_DDR           /* boot_data */
+	.word ivt - VADDR_KERNEL + ADDR_DDR                 /* self */
+	.word 0                                             /* csf - should be filled in by external tools */
 	.word 0                                             /* reserved 2 */
 
-plugin_boot_data:
-	.word ADDR_OCRAM                                    /* load address */
-	.word dcd_end - plugin_ivt                          /* plugin size */
-	.word 1                                             /* plugin */
-	.word 0                                             /* reserved */
+boot_data:
+	.word ADDR_DDR                                      /* load address */
+	.word _end - VADDR_KERNEL                           /* size (kernel without syspage) */
+	.word 0                                             /* plugin */
+	.word 0
 
-.macro mov32, reg, val
-	movw \reg, #:lower16:\val
-	movt \reg, #:upper16:\val
-.endm
-
-plugin:
-	stmdb sp!, {r4, r5, r6, r7, r8, lr}
-
-	/* note: "ldr reg, =constant" pseudo instruction can't be used before
-	 * the serial download check below - the literal pool will not be included in the plugin */
-
-	/* init watchdog */
-	mov32 r4, 0x20bc000
-#if defined(WATCHDOG)
-	/* 128 sec timeout, debug, the clock is already enabled */
-	movw r5, #0xff36
-#else
-	/* we need to keep plugin section size the same regardless of
-	 * WATCHDOG define, so feed it with the default value */
-	movw r5, #0x0030
-#endif
-	strh r5, [r4]
-
-	/* check if reset was caused by watch dog */
-	mov32 r4, 0x20d8008
-	ldr r5, [r4]
-	tst r5, #0x1
-
-	/* skip mdscr register config */
-	beq mdscr_skip
-
-	mov32 r4, 0x21b001c
-	mov32 r5, 0x2008032
-	str r5, [r4]
-	movw r5, #0x8033
-	str r5, [r4]
-	mov32 r5, 0x48031
-	str r5, [r4]
-	mov32 r5, 0x15208030
-	str r5, [r4]
-	mov32 r5, 0x4008040
-	str r5, [r4]
-	mov32 r4, 0x21b0020
-	movw r5, #0x800
-	str r5, [r4]
-
-mdscr_skip:
-	mov32 r4, 0x21b0818
-	mov32 r5, 0x227
-	str r5, [r4]
-	mov32 r4, 0x21b0004
-	mov32 r5, 0x2552d
-	str r5, [r4]
-	mov32 r4, 0x21b0404
-	mov32 r5, 0x11006
-	str r5, [r4]
-	mov32 r4, 0x21b001c
-	mov r5, #0x0
-	str r5, [r4]
-
-	/* check first argument's address - anything below OCRAM means it is a serial download boot */
-	mov r4, #0x900000
-	cmp r0, r4
-	bmi failsafe
-	mov r4, r0
-	mov r5, r1
-	mov r6, r2
-	ldr r1, =(boot_data - VADDR_KERNEL + ADDR_OCRAM)
-	ldr r2, =(ADDR_OCRAM + (syspage_data - init_vectors))
-	ldr r2, [r2]     /* syspage->hs.imgsz */
-	ldr r3, [r1, #4] /* boot_data->size */
-	/* Update image size based on data in syspage */
-	str r2, [r1, #4]
-	ldmia r1, {r2, r3, r7, r8}
-	str r8, [sp, #-4]!
-	str r7, [sp, #-4]!
-	str r3, [sp, #-4]!
-	str r2, [sp, #-4]!
-	mov r1, #0
-	stmdb sp!, {r1, r2}
-	add r2, sp, #8
-	add r1, sp, #4
-	add r0, sp, #0
-
-	ldr r8, =(ROM_API_VEC + 0x8) /* (void **dest_address, u32 *load_size, boot_data_t *boot_data) */
-	ldr r8, [r8]
-	blx r8
-
-	/* check if image was loaded correctly */
-	ldr r0, [sp, #4]
-	ldr r2, [sp, #12]
-	cmp r0, r2
-	addne sp, #24
-	bne failsafe
-
-	/* set output values for boot ROM*/
-	ldmia sp!, {r2, r3} /* start address and size */
-	str r2, [r4]
-	str r3, [r5]
-	ldr r2, =(ivt - VADDR_KERNEL) /* ivt offset */
-	str r2, [r6]
-	add sp, #16
-	mov r0, #1
-	ldmia sp!, {r4, r5, r6, r7, r8, pc}
-
-failsafe:
-	mov r4, #(HAB_API_VEC + 0x28) /* suppress sending error to host app */
-	ldr r4, [r4]
-	blx r4
-	mov r0, #0x0
-	ldmia sp!, {r4, r5, r6, r7, r8, pc}
-
+/* SDP scripts assume DCD table exists at 0x440 */
+.org 0x440
 dcd:
 	.byte 0xd2                                    /* Tag */
 	.byte ((dcd_end - dcd) >> 8) & 0xff           /* Overall size of DCD (high) */
 	.byte (dcd_end - dcd) & 0xff                  /* Overall size of DCD (low) */
 	.byte 0x41                                    /* Version */
 
-dcd_clock:
-	.byte 0xcc                                    /* Write tag */
-	.byte ((dcd_ddr - dcd_clock) >> 8) & 0xff     /* Size high byte */
-	.byte (dcd_ddr - dcd_clock) & 0xff            /* Size low byte */
-	.byte 0x1c                                    /* OR mask word */
-
-	.word SWAP(0x021b0000)
-	.word SWAP(0x80000000)
+.Ldcd_clock:
+	.byte 0xcc                                          /* Write tag */
+	.byte ((.Ldcd_clock_end - .Ldcd_clock) >> 8) & 0xff /* Size high byte */
+	.byte (.Ldcd_clock_end - .Ldcd_clock) & 0xff        /* Size low byte */
+	.byte 0x1c                                          /* OR mask word */
 
 	/* Enable DDR and watchdog clock */
-	.word SWAP(0x020c4074)
-	.word SWAP(0x0f330000)
+	dcd_addr_val 0x020c4074 0x0f330000
 
 	/* AIPSTZ1,2,3 clocks */
-	.word SWAP(0x020c4068)
-	.word SWAP(0x00000005)
-	.word SWAP(0x020c4080)
-	.word SWAP(0x00040000)
+	dcd_addr_val 0x020c4068 0x00000005
+	dcd_addr_val 0x020c4080 0x00040000
 
 	/* EPITs clocks */
-	.word SWAP(0x020c406c)
-	.word SWAP(0x00005000)
+	dcd_addr_val 0x020c406c 0x00005000
+.Ldcd_clock_end:
 
-dcd_ddr:
-	.byte 0xcc                                    /* Write tag */
-	.byte ((dcd_end - dcd_ddr) >> 8) & 0xff       /* Size high byte */
-	.byte (dcd_end - dcd_ddr) & 0xff              /* Size low byte */
-	.byte 0x04                                    /* Write words */
+.Ldcd_ddr:
+	.byte 0xcc                                      /* Write tag */
+	.byte ((.Ldcd_ddr_end - .Ldcd_ddr) >> 8) & 0xff /* Size high byte */
+	.byte (.Ldcd_ddr_end - .Ldcd_ddr) & 0xff        /* Size low byte */
+	.byte 0x04                                      /* Write words */
+
 
 	/* Config IOMUX */
-	.word SWAP(0x020e04B4)
-	.word SWAP(0x000c0000)
-	.word SWAP(0x020e04ac)
-	.word SWAP(0x00000000)
-	.word SWAP(0x020e027c)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0250)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e024c)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0490)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0288)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0270)
-	.word SWAP(0x00000000)
-	.word SWAP(0x020e0260)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0264)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e04A0)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0494)
-	.word SWAP(0x00020000)
-	.word SWAP(0x020e0280)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0284)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e04b0)
-	.word SWAP(0x00020000)
-	.word SWAP(0x020e0498)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e04a4)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0244)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0248)
-	.word SWAP(0x00000030)
+	dcd_addr_val 0x020e04b4 0x000c0000
+	dcd_addr_val 0x020e04ac 0x00000000
+	dcd_addr_val 0x020e027c 0x00000030
+	dcd_addr_val 0x020e0250 0x00000030
+	dcd_addr_val 0x020e024c 0x00000030
+	dcd_addr_val 0x020e0490 0x00000030
+	dcd_addr_val 0x020e0288 0x00000030
+	dcd_addr_val 0x020e0270 0x00000000
+	dcd_addr_val 0x020e0260 0x00000030
+	dcd_addr_val 0x020e0264 0x00000030
+	dcd_addr_val 0x020e04a0 0x00000030
+	dcd_addr_val 0x020e0494 0x00020000
+	dcd_addr_val 0x020e0280 0x00000030
+	dcd_addr_val 0x020e0284 0x00000030
+	dcd_addr_val 0x020e04b0 0x00020000
+	dcd_addr_val 0x020e0498 0x00000030
+	dcd_addr_val 0x020e04a4 0x00000030
+	dcd_addr_val 0x020e0244 0x00000030
+	dcd_addr_val 0x020e0248 0x00000030
+
+	/* Disable both DDR modules to reset them in case of a warm reset */
+	dcd_addr_val 0x021b0000 0x00000000
 
 	/* Config DDR control registers */
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00008000)
-	.word SWAP(0x021b0800)
-	.word SWAP(0xa1390003)
-	.word SWAP(0x021b080c)
-	.word SWAP(0x00150019)
-	.word SWAP(0x021b083c)
-	.word SWAP(0x41550153)
-	.word SWAP(0x021b0848)
-	.word SWAP(0x40403a3e)
-	.word SWAP(0x021b0850)
-	.word SWAP(0x40402f2a)
-	.word SWAP(0x021b081c)
-	.word SWAP(0x33333333)
-	.word SWAP(0x021b0820)
-	.word SWAP(0x33333333)
-	.word SWAP(0x021b082c)
-	.word SWAP(0xf3333333)
-	.word SWAP(0x021b0830)
-	.word SWAP(0xf3333333)
-	.word SWAP(0x021b08c0)
-	.word SWAP(0x00944009)
-	.word SWAP(0x021b08b8)
-	.word SWAP(0x00000800)
+	dcd_addr_val 0x021b001c 0x00008000
+	dcd_addr_val 0x021b0800 0xa1390003
+	dcd_addr_val 0x021b080c 0x00150019
+	dcd_addr_val 0x021b083c 0x41550153
+	dcd_addr_val 0x021b0848 0x40403a3e
+	dcd_addr_val 0x021b0850 0x40402f2a
+	dcd_addr_val 0x021b081c 0x33333333
+	dcd_addr_val 0x021b0820 0x33333333
+	dcd_addr_val 0x021b082c 0xf3333333
+	dcd_addr_val 0x021b0830 0xf3333333
+	dcd_addr_val 0x021b08c0 0x00944009
+	dcd_addr_val 0x021b08b8 0x00000800
 
 	/* Config MMDC init */
-	.word SWAP(0x021b0004)
-	.word SWAP(0x0002002d)
-	.word SWAP(0x021b0008)
-	.word SWAP(0x1b333030)
-	.word SWAP(0x021b000c)
-	.word SWAP(0x676b52f3)
-	.word SWAP(0x021b0010)
-	.word SWAP(0xb66d0b63)
-	.word SWAP(0x021b0014)
-	.word SWAP(0x01ff00db)
-	.word SWAP(0x021b0018)
-	.word SWAP(0x00201740)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00008000)
-	.word SWAP(0x021b002c)
-	.word SWAP(0x000026d2)
-	.word SWAP(0x021b0030)
-	.word SWAP(0x006b1023)
-	.word SWAP(0x021b0040)
-	.word SWAP(0x00000047)
-	.word SWAP(0x021b0000)
-	.word SWAP(0x82180000)
-	.word SWAP(0x021b0890)
-	.word SWAP(0x00400000)
+	dcd_addr_val 0x021b0004 0x0002002d
+	dcd_addr_val 0x021b0008 0x1b333030
+	dcd_addr_val 0x021b000c 0x676b52f3
+	dcd_addr_val 0x021b0010 0xb66d0b63
+	dcd_addr_val 0x021b0014 0x01ff00db
+	dcd_addr_val 0x021b0018 0x00201740
+	dcd_addr_val 0x021b001c 0x00008000
+	dcd_addr_val 0x021b002c 0x000026d2
+	dcd_addr_val 0x021b0030 0x006b1023
+	dcd_addr_val 0x021b0040 0x00000047
+	dcd_addr_val 0x021b0000 0x82180000
+	dcd_addr_val 0x021b0890 0x00400000
+	dcd_addr_val 0x021b001c 0x02008032
+	dcd_addr_val 0x021b001c 0x00008033
+	dcd_addr_val 0x021b001c 0x00048031
+	dcd_addr_val 0x021b001c 0x15208030
+	dcd_addr_val 0x021b001c 0x04008040
+	dcd_addr_val 0x021b0020 0x00000800
+	dcd_addr_val 0x021b0818 0x00000227
+	dcd_addr_val 0x021b0004 0x0002552d
+	dcd_addr_val 0x021b0404 0x00011006
+	dcd_addr_val 0x021b001c 0x00000000
+.Ldcd_ddr_end:
+
 dcd_end:
-
-/* TODO: currently this offset is hardcoded into .sdp files for flashing */
-.org 0x728
-ivt:
-	.word 0x402000d1                                    /* hdr */
-	.word _start - VADDR_KERNEL + ADDR_DDR              /* entry */
-	.word 0                                             /* reserved 1 */
-	.word 0                                             /* dcd */
-	.word boot_data - VADDR_KERNEL + ADDR_DDR           /* boot_data */
-	.word ivt - VADDR_KERNEL + ADDR_DDR                 /* self */
-	.word 0                                             /* csf */
-	.word 0                                             /* reserved 2 */
-
-boot_data:
-	.word ADDR_DDR                                      /* load address */
-	.word __bss_start__ - ivt                           /* size - will be changed during image creation */
-	.word 0                                             /* plugin */
-	.word 0
 #endif
 
 _cpy4:
@@ -381,8 +228,18 @@ syspage_cpy:
 	cmp r9, r2
 	blo syspage_cpy
 #else
-/* Temporary solution: code allowing skipping phoenix-rtos-loader */
-	ldr r0, =(ADDR_DDR + syspage_data - init_vectors)
+	/* init watchdog */
+	ldr r0, =0x20bc000
+#if defined(WATCHDOG)
+	/* 128 sec timeout, debug, the clock is already enabled */
+	movw r1, #0xff36
+#else
+	/* Disable watchdog (default value) */
+	movw r1, #0x0030
+#endif
+	strh r1, [r0]
+
+	ldr r0, =(ADDR_DDR + syspage_data - VADDR_KERNEL)
 	ldr r0, [r0, #16] /* points to syspage->progs address (circular list) */
 	mov r1, r0
 	cmp r1, #0
@@ -420,20 +277,14 @@ copy_app:
 
 init_syspage:
 	/* Assign syspage address to syspage variable */
-	ldr r0, =syspage
-	sub r0, r0, #VADDR_KERNEL
-	add r0, r0, #ADDR_DDR
-	ldr r1, =VADDR_KERNEL
-	add r1, r1, #(syspage_data - init_vectors)
+	ldr r0, =(syspage - VADDR_KERNEL + ADDR_DDR)
+	ldr r1, =syspage_data
 	str r1, [r0]
 
 	/* Define offset on which pointers should be moved */
-	ldr r0, =relOffs
-	sub r0, r0, #VADDR_KERNEL
-	add r0, r0, #ADDR_DDR
+	ldr r0, =(relOffs - VADDR_KERNEL + ADDR_DDR)
 	ldr r1, =(VADDR_KERNEL - ADDR_DDR)
 	str r1, [r0]
-/* End of the the temporary code */
 #endif
 
 	/* Save and clear boot reason - RM: otherwise all boot reasons since POR */
