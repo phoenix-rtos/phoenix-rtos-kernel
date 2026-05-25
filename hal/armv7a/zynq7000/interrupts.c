@@ -20,6 +20,7 @@
 #include "hal/spinlock.h"
 #include "hal/interrupts.h"
 #include "hal/list.h"
+#include "hal/pmap.h"
 #include "config.h"
 
 #include "proc/userintr.h"
@@ -79,10 +80,6 @@ static const u8 spiConf[] = {
 void _hal_interruptsInitPerCPU(void);
 
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
-
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Provided by toolchain" */
-extern unsigned int _end;
-
 
 /* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
@@ -240,7 +237,7 @@ void _hal_interruptsInit(void)
 		hal_spinlockCreate(&interrupts_common.spinlock[i], "interrupts");
 	}
 
-	interrupts_common.gic = (void *)(((u32)&_end + (5U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	interrupts_common.gic = _pmap_halMapDevice(hal_cpuGetCBAR(), 0, 2U * SIZE_PAGE);
 
 	/* Initialize Distributor of the gic
 	 * enable_secure = 0 */

@@ -36,25 +36,11 @@
 #define PA_STACK    (ADDR_DDR + 4 * 1024 * 1024 - SIZE_PAGE)
 
 #define VA_SYSPAGE (_end + SIZE_PAGE - 1)
-#define VA_UART0   (VA_SYSPAGE + 2 * SIZE_PAGE)
-#define VA_UART1   (VA_UART0 + SIZE_PAGE)
-#define VA_GIC     (VA_UART1 + SIZE_PAGE)
-#define VA_TTC     (VA_GIC + 4 * SIZE_PAGE)
-
-#define PA_UART0 0xe0000000
-#define PA_UART1 0xe0001000
-#define PA_SLCR  0xf8000000
-#define PA_TTC   0xf8001000
 
 /* Attributes for kernel pages:
  * Small page, XN = 0 (allow Execute), TEX = 1 C = 1 B = 1 (Outer and Inner Write-Back, Write-Allocate),
  * AP = 0x1 (R/W from PL1 only), S = 1 (Shareable), nG = 0 (Global) */
 #define KERNEL_PAGE_ATTR 0x45E
-
-/* Attributes for device pages:
- * Small page, XN = 1 (Execute Never), TEX = 0 C = 0 B = 1 (Shared Device),
- * AP = 0x1 (R/W from PL1 only), S = 0 (unused), nG = 0 (Global) */
-#define DEVICE_PAGE_ATTR 0x17
 
 .arm
 
@@ -263,36 +249,6 @@ kernel_ttl2:
 
 	/* Also change attributes of kernel page tables */
 	bl _cpy4
-
-	/* Map perpehrals addresses */
-	/* Map UART0 4 KB P 0xE0000000 -> V CEIL(_end, SIZE_PAGE) */
-	ldr r0, =(VA_UART0 - VADDR_KERNEL)
-	lsr r0, #12
-	lsl r0, #2
-	ldr r1, =PA_OF(VA_TTL2_K)
-	add r0, r0, r1
-	ldr r1, =(PA_UART0 | DEVICE_PAGE_ATTR)
-	str r1, [r0], #4
-
-	/* Map UART1 4KB P 0xE0001000 -> V CEIL(_end + SIZE_PAGE, SIZE_PAGE) */
-	ldr r1, =(PA_UART1 | DEVICE_PAGE_ATTR)
-	str r1, [r0], #4
-
-	/* Map GIC 16 KB after UARTs */
-	mrc p15, 4, r1, c15, c0, 0           /* Get GIC paddr */
-	lsr r1, #16
-	lsl r1, #16
-	orr r1, r1, #DEVICE_PAGE_ATTR
-	mov r2, #(1 << 12)
-	bl _cpy4
-
-	/* Map SLCR after GIC */
-	ldr r1, =(PA_SLCR | DEVICE_PAGE_ATTR)
-	str r1, [r0], #4
-
-	/* Map TTC after SLCR */
-	ldr r1, =(PA_TTC | DEVICE_PAGE_ATTR)
-	str r1, [r0], #4
 
 	b per_core_init
 
