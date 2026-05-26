@@ -34,7 +34,6 @@
 
 #define ADDR_PROGS_BEGIN (_end + 4 * 1024 * 1024 - VADDR_KERNEL + ADDR_DDR)
 
-#define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
 #define SWAP(x)       (((x >> 24) & 0xff) | ((x << 8) & (0xff << 16)) | ((x >> 8) & (0xff << 8)) | ((x << 24) & (0xff << 24)))
 
 
@@ -352,10 +351,7 @@ _start:
 
 #ifdef KERNEL_PLO_BOOT
 	ldr r0, =(relOffs - VADDR_KERNEL + ADDR_DDR)
-	ldr r1, =VADDR_SYSPAGE
-	lsr r1, #12
-	lsl r1, #12
-
+	ldr r1, =_hal_syspageCopied
 	sub r2, r1, r9
 	str r2, [r0]
 
@@ -707,3 +703,12 @@ kernel_ttl2:
 
 #include "hal/armv7a/_interrupts.S"
 #include "hal/armv7a/_armv7a.S"
+
+
+#ifdef KERNEL_PLO_BOOT
+.section ".bss"
+.align 4
+_hal_syspageCopied:
+	.zero SIZE_PAGE
+.size _hal_syspageCopied, . - _hal_syspageCopied
+#endif

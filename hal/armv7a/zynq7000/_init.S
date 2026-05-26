@@ -35,8 +35,6 @@
 #define VA_TTL_END  (VA_TTL2_EXC + SIZE_PAGE)
 #define PA_STACK    (ADDR_DDR + 4 * 1024 * 1024 - SIZE_PAGE)
 
-#define VA_SYSPAGE (_end + SIZE_PAGE - 1)
-
 /* Attributes for kernel pages:
  * Small page, XN = 0 (allow Execute), TEX = 1 C = 1 B = 1 (Outer and Inner Write-Back, Write-Allocate),
  * AP = 0x1 (R/W from PL1 only), S = 1 (Shareable), nG = 0 (Global) */
@@ -147,9 +145,7 @@ set_loop:
 	bne wait_for_structs_init
 
 	/* init memory structures (relOffs, syspage, TTLs) */
-	ldr r1, =#VA_SYSPAGE
-	lsr r1, #12
-	lsl r1, #12
+	ldr r1, =_hal_syspageCopied
 	sub r2, r1, r9
 
 	ldr r0, =#PA_OF(relOffs)
@@ -202,14 +198,6 @@ clear_ttls:
 	ldr r0, =(PA_OF(VA_TTL1) + TTL1_OFFSET_OF(0xffc00000)) /* Entry address: TTL1 address + index (0xffc - 4 entries in TTL1) * 4 B*/
 	ldr r1, =(PA_OF(VA_TTL2_EXC) + 1)                      /* Ptr to exceptions' TTL2 (pmap_common.excptab); bits [1:0] = 1 defines TTL2 */
 	bl _cpy4                                               /* Fill TTL1 with 4 TTL2's addresses; pmap_common.excptab consists of 4 TTL2  */
-
-	ldr r8, =(ADDR_DDR)
-
-	/* Exceptions vectors TTL2 entry */
-	/* Map V 0xffff0000 -> P 0x00100000 */
-	ldr r0, =(PA_OF(VA_TTL2_EXC) + (0x3f0 << 2))          /* Entry address: 4 entries from the end in last TTL2 in pmap_common.excptab    */
-	orr r1, r8, #0x1a                                     /* Ptr to physical address. Attributes: XN = 0, B = 0, C = 0, AP = 0x1, TEX = 0 */
-	str r1, [r0]                                          /* Fill TTL2 entry                                                              */
 
 
 	/* Stacks TTL2 entry (one stack per CPU) */
@@ -369,3 +357,9 @@ other_core_wait:
 
 #include "hal/armv7a/_interrupts.S"
 #include "hal/armv7a/_armv7a.S"
+
+.section ".bss"
+.align 4
+_hal_syspageCopied:
+	.zero SIZE_PAGE
+.size _hal_syspageCopied, . - _hal_syspageCopied
