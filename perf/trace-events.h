@@ -69,7 +69,7 @@ void _trace_updateLockEpoch(lock_t *lock);
 	} while (0)
 
 
-#define PERF_IPC 1
+#define PERF_IPC 0
 
 /* clang-format off */
 #define NO_EVENT(ev, ts) do { (void)ev; (void)ts; } while (0)
@@ -291,11 +291,12 @@ static inline void trace_eventSyscallExit(int n, int tid)
 static inline u32 trace_eventSchedEnter(unsigned int cpuId)
 {
 	cycles_t tsc = 0;
+	u8 ev = cpuId;
 	if (trace_isRunning() == 0) {
 		return 0;
 	}
 	hal_cpuGetCycles(&tsc);
-	trace_writeEvent(trace_channel_event, TRACE_EVENT_SCHED_ENTER, &cpuId, sizeof(cpuId), NULL);
+	trace_writeEvent(trace_channel_event, TRACE_EVENT_SCHED_ENTER, &ev, sizeof(ev), NULL);
 	return (u32)tsc;
 }
 

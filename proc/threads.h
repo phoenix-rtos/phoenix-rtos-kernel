@@ -116,19 +116,20 @@ typedef struct _thread_t {
 	sched_context_t *sc_active;  /* SC currently being consumed (used by scheduler) */
 	sched_context_t *sc_donated; /* SCs donated to the thread */
 
-	unsigned priorityBase : 4;
-	unsigned priority : 4;
-	unsigned state : 4;
-	unsigned interruptible : 1;
-	unsigned exit : 2;
-	unsigned passive : 1;
+	unsigned int priorityBase : 4;
+	unsigned int priority : 4;
+	unsigned int state : 4;
+	unsigned int interruptible : 1;
+	unsigned int exit : 2;
+	unsigned int passive : 1;
 
 	/* fastpath related */
 	struct _thread_t *reply;
 	struct _thread_t *called;
-	int fpCtxSet;
-	int callReturnable;
-	int saveCtxInReply;
+	u8 fpCtxSet : 4;
+	u8 callReturnable : 4;
+	u8 saveCtxInReply : 4;
+	u8 respondAndRecv : 4;
 
 	/*
 	 * REVISIT: during threads_destroy of a fastpath receiver we should remove

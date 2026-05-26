@@ -1024,6 +1024,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->fastpathExitCtx = NULL;
 	t->callReturnable = 0;
 	t->saveCtxInReply = 0;
+	t->respondAndRecv = 0;
 
 	t->priorityBase = priority;
 	t->priority = priority;
@@ -2895,6 +2896,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	LIB_ASSERT(_proc_current() == recv, "we should be recv here");
 	LIB_ASSERT(recv->exit == 0, "recv wants to exit! TODO");
 
+	trace_eventSyscallExit(recv->respondAndRecv ? syscall_msgRespondAndRecv : syscall_msgRecv, proc_getTid(recv));
+
 	if (recv->process == NULL || returnable != 0) {
 		/*
 		 * tricky part: reschedule will cause the scheduler to save recv->fastpath as recv context,
@@ -3064,7 +3067,7 @@ static vm_flags_t _getMapFlags(vm_map_t *map, void *data)
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
 
 
-int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
+int proc_recv_ex(u32 port, msg_t *msg, msg_rid_t *rid, int rr)
 {
 	port_t *p;
 	spinlock_ctx_t sc;
@@ -3093,7 +3096,15 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
 
+	recv->respondAndRecv = rr;
+
 	return _becomePassive(p, recv, msg, rid, &sc);
+}
+
+
+int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
+{
+	return proc_recv_ex(port, msg, rid, 0);
 }
 
 
@@ -3251,6 +3262,7 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	LIST_ADD(&threads_common.ready[caller->priority], caller->sc_active);
 
 	if (caller->callReturnable == 0) {
+		trace_eventSyscallExit(syscall_msgSend, proc_getTid(caller));
 		caller->context = _getUserContext(caller);
 		hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)EOK);
 
@@ -3305,7 +3317,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 		}
 	}
 
-	return proc_recv(port, msg, rid);
+	return proc_recv_ex(port, msg, rid, 1);
 }
 
 
