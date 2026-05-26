@@ -41,9 +41,6 @@ extern unsigned int _end;
 extern unsigned int _etext;
 /* parasoft-end-suppress MISRAC2012-RULE_8_6 */
 
-/* TODO: this should be removed once we are sure that no target maps data past .bss anymore */
-#define SIZE_EXTEND_BSS 18U * SIZE_PAGE
-
 #define TT2S_ATTR_MASK 0xfffU
 #define TT2S_NOTGLOBAL 0x800U
 #define TT2S_SHAREABLE 0x400U
@@ -501,7 +498,6 @@ int pmap_getPage(page_t *page, addr_t *addr)
 	}
 
 	end = ((addr_t)&_end + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U);
-	end += SIZE_EXTEND_BSS;
 	if (page->addr >= end - VADDR_KERNEL + min) {
 		page->flags |= PAGE_FREE;
 		return EOK;
@@ -610,10 +606,6 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 
 	/* Initialize kernel heap start address */
 	(*vstart) = (void *)(((u32)&_end + SIZE_PAGE - 1U) & ~(SIZE_PAGE - 1U));
-
-	/* First 17 pages after bss are mapped for controllers */
-	/* TODO: this size should depend on platform */
-	(*vstart) += SIZE_EXTEND_BSS;
 	(*vend) = (*vstart) + SIZE_PAGE;
 
 	/* Create initial heap */
