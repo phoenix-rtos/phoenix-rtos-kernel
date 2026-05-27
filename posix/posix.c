@@ -2748,7 +2748,7 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 void posix_died(pid_t pid, int exit)
 {
 	process_info_t *pinfo, *ppinfo, *init, *cinfo, *zinfo, *zombies;
-	int waited, adopted = 1;
+	int adopted = 1;
 
 	pinfo = pinfo_find(pid);
 	LIB_ASSERT_ALWAYS(pinfo != NULL, "pinfo not found, pid: %d", pid);
@@ -2768,7 +2768,10 @@ void posix_died(pid_t pid, int exit)
 		if ((ppinfo != init) && (LIST_BELONGS(&ppinfo->children, pinfo) != 0)) {
 			LIST_REMOVE(&ppinfo->children, pinfo);
 			LIST_ADD(&ppinfo->zombies, pinfo);
-			waited = proc_threadBroadcast(&ppinfo->wait);
+			if (proc_threadBroadcast(&ppinfo->wait) == 0) {
+				/* Signal parent because no one was waiting in waitpid() */
+				posix_sigchild(pinfo->parent);
+			}
 			adopted = 0;
 		}
 		(void)proc_lockClear(&ppinfo->lock);
@@ -2795,7 +2798,6 @@ void posix_died(pid_t pid, int exit)
 		/* We were adopted by the init at some point */
 		LIST_REMOVE(&init->children, pinfo);
 		LIST_ADD(&zombies, pinfo);
-		waited = 1;
 	}
 	(void)proc_lockClear(&pinfo->lock);
 	(void)proc_lockClear(&init->lock);
@@ -2806,11 +2808,6 @@ void posix_died(pid_t pid, int exit)
 		zinfo = zombies;
 		LIST_REMOVE(&zombies, zinfo);
 		pinfo_put(zinfo);
-	}
-
-	/* Signal parent if no one was waiting in waitpid() */
-	if (waited == 0) {
-		posix_sigchild(pinfo->parent);
 	}
 
 	pinfo_put(pinfo);
