@@ -63,6 +63,15 @@ static struct {
 } log_common;
 
 
+static partition_t *log_partByPid(int pid)
+{
+	process_t *p = proc_find(pid);
+	partition_t *part = p->partition;
+	proc_put(p);
+	return part;
+}
+
+
 static int _log_empty(void)
 {
 	return (log_common.tail == log_common.head) ? 1 : 0;
@@ -213,7 +222,7 @@ static int log_readerAdd(pid_t pid, unsigned int nonblocking)
 		return -EINVAL;
 	}
 
-	r = vm_kmalloc(sizeof(log_reader_t));
+	r = vm_kmalloc(sizeof(log_reader_t), log_partByPid(pid));
 	if (r == NULL) {
 		return -ENOMEM;
 	}
@@ -286,7 +295,7 @@ static int log_readerBlock(log_reader_t *r, msg_t *msg, oid_t oid, msg_rid_t rid
 {
 	log_rmsg_t *rmsg;
 
-	rmsg = vm_kmalloc(sizeof(*rmsg));
+	rmsg = vm_kmalloc(sizeof(*rmsg), log_partByPid(r->pid));
 	if (rmsg == NULL) {
 		return -ENOMEM;
 	}

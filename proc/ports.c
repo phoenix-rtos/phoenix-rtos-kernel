@@ -119,7 +119,7 @@ int proc_portCreate(u32 *id)
 	thread_t *curr = proc_current();
 	process_t *proc = (curr == NULL) ? NULL : curr->process;
 
-	port = vm_kmalloc(sizeof(port_t));
+	port = vm_kmalloc(sizeof(port_t), (proc != NULL) ? proc->partition : NULL);
 	if (port == NULL) {
 		return -ENOMEM;
 	}

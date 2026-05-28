@@ -69,6 +69,19 @@ static struct {
 } posix_common;
 
 
+static partition_t *posix_partByPid(int pid)
+{
+	process_t *p = proc_find(pid);
+	partition_t *part = (p != NULL) ? p->partition : NULL;
+
+	if (p != NULL) {
+		(void)proc_put(p);
+	}
+
+	return part;
+}
+
+
 static process_info_t *_pinfo_find(int pid)
 {
 	process_info_t pi, *r;
@@ -181,6 +194,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 {
 	fildes_t *nfds;
 	int nfdsz = p->fdsz;
+	partition_t *part = posix_partByPid(p->process);
 
 	for (; fd < p->maxfd; ++fd) {
 		if (fd >= p->fdsz) {
@@ -193,7 +207,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 				nfdsz = p->maxfd;
 			}
 
-			nfds = vm_kmalloc((size_t)nfdsz * sizeof(*nfds));
+			nfds = vm_kmalloc((size_t)nfdsz * sizeof(*nfds), part);
 			if (nfds == NULL) {
 				return -1;
 			}
@@ -220,7 +234,7 @@ int posix_newFile(process_info_t *p, int fd)
 {
 	open_file_t *f;
 
-	f = vm_kmalloc(sizeof(open_file_t));
+	f = vm_kmalloc(sizeof(open_file_t), proc_currentPart());
 	if (f == NULL) {
 		return -ENOMEM;
 	}
@@ -308,7 +322,7 @@ int posix_clone(int ppid)
 
 	proc = proc_current()->process;
 
-	p = vm_kmalloc(sizeof(process_info_t));
+	p = vm_kmalloc(sizeof(process_info_t), proc->partition);
 	if (p == NULL) {
 		return -ENOMEM;
 	}
@@ -337,7 +351,7 @@ int posix_clone(int ppid)
 
 	p->process = process_getPid(proc);
 
-	p->fds = vm_kmalloc((size_t)p->fdsz * sizeof(fildes_t));
+	p->fds = vm_kmalloc((size_t)p->fdsz * sizeof(fildes_t), proc->partition);
 	if (p->fds == NULL) {
 		(void)proc_lockDone(&p->lock);
 		vm_kfree(p);
@@ -370,7 +384,7 @@ int posix_clone(int ppid)
 		hal_memset(p->fds, 0, (size_t)p->fdsz * sizeof(fildes_t));
 
 		for (i = 0; i < 3; ++i) {
-			f = vm_kmalloc(sizeof(open_file_t));
+			f = vm_kmalloc(sizeof(open_file_t), proc_currentPart());
 			p->fds[i].file = f;
 			if (f == NULL) {
 				for (j = 0; j < i; j++) {
@@ -458,7 +472,7 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(filename);
+	name = lib_strdup(filename, proc_currentPart());
 	if (name == NULL) {
 		return -ENOMEM;
 	}
@@ -585,7 +599,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			break;
 		}
 
-		f = vm_kmalloc(sizeof(open_file_t));
+		f = vm_kmalloc(sizeof(open_file_t), proc_currentPart());
 		if (f == NULL) {
 			err = -ENOMEM;
 			break;
@@ -990,14 +1004,14 @@ int posix_pipe(int fildes[2])
 		return res;
 	}
 
-	fo = vm_kmalloc(sizeof(open_file_t));
+	fo = vm_kmalloc(sizeof(open_file_t), proc_currentPart());
 	if (fo == NULL) {
 		(void)proc_destroy(oid.port, oid);
 		pinfo_put(p);
 		return -ENOMEM;
 	}
 
-	fi = vm_kmalloc(sizeof(open_file_t));
+	fi = vm_kmalloc(sizeof(open_file_t), proc_currentPart());
 	if (fi == NULL) {
 		vm_kfree(fo);
 		(void)proc_destroy(oid.port, oid);
@@ -1123,7 +1137,7 @@ int posix_link(const char *path1, const char *path2)
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(path2);
+	name = lib_strdup(path2, proc_currentPart());
 	if (name == NULL) {
 		return -ENOMEM;
 	}
@@ -1176,7 +1190,7 @@ int posix_unlink(const char *pathname)
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(pathname);
+	name = lib_strdup(pathname, proc_currentPart());
 	if (name == NULL) {
 		return -ENOMEM;
 	}

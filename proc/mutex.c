@@ -58,7 +58,7 @@ int proc_mutexCreate(const struct lockAttr *attr)
 		return -EINVAL;
 	}
 
-	mutex = vm_kmalloc(sizeof(*mutex));
+	mutex = vm_kmalloc(sizeof(*mutex), (p != NULL) ? p->partition : NULL);
 	if (mutex == NULL) {
 		return -ENOMEM;
 	}

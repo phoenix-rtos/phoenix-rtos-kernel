@@ -17,7 +17,10 @@
 #define _PH_LIB_STRUTIL_H_
 
 
-char *lib_strdup(const char *str);
+struct _partition_t;
+
+
+char *lib_strdup(const char *str, struct _partition_t *part);
 
 
 void lib_splitname(char *path, char **base, const char **dir);

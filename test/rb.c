@@ -98,7 +98,7 @@ static int rb_processVector(int insert, rbtree_t *tree, int vector[])
 
 	for (i = 0; i < RB_TEST_SIZE; ++i) {
 		if (insert) {
-			test = vm_kmalloc(sizeof(test_t));
+			test = vm_kmalloc(sizeof(test_t), NULL);
 			test->num = vector[i];
 
 			lib_rbInsert(tree, &test->node);

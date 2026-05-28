@@ -126,7 +126,7 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size, partition_t *part
 		i = (512U - sizeof(amap_t)) / sizeof(anon_t *);
 	}
 
-	new = vm_kmalloc(sizeof(amap_t) + i * sizeof(anon_t *));
+	new = vm_kmalloc(sizeof(amap_t) + i * sizeof(anon_t *), part);
 	if (new == NULL) {
 		if (amap != NULL) {
 			(void)proc_lockClear(&amap->lock);
@@ -189,11 +189,11 @@ void amap_clear(amap_t *amap, size_t offset, size_t size)
 }
 
 
-static anon_t *anon_new(page_t *p)
+static anon_t *anon_new(page_t *p, partition_t *part)
 {
 	anon_t *a;
 
-	a = vm_kmalloc(sizeof(anon_t));
+	a = vm_kmalloc(sizeof(anon_t), part);
 	if (a == NULL) {
 		return NULL;
 	}
@@ -307,7 +307,7 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 		(void)proc_lockClear(&a->lock);
 	}
 
-	amap->anons[aoffs / SIZE_PAGE] = anon_new(*page);
+	amap->anons[aoffs / SIZE_PAGE] = anon_new(*page, amap->partition);
 	if (amap->anons[aoffs / SIZE_PAGE] == NULL) {
 		vm_pageFree(*page, amap->partition);
 		*page = NULL;

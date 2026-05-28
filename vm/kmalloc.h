@@ -19,7 +19,10 @@
 #include "hal/hal.h"
 
 
-void *vm_kmalloc(size_t size);
+struct _partition_t;
+
+
+void *vm_kmalloc(size_t size, struct _partition_t *part);
 
 
 void vm_kfree(void *p);

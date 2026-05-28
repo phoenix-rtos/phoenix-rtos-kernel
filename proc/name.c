@@ -96,7 +96,7 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 	hash = dcache_strHash(name);
 
 	/* Pre-allocate entry to avoid holding the lock during allocation */
-	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
+	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U, proc_currentPart());
 
 	(void)proc_lockSet(&name_common.lock);
 
@@ -232,7 +232,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		pptr = pstack;
 	}
 	else {
-		pheap = vm_kmalloc(len + 1U);
+		pheap = vm_kmalloc(len + 1U, proc_currentPart());
 		if (pheap == NULL) {
 			return -ENOMEM;
 		}
@@ -293,7 +293,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 	(void)proc_lockClear(&name_common.lock);
 
-	msg = vm_kmalloc(sizeof(msg_t));
+	msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 	if (msg == NULL) {
 		if (pheap != NULL) {
 			vm_kfree(pheap);
@@ -357,7 +357,7 @@ int proc_lookup(const char *name, oid_t *file, oid_t *dev)
 int proc_open(oid_t oid, unsigned int mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -382,7 +382,7 @@ int proc_open(oid_t oid, unsigned int mode)
 int proc_close(oid_t oid, unsigned int mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -409,7 +409,7 @@ int proc_close(oid_t oid, unsigned int mode)
 int proc_create(u32 port, int type, unsigned int mode, oid_t dev, oid_t dir, char *name, oid_t *oid)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -440,7 +440,7 @@ int proc_create(u32 port, int type, unsigned int mode, oid_t dev, oid_t dir, cha
 int proc_destroy(u32 port, oid_t dev)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -465,7 +465,7 @@ int proc_destroy(u32 port, oid_t dev)
 int proc_link(oid_t dir, oid_t oid, const char *name)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -494,7 +494,7 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 int proc_unlink(oid_t dir, oid_t oid, const char *name)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -523,7 +523,7 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -554,7 +554,7 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 {
 	int err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;
@@ -585,7 +585,7 @@ int proc_write(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 off_t proc_size(oid_t oid)
 {
 	off_t err;
-	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+	msg_t *msg = vm_kmalloc(sizeof(msg_t), proc_currentPart());
 
 	if (msg == NULL) {
 		return -ENOMEM;

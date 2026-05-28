@@ -138,7 +138,7 @@ void test_vm_kmalloc(void)
 		}
 
 		lib_printf("\rtest: [%4d] allocating %5d", k, size);
-		buff[i] = vm_kmalloc(size);
+		buff[i] = vm_kmalloc(size, NULL);
 	}
 	lib_printf("\n");
 
@@ -165,7 +165,7 @@ static void _test_vm_msgsimthr(void *arg)
 	char *buff;
 
 	for (;;) {
-		if ((buff = vm_kmalloc(44)) == NULL) {
+		if ((buff = vm_kmalloc(44, NULL)) == NULL) {
 			break;
 		}
 		hal_memset(buff, 2, 44);
@@ -197,7 +197,7 @@ static void _test_vm_upgrsimthr(void *arg)
 	// vm_mapDump(NULL);
 
 	for (;;) {
-		if ((first = vm_kmalloc(3000)) == NULL) {
+		if ((first = vm_kmalloc(3000, NULL)) == NULL) {
 			break;
 		}
 
@@ -209,7 +209,7 @@ static void _test_vm_upgrsimthr(void *arg)
 			lib_printf("\rtest: U, [%4d] kmalloc.allocsz=%d", i, allocsz);
 			proc_lockClear(&lock);
 
-			if ((buff = vm_kmalloc(3000)) == NULL) {
+			if ((buff = vm_kmalloc(3000, NULL)) == NULL) {
 				break;
 			}
 			hal_memset(buff, 0, 133);

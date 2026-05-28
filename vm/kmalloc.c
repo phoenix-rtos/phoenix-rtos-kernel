@@ -86,6 +86,7 @@ static vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 	vm_zone_t t;
 	vm_zone_t *z;
 	u8 idx;
+	partition_t *part = NULL;
 
 	/* Free block */
 	t.vaddr = p;
@@ -97,6 +98,7 @@ static vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 		return NULL;
 	}
 
+	part = (partition_t *)((u8 *)p + z->blocksz - sizeof(partition_t *));
 	_vm_zfree(z, p);
 	kmalloc_common.allocsz -= z->blocksz;
 
@@ -109,6 +111,10 @@ static vm_zone_t *_kmalloc_free(u8 hdridx, void *p)
 	if (z->used == z->blocks - 1U) {
 		LIST_REMOVE(&kmalloc_common.used, z);
 		LIST_ADD(&kmalloc_common.sizes[idx], z);
+	}
+
+	if (part != NULL) {
+		part->usedKMem -= z->blocksz;
 	}
 
 	return z;
@@ -145,12 +151,14 @@ static int _kmalloc_addZone(u8 hdridx, u8 idx)
 }
 
 
-void *vm_kmalloc(size_t size)
+void *vm_kmalloc(size_t size, partition_t *part)
 {
 	u8 idx, hdridx;
 	void *b = NULL;
 	vm_zone_t *z;
 	int err = EOK;
+
+	size += sizeof(partition_t *);
 
 	/* Establish minimal size */
 	size = size < 16U ? 16U : size;
@@ -175,6 +183,12 @@ void *vm_kmalloc(size_t size)
 
 	(void)proc_lockSet(&kmalloc_common.lock);
 
+	if ((part != NULL) && (part->config->availableKMem < (part->usedKMem + (1UL << idx)))) {
+		(void)proc_lockClear(&kmalloc_common.lock);
+		lib_printf("kmalloc: partition %s out of kernel memory\n", part->config->name);
+		return NULL;
+	}
+
 	if (kmalloc_common.hdrblocks == 1U) {
 		err = _kmalloc_addZone(hdridx, hdridx);
 	}
@@ -189,6 +203,13 @@ void *vm_kmalloc(size_t size)
 	/* Alloc new fragment */
 	if (err == 0) {
 		b = _kmalloc_alloc(hdridx, idx);
+	}
+
+	if (b != NULL) {
+		*((partition_t **)((u8 *)b + (1UL << idx) - sizeof(partition_t *))) = part;
+		if (part != NULL) {
+			part->usedKMem += (1UL << idx);
+		}
 	}
 
 	(void)proc_lockClear(&kmalloc_common.lock);

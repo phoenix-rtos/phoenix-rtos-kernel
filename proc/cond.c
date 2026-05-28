@@ -60,7 +60,7 @@ int proc_condCreate(const struct condAttr *attr)
 		return -EINVAL;
 	}
 
-	cond = vm_kmalloc(sizeof(*cond));
+	cond = vm_kmalloc(sizeof(*cond), (p != NULL) ? p->partition : NULL);
 	if (cond == NULL) {
 		return -ENOMEM;
 	}

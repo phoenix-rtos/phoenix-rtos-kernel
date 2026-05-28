@@ -114,7 +114,7 @@ int userintr_setHandler(unsigned int n, userintrFn_t f, void *arg, handle_t c)
 		}
 	}
 
-	ui = vm_kmalloc(sizeof(*ui));
+	ui = vm_kmalloc(sizeof(*ui), (process != NULL) ? process->partition : NULL);
 	if (ui == NULL) {
 		if (cond != NULL) {
 			cond_put(cond);
