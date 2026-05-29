@@ -890,21 +890,22 @@ void _pmap_preinit(addr_t dtbStart, addr_t dtbEnd)
 /* parasoft-begin-suppress MISRAC2012-RULE_17_1 "stdarg.h required for custom functions that are like printf" */
 void *_pmap_halMapDevice(addr_t paddr, size_t pageOffs, size_t size)
 {
+	size_t maxIdx = TTL_IDX(3U, VADDR_DTB);
 	descr_t attrs = DESCR_VALID | DESCR_TABLE | DESCR_AF | DESCR_ISH | DESCR_PXN | DESCR_UXN | DESCR_ATTR(MAIR_IDX_DEVICE);
-	ptr_t va_start = ((VADDR_MAX - (SIZE_PAGE << 9)) + 1U) + (pmap_common.dev_i * SIZE_PAGE);
+	ptr_t vaStart = ((VADDR_MAX - (SIZE_PAGE << 9)) + 1U) + (pmap_common.dev_i * SIZE_PAGE);
+	size_t span = pageOffs + size;
 	size_t offs;
 
-	if ((pmap_common.dev_i + (size / SIZE_PAGE)) > TTL_IDX(3U, VADDR_DTB)) {
-		return NULL;
-	}
+	LIB_ASSERT(size > 0U, "Attempted to map device of size 0");
+	LIB_ASSERT_ALWAYS((pmap_common.dev_i + ((span + SIZE_PAGE - 1U) / SIZE_PAGE)) < maxIdx, "Out of device address space");
 
-	for (offs = 0; offs < size; offs += SIZE_PAGE) {
-		pmap_common.devices_ttl3[TTL_IDX(3U, va_start + offs)] = DESCR_PA(paddr + offs) | attrs;
+	for (offs = 0U; offs < span; offs += SIZE_PAGE) {
+		pmap_common.devices_ttl3[pmap_common.dev_i] = DESCR_PA(paddr + offs) | attrs;
 		pmap_common.dev_i++;
 	}
 
 	hal_cpuDataSyncBarrier();
-	return (void *)va_start + pageOffs;
+	return (void *)(vaStart + pageOffs);
 }
 
 /* parasoft-end-suppress MISRAC2012-RULE_17_1 */
