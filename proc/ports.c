@@ -23,81 +23,21 @@ static struct {
 } port_common;
 
 
-msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg)
-{
-	msg_rid_t ret;
-
-	(void)proc_lockSet(&p->lock);
-	ret = lib_idtreeAlloc(&p->rid, &kmsg->idlinkage, 0);
-	(void)proc_lockClear(&p->lock);
-
-	return ret;
-}
-
-
-kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
-{
-	kmsg_t *kmsg;
-
-	(void)proc_lockSet(&p->lock);
-
-	kmsg = lib_idtreeof(kmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
-	if (kmsg != NULL) {
-		lib_idtreeRemove(&p->rid, &kmsg->idlinkage);
-	}
-
-	(void)proc_lockClear(&p->lock);
-
-	return kmsg;
-}
-
-
-msg_rid_t proc_portRidAlloc_fp(port_t *p, fmsg_t *fmsg)
-{
-	msg_rid_t ret;
-
-	proc_lockSet(&p->lock);
-	ret = lib_idtreeAlloc(&p->rid, &fmsg->idlinkage, 0);
-	proc_lockClear(&p->lock);
-
-	return ret;
-}
-
-
-fmsg_t *proc_portRidGet_fp(port_t *p, msg_rid_t rid)
-{
-	fmsg_t *fmsg;
-
-	proc_lockSet(&p->lock);
-
-	fmsg = lib_idtreeof(fmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
-	if (fmsg != NULL) {
-		lib_idtreeRemove(&p->rid, &fmsg->idlinkage);
-	}
-
-	proc_lockClear(&p->lock);
-
-	return fmsg;
-}
-
-
 port_t *proc_portGet(u32 id)
 {
 	port_t *port;
-	spinlock_ctx_t sc, psc;
+	spinlock_ctx_t sc;
 
 	if (id > MAX_ID) {
 		return NULL;
 	}
 
-	hal_spinlockSet(&port_common.spinlock, &psc);
+	hal_spinlockSet(&port_common.spinlock, &sc);
 	port = lib_idtreeof(port_t, linkage, lib_idtreeFind(&port_common.tree, (int)id));
 	if (port != NULL) {
-		hal_spinlockSet(&port->spinlock, &sc);
-		port->refs++;
-		hal_spinlockClear(&port->spinlock, &sc);
+		atomic_fetch_add_explicit(&port->refs, 1, memory_order_acq_rel);
 	}
-	hal_spinlockClear(&port_common.spinlock, &psc);
+	hal_spinlockClear(&port_common.spinlock, &sc);
 
 	return port;
 }
@@ -105,33 +45,29 @@ port_t *proc_portGet(u32 id)
 
 void port_put(port_t *p, int destroy)
 {
-	spinlock_ctx_t sc, psc;
+	spinlock_ctx_t sc;
+	int refs = atomic_fetch_sub_explicit(&p->refs, 1, memory_order_release);
 
-	hal_spinlockSet(&port_common.spinlock, &psc);
-	hal_spinlockSet(&p->spinlock, &sc);
-	LIB_ASSERT(p->refs > 0, "port_put on refs=0");
-	p->refs--;
+	(void)refs;
+	LIB_ASSERT(refs > 0, "port_put on refs=0");
 
 	if (destroy != 0) {
-		p->closed = 1;
+		atomic_store_explicit(&p->closed, 1, memory_order_relaxed);
 	}
 
-	if (p->refs != 0) {
+	if (refs > 1) {
 		if (destroy != 0) {
 			/* Wake callers up */
 			(void)proc_threadBroadcastPrio(&p->queue);
 		}
-
-		hal_spinlockClear(&p->spinlock, &sc);
-		hal_spinlockClear(&port_common.spinlock, &psc);
 		return;
 	}
 
 	LIB_ASSERT(p->threads == NULL, "receivers should already be popped from the port");
 
-	hal_spinlockClear(&p->spinlock, &sc);
+	hal_spinlockSet(&port_common.spinlock, &sc);
 	lib_idtreeRemove(&port_common.tree, &p->linkage);
-	hal_spinlockClear(&port_common.spinlock, &psc);
+	hal_spinlockClear(&port_common.spinlock, &sc);
 
 	if (p->next != NULL) {
 		proc_lockSet(&p->owner->lock);
@@ -139,8 +75,7 @@ void port_put(port_t *p, int destroy)
 		proc_lockClear(&p->owner->lock);
 	}
 
-	(void)proc_lockDone(&p->lock);
-	hal_spinlockDestroy(&p->spinlock);
+	/* Now safe to free */
 	vm_kfree(p);
 }
 
@@ -157,30 +92,22 @@ int proc_portCreate(u32 *id)
 		return -ENOMEM;
 	}
 
+	hal_spinlockCreate(&port->spinlock, "port.spinlock");
+
+	port->threads = NULL;
+	port->refs = 1;
+	port->closed = 0;
+	port->pulse = 0;
+	port->owner = proc;
+	proc_threadPrioQueueInit(&port->queue);
+
 	hal_spinlockSet(&port_common.spinlock, &sc);
 	if (lib_idtreeAlloc(&port_common.tree, &port->linkage, 0) < 0) {
 		hal_spinlockClear(&port_common.spinlock, &sc);
 		vm_kfree(port);
 		return -ENOMEM;
 	}
-
-	port->kmessages = NULL;
-	hal_spinlockCreate(&port->spinlock, "port.spinlock");
-
-	lib_idtreeInit(&port->rid);
-	(void)proc_lockInit(&port->lock, &proc_lockAttrDefault, "port.rid");
-
-	port->threads = NULL;
-	port->current = NULL;
-	port->refs = 1;
-	port->closed = 0;
-
-	port->pulse = 0;
-
-	proc_threadPrioQueueInit(&port->queue);
-
 	*id = (u32)port->linkage.id;
-	port->owner = proc;
 	hal_spinlockClear(&port_common.spinlock, &sc);
 
 	if (proc != NULL) {
@@ -203,7 +130,10 @@ void proc_portDestroy(u32 port)
 		return;
 	}
 
-	if ((p->closed != 0) || ((proc != NULL) && (p->owner != proc))) {
+	/* REVISIT */
+	int closed = atomic_load_explicit(&p->closed, memory_order_acquire);
+
+	if ((closed != 0) || ((proc != NULL) && (p->owner != proc))) {
 		port_put(p, 0);
 	}
 	else {

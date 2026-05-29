@@ -16,9 +16,11 @@
 #ifndef _PH_PROC_PORT_H_
 #define _PH_PROC_PORT_H_
 
+#include <stdatomic.h>
+
 #include "hal/hal.h"
 #include "lib/lib.h"
-#include "msg.h"
+#include "include/errno.h"
 #include "process.h"
 #include "threads.h"
 
@@ -28,16 +30,12 @@ typedef struct _port_t {
 	struct _port_t *next;
 	struct _port_t *prev;
 
-	idtree_t rid;
-
-	kmsg_t *kmessages;
 	process_t *owner;
-	int refs, closed;
+
+	_Atomic int refs, closed;
 
 	spinlock_t spinlock;
-	lock_t lock;
 	thread_t *threads;
-	msg_t *current;
 
 	/* to be merged with threads once old impl is ditched */
 	prio_queue_t queue;
@@ -61,18 +59,6 @@ port_t *proc_portGet(u32 id);
 
 
 void port_put(port_t *p, int destroy);
-
-
-msg_rid_t proc_portRidAlloc(port_t *p, kmsg_t *kmsg);
-
-
-kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid);
-
-
-msg_rid_t proc_portRidAlloc_fp(port_t *p, fmsg_t *fmsg);
-
-
-fmsg_t *proc_portRidGet_fp(port_t *p, msg_rid_t rid);
 
 
 void _port_init(void);
