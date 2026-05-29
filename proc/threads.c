@@ -502,6 +502,23 @@ void _threads_ipcBufferRelease(ipc_buf_layout_t *il)
 }
 
 
+/* assuming aspace of `to` */
+static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg)
+{
+	if (msg->o.size <= min(sizeof(from->utcb.msgbuf) - MSG_RAW_SIZE, to->utcb.esize)) {
+		to->utcb.msg->o.data = (void *)to->utcb.msg->edata;
+		hal_memcpy((void *)to->utcb.msg->o.data, from->utcb.msgbuf + MSG_RAW_SIZE, msg->o.size);
+	}
+
+	to->utcb.msg->o.size = msg->o.size;
+
+	hal_memcpy(to->utcb.msg->o.raw, msg->o.raw, MSG_RAW_SIZE);
+	to->utcb.msg->o.err = msg->o.err;
+
+	/* TODO: handle pulse as well */
+}
+
+
 static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 {
 	process_t *proc;
@@ -527,6 +544,11 @@ static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 	else {
 		/* Protects against use after free of process' memory map in SMP environment. */
 		pmap_switch(&threads_common.kmap->pmap);
+	}
+
+	if (selected->utcb.msgDeferredFrom != NULL) {
+		_threads_copyMsgBufResponse(selected->utcb.msgDeferredFrom, selected, &selected->utcb.msgDeferred);
+		selected->utcb.msgDeferredFrom = NULL;
 	}
 
 	if (selected->longjmpctx != NULL) {
@@ -2705,23 +2727,6 @@ static void _threads_copyShmBuffers(thread_t *from, thread_t *to, msg_t *msg)
 }
 
 
-/* assuming aspace of `to` */
-static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg)
-{
-	if (msg->o.size <= min(sizeof(from->utcb.msgbuf) - MSG_RAW_SIZE, to->utcb.esize)) {
-		to->utcb.msg->o.data = (void *)to->utcb.msg->edata;
-		hal_memcpy((void *)to->utcb.msg->o.data, from->utcb.msgbuf + MSG_RAW_SIZE, msg->o.size);
-	}
-
-	to->utcb.msg->o.size = msg->o.size;
-
-	hal_memcpy(to->utcb.msg->o.raw, msg->o.raw, MSG_RAW_SIZE);
-	to->utcb.msg->o.err = msg->o.err;
-
-	/* TODO: handle pulse as well */
-}
-
-
 static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 {
 	port_t *p;
@@ -3232,25 +3237,16 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
 
-	/* UGLY: but for now lets make the msg_t working */
-	msg_t msgCopy = *msg;
+	_threads_copyShmBuffers(recv, caller, msg);
 
 	/*
-	 * Must hold the spinlock across pmap_switch + copy to prevent preemption.
-	 * If recv is preempted after pmap_switch(caller) and resumed later, the
-	 * scheduler restores recv's address space, causing the response copy to
-	 * write through the wrong page tables (recv's instead of caller's).
+	 * OPTIMIZATION: defer the copy of the msg to _threads_switchToThread() where
+	 * we switch aspaces anyways.
+	 * We *could* do it here, but would need to switch to caller aspace and back.
+	 * Delegation saves us two TLB flushes per respond fastpath
 	 */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	_threads_copyShmBuffers(recv, caller, &msgCopy);
-	if ((caller->process != NULL) && (caller->process->pmapp != NULL)) {
-		pmap_switch(caller->process->pmapp);
-	}
-	_threads_copyMsgBufResponse(recv, caller, &msgCopy);
-	if ((recv->process != NULL) && (recv->process->pmapp != NULL)) {
-		pmap_switch(recv->process->pmapp);
-	}
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	hal_memcpy(&caller->utcb.msgDeferred, msg, sizeof(*msg));
+	caller->utcb.msgDeferredFrom = recv;
 
 	/* TODO: lazy remapping */
 	threads_releaseIpcBuffers(caller);

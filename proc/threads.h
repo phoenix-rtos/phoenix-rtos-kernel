@@ -162,6 +162,9 @@ typedef struct _thread_t {
 		u8 pulse;
 		int err;
 
+		msg_t msgDeferred;
+		struct _thread_t *msgDeferredFrom;
+
 		char msgbuf[256];
 		size_t msglen;
 
