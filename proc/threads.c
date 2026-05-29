@@ -2751,7 +2751,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	}
 
 	while ((err = _mustSlowCall(p, caller)) != 0) {
-		p->queue.nonempty |= 1;
+		p->queue.nonempty |= (1u << caller->priority);
 		err = proc_threadWaitInterruptible(&p->queue.pq[caller->priority], &p->spinlock, 0, &sc);
 		if (p->closed != 0 || err < 0) {
 			hal_spinlockClear(&p->spinlock, &sc);
@@ -2939,13 +2939,21 @@ int proc_send_returnable(u32 port, msg_t *msg)
 
 static int _proc_threadWakeupPrio(prio_queue_t *queue)
 {
-	size_t prio;
-	for (prio = 0; prio < MAX_PRIO; prio++) {
-		if (_proc_threadWakeup(&queue->pq[prio]) != 0) {
-			return 1;
-		}
+	unsigned int prio;
+	if (queue->nonempty == 0) {
+		return 0;
 	}
-	queue->nonempty = 0;
+
+	prio = __builtin_ctz(queue->nonempty);
+	if (_proc_threadWakeup(&queue->pq[prio]) != 0) {
+		if (queue->pq[prio] == NULL) {
+			queue->nonempty &= ~(1u << prio);
+		}
+		return 1;
+	}
+
+	/* slot drained */
+	queue->nonempty &= ~(1u << prio);
 	return 0;
 }
 
