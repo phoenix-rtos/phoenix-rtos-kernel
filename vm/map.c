@@ -399,10 +399,27 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot)
 {
+#ifdef NOMMU
+	unsigned int i;
+	if (map->phMaps == NULL) {
+		(void)proc_lockSet(&map->lock);
+		vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, VM_OFFS_MAX, flags, NULL);
+		(void)proc_lockClear(&map->lock);
+		return vaddr;
+	}
+	for (i = 0; map->phMaps[i] != NULL; i++) {
+		(void)proc_lockSet(&map->phMaps[i]->lock);
+		vaddr = _map_map(map->phMaps[i], vaddr, NULL, size, prot, map_common.kernel, VM_OFFS_MAX, flags, NULL);
+		(void)proc_lockClear(&map->phMaps[i]->lock);
+		if (vaddr != NULL) {
+			return vaddr;
+		}
+	}
+#else
 	(void)proc_lockSet(&map->lock);
 	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, VM_OFFS_MAX, flags, NULL);
 	(void)proc_lockClear(&map->lock);
-
+#endif
 	return vaddr;
 }
 
@@ -535,6 +552,31 @@ int _vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 }
 
 
+static int _vm_munmapPhMaps(vm_map_t *map, void *vaddr, size_t size)
+{
+#ifdef NOMMU
+	unsigned int i;
+	int err;
+	if (map->phMaps == NULL) {
+		return _vm_munmap(map, vaddr, size);
+	}
+	for (i = 0; map->phMaps[i] != NULL; i++) {
+		if (((ptr_t)map->phMaps[i]->start < (ptr_t)vaddr + size) && ((ptr_t)map->phMaps[i]->stop >= (ptr_t)vaddr)) {
+			(void)proc_lockSet(&map->phMaps[i]->lock);
+			err = _vm_munmap(map->phMaps[i], vaddr, size);
+			(void)proc_lockClear(&map->phMaps[i]->lock);
+			if (err != EOK) {
+				return err;
+			}
+		}
+	}
+	return EOK;
+#else
+	return _vm_munmap(map, vaddr, size);
+#endif
+}
+
+
 vm_attr_t vm_flagsToAttr(vm_flags_t flags)
 {
 	vm_attr_t attr = 0;
@@ -639,9 +681,27 @@ void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot
 		map = map_common.kmap;
 	}
 
+#ifdef NOMMU
+	unsigned int i;
+	if (map->phMaps == NULL) {
+		(void)proc_lockSet(&map->lock);
+		vaddr = _vm_mmap(map, vaddr, p, size, prot, o, (offs < 0) ? VM_OFFS_MAX : (u64)offs, flags);
+		(void)proc_lockClear(&map->lock);
+		return vaddr;
+	}
+	for (i = 0; map->phMaps[i] != NULL; i++) {
+		(void)proc_lockSet(&map->phMaps[i]->lock);
+		vaddr = _vm_mmap(map->phMaps[i], vaddr, p, size, prot, o, (offs < 0) ? VM_OFFS_MAX : (u64)offs, flags);
+		(void)proc_lockClear(&map->phMaps[i]->lock);
+		if (vaddr != NULL) {
+			return vaddr;
+		}
+	}
+#else
 	(void)proc_lockSet(&map->lock);
 	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, (offs < 0) ? VM_OFFS_MAX : (u64)offs, flags);
 	(void)proc_lockClear(&map->lock);
+#endif
 	return vaddr;
 }
 
@@ -847,7 +907,7 @@ int vm_munmap(vm_map_t *map, void *vaddr, size_t size)
 	int result;
 
 	(void)proc_lockSet(&map->lock);
-	result = _vm_munmap(map, vaddr, size);
+	result = _vm_munmapPhMaps(map, vaddr, size);
 	(void)proc_lockClear(&map->lock);
 
 	return result;
@@ -996,15 +1056,17 @@ void vm_mapDump(vm_map_t *map)
 }
 
 
-int vm_mapCreate(vm_map_t *map, void *start, void *stop)
+int vm_mapCreate(vm_map_t *map, void *start, void *stop, ph_map_t **phMaps)
 {
 	map->start = start;
 	map->stop = stop;
 	map->pmap.start = start;
 	map->pmap.end = stop;
 
+	map->phMaps = phMaps;
+
 #ifndef NOMMU
-	map->pmap.pmapp = vm_pageAlloc(SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
+	map->pmap.pmapp = vm_pageAlloc(map_common.kmap->phMaps, SIZE_PDIR, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE, NULL);
 	if (map->pmap.pmapp == NULL) {
 		return -ENOMEM;
 	}
@@ -1042,35 +1104,33 @@ void map_free(map_entry_t *entry)
 }
 
 
-void vm_mapDestroy(process_t *p, vm_map_t *map)
+ph_map_t **vm_createPhMapList(const unsigned char *maps, size_t mapSz)
 {
-	map_entry_t *e;
+	ph_map_t **phMaps;
+	size_t i;
 
-#ifndef NOMMU
-	addr_t a;
-	rbnode_t *n;
-	unsigned int i = 0;
+	phMaps = vm_kmalloc(sizeof(ph_map_t *) * (mapSz + 1U));
+	if (phMaps == NULL) {
+		return NULL;
+	}
 
-	for (;;) {
-		a = pmap_destroy(&map->pmap, &i);
-		if (a == 0U) {
-			break;
+	for (i = 0; i < mapSz; i++) {
+		phMaps[i] = vm_getPhysicalMap((int)maps[i]);
+		if (phMaps[i] == NULL) {
+			vm_kfree(phMaps);
+			return NULL;
 		}
-		vm_pageFree(page_get(a), NULL);
 	}
+	phMaps[mapSz] = NULL;
 
-	(void)vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
-	vm_pageFree(map->pmap.pmapp, NULL);
+	return phMaps;
+}
 
-	for (n = map->tree.root; n != NULL; n = map->tree.root) {
-		e = lib_treeof(map_entry_t, linkage, n);
-		amap_putanons(e->amap, e->aoffs, e->size);
-		_entry_put(map, e);
-	}
 
-	(void)proc_lockDone(&map->lock);
-#else
-	map_entry_t *temp = NULL;
+#ifdef NOMMU
+static void vm_phMapDestroy(process_t *p, ph_map_t *map)
+{
+	map_entry_t *e, *temp = NULL;
 
 	(void)proc_lockSet2(&map->lock, &p->lock);
 
@@ -1101,6 +1161,46 @@ void vm_mapDestroy(process_t *p, vm_map_t *map)
 
 	(void)proc_lockClear(&p->lock);
 	(void)proc_lockClear(&map->lock);
+}
+#endif
+
+
+void vm_mapDestroy(process_t *p, vm_map_t *map)
+{
+	unsigned int i = 0;
+
+#ifndef NOMMU
+	addr_t a;
+	rbnode_t *n;
+	map_entry_t *e;
+
+	for (;;) {
+		a = pmap_destroy(&map->pmap, &i);
+		if (a == 0U) {
+			break;
+		}
+		vm_pageFree(page_get(a), NULL);
+	}
+
+	(void)vm_munmap(map_common.kmap, map->pmap.pmapv, SIZE_PDIR);
+	vm_pageFree(map->pmap.pmapp, NULL);
+
+	for (n = map->tree.root; n != NULL; n = map->tree.root) {
+		e = lib_treeof(map_entry_t, linkage, n);
+		amap_putanons(e->amap, e->aoffs, e->size);
+		_entry_put(map, e);
+	}
+
+	(void)proc_lockDone(&map->lock);
+#else
+	if (map->phMaps == NULL) {
+		vm_phMapDestroy(p, map);
+	}
+	else {
+		for (i = 0; map->phMaps[i] != NULL; i++) {
+			vm_phMapDestroy(p, map->phMaps[i]);
+		}
+	}
 #endif
 }
 
@@ -1234,11 +1334,13 @@ void vm_mapinfo(meminfo_t *info)
 	rbnode_t *n;
 	map_entry_t *e;
 	vm_map_t *map;
-	const syspage_map_t *spMap;
 	int size;
 	process_t *process;
 	size_t i;
+#ifdef NOMMU
+	const syspage_map_t *spMap;
 	size_t total, free;
+#endif
 
 
 	(void)proc_lockSet(&map_common.lock);
@@ -1396,9 +1498,10 @@ void vm_mapinfo(meminfo_t *info)
 	if (info->maps.mapsz != -1) {
 		info->maps.total = 0;
 		info->maps.free = 0;
-
-		for (size = 0; (unsigned int)size < map_common.mapssz; ++size) {
-			map = vm_getSharedMap(size);
+		size = 0;
+#ifdef NOMMU
+		for (; (unsigned int)size < map_common.mapssz; ++size) {
+			map = vm_getPhysicalMap(size);
 			if (map == NULL) {
 				if (size < info->maps.mapsz) {
 					/* Store info that the map doesn't exist */
@@ -1448,7 +1551,7 @@ void vm_mapinfo(meminfo_t *info)
 				}
 			}
 		}
-
+#endif
 		info->maps.mapsz = size;
 	}
 }
@@ -1503,9 +1606,10 @@ void vm_mapGetStats(size_t *allocsz)
 }
 
 
-vm_map_t *vm_getSharedMap(int map)
+#ifdef NOMMU
+ph_map_t *vm_getPhysicalMap(int map)
 {
-	vm_map_t *ret = NULL;
+	ph_map_t *ret = NULL;
 
 	if (map >= 0 && (size_t)map < map_common.mapssz) {
 		ret = map_common.maps[map];
@@ -1513,6 +1617,7 @@ vm_map_t *vm_getSharedMap(int map)
 
 	return ret;
 }
+#endif
 
 
 static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
@@ -1557,7 +1662,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 			}
 
 			map_common.maps[id] = (*bss);
-			if (vm_mapCreate(map_common.maps[id], (void *)map->start, (void *)map->end) < 0) {
+			if (vm_mapCreate(map_common.maps[id], (void *)map->start, (void *)map->end, NULL) < 0) {
 				return -ENOMEM;
 			}
 
@@ -1627,7 +1732,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	map_common.kmap = kmap;
 	map_common.kernel = kernel;
 
-	vm_pageGetStats(&freesz);
+	_vm_pageGetStats(&freesz);
 
 	/* Init map entry pool */
 	map_common.ntotal = freesz / (3U * SIZE_PAGE + sizeof(map_entry_t));
@@ -1638,7 +1743,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for map_entry_t pool (vaddr=%p)", *bss);
 	}
 
-	map_common.entries = (*bss);
+	map_common.entries = (void *)(((ptr_t)(*bss) + (sizeof(u64) - 1U)) & ~(sizeof(u64) - 1U));
 	poolsz = min((ptr_t)(*top) - (ptr_t)(*bss), sizeof(map_entry_t) * map_common.ntotal);
 
 	map_common.free = map_common.entries;

@@ -80,7 +80,7 @@ static void *_bufferAlloc(page_t **pages, size_t sz)
 	}
 
 	for (v = data; (ptr_t)v < (ptr_t)data + sz; v += SIZE_PAGE) {
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, NULL);
+		p = vm_pageAlloc(buffer_common.kmap->phMaps, SIZE_PAGE, PAGE_OWNER_APP, NULL);
 
 		if (p == NULL) {
 			err = -ENOMEM;

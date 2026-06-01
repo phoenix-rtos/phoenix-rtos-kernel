@@ -273,7 +273,7 @@ int amap_page(vm_map_t *map, amap_t *amap, vm_object_t *o, void *vaddr, size_t a
 
 	if (a != NULL || o != NULL) {
 		/* Copy from object or shared anon */
-		*page = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, amap->partition);
+		*page = vm_pageAlloc(map->phMaps, SIZE_PAGE, PAGE_OWNER_APP, amap->partition);
 		if (*page == NULL) {
 			(void)amap_unmap(map, v);
 			if (a != NULL) {

@@ -172,7 +172,7 @@ int vm_objectPut(vm_object_t *o)
 }
 
 
-static page_t *object_fetch(vm_object_t *o, u64 offs)
+static page_t *object_fetch(vm_map_t *map, vm_object_t *o, u64 offs)
 {
 	page_t *p;
 	void *v;
@@ -181,7 +181,7 @@ static page_t *object_fetch(vm_object_t *o, u64 offs)
 		return NULL;
 	}
 
-	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, o->part);
+	p = vm_pageAlloc(map->phMaps, SIZE_PAGE, PAGE_OWNER_APP, o->part);
 	if (p == NULL) {
 		(void)proc_close(o->oid, 0);
 		return NULL;
@@ -214,7 +214,7 @@ int vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64
 
 	if (o == NULL) {
 		if (amap != NULL && *amap != NULL) {
-			*page = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP, (*amap)->partition);
+			*page = vm_pageAlloc(map->phMaps, SIZE_PAGE, PAGE_OWNER_APP, (*amap)->partition);
 			return (*page != NULL) ? EOK : -ENOMEM;
 		}
 		return -EINVAL;
@@ -253,7 +253,7 @@ int vm_objectPage(vm_map_t *map, amap_t **amap, vm_object_t *o, void *vaddr, u64
 
 	(void)proc_lockClear(&map->lock);
 
-	*page = object_fetch(o, offs);
+	*page = object_fetch(map, o, offs);
 
 	err = vm_lockVerify(map, amap, o, vaddr, offs);
 	if (err != 0) {
@@ -288,9 +288,11 @@ vm_object_t *vm_objectContiguous(size_t size)
 	vm_object_t *o;
 	page_t *p;
 	size_t i, n;
-	partition_t *part = (proc_current()->process != NULL) ? proc_current()->process->partition : NULL;
+	process_t *proc = proc_current()->process;
+	ph_map_t **phMaps = (proc != NULL) ? proc->mapp->phMaps : object_common.kmap->phMaps;
+	partition_t *part = (proc != NULL) ? proc->partition : NULL;
 
-	p = vm_pageAlloc(size, PAGE_OWNER_APP, part);
+	p = vm_pageAlloc(phMaps, size, PAGE_OWNER_APP, part);
 	if (p == NULL) {
 		return NULL;
 	}

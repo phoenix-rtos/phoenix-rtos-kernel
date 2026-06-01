@@ -37,7 +37,7 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 		return -EINVAL;
 	}
 
-	zone->pages = vm_pageAlloc(blocks * blocksz, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, NULL);
+	zone->pages = vm_pageAlloc(zone_common.kmap->phMaps, blocks * blocksz, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, NULL);
 	if (zone->pages == NULL) {
 		return -ENOMEM;
 	}

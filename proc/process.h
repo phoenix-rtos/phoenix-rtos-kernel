@@ -31,6 +31,7 @@ typedef void (*sighandlerFn_t)(void);
 
 
 typedef struct _partition_t {
+	lock_t lock;
 	size_t usedMem;
 	const syspage_part_t *config;
 } partition_t;
@@ -109,7 +110,7 @@ int proc_fileSpawn(const char *path, char **argv, char **envp);
 int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, char **argv);
 
 
-int proc_syspageSpawn(const syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv);
+int proc_syspageSpawn(const syspage_prog_t *program, ph_map_t *imap, ph_map_t **dmaps, const char *path, char **argv);
 
 
 int proc_execve(const char *path, char **argv, char **envp);
