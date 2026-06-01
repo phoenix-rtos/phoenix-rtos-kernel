@@ -3107,6 +3107,8 @@ int proc_recv_ex(u32 port, msg_t *msg, msg_rid_t *rid, int rr)
 		return _returnWithPulse(recv, p, &sc);
 	}
 
+	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
+
 	recv->respondAndRecv = rr;
 
 	return _becomePassive(p, recv, msg, rid, &sc);
