@@ -139,15 +139,22 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	unsigned char *cmsg_data;
 	open_file_t *file;
 	unsigned int cnt, flags;
-	int fd;
+	int fd, ret;
 
-	if (*packs == NULL || *controllen < CMSG_LEN(sizeof(int))) {
+	if (*packs == NULL) {
 		*controllen = 0;
 		return 0;
 	}
 
+	if (*controllen < CMSG_LEN(sizeof(int))) {
+		(void)fdpass_discard(packs);
+		*controllen = 0;
+		return (int)MSG_CTRUNC;
+	}
+
 	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
+		*controllen = 0;
 		return -1;
 	}
 
@@ -184,10 +191,11 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 	}
 
 	*controllen = cmsg->cmsg_len = CMSG_LEN(sizeof(int) * cnt);
+	ret = (*packs == NULL) ? 0 : (int)MSG_CTRUNC;
 
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
-	return 0;
+	return ret;
 }
 
 
