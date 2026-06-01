@@ -783,7 +783,7 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 }
 
 
-static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int *flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
 	unixsock_t *s;
 	size_t rlen = 0;
@@ -791,7 +791,7 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 	spinlock_ctx_t sc;
 	unsigned int peek;
 
-	peek = ((flags & MSG_PEEK) != 0U) ? 1U : 0U;
+	peek = ((*flags & MSG_PEEK) != 0U) ? 1U : 0U;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -816,23 +816,32 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 					err = (ssize_t)_cbuffer_read(&s->buffer, buf, len);
 				}
 			}
-			else if (_cbuffer_avail(&s->buffer) > 0U) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-				/* TODO: handle MSG_PEEK */
-				(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
-				(void)_cbuffer_read(&s->buffer, buf, min(len, rlen));
-				err = (ssize_t)min(len, rlen);
+			else { /* SOCK_DGRAM or SOCK_SEQPACKET */
+				if (_cbuffer_avail(&s->buffer) > 0U) {
+					if (peek != 0U) {
+						(void)_cbuffer_peek(&s->buffer, &rlen, sizeof(rlen));
+						LIB_ASSERT(rlen > 0U, "length for AF_UNIX packet was 0");
+						(void)_cbuffer_peekOffs(&s->buffer, buf, min(len, rlen), sizeof(rlen));
+					}
+					else {
+						(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
+						(void)_cbuffer_read(&s->buffer, buf, min(len, rlen));
+					}
 
-				if (len < rlen) {
-					(void)_cbuffer_discard(&s->buffer, rlen - len);
+					err = (ssize_t)min(len, rlen);
+
+					if (len < rlen) {
+						if (peek == 0U) {
+							(void)_cbuffer_discard(&s->buffer, rlen - len);
+						}
+						*flags |= MSG_TRUNC;
+					}
 				}
 			}
-			else {
-				/* No action required */
-			}
-			/* TODO: peek control data */
-			if (peek == 0U) {
-				if (err > 0 && control != NULL && controllen != NULL && *controllen > 0U) {
-					(void)fdpass_unpack(&s->fdpacks, control, controllen);
+
+			if (err > 0 && control != NULL && controllen != NULL && *controllen > 0U) {
+				if (fdpass_unpack(&s->fdpacks, control, controllen, peek) == (int)MSG_CTRUNC) {
+					*flags |= MSG_CTRUNC;
 				}
 			}
 			(void)proc_lockClear(&s->lock);
@@ -849,7 +858,7 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 				err = 0; /* EOS */
 				break;
 			}
-			else if (s->nonblock != 0U || (flags & MSG_DONTWAIT) != 0U) {
+			else if (s->nonblock != 0U || (*flags & MSG_DONTWAIT) != 0U) {
 				err = -EWOULDBLOCK;
 				break;
 			}
@@ -1009,7 +1018,7 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 
 ssize_t unix_recvfrom(unsigned int socket, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
-	return recv(socket, msg, len, flags, src_addr, src_len, NULL, NULL);
+	return recv(socket, msg, len, &flags, src_addr, src_len, NULL, NULL);
 }
 
 
@@ -1035,11 +1044,9 @@ ssize_t unix_recvmsg(unsigned int socket, struct msghdr *msg, unsigned int flags
 		len = msg->msg_iov->iov_len;
 	}
 
-	err = recv(socket, buf, len, flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
-
+	err = recv(socket, buf, len, &flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
 	if (err >= 0) {
-		/* output flags are not supported */
-		msg->msg_flags = 0;
+		msg->msg_flags = (int)(unsigned int)(flags & (MSG_TRUNC | MSG_CTRUNC));
 	}
 
 	return err;

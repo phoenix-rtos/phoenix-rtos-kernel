@@ -133,19 +133,23 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 }
 
 
-int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
+int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen, unsigned int peek)
 {
 	process_info_t *p;
-	fdpack_t *pack;
+	fdpack_t *pack, *removed = NULL;
 	struct cmsghdr *cmsg;
 	unsigned char *cmsg_data;
 	open_file_t *file;
 	unsigned int cnt, flags;
-	int fd;
+	int fd, ret;
 
-	if (*packs == NULL || *controllen < CMSG_LEN(sizeof(int))) {
+	if (*packs == NULL) {
 		*controllen = 0;
 		return 0;
+	}
+
+	if (*controllen < CMSG_LEN(sizeof(int))) {
+		return (int)MSG_CTRUNC;
 	}
 
 	p = pinfo_find(process_getPid(proc_current()->process));
@@ -180,16 +184,34 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 
 		if (pack->cnt == 0U) {
 			LIST_REMOVE(packs, pack);
-			vm_kfree(pack);
+
+			if (peek != 0U) {
+				LIST_ADD(&removed, pack);
+				swap(pack->first, pack->cnt);
+			}
+			else {
+				vm_kfree(pack);
+			}
+
 			pack = *packs;
 		}
 	}
 
 	*controllen = cmsg->cmsg_len = CMSG_LEN(sizeof(int) * cnt);
+	ret = (*packs == NULL) ? 0 : (int)MSG_CTRUNC;
+
+	if (peek != 0U) {
+		pack = removed;
+		while (pack != NULL) {
+			LIST_REMOVE(&removed, pack);
+			LIST_ADD(packs, pack);
+			pack = removed;
+		}
+	}
 
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
-	return 0;
+	return ret;
 }
 
 
