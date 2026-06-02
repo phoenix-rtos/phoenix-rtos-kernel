@@ -953,14 +953,7 @@ static thread_t *_proc_current(void)
 
 thread_t *proc_current(void)
 {
-	thread_t *current;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	current = _proc_current();
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
-	return current;
+	return _proc_current();
 }
 
 
