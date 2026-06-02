@@ -63,12 +63,10 @@ init_vectors:
 	b  _interrupts_dispatch
 	b  _interrupts_dispatch
 
-
 #ifndef KERNEL_PLO_BOOT
-syspage_data:
-
-.org 0x400, 0x0
-
+/* Below is a plugin for serial boot. Its only function is to be written into OCRAM, execute DCD commands,
+ * then go back to serial boot. It should never be called in NAND boot. */
+.org 0x40
 plugin_ivt:
 	.word 0x402000d1                                    /* hdr */
 	.word plugin - VADDR_KERNEL + ADDR_OCRAM            /* entry */
@@ -86,85 +84,12 @@ plugin_boot_data:
 	.word 0                                             /* reserved */
 
 plugin:
-	/*
-	 * Arguments:
-	 * r0 - ptr to store image load address
-	 * r1 - ptr to store image size
-	 * r2 - ptr to store offset of the IVT
-	 * Return value:
-	 * 1 for success, 0 for failure
-	 */
-	push {r4, r5, r6, r7, lr}
-
-	/* init watchdog */
-	ldr r4, =0x20bc000
-#if defined(WATCHDOG)
-	/* 128 sec timeout, debug, the clock is already enabled */
-	movw r5, #0xff36
-#else
-	/* Disable watchdog (default value) */
-	movw r5, #0x0030
-#endif
-	strh r5, [r4]
-
-	/* check first argument's address - anything below OCRAM means it is a serial download boot */
-	mov r4, #0x900000
-	cmp r0, r4
-	bmi failsafe
-
-	/* Copy function args to different registers for later */
-	mov r4, r0
-	mov r5, r1
-	mov r6, r2
-
-	/* Update image size based on data in syspage */
-	ldr r0, =(ADDR_OCRAM + (boot_data - VADDR_KERNEL))
-	ldr r1, =(ADDR_OCRAM + (syspage_data - init_vectors))
-	ldr r1, [r1]     /* syspage->hs.imgsz */
-	str r1, [r0, #4] /* boot_data->size */
-
-	/* Copy boot_data to the stack, prepare function arguments */
-	ldmia r0, {r1, r2, r3, r7}
-	push {r1, r2, r3, r7}
-	/* r2 already contains load size */
-	mov r0, #0
-	push {r0, r2}
-	add r2, sp, #8
-	add r1, sp, #4
-	add r0, sp, #0
-
-	/* This ROM function will load the rest of the boot image for us */
-	ldr r3, =(ROM_API_VEC + 0x8) /* pu_irom_hwcnfg_setup(void **dest_address, u32 *load_size, boot_data_t *boot_data) */
-	ldr r3, [r3]
-	blx r3
-
-	/* check if image was loaded correctly - compare returned load size with the one from boot_data */
-	ldr r0, [sp, #4]
-	ldr r2, [sp, #12]
-	cmp r0, r2
-	addne sp, #24
-	bne failsafe
-
-	/* set output values for boot ROM */
-	pop {r2, r3} /* start address and size */
-	str r2, [r4]
-	str r3, [r5]
-	ldr r2, =(ivt - VADDR_KERNEL) /* ivt offset */
-	str r2, [r6]
-	add sp, #16
-	mov r0, #1
-	pop {r4, r5, r6, r7, pc}
-
-failsafe:
-	ldr r4, =(HAB_API_VEC + 0x28) /* void (*failsafe)(void) */
-	ldr r4, [r4]
-	blx r4
+	push {lr}
+	mov r0, #(HAB_API_VEC + 0x28) /* void (*failsafe)(void) */
+	ldr r0, [r0]
+	blx r0
 	mov r0, #0x0
-	pop {r4, r5, r6, r7, pc}
-
-/* Explicitly place literal pool within the plugin - otherwise the data won't be accessible
- * to code within the plugin. */
-.ltorg
+	pop {pc}
 
 dcd:
 	.byte 0xd2                                    /* Tag */
@@ -258,23 +183,27 @@ dcd_ddr:
 	dcd_addr_val 0x021b001c 0x0
 dcd_end:
 
-/* TODO: currently this offset is hardcoded into .sdp files for flashing */
-.org 0x728
+/* TODO: for some reason changing this offset causes failure to boot from NAND flash - is this offset documented anywhere? */
+.org 0x400
 ivt:
 	.word 0x402000d1                                    /* hdr */
 	.word _start - VADDR_KERNEL + ADDR_DDR              /* entry */
 	.word 0                                             /* reserved 1 */
-	.word 0                                             /* dcd */
+	.word dcd - VADDR_KERNEL + ADDR_DDR                 /* dcd */
 	.word boot_data - VADDR_KERNEL + ADDR_DDR           /* boot_data */
 	.word ivt - VADDR_KERNEL + ADDR_DDR                 /* self */
-	.word 0                                             /* csf */
+	.word __bss_start__ - VADDR_KERNEL + ADDR_DDR       /* csf - TODO: currently syspage gets put there, needs further modification */
 	.word 0                                             /* reserved 2 */
 
 boot_data:
 	.word ADDR_DDR                                      /* load address */
-	.word __bss_start__ - ivt                           /* size - will be changed during image creation */
+	.word __bss_start__ - VADDR_KERNEL                  /* size */
 	.word 0                                             /* plugin */
 	.word 0
+
+syspage_data:
+	.zero 0x400
+syspage_end:
 #endif
 
 _cpy4:
@@ -313,8 +242,18 @@ syspage_cpy:
 	cmp r9, r2
 	blo syspage_cpy
 #else
-/* Temporary solution: code allowing skipping phoenix-rtos-loader */
-	ldr r0, =(ADDR_DDR + syspage_data - init_vectors)
+	/* init watchdog */
+	ldr r0, =0x20bc000
+#if defined(WATCHDOG)
+	/* 128 sec timeout, debug, the clock is already enabled */
+	movw r1, #0xff36
+#else
+	/* Disable watchdog (default value) */
+	movw r1, #0x0030
+#endif
+	strh r1, [r0]
+
+	ldr r0, =(ADDR_DDR + syspage_data - VADDR_KERNEL)
 	ldr r0, [r0, #16] /* points to syspage->progs address (circular list) */
 	mov r1, r0
 	cmp r1, #0
@@ -352,20 +291,14 @@ copy_app:
 
 init_syspage:
 	/* Assign syspage address to syspage variable */
-	ldr r0, =syspage
-	sub r0, r0, #VADDR_KERNEL
-	add r0, r0, #ADDR_DDR
-	ldr r1, =VADDR_KERNEL
-	add r1, r1, #(syspage_data - init_vectors)
+	ldr r0, =(syspage - VADDR_KERNEL + ADDR_DDR)
+	ldr r1, =syspage_data
 	str r1, [r0]
 
 	/* Define offset on which pointers should be moved */
-	ldr r0, =relOffs
-	sub r0, r0, #VADDR_KERNEL
-	add r0, r0, #ADDR_DDR
+	ldr r0, =(relOffs - VADDR_KERNEL + ADDR_DDR)
 	ldr r1, =(VADDR_KERNEL - ADDR_DDR)
 	str r1, [r0]
-/* End of the the temporary code */
 #endif
 
 	/* Save and clear boot reason - RM: otherwise all boot reasons since POR */
