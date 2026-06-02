@@ -35,12 +35,16 @@
 #define ADDR_PROGS_BEGIN (_end + 4 * 1024 * 1024 - VADDR_KERNEL + ADDR_DDR)
 
 #define VADDR_SYSPAGE (_end + SIZE_PAGE - 1)
-#define SWAP(x)       (((x >> 24) & 0xff) | ((x << 8) & (0xff << 16)) | ((x >> 8) & (0xff << 8)) | ((x << 24) & (0xff << 24)))
-
 
 /* API vectors */
 #define HAB_API_VEC   0x100
 #define ROM_API_VEC   0x180
+
+#define SWAP(x)       (((x >> 24) & 0xff) | ((x << 8) & (0xff << 16)) | ((x >> 8) & (0xff << 8)) | ((x << 24) & (0xff << 24)))
+.macro dcd_addr_val, addr, val
+	.word SWAP(\addr)
+	.word SWAP(\val)
+.endm
 
 .arm
 
@@ -102,38 +106,6 @@ plugin:
 	movw r5, #0x0030
 #endif
 	strh r5, [r4]
-
-	/* Check if reset caused by ipp_reset_b pin (Power-up sequence) */
-	ldr r4, =0x20d8008
-	ldr r5, [r4]
-	tst r5, #0x1
-
-	/* Configure MMDC, if not power-up then skip MDSCR initialization */
-	ldr r4, =0x21b0000
-	beq .Lmdscr_skip
-
-	ldr r5, =0x2008032
-	str r5, [r4, #0x01c]
-	mov r5, #0x8033
-	str r5, [r4, #0x01c]
-	ldr r5, =0x48031
-	str r5, [r4, #0x01c]
-	ldr r5, =0x15208030
-	str r5, [r4, #0x01c]
-	ldr r5, =0x4008040
-	str r5, [r4, #0x01c]
-	mov r5, #0x800
-	str r5, [r4, #0x020]
-
-.Lmdscr_skip:
-	mov r5, #0x227
-	str r5, [r4, #0x818]
-	ldr r5, =0x2552d
-	str r5, [r4, #0x004]
-	ldr r5, =0x11006
-	str r5, [r4, #0x404]
-	mov r5, #0x0
-	str r5, [r4, #0x01c]
 
 	/* check first argument's address - anything below OCRAM means it is a serial download boot */
 	mov r4, #0x900000
@@ -206,22 +178,17 @@ dcd_clock:
 	.byte (dcd_ddr - dcd_clock) & 0xff            /* Size low byte */
 	.byte 0x1c                                    /* OR mask word */
 
-	.word SWAP(0x021b0000)
-	.word SWAP(0x80000000)
+	dcd_addr_val 0x021b0000 0x80000000
 
 	/* Enable DDR and watchdog clock */
-	.word SWAP(0x020c4074)
-	.word SWAP(0x0f330000)
+	dcd_addr_val 0x020c4074 0x0f330000
 
 	/* AIPSTZ1,2,3 clocks */
-	.word SWAP(0x020c4068)
-	.word SWAP(0x00000005)
-	.word SWAP(0x020c4080)
-	.word SWAP(0x00040000)
+	dcd_addr_val 0x020c4068 0x00000005
+	dcd_addr_val 0x020c4080 0x00040000
 
 	/* EPITs clocks */
-	.word SWAP(0x020c406c)
-	.word SWAP(0x00005000)
+	dcd_addr_val 0x020c406c 0x00005000
 
 dcd_ddr:
 	.byte 0xcc                                    /* Write tag */
@@ -230,96 +197,65 @@ dcd_ddr:
 	.byte 0x04                                    /* Write words */
 
 	/* Config IOMUX */
-	.word SWAP(0x020e04B4)
-	.word SWAP(0x000c0000)
-	.word SWAP(0x020e04ac)
-	.word SWAP(0x00000000)
-	.word SWAP(0x020e027c)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0250)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e024c)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0490)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0288)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0270)
-	.word SWAP(0x00000000)
-	.word SWAP(0x020e0260)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0264)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e04A0)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0494)
-	.word SWAP(0x00020000)
-	.word SWAP(0x020e0280)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0284)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e04b0)
-	.word SWAP(0x00020000)
-	.word SWAP(0x020e0498)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e04a4)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0244)
-	.word SWAP(0x00000030)
-	.word SWAP(0x020e0248)
-	.word SWAP(0x00000030)
+	dcd_addr_val 0x020e04b4 0x000c0000
+	dcd_addr_val 0x020e04ac 0x00000000
+	dcd_addr_val 0x020e027c 0x00000030
+	dcd_addr_val 0x020e0250 0x00000030
+	dcd_addr_val 0x020e024c 0x00000030
+	dcd_addr_val 0x020e0490 0x00000030
+	dcd_addr_val 0x020e0288 0x00000030
+	dcd_addr_val 0x020e0270 0x00000000
+	dcd_addr_val 0x020e0260 0x00000030
+	dcd_addr_val 0x020e0264 0x00000030
+	dcd_addr_val 0x020e04a0 0x00000030
+	dcd_addr_val 0x020e0494 0x00020000
+	dcd_addr_val 0x020e0280 0x00000030
+	dcd_addr_val 0x020e0284 0x00000030
+	dcd_addr_val 0x020e04b0 0x00020000
+	dcd_addr_val 0x020e0498 0x00000030
+	dcd_addr_val 0x020e04a4 0x00000030
+	dcd_addr_val 0x020e0244 0x00000030
+	dcd_addr_val 0x020e0248 0x00000030
 
 	/* Config DDR control registers */
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00008000)
-	.word SWAP(0x021b0800)
-	.word SWAP(0xa1390003)
-	.word SWAP(0x021b080c)
-	.word SWAP(0x00150019)
-	.word SWAP(0x021b083c)
-	.word SWAP(0x41550153)
-	.word SWAP(0x021b0848)
-	.word SWAP(0x40403a3e)
-	.word SWAP(0x021b0850)
-	.word SWAP(0x40402f2a)
-	.word SWAP(0x021b081c)
-	.word SWAP(0x33333333)
-	.word SWAP(0x021b0820)
-	.word SWAP(0x33333333)
-	.word SWAP(0x021b082c)
-	.word SWAP(0xf3333333)
-	.word SWAP(0x021b0830)
-	.word SWAP(0xf3333333)
-	.word SWAP(0x021b08c0)
-	.word SWAP(0x00944009)
-	.word SWAP(0x021b08b8)
-	.word SWAP(0x00000800)
+	dcd_addr_val 0x021b001c 0x00008000
+	dcd_addr_val 0x021b0800 0xa1390003
+	dcd_addr_val 0x021b080c 0x00150019
+	dcd_addr_val 0x021b083c 0x41550153
+	dcd_addr_val 0x021b0848 0x40403a3e
+	dcd_addr_val 0x021b0850 0x40402f2a
+	dcd_addr_val 0x021b081c 0x33333333
+	dcd_addr_val 0x021b0820 0x33333333
+	dcd_addr_val 0x021b082c 0xf3333333
+	dcd_addr_val 0x021b0830 0xf3333333
+	dcd_addr_val 0x021b08c0 0x00944009
+	dcd_addr_val 0x021b08b8 0x00000800
 
 	/* Config MMDC init */
-	.word SWAP(0x021b0004)
-	.word SWAP(0x0002002d)
-	.word SWAP(0x021b0008)
-	.word SWAP(0x1b333030)
-	.word SWAP(0x021b000c)
-	.word SWAP(0x676b52f3)
-	.word SWAP(0x021b0010)
-	.word SWAP(0xb66d0b63)
-	.word SWAP(0x021b0014)
-	.word SWAP(0x01ff00db)
-	.word SWAP(0x021b0018)
-	.word SWAP(0x00201740)
-	.word SWAP(0x021b001c)
-	.word SWAP(0x00008000)
-	.word SWAP(0x021b002c)
-	.word SWAP(0x000026d2)
-	.word SWAP(0x021b0030)
-	.word SWAP(0x006b1023)
-	.word SWAP(0x021b0040)
-	.word SWAP(0x00000047)
-	.word SWAP(0x021b0000)
-	.word SWAP(0x82180000)
-	.word SWAP(0x021b0890)
-	.word SWAP(0x00400000)
+	dcd_addr_val 0x021b0004 0x0002002d
+	dcd_addr_val 0x021b0008 0x1b333030
+	dcd_addr_val 0x021b000c 0x676b52f3
+	dcd_addr_val 0x021b0010 0xb66d0b63
+	dcd_addr_val 0x021b0014 0x01ff00db
+	dcd_addr_val 0x021b0018 0x00201740
+	dcd_addr_val 0x021b001c 0x00008000
+	dcd_addr_val 0x021b002c 0x000026d2
+	dcd_addr_val 0x021b0030 0x006b1023
+	dcd_addr_val 0x021b0040 0x00000047
+	dcd_addr_val 0x021b0000 0x82180000
+	dcd_addr_val 0x021b0890 0x00400000
+
+	/* Config MDSCR, then finish MMDC init */
+	dcd_addr_val 0x021b001c 0x2008032
+	dcd_addr_val 0x021b001c 0x8033
+	dcd_addr_val 0x021b001c 0x48031
+	dcd_addr_val 0x021b001c 0x15208030
+	dcd_addr_val 0x021b001c 0x4008040
+	dcd_addr_val 0x021b0020 0x800
+	dcd_addr_val 0x021b0818 0x227
+	dcd_addr_val 0x021b0004 0x2552d
+	dcd_addr_val 0x021b0404 0x11006
+	dcd_addr_val 0x021b001c 0x0
 dcd_end:
 
 /* TODO: currently this offset is hardcoded into .sdp files for flashing */
