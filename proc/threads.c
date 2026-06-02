@@ -2769,7 +2769,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	spinlock_ctx_t tsc;
 
-	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	if (returnable != 0) {
 		caller->callReturnable = 1;
 	}
@@ -2815,6 +2814,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	LIB_ASSERT(_proc_current()->exit == 0, "got it...");
 
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	_sc_donate(caller, recv, caller->sc_active);
 	ctx = _threads_switchTo(recv);
 
@@ -2826,6 +2826,14 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	LIB_ASSERT(_proc_current() == recv, "we are not recv?");
 	LIB_ASSERT(_proc_current()->sc_active != NULL, "proc current unschedulable?");
+
+	thread_t *prevMappedTo = NULL;
+
+	if (imap != NULL || omap != NULL) {
+		prevMappedTo = caller->mappedTo;
+		caller->mappedTo = recv;
+	}
+
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
 	/* TODO: bump refcnt on recv? */
@@ -2845,18 +2853,9 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_memcpy(recv->utcb.msg->i.raw, caller->utcb.msgbuf, MSG_RAW_SIZE);
 
-	if (imap != NULL || omap != NULL) {
-		thread_t *prevMappedTo;
-
-		hal_spinlockSet(&threads_common.spinlock, &sc);
-		prevMappedTo = caller->mappedTo;
-		caller->mappedTo = recv;
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-
-		if (prevMappedTo != NULL) {
-			_threads_ipcBufferRelease(&caller->utcb.iil);
-			_threads_ipcBufferRelease(&caller->utcb.oil);
-		}
+	if (prevMappedTo != NULL) {
+		_threads_ipcBufferRelease(&caller->utcb.iil);
+		_threads_ipcBufferRelease(&caller->utcb.oil);
 	}
 
 	if (imap != NULL) {
@@ -2920,6 +2919,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
+    /* exit the syscall and return to userspace as recv */
 	}
 
 	return EOK;
