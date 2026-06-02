@@ -59,7 +59,7 @@ typedef struct _sched_context_t {
 } sched_context_t;
 
 
-#define MAX_PRIO 8
+#define MAX_PRIO 16
 
 
 /* TODO: if not sufficient, implement some crazy heap */
