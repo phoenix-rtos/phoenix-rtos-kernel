@@ -662,6 +662,7 @@ static sched_context_t *_sc_best(thread_t *t)
 }
 
 
+/* WARN: Assumes t is not on any ready queue */
 static void _sc_updateEffPriority(thread_t *t)
 {
 	t->priority = t->sc_active->priority;
@@ -838,10 +839,10 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			}
 		}
 
-		LIB_ASSERT(current->exit == 0 || current->state == READY, "exiting thread will get lost!");
+		// LIB_ASSERT(current->exit == 0 || current->state == READY, "exiting thread will get lost!");
 
 		/* Move thread to the end of queue */
-		if (current->state == READY) {
+		if (current->state == READY || current->exit != 0) {
 			LIB_ASSERT(current->sc_active != NULL, "READY but unschedulable? tid: %d, pc=%p, ra=%p", proc_getTid(current), current->context->sepc, current->context->ra);
 
 			LIST_ADD(&threads_common.ready[current->priority], current->sc_active);
