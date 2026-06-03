@@ -17,6 +17,7 @@
 #include "include/sockdefs.h"
 #include "proc/proc.h"
 #include "lib/lib.h"
+#include "lib/cbuffer.h"
 
 #include "posix.h"
 #include "posix_private.h"

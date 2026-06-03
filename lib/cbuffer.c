@@ -15,6 +15,7 @@
 
 #include "hal/hal.h"
 #include "lib.h"
+#include "cbuffer.h"
 #include "vm/vm.h"
 
 

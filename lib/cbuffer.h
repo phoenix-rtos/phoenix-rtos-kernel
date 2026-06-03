@@ -17,6 +17,7 @@
 #define _PH_LIB_CBUFFER_H_
 
 #include "attrs.h"
+#include "lib.h"
 
 typedef struct {
 	size_t sz, r, w;
