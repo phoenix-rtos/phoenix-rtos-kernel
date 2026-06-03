@@ -76,24 +76,29 @@ size_t _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 }
 
 
-size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
+size_t _cbuffer_peekOffs(const cbuffer_t *buf, void *data, size_t sz, size_t offs)
 {
 	size_t bytes = 0;
+	const size_t read = (buf->r + offs) & (buf->sz - 1U);
+	const size_t avail = _cbuffer_avail(buf);
 
 	/* FIXME: see note in _cbuffer_discard */
 	LIB_ASSERT(buf->sz > 0U, "attempted to peek at zero-sized buffer");
+	if (offs != 0U && avail != 0U) {
+		LIB_ASSERT(offs <= avail, "attempted to peek at offset %zu when there's only %zu bytes in the buffer", offs, avail);
+	}
 
-	if (sz == 0U || buf->sz == 0U || (buf->r == buf->w && buf->full == 0U)) {
+	if (sz == 0U || avail == 0U || buf->sz == 0U || offs >= avail) {
 		return 0U;
 	}
 
-	if (buf->w > buf->r) {
-		bytes = min(sz, buf->w - buf->r);
-		hal_memcpy(data, buf->data + buf->r, bytes);
+	if (buf->w > read) {
+		bytes = min(sz, buf->w - read);
+		hal_memcpy(data, buf->data + read, bytes);
 	}
 	else {
-		bytes = min(sz, buf->sz - buf->r);
-		hal_memcpy(data, buf->data + buf->r, bytes);
+		bytes = min(sz, buf->sz - read);
+		hal_memcpy(data, buf->data + read, bytes);
 
 		if (bytes < sz) {
 			data += bytes;
