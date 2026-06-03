@@ -70,7 +70,14 @@ size_t _cbuffer_read(cbuffer_t *buf, void *data, size_t sz);
 size_t _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz);
 
 
-size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz);
+/* NOTE: offs has to be <= _cbuffer_avail(buf) */
+size_t _cbuffer_peekOffs(const cbuffer_t *buf, void *data, size_t sz, size_t offs);
+
+
+static inline size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
+{
+	return _cbuffer_peekOffs(buf, data, sz, 0U);
+}
 
 
 #endif

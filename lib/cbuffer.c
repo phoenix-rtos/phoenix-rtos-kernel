@@ -78,24 +78,27 @@ size_t _cbuffer_read(cbuffer_t *buf, void *data, size_t sz)
 }
 
 
-size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
+size_t _cbuffer_peekOffs(const cbuffer_t *buf, void *data, size_t sz, size_t offs)
 {
 	size_t bytes = 0;
+	size_t read = (buf->r + offs) & (buf->sz - 1U);
 
 	/* FIXME: see note in _cbuffer_discard */
 	LIB_ASSERT(buf->sz > 0U, "attempted to peek at zero-sized buffer");
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7-a "there's no more checks for _cbuffer_avail's return value to be made here" */
+	LIB_ASSERT(offs <= _cbuffer_avail(buf), "attempted to peek at offset %zu when there's only %zu bytes in the buffer", offs, _cbuffer_avail(buf));
 
-	if (sz == 0U || buf->sz == 0U || (buf->r == buf->w && buf->full == 0U)) {
+	if (sz == 0U || buf->sz == 0U || (buf->r == buf->w && buf->full == 0U) || offs == _cbuffer_avail(buf)) {
 		return 0U;
 	}
 
-	if (buf->w > buf->r) {
-		bytes = min(sz, buf->w - buf->r);
-		hal_memcpy(data, buf->data + buf->r, bytes);
+	if (buf->w > read) {
+		bytes = min(sz, buf->w - read);
+		hal_memcpy(data, buf->data + read, bytes);
 	}
 	else {
-		bytes = min(sz, buf->sz - buf->r);
-		hal_memcpy(data, buf->data + buf->r, bytes);
+		bytes = min(sz, buf->sz - read);
+		hal_memcpy(data, buf->data + read, bytes);
 
 		if (bytes < sz) {
 			data += bytes;
