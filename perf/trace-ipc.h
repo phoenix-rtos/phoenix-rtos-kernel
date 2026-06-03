@@ -23,7 +23,7 @@ enum { trace_ipc_profile_send = 0, trace_ipc_profile_recv, trace_ipc_profile_res
 /* clang-format on */
 
 
-#if !PERF_IPC
+#if PERF_IPC
 static inline void trace_eventMsgProfile(u64 *data)
 {
 	if (trace_isRunning() == 0) {

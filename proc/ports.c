@@ -105,9 +105,8 @@ port_t *proc_portGet(u32 id)
 
 void port_put(port_t *p, int destroy)
 {
-	spinlock_ctx_t sc, psc;
+	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&port_common.spinlock, &psc);
 	hal_spinlockSet(&p->spinlock, &sc);
 	LIB_ASSERT(p->refs > 0, "port_put on refs=0");
 	p->refs--;
@@ -123,15 +122,16 @@ void port_put(port_t *p, int destroy)
 		}
 
 		hal_spinlockClear(&p->spinlock, &sc);
-		hal_spinlockClear(&port_common.spinlock, &psc);
 		return;
 	}
 
 	LIB_ASSERT(p->threads == NULL, "receivers should already be popped from the port");
 
 	hal_spinlockClear(&p->spinlock, &sc);
+
+	hal_spinlockSet(&port_common.spinlock, &sc);
 	lib_idtreeRemove(&port_common.tree, &p->linkage);
-	hal_spinlockClear(&port_common.spinlock, &psc);
+	hal_spinlockClear(&port_common.spinlock, &sc);
 
 	if (p->next != NULL) {
 		proc_lockSet(&p->owner->lock);

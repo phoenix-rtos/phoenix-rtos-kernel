@@ -868,6 +868,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			 * This offloads transitive PI cost to the scheduler (NOVA-style):
 			 * lock contention is O(1), the scheduler walks the chain. */
 			if (sched->t->waitingOn != NULL) {
+				LIB_ASSERT(0, "happens?");
 				thread_t *target = sched->t;
 				unsigned int depth = 0;
 
@@ -2729,12 +2730,24 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	int err;
 	cpu_context_t *ctx;
 
+	caller = proc_current();
+
+#if PERF_IPC
+	u64 tscs[TSCS_SIZE];
+	hal_memset(tscs, 0, sizeof(tscs));
+	size_t step = 0;
+	u64 currTsc;
+	u16 tid = proc_getTid(caller);
+#endif
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 0
+
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
 	}
 
-	caller = proc_current();
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 1
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
@@ -2754,6 +2767,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		}
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 2
+
 	/* commit to IPC */
 
 	recv = p->threads;
@@ -2772,6 +2787,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	void *imap = NULL, *omap = NULL;
 	size_t isize = 0, osize = 0;
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 3
+
 	/* TODO: add rawsz to msg_t */
 	hal_memcpy(caller->utcb.msgbuf, msg->i.raw, MSG_RAW_SIZE);
 
@@ -2788,6 +2805,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		}
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 4
+
 	if (msg->o.size > 0) {
 		if (msg->o.size <= min(sizeof(recv->utcb.msgbuf) - MSG_RAW_SIZE, msg->esize)) {
 			/* FIXME: wont do it, same reason why ->reply doesnt work as intended */
@@ -2799,6 +2818,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		}
 	}
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 5
+
 	oid_t oid;
 	int type;
 
@@ -2809,7 +2830,10 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	_sc_donate(caller, recv, caller->sc_active);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 6
 	ctx = _threads_switchTo(recv);
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 7
 
 	/*
 	 * FIXME: make recv interruptible in some checkpoints (e.g. between i.data and
@@ -2832,10 +2856,14 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	/* TODO: bump refcnt on recv? */
 	hal_spinlockClear(&p->spinlock, &sc);
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 8
+
 	LIB_ASSERT(recv->refs > 0, "attempting to return to refs=0 rcv? port=%d caller tid=%d recv tid=%d refs: %d",
 			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
 
 	port_put(p, 0);
+
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 9
 
 	LIB_ASSERT(recv != NULL, "recv is null");
 	LIB_ASSERT(caller != NULL, "null caller");
@@ -2844,12 +2872,16 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	/* message transfer */
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 10
+
 	hal_memcpy(recv->utcb.msg->i.raw, caller->utcb.msgbuf, MSG_RAW_SIZE);
 
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 11
 	if (prevMappedTo != NULL) {
 		_threads_ipcBufferRelease(&caller->utcb.iil);
 		_threads_ipcBufferRelease(&caller->utcb.oil);
 	}
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 12
 
 	if (imap != NULL) {
 		/* TODO: permissions, incoming data doesnt need to be writable */
@@ -2879,6 +2911,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	hal_memcpy(&recv->utcb.msg->oid, &oid, sizeof(oid_t));
 	recv->utcb.msg->type = type;
 	recv->utcb.msg->priority = caller->priority; /* ??? */
+	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 13
 
 	/* msg transfer should be done by now */
 
@@ -2896,6 +2929,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	trace_eventSyscallExit(recv->respondAndRecv ? syscall_msgRespondAndRecv : syscall_msgRecv, proc_getTid(recv));
 
+	TRACE_IPC_PROFILE_EXIT_FUNC(tid, syscall_msgSend, &step, &currTsc, tscs);
+
 	if (recv->process == NULL || returnable != 0) {
 		/*
 		 * tricky part: reschedule will cause the scheduler to save recv->fastpath as recv context,
@@ -2912,7 +2947,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
-    /* exit the syscall and return to userspace as recv */
+		/* exit the syscall and return to userspace as recv */
 	}
 
 	return EOK;

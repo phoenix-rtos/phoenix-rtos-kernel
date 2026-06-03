@@ -240,6 +240,23 @@ void _hal_interruptsInit(void)
 }
 
 
+__attribute__((noreturn)) void hal_endSyscall(cpu_context_t *ctx, spinlock_ctx_t *sc)
+{
+	asm volatile(
+#if KERNEL_SPINLOCK_ARM_M
+			"msr primask, %[tmp]\n"
+#else
+			"msr cpsr_c, %[tmp]\n"
+#endif
+			"mov sp, %0\n\t"
+			"b _hal_cpuRestoreCtx\n\t"
+			:
+			: "r"(ctx), [tmp] "r"(*sc)
+			: "memory");
+	__builtin_unreachable();
+}
+
+
 void hal_cpuBroadcastIPI(unsigned int intr)
 {
 }

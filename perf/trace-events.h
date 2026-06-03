@@ -69,7 +69,7 @@ void _trace_updateLockEpoch(lock_t *lock);
 	} while (0)
 
 
-#define PERF_IPC 0
+#define PERF_IPC 1
 
 /* clang-format off */
 #define NO_EVENT(ev, ts) do { (void)ev; (void)ts; } while (0)
@@ -267,7 +267,7 @@ static inline void trace_eventSyscallEnter(int n, int tid)
 	} __attribute__((packed)) ev;
 
 	_Static_assert((u64)syscall_count <= (1UL << 8U * sizeof(u8)) - 1UL, "u8 is too small for syscall ID");
-	TRACE_IPC_BODY(TRACE_EVENT_SYSCALL_ENTER, ev, NULL, {
+	TRACE_EVENT_BODY(TRACE_EVENT_SYSCALL_ENTER, ev, NULL, {
 		ev.n = (u8)n;
 		ev.tid = (u16)tid;
 	});
@@ -281,7 +281,7 @@ static inline void trace_eventSyscallExit(int n, int tid)
 		u16 tid;
 	} __attribute__((packed)) ev;
 
-	TRACE_IPC_BODY(TRACE_EVENT_SYSCALL_EXIT, ev, NULL, {
+	TRACE_EVENT_BODY(TRACE_EVENT_SYSCALL_EXIT, ev, NULL, {
 		ev.n = (u8)n;
 		ev.tid = (u16)tid;
 	});
