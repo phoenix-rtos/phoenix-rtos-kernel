@@ -14,7 +14,8 @@
 #define _PH_LIB_LIST_H_
 
 #include "hal/hal.h"
-#include "lib/lib.h"
+#include "assert.h"
+#include "utils.h"
 
 
 void lib_listAdd(void **list, void *t, size_t noff, size_t poff);

@@ -13,7 +13,7 @@
 
 #include "hal/hal.h"
 #include "vm/kmalloc.h"
-#include "lib/strutil.h"
+#include "strutil.h"
 
 static char *lib_strrchr(char *s, char c)
 {

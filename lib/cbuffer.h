@@ -14,7 +14,12 @@
 #ifndef _PH_LIB_CBUFFER_H_
 #define _PH_LIB_CBUFFER_H_
 
+#include "hal/types.h"
+
 #include "attrs.h"
+#include "assert.h"
+#include "utils.h"
+
 
 typedef struct {
 	size_t sz, r, w;

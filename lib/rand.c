@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "lib/rand.h"
+#include "rand.h"
 
 
 int lib_rand(unsigned int *seedp)
