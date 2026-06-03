@@ -14,6 +14,7 @@
 #ifndef _PH_IDTREE_H_
 #define _PH_IDTREE_H_
 
+#include "hal/types.h"
 #include "rb.h"
 
 

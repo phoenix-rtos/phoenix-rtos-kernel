@@ -14,6 +14,8 @@
 #ifndef _PH_LIB_BSEARCH_H_
 #define _PH_LIB_BSEARCH_H_
 
+#include "hal/types.h"
+
 
 void *lib_bsearch(void *key, void *base, size_t nmemb, size_t size, int (*compar)(void *n1, void *n2));
 

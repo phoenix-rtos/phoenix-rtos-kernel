@@ -11,7 +11,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "hal/hal.h"
 #include "bsearch.h"
 
 

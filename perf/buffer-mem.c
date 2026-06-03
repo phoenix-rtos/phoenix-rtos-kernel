@@ -14,6 +14,7 @@
 
 #include "include/perf.h"
 #include "include/errno.h"
+#include "lib/lib.h"
 #include "vm/vm.h"
 
 #include "buffer.h"
