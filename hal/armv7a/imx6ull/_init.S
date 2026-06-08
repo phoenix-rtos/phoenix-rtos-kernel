@@ -682,8 +682,11 @@ kernel_ttl2:
 
 	/* Map SRC registers 4KB P 0x020d8000 -> V CEIL(_end + 17 * SIZE_PAGE, SIZE_PAGE) */
 	ldr r1, =0x020d8012
-	str r1, [r0]
+	str r1, [r0], #4
 
+    /* Map SNVS registers */
+    ldr r1, =0x020cc012
+    str r1, [r0]
 
 	/* IOMUX for UART1*/
 	ldr r0, =0x20e0084

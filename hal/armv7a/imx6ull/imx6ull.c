@@ -51,6 +51,13 @@ enum { wdog_wcr = 0, wdog_wsr, wdog_wrsr, wdog_wicr, wdog_wmcr };
 
 enum { src_scr = 0, src_sbmr1, src_srsr, src_sisr = src_srsr + 3, src_sbmr2 = src_sisr + 2, src_gpr1, src_gpr2,
 	src_gpr3, src_gpr4, src_gpr5, src_gpr6, src_gpr7, src_gpr8, src_gpr9, src_gpr10 };
+
+
+/* SNVS registers */
+enum { snvps_hplr = 0, snvps_hpcomr, snvps_hpcr, snvps_hpsr = 5, snvps_hprtcmsr = 9, snvps_hprtclr, snvps_hptamr, 
+    snvps_hptalr, snvps_lplr, snvps_lpcr, snvps_lpsr = 19, snvps_lpsrtcmr, snvps_lpsrtclr, snvps_lpsmcmr = 23, 
+    snvps_lpsmclr, snvps_lpgpr = 26, snvps_hpvidr1 = 766, snvps_hpvidr2 };
+
 /* clang-format on */
 
 
@@ -64,6 +71,7 @@ static struct {
 	volatile u32 *iomux_snvs;
 	volatile u16 *wdog;
 	volatile u32 *src;
+	volatile u32 *snvs;
 } imx6ull_common;
 
 
@@ -334,6 +342,32 @@ static int _imx6ull_getIOisel(int isel, unsigned char *daisy)
 }
 
 
+static int _imx6ull_setRTC(unsigned char state)
+{
+	unsigned int timeout = 0x1ffff;
+	unsigned int enable;
+
+	if (state == 0U) {
+		enable = 0UL;
+		*(imx6ull_common.snvs + snvps_lpcr) &= ~(1UL);
+	}
+	else {
+		enable = 1UL;
+		*(imx6ull_common.snvs + snvps_lpcr) |= enable;
+	}
+
+	enable = (enable + 1U) & 1U;
+
+	while ((*(imx6ull_common.snvs + snvps_lpcr) & 1UL) == enable) {
+		if (--timeout == 0UL) {
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+
 __attribute__((noreturn)) static void _imx6ull_reboot(void)
 {
 	/* assert SRS signal by writing 0 to bit 4 and 1 to bit 2 (WDOG enable) */
@@ -458,6 +492,11 @@ int hal_platformctl(void *ptr)
 				/* No action required */
 			}
 			break;
+		case pctl_snvs:
+			if (data->action == pctl_set) {
+				ret = _imx6ull_setRTC(data->snvs.val);
+			}
+			break;
 		default:
 			/* No action required*/
 			break;
@@ -481,6 +520,7 @@ void _hal_platformInit(void)
 	imx6ull_common.iomux_gpr = (void *)(((u32)&_end + (15U * SIZE_PAGE) - 1u) & ~(SIZE_PAGE - 1U));
 	imx6ull_common.wdog = (void *)(((u32)&_end + (16U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
 	imx6ull_common.src = (void *)(((u32)&_end + (17U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
+	imx6ull_common.snvs = (void *)(((u32)&_end + (18U * SIZE_PAGE) - 1U) & ~(SIZE_PAGE - 1U));
 
 	/* remain in run mode in low power */
 	*(imx6ull_common.ccm + ccm_clpcr) &= ~0x3U;
@@ -490,7 +530,7 @@ void _hal_platformInit(void)
 
 	/* copy watchdog Reset Status Register to bootreason[23:16] */
 	imx6ull_bootReason &= 0xff00ffffU;
-	imx6ull_bootReason |= (u32)*(imx6ull_common.wdog + wdog_wrsr) << 16U;
+	imx6ull_bootReason |= (u32) * (imx6ull_common.wdog + wdog_wrsr) << 16U;
 
 	/* Set ENFC clock to 198 MHz */
 	/* First disable all output clocks */
