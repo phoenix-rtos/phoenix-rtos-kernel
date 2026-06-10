@@ -349,8 +349,8 @@ void dtb_getMemory(dtb_memBank_t **banks, size_t *nBanks)
 
 void dtb_getGIC(addr_t *gicc, addr_t *gicd)
 {
-	*gicc = dtb_common.apu_gic.gicc;
-	*gicd = dtb_common.apu_gic.gicd;
+	*gicc = dtb_common.apu_gic.gicc != 0x0 ? dtb_common.apu_gic.gicc : 0x08010000;
+	*gicd = dtb_common.apu_gic.gicd != 0x0 ? dtb_common.apu_gic.gicd : 0x08000000;
 }
 
 

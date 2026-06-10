@@ -23,6 +23,7 @@
 #include "hal/aarch64/halsyspage.h"
 #include "hal/aarch64/arch/pmap.h"
 #include "zynqmp_regs.h"
+#include <board_config.h>
 
 #define IOU_SLCR_BASE_ADDRESS 0xff180000U
 #define APU_BASE_ADDRESS      0xfd5c0000U
@@ -487,14 +488,26 @@ int hal_platformctl(void *ptr)
 
 static u32 hal_checkNumCPUs(void)
 {
+#ifndef ZYNQMP_VIRT
 	int i;
 	u32 powerStatus, cpusAvailable;
+#endif
 	/* First check if MPIDR indicates uniprocessor system or no MP extensions */
 	u64 mpidr = sysreg_read(mpidr_el1);
 	if (((mpidr >> 30) & 0x2U) != 0x2U) {
 		return 1;
 	}
 
+#ifdef ZYNQMP_VIRT
+	/* Map the GIC Distributor physical page (0x08000000) into virtual memory */
+	volatile void *gic_dist = _pmap_halMapDevice(0x08000000, 0, SIZE_PAGE);
+
+	/* GICD_TYPER is at byte offset 0x04 from the base */
+	volatile u32 *gicd_typer = (volatile u32 *)((u8 *)gic_dist + 0x04);
+
+	/* Bits [7:5] hold (Number of CPUs - 1) */
+	u32 cpusAvailable = ((*gicd_typer >> 5) & 0x7) + 1;
+#else
 	powerStatus = (~*(zynq_common.crf_apb + crf_apb_rst_fpd_apu)) & 0xfU;
 	cpusAvailable = 0;
 	for (i = 0; i < 4; i++) {
@@ -503,6 +516,7 @@ static u32 hal_checkNumCPUs(void)
 		}
 		powerStatus >>= 1;
 	}
+#endif
 
 	return cpusAvailable;
 }

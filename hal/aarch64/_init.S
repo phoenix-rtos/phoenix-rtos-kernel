@@ -18,6 +18,7 @@
 #include "config.h"
 #include <arch/cpu.h>
 #include <arch/pmap.h>
+#include <board_config.h>
 
 .extern pmap_common
 .extern stacks_el1
@@ -115,6 +116,13 @@ _start:
 	msr cpacr_el1, x0
 	isb
 
+	/* Allow access to CNTPCT and CNTVCT from EL0 */
+	mrs x0, cntkctl_el1
+	orr x0, x0, #0x3
+	msr cntkctl_el1, x0
+	isb
+
+
 	/* Invalidate caches and TLB */
 	ic iallu
 	bl hal_cpuInvalDataCacheAll
@@ -122,6 +130,7 @@ _start:
 	dsb ish
 	isb
 
+#ifndef ZYNQMP_VIRT
 	/* Enable performance monitors */
 	mrs x0, pmcr_el0
 	orr x0, x0, #0x7 /* reset cycle counter, reset event counter, enable */
@@ -130,8 +139,9 @@ _start:
 	mrs x0, pmcntenset_el0
 	orr x0, x0, #(1 << 31)
 	msr pmcntenset_el0, x0
+#endif
 
-#ifdef __TARGET_AARCH64A53
+#if defined(__TARGET_AARCH64A53) && !defined(ZYNQMP_VIRT)
 	/* Enable SMP */
 	mrs x0, s3_1_c15_c2_1 /* CPUECTLR_EL1 */
 	orr x0, x0, #(0x1 << 6)

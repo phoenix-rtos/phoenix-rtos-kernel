@@ -23,6 +23,113 @@
 
 #include <board_config.h>
 
+#ifdef ZYNQMP_VIRT
+/* Default fallback index if not defined via build system */
+#ifndef UART_CONSOLE_KERNEL
+#define UART_CONSOLE_KERNEL 0
+#endif
+
+/* Fallback QEMU virt UART0 base address */
+#define QEMU_VIRT_UART0_BASE 0x09000000
+
+struct {
+	volatile u32 *uart;
+	u32 speed;
+} console_common;
+
+/* PL011 Register Offsets (in 32-bit words) */
+enum {
+	dr = 0x00,    /* Data Register */
+	fr = 0x06,    /* Flag Register */
+	ibrd = 0x09,  /* Integer Baud Rate */
+	fbrd = 0x0a,  /* Fractional Baud Rate */
+	lcr_h = 0x0b, /* Line Control */
+	cr = 0x0c,    /* Control Register */
+	imsc = 0x0e,  /* Interrupt Mask Set/Clear */
+	icr = 0x11,   /* Interrupt Clear */
+};
+
+/* PL011 Flag Bits */
+#define PL011_FR_TXFF (1 << 5) /* Transmit FIFO Full */
+#define PL011_FR_BUSY (1 << 3) /* UART Busy */
+
+static void _hal_consolePrint(const char *s)
+{
+	for (; *s; s++) {
+		hal_consolePutch(*s);
+	}
+
+	/* Wait until the UART is no longer busy transmitting */
+	while ((*(console_common.uart + fr) & PL011_FR_BUSY) != 0) {
+		/* Spin */
+	}
+}
+
+void hal_consolePrint(int attr, const char *s)
+{
+	if (attr == ATTR_BOLD) {
+		_hal_consolePrint(CONSOLE_BOLD);
+	}
+	else if (attr != ATTR_USER) {
+		_hal_consolePrint(CONSOLE_CYAN);
+	}
+
+	_hal_consolePrint(s);
+	_hal_consolePrint(CONSOLE_NORMAL);
+}
+
+void hal_consolePutch(char c)
+{
+	/* Wait until the PL011 Transmit FIFO is NOT full */
+	while ((*(console_common.uart + fr) & PL011_FR_TXFF) != 0) {
+		/* Spin */
+	}
+
+	*(console_common.uart + dr) = c;
+}
+
+__attribute__((section(".init"))) void _hal_consoleInit(void)
+{
+	dtb_serial_t *serials;
+	size_t nSerials = 0;
+	addr_t uart_base = QEMU_VIRT_UART0_BASE;
+
+	/* Attempt to get the UART address dynamically from QEMU's DTB */
+	dtb_getSerials(&serials, &nSerials);
+	if (nSerials > 0 && UART_CONSOLE_KERNEL < nSerials) {
+		uart_base = serials[UART_CONSOLE_KERNEL].base;
+	}
+
+	/* Map the UART physical address into virtual memory */
+	console_common.uart = _pmap_halMapDevice(uart_base, 0, SIZE_PAGE);
+	console_common.speed = 115200;
+
+	/* --- PL011 Hardware Initialization --- */
+
+	/* Disable UART entirely before changing configuration */
+	*(console_common.uart + cr) = 0x0;
+
+	/* Clear any pending interrupts */
+	*(console_common.uart + icr) = 0x7ff;
+
+	/* Disable all interrupts for early console polling mode */
+	*(console_common.uart + imsc) = 0x0;
+
+	/* Write dummy baud rate to satisfy PL011 latching rules */
+	*(console_common.uart + ibrd) = 1;
+	*(console_common.uart + fbrd) = 0;
+
+	/* Set parameters on Line Control High Register:
+	 * WLEN = 8 bits (0x60), Enable FIFOs (0x10) -> 0x70 
+	 * Note: Writing to LCR_H latches the baud rate */
+	*(console_common.uart + lcr_h) = 0x70;
+
+	/* Re-enable UART, Transmit Enable (TXE), and Receive Enable (RXE)
+	 * CR Bit 0 = UARTEN, Bit 8 = TXE, Bit 9 = RXE -> 0x301 */
+	*(console_common.uart + cr) = (1 << 0) | (1 << 8) | (1 << 9);
+}
+#else
+
 
 #if UART_CONSOLE_KERNEL == 0
 #define UART_RX    UART0_RX
@@ -138,3 +245,4 @@ __attribute__((section(".init"))) void _hal_consoleInit(void)
 	 * TXEN = 0x1; RXEN = 0x1; TXRES = 0x1; RXRES = 0x1 */
 	*(console_common.uart + cr) = (*(console_common.uart + cr) & ~0x000001ffU) | 0x00000017U;
 }
+#endif

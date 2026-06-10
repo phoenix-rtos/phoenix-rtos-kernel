@@ -19,16 +19,32 @@
 #include "hal/spinlock.h"
 #include "hal/string.h"
 
+#include <board_config.h>
+
+#ifdef ZYNQMP_VIRT
+
+#include "hal/cpu.h"
+
+#else
+
 #include "hal/aarch64/arch/pmap.h"
 #include "zynqmp.h"
+
+#endif
+
 #include "config.h"
 
+#ifndef ZYNQMP_VIRT
 
 #define TTC0_BASE_ADDR       ((addr_t)0x00ff110000U)
 #define TIMER_SRC_CLK_CPU_1x 99990000U
 
+#endif
+
 static struct {
+#ifndef ZYNQMP_VIRT
 	volatile u32 *ttc;
+#endif
 	intr_handler_t handler;
 	volatile time_t jiffies;
 
@@ -37,6 +53,7 @@ static struct {
 } timer_common;
 
 
+#ifndef ZYNQMP_VIRT
 /* clang-format off */
 enum {
 	clk_ctrl = 0, clk_ctrl2, clk_ctrl3, cnt_ctrl, cnt_ctrl2, cnt_ctrl3, cnt_value, cnt_value2, cnt_value3, interval_val, interval_cnt2, interval_cnt3,
@@ -45,6 +62,7 @@ enum {
 };
 /* clang-format on */
 
+#endif
 
 static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 {
@@ -54,12 +72,25 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 	spinlock_ctx_t sc;
 	hal_spinlockSet(&timer_common.sp, &sc);
+
+#ifdef ZYNQMP_VIRT
+	u64 ctl;
+	/* Read virtual timer control register to check the pending ISTATUS (bit 2) */
+	__asm__ volatile("mrs %0, cntv_ctl_el0" : "=r"(ctl));
+	timer_common.jiffies += timer_common.ticksPerFreq;
+#else
 	/* Interval IRQ */
 	if ((*(timer_common.ttc + isr) & 1U) != 0U) {
 		timer_common.jiffies += (time_t)timer_common.ticksPerFreq;
 	}
+#endif
 
 	hal_spinlockClear(&timer_common.sp, &sc);
+
+#ifdef ZYNQMP_VIRT
+	/* Clear the architectural timer interrupt condition by reloading countdown register */
+	__asm__ volatile("msr cntv_tval_el0, %0" :: "r"((u64)timer_common.ticksPerFreq));
+#endif
 
 	u32 nextID = hal_cpuGetID() + 1U;
 	u32 nextTargetCPU = (nextID == hal_cpuGetCount()) ? (u32)1U : ((u32)1U << nextID);
@@ -82,6 +113,15 @@ static time_t hal_timerGetCyc(void)
 	time_t jiffies, cnt;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
+
+#ifdef ZYNQMP_VIRT
+	u64 vct;
+	/* Read absolute counter and compute relative delta to mimic TTC0's cnt_value tracking */
+	__asm__ volatile("mrs %0, cntvct_el0" : "=r"(vct));
+	cnt = (time_t)(vct - timer_common.jiffies);
+	jiffies = timer_common.jiffies;
+
+#else
 	cnt = (time_t)(*(timer_common.ttc + cnt_value));
 	jiffies = timer_common.jiffies;
 
@@ -95,6 +135,8 @@ static time_t hal_timerGetCyc(void)
 		jiffies = timer_common.jiffies;
 		cnt = (time_t)(*(timer_common.ttc + cnt_value));
 	}
+#endif
+
 	hal_spinlockClear(&timer_common.sp, &sc);
 
 	return jiffies + cnt;
@@ -124,6 +166,7 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 }
 
 
+#ifndef ZYNQMP_VIRT
 static void hal_timerSetPrescaler(u32 freq)
 {
 	u32 ticks = TIMER_SRC_CLK_CPU_1x / freq;
@@ -143,11 +186,16 @@ static void hal_timerSetPrescaler(u32 freq)
 
 	timer_common.ticksPerFreq = ticks;
 }
+#endif
 
 
 char *hal_timerFeatures(char *features, size_t len)
 {
+#ifdef ZYNQMP_QEMU
+	(void)hal_strncpy(features, "Using Architectural Virtual Timer Analogue", len);
+#else
 	(void)hal_strncpy(features, "Using Triple Timer Counter", len);
+#endif
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "`len` is always non-zero." */
 	features[len - 1U] = '\0';
 	return features;
@@ -156,10 +204,21 @@ char *hal_timerFeatures(char *features, size_t len)
 
 void _hal_timerInit(u32 interval)
 {
+#ifndef ZYNQMP_VIRT
 	timer_common.ttc = _pmap_halMapDevice(TTC0_BASE_ADDR, 0, SIZE_PAGE);
 	(void)_zynq_setDevRst(pctl_devreset_lpd_ttc0, 0);
+#endif
 	timer_common.jiffies = 0;
 
+#ifdef ZYNQMP_VIRT
+	u64 freq;
+	__asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+	if (freq == 0) {
+		freq = 100000000;
+	}
+
+	timer_common.ticksPerFreq = freq / (interval * hal_cpuGetCount());
+#else
 	/* Disable timer */
 	*(timer_common.ttc + clk_ctrl) = 0;
 
@@ -180,6 +239,7 @@ void _hal_timerInit(u32 interval)
 	*(timer_common.ttc + cnt_ctrl) = 0x10;
 
 	hal_timerSetPrescaler(interval * hal_cpuGetCount());
+#endif
 
 	hal_spinlockCreate(&timer_common.sp, "timer");
 	timer_common.handler.f = _timer_irqHandler;
@@ -187,10 +247,17 @@ void _hal_timerInit(u32 interval)
 	timer_common.handler.data = NULL;
 	(void)hal_interruptsSetHandler(&timer_common.handler);
 
+#ifdef ZYNQMP_VIRT
+	/* Set up initial architectural countdown value */
+	__asm__ volatile("msr cntv_tval_el0, %0" :: "r"((u64)timer_common.ticksPerFreq));
+	/* Enable the counter local to this core */
+	__asm__ volatile("msr cntv_ctl_el0, %0" :: "r"(1));
+#else
 	*(timer_common.ttc + interval_val) |= timer_common.ticksPerFreq & 0xffffU;
 
 	/* Reset counter */
 	*(timer_common.ttc + cnt_ctrl) = 0x2;
 	/* Enable interval irq timer */
 	*(timer_common.ttc + ier) = 0x1;
+#endif
 }
