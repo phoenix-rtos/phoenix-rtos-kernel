@@ -3035,10 +3035,30 @@ void proc_threadPrioQueueInit(prio_queue_t *queue)
 }
 
 
-static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid, spinlock_ctx_t *sc)
+static int _postPassiveWakeup(port_t *p, thread_t *recv)
+{
+	int err;
+
+	if ((recv->flags & THREAD_PULSED) != 0) {
+		recv->flags &= (~(int)THREAD_PULSED);
+		recv->utcb.msg->o.pulse = recv->utcb.pulse;
+		recv->utcb.msg->o.err = EOK;
+		err = -EPULSE;
+	}
+	else if (recv->reply == NULL) {
+		err = -EINTR;
+	}
+	else {
+		*recv->utcb.ridPtr = (msg_rid_t)((addr_t)recv->reply ^ threads_common.ridCookie);
+		err = EOK;
+	}
+
+	return err;
+}
+
+static int _becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 {
 	spinlock_ctx_t tsc;
-	int err;
 
 	/*
 	 * Handle recv exit - normally this is done at the end of syscall dispatch,
@@ -3052,46 +3072,23 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 	}
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
-
-	_portEnqueue(p, recv);
 	recv->sc_active = NULL;
-
-	(void)_proc_threadWakeupPrio(&p->queue);
-
-	hal_spinlockClear(&p->spinlock, &tsc);
-
 	recv->state = BLOCKED_ON_RECV;
 	recv->passive = 1;
 	recv->interruptible = 1;
 	recv->flags &= (~(int)THREAD_PULSED);
 
-	/*
-	 * the port is not put, because the passive thread still uses the port
-	 * the port will get destroyed on proc_destroy
-	 */
+	_portEnqueue(p, recv);
+	(void)_proc_threadWakeupPrio(&p->queue);
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
-	hal_cpuReschedule(&threads_common.spinlock, sc);
-
-	/* WARN: this is not always reachable (e.g. in fastpath call switch) */
-
-	if ((recv->flags & THREAD_PULSED) != 0) {
-		recv->flags &= (~(int)THREAD_PULSED);
-		msg->o.pulse = recv->utcb.pulse;
-		msg->o.err = EOK;
-		err = -EPULSE;
-	}
-	else if (recv->reply == NULL) {
-		err = -EINTR;
-	}
-	else {
-		*recv->utcb.ridPtr = (msg_rid_t)((addr_t)recv->reply ^ threads_common.ridCookie);
-		err = EOK;
-	}
-
-	/* TODO: move this above reschedule - can it happen that we are here when p->refs == 1?*/
+	hal_spinlockClear(&p->spinlock, sc);
 	port_put(p, 0);
 
-	return err;
+	hal_cpuReschedule(NULL, NULL);
+
+	/* WARN: won't be reached if recv is woken in fastpath proc_send switch */
+	return _postPassiveWakeup(p, recv);
 }
 
 
@@ -3157,7 +3154,7 @@ int proc_recv_ex(u32 port, msg_t *msg, msg_rid_t *rid, int rr)
 
 	recv->respondAndRecv = rr;
 
-	return _becomePassive(p, recv, msg, rid, &sc);
+	return _becomePassive(p, recv, &sc);
 }
 
 
