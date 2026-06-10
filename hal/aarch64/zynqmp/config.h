@@ -14,6 +14,7 @@
 #ifndef _PH_HAL_CONFIG_H_
 #define _PH_HAL_CONFIG_H_
 
+#include <board_config.h>
 
 /* On-Chip memory */
 #define ADDR_OCRAM 0xfffc0000
@@ -22,7 +23,7 @@
 #define ASID_BITS       16
 #define NUM_CPUS        4
 #define SIZE_INTERRUPTS 188U
-#define TIMER_IRQ_ID    68U
+#define TIMER_IRQ_ID    30U
 
 #ifndef __ASSEMBLY__
 
