@@ -2795,6 +2795,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	/* commit to IPC */
 
 	recv = p->threads;
+	LIB_ASSERT(recv != NULL, "recv is null");
+
 	LIST_REMOVE_EX(&p->threads, recv, tnext, tprev);
 	hal_spinlockClear(&p->spinlock, &sc);
 
@@ -2834,14 +2836,11 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 4
 
 	if (msg->o.size > 0) {
-		if (msg->o.size <= min(sizeof(recv->utcb.msgbuf) - MSG_RAW_SIZE, msg->esize)) {
-			/* FIXME: wont do it, same reason why ->reply doesnt work as intended */
+		osize = msg->o.size;
+		if (msg->o.size > min(sizeof(recv->utcb.msgbuf) - MSG_RAW_SIZE, msg->esize)) {
+			omap = msg->o.data;
 		}
-		else {
-			osize = msg->o.size;
-			omap = osize > 0 ? msg->o.data : NULL;
-			recv->utcb.msglen = 0; /* 0 means just the raw in the msgbuf */
-		}
+		/* else: small response, handled via _threads_copyMsgBufResponse on respond */
 	}
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 5
@@ -2888,8 +2887,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 9
 
-	LIB_ASSERT(recv != NULL, "recv is null");
-	LIB_ASSERT(caller != NULL, "null caller");
 	LIB_ASSERT(recv->exit == 0, "recv exit=%d", recv->exit);
 	LIB_ASSERT(recv->utcb.msg != NULL, "recv msg is null");
 
