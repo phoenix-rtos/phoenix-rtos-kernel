@@ -129,6 +129,7 @@
 	\
 	ID(sys_statvfs) \
 	ID(sys_uname) \
+  ID(bench_entry_exit_time) \
 	\
 	ID(msgRespondAndRecv) \
 	ID(msgPulse)

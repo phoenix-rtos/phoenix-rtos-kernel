@@ -15,6 +15,7 @@
  */
 
 #include "hal/string.h"
+#include "lib/lib.h"
 
 
 void hal_memcpy(void *dst, const void *src, size_t l)

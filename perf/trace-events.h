@@ -69,7 +69,7 @@ void _trace_updateLockEpoch(lock_t *lock);
 	} while (0)
 
 
-#define PERF_IPC 1
+#define PERF_IPC 0
 
 /* clang-format off */
 #define NO_EVENT(ev, ts) do { (void)ev; (void)ts; } while (0)

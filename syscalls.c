@@ -881,6 +881,21 @@ int syscalls_msgPulse(u8 *ustack)
 }
 
 
+static void sanitizeEdata(process_t *proc, msg_t *msg)
+{
+	/* initialize edata for backwards compatibility */
+	if ((msg->edata == NULL) != (msg->esize == 0)) {
+		msg->edata = NULL;
+		msg->esize = 0;
+	}
+
+	if ((msg->edata != NULL) && (vm_mapBelongs(proc, msg->edata, msg->esize) < 0)) {
+		msg->edata = NULL;
+		msg->esize = 0;
+	}
+}
+
+
 int syscalls_msgRecv(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
@@ -900,16 +915,7 @@ int syscalls_msgRecv(u8 *ustack)
 		return -EFAULT;
 	}
 
-	/* initialize edata for backwards compatibility */
-	if ((msg->edata == NULL) != (msg->esize == 0)) {
-		msg->edata = NULL;
-		msg->esize = 0;
-	}
-
-	if ((msg->edata != NULL) && (vm_mapBelongs(proc, msg->edata, msg->esize) < 0)) {
-		msg->edata = NULL;
-		msg->esize = 0;
-	}
+	sanitizeEdata(proc, msg);
 
 	return proc_recv(port, msg, rid);
 }
@@ -960,6 +966,8 @@ int syscalls_msgRespondAndRecv(u8 *ustack)
 	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
 		return -EFAULT;
 	}
+
+	sanitizeEdata(proc, msg);
 
 	return proc_respondAndRecv(port, msg, rid);
 }
@@ -1993,6 +2001,14 @@ int syscalls_sys_uname(u8 *ustack)
 	}
 
 	return posix_uname(name);
+}
+
+
+cycles_t syscalls_bench_entry_exit_time(void)
+{
+	cycles_t c;
+	hal_cpuGetCycles(&c);
+	return c;
 }
 
 

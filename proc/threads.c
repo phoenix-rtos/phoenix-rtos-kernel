@@ -77,6 +77,13 @@ static struct {
 	/* Debug */
 	unsigned char stackCanary[16];
 	time_t prev;
+
+	/*
+	 * Per-boot cookie XOR'd into msg_rid_t values written to userspace.
+	 * Prevents the raw kernel thread_t* from being observable in user memory.
+	 * Unmask with the same XOR before dereferencing the pointer in proc_respond.
+	 */
+	ptr_t ridCookie;
 } threads_common;
 
 
@@ -505,7 +512,8 @@ void _threads_ipcBufferRelease(ipc_buf_layout_t *il)
 /* assuming aspace of `to` */
 static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg)
 {
-	if (msg->o.size <= min(sizeof(from->utcb.msgbuf) - MSG_RAW_SIZE, to->utcb.esize)) {
+	if (msg->o.size <= min(sizeof(from->utcb.msgbuf) - MSG_RAW_SIZE, to->utcb.esize) && to->utcb.msg->edata != NULL) {
+		/* REVISIT: can the if condition be simplified or matched closer to the proc_send edata setup? */
 		to->utcb.msg->o.data = (void *)to->utcb.msg->edata;
 		hal_memcpy((void *)to->utcb.msg->o.data, from->utcb.msgbuf + MSG_RAW_SIZE, msg->o.size);
 	}
@@ -742,7 +750,11 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 {
 	LIB_ASSERT(sc->donor == caller, "returning SC donated by someone else");
-	LIB_ASSERT(server->reply != NULL || caller->called != NULL, "_sc_return but no reply/call?");
+
+	LIB_ASSERT(caller->called == NULL, "_sc_return but called not cleared?");
+
+	// LIB_ASSERT(server->reply != NULL, "_sc_return but no reply?");
+
 	LIB_ASSERT(server->sc_donated != NULL || server->sc_donated->dnext != NULL, "empty/corrupted donation queue?");
 
 	/* Remove donated SC from server */
@@ -790,7 +802,6 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 	/* TODO: remove passive for the sake of sc_active == NULL? */
 
 	server->reply = NULL;
-	caller->called = NULL;
 }
 
 // BIG TODO: sched queues should use sc priority everywhere not thread's
@@ -843,7 +854,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		/* Move thread to the end of queue */
 		if (current->state == READY || current->exit != 0) {
-			LIB_ASSERT(current->sc_active != NULL, "READY but unschedulable? tid: %d, pc=%p, ra=%p", proc_getTid(current), current->context->sepc, current->context->ra);
+			// LIB_ASSERT(current->sc_active != NULL, "READY but unschedulable? tid: %d, pc=%p, ra=%p", proc_getTid(current), current->context->sepc, current->context->ra);
 
 			LIST_ADD(&threads_common.ready[current->priority], current->sc_active);
 			_threads_preempted(current);
@@ -1944,6 +1955,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	else {
 		fpCtx = thread->fastpathExitCtx;
 		thread->fastpathExitCtx = NULL;
+		// hal_spinlockGetCtx(&sc);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		/* FIXME: race with sched is possible here */
 		hal_endSyscall(fpCtx, &sc);
@@ -2605,6 +2617,8 @@ int proc_threadsList(int n, threadinfo_t *info)
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	unsigned int i;
+	cycles_t cycles = 0;
+
 	threads_common.kmap = kmap;
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
@@ -2617,6 +2631,10 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	for (i = 0U; i < sizeof(threads_common.stackCanary); ++i) {
 		threads_common.stackCanary[i] = ((i & 1U) != 0U) ? 0xaaU : 0x55U;
 	}
+
+	/* FIXME: trivial to predict, implement good kernel entropy source */
+	hal_cpuGetCycles(&cycles);
+	threads_common.ridCookie = (ptr_t)cycles + 1;
 
 	/* Initiaizlie scheduler queue */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
@@ -2704,6 +2722,7 @@ static void _threads_copyShadowPages(ipc_buf_layout_t *il, size_t size)
 		hal_memcpy(il->bvaddr + il->boffs, il->w + il->boffs, min(SIZE_PAGE - il->boffs, size));
 	}
 	if (il->eoffs != 0) {
+		size = min(size, il->size);
 		hal_memcpy(il->evaddr, il->w + il->boffs + size - il->eoffs, il->eoffs);
 	}
 }
@@ -2714,12 +2733,16 @@ static void _threads_copyShmBuffers(thread_t *from, thread_t *to, msg_t *msg)
 	if (!(msg->o.size <= min(sizeof(from->utcb.msgbuf) - MSG_RAW_SIZE, to->utcb.esize))) {
 		if (msg->i.size > 0 || msg->o.size > 0) {
 			LIB_ASSERT(to->mappedTo == from, "hm, %p != %p", to->mappedTo, from);
-			if (to->mappedTo == from) {
-				_threads_copyShadowPages(&to->utcb.oil, msg->o.size);
-			}
+			_threads_copyShadowPages(&to->utcb.oil, msg->o.size);
 		}
 	}
 }
+
+
+/*
+ * BIG TODO: msg fields are validated in syscalls.c, but then re-read in send -
+ * another thread could mess with us here
+ */
 
 
 static int proc_send_ex(u32 port, msg_t *msg, int returnable)
@@ -2773,6 +2796,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	recv = p->threads;
 	LIST_REMOVE_EX(&p->threads, recv, tnext, tprev);
+	hal_spinlockClear(&p->spinlock, &sc);
+
 	recv->addedTo = NULL;
 
 	spinlock_ctx_t tsc;
@@ -2792,6 +2817,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	/* TODO: add rawsz to msg_t */
 	hal_memcpy(caller->utcb.msgbuf, msg->i.raw, MSG_RAW_SIZE);
 
+	caller->utcb.msglen = 0; /* 0 means just the raw in the msgbuf */
+
 	if (msg->i.size > 0) {
 		if (msg->i.size <= min(sizeof(caller->utcb.msgbuf) - MSG_RAW_SIZE, recv->utcb.esize)) {
 			/* small message: fits the kernel buf and the predefined recv buffer */
@@ -2801,7 +2828,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		else {
 			isize = msg->i.size;
 			imap = isize > 0 ? (void *)msg->i.data : NULL;
-			caller->utcb.msglen = 0; /* 0 means just the raw in the msgbuf */
 		}
 	}
 
@@ -2853,9 +2879,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
-	/* TODO: bump refcnt on recv? */
-	hal_spinlockClear(&p->spinlock, &sc);
-
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 8
 
 	LIB_ASSERT(recv->refs > 0, "attempting to return to refs=0 rcv? port=%d caller tid=%d recv tid=%d refs: %d",
@@ -2878,8 +2901,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 11
 	if (prevMappedTo != NULL) {
-		_threads_ipcBufferRelease(&caller->utcb.iil);
-		_threads_ipcBufferRelease(&caller->utcb.oil);
+		LIB_ASSERT_ALWAYS(0, "HAPPENS?");
 	}
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 12
 
@@ -2910,14 +2932,14 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	recv->utcb.msg->pid = (caller->process != NULL) ? process_getPid(caller->process) : 0;
 	hal_memcpy(&recv->utcb.msg->oid, &oid, sizeof(oid_t));
 	recv->utcb.msg->type = type;
-	recv->utcb.msg->priority = caller->priority; /* ??? */
+	recv->utcb.msg->priority = caller->priority;          /* ??? */
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 13
 
 	/* msg transfer should be done by now */
 
 	recv->interruptible = 0;
 
-	*recv->utcb.ridPtr = (msg_rid_t)caller;
+	*recv->utcb.ridPtr = (msg_rid_t)((addr_t)caller ^ threads_common.ridCookie);
 	hal_cpuSetReturnValue(ctx, EOK);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -3065,7 +3087,7 @@ static int _becomePassive(port_t *p, thread_t *recv, msg_t *msg, msg_rid_t *rid,
 		err = -EINTR;
 	}
 	else {
-		*recv->utcb.ridPtr = (msg_rid_t)recv->reply;
+		*recv->utcb.ridPtr = (msg_rid_t)((addr_t)recv->reply ^ threads_common.ridCookie);
 		err = EOK;
 	}
 
@@ -3136,8 +3158,6 @@ int proc_recv_ex(u32 port, msg_t *msg, msg_rid_t *rid, int rr)
 		return _returnWithPulse(recv, p, &sc);
 	}
 
-	LIB_ASSERT(p->kmessages == NULL, "kmessages on new port??");
-
 	recv->respondAndRecv = rr;
 
 	return _becomePassive(p, recv, msg, rid, &sc);
@@ -3198,12 +3218,10 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	spinlock_ctx_t sc, tsc;
 	thread_t *caller, *recv;
 
-	/* TODO: make nicer */
-	void *reply = (void *)rid;
+	void *reply = (void *)((addr_t)rid ^ threads_common.ridCookie);
 
 	recv = proc_current();
 
-	/* TODO: ensure reply->called reference is not user-exploitable */
 	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0) {
 		return -EINVAL;
 	}
@@ -3223,26 +3241,20 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	caller = reply;
 	LIB_ASSERT(caller != NULL, "caller null!");
 
-	/* REVISIT: is it safe to keep this under p->spinlock only? what about SMP? */
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
 	if (caller->called != recv) {
 		LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
+		hal_spinlockClear(&threads_common.spinlock, &tsc);
 		hal_spinlockClear(&p->spinlock, &sc);
 		port_put(p, 0);
 		return -EINVAL;
 	}
 
+	/* clear called already to prevent races on SMP */
+	caller->called = NULL;
+
 	if (caller->exit != 0) {
 		/* caller is dying, don't respond */
-
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
-
-		/*
-		 * OBSERVE: maybe threads_releaseIpcBuffers(caller) not needed?
-		 * Reaper should clean up caller's buffers
-		 */
-
-		hal_spinlockSet(&threads_common.spinlock, &tsc);
 
 		LIB_ASSERT(recv->passive == 1, "recv not passive?");
 
@@ -3268,8 +3280,13 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 
 		hal_spinlockClear(&threads_common.spinlock, &tsc);
 
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+
 		return -EINVAL;
 	}
+
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
 	hal_spinlockClear(&p->spinlock, &sc);
 	port_put(p, 0);
@@ -3336,15 +3353,20 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	spinlock_ctx_t sc;
 	int respond = 1;
 
+	/*
+	 * Read rid and unmask once under the lock to prevent other thread to change *rid
+	 * between validation here and respond below
+	 */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	thread_t *reply = (thread_t *)*rid;
+	msg_rid_t saved_rid = *rid;
+	thread_t *reply = (thread_t *)((addr_t)saved_rid ^ threads_common.ridCookie);
 	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0 || reply->called != _proc_current()) {
 		respond = 0;
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	if (respond != 0) {
-		err = proc_respond(port, msg, *rid);
+		err = proc_respond(port, msg, saved_rid);
 		if (err < 0) {
 			return err;
 		}
@@ -3512,66 +3534,16 @@ void threads_releaseIpcBuffers(thread_t *thread)
 	}
 }
 
-
-#define REUSE_BUFFER 0
-
-/*
- * TODO: Regarding msgBuf_t I wonder if it's not better pass buffers in syscall
- * signature (like QNX) and make the kernel copy the contents to msgBuf_t if
- * it fits.
- * If it doesn't, it maps shm
- *
- * This must be done anyways (now it's done by the userspace), but in current state it
- * heavily clutters the user API.
- */
-
 static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t bufsz, ipc_buf_layout_t *il, void **rbuf)
 {
 	void *w;
-
 	LIB_ASSERT(buf != NULL && bufsz > 0, "bad args");
 
-#if REUSE_BUFFER
-	if (t->bufferStart <= buf && (void *)((ptr_t)buf + bufsz) <= t->bufferEnd) {
-		if (t->mappedTo != recv->process) {
-			// regBufsz = (ptr_t)t->bufferEnd - (ptr_t)t->bufferStart;
-			if (t->mappedBase != NULL) {
-				/* remap from another process to recv */
-				// _unmapBuffer(t->mappedBase, regBufsz, t->mappedTo);
-				(void)_unmapBuffer;
-				(void)_mapBuffer;
-				_bufferRelease(&t->utcb.il);
-			}
-
-			/* buffer not mapped in any other process, map to recv */
-			// w = _mapBuffer(t->bufferStart, regBufsz, t->process, recv->process);
-			w = _mapBufferUnaligned(buf, bufsz, t->process, recv->process, &t->utcb.il);
-			if (w == NULL) {
-				return -ENOMEM;
-			}
-
-			t->mappedBase = w;
-			t->mappedTo = recv->process;
-		}
+	w = _mapBufferUnaligned(buf, bufsz, t->process, recv->process, il);
+	if (w == NULL) {
+		return -ENOMEM;
 	}
-	else {
-#endif
-		// threads_ipcBufferRelease(il);
 
-		w = _mapBufferUnaligned(buf, bufsz, t->process, recv->process, il);
-		if (w == NULL) {
-			LIB_ASSERT(0, "ENOMEM!");
-			return -ENOMEM;
-		}
-
-		il->mappedBase = w;
-		il->bufferStart = buf;
-		il->bufferEnd = buf + bufsz;
-#if REUSE_BUFFER
-	}
-#endif
-
-	*rbuf = il->mappedBase + (buf - il->bufferStart);
-
+	*rbuf = w;
 	return EOK;
 }

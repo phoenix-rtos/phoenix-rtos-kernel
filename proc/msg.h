@@ -23,49 +23,6 @@
 #include "threads.h"
 
 
-typedef struct _kmsg_t {
-#ifndef NOMMU
-	msg_t msg;
-#else
-	msg_t *msg;
-#endif
-
-	struct _kmsg_t *next;
-	struct _kmsg_t *prev;
-
-	idnode_t idlinkage;
-
-	thread_t *threads;
-	process_t *src;
-	volatile int state;
-
-#ifndef NOMMU
-	struct _kmsg_layout_t {
-		void *bvaddr;
-		size_t boffs;
-		void *w;
-		page_t *bp;
-
-		void *evaddr;
-		size_t eoffs;
-		page_t *ep;
-	} i, o;
-#else
-	void *imapped;
-	void *omapped;
-#endif
-} kmsg_t;
-
-
-typedef struct _fmsg_t {
-	struct _fmsg_t *next, *prev;
-	idnode_t idlinkage;
-	thread_t *sender;
-	thread_t *threads;
-	volatile int state;
-} fmsg_t;
-
-
 /*
  * Message passing
  */

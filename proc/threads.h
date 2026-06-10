@@ -81,11 +81,6 @@ typedef struct {
 	void *w;
 	size_t size;
 	vm_map_t *map;
-
-	/* Message buffer */
-	void *bufferStart;
-	void *bufferEnd;
-	void *mappedBase;
 } ipc_buf_layout_t;
 
 typedef struct _thread_t {

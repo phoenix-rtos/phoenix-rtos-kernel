@@ -24,6 +24,19 @@ static struct {
 } spinlock_common;
 
 
+void hal_spinlockGetCtx(spinlock_ctx_t *sc)
+{
+	/* clang-format off */
+	__asm__ volatile (
+		"pushf\n\t"
+		"popl %0\n\t"
+	:
+	: "r" (sc)
+	: );
+	/* clang-format on */
+}
+
+
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 void hal_spinlockSet(spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
