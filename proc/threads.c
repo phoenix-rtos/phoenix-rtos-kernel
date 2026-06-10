@@ -3125,9 +3125,8 @@ static vm_flags_t _getMapFlags(vm_map_t *map, void *data)
 #define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
 
 
-int proc_recv_ex(u32 port, msg_t *msg, msg_rid_t *rid, int rr)
+int proc_recv_ex(port_t *p, msg_t *msg, msg_rid_t *rid, int rr)
 {
-	port_t *p;
 	spinlock_ctx_t sc;
 	thread_t *recv;
 
@@ -3135,11 +3134,6 @@ int proc_recv_ex(u32 port, msg_t *msg, msg_rid_t *rid, int rr)
 	recv->utcb.ridPtr = rid;
 	recv->utcb.msg = msg;
 	recv->utcb.esize = msg->esize;
-
-	p = proc_portGet(port);
-	if (p == NULL) {
-		return -EINVAL;
-	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	if (p->closed != 0) {
@@ -3160,7 +3154,13 @@ int proc_recv_ex(u32 port, msg_t *msg, msg_rid_t *rid, int rr)
 
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
-	return proc_recv_ex(port, msg, rid, 0);
+	port_t *p = proc_portGet(port);
+
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	return proc_recv_ex(p, msg, rid, 0);
 }
 
 
@@ -3206,11 +3206,11 @@ int proc_pulse(u32 port, u8 pulse)
 }
 
 
-int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
+static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 {
-	port_t *p;
 	spinlock_ctx_t sc, tsc;
 	thread_t *caller, *recv;
+	int err = EOK;
 
 	void *reply = (void *)((addr_t)rid ^ threads_common.ridCookie);
 
@@ -3220,15 +3220,9 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		return -EINVAL;
 	}
 
-	p = proc_portGet(port);
-	if (p == NULL) {
-		return -EINVAL;
-	}
-
 	hal_spinlockSet(&p->spinlock, &sc);
 	if (p->closed != 0) {
 		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
 		return -EINVAL;
 	}
 
@@ -3236,54 +3230,52 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	LIB_ASSERT(caller != NULL, "caller null!");
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
-	if (caller->called != recv) {
-		LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
-		hal_spinlockClear(&threads_common.spinlock, &tsc);
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
-		return -EINVAL;
-	}
 
-	/* clear called already to prevent races on SMP */
-	caller->called = NULL;
-
-	if (caller->exit != 0) {
-		/* caller is dying, don't respond */
-
-		LIB_ASSERT(recv->passive == 1, "recv not passive?");
-
-		sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
-		_sc_return(recv, caller, donated_sc);
-
-		caller->state = GHOST;
-		LIST_ADD(&threads_common.ghosts, caller->sc_active);
-		_proc_threadWakeup(&threads_common.reaper);
-
-		recv->reply = NULL;
-		if (recv->sc_donated == NULL) {
-			/* this is ours SC */
-			recv->passive = 0;
+	do {
+		if (caller->called != recv) {
+			LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
+			err = -EINVAL;
+			break;
 		}
-		recv->sc_active = _sc_best(recv);
-		_sc_updateEffPriority(recv);
 
-		threads_common.current[hal_cpuGetID()] = recv->sc_active;
+		/* clear called already to prevent races on SMP */
+		caller->called = NULL;
 
-		LIB_ASSERT(recv->state == READY, "recv not ready?");
-		LIB_ASSERT(recv->sc_active->t == recv, "badly linked sched context");
+		if (caller->exit != 0) {
+			/* caller is dying, don't respond */
+			LIB_ASSERT(recv->passive == 1, "recv not passive?");
 
-		hal_spinlockClear(&threads_common.spinlock, &tsc);
+			sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
+			_sc_return(recv, caller, donated_sc);
 
-		hal_spinlockClear(&p->spinlock, &sc);
-		port_put(p, 0);
+			caller->state = GHOST;
+			LIST_ADD(&threads_common.ghosts, caller->sc_active);
+			_proc_threadWakeup(&threads_common.reaper);
 
-		return -EINVAL;
-	}
+			recv->reply = NULL;
+			if (recv->sc_donated == NULL) {
+				/* this is our SC */
+				recv->passive = 0;
+			}
+			recv->sc_active = _sc_best(recv);
+			_sc_updateEffPriority(recv);
+
+			threads_common.current[hal_cpuGetID()] = recv->sc_active;
+
+			LIB_ASSERT(recv->state == READY, "recv not ready?");
+			LIB_ASSERT(recv->sc_active->t == recv, "badly linked sched context");
+
+			err = -EINVAL;
+			break;
+		}
+	} while (0);
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
-
 	hal_spinlockClear(&p->spinlock, &sc);
-	port_put(p, 0);
+
+	if (err < 0) {
+		return err;
+	}
 
 	_threads_copyShmBuffers(recv, caller, msg);
 
@@ -3336,6 +3328,22 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 }
 
 
+int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
+{
+	port_t *p = proc_portGet(port);
+	int err;
+
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	err = proc_respond_ex(p, msg, rid);
+
+	port_put(p, 0);
+	return err;
+}
+
+
 /*
  * TODO: optimized respond&recv. Couldn't manage to get it working and there are
  * more important matters for now
@@ -3343,9 +3351,13 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 {
 	int err;
-
 	spinlock_ctx_t sc;
 	int respond = 1;
+
+	port_t *p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
 
 	/*
 	 * Read rid and unmask once under the lock to prevent other thread to change *rid
@@ -3360,13 +3372,13 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	if (respond != 0) {
-		err = proc_respond(port, msg, saved_rid);
+		err = proc_respond_ex(p, msg, saved_rid);
 		if (err < 0) {
 			return err;
 		}
 	}
 
-	return proc_recv_ex(port, msg, rid, 1);
+	return proc_recv_ex(p, msg, rid, 1);
 }
 
 
