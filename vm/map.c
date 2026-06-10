@@ -1221,7 +1221,7 @@ int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
 	ret = _vm_mapBelongs(proc, ptr, size);
 	(void)proc_lockClear(&proc->mapp->lock);
 
-	LIB_ASSERT(ret == 0, "Fault @0x%p (%zu) path: %s, pid: %d\n", ptr, size, proc->path, process_getPid(proc));
+	LIB_ASSERT_STRICT(ret == 0, "Fault @0x%p (%zu) path: %s, pid: %d\n", ptr, size, proc->path, process_getPid(proc));
 
 	return ret;
 }
