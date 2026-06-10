@@ -847,11 +847,17 @@ int syscalls_msgSend(u8 *ustack)
 			return -EFAULT;
 		}
 	}
+	else {
+		msg->i.size = 0;
+	}
 
 	if (msg->o.data != NULL) {
 		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
 			return -EFAULT;
 		}
+	}
+	else {
+		msg->o.size = 0;
 	}
 
 	/* initialize edata for backwards compatibility */
@@ -942,6 +948,9 @@ int syscalls_msgRespond(u8 *ustack)
 			return -EFAULT;
 		}
 	}
+	else {
+		msg->o.size = 0;
+	}
 #endif
 
 	return proc_respond(port, msg, rid);
@@ -966,6 +975,17 @@ int syscalls_msgRespondAndRecv(u8 *ustack)
 	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
 		return -EFAULT;
 	}
+
+#ifndef NOMMU /* TODO: what about NOMMU? */
+	if (msg->o.data != NULL) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+			return -EFAULT;
+		}
+	}
+	else {
+		msg->o.size = 0;
+	}
+#endif
 
 	sanitizeEdata(proc, msg);
 
