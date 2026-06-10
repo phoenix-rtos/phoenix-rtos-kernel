@@ -45,7 +45,7 @@ static struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	thread_t *ready[8];
+	thread_t *ready[16];
 	thread_t **current;
 	time_t utcoffs;
 
