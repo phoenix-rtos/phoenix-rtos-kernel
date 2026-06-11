@@ -34,7 +34,6 @@
 #define US_CONNECT_TIMEOUT 0L
 #endif
 
-#define US_BOUND       (1U << 0)
 #define US_LISTENING   (1U << 1)
 #define US_ACCEPTING   (1U << 2)
 #define US_CONNECTING  (1U << 3)
@@ -61,14 +60,20 @@ typedef struct _unixsock_t {
 
 	spinlock_t spinlock;
 
+	char *name;
+	socklen_t namelen;
+	oid_t odir, odev;
+
 	/* Socket to which this socket is connected to. */
 	struct _unixsock_t *remote;
 
-	/* For SOCK_DGRAM: list of sockets connected to this socket. */
-	struct _unixsock_t *connected;
+	union {
+		/* For SOCK_DGRAM: list of sockets connected to this socket. */
+		struct _unixsock_t *connected;
 
-	/* For other types: list of sockets requesting a connection. */
-	struct _unixsock_t *connecting;
+		/* For other types: list of sockets requesting a connection. */
+		struct _unixsock_t *connecting;
+	};
 
 	thread_t *queue;
 	thread_t *writeq;
@@ -223,6 +228,8 @@ static unixsock_t *unixsock_alloc(unsigned int *id, unsigned int type, int nonbl
 	r->buffsz = US_DEF_BUFFER_SIZE;
 	r->fdpacks = NULL;
 	r->remote = NULL;
+	r->name = NULL;
+	r->namelen = 0;
 	r->connected = NULL;
 	r->connecting = NULL;
 	r->queue = NULL;
@@ -315,10 +322,39 @@ static void unixsock_put(unixsock_t *s)
 		if (s->fdpacks != NULL) {
 			(void)fdpass_discard(&s->fdpacks);
 		}
+		if (s->name != NULL) {
+			vm_kfree(s->name);
+		}
 		vm_kfree(s);
 		return;
 	}
 	(void)proc_lockClear(&unix_common.lock);
+}
+
+
+static void unix_copyName(const char *name, socklen_t namelen, struct sockaddr *address, socklen_t *address_len)
+{
+	if (name == NULL) {
+		*address_len = 0U;
+		return;
+	}
+
+	const socklen_t familylen = (socklen_t)sizeof(address->sa_family);
+	const socklen_t buflen = *address_len;
+
+	*address_len = namelen + familylen;
+
+	if (buflen < familylen) {
+		return;
+	}
+
+	const socklen_t copylen = min(namelen, buflen - familylen);
+
+	address->sa_family = AF_UNIX;
+	hal_memcpy(address->sa_data, name, copylen);
+	if (buflen - familylen > copylen) {
+		address->sa_data[copylen] = '\0';
+	}
 }
 
 
@@ -503,12 +539,13 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 
 int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
 {
-	char *path, *name;
+	char *name, *path;
 	const char *dir;
 	int err;
-	oid_t odir, dev;
 	unixsock_t *s;
 	void *v = NULL;
+	socklen_t pathlen;
+	spinlock_ctx_t sc;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -516,7 +553,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 	}
 
 	do {
-		if ((s->state & US_BOUND) != 0U) {
+		if (s->name != NULL) {
 			err = -EINVAL;
 			break;
 		}
@@ -526,16 +563,33 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			break;
 		}
 
-		path = lib_strdup(address->sa_data);
+		if (address_len <= sizeof(address->sa_family)) {
+			err = -EINVAL;
+			break;
+		}
+
+		/*
+		 * Disallow binding sockets to relative address in
+		 * the kernel as we don't track the CWD of a process.
+		 */
+		if (address->sa_data[0] != '/') {
+			err = -EINVAL;
+			break;
+		}
+
+		pathlen = address_len - (socklen_t)sizeof(address->sa_family);
+		path = vm_kmalloc((size_t)pathlen + 1U);
 		if (path == NULL) {
 			err = -ENOMEM;
 			break;
 		}
+		hal_memcpy(path, address->sa_data, pathlen);
+		path[pathlen] = '\0';
 
 		do {
 			lib_splitname(path, &name, &dir);
 
-			if (proc_lookup(dir, NULL, &odir) < 0) {
+			if (proc_lookup(dir, NULL, &s->odir) < 0) {
 				err = -ENOENT;
 				break;
 			}
@@ -550,9 +604,9 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 				_cbuffer_init(&s->buffer, v, s->buffsz);
 			}
 
-			dev.port = US_PORT;
-			dev.id = socket;
-			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
+			s->odev.port = US_PORT;
+			s->odev.id = socket;
+			err = proc_create(s->odir.port, 2 /* otDev */, S_IFSOCK, s->odev, s->odir, name, &s->odev);
 
 			if (err != 0) {
 				if (err == -EEXIST) {
@@ -565,11 +619,20 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 				break;
 			}
 
-			s->state |= US_BOUND;
+			lib_unsplitname(path, dir);
 		} while (0);
 
-		vm_kfree(path);
+		if (err != 0) {
+			vm_kfree(path);
+		}
 	} while (0);
+
+	if (err == 0) {
+		hal_spinlockSet(&s->spinlock, &sc);
+		s->namelen = pathlen;
+		s->name = path;
+		hal_spinlockClear(&s->spinlock, &sc);
+	}
 
 	unixsock_put(s);
 	return err;
@@ -778,12 +841,49 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 
 int unix_getpeername(unsigned int socket, struct sockaddr *address, socklen_t *address_len)
 {
+	unixsock_t *s, *r;
+
+	if (address == NULL || address_len == NULL) {
+		return -EINVAL;
+	}
+
+	s = unixsock_get(socket);
+	if (s == NULL) {
+		return -ENOTSOCK;
+	}
+
+	r = unixsock_get_remote(s);
+	if (r == NULL) {
+		unixsock_put(s);
+		return -ENOTCONN;
+	}
+
+	unix_copyName(r->name, r->namelen, address, address_len);
+
+	unixsock_put(r);
+	unixsock_put(s);
+
 	return 0;
 }
 
 
 int unix_getsockname(unsigned int socket, struct sockaddr *address, socklen_t *address_len)
 {
+	unixsock_t *s;
+
+	if (address == NULL || address_len == NULL) {
+		return -EINVAL;
+	}
+
+	s = unixsock_get(socket);
+	if (s == NULL) {
+		return -ENOTSOCK;
+	}
+
+	unix_copyName(s->name, s->namelen, address, address_len);
+
+	unixsock_put(s);
+
 	return 0;
 }
 
