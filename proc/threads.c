@@ -3283,7 +3283,7 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	 * OPTIMIZATION: defer the copy of the msg to _threads_switchToThread() where
 	 * we switch aspaces anyways.
 	 * We *could* do it here, but would need to switch to caller aspace and back.
-	 * Delegation saves us two TLB flushes per respond fastpath
+	 * Delegation saves us two pmap switches (potential TLB flushes) per respond fastpath
 	 */
 	hal_memcpy(&caller->utcb.msgDeferred, msg, sizeof(*msg));
 	caller->utcb.msgDeferredFrom = recv;
