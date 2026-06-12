@@ -245,5 +245,12 @@ enum {
 	pmu_glb_error_en_2
 };
 
+enum {
+	swdt_lpd_mode = 0x00,
+	swdt_lpd_control,
+	swdt_lpd_restart,
+	swdt_lpd_status
+};
+
 
 #endif /* _PH_ZYNQMP_REGS_H_ */

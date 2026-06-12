@@ -5,8 +5,8 @@
  *
  * ZynqMP internal peripheral control functions
  *
- * Copyright 2025 Phoenix Systems
- * Author: Jacek Maksymowicz
+ * Copyright 2026 Phoenix Systems
+ * Author: Jacek Maksymowicz, Kamil Ber
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -23,12 +23,22 @@
 #include "hal/armv7r/halsyspage.h"
 #include "zynqmp_regs.h"
 
+#include <board_config.h>
+
 #define IOU_SLCR_BASE_ADDRESS 0xff180000U
 #define APU_BASE_ADDRESS      0xfd5c0000U
 #define CRF_APB_BASE_ADDRESS  0xfd1a0000U
 #define CRL_APB_BASE_ADDRESS  0xff5e0000U
 #define PMU_GLOBAL_MODULE     0xffd80000U
+#define SWDT_LPD_MODULE       0xff150000U
 
+#if defined(WATCHDOG)
+#if !defined(WATCHDOG_TIMEOUT)
+#error "WATCHDOG_TIMEOUT not defined!"
+#elif (WATCHDOG_TIMEOUT < 0x000FFF || WATCHDOG_TIMEOUT > 0xFFFFFF)
+#error "Watchdog timeout out of bounds!"
+#endif
+#endif
 
 /* PLO entrypoint */
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
@@ -39,6 +49,7 @@ static struct {
 	volatile u32 *crf_apb;
 	volatile u32 *crl_apb;
 	volatile u32 *pmu_glb;
+	volatile u32 *swdt_lpd;
 	spinlock_t pltctlSp;
 } zynq_common;
 
@@ -423,9 +434,11 @@ __attribute__((noreturn)) void hal_cpuReboot(void)
 }
 
 
-/* TODO */
 void hal_wdgReload(void)
 {
+#if defined(WATCHDOG)
+	*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+#endif
 }
 
 
@@ -507,7 +520,35 @@ void _hal_platformInit(void)
 	zynq_common.crf_apb = (void *)CRF_APB_BASE_ADDRESS;
 	zynq_common.crl_apb = (void *)CRL_APB_BASE_ADDRESS;
 	zynq_common.pmu_glb = (void *)PMU_GLOBAL_MODULE;
+	zynq_common.swdt_lpd = (void *)SWDT_LPD_MODULE;
 	_zynqmp_setSysErrHandler(PMU_ERR_RPU_LS, system_reset, 1);
+
+
+	/* Disable Watchdog */
+	/* Xilinx UG1085: unlocking/key values for registers:
+	 * mode: 0xabc
+	 * control: 0x248
+	 * restart: 0x1999
+	 *
+	 * Here both mode and control registers are reset after power on
+	 * or after watchdog timeout triggered reset. the control reset is specified
+	 * in the UG: "Note: If a restart signal is received the prescaler should be reset."
+	 */
+	*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY);
+	*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | 0xFFF << SWDT_CONTROL_CRV_BIT);
+
+	#if defined(WATCHDOG)
+
+	/* set cotnrol: LPD_LSBUS_CLK scaler = 512 (gives reload value from ~20ms to 85s fro 100MHz LPD_LSBUS_CLK)*/
+	*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | ((WATCHDOG_TIMEOUT >> 12) & 0xFFF) << SWDT_CONTROL_CRV_BIT | SWDT_CONTROL_CLKSEL );
+
+	/* reload */
+	*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+
+	/* enable watchdog: no irq, reset enabled (32 clock cycles pulse) */
+	*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY | SWDT_MODE_RSTLN | SWDT_MODE_RSTEN | SWDT_MODE_WDEN);
+
+	#endif
 }
 
 

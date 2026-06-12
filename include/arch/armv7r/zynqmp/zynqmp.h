@@ -5,8 +5,8 @@
  *
  * ZynqMP basic peripherals control functions
  *
- * Copyright 2021, 2024 Phoenix Systems
- * Author: Hubert Buczynski, Jacek Maksymowicz
+ * Copyright 2021, 2024, 2026 Phoenix Systems
+ * Author: Hubert Buczynski, Jacek Maksymowicz, Kamil Ber
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -44,6 +44,15 @@
 #define PMU_ERR_PL       ((0xFUL << 2) + PMU_ERR_SECOND_SET)
 #define PMU_ERR_PLL_LOCK ((0x1FUL << 8) + PMU_ERR_SECOND_SET)
 #define PMU_ERR_CSU      ((0x1UL << 16) + PMU_ERR_SECOND_SET)
+
+#define SWDT_MODE_ZKEY       (0xABCU << 12)
+#define SWDT_MODE_WDEN       (0x1U)
+#define SWDT_MODE_RSTEN      (0x1U << 1)
+#define SWDT_MODE_RSTLN      (0x4U << 4)    /* reset len = 4 -> 32 clock cycles*/
+#define SWDT_CONTROL_CKEY    (0x248U << 12)
+#define SWDT_CONTROL_CRV_BIT 2
+#define SWDT_CONTROL_CLKSEL  (0x2U)         /* LPD_LSBUS_CLK/512 */
+#define SWDT_RESTART_RKEY    (0x1999U)
 
 
 /* clang-format off */
