@@ -554,9 +554,9 @@ static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 		pmap_switch(&threads_common.kmap->pmap);
 	}
 
-	if (selected->utcb.msgDeferredFrom != NULL) {
-		_threads_copyMsgBufResponse(selected->utcb.msgDeferredFrom, selected, &selected->utcb.msgDeferred);
-		selected->utcb.msgDeferredFrom = NULL;
+	if (selected->utcb.responseDeferredFrom != NULL) {
+		_threads_copyMsgBufResponse(selected->utcb.responseDeferredFrom, selected, &selected->utcb.msgDeferred);
+		selected->utcb.responseDeferredFrom = NULL;
 	}
 
 	if (selected->longjmpctx != NULL) {
@@ -2633,8 +2633,10 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	}
 
 	/* FIXME: trivial to predict, implement good kernel entropy source */
-	hal_cpuGetCycles(&cycles);
-	threads_common.ridCookie = (ptr_t)cycles + 1;
+	do {
+		hal_cpuGetCycles(&cycles);
+		threads_common.ridCookie = (ptr_t)cycles + 1;
+	} while (threads_common.ridCookie == 0);
 
 	/* Initiaizlie scheduler queue */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
@@ -2936,7 +2938,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	recv->interruptible = 0;
 
-	*recv->utcb.ridPtr = (msg_rid_t)((addr_t)caller ^ threads_common.ridCookie);
+	*recv->utcb.ridPtr = (msg_rid_t)((ptr_t)caller ^ threads_common.ridCookie);
 	hal_cpuSetReturnValue(ctx, EOK);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -2982,6 +2984,122 @@ int proc_send(u32 port, msg_t *msg)
 int proc_send_returnable(u32 port, msg_t *msg)
 {
 	return proc_send_ex(port, msg, 1);
+}
+
+
+static vm_map_t *_getMap(process_t *process)
+{
+	return (process == NULL || process->mapp == NULL) ? threads_common.kmap : process->mapp;
+}
+
+
+int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
+{
+	port_t *p;
+	thread_t *caller, *recv, *forward;
+	spinlock_ctx_t sc, tsc;
+
+	void *reply = (void *)((ptr_t)rid ^ threads_common.ridCookie);
+
+	recv = proc_current();
+	LIB_ASSERT(recv != NULL, "recv is null???");
+
+	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0) {
+		return -EINVAL;
+	}
+
+	p = proc_portGet(port);
+	if (p == NULL) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&p->spinlock, &sc);
+
+	if (p->closed != 0) {
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		return -EINVAL;
+	}
+
+	int err;
+	while ((err = _mustSlowCall(p, recv)) != 0) {
+		p->queue.nonempty |= (1u << recv->priority);
+		err = proc_threadWaitInterruptible(&p->queue.pq[recv->priority], &p->spinlock, 0, &sc);
+		if (p->closed != 0 || err < 0) {
+			hal_spinlockClear(&p->spinlock, &sc);
+			port_put(p, 0);
+			return p->closed != 0 ? -EINVAL : err;
+		}
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
+	caller = reply;
+
+	if (caller->called != recv || caller->exit != 0) {
+		LIB_ASSERT(0, "TODO: commodify the respond paths");
+	}
+
+	forward = p->threads;
+	LIB_ASSERT(forward != NULL, "forward null");
+	LIB_ASSERT(recv != NULL, "recv is null");
+
+	if (_getMap(forward->process) != _getMap(recv->process)) {
+		LIB_ASSERT(0, "he");
+		hal_spinlockClear(&threads_common.spinlock, &tsc);
+		hal_spinlockClear(&p->spinlock, &sc);
+		port_put(p, 0);
+		return -EINVAL;
+	}
+
+	LIST_REMOVE_EX(&p->threads, forward, tnext, tprev);
+
+	/* TODO: use port dequeue? */
+	forward->addedTo = NULL;
+
+	recv->interruptible = 1;
+	forward->interruptible = 0;
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
+	hal_spinlockClear(&p->spinlock, &sc);
+
+	/* same aspace, we can copy directly */
+	hal_memcpy(forward->utcb.msg, msg, sizeof(*msg));
+
+	*forward->utcb.ridPtr = rid;
+	forward->fastpathExitCtx = _getUserContext(forward);
+	trace_eventSyscallExit(forward->respondAndRecv ? syscall_msgRespondAndRecv : syscall_msgRecv, proc_getTid(forward));
+
+	forward->utcb.msglen = recv->utcb.msglen;
+
+	hal_cpuSetReturnValue(forward->fastpathExitCtx, EOK);
+
+	hal_memcpy(&forward->utcb.iil, &recv->utcb.iil, sizeof(recv->utcb.iil));
+	hal_memcpy(&forward->utcb.oil, &recv->utcb.oil, sizeof(recv->utcb.oil));
+
+	hal_spinlockSet(&threads_common.spinlock, &tsc);
+
+	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
+
+	caller->mappedTo = forward;
+
+	/* TODO: optimize these */
+	caller->called = NULL;
+	_sc_return(recv, caller, donated_sc);
+	_sc_donate(caller, forward, donated_sc);
+
+	/* could have changed as part of _sc_return */
+	threads_common.current[hal_cpuGetID()] = recv->sc_active;
+
+	LIST_ADD(&threads_common.ready[forward->priority], forward->sc_active);
+
+	hal_spinlockClear(&threads_common.spinlock, &tsc);
+
+	/* TODO: potentially unnecessary */
+	hal_memset(&recv->utcb.iil, 0, sizeof(recv->utcb.iil));
+	hal_memset(&recv->utcb.oil, 0, sizeof(recv->utcb.oil));
+
+	port_put(p, 0);
+
+	return EOK;
 }
 
 
@@ -3049,7 +3167,7 @@ static int _postPassiveWakeup(port_t *p, thread_t *recv)
 		err = -EINTR;
 	}
 	else {
-		*recv->utcb.ridPtr = (msg_rid_t)((addr_t)recv->reply ^ threads_common.ridCookie);
+		*recv->utcb.ridPtr = (msg_rid_t)((ptr_t)recv->reply ^ threads_common.ridCookie);
 		err = EOK;
 	}
 
@@ -3100,12 +3218,6 @@ int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 	p->pulse = 0;
 	hal_spinlockClear(&p->spinlock, sc);
 	return -EPULSE;
-}
-
-
-static vm_map_t *_getMap(process_t *process)
-{
-	return (process == NULL || process->mapp == NULL) ? threads_common.kmap : process->mapp;
 }
 
 
@@ -3212,7 +3324,7 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	thread_t *caller, *recv;
 	int err = EOK;
 
-	void *reply = (void *)((addr_t)rid ^ threads_common.ridCookie);
+	void *reply = (void *)((ptr_t)rid ^ threads_common.ridCookie);
 
 	recv = proc_current();
 
@@ -3286,7 +3398,7 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	 * Delegation saves us two pmap switches (potential TLB flushes) per respond fastpath
 	 */
 	hal_memcpy(&caller->utcb.msgDeferred, msg, sizeof(*msg));
-	caller->utcb.msgDeferredFrom = recv;
+	caller->utcb.responseDeferredFrom = recv;
 
 	/* TODO: lazy remapping */
 	threads_releaseIpcBuffers(caller);
@@ -3365,7 +3477,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	 */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	msg_rid_t saved_rid = *rid;
-	thread_t *reply = (thread_t *)((addr_t)saved_rid ^ threads_common.ridCookie);
+	thread_t *reply = (thread_t *)((ptr_t)saved_rid ^ threads_common.ridCookie);
 	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0 || reply->called != _proc_current()) {
 		respond = 0;
 	}

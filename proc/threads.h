@@ -158,7 +158,7 @@ typedef struct _thread_t {
 		int err;
 
 		msg_t msgDeferred;
-		struct _thread_t *msgDeferredFrom;
+		struct _thread_t *responseDeferredFrom;
 
 		char msgbuf[256];
 		size_t msglen;
