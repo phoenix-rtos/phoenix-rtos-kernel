@@ -35,7 +35,7 @@
 #if defined(WATCHDOG)
 #if !defined(WATCHDOG_TIMEOUT)
 #error "WATCHDOG_TIMEOUT not defined!"
-#elif (WATCHDOG_TIMEOUT < 0x000FFF || WATCHDOG_TIMEOUT > 0xFFFFFF)
+#elif (WATCHDOG_TIMEOUT < 0x000FFFU || WATCHDOG_TIMEOUT > 0xFFFFFFU)
 #error "Watchdog timeout out of bounds!"
 #endif
 #endif
@@ -436,9 +436,7 @@ __attribute__((noreturn)) void hal_cpuReboot(void)
 
 void hal_wdgReload(void)
 {
-#if defined(WATCHDOG)
 	*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
-#endif
 }
 
 
@@ -502,6 +500,42 @@ int hal_platformctl(void *ptr)
 			}
 			break;
 
+		case pctl_wdg_reload:
+			/* If watchdog is not enabled this will take no effects*/
+			if ((data->action == pctl_set) && (data->wdg_reload.reload >= 0x000FFFU) && (data->wdg_reload.reload <= 0xFFFFFFU)) {
+				*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | ((data->wdg_reload.reload >> 12) & 0xFFFU) << SWDT_CONTROL_CRV_BIT | SWDT_CONTROL_CLKSEL);
+				*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+				ret = 0;
+			}
+			else if (data->action == pctl_get) {
+				data->wdg_reload.reload = (unsigned int)((((*(zynq_common.swdt_lpd + swdt_lpd_control) >> SWDT_CONTROL_CRV_BIT) & 0xFFFU) << 12) | 0xFFFU);
+				ret = 0;
+			}
+			else {
+				/* No action required */
+			}
+			break;
+
+		case pctl_wdg_enable:
+			if ((data->action == pctl_set) && (data->wdg_enable.enable == 1)) {
+				*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+				*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY | SWDT_MODE_RSTLN | SWDT_MODE_RSTEN | SWDT_MODE_WDEN);
+				ret = 0;
+			}
+			else if ((data->action == pctl_set) && (data->wdg_enable.enable == 0)) {
+				*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+				*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY);
+				ret = 0;
+			}
+			else if (data->action == pctl_get) {
+				data->wdg_enable.enable = (*(zynq_common.swdt_lpd + swdt_lpd_mode) & SWDT_MODE_WDEN) ? 1 : 0;
+				ret = 0;
+			}
+			else {
+				/* No action required */
+			}
+			break;
+
 		default:
 			/* Error by default */
 			break;
@@ -534,21 +568,20 @@ void _hal_platformInit(void)
 	 * or after watchdog timeout triggered reset. the control reset is specified
 	 * in the UG: "Note: If a restart signal is received the prescaler should be reset."
 	 */
+	(void)_zynq_setDevRst(pctl_devreset_lpd_swdt, 0);
 	*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY);
-	*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | 0xFFF << SWDT_CONTROL_CRV_BIT);
+	*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | (0xFFFU << SWDT_CONTROL_CRV_BIT) | SWDT_CONTROL_CLKSEL);
 
-	#if defined(WATCHDOG)
-
-	/* set cotnrol: LPD_LSBUS_CLK scaler = 512 (gives reload value from ~20ms to 85s fro 100MHz LPD_LSBUS_CLK)*/
-	*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | ((WATCHDOG_TIMEOUT >> 12) & 0xFFF) << SWDT_CONTROL_CRV_BIT | SWDT_CONTROL_CLKSEL );
+#if defined(WATCHDOG)
+	/* set cotnrol: LPD_LSBUS_CLK scaler = 512 (gives reload value from ~20ms to 85s for 100MHz LPD_LSBUS_CLK)*/
+	*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | ((WATCHDOG_TIMEOUT >> 12) & 0xFFF) << SWDT_CONTROL_CRV_BIT | SWDT_CONTROL_CLKSEL);
 
 	/* reload */
 	*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
 
 	/* enable watchdog: no irq, reset enabled (32 clock cycles pulse) */
 	*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY | SWDT_MODE_RSTLN | SWDT_MODE_RSTEN | SWDT_MODE_WDEN);
-
-	#endif
+#endif
 }
 
 
