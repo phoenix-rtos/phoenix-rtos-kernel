@@ -1410,13 +1410,17 @@ void vm_mapinfo(meminfo_t *info)
 			}
 
 			total = (ptr_t)map->stop - (ptr_t)map->start;
-			if (map->tree.root == NULL) {
-				free = total; /* Map is empty */
+			free = total;
+
+			(void)proc_lockSet(&map->lock);
+
+			e = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
+			while (e != NULL) {
+				free -= e->size;
+				e = lib_treeof(map_entry_t, linkage, lib_rbNext(&e->linkage));
 			}
-			else {
-				e = lib_treeof(map_entry_t, linkage, map->tree.root);
-				free = e->lmaxgap + e->rmaxgap;
-			}
+
+			(void)proc_lockClear(&map->lock);
 
 			/* All maps together */
 			info->maps.total += total;
