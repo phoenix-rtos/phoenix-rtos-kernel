@@ -1,0 +1,51 @@
+#ifndef ARMV7R5F_ZYNQMP_LDT
+#define ARMV7R5F_ZYNQMP_LDT
+
+
+/* Platform specific definitions */
+#define SIZE_PAGE  0x1000
+#define SIZE_STACK (4 * SIZE_PAGE)
+#define SIZE_HEAP  (5 * SIZE_PAGE)
+
+#define ADDR_ATCM  0x00000000
+#define SIZE_ATCM  (128 * 1024)
+
+#define ADDR_BTCM  0x00020000
+#define SIZE_BTCM  (128 * 1024)
+
+#define ADDR_OCRAM_LOW  0xfffc0000
+#define SIZE_OCRAM_LOW  (192 * 1024)
+
+#define ADDR_OCRAM_HIGH 0xffff0000
+#define SIZE_OCRAM_HIGH (64 * 1024)
+
+#define ADDR_DDR 0x00100000
+#define SIZE_DDR (512 * 1024 * 1024)
+
+#define SIZE_BITSTREAM (20 * 1024 * 1024)
+#define ADDR_BITSTREAM (ADDR_DDR + SIZE_DDR - SIZE_BITSTREAM)
+
+
+#if defined(__LINKER__)
+
+/* Memory map setup */
+MEMORY
+{
+	m_atcm         (rw)  : ORIGIN = ADDR_ATCM, LENGTH = SIZE_ATCM
+	m_btcm         (rw)  : ORIGIN = ADDR_BTCM, LENGTH = SIZE_BTCM
+	m_ddr          (rw)  : ORIGIN = ADDR_DDR, LENGTH = SIZE_DDR
+	m_ocram_low    (rwx) : ORIGIN = ADDR_OCRAM_LOW, LENGTH = SIZE_OCRAM_LOW
+	m_ocram_high   (rwx) : ORIGIN = ADDR_OCRAM_HIGH, LENGTH = SIZE_OCRAM_HIGH
+}
+
+REGION_ALIAS("KERNEL_IMAGE", m_atcm)
+REGION_ALIAS("DATA", m_ddr)
+REGION_ALIAS("BSS", m_ddr);
+REGION_ALIAS("SYSPAGE", m_ddr);
+
+#include "common/kernel-arm.lds"
+
+#endif /* end of __LINKER__ */
+
+
+#endif /* end of ARMV7R5F_ZYNQMP_LDT */

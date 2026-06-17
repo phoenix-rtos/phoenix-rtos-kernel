@@ -1,0 +1,41 @@
+#ifndef ARMV8R52_MPS3AN536_LDT
+#define ARMV8R52_MPS3AN536_LDT
+
+/* Platform specific definitions */
+#define SIZE_PAGE   0x1000
+#define SIZE_STACK  (SIZE_PAGE)
+#define SIZE_HEAP   (SIZE_PAGE)
+
+#define AREA_KERNEL 0x40000
+
+#define ADDR_ATCM 0x00000000
+#define SIZE_ATCM 0x8000
+
+#define ADDR_BRAM 0x10000000
+#define SIZE_BRAM 0x80000
+
+#define ADDR_DDR 0x20000000
+#define SIZE_DDR 0xc0000000
+
+
+#if defined(__LINKER__)
+
+/* Memory map setup */
+MEMORY
+{
+    m_bram   (rwx) : ORIGIN = 0x10000000, LENGTH = AREA_KERNEL
+}
+
+REGION_ALIAS("KERNEL_IMAGE", m_bram);
+REGION_ALIAS("DATA", m_bram);
+REGION_ALIAS("BSS", m_bram);
+REGION_ALIAS("SYSPAGE" , m_bram);
+
+#include "common/kernel-arm.lds"
+
+
+#endif /* __LINKER__ */
+
+
+#endif /*  ARMV8R52_MPS3AN536_LDT */
+
