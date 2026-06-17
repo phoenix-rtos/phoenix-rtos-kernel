@@ -117,13 +117,13 @@ int proc_join(int tid, time_t timeout);
 void proc_changeMap(process_t *proc, vm_map_t *map, vm_map_t *imap, pmap_t *pmap);
 
 
-typedef void (*proc_threadsListCb_t)(void *arg, int i, threadinfo_t *info);
+typedef void (*proc_threadsListCb_t)(void *arg, threadinfo_t *info);
 
 
-int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg);
+void proc_threadsIter(unsigned flags, proc_threadsListCb_t cb, void *arg);
 
 
-int proc_threadsList(int n, threadinfo_t *info);
+int proc_threadsInfo(int tid, unsigned int flags, int n, threadinfo_t *info);
 
 
 int proc_threadsOther(thread_t *t);
