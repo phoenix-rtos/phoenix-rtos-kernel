@@ -102,9 +102,9 @@ char *hal_strcpy(char *dest, const char *src)
 	size_t i = 0;
 
 	/* parasoft-begin-suppress MISRAC2012-RULE_18_1 "src is assumed to end with a null-byte" */
-	for (i = 0; src[i] != '\0'; i++) {
+	do {
 		dest[i] = src[i];
-	}
+	} while (src[i++] != '\0');
 	/* parasoft-end-suppress MISRAC2012-RULE_18_1 */
 
 	return dest;
