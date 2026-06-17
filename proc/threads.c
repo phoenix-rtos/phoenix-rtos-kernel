@@ -2021,6 +2021,26 @@ int proc_threadsList(int n, threadinfo_t *info)
 }
 
 
+int proc_schedInfo(process_t *proc, int policy, sched_info_t *info)
+{
+	LIB_ASSERT(proc != NULL, "null proc");
+
+	if (policy < SCHED_FIFO || SCHED_OTHER < policy) {
+		return -EINVAL;
+	}
+
+	if (policy != SCHED_RR) {
+		return -ENOSYS;
+	}
+
+	info->interval = SYSTICK_INTERVAL;
+	info->minPriority = 0;
+	info->maxPriority = (int)MAX_PRIO;
+
+	return EOK;
+}
+
+
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	unsigned int i;

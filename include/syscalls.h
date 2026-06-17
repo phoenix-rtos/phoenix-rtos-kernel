@@ -128,7 +128,9 @@
 	ID(sys_mprotect) \
 	\
 	ID(sys_statvfs) \
-	ID(sys_uname)
+	ID(sys_uname) \
+	ID(schedInfo)
+
 /* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 /* clang-format on */
 

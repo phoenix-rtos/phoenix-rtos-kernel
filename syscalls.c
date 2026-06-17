@@ -21,6 +21,7 @@
 #include "include/errno.h"
 #include "include/sysinfo.h"
 #include "include/mman.h"
+#include "include/sched.h"
 #include "include/syscalls.h"
 #include "include/threads.h"
 #include "include/utsname.h"
@@ -372,6 +373,35 @@ int syscalls_priority(u8 *ustack)
 	GETFROMSTACK(ustack, int, priority, 0U);
 
 	return proc_threadPriority(priority);
+}
+
+
+int syscalls_schedInfo(u8 *ustack)
+{
+	int err, policy;
+	process_t *proc;
+	pid_t pid;
+	sched_info_t *info;
+
+	GETFROMSTACK(ustack, pid_t, pid, 0U);
+	GETFROMSTACK(ustack, int, policy, 1U);
+	GETFROMSTACK(ustack, sched_info_t *, info, 2U);
+
+	proc = proc_find(pid);
+	if (proc == NULL) {
+		return -EINVAL;
+	}
+
+	if (vm_mapBelongs(proc_current()->process, info, sizeof(*info)) < 0) {
+		(void)proc_put(proc);
+		return -EINVAL;
+	}
+
+	err = proc_schedInfo(proc, policy, info);
+
+	(void)proc_put(proc);
+
+	return err;
 }
 
 
