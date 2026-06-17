@@ -336,11 +336,11 @@ void log_msgHandler(msg_t *msg, oid_t oid, msg_rid_t rid)
 
 	switch (msg->type) {
 		case mtOpen:
-			if ((msg->i.openclose.flags & O_WRONLY) != 0U) {
-				msg->o.err = EOK;
+			if ((msg->i.openclose.flags & O_ACCMODE) == O_RDONLY) {
+				msg->o.err = log_readerAdd(msg->pid, msg->i.openclose.flags & O_NONBLOCK);
 			}
 			else {
-				msg->o.err = log_readerAdd(msg->pid, msg->i.openclose.flags & O_NONBLOCK);
+				msg->o.err = EOK;
 			}
 			break;
 		case mtRead:
