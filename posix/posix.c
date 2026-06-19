@@ -2721,9 +2721,7 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 			break;
 		}
 
-		do {
-			err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
-		} while ((pinfo->zombies == NULL) && (err == EOK));
+		err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
 
 		if (err == -EINTR) {
 			/* pinfo->lock is clear */
