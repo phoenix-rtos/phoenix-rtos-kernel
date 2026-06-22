@@ -516,12 +516,12 @@ int syscalls_sys_perf_start(u8 *ustack)
 	GETFROMSTACK(ustack, void *, arg, 2U);
 	GETFROMSTACK(ustack, size_t, sz, 3U);
 
-	if (mode < 0 || mode >= (int)perf_mode_count) {
-		return -ENOSYS;
-	}
-
 	if (arg != NULL && vm_mapBelongs(proc, arg, sz) < 0) {
 		return -EFAULT;
+	}
+
+	if (mode < 0 || mode >= (int)perf_mode_count) {
+		return -ENOSYS;
 	}
 
 	return perf_start((perf_mode_t)mode, flags, arg, sz);
@@ -540,12 +540,12 @@ int syscalls_sys_perf_read(u8 *ustack)
 	GETFROMSTACK(ustack, size_t, sz, 2U);
 	GETFROMSTACK(ustack, int, chan, 3U);
 
-	if (mode < 0 || mode >= (int)perf_mode_count) {
-		return -ENOSYS;
-	}
-
 	if (vm_mapBelongs(proc, buffer, sz) < 0) {
 		return -EFAULT;
+	}
+
+	if (mode < 0 || mode >= (int)perf_mode_count) {
+		return -ENOSYS;
 	}
 
 	return perf_read((perf_mode_t)mode, buffer, sz, chan);
