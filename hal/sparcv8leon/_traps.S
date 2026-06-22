@@ -684,7 +684,7 @@ s_fpu_done:
 	nop
 	nop
 
-	/* void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx) */
+	/* void *syscalls_dispatch(unsigned int n, u8 *ustack, cpu_context_t *ctx) */
 	call syscalls_dispatch
 	add %sp, 0x60, %o2
 

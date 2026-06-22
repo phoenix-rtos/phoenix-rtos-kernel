@@ -191,7 +191,7 @@ _syscall_dispatch:
 	stmdb r0!, {r1-r4}
 
 	/* Prepare arguments for function call:
-	 * void *syscalls_dispatch(int n, char *ustack, cpu_context_t *ctx) */
+	 * void *syscalls_dispatch(unsigned int n, u8 *ustack, cpu_context_t *ctx) */
 	mov r1, r0
 	mov r2, sp
 	ldrb r0, [r7, #-3] /* get syscall number by examining SVC instruction */
