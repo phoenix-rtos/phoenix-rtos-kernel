@@ -36,12 +36,12 @@ static struct {
 	int startPending; /* trace_start guard flag */
 
 	int epoch;
-	u32 prev;
+	u64 prev;
 	unsigned int flags;
 
 	u8 errorFlags;
 	u64 eventDelayCount;
-	u64 eventDelayTimestamp;
+	u64 eventDelayTsOffset; /* offset relative to startTimestamp */
 	u64 startTimestamp;
 } trace_common;
 
@@ -51,19 +51,19 @@ static struct {
 #define TRACE_BUFFER_WRITE_ERR (1U << 3)
 
 
-static u32 _gettimeRaw(void)
+static u32 _getUsFromStart(void)
 {
-	/* Intentional downcast to u32 - traces >1h are not supported */
-	u32 now = (u32)hal_timerGetUs();
+	u64 now = (u64)hal_timerGetUs();
 
-	while (now < trace_common.prev) {
+	if (now < trace_common.prev) {
 		trace_common.errorFlags |= TRACE_NON_MONOTONICITY;
-		now = (u32)hal_timerGetUs();
+		now = trace_common.prev;
 	}
 
 	trace_common.prev = now;
 
-	return now;
+	/* Intentional downcast to u32 - traces >1h are not supported */
+	return (u32)(now - trace_common.startTimestamp);
 }
 
 
@@ -81,7 +81,7 @@ static void _writeEvent(u8 cpuChan, u8 event, const void *data, size_t sz, u32 *
 	} __attribute__((packed)) ev;
 
 	if (ts == NULL || *ts == 0U) {
-		eventTs = _gettimeRaw();
+		eventTs = _getUsFromStart();
 		if (ts != NULL) {
 			*ts = eventTs;
 		}
@@ -125,7 +125,7 @@ static void _writeEvent(u8 cpuChan, u8 event, const void *data, size_t sz, u32 *
 		 */
 		trace_common.errorFlags |= TRACE_EVENT_DELAYED;
 		trace_common.eventDelayCount++;
-		trace_common.eventDelayTimestamp = _gettimeRaw();
+		trace_common.eventDelayTsOffset = _getUsFromStart();
 	}
 }
 
@@ -224,21 +224,21 @@ int trace_start(unsigned int flags)
 		flags &= ~PERF_TRACE_FLAG_ROLLING;
 	}
 
-	/* Must be set before _emitThreadinfo as it depends on flags (via _writeEvent) */
+	/* Must be set before _emitThreadinfo() as _writeEvent() depends on these */
 	trace_common.flags = flags;
+	trace_common.startTimestamp = (u64)hal_timerGetUs();
+	trace_common.prev = trace_common.startTimestamp;
+	trace_common.errorFlags = 0;
+	trace_common.eventDelayCount = 0;
 
 	/* Without spinlock - trace is not enabled yet, so there's no concurrent access */
 	_emitThreadinfo();
-
-	trace_common.errorFlags = 0;
-	trace_common.eventDelayCount = 0;
 
 	trace_common.epoch++;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
 	trace_common.startPending = 0;
 	_enableTracing(1);
-	trace_common.startTimestamp = _gettimeRaw();
 	hal_spinlockClear(&trace_common.spinlock, &sc);
 
 	return (int)getChannelCount();
@@ -299,13 +299,15 @@ int trace_finish(void)
 	if (trace_common.running != 0 || trace_common.stopped != 0) {
 		_enableTracing(0);
 		trace_common.stopped = 0;
-		errorFlags = trace_common.errorFlags;
 		eventDelayCount = trace_common.eventDelayCount;
 		trace_common.eventDelayCount = 0;
 
 		startTimestamp = trace_common.startTimestamp;
-		stopTimestamp = _gettimeRaw();
-		eventDelayTimestamp = trace_common.eventDelayTimestamp;
+		stopTimestamp = startTimestamp + _getUsFromStart();
+		eventDelayTimestamp = startTimestamp + trace_common.eventDelayTsOffset;
+
+		/* read last: _getUsFromStart() above could set an error flag */
+		errorFlags = trace_common.errorFlags;
 	}
 	else {
 		ret = -EINVAL;
@@ -340,7 +342,6 @@ int _trace_init(vm_map_t *kmap)
 	trace_common.startPending = 0;
 
 	trace_common.epoch = 0;
-	trace_common.prev = 0;
 
 	hal_spinlockCreate(&trace_common.spinlock, "trace.spinlock");
 
