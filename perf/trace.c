@@ -204,7 +204,7 @@ int trace_start(unsigned int flags)
 	int ret;
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
-	if (trace_common.running != 0 || trace_common.startPending != 0) {
+	if (trace_common.running != 0 || trace_common.stopped != 0 || trace_common.startPending != 0) {
 		hal_spinlockClear(&trace_common.spinlock, &sc);
 		return -EINPROGRESS;
 	}
