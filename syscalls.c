@@ -1947,12 +1947,13 @@ int syscalls_notimplemented(void)
 const void *const syscalls[] = { SYSCALLS(SYSCALLS_NAME) };
 
 
-void *syscalls_dispatch(int n, u8 *ustack, cpu_context_t *ctx)
+void *syscalls_dispatch(unsigned int n, u8 *ustack, cpu_context_t *ctx)
 {
 	void *retval;
 	thread_t *thread;
 
-	if (n >= (int)(sizeof(syscalls) / sizeof(syscalls[0]))) {
+	if (n >= sizeof(syscalls) / sizeof(syscalls[0])) {
+		threads_setupUserReturn((void *)-EINVAL, ctx);
 		return (void *)-EINVAL;
 	}
 
