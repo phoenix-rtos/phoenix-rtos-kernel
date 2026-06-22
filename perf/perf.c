@@ -38,6 +38,9 @@ int perf_read(perf_mode_t mode, void *buf, size_t bufsz, int chan)
 {
 	switch (mode) {
 		case perf_mode_trace:
+			if (chan < 0 || chan > (int)(u8)-1) {
+				return -EINVAL;
+			}
 			return trace_read((u8)chan, buf, bufsz);
 		default:
 			return -ENOSYS;
