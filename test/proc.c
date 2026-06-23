@@ -202,7 +202,7 @@ static void test_proc_initthr(void *arg)
 
 void test_proc_exit(void)
 {
-	proc_start(test_proc_initthr, NULL, (const char *)"init");
+	proc_start(test_proc_initthr, NULL, (const char *)"init", NULL);
 
 	hal_cpuEnableInterrupts();
 	hal_cpuReschedule(NULL, NULL);

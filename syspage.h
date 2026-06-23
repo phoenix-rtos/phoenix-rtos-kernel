@@ -51,6 +51,16 @@ const syspage_prog_t *syspage_progIdResolve(unsigned int id);
 const syspage_prog_t *syspage_progNameResolve(const char *name);
 
 
+/* Scheduler configuration */
+
+syspage_sched_t *syspage_schedulerConfig(void);
+
+
+/* Partition configuration */
+
+syspage_part_t *syspage_partitionList(void);
+
+
 /* General functions */
 
 void syspage_progShow(void);

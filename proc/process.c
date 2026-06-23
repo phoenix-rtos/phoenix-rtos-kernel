@@ -19,6 +19,8 @@
 #include "include/errno.h"
 #include "include/signal.h"
 #include "include/syscalls.h"
+#include "include/syspage.h"
+#include "syspage.h"
 #include "vm/vm.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
@@ -46,8 +48,8 @@ typedef struct _process_spawn_t {
 	vm_object_t *object;
 	off_t offset;
 	size_t size;
-	vm_map_t *map;
-	vm_map_t *imap;
+	ph_map_t *imap;
+	ph_map_t **dmaps;
 	const syspage_prog_t *prog;
 
 	char **argv;
@@ -63,6 +65,7 @@ static struct {
 	lock_t lock;
 	idtree_t id;
 	int idcounter;
+	partition_t *partitions;
 } process_common;
 
 
@@ -99,6 +102,7 @@ static void process_destroy(process_t *p)
 
 	if (mapp != NULL) {
 		vm_mapDestroy(p, mapp);
+		vm_kfree(mapp->phMaps);
 	}
 
 	if (imapp != NULL) {
@@ -176,7 +180,7 @@ static int process_alloc(process_t *process)
 }
 
 
-int proc_start(startFn_t start, void *arg, const char *path)
+int proc_start(startFn_t start, void *arg, const char *path, partition_t *partition)
 {
 	int err = EOK;
 	process_t *process;
@@ -205,6 +209,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ghosts = NULL;
 	process->reaper = NULL;
 	process->refs = 1;
+	process->partition = partition;
 
 	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
@@ -1088,7 +1093,6 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	void *stack, *entry = NULL;
 	int err = EOK, count;
 	void *cleanupFn = NULL;
-	unsigned int i = 0;
 	spinlock_ctx_t sc;
 	const struct stackArg args[] = {
 		{ &spawn->envp, sizeof(spawn->envp) },
@@ -1101,33 +1105,17 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	current->process->envp = spawn->envp;
 
 #ifndef NOMMU
-	err = vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX);
+	err = vm_mapCreate(&current->process->map, (void *)(VADDR_MIN + SIZE_PAGE), (void *)VADDR_USR_MAX, spawn->dmaps);
 	if (err == EOK) {
 		proc_changeMap(current->process, &current->process->map, NULL, &current->process->map.pmap);
 	}
-	(void)i;
 #else
-	(void)pmap_create(&current->process->map.pmap, NULL, NULL, NULL);
-	proc_changeMap(current->process, (spawn->map != NULL) ? spawn->map : process_common.kmap, spawn->imap, &current->process->map.pmap);
-	current->process->entries = NULL;
-
-	if (spawn->prog != NULL) {
-		/* Add instruction maps */
-		for (i = 0; i < spawn->prog->imapSz; ++i) {
-			if (err != EOK) {
-				break;
-			}
-			err = pmap_addMap(current->process->pmapp, spawn->prog->imaps[i]);
-		}
-
-		/* Add data/io maps */
-		for (i = 0; i < spawn->prog->dmapSz; ++i) {
-			if (err != EOK) {
-				break;
-			}
-			err = pmap_addMap(current->process->pmapp, spawn->prog->dmaps[i]);
-		}
+	err = vm_mapCreate(&current->process->map, NULL, NULL, spawn->dmaps);
+	if (err == EOK) {
+		(void)pmap_create(&current->process->map.pmap, NULL, NULL, spawn->prog, NULL);
+		proc_changeMap(current->process, &current->process->map, spawn->imap, &current->process->map.pmap);
 	}
+	current->process->entries = NULL;
 #endif
 
 	if (err == EOK) {
@@ -1209,15 +1197,38 @@ static void proc_spawnThread(void *arg)
 }
 
 
-static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t *imap, vm_map_t *map, off_t offset, size_t size, const char *path, char **argv, char **envp)
+static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, ph_map_t *imap, ph_map_t **dmaps, off_t offset, size_t size, const char *path, char **argv, char **envp)
 {
 	int pid;
 	process_spawn_t spawn;
 	spinlock_ctx_t sc;
+	partition_t *part;
+	process_t *proc = proc_current()->process;
+
+	if (dmaps == NULL) {
+		return -EINVAL;
+	}
+
+	if (prog != NULL) {
+		part = &process_common.partitions[prog->partition->id];
+	}
+	else if ((proc != NULL) && (proc->partition != NULL)) {
+		part = proc->partition;
+	}
+	else {
+		part = NULL;
+	}
+	if ((proc != NULL) &&
+			(proc->partition != NULL) &&
+			(proc->partition != part)) {
+		vm_kfree(dmaps);
+		return -EACCES;
+	}
 
 	if (argv != NULL) {
 		argv = proc_copyargs(argv);
 		if (argv == NULL) {
+			vm_kfree(dmaps);
 			return -ENOMEM;
 		}
 	}
@@ -1226,6 +1237,7 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 		envp = proc_copyargs(envp);
 		if (envp == NULL) {
 			vm_kfree(argv);
+			vm_kfree(dmaps);
 			return -ENOMEM;
 		}
 	}
@@ -1238,13 +1250,13 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 	spawn.argv = argv;
 	spawn.envp = envp;
 	spawn.parent = proc_current();
-	spawn.map = map;
 	spawn.imap = imap;
+	spawn.dmaps = dmaps;
 	spawn.prog = prog;
 
 	hal_spinlockCreate(&spawn.sl, "spawnsl");
 
-	pid = proc_start(proc_spawnThread, &spawn, path);
+	pid = proc_start(proc_spawnThread, &spawn, path, part);
 	if (pid > 0) {
 		hal_spinlockSet(&spawn.sl, &sc);
 		while (spawn.state == FORKING) {
@@ -1255,6 +1267,7 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 	else {
 		vm_kfree(argv);
 		vm_kfree(envp);
+		vm_kfree(dmaps);
 	}
 
 	hal_spinlockDestroy(&spawn.sl);
@@ -1263,70 +1276,106 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, vm_map_t 
 }
 
 
+static ph_map_t **process_clonePhMapList(ph_map_t **phMaps)
+{
+	ph_map_t **cloned;
+	unsigned int phMapsz = 0;
+
+	while (phMaps[phMapsz] != NULL) {
+		phMapsz++;
+	}
+	phMapsz++;
+	cloned = vm_kmalloc(sizeof(ph_map_t *) * phMapsz);
+	if (cloned == NULL) {
+		return NULL;
+	}
+	hal_memcpy(cloned, phMaps, sizeof(ph_map_t *) * phMapsz);
+	return cloned;
+}
+
+
 int proc_fileSpawn(const char *path, char **argv, char **envp)
 {
 	int err;
 	oid_t oid;
 	vm_object_t *object;
+	ph_map_t **phMaps;
+	process_t *process = proc_current()->process;
 
 	err = proc_lookup(path, NULL, &oid);
 	if (err < 0) {
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, process->partition);
 	if (err < 0) {
 		return err;
 	}
 
-	return proc_spawn(object, NULL, NULL, NULL, 0, object->size, path, argv, envp);
+	phMaps = process_clonePhMapList(process->mapp->phMaps);
+	if (phMaps == NULL) {
+		(void)vm_objectPut(object);
+		return -ENOMEM;
+	}
+
+	return proc_spawn(object, NULL, NULL, phMaps, 0, object->size, path, argv, envp);
 }
 
 
 int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, char **argv)
 {
-	const syspage_map_t *sysMap, *codeMap;
 	const syspage_prog_t *prog = syspage_progNameResolve(name);
 	const unsigned int readExecAttr = (unsigned int)mAttrRead | (unsigned int)mAttrExec;
 	const unsigned int readWriteAttr = (unsigned int)mAttrRead | (unsigned int)mAttrWrite;
-	vm_map_t *imapp = NULL, *dmapp;
+	const syspage_map_t *map;
+	ph_map_t *imapp = NULL, **dmaps;
+	unsigned int i;
+	int err;
 
 	if (prog == NULL) {
 		return -ENOENT;
 	}
 
 	if (imap == NULL) {
-		codeMap = syspage_mapIdResolve(prog->imaps[0]);
+		map = syspage_mapIdResolve(prog->imaps[0]);
 	}
 	else {
-		codeMap = syspage_mapNameResolve(imap);
-		if (codeMap == NULL) {
-			return -EINVAL;
-		}
+		map = syspage_mapNameResolve(imap);
 	}
-
-	if (codeMap != NULL) {
-		if ((codeMap->attr & readExecAttr) != readExecAttr) {
-			return -EINVAL;
-		}
-
-		/* NOTE: imapp can be NULL */
-		imapp = vm_getSharedMap((int)codeMap->id);
-	}
-
-	sysMap = (dmap == NULL) ? syspage_mapIdResolve(prog->dmaps[0]) : syspage_mapNameResolve(dmap);
-	if (sysMap == NULL || (sysMap->attr & readWriteAttr) != readWriteAttr) {
+	if ((map == NULL) || ((map->attr & readExecAttr) != readExecAttr)) {
 		return -EINVAL;
 	}
-	dmapp = vm_getSharedMap((int)sysMap->id);
+	imapp = vm_getPhysicalMap((int)map->id);
 
-	return proc_syspageSpawn(prog, imapp, dmapp, name, argv);
+	if (dmap == NULL) {
+		for (i = 0U; i < prog->dmapSz; i++) {
+			map = syspage_mapIdResolve(prog->dmaps[i]);
+			if ((map == NULL) || ((map->attr & readWriteAttr) != readWriteAttr)) {
+				return -EINVAL;
+			}
+		}
+		dmaps = vm_createPhMapList(prog->dmaps, prog->dmapSz);
+	}
+	else {
+		map = syspage_mapNameResolve(dmap);
+		if ((map == NULL) || ((map->attr & readWriteAttr) != readWriteAttr)) {
+			return -EINVAL;
+		}
+		dmaps = vm_createPhMapList(&map->id, 1);
+	}
+	if (dmaps == NULL) {
+		return -ENOMEM;
+	}
+
+	err = proc_syspageSpawn((const syspage_prog_t *)prog, imapp, dmaps, name, argv);
+
+	return err;
 }
 
 
-int proc_syspageSpawn(const syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
+int proc_syspageSpawn(const syspage_prog_t *program, ph_map_t *imap, ph_map_t **dmaps, const char *path, char **argv)
 {
-	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, (off_t)program->start, program->end - program->start, path, argv, NULL);
+	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, dmaps, (off_t)program->start, program->end - program->start, path, argv, NULL);
 }
 
 
@@ -1489,7 +1538,7 @@ int proc_vfork(void)
 	spawn->parent = current;
 	spawn->prog = NULL;
 
-	pid = proc_start(process_vforkThread, spawn, NULL);
+	pid = proc_start(process_vforkThread, spawn, NULL, (current->process != NULL) ? current->process->partition : NULL);
 	if (pid < 0) {
 		hal_spinlockDestroy(&spawn->sl);
 		vm_kfree(spawn);
@@ -1565,7 +1614,12 @@ static int process_copy(void)
 	/* Avoid ustack access while map is invalid */
 	current->ustack = NULL;
 
-	if (vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop) < 0) {
+	ph_map_t **phMaps = process_clonePhMapList(parent->process->mapp->phMaps);
+	if (phMaps == NULL) {
+		return -ENOMEM;
+	}
+
+	if (vm_mapCreate(&process->map, parent->process->mapp->start, parent->process->mapp->stop, phMaps) < 0) {
 		return -ENOMEM;
 	}
 
@@ -1683,6 +1737,11 @@ static int process_execve(thread_t *current)
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
 		process_restoreParentKstack(current, parent);
+		spawn->dmaps = process_clonePhMapList(parent->process->mapp->phMaps);
+		if (spawn->dmaps == NULL) {
+			current->process->exit = -ENOMEM;
+			proc_threadEnd();
+		}
 	}
 	else {
 		/* Reinitialize process */
@@ -1691,6 +1750,7 @@ static int process_execve(thread_t *current)
 		proc_changeMap(current->process, NULL, NULL, NULL);
 		pmap_switch(&process_common.kmap->pmap);
 
+		spawn->dmaps = map->phMaps;
 		vm_mapDestroy(current->process, map);
 
 		if (imap != NULL) {
@@ -1762,7 +1822,7 @@ int proc_execve(const char *path, char **argv, char **envp)
 		return err;
 	}
 
-	err = vm_objectGet(&object, oid);
+	err = vm_objectGet(&object, oid, (current->process == NULL) ? NULL : current->process->partition);
 	if (err < 0) {
 		vm_kfree(kpath);
 		vm_kfree(argv);
@@ -1829,12 +1889,30 @@ int proc_sigpost(int pid, int sig)
 
 int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 {
+	unsigned int cnt;
+	syspage_part_t *sysPart;
+
 	process_common.kmap = kmap;
 	process_common.first = NULL;
 	process_common.kernel = kernel;
 	process_common.idcounter = 1;
 	(void)proc_lockInit(&process_common.lock, &proc_lockAttrDefault, "process.common");
 	lib_idtreeInit(&process_common.id);
+
+	sysPart = syspage_partitionList();
+	cnt = sysPart->prev->id + 1U;
+	process_common.partitions = vm_kmalloc(sizeof(partition_t) * cnt);
+	if (process_common.partitions == NULL) {
+		return -ENOMEM;
+	}
+
+	do {
+		LIB_ASSERT_ALWAYS(sysPart->id < cnt, "Invalid partition ids in syspage", sysPart->id);
+		(void)proc_lockInit(&process_common.partitions[sysPart->id].lock, &proc_lockAttrDefault, "partition");
+		process_common.partitions[sysPart->id].config = sysPart;
+		process_common.partitions[sysPart->id].usedMem = 0U;
+		sysPart = sysPart->next;
+	} while (sysPart != syspage_partitionList());
 
 	(void)hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	(void)hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);

@@ -30,6 +30,13 @@
 typedef void (*sighandlerFn_t)(void);
 
 
+typedef struct _partition_t {
+	lock_t lock;
+	size_t usedMem;
+	const syspage_part_t *config;
+} partition_t;
+
+
 typedef struct _process_t {
 	lock_t lock;
 
@@ -48,6 +55,7 @@ typedef struct _process_t {
 	vm_map_t *mapp;
 	vm_map_t *imapp;
 	pmap_t *pmapp;
+	partition_t *partition;
 	int exit;
 
 	unsigned int lazy : 1;
@@ -93,7 +101,7 @@ void proc_kill(process_t *proc);
 void proc_reap(void);
 
 
-int proc_start(startFn_t start, void *arg, const char *path);
+int proc_start(startFn_t start, void *arg, const char *path, partition_t *partition);
 
 
 int proc_fileSpawn(const char *path, char **argv, char **envp);
@@ -102,7 +110,7 @@ int proc_fileSpawn(const char *path, char **argv, char **envp);
 int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, char **argv);
 
 
-int proc_syspageSpawn(const syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv);
+int proc_syspageSpawn(const syspage_prog_t *program, ph_map_t *imap, ph_map_t **dmaps, const char *path, char **argv);
 
 
 int proc_execve(const char *path, char **argv, char **envp);

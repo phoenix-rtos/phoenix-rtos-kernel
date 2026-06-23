@@ -79,9 +79,14 @@ typedef struct {
 /* TODO: Consider changing type of kmaps mapsz from int to unsigned int */
 typedef struct _meminfo_t {
 	struct {
-		unsigned int alloc, free, boot, sz;
+		unsigned int alloc, total, boot, sz;
 		int mapsz;
-		pageinfo_t *map;
+		int mapidx;
+		struct {
+			unsigned int alloc, free, boot;
+			int mapsz;
+			pageinfo_t *map;
+		} map;
 	} page;
 
 	struct {

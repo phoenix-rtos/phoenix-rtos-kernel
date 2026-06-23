@@ -22,10 +22,22 @@
 #include "types.h"
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags);
+struct _partition_t;
+
+struct _vm_map_t;
+
+#ifndef NOMMU
+struct _ph_map_t;
+typedef struct _ph_map_t ph_map_t;
+#else
+typedef struct _vm_map_t ph_map_t;
+#endif
 
 
-void vm_pageFree(page_t *p);
+page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_flags_t flags, struct _partition_t *part);
+
+
+void vm_pageFree(page_t *p, struct _partition_t *part);
 
 
 /* returns NULL when addr is outside of defined physical maps (MMU) */
@@ -41,13 +53,13 @@ int page_map(pmap_t *pmap, void *vaddr, addr_t pa, vm_attr_t attr);
 int _page_sbrk(pmap_t *pmap, void **start, void **end);
 
 
-void vm_pageGetStats(size_t *freesz);
+void _vm_pageGetStats(size_t *freesz);
 
 
 void vm_pageinfo(meminfo_t *info);
 
 
-void _page_init(pmap_t *pmap, void **bss, void **top);
+void _page_init(struct _vm_map_t *kmap, void **bss, void **top);
 
 
 #endif
