@@ -1968,18 +1968,20 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 		}
 		else
 #endif
-				if (map != NULL) {
-			(void)proc_lockSet(&map->lock);
-			entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
+		{
+			if (map != NULL) {
+				(void)proc_lockSet(&map->lock);
+				entry = lib_treeof(map_entry_t, linkage, lib_rbMinimum(map->tree.root));
 
-			while (entry != NULL) {
-				tinfo.vmem += (int)entry->size;
-				entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
+				while (entry != NULL) {
+					tinfo.vmem += (int)entry->size;
+					entry = lib_treeof(map_entry_t, linkage, lib_rbNext(&entry->linkage));
+				}
+				(void)proc_lockClear(&map->lock);
 			}
-			(void)proc_lockClear(&map->lock);
-		}
-		else {
-			/* No action required */
+			else {
+				/* No action required */
+			}
 		}
 
 		cb(arg, i, &tinfo);
