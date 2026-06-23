@@ -711,6 +711,10 @@ int syscalls_interrupt(u8 *ustack)
 	GETFROMSTACK(ustack, handle_t, cond, 3U);
 	GETFROMSTACK(ustack, handle_t *, handle, 4U);
 
+	if ((f == NULL) || (vm_mapBelongs(proc, f, 1) < 0)) {
+		return -EINVAL;
+	}
+
 	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
 		return -EFAULT;
 	}
