@@ -1178,14 +1178,21 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 
 static int _vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
-/* Disabled for now on NOMMU, as we can now receive memory
- * from different maps and processes via msg */
-#ifndef NOMMU
-	map_entry_t e, *f;
-
 	if (size == 0U) {
 		return 0;
 	}
+
+#if defined(NOMMU) && defined(NOMMU_MAPBELONGS_VALIDATE_MAP)
+	return (pmap_isAllowed(proc->pmapp, ptr, size) == 0) ? -1 : 0;
+	/*
+	 * Disabled checking entry owner for now on NOMMU, as we can
+	 * receive memory from different maps and processes via msg
+	 * and RO elf segments may not be assigned to any process.
+	 * TODO: create memory objects for syspage programs
+	 */
+#elif !defined(NOMMU)
+	map_entry_t e, *f;
+
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
 	e.vaddr = (void *)ptr;
 	e.size = size;
@@ -1199,14 +1206,13 @@ static int _vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t
 		return -1;
 	}
 
-#ifdef NOMMU
+#if 0 /* NOMMU */
 	if (f->process != proc) {
 		return -1;
 	}
 #endif
 
 #endif
-
 	return 0;
 }
 

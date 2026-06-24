@@ -12,3 +12,7 @@ ifneq (, $(findstring NOMMU, $(CPPFLAGS)))
 else
 	OBJS += $(PREFIX_O)vm/page.o
 endif
+
+ifeq ($(NOMMU_MAPBELONGS_VALIDATE_MAP), 1)
+  CPPFLAGS += -DNOMMU_MAPBELONGS_VALIDATE_MAP
+endif
