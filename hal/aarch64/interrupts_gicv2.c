@@ -29,6 +29,8 @@
 
 #include "perf/trace-events.h"
 
+#include "include/errno.h"
+
 #define SPI_FIRST_IRQID 32
 
 #define SGI_FLT_USE_LIST   0 /* Send SGI to CPUs according to targetList */
@@ -200,7 +202,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if ((h == NULL) || (h->f == NULL) || (h->n >= SIZE_INTERRUPTS)) {
-		return -1;
+		return -EINVAL;
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[h->n], &sc);
