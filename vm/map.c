@@ -1176,35 +1176,56 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 }
 
 
-static int _vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
+static int map_belongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
-/* Disabled for now on NOMMU, as we can now receive memory
- * from different maps and processes via msg */
-#ifndef NOMMU
 	map_entry_t e, *f;
+	vm_map_t *map = proc->mapp;
 
 	if (size == 0U) {
 		return 0;
 	}
-	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
-	e.vaddr = (void *)ptr;
-	e.size = size;
 
-	f = lib_treeof(map_entry_t, linkage, lib_rbFind(&proc->mapp->tree, &e.linkage));
-	if ((f == NULL) && (proc->imapp != NULL)) {
-		f = lib_treeof(map_entry_t, linkage, lib_rbFind(&proc->imapp->tree, &e.linkage));
-	}
+#ifdef NOMMU
+	const syspage_map_t *spMap;
 
-	if (f == NULL) {
+	if (pmap_isAllowed(proc->pmapp, ptr, size) == 0) {
 		return -1;
 	}
 
-#ifdef NOMMU
-	if (f->process != proc) {
+	/* Provided memory should be allocated, but not necessarily by current process */
+	spMap = syspage_mapAddrResolve((addr_t)ptr);
+	if (spMap == NULL) {
+		return -1;
+	}
+	map = vm_getSharedMap((int)spMap->id);
+	if (map == NULL) {
 		return -1;
 	}
 #endif
 
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
+	e.vaddr = (void *)ptr;
+	e.size = size;
+
+	(void)proc_lockSet(&map->lock);
+	f = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &e.linkage));
+
+	if (f == NULL) {
+		(void)proc_lockClear(&map->lock);
+		return -1;
+	}
+	(void)proc_lockClear(&map->lock);
+
+	/*
+	 * Disabled checking entry owner for now on NOMMU, as we can
+	 * receive memory from different maps and processes via msg
+	 * and RO elf segments may not be assigned to any process.
+	 * TODO: create memory objects for syspage programs
+	 */
+#if 0 /* NOMMU */
+	if (f->process != proc) {
+		return -1;
+	}
 #endif
 
 	return 0;
@@ -1215,10 +1236,7 @@ int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
 	int ret;
 
-	(void)proc_lockSet(&proc->mapp->lock);
-	ret = _vm_mapBelongs(proc, ptr, size);
-	(void)proc_lockClear(&proc->mapp->lock);
-
+	ret = map_belongs(proc, ptr, size);
 	LIB_ASSERT(ret == 0, "Fault @0x%p (%zu) path: %s, pid: %d\n", ptr, size, proc->path, process_getPid(proc));
 
 	return ret;
