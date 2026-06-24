@@ -22,6 +22,8 @@
 
 #include "proc/userintr.h"
 
+#include "include/errno.h"
+
 #define VIM_BASE_ADDRESS 0x40f80000
 #define SIZE_INTERRUPTS  384U
 
@@ -182,7 +184,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if ((h == NULL) || (h->f == NULL) || (h->n >= SIZE_INTERRUPTS)) {
-		return -1;
+		return -EINVAL;
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[h->n], &sc);

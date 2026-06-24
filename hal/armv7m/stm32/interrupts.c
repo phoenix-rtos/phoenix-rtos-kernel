@@ -21,6 +21,8 @@
 #include "proc/userintr.h"
 #include "perf/trace-events.h"
 
+#include "include/errno.h"
+
 #ifdef __CPU_STM32L4X6
 #define SIZE_INTERRUPTS 97U
 #endif
@@ -86,7 +88,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS) {
-		return -1;
+		return -EINVAL;
 	}
 
 	hal_spinlockSet(&interrupts.spinlock, &sc);

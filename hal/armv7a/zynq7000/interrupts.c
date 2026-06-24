@@ -27,6 +27,8 @@
 
 #include "perf/trace-events.h"
 
+#include "include/errno.h"
+
 #define SIZE_INTERRUPTS 95U
 #define SPI_FIRST_IRQID 32U
 
@@ -172,7 +174,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->f == NULL || h->n >= SIZE_INTERRUPTS) {
-		return -1;
+		return -EINVAL;
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlock[h->n], &sc);

@@ -23,6 +23,8 @@
 
 #include <config.h>
 
+#include "include/errno.h"
+
 
 #define SIZE_INTERRUPTS 32U
 
@@ -187,7 +189,7 @@ int hal_interruptsSetHandler(intr_handler_t *h)
 	spinlock_ctx_t sc;
 
 	if (h == NULL || h->n >= SIZE_INTERRUPTS) {
-		return -1;
+		return -EINVAL;
 	}
 
 	hal_spinlockSet(&interrupts_common.spinlocks[h->n], &sc);
