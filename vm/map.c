@@ -1185,6 +1185,10 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 		return 0;
 	}
 
+	if (((ptr_t)ptr + size) < (ptr_t)ptr) {
+		return -1;
+	}
+
 #ifdef NOMMU
 	const syspage_map_t *spMap;
 
@@ -1205,28 +1209,32 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
 	e.vaddr = (void *)ptr;
-	e.size = size;
+	e.size = 1;
 
 	(void)proc_lockSet(&map->lock);
-	f = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &e.linkage));
+	do {
+		f = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &e.linkage));
 
-	if (f == NULL) {
-		(void)proc_lockClear(&map->lock);
-		return -1;
-	}
-	(void)proc_lockClear(&map->lock);
+		if (f == NULL) {
+			(void)proc_lockClear(&map->lock);
+			return -1;
+		}
 
-	/*
-	 * Disabled checking entry owner for now on NOMMU, as we can
-	 * receive memory from different maps and processes via msg
-	 * and RO elf segments may not be assigned to any process.
-	 * TODO: create memory objects for syspage programs
-	 */
+		/*
+		 * Disabled checking entry owner for now on NOMMU, as we can
+		 * receive memory from different maps and processes via msg
+		 * and RO elf segments may not be assigned to any process.
+		 * TODO: create memory objects for syspage programs
+		 */
 #if 0 /* NOMMU */
-	if (f->process != proc) {
-		return -1;
-	}
+		if (f->process != proc) {
+			return -1;
+		}
 #endif
+
+		e.vaddr = (void *)((ptr_t)e.vaddr + f->size);
+	} while (e.vaddr < (void *)((ptr_t)ptr + size));
+	(void)proc_lockClear(&map->lock);
 
 	return 0;
 }
