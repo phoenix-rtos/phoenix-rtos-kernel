@@ -66,6 +66,8 @@
 #define MSG_DONTWAIT 0x08U
 #define MSG_MORE     0x10U
 #define MSG_NOSIGNAL 0x20U
+#define MSG_CTRUNC   0x40U
+#define MSG_TRUNC    0x80U
 
 #define SCM_RIGHTS 1
 

@@ -17,6 +17,7 @@
 #define _PH_LIB_CBUFFER_H_
 
 #include "attrs.h"
+#include "lib.h"
 
 typedef struct {
 	size_t sz, r, w;
@@ -25,7 +26,7 @@ typedef struct {
 } cbuffer_t;
 
 
-static inline size_t _cbuffer_free(cbuffer_t *buf)
+static inline size_t _cbuffer_free(const cbuffer_t *buf)
 {
 	if (buf->w == buf->r) {
 		return (buf->full != 0U) ? 0U : buf->sz;
@@ -34,7 +35,7 @@ static inline size_t _cbuffer_free(cbuffer_t *buf)
 }
 
 
-static inline size_t _cbuffer_avail(cbuffer_t *buf)
+static inline size_t _cbuffer_avail(const cbuffer_t *buf)
 {
 	return buf->sz - _cbuffer_free(buf);
 }
@@ -69,7 +70,14 @@ size_t _cbuffer_read(cbuffer_t *buf, void *data, size_t sz);
 size_t _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz);
 
 
-size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz);
+/* NOTE: offs has to be <= _cbuffer_avail(buf) */
+size_t _cbuffer_peekOffs(const cbuffer_t *buf, void *data, size_t sz, size_t offs);
+
+
+static inline size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
+{
+	return _cbuffer_peekOffs(buf, data, sz, 0U);
+}
 
 
 #endif
