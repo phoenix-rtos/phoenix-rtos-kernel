@@ -74,7 +74,7 @@
 #define SHUT_RDWR 2
 
 
-typedef size_t socklen_t;
+typedef __u32 socklen_t;
 typedef __u16 sa_family_t;
 
 struct sockaddr {
