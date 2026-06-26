@@ -51,6 +51,17 @@
 #define HAB_API_VEC   0x100
 #define ROM_API_VEC   0x180
 
+#define ADDR_BOOTROM 0x00000000
+#define ADDR_OCRAM_BASE 0x00900000
+#define ADDR_AIPS_1 0x02000000
+#define ADDR_AIPS_2 0x02100000
+#define ADDR_AIPS_3 0x02200000
+
+#define SECTION_ATTR_ROM    0xE40E /* Read-only at PL1 only, normal memory */
+#define SECTION_ATTR_RAM    0x641E /* Read/write at PL1 only, XN, normal memory */
+#define SECTION_ATTR_DEVICE 0x0416 /* Read/write at PL1 only, XN, device memory */
+
+
 .arm
 
 .section .init, "ax"
@@ -414,6 +425,19 @@ clear_ttl1:
 	subs r2, #4
 	bne clear_ttl1
 	str r1, [r5]
+
+	/* Platform-specific: map areas of RAM that are used by HAB ROM API. They need to be mapped 1:1 with physical addresses.
+	 * They are mapped with sections (1 MB blocks of memory) */
+	ldr r1, =(ADDR_BOOTROM | SECTION_ATTR_ROM)
+	str r1, [r5, #((ADDR_BOOTROM >> 20) * 4)]
+	ldr r1, =(ADDR_OCRAM_BASE | SECTION_ATTR_RAM)
+	str r1, [r5, #((ADDR_OCRAM_BASE >> 20) * 4)]
+	ldr r1, =(ADDR_AIPS_1 | SECTION_ATTR_DEVICE)
+	str r1, [r5, #((ADDR_AIPS_1 >> 20) * 4)]
+	ldr r1, =(ADDR_AIPS_2 | SECTION_ATTR_DEVICE)
+	str r1, [r5, #((ADDR_AIPS_2 >> 20) * 4)]
+	ldr r1, =(ADDR_AIPS_3 | SECTION_ATTR_DEVICE)
+	str r1, [r5, #((ADDR_AIPS_3 >> 20) * 4)]
 
 	/* Map 4 MB P 0x80000000 -> V 0x80000000 */
 	add r0, r5, #((ADDR_DDR >> 20) << 2)
