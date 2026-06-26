@@ -149,19 +149,22 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 
 int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 {
-	const syspage_map_t *map = syspage_mapAddrResolve((addr_t)vaddr);
+	const syspage_map_t *map;
 	unsigned int rmask;
 	addr_t addr_end = (addr_t)vaddr + size;
-	/* Check for potential arithmetic overflow. `addr_end` is allowed to be 0,
-	 * as it represents the top of memory. */
-	if ((map == NULL) || (addr_end > map->end) || ((addr_end != 0U) && (addr_end < (addr_t)vaddr))) {
-		return 0;
-	}
 
 	if (pmap_common.mpu_enabled == 0) {
 		return 1;
 	}
 
+	map = syspage_mapAddrResolve((addr_t)vaddr);
+	/* Check for potential arithmetic overflow. `addr_end` is allowed to be 0,
+	 * as it represents the top of memory. */
+	if ((map == NULL) || ((map->end != 0U) && (addr_end > map->end)) ||
+			((addr_end == 0U) && (map->end != 0U)) ||
+			((addr_end != 0U) && (addr_end < (addr_t)vaddr))) {
+		return 0;
+	}
 	rmask = pmap_map2region(map->id);
 
 	return ((pmap->regions & rmask) != 0U) ? 1 : 0;
