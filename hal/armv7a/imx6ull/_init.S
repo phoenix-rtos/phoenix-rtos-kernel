@@ -55,14 +55,15 @@
 
 .org 0
 init_vectors:
-	ldr pc, =_start
-	ldr pc, =_exception_undef
-	ldr pc, =_syscalls_dispatch
-	ldr pc, =_exception_prefetch
-	ldr pc, =_exception_abort
+	b  _start
+	b  _exception_undef
+	b  _syscalls_dispatch
+	b  _exception_prefetch
+	b  _exception_abort
 	.word 0
-	ldr pc, =_interrupts_dispatch
-	ldr pc, =_interrupts_dispatch
+	b  _interrupts_dispatch
+	b  _interrupts_dispatch
+
 
 #ifndef KERNEL_PLO_BOOT
 syspage_data:
@@ -81,7 +82,7 @@ plugin_ivt:
 
 plugin_boot_data:
 	.word ADDR_OCRAM                                    /* load address */
-	.word dcd_end + 0x30 - VADDR_KERNEL                 /* plugin size */
+	.word dcd_end - plugin_ivt                          /* plugin size */
 	.word 1                                             /* plugin */
 	.word 0                                             /* reserved */
 
@@ -325,6 +326,8 @@ dcd_ddr:
 	.word SWAP(0x00400000)
 dcd_end:
 
+/* TODO: currently this offset is hardcoded into .sdp files for flashing */
+.org 0x728
 ivt:
 	.word 0x402000d1                                    /* hdr */
 	.word _start - VADDR_KERNEL + ADDR_DDR              /* entry */
@@ -434,20 +437,19 @@ init_syspage:
 #endif
 
 	/* Save and clear boot reason - RM: otherwise all boot reasons since POR */
-	ldr r0, =0x20d8008
-	ldr r7, [r0]    /* only bits 16:0 are used */
+	ldr r0, =0x20d8000
+	ldr r7, [r0, #0x8]    /* only bits 16:0 are used */
 	mov r2, #0xff   /* RM: bits 7:0 are w1c, other are w0c */
-	str r2, [r0]
+	str r2, [r0, #0x8]
 
 	/* WARNING: R7 - can't touch this until MMU enable */
 
 	/* Clear PERSIST_SECONDARY_BOOT bit to rollback to primary in case we fail to boot */
-	ldr r0, =0x020d8044
-	ldr r1, [r0]
+	ldr r1, [r0, #0x44]
 	bic r2, r1, #(0xffffff) /* save upper 8 bits of SRC_GPR10 into boot reason */
 	orr r7, r7, r2
 	bic r1, r1, #(1 << 30)
-	str r1, [r0]
+	str r1, [r0, #0x44]
 
 	/* Enable PMU cycle counter */
 	mrc p15, 0, r0, c9, c12, 0
@@ -486,35 +488,31 @@ aipstzl:
 	bne aipstzl
 
 	/* Enable USB2 PLL (480 MHz) */
-	ldr r0, =0x020c8020
-	ldr r1, [r0]
+	ldr r0, =0x020c8000
+	ldr r1, [r0, #0x20]
 	orr r1, r1, #0x3000
-	str r1, [r0]
+	str r1, [r0, #0x20]
 usb2_pll:
-	ldr r1, [r0]
+	ldr r1, [r0, #0x20]
 	ands r1, #(1 << 31) /* Check lock bit */
 	beq usb2_pll
 
-	ldr r1, [r0]
+	ldr r1, [r0, #0x20]
 	/* Clear bypass */
 	bic r1, r1, #(1 << 16)
-	str r1, [r0]
+	str r1, [r0, #0x20]
 	/* Set en_usb_clks */
 	orr r1, r1, #(1 << 6)
-	str r1, [r0]
+	str r1, [r0, #0x20]
 
 	/* Enable ENETn PLL (both 50 MHz) */
-	ldr r0, =0x020c80e0
 	ldr r1, =0x102005
-	str r1, [r0]
+	str r1, [r0, #0xe0]
 
 enet_pll:
-	ldr r1, [r0]
+	ldr r1, [r0, #0xe0]
 	ands r1, #(1 << 31)
 	beq enet_pll
-
-	ldr r8, =(ADDR_DDR)
-
 
 	/* Disable caches */
 	mrc p15, 0, r1, c1, c0, 0
@@ -585,14 +583,6 @@ clear_ttl1:
 	ldr r1, =(ADDR_TTL2_EXC + 1)
 	bl _cpy4
 
-	ldr r8, =(ADDR_DDR)
-
-	/* Exceptions vectors TTL2 entry */
-	/* Map P 0x80000000 -> V 0xffff0000 */
-	ldr r0, =(ADDR_TTL2_EXC + (0x3f0 << 2))
-	orr r1, r8, #0x1a
-	str r1, [r0]
-
 	/* Stack TTL2 entry */
 	/* Map P ADDR_STACK -> V 0xfffff000 */
 	ldr r0, =(ADDR_TTL2_EXC + (0x3ff << 2))
@@ -600,7 +590,7 @@ clear_ttl1:
 	str r1, [r0]
 
 	/* Set vector table pointer */
-	ldr r0, =0xffff0000
+	ldr r0, =init_vectors
 	mcr p15, 0, r0, c12, c0, 0
 
 	/* Kernel TTL2 entries */
@@ -614,6 +604,7 @@ kernel_ttl2:
 	bne kernel_ttl2
 
 	/* Kernel page directory */
+	ldr r8, =(ADDR_DDR)
 	ldr r1, =(pmap_common - VADDR_KERNEL)
 	add r0, r1, lsr #10
 	add r1, r1, r8
