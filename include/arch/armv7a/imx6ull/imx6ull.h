@@ -19,6 +19,126 @@
 #define PCTL_REBOOT_MAGIC           0xaa55aa55UL
 #define PCTL_REBOOT_MAGIC_SECONDARY 0x55aa55aaUL
 
+#define HAB_TAG_IVT 0xd1u /* Image Vector Table */
+#define HAB_TAG_DCD 0xd2u /* Device Configuration Data */
+#define HAB_TAG_CSF 0xd4u /* Command Sequence File */
+#define HAB_TAG_CRT 0xd7u /* Certificate */
+#define HAB_TAG_SIG 0xd8u /* Signature */
+#define HAB_TAG_EVT 0xdbu /* Event */
+#define HAB_TAG_RVT 0xddu /* ROM Vector Table */
+#define HAB_TAG_WRP 0x81u /* Wrapped Key */
+#define HAB_TAG_MAC 0xacu /* Message Authentication Code */
+
+#define HAB_MAJOR_VERSION 0x04u /* Major version of this RVT */
+
+#define HAB_CMD_SET     0xb1u /* Set */
+#define HAB_CMD_INS_KEY 0xbeu /* Install Key */
+#define HAB_CMD_AUT_DAT 0xcau /* Authenticate Data */
+#define HAB_CMD_WRT_DAT 0xccu /* Write Data */
+#define HAB_CMD_CHK_DAT 0xcfu /* Check Data */
+#define HAB_CMD_NOP     0xc0u /* No Operation */
+#define HAB_CMD_INIT    0xb4u /* Initialize */
+#define HAB_CMD_UNLK    0xb2u /* Unlock */
+
+#define HAB_PCL_SRK  0x03u /* SRK certificate format */
+#define HAB_PCL_X509 0x09u /* X.509v3 certificate format */
+#define HAB_PCL_CMS  0xc5u /* CMS/PKCS#7 signature format */
+#define HAB_PCL_BLOB 0xbbu /* SHW-specific wrapped key format */
+#define HAB_PCL_AEAD 0xa3u /* Proprietary AEAD MAC format */
+
+#define HAB_ALG_ANY    0x00u /* Algorithm type ANY */
+#define HAB_ALG_HASH   0x01u /* Hash algorithm type */
+#define HAB_ALG_SIG    0x02u /* Signature algorithm type */
+#define HAB_ALG_F      0x03u /* Finite field arithmetic */
+#define HAB_ALG_EC     0x04u /* Elliptic curve arithmetic */
+#define HAB_ALG_CIPHER 0x05u /* Cipher algorithm type */
+#define HAB_ALG_MODE   0x06u /* Cipher/hash modes */
+#define HAB_ALG_WRAP   0x07u /* Key wrap algorithm type */
+#define HAB_ALG_SHA1   0x11u /* SHA-1 algorithm ID */
+#define HAB_ALG_SHA256 0x17u /* SHA-256 algorithm ID */
+#define HAB_ALG_SHA512 0x1bu /* SHA-512 algorithm ID */
+#define HAB_ALG_PKCS1  0x21u /* PKCS#1 RSA signature */
+#define HAB_ALG_AES    0x55u /* AES algorithm ID */
+#define HAB_MODE_CCM   0x66u /* Counter with CBC-MAC */
+#define HAB_ALG_BLOB   0x71u /* SHW-specific key wrap */
+
+#define HAB_ENG_ANY    0x00u /* First compatible engine will be selected */
+#define HAB_ENG_SCC    0x03u /* Security controller */
+#define HAB_ENG_RTIC   0x05u /* Run-time integrity checker */
+#define HAB_ENG_SAHARA 0x06u /* Crypto accelerator */
+#define HAB_ENG_CSU    0x0au /* Central Security Unit */
+#define HAB_ENG_SRTC   0x0cu /* Secure clock */
+#define HAB_ENG_DCP    0x1bu /* Data Co-Processor */
+#define HAB_ENG_CAAM   0x1du /* Cryptographic Acceleration and Assurance */
+#define HAB_ENG_SNVS   0x1eu /* Secure Non-Volatile Storage */
+#define HAB_ENG_OCOTP  0x21u /* Fuse controller */
+#define HAB_ENG_DTCP   0x22u /* DTCP co-processor */
+#define HAB_ENG_ROM    0x36u /* Protected ROM area */
+#define HAB_ENG_HDCP   0x24u /* HDCP co-processor */
+#define HAB_ENG_SW     0xffu /* Software engine */
+
+#define HAB_RTIC_KEEP       0x80u /* Retain reference hash value for */
+#define HAB_CAAM_UNLOCK_MID 0x1u  /* Leave Job Ring and DECO master */
+#define HAB_CAAM_INIT_RNG   0x2u  /* Instantiate RNG state handle 0, */
+
+#define HAB_RSN_ANY         0x00u /* Match any reason in hab_rvt.report_event() */
+#define HAB_ENG_FAIL        0x30u /* Engine failure */
+#define HAB_INV_ADDRESS     0x22u /* Invalid address: access denied */
+#define HAB_INV_ASSERTION   0x0cu /* Invalid assertion */
+#define HAB_INV_CALL        0x28u /* Function called out of sequence */
+#define HAB_INV_CERTIFICATE 0x21u /* Invalid certificate */
+#define HAB_INV_COMMAND     0x06u /* Invalid command: command malformed */
+#define HAB_INV_CSF         0x11u /* Invalid Command Sequence File */
+#define HAB_INV_DCD         0x27u /* Invalid Device Configuration Data. */
+#define HAB_INV_INDEX       0x0fu /* Invalid index: access denied */
+#define HAB_INV_IVT         0x05u /* Invalid Image Vector Table */
+#define HAB_INV_KEY         0x1du /* Invalid key */
+#define HAB_INV_RETURN      0x1eu /* Failed callback function */
+#define HAB_INV_SIGNATURE   0x18u /* Invalid signature */
+#define HAB_INV_SIZE        0x17u /* Invalid data size */
+#define HAB_MEM_FAIL        0x2eu /* Memory failure */
+#define HAB_OVR_COUNT       0x2bu /* Expired poll count */
+#define HAB_OVR_STORAGE     0x2du /* Exhausted storage region */
+#define HAB_UNS_ALGORITHM   0x12u /* Unsupported algorithm */
+#define HAB_UNS_COMMAND     0x03u /* Unsupported command */
+#define HAB_UNS_ENGINE      0x0au /* Unsupported engine */
+#define HAB_UNS_ITEM        0x24u /* Unsupported configuration item */
+#define HAB_UNS_KEY         0x1bu /* Unsupported key type or parameters */
+#define HAB_UNS_PROTOCOL    0x14u /* Unsupported protocol */
+#define HAB_UNS_STATE       0x09u /* Unsuitable state */
+
+#define HAB_CTX_ANY          0x00u /* Match any context in */
+#define HAB_CTX_ENTRY        0xe1u /* Event logged in hab_rvt.entry() */
+#define HAB_CTX_TARGET       0x33u /* Event logged in hab_rvt.check_target() */
+#define HAB_CTX_AUTHENTICATE 0x0au /* Event logged in */
+#define HAB_CTX_DCD          0xddu /* Event logged in hab_rvt.run_dcd() */
+#define HAB_CTX_CSF          0xcfu /* Event logged in hab_rvt.run_csf() */
+#define HAB_CTX_COMMAND      0xc0u /* Event logged executing Command */
+#define HAB_CTX_AUT_DAT      0xdbu /* Authenticated data block */
+#define HAB_CTX_ASSERT       0xa0u /* Event logged in hab_rvt.assert() */
+#define HAB_CTX_EXIT         0xeeu /* Event logged in hab_rvt.exit() */
+
+#define HAB_CFG_RETURN 0x33u /* Field Return IC */
+#define HAB_CFG_OPEN   0xf0u /* Non-secure IC */
+#define HAB_CFG_CLOSED 0xccu /* Secure IC */
+
+#define HAB_STS_ANY         0x00u /* Match any status in hab_rvt.report_event(). */
+#define HAB_FAILURE         0x33u /* Operation failed */
+#define HAB_WARNING         0x69u /* Operation completed with warning */
+#define HAB_SUCCESS         0xf0u /* Operation completed successfully */
+#define HAB_STATE_INITIAL   0x33u /* Initializing state (transitory) */
+#define HAB_STATE_CHECK     0x55u /* Check state (non-secure) */
+#define HAB_STATE_NONSECURE 0x66u /* Non-secure state */
+#define HAB_STATE_TRUSTED   0x99u /* Trusted state */
+#define HAB_STATE_SECURE    0xaau /* Secure state */
+#define HAB_STATE_FAIL_SOFT 0xccu /* Soft fail state */
+#define HAB_STATE_FAIL_HARD 0xffu /* Hard fail state (terminal). */
+#define HAB_STATE_NONE      0xf0u /* No security state machine */
+
+#define HAB_TGT_MEMORY     0x0fu /* Check memory white list */
+#define HAB_TGT_PERIPHERAL 0xf0u /* Check peripheral white list */
+#define HAB_TGT_ANY        0x55u /* Check memory & peripheral white list */
+
 
 /* clang-format off */
 
@@ -209,7 +329,7 @@ enum {
 typedef struct {
 	/* clang-format off */
 	enum { pctl_set = 0, pctl_get } action;
-	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot } type;
+	enum { pctl_devclock = 0, pctl_iogpr, pctl_iomux, pctl_iopad, pctl_ioisel, pctl_reboot, pctl_habStatus, pctl_habVerify } type;
 	/* clang-format on */
 
 	union {
@@ -250,6 +370,18 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+		struct {
+			unsigned char status;
+			unsigned char cfg;
+			unsigned char state;
+			unsigned char *eventsBuf;
+			unsigned int bufSize;
+		} habStatus;
+		struct {
+			const unsigned char *data;
+			unsigned int size;
+			unsigned int ivtOffset;
+		} habVerify;
 	};
 } __attribute__((packed)) platformctl_t;
 
