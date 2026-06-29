@@ -16,10 +16,11 @@
 #ifndef _PH_HAL_LEON3_CPU_H_
 #define _PH_HAL_LEON3_CPU_H_
 
+#include "include/page.h"
+
+#define SIZE_PAGE _PAGE_SIZE
 
 #ifdef NOMMU
-
-#define SIZE_PAGE 0x200U
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
@@ -31,8 +32,6 @@
 #endif
 
 #else
-
-#define SIZE_PAGE 0x1000U
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK

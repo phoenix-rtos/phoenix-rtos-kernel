@@ -16,7 +16,9 @@
 #ifndef _PH_HAL_ARMV8R_CPU_H_
 #define _PH_HAL_ARMV8R_CPU_H_
 
-#define SIZE_PAGE 0x1000U
+#include "include/page.h"
+
+#define SIZE_PAGE _PAGE_SIZE
 
 #define SIZE_INITIAL_KSTACK  SIZE_PAGE
 #define INITIAL_KSTACK_SHIFT 12U

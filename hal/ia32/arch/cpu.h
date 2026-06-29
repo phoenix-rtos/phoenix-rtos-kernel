@@ -17,10 +17,10 @@
 #ifndef _PH_HAL_IA32_CPU_H_
 #define _PH_HAL_IA32_CPU_H_
 
+#include "include/page.h"
 #include "hal/types.h"
 
-#define SIZE_PAGE 0x1000U
-
+#define SIZE_PAGE _PAGE_SIZE
 
 /* Default kernel and user stack sizes */
 #ifndef SIZE_KSTACK
