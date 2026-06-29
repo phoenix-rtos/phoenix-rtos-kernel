@@ -17,9 +17,10 @@
 #define _PH_HAL_ARMV7A_CPU_H_
 
 #include "hal/types.h"
+#include "include/page.h"
 #include "config.h"
 
-#define SIZE_PAGE 0x1000U
+#define SIZE_PAGE _PAGE_SIZE
 #define SIZE_PDIR 0x2000U
 
 #ifndef SIZE_KSTACK

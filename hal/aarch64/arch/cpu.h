@@ -17,9 +17,10 @@
 #define _PH_HAL_AARCH64_CPU_H_
 
 #include "hal/types.h"
+#include "include/page.h"
 #include "config.h"
 
-#define SIZE_PAGE 0x1000UL
+#define SIZE_PAGE _PAGE_SIZE
 #define SIZE_PDIR SIZE_PAGE
 
 #define SIZE_INITIAL_KSTACK (2U * SIZE_PAGE) /* Must be multiple of page size */

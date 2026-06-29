@@ -17,8 +17,9 @@
 #define _PH_HAL_RISCV64_CPU_H_
 
 #include "hal/types.h"
+#include "include/page.h"
 
-#define SIZE_PAGE 0x1000UL
+#define SIZE_PAGE _PAGE_SIZE
 
 #define MAX_CPU_COUNT 8U
 

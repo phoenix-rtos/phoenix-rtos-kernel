@@ -26,8 +26,9 @@
 #endif
 
 #include "hal/types.h"
+#include "include/page.h"
 
-#define SIZE_PAGE 0x200U
+#define SIZE_PAGE _PAGE_SIZE
 
 #ifndef SIZE_USTACK
 #define SIZE_USTACK (3U * SIZE_PAGE)
