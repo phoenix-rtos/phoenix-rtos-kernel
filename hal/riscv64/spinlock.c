@@ -8,9 +8,7 @@
  * Copyright 2018, 2023 Phoenix Systems
  * Author: Pawel Pisarczyk, Hubert Badocha
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/spinlock.h"

@@ -8,9 +8,7 @@
  * Copyright 2016, 2018, 2020, 2024 Phoenix Systems
  * Author: Pawel Pisarczyk, Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_HAL_AARCH64_INTERRUPTS_H_

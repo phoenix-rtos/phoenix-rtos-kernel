@@ -8,9 +8,7 @@
  * Copyright 2018-2025 Phoenix Systems
  * Author: Pawel Pisarczyk, Aleksander Kaminski, Maciej Purski, Hubert Buczynski, Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #define __ASSEMBLY__

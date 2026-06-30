@@ -8,9 +8,7 @@
  * Copyright 2019-2022 Phoenix Systems
  * Author: Aleksander Kaminski, Gerard Świderski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_ARCH_IMXRT_H_

@@ -8,9 +8,7 @@
  * Copyright 2025, 2026 Phoenix Systems
  * Author: Jacek Maksymowicz, Kamil Ber
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/cpu.h"

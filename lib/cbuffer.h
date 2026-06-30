@@ -8,9 +8,7 @@
  * Copyright 2019 Phoenix Systems
  * Author: Jan Sikorski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_LIB_CBUFFER_H_

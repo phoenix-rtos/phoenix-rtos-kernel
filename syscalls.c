@@ -9,9 +9,7 @@
  * Copyright 2007 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Aleksander Kaminski, Jan Sikorski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4-a "Compatible function declaration is not possible for syscalls" */

@@ -9,9 +9,7 @@
  * Copyright 2001, 2006-2007 Pawel Pisarczyk
  * Author: Pawel Pisarczyk
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/hal.h"

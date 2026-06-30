@@ -8,9 +8,7 @@
  * Copyright 2016-2017, 2019-2020, 2025 Phoenix Systems
  * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski, Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/console.h"

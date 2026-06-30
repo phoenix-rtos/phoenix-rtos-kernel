@@ -8,9 +8,7 @@
  * Copyright 2025 Phoenix Systems
  * Author: Lukasz Leczkowski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_L2CACHE_H_

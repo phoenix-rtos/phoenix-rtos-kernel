@@ -8,9 +8,7 @@
  * Copyright 2018, 2020, 2025 Phoenix Systems
  * Author: Jan Sikorski, Pawel Pisarczyk, Ziemowit Leszczynski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "include/errno.h"

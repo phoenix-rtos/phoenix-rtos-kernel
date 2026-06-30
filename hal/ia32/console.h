@@ -8,9 +8,7 @@
  * Copyright 2025 Phoenix Systems
  * Author: Hubert Badocha
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_HAL_IA32_CONSOLE_H_

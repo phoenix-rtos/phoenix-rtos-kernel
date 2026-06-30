@@ -8,9 +8,7 @@
  * Copyright 2017 Phoenix Systems
  * Author: Michał Mirosław
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/console.h"

@@ -8,9 +8,7 @@
  * Copyright 2022 Phoenix Systems
  * Author: Damian Loewnau
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "config.h"

@@ -8,9 +8,7 @@
  * Copyright 2018, 2019, 2020, 2024 Phoenix Systems
  * Author: Aleksander Kaminski, Kamil Amanowicz, Lukasz Kosinski, Adam Greloch
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "include/errno.h"

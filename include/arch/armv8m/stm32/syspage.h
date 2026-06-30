@@ -9,9 +9,7 @@
  * Copyright 2021 Phoenix Systems
  * Authors: Hubert Buczynski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_SYSPAGE_STM32_H_

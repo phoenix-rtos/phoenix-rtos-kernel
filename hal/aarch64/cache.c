@@ -6,9 +6,7 @@
  * Copyright 2024 Phoenix Systems
  * Author: Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */

@@ -8,9 +8,7 @@
  * Copyright 2024 Phoenix Systems
  * Author: Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "mcxn94x.h"
