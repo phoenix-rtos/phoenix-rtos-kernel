@@ -6,7 +6,7 @@
  * Binary search
  *
  * Copyright 2012 Phoenix Systems
- * Author: Paweł Kołodziej
+ * Author: Pawel Kolodziej
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
