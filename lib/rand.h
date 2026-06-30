@@ -8,9 +8,7 @@
  * Copyright 2012, 2016 Phoenix Systems
  * Author: Pawel Kolodziej
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_LIB_RAND_H_

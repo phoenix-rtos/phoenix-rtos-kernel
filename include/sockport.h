@@ -6,11 +6,9 @@
  * Socket port definitions
  *
  * Copyright 2018 Phoenix Systems
- * Author: Michał Mirosław
+ * Author: Michal Miroslaw
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_SOCKPORT_H_

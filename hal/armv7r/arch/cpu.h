@@ -8,9 +8,7 @@
  * Copyright 2014-2025 Phoenix Systems
  * Author: Jacek Popko, Aleksander Kaminski, Pawel Pisarczyk, Lukasz Leczkowski, Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_HAL_ARMV7R_CPU_H_

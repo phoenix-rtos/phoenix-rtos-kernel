@@ -8,9 +8,7 @@
  * Copyright 2017 Phoenix Systems
  * Author: Pawel Pisarczyk, Jakub Sejdak
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_MSG_H_

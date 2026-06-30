@@ -6,9 +6,7 @@
  * Copyright 2023-2024 Phoenix Systems
  * Author: Gerard Swiderski, Daniel Sawka
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_HAL_ARM_RTT_H_

@@ -8,9 +8,7 @@
  * Copyright 2018 Phoenix Systems
  * Author: Jan Sikorski, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_ARCH_IMX6ULL_H_

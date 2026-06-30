@@ -9,9 +9,7 @@
  * Copyright 2025 Phoenix Systems
  * Author: Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_STM32N6_REGS_H_

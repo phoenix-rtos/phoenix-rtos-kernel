@@ -8,9 +8,7 @@
  * Copyright 2021 Phoenix Systems
  * Author: Pawel Pisarczyk
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_POSIX_POSIX_PRIVATE_H_

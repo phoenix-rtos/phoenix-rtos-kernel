@@ -8,9 +8,7 @@
  * Copyright 2022 Phoenix Systems
  * Author: Lukasz Leczkowski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_HAL_GR716_H_
