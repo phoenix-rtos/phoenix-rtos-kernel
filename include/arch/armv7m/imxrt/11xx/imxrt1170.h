@@ -6,7 +6,7 @@
  * i.MX RT1170 basic peripherals control functions
  *
  * Copyright 2019-2022 Phoenix Systems
- * Author: Aleksander Kaminski, Gerard Świderski
+ * Author: Aleksander Kaminski, Gerard Swiderski
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
