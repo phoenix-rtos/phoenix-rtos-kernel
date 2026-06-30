@@ -8,9 +8,7 @@
  * Copyright 2017 Phoenix Systems
  * Author: Aleksander Kaminski, Pawel Pisarczyk
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_HAL_IMXRT_H_

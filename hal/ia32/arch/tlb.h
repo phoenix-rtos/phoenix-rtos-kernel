@@ -8,9 +8,7 @@
  * Copyright 2023 Phoenix Systems
  * Author: Andrzej Stalke, Lukasz Leczkowski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 

@@ -8,7 +8,7 @@
  * Copyright 2025 Phoenix Systems
  * Author: Adam Greloch
  *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_LIB_ATTRS_H_

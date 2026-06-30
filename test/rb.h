@@ -8,9 +8,7 @@
  * Copyright 2017 Phoenix Systems
  * Author: Jakub Sejdak
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _TEST_RB_H_

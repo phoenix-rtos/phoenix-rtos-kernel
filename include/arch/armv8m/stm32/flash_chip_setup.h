@@ -8,9 +8,7 @@
  * Copyright 2026 Phoenix Systems
  * Author: Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _FLASH_CHIP_SETUP_H_

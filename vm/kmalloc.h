@@ -8,9 +8,7 @@
  * Copyright 2012, 2017 Phoenix Systems
  * Copyright 2001, 2005 Pawel Pisarczyk
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_VM_KMALLOC_H_

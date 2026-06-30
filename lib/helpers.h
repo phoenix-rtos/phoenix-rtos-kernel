@@ -6,7 +6,7 @@
  * Copyright 2024 Phoenix Systems
  * Author: Daniel Sawka
  *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_LIB_HELPERS_H_

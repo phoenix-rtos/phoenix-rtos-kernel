@@ -8,9 +8,7 @@
  * Copyright 2017, 2018 Phoenix Systems
  * Author: Pawel Pisarczyk, Jan Sikorski, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 #ifndef _PH_LIB_LIST_H_
 #define _PH_LIB_LIST_H_

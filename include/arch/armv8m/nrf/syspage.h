@@ -9,9 +9,7 @@
  * Copyright 2021, 2022 Phoenix Systems
  * Authors: Hubert Buczynski, Damian Loewnau
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_SYSPAGE_NRF91_H_

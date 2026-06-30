@@ -8,9 +8,7 @@
  * Copyright 2017, 2018, 2023 Phoenix Systems
  * Author: Jakub Sejdak, Pawel Pisarczyk, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_PROC_PORT_H_
