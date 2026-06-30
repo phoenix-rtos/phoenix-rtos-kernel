@@ -8,9 +8,7 @@
  * Copyright 2012, 2017, 2021 Phoenix Systems
  * Author: Jakub Sejdak, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/armv7m/stm32/config.h"

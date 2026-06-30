@@ -8,9 +8,7 @@
  * Copyright 2022, 2023 Phoenix Systems
  * Author: Lukasz Leczkowski, Hubert Badocha
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <arch/cpu.h>

@@ -8,9 +8,7 @@
  * Copyright 2018, 2020, 2024 Phoenix Systems
  * Author: Pawel Pisarczyk, Lukasz Leczkowski, Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "dtb.h"

@@ -8,9 +8,7 @@
  * Copyright 2021, 2023 Phoenix Systems
  * Author: Hubert Buczynski, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/armv7r/armv7r.h"

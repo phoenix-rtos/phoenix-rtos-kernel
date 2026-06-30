@@ -11,7 +11,7 @@
  * Copyright 2025 Phoenix Systems
  * Author: Adam Greloch
  *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _TRACE_EVENTS_H_

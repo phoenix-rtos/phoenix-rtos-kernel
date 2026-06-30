@@ -8,9 +8,7 @@
  * Copyright 2018 Phoenix Systems
  * Author: Michał Mirosław
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_SOCKDEFS_H_

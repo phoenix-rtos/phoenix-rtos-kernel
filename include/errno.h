@@ -8,9 +8,7 @@
  * Copyright 2012-2015, 2016-2017 Phoenix Systems
  * Author: Pawel Pisarczyk, Pawel Kolodziej, Jacek Popko
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_ERRNO_H_

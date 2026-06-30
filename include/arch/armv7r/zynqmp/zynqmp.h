@@ -8,9 +8,7 @@
  * Copyright 2021, 2024 Phoenix Systems
  * Author: Hubert Buczynski, Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_ARCH_ZYNQMP_H_

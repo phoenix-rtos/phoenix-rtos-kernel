@@ -8,9 +8,7 @@
  * Copyright 2018 Phoenix Systems
  * Author: Michal Miroslaw, Jan Sikorski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/hal.h"

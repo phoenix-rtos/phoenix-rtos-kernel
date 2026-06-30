@@ -8,9 +8,7 @@
  * Copyright 2012, 2016 Phoenix Systems
  * Copyright 2005-2006 Pawel Pisarczyk
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* parasoft-begin-suppress ALL "tests don't need to comply with MISRA" */

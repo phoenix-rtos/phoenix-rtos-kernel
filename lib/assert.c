@@ -8,9 +8,7 @@
  * Copyright 2023 Phoenix Systems
  * Author: Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* parasoft-begin-suppress MISRAC2012-RULE_17_1 "stdarg.h required for custom functions that are like printf" */

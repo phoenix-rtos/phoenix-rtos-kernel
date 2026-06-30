@@ -9,9 +9,7 @@
  * Copyright 2001, 2005-2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_HAL_STRING_H_

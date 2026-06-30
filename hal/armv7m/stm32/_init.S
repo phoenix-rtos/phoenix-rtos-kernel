@@ -8,9 +8,7 @@
  * Copyright 2012, 2016-2017 Phoenix Systems
  * Author: Jacek Popko, Pawel Pisarczyk, Jakub Sejdak, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #define __ASSEMBLY__

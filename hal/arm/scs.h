@@ -8,9 +8,7 @@
  * Copyright 2017, 2020, 2022, 2024 Phoenix Systems
  * Author: Pawel Pisarczyk, Hubert Buczynski, Damian Loewnau, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 

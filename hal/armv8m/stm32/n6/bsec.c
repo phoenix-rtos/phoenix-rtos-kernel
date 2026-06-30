@@ -8,9 +8,7 @@
  * Copyright 2025 Phoenix Systems
  * Author: Krzysztof Radzewicz, Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* On this platform OTP operations (including reads) are only permitted for secure, privileged software.

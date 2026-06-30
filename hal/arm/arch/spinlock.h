@@ -8,9 +8,7 @@
  * Copyright 2014, 2017, 2022, 2026 Phoenix Systems
  * Author: Jacek Popko, Pawel Pisarczyk, Damian Loewnau, Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_HAL_ARM_SPINLOCK_H_

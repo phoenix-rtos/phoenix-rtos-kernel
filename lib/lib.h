@@ -9,9 +9,7 @@
  * Copyright 2001, 2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Pawel Kolodziej
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_LIB_LIB_H_
