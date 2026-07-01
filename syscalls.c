@@ -893,7 +893,7 @@ void *syscalls_msgSetup(u8 *ustack)
 
 	GETFROMSTACK(ustack, size_t, sz, 0U);
 
-	return proc_setup(proc_current(), sz);
+	return proc_setupIpcBuf(proc_current(), sz);
 }
 
 

@@ -81,7 +81,7 @@ typedef struct {
 	void *w;
 	size_t size;
 	vm_map_t *map;
-} msgBufLayout_t;
+} xferBuf_t;
 
 
 #define IPC_IN_FROM_RECV    (1 << 0)
@@ -157,8 +157,8 @@ typedef struct _thread_t {
 	cpu_context_t *longjmpctx;
 
 	struct {
-		msgBufLayout_t ibl;
-		msgBufLayout_t obl;
+		xferBuf_t ibl;
+		xferBuf_t obl;
 
 		/* IPC buffer */
 		void *kw;
@@ -299,19 +299,16 @@ int threads_sigsuspend(unsigned int mask);
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
-extern int threads_getHighestPrio(int maxPrio);
+int threads_getHighestPrio(int maxPrio);
 
 
-extern void _threads_removeFromQueue(thread_t *t);
+void _threads_removeFromQueue(thread_t *t);
 
 
-extern void threads_setState(u8 state);
+void threads_xferRelease(thread_t *thread);
 
 
-extern void threads_releaseIpcBuffers(thread_t *thread);
-
-
-extern void proc_freeUtcb(thread_t *thread);
+void threads_releaseIpcBuf(thread_t *thread);
 
 
 #endif

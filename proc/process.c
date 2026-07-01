@@ -1698,8 +1698,8 @@ static int process_execve(thread_t *current)
 		/* Reinitialize process */
 
 		/* TODO: moved here, is ok? */
-		threads_releaseIpcBuffers(current);
-		proc_freeUtcb(current);
+		threads_xferRelease(current);
+		threads_releaseIpcBuf(current);
 
 		map = current->process->mapp;
 		imap = current->process->imapp;
