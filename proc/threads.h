@@ -81,7 +81,7 @@ typedef struct {
 	void *w;
 	size_t size;
 	vm_map_t *map;
-} ipc_buf_layout_t;
+} msgBufLayout_t;
 
 
 #define IPC_IN_FROM_RECV    (1 << 0)
@@ -157,40 +157,33 @@ typedef struct _thread_t {
 	cpu_context_t *longjmpctx;
 
 	struct {
-		ipc_buf_layout_t iil;
-		ipc_buf_layout_t oil;
+		msgBufLayout_t ibl;
+		msgBufLayout_t obl;
 
-		/* extra buffer */
+		/* IPC buffer */
 		void *kw;
 		void *w;
 		page_t *p;
 		size_t size;
 		u8 flags;
 
-		void *bw; /* borrowed extra buf pointer */
+		/* borrowed IPC buffer */
+		void *bw;
 		size_t bsize;
 
 		u8 pulse;
-		int err;
 
-		msg_t msgDeferred;
-		struct _thread_t *responseDeferredFrom;
+		msg_t msgDefer;
+		struct _thread_t *defer;
 
-		char msgbuf[MSG_RAW_SIZE];
-		// size_t msglen;
+		char rawBuf[MSG_RAW_SIZE];
 
-		size_t ofs; /* buf ofs in kil */
-
-		size_t esize;
-
+		/* pointers in process' aspace */
+		msg_t *msgPtr;
 		msg_rid_t *ridPtr;
-		int ishmapped;
-		int oshmapped;
+	} ipc;
 
-		/* pointer to in process space */
-		msg_t *msg;
-	} utcb;
-
+	/* TODO: merge with ipc.flags? */
 	int flags;
 
 	/* Message buffer */

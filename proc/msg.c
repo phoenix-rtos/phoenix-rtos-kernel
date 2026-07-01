@@ -17,7 +17,6 @@
 #include "lib/lib.h"
 #include "proc.h"
 
-#include "perf/trace-ipc.h"
 #include "syscalls.h"
 
 
