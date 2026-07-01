@@ -1690,14 +1690,17 @@ static int process_execve(thread_t *current)
 	LIB_ASSERT(current->passive == 0, "heh, passive?");
 	// LIB_ASSERT(current->inherited == NULL, "heh, inherited?");
 
-	threads_releaseIpcBuffers(current);
-
 	/* Restore kernel stack of parent thread */
 	if (parent != NULL) {
 		process_restoreParentKstack(current, parent);
 	}
 	else {
 		/* Reinitialize process */
+
+		/* TODO: moved here, is ok? */
+		threads_releaseIpcBuffers(current);
+		proc_freeUtcb(current);
+
 		map = current->process->mapp;
 		imap = current->process->imapp;
 		proc_changeMap(current->process, NULL, NULL, NULL);

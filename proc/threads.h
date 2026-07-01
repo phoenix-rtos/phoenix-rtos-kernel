@@ -318,4 +318,7 @@ extern void threads_setState(u8 state);
 extern void threads_releaseIpcBuffers(thread_t *thread);
 
 
+extern void proc_freeUtcb(thread_t *thread);
+
+
 #endif

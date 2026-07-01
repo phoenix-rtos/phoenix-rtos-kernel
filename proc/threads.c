@@ -302,13 +302,15 @@ static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor);
 
 void proc_freeUtcb(thread_t *t)
 {
-	if (t->utcb.kw != NULL) {
-		vm_munmap(threads_common.kmap, t->utcb.kw, SIZE_PAGE);
-		t->utcb.kw = NULL;
-	}
-	if (t->process != NULL && t->utcb.w != NULL) {
-		vm_munmap(&t->process->map, t->utcb.w, SIZE_PAGE);
+	if (t->utcb.w != NULL) {
+		if (t->process != NULL) {
+			vm_munmap(&t->process->map, t->utcb.w, t->utcb.size);
+		}
 		t->utcb.w = NULL;
+	}
+	if (t->utcb.kw != NULL) {
+		vm_munmap(threads_common.kmap, t->utcb.kw, t->utcb.size);
+		t->utcb.kw = NULL;
 	}
 	if (t->utcb.p != NULL) {
 		vm_pageFree(t->utcb.p);
@@ -317,7 +319,7 @@ void proc_freeUtcb(thread_t *t)
 }
 
 
-static void _setCallerMsgReturn(thread_t *recv, thread_t *caller)
+static void _setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
 {
 	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
 
@@ -327,7 +329,7 @@ static void _setCallerMsgReturn(thread_t *recv, thread_t *caller)
 	if (caller->callReturnable == 0) {
 		trace_eventSyscallExit(syscall_msgSend, proc_getTid(caller));
 		caller->context = _getUserContext(caller);
-		hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)EOK);
+		hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)retval);
 
 		/* REVISIT: is possible that caller will want to exit here? */
 		LIB_ASSERT(caller->exit == 0, "HAPPENS caller wants to exit");
@@ -379,11 +381,19 @@ static void thread_destroy(thread_t *thread)
 			reply->called = NULL;
 
 			LIB_ASSERT(reply->exit == 0, "reply thread exiting?");
+			LIB_ASSERT(thread->passive == 1, "thread not passive?");
 
-			// LIB_ASSERT(0, "happens (TODO)");
-			/* FIXME: something's off here - this crashes. likely the reply buffers are mishandled */
+			hal_spinlockClear(&threads_common.spinlock, &sc);
 
-			_setCallerMsgReturn(thread, reply);
+			/*
+			 * Release reply buffers before waking the reply. Safe to
+			 * be done without spinlock when done before _setCallerMsgReturn()
+			 */
+			threads_releaseIpcBuffers(reply);
+
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+
+			_setCallerMsgReturn(thread, reply, -EINVAL);
 
 			hal_spinlockClear(&threads_common.spinlock, &sc);
 		}
@@ -2786,10 +2796,20 @@ static int _borrowBuf(thread_t *from, thread_t *to)
 
 	u8 flags = MAP_NOINHERIT;
 	u8 attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | vm_flagsToAttr(flags);
-	u8 prot = PROT_WRITE | PROT_READ | PROT_USER;
+	u8 prot = PROT_WRITE | PROT_READ;
+
+	if (to->process != NULL) {
+		attr |= PGHD_USER;
+		prot |= PROT_USER;
+	}
 
 	/* TODO: find only for payload size not whole buf */
+	/* TODO: this doesn't handle non-contigous >1page buffers */
 	void *vaddr = vm_mapFind(dstmap, NULL, from->utcb.size, flags, prot);
+	if (vaddr == NULL) {
+		return -ENOMEM;
+	}
+
 	if (page_map(&dstmap->pmap, vaddr, from->utcb.p->addr, attr) < 0) {
 		return -ENOMEM;
 	}
@@ -2840,9 +2860,12 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		p->queue.nonempty |= (1u << caller->priority);
 		err = proc_threadWaitInterruptible(&p->queue.pq[caller->priority], &p->spinlock, 0, &sc);
 		if (p->closed != 0 || err < 0) {
+			if (p->closed != 0) {
+				err = -EINVAL;
+			}
 			hal_spinlockClear(&p->spinlock, &sc);
 			port_put(p, 0);
-			return p->closed != 0 ? -EINVAL : err;
+			return err;
 		}
 	}
 
@@ -2992,6 +3015,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		// }
 		// if (caller->utcb.msglen > 0) {
 		if (ipcPayloadInExtraBuf != 0) {
+			// LIB_ASSERT(0, "o");
 			recv->utcb.msg->i.data = recv->utcb.w;
 		}
 		else {
@@ -3400,6 +3424,16 @@ int proc_pulse(u32 port, u8 pulse)
 }
 
 
+static void releaseBorrowedBuf(thread_t *t)
+{
+	if (t->utcb.bw != NULL) {
+		vm_munmap(_getMap(t->process), t->utcb.bw, t->utcb.bsize);
+		t->utcb.bw = NULL;
+		t->utcb.bsize = 0;
+	}
+}
+
+
 static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 {
 	spinlock_ctx_t sc, tsc;
@@ -3485,9 +3519,11 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	/* TODO: lazy remapping */
 	threads_releaseIpcBuffers(caller);
 
+	releaseBorrowedBuf(recv);
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	_setCallerMsgReturn(recv, caller);
+	_setCallerMsgReturn(recv, caller, EOK);
 
 	threads_common.current[hal_cpuGetID()] = recv->sc_active;
 
@@ -3687,16 +3723,6 @@ static void *_mapBufferUnaligned(
 }
 
 
-static void releaseBorrowedBuf(thread_t *t)
-{
-	if (t->utcb.bw != NULL) {
-		vm_munmap(_getMap(t->process), t->utcb.bw, t->utcb.bsize);
-		t->utcb.bw = NULL;
-		t->utcb.bsize = 0;
-	}
-}
-
-
 void threads_releaseIpcBuffers(thread_t *thread)
 {
 	thread_t *mappedTo;
@@ -3716,8 +3742,6 @@ void threads_releaseIpcBuffers(thread_t *thread)
 		_threads_ipcBufferRelease(&thread->utcb.iil);
 		_threads_ipcBufferRelease(&thread->utcb.oil);
 	}
-
-	releaseBorrowedBuf(thread);
 
 	thread->utcb.flags = 0;
 }
@@ -3765,7 +3789,7 @@ void *proc_setup(thread_t *t, size_t sz)
 		attr |= PGHD_USER;
 	}
 
-	p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+	p = vm_pageAlloc(sz, PAGE_OWNER_APP);
 	if (p == NULL) {
 		LIB_ASSERT(0, "page alloc failed");
 		return NULL;
