@@ -83,6 +83,12 @@ typedef struct {
 	vm_map_t *map;
 } ipc_buf_layout_t;
 
+
+#define IPC_IN_CALLER_BUF   (1 << 0)
+#define IPC_OUT_CALLER_BUF  (1 << 1)
+#define IPC_IN_DATA_MAPPED  (1 << 2)
+#define IPC_OUT_DATA_MAPPED (1 << 3)
+
 typedef struct _thread_t {
 	struct _lock_t *locks;
 
@@ -154,14 +160,24 @@ typedef struct _thread_t {
 		ipc_buf_layout_t iil;
 		ipc_buf_layout_t oil;
 
+		/* extra buffer */
+		void *kw;
+		void *w;
+		page_t *p;
+		size_t size;
+		u8 flags;
+
+		void *bw; /* borrowed extra buf pointer */
+		size_t bsize;
+
 		u8 pulse;
 		int err;
 
 		msg_t msgDeferred;
 		struct _thread_t *responseDeferredFrom;
 
-		char msgbuf[256];
-		size_t msglen;
+		char msgbuf[MSG_RAW_SIZE];
+		// size_t msglen;
 
 		size_t ofs; /* buf ofs in kil */
 

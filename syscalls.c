@@ -887,6 +887,16 @@ int syscalls_msgPulse(u8 *ustack)
 }
 
 
+void *syscalls_msgSetup(u8 *ustack)
+{
+	size_t sz;
+
+	GETFROMSTACK(ustack, size_t, sz, 0U);
+
+	return proc_setup(proc_current(), sz);
+}
+
+
 static void sanitizeEdata(process_t *proc, msg_t *msg)
 {
 	/* initialize edata for backwards compatibility */

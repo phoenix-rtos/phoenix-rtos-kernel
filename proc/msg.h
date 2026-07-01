@@ -49,6 +49,9 @@ int proc_pulse(u32 port, u8 pulse);
 int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 
+void *proc_setup(thread_t *t, size_t sz);
+
+
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel);
 
 

@@ -133,7 +133,8 @@
 	\
 	ID(msgRespondAndRecv) \
 	ID(msgPulse) \
-	ID(msgForward)
+	ID(msgForward) \
+	ID(msgSetup)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 /* clang-format on */
 
