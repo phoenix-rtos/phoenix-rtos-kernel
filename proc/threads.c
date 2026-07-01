@@ -2830,6 +2830,84 @@ static int _borrowBuf(thread_t *from, thread_t *to)
 	return EOK;
 }
 
+typedef enum {
+	IPC_XFER_NONE = 0, /* nothing to transfer */
+	IPC_XFER_EXTRA,    /* payload fits into the receiver's IPC buffer */
+	IPC_XFER_BORROW,   /* payload lives inside the caller's IPC buffer, which the receiver can temporarily borrow via _borrowBuf() */
+	IPC_XFER_MAP,      /* fallback - must create dedicated shared mapping via proc_setupSharedBuffer() */
+} ipcXferKind_t;
+
+typedef enum {
+	IPC_SIDE_IN = 0,
+	IPC_SIDE_OUT,
+} ipcSide_t;
+
+typedef struct {
+	ipcXferKind_t kind;
+	const void *data; /* original caller-supplied pointer, valid for IPC_XFER_MAP */
+	size_t size;
+	size_t ofs; /* IPC_XFER_BORROW: offset in caller->utcb.w; IPC_XFER_EXTRA: offset in recv->utcb.w */
+} ipcXferPlan_t;
+
+
+static ipcXferPlan_t _classifyIpcXfer(thread_t *caller, thread_t *recv, const void *data, size_t size, size_t extraUsed)
+{
+	ipcXferPlan_t plan = { IPC_XFER_NONE, data, size, 0 };
+	void *w = caller->utcb.w;
+	size_t wsize = caller->utcb.size;
+
+	if (size == 0) {
+		return plan;
+	}
+
+	if (size + extraUsed <= recv->utcb.size) {
+		plan.kind = IPC_XFER_EXTRA;
+		plan.ofs = extraUsed;
+		return plan;
+	}
+
+	if (size <= wsize && data >= w && (const char *)data + size <= (const char *)w + wsize) {
+		plan.kind = IPC_XFER_BORROW;
+		plan.ofs = (const char *)data - (const char *)w;
+		return plan;
+	}
+
+	plan.kind = IPC_XFER_MAP;
+	return plan;
+}
+
+
+/* Assumes _borrowBuf() has already been called if either side's plan.kind is IPC_XFER_BORROW */
+static int _setupIpcSide(thread_t *caller, thread_t *recv, const ipcXferPlan_t *plan, ipc_buf_layout_t *il, void **rbuf, ipcSide_t side)
+{
+	switch (plan->kind) {
+		case IPC_XFER_MAP:
+			/* TODO: permissions, incoming data doesnt need to be writable */
+			if (proc_setupSharedBuffer(caller, recv, (void *)plan->data, plan->size, il, rbuf) < 0) {
+				return -ENOMEM;
+			}
+			caller->utcb.flags |= (side == IPC_SIDE_IN) ? IPC_IN_DATA_MAPPED : IPC_OUT_DATA_MAPPED;
+			break;
+
+		case IPC_XFER_BORROW:
+			*rbuf = caller->utcb.w + plan->ofs;
+			break;
+
+		case IPC_XFER_EXTRA:
+			*rbuf = recv->utcb.w + plan->ofs;
+			if (side == IPC_SIDE_OUT) {
+				caller->utcb.flags |= IPC_OUT_FROM_RECV;
+			}
+			break;
+
+		default:
+			LIB_ASSERT(plan->size == 0, "EEE");
+			break;
+	}
+
+	return EOK;
+}
+
 
 static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 {
@@ -2901,62 +2979,24 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	caller->utcb.msg = msg;
 	caller->utcb.esize = msg->esize;
 
-	void *imap = NULL, *omap = NULL;
 	size_t isize = 0, osize = 0;
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 3
 
 	hal_memcpy(caller->utcb.msgbuf, msg->i.raw, MSG_RAW_SIZE);
 
-	int useExtInCallerBuf = 0;
-
-	size_t extInOfs = 0;
-
-	/* REVISIT: allow for utcb.bw prop? */
-	void *w = caller->utcb.w;
-	size_t wsize = caller->utcb.size;
-
-	int ipcPayloadInExtraBuf = 0;
-	int ipcPayloadOutExtraBuf = 0;
-
-	size_t recvExtOfs = 0;
-
 	isize = msg->i.size;
-	if (isize > 0) {
-		if (isize <= recv->utcb.size) {
-			/* small message: fits the predefined recv buffer */
-			hal_memcpy(recv->utcb.kw, msg->i.data, isize);
-			ipcPayloadInExtraBuf = 1;
-			recvExtOfs += isize;
-		}
-		else if (isize <= wsize && msg->i.data >= w && msg->i.data + isize <= w + wsize) {
-			useExtInCallerBuf = 1;
-			extInOfs = msg->i.data - w;
-		}
-		else {
-			imap = (void *)msg->i.data;
-		}
+
+	ipcXferPlan_t inPlan = _classifyIpcXfer(caller, recv, msg->i.data, isize, 0);
+	if (inPlan.kind == IPC_XFER_EXTRA) {
+		/* small message: fits the predefined recv buffer */
+		hal_memcpy(recv->utcb.kw, msg->i.data, isize);
 	}
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 4
 
-	int useExtOutCallerBuf = 0;
-	size_t extOutOfs = 0;
-
 	osize = msg->o.size;
-	if (osize > 0) {
-		if (osize + recvExtOfs <= recv->utcb.size) {
-			/* small message: fits the predefined recv buffer */
-			ipcPayloadOutExtraBuf = 1;
-		}
-		else if (osize <= wsize && msg->o.data >= w && msg->o.data + osize <= w + wsize) {
-			useExtOutCallerBuf = 1;
-			extOutOfs = msg->o.data - w;
-		}
-		else {
-			omap = msg->o.data;
-		}
-	}
+	ipcXferPlan_t outPlan = _classifyIpcXfer(caller, recv, msg->o.data, osize, (inPlan.kind == IPC_XFER_EXTRA) ? isize : 0);
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 5
 
@@ -2984,7 +3024,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	thread_t *prevMappedTo = NULL;
 
-	if (imap != NULL || omap != NULL) {
+	if (inPlan.kind == IPC_XFER_MAP || outPlan.kind == IPC_XFER_MAP) {
 		prevMappedTo = caller->mappedTo;
 		caller->mappedTo = recv;
 	}
@@ -3017,46 +3057,21 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	caller->utcb.flags = 0;
 
-	if (imap != NULL) {
-		/* TODO: permissions, incoming data doesnt need to be writable */
-		if (proc_setupSharedBuffer(caller, recv, imap, isize, &caller->utcb.iil, (void *)&recv->utcb.msg->i.data) < 0) {
-			LIB_ASSERT(0, "enomem");
-			return -ENOMEM;
-		}
-		caller->utcb.flags |= IPC_IN_DATA_MAPPED;
-	}
-	else if (useExtInCallerBuf != 0) {
-		if (_borrowBuf(caller, recv) != 0) {
-			LIB_ASSERT(0, "enomem, todo");
-			return -ENOMEM;
-		}
-		recv->utcb.msg->i.data = w + extInOfs;
-	}
-	else if (ipcPayloadInExtraBuf != 0) {
-		recv->utcb.msg->i.data = recv->utcb.w;
-	}
-	else {
-		LIB_ASSERT(isize == 0, "EEE");
+	if ((inPlan.kind == IPC_XFER_BORROW || outPlan.kind == IPC_XFER_BORROW) && _borrowBuf(caller, recv) != 0) {
+		LIB_ASSERT(0, "enomem, todo");
+		return -ENOMEM;
 	}
 
-	if (omap != NULL) {
-		if (proc_setupSharedBuffer(caller, recv, omap, osize, &caller->utcb.oil, &recv->utcb.msg->o.data) < 0) {
-			LIB_ASSERT(0, "enomem, todo");
-			return -ENOMEM;
-		}
-		caller->utcb.flags |= IPC_OUT_DATA_MAPPED;
+	if (_setupIpcSide(caller, recv, &inPlan, &caller->utcb.iil, (void *)&recv->utcb.msg->i.data, IPC_SIDE_IN) < 0) {
+		LIB_ASSERT(0, "enomem");
+		return -ENOMEM;
 	}
-	else if (useExtOutCallerBuf != 0) {
-		if (useExtInCallerBuf == 0 && _borrowBuf(caller, recv) != 0) {
-			LIB_ASSERT(0, "enomem, todo");
-			return -ENOMEM;
-		}
-		recv->utcb.msg->o.data = w + extOutOfs;
+
+	if (_setupIpcSide(caller, recv, &outPlan, &caller->utcb.oil, &recv->utcb.msg->o.data, IPC_SIDE_OUT) < 0) {
+		LIB_ASSERT(0, "enomem, todo");
+		return -ENOMEM;
 	}
-	else if (ipcPayloadOutExtraBuf != 0) {
-		recv->utcb.msg->o.data = recv->utcb.w + recvExtOfs;
-		caller->utcb.flags |= IPC_OUT_FROM_RECV;
-	}
+
 
 	recv->utcb.msg->i.size = isize;
 	recv->utcb.msg->o.size = osize;
