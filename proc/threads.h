@@ -84,8 +84,8 @@ typedef struct {
 } ipc_buf_layout_t;
 
 
-#define IPC_IN_CALLER_BUF   (1 << 0)
-#define IPC_OUT_CALLER_BUF  (1 << 1)
+#define IPC_IN_FROM_RECV    (1 << 0)
+#define IPC_OUT_FROM_RECV   (1 << 1)
 #define IPC_IN_DATA_MAPPED  (1 << 2)
 #define IPC_OUT_DATA_MAPPED (1 << 3)
 

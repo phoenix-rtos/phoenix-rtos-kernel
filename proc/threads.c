@@ -313,7 +313,13 @@ void proc_freeUtcb(thread_t *t)
 		t->utcb.kw = NULL;
 	}
 	if (t->utcb.p != NULL) {
-		vm_pageFree(t->utcb.p);
+		page_t *p = t->utcb.p;
+		page_t *next = p;
+		while (p != NULL) {
+			next = p->next;
+			vm_pageFree(p);
+			p = next;
+		}
 		t->utcb.p = NULL;
 	}
 }
@@ -556,6 +562,10 @@ void _threads_ipcBufferRelease(ipc_buf_layout_t *il)
 /* assuming aspace of `to` */
 static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg)
 {
+	if ((to->utcb.flags & IPC_OUT_FROM_RECV) != 0) {
+		hal_memcpy(to->utcb.msg->o.data, from->utcb.kw, msg->o.size);
+	}
+
 	to->utcb.msg->o.size = msg->o.size;
 	hal_memcpy(to->utcb.msg->o.raw, msg->o.raw, MSG_RAW_SIZE);
 	to->utcb.msg->o.err = msg->o.err;
@@ -2896,27 +2906,32 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 3
 
-	/* TODO: add rawsz to msg_t */
 	hal_memcpy(caller->utcb.msgbuf, msg->i.raw, MSG_RAW_SIZE);
 
-	// caller->utcb.msglen = 0; /* 0 means just the raw in the msgbuf */
+	int useExtInCallerBuf = 0;
+
+	size_t extInOfs = 0;
+
+	/* REVISIT: allow for utcb.bw prop? */
+	void *w = caller->utcb.w;
+	size_t wsize = caller->utcb.size;
 
 	int ipcPayloadInExtraBuf = 0;
+	int ipcPayloadOutExtraBuf = 0;
+
+	size_t recvExtOfs = 0;
 
 	isize = msg->i.size;
 	if (isize > 0) {
-		/*
-		 * TODO: do a symmetric i/o mechanism when bufs are set up:
-		 * if no payload: do nothing
-		 * if payload len<=X, and buf on other side set up: copy directly
-		 * if payload len>X, remap the buf
-		 * where X - some experimentally chosen size threshold
-		 */
 		if (isize <= recv->utcb.size) {
 			/* small message: fits the predefined recv buffer */
 			hal_memcpy(recv->utcb.kw, msg->i.data, isize);
 			ipcPayloadInExtraBuf = 1;
-			// LIB_ASSERT(0, "happens");
+			recvExtOfs += isize;
+		}
+		else if (isize <= wsize && msg->i.data >= w && msg->i.data + isize <= w + wsize) {
+			useExtInCallerBuf = 1;
+			extInOfs = msg->i.data - w;
 		}
 		else {
 			imap = (void *)msg->i.data;
@@ -2925,15 +2940,18 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	TRACE_IPC_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 4
 
-	int useExtCallerBuf = 0;
-	size_t extOfs = 0;
+	int useExtOutCallerBuf = 0;
+	size_t extOutOfs = 0;
 
 	osize = msg->o.size;
 	if (osize > 0) {
-		if (osize <= caller->utcb.size && msg->o.data >= caller->utcb.w && msg->o.data + osize < caller->utcb.w + caller->utcb.size) {
-			useExtCallerBuf = 1;
-			// recv->utcb.flags |= IPC_OUT_CALLER_BUF;
-			extOfs = msg->o.data - caller->utcb.w;
+		if (osize + recvExtOfs <= recv->utcb.size) {
+			/* small message: fits the predefined recv buffer */
+			ipcPayloadOutExtraBuf = 1;
+		}
+		else if (osize <= wsize && msg->o.data >= w && msg->o.data + osize <= w + wsize) {
+			useExtOutCallerBuf = 1;
+			extOutOfs = msg->o.data - w;
 		}
 		else {
 			omap = msg->o.data;
@@ -3005,23 +3023,20 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 			LIB_ASSERT(0, "enomem");
 			return -ENOMEM;
 		}
-		recv->utcb.msg->i.size = isize;
 		caller->utcb.flags |= IPC_IN_DATA_MAPPED;
 	}
+	else if (useExtInCallerBuf != 0) {
+		if (_borrowBuf(caller, recv) != 0) {
+			LIB_ASSERT(0, "enomem, todo");
+			return -ENOMEM;
+		}
+		recv->utcb.msg->i.data = w + extInOfs;
+	}
+	else if (ipcPayloadInExtraBuf != 0) {
+		recv->utcb.msg->i.data = recv->utcb.w;
+	}
 	else {
-		// if (caller->utcb.msglen > 0) {
-		// 	recv->utcb.msg->i.data = recv->utcb.msg->edata;
-		// 	hal_memcpy((void *)recv->utcb.msg->i.data, caller->utcb.msgbuf + MSG_RAW_SIZE, caller->utcb.msglen);
-		// }
-		// if (caller->utcb.msglen > 0) {
-		if (ipcPayloadInExtraBuf != 0) {
-			// LIB_ASSERT(0, "o");
-			recv->utcb.msg->i.data = recv->utcb.w;
-		}
-		else {
-			LIB_ASSERT(isize == 0, "EEE");
-		}
-		recv->utcb.msg->i.size = isize;
+		LIB_ASSERT(isize == 0, "EEE");
 	}
 
 	if (omap != NULL) {
@@ -3031,14 +3046,19 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		}
 		caller->utcb.flags |= IPC_OUT_DATA_MAPPED;
 	}
-	else if (useExtCallerBuf != 0) {
-		if (_borrowBuf(caller, recv) != 0) {
+	else if (useExtOutCallerBuf != 0) {
+		if (useExtInCallerBuf == 0 && _borrowBuf(caller, recv) != 0) {
 			LIB_ASSERT(0, "enomem, todo");
 			return -ENOMEM;
 		}
-		recv->utcb.msg->o.data = recv->utcb.bw + extOfs;
+		recv->utcb.msg->o.data = w + extOutOfs;
+	}
+	else if (ipcPayloadOutExtraBuf != 0) {
+		recv->utcb.msg->o.data = recv->utcb.w + recvExtOfs;
+		caller->utcb.flags |= IPC_OUT_FROM_RECV;
 	}
 
+	recv->utcb.msg->i.size = isize;
 	recv->utcb.msg->o.size = osize;
 	recv->utcb.msg->pid = (caller->process != NULL) ? process_getPid(caller->process) : 0;
 	hal_memcpy(&recv->utcb.msg->oid, &oid, sizeof(oid_t));
@@ -3763,7 +3783,7 @@ static int proc_setupSharedBuffer(thread_t *t, thread_t *recv, void *buf, size_t
 
 void *proc_setup(thread_t *t, size_t sz)
 {
-	void *vaddr, *kvaddr;
+	void *vaddr = NULL, *kvaddr = NULL;
 	vm_map_t *map;
 	page_t *p;
 	u8 prot, flags, attr;
@@ -3773,9 +3793,14 @@ void *proc_setup(thread_t *t, size_t sz)
 	}
 
 	if (t->utcb.kw != NULL) {
-		LIB_ASSERT(t->utcb.w != NULL, "");
-		LIB_ASSERT(t->utcb.p != NULL, "");
-		return t->utcb.w;
+		if (t->utcb.size == sz) {
+			LIB_ASSERT(t->utcb.w != NULL, "");
+			LIB_ASSERT(t->utcb.p != NULL, "");
+			return t->utcb.w;
+		}
+		else {
+			proc_freeUtcb(t);
+		}
 	}
 
 	map = _getMap(t->process);
@@ -3784,53 +3809,50 @@ void *proc_setup(thread_t *t, size_t sz)
 	flags = MAP_NOINHERIT;
 	attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | vm_flagsToAttr(flags);
 
-	if (t->process != NULL) {
-		prot |= PROT_USER;
-		attr |= PGHD_USER;
-	}
-
-	p = vm_pageAlloc(sz, PAGE_OWNER_APP);
-	if (p == NULL) {
-		LIB_ASSERT(0, "page alloc failed");
-		return NULL;
-	}
-	t->utcb.p = p;
-
-	/* map to current thread space */
-	vaddr = vm_mapFind(map, NULL, sz, flags, prot);
-	if (vaddr == NULL) {
+	/* map to kernel space */
+	kvaddr = vm_mapFind(threads_common.kmap, NULL, sz, flags, prot);
+	if (kvaddr == NULL) {
 		proc_freeUtcb(t);
 		return NULL;
 	}
-	t->utcb.w = vaddr;
-
-	if (page_map(&map->pmap, vaddr, p->addr, attr) < 0) {
-		proc_freeUtcb(t);
-		return NULL;
-	}
+	t->utcb.kw = kvaddr;
 
 	if (t->process != NULL) {
-		/* map to kernel space */
-		kvaddr = vm_mapFind(threads_common.kmap, NULL, sz, flags, prot);
-		if (kvaddr == NULL) {
+		/* map to current thread space */
+		vaddr = vm_mapFind(map, NULL, sz, flags, prot | PROT_USER);
+		if (vaddr == NULL) {
 			proc_freeUtcb(t);
 			return NULL;
 		}
-		t->utcb.kw = kvaddr;
-
-		if (page_map(&threads_common.kmap->pmap, kvaddr, p->addr, attr) < 0) {
-			proc_freeUtcb(t);
-			return NULL;
-		}
+		t->utcb.w = vaddr;
 	}
 	else {
-		/*
-		 * else: this is a kernel thread, so t->utcb.w is already mapped to kernel
-		 * space
-		 */
-		t->utcb.kw = t->utcb.w;
+		/* this is a kernel thread, so t->utcb.w is already mapped to its space */
+		t->utcb.w = t->utcb.kw;
 	}
 
+	size_t ofs;
+	for (ofs = 0; ofs < sz; ofs += SIZE_PAGE) {
+		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+
+		if (p == NULL) {
+			proc_freeUtcb(t);
+			return NULL;
+		}
+
+		p->next = t->utcb.p;
+		t->utcb.p = p;
+
+		if (page_map(&threads_common.kmap->pmap, kvaddr + ofs, p->addr, attr) < 0) {
+			proc_freeUtcb(t);
+			return NULL;
+		}
+
+		if (t->process != NULL && page_map(&map->pmap, vaddr + ofs, p->addr, attr | PGHD_USER) < 0) {
+			proc_freeUtcb(t);
+			return NULL;
+		}
+	}
 
 	t->utcb.size = sz;
 
