@@ -17,10 +17,32 @@
 #include "syspage.h"
 
 
+#define SYSPAGE_MAPS_MAX 32
+
+
 static struct {
 	/* parasoft-suppress-next-line MISRAC2012-RULE_5_8 "Variable inside the structure so it shouldn't cause this violation" */
 	syspage_t *syspage;
+	const syspage_map_t *mapsSorted[SYSPAGE_MAPS_MAX]; /* Maps sorted by start address for fast lookup */
+	size_t mapsSortedCnt;
 } syspage_common;
+
+
+static int syspage_mapAddrCompare(void *n1, void *n2)
+{
+	addr_t addr = *(const addr_t *)n1;
+	const syspage_map_t *map = *(const syspage_map_t **)n2;
+
+	if (addr < map->start) {
+		return -1;
+	}
+
+	if (addr >= map->end) {
+		return 1;
+	}
+
+	return 0;
+}
 
 
 size_t syspage_mapSize(void)
@@ -68,20 +90,16 @@ const syspage_map_t *syspage_mapIdResolve(unsigned int id)
 
 const syspage_map_t *syspage_mapAddrResolve(addr_t addr)
 {
-	const syspage_map_t *map = syspage_common.syspage->maps;
+	const syspage_map_t **res;
 
-	if (map == NULL) {
+	res = lib_bsearch(&addr, syspage_common.mapsSorted, syspage_common.mapsSortedCnt,
+			sizeof(syspage_common.mapsSorted[0]), syspage_mapAddrCompare);
+
+	if (res == NULL) {
 		return NULL;
 	}
 
-	do {
-		if (addr < map->end && addr >= map->start) {
-			return map;
-		}
-		map = map->next;
-	} while (map != syspage_common.syspage->maps);
-
-	return NULL;
+	return *res;
 }
 
 
@@ -209,6 +227,30 @@ void syspage_init(void)
 					entry = entry->next;
 				} while (entry != map->entries);
 			}
+			map = map->next;
+		} while (map != syspage_common.syspage->maps);
+	}
+
+	/* Build a table of map pointers sorted by start address for fast lookup */
+	syspage_common.mapsSortedCnt = 0;
+	if (syspage_common.syspage->maps != NULL) {
+		map = syspage_common.syspage->maps;
+		do {
+			size_t i = syspage_common.mapsSortedCnt;
+
+			if (i >= SYSPAGE_MAPS_MAX) {
+				/* Fixed table full - remaining maps won't be found by address resolve */
+				break;
+			}
+
+			/* Insertion sort - maps are not sorted in syspage */
+			while ((i > 0) && (syspage_common.mapsSorted[i - 1]->start > map->start)) {
+				syspage_common.mapsSorted[i] = syspage_common.mapsSorted[i - 1];
+				--i;
+			}
+			syspage_common.mapsSorted[i] = map;
+			++syspage_common.mapsSortedCnt;
+
 			map = map->next;
 		} while (map != syspage_common.syspage->maps);
 	}
