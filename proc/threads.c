@@ -1547,11 +1547,10 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			_proc_threadSetPriority(lock->owner, current->priority);
 		}
 
-		hal_spinlockClear(&threads_common.spinlock, &sc);
-
-		do {
+		for (;;) {
 			/* _proc_lockUnlock will give us a lock by it's own */
-			if (proc_threadWaitEx(&lock->queue, &lock->spinlock, 0, interruptible, scp) == -EINTR) {
+			if ((interruptible != 0U) && (current->exit != 0U)) {
+				hal_spinlockClear(&threads_common.spinlock, &sc);
 				/* Can happen when thread_destroy is called on lock owner and current */
 				if (lock->owner == NULL) {
 					ret = -EINTR;
@@ -1572,7 +1571,20 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 					return ret;
 				}
 			}
-		} while (lock->owner != current);
+			else {
+				_proc_threadEnqueue(&lock->queue, 0, interruptible);
+				hal_spinlockClear(&lock->spinlock, &sc);
+				(void)hal_cpuReschedule(&threads_common.spinlock, scp);
+				hal_spinlockSet(&lock->spinlock, scp);
+			}
+
+			if (lock->owner == current) {
+				break;
+			}
+			else {
+				hal_spinlockSet(&threads_common.spinlock, &sc);
+			}
+		};
 
 		/* we acquired the lock */
 		lock->depth = 1;
