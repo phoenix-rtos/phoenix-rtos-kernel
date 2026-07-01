@@ -416,6 +416,22 @@ int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 }
 
 
+/* SysTick */
+
+
+int _stm32_systickInit(u32 interval)
+{
+	u64 load = ((u64)interval * stm32_common.cpuclk) / 1000000U;
+	if (load > 0x00ffffffU) {
+		return -EINVAL;
+	}
+
+	_hal_scsSystickInit((u32)load);
+
+	return EOK;
+}
+
+
 /* GPIO */
 
 
