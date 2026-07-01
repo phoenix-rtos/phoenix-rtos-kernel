@@ -12,4 +12,4 @@ else ifneq (, $(findstring u3, $(TARGET_SUBFAMILY)))
     include hal/armv8m/stm32/u3/Makefile
 endif
 
-OBJS += $(addprefix $(PREFIX_O)hal/armv8m/stm32/, console.o timer.o)
+OBJS += $(addprefix $(PREFIX_O)hal/armv8m/stm32/, console.o)

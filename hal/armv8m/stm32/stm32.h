@@ -170,6 +170,11 @@ int _stm32_risaf_init(void);
 #endif
 
 
+#if defined(__CPU_STM32U3)
+int _stm32_systickInit(u32 interval);
+#endif
+
+
 void _stm32_init(void);
 
 
