@@ -39,6 +39,16 @@ static struct {
 
 	vm_map_t **maps;
 	size_t mapssz;
+
+	volatile time_t tbtotal;
+	volatile time_t tbmax;
+	volatile time_t tbmin;
+	volatile size_t tbcnt;
+
+	volatile time_t cbtotal;
+	volatile time_t cbmax;
+	volatile time_t cbmin;
+	volatile size_t cbcnt;
 } map_common;
 
 
@@ -1175,9 +1185,75 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 	return EOK;
 }
 
+#if 0
+static int map_belongs(const struct _process_t *proc, const void *ptr, size_t size)
+{
+	map_entry_t e, *f;
+	vm_map_t *map = proc->mapp;
+
+	if (size == 0U) {
+		return 0;
+	}
+
+	if (((ptr_t)ptr + size) < (ptr_t)ptr) {
+		return -1;
+	}
+
+#ifdef NOMMU
+	const syspage_map_t *spMap;
+
+	if (pmap_isAllowed(proc->pmapp, ptr, size) == 0) {
+		return -1;
+	}
+
+	/* Provided memory should be allocated, but not necessarily by current process */
+	spMap = syspage_mapAddrResolve((addr_t)ptr);
+	if (spMap == NULL) {
+		return -1;
+	}
+	map = vm_getSharedMap((int)spMap->id);
+	if (map == NULL) {
+		return -1;
+	}
+#endif
+
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
+	e.vaddr = (void *)ptr;
+	e.size = 1;
+
+	(void)proc_lockSet(&map->lock);
+	do {
+		f = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &e.linkage));
+
+		if (f == NULL) {
+			(void)proc_lockClear(&map->lock);
+			return -1;
+		}
+
+		/*
+		 * Disabled checking entry owner for now on NOMMU, as we can
+		 * receive memory from different maps and processes via msg
+		 * and RO elf segments may not be assigned to any process.
+		 * TODO: create memory objects for syspage programs
+		 */
+#if 0 /* NOMMU */
+		if (f->process != proc) {
+			return -1;
+		}
+#endif
+
+		e.vaddr = (void *)((ptr_t)e.vaddr + f->size);
+	} while (e.vaddr < (void *)((ptr_t)ptr + size));
+	(void)proc_lockClear(&map->lock);
+
+	return 0;
+}
+#endif
+
 
 static int map_belongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
+	// #ifndef NOMMU
 	map_entry_t e, *f;
 	vm_map_t *map = proc->mapp;
 
@@ -1191,6 +1267,10 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 	if (pmap_isAllowed(proc->pmapp, ptr, size) == 0) {
 		return -1;
 	}
+
+#if 0
+	return 0;
+#endif
 
 	/* Provided memory should be allocated, but not necessarily by current process */
 	spMap = syspage_mapAddrResolve((addr_t)ptr);
@@ -1228,15 +1308,46 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 	}
 #endif
 
+	// #endif
 	return 0;
 }
+
+time_t hal_timerGetCyc(void);
+time_t hal_timerCyc2us(time_t cyc);
 
 
 int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
+	cycles_t b = 0, e = 0;
 	int ret;
+	volatile cycles_t diff;
 
+	ret = map_belongs(proc, ptr, size);  // Fair play - icache
+
+	// #if 0
+
+	hal_cpuGetCycles(&b);
 	ret = map_belongs(proc, ptr, size);
+	hal_cpuGetCycles(&e);
+	diff = e - b;
+
+	LIB_ASSERT_ALWAYS(diff >= 0, "NON MONOTONIC TIMER: %lld\n", diff);
+	map_common.cbtotal += diff;
+	map_common.cbcnt++;
+	map_common.cbmin = min(map_common.cbmin, diff);
+	map_common.cbmax = max(map_common.cbmax, diff);
+	// #else
+	volatile time_t start = hal_timerGetCyc();
+	ret = map_belongs(proc, ptr, size);
+	diff = hal_timerGetCyc() - start;
+
+	LIB_ASSERT_ALWAYS(diff >= 0, "NON MONOTONIC TIMER: %lld\n", diff);
+	map_common.tbtotal += diff;
+	map_common.tbcnt++;
+	map_common.tbmin = min(map_common.tbmin, diff);
+	map_common.tbmax = max(map_common.tbmax, diff);
+	// #endif
+
 	LIB_ASSERT(ret == 0, "Fault @0x%p (%zu) path: %s, pid: %d\n", ptr, size, proc->path, process_getPid(proc));
 
 	return ret;
@@ -1254,6 +1365,17 @@ void vm_mapinfo(meminfo_t *info)
 	size_t i;
 	size_t total, free;
 
+	info->tbelongstotalCyc = map_common.tbtotal;
+	info->tbelongstotalTime = hal_timerCyc2us(map_common.tbtotal);
+	info->tbelongscnt = map_common.tbcnt;
+	info->tbelongsMinCyc = map_common.tbmin;
+	info->tbelongsMaxCyc = map_common.tbmax;
+
+	info->cbelongstotalCyc = map_common.cbtotal;
+	info->cbelongstotalTime = hal_timerCyc2us(map_common.cbtotal);
+	info->cbelongscnt = map_common.cbcnt;
+	info->cbelongsMinCyc = map_common.cbmin;
+	info->cbelongsMaxCyc = map_common.cbmax;
 
 	(void)proc_lockSet(&map_common.lock);
 	/* FIXME: potentially lossy downcasts on 64-bit targets - make total, free, sz size_t */
@@ -1696,6 +1818,16 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 #ifdef EXC_PAGEFAULT
 	(void)hal_exceptionsSetHandler(EXC_PAGEFAULT, map_pageFault);
 #endif
+
+	map_common.tbcnt = 0;
+	map_common.tbtotal = 0;
+	map_common.tbmax = 0;
+	map_common.tbmin = 100000000000;
+
+	map_common.cbcnt = 0;
+	map_common.cbtotal = 0;
+	map_common.cbmax = 0;
+	map_common.cbmin = 100000000000;
 
 	return EOK;
 }

@@ -65,13 +65,13 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-static time_t hal_timerCyc2us(time_t cyc)
+time_t hal_timerCyc2us(time_t cyc)
 {
 	return (cyc * 1000LL) / ((time_t)timer_common.ticksPerFreq * (time_t)hal_cpuGetCount());
 }
 
 
-static time_t hal_timerGetCyc(void)
+time_t hal_timerGetCyc(void)
 {
 	spinlock_ctx_t sc;
 	time_t jiffies, cnt;

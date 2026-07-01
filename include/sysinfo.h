@@ -78,6 +78,16 @@ typedef struct {
 
 /* TODO: Consider changing type of kmaps mapsz from int to unsigned int */
 typedef struct _meminfo_t {
+	time_t cbelongsMinCyc, cbelongsMaxCyc;
+	time_t cbelongstotalTime;
+	time_t cbelongstotalCyc;
+	size_t cbelongscnt;
+
+	time_t tbelongsMinCyc, tbelongsMaxCyc;
+	time_t tbelongstotalTime;
+	time_t tbelongstotalCyc;
+	size_t tbelongscnt;
+
 	struct {
 		unsigned int alloc, free, boot, sz;
 		int mapsz;
