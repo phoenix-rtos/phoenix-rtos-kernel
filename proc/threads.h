@@ -299,12 +299,6 @@ int threads_sigsuspend(unsigned int mask);
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
-int threads_getHighestPrio(int maxPrio);
-
-
-void _threads_removeFromQueue(thread_t *t);
-
-
 void threads_xferRelease(thread_t *thread);
 
 

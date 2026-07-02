@@ -286,10 +286,6 @@ static void _unbindFromAddedTo(thread_t *t)
 		p = t->addedTo;
 		hal_spinlockSet(&p->spinlock, &sc);
 		LIST_REMOVE_EX(&p->threads, t, tnext, tprev);
-		/*
-		 * TODO: clear refcount, but cant use port_put here as it potentially
-		 * sets threads_common.spinlock...
-		 */
 		hal_spinlockClear(&p->spinlock, &sc);
 		t->addedTo = NULL;
 	}
@@ -498,41 +494,6 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
-/* TODO: this is slow, make this O(1) */
-int threads_getHighestPrio(int maxPrio)
-{
-	int i, ret = maxPrio;
-	spinlock_ctx_t sc;
-	sched_context_t *sched;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	for (i = 0; i < maxPrio;) {
-		sched = threads_common.ready[i];
-		if (sched == NULL) {
-			i++;
-			continue;
-		}
-
-		if (sched->t->state != READY) {
-			LIST_REMOVE(&threads_common.ready[i], sched);
-			continue;
-		}
-
-		ret = i;
-		break;
-	}
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
-	return ret;
-}
-
-
-void _threads_removeFromQueue(thread_t *t)
-{
-	lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
-}
-
-
 static void _xferReleaseBuf(xferBuf_t *xb)
 {
 	if (xb->bp != NULL) {
@@ -559,16 +520,20 @@ static void _xferReleaseBuf(xferBuf_t *xb)
 }
 
 
-#define MSG_OUT_FROM_RECV   (1 << 1)
-#define MSG_IN_DATA_MAPPED  (1 << 2)
-#define MSG_OUT_DATA_MAPPED (1 << 3)
+#define MSG_IN_EXTRA  (1 << 0)
+#define MSG_OUT_EXTRA (1 << 1)
+#define MSG_IN_MAP    (1 << 2)
+#define MSG_OUT_MAP   (1 << 3)
 
 
-/* assuming aspace of `to` */
+/* assuming aspace of `to` and that msg pointers in aspace of `from` */
 static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg)
 {
-	if ((to->ipc.flags & MSG_OUT_FROM_RECV) != 0) {
-		hal_memcpy(to->ipc.msgPtr->o.data, from->ipc.kw, msg->o.size);
+	if ((to->ipc.flags & MSG_OUT_EXTRA) != 0) {
+		/* if i.data is also extra, the o.data is put next to it */
+		size_t ofs = (to->ipc.flags & MSG_IN_EXTRA) != 0 ? msg->i.size : 0;
+
+		hal_memcpy(to->ipc.msgPtr->o.data, from->ipc.kw + ofs, msg->o.size);
 		to->ipc.flags = 0;
 	}
 
@@ -791,11 +756,7 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 {
 	LIB_ASSERT(sc->donor == caller, "returning SC donated by someone else");
-
 	LIB_ASSERT(caller->called == NULL, "_sc_return but called not cleared?");
-
-	// LIB_ASSERT(server->reply != NULL, "_sc_return but no reply?");
-
 	LIB_ASSERT(server->sc_donated != NULL || server->sc_donated->dnext != NULL, "empty/corrupted donation queue?");
 
 	/* Remove donated SC from server */
@@ -828,19 +789,12 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 	caller->sc_active = sc; /* or re-evaluate _sc_best (TODO?) */
 	caller->state = READY;
 
-	/* once locks get unified with BWI, this assertion should work */
-	// LIB_ASSERT(caller->priority == sc->priority, "TODO lock bwi")
-
 	/* Recalculate server's active SC */
 	server->sc_active = _sc_best(server);
 	server->sc_active->t = server;
 	_sc_updateEffPriority(server);
 
-	/* If server has no more SCs (all clients responded), it goes passive */
-
 	LIB_ASSERT(server->sc_active->donor != NULL || server->sc_active->owner == server, "mismanaged SC");
-
-	/* TODO: remove passive for the sake of sc_active == NULL? */
 
 	server->reply = NULL;
 }
@@ -916,9 +870,11 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		LIST_REMOVE(&threads_common.ready[i], sched);
 
 		if (sched->t->state != READY) {
-			/* BWI: Follow lock dependency chain to boost the ultimate lock holder.
+			/*
+			 * BWI: Follow lock dependency chain to boost the ultimate lock holder.
 			 * This offloads transitive PI cost to the scheduler (NOVA-style):
-			 * lock contention is O(1), the scheduler walks the chain. */
+			 * lock contention is O(1), the scheduler walks the chain.
+			 */
 			if (sched->t->waitingOn != NULL) {
 				LIB_ASSERT(0, "happens?");
 				thread_t *target = sched->t;
@@ -1976,7 +1932,6 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	void *kstackTop;
 	thread_t *thread;
 
-	// hal_cpuDisableInterrupts();
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	thread = _proc_current();
 	if (thread->fastpathExitCtx == NULL) {
@@ -1995,7 +1950,6 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	else {
 		fpCtx = thread->fastpathExitCtx;
 		thread->fastpathExitCtx = NULL;
-		// hal_spinlockGetCtx(&sc);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		/* FIXME: race with sched is possible here */
 		hal_endSyscall(fpCtx, &sc);
@@ -2106,6 +2060,38 @@ int proc_lockTry(lock_t *lock)
 }
 
 
+/*
+ * Propagate priority through the lock dependency chain. Each owner in the
+ * chain is boosted to current's effective priority.
+ * WARN: bounded by BWI_MAX_CHAIN_DEPTH to prevent unbounded work under spinlock.
+ */
+static void _proc_lockPriorityChainProp(thread_t *current, lock_t *lock)
+{
+	thread_t *target = lock->owner;
+	unsigned int prio = current->priority;
+	unsigned int depth = 0;
+
+	while (target != NULL && depth < BWI_MAX_CHAIN_DEPTH) {
+		if (prio < target->priority) {
+			_proc_threadSetPriority(target, prio);
+		}
+
+		if (target->waitingOn == NULL) {
+			break;
+		}
+
+		if (target->waitingOn->owner == NULL || target->waitingOn->owner == current) {
+			/* broken chain or cycle */
+			LIB_ASSERT(0, "TODO");
+			break;
+		}
+
+		target = target->waitingOn->owner;
+		depth++;
+	}
+}
+
+
 static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current;
@@ -2144,37 +2130,9 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 	if (_proc_lockTry(current, lock) < 0) {
-		/* Track lock dependency for transitive PI (scheduler follows this chain) */
+		/* Track lock dependency for priority chain prop */
 		current->waitingOn = lock;
-
-		/* Eagerly propagate priority through the lock dependency chain.
-		 * Walks: current -> lock->owner -> owner->waitingOn->owner -> ...
-		 * Each owner in the chain is boosted to current's effective priority.
-		 * Bounded by BWI_MAX_CHAIN_DEPTH to prevent unbounded work under spinlock. */
-		{
-			thread_t *target = lock->owner;
-			unsigned int prio = current->priority;
-			unsigned int depth = 0;
-
-			while (target != NULL && depth < BWI_MAX_CHAIN_DEPTH) {
-				if (prio < target->priority) {
-					_proc_threadSetPriority(target, prio);
-				}
-
-				if (target->waitingOn == NULL) {
-					break;
-				}
-
-				if (target->waitingOn->owner == NULL ||
-						target->waitingOn->owner == current) {
-					break; /* broken chain or cycle */
-				}
-
-				target = target->waitingOn->owner;
-				depth++;
-			}
-		}
-
+		_proc_lockPriorityChainProp(current, lock);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 
 		do {
@@ -2304,9 +2262,7 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
 
-		/* Recalculate new owner's effective priority from ALL held locks + SC.
-		 * This handles transitive PI: if the new owner holds another lock with
-		 * a high-priority waiter, it will be boosted accordingly. */
+		/* Recalculate new owner's effective priority from ALL held locks + SC */
 		lockPriority = _proc_threadGetPriority(lock->owner);
 		if ((unsigned int)lockPriority < lock->owner->priority) {
 			_proc_threadSetPriority(lock->owner, lockPriority);
@@ -2785,19 +2741,13 @@ static void _threads_copyShadowPages(xferBuf_t *il, size_t size)
 
 static void _threads_copyShadowBuffers(thread_t *from, thread_t *to, msg_t *msg)
 {
-	if ((to->ipc.flags & MSG_OUT_DATA_MAPPED) != 0) {
+	if ((to->ipc.flags & MSG_OUT_MAP) != 0) {
 		if (msg->o.size > 0) {
 			LIB_ASSERT(to->mappedTo == from, "hm, %p != %p", to->mappedTo, from);
 			_threads_copyShadowPages(&to->ipc.obl, msg->o.size);
 		}
 	}
 }
-
-
-/*
- * BIG TODO: msg fields are validated in syscalls.c, but then re-read in send -
- * another thread could mess with us here
- */
 
 
 static vm_map_t *_getMap(process_t *process)
@@ -2893,7 +2843,7 @@ static int _setupMsgSide(thread_t *caller, thread_t *recv, const xferPlan_t *pla
 				_xferReleaseBuf(xb);
 				return -ENOMEM;
 			}
-			caller->ipc.flags |= (side == msg_side_in) ? MSG_IN_DATA_MAPPED : MSG_OUT_DATA_MAPPED;
+			caller->ipc.flags |= (side == msg_side_in) ? MSG_IN_MAP : MSG_OUT_MAP;
 			break;
 
 		case msg_xfer_borrow:
@@ -2902,9 +2852,7 @@ static int _setupMsgSide(thread_t *caller, thread_t *recv, const xferPlan_t *pla
 
 		case msg_xfer_extra:
 			*rdata = recv->ipc.w + plan->ofs;
-			if (side == msg_side_out) {
-				caller->ipc.flags |= MSG_OUT_FROM_RECV;
-			}
+			caller->ipc.flags |= (side == msg_side_in) ? MSG_IN_EXTRA : MSG_OUT_EXTRA;
 			break;
 
 		default:
@@ -3203,8 +3151,6 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	*forward->ipc.ridPtr = rid;
 	forward->fastpathExitCtx = _getUserContext(forward);
 	trace_eventSyscallExit(forward->respondAndRecv ? syscall_msgRespondAndRecv : syscall_msgRecv, proc_getTid(forward));
-
-	// forward->utcb.msglen = recv->utcb.msglen;
 
 	hal_cpuSetReturnValue(forward->fastpathExitCtx, EOK);
 
