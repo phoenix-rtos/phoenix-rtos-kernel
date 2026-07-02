@@ -2837,28 +2837,28 @@ static int _borrowBuf(thread_t *from, thread_t *to)
 }
 
 typedef enum {
-	MSG_XFER_NONE = 0, /* nothing to transfer */
-	MSG_XFER_EXTRA,    /* payload fits into the receiver's IPC buffer */
-	MSG_XFER_BORROW,   /* payload lives inside the caller's IPC buffer, which the receiver can temporarily borrow via _borrowBuf() */
-	MSG_XFER_MAP,      /* fallback - must create dedicated shared mapping via proc_setupSharedBuffer() */
-} msgXferKind_t;
+	msg_xfer_none = 0, /* nothing to transfer */
+	msg_xfer_extra,    /* payload fits into the receiver's IPC buffer */
+	msg_xfer_borrow,   /* payload lives inside the caller's IPC buffer, which the receiver can temporarily borrow via _borrowBuf() */
+	msg_xfer_map,      /* fallback - must create dedicated shared mapping via proc_setupSharedBuffer() */
+} msg_xfer_t;
 
 typedef enum {
-	MSG_SIDE_IN = 0,
-	MSG_SIDE_OUT,
-} msgSide_t;
+	msg_side_in = 0,
+	msg_side_out,
+} msg_side_t;
 
 typedef struct {
-	msgXferKind_t kind;
-	const void *data; /* original caller-supplied pointer, valid for MSG_XFER_MAP */
+	msg_xfer_t kind;
+	const void *data; /* original caller-supplied pointer, valid for msg_xfer_map */
 	size_t size;
-	size_t ofs; /* MSG_XFER_BORROW: offset in caller->utcb.w; MSG_XFER_EXTRA: offset in recv->utcb.w */
-} msgXferPlan_t;
+	size_t ofs; /* msg_xfer_borrow: offset in caller->utcb.w; msg_xfer_extra: offset in recv->utcb.w */
+} xferPlan_t;
 
 
-static msgXferPlan_t _classifyMsgXfer(thread_t *caller, thread_t *recv, const void *data, size_t size, size_t extraUsed)
+static xferPlan_t _classifyMsgXfer(thread_t *caller, thread_t *recv, const void *data, size_t size, size_t extraUsed)
 {
-	msgXferPlan_t plan = { MSG_XFER_NONE, data, size, 0 };
+	xferPlan_t plan = { msg_xfer_none, data, size, 0 };
 	void *w = caller->ipc.w;
 	size_t wsize = caller->ipc.size;
 
@@ -2867,42 +2867,42 @@ static msgXferPlan_t _classifyMsgXfer(thread_t *caller, thread_t *recv, const vo
 	}
 
 	if (size + extraUsed <= recv->ipc.size) {
-		plan.kind = MSG_XFER_EXTRA;
+		plan.kind = msg_xfer_extra;
 		plan.ofs = extraUsed;
 		return plan;
 	}
 
 	if (size <= wsize && data >= w && (const char *)data + size <= (const char *)w + wsize) {
-		plan.kind = MSG_XFER_BORROW;
+		plan.kind = msg_xfer_borrow;
 		plan.ofs = (const char *)data - (const char *)w;
 		return plan;
 	}
 
-	plan.kind = MSG_XFER_MAP;
+	plan.kind = msg_xfer_map;
 	return plan;
 }
 
 
-/* Assumes _borrowBuf() has already been called if either side's plan.kind is MSG_XFER_BORROW */
-static int _setupMsgSide(thread_t *caller, thread_t *recv, const msgXferPlan_t *plan, xferBuf_t *xb, void **rdata, msgSide_t side)
+/* Assumes _borrowBuf() has already been called if either side's plan.kind is msg_xfer_borrow */
+static int _setupMsgSide(thread_t *caller, thread_t *recv, const xferPlan_t *plan, xferBuf_t *xb, void **rdata, msg_side_t side)
 {
 	switch (plan->kind) {
-		case MSG_XFER_MAP:
+		case msg_xfer_map:
 			/* TODO: permissions, incoming data doesnt need to be writable */
 			if (_xferMapBuf(caller, recv, (void *)plan->data, plan->size, xb, rdata) < 0) {
 				_xferReleaseBuf(xb);
 				return -ENOMEM;
 			}
-			caller->ipc.flags |= (side == MSG_SIDE_IN) ? MSG_IN_DATA_MAPPED : MSG_OUT_DATA_MAPPED;
+			caller->ipc.flags |= (side == msg_side_in) ? MSG_IN_DATA_MAPPED : MSG_OUT_DATA_MAPPED;
 			break;
 
-		case MSG_XFER_BORROW:
+		case msg_xfer_borrow:
 			*rdata = caller->ipc.w + plan->ofs;
 			break;
 
-		case MSG_XFER_EXTRA:
+		case msg_xfer_extra:
 			*rdata = recv->ipc.w + plan->ofs;
-			if (side == MSG_SIDE_OUT) {
+			if (side == msg_side_out) {
 				caller->ipc.flags |= MSG_OUT_FROM_RECV;
 			}
 			break;
@@ -2987,8 +2987,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	isize = msg->i.size;
 
-	msgXferPlan_t inPlan = _classifyMsgXfer(caller, recv, msg->i.data, isize, 0);
-	if (inPlan.kind == MSG_XFER_EXTRA) {
+	xferPlan_t inPlan = _classifyMsgXfer(caller, recv, msg->i.data, isize, 0);
+	if (inPlan.kind == msg_xfer_extra) {
 		/* small message: fits the predefined recv buffer */
 		hal_memcpy(recv->ipc.kw, msg->i.data, isize);
 	}
@@ -2996,7 +2996,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 4
 
 	osize = msg->o.size;
-	msgXferPlan_t outPlan = _classifyMsgXfer(caller, recv, msg->o.data, osize, (inPlan.kind == MSG_XFER_EXTRA) ? isize : 0);
+	xferPlan_t outPlan = _classifyMsgXfer(caller, recv, msg->o.data, osize, (inPlan.kind == msg_xfer_extra) ? isize : 0);
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 5
 
@@ -3024,7 +3024,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	thread_t *prevMappedTo = NULL;
 
-	if (inPlan.kind == MSG_XFER_MAP || outPlan.kind == MSG_XFER_MAP) {
+	if (inPlan.kind == msg_xfer_map || outPlan.kind == msg_xfer_map) {
 		prevMappedTo = caller->mappedTo;
 		caller->mappedTo = recv;
 	}
@@ -3057,17 +3057,17 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	caller->ipc.flags = 0;
 
-	if ((inPlan.kind == MSG_XFER_BORROW || outPlan.kind == MSG_XFER_BORROW) && _borrowBuf(caller, recv) != 0) {
+	if ((inPlan.kind == msg_xfer_borrow || outPlan.kind == msg_xfer_borrow) && _borrowBuf(caller, recv) != 0) {
 		LIB_ASSERT(0, "enomem, todo");
 		return -ENOMEM;
 	}
 
-	if (_setupMsgSide(caller, recv, &inPlan, &caller->ipc.ibl, (void *)&recv->ipc.msgPtr->i.data, MSG_SIDE_IN) < 0) {
+	if (_setupMsgSide(caller, recv, &inPlan, &caller->ipc.ibl, (void *)&recv->ipc.msgPtr->i.data, msg_side_in) < 0) {
 		LIB_ASSERT(0, "enomem");
 		return -ENOMEM;
 	}
 
-	if (_setupMsgSide(caller, recv, &outPlan, &caller->ipc.obl, &recv->ipc.msgPtr->o.data, MSG_SIDE_OUT) < 0) {
+	if (_setupMsgSide(caller, recv, &outPlan, &caller->ipc.obl, &recv->ipc.msgPtr->o.data, msg_side_out) < 0) {
 		LIB_ASSERT(0, "enomem, todo");
 		return -ENOMEM;
 	}
