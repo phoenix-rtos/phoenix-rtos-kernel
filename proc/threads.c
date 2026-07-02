@@ -396,6 +396,7 @@ static void thread_destroy(thread_t *thread)
 			 * be done without spinlock when done before _setCallerMsgReturn()
 			 */
 			threads_xferRelease(reply);
+			reply->ipc.flags = 0;
 
 			hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -568,6 +569,7 @@ static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg
 {
 	if ((to->ipc.flags & MSG_OUT_FROM_RECV) != 0) {
 		hal_memcpy(to->ipc.msgPtr->o.data, from->ipc.kw, msg->o.size);
+		to->ipc.flags = 0;
 	}
 
 	to->ipc.msgPtr->o.size = msg->o.size;
@@ -3631,8 +3633,6 @@ void threads_xferRelease(thread_t *thread)
 		_xferReleaseBuf(&thread->ipc.ibl);
 		_xferReleaseBuf(&thread->ipc.obl);
 	}
-
-	thread->ipc.flags = 0;
 }
 
 
