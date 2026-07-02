@@ -410,7 +410,6 @@ void xfer_copyShadowPages(thread_t *from, thread_t *to, msg_t *msg)
 {
 	if ((to->ipc.flags & MSG_OUT_MAP) != 0) {
 		if (msg->o.size > 0) {
-			LIB_ASSERT(to->mappedTo == from, "hm, %p != %p", to->mappedTo, from);
 			_copyShadowPages(&to->ipc.obl, msg->o.size);
 		}
 	}

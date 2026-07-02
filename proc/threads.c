@@ -338,7 +338,7 @@ static void thread_destroy(thread_t *thread)
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
 
-	threads_xferRelease(thread);
+	threads_releaseXferBufs(thread);
 
 	/* REVISIT: guard with threads spinlock needed? called may hold a reference to us */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -367,7 +367,7 @@ static void thread_destroy(thread_t *thread)
 			 * Release reply buffers before waking the reply. Safe to
 			 * be done without spinlock when done before _setCallerMsgReturn()
 			 */
-			threads_xferRelease(reply);
+			threads_releaseXferBufs(reply);
 			xfer_clearFlags(reply);
 
 			hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -1015,8 +1015,6 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->called = NULL;
 	t->addedTo = NULL;
 	t->flags = 0;
-
-	t->mappedTo = NULL;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->sc_active);
@@ -2771,10 +2769,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	LIB_ASSERT(_proc_current() == recv, "we are not recv?");
 	LIB_ASSERT(_proc_current()->sc_active != NULL, "proc current unschedulable?");
 
-	if (inPlan.kind == msg_xfer_map || outPlan.kind == msg_xfer_map) {
-		caller->mappedTo = recv;
-	}
-
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 8
@@ -2956,8 +2950,6 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
 	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
-
-	caller->mappedTo = forward;
 
 	/* TODO: optimize these */
 	caller->called = NULL;
@@ -3262,7 +3254,7 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	hal_memcpy(&caller->ipc.msgDefer, msg, sizeof(*msg));
 	caller->ipc.defer = recv;
 
-	threads_xferRelease(caller);
+	threads_releaseXferBufs(caller);
 	xfer_ipcBufRelease(recv);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -3330,23 +3322,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 }
 
 
-void threads_xferRelease(thread_t *thread)
+void threads_releaseXferBufs(thread_t *thread)
 {
-	thread_t *mappedTo;
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	/*
-	 * THOUGHT:
-	 * mappedTo != NULL => thread is mapped to some external dstmap
-	 * what if dstmap owner dies?
-	 */
-	mappedTo = thread->mappedTo;
-	thread->mappedTo = NULL;
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
-	if (mappedTo != NULL) {
-		xfer_bufRelease(&thread->ipc.ibl);
-		xfer_bufRelease(&thread->ipc.obl);
-	}
+	xfer_bufRelease(&thread->ipc.ibl);
+	xfer_bufRelease(&thread->ipc.obl);
 }

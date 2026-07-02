@@ -1698,7 +1698,7 @@ static int process_execve(thread_t *current)
 		/* Reinitialize process */
 
 		/* TODO: moved here, is ok? */
-		threads_xferRelease(current);
+		threads_releaseXferBufs(current);
 		threads_releaseIpcBuf(current);
 
 		map = current->process->mapp;

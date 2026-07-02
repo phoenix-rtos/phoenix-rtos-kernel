@@ -185,9 +185,6 @@ typedef struct _thread_t {
 
 	/* TODO: merge with ipc.flags? */
 	int flags;
-
-	/* Message buffer */
-	struct _thread_t *mappedTo;
 } thread_t;
 
 
@@ -299,7 +296,7 @@ int threads_sigsuspend(unsigned int mask);
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
-void threads_xferRelease(thread_t *thread);
+void threads_releaseXferBufs(thread_t *thread);
 
 
 void threads_releaseIpcBuf(thread_t *thread);
