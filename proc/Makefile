@@ -10,5 +10,5 @@ OBJS += $(addprefix $(PREFIX_O)proc/, proc.o threads.o process.o name.o resource
 ifneq (, $(findstring NOMMU, $(CPPFLAGS)))
         OBJS += $(PREFIX_O)proc/msg-nommu.o
 else
-        OBJS += $(PREFIX_O)proc/msg.o
+        OBJS += $(PREFIX_O)proc/msg.o $(PREFIX_O)proc/xfer.o
 endif

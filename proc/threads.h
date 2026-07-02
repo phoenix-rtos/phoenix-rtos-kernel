@@ -69,7 +69,7 @@ typedef struct {
 } prio_queue_t;
 
 
-typedef struct {
+typedef struct _xferBuf_t {
 	void *bvaddr;
 	u64 boffs;
 	page_t *bp;

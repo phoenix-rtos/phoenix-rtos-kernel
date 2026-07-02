@@ -151,9 +151,6 @@ typedef struct _msg_t {
 		size_t size;
 		void *data;
 	} o;
-
-	size_t esize;
-	const void *edata;
 } msg_t;
 
 

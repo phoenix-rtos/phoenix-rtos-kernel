@@ -23,6 +23,7 @@
 #include "log/log.h"
 #include "resource.h"
 #include "msg.h"
+#include "xfer.h"
 #include "ports.h"
 #include "perf/trace-events.h"
 #include "perf/trace-msg.h"
@@ -296,31 +297,6 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc);
 static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor);
 
 
-void threads_releaseIpcBuf(thread_t *t)
-{
-	if (t->ipc.w != NULL) {
-		if (t->process != NULL) {
-			vm_munmap(&t->process->map, t->ipc.w, t->ipc.size);
-		}
-		t->ipc.w = NULL;
-	}
-	if (t->ipc.kw != NULL) {
-		vm_munmap(threads_common.kmap, t->ipc.kw, t->ipc.size);
-		t->ipc.kw = NULL;
-	}
-	if (t->ipc.p != NULL) {
-		page_t *p = t->ipc.p;
-		page_t *next = p;
-		while (p != NULL) {
-			next = p->next;
-			vm_pageFree(p);
-			p = next;
-		}
-		t->ipc.p = NULL;
-	}
-}
-
-
 static void _setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
 {
 	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
@@ -392,7 +368,7 @@ static void thread_destroy(thread_t *thread)
 			 * be done without spinlock when done before _setCallerMsgReturn()
 			 */
 			threads_xferRelease(reply);
-			reply->ipc.flags = 0;
+			xfer_clearFlags(reply);
 
 			hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -494,48 +470,10 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
-static void _xferReleaseBuf(xferBuf_t *xb)
-{
-	if (xb->bp != NULL) {
-		vm_pageFree(xb->bp);
-		vm_munmap(threads_common.kmap, xb->bvaddr, SIZE_PAGE);
-		xb->bp = NULL;
-	}
-
-	if (xb->eoffs != 0) {
-		if (xb->ep != NULL) {
-			vm_pageFree(xb->ep);
-		}
-		vm_munmap(threads_common.kmap, xb->evaddr, SIZE_PAGE);
-		xb->eoffs = 0;
-		xb->ep = NULL;
-	}
-
-	if (xb->w != NULL) {
-		vm_munmap(xb->map, xb->w, xb->size);
-		xb->w = NULL;
-		xb->size = 0;
-		xb->map = NULL;
-	}
-}
-
-
-#define MSG_IN_EXTRA  (1 << 0)
-#define MSG_OUT_EXTRA (1 << 1)
-#define MSG_IN_MAP    (1 << 2)
-#define MSG_OUT_MAP   (1 << 3)
-
-
 /* assuming aspace of `to` and that msg pointers in aspace of `from` */
 static void _threads_copyMsgBufResponse(thread_t *from, thread_t *to, msg_t *msg)
 {
-	if ((to->ipc.flags & MSG_OUT_EXTRA) != 0) {
-		/* if i.data is also extra, the o.data is put next to it */
-		size_t ofs = (to->ipc.flags & MSG_IN_EXTRA) != 0 ? msg->i.size : 0;
-
-		hal_memcpy(to->ipc.msgPtr->o.data, from->ipc.kw + ofs, msg->o.size);
-		to->ipc.flags = 0;
-	}
+	xfer_copyOutExtra(from, to, msg);
 
 	to->ipc.msgPtr->o.size = msg->o.size;
 	hal_memcpy(to->ipc.msgPtr->o.raw, msg->o.raw, MSG_RAW_SIZE);
@@ -2634,6 +2572,8 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.ridCookie = (ptr_t)cycles + 1;
 	} while (threads_common.ridCookie == 0);
 
+	xfer_init(kmap);
+
 	/* Initiaizlie scheduler queue */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
 		threads_common.ready[i] = NULL;
@@ -2709,9 +2649,6 @@ static inline int _portPrioWait(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 }
 
 
-static int _xferMapBuf(thread_t *t, thread_t *recv, void *buf, size_t bufsz, xferBuf_t *il, void **rbuf);
-
-
 static void _portEnqueue(port_t *p, thread_t *t)
 {
 	LIST_ADD_EX(&p->threads, t, tnext, tprev);
@@ -2727,143 +2664,7 @@ static void _portDequeue(port_t *p, thread_t *t)
 }
 
 
-static void _threads_copyShadowPages(xferBuf_t *il, size_t size)
-{
-	if (il->bp != NULL) {
-		hal_memcpy(il->bvaddr + il->boffs, il->w + il->boffs, min(SIZE_PAGE - il->boffs, size));
-	}
-	if (il->eoffs != 0) {
-		size = min(size, il->size);
-		hal_memcpy(il->evaddr, il->w + il->boffs + size - il->eoffs, il->eoffs);
-	}
-}
-
-
-static void _threads_copyShadowBuffers(thread_t *from, thread_t *to, msg_t *msg)
-{
-	if ((to->ipc.flags & MSG_OUT_MAP) != 0) {
-		if (msg->o.size > 0) {
-			LIB_ASSERT(to->mappedTo == from, "hm, %p != %p", to->mappedTo, from);
-			_threads_copyShadowPages(&to->ipc.obl, msg->o.size);
-		}
-	}
-}
-
-
-static vm_map_t *_getMap(process_t *process)
-{
-	return (process == NULL || process->mapp == NULL) ? threads_common.kmap : process->mapp;
-}
-
-
-static int _borrowBuf(thread_t *from, thread_t *to)
-{
-	vm_map_t *dstmap = _getMap(to->process);
-
-	u8 flags = MAP_NOINHERIT;
-	u8 attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | vm_flagsToAttr(flags);
-	u8 prot = PROT_WRITE | PROT_READ;
-
-	if (to->process != NULL) {
-		attr |= PGHD_USER;
-		prot |= PROT_USER;
-	}
-
-	/* TODO: find only for payload size not whole buf */
-	/* TODO: this doesn't handle non-contigous >1page buffers */
-	void *vaddr = vm_mapFind(dstmap, NULL, from->ipc.size, flags, prot);
-	if (vaddr == NULL) {
-		return -ENOMEM;
-	}
-
-	if (page_map(&dstmap->pmap, vaddr, from->ipc.p->addr, attr) < 0) {
-		return -ENOMEM;
-	}
-
-	to->ipc.bw = vaddr;
-	to->ipc.bsize = from->ipc.size;
-
-	return EOK;
-}
-
-typedef enum {
-	msg_xfer_none = 0, /* nothing to transfer */
-	msg_xfer_extra,    /* payload fits into the receiver's IPC buffer */
-	msg_xfer_borrow,   /* payload lives inside the caller's IPC buffer, which the receiver can temporarily borrow via _borrowBuf() */
-	msg_xfer_map,      /* fallback - must create dedicated shared mapping via proc_setupSharedBuffer() */
-} msg_xfer_t;
-
-typedef enum {
-	msg_side_in = 0,
-	msg_side_out,
-} msg_side_t;
-
-typedef struct {
-	msg_xfer_t kind;
-	const void *data; /* original caller-supplied pointer, valid for msg_xfer_map */
-	size_t size;
-	size_t ofs; /* msg_xfer_borrow: offset in caller->utcb.w; msg_xfer_extra: offset in recv->utcb.w */
-} xferPlan_t;
-
-
-static xferPlan_t _classifyMsgXfer(thread_t *caller, thread_t *recv, const void *data, size_t size, size_t extraUsed)
-{
-	xferPlan_t plan = { msg_xfer_none, data, size, 0 };
-	void *w = caller->ipc.w;
-	size_t wsize = caller->ipc.size;
-
-	if (size == 0) {
-		return plan;
-	}
-
-	if (size + extraUsed <= recv->ipc.size) {
-		plan.kind = msg_xfer_extra;
-		plan.ofs = extraUsed;
-		return plan;
-	}
-
-	if (size <= wsize && data >= w && (const char *)data + size <= (const char *)w + wsize) {
-		plan.kind = msg_xfer_borrow;
-		plan.ofs = (const char *)data - (const char *)w;
-		return plan;
-	}
-
-	plan.kind = msg_xfer_map;
-	return plan;
-}
-
-
 /* Assumes _borrowBuf() has already been called if either side's plan.kind is msg_xfer_borrow */
-static int _setupMsgSide(thread_t *caller, thread_t *recv, const xferPlan_t *plan, xferBuf_t *xb, void **rdata, msg_side_t side)
-{
-	switch (plan->kind) {
-		case msg_xfer_map:
-			/* TODO: permissions, incoming data doesnt need to be writable */
-			if (_xferMapBuf(caller, recv, (void *)plan->data, plan->size, xb, rdata) < 0) {
-				_xferReleaseBuf(xb);
-				return -ENOMEM;
-			}
-			caller->ipc.flags |= (side == msg_side_in) ? MSG_IN_MAP : MSG_OUT_MAP;
-			break;
-
-		case msg_xfer_borrow:
-			*rdata = caller->ipc.w + plan->ofs;
-			break;
-
-		case msg_xfer_extra:
-			*rdata = recv->ipc.w + plan->ofs;
-			caller->ipc.flags |= (side == msg_side_in) ? MSG_IN_EXTRA : MSG_OUT_EXTRA;
-			break;
-
-		default:
-			LIB_ASSERT(plan->size == 0, "EEE");
-			break;
-	}
-
-	return EOK;
-}
-
-
 static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 {
 	port_t *p;
@@ -2935,7 +2736,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	isize = msg->i.size;
 
-	xferPlan_t inPlan = _classifyMsgXfer(caller, recv, msg->i.data, isize, 0);
+	xferPlan_t inPlan = xfer_classify(caller, recv, msg->i.data, isize, 0);
 	if (inPlan.kind == msg_xfer_extra) {
 		/* small message: fits the predefined recv buffer */
 		hal_memcpy(recv->ipc.kw, msg->i.data, isize);
@@ -2944,7 +2745,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 4
 
 	osize = msg->o.size;
-	xferPlan_t outPlan = _classifyMsgXfer(caller, recv, msg->o.data, osize, (inPlan.kind == msg_xfer_extra) ? isize : 0);
+	xferPlan_t outPlan = xfer_classify(caller, recv, msg->o.data, osize, (inPlan.kind == msg_xfer_extra) ? isize : 0);
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 5
 
@@ -2970,10 +2771,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	LIB_ASSERT(_proc_current() == recv, "we are not recv?");
 	LIB_ASSERT(_proc_current()->sc_active != NULL, "proc current unschedulable?");
 
-	thread_t *prevMappedTo = NULL;
-
 	if (inPlan.kind == msg_xfer_map || outPlan.kind == msg_xfer_map) {
-		prevMappedTo = caller->mappedTo;
 		caller->mappedTo = recv;
 	}
 
@@ -2998,24 +2796,22 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	hal_memcpy(recv->ipc.msgPtr->i.raw, caller->ipc.rawBuf, MSG_RAW_SIZE);
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 11
-	if (prevMappedTo != NULL) {
-		LIB_ASSERT_ALWAYS(0, "HAPPENS?");
-	}
-	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 12
 
-	caller->ipc.flags = 0;
+	xfer_clearFlags(caller);
 
-	if ((inPlan.kind == msg_xfer_borrow || outPlan.kind == msg_xfer_borrow) && _borrowBuf(caller, recv) != 0) {
+	if ((inPlan.kind == msg_xfer_borrow || outPlan.kind == msg_xfer_borrow) && xfer_ipcBufBorrow(caller, recv) != 0) {
 		LIB_ASSERT(0, "enomem, todo");
 		return -ENOMEM;
 	}
 
-	if (_setupMsgSide(caller, recv, &inPlan, &caller->ipc.ibl, (void *)&recv->ipc.msgPtr->i.data, msg_side_in) < 0) {
+	if (xfer_setup(caller, recv, &inPlan, &caller->ipc.ibl, (void *)&recv->ipc.msgPtr->i.data, msg_side_in) < 0) {
 		LIB_ASSERT(0, "enomem");
 		return -ENOMEM;
 	}
 
-	if (_setupMsgSide(caller, recv, &outPlan, &caller->ipc.obl, &recv->ipc.msgPtr->o.data, msg_side_out) < 0) {
+	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 12
+
+	if (xfer_setup(caller, recv, &outPlan, &caller->ipc.obl, &recv->ipc.msgPtr->o.data, msg_side_out) < 0) {
 		LIB_ASSERT(0, "enomem, todo");
 		return -ENOMEM;
 	}
@@ -3127,7 +2923,7 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	LIB_ASSERT(forward != NULL, "forward null");
 	LIB_ASSERT(recv != NULL, "recv is null");
 
-	if (_getMap(forward->process) != _getMap(recv->process)) {
+	if (forward->process != recv->process) {
 		LIB_ASSERT(0, "he");
 		hal_spinlockClear(&threads_common.spinlock, &tsc);
 		hal_spinlockClear(&p->spinlock, &sc);
@@ -3303,22 +3099,6 @@ int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 }
 
 
-static vm_flags_t _getMapFlags(vm_map_t *map, void *data)
-{
-	if (pmap_belongs(&map->pmap, data) != 0) {
-		return vm_mapFlags(map, data);
-	}
-	else {
-		return vm_mapFlags(threads_common.kmap, data);
-	}
-}
-
-
-/* make these as lib macros please... */
-#define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
-#define CEIL(x)  (((x) + SIZE_PAGE - 1) & ~(SIZE_PAGE - 1))
-
-
 int proc_recv_ex(port_t *p, msg_t *msg, msg_rid_t *rid, int rr)
 {
 	spinlock_ctx_t sc;
@@ -3399,16 +3179,6 @@ int proc_pulse(u32 port, u8 pulse)
 }
 
 
-static void releaseBorrowedBuf(thread_t *t)
-{
-	if (t->ipc.bw != NULL) {
-		vm_munmap(_getMap(t->process), t->ipc.bw, t->ipc.bsize);
-		t->ipc.bw = NULL;
-		t->ipc.bsize = 0;
-	}
-}
-
-
 static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 {
 	spinlock_ctx_t sc, tsc;
@@ -3480,7 +3250,7 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 		return err;
 	}
 
-	_threads_copyShadowBuffers(recv, caller, msg);
+	xfer_copyShadowPages(recv, caller, msg);
 
 	/*
 	 * OPTIMIZATION: defer the copy of the msg to _threads_switchToThread() where
@@ -3493,7 +3263,7 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	caller->ipc.defer = recv;
 
 	threads_xferRelease(caller);
-	releaseBorrowedBuf(recv);
+	xfer_ipcBufRelease(recv);
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
@@ -3576,225 +3346,7 @@ void threads_xferRelease(thread_t *thread)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	if (mappedTo != NULL) {
-		_xferReleaseBuf(&thread->ipc.ibl);
-		_xferReleaseBuf(&thread->ipc.obl);
+		xfer_bufRelease(&thread->ipc.ibl);
+		xfer_bufRelease(&thread->ipc.obl);
 	}
-}
-
-
-static int _xferMapBuf(thread_t *t, thread_t *recv, void *data, size_t size, xferBuf_t *xb, void **rdata)
-{
-	void *w = NULL, *vaddr;
-	u64 boffs, eoffs;
-	unsigned int n = 0, i;
-	page_t *nep = NULL, *nbp = NULL;
-	vm_map_t *srcmap, *dstmap;
-	int flags;
-	addr_t bpa, pa, epa;
-
-	if ((size == 0) || (data == NULL)) {
-		return -EINVAL;
-	}
-
-	unsigned int attr = PGHD_WRITE | PGHD_READ | PGHD_PRESENT | PGHD_USER;
-	unsigned int prot = PROT_READ | PROT_WRITE | PROT_USER;
-
-	boffs = (ptr_t)data & (SIZE_PAGE - 1);
-
-	if (FLOOR((ptr_t)data + size) > CEIL((ptr_t)data)) {
-		n = (FLOOR((ptr_t)data + size) - CEIL((ptr_t)data)) / SIZE_PAGE;
-	}
-
-	if ((boffs != 0) && (FLOOR((ptr_t)data) == FLOOR((ptr_t)data + size))) {
-		/* Data is on one page only and will be copied by boffs handler */
-		eoffs = 0;
-	}
-	else {
-		eoffs = ((ptr_t)data + size) & (SIZE_PAGE - 1);
-	}
-
-	srcmap = _getMap(t->process);
-	dstmap = _getMap(recv->process);
-
-	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0)) {
-		*rdata = data;
-		return EOK;
-	}
-
-	size_t sz = (((boffs != 0) ? 1 : 0) + ((eoffs != 0) ? 1 : 0) + n) * SIZE_PAGE;
-	w = vm_mapFind(dstmap, NULL, sz, MAP_NOINHERIT, prot);
-	xb->w = w;
-	if (w == NULL) {
-		return -ENOMEM;
-	}
-	xb->size = sz;
-	xb->map = dstmap;
-
-	flags = _getMapFlags(srcmap, data);
-	if (flags < 0) {
-		return -EINVAL;
-	}
-
-	attr |= vm_flagsToAttr(flags);
-
-	if (boffs > 0) {
-		xb->boffs = boffs;
-		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1);
-		if (bpa == 0) {
-			return -ENOMEM;
-		}
-
-		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-		xb->bp = nbp;
-		if (nbp == NULL) {
-			return -ENOMEM;
-		}
-
-		vaddr = vm_mmap(threads_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, bpa, flags);
-		xb->bvaddr = vaddr;
-		if (vaddr == NULL) {
-			return -ENOMEM;
-		}
-
-		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w, nbp->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
-			return -ENOMEM;
-		}
-
-		hal_memcpy(w + boffs, vaddr + boffs, min(size, SIZE_PAGE - boffs));
-
-		if (page_map(&dstmap->pmap, w, nbp->addr, attr) < 0) {
-			return -ENOMEM;
-		}
-	}
-
-	/* Map pages */
-	vaddr = (void *)CEIL((ptr_t)data);
-
-	for (i = 0; i < n; i++, vaddr += SIZE_PAGE) {
-		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1);
-		if (page_map(&dstmap->pmap, w + (i + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, pa, attr) < 0) {
-			return -ENOMEM;
-		}
-	}
-
-	if (eoffs) {
-		xb->eoffs = eoffs;
-		vaddr = (void *)FLOOR((ptr_t)data + size);
-		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1);
-		if (epa == 0) {
-			return -ENOMEM;
-		}
-
-		if ((boffs == 0) || (eoffs >= boffs)) {
-			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-			xb->ep = nep;
-			if (nep == NULL) {
-				return -ENOMEM;
-			}
-		}
-		else {
-			nep = nbp;
-		}
-
-		vaddr = vm_mmap(threads_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, epa, flags);
-		xb->evaddr = vaddr;
-		if (vaddr == NULL) {
-			return -ENOMEM;
-		}
-
-		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, nep->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
-			return -ENOMEM;
-		}
-
-		hal_memcpy(w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, vaddr, eoffs);
-
-		if (page_map(&dstmap->pmap, w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, nep->addr, attr) < 0) {
-			return -ENOMEM;
-		}
-	}
-
-	*rdata = (w + boffs);
-
-	return EOK;
-}
-
-
-void *proc_setupIpcBuf(thread_t *t, size_t sz)
-{
-	void *vaddr = NULL, *kvaddr = NULL;
-	vm_map_t *map;
-	page_t *p;
-	u8 prot, flags, attr;
-
-	if ((sz & (SIZE_PAGE - 1)) != 0) {
-		return NULL;
-	}
-
-	if (t->ipc.kw != NULL) {
-		if (t->ipc.size == sz) {
-			LIB_ASSERT(t->ipc.w != NULL, "");
-			LIB_ASSERT(t->ipc.p != NULL, "");
-			return t->ipc.w;
-		}
-		else {
-			threads_releaseIpcBuf(t);
-		}
-	}
-
-	map = _getMap(t->process);
-
-	prot = PROT_WRITE | PROT_READ;
-	flags = MAP_NOINHERIT;
-	attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | vm_flagsToAttr(flags);
-
-	/* map to kernel space */
-	kvaddr = vm_mapFind(threads_common.kmap, NULL, sz, flags, prot);
-	if (kvaddr == NULL) {
-		threads_releaseIpcBuf(t);
-		return NULL;
-	}
-	t->ipc.kw = kvaddr;
-
-	if (t->process != NULL) {
-		/* map to current thread space */
-		vaddr = vm_mapFind(map, NULL, sz, flags, prot | PROT_USER);
-		if (vaddr == NULL) {
-			threads_releaseIpcBuf(t);
-			return NULL;
-		}
-		t->ipc.w = vaddr;
-	}
-	else {
-		/* this is a kernel thread, so t->utcb.w is already mapped to its space */
-		t->ipc.w = t->ipc.kw;
-	}
-
-	size_t ofs;
-	for (ofs = 0; ofs < sz; ofs += SIZE_PAGE) {
-		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
-
-		if (p == NULL) {
-			threads_releaseIpcBuf(t);
-			return NULL;
-		}
-
-		p->next = t->ipc.p;
-		t->ipc.p = p;
-
-		if (page_map(&threads_common.kmap->pmap, kvaddr + ofs, p->addr, attr) < 0) {
-			threads_releaseIpcBuf(t);
-			return NULL;
-		}
-
-		if (t->process != NULL && page_map(&map->pmap, vaddr + ofs, p->addr, attr | PGHD_USER) < 0) {
-			threads_releaseIpcBuf(t);
-			return NULL;
-		}
-	}
-
-	t->ipc.size = sz;
-
-	return t->ipc.w;
 }
