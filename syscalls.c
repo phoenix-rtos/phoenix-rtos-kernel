@@ -1969,6 +1969,14 @@ int syscalls_sys_uname(u8 *ustack)
 }
 
 
+cycles_t syscalls_bench_entry_exit_time(void)
+{
+	cycles_t c;
+	hal_cpuGetCycles(&c);
+	return c;
+}
+
+
 /*
  * Empty syscall
  */

@@ -302,6 +302,13 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 }
 
 
+static inline void hal_cpuGetCycles(cycles_t *cb)
+{
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+	__asm__ volatile("rdcycle %0" : "=r"(*(cycles_t *)cb));
+}
+
+
 void hal_cpuRfenceI(void);
 
 

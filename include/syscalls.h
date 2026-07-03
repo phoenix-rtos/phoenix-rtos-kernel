@@ -129,8 +129,8 @@
 	\
 	ID(sys_statvfs) \
 	ID(sys_uname) \
-	ID(schedInfo)
-
+	ID(schedInfo) \
+  ID(bench_entry_exit_time)
 /* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 /* clang-format on */
 
