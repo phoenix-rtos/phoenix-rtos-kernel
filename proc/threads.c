@@ -59,6 +59,8 @@ static struct {
 	sched_context_t **current;
 	time_t utcoffs;
 
+	unsigned int readyNonempty;
+
 	/* Synchronized by spinlock */
 	rbtree_t sleeping;
 
@@ -297,12 +299,36 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc);
 static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor);
 
 
+static void _readyAdd(thread_t *t)
+{
+	unsigned int prio = t->priority;
+	LIST_ADD(&threads_common.ready[prio], t->sc_active);
+	threads_common.readyNonempty |= (1u << prio);
+}
+
+
+static void _readyRemove(thread_t *t)
+{
+	unsigned int prio = t->priority;
+	LIST_REMOVE(&threads_common.ready[prio], t->sc_active);
+	if (threads_common.ready[prio] == NULL) {
+		threads_common.readyNonempty &= ~(1u << prio);
+	}
+}
+
+
+static unsigned int _readyMin(void)
+{
+	return __builtin_ctz(threads_common.readyNonempty);
+}
+
+
 static void _setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
 {
 	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
 
 	_sc_return(recv, caller, donated_sc);
-	LIST_ADD(&threads_common.ready[caller->priority], caller->sc_active);
+	_readyAdd(caller);
 
 	if (caller->callReturnable == 0) {
 		trace_eventSyscallExit(syscall_msgSend, proc_getTid(caller));
@@ -789,23 +815,23 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		if (current->state == READY || current->exit != 0) {
 			// LIB_ASSERT(current->sc_active != NULL, "READY but unschedulable? tid: %d, pc=%p, ra=%p", proc_getTid(current), current->context->sepc, current->context->ra);
 
-			LIST_ADD(&threads_common.ready[current->priority], current->sc_active);
+			_readyAdd(current);
 			_threads_preempted(current);
 		}
 	}
 
 	/* Get next thread */
-	i = 0;
+	i = _readyMin();
 	while (i < MAX_PRIO) {
 		sched = threads_common.ready[i];
-		if (sched == NULL) {
-			i++;
-			continue;
-		}
+		LIB_ASSERT(sched != NULL, "sched null despite ctz?");
 
 		LIB_ASSERT(sched->t != NULL, "dangling scheduling context");
 
 		LIST_REMOVE(&threads_common.ready[i], sched);
+		if (threads_common.ready[i] == NULL) {
+			threads_common.readyNonempty &= ~(1u << i);
+		}
 
 		if (sched->t->state != READY) {
 			/*
@@ -1064,7 +1090,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	/* Insert thread to scheduler queue */
 
 	_threads_waking(t);
-	LIST_ADD(&threads_common.ready[priority], t->sc_active);
+	_readyAdd(t);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -1140,12 +1166,15 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread->sc_active) != 0,
 					"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
 					thread, proc_getTid(thread), thread->priority);
-			LIST_REMOVE(&threads_common.ready[thread->priority], thread->sc_active);
-			LIST_ADD(&threads_common.ready[priority], thread->sc_active);
+			_readyRemove(thread);
+			thread->priority = priority;
+			_readyAdd(thread);
 		}
 	}
+	else {
+		thread->priority = priority;
+	}
 
-	thread->priority = priority;
 	trace_eventThreadPriority(proc_getTid(thread), thread->priority);
 }
 
@@ -1379,7 +1408,7 @@ static void _proc_threadDequeue(thread_t *t)
 	}
 
 	if (i == hal_cpuGetCount()) {
-		LIST_ADD(&threads_common.ready[t->priority], t->sc_active);
+		_readyAdd(t);
 	}
 }
 
@@ -2572,10 +2601,11 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	xfer_init(kmap);
 
-	/* Initiaizlie scheduler queue */
+	/* Initialize scheduler queues */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
 		threads_common.ready[i] = NULL;
 	}
+	threads_common.readyNonempty = 0;
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
 	lib_idtreeInit(&threads_common.id);
@@ -2612,7 +2642,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 }
 
 
-static inline int _mustSlowCall(port_t *p, thread_t *caller)
+static inline int _mustSlowCall(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 {
 	/*
 	 * TODO: can there be several receivers? (e.g., first bad, second ready)
@@ -2623,6 +2653,7 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 	if (p->threads == NULL) {
 		return 1;
 	}
+
 
 	/* Receiver currently has its own SC (active server, not passive) */
 	if (p->threads->sc_active != NULL) {
@@ -2636,7 +2667,7 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller)
 static inline int _portPrioWait(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 {
 	int err = EOK;
-	while ((err = _mustSlowCall(p, caller)) != 0) {
+	while ((err = _mustSlowCall(p, caller, sc)) != 0) {
 		p->queue.nonempty |= (1u << caller->priority);
 		err = proc_threadWaitInterruptible(&p->queue.pq[caller->priority], &p->spinlock, 0, sc);
 		if (p->closed != 0 || err < 0) {
@@ -2959,7 +2990,7 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	/* could have changed as part of _sc_return */
 	threads_common.current[hal_cpuGetID()] = recv->sc_active;
 
-	LIST_ADD(&threads_common.ready[forward->priority], forward->sc_active);
+	_readyAdd(forward);
 
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
@@ -2988,7 +3019,6 @@ static int _proc_threadWakeupPrio(prio_queue_t *queue)
 		return 1;
 	}
 
-	/* slot drained */
 	queue->nonempty &= ~(1u << prio);
 	return 0;
 }
