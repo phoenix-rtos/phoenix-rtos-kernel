@@ -31,4 +31,14 @@ typedef struct {
 } sched_info_t;
 
 
+typedef struct {
+	int priority;
+	int priorityBase;
+	int policy;
+	union {
+		char reserved[32]; /* reserved for policy-specific values */
+	} ps;
+} sched_params_t;
+
+
 #endif

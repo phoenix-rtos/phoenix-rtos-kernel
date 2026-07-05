@@ -408,6 +408,122 @@ int syscalls_schedInfo(u8 *ustack)
 }
 
 
+static int targetGet(int pid, int tid, thread_t **resThread)
+{
+	process_t *proc = NULL;
+	thread_t *t;
+
+	if ((pid != 0) && (tid != 0)) {
+		/*
+		 * tid uniquely identifies a thread. Passing both pid and tid nonempty is
+		 * redundant and likely an error.
+		 */
+		return -EINVAL;
+	}
+
+	if (tid == 0) {
+		if ((pid == 0) || (pid == process_getPid(proc_current()->process))) {
+			tid = proc_getTid(proc_current());
+		}
+		else {
+			/*
+			 * If no tid is provided (can happen, see POSIX sched_*), just take the
+			 * first thread from process' list. Could be any, POSIX doesn't specify this
+			 * for multithreaded processes.
+			 */
+			proc = proc_find(pid);
+			if (proc == NULL) {
+				return -ESRCH;
+			}
+			tid = proc_firstThreadTid(proc);
+			(void)proc_put(proc);
+
+			if (tid < 0) {
+				return -ESRCH;
+			}
+		}
+	}
+
+	t = threads_findThread(tid);
+	if (t == NULL) {
+		return -ESRCH;
+	}
+
+	/* Reject kernel threads (null t->process) and initthr (null mapp) */
+	if (t->process == NULL || t->process->mapp == NULL) {
+		threads_put(t);
+		return -ESRCH;
+	}
+
+	*resThread = t;
+
+	return EOK;
+}
+
+
+int syscalls_schedGet(u8 *ustack)
+{
+	int err, pid, tid;
+	thread_t *t, *current = proc_current();
+	sched_params_t *params;
+
+	GETFROMSTACK(ustack, int, pid, 0U);
+	GETFROMSTACK(ustack, int, tid, 1U);
+	GETFROMSTACK(ustack, sched_params_t *, params, 2U);
+
+	if (params == NULL) {
+		return -EINVAL;
+	}
+
+	if (vm_mapBelongs(current->process, params, sizeof(*params)) < 0) {
+		return -EFAULT;
+	}
+
+	err = targetGet(pid, tid, &t);
+	if (err < 0) {
+		return err;
+	}
+
+	err = proc_schedGet(t, params);
+
+	threads_put(t);
+
+	return err;
+}
+
+
+int syscalls_schedSet(u8 *ustack)
+{
+	int err, pid, tid, policy;
+	thread_t *t;
+	sched_params_t *params;
+
+	GETFROMSTACK(ustack, int, pid, 0U);
+	GETFROMSTACK(ustack, int, tid, 1U);
+	GETFROMSTACK(ustack, int, policy, 2U);
+	GETFROMSTACK(ustack, sched_params_t *, params, 3U);
+
+	if (params == NULL) {
+		return -EINVAL;
+	}
+
+	if (vm_mapBelongs(proc_current()->process, params, sizeof(*params)) < 0) {
+		return -EFAULT;
+	}
+
+	err = targetGet(pid, tid, &t);
+	if (err < 0) {
+		return err;
+	}
+
+	err = proc_schedSet(t, policy, params);
+
+	threads_put(t);
+
+	return err;
+}
+
+
 /*
  * System state info
  */
