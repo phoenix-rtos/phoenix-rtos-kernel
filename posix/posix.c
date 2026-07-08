@@ -564,6 +564,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
+	off_t size;
 
 	if (proc_lookup("/dev/posix/pipes", NULL, &pipesrv) < 0) {
 		hal_memset(&pipesrv, 0xff, sizeof(oid_t));
@@ -650,15 +651,20 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 				f->type = ftRegular;
 			}
 
-			if (((unsigned int)oflag & O_APPEND) != 0U) {
-				f->offset = proc_size(f->oid);
-			}
-			else {
-				f->offset = 0;
-			}
+			f->offset = 0;
 
 			if (((unsigned int)oflag & O_TRUNC) != 0U) {
 				(void)posix_truncate(&f->oid, 0);
+			}
+			else if (((unsigned int)oflag & O_APPEND) != 0U) {
+				/* Keep offset at 0 for files that cannot report their size (e.g. devices) */
+				size = proc_size(f->oid);
+				if (size > 0) {
+					f->offset = size;
+				}
+			}
+			else {
+				/* No action required */
 			}
 
 			f->status = (unsigned int)oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
