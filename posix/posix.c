@@ -773,7 +773,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 		rcnt = (ssize_t)nbyte;
 	}
 
-	if (rcnt > 0 && offset < 0) {
+	if (rcnt > 0 && offset < 0 && F_SEEKABLE(f->type)) {
 		(void)proc_lockSet(&f->lock);
 		f->offset += rcnt;
 		(void)proc_lockClear(&f->lock);
@@ -823,12 +823,12 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 	}
 	else {
 		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
-	}
 
-	if (rcnt > 0 && offset < 0) {
-		(void)proc_lockSet(&f->lock);
-		f->offset += rcnt;
-		(void)proc_lockClear(&f->lock);
+		if (rcnt > 0 && offset < 0 && F_SEEKABLE(f->type)) {
+			(void)proc_lockSet(&f->lock);
+			f->offset += rcnt;
+			(void)proc_lockClear(&f->lock);
+		}
 	}
 
 	(void)posix_fileDeref(f);
