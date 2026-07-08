@@ -46,6 +46,7 @@ enum {
 	TRACE_EVENT_THREAD_PRIORITY = 0x31,
 	TRACE_EVENT_PROCESS_KILL = 0x32,
 	TRACE_EVENT_PROCESS_EXEC = 0x33,
+	TRACE_EVENT_MSG_SEND = 0x34,
 };
 
 
@@ -72,8 +73,14 @@ void _trace_updateLockEpoch(lock_t *lock);
  * NOTE: The ev structure passed to PERF_{META,EVENT}_BODY must match the
  * field struct declared in the tsdl/metadata for a given event_id.
  */
+#define NO_EVENT(ev, ts) \
+	do { \
+		(void)ev; \
+		(void)ts; \
+	} while (0)
 #define TRACE_META_BODY(event_id, ev, ts, ...)  TRACE_EVENT_BODY_CHAN((u8)(trace_channel_meta), (event_id), (ev), (ts), __VA_ARGS__)
-#define TRACE_EVENT_BODY(event_id, ev, ts, ...) TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
+#define TRACE_EVENT_BODY(event_id, ev, ts, ...) NO_EVENT((ev), (ts))
+#define TRACE_MSG_BODY(event_id, ev, ts, ...)   TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
 
 
 /* assumes lock->spinlock is set */
@@ -315,6 +322,26 @@ static inline void trace_eventProcessKill(const process_t *p)
 static inline void trace_eventProcessExec(const thread_t *t)
 {
 	trace_eventThreadMeta(TRACE_EVENT_PROCESS_EXEC, t);
+}
+
+
+static inline void trace_eventMsgSend(int tid, u32 port, u8 type, size_t isize, size_t osize)
+{
+	struct {
+		u16 tid;
+		u16 port;
+		u8 type;
+		u32 isize;
+		u32 osize;
+	} __attribute__((packed)) ev;
+
+	TRACE_MSG_BODY(TRACE_EVENT_MSG_SEND, ev, NULL, {
+		ev.tid = (u16)tid;
+		ev.port = (u16)port;
+		ev.type = type;
+		ev.isize = (u32)isize;
+		ev.osize = (u32)osize;
+	});
 }
 
 

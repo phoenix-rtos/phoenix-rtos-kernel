@@ -15,6 +15,7 @@
 
 #include "include/errno.h"
 #include "lib/lib.h"
+#include "perf/trace-events.h"
 #include "proc.h"
 
 
@@ -355,6 +356,8 @@ int proc_send(u32 port, msg_t *msg)
 	thread_t *sender;
 	spinlock_ctx_t sc;
 	int state;
+
+	trace_eventMsgSend(proc_getTid(proc_current()), port, msg->type, msg->i.size, msg->o.size);
 
 	/* TODO - check if msg pointer belongs to user vm_map */
 	if (msg == NULL) {
