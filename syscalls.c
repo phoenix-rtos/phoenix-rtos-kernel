@@ -1149,8 +1149,6 @@ void syscalls_sigreturn(u8 *ustack)
 	}
 
 	proc_longjmp(ctx);
-
-	__builtin_unreachable();
 }
 
 /* POSIX compatibility syscalls */
