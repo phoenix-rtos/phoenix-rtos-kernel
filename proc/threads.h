@@ -172,7 +172,7 @@ void proc_gettime(time_t *raw, time_t *offs);
 int proc_settime(time_t offs);
 
 
-void proc_longjmp(cpu_context_t *ctx);
+__attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx);
 
 
 void proc_threadsDump(u8 priority);
