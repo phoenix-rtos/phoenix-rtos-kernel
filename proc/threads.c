@@ -1152,6 +1152,10 @@ int proc_join(int tid, time_t timeout)
 	spinlock_ctx_t sc;
 	time_t now, abstimeout;
 
+	if (timeout < 0) {
+		return -EINVAL;
+	}
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	now = _proc_gettimeRaw();
@@ -1185,10 +1189,18 @@ int proc_join(int tid, time_t timeout)
 			}
 			else {
 				err = _proc_threadWait(&process->reaper, abstimeout, &sc);
-				firstGhost = process->ghosts;
-				ghost = firstGhost;
+				if (err == 0) {
+					firstGhost = process->ghosts;
+					ghost = firstGhost;
+				}
 			}
 		} while (err != -ETIME && err != -EINTR);
+
+		/* the loop could have ended without a match (e.g. on timeout) with
+		 * ghost still pointing to a list element - don't reap it */
+		if (found == 0) {
+			ghost = NULL;
+		}
 	}
 	else {
 		/* compatibility with existing code */
