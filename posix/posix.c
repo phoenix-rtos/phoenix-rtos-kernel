@@ -762,6 +762,10 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
 	}
 
+	if ((rcnt > 0) && ((size_t)rcnt > nbyte)) {
+		rcnt = (ssize_t)nbyte;
+	}
+
 	if (rcnt > 0 && offset < 0) {
 		(void)proc_lockSet(&f->lock);
 		f->offset += rcnt;
