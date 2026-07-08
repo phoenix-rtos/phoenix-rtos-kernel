@@ -2336,6 +2336,17 @@ int posix_futimens(int fildes, const struct timespec *times)
 	open_file_t *f;
 	msg_t msg;
 	int err;
+	time_t sec0, sec1, offs;
+
+	if (times == NULL) {
+		proc_gettime(&sec0, &offs);
+		sec0 = (sec0 + offs) / (1000 * 1000);
+		sec1 = sec0;
+	}
+	else {
+		sec1 = times[1].tv_sec;
+		sec0 = times[0].tv_sec;
+	}
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err < 0) {
@@ -2348,11 +2359,11 @@ int posix_futimens(int fildes, const struct timespec *times)
 	hal_memcpy(&msg.oid, &f->oid, sizeof(oid_t));
 
 	msg.i.attr.type = atMTime;
-	msg.i.attr.val = (long long)times[1].tv_sec;
+	msg.i.attr.val = (long long)sec1;
 	err = proc_send(f->oid.port, &msg);
 	if ((err >= 0) && (msg.o.err >= 0)) {
 		msg.i.attr.type = atATime;
-		msg.i.attr.val = (long long)times[0].tv_sec;
+		msg.i.attr.val = (long long)sec0;
 		err = proc_send(f->oid.port, &msg);
 	}
 	if (err >= 0) {
