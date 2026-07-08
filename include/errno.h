@@ -68,6 +68,7 @@
 #define EADDRINUSE      98
 #define EISCONN         106
 #define ENOTCONN        107
+#define ETIMEDOUT       110
 #define ECONNREFUSED    111
 #define EALREADY        114
 #define EINPROGRESS     115
