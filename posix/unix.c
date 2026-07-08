@@ -31,6 +31,7 @@
 #define US_DEF_BUFFER_SIZE SIZE_PAGE
 #define US_MIN_BUFFER_SIZE SIZE_PAGE
 #define US_MAX_BUFFER_SIZE 65536U
+#define US_CONNECT_TIMEOUT (75L * 1000L * 1000L)
 
 #define US_BOUND       (1U << 0)
 #define US_LISTENING   (1U << 1)
@@ -606,10 +607,11 @@ int unix_listen(unsigned int socket, int backlog)
 int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	unixsock_t *s, *r;
-	int err;
+	int err, pending;
 	oid_t oid;
 	void *v;
 	spinlock_ctx_t sc;
+	time_t now;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -700,6 +702,8 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 			(void)proc_threadWakeup(&r->queue);
 			hal_spinlockClear(&r->spinlock, &sc);
 
+			proc_gettime(&now, NULL);
+
 			hal_spinlockSet(&s->spinlock, &sc);
 			s->state |= US_CONNECTING;
 
@@ -710,7 +714,45 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 			}
 
 			while (s->remote == NULL) {
-				(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+				err = proc_threadWait(&s->queue, &s->spinlock, now + US_CONNECT_TIMEOUT, &sc);
+
+				/* don't report -ETIMEDOUT if we got the socket anyway */
+				if (s->remote != NULL) {
+					err = EOK;
+					break;
+				}
+
+				if (err == -ETIME) {
+					break;
+				}
+			}
+
+			if (err == -ETIME) {
+				s->state &= ~US_CONNECTING;
+				hal_spinlockClear(&s->spinlock, &sc);
+
+				/* a socket left on the list would cause use-after-free in unix_accept() */
+				hal_spinlockSet(&r->spinlock, &sc);
+				pending = LIST_BELONGS(&r->connecting, s);
+				if (pending != 0) {
+					LIST_REMOVE(&r->connecting, s);
+				}
+				hal_spinlockClear(&r->spinlock, &sc);
+
+				if (pending != 0) {
+					err = -ETIMEDOUT;
+					break;
+				}
+
+				/* unix_accept() is mid-flight on this socket - returning now would risk use-after-free */
+				hal_spinlockSet(&s->spinlock, &sc);
+				while (s->remote == NULL) {
+					(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+				}
+				hal_spinlockClear(&s->spinlock, &sc);
+
+				err = EOK;
+				break;
 			}
 
 			hal_spinlockClear(&s->spinlock, &sc);
