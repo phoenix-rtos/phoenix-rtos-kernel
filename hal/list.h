@@ -17,12 +17,15 @@
 #ifndef _PH_HAL_LIST_H_
 #define _PH_HAL_LIST_H_
 
+#include "lib/assert.h"
+
 
 /* list has to be a struct with pointer fields prev and next to another list */
 
 
 #define HAL_LIST_ADD(list, t) \
 	do { \
+		LIB_ASSERT((t) != NULL, "tried to add NULL element to HAL list"); \
 		if ((t) == NULL) { \
 			break; \
 		} \
@@ -41,6 +44,7 @@
 
 #define HAL_LIST_REMOVE(list, t) \
 	do { \
+		LIB_ASSERT((t) != NULL, "tried to remove NULL element from HAL list"); \
 		if ((t) == NULL) { \
 			break; \
 		} \
