@@ -2538,18 +2538,20 @@ static int posix_killGroup(pid_t pgid, int sig)
 {
 	process_info_t *pinfo;
 	rbnode_t *node;
+	int err = -ESRCH;
 
 	(void)proc_lockSet(&posix_common.lock);
 	for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
 		pinfo = lib_treeof(process_info_t, linkage, node);
 
 		if (pinfo->pgid == pgid) {
+			err = EOK;
 			(void)proc_sigpost(pinfo->process, sig);
 		}
 	}
 	(void)proc_lockClear(&posix_common.lock);
 
-	return EOK;
+	return err;
 }
 
 
