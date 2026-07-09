@@ -1876,7 +1876,7 @@ int syscalls_sys_futimens(u8 *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0U);
 	GETFROMSTACK(ustack, const struct timespec *, times, 1U);
 
-	if ((times != NULL) && (vm_mapBelongs(proc, times, sizeof(*times)) < 0)) {
+	if ((times != NULL) && (vm_mapBelongs(proc, times, 2U * sizeof(*times)) < 0)) {
 		return -EFAULT;
 	}
 
