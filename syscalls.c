@@ -1853,7 +1853,13 @@ int syscalls_sys_poll(u8 *ustack)
 	GETFROMSTACK(ustack, nfds_t, nfds, 1U);
 	GETFROMSTACK(ustack, int, timeout_ms, 2U);
 
-	if (vm_mapBelongs(proc, fds, sizeof(*fds) * nfds) < 0) {
+	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "Check needed on NOMMU + nfds_t type can change." */
+	if (nfds > (size_t)-1 / sizeof(*fds)) {
+		/* nfds * sizeof(*fds) would overflow */
+		return -EINVAL;
+	}
+
+	if (vm_mapBelongs(proc, fds, nfds * sizeof(*fds)) < 0) {
 		return -EFAULT;
 	}
 
