@@ -231,7 +231,7 @@ int posix_newFile(process_info_t *p, int fd)
 	if (fd < 0) {
 		(void)proc_lockClear(&p->lock);
 		vm_kfree(f);
-		return -ENFILE;
+		return -EMFILE;
 	}
 
 	p->fds[fd].file = f;
@@ -251,7 +251,7 @@ int _posix_addOpenFile(process_info_t *p, open_file_t *f, unsigned int flags)
 
 	fd = _posix_allocfd(p, fd);
 	if (fd < 0) {
-		return -ENFILE;
+		return -EMFILE;
 	}
 
 	p->fds[fd].file = f;
@@ -582,7 +582,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 	do {
 		fd = _posix_allocfd(p, fd);
 		if (fd < 0) {
-			err = -EBADF;
+			err = -EMFILE;
 			break;
 		}
 
@@ -862,6 +862,7 @@ int posix_dup(int fildes)
 	process_info_t *p;
 	int newfd = 0;
 	open_file_t *f;
+	int err;
 
 	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
@@ -872,16 +873,19 @@ int posix_dup(int fildes)
 
 	do {
 		if ((fildes < 0) || (fildes >= p->fdsz)) {
+			err = -EBADF;
 			break;
 		}
 
 		if (p->fds[fildes].file == NULL) {
+			err = -EBADF;
 			break;
 		}
 
 		f = p->fds[fildes].file;
 		newfd = _posix_allocfd(p, newfd);
 		if (newfd < 0) {
+			err = -EMFILE;
 			break;
 		}
 
@@ -898,7 +902,7 @@ int posix_dup(int fildes)
 
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
-	return -EBADF;
+	return err;
 }
 
 
