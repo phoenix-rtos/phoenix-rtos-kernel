@@ -642,7 +642,8 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			if (oid.port == US_PORT) {
 				f->type = ftUnixSocket;
 			}
-			else if (oid.port == pipesrv.port) {
+			else if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
+				/* FIXME: replace this hacky solution with proper device driver recognition */
 				f->type = ftPipe;
 			}
 			else {
@@ -1238,9 +1239,7 @@ int posix_lseek(int fildes, off_t *offset, int whence)
 		return err;
 	}
 
-	/* TODO: Find a better way to check fd type */
-	scnt = proc_size(f->oid);
-	if (scnt < 0) {
+	if (!F_SEEKABLE(f->type)) {
 		(void)posix_fileDeref(f);
 		return -ESPIPE;
 	}
@@ -1256,6 +1255,11 @@ int posix_lseek(int fildes, off_t *offset, int whence)
 			break;
 
 		case SEEK_END:
+			scnt = proc_size(f->oid);
+			if (scnt < 0) {
+				err = (int)scnt;
+				break;
+			}
 			scnt += *offset;
 			break;
 
@@ -1267,15 +1271,20 @@ int posix_lseek(int fildes, off_t *offset, int whence)
 	if (scnt >= 0) {
 		f->offset = scnt;
 	}
-	else {
+	else if (err == 0) {
 		err = -EINVAL;
+	}
+	else {
+		/* No action required */
 	}
 
 	(void)proc_lockClear(&f->lock);
 
 	(void)posix_fileDeref(f);
 
-	*offset = scnt;
+	if (err == 0) {
+		*offset = scnt;
+	}
 
 	return err;
 }
