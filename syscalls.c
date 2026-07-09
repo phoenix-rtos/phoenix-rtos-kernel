@@ -444,7 +444,6 @@ void syscalls_meminfo(u8 *ustack)
 
 	GETFROMSTACK(ustack, meminfo_t *, info, 0U);
 
-	/* TODO: Check subfields too */
 	if (vm_mapBelongs(proc, info, sizeof(*info)) >= 0) {
 		vm_meminfo(info);
 	}
