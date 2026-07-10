@@ -5,8 +5,8 @@
  *
  * ZynqMP internal peripheral control functions
  *
- * Copyright 2025 Phoenix Systems
- * Author: Jacek Maksymowicz
+ * Copyright 2025, 2026 Phoenix Systems
+ * Author: Jacek Maksymowicz, Kamil Ber
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -17,18 +17,29 @@
 #include "hal/hal.h"
 #include "hal/armv7r/armv7r.h"
 #include "hal/spinlock.h"
+#include "include/errno.h"
 #include "include/arch/armv7r/zynqmp/zynqmp.h"
 #include "zynqmp.h"
 
 #include "hal/armv7r/halsyspage.h"
 #include "zynqmp_regs.h"
 
+#include <board_config.h>
+
 #define IOU_SLCR_BASE_ADDRESS 0xff180000U
 #define APU_BASE_ADDRESS      0xfd5c0000U
 #define CRF_APB_BASE_ADDRESS  0xfd1a0000U
 #define CRL_APB_BASE_ADDRESS  0xff5e0000U
 #define PMU_GLOBAL_MODULE     0xffd80000U
+#define SWDT_LPD_MODULE       0xff150000U
 
+#if defined(WATCHDOG)
+#if !defined(WATCHDOG_TIMEOUT)
+#error "WATCHDOG_TIMEOUT not defined!"
+#elif (WATCHDOG_TIMEOUT > 0xFFFU)
+#error "Watchdog timeout out of bounds!"
+#endif
+#endif
 
 /* PLO entrypoint */
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_6 "Definition in assembly code" */
@@ -39,6 +50,7 @@ static struct {
 	volatile u32 *crf_apb;
 	volatile u32 *crl_apb;
 	volatile u32 *pmu_glb;
+	volatile u32 *swdt_lpd;
 	spinlock_t pltctlSp;
 } zynq_common;
 
@@ -423,9 +435,9 @@ __attribute__((noreturn)) void hal_cpuReboot(void)
 }
 
 
-/* TODO */
 void hal_wdgReload(void)
 {
+	*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
 }
 
 
@@ -489,6 +501,40 @@ int hal_platformctl(void *ptr)
 			}
 			break;
 
+		case pctl_wdg_config:
+			/* If watchdog support is not enabled (WATCHDOG not defined) this will take no effects */
+			ret = 0;
+			if ((data->action == pctl_set) && (data->wdg_config.reload >= 0x0U) && (data->wdg_config.reload <= 0xFFFU)) {
+				*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | (data->wdg_config.reload << SWDT_CONTROL_CRV_BIT) | SWDT_CONTROL_CLKSEL);
+				*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+			}
+			else if (data->action == pctl_get) {
+				data->wdg_config.reload = (unsigned int)((*(zynq_common.swdt_lpd + swdt_lpd_control) >> SWDT_CONTROL_CRV_BIT) & 0xFFFU);
+			}
+			else {
+				ret = -EINVAL;
+			}
+			break;
+
+		case pctl_wdg_enable:
+			/* If watchdog support is not enabled (WATCHDOG not defined) this will take no effects */
+			ret = 0;
+			if ((data->action == pctl_set) && (data->wdg_enable.enable == 1U)) {
+				*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+				*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY | SWDT_MODE_RSTLN | SWDT_MODE_RSTEN | SWDT_MODE_WDEN);
+			}
+			else if ((data->action == pctl_set) && (data->wdg_enable.enable == 0U)) {
+				*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+				*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY);
+			}
+			else if (data->action == pctl_get) {
+				data->wdg_enable.enable = (*(zynq_common.swdt_lpd + swdt_lpd_mode) & SWDT_MODE_WDEN) != 0U ? 1 : 0;
+			}
+			else {
+				ret = -EINVAL;
+			}
+			break;
+
 		default:
 			/* Error by default */
 			break;
@@ -507,7 +553,48 @@ void _hal_platformInit(void)
 	zynq_common.crf_apb = (void *)CRF_APB_BASE_ADDRESS;
 	zynq_common.crl_apb = (void *)CRL_APB_BASE_ADDRESS;
 	zynq_common.pmu_glb = (void *)PMU_GLOBAL_MODULE;
+	zynq_common.swdt_lpd = (void *)SWDT_LPD_MODULE;
+
+	/* On ZynqMP platform, the hardware error handler is triggered on PMU_ERR_STATUS bits which
+	 * are only clear on external POR or by writing to this register (WTC). It means that after
+	 * software reset, status bits are preserved and hence a new reset would be triggered again
+	 * effectively leading to boot-loop. To avoid that, the error status bits should be cleared.
+	 * Here, we assume that this clear operation is performed in plo during the reboot reason
+	 * investigation.
+	 */
+
+	/* Enable reset on RPU lockstep errors */
 	_zynqmp_setSysErrHandler(PMU_ERR_RPU_LS, system_reset, 1);
+
+	/* Disable Watchdog */
+	/* Xilinx UG1085: unlocking/key values for registers:
+	 * mode: 0xabc
+	 * control: 0x248
+	 * restart: 0x1999
+	 *
+	 * Here both mode and control registers are reset after power on
+	 * or after watchdog timeout triggered reset. the control reset is specified
+	 * in the UG: "Note: If a restart signal is received the prescaler should be reset.
+	 */
+	(void)_zynq_setDevRst(pctl_devreset_lpd_swdt, 0);
+	*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY);
+	*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | (0xFFFU << SWDT_CONTROL_CRV_BIT) | SWDT_CONTROL_CLKSEL);
+
+#if defined(WATCHDOG)
+	/* set cotnrol: LPD_LSBUS_CLK scaler = 512 (gives reload value from ~20ms to 85s for 100MHz LPD_LSBUS_CLK)*/
+	*(zynq_common.swdt_lpd + swdt_lpd_control) = (SWDT_CONTROL_CKEY | ((WATCHDOG_TIMEOUT & 0xFFFU) << SWDT_CONTROL_CRV_BIT) | SWDT_CONTROL_CLKSEL);
+
+	/* reload */
+	*(zynq_common.swdt_lpd + swdt_lpd_restart) = SWDT_RESTART_RKEY;
+
+	/* enable watchdog: no irq, reset enabled (32 clock cycles pulse) */
+	*(zynq_common.swdt_lpd + swdt_lpd_mode) = (SWDT_MODE_ZKEY | SWDT_MODE_RSTLN | SWDT_MODE_RSTEN | SWDT_MODE_WDEN);
+
+	/* By default the PMU error handler is disabled and resets generated by SWDT are ignored */
+
+	/* Enable reset on LPD SWDT  */
+	_zynqmp_setSysErrHandler(PMU_ERR_LPD_SWDT, system_reset, 1);
+#endif
 }
 
 
