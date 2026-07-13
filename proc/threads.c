@@ -2087,7 +2087,7 @@ int proc_schedInfo(process_t *proc, int policy, sched_info_t *info)
 {
 	LIB_ASSERT(proc != NULL, "null proc");
 
-	if (policy < SCHED_FIFO || SCHED_OTHER < policy) {
+	if (policy != SCHED_FIFO && policy != SCHED_RR && policy != SCHED_OTHER) {
 		return -EINVAL;
 	}
 
