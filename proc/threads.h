@@ -98,7 +98,7 @@ void threads_canaryInit(thread_t *t, void *ustack);
 int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority, size_t kstacksz, void *stack, size_t stacksz, unsigned int sigmask, void *arg);
 
 
-int proc_threadPriority(int signedPriority);
+int proc_threadPriority(thread_t *t, int signedPriority);
 
 
 __attribute__((noreturn)) void proc_threadEnd(void);

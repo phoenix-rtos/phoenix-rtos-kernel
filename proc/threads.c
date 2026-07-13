@@ -728,18 +728,13 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 }
 
 
-int proc_threadPriority(int signedPriority)
+int proc_threadPriority(thread_t *t, int signedPriority)
 {
-	thread_t *current;
 	spinlock_ctx_t sc;
 	int ret, reschedule = 0;
 	u8 priority;
 
-	if (signedPriority < -1) {
-		return -EINVAL;
-	}
-
-	if ((signedPriority >= 0) && ((size_t)signedPriority >= sizeof(threads_common.ready) / sizeof(threads_common.ready[0]))) {
+	if ((signedPriority < -1) || (signedPriority > (int)MAX_PRIO)) {
 		return -EINVAL;
 	}
 
@@ -747,29 +742,34 @@ int proc_threadPriority(int signedPriority)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	current = _proc_current();
-
-	/* NOTE: -1 is used to retrieve the current thread priority only */
+	/* NOTE: -1 is used to retrieve the thread priority only */
 	if (signedPriority >= 0) {
-		if (priority < current->priority) {
-			current->priority = priority;
+		/*
+		 * _proc_threadSetPriority will clamp the priority to priorityBase, so it
+		 * must be updated prior to the call
+		 */
+		t->priorityBase = priority;
+
+		if (priority < t->priority) {
+			_proc_threadSetPriority(t, priority);
 		}
-		else if (priority > current->priority) {
+		else if (priority > t->priority) {
 			/* Make sure that the inherited priority from the lock is not reduced */
-			if ((current->locks == NULL) || (priority <= _proc_threadGetLockPriority(current))) {
-				current->priority = priority;
-				/* Trigger immediate rescheduling if the task has lowered its priority */
-				reschedule = 1;
+			if ((t->locks == NULL) || (priority <= _proc_threadGetLockPriority(t))) {
+				_proc_threadSetPriority(t, priority);
+
+				if (t == _proc_current()) {
+					/* Trigger immediate rescheduling if the task has lowered its priority */
+					reschedule = 1;
+				}
 			}
 		}
 		else {
 			/* No action required */
 		}
-
-		current->priorityBase = priority;
 	}
 
-	ret = (int)current->priorityBase;
+	ret = (int)t->priorityBase;
 
 	if (reschedule != 0) {
 		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
@@ -778,7 +778,7 @@ int proc_threadPriority(int signedPriority)
 		(void)hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 
-	trace_eventThreadPriority(proc_getTid(current), current->priority);
+	trace_eventThreadPriority(proc_getTid(t), t->priority);
 
 	return ret;
 }
