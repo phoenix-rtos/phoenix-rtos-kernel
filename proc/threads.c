@@ -2101,10 +2101,8 @@ int proc_threadsList(int n, threadinfo_t *info)
 }
 
 
-int proc_schedInfo(process_t *proc, int policy, sched_info_t *info)
+int proc_schedInfo(int policy, sched_info_t *info)
 {
-	LIB_ASSERT(proc != NULL, "null proc");
-
 	if (policy != SCHED_FIFO && policy != SCHED_RR && policy != SCHED_OTHER) {
 		return -EINVAL;
 	}
