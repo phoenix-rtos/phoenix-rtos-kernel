@@ -30,6 +30,10 @@
 #endif
 
 
+_Static_assert((TRACE_EVENT_CHANNEL_BUFSIZE & (SIZE_PAGE - 1U)) == 0U, "TRACE_EVENT_CHANNEL_BUFSIZE must be page aligned");
+_Static_assert((TRACE_META_CHANNEL_BUFSIZE & (SIZE_PAGE - 1U)) == 0U, "TRACE_META_CHANNEL_BUFSIZE must be page aligned");
+
+
 typedef struct {
 	cbuffer_t buffer;
 	page_t *pages;
