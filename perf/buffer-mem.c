@@ -146,8 +146,8 @@ ssize_t _trace_bufferWrite(u8 chan, const void *data, size_t sz)
 
 int _trace_bufferWaitUntilAvail(u8 chan, size_t sz)
 {
-	/* overwrite intentionally to prevent deadlock */
-	return 0;
+	/* not supported to prevent deadlock */
+	return -ENOSYS;
 }
 
 

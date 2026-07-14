@@ -49,6 +49,7 @@ static struct {
 #define TRACE_NON_MONOTONICITY (1U << 1)
 #define TRACE_EVENT_DELAYED    (1U << 2)
 #define TRACE_BUFFER_WRITE_ERR (1U << 3)
+#define TRACE_EVENT_DISCARDED  (1U << 4)
 
 
 static u32 _getUsFromStart(void)
@@ -104,6 +105,10 @@ static void _writeEvent(u8 cpuChan, u8 event, const void *data, size_t sz, u32 *
 		}
 		else {
 			try = _trace_bufferWaitUntilAvail(chan, eventSz);
+			if (try < 0) {
+				trace_common.errorFlags |= TRACE_EVENT_DISCARDED;
+				return;
+			}
 		}
 	}
 
@@ -326,6 +331,10 @@ int trace_finish(void)
 
 		if ((errorFlags & TRACE_BUFFER_WRITE_ERR) != 0U) {
 			lib_printf("kernel (%s:%d): buffer write error detected\n", __func__, __LINE__);
+		}
+
+		if ((errorFlags & TRACE_EVENT_DISCARDED) != 0U) {
+			lib_printf("kernel (%s:%d): event discard detected\n", __func__, __LINE__);
 		}
 
 		ret = _trace_bufferFinish();
