@@ -14,6 +14,7 @@
 
 #include "include/perf.h"
 #include "buffer.h"
+#include "lib/usermem.h"
 #include "trace-events.h"
 #include "trace.h"
 
@@ -254,11 +255,23 @@ int trace_read(u8 chan, void *buf, size_t bufsz)
 {
 	spinlock_ctx_t sc;
 	int ret, running;
+#ifdef EXCJMP_SUPPORTED
+	/* Manual excjmp handling to avoid AB/BA deadlock with threads_common.spinlock on proc_current() */
+	thread_t *current = proc_current();
+	volatile excjmp_context_t excctx, *oldctx = current->excjmpctx;
+#endif
 
 	hal_spinlockSet(&trace_common.spinlock, &sc);
 	running = trace_common.running;
 	if (chan < (u8)getChannelCount() && (running != 0 || trace_common.stopped != 0)) {
-		ret = _trace_bufferRead(chan, buf, bufsz);
+		USERMEM_TRY_EX(
+				{
+					ret = (int)_trace_bufferRead(chan, buf, bufsz);
+				},
+				{
+					ret = -EFAULT;
+				},
+				&excctx, oldctx, current);
 	}
 	else {
 		ret = -EINVAL;

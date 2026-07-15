@@ -13,6 +13,7 @@
 
 #include "hal/hal.h"
 #include "include/errno.h"
+#include "lib/usermem.h"
 #include "proc/proc.h"
 
 #include "posix.h"
@@ -56,11 +57,11 @@ static ssize_t sockcall(unsigned int socket, msg_t *msg)
 static ssize_t socknamecall(unsigned int socket, msg_t *msg, struct sockaddr *address, socklen_t *address_len)
 {
 	sockport_resp_t *smo = (void *)msg->o.raw;
-	ssize_t err;
+	ssize_t ret, err = EOK;
 
-	err = sockcall(socket, msg);
-	if (err < 0) {
-		return err;
+	ret = sockcall(socket, msg);
+	if (ret < 0) {
+		return ret;
 	}
 
 	if (address_len != NULL) {
@@ -68,24 +69,29 @@ static ssize_t socknamecall(unsigned int socket, msg_t *msg, struct sockaddr *ad
 			smo->sockname.addrlen = *address_len;
 		}
 
-		hal_memcpy(address, smo->sockname.addr, smo->sockname.addrlen);
-		*address_len = smo->sockname.addrlen;
+		err = usermem_memcpy(address, smo->sockname.addr, smo->sockname.addrlen);
+		*address_len = (socklen_t)(smo->sockname.addrlen);
 	}
 
-	return err;
+	return err < 0 ? err : ret;
 }
 
 
 static ssize_t sockdestcall(unsigned int socket, msg_t *msg, const struct sockaddr *address, socklen_t address_len)
 {
 	sockport_msg_t *smi = (void *)msg->i.raw;
+	int err;
 
 	if (address_len > sizeof(smi->send.addr)) {
 		return -EINVAL;
 	}
 
 	smi->send.addrlen = address_len;
-	hal_memcpy(smi->send.addr, address, address_len);
+	err = usermem_memcpy(smi->send.addr, address, address_len);
+	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "Not always false when CPU fault handling is available" */
+	if (err < 0) {
+		return err;
+	}
 
 	return sockcall(socket, msg);
 }
