@@ -544,7 +544,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 }
 
 
-int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
+int proc_respond(u32 port, const msg_t *msg, msg_rid_t rid)
 {
 	port_t *p;
 	kmsg_t *kmsg;

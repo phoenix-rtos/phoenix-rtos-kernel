@@ -390,7 +390,7 @@ void vm_pageinfo(meminfo_t *info)
 			return;
 		}
 
-		if (vm_mapBelongs(proc_current()->process, map, (size_t)mapsz * sizeof(map[0])) < 0) {
+		if (vm_mapBelongs(proc_current()->process, map, (size_t)mapsz * sizeof(map[0]), PROT_READ | PROT_WRITE) < 0) {
 			return;
 		}
 	}

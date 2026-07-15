@@ -125,7 +125,7 @@ void vm_mapinfo(meminfo_t *info);
 vm_map_t *vm_getSharedMap(int map);
 
 
-int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);
+int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size, vm_prot_t prot);
 
 
 int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **bss, void **top);

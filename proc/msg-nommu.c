@@ -171,7 +171,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	kmsg->omapped = NULL;
 
 	if ((kmsg->msg->i.data != NULL) && (kmsg->msg->i.size != 0U) && (current->process != NULL) &&
-			(pmap_isAllowed(current->process->pmapp, kmsg->msg->i.data, kmsg->msg->i.size) == 0)) {
+			(pmap_isAllowed(current->process->pmapp, kmsg->msg->i.data, kmsg->msg->i.size, (unsigned int)mAttrRead) == 0)) {
 
 		idata = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->i.size),
 				PROT_READ | PROT_USER, NULL, -1, MAP_ANONYMOUS);
@@ -187,7 +187,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	}
 
 	if ((kmsg->msg->o.data != NULL) && (kmsg->msg->o.size != 0U) && (current->process != NULL) &&
-			(pmap_isAllowed(current->process->pmapp, kmsg->msg->o.data, kmsg->msg->o.size) == 0)) {
+			(pmap_isAllowed(current->process->pmapp, kmsg->msg->o.data, kmsg->msg->o.size, (unsigned int)mAttrRead | (unsigned int)mAttrWrite) == 0)) {
 
 		msg->o.data = vm_mmap(current->process->mapp, NULL, NULL, round_page(kmsg->msg->o.size),
 				PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_ANONYMOUS);
@@ -210,7 +210,7 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 }
 
 
-int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
+int proc_respond(u32 port, const msg_t *msg, msg_rid_t rid)
 {
 	port_t *p;
 	kmsg_t *kmsg;
