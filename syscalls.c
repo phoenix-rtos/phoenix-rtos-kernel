@@ -526,30 +526,38 @@ int syscalls_schedSet(u8 *ustack)
  */
 
 
-int syscalls_threadsinfo(u8 *ustack)
+int syscalls_sys_threadsinfo(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
-	int n, i;
-	pid_t ppid;
+	size_t infosz;
+	int n, tid;
+	unsigned int flags;
 	threadinfo_t *info;
 
-	GETFROMSTACK(ustack, int, n, 0U);
-	GETFROMSTACK(ustack, threadinfo_t *, info, 1U);
+	GETFROMSTACK(ustack, int, tid, 0U);
+	GETFROMSTACK(ustack, unsigned int, flags, 1U);
+	GETFROMSTACK(ustack, int, n, 2U);
+	GETFROMSTACK(ustack, threadinfo_t *, info, 3U);
 
-	if (vm_mapBelongs(proc, info, sizeof(*info) * (size_t)n) < 0) {
-		return -EFAULT;
+	if (n < 0) {
+		return -EINVAL;
 	}
 
-	n = proc_threadsList(n, info);
+	if (((flags & PH_THREADINFO_OPT_THREADCOUNT) == 0U) && (n > 0)) {
+		if (info == NULL) {
+			return -EFAULT;
+		}
 
-	for (i = 0; i < n; ++i) {
-		ppid = posix_getppid(info[i].pid);
-		if (ppid > 0) {
-			info[i].ppid = ppid;
+		if (__builtin_mul_overflow(sizeof(*info), (size_t)n, &infosz)) {
+			return -EOVERFLOW;
+		}
+
+		if (vm_mapBelongs(proc, info, infosz) < 0) {
+			return -EFAULT;
 		}
 	}
 
-	return n;
+	return proc_threadsInfo(tid, flags, n, info);
 }
 
 
