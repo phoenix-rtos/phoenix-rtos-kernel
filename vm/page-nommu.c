@@ -15,6 +15,7 @@
 #include "hal/hal.h"
 #include "proc/proc.h"
 #include "lib/lib.h"
+#include "lib/usermem.h"
 #include "include/errno.h"
 #include "page.h"
 #include "map.h"
@@ -148,11 +149,14 @@ void vm_pageinfo(meminfo_t *info)
 {
 	(void)proc_lockSet(&pages.lock);
 
-	info->page.alloc = pages.allocsz;
-	info->page.free = pages.freesz;
-	info->page.boot = pages.bootsz;
-	info->page.sz = sizeof(page_t);
-	info->page.mapsz = -1;
+	USERMEM_TRY({
+		info->page.alloc = pages.allocsz;
+		info->page.free = pages.freesz;
+		info->page.boot = pages.bootsz;
+		info->page.sz = sizeof(page_t);
+		info->page.mapsz = -1; }, {
+		(void)proc_lockClear(&pages.lock);
+		return; });
 
 	(void)proc_lockClear(&pages.lock);
 }
