@@ -220,22 +220,33 @@ _syscalls_dispatch:
 	bic X_SPSR_EL1, X_SPSR_EL1, #NO_INT /* Re-enable interrupts in the caller */
 	str X_SPSR_EL1, [sp, 0x220]
 
-	ldr x2, [sp, #0x230]  /* Load x0 -> pointer to spinlock */
-	cbz x2, 1f /* If pointer not NULL, clear the spinlock - but don't restore the DAIF */
-	mov w1, #1
-	stlrb w1, [x2] /* Global monitor clear generates an event, SEV not necessary */
-1:
+	ldr x19, [sp, #0x230]  /* Load x0 -> pointer to spinlock */
+	mov x1, sp            /* argument to function - cpu_context_t* */
 	str xzr, [sp, #0x230] /* Store 0 into x0 as return value (EOK) */
+	cbz x19, .Lno_spinlock
 
-	mov x1, sp /* argument to function - cpu_context_t* */
+	/* Call the non-locked version of threads_schedule.
+	 * TODO: In this and other implementations of hal_cpuReschedule() there's an implicit assumption
+	 * that the first argument is either NULL or `&threads_common.spinlock`. */
+	bl _threads_schedule
+	ldr x1, [sp] /* Load pointer to new context (must be done BEFORE clearing spinlock) */
 
+	/* Clear the given spinlock */
+	mov w0, #1
+	stlrb w0, [x19] /* Global monitor clear generates an event, SEV not necessary */
+	b .Lcontext_ready
+
+.Lno_spinlock:
 	/* Arguments to threads_schedule:
 	 * * x0 - n (unused)
 	 * * x1 - pointer to CPU context
 	 * * x2 - arg (unused)*/
 	bl threads_schedule
+	ldr x1, [sp] /* Load pointer to new context */
 
-	ldr x1, [sp]
+.Lcontext_ready:
+	/* NOTE: at this point our stack pointer may be invalid (e.g. if this is the ending of exit() syscall)
+	 * No code beyond this point until `eret` may use the stack! */
 	unlock_scheduler x0
 	b _hal_cpuRestoreCtx
 .size _exceptions_dispatch, .-_exceptions_dispatch
