@@ -19,4 +19,6 @@
 
 #define STR_MAX 2048U
 
+#define ARGV_MAX 4096U
+
 #endif

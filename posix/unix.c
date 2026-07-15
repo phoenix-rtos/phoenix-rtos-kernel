@@ -13,6 +13,7 @@
 
 #include "include/errno.h"
 #include "include/sockdefs.h"
+#include "lib/usermem.h"
 #include "proc/proc.h"
 #include "lib/lib.h"
 
@@ -512,7 +513,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 {
 	char *path, *name;
 	const char *dir;
-	int err;
+	int err = EOK;
 	oid_t odir, dev;
 	unixsock_t *s;
 	void *v = NULL;
@@ -528,14 +529,21 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			break;
 		}
 
-		if (address->sa_family != (sa_family_t)AF_UNIX) {
-			err = -EINVAL;
+		USERMEM_TRY(
+				{
+					if (address->sa_family != (sa_family_t)AF_UNIX) {
+						err = -EINVAL;
+					}
+				},
+				{
+					err = -EFAULT;
+				});
+		if (err < 0) {
 			break;
 		}
 
-		path = lib_strdup(address->sa_data);
-		if (path == NULL) {
-			err = -ENOMEM;
+		err = usermem_strndup(address->sa_data, STR_MAX, &path);
+		if (err < 0) {
 			break;
 		}
 
@@ -618,7 +626,7 @@ int unix_listen(unsigned int socket, int backlog)
 int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	unixsock_t *s, *r;
-	int err, pending;
+	int err = EOK, pending;
 	oid_t oid;
 	void *v;
 	spinlock_ctx_t sc;
@@ -650,8 +658,16 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 			break;
 		}
 
-		if (address->sa_family != (sa_family_t)AF_UNIX) {
-			err = -EINVAL;
+		USERMEM_TRY(
+				{
+					if (address->sa_family != (sa_family_t)AF_UNIX) {
+						err = -EINVAL;
+					}
+				},
+				{
+					err = -EFAULT;
+				});
+		if (err < 0) {
 			break;
 		}
 
@@ -813,8 +829,14 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 		switch ((unsigned int)optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && *optlen >= sizeof(int)) {
-					*((int *)optval) = (int)s->buffsz;
-					*optlen = sizeof(int);
+					USERMEM_TRY(
+							{
+								*((int *)optval) = (int)s->buffsz;
+							},
+							{
+								err = -EFAULT;
+							});
+					*optlen = (u32)sizeof(int);
 				}
 				else {
 					err = -EINVAL;
@@ -866,10 +888,22 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 			(void)proc_lockSet(&s->lock);
 			if (s->type == SOCK_STREAM) {
 				if (peek != 0U) {
-					err = (ssize_t)_cbuffer_peek(&s->buffer, buf, len);
+					USERMEM_TRY(
+							{
+								err = (ssize_t)_cbuffer_peek(&s->buffer, buf, len);
+							},
+							{
+								err = -EFAULT;
+							});
 				}
 				else {
-					err = (ssize_t)_cbuffer_read(&s->buffer, buf, len);
+					USERMEM_TRY(
+							{
+								err = (ssize_t)_cbuffer_read(&s->buffer, buf, len);
+							},
+							{
+								err = -EFAULT;
+							});
 				}
 			}
 			else if (_cbuffer_avail(&s->buffer) > 0U) { /* SOCK_DGRAM or SOCK_SEQPACKET */
@@ -928,9 +962,10 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned int flags, const struct sockaddr *dest_addr, socklen_t dest_len, fdpack_t *fdpack)
 {
 	unixsock_t *s, *r;
-	ssize_t err;
+	ssize_t err = 0;
 	oid_t oid;
 	spinlock_ctx_t sc;
+	const char *sa_data;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -940,12 +975,22 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 	do {
 		if (s->type == SOCK_DGRAM) {
 			if (dest_addr != NULL && dest_len != 0U) {
-				if (dest_addr->sa_family != (sa_family_t)AF_UNIX) {
+				USERMEM_TRY(
+						{
+							if (dest_addr->sa_family != (sa_family_t)AF_UNIX) {
+								err = -EINVAL;
+							}
+							sa_data = dest_addr->sa_data;
+						},
+						{
+							err = -EFAULT;
+						});
+				if (err < 0) {
 					err = -EINVAL;
 					break;
 				}
 
-				err = proc_lookup(dest_addr->sa_data, NULL, &oid);
+				err = proc_lookup(sa_data, NULL, &oid);
 				if (err < 0) {
 					err = -ECONNREFUSED;
 					break;
@@ -1012,11 +1057,23 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 			for (;;) {
 				(void)proc_lockSet(&r->lock);
 				if (s->type == SOCK_STREAM) {
-					err = (ssize_t)_cbuffer_write(&r->buffer, buf, len);
+					USERMEM_TRY(
+							{
+								err = (ssize_t)_cbuffer_write(&r->buffer, buf, len);
+							},
+							{
+								err = -EFAULT;
+							});
 				}
 				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
-					(void)_cbuffer_write(&r->buffer, buf, len);
+					USERMEM_TRY(
+							{
+								(void)_cbuffer_write(&r->buffer, buf, len);
+							},
+							{
+								err = -EFAULT;
+							});
 					err = (ssize_t)len;
 				}
 				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
@@ -1209,7 +1266,17 @@ int unix_setsockopt(unsigned int socket, int level, int optname, const void *opt
 		switch ((unsigned int)optname) {
 			case SO_RCVBUF:
 				if (optval != NULL && optlen == sizeof(int)) {
-					err = unix_bufferSetSize(s, *((const int *)optval));
+					USERMEM_TRY(
+							{
+								err = *((const int *)optval);
+							},
+							{
+								err = -EFAULT;
+							});
+					if (err < 0) {
+						break;
+					}
+					err = unix_bufferSetSize(s, err);
 				}
 				else {
 					err = -EINVAL;

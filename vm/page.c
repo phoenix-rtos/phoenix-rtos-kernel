@@ -14,6 +14,7 @@
 
 #include "hal/hal.h"
 #include "lib/lib.h"
+#include "lib/usermem.h"
 #include "proc/proc.h"
 #include "include/errno.h"
 #include "include/mman.h"
@@ -494,30 +495,57 @@ void vm_pageinfo(meminfo_t *info)
 	unsigned int rep, i = 0;
 	int size = 0;
 	int mapsz = info->page.map.mapsz;
+	pageinfo_t *map;
 
-	info->page.sz = (unsigned int)sizeof(page_t);
-	info->page.mapsz = (int)page_common.mapssz;
-	info->page.alloc = 0;
-	info->page.total = 0;
-	info->page.boot = 0;
+	USERMEM_TRY(
+			{
+				info->page.sz = (unsigned int)sizeof(page_t);
+				info->page.mapsz = (int)page_common.mapssz;
+				info->page.alloc = 0;
+				info->page.total = 0;
+				info->page.boot = 0;
+			},
+			{
+				return;
+			});
 	for (i = 0; i < page_common.mapssz; i++) {
 		(void)proc_lockSet(&page_common.maps[i]->lock);
-		info->page.alloc += (unsigned int)page_common.maps[i]->allocsz;
-		info->page.total += (unsigned int)page_common.maps[i]->totalsz;
-		info->page.boot += (unsigned int)page_common.maps[i]->bootsz;
+		USERMEM_TRY(
+				{
+					info->page.alloc += (unsigned int)page_common.maps[i]->allocsz;
+					info->page.total += (unsigned int)page_common.maps[i]->totalsz;
+					info->page.boot += (unsigned int)page_common.maps[i]->bootsz;
+				},
+				{
+					(void)proc_lockClear(&page_common.maps[i]->lock);
+					return;
+				});
 		(void)proc_lockClear(&page_common.maps[i]->lock);
 	}
 
-	idx = info->page.mapidx;
+	USERMEM_TRY(
+			{
+				idx = info->page.mapidx;
+			},
+			{
+				return;
+			});
 	if ((idx == -1) || (idx >= (int)page_common.mapssz)) {
 		return;
 	}
 
 	(void)proc_lockSet(&page_common.maps[idx]->lock);
 
-	info->page.map.alloc = (unsigned int)page_common.maps[idx]->allocsz;
-	info->page.map.free = (unsigned int)(page_common.maps[idx]->totalsz - page_common.maps[idx]->allocsz);
-	info->page.map.boot = (unsigned int)page_common.maps[idx]->bootsz;
+	USERMEM_TRY(
+			{
+				info->page.map.alloc = (unsigned int)page_common.maps[idx]->allocsz;
+				info->page.map.free = (unsigned int)(page_common.maps[idx]->totalsz - page_common.maps[idx]->allocsz);
+				info->page.map.boot = (unsigned int)page_common.maps[idx]->bootsz;
+			},
+			{
+				(void)proc_lockClear(&page_common.maps[idx]->lock);
+				return;
+			});
 
 	if (mapsz != -1) {
 		/* mapsz * sizeof(pageinfo_t) would overflow */
@@ -526,7 +554,16 @@ void vm_pageinfo(meminfo_t *info)
 			return;
 		}
 
-		if (vm_mapBelongs(proc_current()->process, info->page.map.map, (size_t)mapsz * sizeof(pageinfo_t), PROT_READ | PROT_WRITE) < 0) {
+		USERMEM_TRY(
+				{
+					map = info->page.map.map;
+				},
+				{
+					(void)proc_lockClear(&page_common.maps[idx]->lock);
+					return;
+				});
+
+		if (vm_mapBelongs(proc_current()->process, map, (size_t)mapsz * sizeof(pageinfo_t), PROT_READ | PROT_WRITE) < 0) {
 			(void)proc_lockClear(&page_common.maps[idx]->lock);
 			return;
 		}
@@ -542,17 +579,31 @@ void vm_pageinfo(meminfo_t *info)
 				}
 			}
 
-			if (mapsz > size && info->page.map.map != NULL) {
-				info->page.map.map[size].count = rep + 1U;
-				info->page.map.map[size].marker = c;
-				info->page.map.map[size].addr = p->addr;
+			if (mapsz > size && map != NULL) {
+				USERMEM_TRY(
+						{
+							map[size].count = rep + 1U;
+							map[size].marker = c;
+							map[size].addr = p->addr;
+						},
+						{
+							(void)proc_lockClear(&page_common.maps[idx]->lock);
+							return;
+						});
 			}
 
 			i += rep + 1U;
 			++size;
 		}
 
-		info->page.map.mapsz = size;
+		USERMEM_TRY(
+				{
+					info->page.map.mapsz = size;
+				},
+				{
+					(void)proc_lockClear(&page_common.maps[idx]->lock);
+					return;
+				});
 	}
 
 	(void)proc_lockClear(&page_common.maps[idx]->lock);
@@ -671,8 +722,16 @@ void _page_init(vm_map_t *kmap, void **bss, void **top)
 
 	kmap->phMaps = page_common.maps;
 
-	info.page.mapidx = -1;
-	vm_pageinfo(&info);
+	info.page.sz = (unsigned int)sizeof(page_t);
+	info.page.mapsz = (int)page_common.mapssz;
+	info.page.alloc = 0;
+	info.page.total = 0;
+	info.page.boot = 0;
+	for (i = 0; i < page_common.mapssz; i++) {
+		info.page.alloc += (unsigned int)page_common.maps[i]->allocsz;
+		info.page.total += (unsigned int)page_common.maps[i]->totalsz;
+		info.page.boot += (unsigned int)page_common.maps[i]->bootsz;
+	}
 
 	/* Initialize kernel space for user processes */
 	p = NULL;

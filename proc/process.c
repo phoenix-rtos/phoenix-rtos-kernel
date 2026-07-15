@@ -17,8 +17,7 @@
 #include "include/errno.h"
 #include "include/signal.h"
 #include "include/syscalls.h"
-#include "include/syspage.h"
-#include "syspage.h"
+#include "lib/usermem.h"
 #include "vm/vm.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
@@ -194,10 +193,10 @@ int proc_start(startFn_t start, void *arg, const char *path, partition_t *partit
 	process->path = NULL;
 
 	if (path != NULL) {
-		process->path = lib_strdup(path);
-		if (process->path == NULL) {
+		err = usermem_strndup(path, STR_MAX, &process->path);
+		if (err < 0) {
 			vm_kfree(process);
-			return -ENOMEM;
+			return err;
 		}
 	}
 
@@ -1021,16 +1020,31 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 static void *proc_copyargs(char **args)
 {
-	size_t argc, len = 0U;
+	size_t argc, len = 0U, lenArg;
 	void *storage;
 	char **kargs, *p;
+	int end = 0, err;
 
 	if (args == NULL) {
 		return NULL;
 	}
 
-	for (argc = 0U; args[argc] != NULL; ++argc) {
-		len += hal_strlen(args[argc]) + 1U;
+	for (argc = 0U; argc < STR_MAX; ++argc) {
+		USERMEM_TRY(
+				{
+					end = (args[argc] == NULL) ? 1 : 0;
+				},
+				{
+					return NULL;
+				});
+		if (end != 0) {
+			break;
+		}
+		err = usermem_strnlen(args[argc], ARGV_MAX) + 1;
+		if (err < 0) {
+			return NULL;
+		}
+		len += (size_t)err;
 	}
 
 	len += (argc + 1U) * sizeof(char *);
@@ -1046,10 +1060,24 @@ static void *proc_copyargs(char **args)
 	p = (char *)storage + (argc + 1U) * sizeof(char *);
 
 	while (argc-- > 0U) {
-		len = hal_strlen(args[argc]) + 1U;
-		hal_memcpy(p, args[argc], len);
+		err = usermem_strnlen(args[argc], ARGV_MAX);
+		if (err < 0) {
+			vm_kfree(storage);
+			return NULL;
+		}
+		lenArg = (size_t)err + 1U;
+		err = usermem_memcpy(p, args[argc], lenArg);
+		if (err < 0) {
+			vm_kfree(storage);
+			return NULL;
+		}
+		p[lenArg - 1U] = '\0';
 		kargs[argc] = p;
-		p += len;
+		p += lenArg;
+		if ((ptr_t)p > ((ptr_t)storage + len)) {
+			vm_kfree(storage);
+			return NULL;
+		}
 	}
 
 	return storage;
@@ -1318,13 +1346,21 @@ int proc_fileSpawn(const char *path, char **argv, char **envp)
 
 int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, char **argv)
 {
-	const syspage_prog_t *prog = syspage_progNameResolve(name);
+	const syspage_prog_t *prog;
 	const unsigned int readExecAttr = (unsigned int)mAttrRead | (unsigned int)mAttrExec;
 	const unsigned int readWriteAttr = (unsigned int)mAttrRead | (unsigned int)mAttrWrite;
 	const syspage_map_t *map;
 	ph_map_t *imapp = NULL, **dmaps;
 	unsigned int i;
 	int err;
+	char *str;
+
+	err = usermem_strndup(name, STR_MAX, &str);
+	if (err < 0) {
+		return err;
+	}
+	prog = syspage_progNameResolve(str);
+	vm_kfree(str);
 
 	if (prog == NULL) {
 		return -ENOENT;
@@ -1334,7 +1370,12 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 		map = syspage_mapIdResolve(prog->imaps[0]);
 	}
 	else {
-		map = syspage_mapNameResolve(imap);
+		err = usermem_strndup(imap, STR_MAX, &str);
+		if (err < 0) {
+			return err;
+		}
+		map = syspage_mapNameResolve(str);
+		vm_kfree(str);
 	}
 	if ((map == NULL) || ((map->attr & readExecAttr) != readExecAttr)) {
 		return -EINVAL;
@@ -1351,7 +1392,12 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 		dmaps = vm_createPhMapList(prog->dmaps, prog->dmapSz);
 	}
 	else {
-		map = syspage_mapNameResolve(dmap);
+		err = usermem_strndup(dmap, STR_MAX, &str);
+		if (err < 0) {
+			return err;
+		}
+		map = syspage_mapNameResolve(str);
+		vm_kfree(str);
 		if ((map == NULL) || ((map->attr & readWriteAttr) != readWriteAttr)) {
 			return -EINVAL;
 		}
@@ -1783,9 +1829,9 @@ int proc_execve(const char *path, char **argv, char **envp)
 
 	current = proc_current();
 
-	kpath = lib_strdup(path);
-	if (kpath == NULL) {
-		return -ENOMEM;
+	err = usermem_strndup(path, STR_MAX, &kpath);
+	if (err < 0) {
+		return err;
 	}
 
 	if (argv != NULL) {

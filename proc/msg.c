@@ -13,6 +13,7 @@
 
 #include "include/errno.h"
 #include "lib/lib.h"
+#include "lib/usermem.h"
 #include "proc.h"
 
 
@@ -111,6 +112,9 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	if (boffs != 0U) {
 		ml->boffs = boffs;
 		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
+		if (bpa == 0U) {
+			return NULL;
+		}
 
 		nbp = vm_pageAlloc(phMaps, SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
 		ml->bp = nbp;
@@ -155,6 +159,9 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		ml->eoffs = eoffs;
 		vaddr = (void *)FLOOR((ptr_t)data + size);
 		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
+		if (epa == 0U) {
+			return NULL;
+		}
 
 		if ((boffs == 0U) || (eoffs >= boffs)) {
 			nep = vm_pageAlloc(phMaps, SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
@@ -375,7 +382,22 @@ int proc_send(u32 port, msg_t *msg)
 		return -EACCES;
 	}
 
-	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
+	err = usermem_memcpy(&kmsg.msg, msg, sizeof(msg_t));
+	if (err < 0) {
+		port_put(p, 0);
+		return err;
+	}
+	if (sender->process != NULL && (ptr_t)msg < VADDR_USR_MAX) {
+		/* Message created in userspace, verify pointers */
+		if (kmsg.msg.i.size > 0U && kmsg.msg.i.data != NULL && vm_mapBelongs(sender->process, kmsg.msg.i.data, kmsg.msg.i.size, PROT_READ) < 0) {
+			port_put(p, 0);
+			return -EFAULT;
+		}
+		if (kmsg.msg.o.size > 0U && kmsg.msg.o.data != NULL && vm_mapBelongs(sender->process, kmsg.msg.o.data, kmsg.msg.o.size, PROT_READ | PROT_WRITE) < 0) {
+			port_put(p, 0);
+			return -EFAULT;
+		}
+	}
 	kmsg.src = sender->process;
 	kmsg.threads = NULL;
 	kmsg.state = msg_waiting;
@@ -433,12 +455,12 @@ int proc_send(u32 port, msg_t *msg)
 	port_put(p, 0);
 
 	if (err == EOK) {
-		hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
+		err = usermem_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
 		msg->o.err = kmsg.msg.o.err;
 
 		/* If msg.o.data has been packed to msg.o.raw */
-		if ((kmsg.msg.o.data >= (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw))) {
-			hal_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
+		if ((err == EOK) && (kmsg.msg.o.data >= (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw))) {
+			err = usermem_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
 		}
 	}
 
@@ -543,19 +565,27 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	*rid = lib_idtreeId(&kmsg->idlinkage);
 
-	hal_memcpy(msg, &kmsg->msg, sizeof(*msg));
-
-	if (ipacked != 0) {
-		msg->i.data = msg->i.raw + (kmsg->msg.i.data - (void *)kmsg->msg.i.raw);
+	if (usermem_memcpy(msg, &kmsg->msg, sizeof(*msg)) < 0) {
+		return -EFAULT;
 	}
 
-	if (opacked != 0) {
-		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
-	}
+	USERMEM_TRY(
+			{
+				if (ipacked != 0) {
+					msg->i.data = msg->i.raw + (kmsg->msg.i.data - (void *)kmsg->msg.i.raw);
+				}
+
+				if (opacked != 0) {
+					msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
+				}
+			},
+			{
+				err = -EFAULT;
+			});
 
 	port_put(p, 0);
 
-	return EOK;
+	return err;
 }
 
 
@@ -594,8 +624,20 @@ int proc_respond(u32 port, const msg_t *msg, msg_rid_t rid)
 
 	msg_release(kmsg);
 
-	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
-	kmsg->msg.o.err = msg->o.err;
+	USERMEM_TRY(
+			{
+				hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
+				kmsg->msg.o.err = msg->o.err;
+			},
+			{
+				hal_spinlockSet(&p->spinlock, &sc);
+				kmsg->state = msg_rejected;
+				(void)proc_threadWakeup(&kmsg->threads);
+				hal_spinlockClear(&p->spinlock, &sc);
+				port_put(p, 0);
+
+				return -EFAULT;
+			});
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	kmsg->state = msg_responded;
