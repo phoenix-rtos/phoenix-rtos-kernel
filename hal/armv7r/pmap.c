@@ -186,7 +186,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 }
 
 
-int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
+int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size, vm_attr_t mattr)
 {
 	unsigned int i;
 	const syspage_map_t *map;
@@ -208,6 +208,9 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	if (pmap->hal == NULL) {
 		/* Kernel pmap has access to everything */
 		return 1;
+	}
+	if ((map->attr & mattr) != mattr) {
+		return 0;
 	}
 
 	for (i = 0; i < pmap->hal->mpu.allocCnt; ++i) {

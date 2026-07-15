@@ -526,7 +526,7 @@ void vm_pageinfo(meminfo_t *info)
 			return;
 		}
 
-		if (vm_mapBelongs(proc_current()->process, info->page.map.map, (size_t)mapsz * sizeof(pageinfo_t)) < 0) {
+		if (vm_mapBelongs(proc_current()->process, info->page.map.map, (size_t)mapsz * sizeof(pageinfo_t), PROT_READ | PROT_WRITE) < 0) {
 			(void)proc_lockClear(&page_common.maps[idx]->lock);
 			return;
 		}

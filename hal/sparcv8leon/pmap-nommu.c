@@ -62,7 +62,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 }
 
 
-int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
+int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size, vm_attr_t mattr)
 {
 	/* No MPU, always allowed */
 	return 1;

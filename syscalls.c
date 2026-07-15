@@ -79,7 +79,7 @@ int syscalls_sys_mmap(u8 *ustack)
 	flags = (vm_flags_t)sflags;
 	size = round_page(size);
 
-	if (vm_mapBelongs(proc, vaddr, sizeof(*vaddr)) < 0) {
+	if (vm_mapBelongs(proc, vaddr, sizeof(*vaddr), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -266,7 +266,7 @@ int syscalls_sys_waitpid(u8 *ustack)
 	GETFROMSTACK(ustack, int *, status, 1U);
 	GETFROMSTACK(ustack, int, options, 2U);
 
-	if ((status != NULL) && (vm_mapBelongs(proc, status, sizeof(*status)) < 0)) {
+	if ((status != NULL) && (vm_mapBelongs(proc, status, sizeof(*status), PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
@@ -325,7 +325,7 @@ int syscalls_beginthreadex(u8 *ustack)
 	GETFROMSTACK(ustack, void *, arg, 4U);
 	GETFROMSTACK(ustack, int *, id, 5U);
 
-	if ((id != NULL) && (vm_mapBelongs(proc, id, sizeof(*id)) < 0)) {
+	if ((id != NULL) && (vm_mapBelongs(proc, id, sizeof(*id), PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
@@ -367,11 +367,11 @@ int syscalls_nsleep(u8 *ustack)
 	/* Not used right now, future-proofing */
 	(void)clockid;
 
-	if (vm_mapBelongs(proc, sec, sizeof(*sec)) < 0) {
+	if (vm_mapBelongs(proc, sec, sizeof(*sec), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
-	if (vm_mapBelongs(proc, nsec, sizeof(*nsec)) < 0) {
+	if (vm_mapBelongs(proc, nsec, sizeof(*nsec), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -401,7 +401,7 @@ int syscalls_schedInfo(u8 *ustack)
 		return -EINVAL;
 	}
 
-	if (vm_mapBelongs(proc_current()->process, info, sizeof(*info)) < 0) {
+	if (vm_mapBelongs(proc_current()->process, info, sizeof(*info), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -483,7 +483,7 @@ int syscalls_schedGet(u8 *ustack)
 		return -EINVAL;
 	}
 
-	if (vm_mapBelongs(current->process, params, sizeof(*params)) < 0) {
+	if (vm_mapBelongs(current->process, params, sizeof(*params), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -515,7 +515,7 @@ int syscalls_schedSet(u8 *ustack)
 		return -EINVAL;
 	}
 
-	if (vm_mapBelongs(proc_current()->process, params, sizeof(*params)) < 0) {
+	if (vm_mapBelongs(proc_current()->process, params, sizeof(*params), PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -547,7 +547,7 @@ int syscalls_threadsinfo(u8 *ustack)
 	GETFROMSTACK(ustack, int, n, 0U);
 	GETFROMSTACK(ustack, threadinfo_t *, info, 1U);
 
-	if (vm_mapBelongs(proc, info, sizeof(*info) * (size_t)n) < 0) {
+	if (vm_mapBelongs(proc, info, sizeof(*info) * (size_t)n, PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -571,7 +571,7 @@ void syscalls_meminfo(u8 *ustack)
 
 	GETFROMSTACK(ustack, meminfo_t *, info, 0U);
 
-	if (vm_mapBelongs(proc, info, sizeof(*info)) >= 0) {
+	if (vm_mapBelongs(proc, info, sizeof(*info), PROT_READ | PROT_WRITE) >= 0) {
 		vm_meminfo(info);
 	}
 }
@@ -589,7 +589,7 @@ int syscalls_syspageprog(u8 *ustack)
 	GETFROMSTACK(ustack, syspageprog_t *, prog, 0U);
 	GETFROMSTACK(ustack, int, i, 1U);
 
-	if ((i >= 0) && (vm_mapBelongs(proc, prog, sizeof(*prog)) < 0)) {
+	if ((i >= 0) && (vm_mapBelongs(proc, prog, sizeof(*prog), PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
@@ -646,7 +646,7 @@ int syscalls_sys_perf_start(u8 *ustack)
 		return -EPERM;
 	}
 
-	if (arg != NULL && vm_mapBelongs(proc, arg, sz) < 0) {
+	if (arg != NULL && vm_mapBelongs(proc, arg, sz, PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -674,7 +674,7 @@ int syscalls_sys_perf_read(u8 *ustack)
 		return -EPERM;
 	}
 
-	if (vm_mapBelongs(proc, buffer, sz) < 0) {
+	if (vm_mapBelongs(proc, buffer, sz, PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -737,11 +737,11 @@ int syscalls_phMutexCreate(u8 *ustack)
 	GETFROMSTACK(ustack, handle_t *, h, 0U);
 	GETFROMSTACK(ustack, const struct lockAttr *, attr, 1U);
 
-	if (vm_mapBelongs(proc, h, sizeof(*h)) < 0) {
+	if (vm_mapBelongs(proc, h, sizeof(*h), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
-	if (vm_mapBelongs(proc, attr, sizeof(*attr)) < 0) {
+	if (vm_mapBelongs(proc, attr, sizeof(*attr), PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -819,11 +819,11 @@ int syscalls_phCondCreate(u8 *ustack)
 	GETFROMSTACK(ustack, handle_t *, h, 0U);
 	GETFROMSTACK(ustack, const struct condAttr *, attr, 1U);
 
-	if (vm_mapBelongs(proc, h, sizeof(*h)) < 0) {
+	if (vm_mapBelongs(proc, h, sizeof(*h), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
-	if (vm_mapBelongs(proc, attr, sizeof(*attr)) < 0) {
+	if (vm_mapBelongs(proc, attr, sizeof(*attr), PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -909,11 +909,11 @@ int syscalls_interrupt(u8 *ustack)
 	}
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a-2 "We want to check if at least start of memory occupied by the function is accessible to user." */
-	if ((f == NULL) || (vm_mapBelongs(proc, (const void *)f, 1) < 0)) {
+	if ((f == NULL) || (vm_mapBelongs(proc, (const void *)f, 1, PROT_READ | PROT_EXEC) < 0)) {
 		return -EINVAL;
 	}
 
-	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle)) < 0)) {
+	if ((handle != NULL) && (vm_mapBelongs(proc, handle, sizeof(*handle), PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
@@ -942,7 +942,7 @@ int syscalls_portCreate(u8 *ustack)
 
 	GETFROMSTACK(ustack, u32 *, port, 0U);
 
-	if (vm_mapBelongs(proc, port, sizeof(*port)) < 0) {
+	if (vm_mapBelongs(proc, port, sizeof(*port), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -966,7 +966,7 @@ int syscalls_sys_portRegister(u8 *ustack)
 	u32 port;
 	const char *name;
 	size_t len;
-	oid_t *oid;
+	const oid_t *oid;
 
 	GETFROMSTACK(ustack, u32, port, 0U);
 	GETFROMSTACK(ustack, const char *, name, 1U);
@@ -977,11 +977,11 @@ int syscalls_sys_portRegister(u8 *ustack)
 		return -EINVAL;
 	}
 
-	if ((oid != NULL) && (vm_mapBelongs(proc, oid, sizeof(*oid)) < 0)) {
+	if ((oid != NULL) && (vm_mapBelongs(proc, oid, sizeof(*oid), PROT_READ) < 0)) {
 		return -EFAULT;
 	}
 
-	if (vm_mapBelongs(proc, name, len) < 0) {
+	if (vm_mapBelongs(proc, name, len, PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -1013,7 +1013,7 @@ int syscalls_sys_portUnregister(u8 *ustack)
 		return -EINVAL;
 	}
 
-	if (vm_mapBelongs(proc, name, len) < 0) {
+	if (vm_mapBelongs(proc, name, len, PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -1037,18 +1037,18 @@ int syscalls_msgSend(u8 *ustack)
 	GETFROMSTACK(ustack, u32, port, 0U);
 	GETFROMSTACK(ustack, msg_t *, msg, 1U);
 
-	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+	if (vm_mapBelongs(proc, msg, sizeof(*msg), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
 	if (msg->i.data != NULL) {
-		if (vm_mapBelongs(proc, msg->i.data, msg->i.size) < 0) {
+		if (vm_mapBelongs(proc, msg->i.data, msg->i.size, PROT_READ) < 0) {
 			return -EFAULT;
 		}
 	}
 
 	if (msg->o.data != NULL) {
-		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size, PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 	}
@@ -1068,11 +1068,11 @@ int syscalls_msgRecv(u8 *ustack)
 	GETFROMSTACK(ustack, msg_t *, msg, 1U);
 	GETFROMSTACK(ustack, msg_rid_t *, rid, 2U);
 
-	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+	if (vm_mapBelongs(proc, msg, sizeof(*msg), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
-	if (vm_mapBelongs(proc, rid, sizeof(*rid)) < 0) {
+	if (vm_mapBelongs(proc, rid, sizeof(*rid), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1084,24 +1084,22 @@ int syscalls_msgRespond(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	u32 port;
-	msg_t *msg;
+	const msg_t *msg;
 	msg_rid_t rid;
 
 	GETFROMSTACK(ustack, u32, port, 0U);
 	GETFROMSTACK(ustack, msg_t *, msg, 1U);
 	GETFROMSTACK(ustack, msg_rid_t, rid, 2U);
 
-	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+	if (vm_mapBelongs(proc, msg, sizeof(*msg), PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
-#ifndef NOMMU /* o.data has client memory pointer on NOMMU */
 	if (msg->o.data != NULL) {
-		if (vm_mapBelongs(proc, msg->o.data, msg->o.size) < 0) {
+		if (vm_mapBelongs(proc, msg->o.data, msg->o.size, PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 	}
-#endif
 
 	return proc_respond(port, msg, rid);
 }
@@ -1119,11 +1117,11 @@ int syscalls_lookup(u8 *ustack)
 
 	/* FIXME: Pass strlen(name) from userspace */
 
-	if ((file != NULL) && (vm_mapBelongs(proc, file, sizeof(*file)) < 0)) {
+	if ((file != NULL) && (vm_mapBelongs(proc, file, sizeof(*file), PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
-	if ((dev != NULL) && (vm_mapBelongs(proc, dev, sizeof(*dev)) < 0)) {
+	if ((dev != NULL) && (vm_mapBelongs(proc, dev, sizeof(*dev), PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1144,11 +1142,11 @@ int syscalls_gettime(u8 *ustack)
 	GETFROMSTACK(ustack, time_t *, praw, 0U);
 	GETFROMSTACK(ustack, time_t *, poffs, 1U);
 
-	if ((praw != NULL) && (vm_mapBelongs(proc, praw, sizeof(*praw)) < 0)) {
+	if ((praw != NULL) && (vm_mapBelongs(proc, praw, sizeof(*praw), PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
-	if ((poffs != NULL) && (vm_mapBelongs(proc, poffs, sizeof(*poffs)) < 0)) {
+	if ((poffs != NULL) && (vm_mapBelongs(proc, poffs, sizeof(*poffs), PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1372,7 +1370,7 @@ ssize_t syscalls_sys_read(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if ((buf != NULL) && (nbyte != 0U) && (vm_mapBelongs(proc, buf, nbyte) < 0)) {
+	if ((buf != NULL) && (nbyte != 0U) && (vm_mapBelongs(proc, buf, nbyte, PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1397,7 +1395,7 @@ ssize_t syscalls_sys_write(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if ((buf != NULL) && (nbyte != 0U) && (vm_mapBelongs(proc, buf, nbyte) < 0)) {
+	if ((buf != NULL) && (nbyte != 0U) && (vm_mapBelongs(proc, buf, nbyte, PROT_READ) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1464,7 +1462,7 @@ int syscalls_sys_lseek(u8 *ustack)
 	GETFROMSTACK(ustack, off_t *, offset, 1U);
 	GETFROMSTACK(ustack, int, whence, 2U);
 
-	if (vm_mapBelongs(proc, offset, sizeof(*offset)) < 0) {
+	if (vm_mapBelongs(proc, offset, sizeof(*offset), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1503,7 +1501,7 @@ int syscalls_sys_pipe(u8 *ustack)
 
 	GETFROMSTACK(ustack, int *, fildes, 0U);
 
-	if (vm_mapBelongs(proc, fildes, sizeof(*fildes) * 2U) < 0) {
+	if (vm_mapBelongs(proc, fildes, sizeof(*fildes) * 2U, PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1534,7 +1532,7 @@ int syscalls_sys_fstat(u8 *ustack)
 	GETFROMSTACK(ustack, int, fd, 0U);
 	GETFROMSTACK(ustack, struct stat *, buf, 1U);
 
-	if (vm_mapBelongs(proc, buf, sizeof(*buf)) < 0) {
+	if (vm_mapBelongs(proc, buf, sizeof(*buf), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1553,7 +1551,7 @@ int syscalls_sys_statvfs(u8 *ustack)
 	GETFROMSTACK(ustack, int, fd, 1U);
 	GETFROMSTACK(ustack, struct statvfs *, buf, 2U);
 
-	if (vm_mapBelongs(proc, buf, sizeof(*buf)) < 0) {
+	if (vm_mapBelongs(proc, buf, sizeof(*buf), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1597,11 +1595,11 @@ int syscalls_sys_accept(u8 *ustack)
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2U);
 
 	if (address != NULL) {
-		if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
+		if (vm_mapBelongs(proc, address_len, sizeof(*address_len), PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 
-		if (vm_mapBelongs(proc, address, *address_len) < 0) {
+		if (vm_mapBelongs(proc, address, *address_len, PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 	}
@@ -1624,11 +1622,11 @@ int syscalls_sys_accept4(u8 *ustack)
 	GETFROMSTACK(ustack, int, flags, 3U);
 
 	if (address != NULL) {
-		if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
+		if (vm_mapBelongs(proc, address_len, sizeof(*address_len), PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 
-		if (vm_mapBelongs(proc, address, *address_len) < 0) {
+		if (vm_mapBelongs(proc, address, *address_len, PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 	}
@@ -1648,7 +1646,7 @@ int syscalls_sys_bind(u8 *ustack)
 	GETFROMSTACK(ustack, const struct sockaddr *, address, 1U);
 	GETFROMSTACK(ustack, socklen_t, address_len, 2U);
 
-	if (vm_mapBelongs(proc, address, address_len) < 0) {
+	if (vm_mapBelongs(proc, address, address_len, PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -1667,7 +1665,7 @@ int syscalls_sys_connect(u8 *ustack)
 	GETFROMSTACK(ustack, const struct sockaddr *, address, 1U);
 	GETFROMSTACK(ustack, socklen_t, address_len, 2U);
 
-	if (vm_mapBelongs(proc, address, address_len) < 0) {
+	if (vm_mapBelongs(proc, address, address_len, PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -1684,7 +1682,7 @@ int syscalls_sys_gethostname(u8 *ustack)
 	GETFROMSTACK(ustack, char *, name, 0U);
 	GETFROMSTACK(ustack, size_t, namelen, 1U);
 
-	if (vm_mapBelongs(proc, name, namelen) < 0) {
+	if (vm_mapBelongs(proc, name, namelen, PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1703,11 +1701,11 @@ int syscalls_sys_getpeername(u8 *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1U);
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2U);
 
-	if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
+	if (vm_mapBelongs(proc, address_len, sizeof(*address_len), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
-	if (vm_mapBelongs(proc, address, *address_len) < 0) {
+	if (vm_mapBelongs(proc, address, *address_len, PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1726,11 +1724,11 @@ int syscalls_sys_getsockname(u8 *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, address, 1U);
 	GETFROMSTACK(ustack, socklen_t *, address_len, 2U);
 
-	if (vm_mapBelongs(proc, address_len, sizeof(*address_len)) < 0) {
+	if (vm_mapBelongs(proc, address_len, sizeof(*address_len), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
-	if (vm_mapBelongs(proc, address, *address_len) < 0) {
+	if (vm_mapBelongs(proc, address, *address_len, PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1754,11 +1752,11 @@ int syscalls_sys_getsockopt(u8 *ustack)
 	GETFROMSTACK(ustack, socklen_t *, optlen, 4U);
 
 	if (optval != NULL) {
-		if (vm_mapBelongs(proc, optlen, sizeof(*optlen)) < 0) {
+		if (vm_mapBelongs(proc, optlen, sizeof(*optlen), PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 
-		if (vm_mapBelongs(proc, optval, *optlen) < 0) {
+		if (vm_mapBelongs(proc, optval, *optlen, PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 	}
@@ -1796,16 +1794,16 @@ ssize_t syscalls_sys_recvfrom(u8 *ustack)
 	GETFROMSTACK(ustack, struct sockaddr *, src_addr, 4U);
 	GETFROMSTACK(ustack, socklen_t *, src_len, 5U);
 
-	if (vm_mapBelongs(proc, message, length) < 0) {
+	if (vm_mapBelongs(proc, message, length, PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
 	if (src_addr != NULL) {
-		if (vm_mapBelongs(proc, src_len, sizeof(*src_len)) < 0) {
+		if (vm_mapBelongs(proc, src_len, sizeof(*src_len), PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 
-		if (vm_mapBelongs(proc, src_addr, *src_len) < 0) {
+		if (vm_mapBelongs(proc, src_addr, *src_len, PROT_READ | PROT_WRITE) < 0) {
 			return -EFAULT;
 		}
 	}
@@ -1831,11 +1829,11 @@ ssize_t syscalls_sys_sendto(u8 *ustack)
 	GETFROMSTACK(ustack, const struct sockaddr *, dest_addr, 4U);
 	GETFROMSTACK(ustack, socklen_t, dest_len, 5U);
 
-	if (vm_mapBelongs(proc, message, length) < 0) {
+	if (vm_mapBelongs(proc, message, length, PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
-	if ((dest_addr != NULL) && (vm_mapBelongs(proc, dest_addr, dest_len) < 0)) {
+	if ((dest_addr != NULL) && (vm_mapBelongs(proc, dest_addr, dest_len, PROT_READ) < 0)) {
 		return -EFAULT;
 	}
 
@@ -1855,27 +1853,29 @@ ssize_t syscalls_sys_recvmsg(u8 *ustack)
 	GETFROMSTACK(ustack, struct msghdr *, msg, 1U);
 	GETFROMSTACK(ustack, int, flags, 2U);
 
-	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+	if (vm_mapBelongs(proc, msg, sizeof(*msg), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
-	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen) < 0)) {
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen, PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
-
+	/* FIXME: potential race on iovlen */
 	for (i = 0; i < (size_t)msg->msg_iovlen; ++i) {
-		if ((msg->msg_iov[i].iov_base != NULL) && (vm_mapBelongs(proc, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len) < 0)) {
+		if ((msg->msg_iov[i].iov_base != NULL) && (vm_mapBelongs(proc, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len, PROT_READ | PROT_WRITE) < 0)) {
 			return -EFAULT;
 		}
 	}
 
-	if ((msg->msg_control != NULL) && (vm_mapBelongs(proc, msg->msg_control, msg->msg_controllen) < 0)) {
+	if ((msg->msg_control != NULL) && (vm_mapBelongs(proc, msg->msg_control, msg->msg_controllen, PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
 
-	if ((msg->msg_name != NULL) && (vm_mapBelongs(proc, msg->msg_name, msg->msg_namelen) < 0)) {
+	if ((msg->msg_name != NULL) && (vm_mapBelongs(proc, msg->msg_name, msg->msg_namelen, PROT_READ | PROT_WRITE) < 0)) {
 		return -EFAULT;
 	}
+
+	/* FIXME: potential race on controllen and namelen */
 
 	return posix_recvmsg(socket, msg, flags);
 }
@@ -1893,27 +1893,29 @@ ssize_t syscalls_sys_sendmsg(u8 *ustack)
 	GETFROMSTACK(ustack, const struct msghdr *, msg, 1U);
 	GETFROMSTACK(ustack, int, flags, 2U);
 
-	if (vm_mapBelongs(proc, msg, sizeof(*msg)) < 0) {
+	if (vm_mapBelongs(proc, msg, sizeof(*msg), PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
-	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen) < 0)) {
+	if ((msg->msg_iovlen != 0) && (vm_mapBelongs(proc, msg->msg_iov, sizeof(*msg->msg_iov) * (size_t)msg->msg_iovlen, PROT_READ) < 0)) {
 		return -EFAULT;
 	}
-
+	/* FIXME: potential race on iovlen */
 	for (i = 0; i < (size_t)msg->msg_iovlen; ++i) {
-		if ((msg->msg_iov[i].iov_base != NULL) && (vm_mapBelongs(proc, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len) < 0)) {
+		if ((msg->msg_iov[i].iov_base != NULL) && (vm_mapBelongs(proc, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len, PROT_READ) < 0)) {
 			return -EFAULT;
 		}
 	}
 
-	if ((msg->msg_control != NULL) && (vm_mapBelongs(proc, msg->msg_control, msg->msg_controllen) < 0)) {
+	if ((msg->msg_control != NULL) && (vm_mapBelongs(proc, msg->msg_control, msg->msg_controllen, PROT_READ) < 0)) {
 		return -EFAULT;
 	}
 
-	if ((msg->msg_name != NULL) && (vm_mapBelongs(proc, msg->msg_name, msg->msg_namelen) < 0)) {
+	if ((msg->msg_name != NULL) && (vm_mapBelongs(proc, msg->msg_name, msg->msg_namelen, PROT_READ) < 0)) {
 		return -EFAULT;
 	}
+
+	/* FIXME: potential race on controllen and namelen */
 
 	return posix_sendmsg(socket, msg, flags);
 }
@@ -1946,7 +1948,7 @@ int syscalls_sys_socketpair(u8 *ustack)
 	GETFROMSTACK(ustack, int, protocol, 2U);
 	GETFROMSTACK(ustack, int *, sv, 3U);
 
-	if (vm_mapBelongs(proc, sv, sizeof(*sv) * 2U) < 0) {
+	if (vm_mapBelongs(proc, sv, sizeof(*sv) * 2U, PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -1975,7 +1977,7 @@ int syscalls_sys_sethostname(u8 *ustack)
 	GETFROMSTACK(ustack, const char *, name, 0U);
 	GETFROMSTACK(ustack, size_t, namelen, 1U);
 
-	if (vm_mapBelongs(proc, name, namelen) < 0) {
+	if (vm_mapBelongs(proc, name, namelen, PROT_READ) < 0) {
 		return -EFAULT;
 	}
 
@@ -1998,7 +2000,7 @@ int syscalls_sys_setsockopt(u8 *ustack)
 	GETFROMSTACK(ustack, const void *, optval, 3U);
 	GETFROMSTACK(ustack, socklen_t, optlen, 4U);
 
-	if ((optval != NULL) && (optlen != 0U) && (vm_mapBelongs(proc, optval, optlen) < 0)) {
+	if ((optval != NULL) && (optlen != 0U) && (vm_mapBelongs(proc, optval, optlen, PROT_READ) < 0)) {
 		return -EFAULT;
 	}
 
@@ -2036,7 +2038,7 @@ int syscalls_sys_poll(u8 *ustack)
 		return -EINVAL;
 	}
 
-	if (vm_mapBelongs(proc, fds, nfds * sizeof(*fds)) < 0) {
+	if (vm_mapBelongs(proc, fds, nfds * sizeof(*fds), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
@@ -2053,7 +2055,7 @@ int syscalls_sys_futimens(u8 *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0U);
 	GETFROMSTACK(ustack, const struct timespec *, times, 1U);
 
-	if ((times != NULL) && (vm_mapBelongs(proc, times, 2U * sizeof(*times)) < 0)) {
+	if ((times != NULL) && (vm_mapBelongs(proc, times, 2U * sizeof(*times), PROT_READ) < 0)) {
 		return -EFAULT;
 	}
 
@@ -2139,7 +2141,7 @@ int syscalls_sys_uname(u8 *ustack)
 	struct utsname *name;
 	GETFROMSTACK(ustack, struct utsname *, name, 0U);
 
-	if (vm_mapBelongs(proc_current()->process, name, sizeof(*name)) < 0) {
+	if (vm_mapBelongs(proc_current()->process, name, sizeof(*name), PROT_READ | PROT_WRITE) < 0) {
 		return -EFAULT;
 	}
 
