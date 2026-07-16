@@ -1585,9 +1585,15 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			}
 			else {
 				_proc_threadEnqueue(&lock->queue, 0, interruptible);
-				hal_spinlockClear(&lock->spinlock, &sc);
-				err = hal_cpuReschedule(&threads_common.spinlock, scp);
-				hal_spinlockSet(&lock->spinlock, scp);
+
+                if (lock->queue == NULL) {
+                    hal_spinlockClear(&threads_common.spinlock, &sc);
+                }
+                else {
+			    	hal_spinlockClear(&lock->spinlock, &sc);
+			    	err = hal_cpuReschedule(&threads_common.spinlock, scp);
+			    	hal_spinlockSet(&lock->spinlock, scp);
+                }
 			}
 
 			if (lock->owner == current) {
