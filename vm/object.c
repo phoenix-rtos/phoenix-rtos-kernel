@@ -184,7 +184,7 @@ static page_t *object_fetch(oid_t oid, u64 offs)
 		return NULL;
 	}
 
-	v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_WRITE | PROT_USER, object_common.kernel, 0, MAP_NONE);
+	v = vm_mmap(object_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, object_common.kernel, 0, MAP_NONE);
 	if (v == NULL) {
 		vm_pageFree(p);
 		(void)proc_close(oid, 0);
