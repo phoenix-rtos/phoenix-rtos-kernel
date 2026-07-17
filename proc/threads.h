@@ -95,8 +95,10 @@ typedef struct _thread_t {
 	time_t maxWait;
 
 	time_t startTime;
-	time_t cpuTime;
-	time_t lastTime;
+	time_t lastTime;   /* Last time calculating cpu time */
+	time_t userTime;   /* Time spent in userspace */
+	time_t systemTime; /* Time spent in syscalls */
+	/* TODO: consider adding a counter for time spent in interrupt context */
 
 	cpu_context_t *context;
 	cpu_context_t *longjmpctx;
@@ -107,6 +109,11 @@ static inline int proc_getTid(const thread_t *t)
 {
 	return t->idlinkage.id;
 }
+
+typedef enum {
+	time_system,
+	time_user,
+} time_kind_t;
 
 
 thread_t *proc_current(void);
@@ -236,6 +243,9 @@ int proc_cloneSigactions(process_t *parent, process_t *child);
 
 /* POSIX: signals ignored by the execve calling process should remain ignored */
 void proc_resetExecSigactions(void);
+
+
+void threads_updateCpuTime(thread_t *current, time_kind_t kind);
 
 
 #endif

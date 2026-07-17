@@ -2186,6 +2186,8 @@ void *syscalls_dispatch(unsigned int n, u8 *ustack, cpu_context_t *ctx)
 
 	thread = proc_current();
 
+	threads_updateCpuTime(thread, time_user);
+
 	trace_eventSyscallEnter(n, proc_getTid(thread));
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
@@ -2196,6 +2198,7 @@ void *syscalls_dispatch(unsigned int n, u8 *ustack, cpu_context_t *ctx)
 
 	trace_eventSyscallExit(n, proc_getTid(thread));
 
+	threads_updateCpuTime(thread, time_system);
 	if (thread->exit == 0U) {
 		threads_setupUserReturn(retval, ctx);
 	}
