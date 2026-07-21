@@ -17,6 +17,7 @@
 #include "printf.h"
 #include "log/log.h"
 #include "hal/hal.h"
+#include "proc/threads.h"
 
 
 void lib_assertPanic(const char *func, int line, const char *fmt, ...)
@@ -36,8 +37,6 @@ void lib_assertPanic(const char *func, int line, const char *fmt, ...)
 #ifdef NDEBUG
 	hal_cpuReboot();
 #else
-	for (;;) {
-		hal_cpuHalt();
-	}
+	threads_halt();
 #endif
 }

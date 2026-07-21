@@ -286,9 +286,7 @@ static void process_exception(unsigned int n, exc_context_t *ctx)
 
 	process_dumpException(n, ctx);
 
-	if (thread->process == NULL) {
-		hal_cpuHalt();
-	}
+	LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel")
 
 	(void)threads_sigpost(thread->process, thread, signal_kill);
 
@@ -305,9 +303,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
 
-	if (process == NULL) {
-		hal_cpuHalt();
-	}
+	LIB_ASSERT_ALWAYS(process != NULL, "exception in kernel")
 
 	(void)threads_sigpost(process, thread, signal_illegal);
 }
