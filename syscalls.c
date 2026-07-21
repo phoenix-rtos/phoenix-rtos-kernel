@@ -750,6 +750,27 @@ int syscalls_mutexUnlock(u8 *ustack)
 }
 
 
+int syscalls_mutexConsistent(u8 *ustack)
+{
+	handle_t h;
+
+	GETFROMSTACK(ustack, handle_t, h, 0U);
+	return proc_mutexConsistent(h);
+}
+
+
+int syscalls_mutexPrioCeiling(u8 *ustack)
+{
+	handle_t h;
+	int prioceiling;
+
+	GETFROMSTACK(ustack, handle_t, h, 0U);
+	GETFROMSTACK(ustack, int, prioceiling, 1U);
+
+	return proc_mutexPrioCeiling(h, prioceiling);
+}
+
+
 /*
  * Conditional variables
  */

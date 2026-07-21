@@ -94,6 +94,7 @@
 #define EALREADY        114 /* Operation already in progress */
 #define EINPROGRESS     115 /* Operation now in progress */
 #define EUCLEAN         117 /* Structure needs cleaning */
+#define EOWNERDEAD      130 /* Owner died */
 #define ENOTRECOVERABLE 131 /* State not recoverable */
 #define ENOTSUP         EOPNOTSUPP
 
