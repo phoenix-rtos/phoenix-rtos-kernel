@@ -248,6 +248,20 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 static void proc_lockForceUnlock(lock_t *lock, int doYield);
 
 
+__attribute__((noreturn)) void threads_halt(void)
+{
+	spinlock_ctx_t sc;
+
+	/* take the spinlock, and not release it; other threads will eventually hang trying to reschedule */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	for (;;) {
+		hal_cpuHalt();
+	}
+
+	__builtin_unreachable();
+}
+
+
 static void thread_destroy(thread_t *thread)
 {
 	process_t *process;

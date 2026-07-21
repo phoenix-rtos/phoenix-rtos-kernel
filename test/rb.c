@@ -19,6 +19,7 @@
 #include "lib/lib.h"
 #include "vm/vm.h"
 #include "proc/proc.h"
+#include "proc/threads.h"
 
 
 static int test_rbCheckEx(rbnode_t *node, int level)
@@ -155,7 +156,7 @@ static void test_rbGenerateTest(int level, int insert, int vector[], int selecte
 					}
 
 					lib_printf("\n");
-					hal_cpuHalt();
+					threads_halt();
 				}
 
 				if (rb_processVector(0, &tree, vector) < 0) {
@@ -165,7 +166,7 @@ static void test_rbGenerateTest(int level, int insert, int vector[], int selecte
 					}
 
 					lib_printf("\n");
-					hal_cpuHalt();
+					threads_halt();
 				}
 			}
 		}

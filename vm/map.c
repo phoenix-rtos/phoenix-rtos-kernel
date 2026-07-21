@@ -827,10 +827,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	if (vm_mapForce(map, paddr, prot) != 0) {
 		process_dumpException(n, ctx);
 
-		if (thread->process == NULL) {
-			hal_cpuDisableInterrupts();
-			hal_cpuHalt();
-		}
+		LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel");
 
 		(void)threads_sigpost(thread->process, thread, signal_segv);
 	}

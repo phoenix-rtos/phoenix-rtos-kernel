@@ -18,6 +18,7 @@
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "proc/proc.h"
+#include "proc/threads.h"
 
 
 unsigned int test_randsize(unsigned int *seed, unsigned int bufsz)
@@ -169,7 +170,7 @@ void test_msg(void)
 
 	if (proc_portCreate(&port) != EOK) {
 		lib_printf("Failed to create port\n");
-		hal_cpuHalt();
+		threads_halt();
 	}
 
 	proc_threadCreate(NULL, test_pong, NULL, 4, 1024, NULL, 0, 0, (void *)(long)port);

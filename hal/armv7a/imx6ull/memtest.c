@@ -300,5 +300,7 @@ void test_ddr(void)
 	test_ddrAll();
 #endif
 
-	hal_cpuHalt();
+	for (;;) {
+		hal_cpuHalt();
+	}
 }

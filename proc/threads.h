@@ -190,4 +190,7 @@ int threads_sigsuspend(unsigned int mask);
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
+__attribute__((noreturn)) void threads_halt(void);
+
+
 #endif
