@@ -18,6 +18,11 @@
 #include "include/threads.h"
 
 
+#define LOCK_CONSISTENT      0U
+#define LOCK_INCONSISTENT    1U
+#define LOCK_NOT_RECOVERABLE 2U
+
+
 typedef struct _lock_t {
 	spinlock_t spinlock;         /* Spinlock */
 
@@ -30,6 +35,8 @@ typedef struct _lock_t {
 	unsigned int depth; /* Used with recursive locks */
 
 	int epoch; /* Current trace epoch - used for tracking lock name emission */
+
+	unsigned char consistency;
 } lock_t;
 
 
@@ -56,6 +63,12 @@ int proc_lockSetInterruptible(lock_t *lock);
 
 
 int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name);
+
+
+int proc_lockConsistent(lock_t *lock);
+
+
+int proc_lockPrioCeiling(lock_t *lock, int prioceiling);
 
 
 int proc_lockDone(lock_t *lock);

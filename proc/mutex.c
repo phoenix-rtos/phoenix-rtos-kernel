@@ -56,6 +56,18 @@ int proc_mutexCreate(const struct lockAttr *attr)
 		return -EINVAL;
 	}
 
+	if ((attr->robust != PH_LOCK_STALLED) && (attr->robust != PH_LOCK_ROBUST)) {
+		return -EINVAL;
+	}
+
+	if ((attr->protocol != PH_LOCK_PROTO_INHERIT) && (attr->protocol != PH_LOCK_PROTO_NOINHERIT) && (attr->protocol != PH_LOCK_PROTO_PRIOCEILING)) {
+		return -EINVAL;
+	}
+
+	if (attr->prioceiling > MAX_PRIO) {
+		return -EINVAL;
+	}
+
 	mutex = vm_kmalloc(sizeof(*mutex));
 	if (mutex == NULL) {
 		return -ENOMEM;
@@ -107,6 +119,42 @@ int proc_mutexTry(int h)
 	}
 
 	err = proc_lockTry(&mutex->lock);
+
+	mutex_put(mutex);
+
+	return err;
+}
+
+
+int proc_mutexConsistent(int h)
+{
+	mutex_t *mutex;
+	int err;
+
+	mutex = mutex_get(h);
+	if (mutex == NULL) {
+		return -EINVAL;
+	}
+
+	err = proc_lockConsistent(&mutex->lock);
+
+	mutex_put(mutex);
+
+	return err;
+}
+
+
+int proc_mutexPrioCeiling(int h, int prioceiling)
+{
+	mutex_t *mutex;
+	int err;
+
+	mutex = mutex_get(h);
+	if (mutex == NULL) {
+		return -EINVAL;
+	}
+
+	err = proc_lockPrioCeiling(&mutex->lock, prioceiling);
 
 	mutex_put(mutex);
 

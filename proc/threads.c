@@ -36,7 +36,7 @@ enum { event_scheduling, event_enqueued, event_waking, event_preempted };
 #define THREAD_WAIT_INTERRUPTIBLE (1U << 0)
 #define THREAD_WAIT_EXCLUSIVE     (1U << 1) /* reject a second waiter (unlocked exclusive conditional) */
 
-const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
+const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL, .protocol = PH_LOCK_PROTO_INHERIT, .robust = PH_LOCK_STALLED };
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
 static thread_t *const wakeupPending = (void *)-1;
@@ -45,7 +45,7 @@ static struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	thread_t *ready[8];
+	thread_t *ready[MAX_PRIO + 1U];
 	thread_t **current;
 	time_t utcoffs;
 
@@ -71,9 +71,7 @@ static struct {
 } threads_common;
 
 
-_Static_assert(sizeof(threads_common.ready) / sizeof(threads_common.ready[0]) <= (u8)-1, "queue size must fit into priority type");
-
-#define MAX_PRIO ((u8)(sizeof(threads_common.ready) / sizeof(threads_common.ready[0])) - 1U)
+_Static_assert(MAX_PRIO <= (u8)-1, "MAX_PRIO must fit into priority type");
 
 
 static thread_t *_proc_current(void);
@@ -677,7 +675,11 @@ static u8 _proc_lockGetPriority(lock_t *lock)
 	u8 priority = MAX_PRIO;
 	thread_t *thread = lock->queue;
 
-	if (thread != NULL) {
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+		return __atomic_load_n(&lock->attr.prioceiling, __ATOMIC_RELAXED);
+	}
+
+	if (lock->attr.protocol == PH_LOCK_PROTO_INHERIT && thread != NULL) {
 		do {
 			if (thread->priority < priority) {
 				priority = thread->priority;
@@ -1533,6 +1535,14 @@ int threads_sigsuspend(unsigned int mask)
 /* Assumes `lock->spinlock` and `threads_common.spinlock` are set. */
 static int _proc_lockTry(thread_t *current, lock_t *lock)
 {
+	if (lock->attr.robust == PH_LOCK_ROBUST && lock->consistency == LOCK_NOT_RECOVERABLE) {
+		return -ENOTRECOVERABLE;
+	}
+
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING && current->priorityBase < lock->attr.prioceiling) {
+		return -EINVAL;
+	}
+
 	if (lock->owner != NULL) {
 		if ((lock->attr.type == PH_LOCK_RECURSIVE) && (lock->owner == current)) {
 			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "False-positive - checking for overflow this way is defined in the standard" */
@@ -1554,6 +1564,13 @@ static int _proc_lockTry(thread_t *current, lock_t *lock)
 
 	lock->owner = current;
 	lock->depth = 1;
+
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+		_proc_threadSetPriority(current, _proc_threadGetPriority(current));
+	}
+	if (lock->attr.robust != 0U && lock->consistency == LOCK_INCONSISTENT) {
+		return -EOWNERDEAD;
+	}
 
 	return EOK;
 }
@@ -1584,6 +1601,9 @@ int proc_lockTry(lock_t *lock)
 }
 
 
+static int _proc_lockClear(lock_t *lock);
+
+
 static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 {
 	thread_t *current;
@@ -1611,7 +1631,7 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 				lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 		/* Lock owner might inherit our priority */
-		if (current->priority < lock->owner->priority) {
+		if (lock->attr.protocol == PH_LOCK_PROTO_INHERIT && current->priority < lock->owner->priority) {
 			_proc_threadSetPriority(lock->owner, current->priority);
 		}
 
@@ -1655,6 +1675,23 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 		/* we acquired the lock */
 		lock->depth = 1;
 		ret = EOK;
+		if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+			_proc_threadSetPriority(current, _proc_threadGetPriority(current));
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+		}
+		if (lock->attr.robust != 0U) {
+			if (lock->consistency == LOCK_INCONSISTENT) {
+				ret = -EOWNERDEAD;
+			}
+			else if (lock->consistency == LOCK_NOT_RECOVERABLE) {
+				(void)_proc_lockClear(lock);
+				ret = -ENOTRECOVERABLE;
+			}
+			else {
+				/* no action needed */
+			}
+		}
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1720,11 +1757,26 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 			lock->name, (owner->process != NULL) ? process_getPid(owner->process) : 0, proc_getTid(owner));
 
 	if (doForceUnlock == UNLOCK_TRY) {
-		if ((lock->attr.type == PH_LOCK_ERRORCHECK) || (lock->attr.type == PH_LOCK_RECURSIVE)) {
+		if ((lock->attr.type == PH_LOCK_ERRORCHECK) || (lock->attr.type == PH_LOCK_RECURSIVE) || (lock->attr.robust == PH_LOCK_ROBUST)) {
 			if (lock->owner != current) {
 				hal_spinlockClear(&threads_common.spinlock, &sc);
 				return -EPERM;
 			}
+		}
+	}
+
+	if (lock->attr.robust == PH_LOCK_ROBUST) {
+		/*
+		 * Don't make the lock irrecoverable on force unlock (thread death).
+		 * POSIX says that if the owner of inconsistent lock dies, the
+		 * inconsistency should be passed to the next lock owner.
+		 */
+		if ((doForceUnlock != UNLOCK_FORCE) && (lock->consistency == LOCK_INCONSISTENT)) {
+			lock->consistency = LOCK_NOT_RECOVERABLE;
+		}
+
+		if ((doForceUnlock == UNLOCK_FORCE) && (lock->consistency == LOCK_CONSISTENT)) {
+			lock->consistency = LOCK_INCONSISTENT;
 		}
 	}
 
@@ -1859,7 +1911,7 @@ int proc_lockSet2(lock_t *l1, lock_t *l2)
 int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 {
 	spinlock_ctx_t sc;
-	int err;
+	int err, lockErr;
 
 	if (hal_started() == 0) {
 		return -EINVAL;
@@ -1871,11 +1923,80 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 	if (err >= 0) {
 		err = proc_threadWaitInterruptible(queue, &lock->spinlock, timeout, &sc);
 		if (err != -EINTR) {
-			(void)_proc_lockSet(lock, 0U, &sc);
+			lockErr = _proc_lockSet(lock, 0U, &sc);
+			if (lockErr < 0) {
+				err = lockErr;
+			}
 		}
 	}
 
 	hal_spinlockClear(&lock->spinlock, &sc);
+
+	return err;
+}
+
+
+int proc_lockConsistent(lock_t *lock)
+{
+	spinlock_ctx_t sc;
+	int err = EOK;
+
+	if (hal_started() == 0) {
+		return -EINVAL;
+	}
+
+	if (lock->attr.robust != PH_LOCK_ROBUST) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&lock->spinlock, &sc);
+
+	if (lock->owner != proc_current()) {
+		err = -EPERM;
+	}
+	else if (lock->consistency != LOCK_INCONSISTENT) {
+		err = -EINVAL;
+	}
+	else {
+		lock->consistency = LOCK_CONSISTENT;
+	}
+
+	hal_spinlockClear(&lock->spinlock, &sc);
+
+	return err;
+}
+
+
+/* prioceiling == -1 retrieves current priority ceiling for the lock without obtaining it */
+int proc_lockPrioCeiling(lock_t *lock, int prioceiling)
+{
+	int err;
+
+	if (hal_started() == 0) {
+		return -EINVAL;
+	}
+
+	if (prioceiling < -1 || prioceiling > (int)MAX_PRIO) {
+		return -EINVAL;
+	}
+
+	if (lock->attr.protocol != PH_LOCK_PROTO_PRIOCEILING) {
+		return -EINVAL;
+	}
+
+	if (prioceiling >= 0) {
+		err = proc_lockSet(lock);
+		if (err < 0) {
+			return err;
+		}
+
+		err = (int)__atomic_exchange_n(&lock->attr.prioceiling, (unsigned char)prioceiling, __ATOMIC_RELAXED);
+
+		(void)proc_lockClear(lock);
+	}
+	else {
+		err = (int)__atomic_load_n(&lock->attr.prioceiling, __ATOMIC_RELAXED);
+	}
 
 	return err;
 }
@@ -1896,6 +2017,7 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name)
 	lock->queue = NULL;
 	lock->name = name;
 	lock->epoch = -1;
+	lock->consistency = LOCK_CONSISTENT;
 
 	hal_memcpy(&lock->attr, attr, sizeof(struct lockAttr));
 
