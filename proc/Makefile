@@ -12,3 +12,7 @@ ifneq (, $(findstring NOMMU, $(CPPFLAGS)))
 else
         OBJS += $(PREFIX_O)proc/msg.o
 endif
+
+ifeq ($(DEBUG_THREADS),1)
+  CPPFLAGS += -DDEBUG_THREADS
+endif

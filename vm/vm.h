@@ -15,6 +15,7 @@
 #define _PH_VM_VM_H_
 
 #include "hal/hal.h"
+#include "lib/assert.h"
 #include "include/sysinfo.h"
 #include "page.h"
 #include "map.h"
@@ -22,6 +23,13 @@
 #include "kmalloc.h"
 #include "object.h"
 #include "amap.h"
+
+
+#ifdef DEBUG_VM
+#define LIB_ASSERT_VM(condition, fmt, ...) LIB_ASSERT_ALWAYS((condition), (fmt), ##__VA_ARGS__)
+#else
+#define LIB_ASSERT_VM(condition, fmt, ...)
+#endif
 
 
 void vm_meminfo(meminfo_t *info);

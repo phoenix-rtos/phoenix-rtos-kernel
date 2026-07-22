@@ -1843,13 +1843,13 @@ static void proc_lockForceUnlock(lock_t *lock, int doYield)
 
 static int _proc_lockClear(lock_t *lock)
 {
-#ifndef NDEBUG
+#ifdef DEBUG_THREADS
 	thread_t *current = proc_current();
 
-	LIB_ASSERT(lock->owner != NULL, "lock: %s, pid: %d, tid: %d, unlock on not locked lock",
+	LIB_ASSERT_THREADS(lock->owner != NULL, "lock: %s, pid: %d, tid: %d, unlock on not locked lock",
 			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
-	LIB_ASSERT(lock->owner == current, "lock: %s, pid: %d, tid: %d, owner: %d, unlocking someone's else lock",
+	LIB_ASSERT_THREADS(lock->owner == current, "lock: %s, pid: %d, tid: %d, owner: %d, unlocking someone's else lock",
 			lock->name, (current->process != NULL) ? process_getPid(current->process) : 0,
 			proc_getTid(current), proc_getTid(lock->owner));
 #endif

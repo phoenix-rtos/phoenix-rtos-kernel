@@ -22,6 +22,12 @@
 #include "process.h"
 #include "lock.h"
 
+#ifdef DEBUG_THREADS
+#define LIB_ASSERT_THREADS(condition, fmt, ...) LIB_ASSERT_ALWAYS((condition), (fmt), ##__VA_ARGS__)
+#else
+#define LIB_ASSERT_THREADS(condition, fmt, ...)
+#endif
+
 #define MAX_PRIO 7U /* Maximum priority value, of the lowest criticality (prio=0 is of the HIGHEST) */
 
 #define MAX_TID        MAX_ID
