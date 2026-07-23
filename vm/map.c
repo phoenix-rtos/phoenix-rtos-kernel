@@ -616,7 +616,8 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 		return vaddr;
 	}
 
-	if (process != NULL && process->lazy != 0U) {
+#ifndef NOMMU
+	if (map != map_common.kmap && process != NULL && process->lazy != 0U) {
 		return vaddr;
 	}
 
@@ -626,6 +627,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 			return NULL;
 		}
 	}
+#endif
 
 	return vaddr;
 }
