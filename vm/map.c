@@ -908,19 +908,28 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 		do {
 			e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
 
-			if (prev == NULL) {
-				/* First entry */
-				if (e->vaddr < t.vaddr) {
-					/* Split */
-					prev = e;
+			currSize = e->size;
+			currVaddr = t.vaddr;
 
-					e = buf;
-					buf = buf->next;
+			if (e->vaddr < currVaddr) {
+				/* Split */
+				prev = e;
 
-					_vm_mapEntrySplit(p, map, prev, e, (ptr_t)t.vaddr - (ptr_t)prev->vaddr);
-				}
+				e = buf;
+				buf = buf->next;
+
+				_vm_mapEntrySplit(p, map, prev, e, (ptr_t)currVaddr - (ptr_t)prev->vaddr);
+
+				currSize = e->size;
+				prev = NULL; /* Avoid merge'ing with prev outside of provided range */
 			}
-			else if ((prev->protOrig == e->protOrig) && (prev->object == e->object) && (prev->flags == e->flags)) {
+
+			if (lenLeft < currSize) {
+				_vm_mapEntrySplit(p, map, e, buf, lenLeft + ((ptr_t)currVaddr - (ptr_t)e->vaddr));
+				currSize = lenLeft;
+			}
+
+			if ((prev != NULL) && (prev->protOrig == e->protOrig) && (prev->object == e->object) && (prev->flags == e->flags)) {
 				/* Merge */
 				prev->rmaxgap = e->rmaxgap;
 				prev->size += e->size;
@@ -929,14 +938,6 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 
 				map_augment(&prev->linkage);
 				e = prev;
-			}
-			else {
-				/* No action required */
-			}
-
-
-			if (lenLeft < e->size) {
-				_vm_mapEntrySplit(p, map, e, buf, lenLeft);
 			}
 
 			e->prot = prot;
@@ -952,7 +953,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 					attr &= ~PGHD_WRITE;
 				}
 			}
-			for (currVaddr = e->vaddr; currVaddr < (e->vaddr + e->size); currVaddr += SIZE_PAGE) {
+			for (currVaddr = t.vaddr; currVaddr < (e->vaddr + e->size); currVaddr += SIZE_PAGE) {
 				if (needscopyNonLazy == 0) {
 					pa = pmap_resolve(&map->pmap, currVaddr);
 					if (pa != 0U) {
@@ -962,9 +963,13 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 				else {
 					result = _map_force(map, e, currVaddr, prot);
 				}
+				if (result != EOK) {
+					break;
+				}
 			}
 
-			lenLeft -= e->size;
+			t.vaddr += currSize;
+			lenLeft -= currSize;
 			prev = e;
 		} while ((lenLeft != 0U) && (result == EOK));
 	}
