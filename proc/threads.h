@@ -77,8 +77,9 @@ typedef struct _thread_t {
 	time_t maxWait;
 
 	time_t startTime;
-	time_t cpuTime;
 	time_t lastTime;
+	time_t userTime;
+	time_t systemTime;
 
 	cpu_context_t *context;
 	cpu_context_t *longjmpctx;
@@ -89,6 +90,11 @@ static inline int proc_getTid(const thread_t *t)
 {
 	return t->idlinkage.id;
 }
+
+typedef enum {
+	time_system,
+	time_user,
+} time_kind_t;
 
 
 thread_t *proc_current(void);
@@ -188,6 +194,9 @@ int threads_sigsuspend(unsigned int mask);
 
 
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
+
+
+void threads_updateCpuTime(thread_t *current, time_kind_t kind);
 
 
 #endif

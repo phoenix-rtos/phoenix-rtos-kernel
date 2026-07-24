@@ -30,7 +30,8 @@ typedef struct _threadinfo_t {
 	pid_t ppid;
 
 	int load;
-	time_t cpuTime;
+	time_t systemTime;
+	time_t userTime;
 	int priority;
 	int state;
 	int vmem;

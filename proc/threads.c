@@ -311,12 +311,45 @@ void threads_put(thread_t *thread)
 }
 
 
+void threads_updateCpuTime(thread_t *current, time_kind_t kind)
+{
+	spinlock_ctx_t sc;
+	time_t now, timeSpent;
+
+	if (current != NULL) {
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		now = _proc_gettimeRaw();
+
+		timeSpent = now - current->lastTime;
+
+		if (kind == time_system) {
+			current->systemTime += timeSpent;
+		}
+		else if (kind == time_user) {
+			current->userTime += timeSpent;
+		}
+		else {
+			/* No action required */
+		}
+
+		current->lastTime = now;
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
+}
+
+
 static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 {
 	time_t now = _proc_gettimeRaw();
 
 	if (current != NULL) {
-		current->cpuTime += now - current->lastTime;
+		if (current->process == NULL || hal_cpuSupervisorMode(current->context) == 1) {
+			current->systemTime += now - current->lastTime;
+		}
+		else {
+			current->userTime += now - current->lastTime;
+		}
+
 		current->lastTime = now;
 	}
 
@@ -574,7 +607,8 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->utick = 0;
 	t->priorityBase = priority;
 	t->priority = priority;
-	t->cpuTime = 0;
+	t->systemTime = 0;
+	t->userTime = 0;
 	t->maxWait = 0;
 	proc_gettime(&t->startTime, NULL);
 	t->lastTime = t->startTime;
@@ -1925,7 +1959,7 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 	thread_t *t;
 	map_entry_t *entry;
 	vm_map_t *map;
-	time_t now;
+	time_t now, cpuTime;
 	spinlock_ctx_t sc;
 	threadinfo_t tinfo;
 
@@ -1951,13 +1985,15 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 		tinfo.state = (int)t->state;
 
 		now = _proc_gettimeRaw();
+		cpuTime = t->systemTime + t->userTime;
 		if (now != t->startTime) {
-			tinfo.load = (int)((t->cpuTime * 1000) / (now - t->startTime));
+			tinfo.load = (int)((cpuTime * 1000) / (now - t->startTime));
 		}
 		else {
 			tinfo.load = 0;
 		}
-		tinfo.cpuTime = t->cpuTime;
+		tinfo.userTime = t->userTime;
+		tinfo.systemTime = t->systemTime;
 
 		if (t->state == READY && t->maxWait < now - t->readyTime) {
 			tinfo.wait = now - t->readyTime;
