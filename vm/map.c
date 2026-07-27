@@ -854,7 +854,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 	addr_t pa;
 	vm_attr_t attr;
 	int needscopyNonLazy;
-	map_entry_t *e, *buf = NULL, *prev;
+	map_entry_t *e, *buf = NULL, *prev, *head, *tail;
 	map_entry_t t;
 
 	if (((((ptr_t)vaddr) & (SIZE_PAGE - 1U)) != 0U) || (len == 0U) || ((len & (SIZE_PAGE - 1U)) != 0U)) {
@@ -901,79 +901,89 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 		}
 	}
 
-	if (result == EOK) {
-		t.vaddr = vaddr;
-		prev = NULL;
-		lenLeft = len;
-		do {
-			e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
+	if (result != EOK) {
+		(void)proc_lockClear(&map->lock);
+		return result;
+	}
+
+	t.vaddr = vaddr;
+	prev = NULL;
+	lenLeft = len;
+	do {
+		e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
+
+		currSize = e->size;
+		currVaddr = t.vaddr;
+
+		if (e->vaddr < currVaddr) {
+			/* Split */
+			head = e;
+
+			e = buf;
+			buf = buf->next;
+
+			_vm_mapEntrySplit(p, map, head, e, (ptr_t)currVaddr - (ptr_t)head->vaddr);
 
 			currSize = e->size;
-			currVaddr = t.vaddr;
+		}
 
-			if (e->vaddr < currVaddr) {
-				/* Split */
-				prev = e;
+		if (lenLeft < currSize) {
+			tail = buf;
+			buf = buf->next; /* Avoid freeing the split entry in final cleanup */
+			_vm_mapEntrySplit(p, map, e, tail, lenLeft + ((ptr_t)currVaddr - (ptr_t)e->vaddr));
+			currSize = lenLeft;
+		}
 
-				e = buf;
-				buf = buf->next;
+		if ((prev != NULL) && (prev->protOrig == e->protOrig) && (prev->flags == e->flags) &&
+				(prev->object == e->object) && ((prev->object == NULL) || (e->offs == (prev->offs + prev->size))) &&
+				(prev->amap == e->amap) && ((e->amap == NULL) || (e->aoffs == (prev->aoffs + prev->size)))) {
+			/* Merge */
+			prev->rmaxgap = e->rmaxgap;
+			prev->size += e->size;
 
-				_vm_mapEntrySplit(p, map, prev, e, (ptr_t)currVaddr - (ptr_t)prev->vaddr);
+			_entry_put(map, e);
 
-				currSize = e->size;
-				prev = NULL; /* Avoid merge'ing with prev outside of provided range */
+			map_augment(&prev->linkage);
+			e = prev;
+		}
+
+		e->prot = prot;
+
+		attr = (vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags));
+		needscopyNonLazy = 0;
+		/* If an entry needs copy, enter it as a readonly to copy it on first access. */
+		if (((e->flags & MAP_NEEDSCOPY) != 0U) && ((prot & PROT_WRITE) != 0U)) {
+			if ((p == NULL) || (p->lazy == 0U)) {
+				needscopyNonLazy = 1;
 			}
-
-			if (lenLeft < currSize) {
-				_vm_mapEntrySplit(p, map, e, buf, lenLeft + ((ptr_t)currVaddr - (ptr_t)e->vaddr));
-				currSize = lenLeft;
+			else {
+				attr &= ~PGHD_WRITE;
 			}
-
-			if ((prev != NULL) && (prev->protOrig == e->protOrig) && (prev->flags == e->flags) &&
-					(prev->object == e->object) && ((prev->object == NULL) || (e->offs == (prev->offs + prev->size))) &&
-					(prev->amap == e->amap) && ((e->amap == NULL) || (e->aoffs == (prev->aoffs + prev->size)))) {
-				/* Merge */
-				prev->rmaxgap = e->rmaxgap;
-				prev->size += e->size;
-
-				_entry_put(map, e);
-
-				map_augment(&prev->linkage);
-				e = prev;
-			}
-
-			e->prot = prot;
-
-			attr = (vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags));
-			needscopyNonLazy = 0;
-			/* If an entry needs copy, enter it as a readonly to copy it on first access. */
-			if (((e->flags & MAP_NEEDSCOPY) != 0U) && ((prot & PROT_WRITE) != 0U)) {
-				if ((p == NULL) || (p->lazy == 0U)) {
-					needscopyNonLazy = 1;
-				}
-				else {
-					attr &= ~PGHD_WRITE;
+		}
+		for (currVaddr = t.vaddr; currVaddr < (e->vaddr + e->size); currVaddr += SIZE_PAGE) {
+			if (needscopyNonLazy == 0) {
+				pa = pmap_resolve(&map->pmap, currVaddr);
+				if (pa != 0U) {
+					result = pmap_enter(&map->pmap, pa, currVaddr, attr, NULL);
 				}
 			}
-			for (currVaddr = t.vaddr; currVaddr < (e->vaddr + e->size); currVaddr += SIZE_PAGE) {
-				if (needscopyNonLazy == 0) {
-					pa = pmap_resolve(&map->pmap, currVaddr);
-					if (pa != 0U) {
-						result = pmap_enter(&map->pmap, pa, currVaddr, attr, NULL);
-					}
-				}
-				else {
-					result = _map_force(map, e, currVaddr, prot);
-				}
-				if (result != EOK) {
-					break;
-				}
+			else {
+				result = _map_force(map, e, currVaddr, prot);
 			}
+			if (result != EOK) {
+				break;
+			}
+		}
 
-			t.vaddr += currSize;
-			lenLeft -= currSize;
-			prev = e;
-		} while ((lenLeft != 0U) && (result == EOK));
+		t.vaddr += currSize;
+		lenLeft -= currSize;
+		prev = e;
+	} while ((lenLeft != 0U) && (result == EOK));
+
+	while (buf != NULL) {
+		e = buf;
+		buf = buf->next;
+		map_free(e);
 	}
 
 	(void)proc_lockClear(&map->lock);
