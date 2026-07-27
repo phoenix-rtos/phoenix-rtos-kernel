@@ -929,7 +929,9 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 				currSize = lenLeft;
 			}
 
-			if ((prev != NULL) && (prev->protOrig == e->protOrig) && (prev->object == e->object) && (prev->flags == e->flags)) {
+			if ((prev != NULL) && (prev->protOrig == e->protOrig) && (prev->flags == e->flags) &&
+					(prev->object == e->object) && ((prev->object == NULL) || (e->offs == (prev->offs + prev->size))) &&
+					(prev->amap == e->amap) && ((e->amap == NULL) || (e->aoffs == (prev->aoffs + prev->size)))) {
 				/* Merge */
 				prev->rmaxgap = e->rmaxgap;
 				prev->size += e->size;
