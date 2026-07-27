@@ -113,16 +113,17 @@ char *hal_strcpy(char *dest, const char *src)
 
 char *hal_strncpy(char *dest, const char *src, size_t n)
 {
-	size_t i;
+	size_t i = 0U;
 
 	if (n == 0U) {
 		return dest;
 	}
 
 	/* parasoft-begin-suppress MISRAC2012-RULE_18_1 "src is assumed to end with a null-byte" */
-	for (i = 0; i < n && src[i] != '\0'; i++) {
+	do {
 		dest[i] = src[i];
-	}
+		i++;
+	} while ((i < n) && (src[i - 1U] != '\0'));
 	/* parasoft-end-suppress MISRAC2012-RULE_18_1 */
 
 	return dest;
