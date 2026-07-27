@@ -82,6 +82,11 @@ int syscalls_sys_mmap(u8 *ustack)
 		return -EFAULT;
 	}
 
+	if ((flags & (MAP_DEVICE | MAP_PHYSMEM)) == MAP_DEVICE) {
+		/* MAP_DEVICE without MAP_PHYSMEM can lead to undefined behavior within vm subsystem */
+		return -EINVAL;
+	}
+
 	if ((flags & MAP_ANONYMOUS) != 0U) {
 		if ((flags & MAP_PHYSMEM) != 0U) {
 			o = VM_OBJ_PHYSMEM;

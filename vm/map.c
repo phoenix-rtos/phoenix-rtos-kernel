@@ -367,11 +367,11 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 		if (o == NULL) {
 			/* Try to use existing amap */
-			if (next != NULL && next->amap != NULL && e->vaddr >= (next->vaddr - next->aoffs)) {
+			if (next != NULL && next->amap != NULL && e->vaddr >= (next->vaddr - next->aoffs) && (next->flags & MAP_NEEDSCOPY) == 0U) {
 				e->amap = amap_ref(next->amap);
 				e->aoffs = next->aoffs - ((ptr_t)next->vaddr - (ptr_t)e->vaddr);
 			}
-			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - prev->aoffs + (size_t)prev->vaddr) >= ((size_t)e->vaddr + size)) {
+			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - prev->aoffs + (size_t)prev->vaddr) >= ((size_t)e->vaddr + size) && (prev->flags & MAP_NEEDSCOPY) == 0U) {
 				e->amap = amap_ref(prev->amap);
 				e->aoffs = prev->aoffs + ((ptr_t)e->vaddr - (ptr_t)prev->vaddr);
 			}
@@ -947,7 +947,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 			attr = (vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags));
 			needscopyNonLazy = 0;
 			/* If an entry needs copy, enter it as a readonly to copy it on first access. */
-			if ((e->flags & MAP_NEEDSCOPY) != 0U) {
+			if (((e->flags & MAP_NEEDSCOPY) != 0U) && ((prot & PROT_WRITE) != 0U)) {
 				if ((p == NULL) || (p->lazy == 0U)) {
 					needscopyNonLazy = 1;
 				}
@@ -1146,7 +1146,7 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 		_vm_mapEntryCopy(f, e, 1);
 		(void)_map_add(proc, dst, f);
 
-		if (((e->protOrig & PROT_WRITE) != 0U) && ((e->flags & MAP_DEVICE) == 0U)) {
+		if ((e->flags & MAP_DEVICE) == 0U) {
 			e->flags |= MAP_NEEDSCOPY;
 			f->flags |= MAP_NEEDSCOPY;
 
