@@ -1742,9 +1742,9 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 	if (err == EOK) {
 		/* TODO: handle POSIX defined requests */
 		if (size > 0U) {
-			GETFROMSTACK(ustack, void *, data, 2);
+			GETFROMSTACK(ustack, void *, data, 2U);
 			/* the actual size of the pointed-to structure: >= IOCPARM_LEN(request) */
-			GETFROMSTACK(ustack, size_t, size, 3);
+			GETFROMSTACK(ustack, size_t, size, 3U);
 
 			if ((request & IOC_INOUT) != 0U) {
 				if (data == NULL) {

@@ -245,7 +245,7 @@ static inline void trace_eventThreadEnd(const thread_t *t)
 }
 
 
-static inline void trace_eventSyscallEnter(int n, int tid)
+static inline void trace_eventSyscallEnter(unsigned int n, int tid)
 {
 	struct {
 		u8 n;
@@ -260,7 +260,7 @@ static inline void trace_eventSyscallEnter(int n, int tid)
 }
 
 
-static inline void trace_eventSyscallExit(int n, int tid)
+static inline void trace_eventSyscallExit(unsigned int n, int tid)
 {
 	struct {
 		u8 n;
