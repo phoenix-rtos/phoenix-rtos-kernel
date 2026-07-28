@@ -8,9 +8,7 @@
  * Copyright 2015, 2018 Phoenix Systems
  * Author: Jakub Sejdak, Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 

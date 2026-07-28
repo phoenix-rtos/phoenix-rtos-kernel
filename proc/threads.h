@@ -9,9 +9,7 @@
  * Copyright 2001, 2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Jacek Popko
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_PROC_THREADS_H_
@@ -172,7 +170,7 @@ void proc_gettime(time_t *raw, time_t *offs);
 int proc_settime(time_t offs);
 
 
-void proc_longjmp(cpu_context_t *ctx);
+__attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx);
 
 
 void proc_threadsDump(u8 priority);

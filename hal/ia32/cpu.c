@@ -9,9 +9,7 @@
  * Copyright 2001, 2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Jan Sikorski, Kamil Amanowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "include/errno.h"

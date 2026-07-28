@@ -9,9 +9,7 @@
  * Copyright 2001, 2005 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Hubert Buczynski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <arch/tlb.h>

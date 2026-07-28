@@ -8,9 +8,7 @@
  * Copyright 2018, 2020, 2025 Phoenix Systems
  * Author: Jan Sikorski, Pawel Pisarczyk, Ziemowit Leszczynski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "include/errno.h"
@@ -31,6 +29,10 @@
 #define US_DEF_BUFFER_SIZE SIZE_PAGE
 #define US_MIN_BUFFER_SIZE SIZE_PAGE
 #define US_MAX_BUFFER_SIZE 65536U
+#ifndef US_CONNECT_TIMEOUT
+/* Timeout of connect() on UNIX sockets in us; 0 waits indefinitely */
+#define US_CONNECT_TIMEOUT 0L
+#endif
 
 #define US_BOUND       (1U << 0)
 #define US_LISTENING   (1U << 1)
@@ -606,10 +608,11 @@ int unix_listen(unsigned int socket, int backlog)
 int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	unixsock_t *s, *r;
-	int err;
+	int err, pending;
 	oid_t oid;
 	void *v;
 	spinlock_ctx_t sc;
+	time_t now, timeout = 0;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -700,6 +703,12 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 			(void)proc_threadWakeup(&r->queue);
 			hal_spinlockClear(&r->spinlock, &sc);
 
+			/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "US_CONNECT_TIMEOUT is configuration-dependent" */
+			if (US_CONNECT_TIMEOUT != 0L) {
+				proc_gettime(&now, NULL);
+				timeout = now + US_CONNECT_TIMEOUT;
+			}
+
 			hal_spinlockSet(&s->spinlock, &sc);
 			s->state |= US_CONNECTING;
 
@@ -710,7 +719,45 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 			}
 
 			while (s->remote == NULL) {
-				(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+				err = proc_threadWait(&s->queue, &s->spinlock, timeout, &sc);
+
+				/* don't report -ETIMEDOUT if we got the socket anyway */
+				if (s->remote != NULL) {
+					err = EOK;
+					break;
+				}
+
+				if (err == -ETIME) {
+					break;
+				}
+			}
+
+			if (err == -ETIME) {
+				s->state &= ~US_CONNECTING;
+				hal_spinlockClear(&s->spinlock, &sc);
+
+				/* a socket left on the list would cause use-after-free in unix_accept() */
+				hal_spinlockSet(&r->spinlock, &sc);
+				pending = LIST_BELONGS(&r->connecting, s);
+				if (pending != 0) {
+					LIST_REMOVE(&r->connecting, s);
+				}
+				hal_spinlockClear(&r->spinlock, &sc);
+
+				if (pending != 0) {
+					err = -ETIMEDOUT;
+					break;
+				}
+
+				/* unix_accept() is mid-flight on this socket - returning now would risk use-after-free */
+				hal_spinlockSet(&s->spinlock, &sc);
+				while (s->remote == NULL) {
+					(void)proc_threadWait(&s->queue, &s->spinlock, 0, &sc);
+				}
+				hal_spinlockClear(&s->spinlock, &sc);
+
+				err = EOK;
+				break;
 			}
 
 			hal_spinlockClear(&s->spinlock, &sc);

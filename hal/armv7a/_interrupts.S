@@ -8,9 +8,7 @@
  * Copyright 2018, 2020, 2021 Phoenix Systems
  * Author: Pawel Pisarczyk, Aleksander Kaminski, Maciej Purski, Hubert Buczynski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #define __ASSEMBLY__
@@ -159,14 +157,11 @@ hal_cpuReschedule:
 
 	mrs r4, cpsr
 
-	/* If spinlock not NULL, clear it */
+	/* If spinlock was given, restore spinlock context into SPSR */
 	cmp r0, #0
 	beq 1f
-	mov r3, #1
-	dmb
-	strb r3, [r0]
-	ldr r1, [r1]
 
+	ldr r1, [r1]
 	bic r4, #0xff
 	and r1, #0xff
 	orr r4, r4, r1
@@ -179,13 +174,28 @@ hal_cpuReschedule:
 
 	push_fpu_state r4
 
-	sub r1, sp, #8
+	sub r1, sp, #8 /* argument to function - cpu_context_t* */
 	push {r1}
 	push {r1}
 
+	movs r4, r0
+	beq .Lno_spinlock
+
+	/* Call the non-locked version of threads_schedule */
+	blx _threads_schedule
+	ldr sp, [sp] /* Load pointer to new context (must be done BEFORE clearing spinlock) */
+
+	/* Clear the given spinlock */
+	mov r0, #1
+	dmb
+	strb r0, [r4]
+	b .Lcontext_ready
+
+.Lno_spinlock:
 	blx threads_schedule
+	ldr sp, [sp] /* Load pointer to new context */
 
-	ldr sp, [sp]
+.Lcontext_ready:
 	add sp, sp, #8
 
 	unlock_scheduler

@@ -8,9 +8,7 @@
  * Copyright 2023 Phoenix Systems
  * Author: Aleksander Kaminski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_LIB_ASSERT_H_

@@ -8,9 +8,7 @@
  * Copyright 2021 Phoenix Systems
  * Author: Maciej Purski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 #ifndef _PH_LOG_H_
 #define _PH_LOG_H_

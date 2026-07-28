@@ -9,9 +9,7 @@
  * Copyright 2007 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Aleksander Kaminski, Jan Sikorski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4-a "Compatible function declaration is not possible for syscalls" */
@@ -444,7 +442,6 @@ void syscalls_meminfo(u8 *ustack)
 
 	GETFROMSTACK(ustack, meminfo_t *, info, 0U);
 
-	/* TODO: Check subfields too */
 	if (vm_mapBelongs(proc, info, sizeof(*info)) >= 0) {
 		vm_meminfo(info);
 	}
@@ -1149,8 +1146,6 @@ void syscalls_sigreturn(u8 *ustack)
 	}
 
 	proc_longjmp(ctx);
-
-	__builtin_unreachable();
 }
 
 /* POSIX compatibility syscalls */
@@ -1855,7 +1850,13 @@ int syscalls_sys_poll(u8 *ustack)
 	GETFROMSTACK(ustack, nfds_t, nfds, 1U);
 	GETFROMSTACK(ustack, int, timeout_ms, 2U);
 
-	if (vm_mapBelongs(proc, fds, sizeof(*fds) * nfds) < 0) {
+	/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "Check needed on NOMMU + nfds_t type can change." */
+	if (nfds > (size_t)-1 / sizeof(*fds)) {
+		/* nfds * sizeof(*fds) would overflow */
+		return -EINVAL;
+	}
+
+	if (vm_mapBelongs(proc, fds, nfds * sizeof(*fds)) < 0) {
 		return -EFAULT;
 	}
 
@@ -1872,7 +1873,7 @@ int syscalls_sys_futimens(u8 *ustack)
 	GETFROMSTACK(ustack, int, fildes, 0U);
 	GETFROMSTACK(ustack, const struct timespec *, times, 1U);
 
-	if ((times != NULL) && (vm_mapBelongs(proc, times, sizeof(*times)) < 0)) {
+	if ((times != NULL) && (vm_mapBelongs(proc, times, 2U * sizeof(*times)) < 0)) {
 		return -EFAULT;
 	}
 

@@ -8,9 +8,7 @@
  * Copyright 2023 Phoenix Systems
  * Author: Lukasz Leczkowski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_ARCH_GR712RC_H_

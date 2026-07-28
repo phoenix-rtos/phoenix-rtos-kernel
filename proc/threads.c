@@ -9,9 +9,7 @@
  * Copyright 2001, 2005-2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Jacek Popko, Jan Sikorski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/hal.h"
@@ -575,21 +573,15 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->priorityBase = priority;
 	t->priority = priority;
 	t->cpuTime = 0;
+	proc_gettime(&t->readyTime, NULL);
 	t->maxWait = 0;
-	proc_gettime(&t->startTime, NULL);
-	t->lastTime = t->startTime;
+	t->startTime = t->readyTime;
+	t->lastTime = t->readyTime;
 	t->longjmpctx = NULL;
-
-	if (thread_alloc(t) < 0) {
-		vm_kfree(t->kstack);
-		vm_kfree(t);
-		return -ENOMEM;
-	}
 
 	if (process != NULL && (process->tls.tdata_sz != 0U || process->tls.tbss_sz != 0U)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
-			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
 			vm_kfree(t->kstack);
 			vm_kfree(t);
 			return err;
@@ -601,6 +593,15 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 		t->tls.tbss_sz = 0;
 		t->tls.tls_sz = 0;
 		t->tls.arm_m_tls = 0;
+	}
+
+	if (thread_alloc(t) < 0) {
+		if (t->tls.tls_sz != 0U) {
+			(void)process_tlsDestroy(&t->tls, process->mapp);
+		}
+		vm_kfree(t->kstack);
+		vm_kfree(t);
+		return -ENOMEM;
 	}
 
 	if (id != NULL) {
@@ -1152,6 +1153,10 @@ int proc_join(int tid, time_t timeout)
 	spinlock_ctx_t sc;
 	time_t now, abstimeout;
 
+	if (timeout < 0) {
+		return -EINVAL;
+	}
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	now = _proc_gettimeRaw();
@@ -1185,10 +1190,18 @@ int proc_join(int tid, time_t timeout)
 			}
 			else {
 				err = _proc_threadWait(&process->reaper, abstimeout, &sc);
-				firstGhost = process->ghosts;
-				ghost = firstGhost;
+				if (err == 0) {
+					firstGhost = process->ghosts;
+					ghost = firstGhost;
+				}
 			}
 		} while (err != -ETIME && err != -EINTR);
+
+		/* the loop could have ended without a match (e.g. on timeout) with
+		 * ghost still pointing to a list element - don't reap it */
+		if (found == 0) {
+			ghost = NULL;
+		}
 	}
 	else {
 		/* compatibility with existing code */

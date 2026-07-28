@@ -9,9 +9,7 @@
  * Copyright 2001, 2005-2006 Pawel Pisarczyk
  * Author: Pawel Pisarczyk
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/hal.h"
@@ -383,6 +381,19 @@ void vm_pageinfo(meminfo_t *info)
 	page_t *p;
 	unsigned int rep, i = 0;
 	int size = 0;
+	int mapsz = info->page.mapsz;
+	pageinfo_t *map = info->page.map;
+
+	if (mapsz != -1) {
+		/* mapsz * sizeof(map[0]) would overflow */
+		if (mapsz < -1 || (size_t)mapsz > (size_t)-1 / sizeof(map[0])) {
+			return;
+		}
+
+		if (vm_mapBelongs(proc_current()->process, map, (size_t)mapsz * sizeof(map[0])) < 0) {
+			return;
+		}
+	}
 
 	(void)proc_lockSet(&pages_info.lock);
 
@@ -391,7 +402,7 @@ void vm_pageinfo(meminfo_t *info)
 	info->page.boot = (unsigned int)pages_info.bootsz;
 	info->page.sz = (unsigned int)sizeof(page_t);
 
-	if (info->page.mapsz != -1) {
+	if (mapsz != -1) {
 		while (i < pages_info.totalsz / SIZE_PAGE) {
 			p = pages_info.pages + i;
 
@@ -402,10 +413,10 @@ void vm_pageinfo(meminfo_t *info)
 				}
 			}
 
-			if (info->page.mapsz > size && info->page.map != NULL) {
-				info->page.map[size].count = rep + 1U;
-				info->page.map[size].marker = c;
-				info->page.map[size].addr = p->addr;
+			if (mapsz > size && map != NULL) {
+				map[size].count = rep + 1U;
+				map[size].marker = c;
+				map[size].addr = p->addr;
 			}
 
 			i += rep + 1U;

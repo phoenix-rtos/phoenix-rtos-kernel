@@ -6,11 +6,9 @@
  * Low-level initialization for RISCV64
  *
  * Copyright 2018, 2020, 2024 Phoenix Systems
- * Author: Pawel Pisarczyk, Łukasz Kosiński, Lukasz Leczkowski
+ * Author: Pawel Pisarczyk, Lukasz Kosinski, Lukasz Leczkowski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #define __ASSEMBLY__

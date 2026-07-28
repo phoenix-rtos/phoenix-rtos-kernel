@@ -9,9 +9,7 @@
  * Copyright 2001, 2006-2007 Pawel Pisarczyk
  * Author: Pawel Pisarczyk, Pawel Kolodziej, Pawel Krezolek, Aleksander Kaminski, Jan Sikorski, Krystian Wasik
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/hal.h"
@@ -1455,9 +1453,6 @@ static void process_vforkThread(void *arg)
 
 	/* Start execution from parent suspend point */
 	proc_longjmp(parent->context);
-
-	/* This part of code left unexecuted */
-	return;
 }
 
 

@@ -8,9 +8,7 @@
  * Copyright 2012-2015, 2016-2017 Phoenix Systems
  * Author: Pawel Pisarczyk, Pawel Kolodziej, Jacek Popko
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_ERRNO_H_
@@ -68,6 +66,7 @@
 #define EADDRINUSE      98
 #define EISCONN         106
 #define ENOTCONN        107
+#define ETIMEDOUT       110
 #define ECONNREFUSED    111
 #define EALREADY        114
 #define EINPROGRESS     115

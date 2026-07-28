@@ -8,9 +8,7 @@
  * Copyright 2017, 2020-2022, 2025 Phoenix Systems
  * Author: Pawel Pisarczyk, Aleksander Kaminski, Hubert Buczynski, Damian Loewnau, Krzysztof Radzewicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "hal/pmap.h"

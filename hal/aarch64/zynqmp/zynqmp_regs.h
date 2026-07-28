@@ -9,9 +9,7 @@
  * Copyright 2024 Phoenix Systems
  * Author: Jacek Maksymowicz
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_ZYNQMP_REGS_H_

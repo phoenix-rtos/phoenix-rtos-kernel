@@ -8,9 +8,7 @@
  * Copyright 2021 Phoenix Systems
  * Author: Ziemowit Leszczynski
  *
- * This file is part of Phoenix-RTOS.
- *
- * %LICENSE%
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _PH_POSIX_FDPASS_H_
