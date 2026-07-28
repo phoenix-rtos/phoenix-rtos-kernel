@@ -1702,7 +1702,7 @@ static int process_execve(thread_t *current)
 	/* Close cloexec file descriptors */
 	(void)posix_exec();
 
-	trace_eventSyscallExit((int)syscall_exec, proc_getTid(current));
+	trace_eventSyscallExit((unsigned int)syscall_exec, proc_getTid(current));
 	process_exec(current, spawn);
 
 	/* Not reached */

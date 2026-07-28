@@ -743,7 +743,8 @@ int syscalls_interrupt(u8 *ustack)
 	GETFROMSTACK(ustack, handle_t, cond, 3U);
 	GETFROMSTACK(ustack, handle_t *, handle, 4U);
 
-	if ((f == NULL) || (vm_mapBelongs(proc, f, 1) < 0)) {
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a-2 "We want to check if at least start of memory occupied by the function is accessible to user." */
+	if ((f == NULL) || (vm_mapBelongs(proc, (const void *)f, 1) < 0)) {
 		return -EINVAL;
 	}
 
