@@ -19,6 +19,7 @@
 #include "hal/hal.h"
 #include "include/errno.h"
 
+#include "hal/arm/rtt.h"
 #include "hal/arm/scs.h"
 
 #include <board_config.h>
@@ -772,6 +773,7 @@ void _stm32_init(void)
 	stm32_common.flash = (void *)0x40022000U;
 
 	_hal_scsInit();
+	(void)_hal_rttInit();
 
 	/* Enable System configuration controller */
 	(void)_stm32_rccSetDevClock(pctl_syscfg, 1U);
