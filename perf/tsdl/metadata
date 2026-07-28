@@ -213,9 +213,9 @@ event {
 		u16 tid;
 		u16 port;
 		u8 type;
-    u32 ialn;
     u32 isize;
-    u32 oaln;
     u32 osize;
+    u64 idata;
+    u64 odata;
 	};
 };

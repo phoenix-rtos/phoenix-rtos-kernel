@@ -325,7 +325,7 @@ static inline void trace_eventProcessExec(const thread_t *t)
 }
 
 
-static inline void trace_eventMsgSend(int tid, u32 port, u8 type, size_t isize, size_t osize)
+static inline void trace_eventMsgSend(int tid, u32 port, u8 type, size_t isize, size_t osize, ptr_t idata, ptr_t odata)
 {
 	struct {
 		u16 tid;
@@ -333,6 +333,8 @@ static inline void trace_eventMsgSend(int tid, u32 port, u8 type, size_t isize, 
 		u8 type;
 		u32 isize;
 		u32 osize;
+		u64 idata;
+		u64 odata;
 	} __attribute__((packed)) ev;
 
 	TRACE_MSG_BODY(TRACE_EVENT_MSG_SEND, ev, NULL, {
@@ -341,6 +343,8 @@ static inline void trace_eventMsgSend(int tid, u32 port, u8 type, size_t isize, 
 		ev.type = type;
 		ev.isize = (u32)isize;
 		ev.osize = (u32)osize;
+		ev.idata = (u64)idata;
+		ev.odata = (u64)odata;
 	});
 }
 

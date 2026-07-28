@@ -357,7 +357,7 @@ int proc_send(u32 port, msg_t *msg)
 	spinlock_ctx_t sc;
 	int state;
 
-	trace_eventMsgSend(proc_getTid(proc_current()), port, msg->type, msg->i.size, msg->o.size);
+	trace_eventMsgSend(proc_getTid(proc_current()), port, msg->type, msg->i.size, msg->o.size, (ptr_t)msg->i.data, (ptr_t)msg->o.data);
 
 	/* TODO - check if msg pointer belongs to user vm_map */
 	if (msg == NULL) {

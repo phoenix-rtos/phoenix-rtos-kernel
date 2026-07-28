@@ -1879,28 +1879,24 @@ void process_getName(const process_t *process, char *buf, size_t sz)
 		return;
 	}
 
-	if (process->path != NULL) {
-		space = sz;
-		sbuf = buf;
-
-		if (process->argv != NULL) {
-			for (argc = 0; process->argv[argc] != NULL; ++argc) {
-				if (space == 0U) {
-					break;
-				}
-				len = min(hal_strlen(process->argv[argc]) + 1U, space);
-				hal_memcpy(sbuf, process->argv[argc], len);
-				sbuf[len - 1U] = ' ';
-				sbuf += len;
-				space -= len;
+	space = sz;
+	sbuf = buf;
+	if (process->argv != NULL) {
+		for (argc = 0; process->argv[argc] != NULL; ++argc) {
+			if (space == 0U) {
+				break;
 			}
-			*(sbuf - 1) = '\0';
+			len = min(hal_strlen(process->argv[argc]) + 1U, space);
+			hal_memcpy(sbuf, process->argv[argc], len);
+			sbuf[len - 1U] = ' ';
+			sbuf += len;
+			space -= len;
 		}
-		else {
-			len = hal_strlen(process->path) + 1U;
-			hal_memcpy(buf, process->path, min(space, len));
-		}
-
+		*(sbuf - 1) = '\0';
+	}
+	else if (process->path != NULL) {
+		len = hal_strlen(process->path) + 1U;
+		hal_memcpy(buf, process->path, min(space, len));
 		buf[sz - 1U] = '\0';
 	}
 	else {
