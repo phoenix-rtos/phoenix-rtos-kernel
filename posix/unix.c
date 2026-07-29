@@ -80,6 +80,17 @@ typedef struct _unixsock_t {
 } unixsock_t;
 
 
+typedef struct {
+	size_t len;
+	socklen_t namelen;
+} __attribute__((packed)) unixsock_dgramhdr_t;
+
+
+typedef struct {
+	size_t len;
+} __attribute__((packed)) unixsock_seqpkthdr_t;
+
+
 static struct {
 	rbtree_t tree;
 	lock_t lock;
@@ -332,9 +343,19 @@ static void unixsock_put(unixsock_t *s)
 }
 
 
-static void unix_copyName(const char *name, socklen_t namelen, struct sockaddr *address, socklen_t *address_len)
+typedef void (*copyNameFn_t)(void *buf, socklen_t len, const void *arg);
+
+
+static void unix_nameMemcpy(void *buf, socklen_t len, const void *arg)
 {
-	if (name == NULL) {
+	const char *name = arg;
+	hal_memcpy(buf, name, len);
+}
+
+
+static void unix_copyNameEx(socklen_t namelen, struct sockaddr *address, socklen_t *address_len, copyNameFn_t copyName, const void *arg)
+{
+	if (namelen == 0U) {
 		*address_len = 0U;
 		return;
 	}
@@ -351,10 +372,16 @@ static void unix_copyName(const char *name, socklen_t namelen, struct sockaddr *
 	const socklen_t copylen = min(namelen, buflen - familylen);
 
 	address->sa_family = AF_UNIX;
-	hal_memcpy(address->sa_data, name, copylen);
+	copyName(address->sa_data, copylen, arg);
 	if (buflen - familylen > copylen) {
 		address->sa_data[copylen] = '\0';
 	}
+}
+
+
+static inline void unix_copyName(const char *name, socklen_t namelen, struct sockaddr *address, socklen_t *address_len)
+{
+	unix_copyNameEx(namelen, address, address_len, unix_nameMemcpy, name);
 }
 
 
@@ -811,6 +838,8 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 				hal_spinlockClear(&r->spinlock, &sc);
 
 				if (pending != 0) {
+					vm_kfree(v);
+					_cbuffer_init(&s->buffer, NULL, 0);
 					err = -ETIMEDOUT;
 					break;
 				}
@@ -932,13 +961,25 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 }
 
 
+static void unix_nameDgramPeek(void *buf, socklen_t len, const void *arg)
+{
+	const unixsock_t *s = arg;
+	(void)_cbuffer_peekOffs(&s->buffer, buf, len, sizeof(unixsock_dgramhdr_t));
+}
+
+
 static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int *flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
-	unixsock_t *s;
-	size_t rlen = 0;
+	unixsock_t *s, *r;
+	size_t rlen = 0, hdrsz;
 	ssize_t err;
 	spinlock_ctx_t sc;
 	unsigned int peek;
+
+	union {
+		unixsock_dgramhdr_t dgram;
+		unixsock_seqpkthdr_t seqpkt;
+	} hdr;
 
 	peek = ((*flags & MSG_PEEK) != 0U) ? 1U : 0U;
 
@@ -966,24 +1007,44 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int *fl
 				}
 			}
 			else { /* SOCK_DGRAM or SOCK_SEQPACKET */
-				if (_cbuffer_avail(&s->buffer) >= sizeof(rlen)) {
-					if (peek != 0U) {
-						(void)_cbuffer_peek(&s->buffer, &rlen, sizeof(rlen));
-						(void)_cbuffer_peekOffs(&s->buffer, buf, min(len, rlen), sizeof(rlen));
+				hdrsz = (s->type == SOCK_DGRAM) ? sizeof(hdr.dgram) : sizeof(hdr.seqpkt);
+
+				if (_cbuffer_avail(&s->buffer) >= hdrsz) {
+					if (s->type == SOCK_DGRAM) {
+						(void)_cbuffer_peek(&s->buffer, &hdr.dgram, sizeof(hdr.dgram));
+						rlen = hdr.dgram.len;
+						if (src_addr != NULL && src_len != NULL) {
+							unix_copyNameEx(hdr.dgram.namelen, src_addr, src_len, unix_nameDgramPeek, s);
+						}
+						hdrsz += hdr.dgram.namelen;
 					}
-					else {
-						(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
-						(void)_cbuffer_read(&s->buffer, buf, min(len, rlen));
+					else { /* SOCK_SEQPACKET */
+						(void)_cbuffer_peek(&s->buffer, &hdr.seqpkt, sizeof(hdr.seqpkt));
+						rlen = hdr.seqpkt.len;
 					}
+
+					LIB_ASSERT(hdrsz + rlen <= _cbuffer_avail(&s->buffer), "receive buffer corrupted");
+
+					(void)_cbuffer_peekOffs(&s->buffer, buf, min(len, rlen), hdrsz);
 
 					err = (ssize_t)min(len, rlen);
 
+					if (peek == 0U) {
+						/* discard the data */
+						(void)_cbuffer_discard(&s->buffer, hdrsz + rlen);
+					}
+
 					if (len < rlen) {
-						if (peek == 0U) {
-							(void)_cbuffer_discard(&s->buffer, rlen - len);
-						}
 						*flags |= MSG_TRUNC;
 					}
+				}
+			}
+
+			if (s->type != SOCK_DGRAM && err > 0 && src_addr != NULL && src_len != NULL) { /* SOCK_STREAM or SOCK_SEQPACKET */
+				r = unixsock_get_remote(s);
+				if (r != NULL) {
+					unix_copyName(r->name, r->namelen, src_addr, src_len);
+					unixsock_put(r);
 				}
 			}
 
@@ -997,12 +1058,6 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int *fl
 						*flags |= MSG_CTRUNC;
 					}
 				}
-			}
-			else if (controllen != NULL) {
-				*controllen = 0U;
-			}
-			else {
-				/* No action required */
 			}
 			(void)proc_lockClear(&s->lock);
 
@@ -1044,6 +1099,12 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 	ssize_t err;
 	oid_t oid;
 	spinlock_ctx_t sc;
+	size_t msgsz;
+
+	union {
+		unixsock_dgramhdr_t dgram;
+		unixsock_seqpkthdr_t seqpkt;
+	} hdr;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -1123,16 +1184,37 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 
 		if (len > 0U) {
 			for (;;) {
+				if (s->type == SOCK_DGRAM) {
+					hdr.dgram.len = len;
+					hdr.dgram.namelen = (s->name != NULL) ? (socklen_t)hal_strlen(s->name) : 0U;
+					msgsz = sizeof(hdr.dgram) + hdr.dgram.len + hdr.dgram.namelen;
+				}
+				else if (s->type == SOCK_SEQPACKET) {
+					hdr.seqpkt.len = len;
+					msgsz = sizeof(hdr.seqpkt) + hdr.seqpkt.len;
+				}
+				else { /* SOCK_STREAM */
+					msgsz = len;
+				}
+
 				(void)proc_lockSet(&r->lock);
 				if (s->type == SOCK_STREAM) {
 					err = (ssize_t)_cbuffer_write(&r->buffer, buf, len);
 				}
-				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
+				else if (_cbuffer_free(&r->buffer) >= msgsz) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+					if (s->type == SOCK_DGRAM) {
+						(void)_cbuffer_write(&r->buffer, &hdr.dgram, sizeof(hdr.dgram));
+						if (hdr.dgram.namelen > 0U) {
+							(void)_cbuffer_write(&r->buffer, s->name, hdr.dgram.namelen);
+						}
+					}
+					else { /* SOCK_SEQPACKET */
+						(void)_cbuffer_write(&r->buffer, &hdr.seqpkt, sizeof(hdr.seqpkt));
+					}
 					(void)_cbuffer_write(&r->buffer, buf, len);
 					err = (ssize_t)len;
 				}
-				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+				else if (r->buffsz < msgsz) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
 					(void)proc_lockClear(&r->lock);
 					break;
@@ -1400,6 +1482,7 @@ int unix_poll(unsigned int socket, unsigned short events)
 {
 	unixsock_t *s, *r;
 	unsigned int err = 0;
+	size_t hdrsz;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -1430,7 +1513,8 @@ int unix_poll(unsigned int socket, unsigned short events)
 					}
 				}
 				else {
-					if (_cbuffer_free(&r->buffer) > sizeof(size_t)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+					hdrsz = (r->type == SOCK_DGRAM) ? sizeof(unixsock_dgramhdr_t) : sizeof(unixsock_seqpkthdr_t);
+					if (_cbuffer_free(&r->buffer) > hdrsz) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 						err |= (unsigned int)events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
