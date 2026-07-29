@@ -1653,6 +1653,9 @@ int proc_fork(void)
 		}
 		else {
 			hal_cpuEnableInterrupts();
+
+			/* Re-emit the process_exec event as the name of current is now set */
+			trace_eventProcessExec(current);
 		}
 	}
 #endif
