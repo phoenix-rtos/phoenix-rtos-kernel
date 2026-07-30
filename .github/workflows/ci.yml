@@ -11,6 +11,7 @@ on:
     branches:
       - master
       - 'feature/*'
+      - michal.lach/zedboard_repro
 
 jobs:
   call-ci:
