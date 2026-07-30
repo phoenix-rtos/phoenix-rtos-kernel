@@ -536,7 +536,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			lib_splitname(path, &name, &dir);
 
 			if (proc_lookup(dir, NULL, &odir) < 0) {
-				err = -ENOTDIR;
+				err = -ENOENT;
 				break;
 			}
 
@@ -555,6 +555,9 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
 
 			if (err != 0) {
+				if (err == -EEXIST) {
+					err = -EADDRINUSE;
+				}
 				if (s->type == SOCK_DGRAM) {
 					_cbuffer_init(&s->buffer, NULL, 0);
 					vm_kfree(v);
