@@ -1225,6 +1225,11 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 	 * receive memory from different maps and processes via msg
 	 * and RO elf segments may not be assigned to any process.
 	 */
+#elif defined(EXCJMP_SUPPORTED)
+	/* Only check if memory region sits in userspace */
+	if (((ptr_t)ptr > VADDR_USR_MAX) || ((ptr_t)ptr + size > VADDR_USR_MAX) || ((ptr_t)ptr + size < (ptr_t)ptr)) {
+		return -1;
+	}
 #elif !defined(NOMMU)
 	map_entry_t e, *f;
 
