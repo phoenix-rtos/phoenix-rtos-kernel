@@ -19,6 +19,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "include/mman.h"
+#include "proc/threads.h"
 
 
 #define EXC_ASYNC_EXTERNAL      0x16U
@@ -50,9 +51,14 @@ static struct {
 enum { exc_reset = 0, exc_undef, exc_svc, exc_prefetch, exc_abort };
 /* clang-format on */
 
-
 void hal_exceptionsDumpContext(char *buff, exc_context_t *ctx, unsigned int n)
 {
+	if (hal_strcmp(proc_current()->process->path, "/bin/bind") == 0) {
+		WIP_verifyBindBinary();
+	}
+	else {
+		hal_consolePrint(ATTR_BOLD, "hal_exceptionsDumpContext: Not /bin/bind\n");
+	}
 	static const char *const mnemonics[] = {
 		"0 #Reset", "1 #Undef", "2 #Syscall", "3 #Prefetch",
 		"4 #Abort", "5 #Reserved", "6 #FIRQ", "7 #IRQ"

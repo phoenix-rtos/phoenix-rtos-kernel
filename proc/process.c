@@ -1326,6 +1326,9 @@ int proc_syspageSpawnName(const char *imap, const char *dmap, const char *name, 
 
 int proc_syspageSpawn(const syspage_prog_t *program, vm_map_t *imap, vm_map_t *map, const char *path, char **argv)
 {
+	if (hal_strcmp(path, "psh") == 0) {
+		WIP_setPshOffs(program->start);
+	}
 	return proc_spawn(VM_OBJ_PHYSMEM, program, imap, map, (off_t)program->start, program->end - program->start, path, argv, NULL);
 }
 
@@ -1760,6 +1763,10 @@ int proc_execve(const char *path, char **argv, char **envp)
 		vm_kfree(argv);
 		vm_kfree(envp);
 		return err;
+	}
+
+	if (hal_strcmp(path, "/bin/bind") == 0) {
+		WIP_setBindOid(oid);
 	}
 
 	err = vm_objectGet(&object, oid);

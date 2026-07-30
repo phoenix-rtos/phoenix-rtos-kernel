@@ -29,6 +29,9 @@ static struct {
 	vm_object_t *kernel;
 	vm_map_t *kmap;
 	lock_t lock;
+
+	oid_t bindOid;
+	addr_t pshOffs;
 } object_common;
 
 
@@ -314,6 +317,53 @@ vm_object_t *vm_objectContiguous(size_t size)
 }
 
 
+void WIP_setPshOffs(addr_t offs)
+{
+	object_common.pshOffs = offs;
+}
+void WIP_setBindOid(oid_t oid)
+{
+	hal_memcpy(&object_common.bindOid, &oid, sizeof(oid));
+}
+void WIP_verifyBindBinary(void)
+{
+	void *bindPage;
+	off_t offs;
+	vm_object_t o, *object;
+
+	hal_cpuDisableInterrupts();
+
+	o.oid.port = object_common.bindOid.port;
+	o.oid.id = object_common.bindOid.id;
+	object = lib_treeof(vm_object_t, linkage, lib_rbFind(&object_common.tree, &o.linkage));
+	if (object == NULL) {
+		lib_printf("vm: ERROR: bind binary object not found\n");
+		hal_cpuEnableInterrupts();
+		return;
+	}
+
+	for (offs = 0; offs < object->size; offs += SIZE_PAGE) {
+		if (object->pages[offs / SIZE_PAGE] == NULL) {
+			lib_printf("vm: ERROR: bind binary page 0x%08x not loaded\n", (unsigned int)offs);
+			continue;
+		}
+		bindPage = vm_mmap(object_common.kmap, NULL, object->pages[offs / SIZE_PAGE], SIZE_PAGE, PROT_READ, object_common.kernel, 0, MAP_NONE);
+
+		void *syspagePage = vm_mmap(object_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ, VM_OBJ_PHYSMEM, object_common.pshOffs + offs, MAP_NONE);
+		if (hal_memcmp(bindPage, syspagePage, SIZE_PAGE) != 0) {
+			lib_printf("vm: ERROR: PSH (0x%08x+0x%08x) page does not match the one in the object\n", (unsigned int)object_common.pshOffs, offs);
+		}
+		else {
+			lib_printf("vm: match for PSH (0x%08x+0x%08x) page\n", (unsigned int)object_common.pshOffs, offs);
+		}
+		(void)vm_munmap(object_common.kmap, syspagePage, SIZE_PAGE);
+		(void)vm_munmap(object_common.kmap, bindPage, SIZE_PAGE);
+	}
+
+	hal_cpuEnableInterrupts();
+}
+
+
 int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 {
 	vm_object_t *o;
@@ -332,6 +382,10 @@ int _object_init(vm_map_t *kmap, vm_object_t *kernel)
 	(void)lib_rbInsert(&object_common.tree, &kernel->linkage);
 
 	(void)vm_objectGet(&o, kernel->oid);
+
+	object_common.bindOid.id = -10;
+	object_common.bindOid.port = -10;
+	object_common.pshOffs = -10;
 
 	return EOK;
 }

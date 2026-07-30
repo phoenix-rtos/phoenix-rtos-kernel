@@ -59,4 +59,8 @@ vm_object_t *vm_objectContiguous(size_t size);
 int _object_init(struct _vm_map_t *kmap, vm_object_t *kernel);
 
 
+void WIP_setPshOffs(addr_t offs);
+void WIP_setBindOid(oid_t oid);
+void WIP_verifyBindBinary(void);
+
 #endif
