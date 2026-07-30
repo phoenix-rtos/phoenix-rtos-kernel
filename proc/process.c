@@ -19,6 +19,7 @@
 #include "include/errno.h"
 #include "include/signal.h"
 #include "include/syscalls.h"
+#include "include/elf-notes.h"
 #include "vm/vm.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
@@ -63,6 +64,7 @@ static struct {
 	lock_t lock;
 	idtree_t id;
 	int idcounter;
+	u32 crc32Table[256];
 } process_common;
 
 
@@ -347,6 +349,121 @@ static int process_isPtrValid(void *mapStart, size_t mapSize, void *ptrStart, si
 }
 
 
+/* Precompute the CRC-32 table (standard IEEE 802.3 reflected polynomial) */
+static void crc32_initTable(void)
+{
+	u32 i, c;
+	int k;
+	for (i = 0; i < 256; i++) {
+		c = i;
+		for (k = 0; k < 8; k++) {
+			c = (c & 1) ? (0xEDB88320 ^ (c >> 1)) : (c >> 1);
+		}
+		process_common.crc32Table[i] = c;
+	}
+}
+
+
+static u32 crc32_update(u32 crc, const u8 *buf, size_t len)
+{
+	size_t i;
+	/* zlib starts with ~crc (0xFFFFFFFF when crc == 0) */
+	crc = ~crc;
+	for (i = 0; i < len; i++) {
+		crc = process_common.crc32Table[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
+	}
+	return ~crc;
+}
+
+
+/* TODO: add support for Elf64 checksums */
+static int process_validateElf32Checksum(void *iehdr)
+{
+	Elf32_Ehdr *ehdr = iehdr;
+	Elf32_Phdr *phdr = (void *)((char *)ehdr + ehdr->e_phoff);
+	u32 checksumFileOffset = 0;
+	u32 storedCrc = 0;
+	int foundNote = 0;
+	unsigned int i;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if (phdr[i].p_type == PT_NOTE) {
+			const u8 *notePtr = (u8 *)iehdr + phdr[i].p_offset;
+			const u8 *noteEnd = notePtr + phdr[i].p_filesz;
+
+			while (notePtr + sizeof(Elf32_Nhdr) <= noteEnd) {
+				const Elf32_Nhdr *nhdr = (const Elf32_Nhdr *)notePtr;
+				u32 nameszAlign = ELF_NOTE_ALIGN(nhdr->n_namesz);
+				u32 descszAlign = ELF_NOTE_ALIGN(nhdr->n_descsz);
+
+				if ((nameszAlign > (size_t)(noteEnd - notePtr - sizeof(Elf32_Nhdr))) ||
+						(descszAlign > (size_t)(noteEnd - notePtr - sizeof(Elf32_Nhdr) - nameszAlign))) {
+					return -ENOEXEC;
+				}
+
+				const u8 *namePtr = notePtr + sizeof(Elf32_Nhdr);
+				const u8 *descPtr = namePtr + nameszAlign;
+
+				if (nhdr->n_type == ELF_CHECKSUM_MAGIC) {
+					if (descszAlign < 4) {
+						return -ENOEXEC;
+					}
+					checksumFileOffset = (u32)(descPtr - (u8 *)iehdr);
+					storedCrc = *(const u32 *)descPtr;
+					foundNote = 1;
+					break;
+				}
+
+				notePtr += sizeof(Elf32_Nhdr) + nameszAlign + descszAlign;
+			}
+		}
+		if (foundNote != 0) {
+			break;
+		}
+	}
+
+	if (foundNote != 0) {
+		u32 calcCrc = 0;
+		static const u8 zeros[4] = { 0x00, 0x00, 0x00, 0x00 };
+
+		for (int i = 0; i < ehdr->e_phnum; i++) {
+			if (phdr[i].p_type == PT_LOAD) {
+				u32 segStart = phdr[i].p_offset;
+				u32 segEnd = segStart + phdr[i].p_filesz;
+
+				if ((checksumFileOffset >= segStart) && ((checksumFileOffset + 4) <= segEnd)) {
+					/* Data before the checksum */
+					size_t before_len = checksumFileOffset - segStart;
+					if (before_len > 0) {
+						calcCrc = crc32_update(calcCrc, (u8 *)iehdr + segStart, before_len);
+					}
+
+					/* Must calculate crc on checksum bytes like its set to zeros */
+					calcCrc = crc32_update(calcCrc, zeros, 4);
+
+					/* Data after the checksum */
+					u32 afterOffset = checksumFileOffset + 4;
+					size_t afterLen = segEnd - afterOffset;
+					if (afterLen > 0) {
+						calcCrc = crc32_update(calcCrc, (u8 *)iehdr + afterOffset, afterLen);
+					}
+				}
+				else {
+					calcCrc = crc32_update(calcCrc, (u8 *)iehdr + segStart, phdr[i].p_filesz);
+				}
+			}
+		}
+
+		if ((storedCrc != 0) && (calcCrc != storedCrc)) {
+			LIB_ASSERT(0, "ELF CRC mismatch! 0x%08X != 0x%08X", calcCrc, storedCrc);
+			return -ENOEXEC;
+		}
+	}
+
+	return EOK;
+}
+
+
 /* Ensure kernel won't make a bad access on a malformed elf during load. */
 static int process_validateElf32(void *iehdr, size_t size)
 {
@@ -390,6 +507,10 @@ static int process_validateElf32(void *iehdr, size_t size)
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
 			return -ENOEXEC;
 		}
+	}
+
+	if (process_validateElf32Checksum(iehdr) < 0) {
+		return -ENOEXEC;
 	}
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
@@ -1835,6 +1956,7 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	process_common.idcounter = 1;
 	(void)proc_lockInit(&process_common.lock, &proc_lockAttrDefault, "process.common");
 	lib_idtreeInit(&process_common.id);
+	crc32_initTable();
 
 	(void)hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	(void)hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);

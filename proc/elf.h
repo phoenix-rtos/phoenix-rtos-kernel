@@ -51,6 +51,7 @@ typedef u64 Elf64_Xword;
 #define PT_LOAD      1U
 #define PT_DYNAMIC   2U
 #define PT_INTERP    3U
+#define PT_NOTE      4U
 #define PT_GNU_STACK 0x6474e551U
 #define PT_LOPROC    0x70000000U
 #define PT_HIPROC    0x7fffffffU
@@ -129,6 +130,13 @@ typedef struct {
 
 
 typedef struct {
+	u32 n_namesz;
+	u32 n_descsz;
+	u32 n_type;
+} Elf32_Nhdr;
+
+
+typedef struct {
 	unsigned char e_ident[EI_NIDENT];
 	Elf64_Half e_type;
 	Elf64_Half e_machine;
@@ -178,6 +186,7 @@ typedef struct {
 #define ELF32_R_SYM(info)       ((info) >> 8)
 #define ELF32_R_TYPE(info)      ((unsigned char)(info))
 #define ELF32_R_INFO(sym, type) (((sym) << 8) + (unsigned char)(type))
+#define ELF_NOTE_ALIGN(len)     (((len) + 3) & ~3)
 
 
 #endif
