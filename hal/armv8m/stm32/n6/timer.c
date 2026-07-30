@@ -64,21 +64,6 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 }
 
 
-void timer_jiffiesAdd(time_t t)
-{
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&timer_common.sp, &sc);
-	if (timer_common.frequency == (1000UL * 1000UL)) {
-		timer_common.ticks += (u64)t;
-	}
-	else {
-		timer_common.ticks += ((u64)t * timer_common.frequency) / (1000UL * 1000UL);
-	}
-	hal_spinlockClear(&timer_common.sp, &sc);
-}
-
-
 char *hal_timerFeatures(char *features, size_t len)
 {
 	(void)hal_strncpy(features, "Using STM32 TIM timer", len);

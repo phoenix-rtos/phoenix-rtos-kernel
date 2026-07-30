@@ -61,7 +61,7 @@ int _stm32_gpioGetPort(int d, u16 *val);
 void _stm32_pwrSetCPUVolt(u8 range);
 
 
-time_t _stm32_pwrEnterLPStop(time_t us);
+void _stm32_pwrEnterLPStop(time_t us);
 
 
 void _stm32_rtcUnlockRegs(void);

@@ -137,12 +137,6 @@ static time_t hal_timerGetCyc(void)
 
 /* Additional functions */
 
-void timer_jiffiesAdd(time_t t)
-{
-	(void)t;
-}
-
-
 void timer_setAlarm(time_t us)
 {
 	int cmpdone = 0;
