@@ -17,9 +17,6 @@
 #include "hal/types.h"
 
 
-void timer_jiffiesAdd(time_t t);
-
-
 void timer_setAlarm(time_t us);
 
 

@@ -478,7 +478,7 @@ void _stm32_pwrSetCPUVolt(u8 range)
 
 
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
-time_t _stm32_pwrEnterLPStop(time_t us)
+void _stm32_pwrEnterLPStop(time_t us)
 {
 	unsigned int t;
 	int restoreMsi = 0;
@@ -520,8 +520,6 @@ time_t _stm32_pwrEnterLPStop(time_t us)
 	if (stm32_common.cpuclk <= 6U * 1000U * 1000U) {
 		_stm32_pwrSetCPUVolt(2U);
 	}
-
-	return 0;
 }
 
 
