@@ -22,7 +22,7 @@
 #include "proc/threads.h"
 
 
-void lib_assertPanic(const char *func, int line, const char *fmt, ...)
+__attribute__((noreturn)) void lib_assertPanic(const char *func, int line, const char *fmt, ...)
 {
 	va_list ap;
 
