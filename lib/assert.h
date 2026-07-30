@@ -15,7 +15,7 @@
 #define _PH_LIB_ASSERT_H_
 
 
-void lib_assertPanic(const char *func, int line, const char *fmt, ...);
+__attribute__((noreturn)) void lib_assertPanic(const char *func, int line, const char *fmt, ...);
 
 
 #define LIB_ASSERT_ALWAYS(condition, fmt, ...) \

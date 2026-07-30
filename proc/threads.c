@@ -250,7 +250,10 @@ __attribute__((noreturn)) void threads_halt(void)
 {
 	spinlock_ctx_t sc;
 
-	/* take the spinlock, and not release it; other threads will eventually hang trying to reschedule */
+	/*
+	 * Take the threads spinlock and not release it - this is an attempt to stop other cores in SMP from
+	 * continuing to execute code (they should eventually hang trying to run the scheduler).
+	 */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	for (;;) {
 		hal_cpuHalt();
