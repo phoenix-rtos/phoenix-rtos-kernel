@@ -51,6 +51,7 @@ typedef u64 Elf64_Xword;
 #define PT_LOAD      1U
 #define PT_DYNAMIC   2U
 #define PT_INTERP    3U
+#define PT_NOTE      4U
 #define PT_GNU_STACK 0x6474e551U
 #define PT_LOPROC    0x70000000U
 #define PT_HIPROC    0x7fffffffU

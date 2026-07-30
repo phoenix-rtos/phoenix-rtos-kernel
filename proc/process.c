@@ -63,6 +63,8 @@ static struct {
 	lock_t lock;
 	idtree_t id;
 	int idcounter;
+	u32 crc32_table[256];
+	int crc_table_ready;
 } process_common;
 
 
@@ -346,6 +348,60 @@ static int process_isPtrValid(void *mapStart, size_t mapSize, void *ptrStart, si
 	/* clang-format on */
 }
 
+struct elf_integrity {
+	u32 magic;
+	u32 checksum;
+} __attribute__((packed));
+
+struct elf_integrity *find_signature_o1(const u8 *elf_buffer)
+{
+	/* Read offset stored at byte index 7 of the ELF header */
+	u32 offset = *(u32 *)&elf_buffer[7];
+
+	if (offset == 0) {
+		return NULL; /* Not patched or invalid */
+	}
+
+	struct elf_integrity *sig = (struct elf_integrity *)(elf_buffer + offset);
+	if (sig->magic == 0x7a796e71) {
+		return sig;
+	}
+	return NULL;
+}
+
+/* Precompute the CRC-32 table (standard IEEE 802.3 reflected polynomial) */
+static void init_crc32_table(void)
+{
+	for (u32 i = 0; i < 256; i++) {
+		u32 c = i;
+		for (int k = 0; k < 8; k++) {
+			c = (c & 1) ? (0xEDB88320 ^ (c >> 1)) : (c >> 1);
+		}
+		process_common.crc32_table[i] = c;
+	}
+	process_common.crc_table_ready = 1;
+}
+
+static u32 crc32_update(u32 crc, const u8 *buf, size_t len)
+{
+	if (process_common.crc_table_ready == 0) {
+		init_crc32_table();
+	}
+	/* zlib starts with ~crc (0xFFFFFFFF when crc == 0) */
+	crc = ~crc;
+	for (size_t i = 0; i < len; i++) {
+		crc = process_common.crc32_table[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
+	}
+	return ~crc;
+}
+
+typedef struct {
+	u32 n_namesz;
+	u32 n_descsz;
+	u32 n_type;
+} Elf32_Nhdr;
+
+#define ELF_NOTE_ALIGN(len) (((len) + 3) & ~3)
 
 /* Ensure kernel won't make a bad access on a malformed elf during load. */
 static int process_validateElf32(void *iehdr, size_t size)
@@ -390,6 +446,74 @@ static int process_validateElf32(void *iehdr, size_t size)
 		if ((offs >= (off_t)size) || (memsz < filesz)) {
 			return -ENOEXEC;
 		}
+	}
+
+	u32 checksum_file_offset = 0;
+	u32 stored_crc = 0;
+	int found_note = 0;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if (phdr[i].p_type == PT_NOTE) {
+			const u8 *note_ptr = (u8 *)iehdr + phdr[i].p_offset;
+			const u8 *note_end = note_ptr + phdr[i].p_filesz;
+
+			while (note_ptr < note_end) {
+				const Elf32_Nhdr *nhdr = (const Elf32_Nhdr *)note_ptr;
+
+				const u8 *name_ptr = note_ptr + sizeof(Elf32_Nhdr);
+				const u8 *desc_ptr = name_ptr + ELF_NOTE_ALIGN(nhdr->n_namesz);
+
+				if (nhdr->n_type == 0x70727400) {
+					checksum_file_offset = (u32)(desc_ptr - (u8 *)iehdr);
+					stored_crc = *(const u32 *)desc_ptr;
+					found_note = 1;
+					break;
+				}
+
+				size_t note_size = sizeof(Elf32_Nhdr) + ELF_NOTE_ALIGN(nhdr->n_namesz) + ELF_NOTE_ALIGN(nhdr->n_descsz);
+				note_ptr += note_size;
+			}
+		}
+		if (found_note != 0)
+			break;
+	}
+
+	if (found_note != 0) {
+		u32 calc_crc = 0;
+		static const u8 zeros[4] = { 0x00, 0x00, 0x00, 0x00 };
+
+		for (int i = 0; i < ehdr->e_phnum; i++) {
+			if (phdr[i].p_type == PT_LOAD) {
+				u32 seg_start = phdr[i].p_offset;
+				u32 seg_end = seg_start + phdr[i].p_filesz;
+
+				/* Check if the 4-byte checksum field resides inside this PT_LOAD segment */
+				if (checksum_file_offset >= seg_start && (checksum_file_offset + 4) <= seg_end) {
+
+					/* Data before the checksum */
+					size_t before_len = checksum_file_offset - seg_start;
+					if (before_len > 0) {
+						calc_crc = crc32_update(calc_crc, (u8 *)iehdr + seg_start, before_len);
+					}
+
+					/* Virtual 4 zero bytes (substitutes actual checksum in stream) */
+					calc_crc = crc32_update(calc_crc, zeros, 4);
+
+					/* Data after the checksum */
+					u32 after_offset = checksum_file_offset + 4;
+					size_t after_len = seg_end - after_offset;
+					if (after_len > 0) {
+						calc_crc = crc32_update(calc_crc, (u8 *)iehdr + after_offset, after_len);
+					}
+				}
+				else {
+					/* Checksum is not in this segment, stream entire segment normally */
+					calc_crc = crc32_update(calc_crc, (u8 *)iehdr + seg_start, phdr[i].p_filesz);
+				}
+			}
+		}
+
+		LIB_ASSERT(stored_crc == 0 || calc_crc == stored_crc, "CRC mismatch!");
 	}
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
@@ -1835,6 +1959,7 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	process_common.idcounter = 1;
 	(void)proc_lockInit(&process_common.lock, &proc_lockAttrDefault, "process.common");
 	lib_idtreeInit(&process_common.id);
+	process_common.crc_table_ready = 0;
 
 	(void)hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	(void)hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
