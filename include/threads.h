@@ -31,8 +31,13 @@ struct lockAttr {
 /* Condvar attributes */
 
 
+#define PH_COND_NORMAL   0
+#define PH_COND_UNLOCKED 1 /* Cond without lock - can be used for waiting for IRQ signal or sync on atomics */
+
+
 struct condAttr {
 	int clock;
+	int type;
 };
 
 

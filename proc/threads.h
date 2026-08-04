@@ -140,6 +140,9 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spin
 int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);
 
 
+int proc_threadWaitExclusive(thread_t **queue, time_t timeout);
+
+
 int proc_threadWakeup(thread_t **queue);
 
 
