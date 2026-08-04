@@ -33,6 +33,8 @@ enum { event_scheduling, event_enqueued, event_waking, event_preempted };
 #define UNLOCK_TRY        0
 #define UNLOCK_FORCE      1
 
+#define THREAD_WAIT_INTERRUPTIBLE (1U << 0)
+#define THREAD_WAIT_EXCLUSIVE     (1U << 1) /* reject a second waiter (unlocked exclusive conditional) */
 
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL };
 
@@ -1039,30 +1041,42 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
 }
 
 
-static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, u8 interruptible, spinlock_ctx_t *scp)
+static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, u32 flags, spinlock_ctx_t *scp)
 {
 	int err;
 	spinlock_ctx_t tsc;
+	spinlock_ctx_t *rescheduleScp = (scp == NULL) ? &tsc : scp;
+
+	LIB_ASSERT((spinlock == NULL) == (scp == NULL), "spinlock and scp must both be NULL or both be non-NULL");
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
-	if ((interruptible != 0U) && (_proc_current()->exit != 0U)) {
+	if (((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) && (_proc_current()->exit != 0U)) {
 		/* Waiting in this state can lead to becoming a hanging zombie */
 		hal_spinlockClear(&threads_common.spinlock, &tsc);
 		return -EINTR;
 	}
 
-	_proc_threadEnqueue(queue, timeout, interruptible);
+	if (((flags & THREAD_WAIT_EXCLUSIVE) != 0U) && (*queue != NULL) && (*queue != wakeupPending)) {
+		hal_spinlockClear(&threads_common.spinlock, &tsc);
+		return -EBUSY;
+	}
+
+	_proc_threadEnqueue(queue, timeout, ((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) ? 1U : 0U);
 
 	if (*queue == NULL) {
 		hal_spinlockClear(&threads_common.spinlock, &tsc);
 		return EOK;
 	}
 
-	/* tsc and scp are swapped intentionally, we need to enable interrupts */
-	hal_spinlockClear(spinlock, &tsc);
-	err = hal_cpuReschedule(&threads_common.spinlock, scp);
-	hal_spinlockSet(spinlock, scp);
+	if (spinlock != NULL) {
+		/* tsc and scp are swapped intentionally, we need to enable interrupts */
+		hal_spinlockClear(spinlock, &tsc);
+	}
+	err = hal_cpuReschedule(&threads_common.spinlock, rescheduleScp);
+	if (spinlock != NULL) {
+		hal_spinlockSet(spinlock, scp);
+	}
 
 	return err;
 }
@@ -1076,7 +1090,13 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spin
 
 int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp)
 {
-	return proc_threadWaitEx(queue, spinlock, timeout, 1U, scp);
+	return proc_threadWaitEx(queue, spinlock, timeout, THREAD_WAIT_INTERRUPTIBLE, scp);
+}
+
+
+int proc_threadWaitExclusive(thread_t **queue, time_t timeout)
+{
+	return proc_threadWaitEx(queue, NULL, timeout, THREAD_WAIT_INTERRUPTIBLE | THREAD_WAIT_EXCLUSIVE, NULL);
 }
 
 
@@ -1831,7 +1851,7 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 
 	err = _proc_lockClear(lock);
 	if (err >= 0) {
-		err = proc_threadWaitEx(queue, &lock->spinlock, timeout, 1U, &sc);
+		err = proc_threadWaitInterruptible(queue, &lock->spinlock, timeout, &sc);
 		if (err != -EINTR) {
 			(void)_proc_lockSet(lock, 0U, &sc);
 		}

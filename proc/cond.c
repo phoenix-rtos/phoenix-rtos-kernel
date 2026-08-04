@@ -54,7 +54,8 @@ int proc_condCreate(const struct condAttr *attr)
 	cond_t *cond;
 	int id;
 
-	if ((attr->clock != PH_CLOCK_RELATIVE) && (attr->clock != PH_CLOCK_REALTIME) && (attr->clock != PH_CLOCK_MONOTONIC)) {
+	if (((attr->clock != PH_CLOCK_RELATIVE) && (attr->clock != PH_CLOCK_REALTIME) && (attr->clock != PH_CLOCK_MONOTONIC)) ||
+			((attr->type != PH_COND_NORMAL) && (attr->type != PH_COND_UNLOCKED))) {
 		return -EINVAL;
 	}
 
@@ -85,18 +86,33 @@ int proc_condCreate(const struct condAttr *attr)
 int proc_condWait(int c, int m, time_t timeout)
 {
 	cond_t *cond;
-	mutex_t *mutex;
+	mutex_t *mutex = NULL;
 	int err = 0;
 	time_t offs, abstime = 0;
+	int condType;
 
 	cond = cond_get(c);
 	if (cond == NULL) {
 		return -EINVAL;
 	}
 
-	mutex = mutex_get(m);
-	if (mutex == NULL) {
-		cond_put(cond);
+	condType = cond->attr.type;
+
+	if (condType == PH_COND_NORMAL) {
+		mutex = mutex_get(m);
+		if (mutex == NULL) {
+			cond_put(cond);
+			return -EINVAL;
+		}
+	}
+	else if (condType == PH_COND_UNLOCKED) {
+		if (m != -1) {
+			cond_put(cond);
+			return -EINVAL;
+		}
+	}
+	else {
+		/* wrong type, should never happen */
 		return -EINVAL;
 	}
 
@@ -132,13 +148,28 @@ int proc_condWait(int c, int m, time_t timeout)
 				err = -EINVAL;
 				break;
 		}
+
+		if (err != 0) {
+			if (mutex != NULL) {
+				mutex_put(mutex);
+			}
+			cond_put(cond);
+			return err;
+		}
 	}
 
-	if (err == 0) {
+	if (condType == PH_COND_NORMAL) {
 		err = proc_lockWait(&cond->queue, &mutex->lock, abstime);
+
+		mutex_put(mutex);
+	}
+	else if (condType == PH_COND_UNLOCKED) {
+		err = proc_threadWaitExclusive(&cond->queue, abstime);
+	}
+	else {
+		/* already checked, no action required */
 	}
 
-	mutex_put(mutex);
 	cond_put(cond);
 
 	return err;
