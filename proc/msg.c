@@ -14,8 +14,10 @@
  */
 
 #include "include/errno.h"
+#include "include/syscalls.h"
 #include "lib/lib.h"
 #include "perf/trace-events.h"
+#include "perf/trace-msg.h"
 #include "proc.h"
 
 
@@ -358,10 +360,15 @@ int proc_send(u32 port, msg_t *msg)
 
 	trace_eventMsgSend(proc_getTid(proc_current()), port, msg->type, msg->i.size, msg->o.size, (ptr_t)msg->i.data, (ptr_t)msg->o.data);
 
+	TRACE_MSG_PROFILE_ENTER_FUNC(syscall_msgSend);
+	TRACE_MSG_PROFILE_SET_SIZES(msg->i.size, msg->o.size);
+
 	/* TODO - check if msg pointer belongs to user vm_map */
 	if (msg == NULL) {
 		return -EINVAL;
 	}
+
+	TRACE_MSG_PROFILE_POINT("portGet");
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -369,6 +376,8 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	sender = proc_current();
+
+	TRACE_MSG_PROFILE_POINT("kmsg setup");
 
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
 	kmsg.src = sender->process;
@@ -378,6 +387,8 @@ int proc_send(u32 port, msg_t *msg)
 	kmsg.msg.pid = (sender->process != NULL) ? process_getPid(sender->process) : 0;
 	kmsg.msg.priority = sender->priority;
 
+	TRACE_MSG_PROFILE_POINT("msg_ipack");
+
 	msg_ipack(&kmsg);
 
 	hal_spinlockSet(&p->spinlock, &sc);
@@ -386,8 +397,12 @@ int proc_send(u32 port, msg_t *msg)
 		err = -EINVAL;
 	}
 	else {
+		TRACE_MSG_PROFILE_POINT("threadWakeup");
+
 		LIST_ADD(&p->kmessages, &kmsg);
 		(void)proc_threadWakeup(&p->threads);
+
+		TRACE_MSG_PROFILE_POINT("ign: wait for msg");
 
 		state = kmsg.state;
 		while ((state != msg_responded) && (state != msg_rejected)) {
@@ -425,9 +440,14 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	hal_spinlockClear(&p->spinlock, &sc);
+
+	TRACE_MSG_PROFILE_POINT("port_put");
+
 	port_put(p, 0);
 
 	if (err == EOK) {
+		TRACE_MSG_PROFILE_POINT("msg->o copy");
+
 		hal_memcpy(msg->o.raw, kmsg.msg.o.raw, sizeof(msg->o.raw));
 		msg->o.err = kmsg.msg.o.err;
 
@@ -435,6 +455,8 @@ int proc_send(u32 port, msg_t *msg)
 		if ((kmsg.msg.o.data >= (void *)kmsg.msg.o.raw) && (kmsg.msg.o.data < (void *)kmsg.msg.o.raw + sizeof(kmsg.msg.o.raw))) {
 			hal_memcpy(msg->o.data, kmsg.msg.o.data, msg->o.size);
 		}
+
+		TRACE_MSG_PROFILE_EXIT_FUNC();
 	}
 
 	return err;
@@ -448,6 +470,10 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	int ipacked = 0, opacked = 0, err = EOK;
 	spinlock_ctx_t sc;
 
+	TRACE_MSG_PROFILE_ENTER_FUNC(syscall_msgRecv);
+
+	TRACE_MSG_PROFILE_POINT("portGet");
+
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
@@ -455,11 +481,16 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	hal_spinlockSet(&p->spinlock, &sc);
 
+	TRACE_MSG_PROFILE_POINT("ign: wait for msg");
+
 	while ((p->kmessages == NULL) && (p->closed == 0) && (err != -EINTR)) {
 		err = proc_threadWaitInterruptible(&p->threads, &p->spinlock, 0, &sc);
 	}
 
 	kmsg = p->kmessages;
+
+	TRACE_MSG_PROFILE_SET_SIZES(kmsg->msg.i.size, kmsg->msg.o.size);
+	TRACE_MSG_PROFILE_POINT("setup kmsg");
 
 	if (p->closed != 0) {
 		/* Port is being removed */
@@ -504,16 +535,25 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		ipacked = 1;
 	}
 
+	TRACE_MSG_PROFILE_POINT("map idata");
+
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
 	if (ipacked == 0) {
 		kmsg->msg.i.data = msg_mapProcess(0, kmsg, (void *)(ptr_t)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 	}
 
+	TRACE_MSG_PROFILE_POINT("msg opack");
+
 	opacked = msg_opack(kmsg);
+
+	TRACE_MSG_PROFILE_POINT("map odata");
+
 	if (opacked == 0) {
 		kmsg->msg.o.data = msg_mapProcess(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);
 	}
+
+	TRACE_MSG_PROFILE_POINT("portRidAlloc");
 
 	if (((kmsg->msg.i.size != 0U) && (kmsg->msg.i.data == NULL)) ||
 			((kmsg->msg.o.size != 0U) && (kmsg->msg.o.data == NULL)) ||
@@ -532,6 +572,8 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 	*rid = lib_idtreeId(&kmsg->idlinkage);
 
+	TRACE_MSG_PROFILE_POINT("memcpy");
+
 	hal_memcpy(msg, &kmsg->msg, sizeof(*msg));
 
 	if (ipacked != 0) {
@@ -542,7 +584,11 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 		msg->o.data = msg->o.raw + (kmsg->msg.o.data - (void *)kmsg->msg.o.raw);
 	}
 
+	TRACE_MSG_PROFILE_POINT("port_put");
+
 	port_put(p, 0);
+
+	TRACE_MSG_PROFILE_EXIT_FUNC();
 
 	return EOK;
 }
@@ -554,15 +600,24 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	kmsg_t *kmsg;
 	spinlock_ctx_t sc;
 
+	TRACE_MSG_PROFILE_ENTER_FUNC(syscall_msgRespond);
+	TRACE_MSG_PROFILE_SET_SIZES(msg->i.size, msg->o.size);
+
+	TRACE_MSG_PROFILE_POINT("portGet");
+
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
 	}
 
+	TRACE_MSG_PROFILE_POINT("portRidGet");
+
 	kmsg = proc_portRidGet(p, rid);
 	if (kmsg == NULL) {
 		return -ENOENT;
 	}
+
+	TRACE_MSG_PROFILE_POINT("i shadow pages");
 
 	/* Copy shadow pages */
 	if (kmsg->i.bp != NULL) {
@@ -573,6 +628,8 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		hal_memcpy(kmsg->i.evaddr, kmsg->i.w + kmsg->i.boffs + kmsg->msg.i.size - kmsg->i.eoffs, (size_t)kmsg->i.eoffs);
 	}
 
+	TRACE_MSG_PROFILE_POINT("o shadow pages");
+
 	if (kmsg->o.bp != NULL) {
 		hal_memcpy(kmsg->o.bvaddr + kmsg->o.boffs, kmsg->o.w + kmsg->o.boffs, (size_t)min(SIZE_PAGE - kmsg->o.boffs, kmsg->msg.o.size));
 	}
@@ -581,9 +638,15 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 		hal_memcpy(kmsg->o.evaddr, kmsg->o.w + kmsg->o.boffs + kmsg->msg.o.size - kmsg->o.eoffs, (size_t)kmsg->o.eoffs);
 	}
 
+	TRACE_MSG_PROFILE_POINT("msg_release");
+
 	msg_release(kmsg);
 
+	TRACE_MSG_PROFILE_POINT("raw memcpy");
+
 	hal_memcpy(kmsg->msg.o.raw, msg->o.raw, sizeof(msg->o.raw));
+
+	TRACE_MSG_PROFILE_POINT("kmsg setup");
 	kmsg->msg.o.err = msg->o.err;
 
 	hal_spinlockSet(&p->spinlock, &sc);
@@ -591,9 +654,16 @@ int proc_respond(u32 port, msg_t *msg, msg_rid_t rid)
 	kmsg->src = proc_current()->process;
 	(void)proc_threadWakeup(&kmsg->threads);
 	hal_spinlockClear(&p->spinlock, &sc);
+
+	TRACE_MSG_PROFILE_POINT("ign:reschedule");
+
 	(void)hal_cpuReschedule(NULL, NULL);
 
+	TRACE_MSG_PROFILE_POINT("port_put");
+
 	port_put(p, 0);
+
+	TRACE_MSG_PROFILE_EXIT_FUNC();
 
 	return EOK;
 }
