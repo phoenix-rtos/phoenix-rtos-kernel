@@ -598,7 +598,16 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 		do {
 			err = proc_lookup(filename, &ln, &oid);
 			if ((err == -ENOENT) && (((unsigned int)oflag & O_CREAT) != 0U)) {
-				GETFROMSTACK(ustack, mode_t, mode, 2U);
+				USERMEM_TRY(
+						{
+							GETFROMSTACK(ustack, mode_t, mode, 2U);
+						},
+						{
+							err = -EFAULT;
+						});
+				if (err == -EFAULT) {
+					break;
+				}
 
 				err = posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid);
 				if (err < 0) {
@@ -1635,7 +1644,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
 		case F_DUPFD:
-			GETFROMSTACK(ustack, int, fd2, 2U);
+			USERMEM_TRY({ GETFROMSTACK(ustack, int, fd2, 2U); }, { return -EFAULT; });
 			err = posix_fcntlDup(fd, fd2, (cmd == (unsigned int)F_DUPFD_CLOEXEC) ? 1 : 0);
 			break;
 
@@ -1644,7 +1653,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFD:
-			GETFROMSTACK(ustack, unsigned int, arg, 2U);
+			USERMEM_TRY({ GETFROMSTACK(ustack, unsigned int, arg, 2U); }, { return -EFAULT; });
 			err = posix_fcntlSetFd(fd, arg);
 			break;
 
@@ -1653,7 +1662,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFL:
-			GETFROMSTACK(ustack, unsigned int, arg, 2U);
+			USERMEM_TRY({ GETFROMSTACK(ustack, unsigned int, arg, 2U); }, { return -EFAULT; });
 			err = posix_fcntlSetFl(fd, arg);
 			break;
 
@@ -1747,11 +1756,17 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 	if (err == EOK) {
 		/* TODO: handle POSIX defined requests */
 		if (size > 0U) {
-			GETFROMSTACK(ustack, void *, data, 2U);
-			/* the actual size of the pointed-to structure: >= IOCPARM_LEN(request) */
-			GETFROMSTACK(ustack, size_t, size, 3U);
+			USERMEM_TRY(
+					{
+						GETFROMSTACK(ustack, void *, data, 2U);
+						/* the actual size of the pointed-to structure: >= IOCPARM_LEN(request) */
+						GETFROMSTACK(ustack, size_t, size, 3U);
+					},
+					{
+						err = -EFAULT;
+					});
 
-			if ((request & IOC_INOUT) != 0U) {
+			if ((err == EOK) && ((request & IOC_INOUT) != 0U)) {
 				prot |= ((request & IOC_IN) != 0U) ? PROT_READ : 0U;
 				prot |= ((request & IOC_OUT) != 0U) ? PROT_WRITE : 0U;
 				if (data == NULL) {
