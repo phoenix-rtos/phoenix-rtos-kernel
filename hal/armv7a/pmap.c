@@ -268,11 +268,18 @@ void pmap_switch(pmap_t *pmap)
 static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, vm_attr_t attr, unsigned char asid)
 {
 	unsigned int pti = ID_PTABLE((ptr_t)va);
+	u32 hwAttr;
 
 	hal_cpuCleanDataCache((ptr_t)&ptable[pti], (ptr_t)&ptable[pti] + sizeof(ptr_t));
 	ptr_t oldEntry = ptable[pti];
 	if ((attr & PGHD_PRESENT) != 0U) {
-		ptable[pti] = (pa & ~0xfffU) | attrMap[attr & 0x1fU];
+		hwAttr = attrMap[attr & 0x1fU];
+		if ((ptr_t)va >= VADDR_KERNEL) {
+			/* In kernel address space all mappings must be global, even if they are accessible from PL0 */
+			hwAttr &= ~TT2S_NOTGLOBAL;
+		}
+
+		ptable[pti] = (pa & ~0xfffU) | hwAttr;
 	}
 	else {
 		ptable[pti] = 0;
@@ -280,15 +287,7 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, vm_attr_t attr,
 
 	hal_cpuDataSyncBarrier();
 	if ((oldEntry & 0x3U) != 0U) {
-		if ((ptr_t)va >= VADDR_KERNEL) {
-			hal_cpuDataSyncBarrier();
-			asm volatile("mcr p15, 0, %0, c8, c3, 3" ::"r"((ptr_t)va & ~0xfffU) : "memory"); /* TLBIMVAAIS */
-			hal_cpuDataSyncBarrier();
-			hal_cpuInstrBarrier();
-		}
-		else {
-			hal_cpuInvalVAAll(((ptr_t)va & ~0xfffU) | asid);
-		}
+		hal_cpuInvalVAAll(((ptr_t)va & ~0xfffU) | asid);
 	}
 
 	hal_cpuBranchInval();
