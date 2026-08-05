@@ -47,6 +47,7 @@ static void main_initthr(void *unused)
 	/* Enable locking and multithreading related mechanisms */
 	_hal_start();
 	_usrv_start();
+	vm_pageBenchmark(&main_common.kmap);
 
 	lib_printf("main: Starting syspage programs:");
 	syspage_progShow();

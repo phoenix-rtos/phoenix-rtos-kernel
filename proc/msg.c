@@ -34,7 +34,8 @@ static struct {
 } msg_common;
 
 
-static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
+void *proc_msgMap(int dir, kmsg_t *kmsg, void *data, size_t size,
+		vm_map_t *srcmap, vm_map_t *dstmap, int destinationUser)
 {
 	void *w = NULL, *vaddr;
 	size_t boffs, eoffs;
@@ -43,7 +44,6 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	vm_attr_t attr;
 	vm_prot_t prot;
 	page_t *nep = NULL, *nbp = NULL;
-	vm_map_t *srcmap, *dstmap;
 	struct _kmsg_layout_t *ml = (dir != 0) ? &kmsg->o : &kmsg->i;
 	int err;
 	vm_flags_t flags;
@@ -61,7 +61,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		prot |= PROT_WRITE;
 	}
 
-	if (to != NULL) {
+	if (destinationUser != 0) {
 		attr |= PGHD_USER;
 		prot |= PROT_USER;
 	}
@@ -82,9 +82,6 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 
 	bone = (boffs != 0U) ? 1U : 0U;
 	eone = (eoffs != 0U) ? 1U : 0U;
-
-	srcmap = (from == NULL) ? msg_common.kmap : from->mapp;
-	dstmap = (to == NULL) ? msg_common.kmap : to->mapp;
 
 	if ((srcmap == dstmap) && (pmap_belongs(&dstmap->pmap, data) != 0)) {
 		return data;
@@ -187,25 +184,49 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 }
 
 
+static void *msg_mapProcess(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *from, process_t *to)
+{
+	vm_map_t *srcmap = (from == NULL) ? msg_common.kmap : from->mapp;
+	vm_map_t *dstmap = (to == NULL) ? msg_common.kmap : to->mapp;
+
+	return proc_msgMap(dir, kmsg, data, size, srcmap, dstmap, (to != NULL) ? 1 : 0);
+}
+
+
+static void msg_layoutRelease(struct _kmsg_layout_t *layout, vm_map_t *map, const void *data, size_t size)
+{
+	if (layout->bp != NULL) {
+		vm_pageFree(layout->bp);
+		(void)vm_munmap(msg_common.kmap, layout->bvaddr, SIZE_PAGE);
+		layout->bp = NULL;
+	}
+
+	if (layout->eoffs != 0U) {
+		if (layout->ep != NULL) {
+			vm_pageFree(layout->ep);
+		}
+		(void)vm_munmap(msg_common.kmap, layout->evaddr, SIZE_PAGE);
+		layout->eoffs = 0;
+		layout->ep = NULL;
+	}
+
+	if (layout->w != NULL) {
+		(void)vm_munmap(map, layout->w, CEIL((ptr_t)data + size) - FLOOR((ptr_t)data));
+		layout->w = NULL;
+	}
+}
+
+
+void proc_msgMapRelease(kmsg_t *kmsg, vm_map_t *destinationMap)
+{
+	msg_layoutRelease(&kmsg->i, destinationMap, kmsg->msg.i.data, kmsg->msg.i.size);
+}
+
+
 static void msg_release(kmsg_t *kmsg)
 {
 	process_t *process;
 	vm_map_t *map;
-
-	if (kmsg->i.bp != NULL) {
-		vm_pageFree(kmsg->i.bp);
-		(void)vm_munmap(msg_common.kmap, kmsg->i.bvaddr, SIZE_PAGE);
-		kmsg->i.bp = NULL;
-	}
-
-	if (kmsg->i.eoffs != 0U) {
-		if (kmsg->i.ep != NULL) {
-			vm_pageFree(kmsg->i.ep);
-		}
-		(void)vm_munmap(msg_common.kmap, kmsg->i.evaddr, SIZE_PAGE);
-		kmsg->i.eoffs = 0;
-		kmsg->i.ep = NULL;
-	}
 
 	process = proc_current()->process;
 	if (process != NULL) {
@@ -215,30 +236,8 @@ static void msg_release(kmsg_t *kmsg)
 		map = msg_common.kmap;
 	}
 
-	if (kmsg->i.w != NULL) {
-		(void)vm_munmap(map, kmsg->i.w, CEIL((ptr_t)kmsg->msg.i.data + kmsg->msg.i.size) - FLOOR((ptr_t)kmsg->msg.i.data));
-		kmsg->i.w = NULL;
-	}
-
-	if (kmsg->o.bp != NULL) {
-		vm_pageFree(kmsg->o.bp);
-		(void)vm_munmap(msg_common.kmap, kmsg->o.bvaddr, SIZE_PAGE);
-		kmsg->o.bp = NULL;
-	}
-
-	if (kmsg->o.eoffs != 0U) {
-		if (kmsg->o.ep != NULL) {
-			vm_pageFree(kmsg->o.ep);
-		}
-		(void)vm_munmap(msg_common.kmap, kmsg->o.evaddr, SIZE_PAGE);
-		kmsg->o.eoffs = 0;
-		kmsg->o.ep = NULL;
-	}
-
-	if (kmsg->o.w != NULL) {
-		(void)vm_munmap(map, kmsg->o.w, CEIL((ptr_t)kmsg->msg.o.data + kmsg->msg.o.size) - FLOOR((ptr_t)kmsg->msg.o.data));
-		kmsg->o.w = NULL;
-	}
+	msg_layoutRelease(&kmsg->i, map, kmsg->msg.i.data, kmsg->msg.i.size);
+	msg_layoutRelease(&kmsg->o, map, kmsg->msg.o.data, kmsg->msg.o.size);
 }
 
 
@@ -508,12 +507,12 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	/* Map data in receiver space */
 	/* Don't map if msg is packed */
 	if (ipacked == 0) {
-		kmsg->msg.i.data = msg_map(0, kmsg, (void *)(ptr_t)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
+		kmsg->msg.i.data = msg_mapProcess(0, kmsg, (void *)(ptr_t)kmsg->msg.i.data, kmsg->msg.i.size, kmsg->src, proc_current()->process);
 	}
 
 	opacked = msg_opack(kmsg);
 	if (opacked == 0) {
-		kmsg->msg.o.data = msg_map(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);
+		kmsg->msg.o.data = msg_mapProcess(1, kmsg, kmsg->msg.o.data, kmsg->msg.o.size, kmsg->src, proc_current()->process);
 	}
 
 	if (((kmsg->msg.i.size != 0U) && (kmsg->msg.i.data == NULL)) ||
