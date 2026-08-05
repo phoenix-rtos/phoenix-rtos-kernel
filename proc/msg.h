@@ -71,6 +71,15 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
 int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
 
 
+#ifndef NOMMU
+void *proc_msgMap(int dir, kmsg_t *kmsg, void *data, size_t size,
+		vm_map_t *sourceMap, vm_map_t *destinationMap, int destinationUser);
+
+
+void proc_msgMapRelease(kmsg_t *kmsg, vm_map_t *destinationMap);
+#endif
+
+
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel);
 
 

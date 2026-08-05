@@ -29,6 +29,9 @@
 void vm_meminfo(meminfo_t *info);
 
 
+void vm_pageBenchmark(vm_map_t *kmap);
+
+
 /* Function initializes virtual memory manager */
 void _vm_init(vm_map_t *kmap, vm_object_t *kernel);
 

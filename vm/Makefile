@@ -5,7 +5,11 @@
 # Author: Pawel Pisarczyk
 #
 
-OBJS += $(addprefix $(PREFIX_O)vm/, vm.o map.o zone.o kmalloc.o object.o amap.o)
+OBJS += $(addprefix $(PREFIX_O)vm/, vm.o benchmark.o map.o zone.o kmalloc.o object.o amap.o)
+
+ifneq ($(VM_BENCHMARK_STEP_SIZE),)
+	CPPFLAGS += -DVM_BENCHMARK_STEP_SIZE=$(VM_BENCHMARK_STEP_SIZE)
+endif
 
 ifneq (, $(findstring NOMMU, $(CPPFLAGS)))
 	OBJS += $(PREFIX_O)vm/page-nommu.o
