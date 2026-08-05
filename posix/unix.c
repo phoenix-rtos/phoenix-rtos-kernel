@@ -1139,6 +1139,11 @@ int unix_shutdown(unsigned int socket, int how)
 		return -ENOTSOCK;
 	}
 
+	if (how != SHUT_RD && how != SHUT_WR && how != SHUT_RDWR) {
+		unixsock_put(s);
+		return -EINVAL;
+	}
+
 	unixsock_put(s);
 	unixsock_put(s);
 	return EOK;
