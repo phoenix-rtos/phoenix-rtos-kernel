@@ -280,7 +280,15 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, vm_attr_t attr,
 
 	hal_cpuDataSyncBarrier();
 	if ((oldEntry & 0x3U) != 0U) {
-		hal_cpuInvalVAAll(((ptr_t)va & ~0xfffU) | asid);
+		if ((ptr_t)va >= VADDR_KERNEL) {
+			hal_cpuDataSyncBarrier();
+			asm volatile("mcr p15, 0, %0, c8, c3, 3" ::"r"((ptr_t)va & ~0xfffU) : "memory"); /* TLBIMVAAIS */
+			hal_cpuDataSyncBarrier();
+			hal_cpuInstrBarrier();
+		}
+		else {
+			hal_cpuInvalVAAll(((ptr_t)va & ~0xfffU) | asid);
+		}
 	}
 
 	hal_cpuBranchInval();
