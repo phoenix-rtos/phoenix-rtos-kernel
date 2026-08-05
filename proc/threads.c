@@ -710,16 +710,11 @@ static int thread_alloc(thread_t *thread)
 
 void threads_canaryInit(thread_t *t, void *ustack)
 {
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
-	t->ustack = ustack;
-	if (t->ustack != NULL) {
-		hal_memcpy(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
+	if (ustack != NULL) {
+		/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "Nothing to do on fail here" */
+		(void)usermem_memcpy(ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
 	}
-
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	t->ustack = ustack;
 }
 
 
@@ -2478,6 +2473,7 @@ int proc_threadsOther(thread_t *t)
 static void proc_threadsListCb(void *arg, int i, threadinfo_t *tinfo)
 {
 	threadinfo_t *tinfos = (threadinfo_t *)arg;
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "Nothing to do on fail here" */
 	(void)usermem_memcpy(tinfos + i, tinfo, sizeof(threadinfo_t));
 }
 
