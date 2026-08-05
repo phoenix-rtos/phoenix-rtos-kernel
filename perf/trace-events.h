@@ -47,6 +47,8 @@ enum {
 	TRACE_EVENT_PROCESS_KILL = 0x32,
 	TRACE_EVENT_PROCESS_EXEC = 0x33,
 	TRACE_EVENT_MSG_SEND = 0x34,
+	TRACE_EVENT_MSG_PROFILE_META = 0x40,
+	TRACE_EVENT_MSG_PROFILE = 0x41,
 };
 
 
@@ -69,6 +71,9 @@ void _trace_updateLockEpoch(lock_t *lock);
 	} while (0)
 
 
+#define PERF_MSG 1
+
+
 /*
  * NOTE: The ev structure passed to PERF_{META,EVENT}_BODY must match the
  * field struct declared in the tsdl/metadata for a given event_id.
@@ -78,9 +83,16 @@ void _trace_updateLockEpoch(lock_t *lock);
 		(void)ev; \
 		(void)ts; \
 	} while (0)
+
+#if !PERF_MSG
 #define TRACE_META_BODY(event_id, ev, ts, ...)  TRACE_EVENT_BODY_CHAN((u8)(trace_channel_meta), (event_id), (ev), (ts), __VA_ARGS__)
+#define TRACE_EVENT_BODY(event_id, ev, ts, ...) TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
+#define TRACE_MSG_BODY(event_id, ev, ts, ...)   TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
+#else
+#define TRACE_META_BODY(event_id, ev, ts, ...)  NO_EVENT((ev), (ts))
 #define TRACE_EVENT_BODY(event_id, ev, ts, ...) NO_EVENT((ev), (ts))
 #define TRACE_MSG_BODY(event_id, ev, ts, ...)   TRACE_EVENT_BODY_CHAN((u8)(trace_channel_event), (event_id), (ev), (ts), __VA_ARGS__)
+#endif
 
 
 /* assumes lock->spinlock is set */

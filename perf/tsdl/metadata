@@ -219,3 +219,26 @@ event {
     u64 odata;
 	};
 };
+
+event {
+	name = msg_profile_meta;
+	id = 0x40;
+	fields := struct {
+		u8 syscall;
+    u8 step;
+		str desc[64];
+	};
+};
+
+event {
+	name = msg_profile;
+	id = 0x41;
+	fields := struct {
+		u64 tscs[15];
+		u32 isize;
+		u32 osize;
+		u16 tid;
+		u8 syscall;
+    u8 ntscs;
+	};
+};

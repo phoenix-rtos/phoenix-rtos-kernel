@@ -43,6 +43,8 @@ static struct {
 	u64 eventDelayCount;
 	u64 eventDelayTsOffset; /* offset relative to startTimestamp */
 	u64 startTimestamp;
+
+	u16 emittedMsgDesc[16];
 } trace_common;
 
 
@@ -165,6 +167,21 @@ int trace_isRunning(void)
 }
 
 
+/* WARN: this only works assuming msgSyscall - syscall_msgSend <= 7 */
+int trace_emitMsgDesc(u8 step, u8 msgSyscall)
+{
+	spinlock_ctx_t sc;
+	u8 id = msgSyscall - syscall_msgSend;
+
+	hal_spinlockSet(&trace_common.spinlock, &sc);
+	int prev = (trace_common.emittedMsgDesc[id] & (1U << step)) != 0U ? 1U : 0U;
+	trace_common.emittedMsgDesc[id] |= (1U << step);
+	hal_spinlockClear(&trace_common.spinlock, &sc);
+
+	return prev;
+}
+
+
 static void _emitThreadsCb(void *arg, int i, threadinfo_t *tinfo)
 {
 	struct {
@@ -235,6 +252,7 @@ int trace_start(unsigned int flags)
 	trace_common.prev = trace_common.startTimestamp;
 	trace_common.errorFlags = 0;
 	trace_common.eventDelayCount = 0;
+	hal_memset(trace_common.emittedMsgDesc, 0, sizeof(trace_common.emittedMsgDesc));
 
 	/* Without spinlock - trace is not enabled yet, so there's no concurrent access */
 	_emitThreadinfo();
