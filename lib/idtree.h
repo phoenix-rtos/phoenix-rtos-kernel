@@ -17,7 +17,6 @@
 #include "hal/types.h"
 #include "rb.h"
 
-
 #define MAX_ID ((1ULL << ((size_t)__CHAR_BIT__ * (sizeof(int)) - 1U)) - 1ULL)
 
 
@@ -29,14 +28,6 @@ typedef struct {
 	int lmaxgap, rmaxgap;
 	int id;
 } idnode_t;
-
-/* parasoft-begin-suppress MISRAC2012-RULE_20_7-a 'type' within (type *) can not be put in the parentheses due to compilation error */
-#define lib_idtreeof(type, node_field, node) ({ \
-	long _off = (long)&(((type *)0)->node_field); \
-	idnode_t *tmpnode = (node); \
-	(type *)((tmpnode == NULL) ? NULL : ((void *)tmpnode - _off)); \
-})
-/* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 
 
 idnode_t *lib_idtreeFind(idtree_t *tree, int id);

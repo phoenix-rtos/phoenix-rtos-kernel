@@ -43,7 +43,7 @@ resource_t *resource_get(process_t *process, int id)
 	resource_t *r;
 
 	(void)proc_lockSet(&process->lock);
-	r = lib_idtreeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
+	r = lib_treeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
 	if (r != NULL) {
 		(void)lib_atomicIncrement(&r->refs);
 	}
@@ -64,7 +64,7 @@ static resource_t *resource_remove(process_t *process, int id)
 	resource_t *r;
 
 	(void)proc_lockSet(&process->lock);
-	r = lib_idtreeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
+	r = lib_treeof(resource_t, linkage, lib_idtreeFind(&process->resources, id));
 	if (r != NULL) {
 		lib_idtreeRemove(&process->resources, &r->linkage);
 	}
@@ -117,7 +117,7 @@ void proc_resourcesDestroy(process_t *process)
 
 	for (;;) {
 		(void)proc_lockSet(&process->lock);
-		r = lib_idtreeof(resource_t, linkage, lib_idtreeMinimum(process->resources.root));
+		r = lib_treeof(resource_t, linkage, lib_idtreeMinimum(process->resources.root));
 		if (r == NULL) {
 			(void)proc_lockClear(&process->lock);
 			break;
@@ -141,7 +141,7 @@ int proc_resourcesCopy(process_t *source)
 
 	(void)proc_lockSet(&source->lock);
 	for (n = lib_idtreeMinimum(source->resources.root); n != NULL; n = lib_idtreeNext(&n->linkage)) {
-		r = lib_idtreeof(resource_t, linkage, n);
+		r = lib_treeof(resource_t, linkage, n);
 		skip = 0;
 
 		switch (r->type) {

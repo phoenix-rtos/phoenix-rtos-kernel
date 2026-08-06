@@ -299,7 +299,7 @@ thread_t *threads_findThread(int tid)
 	thread_t *t;
 
 	(void)proc_lockSet(&threads_common.lock);
-	t = lib_idtreeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.id, tid));
+	t = lib_treeof(thread_t, idlinkage, lib_idtreeFind(&threads_common.id, tid));
 	if (t != NULL) {
 		++t->refs;
 	}
@@ -2027,7 +2027,7 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 		cb(arg, i, &tinfo);
 
 		++i;
-		t = lib_idtreeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
+		t = lib_treeof(thread_t, idlinkage, lib_idtreeNext(&t->idlinkage.linkage));
 	}
 
 	(void)proc_lockClear(&threads_common.lock);

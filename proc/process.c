@@ -69,7 +69,7 @@ process_t *proc_find(int pid)
 	process_t *p;
 
 	(void)proc_lockSet(&process_common.lock);
-	p = lib_idtreeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
+	p = lib_treeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
 	if (p != NULL) {
 		p->refs++;
 	}
@@ -286,7 +286,7 @@ static void process_exception(unsigned int n, exc_context_t *ctx)
 
 	process_dumpException(n, ctx);
 
-	LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel")
+	LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel");
 
 	(void)threads_sigpost(thread->process, thread, signal_kill);
 
@@ -303,7 +303,7 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 	thread_t *thread = proc_current();
 	process_t *process = thread->process;
 
-	LIB_ASSERT_ALWAYS(process != NULL, "exception in kernel")
+	LIB_ASSERT_ALWAYS(process != NULL, "exception in kernel");
 
 	(void)threads_sigpost(process, thread, signal_illegal);
 }
@@ -1808,7 +1808,7 @@ int proc_sigpost(int pid, int sig)
 	int err = -EINVAL;
 
 	(void)proc_lockSet(&process_common.lock);
-	p = lib_idtreeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
+	p = lib_treeof(process_t, idlinkage, lib_idtreeFind(&process_common.id, pid));
 	if (p != NULL) {
 		err = threads_sigpost(p, NULL, sig);
 	}
