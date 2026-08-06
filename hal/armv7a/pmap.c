@@ -96,7 +96,7 @@ static const char *const marksets[4] = { "BBBBBBBBBBBBBBBB", "KYCPMSHKKKKKKKKK",
 
 
 /* clang-format off */
-static const u16 attrMap[] = {
+static const u16 attrMap[PGHD_MASK + 1U] = {
 	TT2S_COMMON_ATTR | TT2S_CACHING_ATTR | TT2S_EXECNEVER | TT2S_READONLY,
 	TT2S_COMMON_ATTR | TT2S_SHARED_DEV   | TT2S_EXECNEVER | TT2S_READONLY,
 	TT2S_COMMON_ATTR | TT2S_CACHING_ATTR                  | TT2S_READONLY,
@@ -273,7 +273,7 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, vm_attr_t attr,
 	hal_cpuCleanDataCache((ptr_t)&ptable[pti], (ptr_t)&ptable[pti] + sizeof(ptr_t));
 	ptr_t oldEntry = ptable[pti];
 	if ((attr & PGHD_PRESENT) != 0U) {
-		hwAttr = attrMap[attr & 0x1fU];
+		hwAttr = attrMap[attr & PGHD_MASK];
 		hwAttr |= ((ptr_t)va < VADDR_USR_MAX) ? TT2S_NOTGLOBAL : 0U;
 		ptable[pti] = (pa & ~0xfffU) | hwAttr;
 	}
@@ -399,7 +399,7 @@ int pmap_remove(pmap_t *pmap, void *vstart, void *vend)
 		}
 
 		/* Map page table corresponding to vaddr */
-		if (pmap_common.kptab[ID_PTABLE(pmap_common.sptab)] != ((addr & ~0xfffU) | attrMap[SCRATCH_ATTRS])) {
+		if (pmap_common.kptab[ID_PTABLE(pmap_common.sptab)] != ((addr & ~0xfffU) | attrMap[SCRATCH_ATTRS & PGHD_MASK])) {
 			_pmap_mapScratch(addr, asid);
 		}
 
