@@ -39,7 +39,7 @@ kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
 
 	(void)proc_lockSet(&p->lock);
 
-	kmsg = lib_idtreeof(kmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
+	kmsg = lib_treeof(kmsg_t, idlinkage, lib_idtreeFind(&p->rid, rid));
 	if (kmsg != NULL) {
 		lib_idtreeRemove(&p->rid, &kmsg->idlinkage);
 	}
@@ -60,7 +60,7 @@ port_t *proc_portGet(u32 id)
 	}
 
 	(void)proc_lockSet(&port_common.port_lock);
-	port = lib_idtreeof(port_t, linkage, lib_idtreeFind(&port_common.tree, (int)id));
+	port = lib_treeof(port_t, linkage, lib_idtreeFind(&port_common.tree, (int)id));
 	if (port != NULL) {
 		hal_spinlockSet(&port->spinlock, &sc);
 		port->refs++;

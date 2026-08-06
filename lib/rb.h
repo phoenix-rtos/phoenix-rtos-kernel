@@ -14,12 +14,15 @@
 #ifndef _PH_LIB_RB_H_
 #define _PH_LIB_RB_H_
 
+#include "hal/types.h"
+#include "utils.h"
+
 /* parasoft-begin-suppress MISRAC2012-RULE_20_7-a 'type' within *(type *) can not be put in the parentheses due to compilation error */
 #define lib_treeof(type, node_field, node) ({ \
-	long _off = (long)&(((type *)0)->node_field); \
-	rbnode_t *tmpnode = (node); \
-	(type *)((tmpnode == NULL) ? NULL : ((void *)tmpnode - _off)); \
+	void *_tmpnode = (node); \
+	(_tmpnode == NULL) ? NULL : (type *)((ptr_t)_tmpnode - offsetof(type, node_field)); \
 })
+/* parasoft-end-suppress MISRAC2012-RULE_20_7-a */
 
 
 /* clang-format off */

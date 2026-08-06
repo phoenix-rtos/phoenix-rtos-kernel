@@ -19,9 +19,11 @@ __attribute__((noreturn)) void lib_assertPanic(const char *func, int line, const
 
 
 #define LIB_ASSERT_ALWAYS(condition, fmt, ...) \
-	if (!(condition)) { \
-		lib_assertPanic(__FUNCTION__, __LINE__, (fmt), ##__VA_ARGS__); \
-	}
+	do { \
+		if (!(condition)) { \
+			lib_assertPanic(__FUNCTION__, __LINE__, (fmt), ##__VA_ARGS__); \
+		} \
+	} while (0)
 
 #define LIB_STATIC_ASSERT_SAME_TYPE(t1, t2) _Static_assert(__builtin_types_compatible_p(typeof(t1), typeof(t2)), "type mismatch")
 
