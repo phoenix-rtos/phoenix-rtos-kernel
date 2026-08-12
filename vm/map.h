@@ -66,6 +66,7 @@ typedef struct _map_entry_t {
 	size_t rmaxgap;
 
 	vm_flags_t flags;
+	vm_state_t state;
 	vm_prot_t prot;
 	vm_prot_t protOrig;
 	struct _vm_object_t *object;
@@ -77,6 +78,9 @@ typedef struct _map_entry_t {
 
 
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot);
+
+
+int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcaddr, size_t size, vm_prot_t prot);
 
 
 void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, struct _vm_object_t *o, off_t offs, vm_flags_t flags);
