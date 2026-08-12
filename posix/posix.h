@@ -179,6 +179,9 @@ void posix_died(pid_t pid, int exit);
 int posix_waitpid(pid_t child, int *status, unsigned int options);
 
 
+int posix_fdLimits(pid_t pid, struct rlimit *old, const struct rlimit *new);
+
+
 void posix_init(void);
 
 

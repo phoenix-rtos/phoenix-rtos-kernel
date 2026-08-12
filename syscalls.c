@@ -1973,6 +1973,38 @@ int syscalls_sys_uname(u8 *ustack)
 }
 
 
+int syscalls_rlimits(u8 *ustack)
+{
+	limit_target_t target;
+	int resource;
+	struct rlimit *oldLimit;
+	const struct rlimit *newLimit;
+
+	GETFROMSTACK(ustack, limit_target_t, target, 0U);
+	GETFROMSTACK(ustack, int, resource, 1U);
+	GETFROMSTACK(ustack, struct rlimit *, oldLimit, 2U);
+	GETFROMSTACK(ustack, struct rlimit *, newLimit, 3U);
+
+	if (newLimit != NULL) {
+		if (vm_mapBelongs(proc_current()->process, newLimit, sizeof(*newLimit)) < 0) {
+			return -EFAULT;
+		}
+		if (newLimit->rlim_cur > newLimit->rlim_max) {
+			return -EINVAL;
+		}
+	}
+	if (oldLimit != NULL && (vm_mapBelongs(proc_current()->process, oldLimit, sizeof(*oldLimit)) < 0)) {
+		return -EFAULT;
+	}
+
+	if (target.kind != limit_target_process) {
+		return -EINVAL;
+	}
+
+	return process_rlimits(target.pid, resource, oldLimit, newLimit);
+}
+
+
 /*
  * Empty syscall
  */

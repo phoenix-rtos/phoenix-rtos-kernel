@@ -21,6 +21,7 @@
 #include "vm/amap.h"
 #include "syspage.h"
 #include "lib/lib.h"
+#include "include/limits.h"
 
 #define MAX_PID MAX_ID
 
@@ -132,5 +133,7 @@ int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map);
 
 int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map);
 
+
+int process_rlimits(pid_t pid, int resource, struct rlimit *oldLimit, const struct rlimit *newLimit);
 
 #endif
