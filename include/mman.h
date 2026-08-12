@@ -16,7 +16,7 @@
 
 
 #define MAP_NONE       0x0U
-#define MAP_NEEDSCOPY  (0x1U << 0)
+#define MAP_ALL        ~(0x1U)
 #define MAP_UNCACHED   (0x1U << 1)
 #define MAP_DEVICE     (0x1U << 2)
 #define MAP_NOINHERIT  (0x1U << 3)
