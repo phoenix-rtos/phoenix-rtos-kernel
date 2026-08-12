@@ -24,6 +24,8 @@ typedef u32 vm_attr_t;
 
 typedef u8 vm_prot_t;
 
+typedef u8 vm_state_t;
+
 #endif
 
 #endif
