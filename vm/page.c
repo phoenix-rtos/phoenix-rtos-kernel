@@ -54,7 +54,7 @@ ph_map_t *vm_getPhysicalMap(int map)
 }
 
 
-static page_t *_page_alloc(ph_map_t *map, size_t size, vm_flags_t flags, partition_t *part)
+static page_t *_page_alloc(ph_map_t *map, size_t size, vm_pageflags_t flags, partition_t *part)
 {
 	unsigned int start, stop, i;
 	page_t *lh, *rh;
@@ -123,7 +123,7 @@ static page_t *_page_alloc(ph_map_t *map, size_t size, vm_flags_t flags, partiti
 }
 
 
-static page_t *page_allocAllMaps(size_t size, vm_flags_t flags, partition_t *part)
+static page_t *page_allocAllMaps(size_t size, vm_pageflags_t flags, partition_t *part)
 {
 	page_t *p = NULL;
 	unsigned int i;

@@ -37,7 +37,7 @@ static struct {
 } pages;
 
 
-static page_t *_page_alloc(size_t size, vm_flags_t flags)
+static page_t *_page_alloc(size_t size, vm_pageflags_t flags)
 {
 	page_t *lh = pages.freeq;
 
@@ -61,7 +61,7 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags)
 }
 
 
-page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_flags_t flags, partition_t *part)
+page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_pageflags_t flags, partition_t *part)
 {
 	page_t *p;
 

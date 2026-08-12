@@ -32,7 +32,7 @@ typedef struct _vm_map_t ph_map_t;
 #endif
 
 
-page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_flags_t flags, struct _partition_t *part);
+page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_pageflags_t flags, struct _partition_t *part);
 
 
 void vm_pageFree(page_t *p, struct _partition_t *part);
