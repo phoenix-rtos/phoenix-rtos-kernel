@@ -1631,7 +1631,7 @@ int proc_lockTry(lock_t *lock)
 
 
 /* WARN: lock is already obtained when returning with EOK (handed off during _proc_lockUnlock()) */
-static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc, spinlock_ctx_t *scp)
+static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc, spinlock_ctx_t *scp, time_t timeout)
 {
 	thread_t *current = _proc_current();
 	int err = EOK;
@@ -1645,7 +1645,7 @@ static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc
 			/* else: we got the lock, we shouldn't return EINTR */
 		}
 		else {
-			_proc_threadEnqueue(&lock->queue, 0, interruptible);
+			_proc_threadEnqueue(&lock->queue, timeout, interruptible);
 			/*
 			 * FIXME: too many spinlocks. Make current->exit atomic and shrink the
 			 * critical section of threads_common.spinlock to just the _proc_threadEnqueue()?
@@ -1658,6 +1658,10 @@ static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc
 
 		if (lock->owner == current) {
 			return EOK;
+		}
+
+		if (err == -ETIME) {
+			return err;
 		}
 	}
 }
@@ -1685,7 +1689,7 @@ static int _proc_lockSetRaw(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 	}
 
 	if (ret == -EBUSY) {
-		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp);
+		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp, 0);
 		if (ret == EOK) {
 			ret = _proc_lockObtained(current, lock);
 		}
@@ -1698,7 +1702,7 @@ static int _proc_lockSetRaw(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 }
 
 
-static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
+static int _proc_lockSetEx(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp, time_t timeout)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
@@ -1727,7 +1731,7 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			_proc_threadSetPriority(lock->owner, current->priority);
 		}
 
-		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp);
+		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp, timeout);
 		if (ret == EOK) {
 			ret = _proc_lockObtained(current, lock);
 		}
@@ -1746,6 +1750,12 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 }
 
 
+static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
+{
+	return _proc_lockSetEx(lock, interruptible, scp, 0);
+}
+
+
 int proc_lockSet(lock_t *lock)
 {
 	spinlock_ctx_t sc;
@@ -1758,6 +1768,25 @@ int proc_lockSet(lock_t *lock)
 	hal_spinlockSet(&lock->spinlock, &sc);
 
 	err = _proc_lockSet(lock, 0U, &sc);
+
+	hal_spinlockClear(&lock->spinlock, &sc);
+
+	return err;
+}
+
+
+int proc_lockSetTimeoutable(lock_t *lock, time_t timeout)
+{
+	spinlock_ctx_t sc;
+	int err;
+
+	if (hal_started() == 0) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&lock->spinlock, &sc);
+
+	err = _proc_lockSetEx(lock, 1U, &sc, timeout);
 
 	hal_spinlockClear(&lock->spinlock, &sc);
 

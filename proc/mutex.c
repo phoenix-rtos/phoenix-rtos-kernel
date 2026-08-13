@@ -12,6 +12,7 @@
  */
 
 #include "include/errno.h"
+#include "include/time.h"
 #include "lib/assert.h"
 #include "mutex.h"
 #include "threads.h"
@@ -90,9 +91,10 @@ int proc_mutexCreate(const struct lockAttr *attr)
 }
 
 
-int proc_mutexLock(int h)
+int proc_mutexLock(int h, time_t timeout, int clock)
 {
 	mutex_t *mutex;
+	time_t abstime;
 	int err;
 
 	mutex = mutex_get(h);
@@ -100,7 +102,15 @@ int proc_mutexLock(int h)
 		return -EINVAL;
 	}
 
-	err = proc_lockSetInterruptible(&mutex->lock);
+	if (timeout == 0) {
+		err = proc_lockSetInterruptible(&mutex->lock);
+	}
+	else {
+		err = proc_clockTimeoutToAbsTime(clock == -1 ? PH_CLOCK_MONOTONIC : clock, timeout, &abstime);
+		if (err == EOK) {
+			err = proc_lockSetTimeoutable(&mutex->lock, abstime);
+		}
+	}
 
 	mutex_put(mutex);
 

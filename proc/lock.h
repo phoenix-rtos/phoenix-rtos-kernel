@@ -46,6 +46,9 @@ extern const struct lockAttr proc_lockAttrDefault;
 int proc_lockSet(lock_t *lock);
 
 
+int proc_lockSetTimeoutable(lock_t *lock, time_t timeout);
+
+
 int proc_lockSet2(lock_t *l1, lock_t *l2);
 
 
