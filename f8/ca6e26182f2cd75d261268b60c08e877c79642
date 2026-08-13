@@ -1,0 +1,19 @@
+hal/armv8m/stm32/n6/timer.c
+  s_b5f773088b022b::t_4c4eeb18fbf7bf 173-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "f8ca6e26182f2cd75d261268b60c08e877c79642",
+  "prompts": {},
+  "sessions": {
+    "s_b5f773088b022b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fe7c23c-3d89-4f7e-80d7-adbaf591538f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    }
+  }
+}
