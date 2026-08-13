@@ -17,4 +17,8 @@
 
 #define HOST_NAME_MAX 255U
 
+
+#define TIME_T_MAX 0x7FFFFFFFFFFFFFFFLL /* LLONG_MAX */
+
+
 #endif
