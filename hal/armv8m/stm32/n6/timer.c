@@ -170,3 +170,5 @@ void _hal_timerInit(u32 interval)
 	hal_cpuDataMemoryBarrier();
 	*(timer_common.base + tim_cr1) |= 1U; /* Start counting */
 }
+
+/* WIP: TEST DO-430 - touch a .c file so any_changed=true; to be reverted */
