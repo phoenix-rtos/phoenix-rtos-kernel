@@ -67,15 +67,15 @@ int proc_condCreate(const struct condAttr *attr)
 	cond->resource.payload.cond = cond;
 	cond->resource.type = rtCond;
 
+	cond->queue = NULL;
+
+	hal_memcpy(&cond->attr, attr, sizeof(cond->attr));
+
 	id = resource_alloc(p, &cond->resource);
 	if (id < 0) {
 		vm_kfree(cond);
 		return -ENOMEM;
 	}
-
-	cond->queue = NULL;
-
-	hal_memcpy(&cond->attr, attr, sizeof(cond->attr));
 
 	(void)resource_put(p, &cond->resource);
 
