@@ -15,6 +15,7 @@
 #include "hal/hal.h"
 #include "include/errno.h"
 #include "include/signal.h"
+#include "include/time.h"
 #include "threads.h"
 #include "lib/lib.h"
 #include "posix/posix.h"
@@ -23,6 +24,8 @@
 #include "msg.h"
 #include "ports.h"
 #include "perf/trace-events.h"
+
+#define TIME_T_MAX 0x7FFFFFFFFFFFFFFFLL /* LLONG_MAX */
 
 /* clang-format off */
 enum { event_scheduling, event_enqueued, event_waking, event_preempted };
@@ -2011,6 +2014,59 @@ int proc_lockSet2(lock_t *l1, lock_t *l2)
 			return err;
 		}
 		swap(l1, l2);
+	}
+
+	return EOK;
+}
+
+
+int proc_clockTimeoutToAbsTime(int clock, time_t timeout, time_t *rabstime)
+{
+	time_t offs, abstime = 0;
+
+	if ((clock != PH_CLOCK_REALTIME) && (clock != PH_CLOCK_MONOTONIC) && (clock != PH_CLOCK_RELATIVE)) {
+		return -EINVAL;
+	}
+
+	if (timeout < 0) {
+		return -EINVAL;
+	}
+
+	if (timeout == 0) {
+		*rabstime = 0;
+		return EOK;
+	}
+
+	switch (clock) {
+		case PH_CLOCK_REALTIME:
+			proc_gettime(&abstime, &offs);
+			if (abstime + offs > timeout) {
+				return -ETIME;
+			}
+			*rabstime = timeout - offs;
+			break;
+
+		case PH_CLOCK_MONOTONIC:
+			proc_gettime(&abstime, NULL);
+			if (abstime > timeout) {
+				return -ETIME;
+			}
+			*rabstime = timeout;
+			break;
+
+		case PH_CLOCK_RELATIVE:
+			proc_gettime(&abstime, NULL);
+			if (TIME_T_MAX - abstime < timeout) {
+				abstime = TIME_T_MAX;
+			}
+			else {
+				abstime += timeout;
+			}
+			*rabstime = abstime;
+			break;
+
+		default:
+			return -EINVAL;
 	}
 
 	return EOK;
