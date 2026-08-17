@@ -14,8 +14,8 @@ trace {
 };
 
 clock {
-    name = monotonic;
-    freq = 1000000;
+	name = monotonic;
+	freq = 1000000;
 };
 
 
@@ -83,7 +83,7 @@ event {
 	fields := struct {
 		u16 pid;
 		u16 tid;
-		u8 prio;
+		i8 prio;
 		str name[128];
 	};
 };
@@ -183,7 +183,8 @@ event {
 	id = 0x31;
 	fields := struct {
 		u16 tid;
-		u8 priority;
+		/* TODO: rename to prio to stay consistent with thread_create and process_exec */
+		i8 priority;
 	};
 };
 
@@ -201,7 +202,9 @@ event {
 	fields := struct {
 		u16 pid;
 		u16 tid;
-		u8 prio;
+		i8 prio;
 		str name[128];
 	};
 };
+
+// vim:noexpandtab:ts=2:sw=2
