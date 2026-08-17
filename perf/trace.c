@@ -170,12 +170,12 @@ static void _emitThreadsCb(void *arg, int i, threadinfo_t *tinfo)
 	struct {
 		u16 pid;
 		u16 tid;
-		u8 priority;
+		s8 priority;
 		char name[128];
 	} __attribute__((packed)) ev;
 
 	ev.tid = (u16)tinfo->tid;
-	ev.priority = (u8)tinfo->priority;
+	ev.priority = (s8)tinfo->priority;
 	ev.pid = (u16)tinfo->pid;
 
 	hal_memcpy(ev.name, tinfo->name, sizeof(tinfo->name));

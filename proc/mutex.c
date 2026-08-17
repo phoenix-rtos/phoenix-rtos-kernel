@@ -64,7 +64,7 @@ int proc_mutexCreate(const struct lockAttr *attr)
 		return -EINVAL;
 	}
 
-	if (attr->prioceiling > MAX_PRIO) {
+	if (((int)attr->prioceiling < MIN_PRIO) || ((int)attr->prioceiling > MAX_PRIO)) {
 		return -EINVAL;
 	}
 
@@ -144,7 +144,7 @@ int proc_mutexConsistent(int h)
 }
 
 
-int proc_mutexPrioCeiling(int h, int prioceiling)
+int proc_mutexPrioCeiling(int h, int prioceiling, int *prev)
 {
 	mutex_t *mutex;
 	int err;
@@ -154,7 +154,7 @@ int proc_mutexPrioCeiling(int h, int prioceiling)
 		return -EINVAL;
 	}
 
-	err = proc_lockPrioCeiling(&mutex->lock, prioceiling);
+	err = proc_lockPrioCeiling(&mutex->lock, prioceiling, prev);
 
 	mutex_put(mutex);
 

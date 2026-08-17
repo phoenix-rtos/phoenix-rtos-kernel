@@ -70,7 +70,7 @@
 	ID(signalPost) \
 	ID(signalMask) \
 	ID(signalSuspend) \
-	ID(priority) \
+	ID(sys_priority) \
 	\
 	ID(sys_read) \
 	ID(sys_write) \

@@ -68,7 +68,7 @@ int proc_lockInit(lock_t *lock, const struct lockAttr *attr, const char *name);
 int proc_lockConsistent(lock_t *lock);
 
 
-int proc_lockPrioCeiling(lock_t *lock, int prioceiling);
+int proc_lockPrioCeiling(lock_t *lock, int prioceiling, int *prev);
 
 
 int proc_lockDone(lock_t *lock);

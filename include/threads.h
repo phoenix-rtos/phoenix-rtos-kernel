@@ -15,6 +15,10 @@
 #define _PH_THREADS_H_
 
 
+#define PH_GET_PRIO     0x7fffffff
+#define PH_PRIO_DEFAULT 4
+
+
 /* Mutex attributes */
 
 
@@ -34,7 +38,7 @@ struct lockAttr {
 	unsigned char type;
 	unsigned char protocol;
 	unsigned char robust;
-	unsigned char prioceiling;
+	signed char prioceiling;
 };
 
 
