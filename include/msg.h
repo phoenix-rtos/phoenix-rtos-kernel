@@ -74,83 +74,88 @@ struct _attrAll {
 #define MSG_RAW_SIZE 64
 
 
+typedef struct {
+	union {
+		/* OPEN/CLOSE */
+		struct {
+			unsigned int flags;
+		} openclose;
+
+		/* READ/WRITE/TRUNCATE */
+		struct {
+			off_t offs;
+			size_t len;
+			unsigned int mode;
+		} io;
+
+		/* CREATE */
+		struct {
+			int type;
+			unsigned int mode;
+			oid_t dev;
+		} create;
+
+		/* SETATTR/GETATTR */
+		struct {
+			long long val;
+			int type;
+		} attr;
+
+		/* LINK/UNLINK */
+		struct {
+			oid_t oid;
+		} ln;
+
+		/* READDIR */
+		struct {
+			off_t offs;
+		} readdir;
+
+		unsigned char raw[MSG_RAW_SIZE];
+	};
+
+	size_t size;
+	const void *data;
+} msg_i_t;
+
+
+typedef struct {
+	__u8 pulse;
+
+	union {
+		/* ATTR */
+		struct {
+			long long val;
+		} attr;
+
+		/* CREATE */
+		struct {
+			oid_t oid;
+		} create;
+
+		/* LOOKUP */
+		struct {
+			oid_t fil;
+			oid_t dev;
+		} lookup;
+
+		unsigned char raw[MSG_RAW_SIZE];
+	};
+
+	int err;
+	size_t size;
+	void *data;
+} msg_o_t;
+
+
 typedef struct _msg_t {
 	int type;
 	int pid;
 	unsigned int priority;
 	oid_t oid;
 
-	struct {
-		union {
-			/* OPEN/CLOSE */
-			struct {
-				unsigned int flags;
-			} openclose;
-
-			/* READ/WRITE/TRUNCATE */
-			struct {
-				off_t offs;
-				size_t len;
-				unsigned int mode;
-			} io;
-
-			/* CREATE */
-			struct {
-				int type;
-				unsigned int mode;
-				oid_t dev;
-			} create;
-
-			/* SETATTR/GETATTR */
-			struct {
-				long long val;
-				int type;
-			} attr;
-
-			/* LINK/UNLINK */
-			struct {
-				oid_t oid;
-			} ln;
-
-			/* READDIR */
-			struct {
-				off_t offs;
-			} readdir;
-
-			unsigned char raw[MSG_RAW_SIZE];
-		};
-
-		size_t size;
-		const void *data;
-	} i;
-
-	struct {
-		__u8 pulse;
-
-		union {
-			/* ATTR */
-			struct {
-				long long val;
-			} attr;
-
-			/* CREATE */
-			struct {
-				oid_t oid;
-			} create;
-
-			/* LOOKUP */
-			struct {
-				oid_t fil;
-				oid_t dev;
-			} lookup;
-
-			unsigned char raw[MSG_RAW_SIZE];
-		};
-
-		int err;
-		size_t size;
-		void *data;
-	} o;
+	msg_i_t i;
+	msg_o_t o;
 } msg_t;
 
 

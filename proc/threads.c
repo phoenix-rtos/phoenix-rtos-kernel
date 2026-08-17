@@ -3280,8 +3280,8 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	 * We *could* do it here, but would need to switch to caller aspace and back.
 	 * Delegation saves us two pmap switches (potential TLB flushes) per respond fastpath
 	 */
-	/* TODO: copy just the .o part? */
-	hal_memcpy(&caller->ipc.msgDefer, msg, sizeof(*msg));
+	hal_memcpy(&caller->ipc.msgDefer.o, &msg->o, sizeof(msg->o));
+	caller->ipc.msgDefer.i.size = msg->i.size;
 	caller->ipc.defer = recv;
 
 	threads_releaseXferBufs(caller);
