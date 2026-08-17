@@ -72,7 +72,7 @@ struct _attrAll {
 typedef struct _msg_t {
 	int type;
 	int pid;
-	unsigned int priority;
+	int priority;
 	oid_t oid;
 
 	struct {
