@@ -2741,13 +2741,11 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	recv = p->threads;
 	LIB_ASSERT(recv != NULL, "recv is null");
 
-	LIST_REMOVE_EX(&p->threads, recv, tnext, tprev);
+	_portDequeue(p, recv);
 
 	recv->interruptible = 0;
 
 	hal_spinlockClear(&p->spinlock, &sc);
-
-	recv->addedTo = NULL;
 
 	if (returnable != 0) {
 		caller->callReturnable = 1;
@@ -2974,10 +2972,7 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 		return -EINVAL;
 	}
 
-	LIST_REMOVE_EX(&p->threads, forward, tnext, tprev);
-
-	/* TODO: use port dequeue? */
-	forward->addedTo = NULL;
+	_portDequeue(p, forward);
 
 	recv->interruptible = 1;
 	forward->interruptible = 0;
