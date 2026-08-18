@@ -2599,8 +2599,6 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.ridCookie = (ptr_t)cycles + 1;
 	} while (threads_common.ridCookie == 0);
 
-	xfer_init(kmap);
-
 	/* Initialize scheduler queues */
 	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
 		threads_common.ready[i] = NULL;
@@ -2901,19 +2899,39 @@ int proc_send_returnable(u32 port, msg_t *msg)
 	return proc_send_ex(port, msg, 1);
 }
 
+static thread_t *ridToReply(msg_rid_t rid)
+{
+	void *reply = (void *)((ptr_t)rid ^ threads_common.ridCookie);
+
+	if (reply == NULL) {
+		return NULL;
+	}
+
+#ifndef NOMMU
+	if (pmap_belongs(&threads_common.kmap->pmap, reply) == 0) {
+		return NULL;
+	}
+#else
+	if (pmap_isAllowed(&threads_common.kmap->pmap, reply, sizeof(thread_t *)) == 0) {
+		return NULL;
+	}
+#endif
+
+	return (thread_t *)reply;
+}
+
 
 int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 {
 	port_t *p;
 	thread_t *caller, *recv, *forward;
 	spinlock_ctx_t sc, tsc;
-
-	void *reply = (void *)((ptr_t)rid ^ threads_common.ridCookie);
+	void *reply = ridToReply(rid);
 
 	recv = proc_current();
 	LIB_ASSERT(recv != NULL, "recv is null???");
 
-	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0) {
+	if (reply == NULL) {
 		return -EINVAL;
 	}
 
@@ -3207,11 +3225,11 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	thread_t *caller, *recv;
 	int err = EOK;
 
-	void *reply = (void *)((ptr_t)rid ^ threads_common.ridCookie);
+	void *reply = ridToReply(rid);
 
 	recv = proc_current();
 
-	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0) {
+	if (reply == NULL) {
 		return -EINVAL;
 	}
 
@@ -3335,8 +3353,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	 */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	msg_rid_t saved_rid = *rid;
-	thread_t *reply = (thread_t *)((ptr_t)saved_rid ^ threads_common.ridCookie);
-	if (reply == NULL || pmap_belongs(&threads_common.kmap->pmap, reply) == 0 || reply->called != _proc_current()) {
+	thread_t *reply = ridToReply(saved_rid);
+	if (reply == NULL || reply->called != _proc_current()) {
 		respond = 0;
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
