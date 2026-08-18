@@ -289,8 +289,8 @@ static void _unbindFromAddedTo(thread_t *t)
 		p = t->addedTo;
 		hal_spinlockSet(&p->spinlock, &sc);
 		LIST_REMOVE_EX(&p->threads, t, tnext, tprev);
-		hal_spinlockClear(&p->spinlock, &sc);
 		t->addedTo = NULL;
+		hal_spinlockClear(&p->spinlock, &sc);
 	}
 }
 
@@ -721,7 +721,7 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 {
 	LIB_ASSERT(sc->donor == caller, "returning SC donated by someone else");
 	LIB_ASSERT(caller->called == NULL, "_sc_return but called not cleared?");
-	LIB_ASSERT(server->sc_donated != NULL || server->sc_donated->dnext != NULL, "empty/corrupted donation queue?");
+	LIB_ASSERT(server->sc_donated != NULL && sc->dnext != NULL && sc->dprev != NULL, "empty/corrupted donation queue?");
 
 	/* Remove donated SC from server */
 	LIST_REMOVE_EX(&server->sc_donated, sc, dnext, dprev);
@@ -736,15 +736,7 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 		/* caller is in a reply chain */
 		LIST_ADD_EX(&caller->sc_donated, sc, dnext, dprev);
 
-		LIB_ASSERT(caller->reply != NULL, "caller has a donated SC but is not replying to anyone?");
-
-		/*
-		 * FIXME: doesnt fix it. caller can have multiple clients and caller->reply will be
-		 * overwritten by last one while the SC can come from any
-		 * so for now the SCs can still end up mixed (sc->donor can point to a
-		 * caller's client that wasn't the actual donor)
-		 */
-		sc->donor = caller->reply;
+		sc->donor = sc->owner;
 	}
 	else {
 		sc->donor = NULL;
@@ -1262,8 +1254,8 @@ static void _wakePassive(thread_t *t)
 static void _thread_interrupt(thread_t *t)
 {
 	if (t->passive == 1) {
-		_wakePassive(t);
 		_unbindFromAddedTo(t);
+		_wakePassive(t);
 		t->ipc.msgPtr->o.err = -EINTR;
 	}
 	else {
