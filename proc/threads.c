@@ -55,11 +55,11 @@ static struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	sched_context_t *ready[MAX_PRIO];
+	sched_context_t *ready[NPRIOS];
 	sched_context_t **current;
 	time_t utcoffs;
 
-	unsigned int readyNonempty;
+	u64 readyNonempty;
 
 	/* Synchronized by spinlock */
 	rbtree_t sleeping;
@@ -303,7 +303,7 @@ static void _readyAdd(thread_t *t)
 {
 	unsigned int prio = t->priority;
 	LIST_ADD(&threads_common.ready[prio], t->sc_active);
-	threads_common.readyNonempty |= (1u << prio);
+	threads_common.readyNonempty |= ((u64)1U << prio);
 }
 
 
@@ -312,14 +312,14 @@ static void _readyRemove(thread_t *t)
 	unsigned int prio = t->priority;
 	LIST_REMOVE(&threads_common.ready[prio], t->sc_active);
 	if (threads_common.ready[prio] == NULL) {
-		threads_common.readyNonempty &= ~(1u << prio);
+		threads_common.readyNonempty &= ~((u64)1U << prio);
 	}
 }
 
 
-static unsigned int _readyMin(void)
+static u8 _readyMin(void)
 {
-	return __builtin_ctz(threads_common.readyNonempty);
+	return (threads_common.readyNonempty != 0ULL) ? __builtin_ctzll(threads_common.readyNonempty) : NPRIOS;
 }
 
 
@@ -814,7 +814,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 	/* Get next thread */
 	i = _readyMin();
-	while (i < MAX_PRIO) {
+	while (i < NPRIOS) {
 		sched = threads_common.ready[i];
 		LIB_ASSERT(sched != NULL, "sched null despite ctz?");
 
@@ -822,7 +822,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		LIST_REMOVE(&threads_common.ready[i], sched);
 		if (threads_common.ready[i] == NULL) {
-			threads_common.readyNonempty &= ~(1u << i);
+			threads_common.readyNonempty &= ~((u64)1U << i);
 		}
 
 		if (sched->t->state != READY) {
@@ -969,7 +969,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	spinlock_ctx_t sc;
 	int err;
 
-	if (priority >= MAX_PRIO) {
+	if (priority >= NPRIOS) {
 		return -EINVAL;
 	}
 
@@ -2614,7 +2614,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	/* Run idle thread on every cpu */
 	for (i = 0; i < hal_cpuGetCount(); i++) {
 		threads_common.current[i] = NULL;
-		(void)proc_threadCreate(NULL, threads_idlethr, NULL, MAX_PRIO - 1, (size_t)SIZE_KSTACK, NULL, 0, NULL);
+		(void)proc_threadCreate(NULL, threads_idlethr, NULL, MAX_PRIO, (size_t)SIZE_KSTACK, NULL, 0, NULL);
 	}
 
 	/* Install scheduler on clock interrupt */
@@ -3037,7 +3037,7 @@ int proc_threadBroadcastPrio(prio_queue_t *queue)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	for (prio = 0; prio < MAX_PRIO; prio++) {
+	for (prio = 0; prio < NPRIOS; prio++) {
 		ret += _proc_threadBroadcast(&queue->pq[prio]);
 	}
 
@@ -3050,10 +3050,7 @@ int proc_threadBroadcastPrio(prio_queue_t *queue)
 /* TODO: move this queue to lib */
 void proc_threadPrioQueueInit(prio_queue_t *queue)
 {
-	size_t prio;
-	for (prio = 0; prio < MAX_PRIO; prio++) {
-		queue->pq[prio] = NULL;
-	}
+	hal_memset(queue->pq, 0, sizeof(queue->pq));
 	queue->nonempty = 0;
 }
 

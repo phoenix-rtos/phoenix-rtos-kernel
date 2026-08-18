@@ -59,12 +59,13 @@ typedef struct _sched_context_t {
 } sched_context_t;
 
 
-#define MAX_PRIO 16
+#define NPRIOS   16
+#define MAX_PRIO (NPRIOS - 1U)
 
 
 /* TODO: if not sufficient, implement some crazy heap */
 typedef struct {
-	struct _thread_t *pq[MAX_PRIO];
+	struct _thread_t *pq[NPRIOS];
 	int nonempty;
 } prio_queue_t;
 
