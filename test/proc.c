@@ -20,7 +20,7 @@
 
 
 struct {
-	volatile unsigned int rotations[8];
+	volatile unsigned int rotations[NPRIOS];
 	volatile time_t tm;
 	spinlock_t spinlock;
 	thread_t *queue;
@@ -35,28 +35,37 @@ struct {
 
 static void test_proc_indthr(void *arg)
 {
-	char *indicator = "o|/-\\|/-\\";
+	const char *indicator = "o|/-\\|/-\\";
+	const int k = 8;
+	int i;
 
 	lib_printf("test: [proc.threads] Starting indicating thread\n");
 	hal_consolePrint(ATTR_USER, "\033[?25l");
 
 	for (;;) {
-		lib_printf("\rtest: [proc.threads] %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d",
-				indicator[test_proc_common.rotations[1] % 8U],
-				indicator[test_proc_common.rotations[2] % 8U],
-				indicator[test_proc_common.rotations[3] % 8U],
-				indicator[test_proc_common.rotations[4] % 8U],
-				indicator[test_proc_common.rotations[5] % 8U],
-				indicator[test_proc_common.rotations[6] % 8U],
-				indicator[test_proc_common.rotations[7] % 8U],
+		for (i = 0; i < k; i++) {
+			lib_printf("test: [proc.threads] %02d %c %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d %02d\n",
+					i * k,
+					indicator[test_proc_common.rotations[i * k + 0] % 8U],
+					indicator[test_proc_common.rotations[i * k + 1] % 8U],
+					indicator[test_proc_common.rotations[i * k + 2] % 8U],
+					indicator[test_proc_common.rotations[i * k + 3] % 8U],
+					indicator[test_proc_common.rotations[i * k + 4] % 8U],
+					indicator[test_proc_common.rotations[i * k + 5] % 8U],
+					indicator[test_proc_common.rotations[i * k + 6] % 8U],
+					indicator[test_proc_common.rotations[i * k + 7] % 8U],
 
-				test_proc_common.rotations[1] % 100U,
-				test_proc_common.rotations[2] % 100U,
-				test_proc_common.rotations[3] % 100U,
-				test_proc_common.rotations[4] % 100U,
-				test_proc_common.rotations[5] % 100U,
-				test_proc_common.rotations[6] % 100U,
-				test_proc_common.rotations[7] % 100U);
+					test_proc_common.rotations[i * k + 0] % 100U,
+					test_proc_common.rotations[i * k + 1] % 100U,
+					test_proc_common.rotations[i * k + 2] % 100U,
+					test_proc_common.rotations[i * k + 3] % 100U,
+					test_proc_common.rotations[i * k + 4] % 100U,
+					test_proc_common.rotations[i * k + 5] % 100U,
+					test_proc_common.rotations[i * k + 6] % 100U,
+					test_proc_common.rotations[i * k + 7] % 100U);
+		}
+
+		lib_printf("\033[8A\r");
 
 		proc_threadSleep(5000);
 	}
@@ -110,20 +119,17 @@ static void test_proc_rotthr1(void *arg)
 void test_proc_threads1(void)
 {
 	unsigned int i, stacksz = 1384;
-	for (i = 0; i < 8U; i++) {
+	for (i = 0; i < NPRIOS; i++) {
 		test_proc_common.rotations[i] = 0;
 	}
 
-	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, stacksz, NULL, 0, 0, NULL);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 1, stacksz, NULL, 0, 0, (void *)(int *)1);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 2, stacksz, NULL, 0, 0, (void *)(int *)2);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 3, stacksz, NULL, 0, 0, (void *)(int *)3);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 4, stacksz, NULL, 0, 0, (void *)(int *)4);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 5, stacksz, NULL, 0, 0, (void *)(int *)5);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 6, stacksz, NULL, 0, 0, (void *)(int *)6);
-	proc_threadCreate(NULL, test_proc_rotthr1, NULL, 7, stacksz, NULL, 0, 0, (void *)(int *)7);
+	proc_threadCreate(NULL, test_proc_indthr, NULL, MIN_PRIO, stacksz, NULL, 0, 0, NULL);
 
-	proc_threadCreate(NULL, test_proc_busythr, NULL, 4, 1024, NULL, 0, 0, NULL);
+	for (i = 1; i < NPRIOS; i++) {
+		proc_threadCreate(NULL, test_proc_rotthr1, NULL, MIN_PRIO + i, stacksz, NULL, 0, 0, (void *)(ptr_t)i);
+	}
+
+	proc_threadCreate(NULL, test_proc_busythr, NULL, (MAX_PRIO - MIN_PRIO) / 2, 1024, NULL, 0, 0, NULL);
 }
 
 
@@ -158,7 +164,7 @@ static void test_proc_rotthr2(void *arg)
 void test_proc_threads2(void)
 {
 	unsigned int i;
-	for (i = 0; i < 8U; i++) {
+	for (i = 0; i < NPRIOS; i++) {
 		test_proc_common.rotations[i] = 0;
 	}
 
@@ -166,13 +172,12 @@ void test_proc_threads2(void)
 	test_proc_common.queue = NULL;
 	hal_spinlockCreate(&test_proc_common.spinlock, "test_proc_common.spinlock");
 
-	proc_threadCreate(NULL, test_proc_indthr, NULL, 0, 1024, NULL, 0, 0, NULL);
-	proc_threadCreate(NULL, test_proc_timethr, NULL, 0, 1024, NULL, 0, 0, NULL);
+	proc_threadCreate(NULL, test_proc_indthr, NULL, MIN_PRIO, 1024, NULL, 0, 0, NULL);
+	proc_threadCreate(NULL, test_proc_timethr, NULL, MIN_PRIO, 1024, NULL, 0, 0, NULL);
 
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 1, 1024, NULL, 0, 0, (void *)(int *)1);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 2, 1024, NULL, 0, 0, (void *)(int *)2);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 3, 1024, NULL, 0, 0, (void *)(int *)3);
-	proc_threadCreate(NULL, test_proc_rotthr2, NULL, 4, 1024, NULL, 0, 0, (void *)(int *)4);
+	for (i = 8; i < NPRIOS; i += 8) {
+		proc_threadCreate(NULL, test_proc_rotthr2, NULL, MIN_PRIO + i, 1024, NULL, 0, 0, (void *)(ptr_t)i);
+	}
 }
 
 
