@@ -46,8 +46,13 @@
 #define SYSCFG_BASE ((void *)0x50040400U)
 #define GPDMA1_BASE ((void *)0x50020000U)
 #define DBGMCU_BASE ((void *)0xe0044000U)
+#define OTP_BASE    ((void *)0x0bfa0000U)
 
 #define DMA_CHANNELS 12U
+
+#define OTP_USER_MAX   511U
+#define OTP_SYSTEM_MIN 768U
+#define OTP_SYSTEM_MAX 3583U
 
 
 static struct {
@@ -57,6 +62,7 @@ static struct {
 	volatile u32 *rtc;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
+	volatile u8 *otp;
 
 	u32 cpuclk;
 
@@ -114,6 +120,17 @@ int hal_platformctl(void *ptr)
 				/* No action required */
 			}
 
+			break;
+		case pctl_otp:
+			if (data->action == pctl_get) {
+				ret = _stm32_bsec_otp_read(data->otp.addr, &state);
+				if (ret == EOK) {
+					data->otp.val = state & 0xffU;
+				}
+			}
+			else {
+				/* No action required */
+			}
 			break;
 		case pctl_reboot:
 			if (data->action == pctl_set) {
@@ -585,6 +602,36 @@ void _stm32_wdgReload(void)
 }
 
 
+/* One-Time Programmable */
+
+
+int _stm32_bsec_otp_checkFuseValid(unsigned int fuse)
+{
+	if (fuse <= OTP_USER_MAX) {
+		return EOK;
+	}
+
+	if ((fuse >= OTP_SYSTEM_MIN) && (fuse <= OTP_SYSTEM_MAX)) {
+		return EOK;
+	}
+
+	return -ERANGE;
+}
+
+
+int _stm32_bsec_otp_read(unsigned int fuse, u32 *val)
+{
+	int res = _stm32_bsec_otp_checkFuseValid(fuse);
+	if (res != EOK) {
+		return res;
+	}
+
+	*val = (u32)(*(stm32_common.otp + fuse));
+
+	return EOK;
+}
+
+
 void _stm32_init(void)
 {
 	u32 i;
@@ -595,6 +642,7 @@ void _stm32_init(void)
 	stm32_common.rcc = RCC_BASE;
 	stm32_common.rtc = RTC_BASE;
 	stm32_common.syscfg = SYSCFG_BASE;
+	stm32_common.otp = OTP_BASE;
 	stm32_common.gpio[0] = GPIOA_BASE;
 	stm32_common.gpio[1] = GPIOB_BASE;
 	stm32_common.gpio[2] = GPIOC_BASE;
