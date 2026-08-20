@@ -43,6 +43,8 @@
 
 #define HAL_NAME_PLATFORM "STM32U3 "
 
+#define STM32_ENABLE_LOW_POWER 1
+
 #endif
 
 #endif
