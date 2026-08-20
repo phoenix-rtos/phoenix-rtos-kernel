@@ -47,6 +47,7 @@ static struct {
 	volatile u32 *rtc;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
+	volatile u32 *dbgmcu;
 
 	u32 cpuclk;
 
@@ -332,6 +333,7 @@ int _stm32_rccSetDevClock(int dev, u32 status, u32 lpStatus)
 	return EOK;
 }
 
+
 int _stm32_rccGetDevClock(int dev, u32 *status, u32 *lpStatus)
 {
 	u32 shift;
@@ -378,7 +380,6 @@ void _stm32_rccClearResetFlags(void)
 int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 {
 	u32 reg;
-	volatile u32 *base = DBGMCU_BASE;
 	if ((pctl_tim2 <= dev) && (dev <= pctl_rtcapb)) {
 		reg = (u32)dbgmcu_apb1lfzr;
 	}
@@ -396,10 +397,10 @@ int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 	}
 
 	if (stop != 0U) {
-		*(base + reg) |= 1UL << ((u32)dev % 32U);
+		*(stm32_common.dbgmcu + reg) |= 1UL << ((u32)dev % 32U);
 	}
 	else {
-		*(base + reg) &= ~(1UL << ((u32)dev % 32U));
+		*(stm32_common.dbgmcu + reg) &= ~(1UL << ((u32)dev % 32U));
 	}
 
 	hal_cpuDataSyncBarrier();
@@ -528,6 +529,23 @@ void _stm32_wdgReload(void)
 }
 
 
+void _stm32_pwrEnterLPStop(time_t us)
+{
+	unsigned int t;
+
+	/* Select Stop 2 as deep sleep mode */
+	t = *(stm32_common.pwr + pwr_cr1) & ~(0x7U);
+	*(stm32_common.pwr + pwr_cr1) = t | 2U;
+	hal_cpuDataMemoryBarrier();
+
+	timer_setAlarm(us);
+
+	_hal_scsDeepSleepSet(1); /* Switch to deep sleep mode */
+	hal_cpuHalt();           /* WFI enters Stop mode */
+	_hal_scsDeepSleepSet(0); /* Switch to shallow sleep mode */
+}
+
+
 void _stm32_init(void)
 {
 	/* Base addresses init */
@@ -536,6 +554,7 @@ void _stm32_init(void)
 	stm32_common.rcc = RCC_BASE;
 	stm32_common.rtc = RTC_BASE;
 	stm32_common.syscfg = SYSCFG_BASE;
+	stm32_common.dbgmcu = DBGMCU_BASE;
 
 	_hal_scsInit();
 
@@ -558,4 +577,7 @@ void _stm32_init(void)
 
 	_stm32_rtcInit();
 	_stm32_wdgInit();
+#ifdef NDEBUG
+	*(stm32_common.dbgmcu + dbgmcu_cr) &= ~(1UL << 1); /* Turn off DBG_STOP to ensure clocks will be turned off in Stop mode */
+#endif
 }

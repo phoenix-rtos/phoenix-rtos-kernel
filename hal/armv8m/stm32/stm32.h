@@ -192,4 +192,9 @@ int _stm32_systickInit(u32 interval);
 void _stm32_init(void);
 
 
+#if defined(__CPU_STM32U3)
+void _stm32_pwrEnterLPStop(time_t us);
+#endif
+
+
 #endif
