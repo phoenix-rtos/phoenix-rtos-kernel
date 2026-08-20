@@ -23,6 +23,12 @@
 #include "include/arch/armv8m/stm32/u3/stm32u3.h"
 #endif
 
+#if defined(__CPU_STM32N6)
+#define STM32_GPIO_PRIVILEGE 1 /* Set to 1 to compile support for setting GPIO privileges */
+#else
+#define STM32_GPIO_PRIVILEGE 0
+#endif
+
 
 enum gpio_modes {
 	gpio_mode_gpi = 0,
@@ -84,10 +90,12 @@ void _stm32_rccClearResetFlags(void);
 int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop);
 
 
+void _stm32_gpioInit(void);
+
+
 int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd);
 
 
-#if defined(__CPU_STM32N6)
 int _stm32_gpioSet(int d, u8 pin, u8 val);
 
 
@@ -100,16 +108,20 @@ int _stm32_gpioGet(int d, u8 pin, u8 *val);
 int _stm32_gpioGetPort(int d, u32 *val);
 
 
+#if STM32_GPIO_PRIVILEGE
 int _stm32_gpioSetPrivilege(int d, u32 val);
 
 
 int _stm32_gpioGetPrivilege(int d, u32 *val);
+#endif
 
 
+#if defined(__CPU_STM32N6)
 void _stm32_rtcUnlockRegs(void);
 
 
 void _stm32_rtcLockRegs(void);
+#endif
 
 
 int _stm32_extiMaskInterrupt(u32 line, u8 state);
@@ -125,7 +137,9 @@ int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge);
 
 
 int _stm32_extiSoftInterrupt(u32 line);
-#endif
+
+
+int _stm32_extiSetGpioMux(int gpioDev, u8 pin);
 
 
 void _stm32_wdgReload(void);

@@ -42,41 +42,24 @@
 #endif
 
 
-#define GPIOA_BASE ((void *)0x56020000U)
-#define GPIOB_BASE ((void *)0x56020400U)
-#define GPIOC_BASE ((void *)0x56020800U)
-#define GPIOD_BASE ((void *)0x56020c00U)
-#define GPIOE_BASE ((void *)0x56021000U)
-#define GPIOF_BASE ((void *)0x56021400U)
-#define GPIOG_BASE ((void *)0x56021800U)
-#define GPIOH_BASE ((void *)0x56021c00U)
-#define GPION_BASE ((void *)0x56023400U)
-#define GPIOO_BASE ((void *)0x56023800U)
-#define GPIOP_BASE ((void *)0x56023c00U)
-#define GPIOQ_BASE ((void *)0x56024000U)
-
 #define IWDG_BASE     ((void *)0x56004800U)
 #define PWR_BASE      ((void *)0x56024800U)
 #define RCC_BASE      ((void *)0x56028000U)
 #define RTC_BASE      ((void *)0x56004000U)
 #define SYSCFG_BASE   ((void *)0x56008000U)
-#define EXTI_BASE     ((void *)0x56025000U)
 #define RIFSC_BASE    ((void *)0x54024000U)
 #define GPDMA1_BASE   ((void *)0x50021000U)
 #define HPDMA1_BASE   ((void *)0x58020000U)
 #define DBGMCU_BASE   ((void *)0x54001000U)
 #define CACHEAXI_BASE ((void *)0x580dfc00U)
 
-#define EXTI_LINES   78U
 #define DMA_CHANNELS 16U
 
 
 static struct {
 	volatile u32 *rcc;
-	volatile u32 *gpio[17];
 	volatile u32 *pwr;
 	volatile u32 *rtc;
-	volatile u32 *exti;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
 	volatile u32 *rifsc;
@@ -783,227 +766,6 @@ void _stm32_rtcLockRegs(void)
 }
 
 
-/* EXTI */
-
-
-static int _stm32_extiLineToRegBit(u32 line, u32 *reg_offs, u32 *bit)
-{
-	if (line >= EXTI_LINES) {
-		return -1;
-	}
-
-	*reg_offs = (line / 32U) * 8U;
-	*bit = (1UL << (line % 32U));
-	return 0;
-}
-
-
-int _stm32_extiMaskInterrupt(u32 line, u8 state)
-{
-	u32 offs, bit;
-	if (_stm32_extiLineToRegBit(line, &offs, &bit) < 0) {
-		return -EINVAL;
-	}
-
-	offs += (u32)exti_imr1;
-	if (state != 0U) {
-		*(stm32_common.exti + offs) |= bit;
-	}
-	else {
-		*(stm32_common.exti + offs) &= ~bit;
-	}
-
-	return EOK;
-}
-
-
-int _stm32_extiMaskEvent(u32 line, u8 state)
-{
-	u32 offs, bit;
-	if (_stm32_extiLineToRegBit(line, &offs, &bit) < 0) {
-		return -EINVAL;
-	}
-
-	offs += (u32)exti_emr1;
-	if (state != 0U) {
-		*(stm32_common.exti + offs) |= bit;
-	}
-	else {
-		*(stm32_common.exti + offs) &= ~bit;
-	}
-
-	return EOK;
-}
-
-
-int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge)
-{
-	u32 offs, bit;
-	if (_stm32_extiLineToRegBit(line, &offs, &bit) < 0) {
-		return -EINVAL;
-	}
-
-	offs += (u32)((edge != 0U) ? exti_rtsr1 : exti_ftsr1);
-	if (state != 0U) {
-		*(stm32_common.exti + offs) |= bit;
-	}
-	else {
-		*(stm32_common.exti + offs) &= ~bit;
-	}
-
-	return EOK;
-}
-
-
-int _stm32_extiSoftInterrupt(u32 line)
-{
-	u32 offs, bit;
-	if (_stm32_extiLineToRegBit(line, &offs, &bit) < 0) {
-		return -EINVAL;
-	}
-
-	*(stm32_common.exti + exti_swier1 + offs) |= bit;
-	return EOK;
-}
-
-
-/* GPIO */
-
-
-static volatile u32 *_stm32_gpioGetBase(int d)
-{
-	if ((d < pctl_gpioa) || (d > pctl_gpioq)) {
-		return NULL;
-	}
-
-	return stm32_common.gpio[d - pctl_gpioa];
-}
-
-
-int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd)
-{
-	volatile u32 *base;
-	u32 t;
-
-	base = _stm32_gpioGetBase(d);
-	if ((base == NULL) || (pin > 15U)) {
-		return -EINVAL;
-	}
-
-	t = *(base + gpio_moder) & ~(0x3UL << (pin << 1));
-	*(base + gpio_moder) = t | ((u32)mode & 0x3U) << (pin << 1);
-
-	t = *(base + gpio_otyper) & ~(1UL << pin);
-	*(base + gpio_otyper) = t | ((u32)otype & 1U) << pin;
-
-	t = *(base + gpio_ospeedr) & ~(0x3UL << (pin << 1));
-	*(base + gpio_ospeedr) = t | ((u32)ospeed & 0x3U) << (pin << 1);
-
-	t = *(base + gpio_pupdr) & ~(0x03UL << (pin << 1));
-	*(base + gpio_pupdr) = t | ((u32)pupd & 0x3U) << (pin << 1);
-
-	if (pin < 8U) {
-		t = *(base + gpio_afrl) & ~(0xfUL << (pin << 2));
-		*(base + gpio_afrl) = t | ((u32)af & 0xfU) << (pin << 2);
-	}
-	else {
-		t = *(base + gpio_afrh) & ~(0xfUL << ((pin - 8U) << 2));
-		*(base + gpio_afrh) = t | ((u32)af & 0xfU) << ((pin - 8U) << 2);
-	}
-
-	return EOK;
-}
-
-
-int _stm32_gpioSet(int d, u8 pin, u8 val)
-{
-	volatile u32 *base;
-
-	base = _stm32_gpioGetBase(d);
-	if ((base == NULL) || (pin > 15U)) {
-		return -EINVAL;
-	}
-
-	*(base + gpio_bsrr) = 1UL << ((val == 0U) ? ((u32)pin + 16U) : (u32)pin);
-	return EOK;
-}
-
-
-int _stm32_gpioSetPort(int d, u16 val)
-{
-	volatile u32 *base;
-
-	base = _stm32_gpioGetBase(d);
-	if (base == NULL) {
-		return -EINVAL;
-	}
-
-	*(base + gpio_odr) = (u32)val;
-
-	return EOK;
-}
-
-
-int _stm32_gpioGet(int d, u8 pin, u8 *val)
-{
-	volatile u32 *base;
-
-	base = _stm32_gpioGetBase(d);
-	if ((base == NULL) || (pin > 15U)) {
-		return -EINVAL;
-	}
-
-	*val = (u8)(*(base + gpio_idr) >> pin) & 1U;
-
-	return EOK;
-}
-
-
-int _stm32_gpioGetPort(int d, u32 *val)
-{
-	volatile u32 *base;
-
-	base = _stm32_gpioGetBase(d);
-	if (base == NULL) {
-		return -EINVAL;
-	}
-
-	*val = *(base + gpio_idr);
-
-	return EOK;
-}
-
-
-int _stm32_gpioSetPrivilege(int d, u32 val)
-{
-	volatile u32 *base;
-
-	base = _stm32_gpioGetBase(d);
-	if (base == NULL) {
-		return -EINVAL;
-	}
-
-	*(base + gpio_privcfgr) = val;
-
-	return EOK;
-}
-
-
-int _stm32_gpioGetPrivilege(int d, u32 *val)
-{
-	volatile u32 *base;
-
-	base = _stm32_gpioGetBase(d);
-	if (base == NULL) {
-		return -EINVAL;
-	}
-
-	*val = *(base + gpio_privcfgr);
-
-	return EOK;
-}
-
-
 /* Watchdog */
 
 
@@ -1017,41 +779,18 @@ void _stm32_wdgReload(void)
 
 void _stm32_init(void)
 {
-	u32 i;
-	static const int gpioDevs[] = {
-		pctl_gpioa, pctl_gpiob, pctl_gpioc, pctl_gpiod,
-		pctl_gpioe, pctl_gpiof, pctl_gpiog, pctl_gpioh,
-		pctl_gpion, pctl_gpioo, pctl_gpiop, pctl_gpioq
-	};
-
 	/* Base addresses init */
 	stm32_common.iwdg = IWDG_BASE;
 	stm32_common.pwr = PWR_BASE;
 	stm32_common.rcc = RCC_BASE;
 	stm32_common.rtc = RTC_BASE;
-	stm32_common.exti = EXTI_BASE;
 	stm32_common.syscfg = SYSCFG_BASE;
 	stm32_common.rifsc = RIFSC_BASE;
 	stm32_common.cacheaxiconf = CACHEAXI_BASE;
-	stm32_common.gpio[0] = GPIOA_BASE;
-	stm32_common.gpio[1] = GPIOB_BASE;
-	stm32_common.gpio[2] = GPIOC_BASE;
-	stm32_common.gpio[3] = GPIOD_BASE;
-	stm32_common.gpio[4] = GPIOE_BASE;
-	stm32_common.gpio[5] = GPIOF_BASE;
-	stm32_common.gpio[6] = GPIOG_BASE;
-	stm32_common.gpio[7] = GPIOH_BASE;
-	stm32_common.gpio[8] = NULL;
-	stm32_common.gpio[9] = NULL;
-	stm32_common.gpio[10] = NULL;
-	stm32_common.gpio[11] = NULL;
-	stm32_common.gpio[12] = NULL;
-	stm32_common.gpio[13] = GPION_BASE;
-	stm32_common.gpio[14] = GPIOO_BASE;
-	stm32_common.gpio[15] = GPIOP_BASE;
-	stm32_common.gpio[16] = GPIOQ_BASE;
 
 	_hal_scsInit();
+
+	_stm32_gpioInit();
 
 	/* Enable System configuration controller */
 	(void)_stm32_rccSetDevClock(pctl_syscfg, 1U, 1U);
@@ -1074,11 +813,6 @@ void _stm32_init(void)
 	*(stm32_common.rcc + rcc_cier) = 0;
 
 	hal_cpuDataMemoryBarrier();
-
-	/* GPIO init */
-	for (i = 0; i < sizeof(gpioDevs) / sizeof(gpioDevs[0]); ++i) {
-		(void)_stm32_rccSetDevClock(gpioDevs[i], 1U, 1U);
-	}
 
 #if NPU
 	/* Enable NPU clock */
