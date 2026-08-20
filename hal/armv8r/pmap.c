@@ -45,7 +45,7 @@ int pmap_addMap(pmap_t *pmap, unsigned int map)
 }
 
 
-int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
+int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size, vm_attr_t mattr)
 {
 	/* TODO: MPU support */
 	return 1;

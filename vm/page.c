@@ -14,6 +14,7 @@
 
 #include "hal/hal.h"
 #include "lib/lib.h"
+#include "lib/usermem.h"
 #include "proc/proc.h"
 #include "include/errno.h"
 #include "include/mman.h"
@@ -381,8 +382,17 @@ void vm_pageinfo(meminfo_t *info)
 	page_t *p;
 	unsigned int rep, i = 0;
 	int size = 0;
-	int mapsz = info->page.mapsz;
-	pageinfo_t *map = info->page.map;
+	int mapsz;
+	pageinfo_t *map;
+
+	USERMEM_TRY(
+			{
+				mapsz = info->page.mapsz;
+				map = info->page.map;
+			},
+			{
+				return;
+			});
 
 	if (mapsz != -1) {
 		/* mapsz * sizeof(map[0]) would overflow */
@@ -390,17 +400,24 @@ void vm_pageinfo(meminfo_t *info)
 			return;
 		}
 
-		if (vm_mapBelongs(proc_current()->process, map, (size_t)mapsz * sizeof(map[0])) < 0) {
+		if (vm_mapBelongs(proc_current()->process, map, (size_t)mapsz * sizeof(map[0]), PROT_READ | PROT_WRITE) < 0) {
 			return;
 		}
 	}
 
 	(void)proc_lockSet(&pages_info.lock);
 
-	info->page.alloc = (unsigned int)pages_info.allocsz;
-	info->page.free = (unsigned int)(pages_info.totalsz - pages_info.allocsz);
-	info->page.boot = (unsigned int)pages_info.bootsz;
-	info->page.sz = (unsigned int)sizeof(page_t);
+	USERMEM_TRY(
+			{
+				info->page.alloc = (unsigned int)pages_info.allocsz;
+				info->page.free = (unsigned int)(pages_info.totalsz - pages_info.allocsz);
+				info->page.boot = (unsigned int)pages_info.bootsz;
+				info->page.sz = (unsigned int)sizeof(page_t);
+			},
+			{
+				(void)proc_lockClear(&pages_info.lock);
+				return;
+			});
 
 	if (mapsz != -1) {
 		while (i < pages_info.totalsz / SIZE_PAGE) {
@@ -414,16 +431,30 @@ void vm_pageinfo(meminfo_t *info)
 			}
 
 			if (mapsz > size && map != NULL) {
-				map[size].count = rep + 1U;
-				map[size].marker = c;
-				map[size].addr = p->addr;
+				USERMEM_TRY(
+						{
+							map[size].count = rep + 1U;
+							map[size].marker = c;
+							map[size].addr = p->addr;
+						},
+						{
+							(void)proc_lockClear(&pages_info.lock);
+							return;
+						});
 			}
 
 			i += rep + 1U;
 			++size;
 		}
 
-		info->page.mapsz = size;
+		USERMEM_TRY(
+				{
+					info->page.mapsz = size;
+				},
+				{
+					(void)proc_lockClear(&pages_info.lock);
+					return;
+				});
 	}
 
 	(void)proc_lockClear(&pages_info.lock);

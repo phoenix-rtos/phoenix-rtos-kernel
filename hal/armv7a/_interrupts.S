@@ -296,3 +296,19 @@ _syscalls_dispatch:
 	add sp, sp, #8
 	b _hal_cpuRestoreCtx
 .size _syscalls_dispatch, .-_syscalls_dispatch
+
+
+/* int hal_createexcjmp(excjmp_context_t *ctx) */
+.globl hal_createexcjmp
+.type hal_createexcjmp, %function
+hal_createexcjmp:
+	mrs r2, cpsr
+	str r2, [r0, #0]
+	str lr, [r0, #4]
+	add r1, r0, #8
+	stm r1, {r4-r11}
+	str sp, [r0, #40]
+
+	mov r0, #0
+	bx lr
+.size hal_createexcjmp, .-hal_createexcjmp

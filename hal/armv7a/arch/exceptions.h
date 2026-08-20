@@ -23,6 +23,8 @@
 
 #define SIZE_CTXDUMP 512U /* Size of dumped context */
 
+#define EXCJMP_SUPPORTED 1
+
 
 typedef struct _exc_context_t {
 	u32 dfsr;
@@ -32,5 +34,20 @@ typedef struct _exc_context_t {
 
 	cpu_context_t cpuCtx;
 } exc_context_t;
+
+
+typedef struct _excjmp_context_t {
+	u32 psr;
+	u32 ret;
+	u32 r4;
+	u32 r5;
+	u32 r6;
+	u32 r7;
+	u32 r8;
+	u32 r9;
+	u32 r10;
+	u32 fp;
+	u32 sp;
+} excjmp_context_t;
 
 #endif

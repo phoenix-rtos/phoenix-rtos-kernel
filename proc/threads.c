@@ -17,6 +17,7 @@
 #include "include/signal.h"
 #include "threads.h"
 #include "lib/lib.h"
+#include "lib/usermem.h"
 #include "posix/posix.h"
 #include "log/log.h"
 #include "resource.h"
@@ -357,6 +358,28 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 }
 
 
+#ifdef EXCJMP_SUPPORTED
+void threads_setexcjmp(volatile excjmp_context_t *ctx)
+{
+	thread_t *current = proc_current();
+	if (current == NULL) {
+		return;
+	}
+	current->excjmpctx = ctx;
+}
+
+
+volatile excjmp_context_t *threads_getexcjmp(void)
+{
+	thread_t *current = proc_current();
+	if (current == NULL) {
+		return NULL;
+	}
+	return current->excjmpctx;
+}
+#endif
+
+
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
@@ -539,16 +562,10 @@ static int thread_alloc(thread_t *thread)
 
 void threads_canaryInit(thread_t *t, void *ustack)
 {
-	spinlock_ctx_t sc;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
-	t->ustack = ustack;
-	if (t->ustack != NULL) {
-		hal_memcpy(t->ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
+	if (ustack != NULL) {
+		(void)usermem_memcpy(ustack, threads_common.stackCanary, sizeof(threads_common.stackCanary));
 	}
-
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	t->ustack = ustack;
 }
 
 
@@ -597,6 +614,9 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->startTime = t->readyTime;
 	t->lastTime = t->readyTime;
 	t->longjmpctx = NULL;
+#ifdef EXCJMP_SUPPORTED
+	t->excjmpctx = NULL;
+#endif
 
 	if (process != NULL && (process->tls.tdata_sz != 0U || process->tls.tbss_sz != 0U)) {
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
@@ -624,7 +644,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	}
 
 	if (id != NULL) {
-		*id = proc_getTid(t);
+		USERMEM_TRY({ *id = proc_getTid(t); }, { /* Treat like id == NULL */ });
 	}
 
 	/* Prepare initial stack */
@@ -2073,7 +2093,7 @@ int proc_threadsOther(thread_t *t)
 static void proc_threadsListCb(void *arg, int i, threadinfo_t *tinfo)
 {
 	threadinfo_t *tinfos = (threadinfo_t *)arg;
-	hal_memcpy(tinfos + i, tinfo, sizeof(threadinfo_t));
+	(void)usermem_memcpy(tinfos + i, tinfo, sizeof(threadinfo_t));
 }
 
 
@@ -2095,9 +2115,15 @@ int proc_schedInfo(process_t *proc, int policy, sched_info_t *info)
 		return -ENOSYS;
 	}
 
-	info->interval = SYSTICK_INTERVAL;
-	info->minPriority = 0;
-	info->maxPriority = (int)MAX_PRIO;
+	USERMEM_TRY(
+			{
+				info->interval = SYSTICK_INTERVAL;
+				info->minPriority = 0;
+				info->maxPriority = (int)MAX_PRIO;
+			},
+			{
+				return -EFAULT;
+			});
 
 	return EOK;
 }

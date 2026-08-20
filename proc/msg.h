@@ -66,7 +66,7 @@ int proc_send(u32 port, msg_t *msg);
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 
-int proc_respond(u32 port, msg_t *msg, msg_rid_t rid);
+int proc_respond(u32 port, const msg_t *msg, msg_rid_t rid);
 
 
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel);

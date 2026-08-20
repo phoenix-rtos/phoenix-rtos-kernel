@@ -13,7 +13,9 @@
 
 #include "hal/hal.h"
 #include "include/errno.h"
+#include "include/limits.h"
 #include "lib/lib.h"
+#include "lib/usermem.h"
 #include "proc.h"
 
 #define HASH_LEN 5 /* Number of entries in dcache = 2 ^ HASH_LEN */
@@ -37,28 +39,30 @@ static struct {
 
 
 /* Based on ceph_str_hash_linux() */
-static unsigned int dcache_strHash(const char *str)
+static unsigned int dcache_strHash(const char *str, size_t len)
 {
 	unsigned int hash = 0;
 	char c;
+	size_t i = 0;
 
 	c = *str;
-	while (c != '\0') {
+	while (c != '\0' && i < len) {
 		hash += ((unsigned int)c << 4U) + ((unsigned int)c >> 4U) * 11U;
 		str++;
 		c = *str;
+		i++;
 	}
 
 	return hash & ((0x1U << HASH_LEN) - 1U);
 }
 
 
-static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
+static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name, size_t len)
 {
 	dcache_entry_t *entry = name_common.dcache[hash];
 
 	while (entry != NULL) {
-		if (hal_strcmp(entry->name, name) == 0) {
+		if (entry->name[len] == '\0' && hal_strncmp(entry->name, name, len) == 0) {
 			break;
 		}
 
@@ -69,12 +73,27 @@ static dcache_entry_t *_dcache_entryLookup(unsigned int hash, const char *name)
 }
 
 
-int proc_portRegister(u32 port, const char *name, oid_t *oid)
+int proc_portRegister(u32 port, const char *name, const oid_t *oid)
 {
 	dcache_entry_t *entry;
 	unsigned int hash;
+	int err, isRoot;
+	size_t len;
 
-	if (name[0] == '/' && name[1] == '\0') {
+	err = usermem_strnlen(name, STR_MAX);
+	if (err < 0) {
+		return err;
+	}
+	len = (size_t)err;
+
+	USERMEM_TRY(
+			{
+				isRoot = name[0] == '/' && name[1] == '\0' ? 1 : 0;
+			},
+			{
+				return -EFAULT;
+			});
+	if (isRoot == 1) {
 		(void)proc_lockSet(&name_common.lock);
 
 		if (name_common.rootRegistered != 0) {
@@ -91,20 +110,36 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 		return EOK;
 	}
 
-	hash = dcache_strHash(name);
+	USERMEM_TRY(
+			{
+				hash = dcache_strHash(name, len);
+			},
+			{
+				return -EFAULT;
+			});
 
 	/* Pre-allocate entry to avoid holding the lock during allocation */
-	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
+	entry = vm_kmalloc(sizeof(dcache_entry_t) + len + 1U);
 
 	(void)proc_lockSet(&name_common.lock);
 
 	/* Check if entry already exists */
-	if (_dcache_entryLookup(hash, name) != NULL) {
+	err = EOK;
+	USERMEM_TRY(
+			{
+				if (_dcache_entryLookup(hash, name, len) != NULL) {
+					err = -EEXIST;
+				}
+			},
+			{
+				err = -EFAULT;
+			});
+	if (err != EOK) {
 		(void)proc_lockClear(&name_common.lock);
 		if (entry != NULL) {
 			vm_kfree(entry);
 		}
-		return -EEXIST;
+		return err;
 	}
 
 	if (entry == NULL) {
@@ -115,7 +150,13 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 	entry->oid.port = port;
 	entry->oid.id = (oid != NULL) ? oid->id : 0U;
 
-	(void)hal_strcpy(entry->name, name);
+	err = usermem_memcpy(entry->name, name, len);
+	if (err < 0) {
+		(void)proc_lockClear(&name_common.lock);
+		vm_kfree(entry);
+		return err;
+	}
+	entry->name[len] = '\0';
 
 	entry->next = name_common.dcache[hash];
 	name_common.dcache[hash] = entry;
@@ -130,23 +171,47 @@ int proc_portUnregister(const char *name)
 {
 	dcache_entry_t *entry, *prev = NULL;
 	unsigned int hash;
+	int err, isRoot;
+	size_t len;
+
+	err = usermem_strnlen(name, STR_MAX);
+	if (err < 0) {
+		return err;
+	}
+	len = (size_t)err;
+
+	USERMEM_TRY(
+			{
+				isRoot = name[0] == '/' && name[1] == '\0' ? 1 : 0;
+			},
+			{
+				return -EFAULT;
+			});
 
 	(void)proc_lockSet(&name_common.lock);
 
-	if (name[0] == '/' && name[1] == '\0') {
+	if (isRoot == 1) {
 		name_common.rootRegistered = 0;
 		(void)proc_lockClear(&name_common.lock);
 		return EOK;
 	}
 
-	hash = dcache_strHash(name);
-	entry = name_common.dcache[hash];
+	USERMEM_TRY(
+			{
+				hash = dcache_strHash(name, len);
 
-	while (entry != NULL && hal_strcmp(entry->name, name) != 0) {
-		/* Find entry to remove */
-		prev = entry;
-		entry = entry->next;
-	}
+				entry = name_common.dcache[hash];
+
+				while (entry != NULL && (entry->name[len] != '\0' || hal_strncmp(entry->name, name, len) != 0)) {
+					/* Find entry to remove */
+					prev = entry;
+					entry = entry->next;
+				}
+			},
+			{
+				(void)proc_lockClear(&name_common.lock);
+				return -EFAULT;
+			});
 
 	if (entry == NULL) {
 		/* There is no such entry, nothing to do */
@@ -171,7 +236,7 @@ int proc_portUnregister(const char *name)
 
 int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 {
-	int err;
+	int err, isRoot;
 	dcache_entry_t *entry;
 	unsigned int hash;
 	msg_t *msg;
@@ -183,7 +248,20 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return -EINVAL;
 	}
 
-	if (name[0] == '/' && name[1] == '\0') {
+	err = usermem_strnlen(name, STR_MAX);
+	if (err < 0) {
+		return err;
+	}
+	len = (size_t)err;
+
+	USERMEM_TRY(
+			{
+				isRoot = name[0] == '/' && name[1] == '\0' ? 1 : 0;
+			},
+			{
+				return -EFAULT;
+			});
+	if (isRoot == 1) {
 		(void)proc_lockSet(&name_common.lock);
 
 		if (name_common.rootRegistered != 0) {
@@ -202,12 +280,25 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 		return -ENOENT;
 	}
 
-	hash = dcache_strHash(name);
+	USERMEM_TRY(
+			{
+				hash = dcache_strHash(name, len);
+			},
+			{
+				return -EFAULT;
+			});
 
 	(void)proc_lockSet(&name_common.lock);
 
 	/* Search cache for full path (fast path) */
-	entry = _dcache_entryLookup(hash, name);
+	USERMEM_TRY(
+			{
+				entry = _dcache_entryLookup(hash, name, len);
+			},
+			{
+				(void)proc_lockClear(&name_common.lock);
+				return -EFAULT;
+			});
 	if (entry != NULL) {
 		if (file != NULL) {
 			*file = entry->oid;
@@ -224,8 +315,6 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	/* Avoid holding the lock during allocation */
 	(void)proc_lockClear(&name_common.lock);
 
-	len = hal_strlen(name);
-
 	if (len < sizeof(pstack)) {
 		pptr = pstack;
 	}
@@ -241,7 +330,14 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	(void)proc_lockSet(&name_common.lock);
 
 	/* Search cache again for full path (in case it was added before the lock was reacquired) */
-	entry = _dcache_entryLookup(hash, name);
+	USERMEM_TRY(
+			{
+				entry = _dcache_entryLookup(hash, name, len);
+			},
+			{
+				(void)proc_lockClear(&name_common.lock);
+				return -EFAULT;
+			});
 	if (entry != NULL) {
 		if (file != NULL) {
 			*file = entry->oid;
@@ -261,7 +357,15 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	srv = name_common.rootOid;
 
 	i = len;
-	(void)hal_strcpy(pptr, name);
+	err = usermem_memcpy(pptr, name, len);
+	if (err < 0) {
+		(void)proc_lockClear(&name_common.lock);
+		if (pheap != NULL) {
+			vm_kfree(pheap);
+		}
+		return err;
+	}
+	pptr[len] = '\0';
 
 	while (i > 1U) {
 		while (i > 0U && pptr[i] != '/') {
@@ -274,7 +378,7 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 
 		pptr[i] = '\0';
 
-		entry = _dcache_entryLookup(dcache_strHash(pptr), pptr);
+		entry = _dcache_entryLookup(dcache_strHash(pptr, i), pptr, i);
 		if (entry != NULL) {
 			srv = entry->oid;
 			break;
@@ -306,7 +410,10 @@ int proc_portLookup(const char *name, oid_t *file, oid_t *dev)
 	do {
 		hal_memcpy(&msg->oid, &srv, sizeof(srv));
 		msg->i.size = len - i;
-		hal_memcpy(pptr, name + i + 1, len - i);
+		err = usermem_memcpy(pptr, name + i + 1, len - i);
+		if (err < 0) {
+			break;
+		}
 		msg->i.data = pptr;
 
 		err = proc_send(srv.port, msg);
@@ -475,7 +582,12 @@ int proc_link(oid_t dir, oid_t oid, const char *name)
 	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
-	msg->i.size = hal_strlen(name) + 1U;
+	err = usermem_strnlen(name, STR_MAX);
+	if (err < 0) {
+		vm_kfree(msg);
+		return err;
+	}
+	msg->i.size = (size_t)err + 1U;
 	msg->i.data = (const void *)name;
 
 	err = proc_send(dir.port, msg);
@@ -504,7 +616,12 @@ int proc_unlink(oid_t dir, oid_t oid, const char *name)
 	hal_memcpy(&msg->oid, &dir, sizeof(oid_t));
 	hal_memcpy(&msg->i.ln.oid, &oid, sizeof(oid_t));
 
-	msg->i.size = hal_strlen(name) + 1U;
+	err = usermem_strnlen(name, STR_MAX);
+	if (err < 0) {
+		vm_kfree(msg);
+		return err;
+	}
+	msg->i.size = (size_t)err + 1U;
 	msg->i.data = name;
 
 	err = proc_send(dir.port, msg);

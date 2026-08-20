@@ -145,7 +145,7 @@ addr_t pmap_resolve(pmap_t *pmap, void *vaddr)
 }
 
 
-int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
+int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size, vm_attr_t mattr)
 {
 	const syspage_map_t *map;
 	unsigned int rmask;
@@ -161,6 +161,9 @@ int pmap_isAllowed(pmap_t *pmap, const void *vaddr, size_t size)
 	if ((map == NULL) || ((map->end != 0U) && (addr_end > map->end)) ||
 			((addr_end == 0U) && (map->end != 0U)) ||
 			((addr_end != 0U) && (addr_end < (addr_t)vaddr))) {
+		return 0;
+	}
+	if ((map->attr & mattr) != mattr) {
 		return 0;
 	}
 	rmask = pmap_map2region(map->id);

@@ -17,7 +17,7 @@
 #include "hal/hal.h"
 
 
-int proc_portRegister(u32 port, const char *name, oid_t *oid);
+int proc_portRegister(u32 port, const char *name, const oid_t *oid);
 
 
 int proc_portUnregister(const char *name);

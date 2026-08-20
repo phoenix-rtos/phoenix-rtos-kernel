@@ -22,6 +22,7 @@
 #include "include/signal.h"
 #include "include/sockdefs.h"
 
+#include "lib/usermem.h"
 #include "proc/proc.h"
 
 #include "posix_private.h"
@@ -456,9 +457,9 @@ static int posix_create(const char *filename, int type, mode_t mode, oid_t dev, 
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(filename);
-	if (name == NULL) {
-		return -ENOMEM;
+	err = usermem_strndup(filename, STR_MAX, &name);
+	if (err < 0) {
+		return err;
 	}
 
 	lib_splitname(name, &basename, &dirname);
@@ -597,7 +598,16 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 		do {
 			err = proc_lookup(filename, &ln, &oid);
 			if ((err == -ENOENT) && (((unsigned int)oflag & O_CREAT) != 0U)) {
-				GETFROMSTACK(ustack, mode_t, mode, 2U);
+				USERMEM_TRY(
+						{
+							GETFROMSTACK(ustack, mode_t, mode, 2U);
+						},
+						{
+							err = -EFAULT;
+						});
+				if (err == -EFAULT) {
+					break;
+				}
 
 				err = posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid);
 				if (err < 0) {
@@ -1136,9 +1146,9 @@ int posix_link(const char *path1, const char *path2)
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(path2);
-	if (name == NULL) {
-		return -ENOMEM;
+	err = usermem_strndup(path2, STR_MAX, &name);
+	if (err < 0) {
+		return err;
 	}
 
 	(void)lib_splitname(name, &basename, &dirname);
@@ -1189,9 +1199,9 @@ int posix_unlink(const char *pathname)
 	char *name, *basename;
 	const char *dirname;
 
-	name = lib_strdup(pathname);
-	if (name == NULL) {
-		return -ENOMEM;
+	err = usermem_strndup(pathname, STR_MAX, &name);
+	if (err < 0) {
+		return err;
 	}
 
 	(void)lib_splitname(name, &basename, &dirname);
@@ -1634,7 +1644,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
 		case F_DUPFD:
-			GETFROMSTACK(ustack, int, fd2, 2U);
+			USERMEM_TRY({ GETFROMSTACK(ustack, int, fd2, 2U); }, { return -EFAULT; });
 			err = posix_fcntlDup(fd, fd2, (cmd == (unsigned int)F_DUPFD_CLOEXEC) ? 1 : 0);
 			break;
 
@@ -1643,7 +1653,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFD:
-			GETFROMSTACK(ustack, unsigned int, arg, 2U);
+			USERMEM_TRY({ GETFROMSTACK(ustack, unsigned int, arg, 2U); }, { return -EFAULT; });
 			err = posix_fcntlSetFd(fd, arg);
 			break;
 
@@ -1652,7 +1662,7 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 			break;
 
 		case F_SETFL:
-			GETFROMSTACK(ustack, unsigned int, arg, 2U);
+			USERMEM_TRY({ GETFROMSTACK(ustack, unsigned int, arg, 2U); }, { return -EFAULT; });
 			err = posix_fcntlSetFl(fd, arg);
 			break;
 
@@ -1690,7 +1700,7 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, size_t siz
 	if ((request & IOC_INOUT) != 0U) {
 		if ((request & IOC_IN) != 0U) {
 			if (size <= (sizeof(msg->i.raw) - sizeof(ioctl_in_t))) {
-				hal_memcpy(ioctl->data, data, size);
+				(void)usermem_memcpy(ioctl->data, data, size);
 			}
 			else {
 				msg->i.data = data;
@@ -1706,7 +1716,7 @@ static void ioctl_pack(msg_t *msg, unsigned long request, void *data, size_t siz
 	else if (size > 0U) {
 		/* the data is passed by value instead of pointer */
 		size = min(size, sizeof(void *));
-		hal_memcpy(ioctl->data, &data, size);
+		(void)usermem_memcpy(ioctl->data, &data, size);
 	}
 	else {
 		/* Nothing to do */
@@ -1721,7 +1731,10 @@ static int ioctl_processResponse(const msg_t *msg, unsigned long request, void *
 	err = msg->o.err;
 
 	if (((request & IOC_OUT) != 0U) && (size <= sizeof(msg->o.raw))) {
-		hal_memcpy(data, msg->o.raw, size);
+		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3-ac "Not always false when CPU fault handling is available" */
+		if (usermem_memcpy(data, msg->o.raw, size) < 0) {
+			err = -EFAULT;
+		}
 	}
 
 	return err;
@@ -1737,20 +1750,29 @@ int posix_ioctl(int fildes, unsigned long request, u8 *ustack)
 	msg_t msg;
 	void *data = NULL;
 	size_t size = IOCPARM_LEN(request);
+	vm_prot_t prot = 0U;
 
 	err = posix_getOpenFile(fildes, &f);
 	if (err == EOK) {
 		/* TODO: handle POSIX defined requests */
 		if (size > 0U) {
-			GETFROMSTACK(ustack, void *, data, 2U);
-			/* the actual size of the pointed-to structure: >= IOCPARM_LEN(request) */
-			GETFROMSTACK(ustack, size_t, size, 3U);
+			USERMEM_TRY(
+					{
+						GETFROMSTACK(ustack, void *, data, 2U);
+						/* the actual size of the pointed-to structure: >= IOCPARM_LEN(request) */
+						GETFROMSTACK(ustack, size_t, size, 3U);
+					},
+					{
+						err = -EFAULT;
+					});
 
-			if ((request & IOC_INOUT) != 0U) {
+			if ((err == EOK) && ((request & IOC_INOUT) != 0U)) {
+				prot |= ((request & IOC_IN) != 0U) ? PROT_READ : 0U;
+				prot |= ((request & IOC_OUT) != 0U) ? PROT_WRITE : 0U;
 				if (data == NULL) {
 					err = -EFAULT;
 				}
-				else if (vm_mapBelongs(proc_current()->process, data, size) < 0) {
+				else if (vm_mapBelongs(proc_current()->process, data, size, prot) < 0) {
 					err = -EFAULT;
 				}
 				else {
@@ -2013,16 +2035,22 @@ int posix_uname(struct utsname *name)
 {
 	TRACE("uname()");
 
-	(void)hal_strncpy(name->sysname, "Phoenix-RTOS", sizeof(name->sysname) - 1U);
-	name->sysname[sizeof(name->sysname) - 1U] = '\0';
-	(void)hal_strncpy(name->nodename, posix_common.hostname, sizeof(name->nodename) - 1U);
-	name->nodename[sizeof(name->nodename) - 1U] = '\0';
-	(void)hal_strncpy(name->release, RELEASE, sizeof(name->release) - 1U);
-	name->release[sizeof(name->release) - 1U] = '\0';
-	(void)hal_strncpy(name->version, VERSION, sizeof(name->version) - 1U);
-	name->version[sizeof(name->version) - 1U] = '\0';
-	(void)hal_strncpy(name->machine, TARGET_FAMILY, sizeof(name->machine) - 1U);
-	name->machine[sizeof(name->machine) - 1U] = '\0';
+	USERMEM_TRY(
+			{
+				(void)hal_strncpy(name->sysname, "Phoenix-RTOS", sizeof(name->sysname) - 1U);
+				name->sysname[sizeof(name->sysname) - 1U] = '\0';
+				(void)hal_strncpy(name->nodename, posix_common.hostname, sizeof(name->nodename) - 1U);
+				name->nodename[sizeof(name->nodename) - 1U] = '\0';
+				(void)hal_strncpy(name->release, RELEASE, sizeof(name->release) - 1U);
+				name->release[sizeof(name->release) - 1U] = '\0';
+				(void)hal_strncpy(name->version, VERSION, sizeof(name->version) - 1U);
+				name->version[sizeof(name->version) - 1U] = '\0';
+				(void)hal_strncpy(name->machine, TARGET_FAMILY, sizeof(name->machine) - 1U);
+				name->machine[sizeof(name->machine) - 1U] = '\0';
+			},
+			{
+				return -EFAULT;
+			});
 
 	return 0;
 }
@@ -2032,7 +2060,16 @@ int posix_gethostname(char *name, size_t namelen)
 {
 	TRACE("gethostname(%zu)", namelen);
 
-	(void)hal_strncpy(name, posix_common.hostname, namelen);
+	if (namelen > sizeof(posix_common.hostname)) {
+		namelen = sizeof(posix_common.hostname);
+	}
+	USERMEM_TRY(
+			{
+				(void)hal_strncpy(name, posix_common.hostname, namelen);
+			},
+			{
+				return -EFAULT;
+			});
 
 	return 0;
 }
@@ -2298,7 +2335,13 @@ int posix_sethostname(const char *name, size_t namelen)
 		return -EINVAL;
 	}
 
-	(void)hal_strncpy(posix_common.hostname, name, namelen);
+	USERMEM_TRY(
+			{
+				(void)hal_strncpy(posix_common.hostname, name, namelen);
+			},
+			{
+				return -EFAULT;
+			});
 	posix_common.hostname[namelen] = '\0';
 
 	return 0;
@@ -2346,8 +2389,14 @@ int posix_futimens(int fildes, const struct timespec *times)
 		sec1 = sec0;
 	}
 	else {
-		sec1 = times[1].tv_sec;
-		sec0 = times[0].tv_sec;
+		USERMEM_TRY(
+				{
+					sec1 = times[1].tv_sec;
+					sec0 = times[0].tv_sec;
+				},
+				{
+					return -EFAULT;
+				});
 	}
 
 	err = posix_getOpenFile(fildes, &f);
@@ -2383,7 +2432,7 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 	msg_t msg;
 	int ready = 0;
 	unsigned int i;
-	int err;
+	int err, fd;
 	open_file_t *f;
 	unsigned short events, revents;
 
@@ -2393,15 +2442,22 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 	msg.i.attr.type = atPollStatus;
 
 	for (i = 0; i < nfds; ++i) {
-		if (fds[i].fd < 0) {
+		USERMEM_TRY(
+				{
+					fd = fds[i].fd;
+					events = (unsigned short)fds[i].events;
+					revents = (unsigned short)fds[i].revents;
+				},
+				{
+					return -EFAULT;
+				});
+		if (fd < 0) {
 			continue;
 		}
-		events = (unsigned short)fds[i].events;
-		revents = (unsigned short)fds[i].revents;
 
 		msg.i.attr.val = (long long)events;
 
-		if (posix_getOpenFile(fds[i].fd, &f) < 0) {
+		if (posix_getOpenFile(fd, &f) < 0) {
 			err = (int)POLLNVAL;
 		}
 		else {
@@ -2440,7 +2496,13 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			++ready;
 		}
 
-		fds[i].revents = (short)revents;
+		USERMEM_TRY(
+				{
+					fds[i].revents = (short)revents;
+				},
+				{
+					return -EFAULT;
+				});
 	}
 
 	return ready;
@@ -2456,10 +2518,16 @@ int posix_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 	n = 0U;
 
 	for (i = 0U; i < nfds; ++i) {
-		fds[i].revents = 0;
-		if (fds[i].fd >= 0) {
-			++n;
-		}
+		USERMEM_TRY(
+				{
+					fds[i].revents = 0;
+					if (fds[i].fd >= 0) {
+						++n;
+					}
+				},
+				{
+					return -EFAULT;
+				});
 	}
 
 	if (n == 0U) {
@@ -2727,7 +2795,11 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 					LIST_REMOVE(&pinfo->zombies, c);
 					err = c->process;
 					if (status != NULL) {
-						*status = c->exitcode;
+						USERMEM_TRY(
+								{
+									*status = c->exitcode;
+								},
+								{ /* Treat like status == NULL */ });
 					}
 					(void)proc_lockClear(&pinfo->lock);
 
