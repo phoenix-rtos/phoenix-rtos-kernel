@@ -508,7 +508,7 @@ static u32 hal_checkNumCPUs(void)
 #else
 	powerStatus = (~*(zynq_common.crf_apb + crf_apb_rst_fpd_apu)) & 0xfU;
 	cpusAvailable = 0;
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < 1; i++) {
 		if ((powerStatus & 0x1U) == 1U) {
 			cpusAvailable++;
 		}
