@@ -113,7 +113,8 @@ typedef struct _process_info_t {
 
 	pid_t pgid;
 	lock_t lock;
-	int maxfd;
+	int maxfdlimit;
+	int fdlimit;
 	int fdsz;
 	fildes_t *fds;
 } process_info_t;

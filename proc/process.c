@@ -1901,3 +1901,26 @@ void process_getName(const process_t *process, char *buf, size_t sz)
 		buf[0] = '\0';
 	}
 }
+
+
+int process_rlimits(pid_t pid, int resource, struct rlimit *oldLimit, const struct rlimit *newLimit)
+{
+	if (pid == 0) {
+		pid = process_getPid(proc_current()->process);
+	}
+
+	switch (resource) {
+		case RLIMIT_NOFILE:
+			return posix_fdLimits(pid, oldLimit, newLimit);
+		case RLIMIT_CORE:
+		case RLIMIT_CPU:
+		case RLIMIT_DATA:
+		case RLIMIT_FSIZE:
+		case RLIMIT_STACK:
+		case RLIMIT_AS:
+			return -ENOTSUP;
+
+		default:
+			return -EINVAL;
+	}
+}

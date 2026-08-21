@@ -180,15 +180,15 @@ static int _posix_allocfd(process_info_t *p, int fd)
 	fildes_t *nfds;
 	int nfdsz = p->fdsz;
 
-	for (; fd < p->maxfd; ++fd) {
+	for (; fd < p->fdlimit; ++fd) {
 		if (fd >= p->fdsz) {
 			while (fd >= nfdsz) {
 				nfdsz *= 2;
 			}
 
-			if (nfdsz > p->maxfd) {
+			if (nfdsz > p->fdlimit) {
 				/* fd can't be >= p->maxfd, so it's always ok */
-				nfdsz = p->maxfd;
+				nfdsz = p->fdlimit;
 			}
 
 			nfds = vm_kmalloc((size_t)nfdsz * sizeof(*nfds));
@@ -323,13 +323,15 @@ int posix_clone(int ppid)
 	if (pp != NULL) {
 		TRACE("clone: got parent");
 		(void)proc_lockSet(&pp->lock);
-		p->maxfd = pp->maxfd;
+		p->maxfdlimit = pp->maxfdlimit;
+		p->fdlimit = pp->fdlimit;
 		p->fdsz = pp->fdsz;
 		p->parent = ppid;
 	}
 	else {
 		p->parent = 0;
-		p->maxfd = MAX_FD_COUNT;
+		p->maxfdlimit = MAX_FD_COUNT;
+		p->fdlimit = MAX_FD_COUNT;
 		p->fdsz = INITIAL_FD_COUNT;
 	}
 
@@ -913,7 +915,7 @@ static int _posix_dup2(process_info_t *p, int fildes, int fildes2)
 		return -EBADF;
 	}
 
-	if ((fildes2 < 0) || (fildes2 >= p->maxfd)) {
+	if ((fildes2 < 0) || (fildes2 >= p->fdlimit)) {
 		return -EBADF;
 	}
 
@@ -1493,7 +1495,7 @@ static int posix_fcntlDup(int fd, int fd2, int cloexec)
 	}
 
 	(void)proc_lockSet(&p->lock);
-	if ((fd < 0) || (fd >= p->fdsz) || (fd2 < 0) || (fd2 >= p->maxfd)) {
+	if ((fd < 0) || (fd >= p->fdsz) || (fd2 < 0) || (fd2 >= p->fdlimit)) {
 		(void)proc_lockClear(&p->lock);
 		pinfo_put(p);
 		return -EBADF;
@@ -2861,6 +2863,49 @@ pid_t posix_getppid(pid_t pid)
 	pinfo_put(pinfo);
 
 	return ret;
+}
+
+
+int posix_fdLimits(pid_t pid, struct rlimit *old, const struct rlimit *new)
+{
+	process_info_t *pinfo;
+	int err = EOK;
+	size_t i;
+
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
+		return -ESRCH;
+	}
+
+	(void)proc_lockSet(&pinfo->lock);
+
+	if (old != NULL) {
+		old->rlim_cur = (unsigned int)pinfo->fdlimit;
+		old->rlim_max = (unsigned int)pinfo->maxfdlimit;
+	}
+
+	if (new != NULL) {
+		if (new->rlim_max > (unsigned int)pinfo->maxfdlimit) {
+			err = -EPERM;
+		}
+		else {
+			for (i = new->rlim_cur; i < (unsigned int)pinfo->fdsz; ++i) {
+				if (pinfo->fds[i].file != NULL) {
+					err = -EINVAL;
+					break;
+				}
+			}
+			if (err == EOK) {
+				pinfo->fdlimit = (int)new->rlim_cur;
+				pinfo->maxfdlimit = (int)new->rlim_max;
+			}
+		}
+	}
+
+	(void)proc_lockClear(&pinfo->lock);
+	pinfo_put(pinfo);
+
+	return err;
 }
 
 
