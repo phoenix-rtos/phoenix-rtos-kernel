@@ -99,7 +99,7 @@ _syscall_dispatch:
 
 	vstmdb sp!, {s16-s31}
 	str r0, [sp, #-8]!
-	mov r12, #0
+	mov r12, lr
 	stmdb sp!, {r4-r12}
 
 	add r10, sp, #((16 * 4) + (11 * 4)) /* addr to store hw-saved ctx */
