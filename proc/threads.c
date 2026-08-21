@@ -3282,7 +3282,7 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 		return err;
 	}
 
-	xfer_copyShadowPages(recv, caller, msg);
+	xfer_finalize(recv, caller, msg);
 
 	/*
 	 * OPTIMIZATION: defer the copy of the msg to _threads_switchToThread() where

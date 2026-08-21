@@ -28,6 +28,34 @@ static vm_flags_t _getMapFlags(vm_map_t *map, void *data)
 }
 
 
+static int _mapBoundaryPage(vm_map_t *srcmap, vm_map_t *dstmap, void *src, void *dst, size_t srcoffs, size_t dstoffs, size_t size, page_t *page, vm_attr_t attr, vm_flags_t flags, void **vaddr)
+{
+	addr_t paddr;
+
+	paddr = pmap_resolve(&srcmap->pmap, src) & ~(SIZE_PAGE - 1);
+	if (paddr == 0) {
+		return -ENOMEM;
+	}
+
+	*vaddr = vm_mmap(xfer_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, paddr, flags);
+	if (*vaddr == NULL) {
+		return -ENOMEM;
+	}
+
+	if (page_map(&dstmap->pmap, dst, page->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
+		return -ENOMEM;
+	}
+
+	hal_memcpy((char *)dst + dstoffs, (char *)*vaddr + srcoffs, size);
+
+	if (page_map(&dstmap->pmap, dst, page->addr, attr) < 0) {
+		return -ENOMEM;
+	}
+
+	return EOK;
+}
+
+
 int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_side_t side, xferBuf_t *xb, void **rdata)
 {
 	void *w = NULL, *vaddr;
@@ -36,7 +64,7 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 	page_t *nep = NULL, *nbp = NULL;
 	vm_map_t *srcmap, *dstmap;
 	int flags;
-	addr_t bpa, pa, epa;
+	addr_t pa;
 
 	if ((size == 0) || (data == NULL)) {
 		return -EINVAL;
@@ -88,31 +116,13 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 
 	if (boffs > 0) {
 		xb->boffs = boffs;
-		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1);
-		if (bpa == 0) {
-			return -ENOMEM;
-		}
-
 		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 		xb->bp = nbp;
 		if (nbp == NULL) {
 			return -ENOMEM;
 		}
 
-		vaddr = vm_mmap(xfer_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, bpa, flags);
-		xb->bvaddr = vaddr;
-		if (vaddr == NULL) {
-			return -ENOMEM;
-		}
-
-		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w, nbp->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
-			return -ENOMEM;
-		}
-
-		hal_memcpy(w + boffs, vaddr + boffs, min(size, SIZE_PAGE - boffs));
-
-		if (page_map(&dstmap->pmap, w, nbp->addr, attr) < 0) {
+		if (_mapBoundaryPage(srcmap, dstmap, data, w, boffs, boffs, min(size, SIZE_PAGE - boffs), nbp, attr, flags, &xb->bvaddr) < 0) {
 			return -ENOMEM;
 		}
 	}
@@ -130,10 +140,6 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 	if (eoffs) {
 		xb->eoffs = eoffs;
 		vaddr = (void *)FLOOR((ptr_t)data + size);
-		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1);
-		if (epa == 0) {
-			return -ENOMEM;
-		}
 
 		if ((boffs == 0) || (eoffs >= boffs)) {
 			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
@@ -146,20 +152,7 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 			nep = nbp;
 		}
 
-		vaddr = vm_mmap(xfer_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, epa, flags);
-		xb->evaddr = vaddr;
-		if (vaddr == NULL) {
-			return -ENOMEM;
-		}
-
-		/* Map new page into destination address space */
-		if (page_map(&dstmap->pmap, w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, nep->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
-			return -ENOMEM;
-		}
-
-		hal_memcpy(w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, vaddr, eoffs);
-
-		if (page_map(&dstmap->pmap, w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, nep->addr, attr) < 0) {
+		if (_mapBoundaryPage(srcmap, dstmap, vaddr, w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, 0, 0, eoffs, nep, attr, flags, &xb->evaddr) < 0) {
 			return -ENOMEM;
 		}
 	}
@@ -409,7 +402,7 @@ static void _copyShadowPages(xferBuf_t *il, size_t size)
 }
 
 
-void xfer_copyShadowPages(thread_t *from, thread_t *to, msg_t *msg)
+void xfer_finalize(thread_t *from, thread_t *to, msg_t *msg)
 {
 	if ((to->ipc.flags & MSG_OUT_MAP) != 0) {
 		if (msg->o.size > 0) {

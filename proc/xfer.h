@@ -71,7 +71,7 @@ xferPlan_t xfer_classify(thread_t *caller, thread_t *recv, const void *data, siz
 int xfer_setup(thread_t *caller, thread_t *recv, const xferPlan_t *plan, xferBuf_t *xb, void **rdata, msg_side_t side);
 
 
-void xfer_copyShadowPages(thread_t *from, thread_t *to, msg_t *msg);
+void xfer_finalize(thread_t *from, thread_t *to, msg_t *msg);
 
 
 static inline void xfer_clearFlags(thread_t *t)
