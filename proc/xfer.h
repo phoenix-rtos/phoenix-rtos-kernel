@@ -53,7 +53,7 @@ typedef struct {
 void xfer_bufRelease(xferBuf_t *xb);
 
 
-int xfer_bufMap(process_t *t, process_t *recv, void *data, size_t size, xferBuf_t *xb, void **rdata);
+int xfer_bufMap(process_t *t, process_t *recv, void *data, size_t size, msg_side_t side, xferBuf_t *xb, void **rdata);
 
 
 int xfer_ipcBufBorrow(thread_t *from, thread_t *to);

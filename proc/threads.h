@@ -71,6 +71,8 @@ typedef struct {
 
 
 typedef struct _xferBuf_t {
+	/* TODO: do this as a private impl state */
+#ifndef NOMMU
 	void *bvaddr;
 	u64 boffs;
 	page_t *bp;
@@ -78,8 +80,10 @@ typedef struct _xferBuf_t {
 	void *evaddr;
 	u64 eoffs;
 	page_t *ep;
+#endif
 
 	void *w;
+	void *orig;
 	size_t size;
 	vm_map_t *map;
 } xferBuf_t;

@@ -28,7 +28,7 @@ static vm_flags_t _getMapFlags(vm_map_t *map, void *data)
 }
 
 
-int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, xferBuf_t *xb, void **rdata)
+int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_side_t side, xferBuf_t *xb, void **rdata)
 {
 	void *w = NULL, *vaddr;
 	u64 boffs, eoffs;
@@ -43,7 +43,10 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, xferBuf
 	}
 
 	unsigned int attr = PGHD_WRITE | PGHD_READ | PGHD_PRESENT | PGHD_USER;
-	unsigned int prot = PROT_READ | PROT_WRITE | PROT_USER;
+	vm_prot_t prot = PROT_READ | PROT_USER;
+	if (side == msg_side_out) {
+		prot |= PROT_WRITE;
+	}
 
 	boffs = (ptr_t)data & (SIZE_PAGE - 1);
 
@@ -366,10 +369,10 @@ xferPlan_t xfer_classify(thread_t *caller, thread_t *recv, const void *data, siz
 
 int xfer_setup(thread_t *caller, thread_t *recv, const xferPlan_t *plan, xferBuf_t *xb, void **rdata, msg_side_t side)
 {
+
 	switch (plan->kind) {
 		case msg_xfer_map:
-			/* TODO: permissions, incoming data doesnt need to be writable */
-			if (xfer_bufMap(caller->process, recv->process, (void *)plan->data, plan->size, xb, rdata) < 0) {
+			if (xfer_bufMap(caller->process, recv->process, (void *)plan->data, plan->size, side, xb, rdata) < 0) {
 				xfer_bufRelease(xb);
 				return -ENOMEM;
 			}
