@@ -42,6 +42,7 @@ typedef struct _port_t {
 	prio_queue_t queue;
 
 	__u8 pulse;
+	__u8 flags;
 } port_t;
 
 /* FIXME - use int for port handle.

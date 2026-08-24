@@ -31,7 +31,7 @@
 #include "syscalls.h"
 
 
-#define THREAD_PULSED 1
+#define IPC_PULSED 1
 
 /* clang-format off */
 enum { event_scheduling, event_enqueued, event_waking, event_preempted };
@@ -3089,8 +3089,8 @@ static int _postPassiveWakeup(port_t *p, thread_t *recv)
 
 	port_put(p, 0);
 
-	if ((recv->flags & THREAD_PULSED) != 0) {
-		recv->flags &= (~(int)THREAD_PULSED);
+	if ((recv->flags & IPC_PULSED) != 0) {
+		recv->flags &= (~(int)IPC_PULSED);
 		recv->ipc.msgPtr->o.pulse = recv->ipc.pulse;
 		recv->ipc.msgPtr->o.err = EOK;
 		err = -EPULSE;
@@ -3126,7 +3126,7 @@ static int _becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 	recv->state = BLOCKED_ON_RECV;
 	recv->passive = 1;
 	recv->interruptible = 1;
-	recv->flags &= (~(int)THREAD_PULSED);
+	recv->flags &= (~(int)IPC_PULSED);
 
 	_portEnqueue(p, recv);
 	(void)_proc_threadWakeupPrio(&p->queue);
@@ -3146,7 +3146,7 @@ int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 {
 	recv->ipc.msgPtr->o.pulse = p->pulse;
 	recv->ipc.msgPtr->o.err = EOK;
-	p->pulse = 0;
+	p->flags = 0;
 	hal_spinlockClear(&p->spinlock, sc);
 	return -EPULSE;
 }
@@ -3168,7 +3168,7 @@ int proc_recv_ex(port_t *p, msg_t *msg, msg_rid_t *rid, int rr)
 		return -EINVAL;
 	}
 
-	if (p->pulse != 0) {
+	if ((p->flags & IPC_PULSED) != 0) {
 		return _returnWithPulse(recv, p, &sc);
 	}
 
@@ -3211,7 +3211,7 @@ int proc_pulse(u32 port, u8 pulse)
 		_portDequeue(p, recv);
 
 		recv->ipc.pulse = pulse;
-		recv->flags |= THREAD_PULSED;
+		recv->flags |= IPC_PULSED;
 
 		if (recv->priority < proc_current()->priority) {
 			hal_cpuReschedule(&p->spinlock, &sc);
@@ -3223,6 +3223,7 @@ int proc_pulse(u32 port, u8 pulse)
 	else {
 		/* stick the pulse to port for late receivers */
 		p->pulse = pulse;
+		p->flags |= IPC_PULSED;
 		hal_spinlockClear(&p->spinlock, &sc);
 	}
 

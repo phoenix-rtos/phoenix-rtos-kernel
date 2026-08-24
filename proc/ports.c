@@ -118,6 +118,7 @@ int proc_portCreate(u32 *id)
 	port->closed = 0;
 
 	port->pulse = 0;
+	port->flags = 0;
 
 	proc_threadPrioQueueInit(&port->queue);
 
