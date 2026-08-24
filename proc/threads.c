@@ -1149,6 +1149,7 @@ static u8 _proc_threadGetPriority(thread_t *thread)
 static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 {
 	unsigned int i;
+	unsigned int onReadyQueue = 0;
 
 	/* Don't allow decreasing the priority below base level */
 	if (priority > thread->priorityBase) {
@@ -1163,13 +1164,17 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 		}
 
 		if (i == hal_cpuGetCount()) {
-			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread->sc_active) != 0,
-					"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
-					thread, proc_getTid(thread), thread->priority);
-			_readyRemove(thread);
-			thread->priority = priority;
-			_readyAdd(thread);
+			onReadyQueue = 1;
 		}
+	}
+
+	if (onReadyQueue != 0) {
+		LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread->sc_active) != 0,
+				"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
+				thread, proc_getTid(thread), thread->priority);
+		_readyRemove(thread);
+		thread->priority = priority;
+		_readyAdd(thread);
 	}
 	else {
 		thread->priority = priority;
