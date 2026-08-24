@@ -839,7 +839,7 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	else {
 		LIB_ASSERT(map != map_common.kmap, "Page fault on kernel map at address %p", vaddr);
 		LIB_ASSERT((process != NULL) && (process->lazy != 0U), "Page fault on mapped address %p in non-lazy process", vaddr);
-		err = _map_force(map, e, paddr, prot);
+		err = _map_force(map, e, paddr, e->prot);
 	}
 	(void)proc_lockClear(&map->lock);
 
