@@ -61,6 +61,7 @@ void port_put(port_t *p, int destroy)
 		if (destroy != 0) {
 			/* Wake callers up */
 			(void)proc_threadBroadcastPrio(&p->queue);
+			_portDequeueReceivers(p);
 		}
 
 		hal_spinlockClear(&p->spinlock, &sc);

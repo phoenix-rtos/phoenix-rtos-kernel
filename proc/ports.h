@@ -65,4 +65,7 @@ void port_put(port_t *p, int destroy);
 void _port_init(void);
 
 
+void _portDequeueReceivers(port_t *p);
+
+
 #endif

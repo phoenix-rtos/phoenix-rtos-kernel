@@ -2691,6 +2691,21 @@ static void _portDequeue(port_t *p, thread_t *t)
 }
 
 
+/* TODO: these should be in port.c. Either split the concerns or move them */
+void _portDequeueReceivers(port_t *p)
+{
+	if (p->threads != NULL) {
+		do {
+			_wakePassive(p->threads);
+			_portDequeue(p, p->threads);
+		} while (p->threads != NULL);
+	}
+
+
+	LIB_ASSERT(p->threads == NULL, "hm?");
+}
+
+
 /* Assumes _borrowBuf() has already been called if either side's plan.kind is msg_xfer_borrow */
 static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 {
@@ -3067,6 +3082,8 @@ static int _postPassiveWakeup(port_t *p, thread_t *recv)
 {
 	int err;
 
+	port_put(p, 0);
+
 	if ((recv->flags & THREAD_PULSED) != 0) {
 		recv->flags &= (~(int)THREAD_PULSED);
 		recv->ipc.msgPtr->o.pulse = recv->ipc.pulse;
@@ -3111,7 +3128,6 @@ static int _becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
 	hal_spinlockClear(&p->spinlock, sc);
-	port_put(p, 0);
 
 	hal_cpuReschedule(NULL, NULL);
 
