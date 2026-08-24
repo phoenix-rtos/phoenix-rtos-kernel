@@ -2108,7 +2108,7 @@ int proc_schedInfo(int policy, sched_info_t *info)
 	}
 
 	if (policy != SCHED_RR) {
-		return -ENOSYS;
+		return -ENOTSUP;
 	}
 
 	info->interval = SYSTICK_INTERVAL;
