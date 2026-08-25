@@ -580,12 +580,15 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 int unix_listen(unsigned int socket, int backlog)
 {
 	unixsock_t *s;
+	spinlock_ctx_t sc;
 	int err;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
 		return -ENOTSOCK;
 	}
+
+	hal_spinlockSet(&s->spinlock, &sc);
 
 	do {
 		if (s->remote != NULL) {
@@ -601,6 +604,8 @@ int unix_listen(unsigned int socket, int backlog)
 		s->state |= US_LISTENING;
 		err = EOK;
 	} while (0);
+
+	hal_spinlockClear(&s->spinlock, &sc);
 
 	unixsock_put(s);
 	return err;
@@ -648,6 +653,7 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 
 			hal_spinlockSet(&s->spinlock, &sc);
 			s->remote = NULL;
+			s->state &= ~US_PEER_CLOSED;
 			hal_spinlockClear(&s->spinlock, &sc);
 
 			err = EOK;
@@ -666,7 +672,6 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 
 		err = proc_lookup(address->sa_data, NULL, &oid);
 		if (err < 0) {
-			err = -ECONNREFUSED;
 			break;
 		}
 
