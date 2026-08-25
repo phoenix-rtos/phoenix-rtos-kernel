@@ -199,7 +199,7 @@ void _pmap_init(pmap_t *pmap, void **vstart, void **vend)
 	*(pmap_common.mpu + mpu_ctrl) &= ~1U;
 	hal_cpuDataMemoryBarrier();
 
-	/* Allow unlimited kernel access */
+	/* Allow kernel access to memory areas outside of defined maps */
 	*(pmap_common.mpu + mpu_ctrl) |= (1U << 2);
 	hal_cpuDataMemoryBarrier();
 
