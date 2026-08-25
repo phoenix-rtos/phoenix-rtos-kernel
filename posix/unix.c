@@ -588,8 +588,8 @@ int unix_listen(unsigned int socket, int backlog)
 	}
 
 	do {
-		if ((s->state & US_LISTENING) != 0U) {
-			err = -EADDRINUSE;
+		if (s->remote != NULL) {
+			err = -EINVAL;
 			break;
 		}
 
