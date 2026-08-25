@@ -842,8 +842,10 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 				hal_spinlockClear(&r->spinlock, &sc);
 
 				if (pending != 0) {
-					vm_kfree(v);
+					(void)proc_lockSet(&s->lock);
 					_cbuffer_init(&s->buffer, NULL, 0);
+					(void)proc_lockClear(&s->lock);
+					vm_kfree(v);
 					err = -ETIMEDOUT;
 					break;
 				}
