@@ -552,6 +552,10 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 		r->remote = new;
 		new->remote = r;
 
+		if (address != NULL && address_len != NULL) {
+			unix_copyName(r->name, r->namelen, address, address_len);
+		}
+
 		(void)proc_threadWakeup(&r->queue);
 		hal_spinlockClear(&r->spinlock, &sc);
 
