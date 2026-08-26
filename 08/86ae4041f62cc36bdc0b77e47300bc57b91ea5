@@ -1,0 +1,31 @@
+posix/unix.c
+  h_fc26ad17182140 987,989
+  s_c8b824f60e33f9::t_c943838b761b03 988
+posix/posix.c
+  h_fc26ad17182140 786-793,829,833-835
+posix/posix_private.h
+  h_fc26ad17182140 140-143
+posix/inet.c
+  h_fc26ad17182140 207,215-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "0886ae4041f62cc36bdc0b77e47300bc57b91ea5",
+  "prompts": {},
+  "humans": {
+    "h_fc26ad17182140": {
+      "author": "Lukasz Leczkowski <lukasz.leczkowski@phoenix-rtos.com>"
+    }
+  },
+  "sessions": {
+    "s_c8b824f60e33f9": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "c6dd2016-c1b9-4303-b343-a6ae882720dd",
+        "model": "copilot/claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
