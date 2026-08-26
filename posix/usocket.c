@@ -104,6 +104,8 @@ struct _usocket_t {
 
 	thread_t *acceptq; /* accept(): pending != NULL or no longer listening */
 	thread_t *connq;   /* connect(): state != usocketConnecting */
+
+	partition_t *partition; /* immutable */
 };
 
 
@@ -151,6 +153,7 @@ static usocket_t *usocket_alloc(unsigned int type, int nonblock)
 	s->backlog = 0;
 	s->acceptq = NULL;
 	s->connq = NULL;
+	s->partition = proc_current()->process->partition;
 
 	return s;
 }
@@ -204,6 +207,9 @@ static usocket_t *usocket_get(id_t id)
 	(void)proc_lockSet(&usocket_common.lock);
 
 	s = lib_treeof(usocket_t, linkage, lib_idtreeFind(&usocket_common.tree, (int)id));
+	if (s != NULL && s->partition != proc_current()->process->partition) {
+		s = NULL;
+	}
 	(void)usocket_ref(s);
 
 	(void)proc_lockClear(&usocket_common.lock);
