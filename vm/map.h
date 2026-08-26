@@ -130,6 +130,9 @@ void vm_mapinfo(meminfo_t *info);
 ph_map_t *vm_getPhysicalMap(int map);
 
 
+int vm_physicalMapByAddr(addr_t addr);
+
+
 int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);
 
 
