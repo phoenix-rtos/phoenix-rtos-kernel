@@ -20,6 +20,7 @@
 #include "map.h"
 #include "proc/name.h"
 #include "proc/threads.h"
+#include "proc/ports.h"
 
 
 static struct {
@@ -51,6 +52,43 @@ static int object_cmp(rbnode_t *n1, rbnode_t *n2)
 	}
 
 	return 0;
+}
+
+
+int vm_objectCheckAccess(vm_object_t *o, off_t offs, process_t *proc)
+{
+	port_t *port;
+	size_t i, maxMaps = sizeof(proc->partition->config->maps) / sizeof(proc->partition->config->maps[0]);
+	int map;
+
+	if ((o == NULL) || (proc == NULL) || (proc->partition == NULL)) {
+		return EOK;
+	}
+
+	if (o == VM_OBJ_PHYSMEM) {
+		map = vm_physicalMapByAddr((addr_t)offs);
+		if (((proc->partition->config->flags & (unsigned)pFlagAllMem) != 0U) || map == -1) {
+			return EOK; /* Allow access to devices outside of defined maps */
+		}
+		for (i = 0; i < maxMaps && proc->partition->config->maps[i] != (u8)-1; ++i) {
+			/* Check if the map matches the physical map */
+			if (proc->partition->config->maps[i] == (unsigned int)map) {
+				return EOK;
+			}
+		}
+		return -EACCES;
+	}
+
+	if ((o->oid.port == (u32)(-1)) && (o->oid.id == (id_t)(-1))) {
+		return o->part == proc->partition ? EOK : -EACCES;
+	}
+
+	port = proc_portGet(o->oid.port);
+	if (port == NULL || proc_isPortAllowed(port, proc, 0) == 0) {
+		return -EACCES;
+	}
+	port_put(port, 0);
+	return EOK;
 }
 
 
