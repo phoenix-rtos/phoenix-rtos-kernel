@@ -22,6 +22,7 @@
 
 struct _vm_map_t;
 struct _partition_t;
+struct _process_t;
 
 typedef struct _vm_object_t {
 	rbnode_t linkage;
@@ -37,6 +38,9 @@ typedef struct _vm_object_t {
 
 
 vm_object_t *vm_objectRef(vm_object_t *o);
+
+
+int vm_objectCheckAccess(vm_object_t *o, off_t offs, struct _process_t *proc);
 
 
 int vm_objectGet(vm_object_t **o, oid_t oid, struct _partition_t *part);
