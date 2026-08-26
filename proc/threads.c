@@ -1995,8 +1995,13 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 	u32 sigbit;
 	spinlock_ctx_t sc;
 	int performedAction = -1;
+	partition_t *part = proc_current()->process == NULL ? NULL : proc_current()->process->partition;
 
 	LIB_ASSERT((thread == NULL) || (process == thread->process), "Sigpost to thread with mismatched process");
+
+	if ((part != NULL) && (part != process->partition)) {
+		return -ESRCH;
+	}
 
 	/* Disable "killing" kernel threads */
 	if (((thread != NULL) && (thread->process == NULL)) || (process->mapp == NULL)) {
