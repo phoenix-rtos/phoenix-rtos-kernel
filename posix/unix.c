@@ -72,6 +72,7 @@ typedef struct _unixsock_t {
 
 	thread_t *queue;
 	thread_t *writeq;
+	partition_t *partition;
 } unixsock_t;
 
 
@@ -230,6 +231,7 @@ static unixsock_t *unixsock_alloc(unsigned int *id, unsigned int type, int nonbl
 	r->state = 0;
 	r->next = NULL;
 	r->prev = NULL;
+	r->partition = proc_current()->process->partition;
 	_cbuffer_init(&r->buffer, NULL, 0);
 	hal_spinlockCreate(&r->spinlock, "unix socket");
 
@@ -249,7 +251,12 @@ static unixsock_t *unixsock_get(unsigned int id)
 	(void)proc_lockSet(&unix_common.lock);
 	r = lib_treeof(unixsock_t, linkage, lib_rbFind(&unix_common.tree, &t.linkage));
 	if (r != NULL) {
-		r->refs++;
+		if (r->partition != proc_current()->process->partition) {
+			r = NULL;
+		}
+		else {
+			r->refs++;
+		}
 	}
 	(void)proc_lockClear(&unix_common.lock);
 

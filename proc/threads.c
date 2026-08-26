@@ -1534,6 +1534,11 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	spinlock_ctx_t sc;
 	u32 sigbit;
+	partition_t *part = proc_current()->process == NULL ? NULL : proc_current()->process->partition;
+
+	if ((part != NULL) && (part != process->partition)) {
+		return -ESRCH;
+	}
 
 	switch (sig) {
 		case signal_segv:
