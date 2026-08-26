@@ -160,15 +160,25 @@ page_t *vm_pageAlloc(ph_map_t **maps, size_t size, vm_flags_t flags, partition_t
 }
 
 
-static ph_map_t *page_mapByAddr(addr_t addr)
+int vm_physicalMapByAddr(addr_t addr)
 {
 	unsigned int i;
 	for (i = 0; i < page_common.mapssz; i++) {
 		if ((page_common.maps[i]->start <= addr) && (page_common.maps[i]->stop > addr)) {
-			return page_common.maps[i];
+			return (int)i;
 		}
 	}
-	return NULL;
+	return -1;
+}
+
+
+static ph_map_t *page_mapByAddr(addr_t addr)
+{
+	int map = vm_physicalMapByAddr(addr);
+	if (map < 0) {
+		return NULL;
+	}
+	return page_common.maps[map];
 }
 
 

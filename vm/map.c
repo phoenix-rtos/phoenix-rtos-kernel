@@ -1705,6 +1705,19 @@ ph_map_t *vm_getPhysicalMap(int map)
 
 	return ret;
 }
+
+
+int vm_physicalMapByAddr(addr_t addr)
+{
+	size_t i;
+
+	for (i = 0; i < map_common.mapssz; ++i) {
+		if ((addr >= (addr_t)map_common.maps[i]->pmap.start) && (addr < (addr_t)map_common.maps[i]->pmap.end)) {
+			return (int)i;
+		}
+	}
+	return -1;
+}
 #endif
 
 

@@ -26,7 +26,7 @@ enum { mAttrRead = 0x01, mAttrWrite = 0x02, mAttrExec = 0x04, mAttrShareable = 0
 enum { sFlagCommonCycle = 0x01 };
 
 
-enum { pFlagIntr = 0x01, pFlagPctl = 0x02, pFlagTime = 0x04, pFlagPerf = 0x08 };
+enum { pFlagIntr = 0x01, pFlagPctl = 0x02, pFlagTime = 0x04, pFlagPerf = 0x08, pFlagAllMem = 0x10 };
 
 
 enum { console_default = 0, console_com0, console_com1, console_com2, console_com3, console_com4, console_com5, console_com6,
