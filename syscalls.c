@@ -626,6 +626,10 @@ int syscalls_sys_perf_start(u8 *ustack)
 	GETFROMSTACK(ustack, void *, arg, 2U);
 	GETFROMSTACK(ustack, size_t, sz, 3U);
 
+	if ((proc->partition->config->flags & (unsigned)pFlagPerf) == 0U) {
+		return -EPERM;
+	}
+
 	if (arg != NULL && vm_mapBelongs(proc, arg, sz) < 0) {
 		return -EFAULT;
 	}
@@ -650,6 +654,10 @@ int syscalls_sys_perf_read(u8 *ustack)
 	GETFROMSTACK(ustack, size_t, sz, 2U);
 	GETFROMSTACK(ustack, int, chan, 3U);
 
+	if ((proc->partition->config->flags & (unsigned)pFlagPerf) == 0U) {
+		return -EPERM;
+	}
+
 	if (vm_mapBelongs(proc, buffer, sz) < 0) {
 		return -EFAULT;
 	}
@@ -668,6 +676,10 @@ int syscalls_sys_perf_stop(u8 *ustack)
 
 	GETFROMSTACK(ustack, int, mode, 0U);
 
+	if ((proc_current()->process->partition->config->flags & (unsigned)pFlagPerf) == 0U) {
+		return -EPERM;
+	}
+
 	if (mode < 0 || mode >= (int)perf_mode_count) {
 		return -ENOSYS;
 	}
@@ -681,6 +693,10 @@ int syscalls_sys_perf_finish(u8 *ustack)
 	int mode;
 
 	GETFROMSTACK(ustack, int, mode, 0U);
+
+	if ((proc_current()->process->partition->config->flags & (unsigned)pFlagPerf) == 0U) {
+		return -EPERM;
+	}
 
 	if (mode < 0 || mode >= (int)perf_mode_count) {
 		return -ENOSYS;
@@ -871,6 +887,10 @@ int syscalls_interrupt(u8 *ustack)
 	GETFROMSTACK(ustack, void *, data, 2U);
 	GETFROMSTACK(ustack, handle_t, cond, 3U);
 	GETFROMSTACK(ustack, handle_t *, handle, 4U);
+
+	if ((proc->partition->config->flags & (unsigned)pFlagIntr) == 0U) {
+		return -EPERM;
+	}
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a-2 "We want to check if at least start of memory occupied by the function is accessible to user." */
 	if ((f == NULL) || (vm_mapBelongs(proc, (const void *)f, 1) < 0)) {
@@ -1128,6 +1148,10 @@ int syscalls_settime(u8 *ustack)
 
 	GETFROMSTACK(ustack, time_t, offs, 0U);
 
+	if ((proc_current()->process->partition->config->flags & (unsigned)pFlagTime) == 0U) {
+		return -EPERM;
+	}
+
 	return proc_settime(offs);
 }
 
@@ -1156,6 +1180,11 @@ int syscalls_platformctl(u8 *ustack)
 	/* FIXME: Allow access to sizeof(platformctl_t) to allow checks */
 	void *ptr;
 	GETFROMSTACK(ustack, void *, ptr, 0U);
+
+	if ((proc_current()->process->partition->config->flags & (unsigned)pFlagPctl) == 0U) {
+		return -EPERM;
+	}
+
 	return hal_platformctl(ptr);
 }
 
