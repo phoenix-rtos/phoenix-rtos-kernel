@@ -26,6 +26,9 @@ enum { mAttrRead = 0x01, mAttrWrite = 0x02, mAttrExec = 0x04, mAttrShareable = 0
 enum { sFlagCommonCycle = 0x01 };
 
 
+enum { pFlagIntr = 0x01, pFlagPctl = 0x02, pFlagTime = 0x04, pFlagPerf = 0x08 };
+
+
 enum { console_default = 0, console_com0, console_com1, console_com2, console_com3, console_com4, console_com5, console_com6,
 	   console_com7, console_com8, console_com9, console_com10, console_com11, console_com12, console_com13, console_com14,
 	   console_com15, console_vga0 };
@@ -68,10 +71,11 @@ typedef struct _syspage_part_t {
 
 	unsigned int id;
 	char *name;
-	unsigned char maps[16];
 
+	unsigned char maps[16];
 	size_t availableMem;
 	unsigned char schedWindow;
+	unsigned int flags;
 
 	hal_syspage_part_t *hal;
 } __attribute__((packed)) syspage_part_t;
