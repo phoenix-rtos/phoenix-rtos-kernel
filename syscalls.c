@@ -412,6 +412,7 @@ static int targetGet(int pid, int tid, thread_t **resThread)
 {
 	process_t *proc = NULL;
 	thread_t *t;
+	partition_t *part = proc_current()->process == NULL ? NULL : proc_current()->process->partition;
 
 	if ((pid != 0) && (tid != 0)) {
 		/*
@@ -451,6 +452,12 @@ static int targetGet(int pid, int tid, thread_t **resThread)
 
 	/* Reject kernel threads (null t->process) and initthr (null mapp) */
 	if (t->process == NULL || t->process->mapp == NULL) {
+		threads_put(t);
+		return -ESRCH;
+	}
+
+	/* Reject threads from different partition */
+	if ((part != NULL) && (t->process->partition != part)) {
 		threads_put(t);
 		return -ESRCH;
 	}
