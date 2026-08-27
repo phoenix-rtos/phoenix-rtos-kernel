@@ -5,7 +5,7 @@
  *
  * HAL console (STM32N6/U3 USART)
  *
- * Copyright 2016-2017, 2019-2020, 2025 Phoenix Systems
+ * Copyright 2016-2017, 2019-2020, 2025, 2026 Phoenix Systems
  * Copyright 2026 Apator Metrix
  * Author: Pawel Pisarczyk, Artur Wodejko, Aleksander Kaminski, Jacek Maksymowicz, Mateusz Karcz
  *
@@ -33,7 +33,8 @@
 
 #define UART_IO_PORT_DEV CONCAT(pctl_, UART_IO_PORT)
 
-#define UART_ISR_TXE (1U << 7)
+#define UART_ISR_TC  (1UL << 6U)
+#define UART_ISR_TXE (1UL << 7U)
 
 
 static struct {
@@ -43,19 +44,31 @@ static struct {
 
 
 /* Values for selecting the peripheral clock for an UART */
+#if defined(__CPU_STM32N6)
 enum {
 	uart_clk_sel_pclk = 0, /* pclk1 or pclk2 depending on peripheral */
-#if defined(__CPU_STM32N6)
 	uart_clk_sel_per_ck,
 	uart_clk_sel_ic9_ck,
 	uart_clk_sel_ic14_ck,
 	uart_clk_sel_lse_ck,
 	uart_clk_sel_msi_ck,
 	uart_clk_sel_hsi_div_ck,
-#elif defined(__CPU_STM32U3)
-	uart_clk_sel_hsi_ck,
-#endif
 };
+#elif defined(__CPU_STM32U3)
+enum {
+	uart_clk_sel_pclk = 0, /* pclk1 or pclk2 depending on peripheral */
+	uart_clk_sel_hsi_ck,
+};
+#elif defined(__CPU_STM32H5)
+enum {
+	uart_clk_sel_pclk1 = 0,
+	uart_clk_sel_pll2,
+	uart_clk_sel_pll3,
+	uart_clk_sel_hsi,
+	uart_clk_sel_csi,
+	uart_clk_sel_lse
+};
+#endif
 
 
 /* clang-format off */
@@ -63,17 +76,36 @@ enum { cr1 = 0, cr2, cr3, brr, gtpr, rtor, rqr, isr, icr, rdr, tdr, presc };
 /* clang-format on */
 
 
+static void _hal_consoleSync(void)
+{
+	while (((*(console_common.base + isr)) & UART_ISR_TC) == 0) {
+		/* Wait until transmission is complete */
+	}
+	*(console_common.base + icr) |= UART_ISR_TC;
+}
+
+
+static void _hal_consoleReady(void)
+{
+	while (((*(console_common.base + isr)) & UART_ISR_TXE) == 0) {
+		/* Wait until transmit data register is empty */
+	}
+}
+
+
+void hal_consolePutch(char c)
+{
+	_hal_consoleReady();
+	*(console_common.base + tdr) = c;
+}
+
+
 static void _hal_consolePrint(const char *s)
 {
-	while (*s != '\0') {
-		hal_consolePutch(*(s++));
+	const char *ptr;
+	for (ptr = s; *ptr != '\0'; ++ptr) {
+		hal_consolePutch(*ptr);
 	}
-
-	while (((*(console_common.base + isr)) & UART_ISR_TXE) == 0U) {
-		/* Wait for transmit register empty */
-	}
-
-	return;
 }
 
 
@@ -91,16 +123,8 @@ void hal_consolePrint(int attr, const char *s)
 
 	_hal_consolePrint(s);
 	_hal_consolePrint(CONSOLE_NORMAL);
-}
 
-
-void hal_consolePutch(char c)
-{
-	while (((*(console_common.base + isr)) & UART_ISR_TXE) == 0U) {
-		/* Wait for transmit register empty */
-	}
-
-	*(console_common.base + tdr) = (u32)c;
+	_hal_consoleSync();
 }
 
 
@@ -128,6 +152,19 @@ void _hal_consoleInit(void)
 		{ ((void *)0x50004800U), pctl_usart3, (u8)pctl_ipclk_usart3sel },
 		{ ((void *)0x50004c00U), pctl_uart4, (u8)pctl_ipclk_uart4sel },
 		{ ((void *)0x50005000U), pctl_uart5, (u8)pctl_ipclk_uart5sel },
+#elif defined(__CPU_STM32H5)
+		{ ((void *)0x50013800), pctl_usart1, (u8)pctl_ipclk_usart1sel },
+		{ ((void *)0x50004400), pctl_usart2, (u8)pctl_ipclk_usart2sel },
+		{ ((void *)0x50004800), pctl_usart3, (u8)pctl_ipclk_usart3sel },
+		{ ((void *)0x50004c00), pctl_uart4, (u8)pctl_ipclk_uart4sel },
+		{ ((void *)0x50005000), pctl_uart5, (u8)pctl_ipclk_uart5sel },
+		{ ((void *)0x50006400), pctl_usart6, (u8)pctl_ipclk_usart6sel },
+		{ ((void *)0x50007800), pctl_uart7, (u8)pctl_ipclk_uart7sel },
+		{ ((void *)0x50007c00), pctl_uart8, (u8)pctl_ipclk_uart8sel },
+		{ ((void *)0x50008000), pctl_uart9, (u8)pctl_ipclk_uart9sel },
+		{ ((void *)0x50006800), pctl_usart10, (u8)pctl_ipclk_usart10sel },
+		{ ((void *)0x50006c00), pctl_usart11, (u8)pctl_ipclk_usart11sel },
+		{ ((void *)0x50008400), pctl_uart12, (u8)pctl_ipclk_uart12sel },
 #endif
 	};
 
@@ -149,6 +186,8 @@ void _hal_consoleInit(void)
 	(void)_stm32_rccSetIPClk(uarts[uart].ipclk_sel, uart_clk_sel_per_ck);
 #elif defined(__CPU_STM32U3)
 	(void)_stm32_rccSetIPClk(uarts[uart].ipclk_sel, uart_clk_sel_pclk);
+#elif defined(__CPU_STM32H5)
+	_stm32_rccSetIPClk(uarts[uart].ipclk_sel, uart_clk_sel_hsi);
 #endif
 	console_common.refclkfreq = _stm32_rccGetPerClock();
 

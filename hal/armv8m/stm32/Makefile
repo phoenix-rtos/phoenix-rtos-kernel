@@ -10,6 +10,8 @@ ifneq (, $(findstring n6, $(TARGET_SUBFAMILY)))
     include hal/armv8m/stm32/n6/Makefile
 else ifneq (, $(findstring u3, $(TARGET_SUBFAMILY)))
     include hal/armv8m/stm32/u3/Makefile
+else ifneq (, $(findstring h5, $(TARGET_SUBFAMILY)))
+    include hal/armv8m/stm32/h5/Makefile
 endif
 
 OBJS += $(addprefix $(PREFIX_O)hal/armv8m/stm32/, console.o)
