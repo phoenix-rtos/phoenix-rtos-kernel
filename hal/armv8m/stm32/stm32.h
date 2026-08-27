@@ -5,7 +5,7 @@
  *
  * STM32 basic peripherals control functions
  *
- * Copyright 2017, 2019-2020, 2025 Phoenix Systems
+ * Copyright 2017, 2019-2020, 2025, 2026 Phoenix Systems
  * Author: Aleksander Kaminski, Pawel Pisarczyk, Jacek Maksymowicz
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -21,6 +21,8 @@
 #include "include/arch/armv8m/stm32/n6/stm32n6.h"
 #elif defined(__CPU_STM32U3)
 #include "include/arch/armv8m/stm32/u3/stm32u3.h"
+#elif defined(__CPU_STM32H5)
+#include "include/arch/armv8m/stm32/h5/stm32h5.h"
 #endif
 
 
