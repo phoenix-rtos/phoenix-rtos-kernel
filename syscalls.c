@@ -21,6 +21,7 @@
 #include "include/mman.h"
 #include "include/sched.h"
 #include "include/syscalls.h"
+#include "include/syspage.h"
 #include "include/threads.h"
 #include "include/utsname.h"
 #include "include/time.h"
@@ -106,13 +107,21 @@ int syscalls_sys_mmap(u8 *ustack)
 		if (err < 0) {
 			return err;
 		}
-		err = vm_objectGet(&o, oid);
+		err = vm_objectGet(&o, oid, proc->partition);
 		if (err < 0) {
 			return err;
 		}
 	}
 
 	flags &= ~(MAP_ANONYMOUS | MAP_CONTIGUOUS | MAP_PHYSMEM | MAP_NEEDSCOPY);
+
+	if (o != NULL) {
+		err = vm_objectCheckAccess(o, offs, proc);
+		if (err < 0) {
+			(void)vm_objectPut(o);
+			return err;
+		}
+	}
 
 	(*vaddr) = vm_mmap(proc_current()->process->mapp, *vaddr, NULL, size, PROT_USER | (vm_prot_t)prot, o, (o == NULL) ? -1 : offs, flags);
 	(void)vm_objectPut(o);
@@ -403,6 +412,7 @@ static int targetGet(int pid, int tid, thread_t **resThread)
 {
 	process_t *proc = NULL;
 	thread_t *t;
+	partition_t *part = proc_current()->process == NULL ? NULL : proc_current()->process->partition;
 
 	if ((pid != 0) && (tid != 0)) {
 		/*
@@ -442,6 +452,12 @@ static int targetGet(int pid, int tid, thread_t **resThread)
 
 	/* Reject kernel threads (null t->process) and initthr (null mapp) */
 	if (t->process == NULL || t->process->mapp == NULL) {
+		threads_put(t);
+		return -ESRCH;
+	}
+
+	/* Reject threads from different partition */
+	if ((part != NULL) && (t->process->partition != part)) {
 		threads_put(t);
 		return -ESRCH;
 	}
@@ -625,6 +641,10 @@ int syscalls_sys_perf_start(u8 *ustack)
 	GETFROMSTACK(ustack, void *, arg, 2U);
 	GETFROMSTACK(ustack, size_t, sz, 3U);
 
+	if ((proc->partition->config->flags & (unsigned)pFlagPerf) == 0U) {
+		return -EPERM;
+	}
+
 	if (arg != NULL && vm_mapBelongs(proc, arg, sz) < 0) {
 		return -EFAULT;
 	}
@@ -649,6 +669,10 @@ int syscalls_sys_perf_read(u8 *ustack)
 	GETFROMSTACK(ustack, size_t, sz, 2U);
 	GETFROMSTACK(ustack, int, chan, 3U);
 
+	if ((proc->partition->config->flags & (unsigned)pFlagPerf) == 0U) {
+		return -EPERM;
+	}
+
 	if (vm_mapBelongs(proc, buffer, sz) < 0) {
 		return -EFAULT;
 	}
@@ -667,6 +691,10 @@ int syscalls_sys_perf_stop(u8 *ustack)
 
 	GETFROMSTACK(ustack, int, mode, 0U);
 
+	if ((proc_current()->process->partition->config->flags & (unsigned)pFlagPerf) == 0U) {
+		return -EPERM;
+	}
+
 	if (mode < 0 || mode >= (int)perf_mode_count) {
 		return -ENOSYS;
 	}
@@ -680,6 +708,10 @@ int syscalls_sys_perf_finish(u8 *ustack)
 	int mode;
 
 	GETFROMSTACK(ustack, int, mode, 0U);
+
+	if ((proc_current()->process->partition->config->flags & (unsigned)pFlagPerf) == 0U) {
+		return -EPERM;
+	}
 
 	if (mode < 0 || mode >= (int)perf_mode_count) {
 		return -ENOSYS;
@@ -870,6 +902,10 @@ int syscalls_interrupt(u8 *ustack)
 	GETFROMSTACK(ustack, void *, data, 2U);
 	GETFROMSTACK(ustack, handle_t, cond, 3U);
 	GETFROMSTACK(ustack, handle_t *, handle, 4U);
+
+	if ((proc->partition->config->flags & (unsigned)pFlagIntr) == 0U) {
+		return -EPERM;
+	}
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a-2 "We want to check if at least start of memory occupied by the function is accessible to user." */
 	if ((f == NULL) || (vm_mapBelongs(proc, (const void *)f, 1) < 0)) {
@@ -1127,6 +1163,10 @@ int syscalls_settime(u8 *ustack)
 
 	GETFROMSTACK(ustack, time_t, offs, 0U);
 
+	if ((proc_current()->process->partition->config->flags & (unsigned)pFlagTime) == 0U) {
+		return -EPERM;
+	}
+
 	return proc_settime(offs);
 }
 
@@ -1155,6 +1195,11 @@ int syscalls_platformctl(u8 *ustack)
 	/* FIXME: Allow access to sizeof(platformctl_t) to allow checks */
 	void *ptr;
 	GETFROMSTACK(ustack, void *, ptr, 0U);
+
+	if ((proc_current()->process->partition->config->flags & (unsigned)pFlagPctl) == 0U) {
+		return -EPERM;
+	}
+
 	return hal_platformctl(ptr);
 }
 
@@ -2098,6 +2143,38 @@ int syscalls_sys_uname(u8 *ustack)
 	}
 
 	return posix_uname(name);
+}
+
+
+int syscalls_sys_namedResource(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	char *name;
+	size_t len;
+	u32 *portId;
+	syspage_named_port_t *port;
+	unsigned int partMask = (unsigned int)(1UL << proc->partition->config->id);
+
+	GETFROMSTACK(ustack, char *, name, 0U);
+	GETFROMSTACK(ustack, size_t, len, 1U);
+	GETFROMSTACK(ustack, u32 *, portId, 2U);
+
+	if (vm_mapBelongs(proc, name, len) < 0) {
+		return -EFAULT;
+	}
+
+	port = syspage_namedPortResolve(name);
+	if (port == NULL) {
+		return -EINVAL;
+	}
+
+	if (((port->recvMask & partMask) == 0U) && ((port->sendMask & partMask) == 0U)) {
+		return -EACCES;
+	}
+
+	*portId = port->portId;
+
+	return EOK;
 }
 
 

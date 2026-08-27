@@ -42,7 +42,7 @@ void test_vm_alloc(void)
 		maxsize = max(maxsize, size);
 
 		hal_cpuGetCycles(&b);
-		p = vm_pageAlloc(size, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP);
+		p = vm_pageAlloc(NULL, size, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP, NULL);
 		hal_cpuGetCycles(&e);
 
 		if (p == NULL) {
@@ -50,7 +50,7 @@ void test_vm_alloc(void)
 			break;
 		}
 
-		vm_pageFree(p);
+		vm_pageFree(p, NULL);
 
 		lib_printf("\rtest: size=%d, n=%d", size, n);
 
@@ -113,7 +113,7 @@ void test_vm_kmalloc(void)
 
 	vm_kmallocGetStats(&kmallocsz);
 	vm_mapGetStats(&mapallocsz);
-	vm_pageGetStats(&freesz);
+	_vm_pageGetStats(&freesz);
 
 	lib_printf("test: Testing kmalloc,   kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
 
@@ -148,7 +148,7 @@ void test_vm_kmalloc(void)
 
 	vm_kmallocGetStats(&kmallocsz);
 	vm_mapGetStats(&mapallocsz);
-	vm_pageGetStats(&freesz);
+	_vm_pageGetStats(&freesz);
 	lib_printf("test: Memory after test, kmalloc=%d, map=%d, free=%dKB\n", kmallocsz, mapallocsz, freesz / 1024U);
 
 	// vm_mapDumpArenas();
