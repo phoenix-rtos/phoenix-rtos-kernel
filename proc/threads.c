@@ -603,8 +603,6 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->execdata = NULL;
 	t->wait = NULL;
 	t->locks = NULL;
-	t->stick = 0;
-	t->utick = 0;
 	t->priorityBase = priority;
 	t->priority = priority;
 	t->cpuTime = 0;
