@@ -783,6 +783,14 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 }
 
 
+static void posix_sigpipe(void)
+{
+	thread_t *curr = proc_current();
+
+	(void)threads_sigpost(curr->process, curr, SIGPIPE);
+}
+
+
 ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 {
 	TRACE("write(%d, %p, %zu, %jd)", fildes, buf, nbyte, (intmax_t)offset);
@@ -827,6 +835,17 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 			f->offset += rcnt;
 			(void)proc_lockClear(&f->lock);
 		}
+	}
+
+	if ((rcnt == -EPIPE) && ((f->type == ftUnixSocket) || (f->type == ftPipe) || (f->type == ftFifo) || (f->type == ftInetSocket))) {
+		/* NOTE: for a UNIX socket, SIGPIPE shall be sent if the socket has been shut down
+		 * for writing or is no longer connected. The latter case applies only to SOCK_STREAM
+		 * sockets. Currently, shutdown() closes the socket altogether, so unix_sendto()
+		 * cannot return EPIPE for a socket shut down for writing. unix_sendto() must also
+		 * not return EPIPE for no longer connected SOCK_DGRAM sockets, because SIGPIPE is not
+		 * required for them.
+		 */
+		posix_sigpipe();
 	}
 
 	(void)posix_fileDeref(f);
@@ -2202,6 +2221,10 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 		(void)posix_fileDeref(f);
 	}
 
+	if ((err == -EPIPE) && (((unsigned int)flags & MSG_NOSIGNAL) == 0U)) {
+		posix_sigpipe();
+	}
+
 	return err;
 }
 
@@ -2256,6 +2279,10 @@ ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
 		}
 
 		(void)posix_fileDeref(f);
+	}
+
+	if ((err == -EPIPE) && (((unsigned int)flags & MSG_NOSIGNAL) == 0U)) {
+		posix_sigpipe();
 	}
 
 	return err;
