@@ -66,9 +66,6 @@ typedef struct _thread_t {
 	unsigned int sigmask;
 	unsigned int sigpend;
 
-	time_t stick;
-	time_t utick;
-
 	void *kstack;
 	size_t kstacksz;
 	char *ustack;
