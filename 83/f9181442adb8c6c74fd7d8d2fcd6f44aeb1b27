@@ -1,0 +1,14 @@
+posix/posix.c
+  h_fc26ad17182140 786-793,840-847,2221-2224,2281-2284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "83f9181442adb8c6c74fd7d8d2fcd6f44aeb1b27",
+  "prompts": {},
+  "humans": {
+    "h_fc26ad17182140": {
+      "author": "Lukasz Leczkowski <lukasz.leczkowski@phoenix-rtos.com>"
+    }
+  }
+}
