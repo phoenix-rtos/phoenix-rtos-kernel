@@ -313,7 +313,7 @@ static void unixsock_put(unixsock_t *s)
 			vm_kfree(s->buffer.data);
 		}
 		if (s->fdpacks != NULL) {
-			(void)fdpass_discard(&s->fdpacks);
+			fdpass_discard(&s->fdpacks);
 		}
 		vm_kfree(s);
 		return;
@@ -1122,7 +1122,7 @@ ssize_t unix_sendmsg(unsigned int socket, const struct msghdr *msg, unsigned int
 
 	/* file descriptors are passed only when some bytes have been sent */
 	if (fdpack != NULL && err <= 0) {
-		(void)fdpass_discard(&fdpack);
+		fdpass_discard(&fdpack);
 	}
 	return err;
 }
