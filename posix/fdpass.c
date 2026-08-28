@@ -193,16 +193,8 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 
 int fdpass_discard(fdpack_t **packs)
 {
-	process_info_t *p;
 	fdpack_t *pack;
 	open_file_t *file;
-
-	p = pinfo_find(process_getPid(proc_current()->process));
-	if (p == NULL) {
-		return -1;
-	}
-
-	(void)proc_lockSet(&p->lock);
 
 	while (*packs != NULL) {
 		pack = *packs;
@@ -214,7 +206,5 @@ int fdpass_discard(fdpack_t **packs)
 		vm_kfree(pack);
 	}
 
-	(void)proc_lockClear(&p->lock);
-	pinfo_put(p);
 	return 0;
 }
