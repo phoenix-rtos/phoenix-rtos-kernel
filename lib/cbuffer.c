@@ -105,3 +105,34 @@ size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz)
 
 	return bytes;
 }
+
+
+size_t _cbuffer_peekAt(const cbuffer_t *buf, size_t offs, void *data, size_t sz)
+{
+	size_t avail, bytes, first, r;
+
+	/* FIXME: see note in _cbuffer_discard */
+	LIB_ASSERT(buf->sz > 0U, "attempted to peekAt at zero-sized buffer");
+
+	if (sz == 0U || buf->sz == 0U) {
+		return 0U;
+	}
+
+	avail = _cbuffer_avail(buf);
+
+	if (offs >= avail) {
+		return 0U;
+	}
+
+
+	bytes = min(sz, avail - offs);
+	r = (buf->r + offs) & (buf->sz - 1U);
+	first = min(bytes, buf->sz - r);
+
+	hal_memcpy(data, (const char *)buf->data + r, first);
+	if (bytes > first) {
+		hal_memcpy((char *)data + first, buf->data, bytes - first);
+	}
+
+	return bytes;
+}
