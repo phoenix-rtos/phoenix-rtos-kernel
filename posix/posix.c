@@ -113,10 +113,14 @@ void pinfo_put(process_info_t *p)
 int posix_fileDeref(open_file_t *f)
 {
 	int err = EOK;
+	int close;
 
 	(void)proc_lockSet(&f->lock);
 	--f->refs;
-	if (f->refs == 0) {
+	close = (f->refs == 0) ? 1 : 0;
+	(void)proc_lockClear(&f->lock);
+
+	if (close != 0) {
 		if (f->type == ftUnixSocket) {
 			err = unix_close((unsigned int)f->oid.id);
 		}
@@ -129,9 +133,7 @@ int posix_fileDeref(open_file_t *f)
 		(void)proc_lockDone(&f->lock);
 		vm_kfree(f);
 	}
-	else {
-		(void)proc_lockClear(&f->lock);
-	}
+
 	return err;
 }
 
