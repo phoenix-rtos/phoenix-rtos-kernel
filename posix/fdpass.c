@@ -5,7 +5,7 @@
  *
  * File descriptor passing
  *
- * Copyright 2021 Phoenix Systems
+ * Copyright 2021, 2026 Phoenix Systems
  * Author: Ziemowit Leszczynski
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -191,6 +191,15 @@ int fdpass_unpack(fdpack_t **packs, void *control, socklen_t *controllen)
 }
 
 
+/*
+ * TODO: the recursion through this function is unbounded. Dropping the last
+ * reference to a UNIX socket descriptor closes the socket, which drops its data
+ * channels, and the last reference to a channel discards the descriptor packs
+ * queued in it - which lands back here. The length of that chain is controlled
+ * by whoever built it (a socket carrying a descriptor of the next socket,
+ * repeated), and about 40 links are enough to overflow the 8 kB kernel stack on
+ * ia32.
+ */
 int fdpass_discard(fdpack_t **packs)
 {
 	fdpack_t *pack;
