@@ -138,6 +138,14 @@ int hal_platformctl(void *ptr)
 				ret = EOK;
 			}
 			break;
+		case pctl_dmaLinkBaseAddr:
+			if (data->action == pctl_set) {
+				ret = _stm32_dmaSetLinkBaseAddr(
+					data->dmaLinkBaseAddr.dev,
+					data->dmaLinkBaseAddr.channel,
+					data->dmaLinkBaseAddr.addr);
+			}
+			break;
 
 		default:
 			ret = -EINVAL;
@@ -402,6 +410,32 @@ void _stm32_pwrSetCPUVolt(u8 range)
 		}
 	}
 }
+
+
+/* DMA controller permissions */
+
+
+int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr)
+{
+	volatile u32 *base;
+	if (dev == pctl_gpdma1) {
+		base = ((void *)0x50020000);
+	}
+	else if (dev == pctl_gpdma2) {
+		base = ((void *)0x50021000);
+	}
+	else {
+		return -EINVAL;
+	}
+
+	if (channel >= 8) {
+		return -EINVAL;
+	}
+
+	*(base + (unsigned int)gpdma_cxlbar + (0x20U * channel)) = addr & 0xffff0000U;
+	return EOK;
+}
+
 
 
 /* GPIO */

@@ -146,4 +146,14 @@ enum iwdg_regs {
 	iwdg_icr,
 };
 
+
+enum {
+	gpdma_seccfgr = 0x0,
+	gpdma_privcfgr,
+	gpdma_rcfglockr,
+	gpdma_misr,
+	gpdma_smisr,
+	gpdma_cxlbar = 0x14,
+};
+
 #endif /* _STM32N6_REGS_H_ */

@@ -332,7 +332,7 @@ typedef struct {
 		pctl_cleanInvalDCache,
 		pctl_cleanDCache,
 		pctl_invalDCache,
-		pctl_cleanInvalAXICache,
+		pctl_dmaLinkBaseAddr,
 	} type;
 
 	union {
@@ -356,6 +356,11 @@ typedef struct {
 			void *addr;
 			unsigned int sz;
 		} opDCache;
+		struct {
+			int dev; /* one of pctl_gpdma* or pctl_hpdma* enum values */
+			unsigned int channel;
+			unsigned int addr;
+		} dmaLinkBaseAddr;
 	};
 } __attribute__((packed)) platformctl_t;
 
