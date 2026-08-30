@@ -235,4 +235,22 @@ enum {
 	dbgmcu_cidr3,
 };
 
+enum exti_regs {
+	exti_rtsr1 = 0x0,
+	exti_ftsr1,
+	exti_swier1,
+	exti_rpr1,
+	exti_fpr1,
+	exti_seccfgr1,
+	exti_privcfgr1,
+	exti_exticr1 = 0x18,
+	exti_exticr2,
+	exti_exticr3,
+	exti_exticr4,
+	exti_lockr,
+	exti_imr1 = 0x20,
+	exti_emr1,
+};
+
+
 #endif /* _PH_STM32U3_REGS_H_ */

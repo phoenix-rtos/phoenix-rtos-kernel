@@ -30,15 +30,6 @@
 #endif
 
 
-#define GPIOA_BASE ((void *)0x52020000U)
-#define GPIOB_BASE ((void *)0x52020400U)
-#define GPIOC_BASE ((void *)0x52020800U)
-#define GPIOD_BASE ((void *)0x52020c00U)
-#define GPIOE_BASE ((void *)0x52021000U)
-#define GPIOF_BASE ((void *)0x52021400U)
-#define GPIOG_BASE ((void *)0x52021800U)
-#define GPIOH_BASE ((void *)0x52021c00U)
-
 #define IWDG_BASE   ((void *)0x50003000U)
 #define PWR_BASE    ((void *)0x50030800U)
 #define RCC_BASE    ((void *)0x50030c00U)
@@ -52,11 +43,11 @@
 
 static struct {
 	volatile u32 *rcc;
-	volatile u32 *gpio[8];
 	volatile u32 *pwr;
 	volatile u32 *rtc;
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
+	volatile u32 *dbgmcu;
 
 	u32 cpuclk;
 
@@ -341,6 +332,7 @@ int _stm32_rccSetDevClock(int dev, u32 status, u32 lpStatus)
 	return EOK;
 }
 
+
 int _stm32_rccGetDevClock(int dev, u32 *status, u32 *lpStatus)
 {
 	u32 shift;
@@ -387,7 +379,6 @@ void _stm32_rccClearResetFlags(void)
 int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 {
 	u32 reg;
-	volatile u32 *base = DBGMCU_BASE;
 	if ((pctl_tim2 <= dev) && (dev <= pctl_rtcapb)) {
 		reg = (u32)dbgmcu_apb1lfzr;
 	}
@@ -405,10 +396,10 @@ int _stm32_dbgmcuStopTimerInDebug(int dev, u32 stop)
 	}
 
 	if (stop != 0U) {
-		*(base + reg) |= 1UL << ((u32)dev % 32U);
+		*(stm32_common.dbgmcu + reg) |= 1UL << ((u32)dev % 32U);
 	}
 	else {
-		*(base + reg) &= ~(1UL << ((u32)dev % 32U));
+		*(stm32_common.dbgmcu + reg) &= ~(1UL << ((u32)dev % 32U));
 	}
 
 	hal_cpuDataSyncBarrier();
@@ -427,54 +418,6 @@ int _stm32_systickInit(u32 interval)
 	}
 
 	_hal_scsSystickInit((u32)load);
-
-	return EOK;
-}
-
-
-/* GPIO */
-
-
-static volatile u32 *_stm32_gpioGetBase(int d, u8 pin)
-{
-	if ((d < pctl_gpioa) || (d > pctl_gpioh) || (pin > 15U)) {
-		return NULL;
-	}
-
-	return stm32_common.gpio[d - pctl_gpioa];
-}
-
-
-int _stm32_gpioConfig(int d, u8 pin, u8 mode, u8 af, u8 otype, u8 ospeed, u8 pupd)
-{
-	volatile u32 *base;
-	u32 t;
-
-	base = _stm32_gpioGetBase(d, pin);
-	if (base == NULL) {
-		return -EINVAL;
-	}
-
-	t = *(base + gpio_moder) & ~(0x3UL << (pin << 1));
-	*(base + gpio_moder) = t | ((u32)mode & 0x3U) << (pin << 1);
-
-	t = *(base + gpio_otyper) & ~(1UL << pin);
-	*(base + gpio_otyper) = t | ((u32)otype & 1U) << pin;
-
-	t = *(base + gpio_ospeedr) & ~(0x3UL << (pin << 1));
-	*(base + gpio_ospeedr) = t | ((u32)ospeed & 0x3U) << (pin << 1);
-
-	t = *(base + gpio_pupdr) & ~(0x03UL << (pin << 1));
-	*(base + gpio_pupdr) = t | ((u32)pupd & 0x3U) << (pin << 1);
-
-	if (pin < 8U) {
-		t = *(base + gpio_afrl) & ~(0xfUL << (pin << 2));
-		*(base + gpio_afrl) = t | ((u32)af & 0xfU) << (pin << 2);
-	}
-	else {
-		t = *(base + gpio_afrh) & ~(0xfUL << ((pin - 8U) << 2));
-		*(base + gpio_afrh) = t | ((u32)af & 0xfU) << ((pin - 8U) << 2);
-	}
 
 	return EOK;
 }
@@ -585,26 +528,36 @@ void _stm32_wdgReload(void)
 }
 
 
+void _stm32_pwrEnterLPStop(time_t us)
+{
+	unsigned int t;
+
+	/* Select Stop 2 as deep sleep mode */
+	t = *(stm32_common.pwr + pwr_cr1) & ~(0x7U);
+	*(stm32_common.pwr + pwr_cr1) = t | 2U;
+	hal_cpuDataMemoryBarrier();
+
+	timer_setAlarm(us);
+
+	_hal_scsDeepSleepSet(1); /* Switch to deep sleep mode */
+	hal_cpuHalt();           /* WFI enters Stop mode */
+	_hal_scsDeepSleepSet(0); /* Switch to shallow sleep mode */
+}
+
+
 void _stm32_init(void)
 {
-	u32 i;
-
 	/* Base addresses init */
 	stm32_common.iwdg = IWDG_BASE;
 	stm32_common.pwr = PWR_BASE;
 	stm32_common.rcc = RCC_BASE;
 	stm32_common.rtc = RTC_BASE;
 	stm32_common.syscfg = SYSCFG_BASE;
-	stm32_common.gpio[0] = GPIOA_BASE;
-	stm32_common.gpio[1] = GPIOB_BASE;
-	stm32_common.gpio[2] = GPIOC_BASE;
-	stm32_common.gpio[3] = GPIOD_BASE;
-	stm32_common.gpio[4] = GPIOE_BASE;
-	stm32_common.gpio[5] = GPIOF_BASE;
-	stm32_common.gpio[6] = GPIOG_BASE;
-	stm32_common.gpio[7] = GPIOH_BASE;
+	stm32_common.dbgmcu = DBGMCU_BASE;
 
 	_hal_scsInit();
+
+	_stm32_gpioInit();
 
 	/* Enable System configuration controller */
 	(void)_stm32_rccSetDevClock(pctl_syscfg, 1U, 1U);
@@ -621,11 +574,9 @@ void _stm32_init(void)
 
 	hal_cpuDataMemoryBarrier();
 
-	/* GPIO init */
-	for (i = pctl_gpioa; i <= pctl_gpioh; i++) {
-		(void)_stm32_rccSetDevClock(i, 1U, 1U);
-	}
-
 	_stm32_rtcInit();
 	_stm32_wdgInit();
+#ifdef NDEBUG
+	*(stm32_common.dbgmcu + dbgmcu_cr) &= ~(1UL << 1); /* Turn off DBG_STOP to ensure clocks will be turned off in Stop mode */
+#endif
 }

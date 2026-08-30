@@ -20,6 +20,10 @@
 
 #include "config.h"
 
+#ifndef STM32_ENABLE_LOW_POWER
+#define STM32_ENABLE_LOW_POWER 0
+#endif
+
 static struct {
 	int busy;
 	spinlock_t busySp;
@@ -31,14 +35,33 @@ static struct {
 
 void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
+#if STM32_ENABLE_LOW_POWER
+	spinlock_ctx_t scp;
+
+	hal_spinlockSet(&cpu_common.busySp, &scp);
+	if (cpu_common.busy == 0) {
+		_stm32_pwrEnterLPStop(us);
+		hal_spinlockClear(&cpu_common.busySp, &scp);
+	}
+	else {
+		hal_spinlockClear(&cpu_common.busySp, &scp);
+		hal_cpuHalt();
+	}
+	hal_spinlockClear(spinlock, sc);
+#else
 	hal_spinlockClear(spinlock, sc);
 	hal_cpuHalt();
+#endif
 }
 
 
 int hal_cpuLowPowerAvail(void)
 {
+#if STM32_ENABLE_LOW_POWER
+	return 1;
+#else
 	return 0;
+#endif
 }
 
 
