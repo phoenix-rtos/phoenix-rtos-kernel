@@ -74,7 +74,7 @@ void test_vm_mmap(void)
 	vm_map_t map;
 
 	lib_printf("test: Virtual memory map test\n");
-	vm_mmap(&map, (void *)0x123, NULL, SIZE_PAGE, 0, NULL, 0, 0);
+	vm_mmap(&map, (void *)0x123, NULL, SIZE_PAGE, 0, NULL, 0, 0, 0);
 
 	vm_mapDump(&map);
 	return;

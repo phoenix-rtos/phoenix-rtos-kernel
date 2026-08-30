@@ -206,10 +206,10 @@ static anon_t *anon_new(page_t *p)
 static void *amap_map(vm_map_t *map, page_t *p)
 {
 	if (map == amap_common.kmap) {
-		return _vm_mmap(amap_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, amap_common.kernel, VM_OFFS_MAX, MAP_NONE);
+		return _vm_mmap(amap_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, amap_common.kernel, VM_OFFS_MAX, MAP_NONE, 0U);
 	}
 
-	return vm_mmap(amap_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, amap_common.kernel, -1, MAP_NONE);
+	return vm_mmap(amap_common.kmap, NULL, p, SIZE_PAGE, PROT_READ | PROT_WRITE, amap_common.kernel, -1, MAP_NONE, 0U);
 }
 
 

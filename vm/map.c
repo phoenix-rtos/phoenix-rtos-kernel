@@ -243,7 +243,7 @@ static void *_map_find(vm_map_t *map, void *vaddr, size_t size, map_entry_t **pr
 }
 
 
-static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, vm_prot_t prot, vm_object_t *o, u64 offs, vm_flags_t flags, map_entry_t **entry)
+static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, vm_prot_t prot, vm_object_t *o, u64 offs, vm_flags_t flags, vm_state_t state, map_entry_t **entry)
 {
 	void *v;
 	map_entry_t *prev, *next, *e;
@@ -262,8 +262,8 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		return NULL;
 	}
 
-	rmerge = (next != NULL && v + size == next->vaddr && next->object == o && next->flags == flags && next->prot == prot && next->protOrig == prot) ? 1U : 0U;
-	lmerge = (prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->prot == prot && prev->protOrig == prot) ? 1U : 0U;
+	rmerge = (next != NULL && v + size == next->vaddr && next->object == o && next->flags == flags && next->state == state && next->prot == prot && next->protOrig == prot) ? 1U : 0U;
+	lmerge = (prev != NULL && v == prev->vaddr + prev->size && prev->object == o && prev->flags == flags && prev->state == state && prev->prot == prot && prev->protOrig == prot) ? 1U : 0U;
 
 	if (offs != VM_OFFS_MAX) {
 		if ((offs & (SIZE_PAGE - 1UL)) != 0UL) {
@@ -359,6 +359,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 		e->object = vm_objectRef(o);
 		e->offs = offs;
 		e->flags = flags;
+		e->state = state;
 		e->prot = prot;
 		e->protOrig = prot;
 
@@ -367,11 +368,11 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 
 		if (o == NULL) {
 			/* Try to use existing amap */
-			if (next != NULL && next->amap != NULL && e->vaddr >= (next->vaddr - next->aoffs) && (next->flags & MAP_NEEDSCOPY) == 0U) {
+			if (next != NULL && next->amap != NULL && e->vaddr >= (next->vaddr - next->aoffs) && (next->state & (ENTRY_NEEDSCOPY | ENTRY_BORROWED)) == 0U) {
 				e->amap = amap_ref(next->amap);
 				e->aoffs = next->aoffs - ((ptr_t)next->vaddr - (ptr_t)e->vaddr);
 			}
-			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - prev->aoffs + (size_t)prev->vaddr) >= ((size_t)e->vaddr + size) && (prev->flags & MAP_NEEDSCOPY) == 0U) {
+			else if (prev != NULL && prev->amap != NULL && (SIZE_PAGE * prev->amap->size - prev->aoffs + (size_t)prev->vaddr) >= ((size_t)e->vaddr + size) && (prev->state & (ENTRY_NEEDSCOPY | ENTRY_BORROWED)) == 0U) {
 				e->amap = amap_ref(prev->amap);
 				e->aoffs = prev->aoffs + ((ptr_t)e->vaddr - (ptr_t)prev->vaddr);
 			}
@@ -398,7 +399,7 @@ static void *_map_map(vm_map_t *map, void *vaddr, process_t *proc, size_t size, 
 void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, vm_flags_t flags, vm_prot_t prot)
 {
 	(void)proc_lockSet(&map->lock);
-	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, VM_OFFS_MAX, flags, NULL);
+	vaddr = _map_map(map, vaddr, NULL, size, prot, map_common.kernel, VM_OFFS_MAX, flags, 0U, NULL);
 	(void)proc_lockClear(&map->lock);
 
 	return vaddr;
@@ -568,7 +569,7 @@ static vm_attr_t vm_protToAttr(vm_prot_t prot)
 }
 
 
-void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, vm_object_t *o, u64 offs, vm_flags_t flags)
+void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, vm_object_t *o, u64 offs, vm_flags_t flags, vm_state_t state)
 {
 	vm_attr_t attr;
 	void *w;
@@ -601,7 +602,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 	}
 
 
-	vaddr = _map_map(map, vaddr, process, size, prot, o, offs, flags, &e);
+	vaddr = _map_map(map, vaddr, process, size, prot, o, offs, flags, state, &e);
 	if (vaddr == NULL) {
 		return NULL;
 	}
@@ -631,14 +632,14 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 }
 
 
-void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, vm_object_t *o, off_t offs, vm_flags_t flags)
+void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t prot, vm_object_t *o, off_t offs, vm_flags_t flags, vm_state_t state)
 {
 	if (map == NULL) {
 		map = map_common.kmap;
 	}
 
 	(void)proc_lockSet(&map->lock);
-	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, (offs < 0) ? VM_OFFS_MAX : (u64)offs, flags);
+	vaddr = _vm_mmap(map, vaddr, p, size, prot, o, (offs < 0) ? VM_OFFS_MAX : (u64)offs, flags, state);
 	(void)proc_lockClear(&map->lock);
 	return vaddr;
 }
@@ -692,7 +693,7 @@ int vm_mapFlags(vm_map_t *map, void *vaddr)
 		return -EFAULT;
 	}
 
-	flags = e->flags & ~MAP_NEEDSCOPY;
+	flags = e->flags;
 	(void)proc_lockClear(&map->lock);
 
 	return (int)flags;
@@ -741,14 +742,14 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 	if (flagsCheck != 0U) {
 		return -EINVAL;
 	}
-	if ((((prot & PROT_WRITE) != 0U) && ((e->flags & MAP_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
+	if ((((prot & PROT_WRITE) != 0U) && ((e->state & ENTRY_NEEDSCOPY) != 0U)) || ((e->object == NULL) && (e->amap == NULL))) {
 		amapNew = amap_create(e->amap, &e->aoffs, e->size);
 		if (amapNew == NULL) {
 			return -ENOMEM;
 		}
 		e->amap = amapNew;
 
-		e->flags &= ~MAP_NEEDSCOPY;
+		e->state &= ~ENTRY_NEEDSCOPY;
 	}
 
 	offs = (ptr_t)paddr - (ptr_t)e->vaddr;
@@ -952,7 +953,7 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 		attr = (vm_protToAttr(e->prot) | vm_flagsToAttr(e->flags));
 		needscopyNonLazy = 0;
 		/* If an entry needs copy, enter it as a readonly to copy it on first access. */
-		if (((e->flags & MAP_NEEDSCOPY) != 0U) && ((prot & PROT_WRITE) != 0U)) {
+		if (((e->state & ENTRY_NEEDSCOPY) != 0U) && ((prot & PROT_WRITE) != 0U)) {
 			if ((p == NULL) || (p->lazy == 0U)) {
 				needscopyNonLazy = 1;
 			}
@@ -992,6 +993,123 @@ int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, vm_prot_t prot)
 }
 
 
+int vm_mapBorrow(vm_map_t *dstMap, void *dstaddr, vm_map_t *srcMap, void *srcaddr, size_t size, vm_prot_t prot)
+{
+	ptr_t offset, i;
+	map_entry_t *dstEntry, *srcEntry, f, *e;
+	size_t overlapSize, srcOverlapStart;
+	vm_flags_t orgFlags;
+	vm_prot_t orgProt;
+	vm_attr_t attr;
+	addr_t pa;
+	int err = EOK;
+
+	if (((size & (SIZE_PAGE - 1U)) != 0U) || (((ptr_t)dstaddr & (SIZE_PAGE - 1U)) != 0U) || (((ptr_t)srcaddr & (SIZE_PAGE - 1U)) != 0U)) {
+		return -EINVAL;
+	}
+
+	(void)proc_lockSet2(&dstMap->lock, &srcMap->lock);
+
+	f.vaddr = dstaddr;
+	f.size = size;
+	dstEntry = lib_treeof(map_entry_t, linkage, lib_rbFind(&dstMap->tree, &f.linkage));
+	/* Accept only the memory inside of a single vm_mapFind allocation */
+	if ((dstEntry == NULL) || ((ptr_t)dstEntry->vaddr > (ptr_t)dstaddr) || ((ptr_t)dstEntry->vaddr + dstEntry->size < (ptr_t)dstaddr + size) ||
+			(dstEntry->object != map_common.kernel) || (dstEntry->amap != NULL) || (dstEntry->state != 0U)) {
+		(void)proc_lockClear(&dstMap->lock);
+		(void)proc_lockClear(&srcMap->lock);
+		return -EINVAL;
+	}
+	orgFlags = dstEntry->flags;
+	orgProt = dstEntry->prot;
+
+	if (dstEntry->vaddr < dstaddr) {
+		/* Leave the prefix of dstEntry unchanged */
+		e = map_alloc();
+		if (e == NULL) {
+			(void)proc_lockClear(&dstMap->lock);
+			(void)proc_lockClear(&srcMap->lock);
+			return -EINVAL;
+		}
+		else {
+			_vm_mapEntrySplit(NULL, dstMap, dstEntry, e, (ptr_t)dstaddr - (ptr_t)dstEntry->vaddr);
+			dstEntry = e;
+		}
+	}
+
+	/* Iterate over all related source map entries and split dstEntry accordingly with shared amaps/objects */
+	offset = 0U;
+	while ((offset < size) && (err == EOK)) {
+		f.vaddr = srcaddr + offset;
+		f.size = 1;
+		srcEntry = lib_treeof(map_entry_t, linkage, lib_rbFind(&srcMap->tree, &f.linkage));
+		if ((srcEntry == NULL) || (((srcEntry->prot & prot) & ~PROT_USER) != (prot & ~PROT_USER))) {
+			err = -EINVAL;
+			break;
+		}
+
+		srcOverlapStart = (ptr_t)srcaddr + offset - (ptr_t)srcEntry->vaddr;
+		overlapSize = min(srcEntry->size - srcOverlapStart, size - offset);
+
+		if (((srcEntry->state & ENTRY_NEEDSCOPY) != 0U) && ((prot & PROT_WRITE) != 0U)) {
+			/* Ensure all pages are writable to avoid breaking COW pages and lazy allocation of writable shared map entries */
+			for (i = offset; i < offset + overlapSize; i += SIZE_PAGE) {
+				err = _map_force(srcMap, srcEntry, srcaddr + i, prot);
+				if (err != EOK) {
+					break;
+				}
+			}
+		}
+
+		if (dstEntry->size > overlapSize) {
+			e = map_alloc();
+			if (e == NULL) {
+				err = -ENOMEM;
+				break;
+			}
+			_vm_mapEntrySplit(NULL, dstMap, dstEntry, e, overlapSize);
+		}
+		else {
+			e = NULL;
+		}
+		dstEntry->object = vm_objectRef(srcEntry->object);
+		dstEntry->offs = srcEntry->offs == VM_OFFS_MAX ? VM_OFFS_MAX : srcEntry->offs + srcOverlapStart;
+		dstEntry->amap = amap_ref(srcEntry->amap);
+		dstEntry->aoffs = srcEntry->aoffs + srcOverlapStart;
+		dstEntry->state = srcEntry->state | ENTRY_BORROWED; /* Ensure that the dstEntry amap is not modified nor merged with future dstMap mappings */
+		dstEntry->prot = prot;
+		dstEntry->protOrig = prot;
+		amap_getanons(dstEntry->amap, dstEntry->aoffs, overlapSize);
+
+		attr = vm_protToAttr(dstEntry->prot) | vm_flagsToAttr(dstEntry->flags);
+
+		for (i = offset; i < offset + overlapSize; i += SIZE_PAGE) {
+			pa = pmap_resolve(&srcMap->pmap, srcaddr + i);
+			if (pa != 0U) {
+				err = pmap_enter(&dstMap->pmap, pa, dstaddr + i, attr, NULL);
+			}
+			if (err != EOK) {
+				break;
+			}
+		}
+		if (e != NULL) {
+			dstEntry = e;
+		}
+		offset += overlapSize;
+	}
+
+	if (err != EOK) {
+		/* Revert to state from vm_mapFind allocation */
+		(void)_vm_munmap(dstMap, dstaddr, size);
+		(void)_map_map(dstMap, dstaddr, NULL, size, orgProt, map_common.kernel, VM_OFFS_MAX, orgFlags, 0U, NULL);
+	}
+
+	(void)proc_lockClear(&dstMap->lock);
+	(void)proc_lockClear(&srcMap->lock);
+	return err;
+}
+
+
 void vm_mapDump(vm_map_t *map)
 {
 	if (map == NULL) {
@@ -1017,7 +1135,7 @@ int vm_mapCreate(vm_map_t *map, void *start, void *stop)
 		return -ENOMEM;
 	}
 
-	map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1UL << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE);
+	map->pmap.pmapv = vm_mmap(map_common.kmap, NULL, map->pmap.pmapp, 1UL << map->pmap.pmapp->idx, PROT_READ | PROT_WRITE, map_common.kernel, -1, MAP_NONE, 0U);
 	if (map->pmap.pmapv == NULL) {
 		vm_pageFree(map->pmap.pmapp);
 		return -ENOMEM;
@@ -1157,8 +1275,8 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 		(void)_map_add(proc, dst, f);
 
 		if ((e->flags & MAP_DEVICE) == 0U) {
-			e->flags |= MAP_NEEDSCOPY;
-			f->flags |= MAP_NEEDSCOPY;
+			e->state |= ENTRY_NEEDSCOPY;
+			f->state |= ENTRY_NEEDSCOPY;
 
 			if ((proc != NULL) && (proc->lazy != 0U)) {
 				for (offs = 0; offs < f->size; offs += SIZE_PAGE) {
@@ -1631,6 +1749,7 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 				entry->object = kernel;
 				entry->offs = VM_OFFS_MAX;
 				entry->flags = MAP_NONE;
+				entry->state = 0U;
 				/* TODO: initialize map properties based on attributes in syspage */
 				entry->prot = PROT_READ | PROT_EXEC;
 				entry->protOrig = entry->prot;
@@ -1719,6 +1838,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		e->object = kernel;
 		e->offs = VM_OFFS_MAX;
 		e->flags = MAP_NONE;
+		e->state = 0U;
 		e->prot = (vm_prot_t)prot;
 		e->protOrig = (vm_prot_t)prot;
 		e->amap = NULL;

@@ -18,11 +18,15 @@
 
 #include "hal/types.h"
 
+typedef u8 vm_pageflags_t;
+
 typedef u8 vm_flags_t;
 
 typedef u32 vm_attr_t;
 
 typedef u8 vm_prot_t;
+
+typedef u8 vm_state_t;
 
 #endif
 
