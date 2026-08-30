@@ -616,7 +616,8 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 		return vaddr;
 	}
 
-	if (process != NULL && process->lazy != 0U) {
+#ifndef NOMMU
+	if (map != map_common.kmap && process != NULL && process->lazy != 0U) {
 		return vaddr;
 	}
 
@@ -626,6 +627,7 @@ void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, vm_prot_t pro
 			return NULL;
 		}
 	}
+#endif
 
 	return vaddr;
 }
@@ -791,9 +793,12 @@ static int _map_force(vm_map_t *map, map_entry_t *e, void *paddr, vm_prot_t prot
 static void map_pageFault(unsigned int n, exc_context_t *ctx)
 {
 	thread_t *thread;
+	process_t *process;
 	vm_map_t *map;
 	void *vaddr, *paddr;
 	vm_prot_t prot;
+	map_entry_t t, *e;
+	int err = EOK;
 
 	prot = (vm_prot_t)hal_exceptionsFaultType(n, ctx);
 	vaddr = hal_exceptionsFaultAddr(n, ctx);
@@ -814,20 +819,36 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 	hal_cpuEnableInterrupts();
 
 	thread = proc_current();
+	process = thread->process;
 
-	if (thread->process != NULL && (pmap_belongs(&map_common.kmap->pmap, vaddr) == 0)) {
-		map = thread->process->mapp;
+	if (process != NULL && (pmap_belongs(&map_common.kmap->pmap, vaddr) == 0)) {
+		map = process->mapp;
 	}
 	else {
 		map = map_common.kmap;
 	}
 
-	if (vm_mapForce(map, paddr, prot) != 0) {
+	(void)proc_lockSet(&map->lock);
+	t.vaddr = paddr;
+	t.size = SIZE_PAGE;
+	e = lib_treeof(map_entry_t, linkage, lib_rbFind(&map->tree, &t.linkage));
+
+	if ((e == NULL) || ((map_checkProt(e->prot, prot) != 0U))) {
+		err = -EFAULT;
+	}
+	else {
+		LIB_ASSERT(map != map_common.kmap, "Page fault on kernel map at address %p", vaddr);
+		LIB_ASSERT((process != NULL) && (process->lazy != 0U), "Page fault on mapped address %p in non-lazy process", vaddr);
+		err = _map_force(map, e, paddr, e->prot);
+	}
+	(void)proc_lockClear(&map->lock);
+
+	if (err != EOK) {
 		process_dumpException(n, ctx);
 
-		LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel");
+		LIB_ASSERT_ALWAYS(process != NULL, "exception in kernel");
 
-		(void)threads_sigpost(thread->process, thread, signal_segv);
+		(void)threads_sigpost(process, thread, signal_segv);
 	}
 }
 #endif
