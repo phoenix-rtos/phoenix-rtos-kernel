@@ -2574,19 +2574,35 @@ static int posix_killOne(pid_t pid, int tid, int sig)
 }
 
 
-static int posix_killGroup(pid_t pgid, int sig)
+enum killMode { tkill_group, tkill_all };
+
+
+static int posix_killMulti(enum killMode mode, pid_t pgid, int sig)
 {
 	process_info_t *pinfo;
 	rbnode_t *node;
+	pid_t selfPid = process_getPid(proc_current()->process);
 	int err = -ESRCH;
 
 	(void)proc_lockSet(&posix_common.lock);
 	for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
 		pinfo = lib_treeof(process_info_t, linkage, node);
 
-		if (pinfo->pgid == pgid) {
-			err = EOK;
-			(void)proc_sigpost(pinfo->process, sig);
+		switch (mode) {
+			case tkill_group:
+				if (pinfo->pgid == pgid) {
+					err = EOK;
+					(void)proc_sigpost(pinfo->process, sig);
+				}
+				break;
+			case tkill_all:
+				if ((pinfo->process != 1) && (pinfo->process != selfPid)) {
+					err = EOK;
+					(void)proc_sigpost(pinfo->process, sig);
+				}
+				break;
+			default:
+				break;
 		}
 	}
 	(void)proc_lockClear(&posix_common.lock);
@@ -2597,22 +2613,32 @@ static int posix_killGroup(pid_t pgid, int sig)
 
 int posix_tkill(pid_t pid, int tid, int sig)
 {
+	process_info_t *pinfo;
+	pid_t selfPgid;
+
 	TRACE("tkill(%p, %d, %d)", pid, tid, sig);
 
 	if ((sig < 0) || (sig > NSIG)) {
 		return -EINVAL;
 	}
 
-	/* TODO: handle pid = 0 */
 	if (pid == 0) {
-		return -ENOSYS;
+		pinfo = pinfo_find(process_getPid(proc_current()->process));
+		if (pinfo == NULL) {
+			return -ESRCH;
+		}
+
+		selfPgid = pinfo->pgid;
+		pinfo_put(pinfo);
+
+		return posix_killMulti(tkill_group, selfPgid, sig);
 	}
 
 	if (pid == -1) {
-		return -ESRCH;
+		return posix_killMulti(tkill_all, 0, sig);
 	}
 
-	return (pid > 0) ? posix_killOne(pid, tid, sig) : posix_killGroup(-pid, sig);
+	return (pid > 0) ? posix_killOne(pid, tid, sig) : posix_killMulti(tkill_group, -pid, sig);
 }
 
 
