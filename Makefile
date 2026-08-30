@@ -28,6 +28,9 @@ include ../phoenix-rtos-build/Makefile.common
 CFLAGS += -I. -ffreestanding
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DRELEASE=\"$(RELEASE)\" -DTARGET_FAMILY=\"$(TARGET_FAMILY)\"
 
+# Add aliases to standard C library functions as required by GCC
+LDFLAGS += -Wl,--defsym=memcpy=hal_memcpy,--defsym=memcmp=hal_memcmp,--defsym=memset=hal_memset
+
 # uncomment to enable stack canary checking
 # CPPFLAGS += -DSTACK_CANARY
 
