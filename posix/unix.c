@@ -580,6 +580,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 int unix_listen(unsigned int socket, int backlog)
 {
 	unixsock_t *s;
+	spinlock_ctx_t sc;
 	int err;
 
 	s = unixsock_get(socket);
@@ -587,9 +588,11 @@ int unix_listen(unsigned int socket, int backlog)
 		return -ENOTSOCK;
 	}
 
+	hal_spinlockSet(&s->spinlock, &sc);
+
 	do {
-		if ((s->state & US_LISTENING) != 0U) {
-			err = -EADDRINUSE;
+		if (s->remote != NULL) {
+			err = -EINVAL;
 			break;
 		}
 
@@ -602,12 +605,13 @@ int unix_listen(unsigned int socket, int backlog)
 		err = EOK;
 	} while (0);
 
+	hal_spinlockClear(&s->spinlock, &sc);
+
 	unixsock_put(s);
 	return err;
 }
 
 
-/* TODO: add support for disconnecting and reconnecting a SOCK_DGRAM socket using AF_UNSPEC. */
 int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	unixsock_t *s, *r;
@@ -633,13 +637,31 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 			break;
 		}
 
-		if (s->remote != NULL || (s->state & US_PEER_CLOSED) != 0U) {
-			err = -EISCONN;
+		if (s->type != SOCK_STREAM && s->type != SOCK_SEQPACKET && s->type != SOCK_DGRAM) {
+			err = -EOPNOTSUPP;
 			break;
 		}
 
-		if (s->type != SOCK_STREAM && s->type != SOCK_SEQPACKET && s->type != SOCK_DGRAM) {
-			err = -EOPNOTSUPP;
+		if (s->type == SOCK_DGRAM && address->sa_family == (sa_family_t)AF_UNSPEC) {
+			r = unixsock_get_remote(s);
+			if (r != NULL) {
+				hal_spinlockSet(&r->spinlock, &sc);
+				LIST_REMOVE(&r->connected, s);
+				hal_spinlockClear(&r->spinlock, &sc);
+				unixsock_put(r);
+			}
+
+			hal_spinlockSet(&s->spinlock, &sc);
+			s->remote = NULL;
+			s->state &= ~US_PEER_CLOSED;
+			hal_spinlockClear(&s->spinlock, &sc);
+
+			err = EOK;
+			break;
+		}
+
+		if (s->remote != NULL || (s->state & US_PEER_CLOSED) != 0U) {
+			err = -EISCONN;
 			break;
 		}
 
@@ -650,7 +672,6 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 
 		err = proc_lookup(address->sa_data, NULL, &oid);
 		if (err < 0) {
-			err = -ECONNREFUSED;
 			break;
 		}
 
