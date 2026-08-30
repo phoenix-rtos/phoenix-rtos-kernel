@@ -48,8 +48,10 @@ OBJS := $(addprefix $(PREFIX_O), main.o syscalls.o syspage.o usrv.o)
 
 all: $(PREFIX_PROG_STRIPPED)phoenix-$(TARGET_FAMILY)-$(TARGET_SUBFAMILY).elf
 
-ifneq ($(TARGET_FAMILY),host)
-  include hal/Makefile
+ifneq ($(TARGET_SUBFAMILY),multilib)
+  ifneq ($(TARGET_FAMILY),host)
+    include hal/Makefile
+  endif
 endif
 
 include vm/Makefile
