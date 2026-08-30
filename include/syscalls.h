@@ -58,7 +58,7 @@
 	ID(keepidle) \
 	ID(platformctl) \
 	ID(wdgreload) \
-	ID(threadsinfo) \
+	ID(sys_threadsinfo) \
 	ID(meminfo) \
 	ID(sys_perf_start) \
 	ID(sys_perf_read) \
