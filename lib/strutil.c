@@ -63,3 +63,11 @@ void lib_splitname(char *path, char **base, const char **dir)
 		*slash = '\0';
 	}
 }
+
+
+void lib_unsplitname(char *path, const char *dir)
+{
+	if (dir == path) {
+		path[hal_strlen(dir)] = '/';
+	}
+}

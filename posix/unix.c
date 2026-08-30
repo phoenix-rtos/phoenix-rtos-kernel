@@ -34,7 +34,6 @@
 #define US_CONNECT_TIMEOUT 0L
 #endif
 
-#define US_BOUND       (1U << 0)
 #define US_LISTENING   (1U << 1)
 #define US_ACCEPTING   (1U << 2)
 #define US_CONNECTING  (1U << 3)
@@ -61,18 +60,35 @@ typedef struct _unixsock_t {
 
 	spinlock_t spinlock;
 
+	char *name;
+	socklen_t namelen;
+	oid_t odir, odev;
+
 	/* Socket to which this socket is connected to. */
 	struct _unixsock_t *remote;
 
-	/* For SOCK_DGRAM: list of sockets connected to this socket. */
-	struct _unixsock_t *connected;
+	union {
+		/* For SOCK_DGRAM: list of sockets connected to this socket. */
+		struct _unixsock_t *connected;
 
-	/* For other types: list of sockets requesting a connection. */
-	struct _unixsock_t *connecting;
+		/* For other types: list of sockets requesting a connection. */
+		struct _unixsock_t *connecting;
+	};
 
 	thread_t *queue;
 	thread_t *writeq;
 } unixsock_t;
+
+
+typedef struct {
+	size_t len;
+	socklen_t namelen;
+} __attribute__((packed)) unixsock_dgramhdr_t;
+
+
+typedef struct {
+	size_t len;
+} __attribute__((packed)) unixsock_seqpkthdr_t;
 
 
 static struct {
@@ -223,6 +239,8 @@ static unixsock_t *unixsock_alloc(unsigned int *id, unsigned int type, int nonbl
 	r->buffsz = US_DEF_BUFFER_SIZE;
 	r->fdpacks = NULL;
 	r->remote = NULL;
+	r->name = NULL;
+	r->namelen = 0;
 	r->connected = NULL;
 	r->connecting = NULL;
 	r->queue = NULL;
@@ -315,10 +333,55 @@ static void unixsock_put(unixsock_t *s)
 		if (s->fdpacks != NULL) {
 			(void)fdpass_discard(&s->fdpacks);
 		}
+		if (s->name != NULL) {
+			vm_kfree(s->name);
+		}
 		vm_kfree(s);
 		return;
 	}
 	(void)proc_lockClear(&unix_common.lock);
+}
+
+
+typedef void (*copyNameFn_t)(void *buf, socklen_t len, const void *arg);
+
+
+static void unix_nameMemcpy(void *buf, socklen_t len, const void *arg)
+{
+	const char *name = arg;
+	hal_memcpy(buf, name, len);
+}
+
+
+static void unix_copyNameEx(socklen_t namelen, struct sockaddr *address, socklen_t *address_len, copyNameFn_t copyName, const void *arg)
+{
+	if (namelen == 0U) {
+		*address_len = 0U;
+		return;
+	}
+
+	const socklen_t familylen = (socklen_t)sizeof(address->sa_family);
+	const socklen_t buflen = *address_len;
+
+	*address_len = namelen + familylen;
+
+	if (buflen < familylen) {
+		return;
+	}
+
+	const socklen_t copylen = min(namelen, buflen - familylen);
+
+	address->sa_family = AF_UNIX;
+	copyName(address->sa_data, copylen, arg);
+	if (buflen - familylen > copylen) {
+		address->sa_data[copylen] = '\0';
+	}
+}
+
+
+static inline void unix_copyName(const char *name, socklen_t namelen, struct sockaddr *address, socklen_t *address_len)
+{
+	unix_copyNameEx(namelen, address, address_len, unix_nameMemcpy, name);
 }
 
 
@@ -489,6 +552,10 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 		r->remote = new;
 		new->remote = r;
 
+		if (address != NULL && address_len != NULL) {
+			unix_copyName(r->name, r->namelen, address, address_len);
+		}
+
 		(void)proc_threadWakeup(&r->queue);
 		hal_spinlockClear(&r->spinlock, &sc);
 
@@ -503,12 +570,13 @@ int unix_accept4(unsigned int socket, struct sockaddr *address, socklen_t *addre
 
 int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t address_len)
 {
-	char *path, *name;
+	char *name, *path;
 	const char *dir;
 	int err;
-	oid_t odir, dev;
 	unixsock_t *s;
 	void *v = NULL;
+	socklen_t pathlen;
+	spinlock_ctx_t sc;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -516,7 +584,7 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 	}
 
 	do {
-		if ((s->state & US_BOUND) != 0U) {
+		if (s->name != NULL) {
 			err = -EINVAL;
 			break;
 		}
@@ -526,16 +594,33 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 			break;
 		}
 
-		path = lib_strdup(address->sa_data);
+		if (address_len <= sizeof(address->sa_family)) {
+			err = -EINVAL;
+			break;
+		}
+
+		/*
+		 * Disallow binding sockets to relative address in
+		 * the kernel as we don't track the CWD of a process.
+		 */
+		if (address->sa_data[0] != '/') {
+			err = -EINVAL;
+			break;
+		}
+
+		pathlen = address_len - (socklen_t)sizeof(address->sa_family);
+		path = vm_kmalloc((size_t)pathlen + 1U);
 		if (path == NULL) {
 			err = -ENOMEM;
 			break;
 		}
+		hal_memcpy(path, address->sa_data, pathlen);
+		path[pathlen] = '\0';
 
 		do {
 			lib_splitname(path, &name, &dir);
 
-			if (proc_lookup(dir, NULL, &odir) < 0) {
+			if (proc_lookup(dir, NULL, &s->odir) < 0) {
 				err = -ENOENT;
 				break;
 			}
@@ -550,9 +635,9 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 				_cbuffer_init(&s->buffer, v, s->buffsz);
 			}
 
-			dev.port = US_PORT;
-			dev.id = socket;
-			err = proc_create(odir.port, 2 /* otDev */, S_IFSOCK, dev, odir, name, &dev);
+			s->odev.port = US_PORT;
+			s->odev.id = socket;
+			err = proc_create(s->odir.port, 2 /* otDev */, S_IFSOCK, s->odev, s->odir, name, &s->odev);
 
 			if (err != 0) {
 				if (err == -EEXIST) {
@@ -565,11 +650,20 @@ int unix_bind(unsigned int socket, const struct sockaddr *address, socklen_t add
 				break;
 			}
 
-			s->state |= US_BOUND;
+			lib_unsplitname(path, dir);
 		} while (0);
 
-		vm_kfree(path);
+		if (err != 0) {
+			vm_kfree(path);
+		}
 	} while (0);
+
+	if (err == 0) {
+		hal_spinlockSet(&s->spinlock, &sc);
+		s->namelen = pathlen;
+		s->name = path;
+		hal_spinlockClear(&s->spinlock, &sc);
+	}
 
 	unixsock_put(s);
 	return err;
@@ -748,6 +842,10 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 				hal_spinlockClear(&r->spinlock, &sc);
 
 				if (pending != 0) {
+					(void)proc_lockSet(&s->lock);
+					_cbuffer_init(&s->buffer, NULL, 0);
+					(void)proc_lockClear(&s->lock);
+					vm_kfree(v);
 					err = -ETIMEDOUT;
 					break;
 				}
@@ -778,12 +876,49 @@ int unix_connect(unsigned int socket, const struct sockaddr *address, socklen_t 
 
 int unix_getpeername(unsigned int socket, struct sockaddr *address, socklen_t *address_len)
 {
+	unixsock_t *s, *r;
+
+	if (address == NULL || address_len == NULL) {
+		return -EINVAL;
+	}
+
+	s = unixsock_get(socket);
+	if (s == NULL) {
+		return -ENOTSOCK;
+	}
+
+	r = unixsock_get_remote(s);
+	if (r == NULL) {
+		unixsock_put(s);
+		return -ENOTCONN;
+	}
+
+	unix_copyName(r->name, r->namelen, address, address_len);
+
+	unixsock_put(r);
+	unixsock_put(s);
+
 	return 0;
 }
 
 
 int unix_getsockname(unsigned int socket, struct sockaddr *address, socklen_t *address_len)
 {
+	unixsock_t *s;
+
+	if (address == NULL || address_len == NULL) {
+		return -EINVAL;
+	}
+
+	s = unixsock_get(socket);
+	if (s == NULL) {
+		return -ENOTSOCK;
+	}
+
+	unix_copyName(s->name, s->namelen, address, address_len);
+
+	unixsock_put(s);
+
 	return 0;
 }
 
@@ -832,15 +967,27 @@ int unix_getsockopt(unsigned int socket, int level, int optname, void *optval, s
 }
 
 
-static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+static void unix_nameDgramPeek(void *buf, socklen_t len, const void *arg)
 {
-	unixsock_t *s;
-	size_t rlen = 0;
+	const unixsock_t *s = arg;
+	(void)_cbuffer_peekOffs(&s->buffer, buf, len, sizeof(unixsock_dgramhdr_t));
+}
+
+
+static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int *flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+{
+	unixsock_t *s, *r;
+	size_t rlen = 0, hdrsz;
 	ssize_t err;
 	spinlock_ctx_t sc;
 	unsigned int peek;
 
-	peek = ((flags & MSG_PEEK) != 0U) ? 1U : 0U;
+	union {
+		unixsock_dgramhdr_t dgram;
+		unixsock_seqpkthdr_t seqpkt;
+	} hdr;
+
+	peek = ((*flags & MSG_PEEK) != 0U) ? 1U : 0U;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -865,23 +1012,57 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 					err = (ssize_t)_cbuffer_read(&s->buffer, buf, len);
 				}
 			}
-			else if (_cbuffer_avail(&s->buffer) > 0U) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-				/* TODO: handle MSG_PEEK */
-				(void)_cbuffer_read(&s->buffer, &rlen, sizeof(rlen));
-				(void)_cbuffer_read(&s->buffer, buf, min(len, rlen));
-				err = (ssize_t)min(len, rlen);
+			else { /* SOCK_DGRAM or SOCK_SEQPACKET */
+				hdrsz = (s->type == SOCK_DGRAM) ? sizeof(hdr.dgram) : sizeof(hdr.seqpkt);
 
-				if (len < rlen) {
-					(void)_cbuffer_discard(&s->buffer, rlen - len);
+				if (_cbuffer_avail(&s->buffer) >= hdrsz) {
+					if (s->type == SOCK_DGRAM) {
+						(void)_cbuffer_peek(&s->buffer, &hdr.dgram, sizeof(hdr.dgram));
+						rlen = hdr.dgram.len;
+						if (src_addr != NULL && src_len != NULL) {
+							unix_copyNameEx(hdr.dgram.namelen, src_addr, src_len, unix_nameDgramPeek, s);
+						}
+						hdrsz += hdr.dgram.namelen;
+					}
+					else { /* SOCK_SEQPACKET */
+						(void)_cbuffer_peek(&s->buffer, &hdr.seqpkt, sizeof(hdr.seqpkt));
+						rlen = hdr.seqpkt.len;
+					}
+
+					LIB_ASSERT(hdrsz + rlen <= _cbuffer_avail(&s->buffer), "receive buffer corrupted");
+
+					(void)_cbuffer_peekOffs(&s->buffer, buf, min(len, rlen), hdrsz);
+
+					err = (ssize_t)min(len, rlen);
+
+					if (peek == 0U) {
+						/* discard the data */
+						(void)_cbuffer_discard(&s->buffer, hdrsz + rlen);
+					}
+
+					if (len < rlen) {
+						*flags |= MSG_TRUNC;
+					}
 				}
 			}
-			else {
-				/* No action required */
+
+			if (s->type != SOCK_DGRAM && err > 0 && src_addr != NULL && src_len != NULL) { /* SOCK_STREAM or SOCK_SEQPACKET */
+				r = unixsock_get_remote(s);
+				if (r != NULL) {
+					unix_copyName(r->name, r->namelen, src_addr, src_len);
+					unixsock_put(r);
+				}
 			}
-			/* TODO: peek control data */
-			if (peek == 0U) {
-				if (err > 0 && control != NULL && controllen != NULL && *controllen > 0U) {
-					(void)fdpass_unpack(&s->fdpacks, control, controllen);
+
+			/* NOTE: Linux extracts file descriptors on MSG_PEEK, but we don't */
+			if (err > 0 && control != NULL && controllen != NULL) {
+				if (peek != 0U) {
+					*controllen = 0U;
+				}
+				else {
+					if (fdpass_unpack(&s->fdpacks, control, controllen) == (int)MSG_CTRUNC) {
+						*flags |= MSG_CTRUNC;
+					}
 				}
 			}
 			(void)proc_lockClear(&s->lock);
@@ -898,7 +1079,7 @@ static ssize_t recv(unsigned int socket, void *buf, size_t len, unsigned int fla
 				err = 0; /* EOS */
 				break;
 			}
-			else if (s->nonblock != 0U || (flags & MSG_DONTWAIT) != 0U) {
+			else if (s->nonblock != 0U || (*flags & MSG_DONTWAIT) != 0U) {
 				err = -EWOULDBLOCK;
 				break;
 			}
@@ -924,6 +1105,12 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 	ssize_t err;
 	oid_t oid;
 	spinlock_ctx_t sc;
+	size_t msgsz;
+
+	union {
+		unixsock_dgramhdr_t dgram;
+		unixsock_seqpkthdr_t seqpkt;
+	} hdr;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -1002,16 +1189,37 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 
 		if (len > 0U) {
 			for (;;) {
+				if (s->type == SOCK_DGRAM) {
+					hdr.dgram.len = len;
+					hdr.dgram.namelen = (s->name != NULL) ? (socklen_t)hal_strlen(s->name) : 0U;
+					msgsz = sizeof(hdr.dgram) + hdr.dgram.len + hdr.dgram.namelen;
+				}
+				else if (s->type == SOCK_SEQPACKET) {
+					hdr.seqpkt.len = len;
+					msgsz = sizeof(hdr.seqpkt) + hdr.seqpkt.len;
+				}
+				else { /* SOCK_STREAM */
+					msgsz = len;
+				}
+
 				(void)proc_lockSet(&r->lock);
 				if (s->type == SOCK_STREAM) {
 					err = (ssize_t)_cbuffer_write(&r->buffer, buf, len);
 				}
-				else if (_cbuffer_free(&r->buffer) >= len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
-					(void)_cbuffer_write(&r->buffer, &len, sizeof(len));
+				else if (_cbuffer_free(&r->buffer) >= msgsz) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+					if (s->type == SOCK_DGRAM) {
+						(void)_cbuffer_write(&r->buffer, &hdr.dgram, sizeof(hdr.dgram));
+						if (hdr.dgram.namelen > 0U) {
+							(void)_cbuffer_write(&r->buffer, s->name, hdr.dgram.namelen);
+						}
+					}
+					else { /* SOCK_SEQPACKET */
+						(void)_cbuffer_write(&r->buffer, &hdr.seqpkt, sizeof(hdr.seqpkt));
+					}
 					(void)_cbuffer_write(&r->buffer, buf, len);
 					err = (ssize_t)len;
 				}
-				else if (r->buffsz < len + sizeof(len)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+				else if (r->buffsz < msgsz) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 					err = -EMSGSIZE;
 					(void)proc_lockClear(&r->lock);
 					break;
@@ -1057,7 +1265,7 @@ static ssize_t send(unsigned int socket, const void *buf, size_t len, unsigned i
 
 ssize_t unix_recvfrom(unsigned int socket, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
-	return recv(socket, msg, len, flags, src_addr, src_len, NULL, NULL);
+	return recv(socket, msg, len, &flags, src_addr, src_len, NULL, NULL);
 }
 
 
@@ -1083,11 +1291,9 @@ ssize_t unix_recvmsg(unsigned int socket, struct msghdr *msg, unsigned int flags
 		len = msg->msg_iov->iov_len;
 	}
 
-	err = recv(socket, buf, len, flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
-
+	err = recv(socket, buf, len, &flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
 	if (err >= 0) {
-		/* output flags are not supported */
-		msg->msg_flags = 0;
+		msg->msg_flags = (int)(unsigned int)(flags & (MSG_TRUNC | MSG_CTRUNC));
 	}
 
 	return err;
@@ -1281,6 +1487,7 @@ int unix_poll(unsigned int socket, unsigned short events)
 {
 	unixsock_t *s, *r;
 	unsigned int err = 0;
+	size_t hdrsz;
 
 	s = unixsock_get(socket);
 	if (s == NULL) {
@@ -1311,7 +1518,8 @@ int unix_poll(unsigned int socket, unsigned short events)
 					}
 				}
 				else {
-					if (_cbuffer_free(&r->buffer) > sizeof(size_t)) { /* SOCK_DGRAM or SOCK_SEQPACKET */
+					hdrsz = (r->type == SOCK_DGRAM) ? sizeof(unixsock_dgramhdr_t) : sizeof(unixsock_seqpkthdr_t);
+					if (_cbuffer_free(&r->buffer) > hdrsz) { /* SOCK_DGRAM or SOCK_SEQPACKET */
 						err |= (unsigned int)events & (POLLOUT | POLLWRNORM | POLLWRBAND);
 					}
 				}
