@@ -1,0 +1,57 @@
+#ifndef ARMV7M7_IMXRT106X_LDT
+#define ARMV7M7_IMXRT106X_LDT
+
+
+/* Platform specific definitions */
+#define SIZE_PAGE  0x200
+#define SIZE_STACK (4 * SIZE_PAGE)
+#define SIZE_HEAP  (8 * SIZE_PAGE)
+
+#define AREA_KERNEL 0x2000
+
+
+#if defined(__LINKER__)
+
+/* Space reserved for RTT control block and buffers */
+#if defined(CUSTOM_RTT_MAP_SIZE)
+RTT_MAP_SIZE = CUSTOM_RTT_MAP_SIZE;
+#else
+RTT_MAP_SIZE = 0x4000;
+#endif
+
+/* FlexRAM configuration */
+#if defined(CUSTOM_FLEXRAM_CONFIG)
+FLEXRAM_CONFIG = CUSTOM_FLEXRAM_CONFIG;
+FLEXRAM_ITCM_BANKS = CUSTOM_FLEXRAM_ITCM_BANKS;
+FLEXRAM_DTCM_BANKS = CUSTOM_FLEXRAM_DTCM_BANKS;
+#else
+FLEXRAM_CONFIG = 0xaaaaabff;
+FLEXRAM_ITCM_BANKS = 5;
+FLEXRAM_DTCM_BANKS = 11;
+#endif
+
+FLEXRAM_ITCM_AREA = FLEXRAM_ITCM_BANKS * 32k;
+FLEXRAM_ITEXT_AREA = 14 * SIZE_PAGE;
+FLEXRAM_ITEXT_ADDR = FLEXRAM_ITCM_AREA - FLEXRAM_ITEXT_AREA;
+FLEXRAM_DTCM_AREA = FLEXRAM_DTCM_BANKS * 32k;
+
+/* Memory map setup */
+MEMORY
+{
+	/* TODO: use FLEXRAM_CONFIG value to setup ocram/itcm/dtcm partitioning (*32k) */
+	m_itcm    (rwx) : ORIGIN = 0x00000000, LENGTH = FLEXRAM_ITCM_AREA
+	m_dtcm    (rw)  : ORIGIN = 0x20000000, LENGTH = AREA_KERNEL
+    m_rttmem  (rw)  : ORIGIN = 0x20000000 + FLEXRAM_DTCM_AREA - RTT_MAP_SIZE, LENGTH = RTT_MAP_SIZE
+}
+
+REGION_ALIAS("KERNEL_IMAGE", m_itcm)
+REGION_ALIAS("DATA", m_dtcm)
+REGION_ALIAS("BSS", m_dtcm);
+REGION_ALIAS("SYSPAGE", m_dtcm);
+
+#include "common/kernel-arm.lds"
+
+#endif /* end of __LINKER__ */
+
+
+#endif /* end of ARMV7M7_IMXRT106X_LDT */

@@ -1,0 +1,76 @@
+#ifndef ARMV8M55_STM32N6_LDT
+#define ARMV8M55_STM32N6_LDT
+
+
+/* Platform specific definitions */
+#define SIZE_PAGE  0x200
+#define SIZE_STACK (8 * SIZE_PAGE)
+#define SIZE_HEAP  (8 * SIZE_PAGE)
+
+/* Space reserved for kernel data */
+#define AREA_KERNEL 0x2000
+
+#define ADDR_DTCM      0x30000000
+#define SIZE_DTCM_BASE (128 * 1024)
+
+#define ADDR_ITCM      0x10000000
+#define SIZE_ITCM_BASE (64 * 1024)
+
+#define ADDR_AXISRAM 0x34200000
+#define SIZE_AXISRAM (1792 * 1024)
+
+/* RAM-disk configuration */
+#define RAM_ADDR      0x34100000
+#define RAM_BANK_SIZE (512 * 1024)
+
+
+#if defined(__LINKER__)
+
+/* Space reserved for RTT control block and buffers */
+#if defined(CUSTOM_RTT_MAP_SIZE)
+RTT_MAP_SIZE = CUSTOM_RTT_MAP_SIZE;
+#else
+RTT_MAP_SIZE = 0x4000;
+#endif
+
+/* FlexRAM configuration */
+#if defined(CUSTOM_FLEXRAM_ITCM_BANKS)
+FLEXRAM_ITCM_BANKS = CUSTOM_FLEXRAM_ITCM_BANKS;
+#else
+FLEXRAM_ITCM_BANKS = 0;
+#endif
+
+#if defined(CUSTOM_FLEXRAM_DTCM_BANKS)
+FLEXRAM_DTCM_BANKS = CUSTOM_FLEXRAM_DTCM_BANKS;
+#else
+FLEXRAM_DTCM_BANKS = 0;
+#endif
+
+/* Note: Adding memory to TCMs takes away from FLEXRAM_AXI.
+ * Because TCMs have ECC, the amount taken away is greater than the amount added. */
+SIZE_ITCM = SIZE_ITCM_BASE + FLEXRAM_ITCM_BANKS * 64k;
+SIZE_DTCM = SIZE_DTCM_BASE + FLEXRAM_DTCM_BANKS * 128k;
+ADDR_FLEXRAM_AXI = 0x34000000 + FLEXRAM_ITCM_BANKS * 80k + FLEXRAM_DTCM_BANKS * 160k;
+SIZE_FLEXRAM_AXI  = 1024k - FLEXRAM_ITCM_BANKS * 80k - FLEXRAM_DTCM_BANKS * 160k;
+
+/* Memory map setup */
+MEMORY
+{
+	m_itcm        (rwx) : ORIGIN = ADDR_ITCM, LENGTH = SIZE_ITCM
+	m_dtcm        (rw)  : ORIGIN = ADDR_DTCM, LENGTH = SIZE_DTCM
+	m_rttmem      (rw)  : ORIGIN = ADDR_DTCM + SIZE_DTCM - RTT_MAP_SIZE, LENGTH = RTT_MAP_SIZE
+	m_flex_axi    (rwx) : ORIGIN = ADDR_FLEXRAM_AXI, LENGTH = SIZE_FLEXRAM_AXI
+	m_axisram     (rwx) : ORIGIN = ADDR_AXISRAM, LENGTH = SIZE_AXISRAM
+}
+
+REGION_ALIAS("KERNEL_IMAGE", m_itcm);
+REGION_ALIAS("DATA", m_flex_axi);
+REGION_ALIAS("BSS", m_flex_axi);
+REGION_ALIAS("SYSPAGE", m_flex_axi);
+
+#include "common/kernel-arm.lds"
+
+
+#endif /* end of __LINKER__ */
+
+#endif /* end of ARMV8M55_STM32N6_LDT */
