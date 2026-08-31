@@ -118,9 +118,9 @@ typedef struct _thread_t {
 	struct _thread_t **wait;
 	time_t wakeup;
 
-	sched_context_t *sc_own;     /* thread's base SC - never donated away */
-	sched_context_t *sc_active;  /* SC currently being consumed (used by scheduler) */
-	sched_context_t *sc_donated; /* SCs donated to the thread */
+	sched_context_t *scOwn;     /* thread's base SC - never donated away */
+	sched_context_t *scActive;  /* SC currently being consumed (used by scheduler) */
+	sched_context_t *scDonated; /* SCs donated to the thread */
 
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;

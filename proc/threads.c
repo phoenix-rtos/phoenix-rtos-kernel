@@ -139,16 +139,16 @@ static void _threads_updateWaits(thread_t *t, int type)
 
 	now = _proc_gettimeRaw();
 
-	LIB_ASSERT_ALWAYS(t->sc_active != NULL, "attempted to update unschedulable thread (type=%d)", type);
+	LIB_ASSERT_ALWAYS(t->scActive != NULL, "attempted to update unschedulable thread (type=%d)", type);
 
 	if (type == event_waking || type == event_preempted) {
-		t->sc_active->readyTime = now;
+		t->scActive->readyTime = now;
 	}
 	else if (type == event_scheduling) {
-		wait = now - t->sc_active->readyTime;
+		wait = now - t->scActive->readyTime;
 
-		if (t->sc_active->maxWait < wait) {
-			t->sc_active->maxWait = wait;
+		if (t->scActive->maxWait < wait) {
+			t->scActive->maxWait = wait;
 		}
 	}
 	else {
@@ -302,7 +302,7 @@ static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor);
 static void _readyAdd(thread_t *t)
 {
 	unsigned int prio = t->priority;
-	LIST_ADD(&threads_common.ready[prio], t->sc_active);
+	LIST_ADD(&threads_common.ready[prio], t->scActive);
 	threads_common.readyNonempty |= ((u64)1U << prio);
 }
 
@@ -310,7 +310,7 @@ static void _readyAdd(thread_t *t)
 static void _readyRemove(thread_t *t)
 {
 	unsigned int prio = t->priority;
-	LIST_REMOVE(&threads_common.ready[prio], t->sc_active);
+	LIST_REMOVE(&threads_common.ready[prio], t->scActive);
 	if (threads_common.ready[prio] == NULL) {
 		threads_common.readyNonempty &= ~((u64)1U << prio);
 	}
@@ -343,10 +343,10 @@ static void _setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
 	}
 
 	LIB_ASSERT(recv->passive == 1, "recv not passive?");
-	LIB_ASSERT(recv->sc_active != NULL, "recv sched null?");
+	LIB_ASSERT(recv->scActive != NULL, "recv sched null?");
 	LIB_ASSERT(caller->state == READY, "caller should be ready!");
-	LIB_ASSERT(recv->sc_active->t == recv, "badly linked sched context");
-	LIB_ASSERT(recv->sc_active != donated_sc, "returning with donated SC that was already returned??");
+	LIB_ASSERT(recv->scActive->t == recv, "badly linked sched context");
+	LIB_ASSERT(recv->scActive != donated_sc, "returning with donated SC that was already returned??");
 }
 
 
@@ -376,12 +376,12 @@ static void thread_destroy(thread_t *thread)
 		LIB_ASSERT(0, "happens c");
 	}
 
-	if (thread->sc_active != NULL) {
+	if (thread->scActive != NULL) {
 		if (thread->reply != NULL) {
 			LIB_ASSERT(thread->reply != thread, "thread replies to itself????");
 			reply = thread->reply;
 
-			LIB_ASSERT(reply->sc_active == NULL, "reply has... sched?");
+			LIB_ASSERT(reply->scActive == NULL, "reply has... sched?");
 			reply->called = NULL;
 
 			LIB_ASSERT(reply->exit == 0, "reply thread exiting?");
@@ -398,13 +398,13 @@ static void thread_destroy(thread_t *thread)
 
 			hal_spinlockSet(&threads_common.spinlock, &sc);
 
-			_setCallerMsgReturn(thread, reply, -EINVAL);
+			_setCallerMsgReturn(thread, reply, -EPIPE);
 
 			hal_spinlockClear(&threads_common.spinlock, &sc);
 		}
 		else {
 			hal_spinlockClear(&threads_common.spinlock, &sc);
-			vm_kfree(thread->sc_active);
+			vm_kfree(thread->scActive);
 		}
 	}
 	else {
@@ -467,14 +467,14 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 {
 	time_t now = _proc_gettimeRaw();
 
-	if (current != NULL && current->sc_active != NULL) {
-		current->sc_active->cpuTime += now - current->sc_active->lastTime;
-		current->sc_active->lastTime = now;
+	if (current != NULL && current->scActive != NULL) {
+		current->scActive->cpuTime += now - current->scActive->lastTime;
+		current->scActive->lastTime = now;
 	}
 
 	if (selected != NULL && current != selected) {
-		LIB_ASSERT(selected->sc_active != NULL, "selected thread is unschedulable?");
-		selected->sc_active->lastTime = now;
+		LIB_ASSERT(selected->scActive != NULL, "selected thread is unschedulable?");
+		selected->scActive->lastTime = now;
 	}
 }
 
@@ -514,7 +514,7 @@ static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx;
 
-	threads_common.current[hal_cpuGetID()] = selected->sc_active;
+	threads_common.current[hal_cpuGetID()] = selected->scActive;
 	_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 	selCtx = selected->context;
 
@@ -610,9 +610,9 @@ static cpu_context_t *_threads_switchTo(thread_t *dest)
 	}
 
 	LIB_ASSERT(dest->exit == 0, "switching to exiting thread");
-	LIB_ASSERT(dest->sc_active != NULL, "dest shed is null");
+	LIB_ASSERT(dest->scActive != NULL, "dest shed is null");
 
-	threads_common.current[hal_cpuGetID()] = dest->sc_active;
+	threads_common.current[hal_cpuGetID()] = dest->scActive;
 
 	_threads_scheduling(dest);
 
@@ -623,8 +623,8 @@ static cpu_context_t *_threads_switchTo(thread_t *dest)
 static sched_context_t *_sc_best(thread_t *t)
 {
 	/* TODO: optimize */
-	sched_context_t *best = t->sc_own;
-	sched_context_t *sc = t->sc_donated;
+	sched_context_t *best = t->scOwn;
+	sched_context_t *sc = t->scDonated;
 
 	if (sc != NULL) {
 		do {
@@ -632,7 +632,7 @@ static sched_context_t *_sc_best(thread_t *t)
 				best = sc;
 			}
 			sc = sc->dnext;
-		} while (sc != t->sc_donated);
+		} while (sc != t->scDonated);
 	}
 
 	return best;
@@ -642,15 +642,15 @@ static sched_context_t *_sc_best(thread_t *t)
 /* WARN: Assumes t is not on any ready queue */
 static void _sc_updateEffPriority(thread_t *t)
 {
-	t->priority = t->sc_active->priority;
-	t->priorityBase = t->sc_active->priorityBase;
+	t->priority = t->scActive->priority;
+	t->priorityBase = t->scActive->priorityBase;
 }
 
 
 static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor)
 {
-	sched_context_t *sc = t->sc_donated;
-	LIB_ASSERT(t->sc_donated != NULL, "sc_donated NULL?");
+	sched_context_t *sc = t->scDonated;
+	LIB_ASSERT(t->scDonated != NULL, "scDonated NULL?");
 
 	if (sc != NULL) {
 		do {
@@ -658,7 +658,7 @@ static sched_context_t *_sc_ofDonor(thread_t *t, thread_t *donor)
 				return sc;
 			}
 			sc = sc->dnext;
-		} while (sc != t->sc_donated);
+		} while (sc != t->scDonated);
 	}
 
 	LIB_ASSERT(0, "would return null SC");
@@ -674,11 +674,11 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 	LIB_ASSERT(sc != NULL, "what?");
 
 	/* Remove SC from `from` */
-	if (sc == from->sc_own) {
-		/* own SC: mark as donated but keep sc_own pointer */
+	if (sc == from->scOwn) {
+		/* own SC: mark as donated but keep scOwn pointer */
 	}
 	else {
-		LIST_REMOVE_EX(&from->sc_donated, sc, dnext, dprev);
+		LIST_REMOVE_EX(&from->scDonated, sc, dnext, dprev);
 	}
 
 	/*
@@ -690,7 +690,7 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 		sc->priority = from->priority;
 	}
 
-	from->sc_active = NULL;
+	from->scActive = NULL;
 	from->state = BLOCKED_ON_REPLY;
 
 	/* see FIXME from _proc_threadExit */
@@ -700,14 +700,14 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 	sc->donor = from;
 	sc->t = to;
 
-	LIB_ASSERT(sc != to->sc_own, "EEEEE?");
-	LIST_ADD_EX(&to->sc_donated, sc, dnext, dprev);
+	LIB_ASSERT(sc != to->scOwn, "EEEEE?");
+	LIST_ADD_EX(&to->scDonated, sc, dnext, dprev);
 
 	/* Recalculate to's active SC */
-	to->sc_active = _sc_best(to);
+	to->scActive = _sc_best(to);
 	_sc_updateEffPriority(to);
 
-	LIB_ASSERT(to->sc_active->t == to && (to->sc_active->donor != NULL || to->sc_active->owner == to), "mismanaged SC");
+	LIB_ASSERT(to->scActive->t == to && (to->scActive->donor != NULL || to->scActive->owner == to), "mismanaged SC");
 
 	to->state = READY;
 
@@ -721,10 +721,10 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 {
 	LIB_ASSERT(sc->donor == caller, "returning SC donated by someone else");
 	LIB_ASSERT(caller->called == NULL, "_sc_return but called not cleared?");
-	LIB_ASSERT(server->sc_donated != NULL || server->sc_donated->dnext != NULL, "empty/corrupted donation queue?");
+	LIB_ASSERT(server->scDonated != NULL || server->scDonated->dnext != NULL, "empty/corrupted donation queue?");
 
 	/* Remove donated SC from server */
-	LIST_REMOVE_EX(&server->sc_donated, sc, dnext, dprev);
+	LIST_REMOVE_EX(&server->scDonated, sc, dnext, dprev);
 
 	/* Return to caller */
 	sc->t = caller;
@@ -732,9 +732,9 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 	/* BWI: restore SC priority to its base (the mutex PI boost was temporary) */
 	sc->priority = sc->priorityBase;
 
-	if (caller->sc_own != sc) {
+	if (caller->scOwn != sc) {
 		/* caller is in a reply chain */
-		LIST_ADD_EX(&caller->sc_donated, sc, dnext, dprev);
+		LIST_ADD_EX(&caller->scDonated, sc, dnext, dprev);
 
 		LIB_ASSERT(caller->reply != NULL, "caller has a donated SC but is not replying to anyone?");
 
@@ -750,15 +750,15 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 		sc->donor = NULL;
 	}
 
-	caller->sc_active = sc; /* or re-evaluate _sc_best (TODO?) */
+	caller->scActive = sc; /* or re-evaluate _sc_best (TODO?) */
 	caller->state = READY;
 
 	/* Recalculate server's active SC */
-	server->sc_active = _sc_best(server);
-	server->sc_active->t = server;
+	server->scActive = _sc_best(server);
+	server->scActive->t = server;
 	_sc_updateEffPriority(server);
 
-	LIB_ASSERT(server->sc_active->donor != NULL || server->sc_active->owner == server, "mismanaged SC");
+	LIB_ASSERT(server->scActive->donor != NULL || server->scActive->owner == server, "mismanaged SC");
 
 	server->reply = NULL;
 }
@@ -813,7 +813,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		/* Move thread to the end of queue */
 		if (current->state == READY || current->exit != 0) {
-			// LIB_ASSERT(current->sc_active != NULL, "READY but unschedulable? tid: %d, pc=%p, ra=%p", proc_getTid(current), current->context->sepc, current->context->ra);
+			// LIB_ASSERT(current->scActive != NULL, "READY but unschedulable? tid: %d, pc=%p, ra=%p", proc_getTid(current), current->context->sepc, current->context->ra);
 
 			_readyAdd(current);
 			_threads_preempted(current);
@@ -871,7 +871,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			continue;
 		}
 
-		LIB_ASSERT(sched->t->sc_active != NULL, "sched points to unschedulable thread");
+		LIB_ASSERT(sched->t->scActive != NULL, "sched points to unschedulable thread");
 
 		selected = sched->t;
 
@@ -1017,25 +1017,25 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 
 	t->priorityBase = priority;
 	t->priority = priority;
-	t->sc_own = vm_kmalloc(sizeof(sched_context_t));
-	if (t->sc_own == NULL) {
+	t->scOwn = vm_kmalloc(sizeof(sched_context_t));
+	if (t->scOwn == NULL) {
 		vm_kfree(t->kstack);
 		vm_kfree(t);
 		return -ENOMEM;
 	}
-	t->sc_own->cpuTime = 0;
-	t->sc_own->maxWait = 0;
-	t->sc_own->t = t;
-	t->sc_own->next = NULL;
-	t->sc_own->prev = NULL;
-	proc_gettime(&t->sc_own->startTime, NULL);
-	t->sc_own->lastTime = t->sc_own->startTime;
-	t->sc_own->owner = t;
-	t->sc_own->donor = NULL;
-	t->sc_own->priority = priority;
-	t->sc_own->priorityBase = priority;
-	t->sc_active = t->sc_own;
-	t->sc_donated = NULL;
+	t->scOwn->cpuTime = 0;
+	t->scOwn->maxWait = 0;
+	t->scOwn->t = t;
+	t->scOwn->next = NULL;
+	t->scOwn->prev = NULL;
+	proc_gettime(&t->scOwn->startTime, NULL);
+	t->scOwn->lastTime = t->scOwn->startTime;
+	t->scOwn->owner = t;
+	t->scOwn->donor = NULL;
+	t->scOwn->priority = priority;
+	t->scOwn->priorityBase = priority;
+	t->scActive = t->scOwn;
+	t->scDonated = NULL;
 
 	t->reply = NULL;
 	t->called = NULL;
@@ -1043,7 +1043,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->flags = 0;
 
 	if (thread_alloc(t) < 0) {
-		vm_kfree(t->sc_active);
+		vm_kfree(t->scActive);
 		vm_kfree(t->kstack);
 		vm_kfree(t);
 		return -ENOMEM;
@@ -1053,7 +1053,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 		err = process_tlsInit(&t->tls, &process->tls, process->mapp);
 		if (err != EOK) {
 			lib_idtreeRemove(&threads_common.id, &t->idlinkage);
-			vm_kfree(t->sc_active);
+			vm_kfree(t->scActive);
 			vm_kfree(t->kstack);
 			vm_kfree(t);
 			return err;
@@ -1140,7 +1140,7 @@ static u8 _proc_threadGetPriority(thread_t *thread)
 	unsigned int lockPrio, scPrio;
 
 	lockPrio = _proc_threadGetLockPriority(thread);
-	scPrio = (thread->sc_active != NULL) ? thread->sc_active->priority : thread->priorityBase;
+	scPrio = (thread->scActive != NULL) ? thread->scActive->priority : thread->priorityBase;
 
 	return (lockPrio < scPrio) ? lockPrio : scPrio;
 }
@@ -1169,7 +1169,7 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 	}
 
 	if (onReadyQueue != 0) {
-		LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread->sc_active) != 0,
+		LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread->scActive) != 0,
 				"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
 				thread, proc_getTid(thread), thread->priority);
 		_readyRemove(thread);
@@ -1226,9 +1226,9 @@ int proc_threadPriority(int signedPriority)
 
 		ret = (int)current->priorityBase;
 
-		if (current->sc_active == current->sc_own) {
-			current->sc_active->priority = priority;
-			current->sc_active->priorityBase = current->priorityBase;
+		if (current->scActive == current->scOwn) {
+			current->scActive->priority = priority;
+			current->scActive->priorityBase = current->priorityBase;
 		}
 	}
 	else {
@@ -1253,12 +1253,12 @@ static void _wakePassive(thread_t *t)
 {
 	LIB_ASSERT(t->passive == 1, "t is not passive!");
 
-	if (t->sc_donated == NULL) {
+	if (t->scDonated == NULL) {
 		/* this is ours SC */
 		t->passive = 0;
 	}
 
-	t->sc_active = _sc_best(t);
+	t->scActive = _sc_best(t);
 
 	_proc_threadDequeue(t);
 }
@@ -1272,7 +1272,7 @@ static void _thread_interrupt(thread_t *t)
 		t->ipc.msgPtr->o.err = -EINTR;
 	}
 	else {
-		LIB_ASSERT(t->sc_donated == NULL, "SC donated but we are not passive?");
+		LIB_ASSERT(t->scDonated == NULL, "SC donated but we are not passive?");
 		_proc_threadDequeue(t);
 	}
 
@@ -1292,8 +1292,8 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	t = threads_common.current[cpu]->t;
 	threads_common.current[cpu] = NULL;
 	t->state = GHOST;
-	LIB_ASSERT(t->sc_active != NULL, "null sched? maybe ok but must be handled");
-	LIST_ADD(&threads_common.ghosts, t->sc_active);
+	LIB_ASSERT(t->scActive != NULL, "null sched? maybe ok but must be handled");
+	LIST_ADD(&threads_common.ghosts, t->scActive);
 	(void)_proc_threadWakeup(&threads_common.reaper);
 
 	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
@@ -1310,7 +1310,7 @@ static void _proc_threadExit(thread_t *t)
 	}
 
 	/*
-	 * FIXME: ok, so here it may happen that t->sc_active == NULL
+	 * FIXME: ok, so here it may happen that t->scActive == NULL
 	 * for a thread that has donated its SC via _sc_donate()
 	 * but there is no easy fix for this
 	 */
@@ -1388,7 +1388,7 @@ static void _proc_threadDequeue(thread_t *t)
 		return;
 	}
 
-	LIB_ASSERT(t->sc_active != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
+	LIB_ASSERT(t->scActive != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
 
 	_threads_waking(t);
 
@@ -2493,8 +2493,8 @@ int proc_threadsIter(int n, proc_threadsListCb_t cb, void *arg)
 		tinfo.state = (int)t->state;
 
 		now = _proc_gettimeRaw();
-		if (t->sc_active != NULL && now != t->sc_active->startTime) {
-			tinfo.load = (int)((t->sc_active->cpuTime * 1000) / (now - t->sc_active->startTime));
+		if (t->scActive != NULL && now != t->scActive->startTime) {
+			tinfo.load = (int)((t->scActive->cpuTime * 1000) / (now - t->scActive->startTime));
 		}
 		else {
 			tinfo.priority = -1;
@@ -2659,7 +2659,7 @@ static inline int _mustSlowCall(port_t *p, thread_t *caller, spinlock_ctx_t *sc)
 
 
 	/* Receiver currently has its own SC (active server, not passive) */
-	if (p->threads->sc_active != NULL) {
+	if (p->threads->scActive != NULL) {
 		return 1;
 	}
 
@@ -2801,7 +2801,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	type = msg->type;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	_sc_donate(caller, recv, caller->sc_active);
+	_sc_donate(caller, recv, caller->scActive);
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 6
 	ctx = _threads_switchTo(recv);
@@ -2814,7 +2814,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	recv->interruptible = 0;
 
 	LIB_ASSERT(_proc_current() == recv, "we are not recv?");
-	LIB_ASSERT(_proc_current()->sc_active != NULL, "proc current unschedulable?");
+	LIB_ASSERT(_proc_current()->scActive != NULL, "proc current unschedulable?");
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -2917,9 +2917,11 @@ int proc_send_returnable(u32 port, msg_t *msg)
 	return proc_send_ex(port, msg, 1);
 }
 
-static thread_t *ridToReply(msg_rid_t rid)
+
+static thread_t *_ridToReply(msg_rid_t rid, thread_t *current)
 {
 	void *reply = (void *)((ptr_t)rid ^ threads_common.ridCookie);
+	thread_t *t;
 
 	if (reply == NULL) {
 		return NULL;
@@ -2930,12 +2932,19 @@ static thread_t *ridToReply(msg_rid_t rid)
 		return NULL;
 	}
 #else
-	if (pmap_isAllowed(&threads_common.kmap->pmap, reply, sizeof(thread_t *)) == 0) {
+	if (((ptr_t)reply < (ptr_t)threads_common.kmap->start) ||
+			((ptr_t)reply > (ptr_t)threads_common.kmap->stop - sizeof(thread_t))) {
 		return NULL;
 	}
 #endif
 
-	return (thread_t *)reply;
+	t = (thread_t *)reply;
+	if (t->called != current) {
+		LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, current, t->called);
+		return NULL;
+	}
+
+	return t;
 }
 
 
@@ -2944,14 +2953,9 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	port_t *p;
 	thread_t *caller, *recv, *forward;
 	spinlock_ctx_t sc, tsc;
-	void *reply = ridToReply(rid);
 
 	recv = proc_current();
 	LIB_ASSERT(recv != NULL, "recv is null???");
-
-	if (reply == NULL) {
-		return -EINVAL;
-	}
 
 	p = proc_portGet(port);
 	if (p == NULL) {
@@ -2974,9 +2978,8 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	}
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
-	caller = reply;
-
-	if (caller->called != recv || caller->exit != 0) {
+	caller = _ridToReply(rid, recv);
+	if (caller == NULL) {
 		LIB_ASSERT(0, "TODO: commodify the respond paths");
 	}
 
@@ -3021,7 +3024,7 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	_sc_donate(caller, forward, donated_sc);
 
 	/* could have changed as part of _sc_return */
-	threads_common.current[hal_cpuGetID()] = recv->sc_active;
+	threads_common.current[hal_cpuGetID()] = recv->scActive;
 
 	_readyAdd(forward);
 
@@ -3122,7 +3125,7 @@ static int _becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 	}
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
-	recv->sc_active = NULL;
+	recv->scActive = NULL;
 	recv->state = BLOCKED_ON_RECV;
 	recv->passive = 1;
 	recv->interruptible = 1;
@@ -3239,32 +3242,22 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 	thread_t *caller, *recv;
 	int err = EOK;
 
-	void *reply = ridToReply(rid);
-
-	recv = proc_current();
-
-	if (reply == NULL) {
-		return -EINVAL;
-	}
-
 	hal_spinlockSet(&p->spinlock, &sc);
 	if (p->closed != 0) {
 		hal_spinlockClear(&p->spinlock, &sc);
 		return -EINVAL;
 	}
 
-	caller = reply;
-	LIB_ASSERT(caller != NULL, "caller null!");
-
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
+	recv = _proc_current();
+	caller = _ridToReply(rid, recv);
+	if (caller == NULL) {
+		hal_spinlockClear(&threads_common.spinlock, &tsc);
+		hal_spinlockClear(&p->spinlock, &sc);
+		return -EINVAL;
+	}
 
 	do {
-		if (caller->called != recv) {
-			LIB_ASSERT(0, "unmatched reply for %p: response from %p, but reply called %p\n", reply, recv, caller->called);
-			err = -EINVAL;
-			break;
-		}
-
 		/* clear called already to prevent races on SMP */
 		caller->called = NULL;
 
@@ -3276,21 +3269,21 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 			_sc_return(recv, caller, donated_sc);
 
 			caller->state = GHOST;
-			LIST_ADD(&threads_common.ghosts, caller->sc_active);
+			LIST_ADD(&threads_common.ghosts, caller->scActive);
 			_proc_threadWakeup(&threads_common.reaper);
 
 			recv->reply = NULL;
-			if (recv->sc_donated == NULL) {
+			if (recv->scDonated == NULL) {
 				/* this is our SC */
 				recv->passive = 0;
 			}
-			recv->sc_active = _sc_best(recv);
+			recv->scActive = _sc_best(recv);
 			_sc_updateEffPriority(recv);
 
-			threads_common.current[hal_cpuGetID()] = recv->sc_active;
+			threads_common.current[hal_cpuGetID()] = recv->scActive;
 
 			LIB_ASSERT(recv->state == READY, "recv not ready?");
-			LIB_ASSERT(recv->sc_active->t == recv, "badly linked sched context");
+			LIB_ASSERT(recv->scActive->t == recv, "badly linked sched context");
 
 			err = -EINVAL;
 			break;
@@ -3323,7 +3316,7 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 
 	_setCallerMsgReturn(recv, caller, EOK);
 
-	threads_common.current[hal_cpuGetID()] = recv->sc_active;
+	threads_common.current[hal_cpuGetID()] = recv->scActive;
 
 	LIB_ASSERT(recv->state == READY, "recv should be ready!");
 
@@ -3367,8 +3360,8 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	 */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	msg_rid_t saved_rid = *rid;
-	thread_t *reply = ridToReply(saved_rid);
-	if (reply == NULL || reply->called != _proc_current()) {
+	thread_t *reply = _ridToReply(saved_rid, _proc_current());
+	if (reply == NULL) {
 		respond = 0;
 	}
 	hal_spinlockClear(&threads_common.spinlock, &sc);
