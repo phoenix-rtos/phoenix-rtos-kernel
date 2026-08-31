@@ -122,6 +122,8 @@ typedef struct _thread_t {
 	sched_context_t *scActive;  /* SC currently being consumed (used by scheduler) */
 	sched_context_t *scDonated; /* SCs donated to the thread */
 
+	struct _thread_t *prevDonor; /* donor stack */
+
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;
 	unsigned int state : 4;

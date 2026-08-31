@@ -328,6 +328,8 @@ static void _setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
 	sched_context_t *donated_sc = _sc_ofDonor(recv, caller);
 
 	_sc_return(recv, caller, donated_sc);
+	caller->state = READY;
+	recv->reply = NULL;
 	_readyAdd(caller);
 
 	if (caller->callReturnable == 0) {
@@ -691,13 +693,18 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 	}
 
 	from->scActive = NULL;
-	from->state = BLOCKED_ON_REPLY;
 
 	/* see FIXME from _proc_threadExit */
 	// from->interruptible = 1;
 
-	/* Add SC to `to` */
+	/*
+	 * Stack the donors. prevDonor/donor fields express a donor stack. Since a thread
+	 * can donate at most one SC, we can keep the previous donor of that SC in
+	 * its thread_t and mark him as the current donor.
+	 */
+	from->prevDonor = sc->donor;
 	sc->donor = from;
+
 	sc->t = to;
 
 	LIB_ASSERT(sc != to->scOwn, "EEEEE?");
@@ -708,12 +715,6 @@ static void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 	_sc_updateEffPriority(to);
 
 	LIB_ASSERT(to->scActive->t == to && (to->scActive->donor != NULL || to->scActive->owner == to), "mismanaged SC");
-
-	to->state = READY;
-
-	/* TODO: could this be a part of SC? donor? */
-	to->reply = from;
-	from->called = to;
 }
 
 
@@ -737,18 +738,11 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 		LIST_ADD_EX(&caller->scDonated, sc, dnext, dprev);
 
 		LIB_ASSERT(caller->reply != NULL, "caller has a donated SC but is not replying to anyone?");
+	}
 
-		/*
-		 * FIXME: doesnt fix it. caller can have multiple clients and caller->reply will be
-		 * overwritten by last one while the SC can come from any
-		 * so for now the SCs can still end up mixed (sc->donor can point to a
-		 * caller's client that wasn't the actual donor)
-		 */
-		sc->donor = caller->reply;
-	}
-	else {
-		sc->donor = NULL;
-	}
+	/* Unstack the donors */
+	sc->donor = caller->prevDonor;
+	caller->prevDonor = NULL;
 
 	caller->scActive = sc; /* or re-evaluate _sc_best (TODO?) */
 	caller->state = READY;
@@ -759,8 +753,6 @@ static void _sc_return(thread_t *server, thread_t *caller, sched_context_t *sc)
 	_sc_updateEffPriority(server);
 
 	LIB_ASSERT(server->scActive->donor != NULL || server->scActive->owner == server, "mismanaged SC");
-
-	server->reply = NULL;
 }
 
 // BIG TODO: sched queues should use sc priority everywhere not thread's
@@ -1036,6 +1028,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->scOwn->priorityBase = priority;
 	t->scActive = t->scOwn;
 	t->scDonated = NULL;
+	t->prevDonor = NULL;
 
 	t->reply = NULL;
 	t->called = NULL;
@@ -2711,6 +2704,14 @@ void _portDequeueReceivers(port_t *p)
 }
 
 
+void set_reply_chain(thread_t *from, thread_t *to)
+{
+	/* TODO: could this be a part of SC? donor? */
+	to->reply = from;
+	from->called = to;
+}
+
+
 /* Assumes _borrowBuf() has already been called if either side's plan.kind is msg_xfer_borrow */
 static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 {
@@ -2802,6 +2803,9 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	_sc_donate(caller, recv, caller->scActive);
+	set_reply_chain(caller, recv);
+	caller->state = BLOCKED_ON_REPLY;
+	recv->state = READY;
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 6
 	ctx = _threads_switchTo(recv);
@@ -3021,7 +3025,11 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	/* TODO: optimize these */
 	caller->called = NULL;
 	_sc_return(recv, caller, donated_sc);
+	recv->reply = NULL;
 	_sc_donate(caller, forward, donated_sc);
+	set_reply_chain(caller, forward);
+	caller->state = BLOCKED_ON_REPLY;
+	forward->state = READY;
 
 	/* could have changed as part of _sc_return */
 	threads_common.current[hal_cpuGetID()] = recv->scActive;
