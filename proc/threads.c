@@ -226,7 +226,20 @@ static void _readyRemove(thread_t *t)
 
 static size_t _readyMinPrioIdx(void)
 {
-	return (threads_common.readyBitmask != 0ULL) ? (size_t)__builtin_ctzll(threads_common.readyBitmask) : NPRIOS;
+	/* TODO: replace with __builtin_ctzll once GOT issues in sparc libgcc are resolved. */
+	u32 high, low;
+
+	if (threads_common.readyBitmask == 0ULL) {
+		return NPRIOS;
+	}
+
+	low = (u32)threads_common.readyBitmask;
+	if (low != 0U) {
+		return (size_t)hal_cpuGetFirstBit(low);
+	}
+
+	high = (u32)(threads_common.readyBitmask >> 32);
+	return (size_t)hal_cpuGetFirstBit(high) + 32U;
 }
 
 
