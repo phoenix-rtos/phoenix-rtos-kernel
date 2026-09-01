@@ -26,6 +26,12 @@ void test_proc_threads2(void);
 void test_proc_exit(void);
 
 
+/* Isolated priority-inheritance repros (simple/multi-waiter/chained boost +
+ * a proc_threadsIter()-pattern stress scenario), run standalone instead of
+ * the normal syspage/userspace boot. */
+void test_proc_priorityInherit(void);
+
+
 #endif
 
 /* parasoft-end-suppress ALL */

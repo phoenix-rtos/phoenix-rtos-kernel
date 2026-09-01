@@ -468,5 +468,5 @@ void _log_init(void)
 	hal_memset(&log_common, 0, sizeof(log_common));
 	(void)proc_lockInit(&log_common.lock, &proc_lockAttrDefault, "log.common");
 
-	log_common.enabled = 1;
+	log_common.enabled = 0;
 }

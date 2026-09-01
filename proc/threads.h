@@ -116,8 +116,6 @@ typedef struct _thread_t {
 	struct _thread_t *tprev;
 
 	int refs;
-	struct _thread_t *blocking;
-	struct _lock_t *waitingOn; /* lock this thread is blocked on (PI chain) */
 
 	struct _thread_t **wait;
 	time_t wakeup;
@@ -127,6 +125,9 @@ typedef struct _thread_t {
 	sched_context_t *scDonated; /* SCs donated to the thread */
 
 	struct _thread_t *prevDonor; /* donor stack */
+
+	struct _lock_t *waitingOn; /* PROTO_INHERIT lock this thread donated its SC to wait on, if any */
+	sched_context_t *relayed;  /* SC this thread is currently forwarding up its own wait chain, if away */
 
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;

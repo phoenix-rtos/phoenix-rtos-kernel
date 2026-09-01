@@ -120,21 +120,16 @@ int main(void)
 	(void)_proc_init(&main_common.kmap, &main_common.kernel);
 	_syscalls_init();
 
-#if 0 /* Basic kernel tests */
-	/* Start tests */
-	test_proc_threads1();
-	test_vm_kmallocsim();
-	test_proc_conditional();
-	test_vm_alloc();
-	test_vm_kmalloc();
-	test_proc_exit();
-#endif
-
+#if 0
+	test_proc_priorityInherit();
+	(void)main_initthr;
+#else
 	(void)proc_start(main_initthr, NULL, (const char *)"init");
 
 	/* Start scheduling, leave current stack */
 	hal_cpuEnableInterrupts();
 	(void)hal_cpuReschedule(NULL, NULL);
+#endif
 
 	return 0;
 }
