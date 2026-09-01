@@ -273,6 +273,7 @@ static const struct {
 	[pctl_ipclk_spi4sel] = { (u16)rcc_ccipr2, 0x1U, 7U },
 	[pctl_ipclk_i2c4sel] = { (u16)rcc_ccipr2, 0x1U, 9U },
 	[pctl_ipclk_rngsel] = { (u16)rcc_ccipr2, 0x1U, 11U },
+	[pctl_ipclk_adcdacpre] = { (u16)rcc_ccipr2, 0xfU, 12U },
 	[pctl_ipclk_adcdacsel] = { (u16)rcc_ccipr2, 0x3U, 16U },
 	[pctl_ipclk_dac1shsel] = { (u16)rcc_ccipr2, 0x1U, 19U },
 	[pctl_ipclk_octospisel] = { (u16)rcc_ccipr2, 0x1U, 20U },
