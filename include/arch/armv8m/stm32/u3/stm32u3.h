@@ -122,6 +122,7 @@ enum ipclks {
 	pctl_ipclk_spi4sel,
 	pctl_ipclk_i2c4sel,
 	pctl_ipclk_rngsel,
+	pctl_ipclk_adcdacpre,
 	pctl_ipclk_adcdacsel,
 	pctl_ipclk_dac1shsel,
 	pctl_ipclk_octospisel,
