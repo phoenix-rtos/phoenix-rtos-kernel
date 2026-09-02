@@ -15,15 +15,7 @@
 #define _PH_HAL_ARMV7R_H_
 
 #include "hal/types.h"
-
-
-/* Barriers */
-
-
-static inline void hal_cpuDataSyncBarrier(void)
-{
-	__asm__ volatile("dsb");
-}
+#include "hal/arm/barriers.h"
 
 
 /* Memory Management */
