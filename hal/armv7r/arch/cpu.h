@@ -211,11 +211,12 @@ static inline int hal_cpuSupervisorMode(cpu_context_t *ctx)
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static inline unsigned int hal_cpuGetID(void)
 {
-	unsigned int mpidr;
-	/* clang-format off */
-	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
-	/* clang-format on */
-	return mpidr & 0xfU;
+	//	unsigned int mpidr;
+	//	/* clang-format off */
+	//	__asm__ volatile ("mrc p15, 0, %0, c0, c0, 5": "=r"(mpidr));
+	//	/* clang-format on */
+	//	return mpidr & 0xfU;
+	return 0;
 }
 
 
