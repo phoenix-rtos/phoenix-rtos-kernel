@@ -827,7 +827,11 @@ static void map_pageFault(unsigned int n, exc_context_t *ctx)
 
 		LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel");
 
-		(void)threads_sigpost(thread->process, thread, signal_segv);
+		(void)threads_sigpost(thread->process, thread, SIGSEGV);
+	}
+
+	if (thread->exit != 0U) {
+		proc_threadEnd();
 	}
 }
 #endif

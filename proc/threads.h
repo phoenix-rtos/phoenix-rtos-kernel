@@ -211,4 +211,11 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 __attribute__((noreturn)) void threads_halt(void);
 
 
+int threads_setSigaction(int sig, void (*trampoline)(void), const struct sigaction *act, struct sigaction *old);
+
+
+/* Requires guarantee that parent won't be reaped during execution. */
+int proc_cloneSigactions(process_t *parent, process_t *child);
+
+
 #endif
