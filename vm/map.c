@@ -1679,7 +1679,7 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	vm_pageGetStats(&freesz);
 
 	/* Init map entry pool */
-	map_common.ntotal = freesz / (3U * SIZE_PAGE + sizeof(map_entry_t));
+	map_common.ntotal = freesz / (SIZE_PAGE + sizeof(map_entry_t));
 	map_common.nfree = map_common.ntotal;
 
 	while ((ptr_t)(*top) - (ptr_t)(*bss) < (ptr_t)sizeof(map_entry_t) * (ptr_t)map_common.ntotal) {
