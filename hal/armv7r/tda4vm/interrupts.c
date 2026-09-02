@@ -58,11 +58,17 @@ static struct {
 	spinlock_t spinlock[SIZE_INTERRUPTS];
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
+	int trace_irqs;
 } interrupts_common;
 
 
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
+
+void _hal_interruptsTrace(int enable)
+{
+	interrupts_common.trace_irqs = enable;
+}
 
 static void interrupts_clearStatus(unsigned int irqn)
 {
