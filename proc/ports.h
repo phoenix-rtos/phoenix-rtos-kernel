@@ -30,7 +30,6 @@ typedef struct _port_t {
 	int refs, closed;
 
 	spinlock_t spinlock;
-	msg_t *current;
 
 	/* TODO: merge these queues. there will never be a sender and a receiver
 	 * waiting at the same time. */

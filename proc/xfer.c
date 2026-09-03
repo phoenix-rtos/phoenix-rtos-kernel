@@ -8,6 +8,7 @@
 
 static struct {
 	vm_map_t *kmap;
+	spinlock_t spinlock;
 } xfer_common;
 
 
@@ -191,6 +192,8 @@ void xfer_bufRelease(xferBuf_t *xb)
 
 int xfer_ipcBufBorrow(thread_t *from, thread_t *to)
 {
+	spinlock_ctx_t sc;
+
 	vm_map_t *dstmap = _getMap(to->process);
 
 	vm_flags_t flags = MAP_NOINHERIT;
@@ -213,8 +216,10 @@ int xfer_ipcBufBorrow(thread_t *from, thread_t *to)
 		return -ENOMEM;
 	}
 
+	hal_spinlockSet(&xfer_common.spinlock, &sc);
 	to->ipc.bw = vaddr;
 	to->ipc.bsize = from->ipc.size;
+	hal_spinlockClear(&xfer_common.spinlock, &sc);
 
 	return EOK;
 }
@@ -249,7 +254,9 @@ void *xfer_setupIpcBuf(thread_t *t, size_t sz)
 	void *vaddr = NULL, *kvaddr = NULL;
 	vm_map_t *map;
 	page_t *p;
-	u8 prot, flags, attr;
+	vm_prot_t prot;
+	vm_flags_t flags;
+	vm_attr_t attr;
 
 	if (sz == 0 || sz > MSG_MAX_IPC_BUF || (sz & (SIZE_PAGE - 1)) != 0) {
 		return NULL;
@@ -325,10 +332,21 @@ void *xfer_setupIpcBuf(thread_t *t, size_t sz)
 
 void xfer_ipcBufRelease(thread_t *t)
 {
-	if (t->ipc.bw != NULL) {
-		vm_munmap(_getMap(t->process), t->ipc.bw, t->ipc.bsize);
-		t->ipc.bw = NULL;
-		t->ipc.bsize = 0;
+	spinlock_ctx_t sc;
+	void *bw;
+	size_t bsize;
+
+	/* TODO: atomics */
+	hal_spinlockSet(&xfer_common.spinlock, &sc);
+	bw = t->ipc.bw;
+	bsize = t->ipc.bsize;
+	t->ipc.bw = NULL;
+	t->ipc.bsize = 0;
+	hal_spinlockClear(&xfer_common.spinlock, &sc);
+
+	if (bw != NULL) {
+		vm_munmap(_getMap(t->process), bw, bsize);
+		bsize = 0;
 	}
 }
 
@@ -360,9 +378,9 @@ xferPlan_t xfer_classify(thread_t *caller, thread_t *recv, const void *data, siz
 }
 
 
+/* Assumes address space of recv - potentially calls xfer_bufMap that may copy the payload to the shadow pages. */
 int xfer_setup(thread_t *caller, thread_t *recv, const xferPlan_t *plan, xferBuf_t *xb, void **rdata, msg_side_t side)
 {
-
 	switch (plan->kind) {
 		case msg_xfer_map:
 			if (xfer_bufMap(caller->process, recv->process, (void *)plan->data, plan->size, side, xb, rdata) < 0) {
@@ -415,4 +433,5 @@ void xfer_finalize(thread_t *from, thread_t *to, msg_t *msg)
 void xfer_init(vm_map_t *kmap)
 {
 	xfer_common.kmap = kmap;
+	hal_spinlockCreate(&xfer_common.spinlock, "xfer.spinlock");
 }

@@ -107,7 +107,6 @@ int proc_portCreate(u32 *id)
 	hal_spinlockCreate(&port->spinlock, "port.spinlock");
 
 	port->threads = NULL;
-	port->current = NULL;
 	port->refs = 1;
 	port->closed = 0;
 

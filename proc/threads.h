@@ -320,13 +320,7 @@ __attribute__((noreturn)) void threads_halt(void);
 void _threads_portWakeReceivers(struct _port_t *p);
 
 
-void threads_wakePassive(thread_t *t);
-
-
 void threads_releaseXferBufs(thread_t *thread);
-
-
-void xfer_releaseIpcBuf(thread_t *thread);
 
 
 #endif

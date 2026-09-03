@@ -77,6 +77,12 @@ int xfer_setup(thread_t *caller, thread_t *recv, const xferPlan_t *plan, xferBuf
 void xfer_finalize(thread_t *from, thread_t *to, msg_t *msg);
 
 
+void *xfer_setupIpcBuf(thread_t *t, size_t sz);
+
+
+void xfer_releaseIpcBuf(thread_t *thread);
+
+
 static inline void xfer_clearFlags(thread_t *t)
 {
 	t->ipc.flags = 0;

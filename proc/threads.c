@@ -416,16 +416,16 @@ static void thread_destroy(thread_t *thread)
 		LIB_ASSERT(0, "happens c");
 	}
 
-	if (thread->scActive != NULL) {
+	if (thread->scActive != thread->scOwn) {
 		if (thread->reply != NULL) {
-			LIB_ASSERT(thread->reply != thread, "thread replies to itself????");
 			reply = thread->reply;
 
-			LIB_ASSERT(reply->scActive == NULL, "reply has... sched?");
-			reply->called = NULL;
-
-			LIB_ASSERT(reply->exit == 0, "reply thread exiting?");
 			LIB_ASSERT(thread->passive == 1, "thread not passive?");
+			LIB_ASSERT(reply != thread, "thread replies to itself?");
+			LIB_ASSERT(reply->scActive == NULL, "reply has an active sc?");
+			LIB_ASSERT(reply->exit == 0, "reply thread exiting? (TODO?)");
+
+			reply->called = NULL;
 
 			hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -444,12 +444,14 @@ static void thread_destroy(thread_t *thread)
 		}
 		else {
 			hal_spinlockClear(&threads_common.spinlock, &sc);
-			vm_kfree(thread->scActive);
 		}
 	}
 	else {
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
+
+	LIB_ASSERT(thread->scDonated == NULL, "all donations should be reclaimed");
+	vm_kfree(thread->scOwn);
 	vm_kfree(thread->kstack);
 
 	xfer_releaseIpcBuf(thread);
@@ -602,6 +604,7 @@ static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 
 	if ((selected->ipc.flags & MSG_INTERRUPTED) != 0) {
 		selected->ipc.msgPtr->o.err = -EINTR;
+		selected->ipc.flags &= ~MSG_INTERRUPTED;
 	}
 
 	if (selected->longjmpctx != NULL) {
@@ -1387,15 +1390,6 @@ static void _wakePassive(thread_t *t)
 }
 
 
-void threads_wakePassive(thread_t *t)
-{
-	spinlock_ctx_t sc;
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	_wakePassive(t);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-}
-
-
 static void _sc_reclaimRelayed(thread_t *t)
 {
 	sched_context_t *sc = t->relayed;
@@ -1442,8 +1436,10 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	threads_common.currentSc[cpu] = NULL;
 	threads_common.currentThread[cpu] = NULL;
 	t->state = GHOST;
-	LIB_ASSERT(t->scActive != NULL, "null sched? maybe ok but must be handled");
+
+	_sc_setActive(t, t->scOwn);
 	LIST_ADD(&threads_common.ghosts, t->scActive);
+
 	(void)_proc_threadWakeup(&threads_common.reaper);
 
 	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
@@ -1545,11 +1541,11 @@ static void _proc_threadDequeue(thread_t *t)
 
 	_proc_threadUnlink(t);
 
-	_threads_waking(t);
-
 	if (t->state == GHOST) {
 		return;
 	}
+
+	_threads_waking(t);
 
 	LIB_ASSERT(t->scActive != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
 
@@ -3461,6 +3457,8 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 
 	hal_memcpy(&forward->ipc.ibl, &recv->ipc.ibl, sizeof(recv->ipc.ibl));
 	hal_memcpy(&forward->ipc.obl, &recv->ipc.obl, sizeof(recv->ipc.obl));
+	forward->ipc.bufsInit = 1;
+	recv->ipc.bufsInit = 0;
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
@@ -3482,10 +3480,10 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	_readyAdd(forward);
 
 	if (forward->priority < recv->priority) {
-		hal_cpuReschedule(&threads_common.spinlock, &sc);
+		hal_cpuReschedule(&threads_common.spinlock, &tsc);
 	}
 	else {
-		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_spinlockClear(&threads_common.spinlock, &tsc);
 	}
 
 	/* TODO: potentially unnecessary */
@@ -3583,7 +3581,8 @@ static int _becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 	}
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
-	recv->scActive = NULL;
+
+	_sc_setActive(recv, NULL);
 	recv->passive = 1;
 	recv->flags &= (~(int)IPC_PULSED);
 
