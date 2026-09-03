@@ -3239,6 +3239,29 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	hal_memcpy(&oid, &msg->oid, sizeof(oid_t));
 	type = msg->type;
 
+	xfer_clearFlags(caller);
+
+	void *idata = NULL, *odata = NULL;
+
+	/* message transfer */
+
+	if ((inPlan.kind == msg_xfer_borrow || outPlan.kind == msg_xfer_borrow) && xfer_ipcBufBorrow(caller, recv) != 0) {
+		LIB_ASSERT(0, "enomem, todo");
+		return -ENOMEM;
+	}
+
+	if (xfer_setup(caller, recv, &inPlan, &caller->ipc.ibl, &idata, msg_side_in) < 0) {
+		LIB_ASSERT(0, "enomem");
+		return -ENOMEM;
+	}
+
+	if (xfer_setup(caller, recv, &outPlan, &caller->ipc.obl, &odata, msg_side_out) < 0) {
+		LIB_ASSERT(0, "enomem, todo");
+		return -ENOMEM;
+	}
+
+	__atomic_store_n(&caller->ipc.bufsInit, 1U, __ATOMIC_RELEASE);
+
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	_sc_donate(caller, recv, caller->scActive);
 	_setReplyChain(caller, recv);
@@ -3249,16 +3272,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	ctx = _threads_switchTo(recv);
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 7
 
-	/*
-	 * FIXME: make recv interruptible in some checkpoints (e.g. between i.data and
-	 * o.data setup, add rollbacks)
-	 */
-	recv->interruptible = 0;
-
 	LIB_ASSERT(_proc_current() == recv, "we are not recv?");
 	LIB_ASSERT(_proc_current()->scActive != NULL, "proc current unschedulable?");
-
-	caller->ipc.bufsInit = 1;
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -3274,44 +3289,22 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	LIB_ASSERT(recv->exit == 0, "recv exit=%d", recv->exit);
 	LIB_ASSERT(recv->ipc.msgPtr != NULL, "recv msg is null");
 
-	/* message transfer */
-
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 10
 
 	hal_memcpy(recv->ipc.msgPtr->i.raw, caller->ipc.rawBuf, MSG_RAW_SIZE);
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 11
 
-	xfer_clearFlags(caller);
-
-	if ((inPlan.kind == msg_xfer_borrow || outPlan.kind == msg_xfer_borrow) && xfer_ipcBufBorrow(caller, recv) != 0) {
-		LIB_ASSERT(0, "enomem, todo");
-		return -ENOMEM;
-	}
-
-	if (xfer_setup(caller, recv, &inPlan, &caller->ipc.ibl, (void *)&recv->ipc.msgPtr->i.data, msg_side_in) < 0) {
-		LIB_ASSERT(0, "enomem");
-		return -ENOMEM;
-	}
-
-	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 12
-
-	if (xfer_setup(caller, recv, &outPlan, &caller->ipc.obl, &recv->ipc.msgPtr->o.data, msg_side_out) < 0) {
-		LIB_ASSERT(0, "enomem, todo");
-		return -ENOMEM;
-	}
-
 	recv->ipc.msgPtr->i.size = isize;
+	recv->ipc.msgPtr->i.data = idata;
+	recv->ipc.msgPtr->o.data = odata;
 	recv->ipc.msgPtr->o.size = osize;
+
 	recv->ipc.msgPtr->pid = (caller->process != NULL) ? process_getPid(caller->process) : 0;
 	hal_memcpy(&recv->ipc.msgPtr->oid, &oid, sizeof(oid_t));
 	recv->ipc.msgPtr->type = type;
 	recv->ipc.msgPtr->priority = caller->priority;        /* ??? */
-	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 13
-
-	/* msg transfer should be done by now */
-
-	recv->interruptible = 0;
+	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 12
 
 	*recv->ipc.ridPtr = (msg_rid_t)((ptr_t)caller ^ threads_common.ridCookie);
 	hal_cpuSetReturnValue(ctx, EOK);
@@ -3842,19 +3835,10 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 void threads_releaseXferBufs(thread_t *thread)
 {
-	spinlock_ctx_t sc;
-	u8 bufsInit;
-
-	/* TODO: replace with atomics */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	bufsInit = thread->ipc.bufsInit;
-	thread->ipc.bufsInit = 0;
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
+	u8 bufsInit = __atomic_exchange_n(&thread->ipc.bufsInit, 0U, __ATOMIC_ACQ_REL);
 	if (bufsInit == 0) {
 		return;
 	}
-
 	xfer_bufRelease(&thread->ipc.ibl);
 	xfer_bufRelease(&thread->ipc.obl);
 }

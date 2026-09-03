@@ -77,11 +77,11 @@ typedef struct {
 typedef struct _xferBuf_t {
 	/* TODO: do this as a private impl state */
 #ifndef NOMMU
-	void *bvaddr;
+	void *win;
+
 	u64 boffs;
 	page_t *bp;
 
-	void *evaddr;
 	u64 eoffs;
 	page_t *ep;
 #endif

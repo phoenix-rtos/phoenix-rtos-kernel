@@ -8,7 +8,6 @@
 
 static struct {
 	vm_map_t *kmap;
-	spinlock_t spinlock;
 } xfer_common;
 
 
@@ -29,7 +28,55 @@ static vm_flags_t _getMapFlags(vm_map_t *map, void *data)
 }
 
 
-static int _mapBoundaryPage(vm_map_t *srcmap, vm_map_t *dstmap, void *src, void *dst, size_t srcoffs, size_t dstoffs, size_t size, page_t *page, vm_attr_t attr, vm_flags_t flags, void **vaddr)
+/*
+ * Boundary-page aliases live in a kmap window reserved once per xferBuf_t.
+ * Re-pointing a slot is a single page_map() - a PTE store plus a TLB
+ * invalidate - to avoid calling vm_mmap().
+ */
+#define XFER_WIN_BSRC  0U /* caller's head page */
+#define XFER_WIN_BDST  1U /* shadow page substituted for it */
+#define XFER_WIN_ESRC  2U /* caller's tail page */
+#define XFER_WIN_EDST  3U /* shadow page substituted for it */
+#define XFER_WIN_SLOTS 4U
+#define XFER_WIN_SIZE  (XFER_WIN_SLOTS * SIZE_PAGE)
+
+
+static void *_winSlot(const xferBuf_t *xb, unsigned int slot)
+{
+	return (char *)xb->win + (slot * SIZE_PAGE);
+}
+
+
+/* Head and tail fragments may share one shadow page - see xfer_bufMap(). */
+static void *_winShadowE(const xferBuf_t *xb)
+{
+	return _winSlot(xb, (xb->ep != NULL) ? XFER_WIN_EDST : XFER_WIN_BDST);
+}
+
+
+static int _winReserve(xferBuf_t *xb)
+{
+	if (xb->win == NULL) {
+		xb->win = vm_mapFind(xfer_common.kmap, NULL, XFER_WIN_SIZE, MAP_NOINHERIT, PROT_READ | PROT_WRITE);
+		if (xb->win == NULL) {
+			return -ENOMEM;
+		}
+	}
+
+	return EOK;
+}
+
+
+static void _winRelease(xferBuf_t *xb)
+{
+	if (xb->win != NULL) {
+		vm_munmap(xfer_common.kmap, xb->win, XFER_WIN_SIZE);
+		xb->win = NULL;
+	}
+}
+
+
+static int _mapBoundaryPage(vm_map_t *srcmap, void *src, size_t srcoffs, page_t *page, size_t dstoffs, size_t size, vm_attr_t kattr, void *sslot, void *dslot)
 {
 	addr_t paddr;
 
@@ -38,20 +85,15 @@ static int _mapBoundaryPage(vm_map_t *srcmap, vm_map_t *dstmap, void *src, void 
 		return -ENOMEM;
 	}
 
-	*vaddr = vm_mmap(xfer_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, paddr, flags);
-	if (*vaddr == NULL) {
+	if (page_map(&xfer_common.kmap->pmap, sslot, paddr, kattr) < 0) {
 		return -ENOMEM;
 	}
 
-	if (page_map(&dstmap->pmap, dst, page->addr, (attr | PGHD_WRITE) & ~PGHD_USER) < 0) {
+	if (page_map(&xfer_common.kmap->pmap, dslot, page->addr, kattr) < 0) {
 		return -ENOMEM;
 	}
 
-	hal_memcpy((char *)dst + dstoffs, (char *)*vaddr + srcoffs, size);
-
-	if (page_map(&dstmap->pmap, dst, page->addr, attr) < 0) {
-		return -ENOMEM;
-	}
+	hal_memcpy((char *)dslot + dstoffs, (char *)sslot + srcoffs, size);
 
 	return EOK;
 }
@@ -59,7 +101,8 @@ static int _mapBoundaryPage(vm_map_t *srcmap, vm_map_t *dstmap, void *src, void 
 
 int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_side_t side, xferBuf_t *xb, void **rdata)
 {
-	void *w = NULL, *vaddr;
+	void *w = NULL, *vaddr, *epage;
+	vm_attr_t kattr;
 	u64 boffs, eoffs;
 	unsigned int n = 0, i;
 	page_t *nep = NULL, *nbp = NULL;
@@ -115,6 +158,12 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 
 	attr |= vm_flagsToAttr(flags);
 
+	kattr = PGHD_PRESENT | PGHD_READ | PGHD_WRITE | vm_flagsToAttr(flags);
+
+	if (((boffs != 0) || (eoffs != 0)) && (_winReserve(xb) < 0)) {
+		return -ENOMEM;
+	}
+
 	if (boffs > 0) {
 		xb->boffs = boffs;
 		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
@@ -123,7 +172,12 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 			return -ENOMEM;
 		}
 
-		if (_mapBoundaryPage(srcmap, dstmap, data, w, boffs, boffs, min(size, SIZE_PAGE - boffs), nbp, attr, flags, &xb->bvaddr) < 0) {
+		if (page_map(&dstmap->pmap, w, nbp->addr, attr) < 0) {
+			return -ENOMEM;
+		}
+
+		if (_mapBoundaryPage(srcmap, data, boffs, nbp, boffs, min(size, SIZE_PAGE - boffs), kattr,
+					_winSlot(xb, XFER_WIN_BSRC), _winSlot(xb, XFER_WIN_BDST)) < 0) {
 			return -ENOMEM;
 		}
 	}
@@ -141,6 +195,7 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 	if (eoffs) {
 		xb->eoffs = eoffs;
 		vaddr = (void *)FLOOR((ptr_t)data + size);
+		epage = w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE;
 
 		if ((boffs == 0) || (eoffs >= boffs)) {
 			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
@@ -150,10 +205,20 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 			}
 		}
 		else {
+			/*
+			 * Head/tail fragments share one shadow page, mapped twice so
+			 * they appear contiguous across the window boundary.
+			 */
 			nep = nbp;
+			xb->ep = NULL;
 		}
 
-		if (_mapBoundaryPage(srcmap, dstmap, vaddr, w + (n + ((boffs != 0) ? 1 : 0)) * SIZE_PAGE, 0, 0, eoffs, nep, attr, flags, &xb->evaddr) < 0) {
+		if (page_map(&dstmap->pmap, epage, nep->addr, attr) < 0) {
+			return -ENOMEM;
+		}
+
+		if (_mapBoundaryPage(srcmap, vaddr, 0, nep, 0, eoffs, kattr,
+					_winSlot(xb, XFER_WIN_ESRC), _winShadowE(xb)) < 0) {
 			return -ENOMEM;
 		}
 	}
@@ -166,20 +231,30 @@ int xfer_bufMap(process_t *src, process_t *dst, void *data, size_t size, msg_sid
 
 void xfer_bufRelease(xferBuf_t *xb)
 {
+	/* The aliases must go before the pages below are recycled to prevent UAF. */
 	if (xb->bp != NULL) {
-		vm_pageFree(xb->bp);
-		vm_munmap(xfer_common.kmap, xb->bvaddr, SIZE_PAGE);
-		xb->bp = NULL;
+		(void)pmap_remove(&xfer_common.kmap->pmap, _winSlot(xb, XFER_WIN_BSRC),
+				(char *)_winSlot(xb, XFER_WIN_BDST) + SIZE_PAGE);
 	}
 
 	if (xb->eoffs != 0) {
-		if (xb->ep != NULL) {
-			vm_pageFree(xb->ep);
-		}
-		vm_munmap(xfer_common.kmap, xb->evaddr, SIZE_PAGE);
-		xb->eoffs = 0;
+		(void)pmap_remove(&xfer_common.kmap->pmap, _winSlot(xb, XFER_WIN_ESRC),
+				(char *)_winSlot(xb, XFER_WIN_EDST) + SIZE_PAGE);
+	}
+
+	if (xb->bp != NULL) {
+		vm_pageFree(xb->bp);
+		xb->bp = NULL;
+	}
+
+	/* NULL whenever the tail shares the head's shadow page - freed above */
+	if (xb->ep != NULL) {
+		vm_pageFree(xb->ep);
 		xb->ep = NULL;
 	}
+
+	xb->boffs = 0;
+	xb->eoffs = 0;
 
 	if (xb->w != NULL) {
 		vm_munmap(xb->map, xb->w, xb->size);
@@ -192,8 +267,6 @@ void xfer_bufRelease(xferBuf_t *xb)
 
 int xfer_ipcBufBorrow(thread_t *from, thread_t *to)
 {
-	spinlock_ctx_t sc;
-
 	vm_map_t *dstmap = _getMap(to->process);
 
 	vm_flags_t flags = MAP_NOINHERIT;
@@ -216,16 +289,17 @@ int xfer_ipcBufBorrow(thread_t *from, thread_t *to)
 		return -ENOMEM;
 	}
 
-	hal_spinlockSet(&xfer_common.spinlock, &sc);
-	to->ipc.bw = vaddr;
-	to->ipc.bsize = from->ipc.size;
-	hal_spinlockClear(&xfer_common.spinlock, &sc);
+	__atomic_exchange_n(&to->ipc.bsize, from->ipc.size, __ATOMIC_RELAXED);
+	__atomic_store_n(&to->ipc.bw, vaddr, __ATOMIC_RELEASE);
 
 	return EOK;
 }
 
 void xfer_releaseIpcBuf(thread_t *t)
 {
+	_winRelease(&t->ipc.ibl);
+	_winRelease(&t->ipc.obl);
+
 	if (t->ipc.w != NULL) {
 		if (t->process != NULL) {
 			vm_munmap(&t->process->map, t->ipc.w, t->ipc.size);
@@ -332,17 +406,8 @@ void *xfer_setupIpcBuf(thread_t *t, size_t sz)
 
 void xfer_ipcBufRelease(thread_t *t)
 {
-	spinlock_ctx_t sc;
-	void *bw;
-	size_t bsize;
-
-	/* TODO: atomics */
-	hal_spinlockSet(&xfer_common.spinlock, &sc);
-	bw = t->ipc.bw;
-	bsize = t->ipc.bsize;
-	t->ipc.bw = NULL;
-	t->ipc.bsize = 0;
-	hal_spinlockClear(&xfer_common.spinlock, &sc);
+	void *bw = __atomic_exchange_n(&t->ipc.bw, NULL, __ATOMIC_ACQUIRE);
+	size_t bsize = __atomic_exchange_n(&t->ipc.bsize, 0, __ATOMIC_RELAXED);
 
 	if (bw != NULL) {
 		vm_munmap(_getMap(t->process), bw, bsize);
@@ -378,7 +443,6 @@ xferPlan_t xfer_classify(thread_t *caller, thread_t *recv, const void *data, siz
 }
 
 
-/* Assumes address space of recv - potentially calls xfer_bufMap that may copy the payload to the shadow pages. */
 int xfer_setup(thread_t *caller, thread_t *recv, const xferPlan_t *plan, xferBuf_t *xb, void **rdata, msg_side_t side)
 {
 	switch (plan->kind) {
@@ -411,11 +475,16 @@ int xfer_setup(thread_t *caller, thread_t *recv, const xferPlan_t *plan, xferBuf
 static void _copyShadowPages(xferBuf_t *il, size_t size)
 {
 	if (il->bp != NULL) {
-		hal_memcpy(il->bvaddr + il->boffs, il->w + il->boffs, min(SIZE_PAGE - il->boffs, size));
+		hal_memcpy((char *)_winSlot(il, XFER_WIN_BSRC) + il->boffs,
+				(char *)_winSlot(il, XFER_WIN_BDST) + il->boffs,
+				min(SIZE_PAGE - il->boffs, size));
 	}
 	if (il->eoffs != 0) {
-		size = min(size, il->size);
-		hal_memcpy(il->evaddr, il->w + il->boffs + size - il->eoffs, il->eoffs);
+		/*
+		 * The tail fragment always sits at offset 0 of the tail shadow page.
+		 * That is where _mapBoundaryPage() wrote it (dstoffs == 0).
+		 */
+		hal_memcpy(_winSlot(il, XFER_WIN_ESRC), _winShadowE(il), il->eoffs);
 	}
 }
 
@@ -433,5 +502,4 @@ void xfer_finalize(thread_t *from, thread_t *to, msg_t *msg)
 void xfer_init(vm_map_t *kmap)
 {
 	xfer_common.kmap = kmap;
-	hal_spinlockCreate(&xfer_common.spinlock, "xfer.spinlock");
 }
