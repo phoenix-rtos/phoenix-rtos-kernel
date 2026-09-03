@@ -452,7 +452,7 @@ static void thread_destroy(thread_t *thread)
 	}
 	vm_kfree(thread->kstack);
 
-	threads_releaseIpcBuf(thread);
+	xfer_releaseIpcBuf(thread);
 
 	process = thread->process;
 	if (process != NULL) {
@@ -600,6 +600,10 @@ static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 		selected->ipc.defer = NULL;
 	}
 
+	if ((selected->ipc.flags & MSG_INTERRUPTED) != 0) {
+		selected->ipc.msgPtr->o.err = -EINTR;
+	}
+
 	if (selected->longjmpctx != NULL) {
 		selCtx = selected->longjmpctx;
 		selected->longjmpctx = NULL;
@@ -700,21 +704,29 @@ static sched_context_t *_sc_best(thread_t *t)
 }
 
 
-static void _sc_recalculate(thread_t *t)
+static void _sc_setActive(thread_t *t, sched_context_t *sc)
 {
 	int queued = _readyUnlink(t);
+	t->scActive = sc;
 
-	t->scActive = _sc_best(t);
-	t->scActive->t = t;
+	if (t->scActive != NULL) {
+		t->scActive->t = t;
 
-	/*
-	 * NOTE: t->priorityBase must never be derived from scActive->priorityBase: scActive
-	 * can be a donated SC, and clobbering t's own permanent base with the
-	 * donor's would leave t unable to revert once un-boosted.
-	 */
-	t->priority = t->scActive->priority;
+		/*
+		 * NOTE: t->priorityBase must never be derived from scActive->priorityBase: scActive
+		 * can be a donated SC, and clobbering t's own permanent base with the
+		 * donor's would leave t unable to revert once un-boosted.
+		 */
+		t->priority = t->scActive->priority;
+	}
 
 	_readyRelink(t, queued);
+}
+
+
+static void _sc_recalculate(thread_t *t)
+{
+	_sc_setActive(t, _sc_best(t));
 }
 
 
@@ -766,8 +778,8 @@ static thread_t *_sc_awayTarget(thread_t *t)
 static void _sc_reclaim(thread_t *owner, sched_context_t *sc, unsigned int depth)
 {
 	thread_t *holder;
-	int queued;
 
+	/* TODO: make this an explicit error. Failing this is a caller's fault */
 	LIB_ASSERT(depth < BWI_MAX_CHAIN_DEPTH, "PI chain too deep (cycle?)");
 
 	if (sc->donor != owner) {
@@ -778,23 +790,14 @@ static void _sc_reclaim(thread_t *owner, sched_context_t *sc, unsigned int depth
 
 	holder = sc->t;
 
-	/* `holder` may be queued, and losing `sc` changes both its scActive and
-	 * its priority - unlink before either goes stale */
-	queued = _readyUnlink(holder);
-
-	/* scActive is just a "which is best" pointer into the same scDonated
-	 * pool, not a separate container - both may need clearing independently.
-	 * Neither applies to holder's own SC, which is never list-linked. */
 	if (sc != holder->scOwn) {
 		LIST_REMOVE_EX(&holder->scDonated, sc, dnext, dprev);
 	}
 
-	if (holder->scActive == sc) {
-		holder->scActive = NULL;
-	}
-
-	/* holder may have been forwarding sc further itself; clear the stale
-	 * pointer or _sc_relay() below reclaims an SC that's no longer there. */
+	/*
+	 * holder may have been forwarding sc further by itself. Clear the pointer so
+	 * that _sc_relay() below doesn't reclaim it
+	 */
 	if (holder->relayed == sc) {
 		holder->relayed = NULL;
 	}
@@ -808,17 +811,15 @@ static void _sc_reclaim(thread_t *owner, sched_context_t *sc, unsigned int depth
 	}
 
 	if (_sc_awayTarget(holder) != NULL) {
-		/* `holder` is away - it must always be forwarding its current best. */
+		/* holder is away - it must always be forwarding its current best. */
 		_sc_relay(holder, depth + 1);
 	}
-	else if (holder->scActive == NULL) {
+	else if (holder->scActive == sc) {
 		_sc_recalculate(holder);
 	}
 	else {
 		/* No action required */
 	}
-
-	_readyRelink(holder, queued);
 }
 
 
@@ -858,7 +859,7 @@ static void _sc_donateAt(thread_t *from, thread_t *to, sched_context_t *sc, unsi
 		LIST_REMOVE_EX(&from->scDonated, sc, dnext, dprev);
 	}
 
-	from->scActive = NULL;
+	_sc_setActive(from, NULL);
 	from->relayed = sc;
 
 	/*
@@ -898,7 +899,7 @@ static void _sc_return(thread_t *from, thread_t *to, sched_context_t *sc)
 {
 	LIB_ASSERT(sc->donor == to, "returning SC donated by someone else");
 	LIB_ASSERT(to->called == NULL, "_sc_return but called not cleared?");
-	LIB_ASSERT(from->scDonated != NULL || from->scDonated->dnext != NULL, "empty/corrupted donation queue?");
+	LIB_ASSERT(from->scDonated != NULL && from->scDonated->dnext != NULL, "empty/corrupted donation queue?");
 
 	/* Remove donated SC from server */
 	LIST_REMOVE_EX(&from->scDonated, sc, dnext, dprev);
@@ -923,7 +924,7 @@ static void _sc_return(thread_t *from, thread_t *to, sched_context_t *sc)
 	sc->donor = to->prevDonor;
 	to->prevDonor = NULL;
 
-	to->scActive = sc; /* or re-evaluate _sc_best (TODO?) */
+	_sc_setActive(to, sc);
 	to->state = READY;
 
 	/* `to` is awake now, no longer forwarding anything. */
@@ -1370,6 +1371,7 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 }
 
 
+/* Assumes `threads_common.spinlock` is set. */
 static void _wakePassive(thread_t *t)
 {
 	LIB_ASSERT(t->passive == 1, "t is not passive!");
@@ -1379,11 +1381,7 @@ static void _wakePassive(thread_t *t)
 		t->passive = 0;
 	}
 
-	t->scActive = _sc_best(t);
-
-	/* _proc_threadDequeue() bails out early for ghosts, so unlink here to
-	 * guarantee `t` always leaves the port's receiver queue */
-	_proc_threadUnlink(t);
+	_sc_setActive(t, _sc_best(t));
 
 	_proc_threadDequeue(t);
 }
@@ -1398,23 +1396,29 @@ void threads_wakePassive(thread_t *t)
 }
 
 
+static void _sc_reclaimRelayed(thread_t *t)
+{
+	sched_context_t *sc = t->relayed;
+	thread_t *holder = sc->t;
+
+	_sc_return(holder, t, sc);
+	t->waitingOn = NULL;
+
+	_proc_threadSetPriority(holder, _proc_threadGetPriority(holder));
+}
+
+
 static void _thread_interrupt(thread_t *t)
 {
 	if (t->passive == 1) {
 		_wakePassive(t);
-		t->ipc.msgPtr->o.err = -EINTR;
+		// t->ipc.msgPtr->o.err = -EINTR;
+		t->ipc.flags |= MSG_INTERRUPTED;
 	}
 	else {
 		if (t->waitingOn != NULL) {
-			/* Reclaim the donated SC before dequeueing, or t is left with
-			 * scActive == NULL and unschedulable. */
-			sched_context_t *sc = t->relayed;
-			thread_t *holder = sc->t;
-
-			_sc_return(holder, t, sc);
-			t->waitingOn = NULL;
-
-			_proc_threadSetPriority(holder, _proc_threadGetPriority(holder));
+			/* Reclaim the donated SC before dequeueing, otherwise t would be left with scActive == NULL and unschedulable. */
+			_sc_reclaimRelayed(t);
 		}
 
 		LIB_ASSERT(t->scDonated == NULL, "SC donated but we are not passive?");
@@ -1539,15 +1543,15 @@ static void _proc_threadDequeue(thread_t *t)
 {
 	unsigned int i;
 
+	_proc_threadUnlink(t);
+
+	_threads_waking(t);
+
 	if (t->state == GHOST) {
 		return;
 	}
 
 	LIB_ASSERT(t->scActive != NULL, "dequeueing unschedulable thread! tid: %d", proc_getTid(t));
-
-	_threads_waking(t);
-
-	_proc_threadUnlink(t);
 
 	t->state = READY;
 	t->interruptible = 0;
@@ -2270,15 +2274,14 @@ int proc_lockTry(lock_t *lock)
 
 
 /* WARN: lock is already obtained when returning with EOK (handed off during _proc_lockUnlock()) */
+/*
+ * WARN: current must be captured by the caller before any SC donation and not re-derived via
+ * _proc_current(), which would resolve to the donation recipient instead.
+ */
 static int _proc_lockWaitWake(lock_t *lock, thread_t *current, u8 interruptible, spinlock_ctx_t *sc, spinlock_ctx_t *scp)
 {
 	int err = EOK;
 
-	/*
-	 * WARN: current must be captured by the caller before any SC
-	 * donation and not re-derived via _proc_current(), which would
-	 * resolve to the donation recipient instead.
-	 */
 	for (;;) {
 		if ((interruptible != 0U) && ((current->exit != 0U) || (err == -EINTR))) {
 			/* lock->owner == NULL can happen when thread_destroy is called on lock owner and current */
@@ -2379,10 +2382,12 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			current->waitingOn = NULL;
 			ret = _proc_lockObtained(current, lock);
 		}
+		else if (current->waitingOn != NULL) {
+			/* Could happen if exit != 0 on entry to _proc_lockWaitWake() */
+			_sc_reclaimRelayed(current);
+		}
 		else {
-			/* _thread_interrupt() already reclaimed the SC and cleared
-			 * waitingOn - it has to happen before we're schedulable again. */
-			LIB_ASSERT(current->waitingOn == NULL, "woken with EINTR but SC was never reclaimed");
+			/* No action required, _thread_interrupt() reclaimed the SC and cleared waitingOn */
 		}
 	}
 
@@ -2509,6 +2514,10 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 				_sc_recalculate(owner);
 			}
 
+			/*
+			 * Must clear now. New owner would see lock->owner == itself and _sc_awayTarget()
+			 * would resolve to itself, turning into a self-referential relay.
+			 */
 			lock->owner->waitingOn = NULL;
 		}
 
@@ -3076,7 +3085,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 }
 
 
-/* Assumes `threads_common.spinlock` is set. */
+/* Assumes `p->spinlock` and `threads_common.spinlock` are set. */
 static void _portAddReceiver(port_t *p, thread_t *t)
 {
 	_proc_threadEnqueueThread(t, &p->threads, BLOCKED_ON_RECV, 0, 1);
@@ -3085,7 +3094,7 @@ static void _portAddReceiver(port_t *p, thread_t *t)
 
 /*
  * Takes the first passive receiver of p, making the caller its sole owner.
- * Returns NULL if none is ready. Assumes `threads_common.spinlock` is set.
+ * Returns NULL if none is ready. Assumes `p->spinlock` and `threads_common.spinlock` are set.
  */
 static thread_t *_portTakeReceiver(port_t *p)
 {
@@ -3098,6 +3107,20 @@ static thread_t *_portTakeReceiver(port_t *p)
 	recv->interruptible = 0;
 
 	return recv;
+}
+
+
+/* Assumes `p->spinlock` is set. */
+void _threads_portWakeReceivers(port_t *p)
+{
+	thread_t *t;
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	while ((t = p->threads) != NULL) {
+		_wakePassive(t);
+	}
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
 
@@ -3238,6 +3261,8 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	LIB_ASSERT(_proc_current() == recv, "we are not recv?");
 	LIB_ASSERT(_proc_current()->scActive != NULL, "proc current unschedulable?");
+
+	caller->ipc.bufsInit = 1;
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -3456,7 +3481,12 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 
 	_readyAdd(forward);
 
-	hal_spinlockClear(&threads_common.spinlock, &tsc);
+	if (forward->priority < recv->priority) {
+		hal_cpuReschedule(&threads_common.spinlock, &sc);
+	}
+	else {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
 
 	/* TODO: potentially unnecessary */
 	hal_memset(&recv->ipc.ibl, 0, sizeof(recv->ipc.ibl));
@@ -3750,8 +3780,12 @@ static int proc_respond_ex(port_t *p, msg_t *msg, msg_rid_t rid)
 
 	LIB_ASSERT(recv->state == READY, "recv should be ready!");
 
-	/* REVISIT: should we reschedule if client has higher prio than the server? */
-	hal_spinlockClear(&threads_common.spinlock, &sc);
+	if (caller->priority < recv->priority) {
+		hal_cpuReschedule(&threads_common.spinlock, &sc);
+	}
+	else {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
 
 	return EOK;
 }
@@ -3809,6 +3843,19 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 
 void threads_releaseXferBufs(thread_t *thread)
 {
+	spinlock_ctx_t sc;
+	u8 bufsInit;
+
+	/* TODO: replace with atomics */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	bufsInit = thread->ipc.bufsInit;
+	thread->ipc.bufsInit = 0;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (bufsInit == 0) {
+		return;
+	}
+
 	xfer_bufRelease(&thread->ipc.ibl);
 	xfer_bufRelease(&thread->ipc.obl);
 }

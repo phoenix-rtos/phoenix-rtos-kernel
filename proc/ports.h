@@ -26,17 +26,15 @@ typedef struct _port_t {
 	struct _port_t *next;
 	struct _port_t *prev;
 
-	idtree_t rid;
-
 	process_t *owner;
 	int refs, closed;
 
 	spinlock_t spinlock;
-	lock_t lock;
-	thread_t *threads;
 	msg_t *current;
 
-	/* to be merged with threads once old impl is ditched */
+	/* TODO: merge these queues. there will never be a sender and a receiver
+	 * waiting at the same time. */
+	thread_t *threads;
 	prio_queue_t queue;
 
 	__u8 pulse;

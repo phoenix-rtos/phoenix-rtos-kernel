@@ -1690,7 +1690,7 @@ static int process_execve(thread_t *current)
 
 		/* TODO: moved here, is ok? */
 		threads_releaseXferBufs(current);
-		threads_releaseIpcBuf(current);
+		xfer_releaseIpcBuf(current);
 
 		map = current->process->mapp;
 		imap = current->process->imapp;

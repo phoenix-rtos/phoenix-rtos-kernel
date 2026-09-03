@@ -1,5 +1,4 @@
 #include "xfer.h"
-
 #include "include/errno.h"
 
 #define FLOOR(x) ((x) & ~(SIZE_PAGE - 1))
@@ -88,7 +87,7 @@ int xfer_ipcBufBorrow(thread_t *from, thread_t *to)
 }
 
 
-void threads_releaseIpcBuf(thread_t *t)
+void xfer_releaseIpcBuf(thread_t *t)
 {
 	vm_map_t *map;
 
@@ -102,7 +101,7 @@ void threads_releaseIpcBuf(thread_t *t)
 }
 
 
-void *proc_setupIpcBuf(thread_t *t, size_t sz)
+void *xfer_setupIpcBuf(thread_t *t, size_t sz)
 {
 	vm_map_t *map;
 	vm_prot_t prot = PROT_READ | PROT_WRITE;
@@ -117,7 +116,7 @@ void *proc_setupIpcBuf(thread_t *t, size_t sz)
 			return t->ipc.w;
 		}
 
-		threads_releaseIpcBuf(t);
+		xfer_releaseIpcBuf(t);
 	}
 
 	map = (t->process != NULL) ? t->process->mapp : xfer_common.kmap;

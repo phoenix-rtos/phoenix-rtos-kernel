@@ -132,18 +132,14 @@ typedef struct _thread_t {
 	unsigned int interruptible : 1;
 	unsigned int exit : 2;
 	unsigned int passive : 1;
-	/* linked in threads_common.ready[priority] via scActive. Not implied by
-	 * state == READY: a running thread is READY, and so is one handed a
-	 * returned SC that its waker has not queued yet. */
-	unsigned int onReady : 1;
+	unsigned int onReady : 1; /* 1 iff linked in threads_common.ready[priority] via scActive. Not implied by state == READY! */
+	unsigned int callReturnable : 1;
+	unsigned int saveCtxInReply : 1;
+	unsigned int respondAndRecv : 1;
 
 	/* fastpath related */
 	struct _thread_t *reply;
 	struct _thread_t *called;
-	u8 fpCtxSet : 4;
-	u8 callReturnable : 4;
-	u8 saveCtxInReply : 4;
-	u8 respondAndRecv : 4;
 
 	unsigned int sigmask;
 	unsigned int sigpend;
@@ -165,6 +161,7 @@ typedef struct _thread_t {
 	struct {
 		xferBuf_t ibl;
 		xferBuf_t obl;
+		u8 bufsInit;
 
 		/* IPC buffer */
 		void *kw;
@@ -320,13 +317,16 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 __attribute__((noreturn)) void threads_halt(void);
 
 
+void _threads_portWakeReceivers(struct _port_t *p);
+
+
 void threads_wakePassive(thread_t *t);
 
 
 void threads_releaseXferBufs(thread_t *thread);
 
 
-void threads_releaseIpcBuf(thread_t *thread);
+void xfer_releaseIpcBuf(thread_t *thread);
 
 
 #endif

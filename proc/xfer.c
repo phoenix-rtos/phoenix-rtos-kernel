@@ -193,9 +193,9 @@ int xfer_ipcBufBorrow(thread_t *from, thread_t *to)
 {
 	vm_map_t *dstmap = _getMap(to->process);
 
-	u8 flags = MAP_NOINHERIT;
-	u8 attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | vm_flagsToAttr(flags);
-	u8 prot = PROT_WRITE | PROT_READ;
+	vm_flags_t flags = MAP_NOINHERIT;
+	vm_attr_t attr = PGHD_READ | PGHD_WRITE | PGHD_PRESENT | vm_flagsToAttr(flags);
+	vm_prot_t prot = PROT_WRITE | PROT_READ;
 
 	if (to->process != NULL) {
 		attr |= PGHD_USER;
@@ -219,7 +219,7 @@ int xfer_ipcBufBorrow(thread_t *from, thread_t *to)
 	return EOK;
 }
 
-void threads_releaseIpcBuf(thread_t *t)
+void xfer_releaseIpcBuf(thread_t *t)
 {
 	if (t->ipc.w != NULL) {
 		if (t->process != NULL) {
@@ -244,14 +244,14 @@ void threads_releaseIpcBuf(thread_t *t)
 }
 
 
-void *proc_setupIpcBuf(thread_t *t, size_t sz)
+void *xfer_setupIpcBuf(thread_t *t, size_t sz)
 {
 	void *vaddr = NULL, *kvaddr = NULL;
 	vm_map_t *map;
 	page_t *p;
 	u8 prot, flags, attr;
 
-	if ((sz & (SIZE_PAGE - 1)) != 0) {
+	if (sz == 0 || sz > MSG_MAX_IPC_BUF || (sz & (SIZE_PAGE - 1)) != 0) {
 		return NULL;
 	}
 
@@ -262,7 +262,7 @@ void *proc_setupIpcBuf(thread_t *t, size_t sz)
 			return t->ipc.w;
 		}
 		else {
-			threads_releaseIpcBuf(t);
+			xfer_releaseIpcBuf(t);
 		}
 	}
 
@@ -275,7 +275,7 @@ void *proc_setupIpcBuf(thread_t *t, size_t sz)
 	/* map to kernel space */
 	kvaddr = vm_mapFind(xfer_common.kmap, NULL, sz, flags, prot);
 	if (kvaddr == NULL) {
-		threads_releaseIpcBuf(t);
+		xfer_releaseIpcBuf(t);
 		return NULL;
 	}
 	t->ipc.kw = kvaddr;
@@ -284,7 +284,7 @@ void *proc_setupIpcBuf(thread_t *t, size_t sz)
 		/* map to current thread space */
 		vaddr = vm_mapFind(map, NULL, sz, flags, prot | PROT_USER);
 		if (vaddr == NULL) {
-			threads_releaseIpcBuf(t);
+			xfer_releaseIpcBuf(t);
 			return NULL;
 		}
 		t->ipc.w = vaddr;
@@ -299,7 +299,7 @@ void *proc_setupIpcBuf(thread_t *t, size_t sz)
 		p = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
 
 		if (p == NULL) {
-			threads_releaseIpcBuf(t);
+			xfer_releaseIpcBuf(t);
 			return NULL;
 		}
 
@@ -307,12 +307,12 @@ void *proc_setupIpcBuf(thread_t *t, size_t sz)
 		t->ipc.p = p;
 
 		if (page_map(&xfer_common.kmap->pmap, kvaddr + ofs, p->addr, attr) < 0) {
-			threads_releaseIpcBuf(t);
+			xfer_releaseIpcBuf(t);
 			return NULL;
 		}
 
 		if (t->process != NULL && page_map(&map->pmap, vaddr + ofs, p->addr, attr | PGHD_USER) < 0) {
-			threads_releaseIpcBuf(t);
+			xfer_releaseIpcBuf(t);
 			return NULL;
 		}
 	}
