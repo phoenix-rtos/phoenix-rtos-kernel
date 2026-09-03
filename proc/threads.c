@@ -413,7 +413,7 @@ static void thread_destroy(thread_t *thread)
 	if (thread->called != NULL) {
 		LIB_ASSERT(thread->called->reply == thread, "thread->called->reply != thread");
 		thread->called->reply = NULL;
-		LIB_ASSERT(0, "happens c");
+		LIB_ASSERT(0, "happens ever?");
 	}
 
 	if (thread->scActive != thread->scOwn) {
@@ -450,7 +450,7 @@ static void thread_destroy(thread_t *thread)
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 
-	LIB_ASSERT(thread->scDonated == NULL, "all donations should be reclaimed");
+	LIB_ASSERT(thread->scOwn->t == thread, "own SC still donated?");
 	vm_kfree(thread->scOwn);
 	vm_kfree(thread->kstack);
 
@@ -602,9 +602,9 @@ static void _threads_switchToThread(cpu_context_t *context, thread_t *selected)
 		selected->ipc.defer = NULL;
 	}
 
-	if ((selected->ipc.flags & MSG_INTERRUPTED) != 0) {
+	if (selected->ipcInterrupted != 0) {
 		selected->ipc.msgPtr->o.err = -EINTR;
-		selected->ipc.flags &= ~MSG_INTERRUPTED;
+		selected->ipcInterrupted = 0;
 	}
 
 	if (selected->longjmpctx != NULL) {
@@ -1188,6 +1188,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->called = NULL;
 	t->flags = 0;
 	t->onReady = 0;
+	t->ipcInterrupted = 0;
 
 	if (thread_alloc(t) < 0) {
 		vm_kfree(t->scActive);
@@ -1406,8 +1407,7 @@ static void _thread_interrupt(thread_t *t)
 {
 	if (t->passive == 1) {
 		_wakePassive(t);
-		// t->ipc.msgPtr->o.err = -EINTR;
-		t->ipc.flags |= MSG_INTERRUPTED;
+		t->ipcInterrupted = 1;
 	}
 	else {
 		if (t->waitingOn != NULL) {
@@ -3206,11 +3206,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_spinlockClear(&p->spinlock, &sc);
 
-	if (returnable != 0) {
-		caller->callReturnable = 1;
-	}
-
-	caller->ipc.msgPtr = msg;
+	port_put(p, 0);
 
 	size_t isize = 0, osize = 0;
 
@@ -3221,10 +3217,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	isize = msg->i.size;
 
 	xferPlan_t inPlan = xfer_classify(caller, recv, msg->i.data, isize, 0);
-	if (inPlan.kind == msg_xfer_extra) {
-		/* small message: fits the predefined recv buffer */
-		hal_memcpy(recv->ipc.kw, msg->i.data, isize);
-	}
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 4
 
@@ -3246,18 +3238,21 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	/* message transfer */
 
 	if ((inPlan.kind == msg_xfer_borrow || outPlan.kind == msg_xfer_borrow) && xfer_ipcBufBorrow(caller, recv) != 0) {
-		LIB_ASSERT(0, "enomem, todo");
 		return -ENOMEM;
 	}
 
 	if (xfer_setup(caller, recv, &inPlan, &caller->ipc.ibl, &idata, msg_side_in) < 0) {
-		LIB_ASSERT(0, "enomem");
 		return -ENOMEM;
 	}
 
 	if (xfer_setup(caller, recv, &outPlan, &caller->ipc.obl, &odata, msg_side_out) < 0) {
-		LIB_ASSERT(0, "enomem, todo");
+		xfer_bufRelease(&caller->ipc.ibl);
 		return -ENOMEM;
+	}
+
+	if (inPlan.kind == msg_xfer_extra) {
+		/* small message: fits the predefined recv buffer */
+		hal_memcpy(recv->ipc.kw, msg->i.data, isize);
 	}
 
 	__atomic_store_n(&caller->ipc.bufsInit, 1U, __ATOMIC_RELEASE);
@@ -3265,7 +3260,12 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	_sc_donate(caller, recv, caller->scActive);
 	_setReplyChain(caller, recv);
+
+	caller->ipc.msgPtr = msg;
 	caller->state = BLOCKED_ON_REPLY;
+	if (returnable != 0) {
+		caller->callReturnable = 1;
+	}
 	recv->state = READY;
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 6
@@ -3275,14 +3275,10 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	LIB_ASSERT(_proc_current() == recv, "we are not recv?");
 	LIB_ASSERT(_proc_current()->scActive != NULL, "proc current unschedulable?");
 
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 8
 
 	LIB_ASSERT(recv->refs > 0, "attempting to return to refs=0 rcv? port=%d caller tid=%d recv tid=%d refs: %d",
 			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
-
-	port_put(p, 0);
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 9
 
@@ -3308,8 +3304,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	*recv->ipc.ridPtr = (msg_rid_t)((ptr_t)caller ^ threads_common.ridCookie);
 	hal_cpuSetReturnValue(ctx, EOK);
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
 
 	recv->fastpathExitCtx = ctx;
 
@@ -3450,8 +3444,9 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 
 	hal_memcpy(&forward->ipc.ibl, &recv->ipc.ibl, sizeof(recv->ipc.ibl));
 	hal_memcpy(&forward->ipc.obl, &recv->ipc.obl, sizeof(recv->ipc.obl));
-	forward->ipc.bufsInit = 1;
-	recv->ipc.bufsInit = 0;
+
+	__atomic_store_n(&forward->ipc.bufsInit, 1, __ATOMIC_RELEASE);
+	__atomic_store_n(&recv->ipc.bufsInit, 0, __ATOMIC_RELEASE);
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
@@ -3580,6 +3575,7 @@ static int _becomePassive(port_t *p, thread_t *recv, spinlock_ctx_t *sc)
 	recv->flags &= (~(int)IPC_PULSED);
 
 	_portAddReceiver(p, recv);
+	/* TODO: direct hand-off to highest prio client */
 	(void)_proc_threadWakeupPrio(&p->queue);
 	hal_spinlockClear(&threads_common.spinlock, &tsc);
 
@@ -3599,6 +3595,7 @@ int _returnWithPulse(thread_t *recv, port_t *p, spinlock_ctx_t *sc)
 	recv->ipc.msgPtr->o.err = EOK;
 	p->flags = 0;
 	hal_spinlockClear(&p->spinlock, sc);
+	port_put(p, 0);
 	return -EPULSE;
 }
 
@@ -3825,6 +3822,7 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid)
 	if (respond != 0) {
 		err = proc_respond_ex(p, msg, saved_rid);
 		if (err < 0) {
+			port_put(p, 0);
 			return err;
 		}
 	}

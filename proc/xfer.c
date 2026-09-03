@@ -289,7 +289,7 @@ int xfer_ipcBufBorrow(thread_t *from, thread_t *to)
 		return -ENOMEM;
 	}
 
-	__atomic_exchange_n(&to->ipc.bsize, from->ipc.size, __ATOMIC_RELAXED);
+	__atomic_store_n(&to->ipc.bsize, from->ipc.size, __ATOMIC_RELAXED);
 	__atomic_store_n(&to->ipc.bw, vaddr, __ATOMIC_RELEASE);
 
 	return EOK;
@@ -407,11 +407,11 @@ void *xfer_setupIpcBuf(thread_t *t, size_t sz)
 void xfer_ipcBufRelease(thread_t *t)
 {
 	void *bw = __atomic_exchange_n(&t->ipc.bw, NULL, __ATOMIC_ACQUIRE);
-	size_t bsize = __atomic_exchange_n(&t->ipc.bsize, 0, __ATOMIC_RELAXED);
+	size_t bsize;
 
 	if (bw != NULL) {
+		bsize = __atomic_exchange_n(&t->ipc.bsize, 0, __ATOMIC_RELAXED);
 		vm_munmap(_getMap(t->process), bw, bsize);
-		bsize = 0;
 	}
 }
 

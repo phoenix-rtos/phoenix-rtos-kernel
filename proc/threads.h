@@ -132,6 +132,7 @@ typedef struct _thread_t {
 	unsigned int interruptible : 1;
 	unsigned int exit : 2;
 	unsigned int passive : 1;
+	unsigned int ipcInterrupted : 1;
 	unsigned int onReady : 1; /* 1 iff linked in threads_common.ready[priority] via scActive. Not implied by state == READY! */
 	unsigned int callReturnable : 1;
 	unsigned int saveCtxInReply : 1;

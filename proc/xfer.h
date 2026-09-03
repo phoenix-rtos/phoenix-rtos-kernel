@@ -25,7 +25,6 @@
 #define MSG_OUT_EXTRA   (1 << 1)
 #define MSG_IN_MAP      (1 << 2)
 #define MSG_OUT_MAP     (1 << 3)
-#define MSG_INTERRUPTED (1 << 4)
 
 #define MSG_MAX_IPC_BUF (32U * _PAGE_SIZE)
 
