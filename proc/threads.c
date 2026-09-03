@@ -450,6 +450,8 @@ static void thread_destroy(thread_t *thread)
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 
+
+	LIB_ASSERT(thread->scDonated == NULL, "all donations should be reclaimed");
 	LIB_ASSERT(thread->scOwn->t == thread, "own SC still donated?");
 	vm_kfree(thread->scOwn);
 	vm_kfree(thread->kstack);
@@ -707,9 +709,35 @@ static sched_context_t *_sc_best(thread_t *t)
 }
 
 
+static u8 _proc_threadCeilingPriority(thread_t *t)
+{
+	u8 prio = MAX_PRIO, c;
+	lock_t *lock = t->locks;
+	size_t locks = 0;
+
+	while (locks < t->prioceilingLocks) {
+		if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+			c = __atomic_load_n(&lock->attr.prioceiling, __ATOMIC_RELAXED);
+			if (c < prio) {
+				prio = c;
+			}
+			locks++;
+		}
+		lock = lock->next;
+
+		if (lock == t->locks) {
+			break;
+		}
+	}
+
+	return prio;
+}
+
+
 static void _sc_setActive(thread_t *t, sched_context_t *sc)
 {
 	int queued = _readyUnlink(t);
+	int prio;
 	t->scActive = sc;
 
 	if (t->scActive != NULL) {
@@ -720,7 +748,9 @@ static void _sc_setActive(thread_t *t, sched_context_t *sc)
 		 * can be a donated SC, and clobbering t's own permanent base with the
 		 * donor's would leave t unable to revert once un-boosted.
 		 */
-		t->priority = t->scActive->priority;
+
+		prio = t->scActive->priority;
+		t->priority = min(prio, _proc_threadCeilingPriority(t));
 	}
 
 	_readyRelink(t, queued);
@@ -1150,6 +1180,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->execdata = NULL;
 	t->wait = NULL;
 	t->locks = NULL;
+	t->prioceilingLocks = 0;
 	t->waitingOn = NULL;
 	t->relayed = NULL;
 	t->longjmpctx = NULL;
@@ -1244,55 +1275,11 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 }
 
 
-static u8 _proc_lockGetPriority(lock_t *lock)
-{
-	u8 priority = MAX_PRIO;
-	thread_t *thread = lock->queue;
-
-	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
-		return __atomic_load_n(&lock->attr.prioceiling, __ATOMIC_RELAXED);
-	}
-
-	if (lock->attr.protocol == PH_LOCK_PROTO_INHERIT && thread != NULL) {
-		do {
-			if (thread->priority < priority) {
-				priority = thread->priority;
-			}
-			thread = thread->qnext;
-		} while (thread != lock->queue);
-	}
-
-	return priority;
-}
-
-
-static u8 _proc_threadGetLockPriority(thread_t *thread)
-{
-	u8 ret, priority = MAX_PRIO;
-	lock_t *lock = thread->locks;
-
-	if (lock != NULL) {
-		do {
-			ret = _proc_lockGetPriority(lock);
-			if (ret < priority) {
-				priority = ret;
-			}
-			lock = lock->next;
-		} while (lock != thread->locks);
-	}
-
-	return priority;
-}
-
-
 static u8 _proc_threadGetPriority(thread_t *thread)
 {
-	unsigned int lockPrio, scPrio;
-
-	lockPrio = _proc_threadGetLockPriority(thread);
-	scPrio = (thread->scActive != NULL) ? thread->scActive->priority : thread->priorityBase;
-
-	return (lockPrio < scPrio) ? lockPrio : scPrio;
+	u8 ceiling = _proc_threadCeilingPriority(thread);
+	u8 scPrio = (thread->scActive != NULL) ? thread->scActive->priority : thread->priorityBase;
+	return (ceiling < scPrio) ? ceiling : scPrio;
 }
 
 
@@ -1340,8 +1327,11 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 			_proc_threadSetPriority(t, priority);
 		}
 		else if (priority > t->priority) {
-			/* Make sure that the inherited priority from the lock is not reduced */
-			if ((t->locks == NULL) || (priority <= _proc_threadGetLockPriority(t))) {
+			/*
+			 * Don't undercut a carried boost: a ceiling from a held lock we
+			 * still hold, or a donated SC we are currently running on
+			 */
+			if ((priority <= _proc_threadCeilingPriority(t)) && (t->scActive == t->scOwn)) {
 				_proc_threadSetPriority(t, priority);
 
 				if (t == _proc_current()) {
@@ -2220,6 +2210,9 @@ static int _proc_lockTryRaw(thread_t *current, lock_t *lock)
 	}
 
 	LIST_ADD(&current->locks, lock);
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+		current->prioceilingLocks++;
+	}
 
 	return _proc_lockObtained(current, lock);
 }
@@ -2437,7 +2430,6 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 {
 	thread_t *owner = lock->owner, *current;
 	int ret = 0;
-	u8 lockPriority;
 
 	current = _proc_current();
 
@@ -2487,6 +2479,11 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 	}
 
 	LIST_REMOVE(&owner->locks, lock);
+
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+		owner->prioceilingLocks--;
+	}
+
 	if (lock->queue != NULL) {
 		/* Transfer lock to the first waiter */
 		lock->owner = lock->queue;
@@ -2520,11 +2517,8 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 		/* Wake the new owner and add lock to its held-locks list */
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
-
-		/* Recalculate new owner's effective priority from ALL held locks + SC */
-		lockPriority = _proc_threadGetPriority(lock->owner);
-		if ((unsigned int)lockPriority < lock->owner->priority) {
-			_proc_threadSetPriority(lock->owner, lockPriority);
+		if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+			lock->owner->prioceilingLocks++;
 		}
 
 		ret = 1;
@@ -2533,8 +2527,12 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 		lock->owner = NULL;
 	}
 
-	/* Restore previous owner's priority from its remaining held locks + SC */
-	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
+	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
+		_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
+		if (ret == 1) {
+			_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
+		}
+	}
 
 	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
 			(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->priorityBase,
@@ -3206,8 +3204,6 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	hal_spinlockClear(&p->spinlock, &sc);
 
-	port_put(p, 0);
-
 	size_t isize = 0, osize = 0;
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 3
@@ -3237,18 +3233,31 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	/* message transfer */
 
-	if ((inPlan.kind == msg_xfer_borrow || outPlan.kind == msg_xfer_borrow) && xfer_ipcBufBorrow(caller, recv) != 0) {
-		return -ENOMEM;
+	do {
+		if ((inPlan.kind == msg_xfer_borrow || outPlan.kind == msg_xfer_borrow) && xfer_ipcBufBorrow(caller, recv) != 0) {
+			err = -ENOMEM;
+			break;
+		}
+
+		if (xfer_setup(caller, recv, &inPlan, &caller->ipc.ibl, &idata, msg_side_in) < 0) {
+			err = -ENOMEM;
+			break;
+		}
+
+		if (xfer_setup(caller, recv, &outPlan, &caller->ipc.obl, &odata, msg_side_out) < 0) {
+			xfer_bufRelease(&caller->ipc.ibl);
+			err = -ENOMEM;
+			break;
+		}
+	} while (0);
+
+	if (err < 0) {
+		xfer_ipcBufRelease(recv);
+		_portAddReceiver(p, recv);
+		return err;
 	}
 
-	if (xfer_setup(caller, recv, &inPlan, &caller->ipc.ibl, &idata, msg_side_in) < 0) {
-		return -ENOMEM;
-	}
-
-	if (xfer_setup(caller, recv, &outPlan, &caller->ipc.obl, &odata, msg_side_out) < 0) {
-		xfer_bufRelease(&caller->ipc.ibl);
-		return -ENOMEM;
-	}
+	port_put(p, 0);
 
 	if (inPlan.kind == msg_xfer_extra) {
 		/* small message: fits the predefined recv buffer */
@@ -3277,19 +3286,15 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 
 	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 8
 
-	LIB_ASSERT(recv->refs > 0, "attempting to return to refs=0 rcv? port=%d caller tid=%d recv tid=%d refs: %d",
-			p->linkage.id, proc_getTid(caller), proc_getTid(recv), recv->refs);
-
-	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 9
-
 	LIB_ASSERT(recv->exit == 0, "recv exit=%d", recv->exit);
 	LIB_ASSERT(recv->ipc.msgPtr != NULL, "recv msg is null");
 
-	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 10
+	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 9
 
+	/* FIXME: eeeeh, could page fault */
 	hal_memcpy(recv->ipc.msgPtr->i.raw, caller->ipc.rawBuf, MSG_RAW_SIZE);
 
-	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 11
+	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 10
 
 	recv->ipc.msgPtr->i.size = isize;
 	recv->ipc.msgPtr->i.data = idata;
@@ -3300,7 +3305,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 	hal_memcpy(&recv->ipc.msgPtr->oid, &oid, sizeof(oid_t));
 	recv->ipc.msgPtr->type = type;
 	recv->ipc.msgPtr->priority = caller->priority;        /* ??? */
-	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 12
+	TRACE_MSG_PROFILE_POINT(tid, &step, &currTsc, tscs);  // 11
 
 	*recv->ipc.ridPtr = (msg_rid_t)((ptr_t)caller ^ threads_common.ridCookie);
 	hal_cpuSetReturnValue(ctx, EOK);

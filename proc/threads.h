@@ -100,6 +100,7 @@ typedef struct _xferBuf_t {
 
 typedef struct _thread_t {
 	struct _lock_t *locks;
+	size_t prioceilingLocks;
 
 	rbnode_t sleeplinkage;
 	idnode_t idlinkage;
