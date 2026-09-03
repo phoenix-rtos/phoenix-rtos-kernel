@@ -39,7 +39,7 @@ int proc_mutexTry(int h);
 int proc_mutexConsistent(int h);
 
 
-int proc_mutexPrioCeiling(int h, int prioceiling);
+int proc_mutexPrioCeiling(int h, int prioceiling, int *prev);
 
 
 int proc_mutexUnlock(int h);

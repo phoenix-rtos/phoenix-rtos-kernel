@@ -205,13 +205,13 @@ static inline void trace_eventThreadMeta(u8 id, const thread_t *t)
 	struct {
 		u16 pid;
 		u16 tid;
-		u8 priority;
+		s8 priority;
 		char name[128];
 	} __attribute__((packed)) ev;
 
 	TRACE_META_BODY(id, ev, NULL, {
 		ev.tid = (u16)proc_getTid(t);
-		ev.priority = (u8)t->priority;
+		ev.priority = t->priority;
 
 		if (t->process != NULL) {
 			ev.pid = (u16)process_getPid(t->process);
@@ -288,11 +288,11 @@ static inline void trace_eventSchedExit(unsigned int cpuId)
 }
 
 
-static inline void trace_eventThreadPriority(int tid, u8 priority)
+static inline void trace_eventThreadPriority(int tid, priority_t priority)
 {
 	struct {
 		u16 tid;
-		u8 priority;
+		s8 priority;
 	} __attribute__((packed)) ev;
 
 	TRACE_EVENT_BODY(TRACE_EVENT_THREAD_PRIORITY, ev, NULL, {

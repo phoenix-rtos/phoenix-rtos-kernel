@@ -303,13 +303,14 @@ int syscalls_beginthreadex(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
 	startFn_t start;
-	unsigned int priority, stacksz; /* FIXME: stacksz should probably be size_t */
+	int priority;
+	unsigned int stacksz; /* FIXME: stacksz should probably be size_t */
 	void *stack, *arg;
 	int *id;
 	int err;
 
 	GETFROMSTACK(ustack, startFn_t, start, 0U);
-	GETFROMSTACK(ustack, unsigned int, priority, 1U);
+	GETFROMSTACK(ustack, int, priority, 1U);
 	GETFROMSTACK(ustack, void *, stack, 2U);
 	GETFROMSTACK(ustack, unsigned int, stacksz, 3U);
 	GETFROMSTACK(ustack, void *, arg, 4U);
@@ -319,13 +320,13 @@ int syscalls_beginthreadex(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if (priority > (u8)-1) {
+	if (priority < (int)MIN_PRIO || priority > (int)MAX_PRIO) {
 		return -EINVAL;
 	}
 
 	proc_get(proc);
 
-	err = proc_threadCreate(proc, start, id, (u8)priority, (size_t)SIZE_KSTACK, stack, (size_t)stacksz, proc_current()->sigmask, arg);
+	err = proc_threadCreate(proc, start, id, (priority_t)priority, (size_t)SIZE_KSTACK, stack, (size_t)stacksz, proc_current()->sigmask, arg);
 
 	if (err < 0) {
 		(void)proc_put(proc);
@@ -369,13 +370,18 @@ int syscalls_nsleep(u8 *ustack)
 }
 
 
-int syscalls_priority(u8 *ustack)
+int syscalls_sys_priority(u8 *ustack)
 {
-	int priority;
+	int val, *res;
 
-	GETFROMSTACK(ustack, int, priority, 0U);
+	GETFROMSTACK(ustack, int, val, 0U);
+	GETFROMSTACK(ustack, int *, res, 1U);
 
-	return proc_threadPriority(proc_current(), priority);
+	if ((res != NULL) && (vm_mapBelongs(proc_current()->process, res, sizeof(*res)) < 0)) {
+		return -EFAULT;
+	}
+
+	return proc_threadPriority(proc_current(), val, res);
 }
 
 
@@ -762,12 +768,17 @@ int syscalls_mutexConsistent(u8 *ustack)
 int syscalls_mutexPrioCeiling(u8 *ustack)
 {
 	handle_t h;
-	int prioceiling;
+	int prioceiling, *prev;
 
 	GETFROMSTACK(ustack, handle_t, h, 0U);
 	GETFROMSTACK(ustack, int, prioceiling, 1U);
+	GETFROMSTACK(ustack, int *, prev, 2U);
 
-	return proc_mutexPrioCeiling(h, prioceiling);
+	if ((prev != NULL) && (vm_mapBelongs(proc_current()->process, prev, sizeof(*prev)) < 0)) {
+		return -EFAULT;
+	}
+
+	return proc_mutexPrioCeiling(h, prioceiling, prev);
 }
 
 

@@ -230,7 +230,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	_resource_init(process);
 	(void)process_alloc(process);
 
-	err = proc_threadCreate(process, start, NULL, 4, SIZE_KSTACK, NULL, 0, 0, (void *)arg);
+	err = proc_threadCreate(process, start, NULL, PH_PRIO_DEFAULT, SIZE_KSTACK, NULL, 0, 0, (void *)arg);
 	if (err < 0) {
 		(void)proc_put(process);
 		return err;

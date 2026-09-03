@@ -45,7 +45,10 @@ static struct {
 	vm_map_t *kmap;
 	spinlock_t spinlock;
 	lock_t lock;
-	thread_t *ready[MAX_PRIO + 1U];
+
+	thread_t *ready[NPRIOS];
+	u64 readyBitmask;
+
 	thread_t **current;
 	time_t utcoffs;
 
@@ -70,9 +73,7 @@ static struct {
 	time_t prev;
 } threads_common;
 
-
-_Static_assert(MAX_PRIO <= (u8)-1, "MAX_PRIO must fit into priority type");
-
+_Static_assert(NPRIOS <= sizeof(threads_common.readyBitmask) * 8U, "NPRIOS must fit into ready bitmask type");
 
 static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
@@ -198,6 +199,47 @@ static void _threads_updateWakeup(time_t now, thread_t *minimum)
 	}
 
 	hal_timerSetWakeup((unsigned int)wakeup);
+}
+
+
+static void _readyAdd(thread_t *t)
+{
+	int sidx = (int)t->priority + (int)PRIO_RANGE;
+	size_t idx = (size_t)sidx;
+	LIB_ASSERT_THREADS(LIST_BELONGS(&threads_common.ready[idx], t) == 0, "thread already on the ready list");
+	LIST_ADD(&threads_common.ready[idx], t);
+	threads_common.readyBitmask |= ((u64)1U << idx);
+}
+
+
+static void _readyRemove(thread_t *t)
+{
+	int sidx = (int)t->priority + (int)PRIO_RANGE;
+	size_t idx = (size_t)sidx;
+	LIB_ASSERT_THREADS(LIST_BELONGS(&threads_common.ready[idx], t) != 0, "thread is not on the ready list");
+	LIST_REMOVE(&threads_common.ready[idx], t);
+	if (threads_common.ready[idx] == NULL) {
+		threads_common.readyBitmask &= ~((u64)1U << idx);
+	}
+}
+
+
+static size_t _readyMinPrioIdx(void)
+{
+	/* TODO: replace with __builtin_ctzll once GOT issues in sparc libgcc are resolved. */
+	u32 high, low;
+
+	if (threads_common.readyBitmask == 0ULL) {
+		return NPRIOS;
+	}
+
+	low = (u32)threads_common.readyBitmask;
+	if (low != 0U) {
+		return (size_t)hal_cpuGetFirstBit(low);
+	}
+
+	high = (u32)(threads_common.readyBitmask >> 32);
+	return (size_t)hal_cpuGetFirstBit(high) + 32U;
 }
 
 
@@ -379,8 +421,8 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 {
-	thread_t *current, *selected;
-	unsigned int i;
+	thread_t *current, *selected = NULL;
+	size_t idx;
 	process_t *proc;
 	cpu_context_t *signalCtx, *selCtx;
 	unsigned int cpuId = hal_cpuGetID();
@@ -400,21 +442,17 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		/* Move thread to the end of queue */
 		if (current->state == READY) {
-			LIST_ADD(&threads_common.ready[current->priority], current);
+			_readyAdd(current);
 			_threads_preempted(current);
 		}
 	}
 
-	/* Get next thread */
-	i = 0;
-	while (i < sizeof(threads_common.ready) / sizeof(thread_t *)) {
-		selected = threads_common.ready[i];
-		if (selected == NULL) {
-			i++;
-			continue;
-		}
-
-		LIST_REMOVE(&threads_common.ready[i], selected);
+	/* Select next thread */
+	idx = _readyMinPrioIdx();
+	while (idx < NPRIOS) {
+		selected = threads_common.ready[idx];
+		LIB_ASSERT(selected != NULL, "empty queue marked as nonempty?");
+		_readyRemove(selected);
 
 		if (selected->exit == 0U) {
 			break;
@@ -427,6 +465,9 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 		selected->state = GHOST;
 		LIST_ADD(&threads_common.ghosts, selected);
 		(void)_proc_threadWakeup(&threads_common.reaper);
+
+		idx = _readyMinPrioIdx();
+		selected = NULL;
 	}
 
 	LIB_ASSERT(selected != NULL, "no threads to schedule");
@@ -568,13 +609,13 @@ void threads_canaryInit(thread_t *t, void *ustack)
 }
 
 
-int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority, size_t kstacksz, void *stack, size_t stacksz, unsigned int sigmask, void *arg)
+int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t priority, size_t kstacksz, void *stack, size_t stacksz, unsigned int sigmask, void *arg)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
 	int err;
 
-	if (priority >= sizeof(threads_common.ready) / sizeof(thread_t *)) {
+	if (priority < MIN_PRIO || priority > MAX_PRIO) {
 		return -EINVAL;
 	}
 
@@ -603,8 +644,6 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->execdata = NULL;
 	t->wait = NULL;
 	t->locks = NULL;
-	t->stick = 0;
-	t->utick = 0;
 	t->priorityBase = priority;
 	t->priority = priority;
 	t->cpuTime = 0;
@@ -662,7 +701,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	/* Insert thread to scheduler queue */
 
 	_threads_waking(t);
-	LIST_ADD(&threads_common.ready[priority], t);
+	_readyAdd(t);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -670,9 +709,9 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 }
 
 
-static u8 _proc_lockGetPriority(lock_t *lock)
+static priority_t _proc_lockGetPriority(lock_t *lock)
 {
-	u8 priority = MAX_PRIO;
+	priority_t priority = MAX_PRIO;
 	thread_t *thread = lock->queue;
 
 	if (lock->attr.protocol == PH_LOCK_PROTO_PRIOCEILING) {
@@ -692,9 +731,9 @@ static u8 _proc_lockGetPriority(lock_t *lock)
 }
 
 
-static u8 _proc_threadGetLockPriority(thread_t *thread)
+static priority_t _proc_threadGetLockPriority(thread_t *thread)
 {
-	u8 ret, priority = MAX_PRIO;
+	priority_t ret, priority = MAX_PRIO;
 	lock_t *lock = thread->locks;
 
 	if (lock != NULL) {
@@ -711,16 +750,17 @@ static u8 _proc_threadGetLockPriority(thread_t *thread)
 }
 
 
-static u8 _proc_threadGetPriority(thread_t *thread)
+static priority_t _proc_threadGetPriority(thread_t *thread)
 {
-	u8 ret = _proc_threadGetLockPriority(thread);
+	priority_t ret = _proc_threadGetLockPriority(thread);
 	return (ret < thread->priorityBase) ? ret : thread->priorityBase;
 }
 
 
-static void _proc_threadSetPriority(thread_t *thread, u8 priority)
+static void _proc_threadSetPriority(thread_t *thread, priority_t priority)
 {
 	unsigned int i;
+	int onReadyList = 0;
 
 	/* Don't allow decreasing the priority below base level */
 	if (priority > thread->priorityBase) {
@@ -735,35 +775,43 @@ static void _proc_threadSetPriority(thread_t *thread, u8 priority)
 		}
 
 		if (i == hal_cpuGetCount()) {
-			LIB_ASSERT(LIST_BELONGS(&threads_common.ready[thread->priority], thread) != 0,
-					"thread: 0x%p, tid: %d, priority: %d, is not on the ready list",
-					thread, proc_getTid(thread), thread->priority);
-			LIST_REMOVE(&threads_common.ready[thread->priority], thread);
-			LIST_ADD(&threads_common.ready[priority], thread);
+			onReadyList = 1;
 		}
 	}
 
-	thread->priority = priority;
+	if (onReadyList != 0) {
+		_readyRemove(thread);
+		thread->priority = priority;
+		_readyAdd(thread);
+	}
+	else {
+		thread->priority = priority;
+	}
+
 	trace_eventThreadPriority(proc_getTid(thread), thread->priority);
 }
 
 
-int proc_threadPriority(thread_t *t, int signedPriority)
+/* val == PH_GET_PRIO retrieves t priority only */
+int proc_threadPriority(thread_t *t, int val, int *res)
 {
 	spinlock_ctx_t sc;
-	int ret, reschedule = 0;
-	u8 priority;
+	int reschedule = 0, priorityBase;
+	priority_t priority;
 
-	if ((signedPriority < -1) || (signedPriority > (int)MAX_PRIO)) {
+	if ((val != PH_GET_PRIO) && ((val < (int)MIN_PRIO) || (val > (int)MAX_PRIO))) {
 		return -EINVAL;
 	}
 
-	priority = (u8)signedPriority;
+	if ((val == PH_GET_PRIO) && (res == NULL)) {
+		return -EINVAL;
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	/* NOTE: -1 is used to retrieve the thread priority only */
-	if (signedPriority >= 0) {
+	if (val != PH_GET_PRIO) {
+		priority = (priority_t)val;
+
 		/*
 		 * _proc_threadSetPriority will clamp the priority to priorityBase, so it
 		 * must be updated prior to the call
@@ -789,7 +837,7 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 		}
 	}
 
-	ret = (int)t->priorityBase;
+	priorityBase = (int)t->priorityBase;
 
 	if (reschedule != 0) {
 		(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
@@ -798,9 +846,13 @@ int proc_threadPriority(thread_t *t, int signedPriority)
 		(void)hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
 
+	if (res != NULL) {
+		*res = priorityBase;
+	}
+
 	trace_eventThreadPriority(proc_getTid(t), t->priority);
 
-	return ret;
+	return EOK;
 }
 
 
@@ -935,7 +987,7 @@ static void _proc_threadDequeue(thread_t *t)
 	}
 
 	if (i == hal_cpuGetCount()) {
-		LIST_ADD(&threads_common.ready[t->priority], t);
+		_readyAdd(t);
 	}
 }
 
@@ -1788,7 +1840,7 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 {
 	thread_t *owner = lock->owner, *current;
 	int ret = 0;
-	u8 lockPriority;
+	priority_t lockPriority;
 
 	current = _proc_current();
 
@@ -2013,17 +2065,21 @@ int proc_lockConsistent(lock_t *lock)
 }
 
 
-/* prioceiling == -1 retrieves current priority ceiling for the lock without obtaining it */
-int proc_lockPrioCeiling(lock_t *lock, int prioceiling)
+/* prioceiling == PH_GET_PRIO retrieves current priority ceiling for the lock without obtaining it */
+int proc_lockPrioCeiling(lock_t *lock, int prioceiling, int *prev)
 {
 	spinlock_ctx_t sc;
-	int err;
+	int err, prevCeiling;
 
 	if (hal_started() == 0) {
 		return -EINVAL;
 	}
 
-	if (prioceiling < -1 || prioceiling > (int)MAX_PRIO) {
+	if ((prioceiling != PH_GET_PRIO) && ((prioceiling < (int)MIN_PRIO) || prioceiling > (int)MAX_PRIO)) {
+		return -EINVAL;
+	}
+
+	if ((prioceiling == PH_GET_PRIO) && (prev == NULL)) {
 		return -EINVAL;
 	}
 
@@ -2031,7 +2087,7 @@ int proc_lockPrioCeiling(lock_t *lock, int prioceiling)
 		return -EINVAL;
 	}
 
-	if (prioceiling >= 0) {
+	if (prioceiling != PH_GET_PRIO) {
 		hal_spinlockSet(&lock->spinlock, &sc);
 		err = _proc_lockSetRaw(lock, 0, &sc);
 		if (err < 0) {
@@ -2040,15 +2096,20 @@ int proc_lockPrioCeiling(lock_t *lock, int prioceiling)
 		}
 		hal_spinlockClear(&lock->spinlock, &sc);
 
-		err = (int)__atomic_exchange_n(&lock->attr.prioceiling, (unsigned char)prioceiling, __ATOMIC_RELAXED);
+		/* parasoft-suppress-next-line MISRAC2012-RULE_10_3-b "__atomic_exchange_1 uses unsigned char but __atomic_exchange_n requires first two arg types to match." */
+		prevCeiling = (int)__atomic_exchange_n(&lock->attr.prioceiling, (signed char)prioceiling, __ATOMIC_RELAXED);
 
 		(void)proc_lockClear(lock);
 	}
 	else {
-		err = (int)__atomic_load_n(&lock->attr.prioceiling, __ATOMIC_RELAXED);
+		prevCeiling = (int)__atomic_load_n(&lock->attr.prioceiling, __ATOMIC_RELAXED);
 	}
 
-	return err;
+	if (prev != NULL) {
+		*prev = prevCeiling;
+	}
+
+	return EOK;
 }
 
 
@@ -2115,10 +2176,11 @@ static void threads_idlethr(void *arg)
 }
 
 
-void proc_threadsDump(u8 priority)
+void proc_threadsDump(priority_t priority)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
+	size_t idx = (size_t)priority + PRIO_RANGE;
 
 	/* Strictly needed - no lock can be taken
 	 * while threads_common.spinlock is being
@@ -2128,7 +2190,7 @@ void proc_threadsDump(u8 priority)
 	lib_printf("threads: ");
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 
-	t = threads_common.ready[priority];
+	t = threads_common.ready[idx];
 	do {
 		lib_printf("[%p] ", t);
 
@@ -2137,7 +2199,7 @@ void proc_threadsDump(u8 priority)
 		}
 
 		t = t->next;
-	} while (t != threads_common.ready[priority]);
+	} while (t != threads_common.ready[idx]);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	lib_printf("\n");
@@ -2284,7 +2346,7 @@ int proc_schedInfo(int policy, sched_info_t *info)
 	}
 
 	info->interval = SYSTICK_INTERVAL;
-	info->minPriority = 0;
+	info->minPriority = (int)MIN_PRIO;
 	info->maxPriority = (int)MAX_PRIO;
 
 	return EOK;
@@ -2311,8 +2373,6 @@ int proc_schedGet(thread_t *t, sched_params_t *params)
 
 int proc_schedSet(thread_t *t, int policy, sched_params_t *params)
 {
-	int err;
-
 	if (policy != SCHED_FIFO && policy != SCHED_RR && policy != SCHED_OTHER) {
 		return -EINVAL;
 	}
@@ -2321,12 +2381,11 @@ int proc_schedSet(thread_t *t, int policy, sched_params_t *params)
 		return -ENOTSUP;
 	}
 
-	if (params->priorityBase < 0) {
+	if (params->priorityBase == PH_GET_PRIO) {
 		return -EINVAL;
 	}
 
-	err = proc_threadPriority(t, params->priorityBase);
-	return err < 0 ? err : EOK;
+	return proc_threadPriority(t, params->priorityBase, NULL);
 }
 
 
@@ -2346,15 +2405,14 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		threads_common.stackCanary[i] = ((i & 1U) != 0U) ? 0xaaU : 0x55U;
 	}
 
-	/* Initiaizlie scheduler queue */
-	for (i = 0; i < sizeof(threads_common.ready) / sizeof(thread_t *); i++) {
-		threads_common.ready[i] = NULL;
-	}
+	/* Initialize scheduler queue */
+	threads_common.readyBitmask = 0;
+	hal_memset(threads_common.ready, 0, sizeof(threads_common.ready));
 
 	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
 	lib_idtreeInit(&threads_common.id);
 
-	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", sizeof(threads_common.ready) / sizeof(thread_t *));
+	lib_printf("proc: Initializing thread scheduler, priorities=%d\n", NPRIOS);
 
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 
