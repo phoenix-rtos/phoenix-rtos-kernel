@@ -46,6 +46,7 @@ port_t *proc_portGet(u32 id)
 void port_put(port_t *p, int destroy)
 {
 	spinlock_ctx_t sc;
+	thread_t *t;
 
 	hal_spinlockSet(&p->spinlock, &sc);
 	LIB_ASSERT(p->refs > 0, "port_put on refs=0");
@@ -59,7 +60,11 @@ void port_put(port_t *p, int destroy)
 		if (destroy != 0) {
 			/* Wake callers up */
 			(void)proc_threadBroadcastPrio(&p->queue);
-			_portDequeueReceivers(p);
+
+			/* Wake receivers up */
+			while ((t = p->threads) != NULL) {
+				threads_wakePassive(t);
+			}
 		}
 
 		hal_spinlockClear(&p->spinlock, &sc);

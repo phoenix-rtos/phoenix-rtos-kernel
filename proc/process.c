@@ -1675,7 +1675,7 @@ static int process_execve(thread_t *current)
 		(void)proc_join(-1, 0);
 	}
 
-	LIB_ASSERT(current->addedTo == NULL, "HAA");
+	LIB_ASSERT(current->wait == NULL, "HAA");
 	LIB_ASSERT(current->reply == NULL, "heh, reply");
 	LIB_ASSERT(current->called == NULL, "heh, called");
 	LIB_ASSERT(current->passive == 0, "heh, passive?");

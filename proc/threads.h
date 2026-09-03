@@ -112,9 +112,6 @@ typedef struct _thread_t {
 	struct _thread_t *qnext;
 	struct _thread_t *qprev;
 
-	struct _thread_t *tnext;
-	struct _thread_t *tprev;
-
 	int refs;
 
 	struct _thread_t **wait;
@@ -135,6 +132,10 @@ typedef struct _thread_t {
 	unsigned int interruptible : 1;
 	unsigned int exit : 2;
 	unsigned int passive : 1;
+	/* linked in threads_common.ready[priority] via scActive. Not implied by
+	 * state == READY: a running thread is READY, and so is one handed a
+	 * returned SC that its waker has not queued yet. */
+	unsigned int onReady : 1;
 
 	/* fastpath related */
 	struct _thread_t *reply;
@@ -143,13 +144,6 @@ typedef struct _thread_t {
 	u8 callReturnable : 4;
 	u8 saveCtxInReply : 4;
 	u8 respondAndRecv : 4;
-
-	/*
-	 * REVISIT: during threads_destroy of a fastpath receiver we should remove
-	 * ourselves out of addedTo's port queue so that it doesn't contain garbage
-	 * but it's sad we need port-thread bound. Maybe there is a better way?
-	 */
-	struct _port_t *addedTo;
 
 	unsigned int sigmask;
 	unsigned int sigpend;
@@ -324,6 +318,9 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 
 __attribute__((noreturn)) void threads_halt(void);
+
+
+void threads_wakePassive(thread_t *t);
 
 
 void threads_releaseXferBufs(thread_t *thread);
