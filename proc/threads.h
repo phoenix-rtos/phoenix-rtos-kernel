@@ -190,6 +190,9 @@ void proc_gettime(time_t *raw, time_t *offs);
 int proc_settime(time_t offs);
 
 
+int proc_clockTimeoutToAbsTime(int clock, time_t timeout, time_t *rabstime);
+
+
 __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx);
 
 

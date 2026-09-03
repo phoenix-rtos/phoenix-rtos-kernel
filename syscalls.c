@@ -726,9 +726,14 @@ int syscalls_phMutexCreate(u8 *ustack)
 int syscalls_phMutexLock(u8 *ustack)
 {
 	handle_t h;
+	time_t timeout;
+	int clock;
 
 	GETFROMSTACK(ustack, handle_t, h, 0U);
-	return proc_mutexLock(h);
+	GETFROMSTACK(ustack, time_t, timeout, 1U);
+	GETFROMSTACK(ustack, int, clock, 2U);
+
+	return proc_mutexLock(h, timeout, clock);
 }
 
 
@@ -809,12 +814,14 @@ int syscalls_phCondWait(u8 *ustack)
 	handle_t h;
 	handle_t m;
 	time_t timeout;
+	int clock;
 
 	GETFROMSTACK(ustack, handle_t, h, 0U);
 	GETFROMSTACK(ustack, handle_t, m, 1U);
 	GETFROMSTACK(ustack, time_t, timeout, 2U);
+	GETFROMSTACK(ustack, int, clock, 3U);
 
-	return proc_condWait(h, m, timeout);
+	return proc_condWait(h, m, timeout, clock);
 }
 
 

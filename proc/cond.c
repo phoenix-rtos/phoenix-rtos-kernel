@@ -83,12 +83,12 @@ int proc_condCreate(const struct condAttr *attr)
 }
 
 
-int proc_condWait(int c, int m, time_t timeout)
+int proc_condWait(int c, int m, time_t timeout, int clock)
 {
 	cond_t *cond;
 	mutex_t *mutex = NULL;
-	int err = 0;
-	time_t offs, abstime = 0;
+	int err = EOK;
+	time_t abstime = 0;
 	int condType;
 
 	cond = cond_get(c);
@@ -101,73 +101,32 @@ int proc_condWait(int c, int m, time_t timeout)
 	if (condType == PH_COND_NORMAL) {
 		mutex = mutex_get(m);
 		if (mutex == NULL) {
-			cond_put(cond);
-			return -EINVAL;
+			err = -EINVAL;
 		}
 	}
 	else if (condType == PH_COND_UNLOCKED) {
 		if (m != -1) {
-			cond_put(cond);
-			return -EINVAL;
+			err = -EINVAL;
 		}
 	}
 	else {
-		/* wrong type, should never happen */
-		return -EINVAL;
+		err = -EINVAL;
 	}
 
-	if (timeout != 0) {
-		switch (cond->attr.clock) {
-			case PH_CLOCK_REALTIME:
-				proc_gettime(&abstime, &offs);
-				if (abstime + offs > timeout) {
-					err = -ETIME;
-					break;
-				}
-
-				abstime = timeout - offs;
-				break;
-
-			case PH_CLOCK_MONOTONIC:
-				proc_gettime(&abstime, NULL);
-				if (abstime > timeout) {
-					err = -ETIME;
-					break;
-				}
-
-				abstime = timeout;
-				break;
-
-			case PH_CLOCK_RELATIVE:
-				proc_gettime(&abstime, NULL);
-				abstime += timeout;
-				break;
-
-			default:
-				/* Wrong clock type, should never happen */
-				err = -EINVAL;
-				break;
-		}
-
-		if (err != 0) {
-			if (mutex != NULL) {
-				mutex_put(mutex);
+	if (err == EOK) {
+		err = proc_clockTimeoutToAbsTime(clock == -1 ? cond->attr.clock : clock, timeout, &abstime);
+		if (err == EOK) {
+			if (condType == PH_COND_NORMAL) {
+				err = proc_lockWait(&cond->queue, &mutex->lock, abstime);
 			}
-			cond_put(cond);
-			return err;
+			else {
+				err = proc_threadWaitExclusive(&cond->queue, abstime);
+			}
 		}
 	}
 
-	if (condType == PH_COND_NORMAL) {
-		err = proc_lockWait(&cond->queue, &mutex->lock, abstime);
-
+	if (mutex != NULL) {
 		mutex_put(mutex);
-	}
-	else if (condType == PH_COND_UNLOCKED) {
-		err = proc_threadWaitExclusive(&cond->queue, abstime);
-	}
-	else {
-		/* already checked, no action required */
 	}
 
 	cond_put(cond);

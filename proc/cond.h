@@ -34,7 +34,7 @@ cond_t *cond_get(int c);
 int proc_condCreate(const struct condAttr *attr);
 
 
-int proc_condWait(int c, int m, time_t timeout);
+int proc_condWait(int c, int m, time_t timeout, int clock);
 
 
 int proc_condSignal(int c);
