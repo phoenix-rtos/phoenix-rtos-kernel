@@ -122,6 +122,7 @@ enum ipclks {
 	pctl_ipclk_spi4sel,
 	pctl_ipclk_i2c4sel,
 	pctl_ipclk_rngsel,
+	pctl_ipclk_adcdacpre,
 	pctl_ipclk_adcdacsel,
 	pctl_ipclk_dac1shsel,
 	pctl_ipclk_octospisel,
@@ -257,6 +258,7 @@ typedef struct {
 		pctl_devclk = 0,
 		pctl_cpuclk,
 		pctl_ipclk, /* Independent peripheral clock settings (muxes and dividers) */
+		pctl_otp,
 		pctl_reboot,
 		pctl_dmaPermissions,
 		pctl_dmaLinkBaseAddr,
@@ -287,6 +289,10 @@ typedef struct {
 			unsigned int ipclk;
 			unsigned int setting;
 		} ipclk;
+		struct {
+			unsigned int addr; /* OTP byte offset */
+			unsigned char val; /* Value returned */
+		} otp;
 		struct {
 			unsigned int magic;
 			unsigned int reason;

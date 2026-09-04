@@ -136,14 +136,17 @@ int _stm32_rifsc_risup_change(int index, int secure, int privileged, int lock);
 
 
 int _stm32_rifsc_rimc_change(int index, int secure, int privileged, int cid);
+#endif
 
 
 int _stm32_bsec_otp_checkFuseValid(unsigned int fuse);
 
 
+/* 32 valid bits on STM32N6, 8 on STM32U3 */
 int _stm32_bsec_otp_read(unsigned int fuse, u32 *val);
 
 
+#if defined(__CPU_STM32N6)
 int _stm32_bsec_otp_write(unsigned int fuse, u32 val);
 
 
