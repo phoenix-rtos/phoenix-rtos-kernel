@@ -5,8 +5,8 @@
  *
  * POSIX-compatibility module
  *
- * Copyright 2018, 2023 Phoenix Systems
- * Author: Jan Sikorski, Michal Miroslaw, Aleksander Kaminski
+ * Copyright 2018, 2023, 2026 Phoenix Systems
+ * Author: Jan Sikorski, Michal Miroslaw, Aleksander Kaminski, Ziemowit Leszczynski
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -113,12 +113,16 @@ void pinfo_put(process_info_t *p)
 int posix_fileDeref(open_file_t *f)
 {
 	int err = EOK;
+	int close;
 
 	(void)proc_lockSet(&f->lock);
 	--f->refs;
-	if (f->refs == 0) {
+	close = (f->refs == 0) ? 1 : 0;
+	(void)proc_lockClear(&f->lock);
+
+	if (close != 0) {
 		if (f->type == ftUnixSocket) {
-			err = unix_close((unsigned int)f->oid.id);
+			err = usocket_close(f->sock);
 		}
 		else {
 			do {
@@ -129,9 +133,7 @@ int posix_fileDeref(open_file_t *f)
 		(void)proc_lockDone(&f->lock);
 		vm_kfree(f);
 	}
-	else {
-		(void)proc_lockClear(&f->lock);
-	}
+
 	return err;
 }
 
@@ -282,7 +284,7 @@ static int posix_truncate(oid_t *oid, off_t length)
 	msg_t msg;
 	int err = -EINVAL;
 
-	if ((oid->port != US_PORT) && (length >= 0)) {
+	if ((oid->port != USOCKET_PORT) && (length >= 0)) {
 		hal_memset(&msg, 0, sizeof(msg));
 		msg.type = mtTruncate;
 		hal_memcpy(&msg.oid, oid, sizeof(oid_t));
@@ -613,11 +615,20 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 				/* No action required */
 			}
 
-			if (oid.port != US_PORT) {
-				err = proc_open(oid, (unsigned int)oflag);
-				if (err < 0) {
-					break;
-				}
+			if (oid.port == USOCKET_PORT) {
+				/*
+				 * A descriptor for a socket file would not own the socket, and
+				 * close() cannot tell it apart from the owning one: it would run
+				 * usocket_close() and destroy a socket that belongs to somebody
+				 * else. Refuse it, as Linux does.
+				 */
+				err = -ENXIO;
+				break;
+			}
+
+			err = proc_open(oid, (unsigned int)oflag);
+			if (err < 0) {
+				break;
 			}
 
 			(void)proc_lockSet(&p->lock);
@@ -638,10 +649,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			f->refs = 1;
 
 			/* TODO: check for other types */
-			if (oid.port == US_PORT) {
-				f->type = ftUnixSocket;
-			}
-			else if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
+			if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
 				/* FIXME: replace this hacky solution with proper device driver recognition */
 				f->type = ftPipe;
 			}
@@ -761,7 +769,8 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == ftUnixSocket) {
-		rcnt = unix_recvfrom((unsigned int)f->oid.id, buf, nbyte, 0, NULL, NULL);
+		/* read() of zero bytes returns zero - it must not block */
+		rcnt = (nbyte == 0U) ? 0 : usocket_recvfrom(f->sock, buf, nbyte, 0, NULL, NULL);
 	}
 	else {
 		rcnt = proc_read(f->oid, offs, buf, nbyte, status);
@@ -825,7 +834,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == ftUnixSocket) {
-		rcnt = unix_sendto((unsigned int)f->oid.id, buf, nbyte, 0, NULL, 0);
+		rcnt = usocket_sendto(f->sock, buf, nbyte, 0, NULL, 0);
 	}
 	else {
 		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
@@ -838,12 +847,14 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 	}
 
 	if ((rcnt == -EPIPE) && ((f->type == ftUnixSocket) || (f->type == ftPipe) || (f->type == ftFifo) || (f->type == ftInetSocket))) {
-		/* NOTE: for a UNIX socket, SIGPIPE shall be sent if the socket has been shut down
-		 * for writing or is no longer connected. The latter case applies only to SOCK_STREAM
-		 * sockets. Currently, shutdown() closes the socket altogether, so unix_sendto()
-		 * cannot return EPIPE for a socket shut down for writing. unix_sendto() must also
-		 * not return EPIPE for no longer connected SOCK_DGRAM sockets, because SIGPIPE is not
-		 * required for them.
+		/*
+		 * NOTE: a UNIX socket reports EPIPE in two cases, and both raise SIGPIPE here:
+		 * the socket has been shut down for writing, whatever its type, or its peer
+		 * will never read again. POSIX requires SIGPIPE only for the second case and
+		 * only for SOCK_STREAM and SOCK_SEQPACKET, and permits it for the first one.
+		 * A SOCK_DGRAM socket therefore does get SIGPIPE once shut down for writing,
+		 * but never for a peer that is gone: usocket_sendto() reports that as
+		 * ECONNREFUSED, which POSIX asks for and which EPIPE would turn into a signal.
 		 */
 		posix_sigpipe();
 	}
@@ -1232,8 +1243,8 @@ int posix_unlink(const char *pathname)
 		}
 
 		if (dir.port != oid.port) {
-			if (oid.port == US_PORT) {
-				(void)unix_unlink((unsigned int)oid.id);
+			if (oid.port == USOCKET_PORT) {
+				(void)usocket_unlink(oid.id);
 			}
 			else {
 				/* Signal unlink to device */
@@ -1603,7 +1614,7 @@ static int posix_fcntlSetFl(int fd, unsigned int val)
 				err = inet_setfl(f->oid.port, val);
 				break;
 			case ftUnixSocket:
-				err = unix_setfl((unsigned int)f->oid.id, val);
+				err = usocket_setfl(f->sock, val);
 				break;
 			default:
 				f->status = (val & ~ignorefl) | (f->status & ignorefl);
@@ -1629,7 +1640,7 @@ static int posix_fcntlGetFl(int fd)
 				err = inet_getfl(f->oid.port);
 				break;
 			case ftUnixSocket:
-				err = unix_getfl((unsigned int)f->oid.id);
+				err = usocket_getfl(f->sock);
 				break;
 			default:
 				err = (int)f->status;
@@ -1799,6 +1810,7 @@ int posix_socket(int domain, int type, int protocol)
 	TRACE("socket(%d, %d, %d)", domain, type, protocol);
 
 	process_info_t *p;
+	usocket_t *sock;
 	int err, fd;
 
 	p = pinfo_find(process_getPid(proc_current()->process));
@@ -1814,11 +1826,12 @@ int posix_socket(int domain, int type, int protocol)
 
 	switch (domain) {
 		case AF_UNIX:
-			err = unix_socket(domain, (unsigned int)type, protocol);
-			if (err >= 0) {
+			err = usocket_socket(domain, (unsigned int)type, protocol, &sock);
+			if (err == 0) {
 				p->fds[fd].file->type = ftUnixSocket;
-				p->fds[fd].file->oid.port = US_PORT;
-				p->fds[fd].file->oid.id = (unsigned int)err;
+				p->fds[fd].file->sock = sock;
+				p->fds[fd].file->oid.port = USOCKET_PORT;
+				p->fds[fd].file->oid.id = 0U;
 			}
 			break;
 		case AF_INET:
@@ -1857,7 +1870,8 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 	TRACE("socketpair(%d, %d, %d, %p)", domain, type, protocol, sv);
 
 	process_info_t *p;
-	int err, id[2];
+	usocket_t *s[2];
+	int err;
 
 	p = pinfo_find(process_getPid(proc_current()->process));
 	if (p == NULL) {
@@ -1881,14 +1895,16 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 		return -EMFILE;
 	}
 
-	err = unix_socketpair(domain, (unsigned int)type, protocol, id);
+	err = usocket_socketpair(domain, (unsigned int)type, protocol, s);
 	if (err == 0) {
 		p->fds[sv[0]].file->type = ftUnixSocket;
 		p->fds[sv[1]].file->type = ftUnixSocket;
-		p->fds[sv[0]].file->oid.port = US_PORT;
-		p->fds[sv[1]].file->oid.port = US_PORT;
-		p->fds[sv[0]].file->oid.id = (id_t)id[0];
-		p->fds[sv[1]].file->oid.id = (id_t)id[1];
+		p->fds[sv[0]].file->sock = s[0];
+		p->fds[sv[1]].file->sock = s[1];
+		p->fds[sv[0]].file->oid.port = USOCKET_PORT;
+		p->fds[sv[1]].file->oid.port = USOCKET_PORT;
+		p->fds[sv[0]].file->oid.id = 0U;
+		p->fds[sv[1]].file->oid.id = 0U;
 
 		if (((unsigned int)type & SOCK_CLOEXEC) != 0U) {
 			p->fds[sv[0]].flags = FD_CLOEXEC;
@@ -1911,6 +1927,7 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 
 	process_info_t *p;
 	open_file_t *f;
+	usocket_t *s;
 	int err, fd;
 
 	p = pinfo_find(process_getPid(proc_current()->process));
@@ -1936,11 +1953,12 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 				}
 				break;
 			case ftUnixSocket:
-				err = unix_accept4((unsigned int)f->oid.id, address, address_len, (unsigned int)flags);
-				if (err >= 0) {
+				err = usocket_accept4(f->sock, address, address_len, (unsigned int)flags, &s);
+				if (err == 0) {
 					p->fds[fd].file->type = ftUnixSocket;
-					p->fds[fd].file->oid.port = US_PORT;
-					p->fds[fd].file->oid.id = (unsigned int)err;
+					p->fds[fd].file->sock = s;
+					p->fds[fd].file->oid.port = USOCKET_PORT;
+					p->fds[fd].file->oid.id = 0U;
 				}
 				break;
 			default:
@@ -1986,7 +2004,7 @@ int posix_bind(int socket, const struct sockaddr *address, socklen_t address_len
 				err = inet_bind(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_bind((unsigned int)f->oid.id, address, address_len);
+				err = usocket_bind(f->sock, address, address_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2014,7 +2032,7 @@ int posix_connect(int socket, const struct sockaddr *address, socklen_t address_
 				err = inet_connect(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_connect((unsigned int)f->oid.id, address, address_len);
+				err = usocket_connect(f->sock, address, address_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2071,7 +2089,7 @@ int posix_getpeername(int socket, struct sockaddr *address, socklen_t *address_l
 				err = inet_getpeername(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_getpeername((unsigned int)f->oid.id, address, address_len);
+				err = usocket_getpeername(f->sock, address, address_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2099,7 +2117,7 @@ int posix_getsockname(int socket, struct sockaddr *address, socklen_t *address_l
 				err = inet_getsockname(f->oid.port, address, address_len);
 				break;
 			case ftUnixSocket:
-				err = unix_getsockname((unsigned int)f->oid.id, address, address_len);
+				err = usocket_getsockname(f->sock, address, address_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2127,7 +2145,7 @@ int posix_getsockopt(int socket, int level, int optname, void *optval, socklen_t
 				err = inet_getsockopt(f->oid.port, level, optname, optval, optlen);
 				break;
 			case ftUnixSocket:
-				err = unix_getsockopt((unsigned int)f->oid.id, level, optname, optval, optlen);
+				err = usocket_getsockopt(f->sock, level, optname, optval, optlen);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2155,7 +2173,7 @@ int posix_listen(int socket, int backlog)
 				err = inet_listen(f->oid.port, backlog);
 				break;
 			case ftUnixSocket:
-				err = unix_listen((unsigned int)f->oid.id, backlog);
+				err = usocket_listen(f->sock, backlog);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2183,7 +2201,7 @@ ssize_t posix_recvfrom(int socket, void *message, size_t length, int flags, stru
 				err = inet_recvfrom(f->oid.port, message, length, (unsigned int)flags, src_addr, src_len);
 				break;
 			case ftUnixSocket:
-				err = unix_recvfrom((unsigned int)f->oid.id, message, length, (unsigned int)flags, src_addr, src_len);
+				err = usocket_recvfrom(f->sock, message, length, (unsigned int)flags, src_addr, src_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2211,7 +2229,7 @@ ssize_t posix_sendto(int socket, const void *message, size_t length, int flags, 
 				err = inet_sendto(f->oid.port, message, length, (unsigned int)flags, dest_addr, dest_len);
 				break;
 			case ftUnixSocket:
-				err = unix_sendto((unsigned int)f->oid.id, message, length, (unsigned int)flags, dest_addr, dest_len);
+				err = usocket_sendto(f->sock, message, length, (unsigned int)flags, dest_addr, dest_len);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2243,7 +2261,7 @@ ssize_t posix_recvmsg(int socket, struct msghdr *msg, int flags)
 				err = inet_recvmsg(f->oid.port, msg, (unsigned int)flags);
 				break;
 			case ftUnixSocket:
-				err = unix_recvmsg((unsigned int)f->oid.id, msg, (unsigned int)flags);
+				err = usocket_recvmsg(f->sock, msg, (unsigned int)flags);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2271,7 +2289,7 @@ ssize_t posix_sendmsg(int socket, const struct msghdr *msg, int flags)
 				err = inet_sendmsg(f->oid.port, msg, (unsigned int)flags);
 				break;
 			case ftUnixSocket:
-				err = unix_sendmsg((unsigned int)f->oid.id, msg, (unsigned int)flags);
+				err = usocket_sendmsg(f->sock, msg, (unsigned int)flags);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2303,7 +2321,7 @@ int posix_shutdown(int socket, int how)
 				err = inet_shutdown(f->oid.port, how);
 				break;
 			case ftUnixSocket:
-				err = unix_shutdown((unsigned int)f->oid.id, how);
+				err = usocket_shutdown(f->sock, how);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2344,7 +2362,7 @@ int posix_setsockopt(int socket, int level, int optname, const void *optval, soc
 				err = inet_setsockopt(f->oid.port, level, optname, optval, optlen);
 				break;
 			case ftUnixSocket:
-				err = unix_setsockopt((unsigned int)f->oid.id, level, optname, optval, optlen);
+				err = usocket_setsockopt(f->sock, level, optname, optval, optlen);
 				break;
 			default:
 				err = -ENOTSOCK;
@@ -2432,19 +2450,19 @@ static int do_poll_iteration(struct pollfd *fds, nfds_t nfds)
 			err = (int)POLLNVAL;
 		}
 		else {
-			hal_memcpy(&msg.oid, &f->oid, sizeof(oid_t));
-			(void)posix_fileDeref(f);
-
 			if (f->type == ftUnixSocket) {
-				err = unix_poll((unsigned int)msg.oid.id, events);
+				err = usocket_poll(f->sock, events);
 			}
 			else {
+				hal_memcpy(&msg.oid, &f->oid, sizeof(oid_t));
 				err = proc_send(msg.oid.port, &msg);
 				if (err >= 0) {
 					/* FIXME: 8 byte attr assigned to 4 byte err */
 					err = (msg.o.err >= 0) ? (int)msg.o.attr.val : msg.o.err;
 				}
 			}
+
+			(void)posix_fileDeref(f);
 		}
 
 		if (err == -EINTR) {
@@ -2895,7 +2913,7 @@ void posix_init(void)
 {
 	(void)proc_lockInit(&posix_common.lock, &proc_lockAttrDefault, "posix.common");
 	lib_rbInit(&posix_common.pid, pinfo_cmp, NULL);
-	unix_sockets_init();
+	usocket_init();
 	posix_common.fresh = 0;
 	hal_memset(posix_common.hostname, 0, sizeof(posix_common.hostname));
 }

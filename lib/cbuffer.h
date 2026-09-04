@@ -75,4 +75,7 @@ size_t _cbuffer_write(cbuffer_t *buf, const void *data, size_t sz);
 size_t _cbuffer_peek(const cbuffer_t *buf, void *data, size_t sz);
 
 
+size_t _cbuffer_peekAt(const cbuffer_t *buf, size_t offs, void *data, size_t sz);
+
+
 #endif
