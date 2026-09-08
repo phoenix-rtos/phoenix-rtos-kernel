@@ -118,6 +118,8 @@
 	ID(sys_setpgrp) \
 	ID(sys_getpgrp) \
 	ID(sys_setsid) \
+	ID(sys_getsid) \
+	ID(sys_procExists) \
 	ID(sys_spawn) \
 	ID(release) \
 	ID(sbi_putchar) \
