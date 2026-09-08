@@ -18,6 +18,7 @@
 #include "include/ioctl.h"
 #include "include/limits.h"
 #include "include/posix-fcntl.h"
+#include "include/posix-proc.h"
 #include "include/posix-wait.h"
 #include "include/signal.h"
 #include "include/sockdefs.h"
@@ -37,6 +38,7 @@
 #endif
 
 #define POLL_INTERVAL 100000
+#define KILL_BATCH    16
 
 
 /* NOTE: socket/port ids are limited to 32-bits, hence possible downcast of oid.id from id_t to unsigned int */
@@ -67,12 +69,24 @@ static struct {
 } posix_common;
 
 
-static process_info_t *_pinfo_find(int pid)
+/*
+ * Does not take a reference - the returned pointer stays valid only as long as
+ * posix_common.lock is held. Must be called with posix_common.lock held.
+ */
+static process_info_t *_pinfo_lookup(int pid)
 {
-	process_info_t pi, *r;
+	process_info_t pi;
 
 	pi.process = pid;
-	r = lib_treeof(process_info_t, linkage, lib_rbFind(&posix_common.pid, &pi.linkage));
+	return lib_treeof(process_info_t, linkage, lib_rbFind(&posix_common.pid, &pi.linkage));
+}
+
+
+static process_info_t *_pinfo_find(int pid)
+{
+	process_info_t *r;
+
+	r = _pinfo_lookup(pid);
 	if (r != NULL) {
 		r->refs++;
 	}
@@ -318,11 +332,32 @@ int posix_clone(int ppid)
 	p->wait = NULL;
 	p->next = p->prev = NULL;
 	p->refs = 1;
+	p->exec = 0;
+	p->exited = 0;
 
 	pp = pinfo_find(ppid);
+	if (pp == NULL) {
+		/*
+		 * FIXME: a parent reaped before pinfo_find() is indistinguishable
+		 * from the root process and from a non-POSIX parent, so the child is
+		 * created as a child of init if possible, or parentless, instead of
+		 * failing the clone
+		 */
+		pp = pinfo_find(1);
+		ppid = 1;
+	}
+
 	if (pp != NULL) {
 		TRACE("clone: got parent");
+
 		(void)proc_lockSet(&pp->lock);
+		if (atomic_load_uint(&pp->exited, __ATOMIC_RELAXED) != 0U) {
+			(void)proc_lockClear(&pp->lock);
+			pinfo_put(pp);
+			(void)proc_lockDone(&p->lock);
+			vm_kfree(p);
+			return -ESRCH;
+		}
 		p->maxfd = pp->maxfd;
 		p->fdsz = pp->fdsz;
 		p->parent = ppid;
@@ -357,12 +392,6 @@ int posix_clone(int ppid)
 				(void)proc_lockClear(&f->lock);
 			}
 		}
-
-		p->pgid = pp->pgid;
-		LIST_ADD(&pp->children, p);
-		(void)proc_lockClear(&pp->lock);
-
-		pinfo_put(pp);
 	}
 	else {
 		hal_memset(p->fds, 0, (size_t)p->fdsz * sizeof(fildes_t));
@@ -392,12 +421,24 @@ int posix_clone(int ppid)
 		p->fds[1].file->status = O_WRONLY;
 		p->fds[2].file->status = O_WRONLY;
 
+		/* The first POSIX process is the leader of its own session and group */
 		p->pgid = p->process;
+		p->sid = p->process;
 	}
 
 	(void)proc_lockSet(&posix_common.lock);
+	if (pp != NULL) {
+		p->pgid = pp->pgid;
+		p->sid = pp->sid;
+		LIST_ADD(&pp->children, p);
+	}
 	(void)lib_rbInsert(&posix_common.pid, &p->linkage);
 	(void)proc_lockClear(&posix_common.lock);
+
+	if (pp != NULL) {
+		(void)proc_lockClear(&pp->lock);
+		pinfo_put(pp);
+	}
 
 	return EOK;
 }
@@ -414,6 +455,8 @@ int posix_exec(void)
 	if (p == NULL) {
 		return -1;
 	}
+
+	atomic_store_uint(&p->exec, 1, __ATOMIC_RELAXED);
 
 	(void)proc_lockSet(&p->lock);
 	for (fd = 0; fd < p->fdsz; ++fd) {
@@ -436,6 +479,13 @@ static int posix_exit(process_info_t *p, int code)
 	p->exitcode = code;
 
 	(void)proc_lockSet(&p->lock);
+
+	/*
+	 * Stops a posix_clone() in progress from copying the table below and marks
+	 * the process as no longer alive for _posix_procExists()
+	 */
+	atomic_store_uint(&p->exited, 1, __ATOMIC_RELAXED);
+
 	for (fd = 0; fd < p->fdsz; ++fd) {
 		if (p->fds[fd].file != NULL) {
 			(void)posix_fileDeref(p->fds[fd].file);
@@ -2590,24 +2640,95 @@ static int posix_killOne(pid_t pid, int tid, int sig)
 }
 
 
-static int posix_killGroup(pid_t pgid, int sig)
+static int posix_killGroupOrSession(pid_t pgidOrSid, int sig, int isSid)
 {
-	process_info_t *pinfo;
+	const process_info_t *pinfo;
 	rbnode_t *node;
+	pid_t batch[KILL_BATCH];
+	pid_t self, last = 0;
+	size_t n, i;
 	int err = -ESRCH;
+	int signalSelf = 0;
+	int done = 0;
+
+	self = process_getPid(proc_current()->process);
 
 	(void)proc_lockSet(&posix_common.lock);
-	for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
-		pinfo = lib_treeof(process_info_t, linkage, node);
-
-		if (pinfo->pgid == pgid) {
-			err = EOK;
-			(void)proc_sigpost(pinfo->process, sig);
+	if (pgidOrSid == 0) {
+		pinfo = _pinfo_lookup(self);
+		if (pinfo != NULL) {
+			pgidOrSid = (isSid == 0) ? pinfo->pgid : pinfo->sid;
 		}
 	}
 	(void)proc_lockClear(&posix_common.lock);
 
+	if (pgidOrSid <= 0) {
+		/* The caller is not a POSIX process, so it has no group or session */
+		return -ESRCH;
+	}
+
+	while (done == 0) {
+		n = 0;
+
+		(void)proc_lockSet(&posix_common.lock);
+		/*
+		 * Each pass resumes past the last member handled. A process that
+		 * joins or leaves the group could be missed. This is ok for
+		 * POSIX - the set is not required to be sampled atomically.
+		 */
+		for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
+			pinfo = lib_treeof(process_info_t, linkage, node);
+
+			if (pinfo->process <= last) {
+				continue;
+			}
+
+			if (((isSid == 0) ? pinfo->pgid : pinfo->sid) != pgidOrSid) {
+				continue;
+			}
+
+			err = EOK;
+			if (n == (size_t)KILL_BATCH) {
+				break;
+			}
+			batch[n] = pinfo->process;
+			n++;
+		}
+		done = (node == NULL) ? 1 : 0;
+		(void)proc_lockClear(&posix_common.lock);
+
+		for (i = 0; i < n; i++) {
+			if (batch[i] == self) {
+				signalSelf = 1;
+			}
+			else {
+				(void)proc_sigpost(batch[i], sig);
+			}
+			last = batch[i];
+		}
+	}
+
+	/*
+	 * Signal self outside the lock and last, so that a fatal signal cannot cause
+	 * another thread of this process to tear down the process on different CPU.
+	 */
+	if (signalSelf != 0) {
+		(void)proc_sigpost(self, sig);
+	}
+
 	return err;
+}
+
+
+static int posix_killGroup(pid_t pgid, int sig)
+{
+	return posix_killGroupOrSession(pgid, sig, 0);
+}
+
+
+static int posix_killSession(pid_t sid, int sig)
+{
+	return posix_killGroupOrSession(sid, sig, 1);
 }
 
 
@@ -2619,16 +2740,23 @@ int posix_tkill(pid_t pid, int tid, int sig)
 		return -EINVAL;
 	}
 
-	/* TODO: handle pid = 0 */
-	if (pid == 0) {
-		return -ENOSYS;
-	}
-
 	if (pid == -1) {
-		return -ESRCH;
+		/*
+		 * FIXME: POSIX says we should kill all processes excluding system ones.
+		 * For this to work, the userspace init routine must first explicitly
+		 * decouple them from the rest.
+		 *
+		 * For now, kill the current session instead. Note that killpg(1, sig)
+		 * lands here too, so process group 1 cannot be signalled by name.
+		 */
+		return posix_killSession(0, sig);
 	}
 
-	return (pid > 0) ? posix_killOne(pid, tid, sig) : posix_killGroup(-pid, sig);
+	if (pid > 0) {
+		return posix_killOne(pid, tid, sig);
+	}
+
+	return posix_killGroup((pid == 0) ? 0 : -pid, sig);
 }
 
 
@@ -2638,32 +2766,135 @@ void posix_sigchild(pid_t ppid)
 }
 
 
+/* Returns 1 when a process other than exclude matches every non-zero filter. */
+static int _posix_procExists(pid_t pid, pid_t pgid, pid_t sid, pid_t exclude, unsigned int flags)
+{
+	rbnode_t *node;
+	const process_info_t *pinfo;
+
+	for (node = lib_rbMinimum(posix_common.pid.root); node != NULL; node = lib_rbNext(node)) {
+		pinfo = lib_treeof(process_info_t, linkage, node);
+
+		if (pinfo->process == exclude) {
+			continue;
+		}
+
+		if (((flags & PROCQ_ALIVE) != 0U) && (atomic_load_uint(&pinfo->exited, __ATOMIC_RELAXED) != 0U)) {
+			continue;
+		}
+
+		if ((pid != 0) && (pinfo->process != pid)) {
+			continue;
+		}
+
+		if ((pgid != 0) && (atomic_load_int(&pinfo->pgid, __ATOMIC_RELAXED) != pgid)) {
+			continue;
+		}
+
+		if ((sid != 0) && (pinfo->sid != sid)) {
+			continue;
+		}
+
+		return 1;
+	}
+
+	return 0;
+}
+
+
+static int _posix_pgroupExists(pid_t pgid, pid_t sid, pid_t exclude)
+{
+	return _posix_procExists(0, pgid, sid, exclude, 0U);
+}
+
+
+/*
+ * Tells whether a process matching the given pid/group/session filters exists.
+ * An argument of 0 matches anything, at least one must be non-zero.
+ */
+int posix_procExists(pid_t pid, pid_t pgid, pid_t sid, unsigned int flags)
+{
+	int ret;
+
+	if ((pid < 0) || (pgid < 0) || (sid < 0) || ((pid == 0) && (pgid == 0) && (sid == 0))) {
+		return -EINVAL;
+	}
+
+	if ((flags & ~PROCQ_ALIVE) != 0U) {
+		return -EINVAL;
+	}
+
+	(void)proc_lockSet(&posix_common.lock);
+	ret = _posix_procExists(pid, pgid, sid, 0, flags);
+	(void)proc_lockClear(&posix_common.lock);
+
+	return ret;
+}
+
+
 int posix_setpgid(pid_t pid, pid_t pgid)
 {
-	process_info_t *pinfo;
+	process_info_t *self, *target;
+	pid_t selfPid;
+	int err;
 
 	if ((pid < 0) || (pgid < 0)) {
 		return -EINVAL;
 	}
 
+	selfPid = process_getPid(proc_current()->process);
+
 	if (pid == 0) {
-		pid = process_getPid(proc_current()->process);
+		pid = selfPid;
 	}
 
 	if (pgid == 0) {
 		pgid = pid;
 	}
 
-	pinfo = pinfo_find(pid);
-	if (pinfo == NULL) {
-		return -ESRCH;
+	(void)proc_lockSet(&posix_common.lock);
+
+	self = _pinfo_lookup(selfPid);
+	target = (pid == selfPid) ? self : _pinfo_lookup(pid);
+
+	if ((self == NULL) || (target == NULL)) {
+		/* Caller is not a POSIX process, or there is no such process */
+		err = -ESRCH;
+	}
+	else if ((pid != selfPid) && (atomic_load_int(&target->parent, __ATOMIC_RELAXED) != selfPid)) {
+		/* POSIX: pid shall name the caller or one of its children */
+		err = -ESRCH;
+	}
+	else if (target->sid == target->process) {
+		/* POSIX: a session leader shall not change its process group */
+		err = -EPERM;
+	}
+	else if (target->sid != self->sid) {
+		/* POSIX: the child shall be in the same session as the caller */
+		err = -EPERM;
+	}
+	else if ((pid != selfPid) && (atomic_load_uint(&target->exec, __ATOMIC_RELAXED) != 0U)) {
+		/*
+		 * POSIX: the child shall not have replaced its process image yet.
+		 * Does not apply when a process changes its own group.
+		 */
+		err = -EACCES;
+	}
+	else if ((pgid != pid) && (_posix_pgroupExists(pgid, self->sid, 0) == 0)) {
+		/*
+		 * POSIX: an existing group may only be joined within the caller's
+		 * session; a new group may only be created under the target's own pid
+		 */
+		err = -EPERM;
+	}
+	else {
+		atomic_store_int(&target->pgid, pgid, __ATOMIC_RELAXED);
+		err = EOK;
 	}
 
-	(void)proc_lockSet(&pinfo->lock);
-	pinfo->pgid = pgid;
-	(void)proc_lockClear(&pinfo->lock);
-	pinfo_put(pinfo);
-	return EOK;
+	(void)proc_lockClear(&posix_common.lock);
+
+	return err;
 }
 
 
@@ -2680,15 +2911,32 @@ pid_t posix_getpgid(pid_t pid)
 		pid = process_getPid(proc_current()->process);
 	}
 
-	pinfo = pinfo_find(pid);
-	if (pinfo == NULL) {
+	(void)proc_lockSet(&posix_common.lock);
+	pinfo = _pinfo_lookup(pid);
+	res = (pinfo != NULL) ? pinfo->pgid : -ESRCH;
+	(void)proc_lockClear(&posix_common.lock);
+
+	return res;
+}
+
+
+pid_t posix_getsid(pid_t pid)
+{
+	process_info_t *pinfo;
+	pid_t res;
+
+	if (pid < 0) {
 		return -ESRCH;
 	}
 
-	(void)proc_lockSet(&pinfo->lock);
-	res = pinfo->pgid;
-	(void)proc_lockClear(&pinfo->lock);
-	pinfo_put(pinfo);
+	if (pid == 0) {
+		pid = process_getPid(proc_current()->process);
+	}
+
+	(void)proc_lockSet(&posix_common.lock);
+	pinfo = _pinfo_lookup(pid);
+	res = (pinfo != NULL) ? pinfo->sid : -ESRCH;
+	(void)proc_lockClear(&posix_common.lock);
 
 	return res;
 }
@@ -2697,40 +2945,53 @@ pid_t posix_getpgid(pid_t pid)
 pid_t posix_setsid(void)
 {
 	process_info_t *pinfo;
-	pid_t pid;
+	pid_t pid, ret;
 
 	pid = process_getPid(proc_current()->process);
 
-	pinfo = pinfo_find(pid);
+	(void)proc_lockSet(&posix_common.lock);
+
+	pinfo = _pinfo_lookup(pid);
 	if (pinfo == NULL) {
-		return -EPERM;
+		ret = -EPERM;
+	}
+	else if ((pinfo->pgid == pid) || (_posix_pgroupExists(pid, 0, pid) != 0)) {
+		ret = -EPERM;
+	}
+	else {
+		/*
+		 * FIXME: POSIX requires the new session to have no controlling terminal,
+		 * but the kernel doesn't track this, so the caller stays associated until
+		 * it issues TIOCNOTTY or closes the last descriptor. The terminal's
+		 * foreground group can thus end up empty yet still recorded, silently
+		 * dropping its job control signals.
+		 */
+		atomic_store_int(&pinfo->pgid, pid, __ATOMIC_RELAXED);
+		pinfo->sid = pid;
+		ret = pid;
 	}
 
-	/* FIXME (pedantic): Should check if any process has my group id */
-	(void)proc_lockSet(&pinfo->lock);
-	if (pinfo->pgid == pid) {
-		(void)proc_lockClear(&pinfo->lock);
-		pinfo_put(pinfo);
-		return -EPERM;
-	}
+	(void)proc_lockClear(&posix_common.lock);
 
-	pinfo->pgid = pid;
-	(void)proc_lockClear(&pinfo->lock);
-	pinfo_put(pinfo);
-
-	return pid;
+	return ret;
 }
 
 
-static int waitpid_isWaitValid(pid_t pid, process_info_t *parent, process_info_t *child)
+/* NOTE: reads pgid without posix_common.lock, so the accesses are relaxed atomics to pair with the stores in setpgid()/setsid(). */
+static int waitpid_isWaitValid(pid_t pid, const process_info_t *parent, const process_info_t *child)
 {
+	pid_t childPgid;
+
 	if (pid == -1) {
 		return 1;
 	}
-	if ((pid == 0) && (child->pgid == parent->pgid)) {
+
+	childPgid = atomic_load_int(&child->pgid, __ATOMIC_RELAXED);
+
+	if ((pid == 0) && (childPgid == atomic_load_int(&parent->pgid, __ATOMIC_RELAXED))) {
 		return 1;
 	}
-	if ((pid < 0) && (child->pgid == -pid)) {
+	if ((pid < 0) && (childPgid == -pid)) {
 		return 1;
 	}
 	return (pid == child->process) ? 1 : 0;
@@ -2824,6 +3085,7 @@ void posix_died(pid_t pid, int exit)
 {
 	process_info_t *pinfo, *ppinfo, *init, *cinfo, *zinfo, *zombies;
 	int adopted = 1;
+	int ppid;
 
 	pinfo = pinfo_find(pid);
 	LIB_ASSERT_ALWAYS(pinfo != NULL, "pinfo not found, pid: %d", pid);
@@ -2831,7 +3093,8 @@ void posix_died(pid_t pid, int exit)
 	init = pinfo_find(1);
 	LIB_ASSERT_ALWAYS(init != NULL, "init not found");
 
-	ppinfo = pinfo_find(pinfo->parent);
+	ppid = atomic_load_int(&pinfo->parent, __ATOMIC_RELAXED);
+	ppinfo = pinfo_find(ppid);
 
 	(void)posix_exit(pinfo, exit);
 
@@ -2845,7 +3108,7 @@ void posix_died(pid_t pid, int exit)
 			LIST_ADD(&ppinfo->zombies, pinfo);
 			if (proc_threadBroadcast(&ppinfo->wait) == 0) {
 				/* Signal parent because no one was waiting in waitpid() */
-				posix_sigchild(pinfo->parent);
+				posix_sigchild(ppid);
 			}
 			adopted = 0;
 		}
@@ -2862,14 +3125,18 @@ void posix_died(pid_t pid, int exit)
 	while (pinfo->children != NULL) {
 		cinfo = pinfo->children;
 		LIST_REMOVE(&pinfo->children, cinfo);
-		/* Treat as atomic */
-		cinfo->parent = 1;
+		/*
+		 * Atomic used - the child's own lock is not held here, and taking it
+		 * would nest a third lock inside pinfo->lock and init->lock
+		 */
+		atomic_store_int(&cinfo->parent, 1, __ATOMIC_RELAXED);
 		LIST_ADD(&init->children, cinfo);
 	}
 
 	if (adopted != 0) {
 		LIB_ASSERT(LIST_BELONGS(&init->children, pinfo) != 0,
-				"zombie's neither parent nor init child, pid: %d, ppid: %d", pid, pinfo->parent);
+				"zombie's neither parent nor init child, pid: %d, ppid: %d", pid,
+				atomic_load_int(&pinfo->parent, __ATOMIC_RELAXED));
 		/* We were adopted by the init at some point */
 		LIST_REMOVE(&init->children, pinfo);
 		LIST_ADD(&zombies, pinfo);
@@ -2892,14 +3159,14 @@ void posix_died(pid_t pid, int exit)
 pid_t posix_getppid(pid_t pid)
 {
 	process_info_t *pinfo;
-	int ret = 0;
+	pid_t ret;
 
 	pinfo = pinfo_find(pid);
 	if (pinfo == NULL) {
-		return -ENOSYS;
+		return -ESRCH;
 	}
 
-	ret = pinfo->parent;
+	ret = atomic_load_int(&pinfo->parent, __ATOMIC_RELAXED);
 
 	pinfo_put(pinfo);
 
