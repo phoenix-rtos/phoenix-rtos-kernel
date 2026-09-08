@@ -1197,6 +1197,12 @@ static void proc_spawnThread(void *arg)
 			proc_spawnThreadEnd(spawn, ret);
 		}
 		current->process->posix = 1U;
+
+		/*
+		 * Spawn loads a new process image, so it has to close cloexec descriptors
+		 * and mark the process as having exec'd, exactly as the execve path does.
+		 */
+		(void)posix_exec();
 	}
 
 	process_exec(current, spawn);
