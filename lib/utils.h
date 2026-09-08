@@ -45,4 +45,32 @@
 /* parasoft-suppress-next-line MISRAC2012-RULE_20_7-a "__builtin_offsetof is built-in function and handles it arguments safely" */
 #define offsetof(st, m) __builtin_offsetof(st, m)
 
+
+/* parasoft-begin-suppress MISRAC2012-RULE_10_3-b "__atomic intrinsics are type-generic and internally are mostly implemented as taking unsigned types, thereby confusing the rule checker" */
+
+static inline void atomic_store_int(int *ptr, int val, int memmodel)
+{
+	__atomic_store_n(ptr, val, memmodel);
+}
+
+
+static inline void atomic_store_uint(unsigned int *ptr, unsigned int val, int memmodel)
+{
+	__atomic_store_n(ptr, val, memmodel);
+}
+
+
+static inline int atomic_load_int(const int *ptr, int memmodel)
+{
+	return __atomic_load_n(ptr, memmodel);
+}
+
+
+static inline unsigned int atomic_load_uint(const unsigned int *ptr, int memmodel)
+{
+	return __atomic_load_n(ptr, memmodel);
+}
+
+/* parasoft-end-suppress MISRAC2012-RULE_10_3-b */
+
 #endif

@@ -101,9 +101,12 @@ typedef struct {
 typedef struct _process_info_t {
 	rbnode_t linkage;
 	int process;
-	int parent;
+	pid_t parent;
+
 	int refs;
 	int exitcode;
+	unsigned int exec;   /* set to 1 once process successfully called exec/spawn */
+	unsigned int exited; /* set to 1 by posix_exit() before teardown, protected by lock */
 
 	thread_t *wait;
 
@@ -111,7 +114,10 @@ typedef struct _process_info_t {
 	struct _process_info_t *zombies;
 	struct _process_info_t *next, *prev;
 
-	pid_t pgid;
+	/* Protected by posix_common.lock */
+	pid_t pgid; /* read is lock-free via relaxed atomics */
+	pid_t sid;
+
 	lock_t lock;
 	int maxfd;
 	int fdsz;
