@@ -1198,8 +1198,9 @@ addr_t syscalls_va2pa(u8 *ustack)
 int syscalls_signalAction(u8 *ustack)
 {
 	process_t *proc = proc_current()->process;
-	int sig, err = EOK;
-	struct sigaction *act, kact, *old, kold;
+	int sig;
+	struct sigaction *act;
+	struct sigaction *old;
 	sigtrampolineFn_t trampoline;
 
 	GETFROMSTACK(ustack, int, sig, 0U);
@@ -1220,15 +1221,7 @@ int syscalls_signalAction(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if (act != NULL) {
-		hal_memcpy(&kact, act, sizeof(kact));
-	}
-	err = threads_setSigaction(sig, trampoline, (act != NULL ? &kact : NULL), (old != NULL ? &kold : NULL));
-	if ((err == EOK) && (old != NULL)) {
-		hal_memcpy(old, &kold, sizeof(kold));
-	}
-
-	return err;
+	return threads_setSigaction(sig, trampoline, act, old);
 }
 
 
@@ -1245,7 +1238,13 @@ unsigned int syscalls_signalMask(u8 *ustack)
 	old = t->sigmask;
 	new = (mask & mmask) | (old & ~mmask);
 
-	threads_setSigmask(t, new);
+	/*
+	 * POSIX: It is not possible to block those signals which cannot be ignored.
+	 * This shall be enforced by the system without causing an error to be indicated.
+	 */
+	new &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
+
+	t->sigmask = new;
 
 	return old;
 }
@@ -1272,7 +1271,7 @@ void syscalls_sigreturn(u8 *ustack)
 	hal_cpuDisableInterrupts();
 	hal_cpuSigreturn(t->kstack + t->kstacksz, ustack, &ctx);
 
-	threads_setSigmask(t, oldmask);
+	t->sigmask = oldmask;
 
 	/* TODO: check if return address belongs to user mapped memory */
 	if (hal_cpuSupervisorMode(ctx) != 0) {

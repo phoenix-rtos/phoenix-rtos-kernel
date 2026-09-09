@@ -1645,27 +1645,6 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 }
 
 
-static void _threads_setSigmask(thread_t *thread, unsigned int sigmask)
-{
-	/*
-	 * POSIX: It is not possible to block those signals which cannot be ignored.
-	 * This shall be enforced by the system without causing an error to be indicated.
-	 */
-	sigmask &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
-	thread->sigmask = sigmask;
-}
-
-
-void threads_setSigmask(thread_t *thread, unsigned int sigmask)
-{
-	spinlock_ctx_t sc;
-	/* Update sigmask under spinlock to avoid terminating signals delivery races with sigpost */
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	_threads_setSigmask(thread, sigmask);
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-}
-
-
 int threads_setSigaction(int sig, sigtrampolineFn_t trampoline, const struct sigaction *act, struct sigaction *old)
 {
 	process_t *process;
@@ -1715,8 +1694,6 @@ int threads_setSigaction(int sig, sigtrampolineFn_t trampoline, const struct sig
 	/* sigactions can be null if act.sa_handler == SIG_DFL */
 	if ((act != NULL) && (process->sigactions != NULL)) {
 		hal_memcpy(&process->sigactions[sig - 1], act, sizeof(struct sigaction));
-		/* POSIX: It is not possible to block those signals which cannot be ignored. */
-		process->sigactions[sig - 1].sa_mask &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
 	}
 
 	if (trampoline != NULL) {
@@ -1762,42 +1739,6 @@ int proc_cloneSigactions(process_t *parent, process_t *child)
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 	return 0;
-}
-
-
-void proc_resetExecSigactions(void)
-{
-	spinlock_ctx_t sc;
-	thread_t *current;
-	int i, keep = 0;
-	struct sigaction *sa = NULL;
-
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-	current = _proc_current();
-	if (current->process->sigactions != NULL) {
-		keep = 0;
-		for (i = 1; i < NSIG; ++i) {
-			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
-			if (current->process->sigactions[i - 1].sa_handler == SIG_IGN) {
-				keep = 1;
-			}
-			else {
-				current->process->sigactions[i - 1].sa_handler = SIG_DFL;
-			}
-		}
-		if (keep == 0) {
-			sa = current->process->sigactions;
-			current->process->sigactions = NULL;
-		}
-	}
-
-	current->process->sigtrampoline = NULL;
-
-	hal_spinlockClear(&threads_common.spinlock, &sc);
-
-	if (keep == 0) {
-		vm_kfree(sa);
-	}
 }
 
 
@@ -1848,7 +1789,7 @@ int threads_sigsuspend(unsigned int mask)
 	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
 
 	oldmask = thread->sigmask;
-	_threads_setSigmask(thread, mask);
+	thread->sigmask = mask;
 
 	/* check for pending signals before sleep - with the new mask */
 	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
@@ -1883,7 +1824,7 @@ int threads_sigsuspend(unsigned int mask)
 	}
 
 	/* interrupted by signal but no sighandler installed */
-	_threads_setSigmask(thread, oldmask);
+	thread->sigmask = oldmask;
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	/* sigsuspend always exits with -EINTR */

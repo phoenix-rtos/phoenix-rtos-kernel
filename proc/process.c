@@ -1409,7 +1409,7 @@ static void process_vforkThread(void *arg)
 	current->process->posix = 1U;
 
 	/* POSIX: A child created via fork inherits a copy of its parent's signal mask */
-	threads_setSigmask(current, parent->sigmask);
+	current->sigmask = parent->sigmask;
 
 	/* No reaper race, parent is kept until current thread releases */
 	ret = proc_cloneSigactions(parent->process, current->process);
@@ -1635,9 +1635,9 @@ int proc_fork(void)
 		/* Mask all signals - during process_copy(), incoming signal might try
 		 * to access our not-yet existent stack */
 		sigmask = current->sigmask;
-		threads_setSigmask(current, 0xffffffffU);
+		current->sigmask = 0xffffffffU;
 		err = process_copy();
-		threads_setSigmask(current, sigmask);
+		current->sigmask = sigmask;
 
 		hal_cpuDisableInterrupts();
 		current->kstack = current->execkstack;
@@ -1670,6 +1670,7 @@ static int process_execve(thread_t *current)
 	process_spawn_t *spawn = current->execdata;
 	thread_t *parent = spawn->parent;
 	vm_map_t *map, *imap;
+	int i, keep;
 
 	/* The old user stack is no longer valid */
 	current->ustack = NULL;
@@ -1708,7 +1709,24 @@ static int process_execve(thread_t *current)
 	current->execdata = NULL;
 
 	current->process->sigpend = 0;
-	proc_resetExecSigactions();
+
+	/* POSIX: signals ignored by the calling process should remain ignored */
+	if (current->process->sigactions != NULL) {
+		keep = 0;
+		for (i = 1; i < NSIG; ++i) {
+			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+			if (current->process->sigactions[i - 1].sa_handler == SIG_IGN) {
+				keep = 1;
+			}
+			else {
+				current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+			}
+		}
+		if (keep == 0) {
+			vm_kfree(current->process->sigactions);
+			current->process->sigactions = NULL;
+		}
+	}
 
 	/* Close cloexec file descriptors */
 	(void)posix_exec();

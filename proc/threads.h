@@ -224,18 +224,11 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 __attribute__((noreturn)) void threads_halt(void);
 
 
-void threads_setSigmask(thread_t *thread, unsigned int sigmask);
-
-
 int threads_setSigaction(int sig, void (*trampoline)(void), const struct sigaction *act, struct sigaction *old);
 
 
 /* Requires guarantee that parent won't be reaped during execution. */
 int proc_cloneSigactions(process_t *parent, process_t *child);
-
-
-/* POSIX: signals ignored by the execve calling process should remain ignored */
-void proc_resetExecSigactions(void);
 
 
 #endif
