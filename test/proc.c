@@ -19,6 +19,9 @@
 #include "syspage.h"
 
 
+_Static_assert(NPRIOS % 8 == 0, "tests assume NPRIOS % 8 == 0");
+
+
 struct {
 	volatile unsigned int rotations[NPRIOS];
 	volatile time_t tm;
@@ -36,7 +39,7 @@ struct {
 static void test_proc_indthr(void *arg)
 {
 	const char *indicator = "o|/-\\|/-\\";
-	const int k = 8;
+	const int k = NPRIOS / 8;
 	int i;
 
 	lib_printf("test: [proc.threads] Starting indicating thread\n");
@@ -65,7 +68,7 @@ static void test_proc_indthr(void *arg)
 					test_proc_common.rotations[i * k + 7] % 100U);
 		}
 
-		lib_printf("\033[8A\r");
+		lib_printf("\033[%dA\r", k);
 
 		proc_threadSleep(5000);
 	}

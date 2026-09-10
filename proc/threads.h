@@ -35,14 +35,14 @@
 #endif
 
 _Static_assert(NPRIOS % 2U == 0U, "NPRIOS should be even");
-_Static_assert(NPRIOS >= 16U, "NPRIOS should be greater than 16");
+_Static_assert(NPRIOS >= 16U, "NPRIOS should be >=16");
+
+#define PRIO_OFFSET ((int)(NPRIOS / 2U))
+#define MAX_PRIO    ((int)PRIO_OFFSET - 1) /* Maximum priority value, of the lowest criticality (scheduled when no threads with p < MAX_PRIO are ready) */
+#define MIN_PRIO    (-((int)PRIO_OFFSET))  /* Minimum priority value, of the HIGHEST criticality (scheduled before MIN_PRIO + 1) */
 
 typedef s8 priority_t;
-_Static_assert(NPRIOS <= (1UL << (sizeof(priority_t) * 8U)), "NPRIOS must fit into priority_t range");
-
-#define PRIO_OFFSET (NPRIOS / 2U)
-#define MAX_PRIO    (((priority_t)PRIO_OFFSET) - 1) /* Maximum priority value, of the lowest criticality (scheduled when no threads with p < MAX_PRIO are ready) */
-#define MIN_PRIO    (-((priority_t)PRIO_OFFSET))    /* Minimum priority value, of the HIGHEST criticality (scheduled before MIN_PRIO + 1) */
+_Static_assert(PRIO_OFFSET <= 128, "priority range must fit into priority_t");
 
 #define MAX_TID        MAX_ID
 #define THREAD_END     1U

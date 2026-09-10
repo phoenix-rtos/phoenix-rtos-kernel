@@ -208,7 +208,7 @@ static void _threads_updateWakeup(time_t now, thread_t *minimum)
 
 static void _readyAdd(thread_t *t)
 {
-	int sidx = (int)t->priority + (int)PRIO_OFFSET;
+	int sidx = (int)t->priority + PRIO_OFFSET;
 	unsigned int idx = (unsigned int)sidx;
 
 	LIB_ASSERT_THREADS(sidx >= 0, "bad idx");
@@ -221,7 +221,7 @@ static void _readyAdd(thread_t *t)
 
 static void _readyRemove(thread_t *t)
 {
-	int sidx = (int)t->priority + (int)PRIO_OFFSET;
+	int sidx = (int)t->priority + PRIO_OFFSET;
 	unsigned int idx = (unsigned int)sidx;
 
 	LIB_ASSERT_THREADS(sidx >= 0, "bad idx");
@@ -809,7 +809,7 @@ int proc_threadPriority(thread_t *t, int val, int *res)
 	int reschedule = 0, priorityBase;
 	priority_t priority;
 
-	if ((val != PH_GET_PRIO) && ((val < (int)MIN_PRIO) || (val > (int)MAX_PRIO))) {
+	if ((val != PH_GET_PRIO) && ((val < MIN_PRIO) || (val > MAX_PRIO))) {
 		return -EINVAL;
 	}
 
@@ -2086,7 +2086,7 @@ int proc_lockPrioCeiling(lock_t *lock, int prioceiling, int *res)
 		return -EINVAL;
 	}
 
-	if ((prioceiling != PH_GET_PRIO) && ((prioceiling < (int)MIN_PRIO) || prioceiling > (int)MAX_PRIO)) {
+	if ((prioceiling != PH_GET_PRIO) && ((prioceiling < MIN_PRIO) || prioceiling > MAX_PRIO)) {
 		return -EINVAL;
 	}
 
@@ -2191,7 +2191,7 @@ void proc_threadsDump(priority_t priority)
 {
 	thread_t *t;
 	spinlock_ctx_t sc;
-	int sidx = (int)priority + (int)PRIO_OFFSET;
+	int sidx = (int)priority + PRIO_OFFSET;
 	size_t idx = (size_t)sidx;
 
 	/* Strictly needed - no lock can be taken
@@ -2358,8 +2358,8 @@ int proc_schedInfo(int policy, sched_info_t *info)
 	}
 
 	info->interval = SYSTICK_INTERVAL;
-	info->minPriority = (int)MIN_PRIO;
-	info->maxPriority = (int)MAX_PRIO;
+	info->minPriority = MIN_PRIO;
+	info->maxPriority = MAX_PRIO;
 
 	return EOK;
 }
