@@ -320,7 +320,7 @@ int syscalls_beginthreadex(u8 *ustack)
 		return -EFAULT;
 	}
 
-	if (priority < (int)MIN_PRIO || priority > (int)MAX_PRIO) {
+	if (priority < MIN_PRIO || priority > MAX_PRIO) {
 		return -EINVAL;
 	}
 

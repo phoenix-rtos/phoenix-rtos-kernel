@@ -65,7 +65,7 @@ static void test_proc_indthr(void *arg)
 					test_proc_common.rotations[i * k + 7] % 100U);
 		}
 
-		lib_printf("\033[8A\r");
+		lib_printf("\033[%dA\r", k);
 
 		proc_threadSleep(5000);
 	}
