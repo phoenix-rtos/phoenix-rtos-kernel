@@ -1278,6 +1278,7 @@ void syscalls_sigreturn(u8 *ustack)
 
 	GETFROMSTACK(ustack, unsigned int, oldmask, 0U);
 	GETFROMSTACK(ustack, cpu_context_t *, ctx, 1U);
+	/* NOTE: `hal_cpuSigreturn` may take additional arguments from ustack */
 
 	hal_cpuDisableInterrupts();
 	hal_cpuSigreturn(t->kstack + t->kstacksz, ustack, &ctx);
@@ -1304,6 +1305,7 @@ int syscalls_sys_open(u8 *ustack)
 
 	GETFROMSTACK(ustack, const char *, filename, 0U);
 	GETFROMSTACK(ustack, int, oflag, 1U);
+	/* NOTE: `posix_open` may take additional arguments from ustack */
 
 	return posix_open(filename, oflag, ustack);
 }
@@ -1455,6 +1457,7 @@ int syscalls_sys_fcntl(u8 *ustack)
 
 	GETFROMSTACK(ustack, int, fd, 0U);
 	GETFROMSTACK(ustack, unsigned int, cmd, 1U);
+	/* NOTE: `posix_fcntl` may take additional arguments from ustack */
 
 	return posix_fcntl(fd, cmd, ustack);
 }
@@ -1977,6 +1980,7 @@ int syscalls_sys_ioctl(u8 *ustack)
 
 	GETFROMSTACK(ustack, int, fildes, 0U);
 	GETFROMSTACK(ustack, unsigned long, request, 1U);
+	/* NOTE: `posix_ioctl` may take additional arguments from ustack */
 
 	/* vm_mapBelongs on optional data pointer checked in posix_ioctl */
 	return posix_ioctl(fildes, request, ustack);
