@@ -36,7 +36,7 @@ struct {
 static void test_proc_indthr(void *arg)
 {
 	const char *indicator = "o|/-\\|/-\\";
-	const int k = 8;
+	const int k = NPRIOS / 8;
 	int i;
 
 	lib_printf("test: [proc.threads] Starting indicating thread\n");
@@ -45,27 +45,44 @@ static void test_proc_indthr(void *arg)
 	for (;;) {
 		for (i = 0; i < k; i++) {
 			lib_printf("test: [proc.threads] %02d %c %c %c %c %c %c %c %c  %02d %02d %02d %02d %02d %02d %02d %02d\n",
-					i * k,
-					indicator[test_proc_common.rotations[i * k + 0] % 8U],
-					indicator[test_proc_common.rotations[i * k + 1] % 8U],
-					indicator[test_proc_common.rotations[i * k + 2] % 8U],
-					indicator[test_proc_common.rotations[i * k + 3] % 8U],
-					indicator[test_proc_common.rotations[i * k + 4] % 8U],
-					indicator[test_proc_common.rotations[i * k + 5] % 8U],
-					indicator[test_proc_common.rotations[i * k + 6] % 8U],
-					indicator[test_proc_common.rotations[i * k + 7] % 8U],
+					i * 8,
+					indicator[test_proc_common.rotations[i * 8 + 0] % 8U],
+					indicator[test_proc_common.rotations[i * 8 + 1] % 8U],
+					indicator[test_proc_common.rotations[i * 8 + 2] % 8U],
+					indicator[test_proc_common.rotations[i * 8 + 3] % 8U],
+					indicator[test_proc_common.rotations[i * 8 + 4] % 8U],
+					indicator[test_proc_common.rotations[i * 8 + 5] % 8U],
+					indicator[test_proc_common.rotations[i * 8 + 6] % 8U],
+					indicator[test_proc_common.rotations[i * 8 + 7] % 8U],
 
-					test_proc_common.rotations[i * k + 0] % 100U,
-					test_proc_common.rotations[i * k + 1] % 100U,
-					test_proc_common.rotations[i * k + 2] % 100U,
-					test_proc_common.rotations[i * k + 3] % 100U,
-					test_proc_common.rotations[i * k + 4] % 100U,
-					test_proc_common.rotations[i * k + 5] % 100U,
-					test_proc_common.rotations[i * k + 6] % 100U,
-					test_proc_common.rotations[i * k + 7] % 100U);
+					test_proc_common.rotations[i * 8 + 0] % 100U,
+					test_proc_common.rotations[i * 8 + 1] % 100U,
+					test_proc_common.rotations[i * 8 + 2] % 100U,
+					test_proc_common.rotations[i * 8 + 3] % 100U,
+					test_proc_common.rotations[i * 8 + 4] % 100U,
+					test_proc_common.rotations[i * 8 + 5] % 100U,
+					test_proc_common.rotations[i * 8 + 6] % 100U,
+					test_proc_common.rotations[i * 8 + 7] % 100U);
 		}
 
-		lib_printf("\033[%dA\r", k);
+		if (NPRIOS % 8 != 0) {
+			lib_printf("test: [proc.threads] %02d", k * 8);
+			for (i = 0; i < 8; i++) {
+				if (i < NPRIOS % 8) {
+					lib_printf(" %c", indicator[test_proc_common.rotations[k * 8 + i] % 8U]);
+				}
+				else {
+					lib_printf("  ");
+				}
+			}
+			lib_printf(" ");
+			for (i = 0; i < NPRIOS % 8; i++) {
+				lib_printf(" %02d", test_proc_common.rotations[k * 8 + i] % 100U);
+			}
+			lib_printf("\n");
+		}
+
+		lib_printf("\033[%dA\r", (NPRIOS + 7) / 8);
 
 		proc_threadSleep(5000);
 	}
