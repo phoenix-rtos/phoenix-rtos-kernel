@@ -29,13 +29,31 @@ struct _amap_t;
 struct _vm_object_t;
 
 
+#ifndef MAP_BELONGS_CACHE_SIZE
+#ifdef NOMMU
+#define MAP_BELONGS_CACHE_SIZE 0 /* NOMMU validates through the pmap, with no tree to look in */
+#else
+#define MAP_BELONGS_CACHE_SIZE 4
+#endif
+#endif
+
+
 typedef struct _vm_map_t {
 	pmap_t pmap;
 	void *start;
 	void *stop;
 	rbtree_t tree;
 	lock_t lock;
+	unsigned int gen;
 } vm_map_t;
+
+
+typedef struct _map_cache_t {
+	const struct _vm_map_t *map;
+	unsigned int gen;
+	ptr_t start;
+	ptr_t end;
+} map_cache_t;
 
 
 struct _process_t;
