@@ -30,7 +30,7 @@ mutex_t *mutex_get(int h);
 void mutex_put(mutex_t *mutex);
 
 
-int proc_mutexLock(int h);
+int proc_mutexLock(int h, time_t timeout, int clock);
 
 
 int proc_mutexTry(int h);
