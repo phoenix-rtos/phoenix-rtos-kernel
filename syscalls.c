@@ -14,6 +14,7 @@
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4-a "Compatible function declaration is not possible for syscalls" */
 
+#include "arch/cpu.h"
 #include "hal/hal.h"
 #include "hal/cpu.h"
 #include "include/errno.h"
@@ -1270,15 +1271,17 @@ void syscalls_sigreturn(u8 *ustack)
 	GETFROMSTACK(ustack, cpu_context_t *, ctx, 1U);
 	/* NOTE: `hal_cpuSigreturn` may take additional arguments from ustack */
 
-	hal_cpuDisableInterrupts();
-	hal_cpuSigreturn(t->kstack + t->kstacksz, ustack, &ctx);
-
-	threads_setSigmask(t, oldmask);
+	if (vm_mapBelongs(t->process, ctx, sizeof(*ctx)) < 0) {
+		proc_kill(t->process);
+	}
 
 	/* TODO: check if return address belongs to user mapped memory */
 	if (hal_cpuSupervisorMode(ctx) != 0) {
 		proc_kill(t->process);
 	}
+
+	threads_sigreturn(oldmask, ustack, &ctx);
+
 
 	proc_longjmp(ctx);
 }

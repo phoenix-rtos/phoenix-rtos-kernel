@@ -218,6 +218,9 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig);
 int threads_sigsuspend(unsigned int mask);
 
 
+void threads_sigreturn(unsigned int oldmask, u8 *ustack, cpu_context_t **ctxp);
+
+
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
 
 

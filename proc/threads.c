@@ -1924,6 +1924,41 @@ int threads_sigsuspend(unsigned int mask)
 }
 
 
+void threads_sigreturn(unsigned int oldmask, u8 *ustack, cpu_context_t **ctxp)
+{
+	spinlock_ctx_t sc;
+	thread_t *thread;
+	cpu_context_t *kCtx, *signalCtx;
+	void *f, *kstackTop;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = _proc_current();
+	kstackTop = thread->kstack + thread->kstacksz;
+
+	hal_cpuSigreturn(kstackTop, ustack, ctxp);
+	_threads_setSigmask(thread, oldmask);
+
+	kCtx = (void *)((char *)kstackTop - sizeof(*kCtx));
+	if (kCtx != *ctxp) {
+		/* hal_cpuPushSignal() snapshots the context from the kernel stack top */
+		hal_memcpy(kCtx, *ctxp, sizeof(*kCtx));
+		*ctxp = kCtx;
+	}
+
+	signalCtx = (void *)((char *)hal_cpuGetUserSP(kCtx) - sizeof(*signalCtx));
+
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
+		f = thread->process->sigtrampoline;
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
+		/* no return */
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
 /*
  * Locks
  */
