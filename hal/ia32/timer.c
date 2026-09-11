@@ -49,7 +49,7 @@
 
 typedef struct {
 	/* clang-format off */
-	enum { timer_undefined, timer_pit, timer_lapic, timer_hpet } type;
+	enum { timer_undefined, timer_pit, timer_lapic, timer_hpet, timer_tsc } type;
 	/* clang-format on */
 	size_t (*name)(char *s, size_t *len);
 	int (*init)(u32 intervalUs);
@@ -88,6 +88,15 @@ static struct {
 		u32 period;
 		intr_handler_t tmr1;
 	} hpetData;
+
+	struct {
+		const hal_timer_t *ref; /* clock the TSC is anchored to */
+		u32 cyclesPerUs;
+		u32 resyncCycles;
+		cycles_t baseTsc;
+		time_t baseUs;
+		time_t lastUs;
+	} tscData;
 } timer_common;
 
 
@@ -505,6 +514,123 @@ char *hal_timerFeatures(char *features, size_t len)
 }
 
 
+/*
+ * Reading the reference clock (HPET, LAPIC or PIT) is slow and the scheduler
+ * takes a timestamp on every context switch, so the TSC interpolates between
+ * reference readings taken once per TSC_RESYNC_US. The rate is re-estimated on
+ * each resync, so the TSC does not have to be invariant.
+ */
+
+#define TSC_CALIB_US  10000U /* reference interval the initial rate is measured over */
+#define TSC_RESYNC_US 1000U  /* how long a rate estimate is trusted for */
+
+
+static size_t _hal_tscName(char *s, size_t *len)
+{
+	return _hal_timersName(s, "Time Stamp Counter (", timer_common.tscData.cyclesPerUs, "MHz)", len);
+}
+
+
+static time_t _hal_tscGetUs(void)
+{
+	cycles_t tsc;
+	u64 delta;
+	time_t us, refUs, elapsed;
+	u32 rate;
+
+	hal_cpuGetCycles(&tsc);
+	delta = (u64)(tsc - timer_common.tscData.baseTsc);
+
+	if (delta < (u64)timer_common.tscData.resyncCycles) {
+		us = timer_common.tscData.baseUs + (time_t)((u32)delta / timer_common.tscData.cyclesPerUs);
+	}
+	else {
+		refUs = timer_common.tscData.ref->timestampGetUs();
+		elapsed = refUs - timer_common.tscData.baseUs;
+
+		/* A sample off by more than 2x means the reference misbehaved, ignore it */
+		if ((elapsed > 0) && (delta < (u64)0xffffffffU)) {
+			rate = (u32)(delta / (u64)elapsed);
+			if ((rate > (timer_common.tscData.cyclesPerUs / 2U)) && ((rate / 2U) < timer_common.tscData.cyclesPerUs)) {
+				timer_common.tscData.cyclesPerUs = (3U * timer_common.tscData.cyclesPerUs + rate) / 4U;
+				timer_common.tscData.resyncCycles = timer_common.tscData.cyclesPerUs * TSC_RESYNC_US;
+			}
+		}
+
+		timer_common.tscData.baseTsc = tsc;
+		timer_common.tscData.baseUs = refUs;
+		us = refUs;
+	}
+
+	/* The reference may lag the interpolation, and on SMP the TSCs may be skewed */
+	if (us < timer_common.tscData.lastUs) {
+		us = timer_common.tscData.lastUs;
+	}
+	timer_common.tscData.lastUs = us;
+
+	return us;
+}
+
+
+static time_t _hal_tscBusyWaitUs(time_t waitUs)
+{
+	time_t startUs, endUs;
+
+	startUs = _hal_tscGetUs();
+	do {
+		endUs = _hal_tscGetUs();
+	} while (endUs - startUs < waitUs);
+	return endUs - startUs;
+}
+
+
+static int _hal_tscInit(u32 intervalUs)
+{
+	const hal_timer_t *ref = timer_common.timestampTimer;
+	u32 eax, ebx, ecx, edx;
+	cycles_t c0, c1;
+	time_t t0, t1;
+	u64 delta;
+
+	(void)intervalUs;
+
+	if ((ref->timestampBusyWaitUs == NULL) || (ref->timestampGetUs == NULL)) {
+		return -1;
+	}
+
+	hal_cpuid(0, 0, &eax, &ebx, &ecx, &edx);
+	if (eax < 1U) {
+		return -1;
+	}
+
+	hal_cpuid(1, 0, &eax, &ebx, &ecx, &edx);
+	if ((edx & (1U << 4)) == 0U) {
+		/* no TSC */
+		return -1;
+	}
+
+	t0 = ref->timestampGetUs();
+	hal_cpuGetCycles(&c0);
+	(void)ref->timestampBusyWaitUs((time_t)TSC_CALIB_US);
+	t1 = ref->timestampGetUs();
+	hal_cpuGetCycles(&c1);
+
+	delta = (u64)(c1 - c0);
+	if ((t1 <= t0) || (delta == 0ULL) || ((delta / (u64)(t1 - t0)) == 0ULL)) {
+		return -1;
+	}
+
+	timer_common.tscData.ref = ref;
+	timer_common.tscData.cyclesPerUs = (u32)(delta / (u64)(t1 - t0));
+	timer_common.tscData.resyncCycles = timer_common.tscData.cyclesPerUs * TSC_RESYNC_US;
+	timer_common.tscData.baseTsc = c1;
+	timer_common.tscData.baseUs = t1;
+	timer_common.tscData.lastUs = t1;
+
+	return 0;
+}
+
+
 static const hal_timer_t _hal_pitTimer = {
 	.type = timer_pit,
 	.name = _hal_pitName,
@@ -539,6 +665,18 @@ static const hal_timer_t _hal_lapicTimer = {
 	.schedulerInitCore = _hal_lapicInitCore,
 	.timestampGetUs = _hal_lapicGetUs,
 	.timestampBusyWaitUs = NULL,
+};
+
+
+static const hal_timer_t _hal_tscTimer = {
+	.type = timer_tsc,
+	.name = _hal_tscName,
+	.init = _hal_tscInit,
+	.schedulerIrq = NULL,
+	.schedulerSetWakeup = NULL,
+	.schedulerInitCore = NULL,
+	.timestampGetUs = _hal_tscGetUs,
+	.timestampBusyWaitUs = _hal_tscBusyWaitUs,
 };
 
 
@@ -585,6 +723,11 @@ void _hal_timerInit(u32 interval)
 				timer_common.timestampTimer = &_hal_pitTimer;
 				break;
 		}
+	}
+
+	/* Last, anchored on the timestamp timer chosen above */
+	if (_hal_tscTimer.init(interval) == 0) {
+		timer_common.timestampTimer = &_hal_tscTimer;
 	}
 
 	(void)hal_timerRegister(timer_common.schedulerTimer->schedulerIrq, NULL, &timer_common.handler);
