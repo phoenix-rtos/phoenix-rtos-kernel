@@ -1495,7 +1495,9 @@ int proc_vfork(void)
 
 	/* Signal forking state to vfork thread */
 	hal_spinlockSet(&spawn->sl, &sc);
-	spawn->state = FORKING;
+	if (spawn->state == PREFORK) {
+		spawn->state = FORKING;
+	}
 	(void)proc_threadWakeup(&spawn->wq);
 
 	do {
