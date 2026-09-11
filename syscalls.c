@@ -2079,6 +2079,16 @@ pid_t syscalls_sys_setsid(u8 *ustack)
 }
 
 
+pid_t syscalls_sys_getsid(u8 *ustack)
+{
+	pid_t pid;
+
+	GETFROMSTACK(ustack, pid_t, pid, 0U);
+
+	return posix_getsid(pid);
+}
+
+
 void syscalls_sbi_putchar(u8 *ustack)
 {
 #ifdef __TARGET_RISCV64

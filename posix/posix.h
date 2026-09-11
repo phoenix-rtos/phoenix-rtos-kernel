@@ -170,6 +170,9 @@ pid_t posix_getpgid(pid_t pid);
 pid_t posix_getppid(pid_t pid);
 
 
+pid_t posix_getsid(pid_t pid);
+
+
 pid_t posix_setsid(void);
 
 
