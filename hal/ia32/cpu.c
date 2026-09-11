@@ -372,6 +372,8 @@ void *_cpu_initCore(void)
 
 	_cpu_gdtInsert(hal_cpuGetTssIndex(), (u32)&hal_cpu.tss[id], sizeof(tss_t), DESCR_TSS);
 	_cpu_gdtInsert(hal_cpuGetTlsIndex(), 0x00000000U, VADDR_KERNEL, DESCR_TLS);
+	hal_cpu.tls[id].base = 0x00000000U;
+	hal_cpu.tls[id].limit = VADDR_KERNEL;
 	hal_cpuReloadTlsSegment();
 
 
@@ -637,9 +639,20 @@ void _hal_cpuInit(void)
 
 void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
+	unsigned int id = hal_cpuGetID();
+	u32 base = tls->tls_base + tls->tbss_sz + tls->tdata_sz;
+	u32 limit = VADDR_KERNEL - tls->tls_base + tls->tbss_sz + tls->tdata_sz;
+
 	(void)ctx;
-	hal_tlbFlushLocal(NULL);
-	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->tbss_sz + tls->tdata_sz, VADDR_KERNEL - tls->tls_base + tls->tbss_sz + tls->tdata_sz, DESCR_TLS);
+
+	if ((hal_cpu.tls[id].base == base) && (hal_cpu.tls[id].limit == limit)) {
+		return;
+	}
+
+	hal_cpu.tls[id].base = base;
+	hal_cpu.tls[id].limit = limit;
+
+	_cpu_gdtInsert(hal_cpuGetTlsIndex(), base, limit, DESCR_TLS);
 	/* Reload the hidden gs register*/
 	hal_cpuReloadTlsSegment();
 }

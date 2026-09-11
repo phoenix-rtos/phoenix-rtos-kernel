@@ -270,6 +270,12 @@ typedef struct {
 	unsigned int ncpus;
 	volatile unsigned int readyCount;
 	unsigned int cpus[MAX_CPU_COUNT];
+
+	/* Last TLS descriptor written to this CPU's own GDT slot */
+	struct {
+		u32 base;
+		u32 limit;
+	} tls[MAX_CPU_COUNT];
 } hal_cpu_t;
 
 
