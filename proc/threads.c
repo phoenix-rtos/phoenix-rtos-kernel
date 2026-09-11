@@ -435,7 +435,10 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 }
 
 
-static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
+static int _threads_checkSignal(thread_t *selected, process_t *proc);
+
+
+static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
@@ -506,7 +509,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
 				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
 				/* NOTE: Terminating signals are handled during delivery and should not reach this point */
-				if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
+				if (_threads_trySignalDeliver(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
 					selCtx = signalCtx;
 				}
 			}
@@ -1156,6 +1159,7 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
 static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, u32 flags, spinlock_ctx_t *scp)
 {
 	int err;
+	thread_t *thread;
 	spinlock_ctx_t tsc;
 	spinlock_ctx_t *rescheduleScp = (scp == NULL) ? &tsc : scp;
 
@@ -1163,8 +1167,11 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
-	if (((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) && (_proc_current()->exit != 0U)) {
-		/* Waiting in this state can lead to becoming a hanging zombie */
+	thread = _proc_current();
+
+	if (((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) &&
+			((thread->exit != 0U) || (_threads_checkSignal(thread, thread->process) != 0))) {
+		/* Waiting in this state can lead to becoming a hanging zombie or leaking signal interrupt */
 		hal_spinlockClear(&threads_common.spinlock, &tsc);
 		return -EINTR;
 	}
@@ -1586,13 +1593,18 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 }
 
 
-static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src)
+/* With installed handler returns signal number or -EINTR for a terminating signal */
+static int _threads_checkSignal(thread_t *selected, process_t *proc)
 {
 #ifndef KERNEL_SIGNALS_DISABLE
 
 	unsigned int deliveryMask, curSig;
 	sighandler_t handler;
 	int defaultAction;
+
+	if ((proc == NULL) || (proc->mapp == NULL)) {
+		return 0;
+	}
 
 	deliveryMask = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
 	while (deliveryMask != 0U) {
@@ -1614,7 +1626,7 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 		}
 
 		if ((defaultAction == SIGNAL_TERMINATE) || (defaultAction == SIGNAL_TERMINATE_THREAD)) {
-			return -1;
+			return -EINTR;
 		}
 
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
@@ -1626,7 +1638,24 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 			deliveryMask &= ~(u32)(1UL << curSig);
 			continue;
 		}
+		return (int)curSig;
+	}
 
+#endif
+
+	return 0;
+}
+
+
+static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src)
+{
+	unsigned int curSig;
+	int ret;
+	sighandler_t handler;
+	ret = _threads_checkSignal(selected, proc);
+	if (ret > 0) {
+		curSig = (unsigned int)ret;
+		handler = proc->sigactions[curSig - 1U].sa_handler;
 		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sigtrampoline, handler, signalCtx, (int)curSig, oldmask, src) == 0) {
 			selected->sigpend &= ~(u32)(1UL << curSig);
 			proc->sigpend &= ~(u32)(1UL << curSig);
@@ -1641,12 +1670,9 @@ static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context
 			return 0;
 		}
 		else {
-			/* Signal delivery failed, try to deliver other, potentially terminating signals */
-			deliveryMask &= ~(u32)(1UL << curSig);
+			return -1;
 		}
 	}
-
-#endif
 
 	return -1;
 }
@@ -1823,7 +1849,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
 	hal_cpuSetReturnValue(ctx, retval);
 
-	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1858,7 +1884,7 @@ int threads_sigsuspend(unsigned int mask)
 	_threads_setSigmask(thread, mask);
 
 	/* check for pending signals before sleep - with the new mask */
-	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -1881,7 +1907,7 @@ int threads_sigsuspend(unsigned int mask)
 
 	/* check for pending signals before restoring the old mask */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
