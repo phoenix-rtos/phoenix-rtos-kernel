@@ -87,6 +87,12 @@ typedef struct _thread_t {
 	struct _thread_t *procnext;
 	struct _thread_t *procprev;
 
+#if MAP_BELONGS_CACHE_SIZE > 0
+	/* Entries this thread validated user pointers against, see map_belongs() */
+	map_cache_t mapCache[MAP_BELONGS_CACHE_SIZE];
+	unsigned int mapCacheNext;
+#endif
+
 	/* TODO lots of pointers... maybe it'd possible to optimize this? */
 	struct _thread_t *qnext;
 	struct _thread_t *qprev;

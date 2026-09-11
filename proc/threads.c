@@ -1119,6 +1119,11 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, u8 priority,
 	t->scActive = t->scOwn;
 	t->scDonated = NULL;
 
+#if MAP_BELONGS_CACHE_SIZE > 0
+	hal_memset(t->mapCache, 0, sizeof(t->mapCache));
+	t->mapCacheNext = 0;
+#endif
+
 	t->reply = NULL;
 	t->replyNext = NULL;
 	t->replyPrev = NULL;

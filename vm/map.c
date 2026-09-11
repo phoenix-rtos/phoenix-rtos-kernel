@@ -37,6 +37,8 @@ static struct {
 
 	vm_map_t **maps;
 	size_t mapssz;
+
+	unsigned int genSeq;
 } map_common;
 
 
@@ -70,11 +72,21 @@ static int map_cmp(rbnode_t *n1, rbnode_t *n2)
 }
 
 
+static void _map_gen(vm_map_t *map)
+{
+	if (map != NULL) {
+		__atomic_store_n(&map->gen, __atomic_add_fetch(&map_common.genSeq, 1U, __ATOMIC_RELAXED), __ATOMIC_RELEASE);
+	}
+}
+
+
 static void map_augment(rbnode_t *node)
 {
 	rbnode_t *it;
 	map_entry_t *n = lib_treeof(map_entry_t, linkage, node);
 	map_entry_t *p = n;
+
+	_map_gen(n->map);
 
 	if (node->left == NULL) {
 		for (it = node; it->parent != NULL; it = it->parent) {
@@ -1190,6 +1202,44 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 }
 
 
+#if (MAP_BELONGS_CACHE_SIZE > 0) && !defined(NOMMU)
+static int _map_cacheFind(const thread_t *t, const struct _process_t *proc, ptr_t start, ptr_t end)
+{
+	const map_cache_t *c;
+	const vm_map_t *m = proc->mapp;
+	const vm_map_t *im = proc->imapp;
+	unsigned int gen = __atomic_load_n(&m->gen, __ATOMIC_ACQUIRE);
+	unsigned int igen = (im != NULL) ? __atomic_load_n(&im->gen, __ATOMIC_ACQUIRE) : 0U;
+	size_t i;
+
+	for (i = 0; i < (size_t)MAP_BELONGS_CACHE_SIZE; i++) {
+		c = &t->mapCache[i];
+
+		if (((c->map == m) && (c->gen == gen)) || ((im != NULL) && (c->map == im) && (c->gen == igen))) {
+			if ((start >= c->start) && (end <= c->end)) {
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
+
+static void _map_cacheAdd(thread_t *t, const vm_map_t *map, unsigned int gen, ptr_t start, ptr_t end)
+{
+	map_cache_t *c = &t->mapCache[t->mapCacheNext];
+
+	c->map = map;
+	c->gen = gen;
+	c->start = start;
+	c->end = end;
+
+	t->mapCacheNext = (t->mapCacheNext + 1U) % (unsigned int)MAP_BELONGS_CACHE_SIZE;
+}
+#endif
+
+
 static int map_belongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
 	if (size == 0U) {
@@ -1198,13 +1248,23 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 
 #if defined(NOMMU) && defined(NOMMU_MAPBELONGS_VALIDATE_MAP)
 	return (pmap_isAllowed(proc->pmapp, ptr, size) == 0) ? -1 : 0;
-	/*
-	 * Disabled checking entry owner for now on NOMMU, as we can
-	 * receive memory from different maps and processes via msg
-	 * and RO elf segments may not be assigned to any process.
-	 */
 #elif !defined(NOMMU)
 	map_entry_t e, *f;
+#if MAP_BELONGS_CACHE_SIZE > 0
+	thread_t *t = proc_current();
+	ptr_t start = (ptr_t)ptr;
+	ptr_t end = start + (ptr_t)size;
+	/* A range that wraps is left to the tree, and `t` is NULL before the
+	 * scheduler starts */
+	int cacheable = ((end > start) && (t != NULL) && (t->process == proc)) ? 1 : 0;
+	vm_map_t *found = NULL;
+	unsigned int foundGen = 0U;
+	ptr_t foundStart = 0U, foundEnd = 0U;
+
+	if ((cacheable != 0) && (_map_cacheFind(t, proc, start, end) != 0)) {
+		return 0;
+	}
+#endif
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_8 "Structure 'e' is used only for tree searching, pointer will not be modified. We cannot change vaddr member of the map_entry_t to const." */
 	e.vaddr = (void *)ptr;
@@ -1216,6 +1276,20 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 		f = lib_treeof(map_entry_t, linkage, lib_rbFind(&proc->imapp->tree, &e.linkage));
 	}
 
+#if MAP_BELONGS_CACHE_SIZE > 0
+	/*
+	 * Read under the lock, so the entry cannot be resized between being found
+	 * and being remembered. Only an entry that covers the whole range is worth
+	 * remembering: the tree also matches one that merely overlaps it.
+	 */
+	if ((f != NULL) && (cacheable != 0) && (start >= (ptr_t)f->vaddr) && (end <= ((ptr_t)f->vaddr + f->size))) {
+		found = f->map;
+		foundGen = __atomic_load_n(&f->map->gen, __ATOMIC_ACQUIRE);
+		foundStart = (ptr_t)f->vaddr;
+		foundEnd = (ptr_t)f->vaddr + f->size;
+	}
+#endif
+
 #if 0 /* NOMMU */
 	if (f->process != proc) {
 		(void)proc_lockClear(&proc->mapp->lock);
@@ -1224,6 +1298,12 @@ static int map_belongs(const struct _process_t *proc, const void *ptr, size_t si
 #endif
 
 	(void)proc_lockClear(&proc->mapp->lock);
+
+#if MAP_BELONGS_CACHE_SIZE > 0
+	if (found != NULL) {
+		_map_cacheAdd(t, found, foundGen, foundStart, foundEnd);
+	}
+#endif
 
 	if (f == NULL) {
 		return -1;
