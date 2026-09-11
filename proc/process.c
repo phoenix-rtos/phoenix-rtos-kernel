@@ -1707,7 +1707,7 @@ static int process_execve(thread_t *current)
 	current->parentkstack = NULL;
 	current->execdata = NULL;
 
-	current->process->sigpend = 0;
+	/* POSIX: The initial thread of the new process shall inherit signal mask and pending signals from the calling thread. */
 	proc_resetExecSigactions();
 
 	/* Close cloexec file descriptors */
