@@ -30,11 +30,6 @@
 #include "userintr.h"
 #include "perf/trace-events.h"
 
-/* Process states */
-#define PREFORK 0
-#define FORKING 1
-#define FORKED  2
-
 typedef struct _process_spawn_t {
 	spinlock_t sl;
 	thread_t *wq;
@@ -111,6 +106,7 @@ static void process_destroy(process_t *p)
 		vm_kfree(ghost);
 	}
 
+	vm_kfree(p->sigactions);
 	vm_kfree(p->path);
 	vm_kfree(p->argv);
 	vm_kfree(p->envp);
@@ -209,7 +205,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	process->ports = NULL;
 
 	process->sigpend = 0;
-	process->sighandler = NULL;
+	process->sigactions = NULL;
 	process->tls.tls_base = 0;
 	process->tls.tbss_sz = 0;
 	process->tls.tdata_sz = 0;
@@ -237,12 +233,6 @@ int proc_start(startFn_t start, void *arg, const char *path)
 	}
 
 	return process_getPid(process);
-}
-
-
-void proc_kill(process_t *proc)
-{
-	proc_threadsDestroy(&proc->threads, NULL);
 }
 
 
@@ -288,7 +278,7 @@ static void process_exception(unsigned int n, exc_context_t *ctx)
 
 	LIB_ASSERT_ALWAYS(thread->process != NULL, "exception in kernel");
 
-	(void)threads_sigpost(thread->process, thread, signal_kill);
+	(void)threads_sigpost(thread->process, thread, SIGKILL);
 
 	/* Don't allow current thread to return to the userspace,
 	 * it will crash anyway. */
@@ -305,7 +295,11 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 
 	LIB_ASSERT_ALWAYS(process != NULL, "exception in kernel");
 
-	(void)threads_sigpost(process, thread, signal_illegal);
+	(void)threads_sigpost(process, thread, SIGILL);
+
+	if (thread->exit != 0U) {
+		proc_threadEnd();
+	}
 }
 
 
@@ -1340,25 +1334,37 @@ static void process_restoreParentKstack(thread_t *current, thread_t *parent)
 }
 
 
-__attribute__((noreturn)) static void proc_vforkedExit(thread_t *current, process_spawn_t *spawn, int state)
+void proc_vforkedDied(thread_t *thread, int state)
 {
-	current->ustack = NULL;
-	proc_changeMap(current->process, NULL, NULL, NULL);
+	spinlock_ctx_t sc;
+	process_spawn_t *spawn = thread->execdata;
 
-	proc_kill(current->process);
+	thread->execdata = NULL;
+	thread->ustack = NULL;
+	proc_changeMap(thread->process, NULL, NULL, NULL);
+
+	proc_kill(thread->process);
 
 	/* Only possible in the case of `initthread` exit or failure to fork. */
 	if (spawn->parent == NULL) {
 		hal_spinlockDestroy(&spawn->sl);
 		(void)vm_objectPut(spawn->object);
-
-		proc_threadEnd();
 	}
 	else {
-		process_restoreParentKstack(current, spawn->parent);
+		process_restoreParentKstack(thread, spawn->parent);
 
-		proc_spawnThreadEnd(spawn, state);
+		hal_spinlockSet(&spawn->sl, &sc);
+		spawn->state = state;
+		(void)proc_threadWakeup(&spawn->wq);
+		hal_spinlockClear(&spawn->sl, &sc);
 	}
+}
+
+
+__attribute__((noreturn)) static void proc_vforkedExit(thread_t *current, int state)
+{
+	proc_vforkedDied(current, state);
+	proc_threadEnd();
 }
 
 
@@ -1366,7 +1372,7 @@ void proc_exit(int code)
 {
 	thread_t *current = proc_current();
 	process_spawn_t *spawn = current->execdata;
-	arg_t args[3];
+	arg_t args[2];
 
 	current->process->exit = code;
 
@@ -1378,10 +1384,9 @@ void proc_exit(int code)
 		}
 
 		args[0] = (arg_t)current;
-		args[1] = (arg_t)spawn;
-		args[2] = (arg_t)FORKED;
+		args[1] = (arg_t)FORKED;
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
-		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 3, args);
+		hal_jmp(proc_vforkedExit, current->kstack + current->kstacksz, NULL, 2, args);
 	}
 
 	proc_kill(current->process);
@@ -1404,8 +1409,13 @@ static void process_vforkThread(void *arg)
 	current->process->posix = 1U;
 
 	/* POSIX: A child created via fork inherits a copy of its parent's signal mask */
-	current->sigmask = parent->sigmask;
-	current->process->sighandler = parent->process->sighandler;
+	threads_setSigmask(current, parent->sigmask);
+
+	/* No reaper race, parent is kept until current thread releases */
+	ret = proc_cloneSigactions(parent->process, current->process);
+	if (ret < 0) {
+		proc_spawnThreadEnd(spawn, ret);
+	}
 
 	hal_spinlockSet(&spawn->sl, &sc);
 	while (spawn->state < FORKING) {
@@ -1430,6 +1440,8 @@ static void process_vforkThread(void *arg)
 	ret = proc_resourcesCopy(parent->process);
 	if (ret < 0) {
 		vm_kfree(current->parentkstack);
+		current->execdata = NULL; /* will be freed inside parent's proc_vfork() cleanup */
+		current->execkstack = NULL;
 
 		proc_spawnThreadEnd(spawn, ret);
 	}
@@ -1614,7 +1626,7 @@ int proc_fork(void)
 #ifndef NOMMU
 	thread_t *current, *parent;
 	unsigned int sigmask;
-	arg_t args[3];
+	arg_t args[2];
 
 	err = proc_vfork();
 	if (err == 0) {
@@ -1623,9 +1635,9 @@ int proc_fork(void)
 		/* Mask all signals - during process_copy(), incoming signal might try
 		 * to access our not-yet existent stack */
 		sigmask = current->sigmask;
-		current->sigmask = 0xffffffffU;
+		threads_setSigmask(current, 0xffffffffU);
 		err = process_copy();
-		current->sigmask = sigmask;
+		threads_setSigmask(current, sigmask);
 
 		hal_cpuDisableInterrupts();
 		current->kstack = current->execkstack;
@@ -1640,10 +1652,9 @@ int proc_fork(void)
 
 		if (err < 0) {
 			args[0] = (arg_t)current;
-			args[1] = (arg_t)current->execdata;
-			args[2] = (arg_t)err;
+			args[1] = (arg_t)err;
 			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "Function can accept two different types of first argument" */
-			hal_jmp(proc_vforkedExit, (unsigned char *)current->kstack + current->kstacksz, NULL, 3, args);
+			hal_jmp(proc_vforkedExit, (unsigned char *)current->kstack + current->kstacksz, NULL, 2, args);
 		}
 		else {
 			hal_cpuEnableInterrupts();
@@ -1696,8 +1707,8 @@ static int process_execve(thread_t *current)
 	current->parentkstack = NULL;
 	current->execdata = NULL;
 
-	current->process->sighandler = NULL;
-	current->process->sigpend = 0;
+	/* POSIX: The initial thread of the new process shall inherit signal mask and pending signals from the calling thread. */
+	proc_resetExecSigactions();
 
 	/* Close cloexec file descriptors */
 	(void)posix_exec();

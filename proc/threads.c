@@ -36,6 +36,11 @@ enum { event_scheduling, event_enqueued, event_waking, event_preempted };
 #define THREAD_WAIT_INTERRUPTIBLE (1U << 0)
 #define THREAD_WAIT_EXCLUSIVE     (1U << 1) /* reject a second waiter (unlocked exclusive conditional) */
 
+/* Signal default actions */
+#define SIGNAL_TERMINATE        0
+#define SIGNAL_TERMINATE_THREAD 1
+#define SIGNAL_IGNORE           2
+
 const struct lockAttr proc_lockAttrDefault = { .type = PH_LOCK_NORMAL, .protocol = PH_LOCK_PROTO_INHERIT, .robust = PH_LOCK_STALLED };
 
 /* Special empty queue value used to wakeup next enqueued thread. This is used to implement sticky conditions */
@@ -327,6 +332,11 @@ static void thread_destroy(thread_t *thread)
 	while (thread->locks != NULL) {
 		proc_lockForceUnlock(thread->locks, UNLOCK_DO_YIELD);
 	}
+
+	if (thread->execdata != NULL) {
+		thread->kstack = thread->execkstack;
+		proc_vforkedDied(thread, FORKED);
+	}
 	vm_kfree(thread->kstack);
 
 	process = thread->process;
@@ -425,7 +435,10 @@ __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
 }
 
 
-static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
+static int _threads_checkSignal(thread_t *selected, process_t *proc);
+
+
+static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src);
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
@@ -495,7 +508,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 			/* Check for signals to handle */
 			if ((hal_cpuSupervisorMode(selCtx) == 0) && (selected->longjmpctx == NULL)) {
 				signalCtx = (void *)((char *)hal_cpuGetUserSP(selCtx) - sizeof(cpu_context_t));
-				if (_threads_checkSignal(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
+				/* NOTE: Terminating signals are handled during delivery and should not reach this point */
+				if (_threads_trySignalDeliver(selected, proc, signalCtx, selected->sigmask, SIG_SRC_SCHED) == 0) {
 					selCtx = signalCtx;
 				}
 			}
@@ -915,21 +929,29 @@ void proc_threadDestroy(thread_t *t)
 }
 
 
-void proc_threadsDestroy(thread_t **threads, const thread_t *except)
+static void _proc_threadsDestroy(thread_t **threads, const thread_t *except)
 {
 	thread_t *t;
-	spinlock_ctx_t sc;
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
 	t = *threads;
 	if (t != NULL) {
 		do {
 			if (t != except) {
 				_proc_threadExit(t);
 			}
+			/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "procnext is never NULL, and *threads is checked earlier" */
 			t = t->procnext;
 		} while (t != *threads);
 	}
+}
+
+
+void proc_threadsDestroy(thread_t **threads, const thread_t *except)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_proc_threadsDestroy(threads, except);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
@@ -948,6 +970,16 @@ void proc_reap(void)
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	threads_put(ghost);
+}
+
+
+void proc_kill(process_t *proc)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_proc_threadsDestroy(&proc->threads, NULL);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 }
 
 
@@ -1127,6 +1159,7 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
 static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, u32 flags, spinlock_ctx_t *scp)
 {
 	int err;
+	thread_t *thread;
 	spinlock_ctx_t tsc;
 	spinlock_ctx_t *rescheduleScp = (scp == NULL) ? &tsc : scp;
 
@@ -1134,10 +1167,15 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 
 	hal_spinlockSet(&threads_common.spinlock, &tsc);
 
-	if (((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) && (_proc_current()->exit != 0U)) {
-		/* Waiting in this state can lead to becoming a hanging zombie */
-		hal_spinlockClear(&threads_common.spinlock, &tsc);
-		return -EINTR;
+	thread = _proc_current();
+
+	if ((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) {
+		err = _threads_checkSignal(thread, thread->process);
+		if ((err != 0) || (thread->exit != 0U)) {
+			/* Waiting in this state can lead to becoming a hanging zombie or leaking signal interrupt */
+			hal_spinlockClear(&threads_common.spinlock, &tsc);
+			return -EINTR;
+		}
 	}
 
 	if (((flags & THREAD_WAIT_EXCLUSIVE) != 0U) && (*queue != NULL) && (*queue != wakeupPending)) {
@@ -1412,42 +1450,107 @@ static time_t _proc_nextWakeup(void)
  */
 
 
-int threads_sigpost(process_t *process, thread_t *thread, int sig)
+static int threads_sigmutable(int sig)
 {
-	spinlock_ctx_t sc;
-	u32 sigbit;
-
 	switch (sig) {
-		case signal_segv:
-		/* parasoft-suppress-next-line MISRAC2012-RULE_16_1 MISRAC2012-RULE_16_3 "Intentional fall-through" */
-		case signal_illegal:
-			if (process->sighandler != NULL) {
-				break;
+		/* POSIX: SIGKILL and SIGSTOP cannot be caught or ignored */
+		case SIGKILL:
+		case SIGSTOP:
+		case PH_SIGCANCEL:
+		case SIGNULL:
+			return 0;
+		default:
+			return ((sig < 0) || (sig > NSIG)) ? 0 : 1;
+	}
+}
+
+
+static int _threads_sigdefault(process_t *process, thread_t *thread, int sig)
+{
+	switch (sig) {
+		case SIGHUP:
+		case SIGINT:
+		case SIGQUIT:
+		case SIGILL:
+		case SIGTRAP:
+		case SIGABRT: /* And SIGIOT */
+		case SIGEMT:
+		case SIGFPE:
+		case SIGBUS:
+		case SIGSEGV:
+		case SIGSYS:
+		case SIGPIPE:
+		case SIGALRM:
+		case SIGTERM:
+		case SIGIO:
+		case SIGXCPU:
+		case SIGXFSZ:
+		case SIGVTALRM:
+		case SIGPROF:
+		case SIGUSR1:
+		case SIGUSR2:
+		case SIGKILL:
+			process->exit = sig * (int)(1UL << 8U);
+			_proc_threadsDestroy(&process->threads, NULL);
+			return SIGNAL_TERMINATE;
+
+		case SIGURG:
+		case SIGCHLD:
+		case SIGWINCH:
+		case SIGINFO:
+		case SIGCONT: /* TODO: Continue process. */
+		case SIGTSTP: /* TODO: Stop process. */
+		case SIGTTIN: /* TODO: Stop process. */
+		case SIGTTOU: /* TODO: Stop process. */
+		case SIGSTOP: /* TODO: Stop process. */
+		case SIGNULL:
+			return SIGNAL_IGNORE;
+
+		case PH_SIGCANCEL:
+			if (thread != NULL) {
+				_proc_threadExit(thread);
 			}
-
-		/* Fall-through */
-		case signal_kill:
-			proc_kill(process);
-			return EOK;
-
-		case signal_cancel:
-			proc_threadDestroy(thread);
-			return EOK;
-
-		case 0:
-			return EOK;
+			return SIGNAL_TERMINATE_THREAD;
 
 		default:
-			/* Handles any value of 'sig' not covered by the case labels. */
-			break;
+			return -EINVAL;
 	}
+}
 
-	if ((sig < 0) || (sig >= NSIG)) {
-		return -EINVAL;
+
+int threads_sigpost(process_t *process, thread_t *thread, int sig)
+{
+	u32 sigbit;
+	spinlock_ctx_t sc;
+	int performedAction = -1;
+
+	LIB_ASSERT((thread == NULL) || (process == thread->process), "Sigpost to thread with mismatched process");
+
+	/* Disable "killing" kernel threads */
+	if (((thread != NULL) && (thread->process == NULL)) || (process->mapp == NULL)) {
+		return -ESRCH;
 	}
-	sigbit = (u32)1U << (unsigned int)sig;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if ((sig < 0) || (sig > NSIG)) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return -EINVAL;
+	}
+
+	if (sig == PH_SIGCANCEL || sig == SIGNULL) {
+		(void)_threads_sigdefault(process, thread, sig);
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return EOK;
+	}
+
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+	if ((process->sigactions != NULL) && (process->sigactions[sig - 1].sa_handler == SIG_IGN)) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		return EOK;
+	}
+
+	sigbit = (u32)1U << (unsigned int)sig;
 
 	if (thread != NULL) {
 		thread->sigpend |= sigbit;
@@ -1459,10 +1562,6 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		if (thread != NULL) {
 			do {
 				if ((sigbit & ~thread->sigmask) != 0U) {
-					if (thread->interruptible != 0U) {
-						_thread_interrupt(thread);
-					}
-
 					break;
 				}
 				thread = thread->procnext;
@@ -1478,32 +1577,262 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 	}
 
-	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
+	if ((sigbit & ~thread->sigmask) != 0U) {
+		if ((process->sigactions == NULL) || (process->sigactions[sig - 1].sa_handler == SIG_DFL)) {
+			performedAction = _threads_sigdefault(process, thread, sig);
+			thread->sigpend &= ~sigbit;
+			process->sigpend &= ~sigbit;
+		}
+
+		if ((performedAction != SIGNAL_IGNORE) && (thread->interruptible != 0U)) {
+			_thread_interrupt(thread);
+		}
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return EOK;
 }
 
 
-static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src)
+/* With installed handler returns signal number or -EINTR for a terminating signal */
+static int _threads_checkSignal(thread_t *selected, process_t *proc)
 {
 #ifndef KERNEL_SIGNALS_DISABLE
 
-	unsigned int sig;
+	unsigned int deliveryMask, curSig;
+	sighandler_t handler;
+	int defaultAction;
 
-	sig = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
-	if ((sig != 0U) && (proc->sighandler != NULL)) {
-		sig = hal_cpuGetLastBit(sig);
+	if ((proc == NULL) || (proc->mapp == NULL)) {
+		return 0;
+	}
 
-		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sighandler, signalCtx, (int)sig, oldmask, src) == 0) {
-			selected->sigpend &= ~(0x1U << sig);
-			proc->sigpend &= ~(0x1U << sig);
-			return 0;
+	deliveryMask = (selected->sigpend | proc->sigpend) & ~selected->sigmask;
+	while (deliveryMask != 0U) {
+		curSig = hal_cpuGetFirstBit(deliveryMask);
+		if ((curSig < 1U) || (curSig >= (unsigned int)NSIG)) {
+			/* Skip invalid signal number */
+			selected->sigpend &= ~(u32)(1UL << curSig);
+			proc->sigpend &= ~(u32)(1UL << curSig);
+			deliveryMask &= ~(u32)(1UL << curSig);
+			continue;
 		}
+		handler = (proc->sigactions == NULL) ? SIG_DFL : proc->sigactions[curSig - 1U].sa_handler;
+
+		if (handler == SIG_DFL) {
+			defaultAction = _threads_sigdefault(proc, selected, (int)curSig);
+		}
+		else {
+			defaultAction = -1;
+		}
+
+		if ((defaultAction == SIGNAL_TERMINATE) || (defaultAction == SIGNAL_TERMINATE_THREAD)) {
+			return -EINTR;
+		}
+
+		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+		if ((handler == SIG_IGN) || (defaultAction == SIGNAL_IGNORE) || (defaultAction == -EINVAL)) {
+			selected->sigpend &= ~(u32)(1UL << curSig);
+			proc->sigpend &= ~(u32)(1UL << curSig);
+
+			/* Check for other signals */
+			deliveryMask &= ~(u32)(1UL << curSig);
+			continue;
+		}
+		return (int)curSig;
 	}
 
 #endif
 
+	return 0;
+}
+
+
+static int _threads_trySignalDeliver(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, unsigned int oldmask, const int src)
+{
+	unsigned int curSig;
+	int ret;
+	sighandler_t handler;
+	ret = _threads_checkSignal(selected, proc);
+	if (ret > 0) {
+		curSig = (unsigned int)ret;
+		handler = proc->sigactions[curSig - 1U].sa_handler;
+		if (hal_cpuPushSignal(selected->kstack + selected->kstacksz, proc->sigtrampoline, handler, signalCtx, (int)curSig, oldmask, src) == 0) {
+			selected->sigpend &= ~(u32)(1UL << curSig);
+			proc->sigpend &= ~(u32)(1UL << curSig);
+
+			/* POSIX: sa_mask should be ORed with current process signal mask */
+			selected->sigmask |= proc->sigactions[curSig - 1U].sa_mask;
+			if (((unsigned int)proc->sigactions[curSig - 1U].sa_flags & SA_NODEFER) == 0U) {
+				selected->sigmask |= (u32)(1UL << curSig);
+			}
+			/* TODO: Handle other sa_flags */
+
+			return 0;
+		}
+		else {
+			return -1;
+		}
+	}
+
 	return -1;
+}
+
+
+static void _threads_setSigmask(thread_t *thread, unsigned int sigmask)
+{
+	/*
+	 * POSIX: It is not possible to block those signals which cannot be ignored.
+	 * This shall be enforced by the system without causing an error to be indicated.
+	 */
+	sigmask &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
+	thread->sigmask = sigmask;
+}
+
+
+void threads_setSigmask(thread_t *thread, unsigned int sigmask)
+{
+	spinlock_ctx_t sc;
+	/* Update sigmask under spinlock to avoid terminating signals delivery races with sigpost */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_threads_setSigmask(thread, sigmask);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+int threads_setSigaction(int sig, sigtrampolineFn_t trampoline, const struct sigaction *act, struct sigaction *old)
+{
+	process_t *process;
+	struct sigaction *sa = NULL;
+	spinlock_ctx_t sc;
+
+	if ((sig <= 0) || (sig >= NSIG)) {
+		return -EINVAL;
+	}
+
+	if ((act != NULL) && (threads_sigmutable(sig) == 0)) {
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	process = _proc_current()->process;
+
+	/* allocate sigactions array if required */
+	if ((act != NULL) && (process->sigactions == NULL) && (act->sa_handler != SIG_DFL)) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		sa = vm_kmalloc(sizeof(struct sigaction) * (size_t)(NSIG - 1));
+		if (sa == NULL) {
+			return -ENOMEM;
+		}
+
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		/* for a running process this array should never get freed, but allocation race can happen here */
+		if (process->sigactions == NULL) {
+			hal_memset(sa, 0, sizeof(struct sigaction) * (size_t)(NSIG - 1));
+			process->sigactions = sa;
+			sa = NULL;
+		}
+	}
+
+	if (old != NULL) {
+		/* sigactions can be null if act.sa_handler == SIG_DFL */
+		if (process->sigactions == NULL) {
+			old->sa_handler = SIG_DFL;
+			old->sa_flags = 0;
+			old->sa_mask = 0;
+		}
+		else {
+			hal_memcpy(old, &process->sigactions[sig - 1], sizeof(struct sigaction));
+		}
+	}
+
+	/* sigactions can be null if act.sa_handler == SIG_DFL */
+	if ((act != NULL) && (process->sigactions != NULL)) {
+		hal_memcpy(&process->sigactions[sig - 1], act, sizeof(struct sigaction));
+		/* POSIX: It is not possible to block those signals which cannot be ignored. */
+		process->sigactions[sig - 1].sa_mask &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
+	}
+
+	if (trampoline != NULL) {
+		process->sigtrampoline = trampoline;
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	if (sa != NULL) {
+		vm_kfree(sa);
+	}
+	return 0;
+}
+
+
+int proc_cloneSigactions(process_t *parent, process_t *child)
+{
+	spinlock_ctx_t sc;
+	int i;
+
+	/* In case of one of parent threads is updating signal handlers */
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (parent->sigactions != NULL) {
+		for (i = 1; i < NSIG; ++i) {
+			if (parent->sigactions[i - 1].sa_handler == SIG_DFL) {
+				continue;
+			}
+
+			hal_spinlockClear(&threads_common.spinlock, &sc);
+			child->sigactions = vm_kmalloc(sizeof(struct sigaction) * (size_t)(NSIG - 1));
+			if (child->sigactions == NULL) {
+				return -ENOMEM;
+			}
+
+			/* For a running process sigactions should never get freed */
+			hal_spinlockSet(&threads_common.spinlock, &sc);
+			hal_memcpy(child->sigactions, parent->sigactions, sizeof(struct sigaction) * (size_t)(NSIG - 1));
+			break;
+		}
+	}
+
+	child->sigtrampoline = parent->sigtrampoline;
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+	return 0;
+}
+
+
+void proc_resetExecSigactions(void)
+{
+	spinlock_ctx_t sc;
+	thread_t *current;
+	int i, keep = 0;
+	struct sigaction *sa = NULL;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	current = _proc_current();
+	if (current->process->sigactions != NULL) {
+		keep = 0;
+		for (i = 1; i < NSIG; ++i) {
+			/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+			if (current->process->sigactions[i - 1].sa_handler == SIG_IGN) {
+				keep = 1;
+			}
+			else {
+				current->process->sigactions[i - 1].sa_handler = SIG_DFL;
+			}
+		}
+		if (keep == 0) {
+			sa = current->process->sigactions;
+			current->process->sigactions = NULL;
+		}
+	}
+
+	current->process->sigtrampoline = NULL;
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (keep == 0) {
+		vm_kfree(sa);
+	}
 }
 
 
@@ -1522,9 +1851,9 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	signalCtx = (void *)((char *)hal_cpuGetUserSP(ctx) - sizeof(*signalCtx));
 	hal_cpuSetReturnValue(ctx, retval);
 
-	if (_threads_checkSignal(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
-		f = thread->process->sighandler;
+		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -1554,14 +1883,21 @@ int threads_sigsuspend(unsigned int mask)
 	hal_cpuSetReturnValue(ctx, (void *)-EINTR);
 
 	oldmask = thread->sigmask;
-	thread->sigmask = mask;
+	_threads_setSigmask(thread, mask);
 
 	/* check for pending signals before sleep - with the new mask */
-	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
-		f = thread->process->sighandler;
+		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
+		/* no return */
+	}
+
+	/* check if thread wasn't killed by signal */
+	if (thread->exit != 0U) {
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+		proc_threadEnd();
 		/* no return */
 	}
 
@@ -1573,16 +1909,16 @@ int threads_sigsuspend(unsigned int mask)
 
 	/* check for pending signals before restoring the old mask */
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-	if (_threads_checkSignal(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
+	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
-		f = thread->process->sighandler;
+		f = thread->process->sigtrampoline;
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
 	}
 
 	/* interrupted by signal but no sighandler installed */
-	thread->sigmask = oldmask;
+	_threads_setSigmask(thread, oldmask);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	/* sigsuspend always exits with -EINTR */
