@@ -23,6 +23,11 @@
  * but a "basic" has enough functionality for our needs.
  */
 
+/* Basic timers have no compare channel, so an early wakeup is realized by shortening the
+ * auto-reload value of the current period. This is the shortest wakeup we allow, so that the
+ * update interrupt is surely handled (and the full period restored) before the counter wraps again. */
+#define TIMER_WAKEUP_MIN_US 10U
+
 /* List of registers cut down to only those available on basic timers */
 enum {
 	tim_cr1 = 0U,
@@ -41,9 +46,20 @@ static struct {
 	spinlock_t sp;
 	volatile u32 *base;
 
-	u32 frequency;        /* Timer ticks per second */
-	u32 ticksPerInterval; /* Timer ticks per interval (i.e. between timer interrupts) */
+	u32 frequency;              /* Timer ticks per second */
+	u32 ticksPerInterval;       /* Timer ticks per interval (i.e. between timer interrupts) */
+	volatile u32 currentPeriod; /* Timer ticks in the period that is currently being counted */
+	u32 wakeupMinTicks;         /* Shortest wakeup that may be programmed */
 } timer_common;
+
+
+static void _timer_periodEnd(void)
+{
+	*(timer_common.base + tim_sr) = ~1U; /* Flags are write 0 to clear */
+	timer_common.ticks += timer_common.currentPeriod;
+	timer_common.currentPeriod = timer_common.ticksPerInterval;
+	*(timer_common.base + tim_arr) = timer_common.ticksPerInterval - 1U;
+}
 
 
 static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
@@ -56,8 +72,7 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	 * but after clearing the flag the interrupt remains pending. That's why we need to check
 	 * SR to make sure we don't add twice for the same update event. */
 	if ((*(timer_common.base + tim_sr) & 1U) != 0U) {
-		*(timer_common.base + tim_sr) = ~1U; /* Flags are write 0 to clear */
-		timer_common.ticks += timer_common.ticksPerInterval;
+		_timer_periodEnd();
 	}
 
 	return 0;
@@ -72,25 +87,41 @@ char *hal_timerFeatures(char *features, size_t len)
 }
 
 
+/* Reads the counter, accounting for an update event that hasn't been handled yet.
+ * Must be called with timer_common.sp taken. */
+static u32 _timer_getCnt(void)
+{
+	u32 cntval = *(timer_common.base + tim_cnt);
+
+	if ((cntval >> 31) != 0U) {
+		_timer_periodEnd();
+	}
+
+	return cntval & 0xffffU;
+}
+
+
 static u64 hal_getTicks(void)
 {
 	spinlock_ctx_t sc;
-	u32 cntval;
 	u64 ret;
 
 	hal_spinlockSet(&timer_common.sp, &sc);
-	ret = timer_common.ticks;
-	cntval = *(timer_common.base + tim_cnt);
-	if ((cntval >> 31) != 0U) {
-		*(timer_common.base + tim_sr) = ~1U;
-		ret += timer_common.ticksPerInterval;
-		timer_common.ticks = ret;
-	}
-
-	ret += (u64)cntval & 0xffffU;
+	ret = timer_common.ticks + (u64)_timer_getCnt();
 	hal_spinlockClear(&timer_common.sp, &sc);
 
 	return ret;
+}
+
+
+static u64 hal_timerUs2Ticks(u32 us)
+{
+	if (timer_common.frequency == (1000U * 1000U)) {
+		return (u64)us;
+	}
+	else {
+		return ((u64)timer_common.frequency * (u64)us) / (1000U * 1000U);
+	}
 }
 
 
@@ -118,7 +149,31 @@ int hal_timerRegister(intrFn_t f, void *data, intr_handler_t *h)
 
 void hal_timerSetWakeup(u32 waitUs)
 {
-	/* Not implemented yet */
+	spinlock_ctx_t sc;
+	u32 cntval, target, wakeupTicks;
+	u64 wakeup = hal_timerUs2Ticks(waitUs);
+
+	if (wakeup < (u64)timer_common.wakeupMinTicks) {
+		wakeup = (u64)timer_common.wakeupMinTicks;
+	}
+
+	/* Nothing to do - the periodic interrupt comes no later than requested */
+	if (wakeup >= (u64)timer_common.ticksPerInterval) {
+		return;
+	}
+
+	wakeupTicks = (u32)wakeup;
+	hal_spinlockSet(&timer_common.sp, &sc);
+	cntval = _timer_getCnt();
+	target = cntval + wakeupTicks;
+	/* ARR is not buffered (ARPE is off), so the shortened period takes effect immediately */
+	if (target < *(timer_common.base + tim_arr)) {
+		*(timer_common.base + tim_arr) = target;
+		timer_common.currentPeriod = target + 1U;
+		hal_cpuDataMemoryBarrier();
+	}
+
+	hal_spinlockClear(&timer_common.sp, &sc);
 }
 
 
@@ -150,6 +205,12 @@ void _hal_timerInit(u32 interval)
 
 	LIB_ASSERT((timer_common.ticksPerInterval >= 1U) && (timer_common.ticksPerInterval <= 65535U),
 			"Selected timer interval is not achievable");
+	timer_common.currentPeriod = timer_common.ticksPerInterval;
+	timer_common.wakeupMinTicks = (u32)hal_timerUs2Ticks(TIMER_WAKEUP_MIN_US);
+	if (timer_common.wakeupMinTicks == 0U) {
+		timer_common.wakeupMinTicks = 1U;
+	}
+
 	(void)_stm32_rccSetDevClock(TIM_SYSTEM_PCTL, 1U, 1U);
 	(void)_stm32_dbgmcuStopTimerInDebug(TIM_SYSTEM_PCTL, 1U);
 	timer_common.base = TIM_SYSTEM_BASE;
