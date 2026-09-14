@@ -44,7 +44,13 @@ static inline void hal_cpuInstrBarrier(void)
 
 
 /* Invalidate entire branch predictor array */
+void _hal_cpuInitCycleCounter(void);
+
+
 void hal_cpuBranchInval(void);
+
+
+void hal_cpuBranchInval_IS(void);
 
 
 /* Invalidate all instruction caches to PoU. Also flushes branch target cache */

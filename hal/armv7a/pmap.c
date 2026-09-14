@@ -25,13 +25,15 @@
 #include "halsyspage.h"
 
 #if NUM_CPUS != 1
-#define hal_cpuInvalVAAll   hal_cpuInvalVA_IS
-#define hal_cpuInvalASIDAll hal_cpuInvalASID_IS
-#define hal_cpuInvalTLBAll  hal_cpuInvalTLB_IS
+#define hal_cpuInvalVAAll     hal_cpuInvalVA_IS
+#define hal_cpuInvalASIDAll   hal_cpuInvalASID_IS
+#define hal_cpuInvalTLBAll    hal_cpuInvalTLB_IS
+#define hal_cpuBranchInvalAll hal_cpuBranchInval_IS
 #else
-#define hal_cpuInvalVAAll   hal_cpuInvalVA
-#define hal_cpuInvalASIDAll hal_cpuInvalASID
-#define hal_cpuInvalTLBAll  hal_cpuInvalTLB
+#define hal_cpuInvalVAAll     hal_cpuInvalVA
+#define hal_cpuInvalASIDAll   hal_cpuInvalASID
+#define hal_cpuInvalTLBAll    hal_cpuInvalTLB
+#define hal_cpuBranchInvalAll hal_cpuBranchInval
 #endif
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Provided by toolchain" */
@@ -155,7 +157,9 @@ static void _pmap_asidAlloc(pmap_t *pmap)
 	pmap_common.asid_map[pmap_common.asidptr] = pmap;
 	pmap->asid_ix = pmap_common.asidptr;
 
-	hal_cpuInvalASID(pmap_common.asids[pmap->asid_ix]);
+	/* TLB and branch predictor may still hold entries of the ASID's previous owner */
+	hal_cpuInvalASIDAll(pmap_common.asids[pmap->asid_ix]);
+	hal_cpuBranchInvalAll();
 	hal_cpuDataSyncBarrier();
 	hal_cpuInstrBarrier();
 }
@@ -238,20 +242,22 @@ static void _pmap_switch(pmap_t *pmap)
 	else {
 		/* No action required */
 	}
-	/* Assign new user's page dir to TTBR0 register */
+	/*
+	 * Assign new user's page dir to TTBR0 register. The reserved ASID 0 is
+	 * installed first so that nothing is fetched under the old ASID paired
+	 * with the new page directory.
+	 *
+	 * No invalidation: TLB entries are ASID-tagged and stale ones are
+	 * invalidated where they arise (ASID reuse, page table writes), the
+	 * I-cache is physically tagged.
+	 */
 	hal_cpuDataSyncBarrier();
 	hal_cpuSetContextId(0);
 	hal_cpuInstrBarrier();
 	hal_cpuSetTTBR0(pmap->addr | TTBR_CACHE_CONF);
 	hal_cpuInstrBarrier();
 	hal_cpuSetContextId((u32)pmap->pdir | pmap_common.asids[pmap->asid_ix]);
-
-	/* TODO: invalidate TLB only if asids pool is run out.
-	   This code should be moved to _pmap_asidAlloc and _pmap_asidDealloc */
-	hal_cpuInvalTLB();
-
-	hal_cpuBranchInval();
-	hal_cpuICacheInval();
+	hal_cpuInstrBarrier();
 }
 
 
@@ -283,11 +289,14 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, vm_attr_t attr,
 
 	hal_cpuDataSyncBarrier();
 	if ((oldEntry & 0x3U) != 0U) {
+		/* Includes the barriers */
 		hal_cpuInvalVAAll(((ptr_t)va & ~0xfffU) | asid);
 	}
+	else {
+		hal_cpuInstrBarrier();
+	}
 
-	hal_cpuBranchInval();
-	hal_cpuICacheInval();
+	/* No I-cache maintenance: physically tagged, executable mappings are handled in pmap_enter() */
 }
 
 
