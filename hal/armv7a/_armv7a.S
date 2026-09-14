@@ -40,6 +40,19 @@ hal_cpuBranchInval:
 .ltorg
 
 
+.globl hal_cpuBranchInval_IS
+.type hal_cpuBranchInval_IS, %function
+hal_cpuBranchInval_IS:
+	dsb
+	mov r0, #0
+	mcr p15, 0, r0, c7, c1, 6 /* BPIALLIS */
+	dsb
+	isb
+	bx lr
+.size hal_cpuBranchInval_IS, .-hal_cpuBranchInval_IS
+.ltorg
+
+
 .globl hal_cpuICacheInval
 .type hal_cpuICacheInval, %function
 hal_cpuICacheInval:
