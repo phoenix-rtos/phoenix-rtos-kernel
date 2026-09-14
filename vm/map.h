@@ -23,6 +23,7 @@
 #include "proc/lock.h"
 #include "amap.h"
 #include "types.h"
+#include "page.h"
 
 
 struct _amap_t;
@@ -35,6 +36,7 @@ typedef struct _vm_map_t {
 	void *stop;
 	rbtree_t tree;
 	lock_t lock;
+	ph_map_t **phMaps;
 } vm_map_t;
 
 
@@ -107,10 +109,13 @@ void vm_mapDump(vm_map_t *map);
 vm_attr_t vm_flagsToAttr(vm_flags_t flags);
 
 
-int vm_mapCreate(vm_map_t *map, void *start, void *stop);
+int vm_mapCreate(vm_map_t *map, void *start, void *stop, ph_map_t **phMaps);
 
 
 int vm_mapCopy(struct _process_t *proc, vm_map_t *dst, vm_map_t *src);
+
+
+ph_map_t **vm_createPhMapList(const unsigned char *maps, size_t mapSz);
 
 
 void vm_mapDestroy(struct _process_t *p, vm_map_t *map);
@@ -122,7 +127,10 @@ void vm_mapGetStats(size_t *allocsz);
 void vm_mapinfo(meminfo_t *info);
 
 
-vm_map_t *vm_getSharedMap(int map);
+ph_map_t *vm_getPhysicalMap(int map);
+
+
+int vm_physicalMapByAddr(addr_t addr);
 
 
 int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);

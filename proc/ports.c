@@ -13,11 +13,12 @@
 
 #include "ports.h"
 #include "lib/lib.h"
+#include "syspage.h"
 
 
 static struct {
 	idtree_t tree;
-	lock_t port_lock;
+	spinlock_t port_lock;
 } port_common;
 
 
@@ -53,20 +54,20 @@ kmsg_t *proc_portRidGet(port_t *p, msg_rid_t rid)
 port_t *proc_portGet(u32 id)
 {
 	port_t *port;
-	spinlock_ctx_t sc;
+	spinlock_ctx_t sc, psc;
 
 	if (id > MAX_ID) {
 		return NULL;
 	}
 
-	(void)proc_lockSet(&port_common.port_lock);
+	hal_spinlockSet(&port_common.port_lock, &psc);
 	port = lib_treeof(port_t, linkage, lib_idtreeFind(&port_common.tree, (int)id));
 	if (port != NULL) {
 		hal_spinlockSet(&port->spinlock, &sc);
 		port->refs++;
 		hal_spinlockClear(&port->spinlock, &sc);
 	}
-	(void)proc_lockClear(&port_common.port_lock);
+	hal_spinlockClear(&port_common.port_lock, &psc);
 
 	return port;
 }
@@ -74,9 +75,9 @@ port_t *proc_portGet(u32 id)
 
 void port_put(port_t *p, int destroy)
 {
-	spinlock_ctx_t sc;
+	spinlock_ctx_t sc, psc;
 
-	(void)proc_lockSet(&port_common.port_lock);
+	hal_spinlockSet(&port_common.port_lock, &psc);
 	hal_spinlockSet(&p->spinlock, &sc);
 	p->refs--;
 
@@ -91,13 +92,13 @@ void port_put(port_t *p, int destroy)
 		}
 
 		hal_spinlockClear(&p->spinlock, &sc);
-		(void)proc_lockClear(&port_common.port_lock);
+		hal_spinlockClear(&port_common.port_lock, &psc);
 		return;
 	}
 
 	hal_spinlockClear(&p->spinlock, &sc);
 	lib_idtreeRemove(&port_common.tree, &p->linkage);
-	(void)proc_lockClear(&port_common.port_lock);
+	hal_spinlockClear(&port_common.port_lock, &psc);
 
 	(void)proc_lockSet(&p->owner->lock);
 	if (p->next != NULL) {
@@ -111,20 +112,19 @@ void port_put(port_t *p, int destroy)
 }
 
 
-int proc_portCreate(u32 *id)
+static int port_create(process_t *proc, syspage_named_port_t *namedPort, u32 *id)
 {
 	port_t *port;
-	thread_t *curr = proc_current();
-	process_t *proc = (curr == NULL) ? NULL : curr->process;
+	spinlock_ctx_t psc;
 
 	port = vm_kmalloc(sizeof(port_t));
 	if (port == NULL) {
 		return -ENOMEM;
 	}
 
-	(void)proc_lockSet(&port_common.port_lock);
+	hal_spinlockSet(&port_common.port_lock, &psc);
 	if (lib_idtreeAlloc(&port_common.tree, &port->linkage, 0) < 0) {
-		(void)proc_lockClear(&port_common.port_lock);
+		hal_spinlockClear(&port_common.port_lock, &psc);
 		vm_kfree(port);
 		return -ENOMEM;
 	}
@@ -142,7 +142,8 @@ int proc_portCreate(u32 *id)
 
 	*id = (u32)port->linkage.id;
 	port->owner = proc;
-	(void)proc_lockClear(&port_common.port_lock);
+	port->namedPort = namedPort;
+	hal_spinlockClear(&port_common.port_lock, &psc);
 
 	if (proc != NULL) {
 		(void)proc_lockSet(&proc->lock);
@@ -151,6 +152,15 @@ int proc_portCreate(u32 *id)
 	}
 
 	return EOK;
+}
+
+
+int proc_portCreate(u32 *id)
+{
+	thread_t *curr = proc_current();
+	process_t *proc = (curr == NULL) ? NULL : curr->process;
+	*id = 0;
+	return port_create(proc, NULL, id);
 }
 
 
@@ -192,8 +202,57 @@ void proc_portsDestroy(process_t *proc)
 }
 
 
+static int msg_isNamedPortAllowed(unsigned int allowMask, process_t *process)
+{
+	if ((process == NULL) || (process->partition == NULL) ||
+			((allowMask & (1UL << process->partition->config->id)) != 0U)) {
+		return 1;
+	}
+	return 0;
+}
+
+
+static int msg_isOwnerAllowed(process_t *owner, process_t *process)
+{
+	if ((owner == NULL) || (process == NULL) ||
+			(process->partition == NULL) || (owner->partition == NULL) ||
+			((owner->partition == process->partition))) {
+		return 1;
+	}
+	return 0;
+}
+
+
+int proc_isPortAllowed(port_t *port, process_t *process, int isRecv)
+{
+	unsigned int allowMask;
+	if (port->namedPort != NULL) {
+		allowMask = isRecv != 0 ? port->namedPort->recvMask : port->namedPort->sendMask;
+		return msg_isNamedPortAllowed(allowMask, process) != 0 ? 1 : 0;
+	}
+	return msg_isOwnerAllowed(port->owner, process) != 0 ? 1 : 0;
+}
+
+
 void _port_init(void)
 {
+	syspage_named_port_t *port;
+	u32 id;
+
 	lib_idtreeInit(&port_common.tree);
-	(void)proc_lockInit(&port_common.port_lock, &proc_lockAttrDefault, "port.common");
+	hal_spinlockCreate(&port_common.port_lock, "port.common");
+
+	port = syspage_namedPortsList();
+	if (port != NULL) {
+		do {
+			if (port_create(NULL, port, &id) == 0) {
+				port->portId = id;
+			}
+			else {
+				port->portId = (unsigned int)-1;
+			}
+
+			port = port->next;
+		} while (port != syspage_namedPortsList());
+	}
 }

@@ -45,6 +45,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	int err;
 	vm_flags_t flags;
 	addr_t bpa, pa, epa;
+	ph_map_t **phMaps = (from != NULL && from->mapp != NULL) ? from->mapp->phMaps : msg_common.kmap->phMaps;
 
 	if ((size == 0U) || (data == NULL)) {
 		return NULL;
@@ -111,7 +112,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		ml->boffs = boffs;
 		bpa = pmap_resolve(&srcmap->pmap, data) & ~(SIZE_PAGE - 1U);
 
-		nbp = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+		nbp = vm_pageAlloc(phMaps, SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
 		ml->bp = nbp;
 		if (nbp == NULL) {
 			return NULL;
@@ -152,7 +153,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 		epa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
 
 		if ((boffs == 0U) || (eoffs >= boffs)) {
-			nep = vm_pageAlloc(SIZE_PAGE, PAGE_OWNER_APP);
+			nep = vm_pageAlloc(phMaps, SIZE_PAGE, PAGE_OWNER_APP, (from == NULL) ? NULL : from->partition);
 			ml->ep = nep;
 			if (nep == NULL) {
 				return NULL;
@@ -190,14 +191,14 @@ static void msg_release(kmsg_t *kmsg)
 	vm_map_t *map;
 
 	if (kmsg->i.bp != NULL) {
-		vm_pageFree(kmsg->i.bp);
+		vm_pageFree(kmsg->i.bp, (kmsg->src == NULL) ? NULL : kmsg->src->partition);
 		(void)vm_munmap(msg_common.kmap, kmsg->i.bvaddr, SIZE_PAGE);
 		kmsg->i.bp = NULL;
 	}
 
 	if (kmsg->i.eoffs != 0U) {
 		if (kmsg->i.ep != NULL) {
-			vm_pageFree(kmsg->i.ep);
+			vm_pageFree(kmsg->i.ep, (kmsg->src == NULL) ? NULL : kmsg->src->partition);
 		}
 		(void)vm_munmap(msg_common.kmap, kmsg->i.evaddr, SIZE_PAGE);
 		kmsg->i.eoffs = 0;
@@ -218,14 +219,14 @@ static void msg_release(kmsg_t *kmsg)
 	}
 
 	if (kmsg->o.bp != NULL) {
-		vm_pageFree(kmsg->o.bp);
+		vm_pageFree(kmsg->o.bp, (kmsg->src == NULL) ? NULL : kmsg->src->partition);
 		(void)vm_munmap(msg_common.kmap, kmsg->o.bvaddr, SIZE_PAGE);
 		kmsg->o.bp = NULL;
 	}
 
 	if (kmsg->o.eoffs != 0U) {
 		if (kmsg->o.ep != NULL) {
-			vm_pageFree(kmsg->o.ep);
+			vm_pageFree(kmsg->o.ep, (kmsg->src == NULL) ? NULL : kmsg->src->partition);
 		}
 		(void)vm_munmap(msg_common.kmap, kmsg->o.evaddr, SIZE_PAGE);
 		kmsg->o.eoffs = 0;
@@ -365,6 +366,10 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	sender = proc_current();
+	if (proc_isPortAllowed(p, sender->process, 0) == 0) {
+		port_put(p, 0);
+		return -EACCES;
+	}
 
 	hal_memcpy(&kmsg.msg, msg, sizeof(msg_t));
 	kmsg.src = sender->process;
@@ -443,10 +448,16 @@ int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid)
 	kmsg_t *kmsg;
 	int ipacked = 0, opacked = 0, err = EOK;
 	spinlock_ctx_t sc;
+	thread_t *current = proc_current();
 
 	p = proc_portGet(port);
 	if (p == NULL) {
 		return -EINVAL;
+	}
+
+	if (proc_isPortAllowed(p, current->process, 1) == 0) {
+		port_put(p, 0);
+		return -EACCES;
 	}
 
 	hal_spinlockSet(&p->spinlock, &sc);
