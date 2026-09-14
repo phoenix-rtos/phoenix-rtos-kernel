@@ -251,6 +251,35 @@ void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 }
 
 
+/*
+ * hal_cpuGetCycles() reads PMCCNTR, which counts nothing until the PMU is
+ * running - and nothing else in the kernel starts it, so the rid cookie in
+ * _msg_init() and every scheduler trace timestamp would otherwise be constant.
+ */
+void _hal_cpuInitCycleCounter(void)
+{
+	u32 reg;
+
+	/* parasoft-begin-suppress MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
+	__asm__ volatile("mrc p15, 0, %0, c0, c1, 2" : "=r"(reg)); /* ID_DFR0 */
+	reg = (reg >> 24) & 0xfU;
+	if ((reg == 0U) || (reg == 0xfU)) {
+		/* No performance monitors: the counter registers would be undefined */
+		return;
+	}
+
+	/* PMCR: enable, reset the cycle counter, and count every cycle rather than every 64th */
+	__asm__ volatile("mrc p15, 0, %0, c9, c12, 0" : "=r"(reg));
+	reg = (reg | (1U << 0) | (1U << 2)) & ~(1U << 3);
+	__asm__ volatile("mcr p15, 0, %0, c9, c12, 0" ::"r"(reg));
+
+	/* PMCNTENSET / PMOVSR - the cycle counter is counter 31 */
+	__asm__ volatile("mcr p15, 0, %0, c9, c12, 1" ::"r"(1U << 31));
+	__asm__ volatile("mcr p15, 0, %0, c9, c12, 3" ::"r"(1U << 31));
+	/* parasoft-end-suppress MISRAC2012-DIR_4_3 */
+}
+
+
 void hal_cpuLowPower(time_t us, spinlock_t *spinlock, spinlock_ctx_t *sc)
 {
 	hal_spinlockClear(spinlock, sc);

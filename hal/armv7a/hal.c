@@ -13,6 +13,7 @@
 
 #include "hal/hal.h"
 
+#include "armv7a.h"
 #include "halsyspage.h"
 
 static struct {
@@ -93,6 +94,7 @@ __attribute__((section(".init"))) void _hal_init(void)
 	_hal_interruptsInit();
 
 	_hal_cpuInit();
+	_hal_cpuInitCycleCounter();
 
 	_hal_timerInit(SYSTICK_INTERVAL);
 
