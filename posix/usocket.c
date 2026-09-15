@@ -572,18 +572,35 @@ static void usocket_connectRollback(usocket_t *s)
 }
 
 
-/* TODO: add support for disconnecting and reconnecting a SOCK_DGRAM socket using AF_UNSPEC. */
 int usocket_connect(usocket_t *s, const struct sockaddr *address, socklen_t address_len)
 {
 	usocket_t *ls;
-	uchannel_t *ch, *rx, *oldTx, *oldRx;
+	uchannel_t *ch, *rx, *oldTx = NULL, *oldRx;
 	oid_t oid;
 	size_t rcvbuf;
-	int err, nonblock;
+	int err = EOK, nonblock;
 
 	/* TODO: validate `address_len` */
-	if ((address == NULL) || (address_len == 0U)) {
+	if ((address == NULL) || (address_len < sizeof(address->sa_family))) {
 		return -EINVAL;
+	}
+
+	if ((address->sa_family == (sa_family_t)AF_UNSPEC) && (s->type == SOCK_DGRAM)) {
+		(void)proc_lockSet(&s->lock);
+		if (s->state == (u8)usocketConnecting) {
+			err = -EALREADY;
+		}
+		else if (s->state == (u8)usocketConnected) {
+			oldTx = s->tx;
+			s->tx = NULL;
+			s->state = (u8)usocketUnconnected;
+		}
+		else {
+			/* No action */
+		}
+		(void)proc_lockClear(&s->lock);
+		uchannel_put(oldTx);
+		return err;
 	}
 
 	if (address->sa_family != (sa_family_t)AF_UNIX) {
