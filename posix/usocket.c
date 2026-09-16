@@ -1016,7 +1016,7 @@ int usocket_setsockopt(usocket_t *s, int level, int optname, const void *optval,
 }
 
 
-static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int *flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
 	uchannel_t *rx;
 	fdpack_t *packs = NULL;
@@ -1027,7 +1027,7 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 	wantsControl = ((control != NULL) && (controllen != NULL) && (*controllen > 0U)) ? 1 : 0;
 
 	(void)proc_lockSet(&s->lock);
-	op = _usocket_opFlags(s, flags);
+	op = _usocket_opFlags(s, *flags);
 	rx = uchannel_ref(s->rx);
 	shutRd = ((s->flags & USOCKET_SHUT_RD) != 0U) ? 1 : 0;
 	(void)proc_lockClear(&s->lock);
@@ -1060,7 +1060,7 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 		return (shutRd != 0) ? 0 : -ENOTCONN;
 	}
 
-	ret = uchannel_read(rx, buf, len, op, (wantsControl != 0) ? &packs : NULL);
+	ret = uchannel_read(rx, buf, len, op, (wantsControl != 0) ? &packs : NULL, flags);
 
 	if (packs != NULL) {
 		/*
@@ -1069,7 +1069,8 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 		 */
 		(void)fdpass_unpack(&packs, control, controllen);
 		if (packs != NULL) {
-			uchannel_returnPacks(rx, &packs);
+			fdpass_discard(&packs);
+			*flags |= MSG_CTRUNC;
 		}
 	}
 	else {
@@ -1195,7 +1196,7 @@ static ssize_t usocket_send(usocket_t *s, const void *buf, size_t len, unsigned 
 
 ssize_t usocket_recvfrom(usocket_t *s, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
-	return usocket_recv(s, msg, len, flags, src_addr, src_len, NULL, NULL);
+	return usocket_recv(s, msg, len, &flags, src_addr, src_len, NULL, NULL);
 }
 
 
@@ -1221,11 +1222,10 @@ ssize_t usocket_recvmsg(usocket_t *s, struct msghdr *msg, unsigned int flags)
 		len = msg->msg_iov->iov_len;
 	}
 
-	err = usocket_recv(s, buf, len, flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
+	err = usocket_recv(s, buf, len, &flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
 
 	if (err >= 0) {
-		/* output flags are not supported */
-		msg->msg_flags = 0;
+		msg->msg_flags = (int)(unsigned int)(flags & (MSG_TRUNC | MSG_CTRUNC));
 	}
 
 	return err;
