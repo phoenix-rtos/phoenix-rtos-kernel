@@ -36,7 +36,7 @@ static struct {
 } pages_info;
 
 
-static page_t *_page_alloc(size_t size, vm_flags_t flags)
+static page_t *_page_alloc(size_t size, vm_pageflags_t flags)
 {
 	unsigned int start, stop, i;
 	page_t *lh, *rh;
@@ -88,7 +88,7 @@ static page_t *_page_alloc(size_t size, vm_flags_t flags)
 }
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags)
+page_t *vm_pageAlloc(size_t size, vm_pageflags_t flags)
 {
 	page_t *p;
 

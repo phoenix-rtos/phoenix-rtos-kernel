@@ -40,7 +40,7 @@ int _vm_zoneCreate(vm_zone_t *zone, size_t blocksz, unsigned int blocks)
 		return -ENOMEM;
 	}
 
-	zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, (size_t)1U << zone->pages->idx, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE);
+	zone->vaddr = vm_mmap(zone_common.kmap, zone_common.kmap->start, zone->pages, (size_t)1U << zone->pages->idx, PROT_READ | PROT_WRITE, zone_common.kernel, -1, MAP_NONE, 0U);
 	if (zone->vaddr == NULL) {
 		vm_pageFree(zone->pages);
 		return -ENOMEM;

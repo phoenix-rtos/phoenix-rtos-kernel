@@ -36,7 +36,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	void *w = NULL, *vaddr;
 	size_t boffs, eoffs;
 	u8 bone, eone;
-	size_t n = 0, i;
+	size_t n = 0;
 	vm_attr_t attr;
 	vm_prot_t prot;
 	page_t *nep = NULL, *nbp = NULL;
@@ -44,7 +44,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	struct _kmsg_layout_t *ml = (dir != 0) ? &kmsg->o : &kmsg->i;
 	int err;
 	vm_flags_t flags;
-	addr_t bpa, pa, epa;
+	addr_t bpa, epa;
 
 	if ((size == 0U) || (data == NULL)) {
 		return NULL;
@@ -117,7 +117,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			return NULL;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)bpa, flags, 0U);
 		ml->bvaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;
@@ -138,12 +138,16 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 	/* Map pages */
 	vaddr = (void *)CEIL((ptr_t)data);
 
-	for (i = 0; i < n; i++) {
-		pa = pmap_resolve(&srcmap->pmap, vaddr) & ~(SIZE_PAGE - 1U);
-		if (page_map(&dstmap->pmap, w + (i + bone) * SIZE_PAGE, pa, attr) < 0) {
+	if (n > 0U) {
+		if (pmap_belongs(&srcmap->pmap, data) != 0) {
+			err = vm_mapBorrow(dstmap, w + bone * SIZE_PAGE, srcmap, vaddr, n * SIZE_PAGE, prot);
+		}
+		else {
+			err = vm_mapBorrow(dstmap, w + bone * SIZE_PAGE, msg_common.kmap, vaddr, n * SIZE_PAGE, prot);
+		}
+		if (err < 0) {
 			return NULL;
 		}
-		vaddr += SIZE_PAGE;
 	}
 
 	if (eoffs != 0U) {
@@ -162,7 +166,7 @@ static void *msg_map(int dir, kmsg_t *kmsg, void *data, size_t size, process_t *
 			nep = nbp;
 		}
 
-		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, flags);
+		vaddr = vm_mmap(msg_common.kmap, NULL, NULL, SIZE_PAGE, PROT_READ | PROT_WRITE, VM_OBJ_PHYSMEM, (off_t)epa, flags, 0U);
 		ml->evaddr = vaddr;
 		if (vaddr == NULL) {
 			return NULL;

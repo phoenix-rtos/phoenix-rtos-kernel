@@ -20,7 +20,7 @@
 #include "types.h"
 
 
-page_t *vm_pageAlloc(size_t size, vm_flags_t flags);
+page_t *vm_pageAlloc(size_t size, vm_pageflags_t flags);
 
 
 void vm_pageFree(page_t *p);
