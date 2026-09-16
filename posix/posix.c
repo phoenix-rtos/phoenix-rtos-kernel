@@ -125,9 +125,7 @@ int posix_fileDeref(open_file_t *f)
 			err = usocket_close(f->sock);
 		}
 		else {
-			do {
-				err = proc_close(f->oid, f->status);
-			} while (err == -EINTR);
+			err = proc_close(f->oid, f->status);
 		}
 
 		(void)proc_lockDone(&f->lock);

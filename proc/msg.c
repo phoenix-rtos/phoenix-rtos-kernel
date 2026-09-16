@@ -345,7 +345,7 @@ static int msg_opack(kmsg_t *kmsg)
 }
 
 
-int proc_send(u32 port, msg_t *msg)
+static int proc_sendEx(u32 port, msg_t *msg, int interruptible)
 {
 	port_t *p;
 	int err = EOK;
@@ -396,8 +396,11 @@ int proc_send(u32 port, msg_t *msg)
 				 */
 				err = proc_threadWait(&kmsg.threads, &p->spinlock, 0, &sc);
 			}
-			else {
+			else if (interruptible != 0) {
 				err = proc_threadWaitInterruptible(&kmsg.threads, &p->spinlock, 0, &sc);
+			}
+			else {
+				err = proc_threadWait(&kmsg.threads, &p->spinlock, 0, &sc);
 			}
 
 			state = kmsg.state;
@@ -434,6 +437,18 @@ int proc_send(u32 port, msg_t *msg)
 	}
 
 	return err;
+}
+
+
+int proc_send(u32 port, msg_t *msg)
+{
+	return proc_sendEx(port, msg, 1);
+}
+
+
+int proc_sendUninterruptible(u32 port, msg_t *msg)
+{
+	return proc_sendEx(port, msg, 0);
 }
 
 
