@@ -224,7 +224,7 @@ static void _uchannel_takePacks(uchannel_t *ch, fdpack_t **packs)
 }
 
 
-ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, uaddr_t **src, fdpack_t **packs)
+ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, unsigned int *oflags, uaddr_t **src, fdpack_t **packs)
 {
 	ssize_t ret = 0;
 	size_t rlen = 0, hdrSize;
@@ -287,6 +287,10 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 					(void)_cbuffer_discard(&ch->buffer, rlen - (size_t)ret);
 				}
 			}
+
+			if ((rlen > (size_t)ret) && (oflags != NULL)) {
+				*oflags |= MSG_TRUNC;
+			}
 		}
 		else {
 			/* no complete frame */
@@ -341,41 +345,6 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 	(void)proc_lockClear(&ch->lock);
 
 	return ret;
-}
-
-
-void uchannel_returnPacks(uchannel_t *ch, fdpack_t **packs)
-{
-	fdpack_t *head, *pack;
-
-	if (*packs == NULL) {
-		return;
-	}
-
-	(void)proc_lockSet(&ch->lock);
-
-	if (ch->fdpacks == NULL) {
-		ch->fdpacks = *packs;
-	}
-	else {
-		/*
-		 * The list is circular and `fdpacks` points at its oldest entry, so
-		 * appending the leftovers and then moving the head onto the first of
-		 * them puts them back in front of anything queued in the meantime.
-		 */
-		head = *packs;
-		do {
-			pack = *packs;
-			LIST_REMOVE(packs, pack);
-			LIST_ADD(&ch->fdpacks, pack);
-		} while (*packs != NULL);
-
-		ch->fdpacks = head;
-	}
-
-	*packs = NULL;
-
-	(void)proc_lockClear(&ch->lock);
 }
 
 
