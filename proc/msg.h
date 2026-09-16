@@ -63,6 +63,9 @@ typedef struct _kmsg_t {
 int proc_send(u32 port, msg_t *msg);
 
 
+int proc_sendUninterruptible(u32 port, msg_t *msg);
+
+
 int proc_recv(u32 port, msg_t *msg, msg_rid_t *rid);
 
 
