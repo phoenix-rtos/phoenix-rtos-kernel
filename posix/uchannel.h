@@ -131,17 +131,11 @@ ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int
  * itself stays where it is.
  *
  * When `packs` is not NULL the queued descriptor packs are detached into it
- * (the caller unpacks them with no lock held and returns the leftovers with
- * uchannel_returnPacks()).
+ * (the caller unpacks them with no lock held).
+ *
+ * When the received datagram is truncated, MSG_TRUNC is set in `*oflags`.
  */
-ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, uaddr_t **src, fdpack_t **packs);
-
-
-/*
- * Returns descriptor packs detached by uchannel_read() but not consumed, keeping
- * them ahead of anything queued in the meantime.
- */
-void uchannel_returnPacks(uchannel_t *ch, fdpack_t **packs);
+ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, unsigned int *oflags, uaddr_t **src, fdpack_t **packs);
 
 
 /* Discards the descriptor packs queued in the channel. */

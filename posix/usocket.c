@@ -1134,7 +1134,7 @@ int usocket_setsockopt(usocket_t *s, int level, int optname, const void *optval,
 }
 
 
-static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int flags, unsigned int *oflags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
 	uchannel_t *rx;
 	fdpack_t *packs = NULL;
@@ -1183,7 +1183,7 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 		return 0;
 	}
 
-	ret = uchannel_read(rx, buf, len, op, (wantsSrc != 0) ? &src : NULL, (wantsControl != 0) ? &packs : NULL);
+	ret = uchannel_read(rx, buf, len, op, oflags, (wantsSrc != 0) ? &src : NULL, &packs);
 
 	if (src != NULL) {
 		uaddr_copy(src, src_addr, src_len);
@@ -1198,13 +1198,18 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 	}
 
 	if (packs != NULL) {
-		/*
-		 * No lock is held here - fdpass_unpack() reaches into the file
-		 * descriptor table of this process.
-		 */
-		(void)fdpass_unpack(&packs, control, controllen);
+		if (wantsControl != 0) {
+			/*
+			 * No lock is held here - fdpass_unpack() reaches into the file
+			 * descriptor table of this process.
+			 */
+			(void)fdpass_unpack(&packs, control, controllen);
+		}
 		if (packs != NULL) {
-			uchannel_returnPacks(rx, &packs);
+			fdpass_discard(&packs);
+			if (oflags != NULL) {
+				*oflags |= MSG_CTRUNC;
+			}
 		}
 	}
 	else if ((ret >= 0) && (controllen != NULL)) {
@@ -1344,7 +1349,7 @@ static ssize_t usocket_send(usocket_t *s, const void *buf, size_t len, unsigned 
 
 ssize_t usocket_recvfrom(usocket_t *s, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
-	return usocket_recv(s, msg, len, flags, src_addr, src_len, NULL, NULL);
+	return usocket_recv(s, msg, len, flags, NULL, src_addr, src_len, NULL, NULL);
 }
 
 
@@ -1359,6 +1364,7 @@ ssize_t usocket_recvmsg(usocket_t *s, struct msghdr *msg, unsigned int flags)
 	ssize_t err;
 	void *buf = NULL;
 	size_t len = 0;
+	unsigned int oflags = 0U;
 
 	/* multiple buffers are not supported */
 	if (msg->msg_iovlen > 1) {
@@ -1370,11 +1376,10 @@ ssize_t usocket_recvmsg(usocket_t *s, struct msghdr *msg, unsigned int flags)
 		len = msg->msg_iov->iov_len;
 	}
 
-	err = usocket_recv(s, buf, len, flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
+	err = usocket_recv(s, buf, len, flags, &oflags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
 
 	if (err >= 0) {
-		/* output flags are not supported */
-		msg->msg_flags = 0;
+		msg->msg_flags = (int)oflags;
 	}
 
 	return err;
