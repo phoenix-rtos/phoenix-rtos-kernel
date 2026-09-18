@@ -157,7 +157,8 @@ void hal_cpuTlsSet(struct _hal_tls_t *tls, cpu_context_t *ctx);
 /* cache management */
 
 
-void hal_cleanDCache(ptr_t start, size_t len);
+/* Perform cache operations to make ICache coherent with DCache and/or memory after loading new code. */
+void hal_cacheOnInstrLoad(ptr_t start, size_t len);
 
 
 /* stack management */
