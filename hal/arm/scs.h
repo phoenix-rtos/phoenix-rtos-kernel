@@ -76,6 +76,9 @@ void _hal_scsICacheEnable(void);
 void _hal_scsICacheDisable(void);
 
 
+void _hal_scsICacheInvalAddr(void *addr, u32 sz);
+
+
 void _hal_scsDeepSleepSet(int state);
 
 
