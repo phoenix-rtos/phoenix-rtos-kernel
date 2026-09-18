@@ -832,9 +832,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 				}
 
 				hal_memcpy((char *)paddr, (char *)ehdr + phdrCurr->p_offset, phdrCurr->p_filesz);
-
-				/* Need to make cache and memory coherent, so $I is coherent too */
-				hal_cleanDCache((ptr_t)paddr, phdrCurr->p_memsz);
+				hal_cacheOnInstrLoad((ptr_t)paddr, phdrCurr->p_memsz);
 			}
 		}
 

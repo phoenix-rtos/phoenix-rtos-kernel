@@ -14,6 +14,7 @@
 #ifndef _PH_HAL_ARMV8R_H_
 #define _PH_HAL_ARMV8R_H_
 
+#include <arch/cache.h>
 #include "hal/types.h"
 
 
@@ -25,29 +26,7 @@ static inline void hal_cpuDataSyncBarrier(void)
 }
 
 
-/* Memory Management */
-
 /* parasoft-begin-suppress MISRAC2012-RULE_8_6 "Each function has definition in assembly code" */
-
-/* Invalidate entire branch predictor array */
-void hal_cpuBranchInval(void);
-
-
-/* Invalidate all instruction caches to PoU. Also flushes branch target cache */
-void hal_cpuICacheInval(void);
-
-
-/* Clean Data or Unified cache line by MVA to PoC */
-void hal_cpuCleanDataCache(ptr_t vstart, ptr_t vend);
-
-
-/* Invalidate Data or Unified cache line by MVA to PoC */
-void hal_cpuInvalDataCache(ptr_t vstart, ptr_t vend);
-
-
-/* Clean and Invalidate Data or Unified cache line by MVA to PoC */
-void hal_cpuFlushDataCache(ptr_t vstart, ptr_t vend);
-
 
 /* Core Management */
 

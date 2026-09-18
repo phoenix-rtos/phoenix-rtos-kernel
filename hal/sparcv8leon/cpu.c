@@ -228,7 +228,7 @@ char *hal_cpuFeatures(char *features, size_t len)
 }
 
 
-void hal_cleanDCache(ptr_t start, size_t len)
+void hal_cacheOnInstrLoad(ptr_t start, size_t len)
 {
 	(void)start;
 	(void)len;

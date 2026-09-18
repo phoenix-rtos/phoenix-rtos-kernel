@@ -363,6 +363,51 @@ void _hal_scsICacheDisable(void)
 }
 
 
+void _hal_scsICacheInvalAddr(void *addr, u32 sz)
+{
+	u32 ctr;
+	u32 lineSize, lineMask, start, end;
+
+	if (sz == 0U) {
+		return;
+	}
+
+	ctr = scs_common.scs->ctr;
+	if (((ctr >> 29) & 0x7U) != 0x4U) {
+		/* No cache or unknown cache type, only perform barriers and exit */
+		hal_cpuDataSyncBarrier();
+		hal_cpuInstrBarrier();
+		return;
+	}
+
+	if ((scs_common.scs->ccr & (1UL << 17)) == 0U) {
+		/* ICache is disabled, only perform barriers and exit */
+		hal_cpuDataSyncBarrier();
+		hal_cpuInstrBarrier();
+		return;
+	}
+
+	lineSize = 4UL << (ctr & 0xfU);
+	lineMask = ~(lineSize - 1U);
+	start = (u32)addr;
+	end = start + sz;
+	if ((end < start) || (start >= 0xe0000000UL) || (end > 0xe0000000UL)) {
+		/* Requested address range is invalid (overflow or reaches system address space) */
+		return;
+	}
+
+	start &= lineMask;
+	hal_cpuDataSyncBarrier();
+	while (start < end) {
+		scs_common.scs->icimvau = start;
+		start += lineSize;
+	}
+
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
+}
+
+
 void _hal_scsDeepSleepSet(int state)
 {
 	if (state != 0) {
