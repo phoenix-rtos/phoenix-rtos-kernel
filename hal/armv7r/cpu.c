@@ -259,9 +259,11 @@ int hal_cpuLowPowerAvail(void)
 }
 
 
-void hal_cleanDCache(ptr_t start, size_t len)
+void hal_cacheOnInstrLoad(ptr_t start, size_t len)
 {
 	hal_cpuCleanDataCache(start, start + len);
+	hal_cpuInvalInstrCache(start, start + len);
+	hal_cpuBranchInval();
 }
 
 
