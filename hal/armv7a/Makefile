@@ -14,5 +14,5 @@ endif
 
 CFLAGS += -Ihal/armv7a -Ihal/arm
 
-OBJS += $(addprefix $(PREFIX_O)hal/arm/, spinlock.o)
+OBJS += $(addprefix $(PREFIX_O)hal/arm/, spinlock.o cache.o)
 OBJS += $(addprefix $(PREFIX_O)hal/armv7a/, string.o cpu.o hal.o pmap.o exceptions.o _memcpy.o _memset.o)
