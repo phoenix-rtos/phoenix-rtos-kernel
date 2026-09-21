@@ -5,5 +5,5 @@
 # Author: Pawel Pisarczyk
 #
 
-OBJS += $(addprefix $(PREFIX_O)posix/, posix.o inet.o usocket.o uchannel.o fdpass.o)
+OBJS += $(addprefix $(PREFIX_O)posix/, posix.o inet.o usocket.o uchannel.o uaddr.o fdpass.o)
 
