@@ -334,6 +334,7 @@ int posix_clone(int ppid)
 	p->refs = 1;
 	p->exec = 0;
 	p->exited = 0;
+	p->ctty = 0; /* A child inherits the session but never its controlling terminal */
 
 	pp = pinfo_find(ppid);
 	if (pp == NULL) {
@@ -2832,6 +2833,45 @@ int posix_procExists(pid_t pid, pid_t pgid, pid_t sid, unsigned int flags)
 }
 
 
+int posix_sessionCtty(pid_t sid, int acquire)
+{
+	process_info_t *pinfo;
+	int err;
+
+	if (sid <= 0) {
+		return -EINVAL;
+	}
+
+	(void)proc_lockSet(&posix_common.lock);
+
+	pinfo = _pinfo_lookup(sid);
+	if ((pinfo == NULL) || (atomic_load_uint(&pinfo->exited, __ATOMIC_RELAXED) != 0U)) {
+		/* No such process, or it is a zombie that cannot own anything anymore */
+		err = -ESRCH;
+	}
+	else if (pinfo->sid != pinfo->process) {
+		/* Not a session leader, so it cannot have a controlling terminal */
+		err = -EPERM;
+	}
+	else if (acquire == 0) {
+		pinfo->ctty = 0;
+		err = EOK;
+	}
+	else if (pinfo->ctty != 0U) {
+		/* POSIX: the session already has a controlling terminal */
+		err = -EPERM;
+	}
+	else {
+		pinfo->ctty = 1;
+		err = EOK;
+	}
+
+	(void)proc_lockClear(&posix_common.lock);
+
+	return err;
+}
+
+
 int posix_setpgid(pid_t pid, pid_t pgid)
 {
 	process_info_t *self, *target;
@@ -2960,14 +3000,16 @@ pid_t posix_setsid(void)
 	}
 	else {
 		/*
-		 * FIXME: POSIX requires the new session to have no controlling terminal,
-		 * but the kernel doesn't track this, so the caller stays associated until
-		 * it issues TIOCNOTTY or closes the last descriptor. The terminal's
-		 * foreground group can thus end up empty yet still recorded, silently
-		 * dropping its job control signals.
+		 * FIXME: the process leaves its old foreground group here, which can
+		 * thus end up empty while the terminal still records it, silently
+		 * dropping that terminal's job control signals. Fixing it needs the
+		 * kernel to be able to reach the terminal a session holds, not just to
+		 * know that it holds one.
 		 */
 		atomic_store_int(&pinfo->pgid, pid, __ATOMIC_RELAXED);
 		pinfo->sid = pid;
+		/* POSIX: the new session has no controlling terminal */
+		pinfo->ctty = 0;
 		ret = pid;
 	}
 
