@@ -2114,6 +2114,18 @@ int syscalls_sys_procExists(u8 *ustack)
 }
 
 
+int syscalls_sys_sessionCtty(u8 *ustack)
+{
+	pid_t sid;
+	int acquire;
+
+	GETFROMSTACK(ustack, pid_t, sid, 0U);
+	GETFROMSTACK(ustack, int, acquire, 1U);
+
+	return posix_sessionCtty(sid, acquire);
+}
+
+
 void syscalls_sbi_putchar(u8 *ustack)
 {
 #ifdef __TARGET_RISCV64

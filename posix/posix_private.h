@@ -77,6 +77,7 @@ typedef struct _process_info_t {
 	/* Protected by posix_common.lock */
 	pid_t pgid; /* read is lock-free via relaxed atomics */
 	pid_t sid;
+	unsigned int ctty; /* set to 1 if session holds a ctty; only meaningful for session leader (sid == process) */
 
 	lock_t lock; /* WARN: Must be locked before posix_common.lock */
 	int maxfd;
