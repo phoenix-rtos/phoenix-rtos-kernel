@@ -194,9 +194,6 @@ int proc_firstThreadTid(process_t *proc);
 void threads_put(thread_t *thread);
 
 
-time_t proc_uptime(void);
-
-
 void proc_gettime(time_t *raw, time_t *offs);
 
 

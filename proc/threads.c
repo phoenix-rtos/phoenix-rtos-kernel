@@ -1391,16 +1391,6 @@ int proc_join(int tid, time_t timeout)
 }
 
 
-time_t proc_uptime(void)
-{
-	time_t time;
-
-	proc_gettime(&time, NULL);
-
-	return time;
-}
-
-
 void proc_gettime(time_t *raw, time_t *offs)
 {
 	spinlock_ctx_t sc;
