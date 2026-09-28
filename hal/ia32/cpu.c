@@ -24,6 +24,7 @@
 #include "ia32.h"
 #include "halsyspage.h"
 #include "init.h"
+#include "proc/threads.h"
 
 #include <arch/tlb.h>
 
@@ -66,9 +67,6 @@ static const struct cpu_feature_t cpufeatures[] = {
 		NULL,
 	}
 };
-
-
-int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_1_1 "hal_cpu_t holds kernel stacks for all cores" */

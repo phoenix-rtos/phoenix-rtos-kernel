@@ -59,6 +59,7 @@ typedef struct _threadinfo_t {
 
 	int load;
 	time_t cpuTime;
+	time_t sysTime; /* part of cpuTime spent in the kernel, the rest was spent in user code */
 	int priority;
 	int state;
 	int vmem;

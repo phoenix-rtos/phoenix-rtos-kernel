@@ -25,10 +25,10 @@
 #include "ports.h"
 #include "perf/trace-events.h"
 
-_Static_assert(PH_CLK_TCK *SYSTICK_INTERVAL <= 1000000,
-		"times() would report the user/system split finer than the scheduler samples it");
-
 #define TIME_T_MAX 0x7FFFFFFFFFFFFFFFLL /* LLONG_MAX */
+
+_Static_assert((PH_CLK_TCK * SYSTICK_INTERVAL) <= 1000000,
+		"times() would report the user/system split finer than the scheduler samples it");
 
 /* clang-format off */
 enum { event_scheduling, event_enqueued, event_waking, event_preempted };
@@ -65,6 +65,8 @@ static struct {
 	u64 readyBitmask;
 
 	thread_t **current;
+	spinlock_t *cpuSpinlock;
+
 	time_t utcoffs;
 
 	/* Synchronized by spinlock */
@@ -94,6 +96,8 @@ _Static_assert(NPRIOS <= sizeof(threads_common.readyBitmask) * 8U, "NPRIOS must 
 static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
 static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp);
+static void _threads_cpuTimeMode(thread_t *t, int kernel);
+static void _threads_cpuTimeToProcess(const thread_t *t);
 
 
 static time_t _proc_gettimeRaw(void)
@@ -271,6 +275,8 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	time_t now;
 	spinlock_ctx_t sc;
 
+	(void)context;
+
 	/* parasoft-begin-suppress MISRAC2012-RULE_14_3 "hal_cpuGetID()'s return value might
 	 * not be known at compile time for different architectures" */
 	if (hal_cpuGetID() != 0U) {
@@ -350,6 +356,8 @@ static void thread_destroy(thread_t *thread)
 	if (process != NULL) {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
 
+		_threads_cpuTimeToProcess(thread);
+
 		LIST_REMOVE_EX(&process->threads, thread, procnext, procprev);
 		LIST_ADD_EX(&process->ghosts, thread, procnext, procprev);
 		(void)_proc_threadBroadcast(&process->reaper);
@@ -413,18 +421,197 @@ void threads_put(thread_t *thread)
 }
 
 
-static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
+static void _threads_cpuTimeCharge(thread_t *t, time_t now)
+{
+	time_t delta = now - t->lastTime;
+
+	t->lastTime = now;
+	t->cpuTime += delta;
+
+	if (t->inKernel != 0U) {
+		t->sysTime += delta;
+	}
+	else {
+		t->userTime += delta;
+	}
+}
+
+
+static void _threads_cpuTimeToProcess(const thread_t *t)
+{
+	if (t->process != NULL) {
+		t->process->cpuTime += t->cpuTime;
+		t->process->userTime += t->userTime;
+		t->process->sysTime += t->sysTime;
+	}
+}
+
+
+/*
+ * Always called with the cpuSpinlock of the cpu running t set - or, from the
+ * scheduler, with threads_common.spinlock set, which keeps every reader out as well.
+ */
+static void _threads_cpuTimeMode(thread_t *t, int kernel)
+{
+	if ((t == NULL) || ((int)t->inKernel == kernel)) {
+		return;
+	}
+	_threads_cpuTimeCharge(t, hal_timerGetUs());
+	t->inKernel = (kernel != 0) ? 1U : 0U;
+}
+
+
+static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected, cpu_context_t *selCtx)
 {
 	time_t now = _proc_gettimeRaw();
 
 	if (current != NULL) {
-		current->cpuTime += now - current->lastTime;
-		current->lastTime = now;
+		_threads_cpuTimeCharge(current, now);
 	}
 
-	if (selected != NULL && current != selected) {
+	if ((selected != NULL) && (current != selected)) {
 		selected->lastTime = now;
 	}
+
+	/*
+	 * The context about to be restored says which mode the thread resumes in: a thread
+	 * preempted in user space comes back to user space, one that blocked inside a syscall
+	 * comes back into the kernel.
+	 */
+	if (selected != NULL) {
+		selected->inKernel = (hal_cpuSupervisorMode(selCtx) != 0) ? 1U : 0U;
+	}
+}
+
+
+/* Keeps the reported halves adding up to the reported total */
+static void _threads_cpuTimeAddInflight(const thread_t *t, time_t inflight, time_t *total, time_t *user, time_t *sys)
+{
+	*total += inflight;
+
+	if (t->inKernel != 0U) {
+		*sys += inflight;
+	}
+	else {
+		*user += inflight;
+	}
+}
+
+
+/*
+ * Adds up what one thread has run, the mode boundaries it has crossed plus the run it is
+ * in the middle of right now. Note: always called with threads_common.spinlock set, which
+ * is what stops the thread from being scheduled onto another cpu than the one locked out
+ * of charging it here.
+ */
+static void _threads_cpuTimeOfThread(const thread_t *t, time_t *total, time_t *user, time_t *sys)
+{
+	spinlock_ctx_t sc;
+	unsigned int i, ncpus = hal_cpuGetCount();
+
+	for (i = 0; i < ncpus; i++) {
+		if (threads_common.current[i] == t) {
+			break;
+		}
+	}
+
+	if (i == ncpus) {
+		/* Not running anywhere, so nothing is charging it and the counters are whole */
+		*total += t->cpuTime;
+		*user += t->userTime;
+		*sys += t->sysTime;
+	}
+	else {
+		hal_spinlockSet(&threads_common.cpuSpinlock[i], &sc);
+
+		*total += t->cpuTime;
+		*user += t->userTime;
+		*sys += t->sysTime;
+
+		/* cpuTime is only accumulated at mode boundaries - add what it has run since */
+		_threads_cpuTimeAddInflight(t, hal_timerGetUs() - t->lastTime, total, user, sys);
+
+		hal_spinlockClear(&threads_common.cpuSpinlock[i], &sc);
+	}
+}
+
+
+static unsigned int _threads_cpuSpinlockSet(const thread_t *t, spinlock_ctx_t *sc)
+{
+	unsigned int cpu;
+
+	for (;;) {
+		cpu = t->cpuId;
+		hal_spinlockSet(&threads_common.cpuSpinlock[cpu], sc);
+		if (threads_common.current[cpu] == t) {
+			return cpu;
+		}
+		hal_spinlockClear(&threads_common.cpuSpinlock[cpu], sc);
+	}
+}
+
+
+void proc_cpuTimeKernelEnter(thread_t *t)
+{
+	spinlock_ctx_t sc;
+
+	unsigned int cpu = _threads_cpuSpinlockSet(t, &sc);
+	_threads_cpuTimeMode(t, 1);
+	hal_spinlockClear(&threads_common.cpuSpinlock[cpu], &sc);
+}
+
+
+void proc_cpuTimeKernelLeave(thread_t *t)
+{
+	spinlock_ctx_t sc;
+
+	unsigned int cpu = _threads_cpuSpinlockSet(t, &sc);
+	_threads_cpuTimeMode(t, 0);
+	hal_spinlockClear(&threads_common.cpuSpinlock[cpu], &sc);
+}
+
+
+void *proc_cpuTimeIntrEnter(cpu_context_t *ctx)
+{
+	spinlock_ctx_t sc;
+	unsigned int cpu;
+	thread_t *t;
+
+	if (hal_cpuSupervisorMode(ctx) != 0) {
+		return NULL;
+	}
+
+	/* Safe: interrupts are masked */
+	cpu = hal_cpuGetID();
+	t = threads_common.current[cpu];
+
+	hal_spinlockSet(&threads_common.cpuSpinlock[cpu], &sc);
+	_threads_cpuTimeMode(t, 1);
+	hal_spinlockClear(&threads_common.cpuSpinlock[cpu], &sc);
+
+	return t;
+}
+
+
+void proc_cpuTimeIntrLeave(void *interrupted)
+{
+	spinlock_ctx_t sc;
+	unsigned int cpu;
+
+	if (interrupted == NULL) {
+		return;
+	}
+
+	cpu = hal_cpuGetID();
+
+	hal_spinlockSet(&threads_common.cpuSpinlock[cpu], &sc);
+
+	/* Don't update if rescheduled to another thread (the scheduler already does the accounting) */
+	if (threads_common.current[cpu] == interrupted) {
+		_threads_cpuTimeMode((thread_t *)interrupted, 0);
+	}
+
+	hal_spinlockClear(&threads_common.cpuSpinlock[cpu], &sc);
 }
 
 
@@ -454,7 +641,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	thread_t *current, *selected = NULL;
 	unsigned int idx;
 	process_t *proc;
-	cpu_context_t *signalCtx, *selCtx;
+	cpu_context_t *signalCtx, *selCtx = NULL;
 	unsigned int cpuId = hal_cpuGetID();
 
 	(void)arg;
@@ -503,7 +690,8 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	LIB_ASSERT(selected != NULL, "no threads to schedule");
 
 	if (selected != NULL) {
-		threads_common.current[hal_cpuGetID()] = selected;
+		selected->cpuId = cpuId;
+		threads_common.current[cpuId] = selected;
 		_hal_cpuSetKernelStack(selected->kstack + selected->kstacksz);
 		selCtx = selected->context;
 
@@ -554,7 +742,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 	}
 
 	/* Update CPU usage */
-	_threads_cpuTimeCalc(current, selected);
+	_threads_cpuTimeCalc(current, selected, selCtx);
 
 	trace_eventSchedExit(cpuId);
 
@@ -590,6 +778,11 @@ thread_t *proc_current(void)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
+
+	/* parasoft-begin-suppress MISRAC2012-RULE_14_3 "hal_cpuGetID()'s return value might not be known at compile time for different architectures" */
+	if (hal_cpuGetCount() <= 1U) {
+		return threads_common.current[0];
+	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	current = _proc_current();
@@ -678,6 +871,10 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->priorityBase = priority;
 	t->priority = priority;
 	t->cpuTime = 0;
+	t->sysTime = 0;
+	t->userTime = 0;
+	t->cpuId = 0;
+	t->inKernel = 1;
 	proc_gettime(&t->readyTime, NULL);
 	t->maxWait = 0;
 	t->startTime = t->readyTime;
@@ -905,6 +1102,7 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 
 	cpu = (int)hal_cpuGetID();
 	t = threads_common.current[cpu];
+	_threads_cpuTimeCharge(t, hal_timerGetUs());
 	threads_common.current[cpu] = NULL;
 	t->state = GHOST;
 	LIST_ADD(&threads_common.ghosts, t);
@@ -1110,7 +1308,7 @@ static int _proc_threadSleepAbs(time_t abs, time_t now, spinlock_ctx_t *sc)
 
 static int _proc_threadSleep(time_t us, time_t now, spinlock_ctx_t *sc)
 {
-	return _proc_threadSleepAbs(now + us, now, sc);
+	return _proc_threadSleepAbs((TIME_T_MAX - now < us) ? TIME_T_MAX : (now + us), now, sc);
 }
 
 
@@ -1125,7 +1323,7 @@ int proc_threadSleep(time_t us)
 
 int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute)
 {
-	time_t us, abstime, start, stop, elapsed, unslept;
+	time_t us, nsus, abstime, start, stop, elapsed, unslept;
 	int err;
 	spinlock_ctx_t sc;
 
@@ -1137,11 +1335,13 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute)
 		return -EINVAL;
 	}
 
-	if ((*sec) > TIME_T_MAX / (1000LL * 1000LL)) {
+	nsus = ((time_t)(*nsec) + 999LL) / 1000LL;
+
+	if ((*sec) > ((TIME_T_MAX - nsus) / (1000LL * 1000LL))) {
 		us = TIME_T_MAX;
 	}
 	else {
-		us = ((*sec) * 1000LL * 1000LL) + (((time_t)(*nsec) + 999LL) / 1000LL);
+		us = ((*sec) * 1000LL * 1000LL) + nsus;
 	}
 
 	if (absolute != 0) {
@@ -1875,6 +2075,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
+		_threads_cpuTimeMode(thread, 0);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -1910,6 +2111,7 @@ int threads_sigsuspend(unsigned int mask)
 	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
+		_threads_cpuTimeMode(thread, 0);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -1933,6 +2135,7 @@ int threads_sigsuspend(unsigned int mask)
 	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
+		_threads_cpuTimeMode(thread, 0);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -2709,7 +2912,7 @@ static inline int _proc_calculateVmem(thread_t *thread)
 /* call with threads_common.lock set */
 static void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
 {
-	time_t now;
+	time_t now, cpuTime = 0, userTime = 0, sysTime = 0;
 	spinlock_ctx_t sc;
 
 	if ((thread == NULL) || (info == NULL)) {
@@ -2732,8 +2935,10 @@ static void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t 
 		info->priority = (int)thread->priorityBase;
 		info->state = (int)thread->state;
 
+		_threads_cpuTimeOfThread(thread, &cpuTime, &userTime, &sysTime);
+
 		if (now != thread->startTime) {
-			info->load = (int)((thread->cpuTime * 1000) / (now - thread->startTime));
+			info->load = (int)((cpuTime * 1000) / (now - thread->startTime));
 		}
 		else {
 			info->load = 0;
@@ -2746,7 +2951,8 @@ static void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t 
 			info->wait = thread->maxWait;
 		}
 
-		info->cpuTime = thread->cpuTime;
+		info->cpuTime = cpuTime;
+		info->sysTime = sysTime;
 
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
@@ -2763,6 +2969,55 @@ static void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t 
 	if ((flags & PH_THREADINFO_VMEM) != 0U) {
 		info->vmem = _proc_calculateVmem(thread);
 	}
+}
+
+
+int proc_cpuTime(const thread_t *t, int perThread, time_t *cpuTime, time_t *userTime, time_t *sysTime)
+{
+	spinlock_ctx_t sc;
+	time_t total = 0, user = 0, sys = 0;
+	const thread_t *thread;
+
+	if ((perThread == 0) && (t->process == NULL)) {
+		/* A thread of no process - only its own time can be asked for */
+		return -EINVAL;
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	if (perThread != 0) {
+		_threads_cpuTimeOfThread(t, &total, &user, &sys);
+	}
+	else {
+		/* What the threads that are gone ran, plus what the ones still here have run */
+		total = t->process->cpuTime;
+		user = t->process->userTime;
+		sys = t->process->sysTime;
+
+		thread = t->process->threads;
+		if (thread != NULL) {
+			do {
+				_threads_cpuTimeOfThread(thread, &total, &user, &sys);
+				thread = thread->procnext;
+			} while (thread != t->process->threads);
+		}
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	if (cpuTime != NULL) {
+		*cpuTime = total;
+	}
+
+	if (userTime != NULL) {
+		*userTime = user;
+	}
+
+	if (sysTime != NULL) {
+		*sysTime = sys;
+	}
+
+	return EOK;
 }
 
 
@@ -2924,7 +3179,8 @@ int proc_schedSet(thread_t *t, int policy, sched_params_t *params)
 
 int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 {
-	unsigned int i;
+	unsigned int i, ncpus = hal_cpuGetCount();
+
 	threads_common.kmap = kmap;
 	threads_common.ghosts = NULL;
 	threads_common.reaper = NULL;
@@ -2950,14 +3206,25 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	hal_spinlockCreate(&threads_common.spinlock, "threads.spinlock");
 
 	/* Allocate and initialize current threads array */
-	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is used, false positive" */
-	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * hal_cpuGetCount());
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is always the same, false positive" */
+	threads_common.current = (thread_t **)vm_kmalloc(sizeof(thread_t *) * ncpus);
 	if (threads_common.current == NULL) {
 		return -ENOMEM;
 	}
 
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is always the same, false positive" */
+	threads_common.cpuSpinlock = (spinlock_t *)vm_kmalloc(sizeof(spinlock_t) * ncpus);
+	if (threads_common.cpuSpinlock == NULL) {
+		/* TODO: implement proper panic on init failure */
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < ncpus; i++) {
+		hal_spinlockCreate(&threads_common.cpuSpinlock[i], "threads.cpuTimeLock");
+	}
+
 	/* Run idle thread on every cpu */
-	for (i = 0; i < hal_cpuGetCount(); i++) {
+	for (i = 0; i < ncpus; i++) {
 		threads_common.current[i] = NULL;
 		(void)proc_threadCreate(NULL, threads_idlethr, NULL, MAX_PRIO, (size_t)SIZE_KSTACK, NULL, 0, 0, NULL);
 	}

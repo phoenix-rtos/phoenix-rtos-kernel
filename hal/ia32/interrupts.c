@@ -25,6 +25,7 @@
 #include "init.h"
 
 #include "perf/trace-events.h"
+#include "proc/threads.h"
 
 #include <arch/tlb.h>
 
@@ -162,7 +163,7 @@ static inline void _hal_interruptsApicEOI(unsigned int n)
 }
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Use in assembly" */
 void _interrupts_eoi(unsigned int n)
 {
 	if ((n >= SIZE_INTERRUPTS) && ((n < SYSCALL_IRQ) || (n > TLB_IRQ))) {
@@ -185,17 +186,20 @@ void _interrupts_eoi(unsigned int n)
 }
 
 
-/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Definition in assembly" */
+/* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Use in assembly" */
 int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	int reschedule = 0;
 	spinlock_ctx_t sc;
 	int trace;
+	void *interrupted;
 
 	if (n >= SIZE_INTERRUPTS) {
 		return 0;
 	}
+
+	interrupted = proc_cpuTimeIntrEnter(ctx);
 
 	trace = (interrupts_common.trace_irqs != 0 && n != SYSTICK_IRQ) ? 1 : 0;
 	if (trace != 0) {
@@ -220,6 +224,11 @@ int interrupts_dispatchIRQ(unsigned int n, cpu_context_t *ctx)
 
 	if (trace != 0) {
 		trace_eventInterruptExit(n);
+	}
+
+	/* After a reschedule the mode comes from the context the scheduler restores */
+	if (reschedule == 0) {
+		proc_cpuTimeIntrLeave(interrupted);
 	}
 
 	return reschedule;

@@ -20,6 +20,7 @@
 #include "perf/trace-events.h"
 
 #include "include/errno.h"
+#include "proc/threads.h"
 
 #ifdef __CPU_STM32L4X6
 #define SIZE_INTERRUPTS 97U
@@ -34,9 +35,6 @@ static struct {
 } interrupts;
 
 
-int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
-
-
 /* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
@@ -44,10 +42,13 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	int reschedule = 0;
 	spinlock_ctx_t sc;
 	int trace;
+	void *interrupted;
 
 	if (n >= SIZE_INTERRUPTS) {
 		return;
 	}
+
+	interrupted = proc_cpuTimeIntrEnter(ctx);
 
 	trace = (interrupts.trace_irqs != 0 && n != SYSTICK_IRQ) ? 1 : 0;
 	if (trace != 0) {
@@ -77,6 +78,11 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if (reschedule != 0) {
 		(void)threads_schedule(n, ctx, NULL);
+	}
+
+	/* After a reschedule the mode comes from the context the scheduler restores */
+	if (reschedule == 0) {
+		proc_cpuTimeIntrLeave(interrupted);
 	}
 }
 

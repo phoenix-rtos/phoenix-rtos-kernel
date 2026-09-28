@@ -17,6 +17,7 @@
 #include "hal/console.h"
 #include "hal/string.h"
 #include "include/mman.h"
+#include "proc/threads.h"
 
 
 /* Set to 1 to print text descriptions of exceptions for architecture extensions */
@@ -189,21 +190,24 @@ static void exceptions_defaultHandler(unsigned int n, exc_context_t *ctx)
 }
 
 
-void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
-
-
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Usage in assembly" */
 void exceptions_dispatch(unsigned int n, exc_context_t *ctx)
 {
+	void *interrupted;
+
 	if (n >= N_EXCEPTIONS) {
 		return;
 	}
+
+	interrupted = proc_cpuTimeIntrEnter(&ctx->cpuCtx);
 
 	exceptions.handler[n](n, ctx);
 	/* Handle signals if necessary */
 	if (hal_cpuSupervisorMode(&ctx->cpuCtx) == 0) {
 		threads_setupUserReturn((void *)ctx->cpuCtx.x[0], &ctx->cpuCtx);
 	}
+
+	proc_cpuTimeIntrLeave(interrupted);
 }
 
 

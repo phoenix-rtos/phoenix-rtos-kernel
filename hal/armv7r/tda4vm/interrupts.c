@@ -21,6 +21,7 @@
 #include "proc/userintr.h"
 
 #include "include/errno.h"
+#include "proc/threads.h"
 
 #define VIM_BASE_ADDRESS 0x40f80000
 #define SIZE_INTERRUPTS  384U
@@ -59,9 +60,6 @@ static struct {
 	intr_handler_t *handlers[SIZE_INTERRUPTS];
 	unsigned int counters[SIZE_INTERRUPTS];
 } interrupts_common;
-
-
-int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 static void interrupts_clearStatus(unsigned int irqn)
@@ -103,6 +101,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	int reschedule = 0;
 	spinlock_ctx_t sc;
 	u32 dummy, irq_val;
+	void *interrupted;
 
 	/* This register is supposed to be used for ISR vector (pointer to code),
 	 * but because lowest 2 bits are hardwired to 0, it cannot store Thumb code pointers.
@@ -122,6 +121,8 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		*(interrupts_common.vim + vim_irqvec) = 0; /* Write any value */
 		return 0;
 	}
+
+	interrupted = proc_cpuTimeIntrEnter(ctx);
 
 	hal_spinlockSet(&interrupts_common.spinlock[n], &sc);
 
@@ -144,6 +145,11 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	*(interrupts_common.vim + vim_irqvec) = 0; /* Write any value */
 
 	hal_spinlockClear(&interrupts_common.spinlock[n], &sc);
+
+	/* After a reschedule the mode comes from the context the scheduler restores */
+	if (reschedule == 0) {
+		proc_cpuTimeIntrLeave(interrupted);
+	}
 
 	return reschedule;
 }

@@ -18,6 +18,7 @@
 #include "hal/string.h"
 
 #include "include/mman.h"
+#include "proc/threads.h"
 
 #define SIZE_EXCEPTIONS 16U
 
@@ -172,18 +173,18 @@ ptr_t hal_exceptionsPC(exc_context_t *ctx)
 }
 
 
-void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
-
-
 /* parasoft-suppress-next-line MISRAC2012-RULE_8_4 "Usage in assembly" */
 void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	spinlock_ctx_t sc;
 	excHandlerFn_t h;
+	void *interrupted;
 
 	if (n >= SIZE_EXCEPTIONS) {
 		return;
 	}
+
+	interrupted = proc_cpuTimeIntrEnter(ctx);
 
 	hal_spinlockSet(&exceptions_common.spinlock, &sc);
 	h = exceptions_common.handlers[n];
@@ -195,6 +196,8 @@ void exceptions_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (hal_cpuSupervisorMode(ctx) == 0) {
 		threads_setupUserReturn((void *)ctx->a0, ctx);
 	}
+
+	proc_cpuTimeIntrLeave(interrupted);
 }
 
 
