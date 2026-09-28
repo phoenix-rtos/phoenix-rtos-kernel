@@ -22,6 +22,7 @@
 #include <config.h>
 
 #include "include/errno.h"
+#include "proc/threads.h"
 
 
 #define SIZE_INTERRUPTS 32U
@@ -85,9 +86,6 @@ static struct {
 } interrupts_common;
 
 
-int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
-
-
 void hal_cpuBroadcastIPI(unsigned int intr)
 {
 	unsigned int id = hal_cpuGetID(), i;
@@ -121,6 +119,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	unsigned int reschedule = 0;
 	unsigned int cpuid = hal_cpuGetID();
 	spinlock_ctx_t sc;
+	void *interrupted;
 
 	if (n == interrupts_common.extendedIrqn) {
 		/* Extended interrupt (16 - 31) */
@@ -130,6 +129,8 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (n >= SIZE_INTERRUPTS) {
 		return;
 	}
+
+	interrupted = proc_cpuTimeIntrEnter(ctx);
 
 	hal_spinlockSet(&interrupts_common.spinlocks[n], &sc);
 
@@ -149,6 +150,11 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		(void)threads_schedule(n, ctx, NULL);
 	}
 	hal_spinlockClear(&interrupts_common.spinlocks[n], &sc);
+
+	/* After a reschedule the mode comes from the context the scheduler restores */
+	if (reschedule == 0U) {
+		proc_cpuTimeIntrLeave(interrupted);
+	}
 }
 
 
