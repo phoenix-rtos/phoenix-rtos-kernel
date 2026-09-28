@@ -359,9 +359,6 @@ int syscalls_nsleep(u8 *ustack)
 	GETFROMSTACK(ustack, int, clockid, 2U);
 	GETFROMSTACK(ustack, int, flags, 3U);
 
-	/* Not used right now, future-proofing */
-	(void)clockid;
-
 	if (vm_mapBelongs(proc, sec, sizeof(*sec)) < 0) {
 		return -EFAULT;
 	}
@@ -370,7 +367,7 @@ int syscalls_nsleep(u8 *ustack)
 		return -EFAULT;
 	}
 
-	return proc_threadNanoSleep(sec, nsec, (((unsigned int)flags & TIMER_ABSTIME) != 0U) ? 1 : 0);
+	return proc_threadNanoSleep(sec, nsec, clockid, (((unsigned int)flags & TIMER_ABSTIME) != 0U) ? 1 : 0);
 }
 
 

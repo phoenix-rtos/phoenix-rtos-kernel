@@ -1120,9 +1120,9 @@ int proc_threadSleep(time_t us)
 }
 
 
-int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
+int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute)
 {
-	time_t us, start, stop, elapsed, unslept;
+	time_t us, abstime, start, stop, elapsed, unslept;
 	int err;
 	spinlock_ctx_t sc;
 
@@ -1130,16 +1130,38 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute)
 		return -EINVAL;
 	}
 
-	us = ((*sec) * 1000LL * 1000LL) + (((time_t)(*nsec) + 999LL) / 1000LL);
+	if ((clockid != PH_CLOCK_REALTIME) && (clockid != PH_CLOCK_MONOTONIC)) {
+		return -EINVAL;
+	}
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
-	start = _proc_gettimeRaw();
-
-	if (absolute != 0) {
-		err = _proc_threadSleepAbs(us, start, &sc);
+	if ((*sec) > TIME_T_MAX / (1000LL * 1000LL)) {
+		us = TIME_T_MAX;
 	}
 	else {
+		us = ((*sec) * 1000LL * 1000LL) + (((time_t)(*nsec) + 999LL) / 1000LL);
+	}
+
+	if (absolute != 0) {
+		/*
+		 * TODO: re-arm absolute PH_CLOCK_REALTIME sleep on concurrent proc_settime().
+		 * Requires changes to the timer tree.
+		 */
+		err = proc_clockTimeoutToAbsTime(clockid, us, &abstime);
+		if ((err < 0) && (err != -ETIME)) {
+			return err;
+		}
+		if (err == -ETIME) {
+			abstime = 0;
+		}
+
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		err = _proc_threadSleepAbs(abstime, _proc_gettimeRaw(), &sc);
+	}
+	else {
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+
+		start = _proc_gettimeRaw();
+
 		err = _proc_threadSleep(us, start, &sc);
 		if (err == -EINTR) {
 			proc_gettime(&stop, NULL);

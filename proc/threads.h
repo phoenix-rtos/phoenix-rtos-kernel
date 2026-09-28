@@ -152,7 +152,7 @@ int proc_threadsOther(thread_t *t);
 int proc_threadSleep(time_t us);
 
 
-int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute);
+int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute);
 
 
 int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);
