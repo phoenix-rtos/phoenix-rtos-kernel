@@ -59,5 +59,11 @@ typedef int handle_t;
 
 typedef long long time_t;
 
+typedef struct {
+	time_t user;
+	time_t sys;
+	time_t childUser;
+	time_t childSys;
+} cpuTimes_t;
 
 #endif

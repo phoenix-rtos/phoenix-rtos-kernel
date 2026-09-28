@@ -82,7 +82,7 @@ static void process_destroy(process_t *p)
 	trace_eventProcessKill(p);
 
 	if (p->posix != 0U) {
-		posix_died(process_getPid(p), p->exit);
+		posix_died(process_getPid(p), p->exit, p->userTime, p->sysTime);
 	}
 
 	/* Destroy resources (especially rtInth) before changing map to prevent race */
@@ -202,6 +202,9 @@ int proc_start(startFn_t start, void *arg, const char *path)
 
 	(void)proc_lockInit(&process->lock, &proc_lockAttrDefault, "process");
 
+	process->cpuTime = 0;
+	process->sysTime = 0;
+	process->userTime = 0;
 	process->ports = NULL;
 
 	process->sigpend = 0;
@@ -1166,6 +1169,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 	}
 
 	hal_cpuSmpSync();
+	proc_cpuTimeKernelLeave(current);
 	hal_jmp(entry, current->kstack + current->kstacksz, stack, 0, NULL);
 }
 

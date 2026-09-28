@@ -70,6 +70,12 @@ typedef struct _process_info_t {
 
 	thread_t *wait;
 
+	/* Protected by lock */
+	time_t userTime;         /* user time charged to this process once it died (its own + of reaped children) */
+	time_t sysTime;          /* system time charged to this process once it died */
+	time_t userTimeChildren; /* accumulates the time of the children this process has reaped */
+	time_t sysTimeChildren;
+
 	struct _process_info_t *children;
 	struct _process_info_t *zombies;
 	struct _process_info_t *next, *prev;

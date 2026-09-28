@@ -13,6 +13,7 @@
  */
 
 /* parasoft-begin-suppress MISRAC2012-RULE_8_4-a "Compatible function declaration is not possible for syscalls" */
+/* parasoft-begin-suppress MISRAC2012-RULE_14_3-ac "vm_mapBelongs() is a no-op on NOMMU without NOMMU_MAPBELONGS_VALIDATE_MAP" */
 
 #include "hal/hal.h"
 #include "hal/cpu.h"
@@ -515,6 +516,64 @@ int syscalls_schedSet(u8 *ustack)
 	}
 
 	err = proc_schedSet(t, policy, params);
+
+	threads_put(t);
+
+	return err;
+}
+
+
+int syscalls_sys_cpuTime(u8 *ustack)
+{
+	int err, pid, tid;
+	thread_t *t;
+	time_t *cpuTime, *userTime = NULL, *sysTime = NULL;
+	cpuTimes_t *ct;
+	process_t *proc = proc_current()->process;
+
+	GETFROMSTACK(ustack, int, pid, 0U);
+	GETFROMSTACK(ustack, int, tid, 1U);
+	GETFROMSTACK(ustack, time_t *, cpuTime, 2U);
+	GETFROMSTACK(ustack, cpuTimes_t *, ct, 3U);
+
+	if ((cpuTime == NULL) && (ct == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((cpuTime != NULL) && (vm_mapBelongs(proc, cpuTime, sizeof(*cpuTime)) < 0)) {
+		return -EFAULT;
+	}
+
+	if ((ct != NULL) && (vm_mapBelongs(proc, ct, sizeof(*ct)) < 0)) {
+		return -EFAULT;
+	}
+
+	err = targetGet(pid, tid, &t);
+	if (err < 0) {
+		return err;
+	}
+
+	if (ct == NULL) {
+		userTime = NULL;
+		sysTime = NULL;
+	}
+	else {
+		if (proc->posix != 0U) {
+			err = posix_childTimesGet(process_getPid(proc), &ct->childUser, &ct->childSys);
+			if (err < 0) {
+				threads_put(t);
+				return err;
+			}
+		}
+		else {
+			ct->childUser = 0;
+			ct->childSys = 0;
+		}
+		userTime = &ct->user;
+		sysTime = &ct->sys;
+	}
+
+	err = proc_cpuTime(t, (tid != 0) ? 1 : 0, cpuTime, userTime, sysTime);
 
 	threads_put(t);
 
@@ -2183,6 +2242,8 @@ void *syscalls_dispatch(unsigned int n, u8 *ustack, cpu_context_t *ctx)
 
 	thread = proc_current();
 
+	proc_cpuTimeKernelEnter(thread);
+
 	trace_eventSyscallEnter(n, proc_getTid(thread));
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 MISRAC2012-RULE_11_8 "Related to previous suppression" */
@@ -2202,6 +2263,8 @@ void *syscalls_dispatch(unsigned int n, u8 *ustack, cpu_context_t *ctx)
 		proc_threadEnd();
 	}
 
+	proc_cpuTimeKernelLeave(thread);
+
 	return retval;
 }
 
@@ -2211,4 +2274,4 @@ void _syscalls_init(void)
 	lib_printf("syscalls: Initializing syscall table [%d]\n", sizeof(syscalls) / sizeof(syscalls[0]));
 }
 
-/* parasoft-end-suppress MISRAC2012-RULE_8_4 */
+/* parasoft-end-suppress MISRAC2012-RULE_8_4 MISRAC2012-RULE_14_3-ac */

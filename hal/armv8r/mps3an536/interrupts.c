@@ -20,6 +20,7 @@
 #include "include/errno.h"
 
 #include "perf/trace-events.h"
+#include "proc/threads.h"
 
 #include <board_config.h>
 
@@ -107,9 +108,6 @@ static struct {
 } interrupts_common;
 
 
-int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
-
-
 /* parasoft-suppress-next-line MISRAC2012-DIR_4_3 "Assembly is required for low-level operations" */
 static u32 gic_acknowledge(void)
 {
@@ -146,6 +144,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	intr_handler_t *h;
 	spinlock_ctx_t sc;
 	int trace;
+	void *interrupted;
 
 	n = gic_acknowledge();
 
@@ -153,6 +152,8 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 		/* Spurious interrupt */
 		return 0;
 	}
+
+	interrupted = proc_cpuTimeIntrEnter(ctx);
 
 	trace = (interrupts_common.trace_irqs != 0 && n != (unsigned int)TIMER_IRQ) ? 1 : 0;
 	if (trace != 0) {
@@ -180,6 +181,11 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	if (trace != 0) {
 		trace_eventInterruptExit(n);
+	}
+
+	/* After a reschedule the mode comes from the context the scheduler restores */
+	if (reschedule == 0U) {
+		proc_cpuTimeIntrLeave(interrupted);
 	}
 
 	return (int)reschedule;
