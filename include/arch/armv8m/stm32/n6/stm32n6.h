@@ -15,6 +15,9 @@
 #define _PH_ARCH_STM32N6_H_
 
 
+#define PCTL_CPUVOLT_VOS_LOW  0U
+#define PCTL_CPUVOLT_VOS_HIGH 1U
+
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 
 /* STM32N6 device identifiers */
