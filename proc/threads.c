@@ -25,6 +25,9 @@
 #include "ports.h"
 #include "perf/trace-events.h"
 
+_Static_assert(PH_CLK_TCK *SYSTICK_INTERVAL <= 1000000,
+		"times() would report the user/system split finer than the scheduler samples it");
+
 #define TIME_T_MAX 0x7FFFFFFFFFFFFFFFLL /* LLONG_MAX */
 
 /* clang-format off */
