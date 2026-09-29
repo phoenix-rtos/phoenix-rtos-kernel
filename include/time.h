@@ -19,6 +19,8 @@
 #define PH_CLOCK_REALTIME  1
 #define PH_CLOCK_MONOTONIC 2
 
+#define PH_CLK_TCK 100
+
 #define TIMER_ABSTIME 1U
 
 
