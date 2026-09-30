@@ -604,7 +604,6 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 }
 
 
-/* TODO: handle O_CREAT and O_EXCL */
 int posix_open(const char *filename, int oflag, u8 *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
@@ -646,22 +645,41 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 		(void)proc_lockClear(&p->lock);
 
 		do {
-			err = proc_lookup(filename, &ln, &oid);
-			if ((err == -ENOENT) && (((unsigned int)oflag & O_CREAT) != 0U)) {
+			if (((unsigned int)oflag & O_CREAT) != 0U) {
 				GETFROMSTACK(ustack, mode_t, mode, 2U);
 
 				err = posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid);
+				if (err == -EEXIST) {
+					if (((unsigned int)oflag & O_EXCL) != 0U) {
+						break;
+					}
+
+					/*
+					 * FIXME: this is race-y as between posix_create and proc_lookup
+					 * the existing file might have been removed. The mtCreate message
+					 * should probably be able to fail but still provide the existing
+					 * file's oid so that we can work with it later when we don't care
+					 * if the file was created or not and just want the oid (O_CREAT
+					 * without O_EXCL).
+					 */
+					err = proc_lookup(filename, &ln, &oid);
+					if (err < 0) {
+						break;
+					}
+				}
+				else if (err < 0) {
+					break;
+				}
+				else {
+					created = 1;
+					hal_memcpy(&ln, &oid, sizeof(oid_t));
+				}
+			}
+			else {
+				err = proc_lookup(filename, &ln, &oid);
 				if (err < 0) {
 					break;
 				}
-				created = 1;
-				hal_memcpy(&ln, &oid, sizeof(oid_t));
-			}
-			else if (err < 0) {
-				break;
-			}
-			else {
-				/* No action required */
 			}
 
 			if (oid.port == USOCKET_PORT) {
