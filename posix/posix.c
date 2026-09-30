@@ -885,19 +885,23 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 	/* offset < 0 means use current fd offset */
 	if (offset < 0) {
 		offs = f->offset;
+		status = f->status;
 	}
-	status = f->status;
+	else {
+		/* don't overwrite the offset in FS when offset is requested */
+		status = f->status & ~O_APPEND;
+	}
 	(void)proc_lockClear(&f->lock);
 
 	if (f->type == ftUnixSocket) {
 		rcnt = usocket_sendto(f->sock, buf, nbyte, 0, NULL, 0);
 	}
 	else {
-		rcnt = proc_write(f->oid, offs, buf, nbyte, status);
+		rcnt = proc_write(f->oid, &offs, buf, nbyte, status);
 
 		if (rcnt > 0 && offset < 0 && F_SEEKABLE(f->type)) {
 			(void)proc_lockSet(&f->lock);
-			f->offset += rcnt;
+			f->offset = offs;
 			(void)proc_lockClear(&f->lock);
 		}
 	}
