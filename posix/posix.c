@@ -608,7 +608,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
 	oid_t ln, oid, dev, pipesrv;
-	int fd = 0, err = 0, created = 0;
+	int fd = 0, err = 0, created = 0, type;
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
@@ -713,17 +713,28 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			hal_memcpy(&f->ln, &ln, sizeof(ln));
 
 			f->refs = 1;
+			f->offset = 0;
 
-			/* TODO: check for other types */
-			if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
-				/* FIXME: replace this hacky solution with proper device driver recognition */
-				f->type = ftPipe;
+			type = proc_mode(err == 0 ? f->ln : f->oid);
+			if (type >= 0) {
+				switch ((unsigned int)type & S_IFMT) {
+					case S_IFREG:
+						f->type = ftRegular;
+						break;
+					case S_IFIFO:
+						f->type = ftFifo;
+						break;
+					case S_IFCHR:
+						f->type = ftTty;
+						break;
+					default:
+						f->type = ftRegular;
+						break;
+				}
 			}
 			else {
 				f->type = ftRegular;
 			}
-
-			f->offset = 0;
 
 			if (((unsigned int)oflag & O_TRUNC) != 0U) {
 				(void)posix_truncate(&f->oid, 0);
