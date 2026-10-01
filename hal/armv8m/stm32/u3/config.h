@@ -37,8 +37,6 @@
 #define LPTIM_SYSTEM_IRQ       lptim4_irq
 #define LPTIM_SYSTEM_PCTL      pctl_lptim4
 #define LPTIM_SYSTEM_IPCLK_SEL pctl_ipclk_lptim34sel
-#define LPTIM_SYSTEM_IPCLK_VAL 1       /* LSI */
-#define LPTIM_SYSTEM_INPUT     32000UL /* LSI input frequency in Hz */
 #define LPTIM_SYSTEM_CYCLE_MS  16000UL /* 16 s */
 
 #define HAL_NAME_PLATFORM "STM32U3 "
