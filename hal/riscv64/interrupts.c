@@ -83,7 +83,7 @@ static int interrupts_dispatchPlic(cpu_context_t *ctx)
 	h = interrupts_common.plic.handlers[irq];
 	if (h != NULL) {
 		do {
-			reschedule |= (unsigned int)h->f(irq, NULL, h->data);
+			reschedule |= (unsigned int)h->f(irq, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.plic.handlers[irq]);
 	}
@@ -123,7 +123,7 @@ static int interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 	h = interrupts_common.clint.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= (unsigned int)h->f(n, NULL, h->data);
+			reschedule |= (unsigned int)h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.clint.handlers[n]);
 	}

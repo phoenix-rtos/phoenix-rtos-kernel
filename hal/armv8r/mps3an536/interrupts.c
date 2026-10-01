@@ -165,7 +165,7 @@ int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 	if (h != NULL) {
 		do {
 			hal_cpuSetGot(h->got);
-			reschedule |= (unsigned int)h->f(n, NULL, h->data);
+			reschedule |= (unsigned int)h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.handlers[n]);
 	}
