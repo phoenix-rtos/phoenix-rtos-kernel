@@ -611,6 +611,35 @@ off_t proc_size(oid_t oid)
 }
 
 
+int proc_mode(oid_t oid)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL) {
+		return -ENOMEM;
+	}
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtGetAttr;
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+	msg->i.attr.type = 0; /* atMode */
+
+	err = proc_send(oid.port, msg);
+	if (err == EOK) {
+		err = msg->o.err;
+	}
+
+	if (err == EOK) {
+		err = (int)msg->o.attr.val;
+	}
+
+	vm_kfree(msg);
+	return err;
+}
+
+
 void _name_init(void)
 {
 	(void)proc_lockInit(&name_common.lock, &proc_lockAttrDefault, "name.common");
