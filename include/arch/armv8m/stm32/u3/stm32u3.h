@@ -15,6 +15,13 @@
 #ifndef _PH_ARCH_STM32U3_H_
 #define _PH_ARCH_STM32U3_H_
 
+/* Note: voltage ranges must be ordered by increasing maximum performance */
+
+#define PCTL_CPUVOLT_RANGE2  0U /* Low-power */
+#define PCTL_CPUVOLT_RANGE1  1U /* High performance */
+#define PCTL_CPUVOLT_RANGE2B 2U /* Low-power with EPOD booster */
+#define PCTL_CPUVOLT_RANGE1B 3U /* High performance with EPOD booster */
+
 
 #define PCTL_REBOOT_MAGIC 0xaa55aa55UL
 

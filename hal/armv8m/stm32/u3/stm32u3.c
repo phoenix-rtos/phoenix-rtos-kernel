@@ -29,6 +29,10 @@
 #error "This target doesn't support WATCHDOG_TIMEOUT_MS. Watchdog timeout is 30 s."
 #endif
 
+#ifndef RCC_DEFAULT_CPU_CLOCK
+#define RCC_DEFAULT_CPU_CLOCK (24U * 1000U * 1000U)
+#endif
+
 
 #define IWDG_BASE   ((void *)0x50003000U)
 #define PWR_BASE    ((void *)0x50030800U)
@@ -36,9 +40,27 @@
 #define RTC_BASE    ((void *)0x50007800U)
 #define SYSCFG_BASE ((void *)0x50040400U)
 #define GPDMA1_BASE ((void *)0x50020000U)
+#define FLASH_BASE  ((void *)0x50022000U)
 #define DBGMCU_BASE ((void *)0xe0044000U)
 
 #define DMA_CHANNELS 12U
+
+/*
+ * After exiting sleep mode, the chip will always be in Range 2 with EPOD booster off.
+ * If the requested frequency is higher than maximum in this configuration, additional steps need to be taken
+ * when entering and exiting sleep mode.
+ */
+#define RCC_MAX_SLEEP_CLOCK (24U * 1000U * 1000U)
+
+#define PWR_VOSR_BOOSTEN (1UL << 8)
+
+#define RCC_CFGR1_SW_MSIS 0U /* System clock source - MSIS */
+#define RCC_CFGR1_SW_HSI  1U /* System clock source - HSI16 */
+#define RCC_CFGR1_SW_HSE  2U /* System clock source - HSE */
+
+#define RCC_CR_HSION    (1UL << 11)
+#define RCC_CR_HSIKERON (1UL << 12)
+#define RCC_CR_HSIRDY   (1UL << 13)
 
 
 static struct {
@@ -48,6 +70,7 @@ static struct {
 	volatile u32 *syscfg;
 	volatile u32 *iwdg;
 	volatile u32 *dbgmcu;
+	volatile u32 *flash;
 
 	u32 cpuclk;
 
@@ -89,6 +112,13 @@ int hal_platformctl(void *ptr)
 				data->cpuclk.hz = _stm32_rccGetCPUClock();
 				ret = EOK;
 			}
+			else if (data->action == pctl_set) {
+				ret = _stm32_rccSetCPUClock(data->cpuclk.hz);
+			}
+			else {
+				/* No action necessary */
+			}
+
 
 			break;
 		case pctl_ipclk:
@@ -217,6 +247,28 @@ int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr)
 
 	*(base + (unsigned int)gpdma_cxlbar + (0x20U * channel)) = addr & 0xffff0000U;
 	return EOK;
+}
+
+
+/* FLASH */
+
+
+static u8 _stm32_flashGetWaitStates(void)
+{
+	return *(stm32_common.flash + flash_acr) & 0xfU;
+}
+
+
+static void _stm32_flashSetWaitStates(u8 ws)
+{
+	u32 acr = *(stm32_common.flash + flash_acr) & ~0xfUL;
+	ws &= 0xfU;
+	acr |= ws;
+	*(stm32_common.flash + flash_acr) = acr;
+	while (_stm32_flashGetWaitStates() != ws) {
+		/* Ensure the change has taken effect */
+		hal_cpuDataSyncBarrier();
+	}
 }
 
 
@@ -355,6 +407,228 @@ int _stm32_rccGetDevClock(int dev, u32 *status, u32 *lpStatus)
 }
 
 
+/* MSIS clock range mappings */
+typedef struct {
+	u32 hz;
+	int val;
+} range_mapping_t;
+
+#define FREQUENCY_RANGE_COUNT 6U
+static const range_mapping_t stm32_frequencyRanges[FREQUENCY_RANGE_COUNT] = {
+	{ 3000000UL, 7 },  /* MSIRC1 / 8 */
+	{ 6000000UL, 6 },  /* MSIRC1 / 4 */
+	{ 12000000UL, 5 }, /* MSIRC1 / 2 */
+	{ 24000000UL, 4 }, /* MSIRC1 / 1 */
+	{ 48000000UL, 1 }, /* MSIRC0 / 2 */
+	{ 96000000UL, 0 }, /* MSIRC0 / 1 */
+};
+
+#define WAIT_STATE_RANGE_COUNT 4U
+static const range_mapping_t stm32_flashWaitStates[WAIT_STATE_RANGE_COUNT] = {
+	{ 0UL, 0 },        /* Below 16 MHz => 0 WS */
+	{ 16000000UL, 1 }, /* From 16 MHz => 1 WS */
+	{ 32000000UL, 2 }, /* From 32 MHz => 2 WS */
+	{ 48000000UL, 3 }, /* From 48 MHz => 3 WS */
+};
+
+
+static const range_mapping_t *_stm32_findRange(u32 hz, const range_mapping_t *ranges, size_t length)
+{
+	size_t i;
+	if ((length == 0) || (hz < ranges[0].hz)) {
+		return NULL;
+	}
+
+	for (i = 0; i < (length - 1U); i++) {
+		if (hz < ranges[i + 1].hz) {
+			return &ranges[i];
+		}
+	}
+
+	return &ranges[i];
+}
+
+
+static void _stm32_rccSetHsi(int on)
+{
+	u32 waitBit, v;
+	v = *(stm32_common.rcc + rcc_cr);
+	if (on != 0) {
+		v |= RCC_CR_HSION;
+		waitBit = RCC_CR_HSIRDY;
+		if ((v & waitBit) != 0U) {
+			/* Already active */
+			return;
+		}
+	}
+	else {
+		if ((v & RCC_CR_HSIKERON) != 0U) {
+			/* HSI requested to remain active as peripheral kernel clock; don't disable it */
+			return;
+		}
+
+		v &= ~RCC_CR_HSION;
+		waitBit = 0U;
+	}
+
+	*(stm32_common.rcc + rcc_cr) = v;
+	hal_cpuDataMemoryBarrier();
+
+	while ((*(stm32_common.rcc + rcc_cr) & RCC_CR_HSIRDY) != waitBit) {
+		/* Wait for HSIRDY */
+	}
+}
+
+
+u8 _stm32_pwrGetCPUVolt(void)
+{
+	u32 vosr;
+
+	vosr = *(stm32_common.pwr + pwr_vosr) >> 16;
+	/* Note: according to documentation, Range 1 and Range 2 cannot be set at the same time */
+	if (vosr & (1UL << 1)) {
+		return ((vosr & PWR_VOSR_BOOSTEN) != 0) ? PCTL_CPUVOLT_RANGE2B : PCTL_CPUVOLT_RANGE2;
+	}
+
+	return ((vosr & PWR_VOSR_BOOSTEN) != 0) ? PCTL_CPUVOLT_RANGE1B : PCTL_CPUVOLT_RANGE1;
+}
+
+
+int _stm32_pwrSetCPUVolt(u8 range)
+{
+	static const u32 vosrMask = (PWR_VOSR_BOOSTEN | 0x3);
+	u32 i, t, vosrVal;
+
+	switch (range) {
+		case PCTL_CPUVOLT_RANGE2:
+			vosrVal = (1UL << 1);
+			break;
+		case PCTL_CPUVOLT_RANGE1:
+			vosrVal = (1UL << 0);
+			break;
+		case PCTL_CPUVOLT_RANGE2B:
+			vosrVal = (1UL << 1) | PWR_VOSR_BOOSTEN;
+			break;
+		case PCTL_CPUVOLT_RANGE1B:
+			vosrVal = (1UL << 0) | PWR_VOSR_BOOSTEN;
+			break;
+		default:
+			return -EINVAL;
+	}
+
+	t = *(stm32_common.rcc + rcc_cfgr4) & ~((0xfUL << 12) | (0x3UL << 0)); /* Clear BOOSTDIV (bypass) */
+	if ((vosrVal & PWR_VOSR_BOOSTEN) != 0U) {
+		_stm32_rccSetHsi(1);
+		*(stm32_common.rcc + rcc_cfgr4) = t | (1UL << 1); /* Set BOOSTSEL to HSI16 */
+	}
+	hal_cpuDataMemoryBarrier();
+
+	t = *(stm32_common.pwr + pwr_vosr) & ~vosrMask;
+	*(stm32_common.pwr + pwr_vosr) = t | vosrVal;
+	hal_cpuDataMemoryBarrier();
+
+	for (i = 0U; i < 1000U; i++) {
+		/* Wait for BOOSTRDY and RxRDY */
+		if (((*(stm32_common.pwr + pwr_vosr) >> 16) & vosrMask) == vosrVal) {
+			break;
+		}
+	}
+
+	if (((*(stm32_common.pwr + pwr_vosr) >> 16) & vosrMask) != vosrVal) {
+		return -ETIME;
+	}
+
+	if ((vosrVal & PWR_VOSR_BOOSTEN) == 0U) {
+		*(stm32_common.rcc + rcc_cfgr4) = t; /* Clear BOOSTSEL */
+		_stm32_rccSetHsi(0);
+	}
+
+	return EOK;
+}
+
+
+int _stm32_rccSetCPUClock(u32 hz)
+{
+	int ret = EOK;
+	u32 v, clockSrc;
+	u8 vRangeNew, vRangeOld, wsOld, wsNew;
+	const range_mapping_t *freqRange = NULL;
+	const range_mapping_t *wsRange = NULL;
+
+	freqRange = _stm32_findRange(hz, stm32_frequencyRanges, FREQUENCY_RANGE_COUNT);
+	if (freqRange == NULL) {
+		return -ERANGE;
+	}
+
+	hz = freqRange->hz;
+	clockSrc = RCC_CFGR1_SW_MSIS;
+
+	wsRange = _stm32_findRange(hz, stm32_flashWaitStates, WAIT_STATE_RANGE_COUNT);
+	wsNew = (u8)wsRange->val;
+	if (hz > (48U * 1000U * 1000U)) {
+		vRangeNew = PCTL_CPUVOLT_RANGE1B;
+	}
+	else if (hz > (24U * 1000U * 1000U)) {
+		vRangeNew = PCTL_CPUVOLT_RANGE2B;
+	}
+	else {
+		vRangeNew = PCTL_CPUVOLT_RANGE2;
+	}
+
+	vRangeOld = _stm32_pwrGetCPUVolt();
+	wsOld = _stm32_flashGetWaitStates();
+	if (vRangeNew > vRangeOld) {
+		/* Requested increase in performance - set voltage range before increasing clocks */
+		ret = _stm32_pwrSetCPUVolt(vRangeNew);
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
+	if (wsOld < wsNew) {
+		_stm32_flashSetWaitStates(wsNew);
+	}
+
+	/* Configure MSIS */
+	v = *(stm32_common.rcc + rcc_icscr1) & ~(0x7UL << 29);
+	v |= (((u32)freqRange->val & 0x7UL) << 29) | (1UL << 23); /* Set MSISSEL | MSISDIV | MSIRGSEL */
+	*(stm32_common.rcc + rcc_icscr1) = v;
+
+	while ((*(stm32_common.rcc + rcc_cr) & (1U << 2)) == 0U) {
+		/* Wait for MSISRDY */
+	}
+
+	/* Configure SYSCLK source if necessary */
+	v = *(stm32_common.rcc + rcc_cfgr1);
+	if (((v >> 2) & 0x3UL) != clockSrc) {
+		v &= ~0x3UL;
+		v |= clockSrc; /* Set SW */
+		*(stm32_common.rcc + rcc_cfgr1) = v;
+
+		while (((*(stm32_common.rcc + rcc_cfgr1) >> 2) & 0x3UL) != clockSrc) {
+			/* Wait for SWS == SW */
+		}
+	}
+
+	/* Update the current frequency */
+	stm32_common.cpuclk = hz;
+
+	if (wsOld > wsNew) {
+		_stm32_flashSetWaitStates(wsNew);
+	}
+
+	if (vRangeNew < vRangeOld) {
+		/* Requested reduction in performance - set voltage range after decreasing clocks */
+		ret = _stm32_pwrSetCPUVolt(vRangeNew);
+	}
+
+	hal_cpuDataSyncBarrier();
+	hal_cpuInstrBarrier();
+
+	return ret;
+}
+
+
 u32 _stm32_rccGetCPUClock(void)
 {
 	return stm32_common.cpuclk;
@@ -363,7 +637,7 @@ u32 _stm32_rccGetCPUClock(void)
 
 u32 _stm32_rccGetPerClock(void)
 {
-	/* Bootloader initializes HPRE to 1 and PPRE1 ~ 3 to 2 */
+	/* At startup we set HPRE to 1 and PPRE1 ~ 3 to 2 */
 	return stm32_common.cpuclk / 2UL;
 }
 
@@ -531,23 +805,29 @@ void _stm32_wdgReload(void)
 
 void _stm32_pwrEnterLPStop(time_t us)
 {
-	unsigned int t;
-
-	/* Select Stop 2 as deep sleep mode */
-	t = *(stm32_common.pwr + pwr_cr1) & ~(0x7U);
-	*(stm32_common.pwr + pwr_cr1) = t | 2U;
-	hal_cpuDataMemoryBarrier();
+	u32 freqBefore = 0U;
 
 	timer_setAlarm(us);
+
+	if (stm32_common.cpuclk > RCC_MAX_SLEEP_CLOCK) {
+		freqBefore = stm32_common.cpuclk;
+		_stm32_rccSetCPUClock(RCC_MAX_SLEEP_CLOCK);
+	}
 
 	_hal_scsDeepSleepSet(1); /* Switch to deep sleep mode */
 	hal_cpuHalt();           /* WFI enters Stop mode */
 	_hal_scsDeepSleepSet(0); /* Switch to shallow sleep mode */
+
+	if (freqBefore != 0U) {
+		_stm32_rccSetCPUClock(freqBefore);
+	}
 }
 
 
 void _stm32_init(void)
 {
+	u32 v;
+
 	/* Base addresses init */
 	stm32_common.iwdg = IWDG_BASE;
 	stm32_common.pwr = PWR_BASE;
@@ -555,6 +835,7 @@ void _stm32_init(void)
 	stm32_common.rtc = RTC_BASE;
 	stm32_common.syscfg = SYSCFG_BASE;
 	stm32_common.dbgmcu = DBGMCU_BASE;
+	stm32_common.flash = FLASH_BASE;
 
 	_hal_scsInit();
 
@@ -567,11 +848,29 @@ void _stm32_init(void)
 	/* Enable power module */
 	(void)_stm32_rccSetDevClock(pctl_pwr, 1U, 1U);
 
-	/* TODO: would be nice to have clock configuration options or the frequency passed from PLO */
-	stm32_common.cpuclk = 24U * 1000U * 1000U;
-
 	/* Disable all interrupts */
 	*(stm32_common.rcc + rcc_cier) = 0;
+
+	/* Set peripheral bus clock prescalers */
+	v = *(stm32_common.rcc + rcc_cfgr2);
+	v &= ~((0x7UL << 8) | (0x7UL << 4) | (0xFUL << 0)); /* Clear PPRE2, PPRE1, HPRE */
+	v |= (0x4UL << 8) | (0x4UL << 4) | (0x0UL << 0);    /* Set PPRE1 ~ 2 to 2, HPRE to 1 */
+	*(stm32_common.rcc + rcc_cfgr2) = v;
+
+	v = *(stm32_common.rcc + rcc_cfgr3);
+	v &= ~(0x7UL << 4); /* Clear PPRE3 */
+	v |= (0x4UL << 4);  /* Set PPRE3 to 2 */
+	*(stm32_common.rcc + rcc_cfgr3) = v;
+
+	(void)_stm32_rccSetCPUClock(RCC_DEFAULT_CPU_CLOCK);
+
+	/* Select Stop 2 as deep sleep mode */
+	v = *(stm32_common.pwr + pwr_cr1) & ~(0x7U);
+	*(stm32_common.pwr + pwr_cr1) = v | 2U;
+
+	v = *(stm32_common.rcc + rcc_cfgr1);
+	v &= ~(3U << 4); /* Clear STOPWUCK, STOPKERWUCK - use MSIS/MSIK for wake-up */
+	*(stm32_common.rcc + rcc_cfgr1) = v;
 
 	hal_cpuDataMemoryBarrier();
 

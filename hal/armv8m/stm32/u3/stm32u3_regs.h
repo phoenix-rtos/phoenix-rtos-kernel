@@ -252,5 +252,10 @@ enum exti_regs {
 	exti_emr1,
 };
 
+enum flash_regs {
+	flash_acr = 0x0,
+	/* Remaining FLASH registers are not relevant for kernel use */
+};
+
 
 #endif /* _PH_STM32U3_REGS_H_ */

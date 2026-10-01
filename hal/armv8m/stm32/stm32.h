@@ -146,14 +146,12 @@ int _stm32_extiSoftInterrupt(u32 line);
 int _stm32_extiSetGpioMux(int gpioDev, u8 pin);
 
 
-#if defined(__CPU_STM32N6)
 /* Set CPU voltage range to one of PCTL_CPUVOLT_* */
 int _stm32_pwrSetCPUVolt(u8 range);
 
 
 /* Returns CPU voltage range as PCTL_CPUVOLT_* */
 u8 _stm32_pwrGetCPUVolt(void);
-#endif
 
 
 void _stm32_wdgReload(void);
