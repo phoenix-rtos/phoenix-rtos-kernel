@@ -1,0 +1,14 @@
+hal/riscv64/timer.c
+  h_fc26ad17182140 34-43,50,58,90,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e0ab2753e268a3ab11a489b80f3d7734e95e5dad",
+  "prompts": {},
+  "humans": {
+    "h_fc26ad17182140": {
+      "author": "Lukasz Leczkowski <lukasz.leczkowski@phoenix-rtos.com>"
+    }
+  }
+}
