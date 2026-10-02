@@ -41,6 +41,32 @@
 #define NPU_CACHEAXI 0
 #endif
 
+#define PWR_CORE_SMPS    (1UL << 0) /* activate SMPS step-down converter */
+#define PWR_CORE_LPDS08V (1UL << 1) /* use high-efficiency SMPS mode in Stop mode */
+
+#ifndef PWR_CORE_CONFIG
+#define PWR_CORE_CONFIG (PWR_CORE_SMPS | PWR_CORE_LPDS08V)
+#endif
+
+#ifndef RCC_DEFAULT_CPU_CLOCK
+#define RCC_DEFAULT_CPU_CLOCK (600U * 1000U * 1000U)
+#endif
+
+_Static_assert(
+		(RCC_DEFAULT_CPU_CLOCK == 600U * 1000U * 1000U) || (RCC_DEFAULT_CPU_CLOCK == 800U * 1000U * 1000U),
+		"Currently only 600 MHz and 800 MHz frequencies are supported");
+
+/* These definitions are not imposed by hardware - this is our convention */
+#define RCC_PLL_CPU 1U /* PLL used for CPU */
+#define RCC_PLL_NPU 2U /* PLL used for NPU */
+#define RCC_PLL_AUX 3U /* PLL reserved for auxiliary uses (e.g. video/audio) */
+#define RCC_PLL_PER 4U /* PLL used for buses and peripherals incl. timers */
+
+/* These definitions are imposed by hardware */
+#define RCC_ICLK_SYSA 1U  /* CPU */
+#define RCC_ICLK_SYSB 2U  /* AXI, AHB, APB, timers, AXISRAM1/2 */
+#define RCC_ICLK_SYSC 6U  /* NPU */
+#define RCC_ICLK_SYSD 11U /* AXISRAM3/4/5/6 */
 
 #define GPIOA_BASE ((void *)0x56020000U)
 #define GPIOB_BASE ((void *)0x56020400U)
@@ -69,6 +95,37 @@
 
 #define EXTI_LINES   78U
 #define DMA_CHANNELS 16U
+
+
+enum pll_srcs {
+	pll_src_hsi_ck = 0U,
+	pll_src_msi_ck,
+	pll_src_hse_ck,
+	pll_src_i2s_ckin,
+};
+
+
+enum {
+	ipclk_persel_hsi_ck = 0U,
+	ipclk_persel_msi_ck,
+	ipclk_persel_hse_ck,
+	ipclk_persel_ic19_ck,
+	ipclk_persel_ic5_ck,
+	ipclk_persel_ic10_ck,
+	ipclk_persel_ic15_ck,
+	ipclk_persel_ic20_ck,
+};
+
+
+typedef struct {
+	u8 src;
+	u8 preDiv;
+	u16 mul;
+	u32 mulFrac;
+	u8 postDiv1;
+	u8 postDiv2;
+	u8 bypass;
+} pll_config_t;
 
 
 static struct {
@@ -122,6 +179,12 @@ int hal_platformctl(void *ptr)
 			if (data->action == pctl_get) {
 				data->cpuclk.hz = _stm32_rccGetCPUClock();
 				ret = EOK;
+			}
+			else if (data->action == pctl_set) {
+				ret = _stm32_rccSetCPUClock(data->cpuclk.hz);
+			}
+			else {
+				/* No action required */
 			}
 
 			break;
@@ -653,6 +716,27 @@ int _stm32_rccGetIPClk(unsigned int ipclk, unsigned int *setting_out)
 }
 
 
+static int _stm32_rccSetICLK(unsigned int ic, unsigned int src_pll, unsigned int divider)
+{
+	volatile u32 *reg;
+	u32 v;
+	if ((ic < 1U) || (ic > 20U) || (src_pll < 1U) || (src_pll > 4U) || (divider < 1UL) || (divider > 256UL)) {
+		return -EINVAL;
+	}
+
+	reg = (stm32_common.rcc + rcc_ic1cfgr + ic - 1U);
+	v = *reg;
+	v &= 0xcf00ffffUL;
+	v |= (src_pll - 1U) << 28;
+	v |= (divider - 1U) << 16;
+	*reg = v;
+	hal_cpuDataSyncBarrier();
+	*(stm32_common.rcc + rcc_divensr) = 1UL << (ic - 1U);
+	hal_cpuDataSyncBarrier();
+	return EOK;
+}
+
+
 static int _stm32_getDevClockRegShift(int dev, unsigned int *shift_out)
 {
 	int reg = dev / 32;
@@ -719,6 +803,254 @@ u32 _stm32_rccGetPerClock(void)
 void _stm32_rccClearResetFlags(void)
 {
 	*(stm32_common.rcc + rcc_csr) |= 1UL << 23;
+}
+
+
+/* Pre-baked PLL setups */
+static const pll_config_t rcc_pllBypass = {
+	.src = 0U,      /* Ignored when bypass == 1 */
+	.preDiv = 0U,   /* Ignored when bypass == 1 */
+	.mul = 0U,      /* Ignored when bypass == 1 */
+	.mulFrac = 0U,  /* Ignored when bypass == 1 */
+	.postDiv1 = 0U, /* Ignored when bypass == 1 */
+	.postDiv2 = 0U, /* Ignored when bypass == 1 */
+	.bypass = 1U,
+};
+
+
+#if USE_HSE_CLOCK_SOURCE
+/* On NUCLEO board HSE is 48 MHz */
+
+static const pll_config_t rcc_pll1200Mhz = {
+	.src = (u8)pll_src_hse_ck,
+	.preDiv = 1U,
+	.mul = 50U,
+	.mulFrac = 0U,
+	.postDiv1 = 2U,
+	.postDiv2 = 1U,
+	.bypass = 0U,
+};
+
+static const pll_config_t rcc_pll1600Mhz = {
+	.src = (u8)pll_src_hse_ck,
+	.preDiv = 3U,
+	.mul = 100U,
+	.mulFrac = 0U,
+	.postDiv1 = 1U,
+	.postDiv2 = 1U,
+	.bypass = 0U,
+};
+
+static const pll_config_t rcc_pll2000Mhz = {
+	.src = (u8)pll_src_hse_ck,
+	.preDiv = 3U,
+	.mul = 125U,
+	.mulFrac = 0U,
+	.postDiv1 = 1U,
+	.postDiv2 = 1U,
+	.bypass = 0U,
+};
+#else
+static const pll_config_t rcc_pll1200Mhz = {
+	.src = (u8)pll_src_hsi_ck,
+	.preDiv = 4U,
+	.mul = 75U,
+	.mulFrac = 0U,
+	.postDiv1 = 1U,
+	.postDiv2 = 1U,
+	.bypass = 0U,
+};
+
+static const pll_config_t rcc_pll1600Mhz = {
+	.src = (u8)pll_src_hsi_ck,
+	.preDiv = 1U,
+	.mul = 25U,
+	.mulFrac = 0U,
+	.postDiv1 = 1U,
+	.postDiv2 = 1U,
+	.bypass = 0U,
+};
+
+static const pll_config_t rcc_pll2000Mhz = {
+	.src = (u8)pll_src_hsi_ck,
+	.preDiv = 4U,
+	.mul = 125U,
+	.mulFrac = 0U,
+	.postDiv1 = 1U,
+	.postDiv2 = 1U,
+	.bypass = 0U,
+};
+#endif
+
+
+static int _stm32_rccConfigurePLL(unsigned int pll, const pll_config_t *config)
+{
+	volatile u32 *reg;
+	u32 i, v;
+	u32 onBit;
+
+	switch (pll) {
+		case 1U:
+			reg = (stm32_common.rcc + rcc_pll1cfgr1);
+			break;
+
+		case 2U:
+			reg = (stm32_common.rcc + rcc_pll2cfgr1);
+			break;
+
+		case 3U:
+			reg = (stm32_common.rcc + rcc_pll3cfgr1);
+			break;
+
+		case 4U:
+			reg = (stm32_common.rcc + rcc_pll4cfgr1);
+			break;
+
+		default:
+			return -EINVAL;
+	}
+
+	onBit = 1UL << (7U + pll);
+
+	v = *(reg + 0U);
+	v |= (1UL << 27); /* Bypass PLL */
+	*(reg + 0U) = v;
+	hal_cpuDataSyncBarrier();
+
+	*(stm32_common.rcc + rcc_ccr) = onBit; /* Clear PLLxON */
+	hal_cpuDataSyncBarrier();
+
+	if (config->bypass != 0U) {
+		/* User wants to bypass PLL - nothing else to do */
+		return EOK;
+	}
+
+	v &= 0x8c0000FFUL; /* Keep only reserved bits and bypass bit */
+	v |= ((u32)config->src & 0x7UL) << 28;
+	v |= ((u32)config->preDiv & 0x3fUL) << 20;
+	v |= ((u32)config->mul & 0xfffUL) << 8;
+	*(reg + 0U) = v;
+
+	v = *(reg + 1U);
+	v &= 0xff000000UL;
+	v |= config->mulFrac & 0xffffffUL;
+	*(reg + 1U) = v;
+
+	v = *(reg + 2U);
+	v |= (1UL << 30);     /* Set PDIVEN */
+	v &= ~(0x3fUL << 24); /* Clear PDIV1 and PDIV2 */
+	v |= ((u32)config->postDiv1 & 0x7UL) << 27;
+	v |= ((u32)config->postDiv2 & 0x7UL) << 24;
+	v &= ~0xfU; /* Clear spread spectrum/fractional PLL bits */
+	if (config->mulFrac != 0U) {
+		v |= 0xfU; /* MODDSEN = 1, MODSSDIS = 1, DACEN = 1, MODSSRST = 1 */
+	}
+	else {
+		v |= 0x5U; /* MODDSEN = 0, MODSSDIS = 1, DACEN = 0, MODSSRST = 1 */
+	}
+
+	*(reg + 2U) = v;
+	hal_cpuDataSyncBarrier();
+
+	*(stm32_common.rcc + rcc_csr) = onBit; /* Set PLLxON */
+
+	for (i = 0UL; i < 2000UL; i++) {
+		if ((*(stm32_common.rcc + rcc_sr) & onBit) != 0U) {
+			break;
+		}
+	}
+
+	if ((*(stm32_common.rcc + rcc_sr) & onBit) == 0U) {
+		return -ETIME;
+	}
+
+	hal_cpuDataSyncBarrier();
+	*(reg + 0U) &= ~(1UL << 27); /* Remove PLL bypass */
+	return EOK;
+}
+
+
+int _stm32_rccSetCPUClock(u32 hz)
+{
+	static const u32 mhz600 = 600U * 1000U * 1000U;
+	static const u32 mhz800 = 800U * 1000U * 1000U;
+	u8 vRange;
+	int ret = EOK;
+
+	if (hz < mhz600) {
+		return -ERANGE;
+	}
+	else if (hz >= mhz800) {
+		hz = mhz800;
+	}
+	else {
+		hz = mhz600;
+	}
+
+	vRange = _stm32_pwrGetCPUVolt();
+	if ((hz > mhz600) && (vRange == PCTL_CPUVOLT_VOS_LOW)) {
+		ret = _stm32_pwrSetCPUVolt(PCTL_CPUVOLT_VOS_HIGH);
+	}
+
+	/* Bypass both PLLs in case they have been configured previously */
+	ret = (ret < 0) ? ret : _stm32_rccConfigurePLL(RCC_PLL_CPU, &rcc_pllBypass);
+	ret = (ret < 0) ? ret : _stm32_rccConfigurePLL(RCC_PLL_NPU, &rcc_pllBypass);
+	ret = (ret < 0) ? ret : _stm32_rccSetICLK(RCC_ICLK_SYSA, RCC_PLL_CPU, 2U);
+	ret = (ret < 0) ? ret : _stm32_rccSetICLK(RCC_ICLK_SYSC, RCC_PLL_NPU, 2U);
+	if (hz == mhz600) {
+		/* In VOS low, max SYSD_CLK == max SYSC_CLK, so we can clock SYSD_CLK from NPU PLL */
+		ret = (ret < 0) ? ret : _stm32_rccSetICLK(RCC_ICLK_SYSD, RCC_PLL_NPU, 2U);
+		ret = (ret < 0) ? ret : _stm32_rccConfigurePLL(RCC_PLL_CPU, &rcc_pll1200Mhz);
+		ret = (ret < 0) ? ret : _stm32_rccConfigurePLL(RCC_PLL_NPU, &rcc_pll1600Mhz);
+	}
+	else {
+		/* In VOS high, max SYSD_CLK < max SYSC_CLK, so we need to clock SYSD_CLK from the slower CPU PLL */
+		ret = (ret < 0) ? ret : _stm32_rccSetICLK(RCC_ICLK_SYSD, RCC_PLL_CPU, 2U);
+		ret = (ret < 0) ? ret : _stm32_rccConfigurePLL(RCC_PLL_CPU, &rcc_pll1600Mhz);
+		ret = (ret < 0) ? ret : _stm32_rccConfigurePLL(RCC_PLL_NPU, &rcc_pll2000Mhz);
+	}
+
+	if (ret == EOK) {
+		stm32_common.cpuclk = hz;
+	}
+
+	if ((ret == EOK) && (hz <= mhz600) && (vRange == PCTL_CPUVOLT_VOS_HIGH)) {
+		ret = _stm32_pwrSetCPUVolt(PCTL_CPUVOLT_VOS_LOW);
+	}
+
+	return ret;
+}
+
+
+/* PWR */
+
+
+int _stm32_pwrSetCPUVolt(u8 range)
+{
+	u32 t, i;
+
+	if ((range != PCTL_CPUVOLT_VOS_LOW) && (range != PCTL_CPUVOLT_VOS_HIGH)) {
+		return -EINVAL;
+	}
+
+	t = *(stm32_common.pwr + pwr_voscr) & ~1UL;
+	t |= (range == PCTL_CPUVOLT_VOS_HIGH) ? 1U : 0U;
+	*(stm32_common.pwr + pwr_voscr) = t;
+
+	for (i = 0U; i < 1000U; i++) {
+		if ((*(stm32_common.pwr + pwr_voscr) & (1U << 1)) != 0U) {
+			/* Voltage ready at selected level */
+			return EOK;
+		}
+	}
+
+	return -ETIME;
+}
+
+
+u8 _stm32_pwrGetCPUVolt(void)
+{
+	return ((*(stm32_common.pwr + pwr_voscr) & 1U) != 0U) ? PCTL_CPUVOLT_VOS_HIGH : PCTL_CPUVOLT_VOS_LOW;
 }
 
 
@@ -1017,7 +1349,7 @@ void _stm32_wdgReload(void)
 
 void _stm32_init(void)
 {
-	u32 i;
+	u32 i, v;
 	static const int gpioDevs[] = {
 		pctl_gpioa, pctl_gpiob, pctl_gpioc, pctl_gpiod,
 		pctl_gpioe, pctl_gpiof, pctl_gpiog, pctl_gpioh,
@@ -1059,16 +1391,31 @@ void _stm32_init(void)
 	/* Enable power module */
 	(void)_stm32_rccSetDevClock(pctl_pwr, 1U, 1U);
 
+	/* Configure power supply as requested */
+	v = *(stm32_common.pwr + pwr_cr1);
+	v &= ~((1UL << 2) | (1UL << 5));
+	v |= ((PWR_CORE_CONFIG & PWR_CORE_SMPS) != 0U) ? (1UL << 2) : 0U;
+	v |= ((PWR_CORE_CONFIG & PWR_CORE_LPDS08V) != 0U) ? (1UL << 5) : 0U;
+	*(stm32_common.pwr + pwr_cr1) = v;
+
+	/* Configure CPU and peripherals clocks */
+	(void)_stm32_rccSetCPUClock(RCC_DEFAULT_CPU_CLOCK);
+	(void)_stm32_rccConfigurePLL(RCC_PLL_PER, &rcc_pllBypass);
+	(void)_stm32_rccSetICLK(RCC_ICLK_SYSB, RCC_PLL_PER, 5U); /* 2000 MHz / 5 = 400 MHz => SYSB */
+	(void)_stm32_rccConfigurePLL(RCC_PLL_PER, &rcc_pll2000Mhz);
+	(void)_stm32_rccConfigurePLL(RCC_PLL_AUX, &rcc_pll1200Mhz);
+
 	(void)_stm32_rccSetDevClock(pctl_rifsc, 1U, 1U);
 	_stm32_bsec_init();
 
-	/* TODO: would be nice to have clock configuration options or the frequency passed from PLO */
-	stm32_common.cpuclk = 600U * 1000U * 1000U;
 #if USE_HSE_CLOCK_SOURCE
+	(void)_stm32_rccSetIPClk((unsigned int)pctl_ipclk_persel, ipclk_persel_hse_ck);
 	stm32_common.perclk = 48U * 1000U * 1000U;
 #else
+	(void)_stm32_rccSetIPClk((unsigned int)pctl_ipclk_persel, ipclk_persel_hsi_ck);
 	stm32_common.perclk = 64U * 1000U * 1000U;
 #endif
+	(void)_stm32_rccSetDevClock(pctl_per, 1U, 1U);
 
 	/* Disable all interrupts */
 	*(stm32_common.rcc + rcc_cier) = 0;
