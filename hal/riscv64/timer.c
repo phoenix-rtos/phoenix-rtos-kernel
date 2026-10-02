@@ -31,13 +31,23 @@ static struct {
 } timer_common;
 
 
+static void timerSet(u64 val)
+{
+#ifdef __riscv_sstc
+	csr_write(stimecmp, val);
+#else
+	hal_sbiSetTimer(val);
+#endif
+}
+
+
 static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 {
 	(void)n;
 	(void)arg;
 	(void)ctx;
 
-	hal_sbiSetTimer(csr_read(time) + timer_common.interval);
+	timerSet(csr_read(time) + timer_common.interval);
 
 	return 0;
 }
@@ -45,7 +55,7 @@ static int timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 
 void hal_timerSetWakeup(u32 waitUs)
 {
-	hal_sbiSetTimer(csr_read(time) + waitUs * ((u64)TIMER_FREQ / (1000UL * 1000UL)));
+	timerSet(csr_read(time) + waitUs * ((u64)TIMER_FREQ / (1000UL * 1000UL)));
 }
 
 
@@ -77,7 +87,7 @@ char *hal_timerFeatures(char *features, size_t len)
 
 void hal_timerInitCore(void)
 {
-	hal_sbiSetTimer(csr_read(time) + timer_common.interval);
+	timerSet(csr_read(time) + timer_common.interval);
 }
 
 
@@ -91,5 +101,5 @@ __attribute__((section(".init"))) void _hal_timerInit(u32 interval)
 	timer_common.handler.data = NULL;
 	(void)hal_interruptsSetHandler(&timer_common.handler);
 
-	hal_sbiSetTimer(csr_read(time) + timer_common.interval);
+	timerSet(csr_read(time) + timer_common.interval);
 }
