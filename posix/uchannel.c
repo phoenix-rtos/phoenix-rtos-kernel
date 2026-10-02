@@ -102,7 +102,7 @@ void uchannel_put(uchannel_t *ch)
 }
 
 
-ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int flags, fdpack_t *fdpack)
+ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int op, fdpack_t *fdpack)
 {
 	ssize_t ret = 0;
 	size_t done = 0, chunk;
@@ -156,7 +156,7 @@ ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int
 			/* not enough room for the whole frame */
 		}
 
-		if ((flags & UCHANNEL_OP_NONBLOCK) != 0U) {
+		if ((op & UCHANNEL_OP_NONBLOCK) != 0U) {
 			ret = (done > 0U) ? (ssize_t)done : -EWOULDBLOCK;
 			break;
 		}
@@ -185,7 +185,7 @@ static void _uchannel_takePacks(uchannel_t *ch, fdpack_t **packs)
 }
 
 
-ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, fdpack_t **packs)
+ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int op, fdpack_t **packs, unsigned int *flags)
 {
 	ssize_t ret = 0;
 	size_t rlen = 0;
@@ -210,7 +210,7 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 			}
 		}
 		else if (ch->framed == 0U) {
-			if ((flags & UCHANNEL_OP_PEEK) != 0U) {
+			if ((op & UCHANNEL_OP_PEEK) != 0U) {
 				ret = (ssize_t)_cbuffer_peek(&ch->buffer, buf, len);
 			}
 			else {
@@ -221,8 +221,11 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 			(void)_cbuffer_peek(&ch->buffer, &rlen, sizeof(rlen));
 			ret = (ssize_t)min(len, rlen);
 
-			if ((flags & UCHANNEL_OP_PEEK) != 0U) {
+			if ((op & UCHANNEL_OP_PEEK) != 0U) {
 				(void)_cbuffer_peekAt(&ch->buffer, sizeof(rlen), buf, (size_t)ret);
+				if (rlen > (size_t)ret) {
+					*flags |= MSG_TRUNC;
+				}
 			}
 			else {
 				(void)_cbuffer_discard(&ch->buffer, sizeof(rlen));
@@ -231,6 +234,7 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 				if (rlen > (size_t)ret) {
 					/* the rest of a truncated frame is dropped */
 					(void)_cbuffer_discard(&ch->buffer, rlen - (size_t)ret);
+					*flags |= MSG_TRUNC;
 				}
 			}
 		}
@@ -239,7 +243,7 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 		}
 
 		if (ret > 0) {
-			if ((flags & UCHANNEL_OP_PEEK) == 0U) {
+			if ((op & UCHANNEL_OP_PEEK) == 0U) {
 				if (packs != NULL) {
 					_uchannel_takePacks(ch, packs);
 				}
@@ -257,7 +261,7 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 			break;
 		}
 
-		if ((flags & UCHANNEL_OP_NONBLOCK) != 0U) {
+		if ((op & UCHANNEL_OP_NONBLOCK) != 0U) {
 			ret = -EWOULDBLOCK;
 			break;
 		}

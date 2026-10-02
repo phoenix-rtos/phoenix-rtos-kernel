@@ -68,7 +68,6 @@
 #define USOCKET_NONBLOCK (1U << 0)
 #define USOCKET_SHUT_RD  (1U << 1)
 #define USOCKET_SHUT_WR  (1U << 2)
-#define USOCKET_BOUND    (1U << 3)
 
 
 /* Socket state */
@@ -101,6 +100,11 @@ struct _usocket_t {
 	struct _usocket_t *pending; /* connectors waiting to be accepted, counted */
 	u8 pendingCnt;
 	u8 backlog;
+
+	socklen_t pathlen;
+	char *path;
+
+	struct _usocket_t *remote; /* reference to remote socket, only for grabbing the name */
 
 	thread_t *acceptq; /* accept(): pending != NULL or no longer listening */
 	thread_t *connq;   /* connect(): state != usocketConnecting */
@@ -146,6 +150,9 @@ static usocket_t *usocket_alloc(unsigned int type, int nonblock)
 	s->rcvbuf = USOCKET_DEF_BUFFER_SIZE;
 	s->rx = NULL;
 	s->tx = NULL;
+	s->path = NULL;
+	s->pathlen = 0;
+	s->remote = NULL;
 	s->pending = NULL;
 	s->pendingCnt = 0;
 	s->backlog = 0;
@@ -176,13 +183,23 @@ static void usocket_put(usocket_t *s)
 		return;
 	}
 
+	usocket_t *r = s->remote;
+
 	/*
 	 * The last reference is gone so the socket is in no tree, no descriptor and
 	 * no pending list, so nothing can reach it and no lock is needed.
+	 *
+	 * FIXME: for SOCK_DGRAM sockets, we might be dropping a user-created chain
+	 * of connected sockets (as a SOCK_DGRAM connection is taking a one-way
+	 * reference to the remote socket).
 	 */
+	s->remote = NULL;
+	/* parasoft-suppress-next-line MISRAC2012-RULE_17_2-a "We have to drop the reference and potentially deallocate the remote." */
+	usocket_put(r);
 	uchannel_put(s->rx);
 	uchannel_put(s->tx);
 	(void)proc_lockDone(&s->lock);
+	vm_kfree(s->path);
 	vm_kfree(s);
 }
 
@@ -412,6 +429,8 @@ int usocket_socketpair(int domain, unsigned int type, int protocol, usocket_t *s
 	s[1]->tx = uchannel_ref(ch[0]);
 	s[0]->state = (u8)usocketConnected;
 	s[1]->state = (u8)usocketConnected;
+	s[0]->remote = usocket_ref(s[1]);
+	s[1]->remote = usocket_ref(s[0]);
 
 	sv[0] = s[0];
 	sv[1] = s[1];
@@ -426,9 +445,11 @@ int usocket_bind(usocket_t *s, const struct sockaddr *address, socklen_t address
 	const char *dir;
 	oid_t odir, dev, node;
 	int err, id;
+	socklen_t pathlen;
+	size_t alloclen;
 
 	/* TODO: validate `address_len` */
-	if ((address == NULL) || (address_len == 0U)) {
+	if ((address == NULL) || (address_len < sizeof(address->sa_family))) {
 		return -EINVAL;
 	}
 
@@ -443,9 +464,17 @@ int usocket_bind(usocket_t *s, const struct sockaddr *address, socklen_t address
 	 * exchanges below run without any lock held.
 	 */
 
-	path = lib_strdup(address->sa_data);
-	id = (path != NULL) ? usocket_nameAlloc(s) : -ENOMEM;
+	pathlen = address_len - (socklen_t)sizeof(address->sa_family);
+	alloclen = (size_t)pathlen + ((address->sa_data[pathlen] != '\0') ? 1U : 0U);
 
+	path = vm_kmalloc(alloclen);
+	if (path == NULL) {
+		return -ENOMEM;
+	}
+	hal_memcpy(path, address->sa_data, pathlen);
+	path[alloclen] = '\0';
+
+	id = usocket_nameAlloc(s);
 	if (id < 0) {
 		vm_kfree(path);
 		return id;
@@ -473,8 +502,6 @@ int usocket_bind(usocket_t *s, const struct sockaddr *address, socklen_t address
 		}
 	}
 
-	vm_kfree(path);
-
 	if (err == 0) {
 		/*
 		 * The socket counts as bound from here, once its name is both
@@ -482,11 +509,15 @@ int usocket_bind(usocket_t *s, const struct sockaddr *address, socklen_t address
 		 * comes in earlier finds no address, exactly as it would have before
 		 * this call, rather than a half made one that may yet be taken back.
 		 */
+
 		(void)proc_lockSet(&s->lock);
-		s->flags |= USOCKET_BOUND;
+		lib_unsplitname(path, dir);
+		s->path = path;
+		s->pathlen = pathlen;
 		(void)proc_lockClear(&s->lock);
 	}
 	else {
+		vm_kfree(path);
 		if (usocket_nameFree(s) != 0) {
 			usocket_put(s);
 		}
@@ -509,7 +540,7 @@ int usocket_listen(usocket_t *s, int backlog)
 
 	(void)proc_lockSet(&s->lock);
 
-	if ((s->flags & USOCKET_BOUND) == 0U) {
+	if (s->path == NULL) {
 		/* there is nothing for a connector to look up, so there is nothing to listen on */
 		err = -EINVAL;
 	}
@@ -574,7 +605,7 @@ static void usocket_connectRollback(usocket_t *s)
 
 int usocket_connect(usocket_t *s, const struct sockaddr *address, socklen_t address_len)
 {
-	usocket_t *ls;
+	usocket_t *ls, *r = NULL;
 	uchannel_t *ch, *rx, *oldTx = NULL, *oldRx;
 	oid_t oid;
 	size_t rcvbuf;
@@ -594,12 +625,17 @@ int usocket_connect(usocket_t *s, const struct sockaddr *address, socklen_t addr
 			oldTx = s->tx;
 			s->tx = NULL;
 			s->state = (u8)usocketUnconnected;
+			r = s->remote;
+			s->remote = NULL;
 		}
 		else {
 			/* No action */
 		}
 		(void)proc_lockClear(&s->lock);
+
 		uchannel_put(oldTx);
+		usocket_put(r);
+
 		return err;
 	}
 
@@ -675,9 +711,9 @@ int usocket_connect(usocket_t *s, const struct sockaddr *address, socklen_t addr
 		(void)proc_lockSet(&ls->lock);
 		ch = uchannel_ref(ls->rx);
 		(void)proc_lockClear(&ls->lock);
-		usocket_put(ls);
 
 		if (ch == NULL) {
+			usocket_put(ls);
 			usocket_connectRollback(s);
 			return -ECONNREFUSED;
 		}
@@ -685,11 +721,13 @@ int usocket_connect(usocket_t *s, const struct sockaddr *address, socklen_t addr
 		(void)proc_lockSet(&s->lock);
 		oldTx = s->tx;
 		s->tx = ch;
+		s->remote = usocket_ref(ls);
 		s->state = (u8)usocketConnected;
 		(void)proc_lockClear(&s->lock);
 
 		/* uchannel_put() can reach into the descriptor table, so hold no lock */
 		uchannel_put(oldTx);
+		usocket_put(ls);
 
 		return EOK;
 	}
@@ -874,19 +912,22 @@ int usocket_accept4(usocket_t *ls, struct sockaddr *address, socklen_t *address_
 		oldTx = cs->tx;
 		cs->tx = uchannel_ref(c2s);
 		cs->state = (u8)usocketConnected;
+		cs->remote = usocket_ref(ns);
 		(void)proc_threadBroadcast(&cs->connq);
 
 		(void)proc_lockClear(&cs->lock);
 
 		/* uchannel_put() can reach into the descriptor table, so hold no lock */
 		uchannel_put(oldTx);
-		usocket_put(cs);
 
 		/* ns is not reachable yet */
 		ns->rcvbuf = rcvbuf;
 		ns->rx = c2s;
 		ns->tx = tx;
 		ns->state = (u8)usocketConnected;
+		ns->remote = usocket_ref(cs);
+
+		usocket_put(cs);
 
 		*s = ns;
 
@@ -895,14 +936,63 @@ int usocket_accept4(usocket_t *ls, struct sockaddr *address, socklen_t *address_
 }
 
 
+static void _usocket_copyPath(const char *path, socklen_t pathlen, struct sockaddr *address, socklen_t *address_len)
+{
+	if (path == NULL) {
+		*address_len = 0U;
+		return;
+	}
+
+	const socklen_t familylen = (socklen_t)sizeof(address->sa_family);
+	const socklen_t buflen = *address_len;
+
+	*address_len = pathlen + familylen;
+
+	if (buflen < familylen) {
+		return;
+	}
+
+	const socklen_t copylen = min(pathlen, buflen - familylen);
+
+	address->sa_family = AF_UNIX;
+	hal_memcpy(address->sa_data, path, copylen);
+	if (buflen - familylen > copylen) {
+		address->sa_data[copylen] = '\0';
+	}
+}
+
+
 int usocket_getpeername(usocket_t *s, struct sockaddr *address, socklen_t *address_len)
 {
-	return 0;
+	usocket_t *r;
+	int err;
+
+	(void)proc_lockSet(&s->lock);
+	r = usocket_ref(s->remote);
+	(void)proc_lockClear(&s->lock);
+
+	if (r != NULL) {
+		(void)proc_lockSet(&r->lock);
+		_usocket_copyPath(r->path, r->pathlen, address, address_len);
+		(void)proc_lockClear(&r->lock);
+		err = EOK;
+	}
+	else {
+		err = -ENOTCONN;
+	}
+
+	usocket_put(r);
+
+	return err;
 }
 
 
 int usocket_getsockname(usocket_t *s, struct sockaddr *address, socklen_t *address_len)
 {
+	(void)proc_lockSet(&s->lock);
+	_usocket_copyPath(s->path, s->pathlen, address, address_len);
+	(void)proc_lockClear(&s->lock);
+
 	return 0;
 }
 
@@ -1016,7 +1106,7 @@ int usocket_setsockopt(usocket_t *s, int level, int optname, const void *optval,
 }
 
 
-static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
+static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int *flags, struct sockaddr *src_addr, socklen_t *src_len, void *control, socklen_t *controllen)
 {
 	uchannel_t *rx;
 	fdpack_t *packs = NULL;
@@ -1027,7 +1117,7 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 	wantsControl = ((control != NULL) && (controllen != NULL) && (*controllen > 0U)) ? 1 : 0;
 
 	(void)proc_lockSet(&s->lock);
-	op = _usocket_opFlags(s, flags);
+	op = _usocket_opFlags(s, *flags);
 	rx = uchannel_ref(s->rx);
 	shutRd = ((s->flags & USOCKET_SHUT_RD) != 0U) ? 1 : 0;
 	(void)proc_lockClear(&s->lock);
@@ -1060,7 +1150,7 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 		return (shutRd != 0) ? 0 : -ENOTCONN;
 	}
 
-	ret = uchannel_read(rx, buf, len, op, (wantsControl != 0) ? &packs : NULL);
+	ret = uchannel_read(rx, buf, len, op, (wantsControl != 0) ? &packs : NULL, flags);
 
 	if (packs != NULL) {
 		/*
@@ -1069,7 +1159,8 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 		 */
 		(void)fdpass_unpack(&packs, control, controllen);
 		if (packs != NULL) {
-			uchannel_returnPacks(rx, &packs);
+			fdpass_discard(&packs);
+			*flags |= MSG_CTRUNC;
 		}
 	}
 	else {
@@ -1195,7 +1286,7 @@ static ssize_t usocket_send(usocket_t *s, const void *buf, size_t len, unsigned 
 
 ssize_t usocket_recvfrom(usocket_t *s, void *msg, size_t len, unsigned int flags, struct sockaddr *src_addr, socklen_t *src_len)
 {
-	return usocket_recv(s, msg, len, flags, src_addr, src_len, NULL, NULL);
+	return usocket_recv(s, msg, len, &flags, src_addr, src_len, NULL, NULL);
 }
 
 
@@ -1221,11 +1312,10 @@ ssize_t usocket_recvmsg(usocket_t *s, struct msghdr *msg, unsigned int flags)
 		len = msg->msg_iov->iov_len;
 	}
 
-	err = usocket_recv(s, buf, len, flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
+	err = usocket_recv(s, buf, len, &flags, msg->msg_name, &msg->msg_namelen, msg->msg_control, &msg->msg_controllen);
 
 	if (err >= 0) {
-		/* output flags are not supported */
-		msg->msg_flags = 0;
+		msg->msg_flags = (int)(unsigned int)(flags & (MSG_TRUNC | MSG_CTRUNC));
 	}
 
 	return err;
@@ -1377,7 +1467,7 @@ int usocket_unlink(id_t id)
 
 int usocket_close(usocket_t *s)
 {
-	usocket_t *pending, *next;
+	usocket_t *pending, *next, *r;
 	uchannel_t *rx, *tx;
 	int shutTx;
 
@@ -1393,6 +1483,8 @@ int usocket_close(usocket_t *s)
 	pending = s->pending;
 	s->pending = NULL;
 	s->pendingCnt = 0;
+	r = s->remote;
+	s->remote = NULL;
 
 	/* wake anything blocked on this socket itself */
 	(void)proc_threadBroadcast(&s->acceptq);
@@ -1408,6 +1500,8 @@ int usocket_close(usocket_t *s)
 	}
 
 	(void)proc_lockClear(&s->lock);
+
+	usocket_put(r);
 
 	if (tx != NULL) {
 		if (shutTx != 0) {

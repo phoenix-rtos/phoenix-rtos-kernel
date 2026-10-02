@@ -21,4 +21,7 @@ char *lib_strdup(const char *str);
 void lib_splitname(char *path, char **base, const char **dir);
 
 
+void lib_unsplitname(char *path, const char *dir);
+
+
 #endif /* _LIB_STRUTIL_H_ */

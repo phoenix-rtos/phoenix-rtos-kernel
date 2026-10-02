@@ -107,7 +107,7 @@ void uchannel_put(uchannel_t *ch);
  * `fdpack`, when given, is queued behind the data and its ownership passes to
  * the channel, but only if the call returns a positive count.
  */
-ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int flags, fdpack_t *fdpack);
+ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int op, fdpack_t *fdpack);
 
 
 /*
@@ -119,8 +119,10 @@ ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int
  * When `packs` is not NULL the queued descriptor packs are detached into it
  * (the caller unpacks them with no lock held and returns the leftovers with
  * uchannel_returnPacks()).
+ *
+ * When message is truncated, MSG_TRUNC is stored in *flags.
  */
-ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, fdpack_t **packs);
+ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int op, fdpack_t **packs, unsigned int *flags);
 
 
 /*
