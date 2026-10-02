@@ -1165,6 +1165,7 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_cpuTlsSet(&current->tls, current->context);
 	}
 
+	threads_updateCpuTime(current, time_system);
 	hal_cpuSmpSync();
 	hal_jmp(entry, current->kstack + current->kstacksz, stack, 0, NULL);
 }

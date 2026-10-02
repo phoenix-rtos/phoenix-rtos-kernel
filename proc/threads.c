@@ -410,13 +410,51 @@ void threads_put(thread_t *thread)
 }
 
 
+static inline void _threads_updateCpuTime(thread_t *current, time_kind_t kind)
+{
+	time_t now, timeSpent;
+
+	now = _proc_gettimeRaw();
+
+	timeSpent = now - current->lastTime;
+
+	if (kind == time_system) {
+		current->systemTime += timeSpent;
+	}
+	else if (kind == time_user) {
+		current->userTime += timeSpent;
+	}
+	else {
+		/* No action required */
+	}
+
+	current->lastTime = now;
+}
+
+
+void threads_updateCpuTime(thread_t *current, time_kind_t kind)
+{
+	spinlock_ctx_t sc;
+
+	if (current != NULL) {
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		_threads_updateCpuTime(current, kind);
+		hal_spinlockClear(&threads_common.spinlock, &sc);
+	}
+}
+
+
 static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected)
 {
 	time_t now = _proc_gettimeRaw();
 
 	if (current != NULL) {
-		current->cpuTime += now - current->lastTime;
-		current->lastTime = now;
+		if (current->process == NULL || hal_cpuSupervisorMode(current->context) != 0) {
+			_threads_updateCpuTime(current, time_system);
+		}
+		else {
+			_threads_updateCpuTime(current, time_user);
+		}
 	}
 
 	if (selected != NULL && current != selected) {
@@ -674,7 +712,8 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->locks = NULL;
 	t->priorityBase = priority;
 	t->priority = priority;
-	t->cpuTime = 0;
+	t->systemTime = 0;
+	t->userTime = 0;
 	proc_gettime(&t->readyTime, NULL);
 	t->maxWait = 0;
 	t->startTime = t->readyTime;
@@ -1850,6 +1889,7 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, thread->sigmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
+		_threads_updateCpuTime(thread, time_system);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -1885,6 +1925,7 @@ int threads_sigsuspend(unsigned int mask)
 	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
+		_threads_updateCpuTime(thread, time_system);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -1908,6 +1949,7 @@ int threads_sigsuspend(unsigned int mask)
 	if (_threads_trySignalDeliver(thread, thread->process, signalCtx, oldmask, SIG_SRC_SCALL) == 0) {
 		/* parasoft-suppress-next-line MISRAC2012-RULE_11_1 "f is passed to function hal_jmp which need void * type" */
 		f = thread->process->sigtrampoline;
+		_threads_updateCpuTime(thread, time_system);
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 		hal_jmp(f, kstackTop, hal_cpuGetUserSP(signalCtx), 0, NULL);
 		/* no return */
@@ -2684,7 +2726,7 @@ static inline int _proc_calculateVmem(thread_t *thread)
 /* call with threads_common.lock set */
 static void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t *info)
 {
-	time_t now;
+	time_t now, cpuTime;
 	spinlock_ctx_t sc;
 
 	if ((thread == NULL) || (info == NULL)) {
@@ -2707,8 +2749,9 @@ static void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t 
 		info->priority = (int)thread->priorityBase;
 		info->state = (int)thread->state;
 
+		cpuTime = thread->systemTime + thread->userTime;
 		if (now != thread->startTime) {
-			info->load = (int)((thread->cpuTime * 1000) / (now - thread->startTime));
+			info->load = (int)((cpuTime * 1000) / (now - thread->startTime));
 		}
 		else {
 			info->load = 0;
@@ -2721,7 +2764,8 @@ static void _proc_threadInfo(thread_t *thread, unsigned int flags, threadinfo_t 
 			info->wait = thread->maxWait;
 		}
 
-		info->cpuTime = thread->cpuTime;
+		info->systemTime = thread->systemTime;
+		info->userTime = thread->userTime;
 
 		hal_spinlockClear(&threads_common.spinlock, &sc);
 	}
