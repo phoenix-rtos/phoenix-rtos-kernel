@@ -61,6 +61,15 @@ typedef struct _process_t {
 
 	/* TODO: Process shall keep information permissions (uid, euid, suid, gid, egid, sgid, umask) */
 
+	/*
+	 * What the threads of this process that have already exited ran. The time of the
+	 * threads still alive is summed up from them, so that no counter shared by the whole
+	 * process has to be written every time one of its threads crosses a mode boundary.
+	 */
+	time_t cpuTime;
+	time_t sysTime;
+	time_t userTime;
+
 	struct _port_t *ports;
 
 	idtree_t resources;

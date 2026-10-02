@@ -24,6 +24,7 @@
 #include "ia32.h"
 #include "halsyspage.h"
 #include "init.h"
+#include "proc/threads.h"
 
 #include <arch/tlb.h>
 
@@ -66,9 +67,6 @@ static const struct cpu_feature_t cpufeatures[] = {
 		NULL,
 	}
 };
-
-
-int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 /* parasoft-suppress-next-line MISRAC2012-RULE_1_1 "hal_cpu_t holds kernel stacks for all cores" */
@@ -290,8 +288,14 @@ static inline unsigned int _hal_cpuGetID(void)
 
 unsigned int hal_cpuGetID(void)
 {
-	u32 id = _hal_cpuGetID();
+	u32 id;
 	unsigned int i;
+
+	if (hal_cpu.ncpus <= 1U) {
+		return 0U;
+	}
+
+	id = _hal_cpuGetID();
 	for (i = 0; i < hal_cpu.ncpus; ++i) {
 		if (hal_cpu.cpus[i] == id) {
 			return i;
@@ -300,6 +304,7 @@ unsigned int hal_cpuGetID(void)
 	/* Critical error */
 	return 0U;
 }
+
 
 /* Sends IPI to everyone but self */
 void hal_cpuBroadcastIPI(unsigned int intr)

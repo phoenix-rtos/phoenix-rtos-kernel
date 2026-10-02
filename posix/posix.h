@@ -182,7 +182,10 @@ int posix_sessionCtty(pid_t sid, int acquire);
 pid_t posix_setsid(void);
 
 
-void posix_died(pid_t pid, int exit);
+void posix_died(pid_t pid, int exit, time_t userTime, time_t sysTime);
+
+
+int posix_childTimesGet(pid_t pid, time_t *userTime, time_t *sysTime);
 
 
 int posix_waitpid(pid_t child, int *status, unsigned int options);

@@ -334,6 +334,10 @@ int posix_clone(int ppid)
 	p->refs = 1;
 	p->exec = 0;
 	p->exited = 0;
+	p->userTime = 0;
+	p->sysTime = 0;
+	p->userTimeChildren = 0;
+	p->sysTimeChildren = 0;
 	p->ctty = 0; /* A child inherits the session but never its controlling terminal */
 
 	pp = pinfo_find(ppid);
@@ -473,7 +477,7 @@ int posix_exec(void)
 }
 
 
-static int posix_exit(process_info_t *p, int code)
+static int posix_exit(process_info_t *p, int code, time_t userTime, time_t sysTime)
 {
 	int fd;
 
@@ -492,6 +496,10 @@ static int posix_exit(process_info_t *p, int code)
 			(void)posix_fileDeref(p->fds[fd].file);
 		}
 	}
+
+	p->userTime = userTime + p->userTimeChildren;
+	p->sysTime = sysTime + p->sysTimeChildren;
+
 	(void)proc_lockClear(&p->lock);
 
 	return 0;
@@ -3082,6 +3090,8 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 			do {
 				if (waitpid_isWaitValid(child, pinfo, c) != 0) {
 					LIST_REMOVE(&pinfo->zombies, c);
+					pinfo->userTimeChildren += c->userTime;
+					pinfo->sysTimeChildren += c->sysTime;
 					err = c->process;
 					if (status != NULL) {
 						*status = c->exitcode;
@@ -3134,7 +3144,7 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 }
 
 
-void posix_died(pid_t pid, int exit)
+void posix_died(pid_t pid, int exit, time_t userTime, time_t sysTime)
 {
 	process_info_t *pinfo, *ppinfo, *init, *cinfo, *zinfo, *zombies;
 	int adopted = 1;
@@ -3149,7 +3159,7 @@ void posix_died(pid_t pid, int exit)
 	ppid = atomic_load_int(&pinfo->parent, __ATOMIC_RELAXED);
 	ppinfo = pinfo_find(ppid);
 
-	(void)posix_exit(pinfo, exit);
+	(void)posix_exit(pinfo, exit, userTime, sysTime);
 
 	/* We might not find a parent if it died just now */
 	if (ppinfo != NULL) {
@@ -3206,6 +3216,30 @@ void posix_died(pid_t pid, int exit)
 	}
 
 	pinfo_put(pinfo);
+}
+
+
+int posix_childTimesGet(pid_t pid, time_t *userTime, time_t *sysTime)
+{
+	process_info_t *pinfo;
+	time_t user, sys;
+
+	pinfo = pinfo_find(pid);
+	if (pinfo == NULL) {
+		return -ESRCH;
+	}
+
+	(void)proc_lockSet(&pinfo->lock);
+	user = pinfo->userTimeChildren;
+	sys = pinfo->sysTimeChildren;
+	(void)proc_lockClear(&pinfo->lock);
+
+	*userTime = user;
+	*sysTime = sys;
+
+	pinfo_put(pinfo);
+
+	return EOK;
 }
 
 

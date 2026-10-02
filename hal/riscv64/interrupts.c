@@ -24,6 +24,8 @@
 
 #include "perf/trace-events.h"
 
+#include "proc/threads.h"
+
 #include <board_config.h>
 
 
@@ -53,10 +55,6 @@ static struct {
 	int trace_irqs;
 } interrupts_common;
 
-
-int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
-
-
 static int interrupts_dispatchPlic(cpu_context_t *ctx)
 {
 	unsigned int reschedule = 0;
@@ -83,7 +81,7 @@ static int interrupts_dispatchPlic(cpu_context_t *ctx)
 	h = interrupts_common.plic.handlers[irq];
 	if (h != NULL) {
 		do {
-			reschedule |= (unsigned int)h->f(irq, NULL, h->data);
+			reschedule |= (unsigned int)h->f(irq, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.plic.handlers[irq]);
 	}
@@ -123,7 +121,7 @@ static int interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 	h = interrupts_common.clint.handlers[n];
 	if (h != NULL) {
 		do {
-			reschedule |= (unsigned int)h->f(n, NULL, h->data);
+			reschedule |= (unsigned int)h->f(n, ctx, h->data);
 			h = h->next;
 		} while (h != interrupts_common.clint.handlers[n]);
 	}
@@ -145,11 +143,22 @@ static int interrupts_dispatchClint(unsigned int n, cpu_context_t *ctx)
 /* parasoft-begin-suppress MISRAC2012-RULE_2_2 MISRAC2012-RULE_8_4 "Function is used externally within assembler code" */
 int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
+	void *interrupted = proc_cpuTimeIntrEnter(ctx);
+	int ret;
+
 	if ((n == EXT_IRQ) && (dtb_getPLIC() != 0)) {
-		return interrupts_dispatchPlic(ctx);
+		ret = interrupts_dispatchPlic(ctx);
+	}
+	else {
+		ret = interrupts_dispatchClint(n, ctx);
 	}
 
-	return interrupts_dispatchClint(n, ctx);
+	/* After a reschedule the mode comes from the context the scheduler restores */
+	if (ret == 0) {
+		proc_cpuTimeIntrLeave(interrupted);
+	}
+
+	return ret;
 }
 
 

@@ -77,6 +77,7 @@ typedef struct _thread_t {
 	unsigned int state : 2;
 	unsigned int exit : 2;
 	unsigned int interruptible : 1;
+	unsigned int inKernel : 1;
 
 	unsigned int sigmask;
 	unsigned int sigpend;
@@ -97,6 +98,16 @@ typedef struct _thread_t {
 	time_t startTime;
 	time_t cpuTime;
 	time_t lastTime;
+
+	/*
+	 * hint of cpu the thread was last scheduled onto, validated against current under the
+	 * cpuSpinlock
+	 */
+	unsigned int cpuId;
+
+	/* Exact split of cpuTime, charged at every user/kernel boundary */
+	time_t sysTime;
+	time_t userTime;
 
 	cpu_context_t *context;
 	cpu_context_t *longjmpctx;
@@ -152,7 +163,7 @@ int proc_threadsOther(thread_t *t);
 int proc_threadSleep(time_t us);
 
 
-int proc_threadNanoSleep(time_t *sec, long int *nsec, int absolute);
+int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute);
 
 
 int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);
@@ -183,6 +194,21 @@ int proc_schedGet(thread_t *t, sched_params_t *params);
 
 
 int proc_schedSet(thread_t *t, int policy, sched_params_t *params);
+
+
+int proc_cpuTime(const thread_t *t, int perThread, time_t *cpuTime, time_t *userTime, time_t *sysTime);
+
+
+void proc_cpuTimeKernelEnter(thread_t *t);
+
+
+void proc_cpuTimeKernelLeave(thread_t *t);
+
+
+void *proc_cpuTimeIntrEnter(cpu_context_t *ctx);
+
+
+void proc_cpuTimeIntrLeave(void *interrupted);
 
 
 thread_t *threads_findThread(int tid);
@@ -216,6 +242,9 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig);
 
 
 int threads_sigsuspend(unsigned int mask);
+
+
+int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
 void threads_setupUserReturn(void *retval, cpu_context_t *ctx);
