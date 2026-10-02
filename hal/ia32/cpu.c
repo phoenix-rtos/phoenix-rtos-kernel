@@ -290,8 +290,14 @@ static inline unsigned int _hal_cpuGetID(void)
 
 unsigned int hal_cpuGetID(void)
 {
-	u32 id = _hal_cpuGetID();
+	u32 id;
 	unsigned int i;
+
+	if (hal_cpu.ncpus <= 1U) {
+		return 0U;
+	}
+
+	id = _hal_cpuGetID();
 	for (i = 0; i < hal_cpu.ncpus; ++i) {
 		if (hal_cpu.cpus[i] == id) {
 			return i;
@@ -300,6 +306,7 @@ unsigned int hal_cpuGetID(void)
 	/* Critical error */
 	return 0U;
 }
+
 
 /* Sends IPI to everyone but self */
 void hal_cpuBroadcastIPI(unsigned int intr)
