@@ -124,6 +124,13 @@ static int usocket_isFramed(unsigned int type)
 }
 
 
+/* Only a datagram tells its reader where it came from, so only its frames carry a name. */
+static int usocket_isSourced(unsigned int type)
+{
+	return (type == SOCK_DGRAM) ? 1 : 0;
+}
+
+
 static usocket_t *usocket_alloc(unsigned int type, int nonblock)
 {
 	usocket_t *s;
@@ -322,7 +329,7 @@ static int usocket_rxCreate(usocket_t *s)
 		return EOK;
 	}
 
-	rx = uchannel_alloc(size, 1);
+	rx = uchannel_alloc(size, 1, 1);
 	if (rx == NULL) {
 		return -ENOMEM;
 	}
@@ -371,7 +378,7 @@ int usocket_socketpair(int domain, unsigned int type, int protocol, usocket_t *s
 {
 	usocket_t *s[2];
 	uchannel_t *ch[2];
-	int nonblock, framed;
+	int nonblock, framed, sourced;
 	size_t size;
 
 	nonblock = ((type & SOCK_NONBLOCK) != 0U) ? 1 : 0;
@@ -386,6 +393,7 @@ int usocket_socketpair(int domain, unsigned int type, int protocol, usocket_t *s
 	}
 
 	framed = usocket_isFramed(type);
+	sourced = usocket_isSourced(type);
 	size = USOCKET_DEF_BUFFER_SIZE;
 
 	s[0] = usocket_alloc(type, nonblock);
@@ -399,14 +407,14 @@ int usocket_socketpair(int domain, unsigned int type, int protocol, usocket_t *s
 		return -ENOMEM;
 	}
 
-	ch[0] = uchannel_alloc(size, framed);
+	ch[0] = uchannel_alloc(size, framed, sourced);
 	if (ch[0] == NULL) {
 		usocket_put(s[0]);
 		usocket_put(s[1]);
 		return -ENOMEM;
 	}
 
-	ch[1] = uchannel_alloc(size, framed);
+	ch[1] = uchannel_alloc(size, framed, sourced);
 	if (ch[1] == NULL) {
 		uchannel_put(ch[0]);
 		usocket_put(s[0]);
@@ -734,7 +742,7 @@ int usocket_connect(usocket_t *s, const struct sockaddr *address, socklen_t addr
 	 * Every field of this socket is therefore still touched only under
 	 * its own lock.
 	 */
-	rx = uchannel_alloc(rcvbuf, usocket_isFramed(s->type));
+	rx = uchannel_alloc(rcvbuf, usocket_isFramed(s->type), usocket_isSourced(s->type));
 	if (rx == NULL) {
 		usocket_put(ls);
 		usocket_connectRollback(s);
@@ -904,7 +912,7 @@ int usocket_accept4(usocket_t *ls, struct sockaddr *address, socklen_t *address_
 		 */
 		ns->addr = lsAddr;
 
-		c2s = uchannel_alloc(rcvbuf, usocket_isFramed(ls->type));
+		c2s = uchannel_alloc(rcvbuf, usocket_isFramed(ls->type), usocket_isSourced(ls->type));
 		if (c2s == NULL) {
 			usocket_put(ns);
 			usocket_abort(cs, ECONNREFUSED);
@@ -1130,10 +1138,12 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 {
 	uchannel_t *rx;
 	fdpack_t *packs = NULL;
+	uaddr_t *src = NULL;
 	ssize_t ret;
 	unsigned int op;
-	int wantsControl, shutRd, err;
+	int wantsSrc, wantsControl, shutRd, err;
 
+	wantsSrc = ((src_addr != NULL) && (src_len != NULL)) ? 1 : 0;
 	wantsControl = ((control != NULL) && (controllen != NULL) && (*controllen > 0U)) ? 1 : 0;
 
 	(void)proc_lockSet(&s->lock);
@@ -1141,11 +1151,6 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 	rx = uchannel_ref(s->rx);
 	shutRd = ((s->flags & USOCKET_SHUT_RD) != 0U) ? 1 : 0;
 	(void)proc_lockClear(&s->lock);
-
-	if ((src_addr != NULL) && (src_len != NULL)) {
-		/* TODO: for a datagram socket report the peer address here */
-		*src_len = 0;
-	}
 
 	err = EOK;
 	if ((rx == NULL) && (s->type == SOCK_DGRAM) && (shutRd == 0)) {
@@ -1158,19 +1163,39 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 	}
 
 	if (rx == NULL) {
-		if (controllen != NULL) {
-			*controllen = 0;
-		}
-
 		if (err != EOK) {
 			return (ssize_t)err;
 		}
 
-		/* a socket shut down for reading is EOS, not unconnected */
-		return (shutRd != 0) ? 0 : -ENOTCONN;
+		if (shutRd == 0) {
+			return -ENOTCONN;
+		}
+
+		/* a socket shut down for reading is EOS, not unconnected: no data, hence no source and no control data */
+		if (wantsSrc != 0) {
+			*src_len = 0;
+		}
+
+		if (controllen != NULL) {
+			*controllen = 0;
+		}
+
+		return 0;
 	}
 
-	ret = uchannel_read(rx, buf, len, op, (wantsControl != 0) ? &packs : NULL);
+	ret = uchannel_read(rx, buf, len, op, (wantsSrc != 0) ? &src : NULL, (wantsControl != 0) ? &packs : NULL);
+
+	if (src != NULL) {
+		uaddr_copy(src, src_addr, src_len);
+		uaddr_put(src);
+	}
+	else if ((ret >= 0) && (wantsSrc != 0)) {
+		/* a datagram from a nameless sender, and every connected socket, answer with a length of zero */
+		*src_len = 0;
+	}
+	else {
+		/* no source to report */
+	}
 
 	if (packs != NULL) {
 		/*
@@ -1182,10 +1207,11 @@ static ssize_t usocket_recv(usocket_t *s, void *buf, size_t len, unsigned int fl
 			uchannel_returnPacks(rx, &packs);
 		}
 	}
+	else if ((ret >= 0) && (controllen != NULL)) {
+		*controllen = 0;
+	}
 	else {
-		if (controllen != NULL) {
-			*controllen = 0;
-		}
+		/* no control data to report */
 	}
 
 	uchannel_put(rx);
@@ -1198,13 +1224,14 @@ static ssize_t usocket_send(usocket_t *s, const void *buf, size_t len, unsigned 
 {
 	usocket_t *d;
 	uchannel_t *tx, *oldTx = NULL;
-	uaddr_t *oldAddr = NULL;
+	uaddr_t *src = NULL, *oldAddr = NULL;
 	oid_t oid;
 	ssize_t ret;
 	unsigned int op;
-	int dgram, err;
+	int dgram, sourced, err;
 
 	dgram = (s->type == SOCK_DGRAM) ? 1 : 0;
+	sourced = usocket_isSourced(s->type);
 
 	/* TODO: validate `dest_len` */
 	if ((dgram != 0) && (dest_addr != NULL) && (dest_len != 0U)) {
@@ -1239,18 +1266,20 @@ static ssize_t usocket_send(usocket_t *s, const void *buf, size_t len, unsigned 
 		(void)proc_lockSet(&s->lock);
 		op = _usocket_opFlags(s, flags);
 		err = ((s->flags & USOCKET_SHUT_WR) != 0U) ? -EPIPE : EOK;
+		src = uaddr_ref(s->addr);
 		(void)proc_lockClear(&s->lock);
 
-		if (err != EOK) {
+		if ((err != EOK) || (tx == NULL)) {
+			uaddr_put(src);
 			uchannel_put(tx);
-			return (ssize_t)err;
+			return (err != EOK) ? (ssize_t)err : -ECONNREFUSED;
 		}
 
-		if (tx == NULL) {
-			return -ECONNREFUSED;
+		ret = uchannel_write(tx, buf, len, op, src, fdpack);
+		if (ret <= 0) {
+			/* no frame was written, so its name is still ours */
+			uaddr_put(src);
 		}
-
-		ret = uchannel_write(tx, buf, len, op, fdpack);
 
 		uchannel_put(tx);
 
@@ -1269,14 +1298,20 @@ static ssize_t usocket_send(usocket_t *s, const void *buf, size_t len, unsigned 
 	else {
 		tx = uchannel_ref(s->tx);
 		err = (tx == NULL) ? -ENOTCONN : EOK;
+		src = (sourced != 0) ? uaddr_ref(s->addr) : NULL;
 	}
 	(void)proc_lockClear(&s->lock);
 
 	if (err != EOK) {
+		uaddr_put(src);
 		return (ssize_t)err;
 	}
 
-	ret = uchannel_write(tx, buf, len, op, fdpack);
+	ret = uchannel_write(tx, buf, len, op, src, fdpack);
+	if (ret <= 0) {
+		/* no frame was written, so its name is still ours */
+		uaddr_put(src);
+	}
 
 	if ((dgram != 0) && (ret == -EPIPE)) {
 		/*
