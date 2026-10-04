@@ -18,6 +18,7 @@
 #include "lib/lib.h"
 #include "proc/proc.h"
 #include "fdpass.h"
+#include "uaddr.h"
 
 
 /*
@@ -61,6 +62,8 @@ typedef struct _uchannel_t {
 
 	u8 framed; /* immutable: 0 - byte stream, 1 - frame */
 
+	u8 sourced; /* immutable: 1 - every frame carries the name of whoever wrote it */
+
 	lock_t lock;
 
 	/* everything below is protected by `lock` */
@@ -77,7 +80,7 @@ size_t uchannel_roundSize(size_t size);
 
 
 /* Allocates a channel with one reference. `size` must be a power of two. */
-uchannel_t *uchannel_alloc(size_t size, int framed);
+uchannel_t *uchannel_alloc(size_t size, int framed, int sourced);
 
 
 uchannel_t *uchannel_ref(uchannel_t *ch);
@@ -104,10 +107,16 @@ void uchannel_put(uchannel_t *ch);
  * A zero-length write is not turned into a zero-length frame: it only
  * reports -EPIPE or 0.
  *
+ * `src` is the name to report as the frame's source. The channel takes the
+ * caller's reference over when it writes the frame, and the caller still owns
+ * it otherwise. Only a channel allocated with `sourced` can carry a name: one
+ * handed to any other channel is neither stored nor given back, so the caller
+ * must not pass one.
+ *
  * `fdpack`, when given, is queued behind the data and its ownership passes to
  * the channel, but only if the call returns a positive count.
  */
-ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int flags, fdpack_t *fdpack);
+ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int flags, uaddr_t *src, fdpack_t *fdpack);
 
 
 /*
@@ -116,11 +125,16 @@ ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int
  * end-of-stream (the ring is empty and either side is shut down), or
  * -EWOULDBLOCK, -EINTR.
  *
+ * `src` is where the name of whoever wrote the frame is left, NULL when there
+ * is none to report. The caller owns the reference it gets and gives it back
+ * with uaddr_put() - a peek hands out a reference of its own, as the frame
+ * itself stays where it is.
+ *
  * When `packs` is not NULL the queued descriptor packs are detached into it
  * (the caller unpacks them with no lock held and returns the leftovers with
  * uchannel_returnPacks()).
  */
-ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, fdpack_t **packs);
+ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, uaddr_t **src, fdpack_t **packs);
 
 
 /*
