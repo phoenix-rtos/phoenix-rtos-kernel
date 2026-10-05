@@ -20,6 +20,7 @@
 #include "resource.h"
 #include "name.h"
 #include "userintr.h"
+#include "timer.h"
 
 #define RESOURCE_ID_MIN 1
 
@@ -89,6 +90,10 @@ static void proc_resourcePut(resource_t *r)
 			userintr_put(r->payload.userintr);
 			break;
 
+		case rtTimer:
+			timer_put(r->payload.timer);
+			break;
+
 		default:
 			LIB_ASSERT(0, "invalid resource type %d", (int)r->type);
 			break;
@@ -154,7 +159,7 @@ int proc_resourcesCopy(process_t *source)
 				break;
 
 			default:
-				/* Don't copy interrupt handlers */
+				/* Interrupt handlers are not copied, and POSIX says timers are not inherited */
 				skip = 1;
 				break;
 		}

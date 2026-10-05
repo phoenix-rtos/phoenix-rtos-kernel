@@ -69,8 +69,17 @@ static struct {
 
 	time_t utcoffs;
 
-	/* Synchronized by spinlock */
-	rbtree_t sleeping;
+	/*
+	 * Keys stay in each clock's own domain, so a settime moves every realtime deadline at
+	 * once. next is there to avoid a traversal in _threads_updateWakeup() on every enqueue.
+	 */
+	struct {
+		rbtree_t sleeping;
+		rbtree_t timers;
+		time_t next; /* 0 when both trees are empty */
+	} clocks[CLOCK_IDX_COUNT];
+	ktimer_t *cpuTimers;
+	unsigned int ktimerIdCounter;
 
 	/* Synchronized by mutex */
 	unsigned int idcounter;
@@ -95,7 +104,9 @@ _Static_assert(NPRIOS <= sizeof(threads_common.readyBitmask) * 8U, "NPRIOS must 
 
 static thread_t *_proc_current(void);
 static void _proc_threadDequeue(thread_t *t);
-static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp);
+static int _proc_threadWait(thread_t **queue, time_t abstime, int clockIdx, spinlock_ctx_t *scp);
+static int _threads_sigpost(process_t *process, thread_t *thread, int sig);
+static void _threads_updateWakeup(time_t now);
 static void _threads_cpuTimeMode(thread_t *t, int kernel);
 static void _threads_cpuTimeToProcess(const thread_t *t);
 
@@ -125,6 +136,112 @@ static int threads_sleepcmp(rbnode_t *n1, rbnode_t *n2)
 		return (proc_getTid(t1) > proc_getTid(t2)) ? 1 : -1;
 	}
 }
+
+static int threads_timercmp(rbnode_t *n1, rbnode_t *n2)
+{
+	ktimer_t *t1 = lib_treeof(ktimer_t, linkage, n1);
+	ktimer_t *t2 = lib_treeof(ktimer_t, linkage, n2);
+
+	/* parasoft-suppress-next-line MISRAC2012-DIR_4_1 "Variable pass to lib_treeof will not be NULL, so lib_treeof will not be NULL either" */
+	if (t1->expiry != t2->expiry) {
+		return (t1->expiry > t2->expiry) ? 1 : -1;
+	}
+	else {
+		return (t1->id > t2->id) ? 1 : -1;
+	}
+}
+
+
+/* Returns -1 for the clocks that have no timeline of their own */
+static int _threads_clockIdx(int clock)
+{
+	int idx;
+
+	switch (clock) {
+		case PH_CLOCK_REALTIME:
+			idx = CLOCK_IDX_REALTIME;
+			break;
+
+		case PH_CLOCK_RELATIVE:
+		case PH_CLOCK_MONOTONIC:
+			idx = CLOCK_IDX_MONOTONIC;
+			break;
+
+		default:
+			idx = -1;
+			break;
+	}
+
+	return idx;
+}
+
+
+static void _threads_clockRecalc(int idx)
+{
+	const thread_t *t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.clocks[idx].sleeping.root));
+	const ktimer_t *k = lib_treeof(ktimer_t, linkage, lib_rbMinimum(threads_common.clocks[idx].timers.root));
+	time_t next = 0;
+
+	if (t != NULL) {
+		next = t->wakeup;
+	}
+
+	if ((k != NULL) && ((next == 0) || (k->expiry < next))) {
+		next = k->expiry;
+	}
+
+	threads_common.clocks[idx].next = next;
+}
+
+
+static void _threads_clockNoteAdded(int idx, time_t expiry)
+{
+	if ((threads_common.clocks[idx].next == 0) || (expiry < threads_common.clocks[idx].next)) {
+		threads_common.clocks[idx].next = expiry;
+	}
+}
+
+
+static void _threads_clockNoteRemoved(int idx, time_t expiry)
+{
+	/* Anything but the head leaves the earliest deadline where it was */
+	if (threads_common.clocks[idx].next == expiry) {
+		_threads_clockRecalc(idx);
+	}
+}
+
+
+static time_t _threads_clockToRaw(int idx, time_t deadline)
+{
+	time_t offs = threads_common.utcoffs;
+	time_t raw;
+
+	if (idx != CLOCK_IDX_REALTIME) {
+		return deadline;
+	}
+
+	/* A realtime instant is the raw one plus the offset, so taking the offset off converts it back */
+	if ((offs > 0) && (deadline <= offs)) {
+		/* The deadline is already behind us, and 0 would be read as "nothing pending" */
+		raw = 1;
+	}
+	else if ((offs <= 0) && ((TIME_T_MAX + offs) < deadline)) {
+		/* Subtracting a negative offset would overflow */
+		raw = TIME_T_MAX;
+	}
+	else {
+		raw = deadline - offs;
+	}
+
+	return raw;
+}
+
+
+static time_t _threads_clockNow(int idx, time_t rawNow)
+{
+	return (idx == CLOCK_IDX_REALTIME) ? (rawNow + threads_common.utcoffs) : rawNow;
+}
+
 
 /*
  * Thread monitoring
@@ -190,25 +307,36 @@ static void _threads_waking(thread_t *t)
  */
 
 
-static void _threads_updateWakeup(time_t now, thread_t *minimum)
+/*
+ * Returns 0 when nothing is pending. Timers on the CPU-time clocks are left out, as the tick
+ * that sweeps them is never skipped anyway.
+ */
+static time_t _threads_earliestRaw(void)
 {
-	thread_t *t;
-	time_t wakeup;
+	time_t earliest = 0, raw;
+	int idx;
 
-	if (minimum != NULL) {
-		t = minimum;
-	}
-	else {
-		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
+	for (idx = 0; idx < CLOCK_IDX_COUNT; idx++) {
+		if (threads_common.clocks[idx].next == 0) {
+			continue;
+		}
+
+		raw = _threads_clockToRaw(idx, threads_common.clocks[idx].next);
+		if ((earliest == 0) || (raw < earliest)) {
+			earliest = raw;
+		}
 	}
 
-	if (t != NULL) {
-		if (now >= t->wakeup) {
-			wakeup = 1;
-		}
-		else {
-			wakeup = t->wakeup - now;
-		}
+	return earliest;
+}
+
+
+static void _threads_updateWakeup(time_t now)
+{
+	time_t wakeup, earliest = _threads_earliestRaw();
+
+	if (earliest != 0) {
+		wakeup = (now >= earliest) ? 1 : (earliest - now);
 	}
 	else {
 		wakeup = SYSTICK_INTERVAL;
@@ -269,10 +397,226 @@ static unsigned int _readyMinPrioIdx(void)
 }
 
 
+/*
+ * Kernel timers
+ */
+
+
+static void _threads_cpuTimeOf(const thread_t *t, int perThread, time_t *total, time_t *user, time_t *sys);
+static void _threads_cpuTimeOfProcess(const process_t *process, time_t *total, time_t *user, time_t *sys);
+
+
+/* Note: always called with threads_common.spinlock set */
+static time_t _threads_ktimerNow(const ktimer_t *timer)
+{
+	time_t total = 0, user = 0, sys = 0;
+	int idx = _threads_clockIdx((int)timer->clock);
+
+	if (idx >= 0) {
+		return _threads_clockNow(idx, _proc_gettimeRaw());
+	}
+
+	if (timer->clock == (unsigned int)PH_CLOCK_THREAD_CPUTIME) {
+		/* A thread that is gone leaves its clock stopped where it was */
+		if (timer->targetThread != NULL) {
+			_threads_cpuTimeOf(timer->targetThread, 1, &total, &user, &sys);
+		}
+	}
+	else if (timer->targetProcess != NULL) {
+		_threads_cpuTimeOfProcess(timer->targetProcess, &total, &user, &sys);
+	}
+	else {
+		/* Without a target there is nothing left to advance the clock */
+	}
+
+	return total;
+}
+
+
+static void _threads_ktimerDisarm(ktimer_t *timer)
+{
+	int idx;
+
+	if (timer->armed == 0U) {
+		return;
+	}
+
+	idx = _threads_clockIdx((int)timer->clock);
+	if (idx < 0) {
+		LIST_REMOVE(&threads_common.cpuTimers, timer);
+	}
+	else {
+		lib_rbRemove(&threads_common.clocks[idx].timers, &timer->linkage);
+		_threads_clockNoteRemoved(idx, timer->expiry);
+	}
+
+	timer->armed = 0U;
+}
+
+
+static void _threads_ktimerArm(ktimer_t *timer, time_t expiry)
+{
+	int idx = _threads_clockIdx((int)timer->clock);
+
+	_threads_ktimerDisarm(timer);
+
+	timer->expiry = expiry;
+	timer->armed = 1U;
+
+	/* Timers falling due at the same microsecond need a system-wide unique key to order them */
+	timer->id = threads_common.ktimerIdCounter;
+	threads_common.ktimerIdCounter++;
+
+	if (idx < 0) {
+		LIST_ADD(&threads_common.cpuTimers, timer);
+	}
+	else {
+		(void)lib_rbInsert(&threads_common.clocks[idx].timers, &timer->linkage);
+		_threads_clockNoteAdded(idx, expiry);
+	}
+}
+
+
+static void _threads_ktimerFire(ktimer_t *timer, time_t now)
+{
+	time_t next = timer->fire(timer, now);
+
+	if (next != 0) {
+		_threads_ktimerArm(timer, next);
+	}
+}
+
+
+/* Note: always called with threads_common.spinlock set */
+static void _threads_cpuTimersSweep(void)
+{
+	ktimer_t *k, *nextInList, *expired = NULL;
+	time_t clockNow;
+	unsigned int n;
+
+	k = threads_common.cpuTimers;
+	if (k == NULL) {
+		return;
+	}
+
+	/*
+	 * Due timers are taken off this list as they are found. Taking off the first one would move
+	 * the head, which a walk that stopped on coming back round to it uses as its terminator.
+	 */
+	n = 1;
+	for (nextInList = k->next; nextInList != k; nextInList = nextInList->next) {
+		n++;
+	}
+
+	/* Take every due timer off the list before firing any of them - see threads_timeintr() */
+	for (; n > 0U; n--) {
+		nextInList = k->next;
+
+		clockNow = _threads_ktimerNow(k);
+		if (clockNow >= k->expiry) {
+			LIST_REMOVE(&threads_common.cpuTimers, k);
+			k->armed = 0U;
+			k->expnext = expired;
+			expired = k;
+		}
+
+		k = nextInList;
+	}
+
+	while (expired != NULL) {
+		k = expired;
+		expired = k->expnext;
+		k->expnext = NULL;
+		_threads_ktimerFire(k, _threads_ktimerNow(k));
+	}
+}
+
+
+/*
+ * Only armed timers are reachable here. The rest keep a pointer to the thread, which stays
+ * valid: a process frees its ghosts only after destroying the resources its timers live in.
+ */
+static void _threads_cpuTimersThreadGone(const thread_t *t)
+{
+	ktimer_t *k = threads_common.cpuTimers;
+
+	if (k == NULL) {
+		return;
+	}
+
+	do {
+		if (k->targetThread == t) {
+			k->targetThread = NULL;
+		}
+		k = k->next;
+	} while (k != threads_common.cpuTimers);
+}
+
+
+void proc_ktimerArm(ktimer_t *timer, time_t expiry)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_threads_ktimerArm(timer, expiry);
+	_threads_updateWakeup(_proc_gettimeRaw());
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+void proc_ktimerDisarm(ktimer_t *timer)
+{
+	spinlock_ctx_t sc;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	_threads_ktimerDisarm(timer);
+	_threads_updateWakeup(_proc_gettimeRaw());
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+}
+
+
+int proc_ktimerRemaining(const ktimer_t *timer, time_t *remaining)
+{
+	spinlock_ctx_t sc;
+	time_t now;
+	int armed;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+
+	armed = (timer->armed != 0U) ? 1 : 0;
+	if (armed != 0) {
+		now = _threads_ktimerNow(timer);
+		*remaining = (now >= timer->expiry) ? 0 : (timer->expiry - now);
+	}
+	else {
+		*remaining = 0;
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return armed;
+}
+
+
+time_t proc_ktimerNow(const ktimer_t *timer)
+{
+	spinlock_ctx_t sc;
+	time_t now;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	now = _threads_ktimerNow(timer);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return now;
+}
+
+
 static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 {
 	thread_t *t;
-	time_t now;
+	ktimer_t *k, *expired;
+	time_t now, clockNow;
+	int idx;
 	spinlock_ctx_t sc;
 
 	(void)context;
@@ -288,18 +632,52 @@ static int threads_timeintr(unsigned int n, cpu_context_t *context, void *arg)
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	now = _proc_gettimeRaw();
 
-	for (;;) {
-		t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
+	for (idx = 0; idx < CLOCK_IDX_COUNT; idx++) {
+		clockNow = _threads_clockNow(idx, now);
 
-		if (t == NULL || t->wakeup > now) {
-			break;
+		for (;;) {
+			t = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.clocks[idx].sleeping.root));
+
+			if ((t == NULL) || (t->wakeup > clockNow)) {
+				break;
+			}
+
+			_proc_threadDequeue(t);
+			hal_cpuSetReturnValue(t->context, (void *)-ETIME);
 		}
 
-		_proc_threadDequeue(t);
-		hal_cpuSetReturnValue(t->context, (void *)-ETIME);
+		/*
+		 * Every due timer leaves the tree before any of them is fired, as a callback may arm
+		 * or disarm timers and must not do so under an iterator. Holding the spinlock across
+		 * both phases is what keeps a concurrent timer_delete() off this chain.
+		 */
+		expired = NULL;
+		for (;;) {
+			k = lib_treeof(ktimer_t, linkage, lib_rbMinimum(threads_common.clocks[idx].timers.root));
+
+			if ((k == NULL) || (k->expiry > clockNow)) {
+				break;
+			}
+
+			lib_rbRemove(&threads_common.clocks[idx].timers, &k->linkage);
+			k->armed = 0U;
+			k->expnext = expired;
+			expired = k;
+		}
+
+		_threads_clockRecalc(idx);
+
+		while (expired != NULL) {
+			k = expired;
+			expired = k->expnext;
+			k->expnext = NULL;
+			_threads_ktimerFire(k, clockNow);
+		}
 	}
 
-	_threads_updateWakeup(now, t);
+	_threads_cpuTimersSweep();
+
+	_threads_updateWakeup(now);
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
@@ -532,6 +910,36 @@ static void _threads_cpuTimeOfThread(const thread_t *t, time_t *total, time_t *u
 		_threads_cpuTimeAddInflight(t, hal_timerGetUs() - t->lastTime, total, user, sys);
 
 		hal_spinlockClear(&threads_common.cpuSpinlock[i], &sc);
+	}
+}
+
+
+/* Counts the threads that have already exited as well as the ones still running */
+static void _threads_cpuTimeOfProcess(const process_t *process, time_t *total, time_t *user, time_t *sys)
+{
+	const thread_t *thread;
+
+	*total += process->cpuTime;
+	*user += process->userTime;
+	*sys += process->sysTime;
+
+	thread = process->threads;
+	if (thread != NULL) {
+		do {
+			_threads_cpuTimeOfThread(thread, total, user, sys);
+			thread = thread->procnext;
+		} while (thread != process->threads);
+	}
+}
+
+
+static void _threads_cpuTimeOf(const thread_t *t, int perThread, time_t *total, time_t *user, time_t *sys)
+{
+	if (perThread != 0) {
+		_threads_cpuTimeOfThread(t, total, user, sys);
+	}
+	else {
+		_threads_cpuTimeOfProcess(t->process, total, user, sys);
 	}
 }
 
@@ -1105,6 +1513,7 @@ __attribute__((noreturn)) void proc_threadEnd(void)
 	_threads_cpuTimeCharge(t, hal_timerGetUs());
 	threads_common.current[cpu] = NULL;
 	t->state = GHOST;
+	_threads_cpuTimersThreadGone(t);
 	LIST_ADD(&threads_common.ghosts, t);
 	(void)_proc_threadWakeup(&threads_common.reaper);
 
@@ -1168,7 +1577,7 @@ void proc_reap(void)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	while (threads_common.ghosts == NULL) {
-		(void)_proc_threadWait(&threads_common.reaper, 0, &sc);
+		(void)_proc_threadWait(&threads_common.reaper, 0, CLOCK_IDX_MONOTONIC, &sc);
 	}
 	ghost = threads_common.ghosts;
 	LIST_REMOVE(&threads_common.ghosts, ghost);
@@ -1219,7 +1628,8 @@ static void _proc_threadDequeue(thread_t *t)
 	}
 
 	if (t->wakeup != 0) {
-		lib_rbRemove(&threads_common.sleeping, &t->sleeplinkage);
+		lib_rbRemove(&threads_common.clocks[t->wakeupClock].sleeping, &t->sleeplinkage);
+		_threads_clockNoteRemoved((int)t->wakeupClock, t->wakeup);
 	}
 
 	t->wakeup = 0;
@@ -1240,7 +1650,8 @@ static void _proc_threadDequeue(thread_t *t)
 }
 
 
-static void _proc_threadEnqueue(thread_t **queue, time_t timeout, u8 interruptible)
+/* abstime is an absolute deadline on the clock of tree clockIdx, or 0 for no deadline */
+static void _proc_threadEnqueue(thread_t **queue, time_t abstime, int clockIdx, u8 interruptible)
 {
 	thread_t *current;
 
@@ -1258,21 +1669,23 @@ static void _proc_threadEnqueue(thread_t **queue, time_t timeout, u8 interruptib
 	current->wait = queue;
 	current->interruptible = interruptible & 0x1U;
 
-	if (timeout != 0) {
-		current->wakeup = timeout;
-		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
-		_threads_updateWakeup(_proc_gettimeRaw(), NULL);
+	if (abstime != 0) {
+		current->wakeup = abstime;
+		current->wakeupClock = (unsigned int)clockIdx & 0x1U;
+		(void)lib_rbInsert(&threads_common.clocks[clockIdx].sleeping, &current->sleeplinkage);
+		_threads_clockNoteAdded(clockIdx, abstime);
+		_threads_updateWakeup(_proc_gettimeRaw());
 	}
 
 	_threads_enqueued(current);
 }
 
 
-static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *scp)
+static int _proc_threadWait(thread_t **queue, time_t abstime, int clockIdx, spinlock_ctx_t *scp)
 {
 	int err;
 
-	_proc_threadEnqueue(queue, timeout, 0);
+	_proc_threadEnqueue(queue, abstime, clockIdx, 0);
 
 	if (*queue == NULL) {
 		return EOK;
@@ -1285,21 +1698,24 @@ static int _proc_threadWait(thread_t **queue, time_t timeout, spinlock_ctx_t *sc
 }
 
 
-static int _proc_threadSleepAbs(time_t abs, time_t now, spinlock_ctx_t *sc)
+/* abs is an absolute deadline on the clock of tree clockIdx, now is the raw monotonic time */
+static int _proc_threadSleepAbs(time_t abs, int clockIdx, time_t now, spinlock_ctx_t *sc)
 {
 	/* Handle usleep(0) (yield) */
-	if (abs > now) {
+	if (abs > _threads_clockNow(clockIdx, now)) {
 		thread_t *current = _proc_current();
 
 		current->state = SLEEP;
 		current->wait = NULL;
 		current->wakeup = abs;
+		current->wakeupClock = (unsigned int)clockIdx & 0x1U;
 		current->interruptible = 1;
 
-		(void)lib_rbInsert(&threads_common.sleeping, &current->sleeplinkage);
+		(void)lib_rbInsert(&threads_common.clocks[clockIdx].sleeping, &current->sleeplinkage);
+		_threads_clockNoteAdded(clockIdx, abs);
 
 		_threads_enqueued(current);
-		_threads_updateWakeup(now, NULL);
+		_threads_updateWakeup(now);
 	}
 
 	return hal_cpuReschedule(&threads_common.spinlock, sc);
@@ -1308,7 +1724,7 @@ static int _proc_threadSleepAbs(time_t abs, time_t now, spinlock_ctx_t *sc)
 
 static int _proc_threadSleep(time_t us, time_t now, spinlock_ctx_t *sc)
 {
-	return _proc_threadSleepAbs((TIME_T_MAX - now < us) ? TIME_T_MAX : (now + us), now, sc);
+	return _proc_threadSleepAbs((TIME_T_MAX - now < us) ? TIME_T_MAX : (now + us), CLOCK_IDX_MONOTONIC, now, sc);
 }
 
 
@@ -1324,7 +1740,7 @@ int proc_threadSleep(time_t us)
 int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute)
 {
 	time_t us, nsus, abstime, start, stop, elapsed, unslept;
-	int err;
+	int err, clockIdx;
 	spinlock_ctx_t sc;
 
 	if ((*sec < 0) || ((*nsec) < 0) || ((*nsec) >= (1000 * 1000 * 1000))) {
@@ -1345,11 +1761,8 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute)
 	}
 
 	if (absolute != 0) {
-		/*
-		 * TODO: re-arm absolute PH_CLOCK_REALTIME sleep on concurrent proc_settime().
-		 * Requires changes to the timer tree.
-		 */
-		err = proc_clockTimeoutToAbsTime(clockid, us, &abstime);
+		/* The deadline stays in its own clock's domain, so proc_settime() moves it along too */
+		err = proc_clockTimeoutToAbsTime(clockid, us, &abstime, &clockIdx);
 		if ((err < 0) && (err != -ETIME)) {
 			return err;
 		}
@@ -1358,7 +1771,7 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute)
 		}
 
 		hal_spinlockSet(&threads_common.spinlock, &sc);
-		err = _proc_threadSleepAbs(abstime, _proc_gettimeRaw(), &sc);
+		err = _proc_threadSleepAbs(abstime, clockIdx, _proc_gettimeRaw(), &sc);
 	}
 	else {
 		hal_spinlockSet(&threads_common.spinlock, &sc);
@@ -1385,7 +1798,7 @@ int proc_threadNanoSleep(time_t *sec, long int *nsec, int clockid, int absolute)
 }
 
 
-static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t timeout, u32 flags, spinlock_ctx_t *scp)
+static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t abstime, int clockIdx, u32 flags, spinlock_ctx_t *scp)
 {
 	int err;
 	thread_t *thread;
@@ -1412,7 +1825,7 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 		return -EBUSY;
 	}
 
-	_proc_threadEnqueue(queue, timeout, ((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) ? 1U : 0U);
+	_proc_threadEnqueue(queue, abstime, clockIdx, ((flags & THREAD_WAIT_INTERRUPTIBLE) != 0U) ? 1U : 0U);
 
 	if (*queue == NULL) {
 		hal_spinlockClear(&threads_common.spinlock, &tsc);
@@ -1432,21 +1845,31 @@ static int proc_threadWaitEx(thread_t **queue, spinlock_t *spinlock, time_t time
 }
 
 
+/*
+ * These take deadlines on the monotonic clock. A wait on another clock goes through
+ * proc_threadWaitInterruptibleClocked() or proc_threadWaitExclusive() instead.
+ */
 int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp)
 {
-	return proc_threadWaitEx(queue, spinlock, timeout, 0U, scp);
+	return proc_threadWaitEx(queue, spinlock, timeout, CLOCK_IDX_MONOTONIC, 0U, scp);
 }
 
 
 int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp)
 {
-	return proc_threadWaitEx(queue, spinlock, timeout, THREAD_WAIT_INTERRUPTIBLE, scp);
+	return proc_threadWaitEx(queue, spinlock, timeout, CLOCK_IDX_MONOTONIC, THREAD_WAIT_INTERRUPTIBLE, scp);
 }
 
 
-int proc_threadWaitExclusive(thread_t **queue, time_t timeout)
+static int proc_threadWaitInterruptibleClocked(thread_t **queue, spinlock_t *spinlock, time_t abstime, int clockIdx, spinlock_ctx_t *scp)
 {
-	return proc_threadWaitEx(queue, NULL, timeout, THREAD_WAIT_INTERRUPTIBLE | THREAD_WAIT_EXCLUSIVE, NULL);
+	return proc_threadWaitEx(queue, spinlock, abstime, clockIdx, THREAD_WAIT_INTERRUPTIBLE, scp);
+}
+
+
+int proc_threadWaitExclusive(thread_t **queue, time_t abstime, int clockIdx)
+{
+	return proc_threadWaitEx(queue, NULL, abstime, clockIdx, THREAD_WAIT_INTERRUPTIBLE | THREAD_WAIT_EXCLUSIVE, NULL);
 }
 
 
@@ -1576,7 +1999,7 @@ int proc_join(int tid, time_t timeout)
 				break;
 			}
 			else {
-				err = _proc_threadWait(&process->reaper, abstimeout, &sc);
+				err = _proc_threadWait(&process->reaper, abstimeout, CLOCK_IDX_MONOTONIC, &sc);
 				if (err == 0) {
 					firstGhost = process->ghosts;
 					ghost = firstGhost;
@@ -1593,7 +2016,7 @@ int proc_join(int tid, time_t timeout)
 	else {
 		/* compatibility with existing code */
 		while (process->ghosts == NULL) {
-			err = _proc_threadWait(&process->reaper, abstimeout, &sc);
+			err = _proc_threadWait(&process->reaper, abstimeout, CLOCK_IDX_MONOTONIC, &sc);
 			if (err == -EINTR || err == -ETIME) {
 				break;
 			}
@@ -1637,6 +2060,13 @@ int proc_settime(time_t offs)
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
 	threads_common.utcoffs = offs;
+
+	/*
+	 * The realtime deadlines have just moved relative to the hardware timer. None of them needs
+	 * re-keying, as they are kept in realtime, but the programmed wakeup is now wrong.
+	 */
+	_threads_updateWakeup(_proc_gettimeRaw());
+
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	return EOK;
@@ -1645,19 +2075,12 @@ int proc_settime(time_t offs)
 
 static time_t _proc_nextWakeup(void)
 {
-	thread_t *thread;
-	time_t wakeup = 0;
-	time_t now;
+	time_t wakeup = 0, now;
+	time_t earliest = _threads_earliestRaw();
 
-	thread = lib_treeof(thread_t, sleeplinkage, lib_rbMinimum(threads_common.sleeping.root));
-	if (thread != NULL) {
+	if (earliest != 0) {
 		now = _proc_gettimeRaw();
-		if (now >= thread->wakeup) {
-			wakeup = 0;
-		}
-		else {
-			wakeup = thread->wakeup - now;
-		}
+		wakeup = (now >= earliest) ? 0 : (earliest - now);
 	}
 
 	return wakeup;
@@ -1737,10 +2160,9 @@ static int _threads_sigdefault(process_t *process, thread_t *thread, int sig)
 }
 
 
-int threads_sigpost(process_t *process, thread_t *thread, int sig)
+static int _threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	u32 sigbit;
-	spinlock_ctx_t sc;
 	int performedAction = -1;
 
 	LIB_ASSERT((thread == NULL) || (process == thread->process), "Sigpost to thread with mismatched process");
@@ -1750,22 +2172,17 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		return -EPERM;
 	}
 
-	hal_spinlockSet(&threads_common.spinlock, &sc);
-
 	if ((sig < 0) || (sig >= NSIG_TOTAL)) {
-		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return -EINVAL;
 	}
 
 	if (sig == SIGCANCEL || sig == SIGNULL) {
 		(void)_threads_sigdefault(process, thread, sig);
-		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return EOK;
 	}
 
 	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
 	if ((process->sigactions != NULL) && (process->sigactions[sig - 1].sa_handler == SIG_IGN)) {
-		hal_spinlockClear(&threads_common.spinlock, &sc);
 		return EOK;
 	}
 
@@ -1791,7 +2208,6 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 			 * Might happen during small window between last
 			 * thread destroy and process destroy. This process
 			 * will end anyway, no point in delivering the signal */
-			hal_spinlockClear(&threads_common.spinlock, &sc);
 			return -ESRCH;
 		}
 	}
@@ -1808,9 +2224,39 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		}
 	}
 
+	return EOK;
+}
+
+
+int threads_sigpostLocked(process_t *process, thread_t *thread, int sig)
+{
+	return _threads_sigpost(process, thread, sig);
+}
+
+
+int threads_sigpending(const process_t *process, int sig)
+{
+	spinlock_ctx_t sc;
+	int pending;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	pending = ((process->sigpend & ((u32)1U << (unsigned int)sig)) != 0U) ? 1 : 0;
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
-	return EOK;
+	return pending;
+}
+
+
+int threads_sigpost(process_t *process, thread_t *thread, int sig)
+{
+	spinlock_ctx_t sc;
+	int err;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	err = _threads_sigpost(process, thread, sig);
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return err;
 }
 
 
@@ -2126,7 +2572,7 @@ int threads_sigsuspend(unsigned int mask)
 
 	/* Sleep forever (atomic lock release), interruptible */
 	thread_t *tqueue = NULL;
-	_proc_threadEnqueue(&tqueue, 0, 1);
+	_proc_threadEnqueue(&tqueue, 0, CLOCK_IDX_MONOTONIC, 1);
 	(void)hal_cpuReschedule(&threads_common.spinlock, &sc);
 	/* after wakeup */
 
@@ -2253,7 +2699,7 @@ int proc_lockTry(lock_t *lock)
 
 
 /* WARN: lock is already obtained when returning with EOK (handed off during _proc_lockUnlock()) */
-static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc, spinlock_ctx_t *scp, time_t timeout)
+static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc, spinlock_ctx_t *scp, time_t abstime, int clockIdx)
 {
 	thread_t *current = _proc_current();
 	int err = EOK;
@@ -2267,7 +2713,7 @@ static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc
 			/* else: we got the lock, we shouldn't return EINTR */
 		}
 		else {
-			_proc_threadEnqueue(&lock->queue, timeout, interruptible);
+			_proc_threadEnqueue(&lock->queue, abstime, clockIdx, interruptible);
 			/*
 			 * FIXME: too many spinlocks. Make current->exit atomic and shrink the
 			 * critical section of threads_common.spinlock to just the _proc_threadEnqueue()?
@@ -2311,7 +2757,7 @@ static int _proc_lockSetRaw(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 	}
 
 	if (ret == -EBUSY) {
-		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp, 0);
+		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp, 0, CLOCK_IDX_MONOTONIC);
 		if (ret == EOK) {
 			ret = _proc_lockObtained(current, lock);
 		}
@@ -2324,7 +2770,7 @@ static int _proc_lockSetRaw(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 }
 
 
-static int _proc_lockSetEx(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp, time_t timeout)
+static int _proc_lockSetEx(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp, time_t abstime, int clockIdx)
 {
 	thread_t *current;
 	spinlock_ctx_t sc;
@@ -2353,7 +2799,7 @@ static int _proc_lockSetEx(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp, 
 			_proc_threadSetPriority(lock->owner, current->priority);
 		}
 
-		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp, timeout);
+		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp, abstime, clockIdx);
 		if (ret == EOK) {
 			ret = _proc_lockObtained(current, lock);
 		}
@@ -2374,7 +2820,7 @@ static int _proc_lockSetEx(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp, 
 
 static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 {
-	return _proc_lockSetEx(lock, interruptible, scp, 0);
+	return _proc_lockSetEx(lock, interruptible, scp, 0, CLOCK_IDX_MONOTONIC);
 }
 
 
@@ -2397,7 +2843,7 @@ int proc_lockSet(lock_t *lock)
 }
 
 
-int proc_lockSetTimeoutable(lock_t *lock, time_t timeout)
+int proc_lockSetTimeoutable(lock_t *lock, time_t abstime, int clockIdx)
 {
 	spinlock_ctx_t sc;
 	int err;
@@ -2408,7 +2854,7 @@ int proc_lockSetTimeoutable(lock_t *lock, time_t timeout)
 
 	hal_spinlockSet(&lock->spinlock, &sc);
 
-	err = _proc_lockSetEx(lock, 1U, &sc, timeout);
+	err = _proc_lockSetEx(lock, 1U, &sc, abstime, clockIdx);
 
 	hal_spinlockClear(&lock->spinlock, &sc);
 
@@ -2606,17 +3052,20 @@ int proc_lockSet2(lock_t *l1, lock_t *l2)
 }
 
 
-int proc_clockTimeoutToAbsTime(int clock, time_t timeout, time_t *rabstime)
+int proc_clockTimeoutToAbsTime(int clock, time_t timeout, time_t *rabstime, int *rclockIdx)
 {
 	time_t offs, abstime = 0;
+	int clockIdx = _threads_clockIdx(clock);
 
-	if ((clock != PH_CLOCK_REALTIME) && (clock != PH_CLOCK_MONOTONIC) && (clock != PH_CLOCK_RELATIVE)) {
+	if (clockIdx < 0) {
 		return -EINVAL;
 	}
 
 	if (timeout < 0) {
 		return -EINVAL;
 	}
+
+	*rclockIdx = clockIdx;
 
 	if (timeout == 0) {
 		*rabstime = 0;
@@ -2625,11 +3074,12 @@ int proc_clockTimeoutToAbsTime(int clock, time_t timeout, time_t *rabstime)
 
 	switch (clock) {
 		case PH_CLOCK_REALTIME:
+			/* Left on the realtime timeline, so that a later proc_settime() carries it along */
 			proc_gettime(&abstime, &offs);
 			if (abstime + offs > timeout) {
 				return -ETIME;
 			}
-			*rabstime = timeout - offs;
+			*rabstime = timeout;
 			break;
 
 		case PH_CLOCK_MONOTONIC:
@@ -2659,7 +3109,7 @@ int proc_clockTimeoutToAbsTime(int clock, time_t timeout, time_t *rabstime)
 }
 
 
-int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
+int proc_lockWait(thread_t **queue, lock_t *lock, time_t abstime, int clockIdx)
 {
 	spinlock_ctx_t sc;
 	int err, lockErr;
@@ -2672,7 +3122,7 @@ int proc_lockWait(thread_t **queue, lock_t *lock, time_t timeout)
 
 	err = _proc_lockClear(lock);
 	if (err >= 0) {
-		err = proc_threadWaitInterruptible(queue, &lock->spinlock, timeout, &sc);
+		err = proc_threadWaitInterruptibleClocked(queue, &lock->spinlock, abstime, clockIdx, &sc);
 		if (err != -EINTR) {
 			lockErr = _proc_lockSet(lock, 0U, &sc);
 			if (lockErr < 0) {
@@ -2976,7 +3426,6 @@ int proc_cpuTime(const thread_t *t, int perThread, time_t *cpuTime, time_t *user
 {
 	spinlock_ctx_t sc;
 	time_t total = 0, user = 0, sys = 0;
-	const thread_t *thread;
 
 	if ((perThread == 0) && (t->process == NULL)) {
 		/* A thread of no process - only its own time can be asked for */
@@ -2984,25 +3433,7 @@ int proc_cpuTime(const thread_t *t, int perThread, time_t *cpuTime, time_t *user
 	}
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);
-
-	if (perThread != 0) {
-		_threads_cpuTimeOfThread(t, &total, &user, &sys);
-	}
-	else {
-		/* What the threads that are gone ran, plus what the ones still here have run */
-		total = t->process->cpuTime;
-		user = t->process->userTime;
-		sys = t->process->sysTime;
-
-		thread = t->process->threads;
-		if (thread != NULL) {
-			do {
-				_threads_cpuTimeOfThread(thread, &total, &user, &sys);
-				thread = thread->procnext;
-			} while (thread != t->process->threads);
-		}
-	}
-
+	_threads_cpuTimeOf(t, perThread, &total, &user, &sys);
 	hal_spinlockClear(&threads_common.spinlock, &sc);
 
 	if (cpuTime != NULL) {
@@ -3198,7 +3629,14 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	threads_common.readyBitmask = 0;
 	hal_memset(threads_common.ready, 0, sizeof(threads_common.ready));
 
-	lib_rbInit(&threads_common.sleeping, threads_sleepcmp, NULL);
+	for (i = 0; i < (unsigned int)CLOCK_IDX_COUNT; i++) {
+		lib_rbInit(&threads_common.clocks[i].sleeping, threads_sleepcmp, NULL);
+		lib_rbInit(&threads_common.clocks[i].timers, threads_timercmp, NULL);
+		threads_common.clocks[i].next = 0;
+	}
+	threads_common.cpuTimers = NULL;
+	threads_common.ktimerIdCounter = 0;
+
 	lib_idtreeInit(&threads_common.id);
 
 	lib_printf("proc: Initializing thread scheduler, priorities=%u\n", NPRIOS);

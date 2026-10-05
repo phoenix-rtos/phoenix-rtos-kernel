@@ -41,6 +41,8 @@ _Static_assert(NPRIOS >= 16U, "NPRIOS should be >=16");
 #define MAX_PRIO    (PRIO_OFFSET - 1) /* Maximum priority value, of the lowest criticality (scheduled when no threads with p < MAX_PRIO are ready) */
 #define MIN_PRIO    (-PRIO_OFFSET)    /* Minimum priority value, of the HIGHEST criticality (scheduled before MIN_PRIO + 1) */
 
+#define TIME_T_MAX 0x7FFFFFFFFFFFFFFFLL /* LLONG_MAX */
+
 typedef s8 priority_t;
 _Static_assert(PRIO_OFFSET <= 128, "priority range must fit into priority_t");
 
@@ -52,6 +54,43 @@ _Static_assert(PRIO_OFFSET <= 128, "priority range must fit into priority_t");
 #define READY 0U
 #define SLEEP 1U
 #define GHOST 2U
+
+/* One tree per clock that has a timeline. PH_CLOCK_RELATIVE and the CPU-time clocks have none. */
+#define CLOCK_IDX_MONOTONIC 0
+#define CLOCK_IDX_REALTIME  1
+#define CLOCK_IDX_COUNT     2
+
+
+struct _ktimer_t;
+
+
+/*
+ * Run by the timer interrupt with the scheduler spinlock held. Returns the next absolute expiry
+ * on the timer's own clock, or 0 to leave the timer disarmed.
+ */
+typedef time_t (*ktimerFire_t)(struct _ktimer_t *timer, time_t now);
+
+
+/*
+ * A deadline for something that is not a sleeping thread; threads keep their own linkage so
+ * the far hotter sleep path stays free of the indirection.
+ */
+typedef struct _ktimer_t {
+	rbnode_t linkage;              /* in the tree of a timeline clock */
+	struct _ktimer_t *next, *prev; /* in the list of the CPU-time clocks */
+	struct _ktimer_t *expnext;     /* transient, chains what one sweep found due */
+
+	time_t expiry; /* absolute, in the domain of clock */
+	ktimerFire_t fire;
+
+	struct _process_t *targetProcess;
+	struct _thread_t *targetThread;
+
+	unsigned int id; /* orders timers that fall due at the same instant */
+	unsigned int clock : 3;
+	unsigned int armed : 1;
+} ktimer_t;
+
 
 typedef struct _thread_t {
 	struct _thread_t *next;
@@ -78,6 +117,7 @@ typedef struct _thread_t {
 	unsigned int exit : 2;
 	unsigned int interruptible : 1;
 	unsigned int inKernel : 1;
+	unsigned int wakeupClock : 1; /* CLOCK_IDX_* of the tree holding it while wakeup != 0 */
 
 	unsigned int sigmask;
 	unsigned int sigpend;
@@ -172,7 +212,7 @@ int proc_threadWait(thread_t **queue, spinlock_t *spinlock, time_t timeout, spin
 int proc_threadWaitInterruptible(thread_t **queue, spinlock_t *spinlock, time_t timeout, spinlock_ctx_t *scp);
 
 
-int proc_threadWaitExclusive(thread_t **queue, time_t timeout);
+int proc_threadWaitExclusive(thread_t **queue, time_t abstime, int clockIdx);
 
 
 int proc_threadWakeup(thread_t **queue);
@@ -226,7 +266,36 @@ void proc_gettime(time_t *raw, time_t *offs);
 int proc_settime(time_t offs);
 
 
-int proc_clockTimeoutToAbsTime(int clock, time_t timeout, time_t *rabstime);
+/*
+ * Resolves a timeout into an absolute deadline on the given clock's own timeline, along with the
+ * index of the tree that timeline is kept in. A zero timeout means no deadline at all.
+ */
+int proc_clockTimeoutToAbsTime(int clock, time_t timeout, time_t *rabstime, int *rclockIdx);
+
+
+/* For callers that already hold the scheduler spinlock - see threads_sigpost() */
+int threads_sigpostLocked(process_t *process, thread_t *thread, int sig);
+
+
+/* Whether sig has been raised for the process and not yet taken by any of its threads */
+int threads_sigpending(const process_t *process, int sig);
+
+
+void proc_ktimerArm(ktimer_t *timer, time_t expiry);
+
+
+/* Takes the timer out of its clock. Safe to call on one that is not armed. */
+void proc_ktimerDisarm(ktimer_t *timer);
+
+
+/*
+ * Reads the time left on the timer together with its armed state, so that the two cannot
+ * disagree. Returns 1 when the timer is armed and 0 when it is not.
+ */
+int proc_ktimerRemaining(const ktimer_t *timer, time_t *remaining);
+
+
+time_t proc_ktimerNow(const ktimer_t *timer);
 
 
 __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx);

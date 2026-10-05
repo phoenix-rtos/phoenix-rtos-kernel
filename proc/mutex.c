@@ -95,7 +95,7 @@ int proc_mutexLock(int h, time_t timeout, int clock)
 {
 	mutex_t *mutex;
 	time_t abstime;
-	int err;
+	int err, clockIdx = CLOCK_IDX_MONOTONIC;
 
 	mutex = mutex_get(h);
 	if (mutex == NULL) {
@@ -107,9 +107,9 @@ int proc_mutexLock(int h, time_t timeout, int clock)
 		err = proc_lockSetInterruptible(&mutex->lock);
 	}
 	else {
-		err = proc_clockTimeoutToAbsTime(clock, timeout, &abstime);
+		err = proc_clockTimeoutToAbsTime(clock, timeout, &abstime, &clockIdx);
 		if (err == EOK) {
-			err = proc_lockSetTimeoutable(&mutex->lock, abstime);
+			err = proc_lockSetTimeoutable(&mutex->lock, abstime, clockIdx);
 		}
 	}
 

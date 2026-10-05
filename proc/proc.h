@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "mutex.h"
 #include "cond.h"
+#include "timer.h"
 #include "userintr.h"
 #include "ports.h"
 

@@ -749,7 +749,7 @@ int usocket_connect(usocket_t *s, const struct sockaddr *address, socklen_t addr
 		 * timeout interval until the connection is established. This
 		 * implementation blocks indefinitely while waiting for the connection.
 		 */
-		err = proc_lockWait(&s->connq, &s->lock, 0);
+		err = proc_lockWait(&s->connq, &s->lock, 0, CLOCK_IDX_MONOTONIC);
 		if (err == -EINTR) {
 			/*
 			 * The lock has not been reacquired. Leave the socket queued on the
@@ -812,7 +812,7 @@ int usocket_accept4(usocket_t *ls, struct sockaddr *address, socklen_t *address_
 				return -EWOULDBLOCK;
 			}
 
-			err = proc_lockWait(&ls->acceptq, &ls->lock, 0);
+			err = proc_lockWait(&ls->acceptq, &ls->lock, 0, CLOCK_IDX_MONOTONIC);
 			if (err == -EINTR) {
 				/* the lock has not been reacquired */
 				return -EINTR;

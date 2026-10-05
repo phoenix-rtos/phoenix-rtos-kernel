@@ -161,7 +161,7 @@ ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int
 			break;
 		}
 
-		err = proc_lockWait(&ch->txwait, &ch->lock, 0);
+		err = proc_lockWait(&ch->txwait, &ch->lock, 0, CLOCK_IDX_MONOTONIC);
 		if (err == -EINTR) {
 			/* the lock has not been reacquired */
 			return (done > 0U) ? (ssize_t)done : -EINTR;
@@ -262,7 +262,7 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 			break;
 		}
 
-		err = proc_lockWait(&ch->rxwait, &ch->lock, 0);
+		err = proc_lockWait(&ch->rxwait, &ch->lock, 0, CLOCK_IDX_MONOTONIC);
 		if (err == -EINTR) {
 			/* the lock has not been reacquired */
 			return -EINTR;

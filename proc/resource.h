@@ -22,19 +22,21 @@
 struct _mutex_t;
 struct _cond_t;
 struct _usrintr_t;
+struct _ptimer_t;
 
 
 typedef struct _resource_t {
 	idnode_t linkage;
 	int refs;
 	/* clang-format off */
-	enum { rtLock = 0, rtCond, rtInth } type;
+	enum { rtLock = 0, rtCond, rtInth, rtTimer } type;
 	/* clang-format on */
 
 	union {
 		struct _cond_t *cond;
 		struct _mutex_t *mutex;
 		struct _userintr_t *userintr;
+		struct _ptimer_t *timer;
 	} payload;
 } resource_t;
 

@@ -3122,7 +3122,7 @@ int posix_waitpid(pid_t child, int *status, unsigned int options)
 			break;
 		}
 
-		err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0);
+		err = proc_lockWait(&pinfo->wait, &pinfo->lock, 0, CLOCK_IDX_MONOTONIC);
 
 		if (err == -EINTR) {
 			/* pinfo->lock is clear */

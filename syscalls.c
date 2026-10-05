@@ -2216,6 +2216,111 @@ int syscalls_sys_uname(u8 *ustack)
 
 
 /*
+ * POSIX timers
+ */
+
+
+int syscalls_timerCreate(u8 *ustack)
+{
+	int clock, pid, tid, notify, signo;
+
+	GETFROMSTACK(ustack, int, clock, 0U);
+	GETFROMSTACK(ustack, int, pid, 1U);
+	GETFROMSTACK(ustack, int, tid, 2U);
+	GETFROMSTACK(ustack, int, notify, 3U);
+	GETFROMSTACK(ustack, int, signo, 4U);
+
+	return proc_timerCreate(clock, pid, tid, notify, signo);
+}
+
+
+int syscalls_timerDelete(u8 *ustack)
+{
+	int id;
+
+	GETFROMSTACK(ustack, int, id, 0U);
+
+	return proc_timerDelete(id);
+}
+
+
+int syscalls_timerSettime(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	timerspec_t kvalue, kold;
+	const timerspec_t *value;
+	timerspec_t *old;
+	unsigned int flags;
+	int id, err;
+
+	GETFROMSTACK(ustack, int, id, 0U);
+	GETFROMSTACK(ustack, unsigned int, flags, 1U);
+	GETFROMSTACK(ustack, const timerspec_t *, value, 2U);
+	GETFROMSTACK(ustack, timerspec_t *, old, 3U);
+
+	if (value == NULL) {
+		return -EINVAL;
+	}
+
+	if (vm_mapBelongs(proc, (void *)value, sizeof(*value)) < 0) {
+		return -EFAULT;
+	}
+
+	if ((old != NULL) && (vm_mapBelongs(proc, old, sizeof(*old)) < 0)) {
+		return -EFAULT;
+	}
+
+	hal_memcpy(&kvalue, value, sizeof(kvalue));
+
+	err = proc_timerSettime(id, flags, &kvalue, (old != NULL) ? &kold : NULL);
+
+	if ((err == EOK) && (old != NULL)) {
+		hal_memcpy(old, &kold, sizeof(kold));
+	}
+
+	return err;
+}
+
+
+int syscalls_timerGettime(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	timerspec_t kvalue;
+	timerspec_t *value;
+	int id, err;
+
+	GETFROMSTACK(ustack, int, id, 0U);
+	GETFROMSTACK(ustack, timerspec_t *, value, 1U);
+
+	if (value == NULL) {
+		return -EINVAL;
+	}
+
+	if (vm_mapBelongs(proc, value, sizeof(*value)) < 0) {
+		return -EFAULT;
+	}
+
+	err = proc_timerGettime(id, &kvalue);
+
+	if (err == EOK) {
+		hal_memcpy(value, &kvalue, sizeof(kvalue));
+	}
+
+	return err;
+}
+
+
+int syscalls_timerGetoverrun(u8 *ustack)
+{
+	int id;
+
+	GETFROMSTACK(ustack, int, id, 0U);
+
+	return proc_timerGetoverrun(id);
+}
+
+
+/*
  * Empty syscall
  */
 

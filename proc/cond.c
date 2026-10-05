@@ -89,7 +89,7 @@ int proc_condWait(int c, int m, time_t timeout, int clock)
 	mutex_t *mutex = NULL;
 	int err = EOK;
 	time_t abstime = 0;
-	int condType;
+	int condType, clockIdx = CLOCK_IDX_MONOTONIC;
 
 	cond = cond_get(c);
 	if (cond == NULL) {
@@ -114,13 +114,13 @@ int proc_condWait(int c, int m, time_t timeout, int clock)
 	}
 
 	if (err == EOK) {
-		err = proc_clockTimeoutToAbsTime(clock == -1 ? cond->attr.clock : clock, timeout, &abstime);
+		err = proc_clockTimeoutToAbsTime(clock == -1 ? cond->attr.clock : clock, timeout, &abstime, &clockIdx);
 		if (err == EOK) {
 			if (condType == PH_COND_NORMAL) {
-				err = proc_lockWait(&cond->queue, &mutex->lock, abstime);
+				err = proc_lockWait(&cond->queue, &mutex->lock, abstime, clockIdx);
 			}
 			else {
-				err = proc_threadWaitExclusive(&cond->queue, abstime);
+				err = proc_threadWaitExclusive(&cond->queue, abstime, clockIdx);
 			}
 		}
 	}

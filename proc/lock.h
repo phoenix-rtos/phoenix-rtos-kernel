@@ -46,7 +46,7 @@ extern const struct lockAttr proc_lockAttrDefault;
 int proc_lockSet(lock_t *lock);
 
 
-int proc_lockSetTimeoutable(lock_t *lock, time_t timeout);
+int proc_lockSetTimeoutable(lock_t *lock, time_t abstime, int clockIdx);
 
 
 int proc_lockSet2(lock_t *l1, lock_t *l2);
@@ -55,8 +55,8 @@ int proc_lockSet2(lock_t *l1, lock_t *l2);
 int proc_lockTry(lock_t *lock);
 
 
-/* `timeout` - in microseconds, absolute time relative to monotonic clock */
-int proc_lockWait(struct _thread_t **queue, lock_t *lock, time_t timeout);
+/* `abstime` - in microseconds, an absolute deadline on the clock of tree `clockIdx` */
+int proc_lockWait(struct _thread_t **queue, lock_t *lock, time_t abstime, int clockIdx);
 
 
 int proc_lockClear(lock_t *lock);
