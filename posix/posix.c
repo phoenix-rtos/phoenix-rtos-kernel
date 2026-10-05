@@ -548,8 +548,11 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 	msg_t msg;
 	int err = EOK;
 
-	if (((path == NULL) && (fildes < 0)) ||
-			((path != NULL) && (fildes != -1))) {
+	if ((path == NULL) && (fildes < 0)) {
+		return -EBADF;
+	}
+
+	if ((path != NULL) && (fildes != -1)) {
 		return -EINVAL;
 	}
 
