@@ -13,6 +13,7 @@
 
 #include "hal/hal.h"
 #include "include/errno.h"
+#include "include/file.h"
 #include "lib/lib.h"
 #include "proc.h"
 
@@ -542,6 +543,36 @@ int proc_read(oid_t oid, off_t offs, void *buf, size_t sz, unsigned int mode)
 
 	if (err >= 0) {
 		err = msg->o.err;
+	}
+
+	vm_kfree(msg);
+	return err;
+}
+
+
+int proc_type(oid_t oid)
+{
+	int err;
+	msg_t *msg = vm_kmalloc(sizeof(msg_t));
+
+	if (msg == NULL) {
+		return -ENOMEM;
+	}
+
+	hal_memset(msg, 0, sizeof(msg_t));
+
+	msg->type = mtGetAttr;
+	hal_memcpy(&msg->oid, &oid, sizeof(oid_t));
+	msg->i.attr.type = atType;
+
+	err = proc_send(oid.port, msg);
+
+	if (err >= 0) {
+		err = msg->o.err;
+	}
+
+	if (err >= 0) {
+		err = (int)(long long)msg->o.attr.val;
 	}
 
 	vm_kfree(msg);

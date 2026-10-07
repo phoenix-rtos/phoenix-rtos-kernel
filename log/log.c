@@ -14,6 +14,7 @@
 #include "hal/hal.h"
 
 #include "include/ioctl.h"
+#include "include/file.h"
 
 #include "posix/posix.h"
 
@@ -374,6 +375,15 @@ void log_msgHandler(msg_t *msg, oid_t oid, msg_rid_t rid)
 		case mtDevCtl:
 			msg->o.err = log_devctl(msg);
 			break;
+		case mtGetAttr:
+			if (msg->i.attr.type == atType) {
+				msg->o.attr.val = otDev;
+				msg->o.err = 0;
+			}
+			else {
+				msg->o.err = -EINVAL;
+			}
+			break;
 		default:
 			msg->o.err = -EINVAL;
 			break;
@@ -466,5 +476,5 @@ void _log_init(void)
 	hal_memset(&log_common, 0, sizeof(log_common));
 	(void)proc_lockInit(&log_common.lock, &proc_lockAttrDefault, "log.common");
 
-	log_common.enabled = 1;
+	log_common.enabled = 0;
 }

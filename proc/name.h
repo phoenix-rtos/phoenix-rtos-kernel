@@ -53,6 +53,9 @@ int proc_open(oid_t oid, unsigned int mode);
 off_t proc_size(oid_t oid);
 
 
+int proc_type(oid_t oid);
+
+
 int proc_write(oid_t oid, off_t *offs, void *buf, size_t sz, unsigned int mode);
 
 

@@ -139,6 +139,9 @@ int posix_fileDeref(open_file_t *f)
 			err = usocket_close(f->sock);
 		}
 		else {
+			if (f->type == ftDirectory) {
+				vm_kfree(f->dirpath);
+			}
 			err = proc_close(f->oid, f->status);
 		}
 
@@ -156,6 +159,9 @@ static void posix_putUnusedFile(process_info_t *p, int fd)
 
 	f = p->fds[fd].file;
 	(void)proc_lockDone(&f->lock);
+	if (f->type == ftDirectory) {
+		vm_kfree(f->dirpath);
+	}
 	vm_kfree(f);
 	p->fds[fd].file = NULL;
 }
@@ -623,6 +629,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
+	int type;
 
 	if (proc_lookup("/dev/posix/pipes", NULL, &pipesrv) < 0) {
 		hal_memset(&pipesrv, 0xff, sizeof(oid_t));
@@ -656,9 +663,14 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 
 		do {
 			if (((unsigned int)oflag & O_CREAT) != 0U) {
+				if (((unsigned int)oflag & O_DIRECTORY) != 0U) {
+					err = -EINVAL;
+					break;
+				}
+
 				GETFROMSTACK(ustack, mode_t, mode, 2U);
 
-				err = posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid);
+				err = posix_create(filename, otFile, mode | S_IFREG, dev, &oid);
 				if (err == -EEXIST) {
 					if (((unsigned int)oflag & O_EXCL) != 0U) {
 						break;
@@ -688,6 +700,25 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			else {
 				err = proc_lookup(filename, &ln, &oid);
 				if (err < 0) {
+					break;
+				}
+			}
+
+			type = proc_type(ln);
+			if (type < 0) {
+				err = type;
+				break;
+			}
+
+			if (((unsigned int)oflag & O_DIRECTORY) != 0U && type != otDir) {
+				err = -ENOTDIR;
+				break;
+			}
+
+			if (type == otDir) {
+				f->dirpath = lib_strdup(filename);
+				if (f->dirpath == NULL) {
+					err = -ENOMEM;
 					break;
 				}
 			}
@@ -726,7 +757,10 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 			f->refs = 1;
 
 			/* TODO: check for other types */
-			if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
+			if (type == otDir) {
+				f->type = ftDirectory;
+			}
+			else if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
 				/* FIXME: replace this hacky solution with proper device driver recognition */
 				f->type = ftPipe;
 			}
@@ -817,6 +851,10 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 		return err;
 	}
 
+	if (f->type == ftDirectory) {
+		return -EISDIR;
+	}
+
 	if ((f->status & O_WRONLY) != 0U) {
 		(void)posix_fileDeref(f);
 		return -EBADF;
@@ -880,6 +918,10 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 	err = posix_getOpenFile(fildes, &f);
 	if (err < 0) {
 		return err;
+	}
+
+	if (f->type == ftDirectory) {
+		return -EISDIR;
 	}
 
 	if ((f->status & O_RDONLY) != 0U) {
@@ -1725,12 +1767,40 @@ static int posix_fcntlGetFl(int fd)
 }
 
 
+static int posix_fcntlGetPath(int fd, char *pathbuf)
+{
+	open_file_t *f;
+	int err;
+	size_t pathlen;
+
+	err = posix_getOpenFile(fd, &f);
+	if (err == 0) {
+		if (pathbuf == NULL || f->type != ftDirectory) {
+			err = -EINVAL;
+		}
+		else {
+			pathlen = hal_strlen(f->dirpath) + 1U;
+			if (vm_mapBelongs(proc_current()->process, pathbuf, pathlen) < 0) {
+				err = -EFAULT;
+			}
+			else {
+				hal_memcpy(pathbuf, f->dirpath, pathlen);
+			}
+		}
+		(void)posix_fileDeref(f);
+	}
+
+	return err;
+}
+
+
 int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 {
 	TRACE("fcntl(%d, %u)", fd, cmd);
 
 	int err = -EINVAL, fd2;
 	unsigned int arg;
+	char *pathbuf;
 
 	switch (cmd) {
 		case F_DUPFD_CLOEXEC:
@@ -1755,6 +1825,11 @@ int posix_fcntl(int fd, unsigned int cmd, u8 *ustack)
 		case F_SETFL:
 			GETFROMSTACK(ustack, unsigned int, arg, 2U);
 			err = posix_fcntlSetFl(fd, arg);
+			break;
+
+		case F_GETPATH:
+			GETFROMSTACK(ustack, char *, pathbuf, 2U);
+			err = posix_fcntlGetPath(fd, pathbuf);
 			break;
 
 		case F_GETLK:

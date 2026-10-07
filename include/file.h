@@ -19,6 +19,9 @@
 enum { atMode = 0, atUid, atGid, atSize, atBlocks, atIOBlock, atType, atPort, atPollStatus, atEventMask, atCTime,
 	atMTime, atATime, atLinks, atDev };
 
+
+enum { otDir = 0, otFile, otDev, otSymlink, otUnknown };
+
 /* clang-format on */
 
 #endif

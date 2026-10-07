@@ -28,7 +28,8 @@ enum { ftRegular,
 	ftFifo,
 	ftInetSocket,
 	ftUnixSocket,
-	ftTty };
+	ftTty,
+	ftDirectory };
 
 
 /* FIXME: share with posixsrv */
@@ -48,7 +49,10 @@ typedef struct {
 	unsigned int status;
 	lock_t lock;
 	int type;
-	usocket_t *sock; /* ftUnixSocket: reference to the socket */
+	union {
+		usocket_t *sock; /* ftUnixSocket: reference to the socket */
+		char *dirpath;   /* ftDir: directory's full path */
+	};
 } open_file_t;
 
 
