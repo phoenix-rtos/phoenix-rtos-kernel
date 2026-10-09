@@ -275,9 +275,10 @@ void hal_cpuReboot(void)
 }
 
 
-void hal_cleanDCache(ptr_t start, size_t len)
+void hal_cacheOnInstrLoad(ptr_t start, size_t len)
 {
 	_hal_scsDCacheCleanAddr((void *)start, len);
+	_hal_scsICacheInvalAddr((void *)start, len);
 }
 
 

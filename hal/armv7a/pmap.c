@@ -250,8 +250,8 @@ static void _pmap_switch(pmap_t *pmap)
 	   This code should be moved to _pmap_asidAlloc and _pmap_asidDealloc */
 	hal_cpuInvalTLB();
 
-	hal_cpuBranchInval();
 	hal_cpuICacheInval();
+	hal_cpuBranchInval();
 }
 
 
@@ -286,8 +286,8 @@ static void _pmap_writeEntry(ptr_t *ptable, void *va, addr_t pa, vm_attr_t attr,
 		hal_cpuInvalVAAll(((ptr_t)va & ~0xfffU) | asid);
 	}
 
-	hal_cpuBranchInval();
 	hal_cpuICacheInval();
+	hal_cpuBranchInval();
 }
 
 
@@ -364,8 +364,8 @@ int pmap_enter(pmap_t *pmap, addr_t paddr, void *vaddr, vm_attr_t attr, page_t *
 		hal_cpuFlushDataCache((ptr_t)vaddr, (ptr_t)vaddr + SIZE_PAGE);
 
 		if ((attr & PGHD_EXEC) != 0U) {
-			hal_cpuBranchInval();
 			hal_cpuICacheInval();
+			hal_cpuBranchInval();
 		}
 
 		hal_cpuDataSyncBarrier();
