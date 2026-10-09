@@ -303,6 +303,10 @@ static unsigned int _usocket_opFlags(const usocket_t *s, unsigned int flags)
 		op |= UCHANNEL_OP_PEEK;
 	}
 
+	if ((flags & MSG_TRUNC) != 0U) {
+		op |= UCHANNEL_OP_TRUNC;
+	}
+
 	return op;
 }
 
