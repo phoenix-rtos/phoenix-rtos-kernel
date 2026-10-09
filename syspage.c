@@ -181,11 +181,51 @@ void syspage_progShow(void)
 }
 
 
+syspage_sched_t *syspage_schedulerConfig(void)
+{
+	return syspage_common.syspage->sched;
+}
+
+
+syspage_part_t *syspage_partitionList(void)
+{
+	return syspage_common.syspage->partitions;
+}
+
+
+syspage_named_port_t *syspage_namedPortsList(void)
+{
+	return syspage_common.syspage->namedPorts;
+}
+
+
+syspage_named_port_t *syspage_namedPortResolve(const char *name)
+{
+	syspage_named_port_t *port = syspage_common.syspage->namedPorts;
+
+	if (port == NULL) {
+		return NULL;
+	}
+
+	do {
+		if (hal_strcmp(name, port->name) == 0) {
+			return (syspage_named_port_t *)port;
+		}
+		port = port->next;
+	} while (port != syspage_common.syspage->namedPorts);
+
+	return NULL;
+}
+
+
 void syspage_init(void)
 {
 	syspage_prog_t *prog;
+	syspage_part_t *part;
+	syspage_named_port_t *port;
 	syspage_map_t *map;
 	mapent_t *entry;
+	unsigned int i;
 
 	syspage_common.syspage = (syspage_t *)hal_syspageAddr();
 
@@ -223,7 +263,45 @@ void syspage_init(void)
 			prog->dmaps = hal_syspageRelocate(prog->dmaps);
 			prog->imaps = hal_syspageRelocate(prog->imaps);
 			prog->argv = hal_syspageRelocate(prog->argv);
+			prog->partition = hal_syspageRelocate(prog->partition);
+			prog->hal = hal_syspageRelocate(prog->hal);
 			prog = prog->next;
 		} while (prog != syspage_common.syspage->progs);
+	}
+
+	/* Partition's relocation */
+	LIB_ASSERT_ALWAYS(syspage_common.syspage->partitions != NULL, "No partitions in syspage");
+	syspage_common.syspage->partitions = hal_syspageRelocate(syspage_common.syspage->partitions);
+	part = syspage_common.syspage->partitions;
+
+	do {
+		part->next = hal_syspageRelocate(part->next);
+		part->prev = hal_syspageRelocate(part->prev);
+
+		part->name = hal_syspageRelocate(part->name);
+		part->hal = hal_syspageRelocate(part->hal);
+
+		part = part->next;
+	} while (part != syspage_common.syspage->partitions);
+
+	/* Scheduler configuration relocation */
+	LIB_ASSERT_ALWAYS(syspage_common.syspage->sched != NULL, "Missing scheduler configuration in syspage");
+	syspage_common.syspage->sched = hal_syspageRelocate(syspage_common.syspage->sched);
+	for (i = 0; i < syspage_common.syspage->sched->cycleCnt; ++i) {
+		syspage_common.syspage->sched->cycles[i] = hal_syspageRelocate(syspage_common.syspage->sched->cycles[i]);
+	}
+
+	/* Named ports relocation */
+	if (syspage_common.syspage->namedPorts != NULL) {
+		syspage_common.syspage->namedPorts = hal_syspageRelocate(syspage_common.syspage->namedPorts);
+		port = syspage_common.syspage->namedPorts;
+
+		do {
+			port->next = hal_syspageRelocate(port->next);
+			port->prev = hal_syspageRelocate(port->prev);
+
+			port->name = hal_syspageRelocate(port->name);
+			port = port->next;
+		} while (port != syspage_common.syspage->namedPorts);
 	}
 }
