@@ -76,6 +76,7 @@ typedef struct _syspage_part_t {
 	size_t availableMem;
 	unsigned char schedWindow;
 	unsigned int flags;
+	int minPriority;
 
 	hal_syspage_part_t *hal;
 } __attribute__((packed)) syspage_part_t;
