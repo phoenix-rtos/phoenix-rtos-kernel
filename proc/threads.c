@@ -998,6 +998,10 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	if (priority < MIN_PRIO || priority > MAX_PRIO) {
 		return -EINVAL;
 	}
+	if ((process != NULL) && (process->partition != NULL) &&
+		(priority < process->partition->config->minPriority)) {
+		return -EINVAL;
+	}
 
 	t = vm_kmalloc(sizeof(thread_t));
 	if (t == NULL) {
@@ -1193,9 +1197,14 @@ int proc_threadPriority(thread_t *t, int val, int *res)
 	spinlock_ctx_t sc;
 	int reschedule = 0, priorityBase;
 	priority_t priority;
+	partition_t *part = (t->process != NULL) ? t->process->partition : NULL;
 
 	if ((val != PH_GET_PRIO) && ((val < MIN_PRIO) || (val > MAX_PRIO))) {
 		return -EINVAL;
+	}
+
+	if ((val != PH_GET_PRIO) && (part != NULL) && (val < (int)part->config->minPriority)) {
+		return -EPERM;
 	}
 
 	if ((val == PH_GET_PRIO) && (res == NULL)) {
