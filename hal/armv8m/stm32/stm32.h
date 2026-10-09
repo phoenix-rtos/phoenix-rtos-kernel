@@ -71,6 +71,10 @@ int _stm32_rccGetIPClk(unsigned int ipclk, unsigned int *setting_out);
 u32 _stm32_rccGetCPUClock(void);
 
 
+/* Sets CPU clock to the closest smaller supported frequency */
+int _stm32_rccSetCPUClock(u32 hz);
+
+
 /* Get frequency of PER (common peripheral) clock in Hz.
  * On STM32U3, returns the PCLKx frequency.
  */
@@ -125,6 +129,14 @@ int _stm32_extiSetTrigger(u32 line, u8 state, u8 edge);
 
 
 int _stm32_extiSoftInterrupt(u32 line);
+
+
+/* Set CPU voltage range to one of PCTL_CPUVOLT_* */
+int _stm32_pwrSetCPUVolt(u8 range);
+
+
+/* Returns CPU voltage range as PCTL_CPUVOLT_* */
+u8 _stm32_pwrGetCPUVolt(void);
 #endif
 
 
