@@ -208,6 +208,13 @@ static sched_window_t *proc_getSchedWindow(const process_t *process)
 }
 
 
+/* Ready queue window of a thread - window 0 (schedulable in every window) while it holds a lock awaited from another window */
+static sched_window_t *_proc_threadSchedWindow(const thread_t *t)
+{
+	return (t->kernelWindowUpgrade != 0U) ? threads_common.windows[0] : proc_getSchedWindow(t->process);
+}
+
+
 static time_t threads_schedWindowsCycleDuration(void)
 {
 	return threads_common.cycles[hal_cpuGetID()]->windows[threads_common.cycles[hal_cpuGetID()]->len - 1U].stop;
@@ -558,7 +565,7 @@ int _threads_schedule(unsigned int n, cpu_context_t *context, void *arg)
 
 		/* Move thread to the end of queue corresponding to its scheduling window */
 		if (current->state == READY) {
-			_readyAdd(current, proc_getSchedWindow(current->process));
+			_readyAdd(current, _proc_threadSchedWindow(current));
 			_threads_preempted(current);
 		}
 	}
@@ -791,6 +798,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->sigpend = 0;
 	t->refs = 1;
 	t->interruptible = 0;
+	t->kernelWindowUpgrade = 0;
 	t->exit = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
@@ -908,10 +916,26 @@ static priority_t _proc_threadGetPriority(thread_t *thread)
 }
 
 
-static void _proc_threadSetPriority(thread_t *thread, priority_t priority)
+static int _proc_threadOnReadyList(const thread_t *thread)
 {
 	unsigned int i;
-	int onReadyList = 0;
+
+	if (thread->state != READY) {
+		return 0;
+	}
+
+	for (i = 0; i < hal_cpuGetCount(); i++) {
+		if (thread == threads_common.current[i]) {
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+
+static void _proc_threadSetPriority(thread_t *thread, priority_t priority)
+{
 	sched_window_t *window;
 
 
@@ -920,20 +944,8 @@ static void _proc_threadSetPriority(thread_t *thread, priority_t priority)
 		priority = thread->priorityBase;
 	}
 
-	if (thread->state == READY) {
-		for (i = 0; i < hal_cpuGetCount(); i++) {
-			if (thread == threads_common.current[i]) {
-				break;
-			}
-		}
-
-		if (i == hal_cpuGetCount()) {
-			onReadyList = 1;
-		}
-	}
-
-	if (onReadyList != 0) {
-		window = proc_getSchedWindow(thread->process);
+	if (_proc_threadOnReadyList(thread) != 0) {
+		window = _proc_threadSchedWindow(thread);
 		_readyRemove(thread, window);
 		thread->priority = priority;
 		_readyAdd(thread, window);
@@ -943,6 +955,50 @@ static void _proc_threadSetPriority(thread_t *thread, priority_t priority)
 	}
 
 	trace_eventThreadPriority(proc_getTid(thread), thread->priority);
+}
+
+
+/* Returns 1 if any thread waiting on a lock held by `thread` belongs to a different sched window */
+static unsigned int _proc_threadGetLockKernelWindowUpgrade(thread_t *thread)
+{
+	size_t ownWindow = proc_getSchedWindowId(thread->process);
+	lock_t *lock = thread->locks;
+	thread_t *waiter;
+
+	if (lock != NULL) {
+		do {
+			waiter = lock->queue;
+			if (waiter != NULL) {
+				do {
+					if (proc_getSchedWindowId(waiter->process) != ownWindow) {
+						return 1U;
+					}
+					waiter = waiter->next;
+				} while (waiter != lock->queue);
+			}
+			lock = lock->next;
+		} while (lock != thread->locks);
+	}
+
+	return 0U;
+}
+
+
+/* Moves thread between its own window and window 0 ready queue. Doesn't reschedule. */
+static void _proc_threadSetKernelWindowUpgrade(thread_t *thread, unsigned int kernelWindowUpgrade)
+{
+	if (thread->kernelWindowUpgrade == kernelWindowUpgrade) {
+		return;
+	}
+
+	if (_proc_threadOnReadyList(thread) != 0) {
+		_readyRemove(thread, _proc_threadSchedWindow(thread));
+		thread->kernelWindowUpgrade = kernelWindowUpgrade;
+		_readyAdd(thread, _proc_threadSchedWindow(thread));
+	}
+	else {
+		thread->kernelWindowUpgrade = kernelWindowUpgrade;
+	}
 }
 
 
@@ -1147,7 +1203,7 @@ static void _proc_threadDequeue(thread_t *t)
 	}
 
 	if (i == hal_cpuGetCount()) {
-		_readyAdd(t, proc_getSchedWindow(t->process));
+		_readyAdd(t, _proc_threadSchedWindow(t));
 	}
 }
 
@@ -1989,6 +2045,11 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			_proc_threadSetPriority(lock->owner, current->priority);
 		}
 
+		/* Owner from another sched window - let it run in window 0 until it releases the lock */
+		if (proc_getSchedWindowId(lock->owner->process) != proc_getSchedWindowId(current->process)) {
+			_proc_threadSetKernelWindowUpgrade(lock->owner, 1U);
+		}
+
 		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp);
 		if (ret == EOK) {
 			ret = _proc_lockObtained(current, lock);
@@ -1997,6 +2058,10 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 			/* Lock not obtained, revert the potential priority boost */
 			if ((lock->attr.protocol == PH_LOCK_PROTO_INHERIT) && (lock->owner != NULL) && (lock->owner != current)) {
 				_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
+			}
+			/* Revert the potential window borrow (current is already removed from the lock queue) */
+			if ((lock->owner != NULL) && (lock->owner != current)) {
+				_proc_threadSetKernelWindowUpgrade(lock->owner, _proc_threadGetLockKernelWindowUpgrade(lock->owner));
 			}
 		}
 	}
@@ -2105,6 +2170,8 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 		}
 		_proc_threadDequeue(lock->owner);
 		LIST_ADD(&lock->owner->locks, lock);
+		/* New owner may have waiters from another window too */
+		_proc_threadSetKernelWindowUpgrade(lock->owner, _proc_threadGetLockKernelWindowUpgrade(lock->owner));
 		ret = 1;
 	}
 	else {
@@ -2113,6 +2180,8 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 
 	/* Restore previous owner priority */
 	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
+	/* Return previous owner to its window if it got kernel window upgrade. */
+	_proc_threadSetKernelWindowUpgrade(owner, _proc_threadGetLockKernelWindowUpgrade(owner));
 
 	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
 			(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->priorityBase,
