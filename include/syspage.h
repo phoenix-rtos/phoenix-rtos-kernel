@@ -20,7 +20,7 @@
 
 /* clang-format off */
 enum { mAttrRead = 0x01, mAttrWrite = 0x02, mAttrExec = 0x04, mAttrShareable = 0x08,
-	   mAttrCacheable = 0x10, mAttrBufferable = 0x20 };
+	   mAttrCacheable = 0x10, mAttrBufferable = 0x20, mAttrKernelDmap = 0x40 };
 
 
 enum { sFlagCommonCycle = 0x01 };

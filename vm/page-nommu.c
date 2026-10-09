@@ -162,7 +162,7 @@ void vm_pageinfo(meminfo_t *info)
 void _page_init(vm_map_t *kmap, void **bss, void **top)
 {
 	page_t *p;
-	const syspage_map_t *map;
+	const syspage_map_t *map, *dmap;
 
 	(void)proc_lockInit(&pages.lock, &proc_lockAttrDefault, "page.nommu");
 
@@ -177,9 +177,18 @@ void _page_init(vm_map_t *kmap, void **bss, void **top)
 	pages.freesz = map->end - (unsigned int)(*bss);
 	pages.bootsz = 0;
 
+	/* Add remaining KernelDmap maps */
+	dmap = syspage_mapList();
+	do {
+		if (((dmap->attr & mAttrKernelDmap) != 0U) && (dmap != map)) {
+			pages.freesz += dmap->end - dmap->start;
+		}
+	} while ((dmap = dmap->next) != syspage_mapList());
+
 	pages.freeq = (*bss);
 	pages.freeqsz = pages.freesz / SIZE_PAGE;
 
+	LIB_ASSERT_ALWAYS((ptr_t)(*bss) + pages.freeqsz * sizeof(page_t) <= (ptr_t)map->end, "vm: page_t pool does not fit in kernel bss map");
 	(*bss) += pages.freeqsz * sizeof(page_t);
 	(*top) = max((*top), (*bss));
 
