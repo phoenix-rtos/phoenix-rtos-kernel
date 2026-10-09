@@ -224,12 +224,12 @@ static void _uchannel_takePacks(uchannel_t *ch, fdpack_t **packs)
 }
 
 
-ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, uaddr_t **src, fdpack_t **packs)
+ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, unsigned int *oflags, uaddr_t **src, fdpack_t **packs)
 {
 	ssize_t ret = 0;
-	size_t rlen = 0, hdrSize;
+	size_t rlen = 0, clen = 0, hdrSize;
 	uaddr_t *rsrc;
-	int err;
+	int consumed, err;
 
 	if (packs != NULL) {
 		*packs = NULL;
@@ -245,11 +245,12 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 
 	for (;;) {
 		rsrc = NULL;
+		consumed = 0;
 
-		if (len == 0U) {
+		if ((len == 0U) && (ch->framed == 0U)) {
 			/*
-			 * A zero-length read waits for data but takes none of it.
-			 * Note that read(len = 0) never gets here, as posix_read()
+			 * A zero-length read of a stream waits for data but takes none of
+			 * it. Note that read(len = 0) never gets here, as posix_read()
 			 * answers it with 0 straight away.
 			 */
 			ret = 0;
@@ -264,10 +265,12 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 			else {
 				ret = (ssize_t)_cbuffer_read(&ch->buffer, buf, len);
 			}
+
+			consumed = (ret > 0) ? 1 : 0;
 		}
 		else if (_cbuffer_avail(&ch->buffer) > hdrSize) {
 			(void)_cbuffer_peek(&ch->buffer, &rlen, sizeof(rlen));
-			ret = (ssize_t)min(len, rlen);
+			clen = min(len, rlen);
 
 			if (ch->sourced != 0U) {
 				(void)_cbuffer_peekAt(&ch->buffer, sizeof(rlen), &rsrc, sizeof(rsrc));
@@ -276,23 +279,36 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 			if ((flags & UCHANNEL_OP_PEEK) != 0U) {
 				/* the frame stays where it is, so its name is handed out with a reference of its own */
 				rsrc = uaddr_ref(rsrc);
-				(void)_cbuffer_peekAt(&ch->buffer, hdrSize, buf, (size_t)ret);
+				(void)_cbuffer_peekAt(&ch->buffer, hdrSize, buf, clen);
 			}
 			else {
 				(void)_cbuffer_discard(&ch->buffer, hdrSize);
-				(void)_cbuffer_read(&ch->buffer, buf, (size_t)ret);
+				(void)_cbuffer_read(&ch->buffer, buf, clen);
 
-				if (rlen > (size_t)ret) {
+				if (rlen > clen) {
 					/* the rest of a truncated frame is dropped */
-					(void)_cbuffer_discard(&ch->buffer, rlen - (size_t)ret);
+					(void)_cbuffer_discard(&ch->buffer, rlen - clen);
 				}
 			}
+
+			if ((rlen > clen) && (oflags != NULL)) {
+				*oflags |= MSG_TRUNC;
+			}
+
+			if ((flags & UCHANNEL_OP_TRUNC) != 0U) {
+				ret = (ssize_t)rlen;
+			}
+			else {
+				ret = (ssize_t)clen;
+			}
+
+			consumed = 1;
 		}
 		else {
 			/* no complete frame */
 		}
 
-		if (ret > 0) {
+		if (consumed != 0) {
 			if ((flags & UCHANNEL_OP_PEEK) == 0U) {
 				if (packs != NULL) {
 					_uchannel_takePacks(ch, packs);
@@ -341,41 +357,6 @@ ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags,
 	(void)proc_lockClear(&ch->lock);
 
 	return ret;
-}
-
-
-void uchannel_returnPacks(uchannel_t *ch, fdpack_t **packs)
-{
-	fdpack_t *head, *pack;
-
-	if (*packs == NULL) {
-		return;
-	}
-
-	(void)proc_lockSet(&ch->lock);
-
-	if (ch->fdpacks == NULL) {
-		ch->fdpacks = *packs;
-	}
-	else {
-		/*
-		 * The list is circular and `fdpacks` points at its oldest entry, so
-		 * appending the leftovers and then moving the head onto the first of
-		 * them puts them back in front of anything queued in the meantime.
-		 */
-		head = *packs;
-		do {
-			pack = *packs;
-			LIST_REMOVE(packs, pack);
-			LIST_ADD(&ch->fdpacks, pack);
-		} while (*packs != NULL);
-
-		ch->fdpacks = head;
-	}
-
-	*packs = NULL;
-
-	(void)proc_lockClear(&ch->lock);
 }
 
 

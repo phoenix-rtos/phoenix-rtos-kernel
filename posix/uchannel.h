@@ -45,6 +45,7 @@
 /* Operation flags of uchannel_read()/uchannel_write() */
 #define UCHANNEL_OP_NONBLOCK (1U << 0)
 #define UCHANNEL_OP_PEEK     (1U << 1)
+#define UCHANNEL_OP_TRUNC    (1U << 2)
 
 /*
  * Events reported by uchannel_pollRd()/uchannel_pollWr(). The channel states
@@ -120,28 +121,29 @@ ssize_t uchannel_write(uchannel_t *ch, const void *buf, size_t len, unsigned int
 
 
 /*
- * Reads from the channel, blocking until there is something to read unless
+ * Reads from the channel, blocking until data is available unless
  * UCHANNEL_OP_NONBLOCK is set. Returns the number of bytes read, 0 on
  * end-of-stream (the ring is empty and either side is shut down), or
- * -EWOULDBLOCK, -EINTR.
+ * -EWOULDBLOCK or -EINTR.
  *
- * `src` is where the name of whoever wrote the frame is left, NULL when there
- * is none to report. The caller owns the reference it gets and gives it back
- * with uaddr_put() - a peek hands out a reference of its own, as the frame
- * itself stays where it is.
+ * Datagram reads consume the entire frame, even if the buffer is too small
+ * or has zero length. Any data that does not fit is discarded. If `oflags`
+ * is not NULL, MSG_TRUNC is set when the frame is truncated. If
+ * UCHANNEL_OP_TRUNC is set, the actual frame length is returned instead of
+ * the number of bytes copied.
+ *
+ * Stream reads consume as many bytes as requested, up to the available
+ * data. A zero-length stream read waits for data without consuming it.
+ *
+ * If `src` is not NULL, the address of the frame sender is returned through
+ * it, or NULL if no address is available. The caller owns the returned
+ * reference and must release it with uaddr_put(). A peek returns its own
+ * reference while leaving the frame in the ring.
  *
  * When `packs` is not NULL the queued descriptor packs are detached into it
- * (the caller unpacks them with no lock held and returns the leftovers with
- * uchannel_returnPacks()).
+ * (the caller unpacks them with no lock held).
  */
-ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, uaddr_t **src, fdpack_t **packs);
-
-
-/*
- * Returns descriptor packs detached by uchannel_read() but not consumed, keeping
- * them ahead of anything queued in the meantime.
- */
-void uchannel_returnPacks(uchannel_t *ch, fdpack_t **packs);
+ssize_t uchannel_read(uchannel_t *ch, void *buf, size_t len, unsigned int flags, unsigned int *oflags, uaddr_t **src, fdpack_t **packs);
 
 
 /* Discards the descriptor packs queued in the channel. */
