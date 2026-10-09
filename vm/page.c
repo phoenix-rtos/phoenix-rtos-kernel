@@ -638,6 +638,9 @@ void _page_init(vm_map_t *kmap, void **bss, void **top)
 	unsigned int i = 0;
 	(void)proc_lockInit(&page_common.lock, &proc_lockAttrDefault, "page.common");
 
+	/* Kernel phMaps are set up in _map_init() */
+	kmap->phMaps = NULL;
+
 	page_common.maps = (ph_map_t **)(*bss);
 	page_common.mapssz = syspage_mapSize();
 	size = sizeof(ph_map_t *) * (page_common.mapssz + 1U);
@@ -668,8 +671,6 @@ void _page_init(vm_map_t *kmap, void **bss, void **top)
 		i++;
 		sysMap = sysMap->next;
 	} while (sysMap != syspage_mapList());
-
-	kmap->phMaps = page_common.maps;
 
 	info.page.mapidx = -1;
 	vm_pageinfo(&info);
