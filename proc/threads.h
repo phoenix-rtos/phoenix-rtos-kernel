@@ -77,6 +77,7 @@ typedef struct _thread_t {
 	unsigned int state : 2;
 	unsigned int exit : 2;
 	unsigned int interruptible : 1;
+	unsigned int kernelWindowUpgrade : 1; /* Schedule inside kernel window on inter-partition lock congestion */
 
 	unsigned int sigmask;
 	unsigned int sigpend;
