@@ -1813,6 +1813,57 @@ static int _map_mapsInit(vm_map_t *kmap, vm_object_t *kernel, void **bss, void *
 }
 
 
+#ifdef NOMMU
+static void _map_kernelDmapsInit(vm_map_t *kmap, void **bss, void **top)
+{
+	int result;
+	unsigned int i, dmapCnt;
+	vm_map_t *original;
+	ph_map_t **phMaps;
+	const syspage_map_t *map, *kernelMap;
+
+	kernelMap = syspage_mapAddrResolve((addr_t)kmap->pmap.start);
+	LIB_ASSERT_ALWAYS(kernelMap != NULL, "vm: Kernel map is missing from syspage.");
+	LIB_ASSERT_ALWAYS((kernelMap->attr & mAttrKernelDmap) != 0U, "vm: Base kernel dmap %s has no KernelDmap attribute.", kernelMap->name);
+
+	/* Count maps available for kernel allocations */
+	dmapCnt = 0;
+	map = syspage_mapList();
+	do {
+		if ((map->attr & mAttrKernelDmap) != 0U) {
+			dmapCnt++;
+		}
+		map = map->next;
+	} while (map != syspage_mapList());
+
+	while ((ptr_t)(*top) - (ptr_t)(*bss) < sizeof(*original) + (dmapCnt + 1U) * sizeof(*phMaps)) {
+		result = _page_sbrk(&map_common.kmap->pmap, bss, top);
+		LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with extending kernel heap for kernel map list (vaddr=%p)", *bss);
+	}
+
+	original = *bss;
+	hal_memcpy(original, kmap, sizeof(*original));
+	map_common.maps[kernelMap->id] = original;
+
+	phMaps = (ph_map_t **)(original + 1);
+	lib_rbInit(&kmap->tree, map_cmp, map_augment);
+	kmap->phMaps = phMaps;
+
+	/* Kernel's original map goes first, then remaining KernelDmap maps in syspage order */
+	phMaps[0] = original;
+	i = 1;
+	map = syspage_mapList();
+	do {
+		if (((map->attr & mAttrKernelDmap) != 0U) && (map != kernelMap)) {
+			phMaps[i++] = map_common.maps[map->id];
+		}
+	} while ((map = map->next) != syspage_mapList());
+	phMaps[i] = NULL;
+	(*bss) = phMaps + dmapCnt + 1U;
+}
+#endif
+
+
 int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 {
 	int result;
@@ -1861,6 +1912,9 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 	result = _map_mapsInit(kmap, kernel, bss, top);
 	LIB_ASSERT_ALWAYS(result >= 0, "vm: Problem with maps initialization.");
 
+#ifdef NOMMU
+	_map_kernelDmapsInit(kmap, bss, top);
+#endif
 
 	/* Map kernel segments */
 	prot = PROT_READ | PROT_EXEC;
@@ -1879,7 +1933,11 @@ int _map_init(vm_map_t *kmap, vm_object_t *kernel, void **bss, void **top)
 		e->prot = (vm_prot_t)prot;
 		e->protOrig = (vm_prot_t)prot;
 		e->amap = NULL;
+#ifdef NOMMU
+		(void)_map_add(NULL, map_common.kmap->phMaps[0], e);
+#else
 		(void)_map_add(NULL, map_common.kmap, e);
+#endif
 		prot = PROT_READ | PROT_EXEC;
 		i++;
 	}
