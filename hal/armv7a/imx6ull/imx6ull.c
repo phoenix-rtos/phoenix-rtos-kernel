@@ -15,6 +15,7 @@
 #include "hal/hal.h"
 #include "hal/armv7a/armv7a.h"
 #include "hal/spinlock.h"
+#include "hab_api.h"
 #include "include/arch/armv7a/imx6ull/imx6ull.h"
 
 #define CCM_BASE        0x020c4000U
@@ -24,6 +25,14 @@
 #define IOMUX_GPR_BASE  0x020e4000U
 #define WDOG_BASE       0x020bc000U
 #define SRC_BASE        0x020d8000U
+
+/*
+ * On this platform the largest span of address space that HAB will treat as regular memory AND is below 0x80000000
+ * is the span for used by QSPI1 peripheral between 0x60000000 and 0x70000000. Because we are in virtual address space
+ * this does not prevent QSPI from being used - we just need to pick a region where HAB will let us verify binaries.
+ */
+#define HAB_LOAD_ADDR_MIN 0x60000000U
+#define HAB_LOAD_ADDR_MAX 0x70000000U
 
 
 /* clang-format off */
@@ -361,6 +370,27 @@ void hal_wdgReload(void)
 
 /* platformctl syscall */
 
+static int imx6ull_habReportAll(platformctl_t *pctl)
+{
+	hab_status_t status;
+	hab_config_t cfg;
+	hab_state_t state;
+	size_t bufSize = pctl->habStatus.bufSize;
+	int ret;
+
+	ret = hab_api_reportAll(&status, &cfg, &state, pctl->habStatus.eventsBuf, &bufSize);
+	if (ret < 0) {
+		return ret;
+	}
+
+	pctl->habStatus.status = status;
+	pctl->habStatus.cfg = cfg;
+	pctl->habStatus.state = state;
+	pctl->habStatus.bufSize = bufSize;
+	return ret;
+}
+
+
 int hal_platformctl(void *ptr)
 {
 	platformctl_t *data = ptr;
@@ -461,6 +491,23 @@ int hal_platformctl(void *ptr)
 				/* No action required */
 			}
 			break;
+		case pctl_habStatus:
+			if (data->action == pctl_get) {
+				ret = imx6ull_habReportAll(data);
+			}
+			else {
+				/* No action required */
+			}
+			break;
+
+		case pctl_habVerify:
+			if (data->action == pctl_get) {
+				ret = hab_api_verify(data->habVerify.data, data->habVerify.size, data->habVerify.ivtOffset);
+			}
+			else {
+				/* No action required */
+			}
+			break;
 		default:
 			/* No action required*/
 			break;
@@ -511,6 +558,8 @@ void _hal_platformInit(void)
 
 	/* Restore output clocks state */
 	*(imx6ull_common.ccm + ccm_ccgr4) = tmp;
+
+	(void)_hab_api_preinit(0x60000000u, 0x70000000u);
 }
 
 
