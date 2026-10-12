@@ -1457,7 +1457,7 @@ static void process_vforkThread(void *arg)
 	process_spawn_t *spawn = arg;
 	thread_t *current, *parent;
 	spinlock_ctx_t sc;
-	int ret;
+	int ret, prio;
 
 	current = proc_current();
 	parent = spawn->parent;
@@ -1469,6 +1469,11 @@ static void process_vforkThread(void *arg)
 
 	/* POSIX: A child created via fork inherits a copy of its parent's signal mask */
 	threads_setSigmask(current, parent->sigmask);
+
+	/* POSIX: A child created via fork inherits the scheduling priority of its parent */
+	if (proc_threadPriority(parent, PH_GET_PRIO, &prio) == EOK) {
+		(void)proc_threadPriority(current, prio, NULL);
+	}
 
 	/* No reaper race, parent is kept until current thread releases */
 	ret = proc_cloneSigactions(parent->process, current->process);
