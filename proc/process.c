@@ -56,6 +56,7 @@ static struct {
 	lock_t lock;
 	idtree_t id;
 	int idcounter;
+	int idwrapped;
 } process_common;
 
 
@@ -144,29 +145,66 @@ void proc_get(process_t *p)
 }
 
 
-static int process_alloc(process_t *process)
+static int _process_allocId(process_t *process)
 {
 	int id;
 
-	(void)proc_lockSet(&process_common.lock);
 	id = lib_idtreeAlloc(&process_common.id, &process->idlinkage, process_common.idcounter);
 	if (id < 0) {
 		/* Try from the start */
 		process_common.idcounter = 1;
+		process_common.idwrapped = 1;
 		id = lib_idtreeAlloc(&process_common.id, &process->idlinkage, process_common.idcounter);
 	}
 
 	if (id >= 0) {
 		if (process_common.idcounter == (int)MAX_PID) {
 			process_common.idcounter = 1;
+			process_common.idwrapped = 1;
 		}
 		else {
 			process_common.idcounter++;
 		}
 	}
-	(void)proc_lockClear(&process_common.lock);
 
 	return id;
+}
+
+
+static int process_alloc(process_t *process)
+{
+	int id, wrapped, first = -1;
+
+	for (;;) {
+		(void)proc_lockSet(&process_common.lock);
+		id = _process_allocId(process);
+		wrapped = process_common.idwrapped;
+		(void)proc_lockClear(&process_common.lock);
+
+		if (id < 0) {
+			return -EAGAIN;
+		}
+
+		/*
+		 * If ID has wrapped, ensure the ID is not taken by a zombie PID,
+		 * PGID or SID (they have independent lifetimes).
+		 */
+		if ((wrapped == 0) || (posix_idTaken(id) == 0)) {
+			return id;
+		}
+
+		(void)proc_lockSet(&process_common.lock);
+		lib_idtreeRemove(&process_common.id, &process->idlinkage);
+		(void)proc_lockClear(&process_common.lock);
+
+		if (id == first) {
+			return -EAGAIN;
+		}
+
+		if (first < 0) {
+			first = id;
+		}
+	}
 }
 
 
@@ -227,7 +265,13 @@ int proc_start(startFn_t start, void *arg, const char *path)
 
 	/* Initialize resources tree for mutex and cond handles */
 	_resource_init(process);
-	(void)process_alloc(process);
+	err = process_alloc(process);
+	if (err < 0) {
+		(void)proc_lockDone(&process->lock);
+		vm_kfree(process->path);
+		vm_kfree(process);
+		return err;
+	}
 
 	err = proc_threadCreate(process, start, NULL, PH_PRIO_DEFAULT, SIZE_KSTACK, NULL, 0, 0, (void *)arg);
 	if (err < 0) {
@@ -1852,6 +1896,7 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	process_common.first = NULL;
 	process_common.kernel = kernel;
 	process_common.idcounter = 1;
+	process_common.idwrapped = 0;
 	(void)proc_lockInit(&process_common.lock, &proc_lockAttrDefault, "process.common");
 	lib_idtreeInit(&process_common.id);
 
