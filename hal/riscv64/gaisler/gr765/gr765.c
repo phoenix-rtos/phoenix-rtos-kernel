@@ -15,6 +15,7 @@
 
 #include "hal/hal.h"
 #include "include/arch/riscv64/riscv64.h"
+#include "riscv64.h"
 
 static struct {
 	spinlock_t lock;
@@ -53,6 +54,13 @@ int hal_platformctl(void *ptr)
 	hal_spinlockClear(&gr765_common.lock, &sc);
 
 	return ret;
+}
+
+
+void hal_platformInitCore(void)
+{
+	/* Enable execution of CMOs in U-mode */
+	csr_write(senvcfg, 0x70);
 }
 
 

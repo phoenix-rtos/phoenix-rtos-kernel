@@ -103,4 +103,7 @@ void hal_cpuDCacheFlush(void *va, size_t size);
 /* parasoft-end-suppress MISRAC2012-RULE_8_6 "Definition in assembly" */
 
 
+void hal_platformInitCore(void);
+
+
 #endif
