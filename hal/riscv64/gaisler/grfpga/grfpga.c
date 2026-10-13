@@ -14,6 +14,7 @@
 #include "hal/gaisler/ambapp.h"
 
 #include "hal/hal.h"
+#include "riscv64.h"
 #include "include/arch/riscv64/riscv64.h"
 
 static struct {
@@ -53,6 +54,11 @@ int hal_platformctl(void *ptr)
 	hal_spinlockClear(&grfpga_common.lock, &sc);
 
 	return ret;
+}
+
+
+void hal_platformInitCore(void)
+{
 }
 
 
