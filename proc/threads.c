@@ -2124,6 +2124,21 @@ void threads_setupUserReturn(void *retval, cpu_context_t *ctx)
 }
 
 
+unsigned int threads_sigpending(void)
+{
+	thread_t *thread;
+	spinlock_ctx_t sc;
+	unsigned int pending;
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = _proc_current();
+	pending = (thread->sigpend | thread->process->sigpend) & thread->sigmask;
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return pending;
+}
+
+
 int threads_sigsuspend(unsigned int mask)
 {
 	thread_t *thread;

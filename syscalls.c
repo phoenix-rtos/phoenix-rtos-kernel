@@ -1334,6 +1334,12 @@ int syscalls_signalSuspend(u8 *ustack)
 }
 
 
+unsigned int syscalls_signalPending(u8 *ustack)
+{
+	return threads_sigpending();
+}
+
+
 void syscalls_sigreturn(u8 *ustack)
 {
 	thread_t *t = proc_current();
