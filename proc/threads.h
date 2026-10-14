@@ -244,6 +244,9 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig);
 int threads_sigsuspend(unsigned int mask);
 
 
+unsigned int threads_sigpending(void);
+
+
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 
 
