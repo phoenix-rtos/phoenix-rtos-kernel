@@ -1,0 +1,19 @@
+proc/cond.c
+  s_5393702a689e4f::t_74682c23d216e9 70-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "619508898fe7815fc55dbec9b93b268d50df38ca",
+  "prompts": {},
+  "sessions": {
+    "s_5393702a689e4f": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "9a9874c1-1a4a-42ce-b066-51534f72a748",
+        "model": "copilot/gpt-5.6-terra"
+      },
+      "human_author": "Lukasz Leczkowski <lukasz.leczkowski@phoenix-rtos.com>"
+    }
+  }
+}
