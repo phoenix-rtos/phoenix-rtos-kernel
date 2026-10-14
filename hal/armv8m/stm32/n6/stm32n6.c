@@ -789,6 +789,8 @@ void _stm32_init(void)
 	stm32_common.cacheaxiconf = CACHEAXI_BASE;
 
 	_hal_scsInit();
+	_hal_scsDCacheEnable();
+	_hal_scsICacheEnable();
 
 	_stm32_gpioInit();
 
