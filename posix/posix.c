@@ -912,7 +912,8 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 
 		if (rcnt > 0 && offset < 0 && F_SEEKABLE(f->type)) {
 			(void)proc_lockSet(&f->lock);
-			f->offset = offs;
+			/* only O_APPEND needs the offset reported by the server, raw devices don't report it */
+			f->offset = ((status & O_APPEND) != 0U) ? offs : (f->offset + rcnt);
 			(void)proc_lockClear(&f->lock);
 		}
 	}
