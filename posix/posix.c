@@ -418,13 +418,11 @@ int posix_clone(int ppid)
 			f->refs = 1;
 			f->offset = 0;
 			f->type = ftTty;
+			f->seekable = 0U;
+			f->status = (i == 0) ? O_RDONLY : O_WRONLY;
 			p->fds[i].flags = 0;
 			hal_memcpy(&f->oid, &console, sizeof(oid_t));
 		}
-
-		p->fds[0].file->status = O_RDONLY;
-		p->fds[1].file->status = O_WRONLY;
-		p->fds[2].file->status = O_WRONLY;
 
 		/* The first POSIX process is the leader of its own session and group */
 		p->pgid = p->process;
@@ -623,6 +621,7 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
+	off_t size;
 
 	if (proc_lookup("/dev/posix/pipes", NULL, &pipesrv) < 0) {
 		hal_memset(&pipesrv, 0xff, sizeof(oid_t));
@@ -725,8 +724,14 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 
 			f->refs = 1;
 
+			do {
+				size = proc_size(f->oid);
+			} while (size == -EINTR);
+
+			f->seekable = (size < 0) ? 0U : 1U;
+
 			/* TODO: check for other types */
-			if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
+			if (oid.port == pipesrv.port && size < 0) {
 				/* FIXME: replace this hacky solution with proper device driver recognition */
 				f->type = ftPipe;
 			}
@@ -822,7 +827,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 		return -EBADF;
 	}
 
-	if (offset >= 0 && !F_SEEKABLE(f->type)) {
+	if (offset >= 0 && f->seekable == 0U) {
 		(void)posix_fileDeref(f);
 		return -ESPIPE;
 	}
@@ -847,7 +852,7 @@ ssize_t posix_read(int fildes, void *buf, size_t nbyte, off_t offset)
 		rcnt = (ssize_t)nbyte;
 	}
 
-	if (rcnt > 0 && offset < 0 && F_SEEKABLE(f->type)) {
+	if (rcnt > 0 && offset < 0 && f->seekable != 0U) {
 		(void)proc_lockSet(&f->lock);
 		f->offset += rcnt;
 		(void)proc_lockClear(&f->lock);
@@ -887,7 +892,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 		return -EBADF;
 	}
 
-	if (offset >= 0 && !F_SEEKABLE(f->type)) {
+	if (offset >= 0 && f->seekable == 0U) {
 		(void)posix_fileDeref(f);
 		return -ESPIPE;
 	}
@@ -910,7 +915,7 @@ ssize_t posix_write(int fildes, void *buf, size_t nbyte, off_t offset)
 	else {
 		rcnt = proc_write(f->oid, &offs, buf, nbyte, status);
 
-		if (rcnt > 0 && offset < 0 && F_SEEKABLE(f->type)) {
+		if (rcnt > 0 && offset < 0 && f->seekable != 0U) {
 			(void)proc_lockSet(&f->lock);
 			/* only O_APPEND needs the offset reported by the server, raw devices don't report it */
 			f->offset = ((status & O_APPEND) != 0U) ? offs : (f->offset + rcnt);
@@ -1147,6 +1152,7 @@ int posix_pipe(int fildes[2])
 	fo->offset = 0;
 	fo->type = ftPipe;
 	fo->status = O_RDONLY;
+	fo->seekable = 0U;
 
 	p->fds[fildes[1]].file = fi;
 	(void)proc_lockInit(&fi->lock, &proc_lockAttrDefault, "posix.file");
@@ -1155,6 +1161,7 @@ int posix_pipe(int fildes[2])
 	fi->offset = 0;
 	fi->type = ftPipe;
 	fi->status = O_WRONLY;
+	fi->seekable = 0U;
 
 	(void)proc_lockClear(&p->lock);
 	pinfo_put(p);
@@ -1349,7 +1356,7 @@ int posix_lseek(int fildes, off_t *offset, int whence)
 		return err;
 	}
 
-	if (!F_SEEKABLE(f->type)) {
+	if (f->seekable == 0U) {
 		(void)posix_fileDeref(f);
 		return -ESPIPE;
 	}
@@ -1904,6 +1911,7 @@ int posix_socket(int domain, int type, int protocol)
 				p->fds[fd].file->sock = sock;
 				p->fds[fd].file->oid.port = USOCKET_PORT;
 				p->fds[fd].file->oid.id = 0U;
+				p->fds[fd].file->seekable = 0U;
 			}
 			break;
 		case AF_INET:
@@ -1915,6 +1923,7 @@ int posix_socket(int domain, int type, int protocol)
 				p->fds[fd].file->type = ftInetSocket;
 				p->fds[fd].file->oid.port = (unsigned int)err;
 				p->fds[fd].file->oid.id = 0U;
+				p->fds[fd].file->seekable = 0U;
 			}
 			break;
 		default:
@@ -1977,6 +1986,8 @@ int posix_socketpair(int domain, int type, int protocol, int sv[2])
 		p->fds[sv[1]].file->oid.port = USOCKET_PORT;
 		p->fds[sv[0]].file->oid.id = 0U;
 		p->fds[sv[1]].file->oid.id = 0U;
+		p->fds[sv[0]].file->seekable = 0U;
+		p->fds[sv[1]].file->seekable = 0U;
 
 		if (((unsigned int)type & SOCK_CLOEXEC) != 0U) {
 			p->fds[sv[0]].flags = FD_CLOEXEC;
@@ -2022,6 +2033,7 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 					p->fds[fd].file->type = ftInetSocket;
 					p->fds[fd].file->oid.port = (unsigned int)err;
 					p->fds[fd].file->oid.id = 0;
+					p->fds[fd].file->seekable = 0U;
 				}
 				break;
 			case ftUnixSocket:
@@ -2031,6 +2043,7 @@ int posix_accept4(int socket, struct sockaddr *address, socklen_t *address_len, 
 					p->fds[fd].file->sock = s;
 					p->fds[fd].file->oid.port = USOCKET_PORT;
 					p->fds[fd].file->oid.id = 0U;
+					p->fds[fd].file->seekable = 0U;
 				}
 				break;
 			default:
