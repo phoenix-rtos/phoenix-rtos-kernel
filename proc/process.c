@@ -725,6 +725,10 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		return err;
 	}
 
+	if (ustacksz < MIN_SIZE_USTACK) {
+		return -EINVAL;
+	}
+
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
 
 	/* Allocate and map user stack */
@@ -986,6 +990,10 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		}
 	}
 	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
+
+	if (stacksz < MIN_SIZE_USTACK) {
+		return -EINVAL;
+	}
 
 	/* Allocate and map user stack */
 	stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);

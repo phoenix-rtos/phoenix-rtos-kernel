@@ -42,6 +42,10 @@
 
 #endif
 
+#ifndef MIN_SIZE_USTACK
+#define MIN_SIZE_USTACK 128U
+#endif
+
 #define CPU_CTX_SIZE 0xd8
 #define CPU_EXC_SIZE 0xe0
 

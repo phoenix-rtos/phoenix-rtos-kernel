@@ -33,6 +33,10 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#ifndef MIN_SIZE_USTACK
+#define MIN_SIZE_USTACK 128U
+#endif
+
 /* Supervisor Cause Register */
 #define SCAUSE_INTR (1ULL << 63)
 
