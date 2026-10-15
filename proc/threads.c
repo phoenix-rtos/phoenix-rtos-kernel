@@ -820,6 +820,7 @@ static int thread_alloc(thread_t *thread)
 
 void threads_canaryInit(thread_t *t, void *ustack)
 {
+	_Static_assert(MIN_SIZE_USTACK >= sizeof(threads_common.stackCanary), "User stack may be too small to store the canary");
 	spinlock_ctx_t sc;
 
 	hal_spinlockSet(&threads_common.spinlock, &sc);

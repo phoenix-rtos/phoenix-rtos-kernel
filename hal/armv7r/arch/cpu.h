@@ -29,6 +29,10 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#ifndef MIN_SIZE_USTACK
+#define MIN_SIZE_USTACK 128U
+#endif
+
 /* ARMv7 processor modes */
 #define MODE_USR 0x10U /* unprivileged mode in which most applications run                           */
 #define MODE_FIQ 0x11U /* entered on an FIQ interrupt exception                                      */

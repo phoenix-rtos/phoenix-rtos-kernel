@@ -31,6 +31,10 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#ifndef MIN_SIZE_USTACK
+#define MIN_SIZE_USTACK 128U
+#endif
+
 #define MODE_nAARCH64 0x10U
 #define MODE_EL0      0x0U
 #define MODE_EL1_SP0  0x4U
