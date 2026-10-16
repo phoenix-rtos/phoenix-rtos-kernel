@@ -65,7 +65,9 @@ static struct {
 	u64 readyBitmask;
 
 	thread_t **current;
+#ifdef CPUTIME_SPLIT_ENABLE
 	spinlock_t *cpuSpinlock;
+#endif
 
 	time_t utcoffs;
 
@@ -453,11 +455,16 @@ static void _threads_cpuTimeToProcess(const thread_t *t)
  */
 static void _threads_cpuTimeMode(thread_t *t, int kernel)
 {
+#ifdef CPUTIME_SPLIT_ENABLE
 	if ((t == NULL) || ((int)t->inKernel == kernel)) {
 		return;
 	}
 	_threads_cpuTimeCharge(t, hal_timerGetUs());
 	t->inKernel = (kernel != 0) ? 1U : 0U;
+#else
+	(void)t;
+	(void)kernel;
+#endif
 }
 
 
@@ -473,6 +480,7 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected, cpu_cont
 		selected->lastTime = now;
 	}
 
+#ifdef CPUTIME_SPLIT_ENABLE
 	/*
 	 * The context about to be restored says which mode the thread resumes in: a thread
 	 * preempted in user space comes back to user space, one that blocked inside a syscall
@@ -481,6 +489,9 @@ static void _threads_cpuTimeCalc(thread_t *current, thread_t *selected, cpu_cont
 	if (selected != NULL) {
 		selected->inKernel = (hal_cpuSupervisorMode(selCtx) != 0) ? 1U : 0U;
 	}
+#else
+	(void)selCtx;
+#endif
 }
 
 
@@ -500,13 +511,13 @@ static void _threads_cpuTimeAddInflight(const thread_t *t, time_t inflight, time
 
 /*
  * Adds up what one thread has run, the mode boundaries it has crossed plus the run it is
- * in the middle of right now. Note: always called with threads_common.spinlock set, which
- * is what stops the thread from being scheduled onto another cpu than the one locked out
- * of charging it here.
+ * in the middle of right now. Note: always called with threads_common.spinlock set.
  */
 static void _threads_cpuTimeOfThread(const thread_t *t, time_t *total, time_t *user, time_t *sys)
 {
+#ifdef CPUTIME_SPLIT_ENABLE
 	spinlock_ctx_t sc;
+#endif
 	unsigned int i, ncpus = hal_cpuGetCount();
 
 	for (i = 0; i < ncpus; i++) {
@@ -522,7 +533,9 @@ static void _threads_cpuTimeOfThread(const thread_t *t, time_t *total, time_t *u
 		*sys += t->sysTime;
 	}
 	else {
+#ifdef CPUTIME_SPLIT_ENABLE
 		hal_spinlockSet(&threads_common.cpuSpinlock[i], &sc);
+#endif
 
 		*total += t->cpuTime;
 		*user += t->userTime;
@@ -531,10 +544,14 @@ static void _threads_cpuTimeOfThread(const thread_t *t, time_t *total, time_t *u
 		/* cpuTime is only accumulated at mode boundaries - add what it has run since */
 		_threads_cpuTimeAddInflight(t, hal_timerGetUs() - t->lastTime, total, user, sys);
 
+#ifdef CPUTIME_SPLIT_ENABLE
 		hal_spinlockClear(&threads_common.cpuSpinlock[i], &sc);
+#endif
 	}
 }
 
+
+#ifdef CPUTIME_SPLIT_ENABLE
 
 static unsigned int _threads_cpuSpinlockSet(const thread_t *t, spinlock_ctx_t *sc)
 {
@@ -613,6 +630,8 @@ void proc_cpuTimeIntrLeave(void *interrupted)
 
 	hal_spinlockClear(&threads_common.cpuSpinlock[cpu], &sc);
 }
+
+#endif
 
 
 __attribute__((noreturn)) void proc_longjmp(cpu_context_t *ctx)
@@ -874,7 +893,11 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->sysTime = 0;
 	t->userTime = 0;
 	t->cpuId = 0;
+#ifdef CPUTIME_SPLIT_ENABLE
 	t->inKernel = 1;
+#else
+	t->inKernel = (process == NULL) ? 1U : 0U;
+#endif
 	proc_gettime(&t->readyTime, NULL);
 	t->maxWait = 0;
 	t->startTime = t->readyTime;
@@ -3266,6 +3289,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 		return -ENOMEM;
 	}
 
+#ifdef CPUTIME_SPLIT_ENABLE
 	/* parasoft-suppress-next-line MISRAC2012-DIR_4_7 "return value of hal_cpuGetCount() is always the same, false positive" */
 	threads_common.cpuSpinlock = (spinlock_t *)vm_kmalloc(sizeof(spinlock_t) * ncpus);
 	if (threads_common.cpuSpinlock == NULL) {
@@ -3276,6 +3300,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 	for (i = 0; i < ncpus; i++) {
 		hal_spinlockCreate(&threads_common.cpuSpinlock[i], "threads.cpuTimeLock");
 	}
+#endif
 
 	/* Run idle thread on every cpu */
 	for (i = 0; i < ncpus; i++) {
