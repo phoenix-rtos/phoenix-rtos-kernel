@@ -1032,19 +1032,77 @@ int usocket_getsockname(usocket_t *s, struct sockaddr *address, socklen_t *addre
 int usocket_getsockopt(usocket_t *s, int level, int optname, void *optval, socklen_t *optlen)
 {
 	uchannel_t *rx;
-	size_t size;
+	size_t len, size;
 	int err = EOK;
-	int value;
+	union {
+		int i;
+		struct timeval t;
+		struct linger l;
+	} val;
 
 	if (level != SOL_SOCKET) {
 		return -EINVAL;
 	}
 
-	if ((optval == NULL) || (optlen == NULL) || (*optlen < sizeof(int))) {
+	if ((optval == NULL) || (optlen == NULL)) {
+		return -EINVAL;
+	}
+
+	if (((unsigned int)optname == SO_RCVTIMEO) || ((unsigned int)optname == SO_SNDTIMEO)) {
+		len = sizeof(struct timeval);
+	}
+	else if ((unsigned int)optname == SO_LINGER) {
+		len = sizeof(struct linger);
+	}
+	else {
+		len = sizeof(int);
+	}
+
+	if (*optlen < len) {
 		return -EINVAL;
 	}
 
 	switch ((unsigned int)optname) {
+		case SO_BROADCAST:
+		case SO_DEBUG:
+		case SO_DONTROUTE:
+		case SO_KEEPALIVE:
+		case SO_OOBINLINE:
+		case SO_REUSEADDR:
+		case SO_SNDBUF:
+			val.i = 0;
+			break;
+
+		case SO_LINGER:
+			val.l.l_onoff = 0;
+			val.l.l_linger = 0;
+			break;
+
+		case SO_ACCEPTCONN:
+			(void)proc_lockSet(&s->lock);
+			val.i = (s->state == (u8)usocketListening) ? 1 : 0;
+			(void)proc_lockClear(&s->lock);
+			break;
+
+		case SO_PROTOCOL:
+			val.i = PF_UNSPEC;
+			break;
+
+		case SO_RCVLOWAT:
+		case SO_SNDLOWAT:
+			val.i = 1;
+			break;
+
+		case SO_RCVTIMEO:
+		case SO_SNDTIMEO:
+			val.t.tv_sec = 0;
+			val.t.tv_usec = 0;
+			break;
+
+		case SO_TYPE:
+			val.i = (int)s->type;
+			break;
+
 		case SO_RCVBUF:
 			(void)proc_lockSet(&s->lock);
 			size = s->rcvbuf;
@@ -1056,13 +1114,13 @@ int usocket_getsockopt(usocket_t *s, int level, int optname, void *optval, sockl
 				uchannel_put(rx);
 			}
 
-			value = (int)size;
+			val.i = (int)size;
 			break;
 
 		case SO_ERROR:
 			/* POSIX: the pending error is returned in optval and cleared */
 			(void)proc_lockSet(&s->lock);
-			value = s->err;
+			val.i = s->err;
 			s->err = 0;
 			(void)proc_lockClear(&s->lock);
 			break;
@@ -1073,8 +1131,8 @@ int usocket_getsockopt(usocket_t *s, int level, int optname, void *optval, sockl
 	}
 
 	if (err == EOK) {
-		*((int *)optval) = value;
-		*optlen = (socklen_t)sizeof(int);
+		hal_memcpy(optval, &val, len);
+		*optlen = (socklen_t)len;
 	}
 
 	return err;
