@@ -70,6 +70,7 @@
 	ID(signalMask) \
 	ID(signalSuspend) \
 	ID(signalPending) \
+	ID(signalWait) \
 	ID(sys_priority) \
 	\
 	ID(sys_read) \

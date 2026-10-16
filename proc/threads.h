@@ -81,6 +81,7 @@ typedef struct _thread_t {
 
 	unsigned int sigmask;
 	unsigned int sigpend;
+	unsigned int sigwait;
 
 	void *kstack;
 	size_t kstacksz;
@@ -245,6 +246,9 @@ int threads_sigsuspend(unsigned int mask);
 
 
 unsigned int threads_sigpending(void);
+
+
+int threads_sigwait(unsigned int set, const time_t *timeout);
 
 
 int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
