@@ -1684,6 +1684,39 @@ static int threads_sigmutable(int sig)
 }
 
 
+static int threads_sigdefaultIgnored(int sig)
+{
+	switch (sig) {
+		case SIGURG:
+		case SIGCHLD:
+		case SIGWINCH:
+		case SIGINFO:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+
+static void _threads_sigdiscard(process_t *process, int sig)
+{
+	unsigned int sigbit;
+	thread_t *thread = process->threads;
+
+	LIB_ASSERT((sig > 0) && (sig < NSIG), "invalid signal %d", sig);
+
+	sigbit = (unsigned int)1U << (unsigned int)sig;
+	process->sigpend &= ~sigbit;
+
+	if (thread != NULL) {
+		do {
+			thread->sigpend &= ~sigbit;
+			thread = thread->procnext;
+		} while (thread != process->threads);
+	}
+}
+
+
 static int _threads_sigdefault(process_t *process, thread_t *thread, int sig)
 {
 	switch (sig) {
@@ -1973,6 +2006,12 @@ int threads_setSigaction(int sig, sigtrampolineFn_t trampoline, const struct sig
 		hal_memcpy(&process->sigactions[sig - 1], act, sizeof(struct sigaction));
 		/* POSIX: It is not possible to block those signals which cannot be ignored. */
 		process->sigactions[sig - 1].sa_mask &= ~(u32)((1UL << SIGKILL) | (1UL << SIGSTOP));
+	}
+
+	/* POSIX: setting SIG_IGN, or SIG_DFL when the default action is to ignore, discards the pending signal even if blocked */
+	/* parasoft-suppress-next-line MISRAC2012-RULE_11_1-a "POSIX compliant definition" */
+	if ((act != NULL) && ((act->sa_handler == SIG_IGN) || ((act->sa_handler == SIG_DFL) && (threads_sigdefaultIgnored(sig) != 0)))) {
+		_threads_sigdiscard(process, sig);
 	}
 
 	if (trampoline != NULL) {
