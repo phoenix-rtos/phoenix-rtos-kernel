@@ -15,6 +15,9 @@
 #define _PH_POSIX_TYPES_H_
 
 
+typedef unsigned int useconds_t;
+typedef int suseconds_t;
+
 typedef int pid_t;
 typedef unsigned int mode_t;
 typedef int gid_t;

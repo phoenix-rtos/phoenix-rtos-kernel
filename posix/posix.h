@@ -25,6 +25,7 @@
 #include "include/posix-statvfs.h"
 #include "include/posix-stdio.h"
 #include "include/posix-timespec.h"
+#include "include/posix-timeval.h"
 #include "include/posix-uio.h"
 #include "include/sockport.h"
 
