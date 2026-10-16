@@ -1340,6 +1340,23 @@ unsigned int syscalls_signalPending(u8 *ustack)
 }
 
 
+int syscalls_signalWait(u8 *ustack)
+{
+	process_t *proc = proc_current()->process;
+	unsigned int set;
+	time_t *timeout;
+
+	GETFROMSTACK(ustack, unsigned int, set, 0U);
+	GETFROMSTACK(ustack, time_t *, timeout, 1U);
+
+	if ((timeout != NULL) && (vm_mapBelongs(proc, timeout, sizeof(*timeout)) < 0)) {
+		return -EFAULT;
+	}
+
+	return threads_sigwait(set, timeout);
+}
+
+
 void syscalls_sigreturn(u8 *ustack)
 {
 	thread_t *t = proc_current();
