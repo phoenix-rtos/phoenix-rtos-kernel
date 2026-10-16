@@ -40,6 +40,7 @@
 
 #define SOL_SOCKET 0xfff
 
+/* values copied from LwIP */
 #define SO_ACCEPTCONN   0x0002U
 #define SO_BROADCAST    0x0020U
 #define SO_DEBUG        0x0001U
@@ -48,6 +49,7 @@
 #define SO_KEEPALIVE    0x0008U
 #define SO_LINGER       0x0080U
 #define SO_OOBINLINE    0x0100U
+#define SO_PROTOCOL     0x100cU
 #define SO_RCVBUF       0x1002U
 #define SO_RCVLOWAT     0x1004U
 #define SO_RCVTIMEO     0x1006U
