@@ -37,9 +37,6 @@ enum { pxBufferedPipe,
 	pxPTY };
 
 
-#define F_SEEKABLE(type) ((type) == ftRegular)
-
-
 typedef struct {
 	oid_t ln;
 	oid_t oid;
@@ -48,6 +45,7 @@ typedef struct {
 	unsigned int status;
 	lock_t lock;
 	int type;
+	u8 seekable;
 	usocket_t *sock; /* ftUnixSocket: reference to the socket */
 } open_file_t;
 
