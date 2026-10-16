@@ -199,6 +199,8 @@ int proc_schedSet(thread_t *t, int policy, sched_params_t *params);
 int proc_cpuTime(const thread_t *t, int perThread, time_t *cpuTime, time_t *userTime, time_t *sysTime);
 
 
+#ifdef CPUTIME_SPLIT_ENABLE
+
 void proc_cpuTimeKernelEnter(thread_t *t);
 
 
@@ -209,6 +211,34 @@ void *proc_cpuTimeIntrEnter(cpu_context_t *ctx);
 
 
 void proc_cpuTimeIntrLeave(void *interrupted);
+
+#else
+
+static inline void proc_cpuTimeKernelEnter(thread_t *t)
+{
+	(void)t;
+}
+
+
+static inline void proc_cpuTimeKernelLeave(thread_t *t)
+{
+	(void)t;
+}
+
+
+static inline void *proc_cpuTimeIntrEnter(cpu_context_t *ctx)
+{
+	(void)ctx;
+	return NULL;
+}
+
+
+static inline void proc_cpuTimeIntrLeave(void *interrupted)
+{
+	(void)interrupted;
+}
+
+#endif
 
 
 thread_t *threads_findThread(int tid);
