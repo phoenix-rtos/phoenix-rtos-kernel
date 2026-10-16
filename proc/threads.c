@@ -881,6 +881,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->parentkstack = NULL;
 	t->sigmask = sigmask;
 	t->sigpend = 0;
+	t->sigwait = 0;
 	t->refs = 1;
 	t->interruptible = 0;
 	t->exit = 0;
@@ -1793,6 +1794,12 @@ static int _threads_sigdefault(process_t *process, thread_t *thread, int sig)
 }
 
 
+static int _threads_sigwaiting(const thread_t *thread, u32 sigbit)
+{
+	return (((thread->sigwait & sigbit) != 0U) && (thread->state == SLEEP)) ? 1 : 0;
+}
+
+
 int threads_sigpost(process_t *process, thread_t *thread, int sig)
 {
 	u32 sigbit;
@@ -1836,7 +1843,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 		if (thread != NULL) {
 			do {
-				if ((sigbit & ~thread->sigmask) != 0U) {
+				if (((sigbit & ~thread->sigmask) != 0U) || (_threads_sigwaiting(thread, sigbit) != 0)) {
 					break;
 				}
 				thread = thread->procnext;
@@ -1862,6 +1869,12 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 		if ((performedAction != SIGNAL_IGNORE) && (thread->interruptible != 0U)) {
 			_thread_interrupt(thread);
 		}
+	}
+	else if (_threads_sigwaiting(thread, sigbit) != 0) {
+		_thread_interrupt(thread);
+	}
+	else {
+		/* No action required */
 	}
 
 	hal_spinlockClear(&threads_common.spinlock, &sc);
@@ -2224,6 +2237,66 @@ int threads_sigsuspend(unsigned int mask)
 
 	/* sigsuspend always exits with -EINTR */
 	return -EINTR;
+}
+
+
+int threads_sigwait(unsigned int set, const time_t *timeout)
+{
+	thread_t *thread, *tqueue;
+	spinlock_ctx_t sc;
+	unsigned int pending, sigbit;
+	time_t reltime = 0, abstime = 0;
+	int ret, sig, err = EOK;
+
+	set &= ~(u32)((1UL << SIGNULL) | (1UL << SIGKILL) | (1UL << SIGSTOP));
+
+	if (timeout != NULL) {
+		reltime = *timeout;
+		err = proc_clockTimeoutToAbsTime(PH_CLOCK_RELATIVE, reltime, &abstime);
+		if (err < 0) {
+			return err;
+		}
+	}
+
+	hal_spinlockSet(&threads_common.spinlock, &sc);
+	thread = _proc_current();
+
+	for (;;) {
+		pending = (thread->sigpend | thread->process->sigpend) & set;
+		if (pending != 0U) {
+			ret = (int)hal_cpuGetFirstBit(pending);
+			sigbit = (u32)1U << (unsigned int)ret;
+			if ((thread->sigpend & sigbit) != 0U) {
+				thread->sigpend &= ~sigbit;
+			}
+			else {
+				thread->process->sigpend &= ~sigbit;
+			}
+			break;
+		}
+
+		sig = _threads_checkSignal(thread, thread->process);
+		if ((sig != 0) || (thread->exit != 0U)) {
+			ret = -EINTR;
+			break;
+		}
+
+		if (((timeout != NULL) && (reltime == 0)) || (err == -ETIME)) {
+			ret = -EAGAIN;
+			break;
+		}
+
+		thread->sigwait = set;
+		tqueue = NULL;
+		_proc_threadEnqueue(&tqueue, abstime, 1);
+		err = hal_cpuReschedule(&threads_common.spinlock, &sc);
+		hal_spinlockSet(&threads_common.spinlock, &sc);
+		thread->sigwait = 0U;
+	}
+
+	hal_spinlockClear(&threads_common.spinlock, &sc);
+
+	return ret;
 }
 
 
