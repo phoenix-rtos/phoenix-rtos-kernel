@@ -29,6 +29,10 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#ifndef MIN_SIZE_USTACK
+#define MIN_SIZE_USTACK 128U
+#endif
+
 #define USR_MODE    0x10U
 #define FIQ_MODE    0x11U
 #define IRQ_MODE    0x12U
