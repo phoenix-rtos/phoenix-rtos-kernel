@@ -101,4 +101,10 @@ struct cmsghdr {
 };
 
 
+struct linger {
+	int l_onoff;
+	int l_linger;
+};
+
+
 #endif
