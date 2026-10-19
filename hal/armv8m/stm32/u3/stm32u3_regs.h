@@ -252,6 +252,19 @@ enum exti_regs {
 	exti_emr1,
 };
 
+enum icache_regs {
+	icache_cr = 0x0,
+	icache_sr,
+	icache_ier,
+	icache_fcr,
+	icache_hmonr,
+	icache_mmonr,
+	icache_crr0 = 0x8,
+	icache_crr1,
+	icache_crr2,
+	icache_crr3,
+};
+
 enum flash_regs {
 	flash_acr = 0x0,
 	/* Remaining FLASH registers are not relevant for kernel use */

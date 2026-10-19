@@ -41,6 +41,7 @@
 #define SYSCFG_BASE ((void *)0x50040400U)
 #define GPDMA1_BASE ((void *)0x50020000U)
 #define FLASH_BASE  ((void *)0x50022000U)
+#define ICACHE_BASE ((void *)0x50030400U)
 #define DBGMCU_BASE ((void *)0xe0044000U)
 
 #define DMA_CHANNELS 12U
@@ -71,12 +72,21 @@ static struct {
 	volatile u32 *iwdg;
 	volatile u32 *dbgmcu;
 	volatile u32 *flash;
+	volatile u32 *icache;
 
 	u32 cpuclk;
+	struct {
+		u8 active;
+		u8 cpuVolt;
+		s8 icache;
+	} flashProgram;
 
 	spinlock_t pltctlSp;
 } stm32_common;
 
+
+static int _stm32_flashProgramEnter(unsigned int icacheAware);
+static int _stm32_flashProgramExit(void);
 
 /* platformctl syscall */
 
@@ -169,6 +179,16 @@ int hal_platformctl(void *ptr)
 						data->dmaLinkBaseAddr.addr);
 			}
 			break;
+		case pctl_flashProgram:
+			if (data->action == pctl_set) {
+				if (data->flashProgram.enter != 0) {
+					ret = _stm32_flashProgramEnter(data->flashProgram.icacheAware);
+				}
+				else {
+					ret = _stm32_flashProgramExit();
+				}
+			}
+			break;
 		default:
 			ret = -EINVAL;
 			break;
@@ -250,6 +270,32 @@ int _stm32_dmaSetLinkBaseAddr(int dev, unsigned int channel, unsigned int addr)
 }
 
 
+/* ICACHE */
+
+
+static void _stm32_icacheSet(int on)
+{
+	if (on == 0) {
+		/* Cache invalidation is triggered automatically upon disabling */
+		*(stm32_common.icache + icache_cr) &= ~1UL;
+		return;
+	}
+
+	while ((*(stm32_common.icache + icache_sr) & 1UL) != 0) {
+		/* Wait for any cache invalidation to finish */
+	}
+
+	*(stm32_common.icache + icache_cr) |= 1UL;
+}
+
+
+static int _stm32_icacheGet(void)
+{
+	u32 state = *(stm32_common.icache + icache_cr) & 1UL;
+	return (int)state;
+}
+
+
 /* FLASH */
 
 
@@ -269,6 +315,57 @@ static void _stm32_flashSetWaitStates(u8 ws)
 		/* Ensure the change has taken effect */
 		hal_cpuDataSyncBarrier();
 	}
+}
+
+
+static int _stm32_flashProgramEnter(unsigned int icacheAware)
+{
+	u8 cpuVolt;
+
+	if (stm32_common.flashProgram.active != 0U) {
+		return -EBUSY;
+	}
+
+	hal_cpuSetDevBusy(1);
+	cpuVolt = _stm32_pwrGetCPUVolt();
+	stm32_common.flashProgram.cpuVolt = cpuVolt;
+	if (cpuVolt == PCTL_CPUVOLT_RANGE2) {
+		_stm32_pwrSetCPUVolt(PCTL_CPUVOLT_RANGE1);
+	}
+	else if (cpuVolt == PCTL_CPUVOLT_RANGE2B) {
+		_stm32_pwrSetCPUVolt(PCTL_CPUVOLT_RANGE1B);
+	}
+	else {
+		/* Already in range 1 - no action needed */
+	}
+
+	if (icacheAware != 0) {
+		stm32_common.flashProgram.icache = -1;
+	}
+	else {
+		stm32_common.flashProgram.icache = _stm32_icacheGet();
+		_stm32_icacheSet(0);
+	}
+
+	stm32_common.flashProgram.active = 1U;
+	return EOK;
+}
+
+
+static int _stm32_flashProgramExit(void)
+{
+	if (stm32_common.flashProgram.active == 0U) {
+		return -EINVAL;
+	}
+
+	if (stm32_common.flashProgram.icache > 0) {
+		_stm32_icacheSet(stm32_common.flashProgram.icache);
+	}
+
+	_stm32_pwrSetCPUVolt(stm32_common.flashProgram.cpuVolt);
+	hal_cpuSetDevBusy(0);
+	stm32_common.flashProgram.active = 0U;
+	return EOK;
 }
 
 
@@ -555,6 +652,10 @@ int _stm32_rccSetCPUClock(u32 hz)
 	const range_mapping_t *freqRange = NULL;
 	const range_mapping_t *wsRange = NULL;
 
+	if (stm32_common.flashProgram.active != 0U) {
+		return -EBUSY;
+	}
+
 	freqRange = _stm32_findRange(hz, stm32_frequencyRanges, FREQUENCY_RANGE_COUNT);
 	if (freqRange == NULL) {
 		return -ERANGE;
@@ -616,6 +717,12 @@ int _stm32_rccSetCPUClock(u32 hz)
 	if (wsOld > wsNew) {
 		_stm32_flashSetWaitStates(wsNew);
 	}
+
+	/*
+	 * If Flash wait states are required, enable cache.
+	 * If wait states is 0, cache actually causes a small performance penalty.
+	 */
+	_stm32_icacheSet((wsNew > 0U) ? 1 : 0);
 
 	if (vRangeNew < vRangeOld) {
 		/* Requested reduction in performance - set voltage range after decreasing clocks */
@@ -815,7 +922,9 @@ void _stm32_pwrEnterLPStop(time_t us)
 	}
 
 	_hal_scsDeepSleepSet(1); /* Switch to deep sleep mode */
-	hal_cpuHalt();           /* WFI enters Stop mode */
+	_stm32_gpioSet(pctl_gpiob, 10, 0);
+	hal_cpuHalt(); /* WFI enters Stop mode */
+	_stm32_gpioSet(pctl_gpiob, 10, 1);
 	_hal_scsDeepSleepSet(0); /* Switch to shallow sleep mode */
 
 	if (freqBefore != 0U) {
@@ -836,6 +945,8 @@ void _stm32_init(void)
 	stm32_common.syscfg = SYSCFG_BASE;
 	stm32_common.dbgmcu = DBGMCU_BASE;
 	stm32_common.flash = FLASH_BASE;
+	stm32_common.icache = ICACHE_BASE;
+	stm32_common.flashProgram.active = 0U;
 
 	_hal_scsInit();
 
@@ -876,6 +987,10 @@ void _stm32_init(void)
 
 	_stm32_rtcInit();
 	_stm32_wdgInit();
+	stm32_common.rcc[rcc_cfgr1] |= (1 << 24);
+	_stm32_gpioConfig(pctl_gpioa, 8, gpio_mode_af, 0, gpio_otype_pp, gpio_ospeed_vhi, gpio_pupd_nopull);
+	_stm32_gpioSet(pctl_gpiob, 10, 1);
+	_stm32_gpioConfig(pctl_gpiob, 10, gpio_mode_gpo, 0, gpio_otype_pp, gpio_ospeed_vhi, gpio_pupd_nopull);
 #ifdef NDEBUG
 	*(stm32_common.dbgmcu + dbgmcu_cr) &= ~(1UL << 1); /* Turn off DBG_STOP to ensure clocks will be turned off in Stop mode */
 #endif

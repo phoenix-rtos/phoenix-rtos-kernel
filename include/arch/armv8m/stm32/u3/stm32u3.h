@@ -268,6 +268,7 @@ typedef struct {
 		pctl_reboot,
 		pctl_dmaPermissions,
 		pctl_dmaLinkBaseAddr,
+		pctl_flashProgram, /* Configure system power, sleep mode and caching to allow Flash programming */
 	} type;
 
 	union {
@@ -299,6 +300,10 @@ typedef struct {
 			unsigned int magic;
 			unsigned int reason;
 		} reboot;
+		struct {
+			unsigned int enter;       /* 1 - enter programming mode, 0 - exit programming mode */
+			unsigned int icacheAware; /* 0 - disable ICACHE, 1 - leave ICACHE in previous state */
+		} flashProgram;
 	};
 } __attribute__((packed)) platformctl_t;
 
