@@ -41,14 +41,14 @@ enum { pxBufferedPipe,
 
 
 typedef struct {
+	off_t offset;
+	usocket_t *sock; /* ftUnixSocket: reference to the socket */
+	lock_t lock;
 	oid_t ln;
 	oid_t oid;
 	int refs;
-	off_t offset;
-	unsigned int status;
-	lock_t lock;
-	int type;
-	usocket_t *sock; /* ftUnixSocket: reference to the socket */
+	u16 status;
+	u8 type;
 } open_file_t;
 
 
