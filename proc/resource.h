@@ -48,6 +48,9 @@ resource_t *resource_get(process_t *process, int id);
 int resource_put(process_t *process, resource_t *r);
 
 
+void proc_resourcePut(resource_t *r);
+
+
 int proc_resourceDestroy(process_t *process, int id);
 
 
