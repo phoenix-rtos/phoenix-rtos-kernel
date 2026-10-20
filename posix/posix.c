@@ -418,13 +418,10 @@ int posix_clone(int ppid)
 			f->refs = 1;
 			f->offset = 0;
 			f->type = ftTty;
+			f->status = (i == 0) ? O_RDONLY : O_WRONLY;
 			p->fds[i].flags = 0;
 			hal_memcpy(&f->oid, &console, sizeof(oid_t));
 		}
-
-		p->fds[0].file->status = O_RDONLY;
-		p->fds[1].file->status = O_WRONLY;
-		p->fds[2].file->status = O_WRONLY;
 
 		/* The first POSIX process is the leader of its own session and group */
 		p->pgid = p->process;
