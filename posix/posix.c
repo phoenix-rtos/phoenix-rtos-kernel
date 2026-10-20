@@ -612,11 +612,11 @@ int posix_statvfs(const char *path, int fildes, struct statvfs *buf)
 }
 
 
-int posix_open(const char *filename, int oflag, u8 *ustack)
+int posix_open(const char *filename, unsigned int oflag, u8 *ustack)
 {
 	TRACE("open(%s, %d, %d)", filename, oflag);
 	oid_t ln, oid, dev, pipesrv;
-	int fd = 0, err = 0, created = 0;
+	int fd = 0, err = 0, created = 0, opened = 0;
 	process_info_t *p;
 	open_file_t *f;
 	mode_t mode;
@@ -625,138 +625,134 @@ int posix_open(const char *filename, int oflag, u8 *ustack)
 		hal_memset(&pipesrv, 0xff, sizeof(oid_t));
 	}
 
-	p = pinfo_find(process_getPid(proc_current()->process));
-	if (p == NULL) {
-		return -1;
+	f = vm_kmalloc(sizeof(open_file_t));
+	if (f == NULL) {
+		return -ENOMEM;
 	}
 
-	hal_memset(&dev, 0, sizeof(oid_t));
-
-	(void)proc_lockSet(&p->lock);
+	p = pinfo_find(process_getPid(proc_current()->process));
+	LIB_ASSERT(p != NULL, "open called from a thread that does not belong to any process");
 
 	do {
-		fd = _posix_allocfd(p, fd);
-		if (fd < 0) {
-			err = -EMFILE;
-			break;
-		}
-
-		f = vm_kmalloc(sizeof(open_file_t));
-		if (f == NULL) {
-			err = -ENOMEM;
-			break;
-		}
-
-		p->fds[fd].file = f;
 		(void)proc_lockInit(&f->lock, &proc_lockAttrDefault, "posix.file");
-		(void)proc_lockClear(&p->lock);
 
-		do {
-			if (((unsigned int)oflag & O_CREAT) != 0U) {
-				GETFROMSTACK(ustack, mode_t, mode, 2U);
+		if ((oflag & O_CREAT) != 0U) {
+			GETFROMSTACK(ustack, mode_t, mode, 2U);
 
-				err = posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid);
-				if (err == -EEXIST) {
-					if (((unsigned int)oflag & O_EXCL) != 0U) {
-						break;
-					}
-
-					/*
-					 * FIXME: this is race-y as between posix_create and proc_lookup
-					 * the existing file might have been removed. The mtCreate message
-					 * should probably be able to fail but still provide the existing
-					 * file's oid so that we can work with it later when we don't care
-					 * if the file was created or not and just want the oid (O_CREAT
-					 * without O_EXCL).
-					 */
-					err = proc_lookup(filename, &ln, &oid);
-					if (err < 0) {
-						break;
-					}
-				}
-				else if (err < 0) {
+			hal_memset(&dev, 0, sizeof(oid_t));
+			err = posix_create(filename, 1 /* otFile */, mode | S_IFREG, dev, &oid);
+			if (err == -EEXIST) {
+				if ((oflag & O_EXCL) != 0U) {
 					break;
 				}
-				else {
-					created = 1;
-					hal_memcpy(&ln, &oid, sizeof(oid_t));
-				}
-			}
-			else {
+
+				/*
+				 * FIXME: this is race-y as between posix_create and proc_lookup
+				 * the existing file might have been removed. The mtCreate message
+				 * should probably be able to fail but still provide the existing
+				 * file's oid so that we can work with it later when we don't care
+				 * if the file was created or not and just want the oid (O_CREAT
+				 * without O_EXCL).
+				 */
 				err = proc_lookup(filename, &ln, &oid);
 				if (err < 0) {
 					break;
 				}
 			}
-
-			if (oid.port == USOCKET_PORT) {
-				/*
-				 * A descriptor for a socket file would not own the socket, and
-				 * close() cannot tell it apart from the owning one: it would run
-				 * usocket_close() and destroy a socket that belongs to somebody
-				 * else. Refuse it, as Linux does.
-				 */
-				err = -ENXIO;
+			else if (err < 0) {
 				break;
 			}
-
-			err = proc_open(oid, (unsigned int)oflag);
+			else {
+				created = 1;
+				hal_memcpy(&ln, &oid, sizeof(oid_t));
+			}
+		}
+		else {
+			err = proc_lookup(filename, &ln, &oid);
 			if (err < 0) {
 				break;
 			}
-
-			(void)proc_lockSet(&p->lock);
-			p->fds[fd].flags = ((unsigned int)oflag & O_CLOEXEC) != 0U ? FD_CLOEXEC : 0U;
-			(void)proc_lockClear(&p->lock);
-
-			if (err == 0) {
-				hal_memcpy(&f->oid, &oid, sizeof(oid));
-			}
-			else {
-				/* multiplexer, e.g. /dev/ptmx */
-				f->oid.port = oid.port;
-				f->oid.id = (unsigned int)err;
-			}
-
-			hal_memcpy(&f->ln, &ln, sizeof(ln));
-
-			f->refs = 1;
-
-			/* TODO: check for other types */
-			if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
-				/* FIXME: replace this hacky solution with proper device driver recognition */
-				f->type = ftPipe;
-			}
-			else {
-				f->type = ftRegular;
-			}
-
-			f->offset = 0;
-
-			if (((unsigned int)oflag & O_TRUNC) != 0U) {
-				(void)posix_truncate(&f->oid, 0);
-			}
-
-			f->status = (unsigned int)oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
-
-			pinfo_put(p);
-			return fd;
-		} while (0);
-
-		if (created != 0) {
-			/* file was created in the filesystem - we should unlink it now */
-			(void)posix_unlink(filename);
-			(void)proc_destroy(oid.port, oid);
 		}
 
+		if (oid.port == USOCKET_PORT) {
+			/*
+			 * A descriptor for a socket file would not own the socket, and
+			 * close() cannot tell it apart from the owning one: it would run
+			 * usocket_close() and destroy a socket that belongs to somebody
+			 * else. Refuse it, as Linux does.
+			 */
+			err = -ENXIO;
+			break;
+		}
+
+		err = proc_open(oid, oflag);
+		if (err < 0) {
+			break;
+		}
+		opened = 1;
+
+		if (err == 0) {
+			hal_memcpy(&f->oid, &oid, sizeof(oid));
+		}
+		else {
+			/* multiplexer, e.g. /dev/ptmx */
+			f->oid.port = oid.port;
+			f->oid.id = (id_t)err;
+		}
+
+		hal_memcpy(&f->ln, &ln, sizeof(ln));
+
+		f->refs = 1;
+
+		/* TODO: check for other types */
+		if (oid.port == pipesrv.port && proc_size(f->oid) < 0) {
+			/* FIXME: replace this hacky solution with proper device driver recognition */
+			f->type = ftPipe;
+		}
+		else {
+			f->type = ftRegular;
+		}
+
+		f->offset = 0;
+
+		if ((oflag & O_TRUNC) != 0U) {
+			(void)posix_truncate(&f->oid, 0);
+		}
+
+		f->status = (u16)oflag & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC);
+
 		(void)proc_lockSet(&p->lock);
-		p->fds[fd].file = NULL;
-		(void)proc_lockDone(&f->lock);
-		vm_kfree(f);
+
+		fd = _posix_allocfd(p, fd);
+		if (fd < 0) {
+			(void)proc_lockClear(&p->lock);
+			err = -EMFILE;
+			break;
+		}
+
+		p->fds[fd].file = f;
+		p->fds[fd].flags = (oflag & O_CLOEXEC) != 0U ? FD_CLOEXEC : 0U;
+
+		(void)proc_lockClear(&p->lock);
+
+		pinfo_put(p);
+		return fd;
 
 	} while (0);
 
-	(void)proc_lockClear(&p->lock);
+	if (opened != 0) {
+		(void)proc_close(f->oid, oflag);
+	}
+
+	if (created != 0) {
+		/* file was created in the filesystem - we should unlink it now */
+		(void)posix_unlink(filename);
+		(void)proc_destroy(oid.port, oid);
+	}
+
+	(void)proc_lockDone(&f->lock);
+	vm_kfree(f);
+
 	pinfo_put(p);
 	return err;
 }
