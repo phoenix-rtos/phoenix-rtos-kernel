@@ -28,6 +28,8 @@
 #include "posix_private.h"
 #include "lib/lib.h"
 
+#include <phoenix/version.h>
+
 #define MAX_FD_COUNT     1024
 #define INITIAL_FD_COUNT 32
 
@@ -2126,9 +2128,11 @@ int posix_uname(struct utsname *name)
 	name->sysname[sizeof(name->sysname) - 1U] = '\0';
 	(void)hal_strncpy(name->nodename, posix_common.hostname, sizeof(name->nodename) - 1U);
 	name->nodename[sizeof(name->nodename) - 1U] = '\0';
-	(void)hal_strncpy(name->release, RELEASE, sizeof(name->release) - 1U);
+	/* TODO: Use PHOENIX_VER* instead of VERSION_TAGGED/VERSION_BUILD (which are provided
+	 * directly via `-D`) once they are properly populated by p-r-project */
+	(void)hal_strncpy(name->release, VERSION_TAGGED, sizeof(name->release) - 1U);
 	name->release[sizeof(name->release) - 1U] = '\0';
-	(void)hal_strncpy(name->version, VERSION, sizeof(name->version) - 1U);
+	(void)hal_strncpy(name->version, VERSION_BUILD, sizeof(name->version) - 1U);
 	name->version[sizeof(name->version) - 1U] = '\0';
 	(void)hal_strncpy(name->machine, TARGET_FAMILY, sizeof(name->machine) - 1U);
 	name->machine[sizeof(name->machine) - 1U] = '\0';

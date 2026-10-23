@@ -25,6 +25,8 @@
 #include "perf/perf.h"
 #include "log/log.h"
 
+#include <phoenix/version.h>
+
 
 static struct {
 	vm_map_t kmap;
@@ -108,7 +110,7 @@ int main(void)
 	_hal_init();
 	_usrv_init();
 
-	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v. " RELEASE " rev. " VERSION "\n");
+	hal_consolePrint(ATTR_BOLD, "Phoenix-RTOS microkernel v" VERSION "\n");
 
 	lib_printf("hal: %s\n", hal_cpuInfo(s));
 	lib_printf("hal: %s\n", hal_cpuFeatures(s, sizeof(s)));

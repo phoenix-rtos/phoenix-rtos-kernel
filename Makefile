@@ -6,17 +6,6 @@
 # %LICENSE%
 #
 
-# GIT_DESC will be in format v<VERSION>-<#COMMITS SINCE TAG>-g<CURRENT COMMIT HASH>[ dirty]
-DUMMY_VERSION := v3.3.1-0-g\#\#\#\#\#\#\#\#
-GIT_DESC := $(shell git describe --dirty --abbrev=8 --tags --long --match "v[[:digit:]].[[:digit:]]*.[[:digit:]]*" 2> /dev/null || echo "$(DUMMY_VERSION)")
-DESC := $(subst -, ,$(GIT_DESC))
-
-VERSION := $(subst g,,$(word 3,$(DESC)))\ +$(word 2,$(DESC))
-ifneq ($(word 4,$(DESC)),)
-  VERSION := $(VERSION)\ $(word 4,$(DESC))
-endif
-RELEASE := $(subst v,,$(word 1,$(DESC)))
-
 CONSOLE?=vga
 KERNEL=1
 
@@ -25,8 +14,41 @@ MAKEFLAGS += --no-print-directory
 
 include ../phoenix-rtos-build/Makefile.common
 
+# TODO: The version should be provided entirely by the superrepo (p-r-project), but its
+#       versioning structure (tag placement on release branches) prevents using a simple
+#       `git describe`. Using this command on p-r-kernel is a working, yet transitional
+#       solution.
+VERSION := $(PHOENIX_VER_MAJOR).$(PHOENIX_VER_MINOR).$(PHOENIX_VER_PATCH)
+VERSION_TAGGED := $(VERSION)
+VERSION_BUILD :=
+
+ifneq ($(strip $(PHOENIX_VER_TAG)),)
+  VERSION := $(VERSION)-$(PHOENIX_VER_TAG)
+  VERSION_TAGGED := $(VERSION)
+endif
+
+ifneq ($(strip $(PHOENIX_VER_BUILD)),)
+  VERSION := $(VERSION)+$(PHOENIX_VER_BUILD)
+  VERSION_BUILD := $(PHOENIX_VER_BUILD)
+else
+  GIT_DESCRIBE := $(shell git describe --dirty --abbrev=8 --tags --long \
+                      --match "v[[:digit:]]*.[[:digit:]]*.[[:digit:]]*" 2>/dev/null)
+  ifneq ($(GIT_DESCRIBE),)
+    # vX[-A]-N-gHASH[-dirty] -> N.HASH[.dirty], or empty if N == 0 and not dirty
+    GIT_BUILD := $(shell echo '$(GIT_DESCRIBE)' | sed -E \
+                    -e 's/-dirty$$/.dirty/' \
+                    -e 's/^.*-([0-9]+)-g([0-9a-f]+)(\.dirty)?$$/\1.\2\3/' \
+                    -e 's/^0\.[0-9a-f]+$$//')
+    ifneq ($(GIT_BUILD),)
+      VERSION := $(VERSION)+$(GIT_BUILD)
+      VERSION_BUILD := $(GIT_BUILD)
+    endif
+  endif
+endif
+
+
 CFLAGS += -I. -ffreestanding
-CPPFLAGS += -DVERSION=\"$(VERSION)\" -DRELEASE=\"$(RELEASE)\" -DTARGET_FAMILY=\"$(TARGET_FAMILY)\"
+CPPFLAGS += -DVERSION=\"$(VERSION)\" -DVERSION_TAGGED=\"$(VERSION_TAGGED)\" -DVERSION_BUILD=\"$(VERSION_BUILD)\" -DTARGET_FAMILY=\"$(TARGET_FAMILY)\"
 
 # uncomment to enable stack canary checking
 # CPPFLAGS += -DSTACK_CANARY
