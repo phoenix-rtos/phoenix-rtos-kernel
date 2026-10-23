@@ -1205,6 +1205,10 @@ static int proc_spawn(vm_object_t *object, const syspage_prog_t *prog, ph_map_t 
 
 	if (prog != NULL) {
 		part = &process_common.partitions[prog->partition->id];
+		/* Default partition allocates only from the first dmap */
+		if ((prog->partition->id == 0U) && (dmaps[0] != NULL)) {
+			dmaps[1] = NULL;
+		}
 	}
 	else if ((proc != NULL) && (proc->partition != NULL)) {
 		part = proc->partition;
