@@ -1,0 +1,21 @@
+hal/riscv64/timer.c
+  s_e5d4fbb41e2898::t_7ff9bf9719cb5d 81-82,85-91
+  s_e5d4fbb41e2898::t_533020d3b25a72 80
+  s_e5d4fbb41e2898::t_52ccce05fc4e76 84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03ce579692e23fe80b49b594df660f91d3f13f50",
+  "prompts": {},
+  "sessions": {
+    "s_e5d4fbb41e2898": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8adfb6-4ac7-41f4-a75e-b44c27e0a315",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Lukasz Leczkowski <lukasz.leczkowski@phoenix-rtos.com>"
+    }
+  }
+}
