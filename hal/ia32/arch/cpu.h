@@ -29,6 +29,10 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#ifndef MIN_SIZE_USTACK
+#define MIN_SIZE_USTACK 128U
+#endif
+
 
 /* Bitfields used to construct interrupt descriptors */
 #define IGBITS_DPL0   0x00000000U
