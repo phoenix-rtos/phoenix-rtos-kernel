@@ -30,7 +30,7 @@
 #include "include/sockport.h"
 
 
-int posix_open(const char *filename, int oflag, u8 *ustack);
+int posix_open(const char *filename, unsigned int oflag, u8 *ustack);
 
 
 int posix_close(int fildes);
