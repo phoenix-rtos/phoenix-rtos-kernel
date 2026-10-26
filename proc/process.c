@@ -629,7 +629,7 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if ((phdr->p_type == PT_GNU_STACK) && (phdr->p_memsz != 0U)) {
-			*ustacksz = (size_t)round_page(phdr->p_memsz);
+			*ustacksz = round_page((size_t)phdr->p_memsz);
 		}
 
 		if ((phdr->p_type != PT_LOAD) || (phdr->p_vaddr == 0U)) {
@@ -1870,25 +1870,23 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 
 int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
 {
-	int err;
+	void *mmapRet;
 	dest->tdata_sz = source->tdata_sz;
 	dest->tbss_sz = source->tbss_sz;
 	dest->tls_sz = round_page(source->tls_sz);
 	dest->arm_m_tls = source->arm_m_tls;
 
-	dest->tls_base = (ptr_t)vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
+	mmapRet = vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
+	if (mmapRet == NULL) {
+		return -ENOMEM;
+	}
 
-	if (dest->tls_base != 0U) {
-		hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
-		hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
-		/* At the end of TLS there must be a pointer to itself */
-		*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1U) & ~(sizeof(ptr_t) - 1U)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
-		err = EOK;
-	}
-	else {
-		err = -ENOMEM;
-	}
-	return err;
+	dest->tls_base = (ptr_t)mmapRet;
+	hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
+	hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
+	/* At the end of TLS there must be a pointer to itself */
+	*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1U) & ~(sizeof(ptr_t) - 1U)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
+	return EOK;
 }
 
 
