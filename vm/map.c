@@ -1199,8 +1199,13 @@ int vm_mapCopy(process_t *proc, vm_map_t *dst, vm_map_t *src)
 
 static int map_belongs(const struct _process_t *proc, const void *ptr, size_t size)
 {
+	ptr_t end;
 	if (size == 0U) {
 		return 0;
+	}
+
+	if (__builtin_add_overflow((ptr_t)ptr, size, &end)) {
+		return -1;
 	}
 
 #if defined(NOMMU) && defined(NOMMU_MAPBELONGS_VALIDATE_MAP)
