@@ -124,7 +124,7 @@ amap_t *amap_create(amap_t *amap, size_t *offset, size_t size)
 		i = (512U - sizeof(amap_t)) / sizeof(anon_t *);
 	}
 
-	new = vm_kmalloc(sizeof(amap_t) + i * sizeof(anon_t *));
+	new = vm_kmallocObjects(i, sizeof(anon_t *), sizeof(amap_t));
 	if (new == NULL) {
 		if (amap != NULL) {
 			(void)proc_lockClear(&amap->lock);
