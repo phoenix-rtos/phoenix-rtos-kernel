@@ -207,7 +207,7 @@ static int _posix_allocfd(process_info_t *p, int fd)
 				nfdsz = p->maxfd;
 			}
 
-			nfds = vm_kmalloc((size_t)nfdsz * sizeof(*nfds));
+			nfds = vm_kmallocObjects((size_t)nfdsz, sizeof(*nfds), 0U);
 			if (nfds == NULL) {
 				return -1;
 			}
@@ -377,7 +377,7 @@ int posix_clone(int ppid)
 
 	p->process = process_getPid(proc);
 
-	p->fds = vm_kmalloc((size_t)p->fdsz * sizeof(fildes_t));
+	p->fds = vm_kmallocObjects((size_t)p->fdsz, sizeof(fildes_t), 0U);
 	if (p->fds == NULL) {
 		(void)proc_lockDone(&p->lock);
 		vm_kfree(p);

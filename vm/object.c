@@ -78,7 +78,7 @@ int vm_objectGet(vm_object_t **o, oid_t oid)
 		/* parasoft-suppress-next-line MISRAC2012-RULE_14_3 "size_t depends on architecture" */
 		else if ((sizeof(off_t) <= sizeof(size_t)) || (sz <= (off_t)((size_t)-1))) {
 			n = round_page((size_t)sz) / SIZE_PAGE;
-			no = (vm_object_t *)vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
+			no = (vm_object_t *)vm_kmallocObjects(n, sizeof(page_t *), sizeof(vm_object_t));
 		}
 		else {
 			/* No action required */
@@ -291,7 +291,7 @@ vm_object_t *vm_objectContiguous(size_t size)
 	size = 1UL << p->idx;
 	n = size / SIZE_PAGE;
 
-	o = vm_kmalloc(sizeof(vm_object_t) + n * sizeof(page_t *));
+	o = vm_kmallocObjects(n, sizeof(page_t *), sizeof(vm_object_t));
 	if (o == NULL) {
 		vm_pageFree(p);
 		return NULL;

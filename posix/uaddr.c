@@ -23,7 +23,7 @@ uaddr_t *uaddr_alloc(const char *path)
 	uaddr_t *addr;
 	size_t len = hal_strlen(path) + 1U;
 
-	addr = vm_kmalloc(sizeof(uaddr_t) + len);
+	addr = vm_kmallocObjects(len, 1U, sizeof(uaddr_t));
 	if (addr == NULL) {
 		return NULL;
 	}

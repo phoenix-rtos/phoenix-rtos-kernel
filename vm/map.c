@@ -1267,34 +1267,19 @@ void vm_mapinfo(meminfo_t *info)
 	int emapsz = info->entry.mapsz, ekmapsz = info->entry.kmapsz, smapsz = info->maps.mapsz;
 
 	if (emapsz != -1) {
-		/* emapsz * sizeof(emap[0]) would overflow */
-		if (emapsz < -1 || ((size_t)emapsz > (size_t)-1 / sizeof(emap[0]))) {
-			return;
-		}
-
-		if (vm_mapBelongs(proc, emap, (size_t)emapsz * sizeof(emap[0])) < 0) {
+		if ((emapsz < 0) || (vm_mapBelongsObjects(proc, emap, (size_t)emapsz, sizeof(emap[0])) < 0)) {
 			return;
 		}
 	}
 
 	if (ekmapsz != -1) {
-		/* ekmapsz * sizeof(ekmap[0]) would overflow */
-		if (ekmapsz < -1 || (size_t)ekmapsz > ((size_t)-1 / sizeof(ekmap[0]))) {
-			return;
-		}
-
-		if (vm_mapBelongs(proc, ekmap, (size_t)ekmapsz * sizeof(ekmap[0])) < 0) {
+		if ((ekmapsz < 0) || (vm_mapBelongsObjects(proc, ekmap, (size_t)ekmapsz, sizeof(ekmap[0])) < 0)) {
 			return;
 		}
 	}
 
 	if (smapsz != -1) {
-		/* smapsz * sizeof(smap[0]) would overflow */
-		if (smapsz < -1 || (size_t)smapsz > ((size_t)-1 / sizeof(smap[0]))) {
-			return;
-		}
-
-		if (vm_mapBelongs(proc, smap, (size_t)smapsz * sizeof(smap[0])) < 0) {
+		if ((smapsz < 0) || (vm_mapBelongsObjects(proc, smap, (size_t)smapsz, sizeof(smap[0])) < 0)) {
 			return;
 		}
 	}
