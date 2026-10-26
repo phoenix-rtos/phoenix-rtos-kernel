@@ -78,6 +78,9 @@ int syscalls_sys_mmap(u8 *ustack)
 
 	flags = (vm_flags_t)sflags;
 	size = round_page(size);
+	if (size == SIZE_T_MAX) {
+		return -EINVAL;
+	}
 
 	if (vm_mapBelongs(proc, vaddr, sizeof(*vaddr)) < 0) {
 		return -EFAULT;
@@ -138,6 +141,10 @@ int syscalls_sys_munmap(u8 *ustack)
 	GETFROMSTACK(ustack, size_t, size, 1U);
 
 	size = round_page(size);
+	if (size == SIZE_T_MAX) {
+		return -EINVAL;
+	}
+
 	err = vm_munmap(proc->mapp, vaddr, size);
 	if (err < 0) {
 		return err;
