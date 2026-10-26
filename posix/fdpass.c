@@ -94,7 +94,7 @@ int fdpass_pack(fdpack_t **packs, const void *control, socklen_t controllen)
 		return 0;
 	}
 
-	pack = vm_kmalloc(sizeof(fdpack_t) + sizeof(fildes_t) * tot_cnt);
+	pack = vm_kmallocObjects(tot_cnt, sizeof(fildes_t), sizeof(fdpack_t));
 	if (pack == NULL) {
 		return -ENOMEM;
 	}

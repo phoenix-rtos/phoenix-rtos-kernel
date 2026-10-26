@@ -128,6 +128,17 @@ vm_map_t *vm_getSharedMap(int map);
 int vm_mapBelongs(const struct _process_t *proc, const void *ptr, size_t size);
 
 
+static inline int vm_mapBelongsObjects(const struct _process_t *proc, const void *ptr, size_t nObjs, size_t objSize)
+{
+	size_t bytes;
+	if (__builtin_mul_overflow(nObjs, objSize, &bytes)) {
+		return -1;
+	}
+
+	return vm_mapBelongs(proc, ptr, bytes);
+}
+
+
 int _map_init(vm_map_t *kmap, struct _vm_object_t *kernel, void **bss, void **top);
 
 

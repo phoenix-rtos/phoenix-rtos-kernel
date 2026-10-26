@@ -1016,7 +1016,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 
 static void *proc_copyargs(char **args)
 {
-	size_t argc, len = 0U;
+	size_t argc, argLen, ptrsLen, len = 0U;
 	void *storage;
 	char **kargs, *p;
 
@@ -1025,10 +1025,19 @@ static void *proc_copyargs(char **args)
 	}
 
 	for (argc = 0U; args[argc] != NULL; ++argc) {
-		len += hal_strlen(args[argc]) + 1U;
+		argLen = hal_strlen(args[argc]) + 1U;
+		if (__builtin_add_overflow(len, argLen, &len)) {
+			return NULL;
+		}
 	}
 
-	len += (argc + 1U) * sizeof(char *);
+	if (__builtin_mul_overflow((argc + 1U), sizeof(char *), &ptrsLen)) {
+		return NULL;
+	}
+
+	if (__builtin_add_overflow(len, ptrsLen, &len)) {
+		return NULL;
+	}
 
 	storage = vm_kmalloc(len);
 	if (storage == NULL) {
@@ -1038,13 +1047,13 @@ static void *proc_copyargs(char **args)
 
 	kargs[argc] = NULL;
 
-	p = (char *)storage + (argc + 1U) * sizeof(char *);
+	p = (char *)storage + ptrsLen;
 
 	while (argc-- > 0U) {
-		len = hal_strlen(args[argc]) + 1U;
-		hal_memcpy(p, args[argc], len);
+		argLen = hal_strlen(args[argc]) + 1U;
+		hal_memcpy(p, args[argc], argLen);
 		kargs[argc] = p;
-		p += len;
+		p += argLen;
 	}
 
 	return storage;

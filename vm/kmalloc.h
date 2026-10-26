@@ -20,6 +20,21 @@
 void *vm_kmalloc(size_t size);
 
 
+static inline void *vm_kmallocObjects(size_t nObjs, size_t objSize, size_t extra)
+{
+	size_t bytes;
+	if (__builtin_mul_overflow(nObjs, objSize, &bytes)) {
+		return NULL;
+	}
+
+	if (__builtin_add_overflow(bytes, extra, &bytes)) {
+		return NULL;
+	}
+
+	return vm_kmalloc(bytes);
+}
+
+
 void vm_kfree(void *p);
 
 

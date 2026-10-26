@@ -94,7 +94,7 @@ int proc_portRegister(u32 port, const char *name, oid_t *oid)
 	hash = dcache_strHash(name);
 
 	/* Pre-allocate entry to avoid holding the lock during allocation */
-	entry = vm_kmalloc(sizeof(dcache_entry_t) + hal_strlen(name) + 1U);
+	entry = vm_kmallocObjects(hal_strlen(name) + 1U, 1U, sizeof(dcache_entry_t));
 
 	(void)proc_lockSet(&name_common.lock);
 

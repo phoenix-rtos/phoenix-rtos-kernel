@@ -385,12 +385,7 @@ void vm_pageinfo(meminfo_t *info)
 	pageinfo_t *map = info->page.map;
 
 	if (mapsz != -1) {
-		/* mapsz * sizeof(map[0]) would overflow */
-		if (mapsz < -1 || (size_t)mapsz > (size_t)-1 / sizeof(map[0])) {
-			return;
-		}
-
-		if (vm_mapBelongs(proc_current()->process, map, (size_t)mapsz * sizeof(map[0])) < 0) {
+		if ((mapsz < 0) || (vm_mapBelongsObjects(proc_current()->process, map, (size_t)mapsz, sizeof(map[0])) < 0)) {
 			return;
 		}
 	}
