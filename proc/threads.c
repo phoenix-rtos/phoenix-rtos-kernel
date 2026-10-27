@@ -887,6 +887,7 @@ int proc_threadCreate(process_t *process, startFn_t start, int *id, priority_t p
 	t->exit = 0;
 	t->execdata = NULL;
 	t->wait = NULL;
+	t->lockWait = NULL;
 	t->locks = NULL;
 	t->priorityBase = priority;
 	t->priority = priority;
@@ -1044,6 +1045,26 @@ static void _proc_threadSetPriority(thread_t *thread, priority_t priority)
 }
 
 
+/* Passes a priority change of a lock waiter on to the owners down the chain of locks */
+static void _proc_lockChainPriority(thread_t *waiter)
+{
+	thread_t *t = waiter;
+	lock_t *lock = t->lockWait;
+	priority_t priority;
+
+	while ((lock != NULL) && (t->wait == &lock->queue) && (lock->owner != NULL)) {
+		t = lock->owner;
+		priority = _proc_threadGetPriority(t);
+		if (priority == t->priority) {
+			break;
+		}
+
+		_proc_threadSetPriority(t, priority);
+		lock = t->lockWait;
+	}
+}
+
+
 /* val == PH_GET_PRIO retrieves t priority only */
 int proc_threadPriority(thread_t *t, int val, int *res)
 {
@@ -1088,6 +1109,9 @@ int proc_threadPriority(thread_t *t, int val, int *res)
 		else {
 			/* No action required */
 		}
+
+		/* t may be waiting for a lock (priority set by another thread) */
+		_proc_lockChainPriority(t);
 	}
 
 	priorityBase = (int)t->priorityBase;
@@ -2418,6 +2442,7 @@ static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc
 			/* else: we got the lock, we shouldn't return EINTR */
 		}
 		else {
+			current->lockWait = lock;
 			_proc_threadEnqueue(&lock->queue, timeout, interruptible);
 			/*
 			 * FIXME: too many spinlocks. Make current->exit atomic and shrink the
@@ -2427,6 +2452,7 @@ static int _proc_lockWaitWake(lock_t *lock, u8 interruptible, spinlock_ctx_t *sc
 			err = hal_cpuReschedule(&threads_common.spinlock, scp);
 			hal_spinlockSet(&lock->spinlock, scp);
 			hal_spinlockSet(&threads_common.spinlock, sc);
+			current->lockWait = NULL;
 		}
 
 		if (lock->owner == current) {
@@ -2502,6 +2528,7 @@ static int _proc_lockSetEx(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp, 
 		/* Try to boost owner's priority for the wait phase */
 		if ((lock->attr.protocol == PH_LOCK_PROTO_INHERIT) && (current->priority < lock->owner->priority)) {
 			_proc_threadSetPriority(lock->owner, current->priority);
+			_proc_lockChainPriority(lock->owner);
 		}
 
 		ret = _proc_lockWaitWake(lock, interruptible, &sc, scp, timeout);
@@ -2512,6 +2539,7 @@ static int _proc_lockSetEx(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp, 
 			/* Lock not obtained, revert the potential priority boost */
 			if ((lock->attr.protocol == PH_LOCK_PROTO_INHERIT) && (lock->owner != NULL) && (lock->owner != current)) {
 				_proc_threadSetPriority(lock->owner, _proc_threadGetPriority(lock->owner));
+				_proc_lockChainPriority(lock->owner);
 			}
 		}
 	}
@@ -2653,6 +2681,8 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 
 	/* Restore previous owner priority */
 	_proc_threadSetPriority(owner, _proc_threadGetPriority(owner));
+	/* owner may be waiting for another lock (unlocked by another thread) */
+	_proc_lockChainPriority(owner);
 
 	LIB_ASSERT(current->priority <= current->priorityBase, "pid: %d, tid: %d, basePrio: %d, priority degraded (%d)",
 			(current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current), current->priorityBase,
