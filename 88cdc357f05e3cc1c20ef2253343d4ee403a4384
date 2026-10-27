@@ -1,0 +1,22 @@
+hal/riscv64/cpu.c
+  h_fc26ad17182140 439
+hal/riscv64/gaisler/gr765/gr765.c
+  h_fc26ad17182140 18,60-66
+hal/riscv64/gaisler/grfpga/grfpga.c
+  h_fc26ad17182140 59-63
+hal/riscv64/generic/generic.c
+  h_fc26ad17182140 52-56
+hal/riscv64/riscv64.h
+  h_fc26ad17182140 106-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88cdc357f05e3cc1c20ef2253343d4ee403a4384",
+  "prompts": {},
+  "humans": {
+    "h_fc26ad17182140": {
+      "author": "Lukasz Leczkowski <lukasz.leczkowski@phoenix-rtos.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+proc/threads.c
+  h_fc26ad17182140 1083-1109
+proc/cond.c
+  h_fc26ad17182140 57-58,130-134,137-146,148-149,151-153
+  h_fc26ad17182140 150
+proc/threads.h
+  h_fc26ad17182140 143-145
+include/threads.h
+  h_fc26ad17182140 34-37,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "e1007a302399ccee090a3025bc7a794a5315723f",
+  "prompts": {},
+  "humans": {
+    "h_fc26ad17182140": {
+      "author": "Lukasz Leczkowski <lukasz.leczkowski@phoenix-rtos.com>"
+    }
+  }
+}

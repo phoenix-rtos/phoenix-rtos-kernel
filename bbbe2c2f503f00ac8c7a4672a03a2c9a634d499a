@@ -1,0 +1,19 @@
+.github/workflows/ci.yml
+  s_b5f773088b022b::t_ebbcc46b9c0d76 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "bbbe2c2f503f00ac8c7a4672a03a2c9a634d499a",
+  "prompts": {},
+  "sessions": {
+    "s_b5f773088b022b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fe7c23c-3d89-4f7e-80d7-adbaf591538f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    }
+  }
+}
