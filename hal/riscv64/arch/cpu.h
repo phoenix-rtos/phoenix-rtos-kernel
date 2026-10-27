@@ -33,6 +33,10 @@
 #define SIZE_USTACK (8U * SIZE_PAGE)
 #endif
 
+#define HAL_TLS_VARIANT 1
+#define HAL_TLS_TCBSZ   0U
+#define HAL_TLS_ARM_M   0
+
 /* Supervisor Cause Register */
 #define SCAUSE_INTR (1ULL << 63)
 
