@@ -396,10 +396,7 @@ void _proc_setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
 {
 	LIB_ASSERT(_thread_called(caller) == NULL, "reply chain not cleared before returning a message");
 
-	/* still pushed unless thread_destroy() took it back for its unlocked xfer_abort() */
-	if (caller->scPushed != NULL) {
-		_sc_return(recv, caller);
-	}
+	_sc_return(recv, caller);
 	caller->state = READY;
 
 	if (caller->onReady == 0U) {
@@ -443,7 +440,8 @@ static void thread_destroy(thread_t *thread)
 {
 	process_t *process;
 	spinlock_ctx_t sc;
-	thread_t *reply;
+	thread_t *reply, *current;
+	sched_context_t *donated;
 
 	trace_eventThreadEnd(thread);
 
@@ -481,15 +479,22 @@ static void thread_destroy(thread_t *thread)
 	/* every caller we still owe a response gets -EPIPE */
 	while (thread->reply != NULL) {
 		reply = thread->reply;
+		current = _proc_current();
 
 		LIB_ASSERT(reply != thread, "thread replies to itself?");
 		LIB_ASSERT(reply->scActive == NULL, "reply has an active sc?");
 
+		/*
+		 * The ghost never runs, so the call moves to us for xfer_abort(): left
+		 * on the ghost or returned early, its SC would let a thread of middle
+		 * priority preempt the cleanup while the reply waits.
+		 */
+		donated = reply->scPushed;
 		_proc_clearReplyChain(reply);
-
-		if (reply->scPushed != NULL) {
-			_sc_return(thread, reply);
-		}
+		_sc_return(thread, reply);
+		_proc_setReplyChain(reply, current);
+		_sc_donate(reply, current, donated);
+		_threads_setCurrent(current);
 
 		hal_spinlockClear(&threads_spinlock, &sc);
 
@@ -501,7 +506,14 @@ static void thread_destroy(thread_t *thread)
 
 		hal_spinlockSet(&threads_spinlock, &sc);
 
-		_proc_setCallerMsgReturn(thread, reply, -EPIPE);
+		_proc_clearReplyChain(reply);
+		_proc_setCallerMsgReturn(current, reply, -EPIPE);
+		_threads_setCurrent(current);
+
+		if (reply->priority < current->priority) {
+			(void)hal_cpuReschedule(&threads_spinlock, &sc);
+			hal_spinlockSet(&threads_spinlock, &sc);
+		}
 	}
 
 	hal_spinlockClear(&threads_spinlock, &sc);

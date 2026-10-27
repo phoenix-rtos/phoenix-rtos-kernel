@@ -50,6 +50,9 @@ int proc_respondAndRecv(u32 port, msg_t *msg, msg_rid_t *rid);
 void _msg_init(vm_map_t *kmap, vm_object_t *kernel);
 
 
+void _proc_setReplyChain(thread_t *from, thread_t *to);
+
+
 void _proc_clearReplyChain(thread_t *from);
 
 

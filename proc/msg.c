@@ -53,7 +53,7 @@ static void _msgHdrRead(const msg_t *msg, msgHdr_t *hdr)
 }
 
 
-static void _setReplyChain(thread_t *from, thread_t *to)
+void _proc_setReplyChain(thread_t *from, thread_t *to)
 {
 	LIB_ASSERT_ALWAYS(from->blockedKind == WAIT_NOTHING, "tid %d already waits, kind %u",
 			proc_getTid(from), from->blockedKind);
@@ -63,7 +63,7 @@ static void _setReplyChain(thread_t *from, thread_t *to)
 }
 
 
-/* Undoes _setReplyChain() */
+/* Undoes _proc_setReplyChain() */
 void _proc_clearReplyChain(thread_t *from)
 {
 	thread_t *called = _thread_called(from);
@@ -166,7 +166,7 @@ static int proc_send_ex(u32 port, msg_t *msg, int returnable)
 		xfer_abort(caller);
 	}
 
-	_setReplyChain(caller, recv);
+	_proc_setReplyChain(caller, recv);
 	_sc_donate(caller, recv, caller->scActive);
 
 	caller->ipc.msgPtr = msg;
@@ -288,7 +288,7 @@ int proc_forward(u32 port, msg_t *msg, msg_rid_t rid)
 	/* TODO: optimize these */
 	_proc_clearReplyChain(caller);
 	_sc_return(recv, caller);
-	_setReplyChain(caller, forward);
+	_proc_setReplyChain(caller, forward);
 	_sc_donate(caller, forward, donated);
 
 	caller->state = BLOCKED_ON_REPLY;
