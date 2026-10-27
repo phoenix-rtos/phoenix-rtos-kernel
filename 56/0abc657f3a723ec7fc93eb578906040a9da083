@@ -1,0 +1,26 @@
+proc/threads.c
+  s_b2562b154c5f77::t_bac891d1cb5ccc 2530
+  s_b2562b154c5f77::t_3bdba84de72ac6 2454
+  s_b2562b154c5f77::t_a5da7a7dc08a9a 2444
+  s_b2562b154c5f77::t_26b757541e7bfb 1048-1066
+  s_b2562b154c5f77::t_38a9024c24060c 2541
+  s_b2562b154c5f77::t_81946ada00d906 1111-1113
+proc/threads.h
+  s_b2562b154c5f77::t_bd21ada12b7d80 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "560abc657f3a723ec7fc93eb578906040a9da083",
+  "prompts": {},
+  "sessions": {
+    "s_b2562b154c5f77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d06d8cc-d657-408a-985a-2d351ff03c32",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Marek Białowąs <marek.bialowas@phoenix-rtos.com>"
+    }
+  }
+}
