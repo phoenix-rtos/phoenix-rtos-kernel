@@ -72,10 +72,11 @@ static struct {
 	intr_handler_t pendsvHandler;
 #endif
 
-	sched_context_t *ghosts;
+	thread_t *ghosts;
 	port_t *ghostPorts;
 
 	thread_t *reaper;
+	thread_t *reaperThread; /* the thread running proc_reap(), NULL until it starts */
 
 	/* Debug */
 	unsigned char stackCanary[16];
@@ -366,6 +367,43 @@ static thread_t *_threads_kernelCaller(thread_t *t)
 }
 
 
+/*
+ * A ghost never runs again, so the threads waiting on it wait for whoever
+ * destroys it. Blocking it on that thread donates their SCs there.
+ */
+static void _threads_ghostBlockOn(thread_t *ghost, thread_t *destroyer)
+{
+	_sc_reclaim(ghost);
+
+	if ((destroyer != NULL) && (_sc_reaches(destroyer, ghost) == 0)) {
+		_thread_setBlocked(ghost, WAIT_REAP, destroyer);
+		_sc_donate(ghost, destroyer, _sc_best(ghost));
+	}
+}
+
+
+/*
+ * The destroyer blocking on a lock can close a cycle through a ghost waiting
+ * for it. The ghost stops waiting then, so the cycle never forms.
+ */
+static void _threads_ghostBreakCycle(thread_t *owner, const thread_t *current)
+{
+	thread_t *t = owner, *ghost = NULL;
+	unsigned int depth;
+
+	for (depth = 0; (depth < BWI_MAX_CHAIN_DEPTH) && (t != NULL) && (t != current); depth++) {
+		if (t->blockedKind == WAIT_REAP) {
+			ghost = t;
+		}
+		t = _sc_blockedOn(t);
+	}
+
+	if ((t == current) && (ghost != NULL)) {
+		_sc_reclaim(ghost);
+	}
+}
+
+
 void _threads_ghostAdd(thread_t *t)
 {
 	thread_t *r;
@@ -379,9 +417,15 @@ void _threads_ghostAdd(thread_t *t)
 	t->state = GHOST;
 
 	LIB_ASSERT(t->scActive != NULL, "ghosting a thread with no SC");
+	LIB_ASSERT(t->blockedKind == WAIT_NOTHING, "ghosting a blocked thread, kind %u", t->blockedKind);
 
 	(void)_readyUnlink(t);
-	LIST_ADD(&threads_common.ghosts, t->scActive);
+	LIST_ADD_EX(&threads_common.ghosts, t, gnext, gprev);
+
+	/* t needs nothing itself any more, only the threads waiting on it do */
+	t->scOwn->priority = MAX_PRIO;
+	_threads_ghostBlockOn(t, threads_common.reaperThread);
+
 	(void)_proc_threadWakeup(&threads_common.reaper);
 }
 
@@ -413,9 +457,10 @@ void _proc_setCallerMsgReturn(thread_t *recv, thread_t *caller, int retval)
 	}
 	hal_cpuSetReturnValue(caller->context, (void *)(ptr_t)retval);
 
-	LIB_ASSERT(recv->scActive != NULL, "recv sched null?");
+	/* recv is blocked if it is a ghost answering from thread_destroy() */
+	LIB_ASSERT((recv->scActive != NULL) || (recv->scPushed != NULL), "recv sched null?");
 	LIB_ASSERT(caller->state == READY, "caller should be ready!");
-	LIB_ASSERT(recv->scActive->t == recv, "badly linked sched context");
+	LIB_ASSERT((recv->scActive == NULL) || (recv->scActive->t == recv), "badly linked sched context");
 }
 
 
@@ -441,9 +486,22 @@ static void thread_destroy(thread_t *thread)
 	process_t *process;
 	spinlock_ctx_t sc;
 	thread_t *reply, *current;
-	sched_context_t *donated;
 
 	trace_eventThreadEnd(thread);
+
+	hal_spinlockSet(&threads_spinlock, &sc);
+	current = _proc_current();
+
+	if (_thread_called(thread) != NULL) {
+		_sc_reclaim(thread);
+		_proc_clearReplyChain(thread);
+	}
+
+	/* the last reference may be dropped by someone other than the reaper */
+	_threads_ghostBlockOn(thread, current);
+	_threads_setCurrent(current);
+
+	hal_spinlockClear(&threads_spinlock, &sc);
 
 	/* No need to protect thread->locks access with threads_spinlock */
 	/* The destroyed thread is a ghost and no thread (except for the current one) can access it */
@@ -459,10 +517,7 @@ static void thread_destroy(thread_t *thread)
 	/* may still be sleeping on a port's queue */
 	_proc_threadUnlink(thread);
 
-	/* scOwn is freed below, so it must not be left donated to someone */
-	_sc_reclaim(thread);
-
-	/* same for SCs donated to us, they belong to threads that still wait */
+	/* SCs donated by waiting senders belong to threads that still wait */
 	_portDropBoosts(thread);
 	_portBusyRemove(thread);
 
@@ -472,42 +527,26 @@ static void thread_destroy(thread_t *thread)
 	}
 	thread->granted = NULL;
 
-	if (_thread_called(thread) != NULL) {
-		_proc_clearReplyChain(thread);
-	}
-
 	/* every caller we still owe a response gets -EPIPE */
 	while (thread->reply != NULL) {
 		reply = thread->reply;
-		current = _proc_current();
 
 		LIB_ASSERT(reply != thread, "thread replies to itself?");
 		LIB_ASSERT(reply->scActive == NULL, "reply has an active sc?");
-
-		/*
-		 * The ghost never runs, so the call moves to us for xfer_abort(): left
-		 * on the ghost or returned early, its SC would let a thread of middle
-		 * priority preempt the cleanup while the reply waits.
-		 */
-		donated = reply->scPushed;
-		_proc_clearReplyChain(reply);
-		_sc_return(thread, reply);
-		_proc_setReplyChain(reply, current);
-		_sc_donate(reply, current, donated);
-		_threads_setCurrent(current);
 
 		hal_spinlockClear(&threads_spinlock, &sc);
 
 		/*
 		 * Release reply buffers before waking the reply. Safe to
-		 * be done without spinlock when done before _setCallerMsgReturn()
+		 * be done without spinlock when done before _setCallerMsgReturn().
+		 * The reply's SC reaches us through the ghost meanwhile.
 		 */
 		xfer_abort(reply);
 
 		hal_spinlockSet(&threads_spinlock, &sc);
 
 		_proc_clearReplyChain(reply);
-		_proc_setCallerMsgReturn(current, reply, -EPIPE);
+		_proc_setCallerMsgReturn(thread, reply, -EPIPE);
 		_threads_setCurrent(current);
 
 		if (reply->priority < current->priority) {
@@ -515,6 +554,10 @@ static void thread_destroy(thread_t *thread)
 			hal_spinlockSet(&threads_spinlock, &sc);
 		}
 	}
+
+	/* scOwn is freed below, so it must not be left donated to someone */
+	_sc_reclaim(thread);
+	_threads_setCurrent(current);
 
 	hal_spinlockClear(&threads_spinlock, &sc);
 
@@ -1288,21 +1331,21 @@ void proc_threadsDestroy(thread_t **threads, const thread_t *except)
 
 void proc_reap(void)
 {
-	sched_context_t *ghost;
 	spinlock_ctx_t sc;
 	thread_t *t = NULL;
 	port_t *p = NULL;
 
 	hal_spinlockSet(&threads_spinlock, &sc);
 
+	threads_common.reaperThread = _proc_current();
+
 	while ((threads_common.ghosts == NULL) && (threads_common.ghostPorts == NULL)) {
 		(void)_proc_threadWait(&threads_common.reaper, 0, &sc);
 	}
 
 	if (threads_common.ghosts != NULL) {
-		ghost = threads_common.ghosts;
-		LIST_REMOVE(&threads_common.ghosts, ghost);
-		t = ghost->t;
+		t = threads_common.ghosts;
+		LIST_REMOVE_EX(&threads_common.ghosts, t, gnext, gprev);
 	}
 
 	if (threads_common.ghostPorts != NULL) {
@@ -2214,6 +2257,7 @@ static int _proc_lockSet(lock_t *lock, u8 interruptible, spinlock_ctx_t *scp)
 				lock->name, (current->process != NULL) ? process_getPid(current->process) : 0, proc_getTid(current));
 
 		if (lock->attr.protocol == PH_LOCK_PROTO_INHERIT) {
+			_threads_ghostBreakCycle(lock->owner, current);
 			donated = current->scActive;
 			_thread_setBlocked(current, WAIT_LOCK, lock);
 			_sc_donate(current, lock->owner, donated);
@@ -2357,11 +2401,6 @@ static int _proc_lockUnlock(lock_t *lock, int doForceUnlock)
 
 				/* FIXME: this is not ideal, as it extends the critical section of spinlocks. Come up with a way to do this interruptibly */
 				_sc_migrate(owner, lock->queue, lock->owner);
-
-				_sc_recalculate(lock->owner);
-
-				/* find new best SC for old owner, as owner->scActive may be dangling now */
-				_sc_recalculate(owner);
 			}
 		}
 
@@ -2868,6 +2907,7 @@ int _threads_init(vm_map_t *kmap, vm_object_t *kernel)
 
 	threads_common.kmap = kmap;
 	threads_common.ghosts = NULL;
+	threads_common.reaperThread = NULL;
 	threads_common.ghostPorts = NULL;
 	threads_common.reaper = NULL;
 	threads_common.utcoffs = 0;

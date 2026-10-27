@@ -71,6 +71,7 @@ static void _sc_unblock(thread_t *t)
 	 */
 	_thread_clearBlocked(t, WAIT_RECV);
 	_thread_clearBlocked(t, WAIT_LOCK);
+	_thread_clearBlocked(t, WAIT_REAP);
 }
 
 
@@ -83,6 +84,7 @@ thread_t *_sc_blockedOn(thread_t *t)
 
 		case WAIT_RECV:
 		case WAIT_CALL:
+		case WAIT_REAP:
 			LIB_ASSERT_ALWAYS(t->blockedOn != NULL, "tid %d: WAIT kind %u with no target",
 					proc_getTid(t), t->blockedKind);
 			return (thread_t *)t->blockedOn;
@@ -217,10 +219,11 @@ void _sc_donate(thread_t *from, thread_t *to, sched_context_t *sc)
 }
 
 
-/* to must no longer be blocked on anyone. */
+/* to must no longer be blocked on anyone. from may have passed the SC on (a ghost does). */
 void _sc_return(thread_t *from, thread_t *to)
 {
-	LIB_ASSERT((to->scPushed != NULL) && (to->scPushed->t == from), "returning an SC that from doesn't hold");
+	LIB_ASSERT((to->scPushed != NULL) && ((to->scPushed->t == from) || (from->scPushed == to->scPushed)),
+			"returning an SC that from doesn't hold");
 	LIB_ASSERT(_thread_called(to) == NULL, "_sc_return but called not cleared?");
 
 	_sc_pop(to, from);
@@ -229,15 +232,20 @@ void _sc_return(thread_t *from, thread_t *to)
 	_sc_propagate(from);
 
 	LIB_ASSERT(to->scActive != NULL, "returned an SC to an unschedulable thread");
-	LIB_ASSERT(from->scActive != NULL, "returning an SC left from unschedulable");
+	LIB_ASSERT((from->scActive != NULL) || (from->scPushed != NULL), "returning an SC left from unschedulable");
 }
 
 
-/* WARN: pushed SCs on queue must be on from->scDonated list */
+/* Moves the SCs pushed by threads on queue from one holder to another. to must not be blocked. */
 void _sc_migrate(thread_t *from, thread_t *queue, thread_t *to)
 {
 	thread_t *t = queue->qnext;
 	sched_context_t *sc;
+
+	/* from may pass the best of them on (a ghost does), so take that back first */
+	if (from->scPushed != NULL) {
+		_sc_pop(from, _sc_blockedOn(from));
+	}
 
 	while (t != queue) {
 		sc = t->scPushed;
@@ -251,4 +259,7 @@ void _sc_migrate(thread_t *from, thread_t *queue, thread_t *to)
 
 		t = t->qnext;
 	}
+
+	_sc_recalculate(to);
+	_sc_propagate(from);
 }

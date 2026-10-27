@@ -49,6 +49,7 @@
 #define WAIT_LOCK    1U /* a PROTO_INHERIT lock_t, we wait for its owner */
 #define WAIT_RECV    2U /* thread_t, a busy port receiver */
 #define WAIT_CALL    3U /* thread_t, the IPC callee serving our message */
+#define WAIT_REAP    4U /* thread_t, a ghost waits for the thread that will destroy it */
 
 
 typedef struct _xferBuf_t {
@@ -90,6 +91,9 @@ typedef struct _thread_t {
 	struct _thread_t *qnext;
 	struct _thread_t *qprev;
 
+	struct _thread_t *gnext; /* threads_common.ghosts linkage */
+	struct _thread_t *gprev;
+
 	int refs;
 
 	struct _thread_t **wait;
@@ -117,7 +121,7 @@ typedef struct _thread_t {
 	unsigned int priorityBase : 4;
 	unsigned int priority : 4;
 	unsigned int state : 4;
-	unsigned int blockedKind : 2;
+	unsigned int blockedKind : 3;
 	unsigned int interruptible : 1;
 	unsigned int exit : 2;
 	unsigned int ipcInterrupted : 1;

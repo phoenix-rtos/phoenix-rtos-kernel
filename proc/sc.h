@@ -87,7 +87,7 @@ void _sc_return(struct _thread_t *from, struct _thread_t *to);
 void _sc_reclaim(struct _thread_t *t);
 
 
-/* Repoints SCs pushed by threads on queue from one holder to another. */
+/* Repoints SCs pushed by threads on queue from one holder to another and updates both. */
 void _sc_migrate(struct _thread_t *from, struct _thread_t *queue, struct _thread_t *to);
 
 #endif
