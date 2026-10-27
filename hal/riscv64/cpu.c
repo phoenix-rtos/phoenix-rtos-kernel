@@ -183,7 +183,7 @@ int hal_cpuCreateContext(cpu_context_t **nctx, startFn_t start, void *kstack, si
 	if (ustack != NULL) {
 		ctx->sp = (u64)ustack;
 		ctx->sstatus = (csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SUM) & ~(SSTATUS_SPP | SSTATUS_FS);
-		ctx->tp = tls->tls_base;
+		ctx->tp = tls->tp;
 	}
 	else {
 		ctx->sstatus = (csr_read(sstatus) | SSTATUS_SPIE | SSTATUS_SPP) & ~SSTATUS_FS;
@@ -470,5 +470,5 @@ void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
 	(void)ctx;
 
-	__asm__ volatile("mv tp, %0" ::"r"(tls->tls_base));
+	__asm__ volatile("mv tp, %0" ::"r"(tls->tp));
 }

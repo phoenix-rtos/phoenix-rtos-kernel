@@ -28,11 +28,10 @@
 
 
 typedef struct _hal_tls_t {
-	ptr_t tls_base;
-	ptr_t arm_m_tls;
-	size_t tdata_sz;
-	size_t tbss_sz;
-	size_t tls_sz;
+	ptr_t tp;
+	void *base;
+	ptr_t *arm_m_tls;
+	size_t alloc_sz;
 } hal_tls_t;
 
 

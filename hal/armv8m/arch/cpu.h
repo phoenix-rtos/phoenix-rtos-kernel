@@ -23,6 +23,9 @@
 #define SIZE_USTACK (3U * SIZE_PAGE)
 #endif
 
+#define HAL_TLS_VARIANT 1
+#define HAL_TLS_TCBSZ   8U
+
 #ifndef SIZE_KSTACK
 #define SIZE_KSTACK (4U * SIZE_PAGE)
 #endif
