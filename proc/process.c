@@ -1506,6 +1506,11 @@ int proc_vfork(void)
 	spawn->state = FORKING;
 	(void)proc_threadWakeup(&spawn->wq);
 
+	/*
+	 * FIXME: only the child's exec, exit or copy wakes us. A child killed before
+	 * that (a group SIGKILL during fork, as in msg_ctrlc.fork_storm) never does,
+	 * and we sleep here for good, killed but not interruptible.
+	 */
 	do {
 		/*
 		 * proc_threadWait call stores context on the stack - this allows to execute child

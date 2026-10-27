@@ -201,14 +201,49 @@ void _portReleaseDying(thread_t *recv)
 
 
 /*
+ * A waiting sender boosts the busy receiver of lowest priority, as the one most
+ * likely to keep it waiting. A dying receiver will never serve it, so it is
+ * skipped, and so is one that waits on the sender already.
+ */
+static void _portBoost(port_t *p, thread_t *caller)
+{
+	thread_t *recv = NULL, *t = p->busy;
+
+	if (t == NULL) {
+		return;
+	}
+
+	do {
+		if ((t->exit == 0U) && (t->state != GHOST) && ((recv == NULL) || (t->priority > recv->priority)) &&
+				(_sc_reaches(t, caller) == 0)) {
+			recv = t;
+		}
+		t = t->bnext;
+	} while (t != p->busy);
+
+	if (recv != NULL) {
+		_sc_blockOnRecv(caller, recv);
+		_sc_donate(caller, recv, caller->scActive);
+	}
+}
+
+
+/*
  * Takes back the SCs donated by waiting senders, so recv can die without
- * freeing an SC a sender still expects back. The senders keep waiting.
+ * freeing an SC a sender still expects back. The senders keep waiting and
+ * boost another busy receiver of their port instead.
  */
 void _portDropBoosts(thread_t *recv)
 {
-	while (recv->boosters != NULL) {
+	thread_t *t;
+
+	while ((t = recv->boosters) != NULL) {
 		/* clears the WAIT_RECV edge, which takes the sender off the list */
-		_sc_reclaim(recv->boosters);
+		_sc_reclaim(t);
+
+		if (t->waitPort != NULL) {
+			_portBoost(t->waitPort, t);
+		}
 	}
 }
 
@@ -262,7 +297,6 @@ static int _portOwnerGone(const port_t *p)
 static int _portWait(port_t *p, thread_t *caller, int kernel, spinlock_ctx_t *scp)
 {
 	spinlock_ctx_t tsc;
-	thread_t *recv = NULL, *t;
 	int err;
 
 	hal_spinlockSet(&threads_spinlock, &tsc);
@@ -280,7 +314,8 @@ static int _portWait(port_t *p, thread_t *caller, int kernel, spinlock_ctx_t *sc
 
 	/*
 	 * Nothing wakes a sender when the owner loses its last receiver later. A user
-	 * call gets -EINVAL once the reaper closes the port, but a call made by the
+	 * call gets -EINVAL once the owner's threads are destroyed and the port is
+	 * closed (thread_destroy()), but a call made by the
 	 * kernel may come from the reaper itself (closing files of a dead process),
 	 * so it checks again.
 	 */
@@ -288,21 +323,7 @@ static int _portWait(port_t *p, thread_t *caller, int kernel, spinlock_ctx_t *sc
 			(kernel != 0) ? (_proc_gettimeRaw() + PORT_KERNEL_RECHECK_US) : 0);
 	_threads_enqueued(caller);
 
-	t = p->busy;
-	if (t != NULL) {
-		/* find lowest-prio busy receiver to boost */
-		do {
-			if (((recv == NULL) || (t->priority > recv->priority)) && (_sc_reaches(t, caller) == 0)) {
-				recv = t;
-			}
-			t = t->bnext;
-		} while (t != p->busy);
-
-		if (recv != NULL) {
-			_sc_blockOnRecv(caller, recv);
-			_sc_donate(caller, recv, caller->scActive);
-		}
-	}
+	_portBoost(p, caller);
 
 	/* tsc and scp are swapped intentionally, we need to enable interrupts */
 	hal_spinlockClear(&p->spinlock, &tsc);
