@@ -446,6 +446,10 @@ init_syspage:
 	orr r0, #1 << 31
 	mcr p15, 0, r0, c9, c12, 1
 
+	/* ipcbench: let user mode read the cycle counter (PMUSERENR.EN) */
+	mov r0, #1
+	mcr p15, 0, r0, c9, c14, 0
+
 	/* Enable SMP */
 	mrc p15, 0, r1, c1, c0, 1
 	orr r1, r1, #(1 << 6)
