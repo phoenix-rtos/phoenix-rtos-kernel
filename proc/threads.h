@@ -408,4 +408,8 @@ void _threads_readyAdd(thread_t *t);
 void _threads_ghostAdd(thread_t *t);
 
 
+/* 1 if every thread of proc is dying or a ghost. */
+int _proc_threadsGone(const process_t *proc);
+
+
 #endif

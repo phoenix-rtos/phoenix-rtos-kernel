@@ -253,26 +253,8 @@ static thread_t *_portClaimReceiver(port_t *p, thread_t *caller)
  */
 static int _portOwnerGone(const port_t *p)
 {
-	const thread_t *t;
-
-	if (p->owner == NULL) {
-		/* kernel port: no process to lose */
-		return 0;
-	}
-
-	t = p->owner->threads;
-	if (t == NULL) {
-		return 1;
-	}
-
-	do {
-		if ((t->exit == 0U) && (t->state != GHOST)) {
-			return 0;
-		}
-		t = t->procnext;
-	} while (t != p->owner->threads);
-
-	return 1;
+	/* a kernel port has no process to lose */
+	return (p->owner != NULL) ? _proc_threadsGone(p->owner) : 0;
 }
 
 

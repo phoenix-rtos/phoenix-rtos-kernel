@@ -404,6 +404,25 @@ static void _threads_ghostBreakCycle(thread_t *owner, const thread_t *current)
 }
 
 
+int _proc_threadsGone(const process_t *proc)
+{
+	const thread_t *t = proc->threads;
+
+	if (t == NULL) {
+		return 1;
+	}
+
+	do {
+		if ((t->exit == 0U) && (t->state != GHOST)) {
+			return 0;
+		}
+		t = t->procnext;
+	} while (t != proc->threads);
+
+	return 1;
+}
+
+
 void _threads_ghostAdd(thread_t *t)
 {
 	thread_t *r;
@@ -483,9 +502,10 @@ __attribute__((noreturn)) void threads_halt(void)
 
 static void thread_destroy(thread_t *thread)
 {
-	process_t *process;
+	process_t *process = thread->process;
 	spinlock_ctx_t sc;
 	thread_t *reply, *current;
+	int gone;
 
 	trace_eventThreadEnd(thread);
 
@@ -501,7 +521,18 @@ static void thread_destroy(thread_t *thread)
 	_threads_ghostBlockOn(thread, current);
 	_threads_setCurrent(current);
 
+	gone = ((process != NULL) && (_proc_threadsGone(process) != 0)) ? 1 : 0;
+
 	hal_spinlockClear(&threads_spinlock, &sc);
+
+	/*
+	 * Nobody will receive on its ports again. Close them now, while the SCs
+	 * of the senders waiting there still reach us through the ghost, rather
+	 * than after the address space is gone (process_destroy()).
+	 */
+	if (gone != 0) {
+		proc_portsDestroy(process);
+	}
 
 	/* No need to protect thread->locks access with threads_spinlock */
 	/* The destroyed thread is a ghost and no thread (except for the current one) can access it */
@@ -569,7 +600,6 @@ static void thread_destroy(thread_t *thread)
 
 	xfer_releaseIpcBuf(thread);
 
-	process = thread->process;
 	if (process != NULL) {
 		hal_spinlockSet(&threads_spinlock, &sc);
 
