@@ -645,7 +645,7 @@ void hal_cpuTlsSet(hal_tls_t *tls, cpu_context_t *ctx)
 {
 	(void)ctx;
 	hal_tlbFlushLocal(NULL);
-	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->tbss_sz + tls->tdata_sz, VADDR_KERNEL - tls->tls_base + tls->tbss_sz + tls->tdata_sz, DESCR_TLS);
+	_cpu_gdtInsert(hal_cpuGetTlsIndex(), tls->tls_base + tls->self_ptr_offs, VADDR_KERNEL - tls->tls_base + tls->self_ptr_offs, DESCR_TLS);
 	/* Reload the hidden gs register*/
 	hal_cpuReloadTlsSegment();
 }

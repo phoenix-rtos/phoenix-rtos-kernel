@@ -79,7 +79,7 @@ typedef struct _process_t {
 	struct sigaction *sigactions; /* indices are offset by 1, as signal 0 is invalid */
 
 	void *got;
-	hal_tls_t tls;
+	hal_tls_t tlsTemplate;
 } process_t;
 
 
@@ -146,10 +146,15 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel);
 void process_dumpException(unsigned int n, exc_context_t *ctx);
 
 
-int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map);
+/*
+ * Initialize thread's TLS structure pointed to by `dest` and acquire resources if necessary.
+ * `process` may be NULL, in which case thread will have no TLS.
+ */
+int process_tlsInit(process_t *process, hal_tls_t *tls);
 
 
-int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map);
+/* Free resources held by TLS. If TLS holds no resources, this is no-op. */
+void process_tlsDestroy(process_t *process, hal_tls_t *tls);
 
 
 #endif

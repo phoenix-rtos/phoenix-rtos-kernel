@@ -48,6 +48,18 @@ typedef struct _process_spawn_t {
 } process_spawn_t;
 
 
+/* Structure for holding TLS info read from ELF file */
+typedef struct {
+	ptr_t tdata_base;
+	size_t tdata_sz;
+	size_t tdata_align;
+	ptr_t tbss_base; /* If both are given, tdata_base has priority over tbss_base */
+	size_t tbss_sz;
+	size_t tbss_align;
+	ptr_t arm_m_tls;
+} process_tlsInfo_t;
+
+
 static struct {
 	vm_map_t *kmap;
 	vm_object_t *kernel;
@@ -209,12 +221,7 @@ int proc_start(startFn_t start, void *arg, const char *path)
 
 	process->sigpend = 0;
 	process->sigactions = NULL;
-	process->tls.tls_base = 0;
-	process->tls.tbss_sz = 0;
-	process->tls.tdata_sz = 0;
-	process->tls.tls_sz = 0;
-	process->tls.arm_m_tls = 0;
-
+	hal_memset(&process->tlsTemplate, 0, sizeof(process->tlsTemplate));
 #ifndef NOMMU
 	process->lazy = 0;
 #else
@@ -311,21 +318,126 @@ static void process_illegal(unsigned int n, exc_context_t *ctx)
 }
 
 
-static void process_tlsAssign(hal_tls_t *process_tls, hal_tls_t *tls, ptr_t tbssAddr)
+static int process_tlsAssign(process_t *process, const process_tlsInfo_t *info)
 {
-	if (tls->tls_base != 0U) {
-		process_tls->tls_base = tls->tls_base;
+	const size_t ptrSizeMask = sizeof(ptr_t) - 1U;
+	ptr_t base;
+	size_t bssOffs, selfPtrOffs, totalSize, allocSz;
+
+	if ((info->tdata_sz == 0U) && (info->tbss_sz == 0U)) {
+		/* No TLS requested */
+		hal_memset(&process->tlsTemplate, 0, sizeof(process->tlsTemplate));
+		return EOK;
 	}
-	else if (tbssAddr != 0U) {
-		process_tls->tls_base = tbssAddr;
+
+	if (info->tdata_sz != 0U) {
+		if (info->tdata_base == 0U) {
+			/* TLS data is of nonzero size, but pointer to it not given - file is erroneous */
+			return -ENOEXEC;
+		}
+
+		/* Ensure the base pointer is within process' address space */
+		if (vm_mapBelongs(process, (void *)info->tdata_base, info->tdata_sz) < 0) {
+			return -EFAULT;
+		}
+	}
+
+	if ((info->tdata_align > SIZE_PAGE) || (info->tbss_align > SIZE_PAGE)) {
+		/* We cannot ensure alignment bigger than size of 1 page, treat it as format error */
+		return -ENOEXEC;
+	}
+
+	if (info->tdata_base != 0U) {
+		base = info->tdata_base;
+	}
+	else if (info->tbss_base != 0U) {
+		base = info->tbss_base;
 	}
 	else {
-		process_tls->tls_base = 0;
+		base = 0U;
 	}
-	process_tls->tdata_sz = tls->tdata_sz;
-	process_tls->tbss_sz = tls->tbss_sz;
-	process_tls->tls_sz = (tls->tbss_sz + tls->tdata_sz + sizeof(void *) + sizeof(void *) - 1U) & ~(sizeof(void *) - 1U);
-	process_tls->arm_m_tls = tls->arm_m_tls;
+
+	/* Note: because tdata is at the start of the page, its alignment is always ensured */
+	bssOffs = info->tdata_sz;
+	if (info->tbss_align > 1U) {
+		if ((info->tbss_align & (info->tbss_align - 1U)) != 0U) {
+			/* Alignment must be a power of 2 per spec */
+			return -ENOEXEC;
+		}
+
+		if (__builtin_add_overflow(bssOffs, info->tbss_align - 1U, &bssOffs)) {
+			return -ENOEXEC;
+		}
+
+		bssOffs &= ~(info->tbss_align - 1U);
+	}
+
+	if (__builtin_add_overflow(bssOffs, info->tbss_sz, &selfPtrOffs)) {
+		return -ENOEXEC;
+	}
+
+	/* At the end of TLS there must be a pointer to itself */
+	if (__builtin_add_overflow(selfPtrOffs, ptrSizeMask, &selfPtrOffs)) {
+		return -EINVAL;
+	}
+
+	selfPtrOffs &= ~ptrSizeMask;
+	if (__builtin_add_overflow(selfPtrOffs, sizeof(ptr_t), &totalSize)) {
+		return -EINVAL;
+	}
+
+	allocSz = round_page(totalSize);
+	if (allocSz == (size_t)-1) {
+		return -EINVAL;
+	}
+
+	process->tlsTemplate.tls_base = base;
+	process->tlsTemplate.arm_m_tls = info->arm_m_tls;
+	process->tlsTemplate.tdata_sz = info->tdata_sz;
+	process->tlsTemplate.self_ptr_offs = selfPtrOffs;
+	process->tlsTemplate.alloc_sz = allocSz;
+	return EOK;
+}
+
+
+int process_tlsInit(process_t *process, hal_tls_t *tls)
+{
+	char *base;
+	hal_tls_t *source = (process == NULL) ? NULL : &process->tlsTemplate;
+
+	if ((source == NULL) || (source->alloc_sz == 0U)) {
+		hal_memset(tls, 0, sizeof(*tls));
+		return EOK;
+	}
+
+	base = vm_mmap(process->mapp, NULL, NULL, source->alloc_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
+	if (base == NULL) {
+		return -ENOMEM;
+	}
+
+	tls->tls_base = (ptr_t)base;
+	tls->arm_m_tls = source->arm_m_tls;
+	tls->tdata_sz = source->tdata_sz;
+	tls->self_ptr_offs = source->self_ptr_offs;
+	tls->alloc_sz = source->alloc_sz;
+	if (source->tls_base != 0U) {
+		hal_memcpy(base, (void *)source->tls_base, source->tdata_sz);
+	}
+
+	/* Zero out to the end of allocated memory (not just .tbss) to avoid kernel memory content leaks */
+	hal_memset(base + source->tdata_sz, 0, tls->alloc_sz - source->tdata_sz);
+	*(ptr_t *)(base + source->self_ptr_offs) = (ptr_t)(base + source->self_ptr_offs);
+	return EOK;
+}
+
+
+void process_tlsDestroy(process_t *process, hal_tls_t *tls)
+{
+	if ((process == NULL) || (tls->alloc_sz == 0U)) {
+		return;
+	}
+
+	(void)vm_munmap(process->mapp, (void *)tls->tls_base, tls->alloc_sz);
 }
 
 
@@ -494,7 +606,7 @@ static int process_validateElf64(void *iehdr, size_t size)
 
 
 /* TODO - adding error handling and unmapping of already mapped segments */
-static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, process_tlsInfo_t *tls)
 {
 	void *vaddr;
 	Elf32_Ehdr *ehdr = iehdr;
@@ -517,12 +629,14 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 	/* Find .tdata and .tbss sections */
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
-			tls->tls_base = (ptr_t)shdr->sh_addr;
+			tls->tdata_base = (ptr_t)shdr->sh_addr;
 			tls->tdata_sz += shdr->sh_size;
+			tls->tdata_align = (size_t)shdr->sh_addralign;
 		}
 		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
-			*tbssAddr = (ptr_t)shdr->sh_addr;
+			tls->tbss_base = (ptr_t)shdr->sh_addr;
 			tls->tbss_sz += shdr->sh_size;
+			tls->tbss_align = (size_t)shdr->sh_addralign;
 		}
 		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
 			tls->arm_m_tls = (ptr_t)shdr->sh_addr;
@@ -587,7 +701,7 @@ static int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 }
 
 
-static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, hal_tls_t *tls, ptr_t *tbssAddr)
+static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_t size, size_t *ustacksz, process_tlsInfo_t *tls)
 {
 	void *vaddr;
 	size_t i, memsz, filesz, misalign;
@@ -609,12 +723,14 @@ static int process_load64(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr
 	/* Find .tdata and .tbss sections */
 	for (i = 0; i < ehdr->e_shnum; i++) {
 		if (hal_strcmp(&snameTab[shdr->sh_name], ".tdata") == 0) {
-			tls->tls_base = (ptr_t)shdr->sh_addr;
+			tls->tdata_base = (ptr_t)shdr->sh_addr;
 			tls->tdata_sz += (size_t)shdr->sh_size;
+			tls->tdata_align = (size_t)shdr->sh_addralign;
 		}
 		else if (hal_strcmp(&snameTab[shdr->sh_name], ".tbss") == 0) {
-			*tbssAddr = (ptr_t)shdr->sh_addr;
+			tls->tbss_base = (ptr_t)shdr->sh_addr;
 			tls->tbss_sz += (size_t)shdr->sh_size;
+			tls->tbss_align = (size_t)shdr->sh_addralign;
 		}
 		else if (hal_strcmp(&snameTab[shdr->sh_name], "armtls") == 0) {
 			tls->arm_m_tls = (ptr_t)shdr->sh_addr;
@@ -686,15 +802,9 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	vm_map_t *map = process->mapp;
 	size_t ustacksz = SIZE_USTACK;
 	int err = EOK;
-	hal_tls_t tlsNew;
-	ptr_t tbssAddr = 0;
+	process_tlsInfo_t tlsNew;
 
-	tlsNew.tls_base = 0; /* NULL */
-	tlsNew.tdata_sz = 0;
-	tlsNew.tbss_sz = 0;
-	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = 0; /* NULL */
-
+	hal_memset(&tlsNew, 0, sizeof(tlsNew));
 	size = round_page(size);
 
 	ehdr = vm_mmap(process_common.kmap, NULL, NULL, size, PROT_READ, o, base, MAP_NONE);
@@ -706,13 +816,13 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		/* 32-bit binary */
 		case 1:
 			*entry = (void *)(ptr_t)((Elf32_Ehdr *)ehdr)->e_entry;
-			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
+			err = process_load32(map, o, base, ehdr, size, &ustacksz, &tlsNew);
 			break;
 
 		/* 64-bit binary */
 		case 2:
 			*entry = (void *)(ptr_t)ehdr->e_entry;
-			err = process_load64(map, o, base, ehdr, size, &ustacksz, &tlsNew, &tbssAddr);
+			err = process_load64(map, o, base, ehdr, size, &ustacksz, &tlsNew);
 			break;
 
 		default:
@@ -725,7 +835,10 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		return err;
 	}
 
-	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
+	err = process_tlsAssign(process, &tlsNew);
+	if (err < 0) {
+		return err;
+	}
 
 	/* Allocate and map user stack */
 	stack = vm_mmap(map, map->pmap.end - ustacksz, NULL, ustacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
@@ -786,8 +899,7 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 	ptr_t *got;
 	struct _reloc reloc[8];
 	size_t stacksz = SIZE_USTACK;
-	hal_tls_t tlsNew;
-	ptr_t tbssAddr = 0;
+	process_tlsInfo_t tlsNew;
 
 	if (o != VM_OBJ_PHYSMEM) {
 		return -ENOEXEC;
@@ -951,27 +1063,25 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 		}
 	}
 
-	tlsNew.tls_base = 0;
-	tlsNew.tdata_sz = 0;
-	tlsNew.tbss_sz = 0;
-	tlsNew.tls_sz = 0;
-	tlsNew.arm_m_tls = 0;
+	hal_memset(&tlsNew, 0, sizeof(tlsNew));
 
 	shdr = (void *)((char *)ehdr + ehdr->e_shoff);
 	/* Perform .tdata, .tbss and .armtls relocations */
 	for (i = 0U; i < ehdr->e_shnum; i++) {
 		shdrCurr = &shdr[i];
 		if (hal_strcmp(&snameTab[shdrCurr->sh_name], ".tdata") == 0) {
-			tlsNew.tls_base = (ptr_t)shdrCurr->sh_addr;
+			tlsNew.tdata_base = (ptr_t)shdrCurr->sh_addr;
 			tlsNew.tdata_sz += shdrCurr->sh_size;
-			if (process_relocate(reloc, relocsz, (char **)&tlsNew.tls_base) < 0) {
+			tlsNew.tdata_align = (size_t)shdr->sh_addralign;
+			if (process_relocate(reloc, relocsz, (char **)&tlsNew.tdata_base) < 0) {
 				return -ENOEXEC;
 			}
 		}
 		else if (hal_strcmp(&snameTab[shdrCurr->sh_name], ".tbss") == 0) {
-			tbssAddr = (ptr_t)shdrCurr->sh_addr;
+			tlsNew.tbss_base = (ptr_t)shdrCurr->sh_addr;
 			tlsNew.tbss_sz += shdrCurr->sh_size;
-			if (process_relocate(reloc, relocsz, (char **)&tbssAddr) < 0) {
+			tlsNew.tbss_align = (size_t)shdr->sh_addralign;
+			if (process_relocate(reloc, relocsz, (char **)&tlsNew.tbss_base) < 0) {
 				return -ENOEXEC;
 			}
 		}
@@ -985,7 +1095,11 @@ static int process_load(process_t *process, vm_object_t *o, off_t base, size_t s
 			/* No action required */
 		}
 	}
-	process_tlsAssign(&process->tls, &tlsNew, tbssAddr);
+
+	err = process_tlsAssign(process, &tlsNew);
+	if (err < 0) {
+		return err;
+	}
 
 	/* Allocate and map user stack */
 	stack = vm_mmap(process->mapp, NULL, NULL, stacksz, PROT_READ | PROT_WRITE | PROT_USER, NULL, -1, MAP_NONE);
@@ -1156,8 +1270,8 @@ static void process_exec(thread_t *current, process_spawn_t *spawn)
 		hal_spinlockClear(&spawn->sl, &sc);
 	}
 
-	if ((err == EOK) && (current->process->tls.tls_base != 0U)) {
-		err = process_tlsInit(&current->tls, &current->process->tls, current->process->mapp);
+	if (err == EOK) {
+		err = process_tlsInit(current->process, &current->tls);
 	}
 
 	if (err != EOK) {
@@ -1456,7 +1570,7 @@ static void process_vforkThread(void *arg)
 	current->execkstack = current->kstack;
 	current->execdata = spawn;
 
-	hal_memcpy(&current->process->tls, &parent->process->tls, sizeof(hal_tls_t));
+	hal_memcpy(&current->process->tlsTemplate, &parent->process->tlsTemplate, sizeof(hal_tls_t));
 	hal_memcpy(&current->tls, &parent->tls, sizeof(hal_tls_t));
 
 	ret = proc_resourcesCopy(parent->process);
@@ -1865,34 +1979,6 @@ int _process_init(vm_map_t *kmap, vm_object_t *kernel)
 	(void)hal_exceptionsSetHandler(EXC_DEFAULT, process_exception);
 	(void)hal_exceptionsSetHandler(EXC_UNDEFINED, process_illegal);
 	return EOK;
-}
-
-
-int process_tlsInit(hal_tls_t *dest, hal_tls_t *source, vm_map_t *map)
-{
-	void *mmapRet;
-	dest->tdata_sz = source->tdata_sz;
-	dest->tbss_sz = source->tbss_sz;
-	dest->tls_sz = round_page(source->tls_sz);
-	dest->arm_m_tls = source->arm_m_tls;
-
-	mmapRet = vm_mmap(map, NULL, NULL, dest->tls_sz, PROT_READ | PROT_WRITE | PROT_USER, NULL, 0, MAP_NONE);
-	if (mmapRet == NULL) {
-		return -ENOMEM;
-	}
-
-	dest->tls_base = (ptr_t)mmapRet;
-	hal_memcpy((void *)dest->tls_base, (void *)source->tls_base, dest->tdata_sz);
-	hal_memset((char *)dest->tls_base + dest->tdata_sz, 0, dest->tbss_sz);
-	/* At the end of TLS there must be a pointer to itself */
-	*(ptr_t *)((dest->tls_base + dest->tdata_sz + dest->tbss_sz + sizeof(ptr_t) - 1U) & ~(sizeof(ptr_t) - 1U)) = dest->tls_base + dest->tdata_sz + dest->tbss_sz;
-	return EOK;
-}
-
-
-int process_tlsDestroy(hal_tls_t *tls, vm_map_t *map)
-{
-	return vm_munmap(map, (void *)tls->tls_base, tls->tls_sz);
 }
 
 

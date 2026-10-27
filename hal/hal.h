@@ -31,8 +31,8 @@ typedef struct _hal_tls_t {
 	ptr_t tls_base;
 	ptr_t arm_m_tls;
 	size_t tdata_sz;
-	size_t tbss_sz;
-	size_t tls_sz;
+	size_t self_ptr_offs;
+	size_t alloc_sz;
 } hal_tls_t;
 
 
